@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1f1a">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>Каменный Бег</title>
 <style>
   :root { --ui: rgba(10, 30, 25, .78); --gold: #ffc94a; }
@@ -738,6 +740,7 @@ function setPause(on) {
   else if (!on && state === 'paused') { state = 'play'; $('pauseScr').classList.remove('show'); last = performance.now(); }
 }
 function togglePause() { setPause(state === 'play'); }
+window.appPause = () => setPause(true); // вызывается Android-обёрткой при сворачивании
 $('playBtn').addEventListener('click', startGame);
 $('againBtn').addEventListener('click', startGame);
 $('restartBtn').addEventListener('click', startGame);
