@@ -24,4 +24,6 @@
 
 Противник: боевые дроиды B1, супердроиды B2 (броня, сдвоенный выстрел) и дроид-командир.
 
-Используется [three.js](https://threejs.org) r149 (MIT, `three.LICENSE`).
+Используется [three.js](https://threejs.org) r149 (MIT, `three.LICENSE`): `three.min.js`, а также `three-addons.js` — GLTFLoader и SkeletonUtils из `examples/jsm`, переписанные под глобальный `THREE`.
+
+Персонажи построены на модели солдата из примеров three.js (`examples/models/gltf/Soldier.glb`, персонаж и анимации Mixamo), встроенной в `models.js`. Клоны, B1 и B2 — переделки этой модели прямо в игре: перекраска текстуры, перестройка геометрии вдоль костей, навесные шлемы, головы и оружие, обратная кинематика рук и ног.
