@@ -1,8 +1,8 @@
 {
-  "name": "styx-game",
+  "name": "garrison-game",
   "version": "0.1.0",
   "private": true,
-  "description": "Игра по миру «Стикс» (Улей) — HTML/JS/Canvas, обёрнута в Capacitor для Android",
+  "description": "Гарнизон — командир воинской части в зомби-апокалипсисе. HTML/JS/Canvas + Capacitor для Android",
   "scripts": {
     "vendor": "node scripts/copy-vendor.js",
     "serve": "npm run vendor && npx --yes http-server www -p 8080 -c-1",

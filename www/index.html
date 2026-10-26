@@ -4,89 +4,127 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
-  <title>S-T-I-K-S: Чужой кластер</title>
+  <title>Гарнизон</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <canvas id="view"></canvas>
 
-  <div id="hud">
-    <div class="stat"><span class="dot hp"></span><div class="bar"><i id="bar-hp" class="hp"></i></div><span id="val-hp"></span></div>
-    <div class="stat"><span class="dot food"></span><div class="bar"><i id="bar-food" class="food"></i></div><span id="val-food"></span></div>
-    <div class="stat"><span class="dot water"></span><div class="bar"><i id="bar-water" class="water"></i></div><span id="val-water"></span></div>
-    <div id="quests-box"><b>Задания</b><div id="quests"></div></div>
+  <!-- База: ресурсы и приказы -->
+  <div id="topbar" class="hidden">
+    <span class="res day"><b id="r-day"></b></span>
+    <span class="res" title="Бойцы"><i class="ico soldier"></i><b id="r-soldiers"></b><small id="r-free"></small></span>
+    <span class="res" title="Раненые"><i class="ico wounded"></i><b id="r-wounded"></b></span>
+    <span class="res" title="Гражданские"><i class="ico civ"></i><b id="r-civ"></b></span>
+    <span class="res" title="АК-74 в оружейке"><i class="ico rifle"></i><b id="r-rifles"></b></span>
+    <span class="res" title="Патроны 5,45"><i class="ico ammo"></i><b id="r-ammo"></b></span>
+    <span class="res" title="Еда, пайков"><i class="ico food"></i><b id="r-food"></b></span>
+    <span class="res" title="Медикаменты"><i class="ico meds"></i><b id="r-meds"></b></span>
+    <span class="res" title="Материалы"><i class="ico mat"></i><b id="r-mat"></b></span>
+    <span class="res threat" title="Угроза орды"><span>Орда</span><span class="meter"><i id="r-threat"></i></span></span>
   </div>
-  <div id="clock"></div>
-  <canvas id="minimap" width="120" height="120"></canvas>
+  <div id="base-actions" class="hidden">
+    <button id="b-sortie" class="primary">Вылазка</button>
+    <button id="b-personnel">Личный состав</button>
+    <button id="b-build">Стройка</button>
+    <button id="b-endday">Завершить день</button>
+  </div>
+
+  <!-- Бой -->
+  <div id="battle-hud" class="hidden">
+    <div id="bh-title"></div>
+    <div id="bh-stats"></div>
+  </div>
+  <div id="battle-actions" class="hidden">
+    <button id="a-zoomin" class="small" aria-label="Приблизить">+</button>
+    <button id="a-zoomout" class="small" aria-label="Отдалить">−</button>
+    <button id="a-speed" class="small">×1</button>
+    <button id="a-center">К отряду</button>
+    <button id="a-retreat" class="warn">Отступить</button>
+    <button id="a-return" class="primary hidden">Вернуться на базу</button>
+  </div>
+  <div id="hint" class="hidden"></div>
   <div id="toasts"></div>
 
-  <div id="actions">
-    <button id="btn-interact" class="action hidden"><span id="interact-label"></span></button>
-    <button id="btn-bag" class="action round small" aria-label="Рюкзак">Рюкзак</button>
-    <button id="btn-crouch" class="action round small" aria-label="Присесть">Присесть</button>
-    <button id="btn-heal" class="action round small" aria-label="Лечение">+<span id="heal-count"></span></button>
-    <button id="btn-attack" class="action round big" aria-label="Атака">
-      <span id="wpn-name"></span>
-      <span class="wpn-bar"><i id="wpn-dur"></i></span>
-    </button>
-  </div>
-
-  <div id="inventory" class="overlay hidden">
-    <div class="panel wide">
-      <div class="inv-left">
-        <div class="inv-head"><b>Рюкзак</b><span class="muted">В руках:</span><div id="inv-weapon"></div></div>
-        <div id="inv-grid" class="grid"></div>
-      </div>
-      <div class="inv-right">
-        <div id="inv-details"></div>
-        <button id="inv-close" class="close">Закрыть</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="loot" class="overlay hidden">
-    <div class="panel wide">
-      <div class="inv-left">
-        <b id="loot-title"></b>
-        <div id="loot-grid" class="grid small"></div>
-        <div class="row">
-          <button id="loot-all">Забрать всё</button>
-          <button id="loot-close">Закрыть</button>
-        </div>
-      </div>
-      <div class="inv-right">
-        <b>Рюкзак</b>
-        <div id="loot-bag" class="grid tiny"></div>
-      </div>
-    </div>
-  </div>
-
+  <!-- Главное меню -->
   <div id="menu" class="overlay hidden">
     <div class="panel menu-panel">
-      <div class="logo">S-T-I-K-S</div>
-      <div class="subtitle">Чужой кластер</div>
-      <p class="muted small-text">Тестовая локация «Посёлок» · по мотивам книг Артёма Каменистого</p>
-      <button id="menu-continue">Продолжить</button>
-      <button id="menu-new">Новая игра</button>
-      <button id="menu-sound">Звук: вкл</button>
+      <div class="logo">ГАРНИЗОН</div>
+      <div class="subtitle">Зомби-апокалипсис. Вы — командир воинской части</div>
+      <button id="m-continue" class="primary">Продолжить</button>
+      <button id="m-new">Новая игра</button>
+      <button id="m-sound">Звук: вкл</button>
+    </div>
+  </div>
+
+  <!-- Планирование вылазки -->
+  <div id="planner" class="overlay hidden">
+    <div class="panel wide">
+      <div class="col map-col">
+        <div class="panel-head"><b>Город Заречный</b><span class="muted">выберите район</span></div>
+        <div id="citymap"><div class="river"></div><div class="base-mark">В/Ч</div></div>
+      </div>
+      <div class="col info-col">
+        <h2 id="p-name">—</h2>
+        <p id="p-about" class="muted"></p>
+        <div id="p-facts" class="facts"></div>
+        <label class="slider"><span>Бойцов: <b id="p-count-v"></b></span><input id="p-count" type="range" min="1" max="1" step="1" value="1"></label>
+        <label class="slider"><span>Патронов на бойца: <b id="p-ammo-v"></b></span><input id="p-ammo" type="range" min="100" max="600" step="50" value="300"></label>
+        <p id="p-total" class="muted"></p>
+        <div class="row">
+          <button id="p-go" class="primary">Отправить отряд</button>
+          <button id="p-close">Отмена</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Отчёт (вылазка, оборона, итог дня) -->
+  <div id="report" class="overlay hidden">
+    <div class="panel report">
+      <h2 id="rep-title"></h2>
+      <div id="rep-body"></div>
+      <button id="rep-ok" class="primary">Ясно</button>
+    </div>
+  </div>
+
+  <!-- Личный состав -->
+  <div id="personnel" class="overlay hidden">
+    <div class="panel report">
+      <h2>Личный состав</h2>
+      <div id="pers-body" class="facts"></div>
+      <label class="slider"><span>Вооружить гражданских: <b id="arm-v">0</b></span><input id="arm-n" type="range" min="0" max="0" step="1" value="0"></label>
+      <div class="row">
+        <button id="arm-go" class="primary">Выдать автоматы</button>
+        <button id="pers-close">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Стройка -->
+  <div id="build" class="overlay hidden">
+    <div class="panel report">
+      <h2>Строительство <span class="muted" id="build-mat"></span></h2>
+      <div id="build-list"></div>
+      <button id="build-close">Закрыть</button>
     </div>
   </div>
 
   <div id="pause" class="overlay hidden">
     <div class="panel">
       <h1>Пауза</h1>
-      <button id="btn-resume">Продолжить</button>
-      <button id="btn-newgame">Новая игра</button>
+      <button id="btn-resume" class="primary">Продолжить</button>
       <button id="btn-sound">Звук: вкл</button>
+      <button id="btn-menu">Главное меню</button>
       <button id="btn-exit">Выйти из игры</button>
     </div>
   </div>
 
   <div id="gameover" class="overlay hidden">
     <div class="panel">
-      <h1>Вы погибли</h1>
-      <p id="gameover-text"></p>
-      <button id="btn-restart">Заново</button>
+      <h1>Часть пала</h1>
+      <p id="go-text"></p>
+      <button id="go-restart" class="primary">Новая игра</button>
     </div>
   </div>
 
@@ -101,10 +139,12 @@
   <script src="js/platform.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
-  <script src="js/world.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/ui.js"></script>
+  <script src="js/grid.js"></script>
+  <script src="js/maps.js"></script>
+  <script src="js/battle.js"></script>
+  <script src="js/campaign.js"></script>
   <script src="js/render.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>

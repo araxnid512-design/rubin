@@ -1,14 +1,14 @@
-# Стикс
+# Гарнизон
 
-Игра по миру «Стикс» / «Улей» (Артём Каменистый) для Android.
-HTML/JS/Canvas + Capacitor.
+Вы — командир воинской части в зомби-апокалипсисе. 48 бойцов с АК-74, патроны на счету.
+Отправляйте отряды в город, зачищайте районы, спасайте выживших, держите оборону от орд.
+Вид сверху, Android, горизонтальный экран.
 
-**Скачать APK:** [последняя сборка](../../releases/latest/download/styx.apk)
-(все сборки на странице [Releases](../../releases)).
+**Скачать APK:** [последняя сборка](../../releases/latest/download/garrison.apk)
+(все сборки — на странице [Releases](../../releases)).
 
-- Правила проекта: [CLAUDE.md](CLAUDE.md)
-- Лор: [LORE.md](LORE.md)
 - Дизайн и план: [docs/DESIGN.md](docs/DESIGN.md)
+- Правила проекта: [CLAUDE.md](CLAUDE.md)
 - Ассеты: [ASSETS.md](ASSETS.md)
 
 Запуск в браузере: `npm install && npm run serve`, затем http://localhost:8080.

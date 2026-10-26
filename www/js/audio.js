@@ -1,7 +1,7 @@
 // Звук: всё синтезируется через WebAudio, без файлов.
 // Контекст создаётся после первого касания (требование мобильных браузеров).
 (function () {
-  const KEY = 'styx-sound';
+  const KEY = 'garrison-sound';
   let ctx = null, master = null, noiseBuf = null;
   let enabled = true;
   try { enabled = localStorage.getItem(KEY) !== 'off'; } catch (e) { /* нет хранилища */ }
@@ -65,6 +65,20 @@
       tone('square', heavy ? 140 : 220, 50, 0.08, 0.25);
     },
     swing() { noise(0.12, 'bandpass', 900, 0.25); },
+    // Очередь из автомата: три выстрела подряд. enemy — чужие стволы звучат глуше.
+    burst(enemy) {
+      if (!ready()) return;
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          noise(0.09, 'lowpass', enemy ? 1400 : 2400, enemy ? 0.35 : 0.45);
+          tone('square', enemy ? 120 : 170, 50, 0.05, 0.12);
+        }, i * 75);
+      }
+    },
+    alarm() {
+      if (!ready()) return;
+      for (let i = 0; i < 3; i++) setTimeout(() => tone('sawtooth', 440, 660, 0.45, 0.18), i * 600);
+    },
     hit() { noise(0.08, 'lowpass', 500, 0.6); tone('sine', 120, 60, 0.08, 0.3); },
     hurt() { tone('sawtooth', 180, 90, 0.18, 0.25); },
     // vol — 0..1 по расстоянию.

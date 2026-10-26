@@ -1,287 +1,233 @@
-// DOM-интерфейс: HUD, кнопки действий, рюкзак, обыск, сообщения.
+// DOM-интерфейс: верхняя панель, окна вылазки, отчётов, личного состава и стройки.
 (function () {
+  const D = window.GameData;
+  const C = window.Campaign;
   const $ = (id) => document.getElementById(id);
-  let selected = null; // индекс слота рюкзака или 'weapon'
-  let lootState = null;
-
-  // --- HUD ---
-  const hudCache = {};
-  function setText(id, text) {
-    if (hudCache[id] === text) return;
-    hudCache[id] = text;
-    $(id).textContent = text;
-  }
-  function setBar(id, value) {
-    const v = Math.round(value);
-    if (hudCache[id + 'w'] === v) return;
-    hudCache[id + 'w'] = v;
-    $(id).style.width = Math.max(0, Math.min(100, v)) + '%';
-  }
-
-  function updateHud(state, interact) {
-    const p = state.player;
-    setBar('bar-hp', p.hp);
-    setBar('bar-food', p.food);
-    setBar('bar-water', p.water);
-    setText('val-hp', Math.ceil(p.hp));
-    setText('val-food', Math.ceil(p.food));
-    setText('val-water', Math.ceil(p.water));
-
-    const h = Math.floor(state.hour), m = Math.floor((state.hour % 1) * 60);
-    setText('clock', `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-
-    const quests = Object.values(state.quests).filter((q) => q.active)
-      .map((q) => (q.done ? '✓ ' : '• ') + q.title).join('\n');
-    setText('quests', quests);
-
-    const w = state.weapon;
-    const G = window.Game;
-    if (w) {
-      const full = G.D.WEAPONS[w.id].durability;
-      setText('wpn-name', w.dur > 0 ? G.D.ITEMS[w.id].name : 'Сломано');
-      setBar('wpn-dur', w.dur / full * 100);
-    } else {
-      setText('wpn-name', 'Кулаки');
-      setBar('wpn-dur', 0);
-    }
-    setText('heal-count', String(G.healCount()));
-    const crouch = $('btn-crouch');
-    if (crouch.classList.contains('on') !== state.crouch) crouch.classList.toggle('on', state.crouch);
-
-    const btn = $('btn-interact');
-    if (interact && !state.ui) {
-      btn.classList.remove('hidden');
-      setText('interact-label', interact.label);
-    } else {
-      btn.classList.add('hidden');
-    }
-  }
+  const show = (id, on) => $(id).classList.toggle('hidden', !on);
+  const fmt = (n) => Math.round(n).toLocaleString('ru-RU');
 
   // --- Сообщения ---
-  function toast(text, seconds) {
+  function toast(text, kind, seconds) {
     const box = $('toasts');
     const el = document.createElement('div');
-    el.className = 'toast';
+    el.className = 'toast ' + (kind || '');
     el.textContent = text;
     box.appendChild(el);
-    while (box.children.length > 3) box.removeChild(box.firstChild);
-    setTimeout(() => el.classList.add('fade'), seconds * 1000);
-    setTimeout(() => el.remove(), seconds * 1000 + 600);
+    while (box.children.length > 4) box.removeChild(box.firstChild);
+    const s = seconds || 3;
+    setTimeout(() => el.classList.add('fade'), s * 1000);
+    setTimeout(() => el.remove(), s * 1000 + 600);
   }
 
-  // --- Ячейка предмета ---
-  function itemCell(item, onClick, isSelected) {
-    const G = window.Game;
-    const el = document.createElement('button');
-    el.className = 'cell' + (isSelected ? ' selected' : '');
-    if (item) {
-      const def = G.D.ITEMS[item.id];
-      el.innerHTML = `<span class="swatch" style="background:${def.color}"></span>` +
-        `<span class="cell-name">${def.short}</span>` +
-        (item.count > 1 ? `<span class="cell-count">${item.count}</span>` : '');
-      if (def.kind === 'weapon') {
-        const pct = item.dur / G.D.WEAPONS[item.id].durability * 100;
-        el.innerHTML += `<span class="cell-dur"><i style="width:${pct}%"></i></span>`;
-      }
-    } else {
-      el.classList.add('empty');
+  // --- Верхняя панель ---
+  const cache = {};
+  function set(id, v) { if (cache[id] !== v) { cache[id] = v; $(id).textContent = v; } }
+
+  function topbar(c) {
+    set('r-day', `ДЕНЬ ${c.day}`);
+    set('r-soldiers', String(c.soldiers));
+    set('r-free', c.tired ? ` (своб. ${C.available(c)})` : '');
+    set('r-wounded', String(c.wounded.length));
+    set('r-civ', String(c.civilians));
+    set('r-rifles', String(c.spareRifles));
+    set('r-ammo', fmt(c.ammo));
+    set('r-food', fmt(c.food));
+    set('r-meds', fmt(c.meds));
+    set('r-mat', fmt(c.materials));
+    const t = Math.min(100, Math.round(c.threat));
+    if (cache.threat !== t) { cache.threat = t; $('r-threat').style.width = t + '%'; }
+  }
+
+  // --- Планирование вылазки ---
+  let selected = null;
+  function openPlanner(c, onGo) {
+    const map = $('citymap');
+    map.querySelectorAll('.district').forEach((e) => e.remove());
+    const colors = ['', '#3a4a2a', '#4a4a26', '#5a3e22', '#5a2a22', '#4a1a2a'];
+    for (const d of D.DISTRICTS) {
+      const st = c.districts[d.id];
+      const el = document.createElement('button');
+      el.className = 'district';
+      el.style.left = d.x + '%';
+      el.style.top = d.y + '%';
+      el.style.width = d.w + '%';
+      el.style.height = d.h + '%';
+      el.style.background = colors[d.threat];
+      el.innerHTML = `<span class="dn">${d.name}</span><span class="dt">${'●'.repeat(d.threat)}</span>` +
+        `<span class="dc"><i style="width:${Math.round(st.cleared * 100)}%"></i></span>`;
+      el.addEventListener('click', () => { selected = d.id; renderPlanner(c); });
+      el.dataset.id = d.id;
+      map.appendChild(el);
     }
-    el.addEventListener('click', onClick);
-    return el;
+    if (!selected) selected = D.DISTRICTS[0].id;
+    $('p-go').onclick = () => onGo(selected, +$('p-count').value, +$('p-ammo').value);
+    renderPlanner(c);
+    show('planner', true);
   }
 
-  // --- Рюкзак ---
-  function openInventory() {
-    const G = window.Game;
-    if (G.state.ui || G.state.over || G.state.menu) return;
-    G.state.ui = { type: 'inventory' };
-    selected = null;
-    $('inventory').classList.remove('hidden');
-    renderInventory();
-  }
-
-  function closeOverlay() {
-    $('inventory').classList.add('hidden');
-    $('loot').classList.add('hidden');
-    lootState = null;
-    window.Game.closeUI();
-  }
-
-  function selectedItem() {
-    const s = window.Game.state;
-    if (selected === 'weapon') return s.weapon ? Object.assign({ count: 1 }, s.weapon) : null;
-    return selected != null ? s.inventory[selected] : null;
-  }
-
-  function renderInventory() {
-    const G = window.Game, s = G.state;
-    const grid = $('inv-grid');
-    grid.innerHTML = '';
-    s.inventory.forEach((it, i) => {
-      grid.appendChild(itemCell(it, () => { selected = i; renderInventory(); }, selected === i));
-    });
-    const ws = $('inv-weapon');
-    ws.innerHTML = '';
-    ws.appendChild(itemCell(s.weapon ? Object.assign({ count: 1 }, s.weapon) : null,
-      () => { selected = 'weapon'; renderInventory(); }, selected === 'weapon'));
-    renderDetails();
-  }
-
-  function renderDetails() {
-    const G = window.Game, D = G.D;
-    const box = $('inv-details');
-    box.innerHTML = '';
-    const it = selectedItem();
-    if (!it) {
-      box.innerHTML = '<p class="muted">Выберите предмет</p>';
-      return;
-    }
-    const def = D.ITEMS[it.id];
-    const title = document.createElement('h2');
-    title.textContent = def.name;
-    box.appendChild(title);
-
-    const info = document.createElement('p');
-    info.className = 'muted';
-    const parts = [];
-    if (def.heal) parts.push(`здоровье +${def.heal}`);
-    if (def.food) parts.push(`сытость +${def.food}`);
-    if (def.water) parts.push(`вода +${def.water}`);
-    if (def.kind === 'weapon') {
-      const wd = D.WEAPONS[it.id];
-      parts.push(`урон ${wd.damage}`, wd.type === 'ranged' ? `дальность ${wd.range} м` : 'ближний бой');
-    }
-    if (def.kind === 'material') parts.push('материал');
-    info.textContent = parts.join(' · ');
-    box.appendChild(info);
-
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    const button = (label, fn, disabled) => {
-      const b = document.createElement('button');
-      b.textContent = label;
-      b.disabled = !!disabled;
-      b.addEventListener('click', () => { fn(); renderInventory(); });
-      actions.appendChild(b);
+  function renderPlanner(c) {
+    const d = D.DISTRICTS.find((x) => x.id === selected);
+    const st = c.districts[d.id];
+    document.querySelectorAll('.district').forEach((e) => e.classList.toggle('selected', e.dataset.id === d.id));
+    $('p-name').textContent = d.name;
+    $('p-about').textContent = d.about;
+    const left = Math.round(d.zombies * (1 - st.cleared));
+    $('p-facts').innerHTML =
+      `<span>Опасность</span><span>${'●'.repeat(d.threat)}${'○'.repeat(5 - d.threat)}</span>` +
+      `<span>Заражённых (оценка)</span><span>~${left}</span>` +
+      `<span>Мародёры</span><span>${d.marauders ? 'замечены' : 'нет данных'}</span>` +
+      `<span>Зачищено</span><span>${Math.round(st.cleared * 100)}%</span>` +
+      `<span>Вылазок сюда</span><span>${st.visits}</span>`;
+    const free = C.available(c);
+    const count = $('p-count'), ammo = $('p-ammo');
+    count.max = Math.max(1, free);
+    if (+count.value > free || !count.dataset.touched) count.value = Math.min(free, Math.max(1, Math.min(12, free)));
+    const update = () => {
+      $('p-count-v').textContent = count.value;
+      $('p-ammo-v').textContent = ammo.value;
+      const need = count.value * ammo.value;
+      $('p-total').textContent = `Возьмут патронов: ${fmt(need)} из ${fmt(c.ammo)} на складе`;
+      $('p-go').disabled = free < 1 || need > c.ammo;
+      if (free < 1) $('p-total').textContent = 'Свободных бойцов нет — завершите день';
     };
+    count.oninput = () => { count.dataset.touched = '1'; update(); };
+    ammo.oninput = update;
+    update();
+  }
 
-    if (def.kind === 'weapon') {
-      const target = selected === 'weapon' ? G.state.weapon : G.state.inventory[selected];
-      const full = D.WEAPONS[it.id].durability;
-      const pct = Math.round(target.dur / full * 100);
-      const dur = document.createElement('div');
-      dur.className = 'durability';
-      dur.innerHTML = `<span>Состояние: ${pct}%${target.dur <= 0 ? ' (сломано)' : ''}</span>` +
-        `<div class="bar"><i style="width:${pct}%"></i></div>`;
-      box.appendChild(dur);
+  // --- Отчёт ---
+  function report(title, lines, button, onOk) {
+    $('rep-title').textContent = title;
+    $('rep-body').innerHTML = lines.map((l) => {
+      const [text, kind] = Array.isArray(l) ? l : [l, ''];
+      return `<div class="line ${kind}">${text}</div>`;
+    }).join('');
+    $('rep-ok').textContent = button || 'Ясно';
+    $('rep-ok').onclick = () => { show('report', false); onOk && onOk(); };
+    show('report', true);
+  }
 
-      const cost = G.repairCost(target);
-      const need = document.createElement('div');
-      need.className = 'repair-cost';
-      need.innerHTML = 'Для ремонта: ' + Object.entries(cost).map(([id, n]) => {
-        const have = G.countItem(id);
-        return `<span class="${have >= n ? 'ok' : 'bad'}">${D.ITEMS[id].name} ${Math.min(have, n)}/${n}</span>`;
-      }).join(' ');
-      box.appendChild(need);
+  function sortieLines(r) {
+    const titles = { extracted: 'Отряд вернулся', wiped: 'Отряд погиб' };
+    const L = [];
+    L.push(`Район: ${r.district}. Ушло бойцов: ${r.sent}`);
+    if (r.dead) L.push([`Погибло: ${r.dead}` + (r.riflesLost > 0 ? `, автоматов потеряно: ${r.riflesLost}` : ''), 'bad']);
+    if (r.wounded) L.push([`Ранено (в медпункт): ${r.wounded}`, 'bad']);
+    L.push(`Уничтожено заражённых: ${r.kills}` + (r.maraudersKilled ? `, мародёров: ${r.maraudersKilled}` : ''));
+    L.push(`Израсходовано патронов: ${fmt(r.ammoSpent)}, вернули на склад: ${fmt(r.ammoBack)}`);
+    const h = r.haul, got = Object.entries(h).filter(([, n]) => n > 0).map(([k, n]) => `${D.LOOT_NAMES[k]} +${fmt(n)}`);
+    if (got.length) L.push(['Добыча: ' + got.join(', '), 'good']);
+    if (r.survivors) L.push([`Спасено выживших: ${r.survivors} — они в части`, 'good']);
+    L.push(`Район зачищен на ${r.cleared}%`);
+    return { title: titles[r.outcome] || 'Итог вылазки', lines: L };
+  }
 
-      button('Починить', () => G.repair(target), !G.canRepair(target));
-      if (selected === 'weapon') button('Убрать в рюкзак', () => { G.unequip(); selected = null; });
-      else button('Взять в руки', () => { G.useSlot(selected); selected = 'weapon'; });
-    } else if (def.kind !== 'material') {
-      button('Использовать', () => {
-        G.useSlot(selected);
-        if (!G.state.inventory[selected]) selected = null;
-      });
+  function defenseLines(r) {
+    const L = [];
+    L.push(`Уничтожено заражённых: ${r.kills}`);
+    L.push(`Израсходовано патронов: ${fmt(r.ammoSpent)}`);
+    if (r.dead) L.push([`Погибло бойцов: ${r.dead}`, 'bad']);
+    if (r.wounded) L.push([`Ранено: ${r.wounded}`, 'bad']);
+    L.push(`Состояние стен: ${r.walls}%` + (r.walls < 100 ? ' — почините в «Стройке»' : ''));
+    return { title: r.outcome === 'held' ? 'Орда отбита!' : 'Орда прорвалась', lines: L };
+  }
+
+  // --- Личный состав ---
+  function openPersonnel(c, onArm) {
+    const days = c.wounded.map((w) => Math.ceil(w.days));
+    $('pers-body').innerHTML =
+      `<span>Бойцов в строю</span><span>${c.soldiers}</span>` +
+      `<span>Свободны для вылазки</span><span>${C.available(c)}</span>` +
+      `<span>Раненых</span><span>${c.wounded.length}${days.length ? ` (до выздоровления ${Math.min(...days)}–${Math.max(...days)} дн.)` : ''}</span>` +
+      `<span>Гражданских</span><span>${c.civilians}${c.buildings.garden ? ' (работают на огороде)' : ''}</span>` +
+      `<span>АК-74 в оружейке</span><span>${c.spareRifles}</span>` +
+      `<span>Мест в казарме</span><span>${C.people(c)} / ${D.capacity(c.buildings.barracks)}</span>`;
+    const max = Math.min(c.civilians, c.spareRifles);
+    const n = $('arm-n');
+    n.max = max;
+    n.value = max;
+    $('arm-v').textContent = n.value;
+    n.oninput = () => { $('arm-v').textContent = n.value; };
+    $('arm-go').disabled = max < 1;
+    $('arm-go').onclick = () => onArm(+n.value);
+    show('personnel', true);
+  }
+
+  // --- Стройка ---
+  function openBuild(c, onBuild, onRepair) {
+    $('build-mat').textContent = `· материалов: ${fmt(c.materials)}`;
+    const list = $('build-list');
+    list.innerHTML = '';
+    const rc = C.repairCost(c);
+    if (rc > 0) {
+      const row = document.createElement('div');
+      row.className = 'build-row';
+      row.innerHTML = `<b>Ремонт стен<span class="lv">${Math.round(c.wallIntegrity * 100)}%</span></b><p>Восстановить стены до 100%</p>`;
+      const b = document.createElement('button');
+      b.textContent = `Починить (${rc})`;
+      b.disabled = c.materials < rc;
+      b.onclick = onRepair;
+      row.appendChild(b);
+      list.appendChild(row);
     }
-    if (it.id === 'sporan' || it.id === 'water') {
-      button('Сделать живчик', () => G.craftZhivchik(), G.countItem('sporan') < 1 || G.countItem('water') < 1);
+    for (const [key, B] of Object.entries(D.BUILDINGS)) {
+      const lvl = c.buildings[key];
+      const cost = C.buildCost(c, key);
+      const row = document.createElement('div');
+      row.className = 'build-row';
+      row.innerHTML = `<b>${B.name}<span class="lv">${lvl ? 'ур. ' + lvl : 'нет'}</span></b><p>${B.about(Math.max(1, lvl))}</p>`;
+      const b = document.createElement('button');
+      if (cost == null) { b.textContent = 'Максимум'; b.disabled = true; }
+      else { b.textContent = `${lvl ? 'Улучшить' : 'Построить'} (${cost})`; b.disabled = c.materials < cost; }
+      b.onclick = () => onBuild(key);
+      row.appendChild(b);
+      list.appendChild(row);
     }
-    if (selected !== 'weapon') button('Выбросить', () => { G.dropSlot(selected); selected = null; });
-    box.appendChild(actions);
+    show('build', true);
   }
 
-  // --- Обыск ---
-  function openLoot(ui) {
-    lootState = ui;
-    $('loot').classList.remove('hidden');
-    renderLoot();
-  }
-
-  function renderLoot() {
-    const G = window.Game;
-    $('loot-title').textContent = lootState.name;
-    const grid = $('loot-grid');
-    grid.innerHTML = '';
-    if (lootState.items.length === 0) {
-      grid.innerHTML = '<p class="muted">Пусто</p>';
+  // --- Бой ---
+  function battleHud(scene, title) {
+    const alive = scene.soldiers.filter((s) => s.hp > 0);
+    let text;
+    if (scene.mode === 'sortie') {
+      const ammo = alive.reduce((a, s) => a + s.ammo, 0);
+      const found = scene.survivors.filter((v) => v.state === 'follow' && v.hp > 0).length;
+      const hostiles = scene.zombies.length + scene.marauders.length;
+      text = `Бойцов: ${alive.length}/${scene.soldiers.length}   Патронов: ${fmt(ammo)}\n` +
+        `Заражённых: ${scene.zombies.length}` + (scene.marauders.length ? `   Мародёров: ${scene.marauders.length}` : '') +
+        `\nВыживших с отрядом: ${found}` + (hostiles === 0 ? '\nРайон зачищен' : '');
+    } else {
+      const pool = scene.ammoPool ? scene.ammoPool.ammo : 0;
+      text = `Защитников: ${alive.length}   Патронов на складе: ${fmt(pool)}\nОрда: ${scene.zombies.length} из ${scene.zombiesStart}`;
     }
-    lootState.items.forEach((it, i) => {
-      grid.appendChild(itemCell(it, () => { G.takeLoot(i); renderLoot(); }));
-    });
-    const bag = $('loot-bag');
-    bag.innerHTML = '';
-    G.state.inventory.forEach((it) => bag.appendChild(itemCell(it, () => {})));
+    set('bh-title', title);
+    set('bh-stats', text);
   }
 
-  // --- Конец игры ---
-  function showGameOver(text) {
-    $('gameover-text').textContent = text;
-    $('gameover').classList.remove('hidden');
-  }
-  function hideGameOver() {
-    $('gameover').classList.add('hidden');
+  function setScreen(name) {
+    show('topbar', name === 'base');
+    show('base-actions', name === 'base');
+    show('battle-hud', name === 'sortie' || name === 'defense');
+    show('battle-actions', name === 'sortie' || name === 'defense');
+    show('a-retreat', name === 'sortie');
+    show('a-return', false);
+    show('a-center', name === 'sortie');
   }
 
-  // --- Главное меню ---
+  function hint(text) {
+    $('hint').textContent = text || '';
+    show('hint', !!text);
+  }
+
   function soundLabel() {
     const t = 'Звук: ' + (window.Sound.enabled ? 'вкл' : 'выкл');
-    $('menu-sound').textContent = t;
+    $('m-sound').textContent = t;
     $('btn-sound').textContent = t;
   }
-  function showMenu(hasSave) {
-    $('menu-continue').classList.toggle('hidden', !hasSave);
-    soundLabel();
-    $('menu').classList.remove('hidden');
-  }
-  function hideMenu() {
-    $('menu').classList.add('hidden');
-  }
 
-  // --- Кнопки ---
-  function hold(el, on) {
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); on(true); });
-    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
-      el.addEventListener(ev, () => on(false));
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    hold($('btn-attack'), (v) => { window.Input.attackButton = v; window.Input.updateFire(); });
-    const tap = (id, fn) => $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
-    tap('btn-interact', () => window.Game.interact());
-    tap('btn-bag', openInventory);
-    tap('btn-heal', () => window.Game.quickHeal());
-    tap('btn-crouch', () => window.Game.toggleCrouch());
-    $('menu-continue').addEventListener('click', () => window.Game.continueGame());
-    $('menu-new').addEventListener('click', () => window.Game.newGame());
-    $('menu-sound').addEventListener('click', () => { window.Sound.toggle(); soundLabel(); });
-    $('btn-sound').addEventListener('click', () => { window.Sound.toggle(); soundLabel(); });
-    $('inv-close').addEventListener('click', closeOverlay);
-    $('loot-close').addEventListener('click', closeOverlay);
-    $('loot-all').addEventListener('click', () => { window.Game.takeAll(); renderLoot(); });
-    $('btn-restart').addEventListener('click', () => window.Game.newGame());
-    $('btn-newgame').addEventListener('click', () => { window.Game.newGame(); window.Platform.resume(); });
-  });
-
-  // «Назад» и Esc сначала закрывают открытое окно.
-  window.Platform.onBack = () => {
-    if (!$('menu').classList.contains('hidden')) return true;
-    if (!$('inventory').classList.contains('hidden') || !$('loot').classList.contains('hidden')) {
-      closeOverlay();
-      return true;
-    }
-    return false;
+  window.UI = {
+    $, show, toast, topbar, openPlanner, report, sortieLines, defenseLines, openPersonnel, openBuild,
+    battleHud, setScreen, hint, soundLabel, fmt,
   };
-
-  window.UI = { updateHud, toast, openLoot, showGameOver, hideGameOver, openInventory, closeOverlay, showMenu, hideMenu };
 })();

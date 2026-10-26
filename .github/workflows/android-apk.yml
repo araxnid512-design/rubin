@@ -40,22 +40,22 @@ jobs:
         working-directory: android
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 0.1.${{ github.run_number }}
+          VERSION_NAME: 0.2.${{ github.run_number }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
       - name: Переименовать APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk styx.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk garrison.apk
 
       - name: Опубликовать в GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Стикс 0.1.${{ github.run_number }} (${{ github.ref_name }})
+          name: Гарнизон 0.2.${{ github.run_number }} (${{ github.ref_name }})
           target_commitish: ${{ github.sha }}
           body: |
             Сборка из ветки ${{ github.ref_name }}, коммит ${{ github.sha }}.
-            Debug-подпись. Установка: скачайте styx.apk на телефон и откройте (разрешите установку из неизвестных источников).
-          files: styx.apk
+            Debug-подпись. Установка: скачайте garrison.apk на телефон и откройте (разрешите установку из неизвестных источников).
+          files: garrison.apk
           make_latest: true
