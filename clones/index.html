@@ -58,7 +58,7 @@
   .card.sel { border-color: var(--holo); transform: translateY(-6px); box-shadow: 0 0 0 1px var(--holo), 0 6px 22px rgba(111, 208, 255, .25); }
   .card.dead { opacity: .35; }
   .card.done .cname { color: var(--dim); }
-  .card canvas { width: 100%; height: 38px; border-radius: 8px; background: linear-gradient(#22374a, #101a24); }
+  .card canvas { width: 100%; height: 40px; border-radius: 8px; object-fit: cover; display: block; }
   .cname { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hp { display: flex; gap: 2px; } .hp i { flex: 1; height: 5px; border-radius: 2px; background: var(--ok); } .hp i.e { background: rgba(255,255,255,.15); }
   .ap { position: absolute; top: 4px; right: 5px; display: flex; gap: 3px; } .ap i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 6px var(--gold); } .ap i.e { background: rgba(255,255,255,.18); box-shadow: none; }
@@ -94,7 +94,7 @@
   .tp-nav .fire { flex: 2; background: linear-gradient(#e2463a, #9b241b); border-color: #ff9d8f; font-family: var(--disp); letter-spacing: 1px; }
 
   #hint {
-    position: absolute; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%);
     padding: 6px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity .2s;
   }
   #hint.show { opacity: 1; }
@@ -181,7 +181,7 @@
   /* панель целей */
   #enemyBar { position: absolute; top: calc(60px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); display: flex; gap: 6px; }
   .eb { width: 48px; padding: 4px 0 3px; border-radius: 10px; border: 1px solid rgba(255,110,90,.55); background: var(--panel); text-align: center; font-size: 12px; font-weight: 800; color: #ffd9d2; }
-  .eb .ic { font-family: var(--disp); font-size: 13px; color: #ff8a7a; letter-spacing: 0; }
+  .eb .ic canvas { width: 40px; height: 24px; border-radius: 6px; display: block; margin: 0 auto 2px; object-fit: cover; }
   .eb.fl { border-color: var(--gold); color: var(--gold); }
   .eb.cur { background: rgba(160,40,30,.85); }
   #unitInfo { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(118px + env(safe-area-inset-bottom)); padding: 5px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--dim); white-space: nowrap; }
@@ -195,14 +195,17 @@
   .ib.on { border-color: var(--gold); }
   .ib.on svg { stroke: var(--gold); }
 
-  @media (max-height: 420px) {
-    #unitInfo { bottom: calc(96px + env(safe-area-inset-bottom)); font-size: 11px; }
-    .eb { width: 42px; }
-    .card { width: 62px; } .card canvas { height: 28px; }
-    .act { width: 54px; height: 54px; } .act svg { width: 22px; height: 22px; } .act .lbl { display: none; }
-    #targetPanel { bottom: calc(70px + env(safe-area-inset-bottom)); width: 230px; }
-    #hint { bottom: calc(76px + env(safe-area-inset-bottom)); }
-    .ib { width: 38px; height: 38px; }
+  @media (max-height: 460px), (max-width: 900px) {
+    .card { width: 56px; padding: 4px 4px 3px; gap: 2px; } .card canvas { height: 30px; } .cname { font-size: 9px; }
+    .hp i { height: 4px; } .ap i { width: 6px; height: 6px; }
+    .act { width: 48px; height: 48px; border-radius: 13px; } .act svg { width: 22px; height: 22px; } .act .lbl { display: none; }
+    #actions, #squad { gap: 5px; }
+    #unitInfo { bottom: calc(84px + env(safe-area-inset-bottom)); font-size: 10.5px; padding: 4px 8px; }
+    #targetPanel { bottom: calc(64px + env(safe-area-inset-bottom)); width: 230px; }
+    #hint { top: calc(52px + env(safe-area-inset-top)); font-size: 11px; padding: 4px 10px; }
+    .ib { width: 36px; height: 36px; border-radius: 10px; } .ib svg { width: 19px; height: 19px; }
+    #turnBox { min-width: 0; padding: 4px 10px; } #turnTitle { font-size: 12px; } #objective { font-size: 10px; }
+    #enemyBar { top: calc(50px + env(safe-area-inset-top)); } .eb { width: 44px; }
   }
   @media (prefers-reduced-motion: reduce) { .pop, #banner.show { animation-duration: .01s; } }
 </style>
