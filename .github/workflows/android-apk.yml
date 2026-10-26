@@ -2,7 +2,8 @@ name: Android APK
 
 on:
   push:
-    branches: [main]
+    # Сборка и из main, и из рабочих веток Claude — чтобы APK можно было проверить до слияния.
+    branches: [main, 'claude/**']
   workflow_dispatch:
 
 permissions:
@@ -51,9 +52,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Стикс 0.1.${{ github.run_number }}
+          name: Стикс 0.1.${{ github.run_number }} (${{ github.ref_name }})
+          target_commitish: ${{ github.sha }}
           body: |
-            Сборка из коммита ${{ github.sha }}.
+            Сборка из ветки ${{ github.ref_name }}, коммит ${{ github.sha }}.
             Debug-подпись. Установка: скачайте styx.apk на телефон и откройте (разрешите установку из неизвестных источников).
           files: styx.apk
           make_latest: true
