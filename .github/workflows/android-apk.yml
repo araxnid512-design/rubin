@@ -1,0 +1,59 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Синхронизировать web-часть с Android
+        run: npm run sync
+
+      - name: Собрать debug APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 0.1.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Переименовать APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk styx.apk
+
+      - name: Опубликовать в GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Стикс 0.1.${{ github.run_number }}
+          body: |
+            Сборка из коммита ${{ github.sha }}.
+            Debug-подпись. Установка: скачайте styx.apk на телефон и откройте (разрешите установку из неизвестных источников).
+          files: styx.apk
+          make_latest: true

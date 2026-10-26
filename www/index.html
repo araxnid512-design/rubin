@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Стикс</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h1>Пауза</h1>
+      <button id="btn-resume">Продолжить</button>
+      <button id="btn-exit">Выйти из игры</button>
+    </div>
+  </div>
+
+  <div id="rotate" class="overlay hidden">
+    <div class="panel"><p>Поверните устройство горизонтально</p></div>
+  </div>
+
+  <script src="vendor/capacitor.js"></script>
+  <script src="vendor/app.js"></script>
+  <script src="vendor/status-bar.js"></script>
+  <script src="vendor/screen-orientation.js"></script>
+  <script src="js/platform.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

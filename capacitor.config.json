@@ -1,0 +1,8 @@
+{
+  "appId": "com.araxnid.styx",
+  "appName": "Стикс",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#000000"
+  }
+}
