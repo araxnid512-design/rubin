@@ -162,7 +162,40 @@
   #rotate .phone { width: 56px; height: 96px; border: 4px solid var(--holo); border-radius: 12px; margin: 0 auto 16px; animation: rot 2s ease-in-out infinite; }
   @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
 
+  /* вид от первого лица */
+  #fp { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
+  #fp > * { position: absolute; display: none; }
+  #xhair { left: 50%; top: 50%; width: 54px; height: 54px; transform: translate(-50%, -50%); }
+  body.xhair #xhair { display: block; }
+  #scope { inset: 0; background: radial-gradient(circle at 50% 50%, transparent 0 34vh, rgba(0,0,0,.96) 34.4vh); }
+  #scope svg { position: absolute; left: 50%; top: 50%; width: 68vh; height: 68vh; transform: translate(-50%, -50%); }
+  body.scope #scope { display: block; }
+  #hitmark { left: 50%; top: 50%; width: 64px; height: 64px; transform: translate(-50%, -50%); opacity: 0; }
+  #hitmark.show { display: block; animation: hm .55s ease-out forwards; }
+  #hitmark.kill path { stroke: #ff4a3a; }
+  @keyframes hm { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); } }
+  #dv { inset: 0; background: repeating-linear-gradient(0deg, rgba(255,50,30,.07) 0 2px, transparent 2px 5px), radial-gradient(ellipse at center, transparent 45%, rgba(140,10,0,.5)); }
+  body.droidvision #dv { display: block; }
+  body.droidvision #xhair path, body.droidvision #xhair circle { stroke: #ff5a4a; }
+
+  /* панель целей */
+  #enemyBar { position: absolute; top: calc(60px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); display: flex; gap: 6px; }
+  .eb { width: 48px; padding: 4px 0 3px; border-radius: 10px; border: 1px solid rgba(255,110,90,.55); background: var(--panel); text-align: center; font-size: 12px; font-weight: 800; color: #ffd9d2; }
+  .eb .ic { font-family: var(--disp); font-size: 13px; color: #ff8a7a; letter-spacing: 0; }
+  .eb.fl { border-color: var(--gold); color: var(--gold); }
+  .eb.cur { background: rgba(160,40,30,.85); }
+  #unitInfo { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(118px + env(safe-area-inset-bottom)); padding: 5px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--dim); white-space: nowrap; }
+  #unitInfo b { color: var(--txt); }
+  .ul .ch { font-family: var(--disp); font-size: 13px; color: #ffd9d2; background: rgba(120,20,15,.8); padding: 1px 5px; border-radius: 5px; line-height: 1.2; }
+  .ul .ch.fl { color: #2a1400; background: var(--gold); }
+  .ul .ch.pre { outline: 1px dashed rgba(255,255,255,.7); }
+  .ul .ap2 { display: flex; gap: 2px; } .ul .ap2 i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 5px var(--gold); }
+  .ib.on { border-color: var(--gold); }
+  .ib.on svg { stroke: var(--gold); }
+
   @media (max-height: 420px) {
+    #unitInfo { bottom: calc(96px + env(safe-area-inset-bottom)); font-size: 11px; }
+    .eb { width: 42px; }
     .card { width: 62px; } .card canvas { height: 28px; }
     .act { width: 54px; height: 54px; } .act svg { width: 22px; height: 22px; } .act .lbl { display: none; }
     #targetPanel { bottom: calc(70px + env(safe-area-inset-bottom)); width: 230px; }
@@ -178,6 +211,12 @@
 <div class="bar" id="barT"></div><div class="bar" id="barB"></div>
 <div id="cineInfo"></div>
 <div id="banner"></div>
+<div id="fp">
+  <svg id="xhair" viewBox="0 0 54 54" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M27 6v12M27 36v12M6 27h12M36 27h12"/><circle cx="27" cy="27" r="1.6" fill="#fff"/></svg>
+  <div id="scope"><svg viewBox="0 0 200 200" fill="none" stroke="#000" stroke-width="0.8"><path d="M0 100h88M112 100h88M100 0v88M100 112v88"/><path d="M96 108h8M95 116h10M96 124h8" stroke-width="0.6"/><circle cx="100" cy="100" r="1.2" fill="#d22"/><circle cx="100" cy="100" r="99" stroke-width="2"/></svg></div>
+  <svg id="hitmark" viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M16 16l10 10M48 16 38 26M16 48l10-10M48 48 38 38"/></svg>
+  <div id="dv"></div>
+</div>
 
 <div id="hud">
   <div class="top">
@@ -190,10 +229,13 @@
     <div class="tgroup">
       <button class="ib pe" id="bRotL" aria-label="Повернуть камеру влево"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
       <button class="ib pe" id="bRotR" aria-label="Повернуть камеру вправо"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
+      <button class="ib pe" id="bFast" aria-label="Ускорить ход противника"><svg viewBox="0 0 24 24"><path d="M4 6l8 6-8 6zM12 6l8 6-8 6z"/></svg></button>
       <button class="ib pe" id="bView" aria-label="Вид сверху"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg></button>
     </div>
   </div>
 
+  <div id="enemyBar" class="pe"></div>
+  <div id="unitInfo"></div>
   <div id="squad" class="pe"></div>
 
   <div id="hint"></div>
