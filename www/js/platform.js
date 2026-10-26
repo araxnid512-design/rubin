@@ -1,5 +1,5 @@
 // Особенности Android: полноэкранный режим, горизонтальная ориентация,
-// кнопка «Назад» ставит игру на паузу. В браузере всё это мягко пропускается.
+// кнопка «Назад» закрывает открытое окно или ставит игру на паузу. В браузере всё это мягко пропускается.
 (function () {
   const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   const listeners = { pause: [], resume: [] };
@@ -7,6 +7,7 @@
   const Platform = {
     isNative,
     paused: false,
+    onBack: null, // () => true, если «Назад» обработан (например, закрыто окно)
     on(event, fn) { listeners[event].push(fn); },
     pause() {
       if (this.paused) return;
@@ -37,6 +38,7 @@
 
     // «Назад»: игра → пауза; на экране паузы — продолжить. Приложение не закрывается.
     App.addListener('backButton', () => {
+      if (Platform.onBack && Platform.onBack()) return;
       if (Platform.paused) Platform.resume();
       else Platform.pause();
     });

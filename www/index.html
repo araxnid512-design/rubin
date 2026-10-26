@@ -4,16 +4,67 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
-  <title>Стикс</title>
+  <title>S-T-I-K-S: Чужой кластер</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <canvas id="game"></canvas>
 
+  <div id="hud">
+    <div class="stat"><span class="dot hp"></span><div class="bar"><i id="bar-hp" class="hp"></i></div><span id="val-hp"></span></div>
+    <div class="stat"><span class="dot food"></span><div class="bar"><i id="bar-food" class="food"></i></div><span id="val-food"></span></div>
+    <div class="stat"><span class="dot water"></span><div class="bar"><i id="bar-water" class="water"></i></div><span id="val-water"></span></div>
+    <div id="quests-box"><b>Задания</b><div id="quests"></div></div>
+  </div>
+  <div id="clock"></div>
+  <canvas id="minimap" width="120" height="120"></canvas>
+  <div id="toasts"></div>
+
+  <div id="actions">
+    <button id="btn-interact" class="action hidden"><span id="interact-label"></span></button>
+    <button id="btn-bag" class="action round small" aria-label="Рюкзак">Рюкзак</button>
+    <button id="btn-heal" class="action round small" aria-label="Лечение">+<span id="heal-count"></span></button>
+    <button id="btn-attack" class="action round big" aria-label="Атака">
+      <span id="wpn-name"></span>
+      <span class="wpn-bar"><i id="wpn-dur"></i></span>
+    </button>
+  </div>
+
+  <div id="inventory" class="overlay hidden">
+    <div class="panel wide">
+      <div class="inv-left">
+        <div class="inv-head"><b>Рюкзак</b><span class="muted">В руках:</span><div id="inv-weapon"></div></div>
+        <div id="inv-grid" class="grid"></div>
+      </div>
+      <div class="inv-right">
+        <div id="inv-details"></div>
+        <button id="inv-close" class="close">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loot" class="overlay hidden">
+    <div class="panel wide">
+      <div class="inv-left">
+        <b id="loot-title"></b>
+        <div id="loot-grid" class="grid small"></div>
+        <div class="row">
+          <button id="loot-all">Забрать всё</button>
+          <button id="loot-close">Закрыть</button>
+        </div>
+      </div>
+      <div class="inv-right">
+        <b>Рюкзак</b>
+        <div id="loot-bag" class="grid tiny"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="pause" class="overlay hidden">
     <div class="panel">
       <h1>Пауза</h1>
       <button id="btn-resume">Продолжить</button>
+      <button id="btn-newgame">Новая игра</button>
       <button id="btn-exit">Выйти из игры</button>
     </div>
   </div>
@@ -35,8 +86,11 @@
   <script src="vendor/status-bar.js"></script>
   <script src="vendor/screen-orientation.js"></script>
   <script src="js/platform.js"></script>
-  <script src="js/input.js"></script>
   <script src="js/data.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/render.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

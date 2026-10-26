@@ -8,6 +8,7 @@ HTML/JS/Canvas + Capacitor.
 
 - Правила проекта: [CLAUDE.md](CLAUDE.md)
 - Лор: [LORE.md](LORE.md)
+- Дизайн и план: [docs/DESIGN.md](docs/DESIGN.md)
 - Ассеты: [ASSETS.md](ASSETS.md)
 
 Запуск в браузере: `npm install && npm run serve`, затем http://localhost:8080.

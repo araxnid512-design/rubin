@@ -1,19 +1,20 @@
-// Ввод: виртуальный стик (левая половина экрана), стрельба (правая половина),
-// клавиатура для отладки в браузере (WASD/стрелки, пробел — огонь, Esc — пауза).
+// Ввод: виртуальный стик (левая половина экрана) и кнопки действий (ui.js).
+// Клавиатура для отладки в браузере: WASD/стрелки, пробел — атака, E — действие,
+// I — рюкзак, H — лечение, Esc — пауза.
 (function () {
   const Input = {
     move: { x: 0, y: 0 },
     fire: false,
+    attackButton: false,
     stick: null, // { id, ox, oy, x, y } — для отрисовки
   };
 
   const RADIUS = 60;
   const keys = new Set();
-  const firePointers = new Set();
 
-  function updateFire() {
-    Input.fire = keys.has('Space') || firePointers.size > 0;
-  }
+  Input.updateFire = function () {
+    Input.fire = keys.has('Space') || Input.attackButton;
+  };
 
   function updateFromKeys() {
     if (Input.stick) return;
@@ -29,27 +30,27 @@
 
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') {
+      if (window.Platform.onBack && window.Platform.onBack()) return;
       window.Platform.paused ? window.Platform.resume() : window.Platform.pause();
       return;
     }
+    if (e.repeat) return;
+    if (e.code === 'KeyE') window.Game.interact();
+    if (e.code === 'KeyI') window.UI.openInventory();
+    if (e.code === 'KeyH') window.Game.quickHeal();
     keys.add(e.code);
     updateFromKeys();
-    updateFire();
+    Input.updateFire();
   });
   window.addEventListener('keyup', (e) => {
     keys.delete(e.code);
     updateFromKeys();
-    updateFire();
+    Input.updateFire();
   });
 
-  window.addEventListener('pointerdown', (e) => {
-    if (e.target.tagName === 'BUTTON') return;
-    if (e.clientX > window.innerWidth / 2) {
-      firePointers.add(e.pointerId);
-      updateFire();
-      return;
-    }
-    if (Input.stick) return;
+  const canvas = document.getElementById('game');
+  canvas.addEventListener('pointerdown', (e) => {
+    if (Input.stick || e.clientX > window.innerWidth * 0.55) return;
     Input.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
   });
 
@@ -66,10 +67,6 @@
   });
 
   function release(e) {
-    if (firePointers.delete(e.pointerId)) {
-      updateFire();
-      return;
-    }
     if (!Input.stick || Input.stick.id !== e.pointerId) return;
     Input.stick = null;
     Input.move.x = 0;
@@ -81,10 +78,10 @@
 
   window.Platform.on('pause', () => {
     keys.clear();
-    firePointers.clear();
     Input.stick = null;
     Input.move.x = 0;
     Input.move.y = 0;
+    Input.attackButton = false;
     Input.fire = false;
   });
 
