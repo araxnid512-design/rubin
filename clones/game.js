@@ -55,22 +55,48 @@ const Snd = (() => {
     s.connect(f); f.connect(g); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
   }
   const fx = {
+    // Бластер в духе «Звёздных войн»: дисперсионный «пью-ю» (верхние гармоники падают быстрее нижних),
+    // резонансный фильтр скользит вниз, вибрато-дребезг, щелчок атаки и короткий хвост эха
     blaster(team, delay = 0) {
-      if (!ac) return; const t = now() + delay, hi = team === 'droid';
-      osc('sawtooth', hi ? 2300 : 1700, hi ? 260 : 170, t, 0.22, envGain(t, 0.004, 0.32, 0.22, sfx, 0.5));
-      osc('square', hi ? 1150 : 850, hi ? 140 : 95, t, 0.18, envGain(t, 0.004, 0.12, 0.16, sfx));
-      nz(t, 0.08, 'bandpass', 3000, 1200, 1.5, envGain(t, 0.002, 0.25, 0.07));
+      if (!ac) return; const t = now() + delay, droid = team === 'droid', j = 1 + (Math.random() - 0.5) * 0.08;
+      const f0 = (droid ? 2900 : 2100) * j, f1 = (droid ? 230 : 150) * j, dur = droid ? 0.2 : 0.26;
+      const bus = ac.createGain(); bus.gain.value = droid ? 0.55 : 0.7;
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = droid ? 9 : 11;
+      lp.frequency.setValueAtTime(droid ? 9000 : 7000, t); lp.frequency.exponentialRampToValueAtTime(droid ? 700 : 450, t + dur);
+      const ws = ac.createWaveShaper(); const curve = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 2.2); } ws.curve = curve;
+      bus.connect(ws); ws.connect(lp); lp.connect(envGain(t, 0.003, 0.55, dur + 0.05, sfx, 0.45));
+      // дребезг: быстрое вибрато высоты
+      const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = droid ? 95 : 70; lg.gain.setValueAtTime(f0 * 0.05, t); lg.gain.exponentialRampToValueAtTime(1, t + dur);
+      lfo.connect(lg); lfo.start(t); lfo.stop(t + dur + 0.05);
+      // гармоники с дисперсией: чем выше, тем быстрее срываются вниз
+      const parts = droid ? [[1, 1, 'sawtooth', 0.5], [1.5, 0.7, 'square', 0.18], [2.02, 0.5, 'sine', 0.35], [3.1, 0.35, 'sine', 0.2]]
+                          : [[1, 1, 'sawtooth', 0.55], [0.5, 1.15, 'square', 0.22], [2.01, 0.6, 'sine', 0.32], [3.05, 0.4, 'sine', 0.16]];
+      for (const [m, rate, type, amp] of parts) {
+        const o = ac.createOscillator(), g = ac.createGain(); o.type = type;
+        o.frequency.setValueAtTime(f0 * m, t); o.frequency.exponentialRampToValueAtTime(Math.max(40, f1 * m), t + dur * rate);
+        lg.connect(o.frequency); g.gain.setValueAtTime(amp, t); g.gain.exponentialRampToValueAtTime(0.0005, t + dur * Math.min(1.1, rate + 0.1));
+        o.connect(g); g.connect(bus); o.start(t); o.stop(t + dur + 0.1);
+      }
+      // щелчок разряда
+      nz(t, 0.025, 'highpass', 4500, 4500, 0.8, envGain(t, 0.001, droid ? 0.25 : 0.32, 0.02));
+      // низкий «удар» у клонового DC-15
+      if (!droid) osc('sine', 180, 60, t, 0.09, envGain(t, 0.002, 0.25, 0.08));
     },
-    heavy(delay = 0) { for (let i = 0; i < 3; i++) this.blaster('clone', delay + i * 0.11); },
+    heavy(delay = 0) { for (let i = 0; i < 3; i++) this.blaster('clone', delay + i * 0.1); },
     impact(delay = 0) {
       if (!ac) return; const t = now() + delay;
-      nz(t, 0.25, 'lowpass', 4000, 400, 1, envGain(t, 0.003, 0.5, 0.25, sfx, 0.3));
-      osc('sine', 180, 60, t, 0.15, envGain(t, 0.003, 0.35, 0.14));
+      // шипящий удар заряда о броню: треск + «пшш» + глухой удар
+      nz(t, 0.35, 'bandpass', 5000, 1200, 1.2, envGain(t, 0.002, 0.45, 0.35, sfx, 0.35));
+      nz(t, 0.08, 'lowpass', 2500, 600, 1, envGain(t, 0.001, 0.5, 0.08));
+      osc('sine', 160, 55, t, 0.14, envGain(t, 0.002, 0.35, 0.13));
+      osc('square', 900, 300, t, 0.06, envGain(t, 0.001, 0.06, 0.05));
     },
     miss(delay = 0) {
       if (!ac) return; const t = now() + delay;
-      osc('sine', 2600, 900, t, 0.25, envGain(t, 0.01, 0.12, 0.24, sfx, 0.4));
-      nz(t + 0.05, 0.15, 'highpass', 3000, 3000, 0.7, envGain(t + 0.05, 0.003, 0.2, 0.14));
+      // пролетающий мимо заряд: доплеровский свист и шипение попадания в песок
+      osc('sawtooth', 1500, 380, t, 0.28, envGain(t, 0.02, 0.07, 0.26, sfx, 0.5));
+      osc('sine', 3200, 900, t, 0.22, envGain(t, 0.01, 0.06, 0.2, sfx, 0.4));
+      nz(t + 0.08, 0.25, 'bandpass', 3500, 1500, 1, envGain(t + 0.08, 0.004, 0.18, 0.22));
     },
     explosion() {
       if (!ac) return; const t = now();
@@ -268,7 +294,7 @@ THREE.ColorManagement.legacyMode = false; // цвета в sRGB, как заду
 const view = $('view');
 const lowEnd = isTouch && (navigator.hardwareConcurrency || 4) <= 4;
 const renderer = new THREE.WebGLRenderer({ antialias: !lowEnd, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowEnd ? 1.25 : 1.75));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowEnd ? 1.5 : 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -729,7 +755,7 @@ const B1HEAD_GEO = (() => {
 
 // материалы
 const M2 = {
-  armor: mat(0xf2f4f6, { roughness: 0.28, metalness: 0.05 }), armorD: mat(0xc9cfd5, { roughness: 0.4, metalness: 0.05 }),
+  armor: addRim(mat(0xf2f4f6, { roughness: 0.28, metalness: 0.05 }), 0x9fd4ff, 0.4), armorD: mat(0xc9cfd5, { roughness: 0.4, metalness: 0.05 }),
   suit: mat(0x17191d, { roughness: 0.85 }), visor: mat(0x07080a, { roughness: 0.08, metalness: 0.9 }),
   gun: mat(0x1c1e22, { roughness: 0.38, metalness: 0.65 }), gunL: mat(0x6b717a, { roughness: 0.3, metalness: 0.8 }),
   tan: mat(0xcdb27e, { roughness: 0.48, metalness: 0.35 }), tanD: mat(0x8f7a55, { roughness: 0.55, metalness: 0.35 }), tanJ: mat(0x4a4236, { roughness: 0.5, metalness: 0.6 }),
@@ -1036,6 +1062,16 @@ function reshapeGeo(mesh, shape) {
   return geo;
 }
 // перекраска текстуры: оттенки серого → белая броня / песочный металл / сталь
+// контровой свет по краю силуэта: персонаж отделяется от фона и читается чётче
+function addRim(m, color, strength) {
+  m.onBeforeCompile = sh => {
+    sh.uniforms.rimColor = { value: new THREE.Color(color) }; sh.uniforms.rimStrength = { value: strength };
+    sh.fragmentShader = 'uniform vec3 rimColor;\nuniform float rimStrength;\n' + sh.fragmentShader.replace('#include <output_fragment>',
+      'float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 2.6);\noutgoingLight += rimColor * rimF * rimStrength;\n#include <output_fragment>');
+  };
+  m.customProgramCacheKey = () => 'rim' + color + strength;
+  return m;
+}
 function tintTexture(img, tint, lo, hi) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d');
   g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
@@ -1044,7 +1080,7 @@ function tintTexture(img, tint, lo, hi) {
     p[i] = clamp(v * tint[0] * 255, 0, 255); p[i + 1] = clamp(v * tint[1] * 255, 0, 255); p[i + 2] = clamp(v * tint[2] * 255, 0, 255);
   }
   g.putImageData(d, 0, 0);
-  const t = new THREE.CanvasTexture(c); t.flipY = false; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  const t = new THREE.CanvasTexture(c); t.flipY = false; t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
 }
 function loadCharacters() {
   return new Promise(res => {
@@ -1057,6 +1093,19 @@ function loadCharacters() {
     } catch (e) { console.warn(e); res(false); }
   });
 }
+// скорость, с которой шагают ступни в клипе (по стопе, стоящей на земле)
+function clipSpeed(sc, clip, fallback) {
+  if (!clip) return fallback;
+  let foot = null; sc.traverse(o => { if (o.isBone && /LeftFoot$/.test(o.name)) foot = o; }); if (!foot) return fallback;
+  const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(clip); act.play();
+  const n = 80, dur = clip.duration, zs = [], ys = [];
+  for (let i = 0; i <= n; i++) { mixer.setTime(dur * i / n); sc.updateMatrixWorld(true); const p = foot.getWorldPosition(new THREE.Vector3()); zs.push(p.z); ys.push(p.y); }
+  act.stop(); mixer.uncacheRoot(sc);
+  const minY = Math.min(...ys), vs = [];
+  for (let i = 1; i <= n; i++) if (ys[i] < minY + 0.035 && ys[i - 1] < minY + 0.035) vs.push(Math.abs(zs[i] - zs[i - 1]) / (dur / n));
+  vs.sort((a, b) => a - b); const v = vs.length ? vs[vs.length >> 1] : fallback;
+  return v > 0.2 && v < 8 ? v : fallback;
+}
 function prepareCharacters() {
   const scene0 = CHAR.gltf.scene; let body = null;
   scene0.traverse(o => { if (o.isSkinnedMesh) { if (/visor/i.test(o.name)) CHAR.visorName = o.name; else body = o; } });
@@ -1064,11 +1113,14 @@ function prepareCharacters() {
   for (const c of CHAR.gltf.animations) CHAR.clips[c.name.toLowerCase()] = c;
   const img = body.material.map.image, nrm = body.material.normalMap;
   const M = (map, o) => new THREE.MeshStandardMaterial(Object.assign({ map, normalMap: nrm, normalScale: new THREE.Vector2(1, 1) }, o));
-  CHAR.variants.clone = { geo: reshapeGeo(body, SHAPES.clone), mat: M(tintTexture(img, [1, 1, 1.02], 0.62, 1.08), { roughness: 0.36, metalness: 0.05 }) };
-  CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: M(tintTexture(img, [0.95, 0.8, 0.56], 0.55, 1.1), { roughness: 0.48, metalness: 0.45 }) };
-  CHAR.variants.b2 = { geo: reshapeGeo(body, SHAPES.b2), mat: M(tintTexture(img, [0.55, 0.62, 0.74], 0.3, 0.85), { roughness: 0.42, metalness: 0.5 }) };
+  if (nrm) nrm.anisotropy = 8;
+  CHAR.variants.clone = { geo: reshapeGeo(body, SHAPES.clone), mat: addRim(M(tintTexture(img, [1, 1, 1.02], 0.5, 1.1), { roughness: 0.34, metalness: 0.05, normalScale: new THREE.Vector2(1.3, 1.3) }), 0x9fd4ff, 0.45) };
+  CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: addRim(M(tintTexture(img, [0.95, 0.8, 0.56], 0.45, 1.12), { roughness: 0.46, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd2a0, 0.4) };
+  CHAR.variants.b2 = { geo: reshapeGeo(body, SHAPES.b2), mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.74], 0.28, 0.9), { roughness: 0.4, metalness: 0.5, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff8a70, 0.4) };
   // модель в исходнике смотрит в −Z — разворачиваем лицом к +Z, как остальные объекты игры
   scene0.rotation.y = Math.PI;
+  CHAR.walkSpeed = clipSpeed(scene0, CHAR.clips.walk, 1.3); CHAR.runSpeed = clipSpeed(scene0, CHAR.clips.run, 3.2);
+  body.skeleton.pose();
   // поправки ориентации навесных деталей: в позе привязки деталь смотрит туда же, куда модель
   body.skeleton.pose(); const holder = new THREE.Group(); holder.add(scene0); holder.updateMatrixWorld(true);
   for (const b of body.skeleton.bones) {
@@ -1207,8 +1259,10 @@ function poseSkinned(u, dt) {
   const st = u.state, walk = st === 'walk', run = st === 'run', aim = st === 'aim';
   if (st === 'idle') u.crouch = cell(u.x + 1, u.z) === HALF || cell(u.x - 1, u.z) === HALF || cell(u.x, u.z + 1) === HALF || cell(u.x, u.z - 1) === HALF;
   const crouch = (st === 'idle' && u.crouch) || st === 'hunker';
-  setAnim(r, run ? 'run' : walk ? 'walk' : 'idle');
-  if (r.acts.walk) r.acts.walk.timeScale = 1.35; if (r.acts.run) r.acts.run.timeScale = 1.05;
+  setAnim(r, run ? 'run' : walk ? 'walk' : 'idle', 0.3);
+  const sc = r.root.scale.x || UNIT_SCALE, vNow = u.animSpeed || (run ? MOVE.run : MOVE.walk);
+  if (r.acts.walk) r.acts.walk.timeScale = clamp(vNow / (CHAR.walkSpeed * sc), 0.35, 2.2);
+  if (r.acts.run) r.acts.run.timeScale = clamp(vNow / (CHAR.runSpeed * sc), 0.5, 1.8);
   r.mixer.update(dt);
   const B = r.bones, body = r.body; body.updateMatrixWorld(true);
   const toW = (x, y, z) => body.localToWorld(new THREE.Vector3(x, y, z));
@@ -1287,7 +1341,7 @@ const DEF = {
 const SQUAD = [['commander', 'Командир «Сокол»', 'CC-4012'], ['trooper', 'Боец «Искра»', 'CT-5597'], ['heavy', 'Пулемётчик «Молот»', 'CT-1138'], ['sniper', 'Снайпер «Тихий»', 'CT-3301'], ['trooper', 'Боец «Хмурый»', 'CT-8820']];
 let units = [], turn = 1, phase = 'start', busy = false, selected = null, shotCount = 0, kills = 0, podsActive = [false, false, false];
 
-const UNIT_SCALE = 0.6;
+const UNIT_SCALE = 0.64;
 function makeRig(team, type) {
   if (CHAR.ready) return buildSkinned(team, type);
   const rig = team === 'clone' ? buildClone(type) : buildDroid(type); mergeRig(rig.root); return rig;
@@ -1394,8 +1448,13 @@ fogTex.magFilter = THREE.LinearFilter; fogTex.minFilter = THREE.LinearFilter; fo
 }
 function updateVisibility() {
   vis.fill(0); const cs = clones();
-  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
-    for (const c of cs) if (Math.hypot(c.x - x, c.z - z) <= c.sight && losPts(c.x, c.z, x, z)) { vis[id(x, z)] = 1; seenEver[id(x, z)] = 1; break; }
+  for (const c of cs) {
+    const r = c.sight, r2 = r * r;
+    for (let z = Math.max(0, c.z - r); z <= Math.min(N - 1, c.z + r); z++) for (let x = Math.max(0, c.x - r); x <= Math.min(N - 1, c.x + r); x++) {
+      const i = id(x, z); if (vis[i]) continue;
+      const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz > r2) continue;
+      if (losPts(c.x, c.z, x, z)) { vis[i] = 1; seenEver[i] = 1; }
+    }
   }
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const i = ((N - 1 - z) * N + x) * 4, v = vis[id(x, z)], s = seenEver[id(x, z)];
@@ -1411,7 +1470,7 @@ function updateVisibility() {
 const cam = { kick: 0, fx: 4, fz: 26, yaw: -Math.PI / 4, pitch: 0.9, dist: 22, tfx: 4, tfz: 26, tyaw: -Math.PI / 4, tpitch: 0.9, tdist: 22, mode: 'tactical', cine: null, shake: 0 };
 // почти изометрия: узкий угол обзора и дальняя камера — меньше искажений, больше поля на экране
 const TAC_FOV = 30, ZOOM = [9, 46];
-const VIEWS = { tactical: { pitch: 0.9, dist: 19 }, top: { pitch: 1.42, dist: 34 } };
+const VIEWS = { tactical: { pitch: 0.88, dist: 17 }, top: { pitch: 1.42, dist: 34 } };
 // направление «от отряда к противнику»: камера стоит за спинами клонов
 function squadYaw() {
   const cs = clones().length ? clones() : units.filter(u => u.team === 'clone'), ds = droids();
@@ -1449,7 +1508,8 @@ function focus(x, z, snap) { cam.tfx = clamp(x, 1, N - 1); cam.tfz = clamp(z, 1,
 function tacticalPose() { const cp = Math.cos(cam.tpitch), sp = Math.sin(cam.tpitch); return { pos: new THREE.Vector3(cam.tfx + Math.sin(cam.tyaw) * cp * cam.tdist, sp * cam.tdist, cam.tfz + Math.cos(cam.tyaw) * cp * cam.tdist), look: new THREE.Vector3(cam.tfx, 0, cam.tfz) }; }
 
 // ---------- анимации-промисы
-const tweens = [];
+const tweens = [], frameWaiters = [];
+function nextFrame() { return new Promise(r => frameWaiters.push(r)); }
 function tween(dur, fn) { return new Promise(res => tweens.push({ t: 0, dur, fn, res })); }
 const wait = s => tween(s, () => {});
 function tweensUpdate(dt) { for (let i = tweens.length - 1; i >= 0; i--) { const w = tweens[i]; w.t += dt; const k = Math.min(1, w.t / w.dur); w.fn(k); if (k >= 1) { tweens.splice(i, 1); w.res(); } } }
@@ -1581,7 +1641,7 @@ function syncLabels() {
     if (!u.label) { u.label = document.createElement('div'); u.label.className = 'ul ' + (u.team === 'clone' ? 'rep' : 'sep'); u.label.innerHTML = '<div class="ch"></div><div class="ap2"></div><div class="st"></div><div class="pips"></div>'; labels.appendChild(u.label); u.lkey = ''; }
     const show = u.alive && (u.team === 'clone' || u.visible) && !cam.cine && phase !== 'start' && phase !== 'intro';
     u.label.style.display = show ? '' : 'none'; if (!show) continue;
-    v.set(u.rig.root.position.x, 1.32, u.rig.root.position.z).project(camera);
+    v.set(u.rig.root.position.x, 1.4, u.rig.root.position.z).project(camera);
     if (v.z > 1) { u.label.style.display = 'none'; continue; }
     u.label.style.left = ((v.x + 1) / 2 * W) + 'px'; u.label.style.top = ((1 - v.y) / 2 * H) + 'px';
     const ch = showCh && u.team === 'droid' ? ui.chances.get(u) : null;
@@ -1682,8 +1742,17 @@ function hideTarget() { $('targetPanel').classList.remove('show'); tgtRing.visib
 //  ДЕЙСТВИЯ
 // =====================================================================
 function faceTo(u, x, z) { return Math.atan2(x - u.rig.root.position.x, z - u.rig.root.position.z); }
-async function turnTo(u, yaw, dur = 0.25) { const y0 = u.rig.root.rotation.y; await tween(dur, k => { u.rig.root.rotation.y = angleLerp(y0, yaw, easeIO(k)); }); u.yaw = yaw; }
+async function turnTo(u, yaw, dur = 0.25) {
+  const y0 = u.rig.root.rotation.y, d = Math.abs(angleLerp(y0, yaw, 1) - y0), stepping = u.rig.skinned && u.state === 'idle' && d > 0.5;
+  if (d < 0.02) { u.yaw = yaw; return; }
+  if (stepping) { u.state = 'walk'; u.animSpeed = 0.7; }
+  await tween(stepping ? Math.max(dur, d * 0.22) : dur, k => { u.rig.root.rotation.y = angleLerp(y0, yaw, easeIO(k)); });
+  if (stepping && u.state === 'walk') u.state = 'idle';
+  u.yaw = yaw;
+}
 
+// скорость передвижения (клеток в секунду); анимация шага подстраивается под неё — ноги не скользят
+const MOVE = { walk: 1.75, run: 3.3 };
 async function moveUnit(u, path, dash = false) {
   // невидимый дроид идёт вне поля зрения — без анимации
   if (u.team === 'droid' && !u.visible && !path.some(([x, z]) => vis[id(x, z)])) {
@@ -1691,38 +1760,49 @@ async function moveUnit(u, path, dash = false) {
     if (path.length > 1) { const [a, b] = path[path.length - 2]; u.yaw = u.rig.root.rotation.y = Math.atan2(x - a, z - b); }
     return;
   }
-  u.state = dash ? 'run' : 'walk'; const speed = dash ? 4.6 : 3.3;
-  for (let i = 1; i < path.length; i++) {
-    const [x0, z0] = path[i - 1], [x1, z1] = path[i], diag = x0 !== x1 && z0 !== z1, yaw = Math.atan2(x1 - x0, z1 - z0), y0 = u.rig.root.rotation.y;
-    let stepped = false;
-    await tween((diag ? 1.41 : 1) / speed, k => {
-      u.rig.root.position.set(lerp(x0, x1, k) + 0.5, 0, lerp(z0, z1, k) + 0.5); u.rig.root.rotation.y = angleLerp(y0, yaw, Math.min(1, k * 3));
-      if (!stepped && k > 0.5) { stepped = true; if (u.team === 'clone' || u.visible) Snd.fx.step(u.team); }
-      if (u.team === 'clone' || u.visible) focus(u.rig.root.position.x, u.rig.root.position.z);
-    });
-    u.x = x1; u.z = z1; u.yaw = yaw;
-    if (u.team === 'clone') updateVisibility(); else { u.visible = !!vis[id(u.x, u.z)]; u.rig.root.visible = u.visible; }
-    // реакция дозорных
-    for (const o of units) {
-      if (!o.alive || !o.overwatch || o.team === u.team || !u.alive) continue;
-      if (o.team === 'droid' && !podsActive[o.pod]) continue;
-      const s = shotInfo(o, u, true); if (!s || s.d > o.sight) continue;
-      o.overwatch = false; u.state = 'idle';
-      banner('ДОЗОРНЫЙ ОГОНЬ', o.team === 'clone' ? 'rep' : 'sep');
-      await shoot(o, u, { reaction: true });
-      if (!u.alive) return;
-      u.state = dash ? 'run' : 'walk';
+  if (path.length < 2) return;
+  // плавная траектория через центры клеток вместо ломаной
+  const pts = path.map(([x, z]) => new THREE.Vector3(x + 0.5, 0, z + 0.5));
+  const curve = pts.length > 2 ? new THREE.CatmullRomCurve3(pts, false, 'centripetal') : new THREE.LineCurve3(pts[0], pts[1]);
+  const L = curve.getLength(), lens = curve.getLengths(300), sAt = pts.map((_, i) => lens[Math.round(i / (pts.length - 1) * 300)]);
+  const speed = dash ? MOVE.run : MOVE.walk, show = () => u.team === 'clone' || u.visible;
+  const t0 = curve.getTangentAt(0.01); await turnTo(u, Math.atan2(t0.x, t0.z), 0.25);
+  u.state = dash ? 'run' : 'walk';
+  let s = 0, next = 1, el = 0, stepD = 0;
+  while (s < L - 1e-4) {
+    const dt = await nextFrame(); el += dt;
+    const v = speed * Math.min(1, 0.25 + el / 0.3) * Math.min(1, 0.3 + (L - s) / 0.45);
+    s = Math.min(L, s + v * dt); u.animSpeed = v;
+    const t = s / L, p = curve.getPointAt(t), tan = curve.getTangentAt(Math.min(0.999, Math.max(0.001, t)));
+    u.rig.root.position.copy(p); u.rig.root.rotation.y = angleLerp(u.rig.root.rotation.y, Math.atan2(tan.x, tan.z), 1 - Math.exp(-dt * 9));
+    stepD += v * dt; if (stepD > (dash ? 0.62 : 0.42)) { stepD = 0; if (show()) Snd.fx.step(u.team); }
+    if (show()) focus(p.x, p.z);
+    // пересекли центр очередной клетки — обновляем видимость и проверяем дозорных
+    while (next < pts.length && s >= sAt[next] - 0.02) {
+      u.x = path[next][0]; u.z = path[next][1]; next++;
+      if (u.team === 'clone') updateVisibility(); else { u.visible = !!vis[id(u.x, u.z)]; u.rig.root.visible = u.visible; }
+      for (const o of units) {
+        if (!o.alive || !o.overwatch || o.team === u.team || !u.alive) continue;
+        if (o.team === 'droid' && !podsActive[o.pod]) continue;
+        const si = shotInfo(o, u, true); if (!si || si.d > o.sight) continue;
+        o.overwatch = false; u.state = 'idle';
+        banner('ДОЗОРНЫЙ ОГОНЬ', o.team === 'clone' ? 'rep' : 'sep');
+        await shoot(o, u, { reaction: true });
+        if (!u.alive) return;
+        u.state = dash ? 'run' : 'walk'; el = 0;
+      }
     }
   }
-  u.state = 'idle';
+  const [lx, lz] = path[path.length - 1]; u.x = lx; u.z = lz; u.yaw = u.rig.root.rotation.y;
+  u.state = 'idle'; u.animSpeed = 0;
   // разведка: клоны обнаружили группу дроидов
   if (u.team === 'clone') await checkPods();
 }
 
 // ---------- режиссёр выстрела
 const UP = new THREE.Vector3(0, 1, 0);
-const chestY = u => (u.state === 'hunker' ? 0.45 : u.crouch ? 0.58 : u.type === 'b2' ? 0.82 : 0.78);
-const eyeY = u => (u.type === 'b2' ? 1.0 : u.team === 'droid' ? 0.95 : 0.98);
+const chestY = u => (u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.87 : 0.83);
+const eyeY = u => (u.type === 'b2' ? 1.06 : u.team === 'droid' ? 1.0 : 1.04);
 let thirdCount = 0, ownShots = 0;
 // режим камеры выстрела: auto — крутые моменты и каждый второй свой выстрел,
 // first — всегда от первого лица, third — кино-ракурсы (снайпер всё равно через оптику)
@@ -2248,7 +2328,8 @@ addEventListener('resize', resize); addEventListener('orientationchange', () => 
 let smokeT = 0, attractT = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000) * timeScale * slow * (phase === 'enemy' && fastEnemy ? 2 : 1); last = now;
-  tweensUpdate(dt); FX.update(dt); dustUpdate(dt);
+  tweensUpdate(dt); if (frameWaiters.length) for (const r of frameWaiters.splice(0)) r(dt);
+  FX.update(dt); dustUpdate(dt);
   for (const u of units) poseRig(u, dt);
   // дым над обломками
   smokeT -= dt; if (smokeT < 0) { smokeT = 0.35; for (const [x, y, z] of smokeSources) FX.puff(x + rand(-0.2, 0.2), y, z + rand(-0.2, 0.2), { color: 0x3b332e, life: 3.2, s0: 0.3, s1: 1.8, vy: 0.5, a: 0.45 }); }
