@@ -43,12 +43,14 @@
   #bJ { width: clamp(70px, 19vh, 112px); height: clamp(70px, 19vh, 112px); background: rgba(255, 170, 40, .45); border-color: rgba(255, 220, 140, .7); }
   #bJ.on { background: rgba(255, 190, 70, .75); }
 
-  #pauseBtn {
+  #pauseBtn, #musicBtn {
     position: fixed; z-index: 6; top: calc(10px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
     width: 46px; height: 46px; border-radius: 12px; border: 0; background: var(--ui);
     color: #fff; font-size: 18px; font-weight: 900; letter-spacing: 2px; display: none;
   }
-  body.playing #pauseBtn { display: block; }
+  #musicBtn { right: calc(66px + env(safe-area-inset-right)); font-size: 20px; letter-spacing: 0; }
+  #musicBtn.off { opacity: .5; text-decoration: line-through; }
+  body.playing #pauseBtn, body.playing #musicBtn { display: block; }
 
   /* --- оверлеи --- */
   .overlay {
@@ -86,6 +88,7 @@
 <canvas id="game"></canvas>
 
 <button id="pauseBtn" aria-label="Пауза">II</button>
+<button id="musicBtn" aria-label="Музыка">♪</button>
 
 <div id="touch">
   <div class="pad left">
@@ -187,6 +190,97 @@ const SFX = {
   life: () => seq([659, 784, 1319, 1047, 1175, 1568], 70, 0.1),
   win: () => seq([523, 659, 784, 1047, 784, 1047], 140, 0.22),
 };
+
+// ============================================================
+//  Фоновая музыка: процедурный «племенной» мотив (маримба, флейта, барабаны)
+// ============================================================
+const Music = {
+  on: true, playing: false, step: 0, next: 0, timer: null, out: null, noise: null,
+  BPM: 104,
+  // ля-минорная пентатоника; null — пауза
+  A: [69, null, 72, null, 74, null, 76, 74, 72, null, 69, null, 67, null, 69, null,
+      69, null, 72, null, 74, null, 79, 76, 74, null, 72, null, 74, null, null, null],
+  B: [76, null, null, null, 79, null, 76, null, 74, null, null, null, 72, null, 74, null,
+      76, null, null, null, 81, null, 79, null, 76, null, 74, null, 72, null, null, null],
+  BASS: [45, 41, 43, 40],
+  TOMS: [1, 0, 0, 1, 0, 0, 1, 0],
+  HI: [0, 0, 0, 0, 1, 0, 0, 1],
+};
+try { Music.on = localStorage.getItem('kb-music') !== 'off'; } catch (e) {}
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function musicInit() {
+  if (!AC || Music.out) return;
+  Music.out = AC.createGain(); Music.out.gain.value = 0.5; Music.out.connect(AC.destination);
+  const len = AC.sampleRate * 0.5, buf = AC.createBuffer(1, len, AC.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  Music.noise = buf;
+}
+function env(t, a, peak, dec) {
+  const g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec);
+  g.connect(Music.out); return g;
+}
+function osc(type, f, t, dur, g) { const o = AC.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.connect(g); o.start(t); o.stop(t + dur + 0.05); return o; }
+function marimba(m, t) {
+  const f = mtof(m);
+  osc('sine', f, t, 0.5, env(t, 0.005, 0.22, 0.45));
+  osc('sine', f * 4, t, 0.1, env(t, 0.002, 0.05, 0.08));
+}
+function flute(m, t, dur) {
+  const f = mtof(m), g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11, t + 0.08);
+  g.gain.setValueAtTime(0.11, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.connect(Music.out);
+  const o = osc('triangle', f, t, dur, g), lfo = AC.createOscillator(), lg = AC.createGain();
+  lfo.frequency.value = 5.5; lg.gain.value = f * 0.012; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + dur + 0.05);
+  // дыхание флейты
+  const n = AC.createBufferSource(), bp = AC.createBiquadFilter(); n.buffer = Music.noise;
+  bp.type = 'bandpass'; bp.frequency.value = f * 2; bp.Q.value = 3;
+  n.connect(bp); bp.connect(env(t, 0.03, 0.025, dur * 0.8)); n.start(t); n.stop(t + dur);
+}
+function bass(m, t, dur) { osc('triangle', mtof(m), t, dur, env(t, 0.01, 0.26, dur)); }
+function tom(t, hi) {
+  const o = AC.createOscillator(), g = env(t, 0.003, hi ? 0.22 : 0.35, hi ? 0.14 : 0.24);
+  o.type = 'sine'; o.frequency.setValueAtTime(hi ? 260 : 150, t); o.frequency.exponentialRampToValueAtTime(hi ? 140 : 55, t + 0.2);
+  o.connect(g); o.start(t); o.stop(t + 0.3);
+}
+function shaker(t, acc) {
+  const n = AC.createBufferSource(), hp = AC.createBiquadFilter(); n.buffer = Music.noise;
+  hp.type = 'highpass'; hp.frequency.value = 7000;
+  n.connect(hp); hp.connect(env(t, 0.004, acc ? 0.07 : 0.035, 0.05)); n.start(t, Math.random() * 0.3); n.stop(t + 0.08);
+}
+function musicStep(i, t) {
+  const sd = 60 / Music.BPM / 2, bar = Math.floor(i / 8) % 16, s8 = i % 8, k = i % 32;
+  const sec = Math.floor(i / 32) % 4; // A A B B
+  if (sec < 2) { const m = Music.A[k]; if (m) marimba(m, t); }
+  else {
+    const m = Music.B[k];
+    if (m) { let len = 1; while (k + len < 32 && Music.B[k + len] === null && len < 4) len++; flute(m, t, len * sd * 0.95); }
+    if (k % 4 === 2) marimba(Music.A[(k + 8) % 32] || 69, t);
+  }
+  const root = Music.BASS[bar % 4];
+  if (s8 === 0 || s8 === 3) bass(root, t, sd * 2.5);
+  if (s8 === 6) bass(root + 7, t, sd * 1.8);
+  if (Music.TOMS[s8]) tom(t, false);
+  if (Music.HI[s8] && bar % 2) tom(t, true);
+  shaker(t, s8 % 2 === 1);
+}
+function musicStart() {
+  if (!AC || !Music.on || Music.playing) return;
+  musicInit(); Music.playing = true; Music.next = AC.currentTime + 0.1;
+  Music.out.gain.cancelScheduledValues(AC.currentTime); Music.out.gain.setValueAtTime(0.5, AC.currentTime);
+  Music.timer = setInterval(() => {
+    const sd = 60 / Music.BPM / 2;
+    while (Music.next < AC.currentTime + 0.15) { musicStep(Music.step++, Music.next); Music.next += sd; }
+  }, 30);
+}
+function musicStop() { if (!Music.playing) return; Music.playing = false; clearInterval(Music.timer); }
+function musicToggle() {
+  Music.on = !Music.on;
+  try { localStorage.setItem('kb-music', Music.on ? 'on' : 'off'); } catch (e) {}
+  $('musicBtn').classList.toggle('off', !Music.on);
+  if (Music.on && state === 'play') musicStart(); else musicStop();
+}
 
 // ============================================================
 //  Графика: заранее отрисованные тайлы и фоны
@@ -320,6 +414,7 @@ function palm(g, x, base, h, lean, R) {
   g.fillStyle = '#6b4a1e'; ell(g, tx - 4, ty + 5, 4, 4); g.fill(); ell(g, tx + 4, ty + 6, 4, 4); g.fill();
 }
 function bush(g, x, y, s, col) { g.fillStyle = col; for (let i = 0; i < 5; i++) { ell(g, x + (i - 2) * s * 0.55, y - Math.sin(i / 4 * Math.PI) * s * 0.35, s * 0.42, s * 0.36); g.fill(); } }
+const FALLS = [[60, 250], [470, 210], [820, 270], [1130, 235]].map(([x, top]) => ({ x: x - 30, top: top + 12, w: 34 }));
 function makeMid() {
   const w = 1300, [c, g] = mk(w, VH);
   wrapDraw(g, w, () => {
@@ -419,59 +514,121 @@ function drawMeat(g, x, y) {
   g.fillStyle = '#e07a45'; ell(g, -4, -3, 4.5, 2.5); g.fill();
   g.restore();
 }
-function drawCaveman(g, x, y, face, t, st, sc = 0.86) {
-  const skin = '#f2a46b', skinD = '#d9824a', hair = '#6b3410', fur = '#f0962e', spot = '#5a2a0a';
-  g.save(); g.translate(x, y); g.scale(face * sc, sc);
-  const run = st.run && !st.air;
-  const sw = st.air ? 0 : run ? Math.sin(t * 15) * 0.75 : 0;
-  if (run) g.translate(0, -Math.abs(Math.sin(t * 15)) * 2.5);
-  const leg = (hx, a, col) => {
-    g.save(); g.translate(hx, -15); g.rotate(a);
-    g.fillStyle = col; rr(g, -4, 0, 8, 14, 3.5); g.fill();
-    ell(g, 2.5, 14, 6.5, 3.2); g.fill(); g.restore();
+function drawCaveman(g, x, y, face, t, st, sc = 1) {
+  const skin = '#f4a96f', skinD = '#d4804c', skinL = '#ffcfa3', hair = '#5a2a0d', hairL = '#8b4a1c',
+    fur = '#f39a2e', furD = '#c96f17', spot = '#4a2208';
+  const run = st.run && !st.air, air = st.air, vy = st.vy || 0, sq = st.sq || 0;
+  const ph = t * 7.5, br = Math.sin(T * 2.6);
+  g.save(); g.translate(x, y); g.scale(face * sc * (1 + sq * 0.13), sc * (1 - sq * 0.13));
+  const bob = run ? -Math.abs(Math.cos(ph)) * 2.4 : air ? 0 : br * 0.5;
+  const lean = run ? 0.13 : air ? 0.05 : 0;
+  // ноги: бедро + голень, стопа всегда горизонтальна
+  const leg = (hx, a, k, col, footCol) => {
+    g.save(); g.translate(hx, -16 + bob); g.rotate(a);
+    g.fillStyle = col; rr(g, -3.8, -2, 7.6, 11, 3.8); g.fill();
+    g.translate(0, 8.5); g.rotate(k);
+    rr(g, -3.2, -1, 6.4, 9.5, 3.2); g.fill();
+    g.translate(0, 8); g.rotate(-(a + k));
+    g.fillStyle = footCol; ell(g, 2.2, 0.6, 5.8, 3); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.25)'; ell(g, 3, -0.6, 3, 1); g.fill();
+    g.restore();
   };
+  let fa, fk, ba, bk;
+  if (run) {
+    fa = -Math.sin(ph) * 0.85; fk = (1 - Math.sin(ph + 0.7)) * 0.6;
+    ba = -Math.sin(ph + Math.PI) * 0.85; bk = (1 - Math.sin(ph + Math.PI + 0.7)) * 0.6;
+  } else if (air) {
+    if (vy < 0) { fa = -1.0; fk = 1.4; ba = 0.45; bk = 0.7; } else { fa = -0.45; fk = 0.5; ba = 0.3; bk = 0.25; }
+  } else { fa = -0.06; fk = 0.04; ba = 0.08; bk = 0.02; }
   // задняя рука
-  g.save(); g.translate(-5, -31); g.rotate(st.air ? -2.2 : 0.2 - sw * 0.6);
-  g.fillStyle = skinD; rr(g, -3, 0, 6, 13, 3); g.fill(); ell(g, 0, 13, 3.5, 3.5); g.fill(); g.restore();
-  leg(-3, st.air ? 0.55 : sw, skinD);
-  leg(3, st.air ? -0.7 : -sw, skin);
-  // тело
-  g.fillStyle = skin; rr(g, -10, -36, 20, 24, 8); g.fill();
+  const armSw = run ? Math.sin(ph) * 0.9 : air ? -2.3 : 0.18 + br * 0.04;
+  g.save(); g.translate(0, -16 + bob); g.rotate(lean); g.translate(-4, -17); g.rotate(armSw);
+  g.fillStyle = skinD; rr(g, -3.2, -1, 6.4, 14, 3.2); g.fill(); ell(g, 0, 13.5, 3.6, 3.6); g.fill();
+  g.restore();
+  leg(-2.5, ba, bk, skinD, '#b86a3c');
+  leg(2.5, fa, fk, skin, skinD);
+  // туловище
+  g.save(); g.translate(0, -16 + bob); g.rotate(lean);
+  g.fillStyle = skin; rr(g, -10, -22, 20, 24, 8.5); g.fill();
+  g.fillStyle = skinL; ell(g, -3, -16, 4.5, 3); g.fill();
+  g.fillStyle = skinD; ell(g, 7, -10, 2.4, 6); g.fill();
+  // шкура
   g.fillStyle = fur; g.beginPath();
-  g.moveTo(-10.5, -27); g.lineTo(4, -37); g.lineTo(10, -33); g.lineTo(11, -14);
-  g.lineTo(7, -10); g.lineTo(4, -13); g.lineTo(0, -9); g.lineTo(-4, -13); g.lineTo(-8, -9); g.lineTo(-11, -13); g.closePath(); g.fill();
+  g.moveTo(-10.6, -12); g.lineTo(3, -23); g.lineTo(9.5, -20); g.lineTo(10.6, 1);
+  g.lineTo(7.5, 5); g.lineTo(4.5, 1.5); g.lineTo(1, 5.5); g.lineTo(-2.5, 1.5); g.lineTo(-6, 5.5); g.lineTo(-8.5, 1.5); g.lineTo(-11, 3.5); g.closePath(); g.fill();
+  g.fillStyle = furD; g.beginPath(); g.moveTo(6, -21); g.lineTo(9.5, -20); g.lineTo(10.6, 1); g.lineTo(7.5, 5); g.lineTo(6.5, 1); g.closePath(); g.fill();
   g.fillStyle = spot;
-  [[-6, -22, 2.2], [1, -26, 1.8], [6, -19, 2.4], [-2, -16, 1.6], [6, -30, 1.5], [-7, -14, 1.3], [3, -13, 1.4]].forEach(([a, b, r]) => { ell(g, a, b, r, r * 0.8, 0.5); g.fill(); });
+  [[-6, -7, 2.2], [0, -12, 1.9], [5, -5, 2.4], [-2, -1, 1.7], [5, -16, 1.5], [-8, 0, 1.3], [2, 2, 1.4], [-4, -14, 1.2]].forEach(([a, b, r]) => { ell(g, a, b, r, r * 0.75, 0.5); g.fill(); });
+  g.fillStyle = '#7a4a22'; g.fillRect(-10.5, -3.2, 21, 2.4);
+  g.fillStyle = '#a0703a'; g.fillRect(-10.5, -3.2, 21, 0.9);
   // голова
-  g.save(); g.translate(1, -44);
+  const hb = run ? Math.sin(ph * 2) * 0.8 : air ? clamp(vy * 0.004, -2, 2) : 0;
+  g.save(); g.translate(2, -30); g.rotate(run ? 0.05 : 0);
   g.fillStyle = hair;
-  [[-6, -3, 9], [0, -7, 9], [6, -6, 7], [-9, 3, 7], [-5, 7, 6]].forEach(([a, b, r]) => { ell(g, a, b, r, r); g.fill(); });
-  g.fillStyle = skin; ell(g, 3, 1, 8.5, 8.5); g.fill();
-  g.fillStyle = hair; ell(g, 4, 8, 8.5, 5.5); g.fill(); ell(g, 0, 4, 4, 6); g.fill();
-  g.fillStyle = '#4a1e08'; ell(g, 8, 7.5, 3.2, 2.2); g.fill();
-  g.fillStyle = '#fff'; g.fillRect(6, 6, 4, 1.4);
-  g.fillStyle = '#fff'; ell(g, 6, -1.5, 2.8, 3.2); g.fill();
-  g.fillStyle = '#1a0d05'; ell(g, 7.2, -1.2, 1.5, 1.8); g.fill();
-  g.fillStyle = hair; g.save(); g.translate(5.5, -5.5); g.rotate(-0.15); g.fillRect(-4, -1.5, 8, 2.6); g.restore();
-  g.fillStyle = skinD; ell(g, 11, 2, 2.8, 2.4); g.fill();
-  g.fillStyle = hair; ell(g, 1, -9, 9, 4); g.fill(); ell(g, 7, -8, 5, 3, 0.3); g.fill();
+  [[-7, -3 + hb, 9], [-1, -8 + hb * 0.5, 9.5], [6, -7, 7], [-10, 4 + hb, 7], [-7, 9 + hb, 6], [-11, 10 + hb * 1.3, 4.5]].forEach(([a, b, r]) => { ell(g, a, b, r, r); g.fill(); });
+  g.fillStyle = hairL; ell(g, -5, -9 + hb * 0.5, 4, 2, -0.4); g.fill(); ell(g, -11, 1 + hb, 2, 3.5, 0.3); g.fill();
+  // косточка в волосах
+  drawBone(g, -8, -10 + hb * 0.5, 0.42, -0.6);
+  g.fillStyle = skinD; ell(g, -1.5, 2, 2.6, 3.4); g.fill();
+  g.fillStyle = skin; ell(g, 4.5, 1, 8.6, 9); g.fill();
+  g.fillStyle = skinL; ell(g, 6, -4, 3.5, 2); g.fill();
+  // борода
+  g.fillStyle = hair; g.beginPath();
+  g.moveTo(-2, 1); g.quadraticCurveTo(-1, 13, 6, 14.5); g.quadraticCurveTo(13, 14, 13.5, 6);
+  g.quadraticCurveTo(9, 9, 5, 6); g.quadraticCurveTo(2, 7, -2, 1); g.fill();
+  g.fillStyle = hairL; ell(g, 3, 10, 2.5, 1.2, 0.4); g.fill();
+  // рот
+  const hurt = st.hurt, grin = st.attack > 0 || run;
+  if (hurt) { g.fillStyle = '#3a1206'; ell(g, 9, 8.5, 2, 2.6); g.fill(); }
+  else if (grin) {
+    g.fillStyle = '#3a1206'; g.beginPath(); g.moveTo(5.5, 7); g.quadraticCurveTo(9.5, 12, 13, 6.5); g.closePath(); g.fill();
+    g.fillStyle = '#fff'; g.fillRect(7, 7, 5, 1.6);
+  } else { g.strokeStyle = '#3a1206'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(7, 7.6); g.quadraticCurveTo(10, 9.6, 12.5, 7); g.stroke(); }
+  // глаз
+  const blink = (T % 3.7) < 0.12;
+  if (blink || hurt) { g.strokeStyle = '#1a0d05'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(4.5, -1.5); g.lineTo(9, hurt ? -3 : -1.2); if (hurt) g.lineTo(4.8, -4.2); g.stroke(); }
+  else {
+    g.fillStyle = '#fff'; ell(g, 7, -1.6, 2.9, 3.4); g.fill();
+    g.fillStyle = '#1a0d05'; ell(g, 8.1, -1.2, 1.6, 2); g.fill();
+    g.fillStyle = '#fff'; ell(g, 8.6, -2, 0.6, 0.6); g.fill();
+  }
+  // брови и нос
+  g.fillStyle = hair; g.save(); g.translate(6.5, -6.3); g.rotate(st.attack > 0 ? 0.25 : -0.1); rr(g, -4.5, -1.6, 9, 3, 1.5); g.fill(); g.restore();
+  g.fillStyle = skinD; ell(g, 12.2, 2.4, 3.2, 2.7); g.fill();
+  g.fillStyle = skinL; ell(g, 12.4, 1.4, 1.2, 0.8); g.fill();
+  // чёлка
+  g.fillStyle = hair;
+  [[0, -9, 5], [5, -10, 4.5], [10, -8, 3]].forEach(([a, b, r]) => { ell(g, a, b + hb * 0.3, r, r * 0.8); g.fill(); });
+  g.beginPath(); g.moveTo(9, -9); g.lineTo(14, -6.5); g.lineTo(10, -5.5); g.fill();
   g.restore();
   // передняя рука с дубиной
   let armA, clubA;
   if (st.attack > 0) {
     const p = 1 - st.attack, e = 1 - Math.pow(1 - Math.min(1, p * 1.6), 3);
     armA = 2.6 + (5.0 - 2.6) * e; clubA = armA + 0.25;
-  } else if (st.air) { armA = 2.3; clubA = 2.9; }
-  else { armA = -0.45 + sw * 0.5; clubA = 2.55; }
-  g.save(); g.translate(3, -31); g.rotate(armA);
-  g.fillStyle = skin; rr(g, -3, 0, 6, 13, 3); g.fill();
+    if (p > 0.05 && p < 0.75) { // след удара
+      g.save(); g.translate(3, -18);
+      const grd = g.createRadialGradient(0, 0, 24, 0, 0, 44);
+      grd.addColorStop(0, 'rgba(255,250,220,0)'); grd.addColorStop(0.75, `rgba(255,250,220,${0.6 * (1 - p)})`); grd.addColorStop(1, 'rgba(255,250,220,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(0, 0, 44, Math.max(2.6, armA - 1.4) + Math.PI / 2, armA + Math.PI / 2); g.arc(0, 0, 24, armA + Math.PI / 2, Math.max(2.6, armA - 1.4) + Math.PI / 2, true); g.fill();
+      g.restore();
+    }
+  } else if (air) { armA = vy < 0 ? 2.5 : 2.3; clubA = vy < 0 ? 2.75 : 2.6; }
+  else if (run) { armA = -0.35 - Math.sin(ph) * 0.35; clubA = armA - 0.5; }
+  else { armA = -0.22 + br * 0.04; clubA = -0.8; }
+  g.save(); g.translate(3, -18); g.rotate(armA);
+  g.fillStyle = skin; rr(g, -3.4, -1, 6.8, 14, 3.4); g.fill();
+  g.fillStyle = skinL; rr(g, -2.4, 1, 1.6, 8, 0.8); g.fill();
   g.save(); g.translate(0, 13); g.rotate(clubA - armA);
-  g.fillStyle = '#7a4a22'; rr(g, -2.5, -2, 5, 20, 2.5); g.fill();
-  g.fillStyle = '#8f5a2c'; ell(g, 0, 21, 6.5, 8.5); g.fill();
-  g.fillStyle = '#6b3d18'; ell(g, -2, 23, 1.5, 2.2); g.fill(); ell(g, 2.5, 18, 1.2, 1.8); g.fill();
-  g.fillStyle = 'rgba(255,220,170,.3)'; ell(g, 2, 19, 2, 4); g.fill();
+  g.fillStyle = '#6e4320'; rr(g, -2.6, -3, 5.2, 21, 2.6); g.fill();
+  g.fillStyle = '#8f5a2c'; g.beginPath(); g.ellipse(0, 21, 7.2, 9.6, 0, 0, 7); g.fill();
+  g.fillStyle = '#6b3d18'; ell(g, 2.5, 22, 4, 7.5); g.fill();
+  g.fillStyle = '#a8703a'; ell(g, -2.5, 18, 2.2, 5); g.fill();
+  g.fillStyle = '#4e2a0e'; ell(g, -1, 26, 1.6, 1.4); g.fill(); ell(g, 3, 16, 1.3, 1.6); g.fill();
   g.restore();
-  g.fillStyle = skin; ell(g, 0, 13, 3.8, 3.8); g.fill();
+  g.fillStyle = skin; ell(g, 0, 13, 4, 4); g.fill();
+  g.strokeStyle = skinD; g.lineWidth = 0.8; g.beginPath(); g.moveTo(-2, 12); g.lineTo(2, 12); g.moveTo(-2, 14); g.lineTo(2, 14); g.stroke();
+  g.restore();
   g.restore();
   g.restore();
 }
@@ -479,21 +636,40 @@ function drawDino(g, e) {
   g.save(); g.translate(e.x + e.w / 2, e.y + e.h);
   if (e.knock) { g.translate(0, -e.h / 2); g.rotate(Math.PI); g.translate(0, -e.h / 2); }
   g.scale(e.dir, e.squash > 0 ? 0.35 : 1);
-  const step = Math.sin(e.walk * 12) * 0.5;
-  g.fillStyle = '#3f8a26';
-  g.save(); g.translate(-5, -8); g.rotate(step); g.fillRect(-2.5, 0, 5, 8); g.restore();
-  g.save(); g.translate(5, -8); g.rotate(-step); g.fillRect(-2.5, 0, 5, 8); g.restore();
-  g.fillStyle = '#e8742a';
-  for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(-10 + i * 5, -19); g.lineTo(-7.5 + i * 5, -25 + (i === 1 || i === 2 ? -2 : 0)); g.lineTo(-5 + i * 5, -19); g.fill(); }
-  g.fillStyle = '#5bb33a';
-  g.beginPath(); g.moveTo(-9, -16); g.lineTo(-24, -12 + Math.sin(e.walk * 6) * 2); g.lineTo(-9, -9); g.fill();
-  ell(g, 0, -13, 12, 8); g.fill();
-  ell(g, 11, -21, 8, 6.5); g.fill();
-  g.fillStyle = '#d6ea8a'; ell(g, 2, -10, 7, 4); g.fill(); ell(g, 13, -17, 5, 2.5); g.fill();
-  g.fillStyle = '#fff'; ell(g, 13, -24, 3, 3); g.fill();
-  g.fillStyle = '#111'; ell(g, 14, -24, 1.6, 2); g.fill();
-  g.fillStyle = '#2d6a1a'; g.save(); g.translate(13, -27.5); g.rotate(0.35); g.fillRect(-3.5, -1, 7, 2); g.restore();
-  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(14, -18); g.lineTo(15.5, -15.5); g.lineTo(17, -18); g.fill();
+  const ph = e.walk * 12, step = Math.sin(ph) * 0.55, bob = Math.abs(Math.cos(ph)) * -1.2;
+  const G = '#5bb33a', GD = '#3f8a26', GL = '#8fd65a', BEL = '#e3f0a0';
+  // задняя нога
+  g.fillStyle = GD; g.save(); g.translate(-4, -9); g.rotate(-step); rr(g, -3, 0, 6, 9, 3); g.fill(); ell(g, 1.5, 9, 4, 2); g.fill(); g.restore();
+  g.translate(0, bob);
+  // хвост
+  g.fillStyle = G; g.beginPath(); g.moveTo(-8, -17); g.quadraticCurveTo(-20, -18 + Math.sin(ph * 0.5) * 3, -27, -11 + Math.sin(ph * 0.5) * 3);
+  g.quadraticCurveTo(-18, -9, -8, -8); g.fill();
+  // гребень
+  for (let i = 0; i < 5; i++) {
+    g.fillStyle = i % 2 ? '#f08a32' : '#e8642a';
+    const sx = -13 + i * 5, h = [4, 6, 7, 6, 4][i];
+    g.beginPath(); g.moveTo(sx, -19 + Math.abs(sx) * 0.05); g.lineTo(sx + 2.5, -19 - h); g.lineTo(sx + 5, -19 + Math.abs(sx) * 0.05); g.fill();
+  }
+  // туловище и голова
+  g.fillStyle = G; ell(g, 0, -13, 12.5, 8.5); g.fill();
+  g.fillStyle = GL; ell(g, -3, -17, 6, 2.5, -0.1); g.fill();
+  g.fillStyle = BEL; ell(g, 3, -9.5, 7.5, 4.2); g.fill();
+  g.fillStyle = GD; [[-6, -14], [-1, -16], [-9, -10]].forEach(([a, b]) => { ell(g, a, b, 1.6, 1.2); g.fill(); });
+  g.fillStyle = G; ell(g, 9, -19, 5, 6); g.fill(); ell(g, 13, -22, 8.5, 6.5); g.fill();
+  g.fillStyle = BEL; ell(g, 15, -18, 5.5, 2.4); g.fill();
+  g.fillStyle = GL; ell(g, 11, -26, 4, 1.6); g.fill();
+  g.fillStyle = '#2d6a1a'; ell(g, 20, -24, 0.9, 0.7); g.fill();
+  g.strokeStyle = '#2d6a1a'; g.lineWidth = 1; g.beginPath(); g.moveTo(11, -19.5); g.quadraticCurveTo(16, -18.5, 21, -20.5); g.stroke();
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(14, -19.5); g.lineTo(15, -17.6); g.lineTo(16, -19.5); g.moveTo(17.5, -20); g.lineTo(18.4, -18.2); g.lineTo(19.2, -20.2); g.fill();
+  g.fillStyle = '#fff'; ell(g, 13.5, -24.5, 3.2, 3.4); g.fill();
+  g.fillStyle = '#1a0d05'; ell(g, 14.6, -24.2, 1.7, 2.1); g.fill();
+  g.fillStyle = '#fff'; ell(g, 15.1, -25, 0.6, 0.6); g.fill();
+  g.fillStyle = GD; g.save(); g.translate(13.5, -28.5); g.rotate(0.35); rr(g, -4, -1.1, 8, 2.4, 1.2); g.fill(); g.restore();
+  // передняя лапка и нога
+  g.fillStyle = GD; g.save(); g.translate(8, -12); g.rotate(0.6 + step * 0.4); rr(g, -1.5, 0, 3, 6, 1.5); g.fill(); g.restore();
+  g.translate(0, -bob);
+  g.fillStyle = G; g.save(); g.translate(4, -9); g.rotate(step); rr(g, -3.2, 0, 6.4, 9, 3.2); g.fill();
+  g.fillStyle = GD; ell(g, 1.8, 9, 4.2, 2.1); g.fill(); g.restore();
   g.restore();
 }
 function drawPtero(g, e) {
@@ -629,7 +805,8 @@ function buildLevel() {
   const R = rng(1234);
   for (let x = 1; x < COLS - 1; x++) for (let y = 1; y < ROWS; y++) {
     if (map[y][x] === '#' && map[y - 1][x] === ' ' && R() < 0.22 && Math.abs(x * TILE - goalX) > 40 && x < 160) {
-      decor.push({ type: R() < 0.5 ? 'rock' : 'fern', x: x * TILE + 4 + R() * 24, y: y * TILE, s: 0.7 + R() * 0.6 });
+      const fern = R() < 0.6;
+      decor.push({ type: fern ? 'fern' : 'rock', x: x * TILE + 4 + R() * 24, y: y * TILE, s: 0.7 + R() * 0.6, flower: fern && R() < 0.4 ? ['#ff5d8f', '#ffd23f', '#ff8a3d', '#c77dff'][Math.floor(R() * 4)] : null });
     }
   }
   totalBones = items.filter(i => i.type === 'bone').length;
@@ -646,13 +823,13 @@ function solidAt(tx, ty) {
 // ============================================================
 let state = 'start', player, camX = 0, lives, coins, bones, particles, shake = 0, playTime = 0, flagY = 0, winT = 0, checkpoint;
 function newPlayer(x, y) {
-  return { x, y, w: 22, h: 40, vx: 0, vy: 0, face: 1, onGround: false, coyote: 0, jumpBuf: 0, attack: 0, atkCD: 0, inv: 0, anim: 0, hearts: 3, dieT: 0, hidden: false };
+  return { x, y, w: 24, h: 46, vx: 0, vy: 0, face: 1, onGround: false, coyote: 0, jumpBuf: 0, attack: 0, atkCD: 0, inv: 0, anim: 0, hearts: 3, dieT: 0, hidden: false, sq: 0, lastVy: 0 };
 }
 function resetGame() {
   buildLevel();
   lives = 3; coins = 0; bones = 0; particles = []; playTime = 0; winT = 0;
   flagY = 12 * TILE - 290;
-  checkpoint = { x: 3 * TILE, y: 12 * TILE - 40 };
+  checkpoint = { x: 3 * TILE, y: 12 * TILE - 46 };
   player = newPlayer(checkpoint.x, checkpoint.y);
   camX = 0;
 }
@@ -670,6 +847,7 @@ addEventListener('keydown', e => {
   if (k) { e.preventDefault(); if (!keys[k] && !e.repeat) press(k); keys[k] = true; }
   if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
   if (e.code === 'KeyF') goFullscreen();
+  if (e.code === 'KeyM') { initAudio(); musicToggle(); }
   if ((e.code === 'Enter' || e.code === 'Space') && state === 'start') startGame();
 });
 addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
@@ -731,13 +909,13 @@ $('helpText').innerHTML = isTouch
   : '← → / A D — бег &nbsp;·&nbsp; ↑ / Пробел — прыжок &nbsp;·&nbsp; X / J — удар дубиной<br>P — пауза &nbsp;·&nbsp; F — полный экран. Собери все косточки!';
 function startGame() {
   initAudio(); goFullscreen();
-  resetGame(); state = 'play';
+  resetGame(); state = 'play'; musicStart();
   $('startScr').classList.remove('show'); $('endScr').classList.remove('show'); $('pauseScr').classList.remove('show');
   document.body.classList.add('playing');
 }
 function setPause(on) {
-  if (on && state === 'play') { state = 'paused'; $('pauseScr').classList.add('show'); }
-  else if (!on && state === 'paused') { state = 'play'; $('pauseScr').classList.remove('show'); last = performance.now(); }
+  if (on && state === 'play') { state = 'paused'; $('pauseScr').classList.add('show'); musicStop(); }
+  else if (!on && state === 'paused') { state = 'play'; $('pauseScr').classList.remove('show'); last = performance.now(); initAudio(); musicStart(); }
 }
 function togglePause() { setPause(state === 'play'); }
 window.appPause = () => setPause(true); // вызывается Android-обёрткой при сворачивании
@@ -746,9 +924,11 @@ $('againBtn').addEventListener('click', startGame);
 $('restartBtn').addEventListener('click', startGame);
 $('resumeBtn').addEventListener('click', () => { goFullscreen(); setPause(false); });
 $('pauseBtn').addEventListener('click', togglePause);
+$('musicBtn').addEventListener('click', () => { initAudio(); musicToggle(); });
+$('musicBtn').classList.toggle('off', !Music.on);
 const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function showEnd(win) {
-  document.body.classList.remove('playing');
+  document.body.classList.remove('playing'); musicStop();
   $('endTitle').textContent = win ? 'Победа! Уг дома!' : 'Игра окончена';
   $('endStats').innerHTML = `🦴 Косточки: <b>${bones} / ${totalBones}</b><br>🪙 Монеты: <b>${coins}</b><br>⏱ Время: <b>${fmtTime(playTime)}</b>` +
     (win && bones === totalBones ? '<br>⭐ Все косточки собраны! ⭐' : '');
@@ -810,6 +990,7 @@ function hurt() {
 function die(fell) {
   const p = player;
   state = 'dying'; p.dieT = fell ? 0.8 : 0; p.vy = fell ? 0 : -620; p.hearts = 0; SFX.die();
+  if (Music.out) { Music.out.gain.setValueAtTime(0.5, AC.currentTime); Music.out.gain.linearRampToValueAtTime(0.12, AC.currentTime + 0.3); Music.out.gain.linearRampToValueAtTime(0.5, AC.currentTime + 2.4); }
 }
 function respawn() {
   lives--;
@@ -832,16 +1013,21 @@ function update(dt) {
     playTime += dt;
     // бег
     const L = input.left && !input.right, Rt = input.right && !input.left;
-    const acc = p.onGround ? 1700 : 1150, maxV = 235;
-    if (L) { p.vx -= acc * dt; p.face = -1; }
-    else if (Rt) { p.vx += acc * dt; p.face = 1; }
-    else { const f = (p.onGround ? 1500 : 350) * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f; }
-    if (Math.abs(p.vx) > maxV) p.vx = Math.sign(p.vx) * Math.max(maxV, Math.abs(p.vx) - 900 * dt);
+    const maxV = 180, dir = L ? -1 : Rt ? 1 : 0;
+    if (dir) {
+      p.face = dir;
+      // разворот тормозит резко, разгон плавный
+      const acc = p.vx * dir < 0 ? (p.onGround ? 2600 : 1400) : (p.onGround ? 950 : 750);
+      p.vx += dir * acc * dt;
+    } else {
+      const f = (p.onGround ? 2400 : 500) * dt; p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f;
+    }
+    if (Math.abs(p.vx) > maxV) p.vx = Math.sign(p.vx) * maxV;
     // прыжок
     p.coyote = p.onGround ? 0.1 : p.coyote - dt;
     p.jumpBuf = input.jumpPressed ? 0.13 : p.jumpBuf - dt;
     if (p.jumpBuf > 0 && p.coyote > 0) {
-      p.vy = -640; p.jumpBuf = 0; p.coyote = 0; p.onGround = false; SFX.jump();
+      p.vy = -660; p.jumpBuf = 0; p.coyote = 0; p.onGround = false; p.sq = -1; SFX.jump();
       burst(p.x + p.w / 2, p.y + p.h, 5, ['#e8d9b0', '#c9b88a'], 60, 200, 3, 0.35);
     }
     const grav = (p.vy < 0 && input.jump) ? 1400 : 2600;
@@ -854,8 +1040,14 @@ function update(dt) {
 
     const wasAir = !p.onGround;
     moveX(p, dt); moveY(p, dt);
-    if (p.onGround && wasAir && p.vy === 0) burst(p.x + p.w / 2, p.y + p.h, 3, ['#e8d9b0'], 40, 100, 2.5, 0.25);
-    if (p.onGround && Math.abs(p.vx) > 10) p.anim += dt; else if (p.onGround) p.anim = 0;
+    if (p.onGround && wasAir) { p.sq = clamp(p.lastVy / 700, 0.3, 1); burst(p.x + p.w / 2, p.y + p.h, 6, ['#e8d9b0', '#d6c59a'], 70, 120, 3, 0.3); }
+    p.lastVy = p.vy;
+    p.sq += (0 - p.sq) * Math.min(1, dt * 10);
+    if (p.onGround && Math.abs(p.vx) > 10) {
+      const before = Math.floor(p.anim * 7.5 / Math.PI);
+      p.anim += dt * Math.abs(p.vx) / 90;
+      if (Math.floor(p.anim * 7.5 / Math.PI) !== before) burst(p.x + p.w / 2 - p.face * 8, p.y + p.h, 1, ['#e8d9b0'], 30, 60, 2.5, 0.3);
+    } else if (p.onGround) p.anim = 0;
 
     // удар головой по блоку
     if (p.bump) {
@@ -893,7 +1085,7 @@ function update(dt) {
     }
     // контрольная точка
     for (const cp of checkpoints) if (!cp.lit && p.x > cp.x - 20) {
-      cp.lit = true; checkpoint = { x: cp.x - 11, y: cp.y - 40 }; SFX.check(); popText(cp.x, cp.y - 90, 'СОХРАНЕНО', '#ffe27a');
+      cp.lit = true; checkpoint = { x: cp.x - 12, y: cp.y - 46 }; SFX.check(); popText(cp.x, cp.y - 90, 'СОХРАНЕНО', '#ffe27a');
     }
     // финиш
     if (p.x + p.w > goalX - 3) { state = 'win'; winT = 0; p.vx = 0; p.vy = 0; p.x = goalX - 3 - p.w; SFX.win(); }
@@ -941,7 +1133,7 @@ function update(dt) {
     if (state !== 'play' || !e.alive) continue;
     // удар дубиной
     if (p.attack > 0.15 && p.attack < 0.85) {
-      const hb = { x: p.face > 0 ? p.x + p.w - 4 : p.x - 34, y: p.y - 6, w: 38, h: 40 };
+      const hb = { x: p.face > 0 ? p.x + p.w - 4 : p.x - 36, y: p.y - 8, w: 40, h: 50 };
       if (overlap(hb, e)) { knock(e, p.face); continue; }
     }
     if (overlap(p, e)) {
@@ -982,32 +1174,97 @@ function drawLayer(L, f) {
   for (let x = off - L.w; x < viewW; x += L.w) if (x + L.w > 0) ctx.drawImage(L.c, x, 0, L.w + 0.5, VH);
   return off;
 }
+// контурная обводка спрайта: рисуем во временный холст, затем тёмный силуэт вокруг
+const SPR = [document.createElement('canvas'), document.createElement('canvas')];
+const OUT_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
+function outlined(bx, by, bw, bh, fn, col = '#2b1406', th = 1.15) {
+  const k = dpr * scale, cw = Math.ceil(bw * k) + 2, chh = Math.ceil(bh * k) + 2, [A, B] = SPR;
+  for (const c of SPR) if (c.width < cw || c.height < chh) { c.width = Math.max(c.width, cw); c.height = Math.max(c.height, chh); }
+  const a = A.getContext('2d'), b = B.getContext('2d');
+  a.setTransform(1, 0, 0, 1, 0, 0); a.clearRect(0, 0, A.width, A.height);
+  a.setTransform(k, 0, 0, k, -bx * k, -by * k); fn(a);
+  b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, B.width, B.height);
+  b.drawImage(A, 0, 0); b.globalCompositeOperation = 'source-in'; b.fillStyle = col; b.fillRect(0, 0, cw, chh); b.globalCompositeOperation = 'source-over';
+  for (const [dx, dy] of OUT_DIRS) ctx.drawImage(B, 0, 0, cw, chh, bx + dx * th, by + dy * th, cw / k, chh / k);
+  ctx.drawImage(A, 0, 0, cw, chh, bx, by, cw / k, chh / k);
+}
+function groundShadow(cx, footY, w) {
+  for (let ty = Math.max(0, Math.floor(footY / TILE)); ty < ROWS; ty++) {
+    if (!solidAt(Math.floor(cx / TILE), ty)) continue;
+    const gy = ty * TILE, d = gy - footY; if (d > 170) return;
+    ctx.fillStyle = `rgba(30,20,5,${0.32 * (1 - d / 170)})`; ell(ctx, cx, gy + 1, w * (1 - d / 340), 3.6); ctx.fill(); return;
+  }
+}
+const BUTTERFLIES = [8, 30, 50, 64, 90, 112, 134, 150].map((c, i) => ({ x: c * TILE, i, col: ['#ff8a3d', '#5ac8ff', '#ffd23f', '#ff5d8f'][i % 4] }));
+function drawLeaf(g, x, y, len, ang, wid, col, colD) {
+  g.save(); g.translate(x, y); g.rotate(ang);
+  g.fillStyle = col; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(len * 0.5, -wid, len, 0); g.quadraticCurveTo(len * 0.5, wid, 0, 0); g.fill();
+  g.strokeStyle = colD; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, 0); g.lineTo(len * 0.95, 0); g.stroke();
+  for (let i = 1; i < 7; i++) { const t = i / 7; g.beginPath(); g.moveTo(len * t, 0); g.lineTo(len * t + 6, -wid * 0.7 * (1 - t * 0.5)); g.moveTo(len * t, 0); g.lineTo(len * t + 6, wid * 0.7 * (1 - t * 0.5)); g.stroke(); }
+  g.restore();
+}
 function render() {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
-  // небо
+  // небо и солнце
   const sky = ctx.createLinearGradient(0, 0, 0, VH);
-  sky.addColorStop(0, '#2f86de'); sky.addColorStop(0.55, '#8fd0f5'); sky.addColorStop(1, '#d4f0fa');
+  sky.addColorStop(0, '#2a7fd8'); sky.addColorStop(0.55, '#8fd0f5'); sky.addColorStop(1, '#e2f4f8');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, viewW + 2, VH);
+  const sx = viewW * 0.8 - camX * 0.01, sy = 70;
+  ctx.save(); ctx.translate(sx, sy); ctx.rotate(T * 0.03);
+  for (let i = 0; i < 10; i++) {
+    ctx.rotate(Math.PI / 5); ctx.fillStyle = `rgba(255,250,210,${0.07 + 0.03 * Math.sin(T + i)})`;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(420, -40); ctx.lineTo(420, 40); ctx.fill();
+  }
+  ctx.restore();
+  const sun = ctx.createRadialGradient(sx, sy, 10, sx, sy, 110);
+  sun.addColorStop(0, 'rgba(255,252,220,1)'); sun.addColorStop(0.25, 'rgba(255,240,170,.85)'); sun.addColorStop(1, 'rgba(255,240,170,0)');
+  ctx.fillStyle = sun; ctx.fillRect(sx - 110, sy - 110, 220, 220);
   // облака
   for (let i = 0; i < 7; i++) {
     const span = viewW + 500, x = ((i * 380 - camX * 0.06 + T * 6) % span + span) % span - 250;
-    ctx.globalAlpha = 0.9; ctx.drawImage(CLOUDS[i % 3], x, 20 + (i * 47) % 140, 220, 90); ctx.globalAlpha = 1;
+    ctx.globalAlpha = 0.92; ctx.drawImage(CLOUDS[i % 3], x, 20 + (i * 47) % 140, 220, 90); ctx.globalAlpha = 1;
   }
-  // дальний план + дым вулканов
+  // птицы
+  ctx.strokeStyle = 'rgba(40,55,75,.7)'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+  for (let i = 0; i < 5; i++) {
+    const span = viewW + 300, bx = ((i * 263 + T * (22 + i * 4) - camX * 0.15) % span + span) % span - 150;
+    const by = 70 + i * 26 + Math.sin(T * 0.8 + i) * 8, f = Math.sin(T * 9 + i * 1.7) * 4, s = 0.8 + (i % 3) * 0.2;
+    ctx.beginPath(); ctx.moveTo(bx - 7 * s, by - f * s); ctx.quadraticCurveTo(bx - 3 * s, by - 3 * s, bx, by); ctx.quadraticCurveTo(bx + 3 * s, by - 3 * s, bx + 7 * s, by - f * s); ctx.stroke();
+  }
+  // дальний план + дым и свечение вулканов
   const offF = drawLayer(BG.far, 0.12);
   for (let base = offF - BG.far.w; base < viewW; base += BG.far.w) {
     for (const v of VOLCANOES) {
       const vx = base + v.x; if (vx < -200 || vx > viewW + 200) continue;
-      for (let i = 0; i < 9; i++) {
-        const ph = ((T * 0.12 + i / 9) % 1), r = 14 + ph * 46;
-        ctx.globalAlpha = 0.75 * (1 - ph);
-        ctx.fillStyle = i % 2 ? '#6e6470' : '#857a85';
-        ell(ctx, vx + Math.sin(i * 2.3 + T * 0.5) * 10 + ph * 40, v.top - 10 - ph * 120, r, r * 0.8); ctx.fill();
+      const gl = ctx.createRadialGradient(vx, v.top, 4, vx, v.top, 70 + Math.sin(T * 2.3 + v.x) * 10);
+      gl.addColorStop(0, 'rgba(255,190,60,.55)'); gl.addColorStop(1, 'rgba(255,90,20,0)');
+      ctx.fillStyle = gl; ctx.fillRect(vx - 90, v.top - 90, 180, 180);
+      for (let i = 0; i < 10; i++) {
+        const ph = ((T * 0.1 + i / 10) % 1), r = 12 + ph * 50;
+        ctx.globalAlpha = 0.7 * (1 - ph) * Math.min(1, ph * 6);
+        ctx.fillStyle = ph < 0.15 ? '#9a6a5a' : i % 2 ? '#6e6470' : '#857a85';
+        ell(ctx, vx + Math.sin(i * 2.3 + T * 0.5) * 10 + ph * 45, v.top - 8 - ph * 130, r, r * 0.8); ctx.fill();
       }
       ctx.globalAlpha = 1;
     }
   }
-  drawLayer(BG.mid, 0.3);
+  // средний план с живыми водопадами
+  const offM = drawLayer(BG.mid, 0.3);
+  for (let base = offM - BG.mid.w; base < viewW; base += BG.mid.w) {
+    for (const f of FALLS) {
+      const fx = base + f.x; if (fx < -40 || fx > viewW + 40) continue;
+      ctx.save(); ctx.beginPath(); ctx.rect(fx, f.top, f.w, 395 - f.top); ctx.clip();
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      for (let j = 0; j < 6; j++) {
+        const lx = fx + 2 + j * 5.5, off = (T * (110 + j * 9) + j * 41) % 46;
+        for (let yy = f.top - 46 + off; yy < 395; yy += 46) ctx.fillRect(lx, yy, 2.2, 16);
+      }
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      for (let j = 0; j < 4; j++) { const r = 8 + ((T * 1.5 + j * 0.25) % 1) * 14; ctx.globalAlpha = 0.6 * (1 - ((T * 1.5 + j * 0.25) % 1)); ell(ctx, fx + f.w / 2 + (j - 1.5) * 9, 392, r, r * 0.5); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+  }
   drawLayer(BG.near, 0.55);
 
   // мир
@@ -1032,10 +1289,14 @@ function render() {
   for (const d of decor) {
     if (d.x < cam - 60 || d.x > cam + viewW + 60) continue;
     if (d.type === 'sign') drawSign(ctx, d.x, d.y);
-    else if (d.type === 'rock') { ctx.fillStyle = '#7d7a72'; ell(ctx, d.x, d.y - 2, 9 * d.s, 5 * d.s); ctx.fill(); ctx.fillStyle = '#a5a197'; ell(ctx, d.x - 2 * d.s, d.y - 4 * d.s, 4.5 * d.s, 2.2 * d.s); ctx.fill(); }
+    else if (d.type === 'rock') { ctx.fillStyle = '#5f5c55'; ell(ctx, d.x, d.y - 1.5, 9.5 * d.s, 5.5 * d.s); ctx.fill(); ctx.fillStyle = '#8d897f'; ell(ctx, d.x - 0.5, d.y - 2.5 * d.s, 8.5 * d.s, 4.5 * d.s); ctx.fill(); ctx.fillStyle = '#b5b0a4'; ell(ctx, d.x - 2.5 * d.s, d.y - 4.5 * d.s, 3.8 * d.s, 1.8 * d.s); ctx.fill(); }
     else {
-      ctx.strokeStyle = '#3c9a2e'; ctx.lineWidth = 2;
-      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo(d.x + i * 5 * d.s, d.y - 10 * d.s, d.x + i * 8 * d.s, d.y - (8 - Math.abs(i) * 2) * d.s); ctx.stroke(); }
+      const sw = Math.sin(T * 1.8 + d.x * 0.05) * 1.5;
+      for (let i = -2; i <= 2; i++) {
+        ctx.strokeStyle = i % 2 ? '#2f8a26' : '#4fae34'; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo(d.x + i * 5 * d.s + sw * 0.5, d.y - 12 * d.s, d.x + i * 8 * d.s + sw, d.y - (10 - Math.abs(i) * 2.5) * d.s); ctx.stroke();
+      }
+      if (d.flower) { ctx.fillStyle = d.flower; ell(ctx, d.x + sw, d.y - 11 * d.s, 2.6, 2.6); ctx.fill(); ctx.fillStyle = '#fff3a0'; ell(ctx, d.x + sw, d.y - 11 * d.s, 1, 1); ctx.fill(); }
     }
   }
   for (const cp of checkpoints) drawTotem(ctx, cp.x, cp.y, cp.lit);
@@ -1055,33 +1316,63 @@ function render() {
     else if (ch === 'U') img = TILES.used;
     else if (ch === '^') { drawSpikes(ctx, tx, ty); continue; }
     ctx.drawImage(img, tx, ty, TILE + 0.4, TILE + 0.4);
+    if (ch === '#') { // глубина: ниже поверхности темнее
+      let d = 0; while (d < 3 && y - d - 1 >= 0 && map[y - d - 1][x] === '#') d++;
+      if (d) { ctx.fillStyle = `rgba(25,10,0,${0.12 * d})`; ctx.fillRect(tx, ty, TILE + 0.4, TILE + 0.4); }
+      if (x > 0 && !isSolidCh(map[y][x - 1])) { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(tx, ty + (d ? 0 : 9), 3, TILE); }
+      if (x < COLS - 1 && !isSolidCh(map[y][x + 1])) { ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(tx + TILE - 3, ty + (d ? 0 : 9), 3, TILE); }
+    }
+    if ((ch === '=' || ch === 'S' || ch === '?' || ch === 'U') && y < ROWS - 1 && !isSolidCh(map[y + 1][x])) {
+      const sg = ctx.createLinearGradient(0, ty + TILE, 0, ty + TILE + 10);
+      sg.addColorStop(0, 'rgba(20,30,10,.28)'); sg.addColorStop(1, 'rgba(20,30,10,0)');
+      ctx.fillStyle = sg; ctx.fillRect(tx, ty + TILE, TILE, 10);
+    }
     if (ch === '?') { ctx.fillStyle = `rgba(255,255,220,${0.18 + Math.sin(T * 5) * 0.15})`; ctx.fillRect(tx + 3, ty + 3, 26, 26); }
   }
   // предметы
   for (const it of items) {
     if (it.taken || it.x < cam - 40 || it.x > cam + viewW + 40) continue;
     const bob = Math.sin(it.t * 3) * 3;
-    if (it.type === 'coin') drawCoin(ctx, it.x, it.y + bob, 9, Math.cos(it.t * 3));
-    else if (it.type === 'bone') {
-      ctx.fillStyle = 'rgba(255,255,200,.25)'; ell(ctx, it.x, it.y + bob, 16, 16); ctx.fill();
+    if (it.type === 'coin') {
+      drawCoin(ctx, it.x, it.y + bob, 9, Math.cos(it.t * 3));
+      const tw = (it.t * 0.7) % 3; if (tw < 0.3) { ctx.fillStyle = `rgba(255,255,255,${1 - tw / 0.3})`; const r = 6 * Math.sin(tw / 0.3 * Math.PI); ctx.fillRect(it.x + 3 - r / 2, it.y + bob - 4, r, 1.4); ctx.fillRect(it.x + 3 - 0.7, it.y + bob - 4 - r / 2, 1.4, r); }
+    } else if (it.type === 'bone') {
+      const gl = ctx.createRadialGradient(it.x, it.y + bob, 2, it.x, it.y + bob, 20);
+      gl.addColorStop(0, 'rgba(255,255,210,.6)'); gl.addColorStop(1, 'rgba(255,255,210,0)');
+      ctx.fillStyle = gl; ctx.fillRect(it.x - 20, it.y + bob - 20, 40, 40);
       drawBone(ctx, it.x, it.y + bob, 1.05, Math.sin(it.t * 2) * 0.3 - 0.4);
     } else drawMeat(ctx, it.x, it.y + (it.rise >= 1 ? bob * 0.5 : 0));
+  }
+  // бабочки
+  for (const bf of BUTTERFLIES) {
+    const x = bf.x + Math.sin(T * 0.6 + bf.i) * 40, y = 12 * TILE - 46 + Math.sin(T * 1.4 + bf.i * 2) * 18 + Math.sin(T * 5 + bf.i) * 3;
+    if (x < cam - 20 || x > cam + viewW + 20) continue;
+    const f = Math.abs(Math.sin(T * 16 + bf.i)) * 0.9 + 0.1;
+    ctx.fillStyle = bf.col;
+    ell(ctx, x - 3 * f, y - 1, 3.5 * f, 3); ctx.fill(); ell(ctx, x + 3 * f, y - 1, 3.5 * f, 3); ctx.fill();
+    ell(ctx, x - 2 * f, y + 2, 2.2 * f, 2); ctx.fill(); ell(ctx, x + 2 * f, y + 2, 2.2 * f, 2); ctx.fill();
+    ctx.fillStyle = '#2a1608'; ctx.fillRect(x - 0.6, y - 3, 1.2, 6);
   }
   // враги
   for (const e of enemies) {
     if (e.dead || e.x < cam - 80 || e.x > cam + viewW + 80) continue;
-    if (e.type === 'dino') drawDino(ctx, e); else drawPtero(ctx, e);
+    if (!e.knock) groundShadow(e.x + e.w / 2, e.y + e.h, e.type === 'dino' ? 15 : 13);
+    if (e.type === 'dino') outlined(e.x + e.w / 2 - 38, e.y - 22, 76, e.h + 44, g => drawDino(g, e));
+    else outlined(e.x + e.w / 2 - 40, e.y + e.h / 2 - 34, 80, 68, g => drawPtero(g, e));
   }
   // игрок
   const p = player;
   if (!p.hidden && !(p.inv > 0 && state === 'play' && Math.floor(T * 14) % 2)) {
+    const cx = p.x + p.w / 2, fy = p.y + p.h;
+    const box = (fn) => outlined(cx - 58, fy - 104, 116, 112, fn);
     if (state === 'dying') {
-      ctx.save(); ctx.translate(p.x + p.w / 2, p.y + p.h / 2); ctx.rotate(Math.min(1, p.dieT * 2) * Math.PI); ctx.translate(-(p.x + p.w / 2), -(p.y + p.h / 2));
-      drawCaveman(ctx, p.x + p.w / 2, p.y + p.h, p.face, 0, { air: true, run: false, attack: 0 }); ctx.restore();
+      ctx.save(); ctx.translate(cx, p.y + p.h / 2); ctx.rotate(Math.min(1, p.dieT * 2) * Math.PI); ctx.translate(-cx, -(p.y + p.h / 2));
+      box(g => drawCaveman(g, cx, fy, p.face, 0, { air: true, run: false, attack: 0, hurt: true })); ctx.restore();
     } else if (state === 'win' && winT < 1.3) {
-      drawCaveman(ctx, p.x + p.w / 2 + 4, p.y + p.h, 1, 0, { air: true, run: false, attack: 0 });
+      box(g => drawCaveman(g, cx + 4, fy, 1, 0, { air: true, run: false, attack: 0, vy: 1 }));
     } else {
-      drawCaveman(ctx, p.x + p.w / 2, p.y + p.h, p.face, p.anim, { air: !p.onGround, run: Math.abs(p.vx) > 10, attack: p.attack });
+      groundShadow(cx, fy, 16);
+      box(g => drawCaveman(g, cx, fy, p.face, p.anim, { air: !p.onGround, run: Math.abs(p.vx) > 10, attack: p.attack, vy: p.vy, sq: p.sq, hurt: p.inv > 1.1 }));
     }
   }
   // частицы
@@ -1092,9 +1383,19 @@ function render() {
     if (q.text) {
       ctx.font = 'bold 14px system-ui, sans-serif'; ctx.textAlign = 'center';
       ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.strokeText(q.text, q.x, q.y); ctx.fillStyle = q.color; ctx.fillText(q.text, q.x, q.y);
-    } else { ctx.fillStyle = q.color; ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size); }
+    } else { ctx.fillStyle = q.color; ell(ctx, q.x, q.y, q.size / 2, q.size / 2); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
+  // передний план: листья по углам и виньетка
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+  const sway = Math.sin(T * 1.2) * 0.04;
+  drawLeaf(ctx, viewW + 14, -14, 120, 2.2 + sway, 22, '#2f7d2a', '#1d5a1c');
+  drawLeaf(ctx, viewW + 10, -10, 95, 1.75 + sway * 1.3, 18, '#3c9433', '#22661f');
+  drawLeaf(ctx, viewW + 18, 10, 80, 2.6 + sway, 16, '#28702a', '#1d5a1c');
+  drawLeaf(ctx, -14, -12, 90, 0.75 - sway, 17, '#2f7d2a', '#1d5a1c');
+  const vg = ctx.createRadialGradient(viewW / 2, VH / 2, VH * 0.45, viewW / 2, VH / 2, Math.max(viewW, VH) * 0.75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,25,20,.28)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, viewW, VH);
   drawHUD();
 }
 
@@ -1126,7 +1427,7 @@ function drawHUD() {
   ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,.85)';
   ctx.fillText(fmtTime(playTime), sw / 2, 40);
   // уровень
-  const rx = sw - 70 - 132;
+  const rx = sw - 124 / s - 128;
   panel(ctx, rx, 10, 126, 46, 12);
   ctx.font = '800 18px system-ui, sans-serif'; ctx.fillStyle = '#fff';
   ctx.fillText('МИР 1-1', rx + 63, 34);

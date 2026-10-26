@@ -18,7 +18,7 @@ KEY = os.path.join(HERE, 'debug-key.pem')
 PACKAGE = 'com.rubin.kamenbeg'
 LABEL = 'Каменный Бег'
 VERSION_CODE, VERSION_NAME = 1, '1.0'
-MIN_SDK, TARGET_SDK = 24, 34
+MIN_SDK, TARGET_SDK = 21, 34
 
 MAVEN = 'https://repo1.maven.org/maven2/'
 DEPS = {
@@ -197,6 +197,30 @@ def sign_v2(apk_bytes, key_pem):
     return sections[0] + block + sections[1] + bytes(new_eocd)
 
 
+def sign_v1(entries, key_pem):
+    """JAR-подпись (v1) для Android 5–6 и строгих установщиков: MANIFEST.MF, CERT.SF, CERT.RSA."""
+    import base64
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.serialization import pkcs7
+
+    key = serialization.load_pem_private_key(open(key_pem, 'rb').read(), None)
+    cert = x509.load_pem_x509_certificate(open(key_pem, 'rb').read())
+    b64 = lambda b: base64.b64encode(hashlib.sha256(b).digest()).decode()
+    head = 'Manifest-Version: 1.0\r\nCreated-By: 1.0 (Android)\r\n\r\n'
+    sections = [f'Name: {name}\r\nSHA-256-Digest: {b64(data)}\r\n\r\n' for name, data, _ in entries]
+    mf = (head + ''.join(sections)).encode()
+    sf = ('Signature-Version: 1.0\r\nCreated-By: 1.0 (Android)\r\n'
+          f'SHA-256-Digest-Manifest: {b64(mf)}\r\n'
+          f'SHA-256-Digest-Manifest-Main-Attributes: {b64(head.encode())}\r\n'
+          'X-Android-APK-Signed: 2\r\n\r\n')
+    sf += ''.join(f'Name: {name}\r\nSHA-256-Digest: {b64(sec.encode())}\r\n\r\n' for (name, _, _), sec in zip(entries, sections))
+    sf = sf.encode()
+    rsa = (pkcs7.PKCS7SignatureBuilder().set_data(sf).add_signer(cert, key, hashes.SHA256())
+           .sign(serialization.Encoding.DER, [pkcs7.PKCS7Options.DetachedSignature, pkcs7.PKCS7Options.NoAttributes]))
+    return [('META-INF/MANIFEST.MF', mf, True), ('META-INF/CERT.SF', sf, True), ('META-INF/CERT.RSA', rsa, True)]
+
+
 def ensure_key():
     if os.path.exists(KEY):
         return
@@ -273,6 +297,8 @@ def build():
     ]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = OUT + '.unsigned'
+    ensure_key()
+    entries = sign_v1(entries, KEY) + entries  # META-INF первым, как у jarsigner
     with zipfile.ZipFile(tmp, 'w') as z:
         for name, data, deflate in entries:
             zi = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
@@ -282,7 +308,6 @@ def build():
                 pad = (-(pos + 6)) % 4
                 zi.extra = struct.pack('<HHH', 0xD935, 2 + pad, 4) + b'\0' * pad
             z.writestr(zi, data)
-    ensure_key()
     signed = sign_v2(open(tmp, 'rb').read(), KEY)
     os.remove(tmp)
     with open(OUT, 'wb') as f:
