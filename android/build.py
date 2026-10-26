@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Сборка APK «Каменный Бег» без Android SDK.
+"""Сборка APK игр репозитория без Android SDK.
 
 Нужны: JDK (javac), Python 3 с пакетом `cryptography`.
 dx и android.jar скачиваются с Maven Central в android/.tools/.
 
-    python3 android/build.py            # -> dist/kamenny-beg.apk
+    python3 android/build.py            # «Каменный Бег»        -> dist/kamenny-beg.apk
+    python3 android/build.py clones     # «Клоны против дроидов» -> dist/clones-vs-droids.apk
 """
 import hashlib, os, struct, subprocess, sys, urllib.request, zipfile, datetime
 
@@ -12,11 +13,19 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.join(ROOT, 'android')
 TOOLS = os.path.join(HERE, '.tools')
 BUILD = os.path.join(HERE, '.build')
-OUT = os.path.join(ROOT, 'dist', 'kamenny-beg.apk')
 KEY = os.path.join(HERE, 'debug-key.pem')
 
-PACKAGE = 'com.rubin.kamenbeg'
-LABEL = 'Каменный Бег'
+# игра: пакет, название, иконки и файлы, которые кладутся в assets/
+APPS = {
+    'caveman': dict(package='com.rubin.kamenbeg', label='Каменный Бег', out='kamenny-beg.apk',
+                    icons='icons', assets=['index.html']),
+    'clones': dict(package='com.rubin.clonetactics', label='Клоны против дроидов', out='clones-vs-droids.apk',
+                   icons='clones/icons', assets=['clones/index.html', 'clones/game.js', 'clones/three.min.js']),
+}
+APP = APPS[sys.argv[1] if len(sys.argv) > 1 else 'caveman']
+OUT = os.path.join(ROOT, 'dist', APP['out'])
+PACKAGE, LABEL = APP['package'], APP['label']
+ACTIVITY = 'com.rubin.kamenbeg.MainActivity'  # общая WebView-обёртка
 VERSION_CODE, VERSION_NAME = 1, '1.0'
 MIN_SDK, TARGET_SDK = 21, 34
 
@@ -269,7 +278,7 @@ def build():
             ('theme', T_REF, 0x01030007),  # @android:style/Theme.NoTitleBar.Fullscreen
             ('hardwareAccelerated', T_BOOL, True)], [
             ('activity', [
-                ('name', T_STR, PACKAGE + '.MainActivity'), ('exported', T_BOOL, True),
+                ('name', T_STR, ACTIVITY), ('exported', T_BOOL, True),
                 ('screenOrientation', T_DEC, 6),  # sensorLandscape
                 ('configChanges', T_HEX, 0xFF0)], [
                 ('intent-filter', [], [
@@ -284,7 +293,7 @@ def build():
         ('foreground', [('drawable', T_REF, 0x7f010001)], []),
     ]))
 
-    icons = os.path.join(ROOT, 'icons')
+    icons = os.path.join(ROOT, APP['icons'])
     entries = [  # (путь, данные, сжимать)
         ('AndroidManifest.xml', manifest, True),
         ('classes.dex', open(dex, 'rb').read(), True),
@@ -293,8 +302,7 @@ def build():
         ('res/drawable/icon_fg.png', open(os.path.join(icons, 'ic-fg.png'), 'rb').read(), False),
         ('res/drawable/icon_bg.png', open(os.path.join(icons, 'ic-bg.png'), 'rb').read(), False),
         ('res/drawable-anydpi-v26/icon.xml', adaptive, True),
-        ('assets/index.html', open(os.path.join(ROOT, 'index.html'), 'rb').read(), True),
-    ]
+    ] + [('assets/' + os.path.basename(a), open(os.path.join(ROOT, a), 'rb').read(), True) for a in APP['assets']]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = OUT + '.unsigned'
     ensure_key()

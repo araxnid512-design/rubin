@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1117">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap">
+<title>Клоны против дроидов</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --panel: rgba(9, 16, 24, .82); --panel2: rgba(20, 34, 48, .9); --line: rgba(120, 200, 255, .28);
+    --holo: #6fd0ff; --rep: #e2463a; --sep: #7a8cff; --gold: #ffc65a; --ok: #6fe39a; --warn: #ffb347;
+    --txt: #e9f3fb; --dim: #8aa3b8;
+    --disp: "Russo One", "Arial Black", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: var(--txt);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  }
+  #view { position: fixed; inset: 0; }
+  #view canvas { display: block; width: 100%; height: 100%; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--holo); outline-offset: 2px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; }
+  body.playing #hud { display: block; }
+  .pe { pointer-events: auto; }
+  .top { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); right: calc(10px + env(safe-area-inset-right)); display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .tgroup { display: flex; gap: 6px; }
+  .ib {
+    width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+    display: grid; place-items: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .ib svg { width: 22px; height: 22px; fill: none; stroke: var(--txt); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .ib.off { opacity: .45; }
+  .ib:active { transform: scale(.94); }
+  #turnBox { text-align: center; padding: 6px 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); min-width: 210px; }
+  #turnTitle { font-family: var(--disp); letter-spacing: 2px; font-size: 15px; }
+  #turnTitle.rep { color: var(--holo); } #turnTitle.sep { color: #ff8a7a; }
+  #objective { font-size: 12px; color: var(--dim); margin-top: 2px; }
+
+  /* отряд */
+  #squad { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 6px; }
+  .card {
+    width: 74px; padding: 6px 6px 5px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 3px; position: relative; transition: transform .15s, border-color .15s;
+  }
+  .card.sel { border-color: var(--holo); transform: translateY(-6px); box-shadow: 0 0 0 1px var(--holo), 0 6px 22px rgba(111, 208, 255, .25); }
+  .card.dead { opacity: .35; }
+  .card.done .cname { color: var(--dim); }
+  .card canvas { width: 100%; height: 38px; border-radius: 8px; background: linear-gradient(#22374a, #101a24); }
+  .cname { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hp { display: flex; gap: 2px; } .hp i { flex: 1; height: 5px; border-radius: 2px; background: var(--ok); } .hp i.e { background: rgba(255,255,255,.15); }
+  .ap { position: absolute; top: 4px; right: 5px; display: flex; gap: 3px; } .ap i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 6px var(--gold); } .ap i.e { background: rgba(255,255,255,.18); box-shadow: none; }
+  .badge { position: absolute; top: 4px; left: 5px; font-size: 10px; }
+
+  /* действия */
+  #actions { position: absolute; right: calc(10px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 6px; align-items: flex-end; }
+  .act {
+    width: 64px; height: 64px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; color: var(--txt);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .act svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .act:disabled { opacity: .3; }
+  .act.primary { background: linear-gradient(#2c6fa0, #17405e); border-color: var(--holo); }
+  .act.end { background: linear-gradient(#7a2a24, #4a1714); border-color: #ff8a7a; }
+  .act.on { border-color: var(--gold); color: var(--gold); }
+  .act:active:not(:disabled) { transform: scale(.94); }
+  .act .k { font-size: 9px; opacity: .55; }
+
+  /* панель цели */
+  #targetPanel {
+    position: absolute; right: calc(10px + env(safe-area-inset-right)); bottom: calc(84px + env(safe-area-inset-bottom));
+    width: 250px; padding: 10px 12px; border-radius: 14px; background: var(--panel2); border: 1px solid rgba(255,120,100,.5); display: none;
+  }
+  #targetPanel.show { display: block; }
+  .tp-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #tpName { font-weight: 800; font-size: 14px; }
+  #tpChance { font-family: var(--disp); font-size: 34px; color: var(--gold); line-height: 1; }
+  .tp-sub { font-size: 12px; color: var(--dim); }
+  .tp-nav { display: flex; gap: 6px; margin-top: 8px; }
+  .tp-nav button { flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); font-weight: 700; }
+  .tp-nav .fire { flex: 2; background: linear-gradient(#e2463a, #9b241b); border-color: #ff9d8f; font-family: var(--disp); letter-spacing: 1px; }
+
+  #hint {
+    position: absolute; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    padding: 6px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity .2s;
+  }
+  #hint.show { opacity: 1; }
+
+  /* надписи над юнитами */
+  #labels { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+  .ul { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ul .pips { display: flex; gap: 1px; padding: 2px; border-radius: 4px; background: rgba(0,0,0,.55); }
+  .ul .pips i { width: 6px; height: 5px; border-radius: 1px; background: var(--ok); }
+  .ul.sep .pips i { background: #ff6b5a; }
+  .ul .pips i.e { background: rgba(255,255,255,.18); }
+  .ul .st { font-size: 11px; line-height: 1; text-shadow: 0 1px 2px #000; }
+  .pop {
+    position: absolute; transform: translate(-50%, -100%); font-family: var(--disp); font-size: 20px; color: #fff;
+    text-shadow: 0 2px 0 #000, 0 0 12px rgba(0,0,0,.6); animation: pop 1.4s ease-out forwards; white-space: nowrap;
+  }
+  .pop.miss { color: #c9d6e2; } .pop.crit { color: var(--gold); font-size: 24px; } .pop.dmg { color: #ff6b5a; }
+  @keyframes pop { 0% { opacity: 0; margin-top: 10px; } 15% { opacity: 1; margin-top: 0; } 75% { opacity: 1; } 100% { opacity: 0; margin-top: -36px; } }
+
+  /* баннер */
+  #banner {
+    position: fixed; left: 0; right: 0; top: 34%; z-index: 8; text-align: center; pointer-events: none;
+    font-family: var(--disp); font-size: clamp(22px, 7vh, 44px); letter-spacing: 4px; opacity: 0;
+    background: linear-gradient(90deg, transparent, rgba(5,10,16,.85) 25%, rgba(5,10,16,.85) 75%, transparent); padding: 10px 0;
+  }
+  #banner.show { animation: banner 1.8s ease-out forwards; }
+  #banner.rep { color: var(--holo); } #banner.sep { color: #ff8a7a; } #banner.alert { color: var(--warn); }
+  @keyframes banner { 0% { opacity: 0; transform: scaleY(.2); } 12% { opacity: 1; transform: scaleY(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* кинокамера */
+  .bar { position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 6; transition: height .45s ease; pointer-events: none; }
+  #barT { top: 0; } #barB { bottom: 0; }
+  body.cine .bar { height: 10vh; }
+  body.cine #hud, body.cine #labels { opacity: 0; transition: opacity .3s; }
+  #cineInfo { position: fixed; z-index: 7; left: 50%; bottom: 2.5vh; transform: translateX(-50%); font-family: var(--disp); font-size: 14px; letter-spacing: 2px; color: var(--gold); opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; }
+  body.cine #cineInfo { opacity: 1; }
+
+  /* экраны */
+  .screen {
+    position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: radial-gradient(ellipse at 50% 60%, rgba(10,18,28,.35), rgba(5,8,12,.88));
+  }
+  .screen.show { display: flex; }
+  .box { width: min(600px, 100%); text-align: center; }
+  h1 {
+    margin: 0; font-family: var(--disp); font-weight: 400; font-size: clamp(28px, 10vh, 64px); line-height: 1; letter-spacing: 3px;
+    background: linear-gradient(#fff, #9fd9ff 55%, #4aa6e0); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(80,180,255,.35)); text-wrap: balance;
+  }
+  h1 .vs { display: block; font-size: .42em; letter-spacing: 8px; color: #ff8a7a; -webkit-text-fill-color: #ff8a7a; margin: 6px 0; }
+  h2 { margin: 0 0 8px; font-family: var(--disp); font-weight: 400; font-size: clamp(24px, 8vh, 44px); letter-spacing: 2px; }
+  .lead { color: var(--dim); margin: 10px auto 18px; max-width: 46ch; font-size: clamp(13px, 3.4vh, 16px); line-height: 1.45; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; margin: 5px; padding: clamp(10px, 2.6vh, 14px) clamp(20px, 5vh, 34px);
+    border-radius: 14px; border: 1px solid var(--holo); background: linear-gradient(#2c6fa0, #17405e); color: #fff;
+    font-family: var(--disp); font-size: clamp(15px, 4vh, 20px); letter-spacing: 2px; box-shadow: 0 0 24px rgba(111,208,255,.25);
+  }
+  .btn.ghost { background: rgba(255,255,255,.06); border-color: var(--line); box-shadow: none; }
+  .btn:active { transform: translateY(2px); }
+  .help { text-align: left; font-size: clamp(12px, 3.2vh, 14px); line-height: 1.55; color: #c9d8e6; max-width: 56ch; margin: 0 auto 12px; }
+  .help b { color: var(--holo); }
+  .stats { font-size: clamp(14px, 3.8vh, 18px); line-height: 1.8; margin: 8px 0 14px; }
+  #loading { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: #0d1117; font-family: var(--disp); letter-spacing: 3px; color: var(--holo); }
+  #rotate { z-index: 40; background: #0d1117; flex-direction: column; text-align: center; }
+  #rotate .phone { width: 56px; height: 96px; border: 4px solid var(--holo); border-radius: 12px; margin: 0 auto 16px; animation: rot 2s ease-in-out infinite; }
+  @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+
+  @media (max-height: 420px) {
+    .card { width: 62px; } .card canvas { height: 28px; }
+    .act { width: 54px; height: 54px; } .act svg { width: 22px; height: 22px; } .act .lbl { display: none; }
+    #targetPanel { bottom: calc(70px + env(safe-area-inset-bottom)); width: 230px; }
+    #hint { bottom: calc(76px + env(safe-area-inset-bottom)); }
+    .ib { width: 38px; height: 38px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .pop, #banner.show { animation-duration: .01s; } }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="labels"></div>
+<div class="bar" id="barT"></div><div class="bar" id="barB"></div>
+<div id="cineInfo"></div>
+<div id="banner"></div>
+
+<div id="hud">
+  <div class="top">
+    <div class="tgroup">
+      <button class="ib pe" id="bMenu" aria-label="Меню"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <button class="ib pe" id="bMus" aria-label="Музыка"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></button>
+      <button class="ib pe" id="bSfx" aria-label="Звук"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    </div>
+    <div id="turnBox"><div id="turnTitle" class="rep">ХОД 1 · РЕСПУБЛИКА</div><div id="objective"></div></div>
+    <div class="tgroup">
+      <button class="ib pe" id="bRotL" aria-label="Повернуть камеру влево"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+      <button class="ib pe" id="bRotR" aria-label="Повернуть камеру вправо"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
+      <button class="ib pe" id="bView" aria-label="Вид сверху"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg></button>
+    </div>
+  </div>
+
+  <div id="squad" class="pe"></div>
+
+  <div id="hint"></div>
+
+  <div id="targetPanel" class="pe">
+    <div class="tp-row"><div><div id="tpName">—</div><div class="tp-sub" id="tpHp"></div></div><div id="tpChance">0%</div></div>
+    <div class="tp-sub" id="tpInfo"></div>
+    <div class="tp-nav"><button id="tpPrev" aria-label="Предыдущая цель">◀</button><button class="fire" id="tpFire">ОГОНЬ</button><button id="tpNext" aria-label="Следующая цель">▶</button></div>
+  </div>
+
+  <div id="actions" class="pe">
+    <button class="act primary" id="aShoot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg><span class="lbl">Огонь</span></button>
+    <button class="act" id="aOver"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Дозор</span></button>
+    <button class="act" id="aNade"><svg viewBox="0 0 24 24"><circle cx="12" cy="14" r="6"/><path d="M12 8V5M10 4h4M16 9l2-2"/></svg><span class="lbl">Граната</span></button>
+    <button class="act" id="aHunk"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span class="lbl">Укрыться</span></button>
+    <button class="act" id="aNext"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span class="lbl">Следующий</span></button>
+    <button class="act end" id="aEnd"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4 8 12l10 8z"/></svg><span class="lbl">Конец хода</span></button>
+  </div>
+</div>
+
+<div class="screen show" id="startScr">
+  <div class="box">
+    <h1>КЛОНЫ<span class="vs">ПРОТИВ</span>ДРОИДОВ</h1>
+    <p class="lead">Тактическая операция в пустынном каньоне. Пять клонов-солдат против армии боевых дроидов. Каждый ход на счету.</p>
+    <button class="btn" id="bPlay">▶ В БОЙ</button>
+    <button class="btn ghost" id="bHow">Как играть</button>
+  </div>
+</div>
+
+<div class="screen" id="howScr">
+  <div class="box">
+    <h2>Как играть</h2>
+    <div class="help" id="helpText"></div>
+    <button class="btn" id="bHowOk">Понятно</button>
+  </div>
+</div>
+
+<div class="screen" id="menuScr">
+  <div class="box">
+    <h2>Пауза</h2>
+    <button class="btn" id="bResume">Продолжить</button>
+    <button class="btn ghost" id="bRestart">Начать заново</button>
+    <button class="btn ghost" id="bHow2">Как играть</button>
+  </div>
+</div>
+
+<div class="screen" id="endScr">
+  <div class="box">
+    <h2 id="endTitle">Победа</h2>
+    <div class="stats" id="endStats"></div>
+    <button class="btn" id="bAgain">Играть снова</button>
+  </div>
+</div>
+
+<div class="screen" id="rotate"><div class="phone"></div><div class="lead">Поверните телефон горизонтально</div></div>
+<div id="loading">ЗАГРУЗКА…</div>
+
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
