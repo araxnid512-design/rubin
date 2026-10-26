@@ -317,7 +317,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: !lowEnd, powerPreference: 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowEnd ? 1.5 : 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 view.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -480,11 +480,11 @@ const M4 = (x, y, z, rx, ry, rz, sx, sy, sz) => { tmpE.set(rx, ry, rz); tmpQ.set
 const C = h => new THREE.Color(h);
 
 let staticMesh = null, glowMesh = null;
-const halfProps = new Map(); // id -> Object3D (разрушаемые укрытия)
+const halfProps = new Map(); // id -> Object3D: укрытия перед склейкой в общие меши
 const PROPM = {
   crateA: mat(0x6c7684, { metalness: 0.5, roughness: 0.42 }), crateB: mat(0x8c7f63, { metalness: 0.35, roughness: 0.5 }),
   frame: mat(0x30353d, { metalness: 0.6, roughness: 0.4 }), barrier: mat(0x5c6470, { metalness: 0.6, roughness: 0.35 }), stripe: mat(0xb8392a, { roughness: 0.5 }),
-  lightO: new THREE.MeshBasicMaterial({ color: 0xffa13d }),
+  lightO: new THREE.MeshBasicMaterial({ color: 0xffa13d }), rock: [0xa45f37, 0x8f4f2d, 0xb36c40, 0x9a5733].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true })),
   barrel: mat(0xb8402a, { metalness: 0.45, roughness: 0.45 }), hazard: new THREE.MeshBasicMaterial({ color: 0xffc23a }), lightB: new THREE.MeshBasicMaterial({ color: 0x7fd4ff }),
 };
 // мягкая контактная тень под объектами и юнитами
@@ -492,11 +492,10 @@ const BLOB_TEX = (() => { const c = document.createElement('canvas'); c.width = 
 const BLOB_MAT = new THREE.MeshBasicMaterial({ map: BLOB_TEX, transparent: true, depthWrite: false });
 let blobs = null;
 function buildBlobs() {
-  if (blobs) world.remove(blobs);
-  const geo = new THREE.PlaneGeometry(1.5, 1.5); geo.rotateX(-Math.PI / 2);
-  blobs = new THREE.InstancedMesh(geo, BLOB_MAT, N * N); blobs.frustumCulled = false; blobs.renderOrder = 1; let k = 0; const d = new THREE.Object3D();
+  if (!blobs) { const geo = new THREE.PlaneGeometry(1.5, 1.5); geo.rotateX(-Math.PI / 2); blobs = new THREE.InstancedMesh(geo, BLOB_MAT, N * N); blobs.frustumCulled = false; blobs.renderOrder = 1; }
+  let k = 0; const d = new THREE.Object3D();
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (grid[id(x, z)] !== FLOOR && kind[id(x, z)] !== K.EDGE) { d.position.set(x + 0.5, 0.014, z + 0.5); d.updateMatrix(); blobs.setMatrixAt(k++, d.matrix); }
-  blobs.count = k; world.add(blobs);
+  blobs.count = k; blobs.instanceMatrix.needsUpdate = true; world.add(blobs);
 }
 const smokeSources = [];
 function buildProps() {
@@ -569,7 +568,7 @@ function buildProps() {
   // разрушаемые полуукрытия — отдельные объекты
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const k = kind[id(x, z)], cx = x + 0.5, cz = z + 0.5; let o = null;
-    if (k === K.ROCK_S) { o = mesh(rockGeo(R, 0), new THREE.MeshStandardMaterial({ color: rockCols[Math.floor(R() * 4)], roughness: 0.9, flatShading: true })); at(o, cx, 0.3, cz, R(), R() * 6, 0); o.scale.set(0.46, 0.38, 0.46); }
+    if (k === K.ROCK_S) { o = mesh(rockGeo(R, 0), PROPM.rock[Math.floor(R() * 4)]); at(o, cx, 0.3, cz, R(), R() * 6, 0); o.scale.set(0.46, 0.38, 0.46); }
     else if (k === K.CRATE) {
       // металлический ящик с каркасом, панелями и световой полосой
       o = new THREE.Group(); const base = R() < 0.5 ? PROPM.crateA : PROPM.crateB;
@@ -601,13 +600,39 @@ function buildProps() {
       }
       at(o, cx, 0, cz, 0, R() * 6, 0);
     }
-    if (o) { world.add(o); halfProps.set(id(x, z), o); }
+    if (o) halfProps.set(id(x, z), o);
+  }
+  batchProps(halfProps); halfProps.clear();
+}
+// полуукрытия рисуются общими мешами по материалам (несколько вызовов отрисовки вместо сотен);
+// у каждой клетки свой диапазон вершин — при разрушении укрытия он схлопывается в точку
+const propBatch = { meshes: [], ranges: new Map() };
+function batchProps(objs) {
+  const buckets = new Map();
+  for (const [tid, o] of objs) {
+    o.updateMatrixWorld(true);
+    o.traverse(c => { if (!c.isMesh) return; const key = c.material.uuid + (c.castShadow ? '+' : ''); if (!buckets.has(key)) buckets.set(key, { m: c.material, cast: c.castShadow, parts: [] }); buckets.get(key).parts.push([tid, c]); });
+  }
+  for (const { m, cast, parts } of buckets.values()) {
+    let total = 0; const geos = parts.map(([tid, c]) => { const g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone(); g.applyMatrix4(c.matrixWorld); total += g.attributes.position.count; return [tid, g]; });
+    const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), bg = new THREE.BufferGeometry(), ms = mesh(bg, m, cast); let o = 0;
+    for (const [tid, g] of geos) {
+      const n = g.attributes.position.count; pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3);
+      if (!propBatch.ranges.has(tid)) propBatch.ranges.set(tid, []); propBatch.ranges.get(tid).push([ms, o, n]); o += n; g.dispose();
+    }
+    bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    world.add(ms); propBatch.meshes.push(ms);
   }
 }
+function hideProp(tid) {
+  for (const [ms, o, n] of propBatch.ranges.get(tid) || []) { const p = ms.geometry.attributes.position; for (let i = 1; i < n; i++) p.array.copyWithin((o + i) * 3, o * 3, o * 3 + 3); p.needsUpdate = true; }
+  propBatch.ranges.delete(tid);
+}
+function clearProps() { for (const ms of propBatch.meshes) { world.remove(ms); ms.geometry.dispose(); } propBatch.meshes.length = 0; propBatch.ranges.clear(); }
 // мелкие камешки на песке (один InstancedMesh)
 let pebbles = null;
 function buildPebbles() {
-  if (pebbles) world.remove(pebbles);
+  if (pebbles) { world.remove(pebbles); pebbles.geometry.dispose(); pebbles.material.dispose(); pebbles.dispose(); }
   const R = rng(99), geo = new THREE.IcosahedronGeometry(1, 0), n = 420;
   pebbles = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), n);
   const d = new THREE.Object3D(), c = new THREE.Color(); let k = 0;
@@ -637,7 +662,7 @@ function dustUpdate(dt) {
 function destroyCover(x, z) {
   if (inb(x, z) && kind[id(x, z)] === K.BARREL) kind[id(x, z)] = K.NONE;
   if (!inb(x, z) || grid[id(x, z)] !== HALF) return;
-  const o = halfProps.get(id(x, z)); if (o) { world.remove(o); halfProps.delete(id(x, z)); }
+  hideProp(id(x, z));
   grid[id(x, z)] = FLOOR; kind[id(x, z)] = K.NONE; buildBlobs();
   for (let i = 0; i < 10; i++) FX.debris(x + 0.5, 0.4, z + 0.5);
 }
@@ -794,7 +819,14 @@ const FX = (() => {
     for (let i = rings.length - 1; i >= 0; i--) { const r = rings[i]; r.t += dt; const s = 0.4 + r.t * 8; r.m.scale.setScalar(s); r.m.material.opacity = 0.6 * (1 - r.t / 0.4) ** 2; if (r.t > 0.4) { scene.remove(r.m); rings.splice(i, 1); } }
     for (const l of flashLights) l.intensity = Math.max(0, l.intensity - dt * 22);
   }
-  return { spark, debris, puff, fire, flash, bolt, muzzle, scorch, clearDecals, explosion, update };
+  // прогрев: по одному объекту каждого вида под землёй, чтобы шейдеры собрались под экраном загрузки
+  function warm() {
+    const g = new THREE.Group(); g.position.set(N / 2, -40, N / 2); scene.add(g);
+    for (const t of Object.keys(boltMats)) for (const [geo, m] of [[boltGeo, boltMats[t][0]], [glowGeo, boltMats[t][1]], [trailGeo, boltMats[t][2]]]) g.add(new THREE.Mesh(geo, m));
+    puff(N / 2, -40, N / 2); fire(N / 2, -40, N / 2); flash(N / 2, -40, N / 2, 0xffffff, 0.1, 0.05);
+    return g;
+  }
+  return { spark, debris, puff, fire, flash, bolt, muzzle, scorch, clearDecals, explosion, update, warm };
 })();
 
 // =====================================================================
@@ -1284,6 +1316,8 @@ function buildSkinned(team, type) {
     rig.grips = { r: [0, -0.08, 0.0], l: [0, -0.02, 0.2] };
   }
   if (rig.gun && !rig.wrist) rig.gun.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  // детали шлема, оружия и брони неподвижны друг относительно друга — склеиваем по материалам
+  for (const a of rig.att) mergeRig(a.obj); if (rig.gun && !rig.wrist) mergeRig(rig.gun);
   rig.gunPos = new THREE.Vector3(); rig.gunQuat = new THREE.Quaternion(); rig.gunInit = false;
   return rig;
 }
@@ -1714,16 +1748,18 @@ const targetsFor = u => u ? droids().filter(d => d.visible && shotInfo(u, d)) : 
 
 // надписи над юнитами
 const labels = $('labels');
+const _lv = new THREE.Vector3();
 function syncLabels() {
-  const v = new THREE.Vector3(), W = innerWidth, H = innerHeight;
+  const v = _lv, W = innerWidth, H = innerHeight;
   const showCh = phase === 'player' && !busy && selected && selected.ap > 0;
   for (const u of units) {
     if (!u.label) { u.label = document.createElement('div'); u.label.className = 'ul ' + (u.team === 'clone' ? 'rep' : 'sep'); u.label.innerHTML = '<div class="ch"></div><div class="ap2"></div><div class="st"></div><div class="pips"></div>'; labels.appendChild(u.label); u.lkey = ''; }
     const show = u.alive && (u.team === 'clone' || u.visible) && !cam.cine && phase !== 'start' && phase !== 'intro';
-    u.label.style.display = show ? '' : 'none'; if (!show) continue;
+    // стили пишем только при изменении, позицию — через transform: без пересчёта раскладки страницы
     v.set(u.rig.root.position.x, 1.4, u.rig.root.position.z).project(camera);
-    if (v.z > 1) { u.label.style.display = 'none'; continue; }
-    u.label.style.left = ((v.x + 1) / 2 * W) + 'px'; u.label.style.top = ((1 - v.y) / 2 * H) + 'px';
+    const disp = show && v.z <= 1 ? '' : 'none'; if (u.ldisp !== disp) { u.ldisp = disp; u.label.style.display = disp; } if (disp) continue;
+    const lx = Math.round((v.x + 1) / 2 * W), ly = Math.round((1 - v.y) / 2 * H);
+    if (lx !== u.lx || ly !== u.ly) { u.lx = lx; u.ly = ly; u.label.style.transform = `translate(${lx}px,${ly}px) translate(-50%,-100%)`; }
     const ch = showCh && u.team === 'droid' ? ui.chances.get(u) : null;
     const ap = u.team === 'clone' && phase === 'player' && u === selected ? u.ap : 0;
     const key = [u.hp, u.overwatch, u.hunker, ch ? ch.chance + (ch.flank ? 'f' : '') + (ui.preview ? 'p' : '') : '', ap].join('|');
@@ -2432,6 +2468,7 @@ on('bResume', () => { $('menuScr').classList.remove('show'); goFullscreen(); });
 on('bRestart', () => { $('menuScr').classList.remove('show'); startGame(); });
 on('bAgain', () => { $('endScr').classList.remove('show'); startGame(); });
 on('bPlay', () => startGame());
+for (const b of ['bGfx', 'bGfx2']) on(b, () => { const keys = Object.keys(GFX_MODES); setGfxMode(keys[(keys.indexOf(gfx.mode) + 1) % keys.length]); Snd.fx.click(); });
 on('bHow', () => $('howScr').classList.add('show'));
 on('bHow2', () => { $('menuScr').classList.remove('show'); $('howScr').classList.add('show'); });
 on('bHowOk', () => $('howScr').classList.remove('show'));
@@ -2453,14 +2490,17 @@ async function goFullscreen() {
   try { if (!document.fullscreenElement && d.requestFullscreen) await d.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
   try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
 }
-function clearUnits() { for (const u of units) { world.remove(u.rig.root); if (u.label) u.label.remove(); for (const o of u.debris || []) world.remove(o); } units = []; }
+// геометрия юнитов уникальна, кроме общих заготовок, — её и текстуры костей скелета освобождаем при новой партии
+const SHARED_GEO = new WeakSet([HELMET_GEO, B1HEAD_GEO]);
+const disposeRig = root => root.traverse(o => { if (o.isSkinnedMesh) o.skeleton.dispose(); else if (o.isMesh && !SHARED_GEO.has(o.geometry)) o.geometry.dispose(); });
+function clearUnits() { for (const u of units) { world.remove(u.rig.root); disposeRig(u.rig.root); if (u.label) u.label.remove(); for (const o of u.debris || []) { world.remove(o); disposeRig(o); } } units = []; }
 let mapReady = false;
 function setupWorld() {
   let seed = 20240 + Math.floor(Math.random() * 9999);
   while (!genMap(seed)) seed++;
   if (staticMesh) { world.remove(staticMesh); staticMesh.geometry.dispose(); }
   if (glowMesh) { world.remove(glowMesh); glowMesh.geometry.dispose(); }
-  for (const o of halfProps.values()) world.remove(o); halfProps.clear(); smokeSources.length = 0;
+  clearProps(); smokeSources.length = 0;
   buildProps(); buildPebbles(); buildBlobs(); mapReady = true;
 }
 function spawnUnits() {
@@ -2488,6 +2528,45 @@ async function startGame() {
 
 // ---------- главный цикл
 let last = performance.now(), timeScale = 1, slow = 1; // timeScale — ускорение (тесты, кнопка), slow — замедление на убийствах
+
+// ---------- качество графики: плотность пикселей и тени. «Авто» подстраивается под скорость устройства
+const GFX_LEVELS = [ // от лучшего к самому быстрому: предел плотности пикселей и карта теней (0 — без теней)
+  { pr: 2, sh: 2048 }, { pr: 1.5, sh: 2048 }, { pr: 1.25, sh: 1024 }, { pr: 1, sh: 1024 }, { pr: 1, sh: 0 }, { pr: 0.75, sh: 0 },
+];
+const GFX_MODES = { auto: 'Авто', high: 'Высокая', mid: 'Средняя', low: 'Низкая' }, GFX_PRESET = { high: 0, mid: 2, low: 4 };
+const GFX_NAMES = ['макс.', 'высокая', 'высокая', 'средняя', 'низкая', 'миним.'];
+const gfx = { mode: GFX_MODES[store('cvd-gfx')] ? store('cvd-gfx') : 'auto', top: isTouch ? (lowEnd ? 2 : 1) : 0, level: 0, win: [], bad: 0, good: 0, hold: 0, ups: 0, prev: 0, locked: false };
+const gfxKey = l => Math.min(window.devicePixelRatio || 1, GFX_LEVELS[l].pr) + '/' + GFX_LEVELS[l].sh;
+function applyGfx(l) {
+  gfx.level = l; const v = GFX_LEVELS[l], pr = Math.min(window.devicePixelRatio || 1, v.pr);
+  if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); resize(); }
+  sun.castShadow = v.sh > 0; // смена числа теней сама перекомпилирует шейдеры
+  if (v.sh && sun.shadow.mapSize.x !== v.sh) { sun.shadow.mapSize.set(v.sh, v.sh); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  gfx.win.length = 0; gfx.bad = gfx.good = 0; gfx.hold = 2.5;
+  for (const b of document.querySelectorAll('.gfxBtn')) b.textContent = 'Графика: ' + GFX_MODES[gfx.mode] + (gfx.mode === 'auto' ? ' · ' + GFX_NAMES[l] : '');
+}
+function setGfxMode(mode) { gfx.mode = mode; store('cvd-gfx', mode); gfx.locked = false; gfx.ups = 0; gfx.prev = 0; applyGfx(mode === 'auto' ? gfx.top : GFX_PRESET[mode]); }
+// соседний уровень с другими настройками (на экранах с плотностью 1 часть уровней совпадает)
+function gfxStep(dir) { let l = gfx.level; do l += dir; while (l > 0 && l < GFX_LEVELS.length - 1 && gfxKey(l) === gfxKey(gfx.level)); return l >= 0 && l < GFX_LEVELS.length && gfxKey(l) !== gfxKey(gfx.level) ? l : -1; }
+// замер по ~1,5 с активной игры: ниже ~40 кадров/с — шаг вниз, устойчивые 60 — осторожно обратно вверх.
+// Если понижение не ускорило кадр, частоту ограничивает система — возвращаем качество и больше не трогаем
+function gfxSample(ms) {
+  if (gfx.mode !== 'auto' || gfx.locked || ms > 250) return;
+  if (gfx.hold > 0) { gfx.hold -= ms / 1000; return; }
+  gfx.win.push(ms); if (gfx.win.length < 90) return;
+  const avg = gfx.win.reduce((a, b) => a + b, 0) / gfx.win.length; gfx.win.length = 0;
+  if (gfx.prev) { const p = gfx.prev; gfx.prev = 0; if (avg > p.avg * 0.92) { gfx.locked = true; applyGfx(p.level); return; } }
+  gfx.bad = avg > 25 ? gfx.bad + 1 : 0; gfx.good = avg < 17.5 ? gfx.good + 1 : 0;
+  if (gfx.bad >= 2) { const l = gfxStep(1); if (l >= 0) { gfx.prev = { avg, level: gfx.level }; applyGfx(l); } }
+  else if (gfx.good >= 5 && gfx.level > gfx.top && gfx.ups < 2) { const l = gfxStep(-1); if (l >= gfx.top) { gfx.ups++; applyGfx(l); } }
+}
+// покой: ничего не движется и игрок не трогает экран — рисуем 30 кадров/с вместо 60 (меньше нагрев и расход батареи)
+function sceneIdle() {
+  if (busy || cam.cine || cam.shake > 0 || ptrs.size || tweens.length || frameWaiters.length || !(phase === 'player' || phase === 'start' || phase === 'over')) return false;
+  return Math.abs(cam.fx - cam.tfx) + Math.abs(cam.fz - cam.tfz) + Math.abs(cam.dist - cam.tdist) + Math.abs(cam.pitch - cam.tpitch) + Math.abs(Math.atan2(Math.sin(cam.tyaw - cam.yaw), Math.cos(cam.tyaw - cam.yaw))) < 0.01;
+}
+const _frus = new THREE.Frustum(), _pm = new THREE.Matrix4(), _bs = new THREE.Sphere(new THREE.Vector3(), 1.6);
+let wasIdle = true;
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
   $('rotate').classList.toggle('show', isTouch && h > w);
@@ -2495,10 +2574,17 @@ function resize() {
 addEventListener('resize', resize); addEventListener('orientationchange', () => setTimeout(resize, 200));
 let smokeT = 0, attractT = 0;
 function frame(now) {
+  requestAnimationFrame(frame);
+  const idle = sceneIdle();
+  if (idle && now - last < 31) return;
+  if (!idle && !wasIdle) gfxSample(now - last);
+  wasIdle = idle;
   const dt = Math.min(0.05, (now - last) / 1000) * timeScale * slow * (phase === 'enemy' && fastEnemy ? 2 : 1); last = now;
   tweensUpdate(dt); if (frameWaiters.length) for (const r of frameWaiters.splice(0)) r(dt);
   FX.update(dt); dustUpdate(dt);
-  for (const u of units) poseRig(u, dt);
+  // анимируем только тех, кого видно: спрятанные туманом и оставшиеся за кадром стоят на паузе
+  _frus.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  for (const u of units) { if (!u.rig.root.visible) continue; _bs.center.set(u.rig.root.position.x, 0.8, u.rig.root.position.z); if (_frus.intersectsSphere(_bs)) poseRig(u, dt); }
   // дым над обломками
   smokeT -= dt; if (smokeT < 0) { smokeT = 0.35; for (const [x, y, z] of smokeSources) FX.puff(x + rand(-0.2, 0.2), y, z + rand(-0.2, 0.2), { color: 0x3b332e, life: 3.2, s0: 0.3, s1: 1.8, vy: 0.5, a: 0.45 }); }
   // кольцо выбранного
@@ -2507,13 +2593,15 @@ function frame(now) {
   if (phase === 'start') { attractT += dt; cam.tyaw = cam.yaw = -Math.PI / 4 + attractT * 0.06; cam.fx = cam.tfx = N / 2; cam.fz = cam.tfz = N / 2; }
   fpUpdate(dt); camUpdate(dt); syncLabels();
   renderer.render(scene, camera);
-  requestAnimationFrame(frame);
 }
 // стартовый экран: сцена на фоне (сначала загружаем модели персонажей)
 loadCharacters().then(() => {
   setupWorld(); spawnUnits(); for (const u of units) u.rig.root.visible = true;
   cam.pitch = cam.tpitch = 1.0; cam.dist = cam.tdist = 50;
-  resize(); $('loading').remove(); requestAnimationFrame(frame);
+  resize(); applyGfx(gfx.mode === 'auto' ? gfx.top : GFX_PRESET[gfx.mode]);
+  // первый кадр рисуем под экраном загрузки: шейдеры и буферы готовы до того, как игрок увидит сцену
+  const warm = FX.warm(); camUpdate(0); renderer.compile(scene, camera); renderer.render(scene, camera); scene.remove(warm);
+  $('loading').remove(); last = performance.now(); requestAnimationFrame(frame);
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) Music.stop(); else if (phase !== 'start') Music.start(); });
 window.appPause = () => { Music.stop(); };

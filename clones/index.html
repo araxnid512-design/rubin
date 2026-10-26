@@ -101,7 +101,7 @@
 
   /* надписи над юнитами */
   #labels { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
-  .ul { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ul { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .ul .pips { display: flex; gap: 1px; padding: 2px; border-radius: 4px; background: rgba(0,0,0,.55); }
   .ul .pips i { width: 6px; height: 5px; border-radius: 1px; background: var(--ok); }
   .ul.sep .pips i { background: #ff6b5a; }
@@ -268,6 +268,7 @@
     <p class="lead">Тактическая операция в пустынном каньоне. Пять клонов-солдат против армии боевых дроидов. Каждый ход на счету.</p>
     <button class="btn" id="bPlay">▶ В БОЙ</button>
     <button class="btn ghost" id="bHow">Как играть</button>
+    <button class="btn ghost gfxBtn" id="bGfx">Графика: Авто</button>
   </div>
 </div>
 
@@ -285,6 +286,7 @@
     <button class="btn" id="bResume">Продолжить</button>
     <button class="btn ghost" id="bRestart">Начать заново</button>
     <button class="btn ghost" id="bHow2">Как играть</button>
+    <button class="btn ghost gfxBtn" id="bGfx2">Графика: Авто</button>
   </div>
 </div>
 
