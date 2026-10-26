@@ -1137,6 +1137,8 @@ function refreshUI() {
   if (u && u.alive && phase === 'player') { ui2.style.display = ''; ui2.innerHTML = `<b>${u.call}</b> · меткость ${u.aim} · ход ${u.mob} · урон ${u.dmg[0]}–${u.dmg[1]}${u.nades ? ' · гранат ' + u.nades : ''}`; }
   else ui2.style.display = 'none';
   $('bFast').classList.toggle('on', fastEnemy);
+  $('bCam').classList.toggle('on', camMode === 'first'); $('bCam').setAttribute('aria-label', 'Камера выстрела: ' + CAM_MODES[camMode]);
+  $('bCam').querySelector('b').textContent = camMode === 'first' ? '1' : camMode === 'third' ? '3' : 'A';
   $('bMus').classList.toggle('off', !Snd.musOn); $('bSfx').classList.toggle('off', !Snd.sfxOn);
 }
 const coverAround = u => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => cell(u.x + dx, u.z + dz) !== FLOOR);
@@ -1280,11 +1282,21 @@ async function moveUnit(u, path, dash = false) {
 const UP = new THREE.Vector3(0, 1, 0);
 const chestY = u => (u.state === 'hunker' ? 0.42 : u.crouch ? 0.52 : u.type === 'b2' ? 0.74 : 0.7);
 const eyeY = u => (u.type === 'b2' ? 0.95 : u.team === 'droid' ? 0.86 : 0.9);
-let thirdCount = 0;
-// крутой момент — показываем от первого лица
-function coolMoment(s, t, info, out, opts) {
+let thirdCount = 0, ownShots = 0;
+// режим камеры выстрела: auto — крутые моменты и каждый второй свой выстрел,
+// first — всегда от первого лица, third — кино-ракурсы (снайпер всё равно через оптику)
+const CAM_MODES = { auto: 'Авто: крутые моменты + каждый второй выстрел', first: 'Всегда от первого лица', third: 'Кино-ракурсы от третьего лица' };
+let camMode = CAM_MODES[store('cvd-cam')] ? store('cvd-cam') : 'auto';
+function coolMoment(s, t, info, out) {
+  if (s.team === 'droid') return out.kill || out.crit || (out.hit && info.chance <= 40);
+  return out.kill || out.crit || info.flank || s.type === 'sniper' || s.type === 'heavy' || (out.hit && info.chance <= 50);
+}
+function wantFirstPerson(s, t, info, out, opts) {
+  if (camMode === 'first') return true;
+  if (camMode === 'third') return s.type === 'sniper' && !opts.reaction;
   if (opts.reaction) return false;
-  return out.kill || out.crit || s.type === 'sniper' || (out.hit && info.chance <= 35);
+  if (coolMoment(s, t, info, out)) return true;
+  return s.team === 'clone' && ownShots % 2 === 0;
 }
 function camCandidate(mode, s, t, sp, tp, dir, right, sChest, tChest) {
   const okTile = p => { const x = Math.floor(p.x), z = Math.floor(p.z); return inb(x, z) && cell(x, z) !== FULL; };
@@ -1333,7 +1345,9 @@ async function shoot(s, t, opts = {}) {
   const sp = s.rig.root.position.clone(), tp = t.rig.root.position.clone();
   const dir = new THREE.Vector3(tp.x - sp.x, 0, tp.z - sp.z).normalize(), right = new THREE.Vector3(dir.z, 0, -dir.x);
   const tChest = new THREE.Vector3(tp.x, chestY(t), tp.z), sChest = new THREE.Vector3(sp.x, 0.7, sp.z);
-  let mode = coolMoment(s, t, info, out, opts) ? 'first' : null, cpos, clook, fov;
+  let mode = wantFirstPerson(s, t, info, out, opts) ? 'first' : null, cpos, clook, fov;
+  if (s.team === 'clone' && !opts.reaction) ownShots++;
+  const cool = coolMoment(s, t, info, out);
   if (!mode) {
     const order = s.team === 'droid' ? ['reverse', 'shoulder', 'side'] : ['shoulder', 'side', 'reverse'];
     for (let i = 0; i < 3 && !mode; i++) { const m = order[(thirdCount + i) % 3], c = camCandidate(m, s, t, sp, tp, dir, right, sChest, tChest); if (c) { mode = m; cpos = c.pos; clook = c.look; fov = c.fov; } }
@@ -1344,7 +1358,7 @@ async function shoot(s, t, opts = {}) {
   if (fp) { cpos = new THREE.Vector3(sp.x, eyeY(s), sp.z).addScaledVector(dir, 0.12).addScaledVector(right, -0.03); clook = tChest.clone(); fov = scoped ? 16 : 40; }
   window.cineMode = fp ? 'first' : 'third';
   document.body.classList.add('cine');
-  $('cineInfo').textContent = `${s.team === 'clone' ? s.call : s.name} → ${t.team === 'clone' ? t.call : t.name} · ${info.chance}%${info.flank ? ' · ФЛАНГ' : ''}`;
+  $('cineInfo').textContent = `${fp && cool && !opts.reaction ? '★ ' : ''}${s.team === 'clone' ? s.call : s.name} → ${t.team === 'clone' ? t.call : t.name} · ${info.chance}%${info.flank ? ' · ФЛАНГ' : ''}`;
   const st = { pos: camera.position.clone(), look: new THREE.Vector3(cam.fx, 0, cam.fz) };
   cam.cine = { pos: st.pos.clone(), look: st.look.clone(), fov: fp ? 50 : fov };
   await tween(opts.reaction ? 0.38 : 0.65, k => { const e = easeIO(k); cam.cine.pos.lerpVectors(st.pos, cpos, e); cam.cine.look.lerpVectors(st.look, clook, e); });
@@ -1716,6 +1730,10 @@ on('aNade', () => {
 on('aNext', () => nextUnit());
 on('aEnd', () => endPlayerTurn());
 on('bRotL', () => rotateCam(-1)); on('bRotR', () => rotateCam(1));
+on('bCam', () => {
+  const keys = Object.keys(CAM_MODES); camMode = keys[(keys.indexOf(camMode) + 1) % keys.length]; store('cvd-cam', camMode);
+  Snd.fx.click(); refreshUI(); hint('Камера выстрела: ' + CAM_MODES[camMode]); clearTimeout(window.__camHint); window.__camHint = setTimeout(() => hint(''), 2200);
+});
 on('bFast', () => { fastEnemy = !fastEnemy; store('cvd-fast', fastEnemy ? 'on' : 'off'); refreshUI(); Snd.fx.click(); });
 on('bView', () => { cam.mode = cam.mode === 'top' ? 'tactical' : 'top'; cam.tpitch = VIEWS[cam.mode].pitch; cam.tdist = VIEWS[cam.mode].dist; Snd.fx.click(); });
 on('bMus', () => { Snd.setMus(!Snd.musOn); refreshUI(); });
@@ -1734,6 +1752,7 @@ $('helpText').innerHTML = `
 <b>Перемещение:</b> ${isTouch ? 'коснитесь' : 'наведите и щёлкните'} клетки — синие стоят 1 очко, жёлтые (рывок) — 2. ${isTouch ? 'Второе касание подтверждает ход.' : 'Щёлкните ещё раз для подтверждения.'}<br>
 <b>Укрытия:</b> щиты показывают защиту — полная даёт −40% к попаданию врага, частичная −20%. Без укрытия юнит на <b>фланге</b> и получает больше критов.<br>
 <b>Огонь</b> завершает действия бойца. Коснитесь дроида или кнопки «Огонь», выберите цель и нажмите «ОГОНЬ». Камера переходит в кинорежим — от первого или третьего лица.<br>
+<b>Камера выстрела</b> (кнопка с камерой): «A» — от первого лица в крутые моменты и каждый второй выстрел, «1» — всегда от первого лица, «3» — кино-ракурсы.<br>
 <b>Дозор</b> — выстрел по врагу, который двинется в поле зрения. <b>Укрыться</b> — удвоить защиту укрытия. <b>Граната</b> бьёт по площади и разрушает частичные укрытия.<br>
 <b>Камера:</b> ${isTouch ? 'перетаскивайте пальцем, щипок — масштаб и поворот' : 'перетаскивание мышью, колесо — масштаб, Q/E — поворот, V — вид сверху'}.`;
 
