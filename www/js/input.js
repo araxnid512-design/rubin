@@ -1,12 +1,19 @@
-// Ввод: виртуальный стик (левая половина экрана) и клавиатура для отладки в браузере.
+// Ввод: виртуальный стик (левая половина экрана), стрельба (правая половина),
+// клавиатура для отладки в браузере (WASD/стрелки, пробел — огонь, Esc — пауза).
 (function () {
   const Input = {
     move: { x: 0, y: 0 },
+    fire: false,
     stick: null, // { id, ox, oy, x, y } — для отрисовки
   };
 
   const RADIUS = 60;
   const keys = new Set();
+  const firePointers = new Set();
+
+  function updateFire() {
+    Input.fire = keys.has('Space') || firePointers.size > 0;
+  }
 
   function updateFromKeys() {
     if (Input.stick) return;
@@ -27,11 +34,22 @@
     }
     keys.add(e.code);
     updateFromKeys();
+    updateFire();
   });
-  window.addEventListener('keyup', (e) => { keys.delete(e.code); updateFromKeys(); });
+  window.addEventListener('keyup', (e) => {
+    keys.delete(e.code);
+    updateFromKeys();
+    updateFire();
+  });
 
   window.addEventListener('pointerdown', (e) => {
-    if (Input.stick || e.clientX > window.innerWidth / 2) return;
+    if (e.target.tagName === 'BUTTON') return;
+    if (e.clientX > window.innerWidth / 2) {
+      firePointers.add(e.pointerId);
+      updateFire();
+      return;
+    }
+    if (Input.stick) return;
     Input.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
   });
 
@@ -48,6 +66,10 @@
   });
 
   function release(e) {
+    if (firePointers.delete(e.pointerId)) {
+      updateFire();
+      return;
+    }
     if (!Input.stick || Input.stick.id !== e.pointerId) return;
     Input.stick = null;
     Input.move.x = 0;
@@ -59,9 +81,11 @@
 
   window.Platform.on('pause', () => {
     keys.clear();
+    firePointers.clear();
     Input.stick = null;
     Input.move.x = 0;
     Input.move.y = 0;
+    Input.fire = false;
   });
 
   Input.RADIUS = RADIUS;

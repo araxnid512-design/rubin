@@ -32,7 +32,7 @@
 ## Сборка
 
 - `npm install`, затем `npm run serve`: игра в браузере на http://localhost:8080
-  (WASD/стрелки, Esc: пауза).
+  (WASD/стрелки, пробел: огонь, Esc: пауза).
 - `npm run sync` копирует `www/` в Android-проект.
 - APK собирает GitHub Actions (`.github/workflows/android-apk.yml`) при каждом push в `main`
   и публикует в Releases. Подпись debug-ключом `android/app/debug.keystore`
