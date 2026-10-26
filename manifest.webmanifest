@@ -1,0 +1,9 @@
+{
+  "name": "Каменный Бег",
+  "short_name": "Каменный Бег",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1f1a",
+  "theme_color": "#0b1f1a"
+}
