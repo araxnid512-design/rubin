@@ -3,31 +3,36 @@
 
 Нужны: JDK (javac), Python 3 с пакетом `cryptography`.
 dx и android.jar скачиваются с Maven Central в android/.tools/.
+Перед правкой прочтите раздел про APK в CLAUDE.md: там причины, по которым телефон может не установить игру.
 
     python3 android/build.py            # «Каменный Бег»        -> dist/kamenny-beg.apk
     python3 android/build.py clones     # «Клоны против дроидов» -> dist/clones-vs-droids.apk
 """
-import hashlib, os, struct, subprocess, sys, urllib.request, zipfile, datetime
+import hashlib, os, shutil, struct, subprocess, sys, urllib.request, zipfile, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.join(ROOT, 'android')
 TOOLS = os.path.join(HERE, '.tools')
 BUILD = os.path.join(HERE, '.build')
-KEY = os.path.join(HERE, 'debug-key.pem')
 
-# игра: пакет, название, иконки и файлы, которые кладутся в assets/
+# игра: пакет, название, иконки, файлы для assets/ и ключ подписи.
+# Ключ игры менять нельзя: обновление с другим ключом телефон не установит.
 APPS = {
     'caveman': dict(package='com.rubin.kamenbeg', label='Каменный Бег', out='kamenny-beg.apk',
-                    icons='icons', assets=['index.html']),
+                    icons='icons', assets=['index.html'], key='debug-key.pem'),
     'clones': dict(package='com.rubin.clonetactics', label='Клоны против дроидов', out='clones-vs-droids.apk',
-                   icons='clones/icons', assets=['clones/index.html', 'clones/game.js', 'clones/three.min.js', 'clones/three-addons.js', 'clones/models.js'], version=(8, '1.7')),
+                   icons='clones/icons', assets=['clones/index.html', 'clones/game.js', 'clones/three.min.js', 'clones/three-addons.js', 'clones/models.js'],
+                   version=(9, '1.7.1'), key='debug-key.pem'),
 }
 APP = APPS[sys.argv[1] if len(sys.argv) > 1 else 'caveman']
 OUT = os.path.join(ROOT, 'dist', APP['out'])
 PACKAGE, LABEL = APP['package'], APP['label']
-ACTIVITY = 'com.rubin.kamenbeg.MainActivity'  # общая WebView-обёртка
+KEY = os.path.join(HERE, APP['key'])
+# WebView-обёртка общая, но класс собирается в пакете самой игры, как у обычного приложения
+ACTIVITY = PACKAGE + '.MainActivity'
+TEMPLATE = os.path.join(HERE, 'src', 'com', 'rubin', 'kamenbeg', 'MainActivity.java')
 VERSION_CODE, VERSION_NAME = APP.get('version', (1, '1.0'))
-MIN_SDK, TARGET_SDK = 21, 34
+MIN_SDK, TARGET_SDK, COMPILE_SDK = 21, 34, (34, '14')
 
 MAVEN = 'https://repo1.maven.org/maven2/'
 DEPS = {
@@ -43,6 +48,7 @@ ATTR_IDS = {
     'exported': 0x01010010, 'screenOrientation': 0x0101001e, 'configChanges': 0x0101001f,
     'drawable': 0x01010199, 'minSdkVersion': 0x0101020c, 'versionCode': 0x0101021b,
     'versionName': 0x0101021c, 'targetSdkVersion': 0x01010270, 'hardwareAccelerated': 0x010102d3,
+    'isGame': 0x010103f4, 'appCategory': 0x01010545, 'compileSdkVersion': 0x01010572, 'compileSdkVersionCodename': 0x01010573,
 }
 T_REF, T_STR, T_DEC, T_HEX, T_BOOL = 0x01, 0x03, 0x10, 0x11, 0x12
 
@@ -238,11 +244,12 @@ def ensure_key():
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'Kamenny Beg debug')])
-    now = datetime.datetime(2026, 1, 1)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'Rubin Games'), x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Rubin'),
+                      x509.NameAttribute(NameOID.COUNTRY_NAME, 'UA')])
+    # срок с запасом в прошлое (часы телефона могут отставать) и до 2049 года (даты кодируются UTCTime)
     cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
-            .serial_number(x509.random_serial_number()).not_valid_before(now)
-            .not_valid_after(now + datetime.timedelta(days=365 * 30)).sign(key, hashes.SHA256()))
+            .serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime(2020, 1, 1))
+            .not_valid_after(datetime.datetime(2049, 12, 31)).sign(key, hashes.SHA256()))
     with open(KEY, 'wb') as f:
         f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
         f.write(cert.public_bytes(serialization.Encoding.PEM))
@@ -262,21 +269,26 @@ def build():
         if not os.path.exists(dst):
             print('скачиваю', path)
             urllib.request.urlretrieve(MAVEN + path, dst)
-    os.makedirs(os.path.join(BUILD, 'classes'), exist_ok=True)
-    srcs = [os.path.join(dp, f) for dp, _, fs in os.walk(os.path.join(HERE, 'src')) for f in fs if f.endswith('.java')]
+    shutil.rmtree(BUILD, ignore_errors=True)
+    src = os.path.join(BUILD, 'src', *PACKAGE.split('.'), 'MainActivity.java')
+    os.makedirs(os.path.dirname(src)); os.makedirs(os.path.join(BUILD, 'classes'))
+    code = open(TEMPLATE, encoding='utf-8').read().replace('package com.rubin.kamenbeg;', f'package {PACKAGE};', 1)
+    open(src, 'w', encoding='utf-8').write(code)
     run('javac', '--release', '8', '-nowarn', '-encoding', 'UTF-8',
-        '-cp', os.path.join(TOOLS, 'android.jar'), '-d', os.path.join(BUILD, 'classes'), *srcs)
+        '-cp', os.path.join(TOOLS, 'android.jar'), '-d', os.path.join(BUILD, 'classes'), src)
     dex = os.path.join(BUILD, 'classes.dex')
     run('java', '-cp', os.path.join(TOOLS, 'dx.jar'), 'com.android.dx.command.Main', '--dex',
         '--min-sdk-version=' + str(MIN_SDK), '--output=' + dex, os.path.join(BUILD, 'classes'))
 
     manifest = axml(('manifest', [
-        ('package', T_STR, PACKAGE), ('versionCode', T_DEC, VERSION_CODE), ('versionName', T_STR, VERSION_NAME)], [
+        ('package', T_STR, PACKAGE), ('versionCode', T_DEC, VERSION_CODE), ('versionName', T_STR, VERSION_NAME),
+        ('compileSdkVersion', T_DEC, COMPILE_SDK[0]), ('compileSdkVersionCodename', T_STR, COMPILE_SDK[1]),
+        ('platformBuildVersionCode', T_DEC, COMPILE_SDK[0]), ('platformBuildVersionName', T_STR, COMPILE_SDK[1])], [
         ('uses-sdk', [('minSdkVersion', T_DEC, MIN_SDK), ('targetSdkVersion', T_DEC, TARGET_SDK)], []),
         ('application', [
             ('label', T_STR, LABEL), ('icon', T_REF, 0x7f010000),
             ('theme', T_REF, 0x01030007),  # @android:style/Theme.NoTitleBar.Fullscreen
-            ('hardwareAccelerated', T_BOOL, True)], [
+            ('hardwareAccelerated', T_BOOL, True), ('isGame', T_BOOL, True), ('appCategory', T_DEC, 0)], [  # 0 — game
             ('activity', [
                 ('name', T_STR, ACTIVITY), ('exported', T_BOOL, True),
                 ('screenOrientation', T_DEC, 6),  # sensorLandscape
@@ -320,7 +332,45 @@ def build():
     os.remove(tmp)
     with open(OUT, 'wb') as f:
         f.write(signed)
+    check(OUT)
     print('готово:', OUT, len(signed) // 1024, 'КБ')
+
+# ---------------------------------------------------------------- проверка готового APK
+
+
+def check(path):
+    """Проверки, на которых телефон отказывает в установке (подробности — в CLAUDE.md)."""
+    d = open(path, 'rb').read()
+    z = zipfile.ZipFile(path)
+    assert z.testzip() is None, 'битая контрольная сумма файла в архиве'
+    for i in z.infolist():
+        nl, el = struct.unpack_from('<HH', d, i.header_offset + 26)
+        if i.compress_type == zipfile.ZIP_STORED:
+            assert (i.header_offset + 30 + nl + el) % 4 == 0, 'не выровнен ' + i.filename
+    assert z.getinfo('resources.arsc').compress_type == zipfile.ZIP_STORED, 'resources.arsc должен быть несжатым (Android 11+)'
+    # подпись v2: заново считаем хэш содержимого готового файла и сравниваем с подписанным
+    eocd = d.rfind(b'PK\x05\x06')
+    cd, = struct.unpack_from('<I', d, eocd + 16)
+    assert d[cd - 16:cd] == b'APK Sig Block 42', 'нет подписи v2'
+    size, = struct.unpack_from('<Q', d, cd - 24)
+    start = cd - size - 8
+    new_eocd = bytearray(d[eocd:])
+    struct.pack_into('<I', new_eocd, 16, start)
+    chunks = [hashlib.sha256(b'\xa5' + struct.pack('<I', len(s[i:i + (1 << 20)])) + s[i:i + (1 << 20)]).digest()
+              for s in (d[:start], d[cd:eocd], bytes(new_eocd)) for i in range(0, len(s), 1 << 20)]
+    digest = hashlib.sha256(b'\x5a' + struct.pack('<I', len(chunks)) + b''.join(chunks)).digest()
+    assert digest in d[start:cd], 'хэш в подписи v2 не совпадает с содержимым'
+    print('проверка: архив, выравнивание и подпись v2 в порядке')
+    # если доступен код Android 14 (android-all из Robolectric), подпись проверяет он сам
+    jar = next((os.path.join(dp, f) for dp, _, fs in os.walk(os.path.expanduser('~/.gradle/caches'))
+                for f in fs if f.startswith('android-all-') and f.endswith('.jar') and 'instrumented' not in f), None)
+    if not jar:
+        print('проверка кодом Android пропущена: нет android-all-*.jar')
+        return
+    out = os.path.join(BUILD, 'verify')
+    os.makedirs(out, exist_ok=True)
+    run('javac', '-nowarn', '-cp', jar, '-d', out, os.path.join(HERE, 'verify', 'ApkCheck.java'))
+    run('java', '-cp', out + os.pathsep + jar, 'ApkCheck', path)
 
 
 if __name__ == '__main__':
