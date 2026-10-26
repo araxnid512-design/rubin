@@ -1,11 +1,12 @@
 // Ввод: виртуальный стик (левая половина экрана) и кнопки действий (ui.js).
 // Клавиатура для отладки в браузере: WASD/стрелки, пробел — атака, E — действие,
-// I — рюкзак, H — лечение, Esc — пауза.
+// I — рюкзак, H — лечение, C — присесть, Esc — пауза.
 (function () {
   const Input = {
     move: { x: 0, y: 0 },
     fire: false,
     attackButton: false,
+    attackQueued: false, // короткий тап быстрее кадра не должен теряться
     stick: null, // { id, ox, oy, x, y } — для отрисовки
   };
 
@@ -14,6 +15,7 @@
 
   Input.updateFire = function () {
     Input.fire = keys.has('Space') || Input.attackButton;
+    if (Input.fire) Input.attackQueued = true;
   };
 
   function updateFromKeys() {
@@ -38,6 +40,7 @@
     if (e.code === 'KeyE') window.Game.interact();
     if (e.code === 'KeyI') window.UI.openInventory();
     if (e.code === 'KeyH') window.Game.quickHeal();
+    if (e.code === 'KeyC') window.Game.toggleCrouch();
     keys.add(e.code);
     updateFromKeys();
     Input.updateFire();
@@ -82,6 +85,7 @@
     Input.move.x = 0;
     Input.move.y = 0;
     Input.attackButton = false;
+    Input.attackQueued = false;
     Input.fire = false;
   });
 

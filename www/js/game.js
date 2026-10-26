@@ -38,7 +38,11 @@
       attackCd: 0,
       ui: null,
       over: false,
+      menu: false,
+      crouch: false,
+      stepTimer: 0,
       kills: 0,
+      fx: { numbers: [], blood: [], corpses: [], shake: 0, hurt: 0 },
     };
     addItem(s, 'bandage', 2);
     addItem(s, 'water', 1);
@@ -61,6 +65,7 @@
       kind: sp.type, type: T, spawn: index,
       x: sp.x, y: sp.y, hp: T.hp, angle: Math.random() * 6.28,
       state: 'idle', attackCd: 0, hitFlash: 0, seed: Math.random(),
+      growl: 2 + Math.random() * 6,
       wander: { x: sp.x, y: sp.y, t: 0 },
     };
   }
@@ -235,12 +240,14 @@
     if (!it) return;
     const left = addItem(state, it.id, it.count, it.dur);
     if (left === it.count) { toast('Рюкзак полон'); return; }
+    window.Sound.pickup();
     if (left > 0) it.count = left; else ui.items.splice(index, 1);
     cleanupDrop();
   }
 
   function takeAll() {
     const ui = state.ui;
+    if (ui.items.length) window.Sound.pickup();
     for (let i = ui.items.length - 1; i >= 0; i--) {
       const it = ui.items[i];
       const left = addItem(state, it.id, it.count, it.dur);
@@ -264,6 +271,7 @@
     const q = state.quests[id];
     if (!q || q.done || !q.active) return;
     q.done = true;
+    window.Sound.quest();
     toast(`Задание выполнено: ${q.title}`);
     const base = ['survivors', 'shop', 'bus'];
     if (base.every((k) => state.quests[k].done) && !state.quests.exit.active) {
@@ -305,7 +313,7 @@
   }
 
   function interact() {
-    if (state.ui || state.over) return;
+    if (state.ui || state.over || state.menu) return;
     const t = findInteract();
     if (!t) return;
     if (t.kind === 'npc') talk(t.obj);
@@ -329,10 +337,24 @@
     return best;
   }
 
-  function damage(e, amount) {
+  function damage(e, amount, sneak) {
     e.hp -= amount;
     e.hitFlash = 0.12;
-    if (e.state !== 'chase') e.state = 'chase';
+    state.fx.numbers.push({ x: e.x, y: e.y - e.type.radius, text: String(Math.round(amount)), big: sneak, t: 0.9 });
+    if (state.fx.blood.length < 80) {
+      state.fx.blood.push({ x: e.x + (Math.random() - 0.5) * 0.6, y: e.y + (Math.random() - 0.5) * 0.6,
+        r: 0.15 + Math.random() * 0.2, t: 60 });
+    }
+    window.Sound.hit();
+    if (e.state !== 'chase') startChase(e);
+  }
+
+  // LORE: Стаи — заражённые держатся группами: заметил один — подтягиваются соседи.
+  function startChase(e) {
+    e.state = 'chase';
+    for (const o of state.enemies) {
+      if (o !== e && o.state !== 'chase' && Math.hypot(o.x - e.x, o.y - e.y) < 7) o.state = 'chase';
+    }
   }
 
   function alertNoise(x, y, radius) {
@@ -351,12 +373,20 @@
     if (wd.type === 'melee') {
       state.swing = 0.2;
       state.swingRange = wd.range + D.PLAYER.radius;
+      window.Sound.swing();
       for (const e of state.enemies) {
         const dx = e.x - p.x, dy = e.y - p.y;
         const d = Math.hypot(dx, dy) - e.type.radius - D.PLAYER.radius;
         let da = Math.atan2(dy, dx) - p.angle;
         da = Math.atan2(Math.sin(da), Math.cos(da));
-        if (d < wd.range && Math.abs(da) < 0.9) damage(e, wd.damage);
+        if (d < wd.range && Math.abs(da) < 0.9) {
+          // Скрытная атака: из приседа по заражённому, который ещё не заметил игрока.
+          const sneak = state.crouch && e.state !== 'chase';
+          damage(e, wd.damage * (sneak ? D.SNEAK_MULTIPLIER : 1), sneak);
+          if (sneak) toast('Скрытная атака!', 1.2);
+          const len = Math.hypot(dx, dy) || 1;
+          W.move(e, dx / len * 0.25, dy / len * 0.25, e.type.radius);
+        }
       }
       if (wd.noise) alertNoise(p.x, p.y, wd.noise);
     } else {
@@ -365,14 +395,25 @@
       if (target) damage(target, wd.damage);
       state.tracers.push({ x1: p.x, y1: p.y, x2, y2, t: 0.08 });
       state.flashes.push({ x: p.x, y: p.y, t: 0.08 });
+      state.fx.shake = Math.max(state.fx.shake, state.weapon.id === 'akm' ? 0.7 : 0.5);
+      window.Sound.shot(state.weapon.id === 'akm');
       alertNoise(p.x, p.y, wd.noise);
     }
 
     const w = state.weapon;
     if (w && w.dur > 0) {
       w.dur -= 1;
-      if (w.dur <= 0) toast(`${D.ITEMS[w.id].name}: оружие сломалось! Почините в рюкзаке.`, 4);
+      if (w.dur <= 0) {
+        window.Sound.broken();
+        toast(`${D.ITEMS[w.id].name}: оружие сломалось! Почините в рюкзаке.`, 4);
+      }
     }
+  }
+
+  function toggleCrouch() {
+    if (state.menu || state.over) return;
+    state.crouch = !state.crouch;
+    toast(state.crouch ? 'Присед: тише, медленнее, скрытная атака' : 'Встали', 1.5);
   }
 
   // --- Обновление ---
@@ -389,8 +430,14 @@
     const m = window.Input.move;
     const len = Math.hypot(m.x, m.y);
     if (len > 0.1) {
-      W.move(p, m.x * D.PLAYER.speed * dt, m.y * D.PLAYER.speed * dt, D.PLAYER.radius);
+      const speed = D.PLAYER.speed * (state.crouch ? D.CROUCH_SPEED : 1);
+      W.move(p, m.x * speed * dt, m.y * speed * dt, D.PLAYER.radius);
       if (!window.Input.fire || state.attackCd <= 0) p.angle = Math.atan2(m.y, m.x);
+      state.stepTimer -= dt * len;
+      if (state.stepTimer <= 0) {
+        state.stepTimer = state.crouch ? 0.6 : 0.36;
+        window.Sound.step(state.crouch ? 0.3 : 1);
+      }
     }
     p.food = Math.max(0, p.food - D.PLAYER.foodDecay * dt);
     p.water = Math.max(0, p.water - D.PLAYER.waterDecay * dt);
@@ -398,7 +445,11 @@
     p.hitFlash -= dt;
 
     state.attackCd -= dt;
-    if (window.Input.fire && state.attackCd <= 0) attack();
+    const In = window.Input;
+    if ((In.fire || In.attackQueued) && state.attackCd <= 0) {
+      In.attackQueued = false;
+      attack();
+    }
 
     const q = state.quests.exit;
     const e = W.exit;
@@ -415,9 +466,20 @@
       e.attackCd -= dt;
       const dx = p.x - e.x, dy = p.y - e.y;
       const dist = Math.hypot(dx, dy);
-      let detect = T.detect * (night ? 0.6 : 1) * (inside ? 0.7 : 1);
-      if (e.state !== 'chase' && dist < detect && !W.blocked(e.x, e.y, p.x, p.y)) e.state = 'chase';
+      // Видят конусом впереди; сзади только слышат шаги — в приседе не слышат вовсе.
+      const detect = T.detect * (night ? 0.6 : 1) * (inside ? 0.7 : 1) * (state.crouch ? D.CROUCH_DETECT : 1);
+      let da = Math.atan2(dy, dx) - e.angle;
+      da = Math.atan2(Math.sin(da), Math.cos(da));
+      const seen = Math.abs(da) < D.VISION_HALF_ANGLE;
+      const heard = !state.crouch && dist < detect * D.HEARING_SHARE;
+      if (e.state !== 'chase' && dist < detect && (seen || heard) && !W.blocked(e.x, e.y, p.x, p.y)) startChase(e);
       if (e.state === 'chase' && dist > 26) e.state = 'idle';
+
+      e.growl -= dt * (e.state === 'chase' ? 2.5 : 1);
+      if (e.growl <= 0) {
+        e.growl = 4 + Math.random() * 6;
+        window.Sound.growl(Math.max(0, 1 - dist / 18), e.kind === 'stomper' || e.kind === 'lottery');
+      }
 
       if (e.state === 'chase') {
         const reach = T.radius + D.PLAYER.radius + 0.25;
@@ -426,6 +488,9 @@
         } else if (e.attackCd <= 0) {
           p.hp -= T.damage;
           p.hitFlash = 0.15;
+          state.fx.hurt = 0.35;
+          state.fx.shake = Math.max(state.fx.shake, 0.6);
+          window.Sound.hurt();
           e.attackCd = T.attackInterval;
         }
         e.angle = Math.atan2(dy, dx);
@@ -467,6 +532,7 @@
     for (const e of es) {
       if (e.hp > 0) continue;
       state.kills += 1;
+      state.fx.corpses.push({ x: e.x, y: e.y, angle: e.angle, radius: e.type.radius, color: e.type.color, t: 30 });
       state.respawns.push({ spawn: e.spawn, t: 150 });
       if (e.type.sporans) {
         const n = rollSporans();
@@ -498,6 +564,13 @@
     for (const f of state.flashes) f.t -= dt;
     state.tracers = state.tracers.filter((t) => t.t > 0);
     state.flashes = state.flashes.filter((f) => f.t > 0);
+    const fx = state.fx;
+    fx.shake = Math.max(0, fx.shake - dt * 4);
+    fx.hurt = Math.max(0, fx.hurt - dt);
+    for (const list of [fx.numbers, fx.blood, fx.corpses]) for (const n of list) n.t -= dt;
+    fx.numbers = fx.numbers.filter((n) => n.t > 0);
+    fx.blood = fx.blood.filter((n) => n.t > 0);
+    fx.corpses = fx.corpses.filter((n) => n.t > 0);
 
     if (state.player.hp <= 0) {
       state.player.hp = 0;
@@ -565,7 +638,7 @@
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    if (!window.Platform.paused && !state.ui && !state.over) update(dt);
+    if (!window.Platform.paused && !state.ui && !state.over && !state.menu) update(dt);
     state.hour = hour();
     state.weaponDef = weaponDef();
     window.Render.draw(state, now / 1000);
@@ -574,18 +647,47 @@
     requestAnimationFrame(frame);
   }
 
+  function hasSave() {
+    try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+  }
+
   function start(fresh) {
     state = newState();
-    if (fresh) clearSave(); else load();
+    const loaded = !fresh && load();
+    if (fresh) clearSave();
     spawnAll();
     window.UI.hideGameOver();
+    window.UI.hideMenu();
     last = performance.now();
+    if (!loaded) tutorial();
+  }
+
+  // Подсказки для новой игры.
+  function tutorial() {
+    const tips = [
+      'Левая половина экрана — движение',
+      'Большая кнопка справа — атака по ближайшему заражённому',
+      'У оружия нет патронов, но есть прочность — чините его в рюкзаке',
+      '«Присесть» — тише и медленнее; удар сзади по ничего не подозревающему ×3',
+      'Обыскивайте шкафы и машины — кнопка появится над атакой',
+    ];
+    tips.forEach((t, i) => setTimeout(() => { if (!state.menu) toast(t, 4); }, 800 + i * 4500));
+  }
+
+  // Главное меню: мир виден на фоне, но стоит.
+  function showMenu() {
+    state = newState();
+    load();
+    spawnAll();
+    state.menu = true;
+    window.UI.showMenu(hasSave());
   }
 
   window.Game = {
     get state() { return state; },
     D, useSlot, unequip, dropSlot, repair, canRepair, repairCost, craftZhivchik, countItem,
-    quickHeal, healCount, interact, takeLoot, takeAll, closeUI, newGame: () => start(true), save,
+    quickHeal, healCount, interact, takeLoot, takeAll, closeUI, toggleCrouch, save, hasSave,
+    newGame: () => start(true), continueGame: () => start(false), showMenu,
   };
 
   window.Render.init(canvas);
@@ -594,6 +696,6 @@
   window.Platform.on('pause', save);
   window.Platform.on('resume', () => { last = performance.now(); });
   resize();
-  start(false);
+  showMenu();
   requestAnimationFrame(frame);
 })();

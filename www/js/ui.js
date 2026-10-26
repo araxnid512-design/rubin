@@ -45,6 +45,8 @@
       setBar('wpn-dur', 0);
     }
     setText('heal-count', String(G.healCount()));
+    const crouch = $('btn-crouch');
+    if (crouch.classList.contains('on') !== state.crouch) crouch.classList.toggle('on', state.crouch);
 
     const btn = $('btn-interact');
     if (interact && !state.ui) {
@@ -91,7 +93,7 @@
   // --- Рюкзак ---
   function openInventory() {
     const G = window.Game;
-    if (G.state.ui || G.state.over) return;
+    if (G.state.ui || G.state.over || G.state.menu) return;
     G.state.ui = { type: 'inventory' };
     selected = null;
     $('inventory').classList.remove('hidden');
@@ -230,6 +232,21 @@
     $('gameover').classList.add('hidden');
   }
 
+  // --- Главное меню ---
+  function soundLabel() {
+    const t = 'Звук: ' + (window.Sound.enabled ? 'вкл' : 'выкл');
+    $('menu-sound').textContent = t;
+    $('btn-sound').textContent = t;
+  }
+  function showMenu(hasSave) {
+    $('menu-continue').classList.toggle('hidden', !hasSave);
+    soundLabel();
+    $('menu').classList.remove('hidden');
+  }
+  function hideMenu() {
+    $('menu').classList.add('hidden');
+  }
+
   // --- Кнопки ---
   function hold(el, on) {
     el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); on(true); });
@@ -244,6 +261,11 @@
     tap('btn-interact', () => window.Game.interact());
     tap('btn-bag', openInventory);
     tap('btn-heal', () => window.Game.quickHeal());
+    tap('btn-crouch', () => window.Game.toggleCrouch());
+    $('menu-continue').addEventListener('click', () => window.Game.continueGame());
+    $('menu-new').addEventListener('click', () => window.Game.newGame());
+    $('menu-sound').addEventListener('click', () => { window.Sound.toggle(); soundLabel(); });
+    $('btn-sound').addEventListener('click', () => { window.Sound.toggle(); soundLabel(); });
     $('inv-close').addEventListener('click', closeOverlay);
     $('loot-close').addEventListener('click', closeOverlay);
     $('loot-all').addEventListener('click', () => { window.Game.takeAll(); renderLoot(); });
@@ -253,6 +275,7 @@
 
   // «Назад» и Esc сначала закрывают открытое окно.
   window.Platform.onBack = () => {
+    if (!$('menu').classList.contains('hidden')) return true;
     if (!$('inventory').classList.contains('hidden') || !$('loot').classList.contains('hidden')) {
       closeOverlay();
       return true;
@@ -260,5 +283,5 @@
     return false;
   };
 
-  window.UI = { updateHud, toast, openLoot, showGameOver, hideGameOver, openInventory, closeOverlay };
+  window.UI = { updateHud, toast, openLoot, showGameOver, hideGameOver, openInventory, closeOverlay, showMenu, hideMenu };
 })();

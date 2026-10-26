@@ -102,7 +102,8 @@ button:disabled { opacity: 0.4; }
   top: 40px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(60vw, 460px);
+  /* Между HUD слева и миникартой справа. */
+  width: min(calc(100vw - 420px), 460px);
   pointer-events: none;
   display: flex;
   flex-direction: column;
@@ -133,6 +134,8 @@ button:disabled { opacity: 0.4; }
 .big { width: 96px; height: 96px; right: 0; bottom: 0; font-size: 13px; border: 2px solid #6a6a5a; }
 .small { width: 58px; height: 58px; font-size: 11px; }
 #btn-bag { right: 110px; bottom: 6px; }
+#btn-crouch { right: 176px; bottom: 6px; font-size: 10px; }
+#btn-crouch.on { border-color: var(--accent); color: #f0e0a0; background: rgba(60, 54, 20, 0.85); }
 #btn-heal { right: 72px; bottom: 102px; font-size: 18px; color: #e66; }
 #btn-heal span { font-size: 12px; color: var(--text); }
 #btn-interact {
@@ -176,6 +179,26 @@ button:disabled { opacity: 0.4; }
   font-size: 17px;
 }
 #rotate { z-index: 20; background: #000; }
+
+#menu { background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0.55), rgba(0, 0, 0, 0.9)); z-index: 15; }
+.menu-panel { background: rgba(10, 10, 10, 0.75); border-color: #5a1a1a; min-width: 280px; }
+.logo {
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #c62828;
+  text-shadow: 0 0 12px rgba(200, 30, 30, 0.6), 2px 2px 0 #000;
+}
+.subtitle { font-size: 20px; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 6px; }
+.small-text { font-size: 12px; margin: 0 0 10px; }
+#menu .panel button {
+  display: block;
+  width: 220px;
+  margin: 8px auto;
+  padding: 10px;
+  font-size: 17px;
+}
+#pause #btn-sound { font-size: 15px; }
 
 .panel.wide {
   display: flex;

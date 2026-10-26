@@ -23,6 +23,7 @@
   <div id="actions">
     <button id="btn-interact" class="action hidden"><span id="interact-label"></span></button>
     <button id="btn-bag" class="action round small" aria-label="Рюкзак">Рюкзак</button>
+    <button id="btn-crouch" class="action round small" aria-label="Присесть">Присесть</button>
     <button id="btn-heal" class="action round small" aria-label="Лечение">+<span id="heal-count"></span></button>
     <button id="btn-attack" class="action round big" aria-label="Атака">
       <span id="wpn-name"></span>
@@ -60,11 +61,23 @@
     </div>
   </div>
 
+  <div id="menu" class="overlay hidden">
+    <div class="panel menu-panel">
+      <div class="logo">S-T-I-K-S</div>
+      <div class="subtitle">Чужой кластер</div>
+      <p class="muted small-text">Тестовая локация «Посёлок» · по мотивам книг Артёма Каменистого</p>
+      <button id="menu-continue">Продолжить</button>
+      <button id="menu-new">Новая игра</button>
+      <button id="menu-sound">Звук: вкл</button>
+    </div>
+  </div>
+
   <div id="pause" class="overlay hidden">
     <div class="panel">
       <h1>Пауза</h1>
       <button id="btn-resume">Продолжить</button>
       <button id="btn-newgame">Новая игра</button>
+      <button id="btn-sound">Звук: вкл</button>
       <button id="btn-exit">Выйти из игры</button>
     </div>
   </div>
@@ -86,6 +99,7 @@
   <script src="vendor/status-bar.js"></script>
   <script src="vendor/screen-orientation.js"></script>
   <script src="js/platform.js"></script>
+  <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
   <script src="js/world.js"></script>
   <script src="js/input.js"></script>

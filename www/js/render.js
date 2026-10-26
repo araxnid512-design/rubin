@@ -241,7 +241,7 @@
     ctx.save();
     ctx.translate(sx(x), sy(y));
     ctx.rotate(angle);
-    const r = ppm * 0.35;
+    const r = ppm * (opts.crouch ? 0.29 : 0.35);
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath(); ctx.ellipse(3, 3, r * 1.1, r * 1.3, 0, 0, Math.PI * 2); ctx.fill();
     if (opts.backpack) {
@@ -299,6 +299,45 @@
     }
   }
 
+  function drawCorpse(c) {
+    ctx.save();
+    ctx.translate(sx(c.x), sy(c.y));
+    ctx.rotate(c.angle);
+    const r = c.radius * ppm;
+    ctx.fillStyle = shade(c.color, -35);
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 1.2, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 1.1, 0, r * 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawNumbers(state) {
+    ctx.textAlign = 'center';
+    for (const n of state.fx.numbers) {
+      const a = Math.min(1, n.t * 2);
+      const fs = n.big ? 20 : 14;
+      ctx.font = `bold ${fs}px system-ui, sans-serif`;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(0,0,0,${a * 0.8})`;
+      ctx.fillStyle = n.big ? `rgba(255,210,80,${a})` : `rgba(255,255,255,${a})`;
+      const x = sx(n.x), y = sy(n.y) - (1 - n.t) * 30;
+      ctx.strokeText(n.text, x, y);
+      ctx.fillText(n.text, x, y);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function drawVignette(state) {
+    const low = Math.max(0, 1 - state.player.hp / 35);
+    const a = Math.min(0.6, state.fx.hurt * 1.2 + low * 0.35);
+    if (a <= 0.01) return;
+    const g = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.3,
+      width / 2, height / 2, Math.max(width, height) * 0.7);
+    g.addColorStop(0, 'rgba(120,0,0,0)');
+    g.addColorStop(1, `rgba(140,0,0,${a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, width, height);
+  }
+
   function drawTree(t, fade) {
     const x = sx(t.x), y = sy(t.y), r = t.r * ppm;
     ctx.globalAlpha = fade ? 0.35 : 1;
@@ -330,6 +369,11 @@
   }
 
   function drawProps() {
+    for (const l of W.lamps) {
+      if (!visible(l.x, l.y, 2)) continue;
+      disc(l.x, l.y, 0.15, '#2a2a2a');
+      disc(l.x, l.y, 0.28, 'rgba(255,220,150,0.5)');
+    }
     for (const p of W.props) {
       if (p.kind === 'shelter') {
         rectPx(p.x, p.y, p.w, p.h, '#5a6a72');
@@ -405,6 +449,16 @@
     g.addColorStop(1, 'rgba(0,0,0,0)');
     lctx.fillStyle = g;
     lctx.fillRect(0, 0, lw, lh);
+    // Уличные фонари.
+    for (const l of W.lamps) {
+      const lx = sx(l.x) * k, ly = sy(l.y) * k, lr = l.r * ppm * k;
+      if (lx < -lr || ly < -lr || lx > lw + lr || ly > lh + lr) continue;
+      g = lctx.createRadialGradient(lx, ly, 0, lx, ly, lr);
+      g.addColorStop(0, 'rgba(0,0,0,0.85)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      lctx.fillStyle = g;
+      lctx.fillRect(lx - lr, ly - lr, lr * 2, lr * 2);
+    }
     // Фонарик.
     const len = 11 * ppm * k, spread = 0.38;
     g = lctx.createRadialGradient(px, py, 0, px, py, len);
@@ -427,13 +481,23 @@
       lctx.fillRect(0, 0, lw, lh);
     }
     ctx.drawImage(light, 0, 0, width, height);
+    // Тёплый свет фонарей поверх темноты.
+    for (const l of W.lamps) {
+      if (!visible(l.x, l.y, l.r)) continue;
+      const gg = ctx.createRadialGradient(sx(l.x), sy(l.y), 0, sx(l.x), sy(l.y), l.r * ppm);
+      gg.addColorStop(0, `rgba(255,190,90,${0.22 * a})`);
+      gg.addColorStop(1, 'rgba(255,190,90,0)');
+      ctx.fillStyle = gg;
+      ctx.fillRect(sx(l.x - l.r), sy(l.y - l.r), l.r * 2 * ppm, l.r * 2 * ppm);
+    }
   }
 
   // --- Кадр ---
   function draw(state, t) {
     const p = state.player;
-    cam.x = p.x - width / ppm / 2;
-    cam.y = p.y - height / ppm / 2;
+    const shake = state.fx.shake;
+    cam.x = p.x - width / ppm / 2 + (Math.random() - 0.5) * shake * 0.25;
+    cam.y = p.y - height / ppm / 2 + (Math.random() - 0.5) * shake * 0.25;
 
     ctx.fillStyle = '#1a2014';
     ctx.fillRect(0, 0, width, height);
@@ -446,6 +510,19 @@
     for (const c of W.containers) if (visible(c.x, c.y, 3)) drawContainer(c, state.searched[c.id]);
     drawProps();
     drawFences();
+    for (const b of state.fx.blood) {
+      if (!visible(b.x, b.y, 1)) continue;
+      ctx.globalAlpha = Math.min(1, b.t / 20) * 0.7;
+      disc(b.x, b.y, b.r, '#4a1010');
+      disc(b.x + b.r * 0.6, b.y - b.r * 0.3, b.r * 0.45, '#3a0c0c');
+    }
+    ctx.globalAlpha = 1;
+    for (const c of state.fx.corpses) {
+      if (!visible(c.x, c.y, 2)) continue;
+      ctx.globalAlpha = Math.min(1, c.t / 4);
+      drawCorpse(c);
+    }
+    ctx.globalAlpha = 1;
     for (const d of state.drops) if (visible(d.x, d.y, 1)) drawDrop(d);
     for (const v of W.vehicles) if (visible(v.x, v.y, 10)) drawVehicle(v);
 
@@ -471,7 +548,7 @@
 
     const wpn = state.weaponDef;
     drawHuman(p.x, p.y, p.angle, p.hitFlash > 0 ? '#9a3a30' : '#4a4e36', {
-      backpack: true, head: '#c9a888', hood: '#3c3f2c',
+      backpack: true, head: '#c9a888', hood: '#3c3f2c', crouch: state.crouch,
       weapon: wpn.type === 'ranged' ? '#2a2a2a' : (state.weapon ? '#9a9a9a' : null),
       long: state.weapon && state.weapon.id === 'akm',
     });
@@ -487,6 +564,8 @@
     }
 
     drawLighting(state);
+    drawNumbers(state);
+    drawVignette(state);
 
     // Метка выхода с локации.
     if (state.quests.exit && state.quests.exit.active) {

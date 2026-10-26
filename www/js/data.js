@@ -79,11 +79,19 @@
     starveDamage: 1 / 3, // урон в секунду при нуле сытости или воды
   };
 
+  // Скрытность: присед замедляет, уменьшает радиус обнаружения, даёт скрытную атаку.
+  const CROUCH_SPEED = 0.5;
+  const CROUCH_DETECT = 0.45;
+  const SNEAK_MULTIPLIER = 3;
+  const VISION_HALF_ANGLE = 1.2;   // рад, ~70° в каждую сторону
+  const HEARING_SHARE = 0.4;       // доля радиуса обнаружения, на которой слышат шаги
+
   const INVENTORY_SLOTS = 16;
   const DAY_SECONDS = 360;   // реальных секунд в игровых сутках
   const START_HOUR = 9;
 
   window.GameData = {
     ITEMS, WEAPONS, ENEMIES, SPORAN_ROLL, LOOT, PLAYER, INVENTORY_SLOTS, DAY_SECONDS, START_HOUR,
+    CROUCH_SPEED, CROUCH_DETECT, SNEAK_MULTIPLIER, VISION_HALF_ANGLE, HEARING_SHARE,
   };
 })();
