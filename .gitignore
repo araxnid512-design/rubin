@@ -2,3 +2,4 @@ node_modules/
 *.apk
 *.aab
 .DS_Store
+_site/

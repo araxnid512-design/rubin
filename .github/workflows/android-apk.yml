@@ -59,3 +59,16 @@ jobs:
             Debug-подпись. Установка: скачайте styx-road.apk на телефон и откройте (разрешите установку из неизвестных источников).
           files: styx-road.apk
           make_latest: true
+
+      # Сайт игры: страница с загрузкой APK и инструкцией, игра в браузере (play/).
+      # Публикуется в ветку gh-pages → https://araxnid512-design.github.io/rubin/
+      - name: Собрать сайт игры
+        run: node scripts/build-site.js 0.3.${{ github.run_number }} styx-road.apk
+
+      - name: Опубликовать сайт (GitHub Pages)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          force_orphan: true
+          commit_message: "Сайт: сборка 0.3.${{ github.run_number }}"

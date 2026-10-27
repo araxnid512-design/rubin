@@ -39,3 +39,6 @@
 - APK собирает GitHub Actions при каждом push в `main` и в ветки `claude/**`,
   публикует в Releases как `styx-road.apk`. Подпись постоянным debug-ключом
   `android/app/debug.keystore`. Release-ключ в репозиторий не класть.
+- Сайт игры: страница в `site/`, собирает `scripts/build-site.js` (страница + APK +
+  игра в браузере в `play/`), workflow публикует в ветку `gh-pages` →
+  https://araxnid512-design.github.io/rubin/
