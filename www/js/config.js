@@ -320,7 +320,7 @@
   // Стаб: заправка, станок, выручка, если совсем нет споранов.
   const STAB = {
     fuelPrice: 1,            // спораны за литр (× priceMult машины)
-    repairPerHp: 0.12,       // спораны за единицу прочности
+    repairPerHp: 0.08,       // спораны за единицу прочности
     weaponRepairPerPct: 0.3, // спораны за 1% прочности оружия
     charityFuel: 0.5,        // не хватает споранов — стаб бесплатно зальёт бак до этой доли...
     charityHp: 0.5,          // ...и залатает кузов до этой доли
@@ -365,7 +365,7 @@
       color: '#6a3a4a', skin: '#8a5060', plates: '#c8bca0',
     },
     elite: {
-      name: 'Элита', w: 2.2, h: 3.4, mass: 1500, hp: 4000, speed: 2.2, sight: 40,
+      name: 'Элита', w: 2.2, h: 3.4, mass: 1500, hp: 6500, speed: 2.2, sight: 40,
       stomp: { range: 4, impulse: 9000, every: 3, damage: 35 },
       ram: { damage: 50, impulse: 6, every: 5 },
       attack: { damage: 20, every: 1.5 }, drag: 0.7,
@@ -399,7 +399,7 @@
     recordPer100m: 12,        // сверху — за метры дальше прошлого рекорда на уровне
     stabBonus: 120,           // доехал до стаба
     outOfFuelStopTime: 1.5,   // сек почти без движения на пустом баке — конец заезда
-    stuckTime: 15,            // сек без продвижения вперёд (застряла в яме) — конец заезда
+    stuckTime: 12,            // сек без продвижения вперёд (застряла в яме) — конец заезда
   };
 
   // Препятствия: размеры, м; плотность, кг/м².
@@ -606,7 +606,7 @@
       car: 'raider',
       pay: 6.5,
       theme: { bg: 'dead', sky: ['#1a0e14', '#3a1a22', '#5a2a2a'], ground: ['#2e2422', '#0e0a0a'], road: '#2a2020', fog: 30, night: true },
-      crowds: { startAt: 40, every: 16, count: [5, 11], mix: { walker: 0.35, runner: 0.38, lottery: 0.17, stomper: 0.06, ruber: 0.04 } },
+      crowds: { startAt: 40, every: 14, count: [6, 12], mix: { walker: 0.3, runner: 0.38, lottery: 0.19, stomper: 0.08, ruber: 0.05 } },
       segments: [
         { type: 'flat', length: 30 },
         { type: 'rubble', length: 120, objects: [{ type: 'zombies', kind: 'ruber', dx: 70 }, { type: 'canister', dx: 100 }] },
