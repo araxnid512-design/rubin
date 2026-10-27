@@ -1262,7 +1262,7 @@ const M2 = {
   tan: mat(0xcdb27e, { roughness: 0.48, metalness: 0.35 }), tanD: mat(0x8f7a55, { roughness: 0.55, metalness: 0.35 }), tanJ: mat(0x4a4236, { roughness: 0.5, metalness: 0.6 }),
   b2: mat(0x7f8b9c, { roughness: 0.34, metalness: 0.7 }), b2D: mat(0x4c5562, { roughness: 0.5, metalness: 0.5 }),
   eye: mat(0x0a0a0a, { roughness: 0.2, metalness: 0.6 }), glowR: new THREE.MeshBasicMaterial({ color: 0xff4030 }),
-  bx: mat(0x4a4540, { roughness: 0.5, metalness: 0.45 }), bxD: mat(0x2c2926, { roughness: 0.55, metalness: 0.45 }),
+  bx: mat(0x5a4636, { roughness: 0.5, metalness: 0.4 }), bxD: mat(0x2e2620, { roughness: 0.55, metalness: 0.45 }),
 };
 for (const k of ['tan', 'tanD', 'tanJ', 'b2', 'b2D', 'bx', 'bxD', 'gun', 'armorD']) { M2[k].map = WORN_TEX; M2[k].needsUpdate = true; }
 const MARKS = { cmd: mat(0xe2b53b, { roughness: 0.4, metalness: 0.3 }), snp: mat(0x2f6fdc, { roughness: 0.4, metalness: 0.3 }), tx: mat(0xffc040, { roughness: 0.3, metalness: 0.6 }) };
@@ -1670,7 +1670,8 @@ const comp = (a, i, k) => (k === 0 ? a.getX(i) : k === 1 ? a.getY(i) : k === 2 ?
 
 // форма тела: во сколько раз «надуть» вершины вокруг кости (0 — убрать, например голову под шлем)
 const SHAPES = {
-  clone: n => (/^Head/.test(n) ? 0 : 1),
+  // клон стройнее исходного «тяжёлого» солдата: броня клона облегает тело, без «юбки» между бёдрами
+  clone: n => (/^Head/.test(n) ? 0 : n === 'Hips' ? 0.8 : /UpLeg/.test(n) ? 0.84 : /Leg$/.test(n) ? 0.92 : n === 'Spine' ? 0.88 : n === 'Spine1' ? 0.9 : n === 'Spine2' ? 0.93 : /Shoulder/.test(n) ? 0.88 : /ForeArm/.test(n) ? 0.92 : /Arm$/.test(n) ? 0.88 : 1),
   b1: n => (/^Head/.test(n) ? 0 : n === 'Neck' ? 0.45 : /^Spine/.test(n) ? 0.5 : n === 'Hips' ? 0.55 : /Shoulder/.test(n) ? 0.5 : /ForeArm/.test(n) ? 0.36 : /Arm$/.test(n) ? 0.38 : /UpLeg/.test(n) ? 0.4 : /Leg$/.test(n) ? 0.36 : /Foot|Toe/.test(n) ? 0.6 : /Hand/.test(n) ? 0.6 : 1),
   b2: n => (/^Head/.test(n) ? 0 : n === 'Neck' ? 0.6 : n === 'Spine' ? 1.2 : n === 'Spine1' ? 1.45 : n === 'Spine2' ? 1.5 : n === 'Hips' ? 1.15 : /Shoulder/.test(n) ? 1.35 : /ForeArm/.test(n) ? 1.6 : /Arm$/.test(n) ? 1.35 : /UpLeg/.test(n) ? 1.25 : /Leg$/.test(n) ? 1.3 : /Foot|Toe/.test(n) ? 1.3 : /Hand/.test(n) ? 1.2 : 1),
 };
@@ -1781,7 +1782,7 @@ function prepareCharacters() {
   if (nrm) nrm.anisotropy = 8;
   CHAR.variants.clone = { geo: reshapeGeo(body, SHAPES.clone), mat: addRim(M(tintTexture(img, [0.97, 0.97, 0.96], 0.42, 1.04, 1), { roughness: 0.46, metalness: 0.06, normalScale: new THREE.Vector2(1.4, 1.4) }), 0x9fd4ff, 0.12) };
   CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: addRim(M(tintTexture(img, [0.92, 0.79, 0.58], 0.42, 1.08, 1.2), { roughness: 0.55, metalness: 0.4, normalScale: new THREE.Vector2(1.4, 1.4) }), 0xffd2a0, 0.12) };
-  CHAR.variants.bx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.5, 0.47, 0.43], 0.3, 0.85), { roughness: 0.5, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff6a50, 0.45) };
+  CHAR.variants.bx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.55, 0.43, 0.33], 0.28, 0.82, 1), { roughness: 0.5, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff6a50, 0.45) };
   CHAR.variants.tx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.78], 0.3, 0.9), { roughness: 0.35, metalness: 0.6, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd27a, 0.5) };
   CHAR.variants.b2 = { geo: reshapeGeo(body, SHAPES.b2), mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.74], 0.28, 0.9), { roughness: 0.4, metalness: 0.5, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff8a70, 0.4) };
   // для боя — упрощённые сетки (ячейка ~2% роста модели)
@@ -1815,15 +1816,35 @@ function cloneHelmet(cls, paint) {
   if (cls === 'sniper') g.add(at(cyl(0.025, 0.025, 0.06, M2.visor, 10), 0.11, 0.05, 0.12, Math.PI / 2));
   return g;
 }
+// B1: длинная узкая «морда» вперёд-вниз (форма черепа неймодианца), затылок над шеей, глаза по бокам затылка
 function b1Head(mark, T = M2.tan, bx = false) {
   const g = new THREE.Group();
   g.add(at(cyl(0.016, 0.016, 0.14, M2.tanJ, 6), 0, -0.02, 0.0, 0.5));
-  const h = new THREE.Group(); h.position.set(0, 0.07, 0.05); g.add(h);
+  const h = new THREE.Group(); h.position.set(0, 0.06, 0.08); h.scale.set(0.7, 0.74, 0.72); g.add(h);
   h.add(at(mesh(B1HEAD_GEO, T), 0, 0, 0.06, 0.35));
   for (const s of [-1, 1]) h.add(at(cyl(0.032, 0.032, 0.03, M2.eye, 12), s * 0.09, 0.02, -0.055, 0, 0, Math.PI / 2));
   h.add(at(rbox(0.06, 0.015, 0.02, M2.eye, 0.005), 0, -0.045, 0.2, 0.35));
   if (mark) h.add(at(rbox(0.035, 0.02, 0.22, mark, 0.008), 0, 0.07, 0.02, 0.35));
-  if (bx) h.add(at(sph(0.03, M2.glowR, 10, 8), 0, 0.03, 0.17));
+  return g;
+}
+// BX (коммандос): небольшая гладкая округлая голова с одним белым фоторецептором
+function bxHead() {
+  const g = new THREE.Group(); g.scale.setScalar(0.72);
+  g.add(at(cyl(0.022, 0.026, 0.1, M2.bxD, 8), 0, -0.01, 0.01));
+  const s = sph(0.105, M2.bx, 20, 14); s.scale.set(0.95, 1.08, 1.0); g.add(at(s, 0, 0.09, 0.03));
+  g.add(at(rbox(0.13, 0.03, 0.12, M2.bxD, 0.012), 0, 0.03, 0.04)); // «челюсть»
+  g.add(at(mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.02, 16), M2.bxD), 0, 0.1, 0.128, Math.PI / 2));
+  g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.026, 16), new THREE.MeshBasicMaterial({ color: 0xf6f2e6 })), 0, 0.1, 0.139));
+  return g;
+}
+// ТХ: высокая вытянутая вверх голова-купол с двумя линзами
+function txHead() {
+  const g = new THREE.Group();
+  g.add(at(cyl(0.02, 0.024, 0.16, M2.b2D, 8), 0, 0.0, 0.0));
+  const s = sph(0.1, M2.b2, 20, 16); s.scale.set(0.82, 1.75, 0.95); g.add(at(s, 0, 0.2, 0.02));
+  g.add(at(rbox(0.12, 0.05, 0.1, M2.b2D, 0.02), 0, 0.08, 0.03));
+  for (const x of [-0.035, 0.035]) { g.add(at(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 12), M2.eye), x, 0.17, 0.1, Math.PI / 2)); g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.01, 10), new THREE.MeshBasicMaterial({ color: 0x8fd0ff })), x, 0.17, 0.111)); }
+  g.add(at(mesh(new THREE.TorusGeometry(0.08, 0.006, 6, 24), MARKS.tx), 0, 0.27, 0.02, Math.PI / 2));
   return g;
 }
 function e5Rifle(gun, long = false) {
@@ -1853,7 +1874,8 @@ function buildSkinned(team, type, paint, full = false) {
   rig.side = side;
   if (team === 'clone') {
     const stripe = mat(paint || CLS_COL[type], { roughness: 0.35 });
-    rig.head = attach(cloneHelmet(type, paint), 'Head', 0, 0.065, 0.02); rig.head.scale.setScalar(0.86);
+    // шлем по замерам реплики: ~33,5 см в высоту и ~27 см в ширину при росте 1,83 м (раньше был почти вдвое шире)
+    rig.head = attach(cloneHelmet(type, paint), 'Head', 0, 0.045, 0.015); rig.head.scale.set(0.52, 0.76, 0.56);
     // наплечники: купол над плечом, у правого — цветная полоса класса
     const pad = (colored) => { const g = new THREE.Group(); const p = mesh(new THREE.SphereGeometry(0.09, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M2.armor); p.scale.set(1.15, 0.7, 1.15); g.add(p);
       if (colored) { const st = mesh(new THREE.SphereGeometry(0.092, 14, 4, 0, Math.PI * 2, 0, 0.6), stripe); st.scale.set(1.15, 0.7, 1.15); g.add(st); } return g; };
@@ -1879,9 +1901,16 @@ function buildSkinned(team, type, paint, full = false) {
   } else {
     // метки: жёлтая — командир, синяя — снайпер; коммандос BX — тёмный корпус и красный глаз
     const bx = type === 'bx', tx = type === 'tx', mark = MARKS[type] || null, T = bx ? M2.bx : tx ? M2.b2 : M2.tan, TD = bx ? M2.bxD : tx ? M2.b2D : M2.tanD;
-    rig.head = attach(b1Head(mark, T, bx), 'Neck', 0, 0.06, 0.02);
-    attach(rbox(0.22, 0.26, 0.16, TD, 0.04), 'Spine2', 0, 0.02, -0.14);
-    attach(rbox(0.26, 0.2, 0.06, T, 0.03), 'Spine2', 0, 0.04, 0.07);
+    rig.head = attach(bx ? bxHead() : tx ? txHead() : b1Head(mark, T), 'Neck', 0, bx ? 0.035 : 0.06, 0.02);
+    attach(rbox(0.18, bx ? 0.2 : 0.22, bx ? 0.09 : 0.1, TD, 0.035), 'Spine2', 0, 0.02, -0.12); // ранец питания
+    if (bx) {
+      // коммандос: тонкий каркас, накладки-«мышцы» на груди, плечах, бёдрах и голенях
+      attach(rbox(0.27, 0.22, 0.09, T, 0.04), 'Spine2', 0, 0.04, 0.07);
+      attach(rbox(0.2, 0.1, 0.08, T, 0.03), 'Spine', 0, 0.02, 0.06);
+      const pad = () => { const p = mesh(new THREE.SphereGeometry(0.07, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), T); p.scale.set(1.1, 0.75, 1.1); return p; };
+      attach(pad(), 'RightArm', side * 0.05, 0.03, 0); attach(pad(), 'LeftArm', -side * 0.05, 0.03, 0);
+      for (const leg of ['LeftUpLeg', 'RightUpLeg']) attach(caps(0.045, 0.12, T), leg, 0, -0.18, 0.012);
+    } else attach(rbox(0.24, 0.19, 0.06, T, 0.03), 'Spine2', 0, 0.04, 0.07);
     if (mark) { attach(rbox(0.27, 0.05, 0.07, mark, 0.02), 'Spine2', 0, 0.12, 0.08); attach(cyl(0.005, 0.005, 0.4, M2.tanJ, 4), 'Spine2', 0.08, 0.32, -0.18); }
     rig.gun = new THREE.Group(); body.add(rig.gun); rig.muzzle = pivot(rig.gun, 0, 0.01, e5Rifle(rig.gun, type === 'snp'));
     rig.grips = { r: [0, -0.08, 0.0], l: [0, -0.02, 0.2] };
@@ -1945,6 +1974,10 @@ function poseSkinned(u, dt) {
   const toW = (x, y, z) => body.localToWorld(new THREE.Vector3(x, y, z));
   const fwdW = toW(0, 0, 1).sub(toW(0, 0, 0)).normalize(), upW = toW(0, 1, 0).sub(toW(0, 0, 0)).normalize(), rightW = new THREE.Vector3().crossVectors(fwdW, upW).normalize();
   const S = r.side; // знак оси X правой стороны модели
+  // стойка: в исходной анимации колени согнуты на 40° (боевой полуприсед) — выпрямляем до ~10°, ступни на месте
+  u.standK = lerp(u.standK === undefined ? 1 : u.standK, walk || run ? 0 : 1, 1 - Math.exp(-dt * 8));
+  const standAmt = u.standK * (1 - clamp((u.drop || 0) / 0.12, 0, 1));
+  if (standAmt > 0.01) standIK(r, upW, fwdW, standAmt);
   // присед: опускаем таз, ноги стоят на месте
   const drop = crouch ? (st === 'hunker' ? 0.5 : ow ? 0.42 : 0.36) : 0;
   u.drop = lerp(u.drop || 0, drop, 1 - Math.exp(-dt * 10));
@@ -2005,6 +2038,20 @@ function syncAtt(r) {
     const m = new THREE.Matrix4().multiplyMatrices(inv, a.bone.matrixWorld), p = new THREE.Vector3(), q = new THREE.Quaternion(); m.decompose(p, q, _v1);
     q.multiply(a.corr); a.obj.quaternion.copy(q); a.obj.position.copy(p).add(_v2.copy(a.off).applyQuaternion(q));
   }
+}
+// прямая стойка: таз поднимается, пока ноги почти не выпрямятся (колено ~10°), ступни стоят где стояли
+function standIK(r, upW, fwdW, amt) {
+  const B = r.bones, legs = [[B.LeftUpLeg, B.LeftLeg, B.LeftFoot], [B.RightUpLeg, B.RightLeg, B.RightFoot]];
+  const F = legs.map(l => bonePos(l[2], new THREE.Vector3())); let d = Infinity;
+  for (let i = 0; i < 2; i++) {
+    const [a, k] = legs[i], A = bonePos(a, new THREE.Vector3()), Kp = bonePos(k, new THREE.Vector3());
+    const L = A.distanceTo(Kp) + Kp.distanceTo(F[i]), v = A.clone().sub(F[i]), vy = v.dot(upW), h2 = v.lengthSq() - vy * vy;
+    d = Math.min(d, Math.sqrt(Math.max(0, (L * 0.995) ** 2 - h2)) - vy);
+  }
+  if (!(d > 0.001)) return;
+  const hp = bonePos(B.Hips, new THREE.Vector3()).addScaledVector(upW, d * amt);
+  B.Hips.position.copy(B.Hips.parent.worldToLocal(hp)); B.Hips.updateMatrixWorld(true);
+  for (let i = 0; i < 2; i++) { const [a, k, f] = legs[i]; twoBoneIK(a, k, f, F[i], F[i].clone().addScaledVector(fwdW, 1).addScaledVector(upW, 0.4)); }
 }
 // присед: таз опускается, ступни остаются на месте (две кости ноги тянутся к стопе), корпус наклоняется
 function crouchIK(r, drop, bend, fwdW, upW, rightW) {
