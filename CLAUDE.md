@@ -55,7 +55,10 @@
 кампания, отряд клонов против дроидов. Правила про лор «Стикса» к ней не относятся.
 - `clones/www/` — игра: `game.js` (бой, модели, графика), `campaign.js` (корабль в 3D, операции,
   отряд, наём, арсенал, исследования, сохранение `cvd-save`), `platform.js` («Назад», пауза, полный экран).
-  Всё локально, шрифт — в `clones/www/fonts/` (OFL).
+  `mission.js` — типы заданий, десант, патроны, способности классов.
+  Всё локально, шрифт — в `clones/www/fonts/` (OFL); карты рельефа и панорамы неба — `clones/www/tex/`
+  (CC0, из npm-пакета `@pmndrs/assets`, источник — Poly Haven). Новые ресурсы — только с открытой лицензией.
+- Производительность проверять замером (`renderer.info`, время кадра в Playwright) до и после изменений графики.
 - Свой Capacitor-проект `clones/android/` (appId `com.araxnid.clones`), зависимости — общие из корня.
   `npm run clones:serve` → http://localhost:8082, `npm run clones:sync` — копия в Android.
 - Иконка и заставка рисуются кодом: `node scripts/clones-icons.js`.

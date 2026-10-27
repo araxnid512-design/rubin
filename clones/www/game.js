@@ -338,16 +338,18 @@ const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 300);
 const BIOMES = {
   desert: {
     name: 'Пустынный каньон', lead: 'Тактическая операция в пустынном каньоне. Пять клонов-солдат против армии боевых дроидов. Каждый ход на счету.',
-    sky: ['#7aa3c9', '#e9b48c', '#f2b98a'], env: ['#6f9cc8', '#f0c49a', '#c98652', '#5a3420'], fog: [0xe7ab7c, 40, 190], exposure: 0.92,
+    sky: ['#7aa3c9', '#e2b896', '#eec29a'], env: ['#6f9cc8', '#f0c49a', '#c98652', '#5a3420'], fog: [0xdcb08e, 40, 190], exposure: 0.92,
+    det: { ground: 'sand', rock: 'rock', cliff: 'cliff' }, envImg: 'dawn',
     hemi: [0xffe7c7, 0x7a3e22, 0.55], sun: [0xffd7a8, 2.6], fill: [0x8fb6ff, 0.35],
-    sand: [203, 136, 84], slab: [178, 146, 116], crack: 'rgba(70,45,25,.45)', peb: ['rgba(110,62,32,.55)', 'rgba(160,110,80,.5)'], groundRough: 0.93,
-    outer: 0xc98652, rocks: [0xa45f37, 0x8f4f2d, 0xb36c40, 0x9a5733], rockTop: 0x7d4126, bush: [0x7d7442, 0x9a7f4a], pebHSL: [0.06, 0.45],
-    terrain: [[0.78, 0.53, 0.33], [0.62, 0.36, 0.2], [0.5, 0.28, 0.17]], planet: true, ships: true,
+    sand: [196, 146, 102], slab: [172, 146, 120], crack: 'rgba(70,45,25,.45)', peb: ['rgba(110,72,42,.5)', 'rgba(160,120,90,.45)'], groundRough: 0.93,
+    outer: 0xbb8d66, rocks: [0x9c6646, 0x86573c, 0xa87556, 0x7c5640], rockTop: 0x6e4a34, bush: [0x8a7d50, 0x9f8a5a], pebHSL: [0.07, 0.3],
+    terrain: [[0.74, 0.55, 0.38], [0.6, 0.4, 0.27], [0.48, 0.33, 0.24]], planet: true, ships: true,
     weather: 'dust', dust: 0xffe2b8, clouds: [0xfff0dc, 0.5],
   },
   ice: {
     name: 'Ледяной перевал', lead: 'Высадка на заснеженном перевале. Мороз, метель и дроиды в укреплённом лагере. Каждый ход на счету.',
     sky: ['#5f81a8', '#b9cde0', '#e6eef6'], env: ['#7f9fc4', '#dfe9f3', '#b8c6d4', '#5a6878'], fog: [0xd2dde8, 30, 165], exposure: 0.88,
+    det: { ground: 'pebble', rock: 'rock', cliff: 'cliff' }, envImg: 'sky',
     hemi: [0xe6f0ff, 0x6a7a90, 0.75], sun: [0xf2f6ff, 2.2], fill: [0x9fc4ff, 0.45],
     sand: [226, 233, 240], slab: [168, 180, 194], crack: 'rgba(90,110,140,.4)', peb: ['rgba(120,135,155,.5)', 'rgba(200,212,226,.6)'], groundRough: 0.7,
     outer: 0xdde6ee, rocks: [0x7c8898, 0x6a7686, 0x8c98a8, 0x5e6a7a], rockTop: 0xeef3f8, bush: [0x5a6a5a, 0x6e7a70], pebHSL: [0.6, 0.12],
@@ -357,15 +359,17 @@ const BIOMES = {
   storm: {
     name: 'Ночная буря', lead: 'Ночной штурм под ливнем. Вспышки молний выхватывают силуэты дроидов. Каждый ход на счету.',
     sky: ['#070b14', '#1a2434', '#2b3646'], env: ['#2a3a52', '#4a5a6c', '#2a2e34', '#101216'], fog: [0x1a2330, 22, 130], exposure: 1.05,
+    det: { ground: 'rubble', rock: 'rock', cliff: 'cliff' }, envImg: 'night',
     hemi: [0x7090b8, 0x141820, 0.6], sun: [0xa8c0ff, 0.95], fill: [0x6a8cc8, 0.4],
     sand: [92, 88, 82], slab: [74, 78, 86], crack: 'rgba(20,22,26,.6)', peb: ['rgba(40,40,44,.6)', 'rgba(120,124,130,.4)'], groundRough: 0.45,
-    outer: 0x2a2a2c, rocks: [0x4a4644, 0x3c3836, 0x56514c, 0x423e3a], rockTop: 0x2e2a28, bush: [0x2e3a2a, 0x3a3a30], pebHSL: [0.08, 0.08],
+    outer: 0x2a2a2c, rocks: [0x4a4644, 0x3c3836, 0x56514c, 0x423e3a], rockTop: 0x2e2a28, bush: [0x4a5a40, 0x5a5a48], pebHSL: [0.08, 0.08],
     terrain: [[0.3, 0.29, 0.28], [0.22, 0.21, 0.21], [0.15, 0.15, 0.16]], planet: false, ships: true,
     weather: 'rain', lightning: true, dust: 0x9fb4cc, clouds: [0x2a3242, 0.85],
   },
   jungle: {
     name: 'Джунгли Миреи', lead: 'Влажные джунгли, туман и споры в воздухе. Дроиды прячутся среди гигантских деревьев.',
     sky: ['#5f8f86', '#a9c9a0', '#d6e3b8'], env: ['#6f9a8a', '#b9d4a6', '#5f7a48', '#22301c'], fog: [0x9cbf96, 24, 150], exposure: 0.95,
+    det: { ground: 'pebble', rock: 'rubble', cliff: 'rock' }, envImg: 'forest',
     hemi: [0xe8ffd8, 0x2f4a22, 0.7], sun: [0xfff2cc, 2.1], fill: [0x9fe0c0, 0.4],
     sand: [96, 112, 62], slab: [104, 110, 92], crack: 'rgba(30,40,20,.5)', peb: ['rgba(50,60,30,.55)', 'rgba(140,150,110,.45)'], groundRough: 0.8,
     outer: 0x3f5a2c, rocks: [0x5d6b52, 0x4f5c46, 0x6a775e, 0x56634b], rockTop: 0x4a7a32, bush: [0x3f7a2c, 0x5a8f34], pebHSL: [0.25, 0.25],
@@ -545,12 +549,22 @@ function buildSurround(bio) {
     col.set([r * j, g * j, b * j].map(v => Math.pow(v, 2.2)), i * 3);   // цвета вершин — в линейном пространстве
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  surround = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }));
+  surround = new THREE.Mesh(geo, detailize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), { name: 'sur' + (bio.det || DET0).cliff, tex: detailTex((bio.det || DET0).cliff), scale: 0.09, str: 0.9, alb: 0.45 }));
   surround.receiveShadow = true; world.add(surround);
 }
 
 // ---------- смена локации: небо, свет, туман, отражения, земля, камни, рельеф, погода
 let groundTex = null, envTex = null, baseHemi = 0.55;
+// настоящая панорама неба для отражений и рассеянного света (своя у каждой локации, грузится один раз)
+const ENVC = {};
+function loadEnv(name) {
+  if (ENVC[name]) { scene.environment = ENVC[name]; return; }
+  TEXL.load(`tex/env_${name}.jpg`, t => {
+    t.mapping = THREE.EquirectangularReflectionMapping; t.encoding = THREE.sRGBEncoding;
+    const pm = new THREE.PMREMGenerator(renderer), e = pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
+    ENVC[name] = e; if (B().envImg === name) { scene.environment = e; renderer.shadowMap.needsUpdate = true; }
+  }, undefined, () => {});
+}
 function applyBiome(idNew) {
   biomeId = idNew; store('cvd-biome', idNew); const b = B();
   if (scene.background) scene.background.dispose(); scene.background = skyTex(b.sky);
@@ -559,6 +573,11 @@ function applyBiome(idNew) {
   hemi.color.set(b.hemi[0]); hemi.groundColor.set(b.hemi[1]); hemi.intensity = baseHemi = b.hemi[2];
   sun.color.set(b.sun[0]); sun.intensity = b.sun[1]; fill.color.set(b.fill[0]); fill.intensity = b.fill[1];
   if (envTex) envTex.dispose(); envTex = envMap(b.env, b.sun[0]); scene.environment = envTex;
+  if (b.envImg) loadEnv(b.envImg);
+  const det = b.det || DET0;
+  detailize(groundMat, { name: 'g' + det.ground, tex: detailTex(det.ground), scale: 1.15, str: 0.55, alb: 0.32, mode: 'uv' });
+  detailize(ROCK_MAT, { name: 'r' + det.rock, tex: detailTex(det.rock), scale: 0.95, str: 0.9, alb: 0.45 });
+  detailize(FOLIAGE_MAT, { name: 'f', tex: detailTex('rubble'), scale: 1.4, str: 1.1, alb: 0.55 });
   planet.visible = !!b.planet; moon.visible = !!b.moon;
   if (groundTex) { groundTex.map.dispose(); groundTex.normalMap.dispose(); }
   groundTex = groundTextures(b); groundMat.map = groundTex.map; groundMat.normalMap = groundTex.normalMap; groundMat.roughness = b.groundRough; groundMat.needsUpdate = true;
@@ -569,9 +588,75 @@ function applyBiome(idNew) {
   renderer.shadowMap.needsUpdate = true;
 }
 
+// =====================================================================
+//  РЕАЛИЗМ: карты рельефа поверхностей и панорамы освещения (CC0, @pmndrs/assets / Poly Haven, папка tex/).
+//  Детали камня, песка и щебня накладываются шейдером: на скалы и рельеф — со всех трёх сторон (без развёртки),
+//  на землю — по координатам поля; затемнение в трещинах делает поверхность объёмной. На низкой графике — выключено.
+// =====================================================================
+const TEXL = new THREE.TextureLoader(), TEXC = {};
+const FLAT_N = (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1); t.needsUpdate = true; return t; })();
+function detailTex(name) {
+  if (TEXC[name]) return TEXC[name];
+  const u = { value: FLAT_N }; TEXC[name] = u;
+  TEXL.load(`tex/n_${name}.jpg`, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; u.value = t; renderer.shadowMap.needsUpdate = true; }, undefined, () => {});
+  return u;
+}
+const DETAIL = { on: true, mats: new Set() };
+const DET0 = { ground: 'sand', rock: 'rock', cliff: 'cliff' };
+function detailize(m, o) {
+  m.userData.det = o; DETAIL.mats.add(m); m.needsUpdate = true;
+  if (!DETAIL.on) return m;
+  const tri = o.mode !== 'uv';
+  m.onBeforeCompile = sh => {
+    sh.uniforms.tDet = o.tex; sh.uniforms.detScale = { value: o.scale }; sh.uniforms.detStr = { value: o.str }; sh.uniforms.detAlb = { value: o.alb || 0.35 };
+    sh.vertexShader = 'varying vec3 vWPos;\nvarying vec3 vWNrm;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWNrm = normalize(mat3(modelMatrix) * objectNormal);');
+    const fn = tri ? `
+      vec3 detP(float sc) {
+        vec3 w = pow(abs(normalize(vWNrm)), vec3(4.0)); w /= (w.x + w.y + w.z);
+        vec2 a = texture2D(tDet, vWPos.zy * sc).rg * 2.0 - 1.0, b = texture2D(tDet, vWPos.xz * sc).rg * 2.0 - 1.0, c = texture2D(tDet, vWPos.xy * sc).rg * 2.0 - 1.0;
+        return w.x * vec3(0.0, a.y, a.x) + w.y * vec3(b.x, 0.0, b.y) + w.z * vec3(c.x, c.y, 0.0);
+      }` : `
+      vec3 detP(float sc) { vec2 b = texture2D(tDet, vWPos.xz * sc).rg * 2.0 - 1.0; return vec3(b.x, 0.0, b.y); }`;
+    sh.fragmentShader = 'uniform sampler2D tDet;\nuniform float detScale, detStr, detAlb;\nvarying vec3 vWPos;\nvarying vec3 vWNrm;\n' + fn + '\n' + sh.fragmentShader
+      // выборка деталей одна на пиксель: считается при цвете и переиспользуется для нормали
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec3 dpv = detP(detScale); diffuseColor.rgb *= clamp(1.0 - length(dpv) * detAlb + 0.08, 0.55, 1.1);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        normal = normalize(normal + (viewMatrix * vec4(dpv, 0.0)).xyz * detStr);`);
+  };
+  m.customProgramCacheKey = () => 'det' + (tri ? 't' : 'u') + o.name;
+  return m;
+}
+// на низкой графике детали снимаются (простые шейдеры), на остальных — возвращаются
+function setDetail(on) {
+  if (DETAIL.on === on) return; DETAIL.on = on;
+  for (const m of DETAIL.mats) { const o = m.userData.det; if (on) detailize(m, o); else { m.onBeforeCompile = () => {}; m.customProgramCacheKey = () => 'nodet'; } m.needsUpdate = true; }
+}
+// гладкие нормали для геометрии без индексов: нормали граней, сходящихся в вершине, усредняются
+function smoothNormals(g) {
+  const p = g.attributes.position, acc = new Map(), n = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const key = i => Math.round(p.getX(i) * 1e3) + ',' + Math.round(p.getY(i) * 1e3) + ',' + Math.round(p.getZ(i) * 1e3);
+  for (let i = 0; i < p.count; i += 3) {
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2); n.subVectors(c, b).cross(a.clone().sub(b));
+    for (let k = 0; k < 3; k++) { const kk = key(i + k); const v = acc.get(kk) || new THREE.Vector3(); v.add(n); acc.set(kk, v); }
+  }
+  const nor = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const v = acc.get(key(i)).clone().normalize(); nor[i * 3] = v.x; nor[i * 3 + 1] = v.y; nor[i * 3 + 2] = v.z; }
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); return g;
+}
+// плавный шум для формы камней (значения в узлах решётки + сглаживание)
+function noise3(x, y, z) {
+  const h = (i, j, k) => { let t = (i * 374761393 + j * 668265263 + k * 1440662683) | 0; t = Math.imul(t ^ (t >>> 13), 1274126177); return ((t ^ (t >>> 16)) >>> 0) / 4294967296; };
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z), fx = x - ix, fy = y - iy, fz = z - iz, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
+  return lerp(lerp(lerp(h(ix, iy, iz), h(ix + 1, iy, iz), u), lerp(h(ix, iy + 1, iz), h(ix + 1, iy + 1, iz), u), v), lerp(lerp(h(ix, iy, iz + 1), h(ix + 1, iy, iz + 1), u), lerp(h(ix, iy + 1, iz + 1), h(ix + 1, iy + 1, iz + 1), u), v), w);
+}
+// материалы скал, растительности и травы (общие на поле; рельеф — с собственными цветами вершин)
+const ROCK_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 });
+const FOLIAGE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+
 // ---------- слияние статичной геометрии в один меш с цветами вершин
-function merged(parts, m, ao = true) {
-  let total = 0; const prepared = parts.map(p => { const g = (p.geo.index ? p.geo.toNonIndexed() : p.geo.clone()); g.applyMatrix4(p.mtx); g.computeVertexNormals(); total += g.attributes.position.count; return [g, p.color]; });
+function merged(parts, m, ao = true, smooth = false) {
+  let total = 0; const prepared = parts.map(p => { const g = (p.geo.index ? p.geo.toNonIndexed() : p.geo.clone()); g.applyMatrix4(p.mtx); if (!smooth) g.computeVertexNormals(); total += g.attributes.position.count; return [g, p.color]; });
   const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3); let o = 0;
   for (const [g, c] of prepared) {
     pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3);
@@ -582,26 +667,87 @@ function merged(parts, m, ao = true) {
   const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); bg.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return mesh(bg, m);
 }
+// трава: пучки скрещённых полосок с картинкой стеблей (прозрачность по маске), качаются от ветра
+const GRASS_TEX = (() => {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128; const g = c.getContext('2d'), R = rng(3);
+  for (let i = 0; i < 38; i++) {
+    const x = 8 + R() * 112, h = 50 + R() * 74, bend = (R() - 0.5) * 34, w = 2 + R() * 3.5, sh = 0.78 + R() * 0.22;
+    g.fillStyle = `rgb(${Math.round(255 * sh)},${Math.round(255 * sh)},${Math.round(255 * sh)})`;
+    g.beginPath(); g.moveTo(x - w, 128); g.quadraticCurveTo(x + bend * 0.3, 128 - h * 0.5, x + bend, 128 - h); g.quadraticCurveTo(x + bend * 0.3 + w * 0.4, 128 - h * 0.5, x + w, 128); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+})();
+const GRASS_MAT = new THREE.MeshStandardMaterial({ map: GRASS_TEX, alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.9 });
+GRASS_MAT.onBeforeCompile = sh => {
+  sh.uniforms.uTime = GRASS_TIME;
+  // обе стороны травинки освещаются как лицевая (иначе изнанка смотрит в землю и выходит чёрной)
+  sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal *= faceDirection;');
+  sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    float sway = uv.y * uv.y; vec4 wp = modelMatrix * vec4(position, 1.0);
+    transformed.x += sin(uTime * 1.7 + wp.x * 0.8 + wp.z * 0.5) * 0.06 * sway; transformed.z += cos(uTime * 1.3 + wp.z * 0.7) * 0.04 * sway;`);
+};
+const GRASS_TIME = { value: 0 };
+// камень со сколами: многогранник из случайных плоскостей раскола (как настоящий расколотый валун),
+// поверх — лёгкая неровность; грани плоские, фактуру камня даёт шейдер деталей
 function rockGeo(R, detail = 1) {
-  // одинаковый сдвиг для совпадающих вершин — без щелей между гранями
-  const g = new THREE.IcosahedronGeometry(1, detail), p = g.attributes.position, seen = new Map();
+  const g = new THREE.IcosahedronGeometry(1, detail), p = g.attributes.position, v = new THREE.Vector3(), seen = new Map(), s = R() * 50;
+  const planes = []; for (let i = 0, n = 9 + Math.floor(R() * 7); i < n; i++) { const nn = new THREE.Vector3(R() * 2 - 1, R() * 2 - 1, R() * 2 - 1).normalize(); planes.push([nn, 0.62 + R() * 0.32]); }
+  planes.push([new THREE.Vector3(0, -1, 0), 0.32 + R() * 0.1]); // плоское дно
+  const sq = 0.75 + R() * 0.45;
   for (let i = 0; i < p.count; i++) {
-    const key = p.getX(i).toFixed(3) + ',' + p.getY(i).toFixed(3) + ',' + p.getZ(i).toFixed(3);
-    let k = seen.get(key); if (k === undefined) { k = 0.75 + R() * 0.45; seen.set(key, k); }
-    p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k);
+    v.fromBufferAttribute(p, i).normalize(); const key = v.x.toFixed(3) + ',' + v.y.toFixed(3) + ',' + v.z.toFixed(3);
+    let q = seen.get(key);
+    if (!q) {
+      let t = 1.15; for (const [nn, d] of planes) { const c = v.dot(nn); if (c > 0.05) t = Math.min(t, d / c); }
+      q = v.clone().multiplyScalar(t * (0.96 + 0.08 * noise3(v.x * 3 + s, v.y * 3, v.z * 3))); q.x *= sq; seen.set(key, q);
+    }
+    p.setXYZ(i, q.x, q.y, q.z);
   }
   g.computeVertexNormals(); return g;
+}
+// кроны деревьев: сфера, смятая плавным шумом, с гладкими нормалями
+function blobGeo(R, detail = 1) {
+  const g = new THREE.IcosahedronGeometry(1, detail + 1), p = g.attributes.position, s = R() * 50, v = new THREE.Vector3(), seen = new Map();
+  const sq = 0.7 + R() * 0.5; // вытянутость
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i); const key = v.x.toFixed(3) + ',' + v.y.toFixed(3) + ',' + v.z.toFixed(3);
+    let q = seen.get(key);
+    if (!q) {
+      const k = 0.72 + 0.42 * noise3(v.x * 1.4 + s, v.y * 1.4, v.z * 1.4) + 0.12 * noise3(v.x * 4 + s, v.y * 4, v.z * 4);
+      q = v.clone().multiplyScalar(k); q.x *= sq; if (q.y < -0.25) q.y = -0.25 + (q.y + 0.25) * 0.35; // плоское дно — камень лежит, а не висит
+      seen.set(key, q);
+    }
+    p.setXYZ(i, q.x, q.y, q.z);
+  }
+  return smoothNormals(g);
 }
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpS = new THREE.Vector3(), tmpP = new THREE.Vector3();
 const M4 = (x, y, z, rx, ry, rz, sx, sy, sz) => { tmpE.set(rx, ry, rz); tmpQ.setFromEuler(tmpE); tmpP.set(x, y, z); tmpS.set(sx, sy, sz); return new THREE.Matrix4().compose(tmpP, tmpQ, tmpS); };
 const C = h => new THREE.Color(h);
 
-let staticMesh = null, glowMesh = null;
+let staticMesh = null, glowMesh = null, rockMesh = null, foliageMesh = null, grassMesh = null;
+// трава: в каждом пучке две скрещённые полоски, цвет — от локации
+function buildGrass(list) {
+  const n = list.length * 3, pos = new Float32Array(n * 12), uv = new Float32Array(n * 8), col = new Float32Array(n * 12), nor = new Float32Array(n * 12), idx = [];
+  let q = 0;
+  for (const [x, z, c, s] of list) {
+    const cc = C(c), a0 = Math.random() * Math.PI, w = 0.3 * s, h = 0.34 * s;
+    for (let k = 0; k < 3; k++, q++) {
+      const a = a0 + k * Math.PI / 3, dx = Math.cos(a) * w, dz = Math.sin(a) * w, b = q * 4, ox = -Math.sin(a) * 0.08 * s, oz = Math.cos(a) * 0.08 * s;
+      const P = [[x - dx, 0, z - dz], [x + dx, 0, z + dz], [x + dx + ox, h, z + dz + oz], [x - dx + ox, h, z - dz + oz]], U = [[0, 0], [1, 0], [1, 1], [0, 1]];
+      for (let v = 0; v < 4; v++) { pos.set(P[v], (b + v) * 3); uv.set(U[v], (b + v) * 2); nor.set([0, 1, 0], (b + v) * 3); const f = v < 2 ? 1.5 : 2.6; col.set([cc.r * f, cc.g * f, cc.b * f], (b + v) * 3); }
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
+  const m = new THREE.Mesh(g, GRASS_MAT); m.receiveShadow = true; m.visible = DETAIL.on; return m;
+}
 const halfProps = new Map(); // id -> Object3D: укрытия перед склейкой в общие меши
 const PROPM = {
   crateA: mat(0x6c7684, { metalness: 0.5, roughness: 0.42 }), crateB: mat(0x8c7f63, { metalness: 0.35, roughness: 0.5 }),
   frame: mat(0x30353d, { metalness: 0.6, roughness: 0.4 }), barrier: mat(0x5c6470, { metalness: 0.6, roughness: 0.35 }), stripe: mat(0xb8392a, { roughness: 0.5 }),
-  lightO: new THREE.MeshBasicMaterial({ color: 0xffa13d }), rock: [0xa45f37, 0x8f4f2d, 0xb36c40, 0x9a5733].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true })),
+  lightO: new THREE.MeshBasicMaterial({ color: 0xffa13d }), rock: [0xa45f37, 0x8f4f2d, 0xb36c40, 0x9a5733].map((c, i) => detailize(new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }), { name: 'prock' + i, tex: detailTex('rock'), scale: 1.1, str: 0.8, alb: 0.4 })),
   barrel: mat(0xb8402a, { metalness: 0.45, roughness: 0.45 }), hazard: new THREE.MeshBasicMaterial({ color: 0xffc23a }), lightB: new THREE.MeshBasicMaterial({ color: 0x7fd4ff }),
 };
 // мягкая контактная тень под объектами и юнитами
@@ -616,19 +762,22 @@ function buildBlobs() {
 }
 const smokeSources = [];
 function buildProps() {
-  const R = rng(1337), parts = [], glow = [], bio = B();
+  const R = rng(1337), parts = [], rparts = [], fparts = [], glow = [], bio = B();
   const rockCols = bio.rocks;
   const BOX = new THREE.BoxGeometry(1, 1, 1), CYL = new THREE.CylinderGeometry(1, 1, 1, 14), CYL8 = new THREE.CylinderGeometry(1, 1, 1, 8);
   const add = (geo, x, y, z, rx, ry, rz, sx, sy, sz, color) => parts.push({ geo, mtx: M4(x, y, z, rx, ry, rz, sx, sy, sz), color: C(color) });
+  // камни и скалы — гладкие, с деталями камня; кроны — гладкие, с бугристой «листвой»
+  const addR = (geo, x, y, z, rx, ry, rz, sx, sy, sz, color) => rparts.push({ geo, mtx: M4(x, y, z, rx, ry, rz, sx, sy, sz), color: C(color).offsetHSL(0, (R() - 0.5) * 0.06, (R() - 0.5) * 0.08) });
+  const addF = (geo, x, y, z, rx, ry, rz, sx, sy, sz, color) => fparts.push({ geo, mtx: M4(x, y, z, rx, ry, rz, sx, sy, sz), color: C(color).offsetHSL((R() - 0.5) * 0.03, 0, (R() - 0.5) * 0.08) });
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const k = kind[id(x, z)], cx = x + 0.5, cz = z + 0.5;
     if (k === K.EDGE || k === K.ROCK_L) {
       const h = k === K.EDGE ? 1.5 + R() * 1.4 : 1.2 + R() * 0.9, col = rockCols[Math.floor(R() * 4)];
-      add(rockGeo(R, 1), cx + (R() - 0.5) * 0.2, h * 0.42, cz + (R() - 0.5) * 0.2, R(), R() * 6, R() * 0.3, 0.62, h * 0.55, 0.62, col);
-      if (R() < 0.6) add(rockGeo(R, 0), cx + (R() - 0.5) * 0.5, 0.25, cz + (R() - 0.5) * 0.5, R(), R() * 6, 0, 0.42, 0.3, 0.42, rockCols[Math.floor(R() * 4)]);
-      if (k === K.EDGE && R() < 0.2) add(rockGeo(R, 0), cx, h * 0.9, cz, R(), R() * 6, 0, 0.35, 0.6, 0.35, bio.rockTop);
+      addR(rockGeo(R, 1), cx + (R() - 0.5) * 0.2, h * 0.42, cz + (R() - 0.5) * 0.2, R() * 0.4, R() * 6, R() * 0.3, 0.64, h * 0.55, 0.64, col);
+      if (R() < 0.6) addR(rockGeo(R, 0), cx + (R() - 0.5) * 0.5, 0.2, cz + (R() - 0.5) * 0.5, R() * 0.5, R() * 6, 0, 0.42, 0.3, 0.42, rockCols[Math.floor(R() * 4)]);
+      if (k === K.EDGE && R() < 0.2) addR(rockGeo(R, 0), cx, h * 0.9, cz, R() * 0.5, R() * 6, 0, 0.35, 0.5, 0.35, bio.rockTop);
       // снежная шапка на скалах ледяной локации
-      if (bio.snowCaps && R() < 0.75) add(rockGeo(R, 1), cx + (R() - 0.5) * 0.15, h * 0.82, cz + (R() - 0.5) * 0.15, 0, R() * 6, 0, 0.5, 0.12, 0.5, 0xeef4fa);
+      if (bio.snowCaps && R() < 0.75) addR(rockGeo(R, 1), cx + (R() - 0.5) * 0.15, h * 0.8, cz + (R() - 0.5) * 0.15, 0, R() * 6, 0, 0.52, 0.14, 0.52, 0xeef4fa);
     } else if (k === K.WALL) {
       add(BOX, cx, 0.85, cz, 0, 0, 0, 1, 1.7, 1, 0x646c78);
       add(BOX, cx, 1.74, cz, 0, 0, 0, 1.04, 0.1, 1.04, 0x3c424c);
@@ -659,29 +808,34 @@ function buildProps() {
       glow.push({ geo: new THREE.SphereGeometry(1, 10, 8), mtx: M4(cx, 3.42, cz, 0, 0, 0, 0.1, 0.1, 0.1), color: C(0xff3b30) });
     }
   }
-  // вершины плато вне поля
+  // вершины плато вне поля: неровная колонна (радиус гуляет по высоте и кругу)
+  const MESA = (() => { const g = new THREE.CylinderGeometry(1, 1.25, 1, 14, 6), p = g.attributes.position, s = R() * 9;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x), k = 0.85 + 0.3 * noise3(Math.cos(a) * 2 + s, y * 3, Math.sin(a) * 2); if (Math.abs(y) < 0.49) p.setXYZ(i, x * k, y, z * k); }
+    g.computeVertexNormals(); return g; })();
   for (let i = 0; i < 60; i++) {
     const a = R() * Math.PI * 2, r = 52 + R() * 50, x = N / 2 + Math.cos(a) * r, z = N / 2 + Math.sin(a) * r, h = 8 + R() * 22;
     const base = surroundH(x, z) - 1.5;   // плато стоят на рельефе, а не тонут в нём
-    add(new THREE.CylinderGeometry(1, 1.25, 1, 9, 3), x, base + h / 2, z, 0, R() * 6, 0, 1.5 + R() * 3.5, h, 1.5 + R() * 3.5, rockCols[i % 4]);
-    if (R() < 0.5) add(rockGeo(R, 0), x, base + h, z, 0, R() * 6, 0, 2 + R() * 2, 1, 2 + R() * 2, bio.snowCaps ? 0xeef4fa : rockCols[1]);
+    addR(MESA, x, base + h / 2, z, 0, R() * 6, 0, 1.5 + R() * 3.5, h, 1.5 + R() * 3.5, rockCols[i % 4]);
+    if (R() < 0.5) addR(rockGeo(R, 0), x, base + h, z, 0, R() * 6, 0, 2 + R() * 2, 1, 2 + R() * 2, bio.snowCaps ? 0xeef4fa : rockCols[1]);
   }
   // джунгли: гигантские деревья на краю поля и стеной вокруг
   if (bio.trees) {
-    const TR = new THREE.CylinderGeometry(0.6, 1, 1, 7), CAN = new THREE.IcosahedronGeometry(1, 1);
+    const TR = new THREE.CylinderGeometry(0.6, 1, 1, 7), CAN = blobGeo(R, 1);
     const tree = (x, z, h, w, base = 0) => {
       add(TR, x, base + h / 2, z, (R() - 0.5) * 0.1, R() * 6, (R() - 0.5) * 0.1, w, h, w, 0x5a4632);
-      for (let k = 0; k < 3; k++) add(CAN, x + (R() - 0.5) * w * 3, base + h * (0.85 + R() * 0.25), z + (R() - 0.5) * w * 3, R(), R() * 6, 0, w * (3 + R() * 2), w * (1.6 + R()), w * (3 + R() * 2), [0x3d6e2a, 0x4f8a32, 0x335f24][k]);
+      for (let k = 0; k < 3; k++) addF(CAN, x + (R() - 0.5) * w * 3, base + h * (0.85 + R() * 0.25), z + (R() - 0.5) * w * 3, R(), R() * 6, 0, w * (3 + R() * 2), w * (1.6 + R()), w * (3 + R() * 2), [0x3d6e2a, 0x4f8a32, 0x335f24][k]);
     };
-    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (kind[id(x, z)] === K.EDGE && R() < 0.22) tree(x + 0.5, z + 0.5, 3.5 + R() * 3, 0.16 + R() * 0.08);
+    // по краю поля — только низкий подлесок: высокие кроны заслоняли бы бойцов от тактической камеры
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (kind[id(x, z)] === K.EDGE && R() < 0.3) addF(CAN, x + 0.5 + (R() - 0.5) * 0.4, 0.5, z + 0.5 + (R() - 0.5) * 0.4, R(), R() * 6, 0, 0.6, 0.45, 0.6, [0x3d6e2a, 0x4f8a32, 0x335f24][Math.floor(R() * 3)]);
     for (let i = 0; i < 70; i++) { const a = R() * Math.PI * 2, r = 22 + R() * 40, x = N / 2 + Math.cos(a) * r, z = N / 2 + Math.sin(a) * r; tree(x, z, 9 + R() * 12, 0.5 + R() * 0.5, surroundH(x, z) - 0.5); }
   }
-  // сухие кусты и обломки на свободных клетках (не мешают ходить)
-  const CONE = new THREE.ConeGeometry(1, 1, 5), CYL6 = new THREE.CylinderGeometry(1, 1, 1, 6);
+  // трава и обломки на свободных клетках (не мешают ходить)
+  const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 6), grassAt = [];
+  for (let i = 0; i < (bio.trees ? 260 : bio.snowCaps ? 0 : bio.weather === 'rain' ? 60 : 90); i++) { const x = 1 + R() * (N - 2), z = 1 + R() * (N - 2); if (grid[id(Math.floor(x), Math.floor(z))] === FLOOR) grassAt.push([x, z, R() < 0.5 ? bio.bush[0] : bio.bush[1], 0.6 + R() * 0.7]); }
   for (let i = 0; i < 70; i++) {
     const x = 1 + Math.floor(R() * (N - 2)), z = 1 + Math.floor(R() * (N - 2)); if (grid[id(x, z)] !== FLOOR) continue;
     const px = x + 0.15 + R() * 0.7, pz = z + 0.15 + R() * 0.7;
-    if (i % 3 || bio.trees) { for (let b = 0; b < (bio.trees ? 8 : 5); b++) add(CONE, px + (R() - 0.5) * 0.15, 0.1, pz + (R() - 0.5) * 0.15, (R() - 0.5) * 0.9, R() * 6, (R() - 0.5) * 0.9, 0.025, 0.24 + R() * 0.12, 0.025, R() < 0.5 ? bio.bush[0] : bio.bush[1]); }
+    if (i % 3 || bio.trees) { if (!bio.snowCaps) grassAt.push([px, pz, R() < 0.5 ? bio.bush[0] : bio.bush[1], 0.7 + R() * 0.6]); }
     else { add(BOX, px, 0.04, pz, R(), R() * 6, R() * 0.5, 0.12, 0.05, 0.18, 0xb8a072); add(CYL6, px + 0.12, 0.03, pz, 0, R() * 6, Math.PI / 2, 0.025, 0.25, 0.025, 0x4a4236); add(BOX, px - 0.1, 0.03, pz + 0.1, 0, R() * 6, 0, 0.06, 0.03, 0.2, 0x8f7a55); }
   }
   // сферические корабли Сепаратистов вдали
@@ -694,11 +848,14 @@ function buildProps() {
   }
   staticMesh = merged(parts, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.1, flatShading: true }));
   world.add(staticMesh);
+  rockMesh = merged(rparts, ROCK_MAT, true, true); world.add(rockMesh);
+  if (fparts.length) { foliageMesh = merged(fparts, FOLIAGE_MAT, false, true); world.add(foliageMesh); }
+  grassMesh = buildGrass(grassAt); world.add(grassMesh);
   if (glow.length) { glowMesh = merged(glow, new THREE.MeshBasicMaterial({ vertexColors: true }), false); glowMesh.castShadow = false; world.add(glowMesh); }
   // разрушаемые полуукрытия — отдельные объекты
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const k = kind[id(x, z)], cx = x + 0.5, cz = z + 0.5; let o = null;
-    if (k === K.ROCK_S) { o = mesh(rockGeo(R, 0), PROPM.rock[Math.floor(R() * 4)]); at(o, cx, 0.3, cz, R(), R() * 6, 0); o.scale.set(0.46, 0.38, 0.46); }
+    if (k === K.ROCK_S) { o = mesh(rockGeo(R, 1), PROPM.rock[Math.floor(R() * 4)]); at(o, cx, 0.3, cz, R(), R() * 6, 0); o.scale.set(0.46, 0.38, 0.46); }
     else if (k === K.CRATE) {
       // металлический ящик с каркасом, панелями и световой полосой
       o = new THREE.Group(); const base = R() < 0.5 ? PROPM.crateA : PROPM.crateB;
@@ -1090,7 +1247,7 @@ const B1HEAD_GEO = (() => {
 
 // материалы
 const M2 = {
-  armor: addRim(mat(0xf2f4f6, { roughness: 0.28, metalness: 0.05 }), 0x9fd4ff, 0.4), armorD: mat(0xc9cfd5, { roughness: 0.4, metalness: 0.05 }),
+  armor: addRim(mat(0xe9ebec, { roughness: 0.4, metalness: 0.06 }), 0x9fd4ff, 0.12), armorD: mat(0xb9bfc5, { roughness: 0.5, metalness: 0.08 }),
   suit: mat(0x17191d, { roughness: 0.85 }), visor: mat(0x07080a, { roughness: 0.08, metalness: 0.9 }),
   gun: mat(0x1c1e22, { roughness: 0.38, metalness: 0.65 }), gunL: mat(0x6b717a, { roughness: 0.3, metalness: 0.8 }),
   tan: mat(0xcdb27e, { roughness: 0.48, metalness: 0.35 }), tanD: mat(0x8f7a55, { roughness: 0.55, metalness: 0.35 }), tanJ: mat(0x4a4236, { roughness: 0.5, metalness: 0.6 }),
@@ -1496,7 +1653,7 @@ function addRim(m, color, strength) {
   m.customProgramCacheKey = () => 'rim' + color + strength;
   return m;
 }
-function tintTexture(img, tint, lo, hi) {
+function tintTexture(img, tint, lo, hi, grime = 0) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d');
   g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
   for (let i = 0; i < p.length; i += 4) {
@@ -1504,6 +1661,16 @@ function tintTexture(img, tint, lo, hi) {
     p[i] = clamp(v * tint[0] * 255, 0, 255); p[i + 1] = clamp(v * tint[1] * 255, 0, 255); p[i + 2] = clamp(v * tint[2] * 255, 0, 255);
   }
   g.putImageData(d, 0, 0);
+  // грязь и потёртости: пятна и подтёки поверх броневых пластин
+  if (grime) {
+    const R = rng(11); g.globalCompositeOperation = 'multiply';
+    for (let i = 0; i < 420; i++) {
+      const x = R() * c.width, y = R() * c.height, r = 4 + R() * 40 * (R() < 0.2 ? 2 : 1), a = grime * (0.05 + R() * 0.14);
+      const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(96,80,62,${a})`); gr.addColorStop(1, 'rgba(96,80,62,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    g.globalCompositeOperation = 'source-over'; g.fillStyle = `rgba(255,255,255,${0.25 * grime})`;
+    for (let i = 0; i < 260; i++) { const x = R() * c.width, y = R() * c.height; g.fillRect(x, y, 1 + R() * 6, 1); } // царапины
+  }
   const t = new THREE.CanvasTexture(c); t.flipY = false; t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
 }
 function loadCharacters() {
@@ -1538,8 +1705,8 @@ function prepareCharacters() {
   const img = body.material.map.image, nrm = body.material.normalMap;
   const M = (map, o) => new THREE.MeshStandardMaterial(Object.assign({ map, normalMap: nrm, normalScale: new THREE.Vector2(1, 1) }, o));
   if (nrm) nrm.anisotropy = 8;
-  CHAR.variants.clone = { geo: reshapeGeo(body, SHAPES.clone), mat: addRim(M(tintTexture(img, [1, 1, 1.02], 0.5, 1.1), { roughness: 0.34, metalness: 0.05, normalScale: new THREE.Vector2(1.3, 1.3) }), 0x9fd4ff, 0.45) };
-  CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: addRim(M(tintTexture(img, [0.95, 0.8, 0.56], 0.45, 1.12), { roughness: 0.46, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd2a0, 0.4) };
+  CHAR.variants.clone = { geo: reshapeGeo(body, SHAPES.clone), mat: addRim(M(tintTexture(img, [0.97, 0.97, 0.96], 0.42, 1.04, 1), { roughness: 0.46, metalness: 0.06, normalScale: new THREE.Vector2(1.4, 1.4) }), 0x9fd4ff, 0.12) };
+  CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: addRim(M(tintTexture(img, [0.92, 0.79, 0.58], 0.42, 1.08, 1.2), { roughness: 0.55, metalness: 0.4, normalScale: new THREE.Vector2(1.4, 1.4) }), 0xffd2a0, 0.12) };
   CHAR.variants.bx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.5, 0.47, 0.43], 0.3, 0.85), { roughness: 0.5, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff6a50, 0.45) };
   CHAR.variants.tx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.78], 0.3, 0.9), { roughness: 0.35, metalness: 0.6, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd27a, 0.5) };
   CHAR.variants.b2 = { geo: reshapeGeo(body, SHAPES.b2), mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.74], 0.28, 0.9), { roughness: 0.4, metalness: 0.5, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff8a70, 0.4) };
@@ -1612,7 +1779,7 @@ function buildSkinned(team, type, paint, full = false) {
   rig.side = side;
   if (team === 'clone') {
     const stripe = mat(paint || CLS_COL[type], { roughness: 0.35 });
-    rig.head = attach(cloneHelmet(type, paint), 'Head', 0, 0.075, 0.02);
+    rig.head = attach(cloneHelmet(type, paint), 'Head', 0, 0.065, 0.02); rig.head.scale.setScalar(0.86);
     // наплечники: купол над плечом, у правого — цветная полоса класса
     const pad = (colored) => { const g = new THREE.Group(); const p = mesh(new THREE.SphereGeometry(0.09, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M2.armor); p.scale.set(1.15, 0.7, 1.15); g.add(p);
       if (colored) { const st = mesh(new THREE.SphereGeometry(0.092, 14, 4, 0, Math.PI * 2, 0, 0.6), stripe); st.scale.set(1.15, 0.7, 1.15); g.add(st); } return g; };
@@ -2908,6 +3075,8 @@ function setupWorld() {
   let seed = 20240 + Math.floor(Math.random() * 9999);
   while (!genMap(seed)) seed++;
   if (staticMesh) { world.remove(staticMesh); staticMesh.geometry.dispose(); }
+  for (const m of [rockMesh, foliageMesh, grassMesh]) if (m) { world.remove(m); m.geometry.dispose(); }
+  foliageMesh = null;
   if (glowMesh) { world.remove(glowMesh); glowMesh.geometry.dispose(); }
   clearProps(); smokeSources.length = 0;
   buildProps(); buildPebbles(); buildBlobs(); mapReady = true;
@@ -2959,6 +3128,7 @@ function applyGfx(l) {
   if ((l <= 1) !== unitShadows) setUnitShadows(l <= 1);
   if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); resize(); }
   sun.castShadow = v.sh > 0; // смена числа теней сама перекомпилирует шейдеры
+  setDetail(l <= 3); if (grassMesh) grassMesh.visible = l <= 3;
   if (v.sh && sun.shadow.mapSize.x !== v.sh) { sun.shadow.mapSize.set(v.sh, v.sh); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
   Weather.setDensity([1, 1, 0.8, 0.6, 0.45, 0.3][l]); renderer.shadowMap.needsUpdate = true;
   gfx.win.length = 0; gfx.bad = gfx.good = 0; gfx.hold = 2.5;
@@ -3001,7 +3171,7 @@ function frame(now) {
   wasIdle = idle;
   const dt = Math.min(0.05, (now - last) / 1000) * timeScale * slow * (phase === 'enemy' && fastEnemy ? 2 : 1); last = now;
   tweensUpdate(dt); if (frameWaiters.length) for (const r of frameWaiters.splice(0)) r(dt);
-  if (phase !== 'hub') Mission.update(dt);
+  if (phase !== 'hub') { Mission.update(dt); GRASS_TIME.value += dt; }
   // корабль-база: своя сцена в космосе, поле боя не считаем и не рисуем
   if (phase === 'hub') { Hub.update(dt); Hub.render(); return; }
   FX.update(dt); dustUpdate(dt); Weather.update(dt);
