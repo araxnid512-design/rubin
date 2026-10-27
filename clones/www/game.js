@@ -1466,7 +1466,7 @@ function shieldMat() {
 // В движении сворачивается в колесо и катится.
 function buildDroideka() {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0), rig = { root, body, kind: 'dk', wrist: true, twoHand: false, curl: 0, roll: 0 };
-  const BR = mat(0xa07a52, { metalness: 0.78, roughness: 0.42, map: WORN_TEX }), BRD = mat(0x6e5236, { metalness: 0.75, roughness: 0.5, map: WORN_TEX });
+  const BR = mat(0xb07a42, { metalness: 0.88, roughness: 0.4, roughnessMap: WORN_TEX }), BRD = mat(0x6e5236, { metalness: 0.8, roughness: 0.5, roughnessMap: WORN_TEX });
   const DK = mat(0x2c2622, { metalness: 0.65, roughness: 0.48, map: WORN_TEX }), GUN = mat(0x1c1c20, { metalness: 0.85, roughness: 0.35 });
   const LENS = mat(0x0b0b0e, { metalness: 0.9, roughness: 0.12 }), EYE = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
   const hub = rig.core = rig.hips = pivot(body, 0, 0.74, 0); hub.userData.y0 = 0.74;
@@ -1492,6 +1492,8 @@ function buildDroideka() {
   const head = rig.head = pivot(torso, 0, 0.8, 0.34);
   const skull = sph(0.21, BR, 20, 14); skull.scale.set(1.05, 0.72, 1.55); head.add(at(skull, 0, 0, 0.04));
   const face = sph(0.13, DK, 16, 10); face.scale.set(1.0, 0.55, 1.2); head.add(at(face, 0, -0.04, 0.16));
+  // две антенны-сенсора на затылке
+  for (const sx of [-1, 1]) { seg(head, [sx * 0.07, 0.1, -0.08], [sx * 0.12, 0.3, -0.2], 0.009, 0.006, DK, 5); head.add(at(sph(0.016, BRD, 6, 4), sx * 0.12, 0.3, -0.2)); }
   for (const [x, y] of [[-0.065, 0], [0.065, 0], [0, 0.035]]) { head.add(at(mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.03, 12), LENS), x, y - 0.02, 0.29, Math.PI / 2)); head.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), EYE), x, y - 0.02, 0.305)); }
   // руки: плечо, предплечье-кожух, спаренные стволы вперёд
   rig.arms = [];
@@ -1512,10 +1514,14 @@ function buildDroideka() {
     up.add(at(sph(0.055, DK, 8, 6), 0, 0, 0));
     seg(up, [0, 0, 0], [0, 0.1, 0.34], 0.06, 0.05, BR, 8);
     const kn = pivot(up, 0, 0.1, 0.34); kn.add(at(sph(0.06, DK, 8, 6), 0, 0, 0));
-    seg(kn, [0, 0, 0], [0, -0.46, 0.17], 0.048, 0.036, BRD, 8); // голень — двумя звеньями с суставом
-    kn.add(at(sph(0.042, DK, 8, 6), 0, -0.46, 0.17));
-    seg(kn, [0, -0.46, 0.17], [0, -0.83, 0.36], 0.036, 0.026, BR, 8);
-    const foot = sph(0.06, DK, 8, 6); foot.scale.set(1, 0.45, 1.6); kn.add(at(foot, 0, -0.83, 0.38));
+    // голень — изогнутая дугой наружу, как у паука, сужается к стопе
+    const shin = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -0.3, 0.42), new THREE.Vector3(0, -0.83, 0.36));
+    const sgeo = new THREE.TubeGeometry(shin, 14, 0.042, 8), sp = sgeo.attributes.position, sv = new THREE.Vector3();
+    for (let i = 0; i < sp.count; i++) { const t = Math.floor(i / 9) / 14, c = shin.getPoint(t); sv.fromBufferAttribute(sp, i).sub(c).multiplyScalar(1 - 0.45 * t).add(c); sp.setXYZ(i, sv.x, sv.y, sv.z); }
+    sgeo.computeVertexNormals(); kn.add(mesh(sgeo, BRD));
+    kn.add(at(sph(0.05, DK, 8, 6), 0, -0.82, 0.36));
+    // стопа: три когтя, расходятся веером
+    for (const a of [-0.55, 0, 0.55]) { const cl = mesh(new THREE.ConeGeometry(0.022, 0.16, 6), DK); cl.position.set(Math.sin(a) * 0.05, -0.85, 0.36 + Math.cos(a) * 0.05); cl.rotation.set(Math.PI / 2 + 0.35, a, 0, 'YXZ'); kn.add(cl); }
     rig.legs.push({ up, kn });
   }
   // колесо: свёрнутый дроид, катится вдоль хода
