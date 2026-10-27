@@ -20,7 +20,37 @@
     return c;
   }
 
-  const cap = (scene) => scene.particles.length < window.CONFIG.FX.maxParticles;
+  // Зерно: мелкие тёмные и светлые крапинки и царапины — узор для земли и кузова.
+  // px — сколько пикселей узора на метр мира.
+  const patterns = new Map();
+  function grain(ctx, key, px) {
+    const id = key + px;
+    if (patterns.has(id)) return patterns.get(id);
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    let s = key.length * 977 + 13;
+    const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 900; i++) {
+      const dark = r() < 0.6;
+      g.fillStyle = dark ? `rgba(0,0,0,${0.08 + r() * 0.25})` : `rgba(255,245,225,${0.04 + r() * 0.12})`;
+      const sz = 1 + r() * (key === 'ground' ? 3 : 1.6);
+      g.fillRect(r() * 128, r() * 128, sz, sz * (0.6 + r()));
+    }
+    g.strokeStyle = 'rgba(0,0,0,0.18)';
+    g.lineWidth = 0.7;
+    for (let i = 0; i < (key === 'ground' ? 10 : 18); i++) {
+      const x = r() * 128, y = r() * 128;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 22, y + (r() - 0.5) * 8); g.stroke();
+    }
+    const p = ctx.createPattern(c, 'repeat');
+    if (p.setTransform && window.DOMMatrix) p.setTransform(new DOMMatrix().scale(1 / px, 1 / px));
+    patterns.set(id, p);
+    return p;
+  }
+
+  // На простой графике частиц вдвое меньше.
+  const cap = (scene) => scene.particles.length < window.CONFIG.FX.maxParticles * (window.Render && window.Render.quality < 2 ? 0.5 : 1);
 
   // --- Создание частиц ---
   function dust(scene, x, y, n, vx, color) {
@@ -145,5 +175,5 @@
     ctx.globalAlpha = 1;
   }
 
-  window.FX = { puff, dust, smoke, fire, sparks, blood, update, draw, drawDecals, shadow };
+  window.FX = { grain, puff, dust, smoke, fire, sparks, blood, update, draw, drawDecals, shadow };
 })();

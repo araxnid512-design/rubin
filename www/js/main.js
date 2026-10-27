@@ -219,6 +219,7 @@
     if (run && screen === 'run' && !window.Platform.paused) {
       const P = C.PHYSICS;
       acc += dt;
+      if (window.Render.frameTime(dt)) { toast('Графика упрощена для плавности — вернуть можно в меню'); gfxLabels(); }
       let n = 0;
       while (acc >= P.step && n < P.maxSubSteps) { step(P.step); acc -= P.step; n++; }
       if (n === P.maxSubSteps) acc = 0;
@@ -278,6 +279,19 @@
   for (const el of document.querySelectorAll('.btn-sound')) el.addEventListener('click', () => { window.Sound.toggle(); soundLabels(); });
   for (const el of document.querySelectorAll('.btn-music')) el.addEventListener('click', () => { window.Sound.toggleMusic(); soundLabels(); });
   soundLabels();
+  // Кнопка «Графика»: авто → высокая → простая.
+  const GFX = { auto: 'авто', high: 'высокая', low: 'простая' };
+  function gfxLabels() {
+    const R = window.Render, m = R.gfxMode;
+    const now = m === 'auto' ? (R.quality > 1 ? 'авто' : 'авто, простая') : GFX[m];
+    for (const el of document.querySelectorAll('.btn-gfx')) el.textContent = 'Графика: ' + now;
+  }
+  for (const el of document.querySelectorAll('.btn-gfx')) el.addEventListener('click', () => {
+    const order = ['auto', 'high', 'low'];
+    window.Render.setGfx(order[(order.indexOf(window.Render.gfxMode) + 1) % 3]);
+    gfxLabels();
+  });
+  gfxLabels();
   window.Platform.on('resume', () => { last = performance.now(); });
   // «Назад»: в меню и итогах ничего не делает, в заезде — пауза.
   window.Platform.onBack = () => screen !== 'run';

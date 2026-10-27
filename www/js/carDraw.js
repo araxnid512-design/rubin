@@ -99,6 +99,16 @@
     ctx.fillRect(A.rear - 0.5, A.bottom - 0.5, A.front - A.rear + 1, A.roofY - A.bottom + 1);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fillRect(A.rear, A.beltY - 0.06, A.front - A.rear, 0.035);
+    // Грязь и царапины по кузову; снизу, у колёс, грязи больше.
+    if (window.FX && (!window.Render || window.Render.quality > 1)) {
+      ctx.fillStyle = window.FX.grain(ctx, 'car', 90);
+      ctx.fillRect(A.rear - 0.5, A.bottom - 0.5, A.front - A.rear + 1, A.roofY - A.bottom + 1);
+      const mud = ctx.createLinearGradient(0, A.bottom, 0, A.bottom + 0.45);
+      mud.addColorStop(0, 'rgba(70,52,34,0.55)');
+      mud.addColorStop(1, 'rgba(70,52,34,0)');
+      ctx.fillStyle = mud;
+      ctx.fillRect(A.rear - 0.5, A.bottom - 0.2, A.front - A.rear + 1, 0.65);
+    }
     ctx.restore();
     ctx.strokeStyle = 'rgba(10,8,6,0.6)';
     ctx.lineWidth = 0.035;

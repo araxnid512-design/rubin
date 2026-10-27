@@ -18,7 +18,31 @@
 
   function init(canvas) { ctx = canvas.getContext('2d'); }
   function resize(w, h, ratio) { width = w; height = h; dpr = ratio; vignette = null; }
-  function setTheme(t) { theme = t; style = STYLES[t.bg] || STYLES.city; bgCache = null; }
+  function setTheme(t) { theme = t; style = STYLES[t.bg] || STYLES.city; bgCache = null; skyAge = 99; }
+
+  // Качество: 2 — все эффекты, 1 — простая графика (без зерна, пылинок, лучей, виньетки).
+  // Режим «авто» сам переходит на простую, если кадры не успевают.
+  const GKEY = 'styx-road-gfx';
+  let gfxMode = 'auto', quality = 2, slow = 0;
+  try { gfxMode = localStorage.getItem(GKEY) || 'auto'; } catch (e) { /* нет хранилища */ }
+  if (gfxMode === 'low') quality = 1;
+  function setGfx(mode) {
+    gfxMode = mode;
+    quality = mode === 'low' ? 1 : 2;
+    slow = 0;
+    skyAge = 99;
+    try { localStorage.setItem(GKEY, mode); } catch (e) { /* нет хранилища */ }
+  }
+  // Вызывается из главного цикла с реальной длительностью кадра. true — если упростили.
+  function frameTime(dt) {
+    if (gfxMode !== 'auto' || quality === 1) return false;
+    slow = dt > window.CONFIG.FX.slowFrame ? slow + dt : Math.max(0, slow - dt * 0.5);
+    if (slow < window.CONFIG.FX.slowFor) return false;
+    quality = 1;
+    skyAge = 99;
+    return true;
+  }
+  const hq = () => quality > 1;
 
   // Тряска камеры: удар, жёсткое приземление, взрыв. a — амплитуда в метрах.
   function shake(a) { cam.shake = Math.min(window.CONFIG.FX.shakeMax, Math.max(cam.shake, a)); }
@@ -111,13 +135,34 @@
         c.moveTo(x, y + h * 0.15); c.lineTo(x + w * 0.35, y); c.lineTo(x + w * 0.55, y + h * 0.2);
         c.lineTo(x + w * 0.8, y + h * 0.08); c.lineTo(x + w, y + h * 0.3); c.lineTo(x + w, base); c.lineTo(x, base);
         c.closePath(); c.fill();
-      } else c.fillRect(x, y, w, base - y);
-      c.fillStyle = L.windows;
+      } else {
+        c.fillRect(x, y, w, base - y);
+        // Крыша: карниз, будка лифта, антенна.
+        c.fillRect(x - w * 0.02, y, w * 1.04, Math.max(1, h * 0.015));
+        if (b.h > 14) { c.fillRect(x + w * 0.6, y - h * 0.04, w * 0.18, h * 0.04); c.fillRect(x + w * 0.25, y - h * 0.08, Math.max(1, w * 0.012), h * 0.08); }
+      }
+      // Объём: правая грань в тени, к низу фасад темнеет от копоти.
+      c.fillStyle = 'rgba(0,0,0,0.16)';
+      c.fillRect(x + w * 0.82, y + h * 0.05, w * 0.18, base - y);
+      const soot = c.createLinearGradient(0, y + h * 0.5, 0, y + h);
+      soot.addColorStop(0, 'rgba(0,0,0,0)');
+      soot.addColorStop(1, 'rgba(0,0,0,0.25)');
+      c.fillStyle = soot;
+      c.fillRect(x, y + h * 0.5, w, h * 0.5);
+      // Окна: выбитые — тёмные, целые — с отблеском, редкие — горят.
       const cols = Math.max(1, Math.floor(b.w / 1.6)), rows = Math.floor(b.h / 1.8);
+      const ww = w / cols * 0.42, wh = h / rows * 0.42;
       for (let i = 0; i < cols; i++) for (let j = 1; j < rows; j++) {
-        if ((i * 7 + j * 3 + Math.floor(b.x)) % (b.lit ? 3 : 5) === 0) continue;
-        if (b.lit && (i * 5 + j * 11 + Math.floor(b.x)) % 4) continue;
-        c.fillRect(x + (i + 0.3) * w / cols, y + j * h / rows, w / cols * 0.4, h / rows * 0.4);
+        const hsh = (i * 7 + j * 3 + Math.floor(b.x)) % 11;
+        if (hsh === 0) continue;
+        const wx = x + (i + 0.3) * w / cols, wy = y + j * h / rows;
+        if (b.lit) {
+          if ((i * 5 + j * 11 + Math.floor(b.x)) % 4) continue;
+          c.fillStyle = L.windows;
+        } else c.fillStyle = hsh < 4 ? 'rgba(10,10,12,0.55)' : L.windows;
+        c.fillRect(wx, wy, ww, wh);
+        if (!b.lit && hsh >= 4) { c.fillStyle = 'rgba(255,255,255,0.08)'; c.fillRect(wx, wy, ww * 0.35, wh); }
+        if (!b.lit && hsh === 7) { c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(wx - ww * 0.15, wy + wh, ww * 1.3, Math.max(1, wh * 0.12)); }
       }
     } else if (b.shape === 'pine') {
       for (let k = 0; k < 3; k++) {
@@ -177,7 +222,25 @@
     }
   }
 
+  // Небо меняется медленно: рисуем его в слой половинного разрешения раз в несколько
+  // кадров, а каждый кадр только копируем слой на экран.
+  let skyCache = null, skyAge = 99;
   function drawSky(t) {
+    const s = 0.5, cw = Math.max(1, Math.round(width * s)), ch = Math.max(1, Math.round(height * s));
+    if (!skyCache) skyCache = document.createElement('canvas');
+    if (skyCache.width !== cw || skyCache.height !== ch) { skyCache.width = cw; skyCache.height = ch; skyAge = 99; }
+    if (++skyAge >= window.CONFIG.FX.skyEvery) {
+      skyAge = 0;
+      const main = ctx;
+      ctx = skyCache.getContext('2d');
+      ctx.setTransform(s, 0, 0, s, 0, 0);
+      paintSky(t);
+      ctx = main;
+    }
+    ctx.drawImage(skyCache, 0, 0, width, height);
+  }
+
+  function paintSky(t) {
     const s = theme.sky;
     const g = ctx.createLinearGradient(0, 0, 0, height);
     g.addColorStop(0, s[0]);
@@ -222,7 +285,7 @@
       }
     }
     // Лучи солнца сквозь пыль.
-    if (style.rays) {
+    if (style.rays && hq()) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 4; i++) {
@@ -246,6 +309,7 @@
 
   // Пылинки, споры и пепел в воздухе (экранные координаты, без состояния).
   function drawMotes(t) {
+    if (!hq()) return;
     const r = rng(3), img = window.FX.puff(style.motes);
     const span = width + 40;
     for (let i = 0; i < 36; i++) {
@@ -261,6 +325,7 @@
 
   // Затемнение по краям кадра — один раз на размер экрана.
   function drawVignette() {
+    if (!hq()) return;
     if (!vignette) {
       vignette = document.createElement('canvas');
       vignette.width = Math.max(1, Math.round(width / 2));
@@ -313,6 +378,13 @@
     g.addColorStop(1, theme.ground[1]);
     ctx.fillStyle = g;
     ctx.fill();
+    // Зерно грунта поверх градиента (тот же контур).
+    if (hq()) {
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = window.FX.grain(ctx, 'ground', 40);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     const line = (dy) => { ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1] + dy) : ctx.moveTo(p[0], p[1] + dy))); };
     const hash = (x, k) => Math.abs(Math.sin(x * 12.9898 + k * 78.233) * 43758.5453) % 1;
     ctx.lineJoin = 'round';
@@ -612,75 +684,168 @@
   }
 
   // --- Заражённые: силуэт по виду, ноги шагают, мёртвые лежат/летят ---
+  // Внешность заражённого: одежда, причёска, рост — своя у каждого (выбирается один раз).
+  const SHIRTS = ['#5a5e52', '#6a4a3a', '#3e4a5a', '#7a6a4a', '#4a3a3e', '#5a5a5e', '#6e5640', '#344038'];
+  const PANTS = ['#2e3238', '#3a3228', '#2a2a2a', '#3c4048', '#4a3e30'];
+  function look(z) {
+    if (!z.look) {
+      const r = Math.random;
+      z.look = {
+        shirt: SHIRTS[(r() * SHIRTS.length) | 0], pants: PANTS[(r() * PANTS.length) | 0],
+        hair: r() < 0.55 ? (r() < 0.5 ? '#2a2420' : '#5a4a30') : null, bald: r() < 0.3,
+        wound: r(), tall: 0.94 + r() * 0.12, sleeve: r() < 0.5,
+      };
+    }
+    return z.look;
+  }
+
+  // Конечность из двух звеньев (бедро-голень, плечо-предплечье). Углы — от вертикали вниз, + вперёд.
+  function limb(x, y, a1, l1, a2, l2, wd, col) {
+    const kx = x + Math.sin(a1) * l1, ky = y - Math.cos(a1) * l1;
+    const ex = kx + Math.sin(a2) * l2, ey = ky - Math.cos(a2) * l2;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = wd;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(kx, ky); ctx.lineTo(ex, ey); ctx.stroke();
+    return [ex, ey];
+  }
+
   function drawZombie(z, p, angle, t) {
-    const d = z.def, h = d.h, w = d.w;
+    const d = z.def, L = look(z), k = z.kind;
+    const big = k === 'stomper' || k === 'elite', fast = k === 'runner' || k === 'ruber';
+    const h = d.h * L.tall, w = d.w;
     const alive = z.alive && !z.clingAt;
-    const swing = alive ? Math.sin(z.phase * (z.kind === 'runner' || z.kind === 'ruber' ? 2.2 : 1.2)) : 0.4;
+    const ph = z.phase * (fast ? 2.2 : 1.2);
+    const swing = alive ? Math.sin(ph) : 0.4;
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(angle);
     ctx.scale(z.facing || -1, 1);
     if (z.stomped) ctx.translate(0, -z.stomped * 0.4);
-    const flash = z.hitFlash > 0;
-    const dead = !z.alive && !z.clingAt;
-    const torso = flash ? '#e05040' : dead ? shade(d.color, -30) : d.color;
-    const skin = flash ? '#f08070' : dead ? shade(d.skin, -40) : d.skin;
-    const lw = Math.max(0.12, w * (z.kind === 'stomper' || z.kind === 'elite' ? 0.32 : 0.24));
+    const flash = z.hitFlash > 0, dead = !z.alive && !z.clingAt;
+    const tint = (c, a) => (flash ? '#e05040' : shade(c, (dead ? -30 : 0) + (a || 0)));
+    const skin = flash ? '#f08070' : shade(d.skin, dead ? -40 : 0);
+    const shirt = big || k === 'lottery' ? d.color : L.shirt;
+    const thick = Math.max(0.1, Math.min(big ? 0.42 : 0.16, w * (big ? 0.3 : 0.26)));
     ctx.lineCap = 'round';
-    // Ноги.
-    ctx.strokeStyle = shade(d.color, -25);
-    ctx.lineWidth = lw;
-    const hip = -h * 0.08;
+    ctx.lineJoin = 'round';
+    // Пропорции: ноги — почти половина роста, корпус наклонён вперёд от таза.
+    const legL = h * 0.24, hip = -h / 2 + legL * 2 - 0.02;
+    const lean = (fast ? 0.3 : 0.12) + (big ? 0.12 : 0) + (alive ? Math.sin(ph * 2) * 0.03 : 0);
+    const torsoH = h * (big ? 0.34 : 0.31), tw = w * (k === 'lottery' ? 1.1 : big ? 0.95 : 0.9);
+    const leg = (s, col) => {
+      const a1 = s * (fast ? 0.6 : 0.4);
+      const a2 = a1 - (s < 0 ? -s * 0.9 : 0.12);
+      const [fx, fy] = limb(0, hip, a1, legL, a2, legL, thick, col);
+      ctx.fillStyle = shade(col, -20);
+      ctx.beginPath(); ctx.ellipse(fx + 0.06, fy + 0.02, 0.1, 0.045, 0, 0, Math.PI * 2); ctx.fill();
+    };
+    const arm = (s, col, front) => {
+      ctx.save();
+      ctx.translate(0, hip);
+      ctx.rotate(-lean);
+      // Руки вытянуты к добыче: плечо вперёд-вниз, предплечье почти горизонтально.
+      const a1 = (big ? 0.55 : 0.85) + s * 0.2 + (front ? 0.1 : -0.08);
+      const [hx, hy] = limb(tw * 0.15, torsoH * 0.88, a1, h * 0.16, a1 + 0.55 + s * 0.1, h * 0.15, thick * (big ? 1.1 : 0.8), col);
+      // Кисть с пальцами-когтями.
+      ctx.strokeStyle = shade(col, -15);
+      ctx.lineWidth = thick * 0.35;
+      ctx.beginPath();
+      for (let i = -1; i <= 1; i++) { ctx.moveTo(hx, hy); ctx.lineTo(hx + 0.09, hy - 0.03 + i * 0.035); }
+      ctx.stroke();
+      ctx.restore();
+    };
+    // Дальние конечности — темнее (они в тени тела).
+    leg(-swing, tint(L.pants, -22));
+    arm(-swing, shade(skin, -25), false);
+    leg(swing, tint(L.pants));
+    // Корпус: рубаха с объёмом и рваным подолом.
+    ctx.save();
+    ctx.translate(0, hip);
+    ctx.rotate(-lean);
+    const g = ctx.createLinearGradient(-tw / 2, torsoH, tw / 2, 0);
+    g.addColorStop(0, tint(shirt, 12));
+    g.addColorStop(1, tint(shirt, -18));
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.moveTo(0, hip); ctx.lineTo(swing * w * 0.6, -h / 2 + 0.05);
-    ctx.moveTo(0, hip); ctx.lineTo(-swing * w * 0.6, -h / 2 + 0.05);
-    ctx.stroke();
-    // Туловище, сгорбленное вперёд.
-    const lean = z.kind === 'runner' || z.kind === 'ruber' ? 0.35 : 0.18;
-    ctx.fillStyle = torso;
-    ctx.beginPath();
-    ctx.moveTo(-w / 2, hip);
-    ctx.lineTo(w / 2, hip);
-    ctx.lineTo(w / 2 + lean * w, h * 0.32);
-    ctx.lineTo(-w / 2 + lean * w, h * 0.34);
+    ctx.moveTo(-tw / 2, -0.04);
+    for (let i = 0; i <= 5; i++) ctx.lineTo(-tw / 2 + tw * i / 5, (i % 2 ? -0.12 : -0.02) - (i === 3 ? 0.05 : 0));
+    ctx.quadraticCurveTo(tw * 0.62, torsoH * 0.55, tw * 0.42, torsoH);
+    ctx.quadraticCurveTo(0, torsoH * 1.1, -tw * 0.5, torsoH * 0.9);
+    ctx.quadraticCurveTo(-tw * 0.62, torsoH * 0.4, -tw / 2, -0.04);
     ctx.closePath();
     ctx.fill();
-    // Рваньё одежды.
-    ctx.fillStyle = shade(d.color, -40);
-    ctx.fillRect(-w / 2, hip, w * 0.3, h * 0.08);
-    // Руки тянутся вперёд.
-    ctx.strokeStyle = skin;
-    ctx.lineWidth = lw * 0.85;
-    const shoulder = h * 0.28;
-    const reach = z.kind === 'stomper' || z.kind === 'elite' ? 0.9 : 0.75;
-    ctx.beginPath();
-    ctx.moveTo(lean * w, shoulder); ctx.lineTo(w * 0.5 + h * 0.28 * reach, shoulder - 0.15 + swing * 0.1);
-    ctx.moveTo(lean * w, shoulder - 0.05); ctx.lineTo(w * 0.45 + h * 0.25 * reach, shoulder - 0.3 - swing * 0.1);
+    ctx.strokeStyle = 'rgba(10,8,6,0.45)';
+    ctx.lineWidth = 0.025;
     ctx.stroke();
-    // Голова.
-    const hr = Math.max(0.16, Math.min(w * 0.42, z.kind === 'elite' ? 0.62 : z.kind === 'stomper' ? 0.4 : 0.32));
-    ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.arc(lean * w + 0.08, shoulder + hr * 1.1, hr, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#c03020';
-    ctx.fillRect(lean * w + 0.08 + hr * 0.3, shoulder + hr * 1.2, hr * 0.35, hr * 0.25);
-    // Особенности вида.
-    if (z.kind === 'lottery' || z.kind === 'stomper' || z.kind === 'elite') {
-      ctx.fillStyle = shade(d.color, -30);
-      for (let i = 0; i < 4; i++) {
-        ctx.beginPath(); ctx.arc(-w * 0.25 + i * w * 0.18, hip + h * (0.1 + (i % 2) * 0.12), w * 0.14, 0, Math.PI * 2); ctx.fill();
+    // Раздутое брюхо и наросты лотерейщика, бугры мышц топтуна и элиты.
+    if (k === 'lottery' || big) {
+      ctx.fillStyle = tint(d.skin, -10);
+      ctx.beginPath(); ctx.ellipse(tw * 0.18, torsoH * 0.35, tw * 0.42, torsoH * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = tint(d.color, -35);
+      for (let i = 0; i < 5; i++) {
+        const bx = -tw * 0.4 + (i * 0.37 % 1) * tw * 0.7, by = torsoH * (0.2 + (i * 0.53 % 1) * 0.7);
+        ctx.beginPath(); ctx.arc(bx, by, tw * (0.08 + (i % 3) * 0.03), 0, Math.PI * 2); ctx.fill();
       }
+      ctx.fillStyle = 'rgba(220,200,120,0.35)';
+      ctx.beginPath(); ctx.arc(-tw * 0.3, torsoH * 0.6, tw * 0.05, 0, Math.PI * 2); ctx.fill();
     }
+    // Рана: пятно крови на одежде.
+    ctx.fillStyle = 'rgba(90,10,8,0.75)';
+    ctx.beginPath(); ctx.ellipse(tw * (L.wound - 0.5) * 0.6, torsoH * (0.3 + L.wound * 0.4), tw * 0.16, torsoH * 0.1, L.wound * 3, 0, Math.PI * 2); ctx.fill();
+    // Костяные пластины рубера и элиты на груди и спине.
     if (d.plates) {
       ctx.fillStyle = d.plates;
-      for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = 'rgba(60,50,40,0.6)';
+      ctx.lineWidth = 0.02;
+      for (let i = 0; i < 4; i++) {
         ctx.beginPath();
-        ctx.moveTo(-w * 0.3 + i * w * 0.25, h * 0.05 + i * h * 0.08);
-        ctx.lineTo(-w * 0.1 + i * w * 0.25, h * 0.15 + i * h * 0.08);
-        ctx.lineTo(-w * 0.3 + i * w * 0.25, h * 0.22 + i * h * 0.08);
-        ctx.closePath(); ctx.fill();
+        const px = -tw * 0.45 + i * tw * 0.12, py = torsoH * (0.15 + i * 0.2);
+        ctx.moveTo(px, py); ctx.lineTo(px - tw * 0.22, py + torsoH * 0.12); ctx.lineTo(px - 0.02, py + torsoH * 0.22);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
       }
-      ctx.beginPath(); ctx.arc(lean * w + 0.08, shoulder + hr * 1.4, hr * 0.9, Math.PI * 0.1, Math.PI * 0.9); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(tw * 0.32, torsoH * 0.62, tw * 0.2, torsoH * 0.22, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
+    // Шея и голова.
+    const hr = Math.max(0.13, Math.min(w * 0.4, k === 'elite' ? 0.5 : big ? 0.3 : 0.15 + h * 0.03));
+    const hx = tw * 0.2, hy = torsoH + hr * 0.75;
+    ctx.strokeStyle = shade(skin, -10);
+    ctx.lineWidth = hr * 0.8;
+    ctx.beginPath(); ctx.moveTo(tw * 0.08, torsoH * 0.92); ctx.lineTo(hx, hy - hr * 0.4); ctx.stroke();
+    const hg = ctx.createRadialGradient(hx - hr * 0.3, hy + hr * 0.3, hr * 0.1, hx, hy, hr * 1.1);
+    hg.addColorStop(0, shade(skin, 15));
+    hg.addColorStop(1, shade(skin, -20));
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.ellipse(hx, hy, hr * 0.9, hr, 0.15, 0, Math.PI * 2); ctx.fill();
+    // Челюсть — отвисла, рот тёмный.
+    ctx.fillStyle = shade(skin, -12);
+    ctx.beginPath(); ctx.ellipse(hx + hr * 0.45, hy - hr * 0.55, hr * 0.42, hr * 0.28, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a0e0c';
+    ctx.beginPath(); ctx.ellipse(hx + hr * 0.62, hy - hr * 0.42, hr * 0.22, hr * 0.12 + (alive ? Math.abs(Math.sin(ph)) * hr * 0.08 : 0), -0.3, 0, Math.PI * 2); ctx.fill();
+    // Глазница и тусклый глаз.
+    ctx.fillStyle = 'rgba(20,10,10,0.7)';
+    ctx.beginPath(); ctx.ellipse(hx + hr * 0.45, hy + hr * 0.15, hr * 0.26, hr * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = dead ? '#3a2a2a' : big ? '#ff6a3a' : '#d8c060';
+    ctx.beginPath(); ctx.arc(hx + hr * 0.52, hy + hr * 0.13, hr * 0.09, 0, Math.PI * 2); ctx.fill();
+    // Волосы клочьями.
+    if (L.hair && !big && !d.plates) {
+      ctx.strokeStyle = L.hair;
+      ctx.lineWidth = 0.03;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI * (0.35 + i * 0.12);
+        const sx = hx + Math.cos(a) * hr * 0.85, sy = hy + Math.sin(a) * hr * 0.95;
+        ctx.moveTo(sx, sy); ctx.lineTo(sx - 0.05 - (i % 2) * 0.04, sy + 0.05 - (i % 3) * 0.04);
+      }
+      ctx.stroke();
+    }
+    // Костяной шлем рубера и элиты.
+    if (d.plates) {
+      ctx.fillStyle = d.plates;
+      ctx.beginPath(); ctx.ellipse(hx - hr * 0.1, hy + hr * 0.45, hr * 0.95, hr * 0.55, 0.2, Math.PI * 0.05, Math.PI * 1.05); ctx.fill();
+    }
+    ctx.restore();
+    // Ближняя рука — поверх корпуса.
+    arm(swing, skin, true);
     ctx.restore();
   }
 
@@ -743,6 +908,7 @@
     if (scene.weapons) scene.weapons.drawWorld(ctx);
     // Бегуны, вцепившиеся в машину.
     for (const z of scene.horde.clinging) {
+      look(z);
       const p = scene.car.chassis.getWorldPoint(window.planck.Vec2(z.clingAt.x, z.clingAt.y + z.def.h * 0.35));
       drawZombie(Object.assign({}, z, { facing: 1, stomped: 0 }), p, scene.car.angle - 0.5 + Math.sin(z.phase) * 0.25, t);
     }
@@ -779,5 +945,8 @@
     };
   }
 
-  window.Render = { init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, particles, blood, shake, dustColor, cam, rng };
+  window.Render = {
+    init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, particles, blood, shake, dustColor, cam, rng,
+    setGfx, frameTime, get gfxMode() { return gfxMode; }, get quality() { return quality; },
+  };
 })();
