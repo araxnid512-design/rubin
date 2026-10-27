@@ -49,6 +49,7 @@
       this.flipTimer = 0;
       this.flipped = false;
       this.hp = stats.hp;
+      this.fuel = stats.tank;
       this.lastVy = 0;
     }
 
@@ -74,7 +75,12 @@
       const all = [this.rear, this.front];
       this.throttle = 0;
 
-      if (input.gas) {
+      const outOfFuel = this.fuel <= 0;
+      // Расход: на газу — полный, иначе — холостые.
+      if (!outOfFuel) {
+        this.fuel = Math.max(0, this.fuel - (input.gas || input.brake ? s.fuelUse : s.fuelIdle) * dt);
+      }
+      if (input.gas && !outOfFuel) {
         // Колесо по часовой (отрицательная угловая скорость) — едем вправо.
         for (const w of all) w.joint.enableMotor(false);
         for (const w of driven) {
@@ -84,7 +90,7 @@
         }
         this.throttle = 1;
       } else if (input.brake) {
-        if (v > 0.8) {
+        if (v > 0.8 || outOfFuel) {
           // Тормоз: колёса держат нулевую скорость с большим моментом.
           for (const w of all) {
             w.joint.enableMotor(true);
@@ -209,6 +215,10 @@
       nitroCapacity: def.nitro.capacity,
       awd: false,
       hp: def.hp,
+      tank: def.fuel.tank,
+      fuelUse: def.fuel.use,
+      fuelIdle: def.fuel.idle,
+      canisterFuel: window.CONFIG.PICKUPS.canisterFuel,
       armorMult: 1,     // множитель входящего урона (броня уменьшает)
       ramMult: 1,       // урон тараном
       ramDragCut: 0,    // доля торможения от удара, которую гасит отвал

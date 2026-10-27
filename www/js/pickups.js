@@ -1,10 +1,11 @@
-// Добыча на трассе: спораны, горох и жемчуг с убитых заражённых (позже — канистры).
+// Добыча на трассе: спораны, горох и жемчуг с убитых заражённых, канистры с бензином.
 // Подбирается, когда машина проезжает рядом; споросборник увеличивает радиус.
 (function () {
   const KINDS = {
     sporan: { color: '#8fd06a', glow: 'rgba(143,208,106,', r: 0.22 },
     peas: { color: '#e0c050', glow: 'rgba(224,192,80,', r: 0.2 },
     pearl: { color: '#e8e4f0', glow: 'rgba(220,210,255,', r: 0.26 },
+    canister: { color: '#b8302a', glow: 'rgba(255,200,80,', r: 0.4 },
   };
 
   class Pickups {
@@ -12,6 +13,12 @@
       this.terrain = terrain;
       this.hooks = hooks; // { onCollect(kind, count) }
       this.items = [];
+      // Канистры стоят на трассе с самого начала.
+      for (const o of terrain.objects) {
+        if (o.type !== 'canister') continue;
+        const y = (o.y != null ? o.y : terrain.heightAt(o.x)) + 0.45;
+        this.items.push({ kind: 'canister', x: o.x, y, t: 0, landed: true, permanent: true });
+      }
     }
 
     // Выпадение с подлётом: предмет подлетает и ложится на землю.
@@ -50,7 +57,7 @@
           this.hooks.onCollect(it.kind, 1);
         }
       }
-      this.items = this.items.filter((it) => !it.taken && it.t < P.life && it.x > cp.x - 60);
+      this.items = this.items.filter((it) => !it.taken && (it.permanent || (it.t < P.life && it.x > cp.x - 60)));
     }
 
     draw(ctx, t) {
@@ -62,6 +69,7 @@
         g.addColorStop(1, k.glow + '0)');
         ctx.fillStyle = g;
         ctx.fillRect(it.x - k.r * 3, it.y - k.r * 3, k.r * 6, k.r * 6);
+        if (it.kind === 'canister') { drawCanister(ctx, it.x, it.y); continue; }
         ctx.fillStyle = k.color;
         ctx.beginPath();
         if (it.kind === 'peas') {
@@ -72,6 +80,19 @@
         ctx.fill();
       }
     }
+  }
+
+  // Канистра: красный корпус, ручка, крышка.
+  function drawCanister(ctx, x, y) {
+    ctx.fillStyle = '#b8302a';
+    ctx.fillRect(x - 0.28, y - 0.4, 0.56, 0.72);
+    ctx.fillStyle = '#8a2420';
+    ctx.fillRect(x - 0.28, y - 0.05, 0.56, 0.06);
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 0.07;
+    ctx.strokeRect(x - 0.12, y + 0.32, 0.24, 0.14);
+    ctx.fillStyle = '#d0c070';
+    ctx.fillRect(x + 0.12, y + 0.3, 0.12, 0.1);
   }
 
   window.Pickups = Pickups;

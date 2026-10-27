@@ -14,6 +14,7 @@
   <div id="hud">
     <div class="hud-row"><b id="h-speed">0</b><span>км/ч</span></div>
     <div class="hud-row"><b id="h-dist">0</b><span>м до стаба</span></div>
+    <div class="hud-bar fuel" id="h-fuel-bar"><i id="h-fuel"></i><span>бензин <em id="h-fuel-v"></em></span></div>
     <div class="hud-bar hp"><i id="h-hp"></i><span>прочность</span></div>
     <div class="hud-bar nitro"><i id="h-nitro"></i><span>нитро</span></div>
   </div>
@@ -34,12 +35,27 @@
   <button id="btn-gas" class="ctl right" aria-label="Газ"><span>ГАЗ</span></button>
 
   <div id="menu" class="overlay">
-    <div class="panel">
+    <div class="panel menu">
       <div class="logo">СТИКС</div>
       <div class="subtitle">Дорога стабов</div>
-      <p class="muted">Этап 3: уровень «Городской кластер» с заражёнными. Газ справа, тормоз и задний ход слева.<br>
-        В воздухе газ наклоняет машину назад, тормоз — вперёд. Перевернулись — заезд с последнего чекпоинта.</p>
-      <button id="m-start" class="primary">Заезд</button>
+      <div class="wallet">
+        <span><i class="ico sporan"></i><b id="m-sporans">0</b> споранов</span>
+        <span><i class="ico peas"></i><b id="m-peas">0</b> горох</span>
+        <span><i class="ico pearl"></i><b id="m-pearls">0</b> жемчуг</span>
+      </div>
+      <div id="m-levels"></div>
+      <p class="muted small">Газ справа, тормоз и задний ход слева, нитро — синяя кнопка.
+        В воздухе газ наклоняет машину назад, тормоз — вперёд.</p>
+      <button id="m-reset" class="ghost">Сбросить прогресс</button>
+    </div>
+  </div>
+
+  <div id="results" class="overlay hidden">
+    <div class="panel results">
+      <h1 id="r-title"></h1>
+      <div id="r-table" class="facts"></div>
+      <div class="total">Итого: <i class="ico sporan"></i><b id="r-total"></b></div>
+      <button id="r-ok" class="primary">В стаб</button>
     </div>
   </div>
 
@@ -47,7 +63,7 @@
     <div class="panel">
       <h1>Пауза</h1>
       <button id="btn-resume" class="primary">Продолжить</button>
-      <button id="btn-restart">Заново</button>
+      <button id="btn-quit">Закончить заезд</button>
       <button id="btn-exit">Выйти из игры</button>
     </div>
   </div>
@@ -70,6 +86,8 @@
   <script src="js/obstacles.js"></script>
   <script src="js/zombies.js"></script>
   <script src="js/pickups.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/run.js"></script>
   <script src="js/carDraw.js"></script>
   <script src="js/render.js"></script>
   <script src="js/main.js"></script>

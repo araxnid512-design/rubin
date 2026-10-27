@@ -48,6 +48,7 @@
       maxSpin: 4.5,          // ограничение вращения в воздухе
       nitro: { force: 9, capacity: 3 },  // ускорение, м/с²; секунды работы
       hp: 100,
+      fuel: { tank: 10, use: 0.17, idle: 0.015 },  // литры; расход л/с на полном газу и на холостых
       color: '#8a4a3a',
     },
   };
@@ -115,6 +116,15 @@
   const PICKUPS = {
     collectRadius: 1.8,
     life: 40,
+    canisterFuel: 2.5,    // литров в канистре (улучшение «Запасные канистры» добавляет)
+  };
+
+  // Награда за заезд и условия его конца.
+  const ECONOMY = {
+    sporansPer100m: 5,        // за пройденную в заезде дистанцию
+    recordPer100m: 8,         // сверху — за метры дальше прошлого рекорда на уровне
+    stabBonus: 120,           // доехал до стаба
+    outOfFuelStopTime: 1.5,   // сек почти без движения на пустом баке — конец заезда
   };
 
   // Препятствия: размеры, м; плотность, кг/м².
@@ -139,7 +149,7 @@
       crowds: { startAt: 45, every: 22, count: [2, 6], mix: { walker: 0.72, runner: 0.28 } },
       segments: [
         { type: 'flat', length: 30 },
-        { type: 'rubble', length: 60, objects: [{ type: 'crates', dx: 40, count: 3 }] },
+        { type: 'rubble', length: 60, objects: [{ type: 'crates', dx: 40, count: 3 }, { type: 'canister', dx: 20 }] },
         { type: 'hills', length: 120, amp: 2, wave: 30 },
         { type: 'ramp', length: 12, height: 3 },
         { type: 'gap', length: 5, depth: 4 },
@@ -150,12 +160,12 @@
         { type: 'drop', height: 4 },
         { type: 'flat', length: 30, objects: [{ type: 'wrecks', dx: 10, count: 1 }] },
         { type: 'fork', length: 160, kicker: { length: 16, height: 3.8 },
-          upper: { gap: 7, height: 5.0, length: 110, objects: [{ type: 'crates', dx: 60, count: 2 }] },
+          upper: { gap: 7, height: 5.0, length: 110, objects: [{ type: 'crates', dx: 60, count: 2 }, { type: 'canister', dx: 30 }, { type: 'canister', dx: 90 }] },
           lower: { objects: [{ type: 'barricade', dx: 40, rows: 3, cols: 3 }, { type: 'wrecks', dx: 110, count: 2 }] } },
         { type: 'checkpoint' },
         { type: 'hills', length: 150, amp: 4, wave: 45, objects: [{ type: 'barrels', dx: 70, count: 4 }, { type: 'zombies', kind: 'lottery', dx: 110, count: 2, spread: 3 }] },
         { type: 'bridge', deckBefore: 40, broken: 9, lip: 1.3, depth: 9, deckAfter: 30 },
-        { type: 'rubble', length: 80, objects: [{ type: 'crates', dx: 30, count: 5 }] },
+        { type: 'rubble', length: 80, objects: [{ type: 'crates', dx: 30, count: 5 }, { type: 'canister', dx: 60 }] },
         { type: 'checkpoint' },
         { type: 'slope', length: 50, rise: -5 },
         { type: 'ramp', length: 16, height: 4.5 },
@@ -169,5 +179,5 @@
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, ZOMBIES, HORDE, PICKUPS, OBSTACLES, LEVELS };
+  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
 })();
