@@ -104,7 +104,7 @@
 <body>
 	<div id="panel">
 		<h1>🧟 Зомби</h1>
-		<div class="sub head">Skinned mesh · PBR · 19 костей · 5 анимаций</div>
+		<div class="sub head">MakeHuman · PBR · 19 костей · 5 анимаций</div>
 
 		<div class="label anim-label">Анимация</div>
 		<div class="anims" id="anims"></div>
@@ -130,8 +130,8 @@
 
 			<div class="label">Источник модели</div>
 			<select id="source">
-				<option value="procedural">Процедурная (src/zombie.js)</option>
-				<option value="glb">Файл models/zombie.glb</option>
+				<option value="realistic">Реалистичная (MakeHuman, models/zombie.glb)</option>
+				<option value="procedural">Простая процедурная (src/zombie.js)</option>
 			</select>
 			<button class="wide" id="download">⬇ Скачать zombie.glb</button>
 			<div class="sub desktop-only" style="margin:8px 0 0">Можно перетащить сюда любой .glb/.gltf, чтобы проверить его анимации.</div>
@@ -196,7 +196,7 @@
 		scene.add(grid);
 
 		// ---------- Модель и анимации ----------
-		const state = { model: null, mixer: null, actions: {}, current: null, clips: [], skeletonHelper: null, source: 'procedural', paused: false };
+		const state = { model: null, mixer: null, actions: {}, current: null, clips: [], skeletonHelper: null, source: 'realistic', paused: false };
 		window.__zombie = state; // для автотестов
 		const LOOP_ONCE = new Set(['Death', 'Attack']);
 
@@ -285,18 +285,50 @@
 			});
 		}
 
+		// Реалистичная модель: models/zombie.glb, а если сервер не отдаёт .glb —
+		// та же модель, упакованная в models/zombie-glb.js (base64).
+		async function loadRealistic() {
+			$('error').textContent = '';
+			$('status').textContent = 'Загрузка модели…';
+			try {
+				let buffer;
+				try {
+					const res = await fetch('./models/zombie.glb');
+					if (!res.ok) throw new Error(res.status);
+					buffer = await res.arrayBuffer();
+				} catch {
+					const { default: base64 } = await import('./models/zombie-glb.js');
+					buffer = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)).buffer;
+				}
+				if (state.source !== 'realistic') return;
+				const gltf = await loader.parseAsync(buffer, './models/');
+				setModel(gltf.scene, gltf.animations);
+			} catch (err) {
+				console.warn('Реалистичная модель недоступна, показываю процедурную', err);
+				$('error').textContent = 'models/zombie.glb недоступен (npm run build) — показана процедурная модель';
+				$('source').value = 'procedural';
+				state.source = 'procedural';
+				loadProcedural();
+			}
+		}
+
 		$('source').onchange = (e) => {
 			state.source = e.target.value;
-			if (e.target.value === 'glb') loadGLTF('./models/zombie.glb');
+			if (e.target.value === 'realistic') loadRealistic();
 			else loadProcedural();
 		};
 
 		$('download').onclick = async () => {
-			const { model, animations } = createZombie();
-			const glb = await new GLTFExporter().parseAsync(model, { binary: true, animations });
+			let glb;
+			if (state.source === 'realistic') {
+				glb = await fetch('./models/zombie.glb').then((r) => r.arrayBuffer());
+			} else {
+				const { model, animations } = createZombie();
+				glb = await new GLTFExporter().parseAsync(model, { binary: true, animations });
+			}
 			const a = document.createElement('a');
 			a.href = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
-			a.download = 'zombie.glb';
+			a.download = state.source === 'realistic' ? 'zombie.glb' : 'zombie-simple.glb';
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 		};
@@ -386,7 +418,7 @@
 			renderer.render(scene, camera);
 		});
 
-		loadProcedural();
+		loadRealistic();
 	</script>
 </body>
 </html>

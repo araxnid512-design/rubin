@@ -33,12 +33,13 @@ const check = (ok, msg) => { console.log(`${ok ? '✓' : '✗'} ${msg}`); if (!o
 
 try {
 	await page.goto(url);
-	await page.waitForFunction(() => window.__zombie?.current === 'Idle', null, { timeout: 15000 });
-	for (const source of ['procedural', 'glb']) {
-		if (source === 'glb') {
-			await page.selectOption('#source', 'glb');
-			await page.waitForFunction(() => window.__zombie.source === 'glb' && window.__zombie.clips.length === 5 && window.__zombie.current === 'Idle', null, { timeout: 15000 });
+	await page.waitForFunction(() => window.__zombie?.current === 'Idle', null, { timeout: 60000 });
+	for (const source of ['realistic', 'procedural']) {
+		if (source !== 'realistic') {
+			await page.selectOption('#source', source);
+			await page.waitForFunction((s) => window.__zombie.source === s && window.__zombie.clips.length === 5 && window.__zombie.current === 'Idle', source, { timeout: 30000 });
 		}
+		check(await page.evaluate(() => window.__zombie.source) === source, `[${source}] модель загружена`);
 		const names = await page.evaluate(() => window.__zombie.clips.map((c) => c.name));
 		check(names.join() === 'Idle,Walk,Run,Attack,Death', `[${source}] 5 анимаций: ${names.join(', ')}`);
 		for (const name of names) {
@@ -46,7 +47,7 @@ try {
 			await page.waitForTimeout(name === 'Death' ? 2600 : 900);
 			const s = await page.evaluate(() => ({ cur: window.__zombie.current, t: window.__zombie.actions[window.__zombie.current].time }));
 			check(s.cur === name && s.t > 0, `[${source}] ${name} играет (t=${s.t.toFixed(2)})`);
-			if (source === 'procedural') await page.screenshot({ path: join(OUT, `${name}.png`) });
+			if (source === 'realistic') await page.screenshot({ path: join(OUT, `${name}.png`) });
 		}
 	}
 	// Телефон: портретная и горизонтальная ориентация.
@@ -56,7 +57,7 @@ try {
 		mp.on('pageerror', (e) => errors.push(e.message));
 		await mp.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', cdn);
 		await mp.goto(url);
-		await mp.waitForFunction(() => window.__zombie?.current === 'Idle', null, { timeout: 15000 });
+		await mp.waitForFunction(() => window.__zombie?.current === 'Idle', null, { timeout: 60000 });
 		const box = await mp.locator('#panel').boundingBox();
 		const btn = await mp.locator('#anims button').first().boundingBox();
 		check(box.y + box.height <= viewport.height + 1 && box.x + box.width <= viewport.width + 1, `[${label}] панель помещается на экране`);

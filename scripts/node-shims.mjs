@@ -1,6 +1,8 @@
 // Минимальные заглушки браузерных API, нужные GLTFExporter в Node:
 // FileReader (бинарный GLB) и OffscreenCanvas/ImageData (запись DataTexture в PNG).
-import { deflateSync } from 'node:zlib';
+import * as zlibSync from 'node:zlib';
+
+const { deflateSync } = zlibSync;
 
 const CRC_TABLE = new Uint32Array(256).map((_, n) => {
 	let c = n;
@@ -82,4 +84,55 @@ export function installNodeShims() {
 			return new Blob([encodePNG(this.pixels, this.width, this.height)], { type: 'image/png' });
 		}
 	};
+}
+
+/** PNG (8 бит, RGB/RGBA, без чересстрочности) → { width, height, data: RGBA Uint8Array }. */
+export function decodePNG(buf) {
+	const { inflateSync } = zlibSync;
+	let pos = 8;
+	let width = 0, height = 0, colorType = 0;
+	const idat = [];
+	while (pos < buf.length) {
+		const len = buf.readUInt32BE(pos);
+		const type = buf.toString('ascii', pos + 4, pos + 8);
+		const data = buf.subarray(pos + 8, pos + 8 + len);
+		if (type === 'IHDR') {
+			width = data.readUInt32BE(0);
+			height = data.readUInt32BE(4);
+			if (data[8] !== 8 || data[12] !== 0) throw new Error('Поддерживаются только 8-битные PNG без чересстрочности');
+			colorType = data[9];
+		} else if (type === 'IDAT') idat.push(data);
+		else if (type === 'IEND') break;
+		pos += 12 + len;
+	}
+	const bpp = { 2: 3, 6: 4 }[colorType];
+	if (!bpp) throw new Error(`Неподдерживаемый тип цвета PNG: ${colorType}`);
+	const raw = inflateSync(Buffer.concat(idat));
+	const stride = width * bpp;
+	const pixels = new Uint8Array(stride * height);
+	for (let y = 0; y < height; y++) {
+		const f = raw[y * (stride + 1)];
+		const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+		const out = pixels.subarray(y * stride, (y + 1) * stride);
+		const prev = y > 0 ? pixels.subarray((y - 1) * stride, y * stride) : new Uint8Array(stride);
+		for (let x = 0; x < stride; x++) {
+			const a = x >= bpp ? out[x - bpp] : 0, b = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
+			let v = line[x];
+			if (f === 1) v += a;
+			else if (f === 2) v += b;
+			else if (f === 3) v += (a + b) >> 1;
+			else if (f === 4) {
+				const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+				v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+			}
+			out[x] = v & 255;
+		}
+	}
+	if (bpp === 4) return { width, height, data: pixels };
+	const rgba = new Uint8Array(width * height * 4);
+	for (let i = 0; i < width * height; i++) {
+		rgba.set(pixels.subarray(i * 3, i * 3 + 3), i * 4);
+		rgba[i * 4 + 3] = 255;
+	}
+	return { width, height, data: rgba };
 }

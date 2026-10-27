@@ -1,17 +1,17 @@
-// Экспортирует процедурную модель зомби в models/zombie.glb (вместе с 5 анимациями).
+// Собирает реалистичного зомби из ассетов MakeHuman и экспортирует в models/zombie.glb (с 5 анимациями).
 // Запуск: npm run build
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-import { createZombie } from '../src/zombie.js';
+import { buildZombie } from './makehuman/build-zombie.mjs';
 import { installNodeShims } from './node-shims.mjs';
 
 installNodeShims();
 
-export async function exportZombieGLB() {
-	const { model, animations } = createZombie();
+export async function exportZombieGLB(options) {
+	const { model, animations } = buildZombie(options);
 	const exporter = new GLTFExporter();
 	return exporter.parseAsync(model, { binary: true, animations });
 }

@@ -11,7 +11,7 @@ export const ANIMATION_NAMES = ['Idle', 'Walk', 'Run', 'Attack', 'Death'];
 // Ключи задаются эйлеровыми углами в градусах (поза привязки = нулевые углы),
 // а позиции — абсолютными локальными координатами кости.
 
-const HIPS_Y = 1.0;
+let HIPS_Y = 1.0; // высота таза в позе привязки (задаётся в createZombieAnimations)
 const _euler = new THREE.Euler();
 const _quat = new THREE.Quaternion();
 
@@ -175,11 +175,13 @@ function createDeath() {
 		'Foot.R': k([[-2, 0, 0], [0, 0, 0], [-25, 0, 0], [0, 0, 0], [15, 0, 0], [25, 0, 0], [25, 0, 0]]),
 		Hips: k([[0, 0, 0], [-8, 0, 0], [-15, 0, 0], [-70, 0, 0], [-88, 0, 0], [-86, 0, 0], [-88, 0, 0]]),
 	}, {
-		Hips: k([[0, HIPS_Y - 0.03, 0], [0, HIPS_Y - 0.02, -0.08], [0, 0.62, -0.12], [0, 0.3, -0.3], [0, 0.14, -0.38], [0, 0.18, -0.38], [0, 0.13, -0.38]]),
+		Hips: k([[0, HIPS_Y - 0.03, 0], [0, HIPS_Y - 0.02, -0.08], [0, HIPS_Y - 0.38, -0.12], [0, 0.3, -0.3], [0, 0.14, -0.38], [0, 0.18, -0.38], [0, 0.13, -0.38]]),
 	});
 }
 
-export function createZombieAnimations() {
+/** @param {{ hipsY?: number }} [opts] hipsY — высота кости Hips над землёй в позе привязки */
+export function createZombieAnimations({ hipsY = 1.0 } = {}) {
+	HIPS_Y = hipsY;
 	return [createIdle(), createWalk(), createRun(), createAttack(), createDeath()];
 }
 

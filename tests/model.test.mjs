@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createZombie, ANIMATION_NAMES } from '../src/zombie.js';
 import { exportZombieGLB } from '../scripts/export-glb.mjs';
+import { buildZombie } from '../scripts/makehuman/build-zombie.mjs';
 
 test('модель — SkinnedMesh со скелетом и 4 материалами', () => {
 	const { mesh, skeleton } = createZombie();
@@ -62,8 +63,8 @@ test('каждая анимация реально двигает скелет',
 	assert.ok(mesh.skeleton.bones.every((b) => b.matrixWorld.elements.every(Number.isFinite)));
 });
 
-test('GLB экспортируется и загружается обратно с 5 анимациями', async () => {
-	const glb = await exportZombieGLB();
+test('реалистичный GLB (MakeHuman) экспортируется с 5 анимациями', async () => {
+	const glb = await exportZombieGLB({ textureSize: 128 });
 	const view = new DataView(glb);
 	assert.equal(view.getUint32(0, true), 0x46546c67, 'магия glTF');
 	const jsonLen = view.getUint32(12, true);
@@ -80,5 +81,30 @@ test('GLB экспортируется и загружается обратно 
 	}
 	assert.ok(json.meshes[0].primitives.every((p) => p.attributes.JOINTS_0 !== undefined && p.attributes.WEIGHTS_0 !== undefined));
 	assert.equal(json.materials.length, 4, "4 материала: кожа, ткань, глаза, зубы");
-	assert.equal(json.textures.length, 4, "цвет и нормали для кожи и ткани");
+	assert.equal(json.textures.length, 5, "цвет и нормали кожи и ткани + глаза");
+});
+
+test('модель MakeHuman: рост, руки опущены, анимации двигают скелет', () => {
+	const { model, mesh, animations } = buildZombie({ textureSize: 64 });
+	const box = mesh.geometry.boundingBox;
+	assert.ok(Math.abs(box.min.y) < 0.01, `ступни на земле (min.y=${box.min.y})`);
+	assert.ok(box.max.y > 1.65 && box.max.y < 1.9, `рост ~1.75 м (max.y=${box.max.y})`);
+	assert.ok(mesh.geometry.attributes.position.count > 15000, 'детализированный меш');
+	model.updateMatrixWorld(true);
+	const world = (n) => model.getObjectByName(n).getWorldPosition(new THREE.Vector3());
+	for (const s of ['L', 'R']) {
+		const shoulder = world(`UpperArm.${s}`), hand = world(`Hand.${s}`);
+		assert.ok(shoulder.y - hand.y > 0.45, `рука ${s} опущена вдоль тела`);
+		assert.ok(Math.abs(hand.x - shoulder.x) < 0.12, `рука ${s} не отведена в сторону`);
+	}
+	assert.ok(mesh.skeleton.bones.every((b) => b.quaternion.equals(new THREE.Quaternion())), 'поза привязки без поворотов');
+	const mixer = new THREE.AnimationMixer(model);
+	const rest = world('Head');
+	for (const clip of animations) {
+		mixer.stopAllAction();
+		mixer.clipAction(clip).play();
+		mixer.setTime(clip.duration * 0.5);
+		model.updateMatrixWorld(true);
+		assert.ok(world('Head').distanceTo(rest) > 0.01, `${clip.name} двигает голову`);
+	}
 });
