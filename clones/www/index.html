@@ -342,8 +342,8 @@
   .rewBox { font-size: 12px; color: var(--dim); } .rewBox b { color: var(--gold); }
   .bR h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--holo); }
   .intel { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
-  .ic { display: flex; gap: 8px; align-items: center; } .ic img { width: 56px; height: 33px; border-radius: 7px; object-fit: cover; flex: none; border: 1px solid rgba(255,110,90,.4); }
-  .ic span { display: flex; flex-direction: column; } .ic b { font-size: 12px; color: #ffd9d2; } .ic small { color: var(--dim); font-size: 10.5px; line-height: 1.3; }
+  .irow { display: flex; gap: 8px; align-items: center; } .irow img { width: 56px; height: 33px; border-radius: 7px; object-fit: cover; flex: none; border: 1px solid rgba(255,110,90,.4); }
+  .irow span { display: flex; flex-direction: column; } .irow b { font-size: 12px; color: #ffd9d2; } .irow small { color: var(--dim); font-size: 10.5px; line-height: 1.3; }
   .pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 8px; }
   .pf { padding: 4px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.04); display: flex; flex-direction: column; align-items: center; gap: 1px; opacity: .55; }
   .pf img { width: 100%; height: 44px; border-radius: 7px; object-fit: cover; object-position: 50% 30%; } .pf b { font-size: 11px; } .pf small { font-size: 9.5px; color: var(--dim); }
@@ -383,10 +383,79 @@
     .bGrid { gap: 10px; } .story { font-size: 12px; } .pick { grid-template-columns: repeat(3, 1fr); }
   }
   @media (max-width: 560px) { .bGrid, .eGrid { grid-template-columns: 1fr; } }
+  /* затемнение краёв кадра в бою: взгляд собирается в центре, картинка глубже (бесплатно — это слой страницы, не 3D) */
+  #vign { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .6s;
+    background: radial-gradient(ellipse 75% 70% at 50% 48%, transparent 55%, rgba(4,8,14,.38) 100%); }
+  body.playing #vign { opacity: 1; }
+
+  /* ---------- компактный режим: телефон горизонтально (высота до ~430 px) ---------- */
+  @media (max-height: 430px) {
+    #startScr h1 { font-size: clamp(24px, 10vh, 40px); } #startScr .lead { font-size: 12px; margin: 6px auto 10px; }
+    .btn { padding: 8px 18px; font-size: 14px; border-radius: 11px; margin: 3px; letter-spacing: 1.5px; }
+    .box h2 { font-size: 22px; } .help { font-size: 11.5px; line-height: 1.45; }
+
+    #hubScr { gap: 6px; grid-template-columns: auto minmax(0, min(600px, 64vw)) 1fr;
+      padding: calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left)); }
+    .shipName { padding: 3px 10px 3px 6px; gap: 7px; border-radius: 10px; } .shipName svg { width: 20px; height: 20px; }
+    .shipName b { font-size: 11px; letter-spacing: 1.5px; } .shipName small { font-size: 9.5px; }
+    .res { gap: 4px; } .chip { height: 28px; font-size: 12px; padding: 0 9px; border-radius: 9px; } .chip svg { width: 13px; height: 13px; }
+    .res .ib { width: 28px; height: 28px; border-radius: 9px; } .res .ib svg { width: 15px; height: 15px; }
+    #hubTabs { gap: 4px; } #hubTabs button { width: 50px; min-height: 40px; max-height: 50px; border-radius: 10px; font-size: 8.5px; gap: 1px; } #hubTabs svg { width: 17px; height: 17px; }
+    #hubPanel { padding: 8px 10px 10px; border-radius: 12px; }
+    .ph { margin-bottom: 6px; } .ph h3 { font-size: 15px; letter-spacing: 1.5px; } .sub { font-size: 10px; } .ph.sm { margin-top: 9px; } .ph h4 { font-size: 10.5px; }
+    .btn.sm { padding: 5px 9px; font-size: 10.5px; border-radius: 8px; }
+    .ops { grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr)); gap: 6px; }
+    .op { border-radius: 10px; } .opImg { aspect-ratio: 16 / 8; } .opTag { font-size: 8px; padding: 2px 5px; left: 5px; top: 5px; letter-spacing: 1px; }
+    .opBody { padding: 4px 7px 5px; gap: 0; } .opBody b { font-size: 11.5px; } .opBody small { font-size: 9px; } .opRow { margin-top: 2px; } .rew { font-size: 10.5px; } .threat i { width: 6px; height: 6px; }
+    .done-all { padding: 9px; } .log > div { font-size: 11px; padding: 4px 0; } .log em { font-size: 10px; } .foot { font-size: 9.5px; margin-top: 7px; }
+    .sq { grid-template-columns: 158px minmax(0, 1fr); gap: 7px; } .roster { display: flex; flex-direction: column; gap: 4px; }
+    .frow { padding: 3px 6px 3px 3px; gap: 6px; border-radius: 9px; } .frow img, .plus { width: 38px; height: 23px; border-radius: 5px; } .plus { font-size: 15px; }
+    .frow b { font-size: 11px; } .frow small { font-size: 8.5px; } .frow .dep { width: 13px; height: 13px; font-size: 8px; }
+    .fd { padding: 7px 8px; border-radius: 11px; } .fdHead { gap: 8px; } .fdHead img { width: 72px; height: 42px; border-radius: 7px; }
+    .fdName { font-size: 12.5px; } .fdNum { font-size: 9px; } .rank { font-size: 10px; margin-top: 1px; } .xp { margin: 3px 0 2px; height: 3px; }
+    .stats { margin: 5px 0 4px; gap: 0 8px; } .sr { min-height: 21px; font-size: 10.5px; } .up { padding: 1px 5px; font-size: 9.5px; border-radius: 6px; } .up b { font-size: 11px; }
+    .paintL { font-size: 9.5px; margin-top: 2px; } .paint { gap: 5px; margin: 3px 0 6px; } .sw { width: 20px; height: 20px; }
+    .hire { grid-template-columns: repeat(auto-fill, minmax(min(132px, 100%), 1fr)); gap: 6px; }
+    .hc { padding: 6px; gap: 1px; border-radius: 10px; } .hc img { height: 50px; border-radius: 7px; object-fit: contain; background: linear-gradient(#2a4a66, #0c1218); } .hc b { font-size: 12.5px; } .hc .wpn { font-size: 9.5px; }
+    .hc p { font-size: 10px; line-height: 1.3; margin: 1px 0 3px; } .mini { font-size: 9.5px; gap: 5px; margin-bottom: 4px; }
+    .ar { padding: 5px 8px; gap: 8px; margin-bottom: 5px; border-radius: 10px; } .ar img { width: 50px; height: 29px; border-radius: 6px; }
+    .arIc { width: 30px; height: 30px; border-radius: 8px; } .arIc svg { width: 16px; height: 16px; } .arTx b { font-size: 11.5px; } .arTx small { font-size: 9.5px; }
+    .rs { grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr)); gap: 6px; } .rc { padding: 6px 7px; gap: 2px; border-radius: 10px; } .rc b { font-size: 11px; } .rc small { font-size: 9.5px; }
+
+    #briefScr { top: calc(6px + env(safe-area-inset-top)); bottom: calc(6px + env(safe-area-inset-bottom)); width: min(720px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); }
+    #briefBody { padding: 8px 12px 4px; } .bHead .tag { font-size: 8.5px; letter-spacing: 2px; } .bHead h3 { font-size: 17px; margin: 0; } .bHead small { font-size: 10px; }
+    .bGrid { margin-top: 6px; gap: 10px; } .bImg { aspect-ratio: 2.8 / 1; border-radius: 8px; } .story { font-size: 11px; line-height: 1.45; margin: 5px 0; } .rewBox { font-size: 10px; }
+    .bR h4 { font-size: 9px; margin-bottom: 4px; } .intel { gap: 3px; margin-bottom: 6px; } .irow { gap: 6px; } .irow img { width: 38px; height: 22px; border-radius: 5px; } .irow b { font-size: 10.5px; } .irow small { font-size: 9px; }
+    .pick { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px; margin-bottom: 5px; } .pf { padding: 3px; border-radius: 8px; } .pf img { height: 24px; border-radius: 5px; } .pf b { font-size: 9.5px; } .pf small { display: none; }
+    .load { font-size: 10px; } .bAct { padding: 5px 10px 7px; } .bAct .btn { padding: 6px 16px; font-size: 13px; }
+
+    #endScr .box { padding: 10px 14px 8px; } #endScr h2 { font-size: 22px; } .eOp { font-size: 11px; } .eStory { font-size: 11.5px; margin: 4px auto 6px; }
+    .eGrid { gap: 8px; margin-bottom: 6px; } .eRew > div { font-size: 11.5px; padding: 3px 0; } .eRew .sum { font-size: 14px; }
+    .fr { font-size: 10.5px; padding: 3px 6px 3px 3px; } .fr img { width: 36px; height: 21px; }
+    #prologScr .box { padding: 14px 16px !important; } #prologText p { font-size: 12px; margin-bottom: 8px; }
+
+    /* бой */
+    .top { top: calc(6px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); }
+    .ib { width: 32px; height: 32px; border-radius: 9px; } .ib svg { width: 16px; height: 16px; } .tgroup { gap: 4px; }
+    #turnBox { padding: 3px 9px; border-radius: 9px; } #turnTitle { font-size: 10.5px; letter-spacing: 1.5px; } #objective { font-size: 9px; margin-top: 0; }
+    #squad { left: calc(8px + env(safe-area-inset-left)); bottom: calc(6px + env(safe-area-inset-bottom)); gap: 4px; }
+    .card { width: 46px; padding: 3px 3px 2px; border-radius: 9px; gap: 1px; } .card canvas { height: 22px; border-radius: 5px; } .cname { font-size: 8px; }
+    .hp i { height: 3px; } .ap { top: 2px; right: 3px; gap: 2px; } .ap i { width: 5px; height: 5px; } .card.sel { transform: translateY(-4px); }
+    #actions { right: calc(8px + env(safe-area-inset-right)); bottom: calc(6px + env(safe-area-inset-bottom)); gap: 4px; }
+    .act { width: 42px; height: 42px; border-radius: 11px; } .act svg { width: 19px; height: 19px; }
+    #unitInfo { left: calc(8px + env(safe-area-inset-left)); bottom: calc(58px + env(safe-area-inset-bottom)); font-size: 9.5px; padding: 3px 7px; border-radius: 8px; }
+    #targetPanel { bottom: calc(54px + env(safe-area-inset-bottom)); width: 200px; padding: 7px 9px; border-radius: 11px; } #tpName { font-size: 12px; } #tpChance { font-size: 26px; }
+    .tp-sub { font-size: 10.5px; } .tp-nav { margin-top: 5px; } .tp-nav button { height: 32px; border-radius: 8px; }
+    #enemyBar { top: calc(44px + env(safe-area-inset-top)); gap: 4px; } .eb { width: 38px; font-size: 10.5px; border-radius: 8px; } .eb .ic canvas { width: 32px; height: 19px; }
+    #hint { top: calc(44px + env(safe-area-inset-top)); font-size: 10px; padding: 3px 9px; }
+    #banner { font-size: clamp(18px, 7vh, 30px); }
+    .ul .pips i { width: 5px; height: 4px; } .ul .st { font-size: 10px; } .ul .ch { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
 <div id="view"></div>
+<div id="vign"></div>
 <div id="labels"></div>
 <div class="bar" id="barT"></div><div class="bar" id="barB"></div>
 <div id="cineInfo"></div>

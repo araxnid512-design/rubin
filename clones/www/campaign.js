@@ -607,7 +607,7 @@ function renderBrief() {
     <div class="bHead"><span class="tag">${tag}</span><h3>${esc(op.title)}</h3><small>${PLANETS[op.biome]} · ${BIOMES[op.biome].name} · угроза ${threatPips(op.threat)}</small></div>
     <div class="bGrid"><div class="bL"><div class="bImg" style="background-image:url(${previewURL(op)})"></div><p class="story">${esc(op.brief)}</p>
       <div class="rewBox">Награда: <b>${crd(op.reward)}</b> + ${crd(10)} за каждого дроида</div></div>
-    <div class="bR"><h4>Разведка · ${total} дроидов</h4><div class="intel">${Object.entries(count).sort((a, b) => DROIDS[a[0]].tier - DROIDS[b[0]].tier).map(([t, n]) => `<div class="ic"><img src="${purl('droid', t)}" alt=""><span><b>${DEF[t].name} ×${n}</b><small>${DROIDS[t].desc}</small></span></div>`).join('')}</div>
+    <div class="bR"><h4>Разведка · ${total} дроидов</h4><div class="intel">${Object.entries(count).sort((a, b) => DROIDS[a[0]].tier - DROIDS[b[0]].tier).map(([t, n]) => `<div class="irow"><img src="${purl('droid', t)}" alt=""><span><b>${DEF[t].name} ×${n}</b><small>${DROIDS[t].desc}</small></span></div>`).join('')}</div>
       <h4>Отряд высадки · ${dep.length}/${slots}</h4><div class="pick">${S.roster.map(f => `<button class="pf${dep.includes(f) ? ' on' : ''}" data-a="bdep" data-v="${f.id}"><img src="${purl('clone', f.cls, f.paint)}" alt=""><b>«${esc(f.call)}»</b><small>${CLASSES[f.cls].name}</small></button>`).join('')}</div>
       <div class="load">${svg(ICON.nade)} Гранат на складе: <b>${S.nades}</b> — отряд возьмёт <b>${take}</b>${take < want ? ' <span class="warn">(не хватает ' + (want - take) + ')</span>' : ''}</div></div></div>`;
   $('bLaunch').disabled = !dep.length;

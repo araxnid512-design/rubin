@@ -520,7 +520,7 @@ function surroundH(x, z) {
 let surround = null;
 function buildSurround(bio) {
   if (surround) { world.remove(surround); surround.geometry.dispose(); surround.material.dispose(); }
-  const S = 340, seg = 110, geo = new THREE.PlaneGeometry(S, S, seg, seg);
+  const S = 340, seg = 84, geo = new THREE.PlaneGeometry(S, S, seg, seg);
   geo.rotateX(-Math.PI / 2); geo.translate(N / 2, 0, N / 2);
   const p = geo.attributes.position, col = new Float32Array(p.count * 3), [c0, c1, c2] = bio.terrain;
   for (let i = 0; i < p.count; i++) {
@@ -828,6 +828,7 @@ const Weather = (() => {
     if (snow) snow.geometry.setDrawRange(0, Math.floor(SN * d));
     if (rain) rain.geometry.setDrawRange(0, Math.floor(RN * d) * 2);
     dust.geometry.setDrawRange(0, Math.floor(dust.geometry.attributes.position.count * d));
+    for (const c of clouds) c.visible = d >= 0.5; // крупные полупрозрачные облака — лишняя перерисовка пикселей на слабых телефонах
   }
   function update(dt) {
     const fx = cam.fx, fz = cam.fz;
@@ -1375,6 +1376,28 @@ function reshapeGeo(mesh, shape) {
   }
   return geo;
 }
+// Упрощённая сетка для боя: вершины, попавшие в одну ячейку (и с близкими координатами текстуры — швы не склеиваются),
+// сливаются в одну, вырожденные треугольники выбрасываются. Фигура на поле — 60–100 точек в высоту, разницы не видно,
+// а скелетной анимации и теням достаётся в 2–3 раза меньше вершин. Портреты рисуются по полной сетке.
+function decimateGeo(src, cell) {
+  const pos = src.attributes.position, uv = src.attributes.uv, idx = src.index.array, map = new Int32Array(pos.count), keys = new Map(), keep = [];
+  for (let i = 0; i < pos.count; i++) {
+    const k = Math.round(pos.getX(i) / cell) + ',' + Math.round(pos.getY(i) / cell) + ',' + Math.round(pos.getZ(i) / cell) + (uv ? ',' + Math.round(uv.getX(i) * 24) + ',' + Math.round(uv.getY(i) * 24) : '');
+    let r = keys.get(k); if (r === undefined) { r = keep.length; keys.set(k, r); keep.push(i); } map[i] = r;
+  }
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv', 'skinIndex', 'skinWeight']) {
+    const a = src.attributes[name]; if (!a) continue;
+    const arr = new (name === 'skinIndex' ? Uint16Array : Float32Array)(keep.length * a.itemSize);
+    for (let j = 0; j < keep.length; j++) for (let c = 0; c < a.itemSize; c++) arr[j * a.itemSize + c] = comp(a, keep[j], c);
+    out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+  }
+  const tri = [];
+  for (let t = 0; t < idx.length; t += 3) { const a = map[idx[t]], b = map[idx[t + 1]], c = map[idx[t + 2]]; if (a !== b && b !== c && a !== c) tri.push(a, b, c); }
+  out.setIndex(tri); return out;
+}
+// лишние наборы координат текстуры из исходника шейдер не читает — не держим их в памяти видеокарты
+function slimGeo(g) { for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight'].includes(n)) g.deleteAttribute(n); return g; }
 // перекраска текстуры: оттенки серого → белая броня / песочный металл / сталь
 // контровой свет по краю силуэта: персонаж отделяется от фона и читается чётче
 function addRim(m, color, strength) {
@@ -1432,6 +1455,10 @@ function prepareCharacters() {
   CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: addRim(M(tintTexture(img, [0.95, 0.8, 0.56], 0.45, 1.12), { roughness: 0.46, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd2a0, 0.4) };
   CHAR.variants.bx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.5, 0.47, 0.43], 0.3, 0.85), { roughness: 0.5, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff6a50, 0.45) };
   CHAR.variants.b2 = { geo: reshapeGeo(body, SHAPES.b2), mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.74], 0.28, 0.9), { roughness: 0.4, metalness: 0.5, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff8a70, 0.4) };
+  // для боя — упрощённые сетки (ячейка ~2% роста модели)
+  body.geometry.computeBoundingBox(); const bb = body.geometry.boundingBox, cell = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z) * 0.022;
+  for (const v of Object.values(CHAR.variants)) { if (!v.geoLo) { slimGeo(v.geo); v.geoLo = decimateGeo(v.geo, cell); } }
+  CHAR.variants.bx.geoLo = CHAR.variants.b1.geoLo;
   // модель в исходнике смотрит в −Z — разворачиваем лицом к +Z, как остальные объекты игры
   scene0.rotation.y = Math.PI;
   CHAR.walkSpeed = clipSpeed(scene0, CHAR.clips.walk, 1.3); CHAR.runSpeed = clipSpeed(scene0, CHAR.clips.run, 3.2);
@@ -1479,12 +1506,12 @@ function e5Rifle(gun, long = false) {
   if (!long) gun.add(at(cyl(0.018, 0.018, 0.12, M2.gun, 8), 0, 0.055, 0.06, Math.PI / 2));
   return long ? 0.72 : 0.47;
 }
-function buildSkinned(team, type, paint) {
+function buildSkinned(team, type, paint, full = false) {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0);
   const model = THREE.SkeletonUtils.clone(CHAR.gltf.scene); body.add(model);
   const variant = team === 'clone' ? 'clone' : type === 'b2' ? 'b2' : type === 'bx' ? 'bx' : 'b1', V = CHAR.variants[variant];
   model.traverse(o => {
-    if (o.isSkinnedMesh) { if (o.name === CHAR.visorName) o.visible = false; else { o.geometry = V.geo; o.material = V.mat; } o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; }
+    if (o.isSkinnedMesh) { if (o.name === CHAR.visorName) o.visible = false; else { o.geometry = full ? V.geo : V.geoLo; o.material = V.mat; } o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; }
   });
   const bones = {}; model.traverse(o => { if (o.isBone) bones[boneKey(o.name)] = o; });
   const mixer = new THREE.AnimationMixer(model), acts = {};
@@ -1665,8 +1692,8 @@ let SQUAD = [{ cls: 'commander', call: 'Сокол', num: 'CC-4012' }, { cls: 't
 let units = [], turn = 1, phase = 'start', busy = false, selected = null, shotCount = 0, kills = 0, podsActive = [], lastAttacker = null;
 
 const UNIT_SCALE = 0.64;
-function makeRig(team, type, paint) {
-  if (CHAR.ready) return buildSkinned(team, type, paint);
+function makeRig(team, type, paint, full) {
+  if (CHAR.ready) return buildSkinned(team, type, paint, full);
   const rig = team === 'clone' ? buildClone(type, paint) : buildDroid(type); mergeRig(rig.root); return rig;
 }
 function makeUnit(team, type, x, z, extra = {}) {
@@ -1680,6 +1707,8 @@ function makeUnit(team, type, x, z, extra = {}) {
   if (rig.gun && !rig.skinned) rig.gun.userData.z0 = rig.gun.position.z;
   rig.root.add(hit); u.hit = hit; hit.scale.setScalar(1 / UNIT_SCALE);
   const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2), BLOB_MAT); blob.position.y = 0.02 / UNIT_SCALE; blob.renderOrder = 1; blob.userData.keep = true; rig.root.add(blob);
+  // тени от фигур: только на высокой графике (на остальных — мягкое пятно под ногами, см. blob)
+  rig.root.traverse(o => { if (o.isMesh) { o.userData.cs = o.castShadow; o.castShadow = o.castShadow && unitShadows; } });
   world.add(rig.root);
   return u;
 }
@@ -1895,7 +1924,7 @@ function portraitImage(team, type, paint) {
   ps.add(new THREE.HemisphereLight(0xdfeeff, 0x553322, 0.35));
   const key1 = new THREE.DirectionalLight(0xfff0dd, 1.1); key1.position.set(2.5, 2, 1.2); ps.add(key1);
   const rim = new THREE.DirectionalLight(team === 'clone' ? 0x6fc4ff : 0xff6a50, 2.0); rim.position.set(-2, 1.5, -2); ps.add(rim);
-  const rig = makeRig(team, type, paint);
+  const rig = makeRig(team, type, paint, true);
   rig.root.rotation.y = 0.22; ps.add(rig.root);
   if (rig.skinned) { const fake = { rig, team, type, state: 'idle', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9 }; for (let i = 0; i < 3; i++) poseSkinned(fake, 0.02); }
   else { if (rig.gun && !rig.wrist) rig.gun.rotation.x = 0.6; if (rig.shR && !rig.wrist) { rig.shR.rotation.x = -0.5; rig.elR.rotation.x = -1.0; rig.shL.rotation.set(-0.75, 0, 0.5); rig.elL.rotation.x = -0.85; } }
@@ -2756,8 +2785,15 @@ const GFX_MODES = { auto: 'Авто', high: 'Высокая', mid: 'Средня
 const GFX_NAMES = ['макс.', 'высокая', 'высокая', 'средняя', 'низкая', 'миним.'];
 const gfx = { mode: GFX_MODES[store('cvd-gfx')] ? store('cvd-gfx') : 'auto', top: isTouch ? (lowEnd ? 2 : 1) : 0, level: 0, win: [], bad: 0, good: 0, hold: 0, ups: 0, prev: 0, locked: false };
 const gfxKey = l => Math.min(window.devicePixelRatio || 1, GFX_LEVELS[l].pr) + '/' + GFX_LEVELS[l].sh;
+// фигуры бойцов и дроидов — самые тяжёлые меши (скелет, ~11 тыс. треугольников): в проход теней их пускаем только на высокой графике
+let unitShadows = true;
+function setUnitShadows(on) {
+  unitShadows = on;
+  for (const u of units) u.rig.root.traverse(o => { if (o.isMesh && o.userData.cs !== undefined) o.castShadow = o.userData.cs && on; });
+}
 function applyGfx(l) {
   gfx.level = l; const v = GFX_LEVELS[l], pr = Math.min(window.devicePixelRatio || 1, v.pr);
+  if ((l <= 1) !== unitShadows) setUnitShadows(l <= 1);
   if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); resize(); }
   sun.castShadow = v.sh > 0; // смена числа теней сама перекомпилирует шейдеры
   if (v.sh && sun.shadow.mapSize.x !== v.sh) { sun.shadow.mapSize.set(v.sh, v.sh); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
@@ -2815,8 +2851,8 @@ function frame(now) {
   tgtRing.rotation.z += dt * 1.5;
   if (phase === 'start') { attractT += dt; cam.tyaw = cam.yaw = -Math.PI / 4 + attractT * 0.06; cam.fx = cam.tfx = N / 2; cam.fz = cam.tfz = N / 2; }
   fpUpdate(dt); camUpdate(dt); syncLabels();
-  // тени: каждый кадр, пока что-то движется; в покое — изредка (дыхание бойцов почти не меняет тень)
-  if (!idle || (++shadowTick & 3) === 0) renderer.shadowMap.needsUpdate = true;
+  // тени: пока что-то движется — каждый кадр (на средней графике — через кадр), в покое — раз в 4 кадра
+  if ((++shadowTick % (idle ? 4 : gfx.level >= 2 ? 2 : 1)) === 0) renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
 }
 // подготовка поля боя под экраном загрузки: шейдеры и буферы готовы до первой высадки (вызывает campaign.js)
