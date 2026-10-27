@@ -6,7 +6,9 @@
   "scripts": {
     "vendor": "node scripts/copy-vendor.js",
     "serve": "npm run vendor && npx --yes http-server www -p 8080 -c-1",
-    "sync": "npm run vendor && npx cap sync android"
+    "sync": "npm run vendor && npx cap sync android",
+    "clones:serve": "npm run vendor && npx --yes http-server clones/www -p 8082 -c-1",
+    "clones:sync": "npm run vendor && cd clones && cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",

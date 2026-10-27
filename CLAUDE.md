@@ -49,3 +49,16 @@
 - Сайт игры: страница в `site/`, собирает `scripts/build-site.js` (страница + APK +
   игра в браузере в `play/`), workflow публикует в ветку `gh-pages` →
   https://araxnid512-design.github.io/rubin/
+
+## Вторая игра: «Клоны против дроидов» (`clones/`)
+Пошаговая 3D-тактика на Three.js (фанатская, по мотивам «Звёздных войн»): фрегат-база,
+кампания, отряд клонов против дроидов. Правила про лор «Стикса» к ней не относятся.
+- `clones/www/` — игра: `game.js` (бой, модели, графика), `campaign.js` (корабль в 3D, операции,
+  отряд, наём, арсенал, исследования, сохранение `cvd-save`), `platform.js` («Назад», пауза, полный экран).
+  Всё локально, шрифт — в `clones/www/fonts/` (OFL).
+- Свой Capacitor-проект `clones/android/` (appId `com.araxnid.clones`), зависимости — общие из корня.
+  `npm run clones:serve` → http://localhost:8082, `npm run clones:sync` — копия в Android.
+- Иконка и заставка рисуются кодом: `node scripts/clones-icons.js`.
+- Тот же workflow собирает `clones-vs-droids.apk` в тот же релиз. Прямая ссылка для пользователя:
+  https://github.com/araxnid512-design/rubin/releases/latest/download/clones-vs-droids.apk
+- Страница игры: `site/clones/` → https://araxnid512-design.github.io/rubin/clones/

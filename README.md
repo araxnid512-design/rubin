@@ -9,6 +9,10 @@
 **Скачать APK напрямую:** [последняя сборка](../../releases/latest/download/styx-road.apk)
 (все сборки — на странице [Releases](../../releases)).
 
+**Вторая игра — «Клоны против дроидов»** (пошаговая 3D-тактика, папка [`clones/`](clones/)):
+[скачать APK](../../releases/latest/download/clones-vs-droids.apk) ·
+[страница игры](https://araxnid512-design.github.io/rubin/clones/).
+
 - Лор: [LORE.md](LORE.md)
 - Правила проекта: [CLAUDE.md](CLAUDE.md)
 
