@@ -330,6 +330,22 @@
     dustSpeed: 4,           // м/с: быстрее этого колёса на газу пылят
   };
 
+  // Звук: громкость шин и мотор; музыка по уровням — тональность (MIDI-нота тоники) и темп.
+  const AUDIO = {
+    sfx: 0.55,              // эффекты
+    engine: 0.5,            // мотор
+    music: 0.45,            // музыка
+    engineTone: { idle: 34, range: 62, volIdle: 0.05, volGas: 0.07 },  // Гц на холостых, прирост на оборотах; громкость
+    musicLevels: [
+      { root: 50, bpm: 124 },   // город — ре минор
+      { root: 52, bpm: 128 },   // лес — ми минор
+      { root: 48, bpm: 132 },   // промзона — до минор
+      { root: 53, bpm: 128 },   // деревня — фа минор
+      { root: 45, bpm: 136 },   // мост — ля минор
+      { root: 50, bpm: 142 },   // мёртвый кластер — ре минор, быстрее
+    ],
+  };
+
   // Сенсорное управление: джойстик наклона слева.
   const CONTROLS = {
     stickRadius: 55,        // px: отклонение пальца для полного наклона
@@ -656,5 +672,5 @@
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, CONTROLS, FX, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
+  window.CONFIG = { PHYSICS, CONTROLS, FX, AUDIO, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
 })();

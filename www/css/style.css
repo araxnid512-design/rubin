@@ -241,6 +241,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .ctl.nitro.down { background: rgba(90, 184, 240, 0.4); }
 
+.sound-row { display: flex; gap: 8px; justify-content: center; }
+.sound-row button { flex: 1; font-size: 13px; }
+
 /* --- Окна --- */
 .overlay {
   position: fixed;

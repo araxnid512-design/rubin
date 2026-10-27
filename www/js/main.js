@@ -33,6 +33,7 @@
     acc = 0;
     window.Input.reset();
     if (background) return;
+    window.Music.play('battle', levelIndex);
     screen = 'run';
     show('menu', false);
     show('results', false);
@@ -135,6 +136,7 @@
     // Полоса здоровья босса, когда он рядом.
     const boss = run.horde.active.find((z) => z.boss && z.alive && Math.abs(z.body.getPosition().x - car.pos.x) < 60);
     show('boss', !!boss);
+    window.Music.setBoss(!!boss);
     if (boss) $('boss-hp').style.width = Math.max(0, boss.hp / boss.def.hp * 100) + '%';
   }
 
@@ -182,6 +184,7 @@
   // --- Заставка и стаб ---
   function openTitle() {
     screen = 'menu';
+    window.Music.play('calm');
     setHud(false);
     show('results', false);
     show('menu', true);
@@ -189,6 +192,7 @@
 
   function openStab() {
     screen = 'stab';
+    window.Music.play('calm');
     setHud(false);
     show('results', false);
     show('menu', false);
@@ -242,6 +246,14 @@
     else { $('m-reset').dataset.armed = '1'; $('m-reset').textContent = 'Точно сбросить? Нажмите ещё раз'; }
   });
   window.Platform.on('pause', () => window.Sound.engineOff());
+  // Кнопки «Звук» и «Музыка» в меню и на паузе.
+  function soundLabels() {
+    for (const el of document.querySelectorAll('.btn-sound')) el.textContent = 'Звук: ' + (window.Sound.enabled ? 'вкл' : 'выкл');
+    for (const el of document.querySelectorAll('.btn-music')) el.textContent = 'Музыка: ' + (window.Sound.musicOn ? 'вкл' : 'выкл');
+  }
+  for (const el of document.querySelectorAll('.btn-sound')) el.addEventListener('click', () => { window.Sound.toggle(); soundLabels(); });
+  for (const el of document.querySelectorAll('.btn-music')) el.addEventListener('click', () => { window.Sound.toggleMusic(); soundLabels(); });
+  soundLabels();
   window.Platform.on('resume', () => { last = performance.now(); });
   // «Назад»: в меню и итогах ничего не делает, в заезде — пауза.
   window.Platform.onBack = () => screen !== 'run';

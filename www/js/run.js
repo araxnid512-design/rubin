@@ -40,7 +40,7 @@
           } else {
             this.loot[kind] += n;
           }
-          window.Sound.pickup();
+          window.Sound.pickup(kind);
         },
       });
       this.horde = new window.Horde(this.world, this.terrain, this.level, {
@@ -109,6 +109,7 @@
       const grounded = car.grounded;
       if (grounded && !this.wasGrounded && (this.airVy || 0) < -F.landShake) {
         window.Render.shake(Math.min(0.45, -this.airVy * 0.025));
+        window.Sound.land(Math.min(1, -this.airVy / 18));
         for (const w of [car.rear, car.front]) {
           const p = w.body.getPosition();
           FX.dust(this, p.x, p.y - car.def.wheels.radius, 4, v.x * 0.3, window.Render.dustColor());
@@ -124,6 +125,8 @@
       }
       const ex = car.chassis.getWorldPoint(window.planck.Vec2(A.rear - 0.1, A.bottom + 0.05));
       if (car.throttle && Math.random() < 0.25) FX.smoke(this, ex.x, ex.y, v.x * 0.5 - 1, this.time < 2);
+      if (car.nitroOn && !this.wasNitro) window.Sound.nitro();
+      this.wasNitro = car.nitroOn;
       if (car.nitroOn) {
         const f = car.forward();
         FX.fire(this, ex.x, ex.y + 0.1, v.x - f.x * 6, v.y - f.y * 6, 2);
@@ -174,7 +177,7 @@
           window.FX.sparks(this, m.x, m.y + 0.2, 10, 0);
           window.FX.dust(this, m.x, m.y, 5, 0, 'rgba(60,55,50,0.6)');
           window.Render.shake(0.3);
-          window.Sound.thud(1);
+          window.Sound.boom();
         }
       }
       for (const m of this.mines) if (m.boom) m.boom -= dt;
@@ -199,6 +202,8 @@
       this.ended = reason;
       this.finished = reason === 'stab';
       window.Sound.engineOff();
+      if (reason === 'stab') window.Sound.win();
+      else if (reason !== 'quit') window.Sound.lose();
     }
 
     // Итог заезда — для экрана итогов и сохранения.
