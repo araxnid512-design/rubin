@@ -15,4 +15,4 @@ fs.mkdirSync(out, { recursive: true });
 for (const [name, src] of Object.entries(files)) {
   fs.copyFileSync(require.resolve(src), path.join(out, name));
 }
-console.log('vendor: скопировано', Object.keys(files).length, 'файла');
+console.log('vendor: скопировано файлов —', Object.keys(files).length);
