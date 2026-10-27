@@ -77,6 +77,12 @@
   .act.on { border-color: var(--gold); color: var(--gold); }
   .act:active:not(:disabled) { transform: scale(.94); }
   .act .k { font-size: 9px; opacity: .55; }
+  .act { position: relative; }
+  .act .cnt { position: absolute; top: 3px; right: 5px; font: 800 10px/1 system-ui, sans-serif; color: var(--gold); }
+  .act.reload { border-color: var(--warn); color: var(--warn); }
+  .act.evacB { background: linear-gradient(#1f7a4a, #0f4428); border-color: #6fe39a; }
+  .warnT { color: var(--warn); }
+  .card.evac { opacity: .55; }
 
   /* панель цели */
   #targetPanel {
@@ -443,6 +449,7 @@
     .hp i { height: 3px; } .ap { top: 2px; right: 3px; gap: 2px; } .ap i { width: 5px; height: 5px; } .card.sel { transform: translateY(-4px); }
     #actions { right: calc(8px + env(safe-area-inset-right)); bottom: calc(6px + env(safe-area-inset-bottom)); gap: 4px; }
     .act { width: 42px; height: 42px; border-radius: 11px; } .act svg { width: 19px; height: 19px; }
+    #aUse { width: auto; min-width: 42px; padding: 0 8px; } #aUse .lbl { display: block; font-size: 8.5px; }
     #unitInfo { left: calc(8px + env(safe-area-inset-left)); bottom: calc(58px + env(safe-area-inset-bottom)); font-size: 9.5px; padding: 3px 7px; border-radius: 8px; }
     #targetPanel { bottom: calc(54px + env(safe-area-inset-bottom)); width: 200px; padding: 7px 9px; border-radius: 11px; } #tpName { font-size: 12px; } #tpChance { font-size: 26px; }
     .tp-sub { font-size: 10.5px; } .tp-nav { margin-top: 5px; } .tp-nav button { height: 32px; border-radius: 8px; }
@@ -451,6 +458,37 @@
     #banner { font-size: clamp(18px, 7vh, 30px); }
     .ul .pips i { width: 5px; height: 4px; } .ul .st { font-size: 10px; } .ul .ch { font-size: 11px; }
   }
+
+  /* XCOM-слой: типы заданий, «Колосс», навыки, ранения */
+  .chip.doom { gap: 6px; font-size: 11px; color: #ffb3a8; border-color: rgba(255,110,90,.4); }
+  .chip.doom i { display: flex; gap: 2px; } .chip.doom b { width: 5px; height: 12px; border-radius: 1px; background: rgba(255,255,255,.14); } .chip.doom b.on { background: #ff6a50; box-shadow: 0 0 5px #ff6a50; }
+  .chip.doom.hot { animation: hot 1.2s ease-in-out infinite; } @keyframes hot { 50% { box-shadow: 0 0 14px rgba(255,90,60,.6); } }
+  #hubTabs button.dot::after { content: ''; position: absolute; top: 5px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .ty { position: absolute; right: 6px; bottom: 6px; padding: 2px 6px; border-radius: 6px; font: 700 10px system-ui, sans-serif; background: rgba(5,10,16,.82); color: #fff; }
+  .ty-rescue { color: #ffc65a; } .ty-sabotage { color: #ff8a6a; } .ty-hack { color: #6fd0ff; } .ty-defend { color: #8fe3b0; } .ty-elim { color: #e9f3fb; }
+  .ad { color: #ff9d8f; font-style: normal; font-weight: 700; font-size: .92em; }
+  .lost { padding: 14px; border-radius: 14px; border: 1px solid rgba(255,110,90,.55); background: rgba(70,20,16,.55); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .lost b { font-family: var(--disp); font-weight: 400; color: #ff8a7a; letter-spacing: 1px; font-size: 18px; } .lost span { color: #e3c8c2; font-size: 12px; line-height: 1.45; }
+  .perks { margin: 2px 0 8px; display: flex; flex-direction: column; gap: 5px; }
+  .abil { font-size: 11px; color: var(--holo); }
+  .pk small { font-size: 10px; color: var(--dim); } .pk.pend small { color: var(--gold); font-weight: 700; }
+  .pk > div { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 2px; }
+  .pb { text-align: left; padding: 5px 7px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,.04); display: flex; flex-direction: column; gap: 1px; }
+  .pb b { font-size: 11px; } .pb span { font-size: 9.5px; color: var(--dim); line-height: 1.25; }
+  .pb.on { border-color: var(--gold); background: rgba(255,198,90,.12); } .pb.on b { color: var(--gold); }
+  .pk.pend .pb:not(:disabled) { border-color: var(--gold); animation: hot 1.4s ease-in-out infinite; }
+  .pb:disabled:not(.on) { opacity: .45; }
+  .frow.hurt img, .pf.hurt img { filter: grayscale(.8) sepia(.4) hue-rotate(-30deg); } .frow.hurt small, .hurtT { color: #ff9d8f; font-style: normal; }
+  .frow .pp { position: absolute; right: 6px; top: 4px; font-style: normal; color: var(--gold); font-size: 12px; text-shadow: 0 0 6px var(--gold); }
+  .goal { display: flex; gap: 6px; align-items: center; margin-top: 7px; padding: 5px 8px; border-radius: 9px; background: rgba(255,198,90,.1); border: 1px solid rgba(255,198,90,.35); color: #ffe2a8; font-size: 12px; font-weight: 600; }
+  .goal svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--gold); stroke-width: 2; }
+  @media (max-height: 430px) {
+    .chip.doom { font-size: 9.5px; gap: 4px; } .chip.doom b { width: 4px; height: 10px; }
+    .ty { font-size: 8.5px; padding: 1px 4px; right: 4px; bottom: 4px; }
+    .pb { padding: 3px 5px; } .pb b { font-size: 10px; } .pb span { font-size: 8.5px; } .abil { font-size: 9.5px; } .pk small { font-size: 9px; }
+    .goal { font-size: 10px; padding: 3px 6px; margin-top: 4px; } .lost b { font-size: 15px; }
+  }
+  @media (max-width: 700px) { #hubDay { display: none; } }
 </style>
 </head>
 <body>
@@ -501,6 +539,8 @@
     <button class="act" id="aOver"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Дозор</span></button>
     <button class="act" id="aNade"><svg viewBox="0 0 24 24"><circle cx="12" cy="14" r="6"/><path d="M12 8V5M10 4h4M16 9l2-2"/></svg><span class="lbl">Граната</span></button>
     <button class="act" id="aHunk"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span class="lbl">Укрыться</span></button>
+    <button class="act" id="aAbil" style="display:none"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span class="lbl">Способность</span></button>
+    <button class="act" id="aUse" style="display:none"><svg viewBox="0 0 24 24"><path d="M12 3v10M7 8l5 5 5-5"/><rect x="4" y="15" width="16" height="6" rx="2"/></svg><span class="lbl">Действие</span></button>
     <button class="act" id="aNext"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span class="lbl">Следующий</span></button>
     <button class="act end" id="aEnd"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4 8 12l10 8z"/></svg><span class="lbl">Конец хода</span></button>
   </div>
@@ -530,6 +570,8 @@
   <div class="hubTop">
     <div class="shipName"><svg viewBox="0 0 32 32"><path d="M16 3 4 9v8c0 6 5 10 12 12 7-2 12-6 12-12V9z"/><path d="M16 8v16M9 12l7 4 7-4M10 20l6-3 6 3"/></svg><div><b>ФРЕГАТ «ВЕСТНИК»</b><small id="hubSub"></small></div></div>
     <div class="res">
+      <span class="chip doom" id="hubDoom" aria-label="Проект «Колосс»"></span>
+      <span class="chip" id="hubDay"></span>
       <span class="chip cr" id="hubCr" aria-label="Кредиты"></span>
       <span class="chip" aria-label="Гранаты на складе"><svg viewBox="0 0 24 24"><circle cx="12" cy="14" r="6"/><path d="M12 8V5M10 4h4"/></svg><span id="hubNades"></span></span>
       <button class="ib" id="hMus" aria-label="Музыка"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></button>
@@ -594,6 +636,7 @@
 <script src="three-addons.js"></script>
 <script src="models.js"></script>
 <script src="game.js"></script>
+<script src="mission.js"></script>
 <script src="campaign.js"></script>
 <script src="platform.js"></script>
 

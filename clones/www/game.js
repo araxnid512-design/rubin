@@ -237,7 +237,7 @@ const Music = (() => {
 // =====================================================================
 const FLOOR = 0, HALF = 1, FULL = 2;
 // виды объектов
-const K = { NONE: 0, ROCK_S: 1, CRATE: 2, BARRIER: 3, ROCK_L: 4, WALL: 5, CONTAINER: 6, HULL: 7, EDGE: 8, PILLAR: 9, TOWER: 10, BARREL: 11 };
+const K = { NONE: 0, ROCK_S: 1, CRATE: 2, BARRIER: 3, ROCK_L: 4, WALL: 5, CONTAINER: 6, HULL: 7, EDGE: 8, PILLAR: 9, TOWER: 10, BARREL: 11, OBJ: 12 };
 let grid, kind;
 const id = (x, z) => z * N + x;
 const inb = (x, z) => x >= 0 && z >= 0 && x < N && z < N;
@@ -254,7 +254,8 @@ function genMap(seed) {
   grid = new Uint8Array(N * N); kind = new Uint8Array(N * N);
   const set = (x, z, c, k) => { if (inb(x, z)) { grid[id(x, z)] = c; kind[id(x, z)] = k; } };
   const free = (x, z) => inb(x, z) && grid[id(x, z)] === FLOOR;
-  const nearSpawn = (x, z, r) => CLONE_SPAWN.concat(...PODS.map(p => p.tiles)).some(([a, b]) => Math.abs(a - x) <= r && Math.abs(b - z) <= r);
+  const keepFree = CLONE_SPAWN.concat(...PODS.map(p => p.tiles), Mission.reserved());
+  const nearSpawn = (x, z, r) => keepFree.some(([a, b]) => Math.abs(a - x) <= r && Math.abs(b - z) <= r);
   // граница каньона
   for (let i = 0; i < N; i++) { set(i, 0, FULL, K.EDGE); set(i, N - 1, FULL, K.EDGE); set(0, i, FULL, K.EDGE); set(N - 1, i, FULL, K.EDGE); }
   // выступы стен каньона
@@ -305,10 +306,11 @@ function genMap(seed) {
   }
   // укрытия у точки высадки клонов
   set(5, 25, HALF, K.CRATE); set(7, 27, HALF, K.BARRIER); set(7, 28, HALF, K.BARRIER); set(2, 25, HALF, K.ROCK_S);
+  Mission.mark(set); // объекты заданий: терминал, заряды, маяк
   // связность: всё недостижимое от клонов — скала
   const seen = new Uint8Array(N * N), q = [CLONE_SPAWN[0]]; seen[id(...CLONE_SPAWN[0])] = 1;
   while (q.length) { const [x, z] = q.pop(); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, nz = z + dz; if (free(nx, nz) && !seen[id(nx, nz)]) { seen[id(nx, nz)] = 1; q.push([nx, nz]); } } }
-  for (const [x, z] of CLONE_SPAWN.concat(...PODS.map(p => p.tiles))) if (!seen[id(x, z)]) return false;
+  for (const [x, z] of CLONE_SPAWN.concat(...PODS.map(p => p.tiles), Mission.mustReach())) if (!seen[id(x, z)]) return false;
   for (let i = 0; i < N * N; i++) if (grid[i] === FLOOR && !seen[i]) { grid[i] = FULL; kind[i] = K.ROCK_L; }
   return true;
 }
@@ -360,6 +362,15 @@ const BIOMES = {
     outer: 0x2a2a2c, rocks: [0x4a4644, 0x3c3836, 0x56514c, 0x423e3a], rockTop: 0x2e2a28, bush: [0x2e3a2a, 0x3a3a30], pebHSL: [0.08, 0.08],
     terrain: [[0.3, 0.29, 0.28], [0.22, 0.21, 0.21], [0.15, 0.15, 0.16]], planet: false, ships: true,
     weather: 'rain', lightning: true, dust: 0x9fb4cc, clouds: [0x2a3242, 0.85],
+  },
+  jungle: {
+    name: 'Джунгли Миреи', lead: 'Влажные джунгли, туман и споры в воздухе. Дроиды прячутся среди гигантских деревьев.',
+    sky: ['#5f8f86', '#a9c9a0', '#d6e3b8'], env: ['#6f9a8a', '#b9d4a6', '#5f7a48', '#22301c'], fog: [0x9cbf96, 24, 150], exposure: 0.95,
+    hemi: [0xe8ffd8, 0x2f4a22, 0.7], sun: [0xfff2cc, 2.1], fill: [0x9fe0c0, 0.4],
+    sand: [96, 112, 62], slab: [104, 110, 92], crack: 'rgba(30,40,20,.5)', peb: ['rgba(50,60,30,.55)', 'rgba(140,150,110,.45)'], groundRough: 0.8,
+    outer: 0x3f5a2c, rocks: [0x5d6b52, 0x4f5c46, 0x6a775e, 0x56634b], rockTop: 0x4a7a32, bush: [0x3f7a2c, 0x5a8f34], pebHSL: [0.25, 0.25],
+    terrain: [[0.32, 0.45, 0.22], [0.24, 0.34, 0.18], [0.2, 0.27, 0.16]], planet: true, ships: false, trees: true,
+    weather: 'dust', dust: 0xd8ffa0, clouds: [0xeaf6e0, 0.45],
   },
 };
 let biomeId = BIOMES[store('cvd-biome')] ? store('cvd-biome') : 'desert';
@@ -655,12 +666,22 @@ function buildProps() {
     add(new THREE.CylinderGeometry(1, 1.25, 1, 9, 3), x, base + h / 2, z, 0, R() * 6, 0, 1.5 + R() * 3.5, h, 1.5 + R() * 3.5, rockCols[i % 4]);
     if (R() < 0.5) add(rockGeo(R, 0), x, base + h, z, 0, R() * 6, 0, 2 + R() * 2, 1, 2 + R() * 2, bio.snowCaps ? 0xeef4fa : rockCols[1]);
   }
+  // джунгли: гигантские деревья на краю поля и стеной вокруг
+  if (bio.trees) {
+    const TR = new THREE.CylinderGeometry(0.6, 1, 1, 7), CAN = new THREE.IcosahedronGeometry(1, 1);
+    const tree = (x, z, h, w, base = 0) => {
+      add(TR, x, base + h / 2, z, (R() - 0.5) * 0.1, R() * 6, (R() - 0.5) * 0.1, w, h, w, 0x5a4632);
+      for (let k = 0; k < 3; k++) add(CAN, x + (R() - 0.5) * w * 3, base + h * (0.85 + R() * 0.25), z + (R() - 0.5) * w * 3, R(), R() * 6, 0, w * (3 + R() * 2), w * (1.6 + R()), w * (3 + R() * 2), [0x3d6e2a, 0x4f8a32, 0x335f24][k]);
+    };
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (kind[id(x, z)] === K.EDGE && R() < 0.22) tree(x + 0.5, z + 0.5, 3.5 + R() * 3, 0.16 + R() * 0.08);
+    for (let i = 0; i < 70; i++) { const a = R() * Math.PI * 2, r = 22 + R() * 40, x = N / 2 + Math.cos(a) * r, z = N / 2 + Math.sin(a) * r; tree(x, z, 9 + R() * 12, 0.5 + R() * 0.5, surroundH(x, z) - 0.5); }
+  }
   // сухие кусты и обломки на свободных клетках (не мешают ходить)
   const CONE = new THREE.ConeGeometry(1, 1, 5), CYL6 = new THREE.CylinderGeometry(1, 1, 1, 6);
   for (let i = 0; i < 70; i++) {
     const x = 1 + Math.floor(R() * (N - 2)), z = 1 + Math.floor(R() * (N - 2)); if (grid[id(x, z)] !== FLOOR) continue;
     const px = x + 0.15 + R() * 0.7, pz = z + 0.15 + R() * 0.7;
-    if (i % 3) { for (let b = 0; b < 5; b++) add(CONE, px + (R() - 0.5) * 0.15, 0.1, pz + (R() - 0.5) * 0.15, (R() - 0.5) * 0.9, R() * 6, (R() - 0.5) * 0.9, 0.025, 0.24 + R() * 0.12, 0.025, R() < 0.5 ? bio.bush[0] : bio.bush[1]); }
+    if (i % 3 || bio.trees) { for (let b = 0; b < (bio.trees ? 8 : 5); b++) add(CONE, px + (R() - 0.5) * 0.15, 0.1, pz + (R() - 0.5) * 0.15, (R() - 0.5) * 0.9, R() * 6, (R() - 0.5) * 0.9, 0.025, 0.24 + R() * 0.12, 0.025, R() < 0.5 ? bio.bush[0] : bio.bush[1]); }
     else { add(BOX, px, 0.04, pz, R(), R() * 6, R() * 0.5, 0.12, 0.05, 0.18, 0xb8a072); add(CYL6, px + 0.12, 0.03, pz, 0, R() * 6, Math.PI / 2, 0.025, 0.25, 0.025, 0x4a4236); add(BOX, px - 0.1, 0.03, pz + 0.1, 0, R() * 6, 0, 0.06, 0.03, 0.2, 0x8f7a55); }
   }
   // сферические корабли Сепаратистов вдали
@@ -870,6 +891,7 @@ const Weather = (() => {
 })();
 
 function destroyCover(x, z) {
+  if (inb(x, z) && kind[id(x, z)] === K.OBJ) return; // объекты заданий не разрушаются
   if (inb(x, z) && kind[id(x, z)] === K.BARREL) kind[id(x, z)] = K.NONE;
   if (!inb(x, z) || grid[id(x, z)] !== HALF) return;
   hideProp(id(x, z));
@@ -1076,7 +1098,7 @@ const M2 = {
   eye: mat(0x0a0a0a, { roughness: 0.2, metalness: 0.6 }), glowR: new THREE.MeshBasicMaterial({ color: 0xff4030 }),
   bx: mat(0x4a4540, { roughness: 0.5, metalness: 0.45 }), bxD: mat(0x2c2926, { roughness: 0.55, metalness: 0.45 }),
 };
-const MARKS = { cmd: mat(0xe2b53b, { roughness: 0.4, metalness: 0.3 }), snp: mat(0x2f6fdc, { roughness: 0.4, metalness: 0.3 }) };
+const MARKS = { cmd: mat(0xe2b53b, { roughness: 0.4, metalness: 0.3 }), snp: mat(0x2f6fdc, { roughness: 0.4, metalness: 0.3 }), tx: mat(0xffc040, { roughness: 0.3, metalness: 0.6 }) };
 const CLS_COL = { trooper: 0x2f6fdc, heavy: 0xc8302a, sniper: 0x4c8a3c, commander: 0xe07b22 };
 
 // Склейка мешей одного шарнира с одинаковым материалом — меньше вызовов отрисовки
@@ -1257,9 +1279,72 @@ function buildDroid(type) {
   return rig;
 }
 
+// Дроид-разрушитель: катится шаром, раскрывается на трёх ногах, прикрыт силовым щитом
+function buildDroideka() {
+  const root = new THREE.Group(), body = pivot(root, 0, 0, 0), rig = { root, body, kind: 'dk', wrist: true, twoHand: false, curl: 0, roll: 0 };
+  const BR = mat(0x8a6a48, { metalness: 0.7, roughness: 0.35 }), DK = mat(0x3a2f26, { metalness: 0.6, roughness: 0.45 }), EYE = new THREE.MeshBasicMaterial({ color: 0xff3020 });
+  const core = rig.core = pivot(body, 0, 0.95, 0); rig.torso = core; rig.hips = core; core.userData.y0 = 0.95;
+  const head = sph(0.27, BR, 16, 12); head.scale.set(1, 0.78, 1.18); core.add(at(head, 0, 0.12, 0.1)); rig.head = head;
+  for (const s of [-1, 0, 1]) core.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), EYE), s * 0.09, 0.14, 0.4));
+  // спинные пластины: из них складывается шар
+  rig.plates = [];
+  for (let i = 0; i < 3; i++) { const g = pivot(core, 0, 0, -0.05); const p = mesh(new THREE.SphereGeometry(0.42, 16, 8, 0, Math.PI * 2, 0, 0.9), BR); p.rotation.x = -0.9 - i * 0.55; g.add(p); rig.plates.push(g); }
+  // руки-бластеры
+  rig.arms = [];
+  for (const s of [-1, 1]) {
+    const a = pivot(core, s * 0.26, 0.0, 0.1); a.add(at(cyl(0.05, 0.05, 0.42, DK, 8), 0, 0, 0.2, Math.PI / 2));
+    for (const b of [-1, 1]) a.add(at(cyl(0.025, 0.025, 0.3, mat(0x1e1e22, { metalness: 0.8 }), 8), b * 0.035, -0.04, 0.5, Math.PI / 2));
+    rig.arms.push(a); if (s > 0) { rig.muzzle = pivot(a, 0, -0.04, 0.66); rig.elR = a; rig.gun = a; }
+  }
+  rig.shR = rig.arms[1]; rig.shL = rig.arms[0]; rig.elL = rig.arms[0];
+  // три ноги: две спереди по бокам, одна сзади
+  rig.legs = [];
+  for (const [ax, az] of [[-0.3, 0.15], [0.3, 0.15], [0, -0.32]]) {
+    const up = pivot(core, ax * 0.6, -0.15, az * 0.6), lo = pivot(up, 0, -0.42, 0);
+    up.add(at(cyl(0.04, 0.035, 0.44, DK, 6), 0, -0.21, 0)); lo.add(at(cyl(0.035, 0.02, 0.5, BR, 6), 0, -0.25, 0)); lo.add(at(sph(0.05, DK, 8, 6), 0, -0.5, 0));
+    up.userData.dir = Math.atan2(ax, az); rig.legs.push({ up, lo });
+  }
+  // шар, в который сворачивается дроид
+  rig.ball = mesh(new THREE.IcosahedronGeometry(0.46, 1), BR); rig.ball.material = mat(0x8a6a48, { metalness: 0.7, roughness: 0.35, flatShading: true }); body.add(rig.ball); rig.ball.position.y = 0.46; rig.ball.visible = false;
+  // силовой щит
+  rig.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(0.95, 24, 16), new THREE.MeshBasicMaterial({ color: 0x5ab4ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
+  rig.shieldMesh.position.y = 0.8; rig.shieldMesh.userData.keep = true; body.add(rig.shieldMesh);
+  rig.custom = poseDroideka; rig.customDeath = deathDroideka;
+  return rig;
+}
+function poseDroideka(u, dt) {
+  const r = u.rig; u.t += dt; if (u.state === 'dead') return;
+  const moving = u.state === 'walk' || u.state === 'run', k = 1 - Math.exp(-dt * 7);
+  r.curl += ((moving ? 1 : 0) - r.curl) * k;
+  const c = r.curl, open = 1 - c;
+  // шар катится: угол поворота по пройденному пути
+  if (moving) r.roll += (u.animSpeed || 2) * dt / 0.46;
+  r.ball.visible = c > 0.55; r.ball.rotation.x = r.roll; r.ball.scale.setScalar(0.75 + c * 0.25);
+  r.core.visible = c < 0.8;
+  r.core.position.y = lerp(0.95, 0.46, c) + Math.sin(u.t * 2.2 + u.seed) * 0.012 * open;
+  r.core.rotation.x = c * 1.2 + (u.state === 'aim' ? -0.08 : 0) - u.flinch * 0.3;
+  r.core.scale.setScalar(1 - c * 0.35);
+  for (const L of r.legs) { L.up.rotation.set(0.5 * open + c * 1.6, 0, 0); L.up.rotation.order = 'YXZ'; L.up.rotation.y = L.up.userData.dir; L.lo.rotation.x = -0.9 * open - c * 1.2; }
+  r.plates.forEach((p, i) => { p.rotation.x = c * (0.9 + i * 0.3); });
+  const aim = u.state === 'aim';
+  r.arms.forEach((a, i) => { a.rotation.x = c * 1.4 + (aim ? -0.05 : 0.25) * open; a.rotation.y = (i ? -1 : 1) * 0.08 * open; });
+  r.shieldMesh.visible = u.shield > 0 && c < 0.3;
+  u.flinch = Math.max(0, u.flinch - dt * 3.2);
+}
+async function deathDroideka(u) {
+  const r = u.rig; r.shieldMesh.visible = false; r.ball.visible = false; r.core.visible = true; r.core.scale.setScalar(1);
+  const p = r.root.position; FX.spark(p.x, 0.6, p.z, 0xffc070, 30, 3);
+  await tween(0.9, k => {
+    const e = easeOut(k); r.core.position.y = lerp(0.95, 0.22, e); r.core.rotation.z = e * 0.5; r.core.rotation.x = e * 0.3;
+    for (const L of r.legs) { L.up.rotation.x = 0.5 + e * 1.0; L.lo.rotation.x = -0.9 + e * 0.9; }
+    r.arms.forEach((a, i) => { a.rotation.x = 0.25 + e * 0.6; a.rotation.z = (i ? 1 : -1) * e * 0.4; });
+  });
+  for (let i = 0; i < 4; i++) FX.puff(p.x, 0.5, p.z, { color: 0x2b2b2b, life: 2, s0: 0.2, s1: 1.1, vy: 0.6, a: 0.45 });
+}
 // ---------- анимация: позы и действия
 // Пружина к целевому углу — мягкие переходы между состояниями
 function poseRig(u, dt) {
+  if (u.rig.custom) return u.rig.custom(u, dt);
   if (u.rig.skinned) return poseSkinned(u, dt);
   const r = u.rig; u.t += dt;
   if (u.state === 'dead') return;
@@ -1319,9 +1404,11 @@ function poseRig(u, dt) {
 }
 // резкое движение оружия при выстреле
 function recoil(u) {
+  if (u.rig.custom) { u.flinch = Math.max(u.flinch, 0.2); return; }
   if (u.rig.skinned) { u.recoilK = 1; u.flinch = Math.max(u.flinch, 0.15); return; } if (!u.rig.wrist) { u.rig.gun.position.z -= 0.07; u.rig.gun.rotation.x -= 0.15; } else { u.rig.elR.rotation.x += 0.25; } u.rig.torso.rotation.x -= 0.06; }
 // анимация гибели: подкашиваются ноги, корпус валится
 async function deathAnim(u, fromDir) {
+  if (u.rig.customDeath) return u.rig.customDeath(u);
   if (u.rig.skinned) return deathSkinned(u, fromDir || 1);
   const r = u.rig, back = fromDir || (Math.random() < 0.5 ? -1 : 1);
   const s0 = { hipL: r.hipL.rotation.x, hipR: r.hipR.rotation.x, kneeL: r.kneeL.rotation.x, kneeR: r.kneeR.rotation.x, torso: r.torso.rotation.x, body: r.body.rotation.x, y: r.hips.position.y };
@@ -1454,11 +1541,12 @@ function prepareCharacters() {
   CHAR.variants.clone = { geo: reshapeGeo(body, SHAPES.clone), mat: addRim(M(tintTexture(img, [1, 1, 1.02], 0.5, 1.1), { roughness: 0.34, metalness: 0.05, normalScale: new THREE.Vector2(1.3, 1.3) }), 0x9fd4ff, 0.45) };
   CHAR.variants.b1 = { geo: reshapeGeo(body, SHAPES.b1), mat: addRim(M(tintTexture(img, [0.95, 0.8, 0.56], 0.45, 1.12), { roughness: 0.46, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd2a0, 0.4) };
   CHAR.variants.bx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.5, 0.47, 0.43], 0.3, 0.85), { roughness: 0.5, metalness: 0.45, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff6a50, 0.45) };
+  CHAR.variants.tx = { geo: CHAR.variants.b1.geo, mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.78], 0.3, 0.9), { roughness: 0.35, metalness: 0.6, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xffd27a, 0.5) };
   CHAR.variants.b2 = { geo: reshapeGeo(body, SHAPES.b2), mat: addRim(M(tintTexture(img, [0.55, 0.62, 0.74], 0.28, 0.9), { roughness: 0.4, metalness: 0.5, normalScale: new THREE.Vector2(1.3, 1.3) }), 0xff8a70, 0.4) };
   // для боя — упрощённые сетки (ячейка ~2% роста модели)
   body.geometry.computeBoundingBox(); const bb = body.geometry.boundingBox, cell = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z) * 0.022;
-  for (const v of Object.values(CHAR.variants)) { if (!v.geoLo) { slimGeo(v.geo); v.geoLo = decimateGeo(v.geo, cell); } }
-  CHAR.variants.bx.geoLo = CHAR.variants.b1.geoLo;
+  for (const k of ['clone', 'b1', 'b2']) { const v = CHAR.variants[k]; slimGeo(v.geo); v.geoLo = decimateGeo(v.geo, cell); }
+  CHAR.variants.bx.geoLo = CHAR.variants.tx.geoLo = CHAR.variants.b1.geoLo;
   // модель в исходнике смотрит в −Z — разворачиваем лицом к +Z, как остальные объекты игры
   scene0.rotation.y = Math.PI;
   CHAR.walkSpeed = clipSpeed(scene0, CHAR.clips.walk, 1.3); CHAR.runSpeed = clipSpeed(scene0, CHAR.clips.run, 3.2);
@@ -1509,7 +1597,7 @@ function e5Rifle(gun, long = false) {
 function buildSkinned(team, type, paint, full = false) {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0);
   const model = THREE.SkeletonUtils.clone(CHAR.gltf.scene); body.add(model);
-  const variant = team === 'clone' ? 'clone' : type === 'b2' ? 'b2' : type === 'bx' ? 'bx' : 'b1', V = CHAR.variants[variant];
+  const variant = team === 'clone' ? 'clone' : type === 'b2' ? 'b2' : type === 'bx' ? 'bx' : type === 'tx' ? 'tx' : 'b1', V = CHAR.variants[variant];
   model.traverse(o => {
     if (o.isSkinnedMesh) { if (o.name === CHAR.visorName) o.visible = false; else { o.geometry = full ? V.geo : V.geoLo; o.material = V.mat; } o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; }
   });
@@ -1549,7 +1637,7 @@ function buildSkinned(team, type, paint, full = false) {
     rig.wrist = true; rig.twoHand = false;
   } else {
     // метки: жёлтая — командир, синяя — снайпер; коммандос BX — тёмный корпус и красный глаз
-    const bx = type === 'bx', mark = MARKS[type] || null, T = bx ? M2.bx : M2.tan, TD = bx ? M2.bxD : M2.tanD;
+    const bx = type === 'bx', tx = type === 'tx', mark = MARKS[type] || null, T = bx ? M2.bx : tx ? M2.b2 : M2.tan, TD = bx ? M2.bxD : tx ? M2.b2D : M2.tanD;
     rig.head = attach(b1Head(mark, T, bx), 'Neck', 0, 0.06, 0.02);
     attach(rbox(0.22, 0.26, 0.16, TD, 0.04), 'Spine2', 0, 0.02, -0.14);
     attach(rbox(0.26, 0.2, 0.06, T, 0.03), 'Spine2', 0, 0.04, 0.07);
@@ -1603,9 +1691,10 @@ function setAnim(rig, name, fade = 0.25) {
 function poseSkinned(u, dt) {
   const r = u.rig; u.t += dt;
   if (u.state === 'dead') return;
-  const st = u.state, walk = st === 'walk', run = st === 'run', aim = st === 'aim';
+  const st = u.state, walk = st === 'walk', run = st === 'run', ow = st === 'idle' && u.overwatch, aim = st === 'aim' || ow;
   if (st === 'idle') u.crouch = cell(u.x + 1, u.z) === HALF || cell(u.x - 1, u.z) === HALF || cell(u.x, u.z + 1) === HALF || cell(u.x, u.z - 1) === HALF;
-  const crouch = (st === 'idle' && u.crouch) || st === 'hunker';
+  const crouch = (st === 'idle' && (u.crouch || ow)) || st === 'hunker' || st === 'reload';
+  const rk = st === 'reload' ? Math.sin(clamp(u.reloadK || 0, 0, 1) * Math.PI) : 0, throwing = st === 'throw';
   setAnim(r, run ? 'run' : walk ? 'walk' : 'idle', 0.3);
   const sc = r.root.scale.x || UNIT_SCALE, vNow = u.animSpeed || (run ? MOVE.run : MOVE.walk);
   if (r.acts.walk) r.acts.walk.timeScale = clamp(vNow / (CHAR.walkSpeed * sc), 0.35, 2.2);
@@ -1616,26 +1705,26 @@ function poseSkinned(u, dt) {
   const fwdW = toW(0, 0, 1).sub(toW(0, 0, 0)).normalize(), upW = toW(0, 1, 0).sub(toW(0, 0, 0)).normalize(), rightW = new THREE.Vector3().crossVectors(fwdW, upW).normalize();
   const S = r.side; // знак оси X правой стороны модели
   // присед: опускаем таз, ноги стоят на месте
-  const drop = crouch ? (st === 'hunker' ? 0.5 : 0.36) : 0;
+  const drop = crouch ? (st === 'hunker' ? 0.5 : ow ? 0.42 : 0.36) : 0;
   u.drop = lerp(u.drop || 0, drop, 1 - Math.exp(-dt * 10));
-  if (u.drop > 0.01) {
-    const fl = bonePos(B.LeftFoot, new THREE.Vector3()), fr = bonePos(B.RightFoot, new THREE.Vector3());
-    const hp = bonePos(B.Hips, new THREE.Vector3()), np = hp.clone().addScaledVector(upW, -u.drop * body.getWorldScale(_v1).y).addScaledVector(fwdW, -0.05 * u.drop);
-    B.Hips.position.copy(B.Hips.parent.worldToLocal(np)); B.Hips.updateMatrixWorld(true);
-    const knee = (foot) => foot.clone().addScaledVector(fwdW, 1).addScaledVector(upW, 0.3);
-    twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, fl, knee(fl)); twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, fr, knee(fr));
-    rotateBoneWorld(B.Spine, rightW, -0.32 * u.drop / 0.36 * (st === 'hunker' ? 1.3 : 1));
-  }
-  // корпус: вздрагивание и поворот плеча к оружию при прицеливании
+  if (u.drop > 0.01) crouchIK(r, u.drop, (st === 'hunker' ? 1.3 : ow ? 0.5 : 1), fwdW, upW, rightW);
+  // корпус: вздрагивание (с поворотом от попадания) и поворот плеча к оружию при прицеливании
   u.flinch = Math.max(0, u.flinch - dt * 3.2);
-  if (u.flinch > 0) rotateBoneWorld(B.Spine1, rightW, u.flinch * 0.45);
+  if (u.flinch > 0) { rotateBoneWorld(B.Spine1, rightW, u.flinch * 0.45); rotateBoneWorld(B.Spine1, upW, u.flinch * 0.35 * (u.staggerSide || 1)); }
+  // перезарядка: взгляд на оружие; в покое бойцы оглядываются
+  if (rk) rotateBoneWorld(B.Neck, rightW, 0.35 * rk);
+  if (st === 'idle' && !ow) {
+    u.headT = (u.headT || 0) - dt; if (u.headT < 0) { u.headT = u.team === 'droid' ? rand(0.6, 2.4) : rand(1.8, 4.5); u.headY = Math.random() < 0.35 ? 0 : rand(-0.7, 0.7); }
+    u.lookY = lerp(u.lookY || 0, u.headY || 0, 1 - Math.exp(-dt * (u.team === 'droid' ? 9 : 3.5)));
+    rotateBoneWorld(B.Neck, upW, u.lookY * 0.55);
+  } else u.lookY = lerp(u.lookY || 0, 0, 1 - Math.exp(-dt * 6));
   if (aim && r.twoHand) rotateBoneWorld(B.Spine1, upW, -S * 0.25);
   if (!r.wrist) {
     // оружие: положение относительно груди, плавный переход между позами
-    const P = r.kind === 'clone' && u.type === 'heavy' ? (aim ? RIFLE_POSES.heavy : RIFLE_POSES.ready) : aim ? RIFLE_POSES.aim : run ? RIFLE_POSES.run : crouch ? RIFLE_POSES.crouch : RIFLE_POSES.ready;
+    const P = throwing ? RIFLE_POSES.ready : r.kind === 'clone' && u.type === 'heavy' ? (aim ? RIFLE_POSES.heavy : RIFLE_POSES.ready) : aim ? RIFLE_POSES.aim : run ? RIFLE_POSES.run : crouch ? RIFLE_POSES.crouch : RIFLE_POSES.ready;
     const chest = body.worldToLocal(bonePos(B.Spine2, new THREE.Vector3()));
-    const tp = new THREE.Vector3(chest.x + S * P.off[0], chest.y + P.off[1], chest.z + P.off[2]);
-    const tq = new THREE.Quaternion().setFromEuler(new THREE.Euler(P.pitch, -S * P.yaw, 0, 'YXZ'));
+    const tp = new THREE.Vector3(chest.x + S * P.off[0], chest.y + P.off[1] - 0.08 * rk, chest.z + P.off[2] - 0.04 * rk);
+    const tq = new THREE.Quaternion().setFromEuler(new THREE.Euler(P.pitch + 0.75 * rk, -S * P.yaw, -S * 0.5 * rk, 'YXZ'));
     const k = r.gunInit ? 1 - Math.exp(-dt * 12) : 1; r.gunInit = true;
     r.gunPos.lerp(tp, k); r.gunQuat.slerp(tq, k);
     u.recoilK = Math.max(0, (u.recoilK || 0) - dt * 6);
@@ -1644,32 +1733,82 @@ function poseSkinned(u, dt) {
     // руки на оружие
     const gp = (a) => r.gun.localToWorld(new THREE.Vector3(a[0], a[1], a[2]));
     const shR = bonePos(B.RightArm, new THREE.Vector3()), shL = bonePos(B.LeftArm, new THREE.Vector3());
-    twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, gp(r.grips.r), shR.clone().addScaledVector(rightW, 0.6).addScaledVector(upW, -0.8).addScaledVector(fwdW, -0.3));
-    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, gp(r.grips.l), shL.clone().addScaledVector(rightW, -0.5).addScaledVector(upW, -0.8));
+    if (throwing) {
+      // бросок гранаты: правая рука уходит за голову и выбрасывается вперёд, винтовка в левой
+      const k = clamp(u.throwK || 0, 0, 1), sc = body.getWorldScale(_v1).y, back = k < 0.6 ? k / 0.6 : 1 - (k - 0.6) / 0.4;
+      const hand = shR.clone().addScaledVector(upW, (0.12 + 0.18 * back) * sc).addScaledVector(fwdW, (k < 0.6 ? -0.28 * back : 0.45 * (k - 0.6) / 0.4) * sc).addScaledVector(rightW, 0.08 * sc);
+      twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, hand, shR.clone().addScaledVector(upW, -1).addScaledVector(rightW, 0.5));
+      rotateBoneWorld(B.Spine1, upW, S * 0.35 * (k < 0.6 ? back : 1 - (k - 0.6) / 0.4));
+      if (r.hand) B.RightHand.getWorldPosition(r.hand);
+    } else twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, gp(r.grips.r), shR.clone().addScaledVector(rightW, 0.6).addScaledVector(upW, -0.8).addScaledVector(fwdW, -0.3));
+    // при перезарядке левая рука идёт к магазину
+    const gl = rk ? r.grips.l.map((v, i) => lerp(v, [0, -0.13, 0.06][i], rk)) : r.grips.l;
+    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, gp(gl), shL.clone().addScaledVector(rightW, -0.5).addScaledVector(upW, -0.8));
   } else if (aim) {
     // B2 вытягивает руки с бластерами вперёд
     const shR = bonePos(B.RightArm, new THREE.Vector3()), shL = bonePos(B.LeftArm, new THREE.Vector3()), sc = body.getWorldScale(_v1).y;
     twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, shR.clone().addScaledVector(fwdW, 0.62 * sc).addScaledVector(upW, -0.05 * sc), shR.clone().addScaledVector(upW, -1));
     twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, shL.clone().addScaledVector(fwdW, 0.62 * sc).addScaledVector(upW, -0.05 * sc), shL.clone().addScaledVector(upW, -1));
   }
-  // навесные детали следуют за костями
-  const inv = _m1.copy(body.matrixWorld).invert();
-  for (const a of r.att) {
-    const m = new THREE.Matrix4().multiplyMatrices(inv, a.bone.matrixWorld), p = new THREE.Vector3(), q = new THREE.Quaternion(); m.decompose(p, q, _v1);
-    q.multiply(a.corr); a.obj.quaternion.copy(q); a.obj.position.copy(p).add(_v2.copy(a.off).applyQuaternion(q));
-  }
+  syncAtt(r);
   // повреждённые дроиды искрят
   if (u.team === 'droid' && u.hp <= u.maxHp / 2 && r.root.visible) {
     u.dmgT -= dt;
     if (u.dmgT < 0) { u.dmgT = rand(0.3, 1.4); const p = r.root.position; FX.spark(p.x + rand(-0.1, 0.1), rand(0.6, 0.85), p.z + rand(-0.1, 0.1), 0x8fd8ff, 6, 1.5); if (Math.random() < 0.5) FX.puff(p.x, 0.8, p.z, { color: 0x2b2b2b, life: 1.6, s0: 0.15, s1: 0.7, vy: 0.5, a: 0.4 }); }
   }
 }
+// навесные детали (шлем, броня, оружие B2) следуют за костями
+function syncAtt(r) {
+  const inv = _m1.copy(r.body.matrixWorld).invert();
+  for (const a of r.att) {
+    const m = new THREE.Matrix4().multiplyMatrices(inv, a.bone.matrixWorld), p = new THREE.Vector3(), q = new THREE.Quaternion(); m.decompose(p, q, _v1);
+    q.multiply(a.corr); a.obj.quaternion.copy(q); a.obj.position.copy(p).add(_v2.copy(a.off).applyQuaternion(q));
+  }
+}
+// присед: таз опускается, ступни остаются на месте (две кости ноги тянутся к стопе), корпус наклоняется
+function crouchIK(r, drop, bend, fwdW, upW, rightW) {
+  const B = r.bones, body = r.body;
+  const fl = bonePos(B.LeftFoot, new THREE.Vector3()), fr = bonePos(B.RightFoot, new THREE.Vector3());
+  const hp = bonePos(B.Hips, new THREE.Vector3()), np = hp.clone().addScaledVector(upW, -drop * body.getWorldScale(_v1).y).addScaledVector(fwdW, -0.05 * drop);
+  B.Hips.position.copy(B.Hips.parent.worldToLocal(np)); B.Hips.updateMatrixWorld(true);
+  const knee = (foot) => foot.clone().addScaledVector(fwdW, 1).addScaledVector(upW, 0.3);
+  twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, fl, knee(fl)); twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, fr, knee(fr));
+  rotateBoneWorld(B.Spine, rightW, -0.32 * drop / 0.36 * bend);
+}
+// гибель: ноги подкашиваются, оружие выпадает, руки обмякают, тело валится и чуть подскакивает от удара о землю
 async function deathSkinned(u, back) {
-  const r = u.rig, y0 = r.body.rotation.x;
-  if (r.acts.idle) { r.mixer.update(0); }
-  await tween(0.85, k => {
-    const f = easeOut(Math.max(0, (k - 0.1) / 0.9));
-    r.body.rotation.x = y0 + back * f * Math.PI / 2 * 0.94; r.body.position.y = Math.sin(f * Math.PI) * 0.05 + f * 0.04;
+  const r = u.rig, B = r.bones, body = r.body, y0 = body.rotation.x, z0 = body.rotation.z, side = Math.random() < 0.5 ? -1 : 1;
+  body.updateMatrixWorld(true);
+  const toW = (x, y, z) => body.localToWorld(new THREE.Vector3(x, y, z));
+  const fwdW = toW(0, 0, 1).sub(toW(0, 0, 0)).normalize(), upW = toW(0, 1, 0).sub(toW(0, 0, 0)).normalize(), rightW = new THREE.Vector3().crossVectors(fwdW, upW).normalize();
+  const bones = Object.values(B), snap = bones.map(b => b.quaternion.clone()), hips0 = B.Hips.position.clone();
+  if (r.gun && !r.wrist) dropGun(u, back);
+  const att0 = r.att.slice(); if (r.gun && !r.wrist) r.att = r.att.filter(a => a.obj !== r.gun);
+  await tween(1.15, k => {
+    bones.forEach((b, i) => b.quaternion.copy(snap[i])); B.Hips.position.copy(hips0); body.updateMatrixWorld(true);
+    const k1 = easeOut(clamp(k / 0.32, 0, 1)), k2 = clamp((k - 0.18) / 0.62, 0, 1), f = k2 * k2, land = k > 0.8 ? Math.sin((k - 0.8) / 0.2 * Math.PI) * 0.06 : 0;
+    crouchIK(r, 0.42 * k1 * (1 - f), 1.2, fwdW, upW, rightW);
+    rotateBoneWorld(B.Spine1, rightW, back * 0.35 * k1);
+    rotateBoneWorld(B.Neck, rightW, (back > 0 ? 0.5 : -0.4) * k1);
+    // руки без оружия обмякают
+    if (!r.wrist) { rotateBoneWorld(B.RightArm, fwdW, side * 0.6 * k1); rotateBoneWorld(B.LeftArm, fwdW, -side * 0.5 * k1); }
+    body.rotation.x = y0 + back * (f * Math.PI / 2 * 0.95 - land); body.rotation.z = z0 + side * 0.18 * f;
+    body.position.y = f * 0.05; body.updateMatrixWorld(true); syncAtt(r);
+  });
+  r.att = att0.filter(a => a.obj !== r.gun || r.wrist);
+}
+// оружие выпадает из рук и, кувыркаясь, падает рядом
+function dropGun(u, back) {
+  const g = u.rig.gun; if (!g || !g.parent) return;
+  world.attach(g); (u.debris = u.debris || []).push(g);
+  const p0 = g.position.clone(), v = new THREE.Vector3(rand(-0.6, 0.6), 1.2, rand(-0.6, 0.6)), spin = new THREE.Vector3(rand(-6, 6), rand(-4, 4), rand(-6, 6));
+  const yaw = u.rig.root.rotation.y; v.x += Math.sin(yaw) * -back * 0.6; v.z += Math.cos(yaw) * -back * 0.6;
+  let t = 0, vy = v.y; const r0 = g.rotation.clone();
+  tween(1.0, () => {
+    const dt = 1 / 60; t += dt; vy -= 9.8 * dt;
+    g.position.x = p0.x + v.x * t; g.position.z = p0.z + v.z * t; g.position.y = Math.max(0.04, g.position.y + vy * dt);
+    if (g.position.y <= 0.04 && vy < 0) { vy = -vy * 0.3; spin.multiplyScalar(0.5); v.multiplyScalar(0.6); }
+    g.rotation.set(r0.x + spin.x * t, r0.y + spin.y * t, r0.z + spin.z * t);
   });
 }
 
@@ -1686,6 +1825,9 @@ const DEF = {
   cmd: { name: 'Дроид-командир', hp: 6, aim: 64, mob: 6, dmg: [3, 4], range: 12, sight: 13 },
   snp: { name: 'Дроид-снайпер', hp: 4, aim: 66, mob: 5, dmg: [3, 6], range: 20, sight: 16, close: true },
   bx: { name: 'Коммандос BX', hp: 7, aim: 70, mob: 8, dmg: [3, 5], range: 12, sight: 13 },
+  dk: { name: 'Дроид-разрушитель', hp: 6, aim: 64, mob: 8, dmg: [3, 5], range: 10, sight: 12, burst: 2, shield: 4 },
+  tx: { name: 'Тактический дроид ТХ-9', hp: 12, aim: 72, mob: 5, dmg: [3, 5], range: 12, sight: 14, armor: 1 },
+  pilot: { name: 'Пилот', hp: 5, aim: 60, mob: 6, dmg: [2, 4], range: 11, sight: 12 },
 };
 // отряд высадки: заполняет кампания (бойцы, их характеристики и раскраска)
 let SQUAD = [{ cls: 'commander', call: 'Сокол', num: 'CC-4012' }, { cls: 'trooper', call: 'Искра', num: 'CT-5597' }, { cls: 'heavy', call: 'Молот', num: 'CT-1138' }, { cls: 'sniper', call: 'Тихий', num: 'CT-3301' }];
@@ -1693,13 +1835,14 @@ let units = [], turn = 1, phase = 'start', busy = false, selected = null, shotCo
 
 const UNIT_SCALE = 0.64;
 function makeRig(team, type, paint, full) {
+  if (type === 'dk') return buildDroideka();
   if (CHAR.ready) return buildSkinned(team, type, paint, full);
   const rig = team === 'clone' ? buildClone(type, paint) : buildDroid(type); mergeRig(rig.root); return rig;
 }
 function makeUnit(team, type, x, z, extra = {}) {
   const d = DEF[type], rig = makeRig(team, type, extra.paint);
-  rig.root.scale.setScalar(UNIT_SCALE); if (rig.hips) rig.hips.userData.y0 = rig.hips.position.y;
-  const u = Object.assign({ team, type, x, z, hp: d.hp, maxHp: d.hp, aim: d.aim, mob: d.mob, dmg: d.dmg, range: d.range, sight: d.sight, nades: d.nades || 0, rockets: d.rockets || 0, burst: d.burst || 1, armor: d.armor || 0,
+  rig.root.scale.setScalar(UNIT_SCALE * (type === 'tx' ? 1.14 : 1)); if (rig.hips && rig.hips.userData.y0 === undefined) rig.hips.userData.y0 = rig.hips.position.y;
+  const u = Object.assign({ team, type, x, z, hp: d.hp, maxHp: d.hp, aim: d.aim, mob: d.mob, dmg: d.dmg, range: d.range, sight: d.sight, nades: d.nades || 0, rockets: d.rockets || 0, burst: d.burst || 1, armor: d.armor || 0, shield: d.shield || 0, cd: {},
     ap: 0, alive: true, overwatch: false, hunker: false, rig, t: 0, wph: 0, seed: Math.random() * 6, flinch: 0, headT: 0, headY: 0, dmgT: 0, crouch: false, state: 'idle', yaw: team === 'clone' ? Math.PI * 0.75 : -Math.PI * 0.25, name: d.name, visible: team === 'clone' }, extra);
   rig.root.position.set(x + 0.5, 0, z + 0.5); rig.root.rotation.y = u.yaw;
   // невидимая «капсула» для выбора касанием
@@ -1712,7 +1855,7 @@ function makeUnit(team, type, x, z, extra = {}) {
   world.add(rig.root);
   return u;
 }
-const clones = () => units.filter(u => u.team === 'clone' && u.alive);
+const clones = () => units.filter(u => u.team === 'clone' && u.alive && !u.evac && !u.captive);
 const droids = () => units.filter(u => u.team === 'droid' && u.alive);
 const unitAt = (x, z) => units.find(u => u.alive && u.x === x && u.z === z);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -1754,6 +1897,7 @@ function coverAt(tx, tz, fx, fz) {
   return best;
 }
 function shotInfo(s, t, reaction = false) {
+  if (s.ammo === 0) return null; // пустой магазин: сначала перезарядка
   const origin = sightFrom(s, t.x, t.z, Math.max(s.sight, s.range + 4));
   if (!origin) return null;
   const d = Math.hypot(origin[0] - t.x, origin[1] - t.z);
@@ -1761,12 +1905,14 @@ function shotInfo(s, t, reaction = false) {
   const DEFCLS = DEF[s.type];
   if (d <= 2.5) aim += DEFCLS.close ? -10 : 15;
   if (d > s.range) aim -= Math.round((d - s.range) * 4);
-  if (reaction) aim -= 15;
+  if (reaction && !s.owSteady) aim -= 15;
+  aim += Mission.aimMod(s, t, d);
   const cov = coverAt(t.x, t.z, origin[0], origin[1]);
   let def = cov === FULL ? 40 : cov === HALF ? 20 : 0;
+  if (cov && t.coverDef) def += t.coverDef;
   if (t.hunker && def) def = Math.min(80, def * 2);
   const chance = clamp(aim - def, 5, 95);
-  const crit = cov === 0 ? 40 : 5;
+  const crit = (cov === 0 ? 40 : 5) + (s.critBonus || 0);
   return { origin, chance: Math.round(chance), crit, cov, flank: cov === 0, d };
 }
 
@@ -1926,11 +2072,12 @@ function portraitImage(team, type, paint) {
   const rim = new THREE.DirectionalLight(team === 'clone' ? 0x6fc4ff : 0xff6a50, 2.0); rim.position.set(-2, 1.5, -2); ps.add(rim);
   const rig = makeRig(team, type, paint, true);
   rig.root.rotation.y = 0.22; ps.add(rig.root);
-  if (rig.skinned) { const fake = { rig, team, type, state: 'idle', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9 }; for (let i = 0; i < 3; i++) poseSkinned(fake, 0.02); }
+  if (rig.custom) { for (let i = 0; i < 8; i++) rig.custom({ rig, state: 'idle', t: 0, flinch: 0, seed: 0, shield: 4 }, 0.5); }
+  else if (rig.skinned) { const fake = { rig, team, type, state: 'idle', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9 }; for (let i = 0; i < 3; i++) poseSkinned(fake, 0.02); }
   else { if (rig.gun && !rig.wrist) rig.gun.rotation.x = 0.6; if (rig.shR && !rig.wrist) { rig.shR.rotation.x = -0.5; rig.elR.rotation.x = -1.0; rig.shL.rotation.set(-0.75, 0, 0.5); rig.elL.rotation.x = -0.85; } }
   rig.root.updateMatrixWorld(true);
   const hp = new THREE.Vector3(); rig.head.getWorldPosition(hp);
-  const pc = new THREE.PerspectiveCamera(28, W / H, 0.05, 20), up = type === 'b2' ? -0.25 : team === 'droid' ? 0.0 : 0.02, far = type === 'b2' ? 2.4 : 1;
+  const pc = new THREE.PerspectiveCamera(28, W / H, 0.05, 20), up = type === 'b2' ? -0.25 : type === 'dk' ? -0.2 : team === 'droid' ? 0.0 : 0.02, far = type === 'b2' ? 2.4 : type === 'dk' ? 2.2 : type === 'tx' ? 1.3 : 1;
   pc.position.set(hp.x + 0.5 * far, hp.y + up + 0.06, hp.z + 0.88 * far); pc.lookAt(hp.x + 0.02, hp.y + up - 0.03, hp.z + (team === 'droid' && type !== 'b2' ? 0.08 : 0));
   const prevTone = renderer.toneMapping;
   renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(ps, pc);
@@ -1953,7 +2100,7 @@ function buildSquadUI() {
   for (const u of units.filter(u => u.team === 'clone')) {
     const d = document.createElement('div'); d.className = 'card'; d.appendChild(portrait(u));
     d.insertAdjacentHTML('beforeend', `<div class="cname">${u.call}</div><div class="hp"></div><div class="ap"></div><div class="badge"></div>`);
-    d.addEventListener('click', () => { if (u.alive && phase === 'player' && !busy) { select(u); focusUnit(u); } });
+    d.addEventListener('click', () => { if (u.alive && !u.evac && !u.captive && phase === 'player' && !busy) { select(u); focusUnit(u); } });
     u.card = d; box.appendChild(d);
   }
   refreshUI();
@@ -1961,9 +2108,9 @@ function buildSquadUI() {
 function pips(n, max) { let s = ''; for (let i = 0; i < max; i++) s += `<i class="${i < n ? '' : 'e'}"></i>`; return s; }
 function refreshUI() {
   for (const u of units) if (u.card) {
-    u.card.classList.toggle('sel', u === selected); u.card.classList.toggle('dead', !u.alive); u.card.classList.toggle('done', u.alive && u.ap === 0);
+    u.card.classList.toggle('sel', u === selected); u.card.classList.toggle('dead', !u.alive || !!u.captive); u.card.classList.toggle('done', u.alive && u.ap === 0); u.card.classList.toggle('evac', !!u.evac);
     u.card.querySelector('.hp').innerHTML = pips(u.hp, u.maxHp); u.card.querySelector('.ap').innerHTML = u.alive ? pips(u.ap, 2) : '';
-    u.card.querySelector('.badge').textContent = u.overwatch ? '👁' : u.hunker ? '🛡' : '';
+    u.card.querySelector('.badge').textContent = u.evac ? '⇪' : u.captive ? '⛓' : u.overwatch ? '👁' : u.hunker ? '🛡' : '';
   }
   const u = selected, can = u && u.alive && u.ap > 0 && phase === 'player' && !busy;
   $('aShoot').disabled = !can || !targetsFor(u).length;
@@ -1972,7 +2119,8 @@ function refreshUI() {
   $('aNext').disabled = phase !== 'player' || busy; $('aEnd').disabled = phase !== 'player' || busy;
   $('aNade').querySelector('.lbl').textContent = u && u.rockets ? `Ракета ×${u.rockets}` : u && u.nades ? `Граната ×${u.nades}` : 'Граната';
   $('aShoot').classList.toggle('on', ui.mode === 'target'); $('aNade').classList.toggle('on', ui.mode === 'nade');
-  $('objective').textContent = `Дроидов осталось: ${droids().length} · Клонов: ${clones().length}`;
+  $('objective').innerHTML = Mission.objText();
+  Mission.ui(u, can);
   if (!ui.preview && u && u.alive) computeChances(u.x, u.z);
   const eb = $('enemyBar'); eb.innerHTML = '';
   if (can) for (const d of targetsFor(u)) {
@@ -1983,7 +2131,7 @@ function refreshUI() {
     b.addEventListener('click', () => { Snd.init(); enterTarget(d); }); eb.appendChild(b);
   }
   const ui2 = $('unitInfo');
-  if (u && u.alive && phase === 'player') { ui2.style.display = ''; ui2.innerHTML = `<b>${u.call}</b> · <span style="color:#4fb4ff">ход ${u.mob} кл.</span>${u.ap >= 2 ? ` · <span style="color:#ffc65a">рывок ${u.mob * 2} кл.</span>` : ''} · меткость ${u.aim} · урон ${u.dmg[0]}–${u.dmg[1]}${u.nades ? ' · гранат ' + u.nades : ''}`; }
+  if (u && u.alive && phase === 'player') { ui2.style.display = ''; ui2.innerHTML = `<b>${u.call}</b> · <span style="color:#4fb4ff">ход ${u.mob} кл.</span>${u.ap >= 2 ? ` · <span style="color:#ffc65a">рывок ${u.mob * 2} кл.</span>` : ''} · меткость ${u.aim} · урон ${u.dmg[0]}–${u.dmg[1]}${u.maxAmmo ? ` · патроны ${u.ammo}/${u.maxAmmo}` : ''}${u.nades ? ' · гранат ' + u.nades : ''}`; }
   else ui2.style.display = 'none';
   $('bFast').classList.toggle('on', fastEnemy);
   $('bCam').classList.toggle('on', camMode === 'first'); $('bCam').setAttribute('aria-label', 'Камера выстрела: ' + CAM_MODES[camMode]);
@@ -2001,7 +2149,7 @@ function syncLabels() {
   const showCh = phase === 'player' && !busy && selected && selected.ap > 0;
   for (const u of units) {
     if (!u.label) { u.label = document.createElement('div'); u.label.className = 'ul ' + (u.team === 'clone' ? 'rep' : 'sep'); u.label.innerHTML = '<div class="ch"></div><div class="ap2"></div><div class="st"></div><div class="pips"></div>'; labels.appendChild(u.label); u.lkey = ''; }
-    const show = u.alive && (u.team === 'clone' || u.visible) && !cam.cine && phase !== 'start' && phase !== 'intro';
+    const show = u.alive && !u.evac && (u.team === 'clone' || u.visible) && !cam.cine && phase !== 'start' && phase !== 'intro';
     // стили пишем только при изменении, позицию — через transform: без пересчёта раскладки страницы
     v.set(u.rig.root.position.x, 1.4, u.rig.root.position.z).project(camera);
     const disp = show && v.z <= 1 ? '' : 'none'; if (u.ldisp !== disp) { u.ldisp = disp; u.label.style.display = disp; } if (disp) continue;
@@ -2099,7 +2247,7 @@ function showTarget() {
   focus((u.x + t.x) / 2 + 0.5, (u.z + t.z) / 2 + 0.5);
   refreshUI();
 }
-function hideTarget() { $('targetPanel').classList.remove('show'); tgtRing.visible = false; if (ui.mode === 'target') ui.mode = 'move'; }
+function hideTarget() { $('targetPanel').classList.remove('show'); tgtRing.visible = false; if (ui.mode === 'target') ui.mode = 'move'; if (ui.abil) { ui.abil = null; if (selected) selected.aimBonus = 0; } }
 
 // =====================================================================
 //  ДЕЙСТВИЯ
@@ -2148,11 +2296,12 @@ async function moveUnit(u, path, dash = false) {
       u.x = path[next][0]; u.z = path[next][1]; next++;
       if (u.team === 'clone') updateVisibility(); else { u.visible = !!vis[id(u.x, u.z)]; u.rig.root.visible = u.visible; }
       for (const o of units) {
-        if (!o.alive || !o.overwatch || o.team === u.team || !u.alive) continue;
+        const sup = o.suppressing === u;
+        if (!o.alive || (!o.overwatch && !sup) || o.team === u.team || !u.alive || o.evac) continue;
         if (o.team === 'droid' && !podsActive[o.pod]) continue;
         const si = shotInfo(o, u, true); if (!si || si.d > o.sight) continue;
-        o.overwatch = false; u.state = 'idle';
-        banner('ДОЗОРНЫЙ ОГОНЬ', o.team === 'clone' ? 'rep' : 'sep');
+        o.overwatch = false; o.suppressing = null; u.state = 'idle';
+        banner(sup ? 'ОГОНЬ НА ПОДАВЛЕНИЕ' : 'ДОЗОРНЫЙ ОГОНЬ', o.team === 'clone' ? 'rep' : 'sep');
         await shoot(o, u, { reaction: true });
         if (!u.alive) return;
         u.state = dash ? 'run' : 'walk'; el = 0;
@@ -2163,12 +2312,13 @@ async function moveUnit(u, path, dash = false) {
   u.state = 'idle'; u.animSpeed = 0;
   // разведка: клоны обнаружили группу дроидов
   if (u.team === 'clone') await checkPods();
+  Mission.afterMove(u);
 }
 
 // ---------- режиссёр выстрела
 const UP = new THREE.Vector3(0, 1, 0);
-const chestY = u => (u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.87 : 0.83);
-const eyeY = u => (u.type === 'b2' ? 1.06 : u.team === 'droid' ? 1.0 : 1.04);
+const chestY = u => (u.type === 'dk' ? 0.62 : u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.87 : u.type === 'tx' ? 0.95 : 0.83);
+const eyeY = u => (u.type === 'dk' ? 0.72 : u.type === 'b2' ? 1.06 : u.type === 'tx' ? 1.15 : u.team === 'droid' ? 1.0 : 1.04);
 let thirdCount = 0, ownShots = 0;
 // режим камеры выстрела: auto — крутые моменты и каждый второй свой выстрел,
 // first — всегда от первого лица, third — кино-ракурсы (снайпер всё равно через оптику)
@@ -2218,9 +2368,9 @@ function missEnd(from, aim) {
 }
 async function shoot(s, t, opts = {}) {
   const info = shotInfo(s, t, opts.reaction); if (!info) return;
-  lastAttacker = s; busy = true; refreshUI(); hideTarget(); hint('');
+  lastAttacker = s; busy = true; if (s.ammo > 0) s.ammo--; refreshUI(); hideTarget(); hint('');
   const hit = Math.random() * 100 < info.chance, crit = hit && Math.random() * 100 < info.crit;
-  const dmg = hit ? Math.max(1, randi(s.dmg[0], s.dmg[1]) + (crit ? 2 : 0) - (t.armor || 0)) : 0;
+  const dmg = hit ? Math.max(1, randi(s.dmg[0], s.dmg[1]) + (s.dmgBonus || 0) + (crit ? 2 : 0) - (t.armor || 0)) : 0;
   const out = { hit, crit, dmg, kill: hit && t.hp - dmg <= 0 };
   const [ox, oz] = info.origin, moved = ox !== s.x || oz !== s.z, from0 = s.rig.root.position.clone();
   const wasVisible = s.rig.root.visible; s.rig.root.visible = true;
@@ -2286,7 +2436,9 @@ async function shoot(s, t, opts = {}) {
     Snd.fx.impact(); FX.spark(tChest.x, tChest.y, tChest.z, t.team === 'droid' ? 0xffd27a : 0xffffff, 26, 3);
     FX.flash(tChest.x, tChest.y, tChest.z, 0xffd27a, 0.7, 0.15); t.flinch = 1; cam.shake = fp ? 0.08 : 0.15;
     if (t.team === 'clone') FX.scorch(tp.x + rand(-0.2, 0.2), tp.z + rand(-0.2, 0.2), 0.18);
-    t.hp = Math.max(0, t.hp - dmg); popText(t, (crit ? 'КРИТ! −' : '−') + dmg, crit ? 'crit' : 'dmg');
+    const taken = Mission.absorb(t, dmg);
+    t.hp = Math.max(0, t.hp - taken); popText(t, taken < dmg ? (taken ? `ЩИТ · −${taken}` : 'ЩИТ') : (crit ? 'КРИТ! −' : '−') + dmg, crit ? 'crit' : 'dmg');
+    if (t.alive && t.hp > 0) Mission.stagger(t, dir);
     if (fp) hitMarker(out.kill);
   } else popText(t, 'ПРОМАХ', 'miss');
   if (strayBarrel && kind[id(...strayBarrel)] === K.BARREL) { await wait(0.15); destroyCover(...strayBarrel); await blast(strayBarrel[0], strayBarrel[1], { radius: 1.6, dmg: [2, 4], power: 1.1 }); }
@@ -2323,7 +2475,7 @@ async function killUnit(t, dirFrom, blown = false) {
   // падаем от стрелка
   let back = Math.random() < 0.5 ? -1 : 1;
   if (dirFrom) { const fwd = new THREE.Vector3(Math.sin(t.rig.root.rotation.y), 0, Math.cos(t.rig.root.rotation.y)); back = fwd.dot(dirFrom) > 0 ? 1 : -1; }
-  if (t.team === 'droid' && t.type !== 'b2' && t.rig.head && Math.random() < 0.6) {
+  if (t.team === 'droid' && t.type !== 'b2' && t.type !== 'dk' && t.rig.head && Math.random() < 0.6) {
     const hd = t.rig.head; world.attach(hd); t.debris = [hd];
     const v = new THREE.Vector3(rand(-1.2, 1.2), 3, rand(-1.2, 1.2)), p0 = hd.position.clone();
     if (dirFrom) v.addScaledVector(dirFrom, 1.5);
@@ -2384,10 +2536,11 @@ async function blast(cx, cz, o = {}) {
     if (Math.hypot(dx, dz) > radius) continue; const x = cx + dx, z = cz + dz; if (!inb(x, z)) continue;
     if (kind[id(x, z)] === K.BARREL) barrels.push([x, z]); else destroyCover(x, z);
   }
-  const hit = units.filter(t => t.alive && Math.hypot(t.x - cx, t.z - cz) <= radius);
+  const hit = units.filter(t => t.alive && !t.evac && !t.captive && Math.hypot(t.x - cx, t.z - cz) <= radius);
   for (const t of hit) {
-    const d = randi(dmg[0], dmg[1]) - (t.armor || 0); t.hp = Math.max(0, t.hp - Math.max(1, d)); t.flinch = 1; t.hunker = false; if (t.state === 'hunker') t.state = 'idle';
-    popText(t, '−' + Math.max(1, d), 'dmg'); if (t.team === 'droid' && !t.visible) { t.visible = true; t.rig.root.visible = true; }
+    const d0 = t.team === 'clone' && o.cloneDmg !== undefined ? o.cloneDmg : Math.max(1, randi(dmg[0], dmg[1]) - (t.armor || 0)), d = Mission.absorb(t, d0);
+    t.hp = Math.max(0, t.hp - d); t.flinch = 1; t.hunker = false; if (t.state === 'hunker') t.state = 'idle';
+    popText(t, d < d0 ? 'ЩИТ · −' + d : '−' + d, 'dmg'); if (t.team === 'droid' && !t.visible) { t.visible = true; t.rig.root.visible = true; }
   }
   await wait(0.3);
   await Promise.all(hit.filter(t => t.hp <= 0).map(t => killUnit(t, blastDir(t, cx, cz), true)));
@@ -2439,10 +2592,16 @@ async function fireRocket(s, x, z) {
 async function throwNade(u, x, z) {
   busy = true; lastAttacker = u; u.ap = 0; u.nades--; refreshUI(); hideTarget(); nadeRing.visible = nadeRange.visible = false; hint('');
   u.state = 'aim'; await turnTo(u, faceTo(u, x + 0.5, z + 0.5), 0.2);
-  Snd.fx.throwNade();
   const g = sph(0.07, mat(0x3a3f47, { metalness: 0.7 })), led = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff3020 }));
-  g.add(led); led.position.y = 0.06; scene.add(g);
-  const p0 = new THREE.Vector3(u.rig.root.position.x, 0.9, u.rig.root.position.z), p1 = new THREE.Vector3(x + 0.5, 0.07, z + 0.5), L = p0.distanceTo(p1);
+  g.add(led); led.position.y = 0.06;
+  if (u.rig.skinned) {
+    u.rig.hand = new THREE.Vector3(); u.state = 'throw'; u.throwK = 0; scene.add(g);
+    await tween(0.42, k => { u.throwK = 0.6 * easeIO(k); g.position.copy(u.rig.hand); });
+    await tween(0.12, k => { u.throwK = 0.6 + 0.4 * k; g.position.copy(u.rig.hand); });
+  } else scene.add(g);
+  Snd.fx.throwNade();
+  const p0 = u.rig.skinned ? g.position.clone() : new THREE.Vector3(u.rig.root.position.x, 0.9, u.rig.root.position.z), p1 = new THREE.Vector3(x + 0.5, 0.07, z + 0.5), L = p0.distanceTo(p1);
+  setTimeout(() => { if (u.state === 'throw') u.state = 'aim'; }, 250);
   focus((p0.x + p1.x) / 2, (p0.z + p1.z) / 2);
   await tween(0.5 + L * 0.06, k => { g.position.lerpVectors(p0, p1, k); g.position.y += Math.sin(k * Math.PI) * (1 + L * 0.25); g.rotation.x += 0.3; });
   await wait(0.35); scene.remove(g);
@@ -2455,8 +2614,10 @@ async function throwNade(u, x, z) {
 //  ХОДЫ
 // =====================================================================
 async function startPlayerTurn() {
+  if (Mission.beforeTurn()) return; // таймер задания, конец обороны
   phase = 'player'; Music.setIntensity(0.35);
   for (const u of clones()) { u.ap = 2; u.overwatch = false; if (u.hunker) { u.hunker = false; u.state = 'idle'; } }
+  Mission.turnStarted();
   $('turnTitle').textContent = `ХОД ${turn} · РЕСПУБЛИКА`; $('turnTitle').className = 'rep';
   banner('ХОД РЕСПУБЛИКИ', 'rep'); Snd.fx.turn('clone');
   const first = clones()[0]; select(first); if (first) focusUnit(first);
@@ -2484,6 +2645,7 @@ async function endPlayerTurn() {
     if (!d.alive) continue;
     if (podsActive[d.pod]) await aiAct(d); else await patrol(d);
   }
+  if (phase !== 'over') await Mission.afterEnemy(); // взрывы зарядов, подкрепления, оборона маяка
   busy = false;
   if (phase === 'over') return;
   turn++; startPlayerTurn();
@@ -2502,7 +2664,7 @@ function scoreTile(d, x, z) {
   s += best * 0.7;
   const near = Math.min(...cs.map(c => Math.hypot(c.x - x, c.z - z)));
   s -= Math.abs(near - (d.type === 'snp' ? 12 : 7)) * 2.2;
-  s += rand(-1, 1) * (d.type === 'b1' ? 14 : 6);
+  s += rand(-1, 1) * (d.type === 'b1' ? 14 : 6) + Mission.aiBias(d, x, z);
   return s;
 }
 function bestShot(d) {
@@ -2574,7 +2736,7 @@ async function checkPods() {
 }
 function checkEnd() {
   if (phase === 'over') return;
-  if (!droids().length) gameOver(true); else if (!clones().length) gameOver(false);
+  const r = Mission.check(); if (r) gameOver(r === 'win');
 }
 function gameOver(win) {
   phase = 'over'; busy = true; select(null);
@@ -2686,10 +2848,10 @@ function rotateCam(dir) { cam.tyaw = Math.round(cam.tyaw / (Math.PI / 4)) * (Mat
 
 // кнопки
 const on = (i, f) => $(i).addEventListener('click', e => { Snd.init(); f(e); });
-on('aShoot', () => { if (ui.mode === 'target') { hideTarget(); showMoveRange(); refreshUI(); } else enterTarget(null); });
+on('aShoot', () => { if (Mission.tryReload()) return; if (ui.mode === 'target') { hideTarget(); showMoveRange(); refreshUI(); } else enterTarget(null); });
 on('tpPrev', () => { ui.ti = (ui.ti - 1 + ui.targets.length) % ui.targets.length; Snd.fx.click(); showTarget(); });
 on('tpNext', () => { ui.ti = (ui.ti + 1) % ui.targets.length; Snd.fx.click(); showTarget(); });
-on('tpFire', async () => { const u = selected, t = ui.targets[ui.ti]; if (!u || !t || busy) return; u.ap = 0; ui.mode = 'move'; await shoot(u, t); afterAction(); });
+on('tpFire', async () => { const u = selected, t = ui.targets[ui.ti]; if (!u || !t || busy) return; if (ui.abil) { await Mission.fireAbility(u, t); return; } u.ap = 0; ui.mode = 'move'; await shoot(u, t); afterAction(); });
 on('aOver', () => { const u = selected; if (!u || u.ap <= 0 || busy) return; u.ap = 0; u.overwatch = true; Snd.fx.overwatch(); popText(u, 'ДОЗОР', 'miss'); afterAction(); refreshUI(); });
 on('aHunk', () => { const u = selected; if (!u || u.ap <= 0 || busy) return; u.ap = 0; u.hunker = true; u.state = 'hunker'; Snd.fx.hunker(); popText(u, 'УКРЫЛСЯ', 'miss'); afterAction(); refreshUI(); });
 on('aNade', () => {
@@ -2751,14 +2913,15 @@ function setupWorld() {
   buildProps(); buildPebbles(); buildBlobs(); mapReady = true;
 }
 function spawnUnits() {
-  clearUnits();
+  clearUnits(); Mission.clear();
   SQUAD.forEach((f, i) => units.push(makeUnit('clone', f.cls, CLONE_SPAWN[i][0], CLONE_SPAWN[i][1], Object.assign({ mk: 0 }, f))));
   PODS.forEach((p, pi) => p.tiles.forEach(([x, z], k) => units.push(makeUnit('droid', p.types[k], x, z, { pod: pi, home: [x, z] }))));
+  Mission.spawn();
 }
 async function startGame() {
   Snd.init(); Music.start(); goFullscreen(); if (biomeId !== Campaign.biome()) applyBiome(Campaign.biome());
   $('startScr').classList.remove('show'); $('endScr').classList.remove('show'); $('howScr').classList.remove('show');
-  Hub.hide(); Music.setIntensity(0.35);
+  Hub.hide(); Music.setIntensity(0.35); Mission.reset();
   setupWorld(); spawnUnits(); turn = 1; kills = 0; shotCount = 0; lastAttacker = null; podsActive = PODS.map(() => false); seenEver.fill(0); FX.clearDecals();
   tweens.length = 0; busy = true; phase = 'intro'; cam.cine = null; document.body.classList.remove('cine');
   updateVisibility(); buildSquadUI(); document.body.classList.add('playing');
@@ -2838,6 +3001,7 @@ function frame(now) {
   wasIdle = idle;
   const dt = Math.min(0.05, (now - last) / 1000) * timeScale * slow * (phase === 'enemy' && fastEnemy ? 2 : 1); last = now;
   tweensUpdate(dt); if (frameWaiters.length) for (const r of frameWaiters.splice(0)) r(dt);
+  if (phase !== 'hub') Mission.update(dt);
   // корабль-база: своя сцена в космосе, поле боя не считаем и не рисуем
   if (phase === 'hub') { Hub.update(dt); Hub.render(); return; }
   FX.update(dt); dustUpdate(dt); Weather.update(dt);
