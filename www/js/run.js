@@ -62,6 +62,8 @@
         },
       });
       this.world.on('begin-contact', (c) => this.horde.contact(c));
+      const ups = this.car.ups;
+      this.weapons = new window.Weapons(this, { gun: ups.gun || 0, flamer: ups.flamer || 0, saw: ups.saw || 0 }, opts.weapons);
     }
 
     say(text) { this.messages.push(text); }
@@ -72,6 +74,7 @@
       car.control(this.ended ? { gas: false, brake: false, nitro: false } : input, dt);
       this.world.step(dt, P.velocityIterations, P.positionIterations);
       this.horde.afterStep(car, dt);
+      this.weapons.update(dt);
       this.pickups.update(car, dt);
       window.Render.particles(this, dt);
       this.time += dt;
@@ -127,6 +130,7 @@
         checkpoint: this.checkpoint,
         fuelLeft: this.car.fuel,
         hpLeft: this.car.hp,
+        weapons: Object.assign({}, this.weapons.dur),
         time: Math.round(this.time),
       };
       r.sporans = r.loot.sporan + r.distanceSporans + r.recordSporans + r.stabBonus;

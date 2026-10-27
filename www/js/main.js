@@ -23,7 +23,9 @@
       ups: window.Shop.carSave(save, carId).upgrades,
       fuel: background ? null : window.Shop.fuelOf(save, carId),
       hp: background ? null : window.Shop.hpOf(save, carId),
+      weapons: window.Shop.carSave(save, carId).weapons,
     });
+    buildWeaponBars();
     window.Render.setTheme(run.level.theme);
     window.Render.snapCamera(run.car);
     buildProgress();
@@ -61,6 +63,15 @@
     }
   }
 
+  // Полоски прочности оружия в HUD — по одной на установленное оружие.
+  function buildWeaponBars() {
+    const box = $('h-weapons');
+    box.innerHTML = '';
+    for (const id of Object.keys(run.weapons.dur)) {
+      box.insertAdjacentHTML('beforeend', `<div class="hud-bar weapon"><i id="hw-${id}"></i><span>${C.WEAPONS[id].name.toLowerCase()}</span></div>`);
+    }
+  }
+
   function toast(text) {
     const el = $('toast');
     el.textContent = text;
@@ -86,6 +97,10 @@
     $('h-peas').textContent = run.loot.peas;
     $('h-pearl').textContent = run.loot.pearl;
     $('h-kills').textContent = run.kills;
+    for (const [id, d] of Object.entries(run.weapons.dur)) {
+      const el = $('hw-' + id);
+      if (el) { el.style.width = d + '%'; el.parentNode.classList.toggle('broken', d <= 0); }
+    }
     $('hurt').style.opacity = run.hurt > 0 ? Math.min(0.5, run.hurt * 2) : 0;
   }
 
@@ -104,6 +119,7 @@
     const cs = window.Shop.carSave(save, save.car);
     cs.fuel = r.fuelLeft;
     cs.hp = r.hpLeft;
+    Object.assign(cs.weapons, r.weapons);
     window.Save.write(save);
     screen = 'results';
     setHud(false);

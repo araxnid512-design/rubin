@@ -72,6 +72,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hud-bar.nitro i { background: var(--nitro); }
 .hud-bar.hp i { background: linear-gradient(90deg, #b8402c, #d8a03a); }
 .hud-bar.fuel i { background: #c9a227; }
+#h-weapons { display: flex; flex-direction: column; gap: 4px; }
+.hud-bar.weapon { height: 9px; width: 120px; }
+.hud-bar.weapon i { background: #a8a8a0; }
+.hud-bar.weapon span { font-size: 8px; top: -2px; }
+.hud-bar.weapon.broken { border-color: var(--danger); }
 .hud-bar.fuel.low { animation: blink 0.8s infinite; }
 .hud-bar.fuel.low i { background: #d8503a; }
 .hud-bar em { font-style: normal; opacity: 0.8; margin-left: 4px; }

@@ -135,6 +135,8 @@
     crunch(vol) { noise(0.12, 'lowpass', 700, 0.5, vol); tone('sine', 90, 40, 0.1, 0.35, vol); },
     thud(vol) { noise(0.18, 'lowpass', 260, 0.7, vol); },
     nitro() { noise(0.35, 'bandpass', 1400, 0.25); },
+    flame() { noise(0.3, 'lowpass', 900, 0.35); },
+    saw() { tone('sawtooth', 340, 300, 0.18, 0.12); noise(0.15, 'highpass', 2500, 0.15); },
     toggle() {
       enabled = !enabled;
       try { localStorage.setItem(KEY, enabled ? 'on' : 'off'); } catch (e) { /* нет хранилища */ }

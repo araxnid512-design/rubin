@@ -426,6 +426,7 @@
     scene.pickups.draw(ctx, t);
     scene.horde.each((z, p, a) => { if (p.x > v.l - 3 && p.x < v.r + 3) { drawZombie(z, p, a, t); drawZombieHp(z, p); } });
     window.CarDraw.draw(ctx, scene.car, t);
+    if (scene.weapons) scene.weapons.drawWorld(ctx);
     // Бегуны, вцепившиеся в машину.
     for (const z of scene.horde.clinging) {
       const p = scene.car.chassis.getWorldPoint(window.planck.Vec2(z.clingAt.x, z.clingAt.y + z.def.h * 0.35));

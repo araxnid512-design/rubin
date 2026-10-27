@@ -140,6 +140,29 @@
       effects: [{ stat: 'tank', add: [3, 6] }] },
   };
 
+  // Оружие на машине. Патронов нет — тратится прочность (wear, % за выстрел
+  // или за секунду работы). Уровень берётся из улучшения с тем же именем.
+  const WEAPONS = {
+    gun: { name: 'Пулемёт', levels: [
+      { damage: 7, rate: 3.5, range: 20, spread: 0.08, wear: 0.4 },
+      { damage: 10, rate: 4.5, range: 23, spread: 0.07, wear: 0.34 },
+      { damage: 14, rate: 5.5, range: 26, spread: 0.06, wear: 0.28 },
+      { damage: 19, rate: 7, range: 30, spread: 0.05, wear: 0.22 },
+    ] },
+    flamer: { name: 'Огнемёт', levels: [
+      { dps: 40, range: 4.5, cone: 0.45, wear: 3.2 },
+      { dps: 55, range: 5.5, cone: 0.5, wear: 2.8 },
+      { dps: 75, range: 6.5, cone: 0.55, wear: 2.4 },
+      { dps: 100, range: 7.5, cone: 0.6, wear: 2.0 },
+    ] },
+    saw: { name: 'Пила', levels: [
+      { dps: 90, reach: 0.9, wear: 2.6 },
+      { dps: 130, reach: 1.1, wear: 2.2 },
+      { dps: 180, reach: 1.3, wear: 1.8 },
+      { dps: 240, reach: 1.5, wear: 1.5 },
+    ] },
+  };
+
   const PRICES = {
     growth: 1.85,            // каждый следующий уровень дороже в столько раз
     peas: [1, 2, 3, 4, 5, 6],// гороха за предпоследний уровень (по номеру машины)
@@ -281,5 +304,5 @@
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, UPGRADES, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
+  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
 })();
