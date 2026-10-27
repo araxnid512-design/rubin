@@ -130,9 +130,33 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   border-radius: 3px;
   box-sizing: border-box;
 }
+#scanner {
+  position: fixed;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(40vw, 360px);
+  height: 20px;
+  pointer-events: none;
+}
+#boss {
+  position: fixed;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(50vw, 420px);
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #e86a50;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+#boss .bar { height: 12px; background: rgba(0, 0, 0, 0.6); border: 1px solid #a03020; border-radius: 6px; overflow: hidden; margin-top: 2px; }
+#boss .bar i { display: block; height: 100%; background: linear-gradient(90deg, #a01a10, #e05a30); }
 #toast {
   position: fixed;
-  top: 32px;
+  top: 54px;
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 14px;
@@ -314,6 +338,8 @@ button.ghost { background: transparent; border-color: transparent; color: var(--
 .card.owned { border-color: #4a5a32; }
 .card:disabled { opacity: 0.55; }
 .card.maxed { opacity: 0.8; }
+canvas.mini { width: 100%; height: 56px; }
+.card.car { min-height: 150px; }
 .card.car.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .service { display: flex; flex-direction: column; gap: 8px; padding: 6px 2px; }
 .gauge { position: relative; height: 22px; background: #222; border: 1px solid #444; border-radius: 6px; overflow: hidden; }

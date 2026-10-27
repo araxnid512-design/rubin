@@ -108,17 +108,18 @@
     return true;
   }
 
-  // Совсем без споранов, без бензина или с разбитой машиной — стаб выручает.
+  // Не хватает споранов залить бак или залатать кузов до половины — стаб выручает бесплатно.
   function charity(save, carId) {
     const S = C().STAB, cs = carSave(save, carId), st = stats(save, carId);
     const notes = [];
-    const cheapest = Math.ceil(fuelPrice(carId));
-    if (fuelOf(save, carId) < 1 && save.sporans < cheapest * 2) {
-      cs.fuel = Math.min(st.tank, S.charityFuel);
-      notes.push(`Стаб выручил: залили ${S.charityFuel} л в долг`);
+    const minFuel = st.tank * S.charityFuel, fuel = fuelOf(save, carId);
+    if (fuel < minFuel && save.sporans < (minFuel - fuel) * fuelPrice(carId)) {
+      cs.fuel = minFuel;
+      notes.push(`Стаб выручил: бак залит до ${Math.round(minFuel)} л`);
     }
-    if (hpOf(save, carId) < st.hp * 0.1 && save.sporans < repairCost(save, carId) * 0.3) {
-      cs.hp = st.hp * S.charityHp;
+    const minHp = st.hp * S.charityHp, hp = hpOf(save, carId);
+    if (hp < minHp && save.sporans < (minHp - hp) * S.repairPerHp * C().CARS[carId].priceMult) {
+      cs.hp = minHp;
       notes.push('Механики стаба залатали кузов');
     }
     return notes;

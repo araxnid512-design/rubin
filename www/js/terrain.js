@@ -127,6 +127,16 @@
       return { x: lowerStart + s.length, y };
     }
 
+    // Брод: пологая низина, залитая водой. Без шноркеля мотор в ней захлёбывается.
+    seg_ford(x, y, s) {
+      for (let i = STEP; i <= s.length; i += STEP) {
+        const t = i / s.length;
+        this.add(x + i, y - s.depth * Math.sin(Math.PI * t));
+      }
+      this.marks.push({ type: 'ford', x, w: s.length, y: y - 0.1, depth: s.depth });
+      return { x: x + s.length, y };
+    }
+
     seg_checkpoint(x, y, s) {
       this.checkpoints.push(x + 4);
       this.marks.push({ type: 'checkpoint', x: x + 4, y, index: this.checkpoints.length });

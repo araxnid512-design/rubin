@@ -39,10 +39,13 @@
     setHud(true);
     show('btn-nitro', stats.hasNitro);
     show('h-nitro-bar', stats.hasNitro);
+    show('scanner', stats.scanner > 0);
+    show('boss', false);
   }
 
   function setHud(on) {
     for (const id of ['hud', 'loot', 'progress', 'btn-brake', 'btn-gas', 'btn-nitro']) show(id, on);
+    if (!on) { show('scanner', false); show('boss', false); }
   }
 
   function step(dt) {
@@ -70,6 +73,32 @@
     for (const id of Object.keys(run.weapons.dur)) {
       box.insertAdjacentHTML('beforeend', `<div class="hud-bar weapon"><i id="hw-${id}"></i><span>${C.WEAPONS[id].name.toLowerCase()}</span></div>`);
     }
+  }
+
+  // Сканер: впереди на N метров — мутанты с горохом (жёлтые) и жемчугом (белые).
+  function drawScanner() {
+    const cv = $('scanner'), ctx = cv.getContext('2d');
+    const range = run.car.stats.scanner, x0 = run.car.pos.x;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(0,30,10,0.55)';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.strokeStyle = 'rgba(143,208,106,0.5)';
+    ctx.strokeRect(1, 1, cv.width - 2, cv.height - 2);
+    const mark = (x, loot, boss) => {
+      const k = (x - x0) / range;
+      if (k < 0 || k > 1) return;
+      ctx.fillStyle = boss ? '#ff5a40' : loot.pearl ? '#f4f0ff' : '#e0c050';
+      ctx.beginPath(); ctx.arc(8 + k * (cv.width - 16), cv.height / 2, boss ? 9 : loot.pearl ? 7 : 5, 0, Math.PI * 2); ctx.fill();
+    };
+    const h = run.horde;
+    for (let i = h.next; i < h.spawns.length; i++) {
+      const s = h.spawns[i];
+      if (s.x > x0 + range) break;
+      if (s.loot && (s.loot.peas || s.loot.pearl) || s.boss) mark(s.x, s.loot || {}, s.boss);
+    }
+    for (const z of h.active) if (z.alive && (z.loot.peas || z.loot.pearl || z.boss)) mark(z.body.getPosition().x, z.loot, z.boss);
+    ctx.fillStyle = '#d0a640';
+    ctx.fillRect(4, 6, 4, cv.height - 12);
   }
 
   function toast(text) {
@@ -102,6 +131,11 @@
       if (el) { el.style.width = d + '%'; el.parentNode.classList.toggle('broken', d <= 0); }
     }
     $('hurt').style.opacity = run.hurt > 0 ? Math.min(0.5, run.hurt * 2) : 0;
+    if (car.stats.scanner) drawScanner();
+    // Полоса здоровья босса, когда он рядом.
+    const boss = run.horde.active.find((z) => z.boss && z.alive && Math.abs(z.body.getPosition().x - car.pos.x) < 60);
+    show('boss', !!boss);
+    if (boss) $('boss-hp').style.width = Math.max(0, boss.hp / boss.def.hp * 100) + '%';
   }
 
   // --- Итоги ---

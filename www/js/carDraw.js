@@ -95,7 +95,124 @@
     ctx.beginPath(); ctx.arc(def.wheels.frontX, -0.3, 0.45, 0, Math.PI); ctx.fill();
   }
 
-  const BODIES = { sedan };
+  // Общие мелочи кузова: фара, стоп-сигнал, бамперы, арки колёс.
+  function trims(ctx, def, opt) {
+    const A = def.anchors, W = def.wheels;
+    ctx.fillStyle = '#e8dca0';
+    ctx.fillRect(A.front - 0.14, A.bottom + 0.3, 0.14, 0.14);
+    ctx.fillStyle = '#a02020';
+    ctx.fillRect(A.rear, A.bottom + 0.35, 0.1, 0.16);
+    ctx.fillStyle = opt && opt.bumper || '#3a3a38';
+    ctx.fillRect(A.front - 0.2, A.bottom - 0.06, 0.32, 0.16);
+    ctx.fillRect(A.rear - 0.1, A.bottom - 0.06, 0.32, 0.16);
+    ctx.fillStyle = '#141414';
+    ctx.beginPath(); ctx.arc(W.rearX, A.bottom, W.radius * 1.15, 0, Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.arc(W.frontX, A.bottom, W.radius * 1.15, 0, Math.PI); ctx.fill();
+  }
+
+  function rust(ctx, spots) {
+    ctx.fillStyle = 'rgba(110,55,25,0.55)';
+    for (const [x, y, rx, ry] of spots) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0.2, 0, Math.PI * 2); ctx.fill(); }
+  }
+
+  // Старый внедорожник: угловатый, запаска сзади, багажник-рейлинги.
+  function offroad(ctx, def) {
+    const c = def.color;
+    ctx.fillStyle = shade(c, -12); path(ctx, def.body); ctx.fill();
+    ctx.fillStyle = c; path(ctx, def.cabin); ctx.fill();
+    ctx.fillStyle = '#26343c';
+    path(ctx, [[-1.8, 0.62], [-1.0, 0.62], [-1.0, 1.15], [-1.78, 1.15]]); ctx.fill();
+    path(ctx, [[-0.9, 0.62], [-0.05, 0.62], [-0.05, 1.15], [-0.9, 1.15]]); ctx.fill();
+    path(ctx, [[0.05, 0.62], [0.55, 0.62], [0.3, 1.15], [0.05, 1.15]]); ctx.fill();
+    ctx.strokeStyle = shade(c, -40); ctx.lineWidth = 0.035;
+    ctx.beginPath(); ctx.moveTo(-0.95, 0.5); ctx.lineTo(-0.95, -0.25); ctx.moveTo(0.0, 0.5); ctx.lineTo(0.0, -0.25); ctx.stroke();
+    ctx.fillStyle = '#2a2a28'; ctx.fillRect(-1.9, 1.3, 2.1, 0.06);           // рейлинги
+    ctx.fillStyle = '#16161a'; ctx.beginPath(); ctx.arc(-2.3, 0.15, 0.42, 0, Math.PI * 2); ctx.fill(); // запаска
+    ctx.fillStyle = '#5a5a56'; ctx.beginPath(); ctx.arc(-2.3, 0.15, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(1.3, 0.05, 0.9, 0.08);           // решётка радиатора
+    rust(ctx, [[-1.6, -0.1, 0.25, 0.1], [1.5, 0.1, 0.2, 0.08]]);
+    trims(ctx, def, { bumper: '#2e2e2c' });
+  }
+
+  // Пикап: кабина, открытый кузов с бортами, заводской отвал.
+  function pickup(ctx, def) {
+    const c = def.color;
+    ctx.fillStyle = shade(c, -12); path(ctx, def.body); ctx.fill();
+    ctx.fillStyle = c; path(ctx, def.cabin); ctx.fill();
+    ctx.fillStyle = '#26343c';
+    path(ctx, [[-0.25, 0.6], [0.55, 0.6], [0.6, 1.12], [-0.25, 1.12]]); ctx.fill();
+    path(ctx, [[0.65, 0.6], [0.95, 0.6], [0.72, 1.1], [0.65, 1.1]]); ctx.fill();
+    ctx.fillStyle = shade(c, -30); ctx.fillRect(-2.45, 0.5, 2.0, 0.28);       // борт кузова
+    ctx.strokeStyle = shade(c, -50); ctx.lineWidth = 0.03;
+    for (let x = -2.3; x < -0.5; x += 0.35) { ctx.beginPath(); ctx.moveTo(x, 0.5); ctx.lineTo(x, 0.78); ctx.stroke(); }
+    ctx.fillStyle = '#3a3a2a'; ctx.fillRect(-2.2, 0.78, 0.5, 0.3); ctx.fillRect(-1.6, 0.78, 0.35, 0.22); // груз
+    // Заводской отвал.
+    const x = def.anchors.front;
+    ctx.fillStyle = '#7a6a2a';
+    path(ctx, [[x - 0.1, -0.5], [x + 0.55, -0.6], [x + 0.35, 0.2], [x - 0.1, 0.65]]); ctx.fill();
+    ctx.strokeStyle = '#4a4018'; ctx.lineWidth = 0.04;
+    for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(x - 0.05, -0.5 + i * 0.28); ctx.lineTo(x + 0.45 - i * 0.05, -0.55 + i * 0.22); ctx.stroke(); }
+    rust(ctx, [[-1.9, 0.0, 0.3, 0.1], [0.8, -0.1, 0.2, 0.08]]);
+    trims(ctx, def);
+  }
+
+  // Инкассаторский броневик: высокий короб, узкие окна-бойницы, мигалка.
+  function van(ctx, def) {
+    const c = def.color;
+    ctx.fillStyle = shade(c, -14); path(ctx, def.body); ctx.fill();
+    ctx.fillStyle = c; path(ctx, def.cabin); ctx.fill();
+    ctx.fillStyle = shade(c, 12); ctx.fillRect(-2.5, 0.85, 3.4, 0.08);       // полоса
+    ctx.fillStyle = '#1a2228';
+    path(ctx, [[0.55, 0.85], [1.25, 0.85], [1.12, 1.4], [0.55, 1.4]]); ctx.fill();
+    for (const x of [-2.1, -1.4, -0.7]) ctx.fillRect(x, 1.05, 0.4, 0.14);    // окна-бойницы
+    ctx.strokeStyle = shade(c, -40); ctx.lineWidth = 0.04;
+    ctx.strokeRect(-2.4, -0.2, 1.3, 1.6);                                     // задняя дверь сейфа
+    ctx.fillStyle = RIVET;
+    for (let x = -2.45; x < 1.3; x += 0.3) { ctx.fillRect(x, 1.48, 0.04, 0.04); ctx.fillRect(x, 0.6, 0.04, 0.04); }
+    ctx.fillStyle = '#2a4a8a'; ctx.fillRect(0.2, 1.55, 0.3, 0.12);           // мигалка
+    trims(ctx, def, { bumper: '#2a2c2e' });
+  }
+
+  // Армейский грузовик: кабина, кузов под тентом с дугами.
+  function truck(ctx, def) {
+    const c = def.color;
+    ctx.fillStyle = shade(c, -12); path(ctx, def.body); ctx.fill();
+    ctx.fillStyle = c; path(ctx, def.cabin); ctx.fill();
+    ctx.fillStyle = '#1e2a22';
+    path(ctx, [[1.6, 0.95], [2.5, 0.95], [2.32, 1.5], [1.6, 1.5]]); ctx.fill();
+    // Тент кузова.
+    ctx.fillStyle = shade(c, 18);
+    ctx.beginPath();
+    ctx.moveTo(-3.15, 0.6); ctx.lineTo(-3.15, 1.75); ctx.quadraticCurveTo(-1.1, 2.0, 0.85, 1.75); ctx.lineTo(0.85, 0.6);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = shade(c, -20); ctx.lineWidth = 0.05;
+    for (let x = -2.9; x < 0.8; x += 0.75) { ctx.beginPath(); ctx.moveTo(x, 0.6); ctx.lineTo(x, 1.82); ctx.stroke(); }
+    ctx.fillStyle = '#e0d8b0'; ctx.font = '0.32px sans-serif';
+    ctx.save(); ctx.scale(1, -1); ctx.fillText('★', -1.3, -1.05); ctx.restore();
+    ctx.fillStyle = '#2a2a28'; ctx.fillRect(2.65, 0.0, 0.5, 0.45);           // решётка
+    trims(ctx, def, { bumper: '#2a2a26' });
+  }
+
+  // Рейдерский броневоз: скошенная броня, шипы, черепа-трафареты, выхлоп вверх.
+  function raider(ctx, def) {
+    const c = def.color;
+    ctx.fillStyle = shade(c, -8); path(ctx, def.body); ctx.fill();
+    ctx.fillStyle = shade(c, 10); path(ctx, def.cabin); ctx.fill();
+    ctx.fillStyle = '#4a4c4e';
+    path(ctx, [[-2.85, 0.58], [1.45, 0.58], [1.1, 0.8], [-2.6, 0.8]]); ctx.fill(); // наклонный лист
+    ctx.fillStyle = '#121418';
+    ctx.fillRect(-1.2, 0.95, 1.1, 0.12); ctx.fillRect(0.0, 0.95, 0.42, 0.12);   // смотровые щели
+    ctx.fillStyle = '#b8b0a0';
+    for (let x = -2.6; x < 1.2; x += 0.45) { ctx.beginPath(); ctx.moveTo(x, 1.35); ctx.lineTo(x + 0.12, 1.6); ctx.lineTo(x + 0.24, 1.35); ctx.fill(); }
+    ctx.fillStyle = '#a02a20';
+    ctx.fillRect(-2.5, 0.0, 0.9, 0.06); ctx.fillRect(-2.5, 0.12, 0.6, 0.06);  // полосы
+    ctx.fillStyle = '#5a5a58'; ctx.fillRect(-0.6, 1.35, 0.12, 0.6); ctx.fillRect(-0.4, 1.35, 0.12, 0.45); // выхлоп
+    ctx.fillStyle = '#d8d0c0'; ctx.beginPath(); ctx.arc(-0.9, 0.25, 0.14, 0, Math.PI * 2); ctx.fill(); // «череп»
+    ctx.fillStyle = '#121212'; ctx.fillRect(-0.96, 0.24, 0.04, 0.04); ctx.fillRect(-0.86, 0.24, 0.04, 0.04);
+    trims(ctx, def, { bumper: '#5a5c5e' });
+  }
+
+  const BODIES = { sedan, offroad, pickup, van, truck, raider };
 
   // --- Детали улучшений: сначала то, что за кузовом, потом поверх ---
   function behind(ctx, def, ups, t) {
@@ -145,22 +262,28 @@
         ctx.beginPath(); ctx.ellipse(-1.5 + i * 0.55, -0.05, 0.13, 0.09, 0, 0, Math.PI * 2); ctx.fill();
       }
     }
-    // Броня: стальные листы на дверях, решётки на стёклах, заклёпки.
+    // Броня: стальные листы по борту и на стёклах, заклёпки. Размер — от габаритов кузова.
     if (ups.armor) {
-      const n = ups.armor;
-      ctx.fillStyle = 'rgba(70,72,74,0.92)';
-      const plates = [[-1.95, -0.25, 1.4, 0.55], [-0.45, -0.25, 1.3, 0.55], [0.9, -0.2, 1.1, 0.4], [-1.25, 0.42, 0.85, 0.45], [-0.35, 0.42, 0.75, 0.42]];
+      const n = ups.armor, L = A.front - A.rear, low = A.bottom + 0.05, beltH = A.beltY - low;
+      const [rx0, rx1] = A.roofX;
+      const plates = [
+        [A.rear + L * 0.06, low, L * 0.3, beltH * 0.9],
+        [A.rear + L * 0.38, low, L * 0.28, beltH * 0.9],
+        [A.rear + L * 0.68, low + beltH * 0.15, L * 0.24, beltH * 0.7],
+        [rx0, A.beltY + 0.05, (rx1 - rx0) * 0.45, (A.roofY - A.beltY) * 0.75],
+        [rx0 + (rx1 - rx0) * 0.5, A.beltY + 0.05, (rx1 - rx0) * 0.45, (A.roofY - A.beltY) * 0.75],
+      ];
       for (let i = 0; i < Math.min(n, plates.length); i++) {
         const [x, y, w, h] = plates[i];
+        ctx.fillStyle = 'rgba(70,72,74,0.92)';
         ctx.fillRect(x, y, w, h);
         ctx.fillStyle = RIVET;
         for (let k = 0; k < 4; k++) ctx.fillRect(x + 0.05 + k * (w - 0.12) / 3, y + h - 0.08, 0.035, 0.035);
-        ctx.fillStyle = 'rgba(70,72,74,0.92)';
       }
       if (n >= 4) {
         ctx.strokeStyle = METAL;
         ctx.lineWidth = 0.03;
-        for (let x = -1.15; x < 0.4; x += 0.12) { ctx.beginPath(); ctx.moveTo(x, 0.45); ctx.lineTo(x + 0.02, 0.88); ctx.stroke(); }
+        for (let x = rx0; x < rx1; x += 0.12) { ctx.beginPath(); ctx.moveTo(x, A.beltY + 0.07); ctx.lineTo(x + 0.02, A.roofY - 0.1); ctx.stroke(); }
       }
     }
     // Клетка на кабину: трубы по контуру и поперёк.

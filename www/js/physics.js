@@ -50,6 +50,8 @@
       this.flipped = false;
       this.hp = stats.hp;
       this.fuel = stats.tank;
+      this.choke = 1;          // < 1 — мотор захлёбывается (вода без шноркеля)
+      this.winchLeft = stats.winch;
       this.lastVy = 0;
     }
 
@@ -87,7 +89,7 @@
           w.joint.enableMotor(true);
           w.joint.setMotorSpeed(-s.maxSpeed / r);
           const launch = v < s.maxSpeed * 0.5 ? s.launch : 1;
-          w.joint.setMaxMotorTorque(s.torque * launch * this.wheelieLimit() / driven.length * (s.awd ? 1.15 : 1));
+          w.joint.setMaxMotorTorque(s.torque * launch * this.choke * this.wheelieLimit() / driven.length * (s.awd ? 1.15 : 1));
         }
         this.throttle = 1;
       } else if (input.brake) {
@@ -151,6 +153,20 @@
 
     wheelAngle(w) { return w.body.getAngle(); }
 
+    // Лебёдка: поставить машину на колёса чуть выше земли.
+    rightUp(groundY) {
+      const p = this.chassis.getPosition();
+      const y = Math.max(p.y, groundY + 1.5);
+      const parts = [this.chassis, this.rear.body, this.front.body];
+      const W = this.def.wheels;
+      this.chassis.setTransform(pl.Vec2(p.x, y), 0);
+      this.rear.body.setTransform(pl.Vec2(p.x + W.rearX, y + W.y), 0);
+      this.front.body.setTransform(pl.Vec2(p.x + W.frontX, y + W.y), 0);
+      for (const b of parts) { b.setLinearVelocity(pl.Vec2(0, 0)); b.setAngularVelocity(0); }
+      this.flipTimer = 0;
+      this.flipped = false;
+    }
+
     // Контроль вздёргивания: если на земле нос задирается слишком сильно, тяга падает,
     // иначе мощная машина опрокидывается назад прямо со старта.
     wheelieLimit() {
@@ -196,8 +212,8 @@
   function carAndDebris(c) {
     const fa = c.getFixtureA(), fb = c.getFixtureB();
     const ua = fa.getBody().getUserData() || {}, ub = fb.getBody().getUserData() || {};
-    if (ua.kind === 'chassis' && ub.kind === 'obstacle' && ub.type !== 'wreck') return { car: ua.car, debris: fb.getBody() };
-    if (ub.kind === 'chassis' && ua.kind === 'obstacle' && ua.type !== 'wreck') return { car: ub.car, debris: fa.getBody() };
+    if (ua.kind === 'chassis' && ub.kind === 'obstacle' && !ub.heavy) return { car: ua.car, debris: fb.getBody() };
+    if (ub.kind === 'chassis' && ua.kind === 'obstacle' && !ua.heavy) return { car: ub.car, debris: fa.getBody() };
     return null;
   }
 
@@ -218,7 +234,7 @@
 
   // Итоговые параметры машины с учётом улучшений: upgrades — { id: уровень }.
   function carStats(def, upgrades) {
-    const s = baseStats(def);
+    const s = Object.assign(baseStats(def), def.base || {});
     const U = window.CONFIG.UPGRADES;
     for (const [id, lvl] of Object.entries(upgrades || {})) {
       const u = U[id];
@@ -268,6 +284,13 @@
       scanner: 0,       // дальность сканера
       light: 0,         // уровень прожектора
       gun: 0, flamer: 0, saw: 0, // уровни оружия
+      winch: 0,         // лебёдка: сколько раз за заезд поставит на колёса
+      snorkel: false,   // мотор не глохнет в воде
+      fling: 1,         // гидроотвал: как высоко летят сбитые
+      flipResist: 0,    // доля толчка топтуна, которую гасит машина
+      gunMult: 1,       // бойница: множитель урона пулемёта
+      heavyGun: 0,      // крупнокалиберный ствол
+      mines: 0,         // сброс мин
     };
   }
 

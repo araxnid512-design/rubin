@@ -51,8 +51,10 @@
             const n = d.sporans[0] + Math.floor(Math.random() * (d.sporans[1] - d.sporans[0] + 1));
             if (n) this.pickups.drop('sporan', n, p.x, p.y);
           }
-          if (Math.random() < d.peas) this.pickups.drop('peas', 1, p.x, p.y);
-          if (Math.random() < d.pearl) this.pickups.drop('pearl', 1, p.x, p.y);
+          const loot = z.loot || {};
+          if (loot.peas) this.pickups.drop('peas', z.def.drops.peas >= 1 ? 3 : 1, p.x, p.y);
+          if (loot.pearl) this.pickups.drop('pearl', 1, p.x, p.y);
+          if (z.boss) this.say(`${z.def.name} повержена! Путь к стабу свободен`);
           window.Render.blood(this, p.x, p.y, 14, this.car.speed);
           window.Sound.crunch(Math.min(1, z.def.mass / 200 + 0.4));
         },
@@ -75,6 +77,15 @@
       this.world.step(dt, P.velocityIterations, P.positionIterations);
       this.horde.afterStep(car, dt);
       this.weapons.update(dt);
+      this.water(car);
+      this.dropMines(car, dt);
+      // Лебёдка ставит перевёрнутую машину на колёса.
+      if (car.flipTimer > 0.8 && car.winchLeft > 0 && !this.ended) {
+        car.winchLeft--;
+        car.rightUp(this.terrain.heightAt(car.pos.x));
+        this.say('Лебёдка поставила машину на колёса' + (car.winchLeft ? ` (ещё ${car.winchLeft})` : ''));
+        window.Sound.thud(0.8);
+      }
       this.pickups.update(car, dt);
       window.Render.particles(this, dt);
       this.time += dt;
@@ -87,6 +98,53 @@
         this.say(`Чекпоинт ${this.checkpoint} из ${cps.length}`);
       }
       if (!this.ended) this.checkEnd(dt);
+    }
+
+    // Броды: без шноркеля мотор захлёбывается, машину тормозит вода.
+    water(car) {
+      car.choke = 1;
+      const p = car.pos;
+      for (const m of this.terrain.marks) {
+        if (m.type !== 'ford' || p.x < m.x || p.x > m.x + m.w) continue;
+        if (p.y - 0.3 > m.y) continue;
+        if (!car.stats.snorkel) car.choke = window.CONFIG.PHYSICS.waterChoke;
+        const v = car.chassis.getLinearVelocity();
+        car.chassis.applyForceToCenter(window.planck.Vec2(-v.x * car.chassis.getMass() * 0.6, 0), true);
+        if (Math.random() < 0.3 && Math.abs(v.x) > 2) this.particles.push({ x: p.x + (Math.random() - 0.5) * 3, y: m.y, vx: v.x * 0.2, vy: 2 + Math.random() * 3, t: 0.6, r: 0.08, c: 'rgba(160,200,210,0.8)' });
+      }
+    }
+
+    // Мины: падают позади на ходу, рвутся под заражёнными.
+    dropMines(car, dt) {
+      const lvl = car.stats.mines;
+      if (!this.mines) this.mines = [];
+      if (lvl && !this.ended && Math.abs(car.speed) > 3) {
+        this.mineTimer = (this.mineTimer || 0) - dt;
+        if (this.mineTimer <= 0) {
+          this.mineTimer = 7 - lvl * 1.5;
+          const x = car.pos.x + car.def.anchors.rear - 0.5;
+          this.mines.push({ x, y: this.terrain.heightAt(x) + 0.08, armed: 0.8 });
+        }
+      }
+      for (const m of this.mines) {
+        m.armed -= dt;
+        if (m.armed > 0 || m.boom) continue;
+        for (const z of this.horde.active) {
+          if (!z.alive) continue;
+          const p = z.body.getPosition();
+          if (Math.abs(p.x - m.x) < 1.6) { m.boom = 0.4; break; }
+        }
+        if (m.boom) {
+          for (const z of this.horde.active.slice()) {
+            const p = z.body.getPosition();
+            if (z.alive && Math.hypot(p.x - m.x, p.y - m.y) < 3.5) this.horde.damage(z, 150 * lvl, { x: Math.sign(p.x - m.x) * 6, y: 8, fling: 2 });
+          }
+          window.Render.blood(this, m.x, m.y + 0.5, 20, 0);
+          window.Sound.thud(1);
+        }
+      }
+      for (const m of this.mines) if (m.boom) m.boom -= dt;
+      this.mines = this.mines.filter((m) => !(m.boom != null && m.boom <= 0) && m.x > car.pos.x - 80);
     }
 
     // Конец заезда: доехали до стаба, разбита, перевернулась, кончился бензин.

@@ -19,7 +19,17 @@
 
     has(id) { return this.levels[id] > 0; }
     works(id) { return this.has(id) && this.dur[id] > 0; }
-    def(id) { return window.CONFIG.WEAPONS[id].levels[this.levels[id] - 1]; }
+    def(id) {
+      const d = window.CONFIG.WEAPONS[id].levels[this.levels[id] - 1];
+      if (id !== 'gun') return d;
+      // Бойница и крупный калибр меняют пулемёт.
+      const s = this.run.car.stats, h = s.heavyGun;
+      return Object.assign({}, d, {
+        damage: d.damage * s.gunMult * (h ? 1.8 + h * 0.4 : 1),
+        rate: d.rate * (h ? 0.6 : 1),
+        range: d.range + h * 5,
+      });
+    }
 
     wear(id, pct) {
       const before = this.dur[id];
@@ -206,6 +216,7 @@
       ctx.fillRect(-0.25, -0.12, 0.5, 0.24);                      // короб
       ctx.fillRect(0.2, -0.04, 0.55 + ups.gun * 0.1, 0.08);      // ствол
       if (ups.gun >= 3) ctx.fillRect(0.2, 0.06, 0.5 + ups.gun * 0.08, 0.05); // второй ствол
+      if (ups.heavyGun) { ctx.fillRect(0.2, -0.09, 1.1 + ups.heavyGun * 0.2, 0.14); ctx.fillStyle = '#4a4a3a'; ctx.fillRect(1.1 + ups.heavyGun * 0.2, -0.12, 0.2, 0.2); ctx.fillStyle = '#2a2c2e'; }
       ctx.fillStyle = '#5a5c3a';
       ctx.fillRect(-0.3, -0.18, 0.12, 0.36);                      // щиток
       if (st.gunFlash) {

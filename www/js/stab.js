@@ -168,18 +168,29 @@
       const sel = save.car === id;
       card.className = 'card car' + (sel ? ' selected' : '') + (cs.owned ? ' owned' : '');
       const cost = { sporans: car.price.sporans || 0, peas: car.price.peas || 0, pearls: car.price.pearls || 0 };
-      card.innerHTML = `<b>${car.name}</b><span class="about">${car.about}</span>
+      card.innerHTML = `<canvas class="mini"></canvas><b>${car.name}</b><span class="about">${car.about}</span>
         <span class="cost">${cs.owned ? (sel ? '<span class="max">ВЫБРАНА</span>' : 'Выбрать') : price(cost)}</span>`;
       card.disabled = !cs.owned && !window.Shop.canPay(save, cost);
       card.onclick = () => {
         if (cs.owned) save.car = id;
         else if (window.Shop.buyCar(save, id)) flash(`Куплена: ${car.name}`);
+        for (const n of window.Shop.charity(save, save.car)) flash(n);
         window.Save.write(save);
         render();
       };
       grid.appendChild(card);
     }
     body.appendChild(grid);
+    // Мини-превью машин в карточках.
+    grid.querySelectorAll('canvas.mini').forEach((cv, i) => {
+      const id = Object.keys(C().CARS)[i], def = C().CARS[id];
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+      const k = Math.min(cv.width / 7.5, cv.height / 3.4);
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(k, 0, 0, -k, cv.width / 2, cv.height * 0.75);
+      window.CarDraw.preview(ctx, def, window.Shop.carSave(save, id).upgrades, 0);
+    });
   }
 
   // Выезд: уровень и точка старта.
@@ -193,7 +204,8 @@
       const ls = window.Save.levelState(save, lv.id);
       const row = document.createElement('div');
       row.className = 'route' + (i === save.level ? ' current' : '');
-      row.innerHTML = `<b>${lv.name}</b><span class="muted">→ ${lv.to}${ls.done ? ' · пройден' : ''} · рекорд ${Math.round(ls.best)} м</span>`;
+      const need = lv.car && lv.car !== save.car && !ls.done ? ` · рассчитан на: ${C().CARS[lv.car].name}` : '';
+      row.innerHTML = `<b>${lv.name}</b><span class="muted">→ ${lv.to}${ls.done ? ' · пройден' : ''} · рекорд ${Math.round(ls.best)} м${need}</span>`;
       const btns = document.createElement('div');
       btns.className = 'row';
       const add = (label, cp, primary) => {

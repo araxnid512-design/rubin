@@ -36,9 +36,14 @@
       }
       for (const o of this.terrain.objects) {
         if (o.type !== 'zombies') continue;
-        for (let i = 0; i < (o.count || 1); i++) this.spawns.push({ x: o.x + i * (o.spread || 1.3), kind: o.kind, y: o.y });
+        for (let i = 0; i < (o.count || 1); i++) this.spawns.push({ x: o.x + i * (o.spread || 1.3), kind: o.kind, y: o.y, boss: !!o.boss });
       }
       this.spawns.sort((a, b) => a.x - b.x);
+      // Редкая добыча известна заранее — её видит сканер.
+      for (const s of this.spawns) {
+        const d = window.CONFIG.ZOMBIES[s.kind].drops;
+        s.loot = { peas: Math.random() < d.peas, pearl: Math.random() < d.pearl };
+      }
       this.next = 0;
     }
 
@@ -56,7 +61,7 @@
       body.createFixture(pl.Box(def.w / 2, def.h / 2), Object.assign({
         density: def.mass / (def.w * def.h), friction: 0.3,
       }, this.filter(true)));
-      const z = { kind: s.kind, def, body, hp: def.hp, alive: true, phase: Math.random() * 6, cool: Math.random(), facing: -1 };
+      const z = { kind: s.kind, def, body, hp: def.hp, alive: true, phase: Math.random() * 6, cool: Math.random(), facing: -1, loot: s.loot || {}, boss: !!s.boss, noCling: s.noCling || 0 };
       body.setUserData({ kind: 'zombie', z });
       this.active.push(z);
     }
@@ -88,7 +93,7 @@
         if (!z.alive || seen.has(z)) continue;
         seen.add(z);
         // Бегун, упавший сверху на крышу, не разбивается, а цепляется.
-        if (z.kind === 'runner' && above && part.kind === 'chassis' && this.clinging.length < z.def.cling.maxOnCar && !S.noClimb) {
+        if (above && part.kind === 'chassis' && this.canCling(z, S)) {
           this.cling(z, car);
           continue;
         }
@@ -101,7 +106,7 @@
           const dmg = rel * carMass / 100 * mult;
           // Машине тоже достаётся: чем тяжелее заражённый, тем сильнее.
           this.hooks.onCarHit(rel * z.def.mass * H.impactDamage * S.armorMult, z);
-          this.damage(z, dmg, carV);
+          this.damage(z, dmg, { x: carV.x, y: carV.y, fling: S.fling });
           // Тяжёлые заражённые гасят скорость машины сильнее, чем по чистой физике.
           const drag = z.def.drag * (1 - S.ramDragCut);
           if (drag > 0) {
@@ -110,9 +115,19 @@
           }
         }
         // Бегун цепляется, если пережил удар и запрыгнул сверху.
-        if (z.alive && z.kind === 'runner' && (above || z.jumping) && this.clinging.length < z.def.cling.maxOnCar && !S.noClimb) this.cling(z, car);
+        if (z.alive && (above || z.jumping) && this.canCling(z, S)) this.cling(z, car);
       }
       this.events.length = 0;
+
+      // Упёршегося в бампер машина продолжает давить: урон от толкания.
+      if (carV.x > 1) {
+        for (let e = car.chassis.getContactList(); e; e = e.next) {
+          const u = e.other.getUserData();
+          if (!u || u.kind !== 'zombie' || !u.z.alive || !e.contact.isTouching()) continue;
+          if (e.other.getPosition().x < car.pos.x) continue;
+          this.damage(u.z, carV.x * carMass / 100 * S.ramMult * H.pushDamage * dt, { x: carV.x + 2, y: 1.5 });
+        }
+      }
 
       // Появление и удаление по расстоянию.
       const cx = car.pos.x;
@@ -143,6 +158,7 @@
       const dx = cp.x - p.x;
       const dist = Math.abs(dx);
       z.cool -= dt;
+      z.noCling -= dt;
       z.phase += dt * (Math.abs(v.x) * 2.2 + 1);
       let vx = 0;
       if (dist < def.sight) {
@@ -171,7 +187,8 @@
       // Топтун и элита подбрасывают машину.
       if (def.stomp && z.cool <= 0 && dist < def.stomp.range + 2) {
         const hit = car.chassis.getWorldPoint(pl.Vec2(dx < 0 ? 1.6 : -1.6, -0.2));
-        car.chassis.applyLinearImpulse(pl.Vec2(-Math.sign(dx) * def.stomp.impulse * 0.3, def.stomp.impulse), hit, true);
+        const k = 1 - (car.stats.flipResist || 0);
+        car.chassis.applyLinearImpulse(pl.Vec2(-Math.sign(dx) * def.stomp.impulse * 0.3 * k, def.stomp.impulse * k), hit, true);
         this.hooks.onCarHit(def.stomp.damage * car.stats.armorMult, z);
         z.cool = def.stomp.every;
         z.stomped = 0.35;
@@ -191,6 +208,16 @@
         z.cool = def.attack.every;
       }
       if (z.stomped) z.stomped = Math.max(0, z.stomped - dt);
+      // Электрокорпус бьёт током всех, кто трётся о борт.
+      if (car.stats.shock && dist < def.w / 2 + 2.6 && Math.abs(cp.y - p.y) < 2) {
+        this.damage(z, car.stats.shock * dt, null);
+        z.shocked = 0.1;
+      }
+    }
+
+    // Сорвавшийся бегун какое-то время не может запрыгнуть снова.
+    canCling(z, S) {
+      return z.kind === 'runner' && z.noCling <= 0 && this.clinging.length < z.def.cling.maxOnCar && !S.noClimb;
     }
 
     cling(z, car) {
@@ -198,6 +225,8 @@
       z.alive = true;
       z.clingAt = { x: Math.max(-1.6, Math.min(1.6, local.x)), y: car.def.cabin[2][1] + 0.1 };
       z.clingT = 0;
+      const g = z.def.cling.grip;
+      z.grip = g[0] + Math.random() * (g[1] - g[0]);
       this.world.destroyBody(z.body);
       z.body = null;
       this.active = this.active.filter((a) => a !== z);
@@ -218,7 +247,8 @@
         const c = z.def.cling;
         this.hooks.onCarHit(c.damage * dt * car.stats.cageMult * car.stats.armorMult, z, true);
         if (car.stats.shock) this.damageClinging(z, car.stats.shock * dt);
-        if (jolt > c.shakeSpeed || Math.abs(car.chassis.getAngularVelocity()) > 3.5) this.throwOff(z, car);
+        // Сбрасывает рывок, кувырок или усталость: долго на крыше не удержаться.
+        if (jolt > c.shakeSpeed || Math.abs(car.chassis.getAngularVelocity()) > 3.5 || z.clingT > z.grip) this.throwOff(z, car);
       }
       this.clinging = this.clinging.filter((z) => !z.thrown && z.hp > 0);
     }
@@ -243,7 +273,7 @@
       } else {
         // Выжил — снова на ногах и бежит за машиной.
         this.world.destroyBody(body);
-        this.spawn({ x: p.x, kind: z.kind });
+        this.spawn({ x: p.x - 2, kind: z.kind, loot: z.loot, noCling: 4 });
       }
     }
 
@@ -263,7 +293,8 @@
       fix.setFilterData({ groupIndex: 0, categoryBits: f.filterCategoryBits, maskBits: f.filterMaskBits });
       b.setFixedRotation(false);
       if (from) {
-        b.setLinearVelocity(pl.Vec2(from.x * 0.8 + 2, Math.abs(from.x) * 0.35 + 2));
+        const fling = from.fling || 1;
+        b.setLinearVelocity(pl.Vec2(from.x * 0.8 + 2, (Math.abs(from.x) * 0.35 + 2) * fling));
         b.setAngularVelocity(-from.x * 0.6 - 3);
       }
       this.active = this.active.filter((a) => a !== z);
