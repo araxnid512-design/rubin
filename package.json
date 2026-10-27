@@ -1,0 +1,15 @@
+{
+  "name": "zombie-model",
+  "version": "1.0.0",
+  "description": "Процедурная low-poly модель зомби (skinned mesh) с 5 анимациями + просмотрщик для тестирования",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "build": "node scripts/export-glb.mjs",
+    "test": "node --test tests/model.test.mjs",
+    "test:e2e": "node tests/viewer.e2e.mjs"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}
