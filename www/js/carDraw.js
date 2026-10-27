@@ -329,6 +329,13 @@
         [rx0, A.beltY + 0.05, (rx1 - rx0) * 0.45, (A.roofY - A.beltY) * 0.75],
         [rx0 + (rx1 - rx0) * 0.5, A.beltY + 0.05, (rx1 - rx0) * 0.45, (A.roofY - A.beltY) * 0.75],
       ];
+      // Листы не закрывают колёса: в них вырезаны арки.
+      const W = def.wheels, ar = W.radius * 1.18;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(A.rear - 1, A.bottom - 2, L + 2, A.roofY - A.bottom + 4);
+      for (const wx of [W.rearX, W.frontX]) { ctx.moveTo(wx + ar, A.bottom); ctx.arc(wx, A.bottom, ar, 0, Math.PI * 2); }
+      ctx.clip('evenodd');
       for (let i = 0; i < Math.min(n, plates.length); i++) {
         const [x, y, w, h] = plates[i];
         ctx.fillStyle = 'rgba(70,72,74,0.92)';
@@ -336,6 +343,7 @@
         ctx.fillStyle = RIVET;
         for (let k = 0; k < 4; k++) ctx.fillRect(x + 0.05 + k * (w - 0.12) / 3, y + h - 0.08, 0.035, 0.035);
       }
+      ctx.restore();
       if (n >= 4) {
         ctx.strokeStyle = METAL;
         ctx.lineWidth = 0.03;

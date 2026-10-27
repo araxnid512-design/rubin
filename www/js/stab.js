@@ -219,8 +219,11 @@
         b.onclick = () => { close(); onGo(i, cp); };
         btns.appendChild(b);
       };
-      add('В путь от стаба', 0, i === save.level);
-      for (let cp = 1; cp <= ls.checkpoint; cp++) add('С чекпоинта ' + cp, cp);
+      // Главная кнопка — продолжить с самого дальнего чекпоинта (уровень ещё не пройден).
+      const cont = !ls.done ? ls.checkpoint : 0;
+      if (cont) add(`▶ Продолжить с чекпоинта ${cont}`, cont, i === save.level);
+      add(cont ? 'С начала' : 'В путь от стаба', 0, !cont && i === save.level);
+      for (let cp = 1; cp <= ls.checkpoint; cp++) if (cp !== cont) add('С чекпоинта ' + cp, cp);
       row.appendChild(btns);
       box.appendChild(row);
     });

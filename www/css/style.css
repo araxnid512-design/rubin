@@ -339,7 +339,18 @@ button.ghost { background: transparent; border-color: transparent; color: var(--
 #car-stats .bar i { display: block; height: 100%; background: var(--accent); }
 .route { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .route button { padding: 7px 10px; font-size: 13px; }
-#depart { display: flex; flex-direction: column; gap: 4px; }
+/* Выезд — первым в колонке: кнопки чекпоинтов видны на любом экране. */
+#depart { display: flex; flex-direction: column; gap: 4px; order: -2; }
+#depart-block { order: -1; }
+.route .row button.primary { flex: 1 1 100%; }
+@media (max-height: 360px) {
+  #car-preview { height: 60px; }
+  #car-stats .stat { line-height: 1.1; }
+  .panel { padding: 10px 16px; }
+  .panel h1 { font-size: 20px; margin-bottom: 6px; }
+  .facts { font-size: 12px; gap: 2px 12px; margin: 4px 0; }
+  .total { font-size: 18px; margin: 4px 0; }
+}
 .route.current { order: -1; background: #241f12; }
 .route.current { border-color: #a08030; }
 .route .muted { font-size: 11px; }

@@ -12,6 +12,7 @@
   let last = performance.now();
   let width = 0, height = 0;
   let endTimer = 0;
+  let againLevel = 0, againCp = 0;
 
   // --- Заезд ---
   function startRun(levelIndex, startCp, background) {
@@ -42,6 +43,12 @@
     show('h-nitro-bar', stats.hasNitro);
     show('scanner', stats.scanner > 0);
     show('boss', false);
+    // Что установлено на машине — коротко на старте.
+    const ups = Object.entries(window.Shop.carSave(save, carId).upgrades).filter(([, l]) => l > 0);
+    if (ups.length) {
+      const list = ups.map(([id, l]) => `${C.UPGRADES[id].name.toLowerCase()} ${l}`);
+      toast('На машине: ' + (list.length > 4 ? list.slice(0, 4).join(', ') + ` и ещё ${list.length - 4}` : list.join(', ')));
+    }
   }
 
   function setHud(on) {
@@ -178,6 +185,12 @@
     if (r.checkpoint) rows.push(['Чекпоинт', `${r.checkpoint} — следующий заезд можно начать с него`]);
     $('r-table').innerHTML = rows.map(([a, b]) => `<span>${a}</span><b>${b}</b>`).join('');
     $('r-total').textContent = '+' + r.sporans;
+    // Быстрый повтор с дальнего чекпоинта, если уровень не пройден.
+    const ls = window.Save.levelState(save, run.level.id);
+    againCp = r.reason !== 'stab' && ls.checkpoint ? ls.checkpoint : 0;
+    $('r-again').textContent = againCp ? `Ещё раз с чекпоинта ${againCp}` : 'Ещё раз';
+    againLevel = run.levelIndex;
+    show('r-again', r.reason !== 'stab');
     show('results', true);
   }
 
@@ -236,6 +249,17 @@
   }
 
   $('r-ok').addEventListener('click', openStab);
+  $('r-again').addEventListener('click', () => {
+    // Перед повтором — заправка и ремонт за спораны; не хватает — стаб выручает.
+    const S = window.Shop, id = save.car, before = save.sporans;
+    S.buyFuel(save, id, 999);
+    S.repair(save, id);
+    for (const w of ['gun', 'flamer', 'saw']) if (S.carSave(save, id).upgrades[w]) S.repairWeapon(save, id, w);
+    const notes = S.charity(save, id);
+    toast(notes.length ? notes.join('. ') : `Заправка и ремонт: −${before - save.sporans} споранов`);
+    window.Save.write(save);
+    startRun(againLevel, againCp);
+  });
   $('m-play').addEventListener('click', openStab);
   $('btn-quit').addEventListener('click', () => {
     window.Platform.resume();

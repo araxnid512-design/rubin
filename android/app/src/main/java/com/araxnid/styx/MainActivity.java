@@ -13,6 +13,10 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Крупный системный шрифт не должен раздувать интерфейс игры: вёрстка рассчитана на 100%.
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().getSettings().setTextZoom(100);
+        }
         enterImmersiveMode();
     }
 
