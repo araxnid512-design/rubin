@@ -33,7 +33,9 @@
   <div id="toast" class="hidden"></div>
 
   <!-- Управление -->
-  <button id="btn-brake" class="ctl left" aria-label="Тормоз / задний ход"><span>ТОРМОЗ</span></button>
+  <div id="stick" class="stick" aria-label="Наклон машины: влево — нос вверх, вправо — нос вниз">
+    <div class="stick-base"><span class="arr l">◀</span><span class="arr r">▶</span><i id="stick-knob" class="stick-knob"></i></div>
+  </div>
   <button id="btn-nitro" class="ctl nitro" aria-label="Нитро"><span>НИТРО</span></button>
   <button id="btn-gas" class="ctl right" aria-label="Газ"><span>ГАЗ</span></button>
 
@@ -42,7 +44,7 @@
       <div class="logo">СТИКС</div>
       <div class="subtitle">Дорога стабов</div>
       <p class="muted small">Прорвитесь на машине от стаба к стабу через кластеры Улья.<br>
-        Газ справа, тормоз и задний ход слева. В воздухе газ наклоняет машину назад, тормоз — вперёд.</p>
+        Газ справа — отпустили, машина тормозит сама. Слева джойстик: влево — нос вверх, вправо — нос вниз; стоя до упора влево — задний ход.</p>
       <button id="m-play" class="primary">Играть</button>
       <button id="m-reset" class="ghost">Сбросить прогресс</button>
     </div>

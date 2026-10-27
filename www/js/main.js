@@ -44,7 +44,7 @@
   }
 
   function setHud(on) {
-    for (const id of ['hud', 'loot', 'progress', 'btn-brake', 'btn-gas', 'btn-nitro']) show(id, on);
+    for (const id of ['hud', 'loot', 'progress', 'stick', 'btn-gas', 'btn-nitro']) show(id, on);
     if (!on) { show('scanner', false); show('boss', false); }
   }
 

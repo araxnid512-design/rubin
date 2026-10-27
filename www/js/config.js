@@ -13,6 +13,9 @@
     flipTime: 2.0,          // сек в таком положении почти без движения — заезд окончен
     smash: { minSpeed: 4, forward: 0.6, up: 0.35 }, // как разлетается мусор от удара
     wheelie: { from: 0.3, range: 0.35, min: 0.15 },   // рад: с какого задирания носа режется тяга
+    autoBrake: 0.3,         // газ отпущен: доля тормозного момента, машина тормозит сама
+    groundTilt: 0.3,        // на земле джойстик наклоняет кузов слабее, чем в воздухе
+    reverseTilt: 0.6,       // джойстик влево дальше этого при остановке — задний ход
     waterChoke: 0.25,       // доля тяги в воде без шноркеля (у машины может быть своя: base.wade)
   };
 
@@ -315,6 +318,13 @@
     growth: 1.85,            // каждый следующий уровень дороже в столько раз
     peas: [1, 2, 3, 4, 5, 6],// гороха за предпоследний уровень (по номеру машины)
     pearl: 1,                // жемчуга за последний уровень
+  };
+
+  // Сенсорное управление: джойстик наклона слева.
+  const CONTROLS = {
+    stickRadius: 55,        // px: отклонение пальца для полного наклона
+    stickDeadZone: 0.12,    // доля радиуса, где джойстик не действует
+    stickCurve: 1.4,        // >1 — точнее при малом отклонении
   };
 
   // Стаб: заправка, станок, выручка, если совсем нет споранов.
@@ -636,5 +646,5 @@
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
+  window.CONFIG = { PHYSICS, CONTROLS, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
 })();

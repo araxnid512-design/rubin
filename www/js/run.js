@@ -73,7 +73,7 @@
     step(dt, input) {
       const P = C().PHYSICS;
       const car = this.car;
-      car.control(this.ended ? { gas: false, brake: false, nitro: false } : input, dt);
+      car.control(this.ended ? { gas: false, nitro: false, tilt: 0 } : input, dt);
       this.world.step(dt, P.velocityIterations, P.positionIterations);
       this.horde.afterStep(car, dt);
       this.weapons.update(dt);

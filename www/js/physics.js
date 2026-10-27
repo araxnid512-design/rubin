@@ -1,5 +1,5 @@
 // Физика машины на Planck.js: кузов, колёса на пружинной подвеске (wheel joint),
-// привод, тормоз и задний ход, управление наклоном в воздухе, нитро.
+// привод, автоторможение без газа и задний ход, наклон джойстиком, нитро.
 (function () {
   const pl = window.planck;
   const P = () => window.CONFIG.PHYSICS;
@@ -67,20 +67,24 @@
       return pl.Vec2(Math.cos(a), Math.sin(a));
     }
 
-    // input: { gas, brake, nitro } — булевы.
+    // input: { gas, nitro } — булевы; tilt ∈ [-1, 1] — джойстик наклона
+    // (− нос вверх, + нос вниз). Тормоза нет: без газа машина тормозит сама.
     control(input, dt) {
-      const s = this.stats;
+      const s = this.stats, P0 = P();
       this.lastVy = this.chassis.getLinearVelocity().y;
       const v = this.speed;
       const r = this.def.wheels.radius;
       const driven = s.awd ? [this.rear, this.front] : [this.rear];
       const all = [this.rear, this.front];
+      const tilt = input.tilt || 0;
       this.throttle = 0;
 
       const outOfFuel = this.fuel <= 0;
-      // Расход: на газу — полный, иначе — холостые.
+      // Задний ход: на земле почти стоим, газ отпущен, джойстик до упора влево.
+      const reverse = !input.gas && !outOfFuel && this.grounded && v < 1 && tilt < -P0.reverseTilt;
+      // Расход: на газу и задним ходом — полный, иначе — холостые.
       if (!outOfFuel) {
-        this.fuel = Math.max(0, this.fuel - (input.gas || input.brake ? s.fuelUse : s.fuelIdle) * dt);
+        this.fuel = Math.max(0, this.fuel - (input.gas || reverse ? s.fuelUse : s.fuelIdle) * dt);
       }
       if (input.gas && !outOfFuel) {
         // Колесо по часовой (отрицательная угловая скорость) — едем вправо.
@@ -92,43 +96,31 @@
           w.joint.setMaxMotorTorque(s.torque * launch * this.choke * this.wheelieLimit() / driven.length * (s.awd ? 1.15 : 1));
         }
         this.throttle = 1;
-      } else if (input.brake) {
-        if (v > 0.8 || outOfFuel) {
-          // Тормоз: колёса держат нулевую скорость с большим моментом.
-          for (const w of all) {
-            w.joint.enableMotor(true);
-            w.joint.setMotorSpeed(0);
-            w.joint.setMaxMotorTorque(s.brakeTorque / 2);
-          }
-        } else {
-          for (const w of all) w.joint.enableMotor(false);
-          for (const w of driven) {
-            w.joint.enableMotor(true);
-            w.joint.setMotorSpeed(s.reverseSpeed / r);
-            w.joint.setMaxMotorTorque(s.torque / driven.length * 0.7);
-          }
-          this.throttle = -0.6;
+      } else if (reverse) {
+        for (const w of all) w.joint.enableMotor(false);
+        for (const w of driven) {
+          w.joint.enableMotor(true);
+          w.joint.setMotorSpeed(s.reverseSpeed / r);
+          w.joint.setMaxMotorTorque(s.torque / driven.length * 0.7);
         }
+        this.throttle = -0.6;
       } else {
-        // Накат: двигатель отключён, лёгкое торможение мотором.
+        // Газ отпущен — машина сама притормаживает колёсами.
         for (const w of all) {
           w.joint.enableMotor(true);
           w.joint.setMotorSpeed(0);
-          w.joint.setMaxMotorTorque(s.torque * 0.03);
+          w.joint.setMaxMotorTorque(s.brakeTorque * P0.autoBrake / 2);
         }
       }
 
-      // В воздухе: газ — нос вверх (против часовой), тормоз — нос вниз.
-      if (!this.grounded) {
+      // Наклон джойстиком: в воздухе — полный, на земле — лёгкий (чуть качнуть кузов).
+      if (tilt) {
         const I = this.chassis.getInertia();
-        let dir = 0;
-        if (input.gas) dir += 1;
-        if (input.brake) dir -= 1;
-        if (dir) {
-          const w = this.chassis.getAngularVelocity();
-          if (Math.abs(w) < s.maxSpin || Math.sign(w) !== dir) {
-            this.chassis.applyTorque(dir * s.airControl * I, true);
-          }
+        const dir = -tilt;                       // вправо — по часовой, нос вниз
+        const k = this.grounded ? P0.groundTilt : 1;
+        const w = this.chassis.getAngularVelocity();
+        if (Math.abs(w) < s.maxSpin || Math.sign(w) !== Math.sign(dir)) {
+          this.chassis.applyTorque(dir * s.airControl * I * k, true);
         }
       }
 
