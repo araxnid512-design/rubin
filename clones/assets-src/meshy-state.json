@@ -1,0 +1,214 @@
+{
+ "start": 2474,
+ "tasks": {
+  "clone_preview": {
+   "id": "01a17ecb-13ec-7358-9f78-77a8d381be9f",
+   "path": "/v2/text-to-3d",
+   "result": {
+    "id": "01a17ecb-13ec-7358-9f78-77a8d381be9f",
+    "type": "text-to-3d-preview",
+    "mode": "preview",
+    "name": "",
+    "model_type": "standard",
+    "seed": 1127464658,
+    "prompt": "Sci-fi soldier in glossy white plastoid armor plates over a black flexible bodysuit, enclosed rounded white helmet with a narrow T-shaped black visor slit and small breathing grille, blue paint stripe on helmet and left shoulder plate, chest plate, segmented abdomen plate, utility belt with small pouches, white armored gloves and boots, slim athletic build, full body, realistic adult human proportions (head is one eighth of total height), standing in A-pose with arms angled down away from the body, feet apart, empty open hands, no weapon, no base, photorealistic PBR game character, worn and sc",
+    "texture_prompt": "",
+    "texture_image_url": "",
+    "status": "SUCCEEDED",
+    "created_at": 1793128603301,
+    "progress": 100,
+    "started_at": 1793128603311,
+    "finished_at": 1793128673938,
+    "task_error": null,
+    "model_urls": {
+     "glb": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-13ec-7358-9f78-77a8d381be9f/output/model.glb?Expires=4946659200&Signature=YMKzjm7PdhQUJ8ThKwVp9iTd8sSheMTfjnGcReQWoK56bSf-v7jjbsVf9P3D7mkYUdwr6AiL~kCHLH0~x5UsEv6Cm1nbYoUrsNJ~EiF3E6VZ-ZRiX4VLgVq4WP4hVKDCDCxNtJwvLZw6Lrp68vdX2DrMsdjWSKoCcd6amPPmHdrUBS59QIXpKRnsroTZHDb~I3DNTDOGZYaa1SLANpYFYl4IDuHnid6TCRmlQ1sgnpvUKrurBTo4kvGyNRbBa5bTi0IOYtjwLZK8pm450AY7OPS9h-6M3ACP7JhGeFLQ3kNNrYVKa9Mi6Mp-~I66y~hmq0p2cYGFMWr2fsQ61O~f4w__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "fbx": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-13ec-7358-9f78-77a8d381be9f/output/model.fbx?Expires=4946659200&Signature=LRcb8X~RTiQ-MDPnnCWois6QIzRNeA42zM4pSb3zunSHtXqx5dE9gq3AaZeQ-Ik2VhzCa0Ty45p02avPP0S7WGXRoC6uU8Zp1EDVxQwRDWqfwY5w3gS4CmqkvqcK7ccobKD3IDTG-NgNGJaPOlc3nHRgCWRcp03S1-NS-nzAGZTs-qLWfJ6563cWyXn5-uAkmEuLPeqBL08bQoRpDG2Ck~HNpMH3KPq61AMpsLBrK14-dj0lznta6NxjP534XvFeuEYmgKveMUjV5l7BI00q7fA8mFiBgoq3-CcMG7Nq2GDlcmI4aci0qXIpSD1vY-lY5Uxag5PtFNHO9O~LX49lUw__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "usdz": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-13ec-7358-9f78-77a8d381be9f/output/model.usdz?Expires=4946659200&Signature=o8xZ4bnGtjV8bJ84by-gzUfvvkyx~WVMCQJWqRTKEYAvw5xI8O24aKbXf~tLUgA2n74DTIc9sadZT2g1EbmCRHmlScWYY0I-x6-nUlNJXffiXViU6W-MJlaR9q759YjuzkhJzAqo9Ar6hca5pT3NsM7~mS8aThrQcL0lH5vaBpqQ2Y54oSSAUKYi9-OE1IIAeCZl0W~lZTxbgE72RpDdCs1mNRwz8AiJ8yaJi5HjZDjxV6pxTOI7flKyeGn2WuvYvcyGSmDz~pbIr10WvQTTph1WhqAYD1bDCdh4FXn7-LnBqyMkj0lk8hSEkKJqWwgiElrjNxXdKwdFtLkFzwpryg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "obj": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-13ec-7358-9f78-77a8d381be9f/output/model.obj?Expires=4946659200&Signature=Z~P7rtIx2dRNF7nEzrh1EdHjC0en2FXG2dL7hggvamm3T4y3rOYRQLO7b5XHbWLVNUk3HGW68UKZHzA1f7UdBtmtlF1mqV0ChqD8pgGs3qdZ92JR65ifV9aHWFE7wnUVWITWoPIvYK4dXtA8CtotiONXYCcbYqao6IEjxiM4S7ql6YN-m7NMuLpxV8FKQsMEsr6hB3Jsaub85AZNBp5ldU0Pn7WD9gfyXExoYAPPckQmQlHAo1FqQ3xC-beU0ZX8nF6fJSdAa4ZVjsYqeij2rCqNaosG9YG5e2lEAls1KATQVYp5gUD7VXt0RSIHNoLHHKvzzDmB5Fg2XVvTdOlE1A__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "stl": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-13ec-7358-9f78-77a8d381be9f/output/model.stl?Expires=4946659200&Signature=PlJk-2eWKzGHY1CCS2M1y9YsI5GedjwOOJ1TxyDpaElmVSXBk20mH-YXb~CiEiD-Ygzb6ZwFadeW1k7hf4MX8mktdj7TaLPRklXda21Q1szcccgNI2sJygJ---5Zh1i9Iru1nflblakB3ajkrqRChJr~1kzy5L3jMDPmuQvtC92mTLD2y303mcUclHuIPXLjEZfKN3PgZeTKpdg5MGpR53VwmVf5m6Tp9HRW63LjtK7390ombupDB1~q2rRZJClXk8cjntHc6tURg0yDe8xcyCdhoPm-Z7B8a18OiEIWn0~sX0SZ5ctm7k2C6DD7IO4cjffHI4VQfJENra1QyXwm0g__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    },
+    "thumbnail_url": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-13ec-7358-9f78-77a8d381be9f/output/preview.png?Expires=4946659200&Signature=CUGebJuoSqdf1SU3DxJgXRrH8Y8ZBGtP18~kWvM34fYNYMx81psvoOfWc3XK4GdRUauaFcZ5zt~j46K65gxRh2-FOJrhxFl1eZVAIS8qXkB0EovU1xDsp~gemPJlnrebHfWYT3-RUbjHeQiMsKvfI9eFrnKodPw8bkDf9DccwONXLN1rKjBkuHLNHQLE2Llqf2EJOQjHZEjnsoS0XujNKQzjxG1a-XYBnS37vcXjYgml~WUPp6QACxJwSdoQhbAhrrCRiDO2VxKwdqzZmvb-Qhqh6Cxk9w4TLgedj-pHli2zgTjBIE2FrXoV0TO2i0uU9r9pePUB5~0qhdh9myqlfg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "texture_urls": [],
+    "consumed_credits": 20
+   }
+  },
+  "b1_preview": {
+   "id": "01a17ecb-2148-71f2-9485-35ff0fd32f03",
+   "path": "/v2/text-to-3d",
+   "result": {
+    "id": "01a17ecb-2148-71f2-9485-35ff0fd32f03",
+    "type": "text-to-3d-preview",
+    "mode": "preview",
+    "name": "",
+    "model_type": "standard",
+    "seed": 3760088602,
+    "prompt": "Tall skeletal battle robot made of thin tan beige painted metal, very slender limbs, narrow chest plate, small rectangular power backpack, long narrow elongated head that projects forward and down like a stylized skull snout with small dark eye sensors on the sides, thin neck, mechanical exposed joints, three-fingered mechanical hands, full body, very thin tall humanoid robot proportions, standing in A-pose with arms angled down away from the body, feet apart, empty open hands, no weapon, no base, photorealistic PBR game character, worn and scratched",
+    "texture_prompt": "",
+    "texture_image_url": "",
+    "status": "SUCCEEDED",
+    "created_at": 1793128606168,
+    "progress": 100,
+    "started_at": 1793128606178,
+    "finished_at": 1793128674673,
+    "task_error": null,
+    "model_urls": {
+     "glb": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2148-71f2-9485-35ff0fd32f03/output/model.glb?Expires=4946659200&Signature=FwKyaOR2cNxpM9hEIYERFVMf027g98bfM1sksp-Ib8ytMNvbZIAmV1zw5KiCe2rQUcCvjYK5lD1-kvyEuoAVd6OnmFzu7zMifzLyEI1VX5jCGiuJRpSzafP6cbdxStLoNGtX9oroy~bx~H8e9HeUQnrSr0ZhJwH2~Ekgs9upJEyKob58PIuj0SML~xisUQDvCCILa3s3LYJV1yWwVX-d8dMByJp0j15CT5da0o1ailJifw8HLn43BmveTALs5WP8S863yHH5pI4ejF8V1IQDvvOfmINhJEloMbjyENnyhWBIpV5ji7CorhHkGCAbGhwI4ix2wl3yPFj0RAt2a6W8Xg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "fbx": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2148-71f2-9485-35ff0fd32f03/output/model.fbx?Expires=4946659200&Signature=BJKHEpuU~wjYji3oCgDQ1xfNDmswV~~DLT~PylGtDsqMXx4AOZdc4LTmZTa7HwgBms6SMraJo427mwaz8IhPOSWaF2JMLQqAmnmuxxmSc7Dz97raM~12QOG2jNPTBckHXqN3EH-YALZYZ-Xl34Q0LGVt~i2sCWhpPliio8VgJjGN6vMGLEEo47RC6msS5-WbDIHkJFG66jgJXAqF8iLbHcWLrdu7dqjO-J-b7NILSUGBtsZG9T9lfHeonnjEYCJ0~49V~RBD2qN8a8lnGT-Mgns8pradCnZ0cAOFBDjJhAE8kjF~WoLJLx1I826N8d-mN2ZFLOBq4tZeDpLUUsx1rA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "usdz": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2148-71f2-9485-35ff0fd32f03/output/model.usdz?Expires=4946659200&Signature=FUs2wo659Y~AZXcT7lj2JbOLJGXp9NDVtx96B-XpMaOPUiZtxBAf2s3OszvfdpQHVCXOQBGpCqI88xjakrVsXTcMSSfBj32tBX-DcWhvfPhhxiRef5QKpXM6kK0YZ-PS6tHDl-fME2LfaPKeSRI6w7Ofaub96B0Tuh36dmH90xesMVJGfFvwwbbJFqNLWF6PST7YTYJdCjzFrQt8pzJ7zbxlVXeSqIMQczvjO~QUrrxLPVH-UqYcfr1FgMJkBN9r1AyYu9GgeUDKe~CCB-y217jSfPmhw5MJbpybhqZtQSynK1oBxquj9SABrZUxK3GTvRthATFLoJJTXBZUVe5CgQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "obj": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2148-71f2-9485-35ff0fd32f03/output/model.obj?Expires=4946659200&Signature=g638LBOT4KqQgLIDB8G0hPdCXMMsLcq92o4tz93mhRvbZb31fBDy8OEkI4gGC414Xbyv0fmQqjI32FWhpTUO0LInpPKXmjCOLmqrikj5ZvXA0qK8h~8R-tjOPoBEvlpenLSQqoHRU3CKIP5Pf4So3doVGbpiJTJP8oQacnJ3yOctHEjp2FNyv92kYvbIx2bfNfuZTi6ITc5mj5r0D9cdqtspFCOWCb9nkC1cO3Je2kG4Sf8jNAqRENupyIfNmfX2T-1hVjBhHro6tMbrCs1~Nqyy7vn7NbrCOiesoTjr0~OTCPGIIylQie46jGU-fD-5zMsMZjQ8JCdP3OrUZh5mPg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "stl": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2148-71f2-9485-35ff0fd32f03/output/model.stl?Expires=4946659200&Signature=bRmHezb6UuAgon6Zk3HZN4~QOrfbmNv-ny9MuMkHh4DspdoG0K-FNh-gVuh3llC5R8ccv9ThIw0fOknJxC~erihmBgp-VvzKAzqXjw01grVIUg-uIIjfV2y50iOzDDM~uTSuYSZImdaMovDXy0cMOIhJQwDjFHu9bnEHbO50jlcJPaYi7BrkM0~-dc~GxlPsAT2tuayGbWf0qkVzOvZrLuUxTLfOvuYt8vT7blYRKfSt31uMTlYoBuEp~MTT5T7hJ7VPA7h1uKjtkbfdyAvoCGDmDd5RhRimPuPwLd7c7aeB5dl2dpFMCvo6P6te1k8azrl8N1nxYVOzxpmoFJLF8A__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    },
+    "thumbnail_url": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2148-71f2-9485-35ff0fd32f03/output/preview.png?Expires=4946659200&Signature=pQFATJPZPBx0N5cVOnKK1CDfmUumjkPeKhJO~Ayq4yNEdJMAUw05nKLqEDftYqjOLr6Da~6BL1hDFhaa8ol8Qn-xmhKVKvmSx0RFyxHGLVyeEDzkrSk~UH7301DbJOVLg2bYeBq~1gTu2QxuDaw44ToV8QrdntonGmLD-ylpRy6yBtjXicFIgizCdEoznuMhzBO83BqUMjy8ySwyQgLeOh0FnjTNvYJ-ubKDEqhVyB6xa4J9C7O8wJcmi~aabAzUV9GN7EHDG6oHZmFC3y9gkMcfCP4fwtKe0abfjApHclWuTJr32v~FDItDlZgLYeB44JStrhcjIdS4fFC4Qw6N0w__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "texture_urls": [],
+    "consumed_credits": 20
+   }
+  },
+  "bx_preview": {
+   "id": "01a17ecb-2c3e-771c-b8ce-93be30eedc8a",
+   "path": "/v2/text-to-3d",
+   "result": {
+    "id": "01a17ecb-2c3e-771c-b8ce-93be30eedc8a",
+    "type": "text-to-3d-preview",
+    "mode": "preview",
+    "name": "",
+    "model_type": "standard",
+    "seed": 2620583943,
+    "prompt": "Slim agile commando battle robot, dark skeletal metal frame covered with dark brown armor plates shaped like muscles on chest, shoulders, thighs and shins, small smooth round head with a single white circular photoreceptor eye in front, narrow waist, athletic humanoid robot, full body, athletic humanoid robot proportions, standing in A-pose with arms angled down away from the body, feet apart, empty open hands, no weapon, no base, photorealistic PBR game character, worn and scratched",
+    "texture_prompt": "",
+    "texture_image_url": "",
+    "status": "SUCCEEDED",
+    "created_at": 1793128608399,
+    "progress": 100,
+    "started_at": 1793128608408,
+    "finished_at": 1793128674651,
+    "task_error": null,
+    "model_urls": {
+     "glb": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2c3e-771c-b8ce-93be30eedc8a/output/model.glb?Expires=4946659200&Signature=dpjJHyMLA7DG8H5W49gjLvO9SLryrIUrQMYNdjyu1XusVrloNcAgHPrA4OQ9hzVevBONytGfx7Wp4g2d5Osn8I168qphyNynreTDCYqnbasyOnnlurEQpNQtUeTRkEBZb8Jif-JKXAqGmUbDWqRwMK-vzuPJDL8AyjGDmdklSSyWILgnqhErTMOUsM4TTDcAhNmEgtvSQw8EM0mXSs~Ar1E8~EX7edx7pBYQiVBFI7JSwBj8af-kRkVGBQgUrDkZlGzcffpwsmZIdLp3UoZ4tlW3Zi5KjgbFSOPESIOfHafiWueWnU42cllN54U-P3pEzBpznJHzKs35DHPyvc2d-A__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "fbx": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2c3e-771c-b8ce-93be30eedc8a/output/model.fbx?Expires=4946659200&Signature=XtFs6I1nRPpra0lXAeKtnm7ehNA~S9OgM0-PTOI23hkE1fslrW-ZLLFf3Agp5sYH5npFY~WQSCqk2nwN98g9W~6g9XkSPOe6q-qD~KWZwNd~wC0ws4MXImitTuZ--rCWINZtVA8HiUBIUwx1tyQtZHdLxDA10gVSjKBI0-1cBXi0FkBNCLIrGgIrBfzBzJEemkXBAPVRSaRQ8xsL1hI~QHUGaE75AQ77flQna27BhQQkuat1E0n6kXgT~uFQ3NXverNp1~upm9AYrc2mIh3yUBApy74~bcCN4U5dbOE4OjYAeJxzJN71XQZWq70NMjF6UCwg~bbFlNiNtPRYWYUnkA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "usdz": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2c3e-771c-b8ce-93be30eedc8a/output/model.usdz?Expires=4946659200&Signature=q2Rgb110GMKtxYul58f~XTsrWzmeDpgOOUj2d0JwIZZZdIaR~u7YPKOwfIpYZiEsdmQp2WL7C5gsnRnJRg5TG3d1F4Wjm3TwEBwFPALiDMcPLUcTlgWP09oyC3RvtYHJCilMxHDjLJsv3F8W3C7ksRzFC0EDAJqlGS6l7EdeYHc5wVphcBTHwiaacB7eCLWAyO78tH-o54Onh~bWpQhZ0y3TY-tU7w0LKucQZPr~ChVwvrr1Ya7jCrE0kFMZKtx46e5iiqmE86Sttmmx6v9Doy4QyGKcXuRc5p8NaN~sv7MTCIn4j7b5jy~Ist5veRJ31RDwZG6gI5Yw4A~RR9rMKg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "obj": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2c3e-771c-b8ce-93be30eedc8a/output/model.obj?Expires=4946659200&Signature=bBKb2AIGG~8RranQbWNQ-~4Fzt0hpuEYRfWCABLTVIIB-VXZcJ106qnqxsxrWC6i4pEpCbtX28r21ZHNC3EHKtuJSjEPrQKkgdNUKCoDdwMpRM~np157fClzlY9kMb0JpGpp1t-kZItTK5iJrzLjjf5nN4dMg811kpmF0QHb3pdD1mRSpg6A4o~Zelg9IQT7kL2OF5GrDX4UbChdKkZqjUmzyvdZlFjABFTalcJhVbs28mSaGkhTF549wwwLsHP0lf8Gr2EvDWiUSNQbTCsBI00bzBT3xHyV7xoI3nMQeZjj5Q0xPOo5ypftZYRwZtqWwvM3NtJOJEFs1CH7oZUq1g__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "stl": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2c3e-771c-b8ce-93be30eedc8a/output/model.stl?Expires=4946659200&Signature=mGRCHdiqlg03bVxvutEzq15ASlSoQNq9Vhi1BCGjHSaBoyTIgTeB5MZpLsZroPesETwzxQXlBjD9LaioLcrMLLE0GXU6mcLAFdsHOKS3FtJ8IvggBNTDlD~9prseaNtUhMrVNwh-TPvTP8yrCTSr6qw5ATx-wtdcidRcpJs~HNU4bZovnv8Enu~X0wEZIGiGd71m-Ot3q2fQ2Mchj2yfLKhZa5jWpLGuO~HtG5H2mCyrFgWmEDmYLLwDIZwYsBJmhL1ZiybUorkTWS99QW560wplVAUubxM7S1HatWbTJr9wp2YNhUskCYkAWeQAZUpRXEF98-v72~hOPzkdMKGyhQ__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    },
+    "thumbnail_url": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-2c3e-771c-b8ce-93be30eedc8a/output/preview.png?Expires=4946659200&Signature=EWyIkepPp6VICK8lNiRAm6UvPewmUjIV0C2FK1pRHF6o-1mCd0xORMRn-AHCj6-HLdUERxbGH1R5r~1EnIuBPy8gxMM6nIIo98inaqMjCAHZhk6vtECC6CUQ62R365nzfRdLIFS3FopVpB-2u~RVTEVyNT6YSRC6MPUX0kVvfbuPBrS6MVq5d2J2rtUo~x2EyYLN8yurOX2SjmE9j2xN84QsuhWoPJ-V8llpady6VKDGxZ84jwV36KNJhVWlsjQUOfy~UqaaQW0PYKGD4YnyJxLvzJJRFFJqas9qDDk9F4CU6IMzqdqOvsE0dzayjA2Op~5UqZjptgFSgvoHqi-kLA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "texture_urls": [],
+    "consumed_credits": 20
+   }
+  },
+  "b2_preview": {
+   "id": "01a17ecb-34fd-766a-8fdc-1d9c827f6c04",
+   "path": "/v2/text-to-3d",
+   "result": {
+    "id": "01a17ecb-34fd-766a-8fdc-1d9c827f6c04",
+    "type": "text-to-3d-preview",
+    "mode": "preview",
+    "name": "",
+    "model_type": "standard",
+    "seed": 2323874407,
+    "prompt": "Heavy super battle robot with a massive hunched blue-grey steel upper torso and large curved chest armor plate, very small head sunk low between the shoulders with a narrow red sensor slit, thick armored forearms with built-in twin blaster cannon barrels on the wrists, sturdy armored legs, bulky humanoid robot, full body, bulky broad humanoid robot proportions, standing in A-pose with arms angled down away from the body, feet apart, twin wrist cannons, no base, photorealistic PBR game character, worn and scratched",
+    "texture_prompt": "",
+    "texture_image_url": "",
+    "status": "SUCCEEDED",
+    "created_at": 1793128610872,
+    "progress": 100,
+    "started_at": 1793128610882,
+    "finished_at": 1793128677646,
+    "task_error": null,
+    "model_urls": {
+     "glb": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-34fd-766a-8fdc-1d9c827f6c04/output/model.glb?Expires=4946659200&Signature=GOAcAAA4epIf812Vhu77xEnenSN--JN~f461sfqPahjP784WRF1GiTXnS5wLNTF1bpVTQr5jflriX7fJU0rFY-NGo8fZBVJ1R3nIgeK8WuQKHY1eh68Qq7LSKLpcIiaqcOzmt-cvrDzeQ8dKZbZRpHcT-gb~miTzj6-Y2CFfvNMctSUDCibkB0JzJnEYua9fhkVxjj5wCWCPg7bFhM9kvYzUaMOj8epk~aj28AMa3lKLbLvSbZn9eBfvEne9Iwkx0WKemkrEHR~IR376Zb~prVn3ltNPRdjMbsZBgEICFKnIZ~0MzjoNpZw0AZxdi1KtqhSz7R~wOUgIal9r1yfL-A__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "fbx": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-34fd-766a-8fdc-1d9c827f6c04/output/model.fbx?Expires=4946659200&Signature=BicoGJ1A~NNneB1a9JypNnoKYY3~~8RXnIzvfl5TqbbQAaEUW9INdxpdzx-nObJObpEquIP5yCMQOZORU9NfsWRuAM~r67VzfhJyZMM7pD0nto8GvRqKuvY5aQaVCUyFgRtAwTterhsgfT4rPW7LK0AkX5y8AZqWyy~o9tdQa~MrLJaf~vLatQQmHe0qPFR208V519Z0Xto0MzGMMvMBe4fp1tIGLPmoGeE9Tm~DCI08EbWytMYVs8eB3QnQePHZc2vLXj~iEzF4JdpV4~V6rtWhZpajgQvPvDiWQidBYx~TZHmzIz~FywvRqh-XJVhnrZobt5S6AzUTHT~3AhiNhA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "usdz": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-34fd-766a-8fdc-1d9c827f6c04/output/model.usdz?Expires=4946659200&Signature=Jf9BnAjyx4PtxAHkLI7A3xJV-IrIqgGVKAnm15zhwhhibfeOJmKOd52VhcxI-VTsFhkgd9DgGCE1iNEqmNDYldQlDhUEpczwoy~thU2UG~4ZMBrtdAXTj-PFpEmqVjKsPgamuo71YM3pZGohHAnw4Iowf~A6hHaOjEp5JO3AeBfQ7JCfAPOJs2pRq~zbIRk-xSC~MPlFxlgB9N-QBK4giNRHXNzxlGijqpIhU6AKHDWObvCW9iM14-zv18KkkLTpS2swaZ9Y5RHKbtautfafuPdgohxBbtdW1kD6OT066g76x4tV-nno0nR2Fg5ApIgeQnN58-FtbmDnO0-Eu5YYhA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "obj": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-34fd-766a-8fdc-1d9c827f6c04/output/model.obj?Expires=4946659200&Signature=gS9tXk1m15s12FUlHScehxYDAxcg74A9htsvIyLyNRmrcWrJhjcPQruhW207N-sBNlHpZdNliDuWF3dwPpqLchmPiar258rvQZPmsPs0Enq5I0OCIfIbGwwX~c6lhTJFIKo0iDW04r-wKE4-QojCorSS-Mi8GlB2Dss0ILEefFE1Ncnn5enySKX4P42gyU88O6FDlFhitR37WFC3PkgaqyIRO5zbyfiFHHxkVw-8iX9hswyl9mEoXpWt4oEKSxFav-excXrwXocaUP6DkXqqQ84CO3x9z~CDxPxIdR8OMAYYlaxol3zksj-Y2iVAO8PtV2awjV-ev8uN6TZZoz8utQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "stl": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-34fd-766a-8fdc-1d9c827f6c04/output/model.stl?Expires=4946659200&Signature=OILzKErbwHP96Rb9kHGV4MSEvhZ8mZ6n89azEvtXAgzgznHpIvHCGDz7Ygrehnn0AWjzd~mgwQ23kKF77Wl5SGssOAOt-3Q48zXU5dQc3Gjo4uTKUihGrBZ6nk-ZujMUzZEC2dtQvr-5J4RrNY2Ufbkn4v06AHhpobFvm-qps~mf6Zr6BK69J--F~FH-DBSD2aOGQvFWmxQ95lNg-LdW6Qq1HPt8HCf1YIwt0uPbFH~4AeIAZx~LL79lWck8XM-6Zyheva33SSr7t-knQQXgwa0dqOXF6HTM9tXDEYFbUoj83tsAmBcPshBjPl89N9Uye5Kg3GWRD9ZjT5wphdCCXA__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    },
+    "thumbnail_url": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-34fd-766a-8fdc-1d9c827f6c04/output/preview.png?Expires=4946659200&Signature=gAnhEkKj7MqanIh63RpABlHVA8rG4gSx~1Q5RaK4~tZ31tx6~PPA6msbZKmxafDgYyQiY~CZCyktNs8s66jBPDr49n0RAxhjmPlky5g8athDAL1aKdpwO6AOUjylNHyZzFoRopNz3oMx8RoQX~D2egIaqba9lIvHxUOktHixsty1vtN6guFlzni9vneUOjjMT-maJif7W0wDLLQGKPdl0L5eMwbjv~zsJEg12X63aXWDqjFGO6Jdv6cCKV1UIUvzZK6WWINIpCYZqA7KZ9YFuUosF0hj--Bg0OhCB8MjeSTGtMTUWxG5D4tlRjY7qXLXVfsEOahKXBy34s0X~7cHdw__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "texture_urls": [],
+    "consumed_credits": 20
+   }
+  },
+  "tx_preview": {
+   "id": "01a17ecb-3e87-72a3-9b20-869d46020df8",
+   "path": "/v2/text-to-3d",
+   "result": {
+    "id": "01a17ecb-3e87-72a3-9b20-869d46020df8",
+    "type": "text-to-3d-preview",
+    "mode": "preview",
+    "name": "",
+    "model_type": "standard",
+    "seed": 1129620240,
+    "prompt": "Tall slender tactical command robot, dark navy blue metal body with gold trim, very tall elongated vertical dome-shaped head with two round lens eyes, thin articulated limbs, chest plate, elegant humanoid robot, full body, tall slender humanoid robot proportions, standing in A-pose with arms angled down away from the body, feet apart, empty open hands, no weapon, no base, photorealistic PBR game character, worn and scratched",
+    "texture_prompt": "",
+    "texture_image_url": "",
+    "status": "SUCCEEDED",
+    "created_at": 1793128613085,
+    "progress": 100,
+    "started_at": 1793128613094,
+    "finished_at": 1793128687143,
+    "task_error": null,
+    "model_urls": {
+     "glb": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-3e87-72a3-9b20-869d46020df8/output/model.glb?Expires=4946659200&Signature=mvabytOgMqhIrQoEnOi6p8KhIFg5X-MmQiFR1VcxjhflUo0wpyAy9OJUzs~Nh6k5oV-b6GCIGi8DGuycYyMrS1bUVvz4jCJMwSuDF423zsg~45xSqXYllSBrd94y0eNmKYUr20E~P~h~kexBxuBQKZdxiKsUq0Zms8w3ws6aVFk4kpXr6SdLRoXEuHXzgus2EGac1SAZg8QXhiAu~KC4iY9SxM93Ra70IuZ3p0hrUX9xB~C9VV5yq7sKbe0U1HE6lzTxmcT8-zVlmdAVfLL1wqnnRJEQ0dB12Cp~hHb9M1iUJtzo6xvi5XoC0pXtm0SSQn8HoMQz2AHxBDYsIKdAwQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "fbx": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-3e87-72a3-9b20-869d46020df8/output/model.fbx?Expires=4946659200&Signature=VaTypJ40dpVcW4W-aQTyNirsEi5WG0kIBXyDQV8fTL1HspFFNzEMbmR8JX3U1w28gPNZLjBhHYKDAGTKFH8GnCVUgaAhvMWYqX6cIpZQi8o3kVG9NznYjHAaUSG2icvu-JFh1sHSGsEFIyv0WHTlhm3E7h01WAlQKUzj2DQTwHWgA1gTEhqzVzL2qSHGVIts3O3mJM-16FEsKMBDDjKerwILVHa8r8HPdhrguyI92hoXNR2iobqQn3VjjkSUepqXWDkT~43k-dnpRcruXTXQcVmZipxzAiTcj5tiNAsPy3ib8LY-FHclUtuH2SArRtz8CQf-dpipKPXFuW5WylsTfA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "usdz": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-3e87-72a3-9b20-869d46020df8/output/model.usdz?Expires=4946659200&Signature=h~Z1MXMGtQJwi6fQNk4O-z-69P0kpFMIjIXbtOKsWoGPEAIt5DP67p8YrZEDehBQ85GM9mcYrciYj9xUmdm1YA0cfDDFQajcAF7216WDDe-m5Z5oz81xtqjdKgKMmwmpiDN6oeb3gXqBcmZ95URYFcuNNfv3fUuc9SXvk~gRdtch0neCNWCl~WUg-~LUgh4CcVyjmf0k9Pd6UJ0a4wjH02gnQaq9RqBkzRz9olhYdK-SHvE431HYt~rTpnYHmOh8~jPbyaOXqyagVxHKpfERRyAkpWiVDeZ2-rJ3zyJ2YB2uxhFHXpwZq7HMpqEAQaytD3BkJve2iZKh4fa1VO1VNA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "obj": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-3e87-72a3-9b20-869d46020df8/output/model.obj?Expires=4946659200&Signature=mee12SuoS194dk2pa4jrroAp~ZhhwBUJg2ZeMtlYQ-0ej3vbSKPG8O1ymLeM2RjaC8QWumVneUIFMJiA2--gNt1kbplvzTn6XSq5hHOc331DyIOLEBLV~TNg6oufsSkIoR34m5ETWf6nODDug3kHOKcilyOUuc411cg90koD4WK-hP48qhDVS0xpcKP6oAQFbk2oKNTCjqHmQN208dfLgabqB8c7Z~NcfMAMZ2rSKAsmore2yC8oE0v3iyR2DtROhSCJTjLHoaZU7f1i~dipFuIc~m5Lm~BPslumScx5wb806x1C1qCgleJkIGfpKZA84t9L2cK7ckIpniOM1YXmDQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "stl": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-3e87-72a3-9b20-869d46020df8/output/model.stl?Expires=4946659200&Signature=mMXYtduPZ-Q6XUY8syTZyj5DDnasqwr34F6veciSzr9RMgj6~BSyedg60uV8IH6M90rn-nMfMCHxaNA2wk2fB8~k9bliJqpfXZ7gr8Lb~FwJblqr~pe2nbeyPXZOs62PotzZ1AtE8hH5geEbq0V7T8bXdHoY6yTKDYUbTtRAOdqAo10PPUhKYtND7pvGGq~gJRuuhMP1dpsXq5ClNiwNbmAGGdNjM1ZGVTDvWJ9M8kUqKqMfaCXGd7xAOPGmHtcvGdhmmDvLt2dIsnPccv2H2wbUKx0qLQ4XLl332D7y0MynVvDYgVa0JKkbEBemIe5DtcvCaHs4nkXJ5JH490yGVA__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    },
+    "thumbnail_url": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-3e87-72a3-9b20-869d46020df8/output/preview.png?Expires=4946659200&Signature=FE~AHT21UUgt0t48DPjpevTVSHbzfTO80lZGX0Kbqy0TbpSreKF8ofJUFWTIL9JZKGlBIcljZlN8tpndgmOkvUfdiS8NGUjYh6uyPNMdcdcFCrBDwtdGDGF1MLqgA5zi37yJTJR1P8KNKN2EOpjgypGwHpcGulq05PNE1yLGZIT4Y2h1TqgLTYoXr4f~OcEr8KtQXdWW7ZdsGq0jm3ljk6phwjbv6NwQvTMCuDdDkQuGmFqDl3~buTqOZRw8mIYfYoSmL6vf1XSu7f6QHTyymucKDo2~QgzaPBACUGbsw9oB71b3b4vg3ZqfVS1BiH~908URMh3nJQ0eq2EXJMa65A__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "texture_urls": [],
+    "consumed_credits": 20
+   }
+  },
+  "pilot_preview": {
+   "id": "01a17ecb-474d-7205-b13d-dc5c858ce1c3",
+   "path": "/v2/text-to-3d",
+   "result": {
+    "id": "01a17ecb-474d-7205-b13d-dc5c858ce1c3",
+    "type": "text-to-3d-preview",
+    "mode": "preview",
+    "name": "",
+    "model_type": "standard",
+    "seed": 81719547,
+    "prompt": "Sci-fi starfighter pilot in white armor plates with yellow stripe markings over a black flight suit, white flight helmet with large dark visor and small antenna, chest life support box, utility belt, slim athletic build, full body, realistic adult human proportions (head is one eighth of total height), standing in A-pose with arms angled down away from the body, feet apart, empty open hands, no weapon, no base, photorealistic PBR game character, worn and scratched",
+    "texture_prompt": "",
+    "texture_image_url": "",
+    "status": "SUCCEEDED",
+    "created_at": 1793128615365,
+    "progress": 100,
+    "started_at": 1793128615371,
+    "finished_at": 1793128675926,
+    "task_error": null,
+    "model_urls": {
+     "glb": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-474d-7205-b13d-dc5c858ce1c3/output/model.glb?Expires=4946659200&Signature=SzcN0qDKAk0HzYCLExcbEK9nct6uV1zj0hUhW1kYU89f2rGru6IX0-8J9B7iQZpA6slZr2pqQdXZkI61JQCV8CrLWkkFevD7frTyrJh2HAGeBUzmzzwXMox1E~hIzmr~TywIZuKbdU4pQ8qlr8L46b~TbLBRdl9a0dCHq59k3BOhAXFe1J78uvfQe-QzWEQc7K928G6QNN3BJ7ADqlZiT~ICxGYc3eGffCvvJttszBl4N48q4WKT4gf~jXtDHyuiXuVtNIHzir6mEJjTPdEnKMXv95h8fz0xXXmLGAGcJB5Ce5JbsQeG15U7VyoQgJSh3Mxixyn-Du3gWdYodWBJbQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "fbx": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-474d-7205-b13d-dc5c858ce1c3/output/model.fbx?Expires=4946659200&Signature=LQXMdNjn9fCB2KO2l7fPzKKOqNrQ7~AaHIwfLJEHBQu38X6rbsRiaa3u2kxGGTV-PBehsxtnBy3GYBnMOsD8FNysCUTN9-wdd5lnx3GfBzhmjT-JAOBC7j~7h50KnXkZ2olQ3sMH1Dnx5778pDMLa~cosvFYrEKYhRgiARxADmarNsXyg-14W9Jzf6ipyUGH1EHuM~dL4uUtMCPys6lGFBAK~RrwN6gH0fFvNyOk3PP8yoVi8h3-qtwuIeYcNkOthW40HaCKurcOXmeswQBSPsrj2btgjN2SB8yn1GWPUfQN3E5f6axg7Nxkey35LSjVVavg32~-UD8cnH4TQ1u0ww__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "usdz": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-474d-7205-b13d-dc5c858ce1c3/output/model.usdz?Expires=4946659200&Signature=cuN93xvWujNnlaGNNRTciAvtsGykRNKVj9s-7g6~wSQ~nlFfYyQvguZPAQC0wYer4ifIkA4eSFCjNlK5HoG52RHdcw860gRIhTDc1BhJVsw0mv7rZyotvx6ytSGg8oSWtczdijLaqPoy5WoMc60vG-761YKdm9tzt-cPmmvTjZKsnEs3K~OWFibcSV~2UlTMfnt6h6ogGnznkap9wzwl6WtIKGRs2c2aTmU5kZE2eOWewkltHjImLMpyRclMN844s3S1DXLC6HZ4qYDftjH5wwIBO3E1ACbpcmtGmZ2cwYPLZaUCR5~Phb8re99uWMwYWk2cGW8ilzSystz9edTdTw__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "obj": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-474d-7205-b13d-dc5c858ce1c3/output/model.obj?Expires=4946659200&Signature=X2GbaNRAqzvj8OUE~Ht276FTGx0KYO4dnye1C-ixi34iCFKbqeKdMsgYYJOYMrLG-2xNnbqweQ5aEQpd-wZiM8pxTiX~CuuZ2kKt9SrbbBpk46i2WOeWEfOixJ60KZOYf46rdsJztuaL1O4PGAaK50UCSCJkuGduZ1m3TS9U~Af~wii2vVzq0QXZJ2qSJYcfcvqWP8d4o4aoGfhFJQI2L7SbGGwOPKl-AZ5oAfTtYAL8EDythZsW-zgRUq8uDihMd8jUaWWnRY1mg~N-bFCKsJdGOjxtDzUNxPC8bK6GLkRN3oN-BAz0Ui6D9EECitG5eCnZ2mGvTX4aZT8~3TfkbQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+     "stl": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-474d-7205-b13d-dc5c858ce1c3/output/model.stl?Expires=4946659200&Signature=bdJGsi4~CLI7qwM16FPx1qzQpXfqlOw0V5baD-1uOIyIFCedxQa9UjNBuExMaj8dxgDLATnIxZmPN4o8JLZ8i~thzYEDSK0iA0SPbtG-0WQql3pNWhib9IhFZCMr74ZiRyypJNpbb8fVjq-A1y11zYxQTYMFA9Sr2tTJqXGazEwgyPFFxOiJFSNu8ojd4mxZpc2S~Ks3CHEYf9lR4UrMfmu4ZXSshToJDxMZXN-suNVd7TIDX-NS2KcBmnYbk9jwcLxdXgFnp4U0hPlpK8ri0pX-SpYLijQRzVMDLpOcUJ3l0KZNe9mwSiG1jEDGSnWm0LNUu2-nUrQORoHYVjAD6g__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    },
+    "thumbnail_url": "https://assets.meshy.ai/a335d4f5-c9bb-4155-b8d5-ae73a90ab647/tasks/01a17ecb-474d-7205-b13d-dc5c858ce1c3/output/preview.png?Expires=4946659200&Signature=bGBvL-CVicKTEa3JBKaX72bLuUz5VF1C2Q6-4lnV9H3mJVoSYukNWH7R-HBNud-5ccPBCIDLJu5kpgqi1w-PxF79MlUHFv5X~jNSNUP7ZoTi7VpQ43o7w0UzloKBuu7rJpHx~3CPDoMz6bhlTikWQCnGo-vMXX6op7-qOPi5mH9PYeIvXwfbdnIYLRElJCvwo2ODNNFzgpv8Sqf~gUd0hhmOcyTi3ZyVH7~2QDHTTHGxF5fvJFpIhkomAd1~1zm2NSkCIphC~CLfopdAarbKTBeLVA2HPv5fVzZEDjMQWNqWnBrZMjSyg6hd1-lwRB5r0NGgo4BCmJzzCLGXyUwFjw__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "texture_urls": [],
+    "consumed_credits": 20
+   }
+  },
+  "img_clone_nano-banana": {
+   "id": "01a17ecc-fa12-75fe-9349-0b472bcc1d0f",
+   "path": "/v1/text-to-image",
+   "result": {
+    "id": "01a17ecc-fa12-75fe-9349-0b472bcc1d0f",
+    "type": "text-to-image",
+    "ai_model": "nano-banana",
+    "prompt": "Full-body front view character turnaround reference of a Star Wars Phase II clone trooper from the Clone Wars, white plastoid armor with blue unit markings, T-visor helmet, black bodysuit, standing in a neutral A-pose with arms slightly away from the body, empty hands, no weapon, realistic photographic style, plain neutral light grey background, centered, whole body from helmet to boots visible, soft studio lighting",
+    "status": "FAILED",
+    "progress": 30,
+    "created_at": 1793128725023,
+    "started_at": 1793128725028,
+    "finished_at": 1793128757365,
+    "expires_at": 1793387957365,
+    "task_error": {
+     "type": "invalid_input",
+     "code": "provider_content_refused",
+     "message": "This content was declined by a safety check. Please adjust your input and retry.",
+     "doc_url": "https://docs.meshy.ai/en/api/errors#invalid-input"
+    },
+    "consumed_credits": 0
+   }
+  }
+ }
+}
