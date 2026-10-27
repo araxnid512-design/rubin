@@ -19,6 +19,13 @@
   function init(canvas) { ctx = canvas.getContext('2d'); }
   function resize(w, h, ratio) { width = w; height = h; dpr = ratio; vignette = null; }
   function setTheme(t) { theme = t; style = STYLES[t.bg] || STYLES.city; bgCache = null; skyAge = 99; }
+  // Разрешение холста: пикселей на CSS-пиксель. Высокая графика — до 1,5, простая — 1:
+  // глазу на телефоне хватает, а работы в 2–4 раза меньше, чем при родном разрешении.
+  function pixelRatio() {
+    const F = window.CONFIG.FX;
+    return Math.min(window.devicePixelRatio || 1, quality > 1 ? F.dprHigh : F.dprLow);
+  }
+  let onQuality = null;
 
   // Качество: 2 — все эффекты, 1 — простая графика (без зерна, пылинок, лучей, виньетки).
   // Режим «авто» сам переходит на простую, если кадры не успевают.
@@ -32,6 +39,7 @@
     slow = 0;
     skyAge = 99;
     try { localStorage.setItem(GKEY, mode); } catch (e) { /* нет хранилища */ }
+    if (onQuality) onQuality();
   }
   // Вызывается из главного цикла с реальной длительностью кадра. true — если упростили.
   function frameTime(dt) {
@@ -40,6 +48,7 @@
     if (slow < window.CONFIG.FX.slowFor) return false;
     quality = 1;
     skyAge = 99;
+    if (onQuality) onQuality();
     return true;
   }
   const hq = () => quality > 1;
@@ -340,21 +349,51 @@
     ctx.drawImage(vignette, 0, 0, width, height);
   }
 
-  function drawParallax() {
-    if (!bgCache) bgCache = buildBackground(theme.bg);
-    const horizon = height * 0.66;
-    for (const L of bgCache) {
-      const ox = cam.x * L.k;
-      const scale = cam.ppm * L.scale;
-      for (const b of L.items) {
-        const x = (b.x - ox) * scale + width * 0.38;
-        const w = b.w * scale;
-        if (x + w * 1.3 < 0 || x - w * 0.3 > width) continue;
-        const h = b.h * scale;
-        const y = horizon - h + cam.y * L.k * 2;
-        drawShape(L, b, x, y, w, h, horizon + height);
-      }
+  // Слои фона рисуются каждый в свой холст с запасом по краям, а каждый кадр
+  // только сдвигаются и масштабируются; перерисовка — когда запас кончился
+  // или сильно сменился масштаб. Сотни окон больше не рисуются каждый кадр.
+  let layers = [];
+  function paintLayer(L, lc, horizon) {
+    const main = ctx, res = lc.res;
+    ctx = lc.c.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, lc.c.width, lc.c.height);
+    ctx.setTransform(res, 0, 0, res, lc.mx * res, lc.my * res);
+    const ox = cam.x * L.k, scale = cam.ppm * L.scale;
+    for (const b of L.items) {
+      const x = (b.x - ox) * scale + width * 0.38;
+      const w = b.w * scale;
+      if (x + w * 1.3 < -lc.mx || x - w * 0.3 > width + lc.mx) continue;
+      const h = b.h * scale;
+      const y = horizon - h + cam.y * L.k * 2;
+      drawShape(L, b, x, y, w, h, horizon + height);
     }
+    ctx = main;
+    lc.camX = cam.x; lc.camY = cam.y; lc.ppm = cam.ppm;
+  }
+
+  function drawParallax() {
+    if (!bgCache) { bgCache = buildBackground(theme.bg); layers = []; }
+    const horizon = height * 0.66;
+    const res = Math.min(dpr, quality > 1 ? 1 : 0.6);
+    const mx = width * 0.3, my = height * 0.25;
+    bgCache.forEach((L, i) => {
+      let lc = layers[i];
+      const cw = Math.round((width + mx * 2) * res), ch = Math.round((height + my * 2) * res);
+      if (!lc || lc.c.width !== cw || lc.c.height !== ch || lc.res !== res) {
+        lc = layers[i] = { c: document.createElement('canvas'), res, mx, my };
+        lc.c.width = cw; lc.c.height = ch;
+        paintLayer(L, lc, horizon);
+      }
+      const r = cam.ppm / lc.ppm;
+      let sx = -(cam.x - lc.camX) * L.k * cam.ppm * L.scale, sy = (cam.y - lc.camY) * L.k * 2;
+      if (Math.abs(sx) > mx * 0.8 || Math.abs(sy) > my * 0.8 || Math.abs(r - 1) > 0.12) {
+        paintLayer(L, lc, horizon);
+        sx = 0; sy = 0;
+      }
+      const k = cam.ppm / lc.ppm, ax = width * 0.38;
+      ctx.drawImage(lc.c, ax + (-mx - ax) * k + sx, horizon + (-my - horizon) * k + sy, (width + mx * 2) * k, (height + my * 2) * k);
+    });
     const g = ctx.createLinearGradient(0, horizon - height * 0.2, 0, horizon + 20);
     g.addColorStop(0, 'rgba(184,171,148,0)');
     g.addColorStop(1, theme.sky[2] + 'aa');
@@ -947,6 +986,7 @@
 
   window.Render = {
     init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, particles, blood, shake, dustColor, cam, rng,
-    setGfx, frameTime, get gfxMode() { return gfxMode; }, get quality() { return quality; },
+    setGfx, frameTime, pixelRatio, get gfxMode() { return gfxMode; }, get quality() { return quality; },
+    set onQuality(fn) { onQuality = fn; },
   };
 })();

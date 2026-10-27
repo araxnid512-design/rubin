@@ -27,6 +27,9 @@
       weapons: window.Shop.carSave(save, carId).weapons,
     });
     buildWeaponBars();
+    // Новый заезд — HUD пересоздан: забываем запомненные элементы и значения.
+    for (const k in hudEl) delete hudEl[k];
+    for (const k in hudVal) delete hudVal[k];
     window.Render.setTheme(run.level.theme);
     window.Render.snapCamera(run.car);
     buildProgress();
@@ -117,34 +120,48 @@
     toast.t = setTimeout(() => el.classList.add('hidden'), 2200);
   }
 
+  // HUD трогает страницу только когда значение изменилось: каждое изменение
+  // стиля заставляет браузер пересчитывать вёрстку, а это заметно на слабых телефонах.
+  const hudEl = {}, hudVal = {};
+  const el = (id) => hudEl[id] || (hudEl[id] = $(id));
+  function setText(id, v) { if (hudVal[id] !== v) { hudVal[id] = v; el(id).textContent = v; } }
+  function setStyle(id, prop, v) { const k = id + prop; if (hudVal[k] !== v) { hudVal[k] = v; el(id).style[prop] = v; } }
+  function setPct(id, prop, frac) { setStyle(id, prop, Math.round(Math.max(0, Math.min(1, frac)) * 200) / 2 + '%'); }
+  function setClass(id, cls, on) { const k = id + '.' + cls; if (hudVal[k] !== on) { hudVal[k] = on; el(id).classList.toggle(cls, on); } }
+  let scanT = 0;
+
   function hud() {
     const car = run.car;
     const total = run.terrain.stab.x;
-    $('h-speed').textContent = Math.round(Math.abs(car.speed) * 3.6);
-    $('h-dist').textContent = Math.max(0, Math.round(total - car.pos.x));
-    $('h-nitro').style.width = (car.nitro / car.stats.nitroCapacity * 100) + '%';
-    $('h-fuel').style.width = (car.fuel / car.stats.tank * 100) + '%';
-    $('h-fuel-v').textContent = car.fuel.toFixed(1) + ' л';
-    $('h-fuel-bar').classList.toggle('low', car.fuel < car.stats.tank * 0.2);
-    $('h-hp').style.width = (car.hp / car.stats.hp * 100) + '%';
-    $('h-flip').classList.toggle('hidden', car.flipTimer < 0.5 || !!run.ended);
-    $('p-car').style.left = Math.max(0, Math.min(100, car.pos.x / total * 100)) + '%';
-    $('p-best').style.width = Math.max(0, Math.min(100, Math.max(run.maxX, run.prevBest) / total * 100)) + '%';
-    $('h-sporan').textContent = run.loot.sporan;
-    $('h-peas').textContent = run.loot.peas;
-    $('h-pearl').textContent = run.loot.pearl;
-    $('h-kills').textContent = run.kills;
-    for (const [id, d] of Object.entries(run.weapons.dur)) {
-      const el = $('hw-' + id);
-      if (el) { el.style.width = d + '%'; el.parentNode.classList.toggle('broken', d <= 0); }
+    setText('h-speed', Math.round(Math.abs(car.speed) * 3.6));
+    setText('h-dist', Math.max(0, Math.round(total - car.pos.x)));
+    setPct('h-nitro', 'width', car.nitro / car.stats.nitroCapacity);
+    setPct('h-fuel', 'width', car.fuel / car.stats.tank);
+    setText('h-fuel-v', car.fuel.toFixed(1) + ' л');
+    setClass('h-fuel-bar', 'low', car.fuel < car.stats.tank * 0.2);
+    setPct('h-hp', 'width', car.hp / car.stats.hp);
+    setClass('h-flip', 'hidden', car.flipTimer < 0.5 || !!run.ended);
+    setPct('p-car', 'left', car.pos.x / total);
+    setPct('p-best', 'width', Math.max(run.maxX, run.prevBest) / total);
+    setText('h-sporan', run.loot.sporan);
+    setText('h-peas', run.loot.peas);
+    setText('h-pearl', run.loot.pearl);
+    setText('h-kills', run.kills);
+    for (const id in run.weapons.dur) {
+      const d = run.weapons.dur[id];
+      if (!$('hw-' + id)) continue;
+      setPct('hw-' + id, 'width', d / 100);
+      const k = 'hwb-' + id;
+      if (hudVal[k] !== (d <= 0)) { hudVal[k] = d <= 0; $('hw-' + id).parentNode.classList.toggle('broken', d <= 0); }
     }
-    $('hurt').style.opacity = run.hurt > 0 ? Math.min(0.5, run.hurt * 2) : 0;
-    if (car.stats.scanner) drawScanner();
+    setStyle('hurt', 'opacity', String(run.hurt > 0 ? Math.round(Math.min(0.5, run.hurt * 2) * 20) / 20 : 0));
+    // Сканер — 10 раз в секунду, этого хватает.
+    if (car.stats.scanner && (scanT = (scanT + 1) % 6) === 0) drawScanner();
     // Полоса здоровья босса, когда он рядом.
     const boss = run.horde.active.find((z) => z.boss && z.alive && Math.abs(z.body.getPosition().x - car.pos.x) < 60);
-    show('boss', !!boss);
+    setClass('boss', 'hidden', !boss);
     window.Music.setBoss(!!boss);
-    if (boss) $('boss-hp').style.width = Math.max(0, boss.hp / boss.def.hp * 100) + '%';
+    if (boss) setPct('boss-hp', 'width', boss.hp / boss.def.hp);
   }
 
   // --- Итоги ---
@@ -214,6 +231,13 @@
 
   // --- Цикл ---
   function frame(now) {
+    // Не чаще 60 кадров в заезде и 30 под меню/паузой; под непрозрачным стабом не рисуем вовсе.
+    const F = C.FX, live = screen === 'run' && !window.Platform.paused;
+    if (screen === 'stab' || now - last < 1000 / (live ? F.maxFps : F.menuFps) - 2) {
+      if (screen === 'stab') last = now;
+      requestAnimationFrame(frame);
+      return;
+    }
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     if (run && screen === 'run' && !window.Platform.paused) {
@@ -241,7 +265,7 @@
   }
 
   function resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = window.Render.pixelRatio();
     width = window.innerWidth;
     height = window.innerHeight;
     canvas.width = Math.round(width * dpr);
@@ -306,6 +330,7 @@
 
   window.Render.init(canvas);
   window.addEventListener('resize', resize);
+  window.Render.onQuality = resize;   // сменилось качество — сменилось и разрешение холста
   resize();
   // Фон меню: живой уровень за затемнением.
   startRun(Math.min(save.level, C.LEVELS.length - 1), 0, true);
