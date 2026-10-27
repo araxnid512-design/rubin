@@ -1,4 +1,4 @@
-// Экраны и главный цикл: меню → заезд → итоги → снова меню (этап 5 заменит меню стабом).
+// Экраны и главный цикл: заставка → стаб → заезд → итоги → стаб.
 (function () {
   const C = window.CONFIG;
   const $ = (id) => document.getElementById(id);
@@ -14,22 +14,29 @@
   let endTimer = 0;
 
   // --- Заезд ---
-  function startRun(levelIndex, startCp) {
+  function startRun(levelIndex, startCp, background) {
     const carId = save.car;
-    const def = C.CARS[carId];
-    const stats = window.Physics.carStats(def);
+    const stats = window.Shop.stats(save, carId);
     const ls = window.Save.levelState(save, C.LEVELS[levelIndex].id);
-    run = new window.Run({ levelIndex, startCp, carId, stats, best: ls.best });
+    run = new window.Run({
+      levelIndex, startCp, carId, stats, best: ls.best,
+      ups: window.Shop.carSave(save, carId).upgrades,
+      fuel: background ? null : window.Shop.fuelOf(save, carId),
+      hp: background ? null : window.Shop.hpOf(save, carId),
+    });
     window.Render.setTheme(run.level.theme);
     window.Render.snapCamera(run.car);
     buildProgress();
-    screen = 'run';
     endTimer = 0;
     acc = 0;
     window.Input.reset();
+    if (background) return;
+    screen = 'run';
     show('menu', false);
     show('results', false);
     setHud(true);
+    show('btn-nitro', stats.hasNitro);
+    show('h-nitro-bar', stats.hasNitro);
   }
 
   function setHud(on) {
@@ -94,6 +101,9 @@
   function finishRun() {
     const r = run.results();
     window.RunResults.apply(save, r, run.levelIndex);
+    const cs = window.Shop.carSave(save, save.car);
+    cs.fuel = r.fuelLeft;
+    cs.hp = r.hpLeft;
     window.Save.write(save);
     screen = 'results';
     setHud(false);
@@ -118,39 +128,20 @@
     show('results', true);
   }
 
-  // --- Меню (до стаба на этапе 5) ---
-  function openMenu() {
+  // --- Заставка и стаб ---
+  function openTitle() {
     screen = 'menu';
     setHud(false);
     show('results', false);
-    $('m-sporans').textContent = save.sporans;
-    $('m-peas').textContent = save.peas;
-    $('m-pearls').textContent = save.pearls;
-    const box = $('m-levels');
-    box.innerHTML = '';
-    C.LEVELS.forEach((lv, i) => {
-      if (i > save.level) return;
-      const ls = window.Save.levelState(save, lv.id);
-      const row = document.createElement('div');
-      row.className = 'level-row';
-      row.innerHTML = `<b>${i + 1}. ${lv.name}</b><span class="muted">${lv.from} → ${lv.to}${ls.done ? ' · пройден' : ''} · рекорд ${Math.round(ls.best)} м</span>`;
-      const btns = document.createElement('div');
-      btns.className = 'row';
-      const b0 = document.createElement('button');
-      b0.className = 'primary';
-      b0.textContent = 'От стаба';
-      b0.onclick = () => startRun(i, 0);
-      btns.appendChild(b0);
-      for (let cp = 1; cp <= ls.checkpoint; cp++) {
-        const b = document.createElement('button');
-        b.textContent = 'Чекпоинт ' + cp;
-        b.onclick = () => startRun(i, cp);
-        btns.appendChild(b);
-      }
-      row.appendChild(btns);
-      box.appendChild(row);
-    });
     show('menu', true);
+  }
+
+  function openStab() {
+    screen = 'stab';
+    setHud(false);
+    show('results', false);
+    show('menu', false);
+    window.Stab.open(save, (levelIndex, cp) => startRun(levelIndex, cp));
   }
 
   // --- Цикл ---
@@ -189,13 +180,14 @@
     window.Render.resize(width, height, dpr);
   }
 
-  $('r-ok').addEventListener('click', openMenu);
+  $('r-ok').addEventListener('click', openStab);
+  $('m-play').addEventListener('click', openStab);
   $('btn-quit').addEventListener('click', () => {
     window.Platform.resume();
     if (run && screen === 'run' && !run.ended) { run.end('quit'); endTimer = 10; }
   });
   $('m-reset').addEventListener('click', () => {
-    if ($('m-reset').dataset.armed) { save = window.Save.reset(); delete $('m-reset').dataset.armed; $('m-reset').textContent = 'Сбросить прогресс'; openMenu(); }
+    if ($('m-reset').dataset.armed) { save = window.Save.reset(); delete $('m-reset').dataset.armed; $('m-reset').textContent = 'Сбросить прогресс'; openTitle(); }
     else { $('m-reset').dataset.armed = '1'; $('m-reset').textContent = 'Точно сбросить? Нажмите ещё раз'; }
   });
   window.Platform.on('pause', () => window.Sound.engineOff());
@@ -208,14 +200,14 @@
 
   window.Game = {
     get run() { return run; }, get save() { return save; }, get screen() { return screen; },
-    startRun, step: (dt) => step(dt), finishRun, openMenu,
+    startRun, step: (dt) => step(dt), finishRun, openStab, openTitle,
   };
 
   window.Render.init(canvas);
   window.addEventListener('resize', resize);
   resize();
   // Фон меню: живой уровень за затемнением.
-  startRun(Math.min(save.level, C.LEVELS.length - 1), 0);
-  openMenu();
+  startRun(Math.min(save.level, C.LEVELS.length - 1), 0, true);
+  openTitle();
   requestAnimationFrame(frame);
 })();

@@ -15,6 +15,7 @@
       this.checkpoint = opts.startCp || 0;
       const x0 = this.checkpoint ? this.terrain.checkpoints[this.checkpoint - 1] : 6;
       this.car = new window.Physics.Car(this.world, def, opts.stats, x0, this.terrain.heightAt(x0) + 1.2);
+      this.car.ups = opts.ups || {};
       if (opts.fuel != null) this.car.fuel = Math.min(opts.fuel, opts.stats.tank);
       if (opts.hp != null) this.car.hp = Math.min(opts.hp, opts.stats.hp);
       this.startX = x0;

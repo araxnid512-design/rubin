@@ -86,7 +86,8 @@
         for (const w of driven) {
           w.joint.enableMotor(true);
           w.joint.setMotorSpeed(-s.maxSpeed / r);
-          w.joint.setMaxMotorTorque(s.torque / driven.length * (s.awd ? 1.15 : 1));
+          const launch = v < s.maxSpeed * 0.5 ? s.launch : 1;
+          w.joint.setMaxMotorTorque(s.torque * launch * this.wheelieLimit() / driven.length * (s.awd ? 1.15 : 1));
         }
         this.throttle = 1;
       } else if (input.brake) {
@@ -149,6 +150,23 @@
     }
 
     wheelAngle(w) { return w.body.getAngle(); }
+
+    // Контроль вздёргивания: если на земле нос задирается слишком сильно, тяга падает,
+    // иначе мощная машина опрокидывается назад прямо со старта.
+    wheelieLimit() {
+      const W = window.CONFIG.PHYSICS.wheelie;
+      if (!this.contacts.rear) return 1;
+      const a = this.angle - this.groundSlope();
+      if (a < W.from) return 1;
+      return Math.max(W.min, 1 - (a - W.from) / W.range);
+    }
+
+    // Наклон дороги под машиной (между точками касания колёс).
+    groundSlope() {
+      const r = this.rear.body.getPosition(), f = this.front.body.getPosition();
+      if (!this.contacts.front) return Math.atan2(f.y - r.y, f.x - r.x) * 0.5;
+      return Math.atan2(f.y - r.y, f.x - r.x);
+    }
   }
 
   // Мир и учёт касаний колёс с землёй.
@@ -198,8 +216,25 @@
     pair.car.lastSmash = speed;
   }
 
-  // Итоговые параметры машины (на этапе 1 — без улучшений).
-  function carStats(def) {
+  // Итоговые параметры машины с учётом улучшений: upgrades — { id: уровень }.
+  function carStats(def, upgrades) {
+    const s = baseStats(def);
+    const U = window.CONFIG.UPGRADES;
+    for (const [id, lvl] of Object.entries(upgrades || {})) {
+      const u = U[id];
+      if (!u || !lvl) continue;
+      for (const e of u.effects) {
+        const i = Math.min(lvl, u.levels) - 1;
+        if (e.mul) s[e.stat] *= e.mul[i];
+        if (e.add) s[e.stat] += e.add[i];
+        if (e.set) s[e.stat] = e.set[i];
+      }
+    }
+    if (!s.hasNitro) s.nitroCapacity = 0;
+    return s;
+  }
+
+  function baseStats(def) {
     return {
       density: def.density,
       tireFriction: def.wheels.friction,
@@ -227,6 +262,12 @@
       noClimb: false,   // бегуны не могут зацепиться
       shock: 0,         // урон/с прицепившимся (электрокорпус)
       collectRadius: window.CONFIG.PICKUPS.collectRadius,
+      launch: 1,        // турбина: множитель тяги на разгоне
+      hasNitro: false,  // нитро ставится улучшением
+      magnet: 0,        // радиус споросборника
+      scanner: 0,       // дальность сканера
+      light: 0,         // уровень прожектора
+      gun: 0, flamer: 0, saw: 0, // уровни оружия
     };
   }
 

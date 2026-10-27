@@ -12,6 +12,7 @@
     flipAngle: 1.75,        // рад от горизонта: дальше — машина лежит на крыше/боку
     flipTime: 2.0,          // сек в таком положении почти без движения — заезд окончен
     smash: { minSpeed: 4, forward: 0.6, up: 0.35 }, // как разлетается мусор от удара
+    wheelie: { from: 0.3, range: 0.35, min: 0.15 },   // рад: с какого задирания носа режется тяга
   };
 
   // Группы столкновений (битовые маски Box2D).
@@ -46,11 +47,112 @@
       engine: { torque: 900, maxSpeed: 17, reverseSpeed: 6, brakeTorque: 2600 },
       airControl: 5.5,       // угловое ускорение в воздухе, рад/с²
       maxSpin: 4.5,          // ограничение вращения в воздухе
-      nitro: { force: 9, capacity: 3 },  // ускорение, м/с²; секунды работы
+      nitro: { force: 9, capacity: 2.5 },  // ускорение, м/с²; секунды работы (после покупки)
       hp: 100,
       fuel: { tank: 10, use: 0.17, idle: 0.015 },  // литры; расход л/с на полном газу и на холостых
+      priceMult: 1,          // множитель цен улучшений и обслуживания
+      price: { sporans: 0 },
+      upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'tank', 'economizer', 'canisters',
+        'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'spoiler', 'collector', 'light', 'lightBody', 'roofCan'],
+      // Точки для деталей улучшений (в координатах кузова).
+      anchors: { front: 2.15, rear: -2.1, bottom: -0.3, beltY: 0.38, roofY: 0.98, roofX: [-1.15, 0.05], hood: [0.6, 2.1] },
       color: '#8a4a3a',
     },
+  };
+
+  // Улучшения. У каждой машины свой набор и свои уровни (не переносятся).
+  // effects: stat — параметр машины; mul — множитель, add — прибавка, set — значение
+  // по уровням (индекс 0 = уровень 1). price — спораны за уровень 1; дальше растёт
+  // в PRICES.growth раз. Предпоследний уровень требует горох, последний — жемчуг.
+  const UPGRADES = {
+    engine: { name: 'Мощность двигателя', group: 'Двигатель', levels: 5, price: 45,
+      about: 'Больше тяги: быстрее разгон, легче на подъёмах.',
+      effects: [{ stat: 'torque', mul: [1.15, 1.3, 1.5, 1.75, 2.0] }] },
+    turbo: { name: 'Турбина', group: 'Двигатель', levels: 4, price: 55,
+      about: 'Резкий разгон с места и после ударов.',
+      effects: [{ stat: 'launch', mul: [1.2, 1.4, 1.6, 1.85] }] },
+    gearbox: { name: 'Коробка передач', group: 'Двигатель', levels: 5, price: 50,
+      about: 'Выше максимальная скорость.',
+      effects: [{ stat: 'maxSpeed', mul: [1.1, 1.2, 1.32, 1.45, 1.6] }] },
+    tires: { name: 'Шины', group: 'Ходовая', levels: 4, price: 35,
+      about: 'Сцепление с дорогой: меньше буксует, лучше лезет вверх.',
+      effects: [{ stat: 'tireFriction', add: [0.25, 0.5, 0.8, 1.1] }] },
+    suspension: { name: 'Подвеска', group: 'Ходовая', levels: 4, price: 40,
+      about: 'Жёстче и устойчивее: мягче приземления, реже переворот.',
+      effects: [{ stat: 'suspensionFrequency', mul: [1.12, 1.25, 1.38, 1.5] }, { stat: 'suspensionDamping', add: [0.05, 0.1, 0.15, 0.2] }] },
+    awd: { name: 'Полный привод', group: 'Ходовая', levels: 3, price: 120,
+      about: 'Тянут все колёса: подъёмы, ямы, грязь.',
+      effects: [{ stat: 'awd', set: [true, true, true] }, { stat: 'torque', mul: [1, 1.1, 1.2] }] },
+    tank: { name: 'Бензобак', group: 'Топливо', levels: 5, price: 40,
+      about: 'Больше литров в баке — дальше едем.',
+      effects: [{ stat: 'tank', mul: [1.3, 1.6, 2.0, 2.4, 3.0] }] },
+    economizer: { name: 'Экономайзер', group: 'Топливо', levels: 4, price: 50,
+      about: 'Меньше расход бензина.',
+      effects: [{ stat: 'fuelUse', mul: [0.9, 0.8, 0.7, 0.6] }] },
+    canisters: { name: 'Запасные канистры', group: 'Топливо', levels: 3, price: 45,
+      about: 'Канистры на трассе дают больше бензина.',
+      effects: [{ stat: 'canisterFuel', add: [1.5, 3, 5] }] },
+    armor: { name: 'Броня кузова', group: 'Защита', levels: 5, price: 50,
+      about: 'Прочнее кузов, меньше урона от ударов.',
+      effects: [{ stat: 'hp', mul: [1.3, 1.6, 2.0, 2.5, 3.0] }, { stat: 'armorMult', mul: [0.95, 0.9, 0.85, 0.8, 0.72] }, { stat: 'density', mul: [1.03, 1.06, 1.1, 1.14, 1.18] }] },
+    ram: { name: 'Таран / отвал', group: 'Защита', levels: 4, price: 55,
+      about: 'Больше урона при ударе, машина меньше теряет скорость.',
+      effects: [{ stat: 'ramMult', mul: [1.35, 1.7, 2.1, 2.6] }, { stat: 'ramDragCut', add: [0.2, 0.35, 0.5, 0.65] }] },
+    spikes: { name: 'Шипы на колёсах', group: 'Защита', levels: 3, price: 40,
+      about: 'Режут тех, кто лезет под колёса.',
+      effects: [{ stat: 'spikesMult', mul: [1.6, 2.3, 3.2] }] },
+    cage: { name: 'Клетка на кабину', group: 'Защита', levels: 3, price: 45,
+      about: 'Бегуны на крыше почти не пробивают кабину.',
+      effects: [{ stat: 'cageMult', mul: [0.55, 0.3, 0.1] }] },
+    nitro: { name: 'Нитро', group: 'Ускорение', levels: 4, price: 60,
+      about: 'Реактивный ускоритель. Первый уровень ставит его на машину.',
+      effects: [{ stat: 'nitroForce', mul: [1, 1.25, 1.55, 1.9] }, { stat: 'hasNitro', set: [true, true, true, true] }] },
+    nitroTank: { name: 'Объём нитро', group: 'Ускорение', levels: 4, price: 45, requires: 'nitro',
+      about: 'Нитро работает дольше.',
+      effects: [{ stat: 'nitroCapacity', add: [1.5, 3, 5, 7.5] }] },
+    gun: { name: 'Пулемёт на крыше', group: 'Оружие', levels: 4, price: 160, weapon: true,
+      about: 'Сам стреляет по заражённым впереди. Тратит прочность.',
+      effects: [{ stat: 'gun', set: [1, 2, 3, 4] }] },
+    flamer: { name: 'Огнемёт', group: 'Оружие', levels: 4, price: 140, weapon: true,
+      about: 'Жжёт толпу перед машиной на короткой дистанции. Тратит прочность.',
+      effects: [{ stat: 'flamer', set: [1, 2, 3, 4] }] },
+    saw: { name: 'Пила на бампере', group: 'Оружие', levels: 4, price: 90, weapon: true,
+      about: 'Режет всех, в кого врезается бампер. Тратит прочность.',
+      effects: [{ stat: 'saw', set: [1, 2, 3, 4] }] },
+    spoiler: { name: 'Спойлер-стабилизатор', group: 'Полёт', levels: 4, price: 40,
+      about: 'Лучше управление наклоном в воздухе.',
+      effects: [{ stat: 'airControl', mul: [1.3, 1.6, 1.95, 2.4] }, { stat: 'maxSpin', mul: [1.1, 1.2, 1.3, 1.45] }] },
+    collector: { name: 'Споросборник', group: 'Добыча', levels: 3, price: 60,
+      about: 'Сам притягивает спораны с убитых в радиусе.',
+      effects: [{ stat: 'magnet', set: [5, 9, 14] }] },
+    scanner: { name: 'Сканер', group: 'Добыча', levels: 2, price: 120,
+      about: 'Мини-карта: мутанты с горохом и жемчугом впереди.',
+      effects: [{ stat: 'scanner', set: [120, 250] }] },
+    light: { name: 'Прожектор', group: 'Добыча', levels: 3, price: 50,
+      about: 'Видно дальше в тумане и ночью.',
+      effects: [{ stat: 'light', set: [1, 2, 3] }] },
+    // Уникальные улучшения машин.
+    lightBody: { name: 'Облегчённый кузов', group: 'Уникальное', levels: 3, price: 50,
+      about: 'Срезаны лишние панели: машина легче, дальше летит, но слабее.',
+      effects: [{ stat: 'density', mul: [0.9, 0.82, 0.74] }, { stat: 'hp', mul: [0.97, 0.94, 0.9] }] },
+    roofCan: { name: 'Подвесная канистра', group: 'Уникальное', levels: 2, price: 40,
+      about: 'Запасные литры на крыше.',
+      effects: [{ stat: 'tank', add: [3, 6] }] },
+  };
+
+  const PRICES = {
+    growth: 1.85,            // каждый следующий уровень дороже в столько раз
+    peas: [1, 2, 3, 4, 5, 6],// гороха за предпоследний уровень (по номеру машины)
+    pearl: 1,                // жемчуга за последний уровень
+  };
+
+  // Стаб: заправка, станок, выручка, если совсем нет споранов.
+  const STAB = {
+    fuelPrice: 2,            // спораны за литр (× priceMult машины)
+    repairPerHp: 0.4,        // спораны за единицу прочности
+    weaponRepairPerPct: 0.6, // спораны за 1% прочности оружия
+    charityFuel: 3,          // если споранов нет — стаб выручит литрами...
+    charityHp: 0.3,          // ...и залатает кузов до этой доли
   };
 
   // Заражённые. hp — сколько урона выдерживают; урон от удара машиной =
@@ -179,5 +281,5 @@
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
+  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, UPGRADES, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
 })();

@@ -16,7 +16,7 @@
     <div class="hud-row"><b id="h-dist">0</b><span>м до стаба</span></div>
     <div class="hud-bar fuel" id="h-fuel-bar"><i id="h-fuel"></i><span>бензин <em id="h-fuel-v"></em></span></div>
     <div class="hud-bar hp"><i id="h-hp"></i><span>прочность</span></div>
-    <div class="hud-bar nitro"><i id="h-nitro"></i><span>нитро</span></div>
+    <div class="hud-bar nitro" id="h-nitro-bar"><i id="h-nitro"></i><span>нитро</span></div>
   </div>
   <div id="loot">
     <span title="Спораны"><i class="ico sporan"></i><b id="h-sporan">0</b></span>
@@ -38,15 +38,40 @@
     <div class="panel menu">
       <div class="logo">СТИКС</div>
       <div class="subtitle">Дорога стабов</div>
-      <div class="wallet">
-        <span><i class="ico sporan"></i><b id="m-sporans">0</b> споранов</span>
-        <span><i class="ico peas"></i><b id="m-peas">0</b> горох</span>
-        <span><i class="ico pearl"></i><b id="m-pearls">0</b> жемчуг</span>
-      </div>
-      <div id="m-levels"></div>
-      <p class="muted small">Газ справа, тормоз и задний ход слева, нитро — синяя кнопка.
-        В воздухе газ наклоняет машину назад, тормоз — вперёд.</p>
+      <p class="muted small">Прорвитесь на машине от стаба к стабу через кластеры Улья.<br>
+        Газ справа, тормоз и задний ход слева. В воздухе газ наклоняет машину назад, тормоз — вперёд.</p>
+      <button id="m-play" class="primary">Играть</button>
       <button id="m-reset" class="ghost">Сбросить прогресс</button>
+    </div>
+  </div>
+
+  <div id="stab" class="overlay hidden">
+    <div class="stab">
+      <header>
+        <div><span class="muted small">Вы в стабе</span><h2 id="stab-name"></h2></div>
+        <div class="wallet">
+          <span><i class="ico sporan"></i><b id="w-sporans">0</b></span>
+          <span><i class="ico peas"></i><b id="w-peas">0</b></span>
+          <span><i class="ico pearl"></i><b id="w-pearls">0</b></span>
+        </div>
+      </header>
+      <aside>
+        <canvas id="car-preview"></canvas>
+        <b id="car-name"></b>
+        <div id="car-stats"></div>
+        <div id="depart"></div>
+        <p id="depart-block" class="warn"></p>
+      </aside>
+      <main>
+        <nav>
+          <button class="tab" data-tab="upgrades">Улучшения</button>
+          <button class="tab" data-tab="fuel">Заправка</button>
+          <button class="tab" data-tab="bench">Станок</button>
+          <button class="tab" data-tab="garage">Гараж</button>
+        </nav>
+        <div id="stab-body"></div>
+      </main>
+      <div id="stab-note" class="hidden"></div>
     </div>
   </div>
 
@@ -88,6 +113,8 @@
   <script src="js/pickups.js"></script>
   <script src="js/save.js"></script>
   <script src="js/run.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/stab.js"></script>
   <script src="js/carDraw.js"></script>
   <script src="js/render.js"></script>
   <script src="js/main.js"></script>
