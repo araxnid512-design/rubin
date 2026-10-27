@@ -1246,6 +1246,15 @@ const B1HEAD_GEO = (() => {
 })();
 
 // материалы
+// Потёртый металл: пятна, подтёки и царапины (множитель к цвету материала, ~0.7–1.0)
+const WORN_TEX = (() => {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), R = rng(21);
+  g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 160; i++) { const x = R() * S, y = R() * S, r = 6 + R() * 34, a = 0.05 + R() * 0.12; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(70,58,44,${a})`); gr.addColorStop(1, 'rgba(70,58,44,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  g.strokeStyle = 'rgba(60,50,40,.18)'; for (let i = 0; i < 40; i++) { const x = R() * S; g.lineWidth = 0.6 + R() * 1.5; g.beginPath(); g.moveTo(x, R() * S); g.lineTo(x + (R() - 0.5) * 6, R() * S); g.stroke(); } // подтёки
+  g.strokeStyle = 'rgba(255,255,255,.55)'; for (let i = 0; i < 140; i++) { const x = R() * S, y = R() * S, a = R() * 6; g.lineWidth = 0.5 + R() * 0.8; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * (2 + R() * 9), y + Math.sin(a) * (2 + R() * 9)); g.stroke(); } // царапины
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+})();
 const M2 = {
   armor: addRim(mat(0xe9ebec, { roughness: 0.4, metalness: 0.06 }), 0x9fd4ff, 0.12), armorD: mat(0xb9bfc5, { roughness: 0.5, metalness: 0.08 }),
   suit: mat(0x17191d, { roughness: 0.85 }), visor: mat(0x07080a, { roughness: 0.08, metalness: 0.9 }),
@@ -1255,6 +1264,7 @@ const M2 = {
   eye: mat(0x0a0a0a, { roughness: 0.2, metalness: 0.6 }), glowR: new THREE.MeshBasicMaterial({ color: 0xff4030 }),
   bx: mat(0x4a4540, { roughness: 0.5, metalness: 0.45 }), bxD: mat(0x2c2926, { roughness: 0.55, metalness: 0.45 }),
 };
+for (const k of ['tan', 'tanD', 'tanJ', 'b2', 'b2D', 'bx', 'bxD', 'gun', 'armorD']) { M2[k].map = WORN_TEX; M2[k].needsUpdate = true; }
 const MARKS = { cmd: mat(0xe2b53b, { roughness: 0.4, metalness: 0.3 }), snp: mat(0x2f6fdc, { roughness: 0.4, metalness: 0.3 }), tx: mat(0xffc040, { roughness: 0.3, metalness: 0.6 }) };
 const CLS_COL = { trooper: 0x2f6fdc, heavy: 0xc8302a, sniper: 0x4c8a3c, commander: 0xe07b22 };
 
@@ -1267,9 +1277,9 @@ function mergeRig(root) {
     for (const [m, list] of groups) {
       if (list.length < 2) continue;
       let total = 0; const geos = list.map(c => { c.updateMatrix(); const g = (c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone()); g.applyMatrix4(c.matrix); total += g.attributes.position.count; return g; });
-      const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3); let o = 0;
-      for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; g.dispose(); }
-      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      const withUv = geos.every(g => g.attributes.uv), pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), uv = withUv ? new Float32Array(total * 2) : null; let o = 0;
+      for (const g of geos) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); if (uv) uv.set(g.attributes.uv.array, o * 2); o += g.attributes.position.count; g.dispose(); }
+      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) bg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       for (const c of list) node.remove(c);
       node.add(mesh(bg, m));
     }
@@ -1436,67 +1446,131 @@ function buildDroid(type) {
   return rig;
 }
 
-// Дроид-разрушитель: катится шаром, раскрывается на трёх ногах, прикрыт силовым щитом
+// цилиндр между двумя точками — для ног и рук
+function seg(parent, a, b, r0, r1, m, sides = 10) {
+  const A = new THREE.Vector3(...a), Bv = new THREE.Vector3(...b), d = Bv.clone().sub(A), L = d.length();
+  const o = mesh(new THREE.CylinderGeometry(r1, r0, L, sides), m); o.position.copy(A).addScaledVector(d, 0.5);
+  o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); parent.add(o); return o;
+}
+// силовой щит: прозрачная сфера, ярче по краю (как пузырь), вспыхивает от попаданий
+function shieldMat() {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { col: { value: new THREE.Color(0x6ab8ff) }, op: { value: 0.18 }, t: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); vP = position; gl_Position = projectionMatrix*mv; }',
+    fragmentShader: 'uniform vec3 col; uniform float op, t; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 2.2); float band = 0.5 + 0.5*sin(vP.y*18.0 - t*3.0); gl_FragColor = vec4(col * (0.35 + f*1.6 + band*0.15*f), op*(0.35 + f*2.2)); }',
+  });
+  return m;
+}
+// Дроид-разрушитель (канон: 1,83 м — ростом с клона, но вдвое шире): горбатый бронзовый панцирь,
+// вытянутая голова, две руки со спаренными бластерами, три длинные ноги-ходули, генератор щита.
+// В движении сворачивается в колесо и катится.
 function buildDroideka() {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0), rig = { root, body, kind: 'dk', wrist: true, twoHand: false, curl: 0, roll: 0 };
-  const BR = mat(0x8a6a48, { metalness: 0.7, roughness: 0.35 }), DK = mat(0x3a2f26, { metalness: 0.6, roughness: 0.45 }), EYE = new THREE.MeshBasicMaterial({ color: 0xff3020 });
-  const core = rig.core = pivot(body, 0, 0.95, 0); rig.torso = core; rig.hips = core; core.userData.y0 = 0.95;
-  const head = sph(0.27, BR, 16, 12); head.scale.set(1, 0.78, 1.18); core.add(at(head, 0, 0.12, 0.1)); rig.head = head;
-  for (const s of [-1, 0, 1]) core.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), EYE), s * 0.09, 0.14, 0.4));
-  // спинные пластины: из них складывается шар
-  rig.plates = [];
-  for (let i = 0; i < 3; i++) { const g = pivot(core, 0, 0, -0.05); const p = mesh(new THREE.SphereGeometry(0.42, 16, 8, 0, Math.PI * 2, 0, 0.9), BR); p.rotation.x = -0.9 - i * 0.55; g.add(p); rig.plates.push(g); }
-  // руки-бластеры
+  const BR = mat(0xa07a52, { metalness: 0.78, roughness: 0.42, map: WORN_TEX }), BRD = mat(0x6e5236, { metalness: 0.75, roughness: 0.5, map: WORN_TEX });
+  const DK = mat(0x2c2622, { metalness: 0.65, roughness: 0.48, map: WORN_TEX }), GUN = mat(0x1c1c20, { metalness: 0.85, roughness: 0.35 });
+  const LENS = mat(0x0b0b0e, { metalness: 0.9, roughness: 0.12 }), EYE = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
+  const hub = rig.core = rig.hips = pivot(body, 0, 0.74, 0); hub.userData.y0 = 0.74;
+  // таз: кольцо, к которому крепятся ноги
+  hub.add(at(mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.16, 16), DK), 0, 0, 0));
+  hub.add(at(mesh(new THREE.TorusGeometry(0.19, 0.035, 8, 20), BRD), 0, 0.02, 0, Math.PI / 2));
+  // корпус наклоняется вперёд как одно целое
+  const torso = rig.torso = pivot(hub, 0, 0.06, -0.02);
+  const belly = sph(0.3, BRD, 20, 14); belly.scale.set(1, 0.9, 1.1); torso.add(at(belly, 0, 0.2, 0.04));
+  // горбатый панцирь: цельная задняя полусфера, вытянутая вверх, с двумя поперечными швами — три бронепластины
+  const shell = pivot(torso, 0, 0.22, -0.02); rig.plates = [shell];
+  const SR = 0.52, SC = [0.98, 1.5, 0.98], shellMat = BR.clone(); shellMat.side = THREE.DoubleSide;
+  const sg = mesh(new THREE.SphereGeometry(SR, 32, 18, Math.PI, Math.PI, 0, Math.PI * 0.78), shellMat); sg.scale.set(...SC); shell.add(sg);
+  for (const th of [0.62, 1.2, 1.85]) { // швы и окантовка пластин
+    const rib = mesh(new THREE.TorusGeometry(SR * Math.sin(th) + 0.004, 0.016, 6, 28, Math.PI), DK);
+    rib.rotation.x = -Math.PI / 2; rib.position.y = SR * Math.cos(th) * SC[1]; rib.scale.set(SC[0], SC[2], 1); shell.add(rib);
+  }
+  // генератор щита на спине
+  const gen = sph(0.13, DK, 12, 8); gen.scale.set(1.4, 0.7, 1); torso.add(at(gen, 0, 0.16, -0.46));
+  rig.genGlow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: 0x6ab8ff })); rig.genGlow.userData.keep = true; torso.add(at(rig.genGlow, 0, 0.18, -0.56));
+  // шея и голова: вытянутая вперёд «морда» с тремя линзами
+  seg(torso, [0, 0.6, 0.12], [0, 0.76, 0.3], 0.07, 0.06, DK, 8);
+  const head = rig.head = pivot(torso, 0, 0.8, 0.34);
+  const skull = sph(0.21, BR, 20, 14); skull.scale.set(1.05, 0.72, 1.55); head.add(at(skull, 0, 0, 0.04));
+  const face = sph(0.13, DK, 16, 10); face.scale.set(1.0, 0.55, 1.2); head.add(at(face, 0, -0.04, 0.16));
+  for (const [x, y] of [[-0.065, 0], [0.065, 0], [0, 0.035]]) { head.add(at(mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.03, 12), LENS), x, y - 0.02, 0.29, Math.PI / 2)); head.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), EYE), x, y - 0.02, 0.305)); }
+  // руки: плечо, предплечье-кожух, спаренные стволы вперёд
   rig.arms = [];
   for (const s of [-1, 1]) {
-    const a = pivot(core, s * 0.26, 0.0, 0.1); a.add(at(cyl(0.05, 0.05, 0.42, DK, 8), 0, 0, 0.2, Math.PI / 2));
-    for (const b of [-1, 1]) a.add(at(cyl(0.025, 0.025, 0.3, mat(0x1e1e22, { metalness: 0.8 }), 8), b * 0.035, -0.04, 0.5, Math.PI / 2));
-    rig.arms.push(a); if (s > 0) { rig.muzzle = pivot(a, 0, -0.04, 0.66); rig.elR = a; rig.gun = a; }
+    torso.add(at(sph(0.1, DK, 10, 8), s * 0.27, 0.5, 0.2));
+    const sh = pivot(torso, s * 0.27, 0.5, 0.2);
+    seg(sh, [0, 0, 0], [s * 0.05, -0.34, 0.08], 0.055, 0.048, BRD, 8);
+    const el = pivot(sh, s * 0.05, -0.34, 0.08); el.add(at(sph(0.06, DK, 8, 6), 0, 0, 0));
+    const fore = rbox(0.15, 0.15, 0.4, BR, 0.05); el.add(at(fore, 0, 0, 0.17));
+    for (const b of [-1, 1]) { el.add(at(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.34, 10), GUN), b * 0.032, -0.03, 0.46, Math.PI / 2)); el.add(at(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 10), GUN), b * 0.032, -0.03, 0.62, Math.PI / 2)); }
+    rig.arms.push({ sh, el }); if (s > 0) { rig.muzzle = pivot(el, 0, -0.03, 0.66); rig.elR = el; rig.gun = el; }
   }
-  rig.shR = rig.arms[1]; rig.shL = rig.arms[0]; rig.elL = rig.arms[0];
-  // три ноги: две спереди по бокам, одна сзади
+  rig.shR = rig.arms[1].sh; rig.shL = rig.arms[0].sh; rig.elL = rig.arms[0].el;
+  // три ноги: бедро вверх-наружу, колено высоко, голень вниз к широко расставленной стопе
   rig.legs = [];
-  for (const [ax, az] of [[-0.3, 0.15], [0.3, 0.15], [0, -0.32]]) {
-    const up = pivot(core, ax * 0.6, -0.15, az * 0.6), lo = pivot(up, 0, -0.42, 0);
-    up.add(at(cyl(0.04, 0.035, 0.44, DK, 6), 0, -0.21, 0)); lo.add(at(cyl(0.035, 0.02, 0.5, BR, 6), 0, -0.25, 0)); lo.add(at(sph(0.05, DK, 8, 6), 0, -0.5, 0));
-    up.userData.dir = Math.atan2(ax, az); rig.legs.push({ up, lo });
+  for (const dir of [0.72, -0.72, Math.PI]) {
+    const up = pivot(hub, Math.sin(dir) * 0.18, -0.02, Math.cos(dir) * 0.18); up.rotation.order = 'YXZ'; up.rotation.y = dir;
+    up.add(at(sph(0.055, DK, 8, 6), 0, 0, 0));
+    seg(up, [0, 0, 0], [0, 0.1, 0.34], 0.06, 0.05, BR, 8);
+    const kn = pivot(up, 0, 0.1, 0.34); kn.add(at(sph(0.06, DK, 8, 6), 0, 0, 0));
+    seg(kn, [0, 0, 0], [0, -0.46, 0.17], 0.048, 0.036, BRD, 8); // голень — двумя звеньями с суставом
+    kn.add(at(sph(0.042, DK, 8, 6), 0, -0.46, 0.17));
+    seg(kn, [0, -0.46, 0.17], [0, -0.83, 0.36], 0.036, 0.026, BR, 8);
+    const foot = sph(0.06, DK, 8, 6); foot.scale.set(1, 0.45, 1.6); kn.add(at(foot, 0, -0.83, 0.38));
+    rig.legs.push({ up, kn });
   }
-  // шар, в который сворачивается дроид
-  rig.ball = mesh(new THREE.IcosahedronGeometry(0.46, 1), BR); rig.ball.material = mat(0x8a6a48, { metalness: 0.7, roughness: 0.35, flatShading: true }); body.add(rig.ball); rig.ball.position.y = 0.46; rig.ball.visible = false;
+  // колесо: свёрнутый дроид, катится вдоль хода
+  const wheel = rig.wheel = pivot(body, 0, 0.56, 0);
+  const prof = [[0.001, -0.25], [0.3, -0.27], [0.47, -0.22], [0.55, -0.1], [0.56, 0], [0.55, 0.1], [0.47, 0.22], [0.3, 0.27], [0.001, 0.25]].map(([x, y]) => new THREE.Vector2(x, y));
+  const wg = new THREE.LatheGeometry(prof, 32); wg.rotateZ(Math.PI / 2);
+  const spin = rig.spin = pivot(wheel, 0, 0, 0); spin.add(mesh(wg, BR));
+  for (const s of [-1, 1]) { spin.add(at(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 20), DK), s * 0.27, 0, 0, 0, 0, Math.PI / 2)); spin.add(at(mesh(new THREE.TorusGeometry(0.4, 0.016, 6, 32), DK), s * 0.2, 0, 0, 0, Math.PI / 2)); }
+  for (let i = 0; i < 3; i++) spin.add(at(mesh(new THREE.BoxGeometry(0.52, 0.03, 0.04), DK), 0, Math.cos(i * 2.094) * 0.555, Math.sin(i * 2.094) * 0.555, i * 2.094)); // швы между пластинами
+  wheel.visible = false;
   // силовой щит
-  rig.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(0.95, 24, 16), new THREE.MeshBasicMaterial({ color: 0x5ab4ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
-  rig.shieldMesh.position.y = 0.8; rig.shieldMesh.userData.keep = true; body.add(rig.shieldMesh);
+  rig.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.12, 32, 20), shieldMat());
+  rig.shieldMesh.position.y = 0.88; rig.shieldMesh.userData.keep = true; rig.shieldMesh.renderOrder = 4; body.add(rig.shieldMesh);
+  Object.defineProperty(rig.shieldMesh.material, 'opacity', { get() { return this.uniforms.op.value; }, set(v) { if (this.uniforms) this.uniforms.op.value = v; } });
   rig.custom = poseDroideka; rig.customDeath = deathDroideka;
   return rig;
 }
 function poseDroideka(u, dt) {
   const r = u.rig; u.t += dt; if (u.state === 'dead') return;
-  const moving = u.state === 'walk' || u.state === 'run', k = 1 - Math.exp(-dt * 7);
+  const moving = u.state === 'walk' || u.state === 'run', aim = u.state === 'aim', k = 1 - Math.exp(-dt * 7);
   r.curl += ((moving ? 1 : 0) - r.curl) * k;
-  const c = r.curl, open = 1 - c;
-  // шар катится: угол поворота по пройденному пути
-  if (moving) r.roll += (u.animSpeed || 2) * dt / 0.46;
-  r.ball.visible = c > 0.55; r.ball.rotation.x = r.roll; r.ball.scale.setScalar(0.75 + c * 0.25);
-  r.core.visible = c < 0.8;
-  r.core.position.y = lerp(0.95, 0.46, c) + Math.sin(u.t * 2.2 + u.seed) * 0.012 * open;
-  r.core.rotation.x = c * 1.2 + (u.state === 'aim' ? -0.08 : 0) - u.flinch * 0.3;
-  r.core.scale.setScalar(1 - c * 0.35);
-  for (const L of r.legs) { L.up.rotation.set(0.5 * open + c * 1.6, 0, 0); L.up.rotation.order = 'YXZ'; L.up.rotation.y = L.up.userData.dir; L.lo.rotation.x = -0.9 * open - c * 1.2; }
-  r.plates.forEach((p, i) => { p.rotation.x = c * (0.9 + i * 0.3); });
-  const aim = u.state === 'aim';
-  r.arms.forEach((a, i) => { a.rotation.x = c * 1.4 + (aim ? -0.05 : 0.25) * open; a.rotation.y = (i ? -1 : 1) * 0.08 * open; });
-  r.shieldMesh.visible = u.shield > 0 && c < 0.3;
+  const c = r.curl, open = 1 - clamp(c / 0.6, 0, 1), fold = 1 - open;
+  // колесо катится: угол — по пройденному пути
+  if (moving) r.roll += (u.animSpeed || 2) * dt / 0.56;
+  r.wheel.visible = c > 0.6; r.spin.rotation.x = r.roll; r.wheel.scale.setScalar(0.85 + 0.15 * clamp((c - 0.6) / 0.4, 0, 1));
+  r.core.visible = c <= 0.6;
+  // раскрытый: лёгкое покачивание; сворачиваясь, корпус опускается к оси колеса и нагибается вперёд
+  r.core.position.y = lerp(0.74, 0.56, fold) + Math.sin(u.t * 2.1 + u.seed) * 0.01 * open;
+  r.torso.rotation.x = fold * 1.1 + (aim ? 0.12 : 0.04) - u.flinch * 0.35;
+  r.plates[0].rotation.x = fold * 0.6;
+  // ноги: подгибаются к корпусу
+  for (const L of r.legs) { L.up.rotation.x = -fold * 1.3; L.kn.rotation.x = fold * 2.0; }
+  // руки: в покое опущены, при стрельбе стволы точно вперёд
+  for (const [i, a] of r.arms.entries()) { a.sh.rotation.x = (aim ? -0.55 : -0.15) * open + fold * 1.2; a.el.rotation.x = (aim ? -0.25 : 0.35) * open + fold * 1.5; a.sh.rotation.z = (i ? -1 : 1) * 0.06 * open; }
+  // голова сканирует сектор
+  u.headT = (u.headT || 0) - dt; if (u.headT < 0) { u.headT = rand(0.8, 2.6); u.headY = aim ? 0 : rand(-0.5, 0.5); }
+  r.head.rotation.y += ((aim ? 0 : u.headY || 0) - r.head.rotation.y) * (1 - Math.exp(-dt * 5)); r.head.rotation.x = aim ? -0.1 : 0;
+  const shieldOn = u.shield > 0 && c < 0.3; r.shieldMesh.visible = shieldOn; r.shieldMesh.material.uniforms.t.value = u.t; r.genGlow.visible = u.shield > 0;
+  r.shieldMesh.scale.setScalar(shieldOn ? 1 : 0.9);
   u.flinch = Math.max(0, u.flinch - dt * 3.2);
+  // повреждённый — искрит
+  if (u.hp <= u.maxHp / 2 && r.root.visible && c < 0.5) { u.dmgT -= dt; if (u.dmgT < 0) { u.dmgT = rand(0.3, 1.2); const p = r.root.position; FX.spark(p.x + rand(-0.15, 0.15), rand(0.6, 0.9), p.z + rand(-0.15, 0.15), 0xffd27a, 6, 1.5); } }
 }
 async function deathDroideka(u) {
-  const r = u.rig; r.shieldMesh.visible = false; r.ball.visible = false; r.core.visible = true; r.core.scale.setScalar(1);
-  const p = r.root.position; FX.spark(p.x, 0.6, p.z, 0xffc070, 30, 3);
-  await tween(0.9, k => {
-    const e = easeOut(k); r.core.position.y = lerp(0.95, 0.22, e); r.core.rotation.z = e * 0.5; r.core.rotation.x = e * 0.3;
-    for (const L of r.legs) { L.up.rotation.x = 0.5 + e * 1.0; L.lo.rotation.x = -0.9 + e * 0.9; }
-    r.arms.forEach((a, i) => { a.rotation.x = 0.25 + e * 0.6; a.rotation.z = (i ? 1 : -1) * e * 0.4; });
+  const r = u.rig; r.shieldMesh.visible = false; r.wheel.visible = false; r.core.visible = true; r.genGlow.visible = false;
+  const p = r.root.position; FX.spark(p.x, 0.7, p.z, 0xffc070, 34, 3.5); FX.flash(p.x, 0.7, p.z, 0xffa040, 0.8, 0.2);
+  const side = Math.random() < 0.5 ? -1 : 1, y0 = r.core.position.y;
+  await tween(1.0, k => {
+    const e = easeOut(k), b = k > 0.75 ? Math.sin((k - 0.75) / 0.25 * Math.PI) * 0.03 : 0;
+    r.core.position.y = lerp(y0, 0.3, e) + b; r.core.rotation.z = side * e * 0.35; r.torso.rotation.x = 0.1 + e * 0.55;
+    r.legs.forEach((L, i) => { L.up.rotation.x = e * (i === 2 ? 0.2 : 0.55); L.kn.rotation.x = -e * 0.6; });
+    for (const [i, a] of r.arms.entries()) { a.sh.rotation.x = 0.1 + e * 0.5; a.sh.rotation.z = (i ? 1 : -1) * e * 0.5; a.el.rotation.x = 0.35 + e * 0.4; }
+    r.head.rotation.x = e * 0.5;
   });
-  for (let i = 0; i < 4; i++) FX.puff(p.x, 0.5, p.z, { color: 0x2b2b2b, life: 2, s0: 0.2, s1: 1.1, vy: 0.6, a: 0.45 });
+  for (let i = 0; i < 5; i++) FX.puff(p.x, 0.5, p.z, { color: 0x2b2b2b, life: 2.2, s0: 0.2, s1: 1.2, vy: 0.6, a: 0.45 });
 }
 // ---------- анимация: позы и действия
 // Пружина к целевому углу — мягкие переходы между состояниями
@@ -2001,14 +2075,16 @@ let SQUAD = [{ cls: 'commander', call: 'Сокол', num: 'CC-4012' }, { cls: 't
 let units = [], turn = 1, phase = 'start', busy = false, selected = null, shotCount = 0, kills = 0, podsActive = [], lastAttacker = null;
 
 const UNIT_SCALE = 0.64;
+// рост относительно клона (1,83 м) по Star Wars Databank: B1, BX и командир — 1,91 м, B2 — 1,91 м, ТХ — 1,93 м
+const TYPE_SCALE = { b1: 1.065, cmd: 1.065, snp: 1.065, bx: 1.065, b2: 1.14, tx: 0.99 };
 function makeRig(team, type, paint, full) {
-  if (type === 'dk') return buildDroideka();
+  if (type === 'dk') { const rig = buildDroideka(); mergeRig(rig.root); return rig; }
   if (CHAR.ready) return buildSkinned(team, type, paint, full);
   const rig = team === 'clone' ? buildClone(type, paint) : buildDroid(type); mergeRig(rig.root); return rig;
 }
 function makeUnit(team, type, x, z, extra = {}) {
   const d = DEF[type], rig = makeRig(team, type, extra.paint);
-  rig.root.scale.setScalar(UNIT_SCALE * (type === 'tx' ? 1.14 : 1)); if (rig.hips && rig.hips.userData.y0 === undefined) rig.hips.userData.y0 = rig.hips.position.y;
+  rig.root.scale.setScalar(UNIT_SCALE * (TYPE_SCALE[type] || 1)); if (rig.hips && rig.hips.userData.y0 === undefined) rig.hips.userData.y0 = rig.hips.position.y;
   const u = Object.assign({ team, type, x, z, hp: d.hp, maxHp: d.hp, aim: d.aim, mob: d.mob, dmg: d.dmg, range: d.range, sight: d.sight, nades: d.nades || 0, rockets: d.rockets || 0, burst: d.burst || 1, armor: d.armor || 0, shield: d.shield || 0, cd: {},
     ap: 0, alive: true, overwatch: false, hunker: false, rig, t: 0, wph: 0, seed: Math.random() * 6, flinch: 0, headT: 0, headY: 0, dmgT: 0, crouch: false, state: 'idle', yaw: team === 'clone' ? Math.PI * 0.75 : -Math.PI * 0.25, name: d.name, visible: team === 'clone' }, extra);
   rig.root.position.set(x + 0.5, 0, z + 0.5); rig.root.rotation.y = u.yaw;
@@ -2484,8 +2560,8 @@ async function moveUnit(u, path, dash = false) {
 
 // ---------- режиссёр выстрела
 const UP = new THREE.Vector3(0, 1, 0);
-const chestY = u => (u.type === 'dk' ? 0.62 : u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.87 : u.type === 'tx' ? 0.95 : 0.83);
-const eyeY = u => (u.type === 'dk' ? 0.72 : u.type === 'b2' ? 1.06 : u.type === 'tx' ? 1.15 : u.team === 'droid' ? 1.0 : 1.04);
+const chestY = u => (u.type === 'dk' ? 0.78 : u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.97 : u.team === 'droid' ? 0.88 : 0.83);
+const eyeY = u => (u.type === 'dk' ? 0.98 : u.type === 'b2' ? 1.2 : u.team === 'droid' ? 1.06 : 1.04);
 let thirdCount = 0, ownShots = 0;
 // режим камеры выстрела: auto — крутые моменты и каждый второй свой выстрел,
 // first — всегда от первого лица, third — кино-ракурсы (снайпер всё равно через оптику)
