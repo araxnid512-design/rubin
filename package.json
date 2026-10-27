@@ -1,8 +1,8 @@
 {
-  "name": "garrison-game",
+  "name": "styx-road",
   "version": "0.1.0",
   "private": true,
-  "description": "Гарнизон — командир воинской части в зомби-апокалипсисе. HTML/JS/Canvas + Capacitor для Android",
+  "description": "Стикс: Дорога стабов — 2D-игра вид сбоку про машину в мире Улья. HTML/JS/Canvas + Planck.js + Capacitor",
   "scripts": {
     "vendor": "node scripts/copy-vendor.js",
     "serve": "npm run vendor && npx --yes http-server www -p 8080 -c-1",
@@ -13,7 +13,8 @@
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.5.3",
     "@capacitor/screen-orientation": "8.0.2",
-    "@capacitor/status-bar": "8.0.4"
+    "@capacitor/status-bar": "8.0.4",
+    "planck": "^1.5.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3"

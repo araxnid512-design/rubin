@@ -1,4 +1,4 @@
-// Копирует браузерные сборки Capacitor в www/vendor (проект без сборщика).
+// Копирует браузерные сборки библиотек в www/vendor (проект без сборщика, работает офлайн).
 const fs = require('fs');
 const path = require('path');
 
@@ -7,6 +7,7 @@ const files = {
   'app.js': '@capacitor/app/dist/plugin.js',
   'status-bar.js': '@capacitor/status-bar/dist/plugin.js',
   'screen-orientation.js': '@capacitor/screen-orientation/dist/plugin.js',
+  'planck.min.js': 'planck/dist/planck.min.js',
 };
 
 const out = path.join(__dirname, '..', 'www', 'vendor');

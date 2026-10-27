@@ -1,8 +1,8 @@
 // Звук: всё синтезируется через WebAudio, без файлов.
 // Контекст создаётся после первого касания (требование мобильных браузеров).
 (function () {
-  const KEY = 'garrison-sound';
-  let ctx = null, master = null, noiseBuf = null;
+  const KEY = 'styx-road-sound';
+  let ctx = null, master = null, noiseBuf = null, engineNodes = null;
   let enabled = true;
   try { enabled = localStorage.getItem(KEY) !== 'off'; } catch (e) { /* нет хранилища */ }
 
@@ -109,6 +109,32 @@
     quest() { tone('triangle', 520, 520, 0.12, 0.2); setTimeout(() => tone('triangle', 780, 780, 0.2, 0.2), 120); },
     step(vol) { noise(0.04, 'lowpass', 400, 0.12, vol); },
     get enabled() { return enabled; },
+    // Мотор: непрерывный звук, высота — от оборотов (0..1), громкость — от газа.
+    engine(rpm, throttle) {
+      if (!ctx) return;
+      if (!engineNodes) {
+        const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+        o1.type = 'sawtooth'; o2.type = 'square';
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass'; f.frequency.value = 500;
+        const g = ctx.createGain(); g.gain.value = 0;
+        o1.connect(f); o2.connect(f); f.connect(g).connect(master);
+        o1.start(); o2.start();
+        engineNodes = { o1, o2, f, g };
+      }
+      const t = ctx.currentTime;
+      const base = 38 + rpm * 85;
+      engineNodes.o1.frequency.setTargetAtTime(base, t, 0.05);
+      engineNodes.o2.frequency.setTargetAtTime(base * 0.5, t, 0.05);
+      engineNodes.f.frequency.setTargetAtTime(300 + rpm * 700 + throttle * 300, t, 0.08);
+      engineNodes.g.gain.setTargetAtTime(enabled ? 0.05 + throttle * 0.07 : 0, t, 0.08);
+    },
+    engineOff() {
+      if (engineNodes && ctx) engineNodes.g.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+    },
+    crunch(vol) { noise(0.12, 'lowpass', 700, 0.5, vol); tone('sine', 90, 40, 0.1, 0.35, vol); },
+    thud(vol) { noise(0.18, 'lowpass', 260, 0.7, vol); },
+    nitro() { noise(0.35, 'bandpass', 1400, 0.25); },
     toggle() {
       enabled = !enabled;
       try { localStorage.setItem(KEY, enabled ? 'on' : 'off'); } catch (e) { /* нет хранилища */ }

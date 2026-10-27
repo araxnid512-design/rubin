@@ -4,109 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
-  <title>Гарнизон</title>
+  <title>Стикс: Дорога стабов</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <canvas id="view"></canvas>
 
-  <!-- База: ресурсы и приказы -->
-  <div id="topbar" class="hidden">
-    <span class="res day"><b id="r-day"></b></span>
-    <span class="res" title="Бойцы"><i class="ico soldier"></i><b id="r-soldiers"></b><small id="r-free"></small></span>
-    <span class="res" title="Раненые"><i class="ico wounded"></i><b id="r-wounded"></b></span>
-    <span class="res" title="Гражданские"><i class="ico civ"></i><b id="r-civ"></b></span>
-    <span class="res" title="АК-74 в оружейке"><i class="ico rifle"></i><b id="r-rifles"></b></span>
-    <span class="res" title="Патроны 5,45"><i class="ico ammo"></i><b id="r-ammo"></b></span>
-    <span class="res" title="Еда, пайков"><i class="ico food"></i><b id="r-food"></b></span>
-    <span class="res" title="Медикаменты"><i class="ico meds"></i><b id="r-meds"></b></span>
-    <span class="res" title="Материалы"><i class="ico mat"></i><b id="r-mat"></b></span>
-    <span class="res threat" title="Угроза орды"><span>Орда</span><span class="meter"><i id="r-threat"></i></span></span>
+  <!-- HUD заезда -->
+  <div id="hud">
+    <div class="hud-row"><b id="h-speed">0</b><span>км/ч</span></div>
+    <div class="hud-row"><b id="h-dist">0</b><span>м</span></div>
+    <div class="hud-bar nitro"><i id="h-nitro"></i><span>нитро</span></div>
   </div>
-  <div id="base-actions" class="hidden">
-    <button id="b-sortie" class="primary">Вылазка</button>
-    <button id="b-personnel">Личный состав</button>
-    <button id="b-build">Стройка</button>
-    <button id="b-endday">Завершить день</button>
-  </div>
+  <div id="h-flip" class="hidden">Машина перевернулась…</div>
 
-  <!-- Бой -->
-  <div id="battle-hud" class="hidden">
-    <div id="bh-title"></div>
-    <div id="bh-stats"></div>
-  </div>
-  <div id="battle-actions" class="hidden">
-    <button id="a-zoomin" class="small" aria-label="Приблизить">+</button>
-    <button id="a-zoomout" class="small" aria-label="Отдалить">−</button>
-    <button id="a-speed" class="small">×1</button>
-    <button id="a-center">К отряду</button>
-    <button id="a-retreat" class="warn">Отступить</button>
-    <button id="a-return" class="primary hidden">Вернуться на базу</button>
-  </div>
-  <div id="hint" class="hidden"></div>
-  <div id="toasts"></div>
+  <!-- Управление -->
+  <button id="btn-brake" class="ctl left" aria-label="Тормоз / задний ход"><span>ТОРМОЗ</span></button>
+  <button id="btn-nitro" class="ctl nitro" aria-label="Нитро"><span>НИТРО</span></button>
+  <button id="btn-gas" class="ctl right" aria-label="Газ"><span>ГАЗ</span></button>
 
-  <!-- Главное меню -->
-  <div id="menu" class="overlay hidden">
-    <div class="panel menu-panel">
-      <div class="logo">ГАРНИЗОН</div>
-      <div class="subtitle">Зомби-апокалипсис. Вы — командир воинской части</div>
-      <button id="m-continue" class="primary">Продолжить</button>
-      <button id="m-new">Новая игра</button>
-      <button id="m-sound">Звук: вкл</button>
-    </div>
-  </div>
-
-  <!-- Планирование вылазки -->
-  <div id="planner" class="overlay hidden">
-    <div class="panel wide">
-      <div class="col map-col">
-        <div class="panel-head"><b>Город Заречный</b><span class="muted">выберите район</span></div>
-        <div id="citymap"><div class="river"></div><div class="base-mark">В/Ч</div></div>
-      </div>
-      <div class="col info-col">
-        <h2 id="p-name">—</h2>
-        <p id="p-about" class="muted"></p>
-        <div id="p-facts" class="facts"></div>
-        <label class="slider"><span>Бойцов: <b id="p-count-v"></b></span><input id="p-count" type="range" min="1" max="1" step="1" value="1"></label>
-        <label class="slider"><span>Патронов на бойца: <b id="p-ammo-v"></b></span><input id="p-ammo" type="range" min="100" max="600" step="50" value="300"></label>
-        <p id="p-total" class="muted"></p>
-        <div class="row">
-          <button id="p-go" class="primary">Отправить отряд</button>
-          <button id="p-close">Отмена</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Отчёт (вылазка, оборона, итог дня) -->
-  <div id="report" class="overlay hidden">
-    <div class="panel report">
-      <h2 id="rep-title"></h2>
-      <div id="rep-body"></div>
-      <button id="rep-ok" class="primary">Ясно</button>
-    </div>
-  </div>
-
-  <!-- Личный состав -->
-  <div id="personnel" class="overlay hidden">
-    <div class="panel report">
-      <h2>Личный состав</h2>
-      <div id="pers-body" class="facts"></div>
-      <label class="slider"><span>Вооружить гражданских: <b id="arm-v">0</b></span><input id="arm-n" type="range" min="0" max="0" step="1" value="0"></label>
-      <div class="row">
-        <button id="arm-go" class="primary">Выдать автоматы</button>
-        <button id="pers-close">Закрыть</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Стройка -->
-  <div id="build" class="overlay hidden">
-    <div class="panel report">
-      <h2>Строительство <span class="muted" id="build-mat"></span></h2>
-      <div id="build-list"></div>
-      <button id="build-close">Закрыть</button>
+  <div id="menu" class="overlay">
+    <div class="panel">
+      <div class="logo">СТИКС</div>
+      <div class="subtitle">Дорога стабов</div>
+      <p class="muted">Этап 1: проверка физики. Газ справа, тормоз и задний ход слева.<br>
+        В воздухе газ наклоняет машину назад, тормоз — вперёд.</p>
+      <button id="m-start" class="primary">Тест-заезд</button>
     </div>
   </div>
 
@@ -114,17 +37,8 @@
     <div class="panel">
       <h1>Пауза</h1>
       <button id="btn-resume" class="primary">Продолжить</button>
-      <button id="btn-sound">Звук: вкл</button>
-      <button id="btn-menu">Главное меню</button>
+      <button id="btn-restart">Заново</button>
       <button id="btn-exit">Выйти из игры</button>
-    </div>
-  </div>
-
-  <div id="gameover" class="overlay hidden">
-    <div class="panel">
-      <h1>Часть пала</h1>
-      <p id="go-text"></p>
-      <button id="go-restart" class="primary">Новая игра</button>
     </div>
   </div>
 
@@ -136,15 +50,15 @@
   <script src="vendor/app.js"></script>
   <script src="vendor/status-bar.js"></script>
   <script src="vendor/screen-orientation.js"></script>
+  <script src="vendor/planck.min.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/platform.js"></script>
   <script src="js/audio.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/grid.js"></script>
-  <script src="js/maps.js"></script>
-  <script src="js/battle.js"></script>
-  <script src="js/campaign.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/carDraw.js"></script>
   <script src="js/render.js"></script>
-  <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
