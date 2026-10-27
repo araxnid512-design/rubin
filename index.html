@@ -2,54 +2,95 @@
 <html lang="ru">
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="theme-color" content="#121812">
 	<title>Zombie Viewer</title>
 	<style>
 		:root {
 			--bg: #0d120d;
-			--panel: rgba(18, 24, 18, 0.88);
+			--panel: rgba(18, 24, 18, 0.9);
 			--border: #2f3d2c;
 			--text: #d8e4d0;
 			--muted: #8a9a82;
 			--accent: #9bd16b;
 			--accent-ink: #10180c;
 			--danger: #d9534f;
+			--btn: #1d261b;
 		}
-		* { box-sizing: border-box; }
+		* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 		html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
-			font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-		canvas { display: block; }
-		#panel { position: absolute; top: 16px; left: 16px; width: 280px; max-width: calc(100vw - 32px);
-			background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
-			backdrop-filter: blur(6px); }
+			font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+			overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+		canvas { display: block; touch-action: none; }
+		#panel { position: absolute; top: 16px; left: 16px; width: 290px; max-width: calc(100vw - 32px);
+			max-height: calc(100dvh - 32px); overflow-y: auto;
+			background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+			backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 		h1 { font-size: 16px; margin: 0 0 2px; }
 		.sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
 		.label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 6px; }
 		.anims { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-		button { font: inherit; color: var(--text); background: #1d261b; border: 1px solid var(--border);
-			border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; }
+		button { font: inherit; color: var(--text); background: var(--btn); border: 1px solid var(--border);
+			border-radius: 8px; padding: 8px; cursor: pointer; text-align: left; touch-action: manipulation; }
 		button:hover { border-color: var(--accent); }
+		button:active { transform: scale(.97); }
 		button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 		button kbd { float: right; opacity: .6; font: 11px ui-monospace, monospace; }
-		.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
-		.row input[type=range] { flex: 1; accent-color: var(--accent); }
-		.row output { width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
-		label.check { display: flex; align-items: center; gap: 8px; margin: 4px 0; cursor: pointer; }
-		label.check input { accent-color: var(--accent); }
-		select { width: 100%; font: inherit; color: var(--text); background: #1d261b; border: 1px solid var(--border);
-			border-radius: 6px; padding: 6px; }
-		#progress { height: 4px; background: #1d261b; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+		.anims .icon { margin-right: 4px; }
+		.row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+		.row > span { min-width: 64px; }
+		.row input[type=range] { flex: 1; accent-color: var(--accent); min-height: 28px; }
+		.row output { width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+		label.check { display: flex; align-items: center; gap: 10px; padding: 5px 0; cursor: pointer; }
+		label.check input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
+		select { width: 100%; font: inherit; color: var(--text); background: var(--btn); border: 1px solid var(--border);
+			border-radius: 8px; padding: 8px; }
+		.playbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+		.playbar button { flex: none; width: 40px; height: 40px; padding: 0; text-align: center; font-size: 20px; line-height: 1; }
+		.playbar .info { flex: 1; min-width: 0; }
+		#progress { height: 4px; background: var(--btn); border-radius: 2px; overflow: hidden; }
 		#progress div { height: 100%; width: 0; background: var(--accent); }
-		#status { color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
-		.wide { width: 100%; text-align: center; margin-top: 6px; }
+		#status { color: var(--muted); font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums;
+			white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+		details { margin-top: 10px; }
+		summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0;
+			display: flex; align-items: center; gap: 6px; }
+		summary::-webkit-details-marker { display: none; }
+		summary::after { content: "▾"; margin-left: auto; transition: transform .2s; }
+		details[open] summary::after { transform: rotate(180deg); }
+		.wide { width: 100%; text-align: center; margin-top: 8px; }
 		#drop { position: absolute; inset: 0; display: none; place-items: center; font-size: 22px;
 			background: rgba(155, 209, 107, .12); border: 3px dashed var(--accent); pointer-events: none; }
 		#drop.show { display: grid; }
 		#error { color: var(--danger); font-size: 12px; margin-top: 6px; }
-		@media (max-width: 600px) {
-			#panel { top: auto; bottom: 16px; padding: 10px; }
-			.hide-mobile { display: none; }
+		#error:empty { display: none; }
+
+		/* Телефон: нижняя панель, крупные кнопки, настройки свёрнуты */
+		@media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
+			#panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-width: none;
+				max-height: 55dvh; border-radius: 16px 16px 0 0; border-width: 1px 0 0;
+				padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+			#panel::before { content: ""; display: block; width: 36px; height: 4px; border-radius: 2px;
+				background: var(--border); margin: 0 auto 8px; }
+			h1 { display: none; }
+			.sub.head { display: none; }
+			.label.anim-label { display: none; }
+			.anims { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+			.anims button { display: flex; flex-direction: column; align-items: center; justify-content: center;
+				min-height: 56px; padding: 6px 2px; text-align: center; font-size: 11px; }
+			.anims .icon { font-size: 22px; margin: 0 0 2px; line-height: 1; }
+			button kbd, .desktop-only { display: none; }
+			.playbar button { width: 44px; height: 44px; }
+			select, .wide { min-height: 44px; }
 		}
+		/* Телефон горизонтально: панель сбоку, чтобы не закрывать модель */
+		@media (pointer: coarse) and (max-height: 500px) and (orientation: landscape) {
+			#panel { left: auto; top: 0; bottom: 0; width: 300px; max-height: none; border-radius: 16px 0 0 16px;
+				border-width: 0 0 0 1px; padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px 12px; }
+			#panel::before { display: none; }
+			.anims { grid-template-columns: repeat(3, 1fr); }
+		}
+		@media (hover: none) { button:hover { border-color: var(--border); } button.active:hover { border-color: var(--accent); } }
 	</style>
 	<script type="importmap">
 		{
@@ -63,29 +104,38 @@
 <body>
 	<div id="panel">
 		<h1>🧟 Зомби</h1>
-		<div class="sub">Low-poly skinned mesh · 19 костей · 5 анимаций</div>
+		<div class="sub head">Low-poly skinned mesh · 19 костей · 5 анимаций</div>
 
-		<div class="label">Анимация</div>
+		<div class="label anim-label">Анимация</div>
 		<div class="anims" id="anims"></div>
 
-		<div class="row"><span>Скорость</span><input id="speed" type="range" min="0" max="2" step="0.05" value="1"><output id="speedOut">1.0×</output></div>
-		<div class="row"><span>Переход</span><input id="fade" type="range" min="0" max="1" step="0.05" value="0.3"><output id="fadeOut">0.3с</output></div>
-		<div id="progress"><div></div></div>
-		<div id="status">—</div>
+		<div class="playbar">
+			<button id="pauseBtn" title="Пауза (пробел)" aria-label="Пауза">⏸</button>
+			<div class="info">
+				<div id="progress"><div></div></div>
+				<div id="status">—</div>
+			</div>
+		</div>
 
-		<div class="label">Вид</div>
-		<label class="check"><input type="checkbox" id="skeleton"> Показать скелет</label>
-		<label class="check"><input type="checkbox" id="wire"> Каркас (wireframe)</label>
-		<label class="check"><input type="checkbox" id="rotate"> Автоповорот камеры</label>
-		<label class="check"><input type="checkbox" id="pause"> Пауза <span class="hide-mobile" style="color:var(--muted)">(пробел)</span></label>
+		<details id="more" open>
+			<summary>⚙ Настройки</summary>
+			<div class="row"><span>Скорость</span><input id="speed" type="range" min="0" max="2" step="0.05" value="1"><output id="speedOut">1.0×</output></div>
+			<div class="row"><span>Переход</span><input id="fade" type="range" min="0" max="1" step="0.05" value="0.3"><output id="fadeOut">0.3с</output></div>
 
-		<div class="label">Источник модели</div>
-		<select id="source">
-			<option value="procedural">Процедурная (src/zombie.js)</option>
-			<option value="glb">Файл models/zombie.glb</option>
-		</select>
-		<button class="wide" id="download">⬇ Скачать zombie.glb</button>
-		<div class="sub hide-mobile" style="margin:8px 0 0">Можно перетащить сюда любой .glb/.gltf, чтобы проверить его анимации.</div>
+			<div class="label">Вид</div>
+			<label class="check"><input type="checkbox" id="skeleton"> Показать скелет</label>
+			<label class="check"><input type="checkbox" id="wire"> Каркас (wireframe)</label>
+			<label class="check"><input type="checkbox" id="rotate"> Автоповорот камеры</label>
+			<button class="wide" id="resetCam">🎥 Сбросить камеру</button>
+
+			<div class="label">Источник модели</div>
+			<select id="source">
+				<option value="procedural">Процедурная (src/zombie.js)</option>
+				<option value="glb">Файл models/zombie.glb</option>
+			</select>
+			<button class="wide" id="download">⬇ Скачать zombie.glb</button>
+			<div class="sub desktop-only" style="margin:8px 0 0">Можно перетащить сюда любой .glb/.gltf, чтобы проверить его анимации.</div>
+		</details>
 		<div id="error"></div>
 	</div>
 	<div id="drop">Отпустите файл .glb / .gltf</div>
@@ -138,7 +188,7 @@
 		scene.add(grid);
 
 		// ---------- Модель и анимации ----------
-		const state = { model: null, mixer: null, actions: {}, current: null, clips: [], skeletonHelper: null, source: 'procedural' };
+		const state = { model: null, mixer: null, actions: {}, current: null, clips: [], skeletonHelper: null, source: 'procedural', paused: false };
 		window.__zombie = state; // для автотестов
 		const LOOP_ONCE = new Set(['Death', 'Attack']);
 
@@ -200,7 +250,7 @@
 			state.clips.forEach((clip, i) => {
 				const b = document.createElement('button');
 				b.dataset.name = clip.name;
-				b.innerHTML = `${ICONS[clip.name] ?? '▶'} ${clip.name}${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}`;
+				b.innerHTML = `<span class="icon">${ICONS[clip.name] ?? '▶'}</span><span>${clip.name}</span>${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}`;
 				b.onclick = () => play(clip.name);
 				box.append(b);
 			});
@@ -263,19 +313,58 @@
 			if (e.target.tagName === 'SELECT') return;
 			const i = Number(e.key) - 1;
 			if (state.clips[i]) play(state.clips[i].name);
-			if (e.code === 'Space') { e.preventDefault(); $('pause').checked = !$('pause').checked; }
+			if (e.code === 'Space') { e.preventDefault(); togglePause(); }
 		});
 
-		addEventListener('resize', () => {
-			camera.aspect = innerWidth / innerHeight;
+		function togglePause() {
+			state.paused = !state.paused;
+			$('pauseBtn').textContent = state.paused ? '▶' : '⏸';
+			$('pauseBtn').setAttribute('aria-label', state.paused ? 'Продолжить' : 'Пауза');
+		}
+		$('pauseBtn').onclick = togglePause;
+
+		// ---------- Раскладка ----------
+		// Модель центрируется в видимой области, не закрытой панелью (снизу на телефоне,
+		// справа в горизонтальной ориентации, слева на компьютере), а камера отъезжает так,
+		// чтобы зомби целиком помещался в кадр.
+		const CAMERA_DIR = new THREE.Vector3(2.6, 0.75, 3.6).normalize();
+		const TARGET = new THREE.Vector3(0, 0.95, 0);
+		function updateLayout(fitCamera) {
+			const W = innerWidth, H = innerHeight;
+			renderer.setSize(W, H);
+			camera.aspect = W / H;
+
+			const r = $('panel').getBoundingClientRect();
+			let left = 0, right = 0, bottom = 0;
+			if (r.width >= W - 1) bottom = Math.min(Math.max(0, H - r.top), H * 0.55);
+			else if (r.left > W / 2) right = W - r.left;
+			else if (W - r.right > 360) left = r.right;
+			camera.setViewOffset(W, H, (right - left) / 2, bottom / 2, W, H);
 			camera.updateProjectionMatrix();
-			renderer.setSize(innerWidth, innerHeight);
-		});
+
+			if (fitCamera) {
+				const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+				const fy = Math.max(0.3, (H - bottom) / H);
+				const fx = Math.max(0.3, (W - left - right) / W);
+				const dist = Math.max(1.3 / (tan * fy), 1.0 / (tan * camera.aspect * fx), 3.5);
+				controls.target.copy(TARGET);
+				camera.position.copy(TARGET).addScaledVector(CAMERA_DIR, dist);
+				controls.maxDistance = dist * 3;
+			}
+		}
+		if (matchMedia('(max-width: 600px)').matches) $('more').open = false;
+		// Пока пользователь сам не крутил камеру, она подстраивается под размер экрана и панели.
+		let userMovedCamera = false;
+		controls.addEventListener('start', () => { userMovedCamera = true; });
+		$('resetCam').onclick = () => { userMovedCamera = false; updateLayout(true); };
+		addEventListener('resize', () => updateLayout(!userMovedCamera));
+		new ResizeObserver(() => updateLayout(!userMovedCamera)).observe($('panel'));
+		updateLayout(true);
 
 		const clock = new THREE.Clock();
 		renderer.setAnimationLoop(() => {
 			const dt = clock.getDelta();
-			if (state.mixer && !$('pause').checked) state.mixer.update(dt * Number($('speed').value));
+			if (state.mixer && !state.paused) state.mixer.update(dt * Number($('speed').value));
 			const action = state.current && state.actions[state.current];
 			if (action) {
 				const d = action.getClip().duration;

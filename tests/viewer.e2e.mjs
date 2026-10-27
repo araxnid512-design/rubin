@@ -22,10 +22,11 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 // Three.js берём из node_modules вместо CDN — тест работает офлайн.
-await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', (route) => {
+const cdn = (route) => {
 	const rel = new URL(route.request().url()).pathname.replace('/npm/three@0.170.0/', '');
 	route.fulfill({ path: join(ROOT, 'node_modules/three', rel), contentType: 'text/javascript' });
-});
+};
+await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', cdn);
 
 let failed = false;
 const check = (ok, msg) => { console.log(`${ok ? '✓' : '✗'} ${msg}`); if (!ok) failed = true; };
@@ -47,6 +48,31 @@ try {
 			check(s.cur === name && s.t > 0, `[${source}] ${name} играет (t=${s.t.toFixed(2)})`);
 			if (source === 'procedural') await page.screenshot({ path: join(OUT, `${name}.png`) });
 		}
+	}
+	// Телефон: портретная и горизонтальная ориентация.
+	for (const [label, viewport] of [['phone', { width: 390, height: 844 }], ['phone-landscape', { width: 844, height: 390 }]]) {
+		const ctx = await browser.newContext({ viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+		const mp = await ctx.newPage();
+		mp.on('pageerror', (e) => errors.push(e.message));
+		await mp.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', cdn);
+		await mp.goto(url);
+		await mp.waitForFunction(() => window.__zombie?.current === 'Idle', null, { timeout: 15000 });
+		const box = await mp.locator('#panel').boundingBox();
+		const btn = await mp.locator('#anims button').first().boundingBox();
+		check(box.y + box.height <= viewport.height + 1 && box.x + box.width <= viewport.width + 1, `[${label}] панель помещается на экране`);
+		check(btn.height >= 44, `[${label}] кнопки анимаций крупные (${Math.round(btn.height)}px)`);
+		for (const name of ['Walk', 'Attack']) {
+			await mp.tap(`#anims button[data-name="${name}"]`);
+			await mp.waitForTimeout(700);
+			check(await mp.evaluate(() => window.__zombie.current) === name, `[${label}] тап по ${name}`);
+		}
+		await mp.screenshot({ path: join(OUT, `${label}.png`) });
+		if (label === 'phone') {
+			await mp.tap('#more summary');
+			await mp.waitForTimeout(300);
+			await mp.screenshot({ path: join(OUT, `${label}-settings.png`) });
+		}
+		await ctx.close();
 	}
 	check(errors.length === 0, `нет ошибок в консоли${errors.length ? ': ' + errors.join(' | ') : ''}`);
 } catch (e) {
