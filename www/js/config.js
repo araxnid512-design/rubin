@@ -11,6 +11,17 @@
     groundFriction: 0.9,
     flipAngle: 1.75,        // рад от горизонта: дальше — машина лежит на крыше/боку
     flipTime: 2.0,          // сек в таком положении почти без движения — заезд окончен
+    smash: { minSpeed: 4, forward: 0.6, up: 0.35 }, // как разлетается мусор от удара
+  };
+
+  // Группы столкновений (битовые маски Box2D).
+  const COLLIDE = {
+    ground: 0x0001,
+    body: 0x0002,    // кузов машины
+    wheel: 0x0004,
+    debris: 0x0008,  // мелкий мусор: ящики, мешки, бочки, доски — колёса его не цепляют
+    heavy: 0x0010,   // брошенные машины
+    zombie: 0x0020,
   };
 
   // Камера: сколько метров видно по вертикали и как далеко смотрим вперёд.
@@ -40,23 +51,55 @@
     },
   };
 
-  // Тестовая трасса этапа 1: холмы, трамплин, яма.
-  const TEST_TRACK = {
-    length: 900,
-    segments: [
-      { type: 'flat', length: 40 },
-      { type: 'hills', length: 200, amp: 2.5, wave: 28 },
-      { type: 'ramp', length: 14, height: 3.5 },
-      { type: 'gap', length: 10, depth: 6 },
-      { type: 'flat', length: 30 },
-      { type: 'hills', length: 250, amp: 4, wave: 40 },
-      { type: 'ramp', length: 18, height: 5 },
-      { type: 'flat', length: 60 },
-      { type: 'hills', length: 280, amp: 6, wave: 60 },
-    ],
+  // Препятствия: размеры, м; плотность, кг/м².
+  const OBSTACLES = {
+    crate: { size: 0.9, density: 25, friction: 0.6 },
+    sandbag: { w: 1.1, h: 0.45, density: 40, friction: 0.8 },
+    plank: { w: 2.6, h: 0.12, density: 20, friction: 0.6 },
+    barrel: { r: 0.42, density: 30, friction: 0.5 },
+    wreck: { w: 4.0, h: 1.3, density: 32, friction: 0.25 },
   };
+
+  // Уровни: дорога от стаба к стабу. Сегменты идут подряд; objects — что стоит
+  // на сегменте (dx — от начала сегмента). Названия стабов — игровые, см. LORE.md.
+  const LEVELS = [
+    {
+      id: 'city',
+      name: 'Городской кластер',
+      from: 'Стаб «Элеватор»',
+      to: 'Стаб «Депо»',
+      theme: { bg: 'city', sky: ['#6f7a80', '#a8a49a', '#b8ab94'], ground: ['#5a4a3a', '#2a221c'], road: '#3c3a36' },
+      segments: [
+        { type: 'flat', length: 30 },
+        { type: 'rubble', length: 60, objects: [{ type: 'crates', dx: 40, count: 3 }] },
+        { type: 'hills', length: 120, amp: 2, wave: 30 },
+        { type: 'ramp', length: 12, height: 3 },
+        { type: 'gap', length: 5, depth: 4 },
+        { type: 'flat', length: 40, objects: [{ type: 'barricade', dx: 25, rows: 3, cols: 2 }] },
+        { type: 'checkpoint' },
+        { type: 'slope', length: 60, rise: 6 },
+        { type: 'flat', length: 40, objects: [{ type: 'barrels', dx: 10, count: 3 }] },
+        { type: 'drop', height: 4 },
+        { type: 'flat', length: 30, objects: [{ type: 'wrecks', dx: 10, count: 1 }] },
+        { type: 'fork', length: 160, kicker: { length: 16, height: 3.8 },
+          upper: { gap: 7, height: 5.0, length: 110, objects: [{ type: 'crates', dx: 60, count: 2 }] },
+          lower: { objects: [{ type: 'barricade', dx: 40, rows: 3, cols: 3 }, { type: 'wrecks', dx: 110, count: 2 }] } },
+        { type: 'checkpoint' },
+        { type: 'hills', length: 150, amp: 4, wave: 45, objects: [{ type: 'barrels', dx: 70, count: 4 }] },
+        { type: 'bridge', deckBefore: 40, broken: 9, lip: 1.3, depth: 9, deckAfter: 30 },
+        { type: 'rubble', length: 80, objects: [{ type: 'crates', dx: 30, count: 5 }] },
+        { type: 'checkpoint' },
+        { type: 'slope', length: 50, rise: -5 },
+        { type: 'ramp', length: 16, height: 4.5 },
+        { type: 'gap', length: 9, depth: 6 },
+        { type: 'flat', length: 60, objects: [{ type: 'wrecks', dx: 30, count: 2 }] },
+        { type: 'hills', length: 120, amp: 3, wave: 40 },
+        { type: 'stab', name: 'Стаб «Депо»' },
+      ],
+    },
+  ];
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, CAMERA, CARS, TEST_TRACK };
+  window.CONFIG = { PHYSICS, COLLIDE, CAMERA, CARS, OBSTACLES, LEVELS };
 })();

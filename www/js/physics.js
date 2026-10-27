@@ -14,15 +14,23 @@
 
       this.chassis = world.createDynamicBody({ position: pl.Vec2(x, y), angularDamping: 0.05 });
       const poly = (pts) => pl.Polygon(pts.map(([px, py]) => pl.Vec2(px, py)));
-      this.chassis.createFixture(poly(def.body), { density: stats.density, friction: 0.4 });
-      this.chassis.createFixture(poly(def.cabin), { density: stats.density * 0.3, friction: 0.4 });
+      const K = window.CONFIG.COLLIDE;
+      const bodyFilter = { filterCategoryBits: K.body, filterMaskBits: K.ground | K.debris | K.heavy | K.zombie };
+      this.chassis.createFixture(poly(def.body), Object.assign({ density: stats.density, friction: 0.4 }, bodyFilter));
+      this.chassis.createFixture(poly(def.cabin), Object.assign({ density: stats.density * 0.3, friction: 0.4 }, bodyFilter));
       this.chassis.setUserData({ kind: 'chassis', car: this });
+      // Машина не засыпает: иначе мотор колёс её не разбудит и она «залипнет».
+      this.chassis.setSleepingAllowed(false);
 
       this.contacts = { rear: 0, front: 0, body: 0 };
       const wheel = (wx, key) => {
         const b = world.createDynamicBody({ position: pl.Vec2(x + wx, y + W.y), angularDamping: 0.3 });
-        b.createFixture(pl.Circle(W.radius), { density: W.density, friction: stats.tireFriction, restitution: 0.05 });
+        b.createFixture(pl.Circle(W.radius), {
+          density: W.density, friction: stats.tireFriction, restitution: 0.05,
+          filterCategoryBits: K.wheel, filterMaskBits: K.ground | K.heavy | K.zombie,
+        });
         b.setUserData({ kind: 'wheel', key, car: this });
+        b.setSleepingAllowed(false);
         const j = world.createJoint(pl.WheelJoint({
           enableMotor: false,
           maxMotorTorque: 0,
@@ -145,9 +153,39 @@
         }
       }
     };
-    world.on('begin-contact', (c) => touch(c, 1));
+    world.on('begin-contact', (c) => { touch(c, 1); smash(c); });
     world.on('end-contact', (c) => touch(c, -1));
+    // Мусор ниже днища проходит под машиной, а не поднимает её.
+    world.on('pre-solve', (c) => {
+      const pair = carAndDebris(c);
+      if (!pair) return;
+      const local = pair.car.chassis.getLocalPoint(pair.debris.getPosition());
+      if (local.y < pair.car.def.body[0][1] + 0.05) c.setEnabled(false);
+    });
     return world;
+  }
+
+  function carAndDebris(c) {
+    const fa = c.getFixtureA(), fb = c.getFixtureB();
+    const ua = fa.getBody().getUserData() || {}, ub = fb.getBody().getUserData() || {};
+    if (ua.kind === 'chassis' && ub.kind === 'obstacle' && ub.type !== 'wreck') return { car: ua.car, debris: fb.getBody() };
+    if (ub.kind === 'chassis' && ua.kind === 'obstacle' && ua.type !== 'wreck') return { car: ub.car, debris: fa.getBody() };
+    return null;
+  }
+
+  // Удар бампером на скорости подбрасывает мусор вперёд и вверх.
+  function smash(c) {
+    const pair = carAndDebris(c);
+    if (!pair) return;
+    const v = pair.car.chassis.getLinearVelocity();
+    const speed = v.length();
+    const k = window.CONFIG.PHYSICS.smash;
+    if (speed < k.minSpeed) return;
+    const m = pair.debris.getMass();
+    pair.debris.setAwake(true);
+    pair.debris.applyLinearImpulse(pl.Vec2(v.x * m * k.forward, Math.abs(speed) * m * k.up), pair.debris.getWorldCenter(), true);
+    pair.debris.applyAngularImpulse((Math.random() - 0.5) * m * 2, true);
+    pair.car.lastSmash = speed;
   }
 
   // Итоговые параметры машины (на этапе 1 — без улучшений).
