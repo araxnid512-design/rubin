@@ -299,6 +299,109 @@
     ctx.restore();
   }
 
+  // --- Заражённые: силуэт по виду, ноги шагают, мёртвые лежат/летят ---
+  function drawZombie(z, p, angle, t) {
+    const d = z.def, h = d.h, w = d.w;
+    const alive = z.alive && !z.clingAt;
+    const swing = alive ? Math.sin(z.phase * (z.kind === 'runner' || z.kind === 'ruber' ? 2.2 : 1.2)) : 0.4;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle);
+    ctx.scale(z.facing || -1, 1);
+    if (z.stomped) ctx.translate(0, -z.stomped * 0.4);
+    const flash = z.hitFlash > 0;
+    const dead = !z.alive && !z.clingAt;
+    const torso = flash ? '#e05040' : dead ? shade(d.color, -30) : d.color;
+    const skin = flash ? '#f08070' : dead ? shade(d.skin, -40) : d.skin;
+    const lw = Math.max(0.12, w * (z.kind === 'stomper' || z.kind === 'elite' ? 0.32 : 0.24));
+    ctx.lineCap = 'round';
+    // Ноги.
+    ctx.strokeStyle = shade(d.color, -25);
+    ctx.lineWidth = lw;
+    const hip = -h * 0.08;
+    ctx.beginPath();
+    ctx.moveTo(0, hip); ctx.lineTo(swing * w * 0.6, -h / 2 + 0.05);
+    ctx.moveTo(0, hip); ctx.lineTo(-swing * w * 0.6, -h / 2 + 0.05);
+    ctx.stroke();
+    // Туловище, сгорбленное вперёд.
+    const lean = z.kind === 'runner' || z.kind === 'ruber' ? 0.35 : 0.18;
+    ctx.fillStyle = torso;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, hip);
+    ctx.lineTo(w / 2, hip);
+    ctx.lineTo(w / 2 + lean * w, h * 0.32);
+    ctx.lineTo(-w / 2 + lean * w, h * 0.34);
+    ctx.closePath();
+    ctx.fill();
+    // Рваньё одежды.
+    ctx.fillStyle = shade(d.color, -40);
+    ctx.fillRect(-w / 2, hip, w * 0.3, h * 0.08);
+    // Руки тянутся вперёд.
+    ctx.strokeStyle = skin;
+    ctx.lineWidth = lw * 0.85;
+    const shoulder = h * 0.28;
+    const reach = z.kind === 'stomper' || z.kind === 'elite' ? 0.9 : 0.75;
+    ctx.beginPath();
+    ctx.moveTo(lean * w, shoulder); ctx.lineTo(w * 0.5 + h * 0.28 * reach, shoulder - 0.15 + swing * 0.1);
+    ctx.moveTo(lean * w, shoulder - 0.05); ctx.lineTo(w * 0.45 + h * 0.25 * reach, shoulder - 0.3 - swing * 0.1);
+    ctx.stroke();
+    // Голова.
+    const hr = Math.max(0.16, Math.min(w * 0.42, z.kind === 'elite' ? 0.62 : z.kind === 'stomper' ? 0.4 : 0.32));
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(lean * w + 0.08, shoulder + hr * 1.1, hr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c03020';
+    ctx.fillRect(lean * w + 0.08 + hr * 0.3, shoulder + hr * 1.2, hr * 0.35, hr * 0.25);
+    // Особенности вида.
+    if (z.kind === 'lottery' || z.kind === 'stomper' || z.kind === 'elite') {
+      ctx.fillStyle = shade(d.color, -30);
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath(); ctx.arc(-w * 0.25 + i * w * 0.18, hip + h * (0.1 + (i % 2) * 0.12), w * 0.14, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    if (d.plates) {
+      ctx.fillStyle = d.plates;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.3 + i * w * 0.25, h * 0.05 + i * h * 0.08);
+        ctx.lineTo(-w * 0.1 + i * w * 0.25, h * 0.15 + i * h * 0.08);
+        ctx.lineTo(-w * 0.3 + i * w * 0.25, h * 0.22 + i * h * 0.08);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(lean * w + 0.08, shoulder + hr * 1.4, hr * 0.9, Math.PI * 0.1, Math.PI * 0.9); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawZombieHp(z, p) {
+    if (!z.alive || z.hp >= z.def.hp || z.def.hp < 50) return;
+    const w = Math.max(1, z.def.w * 1.4);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(p.x - w / 2, p.y + z.def.h / 2 + 0.3, w, 0.12);
+    ctx.fillStyle = '#d84a3a';
+    ctx.fillRect(p.x - w / 2, p.y + z.def.h / 2 + 0.3, w * Math.max(0, z.hp) / z.def.hp, 0.12);
+  }
+
+  // Частицы (кровь, искры): в метрах, с гравитацией.
+  function particles(scene, dt) {
+    for (const q of scene.particles) {
+      q.vy -= 14 * dt;
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      q.t -= dt;
+      const g = scene.terrain.heightAt(q.x);
+      if (q.y < g) { q.y = g; q.vx *= 0.3; q.vy = 0; }
+    }
+    scene.particles = scene.particles.filter((q) => q.t > 0);
+  }
+
+  function blood(scene, x, y, n, vx) {
+    for (let i = 0; i < n && scene.particles.length < 300; i++) {
+      scene.particles.push({ x, y, vx: (vx || 0) * 0.4 + (Math.random() - 0.3) * 6, vy: Math.random() * 6, t: 0.8 + Math.random() * 1.2, r: 0.05 + Math.random() * 0.09, c: Math.random() < 0.7 ? '#7a1010' : '#4a8a3a' });
+    }
+  }
+
+  function shade(hex, amt) { return window.CarDraw.shade(hex, amt); }
+
   function draw(scene, t) {
     if (!theme) setTheme(scene.level.theme);
     screenTransform();
@@ -320,7 +423,15 @@
       const p = b.getPosition();
       if (p.x > v.l - 3 && p.x < v.r + 3) drawObstacle(b);
     }
+    scene.pickups.draw(ctx, t);
+    scene.horde.each((z, p, a) => { if (p.x > v.l - 3 && p.x < v.r + 3) { drawZombie(z, p, a, t); drawZombieHp(z, p); } });
     window.CarDraw.draw(ctx, scene.car, t);
+    // Бегуны, вцепившиеся в машину.
+    for (const z of scene.horde.clinging) {
+      const p = scene.car.chassis.getWorldPoint(window.planck.Vec2(z.clingAt.x, z.clingAt.y + z.def.h * 0.35));
+      drawZombie(Object.assign({}, z, { facing: 1, stomped: 0 }), p, scene.car.angle - 0.5 + Math.sin(z.phase) * 0.25, t);
+    }
+    for (const q of scene.particles) { ctx.fillStyle = q.c; ctx.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2); }
     screenTransform();
   }
 
@@ -333,5 +444,5 @@
     };
   }
 
-  window.Render = { init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, cam, rng };
+  window.Render = { init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, particles, blood, cam, rng };
 })();

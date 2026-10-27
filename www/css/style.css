@@ -70,6 +70,30 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .hud-bar i { display: block; height: 100%; }
 .hud-bar.nitro i { background: var(--nitro); }
+.hud-bar.hp i { background: linear-gradient(90deg, #b8402c, #d8a03a); }
+#loot {
+  position: fixed;
+  top: 8px;
+  right: calc(12px + var(--safe-r));
+  display: flex;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+#loot span { display: inline-flex; align-items: center; gap: 4px; font-size: 16px; }
+.ico { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+.ico.sporan { background: var(--spore); box-shadow: 0 0 6px var(--spore); border-radius: 50% 50% 45% 45%; }
+.ico.peas { background: #e0c050; width: 8px; height: 8px; box-shadow: 6px 0 0 #e0c050; margin-right: 6px; }
+.ico.pearl { background: #ece8f4; box-shadow: 0 0 6px #fff; }
+.ico.skull { background: #c8c0b0; border-radius: 40% 40% 30% 30%; }
+#hurt {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 60px 6px rgba(200, 30, 20, 0.7);
+}
 .hud-bar span { position: absolute; left: 6px; top: -1px; font-size: 10px; letter-spacing: 1px; }
 #progress {
   position: fixed;

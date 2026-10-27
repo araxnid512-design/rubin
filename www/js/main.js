@@ -1,4 +1,4 @@
-// Главный цикл и экраны. Этап 2: заезд по уровню 1 с препятствиями и чекпоинтами.
+// Главный цикл и экраны. Этап 3: заезд по уровню 1 с препятствиями и заражёнными.
 (function () {
   const C = window.CONFIG;
   const $ = (id) => document.getElementById(id);
@@ -20,7 +20,32 @@
     const cp = startCp || 0;
     const x0 = cp ? terrain.checkpoints[cp - 1] : 6;
     const car = new window.Physics.Car(world, def, stats, x0, terrain.heightAt(x0) + 1.2);
-    scene = { world, terrain, obstacles, car, level, levelIndex: levelIndex || 0, time: 0, maxX: x0, startX: x0, checkpoint: cp, finished: false };
+    scene = {
+      world, terrain, obstacles, car, level, levelIndex: levelIndex || 0, time: 0, maxX: x0, startX: x0,
+      checkpoint: cp, finished: false, particles: [], loot: { sporan: 0, peas: 0, pearl: 0 }, kills: 0,
+    };
+    scene.pickups = new window.Pickups(terrain, {
+      onCollect(kind, n) { scene.loot[kind] += n; window.Sound.pickup(); },
+    });
+    scene.horde = new window.Horde(world, terrain, level, {
+      onKill(z, p) {
+        scene.kills++;
+        const d = z.def.drops;
+        if (Math.random() < d.sporanChance) {
+          const n = d.sporans[0] + Math.floor(Math.random() * (d.sporans[1] - d.sporans[0] + 1));
+          if (n) scene.pickups.drop('sporan', n, p.x, p.y);
+        }
+        if (Math.random() < d.peas) scene.pickups.drop('peas', 1, p.x, p.y);
+        if (Math.random() < d.pearl) scene.pickups.drop('pearl', 1, p.x, p.y);
+        window.Render.blood(scene, p.x, p.y, 14, scene.car.speed);
+        window.Sound.crunch(Math.min(1, z.def.mass / 200 + 0.4));
+      },
+      onCarHit(dmg) {
+        scene.car.hp = Math.max(0, scene.car.hp - dmg);
+        scene.hurt = 0.25;
+      },
+    });
+    world.on('begin-contact', (c) => scene.horde.contact(c));
     window.Render.setTheme(level.theme);
     window.Render.snapCamera(car);
     buildProgress();
@@ -31,7 +56,11 @@
     const P = C.PHYSICS;
     scene.car.control(window.Input, dt);
     scene.world.step(dt, P.velocityIterations, P.positionIterations);
+    scene.horde.afterStep(scene.car, dt);
+    scene.pickups.update(scene.car, dt);
+    window.Render.particles(scene, dt);
     scene.time += dt;
+    scene.hurt = Math.max(0, (scene.hurt || 0) - dt);
     const x = scene.car.pos.x;
     scene.maxX = Math.max(scene.maxX, x);
     const cps = scene.terrain.checkpoints;
@@ -73,6 +102,12 @@
     $('h-dist').textContent = Math.max(0, Math.round(total - car.pos.x));
     $('h-nitro').style.width = (car.nitro / car.stats.nitroCapacity * 100) + '%';
     $('h-flip').classList.toggle('hidden', car.flipTimer < 0.5);
+    $('h-hp').style.width = (car.hp / car.stats.hp * 100) + '%';
+    $('h-sporan').textContent = scene.loot.sporan;
+    $('h-peas').textContent = scene.loot.peas;
+    $('h-pearl').textContent = scene.loot.pearl;
+    $('h-kills').textContent = scene.kills;
+    $('hurt').style.opacity = scene.hurt > 0 ? Math.min(0.5, scene.hurt * 2) : 0;
     $('p-car').style.left = Math.max(0, Math.min(100, car.pos.x / total * 100)) + '%';
     $('p-best').style.width = Math.max(0, Math.min(100, scene.maxX / total * 100)) + '%';
   }
@@ -90,7 +125,7 @@
       window.Render.updateCamera(scene.car, dt);
       const car = scene.car;
       window.Sound.engine(Math.min(1, Math.abs(car.rear.body.getAngularVelocity()) * car.def.wheels.radius / car.stats.maxSpeed), Math.abs(car.throttle));
-      if (car.flipped) newRun(scene.levelIndex, scene.checkpoint);
+      if (car.flipped || car.hp <= 0) newRun(scene.levelIndex, scene.checkpoint);
     }
     if (scene) {
       window.Render.draw(scene, now / 1000);

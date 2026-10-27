@@ -14,8 +14,16 @@
   <div id="hud">
     <div class="hud-row"><b id="h-speed">0</b><span>км/ч</span></div>
     <div class="hud-row"><b id="h-dist">0</b><span>м до стаба</span></div>
+    <div class="hud-bar hp"><i id="h-hp"></i><span>прочность</span></div>
     <div class="hud-bar nitro"><i id="h-nitro"></i><span>нитро</span></div>
   </div>
+  <div id="loot">
+    <span title="Спораны"><i class="ico sporan"></i><b id="h-sporan">0</b></span>
+    <span title="Горох"><i class="ico peas"></i><b id="h-peas">0</b></span>
+    <span title="Жемчуг"><i class="ico pearl"></i><b id="h-pearl">0</b></span>
+    <span title="Убито"><i class="ico skull"></i><b id="h-kills">0</b></span>
+  </div>
+  <div id="hurt"></div>
   <div id="progress"><i id="p-best"></i><span id="p-car"></span></div>
   <div id="h-flip" class="hidden">Машина перевернулась…</div>
   <div id="toast" class="hidden"></div>
@@ -29,7 +37,7 @@
     <div class="panel">
       <div class="logo">СТИКС</div>
       <div class="subtitle">Дорога стабов</div>
-      <p class="muted">Этап 2: уровень «Городской кластер». Газ справа, тормоз и задний ход слева.<br>
+      <p class="muted">Этап 3: уровень «Городской кластер» с заражёнными. Газ справа, тормоз и задний ход слева.<br>
         В воздухе газ наклоняет машину назад, тормоз — вперёд. Перевернулись — заезд с последнего чекпоинта.</p>
       <button id="m-start" class="primary">Заезд</button>
     </div>
@@ -60,6 +68,8 @@
   <script src="js/terrain.js"></script>
   <script src="js/physics.js"></script>
   <script src="js/obstacles.js"></script>
+  <script src="js/zombies.js"></script>
+  <script src="js/pickups.js"></script>
   <script src="js/carDraw.js"></script>
   <script src="js/render.js"></script>
   <script src="js/main.js"></script>

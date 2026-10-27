@@ -48,9 +48,12 @@
       this.throttle = 0;
       this.flipTimer = 0;
       this.flipped = false;
+      this.hp = stats.hp;
+      this.lastVy = 0;
     }
 
     get pos() { return this.chassis.getPosition(); }
+    totalMass() { return this.chassis.getMass() + this.rear.body.getMass() + this.front.body.getMass(); }
     get angle() { return this.chassis.getAngle(); }
     get speed() { return this.chassis.getLinearVelocity().x; }
     get grounded() { return this.contacts.rear > 0 || this.contacts.front > 0; }
@@ -64,6 +67,7 @@
     // input: { gas, brake, nitro } — булевы.
     control(input, dt) {
       const s = this.stats;
+      this.lastVy = this.chassis.getLinearVelocity().y;
       const v = this.speed;
       const r = this.def.wheels.radius;
       const driven = s.awd ? [this.rear, this.front] : [this.rear];
@@ -204,6 +208,15 @@
       nitroForce: def.nitro.force,
       nitroCapacity: def.nitro.capacity,
       awd: false,
+      hp: def.hp,
+      armorMult: 1,     // множитель входящего урона (броня уменьшает)
+      ramMult: 1,       // урон тараном
+      ramDragCut: 0,    // доля торможения от удара, которую гасит отвал
+      spikesMult: 1,    // урон колёсами при наезде сверху
+      cageMult: 1,      // урон от бегунов на крыше (клетка уменьшает)
+      noClimb: false,   // бегуны не могут зацепиться
+      shock: 0,         // урон/с прицепившимся (электрокорпус)
+      collectRadius: window.CONFIG.PICKUPS.collectRadius,
     };
   }
 
