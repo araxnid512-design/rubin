@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createZombie, ANIMATION_NAMES } from '../src/zombie.js';
 import { exportZombieGLB } from '../scripts/export-glb.mjs';
 
-test('модель — SkinnedMesh со скелетом', () => {
+test('модель — SkinnedMesh со скелетом и 4 материалами', () => {
 	const { mesh, skeleton } = createZombie();
 	assert.ok(mesh.isSkinnedMesh);
 	assert.equal(skeleton.bones.length, 19);
+	assert.deepEqual(mesh.material.map((m) => m.name), ['Skin', 'Cloth', 'Eye', 'Teeth']);
+	assert.ok(mesh.geometry.attributes.position.count > 10000, 'детализированный меш');
 	const pos = mesh.geometry.attributes.position;
 	assert.equal(mesh.geometry.attributes.skinIndex.count, pos.count);
 	const box = mesh.geometry.boundingBox;
@@ -71,9 +72,13 @@ test('GLB экспортируется и загружается обратно 
 	assert.equal(json.skins.length, 1);
 	assert.equal(json.skins[0].joints.length, 19);
 
-	const gltf = await new GLTFLoader().parseAsync(glb, '');
-	assert.deepEqual(gltf.animations.map((a) => a.name), ANIMATION_NAMES);
-	let skinned = 0;
-	gltf.scene.traverse((o) => { if (o.isSkinnedMesh) skinned++; });
-	assert.equal(skinned, 1);
+	// Полная загрузка через GLTFLoader проверяется в браузере (npm run test:e2e),
+	// в Node у загрузчика нет декодера картинок — проверяем структуру файла.
+	assert.deepEqual(json.animations.map((a) => a.name), ANIMATION_NAMES);
+	for (const anim of json.animations) {
+		for (const ch of anim.channels) assert.ok(json.skins[0].joints.includes(ch.target.node), `${anim.name}: канал на кость`);
+	}
+	assert.ok(json.meshes[0].primitives.every((p) => p.attributes.JOINTS_0 !== undefined && p.attributes.WEIGHTS_0 !== undefined));
+	assert.equal(json.materials.length, 4, "4 материала: кожа, ткань, глаза, зубы");
+	assert.equal(json.textures.length, 4, "цвет и нормали для кожи и ткани");
 });

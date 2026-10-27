@@ -6,18 +6,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { createZombie } from '../src/zombie.js';
+import { installNodeShims } from './node-shims.mjs';
 
-// GLTFExporter в бинарном режиме использует FileReader, которого нет в Node.
-if (typeof globalThis.FileReader === 'undefined') {
-	globalThis.FileReader = class {
-		readAsArrayBuffer(blob) {
-			blob.arrayBuffer().then((buffer) => {
-				this.result = buffer;
-				this.onloadend?.();
-			});
-		}
-	};
-}
+installNodeShims();
 
 export async function exportZombieGLB() {
 	const { model, animations } = createZombie();

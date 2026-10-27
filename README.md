@@ -1,7 +1,11 @@
-# 🧟 Zombie — low-poly модель зомби с 5 анимациями
+# 🧟 Zombie — модель зомби с 5 анимациями
 
-Процедурная low-poly модель зомби на [three.js](https://threejs.org): один `SkinnedMesh`, скелет из 19 костей
-и 5 анимаций. Модель экспортируется в стандартный **`models/zombie.glb`** (glTF 2.0), который открывается в
+Процедурная модель зомби на [three.js](https://threejs.org): `SkinnedMesh` (~30 тыс. вершин) с плавным скиннингом,
+скелет из 19 костей, PBR-материалы и 5 анимаций.
+
+Детали: впалые щёки, глазницы с мутными глазами, открывающаяся челюсть с гнилыми зубами (часть выбита),
+выпирающие рёбра и рваная рана на груди, пальцы-когти, надорванное ухо. Кожа — процедурные текстуры
+(цвет + карта нормалей) с венами, синяками и гнилью; рваная рубашка и джинсы с дырами и лохмотьями, кровь. Модель экспортируется в стандартный **`models/zombie.glb`** (glTF 2.0), который открывается в
 Blender, Unity, Unreal, Godot, three.js, Babylon.js и т.д.
 
 | # | Анимация | Длительность | Повтор | Описание |
@@ -58,13 +62,16 @@ mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, 'Walk')).play()
 ## Структура
 
 ```
-src/zombie.js            модель: геометрия, скелет, анимации
+src/zombie.js            модель: материалы и анимации
+src/body.js              скелет и геометрия тела, головы, одежды
+src/textures.js          процедурные текстуры кожи и ткани
 models/zombie.glb        готовая модель (glTF binary)
 index.html               просмотрщик для тестирования
 server.mjs               мини-сервер для просмотрщика
-scripts/export-glb.mjs   экспорт в GLB
+scripts/export-glb.mjs   экспорт в GLB (+ node-shims.mjs: PNG-кодер для текстур в Node)
 tests/                   юнит- и e2e-тесты
 ```
 
 Кости: `Root → Hips → Spine → Chest → Neck → Head → Jaw`, руки `UpperArm/Forearm/Hand.L|R`,
-ноги `UpperLeg/LowerLeg/Foot.L|R`. Персонаж смотрит в +Z, ступни стоят на Y = 0, рост ≈ 2 м.
+ноги `UpperLeg/LowerLeg/Foot.L|R`. Персонаж смотрит в +Z, ступни стоят на Y = 0, рост ≈ 1.87 м.
+Материалы: `Skin`, `Cloth`, `Eye`, `Teeth`.

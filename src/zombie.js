@@ -1,146 +1,11 @@
-// Процедурная low-poly модель зомби: один SkinnedMesh + скелет + 5 анимаций.
+// Процедурная модель зомби: SkinnedMesh со скелетом, PBR-материалами и 5 анимациями.
 // Работает и в браузере, и в Node (без DOM), поэтому её можно экспортировать в GLB.
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createSkeleton, createBodyGeometry } from './body.js';
+import { createSkinTextures, createClothTextures } from './textures.js';
 
 export const ANIMATION_NAMES = ['Idle', 'Walk', 'Run', 'Attack', 'Death'];
-
-const COLORS = {
-	skin: 0x7c9a63,
-	skinDark: 0x5d7a4a,
-	shirt: 0x5b4f6e,
-	shirtTorn: 0x463c57,
-	pants: 0x3a4658,
-	shoe: 0x2a2420,
-	blood: 0x6e1212,
-	bone: 0xe8e0c8,
-	eye: 0xfff066,
-	mouth: 0x2a0808,
-	hair: 0x2b2b22,
-};
-
-// Скелет: [имя, родитель, позиция относительно родителя]. Персонаж смотрит в +Z, рост ~1.85 м.
-const BONES = [
-	['Root', null, [0, 0, 0]],
-	['Hips', 'Root', [0, 1.0, 0]],
-	['Spine', 'Hips', [0, 0.1, 0]],
-	['Chest', 'Spine', [0, 0.2, 0]],
-	['Neck', 'Chest', [0, 0.27, 0]],
-	['Head', 'Neck', [0, 0.08, 0]],
-	['Jaw', 'Head', [0, 0.05, 0.04]],
-	['UpperArm.L', 'Chest', [0.27, 0.24, 0]],
-	['Forearm.L', 'UpperArm.L', [0, -0.3, 0]],
-	['Hand.L', 'Forearm.L', [0, -0.27, 0]],
-	['UpperArm.R', 'Chest', [-0.27, 0.24, 0]],
-	['Forearm.R', 'UpperArm.R', [0, -0.3, 0]],
-	['Hand.R', 'Forearm.R', [0, -0.27, 0]],
-	['UpperLeg.L', 'Hips', [0.11, -0.05, 0]],
-	['LowerLeg.L', 'UpperLeg.L', [0, -0.45, 0]],
-	['Foot.L', 'LowerLeg.L', [0, -0.43, 0]],
-	['UpperLeg.R', 'Hips', [-0.11, -0.05, 0]],
-	['LowerLeg.R', 'UpperLeg.R', [0, -0.45, 0]],
-	['Foot.R', 'LowerLeg.R', [0, -0.43, 0]],
-];
-
-// Части тела: [кость, тип, размеры, смещение в пространстве кости, цвет, (поворот в градусах)].
-// Каждая часть жёстко привязана к одной кости (вес 1.0) — классический low-poly риг.
-const PARTS = [
-	// Таз и торс
-	['Hips', 'box', [0.36, 0.2, 0.22], [0, 0, 0], COLORS.pants],
-	['Spine', 'box', [0.34, 0.24, 0.2], [0, 0.1, 0], COLORS.shirt],
-	['Spine', 'box', [0.2, 0.1, 0.21], [0.06, 0.06, 0.005], COLORS.skinDark], // дыра в рубашке
-	['Chest', 'box', [0.46, 0.32, 0.24], [0, 0.15, 0], COLORS.shirt],
-	['Chest', 'box', [0.14, 0.12, 0.25], [-0.1, 0.18, 0.003], COLORS.blood],
-	['Chest', 'box', [0.08, 0.2, 0.245], [0.12, 0.06, 0.002], COLORS.shirtTorn],
-	['Chest', 'box', [0.12, 0.012, 0.03], [0.02, 0.1, 0.125], COLORS.bone], // торчащие рёбра
-	['Chest', 'box', [0.1, 0.012, 0.03], [0.02, 0.06, 0.125], COLORS.bone],
-	['Chest', 'box', [0.16, 0.08, 0.16], [0.24, 0.27, 0], COLORS.shirt], // плечи
-	['Chest', 'box', [0.16, 0.08, 0.16], [-0.24, 0.27, 0], COLORS.shirtTorn],
-	// Шея и голова
-	['Neck', 'cyl', [0.055, 0.12], [0, 0.03, 0], COLORS.skinDark],
-	['Head', 'box', [0.25, 0.2, 0.26], [0, 0.16, 0], COLORS.skin],
-	['Head', 'box', [0.26, 0.06, 0.27], [0, 0.28, -0.005], COLORS.hair],
-	['Head', 'box', [0.06, 0.05, 0.1], [0.08, 0.32, -0.04], COLORS.hair],
-	['Head', 'box', [0.22, 0.05, 0.18], [0, 0.065, -0.03], COLORS.skin], // верхняя челюсть
-	['Head', 'box', [0.065, 0.035, 0.02], [0.06, 0.18, 0.131], COLORS.eye],
-	['Head', 'box', [0.05, 0.05, 0.02], [-0.06, 0.18, 0.131], COLORS.eye],
-	['Head', 'box', [0.03, 0.06, 0.04], [0, 0.14, 0.14], COLORS.skinDark], // нос
-	['Head', 'box', [0.08, 0.05, 0.01], [-0.07, 0.24, 0.13], COLORS.blood],
-	['Jaw', 'box', [0.2, 0.06, 0.2], [0, -0.03, 0.01], COLORS.skin],
-	['Jaw', 'box', [0.16, 0.025, 0.02], [0, 0.005, 0.105], COLORS.bone], // зубы
-	['Jaw', 'box', [0.14, 0.03, 0.1], [0, 0.01, 0.05], COLORS.mouth],
-	// Левая рука — рукав порван, видна кость
-	['UpperArm.L', 'box', [0.12, 0.2, 0.12], [0, -0.08, 0], COLORS.shirt],
-	['UpperArm.L', 'box', [0.1, 0.14, 0.1], [0, -0.22, 0], COLORS.skin],
-	['Forearm.L', 'box', [0.095, 0.22, 0.095], [0, -0.1, 0], COLORS.skin],
-	['Forearm.L', 'cyl', [0.022, 0.1], [0.02, -0.23, 0.02], COLORS.bone],
-	['Forearm.L', 'box', [0.1, 0.05, 0.1], [0, -0.2, 0], COLORS.blood],
-	['Hand.L', 'box', [0.09, 0.1, 0.05], [0, -0.05, 0], COLORS.skinDark],
-	['Hand.L', 'box', [0.08, 0.08, 0.035], [0, -0.13, 0.008], COLORS.skin, [20, 0, 0]],
-	// Правая рука
-	['UpperArm.R', 'box', [0.12, 0.3, 0.12], [0, -0.15, 0], COLORS.shirtTorn],
-	['Forearm.R', 'box', [0.1, 0.12, 0.1], [0, -0.05, 0], COLORS.shirtTorn],
-	['Forearm.R', 'box', [0.09, 0.16, 0.09], [0, -0.18, 0], COLORS.skin],
-	['Hand.R', 'box', [0.09, 0.1, 0.05], [0, -0.05, 0], COLORS.skinDark],
-	['Hand.R', 'box', [0.08, 0.08, 0.035], [0, -0.13, 0.008], COLORS.skin, [25, 0, 0]],
-	// Ноги
-	['UpperLeg.L', 'box', [0.16, 0.46, 0.16], [0, -0.22, 0], COLORS.pants],
-	['LowerLeg.L', 'box', [0.13, 0.3, 0.13], [0, -0.14, 0], COLORS.pants],
-	['LowerLeg.L', 'box', [0.11, 0.14, 0.11], [0, -0.35, 0], COLORS.skinDark], // порванная штанина
-	['Foot.L', 'box', [0.13, 0.08, 0.27], [0, -0.03, 0.05], COLORS.shoe],
-	['UpperLeg.R', 'box', [0.16, 0.46, 0.16], [0, -0.22, 0], COLORS.pants],
-	['UpperLeg.R', 'box', [0.1, 0.1, 0.165], [0, -0.3, 0.003], COLORS.blood],
-	['LowerLeg.R', 'box', [0.13, 0.44, 0.13], [0, -0.21, 0], COLORS.pants],
-	['Foot.R', 'box', [0.13, 0.08, 0.27], [0, -0.03, 0.05], COLORS.shoe],
-];
-
-function createSkeleton() {
-	const bones = {};
-	for (const [name, parent, pos] of BONES) {
-		const bone = new THREE.Bone();
-		bone.name = name;
-		bone.position.fromArray(pos);
-		bones[name] = bone;
-		if (parent) bones[parent].add(bone);
-	}
-	bones.Root.updateMatrixWorld(true);
-	return bones;
-}
-
-function createBodyGeometry(bones, boneList) {
-	const color = new THREE.Color();
-	const geometries = PARTS.map(([boneName, type, size, offset, hex, rot]) => {
-		const geo = type === 'box'
-			? new THREE.BoxGeometry(...size)
-			: new THREE.CylinderGeometry(size[0], size[0], size[1], 8);
-		if (rot) geo.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot.map(THREE.MathUtils.degToRad))));
-		geo.translate(...offset);
-		// Переносим часть в мировые координаты позы привязки (bind pose).
-		geo.applyMatrix4(bones[boneName].matrixWorld);
-
-		const count = geo.attributes.position.count;
-		const boneIndex = boneList.indexOf(bones[boneName]);
-		const colors = new Float32Array(count * 3);
-		const skinIndex = new Uint16Array(count * 4);
-		const skinWeight = new Float32Array(count * 4);
-		color.setHex(hex);
-		for (let i = 0; i < count; i++) {
-			color.toArray(colors, i * 3);
-			skinIndex[i * 4] = boneIndex;
-			skinWeight[i * 4] = 1;
-		}
-		geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-		geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4));
-		geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4));
-		return geo;
-	});
-	const merged = mergeGeometries(geometries);
-	geometries.forEach((g) => g.dispose());
-	merged.computeBoundingBox();
-	merged.computeBoundingSphere();
-	return merged;
-}
 
 // ---------- Анимации ----------
 // Ключи задаются эйлеровыми углами в градусах (поза привязки = нулевые углы),
@@ -318,6 +183,29 @@ export function createZombieAnimations() {
 	return [createIdle(), createWalk(), createRun(), createAttack(), createDeath()];
 }
 
+// Текстуры генерируются один раз и переиспользуются всеми экземплярами.
+let textures = null;
+function getTextures() {
+	textures ??= { skin: createSkinTextures(512), cloth: createClothTextures(512) };
+	return textures;
+}
+
+export function createZombieMaterials() {
+	const { skin, cloth } = getTextures();
+	return [
+		new THREE.MeshStandardMaterial({
+			name: 'Skin', vertexColors: true, map: skin.map, normalMap: skin.normalMap,
+			normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.6, metalness: 0,
+		}),
+		new THREE.MeshStandardMaterial({
+			name: 'Cloth', vertexColors: true, map: cloth.map, normalMap: cloth.normalMap,
+			normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.95, metalness: 0, side: THREE.DoubleSide,
+		}),
+		new THREE.MeshStandardMaterial({ name: 'Eye', vertexColors: true, roughness: 0.08, metalness: 0 }),
+		new THREE.MeshStandardMaterial({ name: 'Teeth', vertexColors: true, roughness: 0.4, metalness: 0 }),
+	];
+}
+
 /**
  * Создаёт модель зомби.
  * @returns {{ model: THREE.Group, mesh: THREE.SkinnedMesh, skeleton: THREE.Skeleton, animations: THREE.AnimationClip[] }}
@@ -325,16 +213,9 @@ export function createZombieAnimations() {
 export function createZombie() {
 	const bones = createSkeleton();
 	const boneList = Object.values(bones);
-	const geometry = createBodyGeometry(bones, boneList);
-	const material = new THREE.MeshStandardMaterial({
-		name: 'ZombieMaterial',
-		vertexColors: true,
-		roughness: 0.85,
-		metalness: 0,
-		flatShading: true,
-	});
+	const geometry = createBodyGeometry(boneList);
 
-	const mesh = new THREE.SkinnedMesh(geometry, material);
+	const mesh = new THREE.SkinnedMesh(geometry, createZombieMaterials());
 	mesh.name = 'ZombieMesh';
 	mesh.castShadow = true;
 	mesh.receiveShadow = true;

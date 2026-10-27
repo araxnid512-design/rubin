@@ -104,7 +104,7 @@
 <body>
 	<div id="panel">
 		<h1>🧟 Зомби</h1>
-		<div class="sub head">Low-poly skinned mesh · 19 костей · 5 анимаций</div>
+		<div class="sub head">Skinned mesh · PBR · 19 костей · 5 анимаций</div>
 
 		<div class="label anim-label">Анимация</div>
 		<div class="anims" id="anims"></div>
@@ -145,6 +145,7 @@
 		import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 		import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+		import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 		import { createZombie } from './src/zombie.js';
 
 		const $ = (id) => document.getElementById(id);
@@ -155,11 +156,17 @@
 		renderer.setSize(innerWidth, innerHeight);
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		renderer.toneMapping = THREE.ACESFilmicToneMapping;
+		renderer.toneMappingExposure = 1.05;
 		document.body.prepend(renderer.domElement);
 
 		const scene = new THREE.Scene();
 		scene.background = new THREE.Color(0x1a2318);
 		scene.fog = new THREE.Fog(0x1a2318, 6, 18);
+		// Мягкое окружение для PBR-материалов (отражения на глазах, зубах, крови)
+		const pmrem = new THREE.PMREMGenerator(renderer);
+		scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+		scene.environmentIntensity = 0.35;
 
 		const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100);
 		camera.position.set(2.6, 1.7, 3.6);
@@ -167,9 +174,10 @@
 		controls.target.set(0, 0.95, 0);
 		controls.enableDamping = true;
 		controls.autoRotateSpeed = 1.5;
+		window.__viewer = { camera, controls }; // для автотестов и скриншотов
 
-		scene.add(new THREE.HemisphereLight(0xc8e0ff, 0x2a3320, 1.2));
-		const moon = new THREE.DirectionalLight(0xdfe8ff, 2.2);
+		scene.add(new THREE.HemisphereLight(0xc8e0ff, 0x2a3320, 0.7));
+		const moon = new THREE.DirectionalLight(0xdfe8ff, 2.6);
 		moon.position.set(3, 6, 4);
 		moon.castShadow = true;
 		moon.shadow.mapSize.set(2048, 2048);
@@ -258,7 +266,9 @@
 		}
 
 		function applyWireframe() {
-			state.model?.traverse((o) => { if (o.isMesh) o.material.wireframe = $('wire').checked; });
+			state.model?.traverse((o) => {
+				if (o.isMesh) [o.material].flat().forEach((m) => { m.wireframe = $('wire').checked; });
+			});
 		}
 
 		function loadProcedural() {
