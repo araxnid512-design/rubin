@@ -91,16 +91,22 @@
     },
   };
 
-  // Брёвна (лес) и трубы (промзона): тяжёлые, колёса переезжают их как кочки.
+  // Брёвна (лес) и трубы (промзона) поперёк дороги — видны торцами. Вбиты в грунт:
+  // не катятся и не толкаются; колёса переваливают через них, как через кочки,
+  // кузов над ними проходит.
   BUILDERS.logs = function (world, o, ground, C) {
-    const d = C.log, out = [];
+    const K = window.CONFIG.COLLIDE, r = C.log.r, out = [];
     for (let i = 0; i < (o.count || 3); i++) {
-      const b = box(world, o.x + (i % 2) * 0.6, ground + d.h * (i + 0.5) + 0.02, d.w, d.h, d, 0, true);
-      b.setUserData({ kind: 'obstacle', type: 'log', heavy: true, w: d.w, h: d.h, pipe: !!o.pipe });
+      const x = o.x + i * (2 * r + C.log.gap);
+      const b = world.createBody({ position: pl.Vec2(x, terrainY(o, x, ground) + r * 0.85) });
+      b.createFixture(pl.Circle(r), { friction: C.log.friction, filterCategoryBits: K.heavy, filterMaskBits: K.wheel | K.debris | K.zombie });
+      b.setUserData({ kind: 'obstacle', type: 'log', heavy: true, r, pipe: !!o.pipe, turn: (i * 1.7) % 6 });
       out.push(b);
     }
     return out;
   };
+  // Высота земли под бревном (на склоне у каждого своя).
+  function terrainY(o, x, ground) { return o.terrain ? o.terrain.heightAt(x) : ground; }
   // Забор из досок: мусор, разлетается от удара.
   BUILDERS.fence = function (world, o, ground, C) {
     const d = C.fencePlank, out = [];
@@ -133,6 +139,7 @@
       if (!build) continue; // остальные объекты (заражённые, канистры) — в своих модулях
       if (o.y == null) o.x = flatSpot(terrain, o.x);
       const ground = o.y != null ? o.y : terrain.heightAt(o.x);
+      if (o.y == null) o.terrain = terrain;
       bodies.push(...build(world, o, ground, C));
     }
     return bodies;

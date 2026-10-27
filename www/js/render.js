@@ -406,19 +406,19 @@
       ctx.lineWidth = 0.05;
       ctx.beginPath(); ctx.arc(0, 0, u.r * 0.65, 0, Math.PI * 2); ctx.stroke();
     } else if (u.type === 'log') {
-      // Бревно или труба: торцы с кольцами видны сбоку.
-      const r = u.h / 2;
-      ctx.fillStyle = u.pipe ? '#5e6266' : '#5a3e26';
-      ctx.fillRect(-u.w / 2, -r, u.w, u.h);
-      ctx.fillStyle = u.pipe ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.22)';
-      ctx.fillRect(-u.w / 2, r * 0.2, u.w, r * 0.35);
-      if (!u.pipe) for (let i = -2; i <= 2; i++) ctx.fillRect(i * u.w * 0.18 - 0.1, -r * 0.6, 0.2, 0.05);
-      for (const sx of [-1, 1]) {
-        ctx.fillStyle = u.pipe ? '#2a2c2e' : '#b08a5a';
-        ctx.beginPath(); ctx.ellipse(sx * u.w / 2, 0, r * 0.35, r, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = u.pipe ? '#7a7e82' : '#7a5a34';
-        ctx.lineWidth = 0.04;
-        ctx.beginPath(); ctx.ellipse(sx * u.w / 2, 0, r * 0.2, r * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+      // Торец бревна с годичными кольцами или торец трубы.
+      const r = u.r;
+      ctx.rotate(u.turn);
+      ctx.fillStyle = u.pipe ? '#5e6266' : '#4a3220';
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = u.pipe ? '#1e2022' : '#b08a5a';
+      ctx.beginPath(); ctx.arc(0, 0, r * (u.pipe ? 0.72 : 0.82), 0, Math.PI * 2); ctx.fill();
+      if (!u.pipe) {
+        ctx.strokeStyle = '#8a6a40';
+        ctx.lineWidth = 0.025;
+        for (const k of [0.25, 0.45, 0.65]) { ctx.beginPath(); ctx.arc(0.02, 0.01, r * k, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.strokeStyle = '#5a3e26';
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(r * 0.7, r * 0.2); ctx.stroke();
       }
     } else if (u.type === 'wreck') {
       const sh = u.shape, h = u.h / 2;

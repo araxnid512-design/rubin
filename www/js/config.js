@@ -13,7 +13,7 @@
     flipTime: 2.0,          // сек в таком положении почти без движения — заезд окончен
     smash: { minSpeed: 4, forward: 0.6, up: 0.35 }, // как разлетается мусор от удара
     wheelie: { from: 0.3, range: 0.35, min: 0.15 },   // рад: с какого задирания носа режется тяга
-    waterChoke: 0.25,       // доля тяги в воде без шноркеля
+    waterChoke: 0.25,       // доля тяги в воде без шноркеля (у машины может быть своя: base.wade)
   };
 
   // Группы столкновений (битовые маски Box2D).
@@ -51,7 +51,9 @@
       nitro: { force: 9, capacity: 2.5 },  // ускорение, м/с²; секунды работы (после покупки)
       hp: 100,
       fuel: { tank: 10, use: 0.17, idle: 0.015 },  // литры; расход л/с на полном газу и на холостых
-      priceMult: 1,          // множитель цен улучшений и обслуживания
+      priceMult: 1,          // множитель цен улучшений
+      upkeep: 1,             // множитель цен бензина и ремонта
+      maxLevel: 3,           // предел уровня улучшений: старый кузов больше не выдержит
       price: { sporans: 0 },
       upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'tank', 'economizer', 'canisters',
         'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'spoiler', 'collector', 'light', 'lightBody', 'roofCan'],
@@ -72,8 +74,11 @@
       nitro: { force: 9, capacity: 2.5 },
       hp: 160,
       fuel: { tank: 14, use: 0.2, idle: 0.018 },
+      base: { wade: 0.4 },
       priceMult: 1.6,
-      price: { sporans: 650 },
+      upkeep: 1.3,
+      maxLevel: 4,
+      price: { sporans: 500 },
       upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'awd', 'tank', 'economizer', 'canisters',
         'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'saw', 'spoiler', 'collector', 'scanner', 'light', 'winch', 'snorkel'],
       anchors: { front: 2.25, rear: -2.15, bottom: -0.35, beltY: 0.5, roofY: 1.3, roofX: [-1.85, 0.3], hood: [0.7, 2.2] },
@@ -92,9 +97,11 @@
       nitro: { force: 9, capacity: 2.5 },
       hp: 230,
       fuel: { tank: 16, use: 0.25, idle: 0.02 },
-      base: { ramMult: 1.6, ramDragCut: 0.2 },
+      base: { ramMult: 1.6, ramDragCut: 0.2, wade: 0.4 },
       priceMult: 2.6,
-      price: { sporans: 1900, peas: 3 },
+      upkeep: 1.6,
+      maxLevel: 4,
+      price: { sporans: 1400, peas: 3 },
       upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'awd', 'tank', 'economizer', 'canisters',
         'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'saw', 'flamer', 'spoiler', 'collector', 'scanner', 'light', 'hydroPlow', 'ballast'],
       anchors: { front: 2.45, rear: -2.5, bottom: -0.35, beltY: 0.5, roofY: 1.25, roofX: [-0.3, 0.7], hood: [1.1, 2.4] },
@@ -113,9 +120,11 @@
       nitro: { force: 9, capacity: 2.5 },
       hp: 480,
       fuel: { tank: 22, use: 0.38, idle: 0.03 },
-      base: { armorMult: 0.85, ramMult: 1.2 },
+      base: { armorMult: 0.85, ramMult: 1.2, wade: 0.45 },
       priceMult: 4.2,
-      price: { sporans: 4800, peas: 8 },
+      upkeep: 2,
+      maxLevel: 5,
+      price: { sporans: 2400, peas: 5 },
       upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'awd', 'tank', 'economizer', 'canisters',
         'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'gun', 'flamer', 'saw', 'spoiler', 'collector', 'scanner', 'light', 'glass', 'loophole'],
       anchors: { front: 2.65, rear: -2.6, bottom: -0.4, beltY: 0.55, roofY: 1.55, roofX: [-2.2, 0.9], hood: [1.4, 2.6] },
@@ -134,9 +143,11 @@
       nitro: { force: 8, capacity: 2.5 },
       hp: 720,
       fuel: { tank: 30, use: 0.5, idle: 0.04 },
-      base: { armorMult: 0.8, ramMult: 1.3, flipResist: 0.4 },
+      base: { armorMult: 0.8, ramMult: 1.3, flipResist: 0.4, wade: 0.85 },  // армейский: высокий, броды нипочём
       priceMult: 6.5,
-      price: { sporans: 9500, peas: 15, pearls: 1 },
+      upkeep: 2.5,
+      maxLevel: 5,
+      price: { sporans: 4000, peas: 8, pearls: 1 },
       upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'awd', 'tank', 'economizer', 'canisters',
         'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'gun', 'flamer', 'saw', 'spoiler', 'collector', 'scanner', 'light', 'heavyGun', 'mines'],
       anchors: { front: 3.25, rear: -3.2, bottom: -0.45, beltY: 0.6, roofY: 1.7, roofX: [1.05, 2.25], hood: [2.3, 3.2], bed: [-3.1, 0.8] },
@@ -155,9 +166,11 @@
       nitro: { force: 10, capacity: 3 },
       hp: 900,
       fuel: { tank: 34, use: 0.42, idle: 0.035 },
-      base: { armorMult: 0.7, ramMult: 1.8, ramDragCut: 0.25, flipResist: 0.5 },
+      base: { armorMult: 0.7, ramMult: 1.8, ramDragCut: 0.25, flipResist: 0.5, wade: 0.85 },
       priceMult: 9,
-      price: { sporans: 12000, peas: 20, pearls: 5 },
+      upkeep: 3,
+      maxLevel: 5,
+      price: { sporans: 6000, peas: 12, pearls: 3 },
       upgrades: ['engine', 'turbo', 'gearbox', 'tires', 'suspension', 'awd', 'tank', 'economizer', 'canisters',
         'armor', 'ram', 'spikes', 'cage', 'nitro', 'nitroTank', 'gun', 'flamer', 'saw', 'spoiler', 'collector', 'scanner', 'light', 'shock', 'doubleNitro'],
       anchors: { front: 2.95, rear: -2.85, bottom: -0.42, beltY: 0.58, roofY: 1.35, roofX: [-1.35, 0.5], hood: [1.0, 2.9] },
@@ -341,14 +354,14 @@
       name: 'Топтун', w: 1.1, h: 2.3, mass: 420, hp: 260, speed: 1.3, sight: 20,
       stomp: { range: 2.6, impulse: 2600, every: 2.2, damage: 18 }, // подбрасывает машину: лёгкую может перевернуть
       attack: { damage: 10, every: 1.5 }, drag: 0.5,
-      drops: { sporans: [2, 3], sporanChance: 1, peas: 0.18, pearl: 0.01 },
+      drops: { sporans: [2, 3], sporanChance: 1, peas: 0.18, pearl: 0.03 },
       color: '#6e4a3a', skin: '#86604c',
     },
     ruber: {
       name: 'Рубер', w: 0.9, h: 2.0, mass: 300, hp: 360, speed: 9, sight: 45,
       ram: { damage: 30, impulse: 5, every: 3 },          // таранит навстречу, отбрасывая машину
       attack: { damage: 8, every: 1 }, drag: 0.45,
-      drops: { sporans: [2, 3], sporanChance: 1, peas: 0.3, pearl: 0.04 },
+      drops: { sporans: [2, 3], sporanChance: 1, peas: 0.3, pearl: 0.08 },
       color: '#6a3a4a', skin: '#8a5060', plates: '#c8bca0',
     },
     elite: {
@@ -386,6 +399,7 @@
     recordPer100m: 12,        // сверху — за метры дальше прошлого рекорда на уровне
     stabBonus: 120,           // доехал до стаба
     outOfFuelStopTime: 1.5,   // сек почти без движения на пустом баке — конец заезда
+    stuckTime: 15,            // сек без продвижения вперёд (застряла в яме) — конец заезда
   };
 
   // Препятствия: размеры, м; плотность, кг/м².
@@ -395,7 +409,7 @@
     plank: { w: 2.6, h: 0.12, density: 20, friction: 0.6 },
     barrel: { r: 0.42, density: 30, friction: 0.5 },
     wreck: { w: 4.8, h: 1.0, density: 80, friction: 0.7 },
-    log: { w: 3.2, h: 0.45, density: 45, friction: 0.5 },
+    log: { r: 0.22, gap: 0.9, friction: 0.8 },
     fencePlank: { w: 0.18, h: 1.4, density: 25, friction: 0.5 },
   };
 
@@ -408,6 +422,7 @@
       from: 'Стаб «Элеватор»',
       to: 'Стаб «Депо»',
       car: 'sedan',
+      pay: 1,                // множитель споранов за метры, рекорд и стаб
       theme: { bg: 'city', sky: ['#6f7a80', '#a8a49a', '#b8ab94'], ground: ['#5a4a3a', '#2a221c'], road: '#3c3a36' },
       // Толпы по всей трассе: шаг между группами, размер группы, состав.
       crowds: { startAt: 45, every: 22, count: [2, 6], mix: { walker: 0.72, runner: 0.28 } },
@@ -445,6 +460,7 @@
       from: 'Стаб «Депо»',
       to: 'Стаб «Лесопилка»',
       car: 'offroad',
+      pay: 1.5,
       theme: { bg: 'forest', sky: ['#7a8a80', '#a8b0a0', '#c0c0b0'], ground: ['#4a3e2a', '#211a12'], road: '#3a3428', fog: 34 },
       crowds: { startAt: 50, every: 24, count: [2, 6], mix: { walker: 0.6, runner: 0.32, lottery: 0.08 } },
       segments: [
@@ -482,6 +498,7 @@
       from: 'Стаб «Лесопилка»',
       to: 'Стаб «Котельная»',
       car: 'pickup',
+      pay: 2.2,
       theme: { bg: 'industrial', sky: ['#6a6058', '#9a8a78', '#b09a80'], ground: ['#4a4440', '#1e1c1a'], road: '#38363a' },
       crowds: { startAt: 40, every: 20, count: [4, 9], mix: { walker: 0.55, runner: 0.3, lottery: 0.15 } },
       segments: [
@@ -517,6 +534,7 @@
       from: 'Стаб «Котельная»',
       to: 'Стаб «Мельница»',
       car: 'van',
+      pay: 3,
       theme: { bg: 'village', sky: ['#5a4a5a', '#c08a60', '#e0a870'], ground: ['#5a4a30', '#231b12'], road: '#4a3e2c' },
       crowds: { startAt: 40, every: 18, count: [4, 10], mix: { walker: 0.45, runner: 0.42, lottery: 0.13 } },
       segments: [
@@ -552,6 +570,7 @@
       from: 'Стаб «Мельница»',
       to: 'Стаб «Переправа»',
       car: 'truck',
+      pay: 5,
       theme: { bg: 'river', sky: ['#0e1420', '#1c2638', '#2a3448'], ground: ['#3a3a36', '#121210'], road: '#2e2e2c', night: true },
       crowds: { startAt: 40, every: 18, count: [5, 10], mix: { walker: 0.45, runner: 0.35, lottery: 0.15, stomper: 0.05 } },
       segments: [
@@ -585,6 +604,7 @@
       from: 'Стаб «Переправа»',
       to: 'Стаб «Рубеж»',
       car: 'raider',
+      pay: 6.5,
       theme: { bg: 'dead', sky: ['#1a0e14', '#3a1a22', '#5a2a2a'], ground: ['#2e2422', '#0e0a0a'], road: '#2a2020', fog: 30, night: true },
       crowds: { startAt: 40, every: 16, count: [5, 11], mix: { walker: 0.35, runner: 0.38, lottery: 0.17, stomper: 0.06, ruber: 0.04 } },
       segments: [

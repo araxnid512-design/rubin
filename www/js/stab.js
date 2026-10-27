@@ -69,6 +69,9 @@
 
   function renderUpgrades(body) {
     const car = C().CARS[save.car], cs = window.Shop.carSave(save, save.car);
+    if (car.maxLevel < 5) {
+      body.insertAdjacentHTML('beforeend', `<p class="muted cap">Предел этой машины — ${car.maxLevel} уровня улучшений: старый кузов больше не выдержит. Дальше нужна машина покрепче.</p>`);
+    }
     const groups = {};
     for (const id of car.upgrades) {
       const u = C().UPGRADES[id];
@@ -90,7 +93,7 @@
         card.className = 'card' + (lvl ? ' owned' : '') + (cost ? '' : ' maxed');
         card.disabled = !can;
         card.innerHTML = `<b>${u.name}</b>
-          <span class="pips">${Array.from({ length: u.levels }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</span>
+          <span class="pips">${Array.from({ length: window.Shop.maxLevel(save.car, id) }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</span>
           <span class="about">${u.about}</span>
           <span class="cost">${ok ? price(cost) : '<span class="lock">Сначала: ' + C().UPGRADES[u.requires].name + '</span>'}</span>`;
         card.onclick = () => {

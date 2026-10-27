@@ -10,10 +10,15 @@
 
   function carIndex(carId) { return Object.keys(C().CARS).indexOf(carId); }
 
+  // Сколько уровней улучшения выдержит эта машина.
+  function maxLevel(carId, upId) {
+    return Math.min(C().UPGRADES[upId].levels, C().CARS[carId].maxLevel || 99);
+  }
+
   // Цена следующего уровня улучшения: { sporans, peas, pearls } или null, если максимум.
   function upgradeCost(carId, upId, level) {
     const u = C().UPGRADES[upId], P = C().PRICES, car = C().CARS[carId];
-    if (level >= u.levels) return null;
+    if (level >= maxLevel(carId, upId)) return null;
     const next = level + 1;
     const cost = { sporans: Math.round(u.price * Math.pow(P.growth, level) * car.priceMult / 5) * 5, peas: 0, pearls: 0 };
     if (next === u.levels) cost.pearls = P.pearl;
@@ -62,7 +67,7 @@
   function fuelOf(save, carId) { const cs = carSave(save, carId), st = stats(save, carId); return cs.fuel == null ? st.tank : Math.min(cs.fuel, st.tank); }
   function hpOf(save, carId) { const cs = carSave(save, carId), st = stats(save, carId); return cs.hp == null ? st.hp : Math.min(cs.hp, st.hp); }
 
-  function fuelPrice(carId) { return C().STAB.fuelPrice * C().CARS[carId].priceMult; }
+  function fuelPrice(carId) { return C().STAB.fuelPrice * C().CARS[carId].upkeep; }
 
   // Купить литры (или сколько хватит денег). Возвращает залитые литры.
   function buyFuel(save, carId, liters) {
@@ -79,14 +84,14 @@
 
   function repairCost(save, carId) {
     const st = stats(save, carId);
-    return Math.ceil((st.hp - hpOf(save, carId)) * C().STAB.repairPerHp * C().CARS[carId].priceMult);
+    return Math.ceil((st.hp - hpOf(save, carId)) * C().STAB.repairPerHp * C().CARS[carId].upkeep);
   }
 
   function repair(save, carId) {
     const cs = carSave(save, carId), st = stats(save, carId);
     const missing = st.hp - hpOf(save, carId);
     if (missing <= 0) return 0;
-    const perHp = C().STAB.repairPerHp * C().CARS[carId].priceMult;
+    const perHp = C().STAB.repairPerHp * C().CARS[carId].upkeep;
     const hp = Math.min(missing, save.sporans / perHp);
     if (hp <= 0) return 0;
     save.sporans -= Math.ceil(hp * perHp);
@@ -96,7 +101,7 @@
 
   function weaponRepairCost(save, carId, upId) {
     const pct = 100 - (carSave(save, carId).weapons[upId] ?? 100);
-    return Math.ceil(pct * C().STAB.weaponRepairPerPct * C().CARS[carId].priceMult);
+    return Math.ceil(pct * C().STAB.weaponRepairPerPct * C().CARS[carId].upkeep);
   }
 
   function repairWeapon(save, carId, upId) {
@@ -118,7 +123,7 @@
       notes.push(`Стаб выручил: бак залит до ${Math.round(minFuel)} л`);
     }
     const minHp = st.hp * S.charityHp, hp = hpOf(save, carId);
-    if (hp < minHp && save.sporans < (minHp - hp) * S.repairPerHp * C().CARS[carId].priceMult) {
+    if (hp < minHp && save.sporans < (minHp - hp) * S.repairPerHp * C().CARS[carId].upkeep) {
       cs.hp = minHp;
       notes.push('Механики стаба залатали кузов');
     }
@@ -138,7 +143,7 @@
   }
 
   window.Shop = {
-    carSave, upgradeCost, canPay, buyUpgrade, available, stats, fuelOf, hpOf, fuelPrice, buyFuel,
+    carSave, maxLevel, upgradeCost, canPay, buyUpgrade, available, stats, fuelOf, hpOf, fuelPrice, buyFuel,
     repairCost, repair, weaponRepairCost, repairWeapon, charity, buyCar,
   };
 })();

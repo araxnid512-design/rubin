@@ -91,7 +91,7 @@
       this.time += dt;
       this.hurt = Math.max(0, (this.hurt || 0) - dt);
       const x = car.pos.x;
-      this.maxX = Math.max(this.maxX, x);
+      if (x > this.maxX + 0.5) { this.maxX = x; this.idle = 0; } else this.idle = (this.idle || 0) + dt;
       const cps = this.terrain.checkpoints;
       while (this.checkpoint < cps.length && x >= cps[this.checkpoint]) {
         this.checkpoint++;
@@ -107,7 +107,7 @@
       for (const m of this.terrain.marks) {
         if (m.type !== 'ford' || p.x < m.x || p.x > m.x + m.w) continue;
         if (p.y - 0.3 > m.y) continue;
-        if (!car.stats.snorkel) car.choke = window.CONFIG.PHYSICS.waterChoke;
+        if (!car.stats.snorkel) car.choke = car.stats.wade || window.CONFIG.PHYSICS.waterChoke;
         const v = car.chassis.getLinearVelocity();
         car.chassis.applyForceToCenter(window.planck.Vec2(-v.x * car.chassis.getMass() * 0.6, 0), true);
         if (Math.random() < 0.3 && Math.abs(v.x) > 2) this.particles.push({ x: p.x + (Math.random() - 0.5) * 3, y: m.y, vx: v.x * 0.2, vy: 2 + Math.random() * 3, t: 0.6, r: 0.08, c: 'rgba(160,200,210,0.8)' });
@@ -153,6 +153,7 @@
       if (this.terrain.stab && car.pos.x >= this.terrain.stab.x) return this.end('stab');
       if (car.hp <= 0) return this.end('wreck');
       if (car.flipped) return this.end('flip');
+      if (this.idle > E.stuckTime) return this.end('stuck');
       if (car.fuel <= 0) {
         this.stillTime = Math.abs(car.speed) < 0.4 ? this.stillTime + dt : 0;
         if (this.stillTime > E.outOfFuelStopTime) return this.end('fuel');
@@ -168,7 +169,7 @@
 
     // Итог заезда — для экрана итогов и сохранения.
     results() {
-      const E = C().ECONOMY;
+      const E = C().ECONOMY, pay = this.level.pay || 1;
       const dist = Math.max(0, this.maxX - this.startX);
       const beyond = Math.max(0, this.maxX - Math.max(this.prevBest, this.startX));
       const r = {
@@ -181,9 +182,9 @@
         byKind: Object.assign({}, this.horde.kills),
         loot: Object.assign({}, this.loot),
         canisters: this.canisters,
-        distanceSporans: Math.floor(dist / 100 * E.sporansPer100m),
-        recordSporans: Math.floor(beyond / 100 * E.recordPer100m),
-        stabBonus: this.finished ? E.stabBonus : 0,
+        distanceSporans: Math.floor(dist / 100 * E.sporansPer100m * pay),
+        recordSporans: Math.floor(beyond / 100 * E.recordPer100m * pay),
+        stabBonus: this.finished ? Math.round(E.stabBonus * pay) : 0,
         record: this.maxX > this.prevBest + 1,
         checkpoint: this.checkpoint,
         fuelLeft: this.car.fuel,
