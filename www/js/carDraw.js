@@ -19,8 +19,9 @@
   const METAL = '#5a5c5e', DARK = '#2c2d2e', RIVET = '#8a8c8e';
 
   // --- Колесо: шины и шипы видны по уровню ---
-  function drawWheel(ctx, x, y, angle, r, ups) {
+  function drawWheel(ctx, x, y, angle, r, ups, spin) {
     const tires = ups.tires || 0, spikes = ups.spikes || 0;
+    const blur = Math.min(1, Math.max(0, (Math.abs(spin || 0) - 12) / 25));   // 0 — видно спицы, 1 — сплошной диск
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
@@ -49,17 +50,72 @@
         ctx.restore();
       }
     }
-    ctx.fillStyle = '#6a6a66';
+    // Диск: объём градиентом, спицы — смазываются на скорости.
+    const g = ctx.createRadialGradient(-r * 0.15, r * 0.15, 0, 0, 0, r * 0.55);
+    g.addColorStop(0, '#8a8a84');
+    g.addColorStop(1, '#4e4e4a');
+    ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(0, 0, r * 0.52, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#3a3a38';
     ctx.lineWidth = 0.05;
+    ctx.globalAlpha = 1 - blur * 0.85;
     for (let i = 0; i < 5; i++) {
       const a = i / 5 * Math.PI * 2;
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5); ctx.stroke();
     }
+    ctx.globalAlpha = 1;
+    if (blur > 0) {
+      ctx.strokeStyle = `rgba(40,40,38,${0.35 * blur})`;
+      ctx.lineWidth = r * 0.12;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 0.03;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.52, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = '#2a2a28';
     ctx.beginPath(); ctx.arc(0, 0, r * 0.14, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+  }
+
+  // Объём кузова: свет сверху, тень снизу, блик по линии окон, тёмный контур.
+  function volume(ctx, def) {
+    const A = def.anchors;
+    const outline = () => {
+      ctx.beginPath();
+      for (const poly of [def.body, def.cabin]) {
+        poly.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+        ctx.closePath();
+      }
+    };
+    ctx.save();
+    outline();
+    ctx.clip();
+    const g = ctx.createLinearGradient(0, A.roofY, 0, A.bottom);
+    g.addColorStop(0, 'rgba(255,255,255,0.2)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.04)');
+    g.addColorStop(0.6, 'rgba(0,0,0,0.04)');
+    g.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = g;
+    ctx.fillRect(A.rear - 0.5, A.bottom - 0.5, A.front - A.rear + 1, A.roofY - A.bottom + 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fillRect(A.rear, A.beltY - 0.06, A.front - A.rear, 0.035);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(10,8,6,0.6)';
+    ctx.lineWidth = 0.035;
+    ctx.lineJoin = 'round';
+    outline();
+    ctx.stroke();
+  }
+
+  // Свечение фар и стоп-сигналов (в координатах кузова).
+  function lights(ctx, def, braking) {
+    if (!window.FX) return;
+    const A = def.anchors;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(window.FX.puff('rgba(255,230,160,0.7)'), A.front - 0.45, A.bottom + 0.0, 0.8, 0.75);
+    const tail = braking ? 'rgba(255,40,30,0.85)' : 'rgba(255,40,30,0.4)';
+    ctx.drawImage(window.FX.puff(tail), A.rear - 0.3, A.bottom + 0.1, 0.6, 0.6);
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // --- Кузова машин ---
@@ -406,7 +462,7 @@
     ctx.restore();
     for (const w of [car.rear, car.front]) {
       const wp = w.body.getPosition();
-      drawWheel(ctx, wp.x, wp.y, w.body.getAngle(), r, ups);
+      drawWheel(ctx, wp.x, wp.y, w.body.getAngle(), r, ups, w.body.getAngularVelocity());
     }
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -424,8 +480,10 @@
       ctx.closePath(); ctx.fill();
     }
     (BODIES[def.id] || sedan)(ctx, def, ups);
+    volume(ctx, def);
     front(ctx, def, ups, t, car);
     if (window.Weapons) window.Weapons.drawOnCar(ctx, car, t);
+    lights(ctx, def, !car.throttle && Math.abs(car.speed) > 1);
     ctx.restore();
   }
 
@@ -438,6 +496,7 @@
     drawWheel(ctx, W.rearX, rest, t * 0.5, W.radius, ups);
     drawWheel(ctx, W.frontX, rest, t * 0.5, W.radius, ups);
     (BODIES[def.id] || sedan)(ctx, def, ups);
+    volume(ctx, def);
     front(ctx, def, ups, t, null);
     if (window.Weapons) window.Weapons.drawOnCar(ctx, { def, ups, weaponState: {} }, t);
     ctx.restore();

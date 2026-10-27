@@ -192,6 +192,7 @@
         this.hooks.onCarHit(def.stomp.damage * car.stats.armorMult, z);
         z.cool = def.stomp.every;
         z.stomped = 0.35;
+        window.Render.shake(0.35);
         window.Sound.thud(1);
       }
       // Рубер и элита таранят: на встречном курсе отбрасывают машину.
@@ -200,6 +201,7 @@
         car.chassis.applyLinearImpulse(pl.Vec2(Math.sign(dx) * def.ram.impulse * m, def.ram.impulse * m * 0.25), car.chassis.getWorldCenter(), true);
         this.hooks.onCarHit(def.ram.damage * car.stats.armorMult, z);
         z.cool = def.ram.every;
+        window.Render.shake(0.3);
         window.Sound.thud(1);
       }
       // Обычная атака вплотную — только по стоящей или ползущей машине.

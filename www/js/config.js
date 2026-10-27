@@ -320,6 +320,16 @@
     pearl: 1,                // жемчуга за последний уровень
   };
 
+  // Эффекты: пределы частиц и пятен, тряска камеры.
+  const FX = {
+    maxParticles: 450,      // одновременно частиц (кровь, пыль, дым, искры)
+    maxDecals: 140,         // пятен крови на дороге
+    shakeMax: 0.45,         // м: самая сильная тряска камеры
+    shakeDecay: 1.6,        // м/с: как быстро тряска затухает
+    landShake: 7,           // м/с: падение быстрее этого трясёт камеру и поднимает пыль
+    dustSpeed: 4,           // м/с: быстрее этого колёса на газу пылят
+  };
+
   // Сенсорное управление: джойстик наклона слева.
   const CONTROLS = {
     stickRadius: 55,        // px: отклонение пальца для полного наклона
@@ -646,5 +656,5 @@
 
   for (const [id, c] of Object.entries(CARS)) c.id = id;
 
-  window.CONFIG = { PHYSICS, CONTROLS, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
+  window.CONFIG = { PHYSICS, CONTROLS, FX, COLLIDE, CAMERA, CARS, UPGRADES, WEAPONS, PRICES, STAB, ZOMBIES, HORDE, PICKUPS, ECONOMY, OBSTACLES, LEVELS };
 })();

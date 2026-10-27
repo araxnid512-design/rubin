@@ -56,6 +56,7 @@
           if (loot.pearl) this.pickups.drop('pearl', 1, p.x, p.y);
           if (z.boss) this.say(`${z.def.name} повержена! Путь к стабу свободен`);
           window.Render.blood(this, p.x, p.y, 14, this.car.speed);
+          if (z.def.mass > 150) window.Render.shake(Math.min(0.35, z.def.mass / 2500));
           window.Sound.crunch(Math.min(1, z.def.mass / 200 + 0.4));
         },
         onCarHit: (dmg) => {
@@ -86,6 +87,7 @@
         this.say('Лебёдка поставила машину на колёса' + (car.winchLeft ? ` (ещё ${car.winchLeft})` : ''));
         window.Sound.thud(0.8);
       }
+      this.effects(car);
       this.pickups.update(car, dt);
       window.Render.particles(this, dt);
       this.time += dt;
@@ -98,6 +100,34 @@
         this.say(`Чекпоинт ${this.checkpoint} из ${cps.length}`);
       }
       if (!this.ended) this.checkEnd(dt);
+    }
+
+    // Пыль из-под колёс, выхлоп, огонь нитро, тряска при жёстком приземлении.
+    effects(car) {
+      const F = C().FX, FX = window.FX, A = car.def.anchors;
+      const v = car.chassis.getLinearVelocity();
+      const grounded = car.grounded;
+      if (grounded && !this.wasGrounded && (this.airVy || 0) < -F.landShake) {
+        window.Render.shake(Math.min(0.45, -this.airVy * 0.025));
+        for (const w of [car.rear, car.front]) {
+          const p = w.body.getPosition();
+          FX.dust(this, p.x, p.y - car.def.wheels.radius, 4, v.x * 0.3, window.Render.dustColor());
+        }
+      }
+      this.airVy = grounded ? 0 : Math.min(this.airVy || 0, v.y);
+      this.wasGrounded = grounded;
+      if (this.ended) return;
+      const rear = car.rear.body.getPosition();
+      if (grounded && car.contacts.rear && car.throttle > 0 && Math.random() < 0.35) {
+        const slip = Math.abs(car.rear.body.getAngularVelocity()) * car.def.wheels.radius - Math.abs(v.x);
+        if (Math.abs(v.x) > F.dustSpeed || slip > 2) FX.dust(this, rear.x - 0.3, rear.y - car.def.wheels.radius, 1, -1 - Math.random() * 2, window.Render.dustColor());
+      }
+      const ex = car.chassis.getWorldPoint(window.planck.Vec2(A.rear - 0.1, A.bottom + 0.05));
+      if (car.throttle && Math.random() < 0.25) FX.smoke(this, ex.x, ex.y, v.x * 0.5 - 1, this.time < 2);
+      if (car.nitroOn) {
+        const f = car.forward();
+        FX.fire(this, ex.x, ex.y + 0.1, v.x - f.x * 6, v.y - f.y * 6, 2);
+      }
     }
 
     // Броды: без шноркеля мотор захлёбывается, машину тормозит вода.
@@ -140,6 +170,10 @@
             if (z.alive && Math.hypot(p.x - m.x, p.y - m.y) < 3.5) this.horde.damage(z, 150 * lvl, { x: Math.sign(p.x - m.x) * 6, y: 8, fling: 2 });
           }
           window.Render.blood(this, m.x, m.y + 0.5, 20, 0);
+          window.FX.fire(this, m.x, m.y + 0.4, 0, 4, 12);
+          window.FX.sparks(this, m.x, m.y + 0.2, 10, 0);
+          window.FX.dust(this, m.x, m.y, 5, 0, 'rgba(60,55,50,0.6)');
+          window.Render.shake(0.3);
           window.Sound.thud(1);
         }
       }

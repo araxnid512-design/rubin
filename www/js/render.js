@@ -2,20 +2,33 @@
 // Мир рисуется в метрах с осью y вверх: трансформация холста переворачивает ось.
 (function () {
   let ctx, width = 0, height = 0, dpr = 1;
-  const cam = { x: 0, y: 0, ppm: 40, vx: 0 };
-  let theme = null;
-  let bgCache = null;
+  const cam = { x: 0, y: 0, ppm: 40, vx: 0, shake: 0, sx: 0, sy: 0 };
+  let theme = null, style = null;
+  let bgCache = null, vignette = null, darkLayer = null, lastT = 0;
+
+  // Вид кластера: покрытие дороги, трава, цвета пыли, частиц в воздухе, облаков; ночь — звёзды.
+  const STYLES = {
+    city: { road: 'asphalt', marks: 'rgba(200,184,120,0.45)', dust: 'rgba(150,140,125,0.5)', motes: 'rgba(230,220,200,0.5)', clouds: 'rgba(205,205,200,0.35)', rays: true },
+    forest: { road: 'dirt', grass: '#3e5a32', dust: 'rgba(120,100,70,0.5)', motes: 'rgba(235,245,225,0.55)', clouds: 'rgba(215,220,210,0.35)', rays: true },
+    industrial: { road: 'asphalt', marks: 'rgba(190,160,90,0.4)', dust: 'rgba(130,120,110,0.5)', motes: 'rgba(210,190,160,0.5)', clouds: 'rgba(160,140,120,0.4)', rays: true },
+    village: { road: 'dirt', grass: '#6a6a30', dust: 'rgba(170,140,100,0.5)', motes: 'rgba(255,220,170,0.6)', clouds: 'rgba(245,185,140,0.35)', rays: true },
+    river: { road: 'asphalt', marks: 'rgba(160,150,100,0.35)', grass: '#26342c', dust: 'rgba(110,110,105,0.5)', motes: 'rgba(180,200,230,0.45)', stars: true },
+    dead: { road: 'dirt', grass: '#4a2a24', dust: 'rgba(100,70,65,0.5)', motes: 'rgba(255,120,90,0.65)', stars: true },
+  };
 
   function init(canvas) { ctx = canvas.getContext('2d'); }
-  function resize(w, h, ratio) { width = w; height = h; dpr = ratio; }
-  function setTheme(t) { theme = t; bgCache = null; }
+  function resize(w, h, ratio) { width = w; height = h; dpr = ratio; vignette = null; }
+  function setTheme(t) { theme = t; style = STYLES[t.bg] || STYLES.city; bgCache = null; }
+
+  // Тряска камеры: удар, жёсткое приземление, взрыв. a — амплитуда в метрах.
+  function shake(a) { cam.shake = Math.min(window.CONFIG.FX.shakeMax, Math.max(cam.shake, a)); }
 
   // Экранная точка, где стоит центр камеры (машина левее центра — видно, что впереди).
   const anchor = () => ({ x: width * 0.38, y: height * 0.58 });
 
   function worldTransform() {
     const k = cam.ppm * dpr, a = anchor();
-    ctx.setTransform(k, 0, 0, -k, dpr * a.x - k * cam.x, dpr * a.y + k * cam.y);
+    ctx.setTransform(k, 0, 0, -k, dpr * a.x - k * (cam.x + cam.sx), dpr * a.y + k * (cam.y + cam.sy));
   }
   function screenTransform() { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
 
@@ -164,7 +177,7 @@
     }
   }
 
-  function drawSky() {
+  function drawSky(t) {
     const s = theme.sky;
     const g = ctx.createLinearGradient(0, 0, 0, height);
     g.addColorStop(0, s[0]);
@@ -173,11 +186,93 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, width, height);
     const sx = width * 0.78, sy = height * 0.22;
-    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, height * 0.35);
-    sg.addColorStop(0, 'rgba(255,240,200,0.5)');
-    sg.addColorStop(1, 'rgba(255,240,200,0)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(0, 0, width, height);
+    if (style.stars) {
+      // Ночь: звёзды мерцают, луна с ореолом.
+      const r = rng(11);
+      ctx.fillStyle = '#e8ecff';
+      for (let i = 0; i < 70; i++) {
+        const x = ((r() * width * 1.5 - cam.x * cam.ppm * 0.01) % width + width) % width, y = r() * height * 0.55;
+        ctx.globalAlpha = 0.3 + 0.5 * Math.abs(Math.sin(t * (0.5 + r()) + i));
+        ctx.fillRect(x, y, r() < 0.15 ? 2 : 1.2, r() < 0.15 ? 2 : 1.2);
+      }
+      ctx.globalAlpha = 1;
+      const mr = height * 0.045;
+      ctx.drawImage(window.FX.puff(theme.bg === 'dead' ? 'rgba(255,120,90,0.35)' : 'rgba(200,215,255,0.3)'), sx - mr * 5, sy - mr * 5, mr * 10, mr * 10);
+      ctx.fillStyle = theme.bg === 'dead' ? '#d8806a' : '#e6e8f0';
+      ctx.beginPath(); ctx.arc(sx, sy, mr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.beginPath(); ctx.arc(sx - mr * 0.3, sy - mr * 0.2, mr * 0.25, 0, Math.PI * 2); ctx.arc(sx + mr * 0.35, sy + mr * 0.3, mr * 0.18, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, height * 0.35);
+      sg.addColorStop(0, 'rgba(255,240,200,0.55)');
+      sg.addColorStop(1, 'rgba(255,240,200,0)');
+      ctx.fillStyle = sg;
+      ctx.fillRect(0, 0, width, height);
+    }
+    // Облака: медленно плывут, сдвигаются с камерой чуть-чуть.
+    if (style.clouds) {
+      const r = rng(5), img = window.FX.puff(style.clouds);
+      for (let i = 0; i < 9; i++) {
+        const w = width * (0.25 + r() * 0.35), h = w * (0.25 + r() * 0.15);
+        const span = width + w * 2;
+        const x = ((r() * span - cam.x * cam.ppm * 0.03 + t * (4 + r() * 6)) % span + span) % span - w;
+        const y = height * (0.04 + r() * 0.32);
+        ctx.drawImage(img, x, y, w, h);
+        ctx.drawImage(img, x + w * 0.25, y - h * 0.25, w * 0.6, h * 0.9);
+      }
+    }
+    // Лучи солнца сквозь пыль.
+    if (style.rays) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 4; i++) {
+        const a = 1.9 + i * 0.26 + Math.sin(t * 0.15 + i * 2) * 0.04;
+        const len = height * 1.3, w = 0.09 + (i % 2) * 0.05;
+        const rg = ctx.createLinearGradient(sx, sy, sx + Math.cos(a) * len, sy + Math.sin(a) * len);
+        rg.addColorStop(0, 'rgba(255,235,190,0)');
+        rg.addColorStop(0.15, 'rgba(255,235,190,0.06)');
+        rg.addColorStop(1, 'rgba(255,235,190,0)');
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(a - w) * len, sy + Math.sin(a - w) * len);
+        ctx.lineTo(sx + Math.cos(a + w) * len, sy + Math.sin(a + w) * len);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Пылинки, споры и пепел в воздухе (экранные координаты, без состояния).
+  function drawMotes(t) {
+    const r = rng(3), img = window.FX.puff(style.motes);
+    const span = width + 40;
+    for (let i = 0; i < 36; i++) {
+      const depth = 0.4 + r();
+      const x = ((r() * span - cam.x * cam.ppm * depth * 0.6 - t * 12 * depth) % span + span) % span - 20;
+      const y = (r() * height + Math.sin(t * 0.7 + i) * 14 + t * 6 * depth) % height;
+      const s = 2 + depth * 3;
+      ctx.globalAlpha = 0.35 + 0.35 * Math.sin(t + i * 1.7) ** 2;
+      ctx.drawImage(img, x - s, y - s, s * 2, s * 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Затемнение по краям кадра — один раз на размер экрана.
+  function drawVignette() {
+    if (!vignette) {
+      vignette = document.createElement('canvas');
+      vignette.width = Math.max(1, Math.round(width / 2));
+      vignette.height = Math.max(1, Math.round(height / 2));
+      const v = vignette.getContext('2d'), w = vignette.width, h = vignette.height;
+      const g = v.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.45, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,0.5)');
+      v.fillStyle = g;
+      v.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(vignette, 0, 0, width, height);
   }
 
   function drawParallax() {
@@ -218,21 +313,79 @@
     g.addColorStop(1, theme.ground[1]);
     ctx.fillStyle = g;
     ctx.fill();
+    const line = (dy) => { ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1] + dy) : ctx.moveTo(p[0], p[1] + dy))); };
+    const hash = (x, k) => Math.abs(Math.sin(x * 12.9898 + k * 78.233) * 43758.5453) % 1;
+    ctx.lineJoin = 'round';
+    // Пласты грунта под дорогой.
+    ctx.strokeStyle = shade(theme.ground[0], -18);
+    ctx.lineWidth = 0.9;
+    line(-0.95); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 0.18;
+    line(-2.3); ctx.stroke();
+    line(-3.6); ctx.stroke();
+    // Камни в толще земли.
+    for (const p of pts) {
+      for (let k = 0; k < 2; k++) {
+        const h = hash(p[0], k);
+        if (h > 0.45) continue;
+        const d = 0.8 + hash(p[0], k + 5) * 4.5, r = 0.06 + h * 0.3;
+        ctx.fillStyle = h < 0.2 ? 'rgba(0,0,0,0.28)' : 'rgba(255,240,220,0.07)';
+        ctx.beginPath(); ctx.ellipse(p[0] + hash(p[0], k + 9), p[1] - d, r * 1.4, r, h * 3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // Полотно дороги: тёмная полоса, светлая кромка, тень под кромкой.
     ctx.strokeStyle = theme.road;
     ctx.lineWidth = 0.5;
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1] - 0.2) : ctx.moveTo(p[0], p[1] - 0.2)));
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(200,190,170,0.35)';
+    line(-0.22); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
     ctx.lineWidth = 0.08;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(20,16,12,0.45)';
-    for (const p of pts) {
-      const h = Math.abs(Math.sin(p[0] * 12.9898) * 43758.5453) % 1;
-      if (h < 0.3) ctx.fillRect(p[0], p[1] - 0.6 - h * 3, 0.25 + h, 0.15);
+    line(-0.5); ctx.stroke();
+    ctx.strokeStyle = 'rgba(220,210,190,0.38)';
+    ctx.lineWidth = 0.07;
+    line(0); ctx.stroke();
+    if (style.road === 'asphalt') {
+      // Разметка и трещины на асфальте.
+      ctx.strokeStyle = style.marks;
+      ctx.lineWidth = 0.07;
+      ctx.setLineDash([1.4, 1.8]);
+      line(-0.2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 0.03;
+      ctx.beginPath();
+      for (const p of pts) {
+        const h = hash(p[0], 3);
+        if (h > 0.18) continue;
+        ctx.moveTo(p[0], p[1] - 0.02); ctx.lineTo(p[0] + 0.15, p[1] - 0.18); ctx.lineTo(p[0] + 0.05, p[1] - 0.4);
+      }
+      ctx.stroke();
+    } else {
+      // Колея на грунтовке.
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 0.06;
+      ctx.setLineDash([0.5, 0.35]);
+      line(-0.14); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Трава и сухие стебли по кромке, качаются на ветру.
+    if (style.grass) {
+      const t = lastT;
+      ctx.strokeStyle = style.grass;
+      ctx.lineWidth = 0.045;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (const p of pts) {
+        for (let k = 0; k < 3; k++) {
+          const h = hash(p[0], k + 20);
+          if (h > 0.6) continue;
+          const x = p[0] + k * 0.33, len = 0.12 + h * 0.35, sway = Math.sin(t * 2 + x) * 0.06;
+          ctx.moveTo(x, p[1] - 0.02);
+          ctx.quadraticCurveTo(x + sway * 0.5, p[1] + len * 0.6, x + sway + (h - 0.3) * 0.2, p[1] + len);
+        }
+      }
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     }
   }
 
@@ -278,19 +431,33 @@
       ctx.fillRect(0, 0, width, height);
     }
     if (th.night) {
-      // Темнота с вырезом от фар: конус вперёд, длина — от прожектора.
-      ctx.save();
-      ctx.fillStyle = 'rgba(4,6,14,0.78)';
-      ctx.beginPath();
-      ctx.rect(0, 0, width, height);
+      // Темнота — отдельным слоем, из которого мягко «вытерт» свет: ореол вокруг
+      // машины и луч фар с размытыми краями. Длина луча — от прожектора.
       const len = (14 + light * 9) * cam.ppm, spread = 0.38 + light * 0.06;
       const a = Math.atan2(-f.y, f.x);
-      ctx.moveTo(p.x, p.y);
-      ctx.arc(p.x, p.y, len, a - spread, a + spread);
-      ctx.closePath();
-      ctx.arc(p.x, p.y, 3.2 * cam.ppm, 0, Math.PI * 2);
-      ctx.fill('evenodd');
-      ctx.restore();
+      if (!darkLayer) darkLayer = document.createElement('canvas');
+      const s = 0.5;                                  // слой в половину разрешения — мягче и быстрее
+      const dw = Math.max(1, Math.round(width * s)), dh = Math.max(1, Math.round(height * s));
+      if (darkLayer.width !== dw || darkLayer.height !== dh) { darkLayer.width = dw; darkLayer.height = dh; }
+      const d = darkLayer.getContext('2d');
+      d.setTransform(1, 0, 0, 1, 0, 0);
+      d.globalCompositeOperation = 'source-over';
+      d.clearRect(0, 0, dw, dh);
+      d.fillStyle = 'rgba(4,6,14,0.8)';
+      d.fillRect(0, 0, dw, dh);
+      d.setTransform(s, 0, 0, s, 0, 0);
+      d.globalCompositeOperation = 'destination-out';
+      const halo = 4.2 * cam.ppm;
+      d.drawImage(window.FX.puff('rgba(0,0,0,1)'), p.x - halo, p.y - halo, halo * 2, halo * 2);
+      for (const [k, al] of [[1.25, 0.35], [1, 0.45], [0.7, 0.6]]) {
+        const cone = d.createRadialGradient(p.x, p.y, 0, p.x, p.y, len);
+        cone.addColorStop(0, `rgba(0,0,0,${al})`);
+        cone.addColorStop(0.7, `rgba(0,0,0,${al * 0.8})`);
+        cone.addColorStop(1, 'rgba(0,0,0,0)');
+        d.fillStyle = cone;
+        d.beginPath(); d.moveTo(p.x, p.y); d.arc(p.x, p.y, len, a - spread * k, a + spread * k); d.closePath(); d.fill();
+      }
+      ctx.drawImage(darkLayer, 0, 0, width, height);
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, len);
       g.addColorStop(0, 'rgba(255,240,190,0.12)');
       g.addColorStop(1, 'rgba(255,240,190,0)');
@@ -526,31 +693,23 @@
     ctx.fillRect(p.x - w / 2, p.y + z.def.h / 2 + 0.3, w * Math.max(0, z.hp) / z.def.hp, 0.12);
   }
 
-  // Частицы (кровь, искры): в метрах, с гравитацией.
-  function particles(scene, dt) {
-    for (const q of scene.particles) {
-      q.vy -= 14 * dt;
-      q.x += q.vx * dt;
-      q.y += q.vy * dt;
-      q.t -= dt;
-      const g = scene.terrain.heightAt(q.x);
-      if (q.y < g) { q.y = g; q.vx *= 0.3; q.vy = 0; }
-    }
-    scene.particles = scene.particles.filter((q) => q.t > 0);
-  }
-
-  function blood(scene, x, y, n, vx) {
-    for (let i = 0; i < n && scene.particles.length < 300; i++) {
-      scene.particles.push({ x, y, vx: (vx || 0) * 0.4 + (Math.random() - 0.3) * 6, vy: Math.random() * 6, t: 0.8 + Math.random() * 1.2, r: 0.05 + Math.random() * 0.09, c: Math.random() < 0.7 ? '#7a1010' : '#4a8a3a' });
-    }
-  }
+  // Частицы и эффекты — в fx.js; здесь — для совместимости вызовов.
+  function particles(scene, dt) { window.FX.update(scene, dt); }
+  function blood(scene, x, y, n, vx) { window.FX.blood(scene, x, y, n, vx); }
+  const dustColor = () => (style ? style.dust : 'rgba(150,140,125,0.5)');
 
   function shade(hex, amt) { return window.CarDraw.shade(hex, amt); }
 
   function draw(scene, t) {
     if (!theme) setTheme(scene.level.theme);
+    const dt = Math.min(0.1, Math.max(0, t - lastT));
+    lastT = t;
+    // Тряска затухает; смещение камеры случайное в пределах амплитуды.
+    cam.shake = Math.max(0, cam.shake - dt * window.CONFIG.FX.shakeDecay);
+    cam.sx = (Math.random() - 0.5) * 2 * cam.shake;
+    cam.sy = (Math.random() - 0.5) * 2 * cam.shake;
     screenTransform();
-    drawSky();
+    drawSky(t);
     drawParallax();
     worldTransform();
     const v = viewX();
@@ -559,6 +718,7 @@
     for (const m of terr.marks) if (m.type === 'bridge' && m.x < v.r && m.x + m.w > v.l) drawBridge(m);
     for (const p of terr.platforms) if (p.x < v.r && p.x + p.w > v.l) drawPlatform(p);
     drawGround(terr);
+    window.FX.drawDecals(ctx, scene, v);
     for (const m of terr.marks) if (m.type === 'ford' && m.x < v.r && m.x + m.w > v.l) drawFord(m, t);
     drawStab({ x: -6, y: terr.heightAt(-6) }, true);
     if (terr.stab && terr.stab.x - 50 < v.r) drawStab(terr.stab, false);
@@ -570,6 +730,14 @@
       if (p.x > v.l - 3 && p.x < v.r + 3) drawObstacle(b);
     }
     scene.pickups.draw(ctx, t);
+    // Тени: под заражёнными и под машиной (на земле под ней, бледнее в прыжке).
+    scene.horde.each((z, p) => {
+      if (p.x < v.l - 3 || p.x > v.r + 3) return;
+      const gy = terr.heightAt(p.x);
+      window.FX.shadow(ctx, p.x, gy, p.y - z.def.h / 2 - gy, z.def.w * 2.4);
+    });
+    const car = scene.car, cp = car.pos, cgy = terr.heightAt(cp.x);
+    window.FX.shadow(ctx, cp.x, cgy, cp.y - cgy - 0.6, (car.def.anchors.front - car.def.anchors.rear) * 1.25);
     scene.horde.each((z, p, a) => { if (p.x > v.l - 3 && p.x < v.r + 3) { drawZombie(z, p, a, t); drawZombieHp(z, p); } });
     window.CarDraw.draw(ctx, scene.car, t);
     if (scene.weapons) scene.weapons.drawWorld(ctx);
@@ -578,10 +746,12 @@
       const p = scene.car.chassis.getWorldPoint(window.planck.Vec2(z.clingAt.x, z.clingAt.y + z.def.h * 0.35));
       drawZombie(Object.assign({}, z, { facing: 1, stomped: 0 }), p, scene.car.angle - 0.5 + Math.sin(z.phase) * 0.25, t);
     }
-    for (const q of scene.particles) { ctx.fillStyle = q.c; ctx.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2); }
+    window.FX.draw(ctx, scene);
     if (scene.mines) for (const m of scene.mines) drawMine(m, t);
     screenTransform();
+    drawMotes(t);
     drawVisibility(scene);
+    drawVignette();
   }
 
   function drawMine(m, t) {
@@ -609,5 +779,5 @@
     };
   }
 
-  window.Render = { init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, particles, blood, cam, rng };
+  window.Render = { init, resize, draw, updateCamera, snapCamera, toScreen, setTheme, particles, blood, shake, dustColor, cam, rng };
 })();
