@@ -21,8 +21,8 @@ APPS = {
     'caveman': dict(package='com.rubin.kamenbeg', label='Каменный Бег', out='kamenny-beg.apk',
                     icons='icons', assets=['index.html'], key='debug-key.pem'),
     'clones': dict(package='com.rubin.clonetactics', label='Клоны против дроидов', out='clones-vs-droids.apk',
-                   icons='clones/icons', assets=['clones/index.html', 'clones/game.js', 'clones/three.min.js', 'clones/three-addons.js', 'clones/models.js'],
-                   version=(9, '1.7.1'), key='debug-key.pem'),
+                   icons='clones/icons', assets=['clones/index.html', 'clones/game.js', 'clones/three.min.js', 'clones/three-addons.js', 'clones/models.js', 'clones/props.js'],
+                   version=(10, '1.8'), key='debug-key.pem'),
 }
 APP = APPS[sys.argv[1] if len(sys.argv) > 1 else 'caveman']
 OUT = os.path.join(ROOT, 'dist', APP['out'])

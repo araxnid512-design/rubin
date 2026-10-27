@@ -480,6 +480,21 @@ const M4 = (x, y, z, rx, ry, rz, sx, sy, sz) => { tmpE.set(rx, ry, rz); tmpQ.set
 const C = h => new THREE.Color(h);
 
 let staticMesh = null, glowMesh = null;
+// ---------- готовые модели KayKit Space Base Bits (CC0, props.js): грузовые кейсы, скалы, постройки базы
+const KK = { ready: false, tpl: {} };
+function loadProps() {
+  if (!window.KAYKIT || !THREE.GLTFLoader) return Promise.resolve(false);
+  const tex = new THREE.TextureLoader().load(KAYKIT.tex); tex.flipY = false; tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  KK.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0.08 }); // одна текстура на все модели
+  const loader = new THREE.GLTFLoader();
+  return Promise.all(Object.entries(KAYKIT.models).map(([n, g]) => new Promise(res => loader.parse(JSON.stringify(g), '', gl => {
+    const root = gl.scene; root.traverse(m => { if (m.isMesh) { m.material = KK.mat; m.castShadow = m.receiveShadow = true; } });
+    root.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(root), c = b.getCenter(new THREE.Vector3());
+    root.position.set(-c.x, -b.min.y, -c.z); // опорная точка — центр основания
+    const t = new THREE.Group(); t.add(root); KK.tpl[n] = t; res();
+  }, e => { console.warn('KayKit', n, e); res(); })))).then(() => (KK.ready = Object.keys(KK.tpl).length > 0));
+}
+function kk(name, x, y, z, ry = 0, s = 1) { const o = KK.tpl[name].clone(); o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(s); return o; }
 const halfProps = new Map(); // id -> Object3D: укрытия перед склейкой в общие меши
 const PROPM = {
   crateA: mat(0x6c7684, { metalness: 0.5, roughness: 0.42 }), crateB: mat(0x8c7f63, { metalness: 0.35, roughness: 0.5 }),
@@ -516,7 +531,7 @@ function buildProps() {
       add(BOX, cx, 0.12, cz, 0, 0, 0, 1.04, 0.24, 1.04, 0x3c424c);
       for (const s of [-1, 1]) { add(BOX, cx, 0.9, cz + s * 0.505, 0, 0, 0, 0.08, 1.3, 0.02, 0x4a5059); add(BOX, cx + s * 0.505, 0.9, cz, 0, 0, 0, 0.02, 1.3, 0.08, 0x4a5059); }
       if (R() < 0.3) glow.push({ geo: BOX, mtx: M4(cx, 1.45, cz + 0.51, 0, 0, 0, 0.5, 0.05, 0.02), color: C(0x67b8ff) });
-    } else if (k === K.CONTAINER) {
+    } else if (k === K.CONTAINER && !KK.ready) {
       const col = R() < 0.5 ? 0x7b4a35 : 0x55606b;
       add(BOX, cx, 0.65, cz, 0, 0, 0, 0.98, 1.3, 0.98, col);
       for (let i = -2; i <= 2; i++) { add(BOX, cx + i * 0.2, 0.65, cz + 0.5, 0, 0, 0, 0.05, 1.25, 0.03, 0x2e2622); add(BOX, cx + i * 0.2, 0.65, cz - 0.5, 0, 0, 0, 0.05, 1.25, 0.03, 0x2e2622); }
@@ -568,7 +583,14 @@ function buildProps() {
   // разрушаемые полуукрытия — отдельные объекты
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const k = kind[id(x, z)], cx = x + 0.5, cz = z + 0.5; let o = null;
-    if (k === K.ROCK_S) { o = mesh(rockGeo(R, 0), PROPM.rock[Math.floor(R() * 4)]); at(o, cx, 0.3, cz, R(), R() * 6, 0); o.scale.set(0.46, 0.38, 0.46); }
+    if (KK.ready && k === K.ROCK_S) o = R() < 0.5 ? kk('rock_A', cx, 0, cz, R() * 6, 1.6) : kk('rock_B', cx, 0, cz, R() * 6, 1.25);
+    else if (KK.ready && k === K.CRATE) o = kk(['cargo_A', 'cargo_B', 'cargo_A_packed', 'cargo_B_packed'][Math.floor(R() * 4)], cx, 0, cz, Math.floor(R() * 4) * Math.PI / 2 + (R() - 0.5) * 0.3, 1.3);
+    else if (KK.ready && k === K.CONTAINER) { // штабель кейсов, иногда с ещё одним сверху
+      o = new THREE.Group(); o.add(kk(R() < 0.5 ? 'cargo_A_stacked' : 'cargo_B_stacked', 0, 0, 0, Math.floor(R() * 4) * Math.PI / 2, 0.97));
+      if (R() < 0.5) o.add(kk(R() < 0.5 ? 'cargo_A' : 'cargo_B_packed', (R() - 0.5) * 0.4, 0.99, (R() - 0.5) * 0.4, R() * 6, 0.97));
+      at(o, cx, 0, cz);
+    }
+    else if (k === K.ROCK_S) { o = mesh(rockGeo(R, 0), PROPM.rock[Math.floor(R() * 4)]); at(o, cx, 0.3, cz, R(), R() * 6, 0); o.scale.set(0.46, 0.38, 0.46); }
     else if (k === K.CRATE) {
       // металлический ящик с каркасом, панелями и световой полосой
       o = new THREE.Group(); const base = R() < 0.5 ? PROPM.crateA : PROPM.crateB;
@@ -602,6 +624,12 @@ function buildProps() {
     }
     if (o) halfProps.set(id(x, z), o);
   }
+  // за краем каньона: лагерь Республики у точки высадки и буровая Сепаратистов напротив
+  if (KK.ready) [
+    ['landingpad_large', -3.5, 27, 0, 1.6], ['lander_A', -3.5, 27, 0.6, 1.6], ['basemodule_A', -4, 21.5, 1.2, 1.7], ['basemodule_garage', -7.5, 24, 1.6, 1.7],
+    ['solarpanel', -6.5, 30, 0.3, 1.8], ['windturbine_tall', -8, 18.5, 0.8, 1.5], ['landingpad_small', 3, 35, 0, 1.6], ['lander_B', 3, 35, 2.2, 1.6], ['spacetruck_large', 7, 34.5, 1.7, 1.5],
+    ['drill_structure', 36, 4, 0.4, 1.7], ['structure_tall', 36, 9, 0, 1.6], ['basemodule_E', 38.5, 13.5, 2.5, 1.8], ['rocks_B', 35, 17, 1, 1.6], ['windturbine_tall', 29, -3.5, 2, 1.5], ['basemodule_A', 24, -4, 3.1, 1.7],
+  ].forEach(([n, x, z, ry, s], i) => halfProps.set(-1 - i, kk(n, x, 0, z, ry, s)));
   batchProps(halfProps); halfProps.clear();
 }
 // полуукрытия рисуются общими мешами по материалам (несколько вызовов отрисовки вместо сотен);
@@ -616,11 +644,12 @@ function batchProps(objs) {
   for (const { m, cast, parts } of buckets.values()) {
     let total = 0; const geos = parts.map(([tid, c]) => { const g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone(); g.applyMatrix4(c.matrixWorld); total += g.attributes.position.count; return [tid, g]; });
     const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), bg = new THREE.BufferGeometry(), ms = mesh(bg, m, cast); let o = 0;
+    const uv = m.map && geos.every(([, g]) => g.attributes.uv) ? new Float32Array(total * 2) : null; // текстурированные модели
     for (const [tid, g] of geos) {
-      const n = g.attributes.position.count; pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3);
+      const n = g.attributes.position.count; pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); if (uv) uv.set(g.attributes.uv.array, o * 2);
       if (!propBatch.ranges.has(tid)) propBatch.ranges.set(tid, []); propBatch.ranges.get(tid).push([ms, o, n]); o += n; g.dispose();
     }
-    bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) bg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     world.add(ms); propBatch.meshes.push(ms);
   }
 }
@@ -2595,7 +2624,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 // стартовый экран: сцена на фоне (сначала загружаем модели персонажей)
-loadCharacters().then(() => {
+Promise.all([loadCharacters(), loadProps()]).then(() => {
   setupWorld(); spawnUnits(); for (const u of units) u.rig.root.visible = true;
   cam.pitch = cam.tpitch = 1.0; cam.dist = cam.tdist = 50;
   resize(); applyGfx(gfx.mode === 'auto' ? gfx.top : GFX_PRESET[gfx.mode]);
