@@ -55,7 +55,7 @@ try {
 	await page.waitForTimeout(6000);
 	await page.keyboard.up('Space');
 	await page.screenshot({ path: join(OUT, 'game-fight.png') });
-	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.spores }));
+	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.filter((p) => p.kind !== 'ammo' || !p.ground).length + window.__game.bag.spore }));
 	check(k.kills > 0, `убито заражённых топором: ${k.kills}`);
 	check(k.pickups > 0, 'после убийства выпадают спораны');
 	// пистолет: выстрел тратит патрон и поднимает шум
@@ -66,6 +66,33 @@ try {
 	await page.waitForFunction((b) => window.__game.player.ammo < b || window.__game.player.reloading > 0, before, { timeout: 20000 }).catch(() => {});
 	const after = await G(page, () => ({ ammo: window.__game.player.ammo, w: window.__game.player.weapon }));
 	check(after.w === 'pistol' && after.ammo < before, `пистолет стреляет (${before} → ${after.ammo})`);
+	// патроны конечные: перезарядка берёт из запаса, без патронов пистолет только щёлкает
+	// (выпавшее с убитых рядом убираем, чтобы оно не подобралось посреди проверки)
+	await G(page, () => { for (const p of window.__game.pickups) if (!p.ground) { p.taken = true; p.mesh.visible = false; } });
+	const r0 = await G(page, () => { const g = window.__game; g.player.ammo = 2; g.bag.ammo = 3; g.player.reload(); return g.bag.ammo; });
+	await page.waitForFunction(() => window.__game.player.reloading <= 0 && window.__game.player.ammo === 5, null, { timeout: 20000 }).catch(() => {});
+	const r1 = await G(page, () => ({ ammo: window.__game.player.ammo, bag: window.__game.bag.ammo, hud: document.getElementById('ammo').textContent }));
+	check(r0 === 3 && r1.ammo === 5 && r1.bag === 0 && r1.hud.replace(/\s/g, '') === '5/0', `перезарядка берёт из запаса: в магазине ${r1.ammo}, в запасе ${r1.bag}, на экране «${r1.hud}»`);
+	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
+	check(dry.ammo === 0 && /нет патронов/.test(dry.hud), `без патронов не стреляет, на экране «${dry.hud}»`);
+	const got = await G(page, () => { const g = window.__game; g.spawnPickup('ammo', g.player.pos.clone(), 6); return 1; });
+	await page.waitForFunction(() => window.__game.bag.ammo === 6, null, { timeout: 20000 }).catch(() => {});
+	check(got && (await G(page, () => window.__game.bag.ammo)) === 6, 'патроны подбираются в рюкзак');
+	const caches = await G(page, () => window.__game.pickups.filter((p) => p.kind === 'ammo' && p.ground).length);
+	check(caches >= 5, `в кластере разложены тайники с патронами (${caches})`);
+	// рюкзак: открывается по I, ставит игру на паузу, живчик из рюкзака лечит
+	await page.keyboard.press('KeyI');
+	await page.waitForSelector('#inventory:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const inv = await G(page, () => { const g = window.__game; g.player.hp = 40; g.player.maxHp = 100; g.bag.zhivchik = 2; g.inventory.select('zhivchik'); return { paused: g.paused, slots: document.querySelectorAll('#inv-grid [data-item]').length, icon: document.querySelector('#inv-grid img')?.src.startsWith('data:image/png') }; });
+	check(inv.paused && inv.slots >= 2 && inv.icon, `рюкзак открыт, игра на паузе, ячеек с предметами: ${inv.slots}, иконки из 3D-моделей`);
+	await page.click('#inv-action');
+	const healed = await G(page, () => ({ hp: window.__game.player.hp, zh: window.__game.bag.zhivchik }));
+	check(healed.hp === 85 && healed.zh === 1, `живчик из рюкзака: здоровье ${healed.hp}, осталось ${healed.zh}`);
+	await page.keyboard.press('KeyI');
+	await page.waitForSelector('#inventory.hidden', { timeout: 20000 }).catch(() => {});
+	check(!(await G(page, () => window.__game.paused)), 'рюкзак закрывается, игра продолжается');
+	await G(page, () => { const p = window.__game.player; p.hp = p.maxHp = 1e6; });
+	check(await G(page, () => document.getElementById('avatar').src.startsWith('data:image/png')), 'портрет героя в углу экрана');
 	// победа: добиваем всех
 	await G(page, () => { for (const e of window.__game.enemies) if (e.alive) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); });
 	await page.waitForSelector('#gameover:not(.hidden)', { timeout: 30000 });

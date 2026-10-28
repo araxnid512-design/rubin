@@ -59,4 +59,6 @@ export const Sfx = {
 	hurt() { tone({ freq: 220, to: 120, dur: 0.18, type: 'sawtooth', gain: 0.12 }); burst({ dur: 0.12, freq: 700, gain: 0.25 }); },
 	reload() { tone({ freq: 900, dur: 0.05, type: 'square', gain: 0.08 }); setTimeout(() => tone({ freq: 650, dur: 0.06, type: 'square', gain: 0.08 }), 600); },
 	pickup() { tone({ freq: 660, to: 1320, dur: 0.18, type: 'sine', gain: 0.15 }); },
+	dry() { tone({ freq: 1900, dur: 0.025, type: 'square', gain: 0.07 }); burst({ dur: 0.04, freq: 3000, gain: 0.12 }); },
+	drink() { [0, 0.16, 0.32].forEach((d) => setTimeout(() => tone({ freq: 260, to: 420, dur: 0.12, type: 'sine', gain: 0.14 }), d * 1000)); },
 };

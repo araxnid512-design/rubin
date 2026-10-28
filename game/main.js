@@ -11,6 +11,9 @@ import { Sfx } from './audio.js';
 import { Input } from './input.js';
 import { view, onResize, goLandscape } from './screen.js';
 import { makeAxe, makePistol } from './weapons.js';
+import { ITEMS, plural, makeItemMesh, GLOW } from './items.js';
+import { createIconFactory } from './icons.js';
+import { Inventory } from './inventory.js';
 import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 const $ = (id) => document.getElementById(id);
@@ -76,7 +79,7 @@ async function loadModel(name) {
 
 const progress = (p, text) => { $('loadbar').style.width = `${p * 100}%`; $('loadtext').textContent = text; };
 
-let level, assets;
+let level, assets, iconFactory;
 async function boot() {
 	progress(0.05, 'Строим кластер…');
 	await new Promise((r) => setTimeout(r, 30));
@@ -88,11 +91,27 @@ async function boot() {
 	progress(0.75, 'Загружаем топтунов…');
 	const stomper = await loadModel('stomper');
 	assets = { player, runner, stomper };
+	progress(0.9, 'Рисуем иконки…');
+	await new Promise((r) => setTimeout(r, 20));
+	makeIcons();
 	progress(1, 'Готово');
 	$('loading').classList.add('hidden');
 	$('menu').classList.remove('hidden');
 	renderer.setAnimationLoop(frame);
 	window.__game = game;
+}
+
+// Иконки предметов и портрет героя — из настоящих 3D-моделей (см. icons.js)
+function makeIcons() {
+	iconFactory = createIconFactory();
+	if (!iconFactory) return;
+	const I = game.icons;
+	I.axe = iconFactory.axe();
+	I.pistol = iconFactory.pistol();
+	for (const k of ['ammo', 'zhivchik', 'spore', 'peas']) I[k] = iconFactory.item(k);
+	I.portrait = iconFactory.portrait(assets.player);
+	$('avatar').src = I.portrait;
+	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.zhivchik}" alt="">`);
 }
 
 // ---------- Утилиты ----------
@@ -180,6 +199,11 @@ const WEAPONS = {
 	// cooldown — минимальный интервал между выстрелами при частых тапах, auto — темп серии при зажатой кнопке
 	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4 },
 };
+// с чем герой начинает: патроны в запасе (кроме полного магазина), живчик
+const START_BAG = { ammo: 16, zhivchik: 1, spore: 0, peas: 0 };
+// патроны, которые можно найти в кластере: у магазина, гаражей, машин, подъездов, остановки
+const AMMO_CACHES = [[24.3, -7.5, 10], [14, 37.4, 8], [-2.2, -5.6, 8], [-20, 22.6, 10], [17.6, 6.6, 6], [-34, 11.5, 8], [30, 1.6, 6]];
+const AMMO_DROP = { runner: { chance: 0.3, min: 2, max: 4 }, stomper: { chance: 1, min: 4, max: 6 } };
 
 const ONE_SHOT = new Set(['Melee', 'Shoot', 'Hit', 'HitPistol', 'Reload', 'EquipPistol', 'EquipAxe']);
 
@@ -304,7 +328,15 @@ class Player extends Actor {
 			game.noise(this.pos, 6);
 			this.pending.push({ t: W.hitTime, fn: () => this.meleeHit() });
 		} else {
-			if (this.ammo <= 0) { this.reload(); return; }
+			if (this.ammo <= 0) {
+				// пустой магазин: перезарядка из запаса, а если запас пуст — сухой щелчок
+				if (game.bag.ammo > 0) { this.reload(); return; }
+				Sfx.dry();
+				this.cooldown = 0.35;
+				if (game.time - (this.emptyToast ?? -9) > 2.5) { this.emptyToast = game.time; game.toast('Патроны кончились — бери топор', 'warn'); }
+				game.hud();
+				return;
+			}
 			const target = game.nearestEnemy(this.pos, W.range, true);
 			if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
 			// из прицела отдача начинается сразу, из низкой готовности пистолет вскидывается за 0.07 с
@@ -317,7 +349,7 @@ class Player extends Actor {
 			Sfx.shot();
 			game.noise(this.pos, 26); // выстрел слышно издалека
 			this.pending.push({ t: aiming ? 0.03 : 0.06, fn: () => this.shotHit(target) });
-			if (this.ammo === 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
+			if (this.ammo === 0 && game.bag.ammo > 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
 		}
 		game.hud();
 	}
@@ -374,6 +406,7 @@ class Player extends Actor {
 
 	reload() {
 		if (this.weapon !== 'pistol' || this.reloading > 0 || this.equipping || this.ammo === WEAPONS.pistol.mag) return;
+		if (game.bag.ammo <= 0) { Sfx.dry(); game.toast('Нет патронов в запасе', 'warn'); return; }
 		this.reloading = WEAPONS.pistol.reload;
 		this.play('Reload', { once: true, fade: 0.1, restart: true });
 		Sfx.reload();
@@ -390,7 +423,13 @@ class Player extends Actor {
 		due.forEach((p) => p.fn());
 		if (this.reloading > 0) {
 			this.reloading -= dt;
-			if (this.reloading <= 0) { this.ammo = WEAPONS.pistol.mag; game.hud(); }
+			if (this.reloading <= 0) {
+				// в магазин уходит сколько есть в запасе
+				const take = Math.min(WEAPONS.pistol.mag - this.ammo, game.bag.ammo);
+				this.ammo += take;
+				game.bag.ammo -= take;
+				game.hud();
+			}
 		}
 		if (!this.alive) return;
 		this.aim -= dt;
@@ -573,7 +612,10 @@ class Enemy extends Actor {
 
 // ---------- Игра ----------
 const game = {
-	time: 0, shake: 0, kills: 0, spores: 0, total: 0, state: 'menu',
+	time: 0, shake: 0, kills: 0, total: 0, state: 'menu', paused: false,
+	bag: { ...START_BAG },
+	mag: WEAPONS.pistol.mag,
+	icons: {},
 	enemies: [], pickups: [], fx: [],
 	player: null,
 	flow: null, flowTimer: 0,
@@ -585,6 +627,7 @@ const game = {
 		$('menu').classList.add('hidden');
 		$('gameover').classList.add('hidden');
 		$('hud').classList.remove('hidden');
+		this.input.pressed.clear();
 		Sfx.unlock();
 		this.populate();
 		this.banner('Кластер-17', 'Зачисти кластер от заражённых');
@@ -599,7 +642,10 @@ const game = {
 		this.player = new Player(assets.player);
 		this.player.pos.copy(level.playerStart);
 		this.player.root.rotation.y = -Math.PI / 2;
-		this.time = 0; this.kills = 0; this.spores = 0;
+		this.time = 0; this.kills = 0;
+		this.bag = { ...START_BAG };
+		this.inventory?.close();
+		this.icons.weapon = null;
 		this.hud();
 	},
 
@@ -640,6 +686,12 @@ const game = {
 			}
 		}
 		this.total = this.enemies.length;
+		// тайники с патронами в кластере
+		for (const [x, z, n] of AMMO_CACHES) {
+			let pos = new THREE.Vector3(x, 0, z);
+			for (let i = 0; i < 12 && level.nav.blockedAt(pos.x, pos.z, 0.35); i++) pos = new THREE.Vector3(x + (Math.random() - 0.5) * 2, 0, z + (Math.random() - 0.5) * 2);
+			this.spawnPickup('ammo', pos, n, { ground: true });
+		}
 		this.hud();
 	},
 
@@ -711,32 +763,68 @@ const game = {
 		this.kills++;
 		Sfx.death(e.type === 'stomper');
 		this.decal(e.pos, e.type === 'stomper' ? 2.4 : 1.6);
-		// споран из затылка; топтун — ещё и живчик
+		// споран из затылка; у топтуна — ещё горох и живчик; иногда патроны
+		const near = (dx, dz) => e.pos.clone().add(new THREE.Vector3(dx, 0, dz));
 		this.spawnPickup('spore', e.pos, e.T.score);
-		if (e.type === 'stomper' || Math.random() < 0.12) this.spawnPickup('zhivchik', e.pos.clone().add(new THREE.Vector3(0.6, 0, 0.4)));
+		if (e.type === 'stomper') this.spawnPickup('peas', near(-0.5, 0.5), 1 + Math.floor(Math.random() * 2));
+		if (e.type === 'stomper' || Math.random() < 0.12) this.spawnPickup('zhivchik', near(0.6, 0.4));
+		const drop = AMMO_DROP[e.type];
+		if (Math.random() < drop.chance) this.spawnPickup('ammo', near(0.1, -0.6), drop.min + Math.floor(Math.random() * (drop.max - drop.min + 1)));
 		this.hud();
 	},
 
-	spawnPickup(kind, pos, value = 1) {
-		let mesh;
-		if (kind === 'spore') {
-			mesh = new THREE.Group();
-			const pod = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10).scale(1, 1.3, 1), new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.6, emissive: 0x3a5a20, emissiveIntensity: 0.6 }));
-			const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('170,255,120'), transparent: true, opacity: 0.55, depthWrite: false }));
-			glow.scale.setScalar(0.8);
-			mesh.add(pod, glow);
-		} else {
-			mesh = new THREE.Group();
-			const flask = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 10), new THREE.MeshStandardMaterial({ color: 0xa04040, roughness: 0.1, transparent: true, opacity: 0.85, emissive: 0x501010 }));
-			const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 8), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-			cap.position.y = 0.13;
-			const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,120,120'), transparent: true, opacity: 0.5, depthWrite: false }));
-			glow.scale.setScalar(0.9);
-			mesh.add(flask, cap, glow);
-		}
-		mesh.position.copy(pos).setY(0.4);
+	/** Предмет на земле: висит и светится; ground — лежит на земле (тайник с патронами). */
+	spawnPickup(kind, pos, value = 1, { ground = false } = {}) {
+		const mesh = new THREE.Group();
+		const model = makeItemMesh(kind);
+		model.scale.setScalar(1.3);
+		const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(GLOW[kind]), transparent: true, opacity: 0.55, depthWrite: false }));
+		glow.scale.setScalar(kind === 'ammo' ? 1.1 : 0.85);
+		glow.position.y = 0.15;
+		mesh.add(model, glow);
+		mesh.position.copy(pos).setY(ground ? 0.02 : 0.3);
 		scene.add(mesh);
-		this.pickups.push({ kind, mesh, value, t: 0 });
+		this.pickups.push({ kind, mesh, value, t: Math.random() * 6, ground, glow });
+	},
+
+	/** Подобрать предмет в рюкзак. */
+	take(kind, n) {
+		this.bag[kind] = (this.bag[kind] ?? 0) + n;
+		const it = ITEMS[kind];
+		this.toast(`+${n} ${plural(n, it.forms)}`);
+		Sfx.pickup();
+		this.hud();
+		if (this.inventory?.isOpen) this.inventory.render();
+	},
+
+	/** Выпить живчик из рюкзака. */
+	drink() {
+		const p = this.player;
+		if (!p?.alive || !(this.bag.zhivchik > 0)) { if (p?.alive) this.toast('Живчиков нет', 'warn'); return; }
+		if (p.hp >= p.maxHp) { this.toast('Здоровье и так полное'); return; }
+		this.bag.zhivchik--;
+		p.hp = Math.min(p.maxHp, p.hp + 45);
+		Sfx.drink();
+		this.toast('Живчик: +45 здоровья');
+		this.hud();
+	},
+
+	equip(weapon) {
+		if (this.player.weapon !== weapon) this.player.switchWeapon();
+	},
+
+	setPaused(on) {
+		this.paused = on;
+		// нажатия, сделанные при открытом рюкзаке, в игру не попадают
+		this.input.pressed.clear();
+		this.input.holding.clear();
+	},
+
+	/** Герой в полный рост с оружием — картинка для рюкзака (кэш по оружию). */
+	figure(weapon) {
+		this.figures ??= {};
+		if (!this.figures[weapon] && iconFactory) this.figures[weapon] = iconFactory.figure(assets.player, weapon);
+		return this.figures[weapon];
 	},
 
 	decal(pos, size) {
@@ -778,10 +866,11 @@ const game = {
 
 	over(won = false) {
 		this.state = won ? 'won' : 'dead';
+		this.inventory.close();
 		const time = `${Math.floor(this.time / 60)}:${String(Math.floor(this.time % 60)).padStart(2, '0')}`;
 		setTimeout(() => {
 			$('go-title').textContent = won ? 'Кластер зачищен' : 'Тебя сожрали';
-			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b> из ${this.total} · Спораны: <b>${this.spores}</b><br>Время: <b>${time}</b>`;
+			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b> из ${this.total} · Спораны: <b>${this.bag.spore}</b> · Горох: <b>${this.bag.peas}</b><br>Время: <b>${time}</b>`;
 			$('gameover').classList.remove('hidden');
 			$('hud').classList.add('hidden');
 		}, won ? 1500 : 2200);
@@ -795,18 +884,36 @@ const game = {
 		this.hudT = this.time;
 		$('hp-fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
 		$('hp-text').textContent = Math.ceil(p.hp);
-		$('spores').textContent = this.spores;
+		$('spores').textContent = this.bag.spore;
 		$('left').textContent = this.enemies.filter((e) => e.alive).length;
 		$('kills').textContent = this.kills;
 		const W = WEAPONS[p.weapon];
 		$('weapon-name').textContent = W.name;
-		$('ammo').textContent = p.weapon === 'pistol' ? (p.reloading > 0 ? 'перезарядка…' : `${p.ammo} / ${W.mag}`) : '';
-		// иконки меняем только при смене оружия: перерисовка кнопки под пальцем теряет отпускание
-		if (this.icons !== p.weapon) {
-			this.icons = p.weapon;
-			$('btn-weapon').innerHTML = p.weapon === 'axe' ? ICON_PISTOL : ICON_AXE;
-			$('btn-attack').innerHTML = p.weapon === 'axe' ? ICON_AXE : ICON_PISTOL;
+		// патроны: в магазине / в запасе
+		const ammo = $('ammo');
+		if (p.weapon === 'pistol') {
+			const empty = p.ammo === 0 && this.bag.ammo === 0;
+			ammo.innerHTML = p.reloading > 0 ? 'перезарядка…' : empty ? '<b>0</b> · нет патронов' : `<b>${p.ammo}</b> / ${this.bag.ammo}`;
+			ammo.classList.toggle('empty', empty);
+		} else {
+			ammo.innerHTML = this.bag.ammo || p.ammo ? `патроны ПМ: ${p.ammo + this.bag.ammo}` : '';
+			ammo.classList.remove('empty');
 		}
+		const zh = this.bag.zhivchik ?? 0;
+		$('heal-count').textContent = zh;
+		$('btn-heal').classList.toggle('off', zh === 0);
+		// иконки меняем только при смене оружия: перерисовка кнопки под пальцем теряет отпускание
+		const icon = (w) => (this.icons[w] ? `<img src="${this.icons[w]}" alt="">` : w === 'axe' ? ICON_AXE : ICON_PISTOL);
+		if (this.icons.weapon !== p.weapon) {
+			this.icons.weapon = p.weapon;
+			$('btn-weapon').innerHTML = icon(p.weapon === 'axe' ? 'pistol' : 'axe');
+			$('btn-attack').innerHTML = `${icon(p.weapon)}<span class="badge" id="attack-ammo"></span>`;
+			if (this.icons[p.weapon]) $('weapon-icon').src = this.icons[p.weapon];
+		}
+		const badge = $('attack-ammo');
+		badge.textContent = p.weapon === 'pistol' ? p.ammo : '';
+		badge.style.display = p.weapon === 'pistol' ? '' : 'none';
+		badge.classList.toggle('empty', p.ammo === 0);
 	},
 };
 window.__game = game;
@@ -841,8 +948,12 @@ function update(dt) {
 		level.update(dt, t);
 		return;
 	}
-	game.time += game.state === 'play' ? dt : 0;
 	const input = game.input;
+	if (input.consume('inventory')) game.inventory.toggle();
+	if (input.consume('escape')) game.inventory.close();
+	if (game.paused) return; // рюкзак открыт
+	game.time += game.state === 'play' ? dt : 0;
+	if (input.consume('heal')) game.drink();
 	if (input.consume('switch')) game.player.switchWeapon();
 	if (input.consume('reload')) game.player.reload();
 	game.player.update(dt, input); // там же спуск: тап — один выстрел, удержание — серия
@@ -853,18 +964,18 @@ function update(dt) {
 	if (game.flowTimer <= 0) { game.updateFlow(); game.flowTimer = 0.3; }
 	game.enemies = game.enemies.filter((e) => { const keep = e.update(dt); if (!keep) e.dispose(); return keep; });
 
-	// подбор споранов и живчиков
+	// подбор предметов в рюкзак
 	for (const pk of game.pickups) {
 		pk.t += dt;
-		pk.mesh.position.y = 0.35 + Math.sin(pk.t * 3) * 0.08;
-		pk.mesh.rotation.y += dt * 1.5;
-		if (game.player.alive && pk.mesh.position.distanceTo(tmpV.copy(game.player.pos).setY(0.4)) < 1.3) {
+		if (pk.ground) pk.glow.material.opacity = 0.35 + 0.25 * Math.sin(pk.t * 3);
+		else {
+			pk.mesh.position.y = 0.3 + Math.sin(pk.t * 3) * 0.08;
+			pk.mesh.rotation.y += dt * 1.5;
+		}
+		if (game.player.alive && Math.hypot(pk.mesh.position.x - game.player.pos.x, pk.mesh.position.z - game.player.pos.z) < 1.3) {
 			pk.taken = true;
 			scene.remove(pk.mesh);
-			if (pk.kind === 'spore') { game.spores += pk.value; game.toast(`+${pk.value} споран${pk.value > 1 ? 'а' : ''}`); }
-			else { game.player.hp = Math.min(game.player.maxHp, game.player.hp + 45); game.toast('Живчик: +45 здоровья'); }
-			Sfx.pickup();
-			game.hud();
+			game.take(pk.kind, pk.value);
 		}
 	}
 	game.pickups = game.pickups.filter((p) => !p.taken);
@@ -889,13 +1000,17 @@ function update(dt) {
 	$('hurt').style.opacity = Math.max(0, parseFloat($('hurt').style.opacity || 0) - dt * 1.5);
 }
 
-game.toast = (text) => {
+game.toast = (text, kind = '') => {
 	const t = document.createElement('div');
-	t.className = 'toast';
+	t.className = `toast ${kind}`;
 	t.textContent = text;
 	$('toasts').appendChild(t);
 	setTimeout(() => t.remove(), 1600);
 };
+
+game.inventory = new Inventory(game);
+$('btn-inv').addEventListener('click', (e) => { e.currentTarget.blur(); game.inventory.toggle(); });
+$('btn-inv').addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // снимаем фокус с кнопки, иначе пробел (атака) нажимает её снова и перезапускает игру
 // на телефоне — полноэкранный горизонтальный режим (нужно нажатие пользователя)

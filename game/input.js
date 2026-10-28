@@ -17,6 +17,9 @@ export class Input {
 			if (['Space', 'KeyJ', 'KeyF'].includes(e.code)) { this.pressed.add('attack'); this.holding.add('attack'); e.preventDefault(); }
 			if (['KeyQ', 'Tab', 'Digit1', 'Digit2'].includes(e.code)) { this.pressed.add('switch'); e.preventDefault(); }
 			if (e.code === 'KeyR') this.pressed.add('reload');
+			if (e.code === 'KeyI' || e.code === 'KeyB') this.pressed.add('inventory');
+			if (e.code === 'KeyH') this.pressed.add('heal');
+			if (e.code === 'Escape') this.pressed.add('escape');
 			this.updateKeys();
 		});
 		addEventListener('keyup', (e) => {
@@ -113,6 +116,7 @@ export class Input {
 		button('btn-attack', 'attack', true);
 		button('btn-weapon', 'switch');
 		button('btn-reload', 'reload');
+		button('btn-heal', 'heal');
 	}
 
 	consume(action) {

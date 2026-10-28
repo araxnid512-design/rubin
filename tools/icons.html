@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Icon Check</title>
+	<style>
+		:root { --bg: #1b201c; --text: #dfe6d8; --cell: #2a312b; }
+		body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 13px system-ui, sans-serif; }
+		.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+		figure { margin: 0; text-align: center; }
+		img { display: block; background: var(--cell); border-radius: 10px; }
+		.round { border-radius: 50%; }
+	</style>
+	<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head>
+<body>
+	<!-- Проверка иконок предметов и портретов героя (game/icons.js) -->
+	<div class="row" id="out"></div>
+	<script type="module">
+		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+		import { createIconFactory } from '../game/icons.js';
+		const gltf = await new GLTFLoader().loadAsync('../models/game/player.glb');
+		const icons = createIconFactory();
+		const add = (src, label, cls = '') => {
+			const f = document.createElement('figure');
+			f.innerHTML = `<img class="${cls}" src="${src}"><figcaption>${label}</figcaption>`;
+			document.getElementById('out').appendChild(f);
+		};
+		add(icons.portrait(gltf), 'портрет', 'round');
+		add(icons.axe(), 'топор');
+		add(icons.pistol(), 'ПМ');
+		for (const k of ['ammo', 'zhivchik', 'spore', 'peas']) add(icons.item(k), k);
+		add(icons.figure(gltf, 'axe'), 'с топором');
+		add(icons.figure(gltf, 'pistol'), 'с пистолетом');
+		window.ready = true;
+	</script>
+</body>
+</html>
