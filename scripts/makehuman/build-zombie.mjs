@@ -114,7 +114,10 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		return 'Hips';
 	};
 	const vertWeights = Array.from({ length: nv }, () => ({}));
-	for (const [mhBone, list] of Object.entries(loadWeights(join(MH, 'rigs/default_weights.mhw')))) {
+	const mhWeights = loadWeights(join(MH, 'rigs/default_weights.mhw'));
+	// кулак: пальцы сгибаются ещё в A-позе, по весам костей пальцев MakeHuman
+	if (profile.fist) for (const side of ['L', 'R']) curlFingers(pos, skel, mhWeights, side, profile.fist);
+	for (const [mhBone, list] of Object.entries(mhWeights)) {
 		const ours = mapBone(mhBone);
 		for (const [v, w] of list) vertWeights[v][ours] = (vertWeights[v][ours] ?? 0) + w;
 	}
@@ -171,6 +174,12 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		posed.set(acc.toArray(), v * 3);
 	}
 	const bindWorld = Object.fromEntries(BONE_NAMES.map((n) => [n, bones[n].getWorldPosition(new THREE.Vector3())]));
+	// точки хвата оружия: центр кулака и оси кисти (пальцы, большой палец, ладонь) в позе привязки
+	const grips = {};
+	for (const s of ['L', 'R']) {
+		const at = (mhBone) => V(jointPosition(skel, pos, skel.bones[`${mhBone}.${s}`].head)).applyMatrix4(skinMats[`Hand.${s}`]);
+		grips[s] = handFrame(at('wrist'), at('finger3-1'), at('finger2-1'), at('finger5-1'), at('finger1-1'));
+	}
 	// ступни могли чуть сместиться — снова ставим на землю
 	let minPosed = Infinity;
 	for (const f of bodyFaces) for (const [v] of f) minPosed = Math.min(minPosed, posed[v * 3 + 1]);
@@ -286,6 +295,14 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		finalBones[name] = b;
 		if (parent) finalBones[parent].add(b);
 	}
+	for (const s of ['L', 'R']) {
+		const g = grips[s], grip = new THREE.Object3D();
+		grip.name = `Grip${s}`; // без точки: GLTFLoader убирает точки из имён
+		g.pos.y -= minPosed;
+		grip.position.copy(g.pos).sub(bindWorld[`Hand.${s}`]);
+		grip.quaternion.copy(g.quat);
+		finalBones[`Hand.${s}`].add(grip);
+	}
 	const boneList = BONE_NAMES.map((n) => finalBones[n]);
 	const mesh = new THREE.SkinnedMesh(geometry, materials);
 	mesh.name = `${profile.name}Mesh`;
@@ -300,6 +317,86 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 }
 
 // ---------- Вспомогательное ----------
+
+/**
+ * Оси кисти: F — от запястья к пальцам, T — от мизинца к указательному (сторона большого пальца),
+ * P — ладонь (куда сгибаются пальцы). Хват: начало в центре кулака, у оружия −Y = F, +Z = T.
+ */
+function handFrame(wrist, middle, index, pinky, thumb) {
+	const F = middle.clone().sub(wrist);
+	const len = F.length();
+	F.normalize();
+	const T = index.clone().sub(pinky);
+	T.addScaledVector(F, -T.dot(F)).normalize();
+	const P = new THREE.Vector3().crossVectors(F, T);
+	// большой палец лежит со стороны ладони
+	if (thumb.clone().sub(index.clone().add(pinky).multiplyScalar(0.5)).dot(P) < 0) P.negate();
+	const pos = wrist.clone().addScaledVector(F, len * 0.95).addScaledVector(P, 0.012);
+	const Y = F.clone().negate(), Z = T.clone(), X = new THREE.Vector3().crossVectors(Y, Z);
+	const quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+	return { pos, quat, F, T, P };
+}
+
+/**
+ * Сгибает пальцы одной руки в кулак. Вершина пальца привязывается к своей фаланге
+ * (ближайший отрезок кости), у суставов — плавный переход; доля пальца берётся из весов MakeHuman.
+ */
+function curlFingers(pos, skel, weights, side, { fingers = [70, 85, 60], thumb = [25, 35, 30] } = {}) {
+	const J = (name) => V(jointPosition(skel, pos, name));
+	const head = (b) => J(skel.bones[`${b}.${side}`].head);
+	const tail = (b) => J(skel.bones[`${b}.${side}`].tail);
+	const hand = handFrame(head('wrist'), head('finger3-1'), head('finger2-1'), head('finger5-1'), head('finger1-1'));
+	const src = pos.slice();
+	const delta = new Float32Array(pos.length); // смещения от разных пальцев складываются (перепонки между пальцами)
+	const v = new THREE.Vector3(), tmp = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3();
+	for (let f = 1; f <= 5; f++) {
+		const names = [1, 2, 3].map((k) => `finger${f}-${k}`);
+		const angles = f === 1 ? thumb : fingers;
+		// накопленные повороты фаланг
+		const mats = [];
+		let M = new THREE.Matrix4();
+		const segs = names.map((n) => [head(n), tail(n)]);
+		for (let k = 0; k < 3; k++) {
+			const pivot = segs[k][0].clone().applyMatrix4(M);
+			const dir = segs[k][1].clone().sub(segs[k][0]).transformDirection(M).normalize();
+			const axis = new THREE.Vector3().crossVectors(dir, hand.P).normalize();
+			const R = new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z)
+				.multiply(new THREE.Matrix4().makeRotationAxis(axis, THREE.MathUtils.degToRad(angles[k])))
+				.multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+			M = R.multiply(M);
+			mats.push(M.clone());
+		}
+		// доля пальца у каждой вершины
+		const share = new Map();
+		for (const n of names) for (const [i, w] of weights[`${n}.${side}`] ?? []) share.set(i, Math.min(1, (share.get(i) ?? 0) + w));
+		for (const [i, wf] of share) {
+			v.set(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]);
+			// параметр вдоль цепочки фаланг: 0..3
+			let best = Infinity, param = 0;
+			segs.forEach(([h, t], k) => {
+				a.copy(t).sub(h);
+				const u = THREE.MathUtils.clamp(tmp.copy(v).sub(h).dot(a) / a.lengthSq(), 0, 1);
+				const d = tmp.copy(h).addScaledVector(a, u).distanceToSquared(v);
+				if (d < best) { best = d; param = k + u; }
+			});
+			// у основания пальца — плавный вход (не тянем ладонь), у суставов — смешивание соседних фаланг
+			const k = Math.min(2, Math.floor(param)), u = param - k;
+			const blend = 0.18;
+			b.copy(v).applyMatrix4(mats[k]);
+			if (u < blend && k > 0) {
+				tmp.copy(v).applyMatrix4(mats[k - 1]);
+				b.lerp(tmp, 0.5 * (1 - u / blend));
+			} else if (u > 1 - blend && k < 2) {
+				tmp.copy(v).applyMatrix4(mats[k + 1]);
+				b.lerp(tmp, 0.5 * ((u - (1 - blend)) / blend));
+			}
+			const entry = k === 0 ? THREE.MathUtils.smoothstep(u, 0, 0.35) : 1; // корень пальца гнётся постепенно
+			const w = (k === 0 ? 0.35 + 0.65 * entry : 1);
+			for (let c = 0; c < 3; c++) delta[i * 3 + c] += (b.getComponent(c) - src[i * 3 + c]) * Math.min(w, wf);
+		}
+	}
+	for (let i = 0; i < pos.length; i++) pos[i] += delta[i];
+}
 
 function groupCenter(faces, positions) {
 	const ids = new Set(faces.flatMap((f) => f.map(([v]) => v)));

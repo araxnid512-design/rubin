@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Pose Check</title>
+	<style>
+		:root { --bg: #1b201c; --text: #dfe6d8; }
+		html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px system-ui, sans-serif; overflow: hidden; }
+		#ui { position: fixed; top: 8px; left: 8px; z-index: 2; background: rgba(0,0,0,.5); padding: 6px 8px; border-radius: 8px; }
+		#labels { position: fixed; bottom: 6px; left: 0; right: 0; display: flex; justify-content: space-around; opacity: .7; }
+	</style>
+	<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head>
+<body>
+	<!-- Проверка поз игрока с оружием: три вида (спереди, сбоку, сверху как в игре). ?clip=Melee&t=0.3 -->
+	<div id="ui"><select id="clip"></select> <input id="t" type="range" min="0" max="1" step="0.01" value="0"> <span id="tv"></span></div>
+	<div id="labels"><span>спереди</span><span>сбоку (справа)</span><span>камера игры</span></div>
+	<script type="module">
+		import * as THREE from 'three';
+		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+		import { makeAxe, makePistol } from '../game/weapons.js';
+
+		const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+		renderer.setPixelRatio(devicePixelRatio);
+		renderer.setSize(innerWidth, innerHeight);
+		renderer.setScissorTest(true);
+		document.body.appendChild(renderer.domElement);
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x2a302b);
+		scene.add(new THREE.HemisphereLight(0xffffff, 0x445544, 2.2));
+		const sun = new THREE.DirectionalLight(0xffffff, 2); sun.position.set(2, 4, 3); scene.add(sun);
+		const grid = new THREE.GridHelper(4, 8, 0x556655, 0x3a443a); scene.add(grid);
+
+		const gltf = await new GLTFLoader().loadAsync('../models/game/player.glb');
+		const model = gltf.scene;
+		scene.add(model);
+		const grip = model.getObjectByName('GripR');
+		const axe = makeAxe(), pistol = makePistol();
+		grip.add(axe, pistol);
+		// оси хвата для отладки
+		grip.add(new THREE.AxesHelper(0.12));
+		const mixer = new THREE.AnimationMixer(model);
+		const sel = document.getElementById('clip');
+		for (const c of gltf.animations) sel.add(new Option(c.name, c.name));
+		const qs = new URLSearchParams(location.search);
+		sel.value = qs.get('clip') || 'Idle';
+		document.getElementById('t').value = qs.get('t') || 0;
+
+		const cams = [
+			[new THREE.PerspectiveCamera(30, 1, 0.1, 50), [0, 1.2, 4.2]],
+			[new THREE.PerspectiveCamera(30, 1, 0.1, 50), [-4.2, 1.2, 0]],
+			[new THREE.PerspectiveCamera(42, 1, 0.1, 50), [0, 5.2, 3.9]],
+		];
+		window.pose = (clipName, t, weapon, zoom) => {
+			const clip = gltf.animations.find((c) => c.name === clipName);
+			weapon ??= clipName === 'Shoot' ? 'pistol' : 'axe';
+			axe.visible = weapon === 'axe';
+			pistol.visible = weapon === 'pistol';
+			mixer.stopAllAction();
+			mixer.clipAction(clip).play();
+			mixer.setTime(Math.min(clip.duration - 1e-3, t * clip.duration));
+			model.updateMatrixWorld(true);
+			const w = innerWidth / 3, h = innerHeight;
+			const focus = zoom ? grip.getWorldPosition(new THREE.Vector3()) : null;
+			cams.forEach(([cam, p], i) => {
+				cam.aspect = w / h; cam.updateProjectionMatrix();
+				if (focus) { cam.position.copy(focus).add(new THREE.Vector3(...p).setY(p[1] - 1).multiplyScalar(0.18)); cam.lookAt(focus); }
+				else { cam.position.set(...p); cam.lookAt(0, i === 2 ? 0.8 : 1.0, 0); }
+				renderer.setViewport(i * w, 0, w, h); renderer.setScissor(i * w, 0, w, h);
+				renderer.render(scene, cam);
+			});
+			document.getElementById('tv').textContent = `${clipName} ${(t * clip.duration).toFixed(2)} с`;
+		};
+		const redraw = () => pose(sel.value, +document.getElementById('t').value);
+		sel.onchange = redraw; document.getElementById('t').oninput = redraw;
+		redraw();
+		window.ready = true;
+	</script>
+</body>
+</html>

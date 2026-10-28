@@ -9,6 +9,7 @@ import { buildLevel, resolveCollisions, HALF } from './level.js';
 import { setAnisotropy, bloodDecalTexture, softDotTexture } from './textures.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
+import { makeAxe, makePistol } from './weapons.js';
 
 const $ = (id) => document.getElementById(id);
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -165,37 +166,8 @@ class Actor {
 	}
 }
 
-// Оружие — простые модели, крепятся к кисти
-function makeAxe() {
-	const g = new THREE.Group();
-	const wood = new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 0.8 });
-	const steel = new THREE.MeshStandardMaterial({ color: 0x9aa0a4, roughness: 0.35, metalness: 0.85 });
-	const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.62, 8), wood);
-	handle.rotation.x = Math.PI / 2; handle.position.z = 0.2;
-	const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.09), steel);
-	head.position.set(0, -0.05, 0.48);
-	const edge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.19, 0.03), steel);
-	edge.position.set(0, -0.09, 0.51);
-	g.add(handle, head, edge);
-	g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-	return g;
-}
-
-function makePistol() {
-	const g = new THREE.Group();
-	const black = new THREE.MeshStandardMaterial({ color: 0x1c1d1f, roughness: 0.45, metalness: 0.7 });
-	const slide = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.035), black);
-	slide.position.set(0, -0.11, 0.035);
-	const grip = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.035, 0.1), new THREE.MeshStandardMaterial({ color: 0x3a2c22, roughness: 0.7 }));
-	grip.position.set(0, -0.06, -0.01);
-	g.add(slide, grip);
-	g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-	g.userData.muzzle = new THREE.Vector3(0, -0.2, 0.035);
-	return g;
-}
-
 const WEAPONS = {
-	axe: { name: 'Топор', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.33 },
+	axe: { name: 'Топор', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.34 },
 	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.32, mag: 8, reload: 1.3 },
 };
 
@@ -213,8 +185,8 @@ class Player extends Actor {
 		this.pending = [];
 		this.alive = true;
 		this.lastHurt = 0;
-		// GLTFLoader убирает точки из имён узлов: Hand.R → HandR
-		this.hand = this.model.getObjectByName('Hand.R') ?? this.model.getObjectByName('HandR');
+		// точка хвата в кулаке (узел GripR в модели); запасной вариант — кисть (GLTFLoader: Hand.R → HandR)
+		this.hand = this.model.getObjectByName('GripR') ?? this.model.getObjectByName('HandR');
 		this.axe = makeAxe();
 		this.pistol = makePistol();
 		this.hand.add(this.axe, this.pistol);
@@ -242,6 +214,7 @@ class Player extends Actor {
 			this.hp = 0;
 			this.alive = false;
 			this.play('Death', { once: true, fade: 0.1 });
+			this.pending.push({ t: 0.55, fn: () => this.dropWeapon() });
 			game.over();
 		} else if (this.busy <= 0) {
 			this.play('Hit', { once: true, fade: 0.06, restart: true });
@@ -306,6 +279,24 @@ class Player extends Actor {
 			to = from.clone().add(new THREE.Vector3(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y)).multiplyScalar(14));
 		}
 		game.tracer(from, to);
+	}
+
+	/** При смерти оружие выпадает из руки и ложится на землю. */
+	dropWeapon() {
+		const w = this.weapon === 'axe' ? this.axe : this.pistol;
+		const pos = w.getWorldPosition(new THREE.Vector3());
+		w.removeFromParent();
+		scene.add(w);
+		w.position.set(pos.x, 0.025, pos.z);
+		// плашмя на боку: топорище/ствол горизонтально, лезвие вбок
+		w.rotation.set(0, Math.random() * Math.PI * 2, 0);
+		w.rotateZ(Math.PI / 2);
+		this.dropped = w;
+	}
+
+	dispose() {
+		this.dropped?.removeFromParent();
+		super.dispose();
 	}
 
 	reload() {

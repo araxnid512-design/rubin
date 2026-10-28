@@ -73,6 +73,9 @@ class Rig {
 			this.world[n] = this.bones[n].offset.clone().add(p ? this.world[p] : V());
 		}
 		this.hipsY = this.world.Hips.y;
+		// точка хвата (узел GripR внутри кисти) — для поз, заданных положением оружия
+		const grip = root.getObjectByName('GripR');
+		this.grip = grip ? { pos: grip.position.clone(), q: grip.quaternion.clone() } : { pos: V(0, -0.08, 0), q: new THREE.Quaternion() };
 		this.ankle = { L: this.world['Foot.L'].clone(), R: this.world['Foot.R'].clone() };
 		this.legLen = this.bones['LowerLeg.L'].offset.length() + this.bones['Foot.L'].offset.length();
 	}
@@ -123,7 +126,72 @@ function solvePose(rig, pose) {
 		local[`LowerLeg.${s}`] = qU.clone().invert().multiply(qL);
 		local[`Foot.${s}`] = qL.clone().invert().multiply(footQ);
 	}
+	if (pose.rightGrip) solveGrip(rig, local, hipsPos, pose.rightGrip);
+	if (pose.supportHand) solveSupportHand(rig, local, hipsPos, pose.supportHand);
 	return { local, hips: hipsPos };
+}
+
+/** Мировая позиция и поворот кости по цепочке от таза (прямая кинематика). */
+function chainWorld(rig, local, hipsPos, name) {
+	const chain = [];
+	for (let n = name; n && n !== 'Root'; n = rig.bones[n].parent) chain.unshift(n);
+	const pos = hipsPos.clone(), q = local.Hips.clone();
+	for (const n of chain.slice(1)) {
+		pos.add(rig.bones[n].offset.clone().applyQuaternion(q));
+		q.multiply(local[n]);
+	}
+	return { pos, q };
+}
+
+/** Двухзвенный IK руки: кисть (кость Hand) — в точку target с мировым поворотом handQ. */
+function solveArm(rig, local, hipsPos, s, target, handQ, hintChest) {
+	const sx = s === 'L' ? 1 : -1;
+	const chest = chainWorld(rig, local, hipsPos, 'Chest');
+	const up = rig.bones[`UpperArm.${s}`], lo = rig.bones[`Forearm.${s}`], hd = rig.bones[`Hand.${s}`];
+	const L1 = lo.offset.length(), L2 = hd.offset.length();
+	const S = up.offset.clone().applyQuaternion(chest.q).add(chest.pos);
+	const toT = target.clone().sub(S);
+	const d = THREE.MathUtils.clamp(toT.length(), Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-4);
+	const dir = toT.normalize();
+	// локоть — вниз, наружу и чуть назад
+	const hint = (hintChest ? V(...hintChest) : V(sx * 0.6, -1, -0.35)).applyQuaternion(chest.q);
+	const perp = hint.clone().addScaledVector(dir, -hint.dot(dir)).normalize();
+	const cosA = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
+	const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+	const E = S.clone().addScaledVector(dir, L1 * cosA).addScaledVector(perp, L1 * sinA);
+	const W = S.clone().addScaledVector(dir, d);
+	const restU = frame(lo.offset, V(0, 0, 1)), restL = frame(hd.offset, V(0, 0, 1));
+	const qU = frame(E.clone().sub(S), perp).multiply(restU.clone().invert());
+	const qL = frame(W.clone().sub(E), perp).multiply(restL.clone().invert());
+	local[`UpperArm.${s}`] = chest.q.clone().invert().multiply(qU);
+	local[`Forearm.${s}`] = qU.clone().invert().multiply(qL);
+	local[`Hand.${s}`] = qL.clone().invert().multiply(handQ);
+}
+
+/**
+ * Правая рука по положению оружия: pos — центр кулака (мир), handle — куда смотрит топорище/рукоять,
+ * blade — куда смотрит лезвие/ствол, hint — куда смотрит локоть (в системе груди).
+ */
+function solveGrip(rig, local, hipsPos, { pos, handle, blade, hint }) {
+	const Z = V(...handle).normalize();
+	const B = V(...blade);
+	const Y = B.addScaledVector(Z, -B.dot(Z)).normalize().negate();
+	const X = new THREE.Vector3().crossVectors(Y, Z);
+	const gripQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+	const handQ = gripQ.clone().multiply(rig.grip.q.clone().invert());
+	const target = V(...pos).sub(rig.grip.pos.clone().applyQuaternion(handQ));
+	solveArm(rig, local, hipsPos, 'R', target, handQ, hint);
+}
+
+// Левая кисть обхватывает правую снизу (стрельба с двух рук)
+function solveSupportHand(rig, local, hipsPos, { offset = [0.04, 0.02, -0.07], weight = 1 } = {}) {
+	const r = chainWorld(rig, local, hipsPos, 'Hand.R');
+	const target = new THREE.Vector3(...offset).applyQuaternion(r.q).add(r.pos);
+	if (weight < 1) {
+		const free = chainWorld(rig, local, hipsPos, 'Hand.L');
+		target.lerp(free.pos, 1 - weight);
+	}
+	solveArm(rig, local, hipsPos, 'L', target, r.q.clone());
 }
 
 function bake(rig, name, duration, poseAt, { loop = false } = {}) {
@@ -370,9 +438,10 @@ function playerIdlePose(rig, t) {
 			Chest: [3 + 1.2 * w(2, 0.9), 4, 0],
 			Neck: [0, -2 + 3 * w(1, 1.5), 0],
 			Head: [2 + 2 * w(1, 2), -4 + 8 * w(1, 2.2), 0],
-			'UpperArm.R': [-22 + 2 * w(2, 1), 0, -8],
-			'Forearm.R': [-48 + 3 * w(2, 1.3), 0, 0],
-			'Hand.R': [5, 0, 0],
+			// топор опущен, голова топора смотрит вперёд-вниз
+			'UpperArm.R': [-8 + 2 * w(2, 1), 0, -9],
+			'Forearm.R': [-20 + 3 * w(2, 1.3), 0, 0],
+			'Hand.R': [40, 0, 0],
 			'UpperArm.L': [-12 + 2 * w(2, 2), 0, 10],
 			'Forearm.L': [-28 + 3 * w(2, 2.3), 0, 0],
 			'Hand.L': [8, 0, 0],
@@ -408,37 +477,45 @@ function playerGaitPose(rig, t, run) {
 			'UpperArm.L': [-10 - swing * s(1, 0.0), 0, 10],
 			'Forearm.L': [(run ? -75 : -25) - (run ? 15 : 8) * s(1, 0.1), 0, 0],
 			'Hand.L': [6, 0, 0],
-			'UpperArm.R': [-22 + swing * 0.6 * s(1, 0.0), 0, -10],
-			'Forearm.R': [(run ? -80 : -50) + 6 * s(1, 0.1), 0, 0],
-			'Hand.R': [4, 0, 0],
+			'UpperArm.R': [(run ? -22 : -10) + swing * 0.6 * s(1, 0.0), 0, -10],
+			'Forearm.R': [(run ? -62 : -26) + 6 * s(1, 0.1), 0, 0],
+			'Hand.R': [run ? 38 : 38, 0, 0],
 		},
 		feet: { L: left, R: right },
 	};
 }
 
-// Удар топором наискосок: замах за правое плечо → удар вниз-влево с шагом → возврат. Попадание ~0.34 с.
+// Удар топором сверху: замах над правым плечом (топор за спиной) → лезвие идёт вперёд-вниз,
+// попадание ~0.34 с на уровне груди противника → доводка вниз-влево → возврат.
+// Правая рука ведётся по положению топора (IK), левая держит баланс у груди.
 function playerMeleePose(rig) {
 	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.2, 0.3, 0.38, 0.5, 0.75]);
+	const k = at([0, 0.2, 0.28, 0.34, 0.46, 0.75]);
 	const P = curves({
-		hips: k([0, H - 0.03, 0], [0, H - 0.04, -0.04], [0, H - 0.07, 0.08], [0, H - 0.08, 0.12], [0, H - 0.07, 0.09], [0, H - 0.03, 0]),
-		Hips: k([3, -8, 0], [-2, -22, 2], [10, 10, -2], [14, 20, -3], [12, 16, -2], [3, -8, 0]),
-		Spine: k([4, 4, 0], [-4, -14, 0], [10, 10, 0], [14, 16, 0], [12, 12, 0], [4, 4, 0]),
-		Chest: k([3, 4, 0], [-6, -14, 0], [8, 12, 0], [12, 16, 0], [10, 12, 0], [3, 4, 0]),
-		Neck: k([0, -2, 0], [2, 18, 0], [4, -6, 0], [6, -14, 0], [4, -10, 0], [0, -2, 0]),
-		Head: k([2, -4, 0], [4, 14, 0], [6, -8, 0], [8, -16, 0], [6, -10, 0], [2, -4, 0]),
-		'UpperArm.R': k([-22, 0, -8], [-150, 0, -40], [-110, 0, 0], [-55, 0, 18], [-45, 0, 12], [-22, 0, -8]),
-		'Forearm.R': k([-48, 0, 0], [-95, 0, 0], [-40, 0, 0], [-8, 0, 0], [-15, 0, 0], [-48, 0, 0]),
-		'Hand.R': k([5, 0, 0], [-30, 0, 0], [10, 0, 0], [35, 0, 0], [25, 0, 0], [5, 0, 0]),
-		'UpperArm.L': k([-12, 0, 10], [-40, 0, 30], [-20, 0, 20], [-5, 0, 25], [-8, 0, 20], [-12, 0, 10]),
-		'Forearm.L': k([-28, 0, 0], [-60, 0, 0], [-40, 0, 0], [-30, 0, 0], [-30, 0, 0], [-28, 0, 0]),
-		footL: k([a.L.x + 0.04, a.L.y, a.L.z + 0.08], [a.L.x + 0.04, a.L.y, a.L.z + 0.06], [a.L.x + 0.05, a.L.y + 0.03, a.L.z + 0.22], [a.L.x + 0.05, a.L.y, a.L.z + 0.3], [a.L.x + 0.05, a.L.y, a.L.z + 0.28], [a.L.x + 0.04, a.L.y, a.L.z + 0.08]),
-		footRrot: k([0, 18, 0], [0, 18, 0], [10, 20, 0], [22, 22, 0], [18, 20, 0], [0, 18, 0]),
+		hips: k([0, H - 0.03, 0], [0, H - 0.04, -0.05], [0, H - 0.05, 0.0], [0, H - 0.08, 0.12], [0, H - 0.085, 0.13], [0, H - 0.03, 0]),
+		Hips: k([3, -8, 0], [-4, -22, 2], [2, -10, 0], [12, 14, -2], [14, 18, -3], [3, -8, 0]),
+		Spine: k([4, 4, 0], [-6, -12, 0], [2, -4, 0], [12, 10, 0], [14, 12, 0], [4, 4, 0]),
+		Chest: k([3, 4, 0], [-6, -12, 0], [2, -2, 0], [10, 10, 0], [12, 12, 0], [3, 4, 0]),
+		Neck: k([0, -2, 0], [4, 16, 0], [2, 8, 0], [4, -10, 0], [6, -12, 0], [0, -2, 0]),
+		Head: k([2, -4, 0], [2, 10, 0], [0, 4, 0], [6, -10, 0], [8, -10, 0], [2, -4, 0]),
+		// левая рука: на замахе тянется вперёд (баланс и прицел), в ударе прижимается к груди
+		'UpperArm.L': k([-12, 0, 10], [-62, 0, -12], [-55, 0, -12], [-22, 0, -14], [-18, 0, -8], [-12, 0, 10]),
+		'Forearm.L': k([-28, 0, 0], [-55, 0, 0], [-70, 0, 0], [-112, 0, 0], [-105, 0, 0], [-28, 0, 0]),
+		'Hand.L': k([8, 0, 0], [10, 0, 0], [10, 0, 0], [6, 0, 0], [6, 0, 0], [8, 0, 0]),
+		// топор: центр кулака, направление топорища и лезвия, локоть
+		gripPos: k([-0.24, 0.92, 0.18], [-0.3, 1.74, -0.14], [-0.22, 1.88, 0.2], [-0.08, 1.24, 0.8], [0.04, 0.8, 0.62], [-0.24, 0.92, 0.18]),
+		gripHandle: k([0, -0.35, 1], [0.1, -0.25, -1], [0.05, 0.8, -0.6], [0.1, -0.12, 1], [0.35, -0.8, 0.5], [0, -0.35, 1]),
+		gripBlade: k([0, -1, -0.35], [0, 1, -0.25], [0, 0.65, 0.75], [0, -1, 0.1], [0, -0.55, -0.8], [0, -1, -0.35]),
+		gripHint: k([-0.5, -1, -0.3], [-1, 0.25, -0.3], [-0.9, 0.5, 0], [-0.6, -1, 0], [-0.4, -1, 0.2], [-0.5, -1, -0.3]),
+		// шаг левой вперёд в момент удара, правая пятка отрывается
+		footL: k([a.L.x + 0.04, a.L.y, a.L.z + 0.08], [a.L.x + 0.04, a.L.y, a.L.z + 0.06], [a.L.x + 0.05, a.L.y + 0.04, a.L.z + 0.16], [a.L.x + 0.05, a.L.y, a.L.z + 0.3], [a.L.x + 0.05, a.L.y, a.L.z + 0.3], [a.L.x + 0.04, a.L.y, a.L.z + 0.08]),
+		footRrot: k([0, 18, 0], [0, 18, 0], [6, 20, 0], [22, 22, 0], [20, 20, 0], [0, 18, 0]),
 	});
 	return (t) => {
 		const p = P(t);
 		return {
 			hips: p.hips, rot: p,
+			rightGrip: { pos: p.gripPos, handle: p.gripHandle, blade: p.gripBlade, hint: p.gripHint },
 			feet: {
 				L: { pos: p.footL, rot: [0, -8, 0] },
 				R: { pos: [a.R.x - 0.05, a.R.y + Math.max(0, p.footRrot[0]) / 22 * 0.03, a.R.z - 0.06], rot: p.footRrot },
@@ -447,28 +524,28 @@ function playerMeleePose(rig) {
 	};
 }
 
-// Выстрел из пистолета хватом двумя руками: отдача и возврат; можно повторять подряд.
+// Выстрел из пистолета хватом двумя руками: пистолет на уровне глаз, ствол строго вперёд,
+// отдача подбрасывает ствол вверх; левая кисть обхватывает правую. Можно повторять подряд.
 function playerShootPose(rig) {
 	const H = rig.hipsY, a = rig.ankle;
 	const k = at([0, 0.05, 0.14, 0.4]);
 	const P = curves({
-		Hips: k([2, -18, 0], [0, -18, 0], [1, -18, 0], [2, -18, 0]),
-		Spine: k([3, 10, 0], [0, 10, 0], [2, 10, 0], [3, 10, 0]),
-		Chest: k([2, 8, 0], [-4, 8, 0], [0, 8, 0], [2, 8, 0]),
-		Neck: k([2, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0]),
-		Head: k([4, 0, 0], [0, 0, 0], [3, 0, 0], [4, 0, 0]),
-		'UpperArm.R': k([-86, 0, 6], [-96, 0, 6], [-88, 0, 6], [-86, 0, 6]),
-		'Forearm.R': k([-4, 0, 0], [-14, 0, 0], [-6, 0, 0], [-4, 0, 0]),
-		'Hand.R': k([0, 0, 0], [-14, 0, 0], [-3, 0, 0], [0, 0, 0]),
-		'UpperArm.L': k([-78, 0, -30], [-88, 0, -30], [-80, 0, -30], [-78, 0, -30]),
-		'Forearm.L': k([-40, 0, 0], [-46, 0, 0], [-41, 0, 0], [-40, 0, 0]),
-		'Hand.L': k([0, 0, 0], [-8, 0, 0], [-2, 0, 0], [0, 0, 0]),
+		Hips: k([2, -10, 0], [0, -10, 0], [1, -10, 0], [2, -10, 0]),
+		Spine: k([3, 5, 0], [0, 5, 0], [2, 5, 0], [3, 5, 0]),
+		Chest: k([2, 5, 0], [-4, 5, 0], [0, 5, 0], [2, 5, 0]),
+		Neck: k([4, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0]),
+		Head: k([6, 2, 0], [3, 2, 0], [5, 2, 0], [6, 2, 0]),
 		hips: k([0, H - 0.04, 0], [0, H - 0.04, -0.015], [0, H - 0.04, -0.005], [0, H - 0.04, 0]),
+		gripPos: k([-0.06, 1.42, 0.58], [-0.06, 1.46, 0.53], [-0.06, 1.43, 0.57], [-0.06, 1.42, 0.58]),
+		gripHandle: k([0, 1, 0.08], [0, 0.95, -0.3], [0, 1, 0.02], [0, 1, 0.08]),
+		gripBlade: k([0, 0, 1], [0, 0.3, 0.95], [0, 0.03, 1], [0, 0, 1]),
 	});
 	return (t) => {
 		const p = P(t);
 		return {
 			hips: p.hips, rot: p,
+			rightGrip: { pos: p.gripPos, handle: p.gripHandle, blade: p.gripBlade, hint: [-0.7, -1, -0.2] },
+			supportHand: {},
 			feet: {
 				L: { pos: [a.L.x + 0.05, a.L.y, a.L.z + 0.12], rot: [0, -12, 0] },
 				R: { pos: [a.R.x - 0.06, a.R.y, a.R.z - 0.1], rot: [0, 25, 0] },
@@ -482,16 +559,18 @@ function playerHitPose(rig) {
 	const H = rig.hipsY, a = rig.ankle;
 	const k = at([0, 0.08, 0.2, 0.4]);
 	const P = curves({
-		hips: k([0, H - 0.03, 0], [0, H - 0.05, -0.06], [0, H - 0.05, -0.05], [0, H - 0.03, 0]),
-		Hips: k([3, -8, 0], [-6, -4, 4], [-2, -6, 2], [3, -8, 0]),
-		Spine: k([4, 4, 0], [-10, 8, 3], [-2, 6, 0], [4, 4, 0]),
-		Chest: k([3, 4, 0], [-12, 8, 3], [-2, 6, 0], [3, 4, 0]),
-		Neck: k([0, -2, 0], [-12, 6, 0], [-2, 0, 0], [0, -2, 0]),
-		Head: k([2, -4, 0], [-18, 10, 6], [-4, 0, 0], [2, -4, 0]),
-		'UpperArm.R': k([-22, 0, -8], [-40, 0, -25], [-28, 0, -12], [-22, 0, -8]),
-		'Forearm.R': k([-48, 0, 0], [-70, 0, 0], [-55, 0, 0], [-48, 0, 0]),
-		'UpperArm.L': k([-12, 0, 10], [-45, 0, 30], [-20, 0, 14], [-12, 0, 10]),
-		'Forearm.L': k([-28, 0, 0], [-70, 0, 0], [-35, 0, 0], [-28, 0, 0]),
+		hips: k([0, H - 0.03, 0], [0, H - 0.05, -0.05], [0, H - 0.045, -0.04], [0, H - 0.03, 0]),
+		Hips: k([3, -8, 0], [-3, -5, 3], [0, -7, 1], [3, -8, 0]),
+		Spine: k([4, 4, 0], [-5, 8, 3], [1, 6, 0], [4, 4, 0]),
+		Chest: k([3, 4, 0], [-7, 8, 3], [0, 6, 0], [3, 4, 0]),
+		Neck: k([0, -2, 0], [-8, 6, 0], [-2, 0, 0], [0, -2, 0]),
+		Head: k([2, -4, 0], [-12, 10, 6], [-3, 0, 0], [2, -4, 0]),
+		// топор прижимается к телу, левая рука прикрывает грудь
+		'UpperArm.R': k([-8, 0, -9], [-28, 0, -16], [-16, 0, -11], [-8, 0, -9]),
+		'Forearm.R': k([-20, 0, 0], [-55, 0, 0], [-32, 0, 0], [-20, 0, 0]),
+		'Hand.R': k([40, 0, 0], [30, 0, 0], [36, 0, 0], [40, 0, 0]),
+		'UpperArm.L': k([-12, 0, 10], [-30, 0, 4], [-18, 0, 8], [-12, 0, 10]),
+		'Forearm.L': k([-28, 0, 0], [-75, 0, 0], [-40, 0, 0], [-28, 0, 0]),
 	});
 	return (t) => {
 		const p = P(t);
@@ -499,7 +578,7 @@ function playerHitPose(rig) {
 			hips: p.hips, rot: p,
 			feet: {
 				L: { pos: [a.L.x + 0.04, a.L.y, a.L.z + 0.08], rot: [0, -8, 0] },
-				R: { pos: [a.R.x - 0.05, a.R.y, a.R.z - 0.06 - 0.06 * Math.sin(Math.min(1, p.hips[2] / -0.06) * Math.PI / 2)], rot: [0, 18, 0] },
+				R: { pos: [a.R.x - 0.05, a.R.y, a.R.z - 0.06 - 0.06 * Math.sin(Math.min(1, p.hips[2] / -0.05) * Math.PI / 2)], rot: [0, 18, 0] },
 			},
 		};
 	};

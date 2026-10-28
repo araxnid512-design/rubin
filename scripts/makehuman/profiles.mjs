@@ -124,6 +124,7 @@ function playerGarments({ P, dominant, L, smoothstep }) {
 export const PLAYER_PROFILE = {
 	name: 'Player',
 	targets: PLAYER_TARGETS,
+	fist: { fingers: [88, 100, 70], thumb: [25, 40, 35] }, // кулаки — чтобы держать оружие
 	wounds: false,
 	garments: playerGarments,
 	skin: humanSkin,
