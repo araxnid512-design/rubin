@@ -10,6 +10,7 @@ import { setAnisotropy, bloodDecalTexture, softDotTexture } from './textures.js'
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
 import { makeAxe, makePistol } from './weapons.js';
+import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 const $ = (id) => document.getElementById(id);
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -168,8 +169,10 @@ class Actor {
 
 const WEAPONS = {
 	axe: { name: 'Топор', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.34 },
-	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.32, mag: 8, reload: 1.3 },
+	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.32, mag: 8, reload: 1.4 },
 };
+
+const ONE_SHOT = new Set(['Melee', 'Shoot', 'Hit', 'HitPistol', 'Reload', 'EquipPistol', 'EquipAxe']);
 
 class Player extends Actor {
 	constructor(gltf) {
@@ -185,20 +188,55 @@ class Player extends Actor {
 		this.pending = [];
 		this.alive = true;
 		this.lastHurt = 0;
-		// точка хвата в кулаке (узел GripR в модели); запасной вариант — кисть (GLTFLoader: Hand.R → HandR)
-		this.hand = this.model.getObjectByName('GripR') ?? this.model.getObjectByName('HandR');
+		// точка хвата в кулаке и крепления оружия на теле (чехол топора, кобура)
+		this.hand = this.model.getObjectByName('GripR');
+		this.mounts = { axe: this.model.getObjectByName('AxeMount'), pistol: this.model.getObjectByName('HolsterMount') };
 		this.axe = makeAxe();
 		this.pistol = makePistol();
-		this.hand.add(this.axe, this.pistol);
 		this.setWeapon('axe');
 		this.play('Idle');
 	}
 
+	/** Набор анимаций под оружие в руках. */
+	get clips() {
+		return this.weapon === 'axe'
+			? { idle: 'Idle', walk: 'Walk', run: 'Run', hit: 'Hit' }
+			: { idle: 'IdlePistol', walk: 'WalkPistol', run: 'RunPistol', hit: 'HitPistol' };
+	}
+
+	/** Мгновенно: оружие w в руке, второе — в креплении на теле. */
 	setWeapon(w) {
 		this.weapon = w;
-		this.axe.visible = w === 'axe';
-		this.pistol.visible = w === 'pistol';
+		this.stow(w === 'axe' ? 'pistol' : 'axe');
+		this.hand.add(w === 'axe' ? this.axe : this.pistol);
 		game.hud();
+	}
+
+	stow(w) {
+		const obj = w === 'axe' ? this.axe : this.pistol;
+		(this.mounts[w] ?? this.hand).add(obj);
+		obj.visible = !!this.mounts[w];
+	}
+
+	/** Смена оружия анимацией: убрать текущее на тело, достать другое. */
+	switchWeapon() {
+		if (!this.alive || this.equipping || this.busy > 0) return;
+		const to = this.weapon === 'axe' ? 'pistol' : 'axe';
+		const clip = to === 'pistol' ? 'EquipPistol' : 'EquipAxe';
+		const T = EQUIP_TIMES[clip];
+		this.reloading = 0;
+		this.equipping = true;
+		this.busy = this.actions[clip].getClip().duration - 0.1;
+		this.play(clip, { once: true, fade: 0.12, restart: true });
+		this.pending.push({ t: T.stow, fn: () => this.stow(this.weapon) });
+		this.pending.push({ t: T.draw, fn: () => {
+			this.weapon = to;
+			const obj = to === 'axe' ? this.axe : this.pistol;
+			this.hand.add(obj);
+			obj.visible = true;
+			game.hud();
+		} });
+		this.pending.push({ t: this.busy, fn: () => { this.equipping = false; } });
 	}
 
 	hurt(dmg, from) {
@@ -217,14 +255,14 @@ class Player extends Actor {
 			this.pending.push({ t: 0.55, fn: () => this.dropWeapon() });
 			game.over();
 		} else if (this.busy <= 0) {
-			this.play('Hit', { once: true, fade: 0.06, restart: true });
+			this.play(this.clips.hit, { once: true, fade: 0.06, restart: true });
 			this.busy = 0.3;
 		}
 		game.hud();
 	}
 
 	attack() {
-		if (!this.alive || this.cooldown > 0 || this.reloading > 0) return;
+		if (!this.alive || this.cooldown > 0 || this.reloading > 0 || this.equipping) return;
 		const W = WEAPONS[this.weapon];
 		if (this.weapon === 'axe') {
 			const target = game.nearestEnemy(this.pos, 3.2);
@@ -283,7 +321,8 @@ class Player extends Actor {
 
 	/** При смерти оружие выпадает из руки и ложится на землю. */
 	dropWeapon() {
-		const w = this.weapon === 'axe' ? this.axe : this.pistol;
+		const w = [this.axe, this.pistol].find((o) => o.parent === this.hand);
+		if (!w) return;
 		const pos = w.getWorldPosition(new THREE.Vector3());
 		w.removeFromParent();
 		scene.add(w);
@@ -300,8 +339,9 @@ class Player extends Actor {
 	}
 
 	reload() {
-		if (this.weapon !== 'pistol' || this.reloading > 0 || this.ammo === WEAPONS.pistol.mag) return;
+		if (this.weapon !== 'pistol' || this.reloading > 0 || this.equipping || this.ammo === WEAPONS.pistol.mag) return;
 		this.reloading = WEAPONS.pistol.reload;
+		this.play('Reload', { once: true, fade: 0.1, restart: true });
 		Sfx.reload();
 		game.hud();
 	}
@@ -333,9 +373,11 @@ class Player extends Actor {
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
 			this.pos.addScaledVector(dir, speed * dt);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 12);
-			this.play(run ? 'Run' : 'Walk', { timeScale: run ? 0.75 + mag * 0.3 : 1 });
-		} else if (!['Melee', 'Shoot', 'Hit'].includes(this.current) || !this.actions[this.current].isRunning()) {
-			this.play('Idle');
+			this.play(run ? this.clips.run : this.clips.walk, { timeScale: run ? 0.75 + mag * 0.3 : 1 });
+		} else if (this.reloading > 0) {
+			if (this.current !== 'Reload') this.play('Reload', { once: true, fade: 0.15 });
+		} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
+			this.play(this.clips.idle);
 		}
 		resolveCollisions(this.pos, this.radius, level.colliders);
 	}
@@ -760,7 +802,7 @@ function update(dt) {
 	game.time += game.state === 'play' ? dt : 0;
 	const input = game.input;
 	if (input.consume('attack')) game.player.attack();
-	if (input.consume('switch') && game.player.alive) game.player.setWeapon(game.player.weapon === 'axe' ? 'pistol' : 'axe');
+	if (input.consume('switch')) game.player.switchWeapon();
 	if (input.consume('reload')) game.player.reload();
 	game.player.update(dt, input);
 	if (input.held('attack')) game.player.attack(); // зажатая кнопка — серия ударов/выстрелов

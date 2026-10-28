@@ -1,6 +1,6 @@
 // Сборка реалистичного зомби из базовой модели MakeHuman (CC0):
 //   1. морфы: худой мужчина, впалые щёки и глаза, впалый живот;
-//   2. скелет из 19 костей по суставам MakeHuman, веса 163 костей сводятся к нашим 19;
+//   2. скелет по суставам MakeHuman (19 костей у зомби, 56 у героя — см. rigs.mjs), веса 163 костей сводятся к нашим;
 //   3. руки из A-позы опускаются вниз (меш перепозируется скиннингом), скелет перепривязывается;
 //   4. рваная одежда — «надутые» копии участков тела с дырами и лохмотьями;
 //   5. текстуры кожи и ткани запекаются по 3D-координатам в UV-развёртку MakeHuman;
@@ -15,6 +15,7 @@ import { loadObj, applyTarget, loadSkeleton, loadWeights, jointPosition, fitProx
 import { bakeAtlas, colorTexture, normalTexture, makeTexture } from './bake.mjs';
 import { decodePNG } from '../node-shims.mjs';
 import { createZombieAnimations } from '../../src/zombie.js';
+import { RIGS } from './rigs.mjs';
 import { fbm3, noise3, smoothstep } from '../../src/noise.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -37,30 +38,6 @@ const RUNNER_TARGETS = [
 	['torso/torso-muscle-pectoral-decr', 0.6],
 ];
 
-export const BONE_PARENTS = {
-	Root: null, Hips: 'Root', Spine: 'Hips', Chest: 'Spine', Neck: 'Chest', Head: 'Neck', Jaw: 'Head',
-	'UpperArm.L': 'Chest', 'Forearm.L': 'UpperArm.L', 'Hand.L': 'Forearm.L',
-	'UpperArm.R': 'Chest', 'Forearm.R': 'UpperArm.R', 'Hand.R': 'Forearm.R',
-	'UpperLeg.L': 'Hips', 'LowerLeg.L': 'UpperLeg.L', 'Foot.L': 'LowerLeg.L',
-	'UpperLeg.R': 'Hips', 'LowerLeg.R': 'UpperLeg.R', 'Foot.R': 'LowerLeg.R',
-};
-const BONE_NAMES = Object.keys(BONE_PARENTS);
-const CENTER_BONES = new Set(['Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head', 'Jaw']);
-
-// Кость MakeHuman → наша кость (по ближайшему предку из таблицы).
-const MH_MAP = {
-	root: 'Hips', pelvis: 'Hips', spine05: 'Hips', spine04: 'Spine', spine03: 'Spine',
-	spine02: 'Chest', spine01: 'Chest', clavicle: 'Chest', shoulder01: 'Chest', breast: 'Chest',
-	upperarm01: 'UpperArm', upperarm02: 'UpperArm', lowerarm01: 'Forearm', lowerarm02: 'Forearm', wrist: 'Hand',
-	upperleg01: 'UpperLeg', upperleg02: 'UpperLeg', lowerleg01: 'LowerLeg', lowerleg02: 'LowerLeg', foot: 'Foot',
-	neck01: 'Neck', neck02: 'Neck', neck03: 'Neck', head: 'Head', jaw: 'Jaw',
-};
-// Где стоит наша кость: голова соответствующей кости MakeHuman.
-const BONE_FROM_MH = {
-	Hips: 'spine05', Spine: 'spine04', Chest: 'spine02', Neck: 'neck01', Head: 'head', Jaw: 'jaw',
-	UpperArm: 'upperarm01', Forearm: 'lowerarm01', Hand: 'wrist', UpperLeg: 'upperleg01', LowerLeg: 'lowerleg01', Foot: 'foot',
-};
-
 const toLinear = (c) => c.map((v) => Math.min(1, Math.max(0, v)) ** 2.2);
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const V = (a) => new THREE.Vector3(...a);
@@ -75,6 +52,8 @@ export function buildZombie(options) {
  * морфы фигуры, кожа, одежда, раны и набор анимаций.
  */
 export function buildCharacter(profile, { textureSize = 1024 } = {}) {
+	const rig = RIGS[profile.rig ?? 'simple'];
+	const BONE_NAMES = rig.names, BONE_PARENTS = rig.parents;
 	// ---------- 1. Базовая модель + морфы ----------
 	const base = loadObj(join(MH, 'base.obj'));
 	const pos = base.positions;
@@ -98,30 +77,28 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	const restWorld = {};
 	for (const name of BONE_NAMES) {
 		if (name === 'Root') { restWorld[name] = [0, 0, 0]; continue; }
-		const [stem, side] = name.split('.');
-		const p = J(side ? `${BONE_FROM_MH[stem]}.${side}` : BONE_FROM_MH[stem]);
-		if (CENTER_BONES.has(name)) p[0] = 0;
+		const p = J(rig.mhHead(name));
+		if (rig.center.has(name)) p[0] = 0;
 		restWorld[name] = p;
 	}
 
 	const mapBone = (mhName) => {
 		let n = mhName;
 		while (n) {
-			const [stem, side] = n.split('.');
-			if (MH_MAP[stem]) return CENTER_BONES.has(MH_MAP[stem]) ? MH_MAP[stem] : `${MH_MAP[stem]}.${side}`;
+			const ours = rig.mapMH(n);
+			if (ours) return ours;
 			n = skel.bones[n].parent;
 		}
 		return 'Hips';
 	};
 	const vertWeights = Array.from({ length: nv }, () => ({}));
 	const mhWeights = loadWeights(join(MH, 'rigs/default_weights.mhw'));
-	// кулак: пальцы сгибаются ещё в A-позе, по весам костей пальцев MakeHuman
-	if (profile.fist) for (const side of ['L', 'R']) curlFingers(pos, skel, mhWeights, side, profile.fist);
 	for (const [mhBone, list] of Object.entries(mhWeights)) {
 		const ours = mapBone(mhBone);
 		for (const [v, w] of list) vertWeights[v][ours] = (vertWeights[v][ours] ?? 0) + w;
 	}
-	const dominant = vertWeights.map((w) => Object.entries(w).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Head');
+	// доминирующая кость вершины в «простой» разметке (UpperArm.L, Chest, ...) — для одежды
+	const dominant = vertWeights.map((w) => rig.part(Object.entries(w).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Head'));
 
 	// ---------- 3. Опускаем руки из A-позы, выпрямляем ноги ----------
 	const bones = {};
@@ -149,14 +126,15 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		bones.Root.updateMatrixWorld(true);
 	};
 	for (const [sx, s] of [[1, 'L'], [-1, 'R']]) {
-		aim(`UpperArm.${s}`, restWorld[`Forearm.${s}`], [sx * 0.13, -1, 0.0]);
-		aim(`Forearm.${s}`, restWorld[`Hand.${s}`], [sx * 0.05, -1, 0.16]);
-		aim(`Hand.${s}`, J(`finger3-1.${s}`), [sx * 0.02, -1, 0.1]);
-		aim(`UpperLeg.${s}`, restWorld[`LowerLeg.${s}`], [sx * 0.035, -1, 0.0]);
-		aim(`LowerLeg.${s}`, restWorld[`Foot.${s}`], [sx * 0.01, -1, -0.03]);
+		const l = rig.limb(s);
+		aim(l.upperArm, restWorld[l.foreArm], [sx * 0.13, -1, 0.0]);
+		aim(l.foreArm, restWorld[l.hand], [sx * 0.05, -1, 0.16]);
+		aim(l.hand, J(`finger3-1.${s}`), [sx * 0.02, -1, 0.1]);
+		aim(l.upLeg, restWorld[l.leg], [sx * 0.035, -1, 0.0]);
+		aim(l.leg, restWorld[l.foot], [sx * 0.01, -1, -0.03]);
 		// ступня остаётся параллельной земле
-		const parentQ = worldQ(`LowerLeg.${s}`);
-		bones[`Foot.${s}`].quaternion.copy(parentQ.invert());
+		const parentQ = worldQ(l.leg);
+		bones[l.foot].quaternion.copy(parentQ.invert());
 		bones.Root.updateMatrixWorld(true);
 	}
 	const skinMats = Object.fromEntries(BONE_NAMES.map((n) => [n, bones[n].matrixWorld.clone().multiply(restInverse[n])]));
@@ -177,7 +155,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	// точки хвата оружия: центр кулака и оси кисти (пальцы, большой палец, ладонь) в позе привязки
 	const grips = {};
 	for (const s of ['L', 'R']) {
-		const at = (mhBone) => V(jointPosition(skel, pos, skel.bones[`${mhBone}.${s}`].head)).applyMatrix4(skinMats[`Hand.${s}`]);
+		const at = (mhBone) => V(jointPosition(skel, pos, skel.bones[`${mhBone}.${s}`].head)).applyMatrix4(skinMats[rig.limb(s).hand]);
 		grips[s] = handFrame(at('wrist'), at('finger3-1'), at('finger2-1'), at('finger5-1'), at('finger1-1'));
 	}
 	// ступни могли чуть сместиться — снова ставим на землю
@@ -193,14 +171,16 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	const N = (v) => new THREE.Vector3(vnormals[v * 3], vnormals[v * 3 + 1], vnormals[v * 3 + 2]);
 
 	// ---------- Ориентиры для текстур и одежды ----------
+	const A = (name) => bindWorld[rig.alias[name]];
+	const limbL = rig.limb('L'), limbR = rig.limb('R');
 	const L = {
 		hipsY: bindWorld.Hips.y,
-		chest: bindWorld.Chest, neck: bindWorld.Neck, head: bindWorld.Head,
+		chest: A('Chest'), neck: A('Neck'), head: A('Head'),
 		mouth: groupCenter(base.groups.get('joint-mouth'), posed),
 		eyeL: V(jointPosition(skel, posed, skel.bones['eye.L'].head)),
 		eyeR: V(jointPosition(skel, posed, skel.bones['eye.R'].head)),
-		shoulderL: bindWorld['UpperArm.L'], elbowR: bindWorld['Forearm.R'],
-		kneeL: bindWorld['LowerLeg.L'], kneeR: bindWorld['LowerLeg.R'], ankleL: bindWorld['Foot.L'],
+		shoulderL: bindWorld[limbL.upperArm], shoulderR: bindWorld[limbR.upperArm], elbowR: bindWorld[limbR.foreArm],
+		kneeL: bindWorld[limbL.leg], kneeR: bindWorld[limbR.leg], ankleL: bindWorld[limbL.foot],
 	};
 	// Самая передняя точка поверхности тела около (x, y)
 	const frontMost = (x, y, tol = 0.012) => {
@@ -211,15 +191,23 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		}
 		return best;
 	};
+	const backMost = (x, y, tol = 0.012) => {
+		let best = null;
+		for (const f of bodyFaces) for (const [v] of f) {
+			const p = P(v);
+			if (Math.abs(p.x - x) < tol && Math.abs(p.y - y) < tol && (!best || p.z < best.z)) best = p;
+		}
+		return best;
+	};
 	L.lips = frontMost(0, L.mouth.y, 0.008);
 	const wound = profile.wounds ? frontMost(-0.075, L.chest.y + 0.12) : null; // рана на груди справа (у персонажа)
 	L.wound = wound;
 	L.bite = profile.wounds ? frontMost(L.shoulderL.x - 0.01, L.shoulderL.y + 0.02, 0.015) : null; // укус на левом плече
 
-	const weightSum = (v, prefix) => Object.entries(vertWeights[v]).reduce((s, [b, w]) => s + (b.startsWith(prefix) ? w : 0), 0);
+	const weightSum = (v, prefix) => Object.entries(vertWeights[v]).reduce((s, [b, w]) => s + (rig.part(b).startsWith(prefix) ? w : 0), 0);
 
 	// ---------- 4. Геометрия тела ----------
-	const builder = new GeometryBuilder(base.uvs, vertWeights);
+	const builder = new GeometryBuilder(base.uvs, vertWeights, BONE_NAMES);
 	// вмятина раны и наросты (у топтуна)
 	const bodyPos = posed.slice();
 	for (let v = 0; v < nv; v++) {
@@ -239,11 +227,11 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	}
 	const tongueFaces = base.groups.get('helper-tongue');
 	teethGeo.push(builder.build(tongueFaces, posed, vertexNormals(posed, tongueFaces, nv), () => [0.35, 0.12, 0.12]));
-	if (wound) teethGeo.push(ribsGeometry(wound, builder.boneIndex));
+	if (wound) teethGeo.push(ribsGeometry(wound, builder.boneIndex, rig.alias.Chest));
 
 	// Глаза (прокси-меш): кость Head
 	const eyeFaces = eyes.groups.get('default');
-	const eyeGeo = new GeometryBuilder(eyes.uvs, null).build(eyeFaces, eyes.positions, vertexNormals(eyes.positions, eyeFaces, eyes.positions.length / 3), null, { Head: 1 }, builder.boneIndex);
+	const eyeGeo = new GeometryBuilder(eyes.uvs, null, BONE_NAMES).build(eyeFaces, eyes.positions, vertexNormals(eyes.positions, eyeFaces, eyes.positions.length / 3), null, { Head: 1 }, builder.boneIndex);
 
 	// ---------- 5. Одежда ----------
 	const ragged = (p, amount, seed) => amount * (0.2 + 0.8 * fbm3(p.x * 28, p.y * 28, p.z * 28, 2, seed));
@@ -259,7 +247,10 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		}
 		return builder.build(keep, gp, vertexNormals(gp, keep, nv), (v) => tint(P(v), v));
 	};
-	const clothGeos = profile.garments({ P, dominant, L, ragged, V, smoothstep, weightSum }).map(garment);
+	const ctx = { P, N, dominant, L, ragged, V, smoothstep, weightSum, frontMost, backMost, bindWorld, rig };
+	const clothGeos = profile.garments(ctx).map(garment);
+	// снаряжение (жёсткие детали на костях): подсумки, рюкзак, кобура...
+	const gearGeos = (profile.gear?.(ctx) ?? []).map(({ geo, bone, color }) => builder.rigid(geo, { [bone]: 1 }, color));
 
 	// ---------- 6. Текстуры ----------
 	const triAttrs = (v) => [weightSum(v, 'Hand'), weightSum(v, 'Foot'), weightSum(v, 'Forearm') + weightSum(v, 'Hand'), weightSum(v, 'Head') + weightSum(v, 'Jaw')];
@@ -275,12 +266,12 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		new THREE.MeshStandardMaterial({ name: 'Teeth', vertexColors: true, roughness: 0.35, metalness: 0 }),
 	];
 
-	const geometry = mergeGeometries([
-		skinGeo,
-		mergeGeometries(clothGeos),
-		eyeGeo,
-		mergeGeometries(teethGeo),
-	], true);
+	const groups = [skinGeo, mergeGeometries(clothGeos), eyeGeo, mergeGeometries(teethGeo)];
+	if (gearGeos.length) {
+		groups.push(mergeGeometries(gearGeos));
+		materials.push(new THREE.MeshStandardMaterial({ name: 'Gear', vertexColors: true, roughness: 0.82, metalness: 0.05 }));
+	}
+	const geometry = mergeGeometries(groups, true);
 	geometry.computeBoundingBox();
 	geometry.computeBoundingSphere();
 
@@ -299,9 +290,17 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		const g = grips[s], grip = new THREE.Object3D();
 		grip.name = `Grip${s}`; // без точки: GLTFLoader убирает точки из имён
 		g.pos.y -= minPosed;
-		grip.position.copy(g.pos).sub(bindWorld[`Hand.${s}`]);
+		grip.position.copy(g.pos).sub(bindWorld[rig.limb(s).hand]);
 		grip.quaternion.copy(g.quat);
-		finalBones[`Hand.${s}`].add(grip);
+		finalBones[rig.limb(s).hand].add(grip);
+	}
+	// точки крепления (оружие за спиной, кобура): { name, bone, pos (мир), quat }
+	for (const m of profile.mounts?.(ctx) ?? []) {
+		const node = new THREE.Object3D();
+		node.name = m.name;
+		node.position.copy(m.pos).sub(bindWorld[m.bone]);
+		node.quaternion.copy(m.quat ?? new THREE.Quaternion());
+		finalBones[m.bone].add(node);
 	}
 	const boneList = BONE_NAMES.map((n) => finalBones[n]);
 	const mesh = new THREE.SkinnedMesh(geometry, materials);
@@ -335,67 +334,6 @@ function handFrame(wrist, middle, index, pinky, thumb) {
 	const Y = F.clone().negate(), Z = T.clone(), X = new THREE.Vector3().crossVectors(Y, Z);
 	const quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
 	return { pos, quat, F, T, P };
-}
-
-/**
- * Сгибает пальцы одной руки в кулак. Вершина пальца привязывается к своей фаланге
- * (ближайший отрезок кости), у суставов — плавный переход; доля пальца берётся из весов MakeHuman.
- */
-function curlFingers(pos, skel, weights, side, { fingers = [70, 85, 60], thumb = [25, 35, 30] } = {}) {
-	const J = (name) => V(jointPosition(skel, pos, name));
-	const head = (b) => J(skel.bones[`${b}.${side}`].head);
-	const tail = (b) => J(skel.bones[`${b}.${side}`].tail);
-	const hand = handFrame(head('wrist'), head('finger3-1'), head('finger2-1'), head('finger5-1'), head('finger1-1'));
-	const src = pos.slice();
-	const delta = new Float32Array(pos.length); // смещения от разных пальцев складываются (перепонки между пальцами)
-	const v = new THREE.Vector3(), tmp = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3();
-	for (let f = 1; f <= 5; f++) {
-		const names = [1, 2, 3].map((k) => `finger${f}-${k}`);
-		const angles = f === 1 ? thumb : fingers;
-		// накопленные повороты фаланг
-		const mats = [];
-		let M = new THREE.Matrix4();
-		const segs = names.map((n) => [head(n), tail(n)]);
-		for (let k = 0; k < 3; k++) {
-			const pivot = segs[k][0].clone().applyMatrix4(M);
-			const dir = segs[k][1].clone().sub(segs[k][0]).transformDirection(M).normalize();
-			const axis = new THREE.Vector3().crossVectors(dir, hand.P).normalize();
-			const R = new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z)
-				.multiply(new THREE.Matrix4().makeRotationAxis(axis, THREE.MathUtils.degToRad(angles[k])))
-				.multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
-			M = R.multiply(M);
-			mats.push(M.clone());
-		}
-		// доля пальца у каждой вершины
-		const share = new Map();
-		for (const n of names) for (const [i, w] of weights[`${n}.${side}`] ?? []) share.set(i, Math.min(1, (share.get(i) ?? 0) + w));
-		for (const [i, wf] of share) {
-			v.set(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]);
-			// параметр вдоль цепочки фаланг: 0..3
-			let best = Infinity, param = 0;
-			segs.forEach(([h, t], k) => {
-				a.copy(t).sub(h);
-				const u = THREE.MathUtils.clamp(tmp.copy(v).sub(h).dot(a) / a.lengthSq(), 0, 1);
-				const d = tmp.copy(h).addScaledVector(a, u).distanceToSquared(v);
-				if (d < best) { best = d; param = k + u; }
-			});
-			// у основания пальца — плавный вход (не тянем ладонь), у суставов — смешивание соседних фаланг
-			const k = Math.min(2, Math.floor(param)), u = param - k;
-			const blend = 0.18;
-			b.copy(v).applyMatrix4(mats[k]);
-			if (u < blend && k > 0) {
-				tmp.copy(v).applyMatrix4(mats[k - 1]);
-				b.lerp(tmp, 0.5 * (1 - u / blend));
-			} else if (u > 1 - blend && k < 2) {
-				tmp.copy(v).applyMatrix4(mats[k + 1]);
-				b.lerp(tmp, 0.5 * ((u - (1 - blend)) / blend));
-			}
-			const entry = k === 0 ? THREE.MathUtils.smoothstep(u, 0, 0.35) : 1; // корень пальца гнётся постепенно
-			const w = (k === 0 ? 0.35 + 0.65 * entry : 1);
-			for (let c = 0; c < 3; c++) delta[i * 3 + c] += (b.getComponent(c) - src[i * 3 + c]) * Math.min(w, wf);
-		}
-	}
-	for (let i = 0; i < pos.length; i++) pos[i] += delta[i];
 }
 
 function groupCenter(faces, positions) {
@@ -446,10 +384,10 @@ function trianglesForBake(faces, uvs, P, N, A) {
 }
 
 class GeometryBuilder {
-	constructor(uvs, vertWeights) {
+	constructor(uvs, vertWeights, boneNames) {
 		this.uvs = uvs;
 		this.vertWeights = vertWeights;
-		this.boneIndex = Object.fromEntries(BONE_NAMES.map((n, i) => [n, i]));
+		this.boneIndex = Object.fromEntries(boneNames.map((n, i) => [n, i]));
 	}
 
 	skin(weights, boneIndex = this.boneIndex) {
@@ -459,6 +397,20 @@ class GeometryBuilder {
 		e.forEach(([b, w], i) => { idx[i] = boneIndex[b]; wts[i] = w / total; });
 		if (!e.length) { idx[0] = boneIndex.Head; wts[0] = 1; }
 		return [idx, wts];
+	}
+
+	/** Готовая three-геометрия в позе привязки (мир) → жёстко на кости, с цветом вершин. */
+	rigid(geo, weights, color = [0.3, 0.3, 0.3]) {
+		const g = geo;
+		if (!g.index) g.setIndex(Array.from({ length: g.attributes.position.count }, (_, i) => i));
+		const n = g.attributes.position.count;
+		const [idx, wts] = this.skin(weights);
+		const col = toLinear(typeof color === 'function' ? color() : color);
+		g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: n }, () => col).flat(), 3));
+		g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(Array.from({ length: n }, () => idx).flat(), 4));
+		g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(Array.from({ length: n }, () => wts).flat(), 4));
+		for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color', 'skinIndex', 'skinWeight'].includes(name)) g.deleteAttribute(name);
+		return g;
 	}
 
 	/** Грани OBJ → индексированная геометрия; вершины делятся по парам (вершина, UV). */
@@ -497,14 +449,14 @@ class GeometryBuilder {
 }
 
 // Три ребра, торчащие из раны на груди.
-function ribsGeometry(wound, boneIndex) {
+function ribsGeometry(wound, boneIndex, chestBone = 'Chest') {
 	const parts = [];
 	for (const dy of [-0.022, 0, 0.022]) {
 		const pts = [-0.032, -0.012, 0.01, 0.03].map((dx, i) => new THREE.Vector3(wound.x + dx, wound.y + dy + (i === 1 || i === 2 ? 0.003 : 0), wound.z - 0.011 + (i === 1 || i === 2 ? 0.004 : 0)));
 		const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.0035, 6, false);
 		const n = g.attributes.position.count;
 		g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: n }, () => toLinear([0.62, 0.48, 0.4])).flat(), 3));
-		g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(Array.from({ length: n }, () => [boneIndex.Chest, 0, 0, 0]).flat(), 4));
+		g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(Array.from({ length: n }, () => [boneIndex[chestBone], 0, 0, 0]).flat(), 4));
 		g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(Array.from({ length: n }, () => [1, 0, 0, 0]).flat(), 4));
 		parts.push(g);
 	}

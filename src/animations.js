@@ -18,7 +18,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // ---------- Кривые ----------
 
 /** Кривая по ключам [[t, [..значения]], ...] — кубический Эрмит (Катмулл-Ром). */
-function curve(keys, { loop = false, duration = 0 } = {}) {
+export function curve(keys, { loop = false, duration = 0 } = {}) {
 	const n = keys.length;
 	const dim = keys[0][1].length;
 	const m = n - 1; // в цикле последний ключ совпадает с первым
@@ -50,13 +50,13 @@ function curve(keys, { loop = false, duration = 0 } = {}) {
 }
 
 /** Набор кривых по костям: { кость: [[t,[x,y,z]], ...] } → (t) => { кость: [x,y,z] } */
-function curves(map, opts) {
+export function curves(map, opts) {
 	const fns = Object.entries(map).map(([k, keys]) => [k, curve(keys, opts)]);
 	return (t) => Object.fromEntries(fns.map(([k, f]) => [k, f(t)]));
 }
 
 // Значения для ключей «по времени»: times = [...], k(...значения) → [[t, v], ...]
-const at = (times) => (...vals) => vals.map((v, i) => [times[i], typeof v === 'number' ? [v] : v]);
+export const at = (times) => (...vals) => vals.map((v, i) => [times[i], typeof v === 'number' ? [v] : v]);
 
 // ---------- Риг и IK ----------
 
@@ -82,7 +82,7 @@ class Rig {
 }
 
 const _m = new THREE.Matrix4();
-function frame(up, fwdHint) {
+export function frame(up, fwdHint) {
 	const u = up.clone().normalize();
 	const f = fwdHint.clone().addScaledVector(u, -fwdHint.dot(u));
 	if (f.lengthSq() < 1e-8) f.set(0, 0, 1).addScaledVector(u, -u.z);
@@ -91,7 +91,7 @@ function frame(up, fwdHint) {
 	return new THREE.Quaternion().setFromRotationMatrix(_m.makeBasis(s, u, f));
 }
 
-const eulerQ = (deg, order = 'XYZ') => new THREE.Quaternion().setFromEuler(new THREE.Euler(D2R(deg[0] ?? 0), D2R(deg[1] ?? 0), D2R(deg[2] ?? 0), order));
+export const eulerQ = (deg, order = 'XYZ') => new THREE.Quaternion().setFromEuler(new THREE.Euler(D2R(deg[0] ?? 0), D2R(deg[1] ?? 0), D2R(deg[2] ?? 0), order));
 
 /**
  * Поза кадра → локальные кватернионы костей.
@@ -222,7 +222,7 @@ function bake(rig, name, duration, poseAt, { loop = false } = {}) {
  * Ступня в цикле ходьбы/бега (на месте: опорная нога едет назад).
  * phase 0 — касание пяткой; stance — доля опоры.
  */
-function gaitFoot(phase, { stride, stance, lift, x, y0, z0 = 0, heel = 12, toeOff = 30, drag = 0, yaw = 0, kick = 0 }) {
+export function gaitFoot(phase, { stride, stance, lift, x, y0, z0 = 0, heel = 12, toeOff = 30, drag = 0, yaw = 0, kick = 0 }) {
 	const p = ((phase % 1) + 1) % 1;
 	let z, y, pitch;
 	if (p < stance) {
@@ -421,212 +421,5 @@ export function createZombieAnimations(root) {
 		bake(rig, 'Run', 0.72, (t) => runPose(rig, t), { loop: true }),
 		bake(rig, 'Attack', 1.7, attackPose(rig)),
 		bake(rig, 'Death', 2.8, deathPose(rig)),
-	];
-}
-
-// ---------- Игрок (иммунный): оружие в правой руке ----------
-
-function playerIdlePose(rig, t) {
-	const H = rig.hipsY, a = rig.ankle;
-	const d = 3;
-	const w = (f, ph = 0) => Math.sin((t / d) * Math.PI * 2 * f + ph);
-	return {
-		hips: [0.012 * w(1), H - 0.03 + 0.004 * w(2, 1), 0],
-		rot: {
-			Hips: [3, -8 + 2 * w(1, 0.4), -1.5 * w(1)],
-			Spine: [4 + 1.2 * w(2, 0.5), 4, 0],
-			Chest: [3 + 1.2 * w(2, 0.9), 4, 0],
-			Neck: [0, -2 + 3 * w(1, 1.5), 0],
-			Head: [2 + 2 * w(1, 2), -4 + 8 * w(1, 2.2), 0],
-			// топор опущен, голова топора смотрит вперёд-вниз
-			'UpperArm.R': [-8 + 2 * w(2, 1), 0, -9],
-			'Forearm.R': [-20 + 3 * w(2, 1.3), 0, 0],
-			'Hand.R': [40, 0, 0],
-			'UpperArm.L': [-12 + 2 * w(2, 2), 0, 10],
-			'Forearm.L': [-28 + 3 * w(2, 2.3), 0, 0],
-			'Hand.L': [8, 0, 0],
-		},
-		feet: {
-			L: { pos: [a.L.x + 0.04, a.L.y, a.L.z + 0.08], rot: [0, -8, 0] },
-			R: { pos: [a.R.x - 0.05, a.R.y, a.R.z - 0.06], rot: [0, 18, 0] },
-		},
-	};
-}
-
-function playerGaitPose(rig, t, run) {
-	const H = rig.hipsY, a = rig.ankle;
-	const d = run ? 0.7 : 1.1, ph = t / d;
-	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
-	const s = (f, o = 0) => Math.sin(Math.PI * 2 * (ph * f - o));
-	const opts = run
-		? { stride: 1.1, stance: 0.38, lift: 0.15, heel: 10, toeOff: 40, kick: 0.16 }
-		: { stride: 0.62, stance: 0.6, lift: 0.07, heel: 14, toeOff: 28 };
-	const left = gaitFoot(ph, { ...opts, x: a.L.x, y0: a.L.y, z0: run ? 0.05 : 0.02, yaw: -3 });
-	const right = gaitFoot(ph - 0.5, { ...opts, x: a.R.x, y0: a.R.y, z0: run ? 0.05 : 0.02, yaw: 3 });
-	const yaw = (run ? -10 : -6) * c(1, 0.75);
-	const swing = run ? 38 : 20;
-	return {
-		hips: [0.02 * c(1, 0.25), H - (run ? 0.07 : 0.025) - (run ? 0.03 : 0.015) * c(2, run ? 0.19 : 0.05), 0],
-		rot: {
-			Hips: [run ? 10 : 3, yaw, 3 * c(1, 0.25)],
-			Spine: [run ? 8 : 3, -0.7 * yaw, 0],
-			Chest: [run ? 6 : 2, -0.6 * yaw, 0],
-			Neck: [run ? -6 : 0, 0.3 * yaw, 0],
-			Head: [run ? -6 : 2, 0, -2 * c(1, 0.3)],
-			// левая рука свободно машет, правая с оружием — меньше
-			'UpperArm.L': [-10 - swing * s(1, 0.0), 0, 10],
-			'Forearm.L': [(run ? -75 : -25) - (run ? 15 : 8) * s(1, 0.1), 0, 0],
-			'Hand.L': [6, 0, 0],
-			'UpperArm.R': [(run ? -22 : -10) + swing * 0.6 * s(1, 0.0), 0, -10],
-			'Forearm.R': [(run ? -62 : -26) + 6 * s(1, 0.1), 0, 0],
-			'Hand.R': [run ? 38 : 38, 0, 0],
-		},
-		feet: { L: left, R: right },
-	};
-}
-
-// Удар топором сверху: замах над правым плечом (топор за спиной) → лезвие идёт вперёд-вниз,
-// попадание ~0.34 с на уровне груди противника → доводка вниз-влево → возврат.
-// Правая рука ведётся по положению топора (IK), левая держит баланс у груди.
-function playerMeleePose(rig) {
-	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.2, 0.28, 0.34, 0.46, 0.75]);
-	const P = curves({
-		hips: k([0, H - 0.03, 0], [0, H - 0.04, -0.05], [0, H - 0.05, 0.0], [0, H - 0.08, 0.12], [0, H - 0.085, 0.13], [0, H - 0.03, 0]),
-		Hips: k([3, -8, 0], [-4, -22, 2], [2, -10, 0], [12, 14, -2], [14, 18, -3], [3, -8, 0]),
-		Spine: k([4, 4, 0], [-6, -12, 0], [2, -4, 0], [12, 10, 0], [14, 12, 0], [4, 4, 0]),
-		Chest: k([3, 4, 0], [-6, -12, 0], [2, -2, 0], [10, 10, 0], [12, 12, 0], [3, 4, 0]),
-		Neck: k([0, -2, 0], [4, 16, 0], [2, 8, 0], [4, -10, 0], [6, -12, 0], [0, -2, 0]),
-		Head: k([2, -4, 0], [2, 10, 0], [0, 4, 0], [6, -10, 0], [8, -10, 0], [2, -4, 0]),
-		// левая рука: на замахе тянется вперёд (баланс и прицел), в ударе прижимается к груди
-		'UpperArm.L': k([-12, 0, 10], [-62, 0, -12], [-55, 0, -12], [-22, 0, -14], [-18, 0, -8], [-12, 0, 10]),
-		'Forearm.L': k([-28, 0, 0], [-55, 0, 0], [-70, 0, 0], [-112, 0, 0], [-105, 0, 0], [-28, 0, 0]),
-		'Hand.L': k([8, 0, 0], [10, 0, 0], [10, 0, 0], [6, 0, 0], [6, 0, 0], [8, 0, 0]),
-		// топор: центр кулака, направление топорища и лезвия, локоть
-		gripPos: k([-0.24, 0.92, 0.18], [-0.3, 1.74, -0.14], [-0.22, 1.88, 0.2], [-0.08, 1.24, 0.8], [0.04, 0.8, 0.62], [-0.24, 0.92, 0.18]),
-		gripHandle: k([0, -0.35, 1], [0.1, -0.25, -1], [0.05, 0.8, -0.6], [0.1, -0.12, 1], [0.35, -0.8, 0.5], [0, -0.35, 1]),
-		gripBlade: k([0, -1, -0.35], [0, 1, -0.25], [0, 0.65, 0.75], [0, -1, 0.1], [0, -0.55, -0.8], [0, -1, -0.35]),
-		gripHint: k([-0.5, -1, -0.3], [-1, 0.25, -0.3], [-0.9, 0.5, 0], [-0.6, -1, 0], [-0.4, -1, 0.2], [-0.5, -1, -0.3]),
-		// шаг левой вперёд в момент удара, правая пятка отрывается
-		footL: k([a.L.x + 0.04, a.L.y, a.L.z + 0.08], [a.L.x + 0.04, a.L.y, a.L.z + 0.06], [a.L.x + 0.05, a.L.y + 0.04, a.L.z + 0.16], [a.L.x + 0.05, a.L.y, a.L.z + 0.3], [a.L.x + 0.05, a.L.y, a.L.z + 0.3], [a.L.x + 0.04, a.L.y, a.L.z + 0.08]),
-		footRrot: k([0, 18, 0], [0, 18, 0], [6, 20, 0], [22, 22, 0], [20, 20, 0], [0, 18, 0]),
-	});
-	return (t) => {
-		const p = P(t);
-		return {
-			hips: p.hips, rot: p,
-			rightGrip: { pos: p.gripPos, handle: p.gripHandle, blade: p.gripBlade, hint: p.gripHint },
-			feet: {
-				L: { pos: p.footL, rot: [0, -8, 0] },
-				R: { pos: [a.R.x - 0.05, a.R.y + Math.max(0, p.footRrot[0]) / 22 * 0.03, a.R.z - 0.06], rot: p.footRrot },
-			},
-		};
-	};
-}
-
-// Выстрел из пистолета хватом двумя руками: пистолет на уровне глаз, ствол строго вперёд,
-// отдача подбрасывает ствол вверх; левая кисть обхватывает правую. Можно повторять подряд.
-function playerShootPose(rig) {
-	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.05, 0.14, 0.4]);
-	const P = curves({
-		Hips: k([2, -10, 0], [0, -10, 0], [1, -10, 0], [2, -10, 0]),
-		Spine: k([3, 5, 0], [0, 5, 0], [2, 5, 0], [3, 5, 0]),
-		Chest: k([2, 5, 0], [-4, 5, 0], [0, 5, 0], [2, 5, 0]),
-		Neck: k([4, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0]),
-		Head: k([6, 2, 0], [3, 2, 0], [5, 2, 0], [6, 2, 0]),
-		hips: k([0, H - 0.04, 0], [0, H - 0.04, -0.015], [0, H - 0.04, -0.005], [0, H - 0.04, 0]),
-		gripPos: k([-0.06, 1.42, 0.58], [-0.06, 1.46, 0.53], [-0.06, 1.43, 0.57], [-0.06, 1.42, 0.58]),
-		gripHandle: k([0, 1, 0.08], [0, 0.95, -0.3], [0, 1, 0.02], [0, 1, 0.08]),
-		gripBlade: k([0, 0, 1], [0, 0.3, 0.95], [0, 0.03, 1], [0, 0, 1]),
-	});
-	return (t) => {
-		const p = P(t);
-		return {
-			hips: p.hips, rot: p,
-			rightGrip: { pos: p.gripPos, handle: p.gripHandle, blade: p.gripBlade, hint: [-0.7, -1, -0.2] },
-			supportHand: {},
-			feet: {
-				L: { pos: [a.L.x + 0.05, a.L.y, a.L.z + 0.12], rot: [0, -12, 0] },
-				R: { pos: [a.R.x - 0.06, a.R.y, a.R.z - 0.1], rot: [0, 25, 0] },
-			},
-		};
-	};
-}
-
-// Получение урона: вздрагивает и отшатывается.
-function playerHitPose(rig) {
-	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.08, 0.2, 0.4]);
-	const P = curves({
-		hips: k([0, H - 0.03, 0], [0, H - 0.05, -0.05], [0, H - 0.045, -0.04], [0, H - 0.03, 0]),
-		Hips: k([3, -8, 0], [-3, -5, 3], [0, -7, 1], [3, -8, 0]),
-		Spine: k([4, 4, 0], [-5, 8, 3], [1, 6, 0], [4, 4, 0]),
-		Chest: k([3, 4, 0], [-7, 8, 3], [0, 6, 0], [3, 4, 0]),
-		Neck: k([0, -2, 0], [-8, 6, 0], [-2, 0, 0], [0, -2, 0]),
-		Head: k([2, -4, 0], [-12, 10, 6], [-3, 0, 0], [2, -4, 0]),
-		// топор прижимается к телу, левая рука прикрывает грудь
-		'UpperArm.R': k([-8, 0, -9], [-28, 0, -16], [-16, 0, -11], [-8, 0, -9]),
-		'Forearm.R': k([-20, 0, 0], [-55, 0, 0], [-32, 0, 0], [-20, 0, 0]),
-		'Hand.R': k([40, 0, 0], [30, 0, 0], [36, 0, 0], [40, 0, 0]),
-		'UpperArm.L': k([-12, 0, 10], [-30, 0, 4], [-18, 0, 8], [-12, 0, 10]),
-		'Forearm.L': k([-28, 0, 0], [-75, 0, 0], [-40, 0, 0], [-28, 0, 0]),
-	});
-	return (t) => {
-		const p = P(t);
-		return {
-			hips: p.hips, rot: p,
-			feet: {
-				L: { pos: [a.L.x + 0.04, a.L.y, a.L.z + 0.08], rot: [0, -8, 0] },
-				R: { pos: [a.R.x - 0.05, a.R.y, a.R.z - 0.06 - 0.06 * Math.sin(Math.min(1, p.hips[2] / -0.05) * Math.PI / 2)], rot: [0, 18, 0] },
-			},
-		};
-	};
-}
-
-// Смерть игрока: колени подгибаются, садится и падает на спину.
-function playerDeathPose(rig) {
-	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.15, 0.45, 0.75, 1.05, 1.2, 1.35, 2.2]);
-	const P = curves({
-		hips: k([0, H - 0.03, 0], [0, H - 0.06, -0.03], [0.01, H - 0.32, -0.12], [0.02, 0.22, -0.28], [0.02, 0.14, -0.42], [0.02, 0.17, -0.43], [0.02, 0.125, -0.44], [0.02, 0.125, -0.44]),
-		Hips: k([3, -8, 0], [-4, -6, 3], [6, -6, 4], [-25, -4, 4], [-80, -2, 4], [-76, -2, 4], [-84, -2, 4], [-84, -2, 4]),
-		Spine: k([4, 4, 0], [-8, 6, 0], [14, 4, 0], [16, 4, 0], [2, 2, 0], [6, 2, 0], [0, 0, 0], [0, 0, 0]),
-		Chest: k([3, 4, 0], [-10, 6, 0], [12, 4, 0], [12, 4, 0], [0, 2, 0], [4, 2, 0], [-2, 0, 0], [-2, 0, 0]),
-		Neck: k([0, -2, 0], [-14, 0, 0], [20, 0, 0], [24, 0, 0], [10, 10, 0], [16, 12, 0], [0, 20, 0], [0, 20, 0]),
-		Head: k([2, -4, 0], [-20, 6, 4], [24, 4, 6], [20, 10, 6], [0, 26, 4], [8, 28, 4], [-6, 36, 4], [-6, 36, 4]),
-		'UpperArm.R': k([-22, 0, -8], [-50, 0, -25], [-20, 0, -12], [-30, 0, -30], [-10, 0, -55], [-14, 0, -60], [6, 0, -58], [6, 0, -58]),
-		'Forearm.R': k([-48, 0, 0], [-60, 0, 0], [-25, 0, 0], [-30, 0, 0], [-20, 0, 0], [-30, 0, 0], [-15, 0, 0], [-15, 0, 0]),
-		'UpperArm.L': k([-12, 0, 10], [-45, 0, 30], [-15, 0, 12], [-30, 0, 30], [-10, 0, 50], [-14, 0, 56], [6, 0, 52], [6, 0, 52]),
-		'Forearm.L': k([-28, 0, 0], [-60, 0, 0], [-20, 0, 0], [-25, 0, 0], [-15, 0, 0], [-25, 0, 0], [-10, 0, 0], [-10, 0, 0]),
-		footL: k([a.L.x + 0.04, a.L.y, a.L.z + 0.08], [a.L.x + 0.04, a.L.y, a.L.z + 0.08], [a.L.x + 0.05, a.L.y, a.L.z + 0.1], [a.L.x + 0.06, a.L.y, a.L.z + 0.18], [a.L.x + 0.08, a.L.y + 0.02, a.L.z + 0.38], [a.L.x + 0.08, a.L.y + 0.03, a.L.z + 0.4], [a.L.x + 0.08, a.L.y + 0.02, a.L.z + 0.41], [a.L.x + 0.08, a.L.y + 0.02, a.L.z + 0.41]),
-		footR: k([a.R.x - 0.05, a.R.y, a.R.z - 0.06], [a.R.x - 0.05, a.R.y, a.R.z - 0.06], [a.R.x - 0.06, a.R.y, a.R.z - 0.02], [a.R.x - 0.08, a.R.y, a.R.z + 0.1], [a.R.x - 0.1, a.R.y + 0.02, a.R.z + 0.34], [a.R.x - 0.1, a.R.y + 0.03, a.R.z + 0.36], [a.R.x - 0.1, a.R.y + 0.02, a.R.z + 0.37], [a.R.x - 0.1, a.R.y + 0.02, a.R.z + 0.37]),
-		footRot: k([0, 0, 0], [0, 0, 0], [-10, 0, 0], [-30, 0, 0], [-75, 0, 0], [-70, 0, 0], [-80, 0, 0], [-80, 0, 0]),
-	});
-	return (t) => {
-		const p = P(t);
-		return {
-			hips: p.hips, rot: p,
-			feet: {
-				L: { pos: p.footL, rot: [p.footRot[0], -14, 0] },
-				R: { pos: p.footR, rot: [p.footRot[0], 22, 0] },
-			},
-		};
-	};
-}
-
-export const PLAYER_ANIMATION_NAMES = ['Idle', 'Walk', 'Run', 'Melee', 'Shoot', 'Hit', 'Death'];
-
-/** Анимации игрока (иммунного) для скелета с корнем root. */
-export function createPlayerAnimations(root) {
-	const rig = new Rig(root);
-	return [
-		bake(rig, 'Idle', 3.0, (t) => playerIdlePose(rig, t), { loop: true }),
-		bake(rig, 'Walk', 1.1, (t) => playerGaitPose(rig, t, false), { loop: true }),
-		bake(rig, 'Run', 0.7, (t) => playerGaitPose(rig, t, true), { loop: true }),
-		bake(rig, 'Melee', 0.75, playerMeleePose(rig)),
-		bake(rig, 'Shoot', 0.4, playerShootPose(rig)),
-		bake(rig, 'Hit', 0.4, playerHitPose(rig)),
-		bake(rig, 'Death', 2.2, playerDeathPose(rig)),
 	];
 }

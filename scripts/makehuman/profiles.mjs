@@ -1,22 +1,17 @@
-// Профили персонажей для игры: иммунный (игрок) и топтун.
+// Профили персонажей для игры: герой (игрок) и топтун.
 // Бегун — исходный зомби (RUNNER_PROFILE в build-zombie.mjs).
 
 import { fbm3, noise3, smoothstep } from '../../src/noise.js';
-import { createZombieAnimations, createPlayerAnimations } from '../../src/animations.js';
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createZombieAnimations } from '../../src/animations.js';
+import { createHeroAnimations } from '../../src/hero-animations.js';
 import { RUNNER_PROFILE, bloodAmount, BLOOD, DRIED, skinShade } from './build-zombie.mjs';
 
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const f3 = (p, s, oct, seed) => fbm3(p.x * s, p.y * s, p.z * s, oct, seed);
 
-// ---------- Иммунный (игрок): обычный мужчина в «горке», разгрузке и берцах ----------
-
-const PLAYER_TARGETS = [
-	['macrodetails/universal-male-young-averagemuscle-averageweight', 0.55],
-	['macrodetails/universal-male-young-maxmuscle-averageweight', 0.45],
-	['macrodetails/caucasian-male-young', 1],
-	['macrodetails/height/male-young-averagemuscle-averageweight-maxheight', 0.25],
-	['cheek/l-cheek-bones-incr', 0.3], ['cheek/r-cheek-bones-incr', 0.3],
-];
+// ---------- Кожа человека и камуфляж «горки» (для героя) ----------
 
 function humanSkin(p, n, a, L) {
 	const base = f3(p, 5, 3, 1);
@@ -67,71 +62,6 @@ function camoCloth(p, n, a, L) {
 	const seam = smoothstep(0.985, 1, 1 - Math.abs(Math.sin(p.y * 70))) * 0.08;
 	return { color: c.map((v) => v - seam), height: grain * 2 + f3(p, 11, 3, 91) * 2.6 - blobA * 0.1 };
 }
-
-function playerGarments({ P, dominant, L, smoothstep }) {
-	const neckCut = L.neck.y + 0.045;
-	const waist = L.hipsY + 0.08;
-	const ankle = L.ankleL.y;
-	const isArm = (b) => b.startsWith('UpperArm') || b.startsWith('Forearm');
-	return [
-		{
-			// куртка «горка»: длинные рукава, высокий воротник, свободная
-			test: (v) => {
-				const p = P(v), b = dominant[v];
-				if (b === 'Neck' || b === 'Head' || b === 'Jaw') return p.y < neckCut;
-				if (b === 'Chest' || b === 'Spine') return p.y < neckCut;
-				if (b === 'Hips') return p.y > L.hipsY - 0.06;
-				if (isArm(b)) return true;
-				if (b.startsWith('Hand')) return false;
-				return false;
-			},
-			inflate: (p, v) => 0.013 + (isArm(dominant[v]) ? 0.006 : 0.004),
-			tint: () => [0.45, 0.47, 0.35],
-		},
-		{
-			// штаны
-			test: (v) => {
-				const p = P(v), b = dominant[v];
-				if (b === 'Hips' || b === 'Spine') return p.y < waist;
-				if (b.startsWith('UpperLeg')) return true;
-				if (b.startsWith('LowerLeg')) return p.y > ankle + 0.11;
-				return false;
-			},
-			inflate: (p) => 0.009 + 0.008 * smoothstep(L.kneeL.y, ankle + 0.1, p.y),
-			tint: () => [0.42, 0.44, 0.33],
-		},
-		{
-			// берцы
-			test: (v) => {
-				const p = P(v), b = dominant[v];
-				return b.startsWith('Foot') || (b.startsWith('LowerLeg') && p.y < ankle + 0.16);
-			},
-			inflate: (p) => 0.007 + (p.y < 0.025 ? 0.004 : 0),
-			tint: (p) => (p.y < 0.025 ? [0.07, 0.06, 0.05] : [0.17, 0.14, 0.11]),
-		},
-		{
-			// разгрузка / бронежилет
-			test: (v) => {
-				const p = P(v), b = dominant[v];
-				return (b === 'Chest' || b === 'Spine') && p.y > L.hipsY + 0.1 && p.y < L.chest.y + 0.27;
-			},
-			inflate: (p) => 0.032 + (p.z > 0.05 && p.y < L.chest.y + 0.12 && p.y > L.hipsY + 0.14 ? 0.012 : 0), // подсумки спереди
-			tint: (p) => (Math.abs(p.y - L.chest.y - 0.05) < 0.008 ? [0.12, 0.12, 0.1] : [0.3, 0.32, 0.24]),
-		},
-	];
-}
-
-export const PLAYER_PROFILE = {
-	name: 'Player',
-	targets: PLAYER_TARGETS,
-	fist: { fingers: [88, 100, 70], thumb: [25, 40, 35] }, // кулаки — чтобы держать оружие
-	wounds: false,
-	garments: playerGarments,
-	skin: humanSkin,
-	cloth: camoCloth,
-	eye: 'assets/human_eye.png',
-	animations: createPlayerAnimations,
-};
 
 // ---------- Топтун: массивный заражённый с роговыми наростами ----------
 
@@ -209,6 +139,164 @@ export const STOMPER_PROFILE = {
 	cloth: RUNNER_PROFILE.cloth,
 	eye: 'assets/zombie_eye.png',
 	animations: createZombieAnimations,
+};
+
+// ---------- Герой (новый игрок): полный скелет 56 костей, снаряжение, крепления оружия ----------
+
+const HERO_TARGETS = [
+	['macrodetails/universal-male-young-averagemuscle-averageweight', 0.4],
+	['macrodetails/universal-male-young-maxmuscle-averageweight', 0.6],
+	['macrodetails/caucasian-male-young', 1],
+	['macrodetails/height/male-young-averagemuscle-averageweight-maxheight', 0.35],
+	['cheek/l-cheek-bones-incr', 0.35], ['cheek/r-cheek-bones-incr', 0.35],
+];
+
+// Поворот «системы хвата» (как в game/weapons.js): +Z — топорище/рукоять, −Y — лезвие/ствол
+function gripQuat(handle, blade) {
+	const Z = new THREE.Vector3(...handle).normalize();
+	const B = new THREE.Vector3(...blade);
+	const Y = B.addScaledVector(Z, -B.dot(Z)).normalize().negate();
+	const X = new THREE.Vector3().crossVectors(Y, Z);
+	return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+}
+
+/** Точки крепления оружия на теле — те же, к которым тянется рука в анимациях смены оружия. */
+export function heroMountSpots(L, hipsY, shoulderR) {
+	return {
+		// топор в чехле на левом бедре: кулак у бедра, голова топора вниз, лезвие вперёд
+		axe: { bone: 'LeftUpLeg', pos: new THREE.Vector3(0.2, hipsY + 0.04, 0.06), handle: [0.05, -1, 0.06], blade: [0, 0.06, 1] },
+		// пистолет в набедренной кобуре справа: ствол вниз, рукоять вперёд
+		pistol: { bone: 'RightUpLeg', pos: new THREE.Vector3(shoulderR.x - 0.06, hipsY - 0.1, 0.04), handle: [0, 0.2, 1], blade: [0, -1, 0.2] },
+	};
+}
+
+function heroGarments({ P, N, dominant, L, smoothstep }) {
+	const neckCut = L.neck.y + 0.03;
+	const waist = L.hipsY + 0.08;
+	const ankle = L.ankleL.y;
+	const isArm = (b) => b.startsWith('UpperArm') || b.startsWith('Forearm');
+	return [
+		{ // куртка «горка»
+			test: (v) => {
+				const p = P(v), b = dominant[v];
+				if (b === 'Neck' || b === 'Head' || b === 'Jaw' || b === 'Chest' || b === 'Spine') return p.y < neckCut;
+				if (b === 'Hips') return p.y > L.hipsY - 0.06;
+				return isArm(b);
+			},
+			inflate: (p, v) => 0.012 + (isArm(dominant[v]) ? 0.007 : 0.004),
+			tint: () => [0.44, 0.46, 0.34],
+		},
+		{ // штаны
+			test: (v) => {
+				const p = P(v), b = dominant[v];
+				if (b === 'Hips' || b === 'Spine') return p.y < waist;
+				if (b.startsWith('UpperLeg')) return true;
+				if (b.startsWith('LowerLeg')) return p.y > ankle + 0.12;
+				return false;
+			},
+			inflate: (p) => 0.01 + 0.008 * smoothstep(L.kneeL.y, ankle + 0.1, p.y),
+			tint: () => [0.41, 0.43, 0.32],
+		},
+		{ // берцы с толстой подошвой
+			test: (v) => { const p = P(v), b = dominant[v]; return b.startsWith('Foot') || (b.startsWith('LowerLeg') && p.y < ankle + 0.17); },
+			inflate: (p) => 0.007 + (p.y < 0.03 ? 0.006 : 0),
+			tint: (p) => (p.y < 0.03 ? [0.06, 0.055, 0.05] : [0.16, 0.13, 0.1]),
+		},
+		{ // плитник
+			test: (v) => { const p = P(v), b = dominant[v]; return (b === 'Chest' || b === 'Spine') && p.y > L.hipsY + 0.1 && p.y < L.chest.y + 0.27; },
+			inflate: () => 0.032,
+			tint: (p) => (Math.abs(p.y - L.chest.y - 0.05) < 0.008 ? [0.12, 0.12, 0.1] : [0.32, 0.33, 0.25]),
+		},
+		{ // ремень
+			test: (v) => { const p = P(v), b = dominant[v]; return (b === 'Hips' || b === 'Spine') && Math.abs(p.y - (L.hipsY + 0.07)) < 0.022; },
+			inflate: () => 0.016,
+			tint: () => [0.1, 0.09, 0.08],
+		},
+		{ // перчатки
+			test: (v) => dominant[v].startsWith('Hand'),
+			inflate: () => 0.0026,
+			tint: () => [0.12, 0.115, 0.1],
+		},
+		{ // вязаная шапка
+			test: (v) => {
+				const p = P(v), n = N(v), b = dominant[v];
+				return (b === 'Head') && p.y > L.eyeL.y + 0.035 && !(n.z > 0.45 && p.y < L.eyeL.y + 0.068);
+			},
+			inflate: (p) => 0.007 + 0.002 * Math.sin(p.y * 900) ** 2,
+			tint: () => [0.2, 0.22, 0.17],
+		},
+		{ // шарф-шемаг на шее
+			test: (v) => { const p = P(v), b = dominant[v]; return b === 'Neck' || ((b === 'Chest' || b === 'Head') && p.y > L.neck.y - 0.03 && p.y < L.neck.y + 0.07 && p.z < L.neck.z + 0.09); },
+			inflate: (p) => 0.02 + 0.006 * Math.sin(p.y * 160 + p.x * 40),
+			tint: () => [0.55, 0.5, 0.39],
+		},
+	];
+}
+
+function heroGear({ L, frontMost, backMost, bindWorld }) {
+	const parts = [];
+	const add = (geo, x, y, z, bone, color, rot) => {
+		if (rot) geo.applyQuaternion(rot);
+		geo.translate(x, y, z);
+		parts.push({ geo, bone, color });
+	};
+	const box = (w, h, d, r = 0.008) => new RoundedBoxGeometry(w, h, d, 2, r);
+	const vest = 0.032 + 0.004;
+	// подсумки под магазины на груди
+	const py = L.chest.y + 0.04;
+	for (const x of [-0.075, 0, 0.075]) {
+		const f = frontMost(x, py, 0.02);
+		add(box(0.064, 0.12, 0.036), x, py, f.z + vest + 0.02, 'Spine1', [0.3, 0.32, 0.24]);
+	}
+	// рация слева сверху с антенной
+	const ry = L.chest.y + 0.18, rf = frontMost(0.1, ry, 0.02);
+	add(box(0.05, 0.09, 0.04), 0.1, ry, rf.z + vest + 0.02, 'Spine2', [0.12, 0.12, 0.11]);
+	add(new THREE.CylinderGeometry(0.004, 0.005, 0.2, 6), 0.115, ry + 0.14, rf.z + vest + 0.02, 'Spine2', [0.08, 0.08, 0.08]);
+	// рюкзак со скаткой
+	const by = bindWorld.Spine2.y, bz = backMost(0, by, 0.03).z - 0.03 - 0.058;
+	add(box(0.3, 0.4, 0.15, 0.03), 0, by, bz, 'Spine2', [0.3, 0.31, 0.24]);
+	add(box(0.22, 0.13, 0.05, 0.015), 0, by - 0.1, bz - 0.09, 'Spine2', [0.27, 0.28, 0.21]);
+	add(new THREE.CylinderGeometry(0.055, 0.055, 0.34, 12), 0, by + 0.25, bz + 0.01, 'Spine2', [0.24, 0.26, 0.2], new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)));
+	// наколенники
+	for (const [side, bone] of [[1, 'LeftLeg'], [-1, 'RightLeg']]) {
+		const k = bindWorld[bone];
+		const f = frontMost(k.x, k.y - 0.03, 0.02);
+		add(box(0.1, 0.13, 0.034, 0.012), k.x, k.y - 0.03, f.z + 0.026, bone, [0.14, 0.14, 0.13]);
+	}
+	// кобура на правом бедре (вокруг точки крепления пистолета) и ремешок
+	const spot = heroMountSpots(L, L.hipsY, L.shoulderR).pistol;
+	const q = gripQuat(spot.handle, spot.blade);
+	const holster = box(0.044, 0.17, 0.07, 0.01);
+	holster.translate(0, -0.05, 0.065);
+	add(holster, spot.pos.x, spot.pos.y, spot.pos.z, 'RightUpLeg', [0.14, 0.13, 0.11], q);
+	const thigh = bindWorld.RightUpLeg;
+	add(new THREE.TorusGeometry(0.088, 0.008, 6, 20), thigh.x - 0.005, L.hipsY - 0.22, thigh.z + 0.01, 'RightUpLeg', [0.1, 0.1, 0.09], new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)));
+	// чехол топора на левом бедре
+	const ax = heroMountSpots(L, L.hipsY, L.shoulderR).axe;
+	add(box(0.035, 0.07, 0.1, 0.008), ax.pos.x + 0.005, ax.pos.y - 0.5, ax.pos.z + 0.02, 'LeftUpLeg', [0.2, 0.15, 0.1]);
+	return parts;
+}
+
+function heroMounts({ L }) {
+	const spots = heroMountSpots(L, L.hipsY, L.shoulderR);
+	return [
+		{ name: 'AxeMount', bone: spots.axe.bone, pos: spots.axe.pos, quat: gripQuat(spots.axe.handle, spots.axe.blade) },
+		{ name: 'HolsterMount', bone: spots.pistol.bone, pos: spots.pistol.pos, quat: gripQuat(spots.pistol.handle, spots.pistol.blade) },
+	];
+}
+
+export const HERO_PROFILE = {
+	name: 'Hero',
+	rig: 'full',
+	targets: HERO_TARGETS,
+	wounds: false,
+	garments: heroGarments,
+	gear: heroGear,
+	mounts: heroMounts,
+	skin: humanSkin,
+	cloth: camoCloth,
+	eye: 'assets/human_eye.png',
+	animations: createHeroAnimations,
 };
 
 export { RUNNER_PROFILE };

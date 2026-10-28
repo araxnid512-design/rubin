@@ -36,6 +36,7 @@
 		const model = gltf.scene;
 		scene.add(model);
 		const grip = model.getObjectByName('GripR');
+		const axeMount = model.getObjectByName('AxeMount'), holster = model.getObjectByName('HolsterMount');
 		const axe = makeAxe(), pistol = makePistol();
 		grip.add(axe, pistol);
 		// оси хвата для отладки
@@ -54,9 +55,15 @@
 		];
 		window.pose = (clipName, t, weapon, zoom) => {
 			const clip = gltf.animations.find((c) => c.name === clipName);
-			weapon ??= clipName === 'Shoot' ? 'pistol' : 'axe';
-			axe.visible = weapon === 'axe';
-			pistol.visible = weapon === 'pistol';
+			const time = t * clip.duration;
+			const pistolClip = /Pistol|Shoot|Reload/.test(clipName) && clipName !== 'EquipPistol';
+			weapon ??= clipName === 'EquipPistol' ? (time < 0.36 ? 'axe' : time < 0.58 ? 'stowed' : 'pistol') : clipName === 'EquipAxe' ? (time < 0.26 ? 'pistol' : time < 0.5 ? 'stowed' : 'axe') : pistolClip ? 'pistol' : 'axe';
+			// оружие, которое не в руке, висит в креплении на теле (если оно есть в модели)
+			(weapon === 'axe' || weapon === 'none' || !axeMount ? grip : axeMount).add(axe);
+			(weapon === 'pistol' || weapon === 'none' || !holster ? grip : holster).add(pistol);
+			axe.visible = weapon !== 'none' || !!axeMount;
+			pistol.visible = (weapon !== 'none' && weapon !== 'axe') || !!holster;
+			if (weapon === 'none') { axe.visible = false; pistol.visible = false; }
 			mixer.stopAllAction();
 			mixer.clipAction(clip).play();
 			mixer.setTime(Math.min(clip.duration - 1e-3, t * clip.duration));

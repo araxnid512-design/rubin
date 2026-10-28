@@ -132,3 +132,39 @@ test('анимации: ступни не проваливаются под зе
 		}
 	}
 });
+
+test('герой: полный скелет, пальцы, крепления оружия и все анимации', async () => {
+	const { buildCharacter } = await import('../scripts/makehuman/build-zombie.mjs');
+	const { HERO_PROFILE } = await import('../scripts/makehuman/profiles.mjs');
+	const { HERO_ANIMATION_NAMES } = await import('../src/hero-animations.js');
+	const { model, mesh, animations } = buildCharacter(HERO_PROFILE, { textureSize: 32 });
+	assert.equal(mesh.skeleton.bones.length, 56, '56 костей');
+	for (const n of ['LeftShoulder', 'RightForeArmTwist', 'RightHandIndex3', 'LeftHandThumb1', 'RightToeBase', 'Spine2']) assert.ok(model.getObjectByName(n)?.isBone, n);
+	for (const n of ['GripR', 'GripL', 'AxeMount', 'HolsterMount']) assert.ok(model.getObjectByName(n), `узел ${n}`);
+	assert.deepEqual(animations.map((a) => a.name), HERO_ANIMATION_NAMES);
+	const mixer = new THREE.AnimationMixer(model);
+	const y = (n) => model.getObjectByName(n).getWorldPosition(new THREE.Vector3()).y;
+	model.updateMatrixWorld(true);
+	const ankle = y('LeftFoot');
+	const finger = () => model.getObjectByName('RightHandMiddle2').quaternion.angleTo(new THREE.Quaternion());
+	for (const clip of animations) {
+		mixer.stopAllAction();
+		mixer.clipAction(clip).play();
+		for (let t = 0; t <= clip.duration; t += clip.duration / 20) {
+			mixer.setTime(Math.min(t, clip.duration - 1e-3));
+			model.updateMatrixWorld(true);
+			for (const b of mesh.skeleton.bones) assert.ok(Number.isFinite(b.quaternion.w), `${clip.name}: ${b.name} без NaN`);
+			if (clip.name !== 'Death') for (const s of ['Left', 'Right']) assert.ok(y(`${s}Foot`) > ankle - 0.025, `${clip.name} t=${t.toFixed(2)}: ступня над землёй`);
+		}
+		// с оружием в руке пальцы сжаты
+		if (['Idle', 'Melee', 'IdlePistol', 'Shoot'].includes(clip.name)) {
+			mixer.setTime(0.1);
+			assert.ok(finger() > 1, `${clip.name}: пальцы правой руки сжаты`);
+		}
+	}
+	// ключица поднимается при замахе топором
+	mixer.stopAllAction();
+	mixer.clipAction(animations.find((a) => a.name === 'Melee')).play();
+	mixer.setTime(0.2);
+	assert.ok(model.getObjectByName('RightShoulder').quaternion.angleTo(new THREE.Quaternion()) > 0.15, 'ключица работает на замахе');
+});
