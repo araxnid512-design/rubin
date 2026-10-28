@@ -20,6 +20,7 @@
 		import * as THREE from 'three';
 		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 		import { makeAxe, makePistol } from '../game/weapons.js';
+		import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 		const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 		renderer.setPixelRatio(devicePixelRatio);
@@ -59,7 +60,8 @@
 			const clip = gltf.animations.find((c) => c.name === clipName);
 			const time = t * clip.duration;
 			const pistolClip = /Pistol|Shoot|Reload/.test(clipName) && clipName !== 'EquipPistol';
-			weapon ??= clipName === 'EquipPistol' ? (time < 0.36 ? 'axe' : time < 0.58 ? 'stowed' : 'pistol') : clipName === 'EquipAxe' ? (time < 0.26 ? 'pistol' : time < 0.5 ? 'stowed' : 'axe') : pistolClip ? 'pistol' : 'axe';
+			const E = EQUIP_TIMES[clipName];
+			weapon ??= clipName === 'EquipPistol' ? (time < E.stow ? 'axe' : time < E.draw ? 'stowed' : 'pistol') : clipName === 'EquipAxe' ? (time < E.stow ? 'pistol' : time < E.draw ? 'stowed' : 'axe') : pistolClip ? 'pistol' : 'axe';
 			// оружие, которое не в руке, висит в креплении на теле (если оно есть в модели)
 			(weapon === 'axe' || weapon === 'none' || !axeMount ? grip : axeMount).add(axe);
 			(weapon === 'pistol' || weapon === 'none' || !holster ? grip : holster).add(pistol);

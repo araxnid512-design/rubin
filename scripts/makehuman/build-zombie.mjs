@@ -1,7 +1,9 @@
 // Сборка реалистичного зомби из базовой модели MakeHuman (CC0):
 //   1. морфы: худой мужчина, впалые щёки и глаза, впалый живот;
-//   2. скелет по суставам MakeHuman (19 костей у зомби, 56 у героя — см. rigs.mjs), веса 163 костей сводятся к нашим;
-//   3. руки из A-позы опускаются вниз (меш перепозируется скиннингом), скелет перепривязывается;
+//   2. скелет по суставам MakeHuman (19 костей у зомби, 65 костей стандарта Mixamo у героя — см. rigs.mjs),
+//      веса 163 костей сводятся к нашим;
+//   3. руки из A-позы опускаются вниз (меш перепозируется скиннингом) — в этой позе меш привязывается к скелету;
+//      у стандартного рига поза покоя костей — T-поза (как у Mixamo), а поза привязки задаётся поворотами рук;
 //   4. рваная одежда — «надутые» копии участков тела с дырами и лохмотьями;
 //   5. текстуры кожи и ткани запекаются по 3D-координатам в UV-развёртку MakeHuman;
 //   6. добавляются 5 анимаций (те же, что у процедурной модели) → THREE.Group для экспорта в GLB.
@@ -54,6 +56,8 @@ export function buildZombie(options) {
 export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	const rig = RIGS[profile.rig ?? 'simple'];
 	const BONE_NAMES = rig.names, BONE_PARENTS = rig.parents;
+	const ROOT_BONE = rig.root ?? 'Root';
+	const boneName = rig.bone ?? ((n) => n);
 	// ---------- 1. Базовая модель + морфы ----------
 	const base = loadObj(join(MH, 'base.obj'));
 	const pos = base.positions;
@@ -77,7 +81,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	const restWorld = {};
 	for (const name of BONE_NAMES) {
 		if (name === 'Root') { restWorld[name] = [0, 0, 0]; continue; }
-		const p = J(rig.mhHead(name));
+		const p = rig.mhJoint ? jointPosition(skel, pos, rig.mhJoint(name)) : J(rig.mhHead(name));
 		if (rig.center.has(name)) p[0] = 0;
 		restWorld[name] = p;
 	}
@@ -89,7 +93,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 			if (ours) return ours;
 			n = skel.bones[n].parent;
 		}
-		return 'Hips';
+		return rig.alias.Hips;
 	};
 	const vertWeights = Array.from({ length: nv }, () => ({}));
 	const mhWeights = loadWeights(join(MH, 'rigs/default_weights.mhw'));
@@ -98,7 +102,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		for (const [v, w] of list) vertWeights[v][ours] = (vertWeights[v][ours] ?? 0) + w;
 	}
 	// доминирующая кость вершины в «простой» разметке (UpperArm.L, Chest, ...) — для одежды
-	const dominant = vertWeights.map((w) => rig.part(Object.entries(w).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Head'));
+	const dominant = vertWeights.map((w) => rig.part(Object.entries(w).sort((a, b) => b[1] - a[1])[0]?.[0] ?? rig.alias.Head));
 
 	// ---------- 3. Опускаем руки из A-позы, выпрямляем ноги ----------
 	const bones = {};
@@ -111,7 +115,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		bones[name] = b;
 		if (parent) bones[parent].add(b);
 	}
-	bones.Root.updateMatrixWorld(true);
+	bones[ROOT_BONE].updateMatrixWorld(true);
 	const restInverse = Object.fromEntries(BONE_NAMES.map((n) => [n, bones[n].matrixWorld.clone().invert()]));
 
 	const worldQ = (name) => bones[name].getWorldQuaternion(new THREE.Quaternion());
@@ -123,7 +127,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		const cur = restDir.clone().applyQuaternion(curQ);
 		const wantQ = new THREE.Quaternion().setFromUnitVectors(cur, V(target).normalize()).multiply(curQ);
 		bones[name].quaternion.copy(parentQ.invert().multiply(wantQ));
-		bones.Root.updateMatrixWorld(true);
+		bones[ROOT_BONE].updateMatrixWorld(true);
 	};
 	for (const [sx, s] of [[1, 'L'], [-1, 'R']]) {
 		const l = rig.limb(s);
@@ -135,7 +139,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		// ступня остаётся параллельной земле
 		const parentQ = worldQ(l.leg);
 		bones[l.foot].quaternion.copy(parentQ.invert());
-		bones.Root.updateMatrixWorld(true);
+		bones[ROOT_BONE].updateMatrixWorld(true);
 	}
 	const skinMats = Object.fromEntries(BONE_NAMES.map((n) => [n, bones[n].matrixWorld.clone().multiply(restInverse[n])]));
 	const tmp = new THREE.Vector3(), acc = new THREE.Vector3();
@@ -152,11 +156,13 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		posed.set(acc.toArray(), v * 3);
 	}
 	const bindWorld = Object.fromEntries(BONE_NAMES.map((n) => [n, bones[n].getWorldPosition(new THREE.Vector3())]));
+	// короткие имена (Hips, Spine2, LeftUpLeg) для профилей — те же векторы
+	if (rig.short) for (const n of BONE_NAMES) bindWorld[rig.short(n)] = bindWorld[n];
 	// точки хвата оружия: центр кулака и оси кисти (пальцы, большой палец, ладонь) в позе привязки
 	const grips = {};
 	for (const s of ['L', 'R']) {
 		const at = (mhBone) => V(jointPosition(skel, pos, skel.bones[`${mhBone}.${s}`].head)).applyMatrix4(skinMats[rig.limb(s).hand]);
-		grips[s] = handFrame(at('wrist'), at('finger3-1'), at('finger2-1'), at('finger5-1'), at('finger1-1'));
+		grips[s] = handFrame(at('wrist'), at('finger3-1'), at('finger2-1'), at('finger5-1'), s);
 	}
 	// ступни могли чуть сместиться — снова ставим на землю
 	let minPosed = Infinity;
@@ -207,7 +213,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	const weightSum = (v, prefix) => Object.entries(vertWeights[v]).reduce((s, [b, w]) => s + (rig.part(b).startsWith(prefix) ? w : 0), 0);
 
 	// ---------- 4. Геометрия тела ----------
-	const builder = new GeometryBuilder(base.uvs, vertWeights, BONE_NAMES);
+	const builder = new GeometryBuilder(base.uvs, vertWeights, BONE_NAMES, rig.short);
 	// вмятина раны и наросты (у топтуна)
 	const bodyPos = posed.slice();
 	for (let v = 0; v < nv; v++) {
@@ -231,7 +237,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 
 	// Глаза (прокси-меш): кость Head
 	const eyeFaces = eyes.groups.get('default');
-	const eyeGeo = new GeometryBuilder(eyes.uvs, null, BONE_NAMES).build(eyeFaces, eyes.positions, vertexNormals(eyes.positions, eyeFaces, eyes.positions.length / 3), null, { Head: 1 }, builder.boneIndex);
+	const eyeGeo = new GeometryBuilder(eyes.uvs, null, BONE_NAMES).build(eyeFaces, eyes.positions, vertexNormals(eyes.positions, eyeFaces, eyes.positions.length / 3), null, { [rig.alias.Head]: 1 }, builder.boneIndex);
 
 	// ---------- 5. Одежда ----------
 	const ragged = (p, amount, seed) => amount * (0.2 + 0.8 * fbm3(p.x * 28, p.y * 28, p.z * 28, 2, seed));
@@ -250,7 +256,7 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	const ctx = { P, N, dominant, L, ragged, V, smoothstep, weightSum, frontMost, backMost, bindWorld, rig };
 	const clothGeos = profile.garments(ctx).map(garment);
 	// снаряжение (жёсткие детали на костях): подсумки, рюкзак, кобура...
-	const gearGeos = (profile.gear?.(ctx) ?? []).map(({ geo, bone, color }) => builder.rigid(geo, { [bone]: 1 }, color));
+	const gearGeos = (profile.gear?.(ctx) ?? []).map(({ geo, bone, color }) => builder.rigid(geo, { [boneName(bone)]: 1 }, color));
 
 	// ---------- 6. Текстуры ----------
 	const triAttrs = (v) => [weightSum(v, 'Hand'), weightSum(v, 'Foot'), weightSum(v, 'Forearm') + weightSum(v, 'Hand'), weightSum(v, 'Head') + weightSum(v, 'Jaw')];
@@ -275,42 +281,54 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	geometry.computeBoundingBox();
 	geometry.computeBoundingSphere();
 
-	// ---------- Скелет в позе привязки (без поворотов) ----------
+	// ---------- Скелет ----------
+	// bindQ — мировые повороты костей в позе привязки относительно позы покоя. У simple/full их нет
+	// (покой = привязка), у стандартного рига покой — T-поза, а в привязке руки опущены.
+	for (const s of ['L', 'R']) grips[s].pos.y -= minPosed;
+	const bindQ = rig.tPose ? tPoseBind(rig, bindWorld, grips) : Object.fromEntries(BONE_NAMES.map((n) => [n, new THREE.Quaternion()]));
+	const toLocal = (bone, world) => world.clone().sub(bindWorld[bone]).applyQuaternion(bindQ[bone].clone().invert());
 	const finalBones = {};
 	for (const name of BONE_NAMES) {
 		const b = new THREE.Bone();
 		b.name = name;
 		const parent = BONE_PARENTS[name];
-		b.position.copy(bindWorld[name]);
-		if (parent) b.position.sub(bindWorld[parent]);
+		// смещение в покое: в осях родителя (в покое оси всех костей мировые)
+		b.position.copy(parent ? toLocal(parent, bindWorld[name]) : bindWorld[name]);
 		finalBones[name] = b;
 		if (parent) finalBones[parent].add(b);
 	}
 	for (const s of ['L', 'R']) {
-		const g = grips[s], grip = new THREE.Object3D();
+		const g = grips[s], grip = new THREE.Object3D(), hand = rig.limb(s).hand;
 		grip.name = `Grip${s}`; // без точки: GLTFLoader убирает точки из имён
-		g.pos.y -= minPosed;
-		grip.position.copy(g.pos).sub(bindWorld[rig.limb(s).hand]);
-		grip.quaternion.copy(g.quat);
-		finalBones[rig.limb(s).hand].add(grip);
+		grip.position.copy(toLocal(hand, g.pos));
+		grip.quaternion.copy(bindQ[hand].clone().invert().multiply(g.quat));
+		finalBones[hand].add(grip);
 	}
-	// точки крепления (оружие за спиной, кобура): { name, bone, pos (мир), quat }
+	// точки крепления (чехол топора, кобура): { name, bone, pos (мир), quat }
 	for (const m of profile.mounts?.(ctx) ?? []) {
-		const node = new THREE.Object3D();
+		const node = new THREE.Object3D(), bone = boneName(m.bone);
 		node.name = m.name;
-		node.position.copy(m.pos).sub(bindWorld[m.bone]);
-		node.quaternion.copy(m.quat ?? new THREE.Quaternion());
-		finalBones[m.bone].add(node);
+		node.position.copy(toLocal(bone, m.pos));
+		node.quaternion.copy(bindQ[bone].clone().invert().multiply(m.quat ?? new THREE.Quaternion()));
+		finalBones[bone].add(node);
 	}
 	const boneList = BONE_NAMES.map((n) => finalBones[n]);
 	const mesh = new THREE.SkinnedMesh(geometry, materials);
 	mesh.name = `${profile.name}Mesh`;
-	mesh.add(finalBones.Root);
+	mesh.add(finalBones[ROOT_BONE]);
+	// привязка в позе с опущенными руками, затем кости возвращаются в покой (T-поза)
+	for (const name of BONE_NAMES) {
+		const parent = BONE_PARENTS[name];
+		finalBones[name].quaternion.copy(parent ? bindQ[parent].clone().invert().multiply(bindQ[name]) : bindQ[name]);
+	}
+	mesh.updateMatrixWorld(true);
 	mesh.bind(new THREE.Skeleton(boneList));
+	for (const name of BONE_NAMES) finalBones[name].quaternion.identity();
+	mesh.updateMatrixWorld(true);
 	const model = new THREE.Group();
 	model.name = profile.name;
 	model.add(mesh);
-	const animations = profile.animations(finalBones.Root);
+	const animations = profile.animations(finalBones[ROOT_BONE], { bindQ });
 	model.animations = animations;
 	return { model, mesh, animations, landmarks: L };
 }
@@ -318,18 +336,43 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 // ---------- Вспомогательное ----------
 
 /**
- * Оси кисти: F — от запястья к пальцам, T — от мизинца к указательному (сторона большого пальца),
- * P — ладонь (куда сгибаются пальцы). Хват: начало в центре кулака, у оружия −Y = F, +Z = T.
+ * Повороты поза привязки ← T-поза для стандартного рига. В T-позе руки вытянуты вдоль ±X, ладони вниз,
+ * большие пальцы вперёд (как у Mixamo), оси всех костей мировые. Кисть и пальцы в привязке повёрнуты
+ * вместе с предплечьем; вся рука доворачивается вокруг своей оси, чтобы ладонь в T-позе смотрела вниз.
  */
-function handFrame(wrist, middle, index, pinky, thumb) {
+function tPoseBind(rig, bindWorld, grips) {
+	const bindQ = Object.fromEntries(rig.names.map((n) => [n, new THREE.Quaternion()]));
+	const dir = (a, b) => bindWorld[b].clone().sub(bindWorld[a]).normalize();
+	for (const [s, sx] of [['L', 1], ['R', -1]]) {
+		const l = rig.limb(s), g = grips[s];
+		const rest = new THREE.Vector3(sx, 0, 0);
+		const qArm = new THREE.Quaternion().setFromUnitVectors(rest, dir(l.upperArm, l.foreArm));
+		const qFore = new THREE.Quaternion().setFromUnitVectors(rest.clone().applyQuaternion(qArm), dir(l.foreArm, l.hand)).multiply(qArm);
+		const qHand = new THREE.Quaternion().setFromUnitVectors(rest.clone().applyQuaternion(qFore), g.F).multiply(qFore);
+		// ладонь в T-позе без доворота → угол до «ладонь вниз» вокруг оси руки (X)
+		const palm = g.P.clone().applyQuaternion(qHand.clone().invert());
+		const roll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.atan2(palm.z, palm.y) - Math.PI);
+		bindQ[l.upperArm] = qArm.multiply(roll);
+		bindQ[l.foreArm] = qFore.multiply(roll);
+		bindQ[l.hand] = qHand.multiply(roll);
+		const handPrefix = l.hand;
+		for (const n of rig.names) if (n !== l.hand && n.startsWith(handPrefix)) bindQ[n] = bindQ[l.hand].clone();
+	}
+	return bindQ;
+}
+
+/**
+ * Оси кисти: F — от запястья к пальцам, T — от мизинца к указательному (сторона большого пальца),
+ * P — ладонь (куда сгибаются пальцы): у левой кисти F × T, у правой T × F (зеркально).
+ * Хват: начало в центре кулака, у оружия −Y = F, +Z = T.
+ */
+function handFrame(wrist, middle, index, pinky, side) {
 	const F = middle.clone().sub(wrist);
 	const len = F.length();
 	F.normalize();
 	const T = index.clone().sub(pinky);
 	T.addScaledVector(F, -T.dot(F)).normalize();
-	const P = new THREE.Vector3().crossVectors(F, T);
-	// большой палец лежит со стороны ладони
-	if (thumb.clone().sub(index.clone().add(pinky).multiplyScalar(0.5)).dot(P) < 0) P.negate();
+	const P = side === 'L' ? new THREE.Vector3().crossVectors(F, T) : new THREE.Vector3().crossVectors(T, F);
 	const pos = wrist.clone().addScaledVector(F, len * 0.95).addScaledVector(P, 0.012);
 	const Y = F.clone().negate(), Z = T.clone(), X = new THREE.Vector3().crossVectors(Y, Z);
 	const quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
@@ -384,10 +427,12 @@ function trianglesForBake(faces, uvs, P, N, A) {
 }
 
 class GeometryBuilder {
-	constructor(uvs, vertWeights, boneNames) {
+	constructor(uvs, vertWeights, boneNames, short) {
 		this.uvs = uvs;
 		this.vertWeights = vertWeights;
 		this.boneIndex = Object.fromEntries(boneNames.map((n, i) => [n, i]));
+		// короткие имена стандартного рига (Head вместо mixamorigHead) тоже работают
+		if (short) boneNames.forEach((n, i) => { this.boneIndex[short(n)] ??= i; });
 	}
 
 	skin(weights, boneIndex = this.boneIndex) {

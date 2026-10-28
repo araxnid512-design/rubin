@@ -363,6 +363,7 @@ class Player extends Actor {
 		// плашмя на боку: топорище/ствол горизонтально, лезвие вбок
 		w.rotation.set(0, Math.random() * Math.PI * 2, 0);
 		w.rotateZ(Math.PI / 2);
+		w.rotateX(-(w.userData.tilt ?? 0)); // топорище в кулаке наклонено — на земле выравниваем
 		this.dropped = w;
 	}
 

@@ -133,20 +133,38 @@ test('анимации: ступни не проваливаются под зе
 	}
 });
 
-test('герой: полный скелет, пальцы, крепления оружия и все анимации', async () => {
+test('герой: стандартный скелет Mixamo (65 костей, T-поза), пальцы, крепления оружия, все анимации', async () => {
 	const { buildCharacter } = await import('../scripts/makehuman/build-zombie.mjs');
 	const { HERO_PROFILE } = await import('../scripts/makehuman/profiles.mjs');
 	const { HERO_ANIMATION_NAMES } = await import('../src/hero-animations.js');
+	const { MIXAMO_RIG } = await import('../scripts/makehuman/rigs.mjs');
 	const { model, mesh, animations } = buildCharacter(HERO_PROFILE, { textureSize: 32 });
-	assert.equal(mesh.skeleton.bones.length, 56, '56 костей');
-	for (const n of ['LeftShoulder', 'RightForeArmTwist', 'RightHandIndex3', 'LeftHandThumb1', 'RightToeBase', 'Spine2']) assert.ok(model.getObjectByName(n)?.isBone, n);
+	const B = (n) => model.getObjectByName(`mixamorig${n}`);
+	// стандарт Mixamo: имена (как их видит three.js), иерархия, концевые кости
+	assert.equal(mesh.skeleton.bones.length, 65, '65 костей, как у Mixamo');
+	assert.deepEqual(mesh.skeleton.bones.map((b) => b.name), MIXAMO_RIG.names);
+	for (const [n, p] of [['Hips', null], ['Spine2', 'Spine1'], ['LeftShoulder', 'Spine2'], ['RightHand', 'RightForeArm'], ['LeftHandIndex4', 'LeftHandIndex3'], ['HeadTop_End', 'Head'], ['RightToe_End', 'RightToeBase']]) {
+		assert.ok(B(n)?.isBone, n);
+		assert.equal(B(n).parent?.isBone ? B(n).parent.name : null, p && `mixamorig${p}`, `родитель ${n}`);
+	}
+	// поза покоя — T-поза: повороты костей единичные, руки вытянуты вдоль ±X, ладони вниз
+	model.updateMatrixWorld(true);
+	for (const b of mesh.skeleton.bones) assert.ok(b.quaternion.angleTo(new THREE.Quaternion()) < 1e-6, `${b.name}: в покое без поворота`);
+	const W = (n) => (n.startsWith('Grip') ? model.getObjectByName(n) : B(n)).getWorldPosition(new THREE.Vector3());
+	for (const [S, sx] of [['Left', 1], ['Right', -1]]) {
+		const arm = W(`${S}Hand`).sub(W(`${S}Arm`)).normalize();
+		assert.ok(arm.x * sx > 0.99, `${S}: рука в T-позе вдоль оси X`);
+		const curl = W(`${S}HandMiddle4`).sub(W(`${S}HandMiddle1`));
+		assert.ok(curl.y < 0, `${S}: пальцы чуть согнуты вниз — ладонь смотрит вниз`);
+		assert.ok(W(`${S}HandThumb1`).z > W(`${S}HandPinky1`).z, `${S}: большой палец впереди`);
+	}
 	for (const n of ['GripR', 'GripL', 'AxeMount', 'HolsterMount']) assert.ok(model.getObjectByName(n), `узел ${n}`);
 	assert.deepEqual(animations.map((a) => a.name), HERO_ANIMATION_NAMES);
+
 	const mixer = new THREE.AnimationMixer(model);
-	const y = (n) => model.getObjectByName(n).getWorldPosition(new THREE.Vector3()).y;
-	model.updateMatrixWorld(true);
-	const ankle = y('LeftFoot');
-	const finger = () => model.getObjectByName('RightHandMiddle2').quaternion.angleTo(new THREE.Quaternion());
+	const y = (n) => B(n).getWorldPosition(new THREE.Vector3()).y;
+	const ankle = 0.08;
+	const finger = () => B('RightHandMiddle2').quaternion.angleTo(new THREE.Quaternion());
 	for (const clip of animations) {
 		mixer.stopAllAction();
 		mixer.clipAction(clip).play();
@@ -162,11 +180,10 @@ test('герой: полный скелет, пальцы, крепления о
 			assert.ok(finger() > 1, `${clip.name}: пальцы правой руки сжаты`);
 		}
 	}
-	const W = (n) => model.getObjectByName(n).getWorldPosition(new THREE.Vector3());
 	const at = (name, t) => { mixer.stopAllAction(); mixer.clipAction(animations.find((a) => a.name === name)).play(); mixer.setTime(t); model.updateMatrixWorld(true); };
 	// ключица поднимается при замахе топором
 	at('Melee', 0.2);
-	assert.ok(model.getObjectByName('RightShoulder').quaternion.angleTo(new THREE.Quaternion()) > 0.15, 'ключица работает на замахе');
+	assert.ok(B('RightShoulder').quaternion.angleTo(new THREE.Quaternion()) > 0.15, 'ключица работает на замахе');
 	// носки стоп смотрят наружу, а не друг на друга
 	const toeYaw = (s) => { const d = W(`${s}ToeBase`).sub(W(`${s}Foot`)); return Math.atan2(d.x, d.z) * 180 / Math.PI; };
 	for (const name of ['Idle', 'IdlePistol', 'AimPistol', 'Walk', 'WalkPistol', 'Melee', 'Reload']) {
@@ -182,4 +199,13 @@ test('герой: полный скелет, пальцы, крепления о
 	const windup = W('GripR').x;
 	at('Melee', 0.45);
 	assert.ok(windup < -0.2 && W('GripR').x > 0.05, `дуга удара справа налево (${windup.toFixed(2)} → ${W('GripR').x.toFixed(2)})`);
+});
+
+test('герой: все суставы во всех анимациях в анатомических пределах (без выкрученных рук и ног)', async () => {
+	const { buildCharacter } = await import('../scripts/makehuman/build-zombie.mjs');
+	const { HERO_PROFILE } = await import('../scripts/makehuman/profiles.mjs');
+	const { analyzeClip } = await import('../src/anatomy.js');
+	const { model, animations } = buildCharacter(HERO_PROFILE, { textureSize: 32 });
+	const problems = animations.flatMap((clip) => analyzeClip(model, clip).violations.map((v) => `${clip.name}: ${v}`));
+	assert.deepEqual(problems, [], problems.join('\n'));
 });

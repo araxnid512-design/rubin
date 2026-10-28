@@ -9,7 +9,9 @@
     "test": "node --test tests/model.test.mjs",
     "test:e2e": "node tests/viewer.e2e.mjs",
     "build:game": "node scripts/build-game-assets.mjs",
-    "test:game": "node tests/game.e2e.mjs"
+    "test:game": "node tests/game.e2e.mjs",
+    "anatomy": "node scripts/anatomy-report.mjs",
+    "check:mixamo": "node scripts/check-mixamo.mjs"
   },
   "dependencies": {
     "three": "0.170.0"

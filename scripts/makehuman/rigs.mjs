@@ -1,8 +1,10 @@
 // Описания скелетов, в которые сводится риг MakeHuman (163 кости).
 //   simple — 19 костей (зомби): Hips/Spine/Chest/..., UpperArm.L, Forearm.L, Hand.L ...
-//   full   — 56 костей (герой), по образцу Mixamo: три позвонка, ключицы, кость скручивания
-//            предплечья, по 15 костей пальцев на руку, носки стоп.
-// У всех костей в позе привязки нет поворотов (оси совпадают с мировыми).
+//   mixamo — стандартный скелет Mixamo (герой): 65 костей с теми же именами и иерархией, что у
+//            персонажей Mixamo в three.js (mixamorigHips, mixamorigLeftArm, ... — GLTFLoader убирает «:»
+//            из «mixamorig:Hips»). Поза покоя — T-поза, оси всех костей совпадают с мировыми, как у X Bot,
+//            поэтому анимации Mixamo проигрываются на герое напрямую.
+// У simple поза покоя совпадает с позой привязки (руки опущены).
 
 const SIDES = { L: 'Left', R: 'Right' };
 
@@ -49,38 +51,22 @@ export const SIMPLE_RIG = {
 	alias: { Hips: 'Hips', Spine: 'Spine', Chest: 'Chest', Neck: 'Neck', Head: 'Head', Jaw: 'Jaw' },
 };
 
-// ---------- 56 костей ----------
+// ---------- общее для стандартного рига ----------
 export const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
 
-const FULL_PARENTS = { Root: null, Hips: 'Root', Spine: 'Hips', Spine1: 'Spine', Spine2: 'Spine1', Neck: 'Spine2', Head: 'Neck', Jaw: 'Head' };
-for (const S of Object.values(SIDES)) {
-	Object.assign(FULL_PARENTS, {
-		[`${S}Shoulder`]: 'Spine2', [`${S}Arm`]: `${S}Shoulder`, [`${S}ForeArm`]: `${S}Arm`,
-		[`${S}ForeArmTwist`]: `${S}ForeArm`, [`${S}Hand`]: `${S}ForeArmTwist`,
-	});
-	for (const f of FINGERS) for (let k = 1; k <= 3; k++) FULL_PARENTS[`${S}Hand${f}${k}`] = k === 1 ? `${S}Hand` : `${S}Hand${f}${k - 1}`;
-	Object.assign(FULL_PARENTS, { [`${S}UpLeg`]: 'Hips', [`${S}Leg`]: `${S}UpLeg`, [`${S}Foot`]: `${S}Leg`, [`${S}ToeBase`]: `${S}Foot` });
-}
-const FULL_CENTER = new Set(['Root', 'Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'Jaw']);
-const FULL_HEAD = {
-	Hips: 'spine05', Spine: 'spine04', Spine1: 'spine02', Spine2: 'spine01', Neck: 'neck01', Head: 'head', Jaw: 'jaw',
-	Shoulder: 'clavicle', Arm: 'upperarm01', ForeArm: 'lowerarm01', ForeArmTwist: 'lowerarm02', Hand: 'wrist',
-	UpLeg: 'upperleg01', Leg: 'lowerleg01', Foot: 'foot', ToeBase: 'toe3-1',
-};
-FINGERS.forEach((f, i) => { for (let k = 1; k <= 3; k++) FULL_HEAD[`Hand${f}${k}`] = `finger${i + 1}-${k}`; });
-
-const FULL_MH = {
+// кость MakeHuman → стандартная (кости скручивания нет: дальняя часть предплечья — ForeArm, как у Mixamo)
+const STANDARD_MH = {
 	root: 'Hips', pelvis: 'Hips', spine05: 'Hips', spine04: 'Spine', spine03: 'Spine', spine02: 'Spine1', spine01: 'Spine2', breast: 'Spine2',
-	clavicle: 'Shoulder', shoulder01: 'Shoulder', upperarm01: 'Arm', upperarm02: 'Arm', lowerarm01: 'ForeArm', lowerarm02: 'ForeArmTwist',
+	clavicle: 'Shoulder', shoulder01: 'Shoulder', upperarm01: 'Arm', upperarm02: 'Arm', lowerarm01: 'ForeArm', lowerarm02: 'ForeArm',
 	wrist: 'Hand', metacarpal1: 'Hand', metacarpal2: 'Hand', metacarpal3: 'Hand', metacarpal4: 'Hand',
 	upperleg01: 'UpLeg', upperleg02: 'UpLeg', lowerleg01: 'Leg', lowerleg02: 'Leg', foot: 'Foot',
-	neck01: 'Neck', neck02: 'Neck', neck03: 'Neck', head: 'Head', jaw: 'Jaw',
+	neck01: 'Neck', neck02: 'Neck', neck03: 'Neck', head: 'Head', jaw: 'Head',
 };
-FINGERS.forEach((f, i) => { for (let k = 1; k <= 3; k++) FULL_MH[`finger${i + 1}-${k}`] = `Hand${f}${k}`; });
+FINGERS.forEach((f, i) => { for (let k = 1; k <= 3; k++) STANDARD_MH[`finger${i + 1}-${k}`] = `Hand${f}${k}`; });
 
-// часть «простого» рига для имени полной кости — общая разметка для одежды и текстур
-function fullPart(name) {
-	if (FULL_CENTER.has(name)) return name === 'Spine1' || name === 'Spine2' ? 'Chest' : name;
+// часть «простого» рига для имени стандартной кости — общая разметка для одежды и текстур
+function standardPart(name) {
+	if (MIXAMO_CENTER.has(name)) return name === 'Spine1' || name === 'Spine2' ? 'Chest' : name;
 	const side = name.startsWith('Left') ? 'L' : 'R';
 	const p = name.replace(/^(Left|Right)/, '');
 	if (p === 'Shoulder') return 'Chest';
@@ -92,28 +78,62 @@ function fullPart(name) {
 	return `Foot.${side}`;
 }
 
-export const FULL_RIG = {
-	id: 'full',
-	parents: FULL_PARENTS,
-	names: Object.keys(FULL_PARENTS),
-	center: FULL_CENTER,
-	mhHead(name) {
-		if (FULL_CENTER.has(name)) return FULL_HEAD[name];
-		const side = name.startsWith('Left') ? 'L' : 'R';
-		return `${FULL_HEAD[name.replace(/^(Left|Right)/, '')]}.${side}`;
+// ---------- 65 костей: стандарт Mixamo ----------
+const MX = 'mixamorig';
+const MIXAMO_PARENTS = { Hips: null, Spine: 'Hips', Spine1: 'Spine', Spine2: 'Spine1', Neck: 'Spine2', Head: 'Neck', HeadTop_End: 'Head' };
+for (const S of Object.values(SIDES)) {
+	Object.assign(MIXAMO_PARENTS, { [`${S}Shoulder`]: 'Spine2', [`${S}Arm`]: `${S}Shoulder`, [`${S}ForeArm`]: `${S}Arm`, [`${S}Hand`]: `${S}ForeArm` });
+	for (const f of FINGERS) for (let k = 1; k <= 4; k++) MIXAMO_PARENTS[`${S}Hand${f}${k}`] = k === 1 ? `${S}Hand` : `${S}Hand${f}${k - 1}`;
+	Object.assign(MIXAMO_PARENTS, { [`${S}UpLeg`]: 'Hips', [`${S}Leg`]: `${S}UpLeg`, [`${S}Foot`]: `${S}Leg`, [`${S}ToeBase`]: `${S}Foot`, [`${S}Toe_End`]: `${S}ToeBase` });
+}
+const MIXAMO_CENTER = new Set(['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'HeadTop_End']);
+// сустав MakeHuman для каждой кости (голова кости или кончик для концевых костей)
+const MIXAMO_JOINT = {
+	Hips: 'spine05____head', Spine: 'spine04____head', Spine1: 'spine02____head', Spine2: 'spine01____head',
+	Neck: 'neck01____head', Head: 'head____head', HeadTop_End: 'head____tail',
+	Shoulder: 'clavicle____head', Arm: 'upperarm01____head', ForeArm: 'lowerarm01____head', Hand: 'wrist____head',
+	UpLeg: 'upperleg01____head', Leg: 'lowerleg01____head', Foot: 'foot____head', ToeBase: 'toe3-1____head', Toe_End: 'toe3-3____tail',
+};
+FINGERS.forEach((f, i) => {
+	for (let k = 1; k <= 3; k++) MIXAMO_JOINT[`Hand${f}${k}`] = `finger${i + 1}-${k}____head`;
+	MIXAMO_JOINT[`Hand${f}4`] = `finger${i + 1}-3____tail`;
+});
+const short = (name) => name.startsWith(MX) ? name.slice(MX.length) : name;
+
+export const MIXAMO_RIG = {
+	id: 'mixamo',
+	prefix: MX,
+	root: `${MX}Hips`,
+	tPose: true,
+	parents: Object.fromEntries(Object.entries(MIXAMO_PARENTS).map(([n, p]) => [MX + n, p && MX + p])),
+	names: Object.keys(MIXAMO_PARENTS).map((n) => MX + n),
+	center: new Set([...MIXAMO_CENTER].map((n) => MX + n)),
+	short,
+	bone: (name) => (name.startsWith(MX) ? name : MX + name),
+	mhJoint(name) {
+		const n = short(name);
+		if (MIXAMO_CENTER.has(n)) return MIXAMO_JOINT[n];
+		const side = n.startsWith('Left') ? 'L' : 'R';
+		const [bone, end] = MIXAMO_JOINT[n.replace(/^(Left|Right)/, '')].split('____');
+		return `${bone}.${side}____${end}`;
 	},
 	mapMH(mhName) {
 		const [stem, side] = mhName.split('.');
-		const part = stem.startsWith('toe') ? 'ToeBase' : FULL_MH[stem];
+		const part = stem.startsWith('toe') ? 'ToeBase' : STANDARD_MH[stem];
 		if (!part) return null;
-		return FULL_CENTER.has(part) ? part : `${SIDES[side]}${part}`;
+		return MX + (MIXAMO_CENTER.has(part) ? part : `${SIDES[side]}${part}`);
 	},
-	part: fullPart,
+	part: (name) => {
+		const n = short(name);
+		if (n === 'HeadTop_End') return 'Head';
+		if (n.endsWith('Toe_End')) return `Foot.${n.startsWith('Left') ? 'L' : 'R'}`;
+		return standardPart(n);
+	},
 	limb: (s) => {
 		const S = SIDES[s];
-		return { upperArm: `${S}Arm`, foreArm: `${S}ForeArm`, hand: `${S}Hand`, upLeg: `${S}UpLeg`, leg: `${S}Leg`, foot: `${S}Foot` };
+		return { upperArm: `${MX}${S}Arm`, foreArm: `${MX}${S}ForeArm`, hand: `${MX}${S}Hand`, upLeg: `${MX}${S}UpLeg`, leg: `${MX}${S}Leg`, foot: `${MX}${S}Foot` };
 	},
-	alias: { Hips: 'Hips', Spine: 'Spine', Chest: 'Spine1', Neck: 'Neck', Head: 'Head', Jaw: 'Jaw' },
+	alias: { Hips: `${MX}Hips`, Spine: `${MX}Spine`, Chest: `${MX}Spine1`, Neck: `${MX}Neck`, Head: `${MX}Head`, Jaw: `${MX}Head` },
 };
 
-export const RIGS = { simple: SIMPLE_RIG, full: FULL_RIG };
+export const RIGS = { simple: SIMPLE_RIG, mixamo: MIXAMO_RIG };

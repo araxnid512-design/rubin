@@ -6,10 +6,20 @@ import * as THREE from 'three';
 
 const shadow = (g) => { g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); return g; };
 
+/**
+ * Наклон топорища в кулаке, градусы. Топорище лежит в ладони наискось — от основания мизинца
+ * к указательному пальцу, поэтому оно отклонено от стороны большого пальца (+Z) к пальцам (−Y).
+ * Так топор продолжает линию руки при небольшом отклонении кисти, как у настоящего хвата.
+ */
+export const AXE_GRIP_TILT = 35;
+
 /** Топор: хват у нижнего конца топорища, топорище уходит от большого пальца, лезвие — по пальцам. */
 export function makeAxe() {
 	const g = new THREE.Group();
 	g.name = 'Axe';
+	g.userData.tilt = THREE.MathUtils.degToRad(AXE_GRIP_TILT);
+	const body = new THREE.Group(); // сам топор в своих осях: топорище по +Z, лезвие по −Y
+	body.rotation.x = g.userData.tilt;
 	const wood = new THREE.MeshStandardMaterial({ color: 0x7a5432, roughness: 0.75 });
 	const steel = new THREE.MeshStandardMaterial({ color: 0x8e959a, roughness: 0.32, metalness: 0.9 });
 	const edgeMat = new THREE.MeshStandardMaterial({ color: 0xc8ced2, roughness: 0.2, metalness: 1 });
@@ -32,7 +42,8 @@ export function makeAxe() {
 	bladeMesh.position.set(0, 0, L - 0.12);
 	const edge = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, 0.118), edgeMat);
 	edge.position.set(0, -0.158, L - 0.12);
-	g.add(handle, knob, head, bladeMesh, edge);
+	body.add(handle, knob, head, bladeMesh, edge);
+	g.add(body);
 	return shadow(g);
 }
 

@@ -20,6 +20,6 @@ print(f'Арматура: {len(arm)}, костей: {len(arm[0].data.bones) if a
 print(f'Меши: {len(meshes)}, вершин: {verts}, материалы: {sorted(m.name for m in bpy.data.materials)}')
 print(f'Текстуры: {len(images)}')
 print(f'Анимации: {actions}')
-ok = len(arm) == 1 and len(arm[0].data.bones) in (19, 56) and len(actions) >= 5 and all(any(n in a for a in actions) for n in ['Idle', 'Walk', 'Run', 'Death'])
+ok = len(arm) == 1 and len(arm[0].data.bones) in (19, 65) and len(actions) >= 5 and all(any(n in a for a in actions) for n in ['Idle', 'Walk', 'Run', 'Death'])
 print('BLENDER: OK' if ok else 'BLENDER: FAIL')
 sys.exit(0 if ok else 1)

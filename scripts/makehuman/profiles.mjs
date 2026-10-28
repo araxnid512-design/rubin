@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createZombieAnimations } from '../../src/animations.js';
 import { createHeroAnimations } from '../../src/hero-animations.js';
+import { AXE_GRIP_TILT } from '../../game/weapons.js';
 import { RUNNER_PROFILE, bloodAmount, BLOOD, DRIED, skinShade } from './build-zombie.mjs';
 
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -163,8 +164,9 @@ function gripQuat(handle, blade) {
 /** Точки крепления оружия на теле — те же, к которым тянется рука в анимациях смены оружия. */
 export function heroMountSpots(L, hipsY, shoulderR) {
 	return {
-		// топор в чехле на левом бедре: кулак у бедра, голова топора вниз, лезвие вперёд
-		axe: { bone: 'LeftUpLeg', pos: new THREE.Vector3(0.2, hipsY + 0.04, 0.06), handle: [0.05, -1, 0.06], blade: [0, 0.06, 1] },
+		// топор в петле на левом бедре, как меч: кулак спереди у бедра, топорище назад-вверх, голова за бедром,
+		// лезвие наружу. Правая рука берёт его поперёк тела большим пальцем к голове — без перекрута предплечья.
+		axe: { bone: 'LeftUpLeg', pos: new THREE.Vector3(0.17, hipsY - 0.02, 0.12), handle: [0, 0.35, -0.94], blade: [1, 0, 0] },
 		// пистолет в набедренной кобуре справа: ствол вниз, рукоять вперёд
 		pistol: { bone: 'RightUpLeg', pos: new THREE.Vector3(shoulderR.x - 0.06, hipsY - 0.1, 0.04), handle: [0, 0.2, 1], blade: [0, -1, 0.2] },
 	};
@@ -271,23 +273,26 @@ function heroGear({ L, frontMost, backMost, bindWorld }) {
 	add(holster, spot.pos.x, spot.pos.y, spot.pos.z, 'RightUpLeg', [0.14, 0.13, 0.11], q);
 	const thigh = bindWorld.RightUpLeg;
 	add(new THREE.TorusGeometry(0.088, 0.008, 6, 20), thigh.x - 0.005, L.hipsY - 0.22, thigh.z + 0.01, 'RightUpLeg', [0.1, 0.1, 0.09], new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)));
-	// чехол топора на левом бедре
+	// петля для топора на ремне слева, сбоку бедра — через неё проходит топорище за кулаком
 	const ax = heroMountSpots(L, L.hipsY, L.shoulderR).axe;
-	add(box(0.035, 0.07, 0.1, 0.008), ax.pos.x + 0.005, ax.pos.y - 0.5, ax.pos.z + 0.02, 'LeftUpLeg', [0.2, 0.15, 0.1]);
+	const hd = new THREE.Vector3(...ax.handle).normalize();
+	const loop = ax.pos.clone().addScaledVector(hd, 0.12);
+	add(box(0.02, 0.07, 0.045, 0.008), loop.x + 0.02, loop.y, loop.z, 'LeftUpLeg', [0.2, 0.15, 0.1]);
 	return parts;
 }
 
 function heroMounts({ L }) {
 	const spots = heroMountSpots(L, L.hipsY, L.shoulderR);
 	return [
-		{ name: 'AxeMount', bone: spots.axe.bone, pos: spots.axe.pos, quat: gripQuat(spots.axe.handle, spots.axe.blade) },
+		// у топора топорище в кулаке наклонено: узел — оси кулака, топор в нём повёрнут на AXE_GRIP_TILT
+		{ name: 'AxeMount', bone: spots.axe.bone, pos: spots.axe.pos, quat: gripQuat(spots.axe.handle, spots.axe.blade).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -THREE.MathUtils.degToRad(AXE_GRIP_TILT))) },
 		{ name: 'HolsterMount', bone: spots.pistol.bone, pos: spots.pistol.pos, quat: gripQuat(spots.pistol.handle, spots.pistol.blade) },
 	];
 }
 
 export const HERO_PROFILE = {
 	name: 'Hero',
-	rig: 'full',
+	rig: 'mixamo',
 	targets: HERO_TARGETS,
 	wounds: false,
 	garments: heroGarments,
