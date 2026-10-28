@@ -198,7 +198,9 @@
 		// ---------- Модель и анимации ----------
 		const state = { model: null, mixer: null, actions: {}, current: null, clips: [], skeletonHelper: null, source: 'realistic', paused: false };
 		window.__zombie = state; // для автотестов
-		const LOOP_ONCE = new Set(['Death', 'Attack']);
+		const LOOP_ONCE = new Set(['Death', 'Attack', 'Melee', 'Shoot', 'Hit']);
+		// ?model=путь/к/файлу.glb — открыть другую модель (например, models/game/player.glb)
+		const MODEL_URL = new URLSearchParams(location.search).get('model') || './models/zombie.glb';
 
 		function setModel(model, clips) {
 			if (state.model) {
@@ -248,10 +250,11 @@
 
 		// После одноразовой атаки возвращаемся в Idle, Death остаётся на последнем кадре.
 		function onFinished(e) {
-			if (e.action.getClip().name === 'Attack' && state.current === 'Attack' && state.actions.Idle) play('Idle');
+			const n = e.action.getClip().name;
+			if (n !== 'Death' && n === state.current && state.actions.Idle) play('Idle');
 		}
 
-		const ICONS = { Idle: '🧍', Walk: '🚶', Run: '🏃', Attack: '🦷', Death: '💀' };
+		const ICONS = { Idle: '🧍', Walk: '🚶', Run: '🏃', Attack: '🦷', Death: '💀', Melee: '🪓', Shoot: '🔫', Hit: '💥' };
 		function buildButtons() {
 			const box = $('anims');
 			box.innerHTML = '';
@@ -293,7 +296,7 @@
 			try {
 				let buffer;
 				try {
-					const res = await fetch('./models/zombie.glb');
+					const res = await fetch(MODEL_URL);
 					if (!res.ok) throw new Error(res.status);
 					buffer = await res.arrayBuffer();
 				} catch {

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+	<meta name="theme-color" content="#141816">
+	<title>Улей. Кластер-17</title>
+	<style>
+		:root {
+			--bg: #141816;
+			--panel: rgba(16, 20, 18, 0.78);
+			--border: rgba(170, 190, 160, 0.25);
+			--text: #e2e8dc;
+			--muted: #9aa894;
+			--accent: #c8d86a;
+			--hp: #c0392b;
+			--spore: #a8e070;
+		}
+		* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+		html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+			font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+		#game, #game canvas { position: fixed; inset: 0; display: block; }
+		.hidden { display: none !important; }
+		.screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; z-index: 20;
+			background: radial-gradient(ellipse at center, rgba(10,12,11,0.35), rgba(10,12,11,0.85)); }
+		.card { max-width: 460px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+		h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: 0.04em; }
+		.sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+		.lore { text-align: left; font-size: 14px; color: #cfd6c8; margin: 0 0 16px; }
+		.controls { text-align: left; font-size: 13px; color: var(--muted); margin: 14px 0 0; }
+		.controls b { color: var(--text); }
+		button.big { font: inherit; font-weight: 700; font-size: 18px; color: #141816; background: var(--accent); border: 0; border-radius: 12px; padding: 14px 28px; cursor: pointer; width: 100%; }
+		button.big:active { transform: scale(0.98); }
+		#loading .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; margin: 14px 0 8px; }
+		#loadbar { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+		#loadtext { color: var(--muted); font-size: 13px; }
+
+		/* HUD */
+		#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+		.top { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); right: calc(12px + env(safe-area-inset-right)); display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+		.box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+		.hp { width: min(240px, 46vw); }
+		.hp .label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+		.hp .bar { height: 10px; background: rgba(255,255,255,0.08); border-radius: 5px; overflow: hidden; }
+		#hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #8e1f16, var(--hp)); transition: width .15s; }
+		.stats { display: flex; gap: 14px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+		.stats b { color: var(--text); }
+		.stats .spore b { color: var(--spore); }
+		.weapon { text-align: right; }
+		#weapon-name { font-weight: 700; }
+		#ammo { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+		#banner { position: absolute; top: 22%; left: 0; right: 0; text-align: center; opacity: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.7); }
+		#banner.show { animation: banner 3.2s ease forwards; }
+		#banner-title { font-size: 36px; font-weight: 800; letter-spacing: 0.06em; }
+		#banner-sub { color: #d0d8c8; }
+		@keyframes banner { 0% { opacity: 0; transform: translateY(10px); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+		#toasts { position: absolute; top: 34%; left: 0; right: 0; display: grid; justify-items: center; gap: 6px; }
+		.toast { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-size: 14px; color: var(--spore); animation: toast 1.6s ease forwards; }
+		@keyframes toast { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+		#hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 9; background: radial-gradient(ellipse at center, transparent 45%, rgba(150,0,0,0.75)); }
+
+		/* Сенсорное управление */
+		#touch { position: fixed; inset: 0; z-index: 11; pointer-events: none; }
+		#stick-zone { position: absolute; left: 0; bottom: 0; width: 55%; height: 65%; pointer-events: auto; }
+		#stick-base { position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); display: none; }
+		#stick-base.active { display: block; }
+		#stick-knob { position: absolute; left: 32px; top: 32px; width: 56px; height: 56px; border-radius: 50%; background: rgba(230,240,220,0.45); }
+		.tbtn { position: absolute; pointer-events: auto; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); background: rgba(20,24,22,0.55); color: #fff; display: grid; place-items: center; font-size: 30px; }
+		.tbtn.down { background: rgba(200,216,106,0.5); }
+		#btn-attack { right: calc(22px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 96px; height: 96px; font-size: 40px; }
+		#btn-weapon { right: calc(130px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 64px; height: 64px; }
+		#btn-reload { right: calc(40px + env(safe-area-inset-right)); bottom: calc(138px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 22px; }
+		@media (max-width: 480px) { .hp { width: min(250px, 64vw); } .stats { gap: 9px; font-size: 12px; } }
+		@media (pointer: fine) { #touch { display: none; } }
+		.desktop-only { display: none; }
+		@media (pointer: fine) { .desktop-only { display: block; } .mobile-only { display: none; } }
+	</style>
+	<script type="importmap">
+		{
+			"imports": {
+				"three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+				"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+			}
+		}
+	</script>
+</head>
+<body>
+	<div id="game"></div>
+	<div id="hurt"></div>
+
+	<div id="hud" class="hidden">
+		<div class="top">
+			<div class="box hp">
+				<div class="label"><span>Здоровье</span><span id="hp-text">100</span></div>
+				<div class="bar"><div id="hp-fill"></div></div>
+				<div class="stats">
+					<span>Осталось <b id="left">0</b></span>
+					<span>Убито <b id="kills">0</b></span>
+					<span class="spore">Спораны <b id="spores">0</b></span>
+				</div>
+			</div>
+			<div class="box weapon">
+				<div id="weapon-name">Топор</div>
+				<div id="ammo"></div>
+			</div>
+		</div>
+		<div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+		<div id="toasts"></div>
+	</div>
+
+	<div id="touch">
+		<div id="stick-zone"></div>
+		<div id="stick-base"><div id="stick-knob"></div></div>
+		<div class="tbtn" id="btn-attack"></div>
+		<div class="tbtn" id="btn-weapon"></div>
+		<div class="tbtn" id="btn-reload">⟳</div>
+	</div>
+
+	<div id="loading" class="screen">
+		<div class="card">
+			<h1>Улей. Кластер-17</h1>
+			<div class="sub">по мотивам вселенной «Стикс» Артёма Каменистого</div>
+			<div class="bar"><div id="loadbar"></div></div>
+			<div id="loadtext">Загрузка…</div>
+		</div>
+	</div>
+
+	<div id="menu" class="screen hidden">
+		<div class="card">
+			<h1>Улей. Кластер-17</h1>
+			<div class="sub">по мотивам вселенной «Стикс» Артёма Каменистого</div>
+			<p class="lore">Кусок посёлка вместе с тобой перенесло в Улей. Все, кто не оказался иммунным, обратились. По краям кластера — муть.
+				По улицам бродят бегуны, у гаражей и магазина — топтуны. Зачисти кластер:
+				заражённые замечают тебя вблизи и идут на шум — выстрел слышно далеко, топор тише.
+				Собирай спораны с убитых, живчик лечит.</p>
+			<button class="big" id="btn-start">Начать</button>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка</div>
+			<div class="controls mobile-only">Слева — джойстик, справа — атака, смена оружия и перезарядка. Прицел — автоматический.</div>
+		</div>
+	</div>
+
+	<div id="gameover" class="screen hidden">
+		<div class="card">
+			<h1 id="go-title">Тебя сожрали</h1>
+			<div class="sub" id="go-stats"></div>
+			<button class="big" id="btn-restart">Ещё раз</button>
+		</div>
+	</div>
+
+	<script type="module" src="./game/main.js"></script>
+</body>
+</html>

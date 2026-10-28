@@ -21,9 +21,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const MH = join(ROOT, 'third_party/makehuman');
 const DM_TO_M = 0.1; // MakeHuman хранит модель в дециметрах
 
-// Морфы: [файл, вес]. Макро-морфы смешиваются как в MakeHuman:
+// Морфы бегуна: [файл, вес]. Макро-морфы смешиваются как в MakeHuman:
 // мышцы 0.35 (min 0.3 / avg 0.7) × вес тела 0.15 (min 0.7 / avg 0.3).
-const TARGETS = [
+const RUNNER_TARGETS = [
 	['macrodetails/universal-male-young-minmuscle-minweight', 0.21],
 	['macrodetails/universal-male-young-minmuscle-averageweight', 0.09],
 	['macrodetails/universal-male-young-averagemuscle-minweight', 0.49],
@@ -65,11 +65,20 @@ const toLinear = (c) => c.map((v) => Math.min(1, Math.max(0, v)) ** 2.2);
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const V = (a) => new THREE.Vector3(...a);
 
-export function buildZombie({ textureSize = 1024 } = {}) {
+/** Реалистичный зомби-бегун (модель models/zombie.glb). */
+export function buildZombie(options) {
+	return buildCharacter(PROFILES.runner, options);
+}
+
+/**
+ * Персонаж из базовой модели MakeHuman по профилю (см. PROFILES в profiles.mjs):
+ * морфы фигуры, кожа, одежда, раны и набор анимаций.
+ */
+export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	// ---------- 1. Базовая модель + морфы ----------
 	const base = loadObj(join(MH, 'base.obj'));
 	const pos = base.positions;
-	for (const [file, w] of TARGETS) applyTarget(pos, join(MH, 'targets', `${file}.target`), w);
+	for (const [file, w] of profile.targets) applyTarget(pos, join(MH, 'targets', `${file}.target`), w);
 	const skel = loadSkeleton(join(MH, 'rigs/default.mhskel'));
 	const eyes = fitProxy(join(MH, 'eyes/high-poly.mhclo'), join(MH, 'eyes/high-poly.obj'), pos);
 	const nv = pos.length / 3;
@@ -194,22 +203,24 @@ export function buildZombie({ textureSize = 1024 } = {}) {
 		return best;
 	};
 	L.lips = frontMost(0, L.mouth.y, 0.008);
-	const wound = frontMost(-0.075, L.chest.y + 0.12); // рана на груди справа (у персонажа)
+	const wound = profile.wounds ? frontMost(-0.075, L.chest.y + 0.12) : null; // рана на груди справа (у персонажа)
 	L.wound = wound;
-	L.bite = frontMost(L.shoulderL.x - 0.01, L.shoulderL.y + 0.02, 0.015); // укус на левом плече
+	L.bite = profile.wounds ? frontMost(L.shoulderL.x - 0.01, L.shoulderL.y + 0.02, 0.015) : null; // укус на левом плече
 
 	const weightSum = (v, prefix) => Object.entries(vertWeights[v]).reduce((s, [b, w]) => s + (b.startsWith(prefix) ? w : 0), 0);
 
 	// ---------- 4. Геометрия тела ----------
 	const builder = new GeometryBuilder(base.uvs, vertWeights);
-	// вмятина раны
+	// вмятина раны и наросты (у топтуна)
 	const bodyPos = posed.slice();
 	for (let v = 0; v < nv; v++) {
-		const d = P(v).distanceTo(wound);
-		if (d < 0.05) {
-			const k = (1 - smoothstep(0.012, 0.05, d)) * 0.016;
-			for (let a = 0; a < 3; a++) bodyPos[v * 3 + a] -= vnormals[v * 3 + a] * k;
+		let k = 0;
+		if (wound) {
+			const d = P(v).distanceTo(wound);
+			if (d < 0.05) k -= (1 - smoothstep(0.012, 0.05, d)) * 0.016;
 		}
+		if (profile.growths) k += profile.growths(P(v), N(v), weightSum(v, 'Forearm') + weightSum(v, 'UpperArm'), weightSum(v, 'Head') + weightSum(v, 'Neck'));
+		if (k) for (let a = 0; a < 3; a++) bodyPos[v * 3 + a] += vnormals[v * 3 + a] * k;
 	}
 	const skinGeo = builder.build(bodyFaces, bodyPos, vnormals);
 	const teethGeo = [];
@@ -219,7 +230,7 @@ export function buildZombie({ textureSize = 1024 } = {}) {
 	}
 	const tongueFaces = base.groups.get('helper-tongue');
 	teethGeo.push(builder.build(tongueFaces, posed, vertexNormals(posed, tongueFaces, nv), () => [0.35, 0.12, 0.12]));
-	teethGeo.push(ribsGeometry(wound, builder.boneIndex));
+	if (wound) teethGeo.push(ribsGeometry(wound, builder.boneIndex));
 
 	// Глаза (прокси-меш): кость Head
 	const eyeFaces = eyes.groups.get('default');
@@ -228,58 +239,25 @@ export function buildZombie({ textureSize = 1024 } = {}) {
 	// ---------- 5. Одежда ----------
 	const ragged = (p, amount, seed) => amount * (0.2 + 0.8 * fbm3(p.x * 28, p.y * 28, p.z * 28, 2, seed));
 	const holeAt = (p, list) => list.some(({ c, r }) => c && p.distanceTo(c) < r * (0.6 + 0.8 * noise3(p.x * 50, p.y * 50, p.z * 50, 19)));
-	const SHIRT_HOLES = [
-		{ c: wound, r: 0.07 }, { c: L.bite, r: 0.05 },
-		{ c: V([0.1, L.hipsY + 0.12, 0.1]), r: 0.04 }, { c: V([-0.06, L.chest.y + 0.05, -0.12]), r: 0.05 },
-		{ c: V([0.08, L.chest.y + 0.22, -0.1]), r: 0.035 }, { c: V([-0.14, L.hipsY + 0.2, 0]), r: 0.03 },
-	];
-	const PANTS_HOLES = [
-		{ c: V([L.kneeL.x, L.kneeL.y, L.kneeL.z + 0.05]), r: 0.045 },
-		{ c: V([-0.14, L.hipsY - 0.25, 0.03]), r: 0.03 },
-		{ c: V([0.05, L.hipsY - 0.12, -0.11]), r: 0.03 },
-	];
-	const neckCut = L.neck.y + 0.025;
-	const inShirt = (v) => {
-		const p = P(v), b = dominant[v];
-		if (b === 'Neck' || b === 'Head' || b === 'Jaw') return p.y < neckCut - ragged(p, 0.01, 3);
-		if (b === 'Chest' || b === 'Spine' || b === 'Hips') return p.y > L.hipsY + 0.03 + ragged(p, 0.07, 5) && p.y < neckCut;
-		if (b === 'UpperArm.L') return p.y > L.shoulderL.y - 0.09 - ragged(p, 0.06, 7);
-		if (b === 'UpperArm.R') return true;
-		if (b === 'Forearm.R') return p.y > L.elbowR.y - 0.12 + ragged(p, 0.07, 9);
-		return false;
-	};
-	const waist = L.hipsY + 0.075;
-	const inPants = (v) => {
-		const p = P(v), b = dominant[v];
-		if (b === 'Hips' || b === 'Spine') return p.y < waist;
-		if (b.startsWith('UpperLeg')) return true;
-		if (b === 'LowerLeg.L') return p.y > L.ankleL.y + 0.06 + ragged(p, 0.04, 11);
-		if (b === 'LowerLeg.R') return p.y > L.kneeR.y - 0.16 + ragged(p, 0.1, 13);
-		return false;
-	};
-	const garment = (test, holes, inflateAt, tint) => {
+	const garment = ({ test, holes = [], inflate, tint }) => {
 		const keep = bodyFaces.filter((f) => f.every(([v]) => test(v)) && !holeAt(centroid(f, P), holes));
 		const gp = posed.slice();
 		for (let v = 0; v < nv; v++) {
 			const p = P(v);
 			const wr = (fbm3(p.x * 9, p.y * 9, p.z * 9, 3, 29) - 0.5) * 0.012;
-			const off = inflateAt(p) + Math.max(0, wr);
+			const off = inflate(p, v) + Math.max(0, wr);
 			for (let a = 0; a < 3; a++) gp[v * 3 + a] += vnormals[v * 3 + a] * off;
 		}
-		return builder.build(keep, gp, vertexNormals(gp, keep, nv), (v) => tint(P(v)));
+		return builder.build(keep, gp, vertexNormals(gp, keep, nv), (v) => tint(P(v), v));
 	};
-	// рубашка свободнее на животе, джинсы расширяются книзу
-	const shirtInflate = (p) => 0.009 + 0.016 * smoothstep(L.chest.y + 0.05, L.hipsY + 0.05, p.y) * (p.y < L.chest.y + 0.25 ? 1 : 0);
-	const pantsInflate = (p) => 0.006 + 0.016 * smoothstep(L.kneeL.y + 0.15, L.ankleL.y, p.y);
-	const shirtGeo = garment(inShirt, SHIRT_HOLES, shirtInflate, () => [0.5, 0.48, 0.42]);
-	const pantsGeo = garment(inPants, PANTS_HOLES, pantsInflate, (p) => (p.y > waist - 0.03 ? [0.16, 0.11, 0.08] : [0.3, 0.37, 0.52]));
+	const clothGeos = profile.garments({ P, dominant, L, ragged, V, smoothstep, weightSum }).map(garment);
 
 	// ---------- 6. Текстуры ----------
 	const triAttrs = (v) => [weightSum(v, 'Hand'), weightSum(v, 'Foot'), weightSum(v, 'Forearm') + weightSum(v, 'Hand'), weightSum(v, 'Head') + weightSum(v, 'Jaw')];
 	const skinTris = trianglesForBake(bodyFaces, base.uvs, (v) => P(v).toArray(), (v) => N(v).toArray(), triAttrs);
-	const skinBake = bakeAtlas(textureSize, skinTris, (p, n, a) => skinShade(p, n, a, L));
-	const clothBake = bakeAtlas(textureSize, skinTris, (p, n, a) => clothShade(p, n, a, L));
-	const eyeImg = decodePNG(readFileSync(join(ROOT, 'assets/zombie_eye.png')));
+	const skinBake = bakeAtlas(textureSize, skinTris, (p, n, a) => profile.skin(p, n, a, L));
+	const clothBake = bakeAtlas(textureSize, skinTris, (p, n, a) => profile.cloth(p, n, a, L));
+	const eyeImg = decodePNG(readFileSync(join(ROOT, profile.eye)));
 
 	const materials = [
 		new THREE.MeshStandardMaterial({ name: 'Skin', vertexColors: true, map: colorTexture(skinBake), normalMap: normalTexture(skinBake, 2.5), roughness: 0.58, metalness: 0 }),
@@ -290,7 +268,7 @@ export function buildZombie({ textureSize = 1024 } = {}) {
 
 	const geometry = mergeGeometries([
 		skinGeo,
-		mergeGeometries([shirtGeo, pantsGeo]),
+		mergeGeometries(clothGeos),
 		eyeGeo,
 		mergeGeometries(teethGeo),
 	], true);
@@ -310,13 +288,13 @@ export function buildZombie({ textureSize = 1024 } = {}) {
 	}
 	const boneList = BONE_NAMES.map((n) => finalBones[n]);
 	const mesh = new THREE.SkinnedMesh(geometry, materials);
-	mesh.name = 'ZombieMesh';
+	mesh.name = `${profile.name}Mesh`;
 	mesh.add(finalBones.Root);
 	mesh.bind(new THREE.Skeleton(boneList));
 	const model = new THREE.Group();
-	model.name = 'Zombie';
+	model.name = profile.name;
 	model.add(mesh);
-	const animations = createZombieAnimations(finalBones.Root);
+	const animations = profile.animations(finalBones.Root);
 	model.animations = animations;
 	return { model, mesh, animations, landmarks: L };
 }
@@ -438,9 +416,9 @@ function ribsGeometry(wound, boneIndex) {
 
 // ---------- Шейдинг для запекания (цвета в sRGB) ----------
 
-const BLOOD = [0.38, 0.03, 0.025], DRIED = [0.2, 0.04, 0.03];
+export const BLOOD = [0.38, 0.03, 0.025], DRIED = [0.2, 0.04, 0.03];
 
-function bloodAmount(p, n, a, L) {
+export function bloodAmount(p, n, a, L) {
 	let b = 0;
 	const spot = (c, r) => (c ? 1 - smoothstep(r * 0.3, r, p.distanceTo(c)) : 0);
 	b = Math.max(b, L.lips ? spot(L.lips.clone().setY(L.lips.y - 0.012), 0.03) : 0);
@@ -462,7 +440,7 @@ function bloodAmount(p, n, a, L) {
 	return b * smoothstep(0.25, 0.5, fbm3(p.x * 45, p.y * 45, p.z * 45, 2, 3) + b * 0.3);
 }
 
-function skinShade(p, n, a, L) {
+export function skinShade(p, n, a, L) {
 	const f = (s, oct, seed) => fbm3(p.x * s, p.y * s, p.z * s, oct, seed);
 	const base = f(5, 3, 1);
 	let c = mix([0.58, 0.61, 0.5], [0.43, 0.48, 0.39], base);
@@ -518,7 +496,7 @@ function skinShade(p, n, a, L) {
 	return { color: c, height };
 }
 
-function clothShade(p, n, a, L) {
+export function clothShade(p, n, a, L) {
 	const f = (s, oct, seed) => fbm3(p.x * s, p.y * s, p.z * s, oct, seed);
 	let l = 0.88 + (noise3(p.x * 900, p.y * 900, p.z * 900, 97) - 0.5) * 0.08;
 	l *= 1 - 0.28 * smoothstep(0.4, 0.8, f(6, 4, 71));
@@ -531,3 +509,63 @@ function clothShade(p, n, a, L) {
 	const grain = noise3(p.x * 1200, p.y * 1200, p.z * 1200, 93) * 0.12;
 	return { color: c, height: grain + f(12, 3, 91) * 2.2 - stain * 0.2 };
 }
+
+// ---------- Профиль бегуна (исходный зомби) ----------
+
+function runnerGarments({ P, dominant, L, ragged, V, smoothstep }) {
+	const SHIRT_HOLES = [
+		{ c: L.wound, r: 0.07 }, { c: L.bite, r: 0.05 },
+		{ c: V([0.1, L.hipsY + 0.12, 0.1]), r: 0.04 }, { c: V([-0.06, L.chest.y + 0.05, -0.12]), r: 0.05 },
+		{ c: V([0.08, L.chest.y + 0.22, -0.1]), r: 0.035 }, { c: V([-0.14, L.hipsY + 0.2, 0]), r: 0.03 },
+	];
+	const PANTS_HOLES = [
+		{ c: V([L.kneeL.x, L.kneeL.y, L.kneeL.z + 0.05]), r: 0.045 },
+		{ c: V([-0.14, L.hipsY - 0.25, 0.03]), r: 0.03 },
+		{ c: V([0.05, L.hipsY - 0.12, -0.11]), r: 0.03 },
+	];
+	const neckCut = L.neck.y + 0.025;
+	const waist = L.hipsY + 0.075;
+	return [
+		{
+			// рубашка свободнее на животе
+			test: (v) => {
+				const p = P(v), b = dominant[v];
+				if (b === 'Neck' || b === 'Head' || b === 'Jaw') return p.y < neckCut - ragged(p, 0.01, 3);
+				if (b === 'Chest' || b === 'Spine' || b === 'Hips') return p.y > L.hipsY + 0.03 + ragged(p, 0.07, 5) && p.y < neckCut;
+				if (b === 'UpperArm.L') return p.y > L.shoulderL.y - 0.09 - ragged(p, 0.06, 7);
+				if (b === 'UpperArm.R') return true;
+				if (b === 'Forearm.R') return p.y > L.elbowR.y - 0.12 + ragged(p, 0.07, 9);
+				return false;
+			},
+			holes: SHIRT_HOLES,
+			inflate: (p) => 0.009 + 0.016 * smoothstep(L.chest.y + 0.05, L.hipsY + 0.05, p.y) * (p.y < L.chest.y + 0.25 ? 1 : 0),
+			tint: () => [0.5, 0.48, 0.42],
+		},
+		{
+			// джинсы расширяются книзу
+			test: (v) => {
+				const p = P(v), b = dominant[v];
+				if (b === 'Hips' || b === 'Spine') return p.y < waist;
+				if (b.startsWith('UpperLeg')) return true;
+				if (b === 'LowerLeg.L') return p.y > L.ankleL.y + 0.06 + ragged(p, 0.04, 11);
+				if (b === 'LowerLeg.R') return p.y > L.kneeR.y - 0.16 + ragged(p, 0.1, 13);
+				return false;
+			},
+			holes: PANTS_HOLES,
+			inflate: (p) => 0.006 + 0.016 * smoothstep(L.kneeL.y + 0.15, L.ankleL.y, p.y),
+			tint: (p) => (p.y > waist - 0.03 ? [0.16, 0.11, 0.08] : [0.3, 0.37, 0.52]),
+		},
+	];
+}
+
+export const RUNNER_PROFILE = {
+	name: 'Zombie',
+	targets: RUNNER_TARGETS,
+	wounds: true,
+	garments: runnerGarments,
+	skin: skinShade,
+	cloth: clothShade,
+	eye: 'assets/zombie_eye.png',
+	animations: createZombieAnimations,
+};
+const PROFILES = { runner: RUNNER_PROFILE };

@@ -1,13 +1,15 @@
 {
   "name": "zombie-model",
   "version": "1.0.0",
-  "description": "Процедурная low-poly модель зомби (skinned mesh) с 5 анимациями + просмотрщик для тестирования",
+  "description": "Реалистичный зомби (MakeHuman) с 5 анимациями, просмотрщик и игра «Улей. Кластер-17»",
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
     "build": "node scripts/export-glb.mjs",
     "test": "node --test tests/model.test.mjs",
-    "test:e2e": "node tests/viewer.e2e.mjs"
+    "test:e2e": "node tests/viewer.e2e.mjs",
+    "build:game": "node scripts/build-game-assets.mjs",
+    "test:game": "node tests/game.e2e.mjs"
   },
   "dependencies": {
     "three": "0.170.0"
