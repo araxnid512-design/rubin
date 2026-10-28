@@ -52,8 +52,10 @@
 			[new THREE.PerspectiveCamera(30, 1, 0.1, 50), [0, 1.2, 4.2]],
 			[new THREE.PerspectiveCamera(30, 1, 0.1, 50), [-4.2, 1.2, 0]],
 			[new THREE.PerspectiveCamera(42, 1, 0.1, 50), [0, 5.2, 3.9]],
+			[new THREE.PerspectiveCamera(30, 1, 0.1, 50), [0, 5, 0.01]],
+			[new THREE.PerspectiveCamera(30, 1, 0.1, 50), [0.4, 1.6, 1.6]],
 		];
-		window.pose = (clipName, t, weapon, zoom) => {
+		window.pose = (clipName, t, weapon, zoom, view) => {
 			const clip = gltf.animations.find((c) => c.name === clipName);
 			const time = t * clip.duration;
 			const pistolClip = /Pistol|Shoot|Reload/.test(clipName) && clipName !== 'EquipPistol';
@@ -68,13 +70,20 @@
 			mixer.clipAction(clip).play();
 			mixer.setTime(Math.min(clip.duration - 1e-3, t * clip.duration));
 			model.updateMatrixWorld(true);
-			const w = innerWidth / 3, h = innerHeight;
+			// view: 'game' — только камера игры, 'top' — строго сверху, 'feet' — ступни крупно
+			const views = view === 'game' ? [2] : view === 'top' ? [3] : view === 'feet' ? [4] : [0, 1, 2];
+			const near = view === 'game' ? 0.55 : 1;
+			const w = innerWidth / views.length, h = innerHeight;
 			const focus = zoom ? grip.getWorldPosition(new THREE.Vector3()) : null;
-			cams.forEach(([cam, p], i) => {
+			views.forEach((i, slot) => {
+				const [cam, p] = cams[i];
 				cam.aspect = w / h; cam.updateProjectionMatrix();
 				if (focus) { cam.position.copy(focus).add(new THREE.Vector3(...p).setY(p[1] - 1).multiplyScalar(0.18)); cam.lookAt(focus); }
-				else { cam.position.set(...p); cam.lookAt(0, i === 2 ? 0.8 : 1.0, 0); }
-				renderer.setViewport(i * w, 0, w, h); renderer.setScissor(i * w, 0, w, h);
+				else {
+					const target = new THREE.Vector3(0, i === 4 ? 0.1 : i >= 2 ? 0.8 : 1.0, 0);
+					cam.position.set(...p).sub(target).multiplyScalar(near).add(target); cam.lookAt(target);
+				}
+				renderer.setViewport(slot * w, 0, w, h); renderer.setScissor(slot * w, 0, w, h);
 				renderer.render(scene, cam);
 			});
 			document.getElementById('tv').textContent = `${clipName} ${(t * clip.duration).toFixed(2)} с`;

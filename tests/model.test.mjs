@@ -157,14 +157,29 @@ test('герой: полный скелет, пальцы, крепления о
 			if (clip.name !== 'Death') for (const s of ['Left', 'Right']) assert.ok(y(`${s}Foot`) > ankle - 0.025, `${clip.name} t=${t.toFixed(2)}: ступня над землёй`);
 		}
 		// с оружием в руке пальцы сжаты
-		if (['Idle', 'Melee', 'IdlePistol', 'Shoot'].includes(clip.name)) {
+		if (['Idle', 'Melee', 'IdlePistol', 'AimPistol', 'Shoot'].includes(clip.name)) {
 			mixer.setTime(0.1);
 			assert.ok(finger() > 1, `${clip.name}: пальцы правой руки сжаты`);
 		}
 	}
+	const W = (n) => model.getObjectByName(n).getWorldPosition(new THREE.Vector3());
+	const at = (name, t) => { mixer.stopAllAction(); mixer.clipAction(animations.find((a) => a.name === name)).play(); mixer.setTime(t); model.updateMatrixWorld(true); };
 	// ключица поднимается при замахе топором
-	mixer.stopAllAction();
-	mixer.clipAction(animations.find((a) => a.name === 'Melee')).play();
-	mixer.setTime(0.2);
+	at('Melee', 0.2);
 	assert.ok(model.getObjectByName('RightShoulder').quaternion.angleTo(new THREE.Quaternion()) > 0.15, 'ключица работает на замахе');
+	// носки стоп смотрят наружу, а не друг на друга
+	const toeYaw = (s) => { const d = W(`${s}ToeBase`).sub(W(`${s}Foot`)); return Math.atan2(d.x, d.z) * 180 / Math.PI; };
+	for (const name of ['Idle', 'IdlePistol', 'AimPistol', 'Walk', 'WalkPistol', 'Melee', 'Reload']) {
+		at(name, 0.3);
+		assert.ok(toeYaw('Left') > 2 && toeYaw('Right') < -2, `${name}: носки врозь (L ${toeYaw('Left').toFixed(0)}°, R ${toeYaw('Right').toFixed(0)}°)`);
+	}
+	// прицел: пистолет на вытянутых руках на уровне плеч, ствол вперёд
+	at('AimPistol', 0.5);
+	const grip = W('GripR'), shoulder = W('RightArm');
+	assert.ok(grip.y > shoulder.y && grip.z - shoulder.z > 0.5, `пистолет в прицеле вытянут вперёд (y ${grip.y.toFixed(2)}, z ${grip.z.toFixed(2)})`);
+	// удар топором идёт справа налево: на замахе топор справа, в доводке — слева от тела
+	at('Melee', 0.2);
+	const windup = W('GripR').x;
+	at('Melee', 0.45);
+	assert.ok(windup < -0.2 && W('GripR').x > 0.05, `дуга удара справа налево (${windup.toFixed(2)} → ${W('GripR').x.toFixed(2)})`);
 });

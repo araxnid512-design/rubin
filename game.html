@@ -19,11 +19,13 @@
 		* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 		html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
 			font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+		/* #app — вся игра; на телефоне в вертикальном положении поворачивается на 90° (game/screen.js) */
+		#app { position: fixed; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; transform-origin: 0 0; }
 		#game, #game canvas { position: fixed; inset: 0; display: block; }
 		.hidden { display: none !important; }
 		.screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; z-index: 20;
 			background: radial-gradient(ellipse at center, rgba(10,12,11,0.35), rgba(10,12,11,0.85)); }
-		.card { max-width: 460px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+		.card { max-width: 460px; width: 100%; max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 		h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: 0.04em; }
 		.sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
 		.lore { text-align: left; font-size: 14px; color: #cfd6c8; margin: 0 0 16px; }
@@ -67,10 +69,26 @@
 		#stick-knob { position: absolute; left: 32px; top: 32px; width: 56px; height: 56px; border-radius: 50%; background: rgba(230,240,220,0.45); }
 		.tbtn { position: absolute; pointer-events: auto; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); background: rgba(20,24,22,0.55); color: #fff; display: grid; place-items: center; font-size: 30px; }
 		.tbtn.down { background: rgba(200,216,106,0.5); }
+		.tbtn * { pointer-events: none; } /* нажатие всегда приходится на саму кнопку, а не на иконку */
+		#hud.hidden + #touch { display: none; } /* в меню кнопки управления не нужны */
 		#btn-attack { right: calc(22px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 96px; height: 96px; font-size: 40px; }
 		#btn-weapon { right: calc(130px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 64px; height: 64px; }
 		#btn-reload { right: calc(40px + env(safe-area-inset-right)); bottom: calc(138px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 22px; }
 		@media (max-width: 480px) { .hp { width: min(250px, 64vw); } .stats { gap: 9px; font-size: 12px; } }
+		/* горизонтальный телефон: низкий экран */
+		body.short .screen { padding: 8px; }
+		body.short .card { max-width: 640px; padding: 14px 20px; }
+		body.short h1 { font-size: 22px; }
+		body.short .sub { margin-bottom: 8px; }
+		body.short .lore { font-size: 12.5px; line-height: 1.35; margin-bottom: 10px; }
+		body.short button.big { padding: 10px 20px; font-size: 16px; }
+		body.short .controls { margin-top: 8px; }
+		body.short #banner { top: 16%; }
+		body.short #banner-title { font-size: 28px; }
+		body.short .hp { width: min(240px, 34vw); }
+		body.short #btn-attack { width: 88px; height: 88px; bottom: 22px; right: 22px; }
+		body.short #btn-weapon { bottom: 30px; right: 124px; }
+		body.short #btn-reload { bottom: 124px; right: 36px; }
 		@media (pointer: fine) { #touch { display: none; } }
 		.desktop-only { display: none; }
 		@media (pointer: fine) { .desktop-only { display: block; } .mobile-only { display: none; } }
@@ -85,6 +103,7 @@
 	</script>
 </head>
 <body>
+	<div id="app">
 	<div id="game"></div>
 	<div id="hurt"></div>
 
@@ -135,7 +154,7 @@
 				Собирай спораны с убитых, живчик лечит.</p>
 			<button class="big" id="btn-start">Начать</button>
 			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка</div>
-			<div class="controls mobile-only">Слева — джойстик, справа — атака, смена оружия и перезарядка. Прицел — автоматический.</div>
+			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия и перезарядка. Прицел — автоматический.</div>
 		</div>
 	</div>
 
@@ -145,6 +164,7 @@
 			<div class="sub" id="go-stats"></div>
 			<button class="big" id="btn-restart">Ещё раз</button>
 		</div>
+	</div>
 	</div>
 
 	<script type="module" src="./game/main.js"></script>

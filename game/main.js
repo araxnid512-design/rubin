@@ -9,6 +9,7 @@ import { buildLevel, resolveCollisions, HALF } from './level.js';
 import { setAnisotropy, bloodDecalTexture, softDotTexture } from './textures.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
+import { view, onResize, goLandscape } from './screen.js';
 import { makeAxe, makePistol } from './weapons.js';
 import { EQUIP_TIMES } from '../src/hero-animations.js';
 
@@ -19,7 +20,7 @@ const QUALITY = new URLSearchParams(location.search).get('q') || (isMobile ? 'me
 // ---------- Рендер ----------
 const renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: 'high-performance', preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(view.w, view.h);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -35,7 +36,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.25;
 
-const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.5, 220);
+const camera = new THREE.PerspectiveCamera(42, view.w / view.h, 0.5, 220);
 scene.add(new THREE.HemisphereLight(0xc4ccd0, 0x4a4a3c, 1.25));
 const sun = new THREE.DirectionalLight(0xfff0dc, 2.1);
 sun.castShadow = true;
@@ -45,11 +46,18 @@ sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
 
-addEventListener('resize', () => {
-	camera.aspect = innerWidth / innerHeight;
+onResize(() => {
+	camera.aspect = view.w / view.h;
 	camera.updateProjectionMatrix();
-	renderer.setSize(innerWidth, innerHeight);
+	renderer.setSize(view.w, view.h);
 });
+// вспышка выстрела: один постоянный источник света (добавлять/убирать свет на каждый выстрел —
+// перекомпиляция шейдеров и рывки на телефоне)
+const flashLight = new THREE.PointLight(0xffc070, 0, 7);
+const flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,210,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+flashSprite.scale.setScalar(0.6);
+flashSprite.visible = false;
+scene.add(flashLight, flashSprite);
 
 // ---------- Загрузка ----------
 const loader = new GLTFLoader();
@@ -168,8 +176,9 @@ class Actor {
 }
 
 const WEAPONS = {
-	axe: { name: 'Топор', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.34 },
-	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.32, mag: 8, reload: 1.4 },
+	axe: { name: 'Топор', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.32 },
+	// cooldown — минимальный интервал между выстрелами при частых тапах, auto — темп серии при зажатой кнопке
+	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4 },
 };
 
 const ONE_SHOT = new Set(['Melee', 'Shoot', 'Hit', 'HitPistol', 'Reload', 'EquipPistol', 'EquipAxe']);
@@ -185,6 +194,9 @@ class Player extends Actor {
 		this.reloading = 0;
 		this.cooldown = 0;
 		this.busy = 0; // время, пока анимация удара/выстрела не даёт бежать
+		this.trigger = 0; // нажатие атаки, ждущее конца перезарядки оружия (одно нажатие — один выстрел)
+		this.autoT = 0; // до следующего выстрела серии при зажатой кнопке
+		this.aim = 0; // сколько ещё держать пистолет в прицеле после выстрела
 		this.pending = [];
 		this.alive = true;
 		this.lastHurt = 0;
@@ -261,9 +273,27 @@ class Player extends Actor {
 		game.hud();
 	}
 
+	get canAttack() { return this.alive && this.cooldown <= 0 && this.reloading <= 0 && !this.equipping; }
+
+	/**
+	 * Спуск: нажатие — ровно один выстрел/удар (если оружие ещё не готово, выстрел дождётся его),
+	 * удержание — серия в темпе auto, отпускание — огонь сразу прекращается.
+	 */
+	pullTrigger(dt, input) {
+		if (input.consume('attack')) this.trigger = 0.3;
+		else this.trigger -= dt;
+		this.autoT -= dt;
+		if (!this.canAttack) return;
+		if (this.trigger > 0 || (input.held('attack') && this.autoT <= 0)) {
+			this.trigger = 0;
+			this.attack();
+		}
+	}
+
 	attack() {
-		if (!this.alive || this.cooldown > 0 || this.reloading > 0 || this.equipping) return;
+		if (!this.canAttack) return;
 		const W = WEAPONS[this.weapon];
+		this.autoT = W.auto ?? W.cooldown;
 		if (this.weapon === 'axe') {
 			const target = game.nearestEnemy(this.pos, 3.2);
 			if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
@@ -277,14 +307,16 @@ class Player extends Actor {
 			if (this.ammo <= 0) { this.reload(); return; }
 			const target = game.nearestEnemy(this.pos, W.range, true);
 			if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
-			this.play('Shoot', { once: true, fade: 0.05, restart: true });
+			// из прицела отдача начинается сразу, из низкой готовности пистолет вскидывается за 0.07 с
+			const aiming = this.current === 'Shoot' || this.current === 'AimPistol';
+			this.play('Shoot', { once: true, fade: aiming ? 0.03 : 0.07, restart: true });
 			this.cooldown = W.cooldown;
-			this.busy = 0.3;
+			this.busy = 0.25;
+			this.aim = 0.9;
 			this.ammo--;
 			Sfx.shot();
 			game.noise(this.pos, 26); // выстрел слышно издалека
-			game.muzzleFlash(this);
-			this.pending.push({ t: 0.04, fn: () => this.shotHit(target) });
+			this.pending.push({ t: aiming ? 0.03 : 0.06, fn: () => this.shotHit(target) });
 			if (this.ammo === 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
 		}
 		game.hud();
@@ -308,6 +340,7 @@ class Player extends Actor {
 
 	shotHit(target) {
 		const W = WEAPONS.pistol;
+		game.muzzleFlash(this);
 		const from = this.pistol.localToWorld(this.pistol.userData.muzzle.clone());
 		let to;
 		if (target && target.alive) {
@@ -359,6 +392,8 @@ class Player extends Actor {
 			if (this.reloading <= 0) { this.ammo = WEAPONS.pistol.mag; game.hud(); }
 		}
 		if (!this.alive) return;
+		this.aim -= dt;
+		this.pullTrigger(dt, input);
 		// регенерация, если давно не ранили
 		if (game.time - this.lastHurt > 6 && this.hp < this.maxHp) { this.hp = Math.min(this.maxHp, this.hp + dt * 3); game.hudThrottled(); }
 
@@ -377,7 +412,9 @@ class Player extends Actor {
 		} else if (this.reloading > 0) {
 			if (this.current !== 'Reload') this.play('Reload', { once: true, fade: 0.15 });
 		} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
-			this.play(this.clips.idle);
+			// после выстрела пистолет ещё немного в прицеле, потом плавно опускается
+			const aim = this.weapon === 'pistol' && this.aim > 0;
+			this.play(aim ? 'AimPistol' : this.clips.idle, { fade: this.current === 'Shoot' ? 0.05 : 0.25 });
 		}
 		resolveCollisions(this.pos, this.radius, level.colliders);
 	}
@@ -723,12 +760,12 @@ const game = {
 
 	muzzleFlash(player) {
 		const pos = player.pistol.localToWorld(player.pistol.userData.muzzle.clone());
-		const light = new THREE.PointLight(0xffc070, 30, 7);
-		light.position.copy(pos);
-		const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,210,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-		s.position.copy(pos); s.scale.setScalar(0.6);
-		scene.add(light, s);
-		this.fx.push({ life: 0.06, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { scene.remove(light, s); } });
+		flashLight.position.copy(pos);
+		flashLight.intensity = 30;
+		flashSprite.position.copy(pos);
+		flashSprite.visible = true;
+		this.fx = this.fx.filter((f) => !f.flash);
+		this.fx.push({ flash: true, life: 0.06, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { flashLight.intensity = 0; flashSprite.visible = false; } });
 	},
 
 	tracer(from, to) {
@@ -763,8 +800,12 @@ const game = {
 		const W = WEAPONS[p.weapon];
 		$('weapon-name').textContent = W.name;
 		$('ammo').textContent = p.weapon === 'pistol' ? (p.reloading > 0 ? 'перезарядка…' : `${p.ammo} / ${W.mag}`) : '';
-		$('btn-weapon').innerHTML = p.weapon === 'axe' ? ICON_PISTOL : ICON_AXE;
-		$('btn-attack').innerHTML = p.weapon === 'axe' ? ICON_AXE : ICON_PISTOL;
+		// иконки меняем только при смене оружия: перерисовка кнопки под пальцем теряет отпускание
+		if (this.icons !== p.weapon) {
+			this.icons = p.weapon;
+			$('btn-weapon').innerHTML = p.weapon === 'axe' ? ICON_PISTOL : ICON_AXE;
+			$('btn-attack').innerHTML = p.weapon === 'axe' ? ICON_AXE : ICON_PISTOL;
+		}
 	},
 };
 window.__game = game;
@@ -801,11 +842,9 @@ function update(dt) {
 	}
 	game.time += game.state === 'play' ? dt : 0;
 	const input = game.input;
-	if (input.consume('attack')) game.player.attack();
 	if (input.consume('switch')) game.player.switchWeapon();
 	if (input.consume('reload')) game.player.reload();
-	game.player.update(dt, input);
-	if (input.held('attack')) game.player.attack(); // зажатая кнопка — серия ударов/выстрелов
+	game.player.update(dt, input); // там же спуск: тап — один выстрел, удержание — серия
 
 	// всех убили — победа
 	if (game.state === 'play' && game.total && !game.enemies.some((e) => e.alive)) game.over(true);
@@ -858,5 +897,6 @@ game.toast = (text) => {
 };
 
 // снимаем фокус с кнопки, иначе пробел (атака) нажимает её снова и перезапускает игру
-for (const id of ['btn-start', 'btn-restart']) $(id).onclick = (e) => { e.currentTarget.blur(); game.start(); };
+// на телефоне — полноэкранный горизонтальный режим (нужно нажатие пользователя)
+for (const id of ['btn-start', 'btn-restart']) $(id).onclick = (e) => { e.currentTarget.blur(); goLandscape(); game.start(); };
 boot().catch((e) => { console.error(e); $('loadtext').textContent = `Ошибка загрузки: ${e.message}`; });

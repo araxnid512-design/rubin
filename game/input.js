@@ -1,4 +1,8 @@
 // Управление: клавиатура/мышь на ПК, виртуальный джойстик и кнопки на телефоне.
+// Кнопки работают на pointer-событиях с захватом указателя: отпускание пальца доходит до кнопки,
+// даже если палец съехал с неё, — зажатая атака гарантированно прекращается.
+
+import { toApp } from './screen.js';
 
 export class Input {
 	constructor() {
@@ -21,9 +25,13 @@ export class Input {
 			this.updateKeys();
 		});
 		addEventListener('blur', () => { this.keys.clear(); this.holding.clear(); this.updateKeys(); });
+		// мышь: атака левой кнопкой по игровому полю
 		const canvasHost = document.getElementById('game');
-		canvasHost.addEventListener('mousedown', (e) => { if (e.button === 0 && !this.touchMode) { this.pressed.add('attack'); this.holding.add('attack'); } });
-		addEventListener('mouseup', () => { if (!this.touchMode) this.holding.delete('attack'); });
+		canvasHost.addEventListener('pointerdown', (e) => {
+			if (e.pointerType !== 'mouse' || e.button !== 0) return;
+			this.pressed.add('attack'); this.holding.add('attack');
+		});
+		addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') this.holding.delete('attack'); });
 		this.setupTouch();
 	}
 
@@ -49,45 +57,58 @@ export class Input {
 		const zone = document.getElementById('stick-zone');
 		const base = document.getElementById('stick-base');
 		const knob = document.getElementById('stick-knob');
-		let id = null, ox = 0, oy = 0;
+		let id = null, o = null;
 		const R = 56;
-		zone.addEventListener('touchstart', (e) => {
-			this.touchMode = true;
-			const t = e.changedTouches[0];
-			id = t.identifier; ox = t.clientX; oy = t.clientY;
-			base.style.left = `${ox}px`; base.style.top = `${oy}px`;
+		zone.addEventListener('pointerdown', (e) => {
+			if (id !== null || e.pointerType === 'mouse') return;
+			id = e.pointerId;
+			o = toApp(e.clientX, e.clientY);
+			zone.setPointerCapture?.(id);
+			base.style.left = `${o.x}px`; base.style.top = `${o.y}px`;
 			base.classList.add('active');
 			e.preventDefault();
-		}, { passive: false });
-		zone.addEventListener('touchmove', (e) => {
-			for (const t of e.changedTouches) {
-				if (t.identifier !== id) continue;
-				let dx = t.clientX - ox, dy = t.clientY - oy;
-				const l = Math.hypot(dx, dy);
-				if (l > R) { dx *= R / l; dy *= R / l; }
-				knob.style.transform = `translate(${dx}px, ${dy}px)`;
-				this.stick = { x: dx / R, y: dy / R };
-				this.sync();
-			}
+		});
+		zone.addEventListener('pointermove', (e) => {
+			if (e.pointerId !== id) return;
+			const p = toApp(e.clientX, e.clientY);
+			let dx = p.x - o.x, dy = p.y - o.y;
+			const l = Math.hypot(dx, dy);
+			if (l > R) { dx *= R / l; dy *= R / l; }
+			knob.style.transform = `translate(${dx}px, ${dy}px)`;
+			this.stick = { x: dx / R, y: dy / R };
+			this.sync();
 			e.preventDefault();
-		}, { passive: false });
+		});
 		const end = (e) => {
-			for (const t of e.changedTouches) {
-				if (t.identifier !== id) continue;
-				id = null;
-				this.stick = { x: 0, y: 0 };
-				knob.style.transform = '';
-				base.classList.remove('active');
-				this.sync();
-			}
+			if (e.pointerId !== id) return;
+			id = null;
+			this.stick = { x: 0, y: 0 };
+			knob.style.transform = '';
+			base.classList.remove('active');
+			this.sync();
 		};
-		zone.addEventListener('touchend', end);
-		zone.addEventListener('touchcancel', end);
+		for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) zone.addEventListener(ev, end);
+
 		const button = (elId, action, hold) => {
 			const el = document.getElementById(elId);
-			el.addEventListener('touchstart', (e) => { this.touchMode = true; this.pressed.add(action); if (hold) this.holding.add(action); el.classList.add('down'); e.preventDefault(); }, { passive: false });
-			el.addEventListener('touchend', () => { this.holding.delete(action); el.classList.remove('down'); });
-			el.addEventListener('mousedown', (e) => { this.pressed.add(action); e.stopPropagation(); });
+			const fingers = new Set();
+			el.addEventListener('pointerdown', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				if (fingers.has(e.pointerId)) return;
+				fingers.add(e.pointerId);
+				el.setPointerCapture?.(e.pointerId);
+				this.pressed.add(action); // одно нажатие — одно действие
+				if (hold) this.holding.add(action);
+				el.classList.add('down');
+			});
+			const release = (e) => {
+				if (!fingers.delete(e.pointerId) || fingers.size) return;
+				if (hold) this.holding.delete(action); // отпустили — серия сразу прекращается
+				el.classList.remove('down');
+			};
+			for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, release);
+			el.addEventListener('contextmenu', (e) => e.preventDefault());
 		};
 		button('btn-attack', 'attack', true);
 		button('btn-weapon', 'switch');
