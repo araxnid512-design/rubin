@@ -4,56 +4,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as T from './textures.js';
+import { Batch, box, place, planeXZ } from './geom.js';
+import { buildHouse, buildShop, Fader, segmentHitsBox } from './buildings.js';
 
 export const HALF = 50; // половина размера кластера
 export const PLAY = 46.5; // граница, за которую нельзя зайти (дальше муть)
-
-// ---------- Слияние статики ----------
-
-class Batch {
-	constructor() { this.groups = new Map(); }
-	add(geometry, material, { cast = true, receive = true } = {}) {
-		const key = material.uuid + cast + receive;
-		if (!this.groups.has(key)) this.groups.set(key, { material, cast, receive, list: [] });
-		const g = geometry.index ? geometry.toNonIndexed() : geometry;
-		for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
-		this.groups.get(key).list.push(g);
-	}
-	build(parent) {
-		for (const { material, cast, receive, list } of this.groups.values()) {
-			const mesh = new THREE.Mesh(mergeGeometries(list), material);
-			mesh.castShadow = cast;
-			mesh.receiveShadow = receive;
-			mesh.matrixAutoUpdate = false;
-			parent.add(mesh);
-		}
-	}
-}
-
-/** Коробка с UV в метрах: текстура повторяется каждые sx×sy метров. */
-function box(w, h, d, sx = 1, sy = sx) {
-	const g = new THREE.BoxGeometry(w, h, d);
-	const uv = g.attributes.uv;
-	const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
-	for (let f = 0; f < 6; f++) for (let i = 0; i < 4; i++) {
-		const k = f * 4 + i;
-		uv.setXY(k, uv.getX(k) * dims[f][0] / sx, uv.getY(k) * dims[f][1] / sy);
-	}
-	return g;
-}
-
-function place(g, x, y, z, ry = 0, rx = 0, rz = 0) {
-	const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
-	return g.applyMatrix4(m);
-}
-
-function planeXZ(w, d, sx = 1, sy = sx) {
-	const g = new THREE.PlaneGeometry(w, d);
-	g.rotateX(-Math.PI / 2);
-	const uv = g.attributes.uv;
-	for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / sx, uv.getY(i) * d / sy);
-	return g;
-}
 
 // ---------- Уровень ----------
 
@@ -116,29 +71,45 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 	ground(40, 8, 20, 34, M.dirt, 5, 0.014);
 	ground(14, 10, 26, -10, M.dirt, 4, 0.015);
 
+	// здания, которые становятся прозрачными, когда загораживают героя от камеры
+	const occluders = [];
+	const occluder = (name, build, area, min = 0.2) => {
+		const b = new Batch(), group = new THREE.Group();
+		group.name = name;
+		build(b, group);
+		b.build(group);
+		root.add(group);
+		occluders.push({ fader: new Fader(group, { speed: 3 }), area, min });
+	};
+
 	// ---------- Хрущёвка (5 этажей) ----------
 	{
 		const cx = -18, cz = 30, W = 38.4, D = 12, H = 14;
-		batch.add(place(box(W, H, D, 3.2, 2.8), cx, H / 2 + 0.6, cz), M.panel);
-		batch.add(place(box(W + 0.3, 0.8, D + 0.3, 2), cx, 0.4, cz), M.concreteDark); // цоколь
-		batch.add(place(box(W + 0.4, 0.5, D + 0.4, 4), cx, H + 0.85, cz), M.concrete); // парапет
-		batch.add(place(box(W, 0.1, D, 4), cx, H + 1.1, cz), M.roofTar);
+		occluder('Khrushchyovka', (kb) => {
+			kb.add(place(box(W, H, D, 3.2, 2.8), cx, H / 2 + 0.6, cz), M.panel);
+			kb.add(place(box(W + 0.3, 0.8, D + 0.3, 2), cx, 0.4, cz), M.concreteDark); // цоколь
+			kb.add(place(box(W + 0.4, 0.5, D + 0.4, 4), cx, H + 0.85, cz), M.concrete); // парапет
+			kb.add(place(box(W, 0.1, D, 4), cx, H + 1.1, cz), M.roofTar);
+			for (const ex of [-12.8, 0, 12.8]) {
+				const x = cx + ex, z = cz - D / 2;
+				kb.add(place(box(2.6, 0.15, 1.6), x, 2.9, z - 0.8), M.concrete); // козырёк
+				kb.add(place(box(1.3, 2.2, 0.1), x, 1.7, z - 0.05), M.metalDark); // дверь
+			}
+			// балконы на северном фасаде
+			for (let floor = 1; floor < 5; floor++) for (let c = 0; c < 12; c++) {
+				if (c % 4 === 0 || rnd() < 0.45) continue;
+				const x = cx - W / 2 + 1.6 + c * 3.2, y = 0.6 + floor * 2.8, z = cz - D / 2 - 0.55;
+				kb.add(place(box(2.8, 0.12, 1.1), x, y, z), M.concrete);
+				kb.add(place(box(2.8, 1.0, 0.06, 1), x, y + 0.56, z - 0.52), rnd() < 0.5 ? M.metalRust : M.woodGrey);
+			}
+		}, { cx, cz, ry: 0, hx: W / 2 + 0.6, hz: D / 2 + 1.2, top: H + 1.5 }, 0.16);
 		collide(cx, cz, W + 0.4, D + 0.4);
 		for (const ex of [-12.8, 0, 12.8]) {
 			const x = cx + ex, z = cz - D / 2;
-			batch.add(place(box(2.6, 0.15, 1.6), x, 2.9, z - 0.8), M.concrete); // козырёк
-			batch.add(place(box(1.3, 2.2, 0.1), x, 1.7, z - 0.05), M.metalDark); // дверь
 			batch.add(place(box(2.4, 0.3, 1.2, 1), x, 0.15, z - 0.6), M.concrete); // крыльцо
 			// лавочки у подъезда
 			bench(batch, M, x + 2.2, z - 2.2, 0);
 			bench(batch, M, x - 2.2, z - 2.2, 0);
-		}
-		// балконы на северном фасаде
-		for (let floor = 1; floor < 5; floor++) for (let c = 0; c < 12; c++) {
-			if (c % 4 === 0 || rnd() < 0.45) continue;
-			const x = cx - W / 2 + 1.6 + c * 3.2, y = 0.6 + floor * 2.8, z = cz - D / 2 - 0.55;
-			batch.add(place(box(2.8, 0.12, 1.1), x, y, z), M.concrete);
-			batch.add(place(box(2.8, 1.0, 0.06, 1), x, y + 0.56, z - 0.52), rnd() < 0.5 ? M.metalRust : M.woodGrey);
 		}
 		// детская площадка
 		swings(batch, M, -26, 16);
@@ -156,46 +127,38 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 	// ---------- Гаражи ----------
 	{
 		const z0 = 41, n = 9, w = 4;
-		for (let i = 0; i < n; i++) {
-			const x = 4 + i * w;
-			batch.add(place(box(w, 2.6, 6, 1.2), x, 1.3, z0), i % 3 === 0 ? M.whiteBrick : M.brick);
-			batch.add(place(box(w + 0.1, 0.12, 6.4, 2), x, 2.66, z0 - 0.1, 0, -0.04), M.roofTar);
-			const door = new THREE.Mesh(box(3, 2.2, 0.08), T.garageDoorMaterial(i));
-			door.position.set(x, 1.1, z0 - 3.02);
-			door.castShadow = true; door.receiveShadow = true;
-			root.add(door);
-		}
+		occluder('Garages', (gb, group) => {
+			for (let i = 0; i < n; i++) {
+				const x = 4 + i * w;
+				gb.add(place(box(w, 2.6, 6, 1.2), x, 1.3, z0), i % 3 === 0 ? M.whiteBrick : M.brick);
+				gb.add(place(box(w + 0.1, 0.12, 6.4, 2), x, 2.66, z0 - 0.1, 0, -0.04), M.roofTar);
+				const door = new THREE.Mesh(box(3, 2.2, 0.08), T.garageDoorMaterial(i));
+				door.position.set(x, 1.1, z0 - 3.02);
+				door.castShadow = true; door.receiveShadow = true;
+				group.add(door);
+			}
+		}, { cx: 4 + (n - 1) * w / 2, cz: z0, ry: 0, hx: n * w / 2 + 0.2, hz: 3.3, top: 2.9 }, 0.3);
 		collide(4 + (n - 1) * w / 2, z0, n * w, 6);
 	}
 
-	// ---------- Частные дома ----------
-	house(batch, M, root, collide, -30, -10, 0, rnd);
-	house(batch, M, root, collide, -30, -34, Math.PI, rnd);
-	house(batch, M, root, collide, -6, -34, Math.PI, rnd);
+	// ---------- Частные дома (можно зайти) ----------
+	const bctx = { batch, root, collide, M };
+	const buildings = [
+		buildHouse(bctx, { name: 'House1', cx: -30, cz: -10, ry: 0, rnd, variant: 0 }),
+		buildHouse(bctx, { name: 'House2', cx: -30, cz: -34, ry: Math.PI, rnd, variant: 1 }),
+		buildHouse(bctx, { name: 'House3', cx: -6, cz: -34, ry: Math.PI, rnd, variant: 2 }),
+	];
 	fencePlot(batch, M, collide, -30, -10, 18, 14, 'n', rnd);
 	fencePlot(batch, M, collide, -30, -34, 18, 14, 's', rnd);
 	fencePlot(batch, M, collide, -6, -34, 16, 14, 's', rnd);
-	shed(batch, M, collide, -36, -5, 0.1);
-	shed(batch, M, collide, -24, -39, 2.9);
+	shed(batch, M, collide, -37.2, -4.4, 0.1);
+	shed(batch, M, collide, -23.4, -39.8, 2.9);
 	well(batch, M, collide, -8, -12);
 
-	// ---------- Магазин «Продукты» ----------
+	// ---------- Магазин «Продукты» (можно зайти) ----------
 	{
-		const cx = 30, cz = -10, W = 9, D = 13, H = 3.6;
-		batch.add(place(box(W, H, D, 1.5), cx, H / 2, cz), M.whiteBrick);
-		batch.add(place(box(W + 0.6, 0.3, D + 0.6, 3), cx, H + 0.15, cz), M.roofTar);
-		const sign = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.2), M.shopSign);
-		sign.position.set(cx - W / 2 - 0.06, H - 0.4, cz); sign.rotation.y = -Math.PI / 2;
-		root.add(sign);
-		for (const dz of [-4, 4]) {
-			const win = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.6), M.glass);
-			win.position.set(cx - W / 2 - 0.03, 1.6, cz + dz); win.rotation.y = -Math.PI / 2;
-			root.add(win);
-			for (let b = -1.2; b <= 1.21; b += 0.4) batch.add(place(box(0.04, 1.6, 0.04), cx - W / 2 - 0.1, 1.6, cz + dz + b), M.metalDark); // решётки
-		}
-		batch.add(place(box(0.1, 2.2, 1.4), cx - W / 2 - 0.03, 1.1, cz), M.metalDark);
-		batch.add(place(box(1.6, 0.4, 2.6, 1), cx - W / 2 - 0.8, 0.2, cz), M.concrete);
-		collide(cx, cz, W, D);
+		const cx = 30, cz = -10, W = 9;
+		buildings.push(buildShop(bctx, { cx, cz }));
 		// ящики и поддоны у чёрного хода
 		for (let i = 0; i < 4; i++) batch.add(place(box(1.2, 0.15, 0.8), cx + W / 2 + 1, 0.08 + i * 0.16, cz + 4, R(-0.2, 0.2)), M.wood);
 		collide(cx + W / 2 + 1, cz + 4, 1.3, 1);
@@ -256,12 +219,43 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 	bus(batch, M, root, 12, -27, 0.08);
 	collide(12, -27, 2.6, 8.4, 0.08);
 
+	// ---------- Обжитость: фонари, бордюры, баррикада, огороды, дворы, брошенные вещи ----------
+	// бордюры вдоль трассы (на перекрёстке с улицей — разрыв)
+	for (const [x0, x1, z] of [[-48, 8.6, 1.95], [15.4, 48, 1.95], [-48, 48, 10.05]]) {
+		batch.add(place(box(x1 - x0, 0.14, 0.24, 2), (x0 + x1) / 2, 0.07, z), M.concrete, { cast: false });
+	}
+	for (const x of [-40, -16, 8, 32]) streetLamp(batch, M, collide, x, 11.4);
+	barricade(batch, M, collide, -41.2, rnd);
+	// огороды с грядками, поленницы, туалеты и бельё во дворах частных домов
+	garden(batch, M, rnd, -24.0, -10, 3, 9);
+	garden(batch, M, rnd, -24.0, -33, 3, 8.5);
+	garden(batch, M, rnd, -12.9, -34, 2, 9);
+	woodpile(batch, M, collide, -36.8, -7.8, Math.PI / 2);
+	woodpile(batch, M, collide, -36.8, -31.2, Math.PI / 2);
+	woodpile(batch, M, collide, 0.6, -33.2, Math.PI / 2);
+	outhouse(batch, M, collide, -37.4, -15.6, 0);
+	outhouse(batch, M, collide, -37.4, -39.6, Math.PI);
+	outhouse(batch, M, collide, 1.0, -39.6, Math.PI);
+	clothesline(batch, M, root, collide, -33.5, -27.5, -4.4, rnd);
+	// мешки с мусором у баков, брошенные чемоданы и велосипед на трассе, знак посёлка
+	for (const [x, z] of [[-2.3, 22.7], [3.0, 21.5], [2.7, 23.1], [-1.7, 23.4], [3.6, 22.4]]) {
+		batch.add(place(new THREE.IcosahedronGeometry(0.32, 1).scale(1, 0.75, 1), x, 0.22, z, R(0, 3)), M.tire);
+	}
+	for (const [x, z, r] of [[22.6, 6.2, 0.4], [17.6, 7.4, 2.1], [-12.5, 3.6, 1.2]]) {
+		batch.add(place(box(0.62, 0.42, 0.24), x, 0.13, z, r, Math.PI / 2), M.red);
+		batch.add(place(box(0.2, 0.03, 0.04), x, 0.26, z, r), M.metalDark);
+	}
+	bicycle(batch, M, -20, 8.2, 0.6);
+	settlementSign(batch, M, root, collide, 40.5, 11.8, 'ЗАРЕЧНЫЙ');
+
 	// ---------- Деревья и кусты ----------
 	const navProbe = makeNav(colliders); // временная сетка, чтобы не сажать деревья в стены
+	// внутри зданий ничего уличного: ни деревьев, ни травы, ни луж
+	const indoors = (x, z, m = 0.5) => buildings.some((b) => b.contains({ x, z }, m));
 	const trees = [];
 	const tryTree = (x, z, kind) => {
 		if (Math.abs(x) > 47 || Math.abs(z) > 47) return;
-		if (navProbe.blockedAt(x, z, 1.2)) return;
+		if (navProbe.blockedAt(x, z, 1.2) || indoors(x, z, 1.5)) return;
 		if (Math.abs(z - 6) < 6.5 || (Math.abs(x - 12) < 4.5 && z < 4)) return; // не на дорогах
 		trees.push({ x, z, kind, s: R(0.8, 1.25), r: R(0, Math.PI * 2) });
 		collide(x, z, 0.5, 0.5);
@@ -275,7 +269,7 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 	// ---------- Мелочи: бочки, шины, мусор, кровь, лужи ----------
 	for (let i = 0; i < 18; i++) {
 		const x = R(-45, 45), z = R(-45, 45);
-		if (navProbe.blockedAt(x, z, 0.8)) continue;
+		if (navProbe.blockedAt(x, z, 0.8) || indoors(x, z)) continue;
 		const k = rnd();
 		if (k < 0.35) {
 			batch.add(place(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 12), x, 0.45, z), M.metalRust);
@@ -293,7 +287,7 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 		const s = R(0.8, 2.6);
 		blood.scale.set(s, s, 1);
 		blood.position.set(R(-44, 44), 0.03, R(-44, 44));
-		decals.add(blood);
+		if (!indoors(blood.position.x, blood.position.z, s)) decals.add(blood);
 	}
 	for (let i = 0; i < 14; i++) {
 		const puddle = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshStandardMaterial({ color: 0x3a4044, roughness: 0.03, metalness: 0.0, transparent: true, opacity: 0.55, envMapIntensity: 2.5 }));
@@ -301,12 +295,12 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 		puddle.scale.set(R(0.8, 2.4), R(0.5, 1.4), 1);
 		const onRoad = rnd() < 0.6;
 		puddle.position.set(R(-45, 45), 0.028, onRoad ? R(3, 9) : R(-44, 44));
-		decals.add(puddle);
+		if (!indoors(puddle.position.x, puddle.position.z, 2.4)) decals.add(puddle);
 	}
 	root.add(decals);
 
 	// ---------- Трава ----------
-	if (quality !== 'low') grassTufts(root, navProbe, rnd, quality === 'high' ? 2600 : 1200);
+	if (quality !== 'low') grassTufts(root, navProbe, rnd, quality === 'high' ? 2600 : 1200, indoors);
 
 	// ---------- Муть по краям кластера ----------
 	const fog = fogWalls(root);
@@ -314,9 +308,24 @@ export function buildLevel(scene, { quality = 'high' } = {}) {
 	batch.build(root);
 	const nav = makeNav(colliders);
 	return {
-		root, colliders, nav,
+		root, colliders, nav, buildings,
+		containers: buildings.flatMap((b) => b.containers),
 		playerStart: new THREE.Vector3(42, 0, 6), // на восточном конце трассы, у края кластера
 		update(dt, t) { fog.update(dt, t); },
+		/**
+		 * Видимость зданий: у дома, где герой, исчезают крыша и верх стен; здания между камерой
+		 * и героем становятся полупрозрачными.
+		 */
+		updateView(player, eye, dt) {
+			const head = new THREE.Vector3(player.x, 1.1, player.z);
+			for (const b of buildings) b.updateView(head, eye, dt);
+			for (const o of occluders) {
+				o.fader.target = segmentHitsBox(eye, head, o.area) ? o.min : 1;
+				o.fader.update(dt);
+			}
+		},
+		/** Здание, внутри которого точка (или null). */
+		buildingAt(p) { return buildings.find((b) => b.contains(p)) ?? null; },
 		/** Прячем кроны деревьев, которые закрывают игрока от камеры (камера с юга, сверху). */
 		occlude(p) {
 			for (const c of crowns) {
@@ -371,45 +380,96 @@ function slide(batch, M, x, z) {
 	batch.add(place(box(0.7, 0.05, 3.2), x, 0.85, z - 1.9, 0, 0.5), M.yellow);
 }
 
-function house(batch, M, root, collide, cx, cz, ry, rnd) {
-	const W = 8, D = 6.5, H = 3;
-	const wall = (mat, geo) => batch.add(place(geo.clone(), 0, 0, 0).applyMatrix4(new THREE.Matrix4().makeRotationY(ry)).translate(cx, 0, cz), mat);
-	wall(rnd() < 0.5 ? M.wood : M.woodGrey, place(box(W, H, D, 2, 1.5), 0, H / 2 + 0.5, 0));
-	wall(M.concreteDark, place(box(W + 0.2, 0.5, D + 0.2, 2), 0, 0.25, 0));
-	// двускатная крыша
-	const roofLen = W + 0.8, slope = Math.hypot(D / 2 + 0.5, 1.8);
-	for (const s of [-1, 1]) {
-		const geo = box(roofLen, 0.08, slope, 2);
-		place(geo, 0, H + 0.5 + 0.9, s * (D / 4 + 0.12), 0, -s * Math.atan2(1.8, D / 2 + 0.5));
-		wall(M.slate, geo);
+function streetLamp(batch, M, collide, x, z) {
+	batch.add(place(box(0.22, 7, 0.22, 1, 3), x, 3.5, z), M.concrete);
+	batch.add(place(box(0.1, 0.1, 1.7), x, 6.85, z - 0.8, 0, -0.12), M.metalDark);
+	batch.add(place(box(0.32, 0.14, 0.55), x, 6.75, z - 1.65), M.metalDark);
+	batch.add(place(box(0.24, 0.04, 0.42), x, 6.67, z - 1.65), new THREE.MeshStandardMaterial({ color: 0xbfc4b8, roughness: 0.3 }));
+	collide(x, z, 0.4, 0.4);
+}
+
+/** Баррикада поперёк трассы: бетонные блоки и мешки с песком, посередине проход. */
+function barricade(batch, M, collide, x, rnd) {
+	const bags = new THREE.MeshStandardMaterial({ color: 0x8a7e5c, roughness: 1 });
+	for (const [z0, z1] of [[2.2, 4.6], [7.6, 10.0]]) {
+		const zc = (z0 + z1) / 2, len = z1 - z0;
+		batch.add(place(box(0.6, 0.6, len, 1), x, 0.3, zc), M.concreteDark);
+		batch.add(place(box(0.6, 0.6, len * 0.7, 1), x, 0.9, zc + (rnd() - 0.5) * 0.4), M.concrete);
+		for (let k = 0; k < Math.floor(len / 0.5); k++) {
+			batch.add(place(new THREE.SphereGeometry(0.28, 8, 6).scale(1, 0.5, 1.6), x + 0.62, 0.14, z0 + 0.25 + k * 0.5, rnd() * 0.3), bags);
+			if (k % 2 === 0) batch.add(place(new THREE.SphereGeometry(0.28, 8, 6).scale(1, 0.5, 1.6), x + 0.62, 0.4, z0 + 0.5 + k * 0.5, rnd() * 0.3), bags);
+		}
+		collide(x + 0.3, zc, 1.3, len);
 	}
-	// фронтоны (треугольники под скатами)
-	const hz = D / 2, base = H + 0.5, top = base + 1.8;
-	for (const sx of [-1, 1]) {
-		const x = sx * W / 2;
-		const a = [x, base, -hz], b = [x, base, hz], t = [x, top, 0];
-		const verts = sx > 0 ? [...a, ...t, ...b] : [...a, ...b, ...t]; // нормаль наружу
-		const tri = new THREE.BufferGeometry();
-		tri.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
-		tri.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(sx > 0 ? [0, 0, D / 4, 1, D / 2, 0] : [0, 0, D / 2, 0, D / 4, 1]), 2));
-		tri.computeVertexNormals();
-		wall(M.woodGrey, tri);
+	// опрокинутый шлагбаум у прохода
+	batch.add(place(box(0.08, 0.08, 3.2), x - 1.1, 0.06, 6.1, 0.4), M.red);
+}
+
+/** Огород: грядки с ботвой (по ним можно ходить). */
+function garden(batch, M, rnd, x, z, rows, len) {
+	const leaf = M.leaves, soil = M.dirt;
+	for (let r = 0; r < rows; r++) {
+		const rx = x + (r - (rows - 1) / 2) * 0.95;
+		batch.add(place(box(0.65, 0.14, len, 1), rx, 0.07, z), soil, { cast: false });
+		for (let k = 0.4; k < len - 0.3; k += 0.45) {
+			if (rnd() < 0.15) continue;
+			const sz = 0.16 + rnd() * 0.1;
+			batch.add(place(new THREE.IcosahedronGeometry(sz, 0).scale(1, 0.8, 1), rx + (rnd() - 0.5) * 0.15, 0.2, z - len / 2 + k, rnd() * 3), leaf);
+		}
 	}
-	// окна, дверь, крыльцо
+}
+
+function woodpile(batch, M, collide, x, z, ry) {
+	const log = M.bark;
 	const c = Math.cos(ry), s = Math.sin(ry);
-	const toWorld = (x, z) => [cx + x * c + z * s, cz - x * s + z * c];
-	const addWin = (x, z, rot) => {
-		const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.4), M.window);
-		const [wx, wz] = toWorld(x, z);
-		m.position.set(wx, 2.2, wz); m.rotation.y = ry + rot;
-		root.add(m);
-	};
-	for (const x of [-2.6, 0, 2.6]) addWin(x, D / 2 + 0.02, 0);
-	for (const x of [-2.4, 2.4]) addWin(x, -D / 2 - 0.02, Math.PI);
-	addWin(W / 2 + 0.02, 0, Math.PI / 2);
-	wall(M.woodGreen, place(box(1.1, 2.1, 0.08), -W / 2 + 1.4, 1.55, -D / 2 - 0.04));
-	wall(M.wood, place(box(1.8, 0.45, 1.4), -W / 2 + 1.4, 0.22, -D / 2 - 0.7));
-	collide(cx, cz, ry % Math.PI === 0 ? W + 0.3 : D + 0.3, ry % Math.PI === 0 ? D + 0.3 : W + 0.3);
+	for (let row = 0; row < 4; row++) for (let i = 0; i < 9 - row; i++) {
+		const lx = -1.1 + i * 0.26 + row * 0.13, y = 0.13 + row * 0.22;
+		const g = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 7).rotateX(Math.PI / 2);
+		batch.add(place(g, x + lx * c, y, z - lx * s, ry), log);
+	}
+	batch.add(place(box(2.6, 0.06, 0.8, 2), x, 1.05, z, ry, 0.15), M.roofMetal); // навес
+	collide(x, z, 2.5, 0.7, ry);
+}
+
+function outhouse(batch, M, collide, x, z, ry) {
+	batch.add(place(box(1.1, 2.1, 1.1, 1.2), x, 1.05, z, ry), M.woodGrey);
+	batch.add(place(box(1.3, 0.06, 1.4, 1), x, 2.2, z, ry, 0.12), M.roofMetal);
+	const c = Math.cos(ry), s = Math.sin(ry);
+	batch.add(place(box(0.8, 1.8, 0.04), x + 0.57 * s, 0.95, z + 0.57 * c, ry), M.wood); // дверь
+	collide(x, z, 1.2, 1.2, ry);
+}
+
+/** Бельё на верёвке между двумя столбами. */
+function clothesline(batch, M, root, collide, x0, x1, z, rnd) {
+	for (const x of [x0, x1]) { batch.add(place(box(0.08, 2.0, 0.08), x, 1.0, z), M.wood); collide(x, z, 0.2, 0.2); }
+	const pts = [];
+	for (let k = 0; k <= 12; k++) { const t = k / 12; pts.push(new THREE.Vector3(x0 + (x1 - x0) * t, 1.9 - Math.sin(Math.PI * t) * 0.18, z)); }
+	root.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x3a3a36 })));
+	const colors = [0xb8b4a8, 0x6a7fa0, 0xa05048, 0xc8b878, 0x8a9a7a];
+	for (let i = 0; i < 5; i++) {
+		const t = 0.15 + i * 0.17, w = 0.5 + rnd() * 0.4, h = 0.5 + rnd() * 0.35;
+		const cloth = new THREE.MeshStandardMaterial({ color: colors[i], roughness: 1, side: THREE.DoubleSide });
+		batch.add(place(new THREE.PlaneGeometry(w, h), x0 + (x1 - x0) * t, 1.9 - Math.sin(Math.PI * t) * 0.18 - h / 2, z, rnd() * 0.3 - 0.15), cloth);
+	}
+}
+
+function bicycle(batch, M, x, z, ry) {
+	for (const dx of [-0.52, 0.52]) batch.add(place(new THREE.TorusGeometry(0.33, 0.025, 6, 20).rotateX(Math.PI / 2), x + dx * Math.cos(ry), 0.03, z - dx * Math.sin(ry)), M.tire);
+	batch.add(place(box(1.05, 0.04, 0.04), x, 0.05, z, ry), M.red);
+	batch.add(place(box(0.04, 0.04, 0.45), x - 0.15 * Math.cos(ry), 0.05, z + 0.15 * Math.sin(ry), ry), M.metalDark);
+}
+
+function settlementSign(batch, M, root, collide, x, z, text) {
+	for (const dx of [-1.0, 1.0]) batch.add(place(box(0.07, 2.4, 0.07), x + dx, 1.2, z), M.metalDark);
+	// надпись к камере (она смотрит с юга), сзади — жесть
+	const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), T.signMaterial(text, { bg: '#f0efe6', fg: '#1a1a1a' }));
+	sign.position.set(x, 2.05, z + 0.04);
+	root.add(sign);
+	const back = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), M.metalDark);
+	back.position.set(x, 2.05, z);
+	back.rotation.y = Math.PI;
+	root.add(back);
+	collide(x, z, 2.2, 0.2);
 }
 
 function fencePlot(batch, M, collide, cx, cz, W, D, gateSide, rnd) {
@@ -582,7 +642,7 @@ function buildTrees(root, trees, M) {
 	return crowns;
 }
 
-function grassTufts(root, nav, rnd, count) {
+function grassTufts(root, nav, rnd, count, indoors) {
 	const c = document.createElement('canvas');
 	c.width = 64; c.height = 64;
 	const ctx = c.getContext('2d');
@@ -603,7 +663,7 @@ function grassTufts(root, nav, rnd, count) {
 	for (let i = 0; i < count * 2 && n < count; i++) {
 		const x = (rnd() * 2 - 1) * 48, z = (rnd() * 2 - 1) * 48;
 		if (Math.abs(z - 6) < 5.5 || (Math.abs(x - 12) < 3.5 && z < 3)) continue;
-		if (nav.blockedAt(x, z, 0.5)) continue;
+		if (nav.blockedAt(x, z, 0.5) || indoors(x, z, 0.4)) continue;
 		const s = 0.6 + rnd() * 0.9;
 		m.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 3, 0)), new THREE.Vector3(s, s, s));
 		im.setMatrixAt(n++, m);
@@ -658,27 +718,34 @@ function fogWalls(root) {
 
 // ---------- Навигация ----------
 
-/** Сетка 1×1 м: занятые клетки (с запасом под радиус персонажа). */
-export function makeNav(colliders, pad = 0.45) {
-	const N = HALF * 2;
+/** Шаг сетки навигации, м: мелкая сетка, чтобы зомби проходили в двери домов. */
+export const CELL = 0.5;
+
+/** Сетка CELL×CELL: занятые клетки (с запасом под радиус персонажа). */
+export function makeNav(colliders, pad = 0.35) {
+	const N = Math.round((HALF * 2) / CELL);
 	const blocked = new Uint8Array(N * N);
+	const center = (g) => g * CELL - HALF + CELL / 2;
 	const inside = (c, x, z, p) => {
 		const dx = x - c.x, dz = z - c.z;
 		const lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
 		return Math.abs(lx) <= c.hx + p && Math.abs(lz) <= c.hz + p;
 	};
+	const cellOf = (v) => Math.floor((v + HALF) / CELL);
 	for (const c of colliders) {
-		const r = Math.hypot(c.hx, c.hz) + pad + 1;
-		for (let gz = Math.max(0, Math.floor(c.z - r + HALF)); gz < Math.min(N, Math.ceil(c.z + r + HALF)); gz++) {
-			for (let gx = Math.max(0, Math.floor(c.x - r + HALF)); gx < Math.min(N, Math.ceil(c.x + r + HALF)); gx++) {
-				if (inside(c, gx - HALF + 0.5, gz - HALF + 0.5, pad)) blocked[gz * N + gx] = 1;
+		const r = Math.hypot(c.hx, c.hz) + pad + CELL;
+		for (let gz = Math.max(0, cellOf(c.z - r)); gz < Math.min(N, cellOf(c.z + r) + 1); gz++) {
+			for (let gx = Math.max(0, cellOf(c.x - r)); gx < Math.min(N, cellOf(c.x + r) + 1); gx++) {
+				if (inside(c, center(gx), center(gz), pad)) blocked[gz * N + gx] = 1;
 			}
 		}
 	}
 	for (let i = 0; i < N; i++) for (const [gx, gz] of [[i, 0], [i, N - 1], [0, i], [N - 1, i]]) blocked[gz * N + gx] = 1;
 	return {
-		N, blocked,
-		cell: (x, z) => [Math.floor(x + HALF), Math.floor(z + HALF)],
+		N, blocked, CELL,
+		cell: (x, z) => [cellOf(x), cellOf(z)],
+		/** Центр клетки в мировых координатах. */
+		center,
 		blockedAt(x, z, p = 0) {
 			if (Math.abs(x) > PLAY || Math.abs(z) > PLAY) return true;
 			return colliders.some((c) => inside(c, x, z, p));

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { buildLevel, resolveCollisions, HALF } from './level.js';
+import { buildLevel, resolveCollisions } from './level.js';
 import { setAnisotropy, bloodDecalTexture, softDotTexture } from './textures.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
@@ -98,6 +98,7 @@ async function boot() {
 	$('loading').classList.add('hidden');
 	$('menu').classList.remove('hidden');
 	renderer.setAnimationLoop(frame);
+	game.level = level;
 	window.__game = game;
 }
 
@@ -126,12 +127,12 @@ function turnTowards(current, target, maxStep) {
 const shortAngle = (a) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 
 function lineOfSight(a, b) {
-	const d = Math.hypot(b.x - a.x, b.z - a.z), steps = Math.ceil(d / 0.5);
-	const N = level.nav.N;
+	const { N, CELL, blocked, cell } = level.nav;
+	const d = Math.hypot(b.x - a.x, b.z - a.z), steps = Math.ceil(d / (CELL * 0.5));
 	for (let i = 1; i < steps; i++) {
 		const t = i / steps;
-		const gx = Math.floor(a.x + (b.x - a.x) * t + HALF), gz = Math.floor(a.z + (b.z - a.z) * t + HALF);
-		if (level.nav.blocked[gz * N + gx]) return false;
+		const [gx, gz] = cell(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t);
+		if (blocked[gz * N + gx]) return false;
 	}
 	return true;
 }
@@ -199,11 +200,21 @@ const WEAPONS = {
 	// cooldown — минимальный интервал между выстрелами при частых тапах, auto — темп серии при зажатой кнопке
 	pistol: { name: 'ПМ', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4 },
 };
-// с чем герой начинает: патроны в запасе (кроме полного магазина), живчик
-const START_BAG = { ammo: 16, zhivchik: 1, spore: 0, peas: 0 };
-// патроны, которые можно найти в кластере: у магазина, гаражей, машин, подъездов, остановки
-const AMMO_CACHES = [[24.3, -7.5, 10], [14, 37.4, 8], [-2.2, -5.6, 8], [-20, 22.6, 10], [17.6, 6.6, 6], [-34, 11.5, 8], [30, 1.6, 6]];
-const AMMO_DROP = { runner: { chance: 0.3, min: 2, max: 4 }, stomper: { chance: 1, min: 4, max: 6 } };
+// с чем герой начинает: патроны в запасе (кроме полного магазина), живчик.
+// Остальные патроны — только в домах и магазине: в шкафах, тумбочках, сундуках (обыск).
+const START_BAG = { ammo: 8, zhivchik: 1, spore: 0, peas: 0 };
+const SEARCH_TIME = 1.1; // секунды на обыск
+const SEARCH_REACH = 1.25; // как близко надо подойти к мебели
+
+/** Что лежит в тайнике: { ammo: [min, max, шанс], zhivchik: шанс, ... } → [[предмет, количество]]. */
+function rollLoot(spec) {
+	const out = [];
+	for (const [kind, v] of Object.entries(spec)) {
+		if (Array.isArray(v)) { if (Math.random() < v[2]) out.push([kind, v[0] + Math.floor(Math.random() * (v[1] - v[0] + 1))]); }
+		else if (Math.random() < v) out.push([kind, 1]);
+	}
+	return out;
+}
 
 const ONE_SHOT = new Set(['Melee', 'Shoot', 'Hit', 'HitPistol', 'Reload', 'EquipPistol', 'EquipAxe']);
 
@@ -277,6 +288,7 @@ class Player extends Actor {
 
 	hurt(dmg, from) {
 		if (!this.alive) return;
+		game.cancelSearch('Обыск прерван');
 		this.hp -= dmg;
 		this.lastHurt = game.time;
 		this.hitFlash();
@@ -316,6 +328,7 @@ class Player extends Actor {
 
 	attack() {
 		if (!this.canAttack) return;
+		game.cancelSearch();
 		const W = WEAPONS[this.weapon];
 		this.autoT = W.auto ?? W.cooldown;
 		if (this.weapon === 'axe') {
@@ -686,12 +699,14 @@ const game = {
 			}
 		}
 		this.total = this.enemies.length;
-		// тайники с патронами в кластере
-		for (const [x, z, n] of AMMO_CACHES) {
-			let pos = new THREE.Vector3(x, 0, z);
-			for (let i = 0; i < 12 && level.nav.blockedAt(pos.x, pos.z, 0.35); i++) pos = new THREE.Vector3(x + (Math.random() - 0.5) * 2, 0, z + (Math.random() - 0.5) * 2);
-			this.spawnPickup('ammo', pos, n, { ground: true });
+		// тайники в домах: что где лежит — заново на каждую игру
+		this.searching = null;
+		for (const c of level.containers) {
+			c.items = rollLoot(c.loot);
+			c.searched = false;
+			c.spark.visible = true;
 		}
+		this.visited = new Set();
 		this.hud();
 	},
 
@@ -756,20 +771,18 @@ const game = {
 			if (d >= 0 && d < bd) { bd = d; best = [nx, nz]; }
 		}
 		if (!best) return null;
-		return new THREE.Vector3(best[0] - HALF + 0.5 - pos.x, 0, best[1] - HALF + 0.5 - pos.z).normalize();
+		return new THREE.Vector3(level.nav.center(best[0]) - pos.x, 0, level.nav.center(best[1]) - pos.z).normalize();
 	},
 
 	onKill(e) {
 		this.kills++;
 		Sfx.death(e.type === 'stomper');
 		this.decal(e.pos, e.type === 'stomper' ? 2.4 : 1.6);
-		// споран из затылка; у топтуна — ещё горох и живчик; иногда патроны
+		// споран из затылка; у топтуна — ещё горох и живчик. Патронов у заражённых нет — они в домах
 		const near = (dx, dz) => e.pos.clone().add(new THREE.Vector3(dx, 0, dz));
 		this.spawnPickup('spore', e.pos, e.T.score);
 		if (e.type === 'stomper') this.spawnPickup('peas', near(-0.5, 0.5), 1 + Math.floor(Math.random() * 2));
 		if (e.type === 'stomper' || Math.random() < 0.12) this.spawnPickup('zhivchik', near(0.6, 0.4));
-		const drop = AMMO_DROP[e.type];
-		if (Math.random() < drop.chance) this.spawnPickup('ammo', near(0.1, -0.6), drop.min + Math.floor(Math.random() * (drop.max - drop.min + 1)));
 		this.hud();
 	},
 
@@ -795,6 +808,69 @@ const game = {
 		Sfx.pickup();
 		this.hud();
 		if (this.inventory?.isOpen) this.inventory.render();
+	},
+
+	/** Ближайший необысканный тайник, до которого дотягивается герой. */
+	nearContainer() {
+		const p = this.player.pos;
+		let best = null, bd = SEARCH_REACH;
+		for (const c of level.containers) {
+			if (c.searched) continue;
+			const d = Math.min(Math.hypot(c.ax - p.x, c.az - p.z), Math.hypot(c.x - p.x, c.z - p.z) - 0.45);
+			if (d < bd) { bd = d; best = c; }
+		}
+		return best;
+	},
+
+	/** Начать обыск мебели рядом. */
+	search() {
+		const p = this.player;
+		if (!p?.alive || this.searching || this.paused || p.busy > 0 || p.equipping) return;
+		const c = this.nearContainer();
+		if (!c) return;
+		this.searching = { c, t: 0 };
+		p.root.rotation.y = Math.atan2(c.x - p.pos.x, c.z - p.pos.z);
+		Sfx.search();
+	},
+
+	cancelSearch(msg) {
+		if (!this.searching) return;
+		this.searching = null;
+		if (msg) this.toast(msg, 'warn');
+	},
+
+	updateSearch(dt, input) {
+		const s = this.searching;
+		const el = $('search');
+		if (s) {
+			const mv = input.move;
+			if (Math.hypot(mv.x, mv.y) > 0.25 || !this.player.alive) { this.cancelSearch('Обыск прерван'); return; }
+			s.t += dt;
+			$('search-bar').style.width = `${Math.min(1, s.t / SEARCH_TIME) * 100}%`;
+			if (s.t >= SEARCH_TIME) {
+				const c = s.c;
+				this.searching = null;
+				c.searched = true;
+				c.spark.visible = false;
+				if (!c.items.length) this.toast(`${c.name}: пусто`);
+				for (const [kind, n] of c.items) this.take(kind, n);
+				c.items = [];
+			}
+		}
+		// подсказка «Обыскать» у мебели
+		const c = this.searching?.c ?? this.nearContainer();
+		el.classList.toggle('hidden', !c || !this.player.alive);
+		if (c) {
+			$('search-name').textContent = c.name;
+			el.classList.toggle('busy', !!this.searching);
+			if (!this.searching) $('search-bar').style.width = '0%';
+		}
+		// подсказка при входе в здание
+		const b = level.buildingAt(this.player.pos);
+		if (b && !this.visited.has(b.name)) {
+			this.visited.add(b.name);
+			this.toast(b.name === 'Shop' ? 'Магазин «Продукты» — обыщи прилавок и подсобку' : 'Дом — обыщи шкафы, тумбочки и сундук');
+		}
 	},
 
 	/** Выпить живчик из рюкзака. */
@@ -954,9 +1030,11 @@ function update(dt) {
 	if (game.paused) return; // рюкзак открыт
 	game.time += game.state === 'play' ? dt : 0;
 	if (input.consume('heal')) game.drink();
+	if (input.consume('search')) game.search();
 	if (input.consume('switch')) game.player.switchWeapon();
 	if (input.consume('reload')) game.player.reload();
 	game.player.update(dt, input); // там же спуск: тап — один выстрел, удержание — серия
+	game.updateSearch(dt, input);
 
 	// всех убили — победа
 	if (game.state === 'play' && game.total && !game.enemies.some((e) => e.alive)) game.over(true);
@@ -997,6 +1075,8 @@ function update(dt) {
 	camera.lookAt(camTarget.x, camTarget.y - 0.6, camTarget.z + 0.8);
 	sun.position.set(p.x + 18, 34, p.z + 10);
 	sun.target.position.set(p.x, 0, p.z);
+	// крыша дома, где герой, исчезает; здания между камерой и героем — полупрозрачные
+	level.updateView(p, camera.position, dt);
 	$('hurt').style.opacity = Math.max(0, parseFloat($('hurt').style.opacity || 0) - dt * 1.5);
 }
 
@@ -1010,6 +1090,7 @@ game.toast = (text, kind = '') => {
 
 game.inventory = new Inventory(game);
 $('btn-inv').addEventListener('click', (e) => { e.currentTarget.blur(); game.inventory.toggle(); });
+$('search').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); game.search(); });
 $('btn-inv').addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // снимаем фокус с кнопки, иначе пробел (атака) нажимает её снова и перезапускает игру

@@ -19,6 +19,7 @@ export class Input {
 			if (e.code === 'KeyR') this.pressed.add('reload');
 			if (e.code === 'KeyI' || e.code === 'KeyB') this.pressed.add('inventory');
 			if (e.code === 'KeyH') this.pressed.add('heal');
+			if (e.code === 'KeyE') this.pressed.add('search');
 			if (e.code === 'Escape') this.pressed.add('escape');
 			this.updateKeys();
 		});

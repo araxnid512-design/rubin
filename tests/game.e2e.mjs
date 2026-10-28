@@ -55,9 +55,10 @@ try {
 	await page.waitForTimeout(6000);
 	await page.keyboard.up('Space');
 	await page.screenshot({ path: join(OUT, 'game-fight.png') });
-	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.filter((p) => p.kind !== 'ammo' || !p.ground).length + window.__game.bag.spore }));
+	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.bag.spore, ammo: window.__game.pickups.filter((p) => p.kind === 'ammo').length }));
 	check(k.kills > 0, `убито заражённых топором: ${k.kills}`);
 	check(k.pickups > 0, 'после убийства выпадают спораны');
+	check(k.ammo === 0, 'патроны из заражённых не выпадают'); 
 	// пистолет: выстрел тратит патрон и поднимает шум
 	await page.keyboard.press('KeyQ');
 	await page.waitForFunction(() => window.__game.player.weapon === 'pistol', null, { timeout: 20000 });
@@ -75,11 +76,25 @@ try {
 	check(r0 === 3 && r1.ammo === 5 && r1.bag === 0 && r1.hud.replace(/\s/g, '') === '5/0', `перезарядка берёт из запаса: в магазине ${r1.ammo}, в запасе ${r1.bag}, на экране «${r1.hud}»`);
 	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
 	check(dry.ammo === 0 && /нет патронов/.test(dry.hud), `без патронов не стреляет, на экране «${dry.hud}»`);
-	const got = await G(page, () => { const g = window.__game; g.spawnPickup('ammo', g.player.pos.clone(), 6); return 1; });
-	await page.waitForFunction(() => window.__game.bag.ammo === 6, null, { timeout: 20000 }).catch(() => {});
-	check(got && (await G(page, () => window.__game.bag.ammo)) === 6, 'патроны подбираются в рюкзак');
-	const caches = await G(page, () => window.__game.pickups.filter((p) => p.kind === 'ammo' && p.ground).length);
-	check(caches >= 5, `в кластере разложены тайники с патронами (${caches})`);
+	// патроны — в домах: заходим, крыша исчезает, обыскиваем шкаф
+	const homes = await G(page, () => { const L = window.__game.level; return { houses: L.buildings.length, containers: L.containers.length }; });
+	check(homes.houses >= 4 && homes.containers >= 20, `в дома и магазин можно зайти: зданий ${homes.houses}, тайников ${homes.containers}`);
+	await G(page, () => {
+		const g = window.__game;
+		for (const e of g.enemies) if (e.alive) e.pos.set(40, 0, -40); // чтобы не мешали обыску
+		const c = g.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф');
+		c.items = [['ammo', 7]];
+		g.player.pos.set(c.ax, 0, c.az);
+	});
+	await page.waitForFunction(() => !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
+	const prompt = await G(page, () => document.getElementById('search-name').textContent);
+	await page.keyboard.press('KeyE');
+	await page.waitForFunction(() => window.__game.bag.ammo >= 7, null, { timeout: 20000 }).catch(() => {});
+	const found = await G(page, () => ({ ammo: window.__game.bag.ammo, roof: window.__game.level.buildings[0].fader.value, searched: window.__game.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф').searched }));
+	check(prompt === 'Шкаф' && found.ammo >= 7 && found.searched, `обыск шкафа в доме: подсказка «${prompt}», в запасе ${found.ammo} патронов`);
+	check(found.roof < 0.1, `в доме крыша и верх стен убраны (видимость ${found.roof.toFixed(2)})`);
+	const path = await G(page, () => { const g = window.__game, L = g.level; g.updateFlow(); const [gx, gz] = L.nav.cell(-30, -22); return g.flow[gz * L.nav.N + gx]; });
+	check(path > 0, `заражённые могут зайти в дом за героем (путь ${path} клеток)`);
 	// рюкзак: открывается по I, ставит игру на паузу, живчик из рюкзака лечит
 	await page.keyboard.press('KeyI');
 	await page.waitForSelector('#inventory:not(.hidden)', { timeout: 20000 }).catch(() => {});

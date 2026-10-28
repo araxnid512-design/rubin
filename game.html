@@ -69,6 +69,14 @@
 		.toast.warn { color: #f0a080; }
 		.toast { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-size: 14px; color: var(--spore); animation: toast 1.6s ease forwards; }
 		@keyframes toast { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+		#search { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%); pointer-events: auto; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 16px 8px; display: grid; gap: 6px; cursor: pointer; min-width: 220px; z-index: 13; }
+		#search .search-row { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+		#search svg { width: 20px; height: 20px; color: var(--accent); flex: none; }
+		#search kbd { margin-left: auto; font: 12px system-ui; border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; color: var(--muted); }
+		#search .search-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; }
+		#search-bar { display: block; height: 100%; width: 0; background: var(--accent); }
+		#search.busy { border-color: var(--text); }
+		body.rotated #search, body.short #search { left: auto; right: calc(250px + env(safe-area-inset-right)); transform: none; bottom: 18px; }
 		#hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 9; background: radial-gradient(ellipse at center, transparent 45%, rgba(150,0,0,0.75)); }
 
 		/* Сенсорное управление */
@@ -204,6 +212,12 @@
 		<div class="tbtn" id="btn-heal"><span class="badge" id="heal-count">0</span></div>
 	</div>
 
+	<button id="search" class="hidden" aria-label="Обыскать">
+			<span class="search-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
+			<span>Обыскать: <b id="search-name"></b></span><kbd class="desktop-only">E</kbd></span>
+			<span class="search-track"><span id="search-bar"></span></span>
+		</button>
+
 	<div id="inventory" class="screen hidden">
 		<div class="inv">
 			<div class="inv-head"><b>Рюкзак</b><span class="muted">игра на паузе</span><button id="inv-close" aria-label="Закрыть">✕</button></div>
@@ -244,10 +258,10 @@
 			<p class="lore">Кусок посёлка вместе с тобой перенесло в Улей. Все, кто не оказался иммунным, обратились. По краям кластера — муть.
 				По улицам бродят бегуны, у гаражей и магазина — топтуны. Зачисти кластер:
 				заражённые замечают тебя вблизи и идут на шум — выстрел слышно далеко, топор тише.
-				Собирай спораны с убитых, живчик лечит. Патроны к ПМ на счету — ищи их в тайниках у магазина,
-				гаражей, машин и подъездов.</p>
+				Собирай спораны с убитых, живчик лечит. Патроны к ПМ на счету — заходи в дома и магазин
+				и обыскивай шкафы, тумбочки, сундуки.</p>
 			<button class="big" id="btn-start">Начать</button>
-			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>H</b> — выпить живчик</div>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>H</b> — выпить живчик · <b>E</b> — обыскать</div>
 			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак — вверху справа. Прицел — автоматический.</div>
 		</div>
 	</div>

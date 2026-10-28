@@ -250,6 +250,74 @@ export function concreteMaterial(repeat, tint = [150, 148, 140]) {
 	}), { repeat, roughness: 0.95, normal: 2 });
 }
 
+// ---------- Интерьер ----------
+
+/** Старые обои: вертикальные полосы с цветочным узором, выцветшие и в пятнах. */
+export function wallpaperMaterial(repeat, tint = [176, 160, 122], seed = 0) {
+	return texMaterial(`wallpaper${tint}${seed}`, () => pixels(256, (u, v, x, y) => {
+		const stripe = Math.floor(x / 32) % 2;
+		const flower = Math.max(0, 1 - Math.hypot(((x + (Math.floor(y / 64) % 2) * 16) % 32) - 16, (y % 64) - 32) / 9);
+		const stain = ss(0.55, 0.8, tileFbm(u, v, 4, 4, 131 + seed));
+		let c = mixc(tint, tint.map((k) => k * 0.86), stripe * 0.6);
+		c = mixc(c, tint.map((k, i) => k * [0.75, 0.62, 0.55][i]), flower * 0.7);
+		c = mixc(c, [120, 100, 70], stain * 0.45); // подтёки
+		c = c.map((k) => k * (0.9 + tileNoise(u, v, 128, 133 + seed) * 0.12));
+		return [...c.map(clamp), flower * 0.3 - stain * 0.2];
+	}), { repeat, roughness: 0.95, normal: 1 });
+}
+
+/** Побелка или краска (печь, стены кухни и магазина): ровная, с лёгкими разводами и грязью снизу. */
+export function whitewashMaterial(repeat, tint = [232, 228, 216]) {
+	return texMaterial(`whitewash${tint}`, () => pixels(256, (u, v) => {
+		const n = tileFbm(u, v, 6, 4, 171), soot = ss(0.55, 1, v) * tileFbm(u, v, 3, 3, 173);
+		let c = mixc(tint, tint.map((k) => k * 0.89), n);
+		c = mixc(c, [120, 114, 104], soot * 0.35).map((k) => k * (0.95 + tileNoise(u, v, 128, 175) * 0.07));
+		return [...c.map(clamp), n * 0.5];
+	}), { repeat, roughness: 0.95, normal: 1 });
+}
+
+/** Ковёр с советским орнаментом. */
+export function rugMaterial(tint = [128, 34, 30]) {
+	const t = memo(`rug${tint}`, () => {
+		const p = pixels(256, (u, v, x, y) => {
+			const dx = Math.abs(u - 0.5) * 2, dy = Math.abs(v - 0.5) * 2;
+			const border = Math.max(dx, dy) > 0.82 ? 1 : 0, inner = Math.max(dx, dy) > 0.74 && !border ? 1 : 0;
+			const diamond = (Math.abs(((u * 6) % 1) - 0.5) + Math.abs(((v * 4) % 1) - 0.5)) < 0.32 ? 1 : 0;
+			const medallion = dx + dy < 0.55 ? 1 : 0;
+			let c = tint;
+			if (diamond) c = [196, 160, 96];
+			if (medallion) c = mixc([30, 40, 70], [200, 170, 110], (dx + dy) < 0.3 ? 1 : 0);
+			if (inner) c = [210, 186, 130];
+			if (border) c = [40, 46, 70];
+			const wear = tileFbm(u, v, 6, 3, 141);
+			c = mixc(c, [120, 110, 96], ss(0.6, 0.9, wear) * 0.5).map((k) => k * (0.88 + tileNoise(u, v, 256, 143) * 0.15));
+			return [...c.map(clamp), wear];
+		});
+		return toTexture(p.c);
+	});
+	return new THREE.MeshStandardMaterial({ map: t, roughness: 1 });
+}
+
+/** Линолеум «в шашечку» (магазин). */
+export function linoleumMaterial(repeat) {
+	return texMaterial('linoleum', () => pixels(256, (u, v, x, y) => {
+		const check = (Math.floor(x / 64) + Math.floor(y / 64)) % 2;
+		const dirt = ss(0.45, 0.85, tileFbm(u, v, 5, 4, 151));
+		let c = check ? [150, 138, 112] : [108, 92, 74];
+		c = mixc(c, [80, 70, 56], dirt * 0.6).map((k) => k * (0.92 + tileNoise(u, v, 128, 153) * 0.1));
+		return [...c.map(clamp), check * 0.2 - dirt * 0.3];
+	}), { repeat, roughness: 0.6, normal: 1 });
+}
+
+/** Ткань (диван, покрывало) — однотонная с фактурой. */
+export function fabricMaterial(tint) {
+	return texMaterial(`fabric${tint}`, () => pixels(128, (u, v, x, y) => {
+		const weave = ((x + y) % 4 < 2 ? 1 : 0) * 0.5 + tileNoise(u, v, 64, 161) * 0.5;
+		const c = tint.map((k) => k * (0.82 + weave * 0.2));
+		return [...c.map(clamp), weave];
+	}), { repeat: [2, 2], roughness: 1, normal: 1 });
+}
+
 /** Окно деревенского дома с белыми наличниками. */
 export function houseWindowMaterial() {
 	const t = memo('housewin', () => {
