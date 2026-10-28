@@ -316,7 +316,7 @@ export function buildZombie({ textureSize = 1024 } = {}) {
 	const model = new THREE.Group();
 	model.name = 'Zombie';
 	model.add(mesh);
-	const animations = createZombieAnimations({ hipsY: bindWorld.Hips.y });
+	const animations = createZombieAnimations(finalBones.Root);
 	model.animations = animations;
 	return { model, mesh, animations, landmarks: L };
 }

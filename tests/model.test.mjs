@@ -108,3 +108,27 @@ test('модель MakeHuman: рост, руки опущены, анимаци�
 		assert.ok(world('Head').distanceTo(rest) > 0.01, `${clip.name} двигает голову`);
 	}
 });
+
+test('анимации: ступни не проваливаются под землю, после смерти тело лежит', () => {
+	for (const { model, animations } of [createZombie(), buildZombie({ textureSize: 32 })]) {
+		const mixer = new THREE.AnimationMixer(model);
+		const y = (n) => model.getObjectByName(n).getWorldPosition(new THREE.Vector3()).y;
+		model.updateMatrixWorld(true);
+		const ankle = y('Foot.L');
+		for (const clip of animations) {
+			mixer.stopAllAction();
+			mixer.clipAction(clip).play();
+			for (let t = 0; t <= clip.duration; t += clip.duration / 40) {
+				mixer.setTime(Math.min(t, clip.duration - 1e-3));
+				model.updateMatrixWorld(true);
+				if (clip.name !== 'Death') {
+					for (const s of ['L', 'R']) assert.ok(y(`Foot.${s}`) > ankle - 0.02, `${clip.name} t=${t.toFixed(2)}: ступня ${s} над землёй`);
+				}
+			}
+			if (clip.name === 'Death') {
+				assert.ok(y('Hips') < 0.3 && y('Head') < 0.35, 'после Death зомби лежит');
+				assert.ok(y('Head') > 0.03, 'голова не ушла под землю');
+			}
+		}
+	}
+});
