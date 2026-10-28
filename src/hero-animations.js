@@ -29,6 +29,7 @@ const THUMB_MAX = [28, 34, 38];
 export const HERO_ANIMATION_NAMES = [
 	'Idle', 'Walk', 'Run', 'Melee', 'Hit', 'EquipPistol',
 	'IdlePistol', 'WalkPistol', 'RunPistol', 'AimPistol', 'Shoot', 'Reload', 'HitPistol', 'EquipAxe',
+	'IdleRifle', 'WalkRifle', 'RunRifle', 'AimRifle', 'ShootRifle', 'ReloadRifle', 'HitRifle', 'EquipRifle', 'EquipAxeR',
 	'Death',
 ];
 
@@ -66,7 +67,7 @@ class HeroRig {
 		this.shoulder = { L: W('LeftArm').clone(), R: W('RightArm').clone() };
 		// крепления оружия на теле (позиция кулака и направление топорища/рукояти в стойке)
 		this.mounts = {};
-		for (const [key, name] of [['axe', 'AxeMount'], ['pistol', 'HolsterMount']]) {
+		for (const [key, name] of [['axe', 'AxeMount'], ['pistol', 'HolsterMount'], ['back', 'BackMount']]) {
 			const m = root.getObjectByName(name);
 			if (!m) continue;
 			const parent = short(m.parent.name);
@@ -187,6 +188,16 @@ function handTarget(rig, s, spec, other) {
 		// поворот кисти задан относительно позы привязки (рука опущена, ладонь к бедру)
 		q = eulerQ(spec.rot ?? [0, 0, 0], 'YXZ').multiply(rig.bindQ[hand]);
 		pos = V(...spec.pos);
+	}
+	// поддерживающая рука на цевье длинного оружия: точка и оси кулака — в осях оружия (хвата правой)
+	if (spec.gun && other) {
+		const w = spec.gun.weight ?? 1;
+		const gq = other.q.clone().multiply(rig.grip.R.q);
+		const gp = rig.grip.R.pos.clone().applyQuaternion(other.q).add(other.pos);
+		const tq = gq.clone().multiply(gripQuat(spec.gun)).multiply(rig.grip[s].q.clone().invert());
+		const tp = V(...spec.gun.offset).applyQuaternion(gq).add(gp).sub(rig.grip[s].pos.clone().applyQuaternion(tq));
+		pos.lerp(tp, w);
+		q.slerp(tq, w);
 	}
 	// прилипание к правой кисти (поддерживающая рука на пистолете): смещение и поворот — в осях
 	// правой кисти в позе привязки
@@ -373,6 +384,15 @@ const HAND_GRIP = { curl: 0.95, thumb: 0.85, index: 0.95 };
 const HAND_PISTOL = { curl: 0.95, thumb: 0.8, index: 0.42 };
 const HAND_SUPPORT = { curl: 0.85, thumb: 0.6, index: 0.75 };
 const HAND_RELAXED = { curl: 0.32, thumb: 0.25, index: 0.25, spread: 0.3 };
+// автомат: правая рука на пистолетной рукояти (палец у спуска), левая — на цевье
+const HAND_RIFLE = { curl: 0.95, thumb: 0.8, index: 0.45 };
+const HAND_FOREGRIP = { curl: 0.8, thumb: 0.55, index: 0.8 };
+// левая рука на цевье в осях оружия (−Y — ствол, +Z — верх, +X — левый бок): цевьё лежит в ладони
+// наискось — большой палец вперёд-влево вдоль ствола, пальцы обхватывают правый бок
+const FOREGRIP = { offset: [0.03, -0.29, 0.02], handle: [0.6, -0.6, 0.3], blade: [-0.6, -0.6, 0.2] };
+// низкая готовность: приклад под мышкой, ствол вперёд-вниз чуть влево; прицел — приклад в плече, ствол вперёд
+const rifleReady = (d = [0, 0, 0]) => ({ pos: [-0.15 + d[0], 1.18 + d[1], 0.3 + d[2]], handle: [-0.1, 0.9, 0.42], blade: [0.12, -0.42, 0.9] });
+const rifleAim = (d = [0, 0, 0], climb = 0) => ({ pos: [-0.12 + d[0], 1.6 + d[1], 0.46 + d[2]], handle: [0, 1, -climb], blade: [0, climb, 1] });
 const mixHand = (a, b, w) => Object.fromEntries(['curl', 'thumb', 'index', 'spread'].map((k) => [k, (a[k] ?? 0) + ((b[k] ?? 0) - (a[k] ?? 0)) * w]));
 
 // Поворот ступни [наклон, рыскание, 0]: положительное рыскание разворачивает носок к +X (влево),
@@ -428,7 +448,7 @@ function idleAxe(rig) {
 	};
 }
 
-function gait(rig, t, { run, pistol }) {
+function gait(rig, t, { run, pistol, rifle }) {
 	const H = rig.hipsY, a = rig.ankle;
 	const d = run ? (pistol ? 0.72 : 0.7) : 1.1, ph = t / d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
@@ -449,6 +469,17 @@ function gait(rig, t, { run, pistol }) {
 		look: [run ? -8 : pistol ? -3 : 0, -0.3 * yaw, 0],
 		feet,
 	};
+	if (rifle) {
+		// автомат двумя руками в низкой готовности и шагом, и бегом; корпус гасит раскачку
+		return {
+			...base,
+			pelvis: [run ? 9 : 3, 0.4 * yaw - 8, 3 * c(1, 0.25)],
+			torso: [run ? 10 : 6, -0.3 * yaw + 8, 0],
+			look: [run ? -8 : -3, -0.1 * yaw, 0],
+			hands: { R: { grip: rifleReady([0, -bob * 0.6, 0]), hint: [-0.7, -1, -0.2] }, L: { pos: [0, 0, 0], gun: FOREGRIP, hint: [0.6, -1, -0.2] } },
+			fingers: { R: HAND_RIFLE, L: HAND_FOREGRIP },
+		};
+	}
 	if (pistol && !run) {
 		// шагом — пистолет двумя руками в низкой готовности, корпус гасит раскачку
 		return {
@@ -645,7 +676,7 @@ function hit(rig, pistol) {
 
 // Смена оружия. Топор вешается в чехол на левом бедре (рука тянется поперёк тела),
 // пистолет — в кобуру на правом бедре. Тайминги перевешивания — EQUIP_TIMES (их же использует игра).
-export const EQUIP_TIMES = { EquipPistol: { stow: 0.36, draw: 0.74 }, EquipAxe: { stow: 0.26, draw: 0.6 } };
+export const EQUIP_TIMES = { EquipPistol: { stow: 0.36, draw: 0.74 }, EquipAxe: { stow: 0.26, draw: 0.6 }, EquipRifle: { stow: 0.36, draw: 0.74 }, EquipAxeR: { stow: 0.32, draw: 0.66 } };
 
 /**
  * Путь кисти по ключам: положение и поворот — гладкими кривыми через все ключи без остановок.
@@ -734,6 +765,155 @@ function equip(rig, toPistol) {
 	};
 }
 
+// ---------- Автомат ----------
+
+/** Поза с автоматом: правая рука держит рукоять, левая — цевьё (вес gun — насколько держит). */
+function riflePose(rig, { grip, torso = [6, 8, 0], look = [-3, 4, 0], hips = 0, left = null, gunW = 1, gunSpec = FOREGRIP, trigger = 0.45 }) {
+	const H = rig.hipsY;
+	return {
+		hips: [0, H - 0.04, 0.01 + hips], pelvis: [3, -10, 0], torso, look,
+		feet: pistolStance(rig),
+		hands: {
+			R: { grip, hint: [-0.7, -1, -0.15] },
+			L: { ...(left ?? { pos: [0, 0, 0] }), gun: { ...gunSpec, weight: gunW }, hint: [0.6, -1, -0.2] },
+		},
+		fingers: { R: { ...HAND_RIFLE, index: trigger }, L: gunW > 0.5 ? HAND_FOREGRIP : { curl: 0.5, thumb: 0.4 } },
+	};
+}
+
+function idleRifle(rig) {
+	const d = 3;
+	return (t) => {
+		const w = (f, ph = 0) => Math.sin((t / d) * Math.PI * 2 * f + ph);
+		return riflePose(rig, { grip: rifleReady([0.004 * w(1), 0.005 * w(2, 0.8), 0]), torso: [6 + w(2, 0.5), 8, 0], look: [-2 + w(1, 2), 4 + 5 * w(1, 2.2), 0] });
+	};
+}
+
+function aimRifle(rig) {
+	const d = 2;
+	return (t) => {
+		const w = (f, ph = 0) => Math.sin((t / d) * Math.PI * 2 * f + ph);
+		return riflePose(rig, { grip: rifleAim([0.003 * w(1, 0.3), 0.003 * w(2), 0]), torso: [5, 10, 0], look: [3, -6, 0] });
+	};
+}
+
+// Выстрел очередью: короткая отдача — автомат толкает назад и подбрасывает ствол, к следующему выстрелу возвращается
+function shootRifle(rig) {
+	const k = at([0, 0.02, 0.05, 0.12]);
+	const P = curves({ d: k([0, 0, 0], [0, 0.012, -0.035], [0, 0.004, -0.012], [0, 0, 0]), climb: k([0], [0.09], [0.03], [0]), torso: k([5], [3], [4.5], [5]), trig: k([0.8], [0.8], [0.8], [0.8]) });
+	return (t) => {
+		const p = P(t);
+		return riflePose(rig, { grip: rifleAim(p.d, p.climb[0]), torso: [p.torso[0], 10, 0], look: [3, -6, 0], trigger: p.trig[0] });
+	};
+}
+
+// Перезарядка: автомат наклоняется к себе, левая рука выдёргивает магазин, берёт новый из подсумка, вставляет
+function reloadRifle(rig) {
+	const T = [0, 0.25, 0.5, 0.85, 1.15, 1.45, 1.7, 1.95, 2.2];
+	const k = at(T);
+	const ready = rifleReady(), tilt = { pos: [-0.1, 1.24, 0.32], handle: [0.4, 0.82, 0.4], blade: [0.12, -0.42, 0.9] };
+	const MAGWELL = { offset: [0.03, -0.13, -0.11], handle: [0.5, -0.3, 0.8], blade: [-0.6, -0.8, 0.1] };
+	const P = curves({
+		gpos: k(ready.pos, tilt.pos, tilt.pos, tilt.pos, tilt.pos, tilt.pos, tilt.pos, ready.pos, ready.pos),
+		ghandle: k(ready.handle, tilt.handle, tilt.handle, tilt.handle, tilt.handle, tilt.handle, tilt.handle, ready.handle, ready.handle),
+		gun: k([1], [1], [0.15], [0], [0], [0.9], [1], [1], [1]),
+		// левая рука вне оружия: у бедра (бросила магазин), у подсумка на груди, с новым магазином
+		lPos: k([0.1, 1.15, 0.4], [0.1, 1.15, 0.4], [0.18, 1.0, 0.32], [0.085, 1.45, 0.24], [0.08, 1.5, 0.27], [0.02, 1.15, 0.36], [0.02, 1.15, 0.36], [0.1, 1.15, 0.4], [0.1, 1.15, 0.4]),
+		lRot: k([-60, 0, 0], [-60, 0, 0], [-30, 0, 10], [-150, -20, 0], [-140, -20, 0], [-80, -10, 0], [-80, -10, 0], [-60, 0, 0], [-60, 0, 0]),
+		off: k(FOREGRIP.offset, MAGWELL.offset, MAGWELL.offset, MAGWELL.offset, MAGWELL.offset, MAGWELL.offset, MAGWELL.offset, FOREGRIP.offset, FOREGRIP.offset),
+		lh: k(FOREGRIP.handle, MAGWELL.handle, MAGWELL.handle, MAGWELL.handle, MAGWELL.handle, MAGWELL.handle, MAGWELL.handle, FOREGRIP.handle, FOREGRIP.handle),
+		lb: k(FOREGRIP.blade, MAGWELL.blade, MAGWELL.blade, MAGWELL.blade, MAGWELL.blade, MAGWELL.blade, MAGWELL.blade, FOREGRIP.blade, FOREGRIP.blade),
+		look: k([-3, 4, 0], [14, 8, 0], [20, 12, 0], [18, 14, 0], [18, 12, 0], [18, 8, 0], [14, 6, 0], [-2, 4, 0], [-3, 4, 0]),
+	});
+	return (t) => {
+		const p = P(t);
+		// до вставки магазина рука держит магазин у горловины, после — снова цевьё
+		const spec = { offset: p.off, handle: p.lh, blade: p.lb };
+		return riflePose(rig, {
+			grip: { pos: p.gpos, handle: p.ghandle, blade: ready.blade },
+			torso: [8, 6, 0], look: p.look,
+			left: { pos: p.lPos, rot: p.lRot },
+			gunW: THREE.MathUtils.clamp(p.gun[0], 0, 1), gunSpec: spec, trigger: 0.25,
+		});
+	};
+}
+
+function hitRifle(rig) {
+	const H = rig.hipsY;
+	const k = at([0, 0.08, 0.2, 0.4]);
+	const P = curves({ hips: k([0, H - 0.04, 0], [0, H - 0.06, -0.05], [0, H - 0.05, -0.04], [0, H - 0.04, 0]), torso: k([6, 8, 0], [-8, 14, 4], [2, 10, 0], [6, 8, 0]), look: k([-3, 4, 0], [-14, 14, 6], [-3, 6, 0], [-3, 4, 0]), f: k([0], [1], [0.4], [0]) });
+	return (t) => {
+		const p = P(t), f = p.f[0];
+		const pose = riflePose(rig, { grip: rifleReady([0.02 * f, 0.05 * f, -0.08 * f]), torso: p.torso, look: p.look });
+		return { ...pose, hips: p.hips };
+	};
+}
+
+/**
+ * Смена топора на автомат (toRifle) и обратно. Автомат висит за правым плечом стволом вниз
+ * (крепление BackMount): рука тянется назад к рукояти у бедра, выносит автомат вперёд, левая берёт цевьё.
+ */
+function equipRifle(rig, toRifle) {
+	const H = rig.hipsY;
+	const carry = axeCarry(rig), ready = rifleReady();
+	const axeM = rig.mounts.axe, backM = rig.mounts.back;
+	const near = (m, d) => ({ ...m, pos: m.pos.map((v, i) => v + d[i]) });
+	const CROSS = { torso: [14, 22, 0], look: [20, 16, 0] };
+	const BACK = { torso: [4, -16, 0], look: [8, -20, 0] };
+	const K = (t, hand, o = {}) => ({ t, hand, torso: o.torso ?? [4, 7, 0], look: o.look ?? [3, 2, 0], curl: o.curl ?? 0.95, gun: o.gun ?? 0 });
+	const axeOut = [
+		{ pos: [-0.02, 1.2, 0.32], handle: [0, 0.5, 0.87], blade: [1, 0, 0], tilt: T_AXE },
+		{ pos: [0.04, 1.14, 0.28], handle: [1, 0.15, 0.1], blade: [0.1, -1, 0], tilt: T_AXE },
+	];
+	const transit = (pos) => ({ grip: { pos, handle: [0, 0.7, 0.7], blade: [0.8, -0.6, 0] } });
+	const swing = { grip: { pos: [-0.3, 1.1, 0.12], handle: [-0.6, 0.6, 0.5], blade: [0.1, -0.7, 0.7] } };
+	const keys = toRifle
+		? [
+			K(0, { grip: carry }),
+			K(0.12, { grip: axeOut[0] }),
+			K(0.22, { grip: axeOut[1] }),
+			K(0.36, { grip: axeM }, CROSS), // топор в чехле
+			K(0.5, transit([-0.12, 1.06, 0.18]), { curl: 0.35 }),
+			K(0.66, { grip: near(backM, [-0.03, 0.04, 0.06]) }, { ...BACK, curl: 0.35 }),
+			K(0.74, { grip: backM }, BACK), // автомат в руке
+			K(0.88, swing, { torso: [6, 0, 0], gun: 0.5 }),
+			K(1.05, { grip: ready }, { torso: [6, 8, 0], gun: 1 }),
+		]
+		: [
+			K(0, { grip: ready }, { torso: [6, 8, 0], gun: 1 }),
+			K(0.14, swing, { torso: [6, 0, 0], gun: 0.5 }),
+			K(0.26, { grip: near(backM, [-0.03, 0.04, 0.06]) }, BACK),
+			K(0.32, { grip: backM }, BACK), // автомат на спине
+			K(0.48, transit([-0.06, 1.08, 0.22]), { curl: 0.35 }),
+			K(0.6, { grip: near(axeM, [-0.03, 0.03, 0.05]) }, { ...CROSS, curl: 0.35 }),
+			K(0.66, { grip: axeM }, CROSS), // топор в руке
+			K(0.84, { grip: axeOut[1] }),
+			K(0.94, { grip: axeOut[0] }),
+			K(1.05, { grip: carry }),
+		];
+	const T = keys.map((x) => x.t);
+	const hand = handPath(rig, 'R', T, keys.map((x) => x.hand));
+	const k = at(T);
+	const P = curves({ torso: k(...keys.map((x) => x.torso)), look: k(...keys.map((x) => x.look)), gun: k(...keys.map((x) => [x.gun])), curl: k(...keys.map((x) => [x.curl])) });
+	const st = stance(rig), ps = pistolStance(rig);
+	const blend = (t) => toRifle ? THREE.MathUtils.smoothstep(t, 0.75, 1.05) : 1 - THREE.MathUtils.smoothstep(t, 0, 0.35);
+	const foot = (s, w) => ({ pos: st[s].pos.map((v, i) => v + (ps[s].pos[i] - v) * w), rot: st[s].rot.map((v, i) => v + (ps[s].rot[i] - v) * w) });
+	return (t) => {
+		const p = P(t), h = hand(t), w = blend(t);
+		const gunW = THREE.MathUtils.clamp(p.gun[0], 0, 1);
+		return {
+			hips: [0, H - 0.03 - 0.03 * Math.max(0, p.torso[0] - 8) / 8, 0],
+			pelvis: [3, -6 + p.torso[1] * 0.3, 0], torso: p.torso, look: p.look,
+			feet: { L: foot('L', w), R: foot('R', w) },
+			hands: {
+				R: { pos: h.pos, q: h.q },
+				L: { ...freeHandL(rig), gun: { ...FOREGRIP, weight: gunW } },
+			},
+			fingers: { R: { curl: p.curl[0], thumb: p.curl[0] * 0.85, index: Math.min(p.curl[0], 0.9) }, L: mixHand(HAND_RELAXED, HAND_FOREGRIP, gunW) },
+		};
+	};
+}
+
 // Смерть: колени подгибаются, садится и падает на спину, руки раскинуты (оружие игра роняет на 0.55 с)
 function death(rig) {
 	const H = rig.hipsY, a = rig.ankle;
@@ -783,6 +963,15 @@ export function createHeroAnimations(root, options) {
 		bake(rig, 'Reload', 1.4, reloadPistol(rig)),
 		bake(rig, 'HitPistol', 0.4, hit(rig, true)),
 		bake(rig, 'EquipAxe', 1.0, equip(rig, false)),
+		bake(rig, 'IdleRifle', 3.0, idleRifle(rig), { loop: true }),
+		bake(rig, 'WalkRifle', 1.1, (t) => gait(rig, t, { run: false, rifle: true }), { loop: true }),
+		bake(rig, 'RunRifle', 0.72, (t) => gait(rig, t, { run: true, rifle: true }), { loop: true }),
+		bake(rig, 'AimRifle', 2.0, aimRifle(rig), { loop: true }),
+		bake(rig, 'ShootRifle', 0.12, shootRifle(rig)),
+		bake(rig, 'ReloadRifle', 2.2, reloadRifle(rig)),
+		bake(rig, 'HitRifle', 0.4, hitRifle(rig)),
+		bake(rig, 'EquipRifle', 1.05, equipRifle(rig, true)),
+		bake(rig, 'EquipAxeR', 1.05, equipRifle(rig, false)),
 		bake(rig, 'Death', 2.2, death(rig)),
 	];
 }

@@ -169,6 +169,8 @@ export function heroMountSpots(L, hipsY, shoulderR) {
 		axe: { bone: 'LeftUpLeg', pos: new THREE.Vector3(0.17, hipsY - 0.02, 0.12), handle: [0, 0.35, -0.94], blade: [1, 0, 0] },
 		// пистолет в набедренной кобуре справа: ствол вниз, рукоять вперёд
 		pistol: { bone: 'RightUpLeg', pos: new THREE.Vector3(shoulderR.x - 0.06, hipsY - 0.1, 0.04), handle: [0, 0.2, 1], blade: [0, -1, 0.2] },
+		// автомат на ремне за правым плечом стволом вниз: рукоять сзади у правого бедра, верх наружу
+		back: { bone: 'Hips', pos: new THREE.Vector3(shoulderR.x - 0.02, hipsY + 0.03, -0.21), handle: [-1, 0, -0.1], blade: [0, -0.97, -0.25] },
 	};
 }
 
@@ -287,6 +289,7 @@ function heroMounts({ L }) {
 		// у топора топорище в кулаке наклонено: узел — оси кулака, топор в нём повёрнут на AXE_GRIP_TILT
 		{ name: 'AxeMount', bone: spots.axe.bone, pos: spots.axe.pos, quat: gripQuat(spots.axe.handle, spots.axe.blade).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -THREE.MathUtils.degToRad(AXE_GRIP_TILT))) },
 		{ name: 'HolsterMount', bone: spots.pistol.bone, pos: spots.pistol.pos, quat: gripQuat(spots.pistol.handle, spots.pistol.blade) },
+		{ name: 'BackMount', bone: spots.back.bone, pos: spots.back.pos, quat: gripQuat(spots.back.handle, spots.back.blade) },
 	];
 }
 

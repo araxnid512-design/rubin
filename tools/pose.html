@@ -19,7 +19,7 @@
 	<script type="module">
 		import * as THREE from 'three';
 		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-		import { makeAxe, makePistol } from '../game/weapons.js';
+		import { makeAxe, makePistol, makeAks } from '../game/weapons.js';
 		import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 		const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -37,9 +37,8 @@
 		const model = gltf.scene;
 		scene.add(model);
 		const grip = model.getObjectByName('GripR');
-		const axeMount = model.getObjectByName('AxeMount'), holster = model.getObjectByName('HolsterMount');
-		const axe = makeAxe(), pistol = makePistol();
-		grip.add(axe, pistol);
+		const mounts = { axe: model.getObjectByName('AxeMount'), pistol: model.getObjectByName('HolsterMount'), aks: model.getObjectByName('BackMount') };
+		const guns = { axe: makeAxe(), pistol: makePistol(), aks: makeAks() };
 		// оси хвата для отладки
 		grip.add(new THREE.AxesHelper(0.12));
 		const mixer = new THREE.AnimationMixer(model);
@@ -59,15 +58,17 @@
 		window.pose = (clipName, t, weapon, zoom, view) => {
 			const clip = gltf.animations.find((c) => c.name === clipName);
 			const time = t * clip.duration;
-			const pistolClip = /Pistol|Shoot|Reload/.test(clipName) && clipName !== 'EquipPistol';
+			// что в руке: по клипу и для смены оружия — по времени перевешивания (EQUIP_TIMES)
 			const E = EQUIP_TIMES[clipName];
-			weapon ??= clipName === 'EquipPistol' ? (time < E.stow ? 'axe' : time < E.draw ? 'stowed' : 'pistol') : clipName === 'EquipAxe' ? (time < E.stow ? 'pistol' : time < E.draw ? 'stowed' : 'axe') : pistolClip ? 'pistol' : 'axe';
-			// оружие, которое не в руке, висит в креплении на теле (если оно есть в модели)
-			(weapon === 'axe' || weapon === 'none' || !axeMount ? grip : axeMount).add(axe);
-			(weapon === 'pistol' || weapon === 'none' || !holster ? grip : holster).add(pistol);
-			axe.visible = weapon !== 'none' || !!axeMount;
-			pistol.visible = (weapon !== 'none' && weapon !== 'axe') || !!holster;
-			if (weapon === 'none') { axe.visible = false; pistol.visible = false; }
+			const swap = { EquipPistol: ['axe', 'pistol'], EquipAxe: ['pistol', 'axe'], EquipRifle: ['axe', 'aks'], EquipAxeR: ['aks', 'axe'] }[clipName];
+			weapon ??= swap ? (time < E.stow ? swap[0] : time < E.draw ? 'stowed' : swap[1])
+				: /Rifle/.test(clipName) ? 'aks' : /Pistol|Shoot|Reload/.test(clipName) ? 'pistol' : 'axe';
+			// остальное оружие висит в креплениях на теле; автомат — только если клип про него
+			for (const [k, obj] of Object.entries(guns)) {
+				(k === weapon ? grip : mounts[k] ?? grip).add(obj);
+				obj.visible = k === weapon || (!!mounts[k] && (k !== 'aks' || /Rifle|AxeR/.test(clipName))) && weapon !== 'none';
+				if (k !== 'aks' && /Rifle|AxeR/.test(clipName) && k === 'pistol') obj.visible = false;
+			}
 			mixer.stopAllAction();
 			mixer.clipAction(clip).play();
 			mixer.setTime(Math.min(clip.duration - 1e-3, t * clip.duration));
