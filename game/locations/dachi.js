@@ -112,6 +112,7 @@ export default {
 				{ at: [30, -22], r: 6, stompers: 1 },
 			],
 			onRoad,
+			water: [[-27, 36, 9, 5.5]],
 			trees(tryTree) {
 				// яблони на участках, сосновый лес по краям, берёзы у пруда
 				for (const [cx, cz, D] of appleSpots) for (let k = 0; k < 3; k++) tryTree(cx + R(-5.5, 5.5), cz + R(-D / 2 + 1.5, D / 2 - 1.5), 'apple');

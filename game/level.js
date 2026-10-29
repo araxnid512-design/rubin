@@ -78,7 +78,13 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 
 	// ---------- Земля ----------
 	batch.add(planeXZ(150, 150, 7), M.grass, { cast: false });
-	const ground = (w, d, x, z, mat, s = 4, y = 0.012, ry = 0) => batch.add(place(planeXZ(w, d, s), x, y, z, ry), mat, { cast: false });
+	// покрытия земли запоминаем для плана локации (дороги, грунтовки, плиты)
+	const grounds = [];
+	const ground = (w, d, x, z, mat, s = 4, y = 0.012, ry = 0) => {
+		batch.add(place(planeXZ(w, d, s), x, y, z, ry), mat, { cast: false });
+		const kind = mat === M.asphalt ? 'asphalt' : mat === M.dirt ? 'dirt' : mat === M.concrete ? 'concrete' : mat === M.sand ? 'sand' : null;
+		if (kind) grounds.push({ w, d, x, z, ry, kind });
+	};
 
 	// здания, которые становятся прозрачными, когда загораживают героя от камеры
 	const occluders = [];
@@ -88,7 +94,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		build(b, group);
 		b.build(group);
 		root.add(group);
-		occluders.push({ fader: new Fader(group, { speed: 3 }), area, min });
+		occluders.push({ name, fader: new Fader(group, { speed: 3 }), area, min });
 	};
 	const buildings = [];
 	const bctx = { batch, root, collide, M };
@@ -161,6 +167,10 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		containers: buildings.flatMap((b) => b.containers),
 		groups: spec.groups ?? [],
 		stations: spec.stations ?? [],
+		// для плана локации: покрытия, препятствия, крупные постройки, деревья, вода; edge — край локации
+		// (муть) — выход на карту Улья в любом месте, у стаба выход только через ворота
+		plan: { grounds, trees, water: spec.water ?? [], blocks: occluders.map((o) => ({ name: o.name, ...o.area })) },
+		edge: spec.fog !== false,
 		npcs: spec.npcs ?? [],
 		hint: spec.hint,
 		start: spec.start ? { pos: new THREE.Vector3(spec.start[0], 0, spec.start[1]), ry: spec.start[2] } : { pos: exits[0].spawn.clone(), ry: exits[0].ry },
@@ -172,6 +182,17 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		},
 		/** Выход, в зоне которого точка (с запасом m), или null. */
 		exitAt(p, m = 0) { return exits.find((e) => p.x > e.x0 - m && p.x < e.x1 + m && p.z > e.z0 - m && p.z < e.z1 + m) ?? null; },
+		/** Герой у края кластера (в мути): отсюда тоже можно уйти на карту Улья. m — запас внутрь. */
+		atEdge(p, m = 0) { return spec.fog !== false && (Math.abs(p.x) > PLAY - 0.8 - m || Math.abs(p.z) > PLAY - 0.8 - m); },
+		/** Ближайший к точке выход у дороги (куда подсказать идти). */
+		nearestExit(p) {
+			let best = null, bd = Infinity;
+			for (const e of exits) {
+				const d = Math.hypot(Math.max(e.x0 - p.x, 0, p.x - e.x1), Math.max(e.z0 - p.z, 0, p.z - e.z1));
+				if (d < bd) { bd = d; best = e; }
+			}
+			return best;
+		},
 		/** Точка появления при приходе из локации from. */
 		entry(from) {
 			const e = exits.find((x) => x.to === from) ?? exits[0];

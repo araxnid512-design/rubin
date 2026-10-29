@@ -16,6 +16,7 @@ import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP } from './weapons.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
 import { createSpores } from './atmosphere.js';
+import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE } from './trade.js';
 import { WorldMap } from './worldmap.js';
@@ -103,6 +104,7 @@ async function boot() {
 	await frameWait();
 	level = buildLevel(scene, { quality: QUALITY, id: saved?.world?.at ?? 'zarechny' });
 	game.level = level;
+	game.planLevel();
 	progress(0.35, 'Загружаем иммунного…');
 	const player = await loadModel('player');
 	progress(0.55, 'Загружаем бегунов…');
@@ -338,7 +340,8 @@ class Player extends Actor {
 	/** Смена оружия анимацией: убрать текущее на тело, достать другое (to — слот, по умолчанию другой). */
 	switchWeapon(to) {
 		to ??= this.hold === 'melee' ? 'gun' : 'melee';
-		if (!this.alive || this.equipping || this.busy > 0 || to === this.hold) return;
+		if (!this.alive || this.equipping || to === this.hold) return;
+		if (this.busy > 0) { this.queuedSwitch = to; return; } // нажали во время удара — сменим сразу после
 		if (!this.kit.gear[to]) { game.toast('Огнестрела нет — купи в стабе', 'warn'); return; }
 		const gunAnim = WEAPONS[this.kit.gear.gun].anim;
 		const clip = to === 'gun' ? EQUIP[gunAnim].draw : EQUIP[gunAnim].stow;
@@ -578,6 +581,7 @@ class Player extends Actor {
 			}
 		}
 		if (!this.alive) return;
+		if (this.queuedSwitch && this.busy <= 0 && !this.equipping) { const to = this.queuedSwitch; this.queuedSwitch = null; this.switchWeapon(to); }
 		this.aim -= dt;
 		this.pullTrigger(dt, input);
 		// регенерация, если давно не ранили
@@ -845,7 +849,15 @@ const game = {
 			level?.dispose();
 			level = buildLevel(scene, { quality: QUALITY, id });
 			this.level = level;
+			this.planLevel();
 		}
+	},
+
+	/** План новой локации: миникарта и карта локации. */
+	planLevel() {
+		level.planUrl = drawPlan(level).toDataURL('image/png');
+		this.minimap.setLevel(level, level.planUrl);
+		this.locationMap.setLevel(level.planUrl);
 	},
 
 	/**
@@ -868,6 +880,7 @@ const game = {
 		this.player.attachGear();
 		camTarget.copy(spot.pos).setY(0.8);
 		this.exitArmed = false;
+		this.edgeHint = false;
 		this.warnStage = 0;
 		this.visited = new Set();
 		this.inventory?.close();
@@ -1460,12 +1473,15 @@ const game = {
 	updateExit() {
 		const p = this.player;
 		if (!p.alive) return;
-		const ex = level.exitAt(p.pos);
+		// у указателя на дороге — подсказка, куда ведёт; у края кластера (в мути) — ближайший выход
+		const ex = level.exitAt(p.pos) ?? (level.atEdge(p.pos) ? level.nearestExit(p.pos) ?? {} : null);
 		if (ex && this.exitArmed && !p.equipping) {
 			this.exitArmed = false;
 			this.cancelSearch();
-			this.worldMap.open(ex.to);
-		} else if (!level.exitAt(p.pos, 1.2)) this.exitArmed = true;
+			this.worldMap.open(ex.to ?? null);
+		} else if (!level.exitAt(p.pos, 1.2) && !level.atEdge(p.pos, 1.2)) this.exitArmed = true;
+		// подошёл к мути впервые за визит — подсказка, что дальше выход
+		if (!this.edgeHint && level.atEdge(p.pos, 5)) { this.edgeHint = true; this.toast('Впереди муть — дальше выход на карту Улья'); }
 	},
 
 	over(reason) {
@@ -1473,6 +1489,7 @@ const game = {
 		this.inventory.close();
 		this.trade.close();
 		this.worldMap.close();
+		this.locationMap.close();
 		const lost = CONSUMABLES.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${ITEMS[k].name.toLowerCase()} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
@@ -1621,9 +1638,10 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	if (input.consume('inventory') && game.state === 'play' && !game.trade.isOpen && !game.worldMap.isOpen) game.inventory.toggle();
-	if (input.consume('map') && game.state === 'play' && !game.paused) game.worldMap.open(null, { look: true });
-	if (input.consume('escape')) { game.inventory.close(); game.trade.close(); game.worldMap.close(); }
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap];
+	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
+	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
+	if (input.consume('escape')) for (const w of windows) w.close();
 	if (game.paused || game.state === 'travel') return; // открыто окно или идём по дороге
 	game.time += dt;
 	if (game.state === 'play') {
@@ -1640,6 +1658,7 @@ function update(dt) {
 		game.updateSearch(dt, input);
 		game.updateCluster(dt);
 		game.updateExit();
+		game.minimap.update(dt, game.player);
 		game.hudTimerT = (game.hudTimerT ?? 0) - dt;
 		if (game.hudTimerT <= 0) { game.hudTimerT = 0.25; game.hudTimer(); }
 	}
@@ -1699,8 +1718,11 @@ game.toast = (text, kind = '') => {
 game.inventory = new Inventory(game);
 game.trade = new Trade(game);
 game.worldMap = new WorldMap(game);
+game.minimap = new Minimap(game);
+game.locationMap = new LocationMap(game);
 $('btn-inv').addEventListener('click', (e) => { e.currentTarget.blur(); if (game.state === 'play') game.inventory.toggle(); });
-$('btn-map').addEventListener('click', (e) => { e.currentTarget.blur(); if (game.state === 'play') game.worldMap.open(null, { look: true }); });
+$('btn-map').addEventListener('click', (e) => { e.currentTarget.blur(); if (game.state === 'play' && !game.paused) game.locationMap.open(); });
+$('minimap').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (game.state === 'play' && !game.paused) game.locationMap.open(); });
 $('search').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); game.act(); });
 for (const id of ['btn-inv', 'btn-map']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
 // сохраняем, когда вкладку прячут (телефон заблокировали, переключились)

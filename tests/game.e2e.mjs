@@ -152,9 +152,30 @@ try {
 	await page.waitForTimeout(1500);
 	check(await G(page, () => window.__game.state === 'play' && document.getElementById('gameover').classList.contains('hidden')), 'после зачистки нет экрана победы — кластер просто ждёт перезагрузки');
 
+	// миникарта в углу: план локации вокруг героя и стрелки к выходам
+	const mm = await G(page, () => ({ bg: getComputedStyle(document.getElementById('mm-map')).backgroundImage.startsWith('url("data:image/png'), pointers: document.querySelectorAll('#mm-pointers .mm-pointer').length, shown: document.getElementById('minimap').offsetWidth > 0 }));
+	check(mm.bg && mm.shown && mm.pointers === 2, `миникарта: план локации и ${mm.pointers} стрелки к выходам`);
+	// карта локации по M: где герой, тайники, выходы; оттуда — на карту Улья
+	await page.keyboard.press('KeyM');
+	await page.waitForSelector('#locmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const lm = await G(page, () => ({ paused: window.__game.paused, boxes: document.querySelectorAll('#lm-svg .lm-box').length, done: document.querySelectorAll('#lm-svg .lm-box.done').length, exits: document.querySelectorAll('#lm-svg .lm-exit').length, you: !!document.querySelector('#lm-svg .lm-you'), info: document.getElementById('lm-info').textContent }));
+	check(lm.paused && lm.boxes >= 20 && lm.done >= 1 && lm.exits === 2 && lm.you && /Полис/.test(lm.info), `карта локации: герой, тайников ${lm.boxes} (обыскано ${lm.done}), выходов ${lm.exits}`);
+	await page.screenshot({ path: join(OUT, 'game-locmap.png') });
+	await page.click('#lm-world');
+	check(await G(page, () => window.__game.worldMap.isOpen && document.getElementById('locmap').classList.contains('hidden')), 'с карты локации — на карту Улья');
+	await page.click('#wm-stay');
+	// уйти можно в любом месте края кластера — в муть
+	await G(page, () => window.__game.player.pos.set(10, 0, -40));
+	await page.waitForFunction(() => window.__game.exitArmed, null, { timeout: 20000 }).catch(() => {});
+	await G(page, () => window.__game.player.pos.set(10, 0, -46.3));
+	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const edge = await G(page, () => ({ open: window.__game.worldMap.isOpen, routes: document.querySelectorAll('#wm-list [data-go]').length }));
+	check(edge.open && edge.routes === 2, 'дошёл до края кластера (муть) — открылась карта Улья');
+	await page.click('#wm-stay');
+
 	// выход у края кластера открывает карту; уходим в стаб
 	await G(page, () => { const g = window.__game; g.player.pos.set(40, 0, 6); });
-	await page.waitForTimeout(800);
+	await page.waitForFunction(() => window.__game.exitArmed, null, { timeout: 20000 }).catch(() => {});
 	await G(page, () => window.__game.player.pos.set(46, 0, 6));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const map = await G(page, () => ({ open: window.__game.worldMap.isOpen, paused: window.__game.paused, routes: [...document.querySelectorAll('#wm-list [data-go]')].map((b) => b.dataset.go) }));
