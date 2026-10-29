@@ -144,9 +144,10 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		if (!indoors(blood.position.x, blood.position.z, s)) decals.add(blood);
 	}
 	for (let i = 0; i < (spec.puddles ?? 14); i++) {
-		const puddle = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshStandardMaterial({ color: 0x3a4044, roughness: 0.03, metalness: 0.0, transparent: true, opacity: 0.55, envMapIntensity: 2.5 }));
-		puddle.rotation.x = -Math.PI / 2;
-		puddle.scale.set(R(0.8, 2.4), R(0.5, 1.4), 1);
+		// неровная лужа с мягким краем: блестит и отражает небо, а не тёмная дыра
+		const puddle = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshStandardMaterial({ color: 0x59636a, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.7, alphaMap: T.puddleTexture(i % 4), envMapIntensity: 3.5, depthWrite: false }));
+		puddle.rotation.x = -Math.PI / 2; puddle.rotation.z = R(0, 6.28);
+		puddle.scale.set(R(0.9, 2.4), R(0.6, 1.5), 1);
 		const [px, pz] = spec.puddle?.() ?? [R(-45, 45), R(-44, 44)];
 		puddle.position.set(px, 0.028, pz);
 		if (!indoors(px, pz, 2.4)) decals.add(puddle);
@@ -167,6 +168,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		containers: buildings.flatMap((b) => b.containers),
 		groups: spec.groups ?? [],
 		stations: spec.stations ?? [],
+		room: spec.room ?? null, // комната героя (только в стабе)
 		// для плана локации: покрытия, препятствия, крупные постройки, деревья, вода; edge — край локации
 		// (муть) — выход на карту Улья в любом месте, у стаба выход только через ворота
 		plan: { grounds, trees, water: spec.water ?? [], blocks: occluders.map((o) => ({ name: o.name, ...o.area })) },

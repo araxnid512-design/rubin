@@ -396,6 +396,26 @@ export function softDotTexture(color = '255,255,255') {
 	});
 }
 
+/** Лужа неровной формы с мягким краем (для alphaMap: белое — вода). */
+export function puddleTexture(seed = 0) {
+	return memo(`puddle${seed}`, () => {
+		const c = canvas(128), ctx = c.getContext('2d');
+		const rnd = mulberry(seed + 7);
+		ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 128, 128);
+		for (let i = 0; i < 7; i++) {
+			const r = 18 + rnd() * 22, a = rnd() * Math.PI * 2, d = i ? rnd() * 26 : 0;
+			const x = 64 + Math.cos(a) * d, y = 64 + Math.sin(a) * d;
+			const g = ctx.createRadialGradient(x, y, r * 0.35, x, y, r);
+			g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+			ctx.fillStyle = g;
+			ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+		}
+		const t = toTexture(c, { srgb: false });
+		t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+		return t;
+	});
+}
+
 /** Стена мути: вертикальный градиент с клочьями (прокручивается в игре). */
 export function fogWallTexture() {
 	return memo('fogwall', () => {

@@ -18,7 +18,9 @@ let failed = false;
 const check = (ok, msg) => { console.log(`${ok ? '✓' : '✗'} ${msg}`); if (!ok) failed = true; };
 const errors = [];
 
-async function open(viewport, mobile, sim = 30, storage = null) {
+// основной прогон — на среднем качестве: программный рендер теста (без видеокарты) тянет цепочку пост-обработки
+// высокого качества по секунде на кадр; высокое проверяется отдельной страницей в конце
+async function open(viewport, mobile, sim = 30, storage = null, q = 'medium') {
 	const page = await browser.newPage({ viewport, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
 	// у каждой страницы своё хранилище: сохранение переносим вручную
 	if (storage) await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); } }, storage);
@@ -28,7 +30,7 @@ async function open(viewport, mobile, sim = 30, storage = null) {
 		const rel = new URL(route.request().url()).pathname.replace('/npm/three@0.170.0/', '');
 		route.fulfill({ path: join(ROOT, 'node_modules/three', rel), contentType: 'text/javascript' });
 	});
-	await page.goto(`http://localhost:${server.address().port}/game.html?sim=${sim}`);
+	await page.goto(`http://localhost:${server.address().port}/game.html?sim=${sim}${q ? `&q=${q}` : ''}`);
 	await page.waitForSelector('#menu:not(.hidden)', { timeout: 120000 });
 	return page;
 }
@@ -49,11 +51,13 @@ try {
 	check(s.types === 'runner,stomper', `есть бегуны и топтуны (${s.types})`);
 	check(/^[5-6]:\d\d$/.test(s.timer), `таймер перезагрузки кластера на экране: ${s.timer}`);
 	// проверки идут дольше шести игровых минут: чтобы кластеры не перезагрузились посреди теста, отодвигаем сроки
-	// (перезагрузку проверяем отдельно ниже)
-	await G(page, () => { for (const c of Object.values(window.__game.world.clusters)) c.next = window.__game.world.time + 3600; });
+	// (перезагрузку проверяем отдельно ниже); героя, пока идут проверки, не загрызут (живчик и лекаря — отдельно)
+	await G(page, () => { for (const c of Object.values(window.__game.world.clusters)) c.next = window.__game.world.time + 1e6; const p = window.__game.player; p.hp = p.maxHp = 1e6; });
 	await page.waitForTimeout(1500);
-	const perf = await G(page, () => ({ calls: window.__game.perf.calls, tris: window.__game.perf.tris, logic: window.__game.perf.logic, text: document.getElementById('perf').textContent }));
-	check(perf.calls > 0 && perf.calls < 160 && perf.tris < 350000 && /FPS/.test(perf.text), `нагрузка в кадре: ${perf.calls} вызовов отрисовки, ${Math.round(perf.tris / 1000)}k треугольников, логика ${perf.logic.toFixed(1)} мс`);
+	const perf = await G(page, () => ({ calls: window.__game.perf.calls, tris: window.__game.perf.tris, logic: window.__game.perf.logic, text: document.getElementById('perf').textContent, post: Object.keys(window.__game.post.passes) }));
+	// на высоком качестве (компьютер) кадр идёт через пост-обработку: AO рисует сцену второй раз (нормали), без теней
+	const budget = perf.post.includes('ao') ? 280 : 160;
+	check(perf.calls > 0 && perf.calls < budget && perf.tris < 400000 && /FPS/.test(perf.text), `нагрузка в кадре: ${perf.calls} вызовов отрисовки, ${Math.round(perf.tris / 1000)}k треугольников, логика ${perf.logic.toFixed(1)} мс`);
 	// игрок двигается
 	await page.keyboard.down('KeyA');
 	await page.waitForTimeout(2500);
@@ -167,12 +171,12 @@ try {
 	const inv = await G(page, () => { const g = window.__game; g.player.hp = 40; g.player.maxHp = 100; g.bag.zhivchik = 2; g.inventory.select('zhivchik'); return { paused: g.paused, slots: document.querySelectorAll('#inv-grid [data-item]').length, icon: document.querySelector('#inv-grid img')?.src.startsWith('data:image/png') }; });
 	check(inv.paused && inv.slots >= 2 && inv.icon, `рюкзак открыт, игра на паузе, ячеек с предметами: ${inv.slots}, иконки из 3D-моделей`);
 	await page.click('#inv-action');
-	const healed = await G(page, () => ({ hp: window.__game.player.hp, zh: window.__game.bag.zhivchik }));
+	// здоровье снова «бесконечное» ещё на паузе: рядом погоня, а 85 заражённые снимут за пару игровых секунд
+	const healed = await G(page, () => { const p = window.__game.player, r = { hp: p.hp, zh: window.__game.bag.zhivchik }; p.hp = p.maxHp = 1e6; return r; });
 	check(healed.hp === 85 && healed.zh === 1, `живчик из рюкзака: здоровье ${healed.hp}, осталось ${healed.zh}`);
 	await page.keyboard.press('KeyI');
 	await page.waitForSelector('#inventory.hidden', { timeout: 20000 }).catch(() => {});
 	check(!(await G(page, () => window.__game.paused)), 'рюкзак закрывается, игра продолжается');
-	await G(page, () => { const p = window.__game.player; p.hp = p.maxHp = 1e6; });
 	check(await G(page, () => document.getElementById('avatar').src.startsWith('data:image/png')), 'портрет героя в углу экрана');
 
 	// все тайники кластеров достижимы от входа, заражённые могут зайти в дома
@@ -192,7 +196,8 @@ try {
 	// зачистка ничего не решает: убили всех — игра продолжается, победы нет
 	await G(page, () => { for (const e of window.__game.enemies) if (e.alive) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); });
 	await page.waitForTimeout(1500);
-	check(await G(page, () => window.__game.state === 'play' && document.getElementById('gameover').classList.contains('hidden')), 'после зачистки нет экрана победы — кластер просто ждёт перезагрузки');
+	const clear = await G(page, () => ({ state: window.__game.state, loc: window.__game.loc, paused: window.__game.paused, over: !document.getElementById('gameover').classList.contains('hidden'), hp: window.__game.player.hp }));
+	check(clear.state === 'play' && !clear.over, `после зачистки нет экрана победы — кластер просто ждёт перезагрузки${clear.state === 'play' && !clear.over ? '' : ` [${JSON.stringify(clear)} ${errors.slice(0, 3).join(' | ')}]`}`);
 
 	// миникарта в углу: план локации вокруг героя и стрелки к выходам
 	const mm = await G(page, () => ({ bg: getComputedStyle(document.getElementById('mm-map')).backgroundImage.startsWith('url("data:image/png'), pointers: document.querySelectorAll('#mm-pointers .mm-pointer').length, shown: document.getElementById('minimap').offsetWidth > 0 }));
@@ -292,21 +297,46 @@ try {
 		return out;
 	});
 	check(Object.values(shots).every((v) => { const [a, b] = v.split('→').map(Number); return b === a - 1; }), `из каждого нового ствола выстрел тратит патрон: ${Object.entries(shots).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-	// наёмники у костра: двое в отряд
+	// наёмники у костра: нанятые идут в комнату героя и ждут у своих коек
 	await G(page, () => window.__game.player.pos.set(-2.6, 0, 7.2));
 	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Нанять' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
 	await page.keyboard.press('KeyE');
 	await page.waitForSelector('#party:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	await page.click('[data-act="hire"][data-id="shram"]');
 	await page.click('[data-act="hire"][data-id="ded"]');
-	const hired = await G(page, () => ({ party: window.__game.party.map((m) => m.id), actors: window.__game.mercs.length, full: [...document.querySelectorAll('[data-act="hire"]')].every((b) => b.disabled), bar: document.querySelectorAll('#party-bar .pm').length }));
-	check(hired.party.join() === 'shram,ded' && hired.actors === 2 && hired.full && hired.bar === 2, `наняты наёмники: ${hired.party.join(', ')}; отряд полон, в шапке их портреты`);
+	const hired = await G(page, () => ({ roster: window.__game.roster.map((m) => `${m.id}:${m.out ? 'с тобой' : 'в комнате'}`), actors: window.__game.mercs.length, bar: document.querySelectorAll('#party-bar .pm').length, home: document.querySelectorAll('[data-act="take"]').length }));
+	check(hired.roster.join() === 'shram:в комнате,ded:в комнате' && hired.actors === 2 && hired.bar === 0 && hired.home === 2, `наняты наёмники: ${hired.roster.join(', ')} — ждут в твоей комнате`);
 	await page.screenshot({ path: join(OUT, 'game-party.png') });
 	await page.click('#party-close');
+	// бойцы сами дошли до своих коек в комнате
+	await page.waitForFunction(() => window.__game.mercs.every((m) => Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5), null, { timeout: 60000 }).catch(() => {});
+	const atHome = await G(page, () => ({ ok: window.__game.mercs.filter((m) => Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5 && window.__game.level.room.contains(m.pos)).length, n: window.__game.level.buildings.length }));
+	check(atHome.ok === 2, `наёмники дошли до своих коек в комнате (${atHome.ok} из 2)`);
+	// подходишь к бойцу у койки — «Взять с собой»
+	const takeOne = async (id) => {
+		await page.evaluate((mid) => { const g = window.__game, m = g.mercs.find((x) => x.state.id === mid); g.player.pos.set(m.home.x, 0, m.home.z + 1.0); g.player.root.rotation.y = Math.PI; }, id);
+		await page.waitForFunction((mid) => { const s = window.__game.nearStation(); return s?.id === 'take' && s.merc.state.id === mid && document.getElementById('search-verb').textContent === 'Взять с собой'; }, id, { timeout: 20000 }).catch(() => {});
+		await page.keyboard.press('KeyE');
+		await page.waitForFunction((mid) => window.__game.party.some((m) => m.id === mid), id, { timeout: 20000 }).catch(() => {});
+	};
+	await takeOne('shram');
+	await takeOne('ded');
+	const took = await G(page, () => ({ party: window.__game.party.map((m) => m.id), bar: document.querySelectorAll('#party-bar .pm').length }));
+	check(took.party.join() === 'shram,ded' && took.bar === 2, `подошёл к бойцам в комнате — взял с собой: ${took.party.join(', ')}; в шапке их портреты`);
+	await page.screenshot({ path: join(OUT, 'game-room.png') });
+	// в комнате к бойцу из отряда — «Оставить в комнате»: уходит к своей койке
+	await page.waitForFunction(() => window.__game.nearStation()?.id === 'leave' && document.getElementById('search-verb').textContent === 'Оставить в комнате', null, { timeout: 20000 }).catch(() => {});
+	await page.keyboard.press('KeyE');
+	await page.waitForFunction(() => window.__game.mercs.some((m) => !m.state.out && Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5), null, { timeout: 30000 }).catch(() => {});
+	const left = await G(page, () => ({ party: window.__game.party.map((m) => m.id), back: window.__game.mercs.find((m) => !m.state.out && Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5)?.state.id ?? null }));
+	const leaving = left.back;
+	check(leaving && left.party.length === 1, `оставил ${leaving} в комнате — вернулся к своей койке, с тобой: ${left.party.join(', ')}`);
+	if (leaving) await takeOne(leaving);
+	check(await G(page, () => window.__game.party.length === 2), 'снова взял его с собой — в отряде двое');
 	await G(page, () => window.__game.equipGear('aks'));
 	// сохранение и «Продолжить»
 	const saved = await G(page, () => JSON.parse(localStorage.getItem('ulei-cluster17-save') ?? 'null'));
-	check(saved?.world?.at === 'stab' && saved.kit.owned.includes('aks'), 'игра сохранена в стабе (с купленным автоматом)');
+	check(saved?.world?.at === 'stab' && saved.kit.owned.includes('aks') && saved.roster?.length === 2 && saved.roster.every((m) => m.out), 'игра сохранена в стабе (с купленным автоматом и наёмниками в отряде)');
 
 	// второй кластер — Дачи: заражённые, тайники, всё достижимо
 	await G(page, () => window.__game.travel('dachi'));
@@ -335,9 +365,9 @@ try {
 	await page.screenshot({ path: join(OUT, 'game-mercs.png') });
 	// патроны и живчик наёмнику — из рюкзака героя
 	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.party[0].hp = 40; g.partyWindow.open(); });
-	const supply0 = await G(page, () => ({ ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp }));
-	await page.click('[data-act="ammo"][data-i="0"]');
-	await page.click('[data-act="heal"][data-i="0"]');
+	const supply0 = await G(page, () => ({ id: window.__game.party[0].id, ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp }));
+	await page.click(`[data-act="ammo"][data-id="${supply0.id}"]`);
+	await page.click(`[data-act="heal"][data-id="${supply0.id}"]`);
 	const supply = await G(page, () => ({ ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp, bag: window.__game.bag.ammo545, zh: window.__game.bag.zhivchik }));
 	check(supply.ammo === supply0.ammo + 30 && supply.bag === 15 && supply.hp === 100 && supply.zh === 1, `Шраму выданы патроны (+30, в запасе ${supply.ammo}) и живчик (здоровье ${supply.hp})`);
 	await page.click('#party-close');
@@ -349,13 +379,16 @@ try {
 		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
 		window.__blast = [0, 1, 2].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x + 7, 0, p.pos.z - 0.6 + i * 0.6)));
 		window.__blast.forEach((e) => { e.stagger = 6; });
+		window.__blast0 = window.__blast.map((e) => e.pos.clone());
 		for (const m of g.mercs) m.pos.set(p.pos.x - 2, 0, p.pos.z);
 		p.busy = 0; p.equipping = false;
 		g.throwGrenade();
 	});
 	await page.waitForFunction(() => window.__blast.filter((e) => !e.alive).length >= 2, null, { timeout: 30000 }).catch(() => {});
-	const boom = await G(page, () => ({ dead: window.__blast.filter((e) => !e.alive).length, left: window.__game.bag.grenade }));
+	await page.waitForTimeout(1500);
+	const boom = await G(page, () => ({ dead: window.__blast.filter((e) => !e.alive).length, left: window.__game.bag.grenade, moved: Math.max(...window.__blast.map((e, i) => e.pos.distanceTo(window.__blast0[i]))) }));
 	check(boom.dead >= 2 && boom.left === 2, `граната Ф-1: взрывом убито ${boom.dead} из 3, гранат осталось ${boom.left}`);
+	check(boom.moved > 0.8, `тела отбросило взрывом (до ${boom.moved.toFixed(1)} м)`);
 
 	// обрез: картечь задевает нескольких
 	const shot = await G(page, () => {
@@ -381,7 +414,7 @@ try {
 	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов${diag}`);
 
 	// возвращение в кластер до перезагрузки: всё как было
-	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 400; });
+	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 2000; });
 	await G(page, () => window.__game.travel('zarechny'));
 	await page.waitForFunction(() => window.__game.loc === 'zarechny' && window.__game.state === 'play', null, { timeout: 300000 });
 	const before2 = await G(page, () => window.__game.world.clusters.dachi.saved.enemies.length);
@@ -453,6 +486,16 @@ try {
 	check(b2 === b1 && !(await G(m, () => window.__game.input.held('attack'))), `отпустили палец — стрельба прекратилась (${b1} → ${b2})`);
 	await m.screenshot({ path: join(OUT, 'game-phone.png') });
 	await m.close();
+
+	// высокое качество (компьютер): затенение в углах, свечение, цвет Улья, сглаживание
+	const h = await open({ width: 900, height: 520 }, false, 30, null, null);
+	await h.click('#btn-new');
+	await h.waitForFunction(() => window.__game?.state === 'play' && window.__game.enemies.length > 0, null, { timeout: 120000 });
+	await h.waitForFunction(() => window.__game.perf.calls > 0, null, { timeout: 120000 });
+	const hq = await G(h, () => ({ post: Object.keys(window.__game.post.passes), calls: window.__game.perf.calls }));
+	check(['ao', 'bloom', 'final'].every((k) => hq.post.includes(k)) && hq.calls < 280, `высокое качество: затенение в углах, свечение и цвет Улья (${hq.post.join(', ')}), ${hq.calls} вызовов отрисовки`);
+	await h.screenshot({ path: join(OUT, 'game-high.png'), timeout: 120000 });
+	await h.close();
 	check(errors.length === 0, `нет ошибок в консоли${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}`);
 } catch (e) {
 	check(false, e.message);

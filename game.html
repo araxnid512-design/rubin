@@ -184,6 +184,9 @@
 		#loc-timer.danger { color: #f06a50; animation: pulse 0.8s ease-in-out infinite; }
 		@keyframes pulse { 50% { opacity: 0.45; } }
 		.stats .peas b { color: #cfe890; }
+		/* виньетка: края кадра чуть темнее — взгляд к герою (бесплатно, поверх холста) */
+		#vignette { position: fixed; inset: 0; pointer-events: none; z-index: 7; background: radial-gradient(ellipse 75% 70% at 50% 46%, transparent 58%, rgba(8,12,6,0.42) 100%); }
+		body.q-low #vignette { display: none; }
 		#sour { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 8; background: radial-gradient(ellipse at center, rgba(160,160,90,0.05) 35%, rgba(120,124,60,0.85)); }
 		#flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 30; background: #f4f2e4; }
 		#flash.show { animation: flash 2.2s ease-out forwards; }
@@ -364,6 +367,7 @@
 	<div id="vignette"></div>
 	<div id="hurt"></div>
 	<div id="perf" class="hidden"></div>
+	<div id="vignette"></div>
 	<div id="sour"></div>
 	<div id="flash"></div>
 

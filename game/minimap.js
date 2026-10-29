@@ -91,14 +91,14 @@ export function drawPlan(level) {
 		g.fillStyle = 'rgba(240,210,100,0.45)';
 		g.fillRect(x0, z0, x1 - x0, z1 - z0);
 	}
-	// жители стаба
+	// жители стаба: торговец, лекарь, вербовщик, стол в комнате героя
 	for (const st of level.stations) {
 		g.fillStyle = '#1d4f9c';
 		g.beginPath(); g.arc(toPx(st.x), toPx(st.z), 16, 0, Math.PI * 2); g.fill();
 		g.fillStyle = '#f4f4f0';
 		g.font = 'bold 20px system-ui, sans-serif';
 		g.textAlign = 'center'; g.textBaseline = 'middle';
-		g.fillText(st.id === 'trade' ? '₽' : '✚', toPx(st.x), toPx(st.z) + 1);
+		g.fillText({ trade: '₽', rest: '✚', mercs: '★', room: '⌂' }[st.id] ?? '•', toPx(st.x), toPx(st.z) + 1);
 	}
 	return c;
 }
@@ -204,6 +204,7 @@ export class LocationMap {
 		const left = L.containers.filter((c) => !c.searched).length;
 		$('lm-info').innerHTML = `
 			${node.kind === 'cluster' ? `<div class="lm-row">Тайников не обыскано: <b>${left}</b> из ${L.containers.length}</div>` : ''}
+			${L.stations.length ? `<div class="lm-row">${L.stations.map((st) => `${{ trade: '₽', rest: '✚', mercs: '★', room: '⌂' }[st.id] ?? '•'} ${st.id === 'mercs' ? 'Вербовщик наёмников' : st.name}`).join(' · ')}</div>` : ''}
 			<div class="lm-legend"><span><i class="lg-you"></i>ты</span>${g.mercs?.some((m) => m.alive) ? '<span><i class="lg-mate"></i>наёмник</span>' : ''}${L.containers.length ? '<span><i class="lg-box"></i>тайник</span><span><i class="lg-done"></i>обыскан</span>' : ''}<span><i class="lg-exit"></i>выход</span></div>
 			<div class="lm-exits">${L.exits.map((e) => `<div>${e.to ? `<b>${NODES[e.to].name}</b> — ${side(e)}, у указателя` : `<b>Выход в Улей</b> — ворота на ${side(e)}е`}</div>`).join('')}</div>
 			<div class="lm-hint">${L.edge ? 'Уйти из кластера можно в любом месте: дойди до края — до мути (жёлтый пунктир), откроется карта Улья.' : 'Из стаба выходят только через ворота.'}</div>`;

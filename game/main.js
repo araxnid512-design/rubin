@@ -17,7 +17,8 @@ import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
-import { MERCS, MAX_PARTY, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
+import { createPost } from './post.js';
+import { MERCS, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE } from './trade.js';
 import { WorldMap } from './worldmap.js';
@@ -35,14 +36,15 @@ const params = new URLSearchParams(location.search);
 const QUALITY = params.get('q') || (prefs.quality && prefs.quality !== 'auto' ? prefs.quality : isMobile ? 'medium' : 'high');
 
 // ---------- Рендер ----------
-const renderer = new THREE.WebGLRenderer({ antialias: !isMobile && QUALITY !== 'low', powerPreference: 'high-performance', preserveDrawingBuffer: true });
+// на высоком качестве сглаживание — в цепочке пост-обработки (см. post.js)
+const renderer = new THREE.WebGLRenderer({ antialias: !isMobile && QUALITY === 'medium', powerPreference: 'high-performance', preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, { high: isMobile ? 1.5 : 2, medium: 1.5, low: 1 }[QUALITY] ?? 1.5));
 renderer.setSize(view.w, view.h);
 renderer.shadowMap.enabled = QUALITY !== 'low';
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
 $('game').appendChild(renderer.domElement);
+document.body.classList.add(`q-${QUALITY}`);
 setAnisotropy(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
 
 const scene = new THREE.Scene();
@@ -65,11 +67,14 @@ Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, n
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
+// ACES с цветом Улья; на высоком — ещё затенение в углах, свечение и зерно
+const post = createPost(renderer, scene, camera, { quality: QUALITY, mobile: isMobile });
 
 onResize(() => {
 	camera.aspect = view.w / view.h;
 	camera.updateProjectionMatrix();
 	renderer.setSize(view.w, view.h);
+	post.setSize(view.w, view.h);
 });
 // вспышка выстрела: один постоянный источник света (добавлять/убирать свет на каждый выстрел —
 // перекомпиляция шейдеров и рывки на телефоне)
@@ -143,16 +148,16 @@ function makeIcons() {
 	$('go-avatar').src = I.portrait;
 	// портреты жителей стаба (торговец, лекарь) — та же модель в своей форме
 	const stab = buildPortraits();
-	I.trader = stab[0]; I.medic = stab[1];
+	I.trader = stab[0]; I.medic = stab[1]; I.recruiter = stab[2];
 	for (const [id, D] of Object.entries(MERCS)) I[`merc_${id}`] = iconFactory.portrait(assets.player, { tint: D.tint, gear: {} });
 	if (I.trader) $('trade-avatar').src = I.trader;
 	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.zhivchik}" alt="">`);
 	$('btn-grenade').insertAdjacentHTML('afterbegin', `<img src="${I.grenade}" alt="">`);
 }
 
-/** Портреты торговца и лекаря по их форме из описания стаба. */
+/** Портреты торговца, лекаря и вербовщика по их форме из описания стаба. */
 function buildPortraits() {
-	const tints = [[0.75, 0.7, 0.62], [0.95, 0.95, 0.92]];
+	const tints = [[0.75, 0.7, 0.62], [0.95, 0.95, 0.92], [0.8, 0.75, 0.7]];
 	return tints.map((tint) => iconFactory.portrait(assets.player, { tint, gear: {} }));
 }
 
@@ -169,7 +174,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const casingGeo = {}, casingMat = {}; // общие для всех гильз
 const tmpV2 = new THREE.Vector3();
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-let blobMat = null, dustMat = null;
+let blobMat = null, dustMat = null, debrisGeo = null, debrisMat = null;
 
 /**
  * Попадает ли точка в кадр (с запасом на тени): камера сверху-сзади видит прямоугольник вокруг героя.
@@ -179,6 +184,48 @@ function inView(pos) {
 	const c = camTarget, portrait = camera.aspect < 1;
 	const dx = pos.x - c.x, dz = pos.z - c.z;
 	return Math.abs(dx) < (portrait ? 13 : 21) * (game.zoom ?? 1) && dz > -16 && dz < (portrait ? 20 : 15);
+}
+
+/** Поле расстояний по сетке проходимости от точки (x, z) — путь к ней из любого места (волна BFS). */
+function flowFrom(x, z, dist) {
+	const { N, blocked } = level.nav;
+	if (dist?.length !== N * N) dist = new Int16Array(N * N);
+	dist.fill(-1);
+	const [px, pz] = level.nav.cell(x, z);
+	const start = Math.max(0, Math.min(N - 1, pz)) * N + Math.max(0, Math.min(N - 1, px));
+	const queue = new Int32Array(N * N);
+	let head = 0, tail = 0;
+	queue[tail++] = start; dist[start] = 0;
+	while (head < tail) {
+		const i = queue[head++], cx = i % N, cz = (i / N) | 0, d = dist[i] + 1;
+		for (let k = 0; k < 8; k++) {
+			const dx = [1, -1, 0, 0, 1, 1, -1, -1][k], dz = [0, 0, 1, -1, 1, -1, 1, -1][k];
+			const nx = cx + dx, nz = cz + dz;
+			if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+			const j = nz * N + nx;
+			if (dist[j] >= 0 || blocked[j]) continue;
+			if (k >= 4 && (blocked[cz * N + nx] || blocked[nz * N + cx])) continue; // не срезаем углы
+			dist[j] = d;
+			queue[tail++] = j;
+		}
+	}
+	return dist;
+}
+
+/** Куда шагнуть из pos по полю расстояний (к его началу), или null. */
+function flowStep(dist, pos) {
+	const { N } = level.nav;
+	const [cx, cz] = level.nav.cell(pos.x, pos.z);
+	let best = null, bd = dist[cz * N + cx];
+	if (bd < 0) bd = 1e9;
+	for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+		const nx = cx + dx, nz = cz + dz;
+		if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+		const d = dist[nz * N + nx];
+		if (d >= 0 && d < bd) { bd = d; best = [nx, nz]; }
+	}
+	if (!best) return null;
+	return new THREE.Vector3(level.nav.center(best[0]) - pos.x, 0, level.nav.center(best[1]) - pos.z).normalize();
 }
 
 function lineOfSight(a, b) {
@@ -627,6 +674,8 @@ class Player extends Actor {
 	}
 }
 
+/** Как быстро гаснет толчок от попадания (1/с): весь отъезд тела = сила толчка. */
+const PUSH_DECAY = 9;
 const ENEMY_TYPES = {
 	// move — клип погони; его скорость (ZOMBIE_GAIT) подгоняется под настоящую, чтобы ноги не скользили
 	runner: { hp: 60, speed: 3.4, scale: 1, radius: 0.36, damage: 8, range: 1.25, hitTime: 0.72, attackAnim: 1, move: 'Run', score: 1 },
@@ -698,9 +747,11 @@ class Enemy extends Actor {
 		if (!this.alive) return;
 		this.hp -= dmg;
 		this.hitFlash();
-		game.blood(this.pos.clone().setY(1.2 * this.scale), 10);
-		tmpV.subVectors(this.pos, from).setY(0).normalize();
-		this.pos.addScaledVector(tmpV, knock / (this.type === 'stomper' ? 3 : 1));
+		const dir = new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize();
+		game.blood(this.pos.clone().setY(1.2 * this.scale), 10, dir);
+		// толчок от удара: тело отъезжает плавно (топтун тяжелее); убитого отбрасывает сильнее
+		const fling = this.hp <= 0 ? 1.8 : 1;
+		this.push = (this.push ?? new THREE.Vector3()).addScaledVector(dir, (knock * fling * PUSH_DECAY) / (this.type === 'stomper' ? 3 : 1));
 		this.stagger = this.type === 'stomper' ? 0.08 : 0.3;
 		this.alert();
 		Sfx.flesh();
@@ -725,6 +776,14 @@ class Enemy extends Actor {
 		const near = inView(this.pos);
 		this.model.visible = near;
 		if (near) super.update(dt);
+		if (this.push) {
+			// скорость толчка гаснет по экспоненте; путь за кадр — точный интеграл
+			const k = Math.exp(-dt * PUSH_DECAY);
+			this.pos.addScaledVector(this.push, (1 - k) / PUSH_DECAY);
+			this.push.multiplyScalar(k);
+			resolveCollisions(this.pos, this.radius, level.colliders);
+			if (this.push.lengthSq() < 4e-4) this.push = null;
+		}
 		if (!this.alive) {
 			this.timer += dt;
 			if (this.timer > 7) this.model.position.y -= dt * 0.25; // уходит в землю
@@ -808,16 +867,19 @@ class Npc extends Actor {
 /**
  * Наёмник: идёт за героем (сзади слева или справа), сам выбирает ближайшего заражённого в зоне огня
  * и стреляет из своего постоянного оружия очередями; перезаряжается из своего запаса патронов.
- * Сам не лечится — нужен живчик от героя. state ({ id, hp, mag, ammo }) хранится в game.party и сохраняется.
+ * Сам не лечится — нужен живчик от героя. Управлять им нельзя: в отряде он ходит за героем, а оставленный
+ * в стабе — стоит у своей койки в комнате героя. state ({ id, hp, mag, ammo, out }) — в game.roster, в сохранении.
  */
 class Merc extends Actor {
-	constructor(state, slot) {
+	constructor(state) {
 		super(assets.player);
 		this.state = state;
 		this.def = MERCS[state.id];
 		this.W = WEAPONS[this.def.weapon];
 		this.clips = CLIPS[this.W.anim];
-		this.slot = slot;
+		this.slot = 0;
+		// своя койка в комнате героя (в стабе): у каждого бойца — своя
+		this.home = level.room?.spots[Object.keys(MERCS).indexOf(state.id)] ?? null;
 		this.radius = 0.38;
 		this.scale = 1;
 		this.alive = true;
@@ -870,6 +932,7 @@ class Merc extends Actor {
 			this.reloading -= dt;
 			if (this.reloading <= 0) { const take = Math.min(W.mag - st.mag, st.ammo); st.mag += take; st.ammo -= take; game.hudThrottled(); }
 		}
+		if (!st.out) return this.stayHome(dt, near);
 		if (!p.alive) { this.play(c.idle); return true; }
 		const dP = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
 		// отстал или застрял где-то вне кадра — догоняет (появляется рядом с героем)
@@ -920,6 +983,36 @@ class Merc extends Actor {
 		return true;
 	}
 
+	/** Оставлен в стабе: идёт к своей койке (по сетке проходимости) и ждёт там; к подошедшему герою поворачивается. */
+	stayHome(dt, near) {
+		const h = this.home, p = game.player, c = this.clips;
+		if (!h) return true;
+		const d = Math.hypot(h.x - this.pos.x, h.z - this.pos.z);
+		if (d > 0.3) {
+			let dir = lineOfSight(this.pos, h) ? tmpV.set(h.x - this.pos.x, 0, h.z - this.pos.z).normalize() : flowStep(this.homeFlow ??= flowFrom(h.x, h.z), this.pos);
+			// пути нет или боец далеко вне кадра — сразу у койки
+			if (!dir || (!near && !inView(h))) { this.pos.set(h.x, 0, h.z); this.root.rotation.y = h.ry; return true; }
+			const speed = d > 4 ? 3.4 : Math.min(1.7, 0.6 + d);
+			// не идёт сквозь других бойцов
+			for (const o of game.mercs) {
+				if (o === this || !o.alive) continue;
+				const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, r = Math.hypot(dx, dz);
+				if (r < 0.8 && r > 1e-4) { dir.x += (dx / r) * (0.8 - r) * 2; dir.z += (dz / r) * (0.8 - r) * 2; }
+			}
+			dir.normalize();
+			this.pos.addScaledVector(dir, Math.min(speed * dt, d));
+			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
+			const clip = d > 4 ? c.run : c.walk;
+			this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+			if (d > 0.6) resolveCollisions(this.pos, this.radius, level.colliders);
+		} else {
+			const dP = p ? Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z) : 99;
+			this.root.rotation.y = turnTowards(this.root.rotation.y, p?.alive && dP < 3.5 ? angleTo(this.pos, p.pos) : h.ry, dt * 3);
+			if (this.reloading <= 0) this.play(c.idle, { fade: 0.3 });
+		}
+		return true;
+	}
+
 	startReload() {
 		this.reloading = this.W.reload;
 		const c = this.clips.reload;
@@ -952,7 +1045,11 @@ const game = {
 	loc: 'zarechny', from: null,
 	icons: {},
 	enemies: [], pickups: [], fx: [], npcs: [], mercs: [],
-	party: [], // наёмники: { id, hp, mag, ammo }
+	roster: [], // нанятые наёмники: { id, hp, mag, ammo, out } — out: идёт с героем, иначе ждёт в комнате в стабе
+	/** Отряд — кто идёт с героем. */
+	get party() { return this.roster.filter((m) => m.out); },
+	/** Герой в стабе (там его комната с наёмниками). */
+	get inStab() { return !!level?.room; },
 	player: null,
 	flow: null, flowTimer: 0,
 	exitArmed: false, warnStage: 0,
@@ -964,7 +1061,7 @@ const game = {
 		this.world = newWorld();
 		this.bag = { ...START_BAG };
 		this.kit = startKit();
-		this.party = [];
+		this.roster = [];
 		this.kills = 0;
 		this.begin();
 		this.enter('zarechny', undefined);
@@ -978,7 +1075,8 @@ const game = {
 		this.world = s.world;
 		this.bag = { ...START_BAG, ...s.bag };
 		this.kit = normalizeKit(s.kit);
-		this.party = (s.party ?? []).filter((m) => MERCS[m.id] && m.hp > 0);
+		// старые сохранения: был только отряд — все в нём идут с героем
+		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0);
 		this.kills = 0;
 		this.begin();
 		this.enter(s.world.at, s.from ?? null);
@@ -1116,7 +1214,7 @@ const game = {
 	save() {
 		if (this.state !== 'play' || !this.player?.alive) return;
 		if (NODES[this.loc].kind === 'cluster') this.snapshot();
-		saveGame({ world: this.world, bag: this.bag, kit: this.kit, party: this.party, hp: Math.ceil(this.player.hp), from: this.from ?? null });
+		saveGame({ world: this.world, bag: this.bag, kit: this.kit, roster: this.roster, hp: Math.ceil(this.player.hp), from: this.from ?? null });
 	},
 
 	/** Уйти по дороге в to: время мира уходит на путь, за это время кластеры могут перезагрузиться. */
@@ -1176,46 +1274,9 @@ const game = {
 	},
 
 	// Поле путей: BFS от клетки игрока по сетке навигации
-	updateFlow() {
-		const { N, blocked } = level.nav;
-		const dist = this.flow?.length === N * N ? this.flow : new Int16Array(N * N);
-		dist.fill(-1);
-		const [px, pz] = level.nav.cell(this.player.pos.x, this.player.pos.z);
-		const start = Math.max(0, Math.min(N - 1, pz)) * N + Math.max(0, Math.min(N - 1, px));
-		const queue = new Int32Array(N * N);
-		let head = 0, tail = 0;
-		queue[tail++] = start; dist[start] = 0;
-		while (head < tail) {
-			const i = queue[head++], x = i % N, z = (i / N) | 0, d = dist[i] + 1;
-			for (let k = 0; k < 8; k++) {
-				const dx = [1, -1, 0, 0, 1, 1, -1, -1][k], dz = [0, 0, 1, -1, 1, -1, 1, -1][k];
-				const nx = x + dx, nz = z + dz;
-				if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
-				const j = nz * N + nx;
-				if (dist[j] >= 0 || blocked[j]) continue;
-				if (k >= 4 && (blocked[z * N + nx] || blocked[nz * N + x])) continue; // не срезаем углы
-				dist[j] = d;
-				queue[tail++] = j;
-			}
-		}
-		this.flow = dist;
-	},
+	updateFlow() { this.flow = flowFrom(this.player.pos.x, this.player.pos.z, this.flow); },
 
-	flowDir(pos) {
-		if (!this.flow) return null;
-		const { N } = level.nav;
-		const [cx, cz] = level.nav.cell(pos.x, pos.z);
-		let best = null, bd = this.flow[cz * N + cx];
-		if (bd < 0) bd = 1e9;
-		for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-			const nx = cx + dx, nz = cz + dz;
-			if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
-			const d = this.flow[nz * N + nx];
-			if (d >= 0 && d < bd) { bd = d; best = [nx, nz]; }
-		}
-		if (!best) return null;
-		return new THREE.Vector3(level.nav.center(best[0]) - pos.x, 0, level.nav.center(best[1]) - pos.z).normalize();
-	},
+	flowDir(pos) { return this.flow ? flowStep(this.flow, pos) : null; },
 
 	onKill(e) {
 		this.kills++;
@@ -1279,10 +1340,24 @@ const game = {
 		return best;
 	},
 
-	/** Точка действия стаба рядом (торговец, лекарь). */
+	/**
+	 * Точка действия стаба рядом: торговец, лекарь, вербовщик, стол в комнате — и наёмники в комнате героя:
+	 * к ждущему у койки подходишь — «Взять с собой», к идущему с тобой (в комнате) — «Оставить».
+	 */
 	nearStation() {
 		const p = this.player.pos;
-		return level.stations.find((s) => Math.hypot(s.x - p.x, s.z - p.z) < s.r) ?? null;
+		let best = null, bd = Infinity;
+		const consider = (s) => { const d = Math.hypot(s.x - p.x, s.z - p.z); if (d < s.r && d < bd) { bd = d; best = s; } };
+		for (const s of level.stations) consider(s);
+		if (level.room) {
+			const inRoom = level.room.contains(p);
+			for (const m of this.mercs) {
+				if (!m.alive) continue;
+				if (!m.state.out) consider({ id: 'take', merc: m, name: m.def.name, label: 'Взять с собой', x: m.pos.x, z: m.pos.z, r: 1.6 });
+				else if (inRoom) consider({ id: 'leave', merc: m, name: m.def.name, label: 'Оставить в комнате', x: m.pos.x, z: m.pos.z, r: 2.8 });
+			}
+		}
+		return best;
 	},
 
 	/** Кнопка действия: обыскать мебель или поговорить с жителем стаба. */
@@ -1291,10 +1366,13 @@ const game = {
 		if (!p?.alive || this.searching || this.paused || p.busy > 0 || p.equipping) return;
 		const s = this.nearStation();
 		if (s) {
-			p.root.rotation.y = Math.atan2(s.x - p.pos.x, (s.z - 2) - p.pos.z); // лицом к прилавку/палатке
+			p.root.rotation.y = Math.atan2(s.x - p.pos.x, (s.merc ? s.z : s.z - 2) - p.pos.z); // лицом к бойцу, прилавку, палатке
 			if (s.id === 'trade') this.trade.open();
 			if (s.id === 'rest') this.rest();
 			if (s.id === 'mercs') this.partyWindow.open({ hiring: true });
+			if (s.id === 'room') this.partyWindow.open();
+			if (s.id === 'take') this.takeMerc(s.merc.state.id);
+			if (s.id === 'leave') this.leaveMerc(s.merc.state.id);
 			return;
 		}
 		const c = this.nearContainer();
@@ -1332,7 +1410,7 @@ const game = {
 		const st = this.searching ? null : this.nearStation();
 		const c = st ? null : this.searching?.c ?? this.nearContainer();
 		el.classList.toggle('hidden', (!c && !st) || !this.player.alive);
-		const face = st ? this.icons[st.id === 'trade' ? 'trader' : 'medic'] : null;
+		const face = st ? this.icons[st.merc ? `merc_${st.merc.state.id}` : { trade: 'trader', rest: 'medic', mercs: 'recruiter' }[st.id] ?? 'portrait'] : null;
 		$('search-face').classList.toggle('hidden', !face);
 		if (face && $('search-face').getAttribute('src') !== face) $('search-face').src = face;
 		if (st) {
@@ -1466,44 +1544,82 @@ const game = {
 
 	// ---------- Наёмники ----------
 
-	/** Наёмники отряда — рядом с героем в новой локации. */
+	/** Наёмники в новой локации: отряд — рядом с героем; в стабе ещё и оставленные — у своих коек. */
 	spawnMercs() {
 		for (const m of this.mercs) m.dispose();
-		this.mercs = this.party.map((st, i) => { const m = new Merc(st, i); m.place(); return m; });
+		this.mercs = this.roster.filter((st) => st.out || level.room).map((st) => {
+			const m = new Merc(st);
+			if (st.out || !m.home) m.place(); else { m.pos.set(m.home.x, 0, m.home.z); m.root.rotation.y = m.home.ry; }
+			return m;
+		});
+		this.slotMercs();
 		this.renderPartyBar();
 	},
 
-	/** Ближайший живой, на кого кидаются заражённые: герой или наёмник. */
+	/** Места в строю: первый в отряде — сзади слева, второй — справа. */
+	slotMercs() {
+		const party = this.party;
+		for (const m of this.mercs) m.slot = Math.max(0, party.indexOf(m.state));
+	},
+
+	/** Ближайший живой, на кого кидаются заражённые: герой или наёмник отряда. */
 	foeFor(pos) {
 		let best = this.player, bd = this.player?.alive ? Math.hypot(this.player.pos.x - pos.x, this.player.pos.z - pos.z) : Infinity;
 		for (const m of this.mercs) {
-			if (!m.alive) continue;
+			if (!m.alive || !m.state.out) continue;
 			const d = Math.hypot(m.pos.x - pos.x, m.pos.z - pos.z);
 			if (d < bd) { bd = d; best = m; }
 		}
 		return best;
 	},
 
+	merc(id) { return this.roster.find((m) => m.id === id); },
+
+	/** Нанять у вербовщика: боец идёт в комнату героя и ждёт у своей койки. */
 	hire(id) {
 		const D = MERCS[id];
-		if (this.party.length >= MAX_PARTY || this.party.some((m) => m.id === id)) return;
+		if (this.roster.length >= ROOM_BEDS || this.merc(id)) return;
 		if ((this.bag.spore ?? 0) < D.price) { this.toast('Не хватает споранов', 'warn'); return; }
 		this.bag.spore -= D.price;
 		const st = newMerc(id);
-		this.party.push(st);
-		const m = new Merc(st, this.party.length - 1);
+		this.roster.push(st);
+		const m = new Merc(st);
 		m.place();
 		this.mercs.push(m);
 		Sfx.coins();
-		this.toast(`${D.name} в отряде — с ним ${WEAPONS[D.weapon].name}`);
+		this.toast(`${D.name} нанят — ждёт в твоей комнате (жилой блок у казармы)`);
 		this.renderPartyBar();
 		this.hud();
 		this.save();
 	},
 
+	/** Взять бойца из комнаты на вылазку. */
+	takeMerc(id) {
+		const st = this.merc(id);
+		if (!st || st.out) return;
+		if (this.party.length >= MAX_PARTY) { this.toast(`С тобой уже ${MAX_PARTY} — сначала оставь кого-нибудь в комнате`, 'warn'); return; }
+		st.out = true;
+		this.slotMercs();
+		Sfx.reload();
+		this.toast(`${MERCS[id].name} идёт с тобой`);
+		this.renderPartyBar();
+		this.save();
+	},
+
+	/** Оставить бойца в комнате (только в стабе): он уходит к своей койке. */
+	leaveMerc(id) {
+		const st = this.merc(id);
+		if (!st?.out || !level.room) return;
+		st.out = false;
+		this.slotMercs();
+		this.toast(`${MERCS[id].name} остаётся в комнате`);
+		this.renderPartyBar();
+		this.save();
+	},
+
 	/** Дать наёмнику патроны его калибра (до магазина за раз). */
-	giveAmmo(i) {
-		const st = this.party[i], W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
+	giveAmmo(id) {
+		const st = this.merc(id), W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
 		if (n <= 0) { this.toast(`Нет патронов ${AMMO[W.ammo]}`, 'warn'); return; }
 		this.bag[W.ammo] -= n;
 		st.ammo += n;
@@ -1515,8 +1631,8 @@ const game = {
 	},
 
 	/** Живчик наёмнику: сам он не лечится. */
-	healMerc(i) {
-		const st = this.party[i], D = MERCS[st.id];
+	healMerc(id) {
+		const st = this.merc(id), D = MERCS[st.id];
 		if (!(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
 		this.bag.zhivchik--;
 		st.hp = Math.min(D.hp, st.hp + MERC_HEAL);
@@ -1525,21 +1641,24 @@ const game = {
 		this.hud();
 	},
 
-	/** Отпустить наёмника (в стабе). */
-	dismiss(i) {
-		const st = this.party.splice(i, 1)[0];
+	/** Отпустить наёмника совсем (у вербовщика): освобождает койку. */
+	dismiss(id) {
+		const st = this.merc(id);
+		if (!st) return;
+		this.roster = this.roster.filter((m) => m !== st);
 		const a = this.mercs.find((m) => m.state === st);
 		a?.dispose();
 		this.mercs = this.mercs.filter((m) => m !== a);
-		this.mercs.forEach((m, k) => { m.slot = k; });
-		this.toast(`${MERCS[st.id].name} ушёл из отряда`);
+		this.slotMercs();
+		this.toast(`${MERCS[st.id].name} ушёл из стаба`);
 		this.renderPartyBar();
 		this.save();
 	},
 
+	/** Погиб — насовсем: койка в комнате освобождается. */
 	mercDied(m) {
-		this.party = this.party.filter((st) => st !== m.state);
-		this.mercs.forEach((o) => { if (o.alive) o.slot = this.party.indexOf(o.state); });
+		this.roster = this.roster.filter((st) => st !== m.state);
+		this.slotMercs();
 		Sfx.death(false);
 		this.banner(`${m.def.name} погиб`, `${WEAPONS[m.def.weapon].name} остался на месте гибели`);
 		this.renderPartyBar();
@@ -1647,6 +1766,35 @@ const game = {
 			this.fx.push({ life: 2.2, update(dt) { this.life -= dt; sm.position.addScaledVector(v, dt); sm.scale.multiplyScalar(1 + dt * 0.6); sm.material.opacity = 0.6 * this.life / 2.2; return this.life > 0; }, dispose() { scene.remove(sm); sm.material.dispose(); } });
 		}
 		for (let i = 0; i < 6; i++) this.impact(pos.clone().setY(0.1), false, 1.6);
+		// ударная волна по земле — пыльное кольцо
+		const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xd8ccb0, transparent: true, opacity: 0.55, depthWrite: false }));
+		ring.position.set(pos.x, 0.08, pos.z);
+		scene.add(ring);
+		this.fx.push({ life: 0.4, update(dt) { this.life -= dt; const k = 1 - this.life / 0.4; ring.scale.setScalar(0.5 + k * R); ring.material.opacity = 0.55 * (1 - k); return this.life > 0; }, dispose() { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } });
+		// комья земли и обломки: летят дугой, падают, отскакивают и лежат, потом исчезают
+		debrisGeo ??= new THREE.DodecahedronGeometry(0.09, 0);
+		debrisMat ??= new THREE.MeshStandardMaterial({ color: 0x4a3f30, roughness: 1 });
+		for (let i = 0; i < 14; i++) {
+			const m = new THREE.Mesh(debrisGeo, debrisMat);
+			m.position.copy(pos).setY(0.2);
+			m.scale.setScalar(0.6 + Math.random() * 1.2);
+			m.castShadow = true;
+			const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 5;
+			const v = new THREE.Vector3(Math.cos(a) * sp, 3 + Math.random() * 5, Math.sin(a) * sp);
+			const spin = (Math.random() - 0.5) * 20;
+			scene.add(m);
+			this.fx.push({ life: 3, update(dt) {
+				this.life -= dt;
+				if (v.lengthSq() > 0.01) {
+					v.y -= 18 * dt;
+					m.position.addScaledVector(v, dt);
+					m.rotation.x += spin * dt; m.rotation.z += spin * 0.7 * dt;
+					if (m.position.y < 0.05) { m.position.y = 0.05; v.y *= -0.3; v.x *= 0.5; v.z *= 0.5; if (Math.abs(v.y) < 0.6) v.set(0, 0, 0); }
+				}
+				if (this.life < 0.6) m.scale.multiplyScalar(1 - dt * 3);
+				return this.life > 0;
+			}, dispose() { scene.remove(m); } });
+		}
 		// выжженное пятно
 		const scorch = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), new THREE.MeshBasicMaterial({ map: softDotTexture('14,12,10'), transparent: true, opacity: 0.8, depthWrite: false }));
 		scorch.rotation.x = -Math.PI / 2;
@@ -1678,13 +1826,15 @@ const game = {
 		this.fx.push({ life: 40, mesh: m, update(dt) { this.life -= dt; if (this.life < 5) m.material.opacity = this.life / 5; return this.life > 0; }, dispose() { scene.remove(m); } });
 	},
 
-	blood(pos, n) {
+	/** Брызги крови; dir — куда шёл удар: брызги летят больше в ту сторону. */
+	blood(pos, n, dir = null) {
 		const mat = new THREE.SpriteMaterial({ map: softDotTexture('120,10,8'), transparent: true, depthWrite: false });
 		for (let i = 0; i < n; i++) {
 			const s = new THREE.Sprite(mat);
 			s.position.copy(pos);
 			s.scale.setScalar(0.12 + Math.random() * 0.15);
 			const v = new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3);
+			if (dir) v.addScaledVector(dir, 1.5 + Math.random() * 2.5);
 			scene.add(s);
 			this.fx.push({ life: 0.6, update(dt) { v.y -= 9 * dt; s.position.addScaledVector(v, dt); this.life -= dt; if (s.position.y < 0.05) this.life = 0; return this.life > 0; }, dispose() { scene.remove(s); } });
 		}
@@ -1854,7 +2004,7 @@ const game = {
 		this.partyWindow.close();
 		// при перезагрузке кластера пропадают и наёмники, что были с героем; съели — они вытащат героя
 		const lostMercs = reason === 'reload' ? this.party.map((m) => MERCS[m.id].name) : [];
-		if (reason === 'reload') this.party = [];
+		if (reason === 'reload') this.roster = this.roster.filter((m) => !m.out); // оставленные в стабе живы
 		const lost = CONSUMABLES.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${ITEMS[k].name[0].toLowerCase()}${ITEMS[k].name.slice(1)} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
@@ -1967,7 +2117,7 @@ function frame() {
 		update(real);
 	}
 	const t1 = performance.now();
-	renderer.render(scene, camera);
+	post.render(real);
 	const t2 = performance.now();
 	const k = 0.08;
 	perf.fps += ((raw > 0 ? 1 / raw : 60) - perf.fps) * k;
@@ -1987,12 +2137,15 @@ function adaptResolution(raw) {
 	if (SIM_STEPS || game.state !== 'play' || game.paused || raw > 0.25) return;
 	if (perf.fps < 34) { perf.low += raw; perf.high = 0; } else if (perf.fps > 56) { perf.high += raw; perf.low = 0; } else { perf.low = perf.high = 0; }
 	let r = renderer.getPixelRatio();
+	// слабая видеокарта: сначала отключаем самое дорогое — затенение в углах, потом снижаем чёткость
+	if (perf.low > 2.5 && post.passes.ao?.enabled) { post.passes.ao.enabled = false; perf.low = 0; return; }
 	if (perf.low > 2.5 && r > 0.75) r = Math.max(0.75, r - 0.25);
 	else if (perf.high > 6 && r < BASE_RATIO) r = Math.min(BASE_RATIO, r + 0.25);
 	else return;
 	perf.low = perf.high = 0;
 	renderer.setPixelRatio(r);
 	renderer.setSize(view.w, view.h);
+	post.setSize(view.w, view.h);
 }
 
 function update(dt) {
@@ -2086,6 +2239,7 @@ game.toast = (text, kind = '') => {
 	setTimeout(() => t.remove(), 1600);
 };
 
+game.post = post;
 game.inventory = new Inventory(game);
 game.trade = new Trade(game);
 game.worldMap = new WorldMap(game);

@@ -531,3 +531,58 @@ export function buildGuardhouse(ctx, { name = 'Guardhouse', cx, cz, ry = 0 }) {
 	b.container('Сейф', 3.1, -1.4, -Math.PI / 2, [[0.6, 0.9, 0.55, 0, 0.45, 0, IM.metal], [0.1, 0.1, 0.03, 0.12, 0.6, 0.28, IM.black]], [0.6, 0.55], { ammo545: [15, 30, 0.6], spore: 0.3 }, 0.9);
 	return b.finish();
 }
+
+// ---------- Комната героя в стабе ----------
+
+/**
+ * Жилой блок 7.6×5.6 м из кирпича: комната героя. Вдоль задней стены — четыре армейские койки, у каждой
+ * своё место наёмника; у двери — стол и шкафчик. Вход — в передней стене (−Z локально), справа.
+ * Тайников нет. spots — где стоят наёмники (в мире, лицом к двери), table — стол (окно отряда).
+ */
+export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
+	const W = 7.6, D = 5.6, H = 2.9;
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.35 });
+	const { M } = ctx;
+	const IM = b.IM;
+	const t = 0.25, hx = W / 2, hz = D / 2, door = 2.4;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 1.2), 0, 0.025, 0), IM.floor, { cast: false });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, doors: [door], lining: IM.wallpaper[1], side: 1 });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: -1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: -1 });
+	b.window('front', -1.6, { t }); b.window('front', 0.4, { t }); b.window('left', 0, { t });
+	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
+	b.lower(place(box(1.6, 0.18, 1.0), door, 0.09, -hz - 0.6), M.concrete);
+	b.furniture(door + 0.62, -hz + 0.1, 1.75, [[1.2, 2.05, 0.05, -0.6, 1.03, 0, M.metalDark]], { up: true }); // дверь открыта внутрь
+	// табличка над дверью
+	const sign = new THREE.PlaneGeometry(2.0, 0.42);
+	sign.rotateY(Math.PI); sign.translate(door, H - 0.4, -hz - t / 2 - 0.02);
+	b.top_(sign, T.signMaterial('ТВОЯ КОМНАТА', { bg: '#2a2c26', fg: '#e8dcae', w: 480, h: 100 }));
+	// четыре койки изголовьем к задней стене; наёмник стоит в ногах своей койки
+	const spots = [];
+	for (const [i, x] of [-3.0, -1.7, -0.4, 0.9].entries()) {
+		const z = hz - t / 2 - 1.0;
+		b.furniture(x, z, Math.PI, [
+			[0.8, 0.08, 1.9, 0, 0.42, 0, IM.metal],
+			...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => [0.05, 0.42, 0.05, sx * 0.37, 0.21, sz * 0.92, IM.metal]),
+			[0.78, 0.1, 1.85, 0, 0.51, 0, i % 2 ? IM.blanket : M.metalOlive],
+			[0.6, 0.12, 0.35, 0, 0.62, -0.72, IM.linen],
+			[0.8, 0.5, 0.04, 0, 0.62, -0.95, IM.metal],
+		], { solid: [0.8, 1.9] });
+		const [wx, wz] = b.world(x, z - 1.4);
+		spots.push({ x: wx, z: wz, ry: ry + Math.PI });
+	}
+	// стол с табуретами и шкафчик у двери, коврик посередине
+	table(b, 2.75, 1.7, 0, { w: 1.1, d: 0.7 });
+	chair(b, 2.2, 1.0, Math.PI * 0.15);
+	chair(b, 3.2, 1.0, -Math.PI * 0.15);
+	b.furniture(3.45, -0.6, -Math.PI / 2, [
+		[1.0, 1.9, 0.5, 0, 0.95, 0, IM.metal],
+		[0.02, 1.8, 0.02, 0, 0.95, 0.255, IM.black],
+	], { solid: [1.0, 0.5] });
+	rug(b, -1.0, -0.9, 0, 3.4, 1.6, IM.rugBlue);
+	const [tx, tz] = b.world(2.75, 0.75);
+	b.spots = spots;
+	b.table = { x: tx, z: tz };
+	return b.finish();
+}

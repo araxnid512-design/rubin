@@ -20,6 +20,7 @@
 		import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 		import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 		import { buildLevel } from '../game/level.js';
+		import '../game/post.js'; // цвет Улья в тональной коррекции — как в игре
 		import { WEAPONS } from '../game/weapons.js';
 
 		// куда смотрит камера и кого поставить в кадр (x, z, поворот, клип)
@@ -36,7 +37,7 @@
 		r.setSize(innerWidth, innerHeight);
 		r.shadowMap.enabled = true;
 		r.shadowMap.type = THREE.PCFSoftShadowMap;
-		r.toneMapping = THREE.ACESFilmicToneMapping;
+		r.toneMapping = THREE.CustomToneMapping;
 		r.toneMappingExposure = 1.15;
 		document.body.appendChild(r.domElement);
 		const scene = new THREE.Scene();

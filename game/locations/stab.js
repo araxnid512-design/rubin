@@ -1,11 +1,13 @@
 // Стаб «Полис»: стабильный кусок Улья, который не перезагружается. Бетонный забор с колючкой,
-// вышки с охраной, ворота на юг, лавка торговца в контейнере, палатка лекаря, казарма, костёр.
+// вышки с охраной, ворота на юг, лавка торговца в контейнере, палатка лекаря, казарма, костёр
+// и жилой блок с комнатой героя — там живут нанятые наёмники.
 // Заражённых здесь нет: можно торговать, лечиться и отдыхать.
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place } from '../geom.js';
 import { bench, addCar, streetLamp } from '../props.js';
+import { buildQuarters } from '../buildings.js';
 
 const WX = 19, WZ = 15; // половины размеров территории за забором
 
@@ -13,7 +15,7 @@ export default {
 	id: 'stab',
 	seed: 77,
 	build(ctx) {
-		const { rnd, R, root, batch, collide, M, ground, occluder } = ctx;
+		const { rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx } = ctx;
 		ground(2 * WX, 2 * WZ, 0, 0, M.dirt, 5, 0.014);
 		ground(5, 40, 0, 34, M.dirt, 4, 0.016); // дорога от ворот на юг
 		// бетонные плиты на плацу
@@ -90,13 +92,13 @@ export default {
 
 		// ---------- Казарма (двухэтажная, кирпич) ----------
 		{
-			const cx = 0, cz = -11, W = 16, D = 6, H = 6.2;
+			const cx = -3.6, cz = -11, W = 9, D = 6, H = 6.2;
 			occluder('Barracks', (kb) => {
 				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), M.brick);
 				kb.add(place(box(W + 0.4, 0.3, D + 0.4, 3), cx, H + 0.15, cz), M.roofTar);
-				for (let i = 0; i < 6; i++) for (const y of [1.6, 4.4]) {
+				for (const x of [-3.2, -1.7, 1.7, 3.2]) for (const y of [1.6, 4.4]) {
 					const win = new THREE.PlaneGeometry(1.0, 1.2);
-					win.translate(cx - W / 2 + 1.6 + i * 2.55, y, cz + D / 2 + 0.01);
+					win.translate(cx + x, y, cz + D / 2 + 0.01);
 					kb.add(win, M.window);
 				}
 				kb.add(place(box(1.4, 2.2, 0.1), cx, 1.1, cz + D / 2 + 0.05), M.metalDark);
@@ -104,6 +106,10 @@ export default {
 			}, { cx, cz, ry: 0, hx: W / 2 + 0.3, hz: D / 2 + 0.8, top: H + 0.4 }, 0.25);
 			collide(cx, cz, W, D);
 		}
+
+		// ---------- Жилой блок: твоя комната (вход с плаца) ----------
+		const quarters = buildQuarters(bctx, { cx: 5.4, cz: -11, ry: Math.PI });
+		buildings.push(quarters);
 
 		// ---------- Лавка торговца: морской контейнер, перед ним торговец за прилавком ----------
 		const shop = { x: -11, z: -2.5 };
@@ -216,7 +222,10 @@ export default {
 				{ id: 'trade', name: 'Торговец', label: 'Торговать', x: shop.x, z: shop.z + 2.6, r: 1.7 },
 				{ id: 'mercs', name: 'Наёмники', label: 'Нанять', x: fire.x - 2.6, z: fire.z + 3.0, r: 1.5 },
 				{ id: 'rest', name: 'Лекарь', label: 'Отдохнуть', x: med.x - 0.5, z: med.z + 2.2, r: 1.6 },
+				{ id: 'room', name: 'Твоя комната', label: 'Отряд', x: quarters.table.x, z: quarters.table.z, r: 1.2 },
 			],
+			// комната героя: места наёмников у коек
+			room: { spots: quarters.spots, contains: (p) => quarters.contains(p, -0.1) },
 			// жители стаба: торговец за прилавком, лекарь, часовые у ворот и на вышках
 			npcs: [
 				{ x: shop.x + 0.4, z: shop.z + 0.95, ry: 0, clip: 'Idle', tint: [0.75, 0.7, 0.62] },
@@ -225,10 +234,10 @@ export default {
 				{ x: gate + 1.0, z: WZ - 2.6, ry: -0.2, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 				{ x: -WX + 1.6, y: 4.27, z: -WZ + 1.6, ry: Math.PI * 0.75, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 				{ x: WX - 1.6, y: 4.27, z: WZ - 1.6, ry: Math.PI * 0.25, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
-				// вербовщик наёмников у костра и двое свободных бойцов
+				// вербовщик наёмников у костра и двое охранников стаба на отдыхе
 				{ x: fire.x - 2.6, z: fire.z + 1.7, ry: 0.2, clip: 'Idle', tint: [0.8, 0.75, 0.7] },
-				{ x: fire.x + 2.9, z: fire.z + 1.2, ry: -0.6, clip: 'IdleRifle', gun: 'ak74', tint: [0.55, 0.58, 0.48] },
-				{ x: fire.x + 1.6, z: fire.z - 3.3, ry: 0.4, clip: 'IdleRifle', gun: 'svd', tint: [0.64, 0.66, 0.52] },
+				{ x: fire.x + 2.9, z: fire.z + 1.2, ry: -0.6, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
+				{ x: fire.x + 1.6, z: fire.z - 3.3, ry: 0.4, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 			],
 			onRoad: (x, z, m = 0) => (Math.abs(x) < WX + m && Math.abs(z) < WZ + m) || (Math.abs(x) < 2.5 + m && z > 0),
 			trees(tryTree) {
@@ -238,6 +247,7 @@ export default {
 					tryTree(x, z, rnd() < 0.6 ? 'birch' : 'pine');
 				}
 			},
+			hint: () => 'Твоя комната. Здесь ждут нанятые наёмники: подойди к бойцу — возьмёшь его с собой или оставишь',
 			clutter: 0,
 			blood: 0,
 			puddles: 6,
