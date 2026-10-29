@@ -93,20 +93,25 @@ try {
 	await page.waitForFunction(() => window.__game.enemies.some((x) => x.type === 'stomper' && x.current === 'Stomp'), null, { timeout: 20000 }).catch(() => {});
 	check(stomp && await G(page, () => window.__game.enemies.some((x) => x.type === 'stomper' && x.current === 'Stomp')), 'топтун в погоне идёт тяжёлым шагом (клип Stomp)');
 	await G(page, () => { for (const e of window.__game.enemies) if (e.type === 'stomper') { e.pos.set(40, 0, -44); e.state = 'idle'; } }); // не мешает драке с бегунами
-	// двое бегунов прямо перед героем: удар топором дугой задевает обоих
+	// двое бегунов прямо перед героем: один удар топором достаётся только одному
 	await G(page, () => {
 		const g = window.__game, p = g.player;
-		g.enemies.filter((e) => e.alive && e.type === 'runner').slice(0, 2).forEach((e, i) => { e.pos.set(p.pos.x + 1.3, 0, p.pos.z + (i ? 0.45 : -0.45)); e.stagger = 2; });
-		p.root.rotation.y = Math.PI / 2;
+		window.__pair = g.enemies.filter((e) => e.alive && e.type === 'runner').slice(0, 2);
+		window.__pair.forEach((e, i) => { e.pos.set(p.pos.x + 1.3, 0, p.pos.z + (i ? 0.45 : -0.45)); e.stagger = 3; });
+		for (const e of g.enemies) if (e.alive && !window.__pair.includes(e)) e.pos.set(40, 0, -44);
+		p.root.rotation.y = Math.PI / 2; p.cooldown = 0; p.attack();
 	});
+	await page.waitForFunction(() => window.__pair.some((e) => e.hp < 60), null, { timeout: 20000 }).catch(() => {});
+	const one = await G(page, () => window.__pair.filter((e) => e.hp < 60).length);
+	check(one === 1, `топор за удар бьёт одного заражённого (задет ${one} из 2)`);
 	await page.keyboard.down('Space');
 	await page.waitForFunction(() => window.__game.kills >= 2, null, { timeout: 30000 }).catch(() => {});
 	await page.keyboard.up('Space');
 	await page.screenshot({ path: join(OUT, 'game-fight.png') });
-	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.bag.spore, ammo: window.__game.pickups.filter((p) => /^ammo/.test(p.kind)).length }));
+	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.bag.spore, ammo: window.__game.pickups.filter((p) => /^ammo/.test(p.kind)).length, zhiv: window.__game.pickups.filter((p) => p.kind === 'zhivchik').length }));
 	check(k.kills > 0, `убито заражённых топором: ${k.kills}`);
 	check(k.pickups > 0, 'после убийства выпадают спораны');
-	check(k.ammo === 0, 'патроны из заражённых не выпадают');
+	check(k.ammo === 0 && k.zhiv === 0, 'патроны и живчики из заражённых не выпадают');
 	// у топора не патроны, а прочность: тупится от ударов и ломается
 	const wear = await G(page, () => ({ wear: window.__game.kit.wear.axe, hud: document.getElementById('ammo').textContent }));
 	check(wear.wear < 60 && /прочность/.test(wear.hud), `топор тупится от ударов: прочность ${wear.wear}/60, на экране «${wear.hud.trim()}»`);
@@ -264,6 +269,41 @@ try {
 	// лекарь: отдых двигает время мира
 	const rest = await G(page, () => { const g = window.__game, t = g.world.time; g.player.hp = 30; g.player.maxHp = 100; g.rest(); const r = { dt: g.world.time - t, hp: g.player.hp }; g.player.hp = g.player.maxHp = 1e6; return r; });
 	check(rest.dt >= 100 && rest.hp === 100, `отдых у лекаря: здоровье ${rest.hp}, прошло ${rest.dt} с`);
+	// новое оружие у торговца: МР-133, «Вектор», АК-74, АК-47, СВД, патроны к ним и гранаты
+	await G(page, () => { const g = window.__game; g.bag.spore = 3000; g.player.pos.set(-11, 0, 0.1); });
+	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Торговать' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
+	await page.keyboard.press('KeyE');
+	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const arsenal = await G(page, () => {
+		const buy = (name) => [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === name)?.click();
+		for (const n of ['МР-133', 'Вектор', 'АК-74', 'АК-47', 'СВД', 'Патроны 12 кал. ×6', 'Патроны 9×19 ×30', 'Патроны 5,45×39 ×30', 'Патроны 7,62×39 ×30', 'Патроны 7,62×54R ×10', 'Граната Ф-1', 'Граната Ф-1', 'Граната Ф-1']) buy(n);
+		const g = window.__game;
+		return { owned: g.kit.owned, grenades: g.bag.grenade, secs: [...document.querySelectorAll('#trade-list .trade-sec')].map((x) => x.textContent) };
+	});
+	check(['shotgun', 'vector', 'ak74', 'ak47', 'svd'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 3, `у торговца куплены МР-133, Вектор, АК-74, АК-47, СВД и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
+	await page.click('#trade-close');
+	const shots = await G(page, () => {
+		const g = window.__game, p = g.player, out = {};
+		p.hold = 'gun';
+		for (const id of ['shotgun', 'vector', 'ak74', 'ak47', 'svd']) {
+			g.equipGear(id); p.equipping = false; p.cooldown = 0; p.reloading = 0;
+			const before = p.ammo; p.attack(); out[id] = `${before}→${p.ammo}`;
+		}
+		return out;
+	});
+	check(Object.values(shots).every((v) => { const [a, b] = v.split('→').map(Number); return b === a - 1; }), `из каждого нового ствола выстрел тратит патрон: ${Object.entries(shots).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+	// наёмники у костра: двое в отряд
+	await G(page, () => window.__game.player.pos.set(-2.6, 0, 7.2));
+	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Нанять' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
+	await page.keyboard.press('KeyE');
+	await page.waitForSelector('#party:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	await page.click('[data-act="hire"][data-id="shram"]');
+	await page.click('[data-act="hire"][data-id="ded"]');
+	const hired = await G(page, () => ({ party: window.__game.party.map((m) => m.id), actors: window.__game.mercs.length, full: [...document.querySelectorAll('[data-act="hire"]')].every((b) => b.disabled), bar: document.querySelectorAll('#party-bar .pm').length }));
+	check(hired.party.join() === 'shram,ded' && hired.actors === 2 && hired.full && hired.bar === 2, `наняты наёмники: ${hired.party.join(', ')}; отряд полон, в шапке их портреты`);
+	await page.screenshot({ path: join(OUT, 'game-party.png') });
+	await page.click('#party-close');
+	await G(page, () => window.__game.equipGear('aks'));
 	// сохранение и «Продолжить»
 	const saved = await G(page, () => JSON.parse(localStorage.getItem('ulei-cluster17-save') ?? 'null'));
 	check(saved?.world?.at === 'stab' && saved.kit.owned.includes('aks'), 'игра сохранена в стабе (с купленным автоматом)');
@@ -279,31 +319,75 @@ try {
 	await G(page, () => { const g = window.__game; g.player.pos.set(8, 0, 6.5); });
 	await page.waitForTimeout(1500);
 	await page.screenshot({ path: join(OUT, 'game-dachi.png') });
+	// наёмники пришли с героем и сами стреляют по заражённым, тратя свои патроны
+	const mercFight = await G(page, () => {
+		const g = window.__game, p = g.player;
+		p.pos.set(-26, 0, 4);
+		for (const m of g.mercs) m.place();
+		window.__mercAmmo = g.party.map((m) => m.mag + m.ammo);
+		window.__k0 = g.kills;
+		g.enemies.filter((e) => e.alive && e.type === 'runner').slice(0, 3).forEach((e, i) => { e.pos.set(p.pos.x - 9, 0, p.pos.z - 1 + i); e.state = 'idle'; });
+		return g.mercs.length;
+	});
+	await page.waitForFunction(() => window.__game.kills > window.__k0 && window.__game.party.some((m, i) => m.mag + m.ammo < window.__mercAmmo[i]), null, { timeout: 60000 }).catch(() => {});
+	const mf = await G(page, () => ({ kills: window.__game.kills - window.__k0, spent: window.__game.party.map((m, i) => window.__mercAmmo[i] - (m.mag + m.ammo)) }));
+	check(mercFight === 2 && mf.kills > 0 && mf.spent.some((n) => n > 0), `наёмники в бою: убили ${mf.kills}, потратили патронов ${mf.spent.join(' и ')}`);
+	await page.screenshot({ path: join(OUT, 'game-mercs.png') });
+	// патроны и живчик наёмнику — из рюкзака героя
+	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.party[0].hp = 40; g.partyWindow.open(); });
+	const supply0 = await G(page, () => ({ ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp }));
+	await page.click('[data-act="ammo"][data-i="0"]');
+	await page.click('[data-act="heal"][data-i="0"]');
+	const supply = await G(page, () => ({ ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp, bag: window.__game.bag.ammo545, zh: window.__game.bag.zhivchik }));
+	check(supply.ammo === supply0.ammo + 30 && supply.bag === 15 && supply.hp === 100 && supply.zh === 1, `Шраму выданы патроны (+30, в запасе ${supply.ammo}) и живчик (здоровье ${supply.hp})`);
+	await page.click('#party-close');
+	// граната: бросок к кучке свежих бегунов (наёмники к этому времени могли перебить кластер), взрыв через 2 с
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		for (const st of g.party) st.mag = st.ammo = 0; // наёмники больше не стреляют — проверяем только героя
+		// остальных — подальше: граната летит к ближайшим заражённым
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		window.__blast = [0, 1, 2].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x + 7, 0, p.pos.z - 0.6 + i * 0.6)));
+		window.__blast.forEach((e) => { e.stagger = 6; });
+		for (const m of g.mercs) m.pos.set(p.pos.x - 2, 0, p.pos.z);
+		p.busy = 0; p.equipping = false;
+		g.throwGrenade();
+	});
+	await page.waitForFunction(() => window.__blast.filter((e) => !e.alive).length >= 2, null, { timeout: 30000 }).catch(() => {});
+	const boom = await G(page, () => ({ dead: window.__blast.filter((e) => !e.alive).length, left: window.__game.bag.grenade }));
+	check(boom.dead >= 2 && boom.left === 2, `граната Ф-1: взрывом убито ${boom.dead} из 3, гранат осталось ${boom.left}`);
+
 	// обрез: картечь задевает нескольких
 	const shot = await G(page, () => {
 		const g = window.__game, p = g.player;
+		g.worldMap.close(); g.locationMap.close();
 		p.pos.set(-26, 0, 4); // на дороге, вокруг пусто
 		g.kit.owned.push('obrez'); g.kit.mags.obrez = 2; p.hold = 'gun'; g.equipGear('obrez');
-		const es = g.enemies.filter((e) => e.alive && e.type === 'runner' && e.hp >= 60).slice(0, 3);
-		// остальных отводим подальше, чтобы ближайшей целью были эти трое
-		for (const e of g.enemies) if (!es.includes(e)) { e.pos.set(40, 0, -40); e.stagger = 5; }
-		es.forEach((e, i) => { e.pos.set(p.pos.x - 2.5, 0, p.pos.z + (i - 1) * 0.35); e.stagger = 5; });
+		// остальных отводим подальше, чтобы ближайшей целью были трое свежих бегунов
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -40); e.stagger = 5; }
+		const es = [0, 1, 2].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x - 2.5, 0, p.pos.z + (i - 1) * 0.35)));
+		es.forEach((e) => { e.stagger = 5; });
 		window.__targets = es;
-		p.root.rotation.y = -Math.PI / 2; p.cooldown = 0; p.attack();
+		p.root.rotation.y = -Math.PI / 2; p.cooldown = 0;
+		window.__diag = { can: p.canAttack, w: p.weapon, ammo: p.ammo, eq: p.equipping, rl: p.reloading, paused: g.paused, state: g.state, alive: p.alive, q: p.queuedSwitch ?? null };
+		p.attack();
+		window.__diag.after = p.ammo;
 		return es.map((e) => e.hp);
 	});
 	// кадр программного рендера бывает дольше секунды — ждём, пока дробь долетит
 	await page.waitForFunction(() => window.__targets.filter((e) => e.hp < 60).length >= 2, null, { timeout: 30000 }).catch(() => {});
 	const hurt = await G(page, () => window.__targets.filter((e) => e.hp < 60).length);
-	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов`);
+	const diag = hurt >= 2 ? '' : ` [${JSON.stringify(await G(page, () => ({ ...window.__diag, now: { paused: window.__game.paused, state: window.__game.state, pend: window.__game.player.pending.length, hp: window.__targets.map((e) => Math.round(e.hp)), pos: window.__targets.map((e) => e.pos.x.toFixed(1)), p: window.__game.player.pos.x.toFixed(1) } })))}]`;
+	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов${diag}`);
 
 	// возвращение в кластер до перезагрузки: всё как было
-	const before2 = await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 400; return g.enemies.filter((e) => e.alive).length; });
+	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 400; });
 	await G(page, () => window.__game.travel('zarechny'));
 	await page.waitForFunction(() => window.__game.loc === 'zarechny' && window.__game.state === 'play', null, { timeout: 300000 });
+	const before2 = await G(page, () => window.__game.world.clusters.dachi.saved.enemies.length);
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
-	const back = await G(page, () => window.__game.enemies.filter((e) => e.alive).length);
+	const back = await G(page, () => window.__game.enemies.length); // все заселённые при приходе
 	check(back === before2, `вернулись в Дачи до перезагрузки — убитые не ожили (${before2} → ${back})`);
 
 	// перезагрузка кластера, пока герой внутри: кислый запах, муть, смерть; очнулся в стабе без рюкзака
@@ -319,6 +403,7 @@ try {
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
 	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved }; });
 	check(re.spore === 0 && re.ammo === 0 && re.owned.includes('aks') && re.hp === 100 && re.fresh, `очнулся в стабе: рюкзак пуст, оружие при себе (${re.owned}), Дачи перезагрузились`);
+	check(await G(page, () => window.__game.party.length === 0 && window.__game.mercs.length === 0), 'наёмники пропали вместе с перезагрузившимся кластером');
 	const storage = await G(page, () => ({ ...localStorage }));
 	await page.close();
 

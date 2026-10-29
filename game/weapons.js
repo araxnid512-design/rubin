@@ -229,7 +229,7 @@ export const AMMO = { ammo9: '9×18', ammo919: '9×19', ammo12: '12 кал.', am
  */
 export const WEAPONS = {
 	// durability — сколько ударов по заражённым выдержит, потом ломается
-	axe: { name: 'Топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.32, speed: 1.05, noise: 6, durability: 60, price: 8, make: () => makeAxe(), desc: 'Тихое оружие ближнего боя: патронов не тратит, но тупится и ломается — выдерживает 60 ударов.' },
+	axe: { name: 'Топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.32, speed: 1.05, noise: 6, durability: 60, price: 8, make: () => makeAxe(), desc: 'Тихое оружие ближнего боя: удар — по одному заражённому, патронов не тратит, но тупится и ломается — выдерживает 60 ударов.' },
 	fireaxe: { name: 'Пожарный топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 70, range: 2.4, arc: 1.25, cooldown: 1.0, hitTime: 0.36, speed: 0.92, noise: 7, durability: 90, price: 18, make: () => makeAxe({ fire: true }), desc: 'Тяжёлый топор с клювом: валит бегуна с удара, бьёт медленнее. Прочнее обычного — 90 ударов.' },
 	// когда топор сломался и запасного нет
 	fists: { name: 'Кулаки', slot: 'melee', anim: 'axe', mount: null, damage: 12, range: 1.5, arc: 1.0, cooldown: 0.6, hitTime: 0.28, speed: 1.2, noise: 3, make: () => Object.assign(new THREE.Group(), { name: 'Fists' }), desc: 'Топора нет — остаются кулаки. Бегуна так не забить: купи топор у торговца в стабе или найди в домах.' },

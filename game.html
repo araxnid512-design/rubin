@@ -285,6 +285,7 @@
 		#mm-clip { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; border: 2px solid var(--border); background: #2a3026; box-shadow: 0 2px 10px rgba(0,0,0,0.45); }
 		#mm-pointers { position: absolute; inset: 0; pointer-events: none; }
 		#mm-map { position: absolute; inset: 0; background-repeat: no-repeat; image-rendering: auto; }
+		#mm-mates i { position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-radius: 50%; background: #7cc4ff; border: 1.5px solid #10202c; }
 		#mm-arrow { position: absolute; left: 50%; top: 50%; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 16px solid var(--accent); filter: drop-shadow(0 0 2px #000); transform-origin: 50% 60%; }
 		#mm-n { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: #e8eedd; text-shadow: 0 1px 2px #000; }
 		.mm-pointer { position: absolute; left: 0; top: 0; display: grid; justify-items: center; pointer-events: none; }
@@ -300,6 +301,7 @@
 		#lm-img, #lm-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 		.lm-box { fill: #f0d264; stroke: #2a2a20; stroke-width: 3; }
 		.lm-box.done { fill: #8a8a80; }
+		.lm-mate { fill: #7cc4ff; stroke: #10202c; stroke-width: 4; }
 		.lm-you { fill: var(--accent); stroke: #141816; stroke-width: 4; }
 		.lm-you-pulse { fill: none; stroke: var(--accent); stroke-width: 4; animation: wmPulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 		.lm-exit rect { fill: rgba(20,24,22,0.85); stroke: #f0d264; stroke-width: 3; }
@@ -309,6 +311,7 @@
 		.lm-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); }
 		.lm-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 		.lm-legend i.lg-you { background: var(--accent); }
+		.lm-legend i.lg-mate { background: #7cc4ff; }
 		.lm-legend i.lg-box { background: #f0d264; }
 		.lm-legend i.lg-done { background: #8a8a80; }
 		.lm-legend i.lg-exit { background: rgba(240,210,100,0.55); border-radius: 2px; }
@@ -396,7 +399,7 @@
 			</div>
 		</div>
 		<div id="party-bar" class="hidden"></div>
-		<div id="minimap" title="Карта локации (M)"><div id="mm-clip"><div id="mm-map"></div><div id="mm-arrow"></div><span id="mm-n">С</span></div><div id="mm-pointers"></div></div>
+		<div id="minimap" title="Карта локации (M)"><div id="mm-clip"><div id="mm-map"></div><div id="mm-mates"></div><div id="mm-arrow"></div><span id="mm-n">С</span></div><div id="mm-pointers"></div></div>
 		<div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
 		<div id="toasts"></div>
 	</div>

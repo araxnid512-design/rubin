@@ -513,19 +513,21 @@ class Player extends Actor {
 		game.hud();
 	}
 
+	/** Удар достаётся одному заражённому — ближайшему перед героем (топор не рубит толпу разом). */
 	meleeHit(W, id) {
 		const fx = Math.sin(this.root.rotation.y), fz = Math.cos(this.root.rotation.y);
-		let hit = false;
+		let best = null, score = Infinity;
 		for (const e of game.enemies) {
 			if (!e.alive) continue;
 			const dx = e.pos.x - this.pos.x, dz = e.pos.z - this.pos.z, d = Math.hypot(dx, dz);
 			if (d > W.range + e.radius) continue;
 			const ang = Math.acos(Math.max(-1, Math.min(1, (dx * fx + dz * fz) / (d || 1))));
 			if (ang > W.arc) continue;
-			e.damage(W.damage, this.pos, 0.45);
-			hit = true;
+			const sc = d + ang * 0.8; // ближе и прямее по ходу удара
+			if (sc < score) { score = sc; best = e; }
 		}
-		if (!hit) return;
+		if (!best) return;
+		best.damage(W.damage, this.pos, 0.45);
 		Sfx.chop();
 		if (W.durability) game.wearOut(id); // топор тупится от каждого удара по заражённому
 	}
@@ -1053,10 +1055,16 @@ const game = {
 		this.save();
 	},
 
+	spawnEnemy(type, pos, hp) {
+		const e = new Enemy(type, pos, hp);
+		this.enemies.push(e);
+		return e;
+	},
+
 	/** Заражённые уже в кластере, тайники в домах. saved — состояние с прошлого визита в этом цикле. */
 	populate(saved) {
 		if (saved) {
-			for (const e of saved.enemies) this.enemies.push(new Enemy(e.type, new THREE.Vector3(e.x, 0, e.z), e.hp));
+			for (const e of saved.enemies) this.spawnEnemy(e.type, new THREE.Vector3(e.x, 0, e.z), e.hp);
 			level.containers.forEach((c, i) => {
 				const s = saved.containers[i];
 				c.items = s ? s.items : rollLoot(c.loot);
@@ -1081,7 +1089,7 @@ const game = {
 			for (const [type, n] of [['runner', g.runners ?? 0], ['stomper', g.stompers ?? 0]]) {
 				for (let i = 0; i < n; i++) {
 					const pos = free(g.at[0], g.at[1], g.r);
-					if (pos) this.enemies.push(new Enemy(type, pos));
+					if (pos) this.spawnEnemy(type, pos);
 				}
 			}
 		}
@@ -1847,7 +1855,7 @@ const game = {
 		// при перезагрузке кластера пропадают и наёмники, что были с героем; съели — они вытащат героя
 		const lostMercs = reason === 'reload' ? this.party.map((m) => MERCS[m.id].name) : [];
 		if (reason === 'reload') this.party = [];
-		const lost = CONSUMABLES.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${ITEMS[k].name.toLowerCase()} ×${this.bag[k]}`);
+		const lost = CONSUMABLES.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${ITEMS[k].name[0].toLowerCase()}${ITEMS[k].name.slice(1)} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
 			$('go-title').textContent = reason === 'reload' ? 'Кластер перезагрузился' : 'Тебя сожрали';

@@ -111,6 +111,7 @@ export class Minimap {
 		this.map = $('mm-map');
 		this.arrow = $('mm-arrow');
 		this.pointers = $('mm-pointers');
+		this.mates = $('mm-mates');
 		this.k = 3; // пикселей миникарты на метр
 		this.t = 0;
 	}
@@ -130,6 +131,14 @@ export class Minimap {
 		const R = this.el.clientWidth / 2, k = this.k, p = player.pos;
 		this.map.style.backgroundPosition = `${R - (p.x + HALF) * k}px ${R - (p.z + HALF) * k}px`;
 		this.arrow.style.transform = `translate(-50%, -50%) rotate(${Math.PI - player.root.rotation.y}rad)`;
+		// наёмники — голубые точки
+		const mercs = (this.game.mercs ?? []).filter((m) => m.alive);
+		while (this.mates.children.length < mercs.length) this.mates.append(document.createElement('i'));
+		[...this.mates.children].forEach((el, i) => {
+			const m = mercs[i];
+			el.hidden = !m;
+			if (m) el.style.transform = `translate(${R + (m.pos.x - p.x) * k}px, ${R + (m.pos.z - p.z) * k}px) translate(-50%, -50%)`;
+		});
 		// стрелки к выходам: на краю круга, если выход дальше видимого
 		this.level.exits.forEach((e, i) => {
 			const el = this.pointers.children[i];
@@ -186,6 +195,8 @@ export class LocationMap {
 			const w = text.length * 15 + 26;
 			svg.push(`<g class="lm-exit" transform="translate(${x} ${z})"><rect x="${-w / 2}" y="-20" width="${w}" height="40" rx="20"/><text y="8">${text}</text></g>`);
 		}
+		// наёмники отряда
+		for (const m of g.mercs ?? []) if (m.alive) svg.push(`<circle cx="${toPx(m.pos.x)}" cy="${toPx(m.pos.z)}" r="13" class="lm-mate"/>`);
 		// герой: стрелка по направлению взгляда
 		const deg = 180 - (p.root.rotation.y * 180) / Math.PI;
 		svg.push(`<g transform="translate(${toPx(p.pos.x)} ${toPx(p.pos.z)}) rotate(${deg})"><circle r="26" class="lm-you-pulse"/><path d="M0 -24 L16 16 L0 7 L-16 16 Z" class="lm-you"/></g>`);
@@ -193,7 +204,7 @@ export class LocationMap {
 		const left = L.containers.filter((c) => !c.searched).length;
 		$('lm-info').innerHTML = `
 			${node.kind === 'cluster' ? `<div class="lm-row">Тайников не обыскано: <b>${left}</b> из ${L.containers.length}</div>` : ''}
-			<div class="lm-legend"><span><i class="lg-you"></i>ты</span>${L.containers.length ? '<span><i class="lg-box"></i>тайник</span><span><i class="lg-done"></i>обыскан</span>' : ''}<span><i class="lg-exit"></i>выход</span></div>
+			<div class="lm-legend"><span><i class="lg-you"></i>ты</span>${g.mercs?.some((m) => m.alive) ? '<span><i class="lg-mate"></i>наёмник</span>' : ''}${L.containers.length ? '<span><i class="lg-box"></i>тайник</span><span><i class="lg-done"></i>обыскан</span>' : ''}<span><i class="lg-exit"></i>выход</span></div>
 			<div class="lm-exits">${L.exits.map((e) => `<div>${e.to ? `<b>${NODES[e.to].name}</b> — ${side(e)}, у указателя` : `<b>Выход в Улей</b> — ворота на ${side(e)}е`}</div>`).join('')}</div>
 			<div class="lm-hint">${L.edge ? 'Уйти из кластера можно в любом месте: дойди до края — до мути (жёлтый пунктир), откроется карта Улья.' : 'Из стаба выходят только через ворота.'}</div>`;
 	}
