@@ -4,6 +4,15 @@
 - `android/build.py` собирает APK без Android SDK, готовые файлы лежат в `dist/`.
 - Онлайн-версия «Клонов» — артефакт https://claude.ai/artifact/D7tKManz4kjhnwNfve7ssC. Обновлять этот же артефакт: страница — тело `clones/index.html` без `<head>`, рядом `game.js`, `three.min.js`, `three-addons.js`, `models.js`.
 
+## Новая линия «Клонов» (ветка `claude/styx-android-lore-rwjww2`, папка `clones/www/`)
+
+- Пользователь играет в неё. Её APK (`com.araxnid.clones`) собирает GitHub Actions при push в эту ветку
+  и кладёт в Releases; подпись — `clones/android/app/debug.keystore`, versionCode = номер запуска.
+- Пользователь скачивает и обновляет игру по прямой ссылке (всегда самая новая сборка):
+  https://github.com/araxnid512-design/rubin/releases/latest/download/clones-vs-droids.apk
+- Сайт `araxnid512-design.github.io/rubin/` не работает (GitHub Pages не включён, 404) — его не давать.
+- APK, присланный через SendUserFile, у пользователя не ставился («Додаток не встановлено»), по прямой ссылке — ставится.
+
 ## Общение с пользователем
 
 - Отвечать по-русски, коротко и по делу. Телефон пользователя на украинском: названия кнопок давать по-украински.
