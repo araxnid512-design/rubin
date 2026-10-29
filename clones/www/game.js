@@ -376,6 +376,17 @@ const BIOMES = {
     terrain: [[0.32, 0.45, 0.22], [0.24, 0.34, 0.18], [0.2, 0.27, 0.16]], planet: true, ships: false, trees: true,
     weather: 'dust', dust: 0xd8ffa0, clouds: [0xeaf6e0, 0.45],
   },
+  lava: {
+    name: 'Огненные разломы', lead: 'Поле застывшей лавы над огненной рекой. В трещинах светится магма, с неба сыплется пепел. Каждый ход на счету.',
+    sky: ['#1c0d0a', '#5a2214', '#b5481e'], env: ['#1e1412', '#4a2a20', '#5a2414', '#120806'], fog: [0x5a2414, 30, 200], exposure: 1.0,
+    det: { ground: 'rubble', rock: 'rock', cliff: 'cliff' },
+    hemi: [0xc8b4ac, 0x8a2a10, 0.55], sun: [0xffc8a0, 1.9], fill: [0xff6a3a, 0.5],
+    sand: [64, 58, 56], slab: [84, 78, 74], crack: 'rgba(20,10,8,.6)', peb: ['rgba(30,24,22,.6)', 'rgba(110,100,95,.4)'], groundRough: 0.88,
+    outer: 0x241a16, rocks: [0x2e2b2a, 0x262322, 0x37312e, 0x2a2625], rockTop: 0x1e1a18, bush: [0x3c3630, 0x4e4034], pebHSL: [0.05, 0.06, 0.07],
+    terrain: [[0.24, 0.21, 0.2], [0.17, 0.15, 0.14], [0.12, 0.1, 0.1]], planet: false, ships: true,
+    weather: 'ash', dust: 0xff8a3a, ash: 0x6a625c, clouds: [0x3a2a24, 0.85],
+    lava: true, volcano: [N / 2 + 62, N / 2 - 72],
+  },
 };
 let biomeId = BIOMES[store('cvd-biome')] ? store('cvd-biome') : 'desert';
 const B = () => BIOMES[biomeId];
@@ -509,7 +520,27 @@ function groundTextures(bio) {
   for (const [x, y, r] of pebs) { cg.fillStyle = R() < 0.5 ? bio.peb[0] : bio.peb[1]; cg.beginPath(); cg.arc(x, y, r * 0.8, 0, 7); cg.fill(); }
   const map = new THREE.CanvasTexture(cc); map.encoding = THREE.sRGBEncoding; map.anisotropy = 8;
   const normalMap = new THREE.CanvasTexture(nc); normalMap.anisotropy = 8;
-  return { map, normalMap };
+  return { map, normalMap, emissiveMap: bio.lava ? magmaCracks(cg, S, R) : null };
+}
+// трещины в застывшей лаве: на карте цвета — обугленные края, на карте свечения — раскалённая магма
+function magmaCracks(cg, S, R) {
+  const ec = document.createElement('canvas'); ec.width = ec.height = S; const eg = ec.getContext('2d');
+  eg.fillStyle = '#000'; eg.fillRect(0, 0, S, S);
+  const paths = [];
+  const walk = (x, y, a, n, w) => {
+    const pts = [[x, y]];
+    for (let k = 0; k < n; k++) {
+      a += (R() - 0.5) * 1.1; x += Math.cos(a) * (8 + R() * 14); y += Math.sin(a) * (8 + R() * 14); pts.push([x, y]);
+      if (R() < 0.18 && w > 1) walk(x, y, a + (R() < 0.5 ? 1 : -1) * (0.6 + R() * 0.6), 3 + (R() * 5 | 0), w * 0.6);
+    }
+    paths.push([pts, w]);
+  };
+  for (let i = 0; i < 15; i++) walk(R() * S, R() * S, R() * 7, 6 + (R() * 9 | 0), 1.6 + R() * 1.4);
+  const stroke = (g, w, col, blur) => { for (const [pts, pw] of paths) { g.lineWidth = pw * w; g.strokeStyle = col; g.shadowColor = col; g.shadowBlur = blur; g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); } };
+  cg.lineJoin = eg.lineJoin = 'round'; cg.lineCap = eg.lineCap = 'round';
+  stroke(cg, 2.4, 'rgba(14,7,5,.9)', 0); stroke(cg, 0.8, 'rgba(120,40,12,1)', 0); cg.shadowBlur = 0;
+  stroke(eg, 2.0, 'rgba(150,30,4,.7)', 5); stroke(eg, 0.8, 'rgba(255,100,24,1)', 2); stroke(eg, 0.3, 'rgba(255,190,90,1)', 0); eg.shadowBlur = 0;
+  const t = new THREE.CanvasTexture(ec); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
 }
 const world = new THREE.Group(); scene.add(world);
 const groundMat = new THREE.MeshStandardMaterial({ normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.93 });
@@ -519,6 +550,25 @@ const outerMat = mat(0xc98652, { roughness: 1 });
   g.rotation.x = -Math.PI / 2; g.position.set(N / 2, 0, N / 2); world.add(g);
   const outer = mesh(new THREE.PlaneGeometry(600, 600), outerMat, false);
   outer.rotation.x = -Math.PI / 2; outer.position.set(N / 2, -0.4, N / 2); world.add(outer);
+}
+// лава: ячейки остывшей корки, между ними светится магма (текстура бесшовная); создаётся при первой высадке на вулканический мир
+let lava = null;
+function makeLava() {
+  const S = 256, G = 8, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), img = g.createImageData(S, S), d = img.data, R = rng(91);
+  const pts = []; for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) pts.push([(i + 0.15 + R() * 0.7) * S / G, (j + 0.15 + R() * 0.7) * S / G]);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    let f1 = 1e9, f2 = 1e9;
+    for (const [px, py] of pts) {
+      let dx = Math.abs(x - px), dy = Math.abs(y - py); dx = Math.min(dx, S - dx); dy = Math.min(dy, S - dy);
+      const q = Math.hypot(dx, dy); if (q < f1) { f2 = f1; f1 = q; } else if (q < f2) f2 = q;
+    }
+    const e = Math.exp(-(f2 - f1) * 0.32), hot = clamp(e * 1.15 + 0.12 * Math.sin(x * 0.21 + y * 0.13), 0, 1), k = (y * S + x) * 4;
+    d[k] = 40 + 215 * Math.pow(hot, 0.6); d[k + 1] = 12 + 170 * Math.pow(hot, 1.6); d[k + 2] = 6 + 70 * Math.pow(hot, 3.5); d[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 40);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(340, 340), new THREE.MeshStandardMaterial({ color: 0x1a0a06, roughness: 0.55, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 1.5 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(N / 2, -0.25, N / 2); world.add(m); return m;
 }
 
 // ---------- рельеф вокруг поля: у края — дюны, дальше — стены каньона и плато.
@@ -530,14 +580,22 @@ function surroundH(x, z) {
   const dunes = Math.min(1, d / 4) * (0.15 + 0.45 * nz);
   const t = clamp((d - 12) / 14, 0, 1), cliff = t * t * (3 - 2 * t) * (7 + 13 * nz);
   const far = clamp((d - 120) / 40, 0, 1);   // к краю рельефа — плавно вниз, без ступеньки на горизонте
-  return (dunes + cliff) * (1 - far);
+  let h = (dunes + cliff) * (1 - far);
+  const b = B();
+  if (b.lava) {
+    // русло лавы кольцом вокруг поля (ниже уровня лавы), дальше — конус вулкана с кратером
+    h -= Math.max(0, 1 - Math.abs(d - 6.5 - 5 * (nz - 0.5)) / 2.6) * 1.5;
+    const r = Math.hypot(x - b.volcano[0], z - b.volcano[1]), cone = Math.max(0, 1 - r / 56);
+    h = Math.max(h, Math.pow(cone, 1.4) * 62 - Math.max(0, 1 - r / 9) * 10);
+  }
+  return h;
 }
 let surround = null;
 function buildSurround(bio) {
-  if (surround) { world.remove(surround); surround.geometry.dispose(); surround.material.dispose(); }
+  if (surround) { world.remove(surround); surround.geometry.dispose(); if (surround.material.emissiveMap) surround.material.emissiveMap.dispose(); surround.material.dispose(); DETAIL.mats.delete(surround.material); }
   const S = 340, seg = 84, geo = new THREE.PlaneGeometry(S, S, seg, seg);
   geo.rotateX(-Math.PI / 2); geo.translate(N / 2, 0, N / 2);
-  const p = geo.attributes.position, col = new Float32Array(p.count * 3), [c0, c1, c2] = bio.terrain;
+  const p = geo.attributes.position, col = new Float32Array(p.count * 3), [c0, c1, c2] = bio.terrain, glow = bio.lava ? new Uint8ClampedArray(p.count * 4) : null;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), z = p.getZ(i), inside = x > 0.5 && x < N - 0.5 && z > 0.5 && z < N - 0.5;
     const y = inside ? -0.1 : surroundH(x, z); p.setY(i, y);
@@ -546,10 +604,21 @@ function buildSurround(bio) {
     let r = lerp(c0[0], c1[0], k), g = lerp(c0[1], c1[1], k), b = lerp(c0[2], c1[2], k);
     r = lerp(r, c2[0], k2); g = lerp(g, c2[1], k2); b = lerp(b, c2[2], k2);
     if (bio.snowCaps && y > 11) { const s = clamp((y - 11) / 4, 0, 1); r = lerp(r, 0.93, s); g = lerp(g, 0.95, s); b = lerp(b, 0.98, s); }
+    if (bio.lava) { // раскалённый кратер и потоки лавы по склонам вулкана
+      const vx = x - bio.volcano[0], vz = z - bio.volcano[1], rr = Math.hypot(vx, vz), a = Math.atan2(vz, vx);
+      const s = Math.max(clamp((y - 50) / 3, 0, 1), clamp((y - 14) / 22, 0, 1) * Math.pow(Math.max(0, Math.sin(a * 5 + Math.sin(rr * 0.15) * 1.5)), 8));
+      r = lerp(r, 0.98, s); g = lerp(g, 0.36, s); b = lerp(b, 0.08, s);
+      glow.set([255 * s, 110 * s, 30 * s, 255], i * 4);
+    }
     col.set([r * j, g * j, b * j].map(v => Math.pow(v, 2.2)), i * 3);   // цвета вершин — в линейном пространстве
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  surround = new THREE.Mesh(geo, detailize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), { name: 'sur' + (bio.det || DET0).cliff, tex: detailTex((bio.det || DET0).cliff), scale: 0.09, str: 0.9, alb: 0.45, cover: 0.4 }));
+  const sm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+  if (glow) { // свечение лавы: по пикселю на вершину сетки, текстура ложится по развёртке плоскости
+    const c = document.createElement('canvas'); c.width = c.height = seg + 1; c.getContext('2d').putImageData(new ImageData(glow, seg + 1, seg + 1), 0, 0);
+    sm.emissiveMap = new THREE.CanvasTexture(c); sm.emissiveMap.encoding = THREE.sRGBEncoding; sm.emissive.set(0xffffff); sm.emissiveIntensity = 1.4;
+  }
+  surround = new THREE.Mesh(geo, detailize(sm, { name: 'sur' + (bio.det || DET0).cliff, tex: detailTex((bio.det || DET0).cliff), scale: 0.09, str: 0.9, alb: 0.45, cover: 0.4 }));
   surround.receiveShadow = true; world.add(surround);
 }
 
@@ -580,8 +649,10 @@ function applyBiome(idNew) {
   detailize(ROCK_MAT, { name: 'r' + det.rock, tex: detailTex(det.rock), scale: 0.95, str: 0.9, alb: 0.45, cover: 0.6 });
   detailize(FOLIAGE_MAT, { name: 'f', tex: detailTex('rubble'), scale: 1.4, str: 1.1, alb: 0.55 });
   planet.visible = !!b.planet; moon.visible = !!b.moon;
-  if (groundTex) { groundTex.map.dispose(); groundTex.normalMap.dispose(); }
-  groundTex = groundTextures(b); groundMat.map = groundTex.map; groundMat.normalMap = groundTex.normalMap; groundMat.roughness = b.groundRough; groundMat.needsUpdate = true;
+  if (groundTex) { groundTex.map.dispose(); groundTex.normalMap.dispose(); if (groundTex.emissiveMap) groundTex.emissiveMap.dispose(); }
+  groundTex = groundTextures(b); groundMat.map = groundTex.map; groundMat.normalMap = groundTex.normalMap; groundMat.roughness = b.groundRough;
+  groundMat.emissiveMap = groundTex.emissiveMap; groundMat.emissive.set(groundTex.emissiveMap ? 0xffffff : 0x000000); groundMat.needsUpdate = true;
+  if (b.lava && !lava) lava = makeLava(); if (lava) lava.visible = !!b.lava;
   outerMat.color.set(b.outer);
   PROPM.rock.forEach((m, i) => m.color.set(b.rocks[i]));
   dust.material.color.set(b.dust);
@@ -826,6 +897,7 @@ function buildProps() {
     g.computeVertexNormals(); return g; })();
   for (let i = 0; i < 60; i++) {
     const a = R() * Math.PI * 2, r = 52 + R() * 50, x = N / 2 + Math.cos(a) * r, z = N / 2 + Math.sin(a) * r, h = 8 + R() * 22;
+    if (bio.volcano && Math.hypot(x - bio.volcano[0], z - bio.volcano[1]) < 64) continue;
     const base = surroundH(x, z) - 1.5;   // плато стоят на рельефе, а не тонут в нём
     addR(MESA, x, base + h / 2, z, 0, R() * 6, 0, 1.5 + R() * 3.5, h, 1.5 + R() * 3.5, rockCols[i % 4]);
     if (R() < 0.5) addR(rockGeo(R, 0), x, base + h, z, 0, R() * 6, 0, 2 + R() * 2, 1, 2 + R() * 2, bio.snowCaps ? 0xeef4fa : rockCols[1]);
@@ -843,11 +915,11 @@ function buildProps() {
   }
   // трава и обломки на свободных клетках (не мешают ходить)
   const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 6), grassAt = [];
-  for (let i = 0; i < (bio.trees ? 260 : bio.snowCaps ? 0 : bio.weather === 'rain' ? 60 : 90); i++) { const x = 1 + R() * (N - 2), z = 1 + R() * (N - 2); if (grid[id(Math.floor(x), Math.floor(z))] === FLOOR) grassAt.push([x, z, R() < 0.5 ? bio.bush[0] : bio.bush[1], 0.6 + R() * 0.7]); }
+  for (let i = 0; i < (bio.trees ? 260 : bio.snowCaps ? 0 : bio.lava ? 18 : bio.weather === 'rain' ? 60 : 90); i++) { const x = 1 + R() * (N - 2), z = 1 + R() * (N - 2); if (grid[id(Math.floor(x), Math.floor(z))] === FLOOR) grassAt.push([x, z, R() < 0.5 ? bio.bush[0] : bio.bush[1], 0.6 + R() * 0.7]); }
   for (let i = 0; i < 70; i++) {
     const x = 1 + Math.floor(R() * (N - 2)), z = 1 + Math.floor(R() * (N - 2)); if (grid[id(x, z)] !== FLOOR) continue;
     const px = x + 0.15 + R() * 0.7, pz = z + 0.15 + R() * 0.7;
-    if (i % 3 || bio.trees) { if (!bio.snowCaps) grassAt.push([px, pz, R() < 0.5 ? bio.bush[0] : bio.bush[1], 0.7 + R() * 0.6]); }
+    if (i % 3 || bio.trees) { if (!bio.snowCaps && !bio.lava) grassAt.push([px, pz, R() < 0.5 ? bio.bush[0] : bio.bush[1], 0.7 + R() * 0.6]); }
     else { add(BOX, px, 0.04, pz, R(), R() * 6, R() * 0.5, 0.12, 0.05, 0.18, 0xb8a072); add(CYL6, px + 0.12, 0.03, pz, 0, R() * 6, Math.PI / 2, 0.025, 0.25, 0.025, 0x4a4236); add(BOX, px - 0.1, 0.03, pz + 0.1, 0, R() * 6, 0, 0.06, 0.03, 0.2, 0x8f7a55); }
   }
   // сферические корабли Сепаратистов вдали
@@ -938,7 +1010,7 @@ function buildPebbles() {
   for (let i = 0; i < n * 3 && k < n; i++) {
     const x = R() * N, z = R() * N; if (cell(Math.floor(x), Math.floor(z)) !== FLOOR) continue;
     const s = 0.02 + R() * 0.05; d.position.set(x, s * 0.3, z); d.rotation.set(R() * 3, R() * 3, R() * 3); d.scale.set(s, s * 0.6, s * (0.8 + R() * 0.5)); d.updateMatrix();
-    pebbles.setMatrixAt(k, d.matrix); pebbles.setColorAt(k, c.setHSL(B().pebHSL[0] + R() * 0.03, B().pebHSL[1], 0.25 + R() * 0.2)); k++;
+    pebbles.setMatrixAt(k, d.matrix); pebbles.setColorAt(k, c.setHSL(B().pebHSL[0] + R() * 0.03, B().pebHSL[1], (B().pebHSL[2] ?? 0.25) + R() * 0.2)); k++;
   }
   pebbles.count = k; pebbles.receiveShadow = true; pebbles.frustumCulled = false; world.add(pebbles);
 }
@@ -955,6 +1027,7 @@ function dustUpdate(dt) {
   const a = dust.geometry.attributes.position, t = performance.now() / 1000;
   for (let i = 0; i < a.count; i++) {
     let x = a.getX(i) + dt * (0.35 + Math.sin(t + i) * 0.1), y = a.getY(i) + Math.sin(t * 0.7 + i * 1.3) * dt * 0.05, z = a.getZ(i) + dt * 0.12;
+    if (dust.userData.rise) { y += dt * (0.35 + (i % 5) * 0.08); if (y > 3.2) y -= 3.2; } // искры поднимаются от трещин
     if (x > N) x -= N; if (z > N) z -= N; a.setXYZ(i, x, y, z);
   }
   a.needsUpdate = true;
@@ -994,6 +1067,15 @@ const Weather = (() => {
       scene.add(s); clouds.push(s);
     }
   }
+  // столб дыма и зарево над кратером вулкана (живут вместе с облаками)
+  function plume([vx, vz]) {
+    const top = surroundH(vx + 9, vz);
+    for (let i = 0; i < 9; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.billow, color: i ? 0x2a201c : 0xff6a20, transparent: true, opacity: i ? 0.75 : 0.9, fog: false, depthWrite: false, blending: i ? THREE.NormalBlending : THREE.AdditiveBlending }));
+      const k = i / 8; s.position.set(vx + k * k * 30, top + 4 + i * 7, vz + k * 12); s.scale.set(16 + i * 7, 12 + i * 5, 1);
+      s.userData.fixed = true; scene.add(s); clouds.push(s);
+    }
+  }
   // ветвистая молния вдали
   function strike() {
     if (bolt) { scene.remove(bolt); bolt.geometry.dispose(); }
@@ -1008,9 +1090,15 @@ const Weather = (() => {
   function build(b) {
     kind = b.weather; lightning = !!b.lightning; nextBolt = 3 + R() * 4; flash = 0;
     if (!snow) snow = makeSnow(); if (!rain) rain = makeRain();
-    snow.visible = kind === 'snow'; rain.visible = kind === 'rain'; dust.visible = kind === 'dust';
+    const ash = kind === 'ash';
+    snow.visible = kind === 'snow' || ash; rain.visible = kind === 'rain'; dust.visible = kind === 'dust' || ash;
+    // на вулкане: вместо снега — хлопья пепла, вместо пыли — искры, летящие вверх
+    snow.material.color.set(ash ? b.ash : 0xffffff); snow.material.size = ash ? 0.07 : 0.11; snow.material.opacity = ash ? 0.8 : 0.95;
+    dust.material.blending = ash ? THREE.AdditiveBlending : THREE.NormalBlending; dust.material.size = ash ? 0.06 : 0.05; dust.material.opacity = ash ? 0.9 : 0.55;
+    dust.material.needsUpdate = true; dust.userData.rise = ash;
     if (bolt) bolt.visible = false;
-    makeClouds(b.clouds[0], b.clouds[1], kind === 'rain');
+    makeClouds(b.clouds[0], b.clouds[1], kind === 'rain' || kind === 'ash');
+    if (b.volcano) plume(b.volcano);
     setDensity(density);
   }
   function setDensity(d) {
@@ -1022,11 +1110,11 @@ const Weather = (() => {
   }
   function update(dt) {
     const fx = cam.fx, fz = cam.fz;
-    if (kind === 'snow' && snow) {
+    if ((kind === 'snow' || kind === 'ash') && snow) {
       snow.position.set(fx, 0, fz);
-      const a = snow.geometry.attributes.position, n = Math.floor(SN * density), t = performance.now() / 1000;
+      const a = snow.geometry.attributes.position, n = Math.floor(SN * density), t = performance.now() / 1000, v = kind === 'ash' ? 0.4 : 1;
       for (let i = 0; i < n; i++) {
-        let y = a.getY(i) - dt * (0.9 + (i % 7) * 0.08), x = a.getX(i) + dt * (0.6 + Math.sin(t * 0.8 + i) * 0.4);
+        let y = a.getY(i) - dt * v * (0.9 + (i % 7) * 0.08), x = a.getX(i) + dt * v * (0.6 + Math.sin(t * 0.8 + i) * 0.4);
         if (y < 0) y += TOP; if (x > BOX / 2) x -= BOX;
         a.setY(i, y); a.setX(i, x);
       }
@@ -1043,7 +1131,11 @@ const Weather = (() => {
       }
       a.needsUpdate = true;
     }
-    for (const c of clouds) { c.userData.a += dt * 0.004; c.position.x = N / 2 + Math.cos(c.userData.a) * c.userData.r; c.position.z = N / 2 + Math.sin(c.userData.a) * c.userData.r; }
+    if (kind === 'ash') { // магма в трещинах дышит, лава медленно течёт
+      const t = performance.now() / 1000; groundMat.emissiveIntensity = 0.75 + 0.2 * Math.sin(t * 1.3) + 0.08 * Math.sin(t * 3.1);
+      if (lava) { lava.material.emissiveMap.offset.x += dt * 0.004; lava.material.emissiveMap.offset.y += dt * 0.0025; }
+    } else if (groundMat.emissiveIntensity !== 1) groundMat.emissiveIntensity = 1;
+    for (const c of clouds) { if (c.userData.fixed) continue; c.userData.a += dt * 0.004; c.position.x = N / 2 + Math.cos(c.userData.a) * c.userData.r; c.position.z = N / 2 + Math.sin(c.userData.a) * c.userData.r; }
     if (lightning) {
       nextBolt -= dt;
       if (nextBolt < 0) { nextBolt = 5 + R() * 9; strike(); }
@@ -1891,7 +1983,43 @@ function weather(m, y0, y1, amt) {
   };
   m.customProgramCacheKey = () => 'weather' + amt;
 }
-function buildMeshy(team, type, paint, M, full) {
+// навесные детали комплектов брони (смещения — в осях тела в позе привязки: x — бок, y — вверх, z — вперёд)
+const KIT_M = { cloth: new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.95, side: THREE.DoubleSide }), dark: mat(0x23262b, { roughness: 0.6, metalness: 0.3 }),
+  metal: mat(0x8a9099, { roughness: 0.35, metalness: 0.8 }), lens: new THREE.MeshBasicMaterial({ color: 0xff3b30 }), leather: mat(0x4a3a2c, { roughness: 0.8 }) };
+function kitParts(kit, attach, bones, body, side, paintMat, corr) {
+  const at0 = n => body.worldToLocal(bones[n].getWorldPosition(new THREE.Vector3()));
+  const head = at0('Head'), headC = head.clone().lerp(at0('head_end'), 0.5).sub(head);
+  // крепление по осям тела в текущей позе: у ключиц поворот кости при сборке далёк от исходного,
+  // поэтому смещение и наклон детали переводим в систему кости, как её читает syncAtt
+  const place = (obj, bone, x, y, z) => {
+    const q = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(_m1.copy(body.matrixWorld).invert(), bones[bone].matrixWorld).decompose(_v1, q, _v2);
+    q.multiply(corr[bone]).invert(); const g = new THREE.Group(); obj.quaternion.premultiply(q); g.add(obj);
+    const d = new THREE.Vector3(x, y, z).applyQuaternion(q); return attach(g, bone, d.x, d.y, d.z);
+  };
+  if (kit === 'arc') {
+    // кама: ткань сзади и по бокам от пояса до середины бедра, спереди открыта
+    const kama = mesh(new THREE.CylinderGeometry(0.175, 0.215, 0.27, 20, 1, true, 0.8, Math.PI * 2 - 1.6), KIT_M.cloth);
+    place(kama, 'Hips', 0, -0.1, -0.01);
+    // наплечник ARC на левом плече, в цвет класса
+    const sh = at0('LeftArm').sub(at0('LeftShoulder')), pad = mesh(new THREE.SphereGeometry(0.11, 18, 6, 0, Math.PI * 2, 0, 1.25), paintMat);
+    pad.scale.set(1.0, 0.6, 1.15); place(pad, 'LeftShoulder', sh.x - side * 0.01, sh.y + 0.045, sh.z - 0.01);
+  } else if (kit === 'scout') {
+    // дальномер сбоку шлема и рация с антенной за спиной
+    const rf = new THREE.Group(); rf.add(at(cyl(0.009, 0.009, 0.13, KIT_M.dark, 6), 0, 0.065, 0)); rf.add(at(rbox(0.03, 0.035, 0.07, KIT_M.dark, 0.008), 0, 0.13, 0.025));
+    rf.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.011, 10), KIT_M.lens), 0, 0.13, 0.061));
+    place(rf, 'Head', headC.x - side * 0.135, headC.y - 0.02, headC.z + 0.01);
+    const pack = new THREE.Group(); pack.add(at(rbox(0.16, 0.13, 0.06, KIT_M.dark, 0.015), 0, 0, 0)); pack.add(at(cyl(0.005, 0.005, 0.42, KIT_M.metal, 5), side * 0.05, 0.27, 0));
+    place(pack, 'Spine2', 0, 0.02, -0.17);
+  } else if (kit === 'assault') {
+    // патронташ через грудь и подсумки на поясе
+    const a = side * 0.62, band = new THREE.Group(); band.add(at(rbox(0.05, 0.46, 0.02, KIT_M.leather, 0.008), 0, 0, 0, 0, 0, a));
+    for (let i = -2; i <= 2; i++) band.add(at(rbox(0.035, 0.03, 0.022, KIT_M.dark, 0.006), -Math.sin(a) * i * 0.075, Math.cos(a) * i * 0.075, 0.015, 0, 0, a));
+    place(band, 'Spine2', 0, 0, 0.125);
+    const pouches = new THREE.Group(); for (const x of [-0.09, 0, 0.09]) pouches.add(at(rbox(0.06, 0.07, 0.035, KIT_M.dark, 0.01), x, 0, 0));
+    place(pouches, 'Hips', 0, 0.03, 0.135);
+  }
+}
+function buildMeshy(team, type, paint, M, full, kit) {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0);
   const model = THREE.SkeletonUtils.clone(M.scene); body.add(model);
   let skin = null; model.traverse(o => { if (o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; skin = o; } });
@@ -1915,6 +2043,7 @@ function buildMeshy(team, type, paint, M, full) {
     attach(band, 'RightShoulder', sh.x + side * 0.085, sh.y + 0.035, sh.z);
     rig.gun = new THREE.Group(); body.add(rig.gun); rig.muzzle = pivot(rig.gun, 0, 0.012, rifle(rig.gun, type));
     rig.grips = type === 'heavy' ? { r: [0, -0.1, 0.02], l: [-side * 0.11, 0.06, 0.1] } : type === 'sniper' ? { r: [0, -0.08, 0.0], l: [0, -0.03, 0.4] } : { r: [0, -0.08, 0.0], l: [0, -0.03, 0.3] };
+    if (kit && kit !== 'std') { mixer.update(0); model.updateMatrixWorld(true); kitParts(kit, attach, bones, body, side, stripe, M.corr); } // меряем в позе idle: масштаб костей в клипе не как в исходной позе
   } else if (type === 'b2') {
     // бластеры встроены в предплечья модели
     rig.muzzle = pivot(bones.RightHand, 0, 0, 0); rig.wrist = true; rig.twoHand = false;
@@ -2285,14 +2414,14 @@ let units = [], turn = 1, phase = 'start', busy = false, selected = null, shotCo
 const UNIT_SCALE = 0.64;
 // рост относительно клона (1,83 м) по Star Wars Databank: B1, BX и командир — 1,91 м, B2 — 1,91 м, ТХ — 1,93 м
 const TYPE_SCALE = { b1: 1.065, cmd: 1.065, snp: 1.065, bx: 1.065, b2: 1.14, tx: 0.99 };
-function makeRig(team, type, paint, full) {
+function makeRig(team, type, paint, full, kit) {
   if (type === 'dk') { const rig = buildDroideka(); mergeRig(rig.root); return rig; }
-  const M = CHAR.meshy[MESHY_OF[type]]; if (M) return buildMeshy(team, type, paint, M, full);
+  const M = CHAR.meshy[MESHY_OF[type]]; if (M) return buildMeshy(team, type, paint, M, full, kit);
   if (CHAR.ready) return buildSkinned(team, type, paint, full);
   const rig = team === 'clone' ? buildClone(type, paint) : buildDroid(type); mergeRig(rig.root); return rig;
 }
 function makeUnit(team, type, x, z, extra = {}) {
-  const d = DEF[type], rig = makeRig(team, type, extra.paint);
+  const d = DEF[type], rig = makeRig(team, type, extra.paint, false, extra.kit);
   rig.root.scale.setScalar(UNIT_SCALE * (rig.meshy ? 1 : TYPE_SCALE[type] || 1)); if (rig.hips && rig.hips.userData.y0 === undefined) rig.hips.userData.y0 = rig.hips.position.y;
   const u = Object.assign({ team, type, x, z, hp: d.hp, maxHp: d.hp, aim: d.aim, mob: d.mob, dmg: d.dmg, range: d.range, sight: d.sight, nades: d.nades || 0, rockets: d.rockets || 0, burst: d.burst || 1, armor: d.armor || 0, shield: d.shield || 0, cd: {},
     ap: 0, alive: true, overwatch: false, hunker: false, rig, t: 0, wph: 0, seed: Math.random() * 6, flinch: 0, headT: 0, headY: 0, dmgT: 0, crouch: false, state: 'idle', yaw: team === 'clone' ? Math.PI * 0.75 : -Math.PI * 0.25, name: d.name, visible: team === 'clone' }, extra);
@@ -2515,14 +2644,14 @@ function hint(t) { const h = $('hint'); if (t) { h.textContent = t; h.classList.
 function banner(text, cls) { const b = $('banner'); b.textContent = text; b.className = ''; void b.offsetWidth; b.className = 'show ' + cls; }
 // 3D-портрет: голова и плечи настоящей модели, отрисованные в текстуру
 const PORTRAITS = new Map();
-function portraitImage(team, type, paint) {
-  const key = team + type + (paint || ''); if (PORTRAITS.has(key)) return PORTRAITS.get(key);
+function portraitImage(team, type, paint, kit) {
+  const key = team + type + (paint || '') + (kit || ''); if (PORTRAITS.has(key)) return PORTRAITS.get(key);
   const W = 192, H = 112, rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 }); rt.texture.encoding = THREE.sRGBEncoding;
   const ps = new THREE.Scene(); ps.environment = scene.environment;
   ps.add(new THREE.HemisphereLight(0xdfeeff, 0x553322, 0.35));
   const key1 = new THREE.DirectionalLight(0xfff0dd, 1.1); key1.position.set(2.5, 2, 1.2); ps.add(key1);
   const rim = new THREE.DirectionalLight(team === 'clone' ? 0x6fc4ff : 0xff6a50, 2.0); rim.position.set(-2, 1.5, -2); ps.add(rim);
-  const rig = makeRig(team, type, paint, true);
+  const rig = makeRig(team, type, paint, true, kit);
   rig.root.rotation.y = 0.22; ps.add(rig.root);
   if (rig.custom) { for (let i = 0; i < 8; i++) rig.custom({ rig, state: 'idle', t: 0, flinch: 0, seed: 0, shield: 4 }, 0.5); }
   else if (rig.skinned) { const fake = { rig, team, type, state: 'idle', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9 }; for (let i = 0; i < 3; i++) poseSkinned(fake, 0.02); }
@@ -2544,7 +2673,7 @@ function portraitImage(team, type, paint) {
   PORTRAITS.set(key, c); return c;
 }
 function portrait(u) {
-  const src = portraitImage(u.team, u.type, u.paint), c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const src = portraitImage(u.team, u.type, u.paint, u.kit), c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
   c.getContext('2d').drawImage(src, 0, 0); return c;
 }
 function buildSquadUI() {

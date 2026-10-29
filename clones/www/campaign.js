@@ -47,6 +47,7 @@ const PLANET_LOOK = {
   desert: { ramp: [[0, '#4a200e'], [0.38, '#8e4620'], [0.55, '#c47a3c'], [0.72, '#e2a768'], [1, '#f7dcae']], bands: 0.2, cloud: [0.6, 0.35, 0xfff2e0], atmo: 0xffa86a, caps: false, scale: 2.2 },
   ice: { ramp: [[0, '#14304e'], [0.44, '#2c5a80'], [0.5, '#86a3bd'], [0.62, '#cbdae8'], [1, '#ffffff']], bands: 0.05, cloud: [0.55, 0.65, 0xffffff], atmo: 0x9fd0ff, caps: true, scale: 2.6 },
   storm: { ramp: [[0, '#06111c'], [0.47, '#123049'], [0.51, '#2a4434'], [0.7, '#3b583c'], [1, '#6b7a62']], bands: 0.04, cloud: [0.44, 0.9, 0x98a6b8], atmo: 0x6f9cff, caps: false, scale: 2.4 },
+  lava: { ramp: [[0, '#ffd27a'], [0.12, '#ff7a1c'], [0.3, '#b8320c'], [0.42, '#3a1610'], [0.7, '#2a1c18'], [1, '#5a4a44']], bands: 0.12, cloud: [0.58, 0.55, 0x4a3a34], atmo: 0xff6a2a, caps: false, scale: 2.9 },
 };
 const Hub = (() => {
   const sc = new THREE.Scene(), cam3 = new THREE.PerspectiveCamera(36, 1, 0.1, 4000);
@@ -291,7 +292,7 @@ const Hub = (() => {
 // =====================================================================
 //  ДАННЫЕ КАМПАНИИ
 // =====================================================================
-const PLANETS = { desert: 'Ракхат', ice: 'Ильдор', storm: 'Вейлон', jungle: 'Мирея' };
+const PLANETS = { desert: 'Ракхат', ice: 'Ильдор', storm: 'Вейлон', jungle: 'Мирея', lava: 'Пиррос' };
 const CLASSES = {
   trooper: { name: 'Боец', weapon: 'Бластерная винтовка', price: 150, desc: 'Основа отряда: надёжная винтовка, граната и медпакет.' },
   heavy: { name: 'Пулемётчик', weapon: 'Ротационный бластер', price: 220, desc: 'Очередь из трёх выстрелов, ракета и огонь на подавление.' },
@@ -321,6 +322,14 @@ const UPGRADES = {
   mob: { name: 'Облегчённая выкладка', eff: '+1 к ходу', cost: [260] },
 };
 const WPN_COST = [180, 340];
+// комплекты брони: меняют вид бойца и характеристики; купленный остаётся за бойцом, переодеться — бесплатно
+const KITS = {
+  std: { name: 'Стандартная броня', eff: 'Без изменений', cost: 0 },
+  arc: { name: 'Комплект ARC', eff: 'Кама и наплечник: броня гасит 1 урона, −1 к ходу', cost: 260 },
+  scout: { name: 'Разведчик', eff: 'Дальномер и рация: +1 к ходу, +2 к обзору, −1 здоровья', cost: 200 },
+  assault: { name: 'Штурмовой', eff: 'Патронташ: +1 к урону, +1 граната (пулемётчику — ракета), −5 меткости', cost: 240 },
+};
+const kitOf = f => (KITS[f.kit] ? f.kit : 'std');
 const NADE_PRICE = 40, NADE_MAX = 20, ROSTER_MAX = 6;
 const DOOM_MAX = 12, DOOM_DAYS = 4; // «Колосс» растёт на деление каждые 4 дня
 const ICON = {
@@ -379,9 +388,9 @@ const STORY = [
     win: 'Маяк выстоял. Со спутника видно: в джунглях Миреи сбит разведчик ARC «Шрам» — у него карта «Колосса».' },
   { id: 's7', title: 'Зелёный ад', biome: 'jungle', type: 'rescue', turns: 12, threat: 3, reward: 560, vip: 'Шрам', pods: [['bx', 'b1', 'b1'], ['snp', 'dk', 'b1'], ['cmd', 'b2', 'b1']],
     brief: 'Разведчик ARC «Шрам» в плену в джунглях Миреи. Дроиды-коммандос BX прочёсывают заросли. Освободите его и эвакуируйте.',
-    win: 'Шрам спасён. Карта ведёт в литейную BX в тех же джунглях: там хранятся чертежи «Колосса».' },
-  { id: 's8', title: 'Литейная BX', biome: 'jungle', type: 'hack', turns: 10, threat: 4, reward: 600, pods: [['bx', 'b1', 'snp'], ['b2', 'bx', 'b1'], ['cmd', 'dk', 'snp'], ['bx', 'b1', 'b1']], waves: [{ turn: 5, types: ['bx', 'bx'] }],
-    brief: 'В литейной стоит архив с чертежами «Колосса». Взломайте терминал и уходите. Здесь самая сильная охрана из всех, что видел отряд.',
+    win: 'Шрам спасён. Карта ведёт на вулканический Пиррос, в литейную BX: там хранятся чертежи «Колосса».' },
+  { id: 's8', title: 'Литейная BX', biome: 'lava', type: 'hack', turns: 10, threat: 4, reward: 600, pods: [['bx', 'b1', 'snp'], ['b2', 'bx', 'b1'], ['cmd', 'dk', 'snp'], ['bx', 'b1', 'b1']], waves: [{ turn: 5, types: ['bx', 'bx'] }],
+    brief: 'Литейная стоит на застывшей лаве Пирроса, вокруг течёт огненная река. В ней архив с чертежами «Колосса». Взломайте терминал и уходите. Здесь самая сильная охрана из всех, что видел отряд.',
     win: 'Чертежи у нас. Сердце «Колосса» — кузня подо льдами Ильдора. Её нужно взорвать.' },
   { id: 's9', title: 'Кузня подо льдом', biome: 'ice', type: 'sabotage', charges: 3, turns: 12, threat: 4, reward: 680, pods: [['b1', 'b1', 'snp'], ['b2', 'bx', 'b1'], ['cmd', 'b2', 'dk'], ['bx', 'b1', 'b1']], waves: [{ turn: 4, types: ['b2', 'b1', 'b1'] }],
     brief: 'Три реактора кузни питают «Колосс». Заложите заряды на все три и отходите. Взрыв будет в конце хода противника.',
@@ -456,12 +465,14 @@ const fById = id => S.roster.find(f => f.id === id);
 const hasPerk = (f, id) => (f.perks || []).some((p, i) => p !== undefined && p !== null && PERKS[f.cls][i] && PERKS[f.cls][i][p] && PERKS[f.cls][i][p].id === id);
 const perkPending = f => PERK_RANKS.findIndex((r, i) => rankOf(f.xp) >= r && (f.perks[i] === undefined || f.perks[i] === null));
 function stats(f) {
-  const d = DEF[f.cls], r = rankOf(f.xp), R = S.research, w = S.weapons[f.cls] || 0, P = id => hasPerk(f, id);
+  const d = DEF[f.cls], r = rankOf(f.xp), R = S.research, w = S.weapons[f.cls] || 0, P = id => hasPerk(f, id), K = kitOf(f), kd = K === 'assault' ? 1 : 0;
   return {
-    hp: d.hp + f.up.hp + (r >= 2 ? 1 : 0) + (r >= 4 ? 1 : 0) + (R.armor ? 1 : 0) + (R.armor2 ? 1 : 0) + (P('hp2') ? 2 : 0),
-    aim: d.aim + f.up.aim * 4 + r * 2 + (R.optics ? 5 : 0), mob: d.mob + f.up.mob + (P('mob1') ? 1 : 0), dmg: [d.dmg[0] + w + (P('dmg1') ? 1 : 0), d.dmg[1] + w + (P('dmg1') ? 1 : 0)], range: d.range,
-    nades: (d.nades || 0) + (R.pouch && f.cls !== 'heavy' ? 1 : 0) + (P('nade1') ? 1 : 0), rockets: (d.rockets || 0) + (R.rockets && f.cls === 'heavy' ? 1 : 0) + (P('rocket') ? 1 : 0), sight: d.sight + (R.scanner ? 2 : 0),
-    ammo: AMMO[f.cls] + (R.mags ? 1 : 0), armor: P('armor1') ? 1 : 0, burst: (d.burst || 1) + (P('burst') ? 1 : 0),
+    hp: d.hp + f.up.hp + (r >= 2 ? 1 : 0) + (r >= 4 ? 1 : 0) + (R.armor ? 1 : 0) + (R.armor2 ? 1 : 0) + (P('hp2') ? 2 : 0) - (K === 'scout' ? 1 : 0),
+    aim: d.aim + f.up.aim * 4 + r * 2 + (R.optics ? 5 : 0) - (K === 'assault' ? 5 : 0), mob: d.mob + f.up.mob + (P('mob1') ? 1 : 0) + (K === 'scout' ? 1 : K === 'arc' ? -1 : 0),
+    dmg: [d.dmg[0] + w + kd + (P('dmg1') ? 1 : 0), d.dmg[1] + w + kd + (P('dmg1') ? 1 : 0)], range: d.range,
+    nades: (d.nades || 0) + (R.pouch && f.cls !== 'heavy' ? 1 : 0) + (P('nade1') ? 1 : 0) + (kd && f.cls !== 'heavy' ? 1 : 0),
+    rockets: (d.rockets || 0) + (R.rockets && f.cls === 'heavy' ? 1 : 0) + (P('rocket') ? 1 : 0) + (kd && f.cls === 'heavy' ? 1 : 0), sight: d.sight + (R.scanner ? 2 : 0) + (K === 'scout' ? 2 : 0),
+    ammo: AMMO[f.cls] + (R.mags ? 1 : 0), armor: (P('armor1') ? 1 : 0) + (K === 'arc' ? 1 : 0), burst: (d.burst || 1) + (P('burst') ? 1 : 0),
     medkits: f.cls === 'trooper' ? 1 + (P('med2') ? 1 : 0) + (R.pouch ? 1 : 0) : 0, medBonus: P('med2') ? 2 : 0,
     coverDef: P('cover') ? 10 : 0, closeAim: P('close') ? 15 : 0, critBonus: P('crit') ? 15 : 0, owSteady: P('ow'), rallyAll: P('rallyAll'), rallyCd: P('cd2') ? 2 : 3,
   };
@@ -484,7 +495,7 @@ function recruit(cls, call0) {
 
 // портреты бойцов и дроидов (3D-модель в картинку), превью операций
 const PURL = new Map();
-function purl(team, type, paint) { const k = team + type + (paint || ''); if (!PURL.has(k)) PURL.set(k, portraitImage(team, type, paint).toDataURL()); return PURL.get(k); }
+function purl(team, type, paint, kit) { const k = team + type + (paint || '') + (kit || ''); if (!PURL.has(k)) PURL.set(k, portraitImage(team, type, paint, kit).toDataURL()); return PURL.get(k); }
 const PREV = new Map();
 function previewURL(op) {
   if (PREV.has(op.id)) return PREV.get(op.id);
@@ -506,7 +517,15 @@ function previewURL(op) {
   };
   const hazeCol = b.sky[2];
   ridge(hy - 34, 26, hazeCol, 9); g.fillStyle = rgb(b.terrain[2], 0.9); g.globalAlpha = 0.55; ridge(hy - 22, 24, rgb(b.terrain[2]), 12); g.globalAlpha = 1;
+  if (b.volcano) { // вулкан с заревом и дымом
+    const vx = w * (0.15 + R() * 0.3), top = hy - 70;
+    g.fillStyle = 'rgba(40,24,20,.85)'; for (let i = 0; i < 7; i++) { g.beginPath(); g.arc(vx + i * i * 2.2, top - 8 - i * 11, 9 + i * 4, 0, 7); g.fill(); }
+    g.fillStyle = rgb(b.terrain[2]); g.beginPath(); g.moveTo(vx - 90, hy); g.lineTo(vx - 12, top); g.lineTo(vx + 12, top); g.lineTo(vx + 90, hy); g.fill();
+    const gl = g.createRadialGradient(vx, top, 0, vx, top, 34); gl.addColorStop(0, 'rgba(255,170,60,.95)'); gl.addColorStop(1, 'rgba(255,80,20,0)'); g.fillStyle = gl; g.fillRect(vx - 40, top - 40, 80, 80);
+    g.strokeStyle = 'rgba(255,110,30,.85)'; g.lineWidth = 2; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(vx + s * 6, top + 2); g.quadraticCurveTo(vx + s * 22, top + 30, vx + s * 34, hy - 6); g.stroke(); }
+  }
   ridge(hy - 8, 18, rgb(b.terrain[1]), 10);
+  if (b.lava) { const lg = g.createLinearGradient(0, hy - 4, 0, hy + 6); lg.addColorStop(0, 'rgba(255,90,20,0)'); lg.addColorStop(0.5, 'rgba(255,120,40,.8)'); lg.addColorStop(1, 'rgba(255,90,20,0)'); g.fillStyle = lg; g.fillRect(0, hy - 4, w, 10); }
   // земля поля боя
   const gr = g.createLinearGradient(0, hy, 0, h), sand = b.sand.map(v => v / 255);
   gr.addColorStop(0, rgb(sand, 0.85)); gr.addColorStop(1, rgb(sand, 0.55)); g.fillStyle = gr; g.fillRect(0, hy, w, h - hy);
@@ -608,16 +627,20 @@ function squadHTML() {
   let h = `<div class="ph"><h3>Отряд</h3><span class="sub">Бойцов ${S.roster.length}/${ROSTER_MAX} · в высадке ${dep.length}/${slots}</span></div><div class="sq"><div class="roster">`;
   for (const f of S.roster) {
     const r = rankOf(f.xp), on = dep.includes(f);
-    h += `<button class="frow${f.id === selF ? ' sel' : ''}${f.wound ? ' hurt' : ''}" data-a="sel" data-v="${f.id}"><img src="${purl('clone', f.cls, f.paint)}" alt=""><span><b>«${esc(f.call)}»</b><small>${f.wound ? `Ранен · ${f.wound} дн.` : `${CLASSES[f.cls].name} · ${RANKS[r][0]}`}</small></span>${on ? '<i class="dep" title="В высадке">✓</i>' : ''}${perkPending(f) >= 0 ? '<i class="pp" title="Новый навык">★</i>' : ''}</button>`;
+    h += `<button class="frow${f.id === selF ? ' sel' : ''}${f.wound ? ' hurt' : ''}" data-a="sel" data-v="${f.id}"><img src="${purl('clone', f.cls, f.paint, kitOf(f))}" alt=""><span><b>«${esc(f.call)}»</b><small>${f.wound ? `Ранен · ${f.wound} дн.` : `${CLASSES[f.cls].name} · ${RANKS[r][0]}`}</small></span>${on ? '<i class="dep" title="В высадке">✓</i>' : ''}${perkPending(f) >= 0 ? '<i class="pp" title="Новый навык">★</i>' : ''}</button>`;
   }
   for (let i = S.roster.length; i < ROSTER_MAX; i++) h += `<button class="frow empty" data-a="tab" data-v="hire"><span class="plus">+</span><span><b>Свободная койка</b><small>Нанять бойца</small></span></button>`;
   h += '</div>';
   const f = fById(selF);
   if (f) {
     const s = stats(f), r = rankOf(f.xp), nx = RANKS[r + 1], pct = nx ? Math.round((f.xp - RANKS[r][1]) / (nx[1] - RANKS[r][1]) * 100) : 100, on = dep.includes(f);
-    h += `<div class="fd"><div class="fdHead"><img src="${purl('clone', f.cls, f.paint)}" alt=""><div><div class="fdName">${esc(fTitle(f))}</div><div class="fdNum">${f.num} · ${CLASSES[f.cls].weapon}</div>
+    h += `<div class="fd"><div class="fdHead"><img src="${purl('clone', f.cls, f.paint, kitOf(f))}" alt=""><div><div class="fdName">${esc(fTitle(f))}</div><div class="fdNum">${f.num} · ${CLASSES[f.cls].weapon}</div>
       <div class="rank">${rankStars(r)} ${RANKS[r][0]}${f.wound ? ` <span class="hurtT">· ранен, ${f.wound} дн.</span>` : ''}</div><div class="xp"><i style="width:${pct}%"></i></div><div class="fdNum">${nx ? `Опыт ${f.xp}/${nx[1]} до звания «${nx[0]}»` : 'Высшее звание'} · операций ${f.ops} · уничтожил ${f.kills}</div></div></div>
       <div class="stats">${statRows(f, s, true)}</div>${perksHTML(f)}
+      <div class="paintL">Комплект брони</div><div class="perks kits"><div class="pk"><div>${Object.entries(KITS).map(([id, K]) => {
+        const on = kitOf(f) === id, own = id === 'std' || (f.kits || []).includes(id);
+        return `<button class="pb${on ? ' on' : ''}" data-a="kit" data-v="${id}"><b>${K.name}</b><span>${K.eff}</span><em>${on ? 'Надет' : own ? 'Надеть' : crd(K.cost)}</em></button>`;
+      }).join('')}</div></div></div>
       <div class="paintL">Раскраска брони</div><div class="paint">${PAINTS.map(([c, n]) => `<button class="sw${f.paint === c ? ' on' : ''}" data-a="paint" data-v="${c}" style="--c:${c}" title="${n}" aria-label="${n}"></button>`).join('')}</div>
       <div class="fdAct"><button class="btn sm${on ? ' ghost' : ''}" data-a="dep"${f.wound ? ' disabled' : ''}>${f.wound ? 'Лечится' : on ? 'Убрать из высадки' : 'В высадку'}</button><button class="btn sm ghost danger" data-a="fire">Уволить</button></div></div>`;
   }
@@ -680,7 +703,7 @@ function renderBrief() {
     <div class="bGrid"><div class="bL"><div class="bImg" style="background-image:url(${previewURL(op)})"></div><div class="goal">${svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>')} ${missionGoal(op)}</div><p class="story">${esc(op.brief)}</p>
       <div class="rewBox">Награда: <b>${crd(op.reward)}</b> + ${crd(10)} за каждого дроида${op.antiDoom ? ` · <span class="ad">«Колосс» −${op.antiDoom}</span>` : op.kind === 'story' ? ' · <span class="ad">«Колосс» −1</span>' : ''} · ${op.kind === 'story' ? 3 : 2} дня</div></div>
     <div class="bR"><h4>Разведка · ${total} дроидов</h4><div class="intel">${Object.entries(count).sort((a, b) => DROIDS[a[0]].tier - DROIDS[b[0]].tier).map(([t, n]) => `<div class="irow"><img src="${purl('droid', t)}" alt=""><span><b>${DEF[t].name} ×${n}</b><small>${DROIDS[t].desc}</small></span></div>`).join('')}</div>
-      <h4>Отряд высадки · ${dep.length}/${slots}</h4><div class="pick">${S.roster.map(f => `<button class="pf${dep.includes(f) ? ' on' : ''}${f.wound ? ' hurt' : ''}" data-a="bdep" data-v="${f.id}"${f.wound ? ' disabled' : ''}><img src="${purl('clone', f.cls, f.paint)}" alt=""><b>«${esc(f.call)}»</b><small>${f.wound ? 'ранен ' + f.wound + ' дн.' : CLASSES[f.cls].name}</small></button>`).join('')}</div>
+      <h4>Отряд высадки · ${dep.length}/${slots}</h4><div class="pick">${S.roster.map(f => `<button class="pf${dep.includes(f) ? ' on' : ''}${f.wound ? ' hurt' : ''}" data-a="bdep" data-v="${f.id}"${f.wound ? ' disabled' : ''}><img src="${purl('clone', f.cls, f.paint, kitOf(f))}" alt=""><b>«${esc(f.call)}»</b><small>${f.wound ? 'ранен ' + f.wound + ' дн.' : CLASSES[f.cls].name}</small></button>`).join('')}</div>
       <div class="load">${svg(ICON.nade)} Гранат на складе: <b>${S.nades}</b> — отряд возьмёт <b>${take}</b>${take < want ? ' <span class="warn">(не хватает ' + (want - take) + ')</span>' : ''}</div></div></div>`;
   $('bLaunch').disabled = !dep.length;
 }
@@ -689,7 +712,7 @@ function launch() {
   let stock = S.nades; const issued = {};
   SQUAD = dep.map(f => {
     const s = stats(f), n = f.cls === 'heavy' ? 0 : Math.min(s.nades, stock); stock -= n; issued[f.id] = n;
-    return { cls: f.cls, call: f.call, num: f.num, paint: f.paint, fid: f.id, hp: s.hp, maxHp: s.hp, aim: s.aim, mob: s.mob, dmg: s.dmg, nades: n, rockets: s.rockets, sight: s.sight,
+    return { cls: f.cls, call: f.call, num: f.num, paint: f.paint, kit: kitOf(f), fid: f.id, hp: s.hp, maxHp: s.hp, aim: s.aim, mob: s.mob, dmg: s.dmg, nades: n, rockets: s.rockets, sight: s.sight,
       ammo: s.ammo, maxAmmo: s.ammo, armor: s.armor, burst: s.burst, medkits: s.medkits, medBonus: s.medBonus, coverDef: s.coverDef, closeAim: s.closeAim, critBonus: s.critBonus,
       owSteady: s.owSteady, rallyAll: s.rallyAll, rallyCd: s.rallyCd };
   });
@@ -717,13 +740,13 @@ function missionEnd(result) {
     let note = '';
     if (!u.alive) {
       if (R.bacta && Math.random() < 0.5) { note = ' · <i class="okc">спасён бакта-камерой</i>'; u.hp = 0; }
-      else { S.roster = S.roster.filter(x => x !== f); S.fallen.push({ call: f.call, cls: f.cls, kills: f.kills + u.mk }); S.stats.lost++; lines.push(`<div class="fr dead"><img src="${purl('clone', f.cls, f.paint)}" alt=""><b>«${esc(f.call)}»</b><span>Погиб в бою</span></div>`); continue; }
+      else { S.roster = S.roster.filter(x => x !== f); S.fallen.push({ call: f.call, cls: f.cls, kills: f.kills + u.mk }); S.stats.lost++; lines.push(`<div class="fr dead"><img src="${purl('clone', f.cls, f.paint, kitOf(f))}" alt=""><b>«${esc(f.call)}»</b><span>Погиб в бою</span></div>`); continue; }
     }
     // ранение: чем меньше здоровья осталось, тем дольше лечение
     if (u.hp < u.maxHp) { f.wound = Math.max(f.wound || 0, Math.ceil((u.maxHp - u.hp) / u.maxHp * (R.medbay ? 4 : 7))); note += ` · <i class="hurtT">ранен ${f.wound} дн.</i>`; }
     const r0 = rankOf(f.xp), gain = (win ? 2 : 1) + u.mk; f.xp += gain; f.kills += u.mk; f.ops++;
     const r1 = rankOf(f.xp);
-    lines.push(`<div class="fr${r1 > r0 ? ' promo' : ''}"><img src="${purl('clone', f.cls, f.paint)}" alt=""><b>«${esc(f.call)}»</b><span>+${gain} опыта${u.mk ? ' · уничтожил ' + u.mk : ''}${note}${r1 > r0 ? ` · <em>повышен: ${RANKS[r1][0]}${PERK_RANKS.includes(r1) ? ', новый навык' : ''}</em>` : ''}</span></div>`);
+    lines.push(`<div class="fr${r1 > r0 ? ' promo' : ''}"><img src="${purl('clone', f.cls, f.paint, kitOf(f))}" alt=""><b>«${esc(f.call)}»</b><span>+${gain} опыта${u.mk ? ' · уничтожил ' + u.mk : ''}${note}${r1 > r0 ? ` · <em>повышен: ${RANKS[r1][0]}${PERK_RANKS.includes(r1) ? ', новый навык' : ''}</em>` : ''}</span></div>`);
   }
   // спасённый пленный вступает в отряд, если есть место
   if (win && vip && vip.alive && S.roster.length < ROSTER_MAX) { const nf = recruit('trooper', vip.call); nf.xp = 3; lines.push(`<div class="fr promo"><img src="${purl('clone', 'trooper', CLS_PAINT.trooper)}" alt=""><b>«${esc(vip.call)}»</b><span>Вступил в отряд</span></div>`); }
@@ -760,6 +783,7 @@ $('hubPanel').addEventListener('click', e => {
   if (a === 'sel') { selF = +v; Snd.fx.select(); refreshPanel(); return; }
   if (a === 'up' && f) { const lv = f.up[v], c = UPGRADES[v].cost[lv]; if (c !== undefined && buy(c)) { f.up[v]++; toast(`${UPGRADES[v].name}: ${UPGRADES[v].eff}`); } }
   else if (a === 'paint' && f) { f.paint = v; Snd.fx.click(); }
+  else if (a === 'kit' && f && KITS[v]) { const own = v === 'std' || (f.kits || []).includes(v); if (own || buy(KITS[v].cost)) { if (!own) (f.kits = f.kits || []).push(v); f.kit = v; Snd.fx.click(); toast(`«${f.call}»: ${KITS[v].name}`); } }
   else if (a === 'perk' && f) { const [i, j] = v.split(':').map(Number); if (perkPending(f) === i) { f.perks[i] = j; Snd.fx.roger(); toast(`Навык: ${PERKS[f.cls][i][j].name}`); } }
   else if (a === 'newgame') { confirmBox('Начать новую кампанию?', () => { S = null; store(SAVE_KEY, ''); $('hubScr').classList.remove('show'); begin(); }); return; }
   else if (a === 'dep' && f) { if (f.wound) { toast('Боец ранен и лечится'); return; } toggleDeploy(f.id); Snd.fx.click(); }
