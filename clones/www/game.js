@@ -1245,7 +1245,7 @@ function roundBox(w, h, d, r = 0.03, seg = 3) {
   }
   return g;
 }
-const rbox = (w, h, d, m, r = 0.03) => mesh(roundBox(w, h, d, r), m);
+const rbox = (w, h, d, m, r = 0.03) => mesh(roundBox(w, h, d, r, Math.min(w, h, d) < 0.1 ? 2 : 3), m);
 const caps = (r, len, m, seg = 10) => mesh(new THREE.CapsuleGeometry(r, len, 4, seg), m);
 const HELMET_GEO = (() => {
   const pts = [[0.001, 0.172], [0.05, 0.17], [0.092, 0.158], [0.124, 0.136], [0.145, 0.1], [0.156, 0.05], [0.158, 0], [0.154, -0.05], [0.147, -0.095], [0.138, -0.13], [0.128, -0.155]];
@@ -1866,6 +1866,8 @@ function prepareMeshy(g) {
   const M = { scene: sc, clips, corr: {}, walkSpeed: clipSpeed(sc, clips.walk, 1.3), runSpeed: clipSpeed(sc, clips.run, 3.2) };
   body.skeleton.pose(); sc.updateMatrixWorld(true);
   for (const b of body.skeleton.bones) { const q = new THREE.Quaternion(); b.matrixWorld.decompose(_v1, q, _v2); M.corr[b.name] = q.invert(); }
+  // упрощённая сетка для тактического вида (ячейка 1,5% роста: крупнее — на белой броне видны крапины); вблизи — полная
+  slimGeo(body.geometry); M.geo = body.geometry; M.geoLo = decimateGeo(body.geometry, 2 * 0.015);
   // рост модели для пыли меряем в кадре стойки: анимации Meshy двигают кости в другом масштабе, чем поза привязки
   { const mx = new THREE.AnimationMixer(sc), act = mx.clipAction(clips.idle); act.play(); mx.update(0); sc.updateMatrixWorld(true);
     const p = body.geometry.attributes.position; let lo = 0, hi = 0; for (let i = 1; i < p.count; i++) { if (p.getY(i) < p.getY(lo)) lo = i; if (p.getY(i) > p.getY(hi)) hi = i; }
@@ -1889,15 +1891,16 @@ function weather(m, y0, y1, amt) {
   };
   m.customProgramCacheKey = () => 'weather' + amt;
 }
-function buildMeshy(team, type, paint, M) {
+function buildMeshy(team, type, paint, M, full) {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0);
   const model = THREE.SkeletonUtils.clone(M.scene); body.add(model);
-  model.traverse(o => { if (o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+  let skin = null; model.traverse(o => { if (o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; skin = o; } });
   const bones = {}; model.traverse(o => { if (o.isBone) bones[o.name] = o; });
   const mixer = new THREE.AnimationMixer(model), acts = {};
   for (const [k, c] of Object.entries(M.clips)) acts[k] = mixer.clipAction(c);
   acts.idle.play(); acts.idle.time = Math.random() * acts.idle.getClip().duration;
   const rig = { root, body, model, bones, mixer, acts, cur: 'idle', skinned: true, meshy: true, M, kind: team === 'clone' ? 'clone' : type, att: [], twoHand: true };
+  if (!full && M.geoLo) { rig.lod = { mesh: skin, near: true }; } // переключение сетки по расстоянию — в poseSkinned
   const attach = (obj, bone, x, y, z) => { body.add(obj); rig.att.push({ obj, bone: bones[bone], corr: M.corr[bone], off: new THREE.Vector3(x, y, z) }); obj.traverse(m => { if (m.isMesh) m.castShadow = true; }); return obj; };
   // центр головы — для портретов и камеры
   rig.head = pivot(bones.Head, 0, 0, 0); rig.head.position.copy(bones.head_end.position).multiplyScalar(0.5);
@@ -2091,8 +2094,14 @@ function setAnim(rig, name, fade = 0.25) {
   if (rig.cur === name || !rig.acts[name]) return;
   const a = rig.acts[name], b = rig.acts[rig.cur]; a.reset().setEffectiveWeight(1).play(); if (b) a.crossFadeFrom(b, fade, false); rig.cur = name;
 }
+// сетка бойца по расстоянию до камеры: в тактическом виде упрощённая, на кинокамере и вблизи — полная (с запасом, без мигания)
+const LOD_NEAR = 7.5, LOD_FAR = 8.5;
 function poseSkinned(u, dt) {
   const r = u.rig; u.t += dt;
+  if (r.lod) {
+    const d = camera.position.distanceTo(r.root.position), near = r.lod.near ? d < LOD_FAR : d < LOD_NEAR;
+    if (near !== r.lod.near) { r.lod.near = near; r.lod.mesh.geometry = near ? r.M.geo : r.M.geoLo; }
+  }
   if (u.state === 'dead') return;
   const st = u.state, walk = st === 'walk', run = st === 'run', ow = st === 'idle' && u.overwatch, aim = st === 'aim' || ow;
   if (st === 'idle') u.crouch = cell(u.x + 1, u.z) === HALF || cell(u.x - 1, u.z) === HALF || cell(u.x, u.z + 1) === HALF || cell(u.x, u.z - 1) === HALF;
@@ -2176,10 +2185,23 @@ function syncAtt(r) {
     q.multiply(a.corr); a.obj.quaternion.copy(q); a.obj.position.copy(p).add(_v2.copy(a.off).applyQuaternion(q));
   }
 }
-// прямая стойка: таз поднимается, пока ноги почти не выпрямятся (колено ~10°), ступни стоят где стояли
+// ступни под тазом: в клипах Meshy ноги расставлены «буквой А» и по-разному, колени смотрят в стороны.
+// Ставим стопы симметрично на ширину плеч (чуть шире бёдер), сохраняя высоту и шаг вперёд-назад из клипа
+function narrowFeet(B, F, upW, fwdW, k) {
+  const A = [B.LeftUpLeg, B.RightUpLeg].map(b => bonePos(b, new THREE.Vector3())), mid = A[0].clone().add(A[1]).multiplyScalar(0.5);
+  const half = A[0].distanceTo(A[1]) * 0.62; // половина ширины стойки
+  const side = A[0].clone().sub(A[1]); side.addScaledVector(upW, -side.dot(upW)).normalize();
+  for (let i = 0; i < 2; i++) {
+    const f = F[i], rel = f.clone().sub(mid), along = rel.dot(fwdW), up = rel.dot(upW);
+    const want = mid.clone().addScaledVector(side, i ? -half : half).addScaledVector(fwdW, along * 0.6).addScaledVector(upW, up);
+    f.lerp(want, k);
+  }
+}
+// прямая стойка: таз поднимается, пока ноги почти не выпрямятся (колено ~10°), ступни ставим под таз
 function standIK(r, upW, fwdW, amt) {
   const B = r.bones, legs = [[B.LeftUpLeg, B.LeftLeg, B.LeftFoot], [B.RightUpLeg, B.RightLeg, B.RightFoot]];
   const F = legs.map(l => bonePos(l[2], new THREE.Vector3())); let d = Infinity;
+  narrowFeet(B, F, upW, fwdW, 0.85 * amt);
   for (let i = 0; i < 2; i++) {
     const [a, k] = legs[i], A = bonePos(a, new THREE.Vector3()), Kp = bonePos(k, new THREE.Vector3());
     const L = A.distanceTo(Kp) + Kp.distanceTo(F[i]), v = A.clone().sub(F[i]), vy = v.dot(upW), h2 = v.lengthSq() - vy * vy;
@@ -2188,12 +2210,13 @@ function standIK(r, upW, fwdW, amt) {
   if (!(d > 0.001)) return;
   const hp = bonePos(B.Hips, new THREE.Vector3()).addScaledVector(upW, d * amt);
   B.Hips.position.copy(B.Hips.parent.worldToLocal(hp)); B.Hips.updateMatrixWorld(true);
-  for (let i = 0; i < 2; i++) { const [a, k, f] = legs[i]; twoBoneIK(a, k, f, F[i], F[i].clone().addScaledVector(fwdW, 1).addScaledVector(upW, 0.4)); }
+  for (let i = 0; i < 2; i++) { const [a, k, f] = legs[i]; twoBoneIK(a, k, f, F[i], bonePos(a, new THREE.Vector3()).lerp(F[i], 0.5).addScaledVector(fwdW, 1)); }
 }
 // присед: таз опускается, ступни остаются на месте (две кости ноги тянутся к стопе), корпус наклоняется
 function crouchIK(r, drop, bend, fwdW, upW, rightW) {
   const B = r.bones, body = r.body;
   const fl = bonePos(B.LeftFoot, new THREE.Vector3()), fr = bonePos(B.RightFoot, new THREE.Vector3());
+  if (r.meshy) narrowFeet(B, [fl, fr], upW, fwdW, 0.5); // в приседе стойка шире, но без «буквы А»
   const hp = bonePos(B.Hips, new THREE.Vector3()), np = hp.clone().addScaledVector(upW, -drop * body.getWorldScale(_v1).y).addScaledVector(fwdW, -0.05 * drop);
   B.Hips.position.copy(B.Hips.parent.worldToLocal(np)); B.Hips.updateMatrixWorld(true);
   const knee = (foot) => foot.clone().addScaledVector(fwdW, 1).addScaledVector(upW, 0.3);
@@ -2264,7 +2287,7 @@ const UNIT_SCALE = 0.64;
 const TYPE_SCALE = { b1: 1.065, cmd: 1.065, snp: 1.065, bx: 1.065, b2: 1.14, tx: 0.99 };
 function makeRig(team, type, paint, full) {
   if (type === 'dk') { const rig = buildDroideka(); mergeRig(rig.root); return rig; }
-  const M = CHAR.meshy[MESHY_OF[type]]; if (M) return buildMeshy(team, type, paint, M);
+  const M = CHAR.meshy[MESHY_OF[type]]; if (M) return buildMeshy(team, type, paint, M, full);
   if (CHAR.ready) return buildSkinned(team, type, paint, full);
   const rig = team === 'clone' ? buildClone(type, paint) : buildDroid(type); mergeRig(rig.root); return rig;
 }
@@ -3387,7 +3410,8 @@ function setUnitShadows(on) {
 }
 function applyGfx(l) {
   gfx.level = l; const v = GFX_LEVELS[l], pr = Math.min(window.devicePixelRatio || 1, v.pr);
-  if ((l <= 1) !== unitShadows) setUnitShadows(l <= 1);
+  // тени бойцов рисуются по упрощённой сетке (вдвое легче полной) — их хватает и на «средней» графике
+  if ((l <= 2) !== unitShadows) setUnitShadows(l <= 2);
   if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); resize(); }
   sun.castShadow = v.sh > 0; // смена числа теней сама перекомпилирует шейдеры
   setDetail(l <= 3); if (grassMesh) grassMesh.visible = l <= 3;
