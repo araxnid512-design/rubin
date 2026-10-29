@@ -336,6 +336,13 @@
 		#party { z-index: 25; padding: 10px; }
 		.party { width: min(760px, 100%); }
 		#party-list { display: grid; gap: 8px; }
+		/* классы наёмников: свой цвет значка */
+		.cls { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 8px; color: #10140e; vertical-align: 1px; }
+		.cls-assault { background: #c9a35a; } .cls-sniper { background: #7fb0d6; } .cls-gunner { background: #d6845a; }
+		.cls-hunter { background: #a5b86a; } .cls-medic { background: #e8e8e0; } .cls-sapper { background: #c87a7a; }
+		.cls-head { display: flex; gap: 8px; align-items: baseline; margin: 6px 2px 2px; font-size: 12px; }
+		.pm-face { position: relative; }
+		.pm-cls { position: absolute; left: -4px; bottom: -3px; font-style: normal; font-size: 9px; font-weight: 800; padding: 0 4px; border-radius: 6px; color: #10140e; line-height: 14px; }
 		.merc { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
 		.merc-text { display: grid; gap: 3px; flex: 1; min-width: 0; font-size: 13px; }
 		.merc-text b { font-size: 15px; }

@@ -19,7 +19,7 @@
 	<script type="module">
 		import * as THREE from 'three';
 		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-		import { makeAxe, makePistol, makeAks, makeObrez, makeShotgun, makeVector, makeAk74, makeAk47, makeSvd } from '../game/weapons.js';
+		import { makeAxe, makePistol, makeAks, makeObrez, makeShotgun, makeVector, makeAk74, makeAk47, makeSvd, makeVss, makePkm } from '../game/weapons.js';
 		import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 		const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -39,11 +39,11 @@
 		const grip = model.getObjectByName('GripR');
 		const mounts = { axe: model.getObjectByName('AxeMount'), pistol: model.getObjectByName('HolsterMount'), aks: model.getObjectByName('BackMount') };
 		mounts.fireaxe = mounts.axe; mounts.obrez = mounts.pistol;
-		const long = { shotgun: makeShotgun(), vector: makeVector(), ak74: makeAk74(), ak47: makeAk47(), svd: makeSvd() };
+		const long = { shotgun: makeShotgun(), vector: makeVector(), ak74: makeAk74(), ak47: makeAk47(), svd: makeSvd(), vss: makeVss(), pkm: makePkm() };
 		for (const k of Object.keys(long)) mounts[k] = mounts.aks;
 		const guns = { axe: makeAxe(), fireaxe: makeAxe({ fire: true }), pistol: makePistol(), obrez: makeObrez(), aks: makeAks(), ...long };
 		// эти стволы показываем, только когда их выбрали (?w=svd): они занимают крепления ПМ, топора или автомата
-		const twin = { obrez: 'pistol', fireaxe: 'axe', shotgun: 'aks', vector: 'aks', ak74: 'aks', ak47: 'aks', svd: 'aks' };
+		const twin = { obrez: 'pistol', fireaxe: 'axe', shotgun: 'aks', vector: 'aks', ak74: 'aks', ak47: 'aks', svd: 'aks', vss: 'aks', pkm: 'aks' };
 		// оси хвата для отладки
 		grip.add(new THREE.AxesHelper(0.12));
 		const mixer = new THREE.AnimationMixer(model);

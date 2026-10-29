@@ -6,13 +6,15 @@ import { WEAPONS, AMMO } from './weapons.js';
 
 /** Прилавок: что продаётся, сколько штук за раз и почём (в споранах); sec — раздел на прилавке. */
 export const SHOP = [
-	...['axe', 'fireaxe', 'obrez', 'shotgun', 'vector', 'aks', 'ak74', 'ak47', 'svd'].map((id) => ({ id, n: 1, price: WEAPONS[id].price, sec: 'Оружие' })),
+	...['axe', 'fireaxe', 'obrez', 'shotgun', 'vector', 'aks', 'ak74', 'ak47', 'svd', 'vss', 'pkm'].map((id) => ({ id, n: 1, price: WEAPONS[id].price, sec: 'Оружие' })),
 	{ id: 'ammo9', n: 8, price: 4, sec: 'Патроны' },
 	{ id: 'ammo919', n: 30, price: 10, sec: 'Патроны' },
 	{ id: 'ammo12', n: 6, price: 6, sec: 'Патроны' },
 	{ id: 'ammo545', n: 30, price: 15, sec: 'Патроны' },
 	{ id: 'ammo762', n: 30, price: 18, sec: 'Патроны' },
 	{ id: 'ammo76254', n: 10, price: 16, sec: 'Патроны' },
+	{ id: 'ammo76254', n: 100, price: 140, sec: 'Патроны' }, // пулемётная лента
+	{ id: 'ammo939', n: 20, price: 14, sec: 'Патроны' },
 	{ id: 'zhivchik', n: 1, price: 6, sec: 'Разное' },
 	{ id: 'grenade', n: 1, price: 10, sec: 'Разное' },
 ];

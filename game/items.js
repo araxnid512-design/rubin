@@ -12,7 +12,8 @@ export const ITEMS = {
 	ammo919: { name: 'Патроны 9×19', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны парабеллум — к «Вектору». Продаёт торговец в стабе.' },
 	ammo545: { name: 'Патроны 5,45×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АКС-74У и АК-74. В кластерах редки — проще купить в стабе.' },
 	ammo762: { name: 'Патроны 7,62×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АК-47: тяжёлая пуля, сильная отдача.' },
-	ammo76254: { name: 'Патроны 7,62×54R', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны к СВД. Дорогие — каждый выстрел должен попасть.' },
+	ammo76254: { name: 'Патроны 7,62×54R', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны к СВД и ПКМ. Дорогие — каждый выстрел должен попасть.' },
+	ammo939: { name: 'Патроны 9×39', type: 'ammo', forms: ROUNDS, desc: 'Тяжёлые дозвуковые патроны к ВСС «Винторез» — для тихой стрельбы.' },
 	grenade: { name: 'Граната Ф-1', forms: ['граната', 'гранаты', 'гранат'], use: 'Бросить', desc: 'Оборонительная граната: бросок к ближайшим заражённым, взрыв через 2 секунды, разлёт осколков до 6 м — не стой рядом. Кнопка гранаты или G.' },
 	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], use: 'Выпить', desc: 'Лечебное зелье Улья: восстанавливает 45 здоровья.' },
 	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
@@ -20,7 +21,7 @@ export const ITEMS = {
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo9', 'ammo919', 'ammo12', 'ammo545', 'ammo762', 'ammo76254', 'grenade', 'zhivchik', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo9', 'ammo919', 'ammo12', 'ammo545', 'ammo762', 'ammo76254', 'ammo939', 'grenade', 'zhivchik', 'spore', 'peas'];
 /** Расходники: при гибели пропадают вместе с рюкзаком (оружие остаётся). */
 export const CONSUMABLES = BAG_ORDER;
 
@@ -69,16 +70,17 @@ export function makeItemMesh(kind) {
 		gr.rotation.z = 1.2;
 		gr.position.y = 0.06;
 		g.add(gr);
-	} else if (kind === 'ammo76254') {
-		// картонная пачка и длинные винтовочные патроны с остроконечной пулей
-		const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.12), mat({ color: 0x9a8a62, roughness: 0.9 }));
+	} else if (kind === 'ammo76254' || kind === 'ammo939') {
+		// картонная пачка и патроны: винтовочные — длинные остроконечные, 9×39 — короткие с тяжёлой тупой пулей
+		const long = kind === 'ammo76254';
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.12), mat({ color: long ? 0x9a8a62 : 0x5e6a58, roughness: 0.9 }));
 		box.position.y = 0.03;
-		const brass = mat({ color: 0xb8923e, roughness: 0.3, metalness: 0.9 }), tip = mat({ color: 0x6a5030, roughness: 0.4, metalness: 0.7 });
+		const brass = mat({ color: long ? 0xb8923e : 0x7a7c74, roughness: 0.3, metalness: 0.9 }), tip = mat({ color: long ? 0x6a5030 : 0x2a2c2e, roughness: 0.4, metalness: 0.7 });
 		for (let i = 0; i < 5; i++) {
-			const c = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.008, 0.055, 8), brass);
+			const c = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.008, long ? 0.055 : 0.04, 8), brass);
 			c.rotation.z = Math.PI / 2; c.position.set(0, 0.07, -0.04 + i * 0.02);
-			const b = new THREE.Mesh(new THREE.ConeGeometry(0.0065, 0.03, 8), tip);
-			b.rotation.z = -Math.PI / 2; b.position.set(0.042, 0.07, -0.04 + i * 0.02);
+			const b = new THREE.Mesh(new THREE.ConeGeometry(long ? 0.0065 : 0.0075, long ? 0.03 : 0.024, 8), tip);
+			b.rotation.z = -Math.PI / 2; b.position.set(long ? 0.042 : 0.032, 0.07, -0.04 + i * 0.02);
 			g.add(c, b);
 		}
 		g.add(box);
@@ -143,4 +145,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo9: '255,220,120', ammo919: '200,220,255', ammo12: '255,190,120', ammo545: '230,230,150', ammo762: '220,230,170', ammo76254: '255,230,160', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140' };
+export const GLOW = { ammo9: '255,220,120', ammo919: '200,220,255', ammo12: '255,190,120', ammo545: '230,230,150', ammo762: '220,230,170', ammo76254: '255,230,160', ammo939: '210,230,200', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140' };

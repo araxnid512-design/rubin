@@ -274,23 +274,23 @@ try {
 	// лекарь: отдых двигает время мира
 	const rest = await G(page, () => { const g = window.__game, t = g.world.time; g.player.hp = 30; g.player.maxHp = 100; g.rest(); const r = { dt: g.world.time - t, hp: g.player.hp }; g.player.hp = g.player.maxHp = 1e6; return r; });
 	check(rest.dt >= 100 && rest.hp === 100, `отдых у лекаря: здоровье ${rest.hp}, прошло ${rest.dt} с`);
-	// новое оружие у торговца: МР-133, «Вектор», АК-74, АК-47, СВД, патроны к ним и гранаты
+	// новое оружие у торговца: МР-133, «Вектор», АК-74, АК-47, СВД, ВСС, ПКМ, патроны к ним и гранаты
 	await G(page, () => { const g = window.__game; g.bag.spore = 3000; g.player.pos.set(-11, 0, 0.1); });
 	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Торговать' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
 	await page.keyboard.press('KeyE');
 	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const arsenal = await G(page, () => {
 		const buy = (name) => [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === name)?.click();
-		for (const n of ['МР-133', 'Вектор', 'АК-74', 'АК-47', 'СВД', 'Патроны 12 кал. ×6', 'Патроны 9×19 ×30', 'Патроны 5,45×39 ×30', 'Патроны 7,62×39 ×30', 'Патроны 7,62×54R ×10', 'Граната Ф-1', 'Граната Ф-1', 'Граната Ф-1']) buy(n);
+		for (const n of ['МР-133', 'Вектор', 'АК-74', 'АК-47', 'СВД', 'ВСС «Винторез»', 'ПКМ', 'Патроны 12 кал. ×6', 'Патроны 9×19 ×30', 'Патроны 5,45×39 ×30', 'Патроны 7,62×39 ×30', 'Патроны 7,62×54R ×10', 'Патроны 9×39 ×20', 'Граната Ф-1', 'Граната Ф-1', 'Граната Ф-1']) buy(n);
 		const g = window.__game;
 		return { owned: g.kit.owned, grenades: g.bag.grenade, secs: [...document.querySelectorAll('#trade-list .trade-sec')].map((x) => x.textContent) };
 	});
-	check(['shotgun', 'vector', 'ak74', 'ak47', 'svd'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 3, `у торговца куплены МР-133, Вектор, АК-74, АК-47, СВД и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
+	check(['shotgun', 'vector', 'ak74', 'ak47', 'svd', 'vss', 'pkm'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 3, `у торговца куплены МР-133, Вектор, АК-74, АК-47, СВД, ВСС, ПКМ и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
 	await page.click('#trade-close');
 	const shots = await G(page, () => {
 		const g = window.__game, p = g.player, out = {};
 		p.hold = 'gun';
-		for (const id of ['shotgun', 'vector', 'ak74', 'ak47', 'svd']) {
+		for (const id of ['shotgun', 'vector', 'ak74', 'ak47', 'svd', 'vss', 'pkm']) {
 			g.equipGear(id); p.equipping = false; p.cooldown = 0; p.reloading = 0;
 			const before = p.ammo; p.attack(); out[id] = `${before}→${p.ammo}`;
 		}
@@ -302,6 +302,8 @@ try {
 	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Нанять' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
 	await page.keyboard.press('KeyE');
 	await page.waitForSelector('#party:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const classes = await G(page, () => ({ heads: [...document.querySelectorAll('#party-list .cls-head .cls')].map((x) => x.textContent), n: document.querySelectorAll('[data-act="hire"]').length }));
+	check(['Штурмовик', 'Снайпер', 'Пулемётчик', 'Охотник', 'Медик', 'Подрывник'].every((c) => classes.heads.includes(c)) && classes.n === 8, `у вербовщика ${classes.n} бойцов по классам: ${classes.heads.join(', ')}`);
 	await page.click('[data-act="hire"][data-id="shram"]');
 	await page.click('[data-act="hire"][data-id="ded"]');
 	const hired = await G(page, () => ({ roster: window.__game.roster.map((m) => `${m.id}:${m.out ? 'с тобой' : 'в комнате'}`), actors: window.__game.mercs.length, bar: document.querySelectorAll('#party-bar .pm').length, home: document.querySelectorAll('[data-act="take"]').length }));
@@ -413,6 +415,31 @@ try {
 	const diag = hurt >= 2 ? '' : ` [${JSON.stringify(await G(page, () => ({ ...window.__diag, now: { paused: window.__game.paused, state: window.__game.state, pend: window.__game.player.pending.length, hp: window.__targets.map((e) => Math.round(e.hp)), pos: window.__targets.map((e) => e.pos.x.toFixed(1)), p: window.__game.player.pos.x.toFixed(1) } })))}]`;
 	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов${diag}`);
 
+	// классы в деле: Шрам и Дед остаются в комнате, с героем — медик и подрывник
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		for (const st of g.roster) st.out = false;
+		g.roster.push({ id: 'dok', hp: 100, mag: 30, ammo: 30, out: true, bed: 2, meds: 2 }, { id: 'saper', hp: 120, mag: 30, ammo: 30, out: true, bed: 3, nades: 2 });
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		p.pos.set(-26, 0, 4);
+		g.spawnMercs();
+		p.maxHp = 100; p.hp = 30; // ранен
+	});
+	await page.waitForFunction(() => window.__game.player.hp >= 80, null, { timeout: 30000 }).catch(() => {});
+	const medic = await G(page, () => { const g = window.__game, r = { hp: Math.round(g.player.hp), meds: g.merc('dok').meds, mercs: g.mercs.map((m) => m.state.id).join() }; g.player.hp = g.player.maxHp = 1e6; return r; });
+	check(medic.hp >= 80 && medic.meds === 1 && medic.mercs === 'dok,saper', `медик Док перевязал раненого героя: здоровье ${medic.hp}, в аптечке ${medic.meds}`);
+	// подрывник: куча из четырёх бегунов в 11 м — Ф-1 туда (стрелять нечем: проверяем только гранату)
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		for (const st of g.party) st.mag = st.ammo = 0;
+		window.__grp = [0, 1, 2, 3].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x + 11, 0, p.pos.z - 1 + i * 0.6)));
+		window.__grp.forEach((e) => { e.stagger = 8; });
+	});
+	await page.waitForFunction(() => window.__game.merc('saper').nades < 2 && window.__grp.filter((e) => !e.alive).length >= 3, null, { timeout: 30000 }).catch(() => {});
+	const sap = await G(page, () => ({ nades: window.__game.merc('saper').nades, dead: window.__grp.filter((e) => !e.alive).length, hp: window.__game.party.map((m) => m.hp) }));
+	check(sap.nades === 1 && sap.dead >= 3 && sap.hp.every((h) => h === 100 || h === 120), `подрывник Сапёр кинул Ф-1 в кучу: убито ${sap.dead} из 4, гранат осталось ${sap.nades}, свои целы`);
+	await page.screenshot({ path: join(OUT, 'game-classes.png') });
+
 	// возвращение в кластер до перезагрузки: всё как было
 	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 2000; });
 	await G(page, () => window.__game.travel('zarechny'));
@@ -436,7 +463,8 @@ try {
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
 	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved }; });
 	check(re.spore === 0 && re.ammo === 0 && re.owned.includes('aks') && re.hp === 100 && re.fresh, `очнулся в стабе: рюкзак пуст, оружие при себе (${re.owned}), Дачи перезагрузились`);
-	check(await G(page, () => window.__game.party.length === 0 && window.__game.mercs.length === 0), 'наёмники пропали вместе с перезагрузившимся кластером');
+	const afterReload = await G(page, () => ({ party: window.__game.party.length, home: window.__game.roster.map((m) => m.id).join() }));
+	check(afterReload.party === 0 && afterReload.home === 'shram,ded', `Док и Сапёр пропали вместе с кластером, в комнате ждут: ${afterReload.home}`);
 	const storage = await G(page, () => ({ ...localStorage }));
 	await page.close();
 

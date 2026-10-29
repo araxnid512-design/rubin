@@ -181,6 +181,55 @@ export function makeSvd() {
 	return shadow(g);
 }
 
+/** ПКМ: пулемёт под 7,62×54R — длинный ствол с ручкой, приклад-рамка, короб с лентой сбоку, сошки. */
+export function makePkm() {
+	const g = new THREE.Group();
+	g.name = 'PKM';
+	const metal = M(0x2a2c2e, 0.4, 0.75), dark = M(0x1e2022, 0.5, 0.6), olive = M(0x4a5236, 0.6, 0.3), stock = M(0x3a3634, 0.6, 0.2);
+	part(g, new THREE.BoxGeometry(0.032, 0.035, 0.1), stock, 0, 0.012, 0.005, -0.3); // рукоять
+	part(g, new THREE.BoxGeometry(0.056, 0.34, 0.075), metal, 0, -0.07, 0.085); // ствольная коробка
+	part(g, new THREE.BoxGeometry(0.05, 0.3, 0.02), dark, 0, -0.07, 0.13); // крышка
+	// приклад-рамка
+	part(g, new THREE.BoxGeometry(0.036, 0.3, 0.025), stock, 0, 0.22, 0.1);
+	part(g, new THREE.BoxGeometry(0.03, 0.27, 0.02), stock, 0, 0.2, 0.0, 0.2);
+	part(g, new THREE.BoxGeometry(0.04, 0.03, 0.13), stock, 0, 0.37, 0.05);
+	part(g, barrelY(0.014, 0.56), metal, 0, -0.52, 0.092); // ствол
+	part(g, barrelY(0.019, 0.08), metal, 0, -0.83, 0.092); // пламегаситель
+	part(g, barrelY(0.01, 0.42), dark, 0, -0.42, 0.06); // газовый цилиндр
+	part(g, new THREE.BoxGeometry(0.012, 0.03, 0.09), metal, 0, -0.34, 0.15); // ручка для переноски
+	part(g, new THREE.BoxGeometry(0.012, 0.09, 0.012), metal, 0, -0.34, 0.195);
+	// сошки, сложенные вдоль ствола
+	for (const x of [-0.016, 0.016]) part(g, new THREE.BoxGeometry(0.008, 0.3, 0.008), dark, x, -0.6, 0.065);
+	// короб с лентой — слева снизу, лента тянется в приёмник
+	part(g, new THREE.BoxGeometry(0.1, 0.11, 0.09), olive, -0.06, -0.12, 0.02);
+	part(g, new THREE.BoxGeometry(0.04, 0.02, 0.035), M(0xb8923e, 0.35, 0.85), -0.03, -0.1, 0.075);
+	g.userData.muzzle = new THREE.Vector3(0, -0.87, 0.092);
+	return shadow(g);
+}
+
+/** ВСС «Винторез»: бесшумная снайперская винтовка — толстый интегрированный глушитель, приклад-скелет, прицел. */
+export function makeVss() {
+	const g = new THREE.Group();
+	g.name = 'VSS';
+	const metal = M(0x2a2c2e, 0.4, 0.75), dark = M(0x1c1d1f, 0.5, 0.5), wood = M(0x6e3e22, 0.55), glass = M(0x203040, 0.1, 0.6);
+	part(g, new THREE.BoxGeometry(0.03, 0.035, 0.1), wood, 0, 0.015, 0.008, -0.3); // рукоять приклада
+	part(g, new THREE.BoxGeometry(0.046, 0.24, 0.066), metal, 0, -0.05, 0.08); // ствольная коробка
+	// приклад-скелет
+	part(g, new THREE.BoxGeometry(0.036, 0.26, 0.026), wood, 0, 0.2, 0.095);
+	part(g, new THREE.BoxGeometry(0.032, 0.22, 0.02), wood, 0, 0.18, 0.005, 0.2);
+	part(g, new THREE.BoxGeometry(0.04, 0.03, 0.12), wood, 0, 0.32, 0.05);
+	part(g, new THREE.BoxGeometry(0.05, 0.12, 0.048), wood, 0, -0.22, 0.075); // цевьё
+	part(g, barrelY(0.026, 0.36), dark, 0, -0.44, 0.088); // глушитель
+	part(g, barrelY(0.028, 0.02), metal, 0, -0.62, 0.088);
+	part(g, barrelY(0.016, 0.18), metal, 0, -0.06, 0.155); // прицел
+	part(g, barrelY(0.02, 0.028), metal, 0, -0.165, 0.155);
+	part(g, barrelY(0.019, 0.004), glass, 0, -0.18, 0.155);
+	part(g, new THREE.BoxGeometry(0.018, 0.07, 0.03), metal, 0, -0.05, 0.123); // кронштейн
+	part(g, new THREE.BoxGeometry(0.026, 0.05, 0.1), metal, 0, -0.09, -0.03, 0.1); // магазин на 20
+	g.userData.muzzle = new THREE.Vector3(0, -0.64, 0.088);
+	return shadow(g);
+}
+
 /** Граната Ф-1 «лимонка»: ребристый корпус, запал с рычагом и кольцом. Начало координат — центр. */
 export function makeGrenade() {
 	const g = new THREE.Group();
@@ -214,7 +263,7 @@ export const EQUIP = {
 	rifle: { draw: 'EquipRifle', stow: 'EquipAxeR' },
 };
 
-export const AMMO = { ammo9: '9×18', ammo919: '9×19', ammo12: '12 кал.', ammo545: '5,45×39', ammo762: '7,62×39', ammo76254: '7,62×54R' };
+export const AMMO = { ammo9: '9×18', ammo919: '9×19', ammo12: '12 кал.', ammo545: '5,45×39', ammo762: '7,62×39', ammo76254: '7,62×54R', ammo939: '9×39' };
 
 /**
  * Оружие. slot — ближний бой (melee) или огнестрел (gun); anim — набор анимаций героя (axe, pistol, rifle);
@@ -240,6 +289,8 @@ export const WEAPONS = {
 	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 26, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, kick: 0.09, spread: 0.05, casing: 'brass', price: 80, make: makeAks, desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
 	ak74: { name: 'АК-74', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 30, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.3, noise: 36, kick: 0.09, spread: 0.035, casing: 'brass', price: 110, make: makeAk74, desc: 'Полноразмерный автомат 5,45×39: точнее и дальше, чем укороченный.' },
 	ak47: { name: 'АК-47', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 42, range: 30, cooldown: 0.11, auto: 0.11, mag: 30, reload: 2.4, noise: 38, kick: 0.13, spread: 0.05, casing: 'brass', price: 120, make: makeAk47, desc: 'Калашников под 7,62×39: пуля тяжелее — бегун падает с одного-двух попаданий, но сильно уводит в очереди.' },
+	vss: { name: 'ВСС «Винторез»', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo939', damage: 75, range: 34, falloff: 0.12, cooldown: 0.4, auto: 0.45, mag: 20, reload: 2.4, noise: 7, kick: 0.06, spread: 0.01, casing: 'brass', price: 180, make: makeVss, desc: 'Бесшумная снайперская винтовка под 9×39: выстрел почти не слышен — соседние заражённые не сбегаются. Бьёт точно, но слабее СВД.' },
+	pkm: { name: 'ПКМ', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 40, range: 32, cooldown: 0.09, auto: 0.09, mag: 100, reload: 5.5, noise: 48, kick: 0.12, spread: 0.07, casing: 'brass', price: 230, make: makePkm, desc: 'Пулемёт Калашникова, лента на 100 патронов 7,62×54R: держит толпу длинными очередями. Перезарядка долгая, грохот — на весь кластер.' },
 	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 42, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, spread: 0, casing: 'brass', price: 160, make: makeSvd, desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
 };
 

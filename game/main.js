@@ -18,7 +18,7 @@ import { createIconFactory } from './icons.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
-import { MERCS, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
+import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE } from './trade.js';
 import { WorldMap } from './worldmap.js';
@@ -865,21 +865,26 @@ class Npc extends Actor {
 }
 
 /**
- * Наёмник: идёт за героем (сзади слева или справа), сам выбирает ближайшего заражённого в зоне огня
- * и стреляет из своего постоянного оружия очередями; перезаряжается из своего запаса патронов.
- * Сам не лечится — нужен живчик от героя. Управлять им нельзя: в отряде он ходит за героем, а оставленный
- * в стабе — стоит у своей койки в комнате героя. state ({ id, hp, mag, ammo, out }) — в game.roster, в сохранении.
+ * Наёмник: идёт за героем (сзади слева или справа), сам выбирает цель и стреляет из своего постоянного оружия;
+ * перезаряжается из своего запаса патронов. Сам не лечится — нужен живчик от героя (или медик отряда).
+ * Управлять им нельзя: в отряде он ходит за героем, а оставленный в стабе — стоит у своей койки в комнате героя.
+ * Поведение — по классу (CLASSES в mercs.js): снайпер идёт поодаль, бьёт топтунов и дальних и отходит от тех,
+ * кто подобрался вплотную; пулемётчик стреляет стоя длинными очередями; охотник ждёт, пока подойдут; медик лечит
+ * раненых из своей аптечки; подрывник кидает гранаты в кучу, если свои не рядом с целью.
+ * state ({ id, hp, mag, ammo, out, bed, meds?, nades? }) — в game.roster, в сохранении.
  */
 class Merc extends Actor {
 	constructor(state) {
 		super(assets.player);
 		this.state = state;
 		this.def = MERCS[state.id];
+		this.C = CLASSES[this.def.cls];
 		this.W = WEAPONS[this.def.weapon];
 		this.clips = CLIPS[this.W.anim];
 		this.slot = 0;
-		// своя койка в комнате героя (в стабе): у каждого бойца — своя
-		this.home = level.room?.spots[Object.keys(MERCS).indexOf(state.id)] ?? null;
+		this.planted = 0;
+		// своя койка в комнате героя (в стабе)
+		this.home = level.room?.spots[state.bed ?? 0] ?? null;
 		this.radius = 0.38;
 		this.scale = 1;
 		this.alive = true;
@@ -893,10 +898,10 @@ class Merc extends Actor {
 
 	get hp() { return this.state.hp; }
 
-	/** Точка в строю: сзади-слева или сзади-справа от героя. */
+	/** Точка в строю: сзади-слева или сзади-справа от героя; снайпер — дальше, медик — ближе (по классу). */
 	spot() {
-		const p = game.player, a = p.root.rotation.y + Math.PI + (this.slot ? 0.65 : -0.65);
-		return tmpV2.set(p.pos.x + Math.sin(a) * 2.3, 0, p.pos.z + Math.cos(a) * 2.3);
+		const p = game.player, a = p.root.rotation.y + Math.PI + (this.slot ? 0.65 : -0.65), k = this.C.keep;
+		return tmpV2.set(p.pos.x + Math.sin(a) * k, 0, p.pos.z + Math.cos(a) * k);
 	}
 
 	/** Поставить рядом с героем (приход в локацию, отстал). */
@@ -933,53 +938,187 @@ class Merc extends Actor {
 			if (this.reloading <= 0) { const take = Math.min(W.mag - st.mag, st.ammo); st.mag += take; st.ammo -= take; game.hudThrottled(); }
 		}
 		if (!st.out) return this.stayHome(dt, near);
+		if (this.throwing) return this.throwStep(dt);
 		if (!p.alive) { this.play(c.idle); return true; }
-		const dP = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
+		const C = this.C, dP = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
 		// отстал или застрял где-то вне кадра — догоняет (появляется рядом с героем)
 		if (dP > 26 && !near) { this.place(); return true; }
-		// цель: ближайший заражённый в зоне огня, которого видно
+		// медик: раненый рядом важнее стрельбы; подрывник: граната в кучу заражённых
+		if (C.heals && this.medic(dt)) return true;
+		if (C.grenades && this.sapper(dt)) return true;
 		this.retarget -= dt;
 		if (this.retarget <= 0 || (this.target && !this.target.alive)) {
 			this.retarget = 0.35;
-			this.target = game.nearestEnemy(this.pos, Math.min(W.range, 24), true);
+			this.target = this.pickTarget(Math.min(W.range, C.reach));
 		}
 		const t = this.target;
-		const follow = dP > (t ? 12 : 3.4);
+		// снайпер вблизи беззащитен: от заражённого, подобравшегося вплотную, отходит (к герою, а не от него)
+		const close = C.kite && this.reloading <= 0 ? game.nearestEnemy(this.pos, C.kite) : null;
+		const follow = dP > (t ? 12 + C.keep - 2.3 : C.keep + 1.1);
 		let shooting = false;
-		if (t && !follow) {
+		if (t && !follow && !close) {
 			shooting = true;
 			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, t.pos), dt * 8);
 			const facing = Math.abs(((angleTo(this.pos, t.pos) - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
+			// пулемётчик сначала встаёт и упирает приклад
+			const ready = !C.plant || this.planted > 0.45;
 			if (st.mag <= 0) {
 				if (st.ammo > 0 && this.reloading <= 0) this.startReload();
 				else if (st.ammo <= 0 && !this.warned) { this.warned = true; game.toast(`${this.def.name}: патроны кончились!`, 'warn'); }
-			} else if (this.cooldown <= 0 && this.reloading <= 0 && facing) this.fire(t);
+			} else if (this.cooldown <= 0 && this.reloading <= 0 && facing && ready) this.fire(t);
 		}
 		// строй: держится сзади героя; во время стрельбы стоит
 		const s = this.spot();
 		const dS = Math.hypot(s.x - this.pos.x, s.z - this.pos.z);
-		if ((!shooting && dS > 0.9) || follow) {
-			let dir = lineOfSight(this.pos, s) ? tmpV.set(s.x - this.pos.x, 0, s.z - this.pos.z).normalize() : game.flowDir(this.pos);
+		if (close || (!shooting && dS > 0.9) || follow) {
+			let dir;
+			if (close) {
+				// отход: прочь от заражённого, с уклоном к герою
+				dir = tmpV.set(this.pos.x - close.pos.x, 0, this.pos.z - close.pos.z).normalize();
+				dir.x += (p.pos.x - this.pos.x) / (dP || 1) * 0.6; dir.z += (p.pos.z - this.pos.z) / (dP || 1) * 0.6;
+				dir.normalize();
+			} else dir = lineOfSight(this.pos, s) ? tmpV.set(s.x - this.pos.x, 0, s.z - this.pos.z).normalize() : game.flowDir(this.pos);
 			dir ??= tmpV.set(p.pos.x - this.pos.x, 0, p.pos.z - this.pos.z).normalize();
-			const run = dP > 6 || dS > 4;
-			const speed = run ? 4.6 : Math.min(1.7, 0.6 + dS);
-			// не наступает на героя и соседей
-			for (const o of [p, ...game.mercs]) {
-				if (o === this || !o.alive) continue;
-				const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, d = Math.hypot(dx, dz);
-				if (d < 0.8 && d > 1e-4) { dir.x += (dx / d) * (0.8 - d) * 3; dir.z += (dz / d) * (0.8 - d) * 3; }
+			const run = close || dP > 6 || dS > 4;
+			const speed = (run ? 4.6 : Math.min(1.7, 0.6 + dS)) * (C.plant ? 0.88 : 1); // с пулемётом — тяжелее
+			this.walk(dir, speed, run, !shooting || close, dt);
+			this.planted = 0;
+		} else {
+			this.planted += dt;
+			if (this.reloading > 0) {
+				if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / W.reload });
+			} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
+				this.play(shooting ? c.aim : c.idle, { fade: 0.2 });
 			}
-			dir.normalize();
-			this.pos.addScaledVector(dir, speed * dt);
-			if (!shooting) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
-			const clip = run ? c.run : c.walk;
-			if (this.reloading <= 0 || run) this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
-		} else if (this.reloading > 0) {
-			if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / W.reload });
-		} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
-			this.play(shooting ? c.aim : c.idle, { fade: 0.2 });
 		}
 		resolveCollisions(this.pos, this.radius, level.colliders);
+		return true;
+	}
+
+	/** Шаг в сторону dir: не наступает на героя и соседей; turn — разворачиваться по ходу. */
+	walk(dir, speed, run, turn, dt) {
+		const c = this.clips;
+		for (const o of [game.player, ...game.mercs]) {
+			if (o === this || !o.alive) continue;
+			const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, d = Math.hypot(dx, dz);
+			if (d < 0.8 && d > 1e-4) { dir.x += (dx / d) * (0.8 - d) * 3; dir.z += (dz / d) * (0.8 - d) * 3; }
+		}
+		dir.normalize();
+		this.pos.addScaledVector(dir, speed * dt);
+		if (turn) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
+		const clip = run ? c.run : c.walk;
+		if (this.reloading <= 0 || run) this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+	}
+
+	/**
+	 * Цель по классу: обычно — ближайший видимый заражённый. Снайпер сначала снимает тех, кто вцепился
+	 * в героя, потом топтунов, потом самых дальних.
+	 */
+	pickTarget(reach) {
+		if (this.C.prefer !== 'far') return game.nearestEnemy(this.pos, reach, true);
+		const p = game.player;
+		let best = null, score = -Infinity;
+		for (const e of game.enemies) {
+			if (!e.alive) continue;
+			const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+			if (d > reach || !lineOfSight(this.pos, e.pos)) continue;
+			const onHero = Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < 3;
+			const sc = (onHero ? 1000 : 0) + (e.type === 'stomper' ? 100 : 0) + d;
+			if (sc > score) { score = sc; best = e; }
+		}
+		return best;
+	}
+
+	/** Медик: раненый (герой или боец отряда меньше чем на половине) — подбегает и лечит живчиком из аптечки. */
+	medic(dt) {
+		const st = this.state, c = this.clips;
+		if (this.treating) {
+			const tr = this.treating;
+			tr.t -= dt;
+			if (tr.who !== this) this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, tr.who.pos), dt * 8);
+			if (tr.t <= 0) {
+				this.treating = null;
+				this.healT = 2.5;
+				if (tr.who.alive && st.meds > 0) {
+					st.meds--;
+					const name = tr.who === game.player ? 'тебя' : tr.who === this ? 'себя' : tr.who.def.name;
+					if (tr.who === game.player) tr.who.hp = Math.min(tr.who.maxHp, tr.who.hp + MERC_HEAL);
+					else tr.who.state.hp = Math.min(tr.who.def.hp, tr.who.state.hp + MERC_HEAL);
+					Sfx.drink();
+					game.toast(`${this.def.name} перевязал ${name}: +${MERC_HEAL}${st.meds ? '' : ' · аптечка пуста'}`);
+					game.hud();
+				}
+			}
+			return true;
+		}
+		this.healT = (this.healT ?? 0) - dt;
+		if (this.healT > 0 || !(st.meds > 0) || this.reloading > 0) return false;
+		const p = game.player;
+		let who = p.alive && p.hp < p.maxHp * 0.5 ? p : null;
+		for (const m of game.mercs) if (!who && m !== this && m.alive && m.state.out && m.state.hp < m.def.hp * 0.5) who = m;
+		if (!who && st.hp < this.def.hp * 0.5) { who = this; } // и себя, если некого больше
+		if (!who) return false;
+		const d = who === this ? 0 : Math.hypot(who.pos.x - this.pos.x, who.pos.z - this.pos.z);
+		if (d > 1.3) {
+			const dir = lineOfSight(this.pos, who.pos) ? tmpV.set(who.pos.x - this.pos.x, 0, who.pos.z - this.pos.z).normalize() : game.flowDir(this.pos);
+			if (!dir) return false;
+			this.walk(dir, 4.6, true, true, dt);
+			resolveCollisions(this.pos, this.radius, level.colliders);
+			return true;
+		}
+		// рядом: перевязка (достаёт живчик и колет — та же анимация рук, что при перезарядке)
+		this.treating = { who, t: 0.9 };
+		this.play(c.reload, { once: true, fade: 0.1, restart: true, timeScale: this.actions[c.reload].getClip().duration / 0.9 });
+		return true;
+	}
+
+	/**
+	 * Подрывник: раз в секунду ищет, куда бросить Ф-1 — топтун или кучка из трёх и больше заражённых в 6–16 м,
+	 * и чтобы ни героя, ни бойцов отряда не было ближе 7 м к цели. Граната выдержана в руке: рвётся почти сразу.
+	 */
+	sapper(dt) {
+		const st = this.state;
+		this.nadeT = (this.nadeT ?? 1.5) - dt;
+		if (this.nadeT > 0 || !(st.nades > 0) || this.reloading > 0) return false;
+		this.nadeT = 1;
+		const friends = [game.player, ...game.mercs.filter((m) => m.state.out)].filter((a) => a.alive);
+		let best = null, score = 2;
+		for (const e of game.enemies) {
+			if (!e.alive) continue;
+			const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+			if (d < 6 || d > 16 || !lineOfSight(this.pos, e.pos)) continue;
+			let n = 0;
+			for (const o of game.enemies) if (o.alive && Math.hypot(o.pos.x - e.pos.x, o.pos.z - e.pos.z) < 3) n++;
+			const sc = n + (e.type === 'stomper' ? 2 : 0);
+			if (sc <= score || friends.some((a) => Math.hypot(a.pos.x - e.pos.x, a.pos.z - e.pos.z) < 7)) continue;
+			score = sc; best = e;
+		}
+		if (!best) return false;
+		st.nades--;
+		this.nadeT = 6;
+		this.throwing = { t: 0.55, to: best.pos.clone(), thrown: false, nade: makeGrenade() };
+		this.root.rotation.y = angleTo(this.pos, best.pos);
+		this.gunObj.visible = false;
+		this.model.getObjectByName('GripR')?.add(this.throwing.nade);
+		this.play('Melee', { once: true, fade: 0.06, restart: true, timeScale: 1.25 });
+		Sfx.swing();
+		game.toast(`${this.def.name}: граната!`);
+		game.hudThrottled();
+		return true;
+	}
+
+	/** Бросок идёт: на взмахе граната улетает, потом в руки снова оружие. */
+	throwStep(dt) {
+		const th = this.throwing;
+		th.t -= dt;
+		if (!th.thrown && th.t <= 0.28) {
+			th.thrown = true;
+			const from = th.nade.getWorldPosition(new THREE.Vector3());
+			th.nade.removeFromParent();
+			const d = Math.hypot(th.to.x - from.x, th.to.z - from.z);
+			game.launchGrenade(from, th.to, 0.5 + d / 22 + 0.3);
+		}
+		if (th.t <= 0) { this.throwing = null; this.gunObj.visible = true; }
 		return true;
 	}
 
@@ -1028,8 +1167,10 @@ class Merc extends Actor {
 		Sfx.shot(W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
 		game.noise(this.pos, W.noise);
 		if (W.auto < 0.2) {
-			this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : 3 + Math.floor(Math.random() * 3);
-			this.cooldown = this.burstLeft > 0 ? W.auto : 0.45 + Math.random() * 0.4;
+			// очередь по классу: штурмовик — 3–5, пулемётчик — 9–15; потом пауза
+			const [b0, b1] = this.C.burst ?? [3, 5];
+			this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : b0 - 1 + Math.floor(Math.random() * (b1 - b0 + 1));
+			this.cooldown = this.burstLeft > 0 ? W.auto : (this.C.plant ? 0.6 : 0.45) + Math.random() * 0.4;
 		} else this.cooldown = W.auto + Math.random() * 0.15;
 		fireShot(this, W, this.gunObj, target);
 		game.hudThrottled();
@@ -1076,7 +1217,8 @@ const game = {
 		this.bag = { ...START_BAG, ...s.bag };
 		this.kit = normalizeKit(s.kit);
 		// старые сохранения: был только отряд — все в нём идут с героем
-		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0);
+		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0).slice(0, ROOM_BEDS);
+		this.roster.forEach((m, i) => { if (!(m.bed >= 0) || this.roster.some((o, j) => j < i && o.bed === m.bed)) m.bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((o, j) => j !== i && o.bed === b)); });
 		this.kills = 0;
 		this.begin();
 		this.enter(s.world.at, s.from ?? null);
@@ -1581,13 +1723,14 @@ const game = {
 		if (this.roster.length >= ROOM_BEDS || this.merc(id)) return;
 		if ((this.bag.spore ?? 0) < D.price) { this.toast('Не хватает споранов', 'warn'); return; }
 		this.bag.spore -= D.price;
-		const st = newMerc(id);
+		const bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((m) => m.bed === b));
+		const st = newMerc(id, bed);
 		this.roster.push(st);
 		const m = new Merc(st);
 		m.place();
 		this.mercs.push(m);
 		Sfx.coins();
-		this.toast(`${D.name} нанят — ждёт в твоей комнате (жилой блок у казармы)`);
+		this.toast(`${D.name} (${CLASSES[D.cls].name.toLowerCase()}) нанят — ждёт в твоей комнате (жилой блок у казармы)`);
 		this.renderPartyBar();
 		this.hud();
 		this.save();
@@ -1641,6 +1784,28 @@ const game = {
 		this.hud();
 	},
 
+	/** Живчик в аптечку медика — он сам лечит им раненых. */
+	giveMeds(id) {
+		const st = this.merc(id);
+		if (!st || !(this.bag.zhivchik > 0)) return;
+		this.bag.zhivchik--;
+		st.meds = (st.meds ?? 0) + 1;
+		Sfx.drink();
+		this.toast(`${MERCS[id].name}: в аптечке ${st.meds} ${plural(st.meds, ITEMS.zhivchik.forms)}`);
+		this.hud();
+	},
+
+	/** Гранату подрывнику. */
+	giveNade(id) {
+		const st = this.merc(id);
+		if (!st || !(this.bag.grenade > 0)) return;
+		this.bag.grenade--;
+		st.nades = (st.nades ?? 0) + 1;
+		Sfx.reload();
+		this.toast(`${MERCS[id].name}: гранат ${st.nades}`);
+		this.hud();
+	},
+
 	/** Отпустить наёмника совсем (у вербовщика): освобождает койку. */
 	dismiss(id) {
 		const st = this.merc(id);
@@ -1667,7 +1832,7 @@ const game = {
 	/** Полоса отряда под здоровьем: портрет, здоровье кольцом, патроны. */
 	renderPartyBar() {
 		const el = $('party-bar');
-		el.innerHTML = this.party.map((st, i) => `<button class="pm" data-i="${i}"><span class="pm-face" style="--hp:100%"><img src="${this.icons[`merc_${st.id}`] ?? ''}" alt=""></span><span class="pm-ammo"></span></button>`).join('');
+		el.innerHTML = this.party.map((st, i) => `<button class="pm" data-i="${i}"><span class="pm-face" style="--hp:100%"><img src="${this.icons[`merc_${st.id}`] ?? ''}" alt=""><i class="pm-cls cls-${MERCS[st.id].cls}">${CLASSES[MERCS[st.id].cls].short}</i></span><span class="pm-ammo"></span></button>`).join('');
 		el.classList.toggle('hidden', !this.party.length);
 		this.hudParty();
 	},
@@ -1679,7 +1844,8 @@ const game = {
 			if (!b) return;
 			const D = MERCS[st.id];
 			b.querySelector('.pm-face').style.setProperty('--hp', `${Math.max(0, (st.hp / D.hp) * 100).toFixed(0)}%`);
-			b.querySelector('.pm-ammo').textContent = `${st.mag}+${st.ammo}`;
+			// у медика — живчики в аптечке, у подрывника — гранаты
+			b.querySelector('.pm-ammo').textContent = `${st.mag}+${st.ammo}${st.meds != null ? ` ✚${st.meds}` : ''}${st.nades != null ? ` ✱${st.nades}` : ''}`;
 			b.classList.toggle('low', st.hp < D.hp * 0.3 || st.mag + st.ammo === 0);
 		});
 	},
@@ -1711,14 +1877,15 @@ const game = {
 		this.hud();
 	},
 
-	launchGrenade(from, to) {
+	/** Полёт гранаты дугой; fuse — через сколько после броска взрыв (у героя — 2 с, у подрывника — выдержана). */
+	launchGrenade(from, to, fuse = 2.0) {
 		const g = makeGrenade();
 		g.scale.setScalar(1.4);
 		g.position.copy(from);
 		scene.add(g);
 		const d = Math.hypot(to.x - from.x, to.z - from.z), T = 0.5 + d / 22;
 		const start = from.clone(), end = to.clone().setY(0.06);
-		let t = 0, fuse = 2.0;
+		let t = 0;
 		const spin = new THREE.Vector3(Math.random() * 10, Math.random() * 10, Math.random() * 10);
 		this.fx.push({ life: 3, update: (dt) => {
 			t += dt; fuse -= dt;
