@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стикс: Дорога стабов — скачать игру для Android</title>
+<meta name="description" content="2D-гонка на выживание по мотивам мира «Стикс»: прорвитесь на машине от стаба к стабу через кластеры Улья. Скачать APK для Android или играть в браузере.">
+<meta property="og:title" content="Стикс: Дорога стабов">
+<meta property="og:description" content="Гонка на выживание по мотивам мира «Стикс». Скачайте APK для Android или играйте в браузере.">
+<meta property="og:image" content="img/level4.jpg">
+<meta name="theme-color" content="#12100d">
+<style>
+  :root {
+    --bg: #12100d;
+    --panel: #1c1915;
+    --panel-2: #24201a;
+    --line: #3a342a;
+    --text: #ece3cf;
+    --muted: #a59c86;
+    --amber: #d8a841;
+    --amber-hi: #f0c25a;
+    --spore: #8fd06a;
+    --blood: #b8402f;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--amber-hi); }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+  /* Шапка */
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(18, 16, 13, 0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line);
+  }
+  header.top .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+  .brand { font-weight: 800; letter-spacing: 0.04em; color: var(--text); text-decoration: none; white-space: nowrap; }
+  .brand b { color: var(--amber); }
+  nav.links { display: flex; gap: 18px; margin-left: auto; overflow-x: auto; }
+  nav.links a { color: var(--muted); text-decoration: none; font-size: 15px; white-space: nowrap; }
+  nav.links a:hover { color: var(--text); }
+
+  /* Первый экран */
+  .hero { padding: 40px 0 28px; }
+  .hero .wrap { display: grid; grid-template-columns: 1fr 1.25fr; gap: 36px; align-items: center; }
+  .kicker { color: var(--spore); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: clamp(34px, 5vw, 56px); line-height: 1.05; margin: 8px 0 14px; letter-spacing: -0.01em; }
+  h1 span { color: var(--amber); }
+  .lead { color: var(--muted); font-size: 18px; margin: 0 0 24px; max-width: 34em; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 22px; border-radius: 12px;
+    font-weight: 700; font-size: 17px; text-decoration: none;
+    border: 1px solid var(--line); color: var(--text); background: var(--panel-2);
+    transition: transform 0.08s, background 0.15s;
+  }
+  .btn:hover { background: #2e2920; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: #1a1408; }
+  .btn.primary:hover { background: var(--amber-hi); }
+  .btn svg { width: 22px; height: 22px; flex: none; }
+  .meta { color: var(--muted); font-size: 14px; margin-top: 12px; }
+  .meta b { color: var(--text); font-weight: 600; }
+  .shot {
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--line);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+  .shot img { width: 100%; height: auto; aspect-ratio: 1600 / 740; object-fit: cover; }
+
+  /* Секции */
+  section { padding: 44px 0; border-top: 1px solid var(--line); }
+  section, .hero { scroll-margin-top: 56px; }
+  h2 { font-size: 30px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 26px; }
+
+  /* Установка */
+  .install { display: grid; grid-template-columns: 1.6fr 1fr; gap: 28px; align-items: start; }
+  ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 12px; }
+  ol.steps li {
+    counter-increment: step;
+    display: grid; grid-template-columns: 40px 1fr; gap: 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  ol.steps li::before {
+    content: counter(step);
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--amber); color: #1a1408; font-weight: 800; font-size: 18px;
+  }
+  ol.steps b { display: block; margin-bottom: 2px; }
+  ol.steps span { color: var(--muted); font-size: 15px; }
+  .qr {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px; text-align: center;
+  }
+  .qr img { width: 200px; height: 200px; margin: 0 auto 12px; border-radius: 8px; image-rendering: pixelated; }
+  .qr p { margin: 0; color: var(--muted); font-size: 14px; }
+  .notes { display: grid; gap: 12px; margin-top: 16px; }
+  details {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+  summary { cursor: pointer; font-weight: 700; }
+  details p { color: var(--muted); margin: 8px 0 2px; font-size: 15px; }
+
+  /* Об игре */
+  .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 26px; }
+  .feature { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .feature .num { font-size: 30px; font-weight: 800; color: var(--amber); line-height: 1; }
+  .feature b { display: block; margin: 6px 0 4px; }
+  .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+  .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .gallery figure { margin: 0; }
+  .gallery a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .gallery img { width: 100%; height: auto; aspect-ratio: 1600 / 740; object-fit: cover; transition: transform 0.25s; }
+  .gallery a:hover img { transform: scale(1.03); }
+  figcaption { color: var(--muted); font-size: 14px; padding: 6px 2px 0; }
+  figcaption b { color: var(--text); font-weight: 600; }
+  .split { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; margin-top: 34px; }
+  ul.list { margin: 0; padding-left: 20px; color: var(--muted); }
+  ul.list li { margin: 4px 0; }
+  ul.list b { color: var(--text); font-weight: 600; }
+
+  /* Управление */
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .control-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .control-card h3 { margin: 0 0 8px; font-size: 18px; }
+  kbd {
+    display: inline-block; min-width: 26px; padding: 1px 7px; text-align: center;
+    border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 6px;
+    background: var(--panel-2); color: var(--text); font: 600 13px/1.6 system-ui, sans-serif;
+  }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
+
+  /* Подсказка по устройству: на компьютере — QR, на iPhone — играть в браузере. */
+  .only-ios { display: none; }
+  html.ios .only-ios { display: block; }
+  html.android .qr { display: none; }
+
+  @media (max-width: 860px) {
+    .hero .wrap, .install, .split { grid-template-columns: 1fr; }
+    .hero { padding-top: 24px; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .gallery { grid-template-columns: 1fr 1fr; }
+    .controls { grid-template-columns: 1fr; }
+    nav.links { gap: 14px; }
+  }
+  @media (max-width: 520px) {
+    nav.links a.hide-sm, .brand-rest { display: none; }
+    .gallery { grid-template-columns: 1fr; }
+    .btn { width: 100%; justify-content: center; }
+    .qr { display: none; }
+  }
+</style>
+<script>
+  // Класс устройства — чтобы показать нужные подсказки.
+  (function () {
+    var ua = navigator.userAgent, c = document.documentElement.classList;
+    if (/Android/i.test(ua)) c.add('android');
+    else if (/iPhone|iPad|iPod/i.test(ua)) c.add('ios');
+    else c.add('desktop');
+  })();
+</script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><b>СТИКС</b><span class="brand-rest"> · Дорога стабов</span></a>
+    <nav class="links">
+      <a href="#download">Скачать</a>
+      <a href="#install">Установка</a>
+      <a href="#about" class="hide-sm">Об игре</a>
+      <a href="play/">Играть</a>
+      <a href="clones/">Клоны против дроидов</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero" id="download">
+    <div class="wrap">
+      <div>
+        <div class="kicker">Игра для Android</div>
+        <h1>Стикс: <span>Дорога стабов</span></h1>
+        <p class="lead">Гонка на выживание по мотивам мира «Стикс» Артёма Каменистого. Прорвитесь на машине
+          от стаба к стабу через кластеры Улья, давите заражённых, собирайте спораны и превращайте ржавый седан
+          в рейдерский броневоз.</p>
+        <div class="actions">
+          <a class="btn primary" href="styx-road.apk" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M6 10l6 6 6-6M4 21h16"/></svg>
+            Скачать APK
+          </a>
+          <a class="btn" href="play/">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>
+            Играть в браузере
+          </a>
+        </div>
+        <p class="meta">Версия <b>0.3.33</b> от 29.10.2026 · <b>4,1 МБ</b> · Android 7.0 и новее · работает без интернета</p>
+        <p class="meta only-ios">На iPhone установить APK нельзя — играйте в браузере, лучше в горизонтальном положении.</p>
+      </div>
+      <div class="shot"><img src="img/level4.jpg" width="1600" height="740" alt="Броневик прорывается через деревню, давя заражённых"></div>
+    </div>
+  </div>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Как установить</h2>
+      <p class="sub">Игры нет в Google Play, поэтому Android один раз спросит разрешение на установку. Это займёт минуту.</p>
+      <div class="install">
+        <div>
+          <ol class="steps">
+            <li><div><b>Скачайте файл на телефон</b><span>Нажмите «Скачать APK» на этой странице. Если вы за компьютером — наведите камеру телефона на QR-код.</span></div></li>
+            <li><div><b>Откройте скачанный файл</b><span>Из уведомления о загрузке или из папки «Загрузки» (Download). Файл называется <code>styx-road.apk</code>.</span></div></li>
+            <li><div><b>Разрешите установку</b><span>Если появится «Установка заблокирована» — нажмите «Настройки» и включите «Разрешить из этого источника» для браузера или файлового менеджера, затем вернитесь назад.</span></div></li>
+            <li><div><b>Нажмите «Установить»</b><span>Если Play Защита предупредит о неизвестном приложении — нажмите «Подробнее» → «Всё равно установить».</span></div></li>
+            <li><div><b>Запустите «Стикс: Дорога»</b><span>Игра откроется во весь экран и горизонтально. Кнопка «Назад» ставит заезд на паузу.</span></div></li>
+          </ol>
+          <div class="notes">
+            <details>
+              <summary>Как обновить игру</summary>
+              <p>Скачайте новую версию с этой страницы и установите поверх старой — прогресс, машины и улучшения сохранятся.</p>
+            </details>
+            <details>
+              <summary>Пишет «Приложение не установлено»</summary>
+              <p>Обычно это значит, что на телефоне стоит сборка с другой подписью. Удалите старую версию игры и установите заново (прогресс старой версии при этом сотрётся). Ещё проверьте, что хватает свободного места.</p>
+            </details>
+            <details>
+              <summary>Это безопасно?</summary>
+              <p>Игра собирается автоматически из открытого исходного кода на GitHub. Ей не нужны контакты, файлы, камера или местоположение: в списке разрешений только стандартный доступ к сети, который есть у всех приложений на этом движке, а сама игра в интернет не ходит. Предупреждение Android появляется для любых приложений не из Google Play.</p>
+            </details>
+          </div>
+        </div>
+        <div class="qr">
+          <img src="img/qr.svg" width="200" height="200" alt="QR-код со ссылкой на эту страницу">
+          <p>Откройте сайт на телефоне: наведите камеру на код и скачайте игру прямо оттуда.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="wrap">
+      <h2>Об игре</h2>
+      <p class="sub">2D-вид сбоку, физика машины на подвеске, всё нарисовано кодом. Каждый заезд — рывок до следующего стаба, пока не кончится бензин или прочность.</p>
+      <div class="features">
+        <div class="feature"><div class="num">6</div><b>Уровней</b><p>Город, лес, промзона, деревня, мост через реку ночью и окраина мёртвого кластера с элитой в конце.</p></div>
+        <div class="feature"><div class="num">6</div><b>Машин</b><p>От ржавого седана до рейдерского броневоза. У каждой свои улучшения — и все они видны на кузове.</p></div>
+        <div class="feature"><div class="num">6</div><b>Видов заражённых</b><p>Пустыш, бегун, лотерейщик, топтун, рубер и элита. Сильные мутанты дают горох и жемчуг.</p></div>
+        <div class="feature"><div class="num">20+</div><b>Улучшений</b><p>Двигатель, броня, таран, нитро, бак, пулемёт, огнемёт, пила и особые — лебёдка, шноркель, мины.</p></div>
+      </div>
+      <div class="gallery">
+        <figure><a href="img/level1.jpg" target="_blank"><img src="img/level1.jpg" width="1600" height="740" loading="lazy" alt="Седан в городском кластере"></a><figcaption><b>Городской кластер</b> — первый рывок на седане</figcaption></figure>
+        <figure><a href="img/level2.jpg" target="_blank"><img src="img/level2.jpg" width="1600" height="740" loading="lazy" alt="Внедорожник в лесу"></a><figcaption><b>Лесной кластер</b> — туман, броды, брёвна</figcaption></figure>
+        <figure><a href="img/level3.jpg" target="_blank"><img src="img/level3.jpg" width="1600" height="740" loading="lazy" alt="Пикап в промзоне"></a><figcaption><b>Промзона</b> — трубы, бочки, эстакады</figcaption></figure>
+        <figure><a href="img/level4.jpg" target="_blank"><img src="img/level4.jpg" width="1600" height="740" loading="lazy" alt="Броневик в деревне"></a><figcaption><b>Деревня</b> — закат и толпы на дороге</figcaption></figure>
+        <figure><a href="img/level5.jpg" target="_blank"><img src="img/level5.jpg" width="1600" height="740" loading="lazy" alt="Грузовик ночью на мосту"></a><figcaption><b>Мост через реку</b> — ночь, только фары</figcaption></figure>
+        <figure><a href="img/level6.jpg" target="_blank"><img src="img/level6.jpg" width="1600" height="740" loading="lazy" alt="Броневоз на окраине мёртвого кластера"></a><figcaption><b>Окраина мёртвого кластера</b> — финал и элита</figcaption></figure>
+      </div>
+      <div class="split">
+        <div class="shot"><img src="img/stab.jpg" width="1600" height="740" loading="lazy" alt="Экран стаба: улучшения машины"></div>
+        <div>
+          <h3>Между заездами — стаб</h3>
+          <ul class="list">
+            <li><b>Улучшения:</b> мощность, подвеска, броня, оружие и многое другое.</li>
+            <li><b>Заправка и станок:</b> бензин покупается за спораны, оружие без патронов чинится на станке.</li>
+            <li><b>Гараж:</b> новые машины за спораны, горох и жемчуг.</li>
+            <li><b>Чекпоинты:</b> следующий заезд можно начать с дальней точки.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="controls">
+    <div class="wrap">
+      <h2>Управление</h2>
+      <p class="sub">Оружие на машине стреляет само — ваше дело дорога.</p>
+      <div class="controls">
+        <div class="control-card">
+          <h3>На телефоне</h3>
+          <ul class="list">
+            <li><b>Справа — газ.</b> Отпустили — машина тормозит сама.</li>
+            <li><b>Слева — джойстик наклона:</b> влево — нос вверх, вправо — нос вниз. Чем дальше палец, тем сильнее. В полёте выравнивает машину, на земле слегка качает кузов.</li>
+            <li><b>Задний ход:</b> остановитесь и уведите джойстик до упора влево.</li>
+            <li><b>«Нитро»</b> — рывок, пока не опустеет баллон.</li>
+            <li><b>«Назад»</b> — пауза.</li>
+          </ul>
+        </div>
+        <div class="control-card">
+          <h3>В браузере на компьютере</h3>
+          <ul class="list">
+            <li><kbd>↑</kbd> или <kbd>W</kbd> — газ</li>
+            <li><kbd>←</kbd> <kbd>→</kbd> или <kbd>A</kbd> <kbd>D</kbd> — наклон назад и вперёд (стоя, <kbd>←</kbd> — задний ход)</li>
+            <li><kbd>Пробел</kbd> — нитро, <kbd>Esc</kbd> — пауза</li>
+            <li>Прогресс в браузере хранится только в этом браузере.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="more">
+    <div class="wrap">
+      <h2>Ещё одна игра: Клоны против дроидов</h2>
+      <p class="sub">Пошаговая 3D-тактика про отряд клонов: фрегат на орбите, высадки на три планеты, наём бойцов, снаряжение и исследования.</p>
+      <div class="split" style="margin-top:0">
+        <a class="shot" href="clones/"><img src="clones/img/hub.jpg" width="1600" height="740" loading="lazy" alt="Клоны против дроидов: фрегат и меню операций"></a>
+        <div>
+          <ul class="list">
+            <li><b>6 сюжетных операций</b> и патрули за кредиты.</li>
+            <li><b>4 класса бойцов</b>, от 4 до 6 клонов в отряде, звания и раскраска брони.</li>
+            <li><b>5 видов дроидов</b> — от B1 до коммандос BX.</li>
+          </ul>
+          <div class="actions" style="margin-top:18px">
+            <a class="btn primary" href="clones/clones-vs-droids.apk" download>Скачать APK</a>
+            <a class="btn" href="clones/">Подробнее</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Фанатская игра по мотивам мира «Стикс» Артёма Каменистого. Не связана с автором и издателями книг.</span>
+    <span><a href="https://github.com/araxnid512-design/rubin">Исходный код</a> · <a href="https://github.com/araxnid512-design/rubin/releases">Все сборки</a></span>
+  </div>
+</footer>
+</body>
+</html>
