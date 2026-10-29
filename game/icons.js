@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { makeAxe, makePistol } from './weapons.js';
+import { WEAPONS, MOUNTS, CLIPS } from './weapons.js';
 import { makeItemMesh } from './items.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -61,8 +61,11 @@ export function createIconFactory() {
 		return shoot(obj, size, size, fov, sphere.center.clone().addScaledVector(V(...view).normalize(), dist), sphere.center);
 	}
 
-	/** Герой в позе клипа: { obj, bone(name) → мировая позиция }. Оружие — в руке и в креплениях. */
-	function posed(gltf, clipName, weapon) {
+	/**
+	 * Герой в позе клипа: { obj, bone(name) → мировая позиция }.
+	 * gear — { melee, gun }, hold — что из них в руке; второе висит в своём креплении.
+	 */
+	function posed(gltf, clipName, gear, hold) {
 		const model = SkeletonUtils.clone(gltf.scene);
 		const clip = gltf.animations.find((c) => c.name === clipName);
 		if (clip) {
@@ -71,37 +74,38 @@ export function createIconFactory() {
 			mixer.setTime(Math.min(0.5, clip.duration * 0.5));
 		}
 		const grip = model.getObjectByName('GripR');
-		const mounts = { axe: model.getObjectByName('AxeMount'), pistol: model.getObjectByName('HolsterMount') };
-		const axe = makeAxe(), pistol = makePistol();
-		(weapon === 'axe' ? grip : mounts.axe ?? grip).add(axe);
-		(weapon === 'pistol' ? grip : mounts.pistol ?? grip).add(pistol);
+		for (const slot of ['melee', 'gun']) {
+			const id = gear[slot];
+			if (!id) continue;
+			const mount = model.getObjectByName(MOUNTS[WEAPONS[id].mount]);
+			(slot === hold ? grip : mount ?? grip).add(WEAPONS[id].make());
+		}
 		model.updateMatrixWorld(true);
 		const bone = (n) => model.getObjectByName(`mixamorig${n}`)?.getWorldPosition(V()) ?? V(0, 1.8, 0);
 		return { obj: model, bone };
 	}
 
 	return {
-		axe() {
-			const g = makeAxe();
-			// топорище по диагонали снизу-слева вверх-вправо, лезвие вниз (вид сбоку)
-			g.rotation.x = -g.userData.tilt - Math.PI / 4;
-			return item(g, { view: [-1, 0.15, 0.12] });
-		},
-		pistol() {
-			const g = makePistol();
-			g.rotation.x = -Math.PI / 2; // ствол вправо, затвор вверх
-			return item(g, { view: [-1, 0.2, -0.2] });
+		/** Иконка оружия: топор — по диагонали лезвием вниз, ствол — вправо, затвором вверх. */
+		weapon(id) {
+			const g = WEAPONS[id].make();
+			if (WEAPONS[id].anim === 'axe') {
+				g.rotation.x = -g.userData.tilt - Math.PI / 4;
+				return item(g, { view: [-1, 0.15, 0.12] });
+			}
+			g.rotation.x = -Math.PI / 2;
+			return item(g, { view: [-1, 0.2, -0.2], fill: WEAPONS[id].anim === 'rifle' ? 1 : 0.92 });
 		},
 		item: (kind) => item(makeItemMesh(kind)),
 		/** Портрет: голова и плечи героя. */
 		portrait(gltf, { size = 128 } = {}) {
-			const { obj, bone } = posed(gltf, 'Idle', 'axe');
+			const { obj, bone } = posed(gltf, 'Idle', { melee: 'axe' }, 'melee');
 			const t = bone('Head').add(V(0, 0.09, 0.04));
 			return shoot(obj, size, size, 24, t.clone().add(V(0.28, 0.03, 0.95)), t);
 		},
 		/** Герой в полный рост с оружием в руке — для инвентаря. */
-		figure(gltf, weapon, { w = 200, h = 340 } = {}) {
-			const { obj, bone } = posed(gltf, weapon === 'pistol' ? 'IdlePistol' : 'Idle', weapon);
+		figure(gltf, gear, hold, { w = 200, h = 340 } = {}) {
+			const { obj, bone } = posed(gltf, CLIPS[WEAPONS[gear[hold]].anim].idle, gear, hold);
 			const hips = bone('Hips'), t = V(hips.x, 1.0, hips.z);
 			return shoot(obj, w, h, 30, t.clone().add(V(1.3, 0.35, 4.1)), t);
 		},

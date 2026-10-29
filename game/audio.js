@@ -50,7 +50,15 @@ export const Sfx = {
 			noise = noiseBuf();
 		} catch { ctx = null; }
 	},
-	shot() { burst({ dur: 0.25, freq: 2400, sweep: 300, gain: 0.7 }); tone({ freq: 140, to: 50, dur: 0.18, type: 'triangle', gain: 0.4 }); },
+	/** Выстрел: pistol — хлопок ПМ, shotgun — гулкий дуплет картечи, rifle — сухой резкий 5,45. */
+	shot(kind = 'pistol') {
+		if (kind === 'shotgun') { burst({ dur: 0.5, freq: 1600, sweep: 180, gain: 0.85 }); tone({ freq: 95, to: 38, dur: 0.32, type: 'triangle', gain: 0.55 }); return; }
+		if (kind === 'rifle') { burst({ dur: 0.16, freq: 3400, sweep: 500, gain: 0.6 }); tone({ freq: 180, to: 70, dur: 0.1, type: 'triangle', gain: 0.35 }); return; }
+		burst({ dur: 0.25, freq: 2400, sweep: 300, gain: 0.7 }); tone({ freq: 140, to: 50, dur: 0.18, type: 'triangle', gain: 0.4 });
+	},
+	/** Гул перезагрузки кластера: низкий нарастающий рокот. */
+	rumble(power = 1) { tone({ freq: 48, to: 34, dur: 1.4, type: 'sawtooth', gain: 0.08 * power }); burst({ dur: 1.4, freq: 160, sweep: 60, gain: 0.3 * power, attack: 0.4 }); },
+	coins() { [0, 0.07, 0.14].forEach((d) => setTimeout(() => tone({ freq: 1200 + d * 2000, dur: 0.06, type: 'triangle', gain: 0.1 }), d * 1000)); },
 	swing() { burst({ dur: 0.22, freq: 600, sweep: 2400, type: 'bandpass', q: 2, gain: 0.25, attack: 0.05 }); },
 	chop() { burst({ dur: 0.12, freq: 900, gain: 0.5 }); tone({ freq: 110, to: 60, dur: 0.12, type: 'square', gain: 0.12 }); },
 	flesh() { burst({ dur: 0.15, freq: 500, sweep: 200, gain: 0.35 }); },

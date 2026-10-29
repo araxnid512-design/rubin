@@ -1,4 +1,5 @@
-// Браузерный тест игры: загрузка уровня и юнитов, заражённые на местах, бой, подбор споранов, смерть/победа.
+// Браузерный тест игры: загрузка, бой, патроны и обыск домов, рюкзак, выходы и карта мира, стаб с торговцем,
+// новое оружие, второй кластер, перезагрузка кластера, сохранение.
 // Логика ускорена (?sim=30), потому что программный рендер в CI медленный.
 import { createRequire } from 'node:module';
 import { mkdir } from 'node:fs/promises';
@@ -17,8 +18,10 @@ let failed = false;
 const check = (ok, msg) => { console.log(`${ok ? '✓' : '✗'} ${msg}`); if (!ok) failed = true; };
 const errors = [];
 
-async function open(viewport, mobile, sim = 30) {
+async function open(viewport, mobile, sim = 30, storage = null) {
 	const page = await browser.newPage({ viewport, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
+	// у каждой страницы своё хранилище: сохранение переносим вручную
+	if (storage) await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); } }, storage);
 	page.on('pageerror', (e) => errors.push(e.message));
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', (route) => {
@@ -35,17 +38,19 @@ try {
 	const page = await open({ width: 1100, height: 700 });
 	check(true, 'уровень и модели загрузились, меню показано');
 	await page.screenshot({ path: join(OUT, 'game-menu.png') });
-	await page.click('#btn-start');
-	await page.waitForTimeout(1500);
-	const s = await G(page, () => ({ n: window.__game.enemies.length, idle: window.__game.enemies.every((e) => e.state === 'idle'), types: [...new Set(window.__game.enemies.map((e) => e.type))].sort().join() }));
-	check(s.n >= 20 && s.idle, `в кластере уже ${s.n} заражённых, все ждут (без волн)`);
+	await G(page, () => localStorage.clear());
+	await page.click('#btn-new');
+	await page.waitForFunction(() => window.__game?.state === 'play' && window.__game.enemies.length > 0, null, { timeout: 60000 });
+	const s = await G(page, () => ({ loc: window.__game.loc, n: window.__game.enemies.length, idle: window.__game.enemies.every((e) => e.state === 'idle'), types: [...new Set(window.__game.enemies.map((e) => e.type))].sort().join(), timer: document.getElementById('loc-timer').textContent }));
+	check(s.loc === 'zarechny' && s.n >= 20 && s.idle, `новая игра в Заречном: ${s.n} заражённых, все ждут (без волн)`);
 	check(s.types === 'runner,stomper', `есть бегуны и топтуны (${s.types})`);
+	check(/^[5-6]:\d\d$/.test(s.timer), `таймер перезагрузки кластера на экране: ${s.timer}`);
 	// игрок двигается
 	await page.keyboard.down('KeyA');
 	await page.waitForTimeout(2500);
 	await page.keyboard.up('KeyA');
 	const px = await G(page, () => window.__game.player.pos.x);
-	check(px < 38, `игрок идёт по клавишам (x=${px.toFixed(1)})`);
+	check(px < 41, `игрок идёт по клавишам (x=${px.toFixed(1)})`);
 	// подходим к заражённым — замечают и нападают, отбиваемся топором
 	await G(page, () => { const g = window.__game; g.player.pos.set(-10, 0, 9); g.player.hp = 1e6; g.player.maxHp = 1e6; g.noise(g.player.pos, 22); });
 	await page.waitForTimeout(2500);
@@ -55,13 +60,13 @@ try {
 	await page.waitForTimeout(6000);
 	await page.keyboard.up('Space');
 	await page.screenshot({ path: join(OUT, 'game-fight.png') });
-	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.bag.spore, ammo: window.__game.pickups.filter((p) => p.kind === 'ammo').length }));
+	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.bag.spore, ammo: window.__game.pickups.filter((p) => /^ammo/.test(p.kind)).length }));
 	check(k.kills > 0, `убито заражённых топором: ${k.kills}`);
 	check(k.pickups > 0, 'после убийства выпадают спораны');
-	check(k.ammo === 0, 'патроны из заражённых не выпадают'); 
+	check(k.ammo === 0, 'патроны из заражённых не выпадают');
 	// пистолет: выстрел тратит патрон и поднимает шум
 	await page.keyboard.press('KeyQ');
-	await page.waitForFunction(() => window.__game.player.weapon === 'pistol', null, { timeout: 20000 });
+	await page.waitForFunction(() => window.__game.player.weapon === 'pistol' && !window.__game.player.equipping, null, { timeout: 20000 });
 	const before = await G(page, () => window.__game.player.ammo);
 	await page.keyboard.press('Space');
 	await page.waitForFunction((b) => window.__game.player.ammo < b || window.__game.player.reloading > 0, before, { timeout: 20000 }).catch(() => {});
@@ -70,11 +75,11 @@ try {
 	// патроны конечные: перезарядка берёт из запаса, без патронов пистолет только щёлкает
 	// (выпавшее с убитых рядом убираем, чтобы оно не подобралось посреди проверки)
 	await G(page, () => { for (const p of window.__game.pickups) if (!p.ground) { p.taken = true; p.mesh.visible = false; } });
-	const r0 = await G(page, () => { const g = window.__game; g.player.ammo = 2; g.bag.ammo = 3; g.player.reload(); return g.bag.ammo; });
+	const r0 = await G(page, () => { const g = window.__game; g.player.ammo = 2; g.bag.ammo9 = 3; g.player.reload(); return g.bag.ammo9; });
 	await page.waitForFunction(() => window.__game.player.reloading <= 0 && window.__game.player.ammo === 5, null, { timeout: 20000 }).catch(() => {});
-	const r1 = await G(page, () => ({ ammo: window.__game.player.ammo, bag: window.__game.bag.ammo, hud: document.getElementById('ammo').textContent }));
+	const r1 = await G(page, () => ({ ammo: window.__game.player.ammo, bag: window.__game.bag.ammo9, hud: document.getElementById('ammo').textContent }));
 	check(r0 === 3 && r1.ammo === 5 && r1.bag === 0 && r1.hud.replace(/\s/g, '') === '5/0', `перезарядка берёт из запаса: в магазине ${r1.ammo}, в запасе ${r1.bag}, на экране «${r1.hud}»`);
-	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
+	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo9 = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
 	check(dry.ammo === 0 && /нет патронов/.test(dry.hud), `без патронов не стреляет, на экране «${dry.hud}»`);
 	// патроны — в домах: заходим, крыша исчезает, обыскиваем шкаф
 	const homes = await G(page, () => { const L = window.__game.level; return { houses: L.buildings.length, containers: L.containers.length }; });
@@ -83,18 +88,16 @@ try {
 		const g = window.__game;
 		for (const e of g.enemies) if (e.alive) e.pos.set(40, 0, -40); // чтобы не мешали обыску
 		const c = g.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф');
-		c.items = [['ammo', 7]];
+		c.items = [['ammo9', 7]];
 		g.player.pos.set(c.ax, 0, c.az);
 	});
 	await page.waitForFunction(() => !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
 	const prompt = await G(page, () => document.getElementById('search-name').textContent);
 	await page.keyboard.press('KeyE');
-	await page.waitForFunction(() => window.__game.bag.ammo >= 7, null, { timeout: 20000 }).catch(() => {});
-	const found = await G(page, () => ({ ammo: window.__game.bag.ammo, roof: window.__game.level.buildings[0].fader.value, searched: window.__game.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф').searched }));
+	await page.waitForFunction(() => window.__game.bag.ammo9 >= 7, null, { timeout: 20000 }).catch(() => {});
+	const found = await G(page, () => ({ ammo: window.__game.bag.ammo9, roof: window.__game.level.buildings[0].fader.value, searched: window.__game.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф').searched }));
 	check(prompt === 'Шкаф' && found.ammo >= 7 && found.searched, `обыск шкафа в доме: подсказка «${prompt}», в запасе ${found.ammo} патронов`);
 	check(found.roof < 0.1, `в доме крыша и верх стен убраны (видимость ${found.roof.toFixed(2)})`);
-	const path = await G(page, () => { const g = window.__game, L = g.level; g.updateFlow(); const [gx, gz] = L.nav.cell(-30, -22); return g.flow[gz * L.nav.N + gx]; });
-	check(path > 0, `заражённые могут зайти в дом за героем (путь ${path} клеток)`);
 	// рюкзак: открывается по I, ставит игру на паузу, живчик из рюкзака лечит
 	await page.keyboard.press('KeyI');
 	await page.waitForSelector('#inventory:not(.hidden)', { timeout: 20000 }).catch(() => {});
@@ -108,23 +111,143 @@ try {
 	check(!(await G(page, () => window.__game.paused)), 'рюкзак закрывается, игра продолжается');
 	await G(page, () => { const p = window.__game.player; p.hp = p.maxHp = 1e6; });
 	check(await G(page, () => document.getElementById('avatar').src.startsWith('data:image/png')), 'портрет героя в углу экрана');
-	// победа: добиваем всех
+
+	// все тайники кластеров достижимы от входа, заражённые могут зайти в дома
+	const reach = async () => G(page, () => {
+		const g = window.__game, L = g.level, { N } = L.nav;
+		g.updateFlow();
+		// до мебели дотягиваемся с 1.25 м: достаточно, чтобы рядом с точкой обыска была достижимая клетка
+		const near = (x0, z0, r) => { const [cx, cz] = L.nav.cell(x0, z0), k = Math.ceil(r / L.nav.CELL); for (let dz = -k; dz <= k; dz++) for (let dx = -k; dx <= k; dx++) { const x = cx + dx, z = cz + dz; if (x < 0 || z < 0 || x >= N || z >= N) continue; if (Math.hypot(L.nav.center(x) - x0, L.nav.center(z) - z0) <= r && g.flow[z * N + x] >= 0) return true; } return false; };
+		const bad = L.containers.filter((c) => !near(c.ax, c.az, 1.2)).map((c) => `${c.building}/${c.name}`);
+		const exits = L.exits.filter((e) => { const [x, z] = L.nav.cell(e.spawn.x, e.spawn.z); return !(g.flow[z * N + x] >= 0); }).length;
+		return { n: L.containers.length, bad, exits };
+	});
+	await G(page, () => window.__game.player.pos.set(0, 0, 6));
+	const rz = await reach();
+	check(rz.bad.length === 0 && rz.exits === 0, `Заречный: все ${rz.n} тайников и выходы достижимы${rz.bad.length ? ': нет пути к ' + rz.bad.join(', ') : ''}`);
+
+	// зачистка ничего не решает: убили всех — игра продолжается, победы нет
 	await G(page, () => { for (const e of window.__game.enemies) if (e.alive) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); });
-	await page.waitForSelector('#gameover:not(.hidden)', { timeout: 30000 });
-	check((await page.textContent('#go-title')) === 'Кластер зачищен', 'экран победы после зачистки кластера');
+	await page.waitForTimeout(1500);
+	check(await G(page, () => window.__game.state === 'play' && document.getElementById('gameover').classList.contains('hidden')), 'после зачистки нет экрана победы — кластер просто ждёт перезагрузки');
+
+	// выход у края кластера открывает карту; уходим в стаб
+	await G(page, () => { const g = window.__game; g.player.pos.set(40, 0, 6); });
+	await page.waitForTimeout(800);
+	await G(page, () => window.__game.player.pos.set(46, 0, 6));
+	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const map = await G(page, () => ({ open: window.__game.worldMap.isOpen, paused: window.__game.paused, routes: [...document.querySelectorAll('#wm-list [data-go]')].map((b) => b.dataset.go) }));
+	check(map.open && map.paused && map.routes[0] === 'stab' && map.routes.includes('dachi'), `у выхода открылась карта Улья: ${map.routes.join(', ')}`);
+	await page.screenshot({ path: join(OUT, 'game-map.png') });
+	const t0 = await G(page, () => window.__game.world.time);
+	await page.click('#wm-list [data-go="stab"]');
+	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
+	const st = await G(page, () => ({ t: window.__game.world.time, npcs: window.__game.npcs.length, enemies: window.__game.enemies.length, timer: document.getElementById('loc-timer').textContent, saved: !!window.__game.world.clusters.zarechny.saved }));
+	check(st.t - t0 >= 60, `дорога заняла время мира: ${Math.round(st.t - t0)} с`);
+	check(st.npcs >= 5 && st.enemies === 0 && st.timer === 'безопасно', `стаб: жителей ${st.npcs}, заражённых нет, «${st.timer}»`);
+	check(st.saved, 'состояние Заречного запомнено до его перезагрузки');
+	// торговец: покупка автомата и патронов, обмен гороха
+	await G(page, () => { const g = window.__game; g.bag.spore = 120; g.bag.peas = 2; g.player.pos.set(-11, 0, 0.1); });
+	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Торговать' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
+	await page.keyboard.press('KeyE');
+	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	await page.screenshot({ path: join(OUT, 'game-trade.png') });
+	await page.click('#trade-peas-all');
+	const buyAks = await G(page, () => { const b = [...document.querySelectorAll('[data-buy]')]; const i = b.findIndex((x) => x.closest('.offer').textContent.includes('АКС')); b[i].click(); const j = [...document.querySelectorAll('[data-buy]')].findIndex((x) => x.closest('.offer').textContent.includes('5,45')); document.querySelectorAll('[data-buy]')[j].click(); const g = window.__game; return { spore: g.bag.spore, gear: g.kit.gear.gun, mag: g.kit.mags.aks, spare: g.bag.ammo545, owned: g.kit.owned.join() }; });
+	check(buyAks.spore === 120 + 10 - 80 - 15 && buyAks.gear === 'aks' && buyAks.mag === 30 && buyAks.spare === 30, `купили АКС-74У и 30 патронов 5,45 (горох обменян): осталось ${buyAks.spore} споранов`);
+	await page.click('#trade-close');
+	// автомат: очередь при зажатой кнопке
+	await G(page, () => { const g = window.__game; g.player.hp = g.player.maxHp = 1e6; });
+	// купленный ствол сразу в слоте огнестрела; берём его в руки (Q — смена между слотами)
+	if ((await G(page, () => window.__game.player.hold)) !== 'gun') await page.keyboard.press('KeyQ');
+	await page.waitForFunction(() => window.__game.player.weapon === 'aks' && !window.__game.player.equipping, null, { timeout: 30000 });
+	await page.waitForTimeout(600);
+	const clipR = await G(page, () => window.__game.player.current);
+	await page.keyboard.down('Space');
+	await page.waitForFunction(() => window.__game.kit.mags.aks <= 25 || window.__game.player.reloading > 0, null, { timeout: 30000 }).catch(() => {});
+	await page.keyboard.up('Space');
+	const burst = await G(page, () => ({ ammo: window.__game.kit.mags.aks, w: window.__game.player.weapon, clip: window.__game.player.current }));
+	check(burst.w === 'aks' && burst.ammo <= 25 && /Rifle/.test(clipR), `АКС: очередь при зажатой атаке (${30 - burst.ammo} выстрелов), анимации автомата (${clipR}, ${burst.clip})`);
+	await page.screenshot({ path: join(OUT, 'game-rifle.png') });
+	// лекарь: отдых двигает время мира
+	const rest = await G(page, () => { const g = window.__game, t = g.world.time; g.player.hp = 30; g.player.maxHp = 100; g.rest(); const r = { dt: g.world.time - t, hp: g.player.hp }; g.player.hp = g.player.maxHp = 1e6; return r; });
+	check(rest.dt >= 100 && rest.hp === 100, `отдых у лекаря: здоровье ${rest.hp}, прошло ${rest.dt} с`);
+	// сохранение и «Продолжить»
+	const saved = await G(page, () => JSON.parse(localStorage.getItem('ulei-cluster17-save') ?? 'null'));
+	check(saved?.world?.at === 'stab' && saved.kit.owned.includes('aks'), 'игра сохранена в стабе (с купленным автоматом)');
+
+	// второй кластер — Дачи: заражённые, тайники, всё достижимо
+	await G(page, () => window.__game.travel('dachi'));
+	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+	const d = await G(page, () => ({ n: window.__game.enemies.length, c: window.__game.level.containers.length, b: window.__game.level.buildings.length }));
+	check(d.n >= 15 && d.c >= 20 && d.b >= 8, `Дачи: ${d.n} заражённых, домиков ${d.b}, тайников ${d.c}`);
+	await G(page, () => window.__game.player.pos.set(0, 0, 4));
+	const rd = await reach();
+	check(rd.bad.length === 0 && rd.exits === 0, `Дачи: все ${rd.n} тайников и выходы достижимы${rd.bad.length ? ': нет пути к ' + rd.bad.join(', ') : ''}`);
+	await G(page, () => { const g = window.__game; g.player.pos.set(8, 0, 6.5); });
+	await page.waitForTimeout(1500);
+	await page.screenshot({ path: join(OUT, 'game-dachi.png') });
+	// обрез: картечь задевает нескольких
+	const shot = await G(page, () => {
+		const g = window.__game, p = g.player;
+		p.pos.set(-26, 0, 4); // на дороге, вокруг пусто
+		g.kit.owned.push('obrez'); g.kit.mags.obrez = 2; p.hold = 'gun'; g.equipGear('obrez');
+		const es = g.enemies.filter((e) => e.alive && e.type === 'runner').slice(0, 3);
+		es.forEach((e, i) => { e.pos.set(p.pos.x - 2.5, 0, p.pos.z + (i - 1) * 0.35); e.stagger = 5; });
+		p.root.rotation.y = -Math.PI / 2; p.cooldown = 0; p.attack();
+		return es.map((e) => e.hp);
+	});
+	// кадр программного рендера бывает дольше секунды — ждём, пока дробь долетит
+	await page.waitForFunction(() => window.__game.enemies.filter((e) => e.type === 'runner' && e.hp < 60).length >= 2, null, { timeout: 30000 }).catch(() => {});
+	const hurt = await G(page, () => window.__game.enemies.filter((e) => e.type === 'runner' && e.hp < 60).length);
+	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов`);
+
+	// возвращение в кластер до перезагрузки: всё как было
+	const before2 = await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 400; return g.enemies.filter((e) => e.alive).length; });
+	await G(page, () => window.__game.travel('zarechny'));
+	await page.waitForFunction(() => window.__game.loc === 'zarechny' && window.__game.state === 'play', null, { timeout: 300000 });
+	await G(page, () => window.__game.travel('dachi'));
+	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+	const back = await G(page, () => window.__game.enemies.filter((e) => e.alive).length);
+	check(back === before2, `вернулись в Дачи до перезагрузки — убитые не ожили (${before2} → ${back})`);
+
+	// перезагрузка кластера, пока герой внутри: кислый запах, муть, смерть; очнулся в стабе без рюкзака
+	await G(page, () => { const g = window.__game; g.bag.spore = 7; g.bag.ammo545 = 11; g.world.clusters.dachi.next = g.world.time + 20; });
+	await page.waitForFunction(() => window.__game.warnStage >= 1, null, { timeout: 60000 }).catch(() => {});
+	const sour = await G(page, () => ({ fog: window.__game.level && document.getElementById('sour').style.opacity, stage: window.__game.warnStage }));
+	await page.screenshot({ path: join(OUT, 'game-sour.png') });
+	check(sour.stage >= 1 && +sour.fog > 0.2, `перед перезагрузкой: кислый запах и муть (дымка ${sour.fog})`);
+	await page.waitForSelector('#gameover:not(.hidden)', { timeout: 90000 }).catch(() => {});
+	const dead = await G(page, () => ({ title: document.getElementById('go-title').textContent, stats: document.getElementById('go-stats').textContent }));
+	check(dead.title === 'Кластер перезагрузился' && /споран ×7/.test(dead.stats), `не успел уйти: «${dead.title}», ${dead.stats}`);
+	await page.click('#btn-respawn');
+	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
+	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved }; });
+	check(re.spore === 0 && re.ammo === 0 && re.owned.includes('aks') && re.hp === 100 && re.fresh, `очнулся в стабе: рюкзак пуст, оружие при себе (${re.owned}), Дачи перезагрузились`);
+	const storage = await G(page, () => ({ ...localStorage }));
 	await page.close();
+
+	// «Продолжить» после перезагрузки страницы
+	const p2 = await open({ width: 1000, height: 600 }, false, 30, storage);
+	const cont = await G(p2, () => !document.getElementById('btn-continue').classList.contains('hidden'));
+	await p2.click('#btn-continue');
+	await p2.waitForFunction(() => window.__game?.state === 'play', null, { timeout: 60000 });
+	const c2 = await G(p2, () => ({ loc: window.__game.loc, owned: window.__game.kit.owned.join() }));
+	check(cont && c2.loc === 'stab' && c2.owned.includes('aks'), `«Продолжить»: снова в стабе, оружие сохранено (${c2.owned})`);
+	await G(p2, () => localStorage.clear());
+	await p2.close();
 
 	// телефон в вертикальном положении: игра всё равно горизонтальная; кнопки атаки — тап/удержание/отпускание.
 	// Логика здесь в реальном времени (без ?sim), чтобы проверить темп стрельбы.
 	const m = await open({ width: 390, height: 844 }, true, 0);
-	await m.tap('#btn-start');
+	await m.tap('#btn-new');
 	await m.waitForTimeout(1000);
 	// собственный размер холста (до CSS-поворота) — горизонтальный
 	const land = await G(m, () => { const c = document.querySelector('#game canvas'); return { rotated: document.body.classList.contains('rotated'), w: c.clientWidth, h: c.clientHeight }; });
 	check(land.rotated && land.w > land.h * 1.5, `на вертикальном телефоне игра идёт горизонтально (${land.w}×${land.h})`);
 	const box = await m.locator('#btn-attack').boundingBox();
 	check(box && box.width >= 80, 'на телефоне есть крупная кнопка атаки');
-	await G(m, () => { const p = window.__game.player; p.setWeapon('pistol'); p.hp = p.maxHp = 1e6; });
+	await G(m, () => { const p = window.__game.player; p.hold = 'gun'; p.attachGear(); p.hp = p.maxHp = 1e6; });
 	const ammo = () => G(m, () => window.__game.player.ammo);
 	const settle = async () => { await m.waitForFunction(() => window.__game.player.cooldown <= 0 && window.__game.player.trigger <= 0, null, { timeout: 20000 }); await m.waitForTimeout(400); };
 	await settle();

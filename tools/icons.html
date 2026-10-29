@@ -20,6 +20,8 @@
 	<script type="module">
 		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 		import { createIconFactory } from '../game/icons.js';
+		import { WEAPONS } from '../game/weapons.js';
+		import { BAG_ORDER } from '../game/items.js';
 		const gltf = await new GLTFLoader().loadAsync('../models/game/player.glb');
 		const icons = createIconFactory();
 		const add = (src, label, cls = '') => {
@@ -28,11 +30,12 @@
 			document.getElementById('out').appendChild(f);
 		};
 		add(icons.portrait(gltf), 'портрет', 'round');
-		add(icons.axe(), 'топор');
-		add(icons.pistol(), 'ПМ');
-		for (const k of ['ammo', 'zhivchik', 'spore', 'peas']) add(icons.item(k), k);
-		add(icons.figure(gltf, 'axe'), 'с топором');
-		add(icons.figure(gltf, 'pistol'), 'с пистолетом');
+		for (const [k, w] of Object.entries(WEAPONS)) add(icons.weapon(k), w.name);
+		for (const k of BAG_ORDER) add(icons.item(k), k);
+		add(icons.figure(gltf, { melee: 'axe', gun: 'pistol' }, 'melee'), 'с топором');
+		add(icons.figure(gltf, { melee: 'fireaxe', gun: 'obrez' }, 'gun'), 'с обрезом');
+		add(icons.figure(gltf, { melee: 'axe', gun: 'aks' }, 'gun'), 'с автоматом');
+		add(icons.figure(gltf, { melee: 'axe', gun: 'aks' }, 'melee'), 'автомат за спиной');
 		window.ready = true;
 	</script>
 </body>

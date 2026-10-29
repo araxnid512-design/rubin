@@ -101,6 +101,22 @@ export function makeAks() {
 // ---------- Каталог ----------
 
 /** Патроны: какие бывают и как называются. */
+/** Узлы креплений оружия на теле героя (см. heroMounts в профиле). */
+export const MOUNTS = { axe: 'AxeMount', holster: 'HolsterMount', back: 'BackMount' };
+
+/** Клипы героя под тип оружия в руках. */
+export const CLIPS = {
+	axe: { idle: 'Idle', walk: 'Walk', run: 'Run', hit: 'Hit', attack: 'Melee' },
+	pistol: { idle: 'IdlePistol', walk: 'WalkPistol', run: 'RunPistol', hit: 'HitPistol', aim: 'AimPistol', shoot: 'Shoot', reload: 'Reload' },
+	rifle: { idle: 'IdleRifle', walk: 'WalkRifle', run: 'RunRifle', hit: 'HitRifle', aim: 'AimRifle', shoot: 'ShootRifle', reload: 'ReloadRifle' },
+};
+
+/** Смена оружия: draw — топор → ствол, stow — ствол → топор (по типу ствола). */
+export const EQUIP = {
+	pistol: { draw: 'EquipPistol', stow: 'EquipAxe' },
+	rifle: { draw: 'EquipRifle', stow: 'EquipAxeR' },
+};
+
 export const AMMO = { ammo9: '9×18', ammo12: '12 кал.', ammo545: '5,45×39' };
 
 /**

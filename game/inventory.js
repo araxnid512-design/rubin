@@ -1,30 +1,31 @@
-// Рюкзак в духе Last Day on Earth: слева герой в полный рост и оружие (что в руках),
-// в центре ячейки рюкзака с количеством, справа описание выбранного предмета и действие.
-// Пока рюкзак открыт, игра на паузе.
+// Рюкзак в духе Last Day on Earth: слева герой в полный рост и два слота оружия (ближний бой
+// и огнестрел), в центре ячейки рюкзака с количеством (запасное оружие, патроны, живчики,
+// спораны, горох), справа описание выбранного предмета и действие. Пока рюкзак открыт, игра на паузе.
 
 import { ITEMS, BAG_ORDER, plural } from './items.js';
+import { WEAPONS, AMMO } from './weapons.js';
 
 const SLOTS = 15;
 const $ = (id) => document.getElementById(id);
+const SLOT_NAMES = { melee: 'Ближний бой', gun: 'Огнестрел' };
 
 export class Inventory {
 	/**
-	 * game: { player, bag, icons, figure(weapon), drink(), equip(weapon), setPaused(bool) }
+	 * game: { player, bag, kit: { gear, owned, mags }, icons, figure(gear, hold), drink(),
+	 *         hold(slot), equipGear(id), setPaused(bool) }
 	 */
 	constructor(game) {
 		this.game = game;
 		this.el = $('inventory');
-		this.selected = 'ammo';
+		this.selected = 'ammo9';
 		$('inv-close').onclick = () => this.close();
 		this.el.addEventListener('pointerdown', (e) => { if (e.target === this.el) this.close(); });
-		$('inv-grid').addEventListener('click', (e) => {
-			const slot = e.target.closest('[data-item]');
-			if (slot) this.select(slot.dataset.item);
-		});
-		$('inv-equip').addEventListener('click', (e) => {
-			const slot = e.target.closest('[data-item]');
-			if (slot) this.select(slot.dataset.item);
-		});
+		for (const id of ['inv-grid', 'inv-equip']) {
+			$(id).addEventListener('click', (e) => {
+				const slot = e.target.closest('[data-item]');
+				if (slot) this.select(slot.dataset.item);
+			});
+		}
 		$('inv-action').onclick = () => this.act();
 	}
 
@@ -35,7 +36,6 @@ export class Inventory {
 		if (this.isOpen || !g.player?.alive) return;
 		this.el.classList.remove('hidden');
 		g.setPaused(true);
-		this.figureFor = null;
 		this.render();
 	}
 
@@ -54,52 +54,67 @@ export class Inventory {
 
 	/** Действие с выбранным предметом. */
 	act() {
-		const g = this.game, kind = this.selected;
+		const g = this.game, kind = this.selected, kit = g.kit, p = g.player;
+		const W = WEAPONS[kind];
 		if (kind === 'zhivchik') g.drink();
-		else if (ITEMS[kind]?.type === 'weapon' && g.player.weapon !== kind) {
-			g.equip(kind);
-			this.close();
-			return;
-		}
+		else if (W && kit.gear[W.slot] === kind) {
+			// оружие из слота — в руки (смена анимацией после закрытия рюкзака)
+			if (p.weapon !== kind) { this.close(); g.hold(W.slot); return; }
+		} else if (W) g.equipGear(kind); // запасное из рюкзака — в слот, прежнее — в рюкзак
 		this.render();
 	}
 
 	render() {
-		const g = this.game, p = g.player, icons = g.icons ?? {};
-		// фигура героя с оружием в руках (перерисовываем только при смене оружия)
-		if (this.figureFor !== p.weapon) {
-			this.figureFor = p.weapon;
-			const src = g.figure?.(p.weapon);
+		const g = this.game, p = g.player, kit = g.kit, icons = g.icons ?? {};
+		const key = `${kit.gear.melee}|${kit.gear.gun}|${p.hold}`;
+		if (this.figureFor !== key) {
+			this.figureFor = key;
+			const src = g.figure?.(kit.gear, p.hold);
 			if (src) $('inv-figure').src = src;
 		}
 		$('inv-hp').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-		$('inv-equip').innerHTML = ['axe', 'pistol'].map((w) => `
-			<button class="slot weapon${this.selected === w ? ' sel' : ''}" data-item="${w}">
+		$('inv-equip').innerHTML = ['melee', 'gun'].map((slot) => {
+			const w = kit.gear[slot];
+			if (!w) return `<div class="slot weapon empty"><span class="slot-name">${SLOT_NAMES[slot]}</span></div>`;
+			const W = WEAPONS[w];
+			return `<button class="slot weapon${this.selected === w ? ' sel' : ''}" data-item="${w}">
 				${icons[w] ? `<img src="${icons[w]}" alt="">` : ''}
-				<span class="slot-name">${ITEMS[w].name}</span>
+				<span class="slot-name">${W.name}</span>
 				${p.weapon === w ? '<span class="tag">в руках</span>' : ''}
-				${w === 'pistol' ? `<span class="count">${p.ammo}/${g.mag}</span>` : ''}
-			</button>`).join('');
-		const items = BAG_ORDER.filter((k) => (g.bag[k] ?? 0) > 0);
+				${W.ammo ? `<span class="count">${kit.mags[w] ?? 0}/${W.mag}</span>` : ''}
+			</button>`;
+		}).join('');
+		// рюкзак: запасное оружие, затем расходники
+		const spare = kit.owned.filter((w) => !Object.values(kit.gear).includes(w));
+		const items = [...spare, ...BAG_ORDER.filter((k) => (g.bag[k] ?? 0) > 0)];
 		$('inv-grid').innerHTML = Array.from({ length: SLOTS }, (_, i) => {
 			const k = items[i];
 			if (!k) return '<div class="slot empty"></div>';
+			const count = WEAPONS[k] ? (WEAPONS[k].ammo ? `${kit.mags[k] ?? 0}/${WEAPONS[k].mag}` : '') : g.bag[k];
 			return `<button class="slot${this.selected === k ? ' sel' : ''}" data-item="${k}" title="${ITEMS[k].name}">
 				${icons[k] ? `<img src="${icons[k]}" alt="">` : `<span class="slot-name">${ITEMS[k].name}</span>`}
-				<span class="count">${g.bag[k]}</span>
+				<span class="count">${count}</span>
 			</button>`;
 		}).join('');
 		$('inv-weight').textContent = `${items.length} / ${SLOTS}`;
 		// описание выбранного
 		let kind = this.selected;
-		if (!ITEMS[kind] || (ITEMS[kind].type !== 'weapon' && !(g.bag[kind] > 0))) kind = items[0] ?? p.weapon;
+		const valid = WEAPONS[kind] ? kit.owned.includes(kind) : (g.bag[kind] ?? 0) > 0;
+		if (!ITEMS[kind] || !valid) kind = items[0] ?? p.weapon;
 		this.selected = kind;
-		const it = ITEMS[kind];
+		const it = ITEMS[kind], W = WEAPONS[kind];
 		$('inv-icon').src = icons[kind] ?? '';
 		$('inv-name').textContent = it.name;
-		const n = g.bag[kind];
-		let info = it.type === 'weapon' ? (p.weapon === kind ? 'В руках' : 'На поясе') : `${n} ${plural(n, it.forms)}`;
-		if (kind === 'pistol' || kind === 'ammo') info += ` · в магазине ${p.ammo}/${g.mag}, в запасе ${g.bag.ammo ?? 0}`;
+		let info;
+		if (W) {
+			const where = p.weapon === kind ? 'В руках' : kit.gear[W.slot] === kind ? (W.mount === 'back' ? 'За спиной' : 'На поясе') : 'В рюкзаке';
+			info = W.ammo ? `${where} · в магазине ${kit.mags[kind] ?? 0}/${W.mag}, в запасе ${g.bag[W.ammo] ?? 0} (${AMMO[W.ammo]})` : `${where} · урон ${W.damage}`;
+		} else {
+			const n = g.bag[kind];
+			info = `${n} ${plural(n, it.forms)}`;
+			const guns = Object.entries(WEAPONS).filter(([, w]) => w.ammo === kind).map(([, w]) => w.name);
+			if (guns.length) info += ` · к оружию: ${guns.join(', ')}`;
+		}
 		$('inv-count').textContent = info;
 		$('inv-desc').textContent = it.desc;
 		const btn = $('inv-action');
@@ -109,9 +124,12 @@ export class Inventory {
 			btn.classList.remove('hidden');
 			btn.textContent = p.hp >= p.maxHp ? 'Здоровье полное' : `${it.use} (+45)`;
 			btn.disabled = p.hp >= p.maxHp;
-		} else if (it.type === 'weapon' && p.weapon !== kind) {
+		} else if (W && kit.gear[W.slot] === kind && p.weapon !== kind) {
 			btn.classList.remove('hidden');
 			btn.textContent = 'Взять в руки';
+		} else if (W && kit.gear[W.slot] !== kind) {
+			btn.classList.remove('hidden');
+			btn.textContent = `В слот «${SLOT_NAMES[W.slot]}»`;
 		}
 	}
 }

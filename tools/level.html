@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Level Check</title>
+	<style>
+		:root { --bg: #1b201c; --text: #dfe6d8; }
+		body { margin: 0; background: var(--bg); color: var(--text); font: 13px system-ui, sans-serif; overflow: hidden; }
+		#info { position: fixed; left: 8px; top: 8px; background: #0008; padding: 4px 8px; border-radius: 6px; }
+	</style>
+	<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head>
+<body>
+	<!-- Проверка локаций (game/locations/*.js): ?id=dachi&view=top|game&x=0&z=0 -->
+	<div id="info"></div>
+	<script type="module">
+		import * as THREE from 'three';
+		import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+		import { buildLevel } from '../game/level.js';
+		const q = new URLSearchParams(location.search);
+		const id = q.get('id') || 'zarechny', view = q.get('view') || 'top';
+		const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+		r.setSize(innerWidth, innerHeight);
+		r.shadowMap.enabled = true;
+		r.toneMapping = THREE.ACESFilmicToneMapping;
+		document.body.appendChild(r.domElement);
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x8a9088);
+		scene.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+		scene.environmentIntensity = 0.25;
+		scene.add(new THREE.HemisphereLight(0xc4ccd0, 0x4a4a3c, 1.25));
+		const sun = new THREE.DirectionalLight(0xfff0dc, 2.1);
+		sun.position.set(25, 40, 15);
+		scene.add(sun);
+		const t0 = performance.now();
+		const level = buildLevel(scene, { id, quality: 'medium' });
+		const ms = Math.round(performance.now() - t0);
+		let camera;
+		const x = +(q.get('x') || 0), z = +(q.get('z') || 0);
+		if (view === 'top') {
+			const s = +(q.get('s') || 50), a = innerWidth / innerHeight;
+			camera = new THREE.OrthographicCamera(-s * a, s * a, s, -s, 1, 200);
+			camera.position.set(x, 100, z); camera.lookAt(x, 0, z);
+			// сетка навигации и выходы поверх
+			if (q.get('nav')) {
+				const { N, blocked, center } = level.nav;
+				const g = new THREE.Group();
+				const m = new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.35, depthTest: false });
+				const geo = new THREE.PlaneGeometry(0.45, 0.45).rotateX(-Math.PI / 2);
+				for (let i = 0; i < N * N; i++) if (blocked[i]) { const c = new THREE.Mesh(geo, m); c.position.set(center(i % N), 30, center((i / N) | 0)); g.add(c); }
+				scene.add(g);
+			}
+			for (const e of level.exits) {
+				const m = new THREE.Mesh(new THREE.PlaneGeometry(e.x1 - e.x0, e.z1 - e.z0).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x20a0ff, transparent: true, opacity: 0.4, depthTest: false }));
+				m.position.set((e.x0 + e.x1) / 2, 31, (e.z0 + e.z1) / 2);
+				scene.add(m);
+			}
+			for (const c of level.containers) {
+				const m = new THREE.Mesh(new THREE.CircleGeometry(0.35, 10).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe040, depthTest: false }));
+				m.position.set(c.ax, 32, c.az);
+				scene.add(m);
+			}
+		} else {
+			camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.5, 220);
+			camera.position.set(x, 11.5, z + 8.5);
+			camera.lookAt(x, 0.2, z + 0.8);
+			level.updateView({ x, z }, camera.position, 10);
+		}
+		r.render(scene, camera);
+		document.getElementById('info').textContent = `${id}: ${ms} мс, коллайдеров ${level.colliders.length}, тайников ${level.containers.length}, зданий ${level.buildings.length}`;
+		window.level = level;
+		window.ready = true;
+	</script>
+</body>
+</html>

@@ -108,8 +108,8 @@
 		body.short .controls { margin-top: 8px; }
 		body.short #banner { top: 16%; }
 		body.short #banner-title { font-size: 28px; }
-		body.short .hp { width: 230px; }
-		body.rotated .hp { width: 230px; } /* vw при повороте считаются от вертикального экрана */
+		body.short .hp { width: 228px; }
+		body.rotated .hp { width: 228px; } /* vw при повороте считаются от вертикального экрана */
 		body.short #btn-attack { width: 88px; height: 88px; bottom: 22px; right: 22px; }
 		body.short #btn-weapon { bottom: 30px; right: 124px; }
 		body.short #btn-reload { bottom: 124px; right: 36px; }
@@ -154,6 +154,86 @@
 		body.short .inv { padding: 8px 12px; }
 		body.short .inv-head { margin-bottom: 6px; }
 		@media (max-width: 640px) { body:not(.rotated) .inv-body { grid-template-columns: 1fr; } }
+		/* Локация и таймер перезагрузки */
+		.loc { display: grid; justify-items: center; gap: 1px; padding: 6px 12px; min-width: 96px; }
+		#loc-name { font-size: 12px; color: var(--muted); white-space: nowrap; }
+		#loc-timer { font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; }
+		#loc-timer.safe { font-size: 13px; font-weight: 600; color: var(--spore); }
+		#loc-timer.warn { color: #e8c860; }
+		#loc-timer.danger { color: #f06a50; animation: pulse 0.8s ease-in-out infinite; }
+		@keyframes pulse { 50% { opacity: 0.45; } }
+		.stats .peas b { color: #cfe890; }
+		#sour { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 8; background: radial-gradient(ellipse at center, rgba(160,160,90,0.05) 35%, rgba(120,124,60,0.85)); }
+		#flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 30; background: #f4f2e4; }
+		#flash.show { animation: flash 2.2s ease-out forwards; }
+		@keyframes flash { 0% { opacity: 0; } 10% { opacity: 1; } 55% { opacity: 1; } 100% { opacity: 0; } }
+		.menu-buttons { display: grid; gap: 8px; }
+		button.big.alt { background: transparent; color: var(--text); border: 1px solid var(--border); }
+		#travel { z-index: 28; background: rgba(10,12,11,0.92); }
+		.travel-card h1 { font-size: 24px; }
+
+		/* Карта мира */
+		#worldmap, #trade { z-index: 25; padding: 10px; }
+		.inv .x { font: inherit; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; flex: none; }
+		.wm-body { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.1fr); gap: 12px; align-items: start; }
+		#wm-svg { width: 100%; aspect-ratio: 1.15; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		.wm-road { stroke: #8a927e; stroke-width: 0.8; stroke-dasharray: 2 1.5; }
+		.wm-road.active { stroke: var(--accent); stroke-width: 1.1; }
+		.wm-time { fill: #c8d0bc; font-size: 3.6px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
+		.wm-node .wm-dot { fill: #6a7262; stroke: #d8dece; stroke-width: 0.6; }
+		.wm-node.stab .wm-dot { fill: #4a7a3a; }
+		.wm-node.reachable { cursor: pointer; }
+		.wm-node.here .wm-dot { fill: var(--accent); }
+		.wm-ring-bg { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 1.4; }
+		.wm-ring { fill: none; stroke: #9ad070; stroke-width: 1.4; }
+		.wm-ring.low { stroke: #f06a50; }
+		.wm-label { fill: var(--text); font-size: 4.4px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1.2px; }
+		.wm-you { fill: var(--accent); font-size: 3.4px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
+		#wm-list { display: grid; gap: 8px; }
+		.route { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
+		.route.suggest { border-color: var(--accent); }
+		.route-text { display: grid; gap: 2px; flex: 1; font-size: 13px; }
+		.route-text b { font-size: 15px; }
+		.route-text span { color: #cfd6c8; }
+		.route-text .muted { color: var(--muted); font-size: 12px; }
+		.danger { color: #f06a50 !important; font-weight: 700; }
+		button.go, button.stay, button.buy { font: inherit; font-weight: 700; border-radius: 10px; border: 0; padding: 10px 16px; cursor: pointer; background: var(--accent); color: #141816; }
+		button.stay { background: transparent; color: var(--text); border: 1px solid var(--border); }
+		.wm-hint { font-size: 13px; color: var(--muted); }
+
+		/* Торговец */
+		.trade { width: min(760px, 100%); }
+		.wallet { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-left: auto; }
+		.wallet .spore b { color: var(--spore); }
+		.wallet .peas b { color: #cfe890; }
+		#trade-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+		.offer { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 12px; padding: 6px 8px; background: rgba(255,255,255,0.03); }
+		.offer.owned { opacity: 0.6; }
+		.offer-icon { width: 48px; height: 48px; flex: none; border-radius: 10px; background: radial-gradient(circle at 50% 45%, rgba(220,230,210,0.18), transparent 72%); }
+		.offer-icon img { width: 100%; height: 100%; object-fit: contain; }
+		.offer-text { display: grid; flex: 1; min-width: 0; font-size: 13px; line-height: 1.25; }
+		.offer-text b { font-size: 13px; }
+		.offer-text span { color: var(--muted); font-size: 12px; }
+		button.buy { padding: 8px 10px; font-size: 13px; white-space: nowrap; }
+		button.buy:disabled { background: #4a5044; color: #a8ae9e; cursor: default; }
+		.exchange { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+		.exchange b { color: var(--text); }
+		.exchange span { flex: 1; min-width: 200px; }
+		body.short .wm-body { grid-template-columns: 1fr 1.2fr; }
+		body.short #wm-svg { max-height: 70vh; }
+		body.short .route { padding: 5px 8px; }
+		body.short .route-text .muted { display: none; }
+		body.short .offer-icon { width: 40px; height: 40px; }
+		body.short .loc { min-width: 80px; padding: 4px 8px; }
+		/* узкая шапка на горизонтальном телефоне: здоровье, таймер, оружие и две кнопки в одну строку */
+		body.short .hud-btn { width: 44px; height: 44px; }
+		body.short .hud-btn svg { width: 24px; height: 24px; }
+		body.short #weapon-icon { width: 34px; height: 34px; }
+		body.short .box { padding: 6px 10px; }
+		body.short .right-group, body.short .left-group { gap: 6px; }
+		body.short .stats { gap: 9px; font-size: 12px; white-space: nowrap; }
+		body.short #loc-timer { font-size: 16px; }
+		@media (max-width: 640px) { body:not(.rotated) .wm-body { grid-template-columns: 1fr; } }
 		@media (pointer: fine) { #touch { display: none; } }
 		.desktop-only { display: none; }
 		@media (pointer: fine) { .desktop-only { display: block; } .mobile-only { display: none; } }
@@ -171,6 +251,8 @@
 	<div id="app">
 	<div id="game"></div>
 	<div id="hurt"></div>
+	<div id="sour"></div>
+	<div id="flash"></div>
 
 	<div id="hud" class="hidden">
 		<div class="top">
@@ -180,12 +262,13 @@
 				<div class="label"><span>Здоровье</span><span id="hp-text">100</span></div>
 				<div class="bar"><div id="hp-fill"></div></div>
 				<div class="stats">
-					<span>Осталось <b id="left">0</b></span>
-					<span>Убито <b id="kills">0</b></span>
 					<span class="spore">Спораны <b id="spores">0</b></span>
+					<span class="peas">Горох <b id="peas">0</b></span>
+					<span>Убито <b id="kills">0</b></span>
 				</div>
 			</div>
 			</div>
+			<div class="box loc" id="loc"><span id="loc-name"></span><span id="loc-timer"></span></div>
 			<div class="right-group">
 				<div class="box weapon">
 					<div>
@@ -196,6 +279,9 @@
 				</div>
 				<button class="hud-btn" id="btn-inv" title="Рюкзак (I)" aria-label="Рюкзак">
 					<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M11 9V7a5 5 0 0 1 10 0v2"/><rect x="6" y="9" width="20" height="19" rx="5"/><path d="M11 18h10v5H11z"/></svg>
+				</button>
+				<button class="hud-btn" id="btn-map" title="Карта (M)" aria-label="Карта">
+					<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8l8-3 8 3 8-3v19l-8 3-8-3-8 3z"/><path d="M12 5v19M20 8v19"/></svg>
 				</button>
 			</div>
 		</div>
@@ -214,7 +300,7 @@
 
 	<button id="search" class="hidden" aria-label="Обыскать">
 			<span class="search-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
-			<span>Обыскать: <b id="search-name"></b></span><kbd class="desktop-only">E</kbd></span>
+			<span><span id="search-verb">Обыскать</span>: <b id="search-name"></b></span><kbd class="desktop-only">E</kbd></span>
 			<span class="search-track"><span id="search-bar"></span></span>
 		</button>
 
@@ -242,6 +328,31 @@
 		</div>
 	</div>
 
+	<div id="worldmap" class="screen hidden">
+		<div class="inv wm">
+			<div class="inv-head"><b>Карта Улья</b><span class="muted" id="wm-sub"></span><button class="x" id="wm-close" aria-label="Закрыть">✕</button></div>
+			<div class="wm-body">
+				<svg id="wm-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+				<div id="wm-list"></div>
+			</div>
+		</div>
+	</div>
+
+	<div id="trade" class="screen hidden">
+		<div class="inv trade">
+			<div class="inv-head"><b>Торговец</b><span class="muted">стаб «Полис» · игра на паузе</span>
+				<span class="wallet"><span class="spore">Спораны <b id="trade-spores">0</b></span><span class="peas">Горох <b id="trade-peas">0</b></span></span>
+				<button class="x" id="trade-close" aria-label="Закрыть">✕</button></div>
+			<div id="trade-list"></div>
+			<div class="exchange"><span>Горох → спораны: <b>1 горошина = 5 споранов</b></span>
+				<button class="buy" id="trade-peas-1">Обменять 1</button><button class="buy" id="trade-peas-all">Все</button></div>
+		</div>
+	</div>
+
+	<div id="travel" class="screen hidden">
+		<div class="card travel-card"><h1 id="travel-title"></h1><div class="sub" id="travel-sub"></div></div>
+	</div>
+
 	<div id="loading" class="screen">
 		<div class="card">
 			<h1>Улей. Кластер-17</h1>
@@ -255,22 +366,27 @@
 		<div class="card">
 			<h1>Улей. Кластер-17</h1>
 			<div class="sub">по мотивам вселенной «Стикс» Артёма Каменистого</div>
-			<p class="lore">Кусок посёлка вместе с тобой перенесло в Улей. Все, кто не оказался иммунным, обратились. По краям кластера — муть.
-				По улицам бродят бегуны, у гаражей и магазина — топтуны. Зачисти кластер:
-				заражённые замечают тебя вблизи и идут на шум — выстрел слышно далеко, топор тише.
-				Собирай спораны с убитых, живчик лечит. Патроны к ПМ на счету — заходи в дома и магазин
-				и обыскивай шкафы, тумбочки, сундуки.</p>
-			<button class="big" id="btn-start">Начать</button>
-			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>H</b> — выпить живчик · <b>E</b> — обыскать</div>
-			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак — вверху справа. Прицел — автоматический.</div>
+			<p class="lore">Кусок посёлка вместе с тобой перенесло в Улей. Все, кто не оказался иммунным, обратились.
+				Кластер живёт 5–7 минут, потом Улей подменяет его свежей копией — вместе со всеми, кто не успел уйти:
+				перед этим пахнет кислым и сгущается муть. Обыскивай дома (патроны только там), собирай спораны
+				с заражённых и уходи по дороге к стабу «Полис»: там торговец продаёт оружие, патроны и живчики, лекарь лечит.
+				По карте мира ходи между кластерами, пока они свежие.</p>
+			<div class="menu-buttons">
+				<button class="big" id="btn-continue">Продолжить</button>
+				<button class="big alt" id="btn-new">Новая игра</button>
+			</div>
+			<div class="sub" id="menu-save"></div>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>E</b> — обыскать / торговать</div>
+			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
 		</div>
 	</div>
 
 	<div id="gameover" class="screen hidden">
 		<div class="card">
 			<h1 id="go-title">Тебя сожрали</h1>
+			<p class="lore" id="go-sub"></p>
 			<div class="sub" id="go-stats"></div>
-			<button class="big" id="btn-restart">Ещё раз</button>
+			<button class="big" id="btn-respawn">Очнуться в стабе</button>
 		</div>
 	</div>
 	</div>

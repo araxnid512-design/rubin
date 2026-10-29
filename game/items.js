@@ -2,18 +2,23 @@
 // и для иконок (иконки рендерятся из этих моделей, см. icons.js).
 
 import * as THREE from 'three';
+import { WEAPONS } from './weapons.js';
 
+const ROUNDS = ['патрон', 'патрона', 'патронов'];
 export const ITEMS = {
-	axe: { name: 'Топор', type: 'weapon', desc: 'Тихое оружие ближнего боя. Удар слышно недалеко, патронов не тратит.' },
-	pistol: { name: 'ПМ', type: 'weapon', desc: 'Пистолет Макарова, магазин на 8 патронов 9×18. Выстрел слышно издалека.' },
-	ammo: { name: 'Патроны 9×18', forms: ['патрон', 'патрона', 'патронов'], desc: 'Патроны к ПМ. Перезарядка берёт их из рюкзака. Попадаются в кластере и у убитых.' },
+	...Object.fromEntries(Object.entries(WEAPONS).map(([k, w]) => [k, { name: w.name, type: 'weapon', desc: w.desc }])),
+	ammo9: { name: 'Патроны 9×18', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны к ПМ. Лежат в домах: в шкафах, комодах, сундуках.' },
+	ammo12: { name: 'Патроны 12 кал.', type: 'ammo', forms: ROUNDS, desc: 'Охотничьи патроны с картечью к обрезу. Чаще всего — у дачников и сторожей.' },
+	ammo545: { name: 'Патроны 5,45×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АКС-74У. В кластерах редки — проще купить в стабе.' },
 	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], use: 'Выпить', desc: 'Лечебное зелье Улья: восстанавливает 45 здоровья.' },
-	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья.' },
-	peas: { name: 'Горох', forms: ['горошина', 'горошины', 'горошин'], desc: 'Горошины из споровых мешков топтунов. Ценятся дороже споранов.' },
+	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
+	peas: { name: 'Горох', forms: ['горошина', 'горошины', 'горошин'], desc: 'Горошины из споровых мешков топтунов. Торговец в стабе меняет каждую на 5 споранов.' },
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo', 'zhivchik', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo9', 'ammo12', 'ammo545', 'zhivchik', 'spore', 'peas'];
+/** Расходники: при гибели пропадают вместе с рюкзаком (оружие остаётся). */
+export const CONSUMABLES = BAG_ORDER;
 
 /** «3 патрона», «5 споранов». */
 export function plural(n, [one, few, many]) {
@@ -26,7 +31,51 @@ const mat = (o) => new THREE.MeshStandardMaterial(o);
 /** 3D-модель предмета (без свечения — его добавляет подбор на земле). Начало координат — у дна. */
 export function makeItemMesh(kind) {
 	const g = new THREE.Group();
-	if (kind === 'ammo') {
+	if (WEAPONS[kind]) {
+		// оружие на земле: лежит плашмя (ось хвата +Z — вдоль земли)
+		const w = WEAPONS[kind].make();
+		w.rotation.set(0, 0, Math.PI / 2);
+		w.rotateX(-(w.userData.tilt ?? 0));
+		w.position.y = 0.04;
+		g.add(w);
+	} else if (kind === 'ammo12') {
+		// пачка охотничьих патронов: красные гильзы с латунным донцем
+		const card = mat({ color: 0x3a5a3a, roughness: 0.8 });
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.14), card);
+		box.position.y = 0.04;
+		const label = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.05), mat({ color: 0xd8c890, roughness: 0.8 }));
+		label.position.set(0, 0.04, 0.071);
+		const red = mat({ color: 0xa02a20, roughness: 0.45 }), brass = mat({ color: 0xc9a248, roughness: 0.3, metalness: 0.9 });
+		const shell = new THREE.CylinderGeometry(0.018, 0.018, 0.07, 10), base = new THREE.CylinderGeometry(0.019, 0.019, 0.016, 10);
+		for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+			const x = -0.06 + i * 0.04, z = -0.025 + j * 0.045;
+			const s = new THREE.Mesh(shell, red); s.position.set(x, 0.115, z);
+			const b = new THREE.Mesh(base, brass); b.position.set(x, 0.088, z);
+			g.add(s, b);
+		}
+		// пара патронов рядом, на боку
+		for (const [x, z, r] of [[0.16, 0.04, 0.4], [0.15, -0.05, -0.3]]) {
+			const s = new THREE.Mesh(shell, red); s.rotation.set(0, r, Math.PI / 2); s.position.set(x, 0.02, z);
+			g.add(s);
+		}
+		g.add(box, label);
+	} else if (kind === 'ammo545') {
+		// цинк-укупорка с патронами в пачках и снаряжённый рожок
+		const zinc = mat({ color: 0x8a9088, roughness: 0.35, metalness: 0.8 });
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.18), zinc);
+		box.position.y = 0.05;
+		const pack = mat({ color: 0xb8a878, roughness: 0.9 });
+		for (let i = 0; i < 3; i++) {
+			const p = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.05, 0.14), pack);
+			p.position.set(-0.085 + i * 0.085, 0.125, 0);
+			g.add(p);
+		}
+		const magMat = mat({ color: 0x6a3a22, roughness: 0.5 });
+		const mag = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.2, 0.06), magMat);
+		mag.position.set(0.2, 0.03, 0.02);
+		mag.rotation.set(Math.PI / 2, 0.3, 0.25);
+		g.add(box, mag);
+	} else if (kind === 'ammo9') {
 		// открытая армейская коробка с патронами
 		const olive = mat({ color: 0x4d5a36, roughness: 0.55, metalness: 0.35 });
 		const box = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.18), olive);
@@ -71,4 +120,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo: '255,220,120', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140' };
+export const GLOW = { ammo9: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140' };
