@@ -461,7 +461,11 @@ function pivot(parent, x, y, z) { const g = new THREE.Group(); g.position.set(x,
 
 // ---------- земля: процедурная текстура песка с сеткой
 // Земля: карта высот (дюны, рябь песка, каменные плиты, швы сетки, камешки) -> цвет + карта нормалей
-function groundTextures(bio) {
+// рельеф земли (высоты, плиты, камешки) и карта нормалей одинаковы во всех локациях — считаются один раз;
+// при смене локации перекрашивается только цвет (на телефоне это секунды экономии на каждой высадке)
+let GROUND = null;
+function groundBase() {
+  if (GROUND) return GROUND;
   const S = 1024, T = S / N, H = new Float32Array(S * S), slab = new Uint8Array(N * N), R = rng(77);
   function addNoise(cell, amp, seed) {
     const Rn = rng(seed), G = Math.ceil(S / cell) + 2, g = new Float32Array(G * G);
@@ -498,19 +502,30 @@ function groundTextures(bio) {
       const d = Math.hypot(x - cx, y - cy) / r; if (d < 1) H[y * S + x] += 3 * Math.sqrt(1 - d * d);
     }
   }
-  // цвет
-  const cc = document.createElement('canvas'); cc.width = cc.height = S; const cg = cc.getContext('2d'), img = cg.createImageData(S, S), d = img.data;
+  // яркость пикселя (от высоты и мелкий шум), признак плиты и нормали
+  const shade = new Float32Array(S * S), isSlab = new Uint8Array(S * S);
   const nc = document.createElement('canvas'); nc.width = nc.height = S; const ng = nc.getContext('2d'), nimg = ng.createImageData(S, S), nd = nimg.data;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const i = y * S + x, h = H[i], isSlab = slab[((y / T) | 0) * N + ((x / T) | 0)];
-    let [r, g, b] = isSlab ? bio.slab : bio.sand;
-    const sh = 0.9 + h * 0.012 + (R() - 0.5) * 0.06;
-    d[i * 4] = clamp(r * sh, 0, 255); d[i * 4 + 1] = clamp(g * sh, 0, 255); d[i * 4 + 2] = clamp(b * sh * 0.97, 0, 255); d[i * 4 + 3] = 255;
+    const i = y * S + x; isSlab[i] = slab[((y / T) | 0) * N + ((x / T) | 0)];
+    shade[i] = 0.9 + H[i] * 0.012 + (R() - 0.5) * 0.06;
     const hl = H[y * S + Math.max(0, x - 1)], hr = H[y * S + Math.min(S - 1, x + 1)], hu = H[Math.max(0, y - 1) * S + x], hd = H[Math.min(S - 1, y + 1) * S + x];
-    let nx = (hl - hr) * 0.11, ny = (hd - hu) * 0.11, nz = 1; const L = Math.hypot(nx, ny, nz); nx /= L; ny /= L; nz /= L;
-    nd[i * 4] = (nx * 0.5 + 0.5) * 255; nd[i * 4 + 1] = (ny * 0.5 + 0.5) * 255; nd[i * 4 + 2] = (nz * 0.5 + 0.5) * 255; nd[i * 4 + 3] = 255;
+    let nx = (hl - hr) * 0.11, ny = (hd - hu) * 0.11; const L = Math.sqrt(nx * nx + ny * ny + 1);
+    nd[i * 4] = (nx / L * 0.5 + 0.5) * 255; nd[i * 4 + 1] = (ny / L * 0.5 + 0.5) * 255; nd[i * 4 + 2] = (0.5 / L + 0.5) * 255; nd[i * 4 + 3] = 255;
   }
-  cg.putImageData(img, 0, 0); ng.putImageData(nimg, 0, 0);
+  ng.putImageData(nimg, 0, 0);
+  const normalMap = new THREE.CanvasTexture(nc); normalMap.anisotropy = 8;
+  return (GROUND = { S, T, slab, pebs, shade, isSlab, normalMap });
+}
+function groundTextures(bio) {
+  const { S, T, slab, pebs, shade, isSlab, normalMap } = groundBase(), R = rng(78);
+  const cc = document.createElement('canvas'); cc.width = cc.height = S; const cg = cc.getContext('2d'), img = cg.createImageData(S, S), d = img.data;
+  const [sr, sg, sb] = bio.sand, [lr, lg, lb] = bio.slab;
+  for (let i = 0, n = S * S; i < n; i++) {
+    const sh = shade[i], o = i * 4;
+    if (isSlab[i]) { d[o] = lr * sh; d[o + 1] = lg * sh; d[o + 2] = lb * sh * 0.97; } else { d[o] = sr * sh; d[o + 1] = sg * sh; d[o + 2] = sb * sh * 0.97; }
+    d[o + 3] = 255; // ImageData сама ограничивает значения 0…255
+  }
+  cg.putImageData(img, 0, 0);
   // трещины на плитах и тёмные камешки
   cg.strokeStyle = bio.crack; cg.lineWidth = 1;
   for (let tz = 0; tz < N; tz++) for (let tx = 0; tx < N; tx++) if (slab[tz * N + tx] && R() < 0.6) {
@@ -519,7 +534,6 @@ function groundTextures(bio) {
   }
   for (const [x, y, r] of pebs) { cg.fillStyle = R() < 0.5 ? bio.peb[0] : bio.peb[1]; cg.beginPath(); cg.arc(x, y, r * 0.8, 0, 7); cg.fill(); }
   const map = new THREE.CanvasTexture(cc); map.encoding = THREE.sRGBEncoding; map.anisotropy = 8;
-  const normalMap = new THREE.CanvasTexture(nc); normalMap.anisotropy = 8;
   return { map, normalMap, emissiveMap: bio.lava ? magmaCracks(cg, S, R) : null };
 }
 // трещины в застывшей лаве: на карте цвета — обугленные края, на карте свечения — раскалённая магма
@@ -555,13 +569,16 @@ const outerMat = mat(0xc98652, { roughness: 1 });
 let lava = null;
 function makeLava() {
   const S = 256, G = 8, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), img = g.createImageData(S, S), d = img.data, R = rng(91);
-  const pts = []; for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) pts.push([(i + 0.15 + R() * 0.7) * S / G, (j + 0.15 + R() * 0.7) * S / G]);
+  const C = S / G, pts = []; for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) pts.push([(i + 0.15 + R() * 0.7) * C, (j + 0.15 + R() * 0.7) * C]);
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    let f1 = 1e9, f2 = 1e9;
-    for (const [px, py] of pts) {
+    // по точке на ячейку: ближайшие две ищем только в соседних ячейках (с переносом через край)
+    let f1 = 1e9, f2 = 1e9; const ci = x / C | 0, cj = y / C | 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const [px, py] = pts[((cj + dj + G) % G) * G + (ci + di + G) % G];
       let dx = Math.abs(x - px), dy = Math.abs(y - py); dx = Math.min(dx, S - dx); dy = Math.min(dy, S - dy);
-      const q = Math.hypot(dx, dy); if (q < f1) { f2 = f1; f1 = q; } else if (q < f2) f2 = q;
+      const q = dx * dx + dy * dy; if (q < f1) { f2 = f1; f1 = q; } else if (q < f2) f2 = q;
     }
+    f1 = Math.sqrt(f1); f2 = Math.sqrt(f2);
     const e = Math.exp(-(f2 - f1) * 0.32), hot = clamp(e * 1.15 + 0.12 * Math.sin(x * 0.21 + y * 0.13), 0, 1), k = (y * S + x) * 4;
     d[k] = 40 + 215 * Math.pow(hot, 0.6); d[k + 1] = 12 + 170 * Math.pow(hot, 1.6); d[k + 2] = 6 + 70 * Math.pow(hot, 3.5); d[k + 3] = 255;
   }
@@ -627,21 +644,30 @@ let groundTex = null, envTex = null, baseHemi = 0.55;
 // настоящая панорама неба для отражений и рассеянного света (своя у каждой локации, грузится один раз)
 const ENVC = {};
 function loadEnv(name) {
-  if (ENVC[name]) { scene.environment = ENVC[name]; return; }
+  if (ENVC[name]) { useEnv(ENVC[name]); return; }
   TEXL.load(`tex/env_${name}.jpg`, t => {
     t.mapping = THREE.EquirectangularReflectionMapping; t.encoding = THREE.sRGBEncoding;
     const pm = new THREE.PMREMGenerator(renderer), e = pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
-    ENVC[name] = e; if (B().envImg === name) { scene.environment = e; renderer.shadowMap.needsUpdate = true; }
+    ENVC[name] = e; if (B().envImg === name) { useEnv(e); renderer.shadowMap.needsUpdate = true; }
   }, undefined, () => {});
+}
+// отражения окружения (PBR-освещение от панорамы) — самая дорогая часть пикселя на телефоне.
+// Без них рассеянный свет неба даёт полусферный свет, усиленный так, чтобы тени не проваливались в черноту
+const HEMI_NOENV = 1.6;
+let envCur = null, envOn = true;
+function useEnv(e) { envCur = e; scene.environment = envOn ? e : null; }
+function setEnvOn(on) {
+  if (envOn === on) return; envOn = on; scene.environment = on ? envCur : null;
+  hemi.intensity = baseHemi = B().hemi[2] * (on ? 1 : HEMI_NOENV);
 }
 function applyBiome(idNew) {
   biomeId = idNew; store('cvd-biome', idNew); const b = B();
   if (scene.background) scene.background.dispose(); scene.background = skyTex(b.sky);
   scene.fog.color.set(b.fog[0]); scene.fog.near = b.fog[1]; scene.fog.far = b.fog[2];
   renderer.toneMappingExposure = b.exposure;
-  hemi.color.set(b.hemi[0]); hemi.groundColor.set(b.hemi[1]); hemi.intensity = baseHemi = b.hemi[2];
+  hemi.color.set(b.hemi[0]); hemi.groundColor.set(b.hemi[1]); hemi.intensity = baseHemi = b.hemi[2] * (envOn ? 1 : HEMI_NOENV);
   sun.color.set(b.sun[0]); sun.intensity = b.sun[1]; fill.color.set(b.fill[0]); fill.intensity = b.fill[1];
-  if (envTex) envTex.dispose(); envTex = envMap(b.env, b.sun[0]); scene.environment = envTex;
+  if (envTex) envTex.dispose(); envTex = envMap(b.env, b.sun[0]); useEnv(envTex);
   if (b.envImg) loadEnv(b.envImg);
   const det = b.det || DET0;
   COVER_COL.value.setRGB(b.sand[0] / 255, b.sand[1] / 255, b.sand[2] / 255).convertSRGBToLinear();
@@ -649,7 +675,7 @@ function applyBiome(idNew) {
   detailize(ROCK_MAT, { name: 'r' + det.rock, tex: detailTex(det.rock), scale: 0.95, str: 0.9, alb: 0.45, cover: 0.6 });
   detailize(FOLIAGE_MAT, { name: 'f', tex: detailTex('rubble'), scale: 1.4, str: 1.1, alb: 0.55 });
   planet.visible = !!b.planet; moon.visible = !!b.moon;
-  if (groundTex) { groundTex.map.dispose(); groundTex.normalMap.dispose(); if (groundTex.emissiveMap) groundTex.emissiveMap.dispose(); }
+  if (groundTex) { groundTex.map.dispose(); if (groundTex.emissiveMap) groundTex.emissiveMap.dispose(); } // карта нормалей общая — остаётся
   groundTex = groundTextures(b); groundMat.map = groundTex.map; groundMat.normalMap = groundTex.normalMap; groundMat.roughness = b.groundRough;
   groundMat.emissiveMap = groundTex.emissiveMap; groundMat.emissive.set(groundTex.emissiveMap ? 0xffffff : 0x000000); groundMat.needsUpdate = true;
   if (b.lava && !lava) lava = makeLava(); if (lava) lava.visible = !!b.lava;
@@ -770,6 +796,14 @@ GRASS_MAT.onBeforeCompile = sh => {
 const GRASS_TIME = { value: 0 };
 // камень со сколами: многогранник из случайных плоскостей раскола (как настоящий расколотый валун),
 // поверх — лёгкая неровность; грани плоские, фактуру камня даёт шейдер деталей
+// набор готовых валунов (по 32 формы на детализацию): скалы на поле и вдали берут форму из набора,
+// а разнообразие дают поворот и масштаб — постройка поля не считает сотни многогранников заново
+const ROCK_POOL = [[], []];
+function rockPool(R, detail) {
+  const pool = ROCK_POOL[detail];
+  if (pool.length < 32) { const g = rockGeo(rng(4100 + pool.length * 13 + detail), detail); pool.push(g); return g; }
+  return pool[Math.floor(R() * pool.length)];
+}
 function rockGeo(R, detail = 1) {
   const g = new THREE.IcosahedronGeometry(1, detail), p = g.attributes.position, v = new THREE.Vector3(), seen = new Map(), s = R() * 50;
   const planes = []; for (let i = 0, n = 9 + Math.floor(R() * 7); i < n; i++) { const nn = new THREE.Vector3(R() * 2 - 1, R() * 2 - 1, R() * 2 - 1).normalize(); planes.push([nn, 0.62 + R() * 0.32]); }
@@ -856,11 +890,11 @@ function buildProps() {
     const k = kind[id(x, z)], cx = x + 0.5, cz = z + 0.5;
     if (k === K.EDGE || k === K.ROCK_L) {
       const h = k === K.EDGE ? 1.5 + R() * 1.4 : 1.2 + R() * 0.9, col = rockCols[Math.floor(R() * 4)];
-      addR(rockGeo(R, 1), cx + (R() - 0.5) * 0.2, h * 0.42, cz + (R() - 0.5) * 0.2, R() * 0.4, R() * 6, R() * 0.3, 0.64, h * 0.55, 0.64, col);
-      if (R() < 0.6) addR(rockGeo(R, 0), cx + (R() - 0.5) * 0.5, 0.2, cz + (R() - 0.5) * 0.5, R() * 0.5, R() * 6, 0, 0.42, 0.3, 0.42, rockCols[Math.floor(R() * 4)]);
-      if (k === K.EDGE && R() < 0.2) addR(rockGeo(R, 0), cx, h * 0.9, cz, R() * 0.5, R() * 6, 0, 0.35, 0.5, 0.35, bio.rockTop);
+      addR(rockPool(R, 1), cx + (R() - 0.5) * 0.2, h * 0.42, cz + (R() - 0.5) * 0.2, R() * 0.4, R() * 6, R() * 0.3, 0.64, h * 0.55, 0.64, col);
+      if (R() < 0.6) addR(rockPool(R, 0), cx + (R() - 0.5) * 0.5, 0.2, cz + (R() - 0.5) * 0.5, R() * 0.5, R() * 6, 0, 0.42, 0.3, 0.42, rockCols[Math.floor(R() * 4)]);
+      if (k === K.EDGE && R() < 0.2) addR(rockPool(R, 0), cx, h * 0.9, cz, R() * 0.5, R() * 6, 0, 0.35, 0.5, 0.35, bio.rockTop);
       // снежная шапка на скалах ледяной локации
-      if (bio.snowCaps && R() < 0.75) addR(rockGeo(R, 1), cx + (R() - 0.5) * 0.15, h * 0.8, cz + (R() - 0.5) * 0.15, 0, R() * 6, 0, 0.52, 0.14, 0.52, 0xeef4fa);
+      if (bio.snowCaps && R() < 0.75) addR(rockPool(R, 1), cx + (R() - 0.5) * 0.15, h * 0.8, cz + (R() - 0.5) * 0.15, 0, R() * 6, 0, 0.52, 0.14, 0.52, 0xeef4fa);
     } else if (k === K.WALL) {
       add(BOX, cx, 0.85, cz, 0, 0, 0, 1, 1.7, 1, 0x646c78);
       add(BOX, cx, 1.74, cz, 0, 0, 0, 1.04, 0.1, 1.04, 0x3c424c);
@@ -900,7 +934,7 @@ function buildProps() {
     if (bio.volcano && Math.hypot(x - bio.volcano[0], z - bio.volcano[1]) < 64) continue;
     const base = surroundH(x, z) - 1.5;   // плато стоят на рельефе, а не тонут в нём
     addR(MESA, x, base + h / 2, z, 0, R() * 6, 0, 1.5 + R() * 3.5, h, 1.5 + R() * 3.5, rockCols[i % 4]);
-    if (R() < 0.5) addR(rockGeo(R, 0), x, base + h, z, 0, R() * 6, 0, 2 + R() * 2, 1, 2 + R() * 2, bio.snowCaps ? 0xeef4fa : rockCols[1]);
+    if (R() < 0.5) addR(rockPool(R, 0), x, base + h, z, 0, R() * 6, 0, 2 + R() * 2, 1, 2 + R() * 2, bio.snowCaps ? 0xeef4fa : rockCols[1]);
   }
   // джунгли: гигантские деревья на краю поля и стеной вокруг
   if (bio.trees) {
@@ -2647,7 +2681,7 @@ const PORTRAITS = new Map();
 function portraitImage(team, type, paint, kit) {
   const key = team + type + (paint || '') + (kit || ''); if (PORTRAITS.has(key)) return PORTRAITS.get(key);
   const W = 192, H = 112, rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 }); rt.texture.encoding = THREE.sRGBEncoding;
-  const ps = new THREE.Scene(); ps.environment = scene.environment;
+  const ps = new THREE.Scene(); ps.environment = envCur;
   ps.add(new THREE.HemisphereLight(0xdfeeff, 0x553322, 0.35));
   const key1 = new THREE.DirectionalLight(0xfff0dd, 1.1); key1.position.set(2.5, 2, 1.2); ps.add(key1);
   const rim = new THREE.DirectionalLight(team === 'clone' ? 0x6fc4ff : 0xff6a50, 2.0); rim.position.set(-2, 1.5, -2); ps.add(rim);
@@ -3524,13 +3558,16 @@ async function startGame() {
 let last = performance.now(), timeScale = 1, slow = 1; // timeScale — ускорение (тесты, кнопка), slow — замедление на убийствах
 
 // ---------- качество графики: плотность пикселей и тени. «Авто» подстраивается под скорость устройства
-const GFX_LEVELS = [ // от лучшего к самому быстрому: предел плотности пикселей и карта теней (0 — без теней)
-  { pr: 2, sh: 2048 }, { pr: 1.5, sh: 2048 }, { pr: 1.25, sh: 1024 }, { pr: 1, sh: 1024 }, { pr: 1, sh: 0 }, { pr: 0.75, sh: 0 },
+const GFX_LEVELS = [ // от лучшего к самому быстрому: предел плотности пикселей, карта теней (0 — без теней), отражения окружения
+  { pr: 2, sh: 2048, env: 1 }, { pr: 1.5, sh: 2048, env: 1 }, { pr: 1.25, sh: 1024, env: 1 }, { pr: 1.25, sh: 1024, env: 0 }, { pr: 1, sh: 1024, env: 0 }, { pr: 1, sh: 0, env: 0 }, { pr: 0.75, sh: 0, env: 0 },
 ];
-const GFX_MODES = { auto: 'Авто', high: 'Высокая', mid: 'Средняя', low: 'Низкая' }, GFX_PRESET = { high: 0, mid: 2, low: 4 };
-const GFX_NAMES = ['макс.', 'высокая', 'высокая', 'средняя', 'низкая', 'миним.'];
+const GFX_MODES = { auto: 'Авто', high: 'Высокая', mid: 'Средняя', low: 'Низкая' }, GFX_PRESET = { high: 0, mid: 3, low: 5 };
+const GFX_NAMES = ['макс.', 'высокая', 'высокая', 'средняя', 'средняя', 'низкая', 'миним.'];
+// top — потолок «Авто», start — с чего начинать. Телефон начинает со средней и поднимается, если тянет;
+// уровень, найденный подстройкой, запоминается — следующий запуск сразу с него, без рывков в начале
 const gfx = { mode: GFX_MODES[store('cvd-gfx')] ? store('cvd-gfx') : 'auto', top: isTouch ? (lowEnd ? 2 : 1) : 0, level: 0, win: [], bad: 0, good: 0, hold: 0, ups: 0, prev: 0, locked: false };
-const gfxKey = l => Math.min(window.devicePixelRatio || 1, GFX_LEVELS[l].pr) + '/' + GFX_LEVELS[l].sh;
+gfx.start = (() => { const l = +store('cvd-gfxl'); return store('cvd-gfxl') !== null && l >= gfx.top && l < GFX_LEVELS.length ? l : isTouch ? (lowEnd ? 4 : 3) : 0; })();
+const gfxKey = l => Math.min(window.devicePixelRatio || 1, GFX_LEVELS[l].pr) + '/' + GFX_LEVELS[l].sh + '/' + GFX_LEVELS[l].env;
 // фигуры бойцов и дроидов — самые тяжёлые меши (скелет, ~11 тыс. треугольников): в проход теней их пускаем только на высокой графике
 let unitShadows = true;
 function setUnitShadows(on) {
@@ -3540,20 +3577,24 @@ function setUnitShadows(on) {
 function applyGfx(l) {
   gfx.level = l; const v = GFX_LEVELS[l], pr = Math.min(window.devicePixelRatio || 1, v.pr);
   // тени бойцов рисуются по упрощённой сетке (вдвое легче полной) — их хватает и на «средней» графике
-  if ((l <= 2) !== unitShadows) setUnitShadows(l <= 2);
+  if ((l <= 3) !== unitShadows) setUnitShadows(l <= 3);
   if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); resize(); }
   sun.castShadow = v.sh > 0; // смена числа теней сама перекомпилирует шейдеры
-  setDetail(l <= 3); if (grassMesh) grassMesh.visible = l <= 3;
+  setDetail(l <= 4); if (grassMesh) grassMesh.visible = l <= 4; setEnvOn(!!v.env);
   if (v.sh && sun.shadow.mapSize.x !== v.sh) { sun.shadow.mapSize.set(v.sh, v.sh); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
-  Weather.setDensity([1, 1, 0.8, 0.6, 0.45, 0.3][l]); renderer.shadowMap.needsUpdate = true;
+  Weather.setDensity([1, 1, 0.8, 0.7, 0.6, 0.45, 0.3][l]); renderer.shadowMap.needsUpdate = true;
+  if (gfx.mode === 'auto') store('cvd-gfxl', l);
   gfx.win.length = 0; gfx.bad = gfx.good = 0; gfx.hold = 2.5;
   for (const b of document.querySelectorAll('.gfxBtn')) b.textContent = 'Графика: ' + GFX_MODES[gfx.mode] + (gfx.mode === 'auto' ? ' · ' + GFX_NAMES[l] : '');
 }
-function setGfxMode(mode) { gfx.mode = mode; store('cvd-gfx', mode); gfx.locked = false; gfx.ups = 0; gfx.prev = 0; applyGfx(mode === 'auto' ? gfx.top : GFX_PRESET[mode]); }
+function setGfxMode(mode) { gfx.mode = mode; store('cvd-gfx', mode); gfx.locked = false; gfx.ups = 0; gfx.prev = 0; applyGfx(mode === 'auto' ? gfx.start : GFX_PRESET[mode]); }
 // соседний уровень с другими настройками (на экранах с плотностью 1 часть уровней совпадает)
 function gfxStep(dir) { let l = gfx.level; do l += dir; while (l > 0 && l < GFX_LEVELS.length - 1 && gfxKey(l) === gfxKey(gfx.level)); return l >= 0 && l < GFX_LEVELS.length && gfxKey(l) !== gfxKey(gfx.level) ? l : -1; }
 // замер по ~1,5 с активной игры: ниже ~40 кадров/с — шаг вниз, устойчивые 60 — осторожно обратно вверх.
 // Если понижение не ускорило кадр, частоту ограничивает система — возвращаем качество и больше не трогаем
+// счётчик кадров под табло хода: только по активным кадрам (в покое игра нарочно рисует ~30 раз в секунду)
+const fpsEl = $('fps'); let fpsN = 0, fpsT = 0;
+function fpsSample(ms) { if (ms > 250) return; fpsN++; fpsT += ms; if (fpsT >= 1000) { fpsEl.textContent = Math.round(fpsN * 1000 / fpsT) + ' FPS'; fpsN = fpsT = 0; } }
 function gfxSample(ms) {
   if (gfx.mode !== 'auto' || gfx.locked || ms > 250) return;
   if (gfx.hold > 0) { gfx.hold -= ms / 1000; return; }
@@ -3562,7 +3603,7 @@ function gfxSample(ms) {
   if (gfx.prev) { const p = gfx.prev; gfx.prev = 0; if (avg > p.avg * 0.92) { gfx.locked = true; applyGfx(p.level); return; } }
   gfx.bad = avg > 25 ? gfx.bad + 1 : 0; gfx.good = avg < 17.5 ? gfx.good + 1 : 0;
   if (gfx.bad >= 2) { const l = gfxStep(1); if (l >= 0) { gfx.prev = { avg, level: gfx.level }; applyGfx(l); } }
-  else if (gfx.good >= 5 && gfx.level > gfx.top && gfx.ups < 2) { const l = gfxStep(-1); if (l >= gfx.top) { gfx.ups++; applyGfx(l); } }
+  else if (gfx.good >= 5 && gfx.level > gfx.top && gfx.ups < 3) { const l = gfxStep(-1); if (l >= gfx.top) { gfx.ups++; applyGfx(l); } }
 }
 // покой: ничего не движется и игрок не трогает экран — рисуем 30 кадров/с вместо 60 (меньше нагрев и расход батареи)
 function sceneIdle() {
@@ -3571,7 +3612,7 @@ function sceneIdle() {
   return Math.abs(cam.fx - cam.tfx) + Math.abs(cam.fz - cam.tfz) + Math.abs(cam.dist - cam.tdist) + Math.abs(cam.pitch - cam.tpitch) + Math.abs(Math.atan2(Math.sin(cam.tyaw - cam.yaw), Math.cos(cam.tyaw - cam.yaw))) < 0.01;
 }
 const _frus = new THREE.Frustum(), _pm = new THREE.Matrix4(), _bs = new THREE.Sphere(new THREE.Vector3(), 1.6);
-let wasIdle = true;
+let wasIdle = true, animTick = 0;
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); Hub.resize(w, h);
   $('rotate').classList.toggle('show', isTouch && h > w);
@@ -3582,7 +3623,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const idle = sceneIdle();
   if (idle && now - last < 31) return;
-  if (!idle && !wasIdle) gfxSample(now - last);
+  if (!idle && !wasIdle) { gfxSample(now - last); fpsSample(now - last); }
   wasIdle = idle;
   const dt = Math.min(0.05, (now - last) / 1000) * timeScale * slow * (phase === 'enemy' && fastEnemy ? 2 : 1); last = now;
   tweensUpdate(dt); if (frameWaiters.length) for (const r of frameWaiters.splice(0)) r(dt);
@@ -3592,7 +3633,13 @@ function frame(now) {
   FX.update(dt); dustUpdate(dt); Weather.update(dt);
   // анимируем только тех, кого видно: спрятанные туманом и оставшиеся за кадром стоят на паузе
   _frus.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-  for (const u of units) { if (!u.rig.root.visible) continue; _bs.center.set(u.rig.root.position.x, 0.8, u.rig.root.position.z); if (_frus.intersectsSphere(_bs)) poseRig(u, dt); }
+  // дальние бойцы в покое (их и так рисует упрощённая сетка) двигаются через кадр, по очереди: скелет с IK — главная работа процессора
+  animTick++;
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i]; if (!u.rig.root.visible) continue; _bs.center.set(u.rig.root.position.x, 0.8, u.rig.root.position.z); if (!_frus.intersectsSphere(_bs)) continue;
+    if (!idle && u.state === 'idle' && !(u.flinch > 0) && (animTick + i) % 2 && camera.position.distanceTo(u.rig.root.position) > LOD_FAR) { u.animDt = (u.animDt || 0) + dt; continue; }
+    poseRig(u, dt + (u.animDt || 0)); u.animDt = 0;
+  }
   // дым над обломками
   smokeT -= dt; if (smokeT < 0) { smokeT = 0.35; for (const [x, y, z] of smokeSources) FX.puff(x + rand(-0.2, 0.2), y, z + rand(-0.2, 0.2), { color: 0x3b332e, life: 3.2, s0: 0.3, s1: 1.8, vy: 0.5, a: 0.45 }); }
   // кольцо выбранного
@@ -3608,7 +3655,7 @@ function frame(now) {
 function warmBattle() {
   applyBiome(biomeId); setupWorld(); spawnUnits(); for (const u of units) u.rig.root.visible = true;
   cam.pitch = cam.tpitch = 1.0; cam.dist = cam.tdist = 50;
-  resize(); applyGfx(gfx.mode === 'auto' ? gfx.top : GFX_PRESET[gfx.mode]);
+  resize(); applyGfx(gfx.mode === 'auto' ? gfx.start : GFX_PRESET[gfx.mode]);
   const warm = FX.warm(); camUpdate(0); renderer.compile(scene, camera); renderer.render(scene, camera); scene.remove(warm);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) Music.stop(); else if (Snd.ctx) Music.start(); });
