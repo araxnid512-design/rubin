@@ -21,7 +21,8 @@ import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE } from './trade.js';
 import { WorldMap } from './worldmap.js';
 import { NODES, WARN, newWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
-import { EQUIP_TIMES } from '../src/hero-animations.js';
+import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
+import { ZOMBIE_GAIT } from '../src/animations.js';
 
 const $ = (id) => document.getElementById(id);
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -594,13 +595,15 @@ class Player extends Actor {
 			// во время удара почти стоим на месте
 			if (mag > 0.1) this.pos.addScaledVector(tmpV.set(mv.x, 0, mv.y).normalize(), dt * 0.6 * mag);
 		} else if (mag > 0.12) {
+			// шаг 1.1–1.7 м/с, бег 3.6–5 м/с; анимация ускоряется вместе с героем, ноги не скользят
 			const run = mag > 0.55;
-			const speed = run ? 5.0 * mag : 2.0;
+			const speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : 1.1 + (0.6 * Math.min(1, (mag - 0.12) / 0.43));
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
 			this.pos.addScaledVector(dir, speed * dt);
 			if (run && (this.stepDust = (this.stepDust ?? 0) + speed * dt) > 1.1) { this.stepDust = 0; game.dust(this.pos); }
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 12);
-			this.play(run ? c.run : c.walk, { timeScale: run ? 0.75 + mag * 0.3 : 1 });
+			const clip = run ? c.run : c.walk;
+			this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
 		} else if (this.reloading > 0) {
 			if (this.current !== c.reload) this.playReload(0.15);
 		} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
@@ -613,8 +616,9 @@ class Player extends Actor {
 }
 
 const ENEMY_TYPES = {
-	runner: { hp: 60, speed: 3.4, scale: 1, radius: 0.36, damage: 8, range: 1.25, hitTime: 0.72, attackAnim: 1, move: 'Run', moveScale: (s) => s / 4.2, score: 1 },
-	stomper: { hp: 220, speed: 2.0, scale: 1.08, radius: 0.5, damage: 22, range: 1.55, hitTime: 0.85, attackAnim: 0.85, move: 'Walk', moveScale: (s) => s / 1.25, score: 3 },
+	// move — клип погони; его скорость (ZOMBIE_GAIT) подгоняется под настоящую, чтобы ноги не скользили
+	runner: { hp: 60, speed: 3.4, scale: 1, radius: 0.36, damage: 8, range: 1.25, hitTime: 0.72, attackAnim: 1, move: 'Run', score: 1 },
+	stomper: { hp: 220, speed: 2.0, scale: 1.08, radius: 0.5, damage: 22, range: 1.55, hitTime: 0.85, attackAnim: 0.85, move: 'Stomp', score: 3 },
 };
 
 class Enemy extends Actor {
@@ -671,7 +675,7 @@ class Enemy extends Actor {
 			const speed = this.type === 'stomper' ? 0.6 : 0.55;
 			this.pos.addScaledVector(dir, speed * dt);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 2.5);
-			this.play('Walk', { fade: 0.4, timeScale: this.type === 'stomper' ? 0.5 : 0.45 });
+			this.play('Walk', { fade: 0.4, timeScale: speed / (ZOMBIE_GAIT.Walk * this.scale) });
 			resolveCollisions(this.pos, this.radius, level.colliders);
 		} else {
 			this.play('Idle', { fade: 0.4 });
@@ -755,7 +759,8 @@ class Enemy extends Actor {
 		const speed = this.T.speed * this.speedVar;
 		this.pos.addScaledVector(dir, speed * dt);
 		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 6);
-		this.play(this.T.move, { timeScale: this.T.moveScale(speed) });
+		const move = this.actions[this.T.move] ? this.T.move : 'Walk';
+		this.play(move, { timeScale: speed / (ZOMBIE_GAIT[move] * this.scale) });
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
 	}

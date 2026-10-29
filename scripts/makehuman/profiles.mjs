@@ -4,7 +4,7 @@
 import { fbm3, noise3, smoothstep } from '../../src/noise.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createZombieAnimations } from '../../src/animations.js';
+import { createZombieAnimations, createStompAnimation } from '../../src/animations.js';
 import { createHeroAnimations } from '../../src/hero-animations.js';
 import { AXE_GRIP_TILT } from '../../game/weapons.js';
 import { RUNNER_PROFILE, bloodAmount, BLOOD, DRIED, skinShade } from './build-zombie.mjs';
@@ -139,7 +139,8 @@ export const STOMPER_PROFILE = {
 	skin: stomperSkin,
 	cloth: RUNNER_PROFILE.cloth,
 	eye: 'assets/zombie_eye.png',
-	animations: createZombieAnimations,
+	// топтун тяжёлый: в погоне идёт своим тяжёлым шагом, а не шаркает
+	animations: (root, o) => [...createZombieAnimations(root, o), createStompAnimation(root)],
 };
 
 // ---------- Герой (новый игрок): полный скелет 56 костей, снаряжение, крепления оружия ----------

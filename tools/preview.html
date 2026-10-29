@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Location Preview</title>
+	<style>
+		:root { --bg: #1b201c; }
+		body { margin: 0; background: var(--bg); overflow: hidden; }
+		canvas { display: block; }
+	</style>
+	<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head>
+<body>
+	<!-- Превью локаций для карты Улья: ?id=dachi — вид сверху-сбоку с заражёнными и героем.
+	     Снимки сохраняет scripts/render-previews.mjs в assets/previews/<id>.jpg -->
+	<script type="module">
+		import * as THREE from 'three';
+		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+		import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+		import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+		import { buildLevel } from '../game/level.js';
+		import { WEAPONS } from '../game/weapons.js';
+
+		// куда смотрит камера и кого поставить в кадр (x, z, поворот, клип)
+		const SHOTS = {
+			// Заречный — с северо-востока: частный дом, трасса, за ней хрущёвка балконами к нам
+			zarechny: { target: [-14, 0, 8], cam: [15, 17, -21], hero: [-8, 4, -0.7], zombies: [['runner', -13, 6, 2.6, 'Walk'], ['runner', -17, 9, 2.2, 'Idle'], ['runner', -19, 4, 1.9, 'Run'], ['stomper', -23, 7, 2.4, 'Stomp'], ['runner', -10, 13, 3.0, 'Idle']] },
+			dachi: { target: [-12, 0, -8], cam: [12, 18, 24], hero: [-5, 3, -2.6], zombies: [['runner', -10, -4, 0.6, 'Walk'], ['runner', -16, 2, 2.0, 'Run'], ['stomper', -22, 3, 1.2, 'Stomp'], ['runner', -8, -14, 0.2, 'Idle']] },
+			stab: { target: [0, 0, 0], cam: [13, 21, 27], hero: [-2, 6.5, 3.2], zombies: [] },
+		};
+		const q = new URLSearchParams(location.search);
+		const id = q.get('id') || 'zarechny', shot = SHOTS[id];
+		const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+		r.setPixelRatio(1);
+		r.setSize(innerWidth, innerHeight);
+		r.shadowMap.enabled = true;
+		r.shadowMap.type = THREE.PCFSoftShadowMap;
+		r.toneMapping = THREE.ACESFilmicToneMapping;
+		r.toneMappingExposure = 1.15;
+		document.body.appendChild(r.domElement);
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x8a9088);
+		scene.fog = new THREE.Fog(0x7e847c, 30, 80);
+		scene.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+		scene.environmentIntensity = 0.25;
+		scene.add(new THREE.HemisphereLight(0xc4ccd0, 0x4a4a3c, 1.25));
+		const [tx, , tz] = shot.target;
+		const sun = new THREE.DirectionalLight(0xfff0dc, 2.2);
+		sun.position.set(tx + 18, 34, tz + 10);
+		sun.target.position.set(tx, 0, tz);
+		sun.castShadow = true;
+		sun.shadow.mapSize.set(2048, 2048);
+		Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 90 });
+		sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+		scene.add(sun, sun.target);
+		const level = buildLevel(scene, { id, quality: 'high' });
+		level.update(0, 3.2);
+
+		const loader = new GLTFLoader();
+		const load = (n) => loader.loadAsync(`../models/game/${n}.glb`);
+		const [player, runner, stomper] = await Promise.all(['player', 'runner', 'stomper'].map(load));
+		const gltfs = { player, runner, stomper };
+		const figure = (kind, x, z, ry, clipName, { t = Math.random(), tint = null, gun = null, axe = false, y = 0 } = {}) => {
+			const g = gltfs[kind];
+			const m = SkeletonUtils.clone(g.scene);
+			m.traverse((o) => {
+				if (!o.isMesh) return;
+				o.castShadow = true; o.frustumCulled = false;
+				if (!tint) return;
+				// жители стаба — в своей форме: перекрашиваем ткань и снаряжение (у каждого свои материалы)
+				const mats = [o.material].flat().map((mt) => (/Cloth|Gear/.test(mt.name) ? Object.assign(mt.clone(), { color: mt.color.clone().multiply(new THREE.Color(...tint)) }) : mt));
+				o.material = Array.isArray(o.material) ? mats : mats[0];
+			});
+			if (kind === 'stomper') m.scale.setScalar(1.08);
+			m.position.set(x, y, z); m.rotation.y = ry;
+			const clip = g.animations.find((c) => c.name === clipName) ?? g.animations.find((c) => c.name === 'Idle');
+			const mixer = new THREE.AnimationMixer(m);
+			mixer.clipAction(clip).play();
+			mixer.setTime(t * clip.duration);
+			const grip = m.getObjectByName('GripR');
+			if (gun) grip?.add(WEAPONS[gun].make());
+			if (axe) grip?.add(WEAPONS.axe.make());
+			scene.add(m);
+		};
+		const [hx, hz, hry] = shot.hero;
+		figure('player', hx, hz, hry, 'Run', { t: 0.3, axe: true });
+		for (const [kind, x, z, ry, clip] of shot.zombies) figure(kind, x, z, ry, clip);
+		for (const n of level.npcs) figure('player', n.x, n.z, n.ry ?? 0, n.clip, { tint: n.tint, gun: n.gun, y: n.y ?? 0 });
+		const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.5, 200);
+		camera.position.set(tx + shot.cam[0], shot.cam[1], tz + shot.cam[2]);
+		camera.lookAt(tx, 0, tz);
+		scene.updateMatrixWorld(true);
+		r.render(scene, camera);
+		window.shot = () => r.domElement.toDataURL('image/jpeg', 0.84);
+		window.ready = true;
+	</script>
+</body>
+</html>

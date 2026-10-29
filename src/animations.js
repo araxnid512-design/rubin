@@ -244,6 +244,21 @@ export function gaitFoot(phase, { stride, stance, lift, x, y0, z0 = 0, heel = 12
 
 // ---------- Клипы ----------
 
+/**
+ * Походки: d — длительность цикла (два шага), stride — сколько стопа проходит назад под телом за опору,
+ * stance — доля цикла, пока стопа на земле. Скорость, при которой ноги не скользят: stride / (stance·d).
+ */
+const WALK = { d: 2.0, L: { stride: 0.46, stance: 0.62 }, R: { stride: 0.4, stance: 0.66 } };
+const RUN = { d: 0.72, stride: 0.95, stance: 0.36 };
+const STOMP = { d: 1.05, stride: 0.9, stance: 0.6 };
+const speedOf = ({ stride, stance }, d) => stride / (stance * d);
+/** Скорость клипа (м/с) при timeScale 1 — игра подгоняет timeScale под настоящую скорость. */
+export const ZOMBIE_GAIT = {
+	Walk: (speedOf(WALK.L, WALK.d) + speedOf(WALK.R, WALK.d)) / 2,
+	Run: speedOf(RUN, RUN.d),
+	Stomp: speedOf(STOMP, STOMP.d),
+};
+
 function idlePose(rig, t) {
 	const H = rig.hipsY, a = rig.ankle;
 	const d = 4;
@@ -279,10 +294,10 @@ function idlePose(rig, t) {
 // Шаркающая походка: руки тянутся вперёд, правая нога волочится, хромота.
 function walkPose(rig, t) {
 	const H = rig.hipsY, a = rig.ankle;
-	const d = 2.0, ph = t / d;
+	const d = WALK.d, ph = t / d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
-	const left = gaitFoot(ph, { stride: 0.46, stance: 0.62, lift: 0.055, x: a.L.x + 0.01, y0: a.L.y, z0: 0.02, yaw: 4 });
-	const right = gaitFoot(ph - 0.5, { stride: 0.4, stance: 0.66, lift: 0.012, x: a.R.x - 0.02, y0: a.R.y, z0: -0.02, heel: 0, toeOff: 18, drag: 26, yaw: -16 });
+	const left = gaitFoot(ph, { ...WALK.L, lift: 0.055, x: a.L.x + 0.01, y0: a.L.y, z0: 0.02, yaw: 4 });
+	const right = gaitFoot(ph - 0.5, { ...WALK.R, lift: 0.012, x: a.R.x - 0.02, y0: a.R.y, z0: -0.02, heel: 0, toeOff: 18, drag: 26, yaw: -16 });
 	const limp = Math.max(0, Math.sin(Math.PI * 2 * (ph - 0.55))) * 0.018; // проседает на больную ногу
 	const yaw = -7 * c(1, 0.81);
 	return {
@@ -308,10 +323,10 @@ function walkPose(rig, t) {
 // Бег (быстрый зомби): сильный наклон, руки тянутся к жертве, ступни захлёстывают назад.
 function runPose(rig, t) {
 	const H = rig.hipsY, a = rig.ankle;
-	const d = 0.72, ph = t / d;
+	const d = RUN.d, ph = t / d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
 	const s = (f, o = 0) => Math.sin(Math.PI * 2 * (ph * f - o));
-	const opts = { stride: 0.95, stance: 0.36, lift: 0.14, heel: 8, toeOff: 45, kick: 0.22 };
+	const opts = { stride: RUN.stride, stance: RUN.stance, lift: 0.14, heel: 8, toeOff: 45, kick: 0.22 };
 	const left = gaitFoot(ph, { ...opts, x: a.L.x - 0.01, y0: a.L.y, z0: 0.06, yaw: 3 });
 	const right = gaitFoot(ph - 0.5, { ...opts, x: a.R.x + 0.01, y0: a.R.y, z0: 0.06, yaw: -6 });
 	const yaw = -10 * c(1, 0.75);
@@ -412,13 +427,51 @@ function deathPose(rig) {
 	};
 }
 
+// Тяжёлый шаг топтуна: ноги широко, корпус подан вперёд, вес переваливается с ноги на ногу,
+// длинные руки болтаются в такт шагам, голова кивает на каждом шаге.
+function stompPose(rig, t) {
+	const H = rig.hipsY, a = rig.ankle;
+	const d = STOMP.d, ph = t / d;
+	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
+	const opts = { stride: STOMP.stride, stance: STOMP.stance, lift: 0.1, heel: 10, toeOff: 26 };
+	const left = gaitFoot(ph, { ...opts, x: a.L.x + 0.04, y0: a.L.y, z0: 0.04, yaw: 9 });
+	const right = gaitFoot(ph - 0.5, { ...opts, x: a.R.x - 0.04, y0: a.R.y, z0: 0.04, yaw: -9 });
+	const sway = c(1, 0.25); // перенос веса
+	const yaw = -10 * c(1, 0.75);
+	const arm = 20 * c(1, 0); // мах рук против ног
+	return {
+		hips: [0.05 * sway, H - 0.09 - 0.035 * c(2, 0.12), 0.03],
+		rot: {
+			Hips: [15, yaw, 7 * sway],
+			Spine: [13 + 2 * c(2, 0.2), -0.6 * yaw, -4 * sway],
+			Chest: [9 + 2 * c(2, 0.25), -0.5 * yaw, -3 * sway],
+			Neck: [6, 0.3 * yaw, 0],
+			Head: [8 + 5 * c(2, 0.35), 0.2 * yaw, 2 * sway],
+			Jaw: [10 + 6 * Math.max(0, c(2, 0.4))],
+			'UpperArm.L': [-14 - arm, 0, 12 + 3 * sway],
+			'Forearm.L': [-28 - 0.5 * arm, 0, 0],
+			'Hand.L': [12, 0, 5],
+			'UpperArm.R': [-14 + arm, 0, -12 + 3 * sway],
+			'Forearm.R': [-28 + 0.5 * arm, 0, 0],
+			'Hand.R': [12, 0, -5],
+		},
+		feet: { L: left, R: right },
+	};
+}
+
+/** Тяжёлая походка топтуна (только для его модели в игре; у просмотрщика зомби — 5 клипов). */
+export function createStompAnimation(root) {
+	const rig = new Rig(root);
+	return bake(rig, 'Stomp', STOMP.d, (t) => stompPose(rig, t), { loop: true });
+}
+
 /** Все 5 анимаций для скелета с корнем root (кости без поворотов в позе привязки). */
 export function createZombieAnimations(root) {
 	const rig = new Rig(root);
 	return [
 		bake(rig, 'Idle', 4.0, (t) => idlePose(rig, t), { loop: true }),
-		bake(rig, 'Walk', 2.0, (t) => walkPose(rig, t), { loop: true }),
-		bake(rig, 'Run', 0.72, (t) => runPose(rig, t), { loop: true }),
+		bake(rig, 'Walk', WALK.d, (t) => walkPose(rig, t), { loop: true }),
+		bake(rig, 'Run', RUN.d, (t) => runPose(rig, t), { loop: true }),
 		bake(rig, 'Attack', 1.7, attackPose(rig)),
 		bake(rig, 'Death', 2.8, deathPose(rig)),
 	];

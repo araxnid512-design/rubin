@@ -210,8 +210,18 @@
 		.wm-hero-ring { fill: #232823; stroke: var(--accent); stroke-width: 0.8; }
 		.wm-pulse { fill: none; stroke: var(--accent); stroke-width: 0.6; animation: wmPulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 		@keyframes wmPulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.1); opacity: 0; } }
-		#travel-svg { width: min(360px, 70vw); max-height: 55vh; aspect-ratio: 1.15; display: block; margin: 0 auto 8px; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
-		body.short #travel-svg { max-height: 58vh; width: auto; }
+		.travel-card { max-width: 760px; }
+		.travel-views { display: flex; gap: 10px; justify-content: center; align-items: stretch; margin-bottom: 8px; }
+		#travel-img { width: min(400px, 46vw); aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; border: 1px solid var(--border); max-height: 52vh; }
+		#travel-svg { height: min(225px, 52vh); aspect-ratio: 1.15; display: block; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		.route-img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; flex: none; border: 1px solid var(--border); }
+		.route.here-card { background: rgba(200,216,106,0.08); }
+		.wm-frame { fill: none; stroke: #d8dece; stroke-width: 0.6; }
+		.wm-node.here .wm-frame { stroke: var(--accent); stroke-width: 1; }
+		.wm-node.reachable:hover .wm-frame { stroke: var(--accent); }
+		body.short .route-img { width: 72px; }
+		body.short .travel-views #travel-img { max-height: 46vh; }
+		body.short #travel-svg { height: min(170px, 46vh); }
 		.wm-time { fill: #c8d0bc; font-size: 3.6px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
 		.wm-node .wm-dot { fill: #6a7262; stroke: #d8dece; stroke-width: 0.6; }
 		.wm-node.stab .wm-dot { fill: #4a7a3a; }
@@ -438,7 +448,10 @@
 	</div>
 
 	<div id="travel" class="screen hidden">
-		<div class="card travel-card"><svg id="travel-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg><h1 id="travel-title"></h1><div class="sub" id="travel-sub"></div></div>
+		<div class="card travel-card">
+			<div class="travel-views"><img id="travel-img" alt=""><svg id="travel-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg></div>
+			<h1 id="travel-title"></h1><div class="sub" id="travel-sub"></div>
+		</div>
 	</div>
 
 	<div id="loading" class="screen">

@@ -65,14 +65,20 @@ export class WorldMap {
 		const routes = routesFrom(here).sort((a, b) => (b.to === this.suggest) - (a.to === this.suggest));
 		const hereLeft = timeLeft(g.world, here);
 		$('wm-sub').textContent = NODES[here].kind === 'stab' ? 'ты в стабе' : `до перезагрузки кластера ${approx(hereLeft)}`;
-		$('wm-list').innerHTML = routes.map(({ to, time }) => `
+		const hereNode = NODES[here];
+		// где ты сейчас и куда можно пойти — у каждого пункта снимок локации
+		const herecard = `<div class="route here-card"><img class="route-img" src="${hereNode.preview}" alt="">
+			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name}</b>
+				<span>${hereNode.kind === 'stab' ? 'безопасно' : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
+		$('wm-list').innerHTML = herecard + routes.map(({ to, time }) => `
 			<div class="route${to === this.suggest ? ' suggest' : ''}">
+				<img class="route-img" src="${NODES[to].preview}" alt="">
 				<div class="route-text"><b>${NODES[to].name}</b>
 					<span>в пути ${approx(time)} · ${this.status(to, time)}</span>
 					<span class="muted">${NODES[to].desc}</span></div>
 				${this.look ? '' : `<button class="go" data-go="${to}">Идти</button>`}
 			</div>`).join('') + (this.look
-			? `<div class="wm-hint">${NODES[here].kind === 'stab' ? 'Выход — через ворота стаба на юге' : 'Чтобы уйти, дойди до края кластера — к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
+			? `<div class="wm-hint">${hereNode.kind === 'stab' ? 'Выход — через ворота стаба на юге' : 'Чтобы уйти, дойди до края кластера (муть) в любом месте или к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
 			: '<button class="stay" id="wm-stay">Остаться</button>');
 		$('wm-stay').onclick = () => this.close();
 		this.draw(here, routes);
@@ -120,8 +126,14 @@ export class WorldMap {
 				el('circle', { cx: x, cy: y, r: R, class: `wm-ring${left < 60 ? ' low' : ''}`, 'stroke-dasharray': `${len * frac} ${len}`, transform: `rotate(-90 ${x} ${y})` }, g);
 			}
 			if (reachable) el('circle', { cx: x, cy: y, r: 6, class: 'wm-glow' }, g);
-			el('circle', { cx: x, cy: y, r: n.kind === 'stab' ? 5.5 : 5, class: 'wm-dot' }, g);
-			if (n.kind === 'stab') el('path', { d: `M${x - 1.2} ${y + 2.6}V${y - 3}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
+			// пункт — круглый снимок локации в рамке
+			const r = 5.6;
+			const cp = el('clipPath', { id: `${svg.id}-${id}` }, defs);
+			el('circle', { cx: x, cy: y, r }, cp);
+			el('circle', { cx: x, cy: y, r: r + 0.2, class: 'wm-dot' }, g);
+			if (n.preview) el('image', { href: n.preview, x: x - r * 1.78, y: y - r, width: r * 3.56, height: r * 2, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${svg.id}-${id})` }, g);
+			el('circle', { cx: x, cy: y, r, class: 'wm-frame' }, g);
+			if (n.kind === 'stab') el('path', { d: `M${x + 3.4} ${y - 3.2}V${y - 8.4}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;
 		}
@@ -131,7 +143,7 @@ export class WorldMap {
 			const [x1, y1] = NODES[travel.from].at, [x2, y2] = NODES[travel.to].at;
 			hx = x1 + (x2 - x1) * travel.t; hy = y1 + (y2 - y1) * travel.t;
 		} else [hx, hy] = NODES[here].at;
-		const you = el('g', { class: 'wm-hero', transform: `translate(${hx} ${hy - (travel ? 0 : 9.5)})` });
+		const you = el('g', { class: 'wm-hero', transform: `translate(${hx} ${hy - (travel ? 0 : 11)})` });
 		if (!travel) el('circle', { cx: 0, cy: 0, r: 4.6, class: 'wm-pulse' }, you);
 		el('circle', { cx: 0, cy: 0, r: 4.7, class: 'wm-hero-ring' }, you);
 		const portrait = this.game.icons?.portrait;
@@ -143,6 +155,7 @@ export class WorldMap {
 	/** Переход по дороге: портрет героя едет от from к to за ms миллисекунд, потом done(). */
 	animateTravel(from, to, ms, done) {
 		const svg = $('travel-svg');
+		$('travel-img').src = NODES[to].preview;
 		this.draw(from, [], { svg, travel: { from, to, t: 0 } });
 		const [x1, y1] = NODES[from].at, [x2, y2] = NODES[to].at;
 		const t0 = performance.now();

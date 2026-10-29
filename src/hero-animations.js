@@ -448,13 +448,27 @@ function idleAxe(rig) {
 	};
 }
 
+/**
+ * Походки героя: d — цикл (два шага), stride — сколько стопа проходит под телом за опору, stance — доля
+ * цикла на опоре. Шаг ходьбы — как у человека, идущего бодрым шагом (~1,5 м/с).
+ */
+const GAIT = {
+	walk: { d: { axe: 1.0, pistol: 1.0, rifle: 1.0 }, stride: { axe: 0.92, pistol: 0.82, rifle: 0.86 }, stance: 0.6 },
+	run: { d: { axe: 0.7, pistol: 0.72, rifle: 0.72 }, stride: { axe: 1.1, pistol: 1.0, rifle: 1.05 }, stance: 0.38 },
+};
+const gaitKind = (pistol, rifle) => (rifle ? 'rifle' : pistol ? 'pistol' : 'axe');
+/** Скорость клипа (м/с) при timeScale 1: при ней ноги не скользят. */
+export const HERO_GAIT = Object.fromEntries([['Walk', 'walk', 'axe'], ['Run', 'run', 'axe'], ['WalkPistol', 'walk', 'pistol'], ['RunPistol', 'run', 'pistol'], ['WalkRifle', 'walk', 'rifle'], ['RunRifle', 'run', 'rifle']]
+	.map(([clip, g, k]) => [clip, GAIT[g].stride[k] / (GAIT[g].stance * GAIT[g].d[k])]));
+
 function gait(rig, t, { run, pistol, rifle }) {
 	const H = rig.hipsY, a = rig.ankle;
-	const d = run ? (pistol ? 0.72 : 0.7) : 1.1, ph = t / d;
+	const G = run ? GAIT.run : GAIT.walk, k = gaitKind(pistol, rifle);
+	const d = G.d[k], ph = t / d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
 	const opts = run
-		? { stride: pistol ? 1.0 : 1.1, stance: 0.38, lift: 0.15, heel: 10, toeOff: 40, kick: 0.16 }
-		: { stride: pistol ? 0.55 : 0.62, stance: 0.6, lift: 0.07, heel: 14, toeOff: 28 };
+		? { stride: G.stride[k], stance: G.stance, lift: 0.15, heel: 10, toeOff: 40, kick: 0.16 }
+		: { stride: G.stride[k], stance: G.stance, lift: 0.08, heel: 14, toeOff: 28 };
 	const feet = {
 		L: gaitFoot(ph, { ...opts, x: a.L.x, y0: a.L.y, z0: run ? 0.05 : 0.02, yaw: 3 }),
 		R: gaitFoot(ph - 0.5, { ...opts, x: a.R.x, y0: a.R.y, z0: run ? 0.05 : 0.02, yaw: -3 }),
@@ -950,22 +964,22 @@ export function createHeroAnimations(root, options) {
 	const rig = new HeroRig(root, options);
 	return [
 		bake(rig, 'Idle', 3.0, idleAxe(rig), { loop: true }),
-		bake(rig, 'Walk', 1.1, (t) => gait(rig, t, { run: false }), { loop: true }),
-		bake(rig, 'Run', 0.7, (t) => gait(rig, t, { run: true }), { loop: true }),
+		bake(rig, 'Walk', GAIT.walk.d.axe, (t) => gait(rig, t, { run: false }), { loop: true }),
+		bake(rig, 'Run', GAIT.run.d.axe, (t) => gait(rig, t, { run: true }), { loop: true }),
 		bake(rig, 'Melee', 0.75, meleeAxe(rig)),
 		bake(rig, 'Hit', 0.4, hit(rig, false)),
 		bake(rig, 'EquipPistol', 1.0, equip(rig, true)),
 		bake(rig, 'IdlePistol', 3.0, idlePistol(rig), { loop: true }),
-		bake(rig, 'WalkPistol', 1.1, (t) => gait(rig, t, { run: false, pistol: true }), { loop: true }),
-		bake(rig, 'RunPistol', 0.72, (t) => gait(rig, t, { run: true, pistol: true }), { loop: true }),
+		bake(rig, 'WalkPistol', GAIT.walk.d.pistol, (t) => gait(rig, t, { run: false, pistol: true }), { loop: true }),
+		bake(rig, 'RunPistol', GAIT.run.d.pistol, (t) => gait(rig, t, { run: true, pistol: true }), { loop: true }),
 		bake(rig, 'AimPistol', 2.0, aimPistol(rig), { loop: true }),
 		bake(rig, 'Shoot', 0.26, shootPistol(rig)),
 		bake(rig, 'Reload', 1.4, reloadPistol(rig)),
 		bake(rig, 'HitPistol', 0.4, hit(rig, true)),
 		bake(rig, 'EquipAxe', 1.0, equip(rig, false)),
 		bake(rig, 'IdleRifle', 3.0, idleRifle(rig), { loop: true }),
-		bake(rig, 'WalkRifle', 1.1, (t) => gait(rig, t, { run: false, rifle: true }), { loop: true }),
-		bake(rig, 'RunRifle', 0.72, (t) => gait(rig, t, { run: true, rifle: true }), { loop: true }),
+		bake(rig, 'WalkRifle', GAIT.walk.d.rifle, (t) => gait(rig, t, { run: false, rifle: true }), { loop: true }),
+		bake(rig, 'RunRifle', GAIT.run.d.rifle, (t) => gait(rig, t, { run: true, rifle: true }), { loop: true }),
 		bake(rig, 'AimRifle', 2.0, aimRifle(rig), { loop: true }),
 		bake(rig, 'ShootRifle', 0.12, shootRifle(rig)),
 		bake(rig, 'ReloadRifle', 2.2, reloadRifle(rig)),

@@ -48,6 +48,9 @@ try {
 	check(s.loc === 'zarechny' && s.n >= 20 && s.idle, `новая игра в Заречном: ${s.n} заражённых, все ждут (без волн)`);
 	check(s.types === 'runner,stomper', `есть бегуны и топтуны (${s.types})`);
 	check(/^[5-6]:\d\d$/.test(s.timer), `таймер перезагрузки кластера на экране: ${s.timer}`);
+	// проверки идут дольше шести игровых минут: чтобы кластеры не перезагрузились посреди теста, отодвигаем сроки
+	// (перезагрузку проверяем отдельно ниже)
+	await G(page, () => { for (const c of Object.values(window.__game.world.clusters)) c.next = window.__game.world.time + 3600; });
 	await page.waitForTimeout(1500);
 	const perf = await G(page, () => ({ calls: window.__game.perf.calls, tris: window.__game.perf.tris, logic: window.__game.perf.logic, text: document.getElementById('perf').textContent }));
 	check(perf.calls > 0 && perf.calls < 160 && perf.tris < 350000 && /FPS/.test(perf.text), `нагрузка в кадре: ${perf.calls} вызовов отрисовки, ${Math.round(perf.tris / 1000)}k треугольников, логика ${perf.logic.toFixed(1)} мс`);
@@ -57,13 +60,47 @@ try {
 	await page.keyboard.up('KeyA');
 	const px = await G(page, () => window.__game.player.pos.x);
 	check(px < 41, `игрок идёт по клавишам (x=${px.toFixed(1)})`);
+	// ноги не скользят: пока стопа на земле, она почти стоит (скорость анимации = скорость героя)
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		const bones = ['mixamorigLeftToeBase', 'mixamorigRightToeBase'].map((n) => p.model.getObjectByName(n));
+		const rec = window.__feet = [];
+		const orig = p.update.bind(p);
+		p.update = (dt, input) => { orig(dt, input); p.root.updateMatrixWorld(true); rec.push({ dt, f: bones.map((b) => b.getWorldPosition(p.pos.clone())) }); };
+		p.pos.set(-30, 0, 6);
+		g.input.stick = { x: 0.4, y: 0 }; g.input.sync();
+	});
+	await page.waitForFunction(() => window.__feet.length > 90, null, { timeout: 60000 }).catch(() => {});
+	const slide = await G(page, () => {
+		const g = window.__game, rec = window.__feet.slice(10), sp = [];
+		g.input.stick = { x: 0, y: 0 }; g.input.sync();
+		delete g.player.update; // снова метод класса
+		for (let k = 0; k < 2; k++) for (let i = 1; i < rec.length; i++) {
+			const a = rec[i - 1].f[k], b = rec[i].f[k];
+			if (a.y < 0.07 && b.y < 0.07) sp.push(Math.hypot(b.x - a.x, b.z - a.z) / rec[i].dt);
+		}
+		sp.sort((x, y) => x - y);
+		return { median: sp[Math.floor(sp.length / 2)] ?? 9, clip: g.player.current };
+	});
+	check(slide.median < 0.35, `шаг без скольжения: стопа на земле движется ${slide.median.toFixed(2)} м/с (${slide.clip})`);
 	// подходим к заражённым — замечают и нападают, отбиваемся топором
 	await G(page, () => { const g = window.__game; g.player.pos.set(-10, 0, 9); g.player.hp = 1e6; g.player.maxHp = 1e6; g.noise(g.player.pos, 22); });
 	await page.waitForTimeout(2500);
 	const chasing = await G(page, () => window.__game.enemies.filter((e) => e.state !== 'idle').length);
 	check(chasing > 0, `заражённые заметили игрока (${chasing} в погоне)`);
+	// топтун в погоне идёт своим тяжёлым шагом
+	const stomp = await G(page, () => { const g = window.__game, e = g.enemies.find((x) => x.type === 'stomper' && x.alive); e.pos.set(g.player.pos.x - 8, 0, g.player.pos.z); e.alert(); e.state = 'chase'; return !!e.actions.Stomp; });
+	await page.waitForFunction(() => window.__game.enemies.some((x) => x.type === 'stomper' && x.current === 'Stomp'), null, { timeout: 20000 }).catch(() => {});
+	check(stomp && await G(page, () => window.__game.enemies.some((x) => x.type === 'stomper' && x.current === 'Stomp')), 'топтун в погоне идёт тяжёлым шагом (клип Stomp)');
+	await G(page, () => { for (const e of window.__game.enemies) if (e.type === 'stomper') { e.pos.set(40, 0, -44); e.state = 'idle'; } }); // не мешает драке с бегунами
+	// двое бегунов прямо перед героем: удар топором дугой задевает обоих
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		g.enemies.filter((e) => e.alive && e.type === 'runner').slice(0, 2).forEach((e, i) => { e.pos.set(p.pos.x + 1.3, 0, p.pos.z + (i ? 0.45 : -0.45)); e.stagger = 2; });
+		p.root.rotation.y = Math.PI / 2;
+	});
 	await page.keyboard.down('Space');
-	await page.waitForTimeout(6000);
+	await page.waitForFunction(() => window.__game.kills >= 2, null, { timeout: 30000 }).catch(() => {});
 	await page.keyboard.up('Space');
 	await page.screenshot({ path: join(OUT, 'game-fight.png') });
 	const k = await G(page, () => ({ kills: window.__game.kills, pickups: window.__game.pickups.length + window.__game.bag.spore, ammo: window.__game.pickups.filter((p) => /^ammo/.test(p.kind)).length }));
@@ -181,6 +218,9 @@ try {
 	const map = await G(page, () => ({ open: window.__game.worldMap.isOpen, paused: window.__game.paused, routes: [...document.querySelectorAll('#wm-list [data-go]')].map((b) => b.dataset.go) }));
 	check(map.open && map.paused && map.routes[0] === 'stab' && map.routes.includes('dachi'), `у выхода открылась карта Улья: ${map.routes.join(', ')}`);
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
+	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
+	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
+	check(prev.cards === 3 && prev.nodes === 3, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты`);
 	await page.screenshot({ path: join(OUT, 'game-map.png') });
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');
