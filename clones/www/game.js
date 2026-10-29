@@ -549,7 +549,7 @@ function buildSurround(bio) {
     col.set([r * j, g * j, b * j].map(v => Math.pow(v, 2.2)), i * 3);   // цвета вершин — в линейном пространстве
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  surround = new THREE.Mesh(geo, detailize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), { name: 'sur' + (bio.det || DET0).cliff, tex: detailTex((bio.det || DET0).cliff), scale: 0.09, str: 0.9, alb: 0.45 }));
+  surround = new THREE.Mesh(geo, detailize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), { name: 'sur' + (bio.det || DET0).cliff, tex: detailTex((bio.det || DET0).cliff), scale: 0.09, str: 0.9, alb: 0.45, cover: 0.4 }));
   surround.receiveShadow = true; world.add(surround);
 }
 
@@ -575,8 +575,9 @@ function applyBiome(idNew) {
   if (envTex) envTex.dispose(); envTex = envMap(b.env, b.sun[0]); scene.environment = envTex;
   if (b.envImg) loadEnv(b.envImg);
   const det = b.det || DET0;
+  COVER_COL.value.setRGB(b.sand[0] / 255, b.sand[1] / 255, b.sand[2] / 255).convertSRGBToLinear();
   detailize(groundMat, { name: 'g' + det.ground, tex: detailTex(det.ground), scale: 1.15, str: 0.55, alb: 0.32, mode: 'uv' });
-  detailize(ROCK_MAT, { name: 'r' + det.rock, tex: detailTex(det.rock), scale: 0.95, str: 0.9, alb: 0.45 });
+  detailize(ROCK_MAT, { name: 'r' + det.rock, tex: detailTex(det.rock), scale: 0.95, str: 0.9, alb: 0.45, cover: 0.6 });
   detailize(FOLIAGE_MAT, { name: 'f', tex: detailTex('rubble'), scale: 1.4, str: 1.1, alb: 0.55 });
   planet.visible = !!b.planet; moon.visible = !!b.moon;
   if (groundTex) { groundTex.map.dispose(); groundTex.normalMap.dispose(); }
@@ -602,6 +603,8 @@ function detailTex(name) {
   return u;
 }
 const DETAIL = { on: true, mats: new Set() };
+// цвет наносов биома (песок, снег): ложится на верхние грани скал и на ботинки бойцов
+const COVER_COL = { value: new THREE.Color(0.77, 0.57, 0.4).convertSRGBToLinear() };
 const DET0 = { ground: 'sand', rock: 'rock', cliff: 'cliff' };
 function detailize(m, o) {
   m.userData.det = o; DETAIL.mats.add(m); m.needsUpdate = true;
@@ -609,6 +612,7 @@ function detailize(m, o) {
   const tri = o.mode !== 'uv';
   m.onBeforeCompile = sh => {
     sh.uniforms.tDet = o.tex; sh.uniforms.detScale = { value: o.scale }; sh.uniforms.detStr = { value: o.str }; sh.uniforms.detAlb = { value: o.alb || 0.35 };
+    sh.uniforms.covCol = COVER_COL; sh.uniforms.covAmt = { value: o.cover || 0 };
     sh.vertexShader = 'varying vec3 vWPos;\nvarying vec3 vWNrm;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWNrm = normalize(mat3(modelMatrix) * objectNormal);');
     const fn = tri ? `
       vec3 detP(float sc) {
@@ -617,14 +621,20 @@ function detailize(m, o) {
         return w.x * vec3(0.0, a.y, a.x) + w.y * vec3(b.x, 0.0, b.y) + w.z * vec3(c.x, c.y, 0.0);
       }` : `
       vec3 detP(float sc) { vec2 b = texture2D(tDet, vWPos.xz * sc).rg * 2.0 - 1.0; return vec3(b.x, 0.0, b.y); }`;
-    sh.fragmentShader = 'uniform sampler2D tDet;\nuniform float detScale, detStr, detAlb;\nvarying vec3 vWPos;\nvarying vec3 vWNrm;\n' + fn + '\n' + sh.fragmentShader
+    // камень: крупные пятна цвета и нанос песка (снега) на верхних гранях — как у настоящих скал в пустыне
+    const cover = o.cover ? `
+        float macro = texture2D(tDet, vWPos.xz * detScale * 0.13).g;
+        diffuseColor.rgb *= 0.8 + 0.4 * macro;
+        float up = smoothstep(0.5, 0.85, normalize(vWNrm).y + dpv.y * 0.45 + (macro - 0.5) * 0.35);
+        diffuseColor.rgb = mix(diffuseColor.rgb, covCol * (0.88 + 0.24 * macro), up * covAmt);` : '';
+    sh.fragmentShader = 'uniform sampler2D tDet;\nuniform float detScale, detStr, detAlb, covAmt;\nuniform vec3 covCol;\nvarying vec3 vWPos;\nvarying vec3 vWNrm;\n' + fn + '\n' + sh.fragmentShader
       // выборка деталей одна на пиксель: считается при цвете и переиспользуется для нормали
       .replace('#include <map_fragment>', `#include <map_fragment>
-        vec3 dpv = detP(detScale); diffuseColor.rgb *= clamp(1.0 - length(dpv) * detAlb + 0.08, 0.55, 1.1);`)
+        vec3 dpv = detP(detScale); diffuseColor.rgb *= clamp(1.0 - length(dpv) * detAlb + 0.08, 0.55, 1.1);` + cover)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         normal = normalize(normal + (viewMatrix * vec4(dpv, 0.0)).xyz * detStr);`);
   };
-  m.customProgramCacheKey = () => 'det' + (tri ? 't' : 'u') + o.name;
+  m.customProgramCacheKey = () => 'det' + (tri ? 't' : 'u') + (o.cover ? 'c' : '') + o.name;
   return m;
 }
 // на низкой графике детали снимаются (простые шейдеры), на остальных — возвращаются
@@ -744,11 +754,13 @@ function buildGrass(list) {
   const m = new THREE.Mesh(g, GRASS_MAT); m.receiveShadow = true; m.visible = DETAIL.on; return m;
 }
 const halfProps = new Map(); // id -> Object3D: укрытия перед склейкой в общие меши
+// потёртый металл укрытий: мелкие вмятины и царапины из карты щебня, песок на крышках
+function worn(m, name) { return detailize(m, { name: 'w' + name, tex: detailTex('rubble'), scale: 2.2, str: 0.35, alb: 0.25, cover: 0.45 }); }
 const PROPM = {
-  crateA: mat(0x6c7684, { metalness: 0.5, roughness: 0.42 }), crateB: mat(0x8c7f63, { metalness: 0.35, roughness: 0.5 }),
-  frame: mat(0x30353d, { metalness: 0.6, roughness: 0.4 }), barrier: mat(0x5c6470, { metalness: 0.6, roughness: 0.35 }), stripe: mat(0xb8392a, { roughness: 0.5 }),
-  lightO: new THREE.MeshBasicMaterial({ color: 0xffa13d }), rock: [0xa45f37, 0x8f4f2d, 0xb36c40, 0x9a5733].map((c, i) => detailize(new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }), { name: 'prock' + i, tex: detailTex('rock'), scale: 1.1, str: 0.8, alb: 0.4 })),
-  barrel: mat(0xb8402a, { metalness: 0.45, roughness: 0.45 }), hazard: new THREE.MeshBasicMaterial({ color: 0xffc23a }), lightB: new THREE.MeshBasicMaterial({ color: 0x7fd4ff }),
+  crateA: worn(mat(0x6c7684, { metalness: 0.5, roughness: 0.42 }), 'crateA'), crateB: worn(mat(0x8c7f63, { metalness: 0.35, roughness: 0.5 }), 'crateB'),
+  frame: worn(mat(0x30353d, { metalness: 0.6, roughness: 0.4 }), 'frame'), barrier: worn(mat(0x5c6470, { metalness: 0.6, roughness: 0.35 }), 'barrier'), stripe: worn(mat(0xb8392a, { roughness: 0.5 }), 'stripe'),
+  lightO: new THREE.MeshBasicMaterial({ color: 0xffa13d }), rock: [0xa45f37, 0x8f4f2d, 0xb36c40, 0x9a5733].map((c, i) => detailize(new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }), { name: 'prock' + i, tex: detailTex('rock'), scale: 1.1, str: 0.8, alb: 0.4, cover: 0.6 })),
+  barrel: worn(mat(0xb8402a, { metalness: 0.45, roughness: 0.45 }), 'barrel'), hazard: new THREE.MeshBasicMaterial({ color: 0xffc23a }), lightB: new THREE.MeshBasicMaterial({ color: 0x7fd4ff }),
 };
 // мягкая контактная тень под объектами и юнитами
 const BLOB_TEX = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); const g = x.createRadialGradient(32, 32, 4, 32, 32, 32); g.addColorStop(0, 'rgba(30,15,5,.55)'); g.addColorStop(1, 'rgba(30,15,5,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
@@ -1854,7 +1866,28 @@ function prepareMeshy(g) {
   const M = { scene: sc, clips, corr: {}, walkSpeed: clipSpeed(sc, clips.walk, 1.3), runSpeed: clipSpeed(sc, clips.run, 3.2) };
   body.skeleton.pose(); sc.updateMatrixWorld(true);
   for (const b of body.skeleton.bones) { const q = new THREE.Quaternion(); b.matrixWorld.decompose(_v1, q, _v2); M.corr[b.name] = q.invert(); }
+  // рост модели для пыли меряем в кадре стойки: анимации Meshy двигают кости в другом масштабе, чем поза привязки
+  { const mx = new THREE.AnimationMixer(sc), act = mx.clipAction(clips.idle); act.play(); mx.update(0); sc.updateMatrixWorld(true);
+    const p = body.geometry.attributes.position; let lo = 0, hi = 0; for (let i = 1; i < p.count; i++) { if (p.getY(i) < p.getY(lo)) lo = i; if (p.getY(i) > p.getY(hi)) hi = i; }
+    const y = i => body.boneTransform(i, new THREE.Vector3().fromBufferAttribute(p, i)).y; weather(m, y(lo), y(hi), 0.65);
+    act.stop(); mx.uncacheRoot(sc); body.skeleton.pose(); sc.updateMatrixWorld(true); }
   return M;
+}
+// пыль на ботинках и голенях цвета наносов биома (песок, снег, грязь); запылённое становится матовым.
+// Высота считается по геометрии модели после скиннинга, поэтому присед и бег её не сдвигают
+function weather(m, y0, y1, amt) {
+  const tN = detailTex('rubble'); // неровные пятна берём из карты щебня, а не из синусов (те дают сетку точек)
+  m.onBeforeCompile = sh => {
+    sh.uniforms.covCol = COVER_COL; sh.uniforms.tN = tN; sh.uniforms.wAmt = { value: amt }; sh.uniforms.wY = { value: new THREE.Vector2(y0, y1 - y0) };
+    sh.vertexShader = 'uniform vec2 wY;\nvarying float vH;\nvarying vec3 vLP;\n' + sh.vertexShader.replace('#include <skinning_vertex>', '#include <skinning_vertex>\nvH = (transformed.y - wY.x) / wY.y; vLP = transformed / wY.y;');
+    sh.fragmentShader = 'uniform vec3 covCol;\nuniform sampler2D tN;\nuniform float wAmt;\nvarying float vH;\nvarying vec3 vLP;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec2 nn = texture2D(tN, vLP.xy * 1.6 + vLP.zz * 0.8).rg * 2.0 - 1.0; float pn = clamp(0.5 + length(nn) * 0.9, 0.0, 1.0);
+        float dust = (1.0 - smoothstep(0.04, 0.3, vH + (pn - 0.5) * 0.1)) * wAmt * (0.6 + 0.6 * pn);
+        diffuseColor.rgb = mix(diffuseColor.rgb, covCol, dust);`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.95, dust);');
+  };
+  m.customProgramCacheKey = () => 'weather' + amt;
 }
 function buildMeshy(team, type, paint, M) {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0);
