@@ -9,6 +9,34 @@ import { box, place } from './geom.js';
 /** Половина размера локации, м. */
 export const HALF = 50;
 
+/** Время для ветра (секунды): обновляет уровень каждый кадр. */
+export const WIND = { value: 0 };
+
+/**
+ * Материал, качающийся на ветру: вершины смещаются тем сильнее, чем выше над землёй (height — высота,
+ * на которой качание полное), фаза зависит от места экземпляра — деревья качаются не в такт.
+ */
+export function windMaterial(base, { height = 6, amount = 0.12 } = {}) {
+	const m = base.clone();
+	m.onBeforeCompile = (shader) => {
+		shader.uniforms.uWind = WIND;
+		shader.vertexShader = shader.vertexShader
+			.replace('#include <common>', '#include <common>\nuniform float uWind;')
+			.replace('#include <begin_vertex>', `#include <begin_vertex>
+			#ifdef USE_INSTANCING
+				vec3 wOrigin = vec3(instanceMatrix[3][0], 0.0, instanceMatrix[3][2]);
+			#else
+				vec3 wOrigin = vec3(0.0);
+			#endif
+			float wK = clamp(position.y / ${height.toFixed(2)}, 0.0, 1.0);
+			wK *= wK;
+			transformed.x += sin(uWind * 1.6 + wOrigin.x * 0.35 + wOrigin.z * 0.21) * ${amount.toFixed(3)} * wK;
+			transformed.z += cos(uWind * 1.15 + wOrigin.z * 0.31 + wOrigin.x * 0.17) * ${(amount * 0.7).toFixed(3)} * wK;`);
+	};
+	m.customProgramCacheKey = () => `wind${height}:${amount}`;
+	return m;
+}
+
 // ---------- Постройки и предметы ----------
 
 export function bench(batch, M, x, z, ry) {
@@ -280,7 +308,7 @@ export function buildTrees(root, trees, M) {
 		if (!list.length) continue;
 		const v = make();
 		const trunk = new THREE.InstancedMesh(v.trunk, v.trunkMat, list.length);
-		const crown = new THREE.InstancedMesh(v.crown, v.crownMat, list.length);
+		const crown = new THREE.InstancedMesh(v.crown, windMaterial(v.crownMat, { height: kind === 'apple' ? 4 : 8, amount: kind === 'pine' ? 0.12 : 0.22 }), list.length);
 		const m = new THREE.Matrix4();
 		list.forEach((t, i) => {
 			m.compose(new THREE.Vector3(t.x, 0, t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, 0)), new THREE.Vector3(t.s, t.s * (0.9 + (i % 3) * 0.08), t.s));
@@ -305,7 +333,7 @@ export function grassTufts(root, nav, rnd, count, indoors, onRoad = () => false)
 	}
 	const tex = new THREE.CanvasTexture(c);
 	tex.colorSpace = THREE.SRGBColorSpace;
-	const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 });
+	const mat = windMaterial(new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }), { height: 0.45, amount: 0.07 });
 	const g1 = new THREE.PlaneGeometry(0.7, 0.45).translate(0, 0.22, 0);
 	const g = mergeGeometries([g1, g1.clone().rotateY(Math.PI / 2)]);
 	const im = new THREE.InstancedMesh(g, mat, count);

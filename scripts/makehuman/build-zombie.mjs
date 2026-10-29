@@ -225,7 +225,6 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 		if (profile.growths) k += profile.growths(P(v), N(v), weightSum(v, 'Forearm') + weightSum(v, 'UpperArm'), weightSum(v, 'Head') + weightSum(v, 'Neck'));
 		if (k) for (let a = 0; a < 3; a++) bodyPos[v * 3 + a] += vnormals[v * 3 + a] * k;
 	}
-	const skinGeo = builder.build(bodyFaces, bodyPos, vnormals);
 	const teethGeo = [];
 	for (const g of ['helper-upper-teeth', 'helper-lower-teeth']) {
 		const faces = base.groups.get(g);
@@ -242,8 +241,10 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	// ---------- 5. Одежда ----------
 	const ragged = (p, amount, seed) => amount * (0.2 + 0.8 * fbm3(p.x * 28, p.y * 28, p.z * 28, 2, seed));
 	const holeAt = (p, list) => list.some(({ c, r }) => c && p.distanceTo(c) < r * (0.6 + 0.8 * noise3(p.x * 50, p.y * 50, p.z * 50, 19)));
+	const covered = new Set(); // грани тела, целиком закрытые одеждой (кожу под ними не рисуем)
 	const garment = ({ test, holes = [], inflate, tint }) => {
 		const keep = bodyFaces.filter((f) => f.every(([v]) => test(v)) && !holeAt(centroid(f, P), holes));
+		for (const f of keep) covered.add(f);
 		const gp = posed.slice();
 		for (let v = 0; v < nv; v++) {
 			const p = P(v);
@@ -255,6 +256,9 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	};
 	const ctx = { P, N, dominant, L, ragged, V, smoothstep, weightSum, frontMost, backMost, bindWorld, rig };
 	const clothGeos = profile.garments(ctx).map(garment);
+	// кожа — только там, где её видно: под одеждой она всё равно закрыта (как «delete groups» в MakeHuman);
+	// в дырах рваной одежды зомби кожа остаётся
+	const skinGeo = builder.build(bodyFaces.filter((f) => !covered.has(f)), bodyPos, vnormals);
 	// снаряжение (жёсткие детали на костях): подсумки, рюкзак, кобура...
 	const gearGeos = (profile.gear?.(ctx) ?? []).map(({ geo, bone, color }) => builder.rigid(geo, { [boneName(bone)]: 1 }, color));
 

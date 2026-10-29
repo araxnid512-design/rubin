@@ -19,7 +19,7 @@
 	<script type="module">
 		import * as THREE from 'three';
 		import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-		import { makeAxe, makePistol, makeAks } from '../game/weapons.js';
+		import { makeAxe, makePistol, makeAks, makeObrez } from '../game/weapons.js';
 		import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 		const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -38,7 +38,10 @@
 		scene.add(model);
 		const grip = model.getObjectByName('GripR');
 		const mounts = { axe: model.getObjectByName('AxeMount'), pistol: model.getObjectByName('HolsterMount'), aks: model.getObjectByName('BackMount') };
-		const guns = { axe: makeAxe(), pistol: makePistol(), aks: makeAks() };
+		mounts.fireaxe = mounts.axe; mounts.obrez = mounts.pistol;
+		const guns = { axe: makeAxe(), fireaxe: makeAxe({ fire: true }), pistol: makePistol(), obrez: makeObrez(), aks: makeAks() };
+		// обрез и пожарный топор показываем только когда их выбрали (?w=obrez): они занимают крепления ПМ и топора
+		const twin = { obrez: 'pistol', fireaxe: 'axe' };
 		// оси хвата для отладки
 		grip.add(new THREE.AxesHelper(0.12));
 		const mixer = new THREE.AnimationMixer(model);
@@ -68,6 +71,8 @@
 				(k === weapon ? grip : mounts[k] ?? grip).add(obj);
 				obj.visible = k === weapon || (!!mounts[k] && (k !== 'aks' || /Rifle|AxeR/.test(clipName))) && weapon !== 'none';
 				if (k !== 'aks' && /Rifle|AxeR/.test(clipName) && k === 'pistol') obj.visible = false;
+				if (twin[k] && k !== weapon) obj.visible = false;
+				if (twin[weapon] === k) obj.visible = false;
 			}
 			mixer.stopAllAction();
 			mixer.clipAction(clip).play();

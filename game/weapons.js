@@ -124,15 +124,20 @@ export const AMMO = { ammo9: '9×18', ammo12: '12 кал.', ammo545: '5,45×39' 
  * mount — где висит, когда не в руках. cooldown — минимальный интервал между ударами/выстрелами,
  * auto — темп серии при зажатой кнопке, pellets/spread — дробь, noise — радиус шума.
  */
+/**
+ * Каталог. Ствол: damage — урон пули (дробины), range — дальность, cooldown/auto — темп одиночных и серии,
+ * kick — встряска камеры, spread — разброс очереди (точность падает с дальностью и длиной очереди),
+ * casing — что вылетает при выстреле/перезарядке.
+ */
 export const WEAPONS = {
 	// durability — сколько ударов по заражённым выдержит, потом ломается
 	axe: { name: 'Топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.32, speed: 1.05, noise: 6, durability: 60, price: 8, make: () => makeAxe(), desc: 'Тихое оружие ближнего боя: патронов не тратит, но тупится и ломается — выдерживает 60 ударов.' },
 	fireaxe: { name: 'Пожарный топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 70, range: 2.4, arc: 1.25, cooldown: 1.0, hitTime: 0.36, speed: 0.92, noise: 7, durability: 90, price: 18, make: () => makeAxe({ fire: true }), desc: 'Тяжёлый топор с клювом: валит бегуна с удара, бьёт медленнее. Прочнее обычного — 90 ударов.' },
 	// когда топор сломался и запасного нет
 	fists: { name: 'Кулаки', slot: 'melee', anim: 'axe', mount: null, damage: 12, range: 1.5, arc: 1.0, cooldown: 0.6, hitTime: 0.28, speed: 1.2, noise: 3, make: () => Object.assign(new THREE.Group(), { name: 'Fists' }), desc: 'Топора нет — остаются кулаки. Бегуна так не забить: купи топор у торговца в стабе или найди в домах.' },
-	pistol: { name: 'ПМ', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4, noise: 26, make: makePistol, desc: 'Пистолет Макарова, магазин на 8 патронов 9×18. Выстрел слышно издалека.' },
-	obrez: { name: 'Обрез ИЖ-43', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo12', damage: 16, pellets: 8, spread: 0.32, range: 10, cooldown: 0.32, auto: 0.45, mag: 2, reload: 1.9, noise: 32, price: 30, make: makeObrez, desc: 'Два ствола 12 калибра: дробь в упор разрывает бегуна, но далеко не бьёт. Перезарядка долгая.' },
-	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 26, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, price: 80, make: makeAks, desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
+	pistol: { name: 'ПМ', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4, noise: 26, kick: 0.07, spread: 0.03, casing: 'brass', make: makePistol, desc: 'Пистолет Макарова, магазин на 8 патронов 9×18. Выстрел слышно издалека.' },
+	obrez: { name: 'Обрез ИЖ-43', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo12', damage: 16, pellets: 8, spread: 0.32, range: 10, cooldown: 0.32, auto: 0.45, mag: 2, reload: 1.9, noise: 32, kick: 0.3, casing: 'shell', price: 30, make: makeObrez, desc: 'Два ствола 12 калибра: дробь в упор разрывает бегуна, но далеко не бьёт. Перезарядка долгая.' },
+	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 26, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, kick: 0.09, spread: 0.05, casing: 'brass', price: 80, make: makeAks, desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
 };
 
 /** Пистолет Макарова: рукоять через кулак, ствол над большим пальцем смотрит по направлению пальцев. */

@@ -309,6 +309,18 @@ export function linoleumMaterial(repeat) {
 	}), { repeat, roughness: 0.6, normal: 1 });
 }
 
+/** Вода пруда: тёмная, глянцевая, с мелкой рябью (карту нормалей сдвигает уровень — рябь бежит). */
+export function waterMaterial() {
+	const m = texMaterial('water', () => pixels(256, (u, v) => {
+		const h = tileFbm(u, v, 6, 4, 171) * 0.7 + tileFbm(u, v, 14, 3, 173) * 0.3;
+		const c = mixc([34, 50, 50], [52, 70, 66], h);
+		return [...c, h];
+	}), { repeat: [6, 6], roughness: 0.08, metalness: 0.15, normal: 3 });
+	m.envMapIntensity = 2.2;
+	m.normalScale.set(0.5, 0.5);
+	return m;
+}
+
 /** Ткань (диван, покрывало) — однотонная с фактурой. */
 export function fabricMaterial(tint) {
 	return texMaterial(`fabric${tint}`, () => pixels(128, (u, v, x, y) => {

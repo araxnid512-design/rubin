@@ -78,9 +78,12 @@ export class WorldMap {
 		this.draw(here, routes);
 	}
 
-	/** Схема: дороги пунктиром со временем, у кластеров — кольцо «сколько осталось до перезагрузки». */
-	draw(here, routes) {
-		const svg = $('wm-svg');
+	/**
+	 * Схема: дороги пунктиром со временем (бегущий пунктир — дороги отсюда), у кластеров — кольцо
+	 * «сколько осталось до перезагрузки», у стаба — флажок. Герой — портрет в кружке: в пункте here
+	 * или (travel) на дороге from→to в доле пути t.
+	 */
+	draw(here, routes, { svg = $('wm-svg'), travel = null } = {}) {
 		const w = this.game.world;
 		const el = (tag, attrs, parent = svg) => {
 			const e = document.createElementNS(SVG, tag);
@@ -89,22 +92,26 @@ export class WorldMap {
 			return e;
 		};
 		svg.innerHTML = '';
-		// муть — размытые пятна между кластерами
 		const defs = el('defs', {});
-		const blur = el('filter', { id: 'wm-blur' }, defs);
+		const blur = el('filter', { id: `${svg.id}-blur` }, defs);
 		el('feGaussianBlur', { stdDeviation: 4 }, blur);
-		for (const [x, y, r] of [[50, 20, 16], [12, 62, 14], [88, 66, 15], [50, 46, 9], [30, 90, 12], [74, 92, 10]]) el('circle', { cx: x, cy: y, r, fill: '#2e3530', filter: 'url(#wm-blur)' });
+		const clip = el('clipPath', { id: `${svg.id}-clip` }, defs);
+		el('circle', { cx: 0, cy: 0, r: 4.2 }, clip);
+		// муть — медленно дышащие размытые пятна между кластерами
+		for (const [x, y, r] of [[50, 20, 16], [12, 62, 14], [88, 66, 15], [50, 46, 9], [30, 90, 12], [74, 92, 10]]) el('circle', { cx: x, cy: y, r, fill: '#2e3530', filter: `url(#${svg.id}-blur)`, class: 'wm-fog' });
 		for (const [a, b, t] of ROUTES) {
 			const [x1, y1] = NODES[a].at, [x2, y2] = NODES[b].at;
-			const active = (a === here || b === here);
-			el('line', { x1, y1, x2, y2, class: `wm-road${active ? ' active' : ''}` });
+			const active = travel ? (a === travel.from && b === travel.to) || (b === travel.from && a === travel.to) : a === here || b === here;
+			// пунктир бежит от героя: рисуем линию от текущего пункта
+			const fwd = travel ? a === travel.from : a === here;
+			el('line', fwd ? { x1, y1, x2, y2 } : { x1: x2, y1: y2, x2: x1, y2: y1 }).setAttribute('class', `wm-road${active ? ' active' : ''}`);
 			const tx = el('text', { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 1.5, class: 'wm-time' });
 			tx.textContent = approx(t);
 		}
 		for (const [id, n] of Object.entries(NODES)) {
 			const [x, y] = n.at;
-			const reachable = routes.some((r) => r.to === id);
-			const g = el('g', { 'data-node': id, class: `wm-node ${n.kind}${id === here ? ' here' : ''}${reachable ? ' reachable' : ''}` });
+			const reachable = !travel && routes.some((r) => r.to === id);
+			const g = el('g', { 'data-node': id, class: `wm-node ${n.kind}${id === here && !travel ? ' here' : ''}${reachable ? ' reachable' : ''}` });
 			if (n.kind === 'cluster') {
 				// кольцо: доля цикла до перезагрузки
 				const left = Math.max(0, timeLeft(w, id)), frac = Math.min(1, left / 420);
@@ -112,13 +119,42 @@ export class WorldMap {
 				el('circle', { cx: x, cy: y, r: R, class: 'wm-ring-bg' }, g);
 				el('circle', { cx: x, cy: y, r: R, class: `wm-ring${left < 60 ? ' low' : ''}`, 'stroke-dasharray': `${len * frac} ${len}`, transform: `rotate(-90 ${x} ${y})` }, g);
 			}
+			if (reachable) el('circle', { cx: x, cy: y, r: 6, class: 'wm-glow' }, g);
 			el('circle', { cx: x, cy: y, r: n.kind === 'stab' ? 5.5 : 5, class: 'wm-dot' }, g);
+			if (n.kind === 'stab') el('path', { d: `M${x - 1.2} ${y + 2.6}V${y - 3}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;
-			if (id === here) {
-				const you = el('text', { x, y: y - 9.5, class: 'wm-you' }, g);
-				you.textContent = 'ты здесь';
-			}
 		}
+		// герой: портрет в кружке, в пункте — с пульсом, в дороге — едет по линии
+		let hx, hy;
+		if (travel) {
+			const [x1, y1] = NODES[travel.from].at, [x2, y2] = NODES[travel.to].at;
+			hx = x1 + (x2 - x1) * travel.t; hy = y1 + (y2 - y1) * travel.t;
+		} else [hx, hy] = NODES[here].at;
+		const you = el('g', { class: 'wm-hero', transform: `translate(${hx} ${hy - (travel ? 0 : 9.5)})` });
+		if (!travel) el('circle', { cx: 0, cy: 0, r: 4.6, class: 'wm-pulse' }, you);
+		el('circle', { cx: 0, cy: 0, r: 4.7, class: 'wm-hero-ring' }, you);
+		const portrait = this.game.icons?.portrait;
+		if (portrait) el('image', { href: portrait, x: -4.2, y: -4.2, width: 8.4, height: 8.4, 'clip-path': `url(#${svg.id}-clip)` }, you);
+		else el('circle', { cx: 0, cy: 0, r: 3, fill: '#c8d86a' }, you);
+		this.heroEl = you;
+	}
+
+	/** Переход по дороге: портрет героя едет от from к to за ms миллисекунд, потом done(). */
+	animateTravel(from, to, ms, done) {
+		const svg = $('travel-svg');
+		this.draw(from, [], { svg, travel: { from, to, t: 0 } });
+		const [x1, y1] = NODES[from].at, [x2, y2] = NODES[to].at;
+		const t0 = performance.now();
+		let finished = false;
+		const finish = () => { if (!finished) { finished = true; done(); } };
+		const step = () => {
+			if (finished) return;
+			const k = Math.min(1, (performance.now() - t0) / ms), e = k * k * (3 - 2 * k);
+			this.heroEl?.setAttribute('transform', `translate(${x1 + (x2 - x1) * e} ${y1 + (y2 - y1) * e})`);
+			if (k < 1) requestAnimationFrame(step); else finish();
+		};
+		requestAnimationFrame(step);
+		setTimeout(finish, ms + 600); // вкладка спрятана и кадров нет — всё равно приходим
 	}
 }

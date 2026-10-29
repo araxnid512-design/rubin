@@ -39,12 +39,18 @@ try {
 	check(true, 'уровень и модели загрузились, меню показано');
 	await page.screenshot({ path: join(OUT, 'game-menu.png') });
 	await G(page, () => localStorage.clear());
+	// счётчик FPS включается галочкой в меню
+	await page.click('#opt-fps');
+	check(await G(page, () => !document.getElementById('perf').classList.contains('hidden')), 'в меню включается счётчик FPS');
 	await page.click('#btn-new');
 	await page.waitForFunction(() => window.__game?.state === 'play' && window.__game.enemies.length > 0, null, { timeout: 60000 });
 	const s = await G(page, () => ({ loc: window.__game.loc, n: window.__game.enemies.length, idle: window.__game.enemies.every((e) => e.state === 'idle'), types: [...new Set(window.__game.enemies.map((e) => e.type))].sort().join(), timer: document.getElementById('loc-timer').textContent }));
 	check(s.loc === 'zarechny' && s.n >= 20 && s.idle, `новая игра в Заречном: ${s.n} заражённых, все ждут (без волн)`);
 	check(s.types === 'runner,stomper', `есть бегуны и топтуны (${s.types})`);
 	check(/^[5-6]:\d\d$/.test(s.timer), `таймер перезагрузки кластера на экране: ${s.timer}`);
+	await page.waitForTimeout(1500);
+	const perf = await G(page, () => ({ calls: window.__game.perf.calls, tris: window.__game.perf.tris, logic: window.__game.perf.logic, text: document.getElementById('perf').textContent }));
+	check(perf.calls > 0 && perf.calls < 160 && perf.tris < 350000 && /FPS/.test(perf.text), `нагрузка в кадре: ${perf.calls} вызовов отрисовки, ${Math.round(perf.tris / 1000)}k треугольников, логика ${perf.logic.toFixed(1)} мс`);
 	// игрок двигается
 	await page.keyboard.down('KeyA');
 	await page.waitForTimeout(2500);
@@ -83,8 +89,10 @@ try {
 	const before = await G(page, () => window.__game.player.ammo);
 	await page.keyboard.press('Space');
 	await page.waitForFunction((b) => window.__game.player.ammo < b || window.__game.player.reloading > 0, before, { timeout: 20000 }).catch(() => {});
-	const after = await G(page, () => ({ ammo: window.__game.player.ammo, w: window.__game.player.weapon }));
+	await page.waitForTimeout(500);
+	const after = await G(page, () => ({ ammo: window.__game.player.ammo, w: window.__game.player.weapon, casings: (window.__game.casings ?? []).filter((c) => c.life > 0).length }));
 	check(after.w === 'pistol' && after.ammo < before, `пистолет стреляет (${before} → ${after.ammo})`);
+	check(after.casings > 0, `из ПМ вылетают гильзы (${after.casings})`);
 	// патроны конечные: перезарядка берёт из запаса, без патронов пистолет только щёлкает
 	// (выпавшее с убитых рядом убираем, чтобы оно не подобралось посреди проверки)
 	await G(page, () => { for (const p of window.__game.pickups) if (!p.ground) { p.taken = true; p.mesh.visible = false; } });
@@ -151,9 +159,12 @@ try {
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const map = await G(page, () => ({ open: window.__game.worldMap.isOpen, paused: window.__game.paused, routes: [...document.querySelectorAll('#wm-list [data-go]')].map((b) => b.dataset.go) }));
 	check(map.open && map.paused && map.routes[0] === 'stab' && map.routes.includes('dachi'), `у выхода открылась карта Улья: ${map.routes.join(', ')}`);
+	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.screenshot({ path: join(OUT, 'game-map.png') });
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');
+	await page.waitForSelector('#travel:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	check(await G(page, () => !!document.querySelector('#travel-svg .wm-hero')), 'в дороге портрет героя едет по карте');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
 	const st = await G(page, () => ({ t: window.__game.world.time, npcs: window.__game.npcs.length, enemies: window.__game.enemies.length, timer: document.getElementById('loc-timer').textContent, saved: !!window.__game.world.clusters.zarechny.saved }));
 	check(st.t - t0 >= 60, `дорога заняла время мира: ${Math.round(st.t - t0)} с`);
@@ -165,6 +176,7 @@ try {
 	await page.keyboard.press('KeyE');
 	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	await page.screenshot({ path: join(OUT, 'game-trade.png') });
+	check(await G(page, () => document.getElementById('trade-avatar').src.startsWith('data:image/png')), 'у торговца свой портрет');
 	await page.click('#trade-peas-all');
 	const buyAks = await G(page, () => {
 		const buy = (name) => [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === name).click();

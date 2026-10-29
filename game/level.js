@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import * as T from './textures.js';
 import { Batch, box, place, planeXZ } from './geom.js';
 import { Fader, segmentHitsBox } from './buildings.js';
-import { HALF, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
+import { HALF, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
 import zarechny from './locations/zarechny.js';
 import dachi from './locations/dachi.js';
 import stab from './locations/stab.js';
@@ -55,7 +55,7 @@ function materials() {
 		green: new THREE.MeshStandardMaterial({ color: 0x3f6a3a, roughness: 0.7, metalness: 0.2 }),
 		canvas: T.fabricMaterial([92, 98, 70]),
 		sandbag: new THREE.MeshStandardMaterial({ color: 0x8a7e5c, roughness: 1 }),
-		water: new THREE.MeshStandardMaterial({ color: 0x2c3a3a, roughness: 0.05, metalness: 0.1, envMapIntensity: 2 }),
+		water: T.waterMaterial(),
 		sand: T.dirtMaterial([1, 1]),
 	};
 }
@@ -164,7 +164,12 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		npcs: spec.npcs ?? [],
 		hint: spec.hint,
 		start: spec.start ? { pos: new THREE.Vector3(spec.start[0], 0, spec.start[1]), ry: spec.start[2] } : { pos: exits[0].spawn.clone(), ry: exits[0].ry },
-		update(dt, t) { fog?.update(dt, t); spec.update?.(dt, t); },
+		update(dt, t) {
+			WIND.value = t;
+			M.water.normalMap?.offset.set(t * 0.012, t * 0.019); // рябь на воде
+			fog?.update(dt, t);
+			spec.update?.(dt, t);
+		},
 		/** Выход, в зоне которого точка (с запасом m), или null. */
 		exitAt(p, m = 0) { return exits.find((e) => p.x > e.x0 - m && p.x < e.x1 + m && p.z > e.z0 - m && p.z < e.z1 + m) ?? null; },
 		/** Точка появления при приходе из локации from. */

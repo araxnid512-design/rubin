@@ -15,6 +15,7 @@ import { view, onResize, goLandscape } from './screen.js';
 import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP } from './weapons.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
+import { createSpores } from './atmosphere.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE } from './trade.js';
 import { WorldMap } from './worldmap.js';
@@ -23,13 +24,18 @@ import { EQUIP_TIMES } from '../src/hero-animations.js';
 
 const $ = (id) => document.getElementById(id);
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
-const QUALITY = new URLSearchParams(location.search).get('q') || (isMobile ? 'medium' : 'high');
+// настройки игрока (графика, счётчик FPS) — в localStorage; ?q= и ?fps=1 в адресе важнее
+const PREFS_KEY = 'ulei-cluster17-prefs';
+const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') ?? {}; } catch { return {}; } })();
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* без хранилища — до перезагрузки */ } };
+const params = new URLSearchParams(location.search);
+const QUALITY = params.get('q') || (prefs.quality && prefs.quality !== 'auto' ? prefs.quality : isMobile ? 'medium' : 'high');
 
 // ---------- Рендер ----------
-const renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
+const renderer = new THREE.WebGLRenderer({ antialias: !isMobile && QUALITY !== 'low', powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, { high: isMobile ? 1.5 : 2, medium: 1.5, low: 1 }[QUALITY] ?? 1.5));
 renderer.setSize(view.w, view.h);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = QUALITY !== 'low';
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
@@ -50,7 +56,8 @@ const camera = new THREE.PerspectiveCamera(42, view.w / view.h, 0.5, 220);
 scene.add(new THREE.HemisphereLight(0xc4ccd0, 0x4a4a3c, 1.25));
 const sun = new THREE.DirectionalLight(0xfff0dc, 2.1);
 sun.castShadow = true;
-sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+const SHADOW = QUALITY === 'high' && !isMobile ? 2048 : 1024;
+sun.shadow.mapSize.set(SHADOW, SHADOW);
 Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, near: 1, far: 90 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.03;
@@ -68,6 +75,8 @@ const flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotText
 flashSprite.scale.setScalar(0.6);
 flashSprite.visible = false;
 scene.add(flashLight, flashSprite);
+// споры в воздухе (на низком качестве — меньше)
+const spores = createSpores(scene, { count: QUALITY === 'low' ? 120 : 260 });
 
 // ---------- Загрузка ----------
 const loader = new GLTFLoader();
@@ -127,7 +136,18 @@ function makeIcons() {
 	for (const k of CONSUMABLES) I[k] = iconFactory.item(k);
 	I.portrait = iconFactory.portrait(assets.player);
 	$('avatar').src = I.portrait;
+	$('go-avatar').src = I.portrait;
+	// портреты жителей стаба (торговец, лекарь) — та же модель в своей форме
+	const stab = buildPortraits();
+	I.trader = stab[0]; I.medic = stab[1];
+	if (I.trader) $('trade-avatar').src = I.trader;
 	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.zhivchik}" alt="">`);
+}
+
+/** Портреты торговца и лекаря по их форме из описания стаба. */
+function buildPortraits() {
+	const tints = [[0.75, 0.7, 0.62], [0.95, 0.95, 0.92]];
+	return tints.map((tint) => iconFactory.portrait(assets.player, { tint, gear: {} }));
 }
 
 // ---------- Утилиты ----------
@@ -140,6 +160,19 @@ function turnTowards(current, target, maxStep) {
 	return current + Math.max(-maxStep, Math.min(maxStep, d));
 }
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const casingGeo = {}, casingMat = {}; // общие для всех гильз
+const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+let blobMat = null, dustMat = null;
+
+/**
+ * Попадает ли точка в кадр (с запасом на тени): камера сверху-сзади видит прямоугольник вокруг героя.
+ * Персонажей вне кадра не рисуем и не анимируем — на телефоне это главная экономия.
+ */
+function inView(pos) {
+	const c = camTarget, portrait = camera.aspect < 1;
+	const dx = pos.x - c.x, dz = pos.z - c.z;
+	return Math.abs(dx) < (portrait ? 13 : 21) * (game.zoom ?? 1) && dz > -16 && dz < (portrait ? 20 : 15);
+}
 
 function lineOfSight(a, b) {
 	const { N, CELL, blocked, cell } = level.nav;
@@ -175,6 +208,13 @@ class Actor {
 		this.flash = 0;
 		this.mats = [];
 		this.model.traverse((o) => { if (o.isMesh) this.mats.push(...[o.material].flat()); });
+		if (!renderer.shadowMap.enabled) {
+			blobMat ??= new THREE.MeshBasicMaterial({ map: softDotTexture('0,0,0'), transparent: true, opacity: 0.55, depthWrite: false });
+			const blob = new THREE.Mesh(blobGeo, blobMat);
+			blob.position.y = 0.03;
+			blob.scale.setScalar(scale * 1.1);
+			this.root.add(blob);
+		}
 	}
 
 	get pos() { return this.root.position; }
@@ -328,6 +368,8 @@ class Player extends Actor {
 		Sfx.hurt();
 		game.shake = Math.min(1, game.shake + dmg / 30);
 		$('hurt').style.opacity = Math.min(0.85, 0.3 + dmg / 40);
+		const av = $('avatar-wrap');
+		av.classList.remove('hit'); void av.offsetWidth; av.classList.add('hit');
 		if (from) { tmpV.subVectors(this.pos, from).setY(0).normalize().multiplyScalar(dmg > 20 ? 0.6 : 0.2); this.pos.add(tmpV); }
 		if (this.hp <= 0) this.die('eaten');
 		else if (this.busy <= 0) {
@@ -402,7 +444,6 @@ class Player extends Actor {
 		this.ammo--;
 		Sfx.shot(W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
 		game.noise(this.pos, W.noise); // выстрел слышно издалека
-		if (W.pellets) game.shake = Math.min(1, game.shake + 0.25);
 		this.pending.push({ t: aiming ? 0.03 : 0.06, fn: () => this.shotHit(W, this.weapon, target) });
 		if (this.ammo === 0 && (game.bag[W.ammo] ?? 0) > 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
 		game.hud();
@@ -429,15 +470,27 @@ class Player extends Actor {
 		const gun = this.gun(id);
 		const from = gun.localToWorld(gun.userData.muzzle.clone());
 		game.muzzleFlash(from, W.pellets ? 1.6 : 1);
+		game.smoke(from, W.pellets ? 1.5 : 1);
+		game.shake = Math.min(1, game.shake + W.kick);
+		if (W.casing === 'brass') game.casing(gun, 'brass');
 		if (W.pellets) { this.pellets(W, from, target); return; }
-		let to;
-		if (target && target.alive) {
-			to = target.pos.clone().setY(1.2 * target.scale);
+		// точность: вблизи почти всегда в цель, дальше и в длинной очереди — промахи
+		this.burst = game.time - (this.lastShot ?? -9) < 0.35 ? (this.burst ?? 0) + 1 : 0;
+		this.lastShot = game.time;
+		const d = target ? Math.hypot(target.pos.x - this.pos.x, target.pos.z - this.pos.z) : 0;
+		const chance = clamp01(1 - (d / W.range) * 0.35 - Math.min(10, this.burst) * W.spread);
+		if (target && target.alive && Math.random() < Math.max(0.4, chance)) {
+			const to = target.pos.clone().setY(1.2 * target.scale);
 			target.damage(W.damage, this.pos, 0.25);
-		} else {
-			to = from.clone().add(new THREE.Vector3(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y)).multiplyScalar(14));
+			game.tracer(from, to);
+			return;
 		}
-		game.tracer(from, to);
+		// мимо: пуля уходит с отклонением и бьёт в стену или землю
+		const base = target ? angleTo(this.pos, target.pos) : this.root.rotation.y;
+		const a = base + (Math.random() - 0.5) * (0.12 + Math.min(10, this.burst) * W.spread);
+		const hit = game.bulletEnd(from, Math.sin(a), Math.cos(a), W.range);
+		game.tracer(from, hit.pos);
+		game.impact(hit.pos, hit.wall);
 	}
 
 	/** Картечь: дробины веером, каждая — в первого заражённого на своей линии; урон падает с дистанцией. */
@@ -459,7 +512,8 @@ class Player extends Actor {
 			}
 			if (best && !lineOfSight(this.pos, best.pos)) { best = null; bt = W.range; }
 			if (best) hits.set(best, (hits.get(best) ?? 0) + W.damage * (1 - 0.5 * bt / W.range));
-			if (i % 2 === 0) game.tracer(from, new THREE.Vector3(this.pos.x + dx * bt, best ? 1.1 * best.scale : from.y, this.pos.z + dz * bt));
+			else if (i % 2 === 0) { const end = game.bulletEnd(from, dx, dz, W.range); game.impact(end.pos, end.wall, 0.6); bt = Math.hypot(end.pos.x - this.pos.x, end.pos.z - this.pos.z); }
+			if (i % 2 === 0) game.tracer(from, new THREE.Vector3(this.pos.x + dx * bt, best ? 1.1 * best.scale : from.y * 0.5, this.pos.z + dz * bt));
 		}
 		for (const [e, dmg] of hits) e.damage(dmg, this.pos, Math.min(1.2, dmg / 60));
 	}
@@ -490,6 +544,10 @@ class Player extends Actor {
 		if ((game.bag[W.ammo] ?? 0) <= 0) { Sfx.dry(); game.toast(`Нет патронов ${AMMO[W.ammo]} в запасе`, 'warn'); return; }
 		this.reloading = W.reload;
 		this.playReload(0.1);
+		if (W.casing === 'shell') {
+			const spent = W.mag - this.ammo, gun = this.gun(this.weapon);
+			for (let i = 0; i < spent; i++) this.pending.push({ t: 0.35 + i * 0.08, fn: () => game.casing(gun, 'shell') });
+		}
 		Sfx.reload();
 		game.hud();
 	}
@@ -536,6 +594,7 @@ class Player extends Actor {
 			const speed = run ? 5.0 * mag : 2.0;
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
 			this.pos.addScaledVector(dir, speed * dt);
+			if (run && (this.stepDust = (this.stepDust ?? 0) + speed * dt) > 1.1) { this.stepDust = 0; game.dust(this.pos); }
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 12);
 			this.play(run ? c.run : c.walk, { timeScale: run ? 0.75 + mag * 0.3 : 1 });
 		} else if (this.reloading > 0) {
@@ -640,7 +699,7 @@ class Enemy extends Actor {
 		const p = game.player;
 		const dist = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
 		// далеко от камеры — не анимируем и не рисуем (экономия на телефонах)
-		const near = dist < 34;
+		const near = inView(this.pos);
 		this.model.visible = near;
 		if (near) super.update(dt);
 		if (!this.alive) {
@@ -717,7 +776,8 @@ class Npc extends Actor {
 		const d = p ? Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z) : 99;
 		const want = d < 5 && Math.abs(this.pos.y) < 0.5 ? angleTo(this.pos, p.pos) : this.ry0;
 		this.root.rotation.y = turnTowards(this.root.rotation.y, want, dt * 2);
-		if (d < 34) super.update(dt);
+		this.model.visible = inView(this.pos);
+		if (this.model.visible) super.update(dt);
 	}
 }
 
@@ -811,6 +871,7 @@ const game = {
 		this.warnStage = 0;
 		this.visited = new Set();
 		this.inventory?.close();
+		spores.density = NODES[id].kind === 'cluster' ? 1 : 0.35;
 		if (NODES[id].kind === 'cluster') this.populate(this.world.clusters[id].saved);
 		else for (const n of level.npcs) this.npcs.push(new Npc(n));
 		this.reloadFx(Infinity);
@@ -886,7 +947,8 @@ const game = {
 		$('travel-title').textContent = `Дорога: ${NODES[to].name}`;
 		$('travel-sub').textContent = `в пути ${approx(time)}…`;
 		$('travel').classList.remove('hidden');
-		setTimeout(() => {
+		// портрет героя едет по карте, потом строится локация (это занимает время на телефоне)
+		this.worldMap.animateTravel(from, to, 1500, () => setTimeout(() => {
 			advance(this.world, time);
 			const node = NODES[to], visited = !!this.world.clusters[to]?.saved;
 			this.state = 'play';
@@ -895,7 +957,7 @@ const game = {
 			if (node.kind === 'stab') this.banner(node.name, 'Безопасно: торговец, лекарь. Выход — через ворота');
 			else this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
 			setTimeout(() => $('travel').classList.add('hidden'), 350);
-		}, 450);
+		}, 30));
 	},
 
 	/** Гибель: в рюкзаке всё пропадает, оружие остаётся; герой приходит в себя в стабе. */
@@ -1087,6 +1149,9 @@ const game = {
 		const st = this.searching ? null : this.nearStation();
 		const c = st ? null : this.searching?.c ?? this.nearContainer();
 		el.classList.toggle('hidden', (!c && !st) || !this.player.alive);
+		const face = st ? this.icons[st.id === 'trade' ? 'trader' : 'medic'] : null;
+		$('search-face').classList.toggle('hidden', !face);
+		if (face && $('search-face').getAttribute('src') !== face) $('search-face').src = face;
 		if (st) {
 			$('search-verb').textContent = st.label;
 			$('search-name').textContent = st.name;
@@ -1261,6 +1326,89 @@ const game = {
 		this.fx.push({ flash: true, life: 0.06, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { flashLight.intensity = 0; flashSprite.visible = false; } });
 	},
 
+	/** Пыль из-под ног на бегу (на улице; в домах — нет). */
+	dust(pos) {
+		if (level.buildingAt(pos)) return;
+		dustMat ??= new THREE.SpriteMaterial({ map: softDotTexture('170,150,120'), transparent: true, opacity: 0.3, depthWrite: false });
+		const s = new THREE.Sprite(dustMat.clone());
+		s.position.set(pos.x + (Math.random() - 0.5) * 0.3, 0.12, pos.z + (Math.random() - 0.5) * 0.3);
+		s.scale.setScalar(0.3);
+		scene.add(s);
+		this.fx.push({ life: 0.6, update(dt) { this.life -= dt; s.scale.multiplyScalar(1 + dt * 1.8); s.position.y += dt * 0.25; s.material.opacity = 0.3 * this.life / 0.6; return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+	},
+
+	/** Пороховой дымок у ствола: сизое облачко поднимается и тает. */
+	smoke(pos, size = 1) {
+		const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('200,200,190'), transparent: true, opacity: 0.35, depthWrite: false }));
+		s.position.copy(pos);
+		s.scale.setScalar(0.25 * size);
+		scene.add(s);
+		this.fx.push({ life: 0.7, update(dt) { this.life -= dt; s.position.y += dt * 0.6; s.scale.multiplyScalar(1 + dt * 2.2); s.material.opacity = 0.35 * (this.life / 0.7); return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+	},
+
+	/** Гильза: вылетает вправо-вверх из оружия, падает, отскакивает и полежит немного. kind: brass | shell. */
+	casing(gun, kind) {
+		casingGeo[kind] ??= kind === 'shell' ? new THREE.CylinderGeometry(0.011, 0.011, 0.065, 8) : new THREE.CylinderGeometry(0.0055, 0.0055, 0.024, 6);
+		casingMat[kind] ??= new THREE.MeshStandardMaterial(kind === 'shell' ? { color: 0xa02a20, roughness: 0.5 } : { color: 0xc9a248, roughness: 0.3, metalness: 0.9 });
+		const m = new THREE.Mesh(casingGeo[kind], casingMat[kind]);
+		gun.updateMatrixWorld();
+		m.position.copy(gun.localToWorld(new THREE.Vector3(0, kind === 'shell' ? -0.02 : -0.06, 0.09)));
+		const right = new THREE.Vector3(-1, 0, 0).transformDirection(gun.matrixWorld); // правый бок оружия (+X хвата — левый)
+		const v = right.multiplyScalar(kind === 'shell' ? 0.6 : 1.6 + Math.random()).add(new THREE.Vector3(0, kind === 'shell' ? 0.3 : 1.8 + Math.random(), 0));
+		const spin = new THREE.Vector3(Math.random() * 20, Math.random() * 20, Math.random() * 20);
+		scene.add(m);
+		this.casings = (this.casings ?? []).filter((c) => c.life > 0);
+		const fx = { life: 6, update(dt) {
+			this.life -= dt;
+			if (v.lengthSq() > 0.01 || m.position.y > 0.012) {
+				v.y -= 9.8 * dt;
+				m.position.addScaledVector(v, dt);
+				m.rotation.x += spin.x * dt; m.rotation.y += spin.y * dt; m.rotation.z += spin.z * dt;
+				if (m.position.y < 0.012) { m.position.y = 0.012; v.set(v.x * 0.4, -v.y * 0.3, v.z * 0.4); spin.multiplyScalar(0.5); if (Math.abs(v.y) < 0.4) { v.set(0, 0, 0); m.rotation.x = Math.PI / 2; } }
+			}
+			return this.life > 0;
+		}, dispose() { scene.remove(m); } };
+		this.casings.push(fx);
+		if (this.casings.length > 40) this.casings.shift().life = 0; // не копим сотни гильз
+		this.fx.push(fx);
+	},
+
+	/** Куда долетит пуля из from по направлению (dx, dz): до первой стены или на землю в конце дальности. */
+	bulletEnd(from, dx, dz, range) {
+		const { N, blocked, cell } = level.nav;
+		for (let t = 0.6; t < range; t += 0.25) {
+			const x = from.x + dx * t, z = from.z + dz * t;
+			const [gx, gz] = cell(x, z);
+			if (gx < 0 || gz < 0 || gx >= N || gz >= N) break;
+			if (!blocked[gz * N + gx]) continue;
+			// клетка занята (с запасом под радиус): уточняем точку по настоящим коллайдерам
+			for (let k = t; k < t + 0.9; k += 0.05) {
+				if (level.nav.blockedAt(from.x + dx * k, from.z + dz * k, 0)) return { pos: new THREE.Vector3(from.x + dx * k, from.y, from.z + dz * k), wall: true };
+			}
+		}
+		return { pos: new THREE.Vector3(from.x + dx * range, 0.03, from.z + dz * range), wall: false };
+	},
+
+	/** Попадание пули мимо цели: в стену — искры и крошка, в землю — фонтанчик пыли. */
+	impact(pos, wall, size = 1) {
+		const mat = new THREE.SpriteMaterial({ map: softDotTexture(wall ? '230,220,190' : '150,130,100'), transparent: true, opacity: 0.6, depthWrite: false });
+		for (let i = 0; i < 4; i++) {
+			const s = new THREE.Sprite(mat);
+			s.position.copy(pos);
+			s.scale.setScalar((0.12 + Math.random() * 0.12) * size);
+			const v = new THREE.Vector3((Math.random() - 0.5) * 1.5, 0.6 + Math.random() * 1.4, (Math.random() - 0.5) * 1.5);
+			scene.add(s);
+			this.fx.push({ life: 0.5, update(dt) { this.life -= dt; v.y -= 4 * dt; s.position.addScaledVector(v, dt); s.scale.multiplyScalar(1 + dt * 1.5); mat.opacity = Math.max(0, this.life); return this.life > 0; }, dispose() { scene.remove(s); } });
+		}
+		if (wall) {
+			const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,220,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+			spark.position.copy(pos);
+			spark.scale.setScalar(0.35 * size);
+			scene.add(spark);
+			this.fx.push({ life: 0.08, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { scene.remove(spark); spark.material.dispose(); } });
+		}
+	},
+
 	tracer(from, to) {
 		const g = new THREE.BufferGeometry().setFromPoints([from, to]);
 		const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.8 }));
@@ -1281,6 +1429,7 @@ const game = {
 	 */
 	reloadFx(left) {
 		const k = clamp01(1 - left / WARN);
+		this.sourK = k;
 		scene.fog.near = THREE.MathUtils.lerp(38, 5, k ** 0.8);
 		scene.fog.far = THREE.MathUtils.lerp(95, 30, k);
 		scene.fog.color.copy(FOG).lerp(FOG_SOUR, k);
@@ -1343,6 +1492,9 @@ const game = {
 		if (!p) return;
 		this.hudT = this.time;
 		$('hp-fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
+		const hpk = clamp01(p.hp / p.maxHp);
+		$('avatar-wrap').style.setProperty('--hp', `${(hpk * 100).toFixed(1)}%`);
+		$('avatar-wrap').classList.toggle('low', hpk < 0.3 && p.alive);
 		$('hp-text').textContent = Math.ceil(p.hp);
 		$('spores').textContent = this.bag.spore ?? 0;
 		$('peas').textContent = this.bag.peas ?? 0;
@@ -1355,6 +1507,9 @@ const game = {
 		const ammo = $('ammo');
 		if (W.ammo) {
 			const spare = this.bag[W.ammo] ?? 0, empty = p.ammo === 0 && spare === 0;
+			// счётчик вздрагивает на каждый выстрел
+			if (this.shownAmmo !== undefined && p.ammo < this.shownAmmo && this.shownWeapon === p.weapon) { ammo.classList.remove('pulse'); void ammo.offsetWidth; ammo.classList.add('pulse'); }
+			this.shownAmmo = p.ammo; this.shownWeapon = p.weapon;
 			ammo.innerHTML = p.reloading > 0 ? 'перезарядка…' : empty ? '<b>0</b> · нет патронов' : `<b>${p.ammo}</b> / ${spare}`;
 			ammo.classList.toggle('empty', empty);
 		} else if (W.durability) {
@@ -1410,14 +1565,48 @@ const camOffset = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
 // ?sim=N — N шагов логики по 1/30 с на кадр (для автотестов на медленном программном рендере)
 const SIM_STEPS = +(new URLSearchParams(location.search).get('sim') || 0);
+// Замер производительности: FPS, время логики и отрисовки (CPU), вызовы отрисовки, треугольники.
+// Показывается по ?fps=1 или галочке в меню. На слабом телефоне разрешение снижается само.
+const perf = { fps: 60, logic: 0, draw: 0, calls: 0, tris: 0, low: 0, high: 0, scale: 1, shown: false, t: 0 };
+const BASE_RATIO = renderer.getPixelRatio();
+game.perf = perf;
+/** Для отладки и тестов: сколько всего в видеопамяти. */
+game.gpuInfo = () => ({ ...renderer.info.memory, programs: renderer.info.programs?.length ?? 0, ratio: renderer.getPixelRatio() });
 function frame() {
-	const real = Math.min(0.05, clock3.getDelta());
+	const raw = clock3.getDelta(), real = Math.min(0.05, raw);
+	const t0 = performance.now();
 	if (game.state !== 'menu' && SIM_STEPS) {
 		for (let i = 0; i < SIM_STEPS; i++) update(1 / 30);
 	} else {
 		update(real);
 	}
+	const t1 = performance.now();
 	renderer.render(scene, camera);
+	const t2 = performance.now();
+	const k = 0.08;
+	perf.fps += ((raw > 0 ? 1 / raw : 60) - perf.fps) * k;
+	perf.logic += (t1 - t0 - perf.logic) * k;
+	perf.draw += (t2 - t1 - perf.draw) * k;
+	perf.calls = renderer.info.render.calls;
+	perf.tris = renderer.info.render.triangles;
+	adaptResolution(raw);
+	if (perf.shown && (perf.t += raw) > 0.5) {
+		perf.t = 0;
+		$('perf').textContent = `${Math.round(perf.fps)} FPS · логика ${perf.logic.toFixed(1)} мс · кадр ${perf.draw.toFixed(1)} мс · ${perf.calls} вызовов · ${(perf.tris / 1000).toFixed(0)}k треуг. · ×${renderer.getPixelRatio().toFixed(2)}`;
+	}
+}
+
+/** Динамическое разрешение: держим кадр плавным, снижая чёткость, если FPS проседает. */
+function adaptResolution(raw) {
+	if (SIM_STEPS || game.state !== 'play' || game.paused || raw > 0.25) return;
+	if (perf.fps < 34) { perf.low += raw; perf.high = 0; } else if (perf.fps > 56) { perf.high += raw; perf.low = 0; } else { perf.low = perf.high = 0; }
+	let r = renderer.getPixelRatio();
+	if (perf.low > 2.5 && r > 0.75) r = Math.max(0.75, r - 0.25);
+	else if (perf.high > 6 && r < BASE_RATIO) r = Math.min(BASE_RATIO, r + 0.25);
+	else return;
+	perf.low = perf.high = 0;
+	renderer.setPixelRatio(r);
+	renderer.setSize(view.w, view.h);
 }
 
 function update(dt) {
@@ -1427,7 +1616,8 @@ function update(dt) {
 		camera.position.set(Math.sin(t) * 38, 26, Math.cos(t) * 38);
 		camera.lookAt(0, 0, 0);
 		sun.position.set(25, 40, 15); sun.target.position.set(0, 0, 0);
-		level.update(dt, t);
+		level.update(dt, performance.now() / 1000);
+		spores.update(dt, camTarget.set(0, 0, 0), performance.now() / 1000);
 		return;
 	}
 	const input = game.input;
@@ -1443,6 +1633,9 @@ function update(dt) {
 		if (input.consume('reload')) game.player.reload();
 	}
 	game.player.update(dt, input); // там же спуск: тап — один выстрел, удержание — серия
+	// кольцо перезарядки на кнопке ⟳
+	const rl = game.player.reloading > 0 ? 1 - game.player.reloading / game.player.W.reload : 0;
+	if (rl !== game.shownReload) { game.shownReload = rl; $('btn-reload').style.setProperty('--p', `${(rl * 100).toFixed(1)}%`); $('btn-reload').classList.toggle('busy', rl > 0); }
 	if (game.state === 'play') {
 		game.updateSearch(dt, input);
 		game.updateCluster(dt);
@@ -1473,6 +1666,7 @@ function update(dt) {
 	game.pickups = game.pickups.filter((p) => !p.taken);
 	game.fx = game.fx.filter((f) => { const keep = f.update(dt); if (!keep) f.dispose(); return keep; });
 	level.update(dt, game.time);
+	spores.update(dt, game.player.pos, game.time, game.sourK ?? 0);
 	level.occlude(game.player.pos);
 
 	// камера сверху под углом, как в LDoE
@@ -1515,6 +1709,13 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) game.
 // снимаем фокус с кнопки, иначе пробел (атака) нажимает её снова и перезапускает игру
 // на телефоне — полноэкранный горизонтальный режим (нужно нажатие пользователя)
 const press = (id, fn) => { $(id).onclick = (e) => { e.currentTarget.blur(); goLandscape(); fn(); }; };
+// настройки в меню: качество графики (применяется перезапуском страницы) и счётчик FPS
+$('opt-quality').value = prefs.quality ?? 'auto';
+$('opt-quality').onchange = (e) => { prefs.quality = e.target.value; savePrefs(); location.reload(); };
+perf.shown = params.get('fps') === '1' || !!prefs.fps;
+$('opt-fps').checked = perf.shown;
+$('perf').classList.toggle('hidden', !perf.shown);
+$('opt-fps').onchange = (e) => { prefs.fps = perf.shown = e.target.checked; savePrefs(); $('perf').classList.toggle('hidden', !perf.shown); };
 press('btn-new', () => game.newGame());
 press('btn-continue', () => game.continueGame());
 press('btn-respawn', () => game.respawn());

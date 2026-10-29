@@ -71,8 +71,22 @@ export function createIconFactory() {
 	 * Герой в позе клипа: { obj, bone(name) → мировая позиция }.
 	 * gear — { melee, gun }, hold — что из них в руке; второе висит в своём креплении.
 	 */
-	function posed(gltf, clipName, gear, hold) {
+	function posed(gltf, clipName, gear, hold, tint = null) {
 		const model = SkeletonUtils.clone(gltf.scene);
+		// другая форма (жители стаба): свои копии материалов ткани и снаряжения, перекрашенные
+		if (tint) {
+			const c = new THREE.Color(...tint);
+			model.traverse((o) => {
+				if (!o.isMesh) return;
+				const mats = [o.material].flat().map((m) => {
+					if (!/Cloth|Gear/.test(m.name)) return m;
+					const t = m.clone();
+					t.color.multiply(c);
+					return t;
+				});
+				o.material = Array.isArray(o.material) ? mats : mats[0];
+			});
+		}
 		const clip = gltf.animations.find((c) => c.name === clipName);
 		if (clip) {
 			const mixer = new THREE.AnimationMixer(model);
@@ -105,8 +119,8 @@ export function createIconFactory() {
 		},
 		item: (kind) => item(makeItemMesh(kind)),
 		/** Портрет: голова и плечи героя. */
-		portrait(gltf, { size = 128 } = {}) {
-			const { obj, bone } = posed(gltf, 'Idle', { melee: 'axe' }, 'melee');
+		portrait(gltf, { size = 128, tint = null, gear = { melee: 'axe' } } = {}) {
+			const { obj, bone } = posed(gltf, 'Idle', gear, 'melee', tint);
 			const t = bone('Head').add(V(0, 0.09, 0.04));
 			return shoot(obj, size, size, 24, t.clone().add(V(0.28, 0.03, 0.95)), t);
 		},

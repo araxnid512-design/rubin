@@ -49,7 +49,17 @@
 		.stats b { color: var(--text); }
 		.stats .spore b { color: var(--spore); }
 		.left-group { display: flex; gap: 8px; align-items: flex-start; }
-		#avatar { width: 58px; height: 58px; border-radius: 50%; border: 2px solid var(--border); background: var(--panel) center/cover; object-fit: cover; flex: none; }
+		#avatar { width: 58px; height: 58px; border-radius: 50%; background: var(--panel) center/cover; object-fit: cover; display: block; }
+		/* кольцо здоровья вокруг портрета: при ранении вспыхивает, при малом здоровье пульсирует */
+		#avatar-wrap { flex: none; padding: 3px; border-radius: 50%; background: conic-gradient(#c0392b var(--hp, 100%), rgba(255,255,255,0.14) 0); }
+		#avatar-wrap.low { animation: lowHp 0.9s ease-in-out infinite; }
+		@keyframes lowHp { 50% { box-shadow: 0 0 0 4px rgba(220,40,30,0.55); } }
+		#avatar-wrap.hit #avatar { animation: avatarHit 0.35s ease-out; }
+		@keyframes avatarHit { 0% { filter: brightness(1.6) sepia(1) hue-rotate(-40deg) saturate(4); } 100% { filter: none; } }
+		#search-face { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid var(--accent); }
+		#search-face:not(.hidden) + svg { display: none; }
+		.npc-face { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); background: rgba(255,255,255,0.05); }
+		#go-avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; filter: grayscale(1) brightness(0.8) sepia(0.3); border: 2px solid rgba(200,60,40,0.6); margin-bottom: 6px; }
 		.right-group { display: flex; gap: 8px; align-items: flex-start; }
 		.weapon { display: flex; gap: 8px; align-items: center; text-align: right; }
 		#weapon-icon { width: 42px; height: 42px; object-fit: contain; border-radius: 8px; background: radial-gradient(circle, rgba(220,230,210,0.22), transparent 70%); }
@@ -57,6 +67,9 @@
 		#ammo { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 		#ammo b { color: var(--text); font-size: 15px; }
 		#ammo.empty, #ammo.empty b { color: #e0705a; }
+		#ammo.pulse b { display: inline-block; animation: ammoPulse 0.18s ease-out; }
+		@keyframes ammoPulse { 0% { transform: scale(1.35); color: #fff4c0; } 100% { transform: none; } }
+		#btn-reload.busy { background: conic-gradient(rgba(200,216,106,0.65) var(--p, 0%), rgba(20,24,22,0.55) 0); }
 		.hud-btn { pointer-events: auto; width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); color: var(--text); display: grid; place-items: center; cursor: pointer; padding: 0; }
 		.hud-btn svg { width: 28px; height: 28px; }
 		.hud-btn:active { transform: scale(0.96); }
@@ -77,6 +90,7 @@
 		#search-bar { display: block; height: 100%; width: 0; background: var(--accent); }
 		#search.busy { border-color: var(--text); }
 		body.rotated #search, body.short #search { left: auto; right: calc(250px + env(safe-area-inset-right)); transform: none; bottom: 18px; }
+		#vignette { position: fixed; inset: 0; pointer-events: none; z-index: 7; background: radial-gradient(ellipse at 50% 46%, transparent 58%, rgba(8,10,8,0.42)); }
 		#hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 9; background: radial-gradient(ellipse at center, transparent 45%, rgba(150,0,0,0.75)); }
 
 		/* Сенсорное управление */
@@ -121,6 +135,7 @@
 		body.short #btn-reload { bottom: 124px; right: 36px; }
 		body.short #btn-heal { bottom: 108px; right: 112px; }
 		body.short #avatar { width: 50px; height: 50px; }
+		body.short #go-avatar { width: 64px; height: 64px; }
 
 		/* Рюкзак */
 		#inventory { z-index: 25; padding: 10px; }
@@ -184,7 +199,19 @@
 		.wm-body { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.1fr); gap: 12px; align-items: start; }
 		#wm-svg { width: 100%; aspect-ratio: 1.15; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
 		.wm-road { stroke: #8a927e; stroke-width: 0.8; stroke-dasharray: 2 1.5; }
-		.wm-road.active { stroke: var(--accent); stroke-width: 1.1; }
+		.wm-road.active { stroke: var(--accent); stroke-width: 1.1; animation: wmRoad 1.2s linear infinite; }
+		@keyframes wmRoad { to { stroke-dashoffset: -7; } }
+		.wm-fog { animation: wmFog 7s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+		.wm-fog:nth-child(2n) { animation-duration: 9s; animation-delay: -3s; }
+		@keyframes wmFog { from { transform: scale(0.85); opacity: 0.7; } to { transform: scale(1.15); opacity: 1; } }
+		.wm-glow { fill: none; stroke: var(--accent); stroke-width: 0.6; opacity: 0.6; animation: wmGlow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+		@keyframes wmGlow { 50% { transform: scale(1.25); opacity: 0.15; } }
+		.wm-flag { fill: #e8dcae; stroke: #232823; stroke-width: 0.4; }
+		.wm-hero-ring { fill: #232823; stroke: var(--accent); stroke-width: 0.8; }
+		.wm-pulse { fill: none; stroke: var(--accent); stroke-width: 0.6; animation: wmPulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+		@keyframes wmPulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.1); opacity: 0; } }
+		#travel-svg { width: min(360px, 70vw); max-height: 55vh; aspect-ratio: 1.15; display: block; margin: 0 auto 8px; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		body.short #travel-svg { max-height: 58vh; width: auto; }
 		.wm-time { fill: #c8d0bc; font-size: 3.6px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
 		.wm-node .wm-dot { fill: #6a7262; stroke: #d8dece; stroke-width: 0.6; }
 		.wm-node.stab .wm-dot { fill: #4a7a3a; }
@@ -194,7 +221,6 @@
 		.wm-ring { fill: none; stroke: #9ad070; stroke-width: 1.4; }
 		.wm-ring.low { stroke: #f06a50; }
 		.wm-label { fill: var(--text); font-size: 4.4px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1.2px; }
-		.wm-you { fill: var(--accent); font-size: 3.4px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
 		#wm-list { display: grid; gap: 8px; }
 		.route { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
 		.route.suggest { border-color: var(--accent); }
@@ -240,6 +266,10 @@
 		body.short .stats { gap: 9px; font-size: 12px; white-space: nowrap; }
 		body.short #loc-timer { font-size: 16px; }
 		@media (max-width: 640px) { body:not(.rotated) .wm-body { grid-template-columns: 1fr; } }
+		#perf { position: fixed; left: 50%; bottom: 4px; transform: translateX(-50%); z-index: 40; pointer-events: none; font: 11px/1.3 ui-monospace, monospace; color: #e8f0c0; background: rgba(0,0,0,0.55); padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+		.settings { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin: 6px 0 4px; }
+		.settings select { font: inherit; color: var(--text); background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 8px; padding: 3px 6px; }
+		.settings input { accent-color: var(--accent); }
 		@media (pointer: fine) { #touch { display: none; } }
 		.desktop-only { display: none; }
 		@media (pointer: fine) { .desktop-only { display: block; } .mobile-only { display: none; } }
@@ -256,14 +286,16 @@
 <body>
 	<div id="app">
 	<div id="game"></div>
+	<div id="vignette"></div>
 	<div id="hurt"></div>
+	<div id="perf" class="hidden"></div>
 	<div id="sour"></div>
 	<div id="flash"></div>
 
 	<div id="hud" class="hidden">
 		<div class="top">
 			<div class="left-group">
-			<img id="avatar" alt="">
+			<div id="avatar-wrap"><img id="avatar" alt=""></div>
 			<div class="box hp">
 				<div class="label"><span>Здоровье</span><span id="hp-text">100</span></div>
 				<div class="bar"><div id="hp-fill"></div></div>
@@ -305,7 +337,7 @@
 	</div>
 
 	<button id="search" class="hidden" aria-label="Обыскать">
-			<span class="search-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
+			<span class="search-row"><img id="search-face" class="hidden" alt=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
 			<span><span id="search-verb">Обыскать</span>: <b id="search-name"></b></span><kbd class="desktop-only">E</kbd></span>
 			<span class="search-track"><span id="search-bar"></span></span>
 		</button>
@@ -346,7 +378,7 @@
 
 	<div id="trade" class="screen hidden">
 		<div class="inv trade">
-			<div class="inv-head"><b>Торговец</b><span class="muted">стаб «Полис» · игра на паузе</span>
+			<div class="inv-head"><img id="trade-avatar" class="npc-face" alt=""><b>Торговец</b><span class="muted">стаб «Полис» · игра на паузе</span>
 				<span class="wallet"><span class="spore">Спораны <b id="trade-spores">0</b></span><span class="peas">Горох <b id="trade-peas">0</b></span></span>
 				<button class="x" id="trade-close" aria-label="Закрыть">✕</button></div>
 			<div id="trade-list"></div>
@@ -356,7 +388,7 @@
 	</div>
 
 	<div id="travel" class="screen hidden">
-		<div class="card travel-card"><h1 id="travel-title"></h1><div class="sub" id="travel-sub"></div></div>
+		<div class="card travel-card"><svg id="travel-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg><h1 id="travel-title"></h1><div class="sub" id="travel-sub"></div></div>
 	</div>
 
 	<div id="loading" class="screen">
@@ -382,6 +414,10 @@
 				<button class="big alt" id="btn-new">Новая игра</button>
 			</div>
 			<div class="sub" id="menu-save"></div>
+			<div class="settings">
+				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
+				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>
+			</div>
 			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>E</b> — обыскать / торговать</div>
 			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
 		</div>
@@ -389,6 +425,7 @@
 
 	<div id="gameover" class="screen hidden">
 		<div class="card">
+			<img id="go-avatar" alt="">
 			<h1 id="go-title">Тебя сожрали</h1>
 			<p class="lore" id="go-sub"></p>
 			<div class="sub" id="go-stats"></div>
