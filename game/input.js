@@ -21,6 +21,7 @@ export class Input {
 			if (e.code === 'KeyH') this.pressed.add('heal');
 			if (e.code === 'KeyE') this.pressed.add('search');
 			if (e.code === 'KeyM') this.pressed.add('map');
+			if (e.code === 'KeyG') this.pressed.add('grenade');
 			if (e.code === 'Escape') this.pressed.add('escape');
 			this.updateKeys();
 		});
@@ -119,6 +120,7 @@ export class Input {
 		button('btn-weapon', 'switch');
 		button('btn-reload', 'reload');
 		button('btn-heal', 'heal');
+		button('btn-grenade', 'grenade');
 	}
 
 	consume(action) {

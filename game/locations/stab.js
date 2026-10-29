@@ -214,6 +214,7 @@ export default {
 			exits: [{ to: null, x0: -gate, x1: gate, z0: WZ + 1.6, z1: WZ + 8, spawn: [0, WZ - 3.2, Math.PI], sign: [gate + 1.4, WZ + 2.4, 'Выход в Улей ↓'] }],
 			stations: [
 				{ id: 'trade', name: 'Торговец', label: 'Торговать', x: shop.x, z: shop.z + 2.6, r: 1.7 },
+				{ id: 'mercs', name: 'Наёмники', label: 'Нанять', x: fire.x - 2.6, z: fire.z + 3.0, r: 1.5 },
 				{ id: 'rest', name: 'Лекарь', label: 'Отдохнуть', x: med.x - 0.5, z: med.z + 2.2, r: 1.6 },
 			],
 			// жители стаба: торговец за прилавком, лекарь, часовые у ворот и на вышках
@@ -224,7 +225,10 @@ export default {
 				{ x: gate + 1.0, z: WZ - 2.6, ry: -0.2, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 				{ x: -WX + 1.6, y: 4.27, z: -WZ + 1.6, ry: Math.PI * 0.75, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 				{ x: WX - 1.6, y: 4.27, z: WZ - 1.6, ry: Math.PI * 0.25, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
-				{ x: fire.x - 2.4, z: fire.z + 1.6, ry: 2.4, clip: 'Idle', tint: [0.8, 0.75, 0.7] },
+				// вербовщик наёмников у костра и двое свободных бойцов
+				{ x: fire.x - 2.6, z: fire.z + 1.7, ry: 0.2, clip: 'Idle', tint: [0.8, 0.75, 0.7] },
+				{ x: fire.x + 2.9, z: fire.z + 1.2, ry: -0.6, clip: 'IdleRifle', gun: 'ak74', tint: [0.55, 0.58, 0.48] },
+				{ x: fire.x + 1.6, z: fire.z - 3.3, ry: 0.4, clip: 'IdleRifle', gun: 'svd', tint: [0.64, 0.66, 0.52] },
 			],
 			onRoad: (x, z, m = 0) => (Math.abs(x) < WX + m && Math.abs(z) < WZ + m) || (Math.abs(x) < 2.5 + m && z > 0),
 			trees(tryTree) {

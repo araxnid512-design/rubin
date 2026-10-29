@@ -12,11 +12,12 @@ import { setAnisotropy, bloodDecalTexture, softDotTexture } from './textures.js'
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
 import { view, onResize, goLandscape } from './screen.js';
-import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP } from './weapons.js';
+import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP, makeGrenade } from './weapons.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
+import { MERCS, MAX_PARTY, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE } from './trade.js';
 import { WorldMap } from './worldmap.js';
@@ -143,8 +144,10 @@ function makeIcons() {
 	// портреты жителей стаба (торговец, лекарь) — та же модель в своей форме
 	const stab = buildPortraits();
 	I.trader = stab[0]; I.medic = stab[1];
+	for (const [id, D] of Object.entries(MERCS)) I[`merc_${id}`] = iconFactory.portrait(assets.player, { tint: D.tint, gear: {} });
 	if (I.trader) $('trade-avatar').src = I.trader;
 	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.zhivchik}" alt="">`);
+	$('btn-grenade').insertAdjacentHTML('afterbegin', `<img src="${I.grenade}" alt="">`);
 }
 
 /** Портреты торговца и лекаря по их форме из описания стаба. */
@@ -164,6 +167,7 @@ function turnTowards(current, target, maxStep) {
 }
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const casingGeo = {}, casingMat = {}; // общие для всех гильз
+const tmpV2 = new THREE.Vector3();
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 let blobMat = null, dustMat = null;
 
@@ -278,6 +282,62 @@ function rollLoot(spec) {
 		else if (Math.random() < v) out.push([kind, 1]);
 	}
 	return out;
+}
+
+/**
+ * Выстрел из ствола W (gun — его 3D-модель) стрелком shooter — героем или наёмником (pos, root, burst, lastShot).
+ * Вспышка, дымок, гильза; пуля попадает в цель с вероятностью (падает с дальностью и длиной очереди),
+ * промах бьёт в стену или землю; дробь летит веером.
+ */
+function fireShot(shooter, W, gun, target, { player = false } = {}) {
+	const from = gun.localToWorld(gun.userData.muzzle.clone());
+	game.muzzleFlash(from, W.pellets ? 1.6 : 1);
+	game.smoke(from, W.pellets ? 1.5 : 1);
+	if (player) game.shake = Math.min(1, game.shake + W.kick);
+	if (W.casing === 'brass' || W.eject === 'shot') game.casing(gun, W.casing);
+	if (W.pellets) { firePellets(shooter, W, from, target); return; }
+	const pos = shooter.pos;
+	shooter.burst = game.time - (shooter.lastShot ?? -9) < 0.35 ? (shooter.burst ?? 0) + 1 : 0;
+	shooter.lastShot = game.time;
+	const d = target ? Math.hypot(target.pos.x - pos.x, target.pos.z - pos.z) : 0;
+	const chance = clamp01(1 - (d / W.range) * (W.falloff ?? 0.35) - Math.min(10, shooter.burst) * W.spread);
+	if (target && target.alive && Math.random() < Math.max(0.4, chance)) {
+		game.tracer(from, target.pos.clone().setY(1.2 * target.scale));
+		target.damage(W.damage, pos, W.damage > 80 ? 0.6 : 0.25);
+		return;
+	}
+	// мимо: пуля уходит с отклонением и бьёт в стену или землю
+	const base = target ? angleTo(pos, target.pos) : shooter.root.rotation.y;
+	const a = base + (Math.random() - 0.5) * (0.12 + Math.min(10, shooter.burst) * W.spread);
+	const hit = game.bulletEnd(from, Math.sin(a), Math.cos(a), W.range);
+	game.tracer(from, hit.pos);
+	game.impact(hit.pos, hit.wall);
+}
+
+/** Картечь: дробины веером, каждая — в первого заражённого на своей линии; урон падает с дистанцией. */
+function firePellets(shooter, W, from, target) {
+	const pos = shooter.pos;
+	const base = target ? angleTo(pos, target.pos) : shooter.root.rotation.y;
+	const hits = new Map();
+	for (let i = 0; i < W.pellets; i++) {
+		const a = base + (Math.random() - 0.5) * W.spread;
+		const dx = Math.sin(a), dz = Math.cos(a);
+		let best = null, bt = W.range;
+		for (const e of game.enemies) {
+			if (!e.alive) continue;
+			const ox = e.pos.x - pos.x, oz = e.pos.z - pos.z;
+			const t = ox * dx + oz * dz;
+			if (t < 0 || t > bt) continue;
+			const px = ox - dx * t, pz = oz - dz * t;
+			if (px * px + pz * pz > (e.radius + 0.15) ** 2) continue;
+			best = e; bt = t;
+		}
+		if (best && !lineOfSight(pos, best.pos)) { best = null; bt = W.range; }
+		if (best) hits.set(best, (hits.get(best) ?? 0) + W.damage * (1 - 0.5 * bt / W.range));
+		else if (i % 2 === 0) { const end = game.bulletEnd(from, dx, dz, W.range); game.impact(end.pos, end.wall, 0.6); bt = Math.hypot(end.pos.x - pos.x, end.pos.z - pos.z); }
+		if (i % 2 === 0) game.tracer(from, new THREE.Vector3(pos.x + dx * bt, best ? 1.1 * best.scale : from.y * 0.5, pos.z + dz * bt));
+	}
+	for (const [e, dmg] of hits) e.damage(dmg, pos, Math.min(1.2, dmg / 60));
 }
 
 const ONE_SHOT = new Set(['Melee', 'Shoot', 'ShootRifle', 'Hit', 'HitPistol', 'HitRifle', 'Reload', 'ReloadRifle', 'EquipPistol', 'EquipAxe', 'EquipRifle', 'EquipAxeR']);
@@ -470,57 +530,7 @@ class Player extends Actor {
 		if (W.durability) game.wearOut(id); // топор тупится от каждого удара по заражённому
 	}
 
-	shotHit(W, id, target) {
-		const gun = this.gun(id);
-		const from = gun.localToWorld(gun.userData.muzzle.clone());
-		game.muzzleFlash(from, W.pellets ? 1.6 : 1);
-		game.smoke(from, W.pellets ? 1.5 : 1);
-		game.shake = Math.min(1, game.shake + W.kick);
-		if (W.casing === 'brass') game.casing(gun, 'brass');
-		if (W.pellets) { this.pellets(W, from, target); return; }
-		// точность: вблизи почти всегда в цель, дальше и в длинной очереди — промахи
-		this.burst = game.time - (this.lastShot ?? -9) < 0.35 ? (this.burst ?? 0) + 1 : 0;
-		this.lastShot = game.time;
-		const d = target ? Math.hypot(target.pos.x - this.pos.x, target.pos.z - this.pos.z) : 0;
-		const chance = clamp01(1 - (d / W.range) * 0.35 - Math.min(10, this.burst) * W.spread);
-		if (target && target.alive && Math.random() < Math.max(0.4, chance)) {
-			const to = target.pos.clone().setY(1.2 * target.scale);
-			target.damage(W.damage, this.pos, 0.25);
-			game.tracer(from, to);
-			return;
-		}
-		// мимо: пуля уходит с отклонением и бьёт в стену или землю
-		const base = target ? angleTo(this.pos, target.pos) : this.root.rotation.y;
-		const a = base + (Math.random() - 0.5) * (0.12 + Math.min(10, this.burst) * W.spread);
-		const hit = game.bulletEnd(from, Math.sin(a), Math.cos(a), W.range);
-		game.tracer(from, hit.pos);
-		game.impact(hit.pos, hit.wall);
-	}
-
-	/** Картечь: дробины веером, каждая — в первого заражённого на своей линии; урон падает с дистанцией. */
-	pellets(W, from, target) {
-		const base = target ? angleTo(this.pos, target.pos) : this.root.rotation.y;
-		const hits = new Map();
-		for (let i = 0; i < W.pellets; i++) {
-			const a = base + (Math.random() - 0.5) * W.spread;
-			const dx = Math.sin(a), dz = Math.cos(a);
-			let best = null, bt = W.range;
-			for (const e of game.enemies) {
-				if (!e.alive) continue;
-				const ox = e.pos.x - this.pos.x, oz = e.pos.z - this.pos.z;
-				const t = ox * dx + oz * dz;
-				if (t < 0 || t > bt) continue;
-				const px = ox - dx * t, pz = oz - dz * t;
-				if (px * px + pz * pz > (e.radius + 0.15) ** 2) continue;
-				best = e; bt = t;
-			}
-			if (best && !lineOfSight(this.pos, best.pos)) { best = null; bt = W.range; }
-			if (best) hits.set(best, (hits.get(best) ?? 0) + W.damage * (1 - 0.5 * bt / W.range));
-			else if (i % 2 === 0) { const end = game.bulletEnd(from, dx, dz, W.range); game.impact(end.pos, end.wall, 0.6); bt = Math.hypot(end.pos.x - this.pos.x, end.pos.z - this.pos.z); }
-			if (i % 2 === 0) game.tracer(from, new THREE.Vector3(this.pos.x + dx * bt, best ? 1.1 * best.scale : from.y * 0.5, this.pos.z + dz * bt));
-		}
-		for (const [e, dmg] of hits) e.damage(dmg, this.pos, Math.min(1.2, dmg / 60));
-	}
+	shotHit(W, id, target) { fireShot(this, W, this.gun(id), target, { player: true }); }
 
 	/** При смерти оружие выпадает из руки и ложится на землю. */
 	dropWeapon() {
@@ -548,7 +558,7 @@ class Player extends Actor {
 		if ((game.bag[W.ammo] ?? 0) <= 0) { Sfx.dry(); game.toast(`Нет патронов ${AMMO[W.ammo]} в запасе`, 'warn'); return; }
 		this.reloading = W.reload;
 		this.playReload(0.1);
-		if (W.casing === 'shell') {
+		if (W.casing === 'shell' && W.eject !== 'shot') {
 			const spent = W.mag - this.ammo, gun = this.gun(this.weapon);
 			for (let i = 0; i < spent; i++) this.pending.push({ t: 0.35 + i * 0.08, fn: () => game.casing(gun, 'shell') });
 		}
@@ -704,7 +714,10 @@ class Enemy extends Actor {
 	}
 
 	update(dt) {
-		const p = game.player;
+		// цель — ближайший живой: герой или наёмник (выбор раз в полсекунды, чтобы не дёргался)
+		this.foeT = (this.foeT ?? 0) - dt;
+		if (this.foeT <= 0 || !this.foe?.alive) { this.foe = game.foeFor(this.pos); this.foeT = 0.5; }
+		const p = this.foe;
 		const dist = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
 		// далеко от камеры — не анимируем и не рисуем (экономия на телефонах)
 		const near = inView(this.pos);
@@ -742,9 +755,9 @@ class Enemy extends Actor {
 		}
 		if (!p.alive) { this.play('Idle'); return true; }
 
-		// направление: напрямую, если видно, иначе по полю путей
+		// направление: напрямую, если видно, иначе по полю путей (оно ведёт к герою, рядом с ним — и наёмники)
 		let dir;
-		if (dist < 7 && lineOfSight(this.pos, p.pos)) {
+		if (dist < (p === game.player ? 7 : 10) && lineOfSight(this.pos, p.pos)) {
 			dir = tmpV.set(p.pos.x - this.pos.x, 0, p.pos.z - this.pos.z).normalize();
 		} else {
 			dir = game.flowDir(this.pos) ?? tmpV.set(p.pos.x - this.pos.x, 0, p.pos.z - this.pos.z).normalize();
@@ -790,6 +803,144 @@ class Npc extends Actor {
 	}
 }
 
+/**
+ * Наёмник: идёт за героем (сзади слева или справа), сам выбирает ближайшего заражённого в зоне огня
+ * и стреляет из своего постоянного оружия очередями; перезаряжается из своего запаса патронов.
+ * Сам не лечится — нужен живчик от героя. state ({ id, hp, mag, ammo }) хранится в game.party и сохраняется.
+ */
+class Merc extends Actor {
+	constructor(state, slot) {
+		super(assets.player);
+		this.state = state;
+		this.def = MERCS[state.id];
+		this.W = WEAPONS[this.def.weapon];
+		this.clips = CLIPS[this.W.anim];
+		this.slot = slot;
+		this.radius = 0.38;
+		this.scale = 1;
+		this.alive = true;
+		this.cooldown = 0; this.reloading = 0; this.retarget = 0; this.burstLeft = 0; this.timer = 0;
+		const tint = new THREE.Color(...this.def.tint);
+		this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (/Cloth|Gear/.test(m.name)) m.color.multiply(tint); });
+		this.gunObj = this.W.make();
+		this.model.getObjectByName('GripR')?.add(this.gunObj);
+		this.play(this.clips.idle);
+	}
+
+	get hp() { return this.state.hp; }
+
+	/** Точка в строю: сзади-слева или сзади-справа от героя. */
+	spot() {
+		const p = game.player, a = p.root.rotation.y + Math.PI + (this.slot ? 0.65 : -0.65);
+		return tmpV2.set(p.pos.x + Math.sin(a) * 2.3, 0, p.pos.z + Math.cos(a) * 2.3);
+	}
+
+	/** Поставить рядом с героем (приход в локацию, отстал). */
+	place() {
+		const s = this.spot();
+		this.pos.set(s.x, 0, s.z);
+		resolveCollisions(this.pos, this.radius, level.colliders);
+		this.root.rotation.y = game.player.root.rotation.y;
+	}
+
+	hurt(dmg, from) {
+		if (!this.alive) return;
+		this.state.hp -= dmg;
+		this.hitFlash();
+		if (from) { tmpV.subVectors(this.pos, from).setY(0).normalize().multiplyScalar(0.2); this.pos.add(tmpV); }
+		if (this.state.hp <= 0) {
+			this.state.hp = 0;
+			this.alive = false;
+			this.play('Death', { once: true, fade: 0.1 });
+			game.mercDied(this);
+		} else if (this.reloading <= 0) this.play(this.clips.hit, { once: true, fade: 0.06, restart: true });
+		game.hudThrottled();
+	}
+
+	update(dt) {
+		const near = inView(this.pos);
+		this.model.visible = near;
+		if (near) super.update(dt);
+		if (!this.alive) { this.timer += dt; return this.timer < 12; }
+		const W = this.W, st = this.state, p = game.player, c = this.clips;
+		this.cooldown -= dt;
+		if (this.reloading > 0) {
+			this.reloading -= dt;
+			if (this.reloading <= 0) { const take = Math.min(W.mag - st.mag, st.ammo); st.mag += take; st.ammo -= take; game.hudThrottled(); }
+		}
+		if (!p.alive) { this.play(c.idle); return true; }
+		const dP = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
+		// отстал или застрял где-то вне кадра — догоняет (появляется рядом с героем)
+		if (dP > 26 && !near) { this.place(); return true; }
+		// цель: ближайший заражённый в зоне огня, которого видно
+		this.retarget -= dt;
+		if (this.retarget <= 0 || (this.target && !this.target.alive)) {
+			this.retarget = 0.35;
+			this.target = game.nearestEnemy(this.pos, Math.min(W.range, 24), true);
+		}
+		const t = this.target;
+		const follow = dP > (t ? 12 : 3.4);
+		let shooting = false;
+		if (t && !follow) {
+			shooting = true;
+			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, t.pos), dt * 8);
+			const facing = Math.abs(((angleTo(this.pos, t.pos) - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
+			if (st.mag <= 0) {
+				if (st.ammo > 0 && this.reloading <= 0) this.startReload();
+				else if (st.ammo <= 0 && !this.warned) { this.warned = true; game.toast(`${this.def.name}: патроны кончились!`, 'warn'); }
+			} else if (this.cooldown <= 0 && this.reloading <= 0 && facing) this.fire(t);
+		}
+		// строй: держится сзади героя; во время стрельбы стоит
+		const s = this.spot();
+		const dS = Math.hypot(s.x - this.pos.x, s.z - this.pos.z);
+		if ((!shooting && dS > 0.9) || follow) {
+			let dir = lineOfSight(this.pos, s) ? tmpV.set(s.x - this.pos.x, 0, s.z - this.pos.z).normalize() : game.flowDir(this.pos);
+			dir ??= tmpV.set(p.pos.x - this.pos.x, 0, p.pos.z - this.pos.z).normalize();
+			const run = dP > 6 || dS > 4;
+			const speed = run ? 4.6 : Math.min(1.7, 0.6 + dS);
+			// не наступает на героя и соседей
+			for (const o of [p, ...game.mercs]) {
+				if (o === this || !o.alive) continue;
+				const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, d = Math.hypot(dx, dz);
+				if (d < 0.8 && d > 1e-4) { dir.x += (dx / d) * (0.8 - d) * 3; dir.z += (dz / d) * (0.8 - d) * 3; }
+			}
+			dir.normalize();
+			this.pos.addScaledVector(dir, speed * dt);
+			if (!shooting) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
+			const clip = run ? c.run : c.walk;
+			if (this.reloading <= 0 || run) this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+		} else if (this.reloading > 0) {
+			if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / W.reload });
+		} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
+			this.play(shooting ? c.aim : c.idle, { fade: 0.2 });
+		}
+		resolveCollisions(this.pos, this.radius, level.colliders);
+		return true;
+	}
+
+	startReload() {
+		this.reloading = this.W.reload;
+		const c = this.clips.reload;
+		this.play(c, { once: true, fade: 0.1, restart: true, timeScale: this.actions[c].getClip().duration / this.W.reload });
+		Sfx.reload();
+	}
+
+	/** Выстрел; у автоматов — короткими очередями с паузами (бережёт патроны). */
+	fire(target) {
+		const W = this.W;
+		this.state.mag--;
+		this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
+		Sfx.shot(W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
+		game.noise(this.pos, W.noise);
+		if (W.auto < 0.2) {
+			this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : 3 + Math.floor(Math.random() * 3);
+			this.cooldown = this.burstLeft > 0 ? W.auto : 0.45 + Math.random() * 0.4;
+		} else this.cooldown = W.auto + Math.random() * 0.15;
+		fireShot(this, W, this.gunObj, target);
+		game.hudThrottled();
+	}
+}
+
 // ---------- Игра ----------
 const game = {
 	time: 0, shake: 0, kills: 0, state: 'menu', paused: false,
@@ -798,7 +949,8 @@ const game = {
 	world: newWorld(),
 	loc: 'zarechny', from: null,
 	icons: {},
-	enemies: [], pickups: [], fx: [], npcs: [],
+	enemies: [], pickups: [], fx: [], npcs: [], mercs: [],
+	party: [], // наёмники: { id, hp, mag, ammo }
 	player: null,
 	flow: null, flowTimer: 0,
 	exitArmed: false, warnStage: 0,
@@ -810,6 +962,7 @@ const game = {
 		this.world = newWorld();
 		this.bag = { ...START_BAG };
 		this.kit = startKit();
+		this.party = [];
 		this.kills = 0;
 		this.begin();
 		this.enter('zarechny', undefined);
@@ -823,6 +976,7 @@ const game = {
 		this.world = s.world;
 		this.bag = { ...START_BAG, ...s.bag };
 		this.kit = normalizeKit(s.kit);
+		this.party = (s.party ?? []).filter((m) => MERCS[m.id] && m.hp > 0);
 		this.kills = 0;
 		this.begin();
 		this.enter(s.world.at, s.from ?? null);
@@ -845,9 +999,10 @@ const game = {
 	loadLocation(id) {
 		for (const e of this.enemies) e.dispose();
 		for (const n of this.npcs) n.dispose();
+		for (const m of this.mercs) m.dispose();
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
-		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = [];
+		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = [];
 		this.searching = null;
 		this.flow = null;
 		if (level?.id !== id) {
@@ -892,6 +1047,7 @@ const game = {
 		spores.density = NODES[id].kind === 'cluster' ? 1 : 0.35;
 		if (NODES[id].kind === 'cluster') this.populate(this.world.clusters[id].saved);
 		else for (const n of level.npcs) this.npcs.push(new Npc(n));
+		this.spawnMercs();
 		this.reloadFx(Infinity);
 		this.hud();
 		this.save();
@@ -952,7 +1108,7 @@ const game = {
 	save() {
 		if (this.state !== 'play' || !this.player?.alive) return;
 		if (NODES[this.loc].kind === 'cluster') this.snapshot();
-		saveGame({ world: this.world, bag: this.bag, kit: this.kit, hp: Math.ceil(this.player.hp), from: this.from ?? null });
+		saveGame({ world: this.world, bag: this.bag, kit: this.kit, party: this.party, hp: Math.ceil(this.player.hp), from: this.from ?? null });
 	},
 
 	/** Уйти по дороге в to: время мира уходит на путь, за это время кластеры могут перезагрузиться. */
@@ -986,7 +1142,7 @@ const game = {
 		this.player = null;
 		this.begin();
 		this.enter('stab', undefined);
-		this.banner('Стаб «Полис»', 'Тебя вытащили рейдеры. Рюкзак остался в кластере, оружие при тебе');
+		this.banner('Стаб «Полис»', this.party.length ? 'Наёмники вытащили тебя. Рюкзак остался в кластере, оружие при тебе' : 'Тебя вытащили рейдеры. Рюкзак остался в кластере, оружие при тебе');
 	},
 
 	/** Шум: заражённые в радиусе r идут на звук. */
@@ -1057,11 +1213,11 @@ const game = {
 		this.kills++;
 		Sfx.death(e.type === 'stomper');
 		this.decal(e.pos, e.type === 'stomper' ? 2.4 : 1.6);
-		// споран из затылка; у топтуна — ещё горох и живчик. Патронов у заражённых нет — они в домах
+		// споран из затылка; у топтуна — ещё горох. Патронов и живчиков у заражённых нет: патроны — в домах,
+		// живчики покупают у торговца
 		const near = (dx, dz) => e.pos.clone().add(new THREE.Vector3(dx, 0, dz));
 		this.spawnPickup('spore', e.pos, e.T.score);
 		if (e.type === 'stomper') this.spawnPickup('peas', near(-0.5, 0.5), 1 + Math.floor(Math.random() * 2));
-		if (e.type === 'stomper' || Math.random() < 0.12) this.spawnPickup('zhivchik', near(0.6, 0.4));
 		this.hud();
 	},
 
@@ -1130,6 +1286,7 @@ const game = {
 			p.root.rotation.y = Math.atan2(s.x - p.pos.x, (s.z - 2) - p.pos.z); // лицом к прилавку/палатке
 			if (s.id === 'trade') this.trade.open();
 			if (s.id === 'rest') this.rest();
+			if (s.id === 'mercs') this.partyWindow.open({ hiring: true });
 			return;
 		}
 		const c = this.nearContainer();
@@ -1297,6 +1454,197 @@ const game = {
 		this.banner(`${W.name} сломался`, spare ? `В руках — ${WEAPONS[spare].name.toLowerCase()}` : 'Остались кулаки — купи топор у торговца в стабе или найди в домах');
 		p.attachGear();
 		this.save();
+	},
+
+	// ---------- Наёмники ----------
+
+	/** Наёмники отряда — рядом с героем в новой локации. */
+	spawnMercs() {
+		for (const m of this.mercs) m.dispose();
+		this.mercs = this.party.map((st, i) => { const m = new Merc(st, i); m.place(); return m; });
+		this.renderPartyBar();
+	},
+
+	/** Ближайший живой, на кого кидаются заражённые: герой или наёмник. */
+	foeFor(pos) {
+		let best = this.player, bd = this.player?.alive ? Math.hypot(this.player.pos.x - pos.x, this.player.pos.z - pos.z) : Infinity;
+		for (const m of this.mercs) {
+			if (!m.alive) continue;
+			const d = Math.hypot(m.pos.x - pos.x, m.pos.z - pos.z);
+			if (d < bd) { bd = d; best = m; }
+		}
+		return best;
+	},
+
+	hire(id) {
+		const D = MERCS[id];
+		if (this.party.length >= MAX_PARTY || this.party.some((m) => m.id === id)) return;
+		if ((this.bag.spore ?? 0) < D.price) { this.toast('Не хватает споранов', 'warn'); return; }
+		this.bag.spore -= D.price;
+		const st = newMerc(id);
+		this.party.push(st);
+		const m = new Merc(st, this.party.length - 1);
+		m.place();
+		this.mercs.push(m);
+		Sfx.coins();
+		this.toast(`${D.name} в отряде — с ним ${WEAPONS[D.weapon].name}`);
+		this.renderPartyBar();
+		this.hud();
+		this.save();
+	},
+
+	/** Дать наёмнику патроны его калибра (до магазина за раз). */
+	giveAmmo(i) {
+		const st = this.party[i], W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
+		if (n <= 0) { this.toast(`Нет патронов ${AMMO[W.ammo]}`, 'warn'); return; }
+		this.bag[W.ammo] -= n;
+		st.ammo += n;
+		const actor = this.mercs.find((m) => m.state === st);
+		if (actor) actor.warned = false;
+		Sfx.reload();
+		this.toast(`${MERCS[st.id].name}: +${n} ${plural(n, ITEMS[W.ammo].forms)}`);
+		this.hud();
+	},
+
+	/** Живчик наёмнику: сам он не лечится. */
+	healMerc(i) {
+		const st = this.party[i], D = MERCS[st.id];
+		if (!(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
+		this.bag.zhivchik--;
+		st.hp = Math.min(D.hp, st.hp + MERC_HEAL);
+		Sfx.drink();
+		this.toast(`${D.name}: +${MERC_HEAL} здоровья`);
+		this.hud();
+	},
+
+	/** Отпустить наёмника (в стабе). */
+	dismiss(i) {
+		const st = this.party.splice(i, 1)[0];
+		const a = this.mercs.find((m) => m.state === st);
+		a?.dispose();
+		this.mercs = this.mercs.filter((m) => m !== a);
+		this.mercs.forEach((m, k) => { m.slot = k; });
+		this.toast(`${MERCS[st.id].name} ушёл из отряда`);
+		this.renderPartyBar();
+		this.save();
+	},
+
+	mercDied(m) {
+		this.party = this.party.filter((st) => st !== m.state);
+		this.mercs.forEach((o) => { if (o.alive) o.slot = this.party.indexOf(o.state); });
+		Sfx.death(false);
+		this.banner(`${m.def.name} погиб`, `${WEAPONS[m.def.weapon].name} остался на месте гибели`);
+		this.renderPartyBar();
+	},
+
+	/** Полоса отряда под здоровьем: портрет, здоровье кольцом, патроны. */
+	renderPartyBar() {
+		const el = $('party-bar');
+		el.innerHTML = this.party.map((st, i) => `<button class="pm" data-i="${i}"><span class="pm-face" style="--hp:100%"><img src="${this.icons[`merc_${st.id}`] ?? ''}" alt=""></span><span class="pm-ammo"></span></button>`).join('');
+		el.classList.toggle('hidden', !this.party.length);
+		this.hudParty();
+	},
+
+	hudParty() {
+		const el = $('party-bar');
+		this.party.forEach((st, i) => {
+			const b = el.children[i];
+			if (!b) return;
+			const D = MERCS[st.id];
+			b.querySelector('.pm-face').style.setProperty('--hp', `${Math.max(0, (st.hp / D.hp) * 100).toFixed(0)}%`);
+			b.querySelector('.pm-ammo').textContent = `${st.mag}+${st.ammo}`;
+			b.classList.toggle('low', st.hp < D.hp * 0.3 || st.mag + st.ammo === 0);
+		});
+	},
+
+	// ---------- Гранаты ----------
+
+	/** Бросок гранаты: к ближайшим заражённым (до 14 м) или вперёд; взрыв через 2 с после броска. */
+	throwGrenade() {
+		const p = this.player;
+		if (!p?.alive || this.paused || p.busy > 0 || p.equipping || this.state !== 'play') return;
+		if (!(this.bag.grenade > 0)) { this.toast('Гранат нет — продаёт торговец', 'warn'); return; }
+		this.bag.grenade--;
+		const target = this.nearestEnemy(p.pos, 14);
+		if (target) p.root.rotation.y = angleTo(p.pos, target.pos);
+		const to = target ? target.pos.clone() : p.pos.clone().add(new THREE.Vector3(Math.sin(p.root.rotation.y), 0, Math.cos(p.root.rotation.y)).multiplyScalar(10));
+		// оружие на миг убираем, в руке — граната; бросок сверху
+		const held = p.gun(p.weapon), nade = makeGrenade();
+		held.visible = false;
+		p.hand.add(nade);
+		p.play('Melee', { once: true, fade: 0.06, restart: true, timeScale: 1.25 });
+		p.busy = 0.55;
+		Sfx.swing();
+		p.pending.push({ t: 0.27, fn: () => {
+			const from = nade.getWorldPosition(new THREE.Vector3());
+			nade.removeFromParent();
+			this.launchGrenade(from, to);
+		} });
+		p.pending.push({ t: 0.5, fn: () => { held.visible = true; } });
+		this.hud();
+	},
+
+	launchGrenade(from, to) {
+		const g = makeGrenade();
+		g.scale.setScalar(1.4);
+		g.position.copy(from);
+		scene.add(g);
+		const d = Math.hypot(to.x - from.x, to.z - from.z), T = 0.5 + d / 22;
+		const start = from.clone(), end = to.clone().setY(0.06);
+		let t = 0, fuse = 2.0;
+		const spin = new THREE.Vector3(Math.random() * 10, Math.random() * 10, Math.random() * 10);
+		this.fx.push({ life: 3, update: (dt) => {
+			t += dt; fuse -= dt;
+			if (t < T) {
+				const k = t / T;
+				g.position.lerpVectors(start, end, k);
+				g.position.y = start.y + (end.y - start.y) * k + Math.sin(Math.PI * k) * (1.2 + d * 0.12);
+				g.rotation.x += spin.x * dt; g.rotation.y += spin.y * dt;
+			}
+			if (fuse <= 0) { this.explode(g.position.clone()); return false; }
+			return true;
+		}, dispose: () => scene.remove(g) });
+	},
+
+	/** Взрыв: осколки ранят всех в радиусе 6 м (и героя с наёмниками), шум на весь кластер. */
+	explode(pos) {
+		const R = 6;
+		for (const e of this.enemies) {
+			if (!e.alive) continue;
+			const d = Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z);
+			if (d < R) e.damage(170 * (1 - d / R) ** 0.7, pos, 1.5 * (1 - d / R));
+		}
+		for (const a of [this.player, ...this.mercs]) {
+			if (!a?.alive) continue;
+			const d = Math.hypot(a.pos.x - pos.x, a.pos.z - pos.z);
+			if (d < R) a.hurt(80 * (1 - d / R), pos);
+		}
+		this.noise(pos, 50);
+		Sfx.explosion();
+		const near = clamp01(1 - Math.hypot(pos.x - this.player.pos.x, pos.z - this.player.pos.z) / 25);
+		this.shake = Math.min(1, this.shake + 0.4 + near * 0.6);
+		flashLight.position.copy(pos).setY(1.2);
+		flashLight.intensity = 160;
+		flashLight.distance = 18;
+		const fire = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,190,90'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+		fire.position.copy(pos).setY(0.8);
+		scene.add(fire);
+		this.fx.push({ life: 0.45, update(dt) { this.life -= dt; const k = 1 - this.life / 0.45; fire.scale.setScalar(1 + k * 5); fire.material.opacity = 1 - k; flashLight.intensity = 160 * (1 - k); return this.life > 0; }, dispose() { scene.remove(fire); fire.material.dispose(); flashLight.intensity = 0; flashLight.distance = 7; } });
+		for (let i = 0; i < 9; i++) {
+			const sm = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(i % 3 ? '90,88,80' : '60,58,54'), transparent: true, opacity: 0.6, depthWrite: false }));
+			sm.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 2, 0.4 + Math.random(), (Math.random() - 0.5) * 2));
+			sm.scale.setScalar(1.2 + Math.random());
+			const v = new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.8 + Math.random() * 0.8, (Math.random() - 0.5) * 1.2);
+			scene.add(sm);
+			this.fx.push({ life: 2.2, update(dt) { this.life -= dt; sm.position.addScaledVector(v, dt); sm.scale.multiplyScalar(1 + dt * 0.6); sm.material.opacity = 0.6 * this.life / 2.2; return this.life > 0; }, dispose() { scene.remove(sm); sm.material.dispose(); } });
+		}
+		for (let i = 0; i < 6; i++) this.impact(pos.clone().setY(0.1), false, 1.6);
+		// выжженное пятно
+		const scorch = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), new THREE.MeshBasicMaterial({ map: softDotTexture('14,12,10'), transparent: true, opacity: 0.8, depthWrite: false }));
+		scorch.rotation.x = -Math.PI / 2;
+		scorch.position.set(pos.x, 0.04, pos.z);
+		scene.add(scorch);
+		this.fx.push({ life: 40, update(dt) { this.life -= dt; if (this.life < 5) scorch.material.opacity = 0.8 * this.life / 5; return this.life > 0; }, dispose() { scene.remove(scorch); scorch.geometry.dispose(); scorch.material.dispose(); } });
 	},
 
 	setPaused(on) {
@@ -1495,12 +1843,16 @@ const game = {
 		this.trade.close();
 		this.worldMap.close();
 		this.locationMap.close();
+		this.partyWindow.close();
+		// при перезагрузке кластера пропадают и наёмники, что были с героем; съели — они вытащат героя
+		const lostMercs = reason === 'reload' ? this.party.map((m) => MERCS[m.id].name) : [];
+		if (reason === 'reload') this.party = [];
 		const lost = CONSUMABLES.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${ITEMS[k].name.toLowerCase()} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
 			$('go-title').textContent = reason === 'reload' ? 'Кластер перезагрузился' : 'Тебя сожрали';
 			$('go-sub').textContent = reason === 'reload' ? 'Ты не успел уйти: Улей подменил кластер свежей копией вместе с тобой.' : 'Заражённые оказались быстрее.';
-			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b>${lost.length ? `<br>Пропадёт из рюкзака: ${lost.join(', ')}` : ''}`;
+			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b>${lost.length ? `<br>Пропадёт из рюкзака: ${lost.join(', ')}` : ''}${lostMercs.length ? `<br>Наёмники остались в кластере: ${lostMercs.join(', ')}` : ''}`;
 			$('gameover').classList.remove('hidden');
 			$('hud').classList.add('hidden');
 			$('search').classList.add('hidden');
@@ -1546,6 +1898,10 @@ const game = {
 		const zh = this.bag.zhivchik ?? 0;
 		$('heal-count').textContent = zh;
 		$('btn-heal').classList.toggle('off', zh === 0);
+		const gr = this.bag.grenade ?? 0;
+		$('grenade-count').textContent = gr;
+		$('btn-grenade').classList.toggle('off', gr === 0);
+		this.hudParty();
 		// иконки меняем только при смене оружия: перерисовка кнопки под пальцем теряет отпускание
 		const other = p.hold === 'melee' ? this.kit.gear.gun : this.kit.gear.melee;
 		const key = `${p.weapon}|${other}`;
@@ -1643,7 +1999,7 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap];
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow];
 	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
 	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
 	if (input.consume('escape')) for (const w of windows) w.close();
@@ -1651,6 +2007,7 @@ function update(dt) {
 	game.time += dt;
 	if (game.state === 'play') {
 		if (input.consume('heal')) game.drink();
+		if (input.consume('grenade')) game.throwGrenade();
 		if (input.consume('search')) game.act();
 		if (input.consume('switch')) game.player.switchWeapon();
 		if (input.consume('reload')) game.player.reload();
@@ -1672,6 +2029,7 @@ function update(dt) {
 	if (game.flowTimer <= 0 && game.enemies.length) { game.updateFlow(); game.flowTimer = 0.3; }
 	game.enemies = game.enemies.filter((e) => { const keep = e.update(dt); if (!keep) e.dispose(); return keep; });
 	for (const n of game.npcs) n.update(dt);
+	game.mercs = game.mercs.filter((m) => { const keep = m.update(dt); if (!keep) m.dispose(); return keep; });
 
 	// подбор предметов в рюкзак
 	for (const pk of game.pickups) {
@@ -1724,6 +2082,8 @@ game.inventory = new Inventory(game);
 game.trade = new Trade(game);
 game.worldMap = new WorldMap(game);
 game.minimap = new Minimap(game);
+game.partyWindow = new PartyWindow(game);
+$('party-bar').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (game.state === 'play' && !game.paused) game.partyWindow.open({ hiring: game.nearStation()?.id === 'mercs' }); });
 game.locationMap = new LocationMap(game);
 $('btn-inv').addEventListener('click', (e) => { e.currentTarget.blur(); if (game.state === 'play') game.inventory.toggle(); });
 $('btn-map').addEventListener('click', (e) => { e.currentTarget.blur(); if (game.state === 'play' && !game.paused) game.locationMap.open(); });

@@ -59,6 +59,7 @@ export const Sfx = {
 	/** Гул перезагрузки кластера: низкий нарастающий рокот. */
 	rumble(power = 1) { tone({ freq: 48, to: 34, dur: 1.4, type: 'sawtooth', gain: 0.08 * power }); burst({ dur: 1.4, freq: 160, sweep: 60, gain: 0.3 * power, attack: 0.4 }); },
 	snap() { burst({ dur: 0.09, freq: 2600, type: 'highpass', gain: 0.6 }); tone({ freq: 320, to: 90, dur: 0.16, type: 'square', gain: 0.12 }); setTimeout(() => burst({ dur: 0.25, freq: 900, sweep: 300, gain: 0.3 }), 90); },
+	explosion() { burst({ dur: 1.4, freq: 900, sweep: 60, gain: 1.0, attack: 0.004 }); tone({ freq: 70, to: 28, dur: 0.9, type: 'sine', gain: 0.6 }); setTimeout(() => burst({ dur: 1.2, freq: 300, sweep: 80, gain: 0.35, attack: 0.1 }), 120); },
 	coins() { [0, 0.07, 0.14].forEach((d) => setTimeout(() => tone({ freq: 1200 + d * 2000, dur: 0.06, type: 'triangle', gain: 0.1 }), d * 1000)); },
 	swing() { burst({ dur: 0.22, freq: 600, sweep: 2400, type: 'bandpass', q: 2, gain: 0.25, attack: 0.05 }); },
 	chop() { burst({ dur: 0.12, freq: 900, gain: 0.5 }); tone({ freq: 110, to: 60, dur: 0.12, type: 'square', gain: 0.12 }); },

@@ -316,6 +316,32 @@
 		.lm-hint { color: var(--muted); }
 		body.short #lm-map { width: min(76vh, 300px); }
 		body.short .lm-body { grid-template-columns: auto 1fr; }
+		/* Гранаты, отряд наёмников */
+		#btn-grenade { right: calc(186px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 54px; height: 54px; }
+		body.short #btn-grenade { bottom: 108px; right: 172px; }
+		#party-bar { position: absolute; left: calc(12px + env(safe-area-inset-left)); top: calc(96px + env(safe-area-inset-top)); display: flex; gap: 8px; pointer-events: auto; }
+		body.short #party-bar { top: 80px; }
+		.pm { display: grid; justify-items: center; gap: 1px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: var(--text); }
+		.pm-face { display: block; padding: 2px; border-radius: 50%; background: conic-gradient(#6ab04c var(--hp, 100%), rgba(255,255,255,0.14) 0); }
+		.pm-face img { display: block; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--panel); }
+		.pm-ammo { font-size: 11px; font-weight: 700; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 0 5px; font-variant-numeric: tabular-nums; }
+		.pm.low .pm-ammo { color: #e0705a; }
+		.pm.low .pm-face { animation: lowHp 0.9s ease-in-out infinite; }
+		#party { z-index: 25; padding: 10px; }
+		.party { width: min(760px, 100%); }
+		#party-list { display: grid; gap: 8px; }
+		.merc { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
+		.merc-text { display: grid; gap: 3px; flex: 1; min-width: 0; font-size: 13px; }
+		.merc-text b { font-size: 15px; }
+		.merc-text .muted { color: var(--muted); }
+		.merc-hp { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+		.merc-hp i { display: block; height: 100%; background: linear-gradient(90deg, #3e7a2c, #6ab04c); }
+		.merc-btns { display: grid; gap: 6px; }
+		.merc-btns small { font-weight: 400; opacity: 0.8; }
+		button.stay.small { padding: 6px 10px; font-size: 12px; }
+		.trade-sec { grid-column: 1 / -1; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 6px 2px 0; }
+		body.short .merc { padding: 5px 8px; }
+		body.short .pm-face img { width: 34px; height: 34px; }
 		@media (pointer: fine) { #touch { display: none; } }
 		.desktop-only { display: none; }
 		@media (pointer: fine) { .desktop-only { display: block; } .mobile-only { display: none; } }
@@ -369,6 +395,7 @@
 				</button>
 			</div>
 		</div>
+		<div id="party-bar" class="hidden"></div>
 		<div id="minimap" title="Карта локации (M)"><div id="mm-clip"><div id="mm-map"></div><div id="mm-arrow"></div><span id="mm-n">С</span></div><div id="mm-pointers"></div></div>
 		<div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
 		<div id="toasts"></div>
@@ -381,6 +408,7 @@
 		<div class="tbtn" id="btn-weapon"></div>
 		<div class="tbtn" id="btn-reload">⟳</div>
 		<div class="tbtn" id="btn-heal"><span class="badge" id="heal-count">0</span></div>
+		<div class="tbtn" id="btn-grenade"><span class="badge" id="grenade-count">0</span></div>
 	</div>
 
 	<button id="search" class="hidden" aria-label="Обыскать">
@@ -410,6 +438,16 @@
 					<button class="big" id="inv-action"></button>
 				</div>
 			</div>
+		</div>
+	</div>
+
+	<div id="party" class="screen hidden">
+		<div class="inv party">
+			<div class="inv-head"><b>Отряд</b><span class="muted">игра на паузе</span>
+				<span class="wallet"><span class="spore">Спораны <b id="party-spores">0</b></span></span>
+				<button class="x" id="party-close" aria-label="Закрыть">✕</button></div>
+			<div id="party-list"></div>
+			<div class="lm-hint" id="party-hint"></div>
 		</div>
 	</div>
 
@@ -481,7 +519,7 @@
 				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
 				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>
 			</div>
-			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>E</b> — обыскать / торговать</div>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
 			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
 		</div>
 	</div>

@@ -2,21 +2,25 @@
 // и для иконок (иконки рендерятся из этих моделей, см. icons.js).
 
 import * as THREE from 'three';
-import { WEAPONS } from './weapons.js';
+import { WEAPONS, makeGrenade } from './weapons.js';
 
 const ROUNDS = ['патрон', 'патрона', 'патронов'];
 export const ITEMS = {
 	...Object.fromEntries(Object.entries(WEAPONS).map(([k, w]) => [k, { name: w.name, type: 'weapon', desc: w.desc }])),
 	ammo9: { name: 'Патроны 9×18', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны к ПМ. Лежат в домах: в шкафах, комодах, сундуках.' },
 	ammo12: { name: 'Патроны 12 кал.', type: 'ammo', forms: ROUNDS, desc: 'Охотничьи патроны с картечью к обрезу. Чаще всего — у дачников и сторожей.' },
-	ammo545: { name: 'Патроны 5,45×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АКС-74У. В кластерах редки — проще купить в стабе.' },
+	ammo919: { name: 'Патроны 9×19', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны парабеллум — к «Вектору». Продаёт торговец в стабе.' },
+	ammo545: { name: 'Патроны 5,45×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АКС-74У и АК-74. В кластерах редки — проще купить в стабе.' },
+	ammo762: { name: 'Патроны 7,62×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АК-47: тяжёлая пуля, сильная отдача.' },
+	ammo76254: { name: 'Патроны 7,62×54R', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны к СВД. Дорогие — каждый выстрел должен попасть.' },
+	grenade: { name: 'Граната Ф-1', forms: ['граната', 'гранаты', 'гранат'], use: 'Бросить', desc: 'Оборонительная граната: бросок к ближайшим заражённым, взрыв через 2 секунды, разлёт осколков до 6 м — не стой рядом. Кнопка гранаты или G.' },
 	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], use: 'Выпить', desc: 'Лечебное зелье Улья: восстанавливает 45 здоровья.' },
 	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
 	peas: { name: 'Горох', forms: ['горошина', 'горошины', 'горошин'], desc: 'Горошины из споровых мешков топтунов. Торговец в стабе меняет каждую на 5 споранов.' },
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo9', 'ammo12', 'ammo545', 'zhivchik', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo9', 'ammo919', 'ammo12', 'ammo545', 'ammo762', 'ammo76254', 'grenade', 'zhivchik', 'spore', 'peas'];
 /** Расходники: при гибели пропадают вместе с рюкзаком (оружие остаётся). */
 export const CONSUMABLES = BAG_ORDER;
 
@@ -59,9 +63,28 @@ export function makeItemMesh(kind) {
 			g.add(s);
 		}
 		g.add(box, label);
-	} else if (kind === 'ammo545') {
-		// цинк-укупорка с патронами в пачках и снаряжённый рожок
-		const zinc = mat({ color: 0x8a9088, roughness: 0.35, metalness: 0.8 });
+	} else if (kind === 'grenade') {
+		const gr = makeGrenade();
+		gr.scale.setScalar(1.8);
+		gr.rotation.z = 1.2;
+		gr.position.y = 0.06;
+		g.add(gr);
+	} else if (kind === 'ammo76254') {
+		// картонная пачка и длинные винтовочные патроны с остроконечной пулей
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.12), mat({ color: 0x9a8a62, roughness: 0.9 }));
+		box.position.y = 0.03;
+		const brass = mat({ color: 0xb8923e, roughness: 0.3, metalness: 0.9 }), tip = mat({ color: 0x6a5030, roughness: 0.4, metalness: 0.7 });
+		for (let i = 0; i < 5; i++) {
+			const c = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.008, 0.055, 8), brass);
+			c.rotation.z = Math.PI / 2; c.position.set(0, 0.07, -0.04 + i * 0.02);
+			const b = new THREE.Mesh(new THREE.ConeGeometry(0.0065, 0.03, 8), tip);
+			b.rotation.z = -Math.PI / 2; b.position.set(0.042, 0.07, -0.04 + i * 0.02);
+			g.add(c, b);
+		}
+		g.add(box);
+	} else if (kind === 'ammo545' || kind === 'ammo762') {
+		// цинк-укупорка с патронами в пачках и снаряжённый рожок (у 7,62 — стальной и тёмный цинк)
+		const zinc = mat(kind === 'ammo762' ? { color: 0x5a6650, roughness: 0.45, metalness: 0.6 } : { color: 0x8a9088, roughness: 0.35, metalness: 0.8 });
 		const box = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.18), zinc);
 		box.position.y = 0.05;
 		const pack = mat({ color: 0xb8a878, roughness: 0.9 });
@@ -70,14 +93,14 @@ export function makeItemMesh(kind) {
 			p.position.set(-0.085 + i * 0.085, 0.125, 0);
 			g.add(p);
 		}
-		const magMat = mat({ color: 0x6a3a22, roughness: 0.5 });
+		const magMat = kind === 'ammo762' ? mat({ color: 0x2e3032, roughness: 0.4, metalness: 0.6 }) : mat({ color: 0x6a3a22, roughness: 0.5 });
 		const mag = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.2, 0.06), magMat);
 		mag.position.set(0.2, 0.03, 0.02);
 		mag.rotation.set(Math.PI / 2, 0.3, 0.25);
 		g.add(box, mag);
-	} else if (kind === 'ammo9') {
-		// открытая армейская коробка с патронами
-		const olive = mat({ color: 0x4d5a36, roughness: 0.55, metalness: 0.35 });
+	} else if (kind === 'ammo9' || kind === 'ammo919') {
+		// открытая армейская коробка с патронами (9×19 — в серо-синей)
+		const olive = mat(kind === 'ammo919' ? { color: 0x3e4a58, roughness: 0.5, metalness: 0.4 } : { color: 0x4d5a36, roughness: 0.55, metalness: 0.35 });
 		const box = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.18), olive);
 		box.position.y = 0.06;
 		const lid = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.012, 0.18), olive);
@@ -120,4 +143,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo9: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140' };
+export const GLOW = { ammo9: '255,220,120', ammo919: '200,220,255', ammo12: '255,190,120', ammo545: '230,230,150', ammo762: '220,230,170', ammo76254: '255,230,160', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140' };
