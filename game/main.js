@@ -210,8 +210,18 @@ class Actor {
 	}
 }
 
-/** С чем начинают: топор и ПМ с полным магазином, патроны в запасе, живчик. */
-const startKit = () => ({ gear: { melee: 'axe', gun: 'pistol' }, owned: ['axe', 'pistol'], mags: { pistol: WEAPONS.pistol.mag } });
+/** С чем начинают: целый топор и ПМ с полным магазином, патроны в запасе, живчик. */
+const startKit = () => ({ gear: { melee: 'axe', gun: 'pistol' }, owned: ['axe', 'pistol'], mags: { pistol: WEAPONS.pistol.mag }, wear: { axe: WEAPONS.axe.durability } });
+
+/** Набор из старого сохранения: прочность топоров, кулаки, если топора нет. */
+function normalizeKit(kit) {
+	kit.wear ??= {};
+	kit.mags ??= {};
+	for (const id of kit.owned) if (WEAPONS[id]?.durability && kit.wear[id] == null) kit.wear[id] = WEAPONS[id].durability;
+	const melee = kit.gear.melee;
+	if (!melee || (melee !== 'fists' && !kit.owned.includes(melee))) kit.gear.melee = kit.owned.find((w) => WEAPONS[w].slot === 'melee') ?? 'fists';
+	return kit;
+}
 const START_BAG = { ammo9: 8, zhivchik: 1, spore: 0, peas: 0 };
 const SEARCH_TIME = 1.1; // секунды на обыск
 const SEARCH_REACH = 1.25; // как близко надо подойти к мебели
@@ -366,7 +376,8 @@ class Player extends Actor {
 			this.busy = 0.58 / W.speed;
 			Sfx.swing();
 			game.noise(this.pos, W.noise);
-			this.pending.push({ t: W.hitTime, fn: () => this.meleeHit(W) });
+			const id = this.weapon;
+			this.pending.push({ t: W.hitTime, fn: () => this.meleeHit(W, id) });
 			game.hud();
 			return;
 		}
@@ -397,7 +408,7 @@ class Player extends Actor {
 		game.hud();
 	}
 
-	meleeHit(W) {
+	meleeHit(W, id) {
 		const fx = Math.sin(this.root.rotation.y), fz = Math.cos(this.root.rotation.y);
 		let hit = false;
 		for (const e of game.enemies) {
@@ -409,7 +420,9 @@ class Player extends Actor {
 			e.damage(W.damage, this.pos, 0.45);
 			hit = true;
 		}
-		if (hit) Sfx.chop();
+		if (!hit) return;
+		Sfx.chop();
+		if (W.durability) game.wearOut(id); // топор тупится от каждого удара по заражённому
 	}
 
 	shotHit(W, id, target) {
@@ -740,7 +753,7 @@ const game = {
 		if (!s) { this.newGame(); return; }
 		this.world = s.world;
 		this.bag = { ...START_BAG, ...s.bag };
-		this.kit = s.kit;
+		this.kit = normalizeKit(s.kit);
 		this.kills = 0;
 		this.begin();
 		this.enter(s.world.at, s.from ?? null);
@@ -990,12 +1003,16 @@ const game = {
 	take(kind, n) {
 		const W = WEAPONS[kind];
 		if (W) {
-			if (this.kit.owned.includes(kind)) {
+			const kit = this.kit;
+			if (kit.owned.includes(kind)) {
 				if (W.ammo) { this.bag[W.ammo] = (this.bag[W.ammo] ?? 0) + 4; this.toast(`${W.name} уже есть — забрал 4 патрона ${AMMO[W.ammo]}`); }
+				if (W.durability) { kit.wear[kind] = W.durability; this.toast(`${W.name}: сменил затупленный на целый`); this.hud(); }
 			} else {
-				this.kit.owned.push(kind);
-				if (W.ammo) this.kit.mags[kind] = Math.min(W.mag, 2);
-				this.toast(`Найден: ${W.name}! Возьми его в рюкзаке`);
+				kit.owned.push(kind);
+				if (W.ammo) kit.mags[kind] = Math.min(W.mag, 2);
+				if (W.durability) kit.wear[kind] = W.durability;
+				if (kit.gear[W.slot] === 'fists') { kit.gear[W.slot] = kind; this.player.attachGear(); this.toast(`Найден: ${W.name}! Сразу в слот`); }
+				else this.toast(`Найден: ${W.name}! Возьми его в рюкзаке`);
 			}
 		} else {
 			this.bag[kind] = (this.bag[kind] ?? 0) + n;
@@ -1117,17 +1134,23 @@ const game = {
 
 	/** Купить у торговца. */
 	buy(offer) {
-		const price = offer.price, W = WEAPONS[offer.id];
+		const price = offer.price, W = WEAPONS[offer.id], kit = this.kit;
 		if ((this.bag.spore ?? 0) < price) { this.toast('Не хватает споранов', 'warn'); return; }
-		if (W && this.kit.owned.includes(offer.id)) return;
+		const owned = W && kit.owned.includes(offer.id);
+		if (owned && !(W.durability && (kit.wear[offer.id] ?? W.durability) < W.durability)) return;
 		this.bag.spore -= price;
-		if (W) {
-			this.kit.owned.push(offer.id);
-			if (W.ammo) this.kit.mags[offer.id] = W.mag; // продаётся снаряжённым
-			const old = this.kit.gear[W.slot];
-			this.kit.gear[W.slot] = offer.id;
+		if (owned) {
+			// изношенный топор меняем на новый
+			kit.wear[offer.id] = W.durability;
+			this.toast(`Новый ${W.name.toLowerCase()} — ${W.durability} ударов`);
+		} else if (W) {
+			kit.owned.push(offer.id);
+			if (W.ammo) kit.mags[offer.id] = W.mag; // продаётся снаряжённым
+			if (W.durability) kit.wear[offer.id] = W.durability;
+			const old = kit.gear[W.slot];
+			kit.gear[W.slot] = offer.id;
 			this.player.attachGear();
-			this.toast(`${W.name} — в слоте${old ? `, ${WEAPONS[old].name} — в рюкзаке` : ''}`);
+			this.toast(`${W.name} — в слоте${old && old !== 'fists' ? `, ${WEAPONS[old].name} — в рюкзаке` : ''}`);
 		} else {
 			this.bag[offer.id] = (this.bag[offer.id] ?? 0) + offer.n;
 			this.toast(`+${offer.n} ${plural(offer.n, ITEMS[offer.id].forms)}`);
@@ -1157,6 +1180,39 @@ const game = {
 		Sfx.drink();
 		this.banner('Отдых', `Прошло ${approx(REST_TIME)}. Здоровье восстановлено`);
 		this.hud();
+		this.save();
+	},
+
+	/** Удар топором по заражённому: прочность −1; на исходе — предупреждение, на нуле — ломается. */
+	wearOut(id) {
+		const W = WEAPONS[id], kit = this.kit;
+		const left = kit.wear[id] = (kit.wear[id] ?? W.durability) - 1;
+		if (left <= 0) { this.breakWeapon(id); return; }
+		if (left === Math.ceil(W.durability * 0.2)) this.toast(`${W.name} затупился — осталось ${left} ударов`, 'warn');
+		this.hudThrottled();
+	},
+
+	/** Оружие сломалось: обломки падают на землю, в руки — запасное того же слота или кулаки. */
+	breakWeapon(id) {
+		const W = WEAPONS[id], kit = this.kit, p = this.player;
+		kit.owned = kit.owned.filter((w) => w !== id);
+		delete kit.wear[id];
+		const spare = kit.owned.find((w) => WEAPONS[w].slot === W.slot);
+		if (kit.gear[W.slot] === id) kit.gear[W.slot] = spare ?? 'fists';
+		const obj = p.models[id];
+		if (obj) {
+			delete p.models[id];
+			const pos = obj.getWorldPosition(new THREE.Vector3());
+			obj.removeFromParent();
+			obj.position.set(pos.x, 0.03, pos.z);
+			obj.rotation.set(0, Math.random() * Math.PI * 2, Math.PI / 2);
+			obj.rotateX(-(obj.userData.tilt ?? 0) + 0.5);
+			scene.add(obj);
+			this.fx.push({ life: 25, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { obj.removeFromParent(); } });
+		}
+		Sfx.snap();
+		this.banner(`${W.name} сломался`, spare ? `В руках — ${WEAPONS[spare].name.toLowerCase()}` : 'Остались кулаки — купи топор у торговца в стабе или найди в домах');
+		p.attachGear();
 		this.save();
 	},
 
@@ -1293,7 +1349,7 @@ const game = {
 		$('kills').textContent = this.kills;
 		$('loc-name').textContent = NODES[this.loc].short;
 		this.hudTimer();
-		const W = p.W, gun = this.kit.gear.gun && WEAPONS[this.kit.gear.gun];
+		const W = p.W;
 		$('weapon-name').textContent = W.name;
 		// патроны: в магазине / в запасе
 		const ammo = $('ammo');
@@ -1301,10 +1357,14 @@ const game = {
 			const spare = this.bag[W.ammo] ?? 0, empty = p.ammo === 0 && spare === 0;
 			ammo.innerHTML = p.reloading > 0 ? 'перезарядка…' : empty ? '<b>0</b> · нет патронов' : `<b>${p.ammo}</b> / ${spare}`;
 			ammo.classList.toggle('empty', empty);
+		} else if (W.durability) {
+			// у топора не патроны, а прочность: столько ударов ещё выдержит
+			const left = this.kit.wear[p.weapon] ?? W.durability;
+			ammo.innerHTML = `прочность <b>${left}</b>/${W.durability}`;
+			ammo.classList.toggle('empty', left <= W.durability * 0.2);
 		} else {
-			const loaded = gun ? this.kit.mags[this.kit.gear.gun] ?? 0 : 0, spare = gun ? this.bag[gun.ammo] ?? 0 : 0;
-			ammo.innerHTML = gun && (loaded || spare) ? `${gun.name}: ${loaded} + ${spare}` : '';
-			ammo.classList.remove('empty');
+			ammo.innerHTML = 'без оружия';
+			ammo.classList.add('empty');
 		}
 		const zh = this.bag.zhivchik ?? 0;
 		$('heal-count').textContent = zh;
@@ -1317,13 +1377,18 @@ const game = {
 			this.icons.weapon = key;
 			$('btn-weapon').innerHTML = icon(other);
 			$('btn-weapon').classList.toggle('off', !other);
-			$('btn-attack').innerHTML = `${icon(p.weapon) || '✊'}<span class="badge" id="attack-ammo"></span>`;
+			$('btn-attack').innerHTML = `${icon(p.weapon) || '✊'}<span class="badge" id="attack-ammo"></span><span class="wear" id="attack-wear"><i></i></span>`;
 			if (this.icons[p.weapon]) $('weapon-icon').src = this.icons[p.weapon];
 		}
 		const badge = $('attack-ammo');
 		badge.textContent = W.ammo ? p.ammo : '';
 		badge.style.display = W.ammo ? '' : 'none';
 		badge.classList.toggle('empty', p.ammo === 0);
+		// полоска прочности топора на кнопке атаки
+		const wear = $('attack-wear'), frac = W.durability ? (this.kit.wear[p.weapon] ?? W.durability) / W.durability : 0;
+		wear.style.display = W.durability ? '' : 'none';
+		wear.firstChild.style.width = `${frac * 100}%`;
+		wear.classList.toggle('low', frac <= 0.2);
 		$('btn-reload').classList.toggle('off', !W.ammo);
 	},
 

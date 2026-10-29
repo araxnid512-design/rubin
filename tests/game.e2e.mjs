@@ -64,6 +64,19 @@ try {
 	check(k.kills > 0, `убито заражённых топором: ${k.kills}`);
 	check(k.pickups > 0, 'после убийства выпадают спораны');
 	check(k.ammo === 0, 'патроны из заражённых не выпадают');
+	// у топора не патроны, а прочность: тупится от ударов и ломается
+	const wear = await G(page, () => ({ wear: window.__game.kit.wear.axe, hud: document.getElementById('ammo').textContent }));
+	check(wear.wear < 60 && /прочность/.test(wear.hud), `топор тупится от ударов: прочность ${wear.wear}/60, на экране «${wear.hud.trim()}»`);
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		g.kit.wear.axe = 1;
+		const e = g.enemies.find((x) => x.alive);
+		e.pos.set(p.pos.x + 1.2, 0, p.pos.z); e.stagger = 5;
+		p.cooldown = 0; p.attack();
+	});
+	await page.waitForFunction(() => window.__game.kit.gear.melee === 'fists', null, { timeout: 30000 }).catch(() => {});
+	const broke = await G(page, () => ({ melee: window.__game.kit.gear.melee, owned: window.__game.kit.owned.join(), hud: document.getElementById('ammo').textContent }));
+	check(broke.melee === 'fists' && !broke.owned.includes('axe') && /без оружия/.test(broke.hud), `топор сломался на последнем ударе — в руках кулаки (${broke.hud})`);
 	// пистолет: выстрел тратит патрон и поднимает шум
 	await page.keyboard.press('KeyQ');
 	await page.waitForFunction(() => window.__game.player.weapon === 'pistol' && !window.__game.player.equipping, null, { timeout: 20000 });
@@ -153,8 +166,14 @@ try {
 	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	await page.screenshot({ path: join(OUT, 'game-trade.png') });
 	await page.click('#trade-peas-all');
-	const buyAks = await G(page, () => { const b = [...document.querySelectorAll('[data-buy]')]; const i = b.findIndex((x) => x.closest('.offer').textContent.includes('АКС')); b[i].click(); const j = [...document.querySelectorAll('[data-buy]')].findIndex((x) => x.closest('.offer').textContent.includes('5,45')); document.querySelectorAll('[data-buy]')[j].click(); const g = window.__game; return { spore: g.bag.spore, gear: g.kit.gear.gun, mag: g.kit.mags.aks, spare: g.bag.ammo545, owned: g.kit.owned.join() }; });
-	check(buyAks.spore === 120 + 10 - 80 - 15 && buyAks.gear === 'aks' && buyAks.mag === 30 && buyAks.spare === 30, `купили АКС-74У и 30 патронов 5,45 (горох обменян): осталось ${buyAks.spore} споранов`);
+	const buyAks = await G(page, () => {
+		const buy = (name) => [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === name).click();
+		buy('АКС-74У'); buy('Патроны 5,45×39 ×30'); buy('Топор');
+		const g = window.__game;
+		return { spore: g.bag.spore, gear: g.kit.gear.gun, mag: g.kit.mags.aks, spare: g.bag.ammo545, melee: g.kit.gear.melee, wear: g.kit.wear.axe };
+	});
+	check(buyAks.spore === 120 + 10 - 80 - 15 - 8 && buyAks.gear === 'aks' && buyAks.mag === 30 && buyAks.spare === 30, `купили АКС-74У и 30 патронов 5,45 (горох обменян): осталось ${buyAks.spore} споранов`);
+	check(buyAks.melee === 'axe' && buyAks.wear === 60, `новый топор вместо сломанного: прочность ${buyAks.wear}/60`);
 	await page.click('#trade-close');
 	// автомат: очередь при зажатой кнопке
 	await G(page, () => { const g = window.__game; g.player.hp = g.player.maxHp = 1e6; });
@@ -192,14 +211,17 @@ try {
 		const g = window.__game, p = g.player;
 		p.pos.set(-26, 0, 4); // на дороге, вокруг пусто
 		g.kit.owned.push('obrez'); g.kit.mags.obrez = 2; p.hold = 'gun'; g.equipGear('obrez');
-		const es = g.enemies.filter((e) => e.alive && e.type === 'runner').slice(0, 3);
+		const es = g.enemies.filter((e) => e.alive && e.type === 'runner' && e.hp >= 60).slice(0, 3);
+		// остальных отводим подальше, чтобы ближайшей целью были эти трое
+		for (const e of g.enemies) if (!es.includes(e)) { e.pos.set(40, 0, -40); e.stagger = 5; }
 		es.forEach((e, i) => { e.pos.set(p.pos.x - 2.5, 0, p.pos.z + (i - 1) * 0.35); e.stagger = 5; });
+		window.__targets = es;
 		p.root.rotation.y = -Math.PI / 2; p.cooldown = 0; p.attack();
 		return es.map((e) => e.hp);
 	});
 	// кадр программного рендера бывает дольше секунды — ждём, пока дробь долетит
-	await page.waitForFunction(() => window.__game.enemies.filter((e) => e.type === 'runner' && e.hp < 60).length >= 2, null, { timeout: 30000 }).catch(() => {});
-	const hurt = await G(page, () => window.__game.enemies.filter((e) => e.type === 'runner' && e.hp < 60).length);
+	await page.waitForFunction(() => window.__targets.filter((e) => e.hp < 60).length >= 2, null, { timeout: 30000 }).catch(() => {});
+	const hurt = await G(page, () => window.__targets.filter((e) => e.hp < 60).length);
 	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов`);
 
 	// возвращение в кластер до перезагрузки: всё как было

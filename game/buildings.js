@@ -375,7 +375,7 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 	// спальня
 	bed(b, -3.9, 2.55, 0);
 	drawers(b, 'Тумбочка', -2.95, 3.25, Math.PI, 0.5, 0.55, 0.45, { ammo9: [3, 6, 0.6] });
-	chest(b, 'Сундук', 0.45, 3.2, Math.PI, { ammo9: [8, 12, 0.6], ammo12: [3, 6, 0.35], peas: 0.2, obrez: 0.06 });
+	chest(b, 'Сундук', 0.45, 3.2, Math.PI, { ammo9: [8, 12, 0.6], ammo12: [3, 6, 0.35], peas: 0.2, obrez: 0.06, axe: 0.06 });
 	chair(b, -0.3, 1.0, Math.PI * 0.8);
 	rug(b, -1.8, 1.9, Math.PI / 2, 1.6, 1.2, IM.rugBlue);
 	return b.finish();
@@ -491,7 +491,7 @@ export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 	table(b, -0.2, 0.6, 0, { w: 0.9, d: 0.7, cloth: variant % 2 === 0 });
 	chair(b, -0.2, -0.1, 0);
 	rug(b, -0.6, 0.2, 0, 1.6, 1.1, variant % 2 ? IM.rug : IM.rugBlue);
-	cabinet(b, 'Шкаф', -2.55, -2.2, 0, 1.0, 1.9, 0.5, { ammo9: [3, 6, 0.35], ammo12: [2, 5, 0.4], zhivchik: 0.2 });
+	cabinet(b, 'Шкаф', -2.55, -2.2, 0, 1.0, 1.9, 0.5, { ammo9: [3, 6, 0.35], ammo12: [2, 5, 0.4], zhivchik: 0.2, axe: 0.08 });
 	chest(b, 'Сундук', 0.9, 2.15, Math.PI, { ammo12: [4, 8, 0.45], spore: 0.15, peas: 0.1, obrez: 0.04 });
 	cabinet(b, 'Буфет', 2.75, -0.6, -Math.PI / 2, 0.9, 1.5, 0.45, { zhivchik: 0.4, ammo9: [2, 4, 0.2] }, IM.furnitureLight);
 	return b.finish();

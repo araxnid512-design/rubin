@@ -9,6 +9,12 @@ import { makeItemMesh } from './items.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 
+/** Кулак (оружия нет): рисунок вместо 3D-модели. */
+const FIST_ICON = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g fill="#d9b08c" stroke="#5a3a26" stroke-width="2.4" stroke-linejoin="round">
+<rect x="20" y="49" width="22" height="11" rx="3" fill="#56603e"/><rect x="14" y="22" width="34" height="30" rx="9"/>
+<rect x="14" y="14" width="9" height="17" rx="4.5"/><rect x="22.5" y="11" width="9" height="19" rx="4.5"/><rect x="31" y="11" width="9" height="19" rx="4.5"/><rect x="39.5" y="14" width="9" height="17" rx="4.5"/>
+<path d="M15 39c-7-1-8-9-5-13 6-1 12 2 15 7z"/></g></svg>`)}`;
+
 export function createIconFactory() {
 	const canvas = document.createElement('canvas');
 	let r;
@@ -88,6 +94,7 @@ export function createIconFactory() {
 	return {
 		/** Иконка оружия: топор — по диагонали лезвием вниз, ствол — вправо, затвором вверх. */
 		weapon(id) {
+			if (id === 'fists') return FIST_ICON;
 			const g = WEAPONS[id].make();
 			if (WEAPONS[id].anim === 'axe') {
 				g.rotation.x = -g.userData.tilt - Math.PI / 4;

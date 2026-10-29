@@ -91,6 +91,12 @@
 		.tbtn img { width: 62%; height: 62%; object-fit: contain; filter: drop-shadow(0 0 3px rgba(230,240,220,0.45)); }
 		.tbtn .badge { position: absolute; right: -2px; bottom: -2px; min-width: 22px; padding: 1px 5px; border-radius: 10px; background: #141816; border: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--text); text-align: center; font-variant-numeric: tabular-nums; }
 		.tbtn .badge.empty { color: #e0705a; }
+		/* прочность топора: полоска на кнопке атаки и в ячейке рюкзака */
+		.wear { position: absolute; left: 22%; right: 22%; bottom: 12%; height: 5px; border-radius: 3px; background: rgba(0,0,0,0.55); overflow: hidden; }
+		.wear i { display: block; height: 100%; width: 100%; background: #9ad070; }
+		.wear.low i { background: #e0705a; }
+		.slot .wear { left: 8px; right: 8px; bottom: 4px; height: 4px; }
+		.slot.weapon .wear { left: 40%; right: 8px; bottom: 7px; }
 		.tbtn.off { opacity: 0.45; }
 		#btn-heal { right: calc(124px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 54px; height: 54px; }
 		#hud.hidden + #touch { display: none; } /* в меню кнопки управления не нужны */
