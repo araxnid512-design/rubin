@@ -388,6 +388,35 @@ export function bloodDecalTexture(seed = 0) {
 	});
 }
 
+/**
+ * Брызги крови на земле: тёмная клякса с рваным краем и капли, вытянутые по ходу полёта (+X),
+ * у краёв — тоньше и прозрачнее, как подсохшая кровь.
+ */
+export function splatterTexture(seed = 0) {
+	return memo(`splatter${seed}`, () => {
+		const c = canvas(128), ctx = c.getContext('2d');
+		const rnd = mulberry(seed * 7 + 3);
+		const col = (a) => `rgba(${58 + rnd() * 30},${3 + rnd() * 5},${3 + rnd() * 4},${a})`;
+		// клякса: неровный многоугольник из наложенных капель
+		for (let i = 0; i < 9; i++) {
+			const a = rnd() * Math.PI * 2, d = rnd() * 12, r = 7 + rnd() * 12;
+			ctx.fillStyle = col(0.75 + rnd() * 0.2);
+			ctx.beginPath(); ctx.ellipse(46 + Math.cos(a) * d, 64 + Math.sin(a) * d, r * 1.3, r, rnd() * 0.6 - 0.3, 0, Math.PI * 2); ctx.fill();
+		}
+		// капли и потёки по ходу полёта
+		for (let i = 0; i < 14; i++) {
+			const x = 60 + rnd() * 62, y = 64 + (rnd() - 0.5) * (14 + (x - 60) * 0.7), r = 1 + rnd() * (5 - (x - 60) / 20);
+			ctx.fillStyle = col(0.55 + rnd() * 0.4);
+			ctx.beginPath(); ctx.ellipse(x, y, r * (1.4 + rnd()), r, 0, 0, Math.PI * 2); ctx.fill();
+		}
+		ctx.strokeStyle = col(0.7); ctx.lineCap = 'round';
+		for (let i = 0; i < 3; i++) { ctx.lineWidth = 2 + rnd() * 3; ctx.beginPath(); ctx.moveTo(56, 64 + (rnd() - 0.5) * 16); ctx.lineTo(80 + rnd() * 30, 64 + (rnd() - 0.5) * 30); ctx.stroke(); }
+		const t = toTexture(c);
+		t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+		return t;
+	});
+}
+
 /** Мягкая круглая текстура (тени-пятна, туман, свечение). */
 export function softDotTexture(color = '255,255,255') {
 	return memo(`dot${color}`, () => {

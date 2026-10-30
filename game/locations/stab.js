@@ -8,6 +8,7 @@ import * as T from '../textures.js';
 import { box, place } from '../geom.js';
 import { bench, addCar, streetLamp } from '../props.js';
 import { buildQuarters } from '../buildings.js';
+import { createFire } from '../dressing.js';
 
 const WX = 19, WZ = 15; // половины размеров территории за забором
 
@@ -167,14 +168,7 @@ export default {
 		bench(batch, M, fire.x + 2.2, fire.z, -Math.PI / 2);
 		bench(batch, M, fire.x, fire.z - 2.2, 0);
 		for (const [bx, bz, w, d] of [[-2.2, 0, 0.5, 1.7], [2.2, 0, 0.5, 1.7], [0, -2.2, 1.7, 0.5]]) collide(fire.x + bx, fire.z + bz, w, d);
-		const flame = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.7, 8), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.85 }));
-		flame.position.set(fire.x, 1.15, fire.z);
-		const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: T.softDotTexture('255,170,80'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-		glow.scale.setScalar(2.6);
-		glow.position.set(fire.x, 1.1, fire.z);
-		const light = new THREE.PointLight(0xff9a50, 6, 9);
-		light.position.set(fire.x, 1.6, fire.z);
-		root.add(flame, glow, light);
+		const flame = createFire(root, fire.x, 0.85, fire.z, { size: 1.1 });
 
 		// ---------- Техника, ящики, фонари ----------
 		{
@@ -213,7 +207,6 @@ export default {
 		collide(-WX - out / 2 - 0.2, 0, out, 2 * WZ + 2 * out);
 		collide(WX + out / 2 + 0.2, 0, out, 2 * WZ + 2 * out);
 
-		let tFire = 0;
 		return {
 			start: [0, 10.5, Math.PI],
 			fog: false,
@@ -253,13 +246,7 @@ export default {
 			puddles: 6,
 			puddle: () => [R(-WX + 2, WX - 2), R(-WZ + 4, WZ - 2)],
 			grass: 0.8,
-			update(dt, t) {
-				tFire += dt;
-				const f = 0.8 + Math.sin(tFire * 13) * 0.1 + Math.sin(tFire * 7.3) * 0.1;
-				flame.scale.set(1, f, 1);
-				light.intensity = 5 + f * 2;
-				glow.material.opacity = 0.6 + f * 0.2;
-			},
+			update(dt, t) { flame.update(dt, t); },
 		};
 	},
 };

@@ -8,6 +8,7 @@ import * as T from './textures.js';
 import { Batch, box, place, planeXZ } from './geom.js';
 import { Fader, segmentHitsBox } from './buildings.js';
 import { HALF, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
+import { dressLevel } from './dressing.js';
 import zarechny from './locations/zarechny.js';
 import dachi from './locations/dachi.js';
 import stab from './locations/stab.js';
@@ -146,25 +147,26 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 			batch.add(place(new THREE.SphereGeometry(0.35, 8, 6).scale(1, 0.6, 1), x, 0.18, z), M.tire);
 		}
 	}
-	const decals = new THREE.Group();
+	// кровь и лужи сливаются в общие меши: по одному вызову отрисовки на вариант текстуры
+	const bloodMats = [0, 1, 2, 3, 4].map((i) => new THREE.MeshStandardMaterial({ map: T.bloodDecalTexture(i), transparent: true, depthWrite: false, roughness: 0.3 }));
 	for (let i = 0; i < (spec.blood ?? 26); i++) {
-		const blood = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ map: T.bloodDecalTexture(i % 5), transparent: true, depthWrite: false, roughness: 0.3 }));
-		blood.rotation.x = -Math.PI / 2; blood.rotation.z = R(0, 6.28);
-		const s = R(0.8, 2.6);
-		blood.scale.set(s, s, 1);
-		blood.position.set(R(-44, 44), 0.03, R(-44, 44));
-		if (!indoors(blood.position.x, blood.position.z, s)) decals.add(blood);
+		const s = R(0.8, 2.6), x = R(-44, 44), z = R(-44, 44);
+		if (!indoors(x, z, s)) batch.add(place(new THREE.PlaneGeometry(s, s).rotateX(-Math.PI / 2), x, 0.03, z, R(0, 6.28)), bloodMats[i % 5], { cast: false });
 	}
+	// неровная лужа с мягким краем: блестит и отражает небо, а не тёмная дыра
+	const puddleMats = [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ color: 0x59636a, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.7, alphaMap: T.puddleTexture(i), envMapIntensity: 3.5, depthWrite: false }));
 	for (let i = 0; i < (spec.puddles ?? 14); i++) {
-		// неровная лужа с мягким краем: блестит и отражает небо, а не тёмная дыра
-		const puddle = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshStandardMaterial({ color: 0x59636a, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.7, alphaMap: T.puddleTexture(i % 4), envMapIntensity: 3.5, depthWrite: false }));
-		puddle.rotation.x = -Math.PI / 2; puddle.rotation.z = R(0, 6.28);
-		puddle.scale.set(R(0.9, 2.4), R(0.6, 1.5), 1);
+		const sx = R(0.9, 2.4), sz = R(0.6, 1.5);
 		const [px, pz] = spec.puddle?.() ?? [R(-45, 45), R(-44, 44)];
-		puddle.position.set(px, 0.028, pz);
-		if (!indoors(px, pz, 2.4)) decals.add(puddle);
+		if (!indoors(px, pz, 2.4)) batch.add(place(new THREE.PlaneGeometry(2 * sx, 2 * sz).rotateX(-Math.PI / 2), px, 0.028, pz, R(0, 6.28)), puddleMats[i % 4], { cast: false });
 	}
-	root.add(decals);
+
+	// ---------- Разруха: огонь, сажа и масло на земле, мусор, битый кирпич у стен ----------
+	const dressing = dressLevel({
+		root, batch, M, rnd, R, collide, spec, quality,
+		free: (x, z, m) => !navProbe.blockedAt(x, z, m) && !indoors(x, z, m) && !nearExit(x, z, 1.5),
+		nearWall: (x, z) => navProbe.blockedAt(x, z, 1.3) && !navProbe.blockedAt(x, z, 0.35),
+	});
 
 	// ---------- Трава ----------
 	if (quality !== 'low') grassTufts(root, navProbe, rnd, Math.round((quality === 'high' ? 2600 : 1200) * (spec.grass ?? 1)), indoors, onRoad);
@@ -192,6 +194,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 			WIND.value = t;
 			M.water.normalMap?.offset.set(t * 0.012, t * 0.019); // рябь на воде
 			fog?.update(dt, t);
+			dressing.update(dt, t);
 			spec.update?.(dt, t);
 		},
 		/** Выход, в зоне которого точка (с запасом m), или null. */
@@ -226,6 +229,16 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		},
 		/** Здание, внутри которого точка (или null). */
 		buildingAt(p) { return buildings.find((b) => b.contains(p)) ?? null; },
+		/** Под ногами (для звука шагов): floor — пол в доме, road — асфальт и бетон, dirt — грунт, grass — трава. */
+		surface(p) {
+			if (this.buildingAt(p)) return 'floor';
+			for (let i = grounds.length - 1; i >= 0; i--) { // позже положенное покрытие лежит сверху
+				const g = grounds[i], c = Math.cos(g.ry), s = Math.sin(g.ry);
+				const dx = p.x - g.x, dz = p.z - g.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+				if (Math.abs(lx) <= g.w / 2 && Math.abs(lz) <= g.d / 2) return g.kind === 'asphalt' || g.kind === 'concrete' ? 'road' : 'dirt';
+			}
+			return 'grass';
+		},
 		/** Прячем кроны деревьев, которые закрывают игрока от камеры (камера с юга, сверху). */
 		occlude(p) {
 			for (const c of crowns) {

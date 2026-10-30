@@ -8,7 +8,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions } from './level.js';
-import { setAnisotropy, bloodDecalTexture, softDotTexture } from './textures.js';
+import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture } from './textures.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
 import { view, onResize, goLandscape } from './screen.js';
@@ -43,24 +43,25 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, { high: isMobile ? 1.5 : 2, me
 renderer.setSize(view.w, view.h);
 renderer.shadowMap.enabled = QUALITY !== 'low';
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = 1.06;
 $('game').appendChild(renderer.domElement);
 document.body.classList.add(`q-${QUALITY}`);
 setAnisotropy(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
 
 const scene = new THREE.Scene();
 // обычный день и «кислая» муть перед перезагрузкой кластера
-const SKY = new THREE.Color(0x8a9088), SKY_SOUR = new THREE.Color(0x8c8a5c);
-const FOG = new THREE.Color(0x7e847c), FOG_SOUR = new THREE.Color(0x8a8658);
+const SKY = new THREE.Color(0x7a7a72), SKY_SOUR = new THREE.Color(0x8c8a5c);
+const FOG = new THREE.Color(0x6e6c64), FOG_SOUR = new THREE.Color(0x8a8658);
 scene.background = SKY.clone();
-scene.fog = new THREE.Fog(FOG.clone(), 38, 95);
+scene.fog = new THREE.Fog(FOG.clone(), 34, 90);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.25;
+scene.environmentIntensity = 0.2;
 
 const camera = new THREE.PerspectiveCamera(42, view.w / view.h, 0.5, 220);
-scene.add(new THREE.HemisphereLight(0xc4ccd0, 0x4a4a3c, 1.25));
-const sun = new THREE.DirectionalLight(0xfff0dc, 2.1);
+// заливка темнее и холоднее, солнце низкое и тёплое — длинные тени, жёсткий свет
+scene.add(new THREE.HemisphereLight(0xa8b4bc, 0x3c362c, 1.0));
+const sun = new THREE.DirectionalLight(0xffd9b0, 2.45);
 sun.castShadow = true;
 const SHADOW = QUALITY === 'high' && !isMobile ? 2048 : 1024;
 sun.shadow.mapSize.set(SHADOW, SHADOW);
@@ -176,6 +177,7 @@ const casingGeo = {}, casingMat = {}; // общие для всех гильз
 const tmpV2 = new THREE.Vector3();
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 let blobMat = null, dustMat = null, debrisGeo = null, debrisMat = null;
+let splatGeo = null, splatMats = null, chunkGeo = null, chunkMat = null, bloodMat = null; // кровь и ошмётки — общие
 
 /**
  * Попадает ли точка в кадр (с запасом на тени): камера сверху-сзади видит прямоугольник вокруг героя.
@@ -297,11 +299,15 @@ class Actor {
 
 	hitFlash() { this.flash = 1; }
 
-	/** Отдача: amount — сила толчка, wrist — подбросить кисть (пистолет, обрез). */
-	kick(amount, wrist = false) {
+	/**
+	 * Толчок корпуса поверх анимации: отдача выстрела или попадание. amount — сила, wrist — подбросить кисть
+	 * (пистолет, обрез), lean — куда клонит ({ x: −1 — назад, 1 — вперёд; z — вбок }).
+	 */
+	kick(amount, wrist = false, lean = BACK) {
 		this.recoil = Math.min(1.2, (this.recoil ?? 0) + amount);
 		this.recoilTwist = Math.random() - 0.5;
 		this.recoilWrist = wrist;
+		this.recoilLean = lean;
 	}
 
 	update(dt) {
@@ -309,21 +315,23 @@ class Actor {
 		if (this.recoil > 0.003) this.applyRecoil(dt);
 		if (this.flash > 0) {
 			this.flash = Math.max(0, this.flash - dt * 5);
-			for (const m of this.mats) m.emissive?.setRGB(this.flash * 0.6, 0, 0);
+			for (const m of this.mats) m.emissive?.setRGB(this.flash * 0.22, this.flash * 0.02, 0); // лёгкий отсвет, без «розового» тела
 		}
 	}
 
 	/**
-	 * Отдача поверх анимации выстрела: грудь откидывается назад (ствол уходит вверх вместе с обеими руками),
-	 * корпус чуть доворачивает, у пистолета кисть подбрасывает; резкий толчок и плавный возврат.
+	 * Толчок поверх анимации: у стрелка грудь откидывается назад (ствол уходит вверх вместе с обеими руками),
+	 * корпус чуть доворачивает, у пистолета кисть подбрасывает; заражённого от пули дёргает по ходу удара,
+	 * голова мотается. Резкий толчок и плавный возврат.
 	 */
 	applyRecoil(dt) {
 		this.recoil *= Math.exp(-dt * 11);
-		const r = this.recoil, m = this.model;
-		this.recoilBones ??= ['mixamorigSpine2', 'mixamorigSpine1', 'mixamorigRightHand'].map((n) => m.getObjectByName(n));
-		const [chest, spine, hand] = this.recoilBones;
-		chest?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(-0.15 * r, 0.06 * r * this.recoilTwist, 0)));
-		spine?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(-0.06 * r, 0, 0)));
+		const rig = this.kickRig ?? HERO_KICK, r = this.recoil * rig.k, L = this.recoilLean ?? BACK, m = this.model;
+		this.recoilBones ??= Object.fromEntries(Object.entries(rig.bones).map(([k, n]) => [k, m.getObjectByName(n)]));
+		const { chest, spine, head, hand } = this.recoilBones, tw = this.recoilTwist;
+		chest?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(0.15 * r * L.x, 0.06 * r * tw, 0.15 * r * L.z)));
+		spine?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(0.06 * r * L.x, 0, 0.06 * r * L.z)));
+		head?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(0.22 * r * L.x, 0.12 * r * tw, 0.22 * r * L.z)));
 		if (this.recoilWrist) hand?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(0, 0.55 * r, 0)));
 	}
 
@@ -333,6 +341,10 @@ class Actor {
 	}
 }
 const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
+// кости для толчка: у героя и наёмников — скелет Mixamo, у заражённых — простой (k — во сколько раз сильнее)
+const HERO_KICK = { k: 1, bones: { chest: 'mixamorigSpine2', spine: 'mixamorigSpine1', hand: 'mixamorigRightHand' } };
+const ZOMBIE_KICK = { k: 1.7, bones: { chest: 'Chest', spine: 'Spine', head: 'Head' } };
+const BACK = { x: -1, z: 0 };
 
 /** С чем начинают: целый топор и ПМ с полным магазином, патроны в запасе, живчик. */
 const startKit = () => ({ gear: { melee: 'axe', gun: 'pistol' }, owned: ['axe', 'pistol'], mags: { pistol: WEAPONS.pistol.mag }, wear: { axe: WEAPONS.axe.durability } });
@@ -711,6 +723,8 @@ class Player extends Actor {
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
 			this.pos.addScaledVector(dir, speed * dt);
 			if (run && (this.stepDust = (this.stepDust ?? 0) + speed * dt) > 1.1) { this.stepDust = 0; game.dust(this.pos); }
+			// шаги слышно: асфальт, трава, грунт или пол — по тому, что под ногами
+			if ((this.stride = (this.stride ?? 0) + speed * dt) > (run ? 1.05 : 0.68)) { this.stride = 0; Sfx.step(level.surface(this.pos), run); }
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 12);
 			const clip = run ? c.run : c.walk;
 			this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
@@ -759,6 +773,7 @@ class Enemy extends Actor {
 		this.home = pos.clone();
 		this.root.rotation.y = Math.random() * Math.PI * 2;
 		this.growl = 2 + Math.random() * 6;
+		this.kickRig = ZOMBIE_KICK;
 		// пока не заметили игрока — стоят или бродят на месте
 		this.state = 'idle';
 		this.wander = null;
@@ -777,14 +792,14 @@ class Enemy extends Actor {
 			this.timer = 0;
 			this.root.rotation.y = angleTo(this.pos, game.foeFor(this.pos).pos);
 			this.play('Roar', { once: true, fade: 0.15, restart: true });
-			Sfx.roar();
+			Sfx.roar(game.ear(this.pos));
 			const near = clamp01(1 - this.pos.distanceTo(game.player.pos) / 20);
 			game.shake = Math.min(1, game.shake + near * 0.35);
 			for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 18) setTimeout(() => o.alert(), 400 + Math.random() * 700);
 			return;
 		}
 		this.state = 'chase';
-		if (Math.random() < 0.6) Sfx.growl(this.type !== 'runner');
+		if (Math.random() < 0.6) Sfx.growl(this.type, game.ear(this.pos));
 		for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 6 && Math.random() < 0.6) setTimeout(() => o.alert(), 300 + Math.random() * 900);
 	}
 
@@ -828,12 +843,16 @@ class Enemy extends Actor {
 		this.hp -= dmg;
 		this.hitFlash();
 		game.blood(this.pos.clone().setY(1.2 * this.scale), T.armor ? 5 : 10, dir);
+		// попадание дёргает корпус по ходу пули: в грудь — назад, в спину — вперёд, сбоку — вбок
+		const ry = this.root.rotation.y;
+		this.kick(Math.min(1, 0.25 + dmg / 60) / Math.sqrt(T.heavy), false, { x: dir.x * Math.sin(ry) + dir.z * Math.cos(ry), z: dir.x * Math.cos(ry) - dir.z * Math.sin(ry) });
+		this.lastHit = { dmg, dir, blast: knock >= 1.2 };
 		// толчок от удара: тело отъезжает плавно (топтун и рубер тяжелее); убитого отбрасывает сильнее
 		const fling = this.hp <= 0 ? 1.8 : 1;
 		this.push = (this.push ?? new THREE.Vector3()).addScaledVector(dir, (knock * fling * PUSH_DECAY) / T.heavy);
 		this.stagger = this.state === 'roar' ? 0 : T.stagger;
 		this.alert();
-		Sfx.flesh();
+		Sfx.flesh(game.ear(this.pos));
 		if (this.hp <= 0) this.die();
 	}
 
@@ -843,7 +862,28 @@ class Enemy extends Actor {
 		this.timer = 0;
 		this.charging = 0;
 		this.play('Death', { once: true, fade: 0.08 });
+		this.gore();
 		game.onKill(this);
+	}
+
+	/**
+	 * Тяжёлый смертельный удар разрывает тело: СВД, ВСС, пожарный топор, взрыв — сносит голову,
+	 * дробь в упор и взрыв — отрывает руку. Кость сжимается в точку (голова или предплечье с кистью
+	 * исчезают), из обрубка бьёт кровь, летят ошмётки.
+	 */
+	gore() {
+		const h = this.lastHit;
+		if (!h || QUALITY === 'low') return;
+		const parts = [];
+		if (h.dmg >= 55 && Math.random() < (h.blast ? 0.7 : 0.55)) parts.push('Head');
+		if ((h.dmg >= 45 || h.blast) && Math.random() < (h.blast ? 0.6 : 0.35)) parts.push(Math.random() < 0.5 ? 'Forearm.L' : 'Forearm.R');
+		for (const name of parts) {
+			const bone = this.model.getObjectByName(name);
+			if (!bone) continue;
+			bone.scale.setScalar(0.01);
+			game.stump(bone, h.dir, name === 'Head' ? 1 : 0.6);
+		}
+		if (parts.length) { this.gored = parts; Sfx.gib(game.ear(this.pos)); }
 	}
 
 	update(dt) {
@@ -870,7 +910,7 @@ class Enemy extends Actor {
 			return this.timer < 10;
 		}
 		this.growl -= dt;
-		if (this.growl < 0) { this.growl = 4 + Math.random() * 8; if (dist < 16) Sfx.growl(this.type !== 'runner'); }
+		if (this.growl < 0) { this.growl = 4 + Math.random() * 8; if (dist < 16) Sfx.growl(this.type, game.ear(this.pos)); }
 		if (this.stagger > 0) { this.stagger -= dt; return true; }
 		if (this.state === 'idle') { this.idle(dt, p, dist); return true; }
 		if (this.state === 'roar') {
@@ -906,7 +946,7 @@ class Enemy extends Actor {
 		if (this.T.charge) {
 			this.chargeCd = (this.chargeCd ?? 0) - dt;
 			if (this.charging > 0) this.charging -= dt;
-			else if (this.chargeCd <= 0 && dist > 4 && dist < 16 && lineOfSight(this.pos, p.pos)) { this.charging = 1.4; this.chargeCd = 4 + Math.random() * 2; Sfx.growl(true); }
+			else if (this.chargeCd <= 0 && dist > 4 && dist < 16 && lineOfSight(this.pos, p.pos)) { this.charging = 1.4; this.chargeCd = 4 + Math.random() * 2; Sfx.growl(this.type, game.ear(this.pos)); }
 		}
 		if (!p.alive) { this.play('Idle'); return true; }
 
@@ -1509,8 +1549,8 @@ const game = {
 		b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
 	},
 
-	/** Сколько записей звуков оружия загружено (для тестов). */
-	sounds() { return Sfx.loaded; },
+	/** Сколько записей звуков загружено и сколько всего (для тестов). */
+	sounds() { return [Sfx.loaded, Sfx.total]; },
 
 	/** Где звук относительно героя: до него метров и левее/правее на экране (камера смотрит на север). */
 	ear(p) {
@@ -1537,7 +1577,7 @@ const game = {
 
 	onKill(e) {
 		this.kills++;
-		Sfx.death(e.type !== 'runner');
+		Sfx.death(e.type, this.ear(e.pos));
 		this.decal(e.pos, e.type === 'runner' ? 1.6 : e.type === 'stomper' ? 2.4 : 3);
 		// споровый мешок на затылке: чем развитее заражённый, тем он богаче. У бегуна — споран, у топтуна — ещё
 		// горох, у рубера — больше гороха и бывает чёрная жемчужина. Патронов и живчиков у заражённых нет
@@ -1970,7 +2010,7 @@ const game = {
 	mercDied(m) {
 		this.roster = this.roster.filter((st) => st !== m.state);
 		this.slotMercs();
-		Sfx.death(false);
+		Sfx.death('human');
 		this.banner(`${m.def.name} погиб`, `${WEAPONS[m.def.weapon].name} остался на месте гибели`);
 		this.renderPartyBar();
 	},
@@ -2135,21 +2175,95 @@ const game = {
 		const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: bloodDecalTexture(Math.floor(Math.random() * 5)), transparent: true, depthWrite: false, roughness: 0.25 }));
 		m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6;
 		m.position.copy(pos).setY(0.035);
+		m.scale.setScalar(0.2);
 		scene.add(m);
-		this.fx.push({ life: 40, mesh: m, update(dt) { this.life -= dt; if (this.life < 5) m.material.opacity = this.life / 5; return this.life > 0; }, dispose() { scene.remove(m); } });
+		// лужа под телом растекается секунды три
+		let t = 0;
+		this.fx.push({ life: 40, mesh: m, update(dt) {
+			this.life -= dt; t += dt;
+			if (t < 4) m.scale.setScalar(0.2 + 0.8 * (1 - (1 - t / 4) ** 2));
+			if (this.life < 5) m.material.opacity = this.life / 5;
+			return this.life > 0;
+		}, dispose() { scene.remove(m); } });
+	},
+
+	/**
+	 * Брызги крови на земле: тёмная клякса с каплями, вытянутая по ходу полёта v (если задан).
+	 * Копятся по ходу боя; самые старые исчезают, когда их больше 150.
+	 */
+	splat(pos, size = 0.25, v = null) {
+		splatGeo ??= new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+		splatMats ??= [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ map: splatterTexture(i), transparent: true, depthWrite: false, roughness: 0.22, polygonOffset: true, polygonOffsetFactor: -2 }));
+		const m = new THREE.Mesh(splatGeo, splatMats[Math.floor(Math.random() * splatMats.length)]);
+		m.position.set(pos.x, 0.03 + Math.random() * 0.004, pos.z);
+		const speed = v ? Math.hypot(v.x, v.z) : 0;
+		m.rotation.y = speed > 0.3 ? Math.atan2(-v.z, v.x) : Math.random() * Math.PI * 2; // +X текстуры — по ходу полёта
+		const stretch = 1 + Math.min(1.2, speed * 0.25);
+		m.scale.set(size * stretch * (0.8 + Math.random() * 0.4), 1, size * (0.7 + Math.random() * 0.4));
+		m.renderOrder = 1;
+		scene.add(m);
+		const fx = { life: 60, update(dt) { this.life -= dt; if (this.life < 2) m.scale.multiplyScalar(1 - dt); return this.life > 0; }, dispose() { scene.remove(m); } };
+		this.splats = (this.splats ?? []).filter((f) => f.life > 0);
+		this.splats.push(fx);
+		if (this.splats.length > 150) this.splats.shift().life = 0;
+		this.fx.push(fx);
+	},
+
+	/**
+	 * Обрубок (кость bone сжата): кровь бьёт толчками секунды полторы, летят ошмётки, на земле — пятна.
+	 * dir — куда шёл удар, power — сила (голова — 1, рука — меньше).
+	 */
+	stump(bone, dir, power = 1) {
+		const at = () => bone.getWorldPosition(new THREE.Vector3());
+		chunkGeo ??= new THREE.IcosahedronGeometry(0.05, 0);
+		chunkMat ??= new THREE.MeshStandardMaterial({ color: 0x5a0e0a, roughness: 0.45 });
+		const p0 = at();
+		for (let i = 0; i < Math.round(5 * power) + 2; i++) {
+			const c = new THREE.Mesh(chunkGeo, chunkMat);
+			c.position.copy(p0);
+			c.scale.setScalar(0.5 + Math.random() * (0.8 + power));
+			const v = new THREE.Vector3((Math.random() - 0.5) * 3, 2 + Math.random() * 3, (Math.random() - 0.5) * 3).addScaledVector(dir, 2 + Math.random() * 2);
+			const spin = new THREE.Vector3(Math.random() * 12, Math.random() * 12, Math.random() * 12);
+			scene.add(c);
+			let landed = false;
+			this.fx.push({ life: 8, update(dt) {
+				this.life -= dt;
+				if (!landed) {
+					v.y -= 9.8 * dt;
+					c.position.addScaledVector(v, dt);
+					c.rotation.x += spin.x * dt; c.rotation.y += spin.y * dt;
+					if (c.position.y < 0.03) { c.position.y = 0.03; landed = true; game.splat(c.position, 0.35 + Math.random() * 0.25, v); }
+				}
+				if (this.life < 1) c.scale.multiplyScalar(1 - dt * 2);
+				return this.life > 0;
+			}, dispose() { scene.remove(c); } });
+		}
+		this.blood(p0, Math.round(14 * power), dir);
+		// фонтан из обрубка: толчки по 4 в секунду, слабеют
+		let t = 0, next = 0;
+		this.fx.push({ life: 1.6, update(dt) {
+			this.life -= dt; t += dt;
+			if (t >= next) { next += 0.25; game.blood(at(), Math.round(6 * power * (1 - t / 1.6)) + 1, tmpV2.set(0, 1.2, 0).addScaledVector(dir, 0.4)); }
+			return this.life > 0;
+		}, dispose() {} });
 	},
 
 	/** Брызги крови; dir — куда шёл удар: брызги летят больше в ту сторону. */
 	blood(pos, n, dir = null) {
-		const mat = new THREE.SpriteMaterial({ map: softDotTexture('120,10,8'), transparent: true, depthWrite: false });
+		bloodMat ??= new THREE.SpriteMaterial({ map: softDotTexture('92,6,5'), transparent: true, depthWrite: false });
 		for (let i = 0; i < n; i++) {
-			const s = new THREE.Sprite(mat);
+			const s = new THREE.Sprite(bloodMat);
 			s.position.copy(pos);
-			s.scale.setScalar(0.12 + Math.random() * 0.15);
+			s.scale.setScalar(0.07 + Math.random() * 0.12);
 			const v = new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3);
 			if (dir) v.addScaledVector(dir, 1.5 + Math.random() * 2.5);
 			scene.add(s);
-			this.fx.push({ life: 0.6, update(dt) { v.y -= 9 * dt; s.position.addScaledVector(v, dt); this.life -= dt; if (s.position.y < 0.05) this.life = 0; return this.life > 0; }, dispose() { scene.remove(s); } });
+			this.fx.push({ life: 0.6, update(dt) {
+				v.y -= 9 * dt; s.position.addScaledVector(v, dt); this.life -= dt;
+				// капля долетела до земли — пятно
+				if (s.position.y < 0.05) { this.life = 0; if (Math.random() < 0.3) game.splat(s.position, 0.16 + s.scale.x * 1.3, v); }
+				return this.life > 0;
+			}, dispose() { scene.remove(s); } });
 		}
 	},
 
@@ -2308,8 +2422,8 @@ const game = {
 		if (stage > this.warnStage) {
 			this.warnStage = stage;
 			if (stage === 1) this.banner('Кислый запах', 'Кластер скоро перезагрузится — уходи к выходу!');
-			if (stage === 2) { this.toast('Муть сгущается — меньше 30 секунд!', 'warn'); Sfx.rumble(0.6); }
-			if (stage === 3) { this.toast('Сейчас перезагрузится!', 'warn'); Sfx.rumble(1.2); }
+			if (stage === 2) { this.toast('Муть сгущается — меньше 30 секунд!', 'warn'); Sfx.rumble(0.6); Sfx.thunder(0.7); }
+			if (stage === 3) { this.toast('Сейчас перезагрузится!', 'warn'); Sfx.rumble(1.2); Sfx.thunder(1); }
 		}
 		if (stage >= 2) {
 			this.rumbleT = (this.rumbleT ?? 0) - dt;
@@ -2333,6 +2447,7 @@ const game = {
 	},
 
 	over(reason) {
+		document.body.classList.remove('low-hp');
 		this.state = 'dead';
 		this.inventory.close();
 		this.trade.close();
@@ -2520,7 +2635,17 @@ function update(dt) {
 		game.updateExit();
 		game.minimap.update(dt, game.player);
 		game.hudTimerT = (game.hudTimerT ?? 0) - dt;
-		if (game.hudTimerT <= 0) { game.hudTimerT = 0.25; game.hudTimer(); }
+		if (game.hudTimerT <= 0) {
+			game.hudTimerT = 0.25;
+			game.hudTimer();
+			// фон: ветер над кластером (в стабе тише), в доме — глуше
+			Sfx.ambient('wind', NODES[game.loc].kind === 'cluster' ? 0.22 : 0.1);
+			Sfx.indoor(!!level.buildingAt(game.player.pos));
+			// мало здоровья: экран тускнеет, края пульсируют, слышно сердце
+			const low = game.player.alive && game.player.hp < game.player.maxHp * 0.3;
+			document.body.classList.toggle('low-hp', low);
+			if (low && (game.heartT = (game.heartT ?? 0) - 0.25) <= 0) { game.heartT = 0.9; Sfx.heartbeat(); }
+		}
 	}
 
 	game.flowTimer -= dt;
@@ -2562,7 +2687,7 @@ function update(dt) {
 		camera.position.z += (Math.random() - 0.5) * game.shake * 0.4;
 	}
 	camera.lookAt(camTarget.x, camTarget.y - 0.6, camTarget.z + 0.8);
-	sun.position.set(p.x + 18, 34, p.z + 10);
+	sun.position.set(p.x + 22, 27, p.z + 13);
 	sun.target.position.set(p.x, 0, p.z);
 	// крыша дома, где герой, исчезает; здания между камерой и героем — полупрозрачные
 	level.updateView(p, camera.position, dt);

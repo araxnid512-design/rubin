@@ -273,10 +273,10 @@ try {
 	await page.keyboard.down('Space');
 	await page.waitForFunction(() => window.__game.kit.mags.aks <= 25 || window.__game.player.reloading > 0, null, { timeout: 30000 }).catch(() => {});
 	await page.keyboard.up('Space');
-	const burst = await G(page, () => ({ ammo: window.__game.kit.mags.aks, w: window.__game.player.weapon, clip: window.__game.player.current, recoil: !!window.__game.player.recoilBones?.[0], sounds: window.__game.sounds() }));
+	const burst = await G(page, () => ({ ammo: window.__game.kit.mags.aks, w: window.__game.player.weapon, clip: window.__game.player.current, recoil: !!window.__game.player.recoilBones?.chest, sounds: window.__game.sounds() }));
 	check(burst.w === 'aks' && burst.ammo <= 25 && /Rifle/.test(clipR), `АКС: очередь при зажатой атаке (${30 - burst.ammo} выстрелов), анимации автомата (${clipR}, ${burst.clip})`);
 	check(burst.recoil, 'отдача: грудь героя откидывается при выстреле');
-	check(burst.sounds === 15, `настоящие звуки оружия загружены: ${burst.sounds}/15`);
+	check(burst.sounds[0] === burst.sounds[1] && burst.sounds[1] >= 40, `настоящие звуки загружены: ${burst.sounds[0]}/${burst.sounds[1]}`);
 	await page.screenshot({ path: join(OUT, 'game-rifle.png') });
 	// лекарь: отдых двигает время мира
 	const rest = await G(page, () => { const g = window.__game, t = g.world.time; g.player.hp = 30; g.player.maxHp = 100; g.rest(); const r = { dt: g.world.time - t, hp: g.player.hp }; g.player.hp = g.player.maxHp = 1e6; return r; });

@@ -218,6 +218,8 @@ export default {
 				{ at: [-40, 40], r: 5, stompers: 1 },
 			],
 			onRoad,
+			// горит брошенная машина у гаражей, костры в бочках на обочине и у гаражей
+			fires: [[-4, -8, 'car'], [7.5, 12.8], [-23, -19]],
 			trees(tryTree) {
 				for (let i = 0; i < 30; i++) tryTree(R(26, 46), R(-46, -22), rnd() < 0.8 ? 'birch' : 'pine'); // роща
 				for (let i = 0; i < 16; i++) tryTree(R(-38, 0), R(12, 24) - (rnd() < 0.5 ? 0 : -2), 'birch'); // двор

@@ -10,15 +10,17 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 
-// ACES, затем цвет Улья (вход — линейный HDR, выход — линейный 0..1 для экрана)
+// ACES, затем цвет Улья (вход — линейный HDR, выход — линейный 0..1 для экрана): краски приглушены,
+// тени холодные, свет тёплый, контраст жёсткий, чёрное чуть «давит» — мрачно, как в выжженном городе
 THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
 	'vec3 CustomToneMapping( vec3 color ) { return color; }',
 	`vec3 CustomToneMapping( vec3 color ) {
 		color = ACESFilmicToneMapping( color );
 		float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
-		color = mix( vec3( l ), color, 0.86 );
-		color *= mix( vec3( 0.93, 1.0, 0.97 ), vec3( 1.05, 1.02, 0.91 ), smoothstep( 0.02, 0.45, l ) );
-		color = mix( color, color * color * ( 3.0 - 2.0 * color ), 0.14 );
+		color = mix( vec3( l ), color, 0.78 );
+		color *= mix( vec3( 0.9, 0.97, 1.0 ), vec3( 1.07, 1.0, 0.86 ), smoothstep( 0.02, 0.5, l ) );
+		color = mix( color, color * color * ( 3.0 - 2.0 * color ), 0.24 );
+		color = max( color - 0.012, 0.0 ) * 1.012;
 		return clamp( color, 0.0, 1.0 );
 	}`,
 );

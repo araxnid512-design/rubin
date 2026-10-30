@@ -93,6 +93,12 @@
 		body.rotated #search, body.short #search { left: auto; right: calc(250px + env(safe-area-inset-right)); transform: none; bottom: 18px; }
 		#vignette { position: fixed; inset: 0; pointer-events: none; z-index: 7; background: radial-gradient(ellipse at 50% 46%, transparent 58%, rgba(8,10,8,0.42)); }
 		#hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 9; background: radial-gradient(ellipse at center, transparent 45%, rgba(150,0,0,0.75)); }
+		/* мало здоровья: края экрана пульсируют в такт сердцу, краски уходят */
+		#lowhp { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 8; background: radial-gradient(ellipse 80% 75% at 50% 48%, transparent 52%, rgba(110,0,0,0.6)); transition: opacity .6s; }
+		body.low-hp #lowhp { opacity: 1; animation: heartbeat .9s infinite; }
+		body.low-hp #game canvas { filter: saturate(0.45) contrast(1.08); }
+		#game canvas { transition: filter .8s; }
+		@keyframes heartbeat { 0%, 100% { opacity: .55; } 12% { opacity: 1; } 24% { opacity: .7; } 36% { opacity: .95; } }
 
 		/* Сенсорное управление */
 		#touch { position: fixed; inset: 0; z-index: 11; pointer-events: none; }
@@ -186,7 +192,7 @@
 		@keyframes pulse { 50% { opacity: 0.45; } }
 		.stats .peas b { color: #cfe890; }
 		/* виньетка: края кадра чуть темнее — взгляд к герою (бесплатно, поверх холста) */
-		#vignette { position: fixed; inset: 0; pointer-events: none; z-index: 7; background: radial-gradient(ellipse 75% 70% at 50% 46%, transparent 58%, rgba(8,12,6,0.42) 100%); }
+		#vignette { position: fixed; inset: 0; pointer-events: none; z-index: 7; background: radial-gradient(ellipse 75% 70% at 50% 46%, transparent 50%, rgba(6,6,4,0.58) 100%); }
 		body.q-low #vignette { display: none; }
 		#sour { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 8; background: radial-gradient(ellipse at center, rgba(160,160,90,0.05) 35%, rgba(120,124,60,0.85)); }
 		#flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 30; background: #f4f2e4; }
@@ -374,6 +380,7 @@
 	<div id="game"></div>
 	<div id="vignette"></div>
 	<div id="hurt"></div>
+	<div id="lowhp"></div>
 	<div id="perf" class="hidden"></div>
 	<div id="vignette"></div>
 	<div id="sour"></div>
@@ -538,7 +545,7 @@
 			</div>
 			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
 			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
-			<div class="credits">Звуки оружия — записи GoodSoundForYou, MATRIXXX_, DoctorBoomstick, WEL, battlestar10, FST180081 (CC BY), Rolly-SFX, magnuswaker, unfa (CC0) из набора CC-Sounds (Fris0uman/cdda-soundpacks), подробно — assets/sounds/CREDITS.md. Персонажи — MakeHuman (CC0).</div>
+			<div class="credits">Звуки — записи GoodSoundForYou, MATRIXXX_, DoctorBoomstick, WEL, battlestar10, FST180081, -sihiL, Slave2theLight, missozzy, Aris621, InspectorJ (CC BY), Rolly-SFX, magnuswaker, unfa, FuzzyTuesday, mazlyn, bananplyte, tonsil5, PaulMorek, Ashe Kirk, ali-6868, kretopi, Apostolinkyyti, chromakei и др. (CC0) из набора CC-Sounds (Fris0uman/cdda-soundpacks), подробно — assets/sounds/CREDITS.md. Персонажи — MakeHuman (CC0).</div>
 		</div>
 	</div>
 
