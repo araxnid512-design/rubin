@@ -41,8 +41,8 @@ const QUALITY = params.get('q') || (prefs.quality && prefs.quality !== 'auto' ? 
 const renderer = new THREE.WebGLRenderer({ antialias: !isMobile && QUALITY === 'medium', powerPreference: 'high-performance', preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, { high: isMobile ? 1.5 : 2, medium: 1.5, low: 1 }[QUALITY] ?? 1.5));
 renderer.setSize(view.w, view.h);
-renderer.shadowMap.enabled = QUALITY !== 'low';
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// теней от солнца нет: картинка чище, кадр дешевле; под персонажами — мягкие пятна (см. Actor)
+renderer.shadowMap.enabled = false;
 renderer.toneMappingExposure = 1.06;
 $('game').appendChild(renderer.domElement);
 document.body.classList.add(`q-${QUALITY}`);
@@ -59,15 +59,9 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.2;
 
 const camera = new THREE.PerspectiveCamera(42, view.w / view.h, 0.5, 220);
-// заливка темнее и холоднее, солнце низкое и тёплое — длинные тени, жёсткий свет
+// заливка темнее и холоднее, солнце низкое и тёплое — жёсткий свет, освещённые и тёмные стороны
 scene.add(new THREE.HemisphereLight(0xa8b4bc, 0x3c362c, 1.0));
 const sun = new THREE.DirectionalLight(0xffd9b0, 2.45);
-sun.castShadow = true;
-const SHADOW = QUALITY === 'high' && !isMobile ? 2048 : 1024;
-sun.shadow.mapSize.set(SHADOW, SHADOW);
-Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, near: 1, far: 90 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
 // ACES с цветом Улья; на высоком — ещё затенение в углах, свечение и зерно
 const post = createPost(renderer, scene, camera, { quality: QUALITY, mobile: isMobile });
@@ -271,13 +265,12 @@ class Actor {
 		this.flash = 0;
 		this.mats = [];
 		this.model.traverse((o) => { if (o.isMesh) this.mats.push(...[o.material].flat()); });
-		if (!renderer.shadowMap.enabled) {
-			blobMat ??= new THREE.MeshBasicMaterial({ map: softDotTexture('0,0,0'), transparent: true, opacity: 0.55, depthWrite: false });
-			const blob = new THREE.Mesh(blobGeo, blobMat);
-			blob.position.y = 0.03;
-			blob.scale.setScalar(scale * 1.1);
-			this.root.add(blob);
-		}
+		// мягкое пятно под ногами вместо тени от солнца
+		blobMat ??= new THREE.MeshBasicMaterial({ map: softDotTexture('0,0,0'), transparent: true, opacity: 0.55, depthWrite: false });
+		const blob = new THREE.Mesh(blobGeo, blobMat);
+		blob.position.y = 0.03;
+		blob.scale.setScalar(scale * 1.1);
+		this.root.add(blob);
 	}
 
 	get pos() { return this.root.position; }

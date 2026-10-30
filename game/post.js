@@ -93,13 +93,10 @@ export function createPost(renderer, scene, camera, { quality, mobile }) {
 	composer.addPass(final);
 	passes.final = final;
 
-	// тени — один раз за кадр (иначе проход нормалей для AO перерисовал бы и карту теней)
-	renderer.shadowMap.autoUpdate = false;
 	return {
 		passes,
 		render(dt = 0) {
 			renderer.info.reset();
-			renderer.shadowMap.needsUpdate = true;
 			final.uniforms.toneMappingExposure.value = renderer.toneMappingExposure;
 			final.uniforms.uTime.value += dt;
 			composer.render(dt);
