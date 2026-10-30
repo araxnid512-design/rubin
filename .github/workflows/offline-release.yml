@@ -1,0 +1,49 @@
+# Скачиваемая версия игры для всех: после каждого изменения игры собирает download/ulei-cluster17.html
+# (scripts/build-offline.mjs) и выкладывает его в релиз «game». Постоянная открытая ссылка, по которой файл
+# скачивается обычным нажатием:
+#   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html
+name: Скачиваемая версия
+
+on:
+  push:
+    branches: [main, ccr-f5d34f3a-q7wlgf]
+    paths:
+      - 'game/**'
+      - 'game.html'
+      - 'src/**'
+      - 'models/game/*.glb'
+      - 'assets/**'
+      - 'scripts/build-offline.mjs'
+      - 'package-lock.json'
+      - '.github/workflows/offline-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: offline-release
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:offline
+      - name: Выложить в релиз «game»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Игра «Улей. Кластер-17» одним HTML-файлом: скачай ulei-cluster17.html и открой в браузере — без интернета и без установки. Новая версия — по той же ссылке; замени старый файл новым, сохранение останется. Сборка от $(date -u +'%d.%m.%Y %H:%M') UTC, коммит ${GITHUB_SHA::7}."
+          if gh release view game >/dev/null 2>&1; then
+            gh release edit game --title "Улей. Кластер-17 — скачать игру" --notes "$notes"
+          else
+            gh release create game --target "$GITHUB_SHA" --title "Улей. Кластер-17 — скачать игру" --notes "$notes" --latest
+          fi
+          gh release upload game download/ulei-cluster17.html --clobber
