@@ -200,6 +200,11 @@
 		@keyframes flash { 0% { opacity: 0; } 10% { opacity: 1; } 55% { opacity: 1; } 100% { opacity: 0; } }
 		.menu-buttons { display: grid; gap: 8px; }
 		button.big.alt { background: transparent; color: var(--text); border: 1px solid var(--border); }
+		/* скачать игру одним файлом / какая версия скачана */
+		#download { display: block; margin: 10px 0 0; font-size: 13px; color: var(--accent); text-decoration: none; }
+		#download b { font-weight: 700; }
+		#download small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+		#offline-note { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
 		#travel { z-index: 28; background: rgba(10,12,11,0.92); }
 		.travel-card h1 { font-size: 24px; }
 
@@ -539,6 +544,8 @@
 				<button class="big alt" id="btn-new">Новая игра</button>
 			</div>
 			<div class="sub" id="menu-save"></div>
+			<a id="download" class="hidden" href="download/ulei-cluster17.html" download="ulei-cluster17.html"><b>⬇ Скачать игру одним файлом</b><small>открывается без интернета и без установки; сохранение остаётся, если заменить старый файл новым</small></a>
+			<div id="offline-note" class="hidden"></div>
 			<div class="settings">
 				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
 				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>

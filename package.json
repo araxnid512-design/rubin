@@ -10,6 +10,9 @@
     "test:e2e": "node tests/viewer.e2e.mjs",
     "build:game": "node scripts/build-game-assets.mjs",
     "test:game": "node tests/game.e2e.mjs",
+    "build:offline": "node scripts/build-offline.mjs",
+    "test:offline": "node scripts/build-offline.mjs && node tests/offline.e2e.mjs",
+    "build:sounds": "node scripts/build-sounds.mjs",
     "anatomy": "node scripts/anatomy-report.mjs",
     "check:mixamo": "node scripts/check-mixamo.mjs"
   },
@@ -17,6 +20,9 @@
     "three": "0.170.0"
   },
   "devDependencies": {
-    "meshoptimizer": "^1.3.0"
+    "esbuild": "^0.28.2",
+    "jpeg-js": "^0.4.4",
+    "meshoptimizer": "^1.3.0",
+    "pngjs": "^7.0.0"
   }
 }

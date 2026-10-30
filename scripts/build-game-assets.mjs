@@ -10,6 +10,7 @@ import { installNodeShims } from './node-shims.mjs';
 import { buildCharacter } from './makehuman/build-zombie.mjs';
 import { HERO_PROFILE, RUNNER_PROFILE, STOMPER_PROFILE, RUBER_PROFILE } from './makehuman/profiles.mjs';
 import { simplifyCharacter } from './makehuman/lod.mjs';
+import { jpegTextures } from './makehuman/jpeg-textures.mjs';
 
 // доля треугольников по материалам: камера игры сверху — мелкие складки не видны, зато FPS
 const ZOMBIE_LOD = { Skin: 0.38, Cloth: 0.5, Eye: 0.25, Teeth: 0.4 };
@@ -24,7 +25,8 @@ for (const [file, profile, lod] of [['player', HERO_PROFILE, HERO_LOD], ['runner
 	const t0 = Date.now();
 	const { model, animations } = buildCharacter(profile, { textureSize: 512 });
 	console.log(`${file}: ${await simplifyCharacter(model, lod)}`);
-	const glb = await new GLTFExporter().parseAsync(model, { binary: true, animations });
-	await writeFile(join(OUT, `${file}.glb`), Buffer.from(glb));
+	// текстуры кожи и одежды — в JPEG (впятеро легче PNG), прозрачные глаза — PNG
+	const { glb } = jpegTextures(await new GLTFExporter().parseAsync(model, { binary: true, animations }));
+	await writeFile(join(OUT, `${file}.glb`), glb);
 	console.log(`${file}.glb: ${(glb.byteLength / 1024).toFixed(0)} КБ, ${((Date.now() - t0) / 1000).toFixed(1)} с`);
 }

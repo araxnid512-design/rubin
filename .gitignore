@@ -2,3 +2,4 @@ node_modules/
 test-output/
 models/zombie-glb.js
 models/game/*-glb.js
+download/

@@ -2,6 +2,7 @@
 // Открывается у выхода из локации; выбор пункта — переход (время мира уходит на дорогу).
 
 import { NODES, ROUTES, routesFrom, timeLeft, approx } from './world.js';
+import { asset } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const SVG = 'http://www.w3.org/2000/svg';
@@ -67,12 +68,12 @@ export class WorldMap {
 		$('wm-sub').textContent = NODES[here].kind === 'stab' ? 'ты в стабе' : `до перезагрузки кластера ${approx(hereLeft)}`;
 		const hereNode = NODES[here];
 		// где ты сейчас и куда можно пойти — у каждого пункта снимок локации
-		const herecard = `<div class="route here-card"><img class="route-img" src="${hereNode.preview}" alt="">
+		const herecard = `<div class="route here-card"><img class="route-img" src="${asset(hereNode.preview)}" alt="">
 			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name}</b>
 				<span>${hereNode.kind === 'stab' ? 'безопасно' : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
 		$('wm-list').innerHTML = herecard + routes.map(({ to, time }) => `
 			<div class="route${to === this.suggest ? ' suggest' : ''}">
-				<img class="route-img" src="${NODES[to].preview}" alt="">
+				<img class="route-img" src="${asset(NODES[to].preview)}" alt="">
 				<div class="route-text"><b>${NODES[to].name}</b>
 					<span>в пути ${approx(time)} · ${this.status(to, time)}</span>
 					<span class="muted">${NODES[to].desc}</span></div>
@@ -131,7 +132,7 @@ export class WorldMap {
 			const cp = el('clipPath', { id: `${svg.id}-${id}` }, defs);
 			el('circle', { cx: x, cy: y, r }, cp);
 			el('circle', { cx: x, cy: y, r: r + 0.2, class: 'wm-dot' }, g);
-			if (n.preview) el('image', { href: n.preview, x: x - r * 1.78, y: y - r, width: r * 3.56, height: r * 2, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${svg.id}-${id})` }, g);
+			if (n.preview) el('image', { href: asset(n.preview), x: x - r * 1.78, y: y - r, width: r * 3.56, height: r * 2, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${svg.id}-${id})` }, g);
 			el('circle', { cx: x, cy: y, r, class: 'wm-frame' }, g);
 			if (n.kind === 'stab') el('path', { d: `M${x + 3.4} ${y - 3.2}V${y - 8.4}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' ? 11 : 12.5), class: 'wm-label' }, g);
@@ -155,7 +156,7 @@ export class WorldMap {
 	/** Переход по дороге: портрет героя едет от from к to за ms миллисекунд, потом done(). */
 	animateTravel(from, to, ms, done) {
 		const svg = $('travel-svg');
-		$('travel-img').src = NODES[to].preview;
+		$('travel-img').src = asset(NODES[to].preview);
 		this.draw(from, [], { svg, travel: { from, to, t: 0 } });
 		const [x1, y1] = NODES[from].at, [x2, y2] = NODES[to].at;
 		const t0 = performance.now();

@@ -3,6 +3,8 @@
 // Грузятся после первого касания; у каждого ствола и каждого заражённого своя высота, дальнее тише и глуше,
 // в доме фон приглушён. Интерфейс и кое-что ещё синтезируется WebAudio; пока записи не загрузились — синтез.
 
+import { asset } from './assets.js';
+
 let ctx = null;
 const noiseBuf = () => {
 	const b = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
@@ -26,7 +28,7 @@ const STEPS = { road: ['step_road1', 'step_road2', 'step_road3'], grass: ['step_
 
 function loadSamples() {
 	for (const name of FILES) {
-		fetch(`./assets/sounds/${name}.mp3`)
+		fetch(asset(`assets/sounds/${name}.mp3`))
 			.then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
 			.then((b) => ctx.decodeAudioData(b))
 			.then((buf) => { buffers[name] = buf; if (name === ambient.name) startAmbient(); })

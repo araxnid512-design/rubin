@@ -19,6 +19,7 @@ import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
 import { createMuzzleFlashes } from './muzzle.js';
+import { OFFLINE } from './assets.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
@@ -85,6 +86,7 @@ const loader = new GLTFLoader();
 async function loadModel(name) {
 	let buffer;
 	try {
+		if (OFFLINE) throw new Error('offline'); // в скачанном файле модели встроены в код
 		const res = await fetch(`./models/game/${name}.glb`);
 		if (!res.ok) throw new Error(res.status);
 		buffer = await res.arrayBuffer();
@@ -127,10 +129,37 @@ async function boot() {
 
 function showMenu() {
 	const saved = loadGame();
+	// скачать одним файлом — на опубликованной странице (https; файл download/ulei-cluster17.html публикуется рядом,
+	// собирает его scripts/build-offline.mjs); в скачанной версии — дата сборки
+	if (OFFLINE) {
+		$('offline-note').textContent = `Скачанная версия, сборка от ${window.__BUILD?.date ?? '—'} Новую — скачай со страницы игры и замени этот файл: сохранение останется.`;
+		$('offline-note').classList.remove('hidden');
+	} else $('download').classList.toggle('hidden', location.protocol !== 'https:');
 	$('btn-continue').classList.toggle('hidden', !saved);
 	$('menu-save').textContent = saved ? `Сохранение: ${NODES[saved.world.at]?.short ?? '—'} · споранов ${saved.bag?.spore ?? 0}` : '';
 	$('menu').classList.remove('hidden');
 }
+
+// Скачать игру одним файлом. На странице публикации — через подтверждение зрителя (возможность downloads:
+// браузер внутри окна просмотра сам файлы не скачивает); где её нет — обычная ссылка с download.
+let downloads = null;
+window.claude?.use?.('downloads').then((d) => { downloads = d; }).catch(() => {});
+$('download').addEventListener('click', async (e) => {
+	if (!downloads) return; // обычная ссылка
+	e.preventDefault();
+	const link = $('download'), label = link.querySelector('b'), text = label.textContent;
+	label.textContent = '⏳ Готовим файл…';
+	try {
+		const blob = await (await fetch(link.getAttribute('href'))).blob();
+		await downloads.save({ filename: 'ulei-cluster17.html', data: blob });
+	} catch (err) {
+		// отказ зрителя — молча; иначе подсказка, что делать
+		if (err?.code === 'rate_limited') link.querySelector('small').textContent = 'Окно сохранения уже открыто — подтверди его или попробуй через минуту.';
+		else if (err?.code !== 'declined') link.querySelector('small').textContent = 'Здесь скачивание недоступно — открой игру в браузере на claude.ai и нажми ещё раз.';
+	} finally {
+		label.textContent = text;
+	}
+});
 
 // Иконки предметов и портрет героя — из настоящих 3D-моделей (см. icons.js)
 function makeIcons() {
