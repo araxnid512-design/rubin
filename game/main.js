@@ -1006,7 +1006,7 @@ class Enemy extends Actor {
 			const a = this.actions[this.T.attack ?? 'Attack'];
 			if (!this.hitDone && this.timer >= this.T.hitTime / this.T.attackAnim) {
 				this.hitDone = true;
-				if (p.alive && dist < this.T.range + 0.6) p.hurt(this.T.damage, this.pos, this.T.knock);
+				if (p.alive && dist < this.T.range + 0.6) p.hurt(p.dry ? p.hp : this.T.damage, this.pos, this.T.knock); // боец без патронов не отобьётся
 				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }
 			}
 			// во время выпада тело немного продвигается вперёд
@@ -1088,7 +1088,9 @@ class Npc extends Actor {
 /**
  * Наёмник: идёт за героем (сзади слева или справа), сам выбирает цель и стреляет из своего постоянного оружия;
  * перезаряжается из своего запаса патронов. Сам не лечится — нужен живчик от героя (или медик отряда).
- * Управлять им нельзя: в отряде он ходит за героем, а оставленный в стабе — стоит у своей койки в комнате героя.
+ * Управлять им нельзя: в отряде он ходит за героем, а в стабе — стоит у своей койки в комнате героя; снарядить
+ * (патроны, живчик) и взять с собой можно только там. Кончились патроны — отбиться нечем: первая же атака
+ * заражённого для него последняя.
  * Поведение — по классу (CLASSES в mercs.js): снайпер идёт поодаль, бьёт топтунов и дальних и отходит от тех,
  * кто подобрался вплотную; пулемётчик стреляет стоя длинными очередями; охотник ждёт, пока подойдут; медик лечит
  * раненых из своей аптечки; подрывник кидает гранаты в кучу, если свои не рядом с целью.
@@ -1119,6 +1121,9 @@ class Merc extends Actor {
 
 	get hp() { return this.state.hp; }
 
+	/** Патронов нет ни в магазине, ни в запасе: отбиться нечем. */
+	get dry() { return this.state.mag <= 0 && this.state.ammo <= 0; }
+
 	/** Точка в строю: сзади-слева или сзади-справа от героя; снайпер — дальше, медик — ближе (по классу). */
 	spot() {
 		const p = game.player, a = p.root.rotation.y + Math.PI + (this.slot ? 0.65 : -0.65), k = this.C.keep;
@@ -1142,7 +1147,7 @@ class Merc extends Actor {
 			this.state.hp = 0;
 			this.alive = false;
 			this.play('Death', { once: true, fade: 0.1 });
-			game.mercDied(this);
+			game.mercDied(this, this.dry);
 		} else if (this.reloading <= 0) this.play(this.clips.hit, { once: true, fade: 0.06, restart: true });
 		game.hudThrottled();
 	}
@@ -1185,7 +1190,7 @@ class Merc extends Actor {
 			const ready = !C.plant || this.planted > 0.45;
 			if (st.mag <= 0) {
 				if (st.ammo > 0 && this.reloading <= 0) this.startReload();
-				else if (st.ammo <= 0 && !this.warned) { this.warned = true; game.toast(`${this.def.name}: патроны кончились!`, 'warn'); }
+				else if (st.ammo <= 0 && !this.warned) { this.warned = true; game.toast(`${this.def.name}: патроны кончились — без них не отобьётся!`, 'warn'); }
 			} else if (this.cooldown <= 0 && this.reloading <= 0 && facing && ready) this.fire(t);
 		}
 		// строй: держится сзади героя; во время стрельбы стоит
@@ -1414,6 +1419,8 @@ const game = {
 	get party() { return this.roster.filter((m) => m.out); },
 	/** Герой в стабе (там его комната с наёмниками). */
 	get inStab() { return !!level?.room; },
+	/** Герой в своей комнате в стабе: только здесь бойцов снаряжают и берут с собой. */
+	get inRoom() { return !!level?.room && !!this.player && level.room.contains(this.player.pos); },
 	player: null,
 	flow: null, flowTimer: 0,
 	exitArmed: false, warnStage: 0,
@@ -1518,7 +1525,11 @@ const game = {
 		spores.density = NODES[id].kind === 'cluster' ? 1 : 0.35;
 		if (NODES[id].kind === 'cluster') this.populate(this.world.clusters[id].saved);
 		else for (const n of level.npcs) this.npcs.push(new Npc(n));
+		// вернулись в стаб: уцелевшие бойцы отряда расходятся по своим койкам — снова брать с собой там
+		const back = level.room ? this.party.map((st) => MERCS[st.id].name) : [];
+		for (const st of back.length ? this.roster : []) st.out = false;
 		this.spawnMercs();
+		if (back.length) this.toast(`${back.join(' и ')} — у ${back.length > 1 ? 'своих коек' : 'своей койки'} в твоей комнате`);
 		this.reloadFx(Infinity);
 		this.hud();
 		this.save();
@@ -1621,12 +1632,12 @@ const game = {
 		this.kit = { gear: { melee: 'fists', gun: null }, owned: [], mags: {}, wear: {} };
 		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.axe.price;
 		if (broke) { this.kit.owned.push('axe'); this.kit.gear.melee = 'axe'; this.kit.wear.axe = Math.ceil(WEAPONS.axe.durability / 2); }
+		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры'; // и разошлись по койкам
 		advance(this.world, 90);
 		this.player?.dispose();
 		this.player = null;
 		this.begin();
 		this.enter('stab', undefined);
-		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры';
 		this.banner('Стаб «Полис»', `${who}. Всё, что было с собой, осталось там${broke ? '; охрана выдала старый топор' : ' — запас в хранилище, в твоей комнате'}`);
 	},
 
@@ -1790,20 +1801,15 @@ const game = {
 
 	/**
 	 * Точка действия стаба рядом: торговец, лекарь, вербовщик, стол в комнате — и наёмники в комнате героя:
-	 * к ждущему у койки подходишь — «Взять с собой», к идущему с тобой (в комнате) — «Оставить».
+	 * к бойцу подходишь — «Снарядить»: патроны, живчик, взять с собой или оставить у койки.
 	 */
 	nearStation() {
 		const p = this.player.pos;
 		let best = null, bd = Infinity;
 		const consider = (s) => { const d = Math.hypot(s.x - p.x, s.z - p.z); if (d < s.r && d < bd) { bd = d; best = s; } };
 		for (const s of level.stations) consider(s);
-		if (level.room) {
-			const inRoom = level.room.contains(p);
-			for (const m of this.mercs) {
-				if (!m.alive) continue;
-				if (!m.state.out) consider({ id: 'take', merc: m, name: m.def.name, label: 'Взять с собой', x: m.pos.x, z: m.pos.z, r: 1.6 });
-				else if (inRoom) consider({ id: 'leave', merc: m, name: m.def.name, label: 'Оставить в комнате', x: m.pos.x, z: m.pos.z, r: 2.8 });
-			}
+		if (this.inRoom) {
+			for (const m of this.mercs) if (m.alive) consider({ id: 'merc', merc: m, name: m.def.name, label: 'Снарядить', x: m.pos.x, z: m.pos.z, r: m.state.out ? 2.8 : 1.6 });
 		}
 		return best;
 	},
@@ -1820,8 +1826,7 @@ const game = {
 			if (s.id === 'mercs') this.partyWindow.open({ hiring: true });
 			if (s.id === 'room') this.partyWindow.open();
 			if (s.id === 'stash') this.stashWindow.open();
-			if (s.id === 'take') this.takeMerc(s.merc.state.id);
-			if (s.id === 'leave') this.leaveMerc(s.merc.state.id);
+			if (s.id === 'merc') this.partyWindow.open({ merc: s.merc.state.id });
 			return;
 		}
 		const c = this.nearContainer();
@@ -2070,10 +2075,10 @@ const game = {
 		this.save();
 	},
 
-	/** Взять бойца из комнаты на вылазку. */
+	/** Взять бойца из комнаты на вылазку (только в комнате). */
 	takeMerc(id) {
 		const st = this.merc(id);
-		if (!st || st.out) return;
+		if (!st || st.out || !this.inRoom) return;
 		if (this.party.length >= MAX_PARTY) { this.toast(`С тобой уже ${MAX_PARTY} — сначала оставь кого-нибудь в комнате`, 'warn'); return; }
 		st.out = true;
 		this.slotMercs();
@@ -2083,10 +2088,10 @@ const game = {
 		this.save();
 	},
 
-	/** Оставить бойца в комнате (только в стабе): он уходит к своей койке. */
+	/** Оставить бойца в комнате (только в комнате): он уходит к своей койке. */
 	leaveMerc(id) {
 		const st = this.merc(id);
-		if (!st?.out || !level.room) return;
+		if (!st?.out || !this.inRoom) return;
 		st.out = false;
 		this.slotMercs();
 		this.toast(`${MERCS[id].name} остаётся в комнате`);
@@ -2094,9 +2099,11 @@ const game = {
 		this.save();
 	},
 
-	/** Дать наёмнику патроны его калибра (до магазина за раз). */
+	/** Дать наёмнику патроны его калибра (до магазина за раз; только в комнате). */
 	giveAmmo(id) {
-		const st = this.merc(id), W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
+		const st = this.merc(id);
+		if (!st || !this.inRoom) return;
+		const W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
 		if (n <= 0) { this.toast(`Нет патронов ${AMMO[W.ammo]}`, 'warn'); return; }
 		this.bag[W.ammo] -= n;
 		st.ammo += n;
@@ -2107,10 +2114,10 @@ const game = {
 		this.hud();
 	},
 
-	/** Живчик наёмнику: сам он не лечится. */
+	/** Живчик наёмнику: сам он не лечится (только в комнате). */
 	healMerc(id) {
-		const st = this.merc(id), D = MERCS[st.id];
-		if (!(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
+		const st = this.merc(id), D = MERCS[st?.id];
+		if (!st || !this.inRoom || !(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
 		this.bag.zhivchik--;
 		st.hp = Math.min(D.hp, st.hp + MERC_HEAL);
 		Sfx.drink();
@@ -2121,7 +2128,7 @@ const game = {
 	/** Живчик в аптечку медика — он сам лечит им раненых. */
 	giveMeds(id) {
 		const st = this.merc(id);
-		if (!st || !(this.bag.zhivchik > 0)) return;
+		if (!st || !this.inRoom || !(this.bag.zhivchik > 0)) return;
 		this.bag.zhivchik--;
 		st.meds = (st.meds ?? 0) + 1;
 		Sfx.drink();
@@ -2132,7 +2139,7 @@ const game = {
 	/** Гранату подрывнику. */
 	giveNade(id) {
 		const st = this.merc(id);
-		if (!st || !(this.bag.grenade > 0)) return;
+		if (!st || !this.inRoom || !(this.bag.grenade > 0)) return;
 		this.bag.grenade--;
 		st.nades = (st.nades ?? 0) + 1;
 		Sfx.reload();
@@ -2155,11 +2162,11 @@ const game = {
 	},
 
 	/** Погиб: койка в комнате освобождается; Улей вернёт его в стаб, но уже вольным — нанять можно заново. */
-	mercDied(m) {
+	mercDied(m, dry = false) {
 		this.roster = this.roster.filter((st) => st !== m.state);
 		this.slotMercs();
 		Sfx.death('human');
-		this.banner(`${m.def.name} погиб`, 'Улей вернёт его в стаб, к костру, — но уже не твоим: нанять заново можно у вербовщика');
+		this.banner(`${m.def.name} погиб`, `${dry ? 'Кончились патроны — отбиться было нечем. ' : ''}Улей вернёт его в стаб, к костру, — но уже не твоим: нанять заново можно у вербовщика`);
 		this.renderPartyBar();
 	},
 

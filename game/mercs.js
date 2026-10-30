@@ -1,7 +1,9 @@
 // Наёмники стаба: у каждого своё постоянное оружие. Еда им не нужна — нужны патроны их калибра
 // (сами перезаряжаются из своего запаса) и живчики: сами они не лечатся.
-// Нанимают у костра в стабе; нанятый живёт в комнате героя (там четыре койки). Подойдя к нему,
-// его берут с собой на вылазки или оставляют в комнате; в отряде — не больше двух. Служит, пока жив.
+// Нанимают у костра в стабе; нанятый живёт в комнате героя (там шесть коек) и стоит у своей койки.
+// Снарядить его — дать патроны и живчик — и взять с собой можно только там: в бою пополнить нечем,
+// а без патронов боец гибнет от первой же атаки, так что запас продумывают заранее. В отряде — не больше
+// двух; вернувшись в стаб, уцелевшие снова расходятся по койкам. Служит, пока жив.
 // Каждый — своего класса: штурмовик, снайпер, пулемётчик, охотник, медик, подрывник.
 
 import { WEAPONS, AMMO } from './weapons.js';
@@ -50,11 +52,12 @@ export const newMerc = (id, bed = 0) => {
 const $ = (id) => document.getElementById(id);
 
 /**
- * Окно отряда: кто идёт с героем и кто ждёт в комнате (патроны, живчик, взять/оставить — в стабе);
- * у вербовщика у костра — ещё и кого можно нанять.
+ * Окно отряда: кто идёт с героем и кто ждёт в комнате. Патроны, живчик, взять/оставить — только в комнате
+ * героя (подойдя к бойцу — его карточка); в остальных местах окно только показывает, как они. У вербовщика
+ * у костра — ещё и кого можно нанять.
  */
 export class PartyWindow {
-	/** game: { roster, party, bag, icons, inStab, hire(id), giveAmmo(id), healMerc(id), giveMeds(id), giveNade(id), takeMerc(id), leaveMerc(id), dismiss(id), setPaused(bool) } */
+	/** game: { roster, party, bag, icons, inRoom, hire(id), giveAmmo(id), healMerc(id), giveMeds(id), giveNade(id), takeMerc(id), leaveMerc(id), dismiss(id), setPaused(bool) } */
 	constructor(game) {
 		this.game = game;
 		this.el = $('party');
@@ -78,10 +81,11 @@ export class PartyWindow {
 
 	get isOpen() { return !this.el.classList.contains('hidden'); }
 
-	/** hiring — открыто у вербовщика: можно нанимать. */
-	open({ hiring = false } = {}) {
+	/** hiring — открыто у вербовщика: можно нанимать; merc — подошёл к этому бойцу в комнате: только его карточка. */
+	open({ hiring = false, merc = null } = {}) {
 		if (this.isOpen) return;
 		this.hiring = hiring;
+		this.focus = merc;
 		this.el.classList.remove('hidden');
 		this.game.setPaused(true);
 		this.render();
@@ -94,7 +98,7 @@ export class PartyWindow {
 	}
 
 	render() {
-		const g = this.game, bag = g.bag, icons = g.icons ?? {}, stab = g.inStab;
+		const g = this.game, bag = g.bag, icons = g.icons ?? {}, room = g.inRoom;
 		const face = (id) => (icons[`merc_${id}`] ? `<img class="npc-face" src="${icons[`merc_${id}`]}" alt="">` : '');
 		const badge = (cls) => `<span class="cls cls-${cls}">${CLASSES[cls].name}</span>`;
 		const full = g.party.length >= MAX_PARTY;
@@ -102,31 +106,39 @@ export class PartyWindow {
 		const card = (m) => {
 			const D = MERCS[m.id], C = CLASSES[D.cls], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag);
 			let move = '';
-			if (stab && m.out) move = `<button class="stay small" data-act="leave" data-id="${m.id}">Оставить в комнате</button>`;
-			if (stab && !m.out) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
+			if (room && m.out) move = `<button class="stay small" data-act="leave" data-id="${m.id}">Оставить у койки</button>`;
+			if (room && !m.out) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
 			// своё снаряжение класса: аптечка медика, гранаты подрывника
 			let kit = '', stock = '';
-			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 ? '' : 'disabled'}>В аптечку живчик <small>(есть ${bag.zhivchik ?? 0})</small></button>`; }
-			if (C.grenades) { stock = ` · гранат ${m.nades ?? 0}`; kit = `<button class="buy" data-act="nade" data-id="${m.id}" ${(bag.grenade ?? 0) > 0 ? '' : 'disabled'}>Ф-1 +1 <small>(есть ${bag.grenade ?? 0})</small></button>`; }
-			return `<div class="merc">
+			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; if (room) kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 ? '' : 'disabled'}>В аптечку живчик <small>(есть ${bag.zhivchik ?? 0})</small></button>`; }
+			if (C.grenades) { stock = ` · гранат ${m.nades ?? 0}`; if (room) kit = `<button class="buy" data-act="nade" data-id="${m.id}" ${(bag.grenade ?? 0) > 0 ? '' : 'disabled'}>Ф-1 +1 <small>(есть ${bag.grenade ?? 0})</small></button>`; }
+			const dry = m.mag + m.ammo <= 0;
+			return `<div class="merc" data-merc="${m.id}">
 				${face(m.id)}
 				<div class="merc-text"><b>${D.name}</b> ${badge(D.cls)} <span class="muted">${W.name}</span>
 					<div class="merc-hp"><i style="width:${Math.max(0, (m.hp / D.hp) * 100).toFixed(0)}%"></i></div>
-					<span>здоровье ${Math.ceil(m.hp)}/${D.hp} · патроны ${m.mag} + ${m.ammo} (${AMMO[W.ammo]})${stock}</span></div>
+					<span>здоровье ${Math.ceil(m.hp)}/${D.hp} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo} (${AMMO[W.ammo]})${dry ? ' — без патронов не отобьётся' : ''}</span>${stock}</span></div>
 				<div class="merc-btns">
 					${move}
-					<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
-					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Живчик +${MERC_HEAL} <small>(есть ${bag.zhivchik ?? 0})</small></button>
+					${room ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
+					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Живчик +${MERC_HEAL} <small>(есть ${bag.zhivchik ?? 0})</small></button>` : ''}
 					${kit}
 					${this.hiring ? `<button class="stay small" data-act="dismiss" data-id="${m.id}">Отпустить совсем</button>` : ''}
 				</div></div>`;
 		};
-		const home = g.roster.filter((m) => !m.out);
-		let html = `<div class="trade-sec">С тобой (${g.party.length}/${MAX_PARTY})</div>`;
-		html += g.party.map(card).join('') || `<div class="muted">${g.roster.length ? 'Никого — возьми бойца из комнаты.' : 'Наёмников нет. Нанять можно у костра в стабе «Полис».'}</div>`;
-		if (home.length) {
-			html += `<div class="trade-sec">В твоей комнате в стабе (${home.length})</div>`;
-			html += stab ? home.map(card).join('') : `<div class="muted">${home.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
+		const home = g.roster.filter((m) => !m.out), one = room && g.roster.find((m) => m.id === this.focus);
+		let html = '';
+		if (one) {
+			// подошёл к бойцу: только его карточка
+			html += `<div class="trade-sec">${one.out ? `С тобой (${g.party.length}/${MAX_PARTY})` : `У своей койки · с тобой ${g.party.length}/${MAX_PARTY}`}</div>${card(one)}`;
+		} else {
+			html += `<div class="trade-sec">С тобой (${g.party.length}/${MAX_PARTY})</div>`;
+			html += g.party.map(card).join('') || `<div class="muted">${g.roster.length ? 'Никого — возьми бойца у его койки в комнате.' : 'Наёмников нет. Нанять можно у костра в стабе «Полис».'}</div>`;
+			if (home.length) {
+				html += `<div class="trade-sec">В твоей комнате в стабе (${home.length})</div>`;
+				html += room || this.hiring ? home.map(card).join('') : `<div class="muted">${home.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
+			}
+			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойцов — патроны, живчик — и взять с собой можно только в твоей комнате в стабе, у их коек.</div>';
 		}
 		if (this.hiring) {
 			// вербовщик: свободные бойцы по классам
@@ -146,6 +158,6 @@ export class PartyWindow {
 			}
 		}
 		$('party-list').innerHTML = html;
-		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе: подойди к бойцу — возьмёшь его с собой или оставишь. На вылазку — не больше ${MAX_PARTY}. Еда им не нужна: дай патроны их калибра и живчики — сами они не лечатся (${ITEMS.zhivchik.name} — +${MERC_HEAL}). Медику пополняй аптечку, подрывнику — гранаты.`;
+		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: подойди к бойцу — дашь патроны их калибра и живчик (${ITEMS.zhivchik.name} — +${MERC_HEAL}; сами они не лечатся), возьмёшь с собой или оставишь. В бою пополнить нечем, а без патронов боец гибнет — продумывай запас заранее. На вылазку — не больше ${MAX_PARTY}; вернувшись в стаб, они снова у коек. Медику пополняй аптечку, подрывнику — гранаты.`;
 	}
 }

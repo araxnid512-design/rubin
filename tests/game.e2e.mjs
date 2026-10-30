@@ -328,35 +328,54 @@ try {
 	check(['Штурмовик', 'Снайпер', 'Пулемётчик', 'Охотник', 'Медик', 'Подрывник'].every((c) => classes.heads.includes(c)) && classes.n === 8, `у вербовщика ${classes.n} бойцов по классам: ${classes.heads.join(', ')}`);
 	await page.click('[data-act="hire"][data-id="shram"]');
 	await page.click('[data-act="hire"][data-id="ded"]');
-	const hired = await G(page, () => ({ roster: window.__game.roster.map((m) => `${m.id}:${m.out ? 'с тобой' : 'в комнате'}`), actors: window.__game.mercs.length, bar: document.querySelectorAll('#party-bar .pm').length, home: document.querySelectorAll('[data-act="take"]').length }));
+	const hired = await G(page, () => ({ roster: window.__game.roster.map((m) => `${m.id}:${m.out ? 'с тобой' : 'в комнате'}`), actors: window.__game.mercs.length, bar: document.querySelectorAll('#party-bar .pm').length, home: document.querySelectorAll('#party-list .merc[data-merc]').length, equip: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="take"]').length }));
 	check(hired.roster.join() === 'shram:в комнате,ded:в комнате' && hired.actors === 2 && hired.bar === 0 && hired.home === 2, `наняты наёмники: ${hired.roster.join(', ')} — ждут в твоей комнате`);
+	check(hired.equip === 0, 'у костра бойцов не снарядить и не взять — только в комнате');
 	await page.screenshot({ path: join(OUT, 'game-party.png') });
 	await page.click('#party-close');
 	// бойцы сами дошли до своих коек в комнате
 	await page.waitForFunction(() => window.__game.mercs.every((m) => Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5), null, { timeout: 60000 }).catch(() => {});
 	const atHome = await G(page, () => ({ ok: window.__game.mercs.filter((m) => Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5 && window.__game.level.room.contains(m.pos)).length, n: window.__game.level.buildings.length }));
 	check(atHome.ok === 2, `наёмники дошли до своих коек в комнате (${atHome.ok} из 2)`);
-	// подходишь к бойцу у койки — «Взять с собой»
+	// подходишь к бойцу у койки — «Снарядить»: его карточка, там «Взять с собой»
+	const mercCard = async (mid) => {
+		await page.waitForFunction((id) => { const s = window.__game.nearStation(); return s?.id === 'merc' && (!id || s.merc.state.id === id) && document.getElementById('search-verb').textContent === 'Снарядить'; }, mid, { timeout: 20000 }).catch(() => {});
+		await page.keyboard.press('KeyE');
+		await page.waitForSelector('#party:not(.hidden)', { timeout: 20000 }).catch(() => {});
+		return G(page, () => [...document.querySelectorAll('#party-list .merc[data-merc]')].map((x) => x.dataset.merc));
+	};
 	const takeOne = async (id) => {
 		await page.evaluate((mid) => { const g = window.__game, m = g.mercs.find((x) => x.state.id === mid); g.player.pos.set(m.home.x, 0, m.home.z + 1.0); g.player.root.rotation.y = Math.PI; }, id);
-		await page.waitForFunction((mid) => { const s = window.__game.nearStation(); return s?.id === 'take' && s.merc.state.id === mid && document.getElementById('search-verb').textContent === 'Взять с собой'; }, id, { timeout: 20000 }).catch(() => {});
-		await page.keyboard.press('KeyE');
+		const cards = await mercCard(id);
+		await page.click(`[data-act="take"][data-id="${id}"]`).catch(() => {});
+		await page.click('#party-close').catch(() => {});
 		await page.waitForFunction((mid) => window.__game.party.some((m) => m.id === mid), id, { timeout: 20000 }).catch(() => {});
+		return cards;
 	};
-	await takeOne('shram');
+	const firstCard = await takeOne('shram');
+	check(firstCard.join() === 'shram', `подошёл к бойцу у койки — «Снарядить»: открылась его карточка (${firstCard.join()})`);
 	await takeOne('ded');
 	const took = await G(page, () => ({ party: window.__game.party.map((m) => m.id), bar: document.querySelectorAll('#party-bar .pm').length }));
 	check(took.party.join() === 'shram,ded' && took.bar === 2, `подошёл к бойцам в комнате — взял с собой: ${took.party.join(', ')}; в шапке их портреты`);
 	await page.screenshot({ path: join(OUT, 'game-room.png') });
-	// в комнате к бойцу из отряда — «Оставить в комнате»: уходит к своей койке
-	await page.waitForFunction(() => window.__game.nearStation()?.id === 'leave' && document.getElementById('search-verb').textContent === 'Оставить в комнате', null, { timeout: 20000 }).catch(() => {});
-	await page.keyboard.press('KeyE');
+	// в комнате к бойцу из отряда — «Снарядить» → «Оставить у койки»: уходит к своей койке
+	const [stayer] = await mercCard(null);
+	await page.click(`[data-act="leave"][data-id="${stayer}"]`).catch(() => {});
+	await page.click('#party-close').catch(() => {});
 	await page.waitForFunction(() => window.__game.mercs.some((m) => !m.state.out && Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5), null, { timeout: 30000 }).catch(() => {});
 	const left = await G(page, () => ({ party: window.__game.party.map((m) => m.id), back: window.__game.mercs.find((m) => !m.state.out && Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.5)?.state.id ?? null }));
 	const leaving = left.back;
 	check(leaving && left.party.length === 1, `оставил ${leaving} в комнате — вернулся к своей койке, с тобой: ${left.party.join(', ')}`);
 	if (leaving) await takeOne(leaving);
 	check(await G(page, () => window.__game.party.length === 2), 'снова взял его с собой — в отряде двое');
+	// снарядить в комнате: патроны и живчик из рюкзака героя
+	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.merc('shram').hp = 40; g.partyWindow.open({ merc: 'shram' }); });
+	const supply0 = await G(page, () => ({ ammo: window.__game.merc('shram').ammo }));
+	await page.click('[data-act="ammo"][data-id="shram"]');
+	await page.click('[data-act="heal"][data-id="shram"]');
+	const supply = await G(page, () => ({ ammo: window.__game.merc('shram').ammo, hp: window.__game.merc('shram').hp, bag: window.__game.bag.ammo545, zh: window.__game.bag.zhivchik }));
+	check(supply.ammo === supply0.ammo + 30 && supply.bag === 15 && supply.hp === 100 && supply.zh === 1, `в комнате Шраму выданы патроны (+30, в запасе ${supply.ammo}) и живчик (здоровье ${supply.hp})`);
+	await page.click('#party-close');
 	await G(page, () => window.__game.equipGear('aks'));
 	// сохранение и «Продолжить»
 	const saved = await G(page, () => JSON.parse(localStorage.getItem('ulei-cluster17-save') ?? 'null'));
@@ -389,18 +408,22 @@ try {
 	const mf = await G(page, () => ({ kills: window.__game.kills - window.__k0, spent: window.__game.party.map((m, i) => window.__mercAmmo[i] - (m.mag + m.ammo)), roster: window.__game.roster.map((m) => `${m.id}:${m.out}:${Math.round(m.hp)}`).join(' ') }));
 	check(mercFight === 2 && mf.kills > 0 && mf.spent.some((n) => n > 0), `наёмники в бою: убили ${mf.kills}, потратили патронов ${mf.spent.join(' и ')}${mf.spent.length ? '' : ` [${mf.roster}]`}`);
 	await page.screenshot({ path: join(OUT, 'game-mercs.png') });
-	// патроны и живчик наёмнику — из рюкзака героя
-	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.party[0].hp = 40; g.partyWindow.open(); });
-	const supply0 = await G(page, () => ({ id: window.__game.party[0].id, ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp }));
-	await page.click(`[data-act="ammo"][data-id="${supply0.id}"]`);
-	await page.click(`[data-act="heal"][data-id="${supply0.id}"]`);
-	const supply = await G(page, () => ({ ammo: window.__game.party[0].ammo, hp: window.__game.party[0].hp, bag: window.__game.bag.ammo545, zh: window.__game.bag.zhivchik }));
-	check(supply.ammo === supply0.ammo + 30 && supply.bag === 15 && supply.hp === 100 && supply.zh === 1, `Шраму выданы патроны (+30, в запасе ${supply.ammo}) и живчик (здоровье ${supply.hp})`);
-	await page.click('#party-close');
+	// на вылазке бойцов не снарядить: окно отряда только показывает, как они
+	const field = await G(page, () => {
+		const g = window.__game, st = g.party[0], a0 = st.ammo;
+		g.bag.ammo545 = 45; g.bag.zhivchik = 2;
+		g.partyWindow.open();
+		const r = { cards: document.querySelectorAll('#party-list .merc[data-merc]').length, btns: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="heal"], #party-list [data-act="take"], #party-list [data-act="leave"]').length };
+		g.giveAmmo(st.id);
+		r.same = st.ammo === a0 && g.bag.ammo545 === 45;
+		g.partyWindow.close();
+		return r;
+	});
+	check(field.cards === 2 && field.btns === 0 && field.same, 'на вылазке патроны и живчики бойцам не дать — только в комнате в стабе');
 	// граната: бросок к кучке свежих бегунов (наёмники к этому времени могли перебить кластер), взрыв через 2 с
 	await G(page, () => {
 		const g = window.__game, p = g.player;
-		for (const st of g.party) st.mag = st.ammo = 0; // наёмники больше не стреляют — проверяем только героя
+		for (const m of g.mercs) m.cooldown = 1e9; // наёмники больше не стреляют — проверяем только героя
 		// остальных — подальше: граната летит к ближайшим заражённым
 		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
 		window.__blast = [0, 1, 2].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x + 7, 0, p.pos.z - 0.6 + i * 0.6)));
@@ -493,7 +516,7 @@ try {
 	// подрывник: куча из четырёх бегунов в 11 м — Ф-1 туда (стрелять нечем: проверяем только гранату)
 	await G(page, () => {
 		const g = window.__game, p = g.player;
-		for (const st of g.party) st.mag = st.ammo = 0;
+		for (const m of g.mercs) m.cooldown = 1e9;
 		window.__grp = [0, 1, 2, 3].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x + 11, 0, p.pos.z - 1 + i * 0.6)));
 		window.__grp.forEach((e) => { e.stagger = 8; });
 	});
@@ -501,12 +524,37 @@ try {
 	const sap = await G(page, () => ({ nades: window.__game.merc('saper').nades, dead: window.__grp.filter((e) => !e.alive).length, hp: window.__game.party.map((m) => m.hp) }));
 	check(sap.nades === 1 && sap.dead >= 3 && sap.hp.every((h) => h === 100 || h === 120), `подрывник Сапёр кинул Ф-1 в кучу: убито ${sap.dead} из 4, гранат осталось ${sap.nades}, свои целы`);
 	await page.screenshot({ path: join(OUT, 'game-classes.png') });
+	// без патронов боец не отобьётся: первая же атака заражённого — смерть, и он больше не твой
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		g.roster.push({ id: 'kuvalda', hp: 160, mag: 0, ammo: 0, out: true, bed: 4 });
+		g.spawnMercs();
+		for (const m of g.mercs) m.cooldown = 1e9;
+		const k = g.mercs.find((m) => m.state.id === 'kuvalda');
+		k.pos.set(p.pos.x + 9, 0, p.pos.z);
+		window.__bite = g.spawnEnemy('runner', k.pos.clone().set(k.pos.x + 1.2, 0, k.pos.z));
+		window.__bite.state = 'chase';
+	});
+	await page.waitForFunction(() => !window.__game.merc('kuvalda'), null, { timeout: 30000 }).catch(() => {});
+	const bitten = await G(page, () => { const g = window.__game, r = { gone: !g.merc('kuvalda'), roster: g.roster.map((m) => m.id).join(), banner: document.getElementById('banner')?.textContent ?? '' }; window.__bite.damage(1e4, window.__bite.pos, 0); return r; });
+	check(bitten.gone && /патроны/i.test(bitten.banner), `Кувалда без патронов погиб от первой атаки: «${bitten.banner.trim()}», в отряде: ${bitten.roster}`);
 
 	// возвращение в кластер до перезагрузки: всё как было
 	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 2000; });
-	await G(page, () => window.__game.travel('zarechny'));
-	await page.waitForFunction(() => window.__game.loc === 'zarechny' && window.__game.state === 'play', null, { timeout: 300000 });
+	await G(page, () => window.__game.travel('stab'));
+	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 300000 });
 	const before2 = await G(page, () => window.__game.world.clusters.dachi.saved.enemies.length);
+	// вернулись в стаб: уцелевшие из отряда снова стоят у своих коек; снова взять — там же
+	const beds = await G(page, () => {
+		const g = window.__game, r = { party: g.party.length, home: g.mercs.filter((m) => !m.state.out && Math.hypot(m.pos.x - m.home.x, m.pos.z - m.home.z) < 0.3).map((m) => m.state.id).sort().join() };
+		r.outside = (g.takeMerc('dok'), g.party.length);
+		const h = g.mercs.find((m) => m.state.id === 'dok').home;
+		g.player.pos.set(h.x, 0, h.z + 1);
+		g.takeMerc('dok'); g.takeMerc('saper');
+		r.took = g.party.map((m) => m.id).join();
+		return r;
+	});
+	check(beds.party === 0 && beds.home === 'ded,dok,saper,shram' && beds.outside === 0 && beds.took === 'dok,saper', `вернулись в стаб — отряд у своих коек (${beds.home}); взять снова можно только в комнате: ${beds.took}`);
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 	const back = await G(page, () => window.__game.enemies.length); // все заселённые при приходе
@@ -524,7 +572,7 @@ try {
 	// рубер: замечает, ревёт, бросается рывком; броня срезает урон; в споровом мешке — горох (и бывает жемчуг)
 	await G(page, () => {
 		const g = window.__game, p = g.player;
-		for (const st of g.party) st.mag = st.ammo = 0;
+		for (const m of g.mercs) m.cooldown = 1e9;
 		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, 40); e.state = 'idle'; }
 		p.pos.set(-30, 0, 8);
 		for (const m of g.mercs) m.place();
