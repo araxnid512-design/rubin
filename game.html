@@ -208,6 +208,9 @@
 		#download small a { color: var(--accent); }
 		#offline-note { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
 		#offline-note a { color: var(--accent); }
+		#update { display: block; margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--accent); color: #111; text-decoration: none; font-size: 14px; }
+		#update small { display: block; font-size: 11px; opacity: 0.8; margin-top: 2px; }
+		#version { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
 		#travel { z-index: 28; background: rgba(10,12,11,0.92); }
 		.travel-card h1 { font-size: 24px; }
 
@@ -567,7 +570,9 @@
 			</div>
 			<div class="sub" id="menu-save"></div>
 			<div id="download" class="hidden"><a id="download-link" href="download/ulei-cluster17.html" download="ulei-cluster17.html"><b>⬇ Скачать игру одним файлом</b></a><small id="download-note">открывается без интернета и без установки; сохранение остаётся, если заменить старый файл новым. Открытая ссылка для всех: <a href="https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html" target="_blank" rel="noopener">github.com/araxnid512-design/rubin</a></small></div>
+			<a id="update" class="hidden" target="_blank" rel="noopener"><b>⬇ Вышла новая версия — скачать</b><small></small></a>
 			<div id="offline-note" class="hidden"></div>
+			<div id="version"></div>
 			<div class="settings">
 				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
 				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>

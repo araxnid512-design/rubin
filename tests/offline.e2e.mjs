@@ -21,11 +21,20 @@ try {
 	const errors = [], net = [];
 	page.on('pageerror', (e) => errors.push(e.message));
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-	await page.route(/^https?:/, (r) => { net.push(r.request().url()); r.abort(); });
+	// единственный запрос наружу — проверка обновления на GitHub: отвечаем «в релизе файл новее на день»
+	const RELEASE = 'https://api.github.com/repos/araxnid512-design/rubin/releases/tags/game';
+	let asked = 0;
+	await page.route(/^https?:/, (r) => {
+		if (r.request().url() === RELEASE) { asked++; return r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ assets: [{ name: 'ulei-cluster17.html', updated_at: new Date(Date.now() + 864e5).toISOString() }] }) }); }
+		net.push(r.request().url()); r.abort();
+	});
 	await page.goto(pathToFileURL(FILE).href);
 	await page.waitForSelector('#menu:not(.hidden)', { timeout: 300000 });
 	const menu = await page.evaluate(() => ({ note: document.getElementById('offline-note').textContent, download: !document.getElementById('download').classList.contains('hidden') }));
-	check(/Скачанная версия, сборка от/.test(menu.note) && !menu.download, `меню скачанной версии: «${menu.note.slice(0, 48)}…», кнопки «скачать» нет`);
+	check(/Скачанная версия, сборка от .*\d:\d\d · [0-9a-f]{7}/.test(menu.note) && !menu.download, `меню скачанной версии: «${menu.note.slice(0, 64)}…», кнопки «скачать» нет`);
+	await page.waitForSelector('#update:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const upd = await page.evaluate(() => ({ shown: !document.getElementById('update').classList.contains('hidden'), href: document.getElementById('update').href, text: document.getElementById('update').textContent }));
+	check(asked === 1 && upd.shown && upd.href.endsWith('/releases/download/game/ulei-cluster17.html'), `на GitHub файл новее — в меню «${upd.text.trim().slice(0, 60)}…»`);
 	await page.click('#btn-new');
 	await page.waitForFunction(() => window.__game?.state === 'play' && window.__game.enemies.length > 0, null, { timeout: 120000 }).catch(() => {});
 	await page.waitForFunction(() => window.__game.sounds()[0] === window.__game.sounds()[1], null, { timeout: 60000 }).catch(() => {});

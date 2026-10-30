@@ -26,6 +26,7 @@ import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow }
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
 import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
+import { BUILD } from './version.js';
 import { WorldMap } from './worldmap.js';
 import { NODES, WARN, newWorld, normalizeWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
 import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
@@ -138,15 +139,40 @@ async function boot() {
 /** Открытая ссылка на скачиваемую версию (релиз «game» на GitHub, обновляется сам — .github/workflows/offline-release.yml). */
 const PUBLIC_DOWNLOAD = 'https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html';
 const publicLink = (text) => `<a href="${PUBLIC_DOWNLOAD}" target="_blank" rel="noopener">${text}</a>`;
+/** Когда собрана версия: «30 октября 2026 г., 15:31» — по часам того, кто играет. */
+const builtAt = (t) => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const VERSION = `${builtAt(BUILD.time)} · ${BUILD.sha}`;
+
+/**
+ * Скачанная версия сверяет себя со свежим файлом в релизе «game» на GitHub (api.github.com отвечает и странице
+ * с диска). Файл там новее этой сборки — в меню кнопка «Вышла новая версия». Нет сети — молча ничего.
+ */
+async function checkUpdate() {
+	try {
+		const r = await fetch('https://api.github.com/repos/araxnid512-design/rubin/releases/tags/game', { cache: 'no-store' });
+		if (!r.ok) return;
+		const a = (await r.json()).assets?.find((x) => x.name === 'ulei-cluster17.html');
+		// своя сборка выкладывается через минуту-другую после неё самой — новее та, что позже на 10 минут
+		if (!a || Date.parse(a.updated_at) - Date.parse(BUILD.time) < 10 * 60e3) return;
+		const el = $('update');
+		el.href = PUBLIC_DOWNLOAD;
+		el.querySelector('small').textContent = `от ${builtAt(a.updated_at)} — скачай и замени этот файл: сохранение останется`;
+		el.classList.remove('hidden');
+	} catch { /* без сети */ }
+}
 
 function showMenu() {
 	const saved = loadGame();
 	// скачать одним файлом — на опубликованной странице (https; файл download/ulei-cluster17.html публикуется рядом,
-	// собирает его scripts/build-offline.mjs); в скачанной версии — дата сборки
+	// собирает его scripts/build-offline.mjs); в скачанной версии — её сборка и проверка, нет ли новее
 	if (OFFLINE) {
-		$('offline-note').innerHTML = `Скачанная версия, сборка от ${window.__BUILD?.date ?? '—'} Новую — ${publicLink('скачай по открытой ссылке')} и замени этот файл: сохранение останется.`;
+		$('offline-note').innerHTML = `Скачанная версия, сборка от ${VERSION}. Новую — ${publicLink('скачай по открытой ссылке')} и замени этот файл: сохранение останется.`;
 		$('offline-note').classList.remove('hidden');
-	} else $('download').classList.toggle('hidden', location.protocol !== 'https:');
+		if (!showMenu.checked) { showMenu.checked = true; checkUpdate(); }
+	} else {
+		$('download').classList.toggle('hidden', location.protocol !== 'https:');
+		$('version').textContent = `Версия от ${VERSION}`;
+	}
 	$('btn-continue').classList.toggle('hidden', !saved);
 	$('menu-save').textContent = saved ? `Сохранение: ${NODES[saved.world.at]?.short ?? '—'} · споранов ${saved.bag?.spore ?? 0}` : '';
 	$('menu').classList.remove('hidden');

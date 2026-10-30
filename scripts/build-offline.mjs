@@ -7,6 +7,7 @@
 import { build } from 'esbuild';
 import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,6 +19,12 @@ for (const name of ['player', 'runner', 'stomper', 'ruber']) {
 	const glb = await readFile(join(ROOT, 'models/game', `${name}.glb`));
 	await writeFile(join(ROOT, 'models/game', `${name}-glb.js`), `export default "${glb.toString('base64')}";\n`);
 }
+
+// версия сборки (game/version.js): время и коммит — по ним меню показывает, какая это версия, а скачанная
+// сверяет себя со свежим файлом на GitHub; на GitHub коммит берётся из GITHUB_SHA
+const sha = (process.env.GITHUB_SHA ?? execSync('git rev-parse HEAD', { cwd: ROOT }).toString()).trim().slice(0, 7);
+const BUILD = { time: new Date().toISOString(), sha };
+await writeFile(join(ROOT, 'game/version.js'), `// Версия игры: время сборки и коммит. Пишет scripts/build-offline.mjs при каждой сборке.\nexport const BUILD = ${JSON.stringify(BUILD)};\n`);
 
 // код: game/main.js, three.js и модели — одним модулем
 const { outputFiles } = await build({
@@ -35,16 +42,15 @@ const embed = async (dir, type) => {
 };
 await embed('assets/sounds', 'audio/mpeg');
 await embed('assets/previews', 'image/jpeg');
-const date = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
 // страница: та же разметка и стили, вместо карты импорта и внешнего модуля — всё внутри
 let html = await readFile(join(ROOT, 'game.html'), 'utf8');
 html = html.replace(/\s*<script type="importmap">[\s\S]*?<\/script>/, '');
-const inline = `<script>window.__ASSETS = ${JSON.stringify(assets)}; window.__BUILD = ${JSON.stringify({ date })};</script>\n\t<script type="module">${code}</script>`;
+const inline = `<script>window.__ASSETS = ${JSON.stringify(assets)};</script>\n\t<script type="module">${code}</script>`;
 if (!html.includes('<script type="module" src="./game/main.js"></script>')) throw new Error('в game.html нет подключения game/main.js');
 html = html.replace('<script type="module" src="./game/main.js"></script>', () => inline);
 await mkdir(dirname(OUT), { recursive: true });
 await writeFile(OUT, html);
 const mb = (n) => (n / 1024 / 1024).toFixed(1);
-console.log(`${OUT}: ${mb(html.length)} МБ (код ${mb(code.length)} МБ, звуки и картинки ${mb(JSON.stringify(assets).length)} МБ), сборка от ${date}`);
+console.log(`${OUT}: ${mb(html.length)} МБ (код ${mb(code.length)} МБ, звуки и картинки ${mb(JSON.stringify(assets).length)} МБ), сборка ${BUILD.time} (${sha})`);
 if (html.length > LIMIT) { console.error(`больше ${mb(LIMIT)} МБ — не опубликовать одним файлом`); process.exit(1); }
