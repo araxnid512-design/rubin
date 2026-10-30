@@ -476,12 +476,13 @@ try {
 		p.pos.set(-30, 0, 8);
 		for (const m of g.mercs) m.place();
 		window.__ru = g.spawnEnemy('ruber', p.pos.clone().set(-19, 0, 8));
+		// состояния — на каждом шаге логики: при ?sim=30 рёв целиком умещается в один кадр
 		window.__ruStates = new Set();
-		window.__ruTimer = setInterval(() => { window.__ruStates.add(window.__ru.state + ':' + window.__ru.current); }, 30);
+		const r = window.__ru, step = r.update.bind(r);
+		r.update = (dt) => { const keep = step(dt); window.__ruStates.add(r.state + ':' + r.current); return keep; };
 	});
 	await page.waitForFunction(() => [...window.__ruStates].some((x) => x.startsWith('chase:Charge')) || [...window.__ruStates].some((x) => x.startsWith('attack')), null, { timeout: 30000 }).catch(() => {});
 	const ru = await G(page, () => {
-		clearInterval(window.__ruTimer);
 		const g = window.__game, r = window.__ru, seen = [...window.__ruStates];
 		const hp0 = r.hp; r.damage(26, g.player.pos, 0.2); const pm = hp0 - r.hp;
 		const hp1 = r.hp; r.damage(130, g.player.pos, 0.3); const svd = hp1 - r.hp;
