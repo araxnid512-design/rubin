@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import * as T from './textures.js';
+import { paperTexture, grimeTexture, quadUV } from './dressing.js';
 import { Batch, box, place, planeXZ } from './geom.js';
 
 /** Высота, по которой срезаются стены, когда герой внутри. */
@@ -96,19 +97,51 @@ function interior() {
 		factoryWall: T.whitewashMaterial([1, 1], [120, 140, 120]),
 		armyWall: T.whitewashMaterial([1, 1], [150, 170, 140]),
 		blanketArmy: T.fabricMaterial([90, 92, 86]),
+		// у каждого дома своя мебель и обивка — палитры, из которых здание выбирает (см. Building)
+		woods: [T.woodMaterial([1, 1], [96, 62, 40]), T.woodMaterial([1, 1], [68, 46, 34]), T.woodMaterial([1, 1], [112, 60, 42]), T.woodMaterial([1, 1], [104, 112, 92])],
+		woodsLight: [T.woodMaterial([1, 1], [150, 116, 78]), T.woodMaterial([1, 1], [178, 152, 112]), T.woodMaterial([1, 1], [168, 166, 156])],
+		sofas: [T.fabricMaterial([92, 60, 44]), T.fabricMaterial([62, 82, 60]), T.fabricMaterial([92, 92, 98]), T.fabricMaterial([60, 68, 96])],
+		blankets: [T.fabricMaterial([120, 40, 44]), T.fabricMaterial([52, 62, 112]), T.fabricMaterial([62, 92, 62]), T.fabricMaterial([150, 130, 100])],
+		rugs: [T.rugMaterial(), T.rugMaterial([40, 52, 96]), T.rugMaterial([52, 84, 50])],
+		// разруха на полу
+		paper: new THREE.MeshStandardMaterial({ map: paperTexture(), roughness: 0.95, side: THREE.DoubleSide }),
+		stain: new THREE.MeshStandardMaterial({ map: grimeTexture(), transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -1 }),
+		bloodFloor: new THREE.MeshStandardMaterial({ map: T.splatterTexture(2), transparent: true, depthWrite: false, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 }),
+		glass: new THREE.MeshStandardMaterial({ color: 0x9fb4b4, roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.75 }),
+		bottles: [new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 0.12, metalness: 0.2 }), new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.12, metalness: 0.2 })],
+		books: [new THREE.MeshStandardMaterial({ color: 0x6a2a22, roughness: 0.7 }), new THREE.MeshStandardMaterial({ color: 0x2a3a5a, roughness: 0.7 }), new THREE.MeshStandardMaterial({ color: 0x4a5a32, roughness: 0.7 })],
+		rag: T.fabricMaterial([96, 90, 80]),
 	};
 	return IM;
 }
 
 // ---------- Здание ----------
 
+/** Отразить геометрию по X; порядок вершин в треугольниках меняется, чтобы лицевые грани остались лицевыми. */
+function mirrorX(geo) {
+	geo.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1));
+	if (geo.index) {
+		const ix = geo.index.array;
+		for (let i = 0; i < ix.length; i += 3) [ix[i + 1], ix[i + 2]] = [ix[i + 2], ix[i + 1]];
+		geo.index.needsUpdate = true;
+	} else {
+		for (const attr of Object.values(geo.attributes)) {
+			const a = attr.array, n = attr.itemSize;
+			for (let t = 0; t < attr.count; t += 3) for (let k = 0; k < n; k++) [a[(t + 1) * n + k], a[(t + 2) * n + k]] = [a[(t + 2) * n + k], a[(t + 1) * n + k]];
+		}
+	}
+	return geo;
+}
+
 class Building {
 	/**
 	 * ctx: { batch (общая статика), root, collide, M }; W×D — снаружи по стенам, H — высота стен,
 	 * top — высота с крышей (для проверки, загораживает ли здание героя).
 	 */
-	constructor(ctx, { name, cx, cz, ry = 0, W, D, H, top }) {
+	constructor(ctx, { name, cx, cz, ry = 0, W, D, H, top, mirror = false }) {
 		Object.assign(this, { ctx, name, cx, cz, ry, W, D, H, top });
+		// mirror — зеркальная планировка (по X в своих осях): стены, двери, окна, мебель и тайники — всё отражено
+		this.mx = mirror ? -1 : 1;
 		this.c = Math.cos(ry);
 		this.s = Math.sin(ry);
 		this.matrix = new THREE.Matrix4().makeRotationY(ry).setPosition(cx, 0, cz);
@@ -116,16 +149,24 @@ class Building {
 		this.group = new THREE.Group();
 		this.group.name = `${name}Upper`;
 		this.containers = [];
-		this.IM = interior();
+		this.solids = []; // мебель с коллайдером — в своих осях: [x, z, w, d, rot] (разруху на неё не кладём)
+		// у каждого здания своя мебель, обивка, покрывала и ковры — постоянные (от имени и места)
+		let seed = Math.abs(Math.round(cx * 73 + cz * 151)) + [...name].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+		this.rnd = () => { seed = (seed * 16807 + 11) % 2147483647; return seed / 2147483647; };
+		const base = interior(), pick = (list) => list[Math.floor(this.rnd() * list.length)];
+		this.IM = { ...base, furniture: pick(base.woods), furnitureLight: pick(base.woodsLight), sofa: pick(base.sofas), blanket: pick(base.blankets), rug: pick(base.rugs) };
+		this.messKind = 'home';
 	}
 
 	/** Локальная точка → мир. */
-	world(x, z) { return [this.cx + x * this.c + z * this.s, this.cz - x * this.s + z * this.c]; }
+	world(x, z) { x *= this.mx; return [this.cx + x * this.c + z * this.s, this.cz - x * this.s + z * this.c]; }
 	/** Мировая точка → локальная. */
-	local(x, z) { const dx = x - this.cx, dz = z - this.cz; return [dx * this.c - dz * this.s, dx * this.s + dz * this.c]; }
-	lower(geo, mat, opts) { this.ctx.batch.add(geo.applyMatrix4(this.matrix), mat, opts); }
-	top_(geo, mat, opts) { this.upper.add(geo.applyMatrix4(this.matrix), mat, opts); }
-	collide(x, z, w, d, rot = 0, wall = false) { const [wx, wz] = this.world(x, z); return this.ctx.collide(wx, wz, w, d, this.ry + rot, wall); }
+	local(x, z) { const dx = x - this.cx, dz = z - this.cz; return [(dx * this.c - dz * this.s) * this.mx, dx * this.s + dz * this.c]; }
+	/** Геометрия из своих осей — в мир (при зеркальной планировке — отражённая, с вывернутыми обратно гранями). */
+	toWorld(geo) { if (this.mx < 0) mirrorX(geo); return geo.applyMatrix4(this.matrix); }
+	lower(geo, mat, opts) { this.ctx.batch.add(this.toWorld(geo), mat, opts); }
+	top_(geo, mat, opts) { this.upper.add(this.toWorld(geo), mat, opts); }
+	collide(x, z, w, d, rot = 0, wall = false) { const [wx, wz] = this.world(x, z); return this.ctx.collide(wx, wz, w, d, this.ry + rot * this.mx, wall); }
 
 	/** Герой внутри (по наружному контуру стен). */
 	contains(p, margin = 0) {
@@ -186,7 +227,7 @@ class Building {
 			g.applyMatrix4(m);
 			if (up || extra?.up) this.top_(g, mat); else this.lower(g, mat);
 		}
-		if (solid[0] > 0) this.collide(x, z, solid[0], solid[1], rot);
+		if (solid[0] > 0) { this.collide(x, z, solid[0], solid[1], rot); this.solids.push([x, z, solid[0], solid[1], rot]); }
 	}
 
 	/** Тайник: мебель, которую можно обыскать. loot — что может лежать (см. main.js). */
@@ -203,8 +244,66 @@ class Building {
 		this.containers.push({ name, building: this.name, x: wx, z: wz, ax, az, loot, spark });
 	}
 
+	/** Свободно ли место на полу (локальные x, z): внутри стен и не под мебелью (с запасом m). */
+	floorFree(x, z, m = 0.15) {
+		if (Math.abs(x) > this.W / 2 - 0.35 || Math.abs(z) > this.D / 2 - 0.35) return false;
+		for (const [sx, sz, w, d, rot] of this.solids) {
+			const dx = x - sx, dz = z - sz, c = Math.cos(rot), s = Math.sin(rot);
+			if (Math.abs(dx * c - dz * s) < w / 2 + m && Math.abs(dx * s + dz * c) < d / 2 + m) return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Разруха на полу: газеты, книги, бутылки, банки, осколки, тряпьё, пятна, кровь, опрокинутый стул.
+	 * Всё плоское и без коллайдеров (проходы и обыск не меняются); насколько разгромлено — своё у каждого здания.
+	 * kind: home (жильё), work (цех, склад), army (казарма, КПП), shop, tidy (комната героя — почти чисто).
+	 */
+	mess(kind = this.messKind) {
+		const IM = this.IM, rnd = this.rnd, R = (a, b) => a + rnd() * (b - a);
+		const wreck = kind === 'tidy' ? 0.15 : 0.4 + rnd() * 0.9; // 0.4 — прибрано, 1.3 — перевёрнуто вверх дном
+		const put = (geo, mat, x, z, y, ry) => this.lower(place(geo, x, y, z, ry), mat, { cast: false });
+		const items = {
+			paper: (x, z) => { const s = R(0.22, 0.38), g = quadUV(new THREE.PlaneGeometry(s, s * R(0.7, 1.3)).rotateX(-Math.PI / 2), Math.floor(rnd() * 4)); g.rotateX(R(-0.1, 0.1)); put(g, IM.paper, x, z, 0.034 + rnd() * 0.006, R(0, 6.28)); },
+			book: (x, z) => put(box(0.16, 0.03 + rnd() * 0.02, 0.22), IM.books[Math.floor(rnd() * 3)], x, z, 0.045, R(0, 6.28)),
+			bottle: (x, z) => put(new THREE.CylinderGeometry(0.035, 0.035, 0.26, 8).rotateZ(Math.PI / 2), IM.bottles[Math.floor(rnd() * 2)], x, z, 0.06, R(0, 6.28)),
+			can: (x, z) => { const up = rnd() < 0.4, g = new THREE.CylinderGeometry(0.034, 0.034, 0.11, 8); if (!up) g.rotateZ(Math.PI / 2); put(g, IM.cans, x, z, up ? 0.08 : 0.06, R(0, 6.28)); },
+			shards: (x, z) => { for (let i = 0; i < 6; i++) put(box(R(0.02, 0.06), 0.004, R(0.02, 0.05)), rnd() < 0.5 ? IM.glass : IM.white, x + R(-0.25, 0.25), z + R(-0.25, 0.25), 0.032, R(0, 6.28)); },
+			clothes: (x, z) => { put(box(R(0.4, 0.6), 0.05, R(0.3, 0.45)), IM.rag, x, z, 0.05, R(0, 6.28)); put(box(R(0.3, 0.5), 0.04, R(0.25, 0.4)), rnd() < 0.5 ? IM.blanket : IM.sofa, x + R(-0.2, 0.2), z + R(-0.2, 0.2), 0.08, R(0, 6.28)); },
+			stain: (x, z) => { const s = R(0.6, 1.3); put(quadUV(new THREE.PlaneGeometry(s, s * R(0.6, 1)).rotateX(-Math.PI / 2), Math.floor(rnd() * 4)), IM.stain, x, z, 0.029, R(0, 6.28)); },
+			blood: (x, z) => { const s = R(0.5, 1.1); put(new THREE.PlaneGeometry(s * 1.4, s).rotateX(-Math.PI / 2), IM.bloodFloor, x, z, 0.03, R(0, 6.28)); },
+			chair: (x, z) => {
+				// опрокинутый стул: на боку или на спинке
+				const f = IM.furnitureLight, m = new THREE.Matrix4().makeRotationY(R(0, 6.28)).multiply(new THREE.Matrix4().makeRotationX(rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2)).setPosition(x, 0.24, z);
+				for (const [w, h, d, px, py, pz] of [[0.42, 0.05, 0.42, 0, 0, 0], [0.42, 0.5, 0.05, 0, 0.27, -0.19], [0.04, 0.45, 0.04, -0.18, -0.22, -0.18], [0.04, 0.45, 0.04, 0.18, -0.22, -0.18], [0.04, 0.45, 0.04, -0.18, -0.22, 0.18], [0.04, 0.45, 0.04, 0.18, -0.22, 0.18]]) {
+					this.lower(box(w, h, d, 0.8).translate(px, py, pz).applyMatrix4(m), f, { cast: false });
+				}
+			},
+		};
+		const sets = {
+			home: ['paper', 'paper', 'paper', 'book', 'book', 'bottle', 'shards', 'clothes', 'clothes', 'stain', 'blood', 'can'],
+			work: ['paper', 'paper', 'can', 'can', 'bottle', 'stain', 'stain', 'clothes', 'shards'],
+			army: ['paper', 'paper', 'book', 'can', 'bottle', 'clothes', 'stain', 'blood'],
+			shop: ['paper', 'can', 'can', 'can', 'bottle', 'bottle', 'shards', 'stain', 'blood'],
+			tidy: ['paper', 'book', 'stain'],
+		}[kind] ?? [];
+		let chairs = kind === 'home' && wreck > 0.8 ? 1 + Math.floor(rnd() * 2) : 0;
+		const spots = Math.round(this.W * this.D * 0.09 * wreck) + 1;
+		for (let i = 0, tries = 0; i < spots && tries < spots * 8; tries++) {
+			const x = R(-this.W / 2, this.W / 2), z = R(-this.D / 2, this.D / 2);
+			if (!this.floorFree(x, z, 0.3)) continue;
+			i++;
+			if (chairs > 0 && this.floorFree(x, z, 0.55)) { chairs--; items.chair(x, z); continue; }
+			for (let k = 0; k < 2 + rnd() * 3; k++) {
+				const px = x + R(-0.6, 0.6), pz = z + R(-0.6, 0.6);
+				if (this.floorFree(px, pz, 0.12)) items[sets[Math.floor(rnd() * sets.length)]](px, pz);
+			}
+		}
+	}
+
 	/** Собрать верхнюю группу (крыша, верх стен) в сцену. */
 	finish() {
+		if (this.messKind) this.mess();
 		this.upper.build(this.group);
 		this.ctx.root.add(this.group);
 		this.fader = new Fader(this.group);
@@ -322,7 +421,7 @@ const fridge = (b, name, x, z, rot, loot) => b.container(name, x, z, rot, [
  */
 export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 	const W = 9.6, D = 7.2, H = 2.7;
-	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 2.0 });
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 2.0, mirror: variant % 2 === 1 }); // через дом — зеркальная планировка
 	const { M } = ctx;
 	const IM = b.IM;
 	const logs = rnd() < 0.5 ? M.wood : M.woodGrey;
@@ -399,6 +498,7 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 export function buildShop(ctx, { cx, cz }) {
 	const W = 9, D = 13, H = 3.4;
 	const b = new Building(ctx, { name: 'Shop', cx, cz, ry: 0, W, D, H, top: H + 0.35 });
+	b.messKind = 'shop';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.25, hx = W / 2, hz = D / 2;
@@ -458,7 +558,7 @@ export function buildShop(ctx, { cx, cz }) {
  */
 export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 	const W = 6.4, D = 5.2, H = 2.5;
-	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.7 });
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.7, mirror: variant % 2 === 1 });
 	const { M } = ctx;
 	const IM = b.IM;
 	const boards = paint ?? [M.woodGreen, M.woodBlue, M.woodYellow, M.woodGrey][variant % 4];
@@ -551,6 +651,7 @@ export function buildGuardhouse(ctx, { name = 'Guardhouse', cx, cz, ry = 0 }) {
 export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
 	const W = 7.6, D = 5.6, H = 2.9;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.35 });
+	b.messKind = 'tidy';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.25, hx = W / 2, hz = D / 2, door = 2.4;
@@ -617,6 +718,7 @@ function lathe(b, x, z, rot) {
 export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
 	const W = 24, D = 14, H = 5.6;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.4 });
+	b.messKind = 'work';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.3, hx = W / 2, hz = D / 2;
@@ -675,6 +777,7 @@ export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
 export function buildWarehouse(ctx, { name = 'Warehouse', cx, cz, ry = 0 }) {
 	const W = 16, D = 10, H = 4.8;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.6 });
+	b.messKind = 'work';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.2, hx = W / 2, hz = D / 2;
@@ -740,6 +843,7 @@ function bunk(b, x, z, rot) {
 export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }) {
 	const W = 18, D = 8, H = 3.2;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.8 });
+	b.messKind = 'army';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.25, hx = W / 2, hz = D / 2;
@@ -781,6 +885,7 @@ export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }
 export function buildArmory(ctx, { name = 'Armory', cx, cz, ry = 0 }) {
 	const W = 8, D = 6, H = 3.0;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.3 });
+	b.messKind = 'army';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.35, hx = W / 2, hz = D / 2;
@@ -812,6 +917,7 @@ export function buildArmory(ctx, { name = 'Armory', cx, cz, ry = 0 }) {
 export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0 }) {
 	const W = 6, D = 4.5, H = 2.8;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.3 });
+	b.messKind = 'army';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.25, hx = W / 2, hz = D / 2;

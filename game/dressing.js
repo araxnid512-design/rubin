@@ -56,7 +56,7 @@ const dotTexture = () => once('dot', () => {
 });
 
 /** Сажа, масло, подтёки: тёмные пятна с рваным мягким краем (4 варианта в одной текстуре 2×2). */
-const grimeTexture = () => once('grime', () => {
+export const grimeTexture = () => once('grime', () => {
 	const c = canvas(256), ctx = c.getContext('2d');
 	for (let q = 0; q < 4; q++) {
 		const ox = (q % 2) * 128, oy = Math.floor(q / 2) * 128;
@@ -74,7 +74,7 @@ const grimeTexture = () => once('grime', () => {
 });
 
 /** Газеты и бумага: светлый лист с колонками строк (4 варианта в одной текстуре 2×2). */
-const paperTexture = () => once('paper', () => {
+export const paperTexture = () => once('paper', () => {
 	const c = canvas(128), ctx = c.getContext('2d');
 	for (let q = 0; q < 4; q++) {
 		const ox = (q % 2) * 64, oy = Math.floor(q / 2) * 64;
@@ -108,7 +108,7 @@ const fuelTexture = () => once('fuel', () => {
 });
 
 /** UV одного варианта текстуры 2×2. */
-function quadUV(geo, q) {
+export function quadUV(geo, q) {
 	const uv = geo.attributes.uv, ox = (q % 2) * 0.5, oy = 0.5 - Math.floor(q / 2) * 0.5;
 	for (let i = 0; i < uv.count; i++) uv.setXY(i, ox + uv.getX(i) * 0.5, oy + uv.getY(i) * 0.5);
 	return geo;
