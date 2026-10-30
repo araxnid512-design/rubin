@@ -2665,7 +2665,7 @@ const game = {
 		// при перезагрузке кластера пропадают и наёмники, что были с героем; съели — они вытащат героя
 		const lostMercs = reason === 'reload' ? this.party.map((m) => MERCS[m.id].name) : [];
 		if (reason === 'reload') this.roster = this.roster.filter((m) => !m.out); // оставленные в стабе живы
-		const low = (s) => `${s[0].toLowerCase()}${s.slice(1)}`;
+		const low = (s) => (/^.[А-ЯЁA-Z]/.test(s) ? s : `${s[0].toLowerCase()}${s.slice(1)}`); // ПМ, АКС-74У — как есть
 		const lost = [...this.kit.owned.map((id) => low(WEAPONS[id].name)), ...STORABLE.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`)];
 		const kept = CURRENCY.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
