@@ -125,7 +125,7 @@ class Building {
 	local(x, z) { const dx = x - this.cx, dz = z - this.cz; return [dx * this.c - dz * this.s, dx * this.s + dz * this.c]; }
 	lower(geo, mat, opts) { this.ctx.batch.add(geo.applyMatrix4(this.matrix), mat, opts); }
 	top_(geo, mat, opts) { this.upper.add(geo.applyMatrix4(this.matrix), mat, opts); }
-	collide(x, z, w, d, rot = 0) { const [wx, wz] = this.world(x, z); this.ctx.collide(wx, wz, w, d, this.ry + rot); }
+	collide(x, z, w, d, rot = 0, wall = false) { const [wx, wz] = this.world(x, z); return this.ctx.collide(wx, wz, w, d, this.ry + rot, wall); }
 
 	/** Герой внутри (по наружному контуру стен). */
 	contains(p, margin = 0) {
@@ -158,7 +158,7 @@ class Building {
 			layers(a0, a1, 0, CUT, false);
 			layers(a0, a1, CUT, H, true);
 			const len = a1 - a0, mid = (a0 + a1) / 2;
-			if (axis === 'x') this.collide(mid, k, len, t + 0.04); else this.collide(k, mid, t + 0.04, len);
+			if (axis === 'x') this.collide(mid, k, len, t + 0.04, 0, true); else this.collide(k, mid, t + 0.04, len, 0, true);
 		}
 		// перемычки над дверями и открытые двери
 		for (const [d0, d1] of gaps) {

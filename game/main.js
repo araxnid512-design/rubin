@@ -8,7 +8,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions } from './level.js';
-import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture } from './textures.js';
+import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture, bulletHoleTexture } from './textures.js';
+import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
 import { view, onResize, goLandscape } from './screen.js';
@@ -207,6 +208,7 @@ const tmpV2 = new THREE.Vector3();
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 let blobMat = null, dustMat = null, debrisGeo = null, debrisMat = null;
 let splatGeo = null, splatMats = null, chunkGeo = null, chunkMat = null, bloodMat = null; // кровь и ошмётки — общие
+let holeGeo = null, holeMat = null, wreckMat = null; // следы пуль, остовы бочек
 
 /**
  * Попадает ли точка в кадр (с запасом на тени): камера сверху-сзади видит прямоугольник вокруг героя.
@@ -401,6 +403,50 @@ function rollLoot(spec) {
 	return out;
 }
 
+/**
+ * Бочка с горючим: пуля пробивает (искры), набралось урона — через мгновение рвётся как граната (game.explode,
+ * соседние бочки — цепочкой); остаётся смятый чёрный остов и догорает. Цель для прицела — как заражённый.
+ */
+class FuelBarrel {
+	constructor(b) {
+		this.b = b;
+		this.pos = b.pos;
+		this.collider = b.collider;
+		this.alive = true;
+		this.hp = 24;
+		this.scale = 0.6; // высота попадания (трассер)
+		this.radius = 0.35;
+		const m = b.mesh;
+		b.restore ??= { material: m.material, y: m.position.y, rx: m.rotation.x, rz: m.rotation.z };
+		m.position.y = b.restore.y;
+		m.material = b.restore.material; m.scale.set(1, 1, 1); m.rotation.x = b.restore.rx; m.rotation.z = b.restore.rz;
+	}
+
+	damage(dmg, from) {
+		if (!this.alive) return;
+		this.hp -= dmg;
+		game.impact(this.pos.clone().setY(0.55), true, 0.6);
+		if (this.hp > 0) return;
+		this.alive = false;
+		let t = 0.08 + Math.random() * 0.18; // искра — и рвануло
+		game.fx.push({ life: 1, update: (dt) => { t -= dt; if (t <= 0) { this.blow(); return false; } return true; }, dispose() {} });
+	}
+
+	blow() {
+		const m = this.b.mesh;
+		game.explode(this.pos.clone().setY(0.5));
+		wreckMat ??= new THREE.MeshStandardMaterial({ color: 0x1a1614, roughness: 0.9, metalness: 0.3 });
+		m.material = wreckMat;
+		m.scale.set(1.12, 0.42, 0.95);
+		m.position.y = 0.18;
+		m.rotation.x = (Math.random() - 0.5) * 0.5; m.rotation.z = (Math.random() - 0.5) * 0.5;
+		// разлитое горючее догорает секунд восемь
+		const fire = createFire(scene, this.pos.x, 0.15, this.pos.z, { size: 0.85, light: false });
+		let left = 8;
+		game.fx.push({ life: 8, update(dt) { left -= dt; fire.update(dt, game.time); fire.group.scale.setScalar(Math.min(1, left / 2)); return left > 0; }, dispose() { scene.remove(fire.group); } });
+	}
+}
+
 /** Запасной синтезированный звук выстрела, пока записи не загрузились. */
 const shotKind = (W) => (W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
 
@@ -435,6 +481,7 @@ function fireShot(shooter, W, gun, target, { player = false } = {}) {
 	const hit = game.bulletEnd(from, Math.sin(a), Math.cos(a), W.range);
 	game.tracer(from, hit.pos);
 	game.impact(hit.pos, hit.wall);
+	game.hitObstacle(hit, W.damage, pos);
 }
 
 /** Картечь: дробины веером, каждая — в первого заражённого на своей линии; урон падает с дистанцией. */
@@ -457,7 +504,7 @@ function firePellets(shooter, W, from, target) {
 		}
 		if (best && !lineOfSight(pos, best.pos)) { best = null; bt = W.range; }
 		if (best) hits.set(best, (hits.get(best) ?? 0) + W.damage * (1 - 0.5 * bt / W.range));
-		else if (i % 2 === 0) { const end = game.bulletEnd(from, dx, dz, W.range); game.impact(end.pos, end.wall, 0.6); bt = Math.hypot(end.pos.x - pos.x, end.pos.z - pos.z); }
+		else if (i % 2 === 0) { const end = game.bulletEnd(from, dx, dz, W.range); game.impact(end.pos, end.wall, 0.6); game.hitObstacle(end, W.damage * 2, pos); bt = Math.hypot(end.pos.x - pos.x, end.pos.z - pos.z); }
 		if (i % 2 === 0) game.tracer(from, new THREE.Vector3(pos.x + dx * bt, best ? 1.1 * best.scale : from.y * 0.5, pos.z + dz * bt));
 	}
 	for (const [e, dmg] of hits) e.damage(dmg, pos, Math.min(1.2, dmg / 60));
@@ -623,7 +670,8 @@ class Player extends Actor {
 			game.hud();
 			return;
 		}
-		const target = game.nearestEnemy(this.pos, W.range, true);
+		// у бочки с горючим толпа — прицел бьёт по бочке, иначе по ближайшему заражённому
+		const target = game.barrelTarget(this.pos, W.range) ?? game.nearestEnemy(this.pos, W.range, true);
 		if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
 		// из прицела отдача начинается сразу, из низкой готовности ствол вскидывается за 0.07 с
 		const c = this.clips;
@@ -1351,6 +1399,7 @@ class Merc extends Actor {
 
 // ---------- Игра ----------
 const game = {
+	barrels: [], // бочки с горючим текущей локации (FuelBarrel)
 	time: 0, shake: 0, kills: 0, state: 'menu', paused: false,
 	bag: { ...START_BAG },
 	kit: startKit(),
@@ -1428,6 +1477,7 @@ const game = {
 			this.level = level;
 			this.planLevel();
 		}
+		this.barrels = level.barrels.map((b) => new FuelBarrel(b)); // взорванные — снова целые (кластер свежий)
 	},
 
 	/** План новой локации: миникарта и карта локации. */
@@ -2131,6 +2181,8 @@ const game = {
 			const d = Math.hypot(a.pos.x - pos.x, a.pos.z - pos.z);
 			if (d < R) a.hurt(80 * (1 - d / R), pos);
 		}
+		// соседние бочки с горючим рвутся следом — цепочкой
+		for (const b of this.barrels) if (b.alive && Math.hypot(b.pos.x - pos.x, b.pos.z - pos.z) < R) b.damage(200, pos);
 		this.noise(pos, 50);
 		Sfx.explosion(this.ear(pos));
 		const near = clamp01(1 - Math.hypot(pos.x - this.player.pos.x, pos.z - this.player.pos.z) / 25);
@@ -2390,10 +2442,61 @@ const game = {
 			if (!blocked[gz * N + gx]) continue;
 			// клетка занята (с запасом под радиус): уточняем точку по настоящим коллайдерам
 			for (let k = t; k < t + 0.9; k += 0.05) {
-				if (level.nav.blockedAt(from.x + dx * k, from.z + dz * k, 0)) return { pos: new THREE.Vector3(from.x + dx * k, from.y, from.z + dz * k), wall: true };
+				const c = level.nav.colliderAt(from.x + dx * k, from.z + dz * k);
+				if (c) return { pos: new THREE.Vector3(from.x + dx * k, from.y, from.z + dz * k), wall: true, collider: c };
 			}
 		}
 		return { pos: new THREE.Vector3(from.x + dx * range, 0.03, from.z + dz * range), wall: false };
+	},
+
+	/**
+	 * Бочка, в которую стоит выстрелить: в пределах дальности и на виду, у неё толпа (топтун и рубер — за двоих),
+	 * а стрелок дальше 5 м (взрыв сам не заденет). Иначе null.
+	 */
+	barrelTarget(from, range) {
+		let best = null, bd = range;
+		for (const b of this.barrels) {
+			const d = Math.hypot(b.pos.x - from.x, b.pos.z - from.z);
+			if (!b.alive || d > bd || d < 5) continue;
+			let crowd = 0;
+			for (const e of this.enemies) if (e.alive && Math.hypot(e.pos.x - b.pos.x, e.pos.z - b.pos.z) < 3.2) crowd += e.type === 'runner' ? 1 : 2;
+			// на виду — до точки чуть не доходя бочки (сама бочка занимает клетки сетки)
+			const k = (d - 0.9) / d, near = { x: from.x + (b.pos.x - from.x) * k, z: from.z + (b.pos.z - from.z) * k };
+			if (crowd >= 2 && lineOfSight(from, near)) { best = b; bd = d; }
+		}
+		return best;
+	},
+
+	/** Пуля упёрлась в препятствие: бочка с горючим получает урон, на стене дома остаётся след. */
+	hitObstacle(hit, dmg, from) {
+		const c = hit.collider;
+		if (!c) return;
+		const barrel = this.barrels.find((b) => b.collider === c);
+		if (barrel) barrel.damage(dmg, from);
+		else if (c.wall) this.bulletHole(hit.pos, c);
+	},
+
+	/** След пули на стене: точка на грани коллайдера стены, обращённый наружу (последние 120 следов). */
+	bulletHole(p, c) {
+		const dx = p.x - c.x, dz = p.z - c.z, lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
+		let nx = 0, nz = 0, px = lx, pz = lz;
+		if (Math.abs(lx) / c.hx > Math.abs(lz) / c.hz) { nx = Math.sign(lx) || 1; px = nx * (c.hx + 0.004); } else { nz = Math.sign(lz) || 1; pz = nz * (c.hz + 0.004); }
+		const wx = c.x + px * c.c + pz * c.s, wz = c.z - px * c.s + pz * c.c; // из системы коллайдера в мир
+		const nwx = nx * c.c + nz * c.s, nwz = -nx * c.s + nz * c.c;
+		holeGeo ??= new THREE.PlaneGeometry(0.16, 0.16);
+		holeMat ??= new THREE.MeshStandardMaterial({ map: bulletHoleTexture(), transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 });
+		const m = new THREE.Mesh(holeGeo, holeMat);
+		const y = Math.max(0.3, p.y + (Math.random() - 0.5) * 0.16);
+		m.position.set(wx, y, wz);
+		m.lookAt(wx + nwx, y, wz + nwz);
+		m.rotateZ(Math.random() * Math.PI * 2);
+		m.scale.setScalar(0.8 + Math.random() * 0.5);
+		scene.add(m);
+		const fx = { mesh: m, life: 120, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { scene.remove(m); } };
+		this.holes = (this.holes ?? []).filter((f) => f.life > 0);
+		this.holes.push(fx);
+		if (this.holes.length > 120) this.holes.shift().life = 0;
+		this.fx.push(fx);
 	},
 
 	/** Попадание пули мимо цели: в стену — искры и крошка, в землю — фонтанчик пыли. */

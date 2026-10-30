@@ -86,7 +86,12 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	scene.add(root);
 	const batch = new Batch();
 	const colliders = [];
-	const collide = (x, z, w, d, rot = 0) => colliders.push({ x, z, hx: w / 2, hz: d / 2, rot, c: Math.cos(rot), s: Math.sin(rot) });
+	// wall — стена дома (на ней остаются следы пуль); возвращает коллайдер
+	const collide = (x, z, w, d, rot = 0, wall = false) => {
+		const c = { x, z, hx: w / 2, hz: d / 2, rot, c: Math.cos(rot), s: Math.sin(rot), wall };
+		colliders.push(c);
+		return c;
+	};
 	const M = materials();
 
 	// ---------- Земля ----------
@@ -179,6 +184,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	const exits = (spec.exits ?? []).map((e) => ({ ...e, spawn: new THREE.Vector3(e.spawn[0], 0, e.spawn[1]), ry: e.spawn[2] }));
 	return {
 		id, root, colliders, nav, buildings, exits,
+		barrels: dressing.barrels, // бочки с горючим (взрываются — game/main.js)
 		containers: buildings.flatMap((b) => b.containers),
 		groups: spec.groups ?? [],
 		stations: spec.stations ?? [],
@@ -334,6 +340,8 @@ export function makeNav(colliders, pad = 0.35) {
 			if (Math.abs(x) > PLAY || Math.abs(z) > PLAY) return true;
 			return colliders.some((c) => inside(c, x, z, p));
 		},
+		/** Коллайдер, в котором точка (или null). */
+		colliderAt(x, z) { return colliders.find((c) => inside(c, x, z, 0)) ?? null; },
 	};
 }
 

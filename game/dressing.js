@@ -90,6 +90,23 @@ const paperTexture = () => once('paper', () => {
 	return texture(c);
 });
 
+/** Бочка с горючим: красная краска в потёках, жёлтая полоса, знак огня и надпись. */
+const fuelTexture = () => once('fuel', () => {
+	const c = canvas(256, 128), ctx = c.getContext('2d');
+	ctx.fillStyle = '#8e1f16'; ctx.fillRect(0, 0, 256, 128);
+	for (let i = 0; i < 90; i++) { ctx.fillStyle = `rgba(${40 + Math.random() * 40},${20 + Math.random() * 20},10,${Math.random() * 0.35})`; ctx.fillRect(Math.random() * 256, Math.random() * 128, 2 + Math.random() * 10, 1 + Math.random() * 14); }
+	ctx.fillStyle = '#c9a222'; ctx.fillRect(0, 50, 256, 22);
+	for (let k = 0; k < 2; k++) {
+		const x = 64 + k * 128;
+		ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.moveTo(x, 53); ctx.lineTo(x + 9, 69); ctx.lineTo(x - 9, 69); ctx.closePath(); ctx.fill();
+		ctx.fillStyle = '#c9a222'; ctx.beginPath(); ctx.arc(x, 64, 3, 0, Math.PI * 2); ctx.fill();
+	}
+	ctx.fillStyle = '#e8d8b0'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+	ctx.fillText('ОГНЕОПАСНО', 128, 40); ctx.fillText('ОГНЕОПАСНО', 0, 98); ctx.fillText('ОГНЕОПАСНО', 256, 98);
+	for (const y of [6, 122]) { ctx.fillStyle = 'rgba(30,20,15,0.6)'; ctx.fillRect(0, y - 3, 256, 6); } // рёбра жёсткости
+	return texture(c);
+});
+
 /** UV одного варианта текстуры 2×2. */
 function quadUV(geo, q) {
 	const uv = geo.attributes.uv, ox = (q % 2) * 0.5, oy = 0.5 - Math.floor(q / 2) * 0.5;
@@ -234,8 +251,24 @@ export function dressLevel({ root, batch, M, rnd, R, free, nearWall, collide, sp
 		}
 		if (rnd() < 0.5) litter(x + R(-0.8, 0.8), z + R(-0.8, 0.8));
 	}
+	// бочки с горючим: от пули или взрыва рвутся (game/main.js); ставим на просторе, чтобы не перегородить проход
+	const barrels = [];
+	const fuelMat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.55, metalness: 0.35 });
+	const barrelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.88, 14);
+	for (let i = 0, tries = 0; i < (spec.barrels ?? 5) && tries < 200; tries++) {
+		const x = R(-42, 42), z = R(-42, 42);
+		if (!free(x, z, 1.3)) continue;
+		const mesh = new THREE.Mesh(barrelGeo, fuelMat);
+		mesh.position.set(x, 0.44, z);
+		mesh.rotation.y = R(0, Math.PI * 2);
+		mesh.castShadow = true;
+		root.add(mesh);
+		barrels.push({ pos: new THREE.Vector3(x, 0, z), mesh, collider: collide(x, z, 0.62, 0.62) });
+		i++;
+	}
 	return {
 		fires,
+		barrels,
 		update(dt, t) { for (const f of fires) f.update(dt, t); },
 	};
 }

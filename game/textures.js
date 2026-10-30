@@ -417,6 +417,27 @@ export function splatterTexture(seed = 0) {
 	});
 }
 
+/** След пули на стене: чёрная дыра, вокруг — отбитая светлая штукатурка рваным кольцом и трещинки. */
+export function bulletHoleTexture() {
+	return memo('bullethole', () => {
+		const c = canvas(64), ctx = c.getContext('2d');
+		ctx.translate(32, 32);
+		// отбитая штукатурка: светлое рваное кольцо
+		ctx.fillStyle = 'rgba(205,198,184,0.55)';
+		ctx.beginPath();
+		for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI * 2, r = 12 + Math.random() * 9; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+		ctx.fill();
+		ctx.strokeStyle = 'rgba(40,36,32,0.55)'; ctx.lineWidth = 1;
+		for (let i = 0; i < 5; i++) { const a = Math.random() * Math.PI * 2, r = 10 + Math.random() * 18; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a + 0.2) * r, Math.sin(a + 0.2) * r); ctx.stroke(); }
+		const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 9);
+		g.addColorStop(0, 'rgba(8,8,8,1)'); g.addColorStop(0.55, 'rgba(20,18,16,0.95)'); g.addColorStop(1, 'rgba(60,54,48,0)');
+		ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+		const t = toTexture(c);
+		t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+		return t;
+	});
+}
+
 /** Мягкая круглая текстура (тени-пятна, туман, свечение). */
 export function softDotTexture(color = '255,255,255') {
 	return memo(`dot${color}`, () => {

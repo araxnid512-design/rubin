@@ -401,6 +401,39 @@ try {
 	check(boom.dead >= 2 && boom.left === 2, `граната Ф-1: взрывом убито ${boom.dead} из 3, гранат осталось ${boom.left}`);
 	check(boom.moved > 0.8, `тела отбросило взрывом (до ${boom.moved.toFixed(1)} м)`);
 
+	// бочка с горючим: толпа рядом — прицел бьёт по бочке; рванула — заражённые вокруг гибнут, соседняя бочка — следом
+	const fuel = await G(page, () => {
+		const g = window.__game, p = g.player, b = g.barrels[0];
+		if (!b) return { none: true };
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		window.__fuel = [0, 1, 2].map((i) => g.spawnEnemy('runner', b.pos.clone().add({ x: Math.cos(i * 2.1) * 1.5, y: 0, z: Math.sin(i * 2.1) * 1.5 })));
+		window.__fuel.forEach((e) => { e.stagger = 6; });
+		const away = [8, -8].map((dx) => ({ x: b.pos.x + dx, z: b.pos.z })).find((q) => !g.level.nav.blockedAt(q.x, q.z, 0.4)) ?? { x: b.pos.x + 8, z: b.pos.z };
+		p.pos.set(away.x, 0, away.z);
+		const aimed = g.barrelTarget(p.pos, 26) === b;
+		b.damage(100, p.pos);
+		return { aimed, n: g.barrels.length };
+	});
+	await page.waitForFunction(() => window.__fuel?.filter((e) => !e.alive).length >= 3, null, { timeout: 20000 }).catch(() => {});
+	const fuelRes = await G(page, () => ({ dead: window.__fuel?.filter((e) => !e.alive).length ?? 0, blown: window.__game.barrels[0] && !window.__game.barrels[0].alive }));
+	check(!fuel.none && fuel.n >= 3 && fuel.aimed && fuelRes.blown && fuelRes.dead === 3, `бочка с горючим: бочек ${fuel.n}, прицел выбрал бочку у толпы, взрыв убил ${fuelRes.dead} из 3`);
+	// след пули на стене дома: на грани стены, лицом к стрелку
+	const holes = await G(page, () => {
+		const g = window.__game, lv = g.level, before = (g.holes ?? []).length;
+		for (const w of lv.colliders.filter((c) => c.wall && c.hx > 1.5)) {
+			for (const sgn of [1, -1]) {
+				const nx = w.s * sgn, nz = w.c * sgn, sx = w.x + nx * 1.6, sz = w.z + nz * 1.6;
+				if (lv.nav.blockedAt(sx, sz, 0.2)) continue;
+				const from = { x: sx, y: 1.3, z: sz }, hit = g.bulletEnd(from, -nx, -nz, 10);
+				g.hitObstacle(hit, 30, from);
+				const fresh = (g.holes ?? []).slice(before);
+				if (fresh.length) { const m = fresh[0].mesh; m.updateMatrixWorld(); const e = m.matrixWorld.elements; return { n: fresh.length, facing: e[8] * (sx - m.position.x) + e[10] * (sz - m.position.z) > 0 }; }
+			}
+		}
+		return { n: 0 };
+	});
+	check(holes.n > 0 && holes.facing, `след пули на стене дома (${holes.n}), лицом к стрелку`);
+
 	// обрез: картечь задевает нескольких
 	const shot = await G(page, () => {
 		const g = window.__game, p = g.player;
