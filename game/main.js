@@ -135,12 +135,16 @@ async function boot() {
 	window.__game = game;
 }
 
+/** Открытая ссылка на скачиваемую версию (релиз «game» на GitHub, обновляется сам — .github/workflows/offline-release.yml). */
+const PUBLIC_DOWNLOAD = 'https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html';
+const publicLink = (text) => `<a href="${PUBLIC_DOWNLOAD}" target="_blank" rel="noopener">${text}</a>`;
+
 function showMenu() {
 	const saved = loadGame();
 	// скачать одним файлом — на опубликованной странице (https; файл download/ulei-cluster17.html публикуется рядом,
 	// собирает его scripts/build-offline.mjs); в скачанной версии — дата сборки
 	if (OFFLINE) {
-		$('offline-note').textContent = `Скачанная версия, сборка от ${window.__BUILD?.date ?? '—'} Новую — скачай со страницы игры и замени этот файл: сохранение останется.`;
+		$('offline-note').innerHTML = `Скачанная версия, сборка от ${window.__BUILD?.date ?? '—'} Новую — ${publicLink('скачай по открытой ссылке')} и замени этот файл: сохранение останется.`;
 		$('offline-note').classList.remove('hidden');
 	} else $('download').classList.toggle('hidden', location.protocol !== 'https:');
 	$('btn-continue').classList.toggle('hidden', !saved);
@@ -157,7 +161,7 @@ $('download-link').addEventListener('click', async (e) => {
 	e.preventDefault();
 	const link = $('download-link'), label = link.querySelector('b'), note = $('download-note'), text = label.textContent;
 	const url = new URL(link.getAttribute('href'), location.href).href;
-	const direct = (why) => { note.innerHTML = `${why} <a href="${url}" target="_blank" rel="noopener" download="ulei-cluster17.html">Открыть файл отдельно</a> — браузер скачает его сам.`; };
+	const direct = (why) => { note.innerHTML = `${why} ${publicLink('Скачать по открытой ссылке')} — браузер скачает файл сам.`; };
 	label.textContent = '⏳ Готовим файл…';
 	try {
 		const downloads = await downloadsReady;
