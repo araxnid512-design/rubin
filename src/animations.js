@@ -251,12 +251,14 @@ export function gaitFoot(phase, { stride, stance, lift, x, y0, z0 = 0, heel = 12
 const WALK = { d: 2.0, L: { stride: 0.46, stance: 0.62 }, R: { stride: 0.4, stance: 0.66 } };
 const RUN = { d: 0.72, stride: 0.95, stance: 0.36 };
 const STOMP = { d: 1.05, stride: 0.9, stance: 0.6 };
+const CHARGE = { d: 0.66, stride: 1.25, stance: 0.34 };
 const speedOf = ({ stride, stance }, d) => stride / (stance * d);
 /** Скорость клипа (м/с) при timeScale 1 — игра подгоняет timeScale под настоящую скорость. */
 export const ZOMBIE_GAIT = {
 	Walk: (speedOf(WALK.L, WALK.d) + speedOf(WALK.R, WALK.d)) / 2,
 	Run: speedOf(RUN, RUN.d),
 	Stomp: speedOf(STOMP, STOMP.d),
+	Charge: speedOf(CHARGE, CHARGE.d),
 };
 
 function idlePose(rig, t) {
@@ -457,6 +459,110 @@ function stompPose(rig, t) {
 		},
 		feet: { L: left, R: right },
 	};
+}
+
+// ---------- Рубер ----------
+
+// Рывок: низко, корпус почти лёг вперёд, голова задрана на добычу, длинные прыжковые шаги,
+// руки загребают против ног, как у гориллы; всё тело ходит волной.
+function chargePose(rig, t) {
+	const H = rig.hipsY, a = rig.ankle;
+	const d = CHARGE.d, ph = t / d;
+	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
+	const s = (f, o = 0) => Math.sin(Math.PI * 2 * (ph * f - o));
+	const opts = { stride: CHARGE.stride, stance: CHARGE.stance, lift: 0.17, heel: 6, toeOff: 50, kick: 0.25 };
+	const left = gaitFoot(ph, { ...opts, x: a.L.x + 0.03, y0: a.L.y, z0: 0.1, yaw: 6 });
+	const right = gaitFoot(ph - 0.5, { ...opts, x: a.R.x - 0.03, y0: a.R.y, z0: 0.1, yaw: -6 });
+	const yaw = -12 * c(1, 0.75);
+	const arm = 55 * s(1, 0.1);
+	return {
+		hips: [0.03 * c(1, 0.2), H - 0.14 - 0.05 * c(2, 0.18), 0.05],
+		rot: {
+			Hips: [26, yaw, 5 * c(1, 0.2)],
+			Spine: [24 + 4 * c(2, 0.25), -0.7 * yaw, 0],
+			Chest: [14 + 3 * c(2, 0.3), -0.6 * yaw, 0],
+			Neck: [-22, 0.3 * yaw, 0],
+			Head: [-26 + 6 * c(2, 0.4), 0, -4 * c(1, 0.3)],
+			Jaw: [28 + 12 * s(2, 0.1)],
+			'UpperArm.L': [-45 + arm, 0, 24],
+			'Forearm.L': [-40 + 0.4 * arm, 0, 0],
+			'Hand.L': [30, 0, 10],
+			'UpperArm.R': [-45 - arm, 0, -24],
+			'Forearm.R': [-40 - 0.4 * arm, 0, 0],
+			'Hand.R': [30, 0, -10],
+		},
+		feet: { L: left, R: right },
+	};
+}
+
+// Рёв: замечает добычу — приседает, выпрямляется во весь рост, грудь вперёд, руки разведены, голова
+// запрокинута, пасть настежь; потом подаётся вперёд в стойку.
+function roarPose(rig) {
+	const H = rig.hipsY, a = rig.ankle;
+	const k = at([0, 0.25, 0.55, 1.1, 1.4, 1.7]);
+	const arm = (sx) => k([-18, 0, 14 * sx], [-30, 0, 20 * sx], [-20, 0, 78 * sx], [-26, 0, 84 * sx], [-30, 0, 18 * sx], [-18, 0, 14 * sx]);
+	const P = curves({
+		hips: k([0, H - 0.06, 0], [0, H - 0.11, 0.03], [0, H - 0.02, -0.04], [0, H - 0.02, -0.05], [0, H - 0.08, 0.04], [0, H - 0.06, 0]),
+		Hips: k([10, 0, 0], [20, 0, 0], [-6, 0, 0], [-8, 0, 0], [16, 0, 0], [10, 0, 0]),
+		Spine: k([12, 0, 0], [22, 0, 0], [-14, 0, 0], [-16, 0, 0], [18, 0, 0], [12, 0, 0]),
+		Chest: k([8, 0, 0], [14, 0, 0], [-12, 0, 0], [-14, 0, 0], [10, 0, 0], [8, 0, 0]),
+		Neck: k([6, 0, 0], [12, 0, 0], [-16, 0, 0], [-18, 0, 0], [4, 0, 0], [6, 0, 0]),
+		Head: k([14, 0, 0], [24, 0, 0], [-34, 0, 0], [-38, 6, 0], [10, 0, 0], [14, 0, 0]),
+		Jaw: k([8], [14], [52], [56], [16], [8]),
+		'UpperArm.L': arm(1), 'UpperArm.R': arm(-1),
+		'Forearm.L': k([-30, 0, 0], [-40, 0, 0], [-50, 0, 0], [-56, 0, 0], [-34, 0, 0], [-30, 0, 0]),
+		'Forearm.R': k([-30, 0, 0], [-40, 0, 0], [-50, 0, 0], [-56, 0, 0], [-34, 0, 0], [-30, 0, 0]),
+		'Hand.L': k([10, 0, 0], [16, 0, 0], [-20, 0, 0], [-24, 0, 0], [10, 0, 0], [10, 0, 0]),
+		'Hand.R': k([10, 0, 0], [16, 0, 0], [-20, 0, 0], [-24, 0, 0], [10, 0, 0], [10, 0, 0]),
+	});
+	return (t) => {
+		const p = P(t);
+		return { hips: p.hips, rot: p, feet: {
+			L: { pos: [a.L.x + 0.06, a.L.y, a.L.z + 0.05], rot: [0, 10, 0] },
+			R: { pos: [a.R.x - 0.06, a.R.y, a.R.z - 0.05], rot: [0, -10, 0] },
+		} };
+	};
+}
+
+// Удар: обе лапы вскидывает над головой, отклоняясь назад, → шаг левой и обрушивает их вниз всем
+// корпусом (удар на 0.72 с) → выпрямляется.
+function smashPose(rig) {
+	const H = rig.hipsY, a = rig.ankle;
+	const k = at([0, 0.35, 0.6, 0.72, 0.82, 1.05, 1.5]);
+	const arm = (sx) => k([-30, 0, 16 * sx], [-160, 0, 18 * sx], [-150, 0, 12 * sx], [-62, 0, 8 * sx], [-50, 0, 10 * sx], [-56, 0, 12 * sx], [-30, 0, 16 * sx]);
+	const fore = k([-30, 0, 0], [-40, 0, 0], [-30, 0, 0], [-8, 0, 0], [-6, 0, 0], [-16, 0, 0], [-30, 0, 0]);
+	const B = curves({
+		hips: k([0, H - 0.07, 0], [0, H - 0.03, -0.08], [0, H - 0.05, 0.05], [0, H - 0.2, 0.24], [0, H - 0.21, 0.26], [0, H - 0.16, 0.18], [0, H - 0.07, 0]),
+		Hips: k([12, 0, 0], [-8, 0, 0], [0, 0, 0], [26, 0, 0], [28, 0, 0], [22, 0, 0], [12, 0, 0]),
+		Spine: k([14, 0, 0], [-14, 0, 0], [-6, 0, 0], [36, 0, 0], [38, 0, 0], [26, 0, 0], [14, 0, 0]),
+		Chest: k([8, 0, 0], [-10, 0, 0], [-4, 0, 0], [18, 0, 0], [20, 0, 0], [14, 0, 0], [8, 0, 0]),
+		Neck: k([6, 0, 0], [-8, 0, 0], [-4, 0, 0], [-10, 0, 0], [-10, 0, 0], [0, 0, 0], [6, 0, 0]),
+		Head: k([14, 0, 0], [-16, 0, 0], [-10, 0, 0], [-20, 0, 0], [-18, 0, 0], [0, 0, 0], [14, 0, 0]),
+		Jaw: k([10], [40], [44], [20], [24], [16], [10]),
+		'UpperArm.L': arm(1), 'UpperArm.R': arm(-1), 'Forearm.L': fore, 'Forearm.R': fore,
+		'Hand.L': k([10, 0, 0], [0, 0, 0], [-10, 0, 0], [30, 0, 0], [34, 0, 0], [20, 0, 0], [10, 0, 0]),
+		'Hand.R': k([10, 0, 0], [0, 0, 0], [-10, 0, 0], [30, 0, 0], [34, 0, 0], [20, 0, 0], [10, 0, 0]),
+		footL: k([a.L.x + 0.06, a.L.y, a.L.z + 0.05], [a.L.x + 0.06, a.L.y + 0.04, a.L.z + 0.02], [a.L.x + 0.07, a.L.y + 0.06, a.L.z + 0.3], [a.L.x + 0.07, a.L.y, a.L.z + 0.5], [a.L.x + 0.07, a.L.y, a.L.z + 0.5], [a.L.x + 0.07, a.L.y, a.L.z + 0.45], [a.L.x + 0.06, a.L.y, a.L.z + 0.05]),
+		footRrot: k([0, -10, 0], [0, -10, 0], [10, -10, 0], [28, -10, 0], [30, -10, 0], [18, -10, 0], [0, -10, 0]),
+	});
+	return (t) => {
+		const b = B(t);
+		const rise = Math.max(0, b.footRrot[0]) / 30 * 0.04;
+		return { hips: b.hips, rot: b, feet: {
+			L: { pos: b.footL, rot: [0, 10, 0] },
+			R: { pos: [a.R.x - 0.06, a.R.y + rise, a.R.z - 0.05], rot: b.footRrot },
+		} };
+	};
+}
+
+/** Клипы рубера поверх обычных: рывок (Charge), рёв (Roar), удар двумя лапами (Smash). */
+export function createRuberAnimations(root) {
+	const rig = new Rig(root);
+	return [
+		bake(rig, 'Charge', CHARGE.d, (t) => chargePose(rig, t), { loop: true }),
+		bake(rig, 'Roar', 1.7, roarPose(rig)),
+		bake(rig, 'Smash', 1.5, smashPose(rig)),
+	];
 }
 
 /** Тяжёлая походка топтуна (только для его модели в игре; у просмотрщика зомби — 5 клипов). */

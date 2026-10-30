@@ -8,6 +8,9 @@ export const NODES = {
 	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 74], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
 	zarechny: { name: 'Кластер «Заречный»', short: 'Заречный', kind: 'cluster', at: [76, 32], preview: 'assets/previews/zarechny.jpg', desc: 'Посёлок у трассы: хрущёвка, гаражи, частные дома, магазин. Патроны 9×18 в домах.' },
 	dachi: { name: 'Кластер «Дачи»', short: 'Дачи', kind: 'cluster', at: [24, 30], preview: 'assets/previews/dachi.jpg', desc: 'Садовое товарищество: домики, теплицы, сторожка. Охотничьи патроны 12 калибра, обрезы.' },
+	// глубже в Улье: развитые заражённые — топтуны и руберы, у руберов бывает чёрный жемчуг
+	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [84, 10], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
+	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [50, 13], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
 };
 
 /** Дороги: [откуда, куда, время в пути, с]. */
@@ -15,6 +18,9 @@ export const ROUTES = [
 	['stab', 'zarechny', 75],
 	['stab', 'dachi', 95],
 	['zarechny', 'dachi', 60],
+	['dachi', 'himmash', 85],
+	['zarechny', 'himmash', 80],
+	['himmash', 'voench', 90],
 ];
 
 /** Сколько живёт кластер между перезагрузками, с. */
@@ -40,8 +46,18 @@ export function newWorld() {
 		clusters: {
 			zarechny: { next: 360, saved: null, reloads: 0 },
 			dachi: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			himmash: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			voench: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 		},
 	};
+}
+
+/** Сохранение из старой версии: кластеры, которых тогда не было, — в случайной фазе. */
+export function normalizeWorld(world) {
+	for (const [id, n] of Object.entries(NODES)) {
+		if (n.kind === 'cluster' && !world.clusters[id]) world.clusters[id] = { next: world.time + rand(90, CYCLE[1]), saved: null, reloads: 0 };
+	}
+	return world;
 }
 
 /**

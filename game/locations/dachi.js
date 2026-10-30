@@ -94,6 +94,7 @@ export default {
 			exits: [
 				{ to: 'zarechny', x0: 45.2, x1: 50, z0: 1, z1: 7, spawn: [42.5, 4, -Math.PI / 2], sign: [43.6, 7.6, 'Заречный →'] },
 				{ to: 'stab', x0: -2.5, x1: 2.5, z0: 45.2, z1: 50, spawn: [0, 42.5, Math.PI], sign: [4, 44.2, '↓ Стаб «Полис»'] },
+				{ to: 'himmash', x0: -2.5, x1: 2.5, z0: -50, z1: -45.2, spawn: [0, -42.5, 0], sign: [4, -44.2, '↑ Химмаш'] },
 			],
 			groups: [
 				{ at: [-9, -12], r: 5, runners: 2 },

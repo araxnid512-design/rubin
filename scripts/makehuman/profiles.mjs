@@ -1,10 +1,10 @@
-// Профили персонажей для игры: герой (игрок) и топтун.
+// Профили персонажей для игры: герой (игрок), топтун и рубер.
 // Бегун — исходный зомби (RUNNER_PROFILE в build-zombie.mjs).
 
 import { fbm3, noise3, smoothstep } from '../../src/noise.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createZombieAnimations, createStompAnimation } from '../../src/animations.js';
+import { createZombieAnimations, createStompAnimation, createRuberAnimations } from '../../src/animations.js';
 import { createHeroAnimations } from '../../src/hero-animations.js';
 import { AXE_GRIP_TILT } from '../../game/weapons.js';
 import { RUNNER_PROFILE, bloodAmount, BLOOD, DRIED, skinShade } from './build-zombie.mjs';
@@ -141,6 +141,137 @@ export const STOMPER_PROFILE = {
 	eye: 'assets/zombie_eye.png',
 	// топтун тяжёлый: в погоне идёт своим тяжёлым шагом, а не шаркает
 	animations: (root, o) => [...createZombieAnimations(root, o), createStompAnimation(root)],
+};
+
+// ---------- Рубер: следующая за топтуном стадия — исполин в костяной броне ----------
+
+const RUBER_TARGETS = [
+	['macrodetails/universal-male-young-maxmuscle-maxweight', 0.75],
+	['macrodetails/universal-male-young-maxmuscle-averageweight', 0.25],
+	['macrodetails/caucasian-male-young', 1],
+	['macrodetails/height/male-young-maxmuscle-maxweight-maxheight', 1],
+	['torso/torso-vshape-incr', 1], ['torso/torso-muscle-dorsi-incr', 1],
+	['torso/torso-scale-horiz-incr', 0.5], ['torso/torso-muscle-pectoral-incr', 0.8],
+	...['l', 'r'].flatMap((s) => [
+		[`armslegs/${s}-upperarm-shoulder-muscle-incr`, 1], [`armslegs/${s}-upperarm-muscle-incr`, 1],
+		[`armslegs/${s}-lowerarm-muscle-incr`, 1], [`armslegs/${s}-upperarm-scale-vert-incr`, 0.6],
+		[`armslegs/${s}-lowerarm-scale-vert-incr`, 1], // руки длиннее — почти до колен
+		[`armslegs/${s}-hand-scale-incr`, 1], [`armslegs/${s}-hand-fingers-length-incr`, 1],
+		[`armslegs/${s}-hand-fingers-diameter-incr`, 0.7], // толстые пальцы-когти
+		[`armslegs/${s}-lowerleg-muscle-incr`, 1], [`armslegs/${s}-foot-scale-incr`, 0.6],
+		[`cheek/${s}-cheek-volume-decr`, 1], [`eyes/${s}-eye-push1-in`, 1],
+	]),
+];
+
+// Костяная броня: крупные сросшиеся пластины на спине, плечах, руках, черепе и голенях
+function ruberPlates(p, n, arm, head) {
+	const back = smoothstep(0.25, -0.35, n.z) * smoothstep(0.75, 1.05, p.y);
+	const shins = smoothstep(0.15, 0.5, n.z) * smoothstep(0.12, 0.2, p.y) * smoothstep(0.55, 0.45, p.y);
+	const region = Math.max(back, arm, head * smoothstep(0.4, -0.2, n.z), shins * 0.9);
+	return smoothstep(0.4, 0.47, f3(p, 7, 3, 311)) * region;
+}
+
+function ruberGrowths(p, n, arm, head) {
+	const plates = ruberPlates(p, n, arm, head);
+	// гребень по хребту и вздутые бугры на загривке
+	const ridge = (1 - smoothstep(0, 0.035, Math.abs(p.x))) * smoothstep(0.1, -0.5, n.z) * smoothstep(0.85, 1.1, p.y) * smoothstep(1.7, 1.5, p.y);
+	const lump = smoothstep(0.6, 0.75, f3(p, 4, 3, 317)) * smoothstep(0.1, -0.4, n.z) * smoothstep(1.1, 1.5, p.y);
+	return plates * 0.018 + ridge * 0.03 + lump * 0.035;
+}
+
+function ruberSkin(p, n, a, L) {
+	const r = skinShade(p, n, a, L);
+	// толстая серо-бурая шкура; местами слезла — там тёмно-багровое мясо с волокнами
+	let c = mix(r.color.map((v, i) => v * [0.42, 0.38, 0.36][i]), [0.2, 0.15, 0.13], 0.55);
+	const plates = ruberPlates(p, n, a[2], a[3]);
+	const fib = smoothstep(0.3, 0.7, noise3(p.x * 70, p.y * 520, p.z * 70, 331));
+	const raw = smoothstep(0.64, 0.76, f3(p, 5, 3, 337)) * (1 - plates);
+	c = mix(c, mix([0.42, 0.1, 0.08], [0.25, 0.04, 0.04], fib), raw * 0.7);
+	// броня — старая кость: светлая, к краям темнее, со сколами и швами между пластинами
+	const crack = smoothstep(0.93, 0.99, 1 - Math.abs(f3(p, 20, 3, 341) * 2 - 1));
+	const chip = smoothstep(0.62, 0.7, f3(p, 30, 2, 347));
+	const edge = smoothstep(0.4, 0.5, f3(p, 7, 3, 311)); // середина пластины светлее края
+	c = mix(c, mix(mix([0.3, 0.26, 0.2], [0.58, 0.52, 0.41], edge), [0.36, 0.31, 0.24], chip), plates * 0.96);
+	c = mix(c, [0.05, 0.04, 0.03], plates * crack);
+	const vr = 1 - Math.abs(f3(p, 10, 4, 353) * 2 - 1);
+	const vein = smoothstep(0.975, 0.993, vr) * (1 - plates);
+	c = mix(c, [0.18, 0.06, 0.1], vein * 0.7);
+	const bl = Math.min(1, bloodAmount(p, n, [a[0], a[1], Math.min(1, a[2] * 1.8), a[3]], L) * 1.5);
+	c = mix(c, mix(BLOOD, DRIED, 0.4), bl * 0.65);
+	return { color: c, height: r.height + plates * 1.9 - plates * crack * 2.2 + raw * fib * 0.9 + vein * 0.6 };
+}
+
+function ruberGarments({ P, dominant, L, ragged, V }) {
+	const waist = L.hipsY + 0.02;
+	return [{
+		// клочья штанов на бёдрах
+		test: (v) => {
+			const p = P(v), b = dominant[v];
+			if (b === 'Hips' || b === 'Spine') return p.y < waist - ragged(p, 0.05, 41);
+			if (b.startsWith('UpperLeg')) return p.y > L.kneeL.y + 0.22 + ragged(p, 0.18, 43);
+			return false;
+		},
+		holes: [
+			{ c: V([0.13, L.hipsY - 0.15, 0.1]), r: 0.07 },
+			{ c: V([-0.12, L.hipsY - 0.08, -0.13]), r: 0.08 },
+			{ c: V([-0.17, L.hipsY - 0.22, 0.02]), r: 0.05 },
+			{ c: V([0.02, L.hipsY - 0.02, 0.14]), r: 0.05 },
+		],
+		inflate: () => 0.012,
+		tint: () => [0.2, 0.18, 0.17],
+	}];
+}
+
+/** Костяные шипы: гребень по хребту, рога на плечах, шпоры на локтях (жёсткие детали на костях). */
+function ruberSpikes({ L, backMost, bindWorld, V }) {
+	const parts = [];
+	const spike = (len, r, at, dir, bone, color) => {
+		const g = new THREE.ConeGeometry(r, len, 7);
+		g.translate(0, len / 2, 0);
+		g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()));
+		g.translate(at.x, at.y, at.z);
+		parts.push({ geo: g, bone, color });
+	};
+	const boneCol = [0.55, 0.49, 0.38], tipCol = [0.36, 0.31, 0.24];
+	// гребень по хребту: от поясницы до загривка, самые длинные — между лопатками
+	for (let i = 0; i < 8; i++) {
+		const y = L.hipsY + 0.08 + i * 0.066;
+		const b = backMost(0, y, 0.02);
+		// основание — над наростами спины (гребень и пластины выпирают на 4–6 см)
+		if (b) spike(0.12 + 0.12 * Math.sin((i / 7) * Math.PI), 0.032, b.clone().add(V([0, 0, -0.04])), V([0, 0.55, -1]), y < L.chest.y - 0.05 ? 'Spine' : 'Chest', i % 2 ? boneCol : tipCol);
+	}
+	// второй ряд — по бокам хребта, короче
+	for (const sx of [1, -1]) for (let i = 0; i < 4; i++) {
+		const y = L.hipsY + 0.2 + i * 0.09;
+		const b = backMost(sx * 0.07, y, 0.02);
+		if (b) spike(0.08 + 0.04 * Math.sin((i / 3) * Math.PI), 0.024, b.clone().add(V([0, 0, -0.025])), V([sx * 0.4, 0.4, -1]), y < L.chest.y - 0.05 ? 'Spine' : 'Chest', tipCol);
+	}
+	// рога на плечах
+	for (const [sx, bone] of [[1, 'UpperArm.L'], [-1, 'UpperArm.R']]) {
+		const s = bindWorld[bone];
+		for (let i = 0; i < 3; i++) spike(0.1 + i * 0.03, 0.026, s.clone().add(V([sx * (0.02 + i * 0.035), 0.05 - i * 0.012, -0.03 - i * 0.02])), V([sx * 0.6, 1, -0.5]), bone, boneCol);
+	}
+	// шпоры на локтях и костяные гребни на предплечьях
+	for (const [sx, bone] of [[1, 'Forearm.L'], [-1, 'Forearm.R']]) {
+		const e = bindWorld[bone];
+		spike(0.13, 0.028, e.clone().add(V([0, 0.01, -0.045])), V([sx * 0.2, -0.2, -1]), bone, tipCol);
+		for (let i = 1; i <= 2; i++) spike(0.06, 0.018, e.clone().add(V([sx * 0.01, -0.08 * i, -0.04])), V([sx * 0.5, -0.1, -1]), bone, boneCol);
+	}
+	return parts;
+}
+
+export const RUBER_PROFILE = {
+	name: 'Ruber',
+	targets: RUBER_TARGETS,
+	wounds: false,
+	growths: ruberGrowths,
+	garments: ruberGarments,
+	gear: ruberSpikes,
+	skin: ruberSkin,
+	cloth: RUNNER_PROFILE.cloth,
+	eye: 'assets/zombie_eye.png',
+	// тяжёлый шаг, как у топтуна, плюс рывок, рёв и удар двумя лапами
+	animations: (root, o) => [...createZombieAnimations(root, o), createStompAnimation(root), ...createRuberAnimations(root)],
 };
 
 // ---------- Герой (новый игрок): полный скелет 56 костей, снаряжение, крепления оружия ----------

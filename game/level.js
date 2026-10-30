@@ -11,10 +11,12 @@ import { HALF, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './p
 import zarechny from './locations/zarechny.js';
 import dachi from './locations/dachi.js';
 import stab from './locations/stab.js';
+import himmash from './locations/himmash.js';
+import voench from './locations/voench.js';
 
 export { HALF };
 export const PLAY = 46.5; // граница, за которую нельзя зайти (дальше муть)
-export const LOCATIONS = { zarechny, dachi, stab };
+export const LOCATIONS = { zarechny, dachi, stab, himmash, voench };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
 function materials() {
@@ -56,6 +58,16 @@ function materials() {
 		canvas: T.fabricMaterial([92, 98, 70]),
 		sandbag: new THREE.MeshStandardMaterial({ color: 0x8a7e5c, roughness: 1 }),
 		water: T.waterMaterial(),
+		// промзона и военная часть
+		ballast: T.concreteMaterial([1, 1], [92, 86, 78]),
+		sleeper: T.woodMaterial([1, 1], [70, 58, 46]),
+		rail: new THREE.MeshStandardMaterial({ color: 0x5a5450, roughness: 0.4, metalness: 0.8 }),
+		silver: new THREE.MeshStandardMaterial({ color: 0xb8bcc0, roughness: 0.35, metalness: 0.7 }),
+		hazard: new THREE.MeshStandardMaterial({ color: 0xc8a020, roughness: 0.6, metalness: 0.2 }),
+		khaki: new THREE.MeshStandardMaterial({ color: 0x4f5a36, roughness: 0.7, metalness: 0.3 }),
+		white: new THREE.MeshStandardMaterial({ color: 0xe0e0d8, roughness: 0.6 }),
+		tankBlack: new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.5, metalness: 0.4 }),
+		tankWhite: T.metalRoofMaterial([1, 1], [196, 196, 186]),
 		sand: T.dirtMaterial([1, 1]),
 	};
 }

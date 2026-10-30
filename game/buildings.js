@@ -87,6 +87,15 @@ function interior() {
 		cans: new THREE.MeshStandardMaterial({ color: 0xa88c4a, roughness: 0.35, metalness: 0.6 }),
 		jars: new THREE.MeshStandardMaterial({ color: 0x7a8a5a, roughness: 0.1, transparent: true, opacity: 0.85 }),
 		crate: T.woodMaterial([1, 1], [140, 112, 70]),
+		// промзона и военная часть
+		crateGreen: T.woodMaterial([1, 1], [76, 88, 56]),
+		machine: new THREE.MeshStandardMaterial({ color: 0x4a5a4a, roughness: 0.55, metalness: 0.4 }),
+		locker: new THREE.MeshStandardMaterial({ color: 0x6a7a86, roughness: 0.5, metalness: 0.5 }),
+		rack: new THREE.MeshStandardMaterial({ color: 0x2e4a7a, roughness: 0.5, metalness: 0.5 }),
+		redBoard: new THREE.MeshStandardMaterial({ color: 0x9a2a20, roughness: 0.6 }),
+		factoryWall: T.whitewashMaterial([1, 1], [120, 140, 120]),
+		armyWall: T.whitewashMaterial([1, 1], [150, 170, 140]),
+		blanketArmy: T.fabricMaterial([90, 92, 86]),
 	};
 	return IM;
 }
@@ -584,5 +593,238 @@ export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
 	const [tx, tz] = b.world(2.75, 0.75);
 	b.spots = spots;
 	b.table = { x: tx, z: tz };
+	return b.finish();
+}
+
+// ---------- Промзона: цех и склад ----------
+
+/** Станок: станина, шпиндельная бабка, патрон (декор с коллайдером). */
+function lathe(b, x, z, rot) {
+	const paint = b.IM.machine, { metal, black } = b.IM;
+	b.furniture(x, z, rot, [
+		[1.9, 0.8, 0.7, 0, 0.4, 0, paint],
+		[0.5, 0.5, 0.6, -0.65, 1.05, 0, paint],
+		[1.3, 0.12, 0.2, 0.25, 0.92, 0.12, metal],
+		[0.3, 0.22, 0.3, 0.55, 0.95, 0, black],
+		[0.12, 0.12, 0.25, -0.35, 1.05, 0, metal],
+	], { solid: [1.9, 0.75] });
+}
+
+/**
+ * Цех №3 завода «Химмаш» 24×14 м: станки в два ряда, кран-балка, верстаки; в углах — раздевалка
+ * со шкафчиками и конторка мастера с сейфом. Ворота — в передней стене (−Z локально), дверь сбоку.
+ */
+export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
+	const W = 24, D = 14, H = 5.6;
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.4 });
+	const { M } = ctx;
+	const IM = b.IM;
+	const t = 0.3, hx = W / 2, hz = D / 2;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), M.concrete, { cast: false });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, doors: [-3], w: 3.6, lining: IM.factoryWall, side: 1 });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, lining: IM.factoryWall, side: -1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.factoryWall, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, doors: [-3.5], lining: IM.factoryWall, side: -1 });
+	// раздевалка (левый задний угол) и конторка мастера (правый задний угол)
+	b.wall('z', -6.5, 1.5, hz - t / 2, { mat: IM.factoryWall, t: 0.15, doors: [3.0] });
+	b.wall('x', 1.5, -hx + t / 2, -6.5, { mat: IM.factoryWall, t: 0.15 });
+	b.wall('z', 6.5, 1.5, hz - t / 2, { mat: IM.factoryWall, t: 0.15, doors: [3.0] });
+	b.wall('x', 1.5, 6.5, hx - t / 2, { mat: IM.factoryWall, t: 0.15 });
+	// высокие окна по фасаду и сзади
+	for (const x of [-9, 3, 9]) b.window('front', x, { y: 3.4, t });
+	for (const x of [-2, 2]) b.window('back', x, { y: 3.4, t });
+	b.window('left', -3, { y: 3.4, t });
+	// плоская кровля со световым фонарём и кран-балка на рельсах
+	b.top_(place(box(W + 0.6, 0.3, D + 0.6, 3), 0, H + 0.15, 0), M.roofTar);
+	b.top_(place(box(W - 4, 0.5, 2.2, 2), 0, H + 0.55, 0), M.glass);
+	for (const z of [-hz + 0.6, hz - 0.6]) b.top_(place(box(W - 0.8, 0.25, 0.25), 0, H - 0.6, z), M.metalDark);
+	b.top_(place(box(0.5, 0.45, D - 1.2), 2, H - 0.85, 0), M.yellow);
+	b.top_(place(box(0.6, 0.5, 0.6), 2, H - 1.3, -1), M.metalDark);
+	// станки двумя рядами, между ними проход
+	for (const x of [-4.5, -1, 2.5]) { lathe(b, x, -3.2, 0); lathe(b, x, -0.4, Math.PI); }
+	// верстаки у правой стены и тайники
+	b.container('Верстак', 10.9, -5.6, -Math.PI / 2, [
+		[2.0, 0.85, 0.8, 0, 0.42, 0, IM.furniture],
+		[2.1, 0.06, 0.85, 0, 0.88, 0, IM.metal],
+		[0.4, 0.3, 0.25, 0.5, 1.06, -0.15, IM.machine],
+	], [2.0, 0.8], { ammo12: [3, 6, 0.4], grenade: 0.12, fireaxe: 0.06, ammo9: [4, 8, 0.3] }, 1.0);
+	b.container('Инструментальный ящик', -10.9, -4.5, Math.PI / 2, [[1.2, 1.1, 0.6, 0, 0.55, 0, IM.machine], [1.1, 0.02, 0.02, 0, 0.8, 0.31, IM.black]], [1.2, 0.6], { ammo545: [6, 12, 0.35], spore: 0.2 }, 1.1);
+	b.furniture(-9, -6.2, 0, [[0.9, 1.6, 0.06, 0, 1.4, 0, IM.redBoard], [0.3, 0.4, 0.3, 0, 0.2, 0.1, IM.redBoard]], { solid: [0.9, 0.3] }); // пожарный щит
+	// раздевалка: ряд шкафчиков
+	for (const [i, x] of [-11.3, -10.3, -9.3, -8.3].entries()) {
+		b.container('Шкафчик', x, hz - 0.5, Math.PI, [
+			[0.85, 1.9, 0.5, 0, 0.95, 0, IM.locker],
+			[0.02, 1.8, 0.02, 0, 0.95, 0.26, IM.black],
+			[0.25, 0.04, 0.02, 0.2, 1.7, 0.26, IM.black],
+		], [0.85, 0.5], i % 2 ? { ammo9: [4, 8, 0.4], zhivchik: 0.25, spore: 0.15 } : { ammo545: [5, 12, 0.3], zhivchik: 0.2 }, 1.9);
+	}
+	b.furniture(-9.5, 3.3, 0, [[2.2, 0.45, 0.4, 0, 0.22, 0, IM.furnitureLight]], { solid: [2.2, 0.4] }); // скамья
+	// конторка мастера: стол, стул, сейф
+	table(b, 9.8, 4.8, 0, { w: 1.2, d: 0.7 });
+	chair(b, 9.8, 4.0, 0);
+	b.container('Сейф мастера', 11.3, 2.6, -Math.PI / 2, [[0.7, 1.1, 0.6, 0, 0.55, 0, IM.metal], [0.12, 0.12, 0.03, 0.15, 0.7, 0.31, IM.black]], [0.7, 0.6], { ammo545: [15, 30, 0.6], ammo76254: [5, 10, 0.3], spore: [2, 4, 0.5] }, 1.1);
+	b.container('Аптечка', 7.2, 5.8, Math.PI / 2, [[0.5, 0.45, 0.2, 0, 1.4, 0, IM.white], [0.2, 0.06, 0.01, 0, 1.4, 0.105, IM.redBoard], [0.06, 0.2, 0.01, 0, 1.4, 0.106, IM.redBoard]], [0.4, 0.2], { zhivchik: [1, 2, 0.7] }, 1.65);
+	// поддоны и ящики у ворот
+	b.furniture(-8, -5.6, 0.2, [[1.2, 0.15, 0.8, 0, 0.075, 0, IM.crate], [1.0, 0.6, 0.7, 0, 0.45, 0, IM.crate]], { solid: [1.2, 0.8] });
+	return b.finish();
+}
+
+/**
+ * Склад №2 16×10 м из профлиста: три ряда стеллажей с ящиками, погрузчик. Ворота — в передней стене.
+ */
+export function buildWarehouse(ctx, { name = 'Warehouse', cx, cz, ry = 0 }) {
+	const W = 16, D = 10, H = 4.8;
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.6 });
+	const { M } = ctx;
+	const IM = b.IM;
+	const t = 0.2, hx = W / 2, hz = D / 2;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), M.concrete, { cast: false });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.roofMetal, t, doors: [3.5], w: 3.8, lining: M.metalDark, side: 1, sx: 1.2 });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.roofMetal, t, lining: M.metalDark, side: -1, sx: 1.2 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.roofMetal, t, lining: M.metalDark, side: 1, sx: 1.2 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.roofMetal, t, lining: M.metalDark, side: -1, sx: 1.2 });
+	// двускатная крыша из профлиста
+	const rise = 1.4, slope = Math.hypot(hz + 0.4, rise);
+	for (const s of [-1, 1]) {
+		const g = box(W + 0.6, 0.07, slope, 2);
+		place(g, 0, H + rise / 2, s * (hz + 0.4) / 2, 0, -s * Math.atan2(rise, hz + 0.4));
+		b.top_(g, M.roofMetal);
+	}
+	for (const sx of [-1, 1]) {
+		const x = sx * (hx + 0.01);
+		const a = [x, H, -hz], c = [x, H, hz], tp = [x, H + rise, 0];
+		const tri = new THREE.BufferGeometry();
+		tri.setAttribute('position', new THREE.BufferAttribute(new Float32Array(sx > 0 ? [...a, ...tp, ...c] : [...a, ...c, ...tp]), 3));
+		tri.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(sx > 0 ? [0, 0, D / 4, 1, D / 2, 0] : [0, 0, D / 2, 0, D / 4, 1]), 2));
+		tri.computeVertexNormals();
+		b.top_(tri, M.roofMetal);
+	}
+	// стеллажи: стойки, полки, ящики — обыскиваются
+	const rack = (x, z, loot) => b.container('Стеллаж', x, z, 0, [
+		...[-1.9, 1.9].flatMap((dx) => [-0.4, 0.4].map((dz) => [0.08, 2.6, 0.08, dx, 1.3, dz, IM.rack])),
+		...[0.15, 1.0, 1.85, 2.55].map((y) => [3.9, 0.05, 0.9, 0, y, 0, IM.rack]),
+		[0.9, 0.6, 0.7, -1.2, 0.48, 0, IM.crate], [0.8, 0.5, 0.7, 0.6, 0.43, 0.05, IM.crateGreen],
+		[1.0, 0.65, 0.7, -0.4, 1.35, 0, IM.crateGreen], [0.9, 0.6, 0.7, 1.3, 1.33, 0, IM.crate],
+		[0.8, 0.5, 0.7, -1.3, 2.13, 0, IM.crate],
+	], [4.0, 1.0], loot, 2.6);
+	rack(-4.5, 2.6, { ammo762: [10, 20, 0.45], ammo545: [10, 20, 0.4], zhivchik: 0.15 });
+	rack(-4.5, -0.6, { ammo919: [10, 20, 0.35], ammo12: [6, 10, 0.4], spore: [1, 3, 0.3] });
+	rack(1.5, 2.6, { ammo545: [10, 20, 0.45], grenade: [1, 2, 0.2] });
+	b.container('Ящики', 6.3, 3.4, -Math.PI / 2, [[1.2, 0.8, 1.2, 0, 0.4, 0, IM.crateGreen], [1.0, 0.6, 1.0, 0, 1.1, 0, IM.crateGreen]], [1.2, 1.2], { grenade: [1, 2, 0.25], ammo762: [10, 20, 0.35], ammo76254: [5, 10, 0.2] }, 1.4);
+	// погрузчик у ворот
+	b.furniture(1.0, -3.0, 0.3, [
+		[1.1, 0.9, 1.7, 0, 0.75, 0, M.yellow], [0.9, 1.0, 0.05, 0, 1.7, -0.3, IM.black],
+		[0.08, 1.9, 0.08, -0.4, 1.15, 0.9, IM.black], [0.08, 1.9, 0.08, 0.4, 1.15, 0.9, IM.black],
+		[0.1, 0.05, 1.0, -0.3, 0.15, 1.4, IM.metal], [0.1, 0.05, 1.0, 0.3, 0.15, 1.4, IM.metal],
+	], { solid: [1.2, 2.4] });
+	return b.finish();
+}
+
+// ---------- Военная часть: КПП, казарма, оружейка ----------
+
+/** Двухъярусная солдатская кровать. */
+function bunk(b, x, z, rot) {
+	const { metal, blanketArmy, linen } = b.IM;
+	const parts = [];
+	for (const y of [0.42, 1.35]) {
+		parts.push([0.85, 0.06, 1.95, 0, y, 0, metal], [0.82, 0.1, 1.8, 0, y + 0.08, 0.05, blanketArmy], [0.6, 0.1, 0.32, 0, y + 0.16, -0.75, linen]);
+	}
+	for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push([0.05, 1.75, 0.05, sx * 0.4, 0.875, sz * 0.95, metal]);
+	b.furniture(x, z, rot, parts, { solid: [0.9, 2.0] });
+}
+
+/**
+ * Казарма 18×8 м: ряды двухъярусных кроватей, тумбочки между ними, тумба дневального у входа,
+ * каптёрка со шкафами в торце. Вход — в передней стене (−Z локально), посередине.
+ */
+export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }) {
+	const W = 18, D = 8, H = 3.2;
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.8 });
+	const { M } = ctx;
+	const IM = b.IM;
+	const t = 0.25, hx = W / 2, hz = D / 2;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 1.2), 0, 0.025, 0), IM.floor, { cast: false });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.whiteBrick, t, doors: [-1], lining: IM.armyWall, side: 1 });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: -1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: -1 });
+	b.wall('z', 5, -hz + t / 2, hz - t / 2, { mat: IM.armyWall, t: 0.14, doors: [-2.4] }); // каптёрка
+	for (const x of [-7, -4, 2, 4]) b.window('front', x, { t });
+	for (const x of [-7, -4, -1, 2, 7]) b.window('back', x, { t });
+	// двускатная крыша
+	const rise = 1.6, slope = Math.hypot(hz + 0.5, rise);
+	for (const s of [-1, 1]) {
+		const g = box(W + 0.8, 0.08, slope, 2);
+		place(g, 0, H + rise / 2, s * (hz + 0.5) / 2, 0, -s * Math.atan2(rise, hz + 0.5));
+		b.top_(g, M.slate);
+	}
+	// кровати вдоль задней стены и тумбочки между ними
+	const beds = [-8.0, -5.6, -3.2, 0.8, 3.2];
+	beds.forEach((x) => bunk(b, x, hz - 1.15, Math.PI));
+	[-6.8, -4.4, 2.0].forEach((x, i) => b.container('Тумбочка', x, hz - 0.45, Math.PI, [[0.5, 0.65, 0.45, 0, 0.33, 0, IM.furnitureLight], [0.44, 0.02, 0.02, 0, 0.5, 0.23, IM.black]], [0.5, 0.45], i === 2 ? { ammo545: [8, 15, 0.5], grenade: 0.12 } : { ammo545: [5, 12, 0.45], zhivchik: 0.2, spore: 0.12 }, 0.65));
+	// кровати у передней стены (между окнами)
+	[-8.0, -5.6, 3.2].forEach((x) => bunk(b, x, -hz + 1.15, 0));
+	b.container('Тумбочка', -6.8, -hz + 0.45, 0, [[0.5, 0.65, 0.45, 0, 0.33, 0, IM.furnitureLight], [0.44, 0.02, 0.02, 0, 0.5, 0.23, IM.black]], [0.5, 0.45], { ammo9: [4, 8, 0.4], zhivchik: 0.2 }, 0.65);
+	// тумба дневального и стенд «Распорядок дня»
+	b.furniture(0.6, -hz + 0.9, 0, [[0.6, 1.0, 0.5, 0, 0.5, 0, IM.furnitureLight]], { solid: [0.6, 0.5] });
+	b.furniture(-1, hz - 0.15, Math.PI, [[1.4, 1.0, 0.04, 0, 1.6, 0, IM.redBoard]], { solid: [0, 0] });
+	// каптёрка: шкафы с имуществом
+	cabinet(b, 'Шкаф каптёра', 8.4, -1.6, -Math.PI / 2, 1.1, 2.0, 0.55, { ammo545: [10, 20, 0.5], grenade: 0.25, ammo9: [6, 10, 0.4] }, IM.furnitureLight);
+	cabinet(b, 'Шкаф каптёра', 8.4, 1.2, -Math.PI / 2, 1.1, 2.0, 0.55, { zhivchik: [1, 2, 0.4], ammo762: [10, 20, 0.35], spore: [1, 3, 0.3] }, IM.furnitureLight);
+	table(b, 6.3, 2.6, 0, { w: 0.9, d: 0.6 });
+	return b.finish();
+}
+
+/**
+ * Комната хранения оружия 8×6 м: решётки на окнах, железная дверь, пирамиды с оружием, ящики гранат, сейф.
+ */
+export function buildArmory(ctx, { name = 'Armory', cx, cz, ry = 0 }) {
+	const W = 8, D = 6, H = 3.0;
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.3 });
+	const { M } = ctx;
+	const IM = b.IM;
+	const t = 0.35, hx = W / 2, hz = D / 2;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), M.concrete, { cast: false });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, doors: [-2.2], lining: IM.armyWall, side: 1 });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, lining: IM.armyWall, side: -1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.armyWall, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.armyWall, side: -1 });
+	b.window('front', 1.5, { t }); b.window('back', 0, { t });
+	for (let k = -0.45; k <= 0.46; k += 0.18) b.top_(place(box(0.04, 1.4, 0.04), 1.5 + k, 1.65, -hz - t / 2 - 0.04), M.metalDark); // решётка
+	b.top_(place(box(W + 0.5, 0.3, D + 0.5, 3), 0, H + 0.15, 0), M.roofTar);
+	b.furniture(-2.2 + 0.62, -hz + 0.1, 1.75, [[1.2, 2.05, 0.06, -0.6, 1.03, 0, M.metalOlive]], { up: true }); // железная дверь открыта
+	// пирамиды: металлические стойки с прикладами (силуэты стволов)
+	const pyramid = (x, z, rot, loot) => b.container('Пирамида', x, z, rot, [
+		[1.8, 0.1, 0.5, 0, 0.1, 0, IM.machine], [1.8, 0.08, 0.3, 0, 1.15, -0.05, IM.machine],
+		[0.06, 1.3, 0.06, -0.86, 0.65, -0.18, IM.machine], [0.06, 1.3, 0.06, 0.86, 0.65, -0.18, IM.machine],
+		...[-0.6, -0.2, 0.2, 0.6].map((dx) => [0.06, 1.0, 0.12, dx, 0.7, 0.02, IM.black]),
+	], [1.8, 0.5], loot, 1.3);
+	pyramid(-1.6, hz - 0.45, Math.PI, { ak74: 0.25, aks: 0.3, ammo545: [20, 40, 0.7] });
+	pyramid(1.4, hz - 0.45, Math.PI, { svd: 0.15, ammo76254: [10, 20, 0.5], ammo545: [10, 20, 0.4] });
+	pyramid(hx - 0.45, 0.2, -Math.PI / 2, { pkm: 0.1, ammo76254: [30, 60, 0.45], ak47: 0.15, ammo762: [20, 30, 0.5] });
+	b.container('Ящик с гранатами', -hx + 0.6, 0.6, Math.PI / 2, [[1.0, 0.45, 0.6, 0, 0.23, 0, IM.crateGreen], [1.02, 0.05, 0.62, 0, 0.47, 0, IM.machine]], [1.0, 0.6], { grenade: [2, 4, 0.7] }, 0.5);
+	b.container('Сейф', -hx + 0.5, -1.7, Math.PI / 2, [[0.7, 1.2, 0.6, 0, 0.6, 0, IM.metal], [0.12, 0.12, 0.03, 0.15, 0.75, 0.31, IM.black]], [0.7, 0.6], { ammo939: [10, 20, 0.4], vss: 0.06, spore: [3, 6, 0.5] }, 1.2);
+	b.furniture(1.6, -1.2, 0, [[1.2, 0.05, 0.6, 0, 0.75, 0, IM.furniture], [1.1, 0.72, 0.5, 0, 0.36, 0, IM.machine]], { solid: [1.2, 0.6] }); // стол выдачи
+	return b.finish();
+}
+
+/** КПП 6×4.5 м: окно на дорогу, стол дежурного, шкаф, турникет. Вход — в передней стене (−Z локально). */
+export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0 }) {
+	const W = 6, D = 4.5, H = 2.8;
+	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.3 });
+	const { M } = ctx;
+	const IM = b.IM;
+	const t = 0.25, hx = W / 2, hz = D / 2;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), IM.linoleum, { cast: false });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.whiteBrick, t, doors: [1.6], lining: IM.armyWall, side: 1 });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.whiteBrick, t, doors: [1.6], lining: IM.armyWall, side: -1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: -1 });
+	b.window('left', 0, { t }); b.window('front', -1.2, { t });
+	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
+	b.container('Стол дежурного', -1.6, 0.2, Math.PI / 2, [[1.3, 0.75, 0.7, 0, 0.375, 0, IM.furniture], [0.4, 0.3, 0.3, 0.3, 0.9, 0, IM.black]], [1.3, 0.7], { ammo9: [6, 12, 0.6], zhivchik: 0.3, ammo545: [5, 10, 0.3] }, 0.95);
+	chair(b, -0.8, 0.2, -Math.PI / 2);
+	cabinet(b, 'Шкаф', -2.4, hz - 0.45, Math.PI, 0.9, 1.9, 0.5, { ammo545: [6, 12, 0.4], grenade: 0.15 });
+	b.furniture(1.6, 0, 0, [[0.1, 1.0, 0.1, -0.5, 0.5, 0, IM.metal], [1.0, 0.05, 0.05, 0, 0.95, 0, IM.metal]], { solid: [0.15, 0.15] }); // турникет
 	return b.finish();
 }

@@ -20,9 +20,9 @@ import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
-import { Trade, PEA_RATE } from './trade.js';
+import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
 import { WorldMap } from './worldmap.js';
-import { NODES, WARN, newWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
+import { NODES, WARN, newWorld, normalizeWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
 import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
 import { ZOMBIE_GAIT } from '../src/animations.js';
 
@@ -118,7 +118,9 @@ async function boot() {
 	const runner = await loadModel('runner');
 	progress(0.75, 'Загружаем топтунов…');
 	const stomper = await loadModel('stomper');
-	assets = { player, runner, stomper };
+	progress(0.83, 'Загружаем руберов…');
+	const ruber = await loadModel('ruber');
+	assets = { player, runner, stomper, ruber };
 	progress(0.9, 'Рисуем иконки…');
 	await frameWait(20);
 	makeIcons();
@@ -470,7 +472,8 @@ class Player extends Actor {
 		this.pending.push({ t: this.busy, fn: () => { this.equipping = false; } });
 	}
 
-	hurt(dmg, from) {
+	/** knock — насколько отбрасывает (удар рубера сбивает с ног и отшвыривает). */
+	hurt(dmg, from, knock) {
 		if (!this.alive) return;
 		game.cancelSearch('Обыск прерван');
 		this.hp -= dmg;
@@ -481,7 +484,10 @@ class Player extends Actor {
 		$('hurt').style.opacity = Math.min(0.85, 0.3 + dmg / 40);
 		const av = $('avatar-wrap');
 		av.classList.remove('hit'); void av.offsetWidth; av.classList.add('hit');
-		if (from) { tmpV.subVectors(this.pos, from).setY(0).normalize().multiplyScalar(dmg > 20 ? 0.6 : 0.2); this.pos.add(tmpV); }
+		if (from) {
+			const d = knock ?? (dmg > 20 ? 0.6 : 0.2);
+			this.push = (this.push ?? new THREE.Vector3()).addScaledVector(tmpV.subVectors(this.pos, from).setY(0).normalize(), d * PUSH_DECAY);
+		}
 		if (this.hp <= 0) this.die('eaten');
 		else if (this.busy <= 0) {
 			this.play(this.clips.hit, { once: true, fade: 0.06, restart: true });
@@ -640,6 +646,13 @@ class Player extends Actor {
 				game.hud();
 			}
 		}
+		if (this.push) {
+			const k = Math.exp(-dt * PUSH_DECAY);
+			this.pos.addScaledVector(this.push, (1 - k) / PUSH_DECAY);
+			this.push.multiplyScalar(k);
+			resolveCollisions(this.pos, this.radius ?? 0.35, level.colliders);
+			if (this.push.lengthSq() < 4e-4) this.push = null;
+		}
 		if (!this.alive) return;
 		if (this.queuedSwitch && this.busy <= 0 && !this.equipping) { const to = this.queuedSwitch; this.queuedSwitch = null; this.switchWeapon(to); }
 		this.aim -= dt;
@@ -674,12 +687,20 @@ class Player extends Actor {
 	}
 }
 
+/** Шанс чёрной жемчужины в споровом мешке рубера. */
+const PEARL_CHANCE = 0.25;
+/** Чёрная жемчужина: на сколько навсегда растёт здоровье и до какого предела. */
+const PEARL_HP = 20, MAX_HP_CAP = 200;
 /** Как быстро гаснет толчок от попадания (1/с): весь отъезд тела = сила толчка. */
 const PUSH_DECAY = 9;
 const ENEMY_TYPES = {
 	// move — клип погони; его скорость (ZOMBIE_GAIT) подгоняется под настоящую, чтобы ноги не скользили
-	runner: { hp: 60, speed: 3.4, scale: 1, radius: 0.36, damage: 8, range: 1.25, hitTime: 0.72, attackAnim: 1, move: 'Run', score: 1 },
-	stomper: { hp: 220, speed: 2.0, scale: 1.08, radius: 0.5, damage: 22, range: 1.55, hitTime: 0.85, attackAnim: 0.85, move: 'Stomp', score: 3 },
+	// heavy — во сколько раз хуже отлетает от ударов; stagger — на сколько замирает от попадания;
+	// sight — с какого расстояния замечает героя; armor — сколько урона срезает броня с каждого попадания
+	runner: { hp: 60, speed: 3.4, scale: 1, radius: 0.36, damage: 8, range: 1.25, hitTime: 0.72, attackAnim: 1, move: 'Run', score: 1, heavy: 1, stagger: 0.3 },
+	stomper: { hp: 220, speed: 2.0, scale: 1.08, radius: 0.5, damage: 22, range: 1.55, hitTime: 0.85, attackAnim: 0.85, move: 'Stomp', score: 3, heavy: 3, stagger: 0.08 },
+	// рубер: следующая за топтуном стадия — костяная броня, рёв, рывки (charge — скорость рывка), удар двумя лапами
+	ruber: { hp: 520, speed: 2.6, charge: 6.4, scale: 1.12, radius: 0.56, damage: 34, knock: 1.6, range: 1.9, hitTime: 0.72, attackAnim: 1, attack: 'Smash', move: 'Stomp', score: 5, heavy: 5, stagger: 0.03, sight: 18, armor: 8, roar: true },
 };
 
 class Enemy extends Actor {
@@ -710,14 +731,26 @@ class Enemy extends Actor {
 	/** Заметил игрока: переходит в погоню и поднимает соседей. */
 	alert() {
 		if (!this.alive || this.state !== 'idle') return;
-		this.state = 'chase';
 		this.wander = null;
-		if (Math.random() < 0.6) Sfx.growl(this.type === 'stomper');
+		if (this.T.roar) {
+			// рубер сначала ревёт во весь рост — и рёв поднимает всех вокруг
+			this.state = 'roar';
+			this.timer = 0;
+			this.root.rotation.y = angleTo(this.pos, game.foeFor(this.pos).pos);
+			this.play('Roar', { once: true, fade: 0.15, restart: true });
+			Sfx.roar();
+			const near = clamp01(1 - this.pos.distanceTo(game.player.pos) / 20);
+			game.shake = Math.min(1, game.shake + near * 0.35);
+			for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 18) setTimeout(() => o.alert(), 400 + Math.random() * 700);
+			return;
+		}
+		this.state = 'chase';
+		if (Math.random() < 0.6) Sfx.growl(this.type !== 'runner');
 		for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 6 && Math.random() < 0.6) setTimeout(() => o.alert(), 300 + Math.random() * 900);
 	}
 
 	idle(dt, p, dist) {
-		if (p.alive && (dist < 3.5 || (dist < 13 && lineOfSight(this.pos, p.pos)))) { this.alert(); return; }
+		if (p.alive && (dist < 3.5 || (dist < (this.T.sight ?? 13) && lineOfSight(this.pos, p.pos)))) { this.alert(); return; }
 		this.wanderTimer -= dt;
 		if (!this.wander && this.wanderTimer <= 0) {
 			if (Math.random() < 0.5) {
@@ -733,10 +766,12 @@ class Enemy extends Actor {
 			const dir = tmpV.set(this.wander.x - this.pos.x, 0, this.wander.z - this.pos.z);
 			if (dir.length() < 0.4) { this.wander = null; this.play('Idle', { fade: 0.4 }); return; }
 			dir.normalize();
-			const speed = this.type === 'stomper' ? 0.6 : 0.55;
+			const speed = this.type === 'runner' ? 0.55 : 0.6;
 			this.pos.addScaledVector(dir, speed * dt);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 2.5);
-			this.play('Walk', { fade: 0.4, timeScale: speed / (ZOMBIE_GAIT.Walk * this.scale) });
+			// рубер и бродит тяжёлым шагом
+			const walk = this.type === 'ruber' ? 'Stomp' : 'Walk';
+			this.play(walk, { fade: 0.4, timeScale: speed / (ZOMBIE_GAIT[walk] * this.scale) });
 			resolveCollisions(this.pos, this.radius, level.colliders);
 		} else {
 			this.play('Idle', { fade: 0.4 });
@@ -745,14 +780,21 @@ class Enemy extends Actor {
 
 	damage(dmg, from, knock) {
 		if (!this.alive) return;
+		const T = this.T;
+		const dir = new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize();
+		// костяная броня рубера: срезает часть урона с каждого попадания — слабые пули и картечь почти не берут
+		if (T.armor) {
+			const cut = Math.min(dmg * 0.7, T.armor);
+			dmg -= cut;
+			if (cut > dmg * 0.5) game.impact(this.pos.clone().setY(1.3 * this.scale).addScaledVector(dir, -this.radius), true, 0.7); // искры от кости
+		}
 		this.hp -= dmg;
 		this.hitFlash();
-		const dir = new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize();
-		game.blood(this.pos.clone().setY(1.2 * this.scale), 10, dir);
-		// толчок от удара: тело отъезжает плавно (топтун тяжелее); убитого отбрасывает сильнее
+		game.blood(this.pos.clone().setY(1.2 * this.scale), T.armor ? 5 : 10, dir);
+		// толчок от удара: тело отъезжает плавно (топтун и рубер тяжелее); убитого отбрасывает сильнее
 		const fling = this.hp <= 0 ? 1.8 : 1;
-		this.push = (this.push ?? new THREE.Vector3()).addScaledVector(dir, (knock * fling * PUSH_DECAY) / (this.type === 'stomper' ? 3 : 1));
-		this.stagger = this.type === 'stomper' ? 0.08 : 0.3;
+		this.push = (this.push ?? new THREE.Vector3()).addScaledVector(dir, (knock * fling * PUSH_DECAY) / T.heavy);
+		this.stagger = this.state === 'roar' ? 0 : T.stagger;
 		this.alert();
 		Sfx.flesh();
 		if (this.hp <= 0) this.die();
@@ -762,6 +804,7 @@ class Enemy extends Actor {
 		this.alive = false;
 		this.state = 'dead';
 		this.timer = 0;
+		this.charging = 0;
 		this.play('Death', { once: true, fade: 0.08 });
 		game.onKill(this);
 	}
@@ -790,16 +833,23 @@ class Enemy extends Actor {
 			return this.timer < 10;
 		}
 		this.growl -= dt;
-		if (this.growl < 0) { this.growl = 4 + Math.random() * 8; if (dist < 16) Sfx.growl(this.type === 'stomper'); }
+		if (this.growl < 0) { this.growl = 4 + Math.random() * 8; if (dist < 16) Sfx.growl(this.type !== 'runner'); }
 		if (this.stagger > 0) { this.stagger -= dt; return true; }
 		if (this.state === 'idle') { this.idle(dt, p, dist); return true; }
+		if (this.state === 'roar') {
+			this.timer += dt;
+			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, p.pos), dt * 2);
+			if (this.timer > this.actions.Roar.getClip().duration - 0.2) { this.state = 'chase'; this.chargeCd = 0; }
+			return true;
+		}
 
 		if (this.state === 'attack') {
 			this.timer += dt;
-			const a = this.actions.Attack;
+			const a = this.actions[this.T.attack ?? 'Attack'];
 			if (!this.hitDone && this.timer >= this.T.hitTime / this.T.attackAnim) {
 				this.hitDone = true;
-				if (p.alive && dist < this.T.range + 0.6) p.hurt(this.T.damage, this.pos);
+				if (p.alive && dist < this.T.range + 0.6) p.hurt(this.T.damage, this.pos, this.T.knock);
+				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }
 			}
 			// во время выпада тело немного продвигается вперёд
 			if (this.timer < 0.9) this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, p.pos), dt * 4);
@@ -811,8 +861,15 @@ class Enemy extends Actor {
 			this.state = 'attack';
 			this.timer = 0;
 			this.hitDone = false;
-			this.play('Attack', { once: true, fade: 0.12, restart: true, timeScale: this.T.attackAnim });
+			this.charging = 0;
+			this.play(this.T.attack ?? 'Attack', { once: true, fade: 0.12, restart: true, timeScale: this.T.attackAnim });
 			return true;
+		}
+		// рубер бросается рывками: разгон к добыче, на рывке плохо поворачивает — можно увернуться
+		if (this.T.charge) {
+			this.chargeCd = (this.chargeCd ?? 0) - dt;
+			if (this.charging > 0) this.charging -= dt;
+			else if (this.chargeCd <= 0 && dist > 4 && dist < 16 && lineOfSight(this.pos, p.pos)) { this.charging = 1.4; this.chargeCd = 4 + Math.random() * 2; Sfx.growl(true); }
 		}
 		if (!p.alive) { this.play('Idle'); return true; }
 
@@ -830,10 +887,16 @@ class Enemy extends Actor {
 			if (d2 < r * r && d2 > 1e-6) { const d = Math.sqrt(d2); dir.x += (dx / d) * (r - d) * 3; dir.z += (dz / d) * (r - d) * 3; }
 		}
 		dir.normalize();
-		const speed = this.T.speed * this.speedVar;
+		const charging = this.charging > 0;
+		if (charging) {
+			// на рывке несётся туда, куда смотрит, и лишь медленно доворачивает
+			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 1.6);
+			dir.set(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y));
+		}
+		const speed = charging ? this.T.charge : this.T.speed * this.speedVar;
 		this.pos.addScaledVector(dir, speed * dt);
-		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 6);
-		const move = this.actions[this.T.move] ? this.T.move : 'Walk';
+		if (!charging) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 6);
+		const move = charging ? 'Charge' : this.actions[this.T.move] ? this.T.move : 'Walk';
 		this.play(move, { timeScale: speed / (ZOMBIE_GAIT[move] * this.scale) });
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
@@ -912,11 +975,11 @@ class Merc extends Actor {
 		this.root.rotation.y = game.player.root.rotation.y;
 	}
 
-	hurt(dmg, from) {
+	hurt(dmg, from, knock = 0.2) {
 		if (!this.alive) return;
 		this.state.hp -= dmg;
 		this.hitFlash();
-		if (from) { tmpV.subVectors(this.pos, from).setY(0).normalize().multiplyScalar(0.2); this.pos.add(tmpV); }
+		if (from) { tmpV.subVectors(this.pos, from).setY(0).normalize().multiplyScalar(Math.min(knock, 1)); this.pos.add(tmpV); resolveCollisions(this.pos, this.radius, level.colliders); }
 		if (this.state.hp <= 0) {
 			this.state.hp = 0;
 			this.alive = false;
@@ -1012,7 +1075,7 @@ class Merc extends Actor {
 
 	/**
 	 * Цель по классу: обычно — ближайший видимый заражённый. Снайпер сначала снимает тех, кто вцепился
-	 * в героя, потом топтунов, потом самых дальних.
+	 * в героя, потом руберов и топтунов, потом самых дальних.
 	 */
 	pickTarget(reach) {
 		if (this.C.prefer !== 'far') return game.nearestEnemy(this.pos, reach, true);
@@ -1023,7 +1086,7 @@ class Merc extends Actor {
 			const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
 			if (d > reach || !lineOfSight(this.pos, e.pos)) continue;
 			const onHero = Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < 3;
-			const sc = (onHero ? 1000 : 0) + (e.type === 'stomper' ? 100 : 0) + d;
+			const sc = (onHero ? 1000 : 0) + (e.type === 'ruber' ? 150 : e.type === 'stomper' ? 100 : 0) + d;
 			if (sc > score) { score = sc; best = e; }
 		}
 		return best;
@@ -1089,7 +1152,7 @@ class Merc extends Actor {
 			if (d < 6 || d > 16 || !lineOfSight(this.pos, e.pos)) continue;
 			let n = 0;
 			for (const o of game.enemies) if (o.alive && Math.hypot(o.pos.x - e.pos.x, o.pos.z - e.pos.z) < 3) n++;
-			const sc = n + (e.type === 'stomper' ? 2 : 0);
+			const sc = n + (e.type === 'ruber' ? 3 : e.type === 'stomper' ? 2 : 0);
 			if (sc <= score || friends.some((a) => Math.hypot(a.pos.x - e.pos.x, a.pos.z - e.pos.z) < 7)) continue;
 			score = sc; best = e;
 		}
@@ -1186,6 +1249,7 @@ const game = {
 	loc: 'zarechny', from: null,
 	icons: {},
 	enemies: [], pickups: [], fx: [], npcs: [], mercs: [],
+	perks: { maxHp: 100 }, // что даёт съеденная чёрная жемчужина (навсегда)
 	roster: [], // нанятые наёмники: { id, hp, mag, ammo, out } — out: идёт с героем, иначе ждёт в комнате в стабе
 	/** Отряд — кто идёт с героем. */
 	get party() { return this.roster.filter((m) => m.out); },
@@ -1203,6 +1267,7 @@ const game = {
 		this.bag = { ...START_BAG };
 		this.kit = startKit();
 		this.roster = [];
+		this.perks = { maxHp: 100 };
 		this.kills = 0;
 		this.begin();
 		this.enter('zarechny', undefined);
@@ -1213,9 +1278,10 @@ const game = {
 	continueGame() {
 		const s = loadGame();
 		if (!s) { this.newGame(); return; }
-		this.world = s.world;
+		this.world = normalizeWorld(s.world);
 		this.bag = { ...START_BAG, ...s.bag };
 		this.kit = normalizeKit(s.kit);
+		this.perks = { maxHp: 100, ...s.perks };
 		// старые сохранения: был только отряд — все в нём идут с героем
 		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0).slice(0, ROOM_BEDS);
 		this.roster.forEach((m, i) => { if (!(m.bed >= 0) || this.roster.some((o, j) => j < i && o.bed === m.bed)) m.bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((o, j) => j !== i && o.bed === b)); });
@@ -1275,6 +1341,7 @@ const game = {
 		if (!this.player || !this.player.alive) {
 			this.player?.dispose();
 			this.player = new Player(assets.player, this.kit);
+			this.player.maxHp = this.player.hp = this.perks.maxHp;
 		}
 		this.player.kit = this.kit;
 		this.player.pos.copy(spot.pos);
@@ -1326,7 +1393,7 @@ const game = {
 			return null;
 		};
 		for (const g of level.groups) {
-			for (const [type, n] of [['runner', g.runners ?? 0], ['stomper', g.stompers ?? 0]]) {
+			for (const [type, n] of [['runner', g.runners ?? 0], ['stomper', g.stompers ?? 0], ['ruber', g.rubers ?? 0]]) {
 				for (let i = 0; i < n; i++) {
 					const pos = free(g.at[0], g.at[1], g.r);
 					if (pos) this.spawnEnemy(type, pos);
@@ -1356,7 +1423,7 @@ const game = {
 	save() {
 		if (this.state !== 'play' || !this.player?.alive) return;
 		if (NODES[this.loc].kind === 'cluster') this.snapshot();
-		saveGame({ world: this.world, bag: this.bag, kit: this.kit, roster: this.roster, hp: Math.ceil(this.player.hp), from: this.from ?? null });
+		saveGame({ world: this.world, bag: this.bag, kit: this.kit, roster: this.roster, perks: this.perks, hp: Math.ceil(this.player.hp), from: this.from ?? null });
 	},
 
 	/** Уйти по дороге в to: время мира уходит на путь, за это время кластеры могут перезагрузиться. */
@@ -1422,13 +1489,17 @@ const game = {
 
 	onKill(e) {
 		this.kills++;
-		Sfx.death(e.type === 'stomper');
-		this.decal(e.pos, e.type === 'stomper' ? 2.4 : 1.6);
-		// споран из затылка; у топтуна — ещё горох. Патронов и живчиков у заражённых нет: патроны — в домах,
-		// живчики покупают у торговца
+		Sfx.death(e.type !== 'runner');
+		this.decal(e.pos, e.type === 'runner' ? 1.6 : e.type === 'stomper' ? 2.4 : 3);
+		// споровый мешок на затылке: чем развитее заражённый, тем он богаче. У бегуна — споран, у топтуна — ещё
+		// горох, у рубера — больше гороха и бывает чёрная жемчужина. Патронов и живчиков у заражённых нет
 		const near = (dx, dz) => e.pos.clone().add(new THREE.Vector3(dx, 0, dz));
 		this.spawnPickup('spore', e.pos, e.T.score);
 		if (e.type === 'stomper') this.spawnPickup('peas', near(-0.5, 0.5), 1 + Math.floor(Math.random() * 2));
+		if (e.type === 'ruber') {
+			this.spawnPickup('peas', near(-0.6, 0.5), 2 + Math.floor(Math.random() * 3));
+			if (Math.random() < PEARL_CHANCE) this.spawnPickup('pearl', near(0.6, -0.4), 1);
+		}
 		this.hud();
 	},
 
@@ -1463,7 +1534,8 @@ const game = {
 			}
 		} else {
 			this.bag[kind] = (this.bag[kind] ?? 0) + n;
-			this.toast(`+${n} ${plural(n, ITEMS[kind].forms)}`);
+			if (kind === 'pearl') { this.banner('Чёрная жемчужина!', 'Редчайшая находка Улья. Съешь — организм окрепнет, или продай торговцу в стабе'); Sfx.chime(); }
+			else this.toast(`+${n} ${plural(n, ITEMS[kind].forms)}`);
 		}
 		Sfx.pickup();
 		this.hud();
@@ -1585,6 +1657,32 @@ const game = {
 		Sfx.drink();
 		this.toast('Живчик: +45 здоровья');
 		this.hud();
+	},
+
+	/** Съесть чёрную жемчужину: здоровье навсегда больше (до предела) и сразу полное. */
+	eatPearl() {
+		const p = this.player;
+		if (!p?.alive || !(this.bag.pearl > 0)) return;
+		if (this.perks.maxHp >= MAX_HP_CAP) { this.toast(`Здоровье и так на пределе (${MAX_HP_CAP}) — лучше продай торговцу`, 'warn'); return; }
+		this.bag.pearl--;
+		this.perks.maxHp = Math.min(MAX_HP_CAP, this.perks.maxHp + PEARL_HP);
+		p.maxHp = this.perks.maxHp;
+		p.hp = p.maxHp;
+		Sfx.chime();
+		this.banner('Организм окреп', `Здоровье навсегда ${p.maxHp} (+${PEARL_HP})`);
+		this.hud();
+		this.save();
+	},
+
+	/** Продать чёрную жемчужину торговцу. */
+	sellPearl() {
+		if (!(this.bag.pearl > 0)) return;
+		this.bag.pearl--;
+		this.bag.spore = (this.bag.spore ?? 0) + PEARL_PRICE;
+		Sfx.coins();
+		this.toast(`Чёрная жемчужина → ${PEARL_PRICE} споранов`);
+		this.hud();
+		this.save();
 	},
 
 	/** Взять в руки оружие слота (анимацией). */
@@ -2194,7 +2292,7 @@ const game = {
 		const hpk = clamp01(p.hp / p.maxHp);
 		$('avatar-wrap').style.setProperty('--hp', `${(hpk * 100).toFixed(1)}%`);
 		$('avatar-wrap').classList.toggle('low', hpk < 0.3 && p.alive);
-		$('hp-text').textContent = Math.ceil(p.hp);
+		$('hp-text').textContent = p.maxHp > 100 && p.maxHp < 1000 ? `${Math.ceil(p.hp)} / ${p.maxHp}` : Math.ceil(p.hp);
 		$('spores').textContent = this.bag.spore ?? 0;
 		$('peas').textContent = this.bag.peas ?? 0;
 		$('kills').textContent = this.kills;

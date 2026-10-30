@@ -11,7 +11,7 @@ const SLOT_NAMES = { melee: 'Ближний бой', gun: 'Огнестрел' }
 
 export class Inventory {
 	/**
-	 * game: { player, bag, kit: { gear, owned, mags }, icons, figure(gear, hold), drink(),
+	 * game: { player, bag, kit: { gear, owned, mags }, icons, figure(gear, hold), drink(), eatPearl(),
 	 *         hold(slot), equipGear(id), setPaused(bool) }
 	 */
 	constructor(game) {
@@ -57,6 +57,7 @@ export class Inventory {
 		const g = this.game, kind = this.selected, kit = g.kit, p = g.player;
 		const W = WEAPONS[kind];
 		if (kind === 'zhivchik') g.drink();
+		else if (kind === 'pearl') g.eatPearl();
 		else if (W && kit.gear[W.slot] === kind) {
 			// оружие из слота — в руки (смена анимацией после закрытия рюкзака)
 			if (p.weapon !== kind) { this.close(); g.hold(W.slot); return; }
@@ -133,6 +134,10 @@ export class Inventory {
 			btn.classList.remove('hidden');
 			btn.textContent = p.hp >= p.maxHp ? 'Здоровье полное' : `${it.use} (+45)`;
 			btn.disabled = p.hp >= p.maxHp;
+		} else if (kind === 'pearl' && g.bag.pearl > 0) {
+			btn.classList.remove('hidden');
+			btn.textContent = p.maxHp >= 200 ? 'Здоровье на пределе' : `${it.use} (здоровье +20 навсегда)`;
+			btn.disabled = p.maxHp >= 200;
 		} else if (W && kit.gear[W.slot] === kind && p.weapon !== kind) {
 			btn.classList.remove('hidden');
 			btn.textContent = 'Взять в руки';

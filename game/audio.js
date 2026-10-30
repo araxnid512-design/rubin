@@ -65,6 +65,12 @@ export const Sfx = {
 	chop() { burst({ dur: 0.12, freq: 900, gain: 0.5 }); tone({ freq: 110, to: 60, dur: 0.12, type: 'square', gain: 0.12 }); },
 	flesh() { burst({ dur: 0.15, freq: 500, sweep: 200, gain: 0.35 }); },
 	growl(big) { burst({ dur: big ? 1.1 : 0.7, freq: big ? 180 : 300, sweep: big ? 90 : 160, type: 'bandpass', q: 6, gain: big ? 0.5 : 0.3, attack: 0.15 }); },
+	// рёв рубера: низкий, с хрипом, нарастает и обрывается
+	roar() { burst({ dur: 1.6, freq: 140, sweep: 60, type: 'bandpass', q: 4, gain: 0.8, attack: 0.35 }); tone({ freq: 62, to: 44, dur: 1.5, type: 'sawtooth', gain: 0.12 }); setTimeout(() => burst({ dur: 0.9, freq: 420, sweep: 180, type: 'bandpass', q: 3, gain: 0.35, attack: 0.2 }), 250); },
+	// удар лапами о землю
+	thud() { tone({ freq: 80, to: 36, dur: 0.35, type: 'sine', gain: 0.5 }); burst({ dur: 0.3, freq: 400, sweep: 90, gain: 0.5, attack: 0.005 }); },
+	// чёрная жемчужина: звон
+	chime() { [0, 0.12, 0.26].forEach((d, i) => setTimeout(() => tone({ freq: [880, 1320, 1760][i], dur: 0.5, type: 'sine', gain: 0.1 }), d * 1000)); },
 	death(big) { burst({ dur: big ? 1.2 : 0.8, freq: big ? 220 : 380, sweep: 70, type: 'bandpass', q: 5, gain: 0.4, attack: 0.05 }); },
 	hurt() { tone({ freq: 220, to: 120, dur: 0.18, type: 'sawtooth', gain: 0.12 }); burst({ dur: 0.12, freq: 700, gain: 0.25 }); },
 	reload() { tone({ freq: 900, dur: 0.05, type: 'square', gain: 0.08 }); setTimeout(() => tone({ freq: 650, dur: 0.06, type: 'square', gain: 0.08 }), 600); },

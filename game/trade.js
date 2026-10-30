@@ -1,4 +1,4 @@
-// Торговец стаба: оружие, патроны и живчики за спораны; горох меняется на спораны.
+// Торговец стаба: оружие, патроны и живчики за спораны; горох и чёрный жемчуг меняются на спораны.
 // Пока окно открыто, игра на паузе.
 
 import { ITEMS } from './items.js';
@@ -20,11 +20,13 @@ export const SHOP = [
 ];
 /** Сколько споранов даёт торговец за горошину. */
 export const PEA_RATE = 5;
+/** Сколько споранов даёт торговец за чёрную жемчужину. */
+export const PEARL_PRICE = 150;
 
 const $ = (id) => document.getElementById(id);
 
 export class Trade {
-	/** game: { bag, kit: { owned, wear }, icons, buy(offer), exchangePeas(n), setPaused(bool), player } */
+	/** game: { bag, kit: { owned, wear }, icons, buy(offer), exchangePeas(n), sellPearl(), setPaused(bool), player } */
 	constructor(game) {
 		this.game = game;
 		this.el = $('trade');
@@ -36,6 +38,7 @@ export class Trade {
 		});
 		$('trade-peas-1').onclick = () => { this.game.exchangePeas(1); this.render(); };
 		$('trade-peas-all').onclick = () => { this.game.exchangePeas(this.game.bag.peas ?? 0); this.render(); };
+		$('trade-pearl').onclick = () => { this.game.sellPearl(); this.render(); };
 	}
 
 	get isOpen() { return !this.el.classList.contains('hidden'); }
@@ -80,5 +83,8 @@ export class Trade {
 		$('trade-peas-1').disabled = peas < 1;
 		$('trade-peas-all').disabled = peas < 2;
 		$('trade-peas-all').textContent = peas > 1 ? `Все ${peas} → ${peas * PEA_RATE}` : 'Все';
+		const pearls = bag.pearl ?? 0;
+		$('trade-pearls').textContent = pearls;
+		$('trade-pearl').disabled = pearls < 1;
 	}
 }
