@@ -18,6 +18,7 @@ import { createIconFactory } from './icons.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
+import { createMuzzleFlashes } from './muzzle.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
@@ -77,12 +78,10 @@ onResize(() => {
 	post.setSize(view.w, view.h);
 });
 // вспышка выстрела: один постоянный источник света (добавлять/убирать свет на каждый выстрел —
-// перекомпиляция шейдеров и рывки на телефоне)
+// перекомпиляция шейдеров и рывки на телефоне) и пламя у дула (game/muzzle.js)
 const flashLight = new THREE.PointLight(0xffc070, 0, 7);
-const flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,210,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-flashSprite.scale.setScalar(0.6);
-flashSprite.visible = false;
-scene.add(flashLight, flashSprite);
+scene.add(flashLight);
+const flashes = createMuzzleFlashes();
 // споры в воздухе (на низком качестве — меньше)
 const spores = createSpores(scene, { count: QUALITY === 'low' ? 120 : 260 });
 
@@ -250,7 +249,13 @@ class Actor {
 		this.model.traverse((o) => {
 			if (o.isMesh) {
 				o.castShadow = true;
-				o.frustumCulled = false;
+				// кто за кадром — не рисуется (и в тени тоже): сфера позы покоя с запасом на любую анимацию
+				// (лёг замертво, прыгнул, вытянул лапы)
+				if (o.isSkinnedMesh) {
+					o.geometry.boundingSphere ?? o.geometry.computeBoundingSphere();
+					o.boundingSphere = o.geometry.boundingSphere.clone();
+					o.boundingSphere.radius *= 2.2;
+				}
 				// свои материалы, чтобы вспыхивать красным при попадании
 				o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
 			}
@@ -292,12 +297,34 @@ class Actor {
 
 	hitFlash() { this.flash = 1; }
 
+	/** Отдача: amount — сила толчка, wrist — подбросить кисть (пистолет, обрез). */
+	kick(amount, wrist = false) {
+		this.recoil = Math.min(1.2, (this.recoil ?? 0) + amount);
+		this.recoilTwist = Math.random() - 0.5;
+		this.recoilWrist = wrist;
+	}
+
 	update(dt) {
 		this.mixer.update(dt);
+		if (this.recoil > 0.003) this.applyRecoil(dt);
 		if (this.flash > 0) {
 			this.flash = Math.max(0, this.flash - dt * 5);
 			for (const m of this.mats) m.emissive?.setRGB(this.flash * 0.6, 0, 0);
 		}
+	}
+
+	/**
+	 * Отдача поверх анимации выстрела: грудь откидывается назад (ствол уходит вверх вместе с обеими руками),
+	 * корпус чуть доворачивает, у пистолета кисть подбрасывает; резкий толчок и плавный возврат.
+	 */
+	applyRecoil(dt) {
+		this.recoil *= Math.exp(-dt * 11);
+		const r = this.recoil, m = this.model;
+		this.recoilBones ??= ['mixamorigSpine2', 'mixamorigSpine1', 'mixamorigRightHand'].map((n) => m.getObjectByName(n));
+		const [chest, spine, hand] = this.recoilBones;
+		chest?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(-0.15 * r, 0.06 * r * this.recoilTwist, 0)));
+		spine?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(-0.06 * r, 0, 0)));
+		if (this.recoilWrist) hand?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(0, 0.55 * r, 0)));
 	}
 
 	dispose() {
@@ -305,6 +332,7 @@ class Actor {
 		this.mixer.stopAllAction();
 	}
 }
+const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
 
 /** С чем начинают: целый топор и ПМ с полным магазином, патроны в запасе, живчик. */
 const startKit = () => ({ gear: { melee: 'axe', gun: 'pistol' }, owned: ['axe', 'pistol'], mags: { pistol: WEAPONS.pistol.mag }, wear: { axe: WEAPONS.axe.durability } });
@@ -333,6 +361,9 @@ function rollLoot(spec) {
 	return out;
 }
 
+/** Запасной синтезированный звук выстрела, пока записи не загрузились. */
+const shotKind = (W) => (W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
+
 /**
  * Выстрел из ствола W (gun — его 3D-модель) стрелком shooter — героем или наёмником (pos, root, burst, lastShot).
  * Вспышка, дымок, гильза; пуля попадает в цель с вероятностью (падает с дальностью и длиной очереди),
@@ -340,10 +371,13 @@ function rollLoot(spec) {
  */
 function fireShot(shooter, W, gun, target, { player = false } = {}) {
 	const from = gun.localToWorld(gun.userData.muzzle.clone());
-	game.muzzleFlash(from, W.pellets ? 1.6 : 1);
-	game.smoke(from, W.pellets ? 1.5 : 1);
+	const dir = new THREE.Vector3(0, -1, 0).transformDirection(gun.matrixWorld); // ствол смотрит по −Y оружия
+	game.muzzleFlash(gun, from, dir, W.flash ?? 1);
+	game.smoke(from, W.pellets ? 1.5 : W.flash === 0 ? 0.5 : 1);
+	game.cycleGun(gun, player && shooter.ammo === 0);
+	shooter.kick(0.35 + W.kick * 2.2, W.anim === 'pistol');
 	if (player) game.shake = Math.min(1, game.shake + W.kick);
-	if (W.casing === 'brass' || W.eject === 'shot') game.casing(gun, W.casing);
+	if (W.casing === 'brass' || W.eject === 'shot') { game.casing(gun, W.casing); Sfx.casing(W.casing, game.ear(from)); }
 	if (W.pellets) { firePellets(shooter, W, from, target); return; }
 	const pos = shooter.pos;
 	shooter.burst = game.time - (shooter.lastShot ?? -9) < 0.35 ? (shooter.burst ?? 0) + 1 : 0;
@@ -559,7 +593,6 @@ class Player extends Actor {
 		this.busy = W.anim === 'rifle' ? 0.14 : 0.25;
 		this.aim = 0.9;
 		this.ammo--;
-		Sfx.shot(W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
 		game.noise(this.pos, W.noise); // выстрел слышно издалека
 		this.pending.push({ t: aiming ? 0.03 : 0.06, fn: () => this.shotHit(W, this.weapon, target) });
 		if (this.ammo === 0 && (game.bag[W.ammo] ?? 0) > 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
@@ -585,7 +618,11 @@ class Player extends Actor {
 		if (W.durability) game.wearOut(id); // топор тупится от каждого удара по заражённому
 	}
 
-	shotHit(W, id, target) { fireShot(this, W, this.gun(id), target, { player: true }); }
+	/** Выстрел — в момент вскидки ствола: звук, вспышка и пуля вместе. */
+	shotHit(W, id, target) {
+		Sfx.gun(id, shotKind(W));
+		fireShot(this, W, this.gun(id), target, { player: true });
+	}
 
 	/** При смерти оружие выпадает из руки и ложится на землю. */
 	dropWeapon() {
@@ -617,7 +654,7 @@ class Player extends Actor {
 			const spent = W.mag - this.ammo, gun = this.gun(this.weapon);
 			for (let i = 0; i < spent; i++) this.pending.push({ t: 0.35 + i * 0.08, fn: () => game.casing(gun, 'shell') });
 		}
-		Sfx.reload();
+		Sfx.reload(this.weapon, { dur: W.reload, n: W.mag - this.ammo });
 		game.hud();
 	}
 
@@ -643,6 +680,7 @@ class Player extends Actor {
 				const take = Math.min(W.mag - this.ammo, game.bag[W.ammo] ?? 0);
 				this.ammo += take;
 				game.bag[W.ammo] -= take;
+				game.releaseGun(this.gun(this.weapon));
 				game.hud();
 			}
 		}
@@ -1218,7 +1256,7 @@ class Merc extends Actor {
 		this.reloading = this.W.reload;
 		const c = this.clips.reload;
 		this.play(c, { once: true, fade: 0.1, restart: true, timeScale: this.actions[c].getClip().duration / this.W.reload });
-		Sfx.reload();
+		Sfx.reload(this.def.weapon, { dur: this.W.reload, n: this.W.mag - this.state.mag, ...game.ear(this.pos) });
 	}
 
 	/** Выстрел; у автоматов — короткими очередями с паузами (бережёт патроны). */
@@ -1226,7 +1264,7 @@ class Merc extends Actor {
 		const W = this.W;
 		this.state.mag--;
 		this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
-		Sfx.shot(W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 'pistol');
+		Sfx.gun(this.def.weapon, shotKind(W), game.ear(this.pos));
 		game.noise(this.pos, W.noise);
 		if (W.auto < 0.2) {
 			// очередь по классу: штурмовик — 3–5, пулемётчик — 9–15; потом пауза
@@ -1469,6 +1507,17 @@ const game = {
 		$('banner-sub').textContent = sub;
 		const b = $('banner');
 		b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+	},
+
+	/** Сколько записей звуков оружия загружено (для тестов). */
+	sounds() { return Sfx.loaded; },
+
+	/** Где звук относительно героя: до него метров и левее/правее на экране (камера смотрит на север). */
+	ear(p) {
+		const h = this.player?.pos;
+		if (!h) return {};
+		const dx = p.x - h.x;
+		return { d: Math.hypot(dx, p.z - h.z), pan: Math.max(-0.8, Math.min(0.8, dx / 14)) };
 	},
 
 	nearestEnemy(from, range, needSight = false) {
@@ -2011,7 +2060,7 @@ const game = {
 			if (d < R) a.hurt(80 * (1 - d / R), pos);
 		}
 		this.noise(pos, 50);
-		Sfx.explosion();
+		Sfx.explosion(this.ear(pos));
 		const near = clamp01(1 - Math.hypot(pos.x - this.player.pos.x, pos.z - this.player.pos.z) / 25);
 		this.shake = Math.min(1, this.shake + 0.4 + near * 0.6);
 		flashLight.position.copy(pos).setY(1.2);
@@ -2104,14 +2153,38 @@ const game = {
 		}
 	},
 
-	muzzleFlash(pos, size = 1) {
-		flashLight.position.copy(pos);
+	/** Вспышка у дула оружия gun (pos — дуло в мире, dir — куда смотрит ствол); size 0 — глушитель: ни пламени, ни света. */
+	muzzleFlash(gun, pos, dir, size = 1) {
+		if (size <= 0) return;
+		flashes.fire(gun, size);
+		flashLight.position.copy(pos).addScaledVector(dir, 0.2);
 		flashLight.intensity = 30 * size;
-		flashSprite.position.copy(pos);
-		flashSprite.scale.setScalar(0.6 * size);
-		flashSprite.visible = true;
 		this.fx = this.fx.filter((f) => !f.flash);
-		this.fx.push({ flash: true, life: 0.06, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { flashLight.intensity = 0; flashSprite.visible = false; } });
+		this.fx.push({ flash: true, life: 0.06, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { flashLight.intensity = 0; } });
+	},
+
+	/**
+	 * Подвижная часть оружия после выстрела (userData.action: затвор ПМ, рама автомата, цевьё помпы):
+	 * резко назад, плавнее вперёд. locked — магазин пуст, затвор встаёт на задержку до перезарядки.
+	 */
+	cycleGun(gun, locked = false) {
+		const a = gun.userData.action;
+		if (!a) return;
+		a.y0 ??= a.part.position.y;
+		let t = -(a.delay ?? 0);
+		this.fx = this.fx.filter((f) => f.gun !== gun);
+		this.fx.push({ gun, life: 1, update(dt) {
+			t += dt;
+			const k = Math.max(0, t / a.dur);
+			const off = k < 0.3 ? k / 0.3 : locked ? 1 : Math.max(0, 1 - (k - 0.3) / 0.7);
+			a.part.position.y = a.y0 + a.travel * (t < 0 ? 0 : off);
+			return k < 1;
+		}, dispose() {} });
+	},
+	/** Затвор с задержки — на место (после перезарядки). */
+	releaseGun(gun) {
+		const a = gun?.userData.action;
+		if (a?.y0 != null) a.part.position.y = a.y0;
 	},
 
 	/** Пыль из-под ног на бегу (на улице; в домах — нет). */
@@ -2472,6 +2545,7 @@ function update(dt) {
 	}
 	game.pickups = game.pickups.filter((p) => !p.taken);
 	game.fx = game.fx.filter((f) => { const keep = f.update(dt); if (!keep) f.dispose(); return keep; });
+	flashes.update(dt);
 	level.update(dt, game.time);
 	spores.update(dt, game.player.pos, game.time, game.sourK ?? 0);
 	level.occlude(game.player.pos);

@@ -146,6 +146,11 @@ try {
 	await page.waitForFunction(() => window.__game.player.reloading <= 0 && window.__game.player.ammo === 5, null, { timeout: 20000 }).catch(() => {});
 	const r1 = await G(page, () => ({ ammo: window.__game.player.ammo, bag: window.__game.bag.ammo9, hud: document.getElementById('ammo').textContent }));
 	check(r0 === 3 && r1.ammo === 5 && r1.bag === 0 && r1.hud.replace(/\s/g, '') === '5/0', `перезарядка берёт из запаса: в магазине ${r1.ammo}, в запасе ${r1.bag}, на экране «${r1.hud}»`);
+	// последний патрон: затвор ПМ откатывается и встаёт на задержку
+	await G(page, () => { const g = window.__game, p = g.player; p.ammo = 1; g.bag.ammo9 = 0; p.cooldown = 0; p.attack(); });
+	await page.waitForTimeout(800);
+	const slideOff = await G(page, () => { const a = window.__game.player.gun('pistol').userData.action; return +(a.part.position.y - (a.y0 ?? a.part.position.y)).toFixed(3); });
+	check(slideOff >= 0.02, `затвор ПМ на задержке после последнего патрона (сдвиг ${slideOff} м)`);
 	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo9 = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
 	check(dry.ammo === 0 && /нет патронов/.test(dry.hud), `без патронов не стреляет, на экране «${dry.hud}»`);
 	// патроны — в домах: заходим, крыша исчезает, обыскиваем шкаф
@@ -268,8 +273,10 @@ try {
 	await page.keyboard.down('Space');
 	await page.waitForFunction(() => window.__game.kit.mags.aks <= 25 || window.__game.player.reloading > 0, null, { timeout: 30000 }).catch(() => {});
 	await page.keyboard.up('Space');
-	const burst = await G(page, () => ({ ammo: window.__game.kit.mags.aks, w: window.__game.player.weapon, clip: window.__game.player.current }));
+	const burst = await G(page, () => ({ ammo: window.__game.kit.mags.aks, w: window.__game.player.weapon, clip: window.__game.player.current, recoil: !!window.__game.player.recoilBones?.[0], sounds: window.__game.sounds() }));
 	check(burst.w === 'aks' && burst.ammo <= 25 && /Rifle/.test(clipR), `АКС: очередь при зажатой атаке (${30 - burst.ammo} выстрелов), анимации автомата (${clipR}, ${burst.clip})`);
+	check(burst.recoil, 'отдача: грудь героя откидывается при выстреле');
+	check(burst.sounds === 15, `настоящие звуки оружия загружены: ${burst.sounds}/15`);
 	await page.screenshot({ path: join(OUT, 'game-rifle.png') });
 	// лекарь: отдых двигает время мира
 	const rest = await G(page, () => { const g = window.__game, t = g.world.time; g.player.hp = 30; g.player.maxHp = 100; g.rest(); const r = { dt: g.world.time - t, hp: g.player.hp }; g.player.hp = g.player.maxHp = 1e6; return r; });

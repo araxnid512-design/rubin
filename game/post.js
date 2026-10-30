@@ -64,7 +64,10 @@ export function createPost(renderer, scene, camera, { quality, mobile }) {
 	composer.addPass(new RenderPass(scene, camera));
 	const passes = {};
 	if (!mobile) {
-		const ao = new GTAOPass(scene, camera, size.x, size.y);
+		// затенение мягкое и без мелких деталей — считается в половинном разрешении (вчетверо меньше точек)
+		const ao = new GTAOPass(scene, camera, Math.ceil(size.x / 2), Math.ceil(size.y / 2));
+		const aoSize = ao.setSize.bind(ao);
+		ao.setSize = (w, h) => aoSize(Math.ceil(w / 2), Math.ceil(h / 2));
 		ao.output = GTAOPass.OUTPUT.Default;
 		ao.blendIntensity = 0.9;
 		ao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.8, thickness: 2.5, scale: 2.2, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });

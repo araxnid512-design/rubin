@@ -61,6 +61,14 @@ export function makeAxe({ fire = false } = {}) {
 const M = (color, roughness = 0.5, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 const part = (g, geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; g.add(m); return m; };
 const barrelY = (r, len) => new THREE.CylinderGeometry(r, r, len, 10); // цилиндр вдоль Y — как ствол
+/**
+ * Рукоятка затворной рамы на правом боку ствольной коробки (правый бок — −X хвата): после выстрела рама
+ * отскакивает назад (к прикладу, +Y) и возвращается — userData.action, анимирует game.cycleGun.
+ */
+const boltHandle = (g, mat, x, y, z) => {
+	const h = part(g, new THREE.BoxGeometry(0.03, 0.014, 0.014), mat, x, y, z);
+	g.userData.action = { part: h, travel: 0.055, dur: 0.07 };
+};
 
 /** Обрез ИЖ-43: два ствола 12 калибра бок о бок, укороченный приклад-рукоять в кулаке. */
 export function makeObrez() {
@@ -94,6 +102,7 @@ export function makeAks() {
 	// откидной приклад (разложен): две тяги и затыльник
 	for (const z of [0.06, 0.11]) part(g, new THREE.BoxGeometry(0.012, 0.27, 0.012), metal, 0, 0.2, z);
 	part(g, new THREE.BoxGeometry(0.03, 0.025, 0.1), metal, 0, 0.33, 0.085);
+	boltHandle(g, metal, -0.035, -0.02, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.54, 0.088);
 	return shadow(g);
 }
@@ -112,8 +121,10 @@ export function makeShotgun() {
 	part(g, new THREE.BoxGeometry(0.046, 0.2, 0.07), metal, 0, -0.06, 0.08); // ствольная коробка
 	part(g, barrelY(0.012, 0.5), metal, 0, -0.39, 0.105);
 	part(g, barrelY(0.011, 0.4), metal, 0, -0.34, 0.077); // магазин-труба
-	part(g, new THREE.BoxGeometry(0.05, 0.14, 0.046), wood, 0, -0.29, 0.075); // цевьё-помпа
+	const pump = part(g, new THREE.BoxGeometry(0.05, 0.14, 0.046), wood, 0, -0.29, 0.075); // цевьё-помпа
 	part(g, new THREE.TorusGeometry(0.02, 0.004, 6, 12, Math.PI), metal, 0, -0.03, 0.04).rotation.y = Math.PI / 2;
+	// после выстрела цевьё передёргивают: назад-вперёд (звук — в audio.js)
+	g.userData.action = { part: pump, travel: 0.085, dur: 0.38, delay: 0.26 };
 	g.userData.muzzle = new THREE.Vector3(0, -0.64, 0.105);
 	return shadow(g);
 }
@@ -152,6 +163,7 @@ function makeKalash({ name, furniture, magMat, brake, stockLen = 0.3 }) {
 	part(g, new THREE.BoxGeometry(0.026, 0.065, 0.1), magMat, 0, -0.15, -0.09, 0.6);
 	part(g, new THREE.BoxGeometry(0.04, stockLen, 0.07), furniture, 0, 0.07 + stockLen / 2, 0.055, -0.12); // приклад
 	part(g, new THREE.BoxGeometry(0.044, 0.02, 0.09), M(0x1a1a1a, 0.7), 0, 0.08 + stockLen, 0.04);
+	boltHandle(g, metal, -0.035, -0.02, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.71, 0.088);
 	return shadow(g);
 }
@@ -177,6 +189,7 @@ export function makeSvd() {
 	part(g, barrelY(0.021, 0.004), glass, 0, -0.215, 0.16);
 	part(g, new THREE.BoxGeometry(0.02, 0.08, 0.035), metal, 0, -0.06, 0.125); // кронштейн
 	part(g, new THREE.BoxGeometry(0.024, 0.05, 0.09), metal, 0, -0.1, -0.025, 0.12); // магазин
+	boltHandle(g, metal, -0.033, -0.01, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.94, 0.088);
 	return shadow(g);
 }
@@ -203,6 +216,7 @@ export function makePkm() {
 	// короб с лентой — слева снизу, лента тянется в приёмник
 	part(g, new THREE.BoxGeometry(0.1, 0.11, 0.09), olive, -0.06, -0.12, 0.02);
 	part(g, new THREE.BoxGeometry(0.04, 0.02, 0.035), M(0xb8923e, 0.35, 0.85), -0.03, -0.1, 0.075);
+	boltHandle(g, metal, -0.04, 0.0, 0.09); // над коробом, как у настоящего ПКМ
 	g.userData.muzzle = new THREE.Vector3(0, -0.87, 0.092);
 	return shadow(g);
 }
@@ -226,6 +240,7 @@ export function makeVss() {
 	part(g, barrelY(0.019, 0.004), glass, 0, -0.18, 0.155);
 	part(g, new THREE.BoxGeometry(0.018, 0.07, 0.03), metal, 0, -0.05, 0.123); // кронштейн
 	part(g, new THREE.BoxGeometry(0.026, 0.05, 0.1), metal, 0, -0.09, -0.03, 0.1); // магазин на 20
+	boltHandle(g, metal, -0.033, 0.0, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.64, 0.088);
 	return shadow(g);
 }
@@ -274,7 +289,8 @@ export const AMMO = { ammo9: '9×18', ammo919: '9×19', ammo12: '12 кал.', am
  * Каталог. Ствол: damage — урон пули (дробины), range — дальность, cooldown/auto — темп одиночных и серии,
  * kick — встряска камеры, spread — разброс очереди (точность падает с дальностью и длиной очереди),
  * casing — что вылетает при выстреле/перезарядке (eject: 'shot' — гильза дробовика при каждом выстреле),
- * falloff — насколько падает точность к пределу дальности (по умолчанию 0.35, у снайперки — почти нет).
+ * falloff — насколько падает точность к пределу дальности (по умолчанию 0.35, у снайперки — почти нет),
+ * flash — размер дульной вспышки (1 — автомат, 0 — глушитель).
  */
 export const WEAPONS = {
 	// durability — сколько ударов по заражённым выдержит, потом ломается
@@ -282,16 +298,16 @@ export const WEAPONS = {
 	fireaxe: { name: 'Пожарный топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 70, range: 2.4, arc: 1.25, cooldown: 1.0, hitTime: 0.36, speed: 0.92, noise: 7, durability: 90, price: 18, make: () => makeAxe({ fire: true }), desc: 'Тяжёлый топор с клювом: валит бегуна с удара, бьёт медленнее. Прочнее обычного — 90 ударов.' },
 	// когда топор сломался и запасного нет
 	fists: { name: 'Кулаки', slot: 'melee', anim: 'axe', mount: null, damage: 12, range: 1.5, arc: 1.0, cooldown: 0.6, hitTime: 0.28, speed: 1.2, noise: 3, make: () => Object.assign(new THREE.Group(), { name: 'Fists' }), desc: 'Топора нет — остаются кулаки. Бегуна так не забить: купи топор у торговца в стабе или найди в домах.' },
-	pistol: { name: 'ПМ', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4, noise: 26, kick: 0.07, spread: 0.03, casing: 'brass', make: makePistol, desc: 'Пистолет Макарова, магазин на 8 патронов 9×18. Выстрел слышно издалека.' },
-	obrez: { name: 'Обрез ИЖ-43', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo12', damage: 16, pellets: 8, spread: 0.32, range: 10, cooldown: 0.32, auto: 0.45, mag: 2, reload: 1.9, noise: 32, kick: 0.3, casing: 'shell', price: 30, make: makeObrez, desc: 'Два ствола 12 калибра: дробь в упор разрывает бегуна, но далеко не бьёт. Перезарядка долгая.' },
-	shotgun: { name: 'МР-133', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 15, pellets: 9, spread: 0.24, range: 13, cooldown: 0.75, auto: 0.8, mag: 6, reload: 3.2, noise: 34, kick: 0.3, casing: 'shell', eject: 'shot', price: 45, make: makeShotgun, desc: 'Помповый дробовик 12 калибра: шесть патронов, картечь дальше и кучнее, чем у обреза. Каждый выстрел — передёрнуть цевьё.' },
-	vector: { name: 'Вектор', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo919', damage: 18, range: 18, cooldown: 0.075, auto: 0.075, mag: 30, reload: 1.8, noise: 24, kick: 0.04, spread: 0.045, casing: 'brass', price: 70, make: makeVector, desc: 'Пистолет-пулемёт под 9×19: очень быстрый огонь, почти без отдачи. Магазин пустеет за пару секунд.' },
-	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 26, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, kick: 0.09, spread: 0.05, casing: 'brass', price: 80, make: makeAks, desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
-	ak74: { name: 'АК-74', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 30, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.3, noise: 36, kick: 0.09, spread: 0.035, casing: 'brass', price: 110, make: makeAk74, desc: 'Полноразмерный автомат 5,45×39: точнее и дальше, чем укороченный.' },
-	ak47: { name: 'АК-47', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 42, range: 30, cooldown: 0.11, auto: 0.11, mag: 30, reload: 2.4, noise: 38, kick: 0.13, spread: 0.05, casing: 'brass', price: 120, make: makeAk47, desc: 'Калашников под 7,62×39: пуля тяжелее — бегун падает с одного-двух попаданий, но сильно уводит в очереди.' },
-	vss: { name: 'ВСС «Винторез»', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo939', damage: 75, range: 34, falloff: 0.12, cooldown: 0.4, auto: 0.45, mag: 20, reload: 2.4, noise: 7, kick: 0.06, spread: 0.01, casing: 'brass', price: 180, make: makeVss, desc: 'Бесшумная снайперская винтовка под 9×39: выстрел почти не слышен — соседние заражённые не сбегаются. Бьёт точно, но слабее СВД.' },
-	pkm: { name: 'ПКМ', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 40, range: 32, cooldown: 0.09, auto: 0.09, mag: 100, reload: 5.5, noise: 48, kick: 0.12, spread: 0.07, casing: 'brass', price: 230, make: makePkm, desc: 'Пулемёт Калашникова, лента на 100 патронов 7,62×54R: держит толпу длинными очередями. Перезарядка долгая, грохот — на весь кластер.' },
-	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 42, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, spread: 0, casing: 'brass', price: 160, make: makeSvd, desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
+	pistol: { name: 'ПМ', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 26, range: 20, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4, noise: 26, kick: 0.07, flash: 0.8, spread: 0.03, casing: 'brass', make: makePistol, desc: 'Пистолет Макарова, магазин на 8 патронов 9×18. Выстрел слышно издалека.' },
+	obrez: { name: 'Обрез ИЖ-43', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo12', damage: 16, pellets: 8, spread: 0.32, range: 10, cooldown: 0.32, auto: 0.45, mag: 2, reload: 1.9, noise: 32, kick: 0.3, flash: 1.6, casing: 'shell', price: 30, make: makeObrez, desc: 'Два ствола 12 калибра: дробь в упор разрывает бегуна, но далеко не бьёт. Перезарядка долгая.' },
+	shotgun: { name: 'МР-133', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 15, pellets: 9, spread: 0.24, range: 13, cooldown: 0.75, auto: 0.8, mag: 6, reload: 3.2, noise: 34, kick: 0.3, flash: 1.4, casing: 'shell', eject: 'shot', price: 45, make: makeShotgun, desc: 'Помповый дробовик 12 калибра: шесть патронов, картечь дальше и кучнее, чем у обреза. Каждый выстрел — передёрнуть цевьё.' },
+	vector: { name: 'Вектор', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo919', damage: 18, range: 18, cooldown: 0.075, auto: 0.075, mag: 30, reload: 1.8, noise: 24, kick: 0.04, flash: 0.6, spread: 0.045, casing: 'brass', price: 70, make: makeVector, desc: 'Пистолет-пулемёт под 9×19: очень быстрый огонь, почти без отдачи. Магазин пустеет за пару секунд.' },
+	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 26, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, kick: 0.09, flash: 1.25, spread: 0.05, casing: 'brass', price: 80, make: makeAks, desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
+	ak74: { name: 'АК-74', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 30, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.3, noise: 36, kick: 0.09, flash: 0.9, spread: 0.035, casing: 'brass', price: 110, make: makeAk74, desc: 'Полноразмерный автомат 5,45×39: точнее и дальше, чем укороченный.' },
+	ak47: { name: 'АК-47', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 42, range: 30, cooldown: 0.11, auto: 0.11, mag: 30, reload: 2.4, noise: 38, kick: 0.13, flash: 1.05, spread: 0.05, casing: 'brass', price: 120, make: makeAk47, desc: 'Калашников под 7,62×39: пуля тяжелее — бегун падает с одного-двух попаданий, но сильно уводит в очереди.' },
+	vss: { name: 'ВСС «Винторез»', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo939', damage: 75, range: 34, falloff: 0.12, cooldown: 0.4, auto: 0.45, mag: 20, reload: 2.4, noise: 7, kick: 0.06, flash: 0, spread: 0.01, casing: 'brass', price: 180, make: makeVss, desc: 'Бесшумная снайперская винтовка под 9×39: выстрел почти не слышен — соседние заражённые не сбегаются. Бьёт точно, но слабее СВД.' },
+	pkm: { name: 'ПКМ', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 40, range: 32, cooldown: 0.09, auto: 0.09, mag: 100, reload: 5.5, noise: 48, kick: 0.12, flash: 1.3, spread: 0.07, casing: 'brass', price: 230, make: makePkm, desc: 'Пулемёт Калашникова, лента на 100 патронов 7,62×54R: держит толпу длинными очередями. Перезарядка долгая, грохот — на весь кластер.' },
+	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 42, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, flash: 1.15, spread: 0, casing: 'brass', price: 160, make: makeSvd, desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
 };
 
 /** Пистолет Макарова: рукоять через кулак, ствол над большим пальцем смотрит по направлению пальцев. */
@@ -314,6 +330,7 @@ export function makePistol() {
 	const mag = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.026, 0.012), metal);
 	mag.position.set(0, 0.008, -0.052);
 	g.add(handle, frame, slide, guard, mag);
+	g.userData.action = { part: slide, travel: 0.028, dur: 0.07 }; // затвор откатывается назад, на последнем патроне встаёт на задержку
 	g.userData.muzzle = new THREE.Vector3(0, -0.128, 0.074);
 	return shadow(g);
 }
