@@ -148,22 +148,27 @@ function showMenu() {
 	$('menu').classList.remove('hidden');
 }
 
-// Скачать игру одним файлом. На странице публикации — через подтверждение зрителя (возможность downloads:
-// браузер внутри окна просмотра сам файлы не скачивает); где её нет — обычная ссылка с download.
-let downloads = null;
-window.claude?.use?.('downloads').then((d) => { downloads = d; }).catch(() => {});
-$('download').addEventListener('click', async (e) => {
-	if (!downloads) return; // обычная ссылка
+// Скачать игру одним файлом. В окне просмотра claude.ai браузер сам файлы из страницы не скачивает — файл
+// отдаёт возможность downloads (зритель подтверждает сохранение). Если её здесь нет или сохранить не вышло —
+// ссылка «открыть файл отдельно» (новая вкладка, там браузер скачает сам). Вне claude.ai — обычная ссылка.
+const downloadsReady = window.claude?.use?.('downloads').catch(() => null) ?? null;
+$('download-link').addEventListener('click', async (e) => {
+	if (!downloadsReady) return; // обычная страница: ссылка с download
 	e.preventDefault();
-	const link = $('download'), label = link.querySelector('b'), text = label.textContent;
+	const link = $('download-link'), label = link.querySelector('b'), note = $('download-note'), text = label.textContent;
+	const url = new URL(link.getAttribute('href'), location.href).href;
+	const direct = (why) => { note.innerHTML = `${why} <a href="${url}" target="_blank" rel="noopener" download="ulei-cluster17.html">Открыть файл отдельно</a> — браузер скачает его сам.`; };
 	label.textContent = '⏳ Готовим файл…';
 	try {
-		const blob = await (await fetch(link.getAttribute('href'))).blob();
+		const downloads = await downloadsReady;
+		if (!downloads) { direct('Здесь сохранить через Claude нельзя.'); return; }
+		const blob = await (await fetch(url)).blob();
 		await downloads.save({ filename: 'ulei-cluster17.html', data: blob });
+		note.textContent = 'Готово: файл ulei-cluster17.html в загрузках — открой его в браузере.';
 	} catch (err) {
-		// отказ зрителя — молча; иначе подсказка, что делать
-		if (err?.code === 'rate_limited') link.querySelector('small').textContent = 'Окно сохранения уже открыто — подтверди его или попробуй через минуту.';
-		else if (err?.code !== 'declined') link.querySelector('small').textContent = 'Здесь скачивание недоступно — открой игру в браузере на claude.ai и нажми ещё раз.';
+		if (err?.code === 'declined') note.textContent = 'Сохранение отменено — нажми ещё раз и подтверди в окне Claude.';
+		else if (err?.code === 'rate_limited') note.textContent = 'Окно сохранения уже открыто — подтверди его или попробуй через минуту.';
+		else direct('Сохранить не вышло.');
 	} finally {
 		label.textContent = text;
 	}
