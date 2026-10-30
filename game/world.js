@@ -5,12 +5,12 @@
 // preview — снимок локации (scripts/render-previews.mjs) для карты Улья.
 
 export const NODES = {
-	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 74], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
-	zarechny: { name: 'Кластер «Заречный»', short: 'Заречный', kind: 'cluster', at: [76, 32], preview: 'assets/previews/zarechny.jpg', desc: 'Посёлок у трассы: хрущёвка, гаражи, частные дома, магазин. Патроны 9×18 в домах.' },
-	dachi: { name: 'Кластер «Дачи»', short: 'Дачи', kind: 'cluster', at: [24, 30], preview: 'assets/previews/dachi.jpg', desc: 'Садовое товарищество: домики, теплицы, сторожка. Охотничьи патроны 12 калибра, обрезы.' },
+	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 86], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
+	zarechny: { name: 'Кластер «Заречный»', short: 'Заречный', kind: 'cluster', at: [80, 54], preview: 'assets/previews/zarechny.jpg', desc: 'Посёлок у трассы: хрущёвка, гаражи, частные дома, магазин. Патроны 9×18 в домах.' },
+	dachi: { name: 'Кластер «Дачи»', short: 'Дачи', kind: 'cluster', at: [20, 52], preview: 'assets/previews/dachi.jpg', desc: 'Садовое товарищество: домики, теплицы, сторожка. Охотничьи патроны 12 калибра, обрезы.' },
 	// глубже в Улье: развитые заражённые — топтуны и руберы, у руберов бывает чёрный жемчуг
-	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [84, 10], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
-	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [50, 13], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
+	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [84, 11], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
+	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [46, 26], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
 };
 
 /** Дороги: [откуда, куда, время в пути, с]. */

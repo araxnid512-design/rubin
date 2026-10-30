@@ -201,12 +201,12 @@ try {
 
 	// миникарта в углу: план локации вокруг героя и стрелки к выходам
 	const mm = await G(page, () => ({ bg: getComputedStyle(document.getElementById('mm-map')).backgroundImage.startsWith('url("data:image/png'), pointers: document.querySelectorAll('#mm-pointers .mm-pointer').length, shown: document.getElementById('minimap').offsetWidth > 0 }));
-	check(mm.bg && mm.shown && mm.pointers === 2, `миникарта: план локации и ${mm.pointers} стрелки к выходам`);
+	check(mm.bg && mm.shown && mm.pointers === 3, `миникарта: план локации и ${mm.pointers} стрелки к выходам`);
 	// карта локации по M: где герой, тайники, выходы; оттуда — на карту Улья
 	await page.keyboard.press('KeyM');
 	await page.waitForSelector('#locmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const lm = await G(page, () => ({ paused: window.__game.paused, boxes: document.querySelectorAll('#lm-svg .lm-box').length, done: document.querySelectorAll('#lm-svg .lm-box.done').length, exits: document.querySelectorAll('#lm-svg .lm-exit').length, you: !!document.querySelector('#lm-svg .lm-you'), info: document.getElementById('lm-info').textContent }));
-	check(lm.paused && lm.boxes >= 20 && lm.done >= 1 && lm.exits === 2 && lm.you && /Полис/.test(lm.info), `карта локации: герой, тайников ${lm.boxes} (обыскано ${lm.done}), выходов ${lm.exits}`);
+	check(lm.paused && lm.boxes >= 20 && lm.done >= 1 && lm.exits === 3 && lm.you && /Полис/.test(lm.info) && /Химмаш/.test(lm.info), `карта локации: герой, тайников ${lm.boxes} (обыскано ${lm.done}), выходов ${lm.exits}`);
 	await page.screenshot({ path: join(OUT, 'game-locmap.png') });
 	await page.click('#lm-world');
 	check(await G(page, () => window.__game.worldMap.isOpen && document.getElementById('locmap').classList.contains('hidden')), 'с карты локации — на карту Улья');
@@ -217,7 +217,7 @@ try {
 	await G(page, () => window.__game.player.pos.set(10, 0, -46.3));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const edge = await G(page, () => ({ open: window.__game.worldMap.isOpen, routes: document.querySelectorAll('#wm-list [data-go]').length }));
-	check(edge.open && edge.routes === 2, 'дошёл до края кластера (муть) — открылась карта Улья');
+	check(edge.open && edge.routes === 3, 'дошёл до края кластера (муть) — открылась карта Улья');
 	await page.click('#wm-stay');
 
 	// выход у края кластера открывает карту; уходим в стаб
@@ -230,7 +230,7 @@ try {
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
-	check(prev.cards === 3 && prev.nodes === 3, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты`);
+	check(prev.cards === map.routes.length + 1 && prev.nodes === 5, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты`);
 	await page.screenshot({ path: join(OUT, 'game-map.png') });
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');
@@ -343,6 +343,8 @@ try {
 	// второй кластер — Дачи: заражённые, тайники, всё достижимо
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+	// пока идут проверки Дач, бойцов не загрызут (бой наёмников проверяем ниже)
+	await G(page, () => { for (const st of window.__game.party) st.hp = 1e5; });
 	const d = await G(page, () => ({ n: window.__game.enemies.length, c: window.__game.level.containers.length, b: window.__game.level.buildings.length }));
 	check(d.n >= 15 && d.c >= 20 && d.b >= 8, `Дачи: ${d.n} заражённых, домиков ${d.b}, тайников ${d.c}`);
 	await G(page, () => window.__game.player.pos.set(0, 0, 4));
@@ -362,8 +364,8 @@ try {
 		return g.mercs.length;
 	});
 	await page.waitForFunction(() => window.__game.kills > window.__k0 && window.__game.party.some((m, i) => m.mag + m.ammo < window.__mercAmmo[i]), null, { timeout: 60000 }).catch(() => {});
-	const mf = await G(page, () => ({ kills: window.__game.kills - window.__k0, spent: window.__game.party.map((m, i) => window.__mercAmmo[i] - (m.mag + m.ammo)) }));
-	check(mercFight === 2 && mf.kills > 0 && mf.spent.some((n) => n > 0), `наёмники в бою: убили ${mf.kills}, потратили патронов ${mf.spent.join(' и ')}`);
+	const mf = await G(page, () => ({ kills: window.__game.kills - window.__k0, spent: window.__game.party.map((m, i) => window.__mercAmmo[i] - (m.mag + m.ammo)), roster: window.__game.roster.map((m) => `${m.id}:${m.out}:${Math.round(m.hp)}`).join(' ') }));
+	check(mercFight === 2 && mf.kills > 0 && mf.spent.some((n) => n > 0), `наёмники в бою: убили ${mf.kills}, потратили патронов ${mf.spent.join(' и ')}${mf.spent.length ? '' : ` [${mf.roster}]`}`);
 	await page.screenshot({ path: join(OUT, 'game-mercs.png') });
 	// патроны и живчик наёмнику — из рюкзака героя
 	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.party[0].hp = 40; g.partyWindow.open(); });
@@ -450,6 +452,57 @@ try {
 	const back = await G(page, () => window.__game.enemies.length); // все заселённые при приходе
 	check(back === before2, `вернулись в Дачи до перезагрузки — убитые не ожили (${before2} → ${back})`);
 
+	// глубже в Улье: «Химмаш» — промзона с топтунами и руберами
+	await G(page, () => window.__game.travel('himmash'));
+	await page.waitForFunction(() => window.__game.loc === 'himmash' && window.__game.state === 'play', null, { timeout: 300000 });
+	const hm = await G(page, () => { const g = window.__game, n = (t) => g.enemies.filter((e) => e.type === t).length; return { r: n('ruber'), s: n('stomper'), c: g.level.containers.length, b: g.level.buildings.length }; });
+	check(hm.r === 2 && hm.s >= 5 && hm.c >= 12 && hm.b === 2, `Химмаш: руберов ${hm.r}, топтунов ${hm.s}, цех и склад, тайников ${hm.c}`);
+	await G(page, () => window.__game.player.pos.set(0, 0, 8));
+	const rh = await reach();
+	check(rh.bad.length === 0 && rh.exits === 0, `Химмаш: все ${rh.n} тайников и выходы достижимы${rh.bad.length ? ': нет пути к ' + rh.bad.join(', ') : ''}`);
+	await page.screenshot({ path: join(OUT, 'game-himmash.png') });
+	// рубер: замечает, ревёт, бросается рывком; броня срезает урон; в споровом мешке — горох (и бывает жемчуг)
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		for (const st of g.party) st.mag = st.ammo = 0;
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, 40); e.state = 'idle'; }
+		p.pos.set(-30, 0, 8);
+		for (const m of g.mercs) m.place();
+		window.__ru = g.spawnEnemy('ruber', p.pos.clone().set(-19, 0, 8));
+		window.__ruStates = new Set();
+		window.__ruTimer = setInterval(() => { window.__ruStates.add(window.__ru.state + ':' + window.__ru.current); }, 30);
+	});
+	await page.waitForFunction(() => [...window.__ruStates].some((x) => x.startsWith('chase:Charge')) || [...window.__ruStates].some((x) => x.startsWith('attack')), null, { timeout: 30000 }).catch(() => {});
+	const ru = await G(page, () => {
+		clearInterval(window.__ruTimer);
+		const g = window.__game, r = window.__ru, seen = [...window.__ruStates];
+		const hp0 = r.hp; r.damage(26, g.player.pos, 0.2); const pm = hp0 - r.hp;
+		const hp1 = r.hp; r.damage(130, g.player.pos, 0.3); const svd = hp1 - r.hp;
+		const peas0 = g.pickups.filter((x) => x.kind === 'peas').length;
+		r.damage(1e4, g.player.pos, 1);
+		return { roar: seen.some((x) => x === 'roar:Roar'), run: seen.some((x) => /Charge|Attack/.test(x)), pm, svd, peas: g.pickups.filter((x) => x.kind === 'peas').length - peas0, dead: !r.alive };
+	});
+	check(ru.roar && ru.run, 'рубер заметил героя: рёв, потом рывок галопом на четырёх лапах');
+	check(ru.pm === 18 && ru.svd === 122, `костяная броня рубера: пуля ПМ ${ru.pm} из 26, СВД ${ru.svd} из 130`);
+	check(ru.dead && ru.peas === 1, 'убитый рубер: горох из спорового мешка');
+	// чёрная жемчужина: съесть — здоровье навсегда больше
+	await G(page, () => { const g = window.__game; g.bag.pearl = 2; g.inventory.open(); g.inventory.select('pearl'); });
+	await page.click('#inv-action');
+	const pearl = await G(page, () => { const g = window.__game, r = { max: g.player.maxHp, perk: g.perks.maxHp, left: g.bag.pearl, hp: g.player.hp }; g.inventory.close(); g.player.hp = g.player.maxHp = 1e6; return r; });
+	check(pearl.max === 120 && pearl.perk === 120 && pearl.hp === 120 && pearl.left === 1, `съел чёрную жемчужину: здоровье навсегда ${pearl.max}, осталась ${pearl.left}`);
+
+	// «Военная часть» — логово руберов
+	await G(page, () => window.__game.travel('voench'));
+	await page.waitForFunction(() => window.__game.loc === 'voench' && window.__game.state === 'play', null, { timeout: 300000 });
+	const vo = await G(page, () => { const g = window.__game, n = (t) => g.enemies.filter((e) => e.type === t).length; return { r: n('ruber'), s: n('stomper'), c: g.level.containers.length, names: g.level.containers.map((c) => c.name) }; });
+	check(vo.r === 4 && vo.s >= 5 && vo.c >= 13 && vo.names.filter((n) => n === 'Пирамида').length === 3, `Военная часть: руберов ${vo.r}, топтунов ${vo.s}, тайников ${vo.c}, в оружейке пирамиды`);
+	await G(page, () => window.__game.player.pos.set(0, 0, 6));
+	const rv = await reach();
+	check(rv.bad.length === 0 && rv.exits === 0, `Военная часть: все ${rv.n} тайников и выходы достижимы${rv.bad.length ? ': нет пути к ' + rv.bad.join(', ') : ''}`);
+	await page.screenshot({ path: join(OUT, 'game-voench.png') });
+	await G(page, () => window.__game.travel('dachi'));
+	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+
 	// перезагрузка кластера, пока герой внутри: кислый запах, муть, смерть; очнулся в стабе без рюкзака
 	await G(page, () => { const g = window.__game; g.bag.spore = 7; g.bag.ammo545 = 11; g.world.clusters.dachi.next = g.world.time + 20; });
 	await page.waitForFunction(() => window.__game.warnStage >= 1, null, { timeout: 60000 }).catch(() => {});
@@ -462,7 +515,17 @@ try {
 	await page.click('#btn-respawn');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
 	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved }; });
-	check(re.spore === 0 && re.ammo === 0 && re.owned.includes('aks') && re.hp === 100 && re.fresh, `очнулся в стабе: рюкзак пуст, оружие при себе (${re.owned}), Дачи перезагрузились`);
+	// здоровье — полное, с прибавкой от съеденной жемчужины (120)
+	check(re.spore === 0 && re.ammo === 0 && re.owned.includes('aks') && re.hp === 120 && re.fresh, `очнулся в стабе: рюкзак пуст, оружие при себе (${re.owned}), Дачи перезагрузились`);
+	// торговец покупает чёрную жемчужину
+	await G(page, () => { const g = window.__game; g.bag.pearl = 1; g.bag.spore = 0; g.player.pos.set(-11, 0, 0.1); });
+	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Торговать' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
+	await page.keyboard.press('KeyE');
+	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	await page.click('#trade-pearl');
+	const sold = await G(page, () => { const g = window.__game, r = { spore: g.bag.spore, pearl: g.bag.pearl, perk: g.perks.maxHp, max: g.player.maxHp }; g.trade.close(); return r; });
+	check(sold.spore === 150 && sold.pearl === 0, `продал чёрную жемчужину торговцу: +${sold.spore} споранов`);
+	check(sold.perk === 120 && sold.max === 120, `съеденная жемчужина не пропала со смертью: здоровье ${sold.max}`);
 	const afterReload = await G(page, () => ({ party: window.__game.party.length, home: window.__game.roster.map((m) => m.id).join() }));
 	check(afterReload.party === 0 && afterReload.home === 'shram,ded', `Док и Сапёр пропали вместе с кластером, в комнате ждут: ${afterReload.home}`);
 	const storage = await G(page, () => ({ ...localStorage }));

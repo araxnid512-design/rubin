@@ -104,7 +104,7 @@ export class WorldMap {
 		const clip = el('clipPath', { id: `${svg.id}-clip` }, defs);
 		el('circle', { cx: 0, cy: 0, r: 4.2 }, clip);
 		// муть — медленно дышащие размытые пятна между кластерами
-		for (const [x, y, r] of [[50, 20, 16], [12, 62, 14], [88, 66, 15], [50, 46, 9], [30, 90, 12], [74, 92, 10]]) el('circle', { cx: x, cy: y, r, fill: '#2e3530', filter: `url(#${svg.id}-blur)`, class: 'wm-fog' });
+		for (const [x, y, r] of [[20, 14, 11], [64, 38, 8], [10, 76, 12], [90, 80, 12], [50, 62, 9], [28, 97, 10], [74, 98, 10], [95, 34, 7]]) el('circle', { cx: x, cy: y, r, fill: '#2e3530', filter: `url(#${svg.id}-blur)`, class: 'wm-fog' });
 		for (const [a, b, t] of ROUTES) {
 			const [x1, y1] = NODES[a].at, [x2, y2] = NODES[b].at;
 			const active = travel ? (a === travel.from && b === travel.to) || (b === travel.from && a === travel.to) : a === here || b === here;

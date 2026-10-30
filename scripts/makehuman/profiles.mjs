@@ -143,7 +143,7 @@ export const STOMPER_PROFILE = {
 	animations: (root, o) => [...createZombieAnimations(root, o), createStompAnimation(root)],
 };
 
-// ---------- Рубер: следующая за топтуном стадия — исполин в костяной броне ----------
+// ---------- Рубер: следующая за топтуном стадия — зверь в костяной броне, на четырёх лапах, с пастью ----------
 
 const RUBER_TARGETS = [
 	['macrodetails/universal-male-young-maxmuscle-maxweight', 0.75],
@@ -222,6 +222,19 @@ function ruberGarments({ P, dominant, L, ragged, V }) {
 	}];
 }
 
+/**
+ * Звериная морда — как у огромной мутировавшей собаки-обезьяны: всё, что ниже глаз и впереди черепа,
+ * вытянуто в рыло и раздалось вширь; нижняя челюсть тяжелее и опущена (зубы и язык едут вместе с ней).
+ */
+function ruberMuzzle(p, head, jaw, ref) {
+	const below = smoothstep(ref.eyeY - 0.004, ref.eyeY - 0.05, p.y);
+	const front = smoothstep(ref.head.z - 0.01, ref.head.z + 0.085, p.z);
+	const k = below * front * Math.min(1, head + jaw);
+	if (k <= 0.001) return null;
+	const len = 0.13 * k + 0.035 * jaw * front;
+	return [(p.x - ref.mouth.x) * 0.3 * k, -0.03 * jaw * front - 0.01 * k, len];
+}
+
 /** Костяные шипы: гребень по хребту, рога на плечах, шпоры на локтях (жёсткие детали на костях). */
 function ruberSpikes({ L, backMost, bindWorld, V }) {
 	const parts = [];
@@ -232,7 +245,14 @@ function ruberSpikes({ L, backMost, bindWorld, V }) {
 		g.translate(at.x, at.y, at.z);
 		parts.push({ geo: g, bone, color });
 	};
-	const boneCol = [0.55, 0.49, 0.38], tipCol = [0.36, 0.31, 0.24];
+	const boneCol = [0.55, 0.49, 0.38], tipCol = [0.36, 0.31, 0.24], fangCol = [0.78, 0.72, 0.56];
+	// клыки: верхние — на черепе, нижние — на челюсти (раскрываются вместе с пастью)
+	const lip = L.lips ?? L.mouth;
+	for (const sx of [1, -1]) {
+		spike(0.06, 0.011, V([sx * 0.034, L.mouth.y + 0.006, lip.z - 0.02]), V([sx * 0.1, -1, 0.25]), 'Head', fangCol);
+		spike(0.035, 0.008, V([sx * 0.018, L.mouth.y + 0.004, lip.z - 0.006]), V([0, -1, 0.3]), 'Head', fangCol);
+		spike(0.05, 0.01, V([sx * 0.03, L.mouth.y - 0.014, lip.z - 0.024]), V([sx * 0.15, 1, 0.3]), 'Jaw', fangCol);
+	}
 	// гребень по хребту: от поясницы до загривка, самые длинные — между лопатками
 	for (let i = 0; i < 8; i++) {
 		const y = L.hipsY + 0.08 + i * 0.066;
@@ -265,13 +285,14 @@ export const RUBER_PROFILE = {
 	targets: RUBER_TARGETS,
 	wounds: false,
 	growths: ruberGrowths,
+	shape: ruberMuzzle,
 	garments: ruberGarments,
 	gear: ruberSpikes,
 	skin: ruberSkin,
 	cloth: RUNNER_PROFILE.cloth,
 	eye: 'assets/zombie_eye.png',
-	// тяжёлый шаг, как у топтуна, плюс рывок, рёв и удар двумя лапами
-	animations: (root, o) => [...createZombieAnimations(root, o), createStompAnimation(root), ...createRuberAnimations(root)],
+	// зверь на четырёх лапах: стойка, шаг, галоп-рывок, бросок с укусом, рёв на задних лапах, смерть
+	animations: (root) => createRuberAnimations(root),
 };
 
 // ---------- Герой (новый игрок): полный скелет 56 костей, снаряжение, крепления оружия ----------

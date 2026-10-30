@@ -171,6 +171,26 @@ export function buildCharacter(profile, { textureSize = 1024 } = {}) {
 	for (let i = 0; i < eyes.positions.length; i += 3) eyes.positions[i + 1] -= minPosed;
 	for (const n of BONE_NAMES) if (n !== 'Root') bindWorld[n].y -= minPosed;
 
+	// ---------- Перестройка формы головы (у рубера — вытянутая звериная морда) ----------
+	// profile.shape(p, head, jaw, ref) → сдвиг [dx, dy, dz] для вершин головы/челюсти (вместе с зубами и языком);
+	// ref: head/jaw — кости, eyeY — высота глаз, mouth — центр рта (до перестройки)
+	if (profile.shape) {
+		const part = (v, prefix) => Object.entries(vertWeights[v]).reduce((acc, [b, w]) => acc + (rig.part(b).startsWith(prefix) ? w : 0), 0);
+		const ref = {
+			head: bindWorld[rig.alias.Head].clone(), jaw: bindWorld[rig.alias.Jaw].clone(),
+			eyeY: jointPosition(skel, posed, skel.bones['eye.L'].head)[1],
+			mouth: groupCenter(base.groups.get('joint-mouth'), posed),
+		};
+		const out = posed.slice();
+		for (let v = 0; v < nv; v++) {
+			const head = part(v, 'Head'), jaw = part(v, 'Jaw');
+			if (head + jaw < 0.01) continue;
+			const d = profile.shape(new THREE.Vector3(posed[v * 3], posed[v * 3 + 1], posed[v * 3 + 2]), head, jaw, ref);
+			if (d) for (let a = 0; a < 3; a++) out[v * 3 + a] += d[a];
+		}
+		posed.set(out);
+	}
+
 	// ---------- Нормали по вершинам базы (без швов развёртки) ----------
 	const vnormals = vertexNormals(posed, bodyFaces, nv);
 	const P = (v) => new THREE.Vector3(posed[v * 3], posed[v * 3 + 1], posed[v * 3 + 2]);

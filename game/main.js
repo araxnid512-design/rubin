@@ -24,7 +24,7 @@ import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
 import { WorldMap } from './worldmap.js';
 import { NODES, WARN, newWorld, normalizeWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
 import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
-import { ZOMBIE_GAIT } from '../src/animations.js';
+import { ZOMBIE_GAIT, RUBER_GAIT } from '../src/animations.js';
 
 const $ = (id) => document.getElementById(id);
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -699,8 +699,9 @@ const ENEMY_TYPES = {
 	// sight — с какого расстояния замечает героя; armor — сколько урона срезает броня с каждого попадания
 	runner: { hp: 60, speed: 3.4, scale: 1, radius: 0.36, damage: 8, range: 1.25, hitTime: 0.72, attackAnim: 1, move: 'Run', score: 1, heavy: 1, stagger: 0.3 },
 	stomper: { hp: 220, speed: 2.0, scale: 1.08, radius: 0.5, damage: 22, range: 1.55, hitTime: 0.85, attackAnim: 0.85, move: 'Stomp', score: 3, heavy: 3, stagger: 0.08 },
-	// рубер: следующая за топтуном стадия — костяная броня, рёв, рывки (charge — скорость рывка), удар двумя лапами
-	ruber: { hp: 520, speed: 2.6, charge: 6.4, scale: 1.12, radius: 0.56, damage: 34, knock: 1.6, range: 1.9, hitTime: 0.72, attackAnim: 1, attack: 'Smash', move: 'Stomp', score: 5, heavy: 5, stagger: 0.03, sight: 18, armor: 8, roar: true },
+	// рубер: следующая за топтуном стадия — зверь на четырёх лапах в костяной броне, с пастью собаки-обезьяны;
+	// ревёт, бросается рывками (charge — скорость галопа), бьёт броском с укусом; gait — скорости его клипов
+	ruber: { hp: 520, speed: 2.6, charge: 6.4, scale: 1.12, radius: 0.58, damage: 34, knock: 1.6, range: 2.0, hitTime: 0.5, attackAnim: 1, attack: 'Attack', move: 'Walk', gait: RUBER_GAIT, score: 5, heavy: 5, stagger: 0.03, sight: 18, armor: 8, roar: true },
 };
 
 class Enemy extends Actor {
@@ -769,9 +770,7 @@ class Enemy extends Actor {
 			const speed = this.type === 'runner' ? 0.55 : 0.6;
 			this.pos.addScaledVector(dir, speed * dt);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 2.5);
-			// рубер и бродит тяжёлым шагом
-			const walk = this.type === 'ruber' ? 'Stomp' : 'Walk';
-			this.play(walk, { fade: 0.4, timeScale: speed / (ZOMBIE_GAIT[walk] * this.scale) });
+			this.play('Walk', { fade: 0.4, timeScale: speed / ((this.T.gait ?? ZOMBIE_GAIT).Walk * this.scale) });
 			resolveCollisions(this.pos, this.radius, level.colliders);
 		} else {
 			this.play('Idle', { fade: 0.4 });
@@ -897,7 +896,7 @@ class Enemy extends Actor {
 		this.pos.addScaledVector(dir, speed * dt);
 		if (!charging) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 6);
 		const move = charging ? 'Charge' : this.actions[this.T.move] ? this.T.move : 'Walk';
-		this.play(move, { timeScale: speed / (ZOMBIE_GAIT[move] * this.scale) });
+		this.play(move, { timeScale: speed / ((this.T.gait ?? ZOMBIE_GAIT)[move] * this.scale) });
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
 	}

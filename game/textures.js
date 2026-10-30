@@ -352,7 +352,12 @@ export function signMaterial(text, { bg = '#e9e4d8', fg = '#b02218', w = 512, h 
 	const t = memo(`sign${text}`, () => {
 		const c = canvas(w, h), ctx = c.getContext('2d');
 		ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-		ctx.fillStyle = fg; ctx.font = `bold ${h * 0.62}px sans-serif`;
+		// длинная надпись ужимается по ширине таблички
+		let size = h * 0.62;
+		ctx.font = `bold ${size}px sans-serif`;
+		const tw = ctx.measureText(text).width;
+		if (tw > w * 0.92) { size *= (w * 0.92) / tw; ctx.font = `bold ${size}px sans-serif`; }
+		ctx.fillStyle = fg;
 		ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 		ctx.fillText(text, w / 2, h / 2 + 4);
 		const img = ctx.getImageData(0, 0, w, h);

@@ -136,8 +136,9 @@ export class Inventory {
 			btn.disabled = p.hp >= p.maxHp;
 		} else if (kind === 'pearl' && g.bag.pearl > 0) {
 			btn.classList.remove('hidden');
-			btn.textContent = p.maxHp >= 200 ? 'Здоровье на пределе' : `${it.use} (здоровье +20 навсегда)`;
-			btn.disabled = p.maxHp >= 200;
+			const full = (g.perks?.maxHp ?? 100) >= 200; // предел, до которого растёт здоровье от жемчуга
+			btn.textContent = full ? 'Здоровье на пределе' : `${it.use} (здоровье +20 навсегда)`;
+			btn.disabled = full;
 		} else if (W && kit.gear[W.slot] === kind && p.weapon !== kind) {
 			btn.classList.remove('hidden');
 			btn.textContent = 'Взять в руки';

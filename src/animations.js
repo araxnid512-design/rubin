@@ -126,6 +126,8 @@ function solvePose(rig, pose) {
 		local[`LowerLeg.${s}`] = qU.clone().invert().multiply(qL);
 		local[`Foot.${s}`] = qL.clone().invert().multiply(footQ);
 	}
+	// передние лапы зверя: кисти в заданные точки (на земле или в воздухе)
+	if (pose.hands) for (const s of ['L', 'R']) solveArm(rig, local, hipsPos, s, V(...pose.hands[s].pos), eulerQ(pose.hands[s].rot ?? [0, 0, 0]), pose.hands[s].hint);
 	if (pose.rightGrip) solveGrip(rig, local, hipsPos, pose.rightGrip);
 	if (pose.supportHand) solveSupportHand(rig, local, hipsPos, pose.supportHand);
 	return { local, hips: hipsPos };
@@ -251,14 +253,12 @@ export function gaitFoot(phase, { stride, stance, lift, x, y0, z0 = 0, heel = 12
 const WALK = { d: 2.0, L: { stride: 0.46, stance: 0.62 }, R: { stride: 0.4, stance: 0.66 } };
 const RUN = { d: 0.72, stride: 0.95, stance: 0.36 };
 const STOMP = { d: 1.05, stride: 0.9, stance: 0.6 };
-const CHARGE = { d: 0.66, stride: 1.25, stance: 0.34 };
 const speedOf = ({ stride, stance }, d) => stride / (stance * d);
 /** Скорость клипа (м/с) при timeScale 1 — игра подгоняет timeScale под настоящую скорость. */
 export const ZOMBIE_GAIT = {
 	Walk: (speedOf(WALK.L, WALK.d) + speedOf(WALK.R, WALK.d)) / 2,
 	Run: speedOf(RUN, RUN.d),
 	Stomp: speedOf(STOMP, STOMP.d),
-	Charge: speedOf(CHARGE, CHARGE.d),
 };
 
 function idlePose(rig, t) {
@@ -461,107 +461,187 @@ function stompPose(rig, t) {
 	};
 }
 
-// ---------- Рубер ----------
+// ---------- Рубер: зверь на четырёх лапах ----------
+// Корпус наклонён к земле, длинные руки стоят на костяшках, голова задрана вперёд; ходит шагом
+// (левая задняя → левая передняя → правая задняя → правая передняя), в рывке — галопом.
 
-// Рывок: низко, корпус почти лёг вперёд, голова задрана на добычу, длинные прыжковые шаги,
-// руки загребают против ног, как у гориллы; всё тело ходит волной.
-function chargePose(rig, t) {
-	const H = rig.hipsY, a = rig.ankle;
-	const d = CHARGE.d, ph = t / d;
+const QWALK = { d: 0.95, stride: 0.95, stance: 0.62 };
+const QGALLOP = { d: 0.55, stride: 1.3, stance: 0.32 };
+/** Скорости клипов рубера (м/с при timeScale 1). */
+export const RUBER_GAIT = { Walk: speedOf(QWALK, QWALK.d), Charge: speedOf(QGALLOP, QGALLOP.d) };
+const WRIST = 0.12; // высота запястья: кисть упирается в землю ладонью, пальцы вперёд
+const PAW = [-65, 0, 0]; // поворот кисти в мире: пальцы вперёд-вниз
+const LEAN = 60; // наклон таза в стойке
+
+/** Плечи (мир) при заданных поворотах таза и корпуса. */
+function shoulders(rig, rot, hips) {
+	const local = { Hips: eulerQ(rot.Hips ?? [0, 0, 0]), Spine: eulerQ(rot.Spine ?? [0, 0, 0]), Chest: eulerQ(rot.Chest ?? [0, 0, 0]) };
+	const chest = chainWorld(rig, local, V(...hips), 'Chest');
+	return ['L', 'R'].map((s) => rig.bones[`UpperArm.${s}`].offset.clone().applyQuaternion(chest.q).add(chest.pos));
+}
+
+/** Высота таза, при которой почти вытянутые руки достают кистями до земли (не выше, чем дают ноги). */
+function quadHips(rig, rot, z = 0) {
+	const arm = rig.bones['Forearm.L'].offset.length() + rig.bones['Hand.L'].offset.length();
+	const [sL] = shoulders(rig, rot, [0, rig.hipsY, z]);
+	return Math.min(rig.hipsY * 0.96, rig.hipsY + (WRIST + arm * 0.95 - sL.y));
+}
+
+/** Кисть на земле перед плечом (или в цикле шага, если задан gait). */
+function paw(sh, sx, { phase = null, opts = null, lift = 0, fwd = 0.14, out = 0.06, y = WRIST } = {}) {
+	if (phase === null) return { pos: [sh.x + sx * out, y + lift, sh.z + fwd], rot: PAW };
+	const g = gaitFoot(phase, { ...opts, heel: 0, toeOff: 0, x: sh.x + sx * out, y0: y, z0: sh.z + fwd });
+	return { pos: g.pos, rot: PAW };
+}
+
+const quadBody = (lean, spine, chest, neck, head, jaw, yaw = 0, roll = 0) => ({
+	Hips: [lean, yaw * 0.3, roll], Spine: [spine, yaw * 0.3, 0], Chest: [chest, yaw * 0.3, 0],
+	Neck: [neck, yaw * 0.4, 0], Head: [head, yaw, yaw * 0.2], Jaw: [jaw],
+});
+
+// Стойка: дышит грудью, водит головой, приоткрывает пасть.
+function qIdlePose(rig, t) {
+	const a = rig.ankle, d = 4;
+	const w = (f, o = 0) => Math.sin((t / d) * Math.PI * 2 * f + o);
+	const look = curve(at([0, 1.2, 1.45, 2.4, 2.65, 3.2, 3.45, d])([0], [0], [26], [26], [-22], [-22], [0], [0]), { loop: true, duration: d })(t)[0];
+	const rot = quadBody(LEAN + 1.5 * w(2), 14 + 2 * w(2, 0.5), 8 + 2 * w(2, 1), -36, -28 + 3 * w(1, 1), 8 + 12 * Math.max(0, w(1, 2)), look);
+	const hips = [0.01 * w(1), quadHips(rig, rot) - 0.012 * w(2), 0];
+	const [sL, sR] = shoulders(rig, rot, hips);
+	return {
+		hips, rot,
+		feet: { L: { pos: [a.L.x + 0.05, a.L.y, a.L.z - 0.05], rot: [0, 8, 0] }, R: { pos: [a.R.x - 0.05, a.R.y, a.R.z - 0.02], rot: [0, -8, 0] } },
+		hands: { L: paw(sL, 1), R: paw(sR, -1, { fwd: 0.2 }) },
+	};
+}
+
+// Шаг: тяжёлое переваливание, лапы по очереди — задняя и передняя одной стороны, потом другой.
+function qWalkPose(rig, t) {
+	const a = rig.ankle, ph = t / QWALK.d;
+	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
+	const rot = quadBody(LEAN + 2 * c(2, 0.1), 14 + 1.5 * c(2, 0.2), 8, -38 + 3 * c(2, 0.3), -28 + 4 * c(2, 0.4), 10 + 6 * Math.max(0, c(2, 0.45)), 6 * c(1, 0.2), 3 * c(1, 0.05));
+	const hips = [0.025 * c(1, 0.1), quadHips(rig, rot) - 0.02 * c(2, 0.1), 0];
+	const opts = { stride: QWALK.stride, stance: QWALK.stance, lift: 0.12, heel: 8, toeOff: 30 };
+	const [sL, sR] = shoulders(rig, rot, hips);
+	return {
+		hips, rot,
+		feet: { L: gaitFoot(ph, { ...opts, x: a.L.x + 0.04, y0: a.L.y, z0: -0.05, yaw: 6 }), R: gaitFoot(ph - 0.5, { ...opts, x: a.R.x - 0.04, y0: a.R.y, z0: -0.05, yaw: -6 }) },
+		hands: { L: paw(sL, 1, { phase: ph - 0.25, opts: { ...opts, lift: 0.16 } }), R: paw(sR, -1, { phase: ph - 0.75, opts: { ...opts, lift: 0.16 } }) },
+	};
+}
+
+// Галоп (рывок): спина сжимается и распрямляется пружиной, задние лапы толкают почти вместе, передние — следом.
+function qGallopPose(rig, t) {
+	const a = rig.ankle, ph = t / QGALLOP.d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
 	const s = (f, o = 0) => Math.sin(Math.PI * 2 * (ph * f - o));
-	const opts = { stride: CHARGE.stride, stance: CHARGE.stance, lift: 0.17, heel: 6, toeOff: 50, kick: 0.25 };
-	const left = gaitFoot(ph, { ...opts, x: a.L.x + 0.03, y0: a.L.y, z0: 0.1, yaw: 6 });
-	const right = gaitFoot(ph - 0.5, { ...opts, x: a.R.x - 0.03, y0: a.R.y, z0: 0.1, yaw: -6 });
-	const yaw = -12 * c(1, 0.75);
-	const arm = 55 * s(1, 0.1);
+	const flex = s(1, 0.1);
+	const rot = quadBody(LEAN - 4 + 10 * flex, 16 + 8 * flex, 10 + 4 * flex, -44 - 6 * flex, -26 + 6 * c(1, 0.3), 26 + 12 * s(2, 0.1));
+	const hips = [0, quadHips(rig, rot) + 0.06 * Math.max(0, s(1, 0.35)) - 0.03, 0.03 * flex];
+	const opts = { stride: QGALLOP.stride, stance: QGALLOP.stance, lift: 0.2, heel: 4, toeOff: 45, kick: 0.15 };
+	const [sL, sR] = shoulders(rig, rot, hips);
 	return {
-		hips: [0.03 * c(1, 0.2), H - 0.14 - 0.05 * c(2, 0.18), 0.05],
-		rot: {
-			Hips: [26, yaw, 5 * c(1, 0.2)],
-			Spine: [24 + 4 * c(2, 0.25), -0.7 * yaw, 0],
-			Chest: [14 + 3 * c(2, 0.3), -0.6 * yaw, 0],
-			Neck: [-22, 0.3 * yaw, 0],
-			Head: [-26 + 6 * c(2, 0.4), 0, -4 * c(1, 0.3)],
-			Jaw: [28 + 12 * s(2, 0.1)],
-			'UpperArm.L': [-45 + arm, 0, 24],
-			'Forearm.L': [-40 + 0.4 * arm, 0, 0],
-			'Hand.L': [30, 0, 10],
-			'UpperArm.R': [-45 - arm, 0, -24],
-			'Forearm.R': [-40 - 0.4 * arm, 0, 0],
-			'Hand.R': [30, 0, -10],
-		},
-		feet: { L: left, R: right },
+		hips, rot,
+		feet: { L: gaitFoot(ph, { ...opts, x: a.L.x + 0.05, y0: a.L.y, z0: -0.08, yaw: 4 }), R: gaitFoot(ph - 0.08, { ...opts, x: a.R.x - 0.05, y0: a.R.y, z0: -0.08, yaw: -4 }) },
+		hands: { L: paw(sL, 1, { phase: ph - 0.5, opts: { ...opts, lift: 0.24 }, fwd: 0.2 }), R: paw(sR, -1, { phase: ph - 0.58, opts: { ...opts, lift: 0.24 }, fwd: 0.2 }) },
 	};
 }
 
-// Рёв: замечает добычу — приседает, выпрямляется во весь рост, грудь вперёд, руки разведены, голова
-// запрокинута, пасть настежь; потом подаётся вперёд в стойку.
-function roarPose(rig) {
-	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.25, 0.55, 1.1, 1.4, 1.7]);
-	const arm = (sx) => k([-18, 0, 14 * sx], [-30, 0, 20 * sx], [-20, 0, 78 * sx], [-26, 0, 84 * sx], [-30, 0, 18 * sx], [-18, 0, 14 * sx]);
+// Бросок с укусом: приседает, бросается вперёд, отрывая передние лапы, распахивает пасть и смыкает её
+// (укус на 0.5 с), треплет головой, как пёс, и возвращается в стойку.
+function qBitePose(rig) {
+	const a = rig.ankle;
+	const k = at([0, 0.28, 0.42, 0.5, 0.6, 0.7, 0.82, 1.3]);
 	const P = curves({
-		hips: k([0, H - 0.06, 0], [0, H - 0.11, 0.03], [0, H - 0.02, -0.04], [0, H - 0.02, -0.05], [0, H - 0.08, 0.04], [0, H - 0.06, 0]),
-		Hips: k([10, 0, 0], [20, 0, 0], [-6, 0, 0], [-8, 0, 0], [16, 0, 0], [10, 0, 0]),
-		Spine: k([12, 0, 0], [22, 0, 0], [-14, 0, 0], [-16, 0, 0], [18, 0, 0], [12, 0, 0]),
-		Chest: k([8, 0, 0], [14, 0, 0], [-12, 0, 0], [-14, 0, 0], [10, 0, 0], [8, 0, 0]),
-		Neck: k([6, 0, 0], [12, 0, 0], [-16, 0, 0], [-18, 0, 0], [4, 0, 0], [6, 0, 0]),
-		Head: k([14, 0, 0], [24, 0, 0], [-34, 0, 0], [-38, 6, 0], [10, 0, 0], [14, 0, 0]),
-		Jaw: k([8], [14], [52], [56], [16], [8]),
-		'UpperArm.L': arm(1), 'UpperArm.R': arm(-1),
-		'Forearm.L': k([-30, 0, 0], [-40, 0, 0], [-50, 0, 0], [-56, 0, 0], [-34, 0, 0], [-30, 0, 0]),
-		'Forearm.R': k([-30, 0, 0], [-40, 0, 0], [-50, 0, 0], [-56, 0, 0], [-34, 0, 0], [-30, 0, 0]),
-		'Hand.L': k([10, 0, 0], [16, 0, 0], [-20, 0, 0], [-24, 0, 0], [10, 0, 0], [10, 0, 0]),
-		'Hand.R': k([10, 0, 0], [16, 0, 0], [-20, 0, 0], [-24, 0, 0], [10, 0, 0], [10, 0, 0]),
+		lean: k([LEAN], [LEAN + 6], [LEAN - 6], [LEAN - 8], [LEAN - 6], [LEAN - 6], [LEAN - 2], [LEAN]), spine: k([14], [20], [8], [6], [8], [8], [10], [14]),
+		neck: k([-36], [-26], [-56], [-50], [-50], [-50], [-42], [-36]), head: k([-28], [-14], [-4], [-20], [-20], [-20], [-24], [-28]),
+		yaw: k([0], [0], [0], [0], [22], [-22], [8], [0]), jaw: k([10], [30], [66], [4], [12], [6], [16], [10]),
+		hz: k([0], [-0.14], [0.4], [0.46], [0.44], [0.44], [0.3], [0]), hy: k([0], [-0.08], [0.14], [0.12], [0.1], [0.1], [0.04], [0]),
+		fz: k([0], [-0.04], [0.3], [0.36], [0.36], [0.36], [0.24], [0]), fy: k([0], [0], [0.08], [0], [0], [0], [0], [0]),
+		lift: k([0], [0], [0.22], [0.12], [0.02], [0.02], [0], [0]), fwd: k([0.14], [0.08], [0.62], [0.66], [0.62], [0.62], [0.4], [0.14]),
 	});
+	const base = quadHips(rig, quadBody(LEAN, 14, 8, -36, -28, 10));
 	return (t) => {
 		const p = P(t);
-		return { hips: p.hips, rot: p, feet: {
-			L: { pos: [a.L.x + 0.06, a.L.y, a.L.z + 0.05], rot: [0, 10, 0] },
-			R: { pos: [a.R.x - 0.06, a.R.y, a.R.z - 0.05], rot: [0, -10, 0] },
-		} };
+		const rot = quadBody(p.lean[0], p.spine[0], 8, p.neck[0], p.head[0], p.jaw[0], p.yaw[0]);
+		const hips = [0, base + p.hy[0], p.hz[0]];
+		const [sL, sR] = shoulders(rig, rot, hips);
+		// передние лапы — от плеч стоящего зверя, вперёд и вверх на броске
+		const ground = shoulders(rig, quadBody(LEAN, 14, 8, -36, -28, 10), [0, base, 0]);
+		const pawAt = (sh, g, sx) => ({ pos: [g.x + sx * 0.08, WRIST + p.lift[0], g.z + p.fwd[0] + (sh.z - g.z) * 0.6], rot: PAW });
+		return {
+			hips, rot,
+			// задние лапы подскакивают вперёд вслед за тазом
+			feet: { L: { pos: [a.L.x + 0.05, a.L.y + p.fy[0], a.L.z - 0.05 + p.fz[0]], rot: [p.fy[0] * 200, 8, 0] }, R: { pos: [a.R.x - 0.05, a.R.y + p.fy[0], a.R.z - 0.12 + p.fz[0]], rot: [p.fy[0] * 200, -8, 0] } },
+			hands: { L: pawAt(sL, ground[0], 1), R: pawAt(sR, ground[1], -1) },
+		};
 	};
 }
 
-// Удар: обе лапы вскидывает над головой, отклоняясь назад, → шаг левой и обрушивает их вниз всем
-// корпусом (удар на 0.72 с) → выпрямляется.
-function smashPose(rig) {
-	const H = rig.hipsY, a = rig.ankle;
-	const k = at([0, 0.35, 0.6, 0.72, 0.82, 1.05, 1.5]);
-	const arm = (sx) => k([-30, 0, 16 * sx], [-160, 0, 18 * sx], [-150, 0, 12 * sx], [-62, 0, 8 * sx], [-50, 0, 10 * sx], [-56, 0, 12 * sx], [-30, 0, 16 * sx]);
-	const fore = k([-30, 0, 0], [-40, 0, 0], [-30, 0, 0], [-8, 0, 0], [-6, 0, 0], [-16, 0, 0], [-30, 0, 0]);
-	const B = curves({
-		hips: k([0, H - 0.07, 0], [0, H - 0.03, -0.08], [0, H - 0.05, 0.05], [0, H - 0.2, 0.24], [0, H - 0.21, 0.26], [0, H - 0.16, 0.18], [0, H - 0.07, 0]),
-		Hips: k([12, 0, 0], [-8, 0, 0], [0, 0, 0], [26, 0, 0], [28, 0, 0], [22, 0, 0], [12, 0, 0]),
-		Spine: k([14, 0, 0], [-14, 0, 0], [-6, 0, 0], [36, 0, 0], [38, 0, 0], [26, 0, 0], [14, 0, 0]),
-		Chest: k([8, 0, 0], [-10, 0, 0], [-4, 0, 0], [18, 0, 0], [20, 0, 0], [14, 0, 0], [8, 0, 0]),
-		Neck: k([6, 0, 0], [-8, 0, 0], [-4, 0, 0], [-10, 0, 0], [-10, 0, 0], [0, 0, 0], [6, 0, 0]),
-		Head: k([14, 0, 0], [-16, 0, 0], [-10, 0, 0], [-20, 0, 0], [-18, 0, 0], [0, 0, 0], [14, 0, 0]),
-		Jaw: k([10], [40], [44], [20], [24], [16], [10]),
-		'UpperArm.L': arm(1), 'UpperArm.R': arm(-1), 'Forearm.L': fore, 'Forearm.R': fore,
-		'Hand.L': k([10, 0, 0], [0, 0, 0], [-10, 0, 0], [30, 0, 0], [34, 0, 0], [20, 0, 0], [10, 0, 0]),
-		'Hand.R': k([10, 0, 0], [0, 0, 0], [-10, 0, 0], [30, 0, 0], [34, 0, 0], [20, 0, 0], [10, 0, 0]),
-		footL: k([a.L.x + 0.06, a.L.y, a.L.z + 0.05], [a.L.x + 0.06, a.L.y + 0.04, a.L.z + 0.02], [a.L.x + 0.07, a.L.y + 0.06, a.L.z + 0.3], [a.L.x + 0.07, a.L.y, a.L.z + 0.5], [a.L.x + 0.07, a.L.y, a.L.z + 0.5], [a.L.x + 0.07, a.L.y, a.L.z + 0.45], [a.L.x + 0.06, a.L.y, a.L.z + 0.05]),
-		footRrot: k([0, -10, 0], [0, -10, 0], [10, -10, 0], [28, -10, 0], [30, -10, 0], [18, -10, 0], [0, -10, 0]),
+// Рёв: припадает, поднимается на задние лапы почти во весь рост, разводит лапы, запрокидывает голову
+// и ревёт распахнутой пастью — потом тяжело падает обратно на четыре.
+function qRoarPose(rig) {
+	const a = rig.ankle;
+	const k = at([0, 0.3, 0.62, 1.1, 1.38, 1.7]);
+	const P = curves({
+		lean: k([LEAN], [LEAN + 8], [24], [22], [LEAN - 8], [LEAN]), spine: k([14], [18], [-4], [-6], [10], [14]),
+		neck: k([-36], [-30], [-8], [-6], [-30], [-36]), head: k([-28], [-20], [-42], [-46], [-24], [-28]),
+		jaw: k([10], [16], [62], [66], [20], [10]), up: k([0], [0], [1], [1], [0], [0]), dip: k([0], [-0.08], [0], [0], [-0.03], [0]),
 	});
+	const stand = quadBody(LEAN, 14, 8, -36, -28, 10), base = quadHips(rig, stand);
+	const ground = shoulders(rig, stand, [0, base, 0]);
 	return (t) => {
-		const b = B(t);
-		const rise = Math.max(0, b.footRrot[0]) / 30 * 0.04;
-		return { hips: b.hips, rot: b, feet: {
-			L: { pos: b.footL, rot: [0, 10, 0] },
-			R: { pos: [a.R.x - 0.06, a.R.y + rise, a.R.z - 0.05], rot: b.footRrot },
-		} };
+		const p = P(t), up = p.up[0];
+		const rot = quadBody(p.lean[0], p.spine[0], 6, p.neck[0], p.head[0], p.jaw[0]);
+		const hips = [0, base + (rig.hipsY * 0.9 - base) * up + p.dip[0], -0.05 * up];
+		const [sL, sR] = shoulders(rig, rot, hips);
+		const pawAt = (sh, g, sx) => {
+			const air = [sh.x + sx * 0.5, sh.y - 0.05, sh.z + 0.25];
+			const gr = [g.x + sx * 0.06, WRIST, g.z + 0.14];
+			return { pos: gr.map((v, i) => v + (air[i] - v) * up), rot: PAW, hint: [sx * 0.6, -1, -0.35] };
+		};
+		return {
+			hips, rot,
+			feet: { L: { pos: [a.L.x + 0.08, a.L.y, a.L.z], rot: [0, 10, 0] }, R: { pos: [a.R.x - 0.08, a.R.y, a.R.z - 0.06], rot: [0, -10, 0] } },
+			hands: { L: pawAt(sL, ground[0], 1), R: pawAt(sR, ground[1], -1) },
+		};
 	};
 }
 
-/** Клипы рубера поверх обычных: рывок (Charge), рёв (Roar), удар двумя лапами (Smash). */
+// Смерть: передние лапы подламываются, грудь бьётся о землю, задние разъезжаются — лежит на брюхе,
+// голова набок, пасть открыта.
+function qDeathPose(rig) {
+	const a = rig.ankle;
+	const k = at([0, 0.2, 0.55, 0.85, 1.15, 2.8]);
+	const P = curves({
+		lean: k([LEAN], [LEAN - 6], [74], [86], [88], [88]), neck: k([-36], [-20], [-30], [-16], [-10], [-10]),
+		head: k([-28], [-10], [-24], [10], [6], [6]), yaw: k([0], [10], [-6], [30], [40], [40]), jaw: k([10], [40], [30], [44], [36], [36]),
+		hy: k([0], [0.02], [-0.25], [-0.45], [-0.52], [-0.52]), out: k([0.06], [0.08], [0.2], [0.3], [0.34], [0.34]),
+		fwd: k([0.14], [0.16], [0.35], [0.45], [0.48], [0.48]), back: k([0], [0], [-0.1], [-0.3], [-0.38], [-0.38]),
+	});
+	const stand = quadBody(LEAN, 14, 8, -36, -28, 10), base = quadHips(rig, stand);
+	const ground = shoulders(rig, stand, [0, base, 0]);
+	return (t) => {
+		const p = P(t);
+		const rot = quadBody(p.lean[0], 10, 6, p.neck[0], p.head[0], p.jaw[0], p.yaw[0]);
+		const hips = [0, Math.max(0.3, base + p.hy[0]), 0];
+		return {
+			hips, rot,
+			feet: { L: { pos: [a.L.x + 0.1, a.L.y, a.L.z + p.back[0]], rot: [p.back[0] * -120, 14, 0] }, R: { pos: [a.R.x - 0.12, a.R.y, a.R.z + p.back[0] * 1.2], rot: [p.back[0] * -140, -14, 0] } },
+			hands: { L: { pos: [ground[0].x + p.out[0], WRIST * (1 - p.out[0]), ground[0].z + p.fwd[0]], rot: PAW }, R: { pos: [ground[1].x - p.out[0] * 0.8, WRIST * (1 - p.out[0]), ground[1].z + p.fwd[0] * 0.8], rot: PAW } },
+		};
+	};
+}
+
+/** Все клипы рубера (зверь на четырёх): стойка, шаг, рывок-галоп, бросок с укусом, рёв, смерть. */
 export function createRuberAnimations(root) {
 	const rig = new Rig(root);
 	return [
-		bake(rig, 'Charge', CHARGE.d, (t) => chargePose(rig, t), { loop: true }),
-		bake(rig, 'Roar', 1.7, roarPose(rig)),
-		bake(rig, 'Smash', 1.5, smashPose(rig)),
+		bake(rig, 'Idle', 4.0, (t) => qIdlePose(rig, t), { loop: true }),
+		bake(rig, 'Walk', QWALK.d, (t) => qWalkPose(rig, t), { loop: true }),
+		bake(rig, 'Charge', QGALLOP.d, (t) => qGallopPose(rig, t), { loop: true }),
+		bake(rig, 'Attack', 1.3, qBitePose(rig)),
+		bake(rig, 'Roar', 1.7, qRoarPose(rig)),
+		bake(rig, 'Death', 2.8, qDeathPose(rig)),
 	];
 }
 

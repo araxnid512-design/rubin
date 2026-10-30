@@ -12,6 +12,6 @@
 - `base.obj` — базовая модель hm08 (единицы — дециметры)
 - `rigs/default.mhskel`, `rigs/default_weights.mhw` — стандартный скелет (163 кости) и веса
 - `eyes/high-poly.obj`, `eyes/high-poly.mhclo` — меш глаз и его привязка к базовой модели
-- `targets/**.target` — морфы, из которых собирается худое тело зомби
+- `targets/**.target` — морфы, из которых собирается тело зомби, топтуна и рубера
 
 `assets/zombie_eye.png` сделан из `eyes/materials/brown_eye.png` скриптом `scripts/make-eye-texture.py`.

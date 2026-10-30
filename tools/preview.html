@@ -29,6 +29,10 @@
 			zarechny: { target: [-14, 0, 8], cam: [15, 17, -21], hero: [-8, 4, -0.7], zombies: [['runner', -13, 6, 2.6, 'Walk'], ['runner', -17, 9, 2.2, 'Idle'], ['runner', -19, 4, 1.9, 'Run'], ['stomper', -23, 7, 2.4, 'Stomp'], ['runner', -10, 13, 3.0, 'Idle']] },
 			dachi: { target: [-12, 0, -8], cam: [12, 18, 24], hero: [-5, 3, -2.6], zombies: [['runner', -10, -4, 0.6, 'Walk'], ['runner', -16, 2, 2.0, 'Run'], ['stomper', -22, 3, 1.2, 'Stomp'], ['runner', -8, -14, 0.2, 'Idle']] },
 			stab: { target: [0, 0, 0], cam: [13, 21, 27], hero: [-2, 6.5, 3.2], zombies: [] },
+			// Химмаш — двор между цехом и складом: рубер ревёт у цеха, топтун и бегуны идут к воротам
+			himmash: { target: [-6, 0, -9], cam: [14, 19, 25], hero: [-3, -0.5, 2.6], zombies: [['ruber', -8, -19.5, 0.5, 'Roar'], ['stomper', -15, -4, 1.3, 'Stomp'], ['runner', -1, -7, 2.4, 'Run'], ['runner', 6, -3, 2.8, 'Walk'], ['stomper', 22, -4.5, 3.4, 'Stomp']] },
+			// Военная часть — плац: рубер несётся галопом, второй стоит у штаба
+			voench: { target: [4, 0, -10], cam: [12, 21, 27], hero: [-6, -1.5, 2.3], zombies: [['ruber', 3, -11, 2.0, 'Charge'], ['ruber', 18, -22, 2.6, 'Idle'], ['stomper', -6, -18, 1.0, 'Stomp'], ['runner', 8, -3, 2.9, 'Run']] },
 		};
 		const q = new URLSearchParams(location.search);
 		const id = q.get('id') || 'zarechny', shot = SHOTS[id];
@@ -60,8 +64,8 @@
 
 		const loader = new GLTFLoader();
 		const load = (n) => loader.loadAsync(`../models/game/${n}.glb`);
-		const [player, runner, stomper] = await Promise.all(['player', 'runner', 'stomper'].map(load));
-		const gltfs = { player, runner, stomper };
+		const [player, runner, stomper, ruber] = await Promise.all(['player', 'runner', 'stomper', 'ruber'].map(load));
+		const gltfs = { player, runner, stomper, ruber };
 		const figure = (kind, x, z, ry, clipName, { t = Math.random(), tint = null, gun = null, axe = false, y = 0 } = {}) => {
 			const g = gltfs[kind];
 			const m = SkeletonUtils.clone(g.scene);
@@ -74,6 +78,7 @@
 				o.material = Array.isArray(o.material) ? mats : mats[0];
 			});
 			if (kind === 'stomper') m.scale.setScalar(1.08);
+			if (kind === 'ruber') m.scale.setScalar(1.12);
 			m.position.set(x, y, z); m.rotation.y = ry;
 			const clip = g.animations.find((c) => c.name === clipName) ?? g.animations.find((c) => c.name === 'Idle');
 			const mixer = new THREE.AnimationMixer(m);
