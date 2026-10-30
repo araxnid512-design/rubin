@@ -24,6 +24,10 @@ android {
 			storePassword System.getenv('KEYSTORE_PASSWORD')
 			keyAlias System.getenv('KEY_ALIAS') ?: 'ulei'
 			keyPassword System.getenv('KEYSTORE_PASSWORD')
+			// все схемы подписи: старая v1 (JAR) нужна установщикам некоторых телефонов, иначе «Приложение не установлено»
+			enableV1Signing true
+			enableV2Signing true
+			enableV3Signing true
 		}
 	}
 
