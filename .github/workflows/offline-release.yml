@@ -72,6 +72,13 @@ jobs:
         run: |
           gradle -p android assembleRelease --no-daemon
           cp android/app/build/outputs/apk/release/app-release.apk download/ulei-cluster17.apk
+      # тем же, чем проверяет телефон: выравнивание, подпись, манифест — битый APK в релиз не попадёт
+      - name: Проверить APK
+        run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$bt/zipalign" -c 4 download/ulei-cluster17.apk && echo "выравнивание: ок"
+          "$bt/apksigner" verify --verbose --print-certs download/ulei-cluster17.apk
+          "$bt/aapt2" dump badging download/ulei-cluster17.apk | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|native-code)"
       - name: Выложить в релиз «game»
         env:
           GH_TOKEN: ${{ github.token }}
