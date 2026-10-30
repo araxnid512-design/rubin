@@ -136,8 +136,14 @@ async function boot() {
 	window.__game = game;
 }
 
-/** Открытая ссылка на скачиваемую версию (релиз «game» на GitHub, обновляется сам — .github/workflows/offline-release.yml). */
-const PUBLIC_DOWNLOAD = 'https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html';
+/**
+ * Открытые ссылки на скачиваемую версию и приложение для Android (релиз «game» на GitHub, обновляется сам —
+ * .github/workflows/offline-release.yml). В приложении (window.__APK) обновление — новый APK.
+ */
+const APK = !!window.__APK;
+const RELEASE = 'https://github.com/araxnid512-design/rubin/releases/download/game/';
+const PUBLIC_FILE = APK ? 'ulei-cluster17.apk' : 'ulei-cluster17.html';
+const PUBLIC_DOWNLOAD = RELEASE + PUBLIC_FILE;
 const publicLink = (text) => `<a href="${PUBLIC_DOWNLOAD}" target="_blank" rel="noopener">${text}</a>`;
 /** Когда собрана версия: «30 октября 2026 г., 15:31» — по часам того, кто играет. */
 const builtAt = (t) => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -151,12 +157,13 @@ async function checkUpdate() {
 	try {
 		const r = await fetch('https://api.github.com/repos/araxnid512-design/rubin/releases/tags/game', { cache: 'no-store' });
 		if (!r.ok) return;
-		const a = (await r.json()).assets?.find((x) => x.name === 'ulei-cluster17.html');
-		// своя сборка выкладывается через минуту-другую после неё самой — новее та, что позже на 10 минут
-		if (!a || Date.parse(a.updated_at) - Date.parse(BUILD.time) < 10 * 60e3) return;
+		const a = (await r.json()).assets?.find((x) => x.name === PUBLIC_FILE);
+		// своя сборка выкладывается через несколько минут после неё самой (APK собирается дольше) — новее та,
+		// что позже на полчаса
+		if (!a || Date.parse(a.updated_at) - Date.parse(BUILD.time) < 30 * 60e3) return;
 		const el = $('update');
 		el.href = PUBLIC_DOWNLOAD;
-		el.querySelector('small').textContent = `от ${builtAt(a.updated_at)} — скачай и замени этот файл: сохранение останется`;
+		el.querySelector('small').textContent = `от ${builtAt(a.updated_at)} — ${APK ? 'скачай APK и установи поверх' : 'скачай и замени этот файл'}: сохранение останется`;
 		el.classList.remove('hidden');
 	} catch { /* без сети */ }
 }
@@ -166,7 +173,9 @@ function showMenu() {
 	// скачать одним файлом — на опубликованной странице (https; файл download/ulei-cluster17.html публикуется рядом,
 	// собирает его scripts/build-offline.mjs); в скачанной версии — её сборка и проверка, нет ли новее
 	if (OFFLINE) {
-		$('offline-note').innerHTML = `Скачанная версия, сборка от ${VERSION}. Новую — ${publicLink('скачай по открытой ссылке')} и замени этот файл: сохранение останется.`;
+		$('offline-note').innerHTML = APK
+			? `Приложение для Android, сборка от ${VERSION}. Новую версию — ${publicLink('скачай APK')} и установи поверх: сохранение останется.`
+			: `Скачанная версия, сборка от ${VERSION}. Новую — ${publicLink('скачай по открытой ссылке')} и замени этот файл: сохранение останется.`;
 		$('offline-note').classList.remove('hidden');
 		if (!showMenu.checked) { showMenu.checked = true; checkUpdate(); }
 	} else {
@@ -2951,6 +2960,12 @@ game.post = post;
 game.inventory = new Inventory(game);
 game.trade = new Trade(game);
 game.stashWindow = new StashWindow(game);
+// «Назад» в приложении для Android: закрыть открытое окно; закрывать нечего — false, и приложение свернётся
+window.__back = () => {
+	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow].filter((w) => w.isOpen);
+	for (const w of open) w.close();
+	return open.length > 0;
+};
 game.worldMap = new WorldMap(game);
 game.minimap = new Minimap(game);
 game.partyWindow = new PartyWindow(game);

@@ -1,0 +1,18 @@
+// Приложение для Android «Улей. Кластер-17»: WebView со скачиваемой версией игры внутри (assets/index.html —
+// её кладёт scripts/build-offline.mjs). Собирается на GitHub: .github/workflows/offline-release.yml
+pluginManagement {
+	repositories {
+		google()
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+dependencyResolutionManagement {
+	repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+	repositories {
+		google()
+		mavenCentral()
+	}
+}
+rootProject.name = 'ulei'
+include ':app'

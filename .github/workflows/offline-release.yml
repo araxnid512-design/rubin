@@ -1,7 +1,8 @@
 # Скачиваемая версия игры для всех: после каждого изменения игры собирает download/ulei-cluster17.html
-# (scripts/build-offline.mjs) и выкладывает его в релиз «game». Постоянная открытая ссылка, по которой файл
-# скачивается обычным нажатием:
+# (scripts/build-offline.mjs) и приложение для Android (android/, та же игра внутри) и выкладывает оба
+# в релиз «game». Постоянные открытые ссылки, по которым файлы скачиваются обычным нажатием:
 #   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html
+#   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.apk
 name: Скачиваемая версия
 
 on:
@@ -15,6 +16,7 @@ on:
       - 'assets/**'
       - 'scripts/build-offline.mjs'
       - 'package-lock.json'
+      - 'android/**'
       - '.github/workflows/offline-release.yml'
   workflow_dispatch:
 
@@ -36,14 +38,48 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:offline
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      # ключ подписи APK — из секретов репозитория (base64 файла .keystore и пароль, псевдоним ключа — ulei);
+      # без них — временный ключ этой сборки: APK ставится, но новая версия поверх старой уже не встанет
+      - name: Ключ подписи
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD_SECRET: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          ks="$RUNNER_TEMP/ulei.keystore"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$ks"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Нет секрета ANDROID_KEYSTORE_BASE64 — APK подписан временным ключом: новая версия не встанет поверх старой"
+            pw=$(openssl rand -hex 16)
+            echo "::add-mask::$pw"
+            keytool -genkeypair -keystore "$ks" -storetype PKCS12 -storepass "$pw" -keypass "$pw" -alias ulei \
+              -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=Ulei Cluster-17"
+            echo "KEYSTORE_PASSWORD=$pw" >> "$GITHUB_ENV"
+          fi
+          echo "KEYSTORE_FILE=$ks" >> "$GITHUB_ENV"
+      - name: Собрать APK
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.${{ github.run_number }}
+        run: |
+          gradle -p android assembleRelease --no-daemon
+          cp android/app/build/outputs/apk/release/app-release.apk download/ulei-cluster17.apk
       - name: Выложить в релиз «game»
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes="Игра «Улей. Кластер-17» одним HTML-файлом: скачай ulei-cluster17.html и открой в браузере — без интернета и без установки. Новая версия — по той же ссылке; замени старый файл новым, сохранение останется. Сборка от $(date -u +'%d.%m.%Y %H:%M') UTC, коммит ${GITHUB_SHA::7}."
+          notes="Игра «Улей. Кластер-17». ulei-cluster17.apk — приложение для Android: скачай и установи (разреши установку из этого источника); новая версия ставится поверх, сохранение остаётся. ulei-cluster17.html — та же игра одним файлом: открой в браузере, без интернета и без установки. Сборка 1.${GITHUB_RUN_NUMBER} от $(date -u +'%d.%m.%Y %H:%M') UTC, коммит ${GITHUB_SHA::7}."
           if gh release view game >/dev/null 2>&1; then
             gh release edit game --title "Улей. Кластер-17 — скачать игру" --notes "$notes"
           else
             gh release create game --target "$GITHUB_SHA" --title "Улей. Кластер-17 — скачать игру" --notes "$notes" --latest
           fi
-          gh release upload game download/ulei-cluster17.html --clobber
+          gh release upload game download/ulei-cluster17.html download/ulei-cluster17.apk --clobber

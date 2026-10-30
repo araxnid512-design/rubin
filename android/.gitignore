@@ -1,0 +1,7 @@
+.gradle/
+build/
+app/build/
+local.properties
+# игра — сборка scripts/build-offline.mjs
+app/src/main/assets/index.html
+*.keystore

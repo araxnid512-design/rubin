@@ -164,6 +164,15 @@ npm start            # открыть http://localhost:8080/game.html
 - Код: `game.html`, `game/` (локации, здания, текстуры, ИИ, бой, торговля, карта, звук, управление);
   модели: `npm run build:game` → `models/game/{player,runner,stomper,ruber}.glb` (профили в `scripts/makehuman/profiles.mjs`, скелеты — `scripts/makehuman/rigs.mjs`).
 - Тест: `npm run test:game`.
+- **Приложение для Android (APK):** открытая ссылка —
+  https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.apk. Скачай на телефон и
+  установи (разреши установку из браузера). Внутри — та же скачиваемая версия (`android/`: WebView открывает
+  `assets/index.html` с адреса `https://appassets.androidplatform.net`, на весь экран, горизонтально, без сети;
+  «Назад» закрывает окно игры или сворачивает приложение). Ключ подписи хранится не в репозитории, а в секретах
+  GitHub (`ANDROID_KEYSTORE_BASE64` — файл `.keystore` в base64, `ANDROID_KEYSTORE_PASSWORD`, псевдоним `ulei`):
+  с ним все сборки подписаны одним ключом, новая версия ставится поверх и сохранение остаётся. Без секретов
+  APK подписывается временным ключом сборки. В меню — кнопка «Вышла новая версия», когда на GitHub есть APK
+  новее. Собирает GitHub (`gradle -p android assembleRelease`).
 - **Скачать одним файлом:** открытая ссылка для всех —
   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html (релиз «game»;
   после каждого изменения игры его пересобирает `.github/workflows/offline-release.yml`), или в меню
