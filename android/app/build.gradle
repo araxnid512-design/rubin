@@ -8,7 +8,8 @@ android {
 
 	defaultConfig {
 		applicationId 'com.araxnid.ulei'
-		minSdk 24
+		// Android 6+: с ним сборка подписывается и старой схемой v1 — её ждут установщики некоторых телефонов
+		minSdk 23
 		targetSdk 35
 		// номер сборки на GitHub: каждая новая версия ставится поверх старой, сохранение остаётся
 		versionCode((System.getenv('VERSION_CODE') ?: '1') as int)
@@ -25,6 +26,7 @@ android {
 			keyAlias System.getenv('KEY_ALIAS') ?: 'ulei'
 			keyPassword System.getenv('KEYSTORE_PASSWORD')
 			// все схемы подписи: старая v1 (JAR) нужна установщикам некоторых телефонов, иначе «Приложение не установлено»
+			// (при minSdk 24 и выше её отключает сама сборка)
 			enableV1Signing true
 			enableV2Signing true
 			enableV3Signing true
