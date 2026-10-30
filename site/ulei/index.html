@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Улей. Кластер-17 — скачать игру для Android</title>
+<meta name="description" content="Зомби-выживание по мотивам вселенной «Стикс»: обыскивай дома, отбивайся от заражённых и успей уйти до перезагрузки кластера. Скачать APK для Android или играть в браузере.">
+<meta property="og:title" content="Улей. Кластер-17">
+<meta property="og:description" content="Зомби-выживание по мотивам «Стикса». Скачайте APK для Android или играйте в браузере.">
+<meta property="og:image" content="img/street.jpg">
+<meta name="theme-color" content="#0d0f0a">
+<style>
+  /* оформление — как у страницы «Клонов» (site/clones/ в ветке игр), цвета Улья */
+  :root {
+    --bg: #0d0f0a;
+    --panel: #161a11;
+    --panel-2: #1e2317;
+    --line: #333a26;
+    --text: #ecebdc;
+    --muted: #a4a68f;
+    --holo: #c8d86a;
+    --holo-hi: #dde98a;
+    --gold: #e0a64a;
+    --red: #e2463a;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--holo-hi); }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+  header.top { position: sticky; top: 0; z-index: 10; background: rgba(13, 15, 10, 0.92); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  header.top .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+  .brand { font-weight: 800; letter-spacing: 0.04em; color: var(--text); text-decoration: none; white-space: nowrap; }
+  .brand b { color: var(--holo); }
+  nav.links { display: flex; gap: 18px; margin-left: auto; overflow-x: auto; }
+  nav.links a { color: var(--muted); text-decoration: none; font-size: 15px; white-space: nowrap; }
+  nav.links a:hover { color: var(--text); }
+
+  .hero { padding: 40px 0 28px; }
+  .hero .wrap { display: grid; grid-template-columns: 1fr 1.25fr; gap: 36px; align-items: center; }
+  .kicker { color: var(--gold); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: clamp(34px, 5vw, 56px); line-height: 1.05; margin: 8px 0 14px; letter-spacing: -0.01em; }
+  h1 span { color: var(--holo); }
+  .lead { color: var(--muted); font-size: 18px; margin: 0 0 24px; max-width: 34em; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 12px;
+    font-weight: 700; font-size: 17px; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--panel-2);
+    transition: transform 0.08s, background 0.15s;
+  }
+  .btn:hover { background: #2a3120; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--holo); border-color: var(--holo); color: #171b0c; }
+  .btn.primary:hover { background: var(--holo-hi); }
+  .btn svg { width: 22px; height: 22px; flex: none; }
+  .meta { color: var(--muted); font-size: 14px; margin-top: 12px; }
+  .meta b { color: var(--text); font-weight: 600; }
+  .shot { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+  .shot img { width: 100%; height: auto; aspect-ratio: 2 / 1; object-fit: cover; }
+
+  section { padding: 44px 0; border-top: 1px solid var(--line); }
+  section, .hero { scroll-margin-top: 56px; }
+  h2 { font-size: 30px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 26px; }
+
+  ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 12px; max-width: 760px; }
+  ol.steps li { counter-increment: step; display: grid; grid-template-columns: 40px 1fr; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  ol.steps li::before { content: counter(step); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--holo); color: #171b0c; font-weight: 800; font-size: 18px; }
+  ol.steps b { display: block; margin-bottom: 2px; }
+  ol.steps span { color: var(--muted); font-size: 15px; }
+  .notes { display: grid; gap: 12px; margin-top: 16px; max-width: 760px; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; }
+  summary { cursor: pointer; font-weight: 700; }
+  details p { color: var(--muted); margin: 8px 0 2px; font-size: 15px; }
+
+  .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 26px; }
+  .feature { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .feature .num { font-size: 30px; font-weight: 800; color: var(--holo); line-height: 1; }
+  .feature b { display: block; margin: 6px 0 4px; }
+  .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+  .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .gallery figure { margin: 0; }
+  .gallery a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .gallery img { width: 100%; height: auto; aspect-ratio: 2 / 1; object-fit: cover; transition: transform 0.25s; }
+  .gallery a:hover img { transform: scale(1.03); }
+  figcaption { color: var(--muted); font-size: 14px; padding: 6px 2px 0; }
+  figcaption b { color: var(--text); font-weight: 600; }
+  ul.list { margin: 0; padding-left: 20px; color: var(--muted); }
+  ul.list li { margin: 4px 0; }
+  ul.list b { color: var(--text); font-weight: 600; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .control-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .control-card h3 { margin: 0 0 8px; font-size: 18px; }
+  kbd { display: inline-block; min-width: 26px; padding: 1px 7px; text-align: center; border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 6px; background: var(--panel-2); color: var(--text); font: 600 13px/1.6 system-ui, sans-serif; }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
+  .only-ios { display: none; }
+  html.ios .only-ios { display: block; }
+
+  @media (max-width: 860px) {
+    .hero .wrap { grid-template-columns: 1fr; }
+    .hero { padding-top: 24px; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .controls { grid-template-columns: 1fr; }
+    nav.links { gap: 14px; }
+  }
+  @media (max-width: 520px) {
+    nav.links a.hide-sm, .brand-rest { display: none; }
+    .gallery { grid-template-columns: 1fr; }
+    .btn { width: 100%; justify-content: center; }
+  }
+</style>
+<script>if (/iPhone|iPad|iPod/.test(navigator.userAgent)) document.documentElement.classList.add('ios');</script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><b>УЛЕЙ</b><span class="brand-rest">. Кластер-17</span></a>
+    <nav class="links">
+      <a href="#download">Скачать</a>
+      <a href="#install">Установка</a>
+      <a href="#about" class="hide-sm">Об игре</a>
+      <a href="play/">Играть</a>
+      <a href="../">Стикс</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <div class="hero" id="download">
+    <div class="wrap">
+      <div>
+        <div class="kicker">Игра для Android</div>
+        <h1>Улей. <span>Кластер-17</span></h1>
+        <p class="lead">Зомби-выживание по мотивам вселенной «Стикс» Артёма Каменистого. Кусок посёлка перенесло в Улей:
+          обыскивай дома, отбивайся от заражённых, собирай спораны и уходи к стабу, пока кластер не перезагрузился вместе с тобой.</p>
+        <div class="actions">
+          <a class="btn primary" href="ulei-cluster17.apk" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M6 10l6 6 6-6M4 21h16"/></svg>
+            Скачать APK
+          </a>
+          <a class="btn" href="play/">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>
+            Играть в браузере
+          </a>
+        </div>
+        <p class="meta">Версия <b>__VERSION__</b> от __DATE__ · <b>__SIZE__ МБ</b> · Android 6.0 и новее · работает без интернета</p>
+        <p class="meta">Если скачивание APK не идёт — <a href="ulei-cluster17-apk.zip" download>тот же APK в ZIP</a>.</p>
+        <p class="meta only-ios">На iPhone установить APK нельзя — играйте в браузере, лучше в горизонтальном положении.</p>
+      </div>
+      <div class="shot"><img src="img/street.jpg" width="1280" height="640" alt="Герой с автоматом отбивается от заражённых на трассе"></div>
+    </div>
+  </div>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Как установить</h2>
+      <p class="sub">Игры нет в Google Play, поэтому Android один раз спросит разрешение на установку.</p>
+      <ol class="steps">
+        <li><div><b>Скачайте файл на телефон</b><span>Нажмите «Скачать APK». Если вы за компьютером — откройте на телефоне адрес <b>araxnid512-design.github.io/rubin/ulei</b>. Открывайте страницу в самом браузере (Chrome и т. п.), а не во встроенном окне другого приложения.</span></div></li>
+        <li><div><b>Подтвердите скачивание</b><span>Chrome может спросить «Файл может быть опасен» — нажмите «Всё равно скачать». Если скачивание стоит на 100% — скачайте <a href="ulei-cluster17-apk.zip" download>ZIP</a> и распакуйте его в приложении «Файлы».</span></div></li>
+        <li><div><b>Откройте скачанный файл</b><span>Из уведомления о загрузке или из папки «Загрузки» (Download). Файл называется <code>ulei-cluster17.apk</code>.</span></div></li>
+        <li><div><b>Разрешите установку</b><span>Если появится «Установка заблокирована» — нажмите «Настройки» и включите «Разрешить из этого источника», затем вернитесь назад.</span></div></li>
+        <li><div><b>Нажмите «Установить»</b><span>Если Play Защита предупредит о неизвестном приложении — «Подробнее» → «Всё равно установить».</span></div></li>
+        <li><div><b>Запустите «Улей. Кластер-17»</b><span>Игра откроется во весь экран и горизонтально. Кнопка «Назад» закрывает рюкзак, карту и другие окна.</span></div></li>
+      </ol>
+      <div class="notes">
+        <details><summary>Как обновить игру</summary><p>Скачайте новую версию и установите поверх старой — прогресс, хранилище и наёмники сохранятся. Когда выходит новая версия, в меню игры появляется кнопка «Вышла новая версия».</p></details>
+        <details><summary>Пишет «Приложение не установлено»</summary><p>Удалите старую версию «Улья», если она есть (Настройки → Приложения), удалите из «Загрузок» недокачанные <code>ulei-cluster17*.apk</code> и скачайте заново. Нужно хотя бы 50 МБ свободного места.</p></details>
+        <details><summary>Это безопасно?</summary><p>Игра собирается автоматически из открытого исходного кода на GitHub. Ей не нужны контакты, файлы, камера или местоположение; в интернет она ходит только проверить, нет ли новой версии.</p></details>
+        <details><summary>Тормозит на слабом телефоне</summary><p>В меню игры есть «Графика»: «авто» сама подбирает качество, можно сразу выбрать «низкая».</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="wrap">
+      <h2>Об игре</h2>
+      <p class="sub">Вид сверху, реальное время. Кластер живёт 5–7 минут, потом Улей подменяет его свежей копией — вместе со всеми, кто не успел уйти.</p>
+      <div class="features">
+        <div class="feature"><div class="num">5</div><b>Локаций</b><p>Посёлок Заречный, Дачи, промзона «Химмаш», Военная часть и стаб «Полис».</p></div>
+        <div class="feature"><div class="num">12</div><b>Видов оружия</b><p>Два топора, ПМ, обрез, МР-133, «Вектор», АКС-74У, АК-74, АК-47, СВД, «Винторез», ПКМ — и гранаты Ф-1.</p></div>
+        <div class="feature"><div class="num">8</div><b>Наёмников</b><p>Штурмовики, снайперы, пулемётчик, охотник, медик и подрывник — живут в твоей комнате в стабе.</p></div>
+        <div class="feature"><div class="num">3</div><b>Вида заражённых</b><p>Бегуны, топтуны и руберы в костяной броне; у каждого заражённого свой рост, одежда и цвет кожи.</p></div>
+      </div>
+      <div class="gallery">
+        <figure><a href="img/street.jpg" target="_blank"><img src="img/street.jpg" width="1280" height="640" loading="lazy" alt="Бой с заражёнными на трассе"></a><figcaption><b>Кластер «Заречный»</b> — заражённые, дома с тайниками, перезагрузка через 6 минут</figcaption></figure>
+        <figure><a href="img/room.jpg" target="_blank"><img src="img/room.jpg" width="1280" height="640" loading="lazy" alt="Комната героя в стабе: койки наёмников и хранилище"></a><figcaption><b>Стаб «Полис»</b> — твоя комната: наёмники у коек и хранилище</figcaption></figure>
+        <figure><a href="img/himmash.jpg" target="_blank"><img src="img/himmash.jpg" width="1280" height="640" loading="lazy" alt="Рубер нападает в промзоне"></a><figcaption><b>«Химмаш»</b> — промзона, топтуны и руберы</figcaption></figure>
+        <figure><a href="img/map.jpg" target="_blank"><img src="img/map.jpg" width="1280" height="640" loading="lazy" alt="Карта Улья"></a><figcaption><b>Карта Улья</b> — дороги между кластерами и время до перезагрузки</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="controls">
+    <div class="wrap">
+      <h2>Управление</h2>
+      <p class="sub">При гибели остаётся только валюта — всё ценное держи в хранилище в стабе.</p>
+      <div class="controls">
+        <div class="control-card">
+          <h3>На телефоне</h3>
+          <ul class="list">
+            <li><b>Ходьба:</b> джойстик слева.</li>
+            <li><b>Атака:</b> большая кнопка справа — тап для одного выстрела, удержание для очереди. Прицел автоматический.</li>
+            <li><b>Рядом</b> — смена оружия, перезарядка, живчик, граната; рюкзак и карта — сверху.</li>
+            <li><b>«Назад»</b> — закрыть окно.</li>
+          </ul>
+        </div>
+        <div class="control-card">
+          <h3>В браузере на компьютере</h3>
+          <ul class="list">
+            <li><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> — движение, <kbd>Пробел</kbd> или ЛКМ — атака</li>
+            <li><kbd>Q</kbd> — сменить оружие, <kbd>R</kbd> — перезарядка, <kbd>G</kbd> — граната, <kbd>H</kbd> — живчик</li>
+            <li><kbd>E</kbd> — обыскать, торговать, нанять; <kbd>I</kbd> — рюкзак, <kbd>M</kbd> — карта</li>
+            <li>Прогресс в браузере хранится только в этом браузере.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="wrap">
+    <span>Фанатская игра по мотивам вселенной «Стикс» Артёма Каменистого.</span>
+    <span><a href="../">Стикс: Дорога стабов</a> · <a href="https://github.com/araxnid512-design/rubin">Исходный код</a> · <a href="https://github.com/araxnid512-design/rubin/releases/tag/game">Все файлы</a></span>
+  </div>
+</footer>
+</body>
+</html>

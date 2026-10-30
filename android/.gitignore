@@ -4,4 +4,6 @@ app/build/
 local.properties
 # игра — сборка scripts/build-offline.mjs
 app/src/main/assets/index.html
+# ключи подписи, кроме общего debug-ключа (как у «Стикса» и «Клонов»)
 *.keystore
+!app/debug.keystore

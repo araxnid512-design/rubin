@@ -16,15 +16,14 @@ android {
 		versionName(System.getenv('VERSION_NAME') ?: '1.0')
 	}
 
-	// ключ подписи — не в репозитории: файл и пароль даёт сборка на GitHub (секреты ANDROID_KEYSTORE_BASE64 и
-	// ANDROID_KEYSTORE_PASSWORD, см. .github/workflows/offline-release.yml). Один ключ для всех сборок —
-	// иначе Android не даст поставить новую версию поверх старой
+	// Постоянный debug-ключ в репозитории — тот же, что у «Стикса» и «Клонов» (android/app/debug.keystore там):
+	// каждая сборка подписана одинаково, поэтому новый APK ставится поверх старого без удаления игры
 	signingConfigs {
 		release {
-			storeFile file(System.getenv('KEYSTORE_FILE') ?: 'ulei.keystore')
-			storePassword System.getenv('KEYSTORE_PASSWORD')
-			keyAlias System.getenv('KEY_ALIAS') ?: 'ulei'
-			keyPassword System.getenv('KEYSTORE_PASSWORD')
+			storeFile file('debug.keystore')
+			storePassword 'android'
+			keyAlias 'androiddebugkey'
+			keyPassword 'android'
 			// все схемы подписи: старая v1 (JAR) нужна установщикам некоторых телефонов, иначе «Приложение не установлено»
 			// (при minSdk 24 и выше её отключает сама сборка)
 			enableV1Signing true

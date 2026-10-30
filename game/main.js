@@ -141,6 +141,9 @@ async function boot() {
  * .github/workflows/offline-release.yml). В приложении (window.__APK) обновление — новый APK.
  */
 const APK = !!window.__APK;
+/** Тот же файл, открытый на сайте игры (araxnid512-design.github.io/rubin/ulei/play/): всегда последняя версия. */
+const SITE = OFFLINE && !APK && /^https?:$/.test(location.protocol);
+const SITE_PAGE = 'https://araxnid512-design.github.io/rubin/ulei/';
 const RELEASE = 'https://github.com/araxnid512-design/rubin/releases/download/game/';
 const PUBLIC_FILE = APK ? 'ulei-cluster17.apk' : 'ulei-cluster17.html';
 const PUBLIC_DOWNLOAD = RELEASE + PUBLIC_FILE;
@@ -172,7 +175,11 @@ function showMenu() {
 	const saved = loadGame();
 	// скачать одним файлом — на опубликованной странице (https; файл download/ulei-cluster17.html публикуется рядом,
 	// собирает его scripts/build-offline.mjs); в скачанной версии — её сборка и проверка, нет ли новее
-	if (OFFLINE) {
+	if (SITE) {
+		$('offline-note').innerHTML = `<a href="${SITE_PAGE}">Скачать игру для Android (APK)</a> — работает без интернета.`;
+		$('offline-note').classList.remove('hidden');
+		$('version').textContent = `Версия от ${VERSION}`;
+	} else if (OFFLINE) {
 		$('offline-note').innerHTML = APK
 			? `Приложение для Android, сборка от ${VERSION}. Новую версию — ${publicLink('скачай APK')} и установи поверх: сохранение останется.`
 			: `Скачанная версия, сборка от ${VERSION}. Новую — ${publicLink('скачай по открытой ссылке')} и замени этот файл: сохранение останется.`;
