@@ -20,6 +20,7 @@ import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
 import { createMuzzleFlashes } from './muzzle.js';
 import { OFFLINE } from './assets.js';
+import { clothVariants, dressZombie, bodyVariation } from './variety.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
@@ -101,6 +102,7 @@ const progress = (p, text) => { $('loadbar').style.width = `${p * 100}%`; $('loa
 const frameWait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
 let level, assets, iconFactory;
+const clothSets = {}; // варианты одежды заражённых по видам
 async function boot() {
 	const saved = loadGame();
 	progress(0.05, 'Строим кластер…');
@@ -117,6 +119,10 @@ async function boot() {
 	progress(0.83, 'Загружаем руберов…');
 	const ruber = await loadModel('ruber');
 	assets = { player, runner, stomper, ruber };
+	// разные заражённые: варианты одежды бегуна и топтуна (цвет, кровь, грязь)
+	const clothOf = (gltf) => { let map = null; gltf.scene.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (m.name === 'Cloth') map ??= m.map; }); return map; };
+	clothSets.runner = clothVariants(clothOf(runner), 5, 11);
+	clothSets.stomper = clothVariants(clothOf(stomper), 4, 23);
 	progress(0.9, 'Рисуем иконки…');
 	await frameWait(20);
 	makeIcons();
@@ -784,8 +790,12 @@ class Enemy extends Actor {
 		super(assets[type], { scale: T.scale });
 		this.type = type;
 		this.T = T;
-		this.scale = T.scale;
-		this.radius = T.radius;
+		// у каждого свой рост и сложение, одежда и оттенок кожи
+		const body = bodyVariation();
+		this.model.scale.set(T.scale * body.s * body.w, T.scale * body.s, T.scale * body.s * body.w);
+		dressZombie(this, clothSets[type], { recolor: type !== 'ruber' });
+		this.scale = T.scale * body.s;
+		this.radius = T.radius * body.s;
 		this.hp = hp ?? T.hp;
 		this.alive = true;
 		this.timer = 0;
