@@ -3,6 +3,7 @@
 # в релиз «game». Постоянные открытые ссылки, по которым файлы скачиваются обычным нажатием:
 #   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.html
 #   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17.apk
+#   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-cluster17-apk.zip (тот же APK в ZIP)
 name: Скачиваемая версия
 
 on:
@@ -72,6 +73,8 @@ jobs:
         run: |
           gradle -p android assembleRelease --no-daemon
           cp android/app/build/outputs/apk/release/app-release.apk download/ulei-cluster17.apk
+          # тот же APK в ZIP: браузер на телефоне не задерживает его проверкой «опасного файла»
+          (cd download && zip -0 -q ulei-cluster17-apk.zip ulei-cluster17.apk)
       # тем же, чем проверяет телефон: выравнивание, подпись, манифест — битый APK в релиз не попадёт
       - name: Проверить APK
         run: |
@@ -89,4 +92,4 @@ jobs:
           else
             gh release create game --target "$GITHUB_SHA" --title "Улей. Кластер-17 — скачать игру" --notes "$notes" --latest
           fi
-          gh release upload game download/ulei-cluster17.html download/ulei-cluster17.apk --clobber
+          gh release upload game download/ulei-cluster17.html download/ulei-cluster17.apk download/ulei-cluster17-apk.zip --clobber
