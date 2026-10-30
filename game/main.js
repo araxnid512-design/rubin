@@ -25,6 +25,7 @@ import { clothVariants, dressZombie, bodyVariation } from './variety.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
+import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
 import { WorldMap } from './worldmap.js';
 import { NODES, WARN, newWorld, normalizeWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
 import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
@@ -1424,6 +1425,7 @@ const game = {
 		this.world = newWorld();
 		this.bag = { ...START_BAG };
 		this.kit = startKit();
+		this.stash = newStash();
 		this.roster = [];
 		this.perks = { maxHp: 100 };
 		this.kills = 0;
@@ -1439,6 +1441,7 @@ const game = {
 		this.world = normalizeWorld(s.world);
 		this.bag = { ...START_BAG, ...s.bag };
 		this.kit = normalizeKit(s.kit);
+		this.stash = normalizeStash(s.stash);
 		this.perks = { maxHp: 100, ...s.perks };
 		// старые сохранения: был только отряд — все в нём идут с героем
 		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0).slice(0, ROOM_BEDS);
@@ -1582,7 +1585,7 @@ const game = {
 	save() {
 		if (this.state !== 'play' || !this.player?.alive) return;
 		if (NODES[this.loc].kind === 'cluster') this.snapshot();
-		saveGame({ world: this.world, bag: this.bag, kit: this.kit, roster: this.roster, perks: this.perks, hp: Math.ceil(this.player.hp), from: this.from ?? null });
+		saveGame({ world: this.world, bag: this.bag, kit: this.kit, stash: this.stash, roster: this.roster, perks: this.perks, hp: Math.ceil(this.player.hp), from: this.from ?? null });
 	},
 
 	/** Уйти по дороге в to: время мира уходит на путь, за это время кластеры могут перезагрузиться. */
@@ -1608,15 +1611,76 @@ const game = {
 		}, 30));
 	},
 
-	/** Гибель: в рюкзаке всё пропадает, оружие остаётся; герой приходит в себя в стабе. */
+	/**
+	 * Гибель: всё, что было с собой, — оружие, патроны, гранаты, живчики — осталось там, где погиб; валюта
+	 * (спораны, горох, чёрный жемчуг) при герое; сложенное в хранилище цело. Герой приходит в себя в стабе.
+	 * Совсем без оружия и денег — охрана стаба выдаёт старый топор.
+	 */
 	respawn() {
-		for (const k of CONSUMABLES) this.bag[k] = 0;
+		for (const k of STORABLE) this.bag[k] = 0;
+		this.kit = { gear: { melee: 'fists', gun: null }, owned: [], mags: {}, wear: {} };
+		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.axe.price;
+		if (broke) { this.kit.owned.push('axe'); this.kit.gear.melee = 'axe'; this.kit.wear.axe = Math.ceil(WEAPONS.axe.durability / 2); }
 		advance(this.world, 90);
 		this.player?.dispose();
 		this.player = null;
 		this.begin();
 		this.enter('stab', undefined);
-		this.banner('Стаб «Полис»', this.party.length ? 'Наёмники вытащили тебя. Рюкзак остался в кластере, оружие при тебе' : 'Тебя вытащили рейдеры. Рюкзак остался в кластере, оружие при тебе');
+		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры';
+		this.banner('Стаб «Полис»', `${who}. Всё, что было с собой, осталось там${broke ? '; охрана выдала старый топор' : ' — запас в хранилище, в твоей комнате'}`);
+	},
+
+	/** Ствол или расходник (kind) — из рюкзака в хранилище (всё, что есть этого вида). */
+	toStash(kind) {
+		const kit = this.kit, p = this.player;
+		if (WEAPONS[kind]) {
+			if (!kit.owned.includes(kind)) return;
+			this.stash.guns[kind] = { mag: kit.mags[kind] ?? 0, wear: kit.wear[kind] };
+			kit.owned = kit.owned.filter((w) => w !== kind);
+			delete kit.mags[kind]; delete kit.wear[kind];
+			const slot = WEAPONS[kind].slot;
+			if (kit.gear[slot] === kind) kit.gear[slot] = kit.owned.find((w) => WEAPONS[w].slot === slot) ?? (slot === 'melee' ? 'fists' : null);
+			if (p) {
+				if (p.hold === 'gun' && !kit.gear.gun) p.hold = 'melee';
+				p.models[kind]?.removeFromParent();
+				p.attachGear();
+			}
+		} else if (STORABLE.includes(kind) && (this.bag[kind] ?? 0) > 0) {
+			this.stash.bag[kind] = (this.stash.bag[kind] ?? 0) + this.bag[kind];
+			this.bag[kind] = 0;
+		}
+		this.hud();
+		this.save();
+	},
+
+	/** Из хранилища — с собой; ствол сразу в слот, если слот пуст. */
+	fromStash(kind) {
+		const kit = this.kit;
+		if (WEAPONS[kind]) {
+			const st = this.stash.guns[kind];
+			if (!st) return;
+			delete this.stash.guns[kind];
+			kit.owned.push(kind);
+			if (WEAPONS[kind].ammo) kit.mags[kind] = st.mag ?? 0;
+			if (WEAPONS[kind].durability) kit.wear[kind] = st.wear ?? WEAPONS[kind].durability;
+			const slot = WEAPONS[kind].slot;
+			if (!kit.gear[slot] || kit.gear[slot] === 'fists') { kit.gear[slot] = kind; this.player?.attachGear(); }
+		} else if ((this.stash.bag[kind] ?? 0) > 0) {
+			this.bag[kind] = (this.bag[kind] ?? 0) + this.stash.bag[kind];
+			delete this.stash.bag[kind];
+		}
+		this.hud();
+		this.save();
+	},
+
+	toStashAll() {
+		for (const id of [...this.kit.owned]) this.toStash(id);
+		for (const k of STORABLE) this.toStash(k);
+	},
+
+	fromStashAll() {
+		for (const id of Object.keys(this.stash.guns)) this.fromStash(id);
+		for (const k of Object.keys(this.stash.bag)) this.fromStash(k);
 	},
 
 	/** Шум: заражённые в радиусе r идут на звук. */
@@ -1755,6 +1819,7 @@ const game = {
 			if (s.id === 'rest') this.rest();
 			if (s.id === 'mercs') this.partyWindow.open({ hiring: true });
 			if (s.id === 'room') this.partyWindow.open();
+			if (s.id === 'stash') this.stashWindow.open();
 			if (s.id === 'take') this.takeMerc(s.merc.state.id);
 			if (s.id === 'leave') this.leaveMerc(s.merc.state.id);
 			return;
@@ -1872,6 +1937,7 @@ const game = {
 	buy(offer) {
 		const price = offer.price, W = WEAPONS[offer.id], kit = this.kit;
 		if ((this.bag.spore ?? 0) < price) { this.toast('Не хватает споранов', 'warn'); return; }
+		if (W && this.stash.guns[offer.id]) { this.toast(`${W.name} уже лежит в хранилище`, 'warn'); return; }
 		const owned = W && kit.owned.includes(offer.id);
 		if (owned && !(W.durability && (kit.wear[offer.id] ?? W.durability) < W.durability)) return;
 		this.bag.spore -= price;
@@ -2088,12 +2154,12 @@ const game = {
 		this.save();
 	},
 
-	/** Погиб — насовсем: койка в комнате освобождается. */
+	/** Погиб: койка в комнате освобождается; Улей вернёт его в стаб, но уже вольным — нанять можно заново. */
 	mercDied(m) {
 		this.roster = this.roster.filter((st) => st !== m.state);
 		this.slotMercs();
 		Sfx.death('human');
-		this.banner(`${m.def.name} погиб`, `${WEAPONS[m.def.weapon].name} остался на месте гибели`);
+		this.banner(`${m.def.name} погиб`, 'Улей вернёт его в стаб, к костру, — но уже не твоим: нанять заново можно у вербовщика');
 		this.renderPartyBar();
 	},
 
@@ -2592,12 +2658,14 @@ const game = {
 		// при перезагрузке кластера пропадают и наёмники, что были с героем; съели — они вытащат героя
 		const lostMercs = reason === 'reload' ? this.party.map((m) => MERCS[m.id].name) : [];
 		if (reason === 'reload') this.roster = this.roster.filter((m) => !m.out); // оставленные в стабе живы
-		const lost = CONSUMABLES.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${ITEMS[k].name[0].toLowerCase()}${ITEMS[k].name.slice(1)} ×${this.bag[k]}`);
+		const low = (s) => `${s[0].toLowerCase()}${s.slice(1)}`;
+		const lost = [...this.kit.owned.map((id) => low(WEAPONS[id].name)), ...STORABLE.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`)];
+		const kept = CURRENCY.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
 			$('go-title').textContent = reason === 'reload' ? 'Кластер перезагрузился' : 'Тебя сожрали';
 			$('go-sub').textContent = reason === 'reload' ? 'Ты не успел уйти: Улей подменил кластер свежей копией вместе с тобой.' : 'Заражённые оказались быстрее.';
-			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b>${lost.length ? `<br>Пропадёт из рюкзака: ${lost.join(', ')}` : ''}${lostMercs.length ? `<br>Наёмники остались в кластере: ${lostMercs.join(', ')}` : ''}`;
+			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b>${lost.length ? `<br>Останется там: ${lost.join(', ')}` : ''}${kept.length ? `<br>При тебе: ${kept.join(', ')}` : ''}${lostMercs.length ? `<br>Наёмники вернутся в стаб без тебя: ${lostMercs.join(', ')} — нанять заново можно у костра` : ''}`;
 			$('gameover').classList.remove('hidden');
 			$('hud').classList.add('hidden');
 			$('search').classList.add('hidden');
@@ -2747,7 +2815,7 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow];
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow];
 	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
 	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
 	if (input.consume('escape')) for (const w of windows) w.close();
@@ -2840,6 +2908,7 @@ game.toast = (text, kind = '') => {
 game.post = post;
 game.inventory = new Inventory(game);
 game.trade = new Trade(game);
+game.stashWindow = new StashWindow(game);
 game.worldMap = new WorldMap(game);
 game.minimap = new Minimap(game);
 game.partyWindow = new PartyWindow(game);

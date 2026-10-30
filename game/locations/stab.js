@@ -109,7 +109,7 @@ export default {
 		}
 
 		// ---------- Жилой блок: твоя комната (вход с плаца) ----------
-		const quarters = buildQuarters(bctx, { cx: 5.4, cz: -11, ry: Math.PI });
+		const quarters = buildQuarters(bctx, { cx: 6.8, cz: -11, ry: Math.PI });
 		buildings.push(quarters);
 
 		// ---------- Лавка торговца: морской контейнер, перед ним торговец за прилавком ----------
@@ -173,7 +173,7 @@ export default {
 		// ---------- Техника, ящики, фонари ----------
 		{
 			// грузовик-кунг у казармы
-			const tx = 13, tz = -10.5;
+			const tx = 14.9, tz = -10.5;
 			batch.add(place(box(2.4, 1.2, 7, 2), tx, 1.2, tz), M.metalOlive);
 			batch.add(place(box(2.4, 1.7, 2, 1.5), tx, 2.25, tz + 2.5), M.metalOlive);
 			batch.add(place(box(2.5, 2.4, 4.6, 1.5), tx, 3.0, tz - 1.1), M.metalOlive);
@@ -216,6 +216,7 @@ export default {
 				{ id: 'mercs', name: 'Наёмники', label: 'Нанять', x: fire.x - 2.6, z: fire.z + 3.0, r: 1.5 },
 				{ id: 'rest', name: 'Лекарь', label: 'Отдохнуть', x: med.x - 0.5, z: med.z + 2.2, r: 1.6 },
 				{ id: 'room', name: 'Твоя комната', label: 'Отряд', x: quarters.table.x, z: quarters.table.z, r: 1.2 },
+				{ id: 'stash', name: 'Хранилище', label: 'Хранилище', x: quarters.stash.x, z: quarters.stash.z, r: 1.2 },
 			],
 			// комната героя: места наёмников у коек
 			room: { spots: quarters.spots, contains: (p) => quarters.contains(p, -0.1) },
@@ -240,7 +241,7 @@ export default {
 					tryTree(x, z, rnd() < 0.6 ? 'birch' : 'pine');
 				}
 			},
-			hint: () => 'Твоя комната. Здесь ждут нанятые наёмники: подойди к бойцу — возьмёшь его с собой или оставишь',
+			hint: () => 'Твоя комната. Здесь ждут нанятые наёмники: подойди к бойцу — возьмёшь его с собой или оставишь. В углу — хранилище: сложенное туда не пропадёт при гибели',
 			clutter: 0,
 			barrels: 0, // в стабе бочки с горючим не держат
 			blood: 0,

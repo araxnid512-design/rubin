@@ -644,23 +644,23 @@ export function buildGuardhouse(ctx, { name = 'Guardhouse', cx, cz, ry = 0 }) {
 // ---------- Комната героя в стабе ----------
 
 /**
- * Жилой блок 7.6×5.6 м из кирпича: комната героя. Вдоль задней стены — четыре армейские койки, у каждой
- * своё место наёмника; у двери — стол и шкафчик. Вход — в передней стене (−Z локально), справа.
- * Тайников нет. spots — где стоят наёмники (в мире, лицом к двери), table — стол (окно отряда).
+ * Твоя комната в стабе 10,6×6,2 м: шесть коек вдоль задней стены (у каждой ждёт свой наёмник), в углу —
+ * хранилище: сейф, пирамида для оружия и ящики с патронами (что сложено сюда, не пропадает при гибели);
+ * у двери стол с табуретами и шкафчик. Вход — в передней стене (−Z локально).
  */
 export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
-	const W = 7.6, D = 5.6, H = 2.9;
+	const W = 10.6, D = 6.2, H = 2.9;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.35 });
 	b.messKind = 'tidy';
 	const { M } = ctx;
 	const IM = b.IM;
-	const t = 0.25, hx = W / 2, hz = D / 2, door = 2.4;
+	const t = 0.25, hx = W / 2, hz = D / 2, door = 1.4;
 	b.lower(place(planeXZ(W - 0.1, D - 0.1, 1.2), 0, 0.025, 0), IM.floor, { cast: false });
 	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, doors: [door], lining: IM.wallpaper[1], side: 1 });
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: -1 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: 1 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: -1 });
-	b.window('front', -1.6, { t }); b.window('front', 0.4, { t }); b.window('left', 0, { t });
+	b.window('front', -3.4, { t }); b.window('front', -1.0, { t }); b.window('front', 3.6, { t }); b.window('left', 0, { t });
 	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
 	b.lower(place(box(1.6, 0.18, 1.0), door, 0.09, -hz - 0.6), M.concrete);
 	b.furniture(door + 0.62, -hz + 0.1, 1.75, [[1.2, 2.05, 0.05, -0.6, 1.03, 0, M.metalDark]], { up: true }); // дверь открыта внутрь
@@ -668,9 +668,9 @@ export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
 	const sign = new THREE.PlaneGeometry(2.0, 0.42);
 	sign.rotateY(Math.PI); sign.translate(door, H - 0.4, -hz - t / 2 - 0.02);
 	b.top_(sign, T.signMaterial('ТВОЯ КОМНАТА', { bg: '#2a2c26', fg: '#e8dcae', w: 480, h: 100 }));
-	// четыре койки изголовьем к задней стене; наёмник стоит в ногах своей койки
+	// шесть коек изголовьем к задней стене; наёмник стоит в ногах своей койки
 	const spots = [];
-	for (const [i, x] of [-3.0, -1.7, -0.4, 0.9].entries()) {
+	for (const [i, x] of [-4.5, -3.2, -1.9, -0.6, 0.7, 2.0].entries()) {
 		const z = hz - t / 2 - 1.0;
 		b.furniture(x, z, Math.PI, [
 			[0.8, 0.08, 1.9, 0, 0.42, 0, IM.metal],
@@ -682,18 +682,38 @@ export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
 		const [wx, wz] = b.world(x, z - 1.4);
 		spots.push({ x: wx, z: wz, ry: ry + Math.PI });
 	}
+	// хранилище в правом углу: сейф, пирамида с оружием, ящики с патронами
+	b.furniture(4.6, 2.2, -Math.PI / 2, [
+		[0.9, 1.35, 0.7, 0, 0.675, 0, IM.locker],
+		[0.86, 1.3, 0.02, 0, 0.675, 0.36, IM.metal], // дверца
+		[0.08, 0.08, 0.06, 0.25, 0.8, 0.39, IM.black], // штурвал замка
+		[0.04, 0.2, 0.04, -0.3, 0.75, 0.39, IM.black],
+	], { solid: [0.9, 0.7] });
+	b.furniture(4.85, 0.2, -Math.PI / 2, [
+		[1.7, 0.08, 0.36, 0, 0.12, 0, IM.furniture], // основание пирамиды
+		[1.7, 0.06, 0.12, 0, 1.0, -0.12, IM.furniture], // верхняя планка
+		...[-0.6, -0.2, 0.2, 0.6].map((x) => [0.05, 1.0, 0.05, x, 0.6, -0.14, IM.furniture]),
+		...[-0.4, 0, 0.4].map((x) => [0.07, 1.05, 0.05, x, 0.68, 0.0, IM.black]), // стволы в гнёздах
+	], { solid: [1.7, 0.4] });
+	b.furniture(3.5, 2.55, 0, [
+		[0.85, 0.45, 0.5, 0, 0.225, 0, IM.crateGreen],
+		[0.75, 0.38, 0.45, 0.04, 0.64, 0, IM.crateGreen],
+		[0.2, 0.04, 0.06, 0, 0.47, 0.26, IM.metal],
+	], { solid: [0.85, 0.5] });
 	// стол с табуретами и шкафчик у двери, коврик посередине
-	table(b, 2.75, 1.7, 0, { w: 1.1, d: 0.7 });
-	chair(b, 2.2, 1.0, Math.PI * 0.15);
-	chair(b, 3.2, 1.0, -Math.PI * 0.15);
-	b.furniture(3.45, -0.6, -Math.PI / 2, [
+	table(b, -3.6, -1.7, 0, { w: 1.1, d: 0.7 });
+	chair(b, -4.2, -1.0, Math.PI * 0.85);
+	chair(b, -3.0, -1.0, -Math.PI * 0.85);
+	b.furniture(-4.85, 0.3, Math.PI / 2, [
 		[1.0, 1.9, 0.5, 0, 0.95, 0, IM.metal],
 		[0.02, 1.8, 0.02, 0, 0.95, 0.255, IM.black],
 	], { solid: [1.0, 0.5] });
-	rug(b, -1.0, -0.9, 0, 3.4, 1.6, IM.rugBlue);
-	const [tx, tz] = b.world(2.75, 0.75);
+	rug(b, -0.8, -0.9, 0, 4.4, 1.6, IM.rugBlue);
+	const [tx, tz] = b.world(-3.6, -2.5);
+	const [sx, sz] = b.world(3.75, 1.35);
 	b.spots = spots;
 	b.table = { x: tx, z: tz };
+	b.stash = { x: sx, z: sz };
 	return b.finish();
 }
 

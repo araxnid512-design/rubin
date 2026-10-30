@@ -304,6 +304,21 @@ try {
 		return out;
 	});
 	check(Object.values(shots).every((v) => { const [a, b] = v.split('→').map(Number); return b === a - 1; }), `из каждого нового ствола выстрел тратит патрон: ${Object.entries(shots).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+	// хранилище в комнате: СВД и патроны 7,62×54R — туда, при гибели не пропадут
+	const goStash = () => G(page, () => { const g = window.__game, s = g.level.stations.find((x) => x.id === 'stash'); g.player.pos.set(s.x, 0, s.z); });
+	const openStash = async () => {
+		await goStash();
+		await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Хранилище' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
+		await page.keyboard.press('KeyE');
+		await page.waitForSelector('#stash:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	};
+	await openStash();
+	await page.click('[data-store="svd"]');
+	await page.click('[data-store="ammo76254"]');
+	const stash1 = await G(page, () => { const g = window.__game; return { owned: g.kit.owned.includes('svd'), svd: !!g.stash.guns.svd, ammo: g.stash.bag.ammo76254 ?? 0, kept: document.querySelectorAll('#stash-kept [data-take]').length, beds: g.level.room.spots.length }; });
+	check(!stash1.owned && stash1.svd && stash1.ammo > 0 && stash1.kept >= 2, `хранилище в комнате: СВД и ${stash1.ammo} патронов 7,62×54R сложены (в окне ${stash1.kept})`);
+	check(stash1.beds === 6, `комната шире: коек ${stash1.beds}`);
+	await page.click('#stash-close');
 	// наёмники у костра: нанятые идут в комнату героя и ждут у своих коек
 	await G(page, () => window.__game.player.pos.set(-2.6, 0, 7.2));
 	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Нанять' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
@@ -557,12 +572,17 @@ try {
 	check(sour.stage >= 1 && +sour.fog > 0.2, `перед перезагрузкой: кислый запах и муть (дымка ${sour.fog})`);
 	await page.waitForSelector('#gameover:not(.hidden)', { timeout: 90000 }).catch(() => {});
 	const dead = await G(page, () => ({ title: document.getElementById('go-title').textContent, stats: document.getElementById('go-stats').textContent }));
-	check(dead.title === 'Кластер перезагрузился' && /споран ×7/.test(dead.stats), `не успел уйти: «${dead.title}», ${dead.stats}`);
+	check(dead.title === 'Кластер перезагрузился' && /При тебе: споран ×7/.test(dead.stats) && /Останется там: .*патроны 5,45×39 ×11/.test(dead.stats), `не успел уйти: «${dead.title}», ${dead.stats}`);
 	await page.click('#btn-respawn');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
-	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved }; });
+	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved, svd: !!g.stash.guns.svd, sammo: g.stash.bag.ammo76254 ?? 0 }; });
 	// здоровье — полное, с прибавкой от съеденной жемчужины (120)
-	check(re.spore === 0 && re.ammo === 0 && re.owned.includes('aks') && re.hp === 120 && re.fresh, `очнулся в стабе: рюкзак пуст, оружие при себе (${re.owned}), Дачи перезагрузились`);
+	check(re.spore === 7 && re.ammo === 0 && !re.owned.includes('aks') && re.hp === 120 && re.fresh, `очнулся в стабе: спораны при себе (${re.spore}), что было с собой — пропало (осталось: ${re.owned || 'ничего'}), Дачи перезагрузились`);
+	check(re.svd && re.sammo > 0, `в хранилище целы СВД и ${re.sammo} патронов`);
+	await openStash();
+	await page.click('[data-take="svd"]');
+	const svdBack = await G(page, () => { const g = window.__game; g.stashWindow.close(); return { owned: g.kit.owned.includes('svd'), gun: g.kit.gear.gun, left: !!g.stash.guns.svd }; });
+	check(svdBack.owned && svdBack.gun === 'svd' && !svdBack.left, 'забрал СВД из хранилища — сразу в слот огнестрела');
 	// торговец покупает чёрную жемчужину
 	await G(page, () => { const g = window.__game; g.bag.pearl = 1; g.bag.spore = 0; g.player.pos.set(-11, 0, 0.1); });
 	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Торговать' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
@@ -582,8 +602,8 @@ try {
 	const cont = await G(p2, () => !document.getElementById('btn-continue').classList.contains('hidden'));
 	await p2.click('#btn-continue');
 	await p2.waitForFunction(() => window.__game?.state === 'play', null, { timeout: 60000 });
-	const c2 = await G(p2, () => ({ loc: window.__game.loc, owned: window.__game.kit.owned.join() }));
-	check(cont && c2.loc === 'stab' && c2.owned.includes('aks'), `«Продолжить»: снова в стабе, оружие сохранено (${c2.owned})`);
+	const c2 = await G(p2, () => ({ loc: window.__game.loc, owned: window.__game.kit.owned.join(), stashAmmo: window.__game.stash.bag.ammo76254 ?? 0 }));
+	check(cont && c2.loc === 'stab' && c2.owned.includes('svd') && c2.stashAmmo > 0, `«Продолжить»: снова в стабе, оружие и хранилище сохранены (${c2.owned}; в хранилище патронов ${c2.stashAmmo})`);
 	await G(p2, () => localStorage.clear());
 	await p2.close();
 

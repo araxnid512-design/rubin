@@ -209,7 +209,12 @@
 		.travel-card h1 { font-size: 24px; }
 
 		/* Карта мира */
-		#worldmap, #trade { z-index: 25; padding: 10px; }
+		#worldmap, #trade, #stash { z-index: 25; padding: 10px; }
+		.stash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+		@media (max-width: 640px) { .stash-cols { grid-template-columns: 1fr; } }
+		.stash-list { display: grid; gap: 6px; }
+		.stash-note { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+		#stash .trade-sec { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 		.inv .x { font: inherit; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; flex: none; }
 		.wm-body { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.1fr); gap: 12px; align-items: start; }
 		#wm-svg { width: 100%; aspect-ratio: 1.15; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
@@ -511,6 +516,19 @@
 				<button class="buy" id="trade-peas-1">Обменять 1</button><button class="buy" id="trade-peas-all">Все</button></div>
 			<div class="exchange"><span>Чёрная жемчужина → <b>150 споранов</b> <span class="muted">(есть <b id="trade-pearls">0</b>)</span></span>
 				<button class="buy" id="trade-pearl">Продать 1</button></div>
+		</div>
+	</div>
+
+	<div id="stash" class="screen hidden">
+		<div class="inv trade">
+			<div class="inv-head"><b>Хранилище</b><span class="muted">твоя комната · игра на паузе</span>
+				<span class="wallet"><span id="stash-wallet"></span></span>
+				<button class="x" id="stash-close" aria-label="Закрыть">✕</button></div>
+			<div class="stash-note">Что лежит здесь, не пропадёт. При гибели всё, что было с собой — оружие, патроны, гранаты, живчики, — остаётся в кластере; спораны, горох и жемчуг остаются при тебе.</div>
+			<div class="stash-cols">
+				<div><div class="trade-sec">С собой <button class="buy" id="stash-store-all">Сложить всё →</button></div><div id="stash-mine" class="stash-list"></div></div>
+				<div><div class="trade-sec">В хранилище <button class="buy" id="stash-take-all">← Забрать всё</button></div><div id="stash-kept" class="stash-list"></div></div>
+			</div>
 		</div>
 	</div>
 

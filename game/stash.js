@@ -25,7 +25,7 @@ export function normalizeStash(s) {
 const $ = (id) => document.getElementById(id);
 
 export class StashWindow {
-	/** game: { bag, kit, stash, icons, store(kind), take(kind), storeAll(), takeAll(), setPaused(bool) } */
+	/** game: { bag, kit, stash, icons, toStash(kind), fromStash(kind), toStashAll(), fromStashAll(), setPaused(bool) } */
 	constructor(game) {
 		this.game = game;
 		this.el = $('stash');
@@ -34,11 +34,11 @@ export class StashWindow {
 		this.el.addEventListener('click', (e) => {
 			const b = e.target.closest('[data-store],[data-take]');
 			if (!b || b.disabled) return;
-			if (b.dataset.store) this.game.store(b.dataset.store); else this.game.take(b.dataset.take);
+			if (b.dataset.store) this.game.toStash(b.dataset.store); else this.game.fromStash(b.dataset.take);
 			this.render();
 		});
-		$('stash-store-all').onclick = () => { this.game.storeAll(); this.render(); };
-		$('stash-take-all').onclick = () => { this.game.takeAll(); this.render(); };
+		$('stash-store-all').onclick = () => { this.game.toStashAll(); this.render(); };
+		$('stash-take-all').onclick = () => { this.game.fromStashAll(); this.render(); };
 	}
 
 	get isOpen() { return !this.el.classList.contains('hidden'); }

@@ -65,14 +65,15 @@ export class Trade {
 		$('trade-list').innerHTML = SHOP.map((o, i) => {
 			const head = o.sec !== sec ? `<div class="trade-sec">${(sec = o.sec)}</div>` : '';
 			const it = ITEMS[o.id], W = WEAPONS[o.id];
-			const owned = !!W && g.kit.owned.includes(o.id);
+			const stored = !!W && !!g.stash?.guns[o.id];
+			const owned = !!W && (g.kit.owned.includes(o.id) || stored);
 			// топор тупится: изношенный можно сменить на новый
 			const wear = owned && W.durability ? g.kit.wear?.[o.id] ?? W.durability : null;
-			const renew = wear !== null && wear < W.durability;
+			const renew = !stored && wear !== null && wear < W.durability;
 			let have = `есть: ${bag[o.id] ?? 0}`;
 			if (W?.ammo) have = `${AMMO[W.ammo]} · урон ${W.damage}${W.pellets ? `×${W.pellets}` : ''}`;
-			if (W) have = owned ? (wear !== null ? `прочность ${wear}/${W.durability}` : 'уже есть') : W.ammo ? have : `урон ${W.damage} · ${W.durability} ударов`;
-			const label = renew ? `Новый · ${o.price} сп.` : owned ? (wear !== null ? 'Целый' : 'Куплено') : `${o.price} сп.`;
+			if (W) have = stored ? 'лежит в хранилище' : owned ? (wear !== null ? `прочность ${wear}/${W.durability}` : 'уже есть') : W.ammo ? have : `урон ${W.damage} · ${W.durability} ударов`;
+			const label = renew ? `Новый · ${o.price} сп.` : stored ? 'В хранилище' : owned ? (wear !== null ? 'Целый' : 'Куплено') : `${o.price} сп.`;
 			const off = (owned && !renew) || spores < o.price;
 			return `${head}<div class="offer${owned && !renew ? ' owned' : ''}">
 				<div class="offer-icon">${icons[o.id] ? `<img src="${icons[o.id]}" alt="">` : ''}</div>
