@@ -215,7 +215,10 @@
 		.travel-card h1 { font-size: 24px; }
 
 		/* Карта мира */
-		#worldmap, #trade, #stash { z-index: 25; padding: 10px; }
+		#worldmap, #trade, #stash, #intel { z-index: 25; padding: 10px; }
+		#intel .intel { max-width: 460px; }
+		.intel-text { margin: 14px 4px 16px; font-size: 15px; line-height: 1.5; }
+		#intel-buy { align-self: flex-start; }
 		.stash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 		@media (max-width: 640px) { .stash-cols { grid-template-columns: 1fr; } }
 		.stash-list { display: grid; gap: 6px; }
@@ -541,6 +544,16 @@
 				<div><div class="trade-sec">С собой <button class="buy" id="stash-store-all">Сложить всё →</button></div><div id="stash-mine" class="stash-list"></div></div>
 				<div><div class="trade-sec">В хранилище <button class="buy" id="stash-take-all">← Забрать всё</button></div><div id="stash-kept" class="stash-list"></div></div>
 			</div>
+		</div>
+	</div>
+
+	<div id="intel" class="screen hidden">
+		<div class="inv trade intel">
+			<div class="inv-head"><img id="intel-avatar" class="npc-face" alt=""><b>Информатор</b><span class="muted">стаб «Полис» · игра на паузе</span>
+				<span class="wallet"><span id="intel-wallet"></span></span>
+				<button class="x" id="intel-close" aria-label="Закрыть">✕</button></div>
+			<p id="intel-text" class="intel-text"></p>
+			<button class="buy" id="intel-buy">Узнать</button>
 		</div>
 	</div>
 

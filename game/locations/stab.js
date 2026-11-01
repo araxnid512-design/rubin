@@ -134,6 +134,11 @@ export default {
 			collide(x, z - 0.8, 6, 2.5);
 			collide(x, z + 1.7, 4.4, 0.5);
 			collide(x + 1.95, z + 0.85, 1.4, 0.6);
+			// у угла лавки — ящик информатора с рацией
+			batch.add(place(box(0.7, 0.75, 0.55), x - 4.6, 0.37, z + 0.2), M.metalOlive);
+			batch.add(place(box(0.24, 0.12, 0.14), x - 4.55, 0.81, z + 0.2), M.metalDark);
+			batch.add(place(new THREE.CylinderGeometry(0.008, 0.008, 0.4, 6), x - 4.47, 1.05, z + 0.2), M.metalDark);
+			collide(x - 4.6, z + 0.2, 0.7, 0.55);
 		}
 
 		// ---------- Палатка лекаря ----------
@@ -213,6 +218,7 @@ export default {
 			exits: [{ to: null, x0: -gate, x1: gate, z0: WZ + 1.6, z1: WZ + 8, spawn: [0, WZ - 3.2, Math.PI], sign: [gate + 1.4, WZ + 2.4, 'Выход в Улей ↓'] }],
 			stations: [
 				{ id: 'trade', name: 'Торговец', label: 'Торговать', x: shop.x, z: shop.z + 2.6, r: 1.7 },
+				{ id: 'info', name: 'Информатор', label: 'Спросить про муров', x: shop.x - 4.6, z: shop.z + 2.6, r: 1.4 },
 				{ id: 'mercs', name: 'Наёмники', label: 'Нанять', x: fire.x - 2.6, z: fire.z + 3.0, r: 1.5 },
 				{ id: 'rest', name: 'Лекарь', label: 'Отдохнуть', x: med.x - 0.5, z: med.z + 2.2, r: 1.6 },
 				{ id: 'room', name: 'Твоя комната', label: 'Отряд', x: quarters.table.x, z: quarters.table.z, r: 1.2 },
@@ -224,6 +230,8 @@ export default {
 			npcs: [
 				{ x: shop.x + 0.4, z: shop.z + 0.95, ry: 0, clip: 'Idle', tint: [0.75, 0.7, 0.62] },
 				{ x: med.x - 0.6, z: med.z + 1.5, ry: -0.3, clip: 'Idle', tint: [0.95, 0.95, 0.92] },
+				// информатор у угла лавки: за спораны скажет, где муры
+				{ x: shop.x - 4.6, z: shop.z + 1.2, ry: 0.3, clip: 'Idle', tint: [0.42, 0.4, 0.36] },
 				{ x: -gate - 1.0, z: WZ - 2.6, ry: 0.2, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 				{ x: gate + 1.0, z: WZ - 2.6, ry: -0.2, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },
 				{ x: -WX + 1.6, y: 4.27, z: -WZ + 1.6, ry: Math.PI * 0.75, clip: 'IdleRifle', gun: 'aks', tint: [0.6, 0.62, 0.55] },

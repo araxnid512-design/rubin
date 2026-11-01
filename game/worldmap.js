@@ -55,8 +55,8 @@ export class WorldMap {
 		const w = this.game.world, node = NODES[to];
 		if (node.kind === 'stab') return 'безопасно';
 		if (node.kind === 'murs') return `<span class="danger">логово муров — около ${w.murs.count} стволов</span>`;
-		// по рации слышно, куда ушёл отряд муров
-		const murs = w.murs.raid?.at === to ? ' · <span class="danger">по рации: там муры</span>' : '';
+		// где отряд муров — знаешь, только если купил сведения у информатора в «Полисе»
+		const murs = w.murs.raid?.at === to && w.murs.raid.known ? ' · <span class="danger">там муры (сказал информатор)</span>' : '';
 		const left = timeLeft(w, to) - travel;
 		if (left <= 0) return 'перезагрузится, пока идёшь — придёшь в свежий кластер';
 		if (left < 60) return `<span class="danger">перезагрузка через ${approx(left)} после прихода!</span>`;
@@ -139,9 +139,9 @@ export class WorldMap {
 			if (n.preview) el('image', { href: asset(n.preview), x: x - r * 1.78, y: y - r, width: r * 3.56, height: r * 2, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${svg.id}-${id})` }, g);
 			el('circle', { cx: x, cy: y, r, class: 'wm-frame' }, g);
 			if (n.kind === 'stab') el('path', { d: `M${x + 3.4} ${y - 3.2}V${y - 8.4}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
-			// логово муров — красный крест; кластер, куда ушёл их отряд, — красная точка
+			// логово муров — красный крест; кластер, где их отряд (если сказал информатор), — красная точка
 			if (n.kind === 'murs') el('path', { d: `M${x + 2.6} ${y - 7.6}l3.6 3.6M${x + 6.2} ${y - 7.6}l-3.6 3.6`, class: 'wm-mur' }, g);
-			if (w.murs?.raid?.at === id) el('circle', { cx: x + 4.6, cy: y - 4.6, r: 1.5, class: 'wm-raid' }, g);
+			if (w.murs?.raid?.at === id && w.murs.raid.known) el('circle', { cx: x + 4.6, cy: y - 4.6, r: 1.5, class: 'wm-raid' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;
 		}

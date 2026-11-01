@@ -228,7 +228,7 @@ try {
 	await G(page, () => {
 		const g = window.__game, b = g.bandits.find((x) => x.alive);
 		for (const e of g.enemies) if (e.alive) { e.pos.set(-60, 0, -60); e.state = 'idle'; }
-		b.pos.set(20, 0, 6); b.aggro = null; g.player.pos.set(28, 0, 6);
+		b.pos.set(20, 0, 6); b.aggro = null; g.player.pos.set(24, 0, 6);
 		window.__hp0 = g.player.hp;
 		window.__zb = g.spawnEnemy('runner', b.pos.clone().set(b.pos.x - 4, 0, b.pos.z + 0.5));
 		window.__zb.state = 'chase';
@@ -369,6 +369,33 @@ try {
 		return out;
 	});
 	check(Object.values(shots).every((v) => { const [a, b] = v.split('→').map(Number); return b === a - 1; }), `из каждого нового ствола выстрел тратит патрон: ${Object.entries(shots).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+	// информатор у лавки: за спораны — где сейчас муры; купленное о вылазке видно на карте Улья
+	await G(page, () => { const g = window.__game, s = g.level.stations.find((x) => x.id === 'info'); g.player.pos.set(s.x, 0, s.z); g.bag.spore = Math.max(g.bag.spore ?? 0, 40); g.world.murs.raid = null; g.world.murs.nextRaid = g.world.time + 600; });
+	await page.waitForFunction(() => window.__game.nearStation()?.id === 'info' && document.getElementById('search-verb').textContent === 'Спросить про муров', null, { timeout: 20000 }).catch(() => {});
+	await page.keyboard.press('KeyE');
+	await page.waitForSelector('#intel:not(.hidden)', { timeout: 20000 }).catch(() => {});
+	const intel0 = await G(page, () => window.__game.bag.spore);
+	await page.click('#intel-buy');
+	const intel1 = await G(page, () => ({ text: document.getElementById('intel-text').textContent, spore: window.__game.bag.spore }));
+	check(/Карьер/.test(intel1.text) && intel1.spore === intel0 - 10, `информатор у лавки (−10 споранов): «${intel1.text.slice(0, 70)}…»`);
+	const intelMap = await G(page, async () => {
+		const g = window.__game, t = g.world.time;
+		g.intelWindow.close();
+		g.world.murs.raid = { at: 'dachi', size: 7, start: t, end: t + 240, mode: 'pairs', loot: {}, live: false, kills: 0 };
+		g.worldMap.open(null);
+		const before = document.querySelectorAll('#wm-svg .wm-raid').length;
+		g.worldMap.close();
+		g.intelWindow.open();
+		document.getElementById('intel-buy').click();
+		const text = document.getElementById('intel-text').textContent;
+		g.intelWindow.close();
+		g.worldMap.open(null);
+		const after = document.querySelectorAll('#wm-svg .wm-raid').length, list = document.getElementById('wm-list').textContent;
+		g.worldMap.close();
+		g.world.murs.raid = null; g.world.murs.nextRaid = Infinity;
+		return { before, after, text, told: /сказал информатор/.test(list) };
+	});
+	check(intelMap.before === 0 && /Дачи/.test(intelMap.text) && intelMap.after === 1 && intelMap.told, `вылазка в Дачах: на карте её не видно, пока не купишь — информатор: «${intelMap.text.slice(0, 60)}…», и на карте отметка`);
 	// хранилище в комнате: СВД и патроны 7,62×54R — туда, при гибели не пропадут
 	const goStash = () => G(page, () => { const g = window.__game, s = g.level.stations.find((x) => x.id === 'stash'); g.player.pos.set(s.x, 0, s.z); });
 	const openStash = async () => {
@@ -605,7 +632,7 @@ try {
 	await page.waitForFunction(() => !window.__game.merc('kuvalda'), null, { timeout: 30000 }).catch(() => {});
 	const bitten = await G(page, () => { const g = window.__game, r = { gone: !g.merc('kuvalda'), roster: g.roster.map((m) => m.id).join(), banner: document.getElementById('banner')?.textContent ?? '' }; window.__bite.damage(1e4, window.__bite.pos, 0); return r; });
 	check(bitten.gone && /патроны/i.test(bitten.banner), `Кувалда без патронов погиб от первой атаки: «${bitten.banner.trim()}», в отряде: ${bitten.roster}`);
-	// дальность наёмника — как у героя с тем же оружием: заражённого в 25 м снайпер берёт, автоматчик — нет
+	// дальность наёмника — как у героя с тем же оружием: заражённого в 12 м снайпер берёт, медик с «Вектором» — нет
 	const reachTest = await G(page, () => {
 		const g = window.__game, p = g.player;
 		g.roster.push({ id: 'sych', hp: 90, mag: 10, ammo: 10, out: true, bed: 5 });
@@ -613,7 +640,7 @@ try {
 		for (const m of g.mercs) m.cooldown = 1e9;
 		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
 		p.pos.set(-26, 0, 5.5);
-		const far = g.spawnEnemy('runner', p.pos.clone().set(-1, 0, 5.5));
+		const far = g.spawnEnemy('runner', p.pos.clone().set(-14, 0, 5.5));
 		const sych = g.mercs.find((m) => m.state.id === 'sych'), dok = g.mercs.find((m) => m.state.id === 'dok');
 		for (const m of [sych, dok]) m.pos.set(-26, 0, 5.5);
 		const r = { sniper: sych.pickTarget(sych.W.range) === far, sr: sych.W.range, auto: dok.pickTarget(dok.W.range) === far, ar: dok.W.range };
@@ -622,7 +649,7 @@ try {
 		g.spawnMercs();
 		return r;
 	});
-	check(reachTest.sniper && !reachTest.auto, `заражённый в 25 м: снайпер (СВД, ${reachTest.sr} м) стреляет, медик с «Вектором» (${reachTest.ar} м) — нет`);
+	check(reachTest.sniper && !reachTest.auto, `заражённый в 12 м: снайпер (СВД, ${reachTest.sr} м) стреляет, медик с «Вектором» (${reachTest.ar} м) — нет`);
 
 	// возвращение в кластер до перезагрузки: всё как было
 	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 2000; });

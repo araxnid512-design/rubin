@@ -28,6 +28,7 @@ import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow }
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
 import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
+import { IntelWindow, INTEL_PRICE, intelText } from './intel.js';
 import { BUILD } from './version.js';
 import { WorldMap } from './worldmap.js';
 import { NODES, WARN, newWorld, normalizeWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
@@ -234,7 +235,7 @@ function makeIcons() {
 	$('go-avatar').src = I.portrait;
 	// портреты жителей стаба (торговец, лекарь) — та же модель в своей форме
 	const stab = buildPortraits();
-	I.trader = stab[0]; I.medic = stab[1]; I.recruiter = stab[2];
+	I.trader = stab[0]; I.medic = stab[1]; I.recruiter = stab[2]; I.informant = stab[3];
 	for (const [id, D] of Object.entries(MERCS)) I[`merc_${id}`] = iconFactory.portrait(assets.player, { tint: D.tint, gear: {} });
 	if (I.trader) $('trade-avatar').src = I.trader;
 	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.zhivchik}" alt="">`);
@@ -243,7 +244,7 @@ function makeIcons() {
 
 /** Портреты торговца, лекаря и вербовщика по их форме из описания стаба. */
 function buildPortraits() {
-	const tints = [[0.75, 0.7, 0.62], [0.95, 0.95, 0.92], [0.8, 0.75, 0.7]];
+	const tints = [[0.75, 0.7, 0.62], [0.95, 0.95, 0.92], [0.8, 0.75, 0.7], [0.42, 0.4, 0.36]];
 	return tints.map((tint) => iconFactory.portrait(assets.player, { tint, gear: {} }));
 }
 
@@ -2011,6 +2012,18 @@ const game = {
 		murs.nextRaid = this.world.time + 300 + Math.random() * 900;
 	},
 
+	/** Информатор: за спораны — где сейчас муры (game/intel.js); купленное о вылазке видно на карте Улья. */
+	buyIntel() {
+		if ((this.bag.spore ?? 0) < INTEL_PRICE) { this.toast('Не хватает споранов', 'warn'); return null; }
+		this.bag.spore -= INTEL_PRICE;
+		const murs = this.world.murs;
+		if (murs.raid) murs.raid.known = true;
+		Sfx.coins();
+		this.hud();
+		this.save();
+		return intelText(murs, this.world.time);
+	},
+
 	/** Цель мура: ближайший, кого он видит на дальность своего ствола — заражённый, герой или наёмник. */
 	banditTarget(b) {
 		const R = b.W.range;
@@ -2317,6 +2330,7 @@ const game = {
 			if (s.id === 'mercs') this.partyWindow.open({ hiring: true });
 			if (s.id === 'room') this.partyWindow.open();
 			if (s.id === 'stash') this.stashWindow.open();
+			if (s.id === 'info') this.intelWindow.open();
 			if (s.id === 'merc') this.partyWindow.open({ merc: s.merc.state.id });
 			return;
 		}
@@ -2356,7 +2370,7 @@ const game = {
 		const st = this.searching ? null : this.nearStation();
 		const c = st ? null : this.searching?.c ?? this.nearContainer();
 		el.classList.toggle('hidden', (!c && !st) || !this.player.alive);
-		const face = st ? this.icons[st.merc ? `merc_${st.merc.state.id}` : { trade: 'trader', rest: 'medic', mercs: 'recruiter' }[st.id] ?? 'portrait'] : null;
+		const face = st ? this.icons[st.merc ? `merc_${st.merc.state.id}` : { trade: 'trader', rest: 'medic', mercs: 'recruiter', info: 'informant' }[st.id] ?? 'portrait'] : null;
 		$('search-face').classList.toggle('hidden', !face);
 		if (face && $('search-face').getAttribute('src') !== face) $('search-face').src = face;
 		if (st) {
@@ -3325,7 +3339,7 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow];
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow];
 	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
 	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
 	if (input.consume('escape')) for (const w of windows) w.close();
@@ -3422,9 +3436,10 @@ game.post = post;
 game.inventory = new Inventory(game);
 game.trade = new Trade(game);
 game.stashWindow = new StashWindow(game);
+game.intelWindow = new IntelWindow(game);
 // «Назад» в приложении для Android: закрыть открытое окно; закрывать нечего — false, и приложение свернётся
 window.__back = () => {
-	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow].filter((w) => w.isOpen);
+	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow].filter((w) => w.isOpen);
 	for (const w of open) w.close();
 	return open.length > 0;
 };
