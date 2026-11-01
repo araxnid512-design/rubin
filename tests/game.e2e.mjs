@@ -551,6 +551,24 @@ try {
 	await page.waitForFunction(() => !window.__game.merc('kuvalda'), null, { timeout: 30000 }).catch(() => {});
 	const bitten = await G(page, () => { const g = window.__game, r = { gone: !g.merc('kuvalda'), roster: g.roster.map((m) => m.id).join(), banner: document.getElementById('banner')?.textContent ?? '' }; window.__bite.damage(1e4, window.__bite.pos, 0); return r; });
 	check(bitten.gone && /патроны/i.test(bitten.banner), `Кувалда без патронов погиб от первой атаки: «${bitten.banner.trim()}», в отряде: ${bitten.roster}`);
+	// дальность наёмника — как у героя с тем же оружием: заражённого в 25 м снайпер берёт, автоматчик — нет
+	const reachTest = await G(page, () => {
+		const g = window.__game, p = g.player;
+		g.roster.push({ id: 'sych', hp: 90, mag: 10, ammo: 10, out: true, bed: 5 });
+		g.spawnMercs();
+		for (const m of g.mercs) m.cooldown = 1e9;
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		p.pos.set(-26, 0, 5.5);
+		const far = g.spawnEnemy('runner', p.pos.clone().set(-1, 0, 5.5));
+		const sych = g.mercs.find((m) => m.state.id === 'sych'), dok = g.mercs.find((m) => m.state.id === 'dok');
+		for (const m of [sych, dok]) m.pos.set(-26, 0, 5.5);
+		const r = { sniper: sych.pickTarget(sych.W.range) === far, sr: sych.W.range, auto: dok.pickTarget(dok.W.range) === far, ar: dok.W.range };
+		far.damage(1e4, far.pos, 0);
+		g.roster = g.roster.filter((m) => m.id !== 'sych');
+		g.spawnMercs();
+		return r;
+	});
+	check(reachTest.sniper && !reachTest.auto, `заражённый в 25 м: снайпер (СВД, ${reachTest.sr} м) стреляет, медик с «Вектором» (${reachTest.ar} м) — нет`);
 
 	// возвращение в кластер до перезагрузки: всё как было
 	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 2000; });

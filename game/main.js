@@ -1267,7 +1267,7 @@ class Merc extends Actor {
 		this.retarget -= dt;
 		if (this.retarget <= 0 || (this.target && !this.target.alive)) {
 			this.retarget = 0.35;
-			this.target = this.pickTarget(Math.min(W.range, C.reach));
+			this.target = this.pickTarget(W.range); // та же дальность, что у героя с этим оружием
 		}
 		const t = this.target;
 		// снайпер вблизи беззащитен: от заражённого, подобравшегося вплотную, отходит (к герою, а не от него)
