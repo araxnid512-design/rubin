@@ -4,10 +4,10 @@
 // и полноэкранная карта локации (с тайниками и выходами).
 
 import { NODES } from './world.js';
-import { PLAY } from './level.js';
+import { HALF, PLAY } from './level.js';
 
 const S = 10; // пикселей на метр
-const HALF = 50, SIZE = HALF * 2 * S;
+const SIZE = HALF * 2 * S;
 const $ = (id) => document.getElementById(id);
 const toPx = (v) => (v + HALF) * S;
 
@@ -120,7 +120,7 @@ export class Minimap {
 	setLevel(level, planUrl) {
 		this.level = level;
 		this.map.style.backgroundImage = `url(${planUrl})`;
-		this.map.style.backgroundSize = `${100 * this.k}px ${100 * this.k}px`;
+		this.map.style.backgroundSize = `${HALF * 2 * this.k}px ${HALF * 2 * this.k}px`;
 		this.pointers.innerHTML = level.exits.map((e, i) => `<div class="mm-pointer" data-i="${i}"><i></i><span>${exitLabel(e)}</span></div>`).join('');
 		this.t = 1;
 	}

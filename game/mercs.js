@@ -14,12 +14,12 @@ import { ITEMS } from './items.js';
  * burst — длина очереди (у автоматического оружия); остальное — особенности класса (см. Merc в main.js).
  */
 export const CLASSES = {
-	assault: { name: 'Штурмовик', short: 'ШТ', keep: 2.3, reach: 24, burst: [3, 5], desc: 'Держится рядом, бьёт короткими очередями по ближайшим.' },
-	sniper: { name: 'Снайпер', short: 'СН', keep: 4.2, reach: 40, prefer: 'far', kite: 3.5, desc: 'Идёт поодаль, первым снимает топтунов и дальних. Вблизи беззащитен — отходит.' },
-	gunner: { name: 'Пулемётчик', short: 'ПУЛ', keep: 2.9, reach: 30, burst: [9, 15], plant: true, desc: 'Держит толпу длинными очередями; стреляет стоя, перезаряжается долго.' },
-	hunter: { name: 'Охотник', short: 'ОХ', keep: 1.9, reach: 11, desc: 'Подпускает близко и бьёт картечью почти без промаха.' },
-	medic: { name: 'Медик', short: 'МЕД', keep: 1.7, reach: 16, burst: [2, 4], heals: true, desc: 'Держится ближе всех и лечит героя и отряд живчиками из своей аптечки — пополняй её.' },
-	sapper: { name: 'Подрывник', short: 'ПОД', keep: 2.6, reach: 24, burst: [3, 4], grenades: true, desc: 'Кидает Ф-1 в кучу заражённых или в топтуна, если свои не рядом с целью. Гранаты даёшь ты.' },
+	assault: { name: 'Штурмовик', short: 'ШТ', keep: 2.3, reach: 36, burst: [3, 5], desc: 'Держится рядом, бьёт короткими очередями по ближайшим.' },
+	sniper: { name: 'Снайпер', short: 'СН', keep: 4.2, reach: 54, prefer: 'far', kite: 3.5, desc: 'Идёт поодаль, первым снимает топтунов и дальних. Вблизи беззащитен — отходит.' },
+	gunner: { name: 'Пулемётчик', short: 'ПУЛ', keep: 2.9, reach: 40, burst: [9, 15], plant: true, desc: 'Держит толпу длинными очередями; стреляет стоя, перезаряжается долго.' },
+	hunter: { name: 'Охотник', short: 'ОХ', keep: 1.9, reach: 15, desc: 'Подпускает близко и бьёт картечью почти без промаха.' },
+	medic: { name: 'Медик', short: 'МЕД', keep: 1.7, reach: 22, burst: [2, 4], heals: true, desc: 'Держится ближе всех и лечит героя и отряд живчиками из своей аптечки — пополняй её.' },
+	sapper: { name: 'Подрывник', short: 'ПОД', keep: 2.6, reach: 32, burst: [3, 4], grenades: true, desc: 'Кидает Ф-1 в кучу заражённых или в топтуна, если свои не рядом с целью. Гранаты даёшь ты.' },
 };
 
 export const MERCS = {
@@ -39,14 +39,18 @@ export const ROOM_BEDS = 6;
 export const MERC_HEAL = 60;
 /** Сколько гранат и живчиков (аптечка медика) у бойца при найме. */
 const KIT = { medic: { meds: 2 }, sapper: { nades: 2 } };
+/** Патронов всего (в магазине и в запасе) у нанятого автоматчика — у кого оружие стреляет очередями. */
+export const AUTO_START = 150;
 
 /**
- * Новый наёмник: полный магазин и ещё один в запасе; out — идёт с героем (новый — ждёт в комнате);
- * bed — его койка; у медика аптечка (meds), у подрывника гранаты (nades).
+ * Новый наёмник: полный магазин и запас — у автоматчиков всего AUTO_START патронов, у остальных ещё один
+ * магазин; дальше патроны даёт герой. out — идёт с героем (новый — ждёт в комнате); bed — его койка;
+ * у медика аптечка (meds), у подрывника гранаты (nades).
  */
 export const newMerc = (id, bed = 0) => {
 	const D = MERCS[id], W = WEAPONS[D.weapon];
-	return { id, hp: D.hp, mag: W.mag, ammo: W.mag, out: false, bed, ...KIT[D.cls] };
+	const ammo = W.auto < 0.2 ? Math.max(AUTO_START - W.mag, W.mag) : W.mag;
+	return { id, hp: D.hp, mag: W.mag, ammo, out: false, bed, ...KIT[D.cls] };
 };
 
 const $ = (id) => document.getElementById(id);

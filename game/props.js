@@ -6,8 +6,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as T from './textures.js';
 import { box, place } from './geom.js';
 
-/** Половина размера локации, м. */
-export const HALF = 50;
+/** Половина размера локации, м (локация — квадрат 132×132 м). */
+export const HALF = 66;
+/** Граница, за которую нельзя зайти: дальше — муть по краям кластера. */
+export const PLAY = HALF - 3.5;
+/** Во сколько раз локация больше по площади, чем прежняя 100×100 м: столько же мелочей на квадратный метр. */
+export const AREA = (HALF / 50) ** 2;
 
 /** Время для ветра (секунды): обновляет уровень каждый кадр. */
 export const WIND = { value: 0 };
@@ -368,7 +372,7 @@ export function fogWalls(root) {
 			t.repeat.set(3, 1);
 			const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.55 + layer * 0.15, depthWrite: false, color: 0x6a7068, fog: false, side: THREE.DoubleSide });
 			mats.push({ m, speed: (0.004 + layer * 0.003) * (side % 2 ? -1 : 1) });
-			const plane = new THREE.Mesh(new THREE.PlaneGeometry(130, 26), m);
+			const plane = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2 + 30, 26), m);
 			const d = HALF - 3 + layer * 2.5;
 			plane.position.y = 11;
 			if (side === 0) { plane.position.z = -d; }
@@ -379,11 +383,11 @@ export function fogWalls(root) {
 		}
 	}
 	// темнеющая земля у мути
-	const ring = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), new THREE.ShaderMaterial({
+	const ring = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2 + 50, HALF * 2 + 50), new THREE.ShaderMaterial({
 		transparent: true, depthWrite: false,
-		uniforms: { color: { value: new THREE.Color(0x2a2e2a) } },
+		uniforms: { color: { value: new THREE.Color(0x2a2e2a) }, edge: { value: HALF - 1 } },
 		vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-		fragmentShader: 'uniform vec3 color; varying vec2 vP; void main(){ float d = max(abs(vP.x), abs(vP.y)); gl_FragColor = vec4(color, smoothstep(40.0, 49.0, d) * 0.92); }',
+		fragmentShader: 'uniform vec3 color; uniform float edge; varying vec2 vP; void main(){ float d = max(abs(vP.x), abs(vP.y)); gl_FragColor = vec4(color, smoothstep(edge - 9.0, edge, d) * 0.92); }',
 	}));
 	ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
 	group.add(ring);

@@ -2,6 +2,8 @@
 // С запада дорога упирается в КПП и ворота со шлагбаумом; за забором с колючкой — плац с флагштоком и трибуной,
 // казарма, штаб, столовая, оружейка за мешками с песком, навес с БТР и «Уралами», ангар, склад ГСМ, вышки по углам.
 // Логово руберов: самый опасный кластер и самая богатая добыча — оружие, патроны, гранаты, чёрный жемчуг.
+// Окраина, за забором: полигон с бункером и подбитой техникой на севере, пост наблюдения на юге, полевой лагерь
+// на востоке, сосновый лес на западе.
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
@@ -19,7 +21,7 @@ export default {
 		const { rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx } = ctx;
 
 		// ---------- Дороги, плац ----------
-		ground(80, 7, -10, 6, M.asphalt, 5, 0.02); // от западного края через ворота
+		ground(96, 7, -18, 6, M.asphalt, 5, 0.02); // от западного края через ворота
 		ground(60, 6, 14, 6, M.asphalt, 5, 0.021);
 		ground(6, 60, 14, 10, M.asphalt, 5, 0.022); // на север и на юг по части
 		ground(26, 18, -2, -9, M.asphalt, 5, 0.023); // плац
@@ -116,6 +118,31 @@ export default {
 		hazardBarrels(batch, M, collide, 34, 24.5, rnd, 6);
 		sandbags(batch, M, collide, 0, -1.4, 3.6, 0);
 		for (const [x, z] of [[-24, 13], [8, 13], [24, 13], [20, -18]]) streetLamp(batch, M, collide, x, z);
+
+		// ---------- Окраина, за забором ----------
+		buildings.push(
+			buildArmory(bctx, { name: 'Bunker', cx: -40, cz: -54, ry: Math.PI }),
+			buildCheckpoint(bctx, { name: 'Post', cx: 20, cz: 54, ry: 0 }),
+			buildArmyBarracks(bctx, { name: 'FieldCamp', cx: 54, cz: 0, ry: Math.PI / 2 }),
+		);
+		// север: полигон — подбитый БТР, «Урал», окопы из мешков, вышка
+		btr(batch, M, root, collide, -6, -53, 0.4);
+		armyTruck(batch, M, root, collide, 16, -54, 2.8);
+		sandbags(batch, M, collide, -20, -49, 6, 0);
+		sandbags(batch, M, collide, 30, -49, 5, 0.2);
+		watchTower(batch, M, collide, 42, -57);
+		// юг: пост наблюдения, окоп, сгоревший грузовик
+		sandbags(batch, M, collide, 12, 49.5, 5, 0);
+		sandbags(batch, M, collide, 28, 49.5, 5, 0);
+		armyTruck(batch, M, root, collide, -10, 54, 0.15);
+		watchTower(batch, M, collide, -24, 56);
+		// восток: полевой лагерь у забора
+		hazardBarrels(batch, M, collide, 50, -14, rnd, 4);
+		for (const [x, z, r] of [[50, 13, 0.1], [51.4, 14.2, 0.5], [58, -14, 0]]) {
+			batch.add(place(box(1.0, 0.7, 0.7), x, 0.35, z, r), M.metalOlive);
+			batch.add(place(box(0.9, 0.6, 0.6), x, 1.0, z, r + 0.1), M.metalOlive);
+			collide(x, z, 1.1, 0.9, r);
+		}
 		// ящики и бочки по части
 		for (const [x, z, r] of [[-24, 20, 0.1], [-25.2, 21.2, 0.4], [36, 6, 0], [37.2, 6.8, 0.3], [4, 36, 0.2]]) {
 			batch.add(place(box(1.0, 0.7, 0.7), x, 0.35, z, r), M.metalOlive);
@@ -124,9 +151,9 @@ export default {
 		}
 
 		return {
-			start: [-43, 6, Math.PI / 2],
+			start: [-59, 6, Math.PI / 2],
 			exits: [
-				{ to: 'himmash', x0: -50, x1: -45.2, z0: 2, z1: 10, spawn: [-43, 6, Math.PI / 2], sign: [-44, 11.2, '← Химмаш'] },
+				{ to: 'himmash', x0: -66, x1: -61.2, z0: 2, z1: 10, spawn: [-59, 6, Math.PI / 2], sign: [-60, 11.2, '← Химмаш'] },
 			],
 			// логово руберов: на плацу, у оружейки, в ангаре, у штаба; топтуны по части
 			groups: [
@@ -139,6 +166,13 @@ export default {
 				{ at: [-12, 36], r: 4, stompers: 1, rubers: 1 },
 				{ at: [36, 36], r: 4, runners: 1, stompers: 1 },
 				{ at: [28, -37], r: 4, stompers: 1, rubers: 1 },
+				// окраина
+				{ at: [-40, -47], r: 6, runners: 2, stompers: 1 },
+				{ at: [2, -55], r: 7, stompers: 1, rubers: 1 },
+				{ at: [20, 47], r: 6, runners: 2, stompers: 1 },
+				{ at: [48, 0], r: 5, runners: 2, rubers: 1 },
+				{ at: [-50, 30], r: 7, runners: 2 },
+				{ at: [-50, -25], r: 6, runners: 1, stompers: 1 },
 			],
 			onRoad,
 			// дымит подбитый БТР у дороги, у КПП и у казармы — бочки с огнём
@@ -146,7 +180,7 @@ export default {
 			barrels: 7, // склад ГСМ рядом
 			trees(tryTree) {
 				// за забором — сосновый лес; в части — редкие берёзы вдоль дорожек
-				for (let i = 0; i < 34; i++) tryTree(R(-47, FX - 1.5), R(-46, 46), rnd() < 0.75 ? 'pine' : 'birch');
+				for (let i = 0; i < 50; i++) tryTree(R(-62, FX - 1.5), R(-62, 62), rnd() < 0.75 ? 'pine' : 'birch');
 				for (let i = 0; i < 10; i++) tryTree(R(FX + 3, 42), R(-40, 40), 'birch');
 			},
 			clutter: 14,
@@ -154,10 +188,14 @@ export default {
 			puddles: 12,
 			puddle: () => [R(-44, 42), rnd() < 0.5 ? R(3, 9) : R(-18, -1)],
 			grass: 0.7,
+			beltTrees: ['pine', 'pine', 'birch'],
 			hint: (b) => ({
 				Checkpoint: 'КПП — стол дежурного и шкаф',
 				ArmyBarracks: 'Казарма — тумбочки у коек и шкафы в каптёрке',
 				Armory: 'Оружейка — пирамиды с оружием, ящик гранат, сейф',
+				Bunker: 'Бункер на полигоне — пирамида, ящики, сейф',
+				Post: 'Пост наблюдения — стол и шкаф',
+				FieldCamp: 'Полевой лагерь — тумбочки у коек и шкафы',
 			}[b.name]),
 		};
 	},

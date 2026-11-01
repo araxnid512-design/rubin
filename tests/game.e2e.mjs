@@ -47,9 +47,20 @@ try {
 	await page.click('#btn-new');
 	await page.waitForFunction(() => window.__game?.state === 'play' && window.__game.enemies.length > 0, null, { timeout: 60000 });
 	const s = await G(page, () => ({ loc: window.__game.loc, n: window.__game.enemies.length, idle: window.__game.enemies.every((e) => e.state === 'idle'), types: [...new Set(window.__game.enemies.map((e) => e.type))].sort().join(), timer: document.getElementById('loc-timer').textContent }));
-	check(s.loc === 'zarechny' && s.n >= 20 && s.idle, `новая игра в Заречном: ${s.n} заражённых, все ждут (без волн)`);
-	check(s.types === 'runner,stomper', `есть бегуны и топтуны (${s.types})`);
-	check(/^[5-6]:\d\d$/.test(s.timer), `таймер перезагрузки кластера на экране: ${s.timer}`);
+	check(s.loc === 'zarechny' && s.n >= 28 && s.n <= 42 && s.idle, `новая игра в Заречном: ${s.n} заражённых (каждый цикл — случайно), все ждут (без волн)`);
+	check(s.types === 'runner,stomper', `есть бегуны и топтуны, руберов на окраине Улья нет (${s.types})`);
+	check(/^(9|10):\d\d$/.test(s.timer), `таймер перезагрузки кластера на экране: ${s.timer}`);
+	// стаи: топтун водит бегунов; заметил героя один из стаи — поднимается вся
+	const pack = await G(page, () => {
+		const g = window.__game, lead = g.enemies.find((e) => e.followers?.length >= 2);
+		if (!lead) return null;
+		return { type: lead.type, n: lead.followers.length, far: Math.max(...lead.followers.map((o) => Math.hypot(o.pos.x - lead.pos.x, o.pos.z - lead.pos.z))) };
+	});
+	check(pack && pack.n >= 2 && pack.far < 9, `стая: ${pack?.type} водит ${pack?.n} бегунов (самый дальний в ${pack?.far.toFixed(1)} м)`);
+	await G(page, () => { const g = window.__game, lead = g.enemies.find((e) => e.followers?.length >= 2); window.__pack = [lead, ...lead.followers]; lead.followers[0].alert(); });
+	await page.waitForFunction(() => window.__pack.every((e) => e.state !== 'idle'), null, { timeout: 10000 }).catch(() => {});
+	const rally = await G(page, () => { const up = window.__pack.filter((e) => e.state !== 'idle').length; for (const e of window.__pack) { e.state = 'idle'; e.pos.set(-55, 0, -55); e.home.set(-55, 0, -55); } return up; });
+	check(rally === pack?.n + 1, `бегун из стаи заметил героя — поднялась вся стая (${rally} из ${(pack?.n ?? 0) + 1})`);
 	// проверки идут дольше шести игровых минут: чтобы кластеры не перезагрузились посреди теста, отодвигаем сроки
 	// (перезагрузку проверяем отдельно ниже); героя, пока идут проверки, не загрызут (живчик и лекаря — отдельно)
 	await G(page, () => { for (const c of Object.values(window.__game.world.clusters)) c.next = window.__game.world.time + 1e6; const p = window.__game.player; p.hp = p.maxHp = 1e6; });
@@ -63,7 +74,7 @@ try {
 	await page.waitForTimeout(2500);
 	await page.keyboard.up('KeyA');
 	const px = await G(page, () => window.__game.player.pos.x);
-	check(px < 41, `игрок идёт по клавишам (x=${px.toFixed(1)})`);
+	check(px < 57, `игрок идёт по клавишам (x=${px.toFixed(1)})`);
 	// ноги не скользят: пока стопа на земле, она почти стоит (скорость анимации = скорость героя)
 	await G(page, () => {
 		const g = window.__game, p = g.player;
@@ -217,18 +228,18 @@ try {
 	check(await G(page, () => window.__game.worldMap.isOpen && document.getElementById('locmap').classList.contains('hidden')), 'с карты локации — на карту Улья');
 	await page.click('#wm-stay');
 	// уйти можно в любом месте края кластера — в муть
-	await G(page, () => window.__game.player.pos.set(10, 0, -40));
+	await G(page, () => window.__game.player.pos.set(10, 0, -56));
 	await page.waitForFunction(() => window.__game.exitArmed, null, { timeout: 20000 }).catch(() => {});
-	await G(page, () => window.__game.player.pos.set(10, 0, -46.3));
+	await G(page, () => window.__game.player.pos.set(10, 0, -62.3));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const edge = await G(page, () => ({ open: window.__game.worldMap.isOpen, routes: document.querySelectorAll('#wm-list [data-go]').length }));
 	check(edge.open && edge.routes === 3, 'дошёл до края кластера (муть) — открылась карта Улья');
 	await page.click('#wm-stay');
 
 	// выход у края кластера открывает карту; уходим в стаб
-	await G(page, () => { const g = window.__game; g.player.pos.set(40, 0, 6); });
+	await G(page, () => { const g = window.__game; g.player.pos.set(56, 0, 6); });
 	await page.waitForFunction(() => window.__game.exitArmed, null, { timeout: 20000 }).catch(() => {});
-	await G(page, () => window.__game.player.pos.set(46, 0, 6));
+	await G(page, () => window.__game.player.pos.set(62, 0, 6));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const map = await G(page, () => ({ open: window.__game.worldMap.isOpen, paused: window.__game.paused, routes: [...document.querySelectorAll('#wm-list [data-go]')].map((b) => b.dataset.go) }));
 	check(map.open && map.paused && map.routes[0] === 'stab' && map.routes.includes('dachi'), `у выхода открылась карта Улья: ${map.routes.join(', ')}`);
@@ -330,6 +341,8 @@ try {
 	await page.click('[data-act="hire"][data-id="ded"]');
 	const hired = await G(page, () => ({ roster: window.__game.roster.map((m) => `${m.id}:${m.out ? 'с тобой' : 'в комнате'}`), actors: window.__game.mercs.length, bar: document.querySelectorAll('#party-bar .pm').length, home: document.querySelectorAll('#party-list .merc[data-merc]').length, equip: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="take"]').length }));
 	check(hired.roster.join() === 'shram:в комнате,ded:в комнате' && hired.actors === 2 && hired.bar === 0 && hired.home === 2, `наняты наёмники: ${hired.roster.join(', ')} — ждут в твоей комнате`);
+	const startAmmo = await G(page, () => ({ shram: window.__game.merc('shram').mag + window.__game.merc('shram').ammo, ded: window.__game.merc('ded').mag + window.__game.merc('ded').ammo }));
+	check(startAmmo.shram === 150 && startAmmo.ded === 12, `у нанятого автоматчика ${startAmmo.shram} патронов, у охотника ${startAmmo.ded}`);
 	check(hired.equip === 0, 'у костра бойцов не снарядить и не взять — только в комнате');
 	await page.screenshot({ path: join(OUT, 'game-party.png') });
 	await page.click('#party-close');
@@ -564,7 +577,7 @@ try {
 	await G(page, () => window.__game.travel('himmash'));
 	await page.waitForFunction(() => window.__game.loc === 'himmash' && window.__game.state === 'play', null, { timeout: 300000 });
 	const hm = await G(page, () => { const g = window.__game, n = (t) => g.enemies.filter((e) => e.type === t).length; return { r: n('ruber'), s: n('stomper'), c: g.level.containers.length, b: g.level.buildings.length }; });
-	check(hm.r === 2 && hm.s >= 5 && hm.c >= 12 && hm.b === 2, `Химмаш: руберов ${hm.r}, топтунов ${hm.s}, цех и склад, тайников ${hm.c}`);
+	check(hm.r >= 2 && hm.r <= 4 && hm.s >= 5 && hm.c >= 20 && hm.b === 5, `Химмаш: руберов ${hm.r}, топтунов ${hm.s}, цех, три склада и сторожка, тайников ${hm.c}`);
 	await G(page, () => window.__game.player.pos.set(0, 0, 8));
 	const rh = await reach();
 	check(rh.bad.length === 0 && rh.exits === 0, `Химмаш: все ${rh.n} тайников и выходы достижимы${rh.bad.length ? ': нет пути к ' + rh.bad.join(', ') : ''}`);
@@ -604,7 +617,7 @@ try {
 	await G(page, () => window.__game.travel('voench'));
 	await page.waitForFunction(() => window.__game.loc === 'voench' && window.__game.state === 'play', null, { timeout: 300000 });
 	const vo = await G(page, () => { const g = window.__game, n = (t) => g.enemies.filter((e) => e.type === t).length; return { r: n('ruber'), s: n('stomper'), c: g.level.containers.length, names: g.level.containers.map((c) => c.name) }; });
-	check(vo.r === 4 && vo.s >= 5 && vo.c >= 13 && vo.names.filter((n) => n === 'Пирамида').length === 3, `Военная часть: руберов ${vo.r}, топтунов ${vo.s}, тайников ${vo.c}, в оружейке пирамиды`);
+	check(vo.r >= 6 && vo.r <= 10 && vo.s >= 5 && vo.c >= 24 && vo.names.filter((n) => n === 'Пирамида').length >= 3, `Военная часть: руберов ${vo.r}, топтунов ${vo.s}, тайников ${vo.c}, в оружейке пирамиды`);
 	await G(page, () => window.__game.player.pos.set(0, 0, 6));
 	const rv = await reach();
 	check(rv.bad.length === 0 && rv.exits === 0, `Военная часть: все ${rv.n} тайников и выходы достижимы${rv.bad.length ? ': нет пути к ' + rv.bad.join(', ') : ''}`);

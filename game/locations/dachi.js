@@ -1,8 +1,10 @@
 // Кластер «Дачи»: садовое товарищество «Рассвет» — дачные домики за заборами, теплицы, огороды,
-// сторожка с оружейным шкафом, пруд. Выходы: на восток по дороге (к Заречному) и на юг (к стабу).
+// сторожка с оружейным шкафом, пруд. Выходы: на восток по дороге (к Заречному), на юг (к стабу) и на север
+// (к Химмашу). Окраина: ещё участки по краям рядов, дачи у дороги на север, участок с водонапорной башней.
 
 import { box, place } from '../geom.js';
 import { buildDacha, buildGuardhouse } from '../buildings.js';
+import { waterTower } from '../props-industrial.js';
 import {
 	garden, woodpile, outhouse, clothesline, settlementSign, fencePlot, shed, well, addCar,
 	greenhouse, pond, transformer, powerLine, waterBarrel,
@@ -18,6 +20,10 @@ const PLOTS = [
 	['north', -23.5, 'green'], ['north', -9, 'dacha'], ['north', 9, 'shed'], ['north', 23.5, 'dacha'],
 	['middle', -38, 'dacha'], ['middle', -23.5, 'green'], ['middle', -9, 'dacha'], ['middle', 9, 'dacha'], ['middle', 23.5, 'green'], ['middle', 38, 'dacha'],
 	['south', -38, 'shed'], ['south', -23.5, 'dacha'], ['south', 23.5, 'dacha'], ['south', 38, 'green'],
+	// окраина: участки по краям рядов
+	['north', -52.5, 'shed'], ['north', 52.5, 'dacha'],
+	['middle', -52.5, 'dacha'], ['middle', 52.5, 'green'],
+	['south', -52.5, 'green'], ['south', 52.5, 'dacha'],
 ];
 const PW = 13; // ширина участка
 
@@ -29,11 +35,11 @@ export default {
 
 		// ---------- Дороги: грунтовка с востока, проезды между участками, дорога на юг ----------
 		ground(150, 6, 0, 4, M.dirt, 4, 0.02);
-		ground(4, 47, 0, -21, M.dirt, 4, 0.018);
-		ground(94, 4, 0, -22, M.dirt, 4, 0.016);
-		ground(5, 44, 0, 29, M.dirt, 4, 0.018);
+		ground(4, 70, 0, -32.5, M.dirt, 4, 0.018);
+		ground(126, 4, 0, -22, M.dirt, 4, 0.016);
+		ground(5, 60, 0, 37, M.dirt, 4, 0.018);
 		const onRoad = (x, z, m = 0) => Math.abs(z - 4) < 3 + m || (Math.abs(x) < 2.5 + m && z > 7 - m)
-			|| (Math.abs(x) < 2 + m && z < 1 + m) || (Math.abs(z + 22) < 2 + m && Math.abs(x) < 47);
+			|| (Math.abs(x) < 2 + m && z < 1 + m) || (Math.abs(z + 22) < 2 + m && Math.abs(x) < 63);
 
 		// ---------- Участки ----------
 		let variant = 0;
@@ -64,6 +70,21 @@ export default {
 		});
 		clothesline(batch, M, root, collide, -43.2, -38.5, -4, rnd);
 
+		// ---------- Окраина: дачи у дороги на север, участок с водонапорной башней на юге ----------
+		for (const [cx, gate, ry, i] of [[-9, 'e', -Math.PI / 2, 20], [9, 'w', Math.PI / 2, 21]]) {
+			const cz = -53;
+			fencePlot(batch, M, collide, cx, cz, PW, 13, gate, rnd);
+			const back = cx + Math.sign(cx) * 2.6; // домик — в глубине участка, дверью к дороге
+			buildings.push(buildDacha(bctx, { name: `Dacha${i}`, cx: back, cz: cz - 1.5, ry, rnd, variant: variant++ }));
+			garden(batch, M, rnd, cx - Math.sign(cx) * 1.2, cz + 4.2, 3, 4);
+			outhouse(batch, M, collide, back, cz + 4.6, ry);
+			appleSpots.push([cx, cz, 13]);
+		}
+		fencePlot(batch, M, collide, 32, 54, 16, 13, 'w', rnd);
+		buildings.push(buildDacha(bctx, { name: 'Dacha22', cx: 35, cz: 54, ry: Math.PI / 2, rnd, variant: variant++, paint: M.woodBlue }));
+		waterTower(batch, M, collide, -40, 55);
+		woodpile(batch, M, collide, 27.5, 59.2, 0);
+
 		// ---------- Сторожка у въезда с юга ----------
 		buildings.push(buildGuardhouse(bctx, { cx: 9, cz: 12.5, ry: 0 }));
 		{
@@ -76,7 +97,7 @@ export default {
 		// ---------- Пруд, трансформаторная, колодец, ЛЭП, брошенные машины ----------
 		pond(batch, root, M, collide, -27, 36, 9, 5.5, rnd);
 		transformer(batch, root, M, collide, 24, 36);
-		powerLine(batch, root, M, collide, -44, 44, 0.4);
+		powerLine(batch, root, M, collide, -60, 60, 0.4);
 		addCar(batch, M, root, 20, 4.6, 0.12, 0x6a7a4a);
 		collide(20, 4.6, 4.3, 1.8, 0.12);
 		addCar(batch, M, root, -14, 3.0, Math.PI + 0.2, 0xb8b0a0, { crashed: true });
@@ -90,11 +111,11 @@ export default {
 		collide(30.7, 7.6, 1.7, 0.3);
 
 		return {
-			start: [42.5, 4, -Math.PI / 2],
+			start: [58.5, 4, -Math.PI / 2],
 			exits: [
-				{ to: 'zarechny', x0: 45.2, x1: 50, z0: 1, z1: 7, spawn: [42.5, 4, -Math.PI / 2], sign: [43.6, 7.6, 'Заречный →'] },
-				{ to: 'stab', x0: -2.5, x1: 2.5, z0: 45.2, z1: 50, spawn: [0, 42.5, Math.PI], sign: [4, 44.2, '↓ Стаб «Полис»'] },
-				{ to: 'himmash', x0: -2.5, x1: 2.5, z0: -50, z1: -45.2, spawn: [0, -42.5, 0], sign: [4, -44.2, '↑ Химмаш'] },
+				{ to: 'zarechny', x0: 61.2, x1: 66, z0: 1, z1: 7, spawn: [58.5, 4, -Math.PI / 2], sign: [59.6, 7.6, 'Заречный →'] },
+				{ to: 'stab', x0: -2.5, x1: 2.5, z0: 61.2, z1: 66, spawn: [0, 58.5, Math.PI], sign: [4, 60.2, '↓ Стаб «Полис»'] },
+				{ to: 'himmash', x0: -2.5, x1: 2.5, z0: -66, z1: -61.2, spawn: [0, -58.5, 0], sign: [4, -60.2, '↑ Химмаш'] },
 			],
 			groups: [
 				{ at: [-9, -12], r: 5, runners: 2 },
@@ -111,6 +132,13 @@ export default {
 				{ at: [-27, 28], r: 6, runners: 1 },
 				{ at: [-30, 4], r: 8, runners: 2 },
 				{ at: [30, -22], r: 6, stompers: 1 },
+				// окраина
+				{ at: [-52.5, -9.5], r: 5, runners: 2 },
+				{ at: [52.5, -34.5], r: 5, runners: 1, stompers: 1 },
+				{ at: [52.5, 17], r: 5, runners: 2 },
+				{ at: [0, -53], r: 8, runners: 2 },
+				{ at: [32, 54], r: 6, runners: 1, stompers: 1 },
+				{ at: [-40, 50], r: 6, runners: 2 },
 			],
 			onRoad,
 			fires: [[0.3, -32, 'car'], [11, 7.6], [-26, -19.5, 'ground']],
@@ -118,9 +146,9 @@ export default {
 			trees(tryTree) {
 				// яблони на участках, сосновый лес по краям, берёзы у пруда
 				for (const [cx, cz, D] of appleSpots) for (let k = 0; k < 3; k++) tryTree(cx + R(-5.5, 5.5), cz + R(-D / 2 + 1.5, D / 2 - 1.5), 'apple');
-				for (let i = 0; i < 26; i++) tryTree(R(-47, 47), R(-47, -45), 'pine');
-				for (let i = 0; i < 12; i++) tryTree(R(-47, -45.5), R(-44, 44), 'pine');
-				for (let i = 0; i < 12; i++) tryTree(R(45.5, 47), R(-44, 44), 'pine');
+				for (let i = 0; i < 34; i++) tryTree(R(-62, 62), R(-62, -60), 'pine');
+				for (let i = 0; i < 16; i++) tryTree(R(-62, -60.5), R(-60, 60), 'pine');
+				for (let i = 0; i < 16; i++) tryTree(R(60.5, 62), R(-60, 60), 'pine');
 				for (let i = 0; i < 18; i++) tryTree(R(-46, -10), R(28, 46), rnd() < 0.7 ? 'birch' : 'pine');
 				for (let i = 0; i < 18; i++) tryTree(R(10, 46), R(28, 46), rnd() < 0.5 ? 'birch' : 'pine');
 			},

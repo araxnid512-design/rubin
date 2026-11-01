@@ -1,13 +1,14 @@
 // Кластер «Заречный»: кусок посёлка у трассы — хрущёвка, гаражи, частные дома, магазин «Продукты».
-// Выходы: на восток по трассе (к стабу) и на запад за баррикаду (к дачам).
+// Выходы: на восток по трассе (к стабу), на запад за баррикаду (к дачам) и на север (к Химмашу).
+// Окраина (пояс за 47 м от центра): хутор, охотничья избушка, автосервис у трассы, дом на юго-западе.
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place, planeXZ } from '../geom.js';
-import { buildHouse, buildShop } from '../buildings.js';
+import { buildHouse, buildShop, buildDacha, buildWorkshop } from '../buildings.js';
 import {
 	bench, swings, slide, streetLamp, barricade, garden, woodpile, outhouse, clothesline, bicycle,
-	settlementSign, fencePlot, shed, well, addCar, bus, markingMaterial,
+	settlementSign, fencePlot, shed, well, addCar, bus, markingMaterial, powerLine,
 } from '../props.js';
 
 export default {
@@ -19,10 +20,10 @@ export default {
 		ground(150, 8, 0, 6, M.asphalt, 5, 0.02);
 		ground(150, 1.6, 0, 1.2, M.dirt, 3, 0.014);
 		ground(150, 1.6, 0, 10.8, M.dirt, 3, 0.014);
-		ground(6, 58, 12, -27, M.asphalt, 5, 0.022);
+		ground(6, 74, 12, -35, M.asphalt, 5, 0.022);
 		ground(150, 0.15, 0, 6, markingMaterial(), 6, 0.026);
 		// грунтовка к частным домам, двор хрущёвки, площадка у гаражей
-		ground(56, 4, -18, -22, M.dirt, 4, 0.016);
+		ground(72, 4, -26, -22, M.dirt, 4, 0.016);
 		ground(42, 12, -18, 18, M.dirt, 5, 0.014);
 		ground(40, 8, 20, 34, M.dirt, 5, 0.014);
 		ground(14, 10, 26, -10, M.dirt, 4, 0.015);
@@ -99,6 +100,28 @@ export default {
 		shed(batch, M, collide, -23.4, -39.8, 2.9);
 		well(batch, M, collide, -8, -12);
 
+		// ---------- Окраина ----------
+		// хутор на северо-западе: дом за забором у грунтовки, сарай, поленница, туалет
+		buildings.push(
+			buildHouse(bctx, { name: 'House4', cx: -54, cz: -36, ry: Math.PI, rnd, variant: 3 }),
+			buildHouse(bctx, { name: 'House5', cx: -55, cz: 44, ry: 0, rnd, variant: 4 }),
+			buildDacha(bctx, { name: 'Cabin', cx: 54, cz: -50, ry: Math.PI, rnd, variant: 5, paint: M.woodGrey }),
+			buildWorkshop(bctx, { name: 'Workshop', cx: 54, cz: 44, ry: Math.PI / 2 }),
+		);
+		fencePlot(batch, M, collide, -54, -36, 16, 14, 's', rnd);
+		shed(batch, M, collide, -59.6, -41.4, 0.05);
+		woodpile(batch, M, collide, -48.4, -41.6, 0);
+		outhouse(batch, M, collide, -48.6, -30.6, Math.PI);
+		// дом на юго-западе, за хрущёвкой: забор, бельё во дворе
+		fencePlot(batch, M, collide, -55, 44, 16, 14, 'n', rnd);
+		clothesline(batch, M, root, collide, -61, -51, 49.6, rnd);
+		woodpile(batch, M, collide, -48.6, 49.2, 0);
+		// охотничья избушка в роще на северо-востоке
+		woodpile(batch, M, collide, 49.6, -46.6, Math.PI / 2);
+		outhouse(batch, M, collide, 59.6, -55.6, 0);
+		// автосервис у гаражей: бетонная площадка перед воротами
+		ground(8, 20, 43, 44, M.concrete, 4, 0.017);
+
 		// ---------- Магазин «Продукты» (можно зайти) ----------
 		{
 			const cx = 30, cz = -10, W = 9;
@@ -162,14 +185,21 @@ export default {
 		car(22, -18, 0.35, 0x5a6a3a);
 		bus(batch, M, root, 12, -27, 0.08);
 		collide(12, -27, 2.6, 8.4, 0.08);
+		// на окраине: у автосервиса, на трассе за посёлком, автобус у западного въезда
+		car(42.6, 39, Math.PI / 2 + 0.12, 0x9a8a5a);
+		car(43.4, 50.5, Math.PI / 2 - 0.2, 0x2a2a2a, { burned: true });
+		car(51, 4.4, 0.3, 0x5a7a8a, { crashed: true });
+		bus(batch, M, root, -53, 8.1, Math.PI / 2 + 0.05);
+		collide(-53, 8.1, 2.6, 8.4, Math.PI / 2 + 0.05);
 
 		// ---------- Обжитость: фонари, бордюры, баррикада, огороды, дворы, брошенные вещи ----------
 		// бордюры вдоль трассы (на перекрёстке с улицей — разрыв)
-		for (const [x0, x1, z] of [[-48, 8.6, 1.95], [15.4, 48, 1.95], [-48, 48, 10.05]]) {
+		for (const [x0, x1, z] of [[-64, 8.6, 1.95], [15.4, 64, 1.95], [-64, 64, 10.05]]) {
 			batch.add(place(box(x1 - x0, 0.14, 0.24, 2), (x0 + x1) / 2, 0.07, z), M.concrete, { cast: false });
 		}
 		for (const x of [-40, -16, 8, 32]) streetLamp(batch, M, collide, x, 11.4);
 		barricade(batch, M, collide, -41.2, rnd);
+		powerLine(batch, root, M, collide, -40, 40, 57);
 		// огороды с грядками, поленницы, туалеты и бельё во дворах частных домов
 		garden(batch, M, rnd, -24.0, -10, 3, 9);
 		garden(batch, M, rnd, -24.0, -33, 3, 8.5);
@@ -195,11 +225,11 @@ export default {
 
 		const onRoad = (x, z, m = 0) => Math.abs(z - 6) < 5.5 + m || (Math.abs(x - 12) < 3.5 + m && z < 3 + m);
 		return {
-			start: [42, 6, -Math.PI / 2], // на восточном конце трассы, у края кластера
+			start: [58, 6, -Math.PI / 2], // на восточном конце трассы, у края кластера
 			exits: [
-				{ to: 'stab', x0: 45.2, x1: 50, z0: 2, z1: 10, spawn: [42, 6, -Math.PI / 2], sign: [44, 12.2, 'Стаб «Полис» →'] },
-				{ to: 'dachi', x0: -50, x1: -45.2, z0: 2, z1: 10, spawn: [-43.2, 6, Math.PI / 2], sign: [-44, 12.2, '← Дачи'] },
-				{ to: 'himmash', x0: 9, x1: 15, z0: -50, z1: -45.2, spawn: [12, -43, 0], sign: [16, -44.2, '↑ Химмаш'] },
+				{ to: 'stab', x0: 61.2, x1: 66, z0: 2, z1: 10, spawn: [58, 6, -Math.PI / 2], sign: [60, 12.2, 'Стаб «Полис» →'] },
+				{ to: 'dachi', x0: -66, x1: -61.2, z0: 2, z1: 10, spawn: [-59.2, 6, Math.PI / 2], sign: [-60, 12.2, '← Дачи'] },
+				{ to: 'himmash', x0: 9, x1: 15, z0: -66, z1: -61.2, spawn: [12, -59, 0], sign: [16, -60.2, '↑ Химмаш'] },
 			],
 			// заражённые уже в кластере: группы у дома, гаражей, огородов, магазина, на дорогах
 			groups: [
@@ -216,6 +246,13 @@ export default {
 				{ at: [-36, 6], r: 8, runners: 2 },
 				{ at: [4, 6], r: 6, runners: 1 },
 				{ at: [-40, 40], r: 5, stompers: 1 },
+				// окраина
+				{ at: [-54, -26], r: 6, runners: 2 },
+				{ at: [54, -44], r: 5, runners: 1, stompers: 1 },
+				{ at: [40, 44], r: 6, runners: 2, stompers: 1 },
+				{ at: [-55, 33], r: 6, runners: 2 },
+				{ at: [0, 56], r: 10, runners: 2 },
+				{ at: [-54, 56], r: 5, runners: 1 },
 			],
 			onRoad,
 			// горит брошенная машина у гаражей, костры в бочках на обочине и у гаражей
@@ -227,7 +264,7 @@ export default {
 				for (let i = 0; i < 14; i++) tryTree(R(-46, 46), R(44, 47), 'pine');
 			},
 			puddle: () => [R(-45, 45), rnd() < 0.6 ? R(3, 9) : R(-44, 44)],
-			hint: (b) => (b.name === 'Shop' ? 'Магазин «Продукты» — обыщи прилавок и подсобку' : 'Дом — обыщи шкафы, тумбочки и сундук'),
+			hint: (b) => ({ Shop: 'Магазин «Продукты» — обыщи прилавок и подсобку', Workshop: 'Автосервис — обыщи верстаки, стеллажи и шкафчики', Cabin: 'Охотничья избушка — обыщи шкаф и сундук' }[b.name] ?? 'Дом — обыщи шкафы, тумбочки и сундук'),
 		};
 	},
 };

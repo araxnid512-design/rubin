@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { place } from './geom.js';
+import { PLAY, AREA } from './props.js';
 
 function canvas(w, h = w) {
 	const c = document.createElement('canvas');
@@ -223,8 +224,9 @@ export function dressLevel({ root, batch, M, rnd, R, free, nearWall, collide, sp
 
 	// пятна сажи, масла и ржавчины — на земле, одним мешем
 	const grimeMat = new THREE.MeshStandardMaterial({ map: grimeTexture(), transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -1 });
-	for (let i = 0; i < (spec.grime ?? 46); i++) {
-		const x = R(-45, 45), z = R(-45, 45);
+	const E = PLAY - 1.5; // по всей локации, кроме полосы у мути; количество — на площадь
+	for (let i = 0; i < Math.round((spec.grime ?? 46) * AREA); i++) {
+		const x = R(-E, E), z = R(-E, E);
 		if (!free(x, z, 0.5)) continue;
 		const s = R(1.2, 3.6), g = quadUV(new THREE.PlaneGeometry(s, s * R(0.6, 1)).rotateX(-Math.PI / 2), Math.floor(rnd() * 4));
 		batch.add(place(g, x, 0.022 + rnd() * 0.004, z, R(0, Math.PI * 2)), grimeMat, { cast: false });
@@ -236,14 +238,14 @@ export function dressLevel({ root, batch, M, rnd, R, free, nearWall, collide, sp
 		g.rotateX(R(-0.12, 0.12)); // лист лежит неровно
 		batch.add(place(g, x, 0.035 + rnd() * 0.01, z, R(0, Math.PI * 2)), paperMat, { cast: false });
 	};
-	for (let i = 0; i < (spec.litter ?? 26); i++) {
-		const x = R(-44, 44), z = R(-44, 44);
+	for (let i = 0; i < Math.round((spec.litter ?? 26) * AREA); i++) {
+		const x = R(-E, E), z = R(-E, E);
 		if (!free(x, z, 0.4)) continue;
 		for (let k = 0; k < 2 + rnd() * 4; k++) litter(x + R(-1.4, 1.4), z + R(-1.4, 1.4));
 	}
 	// битый кирпич и куски бетона у стен
 	for (let i = 0; i < (spec.rubble ?? 60) && quality !== 'low'; i++) {
-		const x = R(-44, 44), z = R(-44, 44);
+		const x = R(-E, E), z = R(-E, E);
 		if (!free(x, z, 0.3) || !nearWall(x, z)) continue;
 		for (let k = 0; k < 3 + rnd() * 5; k++) {
 			const s = R(0.08, 0.22);
@@ -256,7 +258,7 @@ export function dressLevel({ root, batch, M, rnd, R, free, nearWall, collide, sp
 	const fuelMat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.55, metalness: 0.35 });
 	const barrelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.88, 14);
 	for (let i = 0, tries = 0; i < (spec.barrels ?? 5) && tries < 200; tries++) {
-		const x = R(-42, 42), z = R(-42, 42);
+		const x = R(-E + 3, E - 3), z = R(-E + 3, E - 3);
 		if (!free(x, z, 1.3)) continue;
 		const mesh = new THREE.Mesh(barrelGeo, fuelMat);
 		mesh.position.set(x, 0.44, z);

@@ -1,5 +1,5 @@
 // «Улей. Кластер-17» — игра в духе Last Day on Earth по мотивам вселенной «Стикс».
-// Вид сверху. Иммунный ходит по кластерам Улья: они перезагружаются каждые 5–7 минут вместе со всем,
+// Вид сверху. Иммунный ходит по кластерам Улья: они перезагружаются каждые 10–12 минут вместе со всем,
 // что внутри, — надо успеть обыскать дома и уйти. Между кластерами — карта мира, в стабе «Полис» —
 // торговец (оружие, патроны, живчики за спораны) и лекарь.
 
@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { buildLevel, resolveCollisions } from './level.js';
+import { buildLevel, resolveCollisions, PLAY } from './level.js';
+import { rollHorde } from './horde.js';
 import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture, bulletHoleTexture } from './textures.js';
 import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
@@ -906,6 +907,9 @@ class Enemy extends Actor {
 		this.root.rotation.y = Math.random() * Math.PI * 2;
 		this.growl = 2 + Math.random() * 6;
 		this.kickRig = ZOMBIE_KICK;
+		// стая (game/horde.js): у бегуна может быть вожак, у топтуна и рубера — свои бегуны
+		this.leader = null;
+		this.followers = type === 'runner' ? null : [];
 		// пока не заметили игрока — стоят или бродят на месте
 		this.state = 'idle';
 		this.wander = null;
@@ -928,22 +932,59 @@ class Enemy extends Actor {
 			const near = clamp01(1 - this.pos.distanceTo(game.player.pos) / 20);
 			game.shake = Math.min(1, game.shake + near * 0.35);
 			for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 18) setTimeout(() => o.alert(), 400 + Math.random() * 700);
+			this.rallyPack();
 			return;
 		}
 		this.state = 'chase';
 		if (Math.random() < 0.6) Sfx.growl(this.type, game.ear(this.pos));
 		for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 6 && Math.random() < 0.6) setTimeout(() => o.alert(), 300 + Math.random() * 900);
+		this.rallyPack();
+	}
+
+	/** Стая поднимается вся: заметил кто-то из бегунов — вожак и остальные за ним, заметил вожак — все свои. */
+	rallyPack() {
+		const lead = this.leader?.alive ? this.leader : this;
+		if (!lead.followers?.length) return;
+		for (const o of [lead, ...lead.followers]) if (o !== this && o.alive && o.state === 'idle') setTimeout(() => o.alert(), 150 + Math.random() * 600);
+	}
+
+	/**
+	 * Сильный собирает стаю: бродячие бегуны рядом пристают к топтуну или руберу — чем опаснее кластер,
+	 * тем больше стая (до 3 + 2 × опасность). Проверка раз в несколько секунд.
+	 */
+	gather(dt) {
+		this.gatherT = (this.gatherT ?? 2 + Math.random() * 3) - dt;
+		if (this.gatherT > 0) return;
+		this.gatherT = 3 + Math.random() * 3;
+		this.followers = this.followers.filter((o) => o.alive && o.leader === this);
+		const max = 3 + 2 * (NODES[game.loc]?.danger ?? 1);
+		for (const o of game.enemies) {
+			if (this.followers.length >= max) break;
+			if (o.type !== 'runner' || !o.alive || o.state !== 'idle' || o.leader?.alive) continue;
+			if (Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 10) { o.leader = this; this.followers.push(o); }
+		}
 	}
 
 	idle(dt, p, dist) {
 		if (p.alive && (dist < 3.5 || (dist < (this.T.sight ?? 13) && lineOfSight(this.pos, p.pos)))) { this.alert(); return; }
+		// в стае бегун бродит вокруг вожака и догоняет, если отстал; вожак водит стаю по кластеру
+		if (this.leader && !this.leader.alive) this.leader = null;
+		const lead = this.leader;
+		if (lead) this.home.copy(lead.pos);
+		if (this.followers && !lead) this.gather(dt);
+		const behind = lead && Math.hypot(lead.pos.x - this.pos.x, lead.pos.z - this.pos.z) > 7;
+		if (behind && !this.wander) this.wanderTimer = 0;
 		this.wanderTimer -= dt;
 		if (!this.wander && this.wanderTimer <= 0) {
-			if (Math.random() < 0.5) {
+			if (behind || Math.random() < 0.5) {
+				const roam = this.followers?.length && Math.random() < 0.55;
 				for (let i = 0; i < 8; i++) {
-					const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 5;
+					const a = Math.random() * Math.PI * 2, r = roam ? 6 + Math.random() * 8 : 1.5 + Math.random() * (lead ? 3 : 5);
 					const x = this.home.x + Math.cos(a) * r, z = this.home.z + Math.sin(a) * r;
-					if (!level.nav.blockedAt(x, z, 0.5)) { this.wander = new THREE.Vector3(x, 0, z); break; }
+					if (Math.abs(x) > PLAY - 4 || Math.abs(z) > PLAY - 4 || level.nav.blockedAt(x, z, 0.5)) continue;
+					this.wander = new THREE.Vector3(x, 0, z);
+					if (roam) this.home.copy(this.wander); // стая переходит на новое место
+					break;
 				}
 			}
 			this.wanderTimer = 3 + Math.random() * 6;
@@ -952,7 +993,7 @@ class Enemy extends Actor {
 			const dir = tmpV.set(this.wander.x - this.pos.x, 0, this.wander.z - this.pos.z);
 			if (dir.length() < 0.4) { this.wander = null; this.play('Idle', { fade: 0.4 }); return; }
 			dir.normalize();
-			const speed = this.type === 'runner' ? 0.55 : 0.6;
+			const speed = behind ? 1.3 : this.type === 'runner' ? 0.55 : 0.6;
 			this.pos.addScaledVector(dir, speed * dt);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 2.5);
 			this.play('Walk', { fade: 0.4, timeScale: speed / ((this.T.gait ?? ZOMBIE_GAIT).Walk * this.scale) });
@@ -1477,7 +1518,7 @@ const game = {
 	exitArmed: false, warnStage: 0,
 	input: new Input(),
 
-	/** Новая игра: свежий иммунный в Заречном, до перезагрузки кластера 6 минут. */
+	/** Новая игра: свежий иммунный в Заречном, до перезагрузки кластера 10 минут. */
 	newGame() {
 		clearSave();
 		this.world = newWorld();
@@ -1595,7 +1636,8 @@ const game = {
 	/** Заражённые уже в кластере, тайники в домах. saved — состояние с прошлого визита в этом цикле. */
 	populate(saved) {
 		if (saved) {
-			for (const e of saved.enemies) this.spawnEnemy(e.type, new THREE.Vector3(e.x, 0, e.z), e.hp);
+			const list = saved.enemies.map((e) => this.spawnEnemy(e.type, new THREE.Vector3(e.x, 0, e.z), e.hp));
+			saved.enemies.forEach((e, i) => { const L = list[e.lead]; if (L?.followers) { list[i].leader = L; L.followers.push(list[i]); } });
 			level.containers.forEach((c, i) => {
 				const s = saved.containers[i];
 				c.items = s ? s.items : rollLoot(c.loot);
@@ -1616,13 +1658,25 @@ const game = {
 			}
 			return null;
 		};
-		for (const g of level.groups) {
-			for (const [type, n] of [['runner', g.runners ?? 0], ['stomper', g.stompers ?? 0], ['ruber', g.rubers ?? 0]]) {
-				for (let i = 0; i < n; i++) {
-					const pos = free(g.at[0], g.at[1], g.r);
-					if (pos) this.spawnEnemy(type, pos);
-				}
+		// где-нибудь в кластере, подальше от героя — место для бродячей стаи
+		const anywhere = () => {
+			for (let i = 0; i < 40; i++) {
+				const x = (Math.random() * 2 - 1) * (PLAY - 6), z = (Math.random() * 2 - 1) * (PLAY - 6);
+				if (Math.hypot(x - start.x, z - start.z) < 28) continue;
+				const pos = free(x, z, 0.1);
+				if (pos) return pos;
 			}
+			return null;
+		};
+		// состав — случайный на каждый цикл, по опасности кластера; стая встаёт вокруг своего вожака
+		const leaders = new Map();
+		for (const s of rollHorde(level.groups, NODES[this.loc].danger ?? 1)) {
+			const L = s.pack && !s.lead ? leaders.get(s.pack) : null;
+			const pos = L ? free(L.pos.x, L.pos.z, 4) : s.at ? free(s.at[0], s.at[1], s.r) : anywhere();
+			if (!pos) continue;
+			const e = this.spawnEnemy(s.type, pos);
+			if (s.lead) leaders.set(s.pack, e);
+			else if (L) { e.leader = L; L.followers.push(e); }
 		}
 		// тайники в домах: что где лежит — заново на каждый цикл кластера
 		for (const c of level.containers) {
@@ -1636,8 +1690,10 @@ const game = {
 	snapshot() {
 		const c = this.world.clusters[this.loc];
 		if (!c || !level) return;
+		const alive = this.enemies.filter((e) => e.alive);
 		c.saved = {
-			enemies: this.enemies.filter((e) => e.alive).map((e) => ({ type: e.type, x: +e.pos.x.toFixed(2), z: +e.pos.z.toFixed(2), hp: Math.ceil(e.hp) })),
+			// lead — номер вожака стаи в этом же списке (−1 — сам по себе)
+			enemies: alive.map((e) => ({ type: e.type, x: +e.pos.x.toFixed(2), z: +e.pos.z.toFixed(2), hp: Math.ceil(e.hp), lead: alive.indexOf(e.leader) })),
 			containers: level.containers.map((k) => ({ items: k.items ?? [], searched: !!k.searched })),
 			pickups: this.pickups.map((p) => ({ kind: p.kind, x: +p.mesh.position.x.toFixed(2), z: +p.mesh.position.z.toFixed(2), value: p.value, ground: p.ground })),
 		};

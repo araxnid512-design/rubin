@@ -1,4 +1,4 @@
-// Локация 100×100 м: кластер (кусок мира, перенесённый в Улей) или стаб.
+// Локация 132×132 м (HALF в props.js): кластер (кусок мира, перенесённый в Улей) или стаб.
 // Общее для всех локаций: земля, материалы, деревья, мелочи, трава, муть по краям, выходы,
 // навигация. Своё у каждой — в game/locations/*.js.
 // Статика сливается в несколько мешей по материалам; препятствия → коллайдеры и сетка навигации.
@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import * as T from './textures.js';
 import { Batch, box, place, planeXZ } from './geom.js';
 import { Fader, segmentHitsBox } from './buildings.js';
-import { HALF, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
+import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
 import { dressLevel } from './dressing.js';
 import zarechny from './locations/zarechny.js';
 import dachi from './locations/dachi.js';
@@ -15,8 +15,7 @@ import stab from './locations/stab.js';
 import himmash from './locations/himmash.js';
 import voench from './locations/voench.js';
 
-export { HALF };
-export const PLAY = 46.5; // граница, за которую нельзя зайти (дальше муть)
+export { HALF, PLAY };
 export const LOCATIONS = { zarechny, dachi, stab, himmash, voench };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
@@ -95,7 +94,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	const M = materials();
 
 	// ---------- Земля ----------
-	batch.add(planeXZ(150, 150, 7), M.grass, { cast: false });
+	batch.add(planeXZ(HALF * 2 + 60, HALF * 2 + 60, 7 * (HALF * 2 + 60) / 150), M.grass, { cast: false });
 	// покрытия земли запоминаем для плана локации (дороги, грунтовки, плиты)
 	const grounds = [];
 	const ground = (w, d, x, z, mat, s = 4, y = 0.012, ry = 0) => {
@@ -129,18 +128,30 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	const nearExit = (x, z, m) => (spec.exits ?? []).some((e) => x > e.x0 - m && x < e.x1 + m && z > e.z0 - m && z < e.z1 + m);
 	const trees = [];
 	const tryTree = (x, z, kind) => {
-		if (Math.abs(x) > 47 || Math.abs(z) > 47) return;
+		if (Math.abs(x) > PLAY + 0.5 || Math.abs(z) > PLAY + 0.5) return;
 		if (navProbe.blockedAt(x, z, 1.2) || indoors(x, z, 1.5) || nearExit(x, z, 2)) return;
 		if (onRoad(x, z, 1)) return; // не на дорогах
 		trees.push({ x, z, kind, s: R(0.8, 1.25), r: R(0, Math.PI * 2) });
 		collide(x, z, 0.5, 0.5);
 	};
 	spec.trees?.(tryTree);
+	// окраина — пояс между прежним краем локации (47 м) и мутью: лесополосы и опушки (у стаба своя ограда)
+	if (spec.fog !== false) {
+		const kinds = spec.beltTrees ?? ['birch', 'birch', 'pine'];
+		for (let i = 0, placed = 0; placed < 110 * (spec.beltDensity ?? 1) && i < 2000; i++) {
+			const x = R(-PLAY, PLAY), z = R(-PLAY, PLAY);
+			if (Math.max(Math.abs(x), Math.abs(z)) < 47.5) continue;
+			const n = trees.length;
+			tryTree(x, z, kinds[Math.floor(rnd() * kinds.length)]);
+			if (trees.length > n) placed++;
+		}
+	}
 	const crowns = buildTrees(root, trees, M);
 
 	// ---------- Мелочи: бочки, шины, мусор, кровь, лужи ----------
-	for (let i = 0; i < (spec.clutter ?? 18); i++) {
-		const x = R(-45, 45), z = R(-45, 45);
+	const E = PLAY - 1.5; // мелочи — по всей локации, кроме полосы у мути
+	for (let i = 0; i < Math.round((spec.clutter ?? 18) * AREA); i++) {
+		const x = R(-E, E), z = R(-E, E);
 		if (navProbe.blockedAt(x, z, 0.8) || indoors(x, z) || nearExit(x, z, 1)) continue;
 		const k = rnd();
 		if (k < 0.35) {
@@ -154,15 +165,15 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	}
 	// кровь и лужи сливаются в общие меши: по одному вызову отрисовки на вариант текстуры
 	const bloodMats = [0, 1, 2, 3, 4].map((i) => new THREE.MeshStandardMaterial({ map: T.bloodDecalTexture(i), transparent: true, depthWrite: false, roughness: 0.3 }));
-	for (let i = 0; i < (spec.blood ?? 26); i++) {
-		const s = R(0.8, 2.6), x = R(-44, 44), z = R(-44, 44);
+	for (let i = 0; i < Math.round((spec.blood ?? 26) * AREA); i++) {
+		const s = R(0.8, 2.6), x = R(-E, E), z = R(-E, E);
 		if (!indoors(x, z, s)) batch.add(place(new THREE.PlaneGeometry(s, s).rotateX(-Math.PI / 2), x, 0.03, z, R(0, 6.28)), bloodMats[i % 5], { cast: false });
 	}
 	// неровная лужа с мягким краем: блестит и отражает небо, а не тёмная дыра
 	const puddleMats = [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ color: 0x59636a, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.7, alphaMap: T.puddleTexture(i), envMapIntensity: 3.5, depthWrite: false }));
-	for (let i = 0; i < (spec.puddles ?? 14); i++) {
+	for (let i = 0; i < Math.round((spec.puddles ?? 14) * AREA); i++) {
 		const sx = R(0.9, 2.4), sz = R(0.6, 1.5);
-		const [px, pz] = spec.puddle?.() ?? [R(-45, 45), R(-44, 44)];
+		const [px, pz] = spec.puddle?.() ?? [R(-E, E), R(-E, E)];
 		if (!indoors(px, pz, 2.4)) batch.add(place(new THREE.PlaneGeometry(2 * sx, 2 * sz).rotateX(-Math.PI / 2), px, 0.028, pz, R(0, 6.28)), puddleMats[i % 4], { cast: false });
 	}
 
@@ -174,7 +185,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	});
 
 	// ---------- Трава ----------
-	if (quality !== 'low') grassTufts(root, navProbe, rnd, Math.round((quality === 'high' ? 2600 : 1200) * (spec.grass ?? 1)), indoors, onRoad);
+	if (quality !== 'low') grassTufts(root, navProbe, rnd, Math.round((quality === 'high' ? 2600 : 1200) * (spec.grass ?? 1) * AREA), indoors, onRoad);
 
 	// ---------- Муть по краям кластера (у стаба её нет) ----------
 	const fog = spec.fog === false ? null : fogWalls(root);
@@ -297,7 +308,7 @@ function exitMarker(batch, root, collide, M, e) {
 	const shape = new THREE.Shape();
 	shape.moveTo(0, 0.7); shape.lineTo(0.55, 0); shape.lineTo(0.22, 0); shape.lineTo(0.22, -0.6); shape.lineTo(-0.22, -0.6); shape.lineTo(-0.22, 0); shape.lineTo(-0.55, 0); shape.closePath();
 	const geo = new THREE.ShapeGeometry(shape);
-	const ax = Math.max(Math.min(cx - dir[0] * 3, 46), -46), az = Math.max(Math.min(cz - dir[1] * 3, 46), -46);
+	const ax = Math.max(Math.min(cx - dir[0] * 3, PLAY - 0.5), -PLAY + 0.5), az = Math.max(Math.min(cz - dir[1] * 3, PLAY - 0.5), -PLAY + 0.5);
 	for (let k = 0; k < 2; k++) {
 		const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xeef2d0, transparent: true, opacity: 0.45, depthWrite: false }));
 		m.rotation.set(-Math.PI / 2, 0, ang + Math.PI);

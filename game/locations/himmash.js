@@ -2,12 +2,13 @@
 // Север — территория завода за бетонным забором: цех №3 (раздевалка, конторка мастера с сейфом), склад №2
 // со стеллажами, котельная с трубой, водонапорная башня, ж/д тупик с цистернами, ёмкости аммиака и кислоты,
 // эстакада труб. Через центр — дорога: на запад к Дачам, на восток к военной части; на юг — к Заречному,
-// мимо заводоуправления и стоянки. Кластер глубже в Улье: много топтунов и два рубера.
+// мимо заводоуправления и стоянки. Кластер глубже в Улье: много топтунов и руберы.
+// Окраина: склад у ж/д ветки на севере, нефтебаза на востоке, автобаза со сторожкой и складом, щит у дороги.
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place } from '../geom.js';
-import { buildWorkshop, buildWarehouse } from '../buildings.js';
+import { buildWorkshop, buildWarehouse, buildGuardhouse } from '../buildings.js';
 import { addCar, bus, streetLamp, powerLine, markingMaterial } from '../props.js';
 import {
 	concreteFence, railTrack, tankWagon, flatWagon, waterTower, chimney, pipeRack, storageTank, pipePile, hazardBarrels, armyTruck, billboard,
@@ -22,7 +23,7 @@ export default {
 		// ---------- Дороги и площадки ----------
 		ground(150, 8, 0, 8, M.asphalt, 5, 0.02);
 		ground(150, 0.15, 0, 8, markingMaterial(), 6, 0.026);
-		ground(6, 40, 8, 32, M.asphalt, 5, 0.022); // на юг, к Заречному
+		ground(6, 56, 8, 40, M.asphalt, 5, 0.022); // на юг, к Заречному
 		ground(88, 46, 0, -23, M.dirt, 5, 0.012); // заводской двор
 		ground(8, 34, 0, -14, M.concrete, 4, 0.018); // проезд от ворот
 		ground(84, 6, 0, -3.5, M.concrete, 4, 0.017); // вдоль цехов
@@ -75,7 +76,7 @@ export default {
 		}
 
 		// ---------- Ж/д тупик: цистерны и платформа с контейнером ----------
-		railTrack(batch, M, -47, 47, -39.5);
+		railTrack(batch, M, -64, 47, -39.5);
 		tankWagon(batch, M, collide, -24, -39.5, 0, M.tankBlack);
 		tankWagon(batch, M, collide, -12.8, -39.5, 0, M.tankBlack);
 		flatWagon(batch, M, collide, 2, -39.5, 0, T.metalRoofMaterial([1, 1], [150, 70, 44]));
@@ -125,13 +126,34 @@ export default {
 		for (const x of [-40, -12, 22, 40]) streetLamp(batch, M, collide, x, 12.8);
 		powerLine(batch, root, M, collide, -44, 44, 44);
 
+		// ---------- Окраина ----------
+		// север: склад у ж/д ветки, штабели труб и бочки
+		buildings.push(
+			buildWarehouse(bctx, { name: 'Warehouse3', cx: -40, cz: -54, ry: Math.PI }),
+			buildWarehouse(bctx, { name: 'Depot', cx: 54, cz: 42, ry: Math.PI / 2 }),
+			buildGuardhouse(bctx, { name: 'Booth', cx: -54, cz: 30, ry: -Math.PI / 2 }),
+		);
+		pipePile(batch, M, collide, -22, -52, 0.1);
+		pipePile(batch, M, collide, -56, -44, Math.PI / 2);
+		hazardBarrels(batch, M, collide, -28, -57, rnd, 5);
+		flatWagon(batch, M, collide, -52, -39.5, 0, T.metalRoofMaterial([1, 1], [62, 88, 112]));
+		// восток: нефтебаза — две ёмкости за дорогой на север
+		storageTank(batch, M, root, collide, 55, -24, 4.4, 8, M.tankWhite, 'МАЗУТ');
+		storageTank(batch, M, root, collide, 55, -9, 3.4, 7, M.tankBlack, 'ДИЗЕЛЬ');
+		hazardBarrels(batch, M, collide, 49, -36, rnd, 5);
+		// юг: автобаза — сторожка, склад, машины; рекламный щит у дороги
+		armyTruck(batch, M, root, collide, 46, 30, Math.PI / 2 + 0.1);
+		addCar(batch, M, root, -48, 38, 0.3, 0x5a5a3a, { burned: true });
+		collide(-48, 38, 4.3, 1.8, 0.3);
+		billboard(batch, M, root, collide, 16, 56, 0, 'ХИММАШ — 70 ЛЕТ ТРУДА', { w: 6, h: 1.2, y: 3.4 });
+
 		const exits = [
-			{ to: 'dachi', x0: -50, x1: -45.2, z0: 4, z1: 12, spawn: [-43, 8, Math.PI / 2], sign: [-44, 13.2, '← Дачи'] },
-			{ to: 'zarechny', x0: 5, x1: 11, z0: 45.2, z1: 50, spawn: [8, 43, Math.PI], sign: [12, 44.2, '↓ Заречный'] },
-			{ to: 'voench', x0: 45.2, x1: 50, z0: 4, z1: 12, spawn: [43, 8, -Math.PI / 2], sign: [44, 13.2, 'Военная часть →'] },
+			{ to: 'dachi', x0: -66, x1: -61.2, z0: 4, z1: 12, spawn: [-59, 8, Math.PI / 2], sign: [-60, 13.2, '← Дачи'] },
+			{ to: 'zarechny', x0: 5, x1: 11, z0: 61.2, z1: 66, spawn: [8, 59, Math.PI], sign: [12, 60.2, '↓ Заречный'] },
+			{ to: 'voench', x0: 61.2, x1: 66, z0: 4, z1: 12, spawn: [59, 8, -Math.PI / 2], sign: [60, 13.2, 'Военная часть →'] },
 		];
 		return {
-			start: [-43, 8, Math.PI / 2],
+			start: [-59, 8, Math.PI / 2],
 			exits,
 			// развитые заражённые: топтуны по двору, два рубера — у цистерн и у ёмкостей
 			groups: [
@@ -146,13 +168,20 @@ export default {
 				{ at: [30, -13], r: 4, rubers: 1 },
 				{ at: [6, 8], r: 8, runners: 1 },
 				{ at: [8, 30], r: 6, stompers: 1 },
+				// окраина
+				{ at: [-40, -46], r: 6, runners: 2, stompers: 1 },
+				{ at: [50, -16], r: 6, runners: 1, stompers: 1 },
+				{ at: [44, 42], r: 6, runners: 2 },
+				{ at: [-48, 30], r: 5, runners: 2 },
+				{ at: [0, 56], r: 8, stompers: 1 },
+				{ at: [-56, -20], r: 6, runners: 2 },
 			],
 			onRoad,
 			fires: [[-28, 16.2, 'car'], [15, -7.5], [-8, -30, 'ground']],
 			barrels: 8, // промзона: бочки с горючим повсюду
 			trees(tryTree) {
 				// берёзы и тополя вдоль дороги и у заводоуправления; на заводе — редкие деревца у забора
-				for (let i = 0; i < 22; i++) tryTree(R(-46, 46), R(13.5, 14.5), rnd() < 0.6 ? 'birch' : 'pine');
+				for (let i = 0; i < 30; i++) tryTree(R(-62, 62), R(13.5, 14.5), rnd() < 0.6 ? 'birch' : 'pine');
 				for (let i = 0; i < 20; i++) tryTree(R(-46, -38), R(16, 46), rnd() < 0.7 ? 'birch' : 'pine');
 				for (let i = 0; i < 16; i++) tryTree(R(14, 46), R(36, 46), rnd() < 0.5 ? 'birch' : 'pine');
 				for (let i = 0; i < 8; i++) tryTree(R(-42, 42), R(-1, 0.5), 'birch');
@@ -162,7 +191,12 @@ export default {
 			puddles: 16,
 			puddle: () => [R(-44, 44), rnd() < 0.5 ? R(5, 11) : R(-36, 0)],
 			grass: 0.6,
-			hint: (b) => (b.name === 'Workshop' ? 'Цех №3 — шкафчики в раздевалке, верстак, сейф мастера в конторке' : 'Склад №2 — на стеллажах ящики с патронами, бывают гранаты'),
+			hint: (b) => ({
+				Workshop: 'Цех №3 — шкафчики в раздевалке, верстак, сейф мастера в конторке',
+				Booth: 'Сторожка автобазы — шкафчик охранника, стол',
+				Depot: 'Склад автобазы — стеллажи с ящиками',
+				Warehouse3: 'Склад у ж/д ветки — стеллажи с ящиками, бывают гранаты',
+			}[b.name] ?? 'Склад №2 — на стеллажах ящики с патронами, бывают гранаты'),
 		};
 	},
 };
