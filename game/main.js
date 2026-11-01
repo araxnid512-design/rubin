@@ -9,7 +9,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions, PLAY } from './level.js';
 import { rollHorde } from './horde.js';
-import { MUR_GUNS, tickMurs, storeLoot, hireMurs, GARRISON } from './murs.js';
+import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, tickMurs, storeLoot, hireMurs } from './murs.js';
 import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture, bulletHoleTexture } from './textures.js';
 import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
@@ -251,6 +251,8 @@ function buildPortraits() {
 // ---------- Утилиты ----------
 const tmpV = new THREE.Vector3();
 const angleTo = (from, to) => Math.atan2(to.x - from.x, to.z - from.z);
+/** Человек — герой или наёмник (по ним муры целятся дольше и бьют слабее). */
+const isHuman = (a) => a === game.player || a instanceof Merc;
 function turnTowards(current, target, maxStep) {
 	let d = target - current;
 	while (d > Math.PI) d -= Math.PI * 2;
@@ -510,7 +512,7 @@ const shotKind = (W) => (W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 
  * Вспышка, дымок, гильза; пуля попадает в цель с вероятностью (падает с дальностью и длиной очереди),
  * промах бьёт в стену или землю; дробь летит веером.
  */
-function fireShot(shooter, W, gun, target, { player = false } = {}) {
+function fireShot(shooter, W, gun, target, { player = false, accuracy = 1, damage = 1 } = {}) {
 	const from = gun.localToWorld(gun.userData.muzzle.clone());
 	const dir = new THREE.Vector3(0, -1, 0).transformDirection(gun.matrixWorld); // ствол смотрит по −Y оружия
 	game.muzzleFlash(gun, from, dir, W.flash ?? 1);
@@ -525,9 +527,9 @@ function fireShot(shooter, W, gun, target, { player = false } = {}) {
 	shooter.lastShot = game.time;
 	const d = target ? Math.hypot(target.pos.x - pos.x, target.pos.z - pos.z) : 0;
 	const chance = clamp01(1 - (d / W.range) * (W.falloff ?? 0.35) - Math.min(10, shooter.burst) * W.spread);
-	if (target && target.alive && Math.random() < Math.max(0.4, chance)) {
+	if (target && target.alive && Math.random() < Math.max(0.4, chance) * accuracy) {
 		game.tracer(from, target.pos.clone().setY(1.2 * (target.scale ?? 1)));
-		target.damage(W.damage, pos, W.damage > 80 ? 0.6 : 0.25);
+		target.damage(W.damage * damage, pos, W.damage > 80 ? 0.6 : 0.25);
 		return;
 	}
 	// мимо: пуля уходит с отклонением и бьёт в стену или землю
@@ -1221,9 +1223,10 @@ class Merc extends Actor {
 	/** Патронов нет ни в магазине, ни в запасе: отбиться нечем. */
 	get dry() { return this.state.mag <= 0 && this.state.ammo <= 0; }
 
-	/** Точка в строю: сзади-слева или сзади-справа от героя; снайпер — дальше, медик — ближе (по классу). */
+	/** Точка в строю: первые двое — сзади-слева и сзади-справа, третий и четвёртый — шире и дальше; снайпер — дальше, медик — ближе (по классу). */
 	spot() {
-		const p = game.player, a = p.root.rotation.y + Math.PI + (this.slot ? 0.65 : -0.65), k = this.C.keep;
+		const p = game.player, row = this.slot >> 1, side = this.slot % 2 ? 1 : -1;
+		const a = p.root.rotation.y + Math.PI + side * (0.65 + row * 0.5), k = this.C.keep + row * 1.3;
 		return tmpV2.set(p.pos.x + Math.sin(a) * k, 0, p.pos.z + Math.cos(a) * k);
 	}
 
@@ -1571,6 +1574,7 @@ class Bandit extends Actor {
 		const W = this.W, c = this.clips;
 		this.cooldown -= dt;
 		if (this.aggro && (this.aggro.t -= dt) <= 0) this.aggro = null;
+		if (this.alarmT != null && (this.alarmT -= dt) <= 0) { this.aggro = { pos: this.alarmPos, t: 12 }; this.alarmT = null; }
 		if (this.reloading > 0 && (this.reloading -= dt) <= 0) this.mag = W.mag;
 		this.retarget -= dt;
 		if (this.retarget <= 0 || (this.target && !this.target.alive)) { this.retarget = 0.4; this.target = game.banditTarget(this); }
@@ -1581,12 +1585,25 @@ class Bandit extends Actor {
 			const ang = angleTo(this.pos, t.pos);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, ang, dt * 7);
 			const facing = Math.abs(((ang - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
+			// новая цель: по человеку сначала прицеливается секунду-две, по заражённому — почти сразу
+			const human = isHuman(t);
+			if (t !== this.aimAt) { this.aimAt = t; this.turnT = 0; this.aimT = human ? MUR_AIM[0] + Math.random() * (MUR_AIM[1] - MUR_AIM[0]) : 0.3; }
+			this.aimT -= dt;
+			// по человеку — по очереди: разом стреляют не больше MUR_SHOOTERS, отстрелялся — отдыхает и уступает
+			if (human) {
+				if (this.turnT > 0 && (this.turnT -= dt) <= 0) this.aimT = MUR_REST[0] + Math.random() * (MUR_REST[1] - MUR_REST[0]);
+				if (!(this.turnT > 0) && this.aimT <= 0 && game.bandits.filter((b) => b !== this && b.alive && b.aimAt === t && b.turnT > 0).length < MUR_SHOOTERS) {
+					this.turnT = MUR_TURN[0] + Math.random() * (MUR_TURN[1] - MUR_TURN[0]);
+				}
+			}
+			const ready = this.aimT <= 0 && (!human || this.turnT > 0);
 			if (this.mag <= 0 && this.reloading <= 0) this.startReload();
-			else if (this.cooldown <= 0 && this.reloading <= 0 && facing) this.fire(t);
+			else if (this.cooldown <= 0 && this.reloading <= 0 && facing && ready) this.fire(t);
 			if (this.reloading > 0) { if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / W.reload }); }
 			else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play(c.aim, { fade: 0.2 });
 			return true;
 		}
+		this.turnT = 0; // цели нет — очередь стрелять другим
 		// куда идти: к цели группы (тайник, выход) или к посту; раненый — туда, откуда стреляли
 		const goal = this.aggro?.pos ?? this.squad?.goalFor?.(this) ?? (this.post ? tmpV2.set(this.post.x, 0, this.post.z) : null);
 		const d = goal ? Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z) : 0;
@@ -1626,10 +1643,11 @@ class Bandit extends Actor {
 		Sfx.gun(this.weapon, shotKind(W), game.ear(this.pos));
 		game.noise(this.pos, W.noise);
 		if (W.auto < 0.2) {
-			this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : 2 + Math.floor(Math.random() * 4);
-			this.cooldown = this.burstLeft > 0 ? W.auto : 0.5 + Math.random() * 0.5;
-		} else this.cooldown = W.auto + 0.3 + Math.random() * 0.4;
-		fireShot(this, W, this.gunObj, target);
+			this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : 2 + Math.floor(Math.random() * 3);
+			this.cooldown = this.burstLeft > 0 ? W.auto : 0.9 + Math.random() * 0.7;
+		} else this.cooldown = W.auto + 0.6 + Math.random() * 0.6;
+		// по людям — хуже и слабее (MUR_ACCURACY, MUR_DAMAGE в game/murs.js), по заражённым — как обычно
+		fireShot(this, W, this.gunObj, target, isHuman(target) ? { accuracy: MUR_ACCURACY, damage: MUR_DAMAGE } : {});
 	}
 }
 
@@ -1732,9 +1750,14 @@ class Garrison {
 		this.alerted = null;
 	}
 
+	/** Тревога расходится по «Карьеру» постепенно: кто ближе к месту — идёт сразу, дальние — позже. */
 	alarm(from) {
 		this.alerted = from.clone();
-		for (const b of game.bandits) if (b.alive && !b.aggro) b.aggro = { pos: from.clone(), t: 12 };
+		for (const b of game.bandits) {
+			if (!b.alive || b.aggro || b.alarmT != null) continue;
+			b.alarmT = Math.hypot(b.pos.x - from.x, b.pos.z - from.z) * 0.15;
+			b.alarmPos = from.clone();
+		}
 	}
 
 	update(dt) {
@@ -1742,7 +1765,7 @@ class Garrison {
 		if (game.bandits.some((b) => b.alive && b.target === game.player)) this.alarm(game.player.pos);
 		const alive = game.bandits.filter((b) => b.alive).length;
 		if (this.reserve <= 0 || alive >= 14 || (this.t -= dt) > 0) return;
-		this.t = this.alerted ? 2.5 : 6;
+		this.t = this.alerted ? 5 : 8;
 		this.reserve--;
 		const b = new Bandit(new THREE.Vector3(this.door.x + (Math.random() - 0.5), 0, this.door.z), MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)], this);
 		if (this.alerted) b.aggro = { pos: game.player.pos.clone(), t: 12 };
@@ -2543,7 +2566,7 @@ const game = {
 		this.renderPartyBar();
 	},
 
-	/** Места в строю: первый в отряде — сзади слева, второй — справа. */
+	/** Места в строю: первые двое — сзади слева и справа, третий и четвёртый — шире и дальше (Merc.spot). */
 	slotMercs() {
 		const party = this.party;
 		for (const m of this.mercs) m.slot = Math.max(0, party.indexOf(m.state));

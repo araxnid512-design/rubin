@@ -215,7 +215,8 @@ try {
 	const raid0 = await G(page, () => {
 		const g = window.__game, t = g.world.time, m = g.world.murs;
 		window.__m0 = { searched: g.level.containers.filter((c) => c.searched).length };
-		g.player.pos.set(58, 0, 6);
+		// не у самого выхода: отдача от удара или пули не должна вытолкнуть героя на карту Улья
+		g.player.pos.set(50, 0, 6);
 		m.raid = { at: 'zarechny', size: 6, start: t, end: t + 600, mode: 'crowd', loot: {}, live: true, kills: 0 };
 		g.startLiveRaid(m.raid);
 		return { bandits: g.bandits.length, banner: document.getElementById('banner').textContent };
@@ -462,6 +463,22 @@ try {
 	check(leaving && left.party.length === 1, `оставил ${leaving} в комнате — вернулся к своей койке, с тобой: ${left.party.join(', ')}`);
 	if (leaving) await takeOne(leaving);
 	check(await G(page, () => window.__game.party.length === 2), 'снова взял его с собой — в отряде двое');
+	// на вылазку — до четырёх: ещё двое из комнаты, пятого уже не взять
+	const four = await G(page, () => {
+		const g = window.__game;
+		const spore0 = g.bag.spore ?? 0;
+		g.bag.spore = spore0 + 2000;
+		const ids = ['botsman', 'sych', 'kuvalda'].filter((id) => !g.merc(id));
+		for (const id of ids.slice(0, 3)) g.hire(id);
+		const home = g.roster.filter((m) => !m.out).map((m) => m.id);
+		for (const id of home) g.takeMerc(id);
+		const r = { party: g.party.length, home: g.roster.filter((m) => !m.out).length, bar: document.querySelectorAll('#party-bar .pm').length };
+		for (const id of home) g.leaveMerc(id);
+		for (const id of home) { const i = g.roster.findIndex((m) => m.id === id); g.roster.splice(i, 1); const k = g.mercs.findIndex((m) => m.state.id === id); g.mercs[k].root.removeFromParent(); g.mercs.splice(k, 1); }
+		g.slotMercs(); g.renderPartyBar(); g.bag.spore = spore0;
+		return { ...r, after: g.party.length, roster: g.roster.length };
+	});
+	check(four.party === 4 && four.home === 1 && four.bar === 4 && four.after === 2 && four.roster === 2, `на вылазку берёшь до четырёх: с тобой ${four.party}, пятый остался у койки (${four.home}); в шапке ${four.bar} портрета`);
 	// снарядить в комнате: патроны и живчик из рюкзака героя
 	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.merc('shram').hp = 40; g.partyWindow.open({ merc: 'shram' }); });
 	const supply0 = await G(page, () => ({ ammo: window.__game.merc('shram').ammo }));
@@ -733,6 +750,8 @@ try {
 	// зашёл во двор — заметили: тревога, на героя идут все
 	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 20); window.__hp0 = g.player.hp; });
 	await page.waitForFunction(() => window.__game.garrison.alerted && window.__hp0 - window.__game.player.hp > 0, null, { timeout: 20000 }).catch(() => {});
+	// тревога расходится по двору не сразу: дальние подтягиваются через несколько секунд
+	await page.waitForFunction(() => window.__game.bandits.filter((b) => b.alive && b.aggro).length >= 10, null, { timeout: 20000 }).catch(() => {});
 	const alarm = await G(page, () => { const g = window.__game; return { lost: Math.round(window.__hp0 - g.player.hp), aggro: g.bandits.filter((b) => b.alive && b.aggro).length }; });
 	check(alarm.lost > 0 && alarm.aggro >= 10, `во дворе «Карьера» заметили: тревога, на героя идут ${alarm.aggro} муров (−${alarm.lost} здоровья)`);
 	// убили часовых — из казармы выходит смена
