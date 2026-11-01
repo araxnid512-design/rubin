@@ -6,9 +6,18 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // ---------- Слияние статики ----------
 
 export class Batch {
-	constructor() { this.groups = new Map(); }
+	/**
+	 * chunk — размер участка, м: мелочь сливается по участкам, и то, что за экраном, видеокарта не рисует
+	 * (отсечение по рамке камеры); крупное (дороги, земля — больше участка) — одним мешем на материал.
+	 */
+	constructor({ chunk = 0 } = {}) { this.groups = new Map(); this.chunk = chunk; }
 	add(geometry, material, { cast = true, receive = true } = {}) {
-		const key = material.uuid + cast + receive;
+		let key = material.uuid + cast + receive;
+		if (this.chunk) {
+			geometry.computeBoundingBox();
+			const b = geometry.boundingBox, c = this.chunk;
+			if (b.max.x - b.min.x < c * 0.75 && b.max.z - b.min.z < c * 0.75) key += `:${Math.floor((b.min.x + b.max.x) / 2 / c)},${Math.floor((b.min.z + b.max.z) / 2 / c)}`;
+		}
 		if (!this.groups.has(key)) this.groups.set(key, { material, cast, receive, list: [] });
 		const g = geometry.index ? geometry.toNonIndexed() : geometry;
 		for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);

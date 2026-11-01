@@ -2874,6 +2874,8 @@ const SIM_STEPS = +(new URLSearchParams(location.search).get('sim') || 0);
 // Показывается по ?fps=1 или галочке в меню. На слабом телефоне разрешение снижается само.
 const perf = { fps: 60, logic: 0, draw: 0, calls: 0, tris: 0, low: 0, high: 0, scale: 1, shown: false, t: 0 };
 const BASE_RATIO = renderer.getPixelRatio();
+/** Ниже этой чёткости не опускаемся: на телефоне — чуть ниже, чем на компьютере. */
+const MIN_RATIO = isMobile ? 0.65 : 0.75;
 game.perf = perf;
 /** Для отладки и тестов: сколько всего в видеопамяти. */
 game.gpuInfo = () => ({ ...renderer.info.memory, programs: renderer.info.programs?.length ?? 0, ratio: renderer.getPixelRatio() });
@@ -2904,12 +2906,13 @@ function frame() {
 /** Динамическое разрешение: держим кадр плавным, снижая чёткость, если FPS проседает. */
 function adaptResolution(raw) {
 	if (SIM_STEPS || game.state !== 'play' || game.paused || raw > 0.25) return;
-	if (perf.fps < 34) { perf.low += raw; perf.high = 0; } else if (perf.fps > 56) { perf.high += raw; perf.low = 0; } else { perf.low = perf.high = 0; }
+	// цель — 40+ кадров: ниже двух секунд подряд — дешевле, выше 55 пять секунд подряд — снова чётче
+	if (perf.fps < 40) { perf.low += raw; perf.high = 0; } else if (perf.fps > 55) { perf.high += raw; perf.low = 0; } else { perf.low = perf.high = 0; }
 	let r = renderer.getPixelRatio();
 	// слабая видеокарта: сначала отключаем самое дорогое — затенение в углах, потом снижаем чёткость
-	if (perf.low > 2.5 && post.passes.ao?.enabled) { post.passes.ao.enabled = false; perf.low = 0; return; }
-	if (perf.low > 2.5 && r > 0.75) r = Math.max(0.75, r - 0.25);
-	else if (perf.high > 6 && r < BASE_RATIO) r = Math.min(BASE_RATIO, r + 0.25);
+	if (perf.low > 2 && post.passes.ao?.enabled) { post.passes.ao.enabled = false; perf.low = 0; return; }
+	if (perf.low > 2 && r > MIN_RATIO) r = Math.max(MIN_RATIO, r - 0.2);
+	else if (perf.high > 5 && r < BASE_RATIO) r = Math.min(BASE_RATIO, r + 0.2);
 	else return;
 	perf.low = perf.high = 0;
 	renderer.setPixelRatio(r);

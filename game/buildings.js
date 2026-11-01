@@ -769,7 +769,7 @@ export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
 		[2.0, 0.85, 0.8, 0, 0.42, 0, IM.furniture],
 		[2.1, 0.06, 0.85, 0, 0.88, 0, IM.metal],
 		[0.4, 0.3, 0.25, 0.5, 1.06, -0.15, IM.machine],
-	], [2.0, 0.8], { ammo12: [3, 6, 0.4], grenade: 0.12, fireaxe: 0.06, ammo9: [4, 8, 0.3] }, 1.0);
+	], [2.0, 0.8], { ammo12: [3, 6, 0.4], grenade: 0.04, fireaxe: 0.06, ammo9: [4, 8, 0.3] }, 1.0);
 	b.container('Инструментальный ящик', -10.9, -4.5, Math.PI / 2, [[1.2, 1.1, 0.6, 0, 0.55, 0, IM.machine], [1.1, 0.02, 0.02, 0, 0.8, 0.31, IM.black]], [1.2, 0.6], { ammo545: [6, 12, 0.35], spore: 0.2 }, 1.1);
 	b.furniture(-9, -6.2, 0, [[0.9, 1.6, 0.06, 0, 1.4, 0, IM.redBoard], [0.3, 0.4, 0.3, 0, 0.2, 0.1, IM.redBoard]], { solid: [0.9, 0.3] }); // пожарный щит
 	// раздевалка: ряд шкафчиков
@@ -832,8 +832,8 @@ export function buildWarehouse(ctx, { name = 'Warehouse', cx, cz, ry = 0 }) {
 	], [4.0, 1.0], loot, 2.6);
 	rack(-4.5, 2.6, { ammo762: [10, 20, 0.45], ammo545: [10, 20, 0.4], zhivchik: 0.15 });
 	rack(-4.5, -0.6, { ammo919: [10, 20, 0.35], ammo12: [6, 10, 0.4], spore: [1, 3, 0.3] });
-	rack(1.5, 2.6, { ammo545: [10, 20, 0.45], grenade: [1, 2, 0.2] });
-	b.container('Ящики', 6.3, 3.4, -Math.PI / 2, [[1.2, 0.8, 1.2, 0, 0.4, 0, IM.crateGreen], [1.0, 0.6, 1.0, 0, 1.1, 0, IM.crateGreen]], [1.2, 1.2], { grenade: [1, 2, 0.25], ammo762: [10, 20, 0.35], ammo76254: [5, 10, 0.2] }, 1.4);
+	rack(1.5, 2.6, { ammo545: [10, 20, 0.45], grenade: 0.07 });
+	b.container('Ящики', 6.3, 3.4, -Math.PI / 2, [[1.2, 0.8, 1.2, 0, 0.4, 0, IM.crateGreen], [1.0, 0.6, 1.0, 0, 1.1, 0, IM.crateGreen]], [1.2, 1.2], { grenade: 0.1, ammo762: [10, 20, 0.35], ammo76254: [5, 10, 0.2] }, 1.4);
 	// погрузчик у ворот
 	b.furniture(1.0, -3.0, 0.3, [
 		[1.1, 0.9, 1.7, 0, 0.75, 0, M.yellow], [0.9, 1.0, 0.05, 0, 1.7, -0.3, IM.black],
@@ -885,7 +885,7 @@ export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }
 	// кровати вдоль задней стены и тумбочки между ними
 	const beds = [-8.0, -5.6, -3.2, 0.8, 3.2];
 	beds.forEach((x) => bunk(b, x, hz - 1.15, Math.PI));
-	[-6.8, -4.4, 2.0].forEach((x, i) => b.container('Тумбочка', x, hz - 0.45, Math.PI, [[0.5, 0.65, 0.45, 0, 0.33, 0, IM.furnitureLight], [0.44, 0.02, 0.02, 0, 0.5, 0.23, IM.black]], [0.5, 0.45], i === 2 ? { ammo545: [8, 15, 0.5], grenade: 0.12 } : { ammo545: [5, 12, 0.45], zhivchik: 0.2, spore: 0.12 }, 0.65));
+	[-6.8, -4.4, 2.0].forEach((x, i) => b.container('Тумбочка', x, hz - 0.45, Math.PI, [[0.5, 0.65, 0.45, 0, 0.33, 0, IM.furnitureLight], [0.44, 0.02, 0.02, 0, 0.5, 0.23, IM.black]], [0.5, 0.45], i === 2 ? { ammo545: [8, 15, 0.5], grenade: 0.04 } : { ammo545: [5, 12, 0.45], zhivchik: 0.2, spore: 0.12 }, 0.65));
 	// кровати у передней стены (между окнами)
 	[-8.0, -5.6, 3.2].forEach((x) => bunk(b, x, -hz + 1.15, 0));
 	b.container('Тумбочка', -6.8, -hz + 0.45, 0, [[0.5, 0.65, 0.45, 0, 0.33, 0, IM.furnitureLight], [0.44, 0.02, 0.02, 0, 0.5, 0.23, IM.black]], [0.5, 0.45], { ammo9: [4, 8, 0.4], zhivchik: 0.2 }, 0.65);
@@ -893,7 +893,7 @@ export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }
 	b.furniture(0.6, -hz + 0.9, 0, [[0.6, 1.0, 0.5, 0, 0.5, 0, IM.furnitureLight]], { solid: [0.6, 0.5] });
 	b.furniture(-1, hz - 0.15, Math.PI, [[1.4, 1.0, 0.04, 0, 1.6, 0, IM.redBoard]], { solid: [0, 0] });
 	// каптёрка: шкафы с имуществом
-	cabinet(b, 'Шкаф каптёра', 8.4, -1.6, -Math.PI / 2, 1.1, 2.0, 0.55, { ammo545: [10, 20, 0.5], grenade: 0.25, ammo9: [6, 10, 0.4] }, IM.furnitureLight);
+	cabinet(b, 'Шкаф каптёра', 8.4, -1.6, -Math.PI / 2, 1.1, 2.0, 0.55, { ammo545: [10, 20, 0.5], grenade: 0.1, ammo9: [6, 10, 0.4] }, IM.furnitureLight);
 	cabinet(b, 'Шкаф каптёра', 8.4, 1.2, -Math.PI / 2, 1.1, 2.0, 0.55, { zhivchik: [1, 2, 0.4], ammo762: [10, 20, 0.35], spore: [1, 3, 0.3] }, IM.furnitureLight);
 	table(b, 6.3, 2.6, 0, { w: 0.9, d: 0.6 });
 	return b.finish();
@@ -927,7 +927,7 @@ export function buildArmory(ctx, { name = 'Armory', cx, cz, ry = 0 }) {
 	pyramid(-1.6, hz - 0.45, Math.PI, { ak74: 0.25, aks: 0.3, ammo545: [20, 40, 0.7] });
 	pyramid(1.4, hz - 0.45, Math.PI, { svd: 0.15, ammo76254: [10, 20, 0.5], ammo545: [10, 20, 0.4] });
 	pyramid(hx - 0.45, 0.2, -Math.PI / 2, { pkm: 0.1, ammo76254: [30, 60, 0.45], ak47: 0.15, ammo762: [20, 30, 0.5] });
-	b.container('Ящик с гранатами', -hx + 0.6, 0.6, Math.PI / 2, [[1.0, 0.45, 0.6, 0, 0.23, 0, IM.crateGreen], [1.02, 0.05, 0.62, 0, 0.47, 0, IM.machine]], [1.0, 0.6], { grenade: [2, 4, 0.7] }, 0.5);
+	b.container('Ящик с гранатами', -hx + 0.6, 0.6, Math.PI / 2, [[1.0, 0.45, 0.6, 0, 0.23, 0, IM.crateGreen], [1.02, 0.05, 0.62, 0, 0.47, 0, IM.machine]], [1.0, 0.6], { grenade: [1, 2, 0.35] }, 0.5);
 	b.container('Сейф', -hx + 0.5, -1.7, Math.PI / 2, [[0.7, 1.2, 0.6, 0, 0.6, 0, IM.metal], [0.12, 0.12, 0.03, 0.15, 0.75, 0.31, IM.black]], [0.7, 0.6], { ammo939: [10, 20, 0.4], vss: 0.06, spore: [3, 6, 0.5] }, 1.2);
 	b.furniture(1.6, -1.2, 0, [[1.2, 0.05, 0.6, 0, 0.75, 0, IM.furniture], [1.1, 0.72, 0.5, 0, 0.36, 0, IM.machine]], { solid: [1.2, 0.6] }); // стол выдачи
 	return b.finish();
@@ -950,7 +950,7 @@ export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0 }) {
 	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
 	b.container('Стол дежурного', -1.6, 0.2, Math.PI / 2, [[1.3, 0.75, 0.7, 0, 0.375, 0, IM.furniture], [0.4, 0.3, 0.3, 0.3, 0.9, 0, IM.black]], [1.3, 0.7], { ammo9: [6, 12, 0.6], zhivchik: 0.3, ammo545: [5, 10, 0.3] }, 0.95);
 	chair(b, -0.8, 0.2, -Math.PI / 2);
-	cabinet(b, 'Шкаф', -2.4, hz - 0.45, Math.PI, 0.9, 1.9, 0.5, { ammo545: [6, 12, 0.4], grenade: 0.15 });
+	cabinet(b, 'Шкаф', -2.4, hz - 0.45, Math.PI, 0.9, 1.9, 0.5, { ammo545: [6, 12, 0.4], grenade: 0.05 });
 	b.furniture(1.6, 0, 0, [[0.1, 1.0, 0.1, -0.5, 0.5, 0, IM.metal], [1.0, 0.05, 0.05, 0, 0.95, 0, IM.metal]], { solid: [0.15, 0.15] }); // турникет
 	return b.finish();
 }

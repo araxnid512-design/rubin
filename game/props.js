@@ -2,7 +2,7 @@
 // Всё складывается в общий Batch (статика сливается по материалам) и регистрирует коллайдеры.
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as T from './textures.js';
 import { box, place } from './geom.js';
 
@@ -274,7 +274,8 @@ export function birchMaterial() {
 }
 
 export function blob(r, detail, seed) {
-	const g = new THREE.IcosahedronGeometry(r, detail);
+	// общие вершины — сглаженные нормали: крона круглая и мягкая, а не гранёная
+	const g = mergeVertices(new THREE.IcosahedronGeometry(r, detail).deleteAttribute('normal').deleteAttribute('uv'));
 	const p = g.attributes.position;
 	const rnd = T.mulberry(seed);
 	const offs = Array.from({ length: 6 }, () => [rnd() * 6, rnd() * 6, rnd() * 6]);
@@ -285,47 +286,55 @@ export function blob(r, detail, seed) {
 		p.setXYZ(i, x * k, y * k * 0.85, z * k);
 	}
 	g.computeVertexNormals();
-	return g;
+	return g.toNonIndexed();
 }
 
-export function buildTrees(root, trees, M) {
+export function buildTrees(root, trees, M, chunk = HALF * 2) {
 	const crowns = [];
 	const variants = {
 		birch: () => {
-			const trunk = place(new THREE.CylinderGeometry(0.12, 0.2, 7, 7), 0, 3.5, 0);
+			const trunk = place(new THREE.CylinderGeometry(0.12, 0.2, 7, 12), 0, 3.5, 0);
 			const crowns = [];
 			for (let i = 0; i < 4; i++) crowns.push(place(blob(1.5, 1, i + 3), Math.sin(i * 2) * 0.8, 5.2 + i * 0.7, Math.cos(i * 2) * 0.8));
 			return { trunk, trunkMat: M.birch, crown: mergeGeometries(crowns), crownMat: M.leaves };
 		},
 		apple: () => {
-			const trunk = place(new THREE.CylinderGeometry(0.12, 0.18, 2.2, 6), 0, 1.1, 0);
+			const trunk = place(new THREE.CylinderGeometry(0.12, 0.18, 2.2, 10), 0, 1.1, 0);
 			return { trunk, trunkMat: M.bark, crown: place(blob(1.8, 1, 11), 0, 3, 0), crownMat: M.leavesDry };
 		},
 		pine: () => {
-			const trunk = place(new THREE.CylinderGeometry(0.15, 0.25, 9, 6), 0, 4.5, 0);
-			const cones = [0, 1, 2, 3].map((i) => place(new THREE.ConeGeometry(2.2 - i * 0.45, 3, 8), 0, 4 + i * 1.6, 0));
+			const trunk = place(new THREE.CylinderGeometry(0.15, 0.25, 9, 10), 0, 4.5, 0);
+			const cones = [0, 1, 2, 3].map((i) => place(new THREE.ConeGeometry(2.2 - i * 0.45, 3, 12), 0, 4 + i * 1.6, 0));
 			return { trunk, trunkMat: M.bark, crown: mergeGeometries(cones), crownMat: M.pine };
 		},
 	};
-	for (const [kind, make] of Object.entries(variants)) {
-		const list = trees.filter((t) => t.kind === kind);
-		if (!list.length) continue;
-		const v = make();
+	// по участкам: деревья каждого вида на участке — свой меш, за экраном видеокарта их не рисует
+	const tiles = new Map();
+	for (const t of trees) {
+		const key = `${t.kind}:${Math.floor(t.x / chunk)},${Math.floor(t.z / chunk)}`;
+		if (!tiles.has(key)) tiles.set(key, []);
+		tiles.get(key).push(t);
+	}
+	const kinds = {};
+	for (const [key, list] of tiles) {
+		const kind = key.split(':')[0];
+		const v = (kinds[kind] ??= variants[kind]());
+		v.crownWind ??= windMaterial(v.crownMat, { height: kind === 'apple' ? 4 : 8, amount: kind === 'pine' ? 0.12 : 0.22 });
 		const trunk = new THREE.InstancedMesh(v.trunk, v.trunkMat, list.length);
-		const crown = new THREE.InstancedMesh(v.crown, windMaterial(v.crownMat, { height: kind === 'apple' ? 4 : 8, amount: kind === 'pine' ? 0.12 : 0.22 }), list.length);
+		const crown = new THREE.InstancedMesh(v.crown, v.crownWind, list.length);
 		const m = new THREE.Matrix4();
 		list.forEach((t, i) => {
 			m.compose(new THREE.Vector3(t.x, 0, t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, 0)), new THREE.Vector3(t.s, t.s * (0.9 + (i % 3) * 0.08), t.s));
 			trunk.setMatrixAt(i, m);
 			crown.setMatrixAt(i, m);
 		});
-		for (const im of [trunk, crown]) { im.castShadow = true; im.receiveShadow = true; root.add(im); }
+		for (const im of [trunk, crown]) { im.computeBoundingSphere(); im.castShadow = true; im.receiveShadow = true; root.add(im); }
 		crowns.push({ mesh: crown, list, matrix: new THREE.Matrix4() });
 	}
 	return crowns;
 }
 
-export function grassTufts(root, nav, rnd, count, indoors, onRoad = () => false) {
+export function grassTufts(root, nav, rnd, count, indoors, onRoad = () => false, chunk = HALF * 2) {
 	const c = document.createElement('canvas');
 	c.width = 64; c.height = 64;
 	const ctx = c.getContext('2d');
@@ -340,20 +349,25 @@ export function grassTufts(root, nav, rnd, count, indoors, onRoad = () => false)
 	const mat = windMaterial(new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }), { height: 0.45, amount: 0.07 });
 	const g1 = new THREE.PlaneGeometry(0.7, 0.45).translate(0, 0.22, 0);
 	const g = mergeGeometries([g1, g1.clone().rotateY(Math.PI / 2)]);
-	const im = new THREE.InstancedMesh(g, mat, count);
-	const m = new THREE.Matrix4();
+	// кустики раскладываются по участкам: на каждый — свой меш, за экраном не рисуется
+	const tiles = new Map();
 	let n = 0;
 	for (let i = 0; i < count * 2 && n < count; i++) {
-		const x = (rnd() * 2 - 1) * 48, z = (rnd() * 2 - 1) * 48;
+		const x = (rnd() * 2 - 1) * (PLAY - 1), z = (rnd() * 2 - 1) * (PLAY - 1);
 		if (onRoad(x, z, 0)) continue;
 		if (nav.blockedAt(x, z, 0.5) || indoors(x, z, 0.4)) continue;
-		const s = 0.6 + rnd() * 0.9;
-		m.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 3, 0)), new THREE.Vector3(s, s, s));
-		im.setMatrixAt(n++, m);
+		const s = 0.6 + rnd() * 0.9, key = `${Math.floor(x / chunk)},${Math.floor(z / chunk)}`;
+		if (!tiles.has(key)) tiles.set(key, []);
+		tiles.get(key).push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 3, 0)), new THREE.Vector3(s, s, s)));
+		n++;
 	}
-	im.count = n;
-	im.receiveShadow = true;
-	root.add(im);
+	for (const list of tiles.values()) {
+		const im = new THREE.InstancedMesh(g, mat, list.length);
+		list.forEach((m, i) => im.setMatrixAt(i, m));
+		im.computeBoundingSphere();
+		im.receiveShadow = true;
+		root.add(im);
+	}
 }
 
 export function markingMaterial() {

@@ -16,6 +16,8 @@ import himmash from './locations/himmash.js';
 import voench from './locations/voench.js';
 
 export { HALF, PLAY };
+/** Участок, м: статика, деревья и трава собраны по участкам — видеокарта рисует только те, что в кадре. */
+const CHUNK = 33;
 export const LOCATIONS = { zarechny, dachi, stab, himmash, voench };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
@@ -48,9 +50,9 @@ function materials() {
 		window: T.houseWindowMaterial(),
 		shopSign: T.signMaterial('ПРОДУКТЫ'),
 		birch: birchMaterial(),
-		leaves: new THREE.MeshStandardMaterial({ color: 0x6c7f3c, roughness: 0.9, flatShading: true }),
-		leavesDry: new THREE.MeshStandardMaterial({ color: 0x8a8a42, roughness: 0.9, flatShading: true }),
-		pine: new THREE.MeshStandardMaterial({ color: 0x34452c, roughness: 0.9, flatShading: true }),
+		leaves: new THREE.MeshStandardMaterial({ color: 0x6c7f3c, roughness: 0.9 }),
+		leavesDry: new THREE.MeshStandardMaterial({ color: 0x8a8a42, roughness: 0.9 }),
+		pine: new THREE.MeshStandardMaterial({ color: 0x34452c, roughness: 0.9 }),
 		bark: T.woodMaterial([1, 1], [74, 58, 44]),
 		yellow: new THREE.MeshStandardMaterial({ color: 0xb8902c, roughness: 0.6 }),
 		red: new THREE.MeshStandardMaterial({ color: 0x8a2a20, roughness: 0.6 }),
@@ -83,7 +85,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	const root = new THREE.Group();
 	root.name = `Level:${id}`;
 	scene.add(root);
-	const batch = new Batch();
+	const batch = new Batch({ chunk: CHUNK }); // по участкам: за экраном не рисуется
 	const colliders = [];
 	// wall — стена дома (на ней остаются следы пуль); возвращает коллайдер
 	const collide = (x, z, w, d, rot = 0, wall = false) => {
@@ -146,7 +148,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 			if (trees.length > n) placed++;
 		}
 	}
-	const crowns = buildTrees(root, trees, M);
+	const crowns = buildTrees(root, trees, M, CHUNK);
 
 	// ---------- Мелочи: бочки, шины, мусор, кровь, лужи ----------
 	const E = PLAY - 1.5; // мелочи — по всей локации, кроме полосы у мути
@@ -185,7 +187,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	});
 
 	// ---------- Трава ----------
-	if (quality !== 'low') grassTufts(root, navProbe, rnd, Math.round((quality === 'high' ? 2600 : 1200) * (spec.grass ?? 1) * AREA), indoors, onRoad);
+	if (quality !== 'low') grassTufts(root, navProbe, rnd, Math.round((quality === 'high' ? 2600 : 1200) * (spec.grass ?? 1) * AREA), indoors, onRoad, CHUNK);
 
 	// ---------- Муть по краям кластера (у стаба её нет) ----------
 	const fog = spec.fog === false ? null : fogWalls(root);

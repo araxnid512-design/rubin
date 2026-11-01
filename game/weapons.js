@@ -3,6 +3,8 @@
 // −Y — от запястья к пальцам (куда смотрит лезвие и ствол).
 
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const shadow = (g) => { g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); return g; };
 
@@ -33,7 +35,7 @@ export function makeAxe({ fire = false } = {}) {
 	const knob = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), wood);
 	knob.position.z = -0.09;
 	// обух и щёки топора
-	const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.07), steel);
+	const head = new THREE.Mesh(rbox(0.03, 0.07, 0.07), steel);
 	head.position.set(0, 0.005, L - 0.12);
 	// клин лезвия, расширяется к режущей кромке (по −Y)
 	const blade = new THREE.Shape();
@@ -43,7 +45,7 @@ export function makeAxe({ fire = false } = {}) {
 	bladeGeo.rotateY(Math.PI / 2);
 	const bladeMesh = new THREE.Mesh(bladeGeo, steel);
 	bladeMesh.position.set(0, 0, L - 0.12);
-	const edge = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, 0.118), edgeMat);
+	const edge = new THREE.Mesh(rbox(0.006, 0.006, 0.118), edgeMat);
 	edge.position.set(0, -0.158, L - 0.12);
 	body.add(handle, knob, head, bladeMesh, edge);
 	if (fire) {
@@ -60,13 +62,18 @@ export function makeAxe({ fire = false } = {}) {
 
 const M = (color, roughness = 0.5, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 const part = (g, geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; g.add(m); return m; };
-const barrelY = (r, len) => new THREE.CylinderGeometry(r, r, len, 10); // цилиндр вдоль Y — как ствол
+const barrelY = (r, len) => new THREE.CylinderGeometry(r, r, len, 14); // цилиндр вдоль Y — как ствол
+/**
+ * Деталь-брусок со скруглёнными рёбрами: металл и дерево не режут глаз острыми гранями (радиус — около
+ * четверти самой тонкой стороны; на иконках и вблизи видно, что детали обработаны).
+ */
+const rbox = (w, h, d) => new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d) * 0.28);
 /**
  * Рукоятка затворной рамы на правом боку ствольной коробки (правый бок — −X хвата): после выстрела рама
  * отскакивает назад (к прикладу, +Y) и возвращается — userData.action, анимирует game.cycleGun.
  */
 const boltHandle = (g, mat, x, y, z) => {
-	const h = part(g, new THREE.BoxGeometry(0.03, 0.014, 0.014), mat, x, y, z);
+	const h = part(g, rbox(0.03, 0.014, 0.014), mat, x, y, z);
 	g.userData.action = { part: h, travel: 0.055, dur: 0.07 };
 };
 
@@ -75,10 +82,10 @@ export function makeObrez() {
 	const g = new THREE.Group();
 	g.name = 'Obrez';
 	const metal = M(0x26282a, 0.35, 0.8), wood = M(0x6a4024, 0.6);
-	part(g, new THREE.BoxGeometry(0.034, 0.05, 0.13), wood, 0, 0.02, 0.0, -0.25); // рукоять в кулаке
-	part(g, new THREE.BoxGeometry(0.05, 0.085, 0.06), metal, 0, -0.03, 0.062); // колодка
+	part(g, rbox(0.034, 0.05, 0.13), wood, 0, 0.02, 0.0, -0.25); // рукоять в кулаке
+	part(g, rbox(0.05, 0.085, 0.06), metal, 0, -0.03, 0.062); // колодка
 	for (const x of [-0.019, 0.019]) part(g, barrelY(0.018, 0.32), metal, x, -0.23, 0.07);
-	part(g, new THREE.BoxGeometry(0.05, 0.13, 0.025), wood, 0, -0.13, 0.042); // цевьё
+	part(g, rbox(0.05, 0.13, 0.025), wood, 0, -0.13, 0.042); // цевьё
 	part(g, new THREE.TorusGeometry(0.02, 0.004, 6, 12, Math.PI), metal, 0, -0.035, 0.03).rotation.y = Math.PI / 2;
 	g.userData.muzzle = new THREE.Vector3(0, -0.39, 0.07);
 	return shadow(g);
@@ -89,19 +96,19 @@ export function makeAks() {
 	const g = new THREE.Group();
 	g.name = 'AKS74U';
 	const metal = M(0x2a2c2e, 0.4, 0.75), wood = M(0x8a4a24, 0.55), mag = M(0x7a3a20, 0.6);
-	part(g, new THREE.BoxGeometry(0.03, 0.035, 0.11), M(0x3a2a20, 0.7), 0, 0.012, 0.005, -0.3); // рукоять
-	part(g, new THREE.BoxGeometry(0.05, 0.3, 0.07), metal, 0, -0.08, 0.078); // ствольная коробка
-	part(g, new THREE.BoxGeometry(0.045, 0.3, 0.02), metal, 0, -0.08, 0.118); // крышка
-	part(g, new THREE.BoxGeometry(0.056, 0.15, 0.05), wood, 0, -0.29, 0.07); // цевьё
+	part(g, rbox(0.03, 0.035, 0.11), M(0x3a2a20, 0.7), 0, 0.012, 0.005, -0.3); // рукоять
+	part(g, rbox(0.05, 0.3, 0.07), metal, 0, -0.08, 0.078); // ствольная коробка
+	part(g, rbox(0.045, 0.3, 0.02), metal, 0, -0.08, 0.118); // крышка
+	part(g, rbox(0.056, 0.15, 0.05), wood, 0, -0.29, 0.07); // цевьё
 	part(g, barrelY(0.015, 0.12), metal, 0, -0.42, 0.088);
 	part(g, barrelY(0.022, 0.07), metal, 0, -0.5, 0.088); // пламегаситель
 	part(g, barrelY(0.01, 0.17), metal, 0, -0.29, 0.122); // газовая трубка
 	// изогнутый магазин: два наклонных куска
-	part(g, new THREE.BoxGeometry(0.026, 0.06, 0.1), mag, 0, -0.11, 0.0, 0.2);
-	part(g, new THREE.BoxGeometry(0.026, 0.06, 0.09), mag, 0, -0.14, -0.085, 0.55);
+	part(g, rbox(0.026, 0.06, 0.1), mag, 0, -0.11, 0.0, 0.2);
+	part(g, rbox(0.026, 0.06, 0.09), mag, 0, -0.14, -0.085, 0.55);
 	// откидной приклад (разложен): две тяги и затыльник
-	for (const z of [0.06, 0.11]) part(g, new THREE.BoxGeometry(0.012, 0.27, 0.012), metal, 0, 0.2, z);
-	part(g, new THREE.BoxGeometry(0.03, 0.025, 0.1), metal, 0, 0.33, 0.085);
+	for (const z of [0.06, 0.11]) part(g, rbox(0.012, 0.27, 0.012), metal, 0, 0.2, z);
+	part(g, rbox(0.03, 0.025, 0.1), metal, 0, 0.33, 0.085);
 	boltHandle(g, metal, -0.035, -0.02, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.54, 0.088);
 	return shadow(g);
@@ -115,13 +122,13 @@ export function makeShotgun() {
 	const g = new THREE.Group();
 	g.name = 'Shotgun';
 	const metal = M(0x2a2c2e, 0.38, 0.8), wood = M(0x7a4a26, 0.6);
-	part(g, new THREE.BoxGeometry(0.034, 0.05, 0.12), wood, 0, 0.025, 0.01, -0.3); // шейка приклада в кулаке
-	part(g, new THREE.BoxGeometry(0.04, 0.26, 0.075), wood, 0, 0.19, 0.055, -0.08); // приклад
-	part(g, new THREE.BoxGeometry(0.045, 0.02, 0.085), M(0x1a1a1a, 0.8), 0, 0.325, 0.045); // затыльник
-	part(g, new THREE.BoxGeometry(0.046, 0.2, 0.07), metal, 0, -0.06, 0.08); // ствольная коробка
+	part(g, rbox(0.034, 0.05, 0.12), wood, 0, 0.025, 0.01, -0.3); // шейка приклада в кулаке
+	part(g, rbox(0.04, 0.26, 0.075), wood, 0, 0.19, 0.055, -0.08); // приклад
+	part(g, rbox(0.045, 0.02, 0.085), M(0x1a1a1a, 0.8), 0, 0.325, 0.045); // затыльник
+	part(g, rbox(0.046, 0.2, 0.07), metal, 0, -0.06, 0.08); // ствольная коробка
 	part(g, barrelY(0.012, 0.5), metal, 0, -0.39, 0.105);
 	part(g, barrelY(0.011, 0.4), metal, 0, -0.34, 0.077); // магазин-труба
-	const pump = part(g, new THREE.BoxGeometry(0.05, 0.14, 0.046), wood, 0, -0.29, 0.075); // цевьё-помпа
+	const pump = part(g, rbox(0.05, 0.14, 0.046), wood, 0, -0.29, 0.075); // цевьё-помпа
 	part(g, new THREE.TorusGeometry(0.02, 0.004, 6, 12, Math.PI), metal, 0, -0.03, 0.04).rotation.y = Math.PI / 2;
 	// после выстрела цевьё передёргивают: назад-вперёд (звук — в audio.js)
 	g.userData.action = { part: pump, travel: 0.085, dur: 0.38, delay: 0.26 };
@@ -134,14 +141,14 @@ export function makeVector() {
 	const g = new THREE.Group();
 	g.name = 'Vector';
 	const black = M(0x1c1d1f, 0.55, 0.3), dark = M(0x2c2e30, 0.4, 0.6);
-	part(g, new THREE.BoxGeometry(0.03, 0.035, 0.11), black, 0, 0.01, 0.005, -0.25); // рукоять
-	part(g, new THREE.BoxGeometry(0.046, 0.3, 0.07), black, 0, -0.07, 0.095); // корпус
-	part(g, new THREE.BoxGeometry(0.044, 0.14, 0.06), black, 0, -0.12, 0.035, 0.35); // наклонный низ
-	part(g, new THREE.BoxGeometry(0.036, 0.1, 0.04), dark, 0, -0.26, 0.11); // кожух ствола
-	part(g, new THREE.BoxGeometry(0.012, 0.26, 0.012), dark, 0, -0.06, 0.137); // планка сверху
-	part(g, new THREE.BoxGeometry(0.024, 0.045, 0.17), dark, 0, -0.04, -0.07); // магазин
-	for (const z of [0.07, 0.115]) part(g, new THREE.BoxGeometry(0.01, 0.2, 0.01), dark, 0, 0.17, z); // приклад-рамка
-	part(g, new THREE.BoxGeometry(0.03, 0.02, 0.07), black, 0, 0.27, 0.09);
+	part(g, rbox(0.03, 0.035, 0.11), black, 0, 0.01, 0.005, -0.25); // рукоять
+	part(g, rbox(0.046, 0.3, 0.07), black, 0, -0.07, 0.095); // корпус
+	part(g, rbox(0.044, 0.14, 0.06), black, 0, -0.12, 0.035, 0.35); // наклонный низ
+	part(g, rbox(0.036, 0.1, 0.04), dark, 0, -0.26, 0.11); // кожух ствола
+	part(g, rbox(0.012, 0.26, 0.012), dark, 0, -0.06, 0.137); // планка сверху
+	part(g, rbox(0.024, 0.045, 0.17), dark, 0, -0.04, -0.07); // магазин
+	for (const z of [0.07, 0.115]) part(g, rbox(0.01, 0.2, 0.01), dark, 0, 0.17, z); // приклад-рамка
+	part(g, rbox(0.03, 0.02, 0.07), black, 0, 0.27, 0.09);
 	g.userData.muzzle = new THREE.Vector3(0, -0.32, 0.11);
 	return shadow(g);
 }
@@ -151,18 +158,18 @@ function makeKalash({ name, furniture, magMat, brake, stockLen = 0.3 }) {
 	const g = new THREE.Group();
 	g.name = name;
 	const metal = M(0x2a2c2e, 0.4, 0.75);
-	part(g, new THREE.BoxGeometry(0.03, 0.035, 0.11), furniture, 0, 0.012, 0.005, -0.3); // рукоять
-	part(g, new THREE.BoxGeometry(0.05, 0.3, 0.07), metal, 0, -0.08, 0.078); // ствольная коробка
-	part(g, new THREE.BoxGeometry(0.045, 0.3, 0.02), metal, 0, -0.08, 0.118); // крышка
-	part(g, new THREE.BoxGeometry(0.056, 0.2, 0.05), furniture, 0, -0.32, 0.07); // цевьё
+	part(g, rbox(0.03, 0.035, 0.11), furniture, 0, 0.012, 0.005, -0.3); // рукоять
+	part(g, rbox(0.05, 0.3, 0.07), metal, 0, -0.08, 0.078); // ствольная коробка
+	part(g, rbox(0.045, 0.3, 0.02), metal, 0, -0.08, 0.118); // крышка
+	part(g, rbox(0.056, 0.2, 0.05), furniture, 0, -0.32, 0.07); // цевьё
 	part(g, barrelY(0.01, 0.2), furniture, 0, -0.32, 0.122); // газовая трубка с накладкой
 	part(g, barrelY(0.012, 0.24), metal, 0, -0.52, 0.088);
 	part(g, barrelY(brake ? 0.017 : 0.014, 0.08), metal, 0, -0.66, 0.088); // тормоз / компенсатор
-	part(g, new THREE.BoxGeometry(0.01, 0.015, 0.03), metal, 0, -0.6, 0.11); // мушка
-	part(g, new THREE.BoxGeometry(0.026, 0.06, 0.1), magMat, 0, -0.11, 0.0, 0.2); // изогнутый магазин
-	part(g, new THREE.BoxGeometry(0.026, 0.065, 0.1), magMat, 0, -0.15, -0.09, 0.6);
-	part(g, new THREE.BoxGeometry(0.04, stockLen, 0.07), furniture, 0, 0.07 + stockLen / 2, 0.055, -0.12); // приклад
-	part(g, new THREE.BoxGeometry(0.044, 0.02, 0.09), M(0x1a1a1a, 0.7), 0, 0.08 + stockLen, 0.04);
+	part(g, rbox(0.01, 0.015, 0.03), metal, 0, -0.6, 0.11); // мушка
+	part(g, rbox(0.026, 0.06, 0.1), magMat, 0, -0.11, 0.0, 0.2); // изогнутый магазин
+	part(g, rbox(0.026, 0.065, 0.1), magMat, 0, -0.15, -0.09, 0.6);
+	part(g, rbox(0.04, stockLen, 0.07), furniture, 0, 0.07 + stockLen / 2, 0.055, -0.12); // приклад
+	part(g, rbox(0.044, 0.02, 0.09), M(0x1a1a1a, 0.7), 0, 0.08 + stockLen, 0.04);
 	boltHandle(g, metal, -0.035, -0.02, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.71, 0.088);
 	return shadow(g);
@@ -175,20 +182,20 @@ export function makeSvd() {
 	const g = new THREE.Group();
 	g.name = 'SVD';
 	const metal = M(0x2a2c2e, 0.4, 0.75), wood = M(0x7e4422, 0.55), glass = M(0x203040, 0.1, 0.6);
-	part(g, new THREE.BoxGeometry(0.032, 0.035, 0.1), wood, 0, 0.02, 0.01, -0.3); // рукоять приклада
-	part(g, new THREE.BoxGeometry(0.046, 0.28, 0.066), metal, 0, -0.06, 0.08); // ствольная коробка
+	part(g, rbox(0.032, 0.035, 0.1), wood, 0, 0.02, 0.01, -0.3); // рукоять приклада
+	part(g, rbox(0.046, 0.28, 0.066), metal, 0, -0.06, 0.08); // ствольная коробка
 	// приклад-скелет: верхняя щека, нижняя планка, затыльник
-	part(g, new THREE.BoxGeometry(0.04, 0.3, 0.03), wood, 0, 0.22, 0.1);
-	part(g, new THREE.BoxGeometry(0.036, 0.26, 0.022), wood, 0, 0.2, 0.0, 0.18);
-	part(g, new THREE.BoxGeometry(0.042, 0.03, 0.13), wood, 0, 0.37, 0.05);
-	part(g, new THREE.BoxGeometry(0.052, 0.24, 0.05), wood, 0, -0.33, 0.075); // цевьё
+	part(g, rbox(0.04, 0.3, 0.03), wood, 0, 0.22, 0.1);
+	part(g, rbox(0.036, 0.26, 0.022), wood, 0, 0.2, 0.0, 0.18);
+	part(g, rbox(0.042, 0.03, 0.13), wood, 0, 0.37, 0.05);
+	part(g, rbox(0.052, 0.24, 0.05), wood, 0, -0.33, 0.075); // цевьё
 	part(g, barrelY(0.011, 0.42), metal, 0, -0.66, 0.088);
 	part(g, barrelY(0.014, 0.07), metal, 0, -0.9, 0.088); // пламегаситель
 	part(g, barrelY(0.018, 0.22), metal, 0, -0.08, 0.16); // прицел
 	part(g, barrelY(0.022, 0.03), metal, 0, -0.2, 0.16);
 	part(g, barrelY(0.021, 0.004), glass, 0, -0.215, 0.16);
-	part(g, new THREE.BoxGeometry(0.02, 0.08, 0.035), metal, 0, -0.06, 0.125); // кронштейн
-	part(g, new THREE.BoxGeometry(0.024, 0.05, 0.09), metal, 0, -0.1, -0.025, 0.12); // магазин
+	part(g, rbox(0.02, 0.08, 0.035), metal, 0, -0.06, 0.125); // кронштейн
+	part(g, rbox(0.024, 0.05, 0.09), metal, 0, -0.1, -0.025, 0.12); // магазин
 	boltHandle(g, metal, -0.033, -0.01, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.94, 0.088);
 	return shadow(g);
@@ -199,23 +206,23 @@ export function makePkm() {
 	const g = new THREE.Group();
 	g.name = 'PKM';
 	const metal = M(0x2a2c2e, 0.4, 0.75), dark = M(0x1e2022, 0.5, 0.6), olive = M(0x4a5236, 0.6, 0.3), stock = M(0x3a3634, 0.6, 0.2);
-	part(g, new THREE.BoxGeometry(0.032, 0.035, 0.1), stock, 0, 0.012, 0.005, -0.3); // рукоять
-	part(g, new THREE.BoxGeometry(0.056, 0.34, 0.075), metal, 0, -0.07, 0.085); // ствольная коробка
-	part(g, new THREE.BoxGeometry(0.05, 0.3, 0.02), dark, 0, -0.07, 0.13); // крышка
+	part(g, rbox(0.032, 0.035, 0.1), stock, 0, 0.012, 0.005, -0.3); // рукоять
+	part(g, rbox(0.056, 0.34, 0.075), metal, 0, -0.07, 0.085); // ствольная коробка
+	part(g, rbox(0.05, 0.3, 0.02), dark, 0, -0.07, 0.13); // крышка
 	// приклад-рамка
-	part(g, new THREE.BoxGeometry(0.036, 0.3, 0.025), stock, 0, 0.22, 0.1);
-	part(g, new THREE.BoxGeometry(0.03, 0.27, 0.02), stock, 0, 0.2, 0.0, 0.2);
-	part(g, new THREE.BoxGeometry(0.04, 0.03, 0.13), stock, 0, 0.37, 0.05);
+	part(g, rbox(0.036, 0.3, 0.025), stock, 0, 0.22, 0.1);
+	part(g, rbox(0.03, 0.27, 0.02), stock, 0, 0.2, 0.0, 0.2);
+	part(g, rbox(0.04, 0.03, 0.13), stock, 0, 0.37, 0.05);
 	part(g, barrelY(0.014, 0.56), metal, 0, -0.52, 0.092); // ствол
 	part(g, barrelY(0.019, 0.08), metal, 0, -0.83, 0.092); // пламегаситель
 	part(g, barrelY(0.01, 0.42), dark, 0, -0.42, 0.06); // газовый цилиндр
-	part(g, new THREE.BoxGeometry(0.012, 0.03, 0.09), metal, 0, -0.34, 0.15); // ручка для переноски
-	part(g, new THREE.BoxGeometry(0.012, 0.09, 0.012), metal, 0, -0.34, 0.195);
+	part(g, rbox(0.012, 0.03, 0.09), metal, 0, -0.34, 0.15); // ручка для переноски
+	part(g, rbox(0.012, 0.09, 0.012), metal, 0, -0.34, 0.195);
 	// сошки, сложенные вдоль ствола
-	for (const x of [-0.016, 0.016]) part(g, new THREE.BoxGeometry(0.008, 0.3, 0.008), dark, x, -0.6, 0.065);
+	for (const x of [-0.016, 0.016]) part(g, rbox(0.008, 0.3, 0.008), dark, x, -0.6, 0.065);
 	// короб с лентой — слева снизу, лента тянется в приёмник
-	part(g, new THREE.BoxGeometry(0.1, 0.11, 0.09), olive, -0.06, -0.12, 0.02);
-	part(g, new THREE.BoxGeometry(0.04, 0.02, 0.035), M(0xb8923e, 0.35, 0.85), -0.03, -0.1, 0.075);
+	part(g, rbox(0.1, 0.11, 0.09), olive, -0.06, -0.12, 0.02);
+	part(g, rbox(0.04, 0.02, 0.035), M(0xb8923e, 0.35, 0.85), -0.03, -0.1, 0.075);
 	boltHandle(g, metal, -0.04, 0.0, 0.09); // над коробом, как у настоящего ПКМ
 	g.userData.muzzle = new THREE.Vector3(0, -0.87, 0.092);
 	return shadow(g);
@@ -226,39 +233,66 @@ export function makeVss() {
 	const g = new THREE.Group();
 	g.name = 'VSS';
 	const metal = M(0x2a2c2e, 0.4, 0.75), dark = M(0x1c1d1f, 0.5, 0.5), wood = M(0x6e3e22, 0.55), glass = M(0x203040, 0.1, 0.6);
-	part(g, new THREE.BoxGeometry(0.03, 0.035, 0.1), wood, 0, 0.015, 0.008, -0.3); // рукоять приклада
-	part(g, new THREE.BoxGeometry(0.046, 0.24, 0.066), metal, 0, -0.05, 0.08); // ствольная коробка
+	part(g, rbox(0.03, 0.035, 0.1), wood, 0, 0.015, 0.008, -0.3); // рукоять приклада
+	part(g, rbox(0.046, 0.24, 0.066), metal, 0, -0.05, 0.08); // ствольная коробка
 	// приклад-скелет
-	part(g, new THREE.BoxGeometry(0.036, 0.26, 0.026), wood, 0, 0.2, 0.095);
-	part(g, new THREE.BoxGeometry(0.032, 0.22, 0.02), wood, 0, 0.18, 0.005, 0.2);
-	part(g, new THREE.BoxGeometry(0.04, 0.03, 0.12), wood, 0, 0.32, 0.05);
-	part(g, new THREE.BoxGeometry(0.05, 0.12, 0.048), wood, 0, -0.22, 0.075); // цевьё
+	part(g, rbox(0.036, 0.26, 0.026), wood, 0, 0.2, 0.095);
+	part(g, rbox(0.032, 0.22, 0.02), wood, 0, 0.18, 0.005, 0.2);
+	part(g, rbox(0.04, 0.03, 0.12), wood, 0, 0.32, 0.05);
+	part(g, rbox(0.05, 0.12, 0.048), wood, 0, -0.22, 0.075); // цевьё
 	part(g, barrelY(0.026, 0.36), dark, 0, -0.44, 0.088); // глушитель
 	part(g, barrelY(0.028, 0.02), metal, 0, -0.62, 0.088);
 	part(g, barrelY(0.016, 0.18), metal, 0, -0.06, 0.155); // прицел
 	part(g, barrelY(0.02, 0.028), metal, 0, -0.165, 0.155);
 	part(g, barrelY(0.019, 0.004), glass, 0, -0.18, 0.155);
-	part(g, new THREE.BoxGeometry(0.018, 0.07, 0.03), metal, 0, -0.05, 0.123); // кронштейн
-	part(g, new THREE.BoxGeometry(0.026, 0.05, 0.1), metal, 0, -0.09, -0.03, 0.1); // магазин на 20
+	part(g, rbox(0.018, 0.07, 0.03), metal, 0, -0.05, 0.123); // кронштейн
+	part(g, rbox(0.026, 0.05, 0.1), metal, 0, -0.09, -0.03, 0.1); // магазин на 20
 	boltHandle(g, metal, -0.033, 0.0, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.64, 0.088);
 	return shadow(g);
 }
 
-/** Граната Ф-1 «лимонка»: ребристый корпус, запал с рычагом и кольцом. Начало координат — центр. */
+/**
+ * Граната Ф-1 «лимонка»: яйцевидный чугунный корпус, рифлённый сеткой «долек» (8 по кругу, 5 по высоте),
+ * донная пробка, запал УЗРГМ сверху — трубка, изогнутый вдоль корпуса рычаг, кольцо с чекой.
+ * Начало координат — центр корпуса.
+ */
 export function makeGrenade() {
 	const g = new THREE.Group();
 	g.name = 'Grenade';
-	const olive = M(0x4e5a36, 0.6, 0.2), metal = M(0x8a8c88, 0.35, 0.8);
-	const body = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8).scale(1, 1.28, 1), olive);
-	g.add(body);
-	for (let i = 0; i < 4; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.03 * Math.sin(Math.PI * (i + 1) / 5) + 0.002, 0.003, 4, 12), olive); r.rotation.x = Math.PI / 2; r.position.y = 0.038 * Math.cos(Math.PI * (i + 1) / 5) * 1.28; g.add(r); }
-	part(g, barrelY(0.009, 0.025), metal, 0, 0.047, 0);
-	const lever = part(g, new THREE.BoxGeometry(0.008, 0.06, 0.004), metal, 0.012, 0.03, 0.0);
-	lever.rotation.z = -0.25;
-	const ring = new THREE.Mesh(new THREE.TorusGeometry(0.01, 0.0018, 4, 12), metal);
-	ring.position.set(-0.014, 0.058, 0);
+	const olive = M(0x4a5634, 0.65, 0.25), metal = M(0x9a9c96, 0.35, 0.85), dark = M(0x2c3022, 0.7, 0.3);
+	// корпус: профиль яйца, вращённый вокруг оси; дольки — вмятины по меридианам и параллелям
+	const prof = [];
+	for (let i = 0; i <= 16; i++) {
+		const t = i / 16, a = -Math.PI / 2 + t * Math.PI;
+		prof.push(new THREE.Vector2(Math.max(0.004, Math.cos(a) * 0.028 * (1 - 0.12 * t)), Math.sin(a) * 0.036));
+	}
+	const body = mergeVertices(new THREE.LatheGeometry(prof, 32).deleteAttribute('normal').deleteAttribute('uv'));
+	const p = body.attributes.position;
+	for (let i = 0; i < p.count; i++) {
+		const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z);
+		if (r < 0.006) continue;
+		const ang = Math.atan2(z, x), h = (y / 0.036 + 1) / 2; // 0 — низ, 1 — верх
+		const groove = Math.max(Math.pow(Math.abs(Math.cos(ang * 4)), 18), Math.pow(Math.abs(Math.cos(h * Math.PI * 5)), 18) * (h > 0.08 && h < 0.92 ? 1 : 0));
+		const k = 1 - 0.13 * groove;
+		p.setXYZ(i, x * k, y, z * k);
+	}
+	body.computeVertexNormals();
+	g.add(new THREE.Mesh(body, olive));
+	part(g, new THREE.CylinderGeometry(0.008, 0.009, 0.005, 14), dark, 0, -0.037, 0); // донная пробка
+	// запал: трубка и шляпка, рычаг вдоль корпуса, кольцо с чекой
+	part(g, new THREE.CylinderGeometry(0.0085, 0.0095, 0.016, 14), metal, 0, 0.043, 0);
+	part(g, new THREE.CylinderGeometry(0.011, 0.011, 0.004, 14), metal, 0, 0.051, 0);
+	const lever = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+		new THREE.Vector3(0.006, 0.052, 0), new THREE.Vector3(0.016, 0.048, 0), new THREE.Vector3(0.026, 0.03, 0), new THREE.Vector3(0.03, 0.006, 0),
+	]), 10, 0.0026, 6), metal);
+	lever.scale.set(1, 1, 2.2); // плоская лента, а не пруток
+	g.add(lever);
+	const ring = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0016, 6, 18), metal);
+	ring.position.set(-0.017, 0.047, 0.004);
+	ring.rotation.set(0.3, 0.6, 0);
 	g.add(ring);
+	part(g, new THREE.CylinderGeometry(0.0012, 0.0012, 0.02, 6), metal, -0.006, 0.046, 0, Math.PI / 2).rotation.z = Math.PI / 2; // чека
 	return shadow(g);
 }
 
@@ -317,17 +351,17 @@ export function makePistol() {
 	const metal = new THREE.MeshStandardMaterial({ color: 0x1e2022, roughness: 0.4, metalness: 0.75 });
 	const grip = new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.65 });
 	// рукоять чуть наклонена назад, как у ПМ
-	const handle = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.032, 0.085), grip);
+	const handle = new THREE.Mesh(rbox(0.026, 0.032, 0.085), grip);
 	handle.position.set(0, 0.004, 0.006);
 	handle.rotation.x = -0.18;
-	const frame = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.13, 0.022), metal);
+	const frame = new THREE.Mesh(rbox(0.024, 0.13, 0.022), metal);
 	frame.position.set(0, -0.035, 0.052);
-	const slide = new THREE.Mesh(new THREE.BoxGeometry(0.027, 0.16, 0.026), metal);
+	const slide = new THREE.Mesh(rbox(0.027, 0.16, 0.026), metal);
 	slide.position.set(0, -0.045, 0.074);
 	const guard = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.004, 6, 12, Math.PI), metal);
 	guard.rotation.y = Math.PI / 2;
 	guard.position.set(0, -0.03, 0.04);
-	const mag = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.026, 0.012), metal);
+	const mag = new THREE.Mesh(rbox(0.022, 0.026, 0.012), metal);
 	mag.position.set(0, 0.008, -0.052);
 	g.add(handle, frame, slide, guard, mag);
 	g.userData.action = { part: slide, travel: 0.028, dur: 0.07 }; // затвор откатывается назад, на последнем патроне встаёт на задержку

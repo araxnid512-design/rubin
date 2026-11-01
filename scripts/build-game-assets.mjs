@@ -12,9 +12,10 @@ import { HERO_PROFILE, RUNNER_PROFILE, STOMPER_PROFILE, RUBER_PROFILE } from './
 import { simplifyCharacter } from './makehuman/lod.mjs';
 import { jpegTextures } from './makehuman/jpeg-textures.mjs';
 
-// доля треугольников по материалам: камера игры сверху — мелкие складки не видны, зато FPS
-const ZOMBIE_LOD = { Skin: 0.38, Cloth: 0.5, Eye: 0.25, Teeth: 0.4 };
-const HERO_LOD = { Skin: 0.6, Cloth: 0.45, Eye: 0.25, Teeth: 0.5 };
+// доля треугольников по материалам: силуэт рук, ног и головы — гладкий, а мелкие складки сверху не видны;
+// за экраном персонажи не рисуются (отсечение по рамке камеры), так что запас по треугольникам есть
+const ZOMBIE_LOD = { Skin: 0.62, Cloth: 0.75, Eye: 0.4, Teeth: 0.5 };
+const HERO_LOD = { Skin: 0.85, Cloth: 0.75, Eye: 0.4, Teeth: 0.5 };
 
 installNodeShims();
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '../models/game');
