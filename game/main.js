@@ -9,6 +9,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions, PLAY } from './level.js';
 import { rollHorde } from './horde.js';
+import { MUR_GUNS, tickMurs, storeLoot, hireMurs, GARRISON } from './murs.js';
 import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture, bulletHoleTexture } from './textures.js';
 import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
@@ -524,7 +525,7 @@ function fireShot(shooter, W, gun, target, { player = false } = {}) {
 	const d = target ? Math.hypot(target.pos.x - pos.x, target.pos.z - pos.z) : 0;
 	const chance = clamp01(1 - (d / W.range) * (W.falloff ?? 0.35) - Math.min(10, shooter.burst) * W.spread);
 	if (target && target.alive && Math.random() < Math.max(0.4, chance)) {
-		game.tracer(from, target.pos.clone().setY(1.2 * target.scale));
+		game.tracer(from, target.pos.clone().setY(1.2 * (target.scale ?? 1)));
 		target.damage(W.damage, pos, W.damage > 80 ? 0.6 : 0.25);
 		return;
 	}
@@ -546,8 +547,8 @@ function firePellets(shooter, W, from, target) {
 		const a = base + (Math.random() - 0.5) * W.spread;
 		const dx = Math.sin(a), dz = Math.cos(a);
 		let best = null, bt = W.range;
-		for (const e of game.enemies) {
-			if (!e.alive) continue;
+		for (const e of game.bandits.length ? [...game.enemies, ...game.bandits] : game.enemies) {
+			if (!e.alive || e === shooter) continue;
 			const ox = e.pos.x - pos.x, oz = e.pos.z - pos.z;
 			const t = ox * dx + oz * dz;
 			if (t < 0 || t > bt) continue;
@@ -647,6 +648,9 @@ class Player extends Actor {
 	}
 
 	/** knock — насколько отбрасывает (удар рубера сбивает с ног и отшвыривает). */
+	/** Пуля мура — тот же удар (fireShot зовёт damage). */
+	damage(dmg, from, knock) { this.hurt(dmg, from, knock); }
+
 	hurt(dmg, from, knock) {
 		if (!this.alive) return;
 		game.cancelSearch('Обыск прерван');
@@ -1230,6 +1234,9 @@ class Merc extends Actor {
 		this.root.rotation.y = game.player.root.rotation.y;
 	}
 
+	/** Пуля мура — тот же удар (fireShot зовёт damage). */
+	damage(dmg, from, knock) { this.hurt(dmg, from, knock); }
+
 	hurt(dmg, from, knock = 0.2) {
 		if (!this.alive) return;
 		this.state.hp -= dmg;
@@ -1336,12 +1343,12 @@ class Merc extends Actor {
 		if (this.C.prefer !== 'far') return game.nearestEnemy(this.pos, reach, true);
 		const p = game.player;
 		let best = null, score = -Infinity;
-		for (const e of game.enemies) {
+		for (const e of [...game.enemies, ...game.bandits]) {
 			if (!e.alive) continue;
 			const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
 			if (d > reach || !lineOfSight(this.pos, e.pos)) continue;
 			const onHero = Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < 3;
-			const sc = (onHero ? 1000 : 0) + (e.type === 'ruber' ? 150 : e.type === 'stomper' ? 100 : 0) + d;
+			const sc = (onHero ? 1000 : 0) + (e.type === 'bandit' ? 200 : e.type === 'ruber' ? 150 : e.type === 'stomper' ? 100 : 0) + d;
 			if (sc > score) { score = sc; best = e; }
 		}
 		return best;
@@ -1495,6 +1502,254 @@ class Merc extends Actor {
 	}
 }
 
+// ---------- Муры ----------
+
+/** Здоровье мура и сколько он ждёт у тайника, пока выгребает его, с. */
+const MUR_HP = 110, MUR_LOOT_TIME = 1.6;
+
+/**
+ * Мур — бандит из стаба «Карьер» (учёт — game/murs.js). Ходит отрядом (squad): на вылазке группа (вся куча или пара)
+ * идёт к цели — тайнику или выходу — по полю путей и выгребает тайники; в «Карьере» стоит на посту (post).
+ * Стреляет в ближайшего, кого видит на дальность своего ствола: заражённого, героя, наёмника. Заражённые бьют
+ * и его. Патроны в запасе не кончаются — только перезарядка. Ранили — помнит, откуда (aggro), и идёт туда.
+ */
+class Bandit extends Actor {
+	constructor(pos, weapon, squad, { post = null } = {}) {
+		super(assets.player);
+		this.type = 'bandit';
+		this.weapon = weapon;
+		this.W = WEAPONS[weapon];
+		this.clips = CLIPS[this.W.anim];
+		this.squad = squad;
+		this.post = post;
+		this.hp = MUR_HP;
+		this.alive = true;
+		this.radius = 0.38;
+		this.scale = 1;
+		this.mag = this.W.mag;
+		this.cooldown = Math.random(); this.reloading = 0; this.burstLeft = 0; this.retarget = Math.random() * 0.4; this.timer = 0;
+		this.offset = new THREE.Vector2((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3); // место в куче
+		// тёмная разношёрстная одежда — не форма, у каждого свой оттенок
+		const tint = new THREE.Color().setHSL(Math.random(), 0.18, 0.18 + Math.random() * 0.14).multiplyScalar(2.4);
+		this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (/Cloth|Gear/.test(m.name)) m.color.multiply(tint); });
+		this.gunObj = this.W.make();
+		this.model.getObjectByName('GripR')?.add(this.gunObj);
+		this.pos.copy(pos);
+		if (post) this.root.rotation.y = post.ry ?? 0;
+		this.play(this.clips.idle);
+	}
+
+	/** Попадание (пуля, осколки, удар заражённого). from — откуда: туда мур и пойдёт разбираться. */
+	damage(dmg, from, knock = 0.2) {
+		if (!this.alive) return;
+		this.hp -= dmg;
+		this.hitFlash();
+		if (from) {
+			tmpV.subVectors(this.pos, from).setY(0).normalize().multiplyScalar(Math.min(knock, 1));
+			this.pos.add(tmpV);
+			resolveCollisions(this.pos, this.radius, level.colliders);
+			this.aggro = { pos: from.clone(), t: 10 };
+			this.squad?.alarm?.(from);
+		}
+		game.blood(this.pos.clone().setY(1.2), 8, from ? new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize() : new THREE.Vector3(0, 0, 1));
+		if (this.hp <= 0) {
+			this.hp = 0;
+			this.alive = false;
+			this.play('Death', { once: true, fade: 0.1 });
+			game.banditDied(this);
+		} else if (this.reloading <= 0) this.play(this.clips.hit, { once: true, fade: 0.06, restart: true });
+	}
+
+	hurt(dmg, from, knock) { this.damage(dmg, from, knock); }
+
+	update(dt) {
+		const near = inView(this.pos);
+		this.model.visible = near;
+		if (near) super.update(dt);
+		if (!this.alive) { this.timer += dt; return this.timer < 12; }
+		const W = this.W, c = this.clips;
+		this.cooldown -= dt;
+		if (this.aggro && (this.aggro.t -= dt) <= 0) this.aggro = null;
+		if (this.reloading > 0 && (this.reloading -= dt) <= 0) this.mag = W.mag;
+		this.retarget -= dt;
+		if (this.retarget <= 0 || (this.target && !this.target.alive)) { this.retarget = 0.4; this.target = game.banditTarget(this); }
+		const t = this.target;
+		if (t) {
+			// стоит и стреляет: очередями, с перезарядкой
+			this.looting = 0;
+			const ang = angleTo(this.pos, t.pos);
+			this.root.rotation.y = turnTowards(this.root.rotation.y, ang, dt * 7);
+			const facing = Math.abs(((ang - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
+			if (this.mag <= 0 && this.reloading <= 0) this.startReload();
+			else if (this.cooldown <= 0 && this.reloading <= 0 && facing) this.fire(t);
+			if (this.reloading > 0) { if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / W.reload }); }
+			else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play(c.aim, { fade: 0.2 });
+			return true;
+		}
+		// куда идти: к цели группы (тайник, выход) или к посту; раненый — туда, откуда стреляли
+		const goal = this.aggro?.pos ?? this.squad?.goalFor?.(this) ?? (this.post ? tmpV2.set(this.post.x, 0, this.post.z) : null);
+		const d = goal ? Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z) : 0;
+		if (!goal || d < (this.post && !this.aggro ? 0.5 : 1.2)) {
+			if (this.post && !this.aggro) this.root.rotation.y = turnTowards(this.root.rotation.y, this.post.ry ?? 0, dt * 2);
+			if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play(c.idle, { fade: 0.3 });
+			this.squad?.arrived?.(this, dt);
+			return true;
+		}
+		let dir = lineOfSight(this.pos, goal) ? tmpV.set(goal.x - this.pos.x, 0, goal.z - this.pos.z).normalize() : this.aggro ? game.flowDir(this.pos) : this.squad?.stepFor?.(this);
+		if (!dir) dir = tmpV.set(goal.x - this.pos.x, 0, goal.z - this.pos.z).normalize();
+		// не наступает на своих
+		for (const o of game.bandits) {
+			if (o === this || !o.alive) continue;
+			const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, r = Math.hypot(dx, dz);
+			if (r < 0.8 && r > 1e-4) { dir.x += (dx / r) * (0.8 - r) * 2; dir.z += (dz / r) * (0.8 - r) * 2; }
+		}
+		dir.normalize();
+		const run = !!this.aggro || this.squad?.hurry;
+		const speed = run ? 3.8 : 1.6;
+		this.pos.addScaledVector(dir, speed * dt);
+		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 8);
+		this.play(run ? c.run : c.walk, { timeScale: speed / HERO_GAIT[run ? c.run : c.walk] });
+		resolveCollisions(this.pos, this.radius, level.colliders);
+		return true;
+	}
+
+	startReload() {
+		this.reloading = this.W.reload;
+		Sfx.reload(this.weapon, { dur: this.W.reload, n: this.W.mag, ...game.ear(this.pos) });
+	}
+
+	fire(target) {
+		const W = this.W;
+		this.mag--;
+		this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
+		Sfx.gun(this.weapon, shotKind(W), game.ear(this.pos));
+		game.noise(this.pos, W.noise);
+		if (W.auto < 0.2) {
+			this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : 2 + Math.floor(Math.random() * 4);
+			this.cooldown = this.burstLeft > 0 ? W.auto : 0.5 + Math.random() * 0.5;
+		} else this.cooldown = W.auto + 0.3 + Math.random() * 0.4;
+		fireShot(this, W, this.gunObj, target);
+	}
+}
+
+/**
+ * Отряд муров на вылазке в кластере, где герой. Кучей — все к одной цели; парами — у каждой пары своя.
+ * Цель — ближайший нетронутый тайник (подошли — выгребли за пару секунд), когда время вышло или тайников
+ * не осталось — ближайший выход: там бойцы уходят. Ранили кого-то — поднимаются все, кто рядом.
+ */
+class RaidSquad {
+	constructor(raid, members) {
+		this.raid = raid;
+		this.members = members;
+		this.loot = raid.loot ?? (raid.loot = {});
+		const size = raid.mode === 'pairs' ? 2 : members.length;
+		this.groups = [];
+		for (let i = 0; i < members.length; i += size) this.groups.push({ members: members.slice(i, i + size), goal: null, flow: null, lootT: 0 });
+		for (const g of this.groups) for (const b of g.members) b.group = g;
+		this.leaving = false;
+	}
+
+	/** Цель группы: ближайший к ней тайник, к которому не идёт другая группа; нет — выход. */
+	pick(g) {
+		const alive = g.members.filter((b) => b.alive);
+		if (!alive.length) return;
+		const cx = alive.reduce((s, b) => s + b.pos.x, 0) / alive.length, cz = alive.reduce((s, b) => s + b.pos.z, 0) / alive.length;
+		const taken = new Set(this.groups.map((o) => o !== g && o.goal?.c).filter(Boolean));
+		let best = null, bd = Infinity;
+		if (!this.leaving) {
+			for (const c of level.containers) {
+				if (c.searched || taken.has(c)) continue;
+				const d = Math.hypot(c.ax - cx, c.az - cz);
+				if (d < bd) { bd = d; best = c; }
+			}
+		}
+		if (best) g.goal = { x: best.ax, z: best.az, c: best };
+		else {
+			const e = level.exits.reduce((a, b) => (Math.hypot(a.spawn.x - cx, a.spawn.z - cz) < Math.hypot(b.spawn.x - cx, b.spawn.z - cz) ? a : b));
+			g.goal = { x: e.spawn.x, z: e.spawn.z, exit: true };
+			this.hurry = true;
+		}
+		g.flow = flowFrom(g.goal.x, g.goal.z, g.flow);
+		g.lootT = 0;
+	}
+
+	goalFor(b) {
+		const g = b.group;
+		if (!g.goal || (g.goal.c && g.goal.c.searched && !g.goal.mine)) this.pick(g);
+		if (!g.goal) return null;
+		// в куче каждый держит своё место рядом с целью; у тайника и выхода — точно к цели
+		return g.members.length > 2 && !g.goal.c && !g.goal.exit ? tmpV2.set(g.goal.x + b.offset.x, 0, g.goal.z + b.offset.y) : tmpV2.set(g.goal.x, 0, g.goal.z);
+	}
+
+	stepFor(b) { return b.group.flow ? flowStep(b.group.flow, b.pos) : null; }
+
+	/** Боец дошёл до цели: у тайника — выгребает, у выхода — уходит из кластера. */
+	arrived(b, dt) {
+		const g = b.group;
+		if (!g.goal) return;
+		if (g.goal.exit) { b.gone = true; return; }
+		const c = g.goal.c;
+		if (!c || c.searched) { this.pick(g); return; }
+		if ((g.lootT += dt) < MUR_LOOT_TIME) return;
+		for (const [kind, n] of c.items ?? []) this.loot[kind] = (this.loot[kind] ?? 0) + n;
+		c.items = [];
+		c.searched = true;
+		c.spark.visible = false;
+		g.goal.mine = true;
+		this.pick(g);
+	}
+
+	/** Кого-то ранили: на звук идут все, кто ближе 25 м. */
+	alarm(from) {
+		for (const b of this.members) if (b.alive && !b.aggro && Math.hypot(b.pos.x - from.x, b.pos.z - from.z) < 25) b.aggro = { pos: from.clone(), t: 8 };
+	}
+
+	update() {
+		if (!this.leaving && game.world.time >= this.raid.end) {
+			this.leaving = true;
+			for (const g of this.groups) this.pick(g);
+		}
+		for (const b of this.members) {
+			if (!b.gone || b.left) continue;
+			b.left = true;
+			b.dispose();
+			game.bandits = game.bandits.filter((o) => o !== b);
+		}
+		if (this.members.every((b) => !b.alive || b.left)) game.finishRaid();
+	}
+}
+
+/**
+ * Гарнизон «Карьера»: на постах — до 14 муров, остальные в казарме; убили часового — из дверей казармы
+ * выходит следующий, пока муры не кончатся. Заметил героя один — вся стая идёт на звук.
+ */
+class Garrison {
+	constructor(reserve, door) {
+		this.reserve = reserve;
+		this.door = door;
+		this.t = 0;
+		this.alerted = null;
+	}
+
+	alarm(from) {
+		this.alerted = from.clone();
+		for (const b of game.bandits) if (b.alive && !b.aggro) b.aggro = { pos: from.clone(), t: 12 };
+	}
+
+	update(dt) {
+		// кто-то видит героя — поднимает всех
+		if (game.bandits.some((b) => b.alive && b.target === game.player)) this.alarm(game.player.pos);
+		const alive = game.bandits.filter((b) => b.alive).length;
+		if (this.reserve <= 0 || alive >= 14 || (this.t -= dt) > 0) return;
+		this.t = this.alerted ? 2.5 : 6;
+		this.reserve--;
+		const b = new Bandit(new THREE.Vector3(this.door.x + (Math.random() - 0.5), 0, this.door.z), MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)], this);
+		if (this.alerted) b.aggro = { pos: game.player.pos.clone(), t: 12 };
+		else b.post = { x: this.door.x + (Math.random() - 0.5) * 6, z: this.door.z + 3 + Math.random() * 3, ry: Math.random() * 6 };
+		game.bandits.push(b);
+	}
+}
+
 // ---------- Игра ----------
 const game = {
 	barrels: [], // бочки с горючим текущей локации (FuelBarrel)
@@ -1505,6 +1760,7 @@ const game = {
 	loc: 'zarechny', from: null,
 	icons: {},
 	enemies: [], pickups: [], fx: [], npcs: [], mercs: [],
+	bandits: [], raidSquad: null, garrison: null, // муры: отряд на вылазке здесь или гарнизон «Карьера»
 	perks: { maxHp: 100 }, // что даёт съеденная чёрная жемчужина (навсегда)
 	roster: [], // нанятые наёмники: { id, hp, mag, ammo, out } — out: идёт с героем, иначе ждёт в комнате в стабе
 	/** Отряд — кто идёт с героем. */
@@ -1550,7 +1806,8 @@ const game = {
 		this.enter(s.world.at, s.from ?? null);
 		if (this.player && s.hp) this.player.hp = Math.max(1, s.hp);
 		this.hud();
-		this.banner(NODES[this.loc].name, NODES[this.loc].kind === 'stab' ? 'Безопасно' : `До перезагрузки ${approx(timeLeft(this.world, this.loc))}`);
+		const kind = NODES[this.loc].kind;
+		this.banner(NODES[this.loc].name, kind === 'stab' ? 'Безопасно' : kind === 'murs' ? 'Логово муров — тебя заметят' : `До перезагрузки ${approx(timeLeft(this.world, this.loc))}`);
 	},
 
 	begin() {
@@ -1568,6 +1825,10 @@ const game = {
 		for (const e of this.enemies) e.dispose();
 		for (const n of this.npcs) n.dispose();
 		for (const m of this.mercs) m.dispose();
+		const raid = this.world?.murs?.raid;
+		if (raid?.live) { raid.live = false; raid.size = this.bandits.filter((b) => b.alive && !b.left).length; }
+		for (const b of this.bandits) b.dispose();
+		this.bandits = []; this.raidSquad = null; this.garrison = null;
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
 		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = [];
@@ -1615,8 +1876,12 @@ const game = {
 		this.visited = new Set();
 		this.inventory?.close();
 		spores.density = NODES[id].kind === 'cluster' ? 1 : 0.35;
+		this.updateMurs();
 		if (NODES[id].kind === 'cluster') this.populate(this.world.clusters[id].saved);
+		else if (NODES[id].kind === 'murs') this.populateMurs();
 		else for (const n of level.npcs) this.npcs.push(new Npc(n));
+		const raid = this.world.murs.raid;
+		if (raid?.at === id && NODES[id].kind === 'cluster') this.startLiveRaid(raid, true);
 		// вернулись в стаб: уцелевшие бойцы отряда расходятся по своим койкам — снова брать с собой там
 		const back = level.room ? this.party.map((st) => MERCS[st.id].name) : [];
 		for (const st of back.length ? this.roster : []) st.out = false;
@@ -1684,7 +1949,125 @@ const game = {
 			c.searched = false;
 			c.spark.visible = true;
 		}
+		// здесь уже побывали муры: часть заражённых перебита, часть тайников выгребена
+		const mark = this.world.clusters[this.loc]?.raided;
+		if (mark) this.applyMarkHere(mark);
 	},
+
+	/** Следы вылазки муров в построенном кластере: убрать долю заражённых, выгрести долю тайников. */
+	applyMarkHere(mark) {
+		for (const e of this.enemies) if (e.alive && Math.random() < mark.kill) { e.alive = false; e.dispose(); }
+		this.enemies = this.enemies.filter((e) => e.alive);
+		for (const c of level.containers) if (!c.searched && Math.random() < mark.loot) { c.items = []; c.searched = true; c.spark.visible = false; }
+	},
+
+	// ---------- Муры (game/murs.js) ----------
+
+	/** Учёт муров: пополнение, начало и конец вылазок — по времени мира. Отряд в кластер героя приходит вживую. */
+	updateMurs() {
+		const murs = this.world.murs, clusters = Object.keys(NODES).filter((id) => NODES[id].kind === 'cluster');
+		for (const ev of tickMurs(murs, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1)) {
+			if (ev.started?.live && level) this.startLiveRaid(ev.started);
+			if (ev.ended) this.markRaided(ev.ended.at, ev.summary.mark);
+		}
+	},
+
+	/** Заочная вылазка закончилась: кластер запоминает её следы (до своей перезагрузки). */
+	markRaided(at, mark) {
+		const c = this.world.clusters[at];
+		if (!c) return;
+		if (c.saved) {
+			c.saved.enemies = c.saved.enemies.filter(() => Math.random() >= mark.kill);
+			for (const k of c.saved.containers) if (!k.searched && Math.random() < mark.loot) { k.items = []; k.searched = true; }
+		} else c.raided = mark;
+	},
+
+	/** Отряд муров заходит в кластер героя через случайный выход: кучей или парами. */
+	startLiveRaid(raid, resumed = false) {
+		raid.live = true;
+		const e = level.exits[Math.floor(Math.random() * level.exits.length)];
+		const members = [];
+		for (let i = 0; i < raid.size; i++) {
+			const pos = e.spawn.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, 0, (Math.random() - 0.5) * 4));
+			resolveCollisions(pos, 0.4, level.colliders);
+			const b = new Bandit(pos, MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)], null);
+			members.push(b);
+			this.bandits.push(b);
+		}
+		this.raidSquad = new RaidSquad(raid, members);
+		for (const b of members) b.squad = this.raidSquad;
+		Sfx.rumble?.(0.3);
+		this.banner('Муры!', `${resumed ? 'В кластере' : 'В кластер зашёл'} отряд муров — ${raid.size} ${plural(raid.size, ['ствол', 'ствола', 'стволов'])}, ${raid.mode === 'pairs' ? 'парами' : 'кучей'}. Выносят тайники и стреляют во всех`);
+	},
+
+	/** Живая вылазка закончилась: добыча — в шкафы «Карьера», на спораны — новые бойцы. */
+	finishRaid() {
+		const murs = this.world.murs, sq = this.raidSquad;
+		if (!sq) return;
+		this.raidSquad = null;
+		storeLoot(murs, sq.loot);
+		hireMurs(murs);
+		murs.raid = null;
+		murs.nextRaid = this.world.time + 300 + Math.random() * 900;
+	},
+
+	/** Цель мура: ближайший, кого он видит на дальность своего ствола — заражённый, герой или наёмник. */
+	banditTarget(b) {
+		const R = b.W.range;
+		let best = null, bd = R;
+		const look = (a) => {
+			if (!a?.alive) return;
+			const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
+			if (d < bd && lineOfSight(b.pos, a.pos)) { bd = d; best = a; }
+		};
+		for (const e of this.enemies) look(e);
+		look(this.player);
+		for (const m of this.mercs) if (m.state.out) look(m);
+		return best;
+	},
+
+	/** Мур убит: его ствол бывает на земле, патроны к нему и спораны — всегда; в «Карьере» стало меньше. */
+	banditDied(b) {
+		this.kills++;
+		Sfx.death('human', this.ear(b.pos));
+		this.decal(b.pos, 1.6);
+		const near = (dx, dz) => b.pos.clone().add(new THREE.Vector3(dx, 0, dz));
+		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), 10 + Math.floor(Math.random() * 21));
+		if (Math.random() < 0.3) this.spawnPickup(b.weapon, near(-0.5, -0.2), 1);
+		this.spawnPickup('spore', near(0, -0.5), 1 + Math.floor(Math.random() * 3));
+		this.world.murs.count = Math.max(0, this.world.murs.count - 1);
+		if (this.raidSquad && this.raidSquad.raid) this.raidSquad.raid.size = Math.max(0, this.raidSquad.raid.size - 1);
+		this.hud();
+	},
+
+	/**
+	 * «Карьер»: на постах — до 14 муров (сколько их сейчас дома), остальные выходят из казармы на смену убитым.
+	 * В шкафах склада и будки главаря — их запасы: что вынесешь, то у муров и убудет.
+	 */
+	populateMurs() {
+		const murs = this.world.murs;
+		const home = Math.max(0, murs.count - (murs.raid ? murs.raid.size : 0));
+		// ворота и вышки заняты всегда, остальные посты — как выпадет
+		const all = level.posts ?? [], posts = [...all.slice(0, 6), ...all.slice(6).sort(() => Math.random() - 0.5)];
+		const active = Math.min(14, home, posts.length);
+		this.garrison = new Garrison(home - active, level.barracksDoor ?? { x: 0, z: 0 });
+		for (let i = 0; i < active; i++) {
+			const [x, z, ry] = posts[i];
+			this.bandits.push(new Bandit(new THREE.Vector3(x, 0, z), MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)], this.garrison, { post: { x, z, ry } }));
+		}
+		// запасы — по шкафам склада и будки главаря поровну; остальная мебель — как в любом доме
+		const store = level.containers.filter((c) => /Storage|Boss/.test(c.building));
+		for (const c of level.containers) { c.items = store.includes(c) ? [] : rollLoot(c.loot); c.searched = false; c.spark.visible = true; }
+		Object.entries(murs.stash).forEach(([kind, n], i) => {
+			if (!(n > 0) || !store.length) return;
+			const parts = Math.min(store.length, Math.max(1, Math.ceil(n / 30)));
+			for (let k = 0; k < parts; k++) {
+				const q = Math.floor(n / parts) + (k < n % parts ? 1 : 0);
+				if (q > 0) store[(i + k) % store.length].items.push([kind, q]);
+			}
+		});
+	},
+
 
 	/** Запомнить кластер, каким его оставляем: живые заражённые, обысканное, лежащее на земле. */
 	snapshot() {
@@ -1724,7 +2107,8 @@ const game = {
 			this.enter(to, from);
 			this.setPaused(false);
 			if (node.kind === 'stab') this.banner(node.name, 'Безопасно: торговец, лекарь. Выход — через ворота');
-			else this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
+			else if (node.kind === 'murs') this.banner(node.name, `Логово муров — около ${this.world.murs.count} стволов. Заметят — не уйдёшь`);
+			else if (!this.raidSquad) this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
 			setTimeout(() => $('travel').classList.add('hidden'), 350);
 		}, 30));
 	},
@@ -1826,7 +2210,7 @@ const game = {
 
 	nearestEnemy(from, range, needSight = false) {
 		let best = null, bd = range;
-		for (const e of this.enemies) {
+		for (const e of this.bandits.length ? [...this.enemies, ...this.bandits] : this.enemies) {
 			if (!e.alive) continue;
 			const d = Math.hypot(e.pos.x - from.x, e.pos.z - from.z);
 			if (d < bd && (!needSight || lineOfSight(from, e.pos))) { bd = d; best = e; }
@@ -1964,6 +2348,7 @@ const game = {
 				c.spark.visible = false;
 				if (!c.items.length) this.toast(`${c.name}: пусто`);
 				for (const [kind, n] of c.items) this.take(kind, n);
+				if (NODES[this.loc].kind === 'murs') for (const [kind, n] of c.items) this.world.murs.stash[kind] = Math.max(0, (this.world.murs.stash[kind] ?? 0) - n);
 				c.items = [];
 			}
 		}
@@ -2150,13 +2535,18 @@ const game = {
 		for (const m of this.mercs) m.slot = Math.max(0, party.indexOf(m.state));
 	},
 
-	/** Ближайший живой, на кого кидаются заражённые: герой или наёмник отряда. */
+	/** Ближайший живой, на кого кидаются заражённые: герой, наёмник отряда или мур. */
 	foeFor(pos) {
 		let best = this.player, bd = this.player?.alive ? Math.hypot(this.player.pos.x - pos.x, this.player.pos.z - pos.z) : Infinity;
 		for (const m of this.mercs) {
 			if (!m.alive || !m.state.out) continue;
 			const d = Math.hypot(m.pos.x - pos.x, m.pos.z - pos.z);
 			if (d < bd) { bd = d; best = m; }
+		}
+		for (const b of this.bandits) {
+			if (!b.alive) continue;
+			const d = Math.hypot(b.pos.x - pos.x, b.pos.z - pos.z);
+			if (d < bd) { bd = d; best = b; }
 		}
 		return best;
 	},
@@ -2351,7 +2741,7 @@ const game = {
 	/** Взрыв: осколки ранят всех в радиусе 6 м (и героя с наёмниками), шум на весь кластер. */
 	explode(pos) {
 		const R = 6;
-		for (const e of this.enemies) {
+		for (const e of [...this.enemies, ...this.bandits]) {
 			if (!e.alive) continue;
 			const d = Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z);
 			if (d < R) e.damage(170 * (1 - d / R) ** 0.7, pos, 1.5 * (1 - d / R));
@@ -2729,6 +3119,8 @@ const game = {
 
 	updateCluster(dt) {
 		const reloaded = advance(this.world, dt);
+		this.murT = (this.murT ?? 0) - dt;
+		if (this.murT <= 0) { this.murT = 1; this.updateMurs(); }
 		if (NODES[this.loc].kind !== 'cluster') return;
 		if (reloaded.includes(this.loc)) { this.reloadDeath(); return; }
 		const left = timeLeft(this.world, this.loc);
@@ -2855,6 +3247,7 @@ const game = {
 	/** Таймер перезагрузки в шапке (в стабе — «безопасно»). */
 	hudTimer() {
 		const el = $('loc-timer');
+		if (NODES[this.loc].kind === 'murs') { el.textContent = `муры: ${this.world.murs.count}`; el.className = 'danger'; return; }
 		if (NODES[this.loc].kind !== 'cluster') { el.textContent = 'безопасно'; el.className = 'safe'; return; }
 		const left = timeLeft(this.world, this.loc);
 		const text = clock(left);
@@ -2973,6 +3366,9 @@ function update(dt) {
 	game.enemies = game.enemies.filter((e) => { const keep = e.update(dt); if (!keep) e.dispose(); return keep; });
 	for (const n of game.npcs) n.update(dt);
 	game.mercs = game.mercs.filter((m) => { const keep = m.update(dt); if (!keep) m.dispose(); return keep; });
+	game.bandits = game.bandits.filter((b) => { const keep = b.update(dt); if (!keep) b.dispose(); return keep; });
+	game.raidSquad?.update(dt);
+	game.garrison?.update(dt);
 
 	// подбор предметов в рюкзак
 	for (const pk of game.pickups) {

@@ -3,6 +3,9 @@
 // (и все, кто внутри), исчезает. Стаб — стабильный участок, он не перезагружается.
 // Время мира идёт, пока герой в локации, и прыгает вперёд на время дороги.
 // preview — снимок локации (scripts/render-previews.mjs) для карты Улья.
+// Муры — бандиты со своим стабом «Карьер»: вылазки в кластеры и учёт — game/murs.js, состояние — world.murs.
+
+import { newMurs, normalizeMurs } from './murs.js';
 
 export const NODES = {
 	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 86], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
@@ -10,6 +13,7 @@ export const NODES = {
 	dachi: { name: 'Кластер «Дачи»', short: 'Дачи', kind: 'cluster', at: [20, 52], preview: 'assets/previews/dachi.jpg', desc: 'Садовое товарищество: домики, теплицы, сторожка. Охотничьи патроны 12 калибра, обрезы.' },
 	// глубже в Улье: развитые заражённые — топтуны и руберы, у руберов бывает чёрный жемчуг
 	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [84, 11], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
+	murs: { name: 'Стаб муров «Карьер»', short: 'Карьер', kind: 'murs', at: [13, 16], preview: 'assets/previews/murs.jpg', desc: 'Логово муров — бандитов, которые охотятся на иммунных. До пятидесяти стволов: зайти можно, выйти — вряд ли. В шкафах склада — всё, что они вынесли из кластеров.' },
 	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [46, 26], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
 };
 
@@ -21,6 +25,8 @@ export const ROUTES = [
 	['dachi', 'himmash', 85],
 	['zarechny', 'himmash', 80],
 	['himmash', 'voench', 90],
+	['murs', 'dachi', 100],
+	['murs', 'himmash', 90],
 ];
 
 /** Сколько живёт кластер между перезагрузками, с. */
@@ -49,6 +55,7 @@ export function newWorld() {
 			himmash: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 			voench: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 		},
+		murs: newMurs(0),
 	};
 }
 
@@ -57,6 +64,7 @@ export function normalizeWorld(world) {
 	for (const [id, n] of Object.entries(NODES)) {
 		if (n.kind === 'cluster' && !world.clusters[id]) world.clusters[id] = { next: world.time + rand(90, CYCLE[1]), saved: null, reloads: 0 };
 	}
+	world.murs = normalizeMurs(world.murs, world.time);
 	return world;
 }
 
@@ -71,6 +79,7 @@ export function advance(world, dt) {
 		while (world.time >= c.next) {
 			c.next += rand(...CYCLE);
 			c.saved = null;
+			c.raided = null; // следы вылазки муров — вместе с кластером
 			c.reloads++;
 			reloaded.push(id);
 		}

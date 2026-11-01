@@ -33,6 +33,11 @@
 			himmash: { target: [-6, 0, -9], cam: [14, 19, 25], hero: [-3, -0.5, 2.6], zombies: [['ruber', -8, -19.5, 0.5, 'Roar'], ['stomper', -15, -4, 1.3, 'Stomp'], ['runner', -1, -7, 2.4, 'Run'], ['runner', 6, -3, 2.8, 'Walk'], ['stomper', 22, -4.5, 3.4, 'Stomp']] },
 			// Военная часть — плац: рубер несётся галопом, второй стоит у штаба
 			voench: { target: [4, 0, -10], cam: [12, 21, 27], hero: [-6, -1.5, 2.3], zombies: [['ruber', 3, -11, 2.0, 'Charge'], ['ruber', 18, -22, 2.6, 'Idle'], ['stomper', -6, -18, 1.0, 'Stomp'], ['runner', 8, -3, 2.9, 'Run']] },
+			// «Карьер» — двор муров у костра: часовые со стволами, казарма и склад за ними
+			murs: {
+				target: [0, 0, -4], cam: [14, 20, 28], hero: null, zombies: [],
+				murs: [[-2.5, 2, 2, 'ak47'], [2.5, -1, -1, 'aks'], [0, 3.5, 3, 'ak74'], [-12, -14, 0.4, 'pkm'], [14, -14, -0.4, 'svd'], [-3, 24.4, 0, 'ak74'], [3, 24.4, 0, 'ak47'], [10, 8, 2.6, 'aks']],
+			},
 		};
 		const q = new URLSearchParams(location.search);
 		const id = q.get('id') || 'zarechny', shot = SHOTS[id];
@@ -89,8 +94,9 @@
 			if (axe) grip?.add(WEAPONS.axe.make());
 			scene.add(m);
 		};
-		const [hx, hz, hry] = shot.hero;
-		figure('player', hx, hz, hry, 'Run', { t: 0.3, axe: true });
+		if (shot.hero) { const [hx, hz, hry] = shot.hero; figure('player', hx, hz, hry, 'Run', { t: 0.3, axe: true }); }
+		// муры: тёмная разношёрстная одежда, у каждого ствол
+		for (const [x, z, ry, gun] of shot.murs ?? []) figure('player', x, z, ry, 'IdleRifle', { tint: [0.35 + Math.random() * 0.2, 0.33 + Math.random() * 0.15, 0.3 + Math.random() * 0.12], gun });
 		for (const [kind, x, z, ry, clip] of shot.zombies) figure(kind, x, z, ry, clip);
 		for (const n of level.npcs) figure('player', n.x, n.z, n.ry ?? 0, n.clip, { tint: n.tint, gun: n.gun, y: n.y ?? 0 });
 		const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.5, 200);

@@ -54,23 +54,27 @@ export class WorldMap {
 	status(to, travel) {
 		const w = this.game.world, node = NODES[to];
 		if (node.kind === 'stab') return 'безопасно';
+		if (node.kind === 'murs') return `<span class="danger">логово муров — около ${w.murs.count} стволов</span>`;
+		// по рации слышно, куда ушёл отряд муров
+		const murs = w.murs.raid?.at === to ? ' · <span class="danger">по рации: там муры</span>' : '';
 		const left = timeLeft(w, to) - travel;
 		if (left <= 0) return 'перезагрузится, пока идёшь — придёшь в свежий кластер';
 		if (left < 60) return `<span class="danger">перезагрузка через ${approx(left)} после прихода!</span>`;
 		const fresh = w.clusters[to].saved ? 'ты здесь уже был' : 'не тронут';
-		return `перезагрузка через ${approx(left)} после прихода · ${fresh}`;
+		return `перезагрузка через ${approx(left)} после прихода · ${fresh}${murs}`;
 	}
 
 	render() {
 		const g = this.game, here = g.loc;
 		const routes = routesFrom(here).sort((a, b) => (b.to === this.suggest) - (a.to === this.suggest));
 		const hereLeft = timeLeft(g.world, here);
-		$('wm-sub').textContent = NODES[here].kind === 'stab' ? 'ты в стабе' : `до перезагрузки кластера ${approx(hereLeft)}`;
+		const kind = NODES[here].kind;
+		$('wm-sub').textContent = kind === 'stab' ? 'ты в стабе' : kind === 'murs' ? 'ты в логове муров' : `до перезагрузки кластера ${approx(hereLeft)}`;
 		const hereNode = NODES[here];
 		// где ты сейчас и куда можно пойти — у каждого пункта снимок локации
 		const herecard = `<div class="route here-card"><img class="route-img" src="${asset(hereNode.preview)}" alt="">
 			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name}</b>
-				<span>${hereNode.kind === 'stab' ? 'безопасно' : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
+				<span>${kind === 'stab' ? 'безопасно' : kind === 'murs' ? 'логово муров' : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
 		$('wm-list').innerHTML = herecard + routes.map(({ to, time }) => `
 			<div class="route${to === this.suggest ? ' suggest' : ''}">
 				<img class="route-img" src="${asset(NODES[to].preview)}" alt="">
@@ -79,7 +83,7 @@ export class WorldMap {
 					<span class="muted">${NODES[to].desc}</span></div>
 				${this.look ? '' : `<button class="go" data-go="${to}">Идти</button>`}
 			</div>`).join('') + (this.look
-			? `<div class="wm-hint">${hereNode.kind === 'stab' ? 'Выход — через ворота стаба на юге' : 'Чтобы уйти, дойди до края кластера (муть) в любом месте или к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
+			? `<div class="wm-hint">${kind === 'stab' ? 'Выход — через ворота стаба на юге' : kind === 'murs' ? 'Выход — через ворота «Карьера» на юге' : 'Чтобы уйти, дойди до края кластера (муть) в любом месте или к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
 			: '<button class="stay" id="wm-stay">Остаться</button>');
 		$('wm-stay').onclick = () => this.close();
 		this.draw(here, routes);
@@ -135,6 +139,9 @@ export class WorldMap {
 			if (n.preview) el('image', { href: asset(n.preview), x: x - r * 1.78, y: y - r, width: r * 3.56, height: r * 2, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${svg.id}-${id})` }, g);
 			el('circle', { cx: x, cy: y, r, class: 'wm-frame' }, g);
 			if (n.kind === 'stab') el('path', { d: `M${x + 3.4} ${y - 3.2}V${y - 8.4}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
+			// логово муров — красный крест; кластер, куда ушёл их отряд, — красная точка
+			if (n.kind === 'murs') el('path', { d: `M${x + 2.6} ${y - 7.6}l3.6 3.6M${x + 6.2} ${y - 7.6}l-3.6 3.6`, class: 'wm-mur' }, g);
+			if (w.murs?.raid?.at === id) el('circle', { cx: x + 4.6, cy: y - 4.6, r: 1.5, class: 'wm-raid' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;
 		}

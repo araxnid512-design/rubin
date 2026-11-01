@@ -131,13 +131,15 @@ export class Minimap {
 		const R = this.el.clientWidth / 2, k = this.k, p = player.pos;
 		this.map.style.backgroundPosition = `${R - (p.x + HALF) * k}px ${R - (p.z + HALF) * k}px`;
 		this.arrow.style.transform = `translate(-50%, -50%) rotate(${Math.PI - player.root.rotation.y}rad)`;
-		// наёмники — голубые точки
-		const mercs = (this.game.mercs ?? []).filter((m) => m.alive);
+		// наёмники — голубые точки, муры — красные
+		const mercs = [...(this.game.mercs ?? []), ...(this.game.bandits ?? [])].filter((m) => m.alive);
 		while (this.mates.children.length < mercs.length) this.mates.append(document.createElement('i'));
 		[...this.mates.children].forEach((el, i) => {
 			const m = mercs[i];
 			el.hidden = !m;
-			if (m) el.style.transform = `translate(${R + (m.pos.x - p.x) * k}px, ${R + (m.pos.z - p.z) * k}px) translate(-50%, -50%)`;
+			if (!m) return;
+			el.classList.toggle('mur', m.type === 'bandit');
+			el.style.transform = `translate(${R + (m.pos.x - p.x) * k}px, ${R + (m.pos.z - p.z) * k}px) translate(-50%, -50%)`;
 		});
 		// стрелки к выходам: на краю круга, если выход дальше видимого
 		this.level.exits.forEach((e, i) => {

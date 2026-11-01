@@ -21,6 +21,9 @@ export class Batch {
 		if (!this.groups.has(key)) this.groups.set(key, { material, cast, receive, list: [] });
 		const g = geometry.index ? geometry.toNonIndexed() : geometry;
 		for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+		// без развёртки (валуны, кроны) — нулевая: иначе с остальными мешами того же материала не слить
+		if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+		if (!g.attributes.normal) g.computeVertexNormals();
 		this.groups.get(key).list.push(g);
 	}
 	build(parent) {

@@ -14,11 +14,12 @@ import dachi from './locations/dachi.js';
 import stab from './locations/stab.js';
 import himmash from './locations/himmash.js';
 import voench from './locations/voench.js';
+import murs from './locations/murs.js';
 
 export { HALF, PLAY };
 /** Участок, м: статика, деревья и трава собраны по участкам — видеокарта рисует только те, что в кадре. */
 const CHUNK = 33;
-export const LOCATIONS = { zarechny, dachi, stab, himmash, voench };
+export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
 function materials() {
@@ -202,6 +203,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		groups: spec.groups ?? [],
 		stations: spec.stations ?? [],
 		room: spec.room ?? null, // комната героя (только в стабе)
+		posts: spec.posts ?? null, barracksDoor: spec.barracksDoor ?? null, // «Карьер»: посты часовых муров и дверь казармы
 		// для плана локации: покрытия, препятствия, крупные постройки, деревья, вода; edge — край локации
 		// (муть) — выход на карту Улья в любом месте, у стаба выход только через ворота
 		plan: { grounds, trees, water: spec.water ?? [], blocks: occluders.map((o) => ({ name: o.name, ...o.area })) },

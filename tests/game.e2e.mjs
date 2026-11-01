@@ -63,7 +63,8 @@ try {
 	check(rally === pack?.n + 1, `бегун из стаи заметил героя — поднялась вся стая (${rally} из ${(pack?.n ?? 0) + 1})`);
 	// проверки идут дольше шести игровых минут: чтобы кластеры не перезагрузились посреди теста, отодвигаем сроки
 	// (перезагрузку проверяем отдельно ниже); героя, пока идут проверки, не загрызут (живчик и лекаря — отдельно)
-	await G(page, () => { for (const c of Object.values(window.__game.world.clusters)) c.next = window.__game.world.time + 1e6; const p = window.__game.player; p.hp = p.maxHp = 1e6; });
+	// муры не ходят на вылазки сами — их проверяем отдельно ниже
+	await G(page, () => { for (const c of Object.values(window.__game.world.clusters)) c.next = window.__game.world.time + 1e6; window.__game.world.murs.nextRaid = Infinity; const p = window.__game.player; p.hp = p.maxHp = 1e6; });
 	await page.waitForTimeout(1500);
 	const perf = await G(page, () => ({ calls: window.__game.perf.calls, tris: window.__game.perf.tris, logic: window.__game.perf.logic, text: document.getElementById('perf').textContent, post: Object.keys(window.__game.post.passes) }));
 	// на высоком качестве (компьютер) кадр идёт через пост-обработку: AO рисует сцену второй раз (нормали), без теней
@@ -209,6 +210,59 @@ try {
 	const rz = await reach();
 	check(rz.bad.length === 0 && rz.exits === 0, `Заречный: все ${rz.n} тайников и выходы достижимы${rz.bad.length ? ': нет пути к ' + rz.bad.join(', ') : ''}`);
 
+	// муры: отряд приходит в кластер героя через выход, бьёт заражённых и выносит тайники
+	check(await G(page, () => window.__game.world.murs.count === 50), 'в «Карьере» 50 муров');
+	const raid0 = await G(page, () => {
+		const g = window.__game, t = g.world.time, m = g.world.murs;
+		window.__m0 = { searched: g.level.containers.filter((c) => c.searched).length };
+		g.player.pos.set(58, 0, 6);
+		m.raid = { at: 'zarechny', size: 6, start: t, end: t + 600, mode: 'crowd', loot: {}, live: true, kills: 0 };
+		g.startLiveRaid(m.raid);
+		return { bandits: g.bandits.length, banner: document.getElementById('banner').textContent };
+	});
+	check(raid0.bandits === 6 && /Муры/.test(raid0.banner), `муры: в кластер зашёл отряд из ${raid0.bandits} — «${raid0.banner.trim().slice(0, 50)}…»`);
+	await page.waitForFunction(() => window.__game.level.containers.filter((c) => c.searched).length > window.__m0.searched, null, { timeout: 90000 }).catch(() => {});
+	const raid1 = await G(page, () => { const g = window.__game; return { looted: g.level.containers.filter((c) => c.searched).length - window.__m0.searched, loot: Object.entries(g.raidSquad?.loot ?? {}).map(([k, n]) => `${k}×${n}`).join(', ') }; });
+	check(raid1.looted >= 1, `муры выгребли тайников: ${raid1.looted} (${raid1.loot || 'пусто'})`);
+	// мур стреляет в героя; заражённый рядом бросается на мура
+	await G(page, () => {
+		const g = window.__game, b = g.bandits.find((x) => x.alive);
+		for (const e of g.enemies) if (e.alive) { e.pos.set(-60, 0, -60); e.state = 'idle'; }
+		b.pos.set(20, 0, 6); b.aggro = null; g.player.pos.set(28, 0, 6);
+		window.__hp0 = g.player.hp;
+		window.__zb = g.spawnEnemy('runner', b.pos.clone().set(b.pos.x - 4, 0, b.pos.z + 0.5));
+		window.__zb.state = 'chase';
+	});
+	await page.waitForFunction(() => window.__hp0 - window.__game.player.hp > 0, null, { timeout: 15000 }).catch(() => {});
+	const murShot = await G(page, () => ({ lost: Math.round(window.__hp0 - window.__game.player.hp), zFoe: window.__zb.foe?.type ?? null, zDead: !window.__zb.alive }));
+	check(murShot.lost > 0, `мур стреляет в героя: −${murShot.lost} здоровья`);
+	check(murShot.zFoe === 'bandit' || murShot.zDead, `заражённый бросается на мура (${murShot.zDead ? 'мур его застрелил' : 'в погоне за муром'})`);
+	// убитый мур: патроны, спораны, бывает ствол; в «Карьере» на одного меньше
+	const murKill = await G(page, () => {
+		const g = window.__game, m = g.world.murs, c0 = m.count, p0 = g.pickups.length;
+		g.bandits.find((x) => x.alive).damage(1e4, g.player.pos, 0.5);
+		return { count: c0 - m.count, drops: g.pickups.length - p0, kinds: g.pickups.slice(p0).map((p) => p.kind).join(', ') };
+	});
+	check(murKill.count === 1 && murKill.drops >= 2, `мур убит: в «Карьере» на одного меньше, на земле — ${murKill.kinds}`);
+	// время вылазки вышло — уходят через выход, добыча — в шкафы «Карьера»
+	await G(page, () => { const g = window.__game; g.player.pos.set(-40, 0, -40); g.world.murs.raid.end = g.world.time; for (const b of g.bandits) if (b.alive) b.pos.copy(g.level.exits[0].spawn); });
+	await page.waitForFunction(() => !window.__game.world.murs.raid, null, { timeout: 30000 }).catch(() => {});
+	check(await G(page, () => !window.__game.world.murs.raid && !window.__game.bandits.some((b) => b.alive)), 'время вылазки вышло — муры ушли через выход');
+	// заочная вылазка (героя там нет), наём на спораны, пополнение раз в два часа
+	const offline = await G(page, async () => {
+		const g = window.__game, m = g.world.murs, t = g.world.time, s0 = m.stash.spore ?? 0;
+		m.raid = { at: 'dachi', size: 6, start: t - 200, end: t - 1, mode: 'pairs', loot: {}, live: false, kills: 0 };
+		g.updateMurs();
+		const r = { raided: !!g.world.clusters.dachi.raided, spore: (m.stash.spore ?? 0) - s0 };
+		const { hireMurs } = await import('/game/murs.js');
+		m.count = 40; m.stash.spore = 100;
+		r.hired = hireMurs(m); r.left = m.stash.spore;
+		m.count = 30; m.renewAt = t; g.updateMurs(); r.renewed = m.count;
+		g.world.clusters.dachi.raided = null; m.nextRaid = Infinity; // Дачи дальше в тесте — целые
+		return r;
+	});
+	check(offline.raided && offline.hired === 3 && offline.left === 10 && offline.renewed === 50, `без героя: муры отметились в Дачах (+${offline.spore} споранов), на 100 споранов наняли ${offline.hired}, раз в два часа — снова ${offline.renewed}`);
+
 	// зачистка ничего не решает: убили всех — игра продолжается, победы нет
 	await G(page, () => { for (const e of window.__game.enemies) if (e.alive) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); });
 	await page.waitForTimeout(1500);
@@ -246,7 +300,7 @@ try {
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
-	check(prev.cards === map.routes.length + 1 && prev.nodes === 5, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты`);
+	check(prev.cards === map.routes.length + 1 && prev.nodes === 6, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров)`);
 	await page.screenshot({ path: join(OUT, 'game-map.png') });
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');
@@ -640,6 +694,37 @@ try {
 	const rv = await reach();
 	check(rv.bad.length === 0 && rv.exits === 0, `Военная часть: все ${rv.n} тайников и выходы достижимы${rv.bad.length ? ': нет пути к ' + rv.bad.join(', ') : ''}`);
 	await page.screenshot({ path: join(OUT, 'game-voench.png') });
+
+	// «Карьер» — стаб муров: часовые на постах, смена из казармы, в шкафах их добыча
+	await G(page, () => window.__game.travel('murs'));
+	await page.waitForFunction(() => window.__game.loc === 'murs' && window.__game.state === 'play', null, { timeout: 300000 });
+	const camp = await G(page, () => { const g = window.__game; return { n: g.bandits.length, reserve: g.garrison.reserve, timer: document.getElementById('loc-timer').textContent, store: g.level.containers.filter((c) => /Storage|Boss/.test(c.building) && c.items.length).length, enemies: g.enemies.length }; });
+	check(camp.n === 14 && camp.reserve >= 30 && camp.store >= 3 && camp.enemies === 0 && /муры: \d+/.test(camp.timer), `«Карьер»: на постах ${camp.n} муров, в казарме ещё ${camp.reserve}, шкафов с добычей ${camp.store}, заражённых нет`);
+	const rm = await reach();
+	check(rm.bad.length === 0 && rm.exits === 0, `«Карьер»: все ${rm.n} тайников и выход достижимы${rm.bad.length ? ': нет пути к ' + rm.bad.join(', ') : ''}`);
+	await page.screenshot({ path: join(OUT, 'game-murs.png') });
+	// зашёл во двор — заметили: тревога, на героя идут все
+	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 20); window.__hp0 = g.player.hp; });
+	await page.waitForFunction(() => window.__game.garrison.alerted && window.__hp0 - window.__game.player.hp > 0, null, { timeout: 20000 }).catch(() => {});
+	const alarm = await G(page, () => { const g = window.__game; return { lost: Math.round(window.__hp0 - g.player.hp), aggro: g.bandits.filter((b) => b.alive && b.aggro).length }; });
+	check(alarm.lost > 0 && alarm.aggro >= 10, `во дворе «Карьера» заметили: тревога, на героя идут ${alarm.aggro} муров (−${alarm.lost} здоровья)`);
+	// убили часовых — из казармы выходит смена
+	await G(page, () => { const g = window.__game; window.__res0 = g.garrison.reserve; for (const b of g.bandits.slice(0, 5)) b.damage(1e4, g.player.pos, 0); });
+	await page.waitForFunction(() => window.__game.garrison.reserve < window.__res0, null, { timeout: 30000 }).catch(() => {});
+	const shift = await G(page, () => ({ reserve: window.__game.garrison.reserve, res0: window.__res0 }));
+	check(shift.reserve < shift.res0, `убитых часовых сменяют из казармы (в казарме ${shift.res0} → ${shift.reserve})`);
+	// шкаф склада: забрал — у муров убыло
+	const stash = await G(page, () => {
+		const g = window.__game, m = g.world.murs, c = g.level.containers.find((k) => /Storage/.test(k.building) && k.items.length);
+		const [kind, n] = c.items[0];
+		const r = { kind, n, before: m.stash[kind] ?? 0 };
+		g.player.pos.set(c.ax, 0, c.az); g.searching = { c, t: 99 };
+		return r;
+	});
+	await page.waitForTimeout(500);
+	const stash2 = await G(page, (k) => window.__game.world.murs.stash[k] ?? 0, stash.kind);
+	check(stash2 <= stash.before - stash.n, `из шкафа склада забрал ${stash.kind} ×${stash.n} — у муров осталось ${stash2}`);
+	await G(page, () => { window.__game.world.murs.count = 50; });
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 

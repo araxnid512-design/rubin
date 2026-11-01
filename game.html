@@ -233,6 +233,10 @@
 		.wm-glow { fill: none; stroke: var(--accent); stroke-width: 0.6; opacity: 0.6; animation: wmGlow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 		@keyframes wmGlow { 50% { transform: scale(1.25); opacity: 0.15; } }
 		.wm-flag { fill: #e8dcae; stroke: #232823; stroke-width: 0.4; }
+		.wm-mur { stroke: #e0442c; stroke-width: 1.3; stroke-linecap: round; fill: none; }
+		.wm-raid { fill: #e0442c; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
+		@keyframes wmRaid { 50% { opacity: 0.35; } }
+		.wm-node.murs .wm-frame { stroke: #b8432c; }
 		.wm-hero-ring { fill: #232823; stroke: var(--accent); stroke-width: 0.8; }
 		.wm-pulse { fill: none; stroke: var(--accent); stroke-width: 0.6; animation: wmPulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 		@keyframes wmPulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.1); opacity: 0; } }
@@ -312,6 +316,7 @@
 		#mm-pointers { position: absolute; inset: 0; pointer-events: none; }
 		#mm-map { position: absolute; inset: 0; background-repeat: no-repeat; image-rendering: auto; }
 		#mm-mates i { position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-radius: 50%; background: #7cc4ff; border: 1.5px solid #10202c; }
+		#mm-mates i.mur { background: #e0442c; width: 7px; height: 7px; }
 		#mm-arrow { position: absolute; left: 50%; top: 50%; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 16px solid var(--accent); filter: drop-shadow(0 0 2px #000); transform-origin: 50% 60%; }
 		#mm-n { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: #e8eedd; text-shadow: 0 1px 2px #000; }
 		.mm-pointer { position: absolute; left: 0; top: 0; display: grid; justify-items: center; pointer-events: none; }
