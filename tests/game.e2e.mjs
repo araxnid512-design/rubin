@@ -253,7 +253,7 @@ try {
 		const g = window.__game, m = g.world.murs, t = g.world.time, s0 = m.stash.spore ?? 0;
 		m.raid = { at: 'dachi', size: 6, start: t - 200, end: t - 1, mode: 'pairs', loot: {}, live: false, kills: 0 };
 		g.updateMurs();
-		const r = { raided: !!g.world.clusters.dachi.raided, spore: (m.stash.spore ?? 0) - s0 };
+		const r = { raided: !!g.world.clusters.dachi.raided, spore: `${s0} → ${m.stash.spore ?? 0}`, count: m.count };
 		const { hireMurs } = await import('/game/murs.js');
 		m.count = 40; m.stash.spore = 100;
 		r.hired = hireMurs(m); r.left = m.stash.spore;
@@ -261,7 +261,7 @@ try {
 		g.world.clusters.dachi.raided = null; m.nextRaid = Infinity; // Дачи дальше в тесте — целые
 		return r;
 	});
-	check(offline.raided && offline.hired === 3 && offline.left === 10 && offline.renewed === 50, `без героя: муры отметились в Дачах (+${offline.spore} споранов), на 100 споранов наняли ${offline.hired}, раз в два часа — снова ${offline.renewed}`);
+	check(offline.raided && offline.hired === 3 && offline.left === 10 && offline.renewed === 50, `без героя: муры отметились в Дачах (споранов в шкафах ${offline.spore}, добытое ушло на наём — муров ${offline.count}), на 100 споранов наняли ${offline.hired}, раз в два часа — снова ${offline.renewed}`);
 
 	// зачистка ничего не решает: убили всех — игра продолжается, победы нет
 	await G(page, () => { for (const e of window.__game.enemies) if (e.alive) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); });
