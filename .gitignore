@@ -6,3 +6,4 @@ download/
 _site_ulei/
 # рабочие копии помощников (субагентов)
 .claude/worktrees/
+__pycache__/
