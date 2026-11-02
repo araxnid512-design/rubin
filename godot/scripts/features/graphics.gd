@@ -53,7 +53,7 @@ func smoke() -> int:
 			for mmi in lv.trees:
 				if mmi.multimesh.use_colors and mmi.multimesh.mesh:
 					tris = maxi(tris, mmi.multimesh.mesh.get_faces().size() / 3)
-			fails += _check(lt.get_width() == Crowns.TEX and pt.get_width() == Crowns.TEX and tris > 0 and tris <= 80, "кроны из листвы: текстуры %d px (%.0f мс), треугольников в кроне до %d" % [lt.get_width(), (Time.get_ticks_usec() - tc) / 1000.0, tris])
+			fails += _check(lt.get_width() == Crowns.TEX and pt.get_width() == Crowns.TEX and tris > 0 and tris <= 140, "кроны из листвы: текстуры %d px (%.0f мс), треугольников в кроне до %d" % [lt.get_width(), (Time.get_ticks_usec() - tc) / 1000.0, tris])
 			fails += await _check_quality(lv)
 	return fails
 

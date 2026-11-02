@@ -9,6 +9,7 @@ shader_type spatial;
 render_mode cull_disabled, diffuse_lambert_wrap;
 
 uniform sampler2D leaf_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform float leaf_gain = 1.25;
 
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform float crown_y0 = 3.0;
@@ -64,7 +65,7 @@ void fragment() {
 	}
 	float n = texture(noise_tex, w_pos.xz * 0.35 + vec2(w_pos.y * 0.3, 0.0)).r;
 	float n2 = texture(noise_tex, w_pos.xz * 0.09 + vec2(0.5, 0.2)).r;
-	vec3 c = COLOR.rgb * leaf.rgb * 1.25;
+	vec3 c = COLOR.rgb * leaf.rgb * leaf_gain;
 	c *= 0.8 + n * 0.4;
 	c = mix(c, c * vec3(1.15, 1.05, 0.7), smoothstep(0.6, 0.8, n2) * 0.5);
 	c *= mix(0.7, 1.08, y01) * (1.0 - depth * 0.45);

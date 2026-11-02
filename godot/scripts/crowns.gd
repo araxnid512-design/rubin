@@ -5,7 +5,7 @@ class_name Crowns
 ## «сферические» (от центра кроны) — крона освещена как объём, а не как набор плоскостей. В UV2.x — глубина в
 ## кроне (0 — снаружи, 1 — у ствола): нутро темнее, дешёвое затенение без SSAO.
 ##
-## Нагрузка: ~20–30 карточек (40–60 треугольников) на дерево — меньше, чем у прежних круглых крон; пиксели с
+## Нагрузка: 22–65 карточек (44–130 треугольников) на дерево; пиксели с
 ## прозрачностью отбрасываются (alpha scissor).
 
 const TEX := 128
@@ -53,14 +53,14 @@ static func _leafy(st: SurfaceTool, box: AABB, rng: RandomNumberGenerator, n: in
 static func _pine(st: SurfaceTool, box: AABB, rng: RandomNumberGenerator) -> void:
 	var c := box.get_center()
 	var r := box.size * 0.5
-	var tiers := 6
+	var tiers := 8
 	var y0 := box.position.y + box.size.y * 0.08
 	var y1 := box.end.y - box.size.y * 0.12
 	for t in tiers:
 		var k := float(t) / float(tiers - 1)
 		var y := lerpf(y0, y1, k)
 		var rad := lerpf(r.x * 1.0, r.x * 0.25, k)
-		var count := 7 if t < tiers - 2 else 5
+		var count := 9 if t < tiers - 3 else 6
 		var off := rng.randf() * TAU
 		for b in count:
 			var a := off + TAU * float(b) / float(count) + rng.randf_range(-0.2, 0.2)
@@ -68,7 +68,7 @@ static func _pine(st: SurfaceTool, box: AABB, rng: RandomNumberGenerator) -> voi
 			var droop := rad * rng.randf_range(0.25, 0.4)
 			var root := Vector3(c.x, y + droop * 0.4, c.z)
 			var tip := root + dir * rad + Vector3(0, -droop, 0)
-			_branch(st, root, tip, rad * 0.75, c, r, k)
+			_branch(st, root, tip, rad * 1.05, c, r, k)
 	# макушка
 	var top := Vector3(c.x, box.end.y, c.z)
 	for a: float in [0.0, PI * 0.5]:

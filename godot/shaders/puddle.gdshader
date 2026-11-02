@@ -6,8 +6,8 @@ render_mode blend_mix, depth_draw_never, cull_disabled;
 
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform vec3 sky_color : source_color = vec3(0.68, 0.74, 0.8);
-uniform vec3 deep_color : source_color = vec3(0.13, 0.14, 0.15);
-uniform float opacity = 0.62;
+uniform vec3 deep_color : source_color = vec3(0.2, 0.21, 0.22);
+uniform float opacity = 0.42;
 
 varying vec3 w_pos;
 
@@ -29,6 +29,6 @@ void fragment() {
 	ROUGHNESS = mix(0.03, 0.35, rim);
 	METALLIC = 0.0;
 	SPECULAR = 0.9;
-	EMISSION = sky_color * (0.2 + 0.2 * n2) * mid;
+	EMISSION = sky_color * (0.3 + 0.25 * n2) * mid;
 	ALPHA = a * opacity * mix(0.8, 1.0, mid);
 }

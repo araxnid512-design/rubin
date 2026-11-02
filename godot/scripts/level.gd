@@ -57,7 +57,7 @@ const PHOTO := {
 	"asphalt": ["road_damaged", 5.0, 0.9, 0.3],
 	"dirt": ["brown_mud_leaves_01", 3.5, 0.75, 0.3],
 	"sand": ["brown_mud_leaves_01", 3.5, 0.6, 0.25],
-	"grass": ["Grass007", 2.5, 0.8, 0.6],
+	"grass": ["Grass007", 3.0, 1.1, 0.75],
 	"concrete": ["concrete_wall_008", 3.0, 0.85, 0.4],
 	"concreteDark": ["concrete_wall_008", 3.0, 0.85, 0.4],
 	"roofTar": ["concrete_wall_008", 3.0, 0.7, 0.3],
@@ -292,6 +292,7 @@ func _foliage_material(kind: String, mesh: Mesh) -> ShaderMaterial:
 	m.set_shader_parameter("sway_h", 4.0 if kind == "leavesDry" else 8.0)
 	m.set_shader_parameter("see_through", 1.0)
 	m.set_shader_parameter("leaf_tex", Crowns.texture(kind))
+	m.set_shader_parameter("leaf_gain", 1.9 if kind == "pine" else 1.25)
 	m.set_shader_parameter("bumps", 0.0)
 	foliage_mats.append(m)
 	return m
@@ -903,6 +904,8 @@ void fragment() {
 	float n = texture(noise_tex, q + vec2(TIME * 0.008, 0.0)).r;
 	float n2 = texture(noise_tex, q * 2.4 - vec2(TIME * 0.015, TIME * 0.004)).r;
 	float a = (0.18 + 0.5 * smoothstep(0.0, 0.7, h)) * (0.45 + 0.8 * (n * 0.6 + n2 * 0.4));
+	// у самой камеры (герой у края, камера за стеной) муть гаснет — иначе засвечивает весь кадр
+	a *= smoothstep(7.0, 15.0, length(wp - CAMERA_POSITION_WORLD));
 	ALBEDO = haze * (0.94 + 0.12 * n2);
 	ALPHA = clamp(a * strength, 0.0, 0.85);
 }
