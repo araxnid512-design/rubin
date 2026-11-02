@@ -6,6 +6,11 @@
 name: Tripo (аккаунт)
 
 on:
+  # запуск и при изменении этого файла: новую сборку GitHub иначе не даёт запустить вручную вне основной ветки
+  push:
+    branches: [ccr-f5d34f3a-q7wlgf]
+    paths:
+      - '.github/workflows/tripo-cli.yml'
   workflow_dispatch:
     inputs:
       minutes:
