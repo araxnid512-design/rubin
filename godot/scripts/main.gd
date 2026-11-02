@@ -112,14 +112,14 @@ func _setup_scene() -> void:
 	var we := WorldEnvironment.new()
 	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.6, 0.59, 0.53)
+	env.background_color = Color(0.5, 0.49, 0.44)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.56, 0.62, 0.7)
-	env.ambient_light_energy = 0.85
+	env.ambient_light_energy = 0.62
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.08
+	env.tonemap_exposure = 0.9   # было 1.08 — пользователь: «яркость убери сильную»
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.7, 0.66, 0.56)
+	env.fog_light_color = Color(0.58, 0.55, 0.47)
 	env.fog_sun_scatter = 0.2
 	if env.get("fog_mode") != null:
 		# туман по глубине (Godot 4.3+): до 17 м от камеры чисто, дальше — дымка до 55 % к 70 м
@@ -127,7 +127,7 @@ func _setup_scene() -> void:
 		env.set("fog_depth_begin", 17.0)
 		env.set("fog_depth_end", 70.0)
 		env.set("fog_depth_curve", 0.7)
-		env.fog_density = 0.55
+		env.fog_density = 0.42
 	else:
 		env.fog_density = 0.006
 	env.glow_enabled = false
@@ -145,14 +145,14 @@ func _setup_scene() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.light_color = Color(1.0, 0.84, 0.64)
-	sun.light_energy = 1.75
+	sun.light_energy = 1.4
 	sun.rotation_degrees = Vector3(-34, -69, 0)
 	sun.shadow_enabled = false   # теней нет (просьба пользователя)
 	add_child(sun)
 	var fill := DirectionalLight3D.new()
 	fill.name = "Fill"
 	fill.light_color = Color(0.62, 0.72, 0.9)
-	fill.light_energy = 0.3
+	fill.light_energy = 0.24
 	fill.light_specular = 0.0
 	fill.rotation_degrees = Vector3(-28, 111, 0)
 	fill.shadow_enabled = false

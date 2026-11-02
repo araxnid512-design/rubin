@@ -882,7 +882,7 @@ func _edge_haze() -> void:
 	sh.code = """
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
-uniform vec3 haze : source_color = vec3(0.6, 0.58, 0.5);
+uniform vec3 haze : source_color = vec3(0.5, 0.48, 0.42);
 uniform float edge = 65.0;
 varying vec2 p;
 void vertex() { p = VERTEX.xz; }
@@ -908,7 +908,7 @@ void fragment() {
 	wsh.code = """
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
-uniform vec3 haze : source_color = vec3(0.74, 0.71, 0.6);
+uniform vec3 haze : source_color = vec3(0.6, 0.58, 0.5);
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform float strength = 1.0;
 varying vec3 wp;
