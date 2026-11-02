@@ -7,7 +7,7 @@ import * as T from '../textures.js';
 import { box, place, planeXZ } from '../geom.js';
 import { buildHouse, buildShop, buildDacha, buildWorkshop } from '../buildings.js';
 import {
-	bench, swings, slide, streetLamp, barricade, garden, woodpile, outhouse, clothesline, bicycle,
+	bench, swings, slide, streetLamp, OPTIONS, barricade, garden, woodpile, outhouse, clothesline, bicycle,
 	settlementSign, fencePlot, shed, well, addCar, bus, markingMaterial, powerLine,
 } from '../props.js';
 
@@ -157,7 +157,7 @@ export default {
 		}
 
 		// ---------- Столбы ЛЭП с проводами ----------
-		{
+		if (OPTIONS.poles) {
 			const poles = [-44, -22, 0, 22, 44].map((x) => [x, 0.4]);
 			const wireMat = new THREE.LineBasicMaterial({ color: 0x1a1a1a });
 			poles.forEach(([x, z], i) => {

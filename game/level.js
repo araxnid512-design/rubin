@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import * as T from './textures.js';
 import { Batch, box, place, planeXZ } from './geom.js';
 import { Fader, segmentHitsBox } from './buildings.js';
-import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
+import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS } from './props.js';
 import { dressLevel } from './dressing.js';
 import { groundVariation, scatterGroundDetail } from './ground-detail.js';
 import zarechny from './locations/zarechny.js';
@@ -142,14 +142,17 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		if (Math.abs(x) > PLAY + 0.5 || Math.abs(z) > PLAY + 0.5) return;
 		if (navProbe.blockedAt(x, z, 1.2) || indoors(x, z, 1.5) || nearExit(x, z, 2)) return;
 		if (onRoad(x, z, 1)) return; // не на дорогах
-		trees.push({ x, z, kind, s: R(0.8, 1.25), r: R(0, Math.PI * 2) });
+		// выгрузка для Godot: деревьев меньше и они ниже (OPTIONS в props.js); у браузерной игры — как прежде
+		if (OPTIONS.treeKeep < 1 && rnd() > OPTIONS.treeKeep * (kind === 'apple' ? 2 : 1)) return;
+		const small = kind === 'apple' ? Math.min(1, OPTIONS.treeScale * 1.5) : OPTIONS.treeScale;
+		trees.push({ x, z, kind, s: R(0.8, 1.25) * small, r: R(0, Math.PI * 2) });
 		collide(x, z, 0.5, 0.5);
 	};
 	spec.trees?.(tryTree);
 	// окраина — пояс между прежним краем локации (47 м) и мутью: лесополосы и опушки (у стаба своя ограда)
 	if (spec.fog !== false) {
 		const kinds = spec.beltTrees ?? ['birch', 'birch', 'pine'];
-		for (let i = 0, placed = 0; placed < 110 * (spec.beltDensity ?? 1) && i < 2000; i++) {
+		for (let i = 0, placed = 0; placed < 110 * (spec.beltDensity ?? 1) * Math.min(1, OPTIONS.treeKeep * 1.5) && i < 2000; i++) {
 			const x = R(-PLAY, PLAY), z = R(-PLAY, PLAY);
 			if (Math.max(Math.abs(x), Math.abs(z)) < 47.5) continue;
 			const n = trees.length;

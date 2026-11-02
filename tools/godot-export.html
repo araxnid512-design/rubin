@@ -15,6 +15,13 @@
 		import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 		import { buildLevel, LOCATIONS, PLAY, HALF } from '../game/level.js';
 		import { WEAPONS } from '../game/weapons.js';
+		import { OPTIONS } from '../game/props.js';
+
+		// Godot-версия (по просьбе пользователя, как в Dawn of Zombies): без фонарей и столбов ЛЭП — с камеры сверху
+		// это длинные палки через экран; деревья невысокие (вдвое ниже) и редкие (примерно каждое седьмое)
+		OPTIONS.poles = false;
+		OPTIONS.treeKeep = 0.15;
+		OPTIONS.treeScale = 0.5;
 
 		const exporter = new GLTFExporter();
 		const r3 = (v) => Math.round(v * 1000) / 1000;

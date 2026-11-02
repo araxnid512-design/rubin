@@ -71,7 +71,15 @@ const lampMaterials = () => lampMats ??= {
 	dead: new THREE.MeshStandardMaterial({ color: 0x6a6e66, roughness: 0.4 }),
 	pool: new THREE.MeshBasicMaterial({ map: T.softDotTexture('255,196,120'), transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
 };
+/**
+ * Настройки выгрузки для Godot-версии (tools/godot-export.html меняет их перед сборкой локаций; браузерная игра —
+ * как прежде): poles — фонари и столбы ЛЭП (с камеры сверху — длинные палки через весь экран), treeKeep — доля
+ * деревьев, treeScale — их размер (как в Dawn of Zombies: деревья невысокие и редкие).
+ */
+export const OPTIONS = { poles: true, treeKeep: 1, treeScale: 1 };
+
 export function streetLamp(batch, M, collide, x, z) {
+	if (!OPTIONS.poles) return;
 	const L = lampMaterials();
 	const lit = Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1 < 0.75;
 	batch.add(place(box(0.22, 7, 0.22, 1, 3), x, 3.5, z), M.concrete);
@@ -511,6 +519,7 @@ export function transformer(batch, root, M, collide, x, z) {
 
 /** Деревянные столбы ЛЭП с провисшими проводами вдоль линии z от x0 до x1. */
 export function powerLine(batch, root, M, collide, x0, x1, z, step = 22) {
+	if (!OPTIONS.poles) return;
 	const wireMat = new THREE.LineBasicMaterial({ color: 0x1a1a1a });
 	let prev = null;
 	for (let x = x0; x <= x1 + 0.01; x += step) {
