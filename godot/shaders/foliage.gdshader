@@ -3,8 +3,12 @@
 // затенение без SSAO), качание на ветру. Крона между камерой и героем «просвечивает» (дизеринг), чтобы не
 // закрывать его при виде сверху. fade_range > 0 — экземпляры дальше от камеры сжимаются в точку (дальность
 // видимости по экземплярам, для кустов). bumps — неровный край куста (вершины смещаются по шуму).
+// Кроны — карточки с текстурой листвы (scripts/crowns.gd): прозрачное отбрасывается, видны обе стороны,
+// нормали сферические (не переворачиваются у обратной стороны); UV2.x — глубина в кроне (нутро темнее).
 shader_type spatial;
-render_mode cull_back, diffuse_lambert_wrap;
+render_mode cull_disabled, diffuse_lambert_wrap;
+
+uniform sampler2D leaf_tex : source_color, filter_linear_mipmap, repeat_disable;
 
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform float crown_y0 = 3.0;
@@ -18,6 +22,7 @@ uniform float see_through = 0.0;
 
 varying vec3 w_pos;
 varying float y01;
+varying float depth;
 
 void vertex() {
 	vec3 o = MODEL_MATRIX[3].xyz;
@@ -35,6 +40,7 @@ void vertex() {
 		VERTEX *= 1.0 - smoothstep(fade_range - 4.0, fade_range, d);
 	}
 	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	depth = UV2.x;
 }
 
 void fragment() {
@@ -48,13 +54,20 @@ void fragment() {
 			discard;
 		}
 	}
-	float n = texture(noise_tex, w_pos.xz * 0.55 + vec2(w_pos.y * 0.45, 0.0)).r;
+	vec4 leaf = texture(leaf_tex, UV);
+	if (leaf.a < 0.5) {
+		discard;
+	}
+	// у обратной стороны карточки Godot переворачивает нормаль — у кроны она сферическая, возвращаем
+	if (!FRONT_FACING) {
+		NORMAL = -NORMAL;
+	}
+	float n = texture(noise_tex, w_pos.xz * 0.35 + vec2(w_pos.y * 0.3, 0.0)).r;
 	float n2 = texture(noise_tex, w_pos.xz * 0.09 + vec2(0.5, 0.2)).r;
-	float n3 = texture(noise_tex, w_pos.xz * 2.3 + vec2(w_pos.y * 1.7, 0.3)).r;
-	vec3 c = COLOR.rgb;
-	c *= (0.7 + n * 0.6) * (0.78 + n3 * 0.44);
+	vec3 c = COLOR.rgb * leaf.rgb * 1.25;
+	c *= 0.8 + n * 0.4;
 	c = mix(c, c * vec3(1.15, 1.05, 0.7), smoothstep(0.6, 0.8, n2) * 0.5);
-	c *= mix(0.62, 1.1, y01);
+	c *= mix(0.7, 1.08, y01) * (1.0 - depth * 0.45);
 	ALBEDO = c;
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;

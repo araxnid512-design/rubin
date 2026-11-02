@@ -129,6 +129,7 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 	add_child(cs)
 	model = (load("res://assets/characters/player.glb") as PackedScene).instantiate()
 	add_child(model)
+	Level.rim(model)
 	anim = model.find_child("AnimationPlayer", true, false)
 	for c in LOOPED:
 		if anim and anim.has_animation(c):

@@ -134,6 +134,15 @@ node scripts/render-previews.mjs   # снимки локаций для карт
     кладёт снимок/журнал в gh-pages/godot-test (читать через raw.githubusercontent.com). Пакет требований —
     архив «STIKS_Opus55_Upgrade_Pack» пользователя.
 
+13. **Картинка «как в Dawn of Zombies» (идёт, по снимкам):** травы, кустов и теней нет — пользователь просил
+    не делать. **Фотосъёмка в CI:** `godot -- --shots <папка>` (`godot/scripts/shots.gd`) под xvfb настоящим
+    рендером снимает каждую локацию (старт, дома, улица, сверху) с нагрузкой кадра; снимки и `stats.txt` —
+    в gh-pages/godot-shots, смотреть: `curl https://raw.githubusercontent.com/araxnid512-design/rubin/gh-pages/godot-shots/zarechny_1.jpg`
+    и Read картинки. Сделано: фото-текстуры CC0 (CI качает `scripts/fetch-assets.mjs`, шейдер world с PHOTO —
+    таблица `PHOTO` в level.gd), кроны из карточек листвы (`godot/scripts/crowns.gd`, текстуры рисуются кодом),
+    полупрозрачные постройки между героем и камерой (`blocks` в выгрузке, `occluder` в локациях браузерной
+    игры), мягкая сырость, кнопки без наложений (автотест проверяет).
+
 ## Подводные камни
 
 - `Batch.add` требует у геометрии uv и нормали (иначе `mergeGeometries` вернёт null) — `geom.js` их

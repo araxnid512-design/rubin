@@ -47,6 +47,7 @@ func setup(g: Node, t: String, pos: Vector3) -> void:
 	model = (load("res://assets/characters/%s.glb" % t) as PackedScene).instantiate()
 	model.scale = Vector3.ONE * float(T["scale"])
 	add_child(model)
+	Level.rim(model)
 	anim = model.find_child("AnimationPlayer", true, false)
 	for c in LOOPED:
 		if anim and anim.has_animation(c):

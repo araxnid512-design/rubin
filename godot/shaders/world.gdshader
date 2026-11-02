@@ -35,6 +35,8 @@ uniform sampler2D photo_albedo : source_color, filter_linear_mipmap_anisotropic,
 uniform sampler2D photo_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform float photo_tile = 3.0;
 uniform float photo_contrast = 1.0;
+// 0 — от фото только яркость (цвет — нарисованный), 1 — и оттенки (листья, ржавчина)
+uniform float photo_chroma = 0.6;
 uniform float photo_normal_on = 1.0;
 #endif
 
@@ -71,11 +73,13 @@ void fragment() {
 		// вторая выборка: крупнее в 2,7 раза и повёрнута — смешивается по шуму, повтор плитки не виден
 		vec2 puv2 = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8)) * puv * 0.37 + vec2(0.31, 0.57);
 		float k = smoothstep(0.35, 0.65, n2);
-		ph = mix(ph, texture(photo_albedo, puv2).rgb, k);
-		pn = mix(pn, texture(photo_normal, puv2).rgb, k);
+		ph = mix(ph, texture(photo_albedo, puv2).rgb, k);   // нормали — одной выборкой: экономия на телефоне
 	}
 #endif
-	vec4 base = vec4(paint * mix(vec3(1.0), ph / ph_avg, photo_contrast), 1.0);
+	vec3 ratio = ph / ph_avg;
+	float lr = dot(ph, vec3(0.3, 0.59, 0.11)) / dot(ph_avg, vec3(0.3, 0.59, 0.11));
+	ratio = mix(vec3(lr), ratio, photo_chroma);
+	vec4 base = vec4(paint * mix(vec3(1.0), ratio, photo_contrast), 1.0);
 	vec3 col = base.rgb * albedo_color.rgb;
 	vec3 nmap = mix(vec3(0.5, 0.5, 1.0), pn, photo_normal_on);
 #else

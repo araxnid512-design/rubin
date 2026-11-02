@@ -55,7 +55,7 @@ jobs:
       - name: Бесплатные текстуры CC0
         continue-on-error: true
         run: |
-          node scripts/fetch-assets.mjs --only=road_damaged,brown_mud_leaves_01,Grass007,asbestos_sheet,rusty_corrugated_iron,raw_plank_wall,wood_peeling_paint_weathered,concrete_wall_001,concrete_wall_008,mixed_brick_wall
+          node scripts/fetch-assets.mjs --only=road_damaged,brown_mud_leaves_01,Grass007,asbestos_sheet,rusty_corrugated_iron,raw_plank_wall,wood_peeling_paint_weathered,concrete_wall_001,concrete_wall_008,mixed_brick_wall 2>&1 | tee fetch.log
           # в игру — только цвет и нормали: прочие карты шейдеру не нужны, а место в APK заняли бы
           find godot/assets/external/textures -type f \( -iname '*_arm_*' -o -iname '*roughness*' -o -iname '*ambientocclusion*' -o -iname '*metalness*' -o -iname '*displacement*' -o -iname '*opacity*' -o -iname '*.usda' -o -iname '*.mtlx' \) -delete
           ls -la godot/assets/external/textures/* | head -60
@@ -96,6 +96,8 @@ jobs:
           mkdir -p shots
           timeout 900 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME xvfb-run -a -s "-screen 0 1600x720x24" godot --path godot --rendering-driver opengl3 --resolution 1600x720 -- --shots "$PWD/shots" > shots/log.txt 2>&1 || true
           grep -E "SHOTS|снимок|ERROR|SCRIPT|✗" shots/log.txt | head -150
+          cp fetch.log shots/fetch-log.txt 2>/dev/null || true
+          cp godot/assets/external/LICENSES.md shots/ 2>/dev/null || true
           ls -la shots
       - name: Выложить снимки
         if: always() && hashFiles('shots/stats.txt') != ''

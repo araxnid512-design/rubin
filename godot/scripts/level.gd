@@ -51,31 +51,31 @@ const LOOK := {
 ## То же по началу имени (текстуры с номером или вариантом: гаражные ворота, фасад хрущёвки).
 const LOOK_PREFIX := {"garage": [0.0, 0.2, 1.0, 0.2], "panel": [0.0, 0.35, 1.0, 0.3]}
 ## Фото-текстуры CC0 (scripts/fetch-assets.mjs → assets/external/textures/<набор>/, авторы — в LICENSES.md там же):
-## материал браузерной игры → [набор, размер плитки (м), контраст деталей]. Цвет остаётся от нарисованной текстуры
+## материал браузерной игры → [набор, размер плитки (м), контраст деталей, доля оттенков фото]. Цвет остаётся от нарисованной текстуры
 ## (её средний цвет), от фото — детали и рельеф (шейдер world с PHOTO). Нет набора (не скачался) — как раньше.
 const PHOTO := {
-	"asphalt": ["road_damaged", 5.0, 0.9],
-	"dirt": ["brown_mud_leaves_01", 3.5, 0.9],
-	"sand": ["brown_mud_leaves_01", 3.5, 0.7],
-	"grass": ["Grass007", 2.5, 0.8],
-	"concrete": ["concrete_wall_008", 3.0, 0.85],
-	"concreteDark": ["concrete_wall_008", 3.0, 0.85],
-	"roofTar": ["concrete_wall_008", 3.0, 0.7],
-	"ballast": ["concrete_wall_008", 2.0, 1.0],
-	"plaster": ["concrete_wall_001", 3.0, 0.8],
-	"brick": ["mixed_brick_wall", 2.0, 1.0],
-	"whiteBrick": ["mixed_brick_wall", 2.0, 0.8],
-	"wood": ["raw_plank_wall", 2.0, 0.9],
-	"woodGrey": ["raw_plank_wall", 2.0, 0.9],
-	"sleeper": ["raw_plank_wall", 2.0, 0.9],
-	"woodGreen": ["wood_peeling_paint_weathered", 2.0, 0.9],
-	"woodBlue": ["wood_peeling_paint_weathered", 2.0, 0.9],
-	"woodYellow": ["wood_peeling_paint_weathered", 2.0, 0.9],
-	"slate": ["asbestos_sheet", 2.0, 0.9],
-	"roofMetal": ["rusty_corrugated_iron", 2.0, 0.9],
-	"roofGreen": ["rusty_corrugated_iron", 2.0, 0.8],
-	"metalRust": ["rusty_corrugated_iron", 2.0, 1.0],
-	"metalOlive": ["rusty_corrugated_iron", 2.0, 0.8],
+	"asphalt": ["road_damaged", 5.0, 0.9, 0.3],
+	"dirt": ["brown_mud_leaves_01", 3.5, 0.75, 0.3],
+	"sand": ["brown_mud_leaves_01", 3.5, 0.6, 0.25],
+	"grass": ["Grass007", 2.5, 0.8, 0.6],
+	"concrete": ["concrete_wall_008", 3.0, 0.85, 0.4],
+	"concreteDark": ["concrete_wall_008", 3.0, 0.85, 0.4],
+	"roofTar": ["concrete_wall_008", 3.0, 0.7, 0.3],
+	"ballast": ["concrete_wall_008", 2.0, 1.0, 0.3],
+	"plaster": ["concrete_wall_001", 3.0, 0.8, 0.4],
+	"brick": ["mixed_brick_wall", 2.0, 1.0, 0.8],
+	"whiteBrick": ["mixed_brick_wall", 2.0, 0.8, 0.3],
+	"wood": ["raw_plank_wall", 2.0, 0.9, 0.5],
+	"woodGrey": ["raw_plank_wall", 2.0, 0.9, 0.5],
+	"sleeper": ["raw_plank_wall", 2.0, 0.9, 0.5],
+	"woodGreen": ["wood_peeling_paint_weathered", 2.0, 0.9, 0.5],
+	"woodBlue": ["wood_peeling_paint_weathered", 2.0, 0.9, 0.5],
+	"woodYellow": ["wood_peeling_paint_weathered", 2.0, 0.9, 0.5],
+	"slate": ["asbestos_sheet", 2.0, 0.9, 0.5],
+	"roofMetal": ["rusty_corrugated_iron", 2.0, 0.9, 0.9],
+	"roofGreen": ["rusty_corrugated_iron", 2.0, 0.8, 0.6],
+	"metalRust": ["rusty_corrugated_iron", 2.0, 1.0, 0.9],
+	"metalOlive": ["rusty_corrugated_iron", 2.0, 0.8, 0.6],
 }
 const PHOTO_DIR := "res://assets/external/textures/"
 ## Листва (кроны деревьев): материал образца MultiMesh → оттенки.
@@ -235,10 +235,12 @@ func _multimesh() -> void:
 		var gr: Dictionary = groups[key]
 		var kind2: String = gr["kind"]
 		var leafy: bool = kind2 in FOLIAGE
-		var mmi := _instances(gr["list"], gr["mesh"], leafy)
+		# крона — карточки с текстурой листвы вместо гладкой многогранной (scripts/crowns.gd)
+		var mesh: Mesh = Crowns.mesh_for(gr["mesh"], kind2) if leafy else gr["mesh"]
+		var mmi := _instances(gr["list"], mesh, leafy)
 		if leafy:
 			if not foliage_of.has(kind2):
-				foliage_of[kind2] = _foliage_material(kind2, gr["mesh"])
+				foliage_of[kind2] = _foliage_material(kind2, mesh)
 			mmi.material_override = foliage_of[kind2]
 			mmi.extra_cull_margin = 0.5
 		else:
@@ -289,8 +291,8 @@ func _foliage_material(kind: String, mesh: Mesh) -> ShaderMaterial:
 	m.set_shader_parameter("sway", 0.12 if kind == "pine" else 0.22)
 	m.set_shader_parameter("sway_h", 4.0 if kind == "leavesDry" else 8.0)
 	m.set_shader_parameter("see_through", 1.0)
-	# круглые кроны — с неровным краем (у ёлок конусы с острыми рёбрами: смещение разорвало бы их)
-	m.set_shader_parameter("bumps", 0.0 if kind == "pine" else 0.35)
+	m.set_shader_parameter("leaf_tex", Crowns.texture(kind))
+	m.set_shader_parameter("bumps", 0.0)
 	foliage_mats.append(m)
 	return m
 
@@ -587,6 +589,7 @@ func _world_material(b: BaseMaterial3D, params: Array) -> ShaderMaterial:
 		m.set_shader_parameter("photo_normal_on", 1.0 if tex[1] != null else 0.0)
 		m.set_shader_parameter("photo_tile", float(ph[1]))
 		m.set_shader_parameter("photo_contrast", float(ph[2]))
+		m.set_shader_parameter("photo_chroma", float(ph[3]))
 		stats["photo_mats"] = int(stats.get("photo_mats", 0)) + 1
 	m.shader = shader(_world_shader_name(not tex.is_empty()))
 	m.set_shader_parameter("albedo_tex", b.albedo_texture)
@@ -805,6 +808,22 @@ static func _segment_hits_box(p: Vector3, q: Vector3, b: Dictionary) -> bool:
 			return false
 	return true
 
+## Подсветка контура персонажа (rim): тёплый ободок по краю силуэта — герой и заражённые читаются на земле и
+## в тени крон (как в браузерной версии). Материалы модели общие у всех её копий — меняются один раз.
+static func rim(root: Node) -> void:
+	for c in root.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = c
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var m := mi.get_active_material(s) as BaseMaterial3D
+			if m == null or m.has_meta("rim"):
+				continue
+			m.set_meta("rim", true)
+			m.rim_enabled = true
+			m.rim = 0.35
+			m.rim_tint = 0.45
+
 ## Полупрозрачный «призрак» постройки: светлый, без текстур — видно героя и контуры здания.
 static func ghost_material() -> StandardMaterial3D:
 	if _ghost == null:
@@ -866,31 +885,52 @@ void fragment() {
 	mi.position.y = 0.06
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
-	# стены мути — полупрозрачные полотна по краю (один меш и материал на все четыре)
-	var q := QuadMesh.new()
-	q.size = Vector2(half * 2.0 + 30.0, 18.0)
-	var wm := StandardMaterial3D.new()
-	wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	wm.albedo_color = Color(0.74, 0.71, 0.6, 0.5)
-	wm.cull_mode = BaseMaterial3D.CULL_DISABLED
-	for side in 4:
-		var wall := MeshInstance3D.new()
-		wall.mesh = q
-		wall.material_override = wm
-		wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var d := half - 1.5
-		wall.position = Vector3(0, 9.0, 0)
-		match side:
-			0: wall.position.z = -d
-			1: wall.position.z = d
-			2:
-				wall.position.x = -d
-				wall.rotation.y = PI / 2.0
-			3:
-				wall.position.x = d
-				wall.rotation.y = PI / 2.0
-		add_child(wall)
+	# стены мути по краю: клубящаяся муть (шум плывёт), внизу прозрачнее, кверху гуще; два слоя — ближний
+	# реже, дальний гуще: край читается как туман с глубиной, а не плоская стена. Один материал на все полотна.
+	var wm := ShaderMaterial.new()
+	var wsh := Shader.new()
+	wsh.code = """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
+uniform vec3 haze : source_color = vec3(0.74, 0.71, 0.6);
+uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
+uniform float strength = 1.0;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float h = clamp(wp.y / 18.0, 0.0, 1.0);
+	vec2 q = vec2(wp.x + wp.z, wp.y * 1.6) * 0.03;
+	float n = texture(noise_tex, q + vec2(TIME * 0.008, 0.0)).r;
+	float n2 = texture(noise_tex, q * 2.4 - vec2(TIME * 0.015, TIME * 0.004)).r;
+	float a = (0.18 + 0.5 * smoothstep(0.0, 0.7, h)) * (0.45 + 0.8 * (n * 0.6 + n2 * 0.4));
+	ALBEDO = haze * (0.94 + 0.12 * n2);
+	ALPHA = clamp(a * strength, 0.0, 0.85);
+}
+"""
+	wm.shader = wsh
+	wm.set_shader_parameter("noise_tex", noise_texture())
+	var wm_near := wm.duplicate() as ShaderMaterial
+	wm_near.set_shader_parameter("strength", 0.55)
+	for layer in 2:
+		var q := QuadMesh.new()
+		var d := half - 1.5 + layer * 5.0
+		q.size = Vector2(d * 2.0 + 30.0, 18.0)
+		for side in 4:
+			var wall := MeshInstance3D.new()
+			wall.mesh = q
+			wall.material_override = wm_near if layer == 0 else wm
+			wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			wall.position = Vector3(0, 9.0, 0)
+			match side:
+				0: wall.position.z = -d
+				1: wall.position.z = d
+				2:
+					wall.position.x = -d
+					wall.rotation.y = PI / 2.0
+				3:
+					wall.position.x = d
+					wall.rotation.y = PI / 2.0
+			add_child(wall)
 
 ## Огонь в бочке или на остове: частицы пламени (яркие — на высоком качестве светятся через glow) и тёплый
 ## свет — у первых двух огней (сколько из них горит светом — по качеству, Q_LIGHTS).
