@@ -24,6 +24,10 @@ const FEATURE_SCRIPTS := [
 	"res://scripts/features/mercs.gd",
 	"res://scripts/features/murs.gd",
 	"res://scripts/features/anim_check.gd",
+	"res://scripts/features/minimap.gd",
+	"res://scripts/features/audio.gd",
+	"res://scripts/features/settings.gd",
+	"res://scripts/features/guns.gd",
 ]
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).

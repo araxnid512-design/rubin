@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const shadow = (g) => { g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); return g; };
 
@@ -277,6 +277,331 @@ export function makeVss() {
 	return shadow(g);
 }
 
+// ---------- Новые стволы (SCAR-H, FN FAL, Steyr AUG, PM-63 RAK, SPAS-12) ----------
+// Детали — скруглённые бруски, стволы-цилиндры и профили (контур в плоскости хвата, выдавленный по толщине),
+// пистолетная рукоять наклонена как у настоящего оружия: низ — к прикладу. В конце детали одного материала
+// сливаются в один меш: на телефоне ствол в руке и за спиной — несколько команд видеокарте, а не десятки.
+
+/** Контур (u, v) → хват (x = толщина, y = u, z = v). */
+const YZX = new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1);
+/**
+ * Профильная деталь: draw(s) рисует контур в координатах хвата (y — вдоль ствола, z — вверх), depth — толщина
+ * по X, кромки скруглены фаской bevel; holes — вырезы (функции, рисующие контур выреза).
+ */
+function slab(draw, depth, { bevel = Math.min(0.005, depth * 0.25), holes = [] } = {}) {
+	const s = new THREE.Shape();
+	draw(s);
+	for (const h of holes) { const p = new THREE.Path(); h(p); s.holes.push(p); }
+	const geo = new THREE.ExtrudeGeometry(s, { depth: depth - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 2, curveSegments: 6 });
+	geo.clearGroups();
+	geo.translate(0, 0, -(depth - bevel * 2) / 2);
+	geo.applyMatrix4(YZX);
+	return mergeVertices(geo);
+}
+/** Мелкая деталь (прорезь, насечка) — простой брусок: скругления на ней не видно, а треугольников вшестеро меньше. */
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+/** Контур по точкам [[y, z], …] (для slab). */
+const poly = (pts) => (s) => { s.moveTo(...pts[0]); for (const p of pts.slice(1)) s.lineTo(...p); s.closePath(); };
+/** Трубка по точкам [[x, y, z], …] (скоба, крюк, ручка); flat — сплющить по X в ленту. */
+function tube(g, mat, pts, r = 0.0035, flat = 1) {
+	const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p)));
+	const m = part(g, new THREE.TubeGeometry(curve, pts.length * 6, r, 6), mat, 0, 0, 0);
+	m.scale.x = flat;
+	return m;
+}
+/** Пистолетная рукоять: профиль с выпуклой спинкой, наклон rake (низ уходит к прикладу, +Y). */
+function pistolGrip(g, mat, { w = 0.03, front = -0.019, back = 0.021, top = 0.05, bottom = -0.062, rake = 0.3 } = {}) {
+	const geo = slab((s) => {
+		s.moveTo(front, top);
+		s.lineTo(front, bottom + 0.012);
+		s.quadraticCurveTo(front, bottom, front + 0.012, bottom);
+		s.lineTo(back - 0.004, bottom);
+		s.quadraticCurveTo(back + 0.002, bottom, back + 0.002, bottom + 0.012);
+		s.quadraticCurveTo(back + 0.009, (top + bottom) / 2, back, top);
+		s.closePath();
+	}, w, { bevel: 0.006 });
+	return part(g, geo, mat, 0, 0, 0, rake);
+}
+/** Спусковая скоба (трубка от рукояти вниз и вперёд) и спусковой крючок. */
+function triggerGuard(g, mat, { y0 = -0.012, y1 = -0.075, top = 0.032, low = 0.008 } = {}) {
+	tube(g, mat, [[0, y0, top], [0, y0 - 0.006, low + 0.004], [0, (y0 + y1) / 2, low], [0, y1 + 0.008, low + 0.004], [0, y1, top]], 0.0032, 1.4);
+	part(g, rbox(0.006, 0.007, 0.022), mat, 0, y0 - 0.025, top - 0.012, 0.25);
+}
+/** Планка Пикатинни: основание и зубцы через 1 см; y0 > y1 (от приклада к стволу). */
+function rail(g, mat, y0, y1, z, w = 0.022) {
+	part(g, rbox(w, y0 - y1, 0.008), mat, 0, (y0 + y1) / 2, z);
+	const tooth = new THREE.BoxGeometry(w + 0.003, 0.005, 0.004);
+	for (let y = y0 - 0.006; y > y1 + 0.004; y -= 0.0105) part(g, tooth, mat, 0, y, z + 0.005);
+}
+/** Ряды отверстий на цилиндре (кожух ствола): angles — где по кругу (0 — сверху), от y0 к y1. */
+function holes(g, mat, { y0, y1, n, z, r, angles }) {
+	const disc = new THREE.CylinderGeometry(r * 0.24, r * 0.24, 0.004, 8);
+	for (const a of angles) for (let i = 0; i < n; i++) {
+		const y = y0 + ((y1 - y0) * (i + 0.5)) / n;
+		const m = part(g, disc, mat, Math.sin(a) * r, y, z + Math.cos(a) * r);
+		m.rotation.set(Math.PI / 2, a, 0, 'YXZ');
+	}
+}
+/**
+ * Детали одного материала — в один меш (ось хвата та же). keep — подвижные детали (затвор, цевьё), они
+ * остаются отдельными, их двигает game.cycleGun.
+ */
+function merged(g, keep = []) {
+	g.updateMatrixWorld(true);
+	const byMat = new Map();
+	for (const o of [...g.children]) {
+		if (!o.isMesh || keep.includes(o)) continue;
+		let geo = o.geometry.clone();
+		geo.clearGroups();
+		if (!geo.index) geo = mergeVertices(geo);
+		geo.applyMatrix4(o.matrix);
+		if (!byMat.has(o.material)) byMat.set(o.material, { geos: [], meshes: [] });
+		byMat.get(o.material).geos.push(geo);
+		byMat.get(o.material).meshes.push(o);
+	}
+	for (const [mat, { geos, meshes }] of byMat) {
+		const geo = meshes.length > 1 ? mergeGeometries(geos) : null;
+		if (!geo) continue; // одна деталь или не слилось — оставить как есть
+		for (const o of meshes) g.remove(o);
+		const m = new THREE.Mesh(geo, mat);
+		m.name = `${g.name}_${mat.name || byMat.size}`;
+		g.add(m);
+	}
+	return shadow(g);
+}
+
+/**
+ * SCAR-H (Mk17): цвет «койот» — верхний ствольный короб с планкой Пикатинни во всю длину и боковыми планками
+ * на цевье, полимерный нижний короб, прямой магазин на 20 патронов 7,62×51, складной приклад с вырезом и щекой,
+ * рукоятка заряжания слева, пламегаситель.
+ */
+export function makeScar() {
+	const g = new THREE.Group();
+	g.name = 'SCAR';
+	const fde = M(0xa68d64, 0.72, 0.05), upperMat = M(0xb39a6e, 0.55, 0.25), black = M(0x1d1e20, 0.5, 0.35), steel = M(0x2a2c2e, 0.38, 0.8);
+	fde.name = 'fde'; upperMat.name = 'upper'; black.name = 'black'; steel.name = 'steel';
+	// нижний короб с горловиной магазина
+	part(g, slab(poly([[0.075, 0.068], [-0.19, 0.068], [-0.19, 0.036], [-0.176, 0.012], [-0.086, 0.012], [-0.066, 0.03], [0.03, 0.03], [0.075, 0.04]]), 0.05), fde, 0, 0, 0);
+	pistolGrip(g, fde, { top: 0.045 });
+	triggerGuard(g, fde, { y0: -0.014, y1: -0.082, top: 0.034 });
+	// верхний короб — одно целое с цевьём; сверху планка, на цевье — боковые и нижняя
+	part(g, rbox(0.056, 0.575, 0.062), upperMat, 0, -0.2, 0.098);
+	rail(g, upperMat, 0.083, -0.48, 0.133);
+	for (const x of [-0.031, 0.031]) part(g, rbox(0.009, 0.17, 0.02), upperMat, x, -0.39, 0.097);
+	part(g, rbox(0.022, 0.17, 0.009), upperMat, 0, -0.39, 0.063);
+	part(g, box(0.003, 0.065, 0.022), black, -0.0285, -0.035, 0.1); // окно выброса справа
+	part(g, box(0.003, 0.2, 0.008), black, 0.0285, -0.15, 0.112); // паз рукоятки заряжания слева
+	const handle = part(g, rbox(0.032, 0.016, 0.016), black, 0.042, -0.21, 0.112);
+	// сложенные прицельные приспособления на планке
+	part(g, rbox(0.02, 0.024, 0.013), black, 0, -0.465, 0.146);
+	part(g, rbox(0.02, 0.02, 0.013), black, 0, 0.055, 0.146);
+	// ствол, газовый блок и пламегаситель
+	part(g, barrelY(0.0115, 0.2), steel, 0, -0.58, 0.092);
+	part(g, barrelY(0.0145, 0.055), black, 0, -0.7, 0.092);
+	for (const a of [0, 2.1, 4.2]) { const s = part(g, box(0.004, 0.04, 0.004), steel, Math.sin(a) * 0.0145, -0.705, 0.092 + Math.cos(a) * 0.0145); s.rotation.y = a; }
+	// магазин 20 патронов, рёбра жёсткости и затыльник
+	part(g, slab((s) => { s.moveTo(-0.172, 0.022); s.lineTo(-0.088, 0.022); s.quadraticCurveTo(-0.09, -0.04, -0.1, -0.104); s.lineTo(-0.18, -0.108); s.quadraticCurveTo(-0.17, -0.04, -0.172, 0.022); }, 0.03), black, 0, 0, 0);
+	part(g, rbox(0.036, 0.094, 0.012), black, 0, -0.14, -0.112);
+	// складной приклад: шарнир, тело с вырезом и щекой, резиновый затыльник
+	part(g, rbox(0.05, 0.03, 0.062), black, 0, 0.092, 0.098);
+	part(g, slab(poly([[0.105, 0.124], [0.345, 0.124], [0.362, 0.112], [0.362, -0.026], [0.34, -0.032], [0.25, 0.038], [0.15, 0.066], [0.105, 0.07]]), 0.04, {
+		holes: [poly([[0.205, 0.1], [0.315, 0.1], [0.315, 0.012], [0.248, 0.058]])],
+	}), fde, 0, 0, 0);
+	part(g, rbox(0.044, 0.018, 0.162), black, 0, 0.372, 0.045);
+	g.userData.action = { part: handle, travel: 0.04, dur: 0.07 };
+	g.userData.muzzle = new THREE.Vector3(0, -0.73, 0.092);
+	return merged(g, [handle]);
+}
+
+/**
+ * FN FAL: воронёная сталь и дерево — деревянные приклад, рукоять и нижняя накладка цевья, сверху вентилируемый
+ * кожух газовой трубки, прицел на заднем конце короба, сложенная ручка для переноски, магазин на 20, длинный
+ * ствол с газовым регулятором, высокой мушкой и щелевым пламегасителем.
+ */
+export function makeFal() {
+	const g = new THREE.Group();
+	g.name = 'FAL';
+	const steel = M(0x27282a, 0.42, 0.7), wood = M(0x7a4524, 0.55), dark = M(0x161718, 0.6, 0.3);
+	steel.name = 'steel'; wood.name = 'wood'; dark.name = 'dark';
+	// нижний короб со спуском и горловиной, верхний короб и крышка
+	part(g, slab(poly([[0.072, 0.072], [-0.205, 0.072], [-0.205, 0.046], [-0.19, 0.02], [-0.092, 0.02], [-0.072, 0.034], [0.03, 0.034], [0.072, 0.044]]), 0.05), steel, 0, 0, 0);
+	part(g, rbox(0.052, 0.282, 0.054), steel, 0, -0.066, 0.098);
+	part(g, slab(poly([[0.075, 0.122], [-0.04, 0.134], [-0.205, 0.128], [-0.205, 0.118], [0.075, 0.116]]), 0.044), steel, 0, 0, 0);
+	part(g, box(0.003, 0.07, 0.024), dark, -0.0275, -0.03, 0.1); // окно выброса
+	// прицел: основание и диоптр
+	part(g, rbox(0.026, 0.035, 0.02), steel, 0, 0.05, 0.138);
+	part(g, rbox(0.012, 0.008, 0.024), steel, 0, 0.06, 0.155);
+	// ручка для переноски сложена вдоль левого борта, рукоятка заряжания — слева спереди
+	tube(g, steel, [[0.03, -0.05, 0.128], [0.04, -0.075, 0.15], [0.043, -0.14, 0.152], [0.038, -0.17, 0.132]], 0.0045);
+	const handle = part(g, rbox(0.03, 0.014, 0.014), steel, 0.042, -0.17, 0.104);
+	pistolGrip(g, wood, { top: 0.046 });
+	triggerGuard(g, steel, { y0: -0.012, y1: -0.084, top: 0.036 });
+	// цевьё: деревянная накладка снизу, сверху — кожух газовой трубки с прорезями
+	part(g, slab(poly([[-0.205, 0.104], [-0.47, 0.104], [-0.47, 0.076], [-0.452, 0.058], [-0.225, 0.05], [-0.205, 0.062]]), 0.06, { bevel: 0.008 }), wood, 0, 0, 0);
+	part(g, rbox(0.046, 0.262, 0.03), steel, 0, -0.337, 0.12);
+	for (let i = 0; i < 5; i++) for (const x of [-0.0235, 0.0235]) part(g, box(0.003, 0.03, 0.009), dark, x, -0.255 - i * 0.042, 0.122);
+	// ствол, газовый регулятор, мушка с ушками, пламегаситель
+	part(g, barrelY(0.0115, 0.32), steel, 0, -0.63, 0.09);
+	part(g, rbox(0.03, 0.04, 0.05), steel, 0, -0.49, 0.105);
+	part(g, barrelY(0.008, 0.045), steel, 0, -0.53, 0.12);
+	part(g, rbox(0.022, 0.024, 0.04), steel, 0, -0.735, 0.112);
+	for (const x of [-0.009, 0.009]) part(g, rbox(0.004, 0.016, 0.028), steel, x, -0.735, 0.138);
+	part(g, barrelY(0.0145, 0.075), steel, 0, -0.825, 0.09);
+	for (const a of [-0.9, 0.9, Math.PI]) { const s = part(g, box(0.003, 0.05, 0.004), dark, Math.sin(a) * 0.0145, -0.83, 0.09 + Math.cos(a) * 0.0145); s.rotation.y = a; }
+	// магазин на 20 и затыльник
+	part(g, slab((s) => { s.moveTo(-0.184, 0.03); s.lineTo(-0.096, 0.03); s.quadraticCurveTo(-0.096, -0.04, -0.104, -0.11); s.lineTo(-0.19, -0.114); s.quadraticCurveTo(-0.184, -0.04, -0.184, 0.03); }, 0.03), steel, 0, 0, 0);
+	part(g, rbox(0.036, 0.096, 0.011), steel, 0, -0.147, -0.116);
+	// приклад: гребень, шейка у короба, затылок; стальной затыльник
+	part(g, slab((s) => {
+		s.moveTo(0.068, 0.124);
+		s.lineTo(0.2, 0.12);
+		s.lineTo(0.425, 0.112);
+		s.lineTo(0.43, -0.03);
+		s.quadraticCurveTo(0.3, 0.012, 0.16, 0.05);
+		s.quadraticCurveTo(0.1, 0.056, 0.068, 0.064);
+		s.closePath();
+	}, 0.042, { bevel: 0.009 }), wood, 0, 0, 0);
+	part(g, rbox(0.046, 0.012, 0.158), dark, 0, 0.438, 0.042);
+	g.userData.action = { part: handle, travel: 0.05, dur: 0.07 };
+	g.userData.muzzle = new THREE.Vector3(0, -0.865, 0.09);
+	return merged(g, [handle]);
+}
+
+/**
+ * Steyr AUG: буллпап — оливковое ложе от рукояти до затылка, магазин (дымчатый полимер) за рукоятью, большая
+ * скоба вокруг кисти до складной передней рукояти, ручка с встроенным прицелом 1,5×, открытый ствол
+ * с пламегасителем.
+ */
+export function makeAug() {
+	const g = new THREE.Group();
+	g.name = 'AUG';
+	const olive = M(0x5f6647, 0.72, 0.05), black = M(0x1f2022, 0.45, 0.55), steel = M(0x2a2c2e, 0.38, 0.8), smoke = M(0x3d423e, 0.35, 0.1), glass = M(0x203040, 0.1, 0.6);
+	olive.name = 'olive'; black.name = 'black'; steel.name = 'steel'; smoke.name = 'smoke'; glass.name = 'glass';
+	// ложе: тонкое спереди, где выходит ствол, глубокое к затылку; горловина магазина за рукоятью
+	part(g, slab((s) => {
+		s.moveTo(-0.075, 0.086);
+		s.lineTo(0.1, 0.096);
+		s.lineTo(0.33, 0.104);
+		s.quadraticCurveTo(0.375, 0.108, 0.385, 0.096);
+		s.lineTo(0.385, -0.036);
+		s.quadraticCurveTo(0.372, -0.052, 0.34, -0.05);
+		s.lineTo(0.235, -0.032);
+		s.quadraticCurveTo(0.19, -0.01, 0.16, -0.004);
+		s.lineTo(0.07, 0.0);
+		s.quadraticCurveTo(0.04, 0.012, 0.03, 0.036);
+		s.lineTo(-0.035, 0.044);
+		s.quadraticCurveTo(-0.07, 0.054, -0.075, 0.086);
+	}, 0.058, { bevel: 0.012 }), olive, 0, 0, 0);
+	part(g, box(0.004, 0.07, 0.03), black, -0.0345, 0.16, 0.06); // крышка окна выброса справа
+	part(g, rbox(0.06, 0.012, 0.15), black, 0, 0.398, 0.03); // резиновый затыльник
+	// ручка-прицел: основание на коробе, две стойки, труба прицела с объективом и окуляром
+	part(g, slab(poly([[-0.095, 0.092], [-0.095, 0.118], [-0.072, 0.162], [0.16, 0.162], [0.18, 0.118], [0.18, 0.092]]), 0.03, {
+		holes: [poly([[-0.05, 0.108], [0.142, 0.108], [0.142, 0.148], [-0.044, 0.148]])],
+	}), black, 0, 0, 0);
+	part(g, barrelY(0.0165, 0.27), black, 0, 0.04, 0.172);
+	part(g, barrelY(0.021, 0.035), black, 0, -0.105, 0.172);
+	part(g, barrelY(0.019, 0.004), glass, 0, -0.123, 0.172);
+	part(g, barrelY(0.0185, 0.03), black, 0, 0.19, 0.172);
+	part(g, barrelY(0.017, 0.004), glass, 0, 0.206, 0.172);
+	const handle = part(g, rbox(0.026, 0.014, 0.016), black, 0.036, -0.05, 0.1); // рукоятка заряжания слева
+	// ствол с муфтой, газовый цилиндр, пламегаситель
+	part(g, barrelY(0.0125, 0.43), steel, 0, -0.29, 0.088);
+	part(g, rbox(0.036, 0.055, 0.042), black, 0, -0.105, 0.078);
+	part(g, barrelY(0.008, 0.08), black, 0, -0.16, 0.108);
+	part(g, barrelY(0.016, 0.055), black, 0, -0.522, 0.088);
+	// передняя рукоять (разложена) и большая скоба от неё до низа пистолетной рукояти
+	part(g, slab(poly([[-0.098, 0.064], [-0.14, 0.064], [-0.152, -0.028], [-0.138, -0.044], [-0.11, -0.04], [-0.1, 0.0]]), 0.026, { bevel: 0.006 }), olive, 0, 0, 0);
+	pistolGrip(g, olive, { top: 0.04 });
+	tube(g, olive, [[0, 0.016, -0.064], [0, -0.03, -0.074], [0, -0.085, -0.066], [0, -0.115, -0.044]], 0.006, 2.2);
+	part(g, rbox(0.006, 0.007, 0.024), black, 0, -0.03, 0.02, 0.25); // спуск
+	// магазин за рукоятью: изогнут вперёд, затыльник
+	part(g, slab((s) => { s.moveTo(0.082, 0.004); s.lineTo(0.158, 0.004); s.quadraticCurveTo(0.156, -0.08, 0.13, -0.146); s.lineTo(0.06, -0.136); s.quadraticCurveTo(0.082, -0.07, 0.082, 0.004); }, 0.03), smoke, 0, 0, 0);
+	part(g, rbox(0.035, 0.08, 0.012), smoke, 0, 0.096, -0.143, -0.12);
+	g.userData.action = { part: handle, travel: 0.04, dur: 0.07 };
+	g.userData.muzzle = new THREE.Vector3(0, -0.552, 0.088);
+	return merged(g, [handle]);
+}
+
+/**
+ * PM-63 RAK: пистолет-пулемёт — затвор-кожух во всю длину с «ложкой»-компенсатором под дульным срезом,
+ * рукоять с магазином на 25, торчащим снизу, разложенная складная передняя рукоять, приклад сложен
+ * вдоль рамки (тяги по бокам, затыльник под рамкой).
+ */
+export function makePm63() {
+	const g = new THREE.Group();
+	g.name = 'PM63';
+	const black = M(0x222325, 0.45, 0.6), grips = M(0x2c2622, 0.7, 0.1), dark = M(0x111213, 0.6, 0.3);
+	black.name = 'black'; grips.name = 'grips'; dark.name = 'dark';
+	// рамка под затвором и рукоять с магазином
+	part(g, slab(poly([[0.055, 0.062], [-0.2, 0.062], [-0.2, 0.046], [-0.15, 0.04], [0.02, 0.038], [0.055, 0.046]]), 0.028), black, 0, 0, 0);
+	pistolGrip(g, grips, { w: 0.028, front: -0.017, back: 0.02, top: 0.046, bottom: -0.056, rake: 0.22 });
+	part(g, rbox(0.021, 0.027, 0.074), black, 0, 0.019, -0.088, 0.22);
+	part(g, rbox(0.025, 0.034, 0.011), black, 0, 0.028, -0.126, 0.22);
+	triggerGuard(g, black, { y0: -0.012, y1: -0.072, top: 0.036, low: 0.01 });
+	// затвор-кожух, насечки сзади, прицел и мушка, «ложка» под стволом, окно выброса
+	const slide = part(g, rbox(0.031, 0.285, 0.035), black, 0, -0.06, 0.079);
+	for (let i = 0; i < 4; i++) part(g, box(0.033, 0.003, 0.022), dark, 0, 0.045 + i * 0.007, 0.08);
+	part(g, rbox(0.018, 0.014, 0.008), black, 0, 0.062, 0.1);
+	part(g, rbox(0.01, 0.012, 0.009), black, 0, -0.19, 0.1);
+	part(g, rbox(0.029, 0.036, 0.012), black, 0, -0.214, 0.066);
+	part(g, box(0.003, 0.05, 0.016), dark, -0.0155, -0.06, 0.084);
+	part(g, barrelY(0.0075, 0.012), dark, 0, -0.2, 0.08); // дульный срез
+	// передняя рукоять: шарнир под рамкой, рукоять вниз
+	part(g, rbox(0.024, 0.02, 0.012), black, 0, -0.165, 0.038);
+	part(g, slab(poly([[-0.152, 0.042], [-0.182, 0.042], [-0.19, -0.035], [-0.176, -0.046], [-0.156, -0.042], [-0.15, 0.0]]), 0.024, { bevel: 0.005 }), grips, 0, 0, 0);
+	// сложенный приклад: тяги по бокам рамки, затыльник под ней впереди скобы
+	for (const x of [-0.016, 0.016]) part(g, box(0.005, 0.2, 0.006), black, x, -0.035, 0.044);
+	part(g, rbox(0.038, 0.016, 0.03), grips, 0, -0.128, 0.03);
+	g.userData.action = { part: slide, travel: 0.03, dur: 0.06 };
+	g.userData.muzzle = new THREE.Vector3(0, -0.206, 0.08);
+	return merged(g, [slide]);
+}
+
+/**
+ * SPAS-12: воронёный боевой дробовик — короб из сплава, ствол под перфорированным кожухом, ребристое
+ * цевьё-помпа на трубчатом магазине, пистолетная рукоять, разложенный складной приклад из штампованных
+ * тяг с крюком под предплечье.
+ */
+export function makeSpas12() {
+	const g = new THREE.Group();
+	g.name = 'SPAS12';
+	const black = M(0x2a2c2f, 0.55, 0.45), alloy = M(0x3a3d41, 0.42, 0.6), poly12 = M(0x161718, 0.75, 0.05), steel = M(0x45484b, 0.35, 0.8), hole = M(0x050505, 0.9, 0);
+	black.name = 'black'; alloy.name = 'alloy'; poly12.name = 'poly'; steel.name = 'steel'; hole.name = 'hole';
+	// короб с окном подачи снизу, окно выброса и рукоятка затвора справа
+	part(g, slab(poly([[0.065, 0.118], [-0.17, 0.118], [-0.17, 0.04], [-0.08, 0.03], [0.03, 0.03], [0.065, 0.046]]), 0.052, { bevel: 0.008 }), alloy, 0, 0, 0);
+	part(g, box(0.003, 0.075, 0.032), hole, -0.0265, -0.06, 0.094);
+	const bolt = part(g, rbox(0.03, 0.016, 0.013), steel, -0.036, -0.04, 0.092);
+	part(g, rbox(0.03, 0.022, 0.016), black, 0, 0.045, 0.126); // целик
+	pistolGrip(g, poly12, { top: 0.042 });
+	triggerGuard(g, black, { y0: -0.012, y1: -0.08, top: 0.034 });
+	// ствол, кожух с отверстиями, мушка
+	part(g, barrelY(0.0125, 0.55), steel, 0, -0.445, 0.092);
+	part(g, barrelY(0.019, 0.33), black, 0, -0.34, 0.095);
+	holes(g, hole, { y0: -0.19, y1: -0.495, n: 8, z: 0.095, r: 0.0192, angles: [-0.9, 0, 0.9] });
+	part(g, rbox(0.012, 0.02, 0.02), black, 0, -0.69, 0.11);
+	// трубчатый магазин с заглушкой, хомут ствола
+	part(g, barrelY(0.0125, 0.33), black, 0, -0.335, 0.058);
+	part(g, barrelY(0.0145, 0.022), black, 0, -0.51, 0.058);
+	part(g, rbox(0.03, 0.022, 0.06), black, 0, -0.5, 0.076);
+	// ребристое цевьё-помпа (тело вращения вдоль ствола)
+	const prof = [new THREE.Vector2(0.001, -0.375), new THREE.Vector2(0.026, -0.375)];
+	for (let i = 0; i < 7; i++) {
+		const y = -0.37 + i * 0.024;
+		prof.push(new THREE.Vector2(0.029, y), new THREE.Vector2(0.0325, y + 0.004), new THREE.Vector2(0.0325, y + 0.012), new THREE.Vector2(0.029, y + 0.016));
+	}
+	prof.push(new THREE.Vector2(0.029, -0.2), new THREE.Vector2(0.024, -0.196), new THREE.Vector2(0.001, -0.196));
+	const pump = part(g, new THREE.LatheGeometry(prof, 16), poly12, 0, 0, 0.072);
+	pump.scale.x = 0.82;
+	// складной приклад (разложен): верхняя и нижняя тяги, затыльник, крюк под предплечье
+	part(g, rbox(0.03, 0.31, 0.012), black, 0, 0.215, 0.106);
+	part(g, rbox(0.03, 0.318, 0.012), black, 0, 0.21, 0.004, -0.18);
+	part(g, rbox(0.044, 0.016, 0.154), poly12, 0, 0.372, 0.042);
+	tube(g, black, [[0, 0.36, -0.028], [0, 0.335, -0.07], [0, 0.285, -0.086], [0, 0.252, -0.068], [0, 0.258, -0.048]], 0.0055, 2.2);
+	g.userData.action = { part: bolt, travel: 0.045, dur: 0.08 };
+	g.userData.muzzle = new THREE.Vector3(0, -0.72, 0.092);
+	return merged(g, [bolt]);
+}
+
 /**
  * Граната Ф-1 «лимонка»: яйцевидный чугунный корпус, рифлённый сеткой «долек» (8 по кругу, 5 по высоте),
  * донная пробка, запал УЗРГМ сверху — трубка, изогнутый вдоль корпуса рычаг, кольцо с чекой.
@@ -367,6 +692,13 @@ export const WEAPONS = {
 	vss: { name: 'ВСС «Винторез»', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo939', damage: 75, range: 15, falloff: 0.12, cooldown: 0.4, auto: 0.45, mag: 20, reload: 2.4, noise: 7, kick: 0.06, flash: 0, spread: 0.01, casing: 'brass', price: 180, make: makeVss, desc: 'Бесшумная снайперская винтовка под 9×39: выстрел почти не слышен — соседние заражённые не сбегаются. Бьёт точно, но слабее СВД.' },
 	pkm: { name: 'ПКМ', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 40, range: 9, cooldown: 0.09, auto: 0.09, mag: 100, reload: 5.5, noise: 48, kick: 0.12, flash: 1.3, spread: 0.07, casing: 'brass', price: 230, make: makePkm, desc: 'Пулемёт Калашникова, лента на 100 патронов 7,62×54R: держит толпу длинными очередями. Перезарядка долгая, грохот — на весь кластер.' },
 	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 18, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, flash: 1.15, spread: 0, casing: 'brass', price: 160, make: makeSvd, desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
+	// новые стволы (как в Godot-версии, godot/scripts/data.gd → NEW_WEAPONS). Патронов 7,62×51 и 5,56×45 в браузерной
+	// игре нет — SCAR-H и FAL берут винтовочные 7,62×54R, AUG — автоматные 5,45×39. У торговца их пока нет.
+	scar: { name: 'SCAR-H', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 44, range: 8.5, cooldown: 0.11, auto: 0.11, mag: 20, reload: 2.5, noise: 38, kick: 0.12, flash: 1.0, spread: 0.04, casing: 'brass', price: 260, make: makeScar, desc: 'Штурмовая винтовка SCAR-H: точная, тяжёлая винтовочная пуля, магазин на 20.' },
+	fnfal: { name: 'FN FAL', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 46, range: 9, cooldown: 0.13, auto: 0.13, mag: 20, reload: 2.6, noise: 40, kick: 0.14, flash: 1.1, spread: 0.05, casing: 'brass', price: 240, make: makeFal, desc: 'Боевая винтовка с деревянным прикладом: бьёт сильно, уводит в очереди. Магазин на 20.' },
+	aug: { name: 'Steyr AUG', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 8.5, cooldown: 0.09, auto: 0.09, mag: 30, reload: 2.6, noise: 34, kick: 0.08, flash: 0.9, spread: 0.03, casing: 'brass', price: 220, make: makeAug, desc: 'Автомат-буллпап: короткий, точный, магазин на 30 — за рукоятью, прицел встроен в ручку.' },
+	pm63: { name: 'PM-63 RAK', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 22, range: 6, cooldown: 0.07, auto: 0.07, mag: 25, reload: 1.7, noise: 26, kick: 0.05, flash: 0.7, spread: 0.06, casing: 'brass', price: 120, make: makePm63, desc: 'Компактный пистолет-пулемёт под 9×18: очень быстрый огонь, магазин на 25, складная передняя рукоять.' },
+	spas12: { name: 'SPAS-12', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 15, pellets: 9, spread: 0.22, range: 5, cooldown: 0.45, auto: 0.5, mag: 8, reload: 3.4, noise: 36, kick: 0.3, flash: 1.4, casing: 'shell', eject: 'shot', price: 200, make: makeSpas12, desc: 'Боевой дробовик 12 калибра: картечь веером, полуавтомат, восемь патронов в трубке.' },
 };
 
 /** Пистолет Макарова: рукоять через кулак, ствол над большим пальцем смотрит по направлению пальцев. */

@@ -1,7 +1,8 @@
 // Выгрузка для Godot-версии игры (godot/): локации и оружие из браузерной игры — в GLB, данные локаций — в JSON,
 // модели персонажей — как есть. Запуск: node scripts/export-godot.mjs (нужен Playwright с Chromium).
 // Результат: godot/assets/levels/<id>.glb|json, godot/assets/weapons/<id>.glb + weapons.json,
-// godot/assets/characters/<имя>.glb. Эти файлы не хранятся в git — их собирает CI перед сборкой APK.
+// godot/assets/characters/<имя>.glb, godot/assets/sounds/*.mp3 (записи как есть, с CREDITS.md — авторы и лицензии).
+// Эти файлы не хранятся в git — их собирает CI перед сборкой APK.
 import { createRequire } from 'node:module';
 import { mkdir, writeFile, copyFile, readdir, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -13,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'godot', 'assets');
-for (const d of ['levels', 'weapons', 'characters', 'textures']) await mkdir(join(OUT, d), { recursive: true });
+for (const d of ['levels', 'weapons', 'characters', 'textures', 'sounds']) await mkdir(join(OUT, d), { recursive: true });
 
 const server = await startServer(0);
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -62,6 +63,14 @@ await writeFile(join(OUT, 'weapons', 'weapons.json'), JSON.stringify(stats, null
 console.log(`оружие: ${Object.keys(stats).join(', ')}`);
 for (const f of await readdir(join(ROOT, 'models', 'game'))) if (f.endsWith('.glb')) await copyFile(join(ROOT, 'models', 'game', f), join(OUT, 'characters', f));
 console.log('персонажи скопированы');
+// звуки — записи браузерной игры (MP3 Godot импортирует сам) и файл с авторами и лицензиями
+let sounds = 0;
+for (const f of await readdir(join(ROOT, 'assets', 'sounds'))) {
+	if (!/\.(mp3|ogg|wav)$/.test(f) && f !== 'CREDITS.md') continue;
+	await copyFile(join(ROOT, 'assets', 'sounds', f), join(OUT, 'sounds', f));
+	if (f !== 'CREDITS.md') sounds++;
+}
+console.log(`звуки скопированы: ${sounds}`);
 if (errors.length) { console.error('ошибки страницы:', errors.slice(0, 5).join(' | ')); process.exitCode = 1; }
 await browser.close();
 server.close();
