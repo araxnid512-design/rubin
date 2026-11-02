@@ -63,11 +63,12 @@ jobs:
       - name: Импорт ресурсов
         run: |
           godot --version
-          timeout 1200 godot --headless --path godot --import 2>&1 | grep -v "^\s*$" | tail -60 || true
+          # без Android SDK в окружении: иначе редактор ждёт adb и может не выйти после импорта
+          timeout 600 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME godot --headless --path godot --import 2>&1 | grep -v "^\s*$" | tail -60 || true
           test -d godot/.godot/imported
       - name: Автотест
         run: |
-          timeout 900 godot --headless --path godot -- --smoke 2>&1 | tee smoke.log
+          timeout 600 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME godot --headless --path godot -- --smoke 2>&1 | tee smoke.log
           grep -q "SMOKE: OK" smoke.log
       - name: Собрать APK
         env:
