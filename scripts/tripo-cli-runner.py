@@ -44,6 +44,9 @@ def publish():
 
 
 def log(line):
+    email = os.environ.get("TRIPO_EMAIL", "")
+    if email:
+        line = line.replace(email, "<почта>")
     with open(STATUS / "results.md", "a", encoding="utf-8") as f:
         f.write(line + "\n")
     print(line, flush=True)

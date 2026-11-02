@@ -33,6 +33,8 @@ jobs:
     timeout-minutes: 200
     env:
       GH_TOKEN: ${{ github.token }}
+      # почта аккаунта Tripo — секрет репозитория (в журналах GitHub скрывается, в выкладываемых файлах заменяется)
+      TRIPO_EMAIL: ${{ secrets.TRIPO_EMAIL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,17 +44,21 @@ jobs:
         run: |
           npm i -g @tripo3d/cli@0.8.1 > /dev/null
           tripo version
-      - name: Вход по аккаунту (ссылка — в ветке tripo-status, status/login.md)
+      - name: Вход по аккаунту (письмо с подтверждением — на почту аккаунта; ход входа — в ветке tripo-status)
         run: |
           set +e
           mkdir -p status
-          ( tripo auth login > login.log 2>&1; echo "LOGIN_EXIT=$?" >> login.log ) &
+          if [ -z "$TRIPO_EMAIL" ]; then
+            echo "# Вход в Tripo: нет секрета TRIPO_EMAIL" > status/login.md; bash scripts/tripo-publish.sh; exit 1
+          fi
+          # программа спрашивает почту, отправляет письмо и ждёт подтверждения — ввод держим открытым
+          ( { printf '%s\n' "$TRIPO_EMAIL"; sleep 1500; } | tripo auth login > login.log 2>&1; echo "LOGIN_EXIT=$?" >> login.log ) &
           published=""
           for i in $(seq 1 600); do
             sleep 2
             # ссылка и код подтверждения — в журнал входа (без токенов: их программа хранит у себя)
             if [ -s login.log ] && [ "$(md5sum < login.log)" != "$published" ]; then
-              { echo "# Вход в Tripo ($(date -u +%H:%M:%S) UTC)"; echo; echo '```'; sed 's/\x1b\[[0-9;]*m//g' login.log | head -40; echo '```'; } > status/login.md
+              { echo "# Вход в Tripo ($(date -u +%H:%M:%S) UTC)"; echo; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' -e "s/$TRIPO_EMAIL/<почта>/g" login.log | head -40; echo '```'; } > status/login.md
               bash scripts/tripo-publish.sh
               published=$(md5sum < login.log)
             fi
@@ -67,7 +73,8 @@ jobs:
             echo "# Tripo: аккаунт"; echo
             for c in "auth whoami" "account balance" "account prices"; do echo "## tripo $c"; echo '```'; tripo $c 2>&1 | head -80; echo '```'; done
             for c in "generate text" "process rig" "process animate" "process" "export" "project get"; do echo "## tripo $c --help"; echo '```'; tripo $c --help 2>&1 | head -120; echo '```'; done
-          } > status/info.md
+          } > info.raw
+          sed "s/$TRIPO_EMAIL/<почта>/g" info.raw > status/info.md
           bash scripts/tripo-publish.sh
       - name: Задания из ветки tripo-control
         env:
