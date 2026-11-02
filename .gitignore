@@ -4,3 +4,5 @@ models/zombie-glb.js
 models/game/*-glb.js
 download/
 _site_ulei/
+# рабочие копии помощников (субагентов)
+.claude/worktrees/
