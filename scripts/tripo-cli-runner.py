@@ -52,10 +52,21 @@ def log(line):
     print(line, flush=True)
 
 
+_warned = set()
+
+
 def control():
-    subprocess.run(["git", "fetch", "-q", "origin", "tripo-control"], capture_output=True)
+    # явная ссылка: в клоне actions/checkout (одна ветка) «git fetch origin tripo-control» не обновляет
+    # origin/tripo-control — исполнитель молча ждал заданий, которых не видел
+    f = subprocess.run(["git", "fetch", "-q", "origin", "+refs/heads/tripo-control:refs/remotes/origin/tripo-control"],
+                       capture_output=True, text=True)
     p = subprocess.run(["git", "show", "origin/tripo-control:jobs.json"], capture_output=True, text=True)
     if p.returncode != 0:
+        msg = (f.stderr + p.stderr).strip()[:300]
+        if msg not in _warned:
+            _warned.add(msg)
+            log(f"jobs.json не прочитан: {msg}")
+            publish()
         return {}
     try:
         return json.loads(p.stdout)
