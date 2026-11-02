@@ -16,9 +16,14 @@ mkdir -p "$OUT"
   # в эмуляторе графика программная — локация грузится долго: снимки через 40 и 100 с
   sleep 40
   adb exec-out screencap -p > "$OUT/screen-40s.png" || true
+  adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-40s.txt" 2>&1 || true
   sleep 60
   if adb shell pidof "$PKG" >/dev/null; then echo "RUN: OK (процесс жив через 100 с)"; else echo "RUN: FAIL (процесс не жив)"; fi
 } 2>&1 | tee "$OUT/result.txt"
 adb exec-out screencap -p > "$OUT/screen.png" || true
-adb logcat -d -v brief | grep -iE "godot|FATAL|AndroidRuntime|libc|DEBUG" | tail -300 > "$OUT/logcat.txt" || true
+adb logcat -d -v brief | grep -iE "godot|FATAL|AndroidRuntime|libc|DEBUG|lowmemory|lmkd|ulei|crash|tombstone" | tail -400 > "$OUT/logcat.txt" || true
+adb logcat -d -v brief | tail -2500 > "$OUT/logcat-full.txt" || true
+# почему процесс завершился (Android 11+): нехватка памяти, падение, сигнал
+adb shell dumpsys activity exit-info "$PKG" > "$OUT/exit-info.txt" 2>&1 || true
+adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo.txt" 2>&1 || true
 grep -q "INSTALL: OK" "$OUT/result.txt"
