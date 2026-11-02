@@ -119,6 +119,8 @@
 			const g = W.make();
 			// точка ствола — пустой узел Muzzle (для вспышки и пуль)
 			if (g.userData.muzzle) { const m = new THREE.Object3D(); m.name = 'Muzzle'; m.position.copy(g.userData.muzzle); g.add(m); }
+			// опора левой кисти на цевье — пустой узел GripL (оси — как у узла GripL кисти героя): сюда IK ставит левую руку
+			if (g.userData.gripL) { const l = new THREE.Object3D(); l.name = 'GripL'; l.position.copy(g.userData.gripL.pos); l.quaternion.copy(g.userData.gripL.quat); g.add(l); }
 			const scene = new THREE.Scene();
 			scene.add(g);
 			const { make, ...stats } = W;
