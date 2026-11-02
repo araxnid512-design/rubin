@@ -139,9 +139,9 @@ static func hive_lut() -> ImageTexture3D:
 
 ## Свет и воздух «как на фото»: тёплое низкое солнце с запада-юго-запада, голубоватый свет неба (окружение
 ## и слабый заполняющий свет с другой стороны — тени не чёрные), ACES, дымка вдали (туман по глубине: у героя
-## чисто, к верху экрана — теплее и мутнее). Тени солнца (мягкие, один каскад ~30 м), свечение огня (glow)
-## и цветокоррекция включает Level.apply_quality только на высоком качестве: в gl_compatibility это лишние
-## проходы отрисовки. Узлы названы Sun и Fill — их находит Level.
+## чисто, к верху экрана — теплее и мутнее). Теней солнца нет (просьба пользователя). «Цвет Улья» (таблица цвета)
+## Level.apply_quality включает на всех уровнях, свечение огня (glow) — только на высоком. Узлы названы Sun и Fill —
+## их находит Level.
 func _setup_scene() -> void:
 	var we := WorldEnvironment.new()
 	env = Environment.new()
@@ -501,6 +501,15 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 	var reach: float = float(w.get("range", 8.0))
 	var pellets: int = int(w.get("pellets", 1))
 	var aim_dir := Vector3(sin(shooter.rotation.y), 0, cos(shooter.rotation.y))
+	# дробь: цели в пределах дальности и в прямой видимости (сквозь стену картечь не летит); чужая дробь — не по бочкам
+	var seen: Array = []
+	if pellets > 1:
+		for e in foes():
+			var d0 := Vector2(e.global_position.x - shooter.global_position.x, e.global_position.z - shooter.global_position.z).length()
+			if d0 > reach or (shooter != player and e.get("is_barrel")):
+				continue
+			if line_of_sight(shooter.global_position, e.global_position):
+				seen.append(e)
 	for i in pellets:
 		var hit = target
 		if pellets > 1:
@@ -509,7 +518,9 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 			var spread: float = float(w.get("spread", 0.25))
 			var dir := aim_dir.rotated(Vector3.UP, randf_range(-spread, spread))
 			var bd := reach
-			for e in foes():
+			for e in seen:
+				if not is_instance_valid(e):
+					continue
 				var to: Vector3 = e.global_position - shooter.global_position
 				to.y = 0
 				var d := to.length()
@@ -529,6 +540,8 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 			_tracer(from, hit.global_position + Vector3(randf_range(-1, 1), 1.0, randf_range(-1, 1)))
 
 func _flash(at: Vector3) -> void:
+	if Level.quality == 0:
+		return   # на низком вспышка без света: точечный свет включает дорогой вариант шейдера у всего вокруг
 	var l := OmniLight3D.new()
 	l.light_color = Color(1.0, 0.75, 0.4)
 	l.light_energy = 3.0

@@ -45,9 +45,10 @@ export function windMaterial(base, { height = 6, amount = 0.12 } = {}) {
 
 export function bench(batch, M, x, z, ry) {
 	beginProp('bench', x, z, ry);
+	// смещения спинки и ножек — в осях скамейки (раньше не поворачивались вместе с ней)
 	batch.add(place(box(1.6, 0.06, 0.4), x, 0.45, z, ry), M.woodGreen);
-	batch.add(place(box(1.6, 0.35, 0.05), x, 0.7, z + 0.18, ry), M.woodGreen);
-	for (const dx of [-0.65, 0.65]) batch.add(place(box(0.06, 0.45, 0.4), x + dx, 0.22, z, ry), M.metalDark);
+	batch.add(place(box(1.6, 0.35, 0.05).translate(0, 0, 0.18), x, 0.7, z, ry), M.woodGreen);
+	for (const dx of [-0.65, 0.65]) batch.add(place(box(0.06, 0.45, 0.4).translate(dx, 0, 0), x, 0.22, z, ry), M.metalDark);
 	endProp();
 }
 

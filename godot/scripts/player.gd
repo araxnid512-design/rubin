@@ -459,6 +459,11 @@ func _physics_process(delta: float) -> void:
 			speed *= 0.75
 	velocity = dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
 	move_and_slide()
+	# за край кластера не уйти (стен по краю нет; в браузерной игре позицию тоже держали в ±PLAY)
+	if game and game.level:
+		var lim: float = game.level.play
+		global_position.x = clampf(global_position.x, -lim, lim)
+		global_position.z = clampf(global_position.z, -lim, lim)
 	# куда смотрит корпус: на цель, пока стреляет или целится; иначе — по ходу. Ноги — в _update_legs.
 	var target = game.nearest_enemy(global_position, float(w.get("range", 2.0)) + 1.5, true) if (attack_held or aim_t > 0.0) else null
 	var want := rotation.y

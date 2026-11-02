@@ -59,11 +59,18 @@ static func _info(id: String) -> Dictionary:
 	_cache[id] = out
 	return out
 
-## Масштаб по осям, чтобы модель размера have легла в габарит want; искажение пропорций — не больше ±20 %.
-static func fit_scale(have: Vector3, want: Vector3) -> Vector3:
+## Масштаб по осям, чтобы модель размера have легла в габарит want; искажение пропорций — не больше ±distort.
+static func fit_scale(have: Vector3, want: Vector3, distort := 0.2) -> Vector3:
 	var k := Vector3(want.x / maxf(have.x, 0.001), want.y / maxf(have.y, 0.001), want.z / maxf(have.z, 0.001))
 	var mean := (k.x + k.y + k.z) / 3.0
-	return Vector3(clampf(k.x, mean * 0.8, mean * 1.2), clampf(k.y, mean * 0.8, mean * 1.2), clampf(k.z, mean * 0.8, mean * 1.2))
+	var lo := mean * (1.0 - distort)
+	var hi := mean * (1.0 + distort)
+	return Vector3(clampf(k.x, lo, hi), clampf(k.y, lo, hi), clampf(k.z, lo, hi))
+
+## Модели без «переда» (стол, ящики, блок): если их длинная сторона легла поперёк габарита — поворот на 90°.
+const AUTO_TURN := {"e_table": true, "e_crate": true, "e_ammo": true, "e_block": true, "e_dumpster": true}
+## Свой предел искажения: штабель труб и стенку мешков можно тянуть вдоль (коллайдер сплошной — без пустых краёв).
+const DISTORT := {"e_pipes": 0.4, "e_sandbags": 0.4}
 
 ## Поставить предметы из меток в узел parent: MultiMesh по модели и участку. Возвращает число поставленных.
 static func place_all(parent: Node3D, props: Array, chunk: float) -> int:
@@ -77,10 +84,18 @@ static func place_all(parent: Node3D, props: Array, chunk: float) -> int:
 		var c: Array = p["c"]
 		var s: Array = p["s"]
 		var want := Vector3(float(s[0]), float(s[1]), float(s[2]))
-		var k := fit_scale(info["size"], want)
+		var have: Vector3 = info["size"]
+		var turn := AUTO_TURN.has(id) and (want.x - want.z) * (have.x - have.z) < 0.0
+		if turn:
+			have = Vector3(have.z, have.y, have.x)
+		var k := fit_scale(have, want, float(DISTORT.get(id, 0.2)))
 		var ry := float(p["ry"])
 		var base := Transform3D(Basis(Vector3.UP, ry), Vector3(float(p["x"]), 0.0, float(p["z"])))
-		var local := Transform3D(Basis.IDENTITY.scaled(k), Vector3(float(c[0]), float(c[1]), float(c[2])))
+		var lb := Basis.IDENTITY.scaled(k)
+		if turn:
+			lb = lb * Basis(Vector3.UP, PI * 0.5)
+		# низ модели — на низ габарита (по высоте масштаб мог упереться в предел искажения)
+		var local := Transform3D(lb, Vector3(float(c[0]), float(c[1]) - want.y * 0.5 + have.y * k.y * 0.5, float(c[2])))
 		var key := "%s|%d,%d" % [id, floori(float(p["x"]) / chunk), floori(float(p["z"]) / chunk)]
 		if not groups.has(key):
 			groups[key] = {"id": id, "list": [], "colors": []}

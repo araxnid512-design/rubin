@@ -198,8 +198,9 @@ func apply_quality(q: int) -> void:
 		var env := g.get("env") as Environment
 		if env:
 			env.glow_enabled = quality >= 2
-			# «цвет Улья» (таблица цвета) — на среднем и высоком; на низком — без прохода коррекции
-			env.adjustment_enabled = quality >= 1
+			# «цвет Улья» (таблица цвета) — на всех уровнях: при масштабе рендера меньше 1 проход уже есть, выборка
+			# из таблицы в нём почти бесплатна (одинаковый вид на всех уровнях)
+			env.adjustment_enabled = true
 	stats["quality"] = quality
 
 # ---------- Деревья ----------
@@ -344,7 +345,9 @@ func _merge_static() -> void:
 			continue   # линии (провода, бельевые верёвки) — как есть
 		var box: AABB = xf * mesh.get_aabb()
 		var chunk := ""
-		if unit == model and box.size.x < CHUNK * 0.75 and box.size.z < CHUNK * 0.75:
+		# куски, уже слитые браузерной игрой по участкам ~30 м, тоже по участкам — иначе они в общей пачке на всю
+		# локацию и не отсекаются никогда (23–40 % треугольников статики); в общую — только земля и дороги
+		if unit == model and box.size.x < CHUNK * 1.5 and box.size.z < CHUNK * 1.5:
 			var c := box.get_center()
 			chunk = "%d,%d" % [floori(c.x / CHUNK), floori(c.z / CHUNK)]
 		for s in mesh.get_surface_count():

@@ -192,7 +192,7 @@ export function armyTruck(batch, M, root, collide, x, z, ry) {
 	beginProp('truck', x, z, ry);
 	propObject(g);
 	if (!endProp()) root.add(g); // метка для Godot записана — модель поставит Godot
-	collide(x, z, 2.7, 7.6, ry);
+	collide(x + Math.sin(ry) * 0.4, z + Math.cos(ry) * 0.4, 2.7, 8.0, ry); // кабина впереди: кузов от −3,6 до 4,4 м
 }
 
 /** Шлагбаум у КПП: тумба и полосатая стрела (opened — поднята). */
@@ -222,8 +222,8 @@ export function watchTower(batch, M, collide, x, z) {
 export function sandbags(batch, M, collide, x, z, len, ry) {
 	const c = Math.cos(ry), s = Math.sin(ry);
 	const n = Math.round(len / 0.55);
-	// для Godot стена мешков — отрезками по ~2,4 м (модель Tripo — такой отрезок)
-	const segs = Math.max(1, Math.round(len / 2.4)), sl = len / segs;
+	// для Godot стена мешков — отрезками по ~1,7 м (модель Tripo тянется до ~2,2 м — без пустых промежутков)
+	const segs = Math.max(1, Math.round(len / 1.7)), sl = len / segs;
 	for (let q = 0; q < segs; q++) {
 		const t0 = -len / 2 + q * sl, tc = t0 + sl / 2;
 		beginProp('sandbags', x + c * tc, z - s * tc, ry);

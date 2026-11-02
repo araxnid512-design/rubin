@@ -116,7 +116,7 @@ export default {
 		addCar(batch, M, root, -17, 15.6, -Math.PI / 2, 0x3a5a6a);
 		collide(-17, 15.6, 4.3, 1.8, -Math.PI / 2);
 		bus(batch, M, root, -5, 17, Math.PI / 2 + 0.06);
-		collide(-5, 17, 7.8, 2.6, Math.PI / 2 + 0.06);
+		collide(-5, 17, 2.6, 7.8, Math.PI / 2 + 0.06); // автобус длинный по своей оси Z (коллайдер стоял поперёк)
 		// контейнерная площадка и грузовик
 		for (const [x, z, h, r, tint] of [[26, 22, 0, 0, [62, 88, 112]], [26, 22, 2.6, 0.04, [150, 70, 44]], [33, 22.5, 0, 0.1, [70, 96, 70]], [27, 29, 0, Math.PI / 2, [150, 128, 70]]]) {
 			batch.add(place(box(6, 2.6, 2.4, 1.5), x, h + 1.3, z, r), T.metalRoofMaterial([1, 1], tint));

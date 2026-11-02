@@ -72,6 +72,16 @@ static func make_model(host: Node, t: String) -> Node3D:
 			return m
 	return (load(rig) as PackedScene).instantiate()
 
+var _see_t := 0.0
+var _sees := true
+
+func _sees_player(player) -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _see_t > 0.2:
+		_see_t = now
+		_sees = game.line_of_sight(global_position, player.global_position)
+	return _sees
+
 func play(c: String, blend := 0.2, restart := false) -> void:
 	if anim == null or not anim.has_animation(c):
 		return
@@ -117,7 +127,17 @@ func die(from: Vector3) -> void:
 		rotation.y = atan2(-push.x, -push.z)
 	game.on_kill(self)
 
+## Дальше VIEW_DIST от героя (за кадром) модель скрыта и анимация стоит: скелет на 78 костей не считается
+## каждый кадр (как у муров); поведение — как прежде.
+const VIEW_DIST := 32.0
+
 func _physics_process(delta: float) -> void:
+	if game.player and model:
+		var near: bool = global_position.distance_to(game.player.global_position) < VIEW_DIST
+		if model.visible != near:
+			model.visible = near
+			if anim:
+				anim.active = near
 	if not alive:
 		dead_t += delta
 		if dead_t > 12.0:
@@ -150,12 +170,13 @@ func _physics_process(delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, atan2(to.x, to.z), minf(1.0, delta * 6.0))
 		if not hit_done and attack_t >= float(T["hit_time"]):
 			hit_done = true
-			if d <= float(T["range"]) + 0.5:
+			if d <= float(T["range"]) + 0.5 and _sees_player(player):
 				player.hurt(float(T["damage"]), global_position)
 		if attack_t > float(T["hit_time"]) + 0.55:
 			attack_t = -1.0
 		return
-	if d <= float(T["range"]):
+	# удар — только если герой виден (сквозь стену заражённый не бьёт; проверка не чаще раза в 0,2 с)
+	if d <= float(T["range"]) and _sees_player(player):
 		attack_t = 0.0
 		hit_done = false
 		anim.speed_scale = 1.0
@@ -164,7 +185,8 @@ func _physics_process(delta: float) -> void:
 	# погоня: напрямую, если видно и близко, иначе — по пути
 	var goal := player.global_position as Vector3
 	path_t -= delta
-	if d > 3.0 and (path_t <= 0.0 or path.is_empty()):
+	# путь — и вблизи: герой шагнул за стену в 2 м — заражённый идёт в обход, а не упирается в стену
+	if path_t <= 0.0 or (path.is_empty() and d > 3.0):
 		path_t = 0.6 + randf() * 0.3
 		if game.line_of_sight(global_position, player.global_position):
 			path = PackedVector3Array()
