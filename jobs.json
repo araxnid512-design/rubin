@@ -1,7 +1,7 @@
 {
  "jobs": [
   {
-   "id": "e_bal0",
+   "id": "e_bal2",
    "timeout": 120,
    "args": [
     "account",
@@ -9,12 +9,12 @@
    ]
   },
   {
-   "id": "e_vaz2107",
+   "id": "e_vaz_crashed",
    "timeout": 1700,
    "args": [
     "generate",
     "text",
-    "Soviet VAZ-2107 Lada sedan car, rusty faded paint, flat tires, dirty windows, boxy 1980s shape, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "crashed Soviet Lada sedan car, crumpled front hood, broken windshield, rusty, flat tires, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
     "--face-limit",
     "3000",
     "--visibility",
@@ -24,11 +24,676 @@
     "--output-format",
     "json",
     "-o",
-    "out/e_vaz2107.glb"
+    "out/e_vaz_crashed.glb"
    ]
   },
   {
-   "id": "e_bal1",
+   "id": "e_vaz_burned",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "burned-out Soviet Lada sedan car wreck, charred black and rust, no glass, no tires, sitting on rims, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_vaz_burned.glb"
+   ]
+  },
+  {
+   "id": "e_niva",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Soviet Lada Niva small 4x4 SUV, rusty, mud-covered, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_niva.glb"
+   ]
+  },
+  {
+   "id": "e_volga",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Soviet GAZ-24 Volga sedan, faded paint, rusty chrome, flat tires, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_volga.glb"
+   ]
+  },
+  {
+   "id": "e_uaz",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Soviet UAZ-469 military jeep, olive green, canvas roof, rusty, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_uaz.glb"
+   ]
+  },
+  {
+   "id": "e_paz",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Soviet PAZ-672 small city bus, faded yellow paint, rusty, broken windows, flat tires, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "4000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_paz.glb"
+   ]
+  },
+  {
+   "id": "e_btr80",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Soviet BTR-80 eight-wheeled armored personnel carrier, abandoned, rusty olive green, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "4000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_btr80.glb"
+   ]
+  },
+  {
+   "id": "e_ural",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Soviet Ural-375 military truck with canvas covered cargo bed, olive green, rusty, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "4000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_ural.glb"
+   ]
+  },
+  {
+   "id": "e_fridge",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old Soviet refrigerator ZIL, rounded corners, yellowed white enamel, rust stains, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_fridge.glb"
+   ]
+  },
+  {
+   "id": "e_pech",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old whitewashed Russian brick stove with cast iron oven doors and a small stove top, soot stains, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_pech.glb"
+   ]
+  },
+  {
+   "id": "e_burzhuyka",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "small rusty cast iron wood-burning stove with a metal chimney pipe going up, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_burzhuyka.glb"
+   ]
+  },
+  {
+   "id": "e_sofa",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old worn Soviet sofa, faded brown fabric, torn cushions, wooden legs, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_sofa.glb"
+   ]
+  },
+  {
+   "id": "e_bed",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old single bed with metal frame and dirty striped mattress, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_bed.glb"
+   ]
+  },
+  {
+   "id": "e_wardrobe",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old Soviet wooden wardrobe with two doors, polished veneer worn and scratched, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_wardrobe.glb"
+   ]
+  },
+  {
+   "id": "e_buffet",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old Soviet wooden kitchen sideboard cabinet with glass doors on top and drawers below, dusty, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_buffet.glb"
+   ]
+  },
+  {
+   "id": "e_drawers",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old wooden chest of drawers, one drawer half open, worn, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_drawers.glb"
+   ]
+  },
+  {
+   "id": "e_nightstand",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old wooden bedside nightstand with one drawer and a small door, worn, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_nightstand.glb"
+   ]
+  },
+  {
+   "id": "e_chest",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old wooden trunk chest with metal bands and a latch, worn, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_chest.glb"
+   ]
+  },
+  {
+   "id": "e_table",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old wooden kitchen table with worn oilcloth top, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_table.glb"
+   ]
+  },
+  {
+   "id": "e_chair",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old wooden Soviet chair, scratched paint, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_chair.glb"
+   ]
+  },
+  {
+   "id": "e_tv",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old Soviet CRT television on short legs, wooden case, cracked screen, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_tv.glb"
+   ]
+  },
+  {
+   "id": "e_bunk",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "military metal bunk bed with thin dirty mattresses and grey blankets, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_bunk.glb"
+   ]
+  },
+  {
+   "id": "e_lathe",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old Soviet industrial metal lathe machine, green paint chipped, oily, 3/4 front view, standing on the floor, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_lathe.glb"
+   ]
+  },
+  {
+   "id": "e_barrel",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old rusty 200 liter steel drum barrel, dented, faded paint, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "800",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_barrel.glb"
+   ]
+  },
+  {
+   "id": "e_tire",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "single old worn car tire lying flat on the ground, dirty, 3/4 top view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "800",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_tire.glb"
+   ]
+  },
+  {
+   "id": "e_trashbags",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "small pile of black plastic garbage bags, torn, dirty, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "800",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_trashbags.glb"
+   ]
+  },
+  {
+   "id": "e_crate",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old wooden supply crate, weathered planks, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "800",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_crate.glb"
+   ]
+  },
+  {
+   "id": "e_bench",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old Soviet park bench, wooden slats on concrete legs, peeling paint, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "1500",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_bench.glb"
+   ]
+  },
+  {
+   "id": "e_dumpster",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "rusty green metal garbage container dumpster, dented, overflowing with trash bags, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "1500",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_dumpster.glb"
+   ]
+  },
+  {
+   "id": "e_block",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "cracked concrete road barrier block, stained, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "800",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_block.glb"
+   ]
+  },
+  {
+   "id": "e_sandbags",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "low wall of stacked military sandbags, dirty burlap, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "1500",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_sandbags.glb"
+   ]
+  },
+  {
+   "id": "e_woodpile",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "stack of chopped firewood logs under a small slanted plank roof, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "1500",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_woodpile.glb"
+   ]
+  },
+  {
+   "id": "e_well",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "old village well with wooden roof and bucket on a chain, weathered, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "1500",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_well.glb"
+   ]
+  },
+  {
+   "id": "e_pipes",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "pile of large rusty steel pipes stacked on wooden beams, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_pipes.glb"
+   ]
+  },
+  {
+   "id": "e_hazard",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "single dented yellow chemical drum barrel with faded hazard stripes, rusty, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "800",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_hazard.glb"
+   ]
+  },
+  {
+   "id": "e_ammo",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "stack of olive green military ammunition crates, worn stencils without text, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "2000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/e_ammo.glb"
+   ]
+  },
+  {
+   "id": "e_bal3",
    "timeout": 120,
    "args": [
     "account",
