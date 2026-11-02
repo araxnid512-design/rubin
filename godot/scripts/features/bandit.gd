@@ -21,8 +21,10 @@ const MUR_SHOOTERS := 3
 ## Сколько секунд длится очередь одного мура по человеку и сколько он потом отдыхает.
 const MUR_TURN := [2.5, 4.0]
 const MUR_REST := [1.5, 3.0]
-## Оружие муров: у каждого — одно из этих (без дробовиков: картечь рассчитана на заражённых).
-const MUR_GUNS := ["aks", "aks", "ak74", "ak74", "ak47", "ak47", "pkm", "svd"]
+## Оружие муров: у каждого — случайное из этих, больше всего АК (10 из 16: АК-74, АК-47, АКС-74У), реже ПКМ, СВД,
+## ВСС, FN FAL, SCAR-H, AUG (без дробовиков: картечь рассчитана на заражённых).
+const MUR_GUNS := ["ak74", "ak74", "ak74", "ak74", "ak47", "ak47", "ak47", "aks", "aks", "aks",
+	"pkm", "svd", "vss", "fnfal", "scar", "aug"]
 const CLIPS := {"idle": "IdleRifle", "walk": "WalkRifle", "run": "RunRifle", "aim": "AimRifle", "shoot": "ShootRifle", "hit": "HitRifle", "reload": "ReloadRifle"}
 const LOOPED := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
 ## Естественная скорость клипов ходьбы и бега, м/с (как у героя) — под неё подгоняется темп.

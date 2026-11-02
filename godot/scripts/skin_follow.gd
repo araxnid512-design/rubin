@@ -300,7 +300,8 @@ static func axe_on_back() -> Transform3D:
 	var ha := Vector3(0, -0.63, 0.78).normalized()
 	var xa := Vector3(1, 0, 0)
 	var ba := ha.cross(xa)
-	return Transform3D(Basis(nc, dh, bc) * Basis(xa, ha, ba).transposed(), Vector3(0, -0.08, -0.25) - dh * 0.35)
+	# середина топора (~0,35 м от хвата у полноразмерного) — на середине спины; топор уменьшен вместе со всем оружием
+	return Transform3D(Basis(nc, dh, bc) * Basis(xa, ha, ba).transposed(), Vector3(0, -0.12, -0.25) - dh * (0.35 * Gear.SCALE))
 
 ## Ствол за спиной: как ремень в player.glb (дулом вниз, справа), но дальше от спины — снаружи бронежилета.
 static func gun_on_back() -> Transform3D:

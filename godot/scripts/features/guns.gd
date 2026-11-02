@@ -39,8 +39,8 @@ func smoke() -> int:
 		var old: Node3D = (load(old_path) as PackedScene).instantiate() if ResourceLoader.exists(old_path) else null
 		var nb := Gear._box(Gear._points(node))
 		var ob := Gear._box(Gear._points(old)) if old else nb
-		# длина — настоящая (Gear.LENGTH) или, кого там нет, как у старой модели
-		var want: float = float(Gear.LENGTH.get(mid, ob.get_longest_axis_size()))
+		# длина — настоящая (Gear.LENGTH) или, кого там нет, как у старой модели, и на треть меньше (Gear.SCALE)
+		var want: float = Gear.target_length(mid, ob.get_longest_axis_size())
 		var ok2: bool = node.find_children("*", "MeshInstance3D", true, false).size() > 0 and absf(nb.get_longest_axis_size() - want) < want * 0.12
 		if old and old.find_child("Muzzle", true, false):
 			ok2 = ok2 and node.find_child("Muzzle", true, false) != null

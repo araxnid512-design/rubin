@@ -3,7 +3,8 @@ class_name Gear
 ##
 ## Оружие: если есть assets/tripo/w_<id>.glb, новая модель вписывается в габариты старой (assets/weapons/<id>.glb
 ## из браузерной игры): та же длина, ствол туда же, куда смотрит Muzzle старой, верх — вверх (+Z в осях хвата),
-## дульный срез — на месте старого, по другим осям — по центру; затем — до настоящей длины (LENGTH, вокруг хвата).
+## дульный срез — на месте старого, по другим осям — по центру; затем — до длины target_length (настоящая длина
+## и на треть меньше, вокруг хвата).
 ## Узлы Muzzle и GripL берутся у старой модели (сдвинуты тем же масштабом) —
 ## хват правой рукой, вспышка, пули и IK левой кисти работают как прежде. Холодное оружие (без Muzzle) — по главной
 ## оси вершин и лезвию (_fit_melee). Посадка проверена наложением на старые модели. Нет новой — старая как есть.
@@ -19,6 +20,13 @@ const LENGTH := {
 	"aks": 0.73, "ak74": 0.943, "ak47": 0.88, "aug": 0.79, "scar": 0.97, "fnfal": 1.09,
 	"vss": 0.894, "svd": 1.225, "pkm": 1.173,
 }
+## И всё оружие ещё на треть меньше (просьба пользователя: при настоящих размерах рядом с крупной моделью героя
+## стволы и топор выглядели гигантскими).
+const SCALE := 0.67
+
+## Длина модели в игре: настоящая (LENGTH) или как у старой модели — и на треть меньше (SCALE).
+static func target_length(model_id: String, old_len: float) -> float:
+	return float(LENGTH.get(model_id, old_len)) * SCALE
 
 ## Новая модель оружия (или старая, если новой нет). Каждый вызов — новый экземпляр.
 static func weapon(model_id: String) -> Node3D:
@@ -28,10 +36,9 @@ static func weapon(model_id: String) -> Node3D:
 		if not ResourceLoader.exists(old_path):
 			return Node3D.new()
 		var plain: Node3D = (load(old_path) as PackedScene).instantiate()
-		if LENGTH.has(model_id):
-			var lo := _box(_points(plain)).get_longest_axis_size()
-			if lo > 0.01:
-				plain.scale *= float(LENGTH[model_id]) / lo
+		var lo := _box(_points(plain)).get_longest_axis_size()
+		if lo > 0.01:
+			plain.scale *= target_length(model_id, lo) / lo
 		return plain
 	var fresh: Node3D = (load(new_path) as PackedScene).instantiate()
 	if not _fits.has(model_id):
@@ -48,8 +55,8 @@ static func weapon(model_id: String) -> Node3D:
 	var fit: Array = _fits[model_id]
 	# настоящая длина: масштаб вокруг хвата (начало осей оружия — точка хвата правой кисти)
 	var k := 1.0
-	if LENGTH.has(model_id) and float(fit[2]) > 0.01:
-		k = float(LENGTH[model_id]) / float(fit[2])
+	if float(fit[2]) > 0.01:
+		k = target_length(model_id, float(fit[2])) / float(fit[2])
 	var root := Node3D.new()
 	root.name = "Tripo_" + model_id
 	fresh.transform = Transform3D(Basis.IDENTITY.scaled(Vector3(k, k, k)), Vector3.ZERO) * (fit[0] as Transform3D)
