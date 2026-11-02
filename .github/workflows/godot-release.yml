@@ -37,7 +37,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Playwright с Chromium (для выгрузки локаций)
+        run: |
+          npm i --no-save playwright@1
+          npx playwright install --with-deps chromium
       - name: Выгрузить локации, оружие и персонажей
         run: node scripts/export-godot.mjs
       - name: Установить Godot и шаблоны экспорта
