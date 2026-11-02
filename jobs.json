@@ -396,6 +396,53 @@
     "account",
     "balance"
    ]
+  },
+  {
+   "id": "player_rigcheck2",
+   "timeout": 900,
+   "args": [
+    "process",
+    "rig",
+    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "--check",
+    "--timeout",
+    "10m"
+   ]
+  },
+  {
+   "id": "player_rig2",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/player_rigged.glb"
+   ]
+  },
+  {
+   "id": "projects2",
+   "timeout": 120,
+   "args": [
+    "project",
+    "list",
+    "--output-format",
+    "json"
+   ]
+  },
+  {
+   "id": "balance3",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ],
  "stop": false
