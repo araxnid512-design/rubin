@@ -1,7 +1,7 @@
 {
  "jobs": [
   {
-   "id": "w2_bal0",
+   "id": "z_bal0",
    "timeout": 120,
    "args": [
     "account",
@@ -9,12 +9,12 @@
    ]
   },
   {
-   "id": "w2_ak74",
+   "id": "z_pustysh",
    "timeout": 1700,
    "args": [
     "generate",
     "image",
-    "docs/tripo/refs/weapons/ak74.png",
+    "docs/tripo/refs/infected/pustysh.png",
     "--face-limit",
     "4000",
     "--visibility",
@@ -24,18 +24,18 @@
     "--output-format",
     "json",
     "-o",
-    "out/w2_ak74.glb"
+    "out/z_pustysh_base.glb"
    ]
   },
   {
-   "id": "w2_glock17",
+   "id": "z_lottery",
    "timeout": 1700,
    "args": [
     "generate",
     "image",
-    "docs/tripo/refs/weapons/glock17.png",
+    "docs/tripo/refs/infected/lottery.png",
     "--face-limit",
-    "4000",
+    "5000",
     "--visibility",
     "private",
     "--timeout",
@@ -43,18 +43,18 @@
     "--output-format",
     "json",
     "-o",
-    "out/w2_glock17.glb"
+    "out/z_lottery_base.glb"
    ]
   },
   {
-   "id": "w2_deagle",
+   "id": "z_stomper",
    "timeout": 1700,
    "args": [
     "generate",
     "image",
-    "docs/tripo/refs/weapons/deagle.png",
+    "docs/tripo/refs/infected/stomper.png",
     "--face-limit",
-    "4000",
+    "8000",
     "--visibility",
     "private",
     "--timeout",
@@ -62,18 +62,18 @@
     "--output-format",
     "json",
     "-o",
-    "out/w2_deagle.glb"
+    "out/z_stomper_base.glb"
    ]
   },
   {
-   "id": "w2_spas12",
+   "id": "z_ruber",
    "timeout": 1700,
    "args": [
     "generate",
     "image",
-    "docs/tripo/refs/weapons/spas12.png",
+    "docs/tripo/refs/infected/ruber.png",
     "--face-limit",
-    "4000",
+    "10000",
     "--visibility",
     "private",
     "--timeout",
@@ -81,245 +81,21 @@
     "--output-format",
     "json",
     "-o",
-    "out/w2_spas12.glb"
+    "out/z_ruber_base.glb"
    ]
   },
   {
-   "id": "w2_dbarrel",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/dbarrel.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_dbarrel.glb"
-   ]
-  },
-  {
-   "id": "w2_aks",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/aks.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_aks.glb"
-   ]
-  },
-  {
-   "id": "w2_ak47",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/ak47.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_ak47.glb"
-   ]
-  },
-  {
-   "id": "w2_ak107",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/ak107.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_ak107.glb"
-   ]
-  },
-  {
-   "id": "w2_fnfal",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/fnfal.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_fnfal.glb"
-   ]
-  },
-  {
-   "id": "w2_rpk",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/rpk.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_rpk.glb"
-   ]
-  },
-  {
-   "id": "w2_pkt",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/pkt.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_pkt.glb"
-   ]
-  },
-  {
-   "id": "w2_svd",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/svd.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_svd.glb"
-   ]
-  },
-  {
-   "id": "w2_awm",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/awm.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_awm.glb"
-   ]
-  },
-  {
-   "id": "w2_aug",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/aug.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_aug.glb"
-   ]
-  },
-  {
-   "id": "w2_g36",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/g36.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_g36.glb"
-   ]
-  },
-  {
-   "id": "w2_mp5",
-   "timeout": 1700,
-   "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/weapons/mp5.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/w2_mp5.glb"
-   ]
-  },
-  {
-   "id": "w2_bal1",
+   "id": "z_projects",
    "timeout": 120,
    "args": [
-    "account",
-    "balance"
+    "project",
+    "list",
+    "--size",
+    "4",
+    "--output-format",
+    "json"
    ]
   }
  ],
- "stop": true
+ "stop": false
 }
