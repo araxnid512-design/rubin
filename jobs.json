@@ -74,6 +74,16 @@
     "account",
     "balance"
    ]
+  },
+  {
+   "id": "projects1",
+   "timeout": 120,
+   "args": [
+    "project",
+    "list",
+    "--output-format",
+    "json"
+   ]
   }
  ],
  "stop": false
