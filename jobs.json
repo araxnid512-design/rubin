@@ -84,6 +84,318 @@
     "--output-format",
     "json"
    ]
+  },
+  {
+   "id": "w_axe",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "small wood-chopping hatchet, worn wooden handle, rusty steel head, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_axe.glb"
+   ]
+  },
+  {
+   "id": "w_fireaxe",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "fire axe with a long wooden handle, red painted steel head with chipped paint and a pick on the back, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_fireaxe.glb"
+   ]
+  },
+  {
+   "id": "w_pistol",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Makarov PM pistol, black worn steel slide, brown plastic grip, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_pistol.glb"
+   ]
+  },
+  {
+   "id": "w_obrez",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "sawed-off double-barrel shotgun IZH-43, short side-by-side barrels, cut-down wooden stock, worn, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_obrez.glb"
+   ]
+  },
+  {
+   "id": "w_shotgun",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "pump-action shotgun MP-133, black steel barrel, wooden pump grip and stock, worn, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_shotgun.glb"
+   ]
+  },
+  {
+   "id": "w_vector",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "KRISS Vector submachine gun, black polymer body, folding stock extended, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_vector.glb"
+   ]
+  },
+  {
+   "id": "w_aks",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "AKS-74U short assault rifle, short barrel with muzzle booster, side-folding metal stock extended, curved magazine, worn, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_aks.glb"
+   ]
+  },
+  {
+   "id": "w_ak47",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "AK-47 assault rifle, scratched wooden handguard and stock, worn metal, curved magazine, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_ak47.glb"
+   ]
+  },
+  {
+   "id": "w_vss",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "VSS Vintorez silenced sniper rifle, thick integrated suppressor, wooden skeleton stock, small scope, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_vss.glb"
+   ]
+  },
+  {
+   "id": "w_pkm",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "PKM machine gun, long barrel, folded bipod, skeleton wooden stock, ammo box under the receiver, worn, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_pkm.glb"
+   ]
+  },
+  {
+   "id": "w_svd",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "SVD Dragunov sniper rifle, long barrel, wooden skeleton stock, PSO scope, worn, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_svd.glb"
+   ]
+  },
+  {
+   "id": "w_scar",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "FN SCAR-H battle rifle, tan polymer and black metal, straight magazine, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_scar.glb"
+   ]
+  },
+  {
+   "id": "w_fnfal",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "FN FAL battle rifle, wooden stock and handguard, straight magazine, worn, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_fnfal.glb"
+   ]
+  },
+  {
+   "id": "w_aug",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "Steyr AUG bullpup assault rifle, olive green polymer body, integrated optical scope, transparent magazine, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_aug.glb"
+   ]
+  },
+  {
+   "id": "w_pm63",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "PM-63 RAK compact machine pistol, black steel, folding stock folded, short magazine, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_pm63.glb"
+   ]
+  },
+  {
+   "id": "w_spas12",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "SPAS-12 combat shotgun, black metal, perforated heat shield, folding stock, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_spas12.glb"
+   ]
+  },
+  {
+   "id": "balance2",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ],
  "stop": false
