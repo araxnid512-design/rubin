@@ -2,6 +2,7 @@
 # (scripts/export-godot.mjs), импорт в Godot, автотест (godot -- --smoke: бой, износ, обыск, переходы по всем
 # локациям), сборка APK для Android и выкладка в релиз «game»:
 #   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-godot.apk
+#   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-godot-apk.zip (тот же APK в ZIP)
 name: Godot-версия
 
 on:
@@ -89,4 +90,8 @@ jobs:
       - name: Выложить в релиз «game»
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload game download/ulei-godot.apk --clobber
+        run: |
+          # тот же APK в ZIP: встроенный браузер приложений (и Chrome при проверке «опасного файла») может
+          # застревать на 100% у .apk — ZIP скачивается сразу, APK внутри ставится из «Файлов»
+          (cd download && zip -0 -q ulei-godot-apk.zip ulei-godot.apk)
+          gh release upload game download/ulei-godot.apk download/ulei-godot-apk.zip --clobber
