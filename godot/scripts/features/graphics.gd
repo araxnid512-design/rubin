@@ -46,6 +46,20 @@ func smoke() -> int:
 				if mmi.multimesh.use_colors:
 					tinted += 1
 			fails += _check(tinted > 0 and lv.foliage_mats.size() > 0, "кроны с осенними оттенками: %d пачек" % tinted)
+			var kb: Dictionary = {}
+			for bl in lv.blocks:
+				if str(bl["name"]) == "Khrushchyovka":
+					kb = bl
+			if kb.is_empty():
+				fails += _check(false, "в «Заречном» нет хрущёвки среди построек, что становятся прозрачными")
+			else:
+				var behind := Vector3(float(kb["cx"]), 0, float(kb["cz"]) - float(kb["hz"]) - 1.0)
+				lv.update_view(behind, behind + Vector3(0, 15.5, 9.5))
+				var parts: Array = kb["parts"]
+				var ghosted: bool = bool(kb["ghost"]) and parts.size() > 0 and (parts[0][0] as MeshInstance3D).material_override == Level.ghost_material()
+				lv.update_view(behind + Vector3(0, 0, -20), behind + Vector3(0, 15.5, -10.5))
+				var restored: bool = not bool(kb["ghost"]) and parts.size() > 0 and (parts[0][0] as MeshInstance3D).material_override != Level.ghost_material()
+				fails += _check(ghosted and restored, "хрущёвка между героем и камерой — полупрозрачная (частей %d), отошёл — снова как была" % parts.size())
 			var tc := Time.get_ticks_usec()
 			var lt := Crowns.texture("leaves")
 			var pt := Crowns.texture("pine")

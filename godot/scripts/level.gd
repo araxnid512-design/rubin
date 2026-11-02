@@ -755,9 +755,9 @@ func update_view(player_pos: Vector3, eye := Vector3.INF) -> void:
 		if hit != bool(bl["ghost"]):
 			bl["ghost"] = hit
 			for part in bl["parts"]:
-				var mi: MeshInstance3D = part[0]
-				if is_instance_valid(mi):
-					mi.material_override = ghost_material() if hit else part[1]
+				var obj = part[0]
+				if is_instance_valid(obj):
+					(obj as MeshInstance3D).material_override = ghost_material() if hit else part[1]
 
 func _blocks() -> void:
 	blocks.clear()
@@ -773,7 +773,8 @@ func _blocks() -> void:
 		var parts: Array = []
 		for c in n.find_children("*", "MeshInstance3D", true, false):
 			var mi: MeshInstance3D = c
-			if mi.mesh != null:
+			# исходные меши glTF после слияния удаляются — берём только слитые
+			if mi.mesh != null and not mi.is_queued_for_deletion():
 				parts.append([mi, mi.material_override])
 		e["parts"] = parts
 		blocks.append(e)
