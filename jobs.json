@@ -1,7 +1,7 @@
 {
  "jobs": [
   {
-   "id": "z_bal0",
+   "id": "z_bal1",
    "timeout": 120,
    "args": [
     "account",
@@ -9,93 +9,188 @@
    ]
   },
   {
-   "id": "z_pustysh",
-   "timeout": 1700,
+   "id": "z_pustysh_rigcheck",
+   "timeout": 900,
    "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/infected/pustysh.png",
-    "--face-limit",
-    "4000",
-    "--visibility",
-    "private",
+    "process",
+    "rig",
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "--check",
     "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_pustysh_base.glb"
+    "10m"
    ]
   },
   {
-   "id": "z_lottery",
-   "timeout": 1700,
+   "id": "z_pustysh_rig",
+   "timeout": 1500,
    "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/infected/lottery.png",
-    "--face-limit",
-    "5000",
-    "--visibility",
-    "private",
+    "process",
+    "rig",
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
     "--timeout",
-    "25m",
-    "--output-format",
-    "json",
+    "20m",
     "-o",
-    "out/z_lottery_base.glb"
+    "out/z_pustysh_rigged.glb"
    ]
   },
   {
-   "id": "z_stomper",
-   "timeout": 1700,
+   "id": "z_pustysh_export",
+   "timeout": 900,
    "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/infected/stomper.png",
-    "--face-limit",
-    "8000",
-    "--visibility",
-    "private",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
+    "export",
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "--with-animation",
+    "--texture-size",
+    "1024",
     "-o",
-    "out/z_stomper_base.glb"
+    "out/z_pustysh.glb",
+    "--export-timeout",
+    "8m"
    ]
   },
   {
-   "id": "z_ruber",
-   "timeout": 1700,
+   "id": "z_lottery_rigcheck",
+   "timeout": 900,
    "args": [
-    "generate",
-    "image",
-    "docs/tripo/refs/infected/ruber.png",
-    "--face-limit",
-    "10000",
-    "--visibility",
-    "private",
+    "process",
+    "rig",
+    "e0514812-6341-4858-a95e-20ee35ab86e1",
+    "--check",
     "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_ruber_base.glb"
+    "10m"
    ]
   },
   {
-   "id": "z_projects",
+   "id": "z_lottery_rig",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "e0514812-6341-4858-a95e-20ee35ab86e1",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/z_lottery_rigged.glb"
+   ]
+  },
+  {
+   "id": "z_lottery_export",
+   "timeout": 900,
+   "args": [
+    "export",
+    "e0514812-6341-4858-a95e-20ee35ab86e1",
+    "--with-animation",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/z_lottery.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "z_stomper_rigcheck",
+   "timeout": 900,
+   "args": [
+    "process",
+    "rig",
+    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
+    "--check",
+    "--timeout",
+    "10m"
+   ]
+  },
+  {
+   "id": "z_stomper_rig",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/z_stomper_rigged.glb"
+   ]
+  },
+  {
+   "id": "z_stomper_export",
+   "timeout": 900,
+   "args": [
+    "export",
+    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
+    "--with-animation",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/z_stomper.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "z_ruber_rigcheck",
+   "timeout": 900,
+   "args": [
+    "process",
+    "rig",
+    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "--check",
+    "--timeout",
+    "10m"
+   ]
+  },
+  {
+   "id": "z_ruber_rig",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/z_ruber_rigged.glb"
+   ]
+  },
+  {
+   "id": "z_ruber_export",
+   "timeout": 900,
+   "args": [
+    "export",
+    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "--with-animation",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/z_ruber.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "z_bal2",
    "timeout": 120,
    "args": [
-    "project",
-    "list",
-    "--size",
-    "4",
-    "--output-format",
-    "json"
+    "account",
+    "balance"
    ]
   }
- ],
- "stop": false
+ ]
 }
