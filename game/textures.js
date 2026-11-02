@@ -79,7 +79,8 @@ function texMaterial(key, make, { repeat = [1, 1], roughness = 0.9, metalness = 
 	});
 	const m = map.clone(); m.repeat.set(...repeat); m.needsUpdate = true;
 	const n = normalMap?.clone(); if (n) { n.repeat.set(...repeat); n.needsUpdate = true; }
-	return new THREE.MeshStandardMaterial({ map: m, normalMap: n, roughness, metalness, ...rest });
+	// имя — ключ текстуры: по нему Godot-версия узнаёт материал (кирпич, шифер, асфальт…) и подменяет шейдер
+	return new THREE.MeshStandardMaterial({ name: key, map: m, normalMap: n, roughness, metalness, ...rest });
 }
 
 // ---------- Земля ----------

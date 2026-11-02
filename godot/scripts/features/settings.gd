@@ -92,6 +92,11 @@ func _find_grass() -> void:
 			grass.append([n, mm.instance_count])
 
 func _apply_grass() -> void:
+	# густоту травы, тени, свечение и огни по качеству ведёт локация (level.gd → apply_quality)
+	if game and game.level and game.level.has_method("apply_quality"):
+		Level.quality = ORDER.find(quality)
+		game.level.apply_quality(ORDER.find(quality))
+		return
 	var k: float = QUALITY[quality]["grass"]
 	for g in grass:
 		if not is_instance_valid(g[0]):
@@ -267,7 +272,7 @@ func smoke() -> int:
 		var mm: MultiMesh = grass[0][0].multimesh
 		var low_n := mm.visible_instance_count
 		set_quality("high")
-		ok = low_n >= 0 and low_n < int(grass[0][1]) and mm.visible_instance_count == -1
+		ok = low_n >= 0 and low_n < int(grass[0][1]) and (mm.visible_instance_count == -1 or mm.visible_instance_count == mm.instance_count)
 		print(("✓ " if ok else "✗ ") + "трава: пачек %d, на низком видно %d из %d, на высоком — все" % [grass.size(), low_n, grass[0][1]])
 		if not ok:
 			fail += 1

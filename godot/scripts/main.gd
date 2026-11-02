@@ -28,6 +28,7 @@ const FEATURE_SCRIPTS := [
 	"res://scripts/features/audio.gd",
 	"res://scripts/features/settings.gd",
 	"res://scripts/features/guns.gd",
+	"res://scripts/features/graphics.gd",
 ]
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).
@@ -85,27 +86,67 @@ func _ready() -> void:
 	if smoke:
 		_run_smoke()
 
+## Свет и воздух «как на фото»: тёплое низкое солнце с запада-юго-запада, голубоватый свет неба (окружение
+## и слабый заполняющий свет с другой стороны — тени не чёрные), ACES, дымка вдали (туман по глубине: у героя
+## чисто, к верху экрана — теплее и мутнее). Тени солнца (мягкие, один каскад ~30 м), свечение огня (glow)
+## и цветокоррекция включает Level.apply_quality только на высоком качестве: в gl_compatibility это лишние
+## проходы отрисовки. Узлы названы Sun и Fill — их находит Level.
 func _setup_scene() -> void:
 	var we := WorldEnvironment.new()
 	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.48, 0.48, 0.45)
+	env.background_color = Color(0.6, 0.59, 0.53)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.62, 0.64, 0.62)
-	env.ambient_light_energy = 0.9
+	env.ambient_light_color = Color(0.56, 0.62, 0.7)
+	env.ambient_light_energy = 0.85
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.1
+	env.tonemap_exposure = 1.08
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.5, 0.5, 0.46)
-	env.fog_density = 0.006
+	env.fog_light_color = Color(0.7, 0.66, 0.56)
+	env.fog_sun_scatter = 0.2
+	if env.get("fog_mode") != null:
+		# туман по глубине (Godot 4.3+): до 17 м от камеры чисто, дальше — дымка до 55 % к 70 м
+		env.set("fog_mode", 1)
+		env.set("fog_depth_begin", 17.0)
+		env.set("fog_depth_end", 70.0)
+		env.set("fog_depth_curve", 0.7)
+		env.fog_density = 0.55
+	else:
+		env.fog_density = 0.006
+	env.glow_enabled = false
+	env.glow_intensity = 0.7
+	env.glow_strength = 1.0
+	env.glow_bloom = 0.04
+	env.glow_hdr_threshold = 0.95
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	env.adjustment_enabled = false
+	env.adjustment_brightness = 1.0
+	env.adjustment_contrast = 1.06
+	env.adjustment_saturation = 1.12
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.9, 0.78)
-	sun.light_energy = 1.25
-	sun.rotation_degrees = Vector3(-50, 35, 0)
+	sun.name = "Sun"
+	sun.light_color = Color(1.0, 0.84, 0.64)
+	sun.light_energy = 1.75
+	sun.rotation_degrees = Vector3(-34, -69, 0)
 	sun.shadow_enabled = false
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 30.0
+	sun.directional_shadow_fade_start = 0.85
+	sun.shadow_blur = 1.6
+	sun.shadow_opacity = 0.8
+	sun.shadow_bias = 0.05
+	sun.shadow_normal_bias = 1.5
 	add_child(sun)
+	var fill := DirectionalLight3D.new()
+	fill.name = "Fill"
+	fill.light_color = Color(0.62, 0.72, 0.9)
+	fill.light_energy = 0.3
+	fill.light_specular = 0.0
+	fill.rotation_degrees = Vector3(-28, 111, 0)
+	fill.shadow_enabled = false
+	add_child(fill)
 	camera = Camera3D.new()
 	camera.fov = 42.0
 	camera.far = 140.0

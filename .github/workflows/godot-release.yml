@@ -13,6 +13,7 @@ on:
       - 'game/**'
       - '!game/version.js'
       - 'models/game/*.glb'
+      - 'assets/sounds/**'
       - 'tools/godot-export.html'
       - 'scripts/export-godot.mjs'
       - '.github/workflows/godot-release.yml'

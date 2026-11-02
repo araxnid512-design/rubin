@@ -26,6 +26,19 @@
 		};
 
 		/**
+		 * Имя материала для Godot (по нему level.gd подменяет шейдеры: мох на крышах, мокрый асфальт, лужи, листва):
+		 * материалы локации и текстурные уже названы в браузерной игре (ключ M или текстуры), безымянным — по виду.
+		 */
+		function matName(mat) {
+			if (!mat.name) {
+				if (mat.alphaMap) mat.name = 'puddle'; // лужа: форма — в alphaMap, которого нет в glTF
+				else if (mat.alphaTest > 0 && mat.side === THREE.DoubleSide && mat.map) mat.name = 'grassTuft';
+				else if (mat.map && mat.transparent && !mat.depthWrite) mat.name = 'decal';
+			}
+			return mat.name;
+		}
+
+		/**
 		 * То, чего нет в glTF: спрайты, частицы, свет и шейдерная муть — вон; экземпляры (деревья, трава) —
 		 * один образец MM<k> в начале координат, а их места — в meta.multimesh[k] (Godot размножит MultiMesh).
 		 */
@@ -47,11 +60,12 @@
 					const proto = new THREE.Mesh(o.geometry, [o.material].flat()[0]);
 					proto.name = `MM${k}`;
 					root.add(proto);
-					meta.multimesh.push({ node: proto.name, count: o.count, xf: b64(xf.buffer) });
+					meta.multimesh.push({ node: proto.name, count: o.count, xf: b64(xf.buffer), mat: matName(proto.material) });
 					drop.push(o);
 				}
 			});
 			for (const o of drop) o.removeFromParent();
+			root.traverse((o) => { for (const mat of o.material ? [o.material].flat() : []) matName(mat); });
 			// непрозрачные картинки — в JPEG (вчетверо меньше), с прозрачностью — PNG
 			const seen = new Set();
 			root.traverse((o) => {
@@ -97,6 +111,9 @@
 				buildings: L.buildings.map((b) => ({ name: b.name, cx: r3(b.cx), cz: r3(b.cz), ry: r3(b.ry), w: r3(b.W), d: r3(b.D), upper: b.group?.name ?? null, hint: L.hint?.(b) ?? null })),
 				barrels: L.barrels.map((b) => [r3(b.pos.x), r3(b.pos.z)]),
 				plan: { grounds: L.plan.grounds, trees: L.plan.trees.map((t) => [r3(t.x), r3(t.z), t.kind]), water: L.plan.water },
+				// крупные постройки, которые в браузерной игре становятся прозрачными (группы в glTF с этими именами
+				// level.gd не сливает с остальной статикой — их можно прятать целиком)
+				blocks: (L.plan.blocks ?? []).map((b) => b.name),
 				nav: { n: L.nav.N, cell: L.nav.CELL, blocked: b64(L.nav.blocked.buffer) },
 			};
 			// комната героя в стабе — прямоугольник по точкам внутри
