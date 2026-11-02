@@ -31,7 +31,7 @@ export default {
 	id: 'dachi',
 	seed: 2024,
 	build(ctx) {
-		const { rnd, R, root, batch, collide, M, ground, buildings, bctx } = ctx;
+		const { rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx } = ctx;
 
 		// ---------- Дороги: грунтовка с востока, проезды между участками, дорога на юг ----------
 		ground(150, 6, 0, 4, M.dirt, 4, 0.02);
@@ -82,7 +82,7 @@ export default {
 		}
 		fencePlot(batch, M, collide, 32, 54, 16, 13, 'w', rnd);
 		buildings.push(buildDacha(bctx, { name: 'Dacha22', cx: 35, cz: 54, ry: Math.PI / 2, rnd, variant: variant++, paint: M.woodBlue }));
-		waterTower(batch, M, collide, -40, 55);
+		occluder('WaterTower', (kb) => waterTower(kb, M, collide, -40, 55), { cx: -40, cz: 55, ry: 0, hx: 3.0, hz: 3.0, top: 17.4 }, 0.2);
 		woodpile(batch, M, collide, 27.5, 59.2, 0);
 
 		// ---------- Сторожка у въезда с юга ----------

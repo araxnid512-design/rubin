@@ -26,13 +26,13 @@ const SHADERS := "res://shaders/"
 ## Вид материала по имени (из браузерной игры): [мокрость земли, мох, затемнение у земли, крупные пятна].
 const LOOK := {
 	"grass": [0.0, 0.0, 0.0, 1.0],
-	"asphalt": [1.0, 0.0, 0.0, 0.7],
-	"dirt": [0.55, 0.0, 0.0, 0.6],
+	"asphalt": [0.8, 0.0, 0.0, 0.7],
+	"dirt": [0.4, 0.0, 0.0, 0.6],
 	"sand": [0.3, 0.0, 0.0, 0.5],
 	"ballast": [0.35, 0.0, 0.3, 0.5],
 	"sleeper": [0.2, 0.3, 0.6, 0.3],
-	"concrete": [0.42, 0.45, 1.0, 0.45],
-	"concreteDark": [0.35, 0.45, 1.0, 0.4],
+	"concrete": [0.1, 0.45, 1.0, 0.45],
+	"concreteDark": [0.1, 0.45, 1.0, 0.4],
 	"brick": [0.0, 0.45, 1.0, 0.3],
 	"whiteBrick": [0.0, 0.45, 1.0, 0.3],
 	"plaster": [0.0, 0.45, 1.0, 0.3],
@@ -50,13 +50,41 @@ const LOOK := {
 }
 ## То же по началу имени (текстуры с номером или вариантом: гаражные ворота, фасад хрущёвки).
 const LOOK_PREFIX := {"garage": [0.0, 0.2, 1.0, 0.2], "panel": [0.0, 0.35, 1.0, 0.3]}
+## Фото-текстуры CC0 (scripts/fetch-assets.mjs → assets/external/textures/<набор>/, авторы — в LICENSES.md там же):
+## материал браузерной игры → [набор, размер плитки (м), контраст деталей]. Цвет остаётся от нарисованной текстуры
+## (её средний цвет), от фото — детали и рельеф (шейдер world с PHOTO). Нет набора (не скачался) — как раньше.
+const PHOTO := {
+	"asphalt": ["road_damaged", 5.0, 0.9],
+	"dirt": ["brown_mud_leaves_01", 3.5, 0.9],
+	"sand": ["brown_mud_leaves_01", 3.5, 0.7],
+	"grass": ["Grass007", 2.5, 0.8],
+	"concrete": ["concrete_wall_008", 3.0, 0.85],
+	"concreteDark": ["concrete_wall_008", 3.0, 0.85],
+	"roofTar": ["concrete_wall_008", 3.0, 0.7],
+	"ballast": ["concrete_wall_008", 2.0, 1.0],
+	"plaster": ["concrete_wall_001", 3.0, 0.8],
+	"brick": ["mixed_brick_wall", 2.0, 1.0],
+	"whiteBrick": ["mixed_brick_wall", 2.0, 0.8],
+	"wood": ["raw_plank_wall", 2.0, 0.9],
+	"woodGrey": ["raw_plank_wall", 2.0, 0.9],
+	"sleeper": ["raw_plank_wall", 2.0, 0.9],
+	"woodGreen": ["wood_peeling_paint_weathered", 2.0, 0.9],
+	"woodBlue": ["wood_peeling_paint_weathered", 2.0, 0.9],
+	"woodYellow": ["wood_peeling_paint_weathered", 2.0, 0.9],
+	"slate": ["asbestos_sheet", 2.0, 0.9],
+	"roofMetal": ["rusty_corrugated_iron", 2.0, 0.9],
+	"roofGreen": ["rusty_corrugated_iron", 2.0, 0.8],
+	"metalRust": ["rusty_corrugated_iron", 2.0, 1.0],
+	"metalOlive": ["rusty_corrugated_iron", 2.0, 0.8],
+}
+const PHOTO_DIR := "res://assets/external/textures/"
 ## Листва (кроны деревьев): материал образца MultiMesh → оттенки.
 const FOLIAGE := ["leaves", "leavesDry", "pine"]
 ## Осенние оттенки (sRGB, вес): у каждого дерева свой.
 const AUTUMN := {
 	"leaves": [[Color(0.74, 0.6, 0.24), 0.26], [Color(0.6, 0.58, 0.28), 0.22], [Color(0.42, 0.5, 0.25), 0.22], [Color(0.31, 0.4, 0.21), 0.18], [Color(0.66, 0.42, 0.2), 0.12]],
 	"leavesDry": [[Color(0.5, 0.5, 0.26), 0.35], [Color(0.58, 0.5, 0.25), 0.3], [Color(0.5, 0.38, 0.22), 0.1], [Color(0.4, 0.46, 0.23), 0.25]],
-	"pine": [[Color(0.2, 0.3, 0.17), 0.5], [Color(0.24, 0.34, 0.19), 0.3], [Color(0.17, 0.26, 0.13), 0.2]],
+	"pine": [[Color(0.3, 0.4, 0.24), 0.5], [Color(0.35, 0.44, 0.27), 0.3], [Color(0.26, 0.36, 0.2), 0.2]],
 }
 ## Качество [низкое, среднее, высокое]: сколько огней с настоящим светом (каждый — лишний проход по мешам рядом).
 const Q_LIGHTS := [0, 1, 2]
@@ -66,6 +94,7 @@ static var quality := 1
 static var _noise: NoiseTexture2D
 static var _shaders := {}
 static var _plain := {}
+static var _photo_sets := {}
 
 var id := ""
 var meta := {}
@@ -78,6 +107,10 @@ var buildings := []   # [{name, cx, cz, ry, w, d, upper: Node3D}]
 var containers := []  # из meta + items/searched
 var exits := []
 var fires := []
+## Крупные постройки (хрущёвка, склады, башни, труба): загораживают героя от камеры — становятся полупрозрачными.
+## [{node, cx, cz, ry, hx, hz, top, ghost, parts: [[MeshInstance3D, свой материал], …]}]
+var blocks := []
+static var _ghost: StandardMaterial3D
 var model: Node3D
 ## Сводка для автотеста и слежения за нагрузкой: узлы glTF, меши и материалы до и после слияния, время.
 var stats := {}
@@ -114,6 +147,7 @@ func setup(level_id: String) -> void:
 		containers.append(e2)
 	exits = meta.get("exits", [])
 	_merge_static()
+	_blocks()
 	if meta.get("edge", true):
 		_edge_haze()
 	for f in meta.get("fires", []):
@@ -147,9 +181,8 @@ func _process(_delta: float) -> void:
 ## два огня, свечение огня (glow) и цветокоррекция — лишние проходы, поэтому только на высоком. Теней нет.
 func apply_quality(q: int) -> void:
 	quality = clampi(q, 0, 2)
-	var world_shader := shader("world_lite" if quality == 0 else "world")
 	for m in world_mats:
-		m.shader = world_shader
+		m.shader = shader(_world_shader_name(m.has_meta("photo")))
 	for i in fire_lights.size():
 		fire_lights[i].visible = i < int(Q_LIGHTS[quality])
 	var g := get_parent()
@@ -273,7 +306,7 @@ func _merge_static() -> void:
 		if b.get("upper"):
 			keep[str(b["upper"])] = true
 	for n in meta.get("blocks", []):
-		keep[str(n)] = true
+		keep[str(n["name"]) if typeof(n) == TYPE_DICTIONARY else str(n)] = true
 	var meshes: Array[MeshInstance3D] = []
 	_collect_meshes(model, meshes)
 	var static_root := Node3D.new()
@@ -387,7 +420,6 @@ func _put(parent: Node3D, mesh: Mesh, xf: Transform3D, mat: Material, mats_out: 
 	inst.material_override = mat
 	if mat:
 		mats_out[mat.get_instance_id()] = true
-	var flat := (xf * mesh.get_aabb()).size.y < 0.25
 	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(inst)
 
@@ -512,10 +544,51 @@ static func _plain_material(kind: String) -> StandardMaterial3D:
 	_plain[kind] = m
 	return m
 
+static func _world_shader_name(photo: bool) -> String:
+	return ("world_photo" if photo else "world") + ("_lite" if quality == 0 else "")
+
+## Фото-текстура набора: [цвет, нормали или null]; пусто — набор не скачан. Имена файлов — как у Poly Haven
+## (<id>_diff_1k.jpg, <id>_nor_gl_1k.jpg) и ambientCG (<id>_1K-JPG_Color.jpg, …_NormalGL.jpg); в собранной игре
+## в папке лежат *.import — по ним и ищем.
+static func photo_set(set_id: String) -> Array:
+	if _photo_sets.has(set_id):
+		return _photo_sets[set_id]
+	var out: Array = []
+	var dir := PHOTO_DIR + set_id + "/"
+	if DirAccess.dir_exists_absolute(dir):
+		var alb := ""
+		var nor := ""
+		for f in DirAccess.get_files_at(dir):
+			var n := f.trim_suffix(".import").trim_suffix(".remap")
+			var low := n.to_lower()
+			if not (low.ends_with(".jpg") or low.ends_with(".png")):
+				continue
+			if alb == "" and (low.contains("_diff") or low.contains("_color")):
+				alb = dir + n
+			elif nor == "" and (low.contains("nor_gl") or low.contains("normalgl")):
+				nor = dir + n
+		if alb != "" and ResourceLoader.exists(alb):
+			var at := load(alb) as Texture2D
+			var nt: Texture2D = load(nor) as Texture2D if nor != "" and ResourceLoader.exists(nor) else null
+			if at:
+				out = [at, nt]
+	_photo_sets[set_id] = out
+	return out
+
 func _world_material(b: BaseMaterial3D, params: Array) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.resource_name = b.resource_name
-	m.shader = shader("world_lite" if quality == 0 else "world")
+	var ph: Array = PHOTO.get(b.resource_name, [])
+	var tex: Array = photo_set(str(ph[0])) if not ph.is_empty() else []
+	if not tex.is_empty():
+		m.set_meta("photo", str(ph[0]))
+		m.set_shader_parameter("photo_albedo", tex[0])
+		m.set_shader_parameter("photo_normal", tex[1])
+		m.set_shader_parameter("photo_normal_on", 1.0 if tex[1] != null else 0.0)
+		m.set_shader_parameter("photo_tile", float(ph[1]))
+		m.set_shader_parameter("photo_contrast", float(ph[2]))
+		stats["photo_mats"] = int(stats.get("photo_mats", 0)) + 1
+	m.shader = shader(_world_shader_name(not tex.is_empty()))
 	m.set_shader_parameter("albedo_tex", b.albedo_texture)
 	m.set_shader_parameter("normal_tex", b.normal_texture)
 	m.set_shader_parameter("use_normal", 1.0 if b.normal_enabled and b.normal_texture != null else 0.0)
@@ -544,10 +617,19 @@ func _puddle_material() -> ShaderMaterial:
 static func shader(nm: String) -> Shader:
 	if _shaders.has(nm):
 		return _shaders[nm]
+	# варианты: <имя>_photo (#define PHOTO), …_lite (#define LITE) — из того же файла
 	var sh: Shader
-	if nm.ends_with("_lite"):
+	var base := nm
+	var defs := ""
+	if base.ends_with("_lite"):
+		base = base.trim_suffix("_lite")
+		defs += "#define LITE\n"
+	if base.ends_with("_photo"):
+		base = base.trim_suffix("_photo")
+		defs += "#define PHOTO\n"
+	if defs != "":
 		sh = Shader.new()
-		sh.code = shader(nm.trim_suffix("_lite")).code.replace("shader_type spatial;", "shader_type spatial;\n#define LITE")
+		sh.code = shader(base).code.replace("shader_type spatial;", "shader_type spatial;\n" + defs)
 	else:
 		sh = load(SHADERS + nm + ".gdshader") as Shader
 	_shaders[nm] = sh
@@ -654,12 +736,85 @@ func building_at(p: Vector3, margin := 0.0) -> Dictionary:
 	return {}
 
 ## Крыша и верх стен дома, где герой, прячутся.
-func update_view(player_pos: Vector3) -> void:
+func update_view(player_pos: Vector3, eye := Vector3.INF) -> void:
 	var inside := building_at(player_pos, -0.05)
 	for b in buildings:
 		var up = b.get("upper")
 		if up is Node3D:
 			up.visible = b != inside
+	# постройка между героем и камерой — полупрозрачная (как в браузерной игре)
+	if eye == Vector3.INF:
+		eye = player_pos + Vector3(0, 15.5, 9.5)
+	var head := player_pos + Vector3(0, 1.4, 0)
+	for bl in blocks:
+		var hit := _segment_hits_box(head, eye, bl)
+		if hit != bool(bl["ghost"]):
+			bl["ghost"] = hit
+			for part in bl["parts"]:
+				var mi: MeshInstance3D = part[0]
+				if is_instance_valid(mi):
+					mi.material_override = ghost_material() if hit else part[1]
+
+func _blocks() -> void:
+	blocks.clear()
+	for b in meta.get("blocks", []):
+		if typeof(b) != TYPE_DICTIONARY:
+			continue
+		var n := model.find_child(str(b["name"]), true, false)
+		if n == null:
+			continue
+		var e: Dictionary = b.duplicate()
+		e["node"] = n
+		e["ghost"] = false
+		var parts: Array = []
+		for c in n.find_children("*", "MeshInstance3D", true, false):
+			var mi: MeshInstance3D = c
+			if mi.mesh != null:
+				parts.append([mi, mi.material_override])
+		e["parts"] = parts
+		blocks.append(e)
+	stats["blocks"] = blocks.size()
+
+## Отрезок p→q задевает коробку постройки (центр, поворот ry, полуразмеры hx×hz, высота 0…top).
+static func _segment_hits_box(p: Vector3, q: Vector3, b: Dictionary) -> bool:
+	var c := cos(float(b["ry"]))
+	var sn := sin(float(b["ry"]))
+	var cx := float(b["cx"])
+	var cz := float(b["cz"])
+	var a := Vector3((p.x - cx) * c - (p.z - cz) * sn, p.y, (p.x - cx) * sn + (p.z - cz) * c)
+	var e := Vector3((q.x - cx) * c - (q.z - cz) * sn, q.y, (q.x - cx) * sn + (q.z - cz) * c)
+	var lo := Vector3(-float(b["hx"]), 0.0, -float(b["hz"]))
+	var hi := Vector3(float(b["hx"]), float(b["top"]), float(b["hz"]))
+	var t0 := 0.0
+	var t1 := 1.0
+	for k in 3:
+		var d: float = e[k] - a[k]
+		if absf(d) < 1e-9:
+			if a[k] < lo[k] or a[k] > hi[k]:
+				return false
+			continue
+		var ta: float = (lo[k] - a[k]) / d
+		var tb: float = (hi[k] - a[k]) / d
+		if ta > tb:
+			var tmp: float = ta
+			ta = tb
+			tb = tmp
+		t0 = maxf(t0, ta)
+		t1 = minf(t1, tb)
+		if t0 > t1:
+			return false
+	return true
+
+## Полупрозрачный «призрак» постройки: светлый, без текстур — видно героя и контуры здания.
+static func ghost_material() -> StandardMaterial3D:
+	if _ghost == null:
+		_ghost = StandardMaterial3D.new()
+		_ghost.resource_name = "ghost"
+		_ghost.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_ghost.albedo_color = Color(0.86, 0.83, 0.76, 0.22)
+		_ghost.roughness = 1.0
+		_ghost.cull_mode = BaseMaterial3D.CULL_BACK
+	return _ghost
 
 ## Выход, в зоне которого точка; у края кластера — ближайший выход (to может быть null — карта Улья).
 func exit_at(p: Vector3) -> Dictionary:

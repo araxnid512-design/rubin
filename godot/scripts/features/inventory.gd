@@ -21,7 +21,7 @@ var check_t := 0.0
 
 func setup(g: Node) -> void:
 	game = g
-	game.hud.add_button("inventory", "Рюкзак", Vector2(-110, -520), 90, _on_button)
+	game.hud.add_button("inventory", "Рюкзак", Vector2(-104, -416), 84, _on_button)   # под миникартой
 
 
 func _on_button(down: bool) -> void:

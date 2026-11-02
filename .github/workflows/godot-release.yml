@@ -46,6 +46,20 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Выгрузить локации, оружие и персонажей
         run: node scripts/export-godot.mjs
+      # фото-текстуры CC0 (Poly Haven, ambientCG) для земли, стен и крыш — авторы в godot/assets/external/LICENSES.md;
+      # скачанное хранится в кэше Actions, повторно не качается
+      - uses: actions/cache@v4
+        with:
+          path: godot/assets/external
+          key: free-assets-${{ hashFiles('scripts/fetch-assets.mjs') }}
+      - name: Бесплатные текстуры CC0
+        continue-on-error: true
+        run: |
+          node scripts/fetch-assets.mjs --only=road_damaged,brown_mud_leaves_01,Grass007,asbestos_sheet,rusty_corrugated_iron,raw_plank_wall,wood_peeling_paint_weathered,concrete_wall_001,concrete_wall_008,mixed_brick_wall
+          # в игру — только цвет и нормали: прочие карты шейдеру не нужны, а место в APK заняли бы
+          find godot/assets/external/textures -type f \( -iname '*_arm_*' -o -iname '*roughness*' -o -iname '*ambientocclusion*' -o -iname '*metalness*' -o -iname '*displacement*' -o -iname '*opacity*' -o -iname '*.usda' -o -iname '*.mtlx' \) -delete
+          ls -la godot/assets/external/textures/* | head -60
+          du -sh godot/assets/external/textures || true
       - name: Установить Godot и шаблоны экспорта
         run: |
           base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable

@@ -68,7 +68,7 @@ func setup(g: Node) -> void:
 	# кнопки справа (позиции — от правого нижнего угла)
 	_button(root, "fire", "Огонь", Vector2(-200, -220), 150)
 	_button(root, "switch", "Смена", Vector2(-360, -150), 96)
-	_button(root, "search", "Обыск", Vector2(-200, -380), 110)
+	_button(root, "search", "Обыск", Vector2(-215, -380), 110)
 	_button(root, "heal", "Живчик", Vector2(-340, -300), 96)
 	buttons["search"].visible = false
 	# окно (карта Улья, торговец, гибель)

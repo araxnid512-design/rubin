@@ -574,7 +574,7 @@ func _refresh_ui() -> void:
 		return
 	var hud := _hud()
 	if not roster.is_empty() and not hud.buttons.has("party"):
-		hud.add_button("party", "Отряд", Vector2(-122, -604), 92, _on_party_button)
+		hud.add_button("party", "Отряд", Vector2(-322, -620), 88, _on_party_button)   # слева от миникарты
 	elif roster.is_empty() and hud.buttons.has("party"):
 		hud.remove_button("party")
 	for ch in bar.get_children():

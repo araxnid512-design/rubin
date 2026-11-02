@@ -144,12 +144,15 @@ export default {
 		// ---------- Водонапорная башня ----------
 		{
 			const x = 38, z = -38;
-			const pipe = new THREE.CylinderGeometry(0.9, 1.1, 12, 12);
-			batch.add(place(pipe, x, 6, z), M.metalRust);
-			const tank = new THREE.CylinderGeometry(2.6, 2.6, 3.5, 16);
-			batch.add(place(tank, x, 13.6, z), M.metalRust);
-			const cone = new THREE.ConeGeometry(2.8, 1.4, 16);
-			batch.add(place(cone, x, 16.1, z), M.metalRust);
+			// становится прозрачной, когда загораживает героя (как хрущёвка)
+			occluder('WaterTower', (kb) => {
+				const pipe = new THREE.CylinderGeometry(0.9, 1.1, 12, 12);
+				kb.add(place(pipe, x, 6, z), M.metalRust);
+				const tank = new THREE.CylinderGeometry(2.6, 2.6, 3.5, 16);
+				kb.add(place(tank, x, 13.6, z), M.metalRust);
+				const cone = new THREE.ConeGeometry(2.8, 1.4, 16);
+				kb.add(place(cone, x, 16.1, z), M.metalRust);
+			}, { cx: x, cz: z, ry: 0, hx: 2.9, hz: 2.9, top: 16.8 }, 0.2);
 			collide(x, z, 2.4, 2.4);
 		}
 

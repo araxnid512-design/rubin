@@ -55,8 +55,8 @@ export default {
 			}, { cx, cz, ry: 0, hx: W / 2 + 0.3, hz: D / 2 + 0.6, top: H + 0.4 }, 0.25);
 			collide(cx, cz, W, D);
 		}
-		chimney(batch, M, collide, 39.5, -34, 26);
-		waterTower(batch, M, collide, -37, -27);
+		occluder('Chimney', (kb) => chimney(kb, M, collide, 39.5, -34, 26), { cx: 39.5, cz: -34, ry: 0, hx: 2.1, hz: 2.1, top: 28.5 }, 0.2);
+		occluder('WaterTower', (kb) => waterTower(kb, M, collide, -37, -27), { cx: -37, cz: -27, ry: 0, hx: 3.0, hz: 3.0, top: 17.4 }, 0.2);
 
 		// ---------- Эстакада труб, ёмкости, штабели, бочки ----------
 		pipeRack(batch, M, collide, -30, 26, -25);

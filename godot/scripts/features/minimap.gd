@@ -98,7 +98,7 @@ func setup(g: Node) -> void:
 	var b: Control = game.hud.buttons.get("locmap")
 	if b:
 		b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		b.offset_left = -MINI - 22.0 - 46.0
+		b.offset_left = -MINI - 22.0 - 80.0   # слева от миникарты, не заходя на неё
 		b.offset_right = b.offset_left + 74.0
 		b.offset_top = 94.0 + MINI - 64.0
 		b.offset_bottom = b.offset_top + 74.0

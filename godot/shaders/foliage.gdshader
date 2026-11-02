@@ -54,7 +54,7 @@ void fragment() {
 	vec3 c = COLOR.rgb;
 	c *= (0.7 + n * 0.6) * (0.78 + n3 * 0.44);
 	c = mix(c, c * vec3(1.15, 1.05, 0.7), smoothstep(0.6, 0.8, n2) * 0.5);
-	c *= mix(0.45, 1.1, y01);
+	c *= mix(0.62, 1.1, y01);
 	ALBEDO = c;
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;

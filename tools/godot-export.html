@@ -113,7 +113,7 @@
 				plan: { grounds: L.plan.grounds, trees: L.plan.trees.map((t) => [r3(t.x), r3(t.z), t.kind]), water: L.plan.water },
 				// крупные постройки, которые в браузерной игре становятся прозрачными (группы в glTF с этими именами
 				// level.gd не сливает с остальной статикой — их можно прятать целиком)
-				blocks: (L.plan.blocks ?? []).map((b) => b.name),
+				blocks: (L.plan.blocks ?? []).map((b) => ({ name: b.name, cx: r3(b.cx), cz: r3(b.cz), ry: r3(b.ry ?? 0), hx: r3(b.hx), hz: r3(b.hz), top: r3(b.top ?? 6) })),
 				nav: { n: L.nav.N, cell: L.nav.CELL, blocked: b64(L.nav.blocked.buffer) },
 			};
 			// комната героя в стабе — прямоугольник по точкам внутри

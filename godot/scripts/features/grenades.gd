@@ -31,7 +31,7 @@ var ring_mesh: TorusMesh
 
 func setup(g: Node) -> void:
 	game = g
-	game.hud.add_button("grenade", "Граната", Vector2(-340, -440), 90, _on_button)
+	game.hud.add_button("grenade", "Граната", Vector2(-360, -420), 90, _on_button)
 	olive = _mat(Color(0.27, 0.31, 0.2), 0.6, 0.2)
 	steel = _mat(Color(0.55, 0.55, 0.52), 0.35, 0.8)
 	body_mesh = SphereMesh.new()

@@ -14,6 +14,7 @@ func smoke() -> int:
 	var fails := 0
 	fails += _check_env()
 	fails += _check_shaders()
+	fails += _check_hud()
 	var prev: String = game.loc
 	for id in ["zarechny", "dachi", "himmash", "voench", "murs", "stab"]:
 		var t0 := Time.get_ticks_usec()
@@ -27,9 +28,9 @@ func smoke() -> int:
 		var st: Dictionary = lv.render_stats()
 		var s: Dictionary = lv.stats
 		var est := estimate_draws(game, game.camera)
-		print("  · ГРАФИКА %s: узлов glTF %d, мешей %d → MeshInstance3D %d (поверхностей %d), материалов %d → %d, MultiMesh %d (экземпляров %d), трава из выгрузки пропущена (%d); слияние %.0f мс, загрузка %.0f мс, переход %.0f мс; в кадре ≈ %d вызовов отрисовки (видно мешей %d, свет огня +%d), рендер: %d" % [
+		print("  · ГРАФИКА %s: узлов glTF %d, мешей %d → MeshInstance3D %d (поверхностей %d), материалов %d → %d, MultiMesh %d (экземпляров %d), трава из выгрузки пропущена (%d), с фото-текстурами %d; слияние %.0f мс, загрузка %.0f мс, переход %.0f мс; в кадре ≈ %d вызовов отрисовки (видно мешей %d, свет огня +%d), рендер: %d" % [
 			id, s.get("gltf_nodes", 0), s.get("gltf_meshes", 0), st["meshes"], st["surfaces"], s.get("materials_in", 0), st["materials"],
-			st["multimesh"], st["instances"], s.get("grass_skipped", 0),
+			st["multimesh"], st["instances"], s.get("grass_skipped", 0), s.get("photo_mats", 0),
 			s.get("merge_ms", 0.0), s.get("load_ms", 0.0), enter_ms, est["draws"], est["visible"], est["light_passes"],
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
 		var ok_merge: bool = int(st["meshes"]) < int(s.get("gltf_nodes", 0)) * 0.75 and int(st["meshes"]) < int(s.get("gltf_meshes", 0)) and int(st["materials"]) < int(s.get("materials_in", 0))
@@ -48,6 +49,25 @@ func smoke() -> int:
 			fails += await _check_quality(lv)
 	return fails
 
+## Кнопки экрана не налезают друг на друга и на миникарту (экран 1280×720 — самый узкий из поддерживаемых).
+func _check_hud() -> int:
+	var rects := {}
+	for id in game.hud.buttons:
+		var b: Control = game.hud.buttons[id]
+		rects[id] = b.get_global_rect()
+	var mm: Node = game.get_node_or_null("minimap")
+	if mm and mm.get("holder") is Control:
+		rects["миникарта"] = (mm.get("holder") as Control).get_global_rect()
+	var bad := []
+	var ids := rects.keys()
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			var r1: Rect2 = rects[ids[i]]
+			var r2: Rect2 = rects[ids[j]]
+			if r1.grow(-2.0).intersects(r2.grow(-2.0)):
+				bad.append("%s × %s" % [ids[i], ids[j]])
+	return _check(bad.is_empty(), "кнопки экрана не перекрываются (%d шт.)%s" % [rects.size(), "" if bad.is_empty() else ": " + ", ".join(bad)])
+
 ## Окружение: ACES, туман, тёплое солнце и голубоватый заполняющий свет.
 func _check_env() -> int:
 	var env: Environment = game.env
@@ -65,7 +85,7 @@ func _check_shaders() -> int:
 		print("  · шейдеры: в этом режиме рендер их не разбирает — проверка пропущена")
 		return 0
 	var bad := []
-	for nm in ["world", "world_lite", "foliage", "puddle", "fire_glow"]:
+	for nm in ["world", "world_lite", "world_photo", "world_photo_lite", "foliage", "puddle", "fire_glow"]:
 		var sh := Level.shader(nm)
 		if sh == null or sh.get_shader_uniform_list().is_empty():
 			bad.append(nm)

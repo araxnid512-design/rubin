@@ -347,7 +347,7 @@ func _process(delta: float) -> void:
 	view_t -= delta
 	if view_t <= 0.0:
 		view_t = 0.2
-		level.update_view(player.global_position)
+		level.update_view(player.global_position, camera.global_position)
 	_update_pickups(delta)
 	_update_interact(delta)
 	_update_exit()
