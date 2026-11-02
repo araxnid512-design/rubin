@@ -81,6 +81,18 @@
     "list",
     "--help"
    ]
+  },
+  {
+   "id": "m_projects2",
+   "timeout": 120,
+   "args": [
+    "project",
+    "list",
+    "--size",
+    "2",
+    "--output-format",
+    "json"
+   ]
   }
  ],
  "stop": false
