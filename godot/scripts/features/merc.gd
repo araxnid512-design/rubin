@@ -504,6 +504,8 @@ func _launch(from: Vector3, to: Vector3) -> void:
 	var s := SphereMesh.new()
 	s.radius = 0.06
 	s.height = 0.12
+	s.radial_segments = 10
+	s.rings = 6
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(0.25, 0.3, 0.2)
 	s.material = m
@@ -563,6 +565,8 @@ func explode(pos: Vector3) -> void:
 	var q := SphereMesh.new()
 	q.radius = 0.12
 	q.height = 0.24
+	q.radial_segments = 6   # частица вспышки: по умолчанию сфера — 4096 треугольников
+	q.rings = 3
 	var qm := StandardMaterial3D.new()
 	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	qm.albedo_color = Color(1.0, 0.6, 0.25)

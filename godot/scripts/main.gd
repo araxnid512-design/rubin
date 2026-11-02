@@ -535,6 +535,8 @@ func blood(at: Vector3) -> void:
 	var s := SphereMesh.new()
 	s.radius = 0.035
 	s.height = 0.07
+	s.radial_segments = 4   # капля крови: по умолчанию сфера — 4096 треугольников на каждую частицу
+	s.rings = 2
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(0.45, 0.03, 0.02)
 	s.material = m
@@ -575,6 +577,8 @@ func spawn_pickup(kind: String, n: int, pos: Vector3) -> void:
 	var s := SphereMesh.new()
 	s.radius = 0.13
 	s.height = 0.2
+	s.radial_segments = 12
+	s.rings = 6
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(0.85, 0.75, 0.35) if kind == "spore" else Color(0.5, 0.75, 0.4) if kind == "peas" else Color(0.15, 0.15, 0.18)
 	m.emission_enabled = true
