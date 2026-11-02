@@ -7,3 +7,5 @@ assets/textures/
 assets/weapons/
 assets/characters/
 export/
+# бесплатные ассеты (текстуры, модели, анимации, эффекты, звуки) скачивает scripts/fetch-assets.mjs
+assets/external/
