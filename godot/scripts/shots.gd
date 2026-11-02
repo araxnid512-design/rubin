@@ -32,6 +32,7 @@ func run(g, out_dir: String) -> void:
 	var size: Vector2 = game.get_viewport().get_visible_rect().size
 	print("SHOTS: экран %dx%d, рендер %s, видеокарта %s" % [size.x, size.y, RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_video_adapter_name()])
 	await _hero_shots()
+	await _fire_shots()
 	var prev: String = game.loc
 	for id in LOCS:
 		if id != game.loc:
@@ -103,6 +104,63 @@ func _hero_shots() -> void:
 			note = ", переноска %.2f, левая кисть до цевья %.3f м" % [float(p.pose.carry) if p.pose else 0.0, float(f.get("left_error"))]
 		await _capture("hero", n, "герой: %s, %s%s" % [Data.weapon(w[1]).get("name", w[1]), w[2], note], true)
 		game.set_process(true)
+	game.kit.clear()
+	game.kit.merge(keep)
+	p.attach_gear()
+
+## Стрельба крупно (сбоку): герой поднимает ствол в прицел и стреляет по бегуну в 3,5 м; кадр — сразу после
+## выстрела (вспышка у дула, трассер в цель). В журнал — куда смотрит дуло относительно цели.
+var _fired := false
+
+func _on_fire(shooter, _w: Dictionary, _from: Vector3) -> void:
+	if shooter == game.player and not _fired:
+		_fired = true
+		# вспышка и трассер живут ~0,05 с, а кадр под xvfb рисуется ~0,3 с — замедлить время, пока снимаем
+		Engine.time_scale = 0.02
+
+func _fire_shots() -> void:
+	var p = game.player
+	var keep: Dictionary = game.kit.duplicate()
+	var n := 7
+	game.shot.connect(_on_fire)
+	for id in ["ak74", "pkm", "pistol", "shotgun"]:
+		n += 1
+		game.kit["gun"] = id
+		game.wear[id] = int(Data.weapon(id).get("durability", 100))
+		p.hold = "gun"
+		p.attach_gear()
+		await _wait(0.6)
+		var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
+		var right := fwd.cross(Vector3.UP)
+		var z = game.spawn_enemy("runner", p.global_position + fwd * 3.5)
+		z.hp = 100000.0
+		var cam: Camera3D = game.camera
+		game.set_process(false)
+		var mid: Vector3 = p.global_position + fwd * 1.6 + Vector3(0, 1.2, 0)
+		cam.global_position = mid + right * 3.4 + Vector3(0, 0.6, 0)
+		cam.look_at(mid, Vector3.UP)
+		_fired = false
+		p.attack_held = true
+		var t := 0.0
+		while not _fired and t < 4.0:
+			await game.get_tree().physics_frame
+			t += 1.0 / 60.0
+		p.attack_held = false
+		var node: Node3D = p.models.get(id)
+		var note := "не выстрелил"
+		if _fired and node:
+			var b := -node.global_transform.basis.y.normalized()
+			var to: Vector3 = z.global_position - node.global_position
+			to.y = 0.0
+			note = "дуло к цели %.0f°" % rad_to_deg(Vector3(b.x, 0, b.z).normalized().angle_to(to.normalized()))
+		await _capture("fire", n - 7, "стрельба: %s, %s" % [Data.weapon(id).get("name", id), note], true)
+		Engine.time_scale = 1.0
+		game.set_process(true)
+		if is_instance_valid(z):
+			game.enemies.erase(z)
+			z.queue_free()
+		await _wait(0.3)
+	game.shot.disconnect(_on_fire)
 	game.kit.clear()
 	game.kit.merge(keep)
 	p.attach_gear()
