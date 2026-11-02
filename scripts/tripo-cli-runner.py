@@ -53,16 +53,23 @@ def log(line):
 
 
 _warned = set()
+CTL = Path("/tmp/tripo-ctl")
 
 
 def control():
-    # явная ссылка: в клоне actions/checkout (одна ветка) «git fetch origin tripo-control» не обновляет
-    # origin/tripo-control — исполнитель молча ждал заданий, которых не видел
-    f = subprocess.run(["git", "fetch", "-q", "origin", "+refs/heads/tripo-control:refs/remotes/origin/tripo-control"],
-                       capture_output=True, text=True)
-    p = subprocess.run(["git", "show", "origin/tripo-control:jobs.json"], capture_output=True, text=True)
-    if p.returncode != 0:
+    # отдельная копия только с веткой tripo-control: в клоне actions/checkout бывают битые ссылки на служебные
+    # ветки (bad object refs/remotes/origin/tripo-code) — тогда любой fetch там падал и задания не читались
+    token = os.environ.get("GH_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not (CTL / ".git").exists():
+        subprocess.run(["git", "init", "-q", str(CTL)], capture_output=True)
+    url = f"https://x-access-token:{token}@github.com/{repo}.git"
+    f = subprocess.run(["git", "-C", str(CTL), "fetch", "-q", "--depth=1", url, "tripo-control"], capture_output=True, text=True)
+    p = subprocess.run(["git", "-C", str(CTL), "show", "FETCH_HEAD:jobs.json"], capture_output=True, text=True)
+    if f.returncode != 0 or p.returncode != 0:
         msg = (f.stderr + p.stderr).strip()[:300]
+        if token:
+            msg = msg.replace(token, "***")
         if msg not in _warned:
             _warned.add(msg)
             log(f"jobs.json не прочитан: {msg}")
