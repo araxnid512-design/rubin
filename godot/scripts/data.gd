@@ -9,13 +9,14 @@ const GUN_DURABILITY := {
 	"vss": 500, "pkm": 1200, "svd": 300, "scar": 900, "fnfal": 800, "aug": 900, "pm63": 520, "spas12": 300,
 }
 
-## Новые стволы (из пакета «СТИКС»). model — чья модель пока стоит вместо своей.
+## Новые стволы (из пакета «СТИКС»). model — id модели: свои, из game/weapons.js (makeScar, makeFal, makeAug, makePm63,
+## makeSpas12), выгружает scripts/export-godot.mjs в assets/weapons/<id>.glb.
 const NEW_WEAPONS := {
-	"scar": {"name": "SCAR-H", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 44, "range": 8.5, "cooldown": 0.11, "auto": 0.11, "noise": 38, "spread": 0.04, "flash": 1.0, "price": 260, "model": "ak74", "desc": "Штурмовая винтовка под 7,62×51: точная, тяжёлая пуля."},
-	"fnfal": {"name": "FN FAL", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 46, "range": 9.0, "cooldown": 0.13, "auto": 0.13, "noise": 40, "spread": 0.05, "flash": 1.1, "price": 240, "model": "ak47", "desc": "Боевая винтовка 7,62×51 с деревянным прикладом: бьёт сильно, уводит в очереди."},
-	"aug": {"name": "Steyr AUG", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 32, "range": 8.5, "cooldown": 0.09, "auto": 0.09, "noise": 34, "spread": 0.03, "flash": 0.9, "price": 220, "model": "aks", "desc": "Автомат-буллпап 5,56: короткий, точный, магазин за рукоятью."},
-	"pm63": {"name": "PM-63 RAK", "slot": "gun", "anim": "pistol", "mount": "holster", "damage": 22, "range": 6.0, "cooldown": 0.07, "auto": 0.07, "noise": 26, "spread": 0.06, "flash": 0.7, "price": 120, "model": "pistol", "desc": "Компактный пистолет-пулемёт 9×18: очень быстрый огонь."},
-	"spas12": {"name": "SPAS-12", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 15, "pellets": 9, "range": 5.0, "cooldown": 0.45, "auto": 0.5, "noise": 36, "spread": 0.22, "flash": 1.4, "price": 200, "model": "shotgun", "desc": "Боевой дробовик 12 калибра: картечь веером, полуавтомат."},
+	"scar": {"name": "SCAR-H", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 44, "range": 8.5, "cooldown": 0.11, "auto": 0.11, "noise": 38, "spread": 0.04, "flash": 1.0, "price": 260, "model": "scar", "desc": "Штурмовая винтовка под 7,62×51: точная, тяжёлая пуля."},
+	"fnfal": {"name": "FN FAL", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 46, "range": 9.0, "cooldown": 0.13, "auto": 0.13, "noise": 40, "spread": 0.05, "flash": 1.1, "price": 240, "model": "fnfal", "desc": "Боевая винтовка 7,62×51 с деревянным прикладом: бьёт сильно, уводит в очереди."},
+	"aug": {"name": "Steyr AUG", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 32, "range": 8.5, "cooldown": 0.09, "auto": 0.09, "noise": 34, "spread": 0.03, "flash": 0.9, "price": 220, "model": "aug", "desc": "Автомат-буллпап 5,56: короткий, точный, магазин за рукоятью."},
+	"pm63": {"name": "PM-63 RAK", "slot": "gun", "anim": "pistol", "mount": "holster", "damage": 22, "range": 6.0, "cooldown": 0.07, "auto": 0.07, "noise": 26, "spread": 0.06, "flash": 0.7, "price": 120, "model": "pm63", "desc": "Компактный пистолет-пулемёт 9×18: очень быстрый огонь."},
+	"spas12": {"name": "SPAS-12", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 15, "pellets": 9, "range": 5.0, "cooldown": 0.45, "auto": 0.5, "noise": 36, "spread": 0.22, "flash": 1.4, "price": 200, "model": "spas12", "desc": "Боевой дробовик 12 калибра: картечь веером, полуавтомат."},
 }
 
 ## Заражённые (как в браузерной игре): hp, скорость, урон, дальность удара, момент удара в клипе.

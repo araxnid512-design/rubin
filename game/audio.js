@@ -112,11 +112,17 @@ const GUNS = {
 	vss: { s: ['pistol'], rate: 1.4, gain: 0.2, lowpass: 650, click: true },
 	pkm: { s: ['mg'], rate: 0.96, gain: 0.95 },
 	svd: { s: ['svd'], rate: 1, gain: 1 },
+	// новые стволы: SCAR-H и FAL — винтовочный 7,62 ниже тоном, AUG — сухой 5,56, PM-63 — частый пистолетный, SPAS-12 — полуавтомат
+	scar: { s: ['ak1', 'ak2', 'ak3'], rate: 0.8, gain: 0.9 },
+	fnfal: { s: ['svd'], rate: 1.12, gain: 0.85 },
+	aug: { s: ['ak1', 'ak2', 'ak3'], rate: 1.04, gain: 0.72 },
+	pm63: { s: ['pistol'], rate: 1.16, gain: 0.55 },
+	spas12: { s: ['shotgun'], rate: 0.97, gain: 0.95 },
 };
 // голоса заражённых: высота записи и громкость
 const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 } };
 // перезарядка по устройству оружия
-const RELOADS = { pistol: 'pistol', obrez: 'obrez', shotgun: 'pump', pkm: 'belt' };
+const RELOADS = { pistol: 'pistol', pm63: 'pistol', obrez: 'obrez', shotgun: 'pump', spas12: 'pump', pkm: 'belt' };
 
 function env(node, t, a, peak, dur) {
 	node.gain.setValueAtTime(0.0001, t);
