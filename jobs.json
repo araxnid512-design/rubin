@@ -93,6 +93,102 @@
     "--output-format",
     "json"
    ]
+  },
+  {
+   "id": "mur_1_rigcheck",
+   "timeout": 900,
+   "args": [
+    "process",
+    "rig",
+    "4c5e544e-871e-462b-86e9-98a9c53d6951",
+    "--check",
+    "--timeout",
+    "10m"
+   ]
+  },
+  {
+   "id": "mur_1_rig",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "4c5e544e-871e-462b-86e9-98a9c53d6951",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/mur_1_rigged.glb"
+   ]
+  },
+  {
+   "id": "mur_1_export",
+   "timeout": 900,
+   "args": [
+    "export",
+    "4c5e544e-871e-462b-86e9-98a9c53d6951",
+    "--with-animation",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/mur_1.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "mur_2_rigcheck",
+   "timeout": 900,
+   "args": [
+    "process",
+    "rig",
+    "3bf6a3be-6996-4f94-a45a-8038dc85e9c3",
+    "--check",
+    "--timeout",
+    "10m"
+   ]
+  },
+  {
+   "id": "mur_2_rig",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "3bf6a3be-6996-4f94-a45a-8038dc85e9c3",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/mur_2_rigged.glb"
+   ]
+  },
+  {
+   "id": "mur_2_export",
+   "timeout": 900,
+   "args": [
+    "export",
+    "3bf6a3be-6996-4f94-a45a-8038dc85e9c3",
+    "--with-animation",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/mur_2.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "m_bal2",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ],
  "stop": false
