@@ -1,0 +1,57 @@
+# Модели Tripo 3D для Godot-версии: по списку tripo/models.json генерирует недостающие модели (ключ — секрет
+# репозитория TRIPO_API_KEY), сохраняет их в godot/assets/tripo/*.glb, картинки — в tripo/previews/, журнал —
+# в tripo/log.md, коммитит в ветку и запускает сборку игры (godot-release.yml). Готовые модели повторно не
+# генерируются — кредиты не тратятся; за запуск не больше max_new новых.
+name: Модели Tripo
+
+on:
+  push:
+    branches: [ccr-f5d34f3a-q7wlgf]
+    paths:
+      - 'tripo/models.json'
+      - 'scripts/tripo-generate.py'
+      - '.github/workflows/tripo-models.yml'
+  workflow_dispatch:
+    inputs:
+      max_new:
+        description: 'Сколько новых моделей самое большее за запуск'
+        default: '3'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tripo-models
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Клиент Tripo
+        run: pip install -q "tripo3d>=1.0.0,<2.0.0"
+      - name: Сгенерировать недостающие модели
+        env:
+          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+          TRIPO_MAX_NEW: ${{ github.event.inputs.max_new || '3' }}
+        run: python scripts/tripo-generate.py
+      - name: Сохранить в ветку и пересобрать игру
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add godot/assets/tripo tripo
+          if git diff --cached --quiet; then echo "новых файлов нет"; exit 0; fi
+          git commit -q -m "Модели Tripo: $(ls godot/assets/tripo/*.glb 2>/dev/null | wc -l) шт. (журнал — tripo/log.md)"
+          for i in 1 2 3 4; do
+            git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && break
+            sleep $((i * 5))
+          done
+          # коммит от GITHUB_TOKEN сам сборку не запускает — запускаем её явно
+          gh workflow run godot-release.yml --ref "${GITHUB_REF_NAME}" || echo "сборку игры запустить не удалось"

@@ -1,0 +1,14 @@
+{
+  "_о_файле": "Список моделей для Tripo 3D (генерирует CI: .github/workflows/tripo-models.yml, scripts/tripo-generate.py). Уже готовые (есть godot/assets/tripo/<id>.glb) повторно не генерируются — кредиты не тратятся. face_limit — сколько треугольников самое большее (телефон).",
+  "defaults": {
+    "model_version": "v2.5-20250123",
+    "negative_prompt": "text, logo, letters, pedestal, base, ground plane, platform, floor, cartoon, toy, low quality, blurry",
+    "texture_quality": "standard",
+    "auto_size": true
+  },
+  "models": [
+    {"id": "barrel_fuel", "face_limit": 1500, "prompt": "a single old rusty 200 liter steel oil drum, red paint peeling, dents and rust stains, realistic, game asset"},
+    {"id": "car_lada", "face_limit": 5000, "prompt": "an abandoned rusty old Soviet sedan car Lada VAZ 2106, faded beige paint, rust, dirty windows, flat tires, realistic, game asset"},
+    {"id": "shed_dacha", "face_limit": 3000, "prompt": "a small old wooden garden shed with a rusty corrugated metal roof, weathered grey planks, closed door, Russian dacha, realistic, game asset"}
+  ]
+}
