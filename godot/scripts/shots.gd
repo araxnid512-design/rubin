@@ -35,6 +35,11 @@ func run(g, out_dir: String) -> void:
 	await _fire_shots()
 	await _mur_shots()
 	await _gun_sheet()
+	# тестовая сцена хвата: все типы персонажей с каждым стволом, оси точек и кости, замеры по состояниям
+	var ht = preload("res://scripts/hand_test.gd").new()
+	game.add_child(ht)
+	await ht.run(game, dir)
+	ht.queue_free()
 	var prev: String = game.loc
 	for id in LOCS:
 		if id != game.loc:
@@ -215,7 +220,7 @@ func _gun_sheet() -> void:
 	var keep: Dictionary = game.kit.duplicate()
 	var ids: Array = []
 	for id in Data.WEAPONS:
-		if Data.weapon(id).get("slot", "") == "gun":
+		if Data.weapon(id).get("slot", "") == "gun" and not bool(Data.weapon(id).get("mounted", false)):
 			ids.append(id)
 	const CW := 300
 	const CH := 330

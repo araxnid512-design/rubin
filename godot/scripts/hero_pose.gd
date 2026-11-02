@@ -4,9 +4,9 @@ extends SkeletonModifier3D
 ## правая кисть держит оружие, затем оружие задаёт место левой кисти, затем локти):
 ##   1) поворот корпуса: позвоночник (Spine → Spine1 → Spine2) доворачивается на twist — ноги шагают по ходу
 ##      движения, верх смотрит туда, куда целится герой (поворот делится между тремя позвонками);
-##   1а) переноска длинного ствола вне прицела (вес carry): ствол поперёк корпуса на уровне низа груди, дулом вперёд
-##      и чуть влево, приклад у правого бока под предплечьем, правая кисть на пистолетной рукояти (двухзвенный IK
-##      правой руки к хвату CARRY в осях груди — качается вместе с корпусом на ходу), левая — снизу под цевьём (п. 3);
+##   1а) переноска длинного ствола вне прицела (вес carry): ствол поперёк корпуса, дулом вперёд и чуть влево, приклад
+##      у правого бока под предплечьем, правая кисть на рукояти (двухзвенный IK правой руки к хвату переноски класса
+##      Gear.CLASSES в осях груди — качается вместе с корпусом на ходу), левая — снизу под цевьём (п. 3);
 ##   2) отдача: грудь откидывается назад, правая кисть с оружием уходит назад по линии ствола, ствол
 ##      подбрасывает вверх (двухзвенный IK правой руки), затем возврат — сила kick гаснет в player.gd;
 ##   3) левая кисть — на цевьё двуручного оружия: узел GripL модели ствола (marker, в осях хвата правой руки)
@@ -25,12 +25,6 @@ const REACH := 0.98
 ## кадрах клипов с автоматом: кисть на цевье, локоть согнут на 23–45°.
 const CLAV_MAX := 0.35
 const SLIDE_MAX := 0.07
-## Переноска: где хват правой кисти (узел GripR) в осях груди (Spine2: x — влево, y — вверх, z — вперёд), м,
-## и куда смотрит ствол: на CARRY_YAW влево и на CARRY_PITCH вниз, градусы (по снимкам-образцам пользователя:
-## ствол поперёк корпуса, приклад под правым предплечьем, левая ладонь снизу под цевьём).
-const CARRY_AT := Vector3(-0.12, -0.18, 0.33)
-const CARRY_YAW := 20.0
-const CARRY_PITCH := 4.0
 
 ## Поворот верха относительно ног, рад (плюс — влево).
 var twist := 0.0
@@ -41,8 +35,10 @@ var kick_climb := 0.0
 var kick_chest := 0.0
 ## Вес IK левой кисти (0 — как в клипе, 1 — точно на GripL оружия).
 var ik_weight := 0.0
-## Вес переноски длинного ствола (0 — как в клипе, 1 — хват CARRY); в прицеле — 0.
+## Вес переноски длинного ствола (0 — как в клипе, 1 — хват переноски класса Gear.CLASSES); в прицеле — 0.
 var carry := 0.0
+## Ствол в руке (для класса хвата: переноска, двуручный ли).
+var weapon_id := ""
 ## Где должен оказаться узел GripL левой кисти — в осях узла GripR правой (= в осях оружия в руке).
 var marker := Transform3D.IDENTITY
 ## Для автотеста: сколько раз модификатор отработал и насколько левая кисть не дотянулась до цели, м (−1 — IK выключен).
@@ -104,7 +100,7 @@ func _process_modification() -> void:
 	frames += 1
 	if absf(twist) > 0.0005:
 		_twist(sk)
-	if carry > 0.001 and _chest >= 0 and _r_arm >= 0 and _r_fore >= 0 and _r_hand >= 0:
+	if carry > 0.001 and _chest >= 0 and _r_arm >= 0 and _r_fore >= 0 and _r_hand >= 0 and bool(Gear.carry_grip(weapon_id)[1]):
 		_carry(sk)
 	if kick > 0.003:
 		_recoil(sk)
@@ -124,22 +120,13 @@ func _twist(sk: Skeleton3D) -> void:
 
 # ---------- 1а. Переноска ----------
 
-## Хват правой кисти при переноске — в осях груди: ствол (−Y хвата) вперёд, влево и чуть вниз, верх (+Z) — вверх.
-static func carry_grip() -> Transform3D:
-	var yaw := deg_to_rad(CARRY_YAW)
-	var pitch := deg_to_rad(CARRY_PITCH)
-	var d := Vector3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)).normalized()
-	var y := -d
-	var z := (Vector3.UP - y * Vector3.UP.dot(y)).normalized()
-	return Transform3D(Basis(y.cross(z), y, z), CARRY_AT)
-
 func _carry(sk: Skeleton3D) -> void:
 	var w := clampf(carry, 0.0, 1.0)
 	var chest := sk.get_bone_global_pose(_chest)
-	var g := Transform3D(chest.basis.orthonormalized(), chest.origin) * carry_grip()
+	var g := Transform3D(chest.basis.orthonormalized(), chest.origin) * (Gear.carry_grip(weapon_id)[0] as Transform3D)
 	var goal := g * _grip_r_local(sk).affine_inverse()
 	var now := sk.get_bone_global_pose(_r_hand)
-	_solve(sk, _r_arm, _r_fore, _r_hand, now.interpolate_with(goal, w), _hint(sk, Vector3(-0.6, -1.0, -0.3)))
+	_solve(sk, _r_arm, _r_fore, _r_hand, now.interpolate_with(goal, w), _hint(sk, Gear.POLE_R), true)
 
 # ---------- 2. Отдача ----------
 
@@ -178,7 +165,7 @@ func _left_hand(sk: Skeleton3D) -> void:
 	ik_slide = clampf(s, 0.0, SLIDE_MAX)
 	goal.origin += back * ik_slide
 	var want := now.interpolate_with(goal, w)
-	_solve(sk, _l_arm, _l_fore, _l_hand, want, _hint(sk, Vector3(0.6, -1.0, -0.3)))
+	_solve(sk, _l_arm, _l_fore, _l_hand, want, _hint(sk, Gear.POLE_L), true)
 	ik_error = sk.get_bone_global_pose(_l_hand).origin.distance_to(goal.origin)
 
 ## Ключица навстречу цели, если рука не достаёт (плечо выдвигается вперёд-внутрь), — до CLAV_MAX, с весом w.
@@ -265,8 +252,9 @@ static func _arc(a: Vector3, b: Vector3) -> Quaternion:
 	return Quaternion(u, v)
 
 ## Двухзвенный IK: плечо i_up → локоть i_lo → кисть i_hand; кисть — в target (точка и поворот, оси скелета).
-## Локоть остаётся в плоскости, где он сейчас (по клипу); если рука почти прямая — по подсказке hint.
-func _solve(sk: Skeleton3D, i_up: int, i_lo: int, i_hand: int, target: Transform3D, hint: Vector3) -> void:
+## Локоть — в сторону полюса hint, если force_pole (переноска, левая кисть на цевье: локти вниз-наружу, не
+## выворачиваются); иначе — в плоскости, где он сейчас по клипу (отдача), а у почти прямой руки — по hint.
+func _solve(sk: Skeleton3D, i_up: int, i_lo: int, i_hand: int, target: Transform3D, hint: Vector3, force_pole := false) -> void:
 	var a := sk.get_bone_global_pose(i_up).origin
 	var b := sk.get_bone_global_pose(i_lo).origin
 	var c := sk.get_bone_global_pose(i_hand).origin
@@ -279,8 +267,10 @@ func _solve(sk: Skeleton3D, i_up: int, i_lo: int, i_hand: int, target: Transform
 	var dir := to.normalized()
 	var bend := b - a
 	var pole := bend - dir * bend.dot(dir)
-	if pole.length_squared() < 0.0004:
-		pole = hint - dir * hint.dot(dir)
+	if force_pole or pole.length_squared() < 0.0004:
+		var hp := hint - dir * hint.dot(dir)
+		if hp.length_squared() > 1e-8:
+			pole = hp
 	if pole.length_squared() < 1e-8:
 		return
 	pole = pole.normalized()

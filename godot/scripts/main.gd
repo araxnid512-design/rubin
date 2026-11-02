@@ -329,7 +329,7 @@ func _spawn_npcs() -> void:
 		if n.has("gun"):
 			var grip: Node3D = Player.attach_point(m, "GripR")
 			if grip:
-				grip.add_child(Gear.weapon(str(n["gun"])))
+				Gear.put_in_hand(Gear.weapon(str(n["gun"])), grip)
 		npcs.append(m)
 
 # ---------- Цикл ----------
@@ -705,7 +705,7 @@ func open_trade() -> void:
 	for id in [kit.get("melee", ""), kit.get("gun", "")] + kit.get("owned", []):
 		if id != "" and id != "fists" and repair_cost(id) > 0:
 			acts.append(["Починить %s · %d сп." % [Data.weapon(id).get("name", id), repair_cost(id)], _repair.bind(id), sp >= repair_cost(id)])
-	for id in ["fireaxe", "glock17", "deagle", "pistol", "pm63", "obrez", "dbarrel", "shotgun", "spas12", "mp5", "vector", "aks", "ak74", "ak107", "ak47", "aug", "g36", "scar", "fnfal", "rpk", "svd", "awm", "vss", "pkm", "pkt"]:
+	for id in ["fireaxe", "glock17", "deagle", "pistol", "pm63", "obrez", "dbarrel", "shotgun", "spas12", "mp5", "vector", "aks", "ak74", "ak107", "ak47", "aug", "g36", "scar", "fnfal", "rpk", "svd", "awm", "vss", "pkm"]:
 		acts.append(["%s · %d сп." % [Data.weapon(id).get("name", id), PRICES[id]], _buy.bind(id), sp >= PRICES[id]])
 	if int(bag.get("peas", 0)) > 0:
 		acts.append(["Продать горох ×%d · +%d сп." % [bag["peas"], int(bag["peas"]) * 5], _sell.bind("peas")])

@@ -13,16 +13,18 @@ func smoke() -> int:
 	var fail := 0
 	for id in Data.NEW_WEAPONS:
 		var w := Data.weapon(id)
-		var path := "res://assets/weapons/%s.glb" % w.get("model", id)
-		var ok: bool = w.get("model", "") == id and ResourceLoader.exists(path)
-		var info := "нет файла %s" % path
+		var mid := str(w.get("model", id))
+		# модель — из Tripo (assets/tripo/w_<id>.glb) или старая браузерной игры (assets/weapons/<id>.glb)
+		var ok: bool = mid == id and (ResourceLoader.exists("res://assets/tripo/w_%s.glb" % mid) or ResourceLoader.exists("res://assets/weapons/%s.glb" % mid))
+		var info := "нет файла модели %s" % mid
 		if ok:
-			var node: Node3D = (load(path) as PackedScene).instantiate()
-			var muzzle: Node3D = node.find_child("Muzzle", true, false)
+			var node := Gear.weapon(mid)
+			var muzzle := Gear.point(node, "MuzzlePoint")
 			var meshes := node.find_children("*", "MeshInstance3D", true, false).size()
-			# ствол смотрит по −Y хвата: точка ствола впереди кулака
-			ok = muzzle != null and muzzle.position.y < -0.15 and meshes > 0
-			info = "мешей %d, Muzzle %s" % [meshes, str(muzzle.position) if muzzle else "нет"]
+			# ствол смотрит по −Y хвата: дуло впереди рукояти; рукоять — точка RightGrip
+			var mp: Vector3 = Gear.point_local(node, "MuzzlePoint").origin
+			ok = muzzle != null and Gear.point(node, "RightGrip") != null and mp.y < -0.05 and meshes > 0
+			info = "мешей %d, дуло %s, рукоять %s" % [meshes, str(mp) if muzzle else "нет", "есть" if Gear.point(node, "RightGrip") else "нет"]
 			node.free()
 		print(("✓ " if ok else "✗ ") + "модель %s (%s): %s" % [w.get("name", id), id, info])
 		if not ok:
@@ -43,7 +45,7 @@ func smoke() -> int:
 		var want: float = Gear.target_length(mid, ob.get_longest_axis_size())
 		var ok2: bool = node.find_children("*", "MeshInstance3D", true, false).size() > 0 and absf(nb.get_longest_axis_size() - want) < want * 0.12
 		if old and old.find_child("Muzzle", true, false):
-			ok2 = ok2 and node.find_child("Muzzle", true, false) != null
+			ok2 = ok2 and Gear.point(node, "MuzzlePoint") != null and Gear.point(node, "RightGrip") != null
 		print(("✓ " if ok2 else "✗ ") + "Tripo: %s — длина %.2f м (нужна %.2f, старая модель %.2f м)" % [Data.weapon(id).get("name", id), nb.get_longest_axis_size(), want, ob.get_longest_axis_size()])
 		if not ok2:
 			fail += 1
@@ -72,7 +74,7 @@ func smoke() -> int:
 		var on_body: bool = p.models.has(id) and (mount == null or p.models[id].get_parent() == mount)
 		p.hold = "gun"
 		p.attach_gear()
-		var in_hand: bool = p.models[id].get_parent() == p.grip and p.models[id].find_child("Muzzle", true, false) != null
+		var in_hand: bool = p.models[id].get_parent() == p.grip and Gear.point(p.models[id], "MuzzlePoint") != null
 		print(("✓ " if on_body and in_hand else "✗ ") + "%s: в креплении «%s» — %s, в руке — %s" % [Data.weapon(id)["name"], Data.weapon(id).get("mount", ""), on_body, in_hand])
 		if not (on_body and in_hand):
 			fail += 1
@@ -172,7 +174,7 @@ func _fire_all() -> int:
 	var n_all := 0
 	for id in Data.WEAPONS:
 		var w := Data.weapon(id)
-		if w.get("slot", "") != "gun":
+		if w.get("slot", "") != "gun" or bool(w.get("mounted", false)):
 			continue
 		n_all += 1
 		game.kit["gun"] = id

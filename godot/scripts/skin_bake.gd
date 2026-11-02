@@ -17,9 +17,10 @@ static var _cache := {}
 static func instance(path: String, clips: Array, host: Node) -> Node3D:
 	if not ResourceLoader.exists(path) or not ResourceLoader.exists(SRC):
 		return null
-	if not _cache.has(path):
-		_cache[path] = _bake(path, clips, host)
-	var info: Dictionary = _cache[path]
+	var key := path + "|" + ",".join(clips)
+	if not _cache.has(key):
+		_cache[key] = _bake(path, clips, host)
+	var info: Dictionary = _cache[key]
 	if info.is_empty():
 		return null
 	var model: Node3D = (load(path) as PackedScene).instantiate()

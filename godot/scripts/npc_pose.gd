@@ -47,15 +47,17 @@ static func make_for_old(model: Node) -> NpcPose:
 	n.grip_l = sk.get_bone_global_rest(lh).affine_inverse() * sk.get_bone_global_rest(gl) if lh >= 0 and gl >= 0 else HeroPoseScript.grip_l_default()
 	return n
 
-## Оружие в руке: цевьё (узел GripL модели) — для левой кисти; two — двуручное (иначе левая не трогается).
-func set_weapon(gun: Node3D, two: bool) -> void:
+## Оружие в руке: класс хвата (Gear.CLASS_OF — переноска, двуручный ли), точка LeftSupportGrip относительно
+## RightGrip — для левой кисти; у одноручного класса левая не трогается.
+var weapon_id := ""
+
+func set_weapon(gun: Node3D, id: String) -> void:
+	weapon_id = id
 	has_marker = false
-	if gun == null or not two:
+	if gun == null or not bool(Gear.grip_class(id)["two"]) or Gear.point(gun, "LeftSupportGrip") == null:
 		return
-	var m := gun.find_child("GripL", true, false) as Node3D
-	if m:
-		marker = Gear._rel(gun, m)
-		has_marker = true
+	marker = Gear.point_local(gun, "RightGrip").affine_inverse() * Gear.point_local(gun, "LeftSupportGrip")
+	has_marker = true
 
 func _bind(sk: Skeleton3D) -> void:
 	_bound = true
@@ -82,22 +84,23 @@ func _process_modification() -> void:
 		_bind(sk)
 	if _r.has(-1) or _l.has(-1):
 		return
-	if carry > 0.001 and has_marker and _chest >= 0:
+	var cgr: Array = Gear.carry_grip(weapon_id)
+	if carry > 0.001 and has_marker and bool(cgr[1]) and _chest >= 0:
 		var chest := sk.get_bone_global_pose(_chest)
 		var body := Transform3D(chest.basis.orthonormalized() * _chest_fix, chest.origin)
 		# хват в единицах скелета: у модели Tripo узел хвата несёт масштаб 1/unit (в мире — 1), так же и цель
-		var cg0: Transform3D = HeroPoseScript.carry_grip()
+		var cg0: Transform3D = cgr[0]
 		var cg := Transform3D(cg0.basis.scaled(Vector3.ONE / unit), cg0.origin / unit)
 		var goal: Transform3D = body * cg * grip_r.affine_inverse()
 		var now := sk.get_bone_global_pose(_r[2])
-		_solve(sk, _r, now.interpolate_with(goal, clampf(carry, 0.0, 1.0)), body.basis * Vector3(-0.6, -1.0, -0.3))
+		_solve(sk, _r, now.interpolate_with(goal, clampf(carry, 0.0, 1.0)), body.basis * Gear.POLE_R)
 	left_error = -1.0
 	if left > 0.001 and has_marker:
 		var g := sk.get_bone_global_pose(_r[2]) * grip_r
 		var goal_l := g * marker * grip_l.affine_inverse()
 		var now_l := sk.get_bone_global_pose(_l[2])
 		var chest_b := sk.get_bone_global_pose(_chest).basis.orthonormalized() * _chest_fix if _chest >= 0 else Basis.IDENTITY
-		_solve(sk, _l, now_l.interpolate_with(goal_l, clampf(left, 0.0, 1.0)), chest_b * Vector3(0.6, -1.0, -0.3))
+		_solve(sk, _l, now_l.interpolate_with(goal_l, clampf(left, 0.0, 1.0)), chest_b * Gear.POLE_L)
 		left_error = (sk.get_bone_global_pose(_l[2]) * grip_l).origin.distance_to((g * marker).origin)
 
 ## Двухзвенный IK: плечо → локоть → кисть; кисть — в target (точка и поворот, оси скелета). Локоть — в плоскости,
@@ -113,10 +116,11 @@ func _solve(sk: Skeleton3D, ch: Array, target: Transform3D, hint: Vector3) -> vo
 		return
 	var d := clampf(to.length(), absf(l1 - l2) + 1e-4, (l1 + l2) * REACH)
 	var dir := to.normalized()
-	var bend := b - a
-	var pole := bend - dir * bend.dot(dir)
-	if pole.length_squared() < (l1 * 0.06) * (l1 * 0.06):
-		pole = hint - dir * hint.dot(dir)
+	# полюс — явный (локоть вниз-наружу-назад в осях корпуса): плоскость локтя из клипа после IK бывает выкручена
+	var pole := hint - dir * hint.dot(dir)
+	if pole.length_squared() < 1e-8:
+		var bend := b - a
+		pole = bend - dir * bend.dot(dir)
 	if pole.length_squared() < 1e-12:
 		return
 	pole = pole.normalized()

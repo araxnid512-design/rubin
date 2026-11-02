@@ -210,7 +210,9 @@ func gun_model(id: String) -> Node3D:
 func _put(node: Node3D, parent: Node) -> void:
 	if node.get_parent():
 		node.get_parent().remove_child(node)
-	if parent:
+	if parent == grip and grip != null:
+		Gear.put_in_hand(node, grip)   # RightGrip модели — точно в ладонь (обратный transform точки хвата)
+	elif parent:
 		parent.add_child(node)
 		node.transform = Transform3D.IDENTITY
 
@@ -354,6 +356,7 @@ func _bone_filters() -> Array:
 func _apply_kind() -> void:
 	if pose:
 		pose.marker = _grip_marker()
+		pose.weapon_id = "" if hand_empty else weapon_id()
 	var k: String = W().get("anim", "axe")
 	if k == kind or _nodes.is_empty():
 		kind = k
@@ -374,27 +377,14 @@ static func fore_basis() -> Basis:
 	var y := -(blade - z * blade.dot(z)).normalized()
 	return Basis(y.cross(z), y, z)
 
-## Где левая кисть берётся за оружие в руке (в осях узла GripR): узел GripL модели ствола (tools/godot-export.html);
-## Grip_L — у моделей из пакета (оси там свои, берём только точку); иначе — цевьё «как у АК».
+## Где левая кисть берётся за оружие в руке (в осях узла хвата правой кисти): точка LeftSupportGrip модели ствола
+## относительно его RightGrip (Gear.point_local); у старых моделей — GripL; иначе — цевьё «как у АК».
 func _grip_marker() -> Transform3D:
 	var fallback := Transform3D(fore_basis(), Vector3(0.03, -0.29, 0.02))
 	var node: Node3D = models.get(weapon_id())
-	if node == null or hand_empty:
+	if node == null or hand_empty or Gear.point(node, "LeftSupportGrip") == null:
 		return fallback
-	for n in ["GripL", "Grip_L"]:
-		var m := node.find_child(n, true, false) as Node3D
-		if m == null:
-			continue
-		var t := Transform3D.IDENTITY
-		var p: Node = m
-		while p != null and p != node:
-			if p is Node3D:
-				t = (p as Node3D).transform * t
-			p = p.get_parent()
-		if n != "GripL":
-			t.basis = fallback.basis
-		return t
-	return fallback
+	return Gear.point_local(node, "RightGrip").affine_inverse() * Gear.point_local(node, "LeftSupportGrip")
 
 func _profile() -> Dictionary:
 	var cat: String = POSE_OF.get(weapon_id(), "")
@@ -436,7 +426,7 @@ func play(c: String, _blend := 0.15, restart := false) -> void:
 
 func muzzle_pos() -> Vector3:
 	var node: Node3D = models.get(weapon_id())
-	var m: Node3D = node.find_child("Muzzle", true, false) if node else null
+	var m: Node3D = Gear.point(node, "MuzzlePoint")
 	return m.global_position if m else global_position + Vector3(0, 1.3, 0) - global_transform.basis.z * -0.6
 
 # ---------- Каждый кадр ----------
@@ -591,7 +581,7 @@ func _update_upper(delta: float) -> void:
 	# левая кисть на цевье — только у двуручного ствола в руке: при уборке отпускает (быстро, пока клип уводит
 	# оружие), при подъёме берёт — за остаток клипа смены или за время подъёма ствола
 	var want_ik := 0.0
-	if alive and gun and bool(prof["two"]) and kind == "rifle" and (not equipping or equip.get("stage", "") == "raise"):
+	if alive and gun and bool(Gear.grip_class(weapon_id())["two"]) and (not equipping or equip.get("stage", "") == "raise"):
 		want_ik = 1.0
 	var ik_rate := 0.14
 	if want_ik > ik_w:
@@ -599,7 +589,7 @@ func _update_upper(delta: float) -> void:
 	ik_w = move_toward(ik_w, want_ik, delta / ik_rate)
 	# переноска двуручного ствола поперёк корпуса — когда он в руке и верх свободен (не смена оружия, не удар/урон)
 	var want_carry := 0.0
-	if alive and gun and bool(prof["two"]) and kind == "rifle" and not equipping and not bool(anim_tree.get("parameters/act_up/active")):
+	if alive and gun and bool(Gear.carry_grip(weapon_id())[1]) and not equipping and not bool(anim_tree.get("parameters/act_up/active")):
 		want_carry = 1.0
 	carry_w = move_toward(carry_w, want_carry, delta / 0.2)
 	# отдача: резкий толчок и возврат за ~0.12 с
@@ -673,6 +663,12 @@ func attack() -> void:
 		var to: Vector3 = target.global_position - global_position
 		if absf(wrapf(atan2(to.x, to.z) - rotation.y, -PI, PI)) > AIM_TOLERANCE:
 			return
+		# и сам ствол в руке смотрит на цель (руки с оружием догоняют корпус, когда цель бежит вбок): пуля и
+		# трассер летят из дула в цель — без этого они уходили на 17–22° от ствола
+		if not _barrel_on(target.global_position) and _barrel_wait < 0.5:
+			_barrel_wait += get_physics_process_delta_time()
+			return
+	_barrel_wait = 0.0
 	cooldown = float(w.get("auto", w.get("cooldown", 0.2)))
 	aim_t = 1.4
 	busy = 0.1
@@ -684,6 +680,23 @@ func attack() -> void:
 	if wear[id] <= 0:
 		break_weapon(id)
 	game.hud_refresh()
+
+## Ствол в руке смотрит на точку at точнее BARREL_TOLERANCE (по горизонтали, от дула); если за полсекунды так и не
+## довернулся (_barrel_wait), выстрел всё равно разрешается — ствол не «замирает».
+const BARREL_TOLERANCE := 0.14
+var _barrel_wait := 0.0
+
+func _barrel_on(at: Vector3) -> bool:
+	var node: Node3D = models.get(weapon_id())
+	if node == null or not node.is_inside_tree():
+		return true
+	var b := -node.global_transform.basis.y
+	var to := at - muzzle_pos()
+	b.y = 0.0
+	to.y = 0.0
+	if b.length() < 0.05 or to.length() < 0.3:
+		return true
+	return b.normalized().angle_to(to.normalized()) <= BARREL_TOLERANCE
 
 func _melee_hit() -> void:
 	if not alive:

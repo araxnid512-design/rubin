@@ -41,6 +41,71 @@ const HOLD := {
 	"awm": [[0.64, 0.56], [0.40, 0.49]], "aug": [[0.54, 0.50], [0.33, 0.55]],
 	"g36": [[0.64, 0.60], [0.28, 0.45]], "mp5": [[0.66, 0.56], [0.25, 0.36]],
 }
+## Классы хвата: у пистолета, пистолета-пулемёта, компактного автомата, автомата, буллпапа, дробовика, ручного
+## пулемёта и снайперской винтовки — свои параметры (не один сдвиг на всех): двуручный ли хват, переноска вне прицела
+## (точка хвата правой кисти в осях корпуса: x — влево, y — вверх, z — вперёд, м; поворот ствола влево и вниз, градусы),
+## куда смотрят локти (полюс IK в осях корпуса). ПКТ — пулемёт для установки на технику: в руки его не берут
+## (mounted), обычного двуручного хвата у него нет.
+const CLASS_OF := {"glock17": "pistol", "deagle": "pistol", "pistol": "pistol", "pm63": "pistol", "obrez": "pistol",
+	"mp5": "smg", "vector": "smg", "aks": "compact", "ak47": "rifle", "ak74": "rifle", "ak107": "rifle",
+	"fnfal": "rifle", "g36": "rifle", "scar": "rifle", "aug": "bullpup", "spas12": "shotgun", "dbarrel": "shotgun",
+	"shotgun": "shotgun", "rpk": "lmg", "pkm": "lmg", "svd": "sniper", "awm": "sniper", "vss": "sniper", "pkt": "mounted"}
+const CLASSES := {
+	"pistol": {"two": false, "carry": []},
+	"smg": {"two": true, "carry": [Vector3(-0.10, -0.14, 0.30), 22.0, 2.0]},
+	"compact": {"two": true, "carry": [Vector3(-0.11, -0.16, 0.30), 22.0, 3.0]},
+	"rifle": {"two": true, "carry": [Vector3(-0.12, -0.18, 0.33), 20.0, 4.0]},
+	"bullpup": {"two": true, "carry": [Vector3(-0.10, -0.15, 0.37), 18.0, 3.0]},
+	"shotgun": {"two": true, "carry": [Vector3(-0.12, -0.18, 0.33), 20.0, 4.0]},
+	"lmg": {"two": true, "carry": [Vector3(-0.13, -0.26, 0.32), 16.0, 6.0]},
+	"sniper": {"two": true, "carry": [Vector3(-0.12, -0.16, 0.31), 15.0, 3.0]},
+	"mounted": {"two": false, "carry": [], "mounted": true},
+}
+## Полюс IK (куда смотрит локоть) в осях корпуса: правая — вниз-наружу-назад, левая — вниз-внутрь-назад.
+const POLE_R := Vector3(-0.6, -1.0, -0.3)
+const POLE_L := Vector3(0.5, -1.0, -0.2)
+
+static func grip_class(weapon_id: String) -> Dictionary:
+	return CLASSES.get(CLASS_OF.get(weapon_id, "rifle"), CLASSES["rifle"])
+
+## Хват правой кисти при переноске класса — в осях корпуса: ствол (−Y хвата) вперёд, влево и чуть вниз, верх (+Z) —
+## вверх. Пусто (Transform3D с нулевым базисом не бывает) — у класса без переноски: тогда вернёт IDENTITY и false.
+static func carry_grip(weapon_id: String) -> Array:
+	var c: Array = grip_class(weapon_id)["carry"]
+	if c.is_empty():
+		return [Transform3D.IDENTITY, false]
+	var yaw := deg_to_rad(float(c[1]))
+	var pitch := deg_to_rad(float(c[2]))
+	var d := Vector3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)).normalized()
+	var y := -d
+	var z := (Vector3.UP - y * Vector3.UP.dot(y)).normalized()
+	return [Transform3D(Basis(y.cross(z), y, z), c[0]), true]
+
+## Точки модели оружия: RightGrip (рукоять — сюда ладонь правой), LeftSupportGrip (цевьё — сюда ладонь левой),
+## MuzzlePoint (срез ствола — вспышка и пули), StockContact (затыльник приклада). У старых моделей — Muzzle / GripL.
+const POINT_ALIAS := {"MuzzlePoint": "Muzzle", "LeftSupportGrip": "GripL"}
+
+static func point(weapon: Node, point_name: String) -> Node3D:
+	if weapon == null:
+		return null
+	var n := weapon.find_child(point_name, true, false) as Node3D
+	if n == null and POINT_ALIAS.has(point_name):
+		n = weapon.find_child(POINT_ALIAS[point_name], true, false) as Node3D
+	return n
+
+## Положение точки в осях корня оружия (IDENTITY, если точки нет).
+static func point_local(weapon: Node3D, point_name: String) -> Transform3D:
+	var n := point(weapon, point_name)
+	return _rel(weapon, n) if n else Transform3D.IDENTITY
+
+## Повесить оружие в узел хвата кисти так, чтобы его RightGrip совпал с узлом (ладонью): корень оружия =
+## (RightGrip в осях оружия)⁻¹ — с поворотом, не только сдвигом.
+static func put_in_hand(weapon: Node3D, socket: Node) -> void:
+	if weapon.get_parent():
+		weapon.get_parent().remove_child(weapon)
+	socket.add_child(weapon)
+	weapon.transform = point_local(weapon, "RightGrip").affine_inverse()
+
 ## И всё оружие ещё на треть меньше (просьба пользователя: при настоящих размерах рядом с крупной моделью героя
 ## стволы и топор выглядели гигантскими).
 const SCALE := 0.67
@@ -81,13 +146,30 @@ static func weapon(model_id: String) -> Node3D:
 			var mt: Transform3D = marks[nm]
 			marks[nm] = Transform3D(mt.basis, mt.origin * k)
 		# своя рукоять и цевьё (HOLD): правая кисть — на рукоять этой модели, левая — на её цевьё, дуло — на конце ствола
+		var pts := _transform_all(_points(fresh), t)
 		if HOLD.has(model_id):
-			var snap := _snap(_transform_all(_points(fresh), t), HOLD[model_id])
+			var snap := _snap(pts, HOLD[model_id])
 			t = Transform3D(Basis.IDENTITY, -(snap["hand"] as Vector3)) * t
+			pts = _transform_all(pts, Transform3D(Basis.IDENTITY, -(snap["hand"] as Vector3)))
 			marks["Muzzle"] = Transform3D(Basis.IDENTITY, (snap["muzzle"] as Vector3) - (snap["hand"] as Vector3))
 			if snap.has("fore"):
 				marks["GripL"] = Transform3D(Player.fore_basis(), (snap["fore"] as Vector3) - (snap["hand"] as Vector3))
-		_fits[model_id] = [t, marks]
+		# единые имена точек; RightGrip — в начале осей (рукоять уже там), StockContact — затыльник (задний край)
+		var named := {"RightGrip": Transform3D.IDENTITY}
+		if marks.has("Muzzle"):
+			named["MuzzlePoint"] = marks["Muzzle"]
+		if marks.has("GripL") and bool(grip_class(model_id)["two"]):
+			named["LeftSupportGrip"] = marks["GripL"]
+		var sb := _box(pts)
+		if sb.size.y > 0.25:
+			var zs := 0.0
+			var zn := 0
+			for p in pts:
+				if p.y >= sb.end.y - sb.size.y * 0.03:
+					zs += p.z
+					zn += 1
+			named["StockContact"] = Transform3D(Basis.IDENTITY, Vector3(sb.get_center().x, sb.end.y, zs / zn if zn > 0 else sb.get_center().z))
+		_fits[model_id] = [t, named]
 	var fit: Array = _fits[model_id]
 	var root := Node3D.new()
 	root.name = "Tripo_" + model_id

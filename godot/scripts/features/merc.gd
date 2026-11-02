@@ -93,14 +93,14 @@ func setup(g: Node, m: Node, state: Dictionary, def: Dictionary, cls: Dictionary
 	grip = Player.attach_point(model, "GripR")
 	gun = Gear.weapon(str(W.get("model", D["weapon"])))
 	if grip:
-		grip.add_child(gun)
+		Gear.put_in_hand(gun, grip)
 	else:
 		add_child(gun)
 	gun.visible = not broken()
 	npc = NpcPose.make_for_old(model)
 	if npc:
 		(model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D).add_child(npc)
-		npc.set_weapon(gun, str(W.get("anim", "rifle")) == "rifle")
+		npc.set_weapon(gun, str(D["weapon"]))
 	play(str(CL["idle"]), 0.0)
 	if anim:
 		anim.seek(randf() * 2.0, true)
@@ -176,7 +176,7 @@ func place() -> void:
 
 func _muzzle() -> Vector3:
 	if gun != null and gun.visible:
-		var m := gun.find_child("Muzzle", true, false)
+		var m := Gear.point(gun, "MuzzlePoint")
 		if m is Node3D:
 			return (m as Node3D).global_position
 	if grip != null:

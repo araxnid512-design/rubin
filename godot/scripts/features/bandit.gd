@@ -151,15 +151,15 @@ func setup(g: Node, s: Node, gun_id: String, pos: Vector3, post_data: Dictionary
 			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
 	gun = Gear.weapon(str(W.get("model", weapon)))
 	if grip:
-		grip.add_child(gun)
+		Gear.put_in_hand(gun, grip)
 	else:
 		model.add_child(gun)
-	muzzle = gun.find_child("Muzzle", true, false) as Node3D
+	muzzle = Gear.point(gun, "MuzzlePoint")
 	if npc:
 		var sks := model.find_children("*", "Skeleton3D", true, false)
 		if not sks.is_empty():
 			(sks[0] as Skeleton3D).add_child(npc)
-		npc.set_weapon(gun, str(W.get("anim", "rifle")) == "rifle")
+		npc.set_weapon(gun, weapon)
 	proxy = HumanHit.new()
 	add_child(proxy)
 	global_position = pos
