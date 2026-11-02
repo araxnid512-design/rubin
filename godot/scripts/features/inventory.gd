@@ -338,9 +338,9 @@ func smoke() -> int:
 	p.attach_gear()
 	game.take("ak74", 1)
 	game.take("svd", 1)
-	fail += _check(owned().has("ak74") and owned().has("svd") and game.kit["gun"] == "pistol", "найденные АК-74 и СВД — в рюкзаке, в слоте ПМ (рюкзак: %s)" % [owned()])
+	fail += _check(owned().has("ak74") and owned().has("svd") and game.kit["gun"] == "glock17", "найденные АК-74 и СВД — в рюкзаке, в слоте Glock (рюкзак: %s)" % [owned()])
 	equip("svd")
-	fail += _check(game.kit["gun"] == "svd" and owned().has("glock17") and not owned().has("svd"), "СВД — в слот огнестрела, ПМ — в рюкзак")
+	fail += _check(game.kit["gun"] == "svd" and owned().has("glock17") and not owned().has("svd"), "СВД — в слот огнестрела, Glock — в рюкзак")
 	if p.hold != "gun":
 		p.switch_weapon()
 		await _wait(1.6)

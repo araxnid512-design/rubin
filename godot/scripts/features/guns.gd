@@ -92,6 +92,7 @@ func smoke() -> int:
 				p.models.erase(id)
 	fail += await _fire_all()
 	fail += await _bake_check()
+	fail += await _infected_check()
 	return fail
 
 ## Пересчёт клипов героя на скелет модели Tripo (так анимации получают муры — SkinBake): проверка на модели героя.
@@ -122,6 +123,51 @@ func _bake_check() -> int:
 	tb.queue_free()
 	return 0 if ok else 1
 
+## Заражённые из Tripo (пустыш, лотерейщик, топтун, рубер): клипы старых моделей пересчитаны на новый скелет —
+## рост в норме, ноги на земле, кисти ниже головы (поза покоя А/Т поправлена), в «ходьбе» тело движется.
+func _infected_check() -> int:
+	var fail := 0
+	var p = game.player
+	var k := 0
+	for t in Data.ENEMY:
+		var info: Dictionary = Data.ENEMY[t]
+		if not ResourceLoader.exists("res://assets/tripo/%s.glb" % str(info.get("tripo", ""))):
+			continue
+		var t0 := Time.get_ticks_msec()
+		var m := Enemy.make_model(game, t)
+		var ms := Time.get_ticks_msec() - t0
+		var holder := Node3D.new()
+		game.add_child(holder)
+		holder.add_child(m)
+		m.transform = Transform3D(m.transform.basis.scaled(Vector3.ONE * float(info["scale"])), Vector3.ZERO)
+		holder.global_position = p.global_position + Vector3(2.0 + k * 1.2, 0, 4.0)
+		k += 1
+		var ap := m.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		var sk := m.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+		var head := SkinFollow.find_mixamo(sk, "Head")
+		var foot := SkinFollow.find_mixamo(sk, "LeftFoot")
+		var hand := SkinFollow.find_mixamo(sk, "RightHand")
+		var tracks: int = ap.get_animation("Walk").get_track_count() if ap and ap.has_animation("Walk") else 0
+		var hy: Array = []
+		var fy := INF
+		var handy := -INF
+		if ap and head >= 0 and foot >= 0 and hand >= 0:
+			ap.play("Walk")
+			for f in 4:
+				await game._wait(0.12)
+				var base: float = holder.global_position.y
+				hy.append((sk.global_transform * sk.get_bone_global_pose(head)).origin.y - base)
+				fy = minf(fy, (sk.global_transform * sk.get_bone_global_pose(foot)).origin.y - base)
+				handy = maxf(handy, (sk.global_transform * sk.get_bone_global_pose(hand)).origin.y - base - float(hy[-1]))
+		var moved := hy.size() == 4 and float(hy.max()) - float(hy.min()) > 0.004
+		var ok: bool = tracks > 10 and hy.size() == 4 and float(hy.min()) > 1.1 and float(hy.max()) < 2.8 and fy < 0.35 and handy < -0.1 and moved
+		print(("✓ " if ok else "✗ ") + "заражённый из Tripo «%s»: клипов %d (дорожек в «ходьбе» %d), голова на высоте %s м, стопа %.2f м, кисть ниже головы на %.2f м, пересчёт %d мс" % [
+			t, ap.get_animation_list().size() if ap else 0, tracks, ", ".join(hy.map(func(v): return "%.2f" % v)), fy, -handy, ms])
+		if not ok:
+			fail += 1
+		holder.queue_free()
+	return fail
+
 # ---------- Стрельба из каждого ствола ----------
 
 ## Пороги проверки: дуло в прицеле смотрит туда же, куда летит пуля (по горизонтали и по высоте), градусы — с запасом
@@ -148,12 +194,16 @@ func _on_shot(shooter, w: Dictionary, from: Vector3) -> void:
 	# куда летит пуля: в цель (её выбирает attack() тем же вызовом в этом же кадре), без цели — по корпусу
 	var aim := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
 	var target = game.nearest_enemy(p.global_position, float(w.get("range", 8.0)), true)
+	var dist := -1.0
+	var miss := 0.0
 	if target:
 		var to: Vector3 = target.global_position - from
 		to.y = 0.0
+		dist = to.length()
 		if to.length() > 0.05:
 			aim = to.normalized()
-	_shots.append({"from": from, "barrel": barrel, "aim": aim,
+		miss = Player.barrel_miss(barrel, from, target.global_position)
+	_shots.append({"from": from, "barrel": barrel, "aim": aim, "dist": dist, "miss": miss,
 		"off": muzzle_off, "y": from.y - p.global_position.y, "left": float(f.get("left_error")) if f else -1.0})
 
 func _on_hit(_t, _at: Vector3) -> void:
@@ -207,21 +257,27 @@ func _fire_all() -> int:
 		var ymin := INF
 		var ymax := -INF
 		var left := -1.0
+		var miss := -INF
+		var dmin := INF
 		for sh in _shots:
 			var b: Vector3 = sh["barrel"]
 			var flat := Vector3(b.x, 0, b.z)
 			if flat.length() > 0.05:
 				yaw = maxf(yaw, rad_to_deg(flat.normalized().angle_to(sh["aim"])))
+			miss = maxf(miss, float(sh["miss"]))
+			if float(sh["dist"]) >= 0.0:
+				dmin = minf(dmin, float(sh["dist"]))
 			pitch = maxf(pitch, absf(rad_to_deg(asin(clampf(b.y, -1.0, 1.0)))))
 			off = minf(off, float(sh["off"]))
 			ymin = minf(ymin, float(sh["y"]))
 			ymax = maxf(ymax, float(sh["y"]))
 			left = maxf(left, float(sh["left"]))
 		var two: bool = bool(p._profile()["two"]) and str(w.get("anim", "")) == "rifle"
-		var ok: bool = _shots.size() > 0 and yaw <= AIM_YAW_MAX and pitch <= AIM_PITCH_MAX and off > 0.05 \
+		# дуло смотрит на цель: угол до её центра в допуске или луч ствола проходит через её тело (вплотную угол велик)
+		var ok: bool = _shots.size() > 0 and (yaw <= AIM_YAW_MAX or miss <= 0.0) and pitch <= AIM_PITCH_MAX and off > 0.05 \
 			and ymin > 0.9 and ymax < 1.9 and (_hits > 0 or _shots.size() < 4) and (not two or left <= LEFT_MAX)
-		print(("✓ " if ok else "✗ ") + "стрельба: %s — выстрелов %d, попаданий %d; дуло к цели %.0f°, наклон %.0f°, дуло впереди хвата на %.2f м, на высоте %.2f–%.2f м%s" % [
-			w.get("name", id), _shots.size(), _hits, yaw, pitch, off if off < INF else -1.0, ymin if ymin < INF else -1.0, ymax,
+		print(("✓ " if ok else "✗ ") + "стрельба: %s — выстрелов %d, попаданий %d; дуло к цели %.0f° (до цели от %.2f м, луч мимо тела %+.2f м), наклон %.0f°, дуло впереди хвата на %.2f м, на высоте %.2f–%.2f м%s" % [
+			w.get("name", id), _shots.size(), _hits, yaw, dmin if dmin < INF else -1.0, miss if miss > -INF else 0.0, pitch, off if off < INF else -1.0, ymin if ymin < INF else -1.0, ymax,
 			(", левая кисть до цевья %.3f м" % left) if two else ""])
 		if ok:
 			n_ok += 1

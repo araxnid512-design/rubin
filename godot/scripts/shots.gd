@@ -34,6 +34,7 @@ func run(g, out_dir: String) -> void:
 	await _hero_shots()
 	await _fire_shots()
 	await _mur_shots()
+	await _infected_shots()
 	await _gun_sheet()
 	# тестовая сцена хвата: все типы персонажей с каждым стволом, оси точек и кости, замеры по состояниям
 	var ht = preload("res://scripts/hand_test.gd").new()
@@ -212,6 +213,51 @@ func _mur_shots() -> void:
 	game.set_process(true)
 	for h in shown:
 		h.queue_free()
+
+## Заражённые из Tripo в ряд (пустыш, лотерейщик, топтун, рубер): спереди в ходьбе, сбоку в ударе — с подписью.
+func _infected_shots() -> void:
+	var p = game.player
+	var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
+	var right := fwd.cross(Vector3.UP)
+	var types: Array = []
+	for t in ["runner", "lottery", "stomper", "ruber"]:
+		if Data.ENEMY.has(t) and ResourceLoader.exists("res://assets/tripo/%s.glb" % str(Data.ENEMY[t].get("tripo", ""))):
+			types.append(t)
+	if types.is_empty():
+		return
+	var names := {"runner": "пустыш", "lottery": "лотерейщик", "stomper": "топтун", "ruber": "рубер"}
+	for view in [["Walk", 0.0, "спереди, ходьба"], ["Attack", PI * 0.5, "сбоку, удар"], ["Idle", PI * 0.2, "под углом, стойка"]]:
+		var shown: Array = []
+		var k := 0
+		for t in types:
+			var m := Enemy.make_model(game, t)
+			var holder := Node3D.new()
+			game.add_child(holder)
+			holder.add_child(m)
+			m.transform = Transform3D(m.transform.basis.scaled(Vector3.ONE * float(Data.ENEMY[t]["scale"])), Vector3.ZERO)
+			holder.global_position = p.global_position + fwd * 4.0 + right * ((k - (types.size() - 1) * 0.5) * 1.5)
+			holder.rotation.y = atan2(-fwd.x, -fwd.z) + float(view[1])
+			var ap := m.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			var clip: String = view[0]
+			if ap and not ap.has_animation(clip):
+				clip = "Charge" if ap.has_animation("Charge") else "Idle"
+			if ap and ap.has_animation(clip):
+				ap.play(clip)
+				ap.seek(0.35, true)
+				ap.pause()
+			shown.append(holder)
+			k += 1
+		await _wait(0.3)
+		game.set_process(false)
+		var cam: Camera3D = game.camera
+		cam.global_position = p.global_position + fwd * 0.2 + Vector3(0, 1.8, 0)
+		cam.look_at(p.global_position + fwd * 4.0 + Vector3(0, 1.0, 0), Vector3.UP)
+		await _wait(0.2)
+		await _capture("infected", ["Walk", "Attack", "Idle"].find(view[0]) + 1, "заражённые из Tripo (%s): %s" % [", ".join(types.map(func(x): return names.get(x, x))), view[2]], true)
+		game.set_process(true)
+		for h in shown:
+			h.queue_free()
+		await _wait(0.1)
 
 ## Лист «все стволы в руках»: герой с каждым огнестрелом — в переноске и в прицеле, крупно спереди-справа, с подписью;
 ## одна картинка guns_sheet.jpg (по 8 клеток в ряд). По ней видно, какой ствол лежит в руках неправильно.

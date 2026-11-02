@@ -278,7 +278,7 @@ func populate(saved) -> void:
 					break
 				var pos := _free_spot(at, r)
 				if pos != Vector3.INF:
-					spawn_enemy(t[0], pos).pack = group_pack
+					spawn_enemy(_runner_kind(d) if t[0] == "runner" else t[0], pos).pack = group_pack
 	# бродячие стаи: вожак и бегуны
 	for k in d + randi() % 2:
 		var at2 := Vector3(randf_range(-level.play + 8, level.play - 8), 0, randf_range(-level.play + 8, level.play - 8))
@@ -291,7 +291,11 @@ func populate(saved) -> void:
 				break
 			var pos2 := _free_spot(at2, 4.0)
 			if pos2 != Vector3.INF:
-				spawn_enemy(lead if i == 0 else "runner", pos2).pack = pack
+				spawn_enemy(lead if i == 0 else _runner_kind(d), pos2).pack = pack
+
+## Рядовой заражённый: пустыш (бегун) или лотерейщик — их чаще в опасных кластерах; общее число не растёт (FPS).
+func _runner_kind(d: int) -> String:
+	return "lottery" if randf() < 0.08 + 0.07 * d else "runner"
 
 func _free_spot(at: Vector3, r: float) -> Vector3:
 	for i in 30:
@@ -544,7 +548,7 @@ func on_kill(e) -> void:
 	enemy_killed.emit(e)
 	var sp: Array = e.T["spores"]
 	spawn_pickup("spore", sp[0] + randi() % (sp[1] - sp[0] + 1), e.global_position + Vector3(0.4, 0, 0.3))
-	if e.type != "runner" and randf() < 0.6:
+	if e.type != "runner" and e.type != "lottery" and randf() < 0.6:
 		spawn_pickup("peas", 1 + randi() % 2, e.global_position + Vector3(-0.4, 0, 0.2))
 	if e.type == "ruber" and randf() < 0.1:
 		spawn_pickup("pearl", 1, e.global_position + Vector3(0, 0, -0.4))

@@ -46,6 +46,7 @@ var left_error := -1.0
 var mounts: Array = []
 var _world: Array[Transform3D] = []
 var _by_dst := {}            # индекс dst → пара
+var _aligned := {}           # индекс dst → поворот кости в покое после поправки A/T (мировой)
 var _sc := Vector3.ONE
 
 static func _norm(n: String) -> String:
@@ -59,30 +60,6 @@ static func _norm(n: String) -> String:
 ## Короткое имя Mixamo по имени кости другого скелета (или "", если не узнали).
 static func mixamo_name(n: String) -> String:
 	var s := _norm(n)
-	var side := ""
-	for pre in ["left", "l"]:
-		if s.begins_with(pre) and s.length() > pre.length():
-			side = "Left"
-			s = s.substr(pre.length())
-			break
-	if side == "":
-		for pre in ["right", "r"]:
-			if s.begins_with(pre) and s.length() > pre.length():
-				side = "Right"
-				s = s.substr(pre.length())
-				break
-	if side == "":
-		for suf in ["left", "l"]:
-			if s.ends_with(suf) and s.length() > suf.length():
-				side = "Left"
-				s = s.substr(0, s.length() - suf.length())
-				break
-	if side == "":
-		for suf in ["right", "r"]:
-			if s.ends_with(suf) and s.length() > suf.length():
-				side = "Right"
-				s = s.substr(0, s.length() - suf.length())
-				break
 	# (имена Tripo: Hip → Pelvis, Waist → Spine01 → Spine02 → NeckTwist01 → Head)
 	const BODY := {"hips": "Hips", "hip": "Hips", "pelvis": "Hips", "root": "", "spine": "Spine", "waist": "Spine",
 		"spine0": "Spine", "spine1": "Spine1", "spine01": "Spine1", "spine2": "Spine2", "spine02": "Spine2",
@@ -98,10 +75,27 @@ static func mixamo_name(n: String) -> String:
 		"middle1": "HandMiddle1", "middle2": "HandMiddle2", "middle3": "HandMiddle3",
 		"ring1": "HandRing1", "ring2": "HandRing2", "ring3": "HandRing3",
 		"pinky1": "HandPinky1", "pinky2": "HandPinky2", "pinky3": "HandPinky3"}
-	if side == "":
-		return BODY.get(s, "")
-	var limb: String = LIMB.get(s, "")
-	return (side + limb) if limb != "" else ""
+	if BODY.has(s):
+		return BODY[s]
+	# сторона — приставкой (L_Calf, LeftArm) или окончанием (UpperArm.L); «LowerLeg.L» начинается с «l», но это
+	# не сторона: пробуются все варианты, годится тот, где остаток — известная часть руки или ноги
+	for c in [["left", true, "Left"], ["l", true, "Left"], ["right", true, "Right"], ["r", true, "Right"],
+			["left", false, "Left"], ["l", false, "Left"], ["right", false, "Right"], ["r", false, "Right"]]:
+		var pre: String = c[0]
+		if s.length() <= pre.length():
+			continue
+		var rest := ""
+		if c[1]:
+			if not s.begins_with(pre):
+				continue
+			rest = s.substr(pre.length())
+		else:
+			if not s.ends_with(pre):
+				continue
+			rest = s.substr(0, s.length() - pre.length())
+		if LIMB.has(rest):
+			return str(c[2]) + str(LIMB[rest])
+	return ""
 
 ## Кость скелета player.glb по короткому имени Mixamo («Spine», «LeftHand»): с приставкой mixamorig или без.
 static func src_bone(sk: Skeleton3D, short: String) -> int:
@@ -110,6 +104,11 @@ static func src_bone(sk: Skeleton3D, short: String) -> int:
 		if i >= 0:
 			return i
 	return -1
+
+## Кость источника: по имени Mixamo, а если скелет не Mixamo (заражённые: UpperArm.L, Chest…) — по смыслу имени.
+static func src_any(sk: Skeleton3D, short: String) -> int:
+	var i := src_bone(sk, short)
+	return i if i >= 0 else find_mixamo(sk, short)
 
 ## Кость скелета по имени Mixamo (первая подходящая) или -1.
 static func find_mixamo(sk: Skeleton3D, m: String) -> int:
@@ -127,70 +126,6 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 	var sgt := src.global_transform
 	var dgt := dst.global_transform
 	_sc = dgt.basis.get_scale()
-	var used := {}
-	for i in dst.get_bone_count():
-		var m := mixamo_name(str(dst.get_bone_name(i)))
-		if m == "" or used.has(m):
-			continue
-		var j := src_bone(src, m)
-		if j < 0:
-			continue
-		used[m] = true
-		var ws := sgt * src.get_bone_global_rest(j)
-		var wd := dgt * dst.get_bone_global_rest(i)
-		var fix := ws.basis.get_rotation_quaternion().inverse() * wd.basis.get_rotation_quaternion()
-		pairs.append([i, j, fix])
-		if m == "Hips":
-			hips = i
-	_by_dst.clear()
-	for p in pairs:
-		_by_dst[p[0]] = p
-	# таз: поправка роста (высота таза новой / старой над ступнями)
-	var src_hips := src_bone(src, "Hips")
-	if hips >= 0 and src_hips >= 0:
-		var hs := (sgt * src.get_bone_global_rest(src_hips)).origin.y - src.global_position.y
-		var hd := (dgt * dst.get_bone_global_rest(hips)).origin.y - src.global_position.y
-		if hs > 0.01:
-			hip_k = hd / hs
-	# руки: хват в кисти новой модели — поворот как у хвата старой кисти, точка сдвинута на разницу костяшек
-	# (средний палец, Middle1): у модели Tripo кисть длиннее, хват должен лечь в ладонь, а не на запястье
-	arms.clear()
-	for side in ["Right", "Left"]:
-		var a := {"side": side, "u": find_mixamo(dst, side + "Arm"), "m": find_mixamo(dst, side + "ForeArm"),
-			"e": find_mixamo(dst, side + "Hand"), "clav": find_mixamo(dst, side + "Shoulder"),
-			"sm": src_bone(src, side + "ForeArm"), "sh": src_bone(src, side + "Hand"),
-			"sg": src.find_bone("GripR" if side == "Right" else "GripL")}
-		if int(a["u"]) < 0 or int(a["m"]) < 0 or int(a["e"]) < 0 or int(a["sm"]) < 0 or int(a["sh"]) < 0:
-			continue
-		var gs: Transform3D = HeroPoseScript.grip_r_default() if side == "Right" else HeroPoseScript.grip_l_default()
-		if int(a["sg"]) >= 0:
-			gs = src.get_bone_global_rest(a["sh"]).affine_inverse() * src.get_bone_global_rest(a["sg"])
-		a["gs"] = gs
-		var gw: Transform3D = sgt * src.get_bone_global_rest(a["sh"]) * gs
-		var shift := Vector3.ZERO
-		var kd := find_mixamo(dst, side + "HandMiddle1")
-		var ks := src_bone(src, side + "HandMiddle1")
-		if kd >= 0 and ks >= 0:
-			shift = (dgt * dst.get_bone_global_rest(kd)).origin - (sgt * src.get_bone_global_rest(ks)).origin
-		a["gd"] = (dgt * dst.get_bone_global_rest(a["e"])).affine_inverse() * Transform3D(gw.basis.orthonormalized(), gw.origin + shift)
-		arms.append(a)
-		if side == "Right":
-			grip_world = ((dgt * dst.get_bone_global_rest(a["e"])) * (a["gd"] as Transform3D)).orthonormalized()
-	# ноги — IK к стопам старого
-	legs.clear()
-	for ch in [["LeftUpLeg", "LeftLeg", "LeftFoot"], ["RightUpLeg", "RightLeg", "RightFoot"]]:
-		var du := find_mixamo(dst, ch[0])
-		var dm := find_mixamo(dst, ch[1])
-		var de := find_mixamo(dst, ch[2])
-		var sm := src_bone(src, ch[1])
-		var se := src_bone(src, ch[2])
-		if du >= 0 and dm >= 0 and de >= 0 and sm >= 0 and se >= 0:
-			legs.append([du, dm, de, sm, se])
-	index_bones.clear()
-	for k in ["RightHandIndex1", "RightHandIndex2", "RightHandIndex3"]:
-		var i := find_mixamo(dst, k)
-		if i >= 0:
-			index_bones.append(i)
 	# порядок обхода: родитель раньше ребёнка
 	order.clear()
 	var queue: Array[int] = []
@@ -202,6 +137,118 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 		order.append(b)
 		for c in dst.get_bone_children(b):
 			queue.append(c)
+	# пары костей (по смыслу имени)
+	var used := {}
+	var src_of := {}
+	for i in order:
+		var m := mixamo_name(str(dst.get_bone_name(i)))
+		if m == "" or used.has(m):
+			continue
+		var j := src_any(src, m)
+		if j < 0:
+			continue
+		used[m] = true
+		src_of[i] = j
+		if m == "Hips":
+			hips = i
+	# поправка A-/T-позы: каждая парная кость новой модели в покое доворачивается так, чтобы смотреть (к своему
+	# парному потомку) туда же, куда парная кость источника; кость без такого потомка — как родитель. Иначе модель с другой позой
+	# покоя (у заражённых Tripo руки под 55°, у старых — почти вниз) держала бы руки не так, как источник
+	# (только для источника не Mixamo — у героя и муров обе модели в T-позе, их перенос уже выверен по снимкам)
+	var align := {}
+	_aligned.clear()
+	var fix_pose := src_bone(src, "LeftForeArm") < 0
+	for i in order:
+		var parent := dst.get_bone_parent(i)
+		var a: Quaternion = align.get(parent, Quaternion.IDENTITY)
+		if fix_pose and src_of.has(i):
+			var j: int = src_of[i]
+			# ближайший парный потомок (через промежуточные кости Tripo: NeckTwist02, скрутки); нет — как родитель
+			var dc := -1
+			var front: Array = Array(dst.get_bone_children(i))
+			for depth in 3:
+				for c in front:
+					if src_of.has(c):
+						dc = c
+						break
+				if dc >= 0:
+					break
+				var nxt: Array = []
+				for c in front:
+					nxt.append_array(Array(dst.get_bone_children(c)))
+				front = nxt
+			var sc2 := int(src_of[dc]) if dc >= 0 else -1
+			if dc >= 0 and sc2 >= 0:
+				var dd := (dgt * dst.get_bone_global_rest(dc)).origin - (dgt * dst.get_bone_global_rest(i)).origin
+				var sd := (sgt * src.get_bone_global_rest(sc2)).origin - (sgt * src.get_bone_global_rest(j)).origin
+				if dd.length() > 1e-4 and sd.length() > 1e-4:
+					a = Quaternion(dd.normalized(), sd.normalized())
+		align[i] = a
+		var qd := (dgt * dst.get_bone_global_rest(i)).basis.get_rotation_quaternion()
+		_aligned[i] = a * qd
+		if src_of.has(i):
+			var j2: int = src_of[i]
+			var qs := (sgt * src.get_bone_global_rest(j2)).basis.get_rotation_quaternion()
+			pairs.append([i, j2, qs.inverse() * (a * qd)])
+	_by_dst.clear()
+	for p in pairs:
+		_by_dst[p[0]] = p
+	# таз: поправка роста (высота таза новой / старой над ступнями)
+	var src_hips := src_any(src, "Hips")
+	if hips >= 0 and src_hips >= 0:
+		var hs := (sgt * src.get_bone_global_rest(src_hips)).origin.y - src.global_position.y
+		var hd := (dgt * dst.get_bone_global_rest(hips)).origin.y - src.global_position.y
+		if hs > 0.01:
+			hip_k = hd / hs
+	# руки: хват в кисти новой модели — поворот как у хвата старой кисти, точка сдвинута на разницу костяшек
+	# (средний палец, Middle1): у модели Tripo кисть длиннее, хват должен лечь в ладонь, а не на запястье
+	arms.clear()
+	for side in ["Right", "Left"]:
+		var a := {"side": side, "u": find_mixamo(dst, side + "Arm"), "m": find_mixamo(dst, side + "ForeArm"),
+			"e": find_mixamo(dst, side + "Hand"), "clav": find_mixamo(dst, side + "Shoulder"),
+			"sm": src_any(src, side + "ForeArm"), "sh": src_any(src, side + "Hand"),
+			"sg": src.find_bone("GripR" if side == "Right" else "GripL")}
+		if int(a["u"]) < 0 or int(a["m"]) < 0 or int(a["e"]) < 0 or int(a["sm"]) < 0 or int(a["sh"]) < 0:
+			continue
+		var e: int = a["e"]
+		# кисть новой модели в позе источника (с поправкой A/T) — от неё считается хват
+		var hand_rest := Transform3D(Basis(_aligned.get(e, Quaternion.IDENTITY)).scaled(_sc), (dgt * dst.get_bone_global_rest(e)).origin)
+		var gs: Transform3D = HeroPoseScript.grip_r_default() if side == "Right" else HeroPoseScript.grip_l_default()
+		if int(a["sg"]) >= 0:
+			gs = src.get_bone_global_rest(a["sh"]).affine_inverse() * src.get_bone_global_rest(a["sg"])
+		var mixamo_src := src_bone(src, side + "Hand") >= 0
+		if int(a["sg"]) < 0 and not mixamo_src:
+			# источник без узлов хвата (заражённые): запястье — к запястью
+			a["gs"] = Transform3D.IDENTITY
+			a["gd"] = Transform3D(hand_rest.basis.inverse() * (sgt * src.get_bone_global_rest(a["sh"])).basis.orthonormalized(), Vector3.ZERO)
+			arms.append(a)
+			continue
+		a["gs"] = gs
+		var gw: Transform3D = sgt * src.get_bone_global_rest(a["sh"]) * gs
+		var shift := Vector3.ZERO
+		var kd := find_mixamo(dst, side + "HandMiddle1")
+		var ks := src_any(src, side + "HandMiddle1")
+		if kd >= 0 and ks >= 0:
+			shift = (dgt * dst.get_bone_global_rest(kd)).origin - (sgt * src.get_bone_global_rest(ks)).origin
+		a["gd"] = hand_rest.affine_inverse() * Transform3D(gw.basis.orthonormalized(), gw.origin + shift)
+		arms.append(a)
+		if side == "Right":
+			grip_world = (hand_rest * (a["gd"] as Transform3D)).orthonormalized()
+	# ноги — IK к стопам старого
+	legs.clear()
+	for ch in [["LeftUpLeg", "LeftLeg", "LeftFoot"], ["RightUpLeg", "RightLeg", "RightFoot"]]:
+		var du := find_mixamo(dst, ch[0])
+		var dm := find_mixamo(dst, ch[1])
+		var de := find_mixamo(dst, ch[2])
+		var sm := src_any(src, ch[1])
+		var se := src_any(src, ch[2])
+		if du >= 0 and dm >= 0 and de >= 0 and sm >= 0 and se >= 0:
+			legs.append([du, dm, de, sm, se])
+	index_bones.clear()
+	for k in ["RightHandIndex1", "RightHandIndex2", "RightHandIndex3"]:
+		var i := find_mixamo(dst, k)
+		if i >= 0:
+			index_bones.append(i)
 	_world.resize(dst.get_bone_count())
 	if grip_node:
 		grip_node.global_transform = grip_world

@@ -41,7 +41,7 @@ const GUNS := {
 	"awm": {"s": ["svd"], "rate": 0.86, "gain": 1.0},
 }
 ## Голоса заражённых: чем крупнее, тем ниже и громче.
-const VOICES := {"runner": {"rate": 1.02, "gain": 0.55}, "stomper": {"rate": 0.72, "gain": 0.75}, "ruber": {"rate": 0.58, "gain": 0.9}}
+const VOICES := {"runner": {"rate": 1.02, "gain": 0.55}, "lottery": {"rate": 0.88, "gain": 0.65}, "stomper": {"rate": 0.72, "gain": 0.75}, "ruber": {"rate": 0.58, "gain": 0.9}}
 const GROANS := ["groan1", "groan2", "groan3", "groan4", "groan5"]
 const STEPS := {"road": ["step_road1", "step_road2", "step_road3"], "grass": ["step_grass1", "step_grass2"], "dirt": ["step_dirt1", "step_dirt2"], "floor": ["step_floor1", "step_floor2"]}
 ## Сколько звуков разом: выстрелы, попадания, смерти — и отдельно стоны заражённых.

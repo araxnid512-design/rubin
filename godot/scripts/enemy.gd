@@ -1,6 +1,6 @@
 class_name Enemy
 extends CharacterBody3D
-## Заражённый: бегун, топтун или рубер (модели и клипы — из браузерной игры). Стоит или бродит у своего
+## Заражённый: пустыш (бегун), лотерейщик, топтун или рубер (модели Tripo по образцам пользователя, клипы — из браузерной игры). Стоит или бродит у своего
 ## места; заметил героя (глазами в пределах sight или на шум) — идёт к нему: напрямую, если видно, иначе по
 ## сетке проходимости в обход стен; бьёт в момент удара клипа; убит — падает и оставляет спораны.
 
@@ -44,8 +44,8 @@ func setup(g: Node, t: String, pos: Vector3) -> void:
 	cs.shape = cap
 	cs.position.y = 0.85
 	add_child(cs)
-	model = (load("res://assets/characters/%s.glb" % t) as PackedScene).instantiate()
-	model.scale = Vector3.ONE * float(T["scale"])
+	model = make_model(g, t)
+	model.transform = Transform3D(model.transform.basis.scaled(Vector3.ONE * float(T["scale"])), Vector3.ZERO)
 	add_child(model)
 	Level.rim(model)
 	anim = model.find_child("AnimationPlayer", true, false)
@@ -59,6 +59,18 @@ func setup(g: Node, t: String, pos: Vector3) -> void:
 	play("Idle")
 	if anim:
 		anim.seek(randf() * 2.0, true)
+
+## Модель вида t: из Tripo (по образцу пользователя), клипы — со старой модели (rig) пересчитаны на её скелет один раз
+## на вид (SkinBake); нет файла Tripo — старая модель.
+static func make_model(host: Node, t: String) -> Node3D:
+	var info: Dictionary = Data.ENEMY[t]
+	var rig := "res://assets/characters/%s.glb" % str(info.get("rig", t))
+	var tp := "res://assets/tripo/%s.glb" % str(info.get("tripo", ""))
+	if info.has("tripo") and ResourceLoader.exists(tp):
+		var m := SkinBake.instance(tp, [], host, rig)
+		if m:
+			return m
+	return (load(rig) as PackedScene).instantiate()
 
 func play(c: String, blend := 0.2, restart := false) -> void:
 	if anim == null or not anim.has_animation(c):

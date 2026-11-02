@@ -681,22 +681,33 @@ func attack() -> void:
 		break_weapon(id)
 	game.hud_refresh()
 
-## Ствол в руке смотрит на точку at точнее BARREL_TOLERANCE (по горизонтали, от дула); если за полсекунды так и не
+## Ствол в руке смотрит на точку at: луч из дула проходит через цель — мимо её центра не дальше BARREL_MISS (тело
+## заражённого) или в пределах BARREL_TOLERANCE по углу (дальняя цель). Мерить только угол нельзя: вплотную дуло
+## длинного ствола уже сбоку от цели, и угол до её центра велик, хотя пуля попадает. Если за полсекунды так и не
 ## довернулся (_barrel_wait), выстрел всё равно разрешается — ствол не «замирает».
 const BARREL_TOLERANCE := 0.14
+const BARREL_MISS := 0.25
 var _barrel_wait := 0.0
 
 func _barrel_on(at: Vector3) -> bool:
 	var node: Node3D = models.get(weapon_id())
 	if node == null or not node.is_inside_tree():
 		return true
-	var b := -node.global_transform.basis.y
-	var to := at - muzzle_pos()
+	return barrel_miss(-node.global_transform.basis.y, muzzle_pos(), at) <= 0.0
+
+## Насколько луч ствола b из дула m проходит мимо точки at (по горизонтали), сверх допуска; ≤ 0 — смотрит на неё.
+static func barrel_miss(b: Vector3, m: Vector3, at: Vector3) -> float:
+	var to := at - m
 	b.y = 0.0
 	to.y = 0.0
 	if b.length() < 0.05 or to.length() < 0.3:
-		return true
-	return b.normalized().angle_to(to.normalized()) <= BARREL_TOLERANCE
+		return 0.0
+	b = b.normalized()
+	var along := to.dot(b)
+	if along <= 0.0:
+		return to.length() - BARREL_MISS   # цель уже за срезом дула (вплотную)
+	var side := (to - b * along).length()
+	return side - maxf(BARREL_MISS, along * tan(BARREL_TOLERANCE))
 
 func _melee_hit() -> void:
 	if not alive:

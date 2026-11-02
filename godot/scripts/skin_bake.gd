@@ -3,7 +3,9 @@ class_name SkinBake
 ## скелет новой модели — тем же переносом, что у героя (SkinFollow: повороты костей с поправкой покоя, свои длины,
 ## IK рук к хвату и ног к стопам) — и складываются в AnimationLibrary. Дальше её играет обычный AnimationPlayer, без
 ## пересчёта в каждом кадре: в «Карьере» на экране до 14 часовых и отряд — телефону это ничего не стоит.
-## Библиотека, масштаб, разворот и место хвата — общие на все экземпляры модели (кэш по пути файла).
+## Заражённые — так же, но источник — старая модель с их клипами (runner.glb, stomper.glb, ruber.glb): скелет не
+## Mixamo, кости сопоставляются по смыслу имени (UpperArm.L → LeftArm), поза покоя (руки вниз) поправляется.
+## Библиотека, масштаб, разворот и место хвата — общие на все экземпляры модели (кэш по пути файла и источнику).
 
 ## Кадров в секунду при пересчёте (между кадрами AnimationPlayer интерполирует).
 const FPS := 20.0
@@ -14,12 +16,13 @@ static var _cache := {}
 
 ## Новая модель с анимациями clips (имена — как в player.glb): Node3D с AnimationPlayer ("AnimationPlayer") и узлом
 ## хвата "Grip" на правой кисти (оружие кладут в него); метаданные grip_r, grip_l, unit — для NpcPose. host — узел в дереве (на время пересчёта). null — нет модели.
-static func instance(path: String, clips: Array, host: Node) -> Node3D:
-	if not ResourceLoader.exists(path) or not ResourceLoader.exists(SRC):
+## src — модель-источник клипов (по умолчанию герой); clips пусто — все клипы источника.
+static func instance(path: String, clips: Array, host: Node, src := SRC) -> Node3D:
+	if not ResourceLoader.exists(path) or not ResourceLoader.exists(src):
 		return null
-	var key := path + "|" + ",".join(clips)
+	var key := path + "|" + src + "|" + ",".join(clips)
 	if not _cache.has(key):
-		_cache[key] = _bake(path, clips, host)
+		_cache[key] = _bake(path, clips, host, src)
 	var info: Dictionary = _cache[key]
 	if info.is_empty():
 		return null
@@ -33,23 +36,24 @@ static func instance(path: String, clips: Array, host: Node) -> Node3D:
 	model.add_child(ap)
 	ap.root_node = NodePath("..")
 	ap.add_animation_library("", info["lib"])
-	var ba := BoneAttachment3D.new()
-	ba.name = "HandR"
-	ba.bone_name = str(info["hand"])
-	sk.add_child(ba)
-	var grip := Node3D.new()
-	grip.name = "Grip"
-	grip.transform = info["grip"]
-	ba.add_child(grip)
+	if str(info["hand"]) != "":
+		var ba := BoneAttachment3D.new()
+		ba.name = "HandR"
+		ba.bone_name = str(info["hand"])
+		sk.add_child(ba)
+		var grip := Node3D.new()
+		grip.name = "Grip"
+		grip.transform = info["grip"]
+		ba.add_child(grip)
 	# для позы оружия (NpcPose): хват правой, опора цевья у левой — в осях костей кистей; метров в единице скелета
 	model.set_meta("grip_r", info["grip"])
 	model.set_meta("grip_l", info["grip_l"])
 	model.set_meta("unit", info["unit"])
 	return model
 
-static func _bake(path: String, clips: Array, host: Node) -> Dictionary:
+static func _bake(path: String, clips: Array, host: Node, src: String) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
-	var old: Node3D = (load(SRC) as PackedScene).instantiate()
+	var old: Node3D = (load(src) as PackedScene).instantiate()
 	var model: Node3D = (load(path) as PackedScene).instantiate()
 	host.add_child(old)
 	host.add_child(model)
@@ -77,6 +81,8 @@ static func _bake(path: String, clips: Array, host: Node) -> Dictionary:
 	var sk_path := str(model.get_path_to(dsk))
 	var lib := AnimationLibrary.new()
 	var frames := 0
+	if clips.is_empty():
+		clips = Array(oap.get_animation_list())
 	for c in clips:
 		if not oap.has_animation(c) or lib.has_animation(c):
 			continue

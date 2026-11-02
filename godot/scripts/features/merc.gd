@@ -350,7 +350,7 @@ func _pick_target(reach: float):
 			continue
 		var on_hero := _flat(e.global_position - p.global_position).length() < 3.0
 		var ty := str(e.get("type"))
-		var bonus := 150.0 if ty == "ruber" else (100.0 if ty == "stomper" else (0.0 if ty == "runner" else 200.0))
+		var bonus := 150.0 if ty == "ruber" else (100.0 if ty == "stomper" else (50.0 if ty == "lottery" else (0.0 if ty == "runner" else 200.0)))
 		var sc := (1000.0 if on_hero else 0.0) + bonus + d
 		if sc > score:
 			score = sc

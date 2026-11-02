@@ -29,9 +29,11 @@ const NEW_WEAPONS := {
 
 ## Заражённые (как в браузерной игре): hp, скорость, урон, дальность удара, момент удара в клипе.
 const ENEMY := {
-	"runner": {"hp": 60.0, "speed": 3.4, "scale": 1.0, "radius": 0.36, "damage": 8.0, "range": 1.25, "hit_time": 0.72, "move": "Run", "sight": 14.0, "armor": 0.0, "spores": [1, 1]},
-	"stomper": {"hp": 220.0, "speed": 2.0, "scale": 1.08, "radius": 0.5, "damage": 22.0, "range": 1.55, "hit_time": 0.85, "move": "Stomp", "sight": 14.0, "armor": 0.0, "spores": [2, 3]},
-	"ruber": {"hp": 520.0, "speed": 2.6, "charge": 6.4, "scale": 1.12, "radius": 0.58, "damage": 34.0, "range": 2.0, "hit_time": 0.5, "move": "Walk", "sight": 18.0, "armor": 8.0, "spores": [3, 5]},
+	"runner": {"hp": 60.0, "speed": 3.4, "scale": 1.0, "radius": 0.36, "damage": 8.0, "range": 1.25, "hit_time": 0.72, "move": "Run", "sight": 14.0, "armor": 0.0, "spores": [1, 1], "rig": "runner", "tripo": "z_pustysh"},
+	# лотерейщик — между бегуном и топтуном (решение пользователя): крепче и сильнее бегуна, чуть медленнее, клипы бегуна
+	"lottery": {"hp": 120.0, "speed": 2.9, "scale": 1.0, "radius": 0.42, "damage": 14.0, "range": 1.35, "hit_time": 0.75, "move": "Run", "sight": 14.0, "armor": 2.0, "spores": [1, 2], "rig": "runner", "tripo": "z_lottery"},
+	"stomper": {"hp": 220.0, "speed": 2.0, "scale": 1.08, "radius": 0.5, "damage": 22.0, "range": 1.55, "hit_time": 0.85, "move": "Stomp", "sight": 14.0, "armor": 0.0, "spores": [2, 3], "rig": "stomper", "tripo": "z_stomper"},
+	"ruber": {"hp": 520.0, "speed": 2.6, "charge": 6.4, "scale": 1.12, "radius": 0.58, "damage": 34.0, "range": 2.0, "hit_time": 0.5, "move": "Walk", "sight": 18.0, "armor": 8.0, "spores": [3, 5], "rig": "ruber", "tripo": "z_ruber"},
 }
 
 ## Карта Улья (как в game/world.js).
