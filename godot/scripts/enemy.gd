@@ -110,10 +110,15 @@ func _physics_process(delta: float) -> void:
 		if dead_t > 12.0:
 			queue_free()
 		return
-	var player = game.player
-	if player == null or not player.alive:
-		_idle(delta)
-		return
+	# цель — ближайший живой: герой, мур или наёмник (game.foe_for); в погоне видит дальше
+	var player = game.foe_for(global_position, float(T["sight"]) * (1.0 if state == "idle" else 2.5))
+	if player == null:
+		if state != "idle" and (game.player == null or not game.player.alive):
+			state = "idle"
+		if state == "idle":
+			_idle(delta)
+			return
+		player = game.player
 	var to: Vector3 = player.global_position - global_position
 	to.y = 0
 	var d := to.length()

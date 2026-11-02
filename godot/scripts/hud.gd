@@ -188,9 +188,29 @@ func _input(event: InputEvent) -> void:
 			stick_vec = off / r
 			stick_knob.position = stick_center + off - stick_knob.size / 2.0
 
+## Кнопка системы (scripts/features): offset — левый верхний угол от правого нижнего угла экрана;
+## on_press(down: bool) — нажата/отпущена.
+var callbacks := {}
+func add_button(id: String, text: String, offset: Vector2, size: float, on_press: Callable) -> void:
+	if buttons.has(id):
+		return
+	_button(get_child(0), id, text, offset, size)
+	callbacks[id] = on_press
+
+func remove_button(id: String) -> void:
+	if buttons.has(id):
+		buttons[id].queue_free()
+		buttons.erase(id)
+		callbacks.erase(id)
+
 func _press(id: String, down: bool) -> void:
+	if not buttons.has(id):
+		return
 	var b: Panel = buttons[id]
 	b.modulate = Color(1.4, 1.4, 1.2) if down else Color(1, 1, 1)
+	if callbacks.has(id):
+		callbacks[id].call(down)
+		return
 	match id:
 		"fire":
 			game.player_attack(down)

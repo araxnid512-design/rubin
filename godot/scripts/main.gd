@@ -4,6 +4,12 @@ extends Node3D
 ## Запуск с «-- --smoke» — автотест для CI: проходит игру по шагам и выходит с кодом 0 (всё в порядке) или 1.
 
 const SAVE_PATH := "user://save.json"
+## Системы игры в своих файлах (scripts/features/*.gd, extends Node): подключаются одной строкой здесь.
+## Необязательные методы системы: setup(game), on_enter(id), on_leave(), snapshot() -> Dictionary (в сохранение
+## кластера), restore(data), save_data() -> Dictionary, load_data(d), interact(station) -> bool (станции стаба),
+## smoke() -> int (корутина автотеста: число провалов). Свой _process — как у любого узла.
+const FEATURE_SCRIPTS := [
+]
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).
 const CAP := [0, 42, 50, 58]
@@ -12,6 +18,9 @@ const PRICES := {"zhivchik": 15, "repair_kit": 25, "axe": 8, "fireaxe": 18, "pis
 var level: Level
 var player: Player
 var enemies: Array = []
+## Кроме героя, на кого бросаются заражённые: муры, наёмники — узлы с alive, global_position, hurt(dmg, from).
+var targets: Array = []
+var features: Array = []
 var pickups: Array = []
 var npcs: Array = []
 var hud: Hud
@@ -40,6 +49,13 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(self)
+	for path in FEATURE_SCRIPTS:
+		var f: Node = (load(path) as GDScript).new()
+		f.name = path.get_file().get_basename()
+		add_child(f)
+		features.append(f)
+		if f.has_method("setup"):
+			f.setup(self)
 	if not smoke and _load():
 		enter(world.get("at", "zarechny"), null)
 	else:
@@ -118,12 +134,19 @@ func enter(id: String, from) -> void:
 		populate(world["clusters"][id].get("saved"))
 	elif kind == "stab":
 		_spawn_npcs()
+	for f in features:
+		if f.has_method("on_enter"):
+			f.on_enter(id)
 	hud.hide_panel()
 	toast(Data.NODES[id]["name"])
 	_update_camera(1.0)
 	save()
 
 func _clear_location() -> void:
+	for f in features:
+		if f.has_method("on_leave"):
+			f.on_leave()
+	targets.clear()
 	for e in enemies:
 		if is_instance_valid(e):
 			e.queue_free()
@@ -152,6 +175,10 @@ func populate(saved) -> void:
 			level.containers[i]["items"] = conts[i][1]
 		for p in saved.get("pickups", []):
 			spawn_pickup(p[0], p[1], Vector3(p[2], 0, p[3]))
+		var fs: Dictionary = saved.get("features", {})
+		for f in features:
+			if f.has_method("restore") and fs.has(str(f.name)):
+				f.restore(fs[str(f.name)])
 		return
 	for c in level.containers:
 		c["items"] = Data.roll_loot(c.get("loot", {}))
@@ -323,6 +350,18 @@ func nearest_enemy(pos: Vector3, reach: float, need_los: bool):
 		if d < bd and (not need_los or line_of_sight(pos, e.global_position)):
 			bd = d
 			best = e
+	return best
+
+## На кого бросается заражённый: ближайший живой из героя и targets (муры, наёмники) в пределах sight.
+func foe_for(pos: Vector3, sight: float):
+	var best = player if player and player.alive and player.global_position.distance_to(pos) < sight else null
+	var bd: float = player.global_position.distance_to(pos) if best else sight
+	for t in targets:
+		if is_instance_valid(t) and t.alive:
+			var d: float = t.global_position.distance_to(pos)
+			if d < bd:
+				bd = d
+				best = t
 	return best
 
 func line_of_sight(a: Vector3, b: Vector3) -> bool:
@@ -540,6 +579,9 @@ func search_start() -> void:
 # ---------- Стаб: торговец и лекарь ----------
 
 func _station(s: Dictionary) -> void:
+	for f in features:
+		if f.has_method("interact") and f.interact(s):
+			return
 	match s.get("id", ""):
 		"rest":
 			player.hp = player.max_hp
@@ -655,7 +697,11 @@ func snapshot() -> void:
 	var ps := []
 	for p in pickups:
 		ps.append([p["kind"], p["n"], snappedf(p["node"].position.x, 0.01), snappedf(p["node"].position.z, 0.01)])
-	world["clusters"][loc]["saved"] = {"enemies": es, "containers": cs, "pickups": ps}
+	var fs := {}
+	for f in features:
+		if f.has_method("snapshot"):
+			fs[str(f.name)] = f.snapshot()
+	world["clusters"][loc]["saved"] = {"enemies": es, "containers": cs, "pickups": ps, "features": fs}
 
 # ---------- Гибель ----------
 
@@ -693,7 +739,11 @@ func save() -> void:
 		return
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"world": world, "bag": bag, "kit": kit, "wear": wear}))
+		var fd := {}
+		for ft in features:
+			if ft.has_method("save_data"):
+				fd[str(ft.name)] = ft.save_data()
+		f.store_string(JSON.stringify({"world": world, "bag": bag, "kit": kit, "wear": wear, "features": fd}))
 
 func _load() -> bool:
 	if not FileAccess.file_exists(SAVE_PATH):
@@ -705,6 +755,10 @@ func _load() -> bool:
 	bag = d.get("bag", {})
 	kit = d.get("kit", {"melee": "axe", "gun": ""})
 	wear = d.get("wear", {})
+	var fd: Dictionary = d.get("features", {})
+	for f in features:
+		if f.has_method("load_data") and fd.has(str(f.name)):
+			f.load_data(fd[str(f.name)])
 	for id in Data.NODES:
 		if Data.NODES[id]["kind"] == "cluster" and not world["clusters"].has(id):
 			world["clusters"][id] = {"next": float(world["time"]) + randf_range(90.0, Data.CYCLE[1]), "saved": null}
@@ -780,5 +834,9 @@ func _run_smoke() -> void:
 		enter(to, prev)
 		await _wait(0.5)
 		_check(level != null and level.id == to and player.alive, "%s: стен %d, тайников %d, заражённых %d" % [Data.NODES[to]["name"], level.meta.get("colliders", []).size(), level.containers.size(), enemies.size()])
+	for f in features:
+		if f.has_method("smoke"):
+			print("— %s —" % f.name)
+			smoke_fail += await f.smoke()
 	print("SMOKE: %s" % ("OK" if smoke_fail == 0 else "FAIL (%d)" % smoke_fail))
 	get_tree().quit(0 if smoke_fail == 0 else 1)
