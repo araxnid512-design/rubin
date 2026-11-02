@@ -209,8 +209,16 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 		src.skeleton_updated.connect(_follow)
 	return pairs.size()
 
-func _follow() -> void:
-	if dst == null or not is_instance_valid(dst) or not dst.is_visible_in_tree():
+## Хват правой кисти новой модели в осях её кости (и сама кость) — для оружия у муров (SkinBake).
+func right_grip() -> Array:
+	for a in arms:
+		if a["side"] == "Right":
+			return [int(a["e"]), a["gd"]]
+	return [-1, Transform3D.IDENTITY]
+
+## force — и для скрытой модели (пересчёт клипов в SkinBake).
+func _follow(force := false) -> void:
+	if dst == null or not is_instance_valid(dst) or (not force and not dst.is_visible_in_tree()):
 		return
 	var sgt := src.global_transform
 	var dgt := dst.global_transform

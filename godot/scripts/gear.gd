@@ -241,6 +241,25 @@ static func _transform_all(pts: PackedVector3Array, t: Transform3D) -> PackedVec
 
 ## Герой из Tripo поверх старого (скрытого) героя: сетка следует за скелетом player.glb (SkinFollow), рост —
 ## как у старого. Возвращает узел новой модели или null (модели нет — остаётся старая).
+## Модель Tripo (уже в дереве) — к росту и развороту старой модели героя: голова — на высоте головы старой
+## (в позе покоя), лицом туда же (модель Tripo в файле смотрит вбок) — по линии плеч в плоскости XZ.
+static func fit_body(model: Node3D, sk: Skeleton3D, old_skeleton: Skeleton3D) -> void:
+	var oh := SkinFollow.src_bone(old_skeleton, "Head")
+	var nh := SkinFollow.find_mixamo(sk, "Head")
+	if oh >= 0 and nh >= 0:
+		var old_y := (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(oh)).origin.y - old_skeleton.global_position.y
+		var new_y := (sk.global_transform * sk.get_bone_global_rest(nh)).origin.y - sk.global_position.y
+		if new_y > 0.01:
+			model.scale *= old_y / new_y
+	var ol := SkinFollow.src_bone(old_skeleton, "LeftArm")
+	var orr := SkinFollow.src_bone(old_skeleton, "RightArm")
+	var nl := SkinFollow.find_mixamo(sk, "LeftArm")
+	var nr := SkinFollow.find_mixamo(sk, "RightArm")
+	if ol >= 0 and orr >= 0 and nl >= 0 and nr >= 0:
+		var so := (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(ol)).origin - (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(orr)).origin
+		var sn := (sk.global_transform * sk.get_bone_global_rest(nl)).origin - (sk.global_transform * sk.get_bone_global_rest(nr)).origin
+		model.rotate_y(atan2(so.x, so.z) - atan2(sn.x, sn.z))
+
 static func hero(player: Node3D, old_model: Node3D, old_skeleton: Skeleton3D) -> Node3D:
 	var path := "res://assets/tripo/player.glb"
 	if old_skeleton == null or not ResourceLoader.exists(path):
@@ -254,23 +273,7 @@ static func hero(player: Node3D, old_model: Node3D, old_skeleton: Skeleton3D) ->
 	model.name = "TripoHero"
 	player.add_child(model)
 	Level.rim(model)
-	# рост: голова новой — на высоте головы старой (в позе покоя)
-	var oh := SkinFollow.src_bone(old_skeleton, "Head")
-	var nh := SkinFollow.find_mixamo(sk, "Head")
-	if oh >= 0 and nh >= 0:
-		var old_y := (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(oh)).origin.y - old_skeleton.global_position.y
-		var new_y := (sk.global_transform * sk.get_bone_global_rest(nh)).origin.y - sk.global_position.y
-		if new_y > 0.01:
-			model.scale *= old_y / new_y
-	# развернуть лицом туда же, что старая (модель Tripo в файле смотрит вбок): по линии плеч в плоскости XZ
-	var ol := SkinFollow.src_bone(old_skeleton, "LeftArm")
-	var orr := SkinFollow.src_bone(old_skeleton, "RightArm")
-	var nl := SkinFollow.find_mixamo(sk, "LeftArm")
-	var nr := SkinFollow.find_mixamo(sk, "RightArm")
-	if ol >= 0 and orr >= 0 and nl >= 0 and nr >= 0:
-		var so := (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(ol)).origin - (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(orr)).origin
-		var sn := (sk.global_transform * sk.get_bone_global_rest(nl)).origin - (sk.global_transform * sk.get_bone_global_rest(nr)).origin
-		model.rotate_y(atan2(so.x, so.z) - atan2(sn.x, sn.z))
+	fit_body(model, sk, old_skeleton)
 	for c in old_model.find_children("*", "MeshInstance3D", true, false):
 		(c as MeshInstance3D).visible = false
 	var follow := SkinFollow.new()

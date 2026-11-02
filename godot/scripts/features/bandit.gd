@@ -27,6 +27,10 @@ const MUR_GUNS := ["ak74", "ak74", "ak74", "ak74", "ak47", "ak47", "ak47", "aks"
 	"pkm", "svd", "vss", "fnfal", "scar", "aug"]
 const CLIPS := {"idle": "IdleRifle", "walk": "WalkRifle", "run": "RunRifle", "aim": "AimRifle", "shoot": "ShootRifle", "hit": "HitRifle", "reload": "ReloadRifle"}
 const LOOPED := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
+## Модели муров из Tripo (по картинкам пользователя): каждому — случайная, клипы героя пересчитаны на их скелет
+## один раз (SkinBake). Нет файлов — прежняя модель героя с оттенком одежды.
+const TRIPO_MODELS := ["res://assets/tripo/mur_1.glb", "res://assets/tripo/mur_2.glb"]
+const BAKE_CLIPS := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle", "ShootRifle", "HitRifle", "ReloadRifle", "Death"]
 ## Естественная скорость клипов ходьбы и бега, м/с (как у героя) — под неё подгоняется темп.
 const GAIT := {"WalkRifle": 1.45, "RunRifle": 3.9}
 const WALK_SPEED := 1.6
@@ -119,15 +123,25 @@ func setup(g: Node, s: Node, gun_id: String, pos: Vector3, post_data: Dictionary
 	cs.shape = cap
 	cs.position.y = 0.9
 	add_child(cs)
-	model = (load("res://assets/characters/player.glb") as PackedScene).instantiate()
-	add_child(model)
-	Level.rim(model)
-	anim = model.find_child("AnimationPlayer", true, false)
+	var grip: Node3D = null
+	var paths := TRIPO_MODELS.filter(func(p): return ResourceLoader.exists(p))
+	if not paths.is_empty():
+		model = SkinBake.instance(str(paths.pick_random()), BAKE_CLIPS, game)
+	if model:
+		add_child(model)
+		Level.rim(model)
+		anim = model.get_node_or_null("AnimationPlayer") as AnimationPlayer
+		grip = model.find_child("Grip", true, false) as Node3D
+	else:
+		model = (load("res://assets/characters/player.glb") as PackedScene).instantiate()
+		add_child(model)
+		Level.rim(model)
+		anim = model.find_child("AnimationPlayer", true, false)
+		_tint(model, randi() % TINTS.size())
+		grip = Player.attach_point(model, "GripR")
 	for c in LOOPED:
 		if anim and anim.has_animation(c):
 			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
-	_tint(model, randi() % TINTS.size())
-	var grip: Node3D = Player.attach_point(model, "GripR")
 	gun = Gear.weapon(str(W.get("model", weapon)))
 	if grip:
 		grip.add_child(gun)

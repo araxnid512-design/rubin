@@ -87,7 +87,36 @@ func smoke() -> int:
 				p.models[id].queue_free()
 				p.models.erase(id)
 	fail += await _fire_all()
+	fail += await _bake_check()
 	return fail
+
+## Пересчёт клипов героя на скелет модели Tripo (так анимации получают муры — SkinBake): проверка на модели героя.
+func _bake_check() -> int:
+	var path := "res://assets/tripo/player.glb"
+	if not ResourceLoader.exists(path):
+		return 0
+	var tb := SkinBake.instance(path, ["IdleRifle", "WalkRifle"], game)
+	if tb == null:
+		print("✗ пересчёт клипов на модель Tripo: модель не собралась")
+		return 1
+	game.add_child(tb)
+	tb.global_position = game.player.global_position + Vector3(0, 0, 0)
+	var ap := tb.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	var grip := tb.find_child("Grip", true, false) as Node3D
+	var tracks: int = ap.get_animation("WalkRifle").get_track_count() if ap and ap.has_animation("WalkRifle") else 0
+	var ys: Array = []
+	if ap and grip:
+		ap.play("WalkRifle")
+		for k in 4:
+			await game._wait(0.15)
+			ys.append(grip.global_position.y - tb.global_position.y)
+	var moved := false
+	for y in ys:
+		moved = moved or absf(float(y) - float(ys[0])) > 0.005
+	var ok: bool = tracks > 10 and ys.size() == 4 and float(ys.min()) > 0.5 and float(ys.max()) < 1.8 and moved
+	print(("✓ " if ok else "✗ ") + "пересчёт клипов героя на модель Tripo (для муров): дорожек в «ходьбе» %d, хват на высоте %s м, рука двигается: %s" % [tracks, ", ".join(ys.map(func(v): return "%.2f" % v)), moved])
+	tb.queue_free()
+	return 0 if ok else 1
 
 # ---------- Стрельба из каждого ствола ----------
 
