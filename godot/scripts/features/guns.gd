@@ -27,6 +27,35 @@ func smoke() -> int:
 		print(("✓ " if ok else "✗ ") + "модель %s (%s): %s" % [w.get("name", id), id, info])
 		if not ok:
 			fail += 1
+	# модели из Tripo (assets/tripo): вписаны в габариты старых — та же длина, дуло на месте старого
+	var tripo_n := 0
+	for id in Data.WEAPONS:
+		var mid := str(Data.weapon(id).get("model", id))
+		if not ResourceLoader.exists("res://assets/tripo/w_%s.glb" % mid):
+			continue
+		tripo_n += 1
+		var node := Gear.weapon(mid)
+		var old_path := "res://assets/weapons/%s.glb" % mid
+		var old: Node3D = (load(old_path) as PackedScene).instantiate() if ResourceLoader.exists(old_path) else null
+		var nb := Gear._box(Gear._points(node))
+		var ob := Gear._box(Gear._points(old)) if old else nb
+		var ok2: bool = node.find_children("*", "MeshInstance3D", true, false).size() > 0 and absf(nb.get_longest_axis_size() - ob.get_longest_axis_size()) < ob.get_longest_axis_size() * 0.15
+		if old and old.find_child("Muzzle", true, false):
+			ok2 = ok2 and node.find_child("Muzzle", true, false) != null
+		print(("✓ " if ok2 else "✗ ") + "Tripo: %s — длина %.2f м (старая %.2f м)" % [Data.weapon(id).get("name", id), nb.get_longest_axis_size(), ob.get_longest_axis_size()])
+		if not ok2:
+			fail += 1
+		node.free()
+		if old:
+			old.free()
+	print("· моделей оружия из Tripo: %d" % tripo_n)
+	if ResourceLoader.exists("res://assets/tripo/player.glb"):
+		var th = game.player.tripo_hero
+		var bound: int = int(th.get_meta("bones_bound", 0)) if th else 0
+		var okh: bool = th != null and bound >= 15
+		print(("✓ " if okh else "✗ ") + "герой из Tripo: костей связано со старым скелетом %d" % bound)
+		if not okh:
+			fail += 1
 	# герой: ствол в крепление на теле и в руку (как после покупки)
 	var p = game.player
 	var keep: Dictionary = game.kit.duplicate()

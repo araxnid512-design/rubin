@@ -89,8 +89,7 @@ func setup(g: Node, m: Node, state: Dictionary, def: Dictionary, cls: Dictionary
 	var tint: Array = D.get("tint", [1.0, 1.0, 1.0])
 	_tint(Color(float(tint[0]), float(tint[1]), float(tint[2])))
 	grip = Player.attach_point(model, "GripR")
-	var gun_path := "res://assets/weapons/%s.glb" % W.get("model", D["weapon"])
-	gun = (load(gun_path) as PackedScene).instantiate() if ResourceLoader.exists(gun_path) else Node3D.new()
+	gun = Gear.weapon(str(W.get("model", D["weapon"])))
 	if grip:
 		grip.add_child(gun)
 	else:

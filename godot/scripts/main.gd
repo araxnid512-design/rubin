@@ -328,9 +328,8 @@ func _spawn_npcs() -> void:
 			ap.seek(randf() * 2.0, true)
 		if n.has("gun"):
 			var grip: Node3D = Player.attach_point(m, "GripR")
-			var path := "res://assets/weapons/%s.glb" % n["gun"]
-			if grip and ResourceLoader.exists(path):
-				grip.add_child((load(path) as PackedScene).instantiate())
+			if grip:
+				grip.add_child(Gear.weapon(str(n["gun"])))
 		npcs.append(m)
 
 # ---------- Цикл ----------

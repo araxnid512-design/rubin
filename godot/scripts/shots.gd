@@ -31,6 +31,7 @@ func run(g, out_dir: String) -> void:
 		settings.set_quality("medium")
 	var size: Vector2 = game.get_viewport().get_visible_rect().size
 	print("SHOTS: экран %dx%d, рендер %s, видеокарта %s" % [size.x, size.y, RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_video_adapter_name()])
+	await _hero_shots()
 	var prev: String = game.loc
 	for id in LOCS:
 		if id != game.loc:
@@ -59,6 +60,30 @@ func run(g, out_dir: String) -> void:
 	_write()
 	print("SHOTS: OK (%d снимков)" % rows.filter(func(r): return r["file"] != "").size())
 	game.get_tree().quit(0)
+
+## Герой крупно с разным оружием (модели Tripo, перенос анимаций — SkinFollow): автомат, пистолет, пожарный топор.
+func _hero_shots() -> void:
+	var p = game.player
+	var keep: Dictionary = game.kit.duplicate()
+	var n := 0
+	for w in [["gun", "ak74"], ["gun", "pistol"], ["melee", "fireaxe"]]:
+		n += 1
+		game.kit[w[0]] = w[1]
+		game.wear[w[1]] = int(Data.weapon(w[1]).get("durability", 100))
+		p.hold = w[0]
+		p.attach_gear()
+		await _wait(1.2)
+		game.set_process(false)
+		var cam: Camera3D = game.camera
+		var at: Vector3 = p.global_position + Vector3(0, 1.0, 0)
+		cam.global_position = at + Vector3(1.6, 1.3, 2.4)
+		cam.look_at(at, Vector3.UP)
+		await _wait(0.4)
+		await _capture("hero", n, "герой: %s" % Data.weapon(w[1]).get("name", w[1]), true)
+		game.set_process(true)
+	game.kit.clear()
+	game.kit.merge(keep)
+	p.attach_gear()
 
 ## Тайники в разных домах (доступ к ним — внутри), подальше друг от друга и от старта.
 func _inside_spots(lv: Level, from: Vector3) -> Array:

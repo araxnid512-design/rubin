@@ -113,6 +113,8 @@ var _body_yaw := 0.0
 var _loco_want := "idle"
 var _loco_t := 0.0
 var _nodes := {}
+## Модель героя из Tripo поверх старой (scripts/gear.gd, SkinFollow) или null.
+var tripo_hero: Node3D
 
 func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 	game = g
@@ -136,6 +138,8 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
 	var sks := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = sks[0] as Skeleton3D if sks.size() > 0 else null
+	# модель героя из Tripo (если есть) — повторяет позу этого скелета: клипы, дерево анимаций и IK те же
+	tripo_hero = Gear.hero(self, model, skeleton)
 	grip = attach_point(model, "GripR")
 	for m in MOUNTS:
 		mounts[m] = attach_point(model, MOUNTS[m])
@@ -183,8 +187,7 @@ func wear_of(id: String) -> int:
 func gun_model(id: String) -> Node3D:
 	if not models.has(id):
 		var w := Data.weapon(id)
-		var path := "res://assets/weapons/%s.glb" % w.get("model", id)
-		var node: Node3D = (load(path) as PackedScene).instantiate() if ResourceLoader.exists(path) else Node3D.new()
+		var node: Node3D = Gear.weapon(str(w.get("model", id)))   # модель Tripo, если есть (scripts/gear.gd)
 		node.name = "Gun_" + id
 		models[id] = node
 	return models[id]

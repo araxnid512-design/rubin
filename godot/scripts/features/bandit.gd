@@ -126,8 +126,7 @@ func setup(g: Node, s: Node, gun_id: String, pos: Vector3, post_data: Dictionary
 			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
 	_tint(model, randi() % TINTS.size())
 	var grip: Node3D = Player.attach_point(model, "GripR")
-	var gpath := "res://assets/weapons/%s.glb" % str(W.get("model", weapon))
-	gun = (load(gpath) as PackedScene).instantiate() if ResourceLoader.exists(gpath) else Node3D.new()
+	gun = Gear.weapon(str(W.get("model", weapon)))
 	if grip:
 		grip.add_child(gun)
 	else:
