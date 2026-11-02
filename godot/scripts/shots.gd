@@ -61,12 +61,14 @@ func run(g, out_dir: String) -> void:
 	print("SHOTS: OK (%d снимков)" % rows.filter(func(r): return r["file"] != "").size())
 	game.get_tree().quit(0)
 
-## Герой крупно с разным оружием (модели Tripo, перенос анимаций — SkinFollow): автомат, пистолет, пожарный топор.
+## Герой крупно с разным оружием (модели Tripo, перенос анимаций и хват — SkinFollow): автомат в переноске спереди-справа
+## и спереди-слева (видно обе кисти), пулемёт, пистолет, пожарный топор. В журнал — вес переноски и насколько левая
+## кисть новой модели не достала до цевья.
 func _hero_shots() -> void:
 	var p = game.player
 	var keep: Dictionary = game.kit.duplicate()
 	var n := 0
-	for w in [["gun", "ak74"], ["gun", "pistol"], ["melee", "fireaxe"]]:
+	for w in [["gun", "ak74", 1.0], ["gun", "ak74", -1.0], ["gun", "pkm", 1.0], ["gun", "pistol", 1.0], ["melee", "fireaxe", 1.0]]:
 		n += 1
 		game.kit[w[0]] = w[1]
 		game.wear[w[1]] = int(Data.weapon(w[1]).get("durability", 100))
@@ -75,11 +77,17 @@ func _hero_shots() -> void:
 		await _wait(1.2)
 		game.set_process(false)
 		var cam: Camera3D = game.camera
-		var at: Vector3 = p.global_position + Vector3(0, 1.0, 0)
-		cam.global_position = at + Vector3(1.6, 1.3, 2.4)
+		var at: Vector3 = p.global_position + Vector3(0, 1.15, 0)
+		var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
+		var right := fwd.cross(Vector3.UP)
+		cam.global_position = at + fwd * 1.7 + right * (0.9 * float(w[2])) + Vector3(0, 0.3, 0)
 		cam.look_at(at, Vector3.UP)
 		await _wait(0.4)
-		await _capture("hero", n, "герой: %s" % Data.weapon(w[1]).get("name", w[1]), true)
+		var f: Node = p.tripo_hero.get_node_or_null("SkinFollow") if p.tripo_hero else null
+		var note := ""
+		if f:
+			note = ", переноска %.2f, левая кисть до цевья %.3f м" % [float(p.pose.carry) if p.pose else 0.0, float(f.get("left_error"))]
+		await _capture("hero", n, "герой: %s%s%s" % [Data.weapon(w[1]).get("name", w[1]), " (слева)" if float(w[2]) < 0.0 else "", note], true)
 		game.set_process(true)
 	game.kit.clear()
 	game.kit.merge(keep)

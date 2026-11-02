@@ -100,6 +100,8 @@ var turning := false
 ## Верх: насколько поднят ствол (0 — низкая готовность, 1 — прицел), вес IK левой кисти, сила отдачи.
 var aim_w := 0.0
 var ik_w := 0.0
+## Переноска длинного ствола поперёк корпуса вне прицела (hero_pose.gd, CARRY): вес 0…1.
+var carry_w := 0.0
 var kick := 0.0
 ## Состояние верха: lowered / raising / aiming / firing / lowering / windup / impact / follow / recover /
 ## equip_<стадия> / dead.
@@ -141,6 +143,9 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 	# модель героя из Tripo (если есть) — повторяет позу этого скелета: клипы, дерево анимаций и IK те же
 	tripo_hero = Gear.hero(self, model, skeleton)
 	grip = attach_point(model, "GripR")
+	var follow: SkinFollow = (tripo_hero.get_node_or_null("SkinFollow") as SkinFollow) if tripo_hero else null
+	if follow and follow.grip_node:
+		grip = follow.grip_node   # оружие — в кисти новой модели (руки у неё свои: см. skin_follow.gd)
 	for m in MOUNTS:
 		mounts[m] = attach_point(model, MOUNTS[m])
 	_body_yaw = rotation.y
@@ -150,6 +155,8 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 		pose = HeroPose.new()
 		pose.name = "HeroPose"
 		skeleton.add_child(pose)
+		if follow:
+			follow.pose = pose
 	attach_gear()
 
 ## Точка крепления (хват, чехол, кобура): при импорте glTF узлы под костями становятся костями скелета —
@@ -582,6 +589,11 @@ func _update_upper(delta: float) -> void:
 	if want_ik > ik_w:
 		ik_rate = maxf(0.12, float(equip["len"]) - float(equip["t"])) if equipping else float(prof["raise"])
 	ik_w = move_toward(ik_w, want_ik, delta / ik_rate)
+	# переноска двуручного ствола поперёк корпуса — когда он в руке и верх свободен (не смена оружия, не удар/урон)
+	var want_carry := 0.0
+	if alive and gun and bool(prof["two"]) and kind == "rifle" and not equipping and not bool(anim_tree.get("parameters/act_up/active")):
+		want_carry = 1.0
+	carry_w = move_toward(carry_w, want_carry, delta / 0.2)
 	# отдача: резкий толчок и возврат за ~0.12 с
 	kick *= exp(-delta * 26.0)
 	# пошёл посреди удара или смены оружия — ноги переходят на шаг, верх доигрывает
@@ -627,6 +639,7 @@ func _update_pose(delta: float) -> void:
 	pose.kick_climb = deg_to_rad(float(prof["climb"]))
 	pose.kick_chest = deg_to_rad(float(prof["chest"]))
 	pose.ik_weight = ik_w
+	pose.carry = carry_w * (1.0 - smoothstep(0.0, 1.0, aim_w))
 
 # ---------- Бой ----------
 

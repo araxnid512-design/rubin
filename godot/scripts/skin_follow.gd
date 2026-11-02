@@ -7,20 +7,44 @@ extends Node
 ## Перенос (проверен рендером на всех клипах): у каждой кости новой модели, у которой нашлась пара в старом скелете
 ## (по имени: Hip/Hips, Waist/Spine, L_Upperarm/LeftArm, пальцы…), мировой поворот = поворот парной кости × поправка
 ## покоя (модели предварительно развёрнуты лицом в одну сторону — Gear.hero); длины костей — свои (пропорции модели
-## не ломаются), таз — на высоте старого с поправкой роста. Затем руки и ноги доводятся двухзвенным IK: кисть и
-## стопа — точно туда, где кисть и стопа старого (кисть держит оружие ровно, ступни не скользят), локоть и колено —
-## в сторону старых. Кости без пары (скручивающие, лицо) — в позе покоя относительно родителя. Обновление — после
-## модификаторов старого скелета (сигнал skeleton_updated), то есть уже с поворотом корпуса, отдачей и IK.
+## не ломаются), таз — на высоте старого с поправкой роста. Кости без пары (скручивающие, лицо) — в позе покоя
+## относительно родителя. Обновление — после модификаторов старого скелета (сигнал skeleton_updated), то есть уже с
+## поворотом корпуса, переноской ствола, отдачей и IK.
+##
+## Руки (у модели Tripo плечевые суставы на ~10 см дальше назад, а запястье сидит глубже в предплечье, кисть длиннее):
+##   • правая — двухзвенным IK так, чтобы точка хвата новой кисти (у костяшек, как узел GripR старой) легла на хват
+##     старой; оружие висит в хвате НОВОЙ кисти (grip_node), поэтому, если рука не дотягивается, ствол идёт за ней;
+##   • левая у двуручного ствола — на цевьё этого оружия (узел GripL модели ствола, как у старого), иначе — как у
+##     старого; не достаёт — ключица навстречу (до CLAV_MAX), потом перехват цевья ближе (до SLIDE_MAX);
+##   • пока ствол в переноске (не в прицеле), указательный палец правой лежит вдоль ствольной коробки, а не на спуске;
+##   • ноги — IK к стопам старого (ступни не скользят), колени — в сторону старых.
+
+const HeroPoseScript := preload("res://scripts/hero_pose.gd")
+## Рука вытягивается не больше чем на эту долю длины.
+const REACH := 0.98
+## Ключица навстречу цели, рад (26°), и перехват цевья ближе к себе, м.
+const CLAV_MAX := 0.45
+const SLIDE_MAX := 0.07
 
 var src: Skeleton3D
 var dst: Skeleton3D
 var pairs: Array = []        # [индекс в dst, индекс в src, поправка покоя Quaternion]
 var order: Array[int] = []   # кости dst от корня к листьям
-var chains: Array = []       # [dst верх, dst середина, dst конец, src середина, src конец]
+var arms: Array = []         # словари рук: кости dst и src, хват в осях кисти старой (gs) и новой (gd)
+var legs: Array = []         # [dst верх, dst середина, dst конец, src середина, src конец]
+var index_bones: Array[int] = []   # указательный палец правой кисти dst (3 фаланги)
 var hips := -1
 var hip_k := 1.0
+## Модификатор позы старого скелета (hero_pose.gd): вес IK левой кисти, место цевья, вес переноски. Ставит player.gd.
+var pose: Node
+## Хват правой кисти новой модели — в нём оружие (player.gd кладёт сюда ствол или топор).
+var grip_node: Node3D
+var grip_world := Transform3D.IDENTITY
+## Для автотеста: насколько левая кисть новой модели не достала до цевья, м (−1 — левая не на цевье).
+var left_error := -1.0
 var _world: Array[Transform3D] = []
 var _by_dst := {}            # индекс dst → пара
+var _sc := Vector3.ONE
 
 static func _norm(n: String) -> String:
 	var s := n.to_lower()
@@ -98,6 +122,9 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 	src = source
 	dst = target
 	pairs.clear()
+	var sgt := src.global_transform
+	var dgt := dst.global_transform
+	_sc = dgt.basis.get_scale()
 	var used := {}
 	for i in dst.get_bone_count():
 		var m := mixamo_name(str(dst.get_bone_name(i)))
@@ -107,8 +134,8 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 		if j < 0:
 			continue
 		used[m] = true
-		var ws := src.global_transform * src.get_bone_global_rest(j)
-		var wd := dst.global_transform * dst.get_bone_global_rest(i)
+		var ws := sgt * src.get_bone_global_rest(j)
+		var wd := dgt * dst.get_bone_global_rest(i)
 		var fix := ws.basis.get_rotation_quaternion().inverse() * wd.basis.get_rotation_quaternion()
 		pairs.append([i, j, fix])
 		if m == "Hips":
@@ -119,21 +146,49 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 	# таз: поправка роста (высота таза новой / старой над ступнями)
 	var src_hips := src_bone(src, "Hips")
 	if hips >= 0 and src_hips >= 0:
-		var hs := (src.global_transform * src.get_bone_global_rest(src_hips)).origin.y - src.global_position.y
-		var hd := (dst.global_transform * dst.get_bone_global_rest(hips)).origin.y - src.global_position.y
+		var hs := (sgt * src.get_bone_global_rest(src_hips)).origin.y - src.global_position.y
+		var hd := (dgt * dst.get_bone_global_rest(hips)).origin.y - src.global_position.y
 		if hs > 0.01:
 			hip_k = hd / hs
-	# цепочки для IK
-	chains.clear()
-	for ch in [["LeftArm", "LeftForeArm", "LeftHand"], ["RightArm", "RightForeArm", "RightHand"],
-			["LeftUpLeg", "LeftLeg", "LeftFoot"], ["RightUpLeg", "RightLeg", "RightFoot"]]:
+	# руки: хват в кисти новой модели — поворот как у хвата старой кисти, точка сдвинута на разницу костяшек
+	# (средний палец, Middle1): у модели Tripo кисть длиннее, хват должен лечь в ладонь, а не на запястье
+	arms.clear()
+	for side in ["Right", "Left"]:
+		var a := {"side": side, "u": find_mixamo(dst, side + "Arm"), "m": find_mixamo(dst, side + "ForeArm"),
+			"e": find_mixamo(dst, side + "Hand"), "clav": find_mixamo(dst, side + "Shoulder"),
+			"sm": src_bone(src, side + "ForeArm"), "sh": src_bone(src, side + "Hand"),
+			"sg": src.find_bone("GripR" if side == "Right" else "GripL")}
+		if int(a["u"]) < 0 or int(a["m"]) < 0 or int(a["e"]) < 0 or int(a["sm"]) < 0 or int(a["sh"]) < 0:
+			continue
+		var gs: Transform3D = HeroPoseScript.grip_r_default() if side == "Right" else HeroPoseScript.grip_l_default()
+		if int(a["sg"]) >= 0:
+			gs = src.get_bone_global_rest(a["sh"]).affine_inverse() * src.get_bone_global_rest(a["sg"])
+		a["gs"] = gs
+		var gw: Transform3D = sgt * src.get_bone_global_rest(a["sh"]) * gs
+		var shift := Vector3.ZERO
+		var kd := find_mixamo(dst, side + "HandMiddle1")
+		var ks := src_bone(src, side + "HandMiddle1")
+		if kd >= 0 and ks >= 0:
+			shift = (dgt * dst.get_bone_global_rest(kd)).origin - (sgt * src.get_bone_global_rest(ks)).origin
+		a["gd"] = (dgt * dst.get_bone_global_rest(a["e"])).affine_inverse() * Transform3D(gw.basis.orthonormalized(), gw.origin + shift)
+		arms.append(a)
+		if side == "Right":
+			grip_world = ((dgt * dst.get_bone_global_rest(a["e"])) * (a["gd"] as Transform3D)).orthonormalized()
+	# ноги — IK к стопам старого
+	legs.clear()
+	for ch in [["LeftUpLeg", "LeftLeg", "LeftFoot"], ["RightUpLeg", "RightLeg", "RightFoot"]]:
 		var du := find_mixamo(dst, ch[0])
 		var dm := find_mixamo(dst, ch[1])
 		var de := find_mixamo(dst, ch[2])
 		var sm := src_bone(src, ch[1])
 		var se := src_bone(src, ch[2])
 		if du >= 0 and dm >= 0 and de >= 0 and sm >= 0 and se >= 0:
-			chains.append([du, dm, de, sm, se])
+			legs.append([du, dm, de, sm, se])
+	index_bones.clear()
+	for k in ["RightHandIndex1", "RightHandIndex2", "RightHandIndex3"]:
+		var i := find_mixamo(dst, k)
+		if i >= 0:
+			index_bones.append(i)
 	# порядок обхода: родитель раньше ребёнка
 	order.clear()
 	var queue: Array[int] = []
@@ -146,6 +201,8 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 		for c in dst.get_bone_children(b):
 			queue.append(c)
 	_world.resize(dst.get_bone_count())
+	if grip_node:
+		grip_node.global_transform = grip_world
 	if not src.skeleton_updated.is_connected(_follow):
 		src.skeleton_updated.connect(_follow)
 	return pairs.size()
@@ -155,8 +212,15 @@ func _follow() -> void:
 		return
 	var sgt := src.global_transform
 	var dgt := dst.global_transform
-	var sc := dgt.basis.get_scale()
+	_sc = dgt.basis.get_scale()
 	var root := src.global_position
+	var two := 0.0
+	var straight := 0.0
+	var marker := Transform3D.IDENTITY
+	if pose != null and is_instance_valid(pose):
+		two = clampf(float(pose.get("ik_weight")), 0.0, 1.0)
+		straight = clampf(float(pose.get("carry")), 0.0, 1.0)
+		marker = pose.get("marker")
 	# 1) повороты — от старых костей, длины — свои; таз — по старому с поправкой роста
 	for b in order:
 		var parent := dst.get_bone_parent(b)
@@ -169,12 +233,18 @@ func _follow() -> void:
 			var pos := base.origin
 			if b == hips:
 				pos = root + (ws.origin - root) * hip_k
-			_world[b] = Transform3D(Basis(q).scaled(sc), pos)
+			_world[b] = Transform3D(Basis(q).scaled(_sc), pos)
 		else:
 			_world[b] = base
-	# 2) руки и ноги — двухзвенный IK к кистям и стопам старого
-	for ch in chains:
-		_ik(ch, sgt)
+	# 2) руки (сначала правая — по ней хват оружия, к нему левая) и ноги — двухзвенный IK
+	left_error = -1.0
+	for a in arms:
+		_arm(a, sgt, two, marker)
+	for ch in legs:
+		_ik(ch[0], ch[1], ch[2], (sgt * src.get_bone_global_pose(ch[4])).origin, (sgt * src.get_bone_global_pose(ch[3])).origin)
+	# указательный правой — вдоль ствольной коробки, пока ствол в переноске (в прицеле — на спуске, как у старого)
+	if straight > 0.001 and index_bones.size() == 3 and not arms.is_empty():
+		_index_straight(straight)
 	# 3) положения — заново от родителей (повороты сохраняются), затем — в позу скелета
 	var inv := dgt.affine_inverse()
 	for b in order:
@@ -186,17 +256,96 @@ func _follow() -> void:
 		var local: Transform3D = (inv * _world[b]) if parent < 0 else (_world[parent].affine_inverse() * _world[b])
 		dst.set_bone_pose_position(b, local.origin)
 		dst.set_bone_pose_rotation(b, local.basis.get_rotation_quaternion())
+	# хват — по готовой кисти; левая — насколько не достала до цевья
+	for a in arms:
+		var hand: Transform3D = _world[a["e"]] * (a["gd"] as Transform3D)
+		if a["side"] == "Right":
+			grip_world = hand.orthonormalized()
+			if grip_node:
+				grip_node.global_transform = grip_world
+		elif two > 0.5:
+			left_error = hand.origin.distance_to(grip_world * marker.origin)
 
-func _ik(ch: Array, sgt: Transform3D) -> void:
-	var u: int = ch[0]
-	var m: int = ch[1]
-	var e: int = ch[2]
+## Рука: точка хвата новой кисти — на хват старой (левая у двуручного ствола — на цевьё оружия в новой правой).
+func _arm(a: Dictionary, sgt: Transform3D, two: float, marker: Transform3D) -> void:
+	var u: int = a["u"]
+	var m: int = a["m"]
+	var e: int = a["e"]
+	var og: Transform3D
+	if int(a["sg"]) >= 0:
+		og = sgt * src.get_bone_global_pose(a["sg"])
+	else:
+		og = sgt * src.get_bone_global_pose(a["sh"]) * (a["gs"] as Transform3D)
+	var p := og.origin
+	var left: bool = a["side"] == "Left"
+	if left and two > 0.0:
+		p = p.lerp(grip_world * marker.origin, two)
+	var gd: Transform3D = a["gd"]
+	var t := p - _world[e].basis * gd.origin
+	var lim := ((_world[u].basis * dst.get_bone_rest(m).origin).length() + (_world[m].basis * dst.get_bone_rest(e).origin).length()) * REACH
+	if _world[u].origin.distance_to(t) > lim:
+		_clavicle(a, t, lim)
+		if left and two > 0.0 and _world[u].origin.distance_to(t) > lim:
+			# и с ключицей не достаёт — перехватить цевьё ближе к себе (по стволу назад, +Y хвата)
+			var back := grip_world.basis.y.normalized()
+			var d0 := t - _world[u].origin
+			var bd := back.dot(d0)
+			var disc := bd * bd - (d0.length_squared() - lim * lim)
+			var s := (-bd - sqrt(disc)) if disc >= 0.0 else -bd
+			t += back * clampf(s, 0.0, SLIDE_MAX) * two
+	_ik(u, m, e, t, (sgt * src.get_bone_global_pose(a["sm"])).origin)
+	if not left:
+		var hand := Transform3D(_world[e].basis, (_world[m] * dst.get_bone_rest(e)).origin)
+		grip_world = (hand * gd).orthonormalized()
+
+## Ключица навстречу цели (плечо выдвигается вперёд-внутрь) — до CLAV_MAX, сколько нужно.
+func _clavicle(a: Dictionary, t: Vector3, lim: float) -> void:
+	var cl: int = a["clav"]
+	if cl < 0:
+		return
+	var u: int = a["u"]
+	var c := _world[cl].origin
+	var uv := _world[u].origin - c
+	var n := uv.cross(t - c)
+	if n.length_squared() < 1e-10:
+		return
+	n = n.normalized()
+	var ang := CLAV_MAX
+	if (c + uv.rotated(n, CLAV_MAX)).distance_to(t) <= lim:
+		var lo := 0.0
+		var hi := CLAV_MAX
+		for _k in 8:
+			var mid := (lo + hi) * 0.5
+			if (c + uv.rotated(n, mid)).distance_to(t) <= lim:
+				hi = mid
+			else:
+				lo = mid
+		ang = hi
+	var q := Basis(n, ang)
+	_world[cl] = Transform3D(q * _world[cl].basis, c)
+	_world[u] = Transform3D(_world[u].basis, c + q * uv)
+
+## Указательный палец правой кисти — прямой, вдоль ствола (по оси −Y хвата), с весом w.
+func _index_straight(w: float) -> void:
+	var dirw := -grip_world.basis.y.normalized()
+	for k in 3:
+		var i: int = index_bones[k]
+		var parent := dst.get_bone_parent(i)
+		if parent < 0:
+			return
+		var base: Basis = _world[parent].basis * dst.get_bone_rest(i).basis
+		if k == 0:
+			var along: Vector3 = base * dst.get_bone_rest(index_bones[1]).origin
+			base = Basis(HeroPoseScript._arc(along, dirw)) * base
+		var q := _world[i].basis.get_rotation_quaternion().slerp(base.get_rotation_quaternion(), w)
+		_world[i] = Transform3D(Basis(q).scaled(_sc), _world[i].origin)
+
+## Двухзвенный IK: верх u → середина m → конец e; конец — в t, середина (локоть, колено) — в сторону pole.
+func _ik(u: int, m: int, e: int, t: Vector3, pole: Vector3) -> void:
 	var r := _world[u].origin
 	var wm0: Transform3D = _world[u] * dst.get_bone_rest(m)
 	var m0 := wm0.origin
 	var e0 := (Transform3D(_world[m].basis, m0) * dst.get_bone_rest(e)).origin
-	var t := (sgt * src.get_bone_global_pose(ch[4])).origin
-	var pole := (sgt * src.get_bone_global_pose(ch[3])).origin
 	var a := r.distance_to(m0)
 	var bl := m0.distance_to(e0)
 	if a < 0.0001 or bl < 0.0001:

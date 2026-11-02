@@ -4,6 +4,9 @@ extends SkeletonModifier3D
 ## правая кисть держит оружие, затем оружие задаёт место левой кисти, затем локти):
 ##   1) поворот корпуса: позвоночник (Spine → Spine1 → Spine2) доворачивается на twist — ноги шагают по ходу
 ##      движения, верх смотрит туда, куда целится герой (поворот делится между тремя позвонками);
+##   1а) переноска длинного ствола вне прицела (вес carry): ствол поперёк корпуса на уровне низа груди, дулом вперёд
+##      и чуть влево, приклад у правого бока под предплечьем, правая кисть на пистолетной рукояти (двухзвенный IK
+##      правой руки к хвату CARRY в осях груди — качается вместе с корпусом на ходу), левая — снизу под цевьём (п. 3);
 ##   2) отдача: грудь откидывается назад, правая кисть с оружием уходит назад по линии ствола, ствол
 ##      подбрасывает вверх (двухзвенный IK правой руки), затем возврат — сила kick гаснет в player.gd;
 ##   3) левая кисть — на цевьё двуручного оружия: узел GripL модели ствола (marker, в осях хвата правой руки)
@@ -22,6 +25,12 @@ const REACH := 0.98
 ## кадрах клипов с автоматом: кисть на цевье, локоть согнут на 23–45°.
 const CLAV_MAX := 0.35
 const SLIDE_MAX := 0.07
+## Переноска: где хват правой кисти (узел GripR) в осях груди (Spine2: x — влево, y — вверх, z — вперёд), м,
+## и куда смотрит ствол: на CARRY_YAW влево и на CARRY_PITCH вниз, градусы (по снимкам-образцам пользователя:
+## ствол поперёк корпуса, приклад под правым предплечьем, левая ладонь снизу под цевьём).
+const CARRY_AT := Vector3(-0.12, -0.18, 0.33)
+const CARRY_YAW := 20.0
+const CARRY_PITCH := 4.0
 
 ## Поворот верха относительно ног, рад (плюс — влево).
 var twist := 0.0
@@ -32,6 +41,8 @@ var kick_climb := 0.0
 var kick_chest := 0.0
 ## Вес IK левой кисти (0 — как в клипе, 1 — точно на GripL оружия).
 var ik_weight := 0.0
+## Вес переноски длинного ствола (0 — как в клипе, 1 — хват CARRY); в прицеле — 0.
+var carry := 0.0
 ## Где должен оказаться узел GripL левой кисти — в осях узла GripR правой (= в осях оружия в руке).
 var marker := Transform3D.IDENTITY
 ## Для автотеста: сколько раз модификатор отработал и насколько левая кисть не дотянулась до цели, м (−1 — IK выключен).
@@ -93,6 +104,8 @@ func _process_modification() -> void:
 	frames += 1
 	if absf(twist) > 0.0005:
 		_twist(sk)
+	if carry > 0.001 and _chest >= 0 and _r_arm >= 0 and _r_fore >= 0 and _r_hand >= 0:
+		_carry(sk)
 	if kick > 0.003:
 		_recoil(sk)
 	if ik_weight > 0.001 and _l_arm >= 0 and _l_fore >= 0 and _l_hand >= 0 and _r_hand >= 0:
@@ -108,6 +121,25 @@ func _twist(sk: Skeleton3D) -> void:
 	for k in _spine.size():
 		if _spine[k] >= 0:
 			_turn(sk, _spine[k], up, twist * float(SPINE_SHARE[k]))
+
+# ---------- 1а. Переноска ----------
+
+## Хват правой кисти при переноске — в осях груди: ствол (−Y хвата) вперёд, влево и чуть вниз, верх (+Z) — вверх.
+static func carry_grip() -> Transform3D:
+	var yaw := deg_to_rad(CARRY_YAW)
+	var pitch := deg_to_rad(CARRY_PITCH)
+	var d := Vector3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)).normalized()
+	var y := -d
+	var z := (Vector3.UP - y * Vector3.UP.dot(y)).normalized()
+	return Transform3D(Basis(y.cross(z), y, z), CARRY_AT)
+
+func _carry(sk: Skeleton3D) -> void:
+	var w := clampf(carry, 0.0, 1.0)
+	var chest := sk.get_bone_global_pose(_chest)
+	var g := Transform3D(chest.basis.orthonormalized(), chest.origin) * carry_grip()
+	var goal := g * _grip_r_local(sk).affine_inverse()
+	var now := sk.get_bone_global_pose(_r_hand)
+	_solve(sk, _r_arm, _r_fore, _r_hand, now.interpolate_with(goal, w), _hint(sk, Vector3(-0.6, -1.0, -0.3)))
 
 # ---------- 2. Отдача ----------
 

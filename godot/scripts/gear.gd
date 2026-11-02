@@ -247,6 +247,11 @@ static func hero(player: Node3D, old_model: Node3D, old_skeleton: Skeleton3D) ->
 	var follow := SkinFollow.new()
 	follow.name = "SkinFollow"
 	model.add_child(follow)
+	# хват правой кисти новой модели: оружие висит здесь (SkinFollow ставит его каждый кадр по кисти)
+	var g := Node3D.new()
+	g.name = "TripoGrip"
+	model.add_child(g)
+	follow.grip_node = g
 	var n := follow.bind(old_skeleton, sk)
 	model.set_meta("bones_bound", n)
 	return model
