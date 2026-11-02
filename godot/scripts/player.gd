@@ -61,9 +61,9 @@ const LEG_TURN := 7.0
 const BACK_ON := 1.92
 const BACK_OFF := 1.48
 ## Корпус разворачивается к цели плавно, не быстрее TURN_RATE рад/с; выстрел — когда ствол смотрит на цель
-## точнее AIM_TOLERANCE рад (9°: пуля летит из дула в цель — ствол должен смотреть на неё, а не вбок).
+## точнее AIM_TOLERANCE рад (6°: пуля летит из дула в цель — ствол должен смотреть на неё, а не вбок).
 const TURN_RATE := 9.0
-const AIM_TOLERANCE := 0.15
+const AIM_TOLERANCE := 0.1
 
 var game: Node
 var model: Node3D
