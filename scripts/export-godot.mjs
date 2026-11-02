@@ -28,6 +28,11 @@ await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', (route) => {
 await page.goto(`http://localhost:${server.address().port}/tools/godot-export.html`);
 await page.waitForFunction(() => window.ready, null, { timeout: 120000 });
 
+// модели Tripo для предметов окружения (godot/assets/tripo/e_*.glb): их виды выгрузка не кладёт в статику
+const tripoDir = join(ROOT, 'godot', 'assets', 'tripo');
+const propList = (await readdir(tripoDir).catch(() => [])).filter((f) => /^e_.*\.glb$/.test(f)).map((f) => f.slice(0, -4));
+console.log('модели окружения Tripo:', propList.length, '→ виды:', (await page.evaluate((l) => window.setPropModels(l), propList)).join(', '));
+
 const only = process.argv.slice(2);
 for (const id of await page.evaluate(() => window.levelIds())) {
 	if (only.length && !only.includes(id)) continue;

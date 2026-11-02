@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
-import { box, place } from '../geom.js';
+import { box, place, beginProp, endProp } from '../geom.js';
 import { bench, addCar, streetLamp } from '../props.js';
 import { buildQuarters } from '../buildings.js';
 import { createFire } from '../dressing.js';
@@ -193,8 +193,10 @@ export default {
 		addCar(batch, M, root, -13, -10.5, 0.05, 0x4a5a3a);
 		collide(-13, -10.5, 4.3, 1.8, 0.05);
 		for (const [x, z, r] of [[-16.5, 6, 0.1], [-15.6, 7.1, 0.5], [-16.4, 8.2, 0], [16.2, 6.5, 0.3], [16.4, 7.7, 0]]) {
+			beginProp('crate', x, z, r);
 			batch.add(place(box(0.9, 0.6, 0.6), x, 0.3, z, r), M.metalOlive);
 			batch.add(place(box(0.9, 0.6, 0.6), x, 0.9, z, r + 0.1), M.wood);
+			endProp();
 			collide(x, z, 1.0, 0.8, r);
 		}
 		streetLamp(batch, M, collide, -7, 12.5);

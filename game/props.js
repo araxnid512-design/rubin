@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as T from './textures.js';
-import { box, place } from './geom.js';
+import { box, place, beginProp, endProp, propObject } from './geom.js';
 
 /** Половина размера локации, м (локация — квадрат 132×132 м). */
 export const HALF = 66;
@@ -44,9 +44,11 @@ export function windMaterial(base, { height = 6, amount = 0.12 } = {}) {
 // ---------- Постройки и предметы ----------
 
 export function bench(batch, M, x, z, ry) {
+	beginProp('bench', x, z, ry);
 	batch.add(place(box(1.6, 0.06, 0.4), x, 0.45, z, ry), M.woodGreen);
 	batch.add(place(box(1.6, 0.35, 0.05), x, 0.7, z + 0.18, ry), M.woodGreen);
 	for (const dx of [-0.65, 0.65]) batch.add(place(box(0.06, 0.45, 0.4), x + dx, 0.22, z, ry), M.metalDark);
+	endProp();
 }
 
 export function swings(batch, M, x, z) {
@@ -122,6 +124,7 @@ export function garden(batch, M, rnd, x, z, rows, len) {
 }
 
 export function woodpile(batch, M, collide, x, z, ry) {
+	beginProp('woodpile', x, z, ry);
 	const log = M.bark;
 	const c = Math.cos(ry), s = Math.sin(ry);
 	for (let row = 0; row < 4; row++) for (let i = 0; i < 9 - row; i++) {
@@ -130,6 +133,7 @@ export function woodpile(batch, M, collide, x, z, ry) {
 		batch.add(place(g, x + lx * c, y, z - lx * s, ry), log);
 	}
 	batch.add(place(box(2.6, 0.06, 0.8, 2), x, 1.05, z, ry, 0.15), M.roofMetal); // навес
+	endProp();
 	collide(x, z, 2.5, 0.7, ry);
 }
 
@@ -203,10 +207,12 @@ export function shed(batch, M, collide, x, z, ry) {
 }
 
 export function well(batch, M, collide, x, z) {
+	beginProp('well', x, z, 0);
 	batch.add(place(box(1.2, 0.9, 1.2, 1), x, 0.45, z), M.wood);
 	for (const dx of [-0.55, 0.55]) batch.add(place(box(0.1, 1.8, 0.1), x + dx, 0.9, z), M.wood);
 	batch.add(place(box(1.5, 0.06, 1.0, 1), x, 1.9, z, 0, 0.4), M.slate);
 	batch.add(place(box(1.5, 0.06, 1.0, 1), x, 1.9, z, 0, -0.4), M.slate);
+	endProp();
 	collide(x, z, 1.3, 1.3);
 }
 
@@ -232,6 +238,10 @@ const carMaterials = () => carMats ??= {
  * burned — обгоревший остов на дисках.
  */
 export function addCar(batch, M, root, x, z, ry, color, { crashed = false, burned = false } = {}) {
+	// метка для Godot: вид, оттенок кузова (у обычной — цвет краски, приглушённый); перед машины — локальная +X
+	const rgb = [(color >> 16) & 255, (color >> 8) & 255, color & 255], top = Math.max(...rgb, 1);
+	const tint = crashed || burned ? [1, 1, 1] : rgb.map((v) => Math.round((0.45 + 0.55 * v / top) * 100) / 100);
+	beginProp(burned ? 'car_burned' : crashed ? 'car_crashed' : 'car', x, z, ry, { tint });
 	const C = carMaterials();
 	const paint = T.carPaintMaterial([(color >> 16) & 255, (color >> 8) & 255, color & 255], { burned });
 	const tf = new THREE.Matrix4().compose(new THREE.Vector3(x, crashed ? 0.05 : burned ? -0.1 : 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, crashed ? 0.06 : 0)), new THREE.Vector3(1, 1, 1));
@@ -278,6 +288,7 @@ export function addCar(batch, M, root, x, z, ry, color, { crashed = false, burne
 	add(box(0.04, 0.18, 0.86), M.metalDark, at(front + 0.06, 0.6, 0)); // решётка радиатора
 	if (!burned) add(box(0.02, 0.11, 0.48), C.plate, at(front + 0.15, 0.4, 0)); // номер
 	if (crashed) add(box(0.9, 0.05, 1.3), paint, at(front - 0.5, 0.9, 0.05, 0.08, 0.1, 0.28)); // вздыбленный капот
+	endProp();
 }
 
 export function bus(batch, M, root, x, z, ry) {
@@ -301,7 +312,9 @@ export function bus(batch, M, root, x, z, ry) {
 		g.add(wh);
 	}
 	g.position.set(x, 0, z); g.rotation.y = ry;
-	root.add(g);
+	beginProp('bus', x, z, ry);
+	propObject(g);
+	if (!endProp()) root.add(g); // метка для Godot записана — модель поставит Godot
 }
 
 export function birchMaterial() {

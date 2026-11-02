@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
-import { box, place, planeXZ } from '../geom.js';
+import { box, place, planeXZ, beginProp, endProp } from '../geom.js';
 import { buildHouse, buildShop, buildDacha, buildWorkshop } from '../buildings.js';
 import {
 	bench, swings, slide, streetLamp, OPTIONS, barricade, garden, woodpile, outhouse, clothesline, bicycle,
@@ -65,7 +65,9 @@ export default {
 			slide(batch, M, -21, 21);
 			// мусорные контейнеры
 			for (let i = 0; i < 3; i++) {
+				beginProp('dumpster', -1 + i * 1.4, 22, 0);
 				batch.add(place(box(1.2, 1.1, 0.9, 1), -1 + i * 1.4, 0.55, 22, R(-0.1, 0.1)), M.green);
+				endProp();
 			}
 			collide(0.4, 22, 4.4, 1);
 		}

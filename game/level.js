@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import * as T from './textures.js';
-import { Batch, box, place, planeXZ } from './geom.js';
+import { Batch, box, place, planeXZ, beginProp, endProp } from './geom.js';
 import { Fader, segmentHitsBox } from './buildings.js';
 import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS } from './props.js';
 import { dressLevel } from './dressing.js';
@@ -168,13 +168,20 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		const x = R(-E, E), z = R(-E, E);
 		if (navProbe.blockedAt(x, z, 0.8) || indoors(x, z) || nearExit(x, z, 1)) continue;
 		const k = rnd();
+		const yaw = (i * 2.39996) % 6.2832; // поворот модели в Godot — без генератора случайных чисел
 		if (k < 0.35) {
+			beginProp('barrel', x, z, yaw);
 			batch.add(place(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 12), x, 0.45, z), M.metalRust);
+			endProp();
 			collide(x, z, 0.6, 0.6);
 		} else if (k < 0.7) {
+			beginProp('tire', x, z, yaw);
 			batch.add(place(new THREE.TorusGeometry(0.3, 0.12, 8, 14), x, 0.12, z, 0, Math.PI / 2), M.tire);
+			endProp();
 		} else {
+			beginProp('trash', x, z, yaw);
 			batch.add(place(new THREE.SphereGeometry(0.35, 8, 6).scale(1, 0.6, 1), x, 0.18, z), M.tire);
+			endProp();
 		}
 	}
 	// кровь и лужи сливаются в общие меши: по одному вызову отрисовки на вариант текстуры

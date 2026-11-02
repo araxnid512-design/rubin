@@ -16,12 +16,34 @@
 		import { buildLevel, LOCATIONS, PLAY, HALF } from '../game/level.js';
 		import { WEAPONS } from '../game/weapons.js';
 		import { OPTIONS } from '../game/props.js';
+		import { PROPS } from '../game/geom.js';
 
 		// Godot-версия (по просьбе пользователя, как в Dawn of Zombies): без фонарей и столбов ЛЭП — с камеры сверху
 		// это длинные палки через экран; деревья невысокие (вдвое ниже) и редкие (примерно каждое седьмое)
 		OPTIONS.poles = false;
 		OPTIONS.treeKeep = 0.15;
 		OPTIONS.treeScale = 0.5;
+
+		// Предметы, вместо которых Godot ставит модели Tripo (game/geom.js beginProp): вид → модели (у обычных машин —
+		// по очереди несколько). Вид включается, только если хотя бы одна его модель лежит в godot/assets/tripo
+		// (список передаёт scripts/export-godot.mjs) — иначе предмет остаётся процедурным.
+		const PROP_MODELS = {
+			car: ['e_vaz2107', 'e_niva', 'e_volga', 'e_uaz'], car_crashed: ['e_vaz_crashed'], car_burned: ['e_vaz_burned'],
+			bus: ['e_paz'], btr: ['e_btr80'], truck: ['e_ural'],
+			fridge: ['e_fridge'], stove: ['e_pech'], burzhuyka: ['e_burzhuyka'], sofa: ['e_sofa'], bed: ['e_bed'],
+			wardrobe: ['e_wardrobe'], buffet: ['e_buffet'], drawers: ['e_drawers'], nightstand: ['e_nightstand'], chest: ['e_chest'],
+			table: ['e_table'], chair: ['e_chair'], tv: ['e_tv'], bunk: ['e_bunk'], lathe: ['e_lathe'],
+			barrel: ['e_barrel'], tire: ['e_tire'], trash: ['e_trashbags'], crate: ['e_crate'], bench: ['e_bench'],
+			dumpster: ['e_dumpster'], block: ['e_block'], sandbags: ['e_sandbags'], woodpile: ['e_woodpile'], well: ['e_well'],
+			pipes: ['e_pipes'], hazard: ['e_hazard'], ammo: ['e_ammo'],
+		};
+		let propModels = new Set();
+		window.setPropModels = (list) => {
+			propModels = new Set(list);
+			PROPS.types = new Set(Object.keys(PROP_MODELS).filter((t) => PROP_MODELS[t].some((m) => propModels.has(m))));
+			PROPS.on = PROPS.types.size > 0;
+			return [...PROPS.types];
+		};
 
 		const exporter = new GLTFExporter();
 		const r3 = (v) => Math.round(v * 1000) / 1000;
@@ -103,7 +125,13 @@
 
 		window.exportLevel = async (id) => {
 			const scene = new THREE.Scene();
+			PROPS.list.length = 0;
 			const L = buildLevel(scene, { quality: 'medium', id });
+			// метки предметов: модель — по виду (обычные машины — по очереди), без случайности: выгрузка повторяема
+			const props = PROPS.list.map((p, i) => {
+				const ms = PROP_MODELS[p.t].filter((m) => propModels.has(m));
+				return { ...p, m: ms[i % ms.length] };
+			});
 			// что нужно Godot-версии для игры
 			const meta = {
 				id, half: HALF, play: PLAY, edge: L.edge,
@@ -122,6 +150,7 @@
 				// level.gd не сливает с остальной статикой — их можно прятать целиком)
 				blocks: (L.plan.blocks ?? []).map((b) => ({ name: b.name, cx: r3(b.cx), cz: r3(b.cz), ry: r3(b.ry ?? 0), hx: r3(b.hx), hz: r3(b.hz), top: r3(b.top ?? 6) })),
 				nav: { n: L.nav.N, cell: L.nav.CELL, blocked: b64(L.nav.blocked.buffer) },
+				props,
 			};
 			// комната героя в стабе — прямоугольник по точкам внутри
 			if (L.room) {

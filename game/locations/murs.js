@@ -3,7 +3,7 @@
 // в их шкафах — всё, что муры вынесли из кластеров (game/murs.js). Заражённых здесь нет — их перебили муры.
 // Учёт, вылазки и гарнизон — game/murs.js и game/main.js (Garrison, populateMurs).
 
-import { box, place } from '../geom.js';
+import { box, place, beginProp, endProp } from '../geom.js';
 import { buildArmyBarracks, buildWarehouse, buildGuardhouse } from '../buildings.js';
 import { blob, streetLamp } from '../props.js';
 import { concreteFence, watchTower, btr, armyTruck, sandbags, hazardBarrels, barrier, billboard } from '../props-industrial.js';
@@ -49,8 +49,10 @@ export default {
 		for (const [x, z] of [[-14, 16], [14, 16], [0, -14]]) streetLamp(batch, M, collide, x, z);
 		// ящики с добром у склада
 		for (const [x, z, r] of [[10.5, -16.5, 0.1], [12, -16, 0.5], [25, -16.2, 0], [-26, -16.4, 0.3]]) {
+			beginProp('ammo', x, z, r);
 			batch.add(place(box(1.0, 0.7, 0.7), x, 0.35, z, r), M.metalOlive);
 			batch.add(place(box(0.9, 0.6, 0.6), x, 1.0, z, r + 0.1), M.metalOlive);
+			endProp();
 			collide(x, z, 1.1, 0.9, r);
 		}
 

@@ -38,6 +38,12 @@ func smoke() -> int:
 			print("  · %s: рендер в этом режиме не отдаёт данные мешей — слияние не проверить (меши оставлены как есть)" % id)
 		else:
 			fails += _check(ok_merge, "%s: статика слита — MeshInstance3D %d при %d узлах glTF (%d с мешами), материалов %d из %d" % [id, st["meshes"], s.get("gltf_nodes", 0), s.get("gltf_meshes", 0), st["materials"], s.get("materials_in", 0)])
+		# предметы окружения из Tripo: сколько меток выгрузки получили модель (вид без файла модели в выгрузку не попадает)
+		var marks: int = (lv.meta.get("props", []) as Array).size()
+		if marks > 0:
+			var placed := int(s.get("props", 0))
+			var pr := lv.get_node_or_null("Props")
+			fails += _check(placed == marks and pr != null and pr.get_child_count() > 0, "%s: предметы из Tripo — поставлено %d из %d меток, пачек MultiMesh %d" % [id, placed, marks, pr.get_child_count() if pr else 0])
 		var no_grass: bool = lv.find_child("Grass", true, false) == null and lv.find_child("Bushes", true, false) == null and lv.find_child("ContactShadows", true, false) == null
 		fails += _check(lv.world_mats.size() > 0 and no_grass, "%s: материалы «как на фото» — %d (мох, сырость, лужи); травы, кустов и пятен теней нет" % [id, lv.world_mats.size()])
 		if id == "zarechny":

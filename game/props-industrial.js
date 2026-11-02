@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import * as T from './textures.js';
-import { box, place } from './geom.js';
+import { box, place, beginProp, endProp, propObject } from './geom.js';
 
 const cyl = (r0, r1, h, seg = 12) => new THREE.CylinderGeometry(r0, r1, h, seg);
 /** Цилиндр вдоль оси X (бочка на боку, цистерна, труба). */
@@ -139,7 +139,9 @@ export function storageTank(batch, M, root, collide, x, z, r, h, paint, label) {
 export function pipePile(batch, M, collide, x, z, ry = 0) {
 	const c = Math.cos(ry), s = Math.sin(ry);
 	const rows = [[-1.1, 0.5], [0, 0.5], [1.1, 0.5], [-0.55, 1.45], [0.55, 1.45]];
+	beginProp('pipes', x, z, ry);
 	for (const [lz, y] of rows) batch.add(place(cylX(0.5, 7, 14), x + lz * s, y, z + lz * c, ry), M.metalRust);
+	endProp();
 	collide(x, z, 7.2, 3.4, ry);
 }
 
@@ -149,8 +151,10 @@ export function hazardBarrels(batch, M, collide, x, z, rnd, n = 5) {
 		const bx = x + (i % 3) * 0.7 - 0.7, bz = z + Math.floor(i / 3) * 0.7, tipped = rnd() < 0.2;
 		if (tipped) batch.add(place(cyl(0.3, 0.3, 0.9, 12).rotateZ(Math.PI / 2), bx, 0.3, bz, rnd() * 3), M.hazard);
 		else {
+			beginProp('hazard', bx, bz, (i * 1.7) % 6.28);
 			batch.add(place(cyl(0.3, 0.3, 0.9, 12), bx, 0.45, bz), M.hazard);
 			batch.add(place(cyl(0.31, 0.31, 0.12, 12), bx, 0.6, bz), M.metalDark);
+			endProp();
 		}
 	}
 	collide(x, z + 0.35, 2.2, 1.6);
@@ -167,7 +171,9 @@ export function btr(batch, M, root, collide, x, z, ry) {
 	add(cyl(0.06, 0.06, 2.2, 8), M.metalDark, 0, 2.6, 1.8, Math.PI / 2);
 	for (const wz of [-2.4, -0.9, 0.9, 2.4]) for (const wx of [-1.45, 1.45]) add(cyl(0.6, 0.6, 0.4, 16), M.tire, wx, 0.6, wz, 0, Math.PI / 2);
 	g.position.set(x, 0, z); g.rotation.y = ry;
-	root.add(g);
+	beginProp('btr', x, z, ry);
+	propObject(g);
+	if (!endProp()) root.add(g); // метка для Godot записана — модель поставит Godot
 	collide(x, z, 3.2, 6.9, ry);
 }
 
@@ -183,7 +189,9 @@ export function armyTruck(batch, M, root, collide, x, z, ry) {
 	add(box(2.5, 1.5, 4.4, 2), M.canvas, 0, 2.55, -1.2); // тент
 	for (const wz of [2.9, -0.4, -1.9]) for (const wx of [-1.15, 1.15]) add(cyl(0.55, 0.55, 0.4, 16), M.tire, wx, 0.55, wz, Math.PI / 2);
 	g.position.set(x, 0, z); g.rotation.y = ry;
-	root.add(g);
+	beginProp('truck', x, z, ry);
+	propObject(g);
+	if (!endProp()) root.add(g); // метка для Godot записана — модель поставит Godot
 	collide(x, z, 2.7, 7.6, ry);
 }
 
@@ -214,10 +222,17 @@ export function watchTower(batch, M, collide, x, z) {
 export function sandbags(batch, M, collide, x, z, len, ry) {
 	const c = Math.cos(ry), s = Math.sin(ry);
 	const n = Math.round(len / 0.55);
-	for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) {
-		const t = (i + 0.5 + (k % 2) * 0.5) / n * len - len / 2;
-		if (t > len / 2) continue;
-		batch.add(place(new THREE.SphereGeometry(0.3, 8, 6).scale(1.0, 0.45, 0.7), x + c * t, 0.14 + k * 0.25, z - s * t, ry), M.sandbag);
+	// для Godot стена мешков — отрезками по ~2,4 м (модель Tripo — такой отрезок)
+	const segs = Math.max(1, Math.round(len / 2.4)), sl = len / segs;
+	for (let q = 0; q < segs; q++) {
+		const t0 = -len / 2 + q * sl, tc = t0 + sl / 2;
+		beginProp('sandbags', x + c * tc, z - s * tc, ry);
+		for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) {
+			const t = (i + 0.5 + (k % 2) * 0.5) / n * len - len / 2;
+			if (t > len / 2 || t < t0 || (t >= t0 + sl && q < segs - 1)) continue;
+			batch.add(place(new THREE.SphereGeometry(0.3, 8, 6).scale(1.0, 0.45, 0.7), x + c * t, 0.14 + k * 0.25, z - s * t, ry), M.sandbag);
+		}
+		endProp();
 	}
 	collide(x, z, len, 0.7, ry);
 }

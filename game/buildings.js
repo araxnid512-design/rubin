@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import * as T from './textures.js';
 import { paperTexture, grimeTexture, quadUV } from './dressing.js';
-import { Batch, box, place, planeXZ } from './geom.js';
+import { Batch, box, place, planeXZ, beginProp, endProp } from './geom.js';
 
 /** Высота, по которой срезаются стены, когда герой внутри. */
 export const CUT = 1.05;
@@ -219,7 +219,12 @@ class Building {
 	}
 
 	/** Мебель из коробок [w, h, d, x, y, z, материал] в своих осях (поворот rot), с коллайдером. */
-	furniture(x, z, rot, parts, { solid = [0, 0], up = false } = {}) {
+	furniture(x, z, rot, parts, { solid = [0, 0], up = false, prop = null } = {}) {
+		// метка для Godot (модель Tripo вместо мебели): место и поворот — в осях локации (дом бывает отражён)
+		if (prop) {
+			const [wx, wz] = this.world(x, z), [fx, fz] = this.world(x + Math.sin(rot), z + Math.cos(rot));
+			beginProp(prop, wx, wz, Math.atan2(fx - wx, fz - wz));
+		}
 		const m = new THREE.Matrix4().makeRotationY(rot).setPosition(x, 0, z);
 		for (const [w, h, d, px, py, pz, mat, extra] of parts) {
 			const g = extra?.geo ?? box(w, h, d, 0.8);
@@ -227,12 +232,13 @@ class Building {
 			g.applyMatrix4(m);
 			if (up || extra?.up) this.top_(g, mat); else this.lower(g, mat);
 		}
+		if (prop) endProp();
 		if (solid[0] > 0) { this.collide(x, z, solid[0], solid[1], rot); this.solids.push([x, z, solid[0], solid[1], rot]); }
 	}
 
 	/** Тайник: мебель, которую можно обыскать. loot — что может лежать (см. main.js). */
 	container(name, x, z, rot, parts, solid, loot, height) {
-		this.furniture(x, z, rot, parts, { solid });
+		this.furniture(x, z, rot, parts, { solid, prop: CONTAINER_PROP[name] ?? null });
 		const [wx, wz] = this.world(x, z);
 		// точка обыска — перед фасадом мебели (её «лицо» смотрит в +Z своих осей)
 		const fx = x + Math.sin(rot) * (solid[1] / 2 + 0.45), fz = z + Math.cos(rot) * (solid[1] / 2 + 0.45);
@@ -322,13 +328,16 @@ class Building {
 
 // ---------- Мебель ----------
 
+// тайники, вместо которых Godot ставит модели Tripo (по имени тайника; тайник — тот же, меняется только вид)
+const CONTAINER_PROP = { 'Холодильник': 'fridge', 'Шкаф': 'wardrobe', 'Буфет': 'buffet', 'Комод': 'drawers', 'Тумбочка': 'nightstand', 'Сундук': 'chest' };
+
 function stove(b, x, z, rot) {
 	const { whitewash } = b.IM;
 	b.furniture(x, z, rot, [
 		[1.5, 1.55, 1.7, 0, 0.775, 0, whitewash],
 		[1.2, 0.35, 1.4, 0.1, 1.72, 0.1, whitewash],
 		[0.5, 0.35, 0.05, -0.3, 0.75, 0.86, b.IM.black], // устье
-	], { solid: [1.5, 1.7] });
+	], { solid: [1.5, 1.7], prop: 'stove' });
 	// труба — сквозь крышу, исчезает вместе с ней
 	b.furniture(x, z, rot, [[0.5, b.top - 1.6, 0.5, 0.35, 1.9 + (b.top - 1.6) / 2, 0.4, whitewash]], { up: true });
 }
@@ -338,7 +347,7 @@ function table(b, x, z, rot, { w = 1.1, d = 0.75, cloth = false } = {}) {
 	const parts = [[w, 0.05, d, 0, 0.75, 0, cloth ? linen : furniture]];
 	for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push([0.06, 0.72, 0.06, sx * (w / 2 - 0.08), 0.36, sz * (d / 2 - 0.08), furniture]);
 	if (cloth) parts.push([w + 0.08, 0.25, d + 0.08, 0, 0.64, 0, linen]);
-	b.furniture(x, z, rot, parts, { solid: [w, d] });
+	b.furniture(x, z, rot, parts, { solid: [w, d], prop: 'table' });
 }
 
 function chair(b, x, z, rot) {
@@ -347,7 +356,7 @@ function chair(b, x, z, rot) {
 		[0.42, 0.05, 0.42, 0, 0.45, 0, f],
 		[0.42, 0.5, 0.05, 0, 0.72, -0.19, f],
 		...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => [0.04, 0.45, 0.04, sx * 0.18, 0.22, sz * 0.18, f]),
-	], { solid: [0.45, 0.45] });
+	], { solid: [0.45, 0.45], prop: 'chair' });
 }
 
 function sofa(b, x, z, rot) {
@@ -357,7 +366,7 @@ function sofa(b, x, z, rot) {
 		[2.0, 0.5, 0.2, 0, 0.66, -0.3, s],
 		[0.18, 0.62, 0.85, -0.95, 0.31, 0.02, furniture],
 		[0.18, 0.62, 0.85, 0.95, 0.31, 0.02, furniture],
-	], { solid: [2.05, 0.85] });
+	], { solid: [2.05, 0.85], prop: 'sofa' });
 }
 
 function bed(b, x, z, rot) {
@@ -369,7 +378,7 @@ function bed(b, x, z, rot) {
 		[0.55, 0.16, 0.35, -0.3, 0.62, -0.75, linen],
 		[0.55, 0.16, 0.35, 0.3, 0.62, -0.75, linen],
 		[1.3, 0.9, 0.06, 0, 0.45, -1.0, furniture],
-	], { solid: [1.3, 2.0] });
+	], { solid: [1.3, 2.0], prop: 'bed' });
 }
 
 function tv(b, x, z, rot) {
@@ -378,7 +387,7 @@ function tv(b, x, z, rot) {
 		[0.8, 0.55, 0.45, 0, 0.275, 0, furniture],
 		[0.62, 0.5, 0.5, 0, 0.8, -0.02, black],
 		[0.48, 0.38, 0.02, 0, 0.8, 0.235, screen],
-	], { solid: [0.8, 0.5] });
+	], { solid: [0.8, 0.5], prop: 'tv' });
 }
 
 function rug(b, x, z, rot, w, d, mat = b.IM.rug) {
@@ -594,7 +603,7 @@ export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 		b.top_(tri, boards);
 	}
 	// буржуйка с трубой
-	b.furniture(2.6, 1.7, 0, [[0.55, 0.6, 0.45, 0, 0.3, 0, IM.black], [0.14, 0.4, 0.14, 0, 0.8, -0.1, IM.metal]], { solid: [0.6, 0.5] });
+	b.furniture(2.6, 1.7, 0, [[0.55, 0.6, 0.45, 0, 0.3, 0, IM.black], [0.14, 0.4, 0.14, 0, 0.8, -0.1, IM.metal]], { solid: [0.6, 0.5], prop: 'burzhuyka' });
 	b.furniture(2.6, 1.6, 0, [[0.14, b.top - 0.9, 0.14, 0, 1.0 + (b.top - 0.9) / 2, 0, IM.metal]], { up: true });
 	bed(b, -2.25, 1.35, 0);
 	table(b, -0.2, 0.6, 0, { w: 0.9, d: 0.7, cloth: variant % 2 === 0 });
@@ -728,7 +737,7 @@ function lathe(b, x, z, rot) {
 		[1.3, 0.12, 0.2, 0.25, 0.92, 0.12, metal],
 		[0.3, 0.22, 0.3, 0.55, 0.95, 0, black],
 		[0.12, 0.12, 0.25, -0.35, 1.05, 0, metal],
-	], { solid: [1.9, 0.75] });
+	], { solid: [1.9, 0.75], prop: 'lathe' });
 }
 
 /**
@@ -853,7 +862,7 @@ function bunk(b, x, z, rot) {
 		parts.push([0.85, 0.06, 1.95, 0, y, 0, metal], [0.82, 0.1, 1.8, 0, y + 0.08, 0.05, blanketArmy], [0.6, 0.1, 0.32, 0, y + 0.16, -0.75, linen]);
 	}
 	for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push([0.05, 1.75, 0.05, sx * 0.4, 0.875, sz * 0.95, metal]);
-	b.furniture(x, z, rot, parts, { solid: [0.9, 2.0] });
+	b.furniture(x, z, rot, parts, { solid: [0.9, 2.0], prop: 'bunk' });
 }
 
 /**

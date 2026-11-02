@@ -147,6 +147,11 @@ func setup(level_id: String) -> void:
 		containers.append(e2)
 	exits = meta.get("exits", [])
 	_merge_static()
+	# предметы окружения из Tripo (машины, мебель, улица) — по меткам выгрузки, после слияния: их не сливать
+	var props_root := Node3D.new()
+	props_root.name = "Props"
+	add_child(props_root)
+	stats["props"] = EnvProps.place_all(props_root, meta.get("props", []), CHUNK)
 	_blocks()
 	if meta.get("edge", true):
 		_edge_haze()

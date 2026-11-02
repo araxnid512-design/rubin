@@ -260,40 +260,49 @@ func _infected_shots() -> void:
 			h.queue_free()
 		await _wait(0.1)
 
-## Предметы окружения из Tripo (EnvProps): в ряд перед героем, в настоящем размере — обычной камерой игры и
-## крупно под углом (снимки props_1, props_2): так их показывают пользователю для одобрения стиля.
+## Предметы окружения из Tripo (EnvProps): группами по 8 в ряд перед героем, в настоящем размере, крупно под углом
+## (снимки props_1…): так их показывают пользователю (вид, размер рядом с героем 2,06 м).
 func _props_shots() -> void:
 	var p = game.player
 	var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
 	var right := fwd.cross(Vector3.UP)
-	var shown: Array = []
-	var x := 0.0
-	var names: Array = []
+	var ids: Array = []
 	for id in EnvProps.LENGTH:
-		var m := EnvProps.instance(id)
-		if m == null:
+		if ResourceLoader.exists("res://assets/tripo/%s.glb" % id):
+			ids.append(id)
+	var n := 0
+	var i := 0
+	while i < ids.size():
+		var batch: Array = ids.slice(i, i + 8)
+		i += 8
+		var shown: Array = []
+		var x := 0.0
+		for id in batch:
+			var m := EnvProps.instance(id)
+			if m == null:
+				continue
+			game.add_child(m)
+			var w := float(EnvProps.LENGTH[id])
+			m.global_position = p.global_position + fwd * 4.5 + right * (x + w * 0.5)
+			m.rotation.y = atan2(-fwd.x, -fwd.z) + 0.6
+			x += w + 0.7
+			shown.append(m)
+		if shown.is_empty():
 			continue
-		game.add_child(m)
-		var w := float(EnvProps.LENGTH[id])
-		m.global_position = p.global_position + fwd * 4.5 + right * (x + w * 0.5)
-		m.rotation.y = atan2(right.x, right.z)
-		x += w + 0.8
-		shown.append(m)
-		names.append(id)
-	if shown.is_empty():
-		return
-	await _wait(0.3)
-	await _capture("props", 1, "окружение из Tripo (%s): камера игры" % ", ".join(names), true)
-	game.set_process(false)
-	var cam: Camera3D = game.camera
-	var at: Vector3 = p.global_position + fwd * 4.5 + right * (x * 0.5) + Vector3(0, 0.8, 0)
-	cam.global_position = at - fwd * 6.5 - right * 3.0 + Vector3(0, 3.2, 0)
-	cam.look_at(at, Vector3.UP)
-	await _wait(0.2)
-	await _capture("props", 2, "окружение из Tripo (%s): крупно, рядом герой 2,06 м" % ", ".join(names), true)
-	game.set_process(true)
-	for m in shown:
-		m.queue_free()
+		n += 1
+		await _wait(0.2)
+		game.set_process(false)
+		var cam: Camera3D = game.camera
+		var at: Vector3 = p.global_position + fwd * 4.5 + right * (x * 0.5) + Vector3(0, 0.7, 0)
+		var dist := clampf(x * 0.75, 4.0, 22.0)
+		cam.global_position = at - fwd * dist + Vector3(0, dist * 0.55, 0)
+		cam.look_at(at, Vector3.UP)
+		await _wait(0.2)
+		await _capture("props", n, "окружение из Tripo: %s" % ", ".join(batch), true)
+		game.set_process(true)
+		for m in shown:
+			m.queue_free()
+		await _wait(0.1)
 
 ## Лист «все стволы в руках»: герой с каждым огнестрелом — в переноске и в прицеле, крупно спереди-справа, с подписью;
 ## одна картинка guns_sheet.jpg (по 8 клеток в ряд). По ней видно, какой ствол лежит в руках неправильно.

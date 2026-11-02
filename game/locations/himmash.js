@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
-import { box, place } from '../geom.js';
+import { box, place, beginProp, endProp } from '../geom.js';
 import { buildWorkshop, buildWarehouse, buildGuardhouse } from '../buildings.js';
 import { addCar, bus, streetLamp, powerLine, markingMaterial } from '../props.js';
 import {
@@ -67,7 +67,7 @@ export default {
 		hazardBarrels(batch, M, collide, -4.5, -19, rnd, 6);
 		hazardBarrels(batch, M, collide, 28.5, -18.5, rnd, 4);
 		// бетонные блоки и катушки кабеля
-		for (const [x, z, r] of [[-41, -12, 0.1], [-41, -15, 0], [10, -24, 0.4], [-10, -29, 0.2]]) { batch.add(place(box(1.8, 0.9, 0.9, 1), x, 0.45, z, r), M.concreteDark); collide(x, z, 1.8, 0.9, r); }
+		for (const [x, z, r] of [[-41, -12, 0.1], [-41, -15, 0], [10, -24, 0.4], [-10, -29, 0.2]]) { beginProp('block', x, z, r); batch.add(place(box(1.8, 0.9, 0.9, 1), x, 0.45, z, r), M.concreteDark); endProp(); collide(x, z, 1.8, 0.9, r); }
 		for (const [x, z] of [[24, -3.5], [-36, -38]]) {
 			batch.add(place(new THREE.CylinderGeometry(0.9, 0.9, 0.14, 16).rotateX(Math.PI / 2), x, 0.9, z - 0.5), M.wood);
 			batch.add(place(new THREE.CylinderGeometry(0.9, 0.9, 0.14, 16).rotateX(Math.PI / 2), x, 0.9, z + 0.5), M.wood);

@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
-import { box, place } from '../geom.js';
+import { box, place, beginProp, endProp } from '../geom.js';
 import { buildArmyBarracks, buildArmory, buildCheckpoint } from '../buildings.js';
 import { streetLamp, markingMaterial } from '../props.js';
 import { concreteFence, storageTank, hazardBarrels, btr, armyTruck, barrier, watchTower, sandbags, billboard } from '../props-industrial.js';
@@ -139,14 +139,18 @@ export default {
 		// восток: полевой лагерь у забора
 		hazardBarrels(batch, M, collide, 50, -14, rnd, 4);
 		for (const [x, z, r] of [[50, 13, 0.1], [51.4, 14.2, 0.5], [58, -14, 0]]) {
+			beginProp('ammo', x, z, r);
 			batch.add(place(box(1.0, 0.7, 0.7), x, 0.35, z, r), M.metalOlive);
 			batch.add(place(box(0.9, 0.6, 0.6), x, 1.0, z, r + 0.1), M.metalOlive);
+			endProp();
 			collide(x, z, 1.1, 0.9, r);
 		}
 		// ящики и бочки по части
 		for (const [x, z, r] of [[-24, 20, 0.1], [-25.2, 21.2, 0.4], [36, 6, 0], [37.2, 6.8, 0.3], [4, 36, 0.2]]) {
+			beginProp('ammo', x, z, r);
 			batch.add(place(box(1.0, 0.7, 0.7), x, 0.35, z, r), M.metalOlive);
 			batch.add(place(box(0.9, 0.6, 0.6), x, 1.0, z, r + 0.1), M.metalOlive);
+			endProp();
 			collide(x, z, 1.1, 0.9, r);
 		}
 

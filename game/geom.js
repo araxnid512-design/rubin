@@ -3,6 +3,61 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+// ---------- Метки предметов для Godot ----------
+// Godot-версия ставит вместо процедурных предметов модели Tripo. Строитель предмета оборачивает свою геометрию
+// в beginProp(вид, x, z, ry) … endProp(): при PROPS.on (включает только выгрузка для Godot) геометрия внутри
+// не идёт в пачку, а её габарит (в осях предмета) записывается меткой в PROPS.list. Коллизии и вызовы
+// генератора случайных чисел в строителях остаются как были — места лута, бочек и заражённых не сдвигаются.
+// PROPS.types — виды, для которых в Godot есть модель (остальные предметы остаются процедурными).
+export const PROPS = { on: false, list: [], types: null };
+let propScope = null;
+const _pv = new THREE.Vector3();
+
+export function beginProp(type, x, z, ry = 0, extra = null) {
+	if (!PROPS.on || (PROPS.types && !PROPS.types.has(type))) return;
+	propScope = { type, x, z, ry, extra, cos: Math.cos(-ry), sin: Math.sin(-ry), min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+}
+
+/** Габарит предмета в его осях (геометрия уже в осях локации). */
+function propAccumulate(geometry) {
+	const s = propScope, pos = geometry.attributes.position;
+	for (let i = 0; i < pos.count; i++) {
+		_pv.fromBufferAttribute(pos, i);
+		const dx = _pv.x - s.x, dz = _pv.z - s.z;
+		const lx = dx * s.cos + dz * s.sin, lz = -dx * s.sin + dz * s.cos;
+		const v = [lx, _pv.y, lz];
+		for (let k = 0; k < 3; k++) { if (v[k] < s.min[k]) s.min[k] = v[k]; if (v[k] > s.max[k]) s.max[k] = v[k]; }
+	}
+}
+
+/** Добавить в метку габарит готового узла (машины-группы: автобус, БТР, «Урал»). */
+export function propObject(object) {
+	if (!propScope) return;
+	object.updateMatrixWorld(true);
+	object.traverse((o) => {
+		if (!o.isMesh) return;
+		const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+		propAccumulate(g);
+		g.dispose();
+	});
+}
+
+export function endProp() {
+	const s = propScope;
+	propScope = null;
+	if (!s || !isFinite(s.min[0])) return false;
+	const r = (v) => Math.round(v * 1000) / 1000;
+	const c = [0, 1, 2].map((k) => r((s.min[k] + s.max[k]) / 2));
+	const size = [0, 1, 2].map((k) => r(s.max[k] - s.min[k]));
+	const m = { t: s.type, x: r(s.x), z: r(s.z), ry: r(s.ry), c, s: size };
+	if (s.extra) Object.assign(m, s.extra);
+	PROPS.list.push(m);
+	return true;
+}
+
+/** Внутри метки предмета: геометрия не нужна (её заменит модель в Godot). */
+export function inProp() { return propScope !== null; }
+
 // ---------- Слияние статики ----------
 
 export class Batch {
@@ -12,6 +67,7 @@ export class Batch {
 	 */
 	constructor({ chunk = 0 } = {}) { this.groups = new Map(); this.chunk = chunk; }
 	add(geometry, material, { cast = true, receive = true } = {}) {
+		if (propScope) { propAccumulate(geometry); return; }
 		let key = material.uuid + cast + receive;
 		if (this.chunk) {
 			geometry.computeBoundingBox();
