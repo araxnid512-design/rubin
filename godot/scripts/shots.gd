@@ -37,11 +37,6 @@ func run(g, out_dir: String) -> void:
 	await _infected_shots()
 	await _props_shots()
 	await _gun_sheet()
-	# тестовая сцена хвата: все типы персонажей с каждым стволом, оси точек и кости, замеры по состояниям
-	var ht = preload("res://scripts/hand_test.gd").new()
-	game.add_child(ht)
-	await ht.run(game, dir)
-	ht.queue_free()
 	var prev: String = game.loc
 	for id in LOCS:
 		if id != game.loc:
@@ -67,6 +62,16 @@ func run(g, out_dir: String) -> void:
 				await _shoot_at(id, 0, "старт, качество " + q, spots[0][1], false)
 			settings.set_quality("medium")
 		await _overview(id, n + 1)
+	# снимки локаций — сразу в stats.txt (их выкладывает CI), потом долгая тестовая сцена хвата
+	_write()
+	if game.loc != "zarechny":
+		game.enter("zarechny", game.loc)
+		await _wait(1.2)
+	# тестовая сцена хвата: все типы персонажей с каждым стволом, оси точек и кости, замеры по состояниям
+	var ht = preload("res://scripts/hand_test.gd").new()
+	game.add_child(ht)
+	await ht.run(game, dir)
+	ht.queue_free()
 	_write()
 	print("SHOTS: OK (%d снимков)" % rows.filter(func(r): return r["file"] != "").size())
 	game.get_tree().quit(0)

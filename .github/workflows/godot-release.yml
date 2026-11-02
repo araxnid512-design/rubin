@@ -94,7 +94,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils > /dev/null || true
           mkdir -p shots
-          timeout 900 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME xvfb-run -a -s "-screen 0 1600x720x24" godot --path godot --rendering-driver opengl3 --resolution 1600x720 -- --shots "$PWD/shots" > shots/log.txt 2>&1 || true
+          timeout 1800 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME xvfb-run -a -s "-screen 0 1600x720x24" godot --path godot --rendering-driver opengl3 --resolution 1600x720 -- --shots "$PWD/shots" > shots/log.txt 2>&1 || true
           grep -E "SHOTS|снимок|ERROR|SCRIPT|✗" shots/log.txt | head -150
           cp fetch.log shots/fetch-log.txt 2>/dev/null || true
           cp godot/assets/external/LICENSES.md shots/ 2>/dev/null || true
