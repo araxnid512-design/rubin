@@ -1,11 +1,11 @@
 extends Node
 ## Настройки: качество графики (Низкое / Среднее / Высокое — масштаб 3D-рендера, сглаживание MSAA, огни
 ## и свечение в локации, дальность камеры), счётчик кадров (к/с, вызовы отрисовки, треугольники), автоподстройка чёткости
-## (если меньше 28 кадров в секунду три секунды подряд — масштаб рендера ступенями вниз, до 0,6) и общая
+## (если меньше 28 кадров в секунду три секунды подряд — масштаб рендера ступенями вниз, до 0,75) и общая
 ## громкость (шина Master). Всё сохраняется вместе с игрой (save_data / load_data). Пока окно открыто — пауза.
 
 const QUALITY := {
-	"low": {"name": "Низкое", "scale": 0.7, "msaa": Viewport.MSAA_DISABLED, "far": 60.0},
+	"low": {"name": "Низкое", "scale": 0.75, "msaa": Viewport.MSAA_DISABLED, "far": 60.0},
 	"medium": {"name": "Среднее", "scale": 0.85, "msaa": Viewport.MSAA_2X, "far": 90.0},
 	"high": {"name": "Высокое", "scale": 1.0, "msaa": Viewport.MSAA_4X, "far": 140.0},
 }
@@ -15,7 +15,7 @@ const MSAA_NAME := {Viewport.MSAA_DISABLED: "нет", Viewport.MSAA_2X: "2×", V
 const AUTO_FPS := 28.0
 const AUTO_SECS := 3.0
 const AUTO_STEP := 0.1
-const AUTO_MIN := 0.6
+const AUTO_MIN := 0.75   # ниже — мыло на экране телефона
 ## После входа в локацию — не судить: загрузка проседает сама.
 const GRACE := 4.0
 
@@ -127,7 +127,7 @@ func _process(delta: float) -> void:
 		return
 	autotune(delta, fps)
 
-## Автоподстройка: кадров меньше AUTO_FPS три секунды подряд — масштаб рендера на ступень ниже (не ниже 0,6).
+## Автоподстройка: кадров меньше AUTO_FPS три секунды подряд — масштаб рендера на ступень ниже (не ниже 0,75).
 func autotune(delta: float, fps: float) -> void:
 	if not auto:
 		return
@@ -240,11 +240,11 @@ func smoke() -> int:
 	for id in ORDER:
 		set_quality(id)
 		res.append([id, vp.scaling_3d_scale, vp.msaa_3d, game.camera.far])
-	var ok: bool = absf(res[0][1] - 0.7) < 0.01 and absf(res[1][1] - 0.85) < 0.01 and absf(res[2][1] - 1.0) < 0.01 and res[0][2] == Viewport.MSAA_DISABLED and res[2][3] > res[0][3]
+	var ok: bool = absf(res[0][1] - 0.75) < 0.01 and absf(res[1][1] - 0.85) < 0.01 and absf(res[2][1] - 1.0) < 0.01 and res[0][2] == Viewport.MSAA_DISABLED and res[2][3] > res[0][3]
 	print(("✓ " if ok else "✗ ") + "качество меняет масштаб рендера: %s" % ", ".join(res.map(func(r): return "%s %.2f" % [QUALITY[r[0]]["name"], r[1]])))
 	if not ok:
 		fail += 1
-	# автоподстройка: 3,5 с по 20 кадров — масштаб на ступень ниже, но не ниже 0,6
+	# автоподстройка: 3,5 с по 20 кадров — масштаб на ступень ниже, но не ниже 0,75
 	set_quality("medium")
 	auto = true
 	grace_t = 0.0

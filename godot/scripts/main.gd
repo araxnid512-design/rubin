@@ -103,6 +103,33 @@ func _ready() -> void:
 		add_child(shots)
 		shots.run(self, shots_dir)
 
+## Таблица цвета 32×32×32 (вход и выход — sRGB после ACES): та же формула, что CustomToneMapping браузерной
+## игры (game/post.js) после ACES — насыщенность 84 %, холодные тени и тёплый свет, S-контраст, «придавленный»
+## чёрный и подъём теней, чтобы дорога и лица не проваливались. Считается один раз (~30 тыс. ячеек).
+static func hive_lut() -> ImageTexture3D:
+	const N := 32
+	var slices: Array[Image] = []
+	for bi in N:
+		var img := Image.create_empty(N, N, false, Image.FORMAT_RGB8)
+		for gi in N:
+			for ri in N:
+				var c := Color(float(ri) / (N - 1), float(gi) / (N - 1), float(bi) / (N - 1)).srgb_to_linear()
+				var v := Vector3(c.r, c.g, c.b)
+				var l := v.dot(Vector3(0.2126, 0.7152, 0.0722))
+				v = Vector3(l, l, l).lerp(v, 0.84)
+				var k := smoothstep(0.02, 0.5, l)
+				v *= Vector3(0.92, 0.97, 1.0).lerp(Vector3(1.06, 1.0, 0.88), k)
+				v = v.clamp(Vector3.ZERO, Vector3.ONE)
+				v = v.lerp(v * v * (Vector3(3, 3, 3) - 2.0 * v), 0.14)
+				v = (v - Vector3(0.006, 0.006, 0.006)).max(Vector3.ZERO) * 1.006
+				v += (Vector3.ONE - v) * 0.025
+				v = v.clamp(Vector3.ZERO, Vector3.ONE)
+				img.set_pixel(ri, gi, Color(v.x, v.y, v.z).linear_to_srgb())
+		slices.append(img)
+	var tex := ImageTexture3D.new()
+	tex.create(Image.FORMAT_RGB8, N, N, N, false, slices)
+	return tex
+
 ## Свет и воздух «как на фото»: тёплое низкое солнце с запада-юго-запада, голубоватый свет неба (окружение
 ## и слабый заполняющий свет с другой стороны — тени не чёрные), ACES, дымка вдали (туман по глубине: у героя
 ## чисто, к верху экрана — теплее и мутнее). Тени солнца (мягкие, один каскад ~30 м), свечение огня (glow)
@@ -136,10 +163,13 @@ func _setup_scene() -> void:
 	env.glow_bloom = 0.04
 	env.glow_hdr_threshold = 0.95
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	# «цвет Улья» из браузерной версии (game/post.js): краски приглушены, тени холодные, свет тёплый, контраст
+	# жёсткий — таблицей цвета (3D LUT) поверх ACES; включает Level.apply_quality на среднем и высоком
 	env.adjustment_enabled = false
 	env.adjustment_brightness = 1.0
-	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.12
+	env.adjustment_contrast = 1.0
+	env.adjustment_saturation = 1.0
+	env.adjustment_color_correction = hive_lut()
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()

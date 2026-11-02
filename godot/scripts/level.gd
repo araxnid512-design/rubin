@@ -193,7 +193,8 @@ func apply_quality(q: int) -> void:
 		var env := g.get("env") as Environment
 		if env:
 			env.glow_enabled = quality >= 2
-			env.adjustment_enabled = quality >= 2
+			# «цвет Улья» (таблица цвета) — на среднем и высоком; на низком — без прохода коррекции
+			env.adjustment_enabled = quality >= 1
 	stats["quality"] = quality
 
 # ---------- Деревья ----------
