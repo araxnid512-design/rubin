@@ -588,7 +588,8 @@ func _update_interact(delta: float) -> void:
 	hud.show_search(not near.is_empty() and searching.is_empty(), near.get("label", ""))
 	if searching.is_empty():
 		return
-	if player.velocity.length() > 0.3 or near.is_empty() or near.get("c") != searching["c"]:
+	# обыск прерывает только сам игрок — пошёл со стика (а не толчок от удара или остаточная скорость)
+	if player.move_input.length() > 0.15 or near.is_empty() or near.get("c") != searching["c"]:
 		searching = {}
 		toast("Обыск прерван")
 		return
