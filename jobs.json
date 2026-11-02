@@ -1,7 +1,7 @@
 {
  "jobs": [
   {
-   "id": "z_bal1",
+   "id": "e_bal0",
    "timeout": 120,
    "args": [
     "account",
@@ -9,183 +9,26 @@
    ]
   },
   {
-   "id": "z_pustysh_rigcheck",
-   "timeout": 900,
+   "id": "e_vaz2107",
+   "timeout": 1700,
    "args": [
-    "process",
-    "rig",
-    "4b612127-1f94-42fd-a030-23fe3bf242e7",
-    "--check",
+    "generate",
+    "text",
+    "Soviet VAZ-2107 Lada sedan car, rusty faded paint, flat tires, dirty windows, boxy 1980s shape, 3/4 front view, real-world proportions, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
     "--timeout",
-    "10m"
-   ]
-  },
-  {
-   "id": "z_pustysh_rig",
-   "timeout": 1500,
-   "args": [
-    "process",
-    "rig",
-    "4b612127-1f94-42fd-a030-23fe3bf242e7",
-    "--rig-type",
-    "biped",
-    "--format",
-    "glb",
-    "--timeout",
-    "20m",
+    "25m",
+    "--output-format",
+    "json",
     "-o",
-    "out/z_pustysh_rigged.glb"
+    "out/e_vaz2107.glb"
    ]
   },
   {
-   "id": "z_pustysh_export",
-   "timeout": 900,
-   "args": [
-    "export",
-    "4b612127-1f94-42fd-a030-23fe3bf242e7",
-    "--with-animation",
-    "--texture-size",
-    "1024",
-    "-o",
-    "out/z_pustysh.glb",
-    "--export-timeout",
-    "8m"
-   ]
-  },
-  {
-   "id": "z_lottery_rigcheck",
-   "timeout": 900,
-   "args": [
-    "process",
-    "rig",
-    "e0514812-6341-4858-a95e-20ee35ab86e1",
-    "--check",
-    "--timeout",
-    "10m"
-   ]
-  },
-  {
-   "id": "z_lottery_rig",
-   "timeout": 1500,
-   "args": [
-    "process",
-    "rig",
-    "e0514812-6341-4858-a95e-20ee35ab86e1",
-    "--rig-type",
-    "biped",
-    "--format",
-    "glb",
-    "--timeout",
-    "20m",
-    "-o",
-    "out/z_lottery_rigged.glb"
-   ]
-  },
-  {
-   "id": "z_lottery_export",
-   "timeout": 900,
-   "args": [
-    "export",
-    "e0514812-6341-4858-a95e-20ee35ab86e1",
-    "--with-animation",
-    "--texture-size",
-    "1024",
-    "-o",
-    "out/z_lottery.glb",
-    "--export-timeout",
-    "8m"
-   ]
-  },
-  {
-   "id": "z_stomper_rigcheck",
-   "timeout": 900,
-   "args": [
-    "process",
-    "rig",
-    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
-    "--check",
-    "--timeout",
-    "10m"
-   ]
-  },
-  {
-   "id": "z_stomper_rig",
-   "timeout": 1500,
-   "args": [
-    "process",
-    "rig",
-    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
-    "--rig-type",
-    "biped",
-    "--format",
-    "glb",
-    "--timeout",
-    "20m",
-    "-o",
-    "out/z_stomper_rigged.glb"
-   ]
-  },
-  {
-   "id": "z_stomper_export",
-   "timeout": 900,
-   "args": [
-    "export",
-    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
-    "--with-animation",
-    "--texture-size",
-    "1024",
-    "-o",
-    "out/z_stomper.glb",
-    "--export-timeout",
-    "8m"
-   ]
-  },
-  {
-   "id": "z_ruber_rigcheck",
-   "timeout": 900,
-   "args": [
-    "process",
-    "rig",
-    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
-    "--check",
-    "--timeout",
-    "10m"
-   ]
-  },
-  {
-   "id": "z_ruber_rig",
-   "timeout": 1500,
-   "args": [
-    "process",
-    "rig",
-    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
-    "--rig-type",
-    "biped",
-    "--format",
-    "glb",
-    "--timeout",
-    "20m",
-    "-o",
-    "out/z_ruber_rigged.glb"
-   ]
-  },
-  {
-   "id": "z_ruber_export",
-   "timeout": 900,
-   "args": [
-    "export",
-    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
-    "--with-animation",
-    "--texture-size",
-    "1024",
-    "-o",
-    "out/z_ruber.glb",
-    "--export-timeout",
-    "8m"
-   ]
-  },
-  {
-   "id": "z_bal2",
+   "id": "e_bal1",
    "timeout": 120,
    "args": [
     "account",
@@ -193,5 +36,5 @@
    ]
   }
  ],
- "stop": true
+ "stop": false
 }
