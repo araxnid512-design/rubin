@@ -76,7 +76,7 @@ func _hero_shots() -> void:
 	var p = game.player
 	var keep: Dictionary = game.kit.duplicate()
 	var n := 0
-	for w in [["gun", "ak74", "справа"], ["gun", "ak74", "слева"], ["gun", "pkm", "справа"], ["gun", "pistol", "справа"],
+	for w in [["gun", "ak74", "справа"], ["gun", "ak74", "слева"], ["gun", "rpk", "справа"], ["gun", "glock17", "справа"],
 			["melee", "fireaxe", "справа"], ["gun", "ak74", "сзади"], ["melee", "fireaxe", "сзади"]]:
 		n += 1
 		game.kit["melee"] = "fireaxe"
@@ -130,7 +130,7 @@ func _fire_shots() -> void:
 	var keep: Dictionary = game.kit.duplicate()
 	var n := 7
 	game.shot.connect(_on_fire)
-	for id in ["ak74", "pkm", "pistol", "shotgun"]:
+	for id in ["ak74", "rpk", "glock17", "spas12"]:
 		n += 1
 		game.kit["gun"] = id
 		game.wear[id] = int(Data.weapon(id).get("durability", 100))
@@ -192,7 +192,7 @@ func _mur_shots() -> void:
 			holder.rotation.y = atan2(-fwd.x, -fwd.z)
 			var grip := m.find_child("Grip", true, false) as Node3D
 			if grip:
-				grip.add_child(Gear.weapon(["ak74", "ak47", "aks", "pkm"][k % 4]))
+				Gear.put_in_hand(Gear.weapon(["ak74", "ak47", "aks", "rpk"][k % 4]), grip)
 			var ap := m.get_node_or_null("AnimationPlayer") as AnimationPlayer
 			if ap and ap.has_animation(clip):
 				ap.play(clip)
@@ -220,7 +220,7 @@ func _gun_sheet() -> void:
 	var keep: Dictionary = game.kit.duplicate()
 	var ids: Array = []
 	for id in Data.WEAPONS:
-		if Data.weapon(id).get("slot", "") == "gun" and not bool(Data.weapon(id).get("mounted", false)):
+		if Data.weapon(id).get("slot", "") == "gun" and not bool(Data.weapon(id).get("mounted", false)) and not Data.weapon(id).has("alias"):
 			ids.append(id)
 	const CW := 300
 	const CH := 330

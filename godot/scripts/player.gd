@@ -44,7 +44,7 @@ const POSE := {
 	"melee": {"two": false, "raise": 0.2, "lower": 0.2, "back": 0.0, "climb": 0.0, "chest": 0.0},
 }
 ## Профиль по оружию; кого нет — по набору клипов (rifle / pistol), топор и кулаки — melee.
-const POSE_OF := {"vector": "smg", "aks": "smg", "mp5": "smg", "pm63": "pistol", "glock17": "pistol", "deagle": "sawnoff", "shotgun": "shotgun", "spas12": "shotgun", "dbarrel": "shotgun", "obrez": "sawnoff", "svd": "heavy", "awm": "heavy", "pkm": "heavy", "pkt": "heavy", "rpk": "heavy", "fnfal": "heavy", "scar": "heavy"}
+const POSE_OF := {"aks": "smg", "mp5": "smg", "glock17": "pistol", "deagle": "sawnoff", "spas12": "shotgun", "dbarrel": "shotgun", "svd": "heavy", "awm": "heavy", "rpk": "heavy", "fnfal": "heavy"}
 ## Переход походки (стойка / шаг / бег), с — ТЗ: 0.12–0.2.
 const XFADE := 0.18
 ## Пороги скорости, м/с: шаг ↔ стойка, шаг ↔ бег (с запасом, чтобы не дёргалось на границе).
@@ -387,7 +387,7 @@ func _grip_marker() -> Transform3D:
 	return Gear.point_local(node, "RightGrip").affine_inverse() * Gear.point_local(node, "LeftSupportGrip")
 
 func _profile() -> Dictionary:
-	var cat: String = POSE_OF.get(weapon_id(), "")
+	var cat: String = POSE_OF.get(Data.real_id(weapon_id()), "")
 	if cat == "":
 		var a: String = W().get("anim", "axe")
 		cat = a if POSE.has(a) else "melee"

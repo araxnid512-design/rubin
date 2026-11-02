@@ -253,8 +253,8 @@ func smoke() -> int:
 	p.max_hp = 100000.0
 	p.hp = 100000.0
 	var kit: Dictionary = game.kit
-	kit["gun"] = "pistol"
-	game.wear["pistol"] = 300
+	kit["gun"] = "glock17"
+	game.wear["glock17"] = 300
 	kit["owned"] = []
 	p.attach_gear()
 	game.take("ak47", 1)
@@ -268,8 +268,8 @@ func smoke() -> int:
 	store("ak47")
 	store("zhivchik")
 	fail += _check(int(stash["guns"].get("ak47", -1)) == 555 and int(stash["bag"].get("zhivchik", 0)) == 2 and not _owned().has("ak47") and int(game.bag.get("zhivchik", 0)) == 0, "положил АК-47 (износ 555) и 2 живчика")
-	store("pistol")
-	fail += _check(kit.get("gun", "") == "" and stash["guns"].has("pistol") and p.hold == "melee", "ПМ из слота — в хранилище, в руках %s" % Data.item_name(p.weapon_id()))
+	store("glock17")
+	fail += _check(kit.get("gun", "") == "" and stash["guns"].has("glock17") and p.hold == "melee", "Glock из слота — в хранилище, в руках %s" % Data.item_name(p.weapon_id()))
 	game.bag["spore"] = int(game.bag.get("spore", 0)) + 7
 	var sp := int(game.bag["spore"])
 	# гибель: рюкзак пропадает, хранилище цело
@@ -278,7 +278,7 @@ func smoke() -> int:
 	p = game.player
 	p.max_hp = 100000.0
 	p.hp = 100000.0
-	fail += _check(stash["guns"].has("ak47") and stash["guns"].has("pistol") and int(stash["bag"].get("zhivchik", 0)) == 2, "после гибели в хранилище всё цело: %s" % _names(_kept_rows()))
+	fail += _check(stash["guns"].has("ak47") and stash["guns"].has("glock17") and int(stash["bag"].get("zhivchik", 0)) == 2, "после гибели в хранилище всё цело: %s" % _names(_kept_rows()))
 	fail += _check(int(game.bag.get("grenade", 0)) == 0 and _owned().is_empty() and int(game.bag.get("spore", 0)) == sp, "граната с собой пропала, спораны при себе (%d)" % sp)
 	take_out("ak47")
 	fail += _check(game.kit.get("gun", "") == "ak47" and int(p.wear_of("ak47")) == 555, "АК-47 из хранилища — в слоте, износ %d" % int(p.wear_of("ak47")))

@@ -34,7 +34,7 @@ const FEATURE_SCRIPTS := [
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).
 const CAP := [0, 42, 50, 58]
-const PRICES := {"zhivchik": 15, "repair_kit": 25, "axe": 8, "fireaxe": 18, "pistol": 40, "obrez": 30, "shotgun": 45, "vector": 70, "aks": 80, "ak74": 110, "ak47": 120, "scar": 260, "fnfal": 240, "aug": 220, "pm63": 120, "spas12": 200, "vss": 180, "svd": 160, "pkm": 230, "glock17": 60, "deagle": 140, "dbarrel": 50, "ak107": 180, "rpk": 200, "pkt": 260, "awm": 300, "g36": 210, "mp5": 110}
+const PRICES := {"zhivchik": 15, "repair_kit": 25, "fireaxe": 18, "glock17": 60, "deagle": 140, "dbarrel": 50, "spas12": 200, "mp5": 110, "aks": 80, "ak74": 110, "ak107": 180, "ak47": 120, "aug": 220, "g36": 210, "fnfal": 240, "rpk": 200, "svd": 160, "awm": 300}
 
 var level: Level
 var player: Player
@@ -168,7 +168,7 @@ func new_game() -> void:
 		if Data.NODES[id]["kind"] == "cluster":
 			world["clusters"][id] = {"next": randf_range(Data.CYCLE[0], Data.CYCLE[1]), "saved": null}
 	bag = {"spore": 0, "zhivchik": 1}
-	kit = {"melee": "fireaxe", "gun": "pistol"}
+	kit = {"melee": "fireaxe", "gun": "glock17"}
 	wear = {}
 	enter("zarechny", null)
 
@@ -705,7 +705,7 @@ func open_trade() -> void:
 	for id in [kit.get("melee", ""), kit.get("gun", "")] + kit.get("owned", []):
 		if id != "" and id != "fists" and repair_cost(id) > 0:
 			acts.append(["Починить %s · %d сп." % [Data.weapon(id).get("name", id), repair_cost(id)], _repair.bind(id), sp >= repair_cost(id)])
-	for id in ["fireaxe", "glock17", "deagle", "pistol", "pm63", "obrez", "dbarrel", "shotgun", "spas12", "mp5", "vector", "aks", "ak74", "ak107", "ak47", "aug", "g36", "scar", "fnfal", "rpk", "svd", "awm", "vss", "pkm"]:
+	for id in ["fireaxe", "glock17", "deagle", "dbarrel", "spas12", "mp5", "aks", "ak74", "ak107", "ak47", "aug", "g36", "fnfal", "rpk", "svd", "awm"]:
 		acts.append(["%s · %d сп." % [Data.weapon(id).get("name", id), PRICES[id]], _buy.bind(id), sp >= PRICES[id]])
 	if int(bag.get("peas", 0)) > 0:
 		acts.append(["Продать горох ×%d · +%d сп." % [bag["peas"], int(bag["peas"]) * 5], _sell.bind("peas")])
@@ -860,14 +860,19 @@ func _load() -> bool:
 	bag = d.get("bag", {})
 	kit = d.get("kit", {"melee": "fireaxe", "gun": ""})
 	wear = d.get("wear", {})
-	# простого топора больше нет — в слоте и рюкзаке он становится пожарным (износ — как был, но не больше 90)
-	if kit.get("melee", "") == "axe":
-		kit["melee"] = "fireaxe"
-		if wear.has("axe"):
-			wear["fireaxe"] = mini(int(wear["axe"]), int(Data.weapon("fireaxe").get("durability", 90)))
+	# убранное оружие (простой топор, старые стволы) — в слотах и рюкзаке становится ближайшим новым (износ — как был,
+	# но не больше прочности нового)
+	for slot in ["melee", "gun"]:
+		var was: String = str(kit.get(slot, ""))
+		if Data.REMOVED.has(was):
+			var to := Data.real_id(was)
+			kit[slot] = to
+			if wear.has(was):
+				wear[to] = mini(int(wear[was]), int(Data.weapon(to).get("durability", 100)))
 	if kit.has("owned"):
-		kit["owned"] = (kit["owned"] as Array).map(func(x): return "fireaxe" if x == "axe" else x)
-	wear.erase("axe")
+		kit["owned"] = (kit["owned"] as Array).map(func(x): return Data.real_id(str(x)))
+	for was in Data.REMOVED:
+		wear.erase(was)
 	var fd: Dictionary = d.get("features", {})
 	for f in features:
 		if f.has_method("load_data") and fd.has(str(f.name)):

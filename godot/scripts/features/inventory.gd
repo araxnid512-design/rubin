@@ -332,15 +332,15 @@ func smoke() -> int:
 	p.max_hp = 100000.0
 	p.hp = 100000.0
 	# несколько стволов: найденные — в рюкзак, смена слота
-	game.kit["gun"] = "pistol"
-	game.wear["pistol"] = int(Data.weapon("pistol")["durability"])
+	game.kit["gun"] = "glock17"
+	game.wear["glock17"] = int(Data.weapon("glock17")["durability"])
 	game.kit["owned"] = []
 	p.attach_gear()
 	game.take("ak74", 1)
 	game.take("svd", 1)
 	fail += _check(owned().has("ak74") and owned().has("svd") and game.kit["gun"] == "pistol", "найденные АК-74 и СВД — в рюкзаке, в слоте ПМ (рюкзак: %s)" % [owned()])
 	equip("svd")
-	fail += _check(game.kit["gun"] == "svd" and owned().has("pistol") and not owned().has("svd"), "СВД — в слот огнестрела, ПМ — в рюкзак")
+	fail += _check(game.kit["gun"] == "svd" and owned().has("glock17") and not owned().has("svd"), "СВД — в слот огнестрела, ПМ — в рюкзак")
 	if p.hold != "gun":
 		p.switch_weapon()
 		await _wait(1.6)
@@ -360,7 +360,7 @@ func smoke() -> int:
 	p.attach_gear()
 	await _wait(0.5)
 	var now: String = game.kit.get("gun", "")
-	fail += _check(now in ["pistol", "ak74"] and not owned().has(now), "ствол сломался — из рюкзака в слот встал %s" % Data.item_name(now))
+	fail += _check(now in ["glock17", "ak74"] and not owned().has(now), "ствол сломался — из рюкзака в слот встал %s" % Data.item_name(now))
 	# такой же целый ствол найден ещё раз — разобран на ремкомплект
 	var rk0 := int(game.bag.get("repair", 0))
 	game.take(now, 1)

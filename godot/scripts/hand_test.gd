@@ -34,7 +34,7 @@ func run(g, out_dir: String) -> void:
 	# 2) остальные стволы (кроме установочных) — числа
 	for id in Data.WEAPONS:
 		var w := Data.weapon(id)
-		if w.get("slot", "") != "gun" or bool(w.get("mounted", false)) or id in ["ak74", "glock17"]:
+		if w.get("slot", "") != "gun" or bool(w.get("mounted", false)) or w.has("alias") or id in ["ak74", "glock17"]:
 			continue
 		await _weapon(id, false)
 	report.append("Итого: проверок %d, вне нормы %d" % [checks, fails])

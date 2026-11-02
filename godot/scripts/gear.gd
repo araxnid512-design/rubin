@@ -16,14 +16,12 @@ static var _fits := {}
 ## крупнее: АК-47 1,11 м вместо 0,88, АКС-74У 0,88 вместо 0,73). Модель масштабируется вокруг хвата (рука на месте),
 ## дуло и точка левой кисти — вместе с ней. Кого нет в таблице — как старая модель (пожарный топор уже ~0,85 м).
 const LENGTH := {
-	"pistol": 0.161, "pm63": 0.333, "vector": 0.62, "obrez": 0.5, "shotgun": 1.05, "spas12": 1.04,
-	"aks": 0.73, "ak74": 0.943, "ak47": 0.88, "aug": 0.79, "scar": 0.97, "fnfal": 1.09,
-	"vss": 0.894, "svd": 1.225, "pkm": 1.173,
+	"spas12": 1.04, "aks": 0.73, "ak74": 0.943, "ak47": 0.88, "aug": 0.79, "fnfal": 1.09, "svd": 1.225,
 	"glock17": 0.186, "deagle": 0.27, "dbarrel": 1.1, "ak107": 0.943, "rpk": 1.04, "pkt": 1.08, "awm": 1.2,
 	"g36": 1.0, "mp5": 0.68,
 }
 ## Модели по картинкам пользователя (лист 16 стволов, docs/tripo/refs/weapons): у кого нет старой модели браузерной
-## игры, оси и примерный размер берутся у похожей (FIT), дуло у всех — к −Z модели (MUZZLE), рукоять и цевьё — свои
+## игры, оси и примерный размер берутся у похожей старой модели-заготовки (FIT; сами старые стволы из игры убраны), дуло у всех — к −Z модели (MUZZLE), рукоять и цевьё — свои
 ## (HOLD: [[u, v] рукояти, [u, v] цевья], u — доля длины от дула, v — доля высоты сверху; размечено по сетке на
 ## самих моделях). Правая кисть ложится точно на рукоять, левая — на цевьё, вспышка и пули — из среза ствола.
 const FIT := {"glock17": "pistol", "deagle": "pistol", "dbarrel": "shotgun", "ak107": "ak74", "rpk": "ak47",
@@ -46,10 +44,9 @@ const HOLD := {
 ## (точка хвата правой кисти в осях корпуса: x — влево, y — вверх, z — вперёд, м; поворот ствола влево и вниз, градусы),
 ## куда смотрят локти (полюс IK в осях корпуса). ПКТ — пулемёт для установки на технику: в руки его не берут
 ## (mounted), обычного двуручного хвата у него нет.
-const CLASS_OF := {"glock17": "pistol", "deagle": "pistol", "pistol": "pistol", "pm63": "pistol", "obrez": "pistol",
-	"mp5": "smg", "vector": "smg", "aks": "compact", "ak47": "rifle", "ak74": "rifle", "ak107": "rifle",
-	"fnfal": "rifle", "g36": "rifle", "scar": "rifle", "aug": "bullpup", "spas12": "shotgun", "dbarrel": "shotgun",
-	"shotgun": "shotgun", "rpk": "lmg", "pkm": "lmg", "svd": "sniper", "awm": "sniper", "vss": "sniper", "pkt": "mounted"}
+const CLASS_OF := {"glock17": "pistol", "deagle": "pistol", "mp5": "smg", "aks": "compact", "ak47": "rifle",
+	"ak74": "rifle", "ak107": "rifle", "fnfal": "rifle", "g36": "rifle", "aug": "bullpup", "spas12": "shotgun",
+	"dbarrel": "shotgun", "rpk": "lmg", "svd": "sniper", "awm": "sniper", "pkt": "mounted"}
 const CLASSES := {
 	"pistol": {"two": false, "carry": []},
 	"smg": {"two": true, "carry": [Vector3(-0.10, -0.14, 0.30), 22.0, 2.0]},
@@ -66,7 +63,7 @@ const POLE_R := Vector3(-0.6, -1.0, -0.3)
 const POLE_L := Vector3(0.5, -1.0, -0.2)
 
 static func grip_class(weapon_id: String) -> Dictionary:
-	return CLASSES.get(CLASS_OF.get(weapon_id, "rifle"), CLASSES["rifle"])
+	return CLASSES.get(CLASS_OF.get(Data.real_id(weapon_id), "rifle"), CLASSES["rifle"])
 
 ## Хват правой кисти при переноске класса — в осях корпуса: ствол (−Y хвата) вперёд, влево и чуть вниз, верх (+Z) —
 ## вверх. Пусто (Transform3D с нулевым базисом не бывает) — у класса без переноски: тогда вернёт IDENTITY и false.

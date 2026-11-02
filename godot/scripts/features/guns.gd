@@ -32,6 +32,8 @@ func smoke() -> int:
 	# модели из Tripo (assets/tripo): вписаны в габариты старых — та же длина, дуло на месте старого
 	var tripo_n := 0
 	for id in Data.WEAPONS:
+		if Data.weapon(id).has("alias"):
+			continue
 		var mid := str(Data.weapon(id).get("model", id))
 		if not ResourceLoader.exists("res://assets/tripo/w_%s.glb" % mid):
 			continue
@@ -64,7 +66,7 @@ func smoke() -> int:
 	var p = game.player
 	var keep: Dictionary = game.kit.duplicate()
 	var hold: String = p.hold
-	for id in ["aug", "pm63"]:
+	for id in ["aug", "glock17"]:
 		game.kit["gun"] = id
 		game.wear[id] = int(Data.weapon(id).get("durability", 500))
 		p.hold = "melee"
@@ -82,7 +84,7 @@ func smoke() -> int:
 	game.kit.merge(keep)
 	p.hold = hold
 	p.attach_gear()
-	for id in ["aug", "pm63"]:
+	for id in ["aug", "glock17"]:
 		if keep.get("gun", "") != id:
 			game.wear.erase(id)
 			if p.models.has(id):
@@ -174,7 +176,7 @@ func _fire_all() -> int:
 	var n_all := 0
 	for id in Data.WEAPONS:
 		var w := Data.weapon(id)
-		if w.get("slot", "") != "gun" or bool(w.get("mounted", false)):
+		if w.get("slot", "") != "gun" or bool(w.get("mounted", false)) or w.has("alias"):
 			continue
 		n_all += 1
 		game.kit["gun"] = id

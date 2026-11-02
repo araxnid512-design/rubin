@@ -22,9 +22,9 @@ const MUR_SHOOTERS := 3
 const MUR_TURN := [2.5, 4.0]
 const MUR_REST := [1.5, 3.0]
 ## Оружие муров: у каждого — случайное из этих, больше всего АК (11 из 16: АК-74, АК-47, АКС-74У, АК-107, РПК), реже
-## ПКМ, СВД, FN FAL, G36, AUG (без дробовиков: картечь рассчитана на заражённых).
+## СВД, FN FAL, G36, AUG (без дробовиков: картечь рассчитана на заражённых).
 const MUR_GUNS := ["ak74", "ak74", "ak74", "ak47", "ak47", "ak47", "aks", "aks", "ak107", "ak107", "rpk",
-	"pkm", "svd", "fnfal", "g36", "aug"]
+	"rpk", "svd", "fnfal", "g36", "aug"]
 const CLIPS := {"idle": "IdleRifle", "walk": "WalkRifle", "run": "RunRifle", "aim": "AimRifle", "shoot": "ShootRifle", "hit": "HitRifle", "reload": "ReloadRifle"}
 const LOOPED := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
 ## Модели муров из Tripo (по картинкам пользователя): каждому — случайная, клипы героя пересчитаны на их скелет

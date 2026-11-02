@@ -31,6 +31,14 @@ const GUNS := {
 	"aug": {"s": AK, "rate": 1.04, "gain": 0.72},
 	"pm63": {"s": ["pistol"], "rate": 1.16, "gain": 0.55},
 	"spas12": {"s": ["shotgun"], "rate": 0.97, "gain": 0.95},
+	"glock17": {"s": ["pistol"], "rate": 1.08, "gain": 0.7},
+	"deagle": {"s": ["pistol"], "rate": 0.82, "gain": 1.0},
+	"dbarrel": {"s": ["shotgun"], "rate": 0.92, "gain": 1.0},
+	"mp5": {"s": ["pistol"], "rate": 1.2, "gain": 0.5},
+	"ak107": {"s": AK, "rate": 1.02, "gain": 0.75},
+	"g36": {"s": AK, "rate": 1.08, "gain": 0.7},
+	"rpk": {"s": ["mg"], "rate": 1.0, "gain": 0.9},
+	"awm": {"s": ["svd"], "rate": 0.86, "gain": 1.0},
 }
 ## Голоса заражённых: чем крупнее, тем ниже и громче.
 const VOICES := {"runner": {"rate": 1.02, "gain": 0.55}, "stomper": {"rate": 0.72, "gain": 0.75}, "ruber": {"rate": 0.58, "gain": 0.9}}
@@ -318,7 +326,7 @@ func smoke() -> int:
 	var at: Vector3 = game.player.global_position
 	var n0 := played
 	# обработчики событий — напрямую: сигналы игры слушают и другие системы
-	for id in ["ak74", "scar", "spas12", "pm63", "vss"]:
+	for id in ["ak74", "fnfal", "spas12", "glock17", "awm"]:
 		_on_shot(game.player, Data.weapon(id), at + Vector3(0, 1.3, 0))
 	ok = played - n0 >= 5
 	print(("✓ " if ok else "✗ ") + "выстрелы звучат по стволу: запущено %d" % (played - n0))
