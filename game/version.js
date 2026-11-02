@@ -1,2 +1,2 @@
 // Версия игры: время сборки и коммит. Пишет scripts/build-offline.mjs при каждой сборке.
-export const BUILD = {"time":"2026-11-01T17:05:12.103Z","sha":"1e8819f"};
+export const BUILD = {"time":"2026-11-02T10:13:10.114Z","sha":"e17dadd"};

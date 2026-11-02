@@ -41,7 +41,7 @@
 ```bash
 npm ci                 # зависимости (three 0.170, esbuild, playwright уже есть в облачной среде)
 npm start              # http://localhost:8080/game.html
-npm run test:game      # браузерный тест всей игры, ~15 минут, должно быть «GAME E2E: OK» (сейчас 120 проверок)
+npm run test:game      # браузерный тест всей игры, ~15 минут, должно быть «GAME E2E: OK» (сейчас 123 проверки)
 npm run test:offline   # сборка download/ulei-cluster17.html и проверка без сети
 npm test               # тест модели зомби
 node scripts/render-previews.mjs   # снимки локаций для карты Улья (assets/previews/*.jpg)
@@ -65,7 +65,7 @@ node scripts/render-previews.mjs   # снимки локаций для карт
 - `game/weapons.js` — оружие (модели и характеристики), `game/items.js` — предметы, `game/trade.js` —
   торговец, `game/stash.js` — хранилище, `game/inventory.js` — рюкзак.
 - `game/mercs.js` — наёмники (классы, окно отряда); `game/murs.js` — учёт муров (вылазки, наём, запасы,
-  настройки их стрельбы); `game/intel.js` — информатор.
+  настройки их стрельбы); `game/intel.js` — информатор; `game/marks.js` — следы боя (кровь, дырки, гарь).
 - `scripts/build-offline.mjs` — один HTML-файл и `android/app/src/main/assets/index.html`;
   `scripts/build-ulei-site.mjs` — страница игры; `android/` — приложение (WebView, minSdk 23).
 
@@ -94,6 +94,11 @@ node scripts/render-previews.mjs   # снимки локаций для карт
    не больше трёх по одному человеку (`MUR_AIM`, `MUR_ACCURACY`, `MUR_DAMAGE`, `MUR_SHOOTERS` в
    `game/murs.js`); тревога в «Карьере» расходится постепенно. Герой со 100 здоровья, стоя без движения
    у ворот под огнём всего «Карьера», живёт около 8 секунд.
+
+10. **Кровь и разрушения до перезагрузки:** брызги, лужи, дырки от пуль, гарь и взорванные бочки держатся,
+    пока кластер не перезагрузится (сохраняются в `saved.marks` / `saved.barrels` кластера, в том числе после
+    гибели героя), после перезагрузки — чисто, вместе с новым лутом и заражёнными. Следы рисуются пачками
+    (`game/marks.js`, InstancedMesh): после долгого боя 93 вызова отрисовки вместо 249.
 
 ## Подводные камни
 

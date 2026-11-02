@@ -10,7 +10,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions, PLAY } from './level.js';
 import { rollHorde } from './horde.js';
 import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, tickMurs, storeLoot, hireMurs } from './murs.js';
-import { setAnisotropy, bloodDecalTexture, splatterTexture, softDotTexture, bulletHoleTexture } from './textures.js';
+import { setAnisotropy, softDotTexture } from './textures.js';
+import { createMarks } from './marks.js';
 import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
@@ -87,6 +88,8 @@ scene.add(flashLight);
 const flashes = createMuzzleFlashes();
 // споры в воздухе (на низком качестве — меньше)
 const spores = createSpores(scene, { count: QUALITY === 'low' ? 120 : 260 });
+// следы боя — кровь, дырки от пуль, гарь (game/marks.js): держатся до перезагрузки кластера
+const marks = createMarks(scene);
 
 // ---------- Загрузка ----------
 const loader = new GLTFLoader();
@@ -264,8 +267,8 @@ const casingGeo = {}, casingMat = {}; // общие для всех гильз
 const tmpV2 = new THREE.Vector3();
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 let blobMat = null, dustMat = null, debrisGeo = null, debrisMat = null;
-let splatGeo = null, splatMats = null, chunkGeo = null, chunkMat = null, bloodMat = null; // кровь и ошмётки — общие
-let holeGeo = null, holeMat = null, wreckMat = null; // следы пуль, остовы бочек
+let chunkGeo = null, chunkMat = null, bloodMat = null; // ошмётки — общие
+let wreckMat = null; // остовы бочек
 
 /**
  * Попадает ли точка в кадр (с запасом на тени): камера сверху-сзади видит прямоугольник вокруг героя.
@@ -489,14 +492,20 @@ class FuelBarrel {
 		game.fx.push({ life: 1, update: (dt) => { t -= dt; if (t <= 0) { this.blow(); return false; } return true; }, dispose() {} });
 	}
 
-	blow() {
+	/** Смятый чёрный остов: после взрыва и при возвращении в кластер до его перезагрузки. */
+	wreck() {
 		const m = this.b.mesh;
-		game.explode(this.pos.clone().setY(0.5));
+		this.alive = false;
 		wreckMat ??= new THREE.MeshStandardMaterial({ color: 0x1a1614, roughness: 0.9, metalness: 0.3 });
 		m.material = wreckMat;
 		m.scale.set(1.12, 0.42, 0.95);
 		m.position.y = 0.18;
 		m.rotation.x = (Math.random() - 0.5) * 0.5; m.rotation.z = (Math.random() - 0.5) * 0.5;
+	}
+
+	blow() {
+		game.explode(this.pos.clone().setY(0.5));
+		this.wreck();
 		// разлитое горючее догорает секунд восемь
 		const fire = createFire(scene, this.pos.x, 0.15, this.pos.z, { size: 0.85, light: false });
 		let left = 8;
@@ -1777,6 +1786,7 @@ class Garrison {
 // ---------- Игра ----------
 const game = {
 	barrels: [], // бочки с горючим текущей локации (FuelBarrel)
+	marks, // следы боя текущей локации (game/marks.js)
 	time: 0, shake: 0, kills: 0, state: 'menu', paused: false,
 	bag: { ...START_BAG },
 	kit: startKit(),
@@ -1855,6 +1865,7 @@ const game = {
 		this.bandits = []; this.raidSquad = null; this.garrison = null;
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
+		marks.clear();
 		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = [];
 		this.searching = null;
 		this.flow = null;
@@ -1864,7 +1875,7 @@ const game = {
 			this.level = level;
 			this.planLevel();
 		}
-		this.barrels = level.barrels.map((b) => new FuelBarrel(b)); // взорванные — снова целые (кластер свежий)
+		this.barrels = level.barrels.map((b) => new FuelBarrel(b)); // целые; взорванные в этом цикле — см. populate
 	},
 
 	/** План новой локации: миникарта и карта локации. */
@@ -1934,6 +1945,9 @@ const game = {
 				c.spark.visible = !c.searched;
 			});
 			for (const p of saved.pickups) this.spawnPickup(p.kind, new THREE.Vector3(p.x, 0, p.z), p.value, { ground: p.ground });
+			// кровь, дырки от пуль, гарь и взорванные бочки — как оставили (до перезагрузки кластера)
+			marks.load(saved.marks);
+			for (const i of saved.barrels ?? []) this.barrels[i]?.wreck();
 			return;
 		}
 		const start = this.player.pos;
@@ -1980,7 +1994,7 @@ const game = {
 
 	/** Следы вылазки муров в построенном кластере: убрать долю заражённых, выгрести долю тайников. */
 	applyMarkHere(mark) {
-		for (const e of this.enemies) if (e.alive && Math.random() < mark.kill) { e.alive = false; e.dispose(); }
+		for (const e of this.enemies) if (e.alive && Math.random() < mark.kill) { marks.pool(e.pos, 1.6, true); e.alive = false; e.dispose(); }
 		this.enemies = this.enemies.filter((e) => e.alive);
 		for (const c of level.containers) if (!c.searched && Math.random() < mark.loot) { c.items = []; c.searched = true; c.spark.visible = false; }
 	},
@@ -2001,7 +2015,12 @@ const game = {
 		const c = this.world.clusters[at];
 		if (!c) return;
 		if (c.saved) {
-			c.saved.enemies = c.saved.enemies.filter(() => Math.random() >= mark.kill);
+			const pools = (c.saved.marks ??= {}).pool ??= [];
+			c.saved.enemies = c.saved.enemies.filter((e) => {
+				if (Math.random() >= mark.kill) return true;
+				pools.push([Math.floor(Math.random() * 5), e.x, e.z, +(Math.random() * 6).toFixed(2), 1.6]); // перебили — осталась лужа
+				return false;
+			});
 			for (const k of c.saved.containers) if (!k.searched && Math.random() < mark.loot) { k.items = []; k.searched = true; }
 		} else c.raided = mark;
 	},
@@ -2115,6 +2134,9 @@ const game = {
 			enemies: alive.map((e) => ({ type: e.type, x: +e.pos.x.toFixed(2), z: +e.pos.z.toFixed(2), hp: Math.ceil(e.hp), lead: alive.indexOf(e.leader) })),
 			containers: level.containers.map((k) => ({ items: k.items ?? [], searched: !!k.searched })),
 			pickups: this.pickups.map((p) => ({ kind: p.kind, x: +p.mesh.position.x.toFixed(2), z: +p.mesh.position.z.toFixed(2), value: p.value, ground: p.ground })),
+			// следы боя и разрушения: пропадут только с перезагрузкой кластера
+			marks: marks.serialize(),
+			barrels: this.barrels.map((b, i) => (b.alive ? -1 : i)).filter((i) => i >= 0),
 		};
 	},
 
@@ -2160,6 +2182,8 @@ const game = {
 		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.axe.price;
 		if (broke) { this.kit.owned.push('axe'); this.kit.gear.melee = 'axe'; this.kit.wear.axe = Math.ceil(WEAPONS.axe.durability / 2); }
 		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры'; // и разошлись по койкам
+		// сожрали — кластер запоминает, каким его оставили: кровь, разрушения, выпавшее (перезагрузка всё смыла бы и так)
+		if (this.deathReason !== 'reload' && NODES[this.loc]?.kind === 'cluster') this.snapshot();
 		advance(this.world, 90);
 		this.player?.dispose();
 		this.player = null;
@@ -2840,11 +2864,7 @@ const game = {
 			}, dispose() { scene.remove(m); } });
 		}
 		// выжженное пятно
-		const scorch = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), new THREE.MeshBasicMaterial({ map: softDotTexture('14,12,10'), transparent: true, opacity: 0.8, depthWrite: false }));
-		scorch.rotation.x = -Math.PI / 2;
-		scorch.position.set(pos.x, 0.04, pos.z);
-		scene.add(scorch);
-		this.fx.push({ life: 40, update(dt) { this.life -= dt; if (this.life < 5) scorch.material.opacity = 0.8 * this.life / 5; return this.life > 0; }, dispose() { scene.remove(scorch); scorch.geometry.dispose(); scorch.material.dispose(); } });
+		marks.scorch(pos);
 	},
 
 	setPaused(on) {
@@ -2862,43 +2882,14 @@ const game = {
 		return this.figures[key];
 	},
 
-	decal(pos, size) {
-		const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: bloodDecalTexture(Math.floor(Math.random() * 5)), transparent: true, depthWrite: false, roughness: 0.25 }));
-		m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6;
-		m.position.copy(pos).setY(0.035);
-		m.scale.setScalar(0.2);
-		scene.add(m);
-		// лужа под телом растекается секунды три
-		let t = 0;
-		this.fx.push({ life: 40, mesh: m, update(dt) {
-			this.life -= dt; t += dt;
-			if (t < 4) m.scale.setScalar(0.2 + 0.8 * (1 - (1 - t / 4) ** 2));
-			if (this.life < 5) m.material.opacity = this.life / 5;
-			return this.life > 0;
-		}, dispose() { scene.remove(m); } });
-	},
+	/** Лужа крови под телом (game/marks.js): растекается секунды четыре и держится до перезагрузки кластера. */
+	decal(pos, size) { marks.pool(pos, size); },
 
 	/**
 	 * Брызги крови на земле: тёмная клякса с каплями, вытянутая по ходу полёта v (если задан).
-	 * Копятся по ходу боя; самые старые исчезают, когда их больше 150.
+	 * Копятся по ходу боя и держатся до перезагрузки кластера; самые старые уступают место, когда их больше 600.
 	 */
-	splat(pos, size = 0.25, v = null) {
-		splatGeo ??= new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-		splatMats ??= [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ map: splatterTexture(i), transparent: true, depthWrite: false, roughness: 0.22, polygonOffset: true, polygonOffsetFactor: -2 }));
-		const m = new THREE.Mesh(splatGeo, splatMats[Math.floor(Math.random() * splatMats.length)]);
-		m.position.set(pos.x, 0.03 + Math.random() * 0.004, pos.z);
-		const speed = v ? Math.hypot(v.x, v.z) : 0;
-		m.rotation.y = speed > 0.3 ? Math.atan2(-v.z, v.x) : Math.random() * Math.PI * 2; // +X текстуры — по ходу полёта
-		const stretch = 1 + Math.min(1.2, speed * 0.25);
-		m.scale.set(size * stretch * (0.8 + Math.random() * 0.4), 1, size * (0.7 + Math.random() * 0.4));
-		m.renderOrder = 1;
-		scene.add(m);
-		const fx = { life: 60, update(dt) { this.life -= dt; if (this.life < 2) m.scale.multiplyScalar(1 - dt); return this.life > 0; }, dispose() { scene.remove(m); } };
-		this.splats = (this.splats ?? []).filter((f) => f.life > 0);
-		this.splats.push(fx);
-		if (this.splats.length > 150) this.splats.shift().life = 0;
-		this.fx.push(fx);
-	},
+	splat(pos, size = 0.25, v = null) { marks.splat(pos, size, v); },
 
 	/**
 	 * Обрубок (кость bone сжата): кровь бьёт толчками секунды полторы, летят ошмётки, на земле — пятна.
@@ -3090,20 +3081,7 @@ const game = {
 		if (Math.abs(lx) / c.hx > Math.abs(lz) / c.hz) { nx = Math.sign(lx) || 1; px = nx * (c.hx + 0.004); } else { nz = Math.sign(lz) || 1; pz = nz * (c.hz + 0.004); }
 		const wx = c.x + px * c.c + pz * c.s, wz = c.z - px * c.s + pz * c.c; // из системы коллайдера в мир
 		const nwx = nx * c.c + nz * c.s, nwz = -nx * c.s + nz * c.c;
-		holeGeo ??= new THREE.PlaneGeometry(0.16, 0.16);
-		holeMat ??= new THREE.MeshStandardMaterial({ map: bulletHoleTexture(), transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 });
-		const m = new THREE.Mesh(holeGeo, holeMat);
-		const y = Math.max(0.3, p.y + (Math.random() - 0.5) * 0.16);
-		m.position.set(wx, y, wz);
-		m.lookAt(wx + nwx, y, wz + nwz);
-		m.rotateZ(Math.random() * Math.PI * 2);
-		m.scale.setScalar(0.8 + Math.random() * 0.5);
-		scene.add(m);
-		const fx = { mesh: m, life: 120, update(dt) { this.life -= dt; return this.life > 0; }, dispose() { scene.remove(m); } };
-		this.holes = (this.holes ?? []).filter((f) => f.life > 0);
-		this.holes.push(fx);
-		if (this.holes.length > 120) this.holes.shift().life = 0;
-		this.fx.push(fx);
+		return marks.hole(wx, Math.max(0.3, p.y + (Math.random() - 0.5) * 0.16), wz, nwx, nwz);
 	},
 
 	/** Попадание пули мимо цели: в стену — искры и крошка, в землю — фонтанчик пыли. */
@@ -3193,6 +3171,7 @@ const game = {
 	over(reason) {
 		document.body.classList.remove('low-hp');
 		this.state = 'dead';
+		this.deathReason = reason;
 		this.inventory.close();
 		this.trade.close();
 		this.worldMap.close();
@@ -3423,6 +3402,7 @@ function update(dt) {
 	}
 	game.pickups = game.pickups.filter((p) => !p.taken);
 	game.fx = game.fx.filter((f) => { const keep = f.update(dt); if (!keep) f.dispose(); return keep; });
+	marks.update(dt);
 	flashes.update(dt);
 	level.update(dt, game.time);
 	spores.update(dt, game.player.pos, game.time, game.sourK ?? 0);

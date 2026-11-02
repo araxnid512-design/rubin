@@ -573,15 +573,15 @@ try {
 	check(!fuel.none && fuel.n >= 3 && fuel.aimed && fuelRes.blown && fuelRes.dead === 3, `бочка с горючим: бочек ${fuel.n}, прицел выбрал бочку у толпы: ${fuel.aimed}, взорвалась: ${fuelRes.blown}, убито ${fuelRes.dead} из 3`);
 	// след пули на стене дома: на грани стены, лицом к стрелку
 	const holes = await G(page, () => {
-		const g = window.__game, lv = g.level, before = (g.holes ?? []).length;
+		const g = window.__game, lv = g.level, before = g.marks.pools.hole.recs.length;
 		for (const w of lv.colliders.filter((c) => c.wall && c.hx > 1.5)) {
 			for (const sgn of [1, -1]) {
 				const nx = w.s * sgn, nz = w.c * sgn, sx = w.x + nx * 1.6, sz = w.z + nz * 1.6;
 				if (lv.nav.blockedAt(sx, sz, 0.2)) continue;
 				const from = { x: sx, y: 1.3, z: sz }, hit = g.bulletEnd(from, -nx, -nz, 10);
 				g.hitObstacle(hit, 30, from);
-				const fresh = (g.holes ?? []).slice(before);
-				if (fresh.length) { const m = fresh[0].mesh; m.updateMatrixWorld(); const e = m.matrixWorld.elements; return { n: fresh.length, facing: e[8] * (sx - m.position.x) + e[10] * (sz - m.position.z) > 0 }; }
+				const fresh = g.marks.pools.hole.recs.slice(before);
+				if (fresh.length) { const h = fresh[0]; return { n: fresh.length, facing: Math.sin(h.a) * (sx - h.x) + Math.cos(h.a) * (sz - h.z) > 0 }; }
 			}
 		}
 		return { n: 0 };
@@ -773,6 +773,37 @@ try {
 	await G(page, () => { window.__game.world.murs.count = 50; });
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+
+	// кровь и разрушения держатся, пока кластер не перезагрузится; рисуются пачками — сотни следов, а вызовов единицы
+	const scar0 = await G(page, () => {
+		const g = window.__game, p = g.player.pos;
+		g.world.clusters.dachi.next = g.world.time + 5000;
+		for (let i = 0; i < 300; i++) g.splat({ x: p.x + (Math.random() - 0.5) * 20, z: p.z + (Math.random() - 0.5) * 12 }, 0.35);
+		g.decal(p.clone().add({ x: 2, y: 0, z: -2 }), 2);
+		const w = g.level.colliders.find((c) => c.wall);
+		g.bulletHole({ x: w.x, y: 1.2, z: w.z }, w);
+		const b = g.barrels[0];
+		window.__bi = b ? 0 : -1;
+		b?.damage(1e3, b.pos.clone().add({ x: 1, y: 0, z: 0 }));
+		return { barrels: g.barrels.length };
+	});
+	await page.waitForFunction(() => window.__bi < 0 || !window.__game.barrels[0].alive, null, { timeout: 10000 }).catch(() => {});
+	await page.waitForTimeout(800);
+	const scar1 = await G(page, () => { const g = window.__game; return { ...g.marks.counts(), batches: g.marks.root.children.filter((m) => m.visible).length, wreck: window.__bi >= 0 && !g.barrels[0].alive }; });
+	check(scar1.splat >= 300 && scar1.pool >= 1 && scar1.hole >= 1 && scar1.batches <= 11, `следы боя: брызг ${scar1.splat}, луж ${scar1.pool}, дырок ${scar1.hole}, гари ${scar1.scorch} — рисуются ${scar1.batches} пачками`);
+	await G(page, () => window.__game.travel('zarechny'));
+	await page.waitForFunction(() => window.__game.loc === 'zarechny' && window.__game.state === 'play', null, { timeout: 300000 });
+	await G(page, () => window.__game.travel('dachi'));
+	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+	const scar2 = await G(page, () => { const g = window.__game; return { ...g.marks.counts(), wreck: window.__bi >= 0 && !g.barrels[0].alive }; });
+	check(scar2.splat === scar1.splat && scar2.pool === scar1.pool && scar2.hole === scar1.hole && scar2.scorch === scar1.scorch && scar2.wreck === scar1.wreck, `ушёл и вернулся до перезагрузки: кровь (${scar2.splat} брызг, ${scar2.pool} луж), дырки (${scar2.hole}), гарь (${scar2.scorch}) на месте, взорванная бочка — остов: ${scar2.wreck}`);
+	// перезагрузка — кластер свежий: ни крови, ни разрушений
+	await G(page, () => { const g = window.__game; g.world.clusters.dachi.next = g.world.time + 1; g.travel('zarechny'); });
+	await page.waitForFunction(() => window.__game.loc === 'zarechny' && window.__game.state === 'play', null, { timeout: 300000 });
+	await G(page, () => window.__game.travel('dachi'));
+	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+	const scar3 = await G(page, () => { const g = window.__game, c = g.marks.counts(); return { total: c.splat + c.pool + c.hole + c.scorch, whole: g.barrels.every((b) => b.alive), enemies: g.enemies.length }; });
+	check(scar3.total === 0 && scar3.whole && scar3.enemies > 0, `после перезагрузки Дачи свежие: следов ${scar3.total}, бочки целые, заражённых ${scar3.enemies}`);
 
 	// перезагрузка кластера, пока герой внутри: кислый запах, муть, смерть; очнулся в стабе без рюкзака
 	await G(page, () => { const g = window.__game; g.bag.spore = 7; g.bag.ammo545 = 11; g.world.clusters.dachi.next = g.world.time + 20; });
