@@ -74,6 +74,10 @@ def main():
     deadline = time.time() + MINUTES * 60
     while time.time() < deadline:
         spec = control()
+        # «стоп» — раньше заданий: иначе устаревший список (с прошлого запуска) выполнился бы заново и потратил кредиты
+        if spec.get("stop"):
+            log("\nСтоп по jobs.json — задания не выполняются")
+            break
         for job in spec.get("jobs", []):
             jid = str(job.get("id"))
             if jid in done:
@@ -94,9 +98,6 @@ def main():
                 if f.is_file():
                     shutil.copy2(f, FILES / f.name)
             publish()
-        if spec.get("stop"):
-            log("\nСтоп по jobs.json")
-            break
         time.sleep(20)
     end, _ = balance()
     log(f"\n## Баланс в конце: {end} (потрачено {None if start is None or end is None else start - end})")
