@@ -1,0 +1,43 @@
+{
+ "jobs": [
+  {
+   "id": "player_gen",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "male survivor, immune newcomer, olive military jacket, tactical vest with pouches, small backpack, cargo pants, worn boots, short hair, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "10000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/player_base.glb"
+   ]
+  },
+  {
+   "id": "w_ak74",
+   "timeout": 1700,
+   "args": [
+    "generate",
+    "text",
+    "AK-74 assault rifle, worn black metal, dark plum-brown polymer handguard and stock, curved magazine, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--face-limit",
+    "3000",
+    "--visibility",
+    "private",
+    "--timeout",
+    "25m",
+    "--output-format",
+    "json",
+    "-o",
+    "out/w_ak74.glb"
+   ]
+  }
+ ],
+ "stop": false
+}
