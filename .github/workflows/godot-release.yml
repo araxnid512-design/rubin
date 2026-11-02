@@ -95,3 +95,28 @@ jobs:
           # застревать на 100% у .apk — ZIP скачивается сразу, APK внутри ставится из «Файлов»
           (cd download && zip -0 -q ulei-godot-apk.zip ulei-godot.apk)
           gh release upload game download/ulei-godot.apk download/ulei-godot-apk.zip --clobber
+      # установка и запуск на Android-эмуляторе: снимок экрана и журнал — в gh-pages/godot-test/
+      - name: Включить KVM для эмулятора
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Установить и запустить на эмуляторе Android 13
+        uses: reactivecircus/android-emulator-runner@v2
+        continue-on-error: true
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/android-smoke.sh
+      - name: Выложить результат проверки на эмуляторе
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./android-test
+          destination_dir: godot-test
+          keep_files: false
+          commit_message: "Godot: проверка APK на эмуляторе, сборка ${{ github.run_number }}"

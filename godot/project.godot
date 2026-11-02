@@ -9,7 +9,7 @@ config/name="Улей. Кластер-17"
 config/description="Выживание в Улье по мотивам «Стикса»: кластеры перезагружаются, успей обыскать дома и уйти."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://icons/icon_512.png"
 run/max_fps=60
 
 [display]
