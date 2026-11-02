@@ -23,7 +23,12 @@ const LENGTH := {
 const Q := -PI * 0.5
 const FRONT := {
 	"e_paz": Q, "e_btr80": Q, "e_ural": Q,
-	"e_fridge": Q, "e_pech": Q, "e_burzhuyka": Q,
+	"e_fridge": Q, "e_pech": Q, "e_burzhuyka": Q, "e_sofa": Q, "e_bed": Q, "e_wardrobe": Q, "e_buffet": Q,
+	"e_drawers": Q, "e_nightstand": Q, "e_chest": Q, "e_table": Q, "e_chair": Q, "e_tv": Q, "e_bunk": Q, "e_lathe": Q,
+	"e_barrel": Q, "e_tire": Q, "e_trashbags": Q, "e_crate": Q, "e_dumpster": Q, "e_block": Q, "e_sandbags": Q,
+	"e_woodpile": Q, "e_well": Q, "e_pipes": Q, "e_hazard": Q, "e_ammo": Q,
+	# у скамейки браузерной игры спинка в +Z, сидят лицом к −Z: перед модели (+X) — к −Z
+	"e_bench": PI * 0.5,
 }
 
 ## Модель вида → {"parts": [[Mesh, Transform3D к центру габарита, на земле]], "size": Vector3 после FRONT}.
