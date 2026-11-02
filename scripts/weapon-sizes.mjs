@@ -21,6 +21,8 @@ const REAL = {
   obrez: [0.5, 'Обрез ИЖ-43'], shotgun: [1.05, 'МР-133'], spas12: [1.04, 'SPAS-12'], aks: [0.73, 'АКС-74У'],
   ak74: [0.943, 'АК-74'], ak47: [0.88, 'АК-47'], aug: [0.79, 'Steyr AUG'], scar: [0.97, 'SCAR-H'],
   fnfal: [1.09, 'FN FAL'], vss: [0.894, 'ВСС'], svd: [1.225, 'СВД'], pkm: [1.173, 'ПКМ'],
+  glock17: [0.186, 'Glock 17'], deagle: [0.27, 'Desert Eagle'], dbarrel: [1.1, 'Двустволка'], ak107: [0.943, 'АК-107'],
+  rpk: [1.04, 'РПК'], pkt: [1.08, 'ПКТ'], awm: [1.2, 'Arctic Warfare'], g36: [1.0, 'HK G36'], mp5: [0.68, 'HK MP5'],
 };
 const HUMAN = 1.8;
 

@@ -216,6 +216,13 @@ func right_grip() -> Array:
 			return [int(a["e"]), a["gd"]]
 	return [-1, Transform3D.IDENTITY]
 
+## Точка опоры цевья у левой кисти новой модели в осях её кости (и сама кость).
+func left_grip() -> Array:
+	for a in arms:
+		if a["side"] == "Left":
+			return [int(a["e"]), a["gd"]]
+	return [-1, Transform3D.IDENTITY]
+
 ## force — и для скрытой модели (пересчёт клипов в SkinBake).
 func _follow(force := false) -> void:
 	if dst == null or not is_instance_valid(dst) or (not force and not dst.is_visible_in_tree()):

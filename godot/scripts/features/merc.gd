@@ -40,6 +40,8 @@ var hp: float:
 var slot := 0
 var model: Node3D
 var anim: AnimationPlayer
+## Поза оружия поверх клипа: переноска и левая кисть на цевье (npc_pose.gd) — клипы сделаны под старые стволы.
+var npc: NpcPose
 var grip: Node3D
 var gun: Node3D
 var clip := ""
@@ -95,6 +97,10 @@ func setup(g: Node, m: Node, state: Dictionary, def: Dictionary, cls: Dictionary
 	else:
 		add_child(gun)
 	gun.visible = not broken()
+	npc = NpcPose.make_for_old(model)
+	if npc:
+		(model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D).add_child(npc)
+		npc.set_weapon(gun, str(W.get("anim", "rifle")) == "rifle")
 	play(str(CL["idle"]), 0.0)
 	if anim:
 		anim.seek(randf() * 2.0, true)
@@ -185,6 +191,11 @@ func _physics_process(delta: float) -> void:
 		return
 	if game == null or game.level == null or game.player == null:
 		return
+	if npc:
+		# переноска — когда стоит, идёт или бежит; левая кисть на цевье, пока ствол цел
+		var calm := clip == str(CL["idle"]) or clip == str(CL["walk"]) or clip == str(CL["run"])
+		npc.carry = move_toward(npc.carry, 1.0 if calm and gun.visible else 0.0, delta / 0.2)
+		npc.left = move_toward(npc.left, 1.0 if gun.visible and clip != str(CL.get("reload", "")) else 0.0, delta / 0.15)
 	cooldown -= delta
 	act_t -= delta
 	retarget -= delta

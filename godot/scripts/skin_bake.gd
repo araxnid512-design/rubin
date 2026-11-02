@@ -13,7 +13,7 @@ const SRC := "res://assets/characters/player.glb"
 static var _cache := {}
 
 ## Новая модель с анимациями clips (имена — как в player.glb): Node3D с AnimationPlayer ("AnimationPlayer") и узлом
-## хвата "Grip" на правой кисти (оружие кладут в него). host — узел в дереве (на время пересчёта). null — нет модели.
+## хвата "Grip" на правой кисти (оружие кладут в него); метаданные grip_r, grip_l, unit — для NpcPose. host — узел в дереве (на время пересчёта). null — нет модели.
 static func instance(path: String, clips: Array, host: Node) -> Node3D:
 	if not ResourceLoader.exists(path) or not ResourceLoader.exists(SRC):
 		return null
@@ -40,6 +40,10 @@ static func instance(path: String, clips: Array, host: Node) -> Node3D:
 	grip.name = "Grip"
 	grip.transform = info["grip"]
 	ba.add_child(grip)
+	# для позы оружия (NpcPose): хват правой, опора цевья у левой — в осях костей кистей; метров в единице скелета
+	model.set_meta("grip_r", info["grip"])
+	model.set_meta("grip_l", info["grip_l"])
+	model.set_meta("unit", info["unit"])
 	return model
 
 static func _bake(path: String, clips: Array, host: Node) -> Dictionary:
@@ -129,8 +133,9 @@ static func _bake(path: String, clips: Array, host: Node) -> Dictionary:
 				out.position_track_insert_key(pi, minf(a.length, float(f) / FPS), hip_pos[f])
 		lib.add_animation(c, out)
 	var rg: Array = follow.right_grip()
+	var lg: Array = follow.left_grip()
 	var info := {"lib": lib, "basis": model.transform.basis, "hand": dsk.get_bone_name(int(rg[0])) if int(rg[0]) >= 0 else "",
-		"grip": rg[1]}
+		"grip": rg[1], "grip_l": lg[1], "unit": model.transform.basis.get_scale().x}
 	old.queue_free()
 	model.queue_free()
 	print("SkinBake: %s — клипов %d, кадров %d, %d мс" % [path.get_file(), lib.get_animation_list().size(), frames, Time.get_ticks_msec() - t0])

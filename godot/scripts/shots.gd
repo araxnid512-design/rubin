@@ -34,6 +34,7 @@ func run(g, out_dir: String) -> void:
 	await _hero_shots()
 	await _fire_shots()
 	await _mur_shots()
+	await _gun_sheet()
 	var prev: String = game.loc
 	for id in LOCS:
 		if id != game.loc:
@@ -206,6 +207,71 @@ func _mur_shots() -> void:
 	game.set_process(true)
 	for h in shown:
 		h.queue_free()
+
+## Лист «все стволы в руках»: герой с каждым огнестрелом — в переноске и в прицеле, крупно спереди-справа, с подписью;
+## одна картинка guns_sheet.jpg (по 8 клеток в ряд). По ней видно, какой ствол лежит в руках неправильно.
+func _gun_sheet() -> void:
+	var p = game.player
+	var keep: Dictionary = game.kit.duplicate()
+	var ids: Array = []
+	for id in Data.WEAPONS:
+		if Data.weapon(id).get("slot", "") == "gun":
+			ids.append(id)
+	const CW := 300
+	const CH := 330
+	const COLS := 8
+	var nrows := int(ceil(ids.size() * 2.0 / COLS))
+	var sheet := Image.create(CW * COLS, CH * nrows, false, Image.FORMAT_RGB8)
+	sheet.fill(Color(0.1, 0.1, 0.1))
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	game.add_child(layer)
+	var lab := Label.new()
+	lab.add_theme_font_size_override("font_size", 30)
+	lab.add_theme_color_override("font_color", Color(1, 1, 0.6))
+	lab.add_theme_color_override("font_outline_color", Color.BLACK)
+	lab.add_theme_constant_override("outline_size", 8)
+	layer.add_child(lab)
+	var size: Vector2 = game.get_viewport().get_visible_rect().size
+	var n := 0
+	for id in ids:
+		game.kit["gun"] = id
+		game.wear[id] = int(Data.weapon(id).get("durability", 100))
+		p.hold = "gun"
+		p.attach_gear()
+		for aim in [false, true]:
+			p.aim_t = 2.5 if aim else 0.0
+			await _wait(0.7 if not aim else 0.5)
+			game.set_process(false)
+			var cam: Camera3D = game.camera
+			var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
+			var right := fwd.cross(Vector3.UP)
+			var at: Vector3 = p.global_position + Vector3(0, 1.25, 0)
+			cam.global_position = at + fwd * 2.3 + right * 1.0 + Vector3(0, 0.25, 0)
+			cam.look_at(at, Vector3.UP)
+			lab.text = "%s — %s" % [Data.weapon(id).get("name", id), "прицел" if aim else "переноска"]
+			lab.position = Vector2(size.x * 0.5 - 300, size.y * 0.06)
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var img: Image = game.get_viewport().get_texture().get_image()
+			game.set_process(true)
+			if img:
+				img.convert(Image.FORMAT_RGB8)
+				var cw := int(size.x * 0.4)
+				var ch := int(size.y * 0.98)
+				var crop := img.get_region(Rect2i(int(size.x * 0.5 - cw * 0.5), int(size.y * 0.01), cw, ch))
+				crop.resize(CW, CH, Image.INTERPOLATE_BILINEAR)
+				sheet.blit_rect(crop, Rect2i(0, 0, CW, CH), Vector2i((n % COLS) * CW, int(n / COLS) * CH))
+			n += 1
+	p.aim_t = 0.0
+	layer.queue_free()
+	sheet.save_jpg(dir.path_join("guns_sheet.jpg"), 0.85)
+	rows.append({"loc": "guns", "n": 1, "label": "все стволы в руках (переноска / прицел): %d" % ids.size(), "file": "guns_sheet.jpg",
+		"draws": 0, "prims": 0, "objects": 0, "cpu_ms": 0.0, "gpu_ms": 0.0, "vmem_mb": 0.0, "enemies": 0})
+	print("  · лист стволов: %d стволов → guns_sheet.jpg" % ids.size())
+	game.kit.clear()
+	game.kit.merge(keep)
+	p.attach_gear()
 
 ## Тайники в разных домах (доступ к ним — внутри), подальше друг от друга и от старта.
 func _inside_spots(lv: Level, from: Vector3) -> Array:

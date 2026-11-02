@@ -34,7 +34,7 @@ const FEATURE_SCRIPTS := [
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).
 const CAP := [0, 42, 50, 58]
-const PRICES := {"zhivchik": 15, "repair_kit": 25, "axe": 8, "fireaxe": 18, "pistol": 40, "obrez": 30, "shotgun": 45, "vector": 70, "aks": 80, "ak74": 110, "ak47": 120, "scar": 260, "fnfal": 240, "aug": 220, "pm63": 120, "spas12": 200, "vss": 180, "svd": 160, "pkm": 230}
+const PRICES := {"zhivchik": 15, "repair_kit": 25, "axe": 8, "fireaxe": 18, "pistol": 40, "obrez": 30, "shotgun": 45, "vector": 70, "aks": 80, "ak74": 110, "ak47": 120, "scar": 260, "fnfal": 240, "aug": 220, "pm63": 120, "spas12": 200, "vss": 180, "svd": 160, "pkm": 230, "glock17": 60, "deagle": 140, "dbarrel": 50, "ak107": 180, "rpk": 200, "pkt": 260, "awm": 300, "g36": 210, "mp5": 110}
 
 var level: Level
 var player: Player
@@ -705,7 +705,7 @@ func open_trade() -> void:
 	for id in [kit.get("melee", ""), kit.get("gun", "")] + kit.get("owned", []):
 		if id != "" and id != "fists" and repair_cost(id) > 0:
 			acts.append(["Починить %s · %d сп." % [Data.weapon(id).get("name", id), repair_cost(id)], _repair.bind(id), sp >= repair_cost(id)])
-	for id in ["fireaxe", "pistol", "pm63", "obrez", "shotgun", "spas12", "vector", "aks", "ak74", "aug", "ak47", "scar", "fnfal", "svd", "vss", "pkm"]:
+	for id in ["fireaxe", "glock17", "deagle", "pistol", "pm63", "obrez", "dbarrel", "shotgun", "spas12", "mp5", "vector", "aks", "ak74", "ak107", "ak47", "aug", "g36", "scar", "fnfal", "rpk", "svd", "awm", "vss", "pkm", "pkt"]:
 		acts.append(["%s · %d сп." % [Data.weapon(id).get("name", id), PRICES[id]], _buy.bind(id), sp >= PRICES[id]])
 	if int(bag.get("peas", 0)) > 0:
 		acts.append(["Продать горох ×%d · +%d сп." % [bag["peas"], int(bag["peas"]) * 5], _sell.bind("peas")])

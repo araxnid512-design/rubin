@@ -21,10 +21,10 @@ const MUR_SHOOTERS := 3
 ## Сколько секунд длится очередь одного мура по человеку и сколько он потом отдыхает.
 const MUR_TURN := [2.5, 4.0]
 const MUR_REST := [1.5, 3.0]
-## Оружие муров: у каждого — случайное из этих, больше всего АК (10 из 16: АК-74, АК-47, АКС-74У), реже ПКМ, СВД,
-## ВСС, FN FAL, SCAR-H, AUG (без дробовиков: картечь рассчитана на заражённых).
-const MUR_GUNS := ["ak74", "ak74", "ak74", "ak74", "ak47", "ak47", "ak47", "aks", "aks", "aks",
-	"pkm", "svd", "vss", "fnfal", "scar", "aug"]
+## Оружие муров: у каждого — случайное из этих, больше всего АК (11 из 16: АК-74, АК-47, АКС-74У, АК-107, РПК), реже
+## ПКМ, СВД, FN FAL, G36, AUG (без дробовиков: картечь рассчитана на заражённых).
+const MUR_GUNS := ["ak74", "ak74", "ak74", "ak47", "ak47", "ak47", "aks", "aks", "ak107", "ak107", "rpk",
+	"pkm", "svd", "fnfal", "g36", "aug"]
 const CLIPS := {"idle": "IdleRifle", "walk": "WalkRifle", "run": "RunRifle", "aim": "AimRifle", "shoot": "ShootRifle", "hit": "HitRifle", "reload": "ReloadRifle"}
 const LOOPED := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
 ## Модели муров из Tripo (по картинкам пользователя): каждому — случайная, клипы героя пересчитаны на их скелет
@@ -91,6 +91,8 @@ var gone := false
 var left := false
 var model: Node3D
 var anim: AnimationPlayer
+## Поза оружия поверх клипа: переноска и левая кисть на цевье (npc_pose.gd).
+var npc: NpcPose
 var gun: Node3D
 var muzzle: Node3D
 var proxy: HumanHit
@@ -132,6 +134,10 @@ func setup(g: Node, s: Node, gun_id: String, pos: Vector3, post_data: Dictionary
 		Level.rim(model)
 		anim = model.get_node_or_null("AnimationPlayer") as AnimationPlayer
 		grip = model.find_child("Grip", true, false) as Node3D
+		npc = NpcPose.new()
+		npc.grip_r = model.get_meta("grip_r", Transform3D.IDENTITY)
+		npc.grip_l = model.get_meta("grip_l", Transform3D.IDENTITY)
+		npc.unit = float(model.get_meta("unit", 1.0))
 	else:
 		model = (load("res://assets/characters/player.glb") as PackedScene).instantiate()
 		add_child(model)
@@ -139,6 +145,7 @@ func setup(g: Node, s: Node, gun_id: String, pos: Vector3, post_data: Dictionary
 		anim = model.find_child("AnimationPlayer", true, false)
 		_tint(model, randi() % TINTS.size())
 		grip = Player.attach_point(model, "GripR")
+		npc = NpcPose.make_for_old(model)
 	for c in LOOPED:
 		if anim and anim.has_animation(c):
 			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
@@ -148,6 +155,11 @@ func setup(g: Node, s: Node, gun_id: String, pos: Vector3, post_data: Dictionary
 	else:
 		model.add_child(gun)
 	muzzle = gun.find_child("Muzzle", true, false) as Node3D
+	if npc:
+		var sks := model.find_children("*", "Skeleton3D", true, false)
+		if not sks.is_empty():
+			(sks[0] as Skeleton3D).add_child(npc)
+		npc.set_weapon(gun, str(W.get("anim", "rifle")) == "rifle")
 	proxy = HumanHit.new()
 	add_child(proxy)
 	global_position = pos
@@ -212,6 +224,13 @@ func _physics_process(delta: float) -> void:
 		model.visible = near
 		if anim:
 			anim.active = near
+		if npc:
+			npc.active = near
+	if npc and near:
+		# переноска — когда стоит, идёт или бежит; левая кисть на цевье — всегда, кроме перезарядки и смерти
+		var calm := clip == CLIPS["idle"] or clip == CLIPS["walk"] or clip == CLIPS["run"]
+		npc.carry = move_toward(npc.carry, 1.0 if alive and calm else 0.0, delta / 0.2)
+		npc.left = move_toward(npc.left, 1.0 if alive and clip != CLIPS["reload"] else 0.0, delta / 0.15)
 	if not alive:
 		dead_t += delta
 		if dead_t > 12.0:

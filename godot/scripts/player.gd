@@ -44,7 +44,7 @@ const POSE := {
 	"melee": {"two": false, "raise": 0.2, "lower": 0.2, "back": 0.0, "climb": 0.0, "chest": 0.0},
 }
 ## Профиль по оружию; кого нет — по набору клипов (rifle / pistol), топор и кулаки — melee.
-const POSE_OF := {"vector": "smg", "aks": "smg", "pm63": "pistol", "shotgun": "shotgun", "spas12": "shotgun", "obrez": "sawnoff", "svd": "heavy", "pkm": "heavy", "fnfal": "heavy", "scar": "heavy"}
+const POSE_OF := {"vector": "smg", "aks": "smg", "mp5": "smg", "pm63": "pistol", "glock17": "pistol", "deagle": "sawnoff", "shotgun": "shotgun", "spas12": "shotgun", "dbarrel": "shotgun", "obrez": "sawnoff", "svd": "heavy", "awm": "heavy", "pkm": "heavy", "pkt": "heavy", "rpk": "heavy", "fnfal": "heavy", "scar": "heavy"}
 ## Переход походки (стойка / шаг / бег), с — ТЗ: 0.12–0.2.
 const XFADE := 0.18
 ## Пороги скорости, м/с: шаг ↔ стойка, шаг ↔ бег (с запасом, чтобы не дёргалось на границе).

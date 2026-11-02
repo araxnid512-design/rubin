@@ -7,6 +7,7 @@ class_name Data
 const GUN_DURABILITY := {
 	"pistol": 400, "obrez": 160, "shotgun": 260, "vector": 600, "aks": 700, "ak74": 900, "ak47": 800,
 	"vss": 500, "pkm": 1200, "svd": 300, "scar": 900, "fnfal": 800, "aug": 900, "pm63": 520, "spas12": 300,
+	"glock17": 450, "deagle": 260, "dbarrel": 220, "ak107": 950, "rpk": 1000, "pkt": 1300, "awm": 250, "g36": 850, "mp5": 650,
 }
 
 ## Новые стволы (из пакета «СТИКС»). model — id модели: свои, из game/weapons.js (makeScar, makeFal, makeAug, makePm63,
@@ -17,6 +18,16 @@ const NEW_WEAPONS := {
 	"aug": {"name": "Steyr AUG", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 32, "range": 8.5, "cooldown": 0.09, "auto": 0.09, "noise": 34, "spread": 0.03, "flash": 0.9, "price": 220, "model": "aug", "desc": "Автомат-буллпап 5,56: короткий, точный, магазин за рукоятью."},
 	"pm63": {"name": "PM-63 RAK", "slot": "gun", "anim": "pistol", "mount": "holster", "damage": 22, "range": 6.0, "cooldown": 0.07, "auto": 0.07, "noise": 26, "spread": 0.06, "flash": 0.7, "price": 120, "model": "pm63", "desc": "Компактный пистолет-пулемёт 9×18: очень быстрый огонь."},
 	"spas12": {"name": "SPAS-12", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 15, "pellets": 9, "range": 5.0, "cooldown": 0.45, "auto": 0.5, "noise": 36, "spread": 0.22, "flash": 1.4, "price": 200, "model": "spas12", "desc": "Боевой дробовик 12 калибра: картечь веером, полуавтомат."},
+	# стволы с листа пользователя (модели Tripo по картинкам — docs/tripo/refs/weapons)
+	"glock17": {"name": "Glock 17", "slot": "gun", "anim": "pistol", "mount": "holster", "damage": 24, "range": 6.5, "cooldown": 0.12, "auto": 0.2, "noise": 26, "spread": 0.03, "flash": 0.8, "price": 60, "mag": 17, "model": "glock17", "desc": "Пистолет 9×19: лёгкий, магазин на 17 патронов."},
+	"deagle": {"name": "Desert Eagle", "slot": "gun", "anim": "pistol", "mount": "holster", "damage": 55, "range": 7.0, "cooldown": 0.4, "auto": 0.5, "noise": 34, "spread": 0.04, "flash": 1.2, "price": 140, "mag": 7, "model": "deagle", "desc": "Тяжёлый пистолет .50 AE: валит с пары выстрелов, сильно подбрасывает."},
+	"dbarrel": {"name": "Двустволка", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 17, "pellets": 9, "range": 5.0, "cooldown": 0.35, "auto": 0.6, "noise": 36, "spread": 0.26, "flash": 1.6, "price": 50, "mag": 2, "model": "dbarrel", "desc": "Охотничья двустволка 12 калибра: два быстрых выстрела картечью."},
+	"ak107": {"name": "АК-107", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 33, "range": 8.5, "cooldown": 0.09, "auto": 0.09, "noise": 36, "spread": 0.025, "flash": 0.9, "price": 180, "mag": 30, "model": "ak107", "desc": "Автомат 5,45 со сбалансированной автоматикой: почти не уводит в очереди."},
+	"rpk": {"name": "РПК", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 36, "range": 9.0, "cooldown": 0.1, "auto": 0.1, "noise": 42, "spread": 0.05, "flash": 1.1, "price": 200, "mag": 75, "model": "rpk", "desc": "Ручной пулемёт Калашникова 7,62×39: длинный ствол, сошки, барабан на 75."},
+	"pkt": {"name": "ПКТ", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 42, "range": 9.5, "cooldown": 0.085, "auto": 0.085, "noise": 50, "spread": 0.08, "flash": 1.4, "price": 260, "mag": 100, "model": "pkt", "desc": "Танковый пулемёт 7,62×54R, снятый с машины: держать тяжело, но лента на 100."},
+	"awm": {"name": "Arctic Warfare", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 160, "range": 20.0, "cooldown": 1.3, "auto": 1.4, "noise": 46, "spread": 0.0, "flash": 1.2, "price": 300, "mag": 5, "falloff": 0.06, "model": "awm", "desc": "Снайперская винтовка с продольно-скользящим затвором: самый дальний и сильный выстрел."},
+	"g36": {"name": "HK G36", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 30, "range": 8.5, "cooldown": 0.085, "auto": 0.085, "noise": 34, "spread": 0.03, "flash": 0.9, "price": 210, "mag": 30, "model": "g36", "desc": "Автомат 5,56 с ручкой-прицелом: лёгкий и точный."},
+	"mp5": {"name": "HK MP5", "slot": "gun", "anim": "rifle", "mount": "back", "damage": 20, "range": 6.5, "cooldown": 0.07, "auto": 0.07, "noise": 24, "spread": 0.045, "flash": 0.6, "price": 110, "mag": 30, "model": "mp5", "desc": "Пистолет-пулемёт 9×19: быстрый огонь, тихий."},
 }
 
 ## Заражённые (как в браузерной игре): hp, скорость, урон, дальность удара, момент удара в клипе.

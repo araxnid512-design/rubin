@@ -19,6 +19,27 @@ const LENGTH := {
 	"pistol": 0.161, "pm63": 0.333, "vector": 0.62, "obrez": 0.5, "shotgun": 1.05, "spas12": 1.04,
 	"aks": 0.73, "ak74": 0.943, "ak47": 0.88, "aug": 0.79, "scar": 0.97, "fnfal": 1.09,
 	"vss": 0.894, "svd": 1.225, "pkm": 1.173,
+	"glock17": 0.186, "deagle": 0.27, "dbarrel": 1.1, "ak107": 0.943, "rpk": 1.04, "pkt": 1.08, "awm": 1.2,
+	"g36": 1.0, "mp5": 0.68,
+}
+## Модели по картинкам пользователя (лист 16 стволов, docs/tripo/refs/weapons): у кого нет старой модели браузерной
+## игры, оси и примерный размер берутся у похожей (FIT), дуло у всех — к −Z модели (MUZZLE), рукоять и цевьё — свои
+## (HOLD: [[u, v] рукояти, [u, v] цевья], u — доля длины от дула, v — доля высоты сверху; размечено по сетке на
+## самих моделях). Правая кисть ложится точно на рукоять, левая — на цевьё, вспышка и пули — из среза ствола.
+const FIT := {"glock17": "pistol", "deagle": "pistol", "dbarrel": "shotgun", "ak107": "ak74", "rpk": "ak47",
+	"pkt": "pkm", "awm": "svd", "g36": "scar", "mp5": "vector"}
+const MUZZLE := {"glock17": -1.0, "deagle": -1.0, "spas12": -1.0, "dbarrel": -1.0, "aks": -1.0, "ak47": -1.0,
+	"ak74": -1.0, "ak107": -1.0, "fnfal": -1.0, "rpk": -1.0, "pkt": -1.0, "svd": -1.0, "awm": -1.0, "aug": -1.0,
+	"g36": -1.0, "mp5": -1.0}
+const HOLD := {
+	"glock17": [[0.79, 0.58], []], "deagle": [[0.83, 0.58], []],
+	"spas12": [[0.72, 0.60], [0.38, 0.46]], "dbarrel": [[0.70, 0.42], [0.46, 0.23]],
+	"aks": [[0.58, 0.53], [0.22, 0.35]], "ak47": [[0.70, 0.44], [0.36, 0.27]],
+	"ak74": [[0.70, 0.44], [0.36, 0.28]], "ak107": [[0.69, 0.45], [0.35, 0.28]],
+	"fnfal": [[0.70, 0.46], [0.33, 0.26]], "rpk": [[0.78, 0.48], [0.52, 0.27]],
+	"pkt": [[0.88, 0.80], [0.52, 0.42]], "svd": [[0.74, 0.55], [0.38, 0.46]],
+	"awm": [[0.64, 0.56], [0.40, 0.49]], "aug": [[0.54, 0.50], [0.33, 0.55]],
+	"g36": [[0.64, 0.60], [0.28, 0.45]], "mp5": [[0.66, 0.56], [0.25, 0.36]],
 }
 ## И всё оружие ещё на треть меньше (просьба пользователя: при настоящих размерах рядом с крупной моделью героя
 ## стволы и топор выглядели гигантскими).
@@ -30,7 +51,7 @@ static func target_length(model_id: String, old_len: float) -> float:
 
 ## Новая модель оружия (или старая, если новой нет). Каждый вызов — новый экземпляр.
 static func weapon(model_id: String) -> Node3D:
-	var old_path := "res://assets/weapons/%s.glb" % model_id
+	var old_path := "res://assets/weapons/%s.glb" % str(FIT.get(model_id, model_id))
 	var new_path := "res://assets/tripo/w_%s.glb" % model_id
 	if not ResourceLoader.exists(new_path):
 		if not ResourceLoader.exists(old_path):
@@ -50,25 +71,59 @@ static func weapon(model_id: String) -> Node3D:
 			var m := old.find_child(nm, true, false) as Node3D
 			if m:
 				marks[nm] = _rel(old, m)
-		_fits[model_id] = [_fit(old, fresh), marks, _box(_points(old)).get_longest_axis_size()]
+		var fit0 := _fit(old, fresh, float(MUZZLE.get(model_id, 0.0)))
+		var old_len := _box(_points(old)).get_longest_axis_size()
 		old.free()
+		# настоящая длина: масштаб вокруг начала осей оружия (точка хвата правой кисти)
+		var k := target_length(model_id, old_len) / old_len if old_len > 0.01 else 1.0
+		var t := Transform3D(Basis.IDENTITY.scaled(Vector3(k, k, k)), Vector3.ZERO) * fit0
+		for nm in marks:
+			var mt: Transform3D = marks[nm]
+			marks[nm] = Transform3D(mt.basis, mt.origin * k)
+		# своя рукоять и цевьё (HOLD): правая кисть — на рукоять этой модели, левая — на её цевьё, дуло — на конце ствола
+		if HOLD.has(model_id):
+			var snap := _snap(_transform_all(_points(fresh), t), HOLD[model_id])
+			t = Transform3D(Basis.IDENTITY, -(snap["hand"] as Vector3)) * t
+			marks["Muzzle"] = Transform3D(Basis.IDENTITY, (snap["muzzle"] as Vector3) - (snap["hand"] as Vector3))
+			if snap.has("fore"):
+				marks["GripL"] = Transform3D(Player.fore_basis(), (snap["fore"] as Vector3) - (snap["hand"] as Vector3))
+		_fits[model_id] = [t, marks]
 	var fit: Array = _fits[model_id]
-	# настоящая длина: масштаб вокруг хвата (начало осей оружия — точка хвата правой кисти)
-	var k := 1.0
-	if float(fit[2]) > 0.01:
-		k = target_length(model_id, float(fit[2])) / float(fit[2])
 	var root := Node3D.new()
 	root.name = "Tripo_" + model_id
-	fresh.transform = Transform3D(Basis.IDENTITY.scaled(Vector3(k, k, k)), Vector3.ZERO) * (fit[0] as Transform3D)
+	fresh.transform = fit[0]
 	root.add_child(fresh)
 	var marks2: Dictionary = fit[1]
 	for nm in marks2:
 		var marker := Node3D.new()
 		marker.name = nm
-		var mt: Transform3D = marks2[nm]
-		marker.transform = Transform3D(mt.basis, mt.origin * k)
+		marker.transform = marks2[nm]
 		root.add_child(marker)
 	return root
+
+## Точки хвата по долям габарита модели в осях оружия (ствол — по −Y, верх — +Z): u — от дула (0) к прикладу (1),
+## v — от верха (0) вниз (1). hold = [[u, v] рукояти, [u, v] цевья или пусто]. Дуло — середина среза ствола по высоте.
+static func _snap(pts: PackedVector3Array, hold: Array) -> Dictionary:
+	var b := _box(pts)
+	var y0 := b.position.y
+	var ly := b.size.y
+	var z1 := b.end.z
+	var hz := b.size.z
+	var xc := b.get_center().x
+	var at := func(uv: Array) -> Vector3:
+		return Vector3(xc, y0 + float(uv[0]) * ly, z1 - float(uv[1]) * hz)
+	var out := {"hand": at.call(hold[0])}
+	if hold.size() > 1 and not (hold[1] as Array).is_empty():
+		out["fore"] = at.call(hold[1])
+	# дуло: средняя высота точек в самых передних 3% длины
+	var zs := 0.0
+	var n := 0
+	for p in pts:
+		if p.y <= y0 + ly * 0.03:
+			zs += p.z
+			n += 1
+	out["muzzle"] = Vector3(xc, y0, zs / n if n > 0 else b.get_center().z)
+	return out
 
 ## Положение узла n относительно root (сцена ещё не в дереве — по цепочке родителей).
 static func _rel(root: Node, n: Node3D) -> Transform3D:
@@ -120,7 +175,7 @@ static func _axis(i: int, s: float) -> Vector3:
 	return v
 
 ## Как поставить новую модель, чтобы она легла на место старой.
-static func _fit(old: Node3D, fresh: Node3D) -> Transform3D:
+static func _fit(old: Node3D, fresh: Node3D, muzzle_sign := 0.0) -> Transform3D:
 	var op := _points(old)
 	var np := _points(fresh)
 	var ob := _box(op)
@@ -140,6 +195,8 @@ static func _fit(old: Node3D, fresh: Node3D) -> Transform3D:
 	var thin_hi := _end_size(np, nb, n_long, 1.0, 1, 0.12)
 	var thin_lo := _end_size(np, nb, n_long, -1.0, 1, 0.12)
 	var n_sign := 1.0 if thin_hi <= thin_lo else -1.0
+	if muzzle_sign != 0.0:
+		n_sign = muzzle_sign   # модели по картинкам: дуло известно (у РПК сошки у дула толще приклада)
 	var e1 := _axis(n_long, n_sign)
 	var e2 := Vector3.UP
 	var f1 := _axis(o_long, o_sign)
