@@ -16,6 +16,7 @@ const SAVE_PATH := "user://save.json"
 ## кластера), restore(data), save_data() -> Dictionary, load_data(d), interact(station) -> bool (станции стаба),
 ## smoke() -> int (корутина автотеста: число провалов). Свой _process — как у любого узла.
 const FEATURE_SCRIPTS := [
+	"res://scripts/features/murs.gd",
 ]
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).
