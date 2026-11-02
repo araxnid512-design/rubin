@@ -52,7 +52,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, { high: isMobile ? 1.5 : 2, me
 renderer.setSize(view.w, view.h);
 // теней от солнца нет: картинка чище, кадр дешевле; под персонажами — мягкие пятна (см. Actor)
 renderer.shadowMap.enabled = false;
-renderer.toneMappingExposure = 1.06;
+renderer.toneMappingExposure = 1.16;
 $('game').appendChild(renderer.domElement);
 document.body.classList.add(`q-${QUALITY}`);
 setAnisotropy(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
@@ -349,8 +349,9 @@ class Actor {
 					o.boundingSphere = o.geometry.boundingSphere.clone();
 					o.boundingSphere.radius *= 2.2;
 				}
-				// свои материалы, чтобы вспыхивать красным при попадании
+				// свои материалы, чтобы вспыхивать красным при попадании; светлый ободок по контуру (post.js)
 				o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
+				for (const m of [o.material].flat()) if (m.isMeshStandardMaterial) m.defines = { ...m.defines, USE_RIM: '' };
 			}
 		});
 		this.root.add(this.model);

@@ -17,13 +17,24 @@ THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars
 	`vec3 CustomToneMapping( vec3 color ) {
 		color = ACESFilmicToneMapping( color );
 		float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
-		color = mix( vec3( l ), color, 0.78 );
-		color *= mix( vec3( 0.9, 0.97, 1.0 ), vec3( 1.07, 1.0, 0.86 ), smoothstep( 0.02, 0.5, l ) );
-		color = mix( color, color * color * ( 3.0 - 2.0 * color ), 0.24 );
-		color = max( color - 0.012, 0.0 ) * 1.012;
+		color = mix( vec3( l ), color, 0.84 );
+		color *= mix( vec3( 0.92, 0.97, 1.0 ), vec3( 1.06, 1.0, 0.88 ), smoothstep( 0.02, 0.5, l ) );
+		color = mix( color, color * color * ( 3.0 - 2.0 * color ), 0.14 );
+		color = max( color - 0.006, 0.0 ) * 1.006;
+		color += ( 1.0 - color ) * 0.025; // тени не проваливаются в чёрное — читаются дорога, лица, заражённые
 		return clamp( color, 0.0, 1.0 );
 	}`,
 );
+
+// подсветка контура персонажей (material.defines.USE_RIM): по краям силуэта лёгкий светлый ободок — герой,
+// бойцы, муры и заражённые не теряются на тёмном асфальте; программа та же, лишних проходов нет
+THREE.ShaderChunk.opaque_fragment = `#ifdef USE_RIM
+	{
+		float rimK = 1.0 - saturate( dot( normal, geometryViewDir ) );
+		outgoingLight += vec3( 0.6, 0.58, 0.52 ) * pow( rimK, 4.0 ) * 0.2;
+	}
+#endif
+` + THREE.ShaderChunk.opaque_fragment;
 
 // последний проход цепочки: тональная коррекция с цветом Улья, перевод в sRGB и зерно
 const FinalShader = {

@@ -96,14 +96,14 @@ export function grassMaterial(repeat) {
 }
 
 export function asphaltMaterial(repeat) {
-	return texMaterial('asphalt', () => pixels(512, (u, v) => {
+	return texMaterial('asphalt2', () => pixels(512, (u, v) => {
 		const n = tileFbm(u, v, 12, 4, 21), g = tileNoise(u, v, 256, 23), g2 = tileNoise(u, v, 128, 25);
 		let l = 78 + n * 22 + (g - 0.5) * 22 + (g2 - 0.5) * 10;
-		const crack = ss(0.985, 0.997, 1 - Math.abs(tileFbm(u, v, 4, 5, 27) * 2 - 1)) * ss(0.45, 0.6, tileFbm(u, v, 2, 2, 33));
-		const patch = ss(0.64, 0.67, tileFbm(u, v, 2, 3, 29));
-		l = l * (1 - patch * 0.18) - crack * 30;
-		const wet = ss(0.62, 0.78, tileFbm(u, v, 2, 3, 31));
-		return [clamp(l - wet * 8), clamp(l - wet * 8), clamp(l + 3 - wet * 6), n * 0.6 + g * 0.6 - crack * 1.5];
+		// крупных пятен в самой текстуре нет — они повторялись бы через каждые несколько метров; крупная
+		// неровность цвета — по месту (groundVariation), трещины, заплатки и масло — разбросаны (game/ground-detail.js)
+		const crack = ss(0.988, 0.997, 1 - Math.abs(tileFbm(u, v, 4, 5, 27) * 2 - 1)) * ss(0.5, 0.65, tileFbm(u, v, 2, 2, 33));
+		l -= crack * 18;
+		return [clamp(l), clamp(l), clamp(l + 3), n * 0.6 + g * 0.6 - crack * 1.2];
 	}), { repeat, roughness: 0.9, normal: 2 });
 }
 
@@ -223,6 +223,30 @@ export function metalRoofMaterial(repeat, tint = [120, 60, 50]) {
 		c = c.map((k) => k * (0.85 + rib * 0.25));
 		return [...c.map(clamp), rib * 2 - rust * 0.3];
 	}), { repeat, roughness: 0.7, metalness: 0.3, normal: 2 });
+}
+
+/**
+ * Краска старой машины: выгоревший цвет с мелом, ржавчина пятнами (с тёмной серединой и рыжей каймой),
+ * грязь и царапины; burned — обгоревший кузов: сажа и рыжая окалина.
+ */
+export function carPaintMaterial(tint, { burned = false } = {}) {
+	return texMaterial(`carpaint2${tint}${burned}`, () => pixels(256, (u, v) => {
+		const n = tileFbm(u, v, 5, 4, 211), fine = tileNoise(u, v, 128, 213);
+		const rustN = tileFbm(u, v, 3, 5, 217) * 0.7 + tileFbm(u, v, 9, 3, 219) * 0.3, rust = ss(0.62, 0.7, rustN), core = ss(0.69, 0.78, rustN);
+		const scratch = ss(0.992, 0.999, 1 - Math.abs(tileFbm(u, v, 8, 3, 223) * 2 - 1));
+		let c;
+		if (burned) {
+			c = mixc([30, 27, 24], [58, 50, 44], n);
+			c = mixc(c, [104, 58, 30], ss(0.55, 0.75, rustN) * 0.8);
+		} else {
+			c = mixc(tint, mixc(tint, [210, 206, 196], 0.28), ss(0.3, 0.8, n)); // выгорело на солнце, мел
+			c = mixc(c, [128, 70, 36], rust); // ржавчина
+			c = mixc(c, [70, 38, 22], core);
+			c = mixc(c, [190, 186, 176], scratch * 0.6); // царапины до грунта
+		}
+		c = c.map((k) => clamp(k * (0.92 + fine * 0.16)));
+		return [...c, n * 0.4 + rust * 0.8 + core * 0.6 - scratch * 0.5];
+	}), { repeat: [0.4, 0.4], roughness: burned ? 0.95 : 0.62, metalness: burned ? 0.1 : 0.32, normal: 1.6 }); // плитка — 2,5 м: на машине не повторяется
 }
 
 export function garageDoorMaterial(number) {
@@ -471,18 +495,22 @@ export function puddleTexture(seed = 0) {
 	});
 }
 
-/** Стена мути: вертикальный градиент с клочьями (прокручивается в игре). */
+/** Стена мути: светлая жёлто-серая дымка клочьями, книзу гуще (прокручивается в игре). */
 export function fogWallTexture() {
-	return memo('fogwall', () => {
+	return memo('fogwall-light', () => {
 		const p = pixels(256, (u, v) => {
 			const n = tileFbm(u, v, 4, 5, 131);
-			const l = 40 + n * 50;
-			return [l, l + 4, l + 2];
+			const l = 178 + n * 60;
+			return [l + 6, l + 4, l - 8];
 		});
 		const img = p.ctx.getImageData(0, 0, 256, 256);
 		for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
 			const n = tileFbm(x / 256, y / 256, 4, 4, 137);
-			img.data[(y * 256 + x) * 4 + 3] = clamp(255 * Math.min(1, 0.35 + n * 0.9));
+			// по высоте стены (канва сверху вниз; стена от −2 до 24 м, земля — на 0.92): сверху тает, у земли
+			// плавно сходит на нет — без резкой черты там, где стена входит в землю; гуще всего — в рост человека
+			const f = y / 255, ss = (a, b, t) => { const k = Math.min(1, Math.max(0, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
+			const prof = ss(0, 0.45, f) * (1 - ss(0.74, 0.93, f));
+			img.data[(y * 256 + x) * 4 + 3] = clamp(255 * Math.min(1, (0.35 + n * 0.75) * prof));
 		}
 		p.ctx.putImageData(img, 0, 0);
 		return toTexture(p.c);

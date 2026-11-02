@@ -63,11 +63,22 @@ export function slide(batch, M, x, z) {
 	batch.add(place(box(0.7, 0.05, 3.2), x, 0.85, z - 1.9, 0, 0.5), M.yellow);
 }
 
+// фонари: стекло горящего светит (на высоком качестве — со свечением), под ним на земле тёплое пятно света
+// (без настоящего источника — телефону ничего не стоит); примерно каждый четвёртый фонарь разбит
+let lampMats = null;
+const lampMaterials = () => lampMats ??= {
+	lit: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 1.45, 1.0), toneMapped: false }),
+	dead: new THREE.MeshStandardMaterial({ color: 0x6a6e66, roughness: 0.4 }),
+	pool: new THREE.MeshBasicMaterial({ map: T.softDotTexture('255,196,120'), transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+};
 export function streetLamp(batch, M, collide, x, z) {
+	const L = lampMaterials();
+	const lit = Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1 < 0.75;
 	batch.add(place(box(0.22, 7, 0.22, 1, 3), x, 3.5, z), M.concrete);
 	batch.add(place(box(0.1, 0.1, 1.7), x, 6.85, z - 0.8, 0, -0.12), M.metalDark);
 	batch.add(place(box(0.32, 0.14, 0.55), x, 6.75, z - 1.65), M.metalDark);
-	batch.add(place(box(0.24, 0.04, 0.42), x, 6.67, z - 1.65), new THREE.MeshStandardMaterial({ color: 0xbfc4b8, roughness: 0.3 }));
+	batch.add(place(box(0.24, 0.04, 0.42), x, 6.67, z - 1.65), lit ? L.lit : L.dead, { cast: false });
+	if (lit) batch.add(place(new THREE.PlaneGeometry(6.5, 6.5).rotateX(-Math.PI / 2), x, 0.036, z - 1.65), L.pool, { cast: false });
 	collide(x, z, 0.4, 0.4);
 }
 
@@ -192,51 +203,78 @@ export function well(batch, M, collide, x, z) {
 }
 
 /** Легковушка «жигули» из выдавленного силуэта. */
+// общие материалы машин: стекло с отражением (видно с обеих сторон), фары, фонари, колпаки
+let carMats = null;
+const carMaterials = () => carMats ??= {
+	glass: new THREE.MeshStandardMaterial({ color: 0x24303a, roughness: 0.06, metalness: 0.7, envMapIntensity: 1.6, side: THREE.DoubleSide }),
+	cracked: new THREE.MeshStandardMaterial({ color: 0x66747a, roughness: 0.45, metalness: 0.4, side: THREE.DoubleSide }),
+	head: new THREE.MeshStandardMaterial({ color: 0xe0dccb, roughness: 0.15, metalness: 0.3 }),
+	tail: new THREE.MeshStandardMaterial({ color: 0x8c1c14, roughness: 0.3 }),
+	chrome: new THREE.MeshStandardMaterial({ color: 0x9a9c9e, roughness: 0.35, metalness: 0.85 }),
+	rim: new THREE.MeshStandardMaterial({ color: 0x5c5e60, roughness: 0.5, metalness: 0.7 }),
+	plate: new THREE.MeshStandardMaterial({ color: 0xd8d6cc, roughness: 0.6 }),
+	soot: new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 1 }),
+};
+
+/**
+ * Старая советская легковушка (седан): кузов со скруглёнными кромками, крыша в цвет, стёкла кругом
+ * (сверху — крыша, капот и багажник, а не чёрный ящик), хромированные бамперы, фары, фонари, номер,
+ * колёса с колпаками. Краска выгоревшая, с ржавчиной и царапинами (carPaintMaterial). Всё сливается
+ * в статику локации — машина не стоит лишних вызовов отрисовки. crashed — смят перед, треснуло стекло;
+ * burned — обгоревший остов на дисках.
+ */
 export function addCar(batch, M, root, x, z, ry, color, { crashed = false, burned = false } = {}) {
-	const paint = burned
-		? new THREE.MeshStandardMaterial({ color: 0x1c1a18, roughness: 0.95 })
-		: T.metalRoofMaterial([1, 1], [((color >> 16) & 255), ((color >> 8) & 255), (color & 255)]);
-	paint.metalness = burned ? 0.1 : 0.35; paint.roughness = burned ? 0.95 : 0.55;
-	const body = new THREE.Shape();
-	body.moveTo(-2.05, 0.25); body.lineTo(2.05, 0.25); body.lineTo(2.1, 0.75); body.lineTo(1.2, 0.85);
-	body.lineTo(-1.9, 0.85); body.lineTo(-2.1, 0.75); body.closePath();
-	const bodyGeo = new THREE.ExtrudeGeometry(body, { depth: 1.62, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 1 });
-	bodyGeo.translate(0, 0, -0.81);
-	const cab = new THREE.Shape();
-	cab.moveTo(-1.35, 0.85); cab.lineTo(0.9, 0.85); cab.lineTo(0.35, 1.38); cab.lineTo(-1.05, 1.38); cab.closePath();
-	const cabGeo = new THREE.ExtrudeGeometry(cab, { depth: 1.42, bevelEnabled: false });
-	cabGeo.translate(0, 0, -0.71);
-	const roof = place(box(1.45, 0.06, 1.46), -0.35, 1.4, 0);
-	const tf = new THREE.Matrix4().compose(new THREE.Vector3(x, crashed ? 0.06 : 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, crashed ? 0.08 : 0)), new THREE.Vector3(1, 1, 1));
-	const group = new THREE.Group();
-	const mk = (g, m) => { const mesh = new THREE.Mesh(g, m); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh; };
-	mk(bodyGeo, paint);
-	mk(cabGeo, burned ? M.metalDark : M.glass);
-	mk(roof, paint);
-	for (const [wx, wz] of [[-1.3, 0.72], [1.3, 0.72], [-1.3, -0.72], [1.3, -0.72]]) {
-		const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 14), M.tire);
-		wh.rotation.x = Math.PI / 2;
-		wh.position.set(wx, burned ? 0.2 : 0.32, wz * 1.02);
-		wh.castShadow = true;
-		group.add(wh);
+	const C = carMaterials();
+	const paint = T.carPaintMaterial([(color >> 16) & 255, (color >> 8) & 255, color & 255], { burned });
+	const tf = new THREE.Matrix4().compose(new THREE.Vector3(x, crashed ? 0.05 : burned ? -0.1 : 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, crashed ? 0.06 : 0)), new THREE.Vector3(1, 1, 1));
+	const add = (g, m, local) => { if (local) g.applyMatrix4(local); g.applyMatrix4(tf); batch.add(g, m, { cast: false }); };
+	const at = (px, py, pz, rx = 0, ryy = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(px, py, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ryy, rz)), new THREE.Vector3(1, 1, 1));
+	const extrude = (pts, depth, bevel) => {
+		const sh = new THREE.Shape();
+		sh.moveTo(...pts[0]); for (const p of pts.slice(1)) sh.lineTo(...p); sh.closePath();
+		const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 2, curveSegments: 4 });
+		return g.translate(0, 0, -depth / 2);
+	};
+	// кузов: капот, борта, багажник (профиль сбоку, вытянут в ширину)
+	const front = crashed ? 1.86 : 2.04;
+	add(extrude([[-2.06, 0.3], [front, 0.3], [front + 0.06, 0.44], [front + 0.04, 0.72], [front - 0.88, 0.83], [-1.5, 0.85], [-2.02, 0.8], [-2.08, 0.5]], 1.56, 0.05), paint);
+	// салон: стойки в цвет кузова, крыша, стёкла
+	add(extrude([[-1.32, 0.84], [0.78, 0.84], [0.24, 1.34], [-1.0, 1.34]], 1.36, 0.03), paint);
+	add(box(1.3, 0.05, 1.4, 1.5), paint, at(-0.38, 1.37, 0));
+	const glass = burned ? C.soot : C.glass;
+	// наклонное стекло между точками профиля a и b, чуть снаружи салона
+	const slope = ([ax, ay], [bx, by], w, mat) => {
+		const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len; // наружу от салона
+		const ang = Math.atan2(dy, dx) - Math.PI / 2;
+		add(new THREE.BoxGeometry(0.012, len * 0.9, w), mat, at((ax + bx) / 2 + nx * 0.035, (ay + by) / 2 + ny * 0.035, 0, 0, 0, ang));
+	};
+	slope([0.24, 1.34], [0.78, 0.84], 1.26, crashed ? C.cracked : glass); // лобовое
+	slope([-1.32, 0.84], [-1.0, 1.34], 1.22, glass); // заднее
+	// боковые окна: переднее и заднее с каждой стороны
+	const pane = (pts) => { const sh = new THREE.Shape(); sh.moveTo(...pts[0]); for (const p of pts.slice(1)) sh.lineTo(...p); sh.closePath(); return new THREE.ShapeGeometry(sh); };
+	for (const side of [1, -1]) {
+		for (const pts of [[[0.62, 0.9], [0.22, 1.29], [-0.32, 1.29], [-0.32, 0.9]], [[-0.44, 0.9], [-0.44, 1.29], [-0.95, 1.29], [-1.2, 0.9]]]) {
+			add(pane(pts), glass, at(0, 0, side * 0.725));
+		}
+		// бамперы, фары, фонари
+		add(box(0.1, 0.26, 0.3), C.tail, at(-2.1, 0.64, side * 0.56));
+		if (!burned) add(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 12), C.head, at(front + 0.07, 0.6, side * 0.55, 0, 0, Math.PI / 2));
+		// колёса: шина и колпак; у обгоревшей — только диски
+		for (const wx of [-1.28, 1.28]) {
+			if (!burned) add(new THREE.CylinderGeometry(0.31, 0.31, 0.2, 16), M.tire, at(wx, 0.31, side * 0.72, Math.PI / 2));
+			add(new THREE.CylinderGeometry(0.17, 0.17, burned ? 0.16 : 0.21, 12), C.rim, at(wx, burned ? 0.27 : 0.31, side * 0.72, Math.PI / 2));
+		}
 	}
-	for (const s of [-0.55, 0.55]) {
-		const lamp = new THREE.Mesh(new THREE.CircleGeometry(0.11, 10), new THREE.MeshStandardMaterial({ color: 0xd8d4c0, roughness: 0.2 }));
-		lamp.position.set(2.13, 0.6, s); lamp.rotation.y = Math.PI / 2;
-		group.add(lamp);
-	}
-	group.applyMatrix4(tf);
-	root.add(group);
-	if (crashed) {
-		// смятый капот и разбитое стекло — немного развернём кузов
-		group.children[0].scale.x = 0.96;
-	}
+	add(box(0.12, 0.14, 1.62), burned ? C.soot : C.chrome, at(front + 0.08, 0.4, 0));
+	add(box(0.12, 0.14, 1.62), burned ? C.soot : C.chrome, at(-2.12, 0.4, 0));
+	add(box(0.04, 0.18, 0.86), M.metalDark, at(front + 0.06, 0.6, 0)); // решётка радиатора
+	if (!burned) add(box(0.02, 0.11, 0.48), C.plate, at(front + 0.15, 0.4, 0)); // номер
+	if (crashed) add(box(0.9, 0.05, 1.3), paint, at(front - 0.5, 0.9, 0.05, 0.08, 0.1, 0.28)); // вздыбленный капот
 }
 
 export function bus(batch, M, root, x, z, ry) {
 	const g = new THREE.Group();
-	const paint = T.metalRoofMaterial([1, 1], [190, 168, 90]);
-	paint.metalness = 0.3;
+	const paint = T.carPaintMaterial([190, 168, 90]);
 	const body = new THREE.Mesh(box(2.4, 1.3, 7.6, 2), paint);
 	body.position.y = 1.0;
 	const top = new THREE.Mesh(box(2.3, 0.9, 7.2, 2), M.glass);
@@ -384,7 +422,7 @@ export function fogWalls(root) {
 			const t = tex.clone();
 			t.needsUpdate = true;
 			t.repeat.set(3, 1);
-			const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.55 + layer * 0.15, depthWrite: false, color: 0x6a7068, fog: false, side: THREE.DoubleSide });
+			const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.42 + layer * 0.18, depthWrite: false, color: 0xb4b09a, fog: false, side: THREE.DoubleSide });
 			mats.push({ m, speed: (0.004 + layer * 0.003) * (side % 2 ? -1 : 1) });
 			const plane = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2 + 30, 26), m);
 			const d = HALF - 3 + layer * 2.5;
@@ -396,12 +434,12 @@ export function fogWalls(root) {
 			group.add(plane);
 		}
 	}
-	// темнеющая земля у мути
+	// земля у края тонет в светлой мути: дальше края — сплошная дымка, но без черноты
 	const ring = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2 + 50, HALF * 2 + 50), new THREE.ShaderMaterial({
 		transparent: true, depthWrite: false,
-		uniforms: { color: { value: new THREE.Color(0x2a2e2a) }, edge: { value: HALF - 1 } },
+		uniforms: { color: { value: new THREE.Color(0x8d8a78) }, edge: { value: HALF - 1 } },
 		vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-		fragmentShader: 'uniform vec3 color; uniform float edge; varying vec2 vP; void main(){ float d = max(abs(vP.x), abs(vP.y)); gl_FragColor = vec4(color, smoothstep(edge - 9.0, edge, d) * 0.92); }',
+		fragmentShader: 'uniform vec3 color; uniform float edge; varying vec2 vP; void main(){ float d = max(abs(vP.x), abs(vP.y)); float k = smoothstep(edge - 10.0, edge + 4.0, d); gl_FragColor = vec4(color, k * k * (3.0 - 2.0 * k) * 0.88); }',
 	}));
 	ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
 	group.add(ring);

@@ -143,6 +143,11 @@ export function createFire(root, x, y, z, { size = 1, light = true, smoke = true
 	pool.position.y = 0.04 - y;
 	pool.scale.setScalar(4.5 * size);
 	group.add(pool);
+	// широкий тёплый отсвет вокруг: свет огня ложится на землю и стены рядом, дрожит вместе с пламенем
+	const halo = new THREE.Mesh(pool.geometry, new THREE.MeshBasicMaterial({ map: dotTexture(), color: 0xffa050, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+	halo.position.y = 0.038 - y;
+	halo.scale.setScalar(10 * size);
+	group.add(halo);
 	const lamp = light ? new THREE.PointLight(0xff8a40, 8 * size, 9 * size, 1.6) : null;
 	if (lamp) { lamp.position.y = 0.9 * size; group.add(lamp); }
 	// дым и искры — по кругу из небольшого запаса
@@ -178,6 +183,8 @@ export function createFire(root, x, y, z, { size = 1, light = true, smoke = true
 			glow /= tongues.length;
 			if (lamp) lamp.intensity = 8 * size * (0.7 + glow * 0.45);
 			pool.material.opacity = 0.32 + glow * 0.18;
+			halo.material.opacity = 0.1 + glow * 0.09;
+			halo.scale.setScalar(size * (9.4 + glow * 1.2));
 			heat.material.opacity = 0.35 + glow * 0.25;
 			for (const s of puffs) {
 				const u = s.userData;

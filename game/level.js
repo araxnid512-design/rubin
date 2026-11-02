@@ -9,6 +9,7 @@ import { Batch, box, place, planeXZ } from './geom.js';
 import { Fader, segmentHitsBox } from './buildings.js';
 import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls } from './props.js';
 import { dressLevel } from './dressing.js';
+import { groundVariation, scatterGroundDetail } from './ground-detail.js';
 import zarechny from './locations/zarechny.js';
 import dachi from './locations/dachi.js';
 import stab from './locations/stab.js';
@@ -95,6 +96,12 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		return c;
 	};
 	const M = materials();
+	// крупная неровность цвета по месту: асфальт и грунт где светлее, где темнее, трава местами выгорела
+	groundVariation(M.grass, { amp: 0.16, tint: [1.18, 1.08, 0.72], tintAmp: 0.55 });
+	groundVariation(M.asphalt, { amp: 0.19, tint: [1.06, 1.03, 0.96], tintAmp: 0.4 });
+	groundVariation(M.dirt, { amp: 0.14, tint: [0.86, 0.84, 0.8], tintAmp: 0.4 });
+	groundVariation(M.sand, { amp: 0.12 });
+	groundVariation(M.ballast, { amp: 0.12 });
 
 	// ---------- Земля ----------
 	batch.add(planeXZ(HALF * 2 + 60, HALF * 2 + 60, 7 * (HALF * 2 + 60) / 150), M.grass, { cast: false });
@@ -189,6 +196,9 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 
 	// ---------- Трава ----------
 	if (quality !== 'low') grassTufts(root, navProbe, rnd, Math.round((quality === 'high' ? 2600 : 1200) * (spec.grass ?? 1) * AREA), indoors, onRoad, CHUNK);
+
+	// ---------- Детали на земле: трещины, заплатки, масло, люки, листья, проплешины ----------
+	if (quality !== 'low') scatterGroundDetail(batch, grounds, (x, z) => !indoors(x, z, 0.4) && !nearExit(x, z, 1) && !navProbe.blockedAt(x, z, 0.25), rnd, PLAY - 2, { density: spec.groundDetail ?? 1 });
 
 	// ---------- Муть по краям кластера (у стаба её нет) ----------
 	const fog = spec.fog === false ? null : fogWalls(root);
