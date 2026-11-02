@@ -73,7 +73,15 @@ func _ready() -> void:
 	add_child(hud)
 	hud.setup(self)
 	for path in FEATURE_SCRIPTS:
-		var f: Node = (load(path) as GDScript).new()
+		# система с ошибкой в скрипте не роняет игру: пропускается (в автотесте — провал)
+		var scr := load(path) as GDScript
+		if scr == null or not scr.can_instantiate():
+			push_error("Система не загрузилась: %s" % path)
+			if smoke:
+				print("✗ система не загрузилась: %s" % path)
+				smoke_fail += 1
+			continue
+		var f: Node = scr.new()
 		f.name = path.get_file().get_basename()
 		add_child(f)
 		features.append(f)

@@ -486,11 +486,11 @@ func smoke() -> int:
 	# автотест игры уже прошёл по всем локациям — у каждой должен быть свой план
 	for id in Data.NODES:
 		var tex: ImageTexture = plans.get(id)
-		var ok := tex != null and tex.get_width() >= int(132.0 * PX) - 2
+		var ok: bool = tex != null and tex.get_width() >= int(132.0 * PX) - 2
 		print(("✓ " if ok else "✗ ") + "миникарта: план «%s» %s" % [Data.NODES[id]["short"], ("%d×%d" % [tex.get_width(), tex.get_height()]) if tex else "не нарисован"])
 		if not ok:
 			fail += 1
-	var shown := holder.visible and mini_map.texture == plans.get(game.loc)
+	var shown: bool = holder.visible and mini_map.texture == plans.get(game.loc)
 	print(("✓ " if shown else "✗ ") + "миникарта в углу показывает план текущей локации (%s)" % game.loc)
 	if not shown:
 		fail += 1

@@ -53,7 +53,7 @@ func _check_env() -> int:
 	var env: Environment = game.env
 	var sun := game.get_node_or_null("Sun") as DirectionalLight3D
 	var fill := game.get_node_or_null("Fill") as DirectionalLight3D
-	var ok := env != null and env.tonemap_mode == Environment.TONE_MAPPER_ACES and env.fog_enabled
+	var ok: bool = env != null and env.tonemap_mode == Environment.TONE_MAPPER_ACES and env.fog_enabled
 	ok = ok and sun != null and sun.light_color.r > sun.light_color.b and fill != null and fill.light_color.b > fill.light_color.r
 	return _check(ok, "окружение: ACES, дымка, тёплое солнце (%s) и голубоватый заполняющий свет" % (sun.light_color.to_html(false) if sun else "нет"))
 
@@ -79,14 +79,14 @@ func _check_quality(lv: Level) -> int:
 	lv.apply_quality(0)
 	await game.get_tree().process_frame
 	var g0 := lv.grass_visible()
-	var low_ok := sun != null and not sun.shadow_enabled and not env.glow_enabled
+	var low_ok: bool = sun != null and not sun.shadow_enabled and not env.glow_enabled
 	var d0: int = estimate_draws(game, game.camera)["draws"]
 	lv.apply_quality(1)
 	var g1 := lv.grass_visible()
 	lv.apply_quality(2)
 	await game.get_tree().process_frame
 	var g2 := lv.grass_visible()
-	var high_ok := sun != null and sun.shadow_enabled and env.glow_enabled
+	var high_ok: bool = sun != null and sun.shadow_enabled and env.glow_enabled
 	var d2: int = estimate_draws(game, game.camera)["draws"]
 	lv.apply_quality(was)
 	return _check(g0 < g1 and g1 < g2 and low_ok and high_ok, "качество: трава и бурьян %d / %d / %d, тени солнца и свечение только на высоком, вызовов в кадре ≈ %d (низкое) / %d (высокое, без учёта теней)" % [g0, g1, g2, d0, d2])

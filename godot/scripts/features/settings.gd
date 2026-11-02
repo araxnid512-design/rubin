@@ -259,7 +259,7 @@ func smoke() -> int:
 	for id in ORDER:
 		set_quality(id)
 		res.append([id, vp.scaling_3d_scale, vp.msaa_3d, game.camera.far])
-	var ok := absf(res[0][1] - 0.7) < 0.01 and absf(res[1][1] - 0.85) < 0.01 and absf(res[2][1] - 1.0) < 0.01 and res[0][2] == Viewport.MSAA_DISABLED and res[2][3] > res[0][3]
+	var ok: bool = absf(res[0][1] - 0.7) < 0.01 and absf(res[1][1] - 0.85) < 0.01 and absf(res[2][1] - 1.0) < 0.01 and res[0][2] == Viewport.MSAA_DISABLED and res[2][3] > res[0][3]
 	print(("✓ " if ok else "✗ ") + "качество меняет масштаб рендера: %s" % ", ".join(res.map(func(r): return "%s %.2f" % [QUALITY[r[0]]["name"], r[1]])))
 	if not ok:
 		fail += 1

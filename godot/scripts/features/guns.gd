@@ -14,7 +14,7 @@ func smoke() -> int:
 	for id in Data.NEW_WEAPONS:
 		var w := Data.weapon(id)
 		var path := "res://assets/weapons/%s.glb" % w.get("model", id)
-		var ok := w.get("model", "") == id and ResourceLoader.exists(path)
+		var ok: bool = w.get("model", "") == id and ResourceLoader.exists(path)
 		var info := "нет файла %s" % path
 		if ok:
 			var node: Node3D = (load(path) as PackedScene).instantiate()
