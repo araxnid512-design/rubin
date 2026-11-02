@@ -1,6 +1,7 @@
 # Tripo через вход по аккаунту (кредиты сайта Studio): официальная программа tripo (@tripo3d/cli).
-# 1) tripo auth login — ссылка для подтверждения входа выкладывается в ветку tripo-status (status/login.md),
-#    пользователь открывает её на телефоне и подтверждает; 2) баланс, цены и справка по командам — в
+# 1) вход (scripts/tripo-login.sh): сохранённая зашифрованная сессия из ветки tripo-session, иначе tripo auth
+#    login — Tripo шлёт код на почту аккаунта, пользователь кладёт его в секрет TRIPO_CODE, сборка «Tripo: код»
+#    (tripo-code.yml) передаёт его сюда зашифрованным (ветка tripo-code), сессия сохраняется; 2) баланс, цены и справка по командам — в
 #    status/info.md; 3) задания из ветки tripo-control (jobs.json) выполняет scripts/tripo-cli-runner.py,
 #    готовые файлы и журнал — в ветке tripo-status. Предел трат — budget кредитов от баланса на старте.
 name: Tripo (аккаунт)
@@ -44,28 +45,11 @@ jobs:
         run: |
           npm i -g @tripo3d/cli@0.8.1 > /dev/null
           tripo version
-      - name: Вход по аккаунту (письмо с подтверждением — на почту аккаунта; ход входа — в ветке tripo-status)
-        run: |
-          set +e
-          mkdir -p status
-          if [ -z "$TRIPO_EMAIL" ]; then
-            echo "# Вход в Tripo: нет секрета TRIPO_EMAIL" > status/login.md; bash scripts/tripo-publish.sh; exit 1
-          fi
-          # программа спрашивает почту, отправляет письмо и ждёт подтверждения — ввод держим открытым
-          ( { printf '%s\n' "$TRIPO_EMAIL"; sleep 1500; } | tripo auth login > login.log 2>&1; echo "LOGIN_EXIT=$?" >> login.log ) &
-          published=""
-          for i in $(seq 1 600); do
-            sleep 2
-            # ссылка и код подтверждения — в журнал входа (без токенов: их программа хранит у себя)
-            if [ -s login.log ] && [ "$(md5sum < login.log)" != "$published" ]; then
-              { echo "# Вход в Tripo ($(date -u +%H:%M:%S) UTC)"; echo; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' -e "s/$TRIPO_EMAIL/<почта>/g" login.log | head -40; echo '```'; } > status/login.md
-              bash scripts/tripo-publish.sh
-              published=$(md5sum < login.log)
-            fi
-            grep -q "LOGIN_EXIT=" login.log && break
-          done
-          cat login.log
-          tripo auth whoami
+      - name: Вход по аккаунту
+        env:
+          # сохранённый вход (сессия программы tripo) хранится в ветке tripo-session зашифрованным этим секретом
+          SESSION_PASS: ${{ secrets.TRIPO_API_KEY }}
+        run: bash scripts/tripo-login.sh
       - name: Баланс, цены, справка по командам
         run: |
           set +e

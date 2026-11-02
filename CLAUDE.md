@@ -14,6 +14,11 @@
   лучше всего, CC-BY — с авторами в `godot/assets/external/LICENSES.md`; не брать платное и «рипы» из
   коммерческих игр. Каталог — `docs/assets-catalog.md`, скачивание в CI — `scripts/fetch-assets.mjs`
   (из облачной среды большинство сайтов ассетов закрыто; открыт raw.githubusercontent.com).
+- **Перед любой работой с Tripo читай `docs/tripo/TRIPO_RULES.md` и соблюдай его** (пакет правил пользователя:
+  бюджет и журнал `docs/tripo/tripo_budget.md`, список `ASSET_LIST.md`, шаблоны `PROMPT_TEMPLATES.md`; перед
+  платной операцией — план и «ок» пользователя). Кредиты сайта Studio тратит программа tripo после входа по
+  аккаунту (CI «Tripo (аккаунт)», `scripts/tripo-login.sh`, задания — ветка `tripo-control`); ключ API берёт
+  кредиты из отдельного кошелька (там 0).
 - **Ориентир по картинке** — концепт «STIKS_location_concept_v1» из пакета пользователя и мобильная
   Dawn of Zombies: Survival; **FPS на телефоне — главное**: любые улучшения — с замером и профилями
   качества Низкое/Среднее/Высокое.
