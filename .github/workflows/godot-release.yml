@@ -1,0 +1,88 @@
+# Godot-версия игры (godot/): на каждом изменении — выгрузка локаций, оружия и персонажей из браузерной игры
+# (scripts/export-godot.mjs), импорт в Godot, автотест (godot -- --smoke: бой, износ, обыск, переходы по всем
+# локациям), сборка APK для Android и выкладка в релиз «game»:
+#   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-godot.apk
+name: Godot-версия
+
+on:
+  push:
+    branches: [main, ccr-f5d34f3a-q7wlgf]
+    paths:
+      - 'godot/**'
+      - 'game/**'
+      - '!game/version.js'
+      - 'models/game/*.glb'
+      - 'tools/godot-export.html'
+      - 'scripts/export-godot.mjs'
+      - '.github/workflows/godot-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: godot-release
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Выгрузить локации, оружие и персонажей
+        run: node scripts/export-godot.mjs
+      - name: Установить Godot и шаблоны экспорта
+        run: |
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          wget -q "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          wget -q "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p "$HOME/godot-bin"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -d "$HOME/godot-bin"
+          mv "$HOME/godot-bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$HOME/godot-bin/godot"
+          echo "$HOME/godot-bin" >> "$GITHUB_PATH"
+          tpl="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tpl"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -d /tmp/tpl
+          mv /tmp/tpl/templates/* "$tpl/"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Импорт ресурсов
+        run: |
+          godot --version
+          timeout 1200 godot --headless --path godot --import 2>&1 | grep -v "^\s*$" | tail -60 || true
+          test -d godot/.godot/imported
+      - name: Автотест
+        run: |
+          timeout 900 godot --headless --path godot -- --smoke 2>&1 | tee smoke.log
+          grep -q "SMOKE: OK" smoke.log
+      - name: Собрать APK
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/android/app/debug.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: android
+        run: |
+          mkdir -p "$HOME/.config/godot" download
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/editor_settings-4.4.tres"
+          sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/; s/^version\/name=.*/version\/name=\"0.${{ github.run_number }}\"/" godot/export_presets.cfg
+          timeout 1200 godot --headless --path godot --export-release "Android" "$PWD/download/ulei-godot.apk" 2>&1 | tail -40
+          ls -la download
+      - name: Проверить APK
+        run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$bt/apksigner" verify --verbose --print-certs download/ulei-godot.apk | head -20
+          "$bt/aapt2" dump badging download/ulei-godot.apk | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|native-code)"
+      - name: Выложить в релиз «game»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload game download/ulei-godot.apk --clobber

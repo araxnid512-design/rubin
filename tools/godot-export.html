@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<title>Godot Export</title>
+	<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head>
+<body>
+	<!-- Выгрузка для Godot-версии (godot/): локации — тем же кодом, что строит их в браузерной игре, — в GLB
+	     и данные в JSON (стены, тайники, выходы, здания, сетка проходимости, места заражённых); оружие — в GLB
+	     с точкой ствола. Запускает scripts/export-godot.mjs. -->
+	<script type="module">
+		import * as THREE from 'three';
+		import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+		import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+		import { buildLevel, LOCATIONS, PLAY, HALF } from '../game/level.js';
+		import { WEAPONS } from '../game/weapons.js';
+
+		const exporter = new GLTFExporter();
+		const r3 = (v) => Math.round(v * 1000) / 1000;
+		const b64 = (buf) => {
+			const bytes = new Uint8Array(buf);
+			let s = '';
+			for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+			return btoa(s);
+		};
+
+		/**
+		 * То, чего нет в glTF: спрайты, частицы, свет и шейдерная муть — вон; экземпляры (деревья, трава) —
+		 * один образец MM<k> в начале координат, а их места — в meta.multimesh[k] (Godot размножит MultiMesh).
+		 */
+		function prepare(root, meta) {
+			const drop = [];
+			root.updateMatrixWorld(true);
+			meta.multimesh = [];
+			const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), m = new THREE.Matrix4(), w = new THREE.Matrix4();
+			root.traverse((o) => {
+				if (o.name === 'FogWalls' || o.isSprite || o.isPoints || o.isLight || (o.material && [o.material].flat().some((mm) => mm.isShaderMaterial))) { drop.push(o); return; }
+				if (o.isInstancedMesh) {
+					const k = meta.multimesh.length, xf = new Float32Array(o.count * 12);
+					for (let i = 0; i < o.count; i++) {
+						o.getMatrixAt(i, m);
+						w.multiplyMatrices(inv, o.matrixWorld).multiply(m);
+						const e = w.elements;
+						xf.set([e[0], e[1], e[2], e[4], e[5], e[6], e[8], e[9], e[10], e[12], e[13], e[14]], i * 12);
+					}
+					const proto = new THREE.Mesh(o.geometry, [o.material].flat()[0]);
+					proto.name = `MM${k}`;
+					root.add(proto);
+					meta.multimesh.push({ node: proto.name, count: o.count, xf: b64(xf.buffer) });
+					drop.push(o);
+				}
+			});
+			for (const o of drop) o.removeFromParent();
+			// непрозрачные картинки — в JPEG (вчетверо меньше), с прозрачностью — PNG
+			const seen = new Set();
+			root.traverse((o) => {
+				for (const mat of o.material ? [o.material].flat() : []) {
+					for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) {
+						const t = mat[key], img = t?.image;
+						if (!img || seen.has(t)) continue;
+						seen.add(t);
+						let opaque = key !== 'alphaMap';
+						if (opaque && img.getContext) {
+							const d = img.getContext('2d').getImageData(0, 0, img.width, img.height).data;
+							for (let i = 3; i < d.length; i += 4) if (d[i] < 250) { opaque = false; break; }
+						}
+						t.userData.mimeType = opaque ? 'image/jpeg' : 'image/png';
+					}
+				}
+			});
+		}
+
+		async function glb(object) {
+			const out = await exporter.parseAsync(object, { binary: true, onlyVisible: false, maxTextureSize: 1024 });
+			return b64(out);
+		}
+		/** glTF с картинками и буфером внутри (data: URI) — scripts/export-godot.mjs разложит их по файлам. */
+		async function gltf(object) {
+			return JSON.stringify(await exporter.parseAsync(object, { binary: false, onlyVisible: false, maxTextureSize: 512 }));
+		}
+
+		window.exportLevel = async (id) => {
+			const scene = new THREE.Scene();
+			const L = buildLevel(scene, { quality: 'medium', id });
+			// что нужно Godot-версии для игры
+			const meta = {
+				id, half: HALF, play: PLAY, edge: L.edge,
+				start: { x: r3(L.start.pos.x), z: r3(L.start.pos.z), ry: r3(L.start.ry) },
+				colliders: L.colliders.map((c) => [r3(c.x), r3(c.z), r3(c.hx), r3(c.hz), r3(c.rot), c.wall ? 1 : 0]),
+				containers: L.containers.map((c) => ({ name: c.name, building: c.building, x: r3(c.x), z: r3(c.z), ax: r3(c.ax), az: r3(c.az), loot: c.loot })),
+				exits: L.exits.map((e) => ({ to: e.to, x0: e.x0, x1: e.x1, z0: e.z0, z1: e.z1, spawn: [r3(e.spawn.x), r3(e.spawn.z), r3(e.ry)] })),
+				groups: L.groups,
+				stations: L.stations,
+				npcs: L.npcs,
+				posts: L.posts, barracksDoor: L.barracksDoor,
+				buildings: L.buildings.map((b) => ({ name: b.name, cx: r3(b.cx), cz: r3(b.cz), ry: r3(b.ry), w: r3(b.W), d: r3(b.D), upper: b.group?.name ?? null, hint: L.hint?.(b) ?? null })),
+				barrels: L.barrels.map((b) => [r3(b.pos.x), r3(b.pos.z)]),
+				plan: { grounds: L.plan.grounds, trees: L.plan.trees.map((t) => [r3(t.x), r3(t.z), t.kind]), water: L.plan.water },
+				nav: { n: L.nav.N, cell: L.nav.CELL, blocked: b64(L.nav.blocked.buffer) },
+			};
+			// комната героя в стабе — прямоугольник по точкам внутри
+			if (L.room) {
+				let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+				for (let x = -HALF; x < HALF; x += 0.25) for (let z = -HALF; z < HALF; z += 0.25) if (L.room.contains({ x, z })) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+				meta.room = { x0, x1, z0, z1, spots: L.room.spots.map((s) => [r3(s.x), r3(s.z), r3(s.ry ?? 0)]) };
+			}
+			// огонь (в glTF его нет — Godot зажигает свой): по группам с языками пламени
+			meta.fires = [];
+			L.root.traverse((o) => { if (o.isGroup && o.children.some((c) => c.isSprite)) meta.fires.push([r3(o.position.x), r3(o.position.y), r3(o.position.z)]); });
+			prepare(L.root, meta);
+			const data = await gltf(L.root);
+			L.dispose?.();
+			return { gltf: data, meta };
+		};
+
+		window.exportWeapon = async (id) => {
+			const W = WEAPONS[id];
+			const g = W.make();
+			// точка ствола — пустой узел Muzzle (для вспышки и пуль)
+			if (g.userData.muzzle) { const m = new THREE.Object3D(); m.name = 'Muzzle'; m.position.copy(g.userData.muzzle); g.add(m); }
+			const scene = new THREE.Scene();
+			scene.add(g);
+			const { make, ...stats } = W;
+			return { glb: await glb(scene), stats };
+		};
+		window.weaponIds = () => Object.keys(WEAPONS);
+		window.levelIds = () => Object.keys(LOCATIONS);
+		window.ready = true;
+	</script>
+</body>
+</html>

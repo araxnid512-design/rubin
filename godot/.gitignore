@@ -1,0 +1,9 @@
+# Godot: кэш импорта и сборки
+.godot/
+*.import
+# ассеты выгружает scripts/export-godot.mjs (CI собирает их сам)
+assets/levels/
+assets/textures/
+assets/weapons/
+assets/characters/
+export/

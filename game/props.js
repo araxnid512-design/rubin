@@ -417,6 +417,7 @@ export function fogWalls(root) {
 	const tex = T.fogWallTexture();
 	const mats = [];
 	const group = new THREE.Group();
+	group.name = 'FogWalls';
 	for (let side = 0; side < 4; side++) {
 		for (let layer = 0; layer < 3; layer++) {
 			const t = tex.clone();
