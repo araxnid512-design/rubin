@@ -13,8 +13,11 @@ mkdir -p "$OUT"
   if adb install -r "$APK"; then echo "INSTALL: OK ($APK)"; else echo "INSTALL: FAIL ($APK)"; fi
   echo "== запуск"
   adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1
-  sleep 25
-  if adb shell pidof "$PKG" >/dev/null; then echo "RUN: OK (процесс жив через 25 с)"; else echo "RUN: FAIL (процесс не жив)"; fi
+  # в эмуляторе графика программная — локация грузится долго: снимки через 40 и 100 с
+  sleep 40
+  adb exec-out screencap -p > "$OUT/screen-40s.png" || true
+  sleep 60
+  if adb shell pidof "$PKG" >/dev/null; then echo "RUN: OK (процесс жив через 100 с)"; else echo "RUN: FAIL (процесс не жив)"; fi
 } 2>&1 | tee "$OUT/result.txt"
 adb exec-out screencap -p > "$OUT/screen.png" || true
 adb logcat -d -v brief | grep -iE "godot|FATAL|AndroidRuntime|libc|DEBUG" | tail -300 > "$OUT/logcat.txt" || true
