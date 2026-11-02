@@ -37,6 +37,43 @@
     "-o",
     "out/w_ak74.glb"
    ]
+  },
+  {
+   "id": "player_rigcheck",
+   "timeout": 900,
+   "args": [
+    "process",
+    "rig",
+    "49ac4f0d-97bf-45e2-aac8-6a1c5f4d5866",
+    "--check",
+    "--timeout",
+    "10m"
+   ]
+  },
+  {
+   "id": "player_rig",
+   "timeout": 1500,
+   "args": [
+    "process",
+    "rig",
+    "49ac4f0d-97bf-45e2-aac8-6a1c5f4d5866",
+    "--rig-type",
+    "biped",
+    "--format",
+    "glb",
+    "--timeout",
+    "20m",
+    "-o",
+    "out/player_rigged.glb"
+   ]
+  },
+  {
+   "id": "balance1",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ],
  "stop": false
