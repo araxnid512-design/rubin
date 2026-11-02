@@ -96,6 +96,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		return c;
 	};
 	const M = materials();
+	for (const [k, m] of Object.entries(M)) m.name = k; // имена — для выгрузки в Godot (шейдеры по имени материала)
 	// крупная неровность цвета по месту: асфальт и грунт где светлее, где темнее, трава местами выгорела
 	groundVariation(M.grass, { amp: 0.16, tint: [1.18, 1.08, 0.72], tintAmp: 0.55 });
 	groundVariation(M.asphalt, { amp: 0.19, tint: [1.06, 1.03, 0.96], tintAmp: 0.4 });
