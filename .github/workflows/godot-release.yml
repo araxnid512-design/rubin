@@ -17,6 +17,7 @@ on:
       - 'tools/godot-export.html'
       - 'scripts/export-godot.mjs'
       - '.github/workflows/godot-release.yml'
+      - 'site/ulei-godot/**'
   workflow_dispatch:
 
 permissions:
@@ -81,7 +82,15 @@ jobs:
           mkdir -p "$HOME/.config/godot" download
           printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/editor_settings-4.4.tres"
           sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/; s/^version\/name=.*/version\/name=\"0.${{ github.run_number }}\"/" godot/export_presets.cfg
-          timeout 1200 godot --headless --path godot --export-release "Android" "$PWD/download/ulei-godot.apk" 2>&1 | tail -40
+          # основная сборка — через Gradle, как у «Стикса» и «Клонов» (стандартный Android-пакет);
+          # если Gradle не справится — прежняя сборка из готового шаблона
+          timeout 600 godot --headless --path godot --install-android-build-template 2>&1 | tail -5 || true
+          timeout 1500 godot --headless --path godot --export-release "Android" "$PWD/download/ulei-godot.apk" 2>&1 | tail -60 || true
+          if [ -s download/ulei-godot.apk ]; then echo "APK_BUILD=gradle" | tee -a "$GITHUB_ENV"; else
+            echo "Gradle-сборка не удалась — собираю из готового шаблона"
+            timeout 1200 godot --headless --path godot --export-release "Android-plain" "$PWD/download/ulei-godot.apk" 2>&1 | tail -40
+            echo "APK_BUILD=plain" | tee -a "$GITHUB_ENV"
+          fi
           # тестовая сборка под x86_64 — только для проверки на эмуляторе (в релиз не идёт)
           sed -i "s/^version\/code=1$/version\/code=${{ github.run_number }}/" godot/export_presets.cfg
           timeout 1200 godot --headless --path godot --export-release "Android-x86_64" "$PWD/download/ulei-godot-x86_64.apk" 2>&1 | tail -5
@@ -90,7 +99,10 @@ jobs:
         run: |
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$bt/apksigner" verify --verbose --print-certs download/ulei-godot.apk | head -20
-          "$bt/aapt2" dump badging download/ulei-godot.apk | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|native-code)"
+          "$bt/aapt2" dump badging download/ulei-godot.apk | grep -E "^(package|sdkVersion|targetSdkVersion|launchable-activity|native-code)"
+          echo "сборка: $APK_BUILD, размер: $(du -h download/ulei-godot.apk | cut -f1)"
+          # что занимает место в APK
+          unzip -l download/ulei-godot.apk | sort -k1 -n -r | head -15
       - name: Выложить в релиз «game»
         env:
           GH_TOKEN: ${{ github.token }}
@@ -99,6 +111,19 @@ jobs:
           # застревать на 100% у .apk — ZIP скачивается сразу, APK внутри ставится из «Файлов»
           (cd download && zip -0 -q ulei-godot-apk.zip ulei-godot.apk)
           gh release upload game download/ulei-godot.apk download/ulei-godot-apk.zip --clobber
+      - name: Страница скачивания (gh-pages/ulei-godot)
+        run: |
+          mkdir -p _site_godot
+          cp godot/icons/icon_512.png _site_godot/icon.png
+          sed -e "s/__VERSION__/0.${{ github.run_number }}/g" -e "s/__SIZE__/$(du -m download/ulei-godot.apk | cut -f1)/g" -e "s/__DATE__/$(date -u +%d.%m.%Y)/g" site/ulei-godot/index.html > _site_godot/index.html
+      - name: Опубликовать страницу скачивания
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site_godot
+          destination_dir: ulei-godot
+          keep_files: true # сайты «Стикса», «Клонов» и браузерного «Улья» в gh-pages не трогаем
+          commit_message: "Сайт: Улей Godot, сборка 0.${{ github.run_number }}"
       # установка и запуск на Android-эмуляторе: снимок экрана и журнал — в gh-pages/godot-test/
       - name: Включить KVM для эмулятора
         run: |

@@ -10,3 +10,5 @@ assets/sounds/
 export/
 # бесплатные ассеты (текстуры, модели, анимации, эффекты, звуки) скачивает scripts/fetch-assets.mjs
 assets/external/
+# шаблон Gradle-сборки Android (ставит CI: --install-android-build-template)
+android/
