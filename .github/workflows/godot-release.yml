@@ -118,5 +118,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./android-test
           destination_dir: godot-test
-          keep_files: false
+          keep_files: true # сайты «Стикса» и «Клонов» в gh-pages не трогаем
           commit_message: "Godot: проверка APK на эмуляторе, сборка ${{ github.run_number }}"
