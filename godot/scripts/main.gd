@@ -632,6 +632,7 @@ func _update_pickups(delta: float) -> void:
 			pickups.erase(p)
 
 func take(kind: String, n: int) -> void:
+	kind = Data.real_id(kind)   # убранный ствол (старое сохранение, предмет на земле) — ближайший новый
 	var w := Data.weapon(kind)
 	if not w.is_empty():
 		# оружие: в пустой слот — сразу, иначе — в рюкзак (kit["owned"], features/inventory.gd); такое же уже

@@ -159,5 +159,5 @@ static func roll_loot(spec: Dictionary) -> Array:
 			else:
 				out.append(["spore", maxi(1, n / 6)])
 			continue
-		out.append([k, n])
+		out.append([real_id(k), n])   # убранные стволы в старых таблицах лута — ближайшие новые
 	return out

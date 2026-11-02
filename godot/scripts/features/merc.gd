@@ -544,6 +544,10 @@ func explode(pos: Vector3) -> void:
 			if d2 < NADE_R:
 				a.hurt(NADE_FRIENDLY * (1.0 - d2 / NADE_R), pos)
 	game.noise(pos, 50.0)
+	# системы: звук взрыва, гарь, бочки рядом рвутся цепочкой — как у гранаты героя
+	for f in game.features:
+		if f.has_method("on_explosion"):
+			f.on_explosion(pos, NADE_R)
 	var l := OmniLight3D.new()
 	l.light_color = Color(1.0, 0.7, 0.35)
 	l.light_energy = 8.0

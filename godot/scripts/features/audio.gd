@@ -11,7 +11,7 @@ const FILES := [
 	"pistol", "shotgun", "ak1", "ak2", "ak3", "mg", "svd", "dry", "bolt", "flesh1", "flesh2", "chop",
 	"groan1", "groan2", "groan3", "groan4", "groan5", "zhit1", "zhit2", "zdeath1", "zdeath2", "zdeath3",
 	"step_road1", "step_road2", "step_road3", "step_grass1", "step_grass2", "step_dirt1", "step_dirt2", "step_floor1", "step_floor2",
-	"wind", "thunder",
+	"wind", "thunder", "explosion",
 ]
 const AK := ["ak1", "ak2", "ak3"]
 ## Голос ствола: записи, высота (скорость), громкость (доля); click — лязг затвора ВСС, pump — передёрнуть цевьё.
@@ -38,6 +38,7 @@ const GUNS := {
 	"ak107": {"s": AK, "rate": 1.02, "gain": 0.75},
 	"g36": {"s": AK, "rate": 1.08, "gain": 0.7},
 	"rpk": {"s": ["mg"], "rate": 1.0, "gain": 0.9},
+	"pkt": {"s": ["mg"], "rate": 0.9, "gain": 1.0},
 	"awm": {"s": ["svd"], "rate": 0.86, "gain": 1.0},
 }
 ## Голоса заражённых: чем крупнее, тем ниже и громче.
@@ -155,6 +156,9 @@ func play_at(snd: String, pos: Vector3, gain := 1.0, rate := 1.0, pool: Array = 
 	p.stream = s
 	p.global_position = pos
 	p.volume_db = linear_to_db(gain)
+	# потолок — своя громкость: иначе ближе unit_size·gain звук упирается в 0 дБ и доли громкости (тихий MP5,
+	# пуля в тело, бегун и рубер) вблизи звучат одинаково
+	p.max_db = p.volume_db
 	p.pitch_scale = rate
 	p.play()
 	started[p] = Time.get_ticks_msec() / 1000.0
@@ -181,7 +185,7 @@ func play_self(p: AudioStreamPlayer, snd: String, gain: float, rate := 1.0) -> b
 
 ## Выстрел: голос по id ствола; у чужих стволов без id — по устройству (дробь, пистолет, автомат).
 func _on_shot(_shooter, w: Dictionary, from: Vector3) -> void:
-	var G: Dictionary = GUNS.get(str(w.get("id", "")), {})
+	var G: Dictionary = GUNS.get(Data.real_id(str(w.get("id", ""))), {})
 	if G.is_empty():
 		G = GUNS["shotgun"] if int(w.get("pellets", 1)) > 1 else GUNS["pistol"] if w.get("anim", "") == "pistol" else GUNS["ak74"]
 	var names: Array = G["s"]
@@ -191,19 +195,45 @@ func _on_shot(_shooter, w: Dictionary, from: Vector3) -> void:
 	if G.get("pump", false):
 		play_later(0.28, "bolt", from, 0.55, 1.3)
 
-func _on_hit(_target, at: Vector3) -> void:
+## Пуля в тело: у дроби (9 дробин в одну цель) — один звук на цель за 80 мс; бочки (no_blood) не «чавкают».
+var _hit_t := {}
+
+func _on_hit(target, at: Vector3) -> void:
+	if is_instance_valid(target) and target.get("no_blood"):
+		return
+	var now := Time.get_ticks_msec()
+	var key: int = target.get_instance_id() if is_instance_valid(target) else 0
+	if now - int(_hit_t.get(key, -1000)) < 80:
+		return
+	_hit_t[key] = now
+	if _hit_t.size() > 64:
+		_hit_t.clear()
 	play_at("flesh1" if randf() < 0.5 else "flesh2", at + Vector3(0, 1.0, 0), 0.45, _vary(0.12))
+
+## Взрыв гранаты или бочки (grenades.gd зовёт on_explosion у систем; граната наёмника — merc.gd).
+func on_explosion(pos: Vector3, _radius: float) -> void:
+	play_at("explosion", pos + Vector3(0, 0.5, 0), 1.0, _vary(0.04))
 
 func _on_killed(target) -> void:
 	if not is_instance_valid(target):
 		return
-	var V: Dictionary = VOICES.get(str(target.get("type")), VOICES["runner"])
+	if not VOICES.has(str(target.get("type"))):
+		return   # мур и прочие люди — не рычат, как заражённые
+	var V: Dictionary = VOICES[str(target.get("type"))]
 	play_at(["zdeath1", "zdeath2", "zdeath3"].pick_random(), target.global_position + Vector3(0, 1.2, 0), float(V["gain"]) * 1.1, float(V["rate"]) * _vary(0.06))
 	groan_t.erase(target.get_instance_id())
 	states.erase(target.get_instance_id())
 
+## Удар заражённого по герою — только если рядом заражённый в замахе (пуля мура и осколки — без звука когтей).
 func _on_player_hurt(_dmg: float) -> void:
-	play_self(hurt, "zhit1" if randf() < 0.5 else "zhit2", 0.75, _vary(0.1))
+	var pl = game.player
+	if pl == null:
+		return
+	for e in game.enemies:
+		if is_instance_valid(e) and e.alive and float(e.attack_t) >= 0.0 \
+				and e.global_position.distance_to(pl.global_position) <= float(e.T.get("range", 1.3)) + 0.6:
+			play_self(hurt, "zhit1" if randf() < 0.5 else "zhit2", 0.75, _vary(0.1))
+			return
 
 ## Шум от героя с топором — это удар: если кто-то в зоне удара, слышно, как топор входит в тело.
 func _on_noise(pos: Vector3, radius: float) -> void:
@@ -218,6 +248,8 @@ func _on_noise(pos: Vector3, radius: float) -> void:
 		var to: Vector3 = e.global_position - pl.global_position
 		to.y = 0
 		var d := to.length()
+		if e.get("no_blood"):
+			continue
 		if d <= float(w.get("range", 2.0)) + float(e.T.get("radius", 0.4)) and (d < 0.3 or fwd.dot(to / d) >= cos(float(w.get("arc", 1.0)))):
 			var fist: bool = pl.weapon_id() == "fists"
 			play_at("flesh1" if fist else "chop", e.global_position + Vector3(0, 1.1, 0), 0.6 if fist else 0.8, _vary(0.08))
@@ -337,10 +369,16 @@ func smoke() -> int:
 		zs.append(game.spawn_enemy("runner", at + Vector3(2.0 + i * 0.6, 0, 3.0)))
 	n0 = played
 	_on_hit(zs[0], zs[0].global_position)
+	_on_hit(zs[0], zs[0].global_position)   # вторая дробина в ту же цель — без второго звука
 	_on_killed(zs[0])
-	_on_player_hurt(5.0)
+	_on_player_hurt(5.0)   # рядом никто не замахивается (пуля, осколок) — без звука когтей
+	var z1 = zs[1]
+	z1.global_position = game.player.global_position + Vector3(0, 0, 1.0)
+	z1.attack_t = 0.2
+	_on_player_hurt(5.0)   # заражённый в замахе рядом — звук удара
+	z1.attack_t = -1.0
 	ok = played - n0 == 3
-	print(("✓ " if ok else "✗ ") + "попадание, смерть заражённого, удар по герою: %d звука" % (played - n0))
+	print(("✓ " if ok else "✗ ") + "попадание (дробь — один звук), смерть заражённого, удар когтями только от заражённого рядом: %d звука" % (played - n0))
 	if not ok:
 		fail += 1
 	# голоса стонов ограничены
