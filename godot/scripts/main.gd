@@ -16,6 +16,11 @@ const SAVE_PATH := "user://save.json"
 ## кластера), restore(data), save_data() -> Dictionary, load_data(d), interact(station) -> bool (станции стаба),
 ## smoke() -> int (корутина автотеста: число провалов). Свой _process — как у любого узла.
 const FEATURE_SCRIPTS := [
+	"res://scripts/features/inventory.gd",
+	"res://scripts/features/stash.gd",
+	"res://scripts/features/grenades.gd",
+	"res://scripts/features/barrels.gd",
+	"res://scripts/features/marks.gd",
 ]
 const CAM_OFFSET := Vector3(0, 15.5, 9.5)   # камера сверху под углом ~58°
 ## Сколько заражённых самое большее по опасности кластера (как в браузерной игре).
@@ -532,20 +537,29 @@ func _update_pickups(delta: float) -> void:
 func take(kind: String, n: int) -> void:
 	var w := Data.weapon(kind)
 	if not w.is_empty():
+		# оружие: в пустой слот — сразу, иначе — в рюкзак (kit["owned"], features/inventory.gd); такое же уже
+		# есть — изношенное меняем на целое, а целое разбираем на ремкомплект
 		var slot: String = w.get("slot", "gun")
-		if slot == "gun" and kit.get("gun", "") == "":
-			kit["gun"] = kind
-			wear[kind] = int(w.get("durability", 500))
-			player.attach_gear()
-			toast("Подобрал: %s" % w.get("name", kind))
-		elif slot == "melee" and kit.get("melee", "") in ["", "fists"]:
-			kit["melee"] = kind
-			wear[kind] = int(w.get("durability", 60))
+		var full: int = int(w.get("durability", 500 if slot == "gun" else 60))
+		var owned: Array = kit.get("owned", [])
+		kit["owned"] = owned
+		if kit.get(slot, "") == kind or owned.has(kind):
+			if player.wear_of(kind) < full:
+				wear[kind] = full
+				toast("%s: сменил изношенный на целый" % w.get("name", kind))
+			else:
+				bag["repair"] = int(bag.get("repair", 0)) + 1
+				toast("%s уже есть — снял детали: +1 ремкомплект" % w.get("name", kind))
+		elif kit.get(slot, "") in ["", "fists"]:
+			kit[slot] = kind
+			wear[kind] = full
 			player.attach_gear()
 			toast("Подобрал: %s" % w.get("name", kind))
 		else:
-			bag["spore"] = int(bag.get("spore", 0)) + int(PRICES.get(kind, 20) / 4)
-			toast("%s — продал бы, а пока разобрал на запчасти: +%d сп." % [w.get("name", kind), int(PRICES.get(kind, 20) / 4)])
+			owned.append(kind)
+			wear[kind] = full
+			toast("Найден: %s — в рюкзаке" % w.get("name", kind))
+		hud_refresh()
 		return
 	bag[kind] = int(bag.get(kind, 0)) + n
 	var forms: Array = Data.ITEMS.get(kind, {}).get("forms", [kind, kind, kind])
@@ -625,8 +639,12 @@ func open_trade() -> void:
 	var sp: int = int(bag.get("spore", 0))
 	var acts := []
 	acts.append(["Живчик · %d сп." % PRICES["zhivchik"], _buy.bind("zhivchik"), sp >= PRICES["zhivchik"]])
-	for slot in ["melee", "gun"]:
-		var id: String = kit.get(slot, "")
+	# товары систем (гранаты, ремкомплекты): f.trade_offers(спораны) -> [[надпись, Callable, можно ли], ...]
+	for f in features:
+		if f.has_method("trade_offers"):
+			acts.append_array(f.trade_offers(sp))
+	# починка: оружие в слотах и запасное в рюкзаке
+	for id in [kit.get("melee", ""), kit.get("gun", "")] + kit.get("owned", []):
 		if id != "" and id != "fists" and repair_cost(id) > 0:
 			acts.append(["Починить %s · %d сп." % [Data.weapon(id).get("name", id), repair_cost(id)], _repair.bind(id), sp >= repair_cost(id)])
 	for id in ["axe", "pistol", "pm63", "obrez", "shotgun", "spas12", "vector", "aks", "ak74", "aug", "ak47", "scar", "fnfal", "svd", "vss", "pkm"]:
@@ -646,8 +664,15 @@ func _buy(id: String) -> void:
 	if id == "zhivchik":
 		bag["zhivchik"] = int(bag.get("zhivchik", 0)) + 1
 	else:
+		# новое — в слот, прежнее оружие слота — в рюкзак; такое же из рюкзака меняется на новое
 		var w := Data.weapon(id)
 		var slot: String = w.get("slot", "gun")
+		var owned: Array = kit.get("owned", [])
+		kit["owned"] = owned
+		owned.erase(id)
+		var old: String = kit.get(slot, "")
+		if old != "" and old != "fists" and old != id:
+			owned.append(old)
 		kit[slot] = id
 		wear[id] = int(w.get("durability", 100))
 		player.attach_gear()
@@ -745,6 +770,7 @@ func respawn_in_stab() -> void:
 			bag[k] = 0
 	kit["melee"] = "axe"
 	kit["gun"] = ""
+	kit["owned"] = []   # рюкзак пропал; сложенное в хранилище (features/stash.gd) цело
 	wear.clear()
 	wear["axe"] = 30
 	advance(90.0)
