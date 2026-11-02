@@ -443,6 +443,70 @@
     "account",
     "balance"
    ]
+  },
+  {
+   "id": "exp_rigop",
+   "timeout": 600,
+   "args": [
+    "export",
+    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "--operator-id",
+    "15f32277-ddc5-449e-a6f9-a06442e4765f",
+    "-o",
+    "out/player_rig_op.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "exp_anim_glb",
+   "timeout": 600,
+   "args": [
+    "export",
+    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "--with-animation",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/player_rig_anim.glb",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "exp_fbx",
+   "timeout": 600,
+   "args": [
+    "export",
+    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "--format",
+    "fbx",
+    "--texture-size",
+    "1024",
+    "-o",
+    "out/player_rig.fbx",
+    "--export-timeout",
+    "8m"
+   ]
+  },
+  {
+   "id": "history",
+   "timeout": 120,
+   "args": [
+    "project",
+    "history",
+    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "--output-format",
+    "json"
+   ]
+  },
+  {
+   "id": "balance4",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ],
  "stop": false
