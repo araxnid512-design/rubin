@@ -160,7 +160,9 @@ func _infected_check() -> int:
 				fy = minf(fy, (sk.global_transform * sk.get_bone_global_pose(foot)).origin.y - base)
 				handy = maxf(handy, (sk.global_transform * sk.get_bone_global_pose(hand)).origin.y - base - float(hy[-1]))
 		var moved := hy.size() == 4 and float(hy.max()) - float(hy.min()) > 0.004
-		var ok: bool = tracks > 10 and hy.size() == 4 and float(hy.min()) > 1.1 and float(hy.max()) < 2.8 and fy < 0.35 and handy < -0.1 and moved
+		# рубер ходит на четырёх (клипы браузерной игры: голова у старой модели в «ходьбе» на 0,9 м, кисти у земли)
+		var head_min := 0.75 if t == "ruber" else 1.1
+		var ok: bool = tracks > 10 and hy.size() == 4 and float(hy.min()) > head_min and float(hy.max()) < 2.8 and fy < 0.35 and handy < -0.1 and moved
 		print(("✓ " if ok else "✗ ") + "заражённый из Tripo «%s»: клипов %d (дорожек в «ходьбе» %d), голова на высоте %s м, стопа %.2f м, кисть ниже головы на %.2f м, пересчёт %d мс" % [
 			t, ap.get_animation_list().size() if ap else 0, tracks, ", ".join(hy.map(func(v): return "%.2f" % v)), fy, -handy, ms])
 		if not ok:

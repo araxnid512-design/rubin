@@ -310,6 +310,9 @@ func _merge_static() -> void:
 			keep[str(b["upper"])] = true
 	for n in meta.get("blocks", []):
 		keep[str(n["name"]) if typeof(n) == TYPE_DICTIONARY else str(n)] = true
+	# бочки с горючим не сливаются: их меш находит и взрывает features/barrels.gd (по месту из meta.barrels);
+	# слитая со статикой бочка оставалась целой на месте взрыва, а поверх рисовалась запасная
+	var barrel_at: Array = meta.get("barrels", [])
 	var meshes: Array[MeshInstance3D] = []
 	_collect_meshes(model, meshes)
 	var static_root := Node3D.new()
@@ -325,6 +328,8 @@ func _merge_static() -> void:
 			continue
 		var unit := _unit_of(mi, keep)
 		var xf := _rel_xform(mi, unit)
+		if unit == model and _is_barrel(xf.origin, barrel_at):
+			continue
 		var all_tri := true
 		for s in mesh.get_surface_count():
 			if mesh.surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
@@ -386,6 +391,15 @@ func _merge_static() -> void:
 	stats["merge_tried"] = tried
 	stats["merge_done"] = done
 	stats["merge_ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+
+## Меш на высоте бочки (0,3–0,6 м) точно над местом из meta.barrels — так же их ищет features/barrels.gd.
+static func _is_barrel(p: Vector3, list: Array) -> bool:
+	if p.y < 0.3 or p.y > 0.6:
+		return false
+	for b in list:
+		if absf(p.x - float(b[0])) < 0.06 and absf(p.z - float(b[1])) < 0.06:
+			return true
+	return false
 
 ## Слить поверхности [меш, № поверхности, положение, цвет, …] в один меш (одноцветные — с цветом в вершинах).
 ## surface_get_arrays в gl_compatibility читает буферы из видеопамяти, поэтому зовётся только там, где сливать
