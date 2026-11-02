@@ -11,6 +11,8 @@ extends SkeletonModifier3D
 
 const HeroPoseScript := preload("res://scripts/hero_pose.gd")
 const REACH := 0.98
+## Насколько ближе к себе можно перехватить цевьё, м (как у героя — SkinFollow.SLIDE_MAX).
+const SLIDE_MAX := 0.22
 
 ## Правая кисть → хват (узел, куда кладут оружие); левая кисть → точка опоры цевья. Ставит хозяин (bandit.gd, merc.gd).
 var grip_r := Transform3D.IDENTITY
@@ -98,10 +100,24 @@ func _process_modification() -> void:
 	if left > 0.001 and has_marker:
 		var g := sk.get_bone_global_pose(_r[2]) * grip_r
 		var goal_l := g * marker * grip_l.affine_inverse()
+		# не достаёт до цевья (длинный ствол, руки модели короче) — перехват ближе, по стволу назад (+Y хвата), до SLIDE_MAX
+		var sh := sk.get_bone_global_pose(_l[0]).origin
+		var lim := (sk.get_bone_global_pose(_l[1]).origin.distance_to(sh) + sk.get_bone_global_pose(_l[2]).origin.distance_to(sk.get_bone_global_pose(_l[1]).origin)) * REACH
+		if goal_l.origin.distance_to(sh) > lim:
+			var back := g.basis.y.normalized()
+			var d0 := goal_l.origin - sh
+			var bd := back.dot(d0)
+			var disc := bd * bd - (d0.length_squared() - lim * lim)
+			var slide := (-bd - sqrt(disc)) if disc >= 0.0 else -bd
+			goal_l.origin += back * clampf(slide, 0.0, SLIDE_MAX / unit)
 		var now_l := sk.get_bone_global_pose(_l[2])
 		var chest_b := sk.get_bone_global_pose(_chest).basis.orthonormalized() * _chest_fix if _chest >= 0 else Basis.IDENTITY
 		_solve(sk, _l, now_l.interpolate_with(goal_l, clampf(left, 0.0, 1.0)), chest_b * Gear.POLE_L)
-		left_error = (sk.get_bone_global_pose(_l[2]) * grip_l).origin.distance_to((g * marker).origin)
+		# промах — до цевья с учётом перехвата ближе (отрезок от точки опоры назад по стволу до SLIDE_MAX)
+		var palm := (sk.get_bone_global_pose(_l[2]) * grip_l).origin
+		var fore := (g * marker).origin
+		var bk := g.basis.y.normalized()
+		left_error = palm.distance_to(fore + bk * clampf((palm - fore).dot(bk), 0.0, SLIDE_MAX / unit))
 
 ## Двухзвенный IK: плечо → локоть → кисть; кисть — в target (точка и поворот, оси скелета). Локоть — в плоскости,
 ## где он сейчас (по клипу), если рука почти прямая — по подсказке hint.

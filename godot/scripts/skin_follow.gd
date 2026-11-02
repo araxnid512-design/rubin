@@ -24,7 +24,7 @@ const HeroPoseScript := preload("res://scripts/hero_pose.gd")
 const REACH := 0.98
 ## Ключица навстречу цели, рад (26°), и перехват цевья ближе к себе, м.
 const CLAV_MAX := 0.45
-const SLIDE_MAX := 0.14
+const SLIDE_MAX := 0.22
 
 var src: Skeleton3D
 var dst: Skeleton3D
@@ -333,7 +333,10 @@ func _follow(force := false) -> void:
 			if grip_node:
 				grip_node.global_transform = grip_world
 		elif two > 0.5:
-			left_error = hand.origin.distance_to(grip_world * marker.origin)
+			# промах — до цевья с учётом перехвата ближе (отрезок от точки опоры назад по стволу до SLIDE_MAX)
+			var fore := grip_world * marker.origin
+			var back := grip_world.basis.y.normalized()
+			left_error = hand.origin.distance_to(fore + back * clampf((hand.origin - fore).dot(back), 0.0, SLIDE_MAX))
 
 ## Крепление на теле новой модели: узел у сустава кости short (имя Mixamo, напр. «Spine2»), local — место и оси
 ## в осях парной кости старого скелета (x — влево, y — вверх, z — вперёд, от сустава новой модели). Узел — ребёнок
