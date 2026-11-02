@@ -59,11 +59,27 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 	for c in LOOPED:
 		if anim and anim.has_animation(c):
 			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
-	grip = model.find_child("GripR", true, false)
+	grip = attach_point(model, "GripR")
 	for m in MOUNTS:
-		mounts[m] = model.find_child(MOUNTS[m], true, false)
+		mounts[m] = attach_point(model, MOUNTS[m])
 	attach_gear()
 	play(clips()["idle"], 0.0)
+
+## Точка крепления (хват, чехол, кобура): при импорте glTF узлы под костями становятся костями скелета —
+## тогда к такой кости цепляется BoneAttachment3D.
+static func attach_point(root: Node, point: String) -> Node3D:
+	var found: Node = root.find_child(point, true, false)
+	if found is Node3D and not found is Skeleton3D:
+		return found
+	for sk in root.find_children("*", "Skeleton3D", true, false):
+		var skel: Skeleton3D = sk
+		if skel.find_bone(point) >= 0:
+			var ba := BoneAttachment3D.new()
+			ba.name = point + "Attach"
+			ba.bone_name = point
+			skel.add_child(ba)
+			return ba
+	return null
 
 func weapon_id() -> String:
 	var id: String = kit.get(hold, "")

@@ -227,7 +227,7 @@ func _spawn_npcs() -> void:
 			ap.play(c)
 			ap.seek(randf() * 2.0, true)
 		if n.has("gun"):
-			var grip: Node3D = m.find_child("GripR", true, false)
+			var grip: Node3D = Player.attach_point(m, "GripR")
 			var path := "res://assets/weapons/%s.glb" % n["gun"]
 			if grip and ResourceLoader.exists(path):
 				grip.add_child((load(path) as PackedScene).instantiate())
@@ -728,7 +728,7 @@ func _run_smoke() -> void:
 	player.hp = 100000.0
 	_check(level != null and level.meta.get("colliders", []).size() > 100, "Заречный загружен: стен %d, тайников %d, выходов %d" % [level.meta.get("colliders", []).size(), level.containers.size(), level.exits.size()])
 	_check(enemies.size() >= 20, "заражённых в кластере: %d" % enemies.size())
-	_check(player != null and player.anim != null and player.anim.has_animation("IdleRifle") and player.grip != null, "герой: анимации и точка хвата на месте")
+	_check(player != null and player.anim != null and player.anim.has_animation("IdleRifle") and player.grip != null, "герой: анимации (%s) и точка хвата (%s), крепления: %s" % [player.anim.get_animation_list().size() if player.anim else 0, player.grip, player.mounts.values().map(func(v): return v != null)])
 	# автомат: выстрелы изнашивают ствол, заражённый падает
 	kit["gun"] = "ak74"
 	wear["ak74"] = int(Data.weapon("ak74")["durability"])
