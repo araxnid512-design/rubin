@@ -33,7 +33,8 @@ func smoke() -> int:
 			st["multimesh"], st["instances"], s.get("grass_skipped", 0), s.get("photo_mats", 0),
 			s.get("merge_ms", 0.0), s.get("load_ms", 0.0), enter_ms, est["draws"], est["visible"], est["light_passes"],
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
-		var ok_merge: bool = int(st["meshes"]) < int(s.get("gltf_nodes", 0)) * 0.75 and int(st["meshes"]) < int(s.get("gltf_meshes", 0)) and int(st["materials"]) < int(s.get("materials_in", 0))
+		# (порог 0,8: крупные куски статики теперь тоже по участкам — ради отсечения их чуть больше)
+		var ok_merge: bool = int(st["meshes"]) < int(s.get("gltf_nodes", 0)) * 0.8 and int(st["meshes"]) < int(s.get("gltf_meshes", 0)) and int(st["materials"]) < int(s.get("materials_in", 0))
 		if int(s.get("merge_tried", 0)) > 0 and int(s.get("merge_done", 0)) == 0:
 			print("  · %s: рендер в этом режиме не отдаёт данные мешей — слияние не проверить (меши оставлены как есть)" % id)
 		else:
