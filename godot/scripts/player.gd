@@ -74,7 +74,7 @@ var pose: HeroPose
 var grip: Node3D
 var mounts := {}
 var models := {}
-var kit := {"melee": "axe", "gun": ""}
+var kit := {"melee": "fireaxe", "gun": ""}
 var wear := {}
 var hold := "melee"
 var hp := 100.0
@@ -148,6 +148,14 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 		grip = follow.grip_node   # оружие — в кисти новой модели (руки у неё свои: см. skin_follow.gd)
 	for m in MOUNTS:
 		mounts[m] = attach_point(model, MOUNTS[m])
+	# у модели Tripo — свои крепления за спиной (старые висят на теле прежней модели: топор торчал вбок с бедра)
+	if follow:
+		var axe_m := follow.add_mount("TripoAxeMount", "Spine2", SkinFollow.axe_on_back())
+		var back_m := follow.add_mount("TripoBackMount", "Spine2", SkinFollow.gun_on_back())
+		if axe_m:
+			mounts["axe"] = axe_m
+		if back_m:
+			mounts["back"] = back_m
 	_body_yaw = rotation.y
 	legs_yaw = rotation.y
 	_build_tree()

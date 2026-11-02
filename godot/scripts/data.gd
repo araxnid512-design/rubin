@@ -72,6 +72,12 @@ static func load_all() -> void:
 			w["model"] = id
 		if w.get("slot", "") == "gun":
 			w["durability"] = GUN_DURABILITY.get(id, 500)
+	# простого топора в Godot-версии нет (по просьбе пользователя — только красный пожарный): «axe» из старых
+	# сохранений и хранилища — тот же пожарный топор
+	if WEAPONS.has("fireaxe"):
+		var fa: Dictionary = (WEAPONS["fireaxe"] as Dictionary).duplicate()
+		fa["id"] = "axe"
+		WEAPONS["axe"] = fa
 
 static func weapon(id: String) -> Dictionary:
 	load_all()

@@ -62,32 +62,46 @@ func run(g, out_dir: String) -> void:
 	game.get_tree().quit(0)
 
 ## Герой крупно с разным оружием (модели Tripo, перенос анимаций и хват — SkinFollow): автомат в переноске спереди-справа
-## и спереди-слева (видно обе кисти), пулемёт, пистолет, пожарный топор. В журнал — вес переноски и насколько левая
-## кисть новой модели не достала до цевья.
+## и спереди-слева (видно обе кисти), пулемёт, пистолет, пожарный топор; со спины — топор и ствол в креплениях.
+## Камера — от груди героя (куда смотрит корпус). В журнал — вес переноски и насколько левая кисть не достала до цевья.
 func _hero_shots() -> void:
 	var p = game.player
 	var keep: Dictionary = game.kit.duplicate()
 	var n := 0
-	for w in [["gun", "ak74", 1.0], ["gun", "ak74", -1.0], ["gun", "pkm", 1.0], ["gun", "pistol", 1.0], ["melee", "fireaxe", 1.0]]:
+	for w in [["gun", "ak74", "справа"], ["gun", "ak74", "слева"], ["gun", "pkm", "справа"], ["gun", "pistol", "справа"],
+			["melee", "fireaxe", "справа"], ["gun", "ak74", "сзади"], ["melee", "fireaxe", "сзади"]]:
 		n += 1
-		game.kit[w[0]] = w[1]
-		game.wear[w[1]] = int(Data.weapon(w[1]).get("durability", 100))
+		game.kit["melee"] = "fireaxe"
+		game.kit["gun"] = w[1] if w[0] == "gun" else "ak74"
+		for id in [game.kit["melee"], game.kit["gun"]]:
+			game.wear[id] = int(Data.weapon(id).get("durability", 100))
 		p.hold = w[0]
 		p.attach_gear()
 		await _wait(1.2)
 		game.set_process(false)
 		var cam: Camera3D = game.camera
-		var at: Vector3 = p.global_position + Vector3(0, 1.15, 0)
+		var sk: Skeleton3D = p.skeleton
 		var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
+		var ci := SkinFollow.src_bone(sk, "Spine2") if sk else -1
+		if ci >= 0:
+			var f3: Vector3 = (sk.global_transform.basis * sk.get_bone_global_pose(ci).basis).orthonormalized() * Vector3(0, 0, 1)
+			if Vector2(f3.x, f3.z).length() > 0.1:
+				fwd = Vector3(f3.x, 0, f3.z).normalized()
 		var right := fwd.cross(Vector3.UP)
-		cam.global_position = at + fwd * 1.7 + right * (0.9 * float(w[2])) + Vector3(0, 0.3, 0)
+		var at: Vector3 = p.global_position + Vector3(0, 1.2, 0)
+		var off: Vector3 = fwd * 2.0 + right * 1.0
+		if w[2] == "слева":
+			off = fwd * 2.0 - right * 1.0
+		elif w[2] == "сзади":
+			off = -fwd * 2.1 - right * 0.8
+		cam.global_position = at + off + Vector3(0, 0.45, 0)
 		cam.look_at(at, Vector3.UP)
 		await _wait(0.4)
 		var f: Node = p.tripo_hero.get_node_or_null("SkinFollow") if p.tripo_hero else null
 		var note := ""
 		if f:
 			note = ", переноска %.2f, левая кисть до цевья %.3f м" % [float(p.pose.carry) if p.pose else 0.0, float(f.get("left_error"))]
-		await _capture("hero", n, "герой: %s%s%s" % [Data.weapon(w[1]).get("name", w[1]), " (слева)" if float(w[2]) < 0.0 else "", note], true)
+		await _capture("hero", n, "герой: %s, %s%s" % [Data.weapon(w[1]).get("name", w[1]), w[2], note], true)
 		game.set_process(true)
 	game.kit.clear()
 	game.kit.merge(keep)

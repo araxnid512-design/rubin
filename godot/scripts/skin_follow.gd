@@ -42,6 +42,8 @@ var grip_node: Node3D
 var grip_world := Transform3D.IDENTITY
 ## Для автотеста: насколько левая кисть новой модели не достала до цевья, м (−1 — левая не на цевье).
 var left_error := -1.0
+## Крепления на теле новой модели (топор и ствол за спиной): [узел, кость dst, кость src, место в осях корпуса].
+var mounts: Array = []
 var _world: Array[Transform3D] = []
 var _by_dst := {}            # индекс dst → пара
 var _sc := Vector3.ONE
@@ -256,6 +258,11 @@ func _follow() -> void:
 		var local: Transform3D = (inv * _world[b]) if parent < 0 else (_world[parent].affine_inverse() * _world[b])
 		dst.set_bone_pose_position(b, local.origin)
 		dst.set_bone_pose_rotation(b, local.basis.get_rotation_quaternion())
+	# крепления на теле: у сустава кости новой модели, оси — как у парной кости старого (x — влево, y — вверх, z — вперёд)
+	for mt in mounts:
+		var mn: Node3D = mt[0]
+		if is_instance_valid(mn):
+			mn.global_transform = Transform3D((sgt.basis * src.get_bone_global_pose(mt[2]).basis).orthonormalized(), _world[mt[1]].origin) * (mt[3] as Transform3D)
 	# хват — по готовой кисти; левая — насколько не достала до цевья
 	for a in arms:
 		var hand: Transform3D = _world[a["e"]] * (a["gd"] as Transform3D)
@@ -265,6 +272,40 @@ func _follow() -> void:
 				grip_node.global_transform = grip_world
 		elif two > 0.5:
 			left_error = hand.origin.distance_to(grip_world * marker.origin)
+
+## Крепление на теле новой модели: узел у сустава кости short (имя Mixamo, напр. «Spine2»), local — место и оси
+## в осях парной кости старого скелета (x — влево, y — вверх, z — вперёд, от сустава новой модели). Узел — ребёнок
+## модели; оружие кладут в него, как в узлы креплений player.glb.
+func add_mount(mount_name: String, short: String, local: Transform3D) -> Node3D:
+	var d := find_mixamo(dst, short)
+	var s := src_bone(src, short)
+	var model := get_parent() as Node3D
+	if d < 0 or s < 0 or model == null:
+		return null
+	var n := Node3D.new()
+	n.name = mount_name
+	model.add_child(n)
+	n.global_transform = Transform3D((src.global_transform.basis * src.get_bone_global_rest(s).basis).orthonormalized(), (dst.global_transform * dst.get_bone_global_rest(d)).origin) * local
+	mounts.append([n, d, s, local])
+	return n
+
+## Пожарный топор за спиной по диагонали: рукоять у правого бедра, голова за левым плечом, лезвие вверх-вправо,
+## плашмя к спине (у модели Tripo толстый бронежилет — спина в ~23 см за суставом позвоночника). Оси топора
+## (модель fireaxe, оси хвата): рукоять от хвата к голове — ha, плоскость топора — X, лезвие — ba.
+static func axe_on_back() -> Transform3D:
+	var dh := Vector3(0.5, 0.87, -0.15).normalized()   # от хвата к голове: вверх-влево, верх чуть дальше от спины
+	var nc := Vector3(0, 0, -1)
+	nc = (nc - dh * nc.dot(dh)).normalized()
+	var bc := dh.cross(nc)
+	var ha := Vector3(0, -0.63, 0.78).normalized()
+	var xa := Vector3(1, 0, 0)
+	var ba := ha.cross(xa)
+	return Transform3D(Basis(nc, dh, bc) * Basis(xa, ha, ba).transposed(), Vector3(0, -0.08, -0.25) - dh * 0.35)
+
+## Ствол за спиной: как ремень в player.glb (дулом вниз, справа), но дальше от спины — снаружи бронежилета.
+static func gun_on_back() -> Transform3D:
+	var b := Basis(Vector3(-0.1, -0.25, 0.96), Vector3(-0.02, 0.97, 0.25), Vector3(-1, 0, -0.1)).orthonormalized()
+	return Transform3D(b, Vector3(-0.2, -0.39, -0.25))
 
 ## Рука: точка хвата новой кисти — на хват старой (левая у двуручного ствола — на цевьё оружия в новой правой).
 func _arm(a: Dictionary, sgt: Transform3D, two: float, marker: Transform3D) -> void:

@@ -53,7 +53,7 @@ var env: Environment
 var time := 0.0
 var world := {}
 var bag := {}
-var kit := {"melee": "axe", "gun": ""}
+var kit := {"melee": "fireaxe", "gun": ""}
 var wear := {}
 var loc := ""
 var from_loc = null
@@ -168,7 +168,7 @@ func new_game() -> void:
 		if Data.NODES[id]["kind"] == "cluster":
 			world["clusters"][id] = {"next": randf_range(Data.CYCLE[0], Data.CYCLE[1]), "saved": null}
 	bag = {"spore": 0, "zhivchik": 1}
-	kit = {"melee": "axe", "gun": "pistol"}
+	kit = {"melee": "fireaxe", "gun": "pistol"}
 	wear = {}
 	enter("zarechny", null)
 
@@ -705,7 +705,7 @@ func open_trade() -> void:
 	for id in [kit.get("melee", ""), kit.get("gun", "")] + kit.get("owned", []):
 		if id != "" and id != "fists" and repair_cost(id) > 0:
 			acts.append(["Починить %s · %d сп." % [Data.weapon(id).get("name", id), repair_cost(id)], _repair.bind(id), sp >= repair_cost(id)])
-	for id in ["axe", "pistol", "pm63", "obrez", "shotgun", "spas12", "vector", "aks", "ak74", "aug", "ak47", "scar", "fnfal", "svd", "vss", "pkm"]:
+	for id in ["fireaxe", "pistol", "pm63", "obrez", "shotgun", "spas12", "vector", "aks", "ak74", "aug", "ak47", "scar", "fnfal", "svd", "vss", "pkm"]:
 		acts.append(["%s · %d сп." % [Data.weapon(id).get("name", id), PRICES[id]], _buy.bind(id), sp >= PRICES[id]])
 	if int(bag.get("peas", 0)) > 0:
 		acts.append(["Продать горох ×%d · +%d сп." % [bag["peas"], int(bag["peas"]) * 5], _sell.bind("peas")])
@@ -826,16 +826,16 @@ func respawn_in_stab() -> void:
 	for k in bag.keys():
 		if not k in ["spore", "peas", "pearl"]:
 			bag[k] = 0
-	kit["melee"] = "axe"
+	kit["melee"] = "fireaxe"
 	kit["gun"] = ""
 	kit["owned"] = []   # рюкзак пропал; сложенное в хранилище (features/stash.gd) цело
 	wear.clear()
-	wear["axe"] = 30
+	wear["fireaxe"] = 45
 	advance(90.0)
 	player.queue_free()
 	player = null
 	enter("stab", null)
-	toast("Тебя вытащили рейдеры. Охрана выдала старый топор")
+	toast("Тебя вытащили рейдеры. Охрана выдала старый пожарный топор")
 
 # ---------- Сохранение ----------
 
@@ -858,8 +858,16 @@ func _load() -> bool:
 		return false
 	world = d["world"]
 	bag = d.get("bag", {})
-	kit = d.get("kit", {"melee": "axe", "gun": ""})
+	kit = d.get("kit", {"melee": "fireaxe", "gun": ""})
 	wear = d.get("wear", {})
+	# простого топора больше нет — в слоте и рюкзаке он становится пожарным (износ — как был, но не больше 90)
+	if kit.get("melee", "") == "axe":
+		kit["melee"] = "fireaxe"
+		if wear.has("axe"):
+			wear["fireaxe"] = mini(int(wear["axe"]), int(Data.weapon("fireaxe").get("durability", 90)))
+	if kit.has("owned"):
+		kit["owned"] = (kit["owned"] as Array).map(func(x): return "fireaxe" if x == "axe" else x)
+	wear.erase("axe")
 	var fd: Dictionary = d.get("features", {})
 	for f in features:
 		if f.has_method("load_data") and fd.has(str(f.name)):
@@ -915,11 +923,11 @@ func _run_smoke() -> void:
 	enemies.erase(z2)
 	# топор: удар изнашивает
 	var z3 := spawn_enemy("runner", player.global_position + Vector3(0, 0, 1.2))
-	var a0: int = player.wear_of("axe")
+	var a0: int = player.wear_of("fireaxe")
 	player.attack_held = true
 	await _wait(1.2)
 	player.attack_held = false
-	_check(player.wear_of("axe") < a0, "топор тупится: %d → %d" % [a0, player.wear_of("axe")])
+	_check(player.wear_of("fireaxe") < a0, "топор тупится: %d → %d" % [a0, player.wear_of("fireaxe")])
 	if is_instance_valid(z3):
 		z3.queue_free()
 		enemies.erase(z3)
