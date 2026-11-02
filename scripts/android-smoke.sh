@@ -8,7 +8,9 @@ mkdir -p "$OUT"
 {
   echo "== устройство"; adb shell getprop ro.build.version.release; adb shell getprop ro.product.cpu.abilist
   echo "== установка"
-  if adb install -r download/ulei-godot.apk; then echo "INSTALL: OK"; else echo "INSTALL: FAIL"; fi
+  # эмулятор — x86_64: ставим тестовую сборку под него (в телефонах — ARM, это ulei-godot.apk)
+  APK=download/ulei-godot-x86_64.apk; [ -f "$APK" ] || APK=download/ulei-godot.apk
+  if adb install -r "$APK"; then echo "INSTALL: OK ($APK)"; else echo "INSTALL: FAIL ($APK)"; fi
   echo "== запуск"
   adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1
   sleep 25

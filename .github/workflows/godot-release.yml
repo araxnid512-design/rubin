@@ -81,6 +81,9 @@ jobs:
           printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/editor_settings-4.4.tres"
           sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/; s/^version\/name=.*/version\/name=\"0.${{ github.run_number }}\"/" godot/export_presets.cfg
           timeout 1200 godot --headless --path godot --export-release "Android" "$PWD/download/ulei-godot.apk" 2>&1 | tail -40
+          # тестовая сборка под x86_64 — только для проверки на эмуляторе (в релиз не идёт)
+          sed -i "s/^version\/code=1$/version\/code=${{ github.run_number }}/" godot/export_presets.cfg
+          timeout 1200 godot --headless --path godot --export-release "Android-x86_64" "$PWD/download/ulei-godot-x86_64.apk" 2>&1 | tail -5
           ls -la download
       - name: Проверить APK
         run: |
