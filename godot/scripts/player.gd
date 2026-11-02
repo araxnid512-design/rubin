@@ -237,9 +237,7 @@ func _melee_hit() -> void:
 	var fwd := Vector3(sin(rotation.y), 0, cos(rotation.y))
 	var best = null
 	var bd := 1e9
-	for e in game.enemies:
-		if not e.alive:
-			continue
+	for e in game.foes():
 		var to: Vector3 = e.global_position - global_position
 		to.y = 0
 		var d := to.length()

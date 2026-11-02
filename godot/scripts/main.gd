@@ -1,4 +1,11 @@
 extends Node3D
+
+## События для систем (звуки, эффекты, следы боя): выстрел, попадание, убийство, урон герою, шум.
+signal shot(shooter, weapon: Dictionary, from: Vector3)
+signal enemy_hit(target, at: Vector3)
+signal enemy_killed(target)
+signal player_hurt(dmg: float)
+signal noise_made(pos: Vector3, radius: float)
 ## «Улей. Кластер-17» на Godot: главный цикл. Локации, переходы по карте Улья, перезагрузка кластеров,
 ## заражённые, тайники и обыск, спораны, торговец и лекарь в стабе, гибель, сохранение (user://save.json).
 ## Запуск с «-- --smoke» — автотест для CI: проходит игру по шагам и выходит с кодом 0 (всё в порядке) или 1.
@@ -20,6 +27,9 @@ var player: Player
 var enemies: Array = []
 ## Кроме героя, на кого бросаются заражённые: муры, наёмники — узлы с alive, global_position, hurt(dmg, from).
 var targets: Array = []
+## Враждебные не-заражённые, по которым целится и бьёт герой (муры, бочки с горючим): узлы с alive, T["radius"],
+## global_position, damage(dmg, from). Заражённые — в enemies.
+var hostiles: Array = []
 var features: Array = []
 var pickups: Array = []
 var npcs: Array = []
@@ -340,10 +350,18 @@ func player_switch() -> void:
 	if player:
 		player.switch_weapon()
 
+## Все, кого можно бить: заражённые и враждебные (муры, бочки).
+func foes() -> Array:
+	var out := []
+	for e in enemies + hostiles:
+		if is_instance_valid(e) and e.alive:
+			out.append(e)
+	return out
+
 func nearest_enemy(pos: Vector3, reach: float, need_los: bool):
 	var best = null
 	var bd := reach
-	for e in enemies:
+	for e in foes():
 		if not is_instance_valid(e) or not e.alive:
 			continue
 		var d: float = Vector2(e.global_position.x - pos.x, e.global_position.z - pos.z).length()
@@ -371,6 +389,7 @@ func line_of_sight(a: Vector3, b: Vector3) -> bool:
 
 ## Выстрел: попадание — по шансу (падает с дальностью), дробь — веером по нескольким; вспышка и трассер.
 func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
+	shot.emit(shooter, w, from)
 	noise(shooter.global_position, float(w.get("noise", 30)))
 	_flash(from)
 	var reach: float = float(w.get("range", 8.0))
@@ -384,9 +403,7 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 			var spread: float = float(w.get("spread", 0.25))
 			var dir := aim_dir.rotated(Vector3.UP, randf_range(-spread, spread))
 			var bd := reach
-			for e in enemies:
-				if not e.alive:
-					continue
+			for e in foes():
 				var to: Vector3 = e.global_position - shooter.global_position
 				to.y = 0
 				var d := to.length()
@@ -400,6 +417,7 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 		var chance := clampf(1.0 - dist / reach * float(w.get("falloff", 0.35)), 0.4, 1.0)
 		if randf() < chance:
 			_tracer(from, hit.global_position + Vector3(0, 1.1, 0))
+			enemy_hit.emit(hit, hit.global_position)
 			hit.damage(float(w.get("damage", 20)), shooter.global_position)
 		else:
 			_tracer(from, hit.global_position + Vector3(randf_range(-1, 1), 1.0, randf_range(-1, 1)))
@@ -432,6 +450,7 @@ func _tracer(a: Vector3, b: Vector3) -> void:
 
 ## Шум: заражённые в радиусе поднимаются.
 func noise(pos: Vector3, radius: float) -> void:
+	noise_made.emit(pos, radius)
 	for e in enemies:
 		if is_instance_valid(e) and e.alive and e.global_position.distance_to(pos) < radius:
 			e.alert()
@@ -460,6 +479,7 @@ func blood(at: Vector3) -> void:
 
 func on_kill(e) -> void:
 	kills += 1
+	enemy_killed.emit(e)
 	var sp: Array = e.T["spores"]
 	spawn_pickup("spore", sp[0] + randi() % (sp[1] - sp[0] + 1), e.global_position + Vector3(0.4, 0, 0.3))
 	if e.type != "runner" and randf() < 0.6:
@@ -469,6 +489,7 @@ func on_kill(e) -> void:
 	enemies.erase(e)
 
 func on_player_hurt(dmg: float) -> void:
+	player_hurt.emit(dmg)
 	hud.flash_hurt(dmg)
 	hud_refresh()
 
