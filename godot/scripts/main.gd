@@ -59,6 +59,8 @@ var loc := ""
 var from_loc = null
 var kills := 0
 var exit_armed := false
+## Выходы не открывают карту Улья (тестовая сцена хвата: герой ходит и бегает на месте замера).
+var exits_off := false
 var searching := {}
 var hud_t := 0.0
 var view_t := 0.0
@@ -794,7 +796,7 @@ func _sell(kind: String) -> void:
 # ---------- Выходы и карта Улья ----------
 
 func _update_exit() -> void:
-	if not player.alive or hud.panel.visible:
+	if not player.alive or hud.panel.visible or exits_off:
 		return
 	var e := level.exit_at(player.global_position)
 	if not e.is_empty() and exit_armed:

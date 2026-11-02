@@ -24,7 +24,7 @@ const HeroPoseScript := preload("res://scripts/hero_pose.gd")
 const REACH := 0.98
 ## Ключица навстречу цели, рад (26°), и перехват цевья ближе к себе, м.
 const CLAV_MAX := 0.45
-const SLIDE_MAX := 0.07
+const SLIDE_MAX := 0.14
 
 var src: Skeleton3D
 var dst: Skeleton3D

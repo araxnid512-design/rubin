@@ -27,6 +27,8 @@ func run(g, out_dir: String) -> void:
 	_make_debug()
 	var p = game.player
 	var keep: Dictionary = game.kit.duplicate()
+	game.exits_off = true
+	game.hud.hide_panel()
 	report.append("Проверка хвата оружия (%s): норма — ладонь не дальше %.0f см от точки хвата в обычных состояниях" % [Time.get_datetime_string_from_system(true), LIMIT * 100.0])
 	# 1) АК-74 и пистолет — со снимками со всех сторон
 	for id in ["ak74", "glock17"]:
@@ -38,6 +40,7 @@ func run(g, out_dir: String) -> void:
 			continue
 		await _weapon(id, false)
 	report.append("Итого: проверок %d, вне нормы %d" % [checks, fails])
+	game.exits_off = false
 	var f := FileAccess.open(dir.path_join("handtest.txt"), FileAccess.WRITE)
 	f.store_string("\n".join(report) + "\n")
 	f.close()
@@ -122,6 +125,7 @@ func _state(id: String, label: String, secs: float, strict: bool, setup: Callabl
 	for n in _npcs:
 		_npc_play(n, npc_clip, label)
 	var worst := {}
+	var lefts := {}   # персонаж → промахи левой по кадрам (для медианы: разовый промах на переходе или всё время)
 	var t := 0.0
 	while t < secs:
 		await game.get_tree().physics_frame
@@ -133,6 +137,10 @@ func _state(id: String, label: String, secs: float, strict: bool, setup: Callabl
 			var prev: Array = worst.get(k, [0.0, 0.0, 0.0])
 			var cur: Array = m[k]
 			worst[k] = [maxf(prev[0], cur[0]), maxf(prev[1], cur[1]), maxf(prev[2], cur[2])]
+			if float(cur[1]) >= 0.0:
+				if not lefts.has(k):
+					lefts[k] = []
+				lefts[k].append(float(cur[1]))
 	for k in CHARS:
 		if not worst.has(k):
 			continue
@@ -144,9 +152,14 @@ func _state(id: String, label: String, secs: float, strict: bool, setup: Callabl
 		checks += 1
 		if not ok:
 			fails += 1
-		report.append("%s %s · %s · %s: правая %.1f см, левая %s, ствол к направлению взгляда %.0f°" % [
+		var med := ""
+		if lefts.has(k) and (lefts[k] as Array).size() > 2:
+			var arr: Array = lefts[k]
+			arr.sort()
+			med = " (медиана %.1f см, кадров > 2 см: %d из %d)" % [float(arr[arr.size() / 2]) * 100.0, arr.filter(func(e): return e > LIMIT).size(), arr.size()]
+		report.append("%s %s · %s · %s: правая %.1f см, левая %s%s, ствол к направлению взгляда %.0f°" % [
 			"✓" if ok else "✗", Data.weapon(id).get("name", id), k, label, v[0] * 100.0,
-			("%.1f см" % (v[1] * 100.0)) if v[1] >= 0.0 else "—", v[2]])
+			("%.1f см" % (v[1] * 100.0)) if v[1] >= 0.0 else "—", med, v[2]])
 	p.move_input = Vector2.ZERO
 
 ## Расхождения: правая ладонь ↔ RightGrip, левая ладонь ↔ LeftSupportGrip (м), угол ствола к взгляду (°).
@@ -253,8 +266,22 @@ func _clear_npcs() -> void:
 			(n["root"] as Node3D).queue_free()
 	_npcs.clear()
 
+## Открытое место для замера: не у выхода (точка старта — у выхода, и шаг уводил героя на карту Улья), вокруг
+## 5 м без стен и построек — герой ходит и бегает, справа от него стоят три NPC.
 func _spot() -> Vector3:
 	var lv = game.level
+	for r in [0.0, 6.0, 12.0, 18.0, 24.0, 30.0]:
+		for k in 12:
+			var a := k * TAU / 12.0
+			var c := Vector3(cos(a) * r, 0, sin(a) * r)
+			var ok := true
+			for dx in [-5.0, 0.0, 5.0]:
+				for dz in [-5.0, 0.0, 5.0]:
+					var q := c + Vector3(dx, 0, dz)
+					if lv.blocked_at(q) or not lv.building_at(q).is_empty() or not lv.exit_at(q).is_empty():
+						ok = false
+			if ok:
+				return c
 	var st: Dictionary = lv.meta.get("start", {"x": 0, "z": 0})
 	return Vector3(float(st["x"]), 0, float(st["z"]))
 
@@ -268,6 +295,8 @@ func _photos(id: String, label: String) -> void:
 	var CH := 340
 	var sheet := Image.create(CW * VIEWS.size(), CH * CHARS.size(), false, Image.FORMAT_RGB8)
 	var size: Vector2 = game.get_viewport().get_visible_rect().size
+	game.hud.hide_panel()
+	game.hud.visible = false
 	var targets: Array = [p]
 	for n in _npcs:
 		targets.append(n["root"])
@@ -294,6 +323,7 @@ func _photos(id: String, label: String) -> void:
 				crop.resize(CW, CH, Image.INTERPOLATE_BILINEAR)
 				sheet.blit_rect(crop, Rect2i(0, 0, CW, CH), Vector2i(vi * CW, ci * CH))
 	game.set_process(true)
+	game.hud.visible = true
 	var file := "handtest_%s_%s.jpg" % [id, "aim" if label == "прицел" else "idle"]
 	sheet.save_jpg(dir.path_join(file), 0.85)
 	report.append("  снимок: %s — %s (строки: %s; столбцы: %s)" % [file, label, ", ".join(CHARS), ", ".join(VIEWS)])
