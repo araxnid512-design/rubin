@@ -302,5 +302,17 @@ func show_panel(title: String, text: String, actions: Array) -> void:
 	stick_base.visible = false
 	stick_knob.visible = false
 
+## Окно на паузе: игра стоит, окно и его кнопки работают; hide_panel снимает паузу.
+var paused_by_panel := false
+
+func pause_with_panel() -> void:
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	if not get_tree().paused:
+		get_tree().paused = true
+		paused_by_panel = true
+
 func hide_panel() -> void:
 	panel.visible = false
+	if paused_by_panel:
+		paused_by_panel = false
+		get_tree().paused = false

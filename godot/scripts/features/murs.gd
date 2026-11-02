@@ -87,6 +87,12 @@ func normalize(d: Dictionary, t: float) -> Dictionary:
 	var r: Dictionary = d.duplicate(true)
 	if typeof(r.get("stash")) != TYPE_DICTIONARY:
 		r["stash"] = {}
+	# убранные стволы в шкафах муров (старые сохранения) — ближайшие новые
+	var st: Dictionary = {}
+	for k in r["stash"]:
+		var to := Data.real_id(str(k))
+		st[to] = int(st.get(to, 0)) + int(r["stash"][k])
+	r["stash"] = st
 	r["count"] = clampi(int(r.get("count", MUR_LIMIT)), 0, MUR_LIMIT)
 	if not r.has("next_raid"):
 		r["next_raid"] = t + randf_range(RAID_GAP[0], RAID_GAP[1])

@@ -30,8 +30,11 @@ func load_data(d: Dictionary) -> void:
 	var gs = d.get("guns", {})
 	if gs is Dictionary:
 		for id in gs:
-			if id != "fists" and not Data.weapon(id).is_empty():
-				stash["guns"][id] = int(gs[id])
+			# убранные стволы и ПКТ из старых сохранений — ближайшие новые, износ не больше прочности нового
+			var to: String = game.carry_id(str(id)) if game else str(id)
+			if to != "fists" and not Data.weapon(to).is_empty():
+				var dur := int(Data.weapon(to).get("durability", 100000))
+				stash["guns"][to] = maxi(int(stash["guns"].get(to, 0)), mini(int(gs[id]), dur))
 
 
 func interact(s: Dictionary) -> bool:

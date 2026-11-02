@@ -59,12 +59,16 @@ var loc := ""
 var from_loc = null
 var kills := 0
 var exit_armed := false
+## Здоровье из сохранения — ставится герою при первом входе после загрузки (−1 — нет).
+var pending_hp := -1.0
 ## Выходы не открывают карту Улья (тестовая сцена хвата: герой ходит и бегает на месте замера).
 var exits_off := false
 var searching := {}
 var hud_t := 0.0
 var view_t := 0.0
 var smoke := false
+## Фотосъёмка CI (-- --shots): окна не ставят игру на паузу.
+var shooting := false
 var dead := false
 var reload_dying := false
 
@@ -74,6 +78,7 @@ func _ready() -> void:
 	smoke = args.has("--smoke")
 	var shots_at := args.find("--shots")
 	var shots_dir: String = args[shots_at + 1] if shots_at >= 0 and shots_at + 1 < args.size() else ""
+	shooting = shots_dir != ""
 	_setup_scene()
 	hud = Hud.new()
 	add_child(hud)
@@ -221,6 +226,9 @@ func enter(id: String, from) -> void:
 		add_child(player)
 		player.setup(self, kit, wear)
 		player.died.connect(_on_player_died)
+		if pending_hp > 0.0:
+			player.hp = minf(pending_hp, player.max_hp)
+		pending_hp = -1.0
 		dead = false
 	var start: Dictionary = level.meta.get("start", {"x": 0, "z": 0, "ry": 0})
 	var spot := Vector3(start["x"], 0, start["z"])
@@ -597,6 +605,9 @@ func use_zhivchik() -> void:
 	if int(bag.get("zhivchik", 0)) <= 0 or player == null or not player.alive:
 		toast("Живчиков нет")
 		return
+	if player.hp >= player.max_hp:
+		toast("Здоровье и так полное")
+		return
 	bag["zhivchik"] = int(bag["zhivchik"]) - 1
 	player.hp = minf(player.max_hp, player.hp + 45.0)
 	toast("Выпил живчик: +45 здоровья")
@@ -631,8 +642,13 @@ func _update_pickups(delta: float) -> void:
 			node.queue_free()
 			pickups.erase(p)
 
+## Ствол, который можно носить: убранный — ближайший новый (Data.REMOVED), установочный ПКТ — РПК.
+static func carry_id(id: String) -> String:
+	var r := Data.real_id(id)
+	return "rpk" if bool(Data.weapon(r).get("mounted", false)) else r
+
 func take(kind: String, n: int) -> void:
-	kind = Data.real_id(kind)   # убранный ствол (старое сохранение, предмет на земле) — ближайший новый
+	kind = carry_id(kind)   # убранный ствол (старое сохранение, предмет на земле) — ближайший новый
 	var w := Data.weapon(kind)
 	if not w.is_empty():
 		# оружие: в пустой слот — сразу, иначе — в рюкзак (kit["owned"], features/inventory.gd); такое же уже
@@ -819,12 +835,17 @@ func show_map() -> void:
 		acts.append(["%s · в пути ~%s мин · %s" % [node["short"], str(snappedf(float(r["time"]) / 60.0, 0.5)), state], _travel.bind(to)])
 	acts.append(["Остаться", hud.hide_panel])
 	hud.show_panel("Карта Улья", "Ты здесь: %s. Куда идти?" % Data.NODES[loc]["name"], acts)
+	# пока выбираешь маршрут, кластер стоит: заражённые не грызут у выхода (как в браузерной игре)
+	if not smoke and not shooting:
+		hud.pause_with_panel()
 
 func _travel(to: String) -> void:
 	hud.hide_panel()
 	snapshot()
 	var t := Data.travel_time(loc, to)
 	var from := loc
+	# в пути герой уже не в покинутом кластере: его перезагрузка не должна убивать (loc — пусто до входа)
+	loc = ""
 	advance(t)
 	enter(to, from)
 
@@ -854,6 +875,7 @@ func _on_player_died() -> void:
 	if dead:
 		return
 	dead = true
+	hud.hide_panel()   # открытая карта Улья: маршрут после гибели не выбрать
 	player.attack_held = false
 	var reload := reload_dying
 	reload_dying = false
@@ -883,13 +905,17 @@ func respawn_in_stab() -> void:
 func save() -> void:
 	if smoke:
 		return
+	# текущий кластер — снимком (обысканные тайники, убитые заражённые): иначе перезапуск выдавал лут заново
+	if player and player.alive and level and world["clusters"].has(loc):
+		snapshot()
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
 		var fd := {}
 		for ft in features:
 			if ft.has_method("save_data"):
 				fd[str(ft.name)] = ft.save_data()
-		f.store_string(JSON.stringify({"world": world, "bag": bag, "kit": kit, "wear": wear, "features": fd}))
+		var hp := player.hp if player and player.alive else -1.0
+		f.store_string(JSON.stringify({"world": world, "bag": bag, "kit": kit, "wear": wear, "features": fd, "hp": hp}))
 
 func _load() -> bool:
 	if not FileAccess.file_exists(SAVE_PATH):
@@ -898,6 +924,7 @@ func _load() -> bool:
 	if typeof(d) != TYPE_DICTIONARY or not d.has("world"):
 		return false
 	world = d["world"]
+	pending_hp = float(d.get("hp", -1.0))
 	bag = d.get("bag", {})
 	kit = d.get("kit", {"melee": "fireaxe", "gun": ""})
 	wear = d.get("wear", {})
@@ -905,15 +932,31 @@ func _load() -> bool:
 	# но не больше прочности нового)
 	for slot in ["melee", "gun"]:
 		var was: String = str(kit.get(slot, ""))
-		if Data.REMOVED.has(was):
-			var to := Data.real_id(was)
+		var to := carry_id(was)
+		if to != was:
 			kit[slot] = to
 			if wear.has(was):
 				wear[to] = mini(int(wear[was]), int(Data.weapon(to).get("durability", 100)))
 	if kit.has("owned"):
-		kit["owned"] = (kit["owned"] as Array).map(func(x): return Data.real_id(str(x)))
+		var seen := {}
+		var list: Array = []
+		for x in kit["owned"]:
+			var was2 := str(x)
+			var to2 := carry_id(was2)
+			if seen.has(to2) or to2 == kit.get("gun", "") or to2 == kit.get("melee", ""):
+				continue   # два старых ствола стали одним новым — второй не дублируется
+			seen[to2] = true
+			list.append(to2)
+			if was2 != to2 and wear.has(was2) and not wear.has(to2):
+				wear[to2] = int(wear[was2])
+		kit["owned"] = list
 	for was in Data.REMOVED:
 		wear.erase(was)
+	wear.erase("pkt")
+	for id in wear.keys():
+		var dur := int(Data.weapon(str(id)).get("durability", 0))
+		if dur > 0:
+			wear[id] = mini(int(wear[id]), dur)
 	var fd: Dictionary = d.get("features", {})
 	for f in features:
 		if f.has_method("load_data") and fd.has(str(f.name)):

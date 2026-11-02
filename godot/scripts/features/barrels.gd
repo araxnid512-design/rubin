@@ -308,7 +308,7 @@ func _process(delta: float) -> void:
 				var crowd := 0
 				for e in game.enemies:
 					if is_instance_valid(e) and e.alive and _flat(e.global_position, b.global_position) < CROWD_R:
-						crowd += 1 if e.type == "runner" else 2
+						crowd += 1 if e.type in ["runner", "lottery"] else 2
 				want = crowd >= 2
 		var has: bool = game.hostiles.has(b)
 		if want and not has:
