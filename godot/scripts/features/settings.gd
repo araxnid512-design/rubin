@@ -1,13 +1,13 @@
 extends Node
-## Настройки: качество графики (Низкое / Среднее / Высокое — масштаб 3D-рендера, сглаживание MSAA, густота
-## травы, дальность камеры), счётчик кадров (к/с, вызовы отрисовки, треугольники), автоподстройка чёткости
+## Настройки: качество графики (Низкое / Среднее / Высокое — масштаб 3D-рендера, сглаживание MSAA, огни
+## и свечение в локации, дальность камеры), счётчик кадров (к/с, вызовы отрисовки, треугольники), автоподстройка чёткости
 ## (если меньше 28 кадров в секунду три секунды подряд — масштаб рендера ступенями вниз, до 0,6) и общая
 ## громкость (шина Master). Всё сохраняется вместе с игрой (save_data / load_data). Пока окно открыто — пауза.
 
 const QUALITY := {
-	"low": {"name": "Низкое", "scale": 0.7, "msaa": Viewport.MSAA_DISABLED, "grass": 0.3, "far": 60.0},
-	"medium": {"name": "Среднее", "scale": 0.85, "msaa": Viewport.MSAA_2X, "grass": 0.65, "far": 90.0},
-	"high": {"name": "Высокое", "scale": 1.0, "msaa": Viewport.MSAA_4X, "grass": 1.0, "far": 140.0},
+	"low": {"name": "Низкое", "scale": 0.7, "msaa": Viewport.MSAA_DISABLED, "far": 60.0},
+	"medium": {"name": "Среднее", "scale": 0.85, "msaa": Viewport.MSAA_2X, "far": 90.0},
+	"high": {"name": "Высокое", "scale": 1.0, "msaa": Viewport.MSAA_4X, "far": 140.0},
 }
 const ORDER := ["low", "medium", "high"]
 const MSAA_NAME := {Viewport.MSAA_DISABLED: "нет", Viewport.MSAA_2X: "2×", Viewport.MSAA_4X: "4×", Viewport.MSAA_8X: "8×"}
@@ -26,7 +26,6 @@ var auto := true
 var volume := 0.8
 ## Масштаб рендера сейчас (автоподстройка может опустить его ниже, чем у пресета).
 var render_scale := 0.85
-var grass: Array = []   # [MultiMeshInstance3D, сколько экземпляров всего]
 var low_t := 0.0
 var grace_t := GRACE
 var fps_t := 0.0
@@ -76,35 +75,17 @@ func load_data(d: Dictionary) -> void:
 func on_enter(_id: String) -> void:
 	grace_t = GRACE
 	low_t = 0.0
-	_find_grass()
-	_apply_grass()
+	_apply_level()
 	if game.camera:
 		game.camera.far = float(QUALITY[quality]["far"])
 
-## Трава в локации — экземпляры MultiMesh ниже метра (деревья — выше): у них показываем долю экземпляров.
-func _find_grass() -> void:
-	grass.clear()
-	if game.level == null:
-		return
-	for n in game.level.find_children("*", "MultiMeshInstance3D", true, false):
-		var mm: MultiMesh = n.multimesh
-		if mm and mm.mesh and mm.mesh.get_aabb().size.y < 1.0:
-			grass.append([n, mm.instance_count])
-
-func _apply_grass() -> void:
-	# густоту травы, тени, свечение и огни по качеству ведёт локация (level.gd → apply_quality)
+## Шейдер статики, свечение и огни по качеству ведёт локация (level.gd → apply_quality).
+func _apply_level() -> void:
+	Level.quality = ORDER.find(quality)
 	if game and game.level and game.level.has_method("apply_quality"):
-		Level.quality = ORDER.find(quality)
 		game.level.apply_quality(ORDER.find(quality))
-		return
-	var k: float = QUALITY[quality]["grass"]
-	for g in grass:
-		if not is_instance_valid(g[0]):
-			continue
-		var mm: MultiMesh = g[0].multimesh
-		mm.visible_instance_count = -1 if k >= 0.999 else int(round(int(g[1]) * k))
 
-## Всё по текущим настройкам: качество (масштаб — заново по пресету), трава, дальность, громкость, счётчик.
+## Всё по текущим настройкам: качество (масштаб — заново по пресету), локация, дальность, громкость, счётчик.
 func apply() -> void:
 	var q: Dictionary = QUALITY[quality]
 	render_scale = float(q["scale"])
@@ -114,7 +95,7 @@ func apply() -> void:
 	vp.msaa_3d = q["msaa"]
 	if game and game.camera:
 		game.camera.far = float(q["far"])
-	_apply_grass()
+	_apply_level()
 	apply_volume()
 	fps_label.visible = show_fps
 
@@ -182,7 +163,7 @@ func open_settings() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(b)
 	box.add_child(row)
-	box.add_child(_text("Чёткость %d%%%s · сглаживание %s · трава %d%% · дальность %d м" % [roundi(render_scale * 100.0), " (снижена автоподстройкой)" if render_scale < float(q["scale"]) - 0.001 else "", MSAA_NAME.get(q["msaa"], "?"), roundi(float(q["grass"]) * 100.0), int(q["far"])], 15))
+	box.add_child(_text("Чёткость %d%%%s · сглаживание %s · дальность %d м" % [roundi(render_scale * 100.0), " (снижена автоподстройкой)" if render_scale < float(q["scale"]) - 0.001 else "", MSAA_NAME.get(q["msaa"], "?"), int(q["far"])], 15))
 	box.add_child(_button("Автоподстройка чёткости: %s" % ("вкл" if auto else "выкл"), toggle_auto))
 	box.add_child(_button("Счётчик кадров: %s" % ("вкл" if show_fps else "выкл"), toggle_fps))
 	vol_label = _text("Громкость: %d%%" % roundi(volume * 100.0))
@@ -263,19 +244,6 @@ func smoke() -> int:
 	print(("✓ " if ok else "✗ ") + "качество меняет масштаб рендера: %s" % ", ".join(res.map(func(r): return "%s %.2f" % [QUALITY[r[0]]["name"], r[1]])))
 	if not ok:
 		fail += 1
-	# трава гуще на высоком, реже на низком
-	on_enter(game.loc)
-	if grass.is_empty():
-		print("· травы в этой локации нет — густота не проверяется (%s)" % game.loc)
-	else:
-		set_quality("low")
-		var mm: MultiMesh = grass[0][0].multimesh
-		var low_n := mm.visible_instance_count
-		set_quality("high")
-		ok = low_n >= 0 and low_n < int(grass[0][1]) and (mm.visible_instance_count == -1 or mm.visible_instance_count == mm.instance_count)
-		print(("✓ " if ok else "✗ ") + "трава: пачек %d, на низком видно %d из %d, на высоком — все" % [grass.size(), low_n, grass[0][1]])
-		if not ok:
-			fail += 1
 	# автоподстройка: 3,5 с по 20 кадров — масштаб на ступень ниже, но не ниже 0,6
 	set_quality("medium")
 	auto = true

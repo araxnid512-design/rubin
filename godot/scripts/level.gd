@@ -1,8 +1,9 @@
 class_name Level
 extends Node3D
-## Локация: модель из браузерной игры (assets/levels/<id>.gltf), стены — по данным (<id>.json), деревья и
-## трава — MultiMesh (образец + места), крыши домов прячутся, когда герой внутри, сетка проходимости — для
-## заражённых (AStarGrid2D), муть по краю кластера, огонь в бочках.
+## Локация: модель из браузерной игры (assets/levels/<id>.gltf), стены — по данным (<id>.json), деревья —
+## MultiMesh (образец + места), крыши домов прячутся, когда герой внутри, сетка проходимости — для
+## заражённых (AStarGrid2D), муть по краю кластера, огонь в бочках. Травы, кустов и теней нет (просьба
+## пользователя: не нужны) — трава из выгрузки пропускается.
 ##
 ## Графика для телефона (gl_compatibility):
 ## · статика из glTF при загрузке сливается: одинаковые материалы — в один, меши — по материалу и участку
@@ -11,10 +12,9 @@ extends Node3D
 ##   каждого дома (прячутся, когда герой внутри) и крупные постройки сливаются внутри своей группы;
 ## · материалы по имени из браузерной игры подменяются шейдерами «как на фото» (godot/shaders): мох на крышах
 ##   и верхах стен, сырость у основания стен, мокрый асфальт и лужи, осенняя листва с оттенками по деревьям,
-##   трава и бурьян с оттенками, контактные тени у стен и под кронами, отсвет огня на земле;
-## · бурьян гуще вдоль заборов, стен и обочин, кусты у заборов;
-## · качество apply_quality(0/1/2) — плотность и дальность травы, тени солнца, огни, свечение (Level.quality
-##   запоминается для следующих локаций). Отбрасывают тень (на высоком) только объёмные меши, не земля и трава.
+##   отсвет огня на земле;
+## · качество apply_quality(0/1/2) — шейдер статики, огни, свечение (Level.quality запоминается для следующих
+##   локаций). Теней от солнца нет ни на каком качестве.
 
 const WALL_LAYER := 1
 ## Участок слияния статики, м (как в браузерной игре: те же границы участков).
@@ -52,23 +52,14 @@ const LOOK := {
 const LOOK_PREFIX := {"garage": [0.0, 0.2, 1.0, 0.2], "panel": [0.0, 0.35, 1.0, 0.3]}
 ## Листва (кроны деревьев): материал образца MultiMesh → оттенки.
 const FOLIAGE := ["leaves", "leavesDry", "pine"]
-## Осенние оттенки (sRGB, вес): у каждого дерева, куста, кустика травы свой.
+## Осенние оттенки (sRGB, вес): у каждого дерева свой.
 const AUTUMN := {
 	"leaves": [[Color(0.74, 0.6, 0.24), 0.26], [Color(0.6, 0.58, 0.28), 0.22], [Color(0.42, 0.5, 0.25), 0.22], [Color(0.31, 0.4, 0.21), 0.18], [Color(0.66, 0.42, 0.2), 0.12]],
 	"leavesDry": [[Color(0.5, 0.5, 0.26), 0.35], [Color(0.58, 0.5, 0.25), 0.3], [Color(0.5, 0.38, 0.22), 0.1], [Color(0.4, 0.46, 0.23), 0.25]],
 	"pine": [[Color(0.2, 0.3, 0.17), 0.5], [Color(0.24, 0.34, 0.19), 0.3], [Color(0.17, 0.26, 0.13), 0.2]],
-	"bush": [[Color(0.36, 0.43, 0.2), 0.35], [Color(0.48, 0.47, 0.23), 0.25], [Color(0.58, 0.48, 0.22), 0.2], [Color(0.52, 0.34, 0.18), 0.1], [Color(0.28, 0.36, 0.18), 0.1]],
-	"grassTuft": [[Color(1.0, 1.0, 1.0), 0.45], [Color(0.98, 0.92, 0.7), 0.3], [Color(0.85, 0.92, 0.75), 0.15], [Color(0.95, 0.82, 0.62), 0.1]],
-	"weed": [[Color(0.92, 0.88, 0.62), 0.35], [Color(0.8, 0.88, 0.66), 0.3], [Color(0.92, 0.78, 0.56), 0.2], [Color(0.7, 0.78, 0.58), 0.15]],
 }
-## Качество [низкое, среднее, высокое]: доля травы и бурьяна, дальность травы и кустов от камеры (м),
-## сколько огней с настоящим светом (каждый — лишний проход по мешам рядом).
-const Q_GRASS := [0.35, 0.7, 1.0]
-const Q_BUSH := [0.5, 0.8, 1.0]
-const Q_RANGE := [24.0, 32.0, 42.0]
+## Качество [низкое, среднее, высокое]: сколько огней с настоящим светом (каждый — лишний проход по мешам рядом).
 const Q_LIGHTS := [0, 1, 2]
-## Куда падают тени (от солнца с запада-юго-запада, см. main._setup_scene) — для пятен под кронами.
-const SHADOW_DIR := Vector3(0.77, 0.0, -0.3)
 
 ## Текущее качество (0/1/2) — общее для всех локаций; меняет apply_quality.
 static var quality := 1
@@ -90,27 +81,13 @@ var fires := []
 var model: Node3D
 ## Сводка для автотеста и слежения за нагрузкой: узлы glTF, меши и материалы до и после слияния, время.
 var stats := {}
-var grass: Array[MultiMeshInstance3D] = []
-var bushes: Array[MultiMeshInstance3D] = []
 var trees: Array[MultiMeshInstance3D] = []
 var fire_lights: Array[OmniLight3D] = []
 var world_mats: Array[ShaderMaterial] = []
 var foliage_mats: Array[ShaderMaterial] = []
-var grass_mats: Array[ShaderMaterial] = []
 var _canon := {}
 var _looks := {}
 var _seen_at := Vector3.INF
-var _grass_proto: Array = []   # [меш кустика, материал] — трава из выгрузки, к ней добавляется бурьян
-var _grass_list: Array = []    # [[Transform3D, Color], …]
-# пятна контактных теней (собираются в один меш)
-var _dv := PackedVector3Array()
-var _duv := PackedVector2Array()
-var _duv2 := PackedVector2Array()
-var _dcol := PackedColorArray()
-var _didx := PackedInt32Array()
-# запретные для бурьяна прямоугольники по сетке 8 м: Vector2i → [индексы в _zrects]
-var _zones := {}
-var _zrects: Array[PackedFloat32Array] = []
 
 func setup(level_id: String) -> void:
 	var t0 := Time.get_ticks_usec()
@@ -137,8 +114,6 @@ func setup(level_id: String) -> void:
 		containers.append(e2)
 	exits = meta.get("exits", [])
 	_merge_static()
-	_contact_shadows()
-	_verge()
 	if meta.get("edge", true):
 		_edge_haze()
 	for f in meta.get("fires", []):
@@ -168,17 +143,10 @@ func _process(_delta: float) -> void:
 # ---------- Качество ----------
 
 ## Качество графики: 0 — низкое, 1 — среднее, 2 — высокое. Вызывает система настроек (и setup — для новой
-## локации). Низкое: меньше травы и только рядом, без точечных огней, упрощённый шейдер статики. Среднее:
-## больше травы, один огонь со светом. Высокое: вся трава, мягкие тени от солнца (один каскад, ~30 м),
-## свечение огня (glow) и цветокоррекция. Тени и свечение — лишние проходы, поэтому только на высоком.
+## локации). Низкое: без точечных огней, упрощённый шейдер статики. Среднее: один огонь со светом. Высокое:
+## два огня, свечение огня (glow) и цветокоррекция — лишние проходы, поэтому только на высоком. Теней нет.
 func apply_quality(q: int) -> void:
 	quality = clampi(q, 0, 2)
-	for mmi in grass:
-		mmi.multimesh.visible_instance_count = _part(mmi.multimesh.instance_count, Q_GRASS[quality])
-	for mmi in bushes:
-		mmi.multimesh.visible_instance_count = _part(mmi.multimesh.instance_count, Q_BUSH[quality])
-	for m in grass_mats:
-		m.set_shader_parameter("fade_range", Q_RANGE[quality])
 	var world_shader := shader("world_lite" if quality == 0 else "world")
 	for m in world_mats:
 		m.shader = world_shader
@@ -188,33 +156,18 @@ func apply_quality(q: int) -> void:
 	if g:
 		var sun := g.get_node_or_null("Sun") as DirectionalLight3D
 		if sun:
-			sun.shadow_enabled = quality >= 2
+			sun.shadow_enabled = false
 		var env := g.get("env") as Environment
 		if env:
 			env.glow_enabled = quality >= 2
 			env.adjustment_enabled = quality >= 2
 	stats["quality"] = quality
 
-static func _part(n: int, k: float) -> int:
-	return n if k >= 1.0 else int(round(n * k))
-
-## Сколько кустиков травы и бурьяна сейчас рисуется (для автотеста).
-func grass_visible() -> int:
-	var s := 0
-	for mmi in grass:
-		var v := mmi.multimesh.visible_instance_count
-		s += mmi.multimesh.instance_count if v < 0 else v
-	return s
-
-# ---------- Деревья и трава ----------
+# ---------- Деревья ----------
 
 ## Образцы MM<k> → MultiMesh с местами из meta. Деревья — по виду и участку (за кадром не рисуются),
-## у крон — шейдер листвы и осенний оттенок у каждого дерева; трава со всех участков — один MultiMesh (один
-## вызов отрисовки), к ней добавится бурьян (_verge).
+## у крон — шейдер листвы и осенний оттенок у каждого дерева. Кустики травы из выгрузки пропускаются.
 func _multimesh() -> void:
-	var grass_xf: Array = []
-	var grass_mesh: Mesh = null
-	var grass_src: Material = null
 	var groups := {}   # «меш|участок» → {mesh, kind, src, list}
 	for entry in meta.get("multimesh", []):
 		var node := model.find_child(str(entry["node"]), true, false)
@@ -226,6 +179,10 @@ func _multimesh() -> void:
 		var count: int = a.size() / 12
 		var src: Material = proto.get_active_material(0)
 		var kind: String = str(entry.get("mat", src.resource_name if src else ""))
+		if kind == "grassTuft":
+			stats["grass_skipped"] = count
+			proto.queue_free()
+			continue
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(id + str(entry["node"]))
 		var list: Array = []
@@ -234,11 +191,6 @@ func _multimesh() -> void:
 			var basis := Basis(Vector3(a[o], a[o + 1], a[o + 2]), Vector3(a[o + 3], a[o + 4], a[o + 5]), Vector3(a[o + 6], a[o + 7], a[o + 8]))
 			list.append([Transform3D(basis, Vector3(a[o + 9], a[o + 10], a[o + 11])), _tint(kind, rng)])
 		proto.queue_free()
-		if kind == "grassTuft":
-			grass_xf.append_array(list)
-			grass_mesh = proto.mesh
-			grass_src = src
-			continue
 		for it in list:
 			var t3: Transform3D = it[0]
 			var key := "%d|%d,%d" % [proto.mesh.get_instance_id(), floori(t3.origin.x / TREE_CHUNK), floori(t3.origin.z / TREE_CHUNK)]
@@ -258,14 +210,9 @@ func _multimesh() -> void:
 			mmi.extra_cull_margin = 0.5
 		else:
 			mmi.material_override = _canonical(gr["src"])
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mmi.visibility_range_end = 110.0
 		add_child(mmi)
 		trees.append(mmi)
-	if grass_mesh != null:
-		stats["grass_tufts"] = grass_xf.size()
-		_grass_proto = [grass_mesh, _grass_material(grass_src)]
-		_grass_list = grass_xf
 
 ## MultiMesh из списка [[Transform3D, Color], …].
 func _instances(list: Array, mesh: Mesh, colors: bool) -> MultiMeshInstance3D:
@@ -313,177 +260,6 @@ func _foliage_material(kind: String, mesh: Mesh) -> ShaderMaterial:
 	m.set_shader_parameter("bumps", 0.0 if kind == "pine" else 0.35)
 	foliage_mats.append(m)
 	return m
-
-func _grass_material(src: Material) -> Material:
-	var b := src as BaseMaterial3D
-	if b == null or b.albedo_texture == null:
-		return src
-	var m := ShaderMaterial.new()
-	m.shader = shader("grass")
-	m.set_shader_parameter("albedo_tex", b.albedo_texture)
-	m.set_shader_parameter("alpha_cut", b.alpha_scissor_threshold if b.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.5)
-	m.set_shader_parameter("fade_range", Q_RANGE[quality])
-	grass_mats.append(m)
-	return m
-
-# ---------- Бурьян и кусты ----------
-
-## Бурьян гуще вдоль заборов, стен и обочин (из образца травы, крупнее и суше), кусты у заборов. Места — по
-## стенам из meta.colliders (длинные и тонкие) и краям дорог из meta.plan.grounds; не в домах и не на асфальте.
-## Трава и бурьян — один MultiMesh, кусты — второй: два вызова отрисовки на всю локацию.
-func _verge() -> void:
-	_verge_zones()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(id + "verge")
-	var weeds: Array = []
-	var bush: Array = []
-	for c in meta.get("colliders", []):
-		var hx: float = float(c[2])
-		var hz: float = float(c[3])
-		var long := maxf(hx, hz)
-		var thin := minf(hx, hz)
-		if long < 0.9 or thin > 0.45:
-			continue
-		var x: float = float(c[0])
-		var z: float = float(c[1])
-		var cs := cos(float(c[4]))
-		var sn := sin(float(c[4]))
-		var along_x := hx >= hz
-		var steps := int(long * 2.0 / 0.6)
-		for i in steps:
-			var t := -long + (i + 0.5) * long * 2.0 / steps
-			for side in [-1.0, 1.0]:
-				var r := rng.randf()
-				if r > 0.72:
-					continue
-				var off := thin + rng.randf_range(0.12, 0.5)
-				var lx: float = t if along_x else side * off
-				var lz: float = side * off if along_x else t
-				var p := Vector3(x + lx * cs + lz * sn, 0.0, z - lx * sn + lz * cs)
-				if not _verge_ok(p):
-					continue
-				var s := rng.randf_range(1.1, 1.9)
-				weeds.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(1.0, 1.5), s)), p), _tint("weed", rng)])
-				if r < 0.06:
-					var bo := off + rng.randf_range(0.3, 0.6)
-					var bl: float = t if along_x else side * bo
-					var bz: float = side * bo if along_x else t
-					var bp := Vector3(x + bl * cs + bz * sn, 0.0, z - bl * sn + bz * cs)
-					if _verge_ok(bp):
-						var bs := rng.randf_range(0.75, 1.35)
-						bp.y = 0.3 * bs
-						bush.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(bs, bs * 0.8, bs)), bp), _tint("bush", rng)])
-	# обочины: вдоль длинных краёв дорог и грунтовок
-	for g in meta.get("plan", {}).get("grounds", []):
-		var w: float = float(g.get("w", 0))
-		var d: float = float(g.get("d", 0))
-		var gx: float = float(g.get("x", 0))
-		var gz: float = float(g.get("z", 0))
-		var cs2 := cos(float(g.get("ry", 0)))
-		var sn2 := sin(float(g.get("ry", 0)))
-		var wide := w >= d
-		var long2 := maxf(w, d) / 2.0
-		var edge := minf(w, d) / 2.0
-		var steps2 := int(long2 * 2.0 / 0.6)
-		for i in steps2:
-			var t2 := -long2 + (i + 0.5) * long2 * 2.0 / steps2
-			for side in [-1.0, 1.0]:
-				if rng.randf() > 0.45:
-					continue
-				var off2 := edge + rng.randf_range(0.1, 0.7)
-				var lx2: float = t2 if wide else side * off2
-				var lz2: float = side * off2 if wide else t2
-				var p2 := Vector3(gx + lx2 * cs2 + lz2 * sn2, 0.0, gz - lx2 * sn2 + lz2 * cs2)
-				if not _verge_ok(p2):
-					continue
-				var s2 := rng.randf_range(0.8, 1.4)
-				weeds.append([Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s2, s2, s2)), p2), _tint("weed", rng)])
-	stats["weeds"] = weeds.size()
-	stats["bushes"] = bush.size()
-	# трава + бурьян: перемешать, чтобы доля visible_instance_count (качество) брала равномерно отовсюду
-	if not _grass_proto.is_empty():
-		var all: Array = _grass_list + weeds
-		_shuffle(all, rng)
-		var mmi := _instances(all, _grass_proto[0], true)
-		mmi.material_override = _grass_proto[1]
-		mmi.name = "Grass"
-		add_child(mmi)
-		grass.append(mmi)
-	if not bush.is_empty():
-		_shuffle(bush, rng)
-		var sphere := SphereMesh.new()
-		sphere.radius = 0.55
-		sphere.height = 0.95
-		sphere.radial_segments = 8
-		sphere.rings = 5
-		var bm := ShaderMaterial.new()
-		bm.shader = shader("foliage")
-		bm.set_shader_parameter("noise_tex", noise_texture())
-		bm.set_shader_parameter("crown_y0", -0.5)
-		bm.set_shader_parameter("crown_y1", 0.45)
-		bm.set_shader_parameter("sway", 0.04)
-		bm.set_shader_parameter("sway_h", 1.0)
-		bm.set_shader_parameter("bumps", 0.3)
-		bm.set_shader_parameter("see_through", 0.0)
-		bm.set_shader_parameter("fade_range", 46.0)
-		var mmi2 := _instances(bush, sphere, true)
-		mmi2.material_override = bm
-		mmi2.name = "Bushes"
-		mmi2.extra_cull_margin = 0.3
-		mmi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		add_child(mmi2)
-		bushes.append(mmi2)
-
-## Можно ли сажать бурьян: в игровой зоне, не в доме, не на асфальте и бетоне, не в выходе (по сетке 8 м —
-## кандидатов тысячи, а перебирать все дома и дороги на каждого на телефоне долго).
-func _verge_ok(p: Vector3) -> bool:
-	if absf(p.x) > play - 0.5 or absf(p.z) > play - 0.5:
-		return false
-	var cell := Vector2i(floori(p.x / 8.0), floori(p.z / 8.0))
-	if not _zones.has(cell):
-		return true
-	for i in _zones[cell]:
-		var z: PackedFloat32Array = _zrects[i]
-		var dx := p.x - z[0]
-		var dz := p.z - z[1]
-		if absf(dx * z[2] - dz * z[3]) <= z[4] and absf(dx * z[3] + dz * z[2]) <= z[5]:
-			return false
-	return true
-
-## Запретные прямоугольники для бурьяна (дома, асфальт и бетон, выходы) — в сетку 8 м.
-func _verge_zones() -> void:
-	_zones.clear()
-	_zrects.clear()
-	for b in buildings:
-		_zone(float(b["cx"]), float(b["cz"]), float(b["ry"]), float(b["w"]) / 2.0 + 0.05, float(b["d"]) / 2.0 + 0.05)
-	for g in meta.get("plan", {}).get("grounds", []):
-		var kind: String = str(g.get("kind", ""))
-		if kind == "asphalt" or kind == "concrete":
-			_zone(float(g.get("x", 0)), float(g.get("z", 0)), float(g.get("ry", 0)), float(g.get("w", 0)) / 2.0, float(g.get("d", 0)) / 2.0)
-	for e in exits:
-		var x0: float = float(e["x0"])
-		var x1: float = float(e["x1"])
-		var z0: float = float(e["z0"])
-		var z1: float = float(e["z1"])
-		_zone((x0 + x1) / 2.0, (z0 + z1) / 2.0, 0.0, (x1 - x0) / 2.0, (z1 - z0) / 2.0)
-
-func _zone(cx: float, cz: float, ry: float, hw: float, hd: float) -> void:
-	var idx := _zrects.size()
-	_zrects.append(PackedFloat32Array([cx, cz, cos(ry), sin(ry), hw, hd]))
-	var r := sqrt(hw * hw + hd * hd)
-	for gx in range(floori((cx - r) / 8.0), floori((cx + r) / 8.0) + 1):
-		for gz in range(floori((cz - r) / 8.0), floori((cz + r) / 8.0) + 1):
-			var k := Vector2i(gx, gz)
-			if not _zones.has(k):
-				_zones[k] = []
-			_zones[k].append(idx)
-
-static func _shuffle(list: Array, rng: RandomNumberGenerator) -> void:
-	for i in range(list.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var tmp = list[i]
-		list[i] = list[j]
-		list[j] = tmp
 
 # ---------- Слияние статики ----------
 
@@ -612,7 +388,7 @@ func _put(parent: Node3D, mesh: Mesh, xf: Transform3D, mat: Material, mats_out: 
 	if mat:
 		mats_out[mat.get_instance_id()] = true
 	var flat := (xf * mesh.get_aabb()).size.y < 0.25
-	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if flat else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(inst)
 
 func _collect_meshes(n: Node, out: Array[MeshInstance3D]) -> void:
@@ -793,74 +569,6 @@ static func noise_texture() -> NoiseTexture2D:
 		_noise.generate_mipmaps = true
 		_noise.noise = n
 	return _noise
-
-# ---------- Контактные тени ----------
-
-## Мягкие тёмные пятна у основания всего, что стоит на земле (стены, заборы, мебель, бочки, машины — по
-## meta.colliders), и большие пятна под кронами, сдвинутые от солнца. Один меш на локацию.
-func _contact_shadows() -> void:
-	var tree_at := {}
-	for t in meta.get("plan", {}).get("trees", []):
-		tree_at["%d,%d" % [roundi(float(t[0]) * 10.0), roundi(float(t[1]) * 10.0)]] = true
-	for c in meta.get("colliders", []):
-		var x: float = float(c[0])
-		var z: float = float(c[1])
-		if tree_at.has("%d,%d" % [roundi(x * 10.0), roundi(z * 10.0)]):
-			continue
-		if absf(x) > play + 2.0 or absf(z) > play + 2.0:
-			continue
-		var hx: float = float(c[2])
-		var hz: float = float(c[3])
-		var wall: bool = c.size() > 5 and int(c[5]) == 1
-		var margin := 0.6 if wall else clampf(0.3 + minf(hx, hz) * 0.5, 0.35, 0.7)
-		var power := 0.7 if wall or maxf(hx, hz) > 1.0 else 0.55
-		_decal(Vector3(x, 0.038, z), hx, hz, float(c[4]), margin, power)
-	for t in meta.get("plan", {}).get("trees", []):
-		var p := Vector3(float(t[0]), 0.036, float(t[1])) + SHADOW_DIR * 1.3
-		_decal(p, 0.5, 0.5, 0.0, 2.1, 0.38)
-	if _dv.is_empty():
-		return
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = _dv
-	var nrm := PackedVector3Array()
-	nrm.resize(_dv.size())
-	nrm.fill(Vector3.UP)
-	arrays[Mesh.ARRAY_NORMAL] = nrm
-	arrays[Mesh.ARRAY_TEX_UV] = _duv
-	arrays[Mesh.ARRAY_TEX_UV2] = _duv2
-	arrays[Mesh.ARRAY_COLOR] = _dcol
-	arrays[Mesh.ARRAY_INDEX] = _didx
-	var am := ArrayMesh.new()
-	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	var m := ShaderMaterial.new()
-	m.shader = shader("contact_shadow")
-	m.render_priority = -1
-	var mi := MeshInstance3D.new()
-	mi.name = "ContactShadows"
-	mi.mesh = am
-	mi.material_override = m
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	stats["contact_shadows"] = _dv.size() / 4
-
-## Квадрат пятна: центр, половины размеров предмета, поворот (как у коллайдера), ширина мягкого края, сила.
-func _decal(at: Vector3, hx: float, hz: float, rot: float, margin: float, power: float) -> void:
-	var c := cos(rot)
-	var s := sin(rot)
-	var ex := (hx + margin) / margin
-	var ez := (hz + margin) / margin
-	var base := _dv.size()
-	for k in 4:
-		var sx := -1.0 if k == 0 or k == 3 else 1.0
-		var sz := -1.0 if k < 2 else 1.0
-		var lx := sx * (hx + margin)
-		var lz := sz * (hz + margin)
-		_dv.append(Vector3(at.x + lx * c + lz * s, at.y, at.z - lx * s + lz * c))
-		_duv.append(Vector2(sx * ex, sz * ez))
-		_duv2.append(Vector2(ex, ez))
-		_dcol.append(Color(1, 1, 1, power))
-	_didx.append_array(PackedInt32Array([base, base + 1, base + 2, base, base + 2, base + 3]))
 
 # ---------- Стены и проходимость ----------
 

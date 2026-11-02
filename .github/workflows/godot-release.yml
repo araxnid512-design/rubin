@@ -73,6 +73,25 @@ jobs:
         run: |
           timeout 600 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME godot --headless --path godot -- --smoke 2>&1 | tee smoke.log
           grep -q "SMOKE: OK" smoke.log
+      # снимки всех локаций настоящим рендером (OpenGL через Mesa под xvfb, экран как у телефона 1600×720) и нагрузка
+      # кадра у каждого — в gh-pages/godot-shots: по ним дорабатывается картинка (scripts/shots.gd)
+      - name: Снимки локаций
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils > /dev/null || true
+          mkdir -p shots
+          timeout 900 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME xvfb-run -a -s "-screen 0 1600x720x24" godot --path godot --rendering-driver opengl3 --resolution 1600x720 -- --shots "$PWD/shots" > shots/log.txt 2>&1 || true
+          grep -E "SHOTS|снимок|ERROR|SCRIPT|✗" shots/log.txt | head -150
+          ls -la shots
+      - name: Выложить снимки
+        if: always() && hashFiles('shots/stats.txt') != ''
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./shots
+          destination_dir: godot-shots
+          keep_files: true # сайты «Стикса» и «Клонов» в gh-pages не трогаем
+          commit_message: "Godot: снимки локаций, сборка ${{ github.run_number }}"
       - name: Собрать APK
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/android/app/debug.keystore

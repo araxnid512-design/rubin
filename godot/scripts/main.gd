@@ -9,6 +9,7 @@ signal noise_made(pos: Vector3, radius: float)
 ## «Улей. Кластер-17» на Godot: главный цикл. Локации, переходы по карте Улья, перезагрузка кластеров,
 ## заражённые, тайники и обыск, спораны, торговец и лекарь в стабе, гибель, сохранение (user://save.json).
 ## Запуск с «-- --smoke» — автотест для CI: проходит игру по шагам и выходит с кодом 0 (всё в порядке) или 1.
+## Запуск с «-- --shots <папка>» — фотосъёмка всех локаций с нагрузкой кадра (scripts/shots.gd).
 
 const SAVE_PATH := "user://save.json"
 ## Системы игры в своих файлах (scripts/features/*.gd, extends Node): подключаются одной строкой здесь.
@@ -67,7 +68,10 @@ var reload_dying := false
 
 func _ready() -> void:
 	Data.load_all()
-	smoke = OS.get_cmdline_user_args().has("--smoke")
+	var args := OS.get_cmdline_user_args()
+	smoke = args.has("--smoke")
+	var shots_at := args.find("--shots")
+	var shots_dir: String = args[shots_at + 1] if shots_at >= 0 and shots_at + 1 < args.size() else ""
 	_setup_scene()
 	hud = Hud.new()
 	add_child(hud)
@@ -87,12 +91,17 @@ func _ready() -> void:
 		features.append(f)
 		if f.has_method("setup"):
 			f.setup(self)
-	if not smoke and _load():
+	if not smoke and shots_dir == "" and _load():
 		enter(world.get("at", "zarechny"), null)
 	else:
 		new_game()
 	if smoke:
 		_run_smoke()
+	elif shots_dir != "":
+		var shots: Node = load("res://scripts/shots.gd").new()
+		shots.name = "Shots"
+		add_child(shots)
+		shots.run(self, shots_dir)
 
 ## Свет и воздух «как на фото»: тёплое низкое солнце с запада-юго-запада, голубоватый свет неба (окружение
 ## и слабый заполняющий свет с другой стороны — тени не чёрные), ACES, дымка вдали (туман по глубине: у героя
@@ -138,14 +147,7 @@ func _setup_scene() -> void:
 	sun.light_color = Color(1.0, 0.84, 0.64)
 	sun.light_energy = 1.75
 	sun.rotation_degrees = Vector3(-34, -69, 0)
-	sun.shadow_enabled = false
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	sun.directional_shadow_max_distance = 30.0
-	sun.directional_shadow_fade_start = 0.85
-	sun.shadow_blur = 1.6
-	sun.shadow_opacity = 0.8
-	sun.shadow_bias = 0.05
-	sun.shadow_normal_bias = 1.5
+	sun.shadow_enabled = false   # теней нет (просьба пользователя)
 	add_child(sun)
 	var fill := DirectionalLight3D.new()
 	fill.name = "Fill"

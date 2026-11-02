@@ -1,6 +1,6 @@
 extends Node
 ## Графика и нагрузка: автотест того, что делает Level при загрузке (слияние статики, подмена материалов
-## шейдерами, контактные тени, бурьян, качество 0/1/2) и окружения из main._setup_scene, и печать статистики
+## шейдерами, качество 0/1/2; травы и теней нет — проверяется, что их нет) и окружения из main._setup_scene, и печать статистики
 ## по каждой локации — узлы, материалы, MultiMesh, оценка вызовов отрисовки в кадре. По этим строкам
 ## («ГРАФИКА …») в логе CI следим за нагрузкой: число не должно расти незаметно.
 
@@ -27,9 +27,9 @@ func smoke() -> int:
 		var st: Dictionary = lv.render_stats()
 		var s: Dictionary = lv.stats
 		var est := estimate_draws(game, game.camera)
-		print("  · ГРАФИКА %s: узлов glTF %d, мешей %d → MeshInstance3D %d (поверхностей %d), материалов %d → %d, MultiMesh %d (экземпляров %d), бурьян %d, кусты %d, пятна теней %d; слияние %.0f мс, загрузка %.0f мс, переход %.0f мс; в кадре ≈ %d вызовов отрисовки (видно мешей %d, свет огня +%d), рендер: %d" % [
+		print("  · ГРАФИКА %s: узлов glTF %d, мешей %d → MeshInstance3D %d (поверхностей %d), материалов %d → %d, MultiMesh %d (экземпляров %d), трава из выгрузки пропущена (%d); слияние %.0f мс, загрузка %.0f мс, переход %.0f мс; в кадре ≈ %d вызовов отрисовки (видно мешей %d, свет огня +%d), рендер: %d" % [
 			id, s.get("gltf_nodes", 0), s.get("gltf_meshes", 0), st["meshes"], st["surfaces"], s.get("materials_in", 0), st["materials"],
-			st["multimesh"], st["instances"], s.get("weeds", 0), s.get("bushes", 0), s.get("contact_shadows", 0),
+			st["multimesh"], st["instances"], s.get("grass_skipped", 0),
 			s.get("merge_ms", 0.0), s.get("load_ms", 0.0), enter_ms, est["draws"], est["visible"], est["light_passes"],
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
 		var ok_merge: bool = int(st["meshes"]) < int(s.get("gltf_nodes", 0)) * 0.75 and int(st["meshes"]) < int(s.get("gltf_meshes", 0)) and int(st["materials"]) < int(s.get("materials_in", 0))
@@ -37,9 +37,9 @@ func smoke() -> int:
 			print("  · %s: рендер в этом режиме не отдаёт данные мешей — слияние не проверить (меши оставлены как есть)" % id)
 		else:
 			fails += _check(ok_merge, "%s: статика слита — MeshInstance3D %d при %d узлах glTF (%d с мешами), материалов %d из %d" % [id, st["meshes"], s.get("gltf_nodes", 0), s.get("gltf_meshes", 0), st["materials"], s.get("materials_in", 0)])
-		fails += _check(lv.world_mats.size() > 0 and lv.grass.size() == 1, "%s: материалы «как на фото» — %d (мох, сырость, лужи), трава с бурьяном — один MultiMesh" % [id, lv.world_mats.size()])
+		var no_grass: bool = lv.find_child("Grass", true, false) == null and lv.find_child("Bushes", true, false) == null and lv.find_child("ContactShadows", true, false) == null
+		fails += _check(lv.world_mats.size() > 0 and no_grass, "%s: материалы «как на фото» — %d (мох, сырость, лужи); травы, кустов и пятен теней нет" % [id, lv.world_mats.size()])
 		if id == "zarechny":
-			fails += _check(int(s.get("contact_shadows", 0)) > 100 and int(s.get("weeds", 0)) > 200, "контактные тени (%d) и бурьян вдоль заборов (%d)" % [s.get("contact_shadows", 0), s.get("weeds", 0)])
 			var tinted := 0
 			for mmi in lv.trees:
 				if mmi.multimesh.use_colors:
@@ -65,31 +65,27 @@ func _check_shaders() -> int:
 		print("  · шейдеры: в этом режиме рендер их не разбирает — проверка пропущена")
 		return 0
 	var bad := []
-	for nm in ["world", "world_lite", "foliage", "grass", "puddle", "contact_shadow", "fire_glow"]:
+	for nm in ["world", "world_lite", "foliage", "puddle", "fire_glow"]:
 		var sh := Level.shader(nm)
 		if sh == null or sh.get_shader_uniform_list().is_empty():
 			bad.append(nm)
 	return _check(bad.is_empty(), "шейдеры разобраны без ошибок%s" % ("" if bad.is_empty() else ": ошибка в " + ", ".join(bad)))
 
-## Качество 0/1/2: трава гуще, тени солнца и свечение — только на высоком.
+## Качество 0/1/2: тени солнца выключены всегда, свечение — только на высоком, на низком — без огней.
 func _check_quality(lv: Level) -> int:
 	var was := Level.quality
 	var sun := game.get_node_or_null("Sun") as DirectionalLight3D
 	var env: Environment = game.env
 	lv.apply_quality(0)
 	await game.get_tree().process_frame
-	var g0 := lv.grass_visible()
 	var low_ok: bool = sun != null and not sun.shadow_enabled and not env.glow_enabled
 	var d0: int = estimate_draws(game, game.camera)["draws"]
-	lv.apply_quality(1)
-	var g1 := lv.grass_visible()
 	lv.apply_quality(2)
 	await game.get_tree().process_frame
-	var g2 := lv.grass_visible()
-	var high_ok: bool = sun != null and sun.shadow_enabled and env.glow_enabled
+	var high_ok: bool = sun != null and not sun.shadow_enabled and env.glow_enabled
 	var d2: int = estimate_draws(game, game.camera)["draws"]
 	lv.apply_quality(was)
-	return _check(g0 < g1 and g1 < g2 and low_ok and high_ok, "качество: трава и бурьян %d / %d / %d, тени солнца и свечение только на высоком, вызовов в кадре ≈ %d (низкое) / %d (высокое, без учёта теней)" % [g0, g1, g2, d0, d2])
+	return _check(low_ok and high_ok, "качество: теней солнца нет, свечение только на высоком, вызовов в кадре ≈ %d (низкое) / %d (высокое)" % [d0, d2])
 
 func _check(ok: bool, msg: String) -> int:
 	print(("✓ " if ok else "✗ ") + msg)
