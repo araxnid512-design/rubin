@@ -33,6 +33,7 @@ func run(g, out_dir: String) -> void:
 	print("SHOTS: экран %dx%d, рендер %s, видеокарта %s" % [size.x, size.y, RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_video_adapter_name()])
 	await _hero_shots()
 	await _fire_shots()
+	await _mur_shots()
 	var prev: String = game.loc
 	for id in LOCS:
 		if id != game.loc:
@@ -164,6 +165,47 @@ func _fire_shots() -> void:
 	game.kit.clear()
 	game.kit.merge(keep)
 	p.attach_gear()
+
+## Муры крупно: обе модели Tripo (по картинкам пользователя) с клипами героя, пересчитанными на их скелет
+## (SkinBake), с автоматами в руках — стойка и прицел. Слева направо: мур 1 стоит, мур 1 целится, мур 2, мур 2.
+func _mur_shots() -> void:
+	var p = game.player
+	var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
+	var right := fwd.cross(Vector3.UP)
+	var shown: Array = []
+	var k := 0
+	for path in ["res://assets/tripo/mur_1.glb", "res://assets/tripo/mur_2.glb"]:
+		for clip in ["IdleRifle", "AimRifle"]:
+			var m := SkinBake.instance(path, ["IdleRifle", "WalkRifle", "AimRifle"], game)
+			if m == null:
+				continue
+			var holder := Node3D.new()
+			game.add_child(holder)
+			holder.add_child(m)
+			holder.global_position = p.global_position + fwd * 3.2 + right * ((k - 1.5) * 1.15)
+			holder.rotation.y = atan2(-fwd.x, -fwd.z)
+			var grip := m.find_child("Grip", true, false) as Node3D
+			if grip:
+				grip.add_child(Gear.weapon(["ak74", "ak47", "aks", "pkm"][k % 4]))
+			var ap := m.get_node_or_null("AnimationPlayer") as AnimationPlayer
+			if ap and ap.has_animation(clip):
+				ap.play(clip)
+				ap.seek(0.4, true)
+			shown.append(holder)
+			k += 1
+	if shown.is_empty():
+		return
+	await _wait(0.5)
+	game.set_process(false)
+	var cam: Camera3D = game.camera
+	var at: Vector3 = p.global_position + fwd * 3.2 + Vector3(0, 1.1, 0)
+	cam.global_position = p.global_position + fwd * 0.4 + Vector3(0, 1.5, 0)
+	cam.look_at(at, Vector3.UP)
+	await _wait(0.3)
+	await _capture("murs_close", 1, "муры из Tripo: стойка и прицел (АК-74, АК-47, АКС-74У, ПКМ)", true)
+	game.set_process(true)
+	for h in shown:
+		h.queue_free()
 
 ## Тайники в разных домах (доступ к ним — внутри), подальше друг от друга и от старта.
 func _inside_spots(lv: Level, from: Vector3) -> Array:
