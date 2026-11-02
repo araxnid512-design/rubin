@@ -72,6 +72,15 @@
     "--output-format",
     "json"
    ]
+  },
+  {
+   "id": "m_plhelp",
+   "timeout": 120,
+   "args": [
+    "project",
+    "list",
+    "--help"
+   ]
   }
  ],
  "stop": false
