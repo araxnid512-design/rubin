@@ -9,6 +9,23 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 const shadow = (g) => { g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); return g; };
 
 /**
+ * Опора левой кисти на двуручном оружии (userData.gripL): где центр левого кулака — узел GripL кисти героя — в осях
+ * хвата и как цевьё лежит в ладони. Цевьё — наискось: большой палец вперёд-влево вдоль ствола, пальцы обхватывают
+ * правый бок (как FOREGRIP в src/hero-animations.js — с ним запечены клипы с автоматом). Godot-версия выгружает
+ * точку пустым узлом GripL (tools/godot-export.html) и ставит туда левую кисть через IK.
+ * y — насколько впереди кулака правой руки (по стволу, −Y), z — высота центра кулака, x — сдвиг влево.
+ */
+const FOREGRIP_HANDLE = new THREE.Vector3(0.6, -0.6, 0.3);
+const FOREGRIP_BLADE = new THREE.Vector3(-0.6, -0.6, 0.2);
+function setGripL(g, y, z = 0.02, x = 0.03) {
+	const Z = FOREGRIP_HANDLE.clone().normalize();
+	const Y = FOREGRIP_BLADE.clone().addScaledVector(Z, -FOREGRIP_BLADE.dot(Z)).normalize().negate();
+	const X = new THREE.Vector3().crossVectors(Y, Z);
+	const quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+	g.userData.gripL = { pos: new THREE.Vector3(x, y, z), quat };
+}
+
+/**
  * Наклон топорища в кулаке, градусы. Топорище лежит в ладони наискось — от основания мизинца
  * к указательному пальцу, поэтому оно отклонено от стороны большого пальца (+Z) к пальцам (−Y).
  * Так топор продолжает линию руки при небольшом отклонении кисти, как у настоящего хвата.
@@ -88,6 +105,7 @@ export function makeObrez() {
 	part(g, rbox(0.05, 0.13, 0.025), wood, 0, -0.13, 0.042); // цевьё
 	part(g, new THREE.TorusGeometry(0.02, 0.004, 6, 12, Math.PI), metal, 0, -0.035, 0.03).rotation.y = Math.PI / 2;
 	g.userData.muzzle = new THREE.Vector3(0, -0.39, 0.07);
+	setGripL(g, -0.14, 0.0); // под цевьём (клипы обреза пока одноручные — точка на будущее)
 	return shadow(g);
 }
 
@@ -111,6 +129,7 @@ export function makeAks() {
 	part(g, rbox(0.03, 0.025, 0.1), metal, 0, 0.33, 0.085);
 	boltHandle(g, metal, -0.035, -0.02, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.54, 0.088);
+	setGripL(g, -0.29); // цевьё
 	return shadow(g);
 }
 
@@ -133,6 +152,7 @@ export function makeShotgun() {
 	// после выстрела цевьё передёргивают: назад-вперёд (звук — в audio.js)
 	g.userData.action = { part: pump, travel: 0.085, dur: 0.38, delay: 0.26 };
 	g.userData.muzzle = new THREE.Vector3(0, -0.64, 0.105);
+	setGripL(g, -0.29, 0.025); // цевьё-помпа
 	return shadow(g);
 }
 
@@ -150,6 +170,7 @@ export function makeVector() {
 	for (const z of [0.07, 0.115]) part(g, rbox(0.01, 0.2, 0.01), dark, 0, 0.17, z); // приклад-рамка
 	part(g, rbox(0.03, 0.02, 0.07), black, 0, 0.27, 0.09);
 	g.userData.muzzle = new THREE.Vector3(0, -0.32, 0.11);
+	setGripL(g, -0.2, 0.035); // под кожухом ствола
 	return shadow(g);
 }
 
@@ -172,6 +193,7 @@ function makeKalash({ name, furniture, magMat, brake, stockLen = 0.3 }) {
 	part(g, rbox(0.044, 0.02, 0.09), M(0x1a1a1a, 0.7), 0, 0.08 + stockLen, 0.04);
 	boltHandle(g, metal, -0.035, -0.02, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.71, 0.088);
+	setGripL(g, -0.29); // цевьё — та же точка, что в клипах с автоматом
 	return shadow(g);
 }
 export const makeAk74 = () => makeKalash({ name: 'AK74', furniture: M(0x4a2e2a, 0.6), magMat: M(0x6a3424, 0.55), brake: true });
@@ -198,6 +220,7 @@ export function makeSvd() {
 	part(g, rbox(0.024, 0.05, 0.09), metal, 0, -0.1, -0.025, 0.12); // магазин
 	boltHandle(g, metal, -0.033, -0.01, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.94, 0.088);
+	setGripL(g, -0.33, 0.025); // цевьё
 	return shadow(g);
 }
 
@@ -225,6 +248,7 @@ export function makePkm() {
 	part(g, rbox(0.04, 0.02, 0.035), M(0xb8923e, 0.35, 0.85), -0.03, -0.1, 0.075);
 	boltHandle(g, metal, -0.04, 0.0, 0.09); // над коробом, как у настоящего ПКМ
 	g.userData.muzzle = new THREE.Vector3(0, -0.87, 0.092);
+	setGripL(g, -0.3, 0.025); // под газовой трубкой
 	return shadow(g);
 }
 
@@ -249,6 +273,7 @@ export function makeVss() {
 	part(g, rbox(0.026, 0.05, 0.1), metal, 0, -0.09, -0.03, 0.1); // магазин на 20
 	boltHandle(g, metal, -0.033, 0.0, 0.1);
 	g.userData.muzzle = new THREE.Vector3(0, -0.64, 0.088);
+	setGripL(g, -0.22, 0.025); // цевьё
 	return shadow(g);
 }
 
