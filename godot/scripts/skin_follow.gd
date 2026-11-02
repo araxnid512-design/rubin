@@ -77,6 +77,14 @@ static func mixamo_name(n: String) -> String:
 	var limb: String = LIMB.get(s, "")
 	return (side + limb) if limb != "" else ""
 
+## Кость скелета player.glb по короткому имени Mixamo («Spine», «LeftHand»): с приставкой mixamorig или без.
+static func src_bone(sk: Skeleton3D, short: String) -> int:
+	for n in ["mixamorig" + short, short, "mixamorig_" + short, "mixamorig:" + short]:
+		var i := sk.find_bone(n)
+		if i >= 0:
+			return i
+	return -1
+
 ## Кость скелета по имени Mixamo (первая подходящая) или -1.
 static func find_mixamo(sk: Skeleton3D, m: String) -> int:
 	for i in sk.get_bone_count():
@@ -95,7 +103,7 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 		var m := mixamo_name(str(dst.get_bone_name(i)))
 		if m == "" or used.has(m):
 			continue
-		var j := HeroPose.find_bone(src, m)
+		var j := src_bone(src, m)
 		if j < 0:
 			continue
 		used[m] = true
@@ -109,7 +117,7 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 	for p in pairs:
 		_by_dst[p[0]] = p
 	# таз: поправка роста (высота таза новой / старой над ступнями)
-	var src_hips := HeroPose.find_bone(src, "Hips")
+	var src_hips := src_bone(src, "Hips")
 	if hips >= 0 and src_hips >= 0:
 		var hs := (src.global_transform * src.get_bone_global_rest(src_hips)).origin.y - src.global_position.y
 		var hd := (dst.global_transform * dst.get_bone_global_rest(hips)).origin.y - src.global_position.y
@@ -122,8 +130,8 @@ func bind(source: Skeleton3D, target: Skeleton3D) -> int:
 		var du := find_mixamo(dst, ch[0])
 		var dm := find_mixamo(dst, ch[1])
 		var de := find_mixamo(dst, ch[2])
-		var sm := HeroPose.find_bone(src, ch[1])
-		var se := HeroPose.find_bone(src, ch[2])
+		var sm := src_bone(src, ch[1])
+		var se := src_bone(src, ch[2])
 		if du >= 0 and dm >= 0 and de >= 0 and sm >= 0 and se >= 0:
 			chains.append([du, dm, de, sm, se])
 	# порядок обхода: родитель раньше ребёнка

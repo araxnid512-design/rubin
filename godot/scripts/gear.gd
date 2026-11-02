@@ -226,7 +226,7 @@ static func hero(player: Node3D, old_model: Node3D, old_skeleton: Skeleton3D) ->
 	player.add_child(model)
 	Level.rim(model)
 	# рост: голова новой — на высоте головы старой (в позе покоя)
-	var oh := HeroPose.find_bone(old_skeleton, "Head")
+	var oh := SkinFollow.src_bone(old_skeleton, "Head")
 	var nh := SkinFollow.find_mixamo(sk, "Head")
 	if oh >= 0 and nh >= 0:
 		var old_y := (old_skeleton.global_transform * old_skeleton.get_bone_global_rest(oh)).origin.y - old_skeleton.global_position.y
@@ -234,8 +234,8 @@ static func hero(player: Node3D, old_model: Node3D, old_skeleton: Skeleton3D) ->
 		if new_y > 0.01:
 			model.scale *= old_y / new_y
 	# развернуть лицом туда же, что старая (модель Tripo в файле смотрит вбок): по линии плеч в плоскости XZ
-	var ol := HeroPose.find_bone(old_skeleton, "LeftArm")
-	var orr := HeroPose.find_bone(old_skeleton, "RightArm")
+	var ol := SkinFollow.src_bone(old_skeleton, "LeftArm")
+	var orr := SkinFollow.src_bone(old_skeleton, "RightArm")
 	var nl := SkinFollow.find_mixamo(sk, "LeftArm")
 	var nr := SkinFollow.find_mixamo(sk, "RightArm")
 	if ol >= 0 and orr >= 0 and nl >= 0 and nr >= 0:
