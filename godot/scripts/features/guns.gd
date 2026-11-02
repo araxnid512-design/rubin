@@ -182,7 +182,7 @@ func _fire_all() -> int:
 		# бегун в 2,5 м — в сторону, где нет стены
 		var spot: Vector3 = p.global_position + Vector3(0, 0, 2.5)
 		for k in 8:
-			var a := p.rotation.y + k * PI / 4.0
+			var a: float = p.rotation.y + k * PI / 4.0
 			var c: Vector3 = p.global_position + Vector3(sin(a), 0, cos(a)) * 2.5
 			if game.line_of_sight(p.global_position, c):
 				spot = c
