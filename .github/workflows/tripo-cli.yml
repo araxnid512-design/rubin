@@ -1,0 +1,71 @@
+# Tripo через вход по аккаунту (кредиты сайта Studio): официальная программа tripo (@tripo3d/cli).
+# 1) tripo auth login — ссылка для подтверждения входа выкладывается в ветку tripo-status (status/login.md),
+#    пользователь открывает её на телефоне и подтверждает; 2) баланс, цены и справка по командам — в
+#    status/info.md; 3) задания из ветки tripo-control (jobs.json) выполняет scripts/tripo-cli-runner.py,
+#    готовые файлы и журнал — в ветке tripo-status. Предел трат — budget кредитов от баланса на старте.
+name: Tripo (аккаунт)
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Сколько минут ждать заданий после входа'
+        default: '120'
+      budget:
+        description: 'Предел трат, кредитов'
+        default: '1000'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tripo-cli
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Программа tripo
+        run: |
+          npm i -g @tripo3d/cli@0.8.1 > /dev/null
+          tripo version
+      - name: Вход по аккаунту (ссылка — в ветке tripo-status, status/login.md)
+        run: |
+          set +e
+          mkdir -p status
+          ( tripo auth login > login.log 2>&1; echo "LOGIN_EXIT=$?" >> login.log ) &
+          published=""
+          for i in $(seq 1 600); do
+            sleep 2
+            # ссылка и код подтверждения — в журнал входа (без токенов: их программа хранит у себя)
+            if [ -s login.log ] && [ "$(md5sum < login.log)" != "$published" ]; then
+              { echo "# Вход в Tripo ($(date -u +%H:%M:%S) UTC)"; echo; echo '```'; sed 's/\x1b\[[0-9;]*m//g' login.log | head -40; echo '```'; } > status/login.md
+              bash scripts/tripo-publish.sh
+              published=$(md5sum < login.log)
+            fi
+            grep -q "LOGIN_EXIT=" login.log && break
+          done
+          cat login.log
+          tripo auth whoami
+      - name: Баланс, цены, справка по командам
+        run: |
+          set +e
+          {
+            echo "# Tripo: аккаунт"; echo
+            for c in "auth whoami" "account balance" "account prices"; do echo "## tripo $c"; echo '```'; tripo $c 2>&1 | head -80; echo '```'; done
+            for c in "generate text" "process rig" "process animate" "process" "export" "project get"; do echo "## tripo $c --help"; echo '```'; tripo $c --help 2>&1 | head -120; echo '```'; done
+          } > status/info.md
+          bash scripts/tripo-publish.sh
+      - name: Задания из ветки tripo-control
+        env:
+          TRIPO_MINUTES: ${{ github.event.inputs.minutes || '120' }}
+          TRIPO_BUDGET: ${{ github.event.inputs.budget || '1000' }}
+        run: python3 scripts/tripo-cli-runner.py

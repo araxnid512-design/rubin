@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Исполнитель заданий Tripo через официальную программу tripo (вход по аккаунту — кредиты сайта Studio).
+
+Запускает CI .github/workflows/tripo-cli.yml после входа (tripo auth login). Задания берутся из ветки
+tripo-control, файл jobs.json:
+    {"jobs": [{"id": "hero", "args": ["generate", "text", "...", "--wait", "-o", "out/hero.glb"]}, ...],
+     "stop": false}
+Каждое задание — аргументы программы tripo (без оболочки), выполняется один раз. Файлы из out/ и журнал
+выкладываются в ветку tripo-status (status/results.md, status/files/). Предел трат — TRIPO_BUDGET кредитов
+от баланса на старте (по умолчанию 1000): дальше задания не выполняются.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STATUS = Path("status")
+FILES = STATUS / "files"
+OUT = Path("out")
+BUDGET = float(os.environ.get("TRIPO_BUDGET", "1000"))
+MINUTES = float(os.environ.get("TRIPO_MINUTES", "90"))
+
+
+def tripo(args, timeout=1800):
+    try:
+        p = subprocess.run(["tripo", *args], capture_output=True, text=True, timeout=timeout)
+        return p.returncode, (p.stdout + ("\n" + p.stderr if p.stderr.strip() else "")).strip()
+    except subprocess.TimeoutExpired:
+        return -1, f"превышено время ({timeout} с)"
+
+
+def balance():
+    code, out = tripo(["account", "balance"], timeout=120)
+    nums = [float(x) for x in re.findall(r"(?<![\w.])(\d+(?:\.\d+)?)(?![\w.])", out)]
+    return (nums[0] if nums else None), out
+
+
+def publish():
+    subprocess.run(["bash", "scripts/tripo-publish.sh"], check=False)
+
+
+def log(line):
+    with open(STATUS / "results.md", "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    print(line, flush=True)
+
+
+def control():
+    subprocess.run(["git", "fetch", "-q", "origin", "tripo-control"], capture_output=True)
+    p = subprocess.run(["git", "show", "origin/tripo-control:jobs.json"], capture_output=True, text=True)
+    if p.returncode != 0:
+        return {}
+    try:
+        return json.loads(p.stdout)
+    except json.JSONDecodeError as e:
+        log(f"jobs.json не разобран: {e}")
+        return {}
+
+
+def main():
+    FILES.mkdir(parents=True, exist_ok=True)
+    OUT.mkdir(exist_ok=True)
+    start, raw = balance()
+    log(f"## Баланс на старте: {start}\n```\n{raw[:1500]}\n```")
+    publish()
+    done = set()
+    deadline = time.time() + MINUTES * 60
+    while time.time() < deadline:
+        spec = control()
+        for job in spec.get("jobs", []):
+            jid = str(job.get("id"))
+            if jid in done:
+                continue
+            done.add(jid)
+            now, _ = balance()
+            if start is not None and now is not None and start - now >= BUDGET:
+                log(f"- {jid}: не выполнено — потрачено {start - now:g} из {BUDGET:g} кредитов")
+                continue
+            args = [str(a) for a in job.get("args", [])]
+            t0 = time.time()
+            log(f"\n### {jid}: tripo {' '.join(args)[:300]}")
+            code, out = tripo(args, timeout=int(job.get("timeout", 1800)))
+            after, _ = balance()
+            spent = (now - after) if (now is not None and after is not None) else None
+            log(f"код {code}, {time.time() - t0:.0f} с, кредитов {spent}\n```\n{out[-4000:]}\n```")
+            for f in OUT.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, FILES / f.name)
+            publish()
+        if spec.get("stop"):
+            log("\nСтоп по jobs.json")
+            break
+        time.sleep(20)
+    end, _ = balance()
+    log(f"\n## Баланс в конце: {end} (потрачено {None if start is None or end is None else start - end})")
+    publish()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
