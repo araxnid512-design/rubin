@@ -944,10 +944,12 @@ func smoke() -> int:
 	for i in 60:
 		await _wait(0.1)
 		max_sh = maxi(max_sh, _shooting_at(game.player))
-		if first_hit < 0.0 and game.player.hp < hp0:
+		# первое попадание именно мура (урон от заражённого рядом сюда не идёт)
+		if first_hit < 0.0 and human_hits > hits0:
 			first_hit = (Time.get_ticks_msec() - t_start) / 1000.0
 	fails += _ok(game.player.hp < hp0 and human_hits > hits0, "муры стреляют по герою: здоровье %d → %d, попаданий %d" % [int(hp0), int(game.player.hp), human_hits - hits0])
-	fails += _ok(first_hit >= 0.9, "по герою — не сразу: первое попадание через %.1f с (прицел %.1f–%.1f с)" % [first_hit, BanditScript.MUR_AIM[0], BanditScript.MUR_AIM[1]])
+	# прицел не меньше MUR_AIM[0] (1 с); замер — раз в 0,1 с, отсюда запас
+	fails += _ok(first_hit >= BanditScript.MUR_AIM[0] - 0.15, "по герою — не сразу: первое попадание через %.1f с (прицел %.1f–%.1f с)" % [first_hit, BanditScript.MUR_AIM[0], BanditScript.MUR_AIM[1]])
 	fails += _ok(max_sh >= 1 and max_sh <= BanditScript.MUR_SHOOTERS, "по одному человеку разом стреляют не больше %d: самое большее %d из %d" % [BanditScript.MUR_SHOOTERS, max_sh, raiders.size()])
 	# мур убит: дроп и учёт
 	raiders = _alive_bandits("raid")
