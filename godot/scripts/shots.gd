@@ -355,6 +355,10 @@ func _gait_sheet() -> void:
 			p.global_position = spot
 			p.reset_physics_interpolation()
 			await _wait(0.11)
+			# на время снимка герой стоит, где был: рендер в CI медленный, за два кадра бегом он уходил из кадра
+			# (клип не останавливается — поза бега остаётся, скорость для походки — прежняя)
+			p.set_physics_process(false)
+			p.reset_physics_interpolation()
 			var at: Vector3 = p.global_position + Vector3(0, 0.95, 0)
 			var top := f >= N
 			if top:
@@ -367,6 +371,7 @@ func _gait_sheet() -> void:
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
 			var img: Image = game.get_viewport().get_texture().get_image()
+			p.set_physics_process(true)
 			if img:
 				img.convert(Image.FORMAT_RGB8)
 				# сверху герой мелкий — вырезка вокруг центра кадра втрое меньше
