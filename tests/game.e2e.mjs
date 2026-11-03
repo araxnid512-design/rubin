@@ -823,9 +823,11 @@ try {
 		// под огнём обыск прерывается — на время обыска герой неуязвим (тревога в «Карьере» уже проверена выше)
 		g.player.hurt = () => {};
 		g.player.pos.set(c.ax, 0, c.az); g.input.stick = { x: 0, y: 0 }; g.input.sync(); g.searching = { c, t: 99 };
+		window.__box = c;
 		return r;
 	});
-	await page.waitForTimeout(500);
+	// кадр с толпой муров на программном рендере бывает дольше секунды — ждём, пока шкаф обыщется
+	await page.waitForFunction(() => window.__box.searched, null, { timeout: 30000 }).catch(() => {});
 	const stash2 = await G(page, (k) => { delete window.__game.player.hurt; return window.__game.world.murs.stash[k] ?? 0; }, stash.kind);
 	check(stash2 <= stash.before - stash.n, `из шкафа склада забрал ${stash.kind} ×${stash.n} — у муров осталось ${stash2}`);
 	// главарь убит: в «Карьере» паника, на вылазки не ходят, пока при пополнении не выберут нового
