@@ -322,7 +322,7 @@ try {
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
-	check(prev.cards === map.routes.length + 1 && prev.nodes === 11, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров, базой и новыми кластерами)`);
+	check(prev.cards === map.routes.length + 1 && prev.nodes === 12, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров, базой, форпостом внешников и новыми кластерами)`);
 	await page.screenshot({ path: join(OUT, 'game-map.png') });
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');

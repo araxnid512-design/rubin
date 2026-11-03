@@ -64,6 +64,8 @@ function forpostMaterials() {
 			if (x < 3 || x > 124 || y < 3 || y > 124) c = [92, 90, 82].map((k) => k * (0.9 + n * 0.2)); // каркас
 			return c.map(clamp);
 		}, { roughness: 1 }),
+		// синий пластик кабинок-туалетов
+		blue: new THREE.MeshStandardMaterial({ name: 'extBlue', color: 0x2f5c8a, roughness: 0.55 }),
 		// прожекторы светятся (без освещения, ярче белого)
 		lamp: new THREE.MeshBasicMaterial({ name: 'extLamp', color: new THREE.Color(1.8, 1.6, 1.25), toneMapped: false }),
 	};
@@ -114,7 +116,7 @@ function modBuilding(ctx, P, { name, cx, cz, ry, W, D, H = 2.9, doors = { front:
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.8 });
 	b.messKind = 'tidy'; // у внешников порядок: окна целые, на полу почти чисто
 	const IM = b.IM;
-	shell(b, { wall: P.panel, lining: lining ?? IM.whitewash, floor: floor ?? IM.linoleum, doors, w: dw });
+	shell(b, { wall: P.panel, lining: lining ?? IM.whitewash, floor: floor ?? ctx.M.concreteDark, doors, w: dw });
 	for (const [side, at, o] of windows) modWindow(b, side, at, o);
 	b.top_(place(box(W + 0.3, 0.2, D + 0.3, 3), 0, H + 0.1, 0), ctx.M.concrete);
 	b.parapet(H + 0.2, P.panel, 0.18);
@@ -449,9 +451,10 @@ export default {
 			add(box(1.4, 0.8, 1.3, 1.4), M.yellow, frame(-0.6, 1.45, 0), F);
 			for (const sz of [-1, 1]) add(new THREE.CylinderGeometry(0.34, 0.34, 0.22, 12).rotateX(Z), M.tire, frame(0.3, 0.34, sz * 0.8), F);
 			for (const [lx, lz] of [[-1.4, -0.9], [-1.4, 0.9], [1.4, -0.9], [1.4, 0.9]]) add(box(0.12, 0.6, 0.12), M.metalDark, frame(lx, 0.3, lz), F);
-			add(box(0.16, 7.2, 0.16), M.metalDark, frame(0.9, 4.65, 0), F);
-			add(box(0.1, 0.1, 1.5), M.metalDark, frame(0.9, 8.2, 0), F);
-			for (const y of [8.0, 8.45]) for (const lz of [-0.42, 0.42]) lamp(x + 0.95 * c + lz * s, y, z - 0.95 * s + lz * c, ry, -0.5);
+			// мачта опущена до 6 м: выше она с игровой камеры заслоняет полэкрана
+			add(box(0.16, 4.9, 0.16), M.metalDark, frame(0.9, 3.5, 0), F);
+			add(box(0.1, 0.1, 1.5), M.metalDark, frame(0.9, 5.95, 0), F);
+			for (const y of [5.75, 6.2]) for (const lz of [-0.42, 0.42]) lamp(x + 0.95 * c + lz * s, y, z - 0.95 * s + lz * c, ry, -0.5);
 			collide(x, z, 3.0, 1.8, ry);
 		};
 		lightTower(9.5, -9, -2.38); // прожекторы — к середине двора
@@ -478,7 +481,7 @@ export default {
 		{
 			const hx = pad.x + 0.6, hz = pad.z - 0.4, hry = 0.5, c = Math.cos(hry), s = Math.sin(hry);
 			const at = (lx) => [hx + lx * c, hz - lx * s];
-			occluder('Helicopter', (kb) => helicopter(kb, M, hx, hz, hry), { cx: at(-1.8)[0], cz: at(-1.8)[1], ry: hry, hx: 6.8, hz: 5.8, top: 3.9 }, 0.25);
+			occluder('Helicopter', (kb) => helicopter(kb, M, hx, hz, hry), { cx: at(-1.8)[0], cz: at(-1.8)[1], ry: hry, hx: 6.8, hz: 2.2, top: 3.9 }, 0.25); // рамка — по фюзеляжу (на плане локации — силуэт)
 			collide(...at(0.5), 8.0, 2.7, hry);
 			collide(...at(-6.05), 5.1, 0.9, hry);
 		}
@@ -567,6 +570,35 @@ export default {
 			radarHead.add(face, arm);
 			radarHead.position.set(rx + 0.7 * Math.cos(rry), 2.5, rz - 0.7 * Math.sin(rry));
 			root.add(radarHead);
+		}
+
+		// ---------- Быт: синие кабинки-туалеты у казармы, палатка у южной стены, ящики у склада ----------
+		for (let i = 0; i < 3; i++) {
+			const x = -8.3 + i * 1.25, z = -29.6;
+			batch.add(place(box(1.15, 2.25, 1.15, 1), x, 1.125, z), P.blue);
+			batch.add(place(box(1.25, 0.08, 1.25), x, 2.29, z), M.white);
+			batch.add(place(box(0.7, 1.9, 0.02), x, 1.05, z + 0.585), M.white); // дверь
+		}
+		collide(-7.05, -29.6, 3.75, 1.2);
+		{
+			// палатка из тента: низкие стенки, двускатная крыша, конёк вдоль x
+			const tx = 26.5, tz = 22.2, w = 5.2, d = 4.0, wh = 1.5, rise = 1.3;
+			for (const s of [-1, 1]) {
+				batch.add(place(box(w, wh, 0.06, 2), tx, wh / 2, tz + s * d / 2), M.canvas);
+				const slope = Math.hypot(d / 2 + 0.15, rise);
+				batch.add(place(box(w + 0.3, 0.05, slope, 2), tx, wh + rise / 2, tz + s * (d / 2 + 0.15) / 2, 0, s * Math.atan2(rise, d / 2 + 0.15)), M.canvas);
+			}
+			const gable = new THREE.Shape([new THREE.Vector2(-d / 2, 0), new THREE.Vector2(d / 2, 0), new THREE.Vector2(d / 2, wh), new THREE.Vector2(0, wh + rise), new THREE.Vector2(-d / 2, wh)]);
+			for (const s of [-1, 1]) batch.add(new THREE.ShapeGeometry(gable).rotateY(s * Z).translate(tx + s * w / 2, 0, tz), M.canvas);
+			batch.add(place(box(1.2, 1.9, 0.02), tx + w / 2 + 0.02, 0.95, tz, Z), M.metalDark); // вход
+			collide(tx, tz, w + 0.2, d + 0.2);
+		}
+		for (const [x, z, r] of [[12.2, -22.4, 0.1], [11.4, -21.2, -0.25]]) {
+			beginProp('crate', x, z, r);
+			batch.add(place(box(0.9, 0.6, 0.6), x, 0.3, z, r), M.metalOlive);
+			batch.add(place(box(0.9, 0.6, 0.6), x, 0.9, z, r + 0.08), M.metalOlive);
+			endProp();
+			collide(x, z, 1.0, 0.8, r);
 		}
 
 		// ---------- За периметром: сожжённые машины тех, кто подъехал слишком близко ----------
