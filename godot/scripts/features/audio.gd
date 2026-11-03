@@ -11,7 +11,7 @@ const FILES := [
 	"pistol", "shotgun", "ak1", "ak2", "ak3", "mg", "svd", "dry", "bolt", "flesh1", "flesh2", "chop",
 	"groan1", "groan2", "groan3", "groan4", "groan5", "zhit1", "zhit2", "zdeath1", "zdeath2", "zdeath3",
 	"step_road1", "step_road2", "step_road3", "step_grass1", "step_grass2", "step_dirt1", "step_dirt2", "step_floor1", "step_floor2",
-	"wind", "thunder", "explosion",
+	"wind", "thunder", "explosion", "reload_pistol", "reload_rifle", "shell", "casing1", "casing2",
 ]
 const AK := ["ak1", "ak2", "ak3"]
 ## Голос ствола: записи, высота (скорость), громкость (доля); click — лязг затвора ВСС, pump — передёрнуть цевьё.
@@ -194,6 +194,9 @@ func _on_shot(_shooter, w: Dictionary, from: Vector3) -> void:
 		play_later(0.02, "dry", from, 0.55, 0.8 * _vary())
 	if G.get("pump", false):
 		play_later(0.28, "bolt", from, 0.55, 1.3)
+	elif int(w.get("pellets", 1)) <= 1 and _shooter == game.player:
+		# гильза звякнула об землю (только у героя — не забивать голоса чужой стрельбой)
+		play_later(0.32 + randf() * 0.1, "casing1" if randf() < 0.5 else "casing2", from - Vector3(0, 1.3, 0), 0.22, _vary(0.1))
 
 ## Пуля в тело: у дроби (9 дробин в одну цель) — один звук на цель за 80 мс; бочки (no_blood) не «чавкают».
 var _hit_t := {}
@@ -209,6 +212,15 @@ func _on_hit(target, at: Vector3) -> void:
 	if _hit_t.size() > 64:
 		_hit_t.clear()
 	play_at("flesh1" if randf() < 0.5 else "flesh2", at + Vector3(0, 1.0, 0), 0.45, _vary(0.12))
+
+## Перезарядка героя: магазин (пистолет / автомат) или патроны в трубчатый магазин дробовика.
+func on_reload(pos: Vector3, pistol: bool, shotgun: bool) -> void:
+	var at := pos + Vector3(0, 1.2, 0)
+	if shotgun:
+		for i in 3:
+			play_later(0.25 + i * 0.55, "shell", at, 0.5, _vary(0.06))
+	else:
+		play_at("reload_pistol" if pistol else "reload_rifle", at, 0.6, _vary(0.04))
 
 ## Взрыв гранаты или бочки (grenades.gd зовёт on_explosion у систем; граната наёмника — merc.gd).
 func on_explosion(pos: Vector3, _radius: float) -> void:

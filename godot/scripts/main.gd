@@ -63,6 +63,9 @@ var exit_armed := false
 var pending_hp := -1.0
 ## Выходы не открывают карту Улья (тестовая сцена хвата: герой ходит и бегает на месте замера).
 var exits_off := false
+## Камера: положение без тряски и сила тряски от выстрела (0…1).
+var cam_base := Vector3.ZERO
+var cam_shake := 0.0
 var searching := {}
 var hud_t := 0.0
 var view_t := 0.0
@@ -240,6 +243,9 @@ func enter(id: String, from) -> void:
 				ry = float(e["spawn"][2])
 	player.global_position = spot
 	player.rotation.y = ry
+	player.reset_physics_interpolation()   # переход в локацию — без «проезда» через всю карту
+	if camera:
+		cam_base = spot + CAM_OFFSET
 	exit_armed = false
 	searching = {}
 	var kind: String = Data.NODES[id]["kind"]
@@ -401,10 +407,15 @@ func _process(delta: float) -> void:
 		hud_refresh()
 
 func _update_camera(delta: float) -> void:
-	var target := player.global_position
+	# положение героя — сглаженное между тактами физики (30 в секунду): камера и герой двигаются плавно при 60 к/с
+	var target := player.get_global_transform_interpolated().origin
 	var want := target + CAM_OFFSET
-	camera.global_position = camera.global_position.lerp(want, minf(1.0, delta * 6.0)) if delta < 1.0 else want
-	camera.look_at(camera.global_position - CAM_OFFSET + Vector3(0, 0.8, 0), Vector3.UP)
+	cam_base = cam_base.lerp(want, minf(1.0, delta * 6.0)) if delta < 1.0 else want
+	# тряска от выстрела: быстро затухает, смещение — сантиметры
+	cam_shake = maxf(0.0, cam_shake - delta * 6.0)
+	var jolt := Vector3(randf_range(-1, 1), randf_range(-0.5, 0.5), randf_range(-1, 1)) * (0.09 * cam_shake * cam_shake)
+	camera.global_position = cam_base + jolt
+	camera.look_at(cam_base - CAM_OFFSET + Vector3(0, 0.8, 0) + jolt * 0.5, Vector3.UP)
 
 ## Время мира: кластеры, чей срок вышел, перезагружаются (сохранённое состояние пропадает).
 func advance(dt: float) -> void:
@@ -498,6 +509,10 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 	shot.emit(shooter, w, from)
 	noise(shooter.global_position, float(w.get("noise", 30)))
 	_flash(from)
+	# выстрел героя ощущается: толчок камеры по мощности ствола (пистолет — лёгкий, дробовик и СВД — сильный)
+	if shooter == player:
+		var power := float(w.get("damage", 20)) * float(w.get("pellets", 1))
+		cam_shake = minf(1.0, cam_shake + 0.18 + power / 260.0)
 	var reach: float = float(w.get("range", 8.0))
 	var pellets: int = int(w.get("pellets", 1))
 	var aim_dir := Vector3(sin(shooter.rotation.y), 0, cos(shooter.rotation.y))
@@ -539,7 +554,29 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 		else:
 			_tracer(from, hit.global_position + Vector3(randf_range(-1, 1), 1.0, randf_range(-1, 1)))
 
+## Вспышка у дула — яркая плашка на 0,05 с (на всех уровнях, один общий меш); свет вокруг — не на низком.
+static var _flash_mesh: QuadMesh
+
 func _flash(at: Vector3) -> void:
+	if _flash_mesh == null:
+		_flash_mesh = QuadMesh.new()
+		_flash_mesh.size = Vector2(0.45, 0.45)
+		var fm := StandardMaterial3D.new()
+		fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		fm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		fm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		fm.albedo_color = Color(1.0, 0.72, 0.35, 0.9)
+		fm.no_depth_test = false
+		_flash_mesh.material = fm
+	var fl := MeshInstance3D.new()
+	fl.mesh = _flash_mesh
+	fl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fl.position = at
+	fl.rotation.z = randf() * TAU
+	fl.scale = Vector3.ONE * randf_range(0.8, 1.2)
+	add_child(fl)
+	get_tree().create_timer(0.05).timeout.connect(fl.queue_free)
 	if Level.quality == 0:
 		return   # на низком вспышка без света: точечный свет включает дорогой вариант шейдера у всего вокруг
 	var l := OmniLight3D.new()

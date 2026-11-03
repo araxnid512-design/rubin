@@ -87,6 +87,39 @@ var equipping := false
 var pending := []
 var move_input := Vector2.ZERO
 var attack_held := false
+## Магазин: патронов в магазине по стволу (нет записи — полный) и перезарядка (сколько осталось, какой ствол).
+## Износ — по-прежнему за каждый выстрел; магазин даёт паузу перезарядки, как у настоящего оружия.
+var mag_left := {}
+var reload_t := 0.0
+var reload_id := ""
+## Если у ствола в данных нет магазина или времени перезарядки — по классу хвата.
+const MAG_BY_CLASS := {"pistol": 15, "smg": 30, "compact": 30, "rifle": 30, "bullpup": 30, "shotgun": 8, "lmg": 75, "sniper": 5}
+const RELOAD_BY_CLASS := {"pistol": 1.3, "smg": 2.0, "compact": 2.1, "rifle": 2.3, "bullpup": 2.4, "shotgun": 2.8, "lmg": 3.6, "sniper": 2.8}
+const MAG_OVERRIDE := {"fnfal": 20, "aug": 30, "spas12": 8, "dbarrel": 2}
+
+func mag_size(id: String) -> int:
+	var w := Data.weapon(id)
+	var cls := str(Gear.CLASS_OF.get(Data.real_id(id), "rifle"))
+	return int(w.get("mag", MAG_OVERRIDE.get(Data.real_id(id), MAG_BY_CLASS.get(cls, 30))))
+
+func reload_time(id: String) -> float:
+	var cls := str(Gear.CLASS_OF.get(Data.real_id(id), "rifle"))
+	return float(Data.weapon(id).get("reload", RELOAD_BY_CLASS.get(cls, 2.3)))
+
+## Перезарядка: клип верха (под пистолет — свой), звук; по окончании магазин полный (в _physics_process).
+func start_reload(id: String) -> void:
+	if reload_t > 0.0 or not alive:
+		return
+	reload_id = id
+	reload_t = reload_time(id)
+	var pistol := str(Data.weapon(id).get("anim", "rifle")) == "pistol"
+	var c := "Reload" if pistol else "ReloadRifle"
+	if anim and anim.has_animation(c):
+		_act(c, anim.get_animation(c).length / reload_t)
+	var au = game.get_node_or_null("audio") if game else null
+	if au and au.has_method("on_reload"):
+		au.on_reload(global_position, pistol, int(Data.weapon(id).get("pellets", 1)) > 1)
+	game.hud_refresh()
 var clip := ""
 var last_hurt := -99.0
 var speed := 0.0
@@ -434,6 +467,11 @@ func muzzle_pos() -> Vector3:
 func _physics_process(delta: float) -> void:
 	if not alive:
 		return
+	if reload_t > 0.0:
+		reload_t -= delta
+		if reload_t <= 0.0:
+			mag_left[reload_id] = mag_size(reload_id)
+			game.hud_refresh()
 	cooldown -= delta
 	busy -= delta
 	aim_t -= delta
@@ -586,7 +624,7 @@ func _update_upper(delta: float) -> void:
 	# левая кисть на цевье — только у двуручного ствола в руке: при уборке отпускает (быстро, пока клип уводит
 	# оружие), при подъёме берёт — за остаток клипа смены или за время подъёма ствола
 	var want_ik := 0.0
-	if alive and gun and bool(Gear.grip_class(weapon_id())["two"]) and (not equipping or equip.get("stage", "") == "raise"):
+	if alive and gun and reload_t <= 0.0 and bool(Gear.grip_class(weapon_id())["two"]) and (not equipping or equip.get("stage", "") == "raise"):
 		want_ik = 1.0
 	var ik_rate := 0.14
 	if want_ik > ik_w:
@@ -674,6 +712,14 @@ func attack() -> void:
 			_barrel_wait += get_physics_process_delta_time()
 			return
 	_barrel_wait = 0.0
+	# магазин: пустой — перезарядка (клип, звук), стрелять нельзя
+	if reload_t > 0.0:
+		return
+	var left := int(mag_left.get(id, mag_size(id)))
+	if left <= 0:
+		start_reload(id)
+		return
+	mag_left[id] = left - 1
 	cooldown = float(w.get("auto", w.get("cooldown", 0.2)))
 	aim_t = 1.4
 	busy = 0.1
@@ -684,6 +730,8 @@ func attack() -> void:
 	wear[id] = wear_of(id) - 1
 	if wear[id] <= 0:
 		break_weapon(id)
+	elif int(mag_left[id]) <= 0:
+		start_reload(id)
 	game.hud_refresh()
 
 ## Ствол в руке смотрит на точку at: луч из дула проходит через цель — мимо её центра не дальше BARREL_MISS (тело
@@ -762,6 +810,7 @@ func break_weapon(id: String) -> void:
 func switch_weapon() -> void:
 	if not alive or equipping or busy > 0.0:
 		return
+	reload_t = 0.0   # смена оружия прерывает перезарядку (магазин остаётся, как был)
 	var gun_id: String = kit.get("gun", "")
 	if gun_id == "":
 		game.toast("Огнестрела нет — купи в стабе или найди")

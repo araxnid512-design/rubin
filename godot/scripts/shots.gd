@@ -36,6 +36,7 @@ func run(g, out_dir: String) -> void:
 	await _mur_shots()
 	await _infected_shots()
 	await _props_shots()
+	await _gait_sheet()
 	await _gun_sheet()
 	var prev: String = game.loc
 	for id in LOCS:
@@ -308,6 +309,56 @@ func _props_shots() -> void:
 		for m in shown:
 			m.queue_free()
 		await _wait(0.1)
+
+## Походка героя: шаг и бег с автоматом и с пистолетом, по 6 кадров сбоку за один цикл (gait.jpg) — видно,
+## как ставятся ноги, не скользят ли стопы, как двигаются руки и корпус. Герой бежит на месте (позиция
+## возвращается каждый кадр), камера сбоку на уровне пояса.
+func _gait_sheet() -> void:
+	var p = game.player
+	var spot: Vector3 = p.global_position
+	var rows_def := [["ak74", 0.45, "шаг, АК-74"], ["ak74", 1.0, "бег, АК-74"], ["glock17", 0.45, "шаг, Glock"], ["glock17", 1.0, "бег, Glock"]]
+	const CW := 260
+	const CH := 300
+	const N := 6
+	var sheet := Image.create(CW * N, CH * rows_def.size(), false, Image.FORMAT_RGB8)
+	var size: Vector2 = game.get_viewport().get_visible_rect().size
+	game.hud.visible = false
+	for ri in rows_def.size():
+		var r: Array = rows_def[ri]
+		game.kit["gun"] = r[0]
+		game.wear[r[0]] = int(Data.weapon(r[0]).get("durability", 100))
+		p.hold = "gun"
+		p.attach_gear()
+		p.global_position = spot
+		p.rotation.y = 0.0
+		p.move_input = Vector2(0, -float(r[1]))
+		await _wait(1.2)
+		for f in N:
+			p.global_position = spot
+			p.reset_physics_interpolation()
+			await _wait(0.11)
+			var cam: Camera3D = game.camera
+			game.set_process(false)
+			var at: Vector3 = p.global_position + Vector3(0, 0.95, 0)
+			var side := Vector3(1, 0, 0)
+			cam.global_position = at + side * 3.0 + Vector3(0, 0.2, 0)
+			cam.look_at(at, Vector3.UP)
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var img: Image = game.get_viewport().get_texture().get_image()
+			game.set_process(true)
+			if img:
+				img.convert(Image.FORMAT_RGB8)
+				var cw := int(size.y * 0.9 * CW / CH)
+				var crop := img.get_region(Rect2i(int(size.x * 0.5 - cw * 0.5), int(size.y * 0.05), cw, int(size.y * 0.9)))
+				crop.resize(CW, CH, Image.INTERPOLATE_BILINEAR)
+				sheet.blit_rect(crop, Rect2i(0, 0, CW, CH), Vector2i(f * CW, ri * CH))
+		p.move_input = Vector2.ZERO
+	game.hud.visible = true
+	p.global_position = spot
+	sheet.save_jpg(dir.path_join("gait.jpg"), 0.85)
+	rows.append({"loc": "gait", "n": 1, "label": "походка героя: шаг/бег с АК-74 и Glock, 6 кадров сбоку", "file": "gait.jpg",
+		"draws": 0, "prims": 0, "objects": 0, "cpu_ms": 0.0, "gpu_ms": 0.0, "vmem_mb": 0.0, "enemies": game.enemies.size()})
 
 ## Лист «все стволы в руках»: герой с каждым огнестрелом — в переноске и в прицеле, крупно спереди-справа, с подписью;
 ## одна картинка guns_sheet.jpg (по 8 клеток в ряд). По ней видно, какой ствол лежит в руках неправильно.

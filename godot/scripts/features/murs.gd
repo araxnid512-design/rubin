@@ -301,6 +301,7 @@ func _spawn(gun: String, pos: Vector3, role: String, post: Dictionary = {}):
 	var b = BanditScript.new()
 	game.add_child(b)
 	b.setup(game, self, gun, pos, post)
+	b.reset_physics_interpolation()
 	b.role = role
 	bandits.append(b)
 	game.hostiles.append(b)

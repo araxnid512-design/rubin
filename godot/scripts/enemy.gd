@@ -59,6 +59,7 @@ func setup(g: Node, t: String, pos: Vector3) -> void:
 	play("Idle")
 	if anim:
 		anim.seek(randf() * 2.0, true)
+	reset_physics_interpolation()   # появился на месте, а не «прилетел» из начала координат
 
 ## Модель вида t: из Tripo (по образцу пользователя), клипы — со старой модели (rig) пересчитаны на её скелет один раз
 ## на вид (SkinBake); нет файла Tripo — старая модель.
@@ -109,6 +110,15 @@ func damage(dmg: float, from: Vector3) -> void:
 	dmg = maxf(1.0, dmg - float(T.get("armor", 0.0)))
 	hp -= dmg
 	game.blood(global_position + Vector3(0, 1.0, 0))
+	# попадание чувствуется: заражённого отбрасывает назад и он на миг сбивается с шага (тяжёлых — меньше);
+	# не чаще раза в 0,5 с — автомат не держит его на месте
+	if _stagger_cd <= 0.0 and hp > 0.0:
+		var push := global_position - from
+		push.y = 0.0
+		var heavy := float(T.get("scale", 1.0)) > 1.05
+		_stagger = (0.08 if heavy else 0.16) + minf(0.2, dmg / 250.0)
+		_push = push.normalized() * minf(3.5, 0.8 + dmg / 18.0) * (0.4 if heavy else 1.0) if push.length() > 0.01 else Vector3.ZERO
+		_stagger_cd = 0.5
 	if state == "idle":
 		alert()
 	if hp <= 0.0:
@@ -131,7 +141,18 @@ func die(from: Vector3) -> void:
 ## каждый кадр (как у муров); поведение — как прежде.
 const VIEW_DIST := 32.0
 
+var _stagger := 0.0
+var _stagger_cd := 0.0
+var _push := Vector3.ZERO
+
 func _physics_process(delta: float) -> void:
+	_stagger_cd -= delta
+	if _stagger > 0.0 and alive:
+		_stagger -= delta
+		velocity = _push
+		_push *= 0.75
+		move_and_slide()
+		return
 	if game.player and model:
 		var near: bool = global_position.distance_to(game.player.global_position) < VIEW_DIST
 		if model.visible != near:

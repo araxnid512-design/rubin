@@ -150,9 +150,20 @@ func _button_at(pos: Vector2) -> String:
 			return id
 	return ""
 
+## Игра свёрнута или потеряла фокус — все кнопки и стик отпущены (иначе огонь мог остаться зажатым).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		for i in pressed.keys():
+			_press(pressed[i], false)
+		pressed.clear()
+		stick_index = -1
+		stick_vec = Vector2.ZERO
+
 ## Касания: левая половина — стик, кнопки — по своим кругам (каждый палец отдельно).
 func _input(event: InputEvent) -> void:
-	if panel.visible:
+	# отпускание пальца обрабатывается и под открытым окном: иначе кнопка огня, зажатая в момент появления окна
+	# (обыск, карта, торговец), оставалась нажатой — оружие стреляло без конца
+	if panel.visible and not (event is InputEventScreenTouch and not (event as InputEventScreenTouch).pressed):
 		return
 	if event is InputEventScreenTouch:
 		var t: InputEventScreenTouch = event
@@ -267,6 +278,8 @@ func refresh(p: Player, bag: Dictionary, loc_name: String, timer: String) -> voi
 	var line: String = w.get("name", id)
 	if w.has("durability"):
 		line += "\nизнос %d / %d" % [p.wear_of(id), int(w["durability"])]
+	if w.get("slot", "") == "gun":
+		line += "\n%s" % ("перезарядка…" if p.reload_t > 0.0 else "магазин %d / %d" % [int(p.mag_left.get(id, p.mag_size(id))), p.mag_size(id)])
 	weapon_label.text = line
 
 func show_search(on: bool, label := "Обыск") -> void:
