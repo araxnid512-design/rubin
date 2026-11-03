@@ -29,6 +29,11 @@ func run(g, out_dir: String) -> void:
 	var keep: Dictionary = game.kit.duplicate()
 	game.exits_off = true
 	game.hud.hide_panel()
+	# заражённые локации не мешают сцене (подходили к героям и заслоняли снимки)
+	for e in game.enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	game.enemies.clear()
 	report.append("Проверка хвата оружия (%s): норма — ладонь не дальше %.0f см от точки хвата в обычных состояниях" % [Time.get_datetime_string_from_system(true), LIMIT * 100.0])
 	# 1) АК-74 и пистолет — со снимками со всех сторон
 	for id in ["ak74", "glock17"]:
@@ -75,7 +80,7 @@ func _weapon(id: String, shots: bool) -> void:
 	var fwd := Vector3(sin(p.rotation.y), 0, cos(p.rotation.y))
 	var right := fwd.cross(Vector3.UP)
 	for k in 3:
-		_add_npc(k, id, p.global_position + right * (1.3 * (k + 1)), pistol)
+		_add_npc(k, id, p.global_position + right * (3.0 * (k + 1)), pistol)   # 3 м — соседи не заслоняют снимки сбоку
 	_axes.clear()
 	_bones.clear()
 	var hero_gun: Node3D = p.models.get(id)
@@ -308,9 +313,9 @@ func _photos(id: String, label: String) -> void:
 		fwd.y = 0.0
 		fwd = fwd.normalized()
 		var right := fwd.cross(Vector3.UP)
-		var at := t.global_position + Vector3(0, 1.2, 0)
+		var at := t.global_position + Vector3(0, 1.35, 0)
 		for vi in VIEWS.size():
-			var off: Vector3 = [fwd * 1.5 + Vector3(0, 0.15, 0), right * 1.5 + Vector3(0, 0.15, 0), Vector3(0, 2.0, 0) + fwd * 0.15, fwd * 1.1 + right * 0.9 + Vector3(0, 0.8, 0)][vi]
+			var off: Vector3 = [fwd * 2.2 + Vector3(0, 0.2, 0), right * 2.2 + Vector3(0, 0.2, 0), Vector3(0, 2.6, 0) + fwd * 0.15, fwd * 1.6 + right * 1.3 + Vector3(0, 0.9, 0)][vi]
 			cam.global_position = at + off
 			cam.look_at(at, Vector3.UP if vi != 2 else fwd)
 			await RenderingServer.frame_post_draw
