@@ -820,6 +820,8 @@ try {
 		const g = window.__game, m = g.world.murs, c = g.level.containers.find((k) => /Storage/.test(k.building) && k.items.length);
 		const [kind, n] = c.items[0];
 		const r = { kind, n, before: m.stash[kind] ?? 0 };
+		// под огнём обыск прерывается — муры на это время прячутся (тревога в «Карьере» уже проверена выше)
+		for (const b of g.bandits) if (b.alive) { b.panicT = 60; b.target = null; b.foe = null; }
 		g.player.pos.set(c.ax, 0, c.az); g.searching = { c, t: 99 };
 		return r;
 	});
