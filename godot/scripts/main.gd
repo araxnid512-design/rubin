@@ -10,6 +10,7 @@ signal noise_made(pos: Vector3, radius: float)
 ## заражённые, тайники и обыск, спораны, торговец и лекарь в стабе, гибель, сохранение (user://save.json).
 ## Запуск с «-- --smoke» — автотест для CI: проходит игру по шагам и выходит с кодом 0 (всё в порядке) или 1.
 ## Запуск с «-- --shots <папка>» — фотосъёмка всех локаций с нагрузкой кадра (scripts/shots.gd).
+## Запуск с «-- --animtest <папка>» — тестовая сцена анимаций героя: замеры, листы кадров (scripts/anim_test.gd).
 
 const SAVE_PATH := "user://save.json"
 ## Системы игры в своих файлах (scripts/features/*.gd, extends Node): подключаются одной строкой здесь.
@@ -81,7 +82,10 @@ func _ready() -> void:
 	smoke = args.has("--smoke")
 	var shots_at := args.find("--shots")
 	var shots_dir: String = args[shots_at + 1] if shots_at >= 0 and shots_at + 1 < args.size() else ""
-	shooting = shots_dir != ""
+	# тестовая сцена анимаций героя (scripts/anim_test.gd): -- --animtest <папка>
+	var anim_at := args.find("--animtest")
+	var anim_dir: String = args[anim_at + 1] if anim_at >= 0 and anim_at + 1 < args.size() else ""
+	shooting = shots_dir != "" or anim_dir != ""
 	_setup_scene()
 	hud = Hud.new()
 	add_child(hud)
@@ -101,7 +105,7 @@ func _ready() -> void:
 		features.append(f)
 		if f.has_method("setup"):
 			f.setup(self)
-	if not smoke and shots_dir == "" and _load():
+	if not smoke and shots_dir == "" and anim_dir == "" and _load():
 		enter(world.get("at", "zarechny"), null)
 	else:
 		new_game()
@@ -112,6 +116,11 @@ func _ready() -> void:
 		shots.name = "Shots"
 		add_child(shots)
 		shots.run(self, shots_dir)
+	elif anim_dir != "":
+		var at: Node = load("res://scripts/anim_test.gd").new()
+		at.name = "AnimTest"
+		add_child(at)
+		at.run(self, anim_dir)
 
 ## Таблица цвета 32×32×32 (вход и выход — sRGB после ACES): та же формула, что CustomToneMapping браузерной
 ## игры (game/post.js) после ACES — насыщенность 84 %, холодные тени и тёплый свет, S-контраст, «придавленный»

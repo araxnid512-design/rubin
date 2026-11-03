@@ -113,6 +113,7 @@ func smoke() -> int:
 	var held := 0
 	var fired := false
 	var max_twist := 0.0
+	var side_blend := 0.0   # у набора по направлениям: ход вбок в осях корпуса (|x| точки смешивания клипов)
 	for _i in 36:
 		await _wait(0.05)
 		var v := p.get_real_velocity()
@@ -127,6 +128,7 @@ func smoke() -> int:
 		if p.pose.ik_weight > 0.9 and p.pose.ik_error >= 0.0 and p.pose.ik_error < 0.05:
 			held += 1
 		max_twist = maxf(max_twist, absf(p.pose.twist))
+		side_blend = maxf(side_blend, absf(p.move_dir_local.x))
 	p.attack_held = false
 	_drive(Vector2.ZERO)
 	game.hostiles.erase(dummy)
@@ -134,7 +136,11 @@ func smoke() -> int:
 	fails += _check(samples >= 10 and good >= samples * 0.8, "стрельба на ходу: ноги — клип шага, верх — прицел/выстрел (%d из %d)" % [good, samples])
 	fails += _check(fired and p.wear_of("ak74") < w0, "выстрелы на ходу: износ АК-74 %d → %d" % [w0, p.wear_of("ak74")])
 	if spot[2]:
-		fails += _check(max_twist > 0.5, "верх доворачивается к цели сбоку, ноги идут по ходу: разворот корпуса до %d°" % int(rad_to_deg(max_twist)))
+		if p.directional():
+			# автомат: корпус к цели, ноги идут вбок клипом хода вбок — позвоночник не скручивается
+			fails += _check(side_blend > 0.6 and max_twist < 0.35, "цель сбоку: ноги идут вбок клипом направления (ход в осях корпуса %.2f), позвоночник не скручен (%d°)" % [side_blend, int(rad_to_deg(max_twist))])
+		else:
+			fails += _check(max_twist > 0.5, "верх доворачивается к цели сбоку, ноги идут по ходу: разворот корпуса до %d°" % int(rad_to_deg(max_twist)))
 	else:
 		print("  · цель сбоку поставить негде — разворот корпуса не проверен")
 	fails += _check(samples > 0 and held >= samples * 0.8, "левая кисть держит цевьё при стрельбе на ходу (%d из %d)" % [held, samples])

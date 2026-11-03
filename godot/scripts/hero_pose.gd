@@ -33,6 +33,12 @@ var kick := 0.0
 var kick_back := 0.0
 var kick_climb := 0.0
 var kick_chest := 0.0
+## Наклон корпуса от разгона/торможения (player.gd): x — вперёд (+) / назад, y — вбок (+ — влево), рад.
+var lean := Vector2.ZERO
+## Отставание ствола при повороте корпуса (рад, плюс — влево) и покачивание от шага (м, в осях корпуса: x — влево,
+## y — вверх, z — вперёд) — двигают правую кисть с оружием, левая на цевье идёт следом (п. 3).
+var sway_yaw := 0.0
+var bob := Vector3.ZERO
 ## Вес IK левой кисти (0 — как в клипе, 1 — точно на GripL оружия).
 var ik_weight := 0.0
 ## Вес переноски длинного ствола (0 — как в клипе, 1 — хват переноски класса Gear.CLASSES); в прицеле — 0.
@@ -100,9 +106,11 @@ func _process_modification() -> void:
 	frames += 1
 	if absf(twist) > 0.0005:
 		_twist(sk)
+	if lean.length_squared() > 1e-6:
+		_lean(sk)
 	if carry > 0.001 and _chest >= 0 and _r_arm >= 0 and _r_fore >= 0 and _r_hand >= 0 and bool(Gear.carry_grip(weapon_id)[1]):
 		_carry(sk)
-	if kick > 0.003:
+	if absf(kick) > 0.003 or absf(sway_yaw) > 0.002 or bob.length_squared() > 1e-7:
 		_recoil(sk)
 	if ik_weight > 0.001 and _l_arm >= 0 and _l_fore >= 0 and _l_hand >= 0 and _r_hand >= 0:
 		_left_hand(sk)
@@ -117,6 +125,18 @@ func _twist(sk: Skeleton3D) -> void:
 	for k in _spine.size():
 		if _spine[k] >= 0:
 			_turn(sk, _spine[k], up, twist * float(SPINE_SHARE[k]))
+
+## Наклон корпуса (разгон — вперёд, торможение — назад, поворот на бегу — вбок): поровну по позвонкам, в осях
+## корпуса (он доворачивается на twist относительно ног).
+func _lean(sk: Skeleton3D) -> void:
+	var up := (sk.global_transform.basis.orthonormalized().inverse() * Vector3.UP).normalized()
+	var body := Basis(up, twist)
+	var side := body * Vector3(1, 0, 0)   # ось «влево» корпуса: поворот вокруг неё на плюс — наклон вперёд
+	var fwd := body * Vector3(0, 0, 1)
+	for k in _spine.size():
+		if _spine[k] >= 0:
+			_turn(sk, _spine[k], side, lean.x * float(SPINE_SHARE[k]))
+			_turn(sk, _spine[k], fwd, -lean.y * float(SPINE_SHARE[k]))
 
 # ---------- 1а. Переноска ----------
 
@@ -134,13 +154,19 @@ func _recoil(sk: Skeleton3D) -> void:
 	if _chest >= 0 and kick_chest > 0.0:
 		# грудь — назад: поворот вокруг оси «влево» груди (+X кости в T-позе) на минус
 		_turn(sk, _chest, sk.get_bone_global_pose(_chest).basis.x.normalized(), -kick_chest * kick)
-	if _r_arm < 0 or _r_fore < 0 or _r_hand < 0 or (kick_back <= 0.0 and kick_climb <= 0.0):
+	if _r_arm < 0 or _r_fore < 0 or _r_hand < 0:
 		return
 	var h := sk.get_bone_global_pose(_r_hand)
 	var g := h * _grip_r_local(sk)
 	# оси хвата: ствол — по −Y, к прикладу — +Y, верх оружия — +Z, левый бок — +X; подброс — поворот вокруг X
 	var side := g.basis.x.normalized()
 	var g2 := Transform3D(Basis(side, -kick_climb * kick) * g.basis, g.origin + g.basis.y.normalized() * (kick_back * kick))
+	# инерция и шаг: ствол отстаёт при повороте (вокруг вертикали у груди) и покачивается от шагов (в осях корпуса)
+	if absf(sway_yaw) > 0.0005 or bob.length_squared() > 1e-8:
+		var up := (sk.global_transform.basis.orthonormalized().inverse() * Vector3.UP).normalized()
+		var pivot := sk.get_bone_global_pose(_chest).origin if _chest >= 0 else g2.origin
+		var rot := Basis(up, sway_yaw)
+		g2 = Transform3D(rot * g2.basis, pivot + rot * (g2.origin - pivot) + Basis(up, twist) * bob)
 	_solve(sk, _r_arm, _r_fore, _r_hand, g2 * g.affine_inverse() * h, _hint(sk, Vector3(-0.6, -1.0, -0.3)))
 
 # ---------- 3. Левая кисть на цевье ----------

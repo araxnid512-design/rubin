@@ -87,6 +87,27 @@ jobs:
         run: |
           timeout 600 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME godot --headless --path godot -- --smoke 2>&1 | tee smoke.log
           grep -q "SMOKE: OK" smoke.log
+      # тестовая сцена анимаций героя (scripts/anim_test.gd): новая модель с АК-47 — 8 направлений шагом и бегом в прицеле,
+      # стрельба на ходу, перезарядка, смена оружия, разворот, старт/стоп; замеры (скольжение стоп, кисть на цевье,
+      # скручивание, пересечения), листы кадров сверху и сбоку и видео — в gh-pages/godot-anim
+      - name: Тестовая сцена анимаций
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils ffmpeg > /dev/null || true
+          mkdir -p anim
+          timeout 1500 env -u ANDROID_HOME -u ANDROID_SDK_ROOT -u ANDROID_NDK_HOME xvfb-run -a -s "-screen 0 960x540x24" godot --path godot --rendering-driver opengl3 --resolution 960x540 --write-movie "$PWD/anim/anim.avi" --fixed-fps 30 -- --animtest "$PWD/anim" > anim/log.txt 2>&1 || true
+          grep -E "ANIMTEST|✓|✗|ERROR|SCRIPT" anim/log.txt | head -80
+          if [ -f anim/anim.avi ]; then ffmpeg -v error -y -i anim/anim.avi -vf "scale=800:-2" -c:v libx264 -pix_fmt yuv420p -crf 30 -preset veryfast anim/anim.mp4 && rm -f anim/anim.avi; fi
+          ls -la anim
+      - name: Выложить тестовую сцену анимаций
+        if: always() && hashFiles('anim/anim_report.txt') != ''
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./anim
+          destination_dir: godot-anim
+          keep_files: true # сайты «Стикса» и «Клонов» в gh-pages не трогаем
+          commit_message: "Godot: тестовая сцена анимаций, сборка ${{ github.run_number }}"
       # снимки всех локаций настоящим рендером (OpenGL через Mesa под xvfb, экран как у телефона 1600×720) и нагрузка
       # кадра у каждого — в gh-pages/godot-shots: по ним дорабатывается картинка (scripts/shots.gd)
       - name: Снимки локаций

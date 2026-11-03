@@ -32,6 +32,7 @@ export const HERO_ANIMATION_NAMES = [
 	'IdlePistol', 'WalkPistol', 'RunPistol', 'AimPistol', 'Shoot', 'Reload', 'HitPistol', 'EquipAxe',
 	'IdleRifle', 'WalkRifle', 'RunRifle', 'AimRifle', 'ShootRifle', 'ReloadRifle', 'HitRifle', 'EquipRifle', 'EquipAxeR',
 	'Death',
+	...['Rifle', 'Pistol'].flatMap((w) => [...['FL', 'L', 'BL', 'B', 'BR', 'R', 'FR'].flatMap((d) => [`Walk${w}_${d}`, `Run${w}_${d}`]), `Turn${w}`]),
 ];
 
 // Оси шарниров в T-позе. Локоть: сгиб уводит предплечье вперёд (+Z) — у левой руки (вдоль +X) это
@@ -374,7 +375,12 @@ function bake(rig, name, duration, poseAt, { loop = false } = {}) {
 		}
 		hips.push(hp.x, hp.y, hp.z);
 	}
-	const tracks = Object.entries(quats).map(([n, v]) => new THREE.QuaternionKeyframeTrack(`${rig.bones[n].full}.quaternion`, times, v));
+	// неподвижная в клипе кость (пальцы на рукояти, кисть у бедра) — два ключа вместо кадров: модель легче, телефону
+	// меньше читать (поворот тот же)
+	const still = (v) => v.every((x, i) => Math.abs(x - v[i % 4]) < 1e-5);
+	const tracks = Object.entries(quats).map(([n, v]) => still(v)
+		? new THREE.QuaternionKeyframeTrack(`${rig.bones[n].full}.quaternion`, [0, duration], [...v.slice(0, 4), ...v.slice(0, 4)])
+		: new THREE.QuaternionKeyframeTrack(`${rig.bones[n].full}.quaternion`, times, v));
 	tracks.push(new THREE.VectorKeyframeTrack(`${rig.bones.Hips.full}.position`, times, hips));
 	return new THREE.AnimationClip(name, duration, tracks);
 }
@@ -452,68 +458,161 @@ function idleAxe(rig) {
 
 /**
  * Походки героя по живым клипам (Quaternius Universal Animation Library, CC0 — данные src/gait-ual.js, их делает
- * scripts/ual-gait.py): ноги, таз и раскачка корпуса — из клипа, руки с оружием — свои. Цикл (два шага) — как в клипе.
- * stride — во сколько раз шаг длиннее/короче клипа (скорость под героя: у бега клипа очень длинный шаг), drop — доля
- * среднего приседа таза, bob — доля его раскачки вверх-вниз, lift — доля подъёма стопы, twist — доля скручивания таза
- * и корпуса (с оружием в руках корпус почти не крутится), lean — наклон корпуса вперёд, градусы (свой, у клипа сутулость).
+ * scripts/ual-gait.py): ноги, таз и раскачка корпуса — из клипа, руки с оружием — свои. На каждую походку — набор из
+ * 8 направлений относительно корпуса (вперёд, вперёд-влево, влево, назад-влево, назад, назад-вправо, вправо,
+ * вперёд-вправо): корпус и оружие смотрят на цель, ноги идут туда, куда движется герой (игра смешивает соседние клипы
+ * по направлению — BlendSpace2D в player.gd). Цикл (два шага) у всех клипов набора один, и все сдвинуты так, что
+ * левая стопа ставится в начале цикла, — соседние клипы смешиваются без перекрёста ног.
+ *   stride — во сколько раз шаг длиннее/короче клипа «вперёд» (скорость под героя: у бега клипа очень длинный шаг);
+ *     у остальных направлений шаг подгоняется под скорость F × DIR_SPEED (в пределах STRIDE_RANGE) вдоль хода, поперёк — нет;
+ *   drop — доля среднего приседа таза, bob — доля его раскачки вверх-вниз, lift — доля подъёма стопы;
+ *   twist — доля скручивания таза и корпуса (с оружием в руках корпус почти не крутится), lean — наклон корпуса вперёд,
+ *     градусы (свой: у клипа сутулость; при ходе назад и вбок — как у шага), contact — высота стопы над нижней точкой,
+ *     до которой она считается стоящей на земле (доля длины ноги).
+ * Бег вбок — приставной шаг из клипа ходьбы вбок в темпе бега: у бега вбок в наборе подскок с перекрёстом ног (одна
+ * нога за другую на полметра, вторая не касается земли) — сверху это выглядит сломанным.
  */
 const GAIT = {
-	walk: { clip: 'Walk_Loop', stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 1, lift: 0.85,
+	walk: { set: { F: 'Walk_Loop', FL: 'Walk_Fwd_L_Loop', L: 'Walk_L_Loop', BL: 'Walk_Bwd_L_Loop', B: 'Walk_Bwd_Loop', BR: 'Walk_Bwd_R_Loop', R: 'Walk_R_Loop', FR: 'Walk_Fwd_R_Loop' },
+		stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 1, lift: 0.85, contact: 0.05,
 		twist: { axe: 0.8, pistol: 0.45, rifle: 0.3 }, lean: { axe: 3, pistol: 6, rifle: 6 }, pelvis: 3, look: { axe: 0, pistol: -3, rifle: -3 } },
-	run: { clip: 'Jog_Fwd_Loop', stride: { axe: 0.66, pistol: 0.62, rifle: 0.64 }, drop: 0.6, bob: 0.45, lift: 0.75,
+	run: { set: { F: 'Jog_Fwd_Loop', FL: 'Jog_Fwd_L_Loop', L: 'Walk_L_Loop', BL: 'Jog_Bwd_L_Loop', B: 'Jog_Bwd_Loop', BR: 'Jog_Bwd_R_Loop', R: 'Walk_R_Loop', FR: 'Jog_Fwd_R_Loop' },
+		stride: { axe: 0.66, pistol: 0.62, rifle: 0.64 }, drop: 0.6, bob: 0.45, lift: 0.75, contact: 0.06,
 		twist: { axe: 0.28, pistol: 0.28, rifle: 0.18 }, lean: { axe: 9, pistol: 9, rifle: 10 }, pelvis: 9, look: { axe: -8, pistol: -8, rifle: -8 } },
 };
-for (const g of Object.values(GAIT)) g.d = UAL_GAIT[g.clip].d;
+for (const g of Object.values(GAIT)) g.d = UAL_GAIT[g.set.F].d;
+/** Направления набора — по кругу против часовой (если смотреть сверху): вперёд, влево, назад, вправо. */
+export const DIRS8 = ['F', 'FL', 'L', 'BL', 'B', 'BR', 'R', 'FR'];
+// скорость хода по направлению относительно корпуса (доля скорости «вперёд»): боком и спиной вперёд с оружием у плеча
+// человек идёт медленнее — так же герой в игре (Player.DIR_SPEED); шаг клипа подгоняется под эту скорость
+export const DIR_SPEED = { F: 1, FL: 0.9, L: 0.6, BL: 0.7, B: 0.65, BR: 0.7, R: 0.6, FR: 0.9 };
+// во сколько раз шаг клипа можно растянуть/сжать, не ломая позу (остальное — темп клипа в игре)
+const STRIDE_RANGE = [0.5, 1.35];
+// поворот таза из клипа (у бега вбок он развёрнут на 30–40°) — эта доля остаётся, остальное гасит корпус
+const PELVIS_KEEP = 0.7;
+// разворот на месте: цикл переступания (два шага), с
+const TURN_D = 0.8;
 const gaitKind = (pistol, rifle) => (rifle ? 'rifle' : pistol ? 'pistol' : 'axe');
 // длина ноги героя (бедро → колено → лодыжка в покое, models/game/player.glb) — для скорости клипов без скелета
 const HERO_LEG = 1.013;
-/** Скорость клипа (м/с) при timeScale 1: при ней ноги не скользят (стопа на земле едет назад со скоростью хода). */
-export const HERO_GAIT = Object.fromEntries([['Walk', 'walk', 'axe'], ['Run', 'run', 'axe'], ['WalkPistol', 'walk', 'pistol'], ['RunPistol', 'run', 'pistol'], ['WalkRifle', 'walk', 'rifle'], ['RunRifle', 'run', 'rifle']]
-	.map(([clip, g, k]) => [clip, +(UAL_GAIT[GAIT[g].clip].speed * HERO_LEG * GAIT[g].stride[k]).toFixed(3)]));
 
-// кадр клипа-источника на доле цикла ph (между кадрами — линейно) и средние за цикл (от них — раскачка)
 const lerpArr = (a, b, w) => a.map((v, i) => v + (b[i] - v) * w);
-function ualAt(clip, ph) {
-	const F = UAL_GAIT[clip].frames, n = F.length;
-	const x = (((ph % 1) + 1) % 1) * n, i = Math.floor(x) % n, j = (i + 1) % n, w = x - Math.floor(x);
-	const a = F[i], b = F[j];
-	const foot = (s) => ({ pos: lerpArr(a.feet[s].pos, b.feet[s].pos, w), rot: lerpArr(a.feet[s].rot, b.feet[s].rot, w), toe: a.feet[s].toe + (b.feet[s].toe - a.feet[s].toe) * w });
+const smooth01 = (x) => x * x * (3 - 2 * x);
+
+/**
+ * Клип-источник направления dir, готовый для героя: кадры сдвинуты на постановку левой стопы, шаг вдоль хода
+ * растянут/сжат под скорость, стопы на земле «приколочены»: пока стопа стоит, она едет под телом назад ровно со
+ * скоростью хода (тогда в игре она не скользит), а разница гасится в переносе ноги, к следующей постановке.
+ * Длины — в долях длины ноги. speed — скорость хода при темпе 1, ног/с; dir — направление хода [x — влево, z — вперёд].
+ */
+const PREP = {};
+function prepared(gName, dir, k) {
+	const key = `${gName}/${dir}/${k}`;
+	if (PREP[key]) return PREP[key];
+	const G = GAIT[gName], src = UAL_GAIT[G.set[dir]];
+	const F = src.frames, n = F.length, shift = Math.round(src.strike * n) % n;
+	// клип другой длины (приставной шаг ходьбы в наборе бега) играется в цикле набора — быстрее во столько раз
+	const tempo = src.d / G.d, srcSpeed = src.speed * tempo;
+	const target = UAL_GAIT[G.set.F].speed * G.stride[k] * DIR_SPEED[dir];
+	const s = dir === 'F' ? G.stride[k] : Math.min(STRIDE_RANGE[1], Math.max(STRIDE_RANGE[0], target / srcSpeed));
+	const [dx, dz] = src.dir, px = dz, pz = -dx;
+	const v = srcSpeed * s;
+	const frames = [];
+	for (let i = 0; i < n; i++) {
+		const f = F[(i + shift) % n], feet = {};
+		for (const side of ['L', 'R']) {
+			const p = f.feet[side].pos, along = p[0] * dx + p[2] * dz, perp = p[0] * px + p[2] * pz;
+			feet[side] = { p: [along * s * dx + perp * px, p[1] * G.lift, along * s * dz + perp * pz], rot: f.feet[side].rot, toe: f.feet[side].toe };
+		}
+		frames.push({ hips: f.hips, pelvis: f.pelvis, torso: f.torso, look: f.look, feet });
+	}
+	// стопа на земле: путь — прямой со скоростью хода; разница к концу опоры гасится за перенос ноги
+	const dt = G.d / n;
+	// земля — нижняя точка обеих стоп (у приставного шага вбок задняя нога почти не встаёт — она в переносе)
+	const ground = Math.min(...frames.flatMap((f) => [f.feet.L.p[1], f.feet.R.p[1]]));
+	for (const side of ['L', 'R']) {
+		const ys = frames.map((f) => f.feet[side].p[1]);
+		const c = ys.map((y) => y < ground + G.contact * G.lift);
+		const starts = [];
+		for (let i = 0; i < n; i++) if (c[i] && !c[(i - 1 + n) % n]) starts.push(i);
+		for (let si = 0; si < starts.length; si++) {
+			const st = starts[si], next = starts[(si + 1) % starts.length] + (si + 1 < starts.length ? 0 : n);
+			let e = st;
+			while (c[(e + 1) % n] && e + 1 < next) e++;
+			const p0 = frames[st].feet[side].p.slice();
+			let delta = [0, 0];
+			for (let kk = st; kk <= e; kk++) {
+				const fp = frames[kk % n].feet[side].p, tt = (kk - st) * dt;
+				const nx = p0[0] - dx * v * tt, nz = p0[2] - dz * v * tt;
+				delta = [nx - fp[0], nz - fp[2]];
+				fp[0] = nx;
+				fp[2] = nz;
+			}
+			const m = next - e - 1;
+			for (let j = 1; j <= m; j++) {
+				const fp = frames[(e + j) % n].feet[side].p, w = 1 - smooth01(j / (m + 1));
+				fp[0] += delta[0] * w;
+				fp[2] += delta[1] * w;
+			}
+		}
+	}
+	const mean = (get) => frames.reduce((acc, f) => acc + get(f), 0) / n;
+	const M = {
+		hipsX: mean((f) => f.hips[0]), hipsY: mean((f) => f.hips[1]), pelvis: mean((f) => f.pelvis[0]), torso: mean((f) => f.torso[0]),
+		look: mean((f) => f.look[0]), pelvisYaw: mean((f) => f.pelvis[1]), chestYaw: mean((f) => f.pelvis[1] + f.torso[1]),
+	};
+	return (PREP[key] = { d: G.d, n, frames, speed: v, dir: src.dir, mean: M, stride: s });
+}
+
+function prepAt(P, ph) {
+	const n = P.n, x = (((ph % 1) + 1) % 1) * n, i = Math.floor(x) % n, j = (i + 1) % n, w = x - Math.floor(x);
+	const a = P.frames[i], b = P.frames[j];
+	const foot = (s) => ({ p: lerpArr(a.feet[s].p, b.feet[s].p, w), rot: lerpArr(a.feet[s].rot, b.feet[s].rot, w), toe: a.feet[s].toe + (b.feet[s].toe - a.feet[s].toe) * w });
 	return { hips: lerpArr(a.hips, b.hips, w), pelvis: lerpArr(a.pelvis, b.pelvis, w), torso: lerpArr(a.torso, b.torso, w), look: lerpArr(a.look, b.look, w), feet: { L: foot('L'), R: foot('R') } };
 }
-const UAL_MEAN = {};
-function ualMean(clip) {
-	if (UAL_MEAN[clip]) return UAL_MEAN[clip];
-	const F = UAL_GAIT[clip].frames;
-	const m = (get) => F.reduce((acc, f) => acc + get(f), 0) / F.length;
-	return (UAL_MEAN[clip] = { hipsY: m((f) => f.hips[1]), pelvis: m((f) => f.pelvis[0]), torso: m((f) => f.torso[0]), look: m((f) => f.look[0]) });
-}
 
-function gait(rig, t, { run, pistol, rifle }) {
+/** Скорость клипа (м/с) при timeScale 1: при ней ноги не скользят (стопа на земле едет назад со скоростью хода). */
+export const HERO_GAIT = Object.fromEntries([['Walk', 'walk', 'axe'], ['Run', 'run', 'axe'], ['WalkPistol', 'walk', 'pistol'], ['RunPistol', 'run', 'pistol'], ['WalkRifle', 'walk', 'rifle'], ['RunRifle', 'run', 'rifle']]
+	.map(([clip, g, k]) => [clip, +(prepared(g, 'F', k).speed * HERO_LEG).toFixed(3)]));
+/** Наборы по направлениям: клип → { направление: [скорость при темпе 1, м/с; x — влево; z — вперёд] }. */
+export const HERO_GAIT8 = Object.fromEntries([['WalkRifle', 'walk', 'rifle'], ['RunRifle', 'run', 'rifle'], ['WalkPistol', 'walk', 'pistol'], ['RunPistol', 'run', 'pistol']]
+	.map(([clip, g, k]) => [clip, Object.fromEntries(DIRS8.map((d) => {
+		const P = prepared(g, d, k);
+		return [d, [+(P.speed * HERO_LEG).toFixed(3), +P.dir[0].toFixed(3), +P.dir[1].toFixed(3)]];
+	}))]));
+
+function gait(rig, t, { run, pistol, rifle, dir = 'F', turn = false }) {
 	const H = rig.hipsY, a = rig.ankle;
-	const G = run ? GAIT.run : GAIT.walk, k = gaitKind(pistol, rifle);
-	const d = G.d, ph = t / d;
+	const gName = run ? 'run' : 'walk', G = GAIT[gName], k = gaitKind(pistol, rifle);
+	const P = prepared(gName, dir, k);
+	// разворот на месте: тот же шаг, но ступни переступают на месте (без хода), ниже и чаще — TURN_D
+	const d = turn ? TURN_D : P.d, ph = t / d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
-	const u = ualAt(G.clip, ph), M = ualMean(G.clip), leg = rig.leg, tw = G.twist[k];
-	// ступни: путь лодыжки и поворот стопы — из клипа, длина шага — под скорость героя; носок — как в клипе
+	const u = prepAt(P, ph), M = P.mean, leg = rig.leg, tw = G.twist[k];
+	const fwd = turn ? 0 : Math.max(0, P.dir[1]);
+	// ступни: путь лодыжки и поворот стопы — из клипа (длина шага — под скорость героя); носок — как в клипе
+	const st = stance(rig, 0.6);
 	const feet = {};
 	for (const s of ['L', 'R']) {
-		const f = u.feet[s], pitch = f.rot[0];
-		feet[s] = {
-			pos: [a[s].x + f.pos[0] * leg, a[s].y + f.pos[1] * leg * G.lift, a[s].z + f.pos[2] * leg * G.stride[k]],
-			rot: [pitch, f.rot[1] + (s === 'L' ? 3 : -3), f.rot[2]],
-			toe: f.toe + Math.max(0, Math.min(pitch, 60)),
-		};
+		const f = u.feet[s], pitch = f.rot[0] * (turn ? 0.4 : 1);
+		feet[s] = turn
+			? { pos: [st[s].pos[0], a[s].y + f.p[1] * leg * 0.45, st[s].pos[2]], rot: [pitch, st[s].rot[1], 0], toe: Math.max(0, Math.min(pitch, 60)) }
+			: { pos: [a[s].x + f.p[0] * leg, a[s].y + f.p[1] * leg, a[s].z + f.p[2] * leg], rot: [pitch, f.rot[1] + (s === 'L' ? 3 : -3), f.rot[2]], toe: f.toe + Math.max(0, Math.min(pitch, 60)) };
 	}
 	// таз: присед и раскачка вверх-вниз и в стороны; bob — смещение от среднего (его повторяют кисти с оружием)
-	const bob = (u.hips[1] - M.hipsY) * G.bob * leg;
-	const sway = u.hips[0] * leg;
-	const pelvisYaw = u.pelvis[1] * tw, torsoYaw = u.torso[1] * tw;
+	const bob = (u.hips[1] - M.hipsY) * G.bob * leg * (turn ? 0.4 : 1);
+	const sway = (u.hips[0] - M.hipsX) * leg * (turn ? 0.4 : 1);
+	// поворот таза: доля из клипа (ноги идут вбок/назад — таз чуть развёрнут к ходу), грудь — к цели (качается слегка)
+	const pelvisYaw = turn ? 0 : (u.pelvis[1] - M.pelvisYaw) * tw + M.pelvisYaw * PELVIS_KEEP;
+	const chestYaw = turn ? 0 : (u.pelvis[1] + u.torso[1] - M.chestYaw) * tw;
+	const torsoYaw = chestYaw - pelvisYaw;
+	const walkLean = GAIT.walk.lean[k], walkLook = GAIT.walk.look[k];
 	const base = {
-		hips: [sway, H + M.hipsY * G.drop * leg + bob, 0],
-		pelvis: [G.pelvis + (u.pelvis[0] - M.pelvis), pelvisYaw + (pistol && !run ? -4 : 0), u.pelvis[2] * (run ? 0.7 : 1)],
-		torso: [G.lean[k] + (u.torso[0] - M.torso) * 0.5, torsoYaw + (pistol && !run ? 4 : 0), u.torso[2] * tw],
-		// голова смотрит по ходу: гасит скручивание таза и корпуса
-		look: [G.look[k] + (u.look[0] - M.look) * 0.5, -0.85 * (pelvisYaw + torsoYaw), -0.6 * u.torso[2] * tw],
+		hips: [sway, H + M.hipsY * G.drop * leg * (turn ? 0.3 : 1) + bob, 0],
+		pelvis: [GAIT.walk.pelvis + (G.pelvis - GAIT.walk.pelvis) * fwd + (u.pelvis[0] - M.pelvis) * (turn ? 0.3 : 1), pelvisYaw + (pistol && !run ? -4 : 0), u.pelvis[2] * (run ? 0.7 : 1) * (turn ? 0.3 : 1)],
+		torso: [walkLean + (G.lean[k] - walkLean) * fwd + (u.torso[0] - M.torso) * 0.5, torsoYaw + (pistol && !run ? 4 : 0), u.torso[2] * tw],
+		// голова смотрит туда же, куда грудь: гасит скручивание таза и корпуса
+		look: [walkLook + (G.look[k] - walkLook) * fwd + (u.look[0] - M.look) * 0.5, -0.85 * (pelvisYaw + torsoYaw), -0.6 * u.torso[2] * tw],
 		feet,
 	};
 	const sw = -c(1, 0); // мах левой руки: вперёд, когда правая нога впереди
@@ -1020,5 +1119,16 @@ export function createHeroAnimations(root, options) {
 		bake(rig, 'EquipRifle', 1.05, equipRifle(rig, true)),
 		bake(rig, 'EquipAxeR', 1.05, equipRifle(rig, false)),
 		bake(rig, 'Death', 2.2, death(rig)),
+		// автомат и пистолет: ход в остальные 7 направлений относительно корпуса и переступание при развороте на месте
+		...['Rifle', 'Pistol'].flatMap((w) => {
+			const o = w === 'Rifle' ? { rifle: true } : { pistol: true };
+			return [
+				...DIRS8.slice(1).flatMap((dir) => [
+					bake(rig, `Walk${w}_${dir}`, GAIT.walk.d, (t) => gait(rig, t, { ...o, run: false, dir }), { loop: true }),
+					bake(rig, `Run${w}_${dir}`, GAIT.run.d, (t) => gait(rig, t, { ...o, run: true, dir }), { loop: true }),
+				]),
+				bake(rig, `Turn${w}`, TURN_D, (t) => gait(rig, t, { ...o, run: false, turn: true }), { loop: true }),
+			];
+		}),
 	];
 }

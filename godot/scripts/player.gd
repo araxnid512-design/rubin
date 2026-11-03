@@ -25,11 +25,37 @@ const EQUIP := {"pistol": {"draw": "EquipPistol", "stow": "EquipAxe"}, "rifle": 
 ## Клип смены оружия: [когда старое оружие уже в креплении, когда новое уже в руке], с — по этим моментам
 ## запечены клипы (EQUIP_TIMES в src/hero-animations.js).
 const EQUIP_TIMES := {"EquipPistol": [0.36, 0.74], "EquipAxe": [0.26, 0.6], "EquipRifle": [0.36, 0.74], "EquipAxeR": [0.32, 0.66]}
-const LOOPED := ["Idle", "Walk", "Run", "IdlePistol", "WalkPistol", "RunPistol", "AimPistol", "IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
+const LOOPED := ["Idle", "Walk", "Run", "IdlePistol", "WalkPistol", "RunPistol", "AimPistol", "IdleRifle", "WalkRifle", "RunRifle", "AimRifle", "TurnRifle", "TurnPistol"]
 const MOUNTS := {"axe": "AxeMount", "holster": "HolsterMount", "back": "BackMount"}
 ## Скорость клипов шага и бега при темпе 1, м/с (HERO_GAIT в src/hero-animations.js: шаг и бег — по живым клипам
 ## Quaternius UAL, CC0): темп подгоняется под настоящую скорость героя — ступни не скользят.
 const GAIT := {"Walk": 1.455, "Run": 4.29, "WalkPistol": 1.339, "RunPistol": 4.03, "WalkRifle": 1.397, "RunRifle": 4.16}
+## Ход в 8 направлениях относительно корпуса (HERO_GAIT8 в src/hero-animations.js): у автомата и пистолета корпус и
+## оружие смотрят на цель, ноги идут туда, куда движется герой, — смешиваются два соседних клипа (BlendSpace2D, у всех
+## клипов набора один цикл, левая стопа ставится в его начале). На направление: [скорость клипа при темпе 1, м/с;
+## x — влево; z — вперёд].
+const DIRS8 := ["F", "FL", "L", "BL", "B", "BR", "R", "FR"]
+const GAIT8 := {
+	"WalkRifle": {"F": [1.397, 0.0, 1.0], "FL": [1.257, 0.708, 0.706], "L": [0.838, 0.999, 0.035], "BL": [0.978, 0.703, -0.711], "B": [0.908, 0.0, -1.0], "BR": [0.978, -0.712, -0.702], "R": [0.838, -1.0, 0.0], "FR": [1.257, -0.707, 0.707]},
+	"RunRifle": {"F": [4.16, -0.001, 1.0], "FL": [4.134, 0.734, 0.68], "L": [1.44, 0.999, 0.035], "BL": [2.912, 0.71, -0.705], "B": [2.704, -0.001, -1.0], "BR": [3.177, -0.709, -0.705], "R": [1.442, -1.0, 0.0], "FR": [4.134, -0.734, 0.68]},
+	"WalkPistol": {"F": [1.339, 0.0, 1.0], "FL": [1.205, 0.708, 0.706], "L": [0.803, 0.999, 0.035], "BL": [0.937, 0.703, -0.711], "B": [0.87, 0.0, -1.0], "BR": [0.937, -0.712, -0.702], "R": [0.803, -1.0, 0.0], "FR": [1.205, -0.707, 0.707]},
+	"RunPistol": {"F": [4.03, -0.001, 1.0], "FL": [4.134, 0.734, 0.68], "L": [1.44, 0.999, 0.035], "BL": [2.821, 0.71, -0.705], "B": [2.62, -0.001, -1.0], "BR": [3.177, -0.709, -0.705], "R": [1.442, -1.0, 0.0], "FR": [4.134, -0.734, 0.68]},
+}
+## Скорость хода по направлению относительно корпуса, доля скорости «вперёд» (DIR_SPEED в src/hero-animations.js):
+## в прицеле боком и спиной вперёд человек идёт медленнее; под эту скорость подогнан шаг клипов.
+const DIR_SPEED := {"F": 1.0, "FL": 0.9, "L": 0.6, "BL": 0.7, "B": 0.65, "BR": 0.7, "R": 0.6, "FR": 0.9}
+## Наборы клипов по направлениям включены для этих классов (остальные — по-старому: ноги разворачиваются к ходу).
+## Порядок по ТЗ: сначала автомат (АК-47), после проверки — остальные.
+const DIRECTIONAL := {"rifle": true}
+## Разгон и торможение, м/с²: шаги и темп клипа идут за настоящей скоростью — без рывка «стоял — сразу бежит»
+## (0 → бег ~0,3 с, остановка ~0,2 с — управление не вязнет).
+const ACCEL := 16.0
+const DECEL := 24.0
+## Разворот на месте (корпус ушёл от ног дальше TURN_START): ноги переступают (клип Turn*) с этой скоростью, рад/с.
+const TURN_STEP_RATE := 5.0
+## Инерция оружия при повороте корпуса: насколько ствол отстаёт (рад на рад/с поворота) и жёсткость возврата
+## (собственная частота, рад/с) — у тяжёлых стволов отставание больше и возврат медленнее.
+const SWAY := {"pistol": [0.018, 16.0], "sawnoff": [0.022, 14.0], "smg": [0.022, 14.0], "rifle": [0.03, 12.0], "shotgun": [0.034, 11.0], "heavy": [0.04, 9.0], "melee": [0.0, 12.0]}
 ## Профили хвата и отдачи (пакет «СТИКС», pose_data/weapon_pose_profiles.json; числа подогнаны под наш скелет и
 ## клипы — клип выстрела сам даёт ~3 см отдачи, здесь — добавка по оружию): two — двуручный хват (левая кисть на
 ## цевье через IK); raise / lower — подъём ствола в прицел и опускание, с; back — толчок назад, м;
@@ -153,6 +179,18 @@ var _body_yaw := 0.0
 var _loco_want := "idle"
 var _loco_t := 0.0
 var _nodes := {}
+## Ход относительно корпуса (x — влево, z — вперёд), сглаженный — точка смешивания клипов по направлениям.
+var move_dir_local := Vector2(0.0, 1.0)
+## Наклон корпуса от разгона и торможения (вперёд-назад, вбок), рад; отставание ствола при повороте, рад; фаза шага.
+var lean := Vector2.ZERO
+var sway_yaw := 0.0
+var _sway_v := 0.0
+var _yaw_prev := 0.0
+var _vel_prev := Vector3.ZERO
+var gait_phase := 0.0
+## Отдача — пружина (толчок и возврат с лёгким перехлёстом), очередь накапливает подброс ствола.
+var _rec_v := 0.0
+var burst := 0.0
 ## Модель героя из Tripo поверх старой (scripts/gear.gd, SkinFollow) или null.
 var tripo_hero: Node3D
 
@@ -173,9 +211,11 @@ func setup(g: Node, k: Dictionary, w: Dictionary) -> void:
 	add_child(model)
 	Level.rim(model)
 	anim = model.find_child("AnimationPlayer", true, false)
-	for c in LOOPED:
-		if anim and anim.has_animation(c):
-			anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
+	if anim:
+		for c in anim.get_animation_list():
+			# шаг и бег по направлениям (WalkRifle_FL…) — тоже по кругу
+			if c in LOOPED or (str(c).begins_with("Walk") or str(c).begins_with("Run")):
+				anim.get_animation(c).loop_mode = Animation.LOOP_LINEAR
 	var sks := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = sks[0] as Skeleton3D if sks.size() > 0 else null
 	# модель героя из Tripo (если есть) — повторяет позу этого скелета: клипы, дерево анимаций и IK те же
@@ -288,27 +328,43 @@ func _build_tree() -> void:
 	var bt := AnimationNodeBlendTree.new()
 	var x := 0.0
 	# сразу с настоящими клипами (под топор; _apply_kind поменяет под оружие в руках)
-	var first := {"idle": "Idle", "walk": "Walk", "run": "Run", "aim": "AimRifle", "shoot": "ShootRifle", "act_u": "Hit", "act_l": "Hit", "death": "Death"}
+	var first := {"idle": "Idle", "turn": "Idle", "aim": "AimRifle", "shoot": "ShootRifle", "act_u": "Hit", "act_l": "Hit", "death": "Death"}
 	for n in first:
 		var a := AnimationNodeAnimation.new()
 		a.animation = first[n]
 		_nodes[n] = a
 		bt.add_node(n, a, Vector2(0, x))
 		x += 140.0
+	# шаг и бег: по клипу на каждое из 8 направлений относительно корпуса (точки — направления хода клипов); пока
+	# у оружия нет набора по направлениям, во всех точках клип «вперёд» (ноги тогда разворачиваются к ходу)
+	for g in ["walk", "run"]:
+		var bs := AnimationNodeBlendSpace2D.new()
+		bs.sync = true   # клипы набора одной длины и начаты вместе — шаги соседних направлений совпадают
+		var table: Dictionary = GAIT8["WalkRifle" if g == "walk" else "RunRifle"]
+		for d in DIRS8:
+			var pa := AnimationNodeAnimation.new()
+			pa.animation = "Walk" if g == "walk" else "Run"
+			_nodes["%s_%s" % [g, d]] = pa
+			var e: Array = table[d]
+			bs.add_blend_point(pa, Vector2(float(e[1]), float(e[2])))
+		bt.add_node(g, bs, Vector2(0, x))
+		x += 140.0
 	kind = "axe"
-	for n in ["walk", "run", "act_u", "act_l"]:
+	for n in ["walk", "run", "turn", "act_u", "act_l"]:
 		bt.add_node(n + "_ts", AnimationNodeTimeScale.new())
 		bt.connect_node(n + "_ts", 0, n)
 	var loco_n := AnimationNodeTransition.new()
 	loco_n.xfade_time = XFADE
-	loco_n.input_count = 3
+	loco_n.input_count = 4
 	loco_n.set_input_name(0, "idle")
 	loco_n.set_input_name(1, "walk")
 	loco_n.set_input_name(2, "run")
+	loco_n.set_input_name(3, "turn")
 	bt.add_node("loco", loco_n)
 	bt.connect_node("loco", 0, "idle")
 	bt.connect_node("loco", 1, "walk_ts")
 	bt.connect_node("loco", 2, "run_ts")
+	bt.connect_node("loco", 3, "turn_ts")
 	var f := _bone_filters()
 	var aim_mix := AnimationNodeBlend2.new()
 	_filter(aim_mix, f[0])
@@ -402,8 +458,16 @@ func _apply_kind() -> void:
 	kind = k
 	var c := clips()
 	(_nodes["idle"] as AnimationNodeAnimation).animation = c["idle"]
-	(_nodes["walk"] as AnimationNodeAnimation).animation = c["walk"]
-	(_nodes["run"] as AnimationNodeAnimation).animation = c["run"]
+	var dirn := directional()
+	for g in ["walk", "run"]:
+		var base: String = c[g]
+		for d in DIRS8:
+			var nm: String = base if d == "F" or not dirn else "%s_%s" % [base, d]
+			if not anim.has_animation(nm):
+				nm = base
+			(_nodes["%s_%s" % [g, d]] as AnimationNodeAnimation).animation = nm
+	var tn := "Turn" + ("Rifle" if k == "rifle" else "Pistol")
+	(_nodes["turn"] as AnimationNodeAnimation).animation = tn if dirn and anim.has_animation(tn) else c["idle"]
 	(_nodes["aim"] as AnimationNodeAnimation).animation = c.get("aim", "AimRifle")
 	(_nodes["shoot"] as AnimationNodeAnimation).animation = c.get("shoot", "ShootRifle")
 
@@ -500,7 +564,15 @@ func _physics_process(delta: float) -> void:
 			speed *= 0.5
 		if gun and aim_t > 0.0:
 			speed *= 0.75
-	velocity = dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
+	var want_v := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
+	# в прицеле (корпус к цели) боком и спиной вперёд — медленнее, как в клипах по направлениям
+	if want_v.length() > 0.01 and directional() and (attack_held or aim_t > 0.0):
+		var lw := want_v.rotated(Vector3.UP, -rotation.y)
+		want_v *= dir_factor(Vector2(lw.x, lw.z))
+	# разгон и торможение: скорость догоняет желаемую (поворот на бегу — дугой, без рывка)
+	var hv := Vector3(velocity.x, 0.0, velocity.z)
+	hv = hv.move_toward(want_v, (ACCEL if want_v.length() > hv.length() + 0.01 else DECEL) * delta)
+	velocity = hv
 	move_and_slide()
 	# за край кластера не уйти (стен по краю нет; в браузерной игре позицию тоже держали в ±PLAY)
 	if game and game.level:
@@ -542,16 +614,59 @@ func _sync_body() -> void:
 	legs_yaw += wrapf(rotation.y - _body_yaw, -PI, PI)
 	_body_yaw = rotation.y
 
-## Низ: стойка / шаг / бег по настоящей скорости (с запасом на границах), куда смотрят ноги и темп шага.
+## Набор клипов по направлениям у оружия в руках (корпус к цели, ноги — по ходу).
+func directional() -> bool:
+	return DIRECTIONAL.has(str(W().get("anim", "axe"))) and not hand_empty
+
+## Направление набора по точке на круге (x — влево, z — вперёд) → индекс в DIRS8 и доля к следующему (против часовой).
+static func _dir_index(d: Vector2) -> Array:
+	var ang := fposmod(atan2(d.x, d.y), TAU)   # 0 — вперёд, PI/2 — влево
+	var f := ang / (PI / 4.0)
+	var i := int(floor(f)) % 8
+	return [i, f - floor(f)]
+
+## Доля скорости «вперёд» для хода в направлении d относительно корпуса (между соседними направлениями — линейно).
+static func dir_factor(d: Vector2) -> float:
+	if d.length() < 0.01:
+		return 1.0
+	var r := _dir_index(d.normalized())
+	var i: int = r[0]
+	var t: float = r[1]
+	return lerpf(float(DIR_SPEED[DIRS8[i]]), float(DIR_SPEED[DIRS8[(i + 1) % 8]]), t)
+
+## Скорость клипа при темпе 1 (м/с) для хода в направлении d: у набора по направлениям — между соседними клипами.
+func natural_speed(g: String, d: Vector2) -> float:
+	var base: String = clips().get(g, "")
+	if not directional() or not GAIT8.has(base):
+		return float(GAIT.get(base, 1.5))
+	var r := _dir_index(d.normalized())
+	var i: int = r[0]
+	var t: float = r[1]
+	var table: Dictionary = GAIT8[base]
+	return lerpf(float(table[DIRS8[i]][0]), float(table[DIRS8[(i + 1) % 8]][0]), t)
+
+## Низ: стойка / шаг / бег по настоящей скорости (с запасом на границах), куда идут ноги и темп шага.
+##   • автомат (набор по направлениям): таз и корпус смотрят на цель, ноги идут по ходу — точка смешивания клипов
+##     8 направлений = ход в осях корпуса; позвоночник не скручивается. Стоя корпус доворачивается к цели, а когда
+##     разворот больше TURN_START — ноги переступают (клип разворота) за корпусом;
+##   • остальное оружие (пока без набора): ноги разворачиваются к ходу, верх доворачивается к цели (спиной вперёд —
+##     клип шага назад).
 func _update_legs(delta: float) -> void:
 	_sync_body()
 	var v := get_real_velocity()
 	v.y = 0.0
 	var spd := v.length()
+	var dirn := directional()
+	var body := rotation.y
+	var off2 := wrapf(body - legs_yaw, -PI, PI)
 	var next := loco
-	if loco == "idle":
+	if loco == "idle" or loco == "turn":
 		if spd > IDLE_OFF:
 			next = "run" if spd > RUN_ON else "walk"
+		elif dirn and (loco == "turn" or absf(off2) > TURN_START):
+			next = "turn" if absf(off2) > 0.06 else "idle"
+		else:
+			next = "idle"
 	elif spd < IDLE_ON:
 		next = "idle"
 	elif loco == "walk" and spd > RUN_ON:
@@ -564,39 +679,64 @@ func _update_legs(delta: float) -> void:
 	else:
 		_loco_t = _loco_t + delta if next == _loco_want else 0.0
 		_loco_want = next
-		if _loco_t >= 0.05:
+		if _loco_t >= 0.05 or next == "turn":
 			loco = next
 			_loco_t = 0.0
 			anim_tree.set("parameters/loco/transition_request", loco)
-	var body := rotation.y
-	if loco != "idle" and spd > 0.05:
-		# ноги — по ходу; если цель позади хода — спиной вперёд (клип шага назад)
-		var mv := atan2(v.x, v.z)
-		var off := absf(wrapf(mv - body, -PI, PI))
-		backpedal = off > BACK_OFF if backpedal else off > BACK_ON
-		legs_yaw = lerp_angle(legs_yaw, mv + PI if backpedal else mv, minf(1.0, delta * 12.0))
+	if (loco == "walk" or loco == "run") and spd > 0.05:
+		if dirn:
+			# ход в осях корпуса (x — влево, z — вперёд), сглаженный по углу: точка смешивания клипов направлений
+			var lv := v.rotated(Vector3.UP, -body)
+			var a0 := atan2(move_dir_local.x, move_dir_local.y)
+			var a1 := atan2(lv.x, lv.z)
+			var a := lerp_angle(a0, a1, minf(1.0, delta * 10.0))
+			move_dir_local = Vector2(sin(a), cos(a))
+			anim_tree.set("parameters/walk/blend_position", move_dir_local)
+			anim_tree.set("parameters/run/blend_position", move_dir_local)
+			legs_yaw = lerp_angle(legs_yaw, body, minf(1.0, delta * 10.0))
+			backpedal = false
+		else:
+			# ноги — по ходу; если цель позади хода — спиной вперёд (клип шага назад)
+			var mv := atan2(v.x, v.z)
+			var off := absf(wrapf(mv - body, -PI, PI))
+			backpedal = off > BACK_OFF if backpedal else off > BACK_ON
+			legs_yaw = lerp_angle(legs_yaw, mv + PI if backpedal else mv, minf(1.0, delta * 12.0))
 		turning = false
+	elif loco == "turn":
+		# разворот на месте: ноги переступают за корпусом
+		backpedal = false
+		var step := TURN_STEP_RATE * delta
+		legs_yaw += clampf(off2, -step, step)
+		turning = true
 	elif loco == "idle":
 		# стоя ноги не крутятся за каждым движением корпуса — переступают, когда разворот большой
 		backpedal = false
-		var off2 := wrapf(body - legs_yaw, -PI, PI)
-		if absf(off2) > TURN_START:
-			turning = true
-		if turning:
-			var step := LEG_TURN * delta
-			legs_yaw += clampf(off2, -step, step)
-			if absf(off2) <= step + 0.02:
-				turning = false
+		move_dir_local = Vector2(0.0, 1.0)
+		if not dirn:
+			if absf(off2) > TURN_START:
+				turning = true
+			if turning:
+				var step2 := LEG_TURN * delta
+				legs_yaw += clampf(off2, -step2, step2)
+				if absf(off2) <= step2 + 0.02:
+					turning = false
+		else:
+			turning = false
 	var rel := wrapf(legs_yaw - body, -PI, PI)
 	if absf(rel) > MAX_TWIST:
 		rel = signf(rel) * MAX_TWIST
 		legs_yaw = body + rel
 	model.rotation.y = rel
-	# темп шага — по настоящей скорости, ступни не скользят; спиной вперёд — клип назад
-	if loco != "idle":
-		var natural: float = GAIT.get(clips().get(loco, ""), 1.5)
-		var ts := clampf(spd / natural, 0.55, 1.7) * (-1.0 if backpedal else 1.0)
+	# темп шага — по настоящей скорости и направлению: ступни не скользят; спиной вперёд (без набора) — клип назад
+	if loco == "walk" or loco == "run":
+		var natural := natural_speed(loco, move_dir_local) if dirn else float(GAIT.get(clips().get(loco, ""), 1.5))
+		var ts := clampf(spd / natural, 0.55, 1.8) * (-1.0 if backpedal else 1.0)
 		anim_tree.set("parameters/%s_ts/scale" % loco, ts)
+		var clen := 1.333 if loco == "walk" else 0.933
+		gait_phase = fposmod(gait_phase + delta * absf(ts) / clen, 1.0)
+	elif loco == "turn":
+		anim_tree.set("parameters/turn_ts/scale", 1.0)
+		gait_phase = fposmod(gait_phase + delta / 0.8, 1.0)
 
 ## Смена оружия по стадиям — по часам клипа смены (тот же кадр, что у AnimationTree).
 func _update_equip(delta: float) -> void:
@@ -636,19 +776,32 @@ func _update_upper(delta: float) -> void:
 	# левая кисть на цевье — только у двуручного ствола в руке: при уборке отпускает (быстро, пока клип уводит
 	# оружие), при подъёме берёт — за остаток клипа смены или за время подъёма ствола
 	var want_ik := 0.0
-	if alive and gun and reload_t <= 0.0 and bool(Gear.grip_class(weapon_id())["two"]) and (not equipping or equip.get("stage", "") == "raise"):
+	if alive and gun and bool(Gear.grip_class(weapon_id())["two"]) and (not equipping or equip.get("stage", "") == "raise"):
 		want_ik = 1.0
 	var ik_rate := 0.14
 	if want_ik > ik_w:
 		ik_rate = maxf(0.12, float(equip["len"]) - float(equip["t"])) if equipping else float(prof["raise"])
+	# перезарядка (клип ReloadRifle): левая кисть уходит с цевья к магазину в первые ~10 % клипа и возвращается на
+	# цевьё к ~85–90 % — вес IK идёт по клипу, а не выключается на всю перезарядку
+	if reload_t > 0.0 and want_ik > 0.0:
+		var pr := 1.0 - reload_t / maxf(0.05, reload_time(reload_id))
+		want_ik = 1.0 - smoothstep(0.02, 0.11, pr) + smoothstep(0.8, 0.9, pr)
+		ik_rate = 0.06
 	ik_w = move_toward(ik_w, want_ik, delta / ik_rate)
 	# переноска двуручного ствола поперёк корпуса — когда он в руке и верх свободен (не смена оружия, не удар/урон)
 	var want_carry := 0.0
 	if alive and gun and bool(Gear.carry_grip(weapon_id())[1]) and not equipping and not bool(anim_tree.get("parameters/act_up/active")):
 		want_carry = 1.0
 	carry_w = move_toward(carry_w, want_carry, delta / 0.2)
-	# отдача: резкий толчок и возврат за ~0.12 с
-	kick *= exp(-delta * 26.0)
+	# отдача — пружина: толчок, возврат за ~0,15 с с лёгким перехлёстом вперёд (как у ствола в руках), шагами по 1/120 с;
+	# очередь накапливает подброс (burst), между очередями он уходит за ~0,3 с
+	var left_t := delta
+	while left_t > 0.0:
+		var h := minf(left_t, 1.0 / 120.0)
+		_rec_v += (-900.0 * kick - 33.0 * _rec_v) * h
+		kick += _rec_v * h
+		left_t -= h
+	burst = move_toward(burst, 0.0, delta * 3.5)
 	# пошёл посреди удара или смены оружия — ноги переходят на шаг, верх доигрывает
 	if alive and loco != "idle" and bool(anim_tree.get("parameters/act_low/active")):
 		anim_tree.set("parameters/act_low/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
@@ -693,6 +846,36 @@ func _update_pose(delta: float) -> void:
 	pose.kick_chest = deg_to_rad(float(prof["chest"]))
 	pose.ik_weight = ik_w
 	pose.carry = carry_w * (1.0 - smoothstep(0.0, 1.0, aim_w))
+	# очередь у автоматов накапливает подброс ствола (до +60 %)
+	pose.kick_climb *= 1.0 + 0.12 * burst
+	if not alive or delta <= 0.0:
+		return
+	# наклон корпуса от разгона и торможения (в осях корпуса): разгон вперёд — наклон вперёд, торможение — назад;
+	# вбок — к центру поворота; плавно (без дрожи от шагов скорости)
+	var v := get_real_velocity()
+	v.y = 0.0
+	var acc := ((v - _vel_prev) / delta).rotated(Vector3.UP, -rotation.y)
+	_vel_prev = v
+	var want_lean := Vector2(clampf(acc.z * 0.01, -0.12, 0.12), clampf(-acc.x * 0.008, -0.08, 0.08))
+	lean = lean.lerp(want_lean, minf(1.0, delta * 6.0))
+	pose.lean = lean
+	# инерция оружия: при повороте корпуса ствол отстаёт и догоняет пружиной (у тяжёлых — больше и медленнее)
+	var cat: String = POSE_OF.get(Data.real_id(weapon_id()), "")
+	if cat == "":
+		cat = str(W().get("anim", "melee"))
+	var sw: Array = SWAY.get(cat, SWAY["rifle"])
+	var omega := wrapf(rotation.y - _yaw_prev, -PI, PI) / delta
+	_yaw_prev = rotation.y
+	var target := clampf(-omega * float(sw[0]), -0.18, 0.18)
+	var wn := float(sw[1])
+	_sway_v += ((target - sway_yaw) * wn * wn - 2.0 * 0.8 * wn * _sway_v) * delta
+	sway_yaw += _sway_v * delta
+	pose.sway_yaw = sway_yaw if W().get("slot", "") == "gun" else 0.0
+	# покачивание ствола от шага: вниз на каждой постановке стопы, вбок — за тазом; амплитуда — от скорости
+	var spd := v.length()
+	var amp := clampf(spd / 4.0, 0.0, 1.0) * (0.012 if cat == "heavy" or cat == "shotgun" else 0.009)
+	var ph := gait_phase * TAU
+	pose.bob = Vector3(sin(ph) * amp * 0.6, -absf(sin(ph)) * amp, 0.0) * (1.0 - 0.6 * aim_w)
 
 # ---------- Бой ----------
 
@@ -742,7 +925,10 @@ func attack() -> void:
 	anim_tree.set("parameters/shot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	# отдача по мощности ствола: Glock и MP5 — едва дёргает, АК — ощутимо, СВД, Desert Eagle, дробовики — сильно
 	var power := float(w.get("damage", 20)) * float(w.get("pellets", 1))
-	kick = clampf(0.45 + power / 70.0, 0.5, 1.6)
+	# толчок пружины: пик отклонения ≈ скорость × 0,0173 (частота 30 рад/с, затухание 0,55) — пик 0,5…1,6
+	_rec_v += 57.7 * clampf(0.45 + power / 70.0, 0.5, 1.6)
+	if float(w.get("auto", w.get("cooldown", 1.0))) < 0.2:
+		burst = minf(burst + 1.0, 5.0)
 	game.fire_shot(self, w, target, muzzle_pos())
 	wear[id] = wear_of(id) - 1
 	if wear[id] <= 0:
