@@ -22,6 +22,7 @@
 		import { buildLevel } from '../game/level.js';
 		import '../game/post.js'; // цвет Улья в тональной коррекции — как в игре
 		import { WEAPONS } from '../game/weapons.js';
+		import { BUILD_IDS } from '../game/base.js';
 
 		// куда смотрит камера и кого поставить в кадр (x, z, поворот, клип)
 		const SHOTS = {
@@ -36,8 +37,15 @@
 			// «Карьер» — двор муров у костра: часовые со стволами, казарма и склад за ними
 			murs: {
 				target: [0, 0, -4], cam: [14, 20, 28], hero: null, zombies: [],
-				murs: [[-2.5, 2, 2, 'ak47'], [2.5, -1, -1, 'aks'], [0, 3.5, 3, 'ak74'], [-12, -14, 0.4, 'pkm'], [14, -14, -0.4, 'svd'], [-3, 24.4, 0, 'ak74'], [3, 24.4, 0, 'ak47'], [10, 8, 2.6, 'aks']],
+				murs: [[-2.5, 2, 2, 'ak47'], [2.5, -1, -1, 'aks'], [0, 3.5, 3, 'ak74'], [-12, -14, 0.4, 'rpk'], [14, -14, -0.4, 'svd'], [-3, 24.4, 0, 'ak74'], [3, 24.4, 0, 'ak47'], [10, 8, 2.6, 'aks']],
 			},
+			// база «Опорный» — застроенная целиком: терминал посередине, казарма и склад за ним, вышки по углам
+			base: { target: [0, 0, -4], cam: [14, 26, 31], hero: [1.5, 3.5, 3], zombies: [] },
+			// новые кластеры (камера — на главное место локации)
+			bolnica: { target: [0, 0, 0], cam: [14, 20, 27], hero: [-3, 6, 2.6], zombies: [['runner', -6, -2, 0.6, 'Walk'], ['stomper', 4, -6, 2.2, 'Stomp'], ['runner', 8, 1, 2.8, 'Run']] },
+			lesopilka: { target: [0, 0, 0], cam: [14, 20, 27], hero: [-3, 6, 2.6], zombies: [['runner', -6, -2, 0.6, 'Walk'], ['runner', 5, -4, 2.2, 'Idle'], ['runner', 8, 1, 2.8, 'Run']] },
+			podstanciya: { target: [0, 0, 0], cam: [14, 20, 27], hero: [-3, 6, 2.6], zombies: [['ruber', -4, -8, 0.5, 'Roar'], ['stomper', 4, -6, 2.2, 'Stomp'], ['runner', 8, 1, 2.8, 'Run']] },
+			nii: { target: [0, 0, 0], cam: [14, 20, 27], hero: [-3, 6, 2.6], zombies: [['elite', -2, -9, 0.4, 'Roar'], ['ruber', 6, -6, 2.4, 'Walk'], ['runner', 8, 1, 2.8, 'Run']] },
 		};
 		const q = new URLSearchParams(location.search);
 		const id = q.get('id') || 'zarechny', shot = SHOTS[id];
@@ -64,13 +72,13 @@
 		Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 90 });
 		sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
 		scene.add(sun, sun.target);
-		const level = buildLevel(scene, { id, quality: 'high' });
+		const level = buildLevel(scene, { id, quality: 'high', base: id === 'base' ? { built: BUILD_IDS } : null });
 		level.update(0, 3.2);
 
 		const loader = new GLTFLoader();
 		const load = (n) => loader.loadAsync(`../models/game/${n}.glb`);
 		const [player, runner, stomper, ruber] = await Promise.all(['player', 'runner', 'stomper', 'ruber'].map(load));
-		const gltfs = { player, runner, stomper, ruber };
+		const gltfs = { player, runner, stomper, ruber, elite: ruber };
 		const figure = (kind, x, z, ry, clipName, { t = Math.random(), tint = null, gun = null, axe = false, y = 0 } = {}) => {
 			const g = gltfs[kind];
 			const m = SkeletonUtils.clone(g.scene);
@@ -84,6 +92,8 @@
 			});
 			if (kind === 'stomper') m.scale.setScalar(1.08);
 			if (kind === 'ruber') m.scale.setScalar(1.12);
+			// элита — рубер-переросток, почти чёрный (как в игре)
+			if (kind === 'elite') { m.scale.setScalar(1.34); m.traverse((o) => { if (o.isMesh) o.material = [o.material].flat().map((mt) => Object.assign(mt.clone(), { color: mt.color.clone().multiply(new THREE.Color(0.34, 0.27, 0.3)) }))[0]; }); }
 			m.position.set(x, y, z); m.rotation.y = ry;
 			const clip = g.animations.find((c) => c.name === clipName) ?? g.animations.find((c) => c.name === 'Idle');
 			const mixer = new THREE.AnimationMixer(m);
@@ -91,7 +101,7 @@
 			mixer.setTime(t * clip.duration);
 			const grip = m.getObjectByName('GripR');
 			if (gun) grip?.add(WEAPONS[gun].make());
-			if (axe) grip?.add(WEAPONS.axe.make());
+			if (axe) grip?.add(WEAPONS.fireaxe.make());
 			scene.add(m);
 		};
 		if (shot.hero) { const [hx, hz, hry] = shot.hero; figure('player', hx, hz, hry, 'Run', { t: 0.3, axe: true }); }

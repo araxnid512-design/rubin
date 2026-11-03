@@ -32,6 +32,8 @@ import { clothVariants, dressZombie, bodyVariation } from './variety.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE, sellPrice, SELLABLE } from './trade.js';
+import { BUILDINGS, cantBuy, build as buildOnBase, tickBase, collect as collectStock, perks as basePerks, defense as baseDefense } from './base.js';
+import { TerminalWindow, stockText } from './terminal.js';
 import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
 import { IntelWindow, INTEL_PRICE, intelText } from './intel.js';
 import { BUILD } from './version.js';
@@ -125,7 +127,7 @@ async function boot() {
 	try { await loadEnvProps(loadModel); } catch (e) { console.warn('модели предметов не загрузились', e); }
 	progress(0.05, 'Строим кластер…');
 	await frameWait();
-	level = buildLevel(scene, { quality: QUALITY, id: saved?.world?.at ?? 'zarechny' });
+	level = buildLevel(scene, { quality: QUALITY, id: saved?.world?.at ?? 'zarechny', base: saved?.world?.base });
 	game.level = level;
 	game.planLevel();
 	progress(0.35, 'Загружаем иммунного…');
@@ -820,7 +822,7 @@ class Player extends Actor {
 	/** Выстрел — в момент вскидки ствола: звук, вспышка и пуля вместе. */
 	shotHit(W, id, target) {
 		Sfx.gun(id, shotKind(W));
-		fireShot(this, W, this.gun(id), target, { player: true });
+		fireShot(this, W, this.gun(id), target, { player: true, damage: game.basePerks().gunDamage }); // тир на базе — +10 %
 	}
 
 	/** При смерти оружие выпадает из руки и ложится на землю. */
@@ -941,18 +943,24 @@ const ENEMY_TYPES = {
 	// рубер: следующая за топтуном стадия — зверь на четырёх лапах в костяной броне, с пастью собаки-обезьяны;
 	// ревёт, бросается рывками (charge — скорость галопа), бьёт броском с укусом; gait — скорости его клипов
 	ruber: { hp: 520, speed: 2.6, charge: 6.4, scale: 1.12, radius: 0.58, damage: 34, knock: 1.6, range: 2.0, hitTime: 0.5, attackAnim: 1, attack: 'Attack', move: 'Walk', gait: RUBER_GAIT, score: 5, heavy: 5, stagger: 0.03, sight: 18, armor: 8, roar: true },
+	// элита: высшая стадия — рубер-переросток, почти чёрный, в толстой броне; быстрее и злее, рывки длиннее,
+	// раны затягивает (regen, ед./с — через 4 с без попаданий); рёв поднимает всех вокруг. Модель — рубера
+	elite: { hp: 1400, speed: 3.0, charge: 8.2, scale: 1.34, radius: 0.72, damage: 48, knock: 2.2, range: 2.3, hitTime: 0.45, attackAnim: 1.15, attack: 'Attack', move: 'Walk', gait: RUBER_GAIT, score: 12, heavy: 8, stagger: 0.01, sight: 22, armor: 14, roar: true, regen: 10, model: 'ruber' },
 };
 
 class Enemy extends Actor {
 	constructor(type, pos, hp) {
 		const T = ENEMY_TYPES[type];
-		super(assets[type], { scale: T.scale });
+		super(assets[T.model ?? type], { scale: T.scale });
 		this.type = type;
 		this.T = T;
 		// у каждого свой рост и сложение, одежда и оттенок кожи
 		const body = bodyVariation();
 		this.model.scale.set(T.scale * body.s * body.w, T.scale * body.s, T.scale * body.s * body.w);
-		dressZombie(this, clothSets[type], { recolor: type !== 'ruber' });
+		dressZombie(this, clothSets[type], { recolor: type !== 'ruber' && type !== 'elite' });
+		// элита — почти чёрная, с багровым отливом и тлеющими глазами
+		if (type === 'elite') this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) { m.color?.multiply(new THREE.Color(0.34, 0.27, 0.3)); if (/eye/i.test(m.name)) m.emissive?.setRGB(0.9, 0.12, 0.05); } });
+		this.maxHp = T.hp;
 		this.scale = T.scale * body.s;
 		this.radius = T.radius * body.s;
 		this.hp = hp ?? T.hp;
@@ -987,6 +995,7 @@ class Enemy extends Actor {
 			this.root.rotation.y = angleTo(this.pos, game.foeFor(this.pos).pos);
 			this.play('Roar', { once: true, fade: 0.15, restart: true });
 			Sfx.roar(game.ear(this.pos));
+			if (this.type === 'elite' && !game.eliteWarned) { game.eliteWarned = true; game.banner('Элита!', 'Высшая стадия заражённого: толстая броня, длинные рывки, раны затягивает. Не стой на месте — и не отпускай её отдышаться'); }
 			const near = clamp01(1 - this.pos.distanceTo(game.player.pos) / 20);
 			game.shake = Math.min(1, game.shake + near * 0.35);
 			for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 18) setTimeout(() => o.alert(), 400 + Math.random() * 700);
@@ -1072,6 +1081,7 @@ class Enemy extends Actor {
 			if (cut > dmg * 0.5) game.impact(this.pos.clone().setY(1.3 * this.scale).addScaledVector(dir, -this.radius), true, 0.7); // искры от кости
 		}
 		this.hp -= dmg;
+		this.hitAt = game.time;
 		this.hitFlash();
 		game.blood(this.pos.clone().setY(1.2 * this.scale), T.armor ? 5 : 10, dir);
 		// попадание дёргает корпус по ходу пули: в грудь — назад, в спину — вперёд, сбоку — вбок
@@ -1118,6 +1128,8 @@ class Enemy extends Actor {
 	}
 
 	update(dt) {
+		// элита затягивает раны, если по ней не попадали 4 с
+		if (this.T.regen && this.alive && this.hp < this.maxHp && game.time - (this.hitAt ?? -9) > 4) this.hp = Math.min(this.maxHp, this.hp + this.T.regen * dt);
 		// цель — ближайший живой: герой или наёмник (выбор раз в полсекунды, чтобы не дёргался)
 		this.foeT = (this.foeT ?? 0) - dt;
 		if (this.foeT <= 0 || !this.foe?.alive) { this.foe = game.foeFor(this.pos); this.foeT = 0.5; }
@@ -1232,6 +1244,54 @@ class Npc extends Actor {
 		this.root.rotation.y = turnTowards(this.root.rotation.y, want, dt * 2);
 		this.model.visible = inView(this.pos);
 		if (this.model.visible) super.update(dt);
+	}
+}
+
+/**
+ * Часовой базы (на вышке, в пулемётном гнезде, у ворот): стоит на месте и бьёт заражённых в своей дальности
+ * (spec.sentry: range, cooldown — пауза между выстрелами, burst — патронов в очереди). На вышке видит поверх
+ * препятствий, на земле — только если цель на виду.
+ */
+class Sentry extends Npc {
+	constructor(spec) {
+		super(spec);
+		this.cfg = spec.sentry;
+		this.gunId = spec.gun;
+		this.W = WEAPONS[spec.gun];
+		this.gunObj = this.model.getObjectByName('GripR')?.children.at(-1);
+		this.cool = Math.random();
+		this.burstLeft = 0;
+	}
+
+	update(dt) {
+		this.model.visible = inView(this.pos);
+		if (this.model.visible) Actor.prototype.update.call(this, dt);
+		if ((this.scanT = (this.scanT ?? 0) - dt) <= 0) {
+			this.scanT = 0.4;
+			const high = this.pos.y > 1, r = this.cfg.range;
+			let best = null, bd = r;
+			for (const e of game.enemies) {
+				if (!e.alive) continue;
+				const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+				if (d < bd && (high || lineOfSight(this.pos, e.pos))) { bd = d; best = e; }
+			}
+			this.target = best;
+		}
+		const t = this.target;
+		if (!t?.alive) {
+			this.root.rotation.y = turnTowards(this.root.rotation.y, this.ry0, dt * 2);
+			if (this.current !== 'IdleRifle' && (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning())) this.play('IdleRifle', { fade: 0.3 });
+			return;
+		}
+		this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, t.pos), dt * 6);
+		if ((this.cool -= dt) > 0) { if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play('AimRifle', { fade: 0.2 }); return; }
+		const W = this.W;
+		this.burstLeft = this.burstLeft > 0 ? this.burstLeft - 1 : (this.cfg.burst ?? 1) - 1;
+		this.cool = this.burstLeft > 0 ? W.auto : this.cfg.cooldown + Math.random() * 0.4;
+		this.play('ShootRifle', { once: true, fade: 0.04, restart: true });
+		Sfx.gun(this.gunId, shotKind(W), game.ear(this.pos));
+		if (this.gunObj?.userData.muzzle) fireShot(this, W, this.gunObj, t, { accuracy: 0.8 });
+		else t.damage(W.damage * 0.8, this.pos, 0.3);
 	}
 }
 
@@ -2216,7 +2276,7 @@ const game = {
 		if (this.player && s.hp) this.player.hp = Math.max(1, s.hp);
 		this.hud();
 		const kind = NODES[this.loc].kind;
-		this.banner(NODES[this.loc].name, kind === 'stab' ? 'Безопасно' : kind === 'murs' ? 'Логово муров — тебя заметят' : `До перезагрузки ${approx(timeLeft(this.world, this.loc))}`);
+		this.banner(NODES[this.loc].name, kind === 'stab' ? 'Безопасно' : kind === 'murs' ? 'Логово муров — тебя заметят' : kind === 'base' ? this.baseGreeting() : `До перезагрузки ${approx(timeLeft(this.world, this.loc))}`);
 	},
 
 	begin() {
@@ -2241,12 +2301,12 @@ const game = {
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
 		marks.clear();
-		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = [];
+		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = []; this.eliteWarned = false;
 		this.searching = null;
 		this.flow = null;
-		if (level?.id !== id) {
+		if (level?.id !== id || NODES[id].kind === 'base') {
 			level?.dispose();
-			level = buildLevel(scene, { quality: QUALITY, id });
+			level = buildLevel(scene, { quality: QUALITY, id, base: this.world.base });
 			this.level = level;
 			this.planLevel();
 		}
@@ -2273,7 +2333,7 @@ const game = {
 		if (!this.player || !this.player.alive) {
 			this.player?.dispose();
 			this.player = new Player(assets.player, this.kit);
-			this.player.maxHp = this.player.hp = this.perks.maxHp;
+			this.player.maxHp = this.player.hp = this.heroMaxHp();
 		}
 		this.player.kit = this.kit;
 		this.player.pos.copy(spot.pos);
@@ -2289,7 +2349,8 @@ const game = {
 		this.updateMurs();
 		if (NODES[id].kind === 'cluster') this.populate(this.world.clusters[id].saved);
 		else if (NODES[id].kind === 'murs') this.populateMurs();
-		else for (const n of level.npcs) this.npcs.push(new Npc(n));
+		else for (const n of level.npcs) this.npcs.push(n.sentry ? new Sentry(n) : new Npc(n));
+		if (NODES[id].kind === 'base') this.baseWaveT = 150 + Math.random() * 120;
 		const raid = this.world.murs.raid;
 		if (raid?.at === id && NODES[id].kind === 'cluster') this.startLiveRaid(raid, true);
 		// вернулись в стаб: уцелевшие бойцы отряда расходятся по своим койкам — снова брать с собой там
@@ -2377,6 +2438,118 @@ const game = {
 	// ---------- Муры (game/murs.js) ----------
 
 	/** Учёт муров: пополнение, начало и конец вылазок — по времени мира. Отряд в кластер героя приходит вживую. */
+	/** Строка при входе на базу: оборона, сколько построено, что накоплено. */
+	baseGreeting() {
+		const b = this.world.base, stock = stockText(b.stock);
+		return `Твоя база: оборона ${baseDefense(b)}, построено ${b.built.length} из ${Object.keys(BUILDINGS).length}. ${stock ? `Накоплено: ${stock} — забери у терминала` : 'Постройки покупаются в терминале посреди площадки'}`;
+	},
+
+	/** Наибольшее здоровье героя: жемчуг (навсегда) и столовая на базе. */
+	heroMaxHp() { return this.perks.maxHp + this.basePerks().maxHp; },
+
+	/** Что дают постройки базы (game/base.js perks). */
+	basePerks() { return basePerks(this.world?.base ?? { built: [] }); },
+
+	/** Сколько наёмников можно взять на вылазку: 4, с казармой на базе — 6. */
+	get partyMax() { return MAX_PARTY + this.basePerks().party; },
+
+	/**
+	 * База: доход построек копится, нападения, пока героя там нет (game/base.js tickBase); радиовышка — где муры,
+	 * видно на карте Улья без информатора.
+	 */
+	updateBase() {
+		const b = this.world?.base;
+		if (!b) return;
+		for (const ev of tickBase(b, this.world.time, NODES[this.loc]?.kind === 'base')) {
+			const a = ev.attack;
+			if (a) this.toast(a.held ? `На базу напали заражённые — отбились (сила ${a.power}, оборона ${a.def})` : `На базу напали — прорвались (сила ${a.power}, оборона ${a.def})${stockText(a.lost) ? `: растащили ${stockText(a.lost)}` : ''}`, a.held ? undefined : 'warn');
+		}
+		if (this.basePerks().radio && this.world.murs.raid) this.world.murs.raid.known = true;
+	},
+
+	/** Купить постройку в терминале: спораны — в счёт, постройка встаёт на место (локация перестраивается). */
+	buyBuilding(id) {
+		const b = this.world.base, B = BUILDINGS[id];
+		const why = cantBuy(b, id, this.bag.spore ?? 0);
+		if (why) { this.toast(`${B?.name ?? id}: ${why}`, 'warn'); return false; }
+		this.bag.spore -= B.price;
+		buildOnBase(b, id, this.world.time);
+		Sfx.coins();
+		this.rebuildBase();
+		if (this.player) { this.player.maxHp = this.heroMaxHp(); this.player.hp = Math.min(this.player.hp, this.player.maxHp); }
+		this.banner(`Построено: ${B.name}`, B.gives);
+		this.hud();
+		this.save();
+		return true;
+	},
+
+	/** Перестроить базу на месте (купили постройку): герой остаётся где стоял, жители — по новым постройкам. */
+	rebuildBase() {
+		if (NODES[this.loc]?.kind !== 'base' || !level) return;
+		for (const n of this.npcs) n.dispose();
+		this.npcs = [];
+		level.dispose();
+		level = buildLevel(scene, { quality: QUALITY, id: this.loc, base: this.world.base });
+		this.level = level;
+		this.planLevel();
+		for (const n of level.npcs) this.npcs.push(n.sentry ? new Sentry(n) : new Npc(n));
+		// встал там, где выросло здание, — к терминалу
+		if (this.player && level.colliders.some((c) => { const dx = this.player.pos.x - c.x, dz = this.player.pos.z - c.z; return Math.abs(dx * c.c - dz * c.s) < c.hx + 0.3 && Math.abs(dx * c.s + dz * c.c) < c.hz + 0.3; })) this.player.pos.set(0, 0, 3);
+		this.updateFlow();
+	},
+
+	/** Забрать накопленное постройками (теплица, ферма, мастерская, медпункт) — у терминала. */
+	collectBase() {
+		const got = collectStock(this.world.base);
+		const text = stockText(got);
+		if (!text) return;
+		for (const [k, n] of Object.entries(got)) this.bag[k] = (this.bag[k] ?? 0) + n;
+		Sfx.coins();
+		this.toast(`Забрал с базы: ${text}`);
+		this.hud();
+		this.save();
+	},
+
+	/** Медпункт базы: здоровье полное, бесплатно и без ожидания. */
+	healFree() {
+		const p = this.player;
+		if (!p?.alive) return;
+		if (p.hp >= p.maxHp) { this.toast('Медпункт: ты и так здоров'); return; }
+		p.hp = p.maxHp;
+		Sfx.drink();
+		this.toast('Медпункт: перевязали, здоровье полное');
+		this.hud();
+	},
+
+	/** Мастерская базы: холодное оружие — снова целое. */
+	repairMelee() {
+		const kit = this.kit, fixed = kit.owned.filter((id) => WEAPONS[id].durability && (kit.wear[id] ?? WEAPONS[id].durability) < WEAPONS[id].durability);
+		if (!fixed.length) { this.toast('Мастерская: чинить нечего'); return; }
+		for (const id of fixed) kit.wear[id] = WEAPONS[id].durability;
+		Sfx.coins();
+		this.toast(`Мастерская: ${fixed.map((id) => WEAPONS[id].name.toLowerCase()).join(', ')} — как новые`);
+		this.hud();
+		this.save();
+	},
+
+	/**
+	 * Нападение на базу, пока герой там: стая заражённых выходит из мути с одной стороны и идёт на героя; часовые
+	 * на вышках, пулемётчик и охрана бьют их (Sentry). Со стеной — только через ворота.
+	 */
+	spawnBaseWave() {
+		const b = this.world.base, n = Math.min(12, 5 + Math.floor(Math.random() * 4) + Math.min(4, b.attacks));
+		const side = Math.floor(Math.random() * 4), t = (Math.random() - 0.5) * 60, far = 58;
+		const at = [[t, -far], [far, t], [t, far], [-far, t]][side];
+		for (let i = 0; i < n; i++) {
+			const type = i === 0 && b.attacks >= 2 ? 'stomper' : 'runner';
+			const pos = new THREE.Vector3(at[0] + (Math.random() - 0.5) * 6, 0, at[1] + (Math.random() - 0.5) * 6);
+			resolveCollisions(pos, 0.5, level.colliders);
+			const e = this.spawnEnemy(type, pos);
+			e.alert?.();
+		}
+		this.banner('Нападение на базу!', `Из мути ${['с севера', 'с востока', 'с юга', 'с запада'][side]} идут заражённые — ${n}. Часовые на вышках прикроют`);
+	},
+
 	updateMurs() {
 		const murs = this.world.murs, clusters = Object.keys(NODES).filter((id) => NODES[id].kind === 'cluster');
 		for (const ev of tickMurs(murs, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1)) {
@@ -2599,7 +2772,7 @@ const game = {
 	/** Уйти по дороге в to: время мира уходит на путь, за это время кластеры могут перезагрузиться. */
 	travel(to) {
 		if (this.state !== 'play') return;
-		const from = this.loc, time = travelTime(from, to);
+		const from = this.loc, time = Math.round(travelTime(from, to) * this.basePerks().travel); // гараж на базе — быстрее
 		if (NODES[from].kind === 'cluster') this.snapshot();
 		this.state = 'travel';
 		this.setPaused(true);
@@ -2615,6 +2788,7 @@ const game = {
 			this.setPaused(false);
 			if (node.kind === 'stab') this.banner(node.name, 'Безопасно: торговец, лекарь. Выход — через ворота');
 			else if (node.kind === 'murs') this.banner(node.name, `Логово муров — около ${this.world.murs.count} стволов. Заметят — не уйдёшь`);
+			else if (node.kind === 'base') this.banner(node.name, this.baseGreeting());
 			else if (!this.raidSquad) this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
 			setTimeout(() => $('travel').classList.add('hidden'), 350);
 		}, 30));
@@ -2637,8 +2811,11 @@ const game = {
 		this.player?.dispose();
 		this.player = null;
 		this.begin();
-		this.enter('stab', undefined);
-		this.banner('Стаб «Полис»', `${who}. Всё, что было с собой, осталось там${broke ? '; охрана выдала старый топор' : ' — запас в хранилище, в твоей комнате'}`);
+		// бункер на базе — возрождение там
+		const atBase = this.basePerks().respawnAtBase;
+		this.enter(atBase ? 'base' : 'stab', undefined);
+		if (atBase) this.banner('База «Опорный»', `${who} — очнулся в бункере базы. Всё, что было с собой, осталось там${broke ? '; в бункере нашёлся старый топор' : ''}`);
+		else this.banner('Стаб «Полис»', `${who}. Всё, что было с собой, осталось там${broke ? '; охрана выдала старый топор' : ' — запас в хранилище, в твоей комнате'}`);
 	},
 
 	/** Ствол или расходник (kind) — из рюкзака в хранилище (всё, что есть этого вида). */
@@ -2755,6 +2932,13 @@ const game = {
 			this.spawnPickup('peas', near(-0.6, 0.5), 2 + Math.floor(Math.random() * 3));
 			if (Math.random() < PEARL_CHANCE) this.spawnPickup('pearl', near(0.6, -0.4), 1);
 		}
+		// элита: споровый мешок богатый — горох и две чёрные жемчужины всегда
+		if (e.type === 'elite') {
+			this.spawnPickup('peas', near(-0.7, 0.6), 4 + Math.floor(Math.random() * 3));
+			this.spawnPickup('pearl', near(0.7, -0.5), 1);
+			this.spawnPickup('pearl', near(0.2, 0.8), 1);
+			this.banner('Элита убита', 'Высшая стадия заражённого мертва — в споровом мешке две чёрные жемчужины');
+		}
 		this.hud();
 	},
 
@@ -2838,6 +3022,10 @@ const game = {
 			if (s.id === 'stash') this.stashWindow.open();
 			if (s.id === 'info') this.intelWindow.open();
 			if (s.id === 'merc') this.partyWindow.open({ merc: s.merc.state.id });
+			if (s.id === 'terminal') this.terminal.open();
+			if (s.id === 'armory') this.trade.open({ armory: true });
+			if (s.id === 'medbay') this.healFree();
+			if (s.id === 'repair') this.repairMelee();
 			return;
 		}
 		const c = this.nearContainer();
@@ -2918,7 +3106,7 @@ const game = {
 		if (this.perks.maxHp >= MAX_HP_CAP) { this.toast(`Здоровье и так на пределе (${MAX_HP_CAP}) — лучше продай торговцу`, 'warn'); return; }
 		this.bag.pearl--;
 		this.perks.maxHp = Math.min(MAX_HP_CAP, this.perks.maxHp + PEARL_HP);
-		p.maxHp = this.perks.maxHp;
+		p.maxHp = this.heroMaxHp();
 		p.hp = p.maxHp;
 		Sfx.chime();
 		this.banner('Организм окреп', `Здоровье навсегда ${p.maxHp} (+${PEARL_HP})`);
@@ -3131,7 +3319,7 @@ const game = {
 	takeMerc(id) {
 		const st = this.merc(id);
 		if (!st || st.out || !this.inRoom) return;
-		if (this.party.length >= MAX_PARTY) { this.toast(`С тобой уже ${MAX_PARTY} — сначала оставь кого-нибудь в комнате`, 'warn'); return; }
+		if (this.party.length >= this.partyMax) { this.toast(`С тобой уже ${this.partyMax} — сначала оставь кого-нибудь в комнате`, 'warn'); return; }
 		st.out = true;
 		this.slotMercs();
 		Sfx.reload();
@@ -3637,7 +3825,7 @@ const game = {
 	updateCluster(dt) {
 		const reloaded = advance(this.world, dt);
 		this.murT = (this.murT ?? 0) - dt;
-		if (this.murT <= 0) { this.murT = 1; this.updateMurs(); }
+		if (this.murT <= 0) { this.murT = 1; this.updateMurs(); this.updateBase(); }
 		if (NODES[this.loc].kind !== 'cluster') return;
 		if (reloaded.includes(this.loc)) { this.reloadDeath(); return; }
 		const left = timeLeft(this.world, this.loc);
@@ -3766,6 +3954,7 @@ const game = {
 	hudTimer() {
 		const el = $('loc-timer');
 		if (NODES[this.loc].kind === 'murs') { el.textContent = `муры: ${this.world.murs.count}`; el.className = 'danger'; return; }
+		if (NODES[this.loc].kind === 'base') { el.textContent = `оборона ${baseDefense(this.world.base)}`; el.className = 'safe'; return; }
 		if (NODES[this.loc].kind !== 'cluster') { el.textContent = 'безопасно'; el.className = 'safe'; return; }
 		const left = timeLeft(this.world, this.loc);
 		const text = clock(left);
@@ -3843,7 +4032,7 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow];
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal];
 	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
 	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
 	if (input.consume('escape')) for (const w of windows) w.close();
@@ -3863,6 +4052,11 @@ function update(dt) {
 	if (game.state === 'play') {
 		game.updateSearch(dt, input);
 		game.updateCluster(dt);
+		// на базе изредка нападают заражённые (пока прошлые не перебиты — новых нет)
+		if (NODES[game.loc]?.kind === 'base' && (game.baseWaveT -= dt) <= 0) {
+			game.baseWaveT = 200 + Math.random() * 120;
+			if (game.enemies.filter((e) => e.alive).length < 4) game.spawnBaseWave();
+		}
 		game.updateExit();
 		game.minimap.update(dt, game.player);
 		game.hudTimerT = (game.hudTimerT ?? 0) - dt;
@@ -3944,6 +4138,7 @@ game.toast = (text, kind = '') => {
 game.post = post;
 game.inventory = new Inventory(game);
 game.trade = new Trade(game);
+game.terminal = new TerminalWindow(game);
 game.stashWindow = new StashWindow(game);
 game.intelWindow = new IntelWindow(game);
 // «Назад» в приложении для Android: закрыть открытое окно; закрывать нечего — false, и приложение свернётся

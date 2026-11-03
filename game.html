@@ -240,6 +240,7 @@
 		.wm-glow { fill: none; stroke: var(--accent); stroke-width: 0.6; opacity: 0.6; animation: wmGlow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 		@keyframes wmGlow { 50% { transform: scale(1.25); opacity: 0.15; } }
 		.wm-flag { fill: #e8dcae; stroke: #232823; stroke-width: 0.4; }
+		.wm-base { fill: rgba(150,210,120,0.25); stroke: #a8e088; stroke-width: 0.5; stroke-linejoin: round; }
 		.wm-mur { stroke: #e0442c; stroke-width: 1.3; stroke-linecap: round; fill: none; }
 		.wm-raid { fill: #e0442c; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
 		@keyframes wmRaid { 50% { opacity: 0.35; } }
@@ -295,6 +296,11 @@
 		.offer-text span { color: var(--muted); font-size: 12px; }
 		button.buy { padding: 8px 10px; font-size: 13px; white-space: nowrap; }
 		button.buy:disabled { background: #4a5044; color: #a8ae9e; cursor: default; }
+		/* терминал базы: постройки */
+		#term-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-top: 8px; max-height: 58vh; overflow-y: auto; }
+		.offer.build .offer-text span { white-space: normal; }
+		.offer.build .gives { color: #c8e08a; }
+		.offer.build .def { color: #e0b070; font-weight: 600; font-size: 12px; }
 		/* вкладки торговца: купить / продать */
 		#trade-tabs { display: flex; gap: 6px; margin: 0 0 10px; }
 		#trade-tabs button { font: inherit; font-weight: 700; font-size: 14px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); padding: 8px 18px; cursor: pointer; }
@@ -543,6 +549,17 @@
 				<button class="buy" id="trade-peas-1">Обменять 1</button><button class="buy" id="trade-peas-all">Все</button></div>
 			<div class="exchange"><span>Чёрная жемчужина → <b>150 споранов</b> <span class="muted">(есть <b id="trade-pearls">0</b>)</span></span>
 				<button class="buy" id="trade-pearl">Продать 1</button></div>
+		</div>
+	</div>
+
+	<div id="terminal" class="screen hidden">
+		<div class="inv trade">
+			<div class="inv-head"><b>Терминал базы «Опорный»</b><span class="muted">построено <b id="term-count">0</b> · игра на паузе</span>
+				<span class="wallet"><span class="spore">Спораны <b id="term-spores">0</b></span><span>Оборона <b id="term-def">0</b></span></span>
+				<button class="x" id="term-close" aria-label="Закрыть">✕</button></div>
+			<div class="exchange"><span id="term-stock-text"></span><button class="buy" id="term-collect">Забрать</button></div>
+			<div id="term-list"></div>
+			<div class="stash-note" id="term-log"></div>
 		</div>
 	</div>
 

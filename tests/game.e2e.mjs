@@ -322,7 +322,7 @@ try {
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
-	check(prev.cards === map.routes.length + 1 && prev.nodes === 6, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров)`);
+	check(prev.cards === map.routes.length + 1 && prev.nodes === 11, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров, базой и новыми кластерами)`);
 	await page.screenshot({ path: join(OUT, 'game-map.png') });
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');
@@ -845,6 +845,72 @@ try {
 	});
 	check(bossDead && !bossDead.alive && bossDead.panic > 0 && /Главарь/.test(bossDead.banner) && !bossDead.raid && bossDead.newBoss, `главарь убит: паника у ${bossDead?.panic} муров, без главаря вылазок нет; при пополнении выбрали нового — «${bossDead?.newBoss}»`);
 	await G(page, () => { window.__game.world.murs.count = 50; });
+	await G(page, () => window.__game.travel('dachi'));
+	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
+
+	// база «Опорный»: постоянный кластер, терминал посередине, 20 построек — каждая встаёт на своё место и что-то даёт
+	await G(page, () => window.__game.travel('base'));
+	await page.waitForFunction(() => window.__game.loc === 'base' && window.__game.state === 'play', null, { timeout: 300000 });
+	const base0 = await G(page, async () => {
+		const g = window.__game, b = g.world.base, { BUILD_IDS } = await import('/game/base.js');
+		g.player.pos.set(0, 0, 3.5);
+		const r = { built: b.built.length, ids: BUILD_IDS.length, stations: g.level.stations.map((s) => s.id).join(','), timer: document.getElementById('loc-timer').textContent, enemies: g.enemies.length };
+		g.bag.spore = 100;
+		r.poor = g.buyBuilding('armory');
+		g.terminal.open();
+		r.cards = document.querySelectorAll('#term-list .offer').length;
+		r.wallNeeded = [...document.querySelectorAll('#term-list .offer')].find((o) => o.querySelector('b').textContent === 'Ворота и КПП')?.querySelector('button').textContent;
+		g.terminal.close();
+		return r;
+	});
+	check(base0.built === 0 && base0.ids === 20 && base0.cards === 20 && base0.stations === 'terminal' && !base0.poor && /оборона 0/.test(base0.timer) && base0.enemies === 0 && /Стена/.test(base0.wallNeeded), `база: пусто, в терминале ${base0.cards} построек (ворота — «${base0.wallNeeded}»), без споранов не купить`);
+	const base1 = await G(page, async () => {
+		const g = window.__game, b = g.world.base, { defense } = await import('/game/base.js');
+		g.bag.spore = 5000;
+		for (const id of ['armory', 'medbay', 'towerNW', 'kitchen', 'barracks', 'greenhouse', 'warehouse']) g.buyBuilding(id);
+		const r = { built: b.built.length, spore: g.bag.spore, def: defense(b), stations: g.level.stations.map((s) => s.id).join(','), sentries: g.npcs.filter((n) => n.cfg).length, maxHp: g.heroMaxHp() - g.perks.maxHp, party: g.partyMax };
+		// оружейник: те же патроны на 20 % дешевле
+		g.trade.open({ armory: true });
+		r.title = document.querySelector('#trade .inv-head b').textContent;
+		r.price = [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === 'Патроны 5,45×39 ×30').textContent;
+		g.trade.close();
+		// теплица копит горох, у терминала забираем; нападение без героя: оборона против силы
+		const { tickBase } = await import('/game/base.js');
+		b.made.greenhouse = g.world.time - 1900;
+		tickBase(b, g.world.time, true);
+		const peas0 = g.bag.peas ?? 0;
+		g.collectBase();
+		r.peas = (g.bag.peas ?? 0) - peas0;
+		b.nextAttack = g.world.time - 1;
+		const ev = tickBase(b, g.world.time, false).find((e) => e.attack)?.attack;
+		r.attack = ev ? `${ev.held ? 'отбились' : 'прорвались'} (сила ${ev.power}, оборона ${ev.def})` : null;
+		return r;
+	});
+	check(base1.built === 7 && base1.def === 30 && base1.sentries >= 2 && /armory/.test(base1.stations) && /medbay/.test(base1.stations) && /stash/.test(base1.stations) && base1.maxHp === 15 && base1.party === 6 && base1.title === 'Оружейник' && base1.price === '12 сп.' && base1.peas === 2 && base1.attack,
+		`база: построено ${base1.built} (оборона ${base1.def}), часовых ${base1.sentries}; оружейник — 30 патронов 5,45 за ${base1.price} (у торговца 15), столовая +${base1.maxHp} здоровья, в отряде до ${base1.party}, теплица дала ${base1.peas} гороха; нападение: ${base1.attack}`);
+	await page.screenshot({ path: join(OUT, 'game-base.png') });
+	// нападение на базу при герое: стая из мути, часовой на вышке стреляет
+	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 3.5); g.player.hp = g.player.maxHp = 1e6; g.spawnBaseWave(); for (const e of g.enemies) e.pos.set(-22, 0, -32 + Math.random() * 3); window.__k0 = g.kills; });
+	await page.waitForFunction(() => window.__game.kills > window.__k0, null, { timeout: 40000 }).catch(() => {});
+	const wave = await G(page, () => ({ kills: window.__game.kills - window.__k0, banner: document.getElementById('banner-title').textContent }));
+	check(wave.kills > 0 && /Нападение/.test(wave.banner), `нападение на базу: часовые убили ${wave.kills}`);
+	await G(page, () => { const g = window.__game; for (const e of g.enemies) if (e.alive) e.die?.(); });
+	// элита: высшая стадия — броня, затягивает раны, две чёрные жемчужины
+	const elite = await G(page, async () => {
+		// подальше от героя и часовых: не замечает, стоит и затягивает раны
+		const g = window.__game, e = g.spawnEnemy('elite', g.player.pos.clone().set(55, 0, -55));
+		const r = { hp: e.hp, armor: e.T.armor, scale: +e.scale.toFixed(2) };
+		e.hp = 900;
+		const hurt = e.hp;
+		e.hitAt = g.time - 10;
+		await new Promise((res) => setTimeout(res, 1500));
+		r.regen = Math.round(e.hp - hurt);
+		const p0 = g.pickups.length;
+		e.damage(1e5, g.player.pos, 0);
+		r.pearls = g.pickups.slice(p0).filter((p) => p.kind === 'pearl').length;
+		return r;
+	}).catch((err) => ({ error: String(err) }));
+	check(elite.hp === 1400 && elite.armor > 8 && elite.regen > 0 && elite.pearls === 2, `элита: ${elite.hp} здоровья, броня ${elite.armor}, затягивает раны (+${elite.regen}), с неё ${elite.pearls} чёрные жемчужины${elite.error ? ' — ' + elite.error : ''}`);
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 

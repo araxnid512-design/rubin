@@ -2,6 +2,7 @@
 // Открывается у выхода из локации; выбор пункта — переход (время мира уходит на дорогу).
 
 import { NODES, ROUTES, routesFrom, timeLeft, approx } from './world.js';
+import { defense, BUILD_IDS } from './base.js';
 import { asset } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
@@ -54,6 +55,7 @@ export class WorldMap {
 	status(to, travel) {
 		const w = this.game.world, node = NODES[to];
 		if (node.kind === 'stab') return 'безопасно';
+		if (node.kind === 'base') return `твоя база · оборона ${defense(w.base)} · построено ${w.base.built.length}/${BUILD_IDS.length}`;
 		if (node.kind === 'murs') return `<span class="danger">логово муров — около ${w.murs.count} стволов</span>`;
 		// где отряд муров — знаешь, только если купил сведения у информатора в «Полисе»
 		const murs = w.murs.raid?.at === to && w.murs.raid.known ? ' · <span class="danger">там муры (сказал информатор)</span>' : '';
@@ -66,15 +68,17 @@ export class WorldMap {
 
 	render() {
 		const g = this.game, here = g.loc;
-		const routes = routesFrom(here).sort((a, b) => (b.to === this.suggest) - (a.to === this.suggest));
+		// гараж на базе — дорога быстрее
+		const k = this.game.basePerks?.().travel ?? 1;
+		const routes = routesFrom(here).map((r) => ({ ...r, time: Math.round(r.time * k) })).sort((a, b) => (b.to === this.suggest) - (a.to === this.suggest));
 		const hereLeft = timeLeft(g.world, here);
 		const kind = NODES[here].kind;
-		$('wm-sub').textContent = kind === 'stab' ? 'ты в стабе' : kind === 'murs' ? 'ты в логове муров' : `до перезагрузки кластера ${approx(hereLeft)}`;
+		$('wm-sub').textContent = kind === 'stab' ? 'ты в стабе' : kind === 'murs' ? 'ты в логове муров' : kind === 'base' ? 'ты на своей базе' : `до перезагрузки кластера ${approx(hereLeft)}`;
 		const hereNode = NODES[here];
 		// где ты сейчас и куда можно пойти — у каждого пункта снимок локации
 		const herecard = `<div class="route here-card"><img class="route-img" src="${asset(hereNode.preview)}" alt="">
 			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name}</b>
-				<span>${kind === 'stab' ? 'безопасно' : kind === 'murs' ? 'логово муров' : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
+				<span>${kind === 'stab' ? 'безопасно' : kind === 'murs' ? 'логово муров' : kind === 'base' ? this.status(here, 0) : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
 		$('wm-list').innerHTML = herecard + routes.map(({ to, time }) => `
 			<div class="route${to === this.suggest ? ' suggest' : ''}">
 				<img class="route-img" src="${asset(NODES[to].preview)}" alt="">
@@ -139,10 +143,12 @@ export class WorldMap {
 			if (n.preview) el('image', { href: asset(n.preview), x: x - r * 1.78, y: y - r, width: r * 3.56, height: r * 2, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${svg.id}-${id})` }, g);
 			el('circle', { cx: x, cy: y, r, class: 'wm-frame' }, g);
 			if (n.kind === 'stab') el('path', { d: `M${x + 3.4} ${y - 3.2}V${y - 8.4}l3.4 1.2-3.4 1.3`, class: 'wm-flag' }, g);
+			// своя база — домик с флажком
+			if (n.kind === 'base') el('path', { d: `M${x + 2.4} ${y - 3.6}l2.4-2.6 2.4 2.6v2.6h-4.8zM${x + 4.8} ${y - 6.2}V${y - 9.4}l2.6 1-2.6 1`, class: 'wm-base' }, g);
 			// логово муров — красный крест; кластер, где их отряд (если сказал информатор), — красная точка
 			if (n.kind === 'murs') el('path', { d: `M${x + 2.6} ${y - 7.6}l3.6 3.6M${x + 6.2} ${y - 7.6}l-3.6 3.6`, class: 'wm-mur' }, g);
 			if (w.murs?.raid?.at === id && w.murs.raid.known) el('circle', { cx: x + 4.6, cy: y - 4.6, r: 1.5, class: 'wm-raid' }, g);
-			const label = el('text', { x, y: y + (n.kind === 'stab' ? 11 : 12.5), class: 'wm-label' }, g);
+			const label = el('text', { x, y: y + (n.kind === 'stab' || n.kind === 'base' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;
 		}
 		// герой: портрет в кружке, в пункте — с пульсом, в дороге — едет по линии

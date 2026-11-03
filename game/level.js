@@ -10,6 +10,7 @@ import { envKinds, placeEnvProps } from './env-props.js';
 import { Fader, segmentHitsBox } from './buildings.js';
 import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS } from './props.js';
 import { dressLevel } from './dressing.js';
+import { NODES } from './world.js';
 import { groundVariation, scatterGroundDetail } from './ground-detail.js';
 import zarechny from './locations/zarechny.js';
 import dachi from './locations/dachi.js';
@@ -17,11 +18,16 @@ import stab from './locations/stab.js';
 import himmash from './locations/himmash.js';
 import voench from './locations/voench.js';
 import murs from './locations/murs.js';
+import bolnica from './locations/bolnica.js';
+import lesopilka from './locations/lesopilka.js';
+import podstanciya from './locations/podstanciya.js';
+import nii from './locations/nii.js';
+import base from './locations/base.js';
 
 export { HALF, PLAY };
 /** Участок, м: статика, деревья и трава собраны по участкам — видеокарта рисует только те, что в кадре. */
 const CHUNK = 33;
-export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs };
+export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
 function materials() {
@@ -83,7 +89,7 @@ function materials() {
  * Собрать локацию id (см. LOCATIONS). Возвращает статику, коллайдеры, навигацию, здания и тайники,
  * выходы, группы заражённых, точки действий стаба и функции обновления вида.
  */
-export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
+export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = null } = {}) {
 	const L = LOCATIONS[id];
 	const rnd = T.mulberry(L.seed);
 	const R = (a, b) => a + (b - a) * rnd();
@@ -134,7 +140,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	};
 	const buildings = [];
 	const bctx = { batch, root, collide, M };
-	const spec = L.build({ rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx, quality });
+	const spec = L.build({ rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx, quality, base }); // base — состояние базы героя (game/base.js)
 	const onRoad = spec.onRoad ?? (() => false);
 
 	// ---------- Выходы из локации: дорожный указатель и стрелки на земле ----------
@@ -267,7 +273,16 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 		},
 		/** Точка появления при приходе из локации from. */
 		entry(from) {
-			const e = exits.find((x) => x.to === from) ?? exits[0];
+			// выхода к этому соседу нет — входим с той стороны локации, где он на карте Улья
+			let e = exits.find((x) => x.to === from);
+			if (!e && NODES[from] && NODES[id]) {
+				const dx = NODES[from].at[0] - NODES[id].at[0], dz = NODES[from].at[1] - NODES[id].at[1];
+				e = exits.reduce((best, x) => {
+					const v = (x.spawn.x * dx + x.spawn.z * dz) / (Math.hypot(x.spawn.x, x.spawn.z) || 1);
+					return !best || v > best.v ? { v, x } : best;
+				}, null)?.x;
+			}
+			e ??= exits[0];
 			return { pos: e.spawn.clone(), ry: e.ry };
 		},
 		/**

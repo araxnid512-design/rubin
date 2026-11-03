@@ -64,7 +64,7 @@ export class Trade {
 		this.el.addEventListener('pointerdown', (e) => { if (e.target === this.el) this.close(); });
 		$('trade-list').addEventListener('click', (e) => {
 			const b = e.target.closest('[data-buy]');
-			if (b && !b.disabled) { this.game.buy(SHOP[+b.dataset.buy]); this.render(); }
+			if (b && !b.disabled) { const o = SHOP[+b.dataset.buy]; this.game.buy({ ...o, price: this.price(o) }); this.render(); }
 			const s = e.target.closest('[data-sell]');
 			if (s && !s.disabled) { this.game.sell(s.dataset.sell, +s.dataset.n); this.render(); }
 		});
@@ -75,8 +75,15 @@ export class Trade {
 
 	get isOpen() { return !this.el.classList.contains('hidden'); }
 
-	open() {
+	/** Цена предложения с учётом скидки (у оружейника базы — дешевле). */
+	price(o) { return Math.max(1, Math.ceil(o.price * (this.discount ?? 1))); }
+
+	/** armory — лавка оружейника на базе: те же товары на 20 % дешевле (base.js perks.discount). */
+	open({ armory = false } = {}) {
 		if (this.isOpen) return;
+		this.discount = armory ? this.game.basePerks?.().discount ?? 0.8 : 1;
+		this.el.querySelector('.inv-head b').textContent = armory ? 'Оружейник' : 'Торговец';
+		this.el.querySelector('.inv-head .muted').textContent = armory ? 'база «Опорный» · на 20 % дешевле · игра на паузе' : 'стаб «Полис» · игра на паузе';
 		this.el.classList.remove('hidden');
 		this.game.setPaused(true);
 		this.render();
@@ -107,8 +114,9 @@ export class Trade {
 			let have = `есть: ${bag[o.id] ?? 0}`;
 			if (W?.ammo) have = `${AMMO[W.ammo]} · урон ${W.damage}${W.pellets ? `×${W.pellets}` : ''}`;
 			if (W) have = stored ? 'лежит в хранилище' : owned ? (wear !== null ? `прочность ${wear}/${W.durability}` : 'уже есть') : W.ammo ? have : `урон ${W.damage} · ${W.durability} ударов`;
-			const label = renew ? `Новый · ${o.price} сп.` : stored ? 'В хранилище' : owned ? (wear !== null ? 'Целый' : 'Куплено') : `${o.price} сп.`;
-			const off = (owned && !renew) || spores < o.price;
+			const price = this.price(o);
+			const label = renew ? `Новый · ${price} сп.` : stored ? 'В хранилище' : owned ? (wear !== null ? 'Целый' : 'Куплено') : `${price} сп.`;
+			const off = (owned && !renew) || spores < price;
 			return `${head}<div class="offer${owned && !renew ? ' owned' : ''}">
 				<div class="offer-icon">${icons[o.id] ? `<img src="${icons[o.id]}" alt="">` : ''}</div>
 				<div class="offer-text"><b>${o.n > 1 ? `${it.name} ×${o.n}` : it.name}</b><span>${have}</span></div>

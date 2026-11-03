@@ -108,7 +108,7 @@ const GUNS = Object.fromEntries(Object.entries(GUN_GAIN).map(([id, gain]) => [id
 GUNS.spas12.pump = true;
 GUNS.awm.bolt = true;
 // голоса заражённых: высота записи и громкость
-const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 } };
+const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 }, elite: { rate: 0.46, gain: 1.0 } };
 // перезарядка по устройству оружия
 const RELOADS = { glock17: 'pistol', deagle: 'pistol', dbarrel: 'obrez', spas12: 'pump', rpk: 'belt' };
 

@@ -109,7 +109,7 @@ export class PartyWindow {
 		const g = this.game, bag = g.bag, icons = g.icons ?? {}, room = g.inRoom;
 		const face = (id) => (icons[`merc_${id}`] ? `<img class="npc-face" src="${icons[`merc_${id}`]}" alt="">` : '');
 		const badge = (cls) => `<span class="cls cls-${cls}">${CLASSES[cls].name}</span>`;
-		const full = g.party.length >= MAX_PARTY;
+		const full = g.party.length >= (g.partyMax ?? MAX_PARTY);
 		$('party-spores').textContent = bag.spore ?? 0;
 		const card = (m) => {
 			const D = MERCS[m.id], C = CLASSES[D.cls], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag);
@@ -138,9 +138,9 @@ export class PartyWindow {
 		let html = '';
 		if (one) {
 			// подошёл к бойцу: только его карточка
-			html += `<div class="trade-sec">${one.out ? `С тобой (${g.party.length}/${MAX_PARTY})` : `У своей койки · с тобой ${g.party.length}/${MAX_PARTY}`}</div>${card(one)}`;
+			html += `<div class="trade-sec">${one.out ? `С тобой (${g.party.length}/${g.partyMax ?? MAX_PARTY})` : `У своей койки · с тобой ${g.party.length}/${g.partyMax ?? MAX_PARTY}`}</div>${card(one)}`;
 		} else {
-			html += `<div class="trade-sec">С тобой (${g.party.length}/${MAX_PARTY})</div>`;
+			html += `<div class="trade-sec">С тобой (${g.party.length}/${g.partyMax ?? MAX_PARTY})</div>`;
 			html += g.party.map(card).join('') || `<div class="muted">${g.roster.length ? 'Никого — возьми бойца у его койки в комнате.' : 'Наёмников нет. Нанять можно у костра в стабе «Полис».'}</div>`;
 			if (home.length) {
 				html += `<div class="trade-sec">В твоей комнате в стабе (${home.length})</div>`;
@@ -166,6 +166,6 @@ export class PartyWindow {
 			}
 		}
 		$('party-list').innerHTML = html;
-		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: подойди к бойцу — дашь патроны их калибра и живчик (${ITEMS.zhivchik.name} — +${MERC_HEAL}; сами они не лечатся), возьмёшь с собой или оставишь. В бою пополнить нечем, а без патронов боец гибнет — продумывай запас заранее. На вылазку — не больше ${MAX_PARTY}; вернувшись в стаб, они снова у коек. Медику пополняй аптечку, подрывнику — гранаты.`;
+		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: подойди к бойцу — дашь патроны их калибра и живчик (${ITEMS.zhivchik.name} — +${MERC_HEAL}; сами они не лечатся), возьмёшь с собой или оставишь. В бою пополнить нечем, а без патронов боец гибнет — продумывай запас заранее. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись в стаб, они снова у коек. Медику пополняй аптечку, подрывнику — гранаты.`;
 	}
 }

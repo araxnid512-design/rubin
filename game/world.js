@@ -4,8 +4,11 @@
 // Время мира идёт, пока герой в локации, и прыгает вперёд на время дороги.
 // preview — снимок локации (scripts/render-previews.mjs) для карты Улья.
 // Муры — бандиты со своим стабом «Карьер»: вылазки в кластеры и учёт — game/murs.js, состояние — world.murs.
+// База «Опорный» (kind 'base') — постоянный кластер героя: не перезагружается, постройки покупаются в терминале
+// (game/base.js), состояние — world.base.
 
 import { newMurs, normalizeMurs } from './murs.js';
+import { newBase, normalizeBase } from './base.js';
 
 export const NODES = {
 	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 86], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
@@ -15,6 +18,12 @@ export const NODES = {
 	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [84, 11], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
 	murs: { name: 'Стаб муров «Карьер»', short: 'Карьер', kind: 'murs', at: [13, 16], preview: 'assets/previews/murs.jpg', desc: 'Логово муров — бандитов, которые охотятся на иммунных. До пятидесяти стволов: зайти можно, выйти — вряд ли. В шкафах склада — всё, что они вынесли из кластеров.' },
 	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [46, 26], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
+	// новые кластеры и база героя
+	base: { name: 'База «Опорный»', short: 'База', kind: 'base', at: [24, 84], preview: 'assets/previews/base.jpg', desc: 'Твоя база — постоянный кластер, не перезагружается. В терминале посреди площадки покупаются постройки: стена, вышки, казарма, оружейная, склад и другие — каждая что-то даёт.' },
+	bolnica: { name: 'Кластер «Больница»', short: 'Больница', kind: 'cluster', danger: 2, at: [74, 76], preview: 'assets/previews/bolnica.jpg', desc: 'Городская больница: корпуса, приёмный покой, морг, гаражи скорой. Живчики и патроны у охраны, топтуны в коридорах.' },
+	lesopilka: { name: 'Кластер «Лесопилка»', short: 'Лесопилка', kind: 'cluster', danger: 1, at: [6, 34], preview: 'assets/previews/lesopilka.jpg', desc: 'Лесопилка у реки: пилорама, штабеля брёвен, бараки рабочих, контора. Тихая окраина — охотничьи ружья и патроны 12 калибра.' },
+	podstanciya: { name: 'Кластер «Подстанция»', short: 'Подстанция', kind: 'cluster', danger: 2, at: [60, 38], preview: 'assets/previews/podstanciya.jpg', desc: 'Электроподстанция и посёлок энергетиков: трансформаторы, щитовая, общежитие, гаражи. Топтуны и рубер у трансформаторов.' },
+	nii: { name: 'Кластер «НИИ»', short: 'НИИ', kind: 'cluster', danger: 4, at: [60, 8], preview: 'assets/previews/nii.jpg', desc: 'Закрытый научный городок: лабораторный корпус, виварий, ограда с КПП. Логово элиты — самого опасного мутанта Улья. Редкое оружие и чёрный жемчуг.' },
 };
 
 /** Дороги: [откуда, куда, время в пути, с]. */
@@ -27,6 +36,17 @@ export const ROUTES = [
 	['himmash', 'voench', 90],
 	['murs', 'dachi', 100],
 	['murs', 'himmash', 90],
+	['stab', 'base', 60],
+	['base', 'dachi', 75],
+	['stab', 'bolnica', 70],
+	['bolnica', 'zarechny', 60],
+	['dachi', 'lesopilka', 70],
+	['lesopilka', 'murs', 80],
+	['zarechny', 'podstanciya', 60],
+	['podstanciya', 'himmash', 60],
+	['podstanciya', 'voench', 90],
+	['himmash', 'nii', 90],
+	['voench', 'nii', 80],
 ];
 
 /** Сколько живёт кластер между перезагрузками, с. */
@@ -54,8 +74,13 @@ export function newWorld() {
 			dachi: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 			himmash: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 			voench: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			bolnica: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			lesopilka: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			podstanciya: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			nii: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 		},
 		murs: newMurs(0),
+		base: newBase(0),
 	};
 }
 
@@ -65,6 +90,7 @@ export function normalizeWorld(world) {
 		if (n.kind === 'cluster' && !world.clusters[id]) world.clusters[id] = { next: world.time + rand(90, CYCLE[1]), saved: null, reloads: 0 };
 	}
 	world.murs = normalizeMurs(world.murs, world.time);
+	world.base = normalizeBase(world.base, world.time);
 	return world;
 }
 
