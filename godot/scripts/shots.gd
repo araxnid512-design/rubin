@@ -310,9 +310,10 @@ func _props_shots() -> void:
 			m.queue_free()
 		await _wait(0.1)
 
-## Походка героя: шаг и бег с автоматом и с пистолетом, по 6 кадров сбоку за один цикл (gait.jpg) — видно,
-## как ставятся ноги, не скользят ли стопы, как двигаются руки и корпус. Герой бежит на месте (позиция
-## возвращается каждый кадр), камера сбоку на уровне пояса.
+## Походка героя: шаг и бег с автоматом и с пистолетом (gait.jpg): по 6 кадров сбоку за один цикл — видно,
+## как ставятся ноги, не скользят ли стопы, как двигаются руки и корпус, — и 2 кадра игровой камерой сверху (как видит
+## игрок). Герой бежит на месте (позиция возвращается каждый кадр). main на это время выключен: он каждый кадр
+## ставит move_input с экрана (там ноль) — без этого герой стоял.
 func _gait_sheet() -> void:
 	var p = game.player
 	var spot: Vector3 = p.global_position
@@ -320,7 +321,8 @@ func _gait_sheet() -> void:
 	const CW := 260
 	const CH := 300
 	const N := 6
-	var sheet := Image.create(CW * N, CH * rows_def.size(), false, Image.FORMAT_RGB8)
+	const TOP := 2
+	var sheet := Image.create(CW * (N + TOP), CH * rows_def.size(), false, Image.FORMAT_RGB8)
 	var size: Vector2 = game.get_viewport().get_visible_rect().size
 	game.hud.visible = false
 	# заражённые локации сбегались к герою и заслоняли кадры
@@ -328,6 +330,12 @@ func _gait_sheet() -> void:
 		if is_instance_valid(e):
 			e.queue_free()
 	game.enemies.clear()
+	game.set_process(false)
+	var cam: Camera3D = game.camera
+	var cam_off = game.get("CAM_OFFSET")
+	if not (cam_off is Vector3):
+		cam_off = Vector3(0, 15.5, 9.5)
+	var speeds := []
 	for ri in rows_def.size():
 		var r: Array = rows_def[ri]
 		game.kit["gun"] = r[0]
@@ -336,33 +344,46 @@ func _gait_sheet() -> void:
 		p.attach_gear()
 		p.global_position = spot
 		p.rotation.y = 0.0
+		p.reset_physics_interpolation()
 		p.move_input = Vector2(0, -float(r[1]))
-		await _wait(1.2)
-		for f in N:
+		for i in 12:
+			await _wait(0.1)
+			p.global_position = spot
+			p.reset_physics_interpolation()
+		speeds.append("%s: %s %.2f м/с" % [r[2], p.loco, p.get_real_velocity().length()])
+		for f in N + TOP:
 			p.global_position = spot
 			p.reset_physics_interpolation()
 			await _wait(0.11)
-			var cam: Camera3D = game.camera
-			game.set_process(false)
 			var at: Vector3 = p.global_position + Vector3(0, 0.95, 0)
-			var side := Vector3(-1, 0, 0)   # солнце за камерой — герой освещён, а не силуэтом
-			cam.global_position = at + side * 3.0 + Vector3(0, 0.2, 0)
-			cam.look_at(at, Vector3.UP)
+			var top := f >= N
+			if top:
+				cam.global_position = p.global_position + cam_off
+				cam.look_at(p.global_position + Vector3(0, 0.8, 0), Vector3.UP)
+			else:
+				var side := Vector3(-1, 0, 0)   # солнце за камерой — герой освещён, а не силуэтом
+				cam.global_position = at + side * 3.0 + Vector3(0, 0.2, 0)
+				cam.look_at(at, Vector3.UP)
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
 			var img: Image = game.get_viewport().get_texture().get_image()
-			game.set_process(true)
 			if img:
 				img.convert(Image.FORMAT_RGB8)
-				var cw := int(size.y * 0.9 * CW / CH)
-				var crop := img.get_region(Rect2i(int(size.x * 0.5 - cw * 0.5), int(size.y * 0.05), cw, int(size.y * 0.9)))
+				# сверху герой мелкий — вырезка вокруг центра кадра втрое меньше
+				var hh := int(size.y * (0.3 if top else 0.9))
+				var cw := int(hh * CW / CH)
+				var y0 := int(size.y * 0.5 - hh * 0.5) if top else int(size.y * 0.05)
+				var crop := img.get_region(Rect2i(int(size.x * 0.5 - cw * 0.5), y0, cw, hh))
 				crop.resize(CW, CH, Image.INTERPOLATE_BILINEAR)
 				sheet.blit_rect(crop, Rect2i(0, 0, CW, CH), Vector2i(f * CW, ri * CH))
 		p.move_input = Vector2.ZERO
+	game.set_process(true)
 	game.hud.visible = true
 	p.global_position = spot
+	p.reset_physics_interpolation()
 	sheet.save_jpg(dir.path_join("gait.jpg"), 0.85)
-	rows.append({"loc": "gait", "n": 1, "label": "походка героя: шаг/бег с АК-74 и Glock, 6 кадров сбоку", "file": "gait.jpg",
+	print("ПОХОДКА: " + "; ".join(speeds))
+	rows.append({"loc": "gait", "n": 1, "label": "походка героя: шаг/бег с АК-74 и Glock, 6 кадров сбоку + 2 сверху (%s)" % "; ".join(speeds), "file": "gait.jpg",
 		"draws": 0, "prims": 0, "objects": 0, "cpu_ms": 0.0, "gpu_ms": 0.0, "vmem_mb": 0.0, "enemies": game.enemies.size()})
 
 ## Лист «все стволы в руках»: герой с каждым огнестрелом — в переноске и в прицеле, крупно спереди-справа, с подписью;
