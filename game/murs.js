@@ -32,7 +32,7 @@ export const MUR_SHOOTERS = 3;
 export const MUR_TURN = [2.5, 4];
 export const MUR_REST = [1.5, 3];
 /** Оружие муров: у каждого — одно из этих (без дробовиков: картечь рассчитана на заражённых). */
-export const MUR_GUNS = ['aks', 'aks', 'ak74', 'ak74', 'ak47', 'ak47', 'pkm', 'svd'];
+export const MUR_GUNS = ['aks', 'aks', 'ak74', 'ak74', 'ak47', 'ak47', 'rpk', 'svd'];
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));

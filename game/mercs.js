@@ -28,10 +28,10 @@ export const MERCS = {
 	shram: { name: 'Шрам', cls: 'assault', weapon: 'ak74', price: 120, hp: 120, tint: [0.55, 0.58, 0.48], desc: 'Бывший контрактник с АК-74. Ровный, надёжный, патроны бережёт.' },
 	botsman: { name: 'Боцман', cls: 'assault', weapon: 'ak47', price: 130, hp: 130, tint: [0.46, 0.5, 0.62], desc: 'Здоровяк с АК-47. Шумный, зато бегун падает с пары попаданий.' },
 	sych: { name: 'Сыч', cls: 'sniper', weapon: 'svd', price: 150, hp: 90, tint: [0.64, 0.66, 0.52], desc: 'Снайпер с СВД: заражённый падает с выстрела. Стреляет редко.' },
-	tihonya: { name: 'Тихоня', cls: 'sniper', weapon: 'vss', price: 170, hp: 90, tint: [0.4, 0.44, 0.4], desc: 'С бесшумным «Винторезом»: стреляет почти неслышно — соседи убитого не сбегаются.' },
-	kuvalda: { name: 'Кувалда', cls: 'gunner', weapon: 'pkm', price: 200, hp: 160, tint: [0.58, 0.5, 0.42], desc: 'Пулемётчик с ПКМ. Лента на сотню — держит улицу, пока не кончится.' },
-	ded: { name: 'Дед', cls: 'hunter', weapon: 'shotgun', price: 80, hp: 140, tint: [0.78, 0.66, 0.52], desc: 'Старый охотник с МР-133. Ждёт, пока подойдут, и не промахивается.' },
-	dok: { name: 'Док', cls: 'medic', weapon: 'vector', price: 140, hp: 100, tint: [0.86, 0.86, 0.82], desc: 'Медик с «Вектором». В аптечке два живчика — дальше пополняешь ты.' },
+	tihonya: { name: 'Тихоня', cls: 'sniper', weapon: 'awm', price: 170, hp: 90, tint: [0.4, 0.44, 0.4], desc: 'Снайпер с Arctic Warfare: бьёт дальше всех и сильнее всех, после выстрела передёргивает затвор.' },
+	kuvalda: { name: 'Кувалда', cls: 'gunner', weapon: 'rpk', price: 200, hp: 160, tint: [0.58, 0.5, 0.42], desc: 'Пулемётчик с РПК. Барабан на 75 — держит улицу, пока не кончится.' },
+	ded: { name: 'Дед', cls: 'hunter', weapon: 'dbarrel', price: 80, hp: 140, tint: [0.78, 0.66, 0.52], desc: 'Старый охотник с двустволкой. Ждёт, пока подойдут, и не промахивается.' },
+	dok: { name: 'Док', cls: 'medic', weapon: 'mp5', price: 140, hp: 100, tint: [0.86, 0.86, 0.82], desc: 'Медик с MP5. В аптечке два живчика — дальше пополняешь ты.' },
 	saper: { name: 'Сапёр', cls: 'sapper', weapon: 'aks', price: 150, hp: 120, tint: [0.5, 0.54, 0.4], desc: 'Подрывник с АКС-74У и двумя Ф-1 в разгрузке.' },
 };
 /** Сколько бойцов можно взять на вылазку (остальные ждут у коек). */
@@ -52,7 +52,8 @@ export const AUTO_START = 150;
  */
 export const newMerc = (id, bed = 0) => {
 	const D = MERCS[id], W = WEAPONS[D.weapon];
-	const ammo = W.auto < 0.2 ? Math.max(AUTO_START - W.mag, W.mag) : W.mag;
+	// автоматчикам — 150 патронов, дробовикам (у двустволки магазин на 2) — 10 в запас, остальным — магазин
+	const ammo = W.auto < 0.2 ? Math.max(AUTO_START - W.mag, W.mag) : W.pellets ? 10 : W.mag;
 	return { id, hp: D.hp, mag: W.mag, ammo, out: false, bed, ...KIT[D.cls] };
 };
 

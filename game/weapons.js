@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { makeTripo } from './tripo-weapons.js';
 
 const shadow = (g) => { g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); return g; };
 
@@ -662,43 +663,51 @@ export const EQUIP = {
 	rifle: { draw: 'EquipRifle', stow: 'EquipAxeR' },
 };
 
-export const AMMO = { ammo9: '9×18', ammo919: '9×19', ammo12: '12 кал.', ammo545: '5,45×39', ammo762: '7,62×39', ammo76254: '7,62×54R', ammo939: '9×39' };
+/** Калибры: id патронов → подпись. */
+export const AMMO = { ammo919: '9×19', ammo50: '.50 AE', ammo12: '12 кал.', ammo545: '5,45×39', ammo556: '5,56×45', ammo762: '7,62×39', ammo76251: '7,62×51', ammo76254: '7,62×54R' };
 
 /**
- * Оружие. slot — ближний бой (melee) или огнестрел (gun); anim — набор анимаций героя (axe, pistol, rifle);
- * mount — где висит, когда не в руках. cooldown — минимальный интервал между ударами/выстрелами,
- * auto — темп серии при зажатой кнопке, pellets/spread — дробь, noise — радиус шума.
+ * Убранное оружие и патроны → чем они становятся в старых сохранениях (в игре — только новые стволы из Tripo:
+ * просьба пользователя «оружие используем новое»; простого топора нет — только пожарный).
  */
+export const REMOVED = {
+	axe: 'fireaxe', pistol: 'glock17', pm63: 'glock17', vector: 'mp5', obrez: 'dbarrel', shotgun: 'spas12', scar: 'fnfal',
+	vss: 'svd', pkm: 'rpk', pkt: 'rpk', ammo9: 'ammo919', ammo939: 'ammo545',
+};
+/** Настоящий id (у убранного — новый). */
+export const realId = (id) => REMOVED[id] ?? id;
+
+// модель Tripo, посаженная по старой процедурной заготовке (game/tripo-weapons.js), а если её нет — сама заготовка
+const tripo = (id, old) => () => makeTripo(id, old) ?? old();
+
 /**
- * Каталог. Ствол: damage — урон пули (дробины), range — дальность, cooldown/auto — темп одиночных и серии,
- * kick — встряска камеры, spread — разброс очереди (точность падает с дальностью и длиной очереди),
- * casing — что вылетает при выстреле/перезарядке (eject: 'shot' — гильза дробовика при каждом выстреле),
- * falloff — насколько падает точность к пределу дальности (по умолчанию 0.35, у снайперки — почти нет),
- * flash — размер дульной вспышки (1 — автомат, 0 — глушитель).
+ * Каталог. slot — ближний бой (melee) или огнестрел (gun); anim — набор анимаций героя (axe, pistol, rifle); mount — где
+ * висит, когда не в руках. Ствол: damage — урон пули (дробины), range — дальность, cooldown/auto — темп одиночных и
+ * серии, kick — встряска камеры, spread — разброс очереди (точность падает с дальностью и длиной очереди), casing — что
+ * вылетает при выстреле/перезарядке (eject: 'shot' — гильза дробовика при каждом выстреле), falloff — насколько падает
+ * точность к пределу дальности (по умолчанию 0.35, у снайперских — почти нет), flash — размер дульной вспышки.
+ * Модели — из Tripo (лист 16 стволов пользователя, docs/tripo/refs/weapons); ПКТ — только для техники, в руки не берётся.
  */
 export const WEAPONS = {
 	// durability — сколько ударов по заражённым выдержит, потом ломается
-	axe: { name: 'Топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 40, range: 2.1, arc: 1.15, cooldown: 0.78, hitTime: 0.32, speed: 1.05, noise: 6, durability: 60, price: 8, make: () => makeAxe(), desc: 'Тихое оружие ближнего боя: удар — по одному заражённому, патронов не тратит, но тупится и ломается — выдерживает 60 ударов.' },
-	fireaxe: { name: 'Пожарный топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 70, range: 2.4, arc: 1.25, cooldown: 1.0, hitTime: 0.36, speed: 0.92, noise: 7, durability: 90, price: 18, make: () => makeAxe({ fire: true }), desc: 'Тяжёлый топор с клювом: валит бегуна с удара, бьёт медленнее. Прочнее обычного — 90 ударов.' },
+	fireaxe: { name: 'Пожарный топор', slot: 'melee', anim: 'axe', mount: 'axe', damage: 70, range: 2.4, arc: 1.25, cooldown: 1.0, hitTime: 0.36, speed: 0.92, noise: 7, durability: 90, price: 18, make: tripo('fireaxe', () => makeAxe({ fire: true })), desc: 'Тяжёлый топор с клювом: валит бегуна с удара, тихий. Тупится — выдерживает 90 ударов.' },
 	// когда топор сломался и запасного нет
 	fists: { name: 'Кулаки', slot: 'melee', anim: 'axe', mount: null, damage: 12, range: 1.5, arc: 1.0, cooldown: 0.6, hitTime: 0.28, speed: 1.2, noise: 3, make: () => Object.assign(new THREE.Group(), { name: 'Fists' }), desc: 'Топора нет — остаются кулаки. Бегуна так не забить: купи топор у торговца в стабе или найди в домах.' },
-	pistol: { name: 'ПМ', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 26, range: 6, cooldown: 0.13, auto: 0.22, mag: 8, reload: 1.4, noise: 26, kick: 0.07, flash: 0.8, spread: 0.03, casing: 'brass', make: makePistol, desc: 'Пистолет Макарова, магазин на 8 патронов 9×18. Выстрел слышно издалека.' },
-	obrez: { name: 'Обрез ИЖ-43', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo12', damage: 16, pellets: 8, spread: 0.32, range: 4, cooldown: 0.32, auto: 0.45, mag: 2, reload: 1.9, noise: 32, kick: 0.3, flash: 1.6, casing: 'shell', price: 30, make: makeObrez, desc: 'Два ствола 12 калибра: дробь в упор разрывает бегуна, но далеко не бьёт. Перезарядка долгая.' },
-	shotgun: { name: 'МР-133', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 15, pellets: 9, spread: 0.24, range: 5, cooldown: 0.75, auto: 0.8, mag: 6, reload: 3.2, noise: 34, kick: 0.3, flash: 1.4, casing: 'shell', eject: 'shot', price: 45, make: makeShotgun, desc: 'Помповый дробовик 12 калибра: шесть патронов, картечь дальше и кучнее, чем у обреза. Каждый выстрел — передёрнуть цевьё.' },
-	vector: { name: 'Вектор', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo919', damage: 18, range: 6, cooldown: 0.075, auto: 0.075, mag: 30, reload: 1.8, noise: 24, kick: 0.04, flash: 0.6, spread: 0.045, casing: 'brass', price: 70, make: makeVector, desc: 'Пистолет-пулемёт под 9×19: очень быстрый огонь, почти без отдачи. Магазин пустеет за пару секунд.' },
-	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 7, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, kick: 0.09, flash: 1.25, spread: 0.05, casing: 'brass', price: 80, make: makeAks, desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
-	ak74: { name: 'АК-74', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 8, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.3, noise: 36, kick: 0.09, flash: 0.9, spread: 0.035, casing: 'brass', price: 110, make: makeAk74, desc: 'Полноразмерный автомат 5,45×39: точнее и дальше, чем укороченный.' },
-	ak47: { name: 'АК-47', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 42, range: 7.5, cooldown: 0.11, auto: 0.11, mag: 30, reload: 2.4, noise: 38, kick: 0.13, flash: 1.05, spread: 0.05, casing: 'brass', price: 120, make: makeAk47, desc: 'Калашников под 7,62×39: пуля тяжелее — бегун падает с одного-двух попаданий, но сильно уводит в очереди.' },
-	vss: { name: 'ВСС «Винторез»', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo939', damage: 75, range: 15, falloff: 0.12, cooldown: 0.4, auto: 0.45, mag: 20, reload: 2.4, noise: 7, kick: 0.06, flash: 0, spread: 0.01, casing: 'brass', price: 180, make: makeVss, desc: 'Бесшумная снайперская винтовка под 9×39: выстрел почти не слышен — соседние заражённые не сбегаются. Бьёт точно, но слабее СВД.' },
-	pkm: { name: 'ПКМ', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 40, range: 9, cooldown: 0.09, auto: 0.09, mag: 100, reload: 5.5, noise: 48, kick: 0.12, flash: 1.3, spread: 0.07, casing: 'brass', price: 230, make: makePkm, desc: 'Пулемёт Калашникова, лента на 100 патронов 7,62×54R: держит толпу длинными очередями. Перезарядка долгая, грохот — на весь кластер.' },
-	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 18, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, flash: 1.15, spread: 0, casing: 'brass', price: 160, make: makeSvd, desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
-	// новые стволы (как в Godot-версии, godot/scripts/data.gd → NEW_WEAPONS). Патронов 7,62×51 и 5,56×45 в браузерной
-	// игре нет — SCAR-H и FAL берут винтовочные 7,62×54R, AUG — автоматные 5,45×39. У торговца их пока нет.
-	scar: { name: 'SCAR-H', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 44, range: 8.5, cooldown: 0.11, auto: 0.11, mag: 20, reload: 2.5, noise: 38, kick: 0.12, flash: 1.0, spread: 0.04, casing: 'brass', price: 260, make: makeScar, desc: 'Штурмовая винтовка SCAR-H: точная, тяжёлая винтовочная пуля, магазин на 20.' },
-	fnfal: { name: 'FN FAL', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 46, range: 9, cooldown: 0.13, auto: 0.13, mag: 20, reload: 2.6, noise: 40, kick: 0.14, flash: 1.1, spread: 0.05, casing: 'brass', price: 240, make: makeFal, desc: 'Боевая винтовка с деревянным прикладом: бьёт сильно, уводит в очереди. Магазин на 20.' },
-	aug: { name: 'Steyr AUG', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 8.5, cooldown: 0.09, auto: 0.09, mag: 30, reload: 2.6, noise: 34, kick: 0.08, flash: 0.9, spread: 0.03, casing: 'brass', price: 220, make: makeAug, desc: 'Автомат-буллпап: короткий, точный, магазин на 30 — за рукоятью, прицел встроен в ручку.' },
-	pm63: { name: 'PM-63 RAK', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo9', damage: 22, range: 6, cooldown: 0.07, auto: 0.07, mag: 25, reload: 1.7, noise: 26, kick: 0.05, flash: 0.7, spread: 0.06, casing: 'brass', price: 120, make: makePm63, desc: 'Компактный пистолет-пулемёт под 9×18: очень быстрый огонь, магазин на 25, складная передняя рукоять.' },
-	spas12: { name: 'SPAS-12', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 15, pellets: 9, spread: 0.22, range: 5, cooldown: 0.45, auto: 0.5, mag: 8, reload: 3.4, noise: 36, kick: 0.3, flash: 1.4, casing: 'shell', eject: 'shot', price: 200, make: makeSpas12, desc: 'Боевой дробовик 12 калибра: картечь веером, полуавтомат, восемь патронов в трубке.' },
+	glock17: { name: 'Glock 17', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo919', damage: 24, range: 6.5, cooldown: 0.12, auto: 0.2, mag: 17, reload: 1.4, noise: 26, kick: 0.07, flash: 0.8, spread: 0.03, casing: 'brass', price: 60, make: tripo('glock17', makePistol), desc: 'Пистолет 9×19: лёгкий, магазин на 17 патронов. Выстрел слышно издалека.' },
+	deagle: { name: 'Desert Eagle', slot: 'gun', anim: 'pistol', mount: 'holster', ammo: 'ammo50', damage: 55, range: 7, cooldown: 0.4, auto: 0.5, mag: 7, reload: 1.6, noise: 34, kick: 0.16, flash: 1.2, spread: 0.04, casing: 'brass', price: 140, make: tripo('deagle', makePistol), desc: 'Тяжёлый пистолет .50 AE: валит с пары выстрелов, сильно подбрасывает. Магазин на 7.' },
+	dbarrel: { name: 'Двустволка', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 17, pellets: 9, spread: 0.26, range: 5, cooldown: 0.35, auto: 0.6, mag: 2, reload: 2.2, noise: 36, kick: 0.32, flash: 1.6, casing: 'shell', price: 50, make: tripo('dbarrel', makeShotgun), desc: 'Охотничья двустволка 12 калибра: два быстрых выстрела картечью, потом долгая перезарядка.' },
+	spas12: { name: 'SPAS-12', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo12', damage: 15, pellets: 9, spread: 0.22, range: 5, cooldown: 0.45, auto: 0.5, mag: 8, reload: 3.4, noise: 36, kick: 0.3, flash: 1.4, casing: 'shell', eject: 'shot', price: 200, make: tripo('spas12', makeSpas12), desc: 'Боевой дробовик 12 калибра: картечь веером, полуавтомат, восемь патронов в трубке.' },
+	mp5: { name: 'HK MP5', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo919', damage: 20, range: 6.5, cooldown: 0.07, auto: 0.07, mag: 30, reload: 1.9, noise: 24, kick: 0.04, flash: 0.6, spread: 0.045, casing: 'brass', price: 110, make: tripo('mp5', makeVector), desc: 'Пистолет-пулемёт 9×19: быстрый огонь, почти без отдачи, тихий. Магазин пустеет за пару секунд.' },
+	aks: { name: 'АКС-74У', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 30, range: 7, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.2, noise: 34, kick: 0.09, flash: 1.25, spread: 0.05, casing: 'brass', price: 80, make: tripo('aks', makeAks), desc: 'Укороченный автомат: 30 патронов 5,45×39, очередь при зажатой кнопке. Шумит на весь кластер.' },
+	ak74: { name: 'АК-74', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 32, range: 8, cooldown: 0.1, auto: 0.1, mag: 30, reload: 2.3, noise: 36, kick: 0.09, flash: 0.9, spread: 0.035, casing: 'brass', price: 110, make: tripo('ak74', makeAk74), desc: 'Полноразмерный автомат 5,45×39: точнее и дальше, чем укороченный.' },
+	ak47: { name: 'АК-47', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 42, range: 7.5, cooldown: 0.11, auto: 0.11, mag: 30, reload: 2.4, noise: 38, kick: 0.13, flash: 1.05, spread: 0.05, casing: 'brass', price: 120, make: tripo('ak47', makeAk47), desc: 'Калашников под 7,62×39: пуля тяжелее — бегун падает с одного-двух попаданий, но сильно уводит в очереди.' },
+	ak107: { name: 'АК-107', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo545', damage: 33, range: 8.5, cooldown: 0.09, auto: 0.09, mag: 30, reload: 2.3, noise: 36, kick: 0.07, flash: 0.9, spread: 0.025, casing: 'brass', price: 180, make: tripo('ak107', makeAk74), desc: 'Автомат 5,45×39 со сбалансированной автоматикой: почти не уводит в очереди.' },
+	g36: { name: 'HK G36', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo556', damage: 30, range: 8.5, cooldown: 0.085, auto: 0.085, mag: 30, reload: 2.3, noise: 34, kick: 0.07, flash: 0.9, spread: 0.03, casing: 'brass', price: 210, make: tripo('g36', makeScar), desc: 'Автомат 5,56×45 с ручкой-прицелом: лёгкий и точный.' },
+	aug: { name: 'Steyr AUG', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo556', damage: 32, range: 8.5, cooldown: 0.09, auto: 0.09, mag: 30, reload: 2.6, noise: 34, kick: 0.08, flash: 0.9, spread: 0.03, casing: 'brass', price: 220, make: tripo('aug', makeAug), desc: 'Автомат-буллпап 5,56×45: короткий, точный, магазин за рукоятью.' },
+	fnfal: { name: 'FN FAL', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76251', damage: 46, range: 9, cooldown: 0.13, auto: 0.13, mag: 20, reload: 2.6, noise: 40, kick: 0.14, flash: 1.1, spread: 0.05, casing: 'brass', price: 240, make: tripo('fnfal', makeFal), desc: 'Боевая винтовка 7,62×51 с деревянным прикладом: бьёт сильно, уводит в очереди. Магазин на 20.' },
+	rpk: { name: 'РПК', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 36, range: 9, cooldown: 0.1, auto: 0.1, mag: 75, reload: 4.0, noise: 42, kick: 0.11, flash: 1.1, spread: 0.05, casing: 'brass', price: 200, make: tripo('rpk', makeAk47), desc: 'Ручной пулемёт Калашникова 7,62×39: длинный ствол, сошки, барабан на 75 — держит толпу длинными очередями.' },
+	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 18, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, flash: 1.15, spread: 0, casing: 'brass', price: 160, make: tripo('svd', makeSvd), desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
+	awm: { name: 'Arctic Warfare', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76251', damage: 160, range: 20, falloff: 0.06, cooldown: 1.3, auto: 1.4, mag: 5, reload: 2.8, noise: 46, kick: 0.28, flash: 1.2, spread: 0, casing: 'brass', price: 300, make: tripo('awm', makeSvd), desc: 'Снайперская винтовка 7,62×51 с продольно-скользящим затвором: самый дальний и сильный выстрел, после каждого — передёрнуть затвор.' },
 };
 
 /** Пистолет Макарова: рукоять через кулак, ствол над большим пальцем смотрит по направлению пальцев. */

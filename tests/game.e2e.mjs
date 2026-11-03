@@ -129,41 +129,41 @@ try {
 	check(k.pickups > 0, 'после убийства выпадают спораны');
 	check(k.ammo === 0 && k.zhiv === 0, 'патроны и живчики из заражённых не выпадают');
 	// у топора не патроны, а прочность: тупится от ударов и ломается
-	const wear = await G(page, () => ({ wear: window.__game.kit.wear.axe, hud: document.getElementById('ammo').textContent }));
-	check(wear.wear < 60 && /прочность/.test(wear.hud), `топор тупится от ударов: прочность ${wear.wear}/60, на экране «${wear.hud.trim()}»`);
+	const wear = await G(page, () => ({ wear: window.__game.kit.wear.fireaxe, hud: document.getElementById('ammo').textContent }));
+	check(wear.wear < 90 && /прочность/.test(wear.hud), `топор тупится от ударов: прочность ${wear.wear}/90, на экране «${wear.hud.trim()}»`);
 	await G(page, () => {
 		const g = window.__game, p = g.player;
-		g.kit.wear.axe = 1;
+		g.kit.wear.fireaxe = 1;
 		const e = g.enemies.find((x) => x.alive);
 		e.pos.set(p.pos.x + 1.2, 0, p.pos.z); e.stagger = 5;
 		p.cooldown = 0; p.attack();
 	});
 	await page.waitForFunction(() => window.__game.kit.gear.melee === 'fists', null, { timeout: 30000 }).catch(() => {});
 	const broke = await G(page, () => ({ melee: window.__game.kit.gear.melee, owned: window.__game.kit.owned.join(), hud: document.getElementById('ammo').textContent }));
-	check(broke.melee === 'fists' && !broke.owned.includes('axe') && /без оружия/.test(broke.hud), `топор сломался на последнем ударе — в руках кулаки (${broke.hud})`);
+	check(broke.melee === 'fists' && !broke.owned.includes('fireaxe') && /без оружия/.test(broke.hud), `топор сломался на последнем ударе — в руках кулаки (${broke.hud})`);
 	// пистолет: выстрел тратит патрон и поднимает шум
 	await page.keyboard.press('KeyQ');
-	await page.waitForFunction(() => window.__game.player.weapon === 'pistol' && !window.__game.player.equipping, null, { timeout: 20000 });
+	await page.waitForFunction(() => window.__game.player.weapon === 'glock17' && !window.__game.player.equipping, null, { timeout: 20000 });
 	const before = await G(page, () => window.__game.player.ammo);
 	await page.keyboard.press('Space');
 	await page.waitForFunction((b) => window.__game.player.ammo < b || window.__game.player.reloading > 0, before, { timeout: 20000 }).catch(() => {});
 	await page.waitForTimeout(500);
 	const after = await G(page, () => ({ ammo: window.__game.player.ammo, w: window.__game.player.weapon, casings: (window.__game.casings ?? []).filter((c) => c.life > 0).length }));
-	check(after.w === 'pistol' && after.ammo < before, `пистолет стреляет (${before} → ${after.ammo})`);
-	check(after.casings > 0, `из ПМ вылетают гильзы (${after.casings})`);
+	check(after.w === 'glock17' && after.ammo < before, `пистолет Glock 17 стреляет (${before} → ${after.ammo})`);
+	check(after.casings > 0, `из Glock 17 вылетают гильзы (${after.casings})`);
 	// патроны конечные: перезарядка берёт из запаса, без патронов пистолет только щёлкает
 	// (выпавшее с убитых рядом убираем, чтобы оно не подобралось посреди проверки)
 	await G(page, () => { for (const p of window.__game.pickups) if (!p.ground) { p.taken = true; p.mesh.visible = false; } });
-	const r0 = await G(page, () => { const g = window.__game; g.player.ammo = 2; g.bag.ammo9 = 3; g.player.reload(); return g.bag.ammo9; });
+	const r0 = await G(page, () => { const g = window.__game; g.player.ammo = 2; g.bag.ammo919 = 3; g.player.reload(); return g.bag.ammo919; });
 	await page.waitForFunction(() => window.__game.player.reloading <= 0 && window.__game.player.ammo === 5, null, { timeout: 20000 }).catch(() => {});
-	const r1 = await G(page, () => ({ ammo: window.__game.player.ammo, bag: window.__game.bag.ammo9, hud: document.getElementById('ammo').textContent }));
+	const r1 = await G(page, () => ({ ammo: window.__game.player.ammo, bag: window.__game.bag.ammo919, hud: document.getElementById('ammo').textContent }));
 	check(r0 === 3 && r1.ammo === 5 && r1.bag === 0 && r1.hud.replace(/\s/g, '') === '5/0', `перезарядка берёт из запаса: в магазине ${r1.ammo}, в запасе ${r1.bag}, на экране «${r1.hud}»`);
-	// последний патрон: затвор ПМ откатывается и встаёт на задержку
-	await G(page, () => { const g = window.__game, p = g.player; p.ammo = 1; g.bag.ammo9 = 0; p.cooldown = 0; p.attack(); });
+	// последний патрон: пистолет откатывается и встаёт на задержку (у модели Tripo — вся модель назад)
+	await G(page, () => { const g = window.__game, p = g.player; p.ammo = 1; g.bag.ammo919 = 0; p.cooldown = 0; p.attack(); });
 	await page.waitForTimeout(800);
-	const slideOff = await G(page, () => { const a = window.__game.player.gun('pistol').userData.action; return +(a.part.position.y - (a.y0 ?? a.part.position.y)).toFixed(3); });
-	check(slideOff >= 0.02, `затвор ПМ на задержке после последнего патрона (сдвиг ${slideOff} м)`);
-	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo9 = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
+	const slideOff = await G(page, () => { const a = window.__game.player.gun('glock17').userData.action; return +(a.part.position.y - (a.y0 ?? a.part.position.y)).toFixed(3); });
+	check(slideOff >= 0.02, `Glock 17 на задержке после последнего патрона (сдвиг ${slideOff} м)`);
+	const dry = await G(page, () => { const g = window.__game, p = g.player; p.ammo = 0; g.bag.ammo919 = 0; p.cooldown = 0; p.attack(); return { ammo: p.ammo, hud: document.getElementById('ammo').textContent }; });
 	check(dry.ammo === 0 && /нет патронов/.test(dry.hud), `без патронов не стреляет, на экране «${dry.hud}»`);
 	// патроны — в домах: заходим, крыша исчезает, обыскиваем шкаф
 	const homes = await G(page, () => { const L = window.__game.level; return { houses: L.buildings.length, containers: L.containers.length }; });
@@ -172,14 +172,14 @@ try {
 		const g = window.__game;
 		for (const e of g.enemies) if (e.alive) e.pos.set(40, 0, -40); // чтобы не мешали обыску
 		const c = g.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф');
-		c.items = [['ammo9', 7]];
+		c.items = [['ammo919', 7]];
 		g.player.pos.set(c.ax, 0, c.az);
 	});
 	await page.waitForFunction(() => !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
 	const prompt = await G(page, () => document.getElementById('search-name').textContent);
 	await page.keyboard.press('KeyE');
-	await page.waitForFunction(() => window.__game.bag.ammo9 >= 7, null, { timeout: 20000 }).catch(() => {});
-	const found = await G(page, () => ({ ammo: window.__game.bag.ammo9, roof: window.__game.level.buildings[0].fader.value, searched: window.__game.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф').searched }));
+	await page.waitForFunction(() => window.__game.bag.ammo919 >= 7, null, { timeout: 20000 }).catch(() => {});
+	const found = await G(page, () => ({ ammo: window.__game.bag.ammo919, roof: window.__game.level.buildings[0].fader.value, searched: window.__game.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф').searched }));
 	check(prompt === 'Шкаф' && found.ammo >= 7 && found.searched, `обыск шкафа в доме: подсказка «${prompt}», в запасе ${found.ammo} патронов`);
 	check(found.roof < 0.1, `в доме крыша и верх стен убраны (видимость ${found.roof.toFixed(2)})`);
 	// рюкзак: открывается по I, ставит игру на паузу, живчик из рюкзака лечит
@@ -322,12 +322,12 @@ try {
 	await page.click('#trade-peas-all');
 	const buyAks = await G(page, () => {
 		const buy = (name) => [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === name).click();
-		buy('АКС-74У'); buy('Патроны 5,45×39 ×30'); buy('Топор');
+		buy('АКС-74У'); buy('Патроны 5,45×39 ×30'); buy('Пожарный топор');
 		const g = window.__game;
-		return { spore: g.bag.spore, gear: g.kit.gear.gun, mag: g.kit.mags.aks, spare: g.bag.ammo545, melee: g.kit.gear.melee, wear: g.kit.wear.axe };
+		return { spore: g.bag.spore, gear: g.kit.gear.gun, mag: g.kit.mags.aks, spare: g.bag.ammo545, melee: g.kit.gear.melee, wear: g.kit.wear.fireaxe };
 	});
-	check(buyAks.spore === 120 + 10 - 80 - 15 - 8 && buyAks.gear === 'aks' && buyAks.mag === 30 && buyAks.spare === 30, `купили АКС-74У и 30 патронов 5,45 (горох обменян): осталось ${buyAks.spore} споранов`);
-	check(buyAks.melee === 'axe' && buyAks.wear === 60, `новый топор вместо сломанного: прочность ${buyAks.wear}/60`);
+	check(buyAks.spore === 120 + 10 - 80 - 15 - 18 && buyAks.gear === 'aks' && buyAks.mag === 30 && buyAks.spare === 30, `купили АКС-74У и 30 патронов 5,45 (горох обменян): осталось ${buyAks.spore} споранов`);
+	check(buyAks.melee === 'fireaxe' && buyAks.wear === 90, `новый пожарный топор вместо сломанного: прочность ${buyAks.wear}/90`);
 	await page.click('#trade-close');
 	// автомат: очередь при зажатой кнопке
 	await G(page, () => { const g = window.__game; g.player.hp = g.player.maxHp = 1e6; });
@@ -347,23 +347,23 @@ try {
 	// лекарь: отдых двигает время мира
 	const rest = await G(page, () => { const g = window.__game, t = g.world.time; g.player.hp = 30; g.player.maxHp = 100; g.rest(); const r = { dt: g.world.time - t, hp: g.player.hp }; g.player.hp = g.player.maxHp = 1e6; return r; });
 	check(rest.dt >= 100 && rest.hp === 100, `отдых у лекаря: здоровье ${rest.hp}, прошло ${rest.dt} с`);
-	// новое оружие у торговца: МР-133, «Вектор», АК-74, АК-47, СВД, ВСС, ПКМ, патроны к ним и гранаты
+	// новое оружие у торговца: SPAS-12, MP5, АК-74, АК-47, СВД, Arctic Warfare, РПК, патроны к ним и гранаты
 	await G(page, () => { const g = window.__game; g.bag.spore = 3000; g.player.pos.set(-11, 0, 0.1); });
 	await page.waitForFunction(() => document.getElementById('search-verb').textContent === 'Торговать' && !document.getElementById('search').classList.contains('hidden'), null, { timeout: 20000 }).catch(() => {});
 	await page.keyboard.press('KeyE');
 	await page.waitForSelector('#trade:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const arsenal = await G(page, () => {
 		const buy = (name) => [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === name)?.click();
-		for (const n of ['МР-133', 'Вектор', 'АК-74', 'АК-47', 'СВД', 'ВСС «Винторез»', 'ПКМ', 'Патроны 12 кал. ×6', 'Патроны 9×19 ×30', 'Патроны 5,45×39 ×30', 'Патроны 7,62×39 ×30', 'Патроны 7,62×54R ×10', 'Патроны 9×39 ×20', 'Граната Ф-1', 'Граната Ф-1', 'Граната Ф-1']) buy(n);
+		for (const n of ['SPAS-12', 'HK MP5', 'АК-74', 'АК-47', 'СВД', 'Arctic Warfare', 'РПК', 'Патроны 12 кал. ×8', 'Патроны 9×19 ×17', 'Патроны 5,45×39 ×30', 'Патроны 7,62×39 ×30', 'Патроны 7,62×54R ×10', 'Патроны 7,62×51 ×20', 'Граната Ф-1', 'Граната Ф-1', 'Граната Ф-1']) buy(n);
 		const g = window.__game;
 		return { owned: g.kit.owned, grenades: g.bag.grenade, secs: [...document.querySelectorAll('#trade-list .trade-sec')].map((x) => x.textContent) };
 	});
-	check(['shotgun', 'vector', 'ak74', 'ak47', 'svd', 'vss', 'pkm'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 3, `у торговца куплены МР-133, Вектор, АК-74, АК-47, СВД, ВСС, ПКМ и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
+	check(['spas12', 'mp5', 'ak74', 'ak47', 'svd', 'awm', 'rpk'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 3, `у торговца куплены SPAS-12, MP5, АК-74, АК-47, СВД, Arctic Warfare, РПК и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
 	await page.click('#trade-close');
 	const shots = await G(page, () => {
 		const g = window.__game, p = g.player, out = {};
 		p.hold = 'gun';
-		for (const id of ['shotgun', 'vector', 'ak74', 'ak47', 'svd', 'vss', 'pkm']) {
+		for (const id of ['spas12', 'mp5', 'ak74', 'ak47', 'svd', 'awm', 'rpk']) {
 			g.equipGear(id); p.equipping = false; p.cooldown = 0; p.reloading = 0;
 			const before = p.ammo; p.attack(); out[id] = `${before}→${p.ammo}`;
 		}
@@ -588,12 +588,12 @@ try {
 	});
 	check(holes.n > 0 && holes.facing, `след пули на стене дома (${holes.n}), лицом к стрелку`);
 
-	// обрез: картечь задевает нескольких
+	// двустволка: картечь задевает нескольких
 	const shot = await G(page, () => {
 		const g = window.__game, p = g.player;
 		g.worldMap.close(); g.locationMap.close();
 		p.pos.set(-26, 0, 4); // на дороге, вокруг пусто
-		g.kit.owned.push('obrez'); g.kit.mags.obrez = 2; p.hold = 'gun'; g.equipGear('obrez');
+		g.kit.owned.push('dbarrel'); g.kit.mags.dbarrel = 2; p.hold = 'gun'; g.equipGear('dbarrel');
 		// остальных отводим подальше, чтобы ближайшей целью были трое свежих бегунов
 		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -40); e.stagger = 5; }
 		const es = [0, 1, 2].map((i) => g.spawnEnemy('runner', p.pos.clone().set(p.pos.x - 2.5, 0, p.pos.z + (i - 1) * 0.35)));
@@ -609,7 +609,7 @@ try {
 	await page.waitForFunction(() => window.__targets.filter((e) => e.hp < 60).length >= 2, null, { timeout: 30000 }).catch(() => {});
 	const hurt = await G(page, () => window.__targets.filter((e) => e.hp < 60).length);
 	const diag = hurt >= 2 ? '' : ` [${JSON.stringify(await G(page, () => ({ ...window.__diag, now: { paused: window.__game.paused, state: window.__game.state, pend: window.__game.player.pending.length, hp: window.__targets.map((e) => Math.round(e.hp)), pos: window.__targets.map((e) => e.pos.x.toFixed(1)), p: window.__game.player.pos.x.toFixed(1) } })))}]`;
-	check(shot.length === 3 && hurt >= 2, `обрез: картечь задела ${hurt} бегунов${diag}`);
+	check(shot.length === 3 && hurt >= 2, `двустволка: картечь задела ${hurt} бегунов${diag}`);
 
 	// классы в деле: Шрам и Дед остаются в комнате, с героем — медик и подрывник
 	await G(page, () => {
@@ -649,7 +649,7 @@ try {
 	await page.waitForFunction(() => !window.__game.merc('kuvalda'), null, { timeout: 30000 }).catch(() => {});
 	const bitten = await G(page, () => { const g = window.__game, r = { gone: !g.merc('kuvalda'), roster: g.roster.map((m) => m.id).join(), banner: document.getElementById('banner')?.textContent ?? '' }; window.__bite.damage(1e4, window.__bite.pos, 0); return r; });
 	check(bitten.gone && /патроны/i.test(bitten.banner), `Кувалда без патронов погиб от первой атаки: «${bitten.banner.trim()}», в отряде: ${bitten.roster}`);
-	// дальность наёмника — как у героя с тем же оружием: заражённого в 12 м снайпер берёт, медик с «Вектором» — нет
+	// дальность наёмника — как у героя с тем же оружием: заражённого в 12 м снайпер берёт, медик с MP5 — нет
 	const reachTest = await G(page, () => {
 		const g = window.__game, p = g.player;
 		g.roster.push({ id: 'sych', hp: 90, mag: 10, ammo: 10, out: true, bed: 5 });
@@ -666,7 +666,7 @@ try {
 		g.spawnMercs();
 		return r;
 	});
-	check(reachTest.sniper && !reachTest.auto, `заражённый в 12 м: снайпер (СВД, ${reachTest.sr} м) стреляет, медик с «Вектором» (${reachTest.ar} м) — нет`);
+	check(reachTest.sniper && !reachTest.auto, `заражённый в 12 м: снайпер (СВД, ${reachTest.sr} м) стреляет, медик с MP5 (${reachTest.ar} м) — нет`);
 
 	// возвращение в кластер до перезагрузки: всё как было
 	await G(page, () => { const g = window.__game; for (const e of g.enemies.slice(0, 5)) e.damage(1e4, e.pos.clone().add({ x: 1, y: 0, z: 0 }), 0); g.world.clusters.dachi.next = g.world.time + 2000; });

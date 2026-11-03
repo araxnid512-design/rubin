@@ -14,10 +14,14 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'download', 'ulei-cluster17.html');
 const APK_PAGE = join(ROOT, 'android/app/src/main/assets/index.html');
-const LIMIT = 16 * 1024 * 1024; // больше не опубликовать одним файлом
+// Предел файла: APK и скачивание с GitHub его не знают (файл релиза — до 2 ГБ), но больше 48 МБ телефон грузит
+// заметно дольше. Artifact в Claude — до 16 МБ (ARTIFACT): больше — только предупреждение.
+const LIMIT = 48 * 1024 * 1024;
+const ARTIFACT = 16 * 1024 * 1024;
 
 // модели — свежие base64-модули из .glb (их подхватывает запасной путь загрузки в game/main.js)
-for (const name of ['player', 'runner', 'stomper', 'ruber']) {
+// (персонажи и модели стволов Tripo w_*.glb)
+for (const name of (await readdir(join(ROOT, 'models/game'))).filter((f) => f.endsWith('.glb')).map((f) => f.slice(0, -4))) {
 	const glb = await readFile(join(ROOT, 'models/game', `${name}.glb`));
 	await writeFile(join(ROOT, 'models/game', `${name}-glb.js`), `export default "${glb.toString('base64')}";\n`);
 }
@@ -58,4 +62,5 @@ await mkdir(dirname(APK_PAGE), { recursive: true });
 await writeFile(APK_PAGE, html.replace('<script>window.__ASSETS = ', () => '<script>window.__APK = true; window.__ASSETS = '));
 const mb = (n) => (n / 1024 / 1024).toFixed(1);
 console.log(`${OUT}: ${mb(html.length)} МБ (код ${mb(code.length)} МБ, звуки и картинки ${mb(JSON.stringify(assets).length)} МБ), сборка ${BUILD.time} (${sha})`);
-if (html.length > LIMIT) { console.error(`больше ${mb(LIMIT)} МБ — не опубликовать одним файлом`); process.exit(1); }
+if (html.length > ARTIFACT) console.warn(`больше ${mb(ARTIFACT)} МБ — artifact'ом в Claude не выложить (APK и скачивание с GitHub — можно)`);
+if (html.length > LIMIT) { console.error(`больше ${mb(LIMIT)} МБ — слишком тяжело для телефона`); process.exit(1); }

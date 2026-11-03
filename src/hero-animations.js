@@ -32,7 +32,6 @@ export const HERO_ANIMATION_NAMES = [
 	'IdlePistol', 'WalkPistol', 'RunPistol', 'AimPistol', 'Shoot', 'Reload', 'HitPistol', 'EquipAxe',
 	'IdleRifle', 'WalkRifle', 'RunRifle', 'AimRifle', 'ShootRifle', 'ReloadRifle', 'HitRifle', 'EquipRifle', 'EquipAxeR',
 	'Death',
-	...['Rifle', 'Pistol'].flatMap((w) => [...['FL', 'L', 'BL', 'B', 'BR', 'R', 'FR'].flatMap((d) => [`Walk${w}_${d}`, `Run${w}_${d}`]), `Turn${w}`]),
 ];
 
 // Оси шарниров в T-позе. Локоть: сгиб уводит предплечье вперёд (+Z) — у левой руки (вдоль +X) это
@@ -1119,8 +1118,9 @@ export function createHeroAnimations(root, options) {
 		bake(rig, 'EquipRifle', 1.05, equipRifle(rig, true)),
 		bake(rig, 'EquipAxeR', 1.05, equipRifle(rig, false)),
 		bake(rig, 'Death', 2.2, death(rig)),
-		// автомат и пистолет: ход в остальные 7 направлений относительно корпуса и переступание при развороте на месте
-		...['Rifle', 'Pistol'].flatMap((w) => {
+		// автомат и пистолет: ход в остальные 7 направлений относительно корпуса и переступание при развороте на месте —
+		// только для Godot-версии (options.directional): браузерной игре они не нужны, а модель с ними на 0,9 МБ тяжелее
+		...(!options?.directional ? [] : ['Rifle', 'Pistol']).flatMap((w) => {
 			const o = w === 'Rifle' ? { rifle: true } : { pistol: true };
 			return [
 				...DIRS8.slice(1).flatMap((dir) => [

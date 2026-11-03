@@ -16,9 +16,12 @@ import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
 import { Input } from './input.js';
 import { view, onResize, goLandscape } from './screen.js';
-import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP, makeGrenade } from './weapons.js';
+import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP, makeGrenade, REMOVED, realId } from './weapons.js';
+import { loadTripoWeapons } from './tripo-weapons.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
+import { leftHandIK } from './hand-ik.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
@@ -92,7 +95,7 @@ const spores = createSpores(scene, { count: QUALITY === 'low' ? 120 : 260 });
 const marks = createMarks(scene);
 
 // ---------- Загрузка ----------
-const loader = new GLTFLoader();
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // модели оружия сжаты meshopt (scripts/shrink-weapons.mjs)
 async function loadModel(name) {
 	let buffer;
 	try {
@@ -128,6 +131,8 @@ async function boot() {
 	progress(0.83, 'Загружаем руберов…');
 	const ruber = await loadModel('ruber');
 	assets = { player, runner, stomper, ruber };
+	progress(0.86, 'Загружаем оружие…');
+	await loadTripoWeapons(loadModel, Object.keys(WEAPONS).filter((id) => id !== 'fists'));
 	// разные заражённые: варианты одежды бегуна и топтуна (цвет, кровь, грязь)
 	const clothOf = (gltf) => { let map = null; gltf.scene.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (m.name === 'Cloth') map ??= m.map; }); return map; };
 	clothSets.runner = clothVariants(clothOf(runner), 5, 11);
@@ -404,6 +409,8 @@ class Actor {
 	update(dt) {
 		this.mixer.update(dt);
 		if (this.recoil > 0.003) this.applyRecoil(dt);
+		// левая кисть — на цевье именно этой модели ствола (у новых моделей цевьё у каждой своё; у заражённых — ничего)
+		leftHandIK(this.model, this.ik ??= {});
 		if (this.flash > 0) {
 			this.flash = Math.max(0, this.flash - dt * 5);
 			for (const m of this.mats) m.emissive?.setRGB(this.flash * 0.22, this.flash * 0.02, 0); // лёгкий отсвет, без «розового» тела
@@ -437,8 +444,35 @@ const HERO_KICK = { k: 1, bones: { chest: 'mixamorigSpine2', spine: 'mixamorigSp
 const ZOMBIE_KICK = { k: 1.7, bones: { chest: 'Chest', spine: 'Spine', head: 'Head' } };
 const BACK = { x: -1, z: 0 };
 
-/** С чем начинают: целый топор и ПМ с полным магазином, патроны в запасе, живчик. */
-const startKit = () => ({ gear: { melee: 'axe', gun: 'pistol' }, owned: ['axe', 'pistol'], mags: { pistol: WEAPONS.pistol.mag }, wear: { axe: WEAPONS.axe.durability } });
+/** С чем начинают: целый пожарный топор и Glock 17 с полным магазином, патроны в запасе, живчик. */
+const startKit = () => ({ gear: { melee: 'fireaxe', gun: 'glock17' }, owned: ['fireaxe', 'glock17'], mags: { glock17: WEAPONS.glock17.mag }, wear: { fireaxe: WEAPONS.fireaxe.durability } });
+
+/**
+ * Старое сохранение → новые стволы: убранное оружие и патроны (ПМ, обрез, МР-133, «Вектор», ВСС, ПКМ, SCAR-H, PM-63,
+ * простой топор; 9×18 и 9×39) становятся ближайшими новыми (REMOVED в weapons.js) — везде: в наборе, рюкзаке,
+ * хранилище, тайниках и на земле кластеров. Совпавшие записи складываются (патроны), у прочности и магазина — большее.
+ */
+function migrateSave(s) {
+	if (!s) return s;
+	const walk = (v) => {
+		if (Array.isArray(v)) {
+			const out = v.map((x) => walk(typeof x === 'string' ? realId(x) : x));
+			// список id (набор) — без повторов
+			return out.every((x) => typeof x === 'string') ? [...new Set(out)] : out;
+		}
+		if (v && typeof v === 'object') {
+			const out = {};
+			for (const [k, x] of Object.entries(v)) {
+				const nk = realId(k), nx = walk(typeof x === 'string' ? realId(x) : x);
+				if (nk in out && typeof out[nk] === 'number' && typeof nx === 'number') out[nk] = /^ammo/.test(nk) || k in REMOVED && /^ammo/.test(k) ? out[nk] + nx : Math.max(out[nk], nx);
+				else out[nk] = nx;
+			}
+			return out;
+		}
+		return v;
+	};
+	return walk(s);
+}
 
 /** Набор из старого сохранения: прочность топоров, кулаки, если топора нет. */
 function normalizeKit(kit) {
@@ -449,15 +483,16 @@ function normalizeKit(kit) {
 	if (!melee || (melee !== 'fists' && !kit.owned.includes(melee))) kit.gear.melee = kit.owned.find((w) => WEAPONS[w].slot === 'melee') ?? 'fists';
 	return kit;
 }
-const START_BAG = { ammo9: 8, zhivchik: 1, spore: 0, peas: 0 };
+const START_BAG = { ammo919: 17, zhivchik: 1, spore: 0, peas: 0 };
 const SEARCH_TIME = 1.1; // секунды на обыск
 const SEARCH_REACH = 1.25; // как близко надо подойти к мебели
 const REST_TIME = 120; // отдых у лекаря, секунд мира
 
-/** Что лежит в тайнике: { ammo9: [min, max, шанс], zhivchik: шанс, ... } → [[предмет, количество]]. */
+/** Что лежит в тайнике: { ammo919: [min, max, шанс], zhivchik: шанс, ... } → [[предмет, количество]]; убранное — новым (REMOVED). */
 function rollLoot(spec) {
 	const out = [];
-	for (const [kind, v] of Object.entries(spec)) {
+	for (const [k, v] of Object.entries(spec)) {
+		const kind = realId(k);
 		if (Array.isArray(v)) { if (Math.random() < v[2]) out.push([kind, v[0] + Math.floor(Math.random() * (v[1] - v[0] + 1))]); }
 		else if (Math.random() < v) out.push([kind, 1]);
 	}
@@ -1826,7 +1861,7 @@ const game = {
 
 	/** Продолжить с сохранения. */
 	continueGame() {
-		const s = loadGame();
+		const s = migrateSave(loadGame());
 		if (!s) { this.newGame(); return; }
 		this.world = normalizeWorld(s.world);
 		this.bag = { ...START_BAG, ...s.bag };
@@ -2175,13 +2210,13 @@ const game = {
 	/**
 	 * Гибель: всё, что было с собой, — оружие, патроны, гранаты, живчики — осталось там, где погиб; валюта
 	 * (спораны, горох, чёрный жемчуг) при герое; сложенное в хранилище цело. Герой приходит в себя в стабе.
-	 * Совсем без оружия и денег — охрана стаба выдаёт старый топор.
+	 * Совсем без оружия и денег — охрана стаба выдаёт старый пожарный топор.
 	 */
 	respawn() {
 		for (const k of STORABLE) this.bag[k] = 0;
 		this.kit = { gear: { melee: 'fists', gun: null }, owned: [], mags: {}, wear: {} };
-		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.axe.price;
-		if (broke) { this.kit.owned.push('axe'); this.kit.gear.melee = 'axe'; this.kit.wear.axe = Math.ceil(WEAPONS.axe.durability / 2); }
+		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.fireaxe.price;
+		if (broke) { this.kit.owned.push('fireaxe'); this.kit.gear.melee = 'fireaxe'; this.kit.wear.fireaxe = Math.ceil(WEAPONS.fireaxe.durability / 2); }
 		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры'; // и разошлись по койкам
 		// сожрали — кластер запоминает, каким его оставили: кровь, разрушения, выпавшее (перезагрузка всё смыла бы и так)
 		if (this.deathReason !== 'reload' && NODES[this.loc]?.kind === 'cluster') this.snapshot();
@@ -3421,6 +3456,8 @@ function update(dt) {
 		camera.position.z += (Math.random() - 0.5) * game.shake * 0.4;
 	}
 	camera.lookAt(camTarget.x, camTarget.y - 0.6, camTarget.z + 0.8);
+	// крупный план для проверок (тесты, .diag): window.__cam = { pos: [x, y, z], look: [x, y, z] } — от героя
+	if (window.__cam) { camera.position.set(p.x + window.__cam.pos[0], window.__cam.pos[1], p.z + window.__cam.pos[2]); camera.lookAt(p.x + window.__cam.look[0], window.__cam.look[1], p.z + window.__cam.look[2]); }
 	sun.position.set(p.x + 22, 27, p.z + 13);
 	sun.target.position.set(p.x, 0, p.z);
 	// крыша дома, где герой, исчезает; здания между камерой и героем — полупрозрачные

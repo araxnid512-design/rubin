@@ -7,13 +7,14 @@ import { WEAPONS, makeGrenade } from './weapons.js';
 const ROUNDS = ['патрон', 'патрона', 'патронов'];
 export const ITEMS = {
 	...Object.fromEntries(Object.entries(WEAPONS).map(([k, w]) => [k, { name: w.name, type: 'weapon', desc: w.desc }])),
-	ammo9: { name: 'Патроны 9×18', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны к ПМ. Лежат в домах: в шкафах, комодах, сундуках.' },
-	ammo12: { name: 'Патроны 12 кал.', type: 'ammo', forms: ROUNDS, desc: 'Охотничьи патроны с картечью к обрезу. Чаще всего — у дачников и сторожей.' },
-	ammo919: { name: 'Патроны 9×19', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны парабеллум — к «Вектору». Продаёт торговец в стабе.' },
-	ammo545: { name: 'Патроны 5,45×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АКС-74У и АК-74. В кластерах редки — проще купить в стабе.' },
-	ammo762: { name: 'Патроны 7,62×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АК-47: тяжёлая пуля, сильная отдача.' },
-	ammo76254: { name: 'Патроны 7,62×54R', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны к СВД и ПКМ. Дорогие — каждый выстрел должен попасть.' },
-	ammo939: { name: 'Патроны 9×39', type: 'ammo', forms: ROUNDS, desc: 'Тяжёлые дозвуковые патроны к ВСС «Винторез» — для тихой стрельбы.' },
+	ammo919: { name: 'Патроны 9×19', type: 'ammo', forms: ROUNDS, desc: 'Пистолетные патроны парабеллум — к Glock 17 и MP5. Лежат в домах: в шкафах, комодах, сундуках.' },
+	ammo50: { name: 'Патроны .50 AE', type: 'ammo', forms: ROUNDS, desc: 'Тяжёлые пистолетные патроны к Desert Eagle. Редкие — у торговца в стабе или в сейфах.' },
+	ammo12: { name: 'Патроны 12 кал.', type: 'ammo', forms: ROUNDS, desc: 'Охотничьи патроны с картечью к двустволке и SPAS-12. Чаще всего — у дачников и сторожей.' },
+	ammo545: { name: 'Патроны 5,45×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АКС-74У, АК-74 и АК-107. В кластерах редки — проще купить в стабе.' },
+	ammo556: { name: 'Патроны 5,56×45', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны НАТО к G36 и Steyr AUG. Продаёт торговец в стабе, изредка — у военных.' },
+	ammo762: { name: 'Патроны 7,62×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АК-47 и РПК: тяжёлая пуля, сильная отдача.' },
+	ammo76251: { name: 'Патроны 7,62×51', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны НАТО к FN FAL и Arctic Warfare. Дорогие и редкие.' },
+	ammo76254: { name: 'Патроны 7,62×54R', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны к СВД. Дорогие — каждый выстрел должен попасть.' },
 	grenade: { name: 'Граната Ф-1', forms: ['граната', 'гранаты', 'гранат'], use: 'Бросить', desc: 'Оборонительная граната: бросок к ближайшим заражённым, взрыв через 2 секунды, разлёт осколков до 6 м — не стой рядом. Кнопка гранаты или G.' },
 	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], use: 'Выпить', desc: 'Лечебное зелье Улья: восстанавливает 45 здоровья.' },
 	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
@@ -22,7 +23,7 @@ export const ITEMS = {
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo9', 'ammo919', 'ammo12', 'ammo545', 'ammo762', 'ammo76254', 'ammo939', 'grenade', 'zhivchik', 'pearl', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'grenade', 'zhivchik', 'pearl', 'spore', 'peas'];
 /** Всё, что лежит в рюкзаке (при гибели пропадает, кроме валюты — см. stash.js). */
 export const CONSUMABLES = BAG_ORDER;
 
@@ -71,9 +72,9 @@ export function makeItemMesh(kind) {
 		gr.rotation.z = 1.2;
 		gr.position.y = 0.06;
 		g.add(gr);
-	} else if (kind === 'ammo76254' || kind === 'ammo939') {
-		// картонная пачка и патроны: винтовочные — длинные остроконечные, 9×39 — короткие с тяжёлой тупой пулей
-		const long = kind === 'ammo76254';
+	} else if (kind === 'ammo76254' || kind === 'ammo76251') {
+		// картонная пачка и винтовочные патроны — длинные остроконечные (7,62×54R и 7,62×51)
+		const long = true;
 		const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.12), mat({ color: long ? 0x9a8a62 : 0x5e6a58, roughness: 0.9 }));
 		box.position.y = 0.03;
 		const brass = mat({ color: long ? 0xb8923e : 0x7a7c74, roughness: 0.3, metalness: 0.9 }), tip = mat({ color: long ? 0x6a5030 : 0x2a2c2e, roughness: 0.4, metalness: 0.7 });
@@ -85,7 +86,7 @@ export function makeItemMesh(kind) {
 			g.add(c, b);
 		}
 		g.add(box);
-	} else if (kind === 'ammo545' || kind === 'ammo762') {
+	} else if (kind === 'ammo545' || kind === 'ammo762' || kind === 'ammo556') {
 		// цинк-укупорка с патронами в пачках и снаряжённый рожок (у 7,62 — стальной и тёмный цинк)
 		const zinc = mat(kind === 'ammo762' ? { color: 0x5a6650, roughness: 0.45, metalness: 0.6 } : { color: 0x8a9088, roughness: 0.35, metalness: 0.8 });
 		const box = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.18), zinc);
@@ -101,9 +102,9 @@ export function makeItemMesh(kind) {
 		mag.position.set(0.2, 0.03, 0.02);
 		mag.rotation.set(Math.PI / 2, 0.3, 0.25);
 		g.add(box, mag);
-	} else if (kind === 'ammo9' || kind === 'ammo919') {
-		// открытая армейская коробка с патронами (9×19 — в серо-синей)
-		const olive = mat(kind === 'ammo919' ? { color: 0x3e4a58, roughness: 0.5, metalness: 0.4 } : { color: 0x4d5a36, roughness: 0.55, metalness: 0.35 });
+	} else if (kind === 'ammo50' || kind === 'ammo919') {
+		// открытая армейская коробка с патронами (9×19 — в серо-синей, .50 AE — в коричневой)
+		const olive = mat(kind === 'ammo919' ? { color: 0x3e4a58, roughness: 0.5, metalness: 0.4 } : { color: 0x5a4a36, roughness: 0.5, metalness: 0.4 });
 		const box = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.18), olive);
 		box.position.y = 0.06;
 		const lid = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.012, 0.18), olive);
@@ -153,4 +154,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo9: '255,220,120', ammo919: '200,220,255', ammo12: '255,190,120', ammo545: '230,230,150', ammo762: '220,230,170', ammo76254: '255,230,160', ammo939: '210,230,200', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255' };
+export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255' };

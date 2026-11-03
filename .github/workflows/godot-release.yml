@@ -5,18 +5,13 @@
 #   https://github.com/araxnid512-design/rubin/releases/download/game/ulei-godot-apk.zip (тот же APK в ZIP)
 name: Godot-версия
 
+# Godot-версия заморожена (пользователь 2026-11-03 вернулся к браузерной игре): сборка — только от правок в godot/
+# или вручную (Actions → «Godot-версия» → Run workflow), правки браузерной игры её не запускают.
 on:
   push:
     branches: [main, ccr-f5d34f3a-q7wlgf]
     paths:
       - 'godot/**'
-      - 'game/**'
-      - '!game/version.js'
-      - 'models/game/*.glb'
-      - 'assets/sounds/**'
-      - 'tools/godot-export.html'
-      - 'scripts/export-godot.mjs'
-      - '.github/workflows/godot-release.yml'
       - 'site/ulei-godot/**'
   workflow_dispatch:
 

@@ -119,7 +119,7 @@ export function createIconFactory() {
 		},
 		item: (kind) => item(makeItemMesh(kind)),
 		/** Портрет: голова и плечи героя. */
-		portrait(gltf, { size = 128, tint = null, gear = { melee: 'axe' } } = {}) {
+		portrait(gltf, { size = 128, tint = null, gear = { melee: 'fireaxe' } } = {}) {
 			const { obj, bone } = posed(gltf, 'Idle', gear, 'melee', tint);
 			const t = bone('Head').add(V(0, 0.09, 0.04));
 			return shoot(obj, size, size, 24, t.clone().add(V(0.28, 0.03, 0.95)), t);

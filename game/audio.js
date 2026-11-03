@@ -17,8 +17,10 @@ let master = null; // общая громкость → компрессор: о
 const buffers = {};
 let voices = 0;
 const MAX_VOICES = 28;
+// громкость выстрела ствола (записи gun_<id>.mp3 выровнены по пику −2 дБ)
+const GUN_GAIN = { glock17: 0.7, deagle: 0.9, mp5: 0.55, dbarrel: 1, spas12: 0.95, aks: 0.75, ak74: 0.75, ak47: 0.85, ak107: 0.75, g36: 0.72, aug: 0.72, fnfal: 0.9, rpk: 0.9, svd: 1, awm: 1 };
 const FILES = [
-	'pistol', 'shotgun', 'ak1', 'ak2', 'ak3', 'mg', 'svd', 'casing1', 'casing2', 'dry', 'reload_pistol', 'reload_rifle', 'bolt', 'shell', 'explosion',
+	...Object.keys(GUN_GAIN).map((id) => `gun_${id}`), 'casing1', 'casing2', 'dry', 'reload_pistol', 'reload_rifle', 'bolt', 'shell', 'explosion',
 	'groan1', 'groan2', 'groan3', 'groan4', 'groan5', 'zhit1', 'zhit2', 'zdeath1', 'zdeath2', 'zdeath3', 'gib', 'flesh1', 'flesh2', 'chop',
 	'step_road1', 'step_road2', 'step_road3', 'step_grass1', 'step_grass2', 'step_dirt1', 'step_dirt2', 'step_floor1', 'step_floor2',
 	'wind', 'thunder',
@@ -100,29 +102,15 @@ function where({ d = 0, pan = 0 } = {}) {
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const vary = (k = 0.05) => 1 - k + Math.random() * 2 * k;
 
-// голос ствола: записи, высота (скорость проигрывания), громкость; ВСС — глухой хлопок и лязг затвора
-const GUNS = {
-	pistol: { s: ['pistol'], rate: 1.06, gain: 0.7 },
-	obrez: { s: ['shotgun'], rate: 0.94, gain: 1 },
-	shotgun: { s: ['shotgun'], rate: 1, gain: 0.95, pump: true },
-	vector: { s: ['pistol'], rate: 1.2, gain: 0.5 },
-	aks: { s: ['ak1', 'ak2', 'ak3'], rate: 1.08, gain: 0.75 },
-	ak74: { s: ['ak1', 'ak2', 'ak3'], rate: 1, gain: 0.75 },
-	ak47: { s: ['ak1', 'ak2', 'ak3'], rate: 0.86, gain: 0.85 },
-	vss: { s: ['pistol'], rate: 1.4, gain: 0.2, lowpass: 650, click: true },
-	pkm: { s: ['mg'], rate: 0.96, gain: 0.95 },
-	svd: { s: ['svd'], rate: 1, gain: 1 },
-	// новые стволы: SCAR-H и FAL — винтовочный 7,62 ниже тоном, AUG — сухой 5,56, PM-63 — частый пистолетный, SPAS-12 — полуавтомат
-	scar: { s: ['ak1', 'ak2', 'ak3'], rate: 0.8, gain: 0.9 },
-	fnfal: { s: ['svd'], rate: 1.12, gain: 0.85 },
-	aug: { s: ['ak1', 'ak2', 'ak3'], rate: 1.04, gain: 0.72 },
-	pm63: { s: ['pistol'], rate: 1.16, gain: 0.55 },
-	spas12: { s: ['shotgun'], rate: 0.97, gain: 0.95 },
-};
+// голос ствола: у каждого свой выстрел gun_<id>.mp3 (scripts/build-gun-voices.mjs из записей CC-Sounds: высота — по
+// калибру и длине ствола, бас у 7,62 и .50, эхо у винтовок), громкость; SPAS-12 — помпа, Arctic Warfare — затвор
+const GUNS = Object.fromEntries(Object.entries(GUN_GAIN).map(([id, gain]) => [id, { s: [`gun_${id}`], rate: 1, gain }]));
+GUNS.spas12.pump = true;
+GUNS.awm.bolt = true;
 // голоса заражённых: высота записи и громкость
 const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 } };
 // перезарядка по устройству оружия
-const RELOADS = { pistol: 'pistol', pm63: 'pistol', obrez: 'obrez', shotgun: 'pump', spas12: 'pump', pkm: 'belt' };
+const RELOADS = { glock17: 'pistol', deagle: 'pistol', dbarrel: 'obrez', spas12: 'pump', rpk: 'belt' };
 
 function env(node, t, a, peak, dur) {
 	node.gain.setValueAtTime(0.0001, t);
@@ -208,6 +196,7 @@ export const Sfx = {
 		}
 		if (G.click) play('dry', { rate: 0.8 * vary(), gain: 0.55 * w.att, pan: w.pan, delay: 0.02 });
 		if (G.pump) play('bolt', { rate: 1.3, gain: 0.55 * w.att, pan: w.pan, lowpass: w.lowpass, delay: 0.28 }); // передёрнуть цевьё
+		if (G.bolt) play('bolt', { rate: 0.95, gain: 0.6 * w.att, pan: w.pan, lowpass: w.lowpass, delay: 0.5 }); // продольно-скользящий затвор
 	},
 	/** Гильза звякает о землю (shell — пластиковая гильза дроби: глуше). */
 	casing(kind, at) {

@@ -17,7 +17,7 @@ export class Inventory {
 	constructor(game) {
 		this.game = game;
 		this.el = $('inventory');
-		this.selected = 'ammo9';
+		this.selected = 'ammo919';
 		$('inv-close').onclick = () => this.close();
 		this.el.addEventListener('pointerdown', (e) => { if (e.target === this.el) this.close(); });
 		for (const id of ['inv-grid', 'inv-equip']) {
