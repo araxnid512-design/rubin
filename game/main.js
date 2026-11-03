@@ -1688,7 +1688,8 @@ class Bandit extends Actor {
 		}
 		// бой с человеком: за машиной, стеной, блоками — и стрельба из-за угла (coverFight); в обходе — tactics
 		if (this.foe && (!this.foe.alive || this.lastSeenT <= 0)) { this.foe = null; this.pair = null; this.phase = null; }
-		if (this.foe && this.panicT <= 0 && !this.flank && this.coverFight(dt, t)) return true;
+		// (на него бежит заражённый — сначала отстреляться: из-за укрытия — только против людей)
+		if (this.foe && this.panicT <= 0 && !this.flank && (!t || t === this.foe) && this.coverFight(dt, t)) return true;
 		if (t) {
 			this.looting = 0;
 			// укрытия с углом рядом не нашлось (или идёт в обход) — держится у укрытия на дистанции ствола
