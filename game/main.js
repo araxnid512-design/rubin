@@ -1644,6 +1644,9 @@ class Bandit extends Actor {
 			this.aggro = { pos: from.clone(), t: 10 };
 			this.squad?.alarm?.(from);
 			this.spotT = 0; // под огнём — сразу искать укрытие
+			// стрелял герой (или наёмник) — знает, кто и откуда: бой из-за укрытия
+			const shooter = [game.player, ...game.mercs].find((a) => a?.alive && Math.hypot(a.pos.x - from.x, a.pos.z - from.z) < 1.5);
+			if (shooter) { this.foe = shooter; (this.lastSeen ??= new THREE.Vector3()).copy(from); this.lastSeenT = Math.max(this.lastSeenT, 8); }
 		}
 		game.blood(this.pos.clone().setY(1.2), 8, from ? new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize() : new THREE.Vector3(0, 0, 1));
 		if (this.hp <= 0) {
@@ -1676,15 +1679,20 @@ class Bandit extends Actor {
 		this.retarget -= dt;
 		if (this.retarget <= 0 || (this.target && !this.target.alive)) { this.retarget = 0.4; this.target = this.panicT > 0 ? null : game.banditTarget(this); }
 		const t = this.target;
+		if (t && isHuman(t)) {
+			// запомнил человека и где видел, передал своим
+			this.foe = t;
+			(this.lastSeen ??= new THREE.Vector3()).copy(t.pos);
+			this.lastSeenT = 12;
+			if ((this.shoutT -= dt) <= 0) { this.shoutT = 3; this.squad?.alarm?.(t.pos); }
+		}
+		// бой с человеком: за машиной, стеной, блоками — и стрельба из-за угла (coverFight); в обходе — tactics
+		if (this.foe && (!this.foe.alive || this.lastSeenT <= 0)) { this.foe = null; this.pair = null; this.phase = null; }
+		if (this.foe && this.panicT <= 0 && !this.flank && this.coverFight(dt, t)) return true;
 		if (t) {
 			this.looting = 0;
-			if (isHuman(t)) {
-				// запомнил, где видел человека, и передал своим; дальше — тактика: укрытие, дистанция, обход
-				(this.lastSeen ??= new THREE.Vector3()).copy(t.pos);
-				this.lastSeenT = 12;
-				if ((this.shoutT -= dt) <= 0) { this.shoutT = 3; this.squad?.alarm?.(t.pos); }
-				if (this.tactics(dt, t)) return true;
-			}
+			// укрытия с углом рядом не нашлось (или идёт в обход) — держится у укрытия на дистанции ствола
+			if (isHuman(t) && !this.pair && this.tactics(dt, t)) return true;
 			// стоит и стреляет: очередями, с перезарядкой
 			const ang = angleTo(this.pos, t.pos);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, ang, dt * 7);
@@ -1794,6 +1802,128 @@ class Bandit extends Actor {
 		this.play(this.clips.run, { timeScale: sp / HERO_GAIT[this.clips.run] });
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
+	}
+
+	/**
+	 * Бой из-за укрытия: место H за машиной, стеной, блоками или мешками (цели оттуда не видно, укрытие — между ними)
+	 * и рядом угол P, откуда цель видна. Цикл: сидит за укрытием — перезаряжается (заранее, если магазин наполовину
+	 * пуст), перевязывается, ждёт очереди; выглядывает из-за угла (боком, лицом к цели), целится и даёт очередь
+	 * (MUR_TURN); прячется обратно. Разом выглядывают не больше MUR_SHOOTERS. Возвращает true, пока сам ведёт кадр;
+	 * false — стоит на углу и цель видна (стреляет обычным порядком) или подходящего укрытия рядом нет.
+	 */
+	coverFight(dt, t) {
+		const foe = this.foe, seen = t === foe, c = this.clips;
+		if ((this.pairT = (this.pairT ?? 0) - dt) <= 0 || (this.pair && !this.pairGood(this.pair, foe))) {
+			this.pairT = 2.5 + Math.random() * 1.5;
+			if (!this.pair || !this.pairGood(this.pair, foe)) {
+				this.pair = this.findCover(foe);
+				this.phase = 'hide';
+				this.phaseT = 0.4 + Math.random() * 1.0;
+				if (!this.pair) this.pairT = 1 + Math.random() * 0.5; // не нашлось — скоро снова: подойдёт ближе, найдётся
+			}
+		}
+		const P = this.pair;
+		if (!P) return false;
+		if (!seen) this.lastSeenT -= dt; // за укрытием не видно — помнит недолго
+		const hurt = this.hp < this.maxHp * MUR_HURT && !this.healed;
+		const out = this.phase === 'out' && !hurt && this.reloading <= 0;
+		const gx = out ? P.px : P.hx, gz = out ? P.pz : P.hz;
+		const dx = gx - this.pos.x, dz = gz - this.pos.z, dd = Math.hypot(dx, dz);
+		const face = angleTo(this.pos, foe.pos);
+		if (dd > 0.25) {
+			// к углу и обратно за укрытие — боком, лицом к цели; издалека к укрытию — бегом
+			const near = dd < 1.8, sp = near ? 2.4 : 3.6, dir = this.avoidOthers(tmpV.set(dx / dd, 0, dz / dd));
+			this.pos.addScaledVector(dir, Math.min(dd, sp * dt));
+			this.root.rotation.y = turnTowards(this.root.rotation.y, near ? face : Math.atan2(dir.x, dir.z), dt * 10);
+			const clip = near ? c.walk : c.run;
+			this.play(clip, { timeScale: sp / HERO_GAIT[clip] });
+			resolveCollisions(this.pos, this.radius, level.colliders);
+			if ((P.stuck = (P.stuck ?? 0) + dt) > 5) { this.pair = null; this.pairT = 1; }
+			P.at = null;
+			return true;
+		}
+		P.stuck = 0;
+		if (out) {
+			// на углу: сразу смотрит, видна ли цель (полсекунды на то, чтобы заметить); стреляет; очередь вышла,
+			// магазин пуст или цель ушла — обратно за укрытие
+			if (P.at == null) { P.at = game.time; this.retarget = 0; }
+			if ((!seen && game.time - P.at > 0.5) || this.mag <= 0 || !(this.turnT > 0)) { this.phase = 'hide'; this.phaseT = 1.2 + Math.random() * 1.6; P.at = null; return true; }
+			if (!seen) { this.root.rotation.y = turnTowards(this.root.rotation.y, face, dt * 10); this.play(c.aim, { fade: 0.15 }); return true; }
+			return false;
+		}
+		// за укрытием: лицом к цели; перезарядка (заранее, если магазин наполовину пуст), перевязка, ждёт очереди
+		this.root.rotation.y = turnTowards(this.root.rotation.y, face, dt * 6);
+		const idle = () => { if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play(c.aim, { fade: 0.25 }); return true; };
+		if (this.reloading <= 0 && this.mag < this.W.mag * 0.5) this.startReload();
+		if (this.reloading > 0) {
+			if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / this.W.reload });
+			return true;
+		}
+		if (hurt) {
+			if ((this.recover += dt) < MUR_PATCH) return idle();
+			this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.45);
+			this.healed = true;
+		}
+		// долго не видно цели — выкурить гранатой
+		if (!seen && this.lastSeenT < 9 && this.tryGrenade()) return true;
+		if ((this.phaseT -= dt) <= 0 && game.bandits.filter((b) => b !== this && b.alive && b.foe === foe && b.phase === 'out').length < MUR_SHOOTERS) {
+			this.phase = 'out';
+			this.aimAt = foe;
+			this.aimT = 0.6 + Math.random() * 0.4; // ведёт цель из-за укрытия — на углу целится недолго
+			this.turnT = MUR_TURN[0] + Math.random() * (MUR_TURN[1] - MUR_TURN[0]);
+		}
+		return idle();
+	}
+
+	/** Пара «укрытие + угол» ещё годится: из укрытия цели не видно, с угла видно и достаёт, цель не вплотную. */
+	pairGood(P, foe) {
+		const R = this.W.range, d = Math.hypot(foe.pos.x - P.px, foe.pos.z - P.pz);
+		return d < R * 0.95 && d > Math.min(R * 0.3, 3) && !lineOfSight({ x: P.hx, z: P.hz }, foe.pos) && lineOfSight({ x: P.px, z: P.pz }, foe.pos);
+	}
+
+	/**
+	 * Укрытие с углом: места H рядом (16 направлений × 4 расстояния и где стоит), откуда цели не видно и укрытие
+	 * (машина, стена, блок) — между ними, вплотную; для каждого — угол P в 0,9–2,4 м, откуда цель видна. Лучше —
+	 * ближе к себе, на ~70 % дальности ствола, угол поближе к укрытию; не толпятся. null — укрыться негде.
+	 */
+	findCover(foe) {
+		const R = this.W.range, tp = foe.pos, leash = this.boss && this.post ? this.post : null;
+		let best = null;
+		const tryH = (hx, hz, travel) => {
+			if (!navFree(hx, hz) || (travel > 0 && !lineOfSight(this.pos, { x: hx, z: hz }))) return;
+			if (leash && Math.hypot(hx - leash.x, hz - leash.z) > 8) return;
+			const d = Math.hypot(tp.x - hx, tp.z - hz);
+			if (d > R * 1.1 || d < Math.min(R * 0.35, 4) || lineOfSight({ x: hx, z: hz }, tp)) return;
+			if (coverAt(hx, hz, tp) < 1) return; // укрытие вплотную со стороны цели
+			let v = -travel / 7 - Math.abs(d - R * 0.7) / R * 1.2;
+			for (const o of game.bandits) {
+				if (o === this || !o.alive) continue;
+				const ox = o.pair?.hx ?? o.pos.x, oz = o.pair?.hz ?? o.pos.z;
+				if (Math.hypot(ox - hx, oz - hz) < 1.6) v -= 1;
+			}
+			if (best && v - 0.3 <= best.v) return; // угол ищем только у тех, кто может победить
+			let peek = null;
+			for (const r of [0.9, 1.6, 2.4]) { // из-за середины машины — шаг к её концу
+				for (let k = 0; k < 8; k++) {
+					const a = (k / 8) * Math.PI * 2, px = hx + Math.sin(a) * r, pz = hz + Math.cos(a) * r;
+					if (!navFree(px, pz) || !lineOfSight({ x: hx, z: hz }, { x: px, z: pz }) || !lineOfSight({ x: px, z: pz }, tp)) continue;
+					if (Math.hypot(tp.x - px, tp.z - pz) > R * 0.95) continue;
+					peek = [px, pz];
+					break;
+				}
+				if (peek) break;
+			}
+			if (!peek) return;
+			v -= Math.hypot(peek[0] - hx, peek[1] - hz) * 0.4;
+			if (!best || v > best.v) best = { v, hx, hz, px: peek[0], pz: peek[1] };
+		};
+		tryH(this.pos.x, this.pos.z, 0);
+		// кольца погуще: укрытие «вплотную» — полоса меньше метра у машины или стены
+		for (const r of [1.5, 3, 4.5, 6]) for (let k = 0; k < 16; k++) {
+			const a = (k / 16) * Math.PI * 2;
+			tryH(this.pos.x + Math.sin(a) * r, this.pos.z + Math.cos(a) * r, r);
+		}
+		return best;
 	}
 
 	/** Место ещё годится: для стрельбы — цель видна и на своей дистанции; укрытие — цели оттуда не видно. */
