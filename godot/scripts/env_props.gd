@@ -67,10 +67,30 @@ static func fit_scale(have: Vector3, want: Vector3, distort := 0.2) -> Vector3:
 	var hi := mean * (1.0 + distort)
 	return Vector3(clampf(k.x, lo, hi), clampf(k.y, lo, hi), clampf(k.z, lo, hi))
 
+## Один масштаб на все оси (техника, RIGID): длинная сторона модели — по длинной стороне габарита, но поперёк — не
+## больше габарита × RIGID_WIDE (иначе широкая модель торчала бы из коллайдера в стену или соседнюю машину).
+static func rigid_scale(have: Vector3, want: Vector3) -> Vector3:
+	var kx := want.x / maxf(have.x, 0.001)
+	var kz := want.z / maxf(have.z, 0.001)
+	var s := minf(kx, kz * RIGID_WIDE) if want.x >= want.z else minf(kz, kx * RIGID_WIDE)
+	return Vector3.ONE * s
+
 ## Модели без «переда» (стол, ящики, блок): если их длинная сторона легла поперёк габарита — поворот на 90°.
 const AUTO_TURN := {"e_table": true, "e_crate": true, "e_ammo": true, "e_block": true, "e_dumpster": true}
 ## Свой предел искажения: штабель труб и стенку мешков можно тянуть вдоль (коллайдер сплошной — без пустых краёв).
 const DISTORT := {"e_pipes": 0.4, "e_sandbags": 0.4}
+## Техника — без искажения пропорций (жалоба пользователя «машины уродливые»): раньше модель тянули в габарит
+## процедурной машины до ±20 % по каждой оси, и у модели Tripo со своими пропорциями длина выходила на 20–50 % больше
+## высоты и ширины: «Жигули» и «Волга» — длинные и плоские, «Нива» и УАЗ — растянутые лимузины. Теперь масштаб один на
+## все оси (rigid_scale): длина — по габариту, но не шире габарита больше чем в RIGID_WIDE раз (коллайдер прежний).
+const RIGID := {
+	"e_vaz2107": true, "e_vaz_crashed": true, "e_vaz_burned": true, "e_niva": true, "e_volga": true, "e_uaz": true,
+	"e_paz": true, "e_btr80": true, "e_ural": true,
+}
+const RIGID_WIDE := 1.15
+## Оттенок кузова из метки (addCar: цвет краски процедурной машины) — приглушён: у моделей Tripo своя краска, и полный
+## оттенок поверх неё давал грязные и кислотные машины. 0 — своя краска модели, 1 — оттенок как в метке.
+const TINT_MIX := 0.5
 
 ## Поставить предметы из меток в узел parent: MultiMesh по модели и участку. Возвращает число поставленных.
 static func place_all(parent: Node3D, props: Array, chunk: float) -> int:
@@ -88,7 +108,7 @@ static func place_all(parent: Node3D, props: Array, chunk: float) -> int:
 		var turn := AUTO_TURN.has(id) and (want.x - want.z) * (have.x - have.z) < 0.0
 		if turn:
 			have = Vector3(have.z, have.y, have.x)
-		var k := fit_scale(have, want, float(DISTORT.get(id, 0.2)))
+		var k := rigid_scale(have, want) if RIGID.has(id) else fit_scale(have, want, float(DISTORT.get(id, 0.2)))
 		var ry := float(p["ry"])
 		var base := Transform3D(Basis(Vector3.UP, ry), Vector3(float(p["x"]), 0.0, float(p["z"])))
 		var lb := Basis.IDENTITY.scaled(k)
@@ -101,7 +121,7 @@ static func place_all(parent: Node3D, props: Array, chunk: float) -> int:
 			groups[key] = {"id": id, "list": [], "colors": []}
 		groups[key]["list"].append(base * local)
 		var col: Array = p.get("tint", [1.0, 1.0, 1.0])
-		groups[key]["colors"].append(Color(float(col[0]), float(col[1]), float(col[2])))
+		groups[key]["colors"].append(Color.WHITE.lerp(Color(float(col[0]), float(col[1]), float(col[2])), TINT_MIX))
 		n += 1
 	var tinted := {}
 	for key in groups:

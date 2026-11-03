@@ -238,11 +238,12 @@ const carMaterials = () => carMats ??= {
  * в статику локации — машина не стоит лишних вызовов отрисовки. crashed — смят перед, треснуло стекло;
  * burned — обгоревший остов на дисках.
  */
-export function addCar(batch, M, root, x, z, ry, color, { crashed = false, burned = false } = {}) {
-	// метка для Godot: вид, оттенок кузова (у обычной — цвет краски, приглушённый); перед машины — локальная +X
+export function addCar(batch, M, root, x, z, ry, color, { crashed = false, burned = false, model = null } = {}) {
+	// метка для Godot: вид, оттенок кузова (у обычной — цвет краски, приглушённый); перед машины — локальная +X.
+	// model — какая модель Tripo встанет в Godot (иначе — по очереди из списка вида); у неё своя краска, без оттенка
 	const rgb = [(color >> 16) & 255, (color >> 8) & 255, color & 255], top = Math.max(...rgb, 1);
-	const tint = crashed || burned ? [1, 1, 1] : rgb.map((v) => Math.round((0.45 + 0.55 * v / top) * 100) / 100);
-	beginProp(burned ? 'car_burned' : crashed ? 'car_crashed' : 'car', x, z, ry, { tint });
+	const tint = crashed || burned || model ? [1, 1, 1] : rgb.map((v) => Math.round((0.45 + 0.55 * v / top) * 100) / 100);
+	beginProp(burned ? 'car_burned' : crashed ? 'car_crashed' : 'car', x, z, ry, model ? { tint, m: model } : { tint });
 	const C = carMaterials();
 	const paint = T.carPaintMaterial([(color >> 16) & 255, (color >> 8) & 255, color & 255], { burned });
 	const tf = new THREE.Matrix4().compose(new THREE.Vector3(x, crashed ? 0.05 : burned ? -0.1 : 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, crashed ? 0.06 : 0)), new THREE.Vector3(1, 1, 1));

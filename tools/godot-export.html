@@ -127,10 +127,11 @@
 			const scene = new THREE.Scene();
 			PROPS.list.length = 0;
 			const L = buildLevel(scene, { quality: 'medium', id });
-			// метки предметов: модель — по виду (обычные машины — по очереди), без случайности: выгрузка повторяема
+			// метки предметов: модель — по виду (обычные машины — по очереди), без случайности: выгрузка повторяема;
+			// строитель может назвать модель сам (p.m, например УАЗ в стабе), если она есть в godot/assets/tripo
 			const props = PROPS.list.map((p, i) => {
 				const ms = PROP_MODELS[p.t].filter((m) => propModels.has(m));
-				return { ...p, m: ms[i % ms.length] };
+				return { ...p, m: p.m && propModels.has(p.m) ? p.m : ms[i % ms.length] };
 			});
 			// что нужно Godot-версии для игры
 			const meta = {

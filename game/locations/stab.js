@@ -177,8 +177,9 @@ export default {
 
 		// ---------- Техника, ящики, фонари ----------
 		{
-			// грузовик-кунг у казармы
+			// грузовик-кунг у казармы; в Godot вместо коробок — модель «Урала» из Tripo (метка 'truck', кабина — к +Z)
 			const tx = 14.9, tz = -10.5;
+			beginProp('truck', tx, tz, 0);
 			batch.add(place(box(2.4, 1.2, 7, 2), tx, 1.2, tz), M.metalOlive);
 			batch.add(place(box(2.4, 1.7, 2, 1.5), tx, 2.25, tz + 2.5), M.metalOlive);
 			batch.add(place(box(2.5, 2.4, 4.6, 1.5), tx, 3.0, tz - 1.1), M.metalOlive);
@@ -188,9 +189,11 @@ export default {
 				wh.rotateZ(Math.PI / 2);
 				batch.add(place(wh, tx + wx, 0.5, tz + wz), M.tire);
 			}
+			endProp();
 			collide(tx, tz, 2.6, 7.2);
 		}
-		addCar(batch, M, root, -13, -10.5, 0.05, 0x4a5a3a);
+		// оливковая машина охраны: в Godot — УАЗ со своей армейской краской (не перекрашенная гражданская «Волга»)
+		addCar(batch, M, root, -13, -10.5, 0.05, 0x4a5a3a, { model: 'e_uaz' });
 		collide(-13, -10.5, 4.3, 1.8, 0.05);
 		for (const [x, z, r] of [[-16.5, 6, 0.1], [-15.6, 7.1, 0.5], [-16.4, 8.2, 0], [16.2, 6.5, 0.3], [16.4, 7.7, 0]]) {
 			beginProp('crate', x, z, r);
