@@ -9,7 +9,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions, PLAY } from './level.js';
 import { rollHorde } from './horde.js';
-import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, tickMurs, storeLoot, hireMurs } from './murs.js';
+import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, tickMurs, storeLoot, hireMurs, BOSS_HP, BOSS_ARMOR, BOSS_GUN, MUR_NADE_SHARE, MUR_NADE_GAP, MUR_FLANK_GAP, MUR_DROP_AMMO, MUR_DROP_SPORE } from './murs.js';
 import { setAnisotropy, softDotTexture } from './textures.js';
 import { createMarks } from './marks.js';
 import { createFire } from './dressing.js';
@@ -31,7 +31,7 @@ import { OFFLINE } from './assets.js';
 import { clothVariants, dressZombie, bodyVariation } from './variety.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
 import { Inventory } from './inventory.js';
-import { Trade, PEA_RATE, PEARL_PRICE } from './trade.js';
+import { Trade, PEA_RATE, PEARL_PRICE, sellPrice, SELLABLE } from './trade.js';
 import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
 import { IntelWindow, INTEL_PRICE, intelText } from './intel.js';
 import { BUILD } from './version.js';
@@ -766,7 +766,7 @@ class Player extends Actor {
 			this.cooldown = W.cooldown;
 			this.busy = 0.58 / W.speed;
 			Sfx.swing();
-			game.noise(this.pos, W.noise);
+			game.noise(this.pos, W.noise, true);
 			const id = this.weapon;
 			this.pending.push({ t: W.hitTime, fn: () => this.meleeHit(W, id) });
 			game.hud();
@@ -792,7 +792,7 @@ class Player extends Actor {
 		this.busy = W.anim === 'rifle' ? 0.14 : 0.25;
 		this.aim = 0.9;
 		this.ammo--;
-		game.noise(this.pos, W.noise); // выстрел слышно издалека
+		game.noise(this.pos, W.noise, true); // выстрел слышно издалека
 		this.pending.push({ t: aiming ? 0.03 : 0.06, fn: () => this.shotHit(W, this.weapon, target) });
 		if (this.ammo === 0 && (game.bag[W.ammo] ?? 0) > 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
 		game.hud();
@@ -1545,7 +1545,7 @@ class Merc extends Actor {
 		this.state.mag--;
 		this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
 		Sfx.gun(this.def.weapon, shotKind(W), game.ear(this.pos));
-		game.noise(this.pos, W.noise);
+		game.noise(this.pos, W.noise, true);
 		if (W.auto < 0.2) {
 			// очередь по классу: штурмовик — 3–5, пулемётчик — 9–15; потом пауза
 			const [b0, b1] = this.C.burst ?? [3, 5];
@@ -1561,6 +1561,36 @@ class Merc extends Actor {
 
 /** Здоровье мура и сколько он ждёт у тайника, пока выгребает его, с. */
 const MUR_HP = 110, MUR_LOOT_TIME = 1.6;
+/** Раненый (меньше этой доли здоровья) уходит за укрытие перевязаться — раз за бой, через MUR_PATCH с +45 % здоровья. */
+const MUR_HURT = 0.35, MUR_PATCH = 3;
+
+/** Свободна ли клетка сетки проходимости в точке (сетка уже с отступом от стен — тело помещается). */
+function navFree(x, z) {
+	if (Math.abs(x) > PLAY - 1 || Math.abs(z) > PLAY - 1) return false;
+	const { N, blocked, cell } = level.nav, [gx, gz] = cell(x, z);
+	return !blocked[gz * N + gx];
+}
+
+/** Ближайшая к (x, z) свободная точка в пределах 3 м (или сама точка). */
+function freeNear(x, z) {
+	if (navFree(x, z)) return [x, z];
+	for (let r = 0.5; r <= 3; r += 0.5) for (let k = 0; k < 12; k++) {
+		const a = (k / 12) * Math.PI * 2, px = x + Math.sin(a) * r, pz = z + Math.cos(a) * r;
+		if (navFree(px, pz)) return [px, pz];
+	}
+	return [x, z];
+}
+
+/** Укрытие у точки: 1 — препятствие рядом со стороны цели (выглядывает из-за угла), 0,3 — рядом сбоку или сзади. */
+function coverAt(x, z, tp) {
+	const a = Math.atan2(tp.x - x, tp.z - z);
+	let c = 0;
+	for (let k = 0; k < 6; k++) {
+		const ang = a + (k < 3 ? (k - 1) : 3 + (k - 4)) * (Math.PI / 3);
+		if (!navFree(x + Math.sin(ang) * 0.9, z + Math.cos(ang) * 0.9)) c = Math.max(c, k < 3 ? 1 : 0.3);
+	}
+	return c;
+}
 
 /**
  * Мур — бандит из стаба «Карьер» (учёт — game/murs.js). Ходит отрядом (squad): на вылазке группа (вся куча или пара)
@@ -1569,15 +1599,22 @@ const MUR_HP = 110, MUR_LOOT_TIME = 1.6;
  * и его. Патроны в запасе не кончаются — только перезарядка. Ранили — помнит, откуда (aggro), и идёт туда.
  */
 class Bandit extends Actor {
-	constructor(pos, weapon, squad, { post = null } = {}) {
-		super(assets.player);
+	constructor(pos, weapon, squad, { post = null, boss = false, patrol = null } = {}) {
+		super(assets.player, { scale: boss ? 1.08 : 1 });
 		this.type = 'bandit';
 		this.weapon = weapon;
 		this.W = WEAPONS[weapon];
 		this.clips = CLIPS[this.W.anim];
 		this.squad = squad;
 		this.post = post;
-		this.hp = MUR_HP;
+		// главарь: крупнее, в бронежилете (BOSS_ARMOR), больше здоровья; патрульный ходит по маршруту
+		this.boss = boss;
+		this.hp = this.maxHp = boss ? BOSS_HP : MUR_HP;
+		this.patrol = patrol ? { pts: patrol, i: 0, flows: [] } : null;
+		this.grenades = boss ? 2 : Math.random() < MUR_NADE_SHARE ? 1 : 0;
+		// тактика (tactics): место у укрытия, обход (flank: ±1 — с какой стороны), перевязка, паника без главаря
+		this.spot = null; this.spotT = Math.random(); this.flank = 0; this.healed = false; this.recover = 0;
+		this.panicT = 0; this.shoutT = 0; this.lastSeenT = 0; this.throwT = 0;
 		this.alive = true;
 		this.radius = 0.38;
 		this.scale = 1;
@@ -1585,7 +1622,7 @@ class Bandit extends Actor {
 		this.cooldown = Math.random(); this.reloading = 0; this.burstLeft = 0; this.retarget = Math.random() * 0.4; this.timer = 0;
 		this.offset = new THREE.Vector2((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3); // место в куче
 		// тёмная разношёрстная одежда — не форма, у каждого свой оттенок
-		const tint = new THREE.Color().setHSL(Math.random(), 0.18, 0.18 + Math.random() * 0.14).multiplyScalar(2.4);
+		const tint = boss ? new THREE.Color(0.62, 0.3, 0.26) : new THREE.Color().setHSL(Math.random(), 0.18, 0.18 + Math.random() * 0.14).multiplyScalar(2.4);
 		this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (/Cloth|Gear/.test(m.name)) m.color.multiply(tint); });
 		this.gunObj = this.W.make();
 		this.model.getObjectByName('GripR')?.add(this.gunObj);
@@ -1597,6 +1634,7 @@ class Bandit extends Actor {
 	/** Попадание (пуля, осколки, удар заражённого). from — откуда: туда мур и пойдёт разбираться. */
 	damage(dmg, from, knock = 0.2) {
 		if (!this.alive) return;
+		if (this.boss) dmg *= BOSS_ARMOR;
 		this.hp -= dmg;
 		this.hitFlash();
 		if (from) {
@@ -1605,6 +1643,7 @@ class Bandit extends Actor {
 			resolveCollisions(this.pos, this.radius, level.colliders);
 			this.aggro = { pos: from.clone(), t: 10 };
 			this.squad?.alarm?.(from);
+			this.spotT = 0; // под огнём — сразу искать укрытие
 		}
 		game.blood(this.pos.clone().setY(1.2), 8, from ? new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize() : new THREE.Vector3(0, 0, 1));
 		if (this.hp <= 0) {
@@ -1624,15 +1663,29 @@ class Bandit extends Actor {
 		if (!this.alive) { this.timer += dt; return this.timer < 12; }
 		const W = this.W, c = this.clips;
 		this.cooldown -= dt;
+		if (this.panicT > 0) this.panicT -= dt;
+		// бросает гранату: замах, на 0,27 с граната летит
+		if (this.throwT > 0) {
+			this.throwT -= dt;
+			if (this.nade && (this.nade.t -= dt) <= 0) { game.launchGrenade(this.pos.clone().setY(1.7), this.nade.to, 2.4, true); this.nade = null; }
+			return true;
+		}
 		if (this.aggro && (this.aggro.t -= dt) <= 0) this.aggro = null;
 		if (this.alarmT != null && (this.alarmT -= dt) <= 0) { this.aggro = { pos: this.alarmPos, t: 12 }; this.alarmT = null; }
 		if (this.reloading > 0 && (this.reloading -= dt) <= 0) this.mag = W.mag;
 		this.retarget -= dt;
-		if (this.retarget <= 0 || (this.target && !this.target.alive)) { this.retarget = 0.4; this.target = game.banditTarget(this); }
+		if (this.retarget <= 0 || (this.target && !this.target.alive)) { this.retarget = 0.4; this.target = this.panicT > 0 ? null : game.banditTarget(this); }
 		const t = this.target;
 		if (t) {
-			// стоит и стреляет: очередями, с перезарядкой
 			this.looting = 0;
+			if (isHuman(t)) {
+				// запомнил, где видел человека, и передал своим; дальше — тактика: укрытие, дистанция, обход
+				(this.lastSeen ??= new THREE.Vector3()).copy(t.pos);
+				this.lastSeenT = 12;
+				if ((this.shoutT -= dt) <= 0) { this.shoutT = 3; this.squad?.alarm?.(t.pos); }
+				if (this.tactics(dt, t)) return true;
+			}
+			// стоит и стреляет: очередями, с перезарядкой
 			const ang = angleTo(this.pos, t.pos);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, ang, dt * 7);
 			const facing = Math.abs(((ang - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
@@ -1655,30 +1708,177 @@ class Bandit extends Actor {
 			return true;
 		}
 		this.turnT = 0; // цели нет — очередь стрелять другим
-		// куда идти: к цели группы (тайник, выход) или к посту; раненый — туда, откуда стреляли
-		const goal = this.aggro?.pos ?? this.squad?.goalFor?.(this) ?? (this.post ? tmpV2.set(this.post.x, 0, this.post.z) : null);
+		// главаря убили — бежит за укрытие от героя и пережидает; перезаряжается или перевязывается в укрытии — сидит там
+		if (this.panicT > 0 && this.tactics(dt, game.player)) return true;
+		if (this.holdCover(dt)) return true;
+		// потерял человека из виду — идёт туда, где видел; засел в 5–14 м — выкурить гранатой
+		if (this.lastSeenT > 0) {
+			this.lastSeenT -= dt;
+			if (!this.aggro) this.aggro = { pos: this.lastSeen.clone(), t: 8, human: true };
+			if (this.tryGrenade()) return true;
+		}
+		// главарь от своей будки далеко не уходит
+		if (this.boss && this.post && this.aggro && Math.hypot(this.aggro.pos.x - this.post.x, this.aggro.pos.z - this.post.z) > 9) this.aggro = null;
+		// куда идти: к цели группы (тайник, выход), по маршруту патруля или к посту; раненый — туда, откуда стреляли
+		const goal = this.aggro?.pos ?? this.squad?.goalFor?.(this) ?? this.patrolGoal() ?? (this.post ? tmpV2.set(this.post.x, 0, this.post.z) : null);
 		const d = goal ? Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z) : 0;
 		if (!goal || d < (this.post && !this.aggro ? 0.5 : 1.2)) {
+			if (this.patrol && !this.aggro) { this.patrol.i = (this.patrol.i + 1) % this.patrol.pts.length; return true; }
 			if (this.post && !this.aggro) this.root.rotation.y = turnTowards(this.root.rotation.y, this.post.ry ?? 0, dt * 2);
 			if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play(c.idle, { fade: 0.3 });
 			this.squad?.arrived?.(this, dt);
 			return true;
 		}
-		let dir = lineOfSight(this.pos, goal) ? tmpV.set(goal.x - this.pos.x, 0, goal.z - this.pos.z).normalize() : this.aggro ? game.flowDir(this.pos) : this.squad?.stepFor?.(this);
+		let dir = lineOfSight(this.pos, goal) ? tmpV.set(goal.x - this.pos.x, 0, goal.z - this.pos.z).normalize() : this.aggro ? game.flowDir(this.pos) : this.patrol ? this.patrolStep() : this.squad?.stepFor?.(this);
 		if (!dir) dir = tmpV.set(goal.x - this.pos.x, 0, goal.z - this.pos.z).normalize();
-		// не наступает на своих
-		for (const o of game.bandits) {
-			if (o === this || !o.alive) continue;
-			const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, r = Math.hypot(dx, dz);
-			if (r < 0.8 && r > 1e-4) { dir.x += (dx / r) * (0.8 - r) * 2; dir.z += (dz / r) * (0.8 - r) * 2; }
-		}
-		dir.normalize();
-		const run = !!this.aggro || this.squad?.hurry;
+		this.avoidOthers(dir);
+		// за тем, где видели человека, — шагом, осторожно; на тревогу и на выход — бегом
+		const run = (!!this.aggro && !this.aggro.human) || this.squad?.hurry;
 		const speed = run ? 3.8 : 1.6;
 		this.pos.addScaledVector(dir, speed * dt);
 		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 8);
 		this.play(run ? c.run : c.walk, { timeScale: speed / HERO_GAIT[run ? c.run : c.walk] });
 		resolveCollisions(this.pos, this.radius, level.colliders);
+		return true;
+	}
+
+	/** Не наступает на своих: dir отталкивается от муров ближе 0,8 м (нормируется). */
+	avoidOthers(dir) {
+		for (const o of game.bandits) {
+			if (o === this || !o.alive) continue;
+			const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, r = Math.hypot(dx, dz);
+			if (r < 0.8 && r > 1e-4) { dir.x += (dx / r) * (0.8 - r) * 2; dir.z += (dz / r) * (0.8 - r) * 2; }
+		}
+		return dir.normalize();
+	}
+
+	/** Точка маршрута патруля (обходят двор по кругу), пока нет тревоги. */
+	patrolGoal() {
+		if (!this.patrol || this.aggro) return null;
+		const [x, z] = this.patrol.pts[this.patrol.i];
+		return tmpV2.set(x, 0, z);
+	}
+
+	/** Шаг к точке маршрута в обход препятствий (поле путей к каждой точке — один раз). */
+	patrolStep() {
+		const P = this.patrol, [x, z] = P.pts[P.i];
+		return flowStep(P.flows[P.i] ??= flowFrom(x, z), this.pos);
+	}
+
+	/**
+	 * Бой с человеком: держится у укрытия на дистанции своего ствола (не лезет вплотную и не стоит в чистом поле),
+	 * перезаряжается и перевязывается за укрытием, по команде (flank) обходит цель сбоку. Возвращает true, пока
+	 * перебегает к месту (стрелять некогда); на месте стреляет как обычно.
+	 */
+	tactics(dt, t) {
+		const hurt = this.hp < this.maxHp * MUR_HURT && !this.healed;
+		const mode = hurt || this.reloading > 0 || this.panicT > 0 ? 'hide' : 'fire';
+		if (this.spot && this.spot.mode !== mode) this.spot = null;
+		if ((this.spotT -= dt) <= 0) {
+			this.spotT = 1.4 + Math.random() * 1.2;
+			if (!this.spot || !this.spotGood(this.spot, t)) this.spot = this.findSpot(t, mode);
+		}
+		const s = this.spot;
+		if (!s) return false;
+		const dx = s.x - this.pos.x, dz = s.z - this.pos.z, dd = Math.hypot(dx, dz);
+		if (dd < 0.4) {
+			s.reached = true;
+			if (s.flank) this.flank = 0; // обошёл
+			return false;
+		}
+		s.reached = false;
+		if ((s.t = (s.t ?? 0) + dt) > 4) { this.spot = null; return false; } // не добежал — бросает
+		const sp = 3.6, dir = this.avoidOthers(tmpV.set(dx / dd, 0, dz / dd));
+		this.pos.addScaledVector(dir, Math.min(dd, sp * dt));
+		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
+		this.play(this.clips.run, { timeScale: sp / HERO_GAIT[this.clips.run] });
+		resolveCollisions(this.pos, this.radius, level.colliders);
+		return true;
+	}
+
+	/** Место ещё годится: для стрельбы — цель видна и на своей дистанции; укрытие — цели оттуда не видно. */
+	spotGood(s, t) {
+		const see = lineOfSight(s, t.pos);
+		if (s.mode === 'hide') return !see;
+		const d = Math.hypot(t.pos.x - s.x, t.pos.z - s.z);
+		return see && d < this.W.range * 0.95;
+	}
+
+	/**
+	 * Лучшее место рядом (12 направлений × 3 расстояния; к месту — прямой путь). Для стрельбы: цель видна, дистанция
+	 * ~70 % дальности ствола, рядом укрытие, в обходе — сбоку от цели; для укрытия: цели не видно (раненый — подальше).
+	 * Не толпятся: чужое место ближе 1,8 м — хуже. null — и тут неплохо.
+	 */
+	findSpot(t, mode) {
+		const R = this.W.range, tp = t.pos, far = this.flank ? [3, 6, 9] : [2.5, 4.5, 7];
+		const leash = this.boss && this.post ? this.post : null; // главарь — у своей будки
+		let px = 0, pz = 0;
+		if (this.flank && this.flankAxis) { px = this.flankAxis.z * this.flank; pz = -this.flankAxis.x * this.flank; }
+		const score = (x, z, travel) => {
+			if (!navFree(x, z) || (travel > 0 && !lineOfSight(this.pos, { x, z }))) return null;
+			if (leash && Math.hypot(x - leash.x, z - leash.z) > 8) return null;
+			const d = Math.hypot(tp.x - x, tp.z - z), see = lineOfSight({ x, z }, tp);
+			let v = -travel / 7, side = 0;
+			if (mode === 'fire') {
+				if (!see || d > R * 0.95 || d < Math.min(R * 0.4, 5)) return null;
+				v += -Math.abs(d - R * 0.7) / R * 1.5 + coverAt(x, z, tp) * 1.2;
+				if (px || pz) { side = ((x - tp.x) * px + (z - tp.z) * pz) / (d || 1); v += side * 2; }
+			} else {
+				if (see) return null;
+				v += coverAt(x, z, tp) * 0.3 + (this.panicT > 0 || this.hp < this.maxHp * MUR_HURT ? d / R * 0.6 : 0);
+			}
+			for (const o of game.bandits) {
+				if (o === this || !o.alive) continue;
+				if (Math.hypot((o.spot?.x ?? o.pos.x) - x, (o.spot?.z ?? o.pos.z) - z) < 1.8) v -= 0.8;
+			}
+			return { v, side };
+		};
+		const here = score(this.pos.x, this.pos.z, 0);
+		let best = null;
+		for (const r of far) for (let k = 0; k < 12; k++) {
+			const a = (k / 12) * Math.PI * 2, x = this.pos.x + Math.sin(a) * r, z = this.pos.z + Math.cos(a) * r;
+			const sc = score(x, z, r);
+			if (sc && (!best || sc.v > best.v)) best = { ...sc, x, z };
+		}
+		if (!best || (here && best.v < here.v + 0.4)) return null;
+		return { x: best.x, z: best.z, mode, flank: best.side > 0.6 };
+	}
+
+	/** В укрытии: перезаряжается, перевязывается (раненый, раз за бой) или пережидает панику — с места не уходит. */
+	holdCover(dt) {
+		const s = this.spot, c = this.clips;
+		if (!s || s.mode !== 'hide' || !s.reached) return false;
+		const busy = () => { if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) this.play(c.idle, { fade: 0.3 }); return true; };
+		if (this.reloading > 0) {
+			if (this.current !== c.reload) this.play(c.reload, { once: true, fade: 0.15, timeScale: this.actions[c.reload].getClip().duration / this.W.reload });
+			return true;
+		}
+		if (this.hp < this.maxHp * MUR_HURT && !this.healed) {
+			if ((this.recover += dt) < MUR_PATCH) return busy();
+			this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.45);
+			this.healed = true;
+		}
+		if (this.panicT > 0) return busy();
+		this.spot = null;
+		return false;
+	}
+
+	/** Засевшего (видели, а сейчас не видно) в 5–14 м — гранатой, если своих там нет и отряду пора (MUR_NADE_GAP). */
+	tryGrenade() {
+		if (!(this.grenades > 0) || this.reloading > 0 || this.panicT > 0 || game.time < (game.murNadeAt ?? 0)) return false;
+		const p = this.lastSeen, d = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+		if (d < 5 || d > 14 || !game.player.alive) return false;
+		if (game.bandits.some((b) => b.alive && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 7)) return false;
+		const boss = game.murBoss?.alive;
+		game.murNadeAt = game.time + (boss ? MUR_NADE_GAP[0] : MUR_NADE_GAP[1]);
+		this.grenades--;
+		this.root.rotation.y = angleTo(this.pos, p);
+		this.play('Melee', { once: true, fade: 0.06, restart: true, timeScale: 1.25 });
+		Sfx.swing();
+		this.throwT = 0.6;
+		this.nade = { t: 0.27, to: p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0, (Math.random() - 0.5) * 1.5)) };
+		if (boss) game.bossShout('Гранату ему!');
+		if (Math.hypot(p.x - game.player.pos.x, p.z - game.player.pos.z) < 10) game.toast('Граната! Беги из красного круга', 'warn');
 		return true;
 	}
 
@@ -1803,6 +2003,8 @@ class Garrison {
 
 	/** Тревога расходится по «Карьеру» постепенно: кто ближе к месту — идёт сразу, дальние — позже. */
 	alarm(from) {
+		// первая тревога — сирена над «Карьером» и окрик главаря
+		if (!this.alerted) { Sfx.siren(); game.bossShout('Тревога! Валите его!'); }
 		this.alerted = from.clone();
 		for (const b of game.bandits) {
 			if (!b.alive || b.aggro || b.alarmT != null) continue;
@@ -1814,7 +2016,7 @@ class Garrison {
 	update(dt) {
 		// кто-то видит героя — поднимает всех
 		if (game.bandits.some((b) => b.alive && b.target === game.player)) this.alarm(game.player.pos);
-		const alive = game.bandits.filter((b) => b.alive).length;
+		const alive = game.bandits.filter((b) => b.alive && !b.boss).length;
 		if (this.reserve <= 0 || alive >= 14 || (this.t -= dt) > 0) return;
 		this.t = this.alerted ? 5 : 8;
 		this.reserve--;
@@ -1904,7 +2106,7 @@ const game = {
 		const raid = this.world?.murs?.raid;
 		if (raid?.live) { raid.live = false; raid.size = this.bandits.filter((b) => b.alive && !b.left).length; }
 		for (const b of this.bandits) b.dispose();
-		this.bandits = []; this.raidSquad = null; this.garrison = null;
+		this.bandits = []; this.raidSquad = null; this.garrison = null; this.murBoss = null;
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
 		marks.clear();
@@ -2049,6 +2251,7 @@ const game = {
 		for (const ev of tickMurs(murs, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1)) {
 			if (ev.started?.live && level) this.startLiveRaid(ev.started);
 			if (ev.ended) this.markRaided(ev.ended.at, ev.summary.mark);
+			if (ev.newBoss) this.toast(`У муров новый главарь — «${ev.newBoss}». Снова пойдут на вылазки`);
 		}
 	},
 
@@ -2123,15 +2326,71 @@ const game = {
 		return best;
 	},
 
-	/** Мур убит: его ствол бывает на земле, патроны к нему и спораны — всегда; в «Карьере» стало меньше. */
+	/**
+	 * Отряд муров в бою с человеком: раз в несколько секунд кто-то идёт в обход — с главарём двое и с разных сторон
+	 * (он и кричит), без него — один и реже (MUR_FLANK_GAP). Гранаты по засевшему — Bandit.tryGrenade.
+	 */
+	coordinateMurs(dt) {
+		if ((this.murOrderT = (this.murOrderT ?? 3) - dt) > 0) return;
+		const boss = this.murBoss?.alive ? this.murBoss : null;
+		this.murOrderT = (boss ? MUR_FLANK_GAP[0] : MUR_FLANK_GAP[1]) * (0.8 + Math.random() * 0.4);
+		const engaged = this.bandits.filter((b) => b.alive && !b.boss && b.target && isHuman(b.target) && b.panicT <= 0);
+		if (engaged.length < 3 || engaged.some((b) => b.flank)) return;
+		const t = engaged[0].target, n = boss ? 2 : 1;
+		const cx = engaged.reduce((a, b) => a + b.pos.x, 0) / engaged.length, cz = engaged.reduce((a, b) => a + b.pos.z, 0) / engaged.length;
+		const axis = new THREE.Vector3(cx - t.pos.x, 0, cz - t.pos.z);
+		if (axis.lengthSq() < 1e-4) return;
+		axis.normalize();
+		engaged.sort((a, b) => b.hp - a.hp).slice(0, n).forEach((b, i) => { b.flank = i % 2 ? -1 : 1; b.flankAxis = axis; b.spot = null; b.spotT = 0; });
+		if (boss) this.bossShout(n === 2 ? 'Обходи с двух сторон!' : 'Обходи его!');
+	},
+
+	/** Окрик главаря — в ленту, если герой рядом (не чаще раза в 6 с). */
+	bossShout(text) {
+		const b = this.murBoss;
+		if (!b?.alive || this.time < (this.shoutAt ?? 0) || Math.hypot(b.pos.x - this.player.pos.x, b.pos.z - this.player.pos.z) > 35) return;
+		this.shoutAt = this.time + 6;
+		this.toast(`Главарь «${this.world.murs.boss?.name ?? ''}»: «${text}»`, 'warn');
+	},
+
+	/** Полоска здоровья главаря вверху: когда он рядом или дерётся с героем. */
+	updateBossBar() {
+		const b = this.murBoss, el = $('boss-bar');
+		const show = !!(b?.alive && this.state === 'play' && (b.target === this.player || Math.hypot(b.pos.x - this.player.pos.x, b.pos.z - this.player.pos.z) < 22));
+		if (show !== !el.classList.contains('hidden')) el.classList.toggle('hidden', !show);
+		if (!show) return;
+		const k = Math.round((b.hp / b.maxHp) * 100);
+		if (k !== this.bossHpShown) {
+			this.bossHpShown = k;
+			$('boss-name').textContent = `Главарь муров «${this.world.murs.boss?.name ?? ''}»`;
+			$('boss-hp').style.width = `${k}%`;
+		}
+	},
+
+	/**
+	 * Мур убит: стволы с муров не падают, лута вчетверо меньше прежнего — горсть патронов к его стволу и бывает споран
+	 * (MUR_DROP_* в game/murs.js); в «Карьере» стало меньше. Главарь — не из полусотни: его смерть — паника и без
+	 * вылазок, пока не выберут нового.
+	 */
 	banditDied(b) {
 		this.kills++;
 		Sfx.death('human', this.ear(b.pos));
 		this.decal(b.pos, 1.6);
 		const near = (dx, dz) => b.pos.clone().add(new THREE.Vector3(dx, 0, dz));
-		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), 10 + Math.floor(Math.random() * 21));
-		if (Math.random() < 0.3) this.spawnPickup(b.weapon, near(-0.5, -0.2), 1);
-		this.spawnPickup('spore', near(0, -0.5), 1 + Math.floor(Math.random() * 3));
+		const [a0, a1] = MUR_DROP_AMMO;
+		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), a0 + Math.floor(Math.random() * (a1 - a0 + 1)));
+		if (b.boss) {
+			this.spawnPickup('spore', near(0, -0.5), 15 + Math.floor(Math.random() * 11));
+			const m = this.world.murs;
+			m.boss = { ...(m.boss ?? {}), alive: false };
+			this.murBoss = null;
+			for (const o of this.bandits) if (o.alive) { o.panicT = 5 + Math.random() * 4; o.spot = null; o.flank = 0; }
+			this.banner('Главарь убит', `«${m.boss.name ?? 'Главарь'}» мёртв — муры в замешательстве. Без главаря на вылазки не пойдут, пока не выберут нового`);
+			this.hud();
+			this.save();
+			return;
+		}
+		if (Math.random() < MUR_DROP_SPORE) this.spawnPickup('spore', near(0, -0.5), 1);
 		this.world.murs.count = Math.max(0, this.world.murs.count - 1);
 		if (this.raidSquad && this.raidSquad.raid) this.raidSquad.raid.size = Math.max(0, this.raidSquad.raid.size - 1);
 		this.hud();
@@ -2144,13 +2403,30 @@ const game = {
 	populateMurs() {
 		const murs = this.world.murs;
 		const home = Math.max(0, murs.count - (murs.raid ? murs.raid.size : 0));
-		// ворота и вышки заняты всегда, остальные посты — как выпадет
-		const all = level.posts ?? [], posts = [...all.slice(0, 6), ...all.slice(6).sort(() => Math.random() - 0.5)];
+		// ворота, вышки и охрана главаря заняты всегда (fixedPosts), остальные посты — как выпадет
+		const all = level.posts ?? [], fix = level.fixedPosts ?? 6, posts = [...all.slice(0, fix), ...all.slice(fix).sort(() => Math.random() - 0.5)];
 		const active = Math.min(14, home, posts.length);
 		this.garrison = new Garrison(home - active, level.barracksDoor ?? { x: 0, z: 0 });
-		for (let i = 0; i < active; i++) {
-			const [x, z, ry] = posts[i];
-			this.bandits.push(new Bandit(new THREE.Vector3(x, 0, z), MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)], this.garrison, { post: { x, z, ry } }));
+		const gun = () => MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)];
+		// по двое на маршрут патруля — из числа часовых (когда их хватает); точки — на свободном месте
+		const routes = (active >= 10 ? level.patrols ?? [] : []).map((r) => r.map(([x, z]) => freeNear(x, z)));
+		let i = 0;
+		for (const r of routes) for (let k = 0; k < 2; k++, i++) {
+			const [x, z] = r[k * Math.floor(r.length / 2)];
+			const b = new Bandit(new THREE.Vector3(x, 0, z), gun(), this.garrison, { patrol: r });
+			b.patrol.i = (k * Math.floor(r.length / 2) + 1) % r.length;
+			this.bandits.push(b);
+		}
+		for (let j = 0; i < active; i++, j++) {
+			const [x, z, ry] = posts[j];
+			this.bandits.push(new Bandit(new THREE.Vector3(x, 0, z), gun(), this.garrison, { post: { x, z, ry } }));
+		}
+		// главарь — у своей будки (жив и в «Карьере» есть кто-то)
+		this.murBoss = null;
+		if (murs.boss?.alive !== false && home > 0 && level.bossPost) {
+			const [x, z, ry] = level.bossPost;
+			this.murBoss = new Bandit(new THREE.Vector3(x, 0, z), BOSS_GUN, this.garrison, { post: { x, z, ry }, boss: true });
+			this.bandits.push(this.murBoss);
 		}
 		// запасы — по шкафам склада и будки главаря поровну; остальная мебель — как в любом доме
 		const store = level.containers.filter((c) => /Storage|Boss/.test(c.building));
@@ -2288,8 +2564,18 @@ const game = {
 	},
 
 	/** Шум: заражённые в радиусе r идут на звук. */
-	noise(pos, r) {
+	/**
+	 * Шум (выстрел, взрыв) на r м: заражённые рядом просыпаются. human — стрелял человек (герой, наёмник): муры без
+	 * цели, кому слышно (ближе 70 % радиуса), идут проверить — дальние чуть позже.
+	 */
+	noise(pos, r, human = false) {
 		for (const e of this.enemies) if (e.state === 'idle' && e.pos.distanceTo(pos) < r) e.alert();
+		if (!human) return;
+		for (const b of this.bandits) {
+			if (!b.alive || b.target || b.aggro || b.alarmT != null || b.panicT > 0) continue;
+			const d = Math.hypot(b.pos.x - pos.x, b.pos.z - pos.z);
+			if (d < r * 0.7) { b.alarmT = 0.4 + d * 0.06; b.alarmPos = pos.clone(); }
+		}
 	},
 
 	banner(title, sub) {
@@ -2563,6 +2849,41 @@ const game = {
 	},
 
 	/** Обменять n горошин на спораны. */
+	/**
+	 * Продать торговцу: ствол (kind — id оружия; что в магазине — в рюкзак, в слот — запасное того же слота или
+	 * кулаки) или n патронов/гранат. Цена — trade.js (sellPrice).
+	 */
+	sell(kind, n = 1) {
+		const kit = this.kit, W = WEAPONS[kind], p = this.player;
+		let price;
+		if (W) {
+			if (kind === 'fists' || !kit.owned.includes(kind)) return;
+			price = sellPrice(kind, 1, W.durability ? kit.wear[kind] ?? W.durability : null);
+			if (W.ammo && kit.mags[kind] > 0) this.bag[W.ammo] = (this.bag[W.ammo] ?? 0) + kit.mags[kind];
+			kit.owned = kit.owned.filter((w) => w !== kind);
+			delete kit.mags[kind]; delete kit.wear[kind];
+			if (kit.gear[W.slot] === kind) kit.gear[W.slot] = kit.owned.find((w) => WEAPONS[w].slot === W.slot) ?? (W.slot === 'melee' ? 'fists' : null);
+			if (p) {
+				if (p.hold === 'gun' && !kit.gear.gun) p.hold = 'melee';
+				p.models[kind]?.removeFromParent();
+				delete p.models[kind];
+				p.attachGear();
+			}
+			this.toast(`${W.name} продан — +${price} ${plural(price, ITEMS.spore.forms)}`);
+		} else {
+			if (!SELLABLE.includes(kind)) return;
+			n = Math.min(n, this.bag[kind] ?? 0);
+			price = sellPrice(kind, n);
+			if (n <= 0 || price < 1) return;
+			this.bag[kind] -= n;
+			this.toast(`${ITEMS[kind].name}: −${n}, +${price} ${plural(price, ITEMS.spore.forms)}`);
+		}
+		this.bag.spore = (this.bag.spore ?? 0) + price;
+		Sfx.coins();
+		this.hud();
+		this.save();
+	},
+
 	exchangePeas(n) {
 		n = Math.min(n, this.bag.peas ?? 0);
 		if (n <= 0) return;
@@ -2819,8 +3140,15 @@ const game = {
 	},
 
 	/** Полёт гранаты дугой; fuse — через сколько после броска взрыв (у героя — 2 с, у подрывника — выдержана). */
-	launchGrenade(from, to, fuse = 2.0) {
+	launchGrenade(from, to, fuse = 2.0, warn = false) {
 		const g = makeGrenade();
+		// граната мура: красный круг на земле — куда упадёт и докуда достанут осколки (успеть выбежать)
+		let ring = null;
+		if (warn) {
+			ring = new THREE.Mesh(new THREE.RingGeometry(5.5, 6, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.5, depthWrite: false }));
+			ring.position.set(to.x, 0.07, to.z);
+			scene.add(ring);
+		}
 		g.scale.setScalar(1.4);
 		g.position.copy(from);
 		scene.add(g);
@@ -2836,9 +3164,10 @@ const game = {
 				g.position.y = start.y + (end.y - start.y) * k + Math.sin(Math.PI * k) * (1.2 + d * 0.12);
 				g.rotation.x += spin.x * dt; g.rotation.y += spin.y * dt;
 			}
+			if (ring) ring.material.opacity = 0.35 + 0.25 * Math.sin(fuse * 14);
 			if (fuse <= 0) { this.explode(g.position.clone()); return false; }
 			return true;
-		}, dispose: () => scene.remove(g) });
+		}, dispose: () => { scene.remove(g); if (ring) { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } } });
 	},
 
 	/** Взрыв: осколки ранят всех в радиусе 6 м (и героя с наёмниками), шум на весь кластер. */
@@ -3425,6 +3754,8 @@ function update(dt) {
 	for (const n of game.npcs) n.update(dt);
 	game.mercs = game.mercs.filter((m) => { const keep = m.update(dt); if (!keep) m.dispose(); return keep; });
 	game.bandits = game.bandits.filter((b) => { const keep = b.update(dt); if (!keep) b.dispose(); return keep; });
+	if (game.bandits.length) game.coordinateMurs(dt);
+	game.updateBossBar();
 	game.raidSquad?.update(dt);
 	game.garrison?.update(dt);
 

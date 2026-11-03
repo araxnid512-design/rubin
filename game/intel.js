@@ -15,7 +15,9 @@ export function intelText(murs, now) {
 		const how = r.mode === 'pairs' ? 'ходят парами' : 'идут кучей';
 		return `Отряд муров — ${r.size} ${plural(r.size, ['ствол', 'ствола', 'стволов'])} — сейчас в кластере «${NODES[r.at].short}», ${how}. Уйдут примерно через ${approx(Math.max(0, r.end - now))}. Отметил тебе на карте.`;
 	}
-	return `Сейчас муры сидят в «Карьере», их около ${murs.count}. Следующая вылазка — примерно через ${approx(Math.max(0, murs.nextRaid - now))}, а куда — пока не знаю: заходи потом.`;
+	const boss = murs.boss;
+	if (boss && !boss.alive) return `Главаря муров кто-то положил — сидят в «Карьере» без него, их около ${murs.count}, на вылазки не ходят. Нового выберут, когда пополнятся — часа через два.`;
+	return `Сейчас муры сидят в «Карьере», их около ${murs.count}${boss ? `, верховодит главарь «${boss.name}» — в бронежилете, при охране, у своей будки` : ''}. Следующая вылазка — примерно через ${approx(Math.max(0, murs.nextRaid - now))}, а куда — пока не знаю: заходи потом.`;
 }
 
 const $ = (id) => document.getElementById(id);

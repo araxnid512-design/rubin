@@ -211,6 +211,21 @@ export const Sfx = {
 		burst({ dur: 0.25, freq: 2400, sweep: 300, gain: 0.7 }); tone({ freq: 140, to: 50, dur: 0.18, type: 'triangle', gain: 0.4 });
 	},
 	/** Гул перезагрузки кластера: низкий нарастающий рокот. */
+	/** Сирена тревоги в «Карьере»: три подъёма-спада воющего тона. */
+	siren(power = 1) {
+		if (!ctx) return;
+		const t = ctx.currentTime, o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+		o.type = 'sawtooth';
+		o.frequency.setValueAtTime(360, t);
+		for (let i = 0; i < 3; i++) { o.frequency.linearRampToValueAtTime(820, t + i * 1.6 + 0.8); o.frequency.linearRampToValueAtTime(360, t + i * 1.6 + 1.6); }
+		f.type = 'lowpass'; f.frequency.value = 1600;
+		g.gain.setValueAtTime(0.0001, t);
+		g.gain.linearRampToValueAtTime(0.05 * power, t + 0.25);
+		g.gain.setValueAtTime(0.05 * power, t + 4.5);
+		g.gain.linearRampToValueAtTime(0.0001, t + 4.9);
+		o.connect(f).connect(g).connect(master);
+		o.start(t); o.stop(t + 5);
+	},
 	rumble(power = 1) { tone({ freq: 48, to: 34, dur: 1.4, type: 'sawtooth', gain: 0.08 * power }); burst({ dur: 1.4, freq: 160, sweep: 60, gain: 0.3 * power, attack: 0.4 }); },
 	snap() { burst({ dur: 0.09, freq: 2600, type: 'highpass', gain: 0.6 }); tone({ freq: 320, to: 90, dur: 0.16, type: 'square', gain: 0.12 }); setTimeout(() => burst({ dur: 0.25, freq: 900, sweep: 300, gain: 0.3 }), 90); },
 	// взрыв: запись и низкий удар под ней (его в динамиках телефона почти не слышно, в наушниках — грудью)
