@@ -1599,12 +1599,13 @@ function shieldMat() {
   });
   return m;
 }
-// Дроид-разрушитель (канон: 1,83 м — ростом с клона, но вдвое шире): горбатый бронзовый панцирь,
-// вытянутая голова, две руки со спаренными бластерами, три длинные ноги-ходули, генератор щита.
+// Дроид-разрушитель (канон: 1,83 м — ростом с клона, но вдвое шире): горбатый панцирь из потёртой бронзы,
+// компактная бронированная голова, две руки со спаренными бластерами, три длинные ноги-ходули, генератор щита.
 // В движении сворачивается в колесо и катится.
 function buildDroideka() {
   const root = new THREE.Group(), body = pivot(root, 0, 0, 0), rig = { root, body, kind: 'dk', wrist: true, twoHand: false, curl: 0, roll: 0 };
-  const BR = mat(0xb07a42, { metalness: 0.88, roughness: 0.4, roughnessMap: WORN_TEX }), BRD = mat(0x6e5236, { metalness: 0.8, roughness: 0.5, roughnessMap: WORN_TEX });
+  // матовая потёртая бронза: блестящая медь выглядела игрушкой
+  const BR = mat(0x8f7150, { metalness: 0.7, roughness: 0.58, roughnessMap: WORN_TEX }), BRD = mat(0x5b4734, { metalness: 0.65, roughness: 0.62, roughnessMap: WORN_TEX });
   const DK = mat(0x2c2622, { metalness: 0.65, roughness: 0.48, map: WORN_TEX }), GUN = mat(0x1c1c20, { metalness: 0.85, roughness: 0.35 });
   const LENS = mat(0x0b0b0e, { metalness: 0.9, roughness: 0.12 }), EYE = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
   const hub = rig.core = rig.hips = pivot(body, 0, 0.74, 0); hub.userData.y0 = 0.74;
@@ -1613,10 +1614,13 @@ function buildDroideka() {
   hub.add(at(mesh(new THREE.TorusGeometry(0.19, 0.035, 8, 20), BRD), 0, 0.02, 0, Math.PI / 2));
   // корпус наклоняется вперёд как одно целое
   const torso = rig.torso = pivot(hub, 0, 0.06, -0.02);
-  const belly = sph(0.3, BRD, 20, 14); belly.scale.set(1, 0.9, 1.1); torso.add(at(belly, 0, 0.2, 0.04));
+  // корпус-ядро: тёмный, матовый, с поперечными рёбрами (раньше — блестящий шар)
+  const CORE = mat(0x3a332c, { metalness: 0.6, roughness: 0.66, map: WORN_TEX });
+  const belly = sph(0.27, CORE, 20, 14); belly.scale.set(1, 0.95, 1.05); torso.add(at(belly, 0, 0.21, 0.04));
+  for (const [y, r] of [[0.08, 0.235], [0.21, 0.275], [0.34, 0.23]]) torso.add(at(mesh(new THREE.TorusGeometry(r, 0.014, 6, 24), BRD), 0, y, 0.04, Math.PI / 2));
   // горбатый панцирь: цельная задняя полусфера, вытянутая вверх, с двумя поперечными швами — три бронепластины
   const shell = pivot(torso, 0, 0.22, -0.02); rig.plates = [shell];
-  const SR = 0.52, SC = [0.98, 1.5, 0.98], shellMat = BR.clone(); shellMat.side = THREE.DoubleSide;
+  const SR = 0.52, SC = [0.98, 1.38, 0.98], shellMat = BR.clone(); shellMat.side = THREE.DoubleSide;
   const sg = mesh(new THREE.SphereGeometry(SR, 32, 18, Math.PI, Math.PI, 0, Math.PI * 0.78), shellMat); sg.scale.set(...SC); shell.add(sg);
   for (const th of [0.62, 1.2, 1.85]) { // швы и окантовка пластин
     const rib = mesh(new THREE.TorusGeometry(SR * Math.sin(th) + 0.004, 0.016, 6, 28, Math.PI), DK);
@@ -1625,14 +1629,16 @@ function buildDroideka() {
   // генератор щита на спине
   const gen = sph(0.13, DK, 12, 8); gen.scale.set(1.4, 0.7, 1); torso.add(at(gen, 0, 0.16, -0.46));
   rig.genGlow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: 0x6ab8ff })); rig.genGlow.userData.keep = true; torso.add(at(rig.genGlow, 0, 0.18, -0.56));
-  // шея и голова: вытянутая вперёд «морда» с тремя линзами
-  seg(torso, [0, 0.6, 0.12], [0, 0.76, 0.3], 0.07, 0.06, DK, 8);
-  const head = rig.head = pivot(torso, 0, 0.8, 0.34);
-  const skull = sph(0.21, BR, 20, 14); skull.scale.set(1.05, 0.72, 1.55); head.add(at(skull, 0, 0, 0.04));
-  const face = sph(0.13, DK, 16, 10); face.scale.set(1.0, 0.55, 1.2); head.add(at(face, 0, -0.04, 0.16));
-  // две антенны-сенсора на затылке
-  for (const sx of [-1, 1]) { seg(head, [sx * 0.07, 0.1, -0.08], [sx * 0.12, 0.3, -0.2], 0.009, 0.006, DK, 5); head.add(at(sph(0.016, BRD, 6, 4), sx * 0.12, 0.3, -0.2)); }
-  for (const [x, y] of [[-0.065, 0], [0.065, 0], [0, 0.035]]) { head.add(at(mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.03, 12), LENS), x, y - 0.02, 0.29, Math.PI / 2)); head.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), EYE), x, y - 0.02, 0.305)); }
+  // шея и голова: компактный бронированный купол с козырьком, тёмная лицевая пластина и три линзы
+  seg(torso, [0, 0.6, 0.12], [0, 0.72, 0.24], 0.07, 0.06, DK, 8);
+  const head = rig.head = pivot(torso, 0, 0.77, 0.27);
+  const skull = sph(0.165, BR, 20, 14); skull.scale.set(1.0, 0.78, 0.98); head.add(skull);
+  head.add(at(rbox(0.3, 0.045, 0.13, BRD, 0.02), 0, 0.045, 0.085, -0.12)); // козырёк над линзами
+  const face = sph(0.12, DK, 16, 10); face.scale.set(1.12, 0.62, 0.62); head.add(at(face, 0, -0.035, 0.1));
+  for (const sx of [-1, 1]) head.add(at(rbox(0.05, 0.1, 0.12, BRD, 0.015), sx * 0.15, -0.02, 0.02)); // боковые щёки
+  // две короткие антенны-сенсора на затылке
+  for (const sx of [-1, 1]) { seg(head, [sx * 0.06, 0.08, -0.08], [sx * 0.09, 0.22, -0.16], 0.008, 0.005, DK, 5); head.add(at(sph(0.014, BRD, 6, 4), sx * 0.09, 0.22, -0.16)); }
+  for (const [x, y] of [[-0.058, 0], [0.058, 0], [0, 0.03]]) { head.add(at(mesh(new THREE.CylinderGeometry(0.024, 0.029, 0.03, 12), LENS), x, y - 0.035, 0.165, Math.PI / 2)); head.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 4), EYE), x, y - 0.035, 0.18)); }
   // руки: плечо, предплечье-кожух, спаренные стволы вперёд
   rig.arms = [];
   for (const s of [-1, 1]) {
