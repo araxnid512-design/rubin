@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place, beginProp, endProp } from '../geom.js';
 import { buildCheckpoint, buildArmory, buildWarehouse, buildWorkshop, buildGuardhouse } from '../buildings.js';
-import { addCar, streetLamp, transformer, markingMaterial } from '../props.js';
+import { addCar, streetLamp, transformer, blob, markingMaterial } from '../props.js';
 import { concreteFence, storageTank, hazardBarrels, btr, armyTruck, barrier, watchTower, sandbags, billboard, waterTower } from '../props-industrial.js';
 
 const FX0 = -40, FX1 = 46, FZ0 = -46, FZ1 = 40; // периметр городка
@@ -32,7 +32,7 @@ export default {
 		ground(30, 10, -2, 15.5, M.asphalt, 5, 0.019); // стоянка у заводоуправления
 		ground(18, 8, 26, 17.5, M.asphalt, 5, 0.0192); // площадка у склада
 		ground(6, 12, 28, -40, M.dirt, 4, 0.014); // проезд к боковой двери опытного корпуса
-		ground(10, 6, -31, 12.5, M.concrete, 4, 0.017); // у караулки
+		ground(10, 6, -28, 12.5, M.concrete, 4, 0.017); // у караулки
 		const onRoad = (x, z, m = 0) => Math.abs(z - 6) < 4 + m || (Math.abs(x - 2) < 22 + m && z < -4 + m && z > -30.5 - m)
 			|| (Math.abs(x - 1) < 4 + m && z < 3 && z > -4) || (Math.abs(x + 2) < 15 + m && Math.abs(z - 15.5) < 5 + m)
 			|| (Math.abs(x - 26) < 9 + m && Math.abs(z - 17.5) < 4 + m);
@@ -54,11 +54,11 @@ export default {
 		billboard(batch, M, root, collide, -52, 12.6, 0, 'СТОЙ! ЗАПРЕТНАЯ ЗОНА · П/Я-17', { w: 5.2, h: 1.1, y: 1.8, bg: '#e8dcc0', fg: '#a01a10' });
 
 		// ---------- Охрана у КПП: «Урал», караулка за мешками ----------
-		armyTruck(batch, M, root, collide, -31, -2.6, Math.PI / 2 + 0.1);
-		buildings.push(buildArmory(bctx, { name: 'Guardroom', cx: -31, cz: 18, ry: 0 }));
-		sandbags(batch, M, collide, -29.4, 12.4, 3, 0);
-		sandbags(batch, M, collide, -36.2, -6.8, 3.2, 0.2);
-		for (const [x, z, r] of [[-26, 21, 0.1], [-25, 22.4, 0.5]]) {
+		// караулка и «Урал» — в одном участке отсечения (x −33…0): меньше вызовов отрисовки
+		armyTruck(batch, M, root, collide, -27.5, -2.6, Math.PI / 2 + 0.1);
+		buildings.push(buildArmory(bctx, { name: 'Guardroom', cx: -28, cz: 18, ry: 0 }));
+		sandbags(batch, M, collide, -26, 12.4, 3, 0);
+		for (const [x, z, r] of [[-22.6, 18, 0.1], [-22.3, 19.6, 0.5]]) {
 			beginProp('ammo', x, z, r);
 			batch.add(place(box(1.0, 0.7, 0.7), x, 0.35, z, r), M.metalOlive);
 			batch.add(place(box(0.9, 0.6, 0.6), x, 1.0, z, r + 0.1), M.metalOlive);
@@ -146,7 +146,7 @@ export default {
 		for (const [x, z, r] of [[-3.8, -2.4, 0.2], [6, -2.6, -0.1]]) { beginProp('block', x, z, r); batch.add(place(box(1.8, 0.9, 0.9, 1), x, 0.45, z, r), M.concreteDark); endProp(); collide(x, z, 1.8, 0.9, r); }
 
 		// ---------- Лабораторный двор: ёмкость азота, баллоны, бочки, разбитая машина ----------
-		storageTank(batch, M, root, collide, -13.5, -9, 1.5, 4.4, M.tankWhite, 'АЗОТ');
+		storageTank(batch, M, root, collide, -13.5, -9, 1.5, 4.4, M.tankWhite, null); // сосуд для азота (без надписи — экономия вызова отрисовки)
 		{
 			// стойка с газовыми баллонами у ворот опытного корпуса
 			const x = 19.6, z = -12.5;
@@ -155,8 +155,8 @@ export default {
 			for (let i = 0; i < 7; i++) {
 				const tipped = i === 5;
 				const g = new THREE.CylinderGeometry(0.13, 0.13, 1.5, 10);
-				if (tipped) batch.add(place(g.rotateZ(Math.PI / 2), x + 1.2, 0.13, z + 1.4, 0.7), i % 2 ? M.red : M.woodBlue);
-				else batch.add(place(g, x, 0.75, z - 1.35 + i * 0.42), i % 3 ? M.woodBlue : M.red);
+				if (tipped) batch.add(place(g.rotateZ(Math.PI / 2), x + 1.2, 0.13, z + 1.4, 0.7), M.red);
+				else batch.add(place(g, x, 0.75, z - 1.35 + i * 0.42), i % 3 ? M.metalDark : M.red); // чёрные — азот, красные — пропан
 			}
 			collide(x, z, 1.0, 3.3);
 		}
@@ -164,8 +164,7 @@ export default {
 		hazardBarrels(batch, M, collide, 18.4, -27, rnd, 4);
 		addCar(batch, M, root, 12.5, -24, 0.5, 0xb8b0a0, { crashed: true });
 		collide(12.5, -24, 4.3, 1.8, 0.5);
-		// перевёрнутая каталка и брошенные ящики
-		batch.add(place(box(2.0, 0.08, 0.7), -6, 0.55, -10.5, 0.4, 0, 1.2), M.silver);
+		// брошенные ящики
 		for (const [x, z, r] of [[-9, -20.5, 0.3], [-8.2, -21.6, 1.1], [16, -7.5, 0.2]]) {
 			beginProp('crate', x, z, r);
 			batch.add(place(box(1.1, 0.8, 0.8), x, 0.4, z, r), M.wood);
@@ -178,18 +177,24 @@ export default {
 			const flesh = new THREE.MeshStandardMaterial({ color: 0x4a1e1c, roughness: 0.38, metalness: 0.05 });
 			const blood = new THREE.MeshStandardMaterial({ map: T.bloodDecalTexture(3), transparent: true, depthWrite: false, roughness: 0.3 });
 			const [lx, lz] = LAIR;
+			// бугры споровой массы кольцом вокруг гнезда (середина свободна — там бой)
 			for (let i = 0; i < 14; i++) {
-				const a = i * 0.449 * Math.PI, d = 3.2 + (i % 4) * 0.7, s = 0.35 + (i % 3) * 0.22;
-				batch.add(place(new THREE.SphereGeometry(s, 9, 6).scale(1.4, 0.5, 1), lx + Math.cos(a) * d, s * 0.18, lz + Math.sin(a) * d, a), flesh, { cast: false });
+				const a = i * 0.449 * Math.PI, d = 3.2 + (i % 4) * 0.7, s = 0.4 + (i % 3) * 0.22;
+				batch.add(place(blob(s, 1, 17 + i).scale(1.3, 0.5, 1), lx + Math.cos(a) * d, s * 0.12, lz + Math.sin(a) * d, a), flesh, { cast: false });
 			}
-			// тяжи споровой массы по плитам к стенам
-			for (let i = 0; i < 6; i++) {
-				const a = i * 1.05 + 0.3, len = 4 + (i % 3) * 1.6;
-				batch.add(place(new THREE.CylinderGeometry(0.09, 0.16, len, 6).rotateZ(Math.PI / 2), lx + Math.cos(a) * (3 + len / 2), 0.06, lz + Math.sin(a) * (3 + len / 2), -a), flesh, { cast: false });
+			// тяжи споровой массы извиваются по плитам от гнезда
+			for (let i = 0; i < 7; i++) {
+				let a = i * 0.9 + 0.4, x = lx + Math.cos(a) * 2.8, z = lz + Math.sin(a) * 2.8;
+				for (let k = 0; k < 6; k++) {
+					a += Math.sin(i * 3.1 + k * 1.7) * 0.45;
+					const len = 1.1, nx = x + Math.cos(a) * len, nz = z + Math.sin(a) * len, r = 0.13 - k * 0.015;
+					batch.add(place(new THREE.CylinderGeometry(r * 0.8, r, len + 0.12, 6).rotateZ(Math.PI / 2).scale(1, 0.6, 1), (x + nx) / 2, 0.05, (z + nz) / 2, -a), flesh, { cast: false });
+					x = nx; z = nz;
+				}
 			}
 			for (let i = 0; i < 12; i++) {
 				const a = i * 2.1, d = 1 + (i % 5) * 0.9;
-				batch.add(place(new THREE.CylinderGeometry(0.04, 0.05, 0.5 + (i % 3) * 0.2, 6).rotateZ(Math.PI / 2), lx + Math.cos(a) * d, 0.05, lz + Math.sin(a) * d, a * 1.7), M.white, { cast: false });
+				batch.add(place(new THREE.CylinderGeometry(0.04, 0.05, 0.5 + (i % 3) * 0.2, 6).rotateZ(Math.PI / 2), lx + Math.cos(a) * d, 0.05, lz + Math.sin(a) * d, a * 1.7), M.concrete, { cast: false }); // кости
 			}
 			for (let i = 0; i < 7; i++) {
 				const s = 1.6 + (i % 3) * 0.8, a = i * 0.9;
@@ -206,7 +211,7 @@ export default {
 		{
 			const cx = -2, cz = 27, W = 28, D = 10, H = 7.2, nz = cz - D / 2;
 			occluder('Admin', (kb, group) => {
-				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), M.plaster);
+				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), M.brick);
 				kb.add(place(box(W + 0.3, 0.6, D + 0.3, 2), cx, 0.3, cz), M.concreteDark);
 				kb.add(place(box(W + 0.4, 0.3, D + 0.4, 3), cx, H + 0.15, cz), M.roofTar);
 				for (let i = 0; i < 9; i++) for (let f = 0; f < 2; f++) {
@@ -237,7 +242,7 @@ export default {
 		collide(-8.6, 17.8, 4.3, 1.8, Math.PI / 2 + 0.12);
 		addCar(batch, M, root, 7.5, 17.2, -Math.PI / 2 + 0.2, 0x5a5a3a, { burned: true });
 		collide(7.5, 17.2, 4.3, 1.8, -Math.PI / 2 + 0.2);
-		for (const x of [-22, 15, 32]) streetLamp(batch, M, collide, x, 11.2);
+		for (const x of [15, 32]) streetLamp(batch, M, collide, x, 11.2);
 		transformer(batch, root, M, collide, 16, 15);
 
 		// ---------- Склад, задний пост, водонапорная башня ----------
@@ -266,13 +271,14 @@ export default {
 				{ to: 'himmash', x0: -66, x1: -61.2, z0: 2, z1: 10, spawn: [-59, 6, Math.PI / 2], sign: [-60, 11.2, '← Химмаш'] },
 				{ to: 'voench', x0: 61.2, x1: 66, z0: 2, z1: 10, spawn: [59, 6, -Math.PI / 2], sign: [60, 11.2, 'Военная часть →'] },
 			],
-			// логово элиты: во дворе лаборатории — элита и рубер; руберы в опытном корпусе, на стоянке и у ёмкостей
+			// логово элиты: во дворе лаборатории — только элита со своей стаей (рубер и бегуны), остальные — вокруг двора:
+			// руберы в опытном корпусе, на стоянке и у ёмкостей; топтуны в виварии, за корпусами и у ворот
 			groups: [
 				{ at: LAIR, r: 6, elites: 1, rubers: 1, runners: 4 },
 				{ at: [31, -22], r: 4, rubers: 1, runners: 1 },
 				{ at: [-25, -18], r: 3, stompers: 1, runners: 1 },
-				{ at: [-10, -24], r: 5, stompers: 1, runners: 2 },
-				{ at: [14, -12], r: 5, runners: 2, stompers: 1 },
+				{ at: [-8, -43], r: 4, stompers: 1, runners: 2 },
+				{ at: [42, -24], r: 4, runners: 2, stompers: 1 },
 				{ at: [-32, 4], r: 5, runners: 2, stompers: 1 },
 				{ at: [-2, 14], r: 6, runners: 2, rubers: 1 },
 				{ at: [26, 18], r: 5, stompers: 1, runners: 1 },

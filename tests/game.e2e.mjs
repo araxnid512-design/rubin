@@ -34,7 +34,7 @@ async function open(viewport, mobile, sim = 30, storage = null, q = 'medium') {
 	await page.waitForSelector('#menu:not(.hidden)', { timeout: 120000 });
 	return page;
 }
-const G = (page, fn) => page.evaluate(fn);
+const G = (page, fn, arg) => page.evaluate(fn, arg);
 
 try {
 	const page = await open({ width: 1100, height: 700 });
@@ -911,6 +911,15 @@ try {
 		return r;
 	}).catch((err) => ({ error: String(err) }));
 	check(elite.hp === 1400 && elite.armor > 8 && elite.regen > 0 && elite.pearls === 2, `элита: ${elite.hp} здоровья, броня ${elite.armor}, затягивает раны (+${elite.regen}), с неё ${elite.pearls} чёрные жемчужины${elite.error ? ' — ' + elite.error : ''}`);
+	// новые кластеры: все тайники и выходы достижимы от входа; в «НИИ» — логово элиты
+	for (const id of ['bolnica', 'lesopilka', 'podstanciya', 'nii']) {
+		await G(page, (id) => window.__game.travel(id), id);
+		await page.waitForFunction((id) => window.__game.loc === id && window.__game.state === 'play', id, { timeout: 300000 });
+		await G(page, () => { const g = window.__game, e = g.level.exits[0].spawn; g.player.pos.set(e.x, 0, e.z); g.player.hp = g.player.maxHp = 1e6; });
+		const r = await reach();
+		const z = await G(page, () => { const g = window.__game; return { n: g.enemies.length, elite: g.enemies.filter((e) => e.type === 'elite').length, ruber: g.enemies.filter((e) => e.type === 'ruber').length }; });
+		check(r.bad.length === 0 && r.exits === 0 && r.n >= 8 && z.n >= 15 && (id !== 'nii' || z.elite >= 1), `кластер «${id}»: ${r.n} тайников и выходы достижимы, заражённых ${z.n}${z.ruber ? `, руберов ${z.ruber}` : ''}${z.elite ? `, элита ${z.elite}` : ''}${r.bad.length ? ' — нет пути к ' + r.bad.join(', ') : ''}`);
+	}
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 

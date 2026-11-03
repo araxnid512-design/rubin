@@ -2,7 +2,7 @@
 // За оградой (спереди — решётка на кирпичных столбах, по бокам и сзади — бетонные плиты) — главный корпус
 // в пять этажей с порталом входа, к нему пристроен приёмный покой (койки, тумбочки, шкафы) с навесом, под которым
 // стоят машины скорой; терапевтический корпус в три этажа, сквер с клумбой, беседкой и лавочками, стоянка
-// персонала. На хоздворе — котельная с трубой, кислородные ёмкости, трансформаторная, гараж скорой с мастерской;
+// персонала. На хоздворе — котельная с трубой, кислородные ёмкости, трансформаторная, гараж скорой со стеллажами;
 // в дальнем углу — морг с катафалком. Въезд — через КПП со шлагбаумом с улицы, калитка — с улицы на север.
 // Снаружи: улица с остановкой, аптека, стоянка, частные дома за улицей на север, панельная четырёхэтажка.
 // Выходы: на запад по улице (к стабу «Полис») и на север по улице (к Заречному).
@@ -11,10 +11,10 @@
 import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place, planeXZ, beginProp, endProp } from '../geom.js';
-import { hash01, windowBoards } from '../facade.js';
-import { buildArmyBarracks, buildWorkshop, buildGuardhouse, buildCheckpoint, buildShop, buildHouse } from '../buildings.js';
+import { hash01 } from '../facade.js';
+import { buildArmyBarracks, buildWarehouse, buildGuardhouse, buildCheckpoint, buildShop, buildHouse } from '../buildings.js';
 import { bench, streetLamp, markingMaterial, addCar, bus, fencePlot, shed, woodpile, garden, outhouse, transformer } from '../props.js';
-import { concreteFence, chimney, storageTank, barrier } from '../props-industrial.js';
+import { chimney, storageTank, barrier } from '../props-industrial.js';
 
 // ограда больничной территории
 const FX0 = -28, FX1 = 57, FZ0 = -50, FZ1 = 20;
@@ -30,9 +30,9 @@ function ambulance(batch, M, collide, x, z, ry, { wreck = false } = {}) {
 	add(box(4.4, 1.6, 1.94, 1.5), M.white, 0, 1.26, 0); // кузов
 	add(box(4.0, 0.08, 1.8, 1.5), M.white, -0.1, 2.1, 0); // крыша
 	add(box(4.42, 0.2, 1.96), M.red, 0, 1.12, 0); // красная полоса
-	add(box(0.04, 0.55, 1.62), wreck ? M.metalDark : M.glass, 2.21, 1.68, 0); // лобовое стекло
-	add(box(0.85, 0.5, 1.96), M.glass, 1.55, 1.68, 0); // окна кабины по бокам
-	add(box(1.6, 0.36, 1.96), M.silver, -0.9, 1.78, 0); // матовые окна салона
+	add(box(0.04, 0.55, 1.62), M.metalDark, 2.21, 1.68, 0); // лобовое стекло (тёмное, как у всех машин сверху)
+	add(box(0.85, 0.5, 1.96), M.metalDark, 1.55, 1.68, 0); // окна кабины по бокам
+	add(box(1.6, 0.36, 1.96), M.metalDark, -0.9, 1.78, 0); // окна салона
 	for (const s of [-1, 1]) {
 		add(box(0.5, 0.14, 0.02), M.red, -0.9, 1.45, s * 0.985); // красный крест на борту
 		add(box(0.14, 0.5, 0.02), M.red, -0.9, 1.45, s * 0.985);
@@ -47,11 +47,11 @@ function ambulance(batch, M, collide, x, z, ry, { wreck = false } = {}) {
 
 /** Каталка: рама на колёсиках, матрас (декор с коллайдером). */
 function stretcher(batch, M, collide, x, z, ry) {
-	batch.add(place(box(1.9, 0.06, 0.62), x, 0.82, z, ry), M.silver);
+	batch.add(place(box(1.9, 0.06, 0.62), x, 0.82, z, ry), M.metalDark);
 	batch.add(place(box(1.8, 0.08, 0.56), x, 0.89, z, ry), M.white);
 	const c = Math.cos(ry), s = Math.sin(ry);
 	for (const [lx, lz] of [[-0.85, -0.26], [0.85, -0.26], [-0.85, 0.26], [0.85, 0.26]]) {
-		batch.add(place(box(0.04, 0.8, 0.04), x + lx * c + lz * s, 0.4, z - lx * s + lz * c), M.silver);
+		batch.add(place(box(0.04, 0.8, 0.04), x + lx * c + lz * s, 0.4, z - lx * s + lz * c), M.metalDark);
 	}
 	collide(x, z, 2.0, 0.7, ry);
 }
@@ -83,7 +83,7 @@ export default {
 		// на территории: въезд от КПП, проезд вдоль корпусов, площадки у гаража и приёмного покоя, дорожки
 		ground(7, 41, 9.5, 3.5, M.asphalt, 5, 0.021); // въезд (z −17…24)
 		ground(54, 7, 16, -13, M.asphalt, 5, 0.023); // проезд вдоль корпусов (x −11…43)
-		ground(10, 14, 38, -6, M.asphalt, 5, 0.022); // площадка у ворот гаража
+		ground(13, 14, 39.5, -6, M.asphalt, 5, 0.022); // площадка у ворот гаража
 		ground(14, 6, 21, -19.4, M.asphalt, 5, 0.024); // к приёмному покою, под навесом
 		ground(6, 14, 0, -23.5, M.concrete, 3, 0.019); // к главному входу
 		ground(29, 6, -17.5, -27, M.asphalt, 5, 0.02); // от калитки вдоль главного корпуса
@@ -97,7 +97,7 @@ export default {
 		ground(28, 13, 12, 40.5, M.asphalt, 5, 0.021);
 		ground(10, 20, -24, 44, M.concrete, 3, 0.017);
 		const roads = [
-			[-80, 80, 24, 32], [-40, -32, -80, 28], [6, 13, -17, 24], [-11, 43, -16.5, -9.5], [33, 43, -13, 1], [14, 28, -22.4, -16.4],
+			[-80, 80, 24, 32], [-40, -32, -80, 28], [6, 13, -17, 24], [-11, 43, -16.5, -9.5], [33, 46, -13, 1], [14, 28, -22.4, -16.4],
 			[-3, 3, -30.5, -16.5], [-32, -3, -30, -24], [12.7, 37, 8, 17], [-2, 26, 34, 47], [-29, -19, 34, 54],
 			[-80, 80, 21.8, 24], [-80, 80, 32, 34.2], [-32, -29.8, -70, 24], [36, 56, -32, -23],
 		];
@@ -119,13 +119,21 @@ export default {
 		};
 		railing(FX0, -0.5, FZ1);
 		railing(13.5, FX1, FZ1);
-		const plates = { h: 2.3, wire: false };
-		concreteFence(batch, M, collide, root, FX0, FZ0, FX0, -31.4, plates); // запад, до калитки
-		concreteFence(batch, M, collide, root, FX0, -22.6, FX0, FZ1, plates);
-		concreteFence(batch, M, collide, root, FX0, FZ0, 10, FZ0, plates); // север — с проломом
-		concreteFence(batch, M, collide, root, 14, FZ0, FX1, FZ0, plates);
-		concreteFence(batch, M, collide, root, FX1, FZ0, FX1, -16.3, plates); // восток — до гаража и после него
-		concreteFence(batch, M, collide, root, FX1, 8.3, FX1, FZ1, plates);
+		// бетонные плиты со столбами — одним материалом (у concreteFence рёбра темнее: лишний вызов отрисовки на участок)
+		const plates = (x0, z0, x1, z1, h = 2.3) => {
+			const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0), n = Math.max(1, Math.round(len / 4));
+			for (let i = 0; i < n; i++) {
+				const t = (i + 0.5) / n;
+				batch.add(place(box(len / n - 0.05, h, 0.16, 1.2, 1.2), x0 + (x1 - x0) * t, h / 2, z0 + (z1 - z0) * t, -ang), M.concrete);
+			}
+			for (let i = 0; i <= n; i++) batch.add(place(box(0.3, h + 0.2, 0.3), x0 + (x1 - x0) * i / n, (h + 0.2) / 2, z0 + (z1 - z0) * i / n, -ang), M.concrete);
+			collide((x0 + x1) / 2, (z0 + z1) / 2, len, 0.4, -ang);
+		};
+		plates(FX0, FZ0, FX0, -31.4); // запад, до калитки
+		plates(FX0, -22.6, FX0, FZ1);
+		plates(FX0, FZ0, 10, FZ0); // север — с проломом
+		plates(14, FZ0, FX1, FZ0);
+		plates(FX1, FZ0, FX1, FZ1); // восток
 		// упавшие плиты в проломе северной стены
 		batch.add(place(box(3.9, 0.16, 2.3, 1.2, 1.2), 12, 0.3, FZ0 - 1.4, 0.2, 0.1, 0), M.concrete);
 		batch.add(place(box(3.9, 0.16, 2.3, 1.2, 1.2), 12.6, 0.12, FZ0 + 1.6, -0.15), M.concrete);
@@ -145,7 +153,7 @@ export default {
 			const fh = 3.1, H = floors * fh + 0.4;
 			occluder(name, (kb) => {
 				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), mat);
-				kb.add(place(box(W + 0.3, 0.5, D + 0.3, 2), cx, 0.25, cz), M.concreteDark); // цоколь
+				kb.add(place(box(W + 0.3, 0.5, D + 0.3, 2), cx, 0.25, cz), M.concrete); // цоколь
 				kb.add(place(planeXZ(W, D, 4), cx, H + 0.03, cz), M.roofTar);
 				for (const s of [-1, 1]) {
 					kb.add(place(box(W + 0.4, 0.5, 0.25, 2), cx, H + 0.25, cz + s * (D / 2 + 0.075)), M.concrete);
@@ -164,14 +172,12 @@ export default {
 						if (skip(side, a, f)) continue;
 						const h = hash01(name, side, i, f);
 						const k = f === 0 ? (h < 0.35 ? 6 : h < 0.55 ? 5 : h < 0.8 ? 4 : 7) : (h < 0.1 ? 6 : h < 0.3 ? 5 : h < 0.55 ? 7 : 4);
+						// клетка 6 атласа — заколоченное окно (доски нарисованы), отдельных досок не кладём: лишний материал
 						const g = T.windowUV(new THREE.PlaneGeometry(1.62, 1.44), k);
-						const boards = k === 6 && f === 0 ? windowBoards(1.45, 1.3, hash01(h, 'b')) : [];
-						for (const p of [g, ...boards]) {
-							if (side === 's') p.translate(cx + a, y, cz + D / 2 + 0.02 + (p === g ? 0 : 0.01));
-							else if (side === 'e') p.rotateY(Math.PI / 2).translate(cx + W / 2 + 0.02 + (p === g ? 0 : 0.01), y, cz - a);
-							else p.rotateY(-Math.PI / 2).translate(cx - W / 2 - 0.02 - (p === g ? 0 : 0.01), y, cz + a);
-							kb.add(p, p === g ? M.window : M.woodGrey);
-						}
+						if (side === 's') g.translate(cx + a, y, cz + D / 2 + 0.02);
+						else if (side === 'e') g.rotateY(Math.PI / 2).translate(cx + W / 2 + 0.02, y, cz - a);
+						else g.rotateY(-Math.PI / 2).translate(cx - W / 2 - 0.02, y, cz + a);
+						kb.add(g, M.window);
 					}
 				}
 				extra?.(kb, H);
@@ -239,17 +245,15 @@ export default {
 		occluder('BayCanopy', (kb) => {
 			kb.add(place(box(12, 0.2, 6.4, 2), 21, 3.7, -19.5, 0, -0.04), M.roofGreen);
 			for (const x of [15.4, 26.6]) kb.add(place(box(0.25, 3.7, 0.25), x, 1.85, -16.6), M.metalDark);
-			const sign = new THREE.PlaneGeometry(5.2, 0.55);
-			sign.translate(21, 3.35, -16.27);
-			kb.add(sign, T.signMaterial('ПРИЁМНЫЙ ПОКОЙ', { bg: '#e8e4d8', fg: '#a01a10', w: 448, h: 56 }));
+			kb.add(place(box(12, 0.45, 0.08), 21, 3.45, -16.3), M.metalDark); // карниз по краю навеса
 		}, { cx: 21, cz: -19.5, ry: 0, hx: 6.2, hz: 3.3, top: 3.9 }, 0.15);
 		for (const x of [15.4, 26.6]) collide(x, -16.6, 0.35, 0.35);
 		ambulance(batch, M, collide, 17.6, -19.6, Math.PI / 2);
 		ambulance(batch, M, collide, 24.6, -19.2, -Math.PI / 2 + 0.06);
-		stretcher(batch, M, collide, 27.6, -21.3, 0.2);
+		stretcher(batch, M, collide, 32, -21, 0.3);
 
-		// ---------- Гараж скорой с мастерской (можно зайти), хоздвор ----------
-		buildings.push(buildWorkshop(bctx, { name: 'AmbulanceGarage', cx: 50, cz: -4, ry: Math.PI / 2 }));
+		// ---------- Гараж скорой (можно зайти): профлист, стеллажи с запчастями; хоздвор ----------
+		buildings.push(buildWarehouse(bctx, { name: 'AmbulanceGarage', cx: 51, cz: -4, ry: Math.PI / 2 }));
 		ambulance(batch, M, collide, 37, -6.5, 0.05);
 		ambulance(batch, M, collide, 37.5, 5.4, Math.PI - 0.3, { wreck: true });
 		storageTank(batch, M, root, collide, 51, -30, 1.1, 5.5, M.tankWhite, 'КИСЛОРОД');
@@ -384,16 +388,15 @@ export default {
 			],
 			// заражённые: бегуны у корпусов, в сквере, на улице; топтуны водят стаи у приёмного покоя, морга, хоздвора
 			groups: [
-				{ at: [21, -15], r: 6, runners: 3, stompers: 1 },
-				{ at: [0, -24], r: 6, runners: 3 },
+				{ at: [22, -14], r: 6, runners: 2, stompers: 1 },
+				{ at: [-2, -24], r: 6, runners: 3 },
 				{ at: [-4, -6], r: 8, runners: 2 },
 				{ at: [28, -3], r: 7, runners: 2 },
 				{ at: [-6, -15], r: 5, runners: 2, stompers: 1 },
 				{ at: [-20, -35], r: 5, runners: 2, stompers: 1 },
 				{ at: [8, -47], r: 7, runners: 2 },
 				{ at: [44, -32], r: 6, runners: 2, stompers: 1 },
-				{ at: [38, -1], r: 5, runners: 2 },
-				{ at: [50, -6], r: 5, runners: 2 }, // в гараже
+				{ at: [47, -5], r: 6, runners: 3 }, // у ворот гаража и в нём
 				{ at: [9, 13], r: 5, runners: 2 },
 				{ at: [26, 4], r: 5, runners: 1 },
 				{ at: [-20, 28], r: 9, runners: 2 },
@@ -406,8 +409,8 @@ export default {
 				{ at: [-44, 46], r: 8, runners: 2 },
 			],
 			onRoad,
-			// горит машина на улице, костры в бочке у КПП и в сквере
-			fires: [[34, 29.6, 'car'], [-1.5, 15.5], [-6.5, -6.5, 'ground']],
+			// горит машина на улице, костёр в сквере
+			fires: [[34, 29.6, 'car'], [-6.5, -6.5, 'ground']],
 			trees(tryTree) {
 				// сквер и газоны — берёзы, у домов — яблони, вдоль улицы — ряд берёз
 				for (let i = 0; i < 18; i++) tryTree(R(-10, 4.5), R(-8, 18.5), 'birch');
@@ -417,17 +420,18 @@ export default {
 				for (let x = -60; x < 62; x += 7) tryTree(x + R(-1.5, 1.5), 35.8 + R(-0.4, 0.6), 'birch');
 				for (let i = 0; i < 6; i++) tryTree(R(-58, -44), R(-46, -30), 'apple');
 				for (let i = 0; i < 6; i++) tryTree(R(-58, -44), R(-20, -4), 'apple');
-				for (let i = 0; i < 12; i++) tryTree(R(-60, -42), R(36, 60), rnd() < 0.7 ? 'birch' : 'pine');
+				for (let i = 0; i < 12; i++) tryTree(R(-60, -42), R(36, 60), 'birch');
 			},
+			beltTrees: ['birch'], // город: одни берёзы (каждый вид дерева на участке — лишние вызовы отрисовки)
 			beltDensity: 0.85,
 			clutter: 14,
-			blood: 28,
-			puddles: 12,
+			blood: 16,
+			puddles: 8,
 			puddle: () => [R(-60, 60), rnd() < 0.5 ? R(24.5, 31.5) : R(-55, 55)],
 			grass: 0.9,
 			hint: (b) => ({
 				Reception: 'Приёмный покой — обыщи тумбочки у коек и шкафы с лекарствами',
-				AmbulanceGarage: 'Гараж скорой — обыщи верстак, шкафчики водителей, аптечку и сейф механика',
+				AmbulanceGarage: 'Гараж скорой — обыщи стеллажи с запчастями и ящики',
 				Morgue: 'Морг — в шкафу охраны бывают патроны 12 калибра, в сейфе — автоматные',
 				Checkpoint: 'КПП больницы — обыщи стол дежурного и шкаф',
 				Shop: 'Аптека — живчики на витрине и стеллажах, в сейфе — патроны',

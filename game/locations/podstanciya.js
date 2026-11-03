@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place, beginProp, endProp } from '../geom.js';
 import { buildGuardhouse, buildWarehouse, buildArmyBarracks, buildHouse } from '../buildings.js';
-import { addCar, bus, powerLine, transformer, fencePlot, shed, bench, swings, clothesline, markingMaterial } from '../props.js';
+import { addCar, bus, powerLine, transformer, fencePlot, shed, woodpile, bench, swings, markingMaterial } from '../props.js';
 import { concreteFence, pipePile, hazardBarrels, armyTruck, billboard } from '../props-industrial.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -48,7 +48,7 @@ export default {
 		ground(42, 38, 29, -29, M.dirt, 5, 0.013); // двор подстанции — щебёнка
 		ground(6, 30, 27.5, -25, M.concrete, 4, 0.017); // проезд к трансформаторам
 		ground(40, 5, 29, -19.5, M.concrete, 4, 0.0172); // вдоль трансформаторов
-		ground(24, 14, -30, -6, M.concrete, 4, 0.016); // площадка склада РЭС
+		ground(22, 13, -22, -6.5, M.concrete, 4, 0.016); // площадка склада РЭС
 		ground(5, 36, 5, 27, M.dirt, 4, 0.015); // улица посёлка
 		ground(46, 5, 6, 31, M.dirt, 4, 0.0152); // переулок между дворами
 		ground(28, 10, 38, 17, M.asphalt, 5, 0.019); // площадка перед гаражами
@@ -178,13 +178,14 @@ export default {
 		for (const [x, z, r] of [[22, -44, 0.1], [24, -44.6, 0], [38, -44, 0.3]]) { beginProp('block', x, z, r); batch.add(place(box(1.8, 0.9, 0.9, 1), x, 0.45, z, r), M.concreteDark); endProp(); collide(x, z, 1.8, 0.9, r); }
 
 		// ---------- Склад РЭС: катушки, трубы, аварийка ----------
-		buildings.push(buildWarehouse(bctx, { name: 'Depot', cx: -30, cz: -18, ry: Math.PI }));
-		drum(-21, -8, 1.0); drum(-18.4, -8.6, 1.0, 0.2); drum(-19.6, -11.6, 0.8, 1.4); drum(-40, -7.5, 0.9, 0.1);
-		pipePile(batch, M, collide, -44, -14, Math.PI / 2);
+		// склад и площадка — в одном участке отсечения (x −33…0, z −33…0): меньше вызовов отрисовки
+		buildings.push(buildWarehouse(bctx, { name: 'Depot', cx: -22, cz: -18, ry: Math.PI }));
+		drum(-16, -8.4, 1.0); drum(-13.6, -9.2, 1.0, 0.2); drum(-15.4, -11.3, 0.8, 1.4); drum(-31, -9.5, 0.9, 0.1);
+		pipePile(batch, M, collide, -36, -15, Math.PI / 2);
 		pipePile(batch, M, collide, -36, -32, 0.05);
-		armyTruck(batch, M, root, collide, -26, -4, Math.PI / 2 + 0.08);
+		armyTruck(batch, M, root, collide, -25, -4.6, Math.PI / 2 + 0.08);
 		hazardBarrels(batch, M, collide, -47, -27, rnd, 4);
-		for (const [x, z, r] of [[-14, -16, 0.2], [-14.6, -17.4, 0.6], [-46, -4, 0]]) {
+		for (const [x, z, r] of [[-32.4, -20, 0.2], [-32.6, -21.6, 0.6], [-46, -4, 0]]) {
 			beginProp('crate', x, z, r);
 			batch.add(place(box(1.1, 0.8, 0.8), x, 0.4, z, r), M.wood);
 			endProp();
@@ -205,8 +206,8 @@ export default {
 		fencePlot(batch, M, collide, 14, 41, 15, 13, 'n', rnd);
 		shed(batch, M, collide, -9.4, 26.2, 0.05);
 		shed(batch, M, collide, 19.6, 46, 3.1);
-		clothesline(batch, M, root, collide, 8, 13, 26.4, rnd);
-		// у общежития: скамейки, качели, бельё не сушат — сушат в доме
+		woodpile(batch, M, collide, 10.4, 26.6, 0);
+		// у общежития: скамейки и качели
 		bench(batch, M, -31, 13.6, 0);
 		bench(batch, M, -21, 13.6, 0);
 		swings(batch, M, -26, 30);
@@ -238,7 +239,7 @@ export default {
 		// ---------- Окраина ----------
 		// остановка «Подстанция» у трассы на западе
 		{
-			const x = -40, z = -0.6;
+			const x = -50, z = -0.6;
 			batch.add(place(box(5, 2.4, 0.15, 1), x, 1.2, z - 0.9), M.concrete);
 			batch.add(place(box(5.4, 0.15, 2.2, 1), x, 2.45, z), M.metalRust);
 			for (const dx of [-2.4, 2.4]) batch.add(place(box(0.12, 2.4, 0.12), x + dx, 1.2, z + 0.9), M.metalDark);
@@ -269,8 +270,8 @@ export default {
 				{ at: [30, -30], r: 4, rubers: 1, runners: 1 },
 				{ at: [20, -44], r: 4, runners: 1, stompers: 1 },
 				{ at: [36, -17], r: 5, runners: 2 },
-				{ at: [-28, -7], r: 6, runners: 2, stompers: 1 },
-				{ at: [-30, -19], r: 3, runners: 1 },
+				{ at: [-22, -7], r: 6, runners: 2, stompers: 1 },
+				{ at: [-22, -19], r: 3, runners: 1 },
 				{ at: [-26, 27], r: 5, runners: 2, stompers: 1 },
 				{ at: [-26, 20], r: 3, runners: 1 },
 				{ at: [5, 31], r: 6, runners: 2 },
@@ -287,7 +288,7 @@ export default {
 			],
 			onRoad,
 			// горят сгоревшая машина у обочины и бочка у склада; тлеет кабель у ЗРУ
-			fires: [[-8, 12.6, 'car'], [-34, -2.5], [12, -19, 'ground']],
+			fires: [[-8, 12.6, 'car'], [-31, -2.6], [12, -19, 'ground']],
 			barrels: 6, // бочки с маслом и соляркой
 			trees(tryTree) {
 				// лес на северо-западе, берёзы вдоль трассы и в посёлке, яблони во дворах
