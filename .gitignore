@@ -1,0 +1,9 @@
+# Godot
+.godot/
+export_credentials.cfg
+build/
+*.tmp
+# отладочные кадры
+docs/rigtest/
+docs/worldtest/
+docs/poses/
