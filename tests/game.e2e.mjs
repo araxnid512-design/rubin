@@ -965,9 +965,9 @@ try {
 	check(dead.title === 'Кластер перезагрузился' && /При тебе: споран ×7/.test(dead.stats) && /Останется там: .*патроны 5,45×39 ×11/.test(dead.stats), `не успел уйти: «${dead.title}», ${dead.stats}`);
 	await page.click('#btn-respawn');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
-	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved, svd: !!g.stash.guns.svd, sammo: g.stash.bag.ammo76254 ?? 0 }; });
-	// здоровье — полное, с прибавкой от съеденной жемчужины (120)
-	check(re.spore === 7 && re.ammo === 0 && !re.owned.includes('aks') && re.hp === 120 && re.fresh, `очнулся в стабе: спораны при себе (${re.spore}), что было с собой — пропало (осталось: ${re.owned || 'ничего'}), Дачи перезагрузились`);
+	const re = await G(page, () => { const g = window.__game; return { spore: g.bag.spore, ammo: g.bag.ammo545, owned: g.kit.owned.join(), hp: g.player.hp, fresh: !g.world.clusters.dachi.saved, svd: !!g.stash.guns.svd, sammo: g.stash.bag.ammo76254 ?? 0, full: g.heroMaxHp() }; });
+	// здоровье — полное, с прибавкой от съеденной жемчужины (120) и столовой на базе (+15, построена выше)
+	check(re.spore === 7 && re.ammo === 0 && !re.owned.includes('aks') && re.hp === 135 && re.hp === re.full && re.fresh, `очнулся в стабе: спораны при себе (${re.spore}), что было с собой — пропало (осталось: ${re.owned || 'ничего'}), Дачи перезагрузились`);
 	check(re.svd && re.sammo > 0, `в хранилище целы СВД и ${re.sammo} патронов`);
 	await openStash();
 	await page.click('[data-take="svd"]');
@@ -981,7 +981,7 @@ try {
 	await page.click('#trade-pearl');
 	const sold = await G(page, () => { const g = window.__game, r = { spore: g.bag.spore, pearl: g.bag.pearl, perk: g.perks.maxHp, max: g.player.maxHp }; g.trade.close(); return r; });
 	check(sold.spore === 150 && sold.pearl === 0, `продал чёрную жемчужину торговцу: +${sold.spore} споранов`);
-	check(sold.perk === 120 && sold.max === 120, `съеденная жемчужина не пропала со смертью: здоровье ${sold.max}`);
+	check(sold.perk === 120 && sold.max === 135, `съеденная жемчужина не пропала со смертью: здоровье ${sold.max} (120 и +15 от столовой базы)`);
 	const afterReload = await G(page, () => ({ party: window.__game.party.length, home: window.__game.roster.map((m) => m.id).join() }));
 	check(afterReload.party === 0 && afterReload.home === 'shram,ded', `Док и Сапёр пропали вместе с кластером, в комнате ждут: ${afterReload.home}`);
 	const storage = await G(page, () => ({ ...localStorage }));
