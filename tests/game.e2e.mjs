@@ -118,7 +118,8 @@ try {
 		return { on: p.crouched, v, hips, btn: document.getElementById('btn-crouch').classList.contains('on') };
 	});
 	await page.keyboard.press('KeyC');
-	await page.waitForTimeout(1000);
+	// кадр на программном рендере бывает дольше секунды — ждём, пока герой встанет, а не по часам
+	await page.waitForFunction(() => !window.__game.player.crouched && window.__game.player.crouchK < 0.02, null, { timeout: 30000 }).catch(() => {});
 	const stand = await G(page, () => { const p = window.__game.player; return { on: p.crouched, hips: p.model.getObjectByName('mixamorigHips').getWorldPosition(p.pos.clone()).y }; });
 	check(crouch.on && crouch.btn && crouch.v > 0.3 && crouch.v < 1.0 && !stand.on && stand.hips - crouch.hips > 0.2, `присед: C — присел (таз ниже на ${(stand.hips - crouch.hips).toFixed(2)} м), идёт ${crouch.v.toFixed(2)} м/с; C — встал`);
 	// подходим к заражённым — замечают и нападают, отбиваемся топором
