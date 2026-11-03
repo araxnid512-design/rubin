@@ -2735,6 +2735,8 @@ function framePortrait(rig, pc) {
   const B = rig.bones, hw = () => B.Head.getWorldPosition(new THREE.Vector3());
   const fwd = B.headfront.getWorldPosition(new THREE.Vector3()).sub(hw()); fwd.y = 0;
   if (fwd.lengthSq() > 1e-8) { rig.root.rotation.y -= Math.atan2(fwd.x, fwd.z); rig.root.updateMatrixWorld(true); }
+  // в клипе стойки голова опущена к оружию — для портрета приподнимаем взгляд
+  if (rig.kind !== 'b2') { rotateBoneWorld(B.Neck, new THREE.Vector3(1, 0, 0), -0.3); rig.root.updateMatrixWorld(true); }
   const g = skin.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, hi = skin.skeleton.bones.indexOf(B.Head);
   const box = new THREE.Box3(), v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -2744,7 +2746,7 @@ function framePortrait(rig, pc) {
   }
   if (box.isEmpty()) box.setFromCenterAndSize(hw(), new THREE.Vector3(0.25, 0.25, 0.25));
   const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
-  const sz = Math.max(s.y, Math.max(s.x, s.z) / 1.15), fill = rig.kind === 'b2' ? 0.34 : 0.5;
+  const sz = Math.max(s.y, Math.max(s.x, s.z) / 1.15), fill = rig.kind === 'b2' ? 0.36 : ['b1', 'cmd', 'snp'].includes(rig.kind) ? 0.66 : 0.6;
   const d = sz / fill / (2 * Math.tan(pc.fov * Math.PI / 360)), a = ['b1', 'cmd', 'snp'].includes(rig.kind) ? 1.15 : 0.5; // B1 — ближе к профилю: длинная голова видна целиком
   const ty = c.y - sz * (rig.kind === 'b2' ? 0.55 : 0.04);
   pc.position.set(c.x + Math.sin(a) * d, ty + d * 0.1, c.z + Math.cos(a) * d); pc.lookAt(c.x, ty, c.z);
