@@ -908,6 +908,32 @@ try {
 	const wave = await G(page, () => ({ kills: window.__game.kills - window.__k0, banner: document.getElementById('banner-title').textContent }));
 	check(wave.kills > 0 && /Нападение/.test(wave.banner), `нападение на базу: часовые убили ${wave.kills}`);
 	await G(page, () => { const g = window.__game; for (const e of g.enemies) if (e.alive) e.die?.(); });
+	// улучшения построек (2-й уровень) и наёмники на базе: пост — к обороне, вылазка без героя — добыча на склад базы
+	const baseUp = await G(page, async () => {
+		const g = window.__game, b = g.world.base, { defense, level } = await import('/game/base.js');
+		g.bag.spore = 5000;
+		const d0 = defense(b);
+		const r = { up: g.upgradeBuilding('towerNW') && g.upgradeBuilding('armory') };
+		r.lv = level(b, 'towerNW') + level(b, 'armory');
+		r.dUp = defense(b) - d0;
+		g.trade.open({ armory: true });
+		r.price = [...document.querySelectorAll('[data-buy]')].find((x) => x.closest('.offer').querySelector('b').textContent === 'Патроны 5,45×39 ×30').textContent;
+		g.trade.close();
+		if (!g.roster.length) g.hire('sych');
+		const st = g.roster[0], d1 = defense(b);
+		g.postMerc(st.id);
+		r.dPost = defense(b) - d1;
+		r.guard = b.guards.length;
+		g.sendMerc(st.id, 'dachi');
+		r.trip = st.job?.kind === 'trip' && b.guards.length === 0;
+		st.job.end = g.world.time - 1;
+		g.updateBase();
+		r.back = b.trips[0]?.text ?? '';
+		r.free = !g.merc(st.id)?.job;
+		return r;
+	});
+	check(baseUp.up && baseUp.lv === 4 && baseUp.dUp === 10 && baseUp.price === '11 сп.' && baseUp.dPost === 10 && baseUp.guard === 1 && baseUp.trip && /вернулся/.test(baseUp.back) && baseUp.free,
+		`база: вышка и оружейная улучшены до 2-го уровня (оборона +${baseUp.dUp}, патроны у оружейника — ${baseUp.price}); наёмник на посту +${baseUp.dPost} к обороне, с вылазки: «${baseUp.back}»`);
 	// элита: высшая стадия — броня, затягивает раны, две чёрные жемчужины
 	const elite = await G(page, async () => {
 		// подальше от героя и часовых: не замечает, стоит и затягивает раны
@@ -933,6 +959,28 @@ try {
 		const z = await G(page, () => { const g = window.__game; return { n: g.enemies.length, elite: g.enemies.filter((e) => e.type === 'elite').length, ruber: g.enemies.filter((e) => e.type === 'ruber').length }; });
 		check(r.bad.length === 0 && r.exits === 0 && r.n >= 8 && z.n >= 15 && (id !== 'nii' || z.elite >= 1), `кластер «${id}»: ${r.n} тайников и выходы достижимы, заражённых ${z.n}${z.ruber ? `, руберов ${z.ruber}` : ''}${z.elite ? `, элита ${z.elite}` : ''}${r.bad.length ? ' — нет пути к ' + r.bad.join(', ') : ''}`);
 	}
+	// внешники: группа охотится в кластере героя — в броне, с натовскими стволами; с убитого — патроны и спораны
+	const hunt = await G(page, () => {
+		const g = window.__game, e = g.world.ext;
+		e.hunt = { at: g.loc, size: 3, start: g.world.time, end: g.world.time + 200, live: false, kills: 0 };
+		g.startLiveHunt(e.hunt);
+		const ext = g.bandits.filter((b) => b.faction === 'ext');
+		const r = { n: ext.length, armor: ext[0]?.armor, hp: ext[0]?.hp, guns: ext.map((b) => b.weapon).join(', '), banner: document.getElementById('banner-title').textContent };
+		const p0 = g.pickups.length, c0 = e.count;
+		ext[0].damage(1e5, g.player.pos.clone());
+		r.drops = g.pickups.slice(p0).map((p) => p.kind).join(', ');
+		r.count = c0 - e.count;
+		return r;
+	});
+	check(hunt.n === 3 && hunt.armor === 0.7 && hunt.hp === 160 && /Внешники/.test(hunt.banner) && /spore/.test(hunt.drops) && hunt.count === 1, `внешники охотятся: ${hunt.n} в броне (${hunt.guns}); с убитого — ${hunt.drops}`);
+	// форпост внешников: часовые, командир, склад со снаряжением; тайники и выход достижимы
+	await G(page, () => window.__game.travel('forpost'));
+	await page.waitForFunction(() => window.__game.loc === 'forpost' && window.__game.state === 'play', null, { timeout: 300000 });
+	const fp = await G(page, () => { const g = window.__game; g.player.hp = g.player.maxHp = 1e6; return { n: g.bandits.filter((b) => b.faction === 'ext' && !b.boss).length, boss: g.extBoss ? `${g.extBoss.hp} здоровья, ${g.extBoss.weapon}` : null, reserve: g.garrison?.reserve, store: g.level.containers.filter((c) => /ExtStorage|ExtCommand/.test(c.building) && c.items.length).length, timer: document.getElementById('loc-timer').textContent }; });
+	const rf = await reach();
+	check(fp.n >= 10 && fp.boss && fp.store >= 2 && /внешники: \d+/.test(fp.timer) && rf.bad.length === 0 && rf.exits === 0, `форпост внешников: ${fp.n} часовых, командир (${fp.boss}), в казарме ещё ${fp.reserve}, контейнеров со снаряжением ${fp.store}, все ${rf.n} тайников достижимы${rf.bad.length ? ' — нет пути к ' + rf.bad.join(', ') : ''}`);
+	await page.screenshot({ path: join(OUT, 'game-forpost.png') });
+
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 
@@ -966,13 +1014,17 @@ try {
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 	const scar3 = await G(page, () => { const g = window.__game, c = g.marks.counts(); return { total: c.splat + c.pool + c.hole + c.scorch, whole: g.barrels.every((b) => b.alive), enemies: g.enemies.length }; });
 	check(scar3.total === 0 && scar3.whole && scar3.enemies > 0, `после перезагрузки Дачи свежие: следов ${scar3.total}, бочки целые, заражённых ${scar3.enemies}`);
+	// перезагруженный кластер — другая копия: свои завалы (машины, блоки, деревья), но все тайники и выходы достижимы
+	const chg = await G(page, () => ({ n: window.__game.level.changes.length, v: window.__game.level.variant, kinds: [...new Set(window.__game.level.changes.map((c) => c.t))].join(', ') }));
+	const rch = await reach();
+	check(chg.v > 0 && chg.n >= 3 && rch.bad.length === 0 && rch.exits === 0, `Дачи после перезагрузки другие: ${chg.n} новых завалов (${chg.kinds}), все ${rch.n} тайников и выходы достижимы${rch.bad.length ? ' — нет пути к ' + rch.bad.join(', ') : ''}`);
 
 	// перезагрузка кластера, пока герой внутри: кислый запах, муть, смерть; очнулся в стабе без рюкзака
 	await G(page, () => { const g = window.__game; g.bag.spore = 7; g.bag.ammo545 = 11; g.world.clusters.dachi.next = g.world.time + 20; });
 	await page.waitForFunction(() => window.__game.warnStage >= 1, null, { timeout: 60000 }).catch(() => {});
-	const sour = await G(page, () => ({ fog: window.__game.level && document.getElementById('sour').style.opacity, stage: window.__game.warnStage }));
+	const sour = await G(page, () => ({ fog: window.__game.level && document.getElementById('sour').style.opacity, stage: window.__game.warnStage, rage: window.__game.rage ?? 0 }));
 	await page.screenshot({ path: join(OUT, 'game-sour.png') });
-	check(sour.stage >= 1 && +sour.fog > 0.2, `перед перезагрузкой: кислый запах и муть (дымка ${sour.fog})`);
+	check(sour.stage >= 1 && +sour.fog > 0.2 && sour.rage > 0, `перед перезагрузкой — кисляк: муть (дымка ${sour.fog}), заражённые звереют (${sour.rage.toFixed(2)})`);
 	await page.waitForSelector('#gameover:not(.hidden)', { timeout: 90000 }).catch(() => {});
 	const dead = await G(page, () => ({ title: document.getElementById('go-title').textContent, stats: document.getElementById('go-stats').textContent }));
 	check(dead.title === 'Кластер перезагрузился' && /При тебе: споран ×7/.test(dead.stats) && /Останется там: .*патроны 5,45×39 ×11/.test(dead.stats), `не успел уйти: «${dead.title}», ${dead.stats}`);

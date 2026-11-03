@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import * as T from './textures.js';
+import { applyChanges } from './changes.js';
 import { Batch, box, place, planeXZ, beginProp, endProp, PROPS } from './geom.js';
 import { envKinds, placeEnvProps } from './env-props.js';
 import { Fader, segmentHitsBox } from './buildings.js';
@@ -23,11 +24,12 @@ import lesopilka from './locations/lesopilka.js';
 import podstanciya from './locations/podstanciya.js';
 import nii from './locations/nii.js';
 import base from './locations/base.js';
+import forpost from './locations/forpost.js';
 
 export { HALF, PLAY };
 /** Участок, м: статика, деревья и трава собраны по участкам — видеокарта рисует только те, что в кадре. */
 const CHUNK = 33;
-export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base };
+export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base, forpost };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
 function materials() {
@@ -89,7 +91,7 @@ function materials() {
  * Собрать локацию id (см. LOCATIONS). Возвращает статику, коллайдеры, навигацию, здания и тайники,
  * выходы, группы заражённых, точки действий стаба и функции обновления вида.
  */
-export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = null } = {}) {
+export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = null, variant = 0 } = {}) {
 	const L = LOCATIONS[id];
 	const rnd = T.mulberry(L.seed);
 	const R = (a, b) => a + (b - a) * rnd();
@@ -146,11 +148,21 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 	// ---------- Выходы из локации: дорожный указатель и стрелки на земле ----------
 	for (const e of spec.exits ?? []) exitMarker(batch, root, collide, M, e);
 
-	// ---------- Деревья и кусты ----------
-	const navProbe = makeNav(colliders); // временная сетка, чтобы не сажать деревья в стены
 	// внутри зданий ничего уличного: ни деревьев, ни травы, ни луж
 	const indoors = (x, z, m = 0.5) => buildings.some((b) => b.contains({ x, z }, m));
 	const nearExit = (x, z, m) => (spec.exits ?? []).some((e) => x > e.x0 - m && x < e.x1 + m && z > e.z0 - m && z < e.z1 + m);
+
+	// ---------- Перемены после перезагрузки: свои завалы на каждый цикл кластера (game/changes.js) ----------
+	let changes = [];
+	if (NODES[id]?.kind === 'cluster' && variant > 0) {
+		const st = spec.start ?? spec.exits?.[0]?.spawn ?? [0, 0];
+		const need = [...buildings.flatMap((b) => b.containers.map((c) => [c.ax, c.az])), ...(spec.exits ?? []).map((e) => [e.spawn[0], e.spawn[1]])];
+		spec.fires = [...(spec.fires ?? [])];
+		changes = applyChanges({ seed: L.seed, variant, batch, root, M, colliders, collide, onRoad, indoors, nearExit, start: [st[0], st[1]], need, fires: spec.fires, HALF, PLAY, CELL });
+	}
+
+	// ---------- Деревья и кусты ----------
+	const navProbe = makeNav(colliders); // временная сетка, чтобы не сажать деревья в стены
 	const trees = [];
 	const tryTree = (x, z, kind) => {
 		if (Math.abs(x) > PLAY + 0.5 || Math.abs(z) > PLAY + 0.5) return;
@@ -236,7 +248,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 	const nav = makeNav(colliders);
 	const exits = (spec.exits ?? []).map((e) => ({ ...e, spawn: new THREE.Vector3(e.spawn[0], 0, e.spawn[1]), ry: e.spawn[2] }));
 	return {
-		id, root, colliders, nav, buildings, exits,
+		id, variant, root, colliders, nav, buildings, exits, changes,
 		barrels: dressing.barrels, // бочки с горючим (взрываются — game/main.js)
 		containers: buildings.flatMap((b) => b.containers),
 		groups: spec.groups ?? [],

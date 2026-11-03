@@ -57,8 +57,10 @@ export class WorldMap {
 		if (node.kind === 'stab') return 'безопасно';
 		if (node.kind === 'base') return `твоя база · оборона ${defense(w.base)} · построено ${w.base.built.length}/${BUILD_IDS.length}`;
 		if (node.kind === 'murs') return `<span class="danger">логово муров — около ${w.murs.count} стволов</span>`;
+		if (node.kind === 'ext') return `<span class="danger">форпост внешников — около ${w.ext?.count ?? 0} бойцов в броне</span>`;
 		// где отряд муров — знаешь, только если купил сведения у информатора в «Полисе»
-		const murs = w.murs.raid?.at === to && w.murs.raid.known ? ' · <span class="danger">там муры (сказал информатор)</span>' : '';
+		const murs = (w.murs.raid?.at === to && w.murs.raid.known ? ' · <span class="danger">там муры (сказал информатор)</span>' : '')
+			+ (w.ext?.hunt?.at === to && w.ext.hunt.known ? ' · <span class="danger">там охотятся внешники (радио базы)</span>' : '');
 		const left = timeLeft(w, to) - travel;
 		if (left <= 0) return 'перезагрузится, пока идёшь — придёшь в свежий кластер';
 		if (left < 60) return `<span class="danger">перезагрузка через ${approx(left)} после прихода!</span>`;
@@ -73,12 +75,12 @@ export class WorldMap {
 		const routes = routesFrom(here).map((r) => ({ ...r, time: Math.round(r.time * k) })).sort((a, b) => (b.to === this.suggest) - (a.to === this.suggest));
 		const hereLeft = timeLeft(g.world, here);
 		const kind = NODES[here].kind;
-		$('wm-sub').textContent = kind === 'stab' ? 'ты в стабе' : kind === 'murs' ? 'ты в логове муров' : kind === 'base' ? 'ты на своей базе' : `до перезагрузки кластера ${approx(hereLeft)}`;
+		$('wm-sub').textContent = kind === 'stab' ? 'ты в стабе' : kind === 'murs' ? 'ты в логове муров' : kind === 'ext' ? 'ты на форпосте внешников' : kind === 'base' ? 'ты на своей базе' : `до перезагрузки кластера ${approx(hereLeft)}`;
 		const hereNode = NODES[here];
 		// где ты сейчас и куда можно пойти — у каждого пункта снимок локации
 		const herecard = `<div class="route here-card"><img class="route-img" src="${asset(hereNode.preview)}" alt="">
 			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name}</b>
-				<span>${kind === 'stab' ? 'безопасно' : kind === 'murs' ? 'логово муров' : kind === 'base' ? this.status(here, 0) : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
+				<span>${kind === 'stab' ? 'безопасно' : kind === 'murs' ? 'логово муров' : kind === 'ext' ? 'форпост внешников' : kind === 'base' ? this.status(here, 0) : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
 		$('wm-list').innerHTML = herecard + routes.map(({ to, time }) => `
 			<div class="route${to === this.suggest ? ' suggest' : ''}">
 				<img class="route-img" src="${asset(NODES[to].preview)}" alt="">
@@ -87,7 +89,7 @@ export class WorldMap {
 					<span class="muted">${NODES[to].desc}</span></div>
 				${this.look ? '' : `<button class="go" data-go="${to}">Идти</button>`}
 			</div>`).join('') + (this.look
-			? `<div class="wm-hint">${kind === 'stab' ? 'Выход — через ворота стаба на юге' : kind === 'murs' ? 'Выход — через ворота «Карьера» на юге' : 'Чтобы уйти, дойди до края кластера (муть) в любом месте или к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
+			? `<div class="wm-hint">${kind === 'stab' ? 'Выход — через ворота стаба на юге' : kind === 'murs' ? 'Выход — через ворота «Карьера» на юге' : kind === 'ext' ? 'Выход — через ворота форпоста на юге' : 'Чтобы уйти, дойди до края кластера (муть) в любом месте или к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
 			: '<button class="stay" id="wm-stay">Остаться</button>');
 		$('wm-stay').onclick = () => this.close();
 		this.draw(here, routes);
@@ -146,7 +148,9 @@ export class WorldMap {
 			// своя база — домик с флажком
 			if (n.kind === 'base') el('path', { d: `M${x + 2.4} ${y - 3.6}l2.4-2.6 2.4 2.6v2.6h-4.8zM${x + 4.8} ${y - 6.2}V${y - 9.4}l2.6 1-2.6 1`, class: 'wm-base' }, g);
 			// логово муров — красный крест; кластер, где их отряд (если сказал информатор), — красная точка
-			if (n.kind === 'murs') el('path', { d: `M${x + 2.6} ${y - 7.6}l3.6 3.6M${x + 6.2} ${y - 7.6}l-3.6 3.6`, class: 'wm-mur' }, g);
+			if (n.kind === 'murs' || n.kind === 'ext') el('path', { d: `M${x + 2.6} ${y - 7.6}l3.6 3.6M${x + 6.2} ${y - 7.6}l-3.6 3.6`, class: 'wm-mur' }, g);
+			// охота внешников (слышно по радио базы) — синяя точка
+			if (w.ext?.hunt?.at === id && w.ext.hunt.known) el('circle', { cx: x - 4.6, cy: y - 4.6, r: 1.5, class: 'wm-hunt' }, g);
 			if (w.murs?.raid?.at === id && w.murs.raid.known) el('circle', { cx: x + 4.6, cy: y - 4.6, r: 1.5, class: 'wm-raid' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' || n.kind === 'base' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;

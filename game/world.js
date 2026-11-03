@@ -5,10 +5,12 @@
 // preview — снимок локации (scripts/render-previews.mjs) для карты Улья.
 // Муры — бандиты со своим стабом «Карьер»: вылазки в кластеры и учёт — game/murs.js, состояние — world.murs.
 // База «Опорный» (kind 'base') — постоянный кластер героя: не перезагружается, постройки покупаются в терминале
-// (game/base.js), состояние — world.base.
+// (game/base.js), состояние — world.base. Внешники — пришлые солдаты с форпостом (kind 'ext'): охоты и учёт —
+// game/ext.js, состояние — world.ext.
 
 import { newMurs, normalizeMurs } from './murs.js';
 import { newBase, normalizeBase } from './base.js';
+import { newExt, normalizeExt } from './ext.js';
 
 export const NODES = {
 	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 86], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
@@ -23,6 +25,8 @@ export const NODES = {
 	bolnica: { name: 'Кластер «Больница»', short: 'Больница', kind: 'cluster', danger: 2, at: [74, 76], preview: 'assets/previews/bolnica.jpg', desc: 'Городская больница: корпуса, приёмный покой, морг, гаражи скорой. Живчики и патроны у охраны, топтуны в коридорах.' },
 	lesopilka: { name: 'Кластер «Лесопилка»', short: 'Лесопилка', kind: 'cluster', danger: 1, at: [6, 34], preview: 'assets/previews/lesopilka.jpg', desc: 'Лесопилка у реки: пилорама, штабеля брёвен, бараки рабочих, контора. Тихая окраина — охотничьи ружья и патроны 12 калибра.' },
 	podstanciya: { name: 'Кластер «Подстанция»', short: 'Подстанция', kind: 'cluster', danger: 2, at: [60, 38], preview: 'assets/previews/podstanciya.jpg', desc: 'Электроподстанция и посёлок энергетиков: трансформаторы, щитовая, общежитие, гаражи. Топтуны и рубер у трансформаторов.' },
+	// внешники — пришлые солдаты с хорошим снаряжением, охотятся на иммунных (game/ext.js); их форпост — глубоко в Улье
+	forpost: { name: 'Форпост внешников', short: 'Форпост', kind: 'ext', at: [33, 7], preview: 'assets/previews/forpost.jpg', desc: 'Укреплённый лагерь внешников — пришлых солдат в форме, с хорошим оружием и бронёй. Охотятся на иммунных. В контейнерах склада — их снаряжение: зайти можно, выйти — вряд ли.' },
 	nii: { name: 'Кластер «НИИ»', short: 'НИИ', kind: 'cluster', danger: 4, at: [60, 8], preview: 'assets/previews/nii.jpg', desc: 'Закрытый научный городок: лабораторный корпус, виварий, ограда с КПП. Логово элиты — самого опасного мутанта Улья. Редкое оружие и чёрный жемчуг.' },
 };
 
@@ -47,12 +51,18 @@ export const ROUTES = [
 	['podstanciya', 'voench', 90],
 	['himmash', 'nii', 90],
 	['voench', 'nii', 80],
+	['forpost', 'nii', 85],
+	['forpost', 'himmash', 100],
 ];
 
 /** Сколько живёт кластер между перезагрузками, с. */
 export const CYCLE = [600, 720];
-/** Последняя минута: кислый запах, муть сгущается. */
-export const WARN = 60;
+/**
+ * «Кисляк» перед перезагрузкой: за WARN секунд — кислый запах; за RAGE — муть сгущается, гудит, заражённые звереют
+ * (быстрее, злее, сбегаются на героя); за 30 с Улей гонит из мути новых (game/main.js, updateCluster).
+ */
+export const WARN = 120;
+export const RAGE = 60;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -62,6 +72,19 @@ export function routesFrom(id) {
 
 export function travelTime(from, to) {
 	return ROUTES.find(([a, b]) => (a === from && b === to) || (a === to && b === from))?.[2] ?? 120;
+}
+
+/** Кратчайшая дорога по карте Улья (через другие узлы), с — для вылазок наёмников с базы. */
+export function pathTime(from, to) {
+	const dist = { [from]: 0 }, left = new Set(Object.keys(NODES));
+	while (left.size) {
+		let u = null;
+		for (const n of left) if (dist[n] != null && (u === null || dist[n] < dist[u])) u = n;
+		if (u === null || u === to) break;
+		left.delete(u);
+		for (const { to: v, time } of routesFrom(u)) if (left.has(v) && (dist[v] == null || dist[u] + time < dist[v])) dist[v] = dist[u] + time;
+	}
+	return dist[to] ?? 240;
 }
 
 /** Новый мир: герой в Заречном, до перезагрузки — 10 минут; остальные кластеры — в случайной фазе. */
@@ -81,6 +104,7 @@ export function newWorld() {
 		},
 		murs: newMurs(0),
 		base: newBase(0),
+		ext: newExt(0),
 	};
 }
 
@@ -91,6 +115,7 @@ export function normalizeWorld(world) {
 	}
 	world.murs = normalizeMurs(world.murs, world.time);
 	world.base = normalizeBase(world.base, world.time);
+	world.ext = normalizeExt(world.ext, world.time);
 	return world;
 }
 

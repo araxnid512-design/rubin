@@ -145,6 +145,9 @@ function tone({ freq = 440, to = null, dur = 0.2, type = 'sine', gain = 0.2 }) {
 	o.start(t); o.stop(t + dur + 0.05);
 }
 
+// гул «кисляка» перед перезагрузкой кластера: два низких расстроенных тона, медленно дышит
+const drone = { g: null, lfo: null };
+
 export const Sfx = {
 	unlock() {
 		if (ctx) return;
@@ -225,6 +228,23 @@ export const Sfx = {
 		g.gain.linearRampToValueAtTime(0.0001, t + 4.9);
 		o.connect(f).connect(g).connect(master);
 		o.start(t); o.stop(t + 5);
+	},
+	/** Кисляк: непрерывный низкий гул перед перезагрузкой; k — громкость 0…1 (0 — стихает). */
+	drone(k) {
+		if (!ctx || (!drone.g && !(k > 0))) return;
+		if (!drone.g) {
+			drone.g = ctx.createGain();
+			drone.g.gain.value = 0;
+			const f = ctx.createBiquadFilter();
+			f.type = 'lowpass'; f.frequency.value = 240;
+			for (const hz of [41, 43.4, 61.5]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; o.connect(f); o.start(); }
+			const lfo = ctx.createOscillator(); lfo.frequency.value = 0.3;
+			drone.lfo = ctx.createGain(); drone.lfo.gain.value = 0;
+			lfo.connect(drone.lfo).connect(drone.g.gain); lfo.start();
+			f.connect(drone.g).connect(master);
+		}
+		drone.g.gain.setTargetAtTime(0.06 * k, ctx.currentTime, 0.8);
+		drone.lfo.gain.setTargetAtTime(0.025 * k, ctx.currentTime, 0.8);
 	},
 	rumble(power = 1) { tone({ freq: 48, to: 34, dur: 1.4, type: 'sawtooth', gain: 0.08 * power }); burst({ dur: 1.4, freq: 160, sweep: 60, gain: 0.3 * power, attack: 0.4 }); },
 	snap() { burst({ dur: 0.09, freq: 2600, type: 'highpass', gain: 0.6 }); tone({ freq: 320, to: 90, dur: 0.16, type: 'square', gain: 0.12 }); setTimeout(() => burst({ dur: 0.25, freq: 900, sweep: 300, gain: 0.3 }), 90); },

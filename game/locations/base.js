@@ -14,7 +14,8 @@ import { buildArmyBarracks, buildWarehouse, buildCheckpoint } from '../buildings
 import { baseArmory, baseMedbay, baseCanteen, baseWorkshop, baseGarage, baseRadio, baseGreenhouse, baseSporeLab, baseBunker } from '../base-buildings.js';
 import { streetLamp, bench, transformer, woodpile } from '../props.js';
 import { concreteFence, watchTower, sandbags, barrier, hazardBarrels } from '../props-industrial.js';
-import { BUILDINGS, has } from '../base.js';
+import { BUILDINGS, has, level } from '../base.js';
+import { WEAPONS } from '../weapons.js';
 
 /** Половина стороны площадки за стеной, м; ворота — на юге, проём ±GATE. */
 export const YARD = 30, GATE = 4.5;
@@ -47,6 +48,10 @@ export const SLOTS = {
 	wall: { x: 0, z: -YARD, ry: 0, w: 2 * YARD, d: 0.4 },
 };
 
+let glow = null;
+/** Светящееся стекло прожектора (один материал на все — сливается). */
+const lampGlow = () => (glow ??= new THREE.MeshStandardMaterial({ color: 0xfff2c8, emissive: 0xffe8a0, emissiveIntensity: 1.4, roughness: 0.3 }));
+
 /** Здания базы с интерьером: id постройки → строитель (game/base-buildings.js). */
 const HOUSES = { armory: baseArmory, medbay: baseMedbay, kitchen: baseCanteen, workshop: baseWorkshop, garage: baseGarage, radio: baseRadio, greenhouse: baseGreenhouse, sporefarm: baseSporeLab, bunker: baseBunker };
 
@@ -67,6 +72,7 @@ export default {
 		const { rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx } = ctx;
 		const st = ctx.base ?? { built: [] };
 		const built = (id) => has(st, id);
+		const lv = (id) => level(st, id); // уровень постройки: 2–3 — улучшена (game/base.js, up)
 
 		// ---------- Покрытие: поле и двор — утоптанный грунт, площадь и главная дорога — асфальт, дорожки — бетон ----------
 		ground(132, 132, 0, 0, M.dirt, 6, 0.012);
@@ -172,11 +178,22 @@ export default {
 
 		// стена: бетонный забор с проёмом ворот на юге; не куплена — колышки по периметру
 		if (built('wall')) {
-			concreteFence(batch, M, collide, root, -YARD, -YARD, YARD, -YARD);
-			concreteFence(batch, M, collide, root, -YARD, -YARD, -YARD, YARD);
-			concreteFence(batch, M, collide, root, YARD, -YARD, YARD, YARD);
-			concreteFence(batch, M, collide, root, -YARD, YARD, -GATE, YARD);
-			concreteFence(batch, M, collide, root, GATE, YARD, YARD, YARD);
+			// 1-й уровень — голый бетон, 2-й — колючая спираль поверху, 3-й — ещё бетонные блоки и прожекторы вдоль стены
+			const wire = lv('wall') >= 2;
+			concreteFence(batch, M, collide, root, -YARD, -YARD, YARD, -YARD, { wire });
+			concreteFence(batch, M, collide, root, -YARD, -YARD, -YARD, YARD, { wire });
+			concreteFence(batch, M, collide, root, YARD, -YARD, YARD, YARD, { wire });
+			concreteFence(batch, M, collide, root, -YARD, YARD, -GATE, YARD, { wire });
+			concreteFence(batch, M, collide, root, GATE, YARD, YARD, YARD, { wire });
+			if (lv('wall') >= 3) {
+				for (const [x, z, r] of [[-YARD + 1.2, -12, Math.PI / 2], [YARD - 1.2, 2, Math.PI / 2], [-YARD + 1.2, 20, Math.PI / 2], [YARD - 1.2, 20, Math.PI / 2], [-GATE - 1.4, YARD - 1.4, 0], [GATE + 5.5, YARD - 1.4, 0]]) {
+					beginProp('block', x, z, r);
+					batch.add(place(box(1.8, 0.9, 0.9, 1), x, 0.45, z, r), M.concrete);
+					endProp();
+					collide(x, z, 1.9, 1.0, r);
+				}
+				for (const [x, z] of [[-YARD + 1.5, -2], [YARD - 1.5, -18], [-14, -YARD + 1.5], [14, YARD - 1.5]]) streetLamp(batch, M, collide, x, z);
+			}
 		} else {
 			for (let t = -YARD; t <= YARD; t += 5) for (const [x, z] of [[t, -YARD], [-YARD, t], [YARD, t], [t, YARD]]) if (!(z === YARD && Math.abs(x) < GATE)) batch.add(place(box(0.1, 0.7, 0.1), x, 0.35, z), M.wood);
 			signs.push([{ x: -GATE - 2, z: YARD, ry: Math.PI }, BUILDINGS.wall]);
@@ -187,13 +204,29 @@ export default {
 			buildings.push(clean(buildCheckpoint(bctx, { name: 'gate', cx: s.x, cz: s.z, ry: s.ry, tidy: true })));
 			barrier(batch, M, collide, GATE + 0.3, YARD + 0.8, Math.PI, 2 * GATE, true);
 			npcs.push({ x: 4.2, z: YARD - 2.6, ry: 0, clip: 'IdleRifle', gun: 'ak74', tint: [0.55, 0.6, 0.5], sentry: { range: 9, cooldown: 0.5, burst: 3 } });
+			// 2-й уровень — второй охранник, 3-й — пулемётчик за мешками у ворот
+			if (lv('gate') >= 2) npcs.push({ x: -4.2, z: YARD - 2.6, ry: 0, clip: 'IdleRifle', gun: 'ak74', tint: [0.55, 0.6, 0.5], sentry: { range: 9, cooldown: 0.5, burst: 3 } });
+			if (lv('gate') >= 3) {
+				sandbags(batch, M, collide, 2.6, YARD - 5.2, 2.4, 0);
+				npcs.push({ x: 2.6, z: YARD - 4.2, ry: 0, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: 12, cooldown: 0.16, burst: 5 } });
+			}
 		} else foundation('gate');
 		// вышки по углам
 		for (const id of ['towerNW', 'towerNE', 'towerSW', 'towerSE']) {
 			const s = SLOTS[id];
 			if (built(id)) {
 				watchTower(batch, M, collide, s.x, s.z);
-				npcs.push({ x: s.x, y: 4.27, z: s.z, ry: Math.atan2(-s.x, -s.z) + Math.PI, clip: 'IdleRifle', gun: 'svd', tint: [0.55, 0.6, 0.5], sentry: { range: 22, cooldown: 1.6 } });
+				// часовой со СВД; 2-й уровень — прожектор и дальше (27 м), 3-й — второй часовой с РПК
+				const ry = Math.atan2(-s.x, -s.z) + Math.PI, far = lv(id) >= 2 ? 27 : 22, two = lv(id) >= 3;
+				const ox = two ? Math.cos(ry) * 0.5 : 0, oz = two ? -Math.sin(ry) * 0.5 : 0;
+				npcs.push({ x: s.x + ox, y: 4.27, z: s.z + oz, ry, clip: 'IdleRifle', gun: 'svd', tint: [0.55, 0.6, 0.5], sentry: { range: far, cooldown: 1.6 } });
+				if (two) npcs.push({ x: s.x - ox, y: 4.27, z: s.z - oz, ry, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: 14, cooldown: 0.16, burst: 5 } });
+				if (lv(id) >= 2) {
+					const dx = -Math.sign(s.x) * 0.95, dz = -Math.sign(s.z) * 0.95; // прожектор на углу площадки, к центру базы
+					batch.add(place(box(0.08, 0.9, 0.08), s.x + dx, 5.1, s.z + dz), M.metalDark);
+					batch.add(place(box(0.42, 0.32, 0.42, 1), s.x + dx, 5.6, s.z + dz, Math.atan2(-dx, -dz)), M.metalDark);
+					batch.add(place(new THREE.CircleGeometry(0.15, 10), s.x + dx * 0.8, 5.6, s.z + dz * 0.8, Math.atan2(-dx, -dz)), lampGlow());
+				}
 			} else foundation(id);
 		}
 		// казарма и склад — большие, прибранные (без тайников)
@@ -201,10 +234,13 @@ export default {
 			const s = SLOTS.barracks;
 			buildings.push(clean(buildArmyBarracks(bctx, { name: 'barracks', cx: s.x, cz: s.z, ry: s.ry, tidy: true })));
 			// дневальный у входа
-			npcs.push({ x: s.x + 2.2, z: s.z + 5.6, ry: 0.4, clip: 'IdleRifle', gun: 'aks', tint: [0.55, 0.6, 0.5], sentry: { range: 8, cooldown: 0.5, burst: 3 } });
+			npcs.push({ x: s.x + 2.2, z: s.z + 5.6, ry: 0.4, clip: 'IdleRifle', gun: lv('barracks') >= 2 ? 'rpk' : 'aks', tint: [0.55, 0.6, 0.5], sentry: { range: 8, cooldown: 0.5, burst: 3 } });
 			// бойцы греются у костра
 			npcs.push({ x: fire.x - 1.2, z: fire.z + 1.6, ry: Math.PI - 0.6, clip: 'Idle', tint: [0.6, 0.62, 0.55] });
 			npcs.push({ x: fire.x + 1.4, z: fire.z + 1.5, ry: Math.PI + 0.7, clip: 'IdleRifle', gun: 'ak74', tint: [0.6, 0.62, 0.55] });
+			// дежурный в казарме: наёмники на посты базы и на вылазки без героя (game/mercs.js)
+			const [dx, dz] = [s.x + 1, s.z + 2.2];
+			stations.push({ id: 'basemercs', name: 'Казарма', label: 'Наёмники: посты и вылазки', x: dx, z: dz, r: 2.0 });
 		} else foundation('barracks');
 		if (built('warehouse')) {
 			const s = SLOTS.warehouse;
@@ -271,6 +307,8 @@ export default {
 			}, { cx: s.x, cz: s.z, ry: 0, hx: 2.6, hz: 1.9, top: 2.8 }, 0.25);
 			collide(s.x - 0.3, s.z + 0.3, 3.8, 2.6);
 			transformer(batch, root, M, collide, s.x + 3.6, s.z - 0.4);
+			if (lv('generator') >= 2) for (const [x, z] of [[-14, 9], [14, -13], [-3.9, -9.5], [18.5, 18]]) streetLamp(batch, M, collide, x, z); // прожекторы по базе
+			if (lv('generator') >= 3) { batch.add(place(box(2.0, 1.2, 1.1, 1), s.x - 0.6, 0.75, s.z - 1.0), M.metalOlive); } // второй генератор
 			hazardBarrels(batch, M, collide, s.x + 0.6, s.z + 2.6, rnd, 3);
 		} else foundation('generator');
 		// пулемётное гнездо из мешков у ворот
@@ -279,8 +317,30 @@ export default {
 			sandbags(batch, M, collide, s.x, s.z - 1.5, 3.2, 0);
 			sandbags(batch, M, collide, s.x - 1.5, s.z, 2.6, Math.PI / 2);
 			sandbags(batch, M, collide, s.x + 1.5, s.z, 2.6, Math.PI / 2);
-			npcs.push({ x: s.x, z: s.z, ry: 0, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: 12, cooldown: 0.16, burst: 5 } });
+			// 2-й уровень — второй пулемётчик, 3-й — оба бьют дальше
+			const far = lv('mgnest') >= 3 ? 15 : 12, two = lv('mgnest') >= 2;
+			npcs.push({ x: s.x - (two ? 0.55 : 0), z: s.z, ry: 0, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: far, cooldown: 0.16, burst: 5 } });
+			if (two) npcs.push({ x: s.x + 0.55, z: s.z, ry: 0, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: far, cooldown: 0.16, burst: 5 } });
 		} else foundation('mgnest');
+
+		// наёмники на постах базы (world.base.guards): часовые у ворот и у казармы со своим стволом
+		const GUARD_SPOTS = [[-2.4, YARD - 6.5, 0], [2.4, YARD - 6.5, 0], [-11, -10.6, Math.PI], [11.6, -10.6, Math.PI]];
+		(st.guards ?? []).slice(0, GUARD_SPOTS.length).forEach((gd, i) => {
+			const [x, z, ry] = GUARD_SPOTS[i], W = WEAPONS[gd.gun], auto = W?.auto < 0.2;
+			if (!W) return;
+			npcs.push({ x, z, ry, clip: 'IdleRifle', gun: gd.gun, tint: gd.tint, merc: gd.id, sentry: { range: Math.min(18, W.range * 1.3), cooldown: auto ? W.auto : 1.2, burst: auto ? 4 : 1 } });
+		});
+
+		// таблички уровня у улучшенных построек: «УР. 2» / «УР. 3» у переднего правого угла (одним материалом — сливаются)
+		const plaqueMat = { 2: T.signMaterial('УР. 2', { bg: '#2f3a2a', fg: '#c8e08a', w: 160, h: 72 }), 3: T.signMaterial('УР. 3', { bg: '#3a2f22', fg: '#f0c860', w: 160, h: 72 }) };
+		for (const id of ['barracks', 'warehouse', 'armory', 'medbay', 'kitchen', 'workshop', 'garage', 'radio', 'greenhouse', 'sporefarm', 'bunker', 'gate', 'generator', 'range']) {
+			if (lv(id) < 2) continue;
+			const s = SLOTS[id], c = Math.cos(s.ry), n = Math.sin(s.ry);
+			const lx = s.w / 2 - 0.5, lz = -(s.d / 2 + 0.55);
+			const x = s.x + lx * c + lz * n, z = s.z - lx * n + lz * c;
+			batch.add(place(box(0.07, 1.1, 0.07), x, 0.55, z), M.metalDark);
+			batch.add(place(new THREE.PlaneGeometry(0.7, 0.32).rotateX(-0.45), x, 1.2, z + 0.04), plaqueMat[lv(id)]);
+		}
 
 		// таблички у фундаментов: что здесь встанет и почём (в терминале — подробно)
 		for (const [s, B] of signs) {

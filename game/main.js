@@ -9,6 +9,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions, PLAY } from './level.js';
 import { rollHorde } from './horde.js';
+import { EXT_GUNS, EXT_AIM, EXT_ACCURACY, EXT_DAMAGE, EXT_ARMOR, EXT_HP, CMD_HP, CMD_ARMOR, CMD_GUN, EXT_DROP_AMMO, EXT_DROP_SPORE, EXT_DROP_MED, EXT_DROP_NADE, EXT_DROP_GUN, tickExt, extText } from './ext.js';
 import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, tickMurs, storeLoot, hireMurs, BOSS_HP, BOSS_ARMOR, BOSS_GUN, MUR_NADE_SHARE, MUR_NADE_GAP, MUR_FLANK_GAP, MUR_DROP_AMMO, MUR_DROP_SPORE } from './murs.js';
 import { setAnisotropy, softDotTexture } from './textures.js';
 import { createMarks } from './marks.js';
@@ -29,16 +30,16 @@ import { createPost } from './post.js';
 import { createMuzzleFlashes } from './muzzle.js';
 import { OFFLINE } from './assets.js';
 import { clothVariants, dressZombie, bodyVariation } from './variety.js';
-import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow } from './mercs.js';
+import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow, BASE_POSTS, BASE_POSTS_BARRACKS, TRIP_WORK, resolveTrip } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE, sellPrice, SELLABLE } from './trade.js';
-import { BUILDINGS, cantBuy, build as buildOnBase, tickBase, collect as collectStock, perks as basePerks, defense as baseDefense } from './base.js';
+import { BUILDINGS, cantBuy, build as buildOnBase, cantUpgrade, upgrade as upgradeOnBase, level as baseLevel, tickBase, collect as collectStock, perks as basePerks, defense as baseDefense } from './base.js';
 import { TerminalWindow, stockText } from './terminal.js';
 import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
 import { IntelWindow, INTEL_PRICE, intelText } from './intel.js';
 import { BUILD } from './version.js';
 import { WorldMap } from './worldmap.js';
-import { NODES, WARN, newWorld, normalizeWorld, advance, timeLeft, travelTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
+import { NODES, WARN, RAGE, newWorld, normalizeWorld, advance, timeLeft, travelTime, pathTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
 import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
 import { ZOMBIE_GAIT, RUBER_GAIT } from '../src/animations.js';
 
@@ -127,7 +128,7 @@ async function boot() {
 	try { await loadEnvProps(loadModel); } catch (e) { console.warn('модели предметов не загрузились', e); }
 	progress(0.05, 'Строим кластер…');
 	await frameWait();
-	level = buildLevel(scene, { quality: QUALITY, id: saved?.world?.at ?? 'zarechny', base: saved?.world?.base });
+	level = buildLevel(scene, { quality: QUALITY, id: saved?.world?.at ?? 'zarechny', base: saved?.world?.base, variant: saved?.world?.clusters?.[saved?.world?.at]?.reloads ?? 0 });
 	game.level = level;
 	game.planLevel();
 	progress(0.35, 'Загружаем иммунного…');
@@ -1155,6 +1156,8 @@ class Enemy extends Actor {
 		this.growl -= dt;
 		if (this.growl < 0) { this.growl = 4 + Math.random() * 8; if (dist < 16) Sfx.growl(this.type, game.ear(this.pos)); }
 		if (this.stagger > 0) { this.stagger -= dt; return true; }
+		// кисляк: озверевшие замечают героя издалека
+		if (this.state === 'idle' && game.rage > 0 && dist < 16 + 30 * game.rage) this.alert();
 		if (this.state === 'idle') { this.idle(dt, p, dist); return true; }
 		if (this.state === 'roar') {
 			this.timer += dt;
@@ -1168,7 +1171,7 @@ class Enemy extends Actor {
 			const a = this.actions[this.T.attack ?? 'Attack'];
 			if (!this.hitDone && this.timer >= this.T.hitTime / this.T.attackAnim) {
 				this.hitDone = true;
-				if (p.alive && dist < this.T.range + 0.6) p.hurt(p.dry ? p.hp : this.T.damage, this.pos, this.T.knock); // боец без патронов не отобьётся
+				if (p.alive && dist < this.T.range + 0.6) p.hurt(p.dry ? p.hp : this.T.damage * (1 + 0.3 * (game.rage ?? 0)), this.pos, this.T.knock); // боец без патронов не отобьётся; в кисляк — злее
 				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }
 			}
 			// во время выпада тело немного продвигается вперёд
@@ -1213,7 +1216,7 @@ class Enemy extends Actor {
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 1.6);
 			dir.set(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y));
 		}
-		const speed = charging ? this.T.charge : this.T.speed * this.speedVar;
+		const speed = (charging ? this.T.charge : this.T.speed * this.speedVar) * (1 + 0.35 * (game.rage ?? 0)); // в кисляк — быстрее
 		this.pos.addScaledVector(dir, speed * dt);
 		if (!charging) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 6);
 		const move = charging ? 'Charge' : this.actions[this.T.move] ? this.T.move : 'Walk';
@@ -1659,9 +1662,15 @@ function coverAt(x, z, tp) {
  * и его. Патроны в запасе не кончаются — только перезарядка. Ранили — помнит, откуда (aggro), и идёт туда.
  */
 class Bandit extends Actor {
-	constructor(pos, weapon, squad, { post = null, boss = false, patrol = null } = {}) {
+	constructor(pos, weapon, squad, { post = null, boss = false, patrol = null, faction = 'murs' } = {}) {
 		super(assets.player, { scale: boss ? 1.08 : 1 });
 		this.type = 'bandit';
+		// фракция: муры (бандиты «Карьера») или внешники (game/ext.js) — у внешников броня, стреляют лучше
+		this.faction = faction;
+		const ext = faction === 'ext';
+		this.armor = boss ? (ext ? CMD_ARMOR : BOSS_ARMOR) : ext ? EXT_ARMOR : 1;
+		this.aimRange = ext ? EXT_AIM : MUR_AIM;
+		this.shotMod = ext ? { accuracy: EXT_ACCURACY, damage: EXT_DAMAGE } : { accuracy: MUR_ACCURACY, damage: MUR_DAMAGE };
 		this.weapon = weapon;
 		this.W = WEAPONS[weapon];
 		this.clips = CLIPS[this.W.anim];
@@ -1669,9 +1678,9 @@ class Bandit extends Actor {
 		this.post = post;
 		// главарь: крупнее, в бронежилете (BOSS_ARMOR), больше здоровья; патрульный ходит по маршруту
 		this.boss = boss;
-		this.hp = this.maxHp = boss ? BOSS_HP : MUR_HP;
+		this.hp = this.maxHp = boss ? (ext ? CMD_HP : BOSS_HP) : ext ? EXT_HP : MUR_HP;
 		this.patrol = patrol ? { pts: patrol, i: 0, flows: [] } : null;
-		this.grenades = boss ? 2 : Math.random() < MUR_NADE_SHARE ? 1 : 0;
+		this.grenades = boss ? 2 : Math.random() < (ext ? 0.5 : MUR_NADE_SHARE) ? 1 : 0;
 		// тактика (tactics): место у укрытия, обход (flank: ±1 — с какой стороны), перевязка, паника без главаря
 		this.spot = null; this.spotT = Math.random(); this.flank = 0; this.healed = false; this.recover = 0;
 		this.panicT = 0; this.shoutT = 0; this.lastSeenT = 0; this.throwT = 0;
@@ -1681,8 +1690,9 @@ class Bandit extends Actor {
 		this.mag = this.W.mag;
 		this.cooldown = Math.random(); this.reloading = 0; this.burstLeft = 0; this.retarget = Math.random() * 0.4; this.timer = 0;
 		this.offset = new THREE.Vector2((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3); // место в куче
-		// тёмная разношёрстная одежда — не форма, у каждого свой оттенок
-		const tint = boss ? new THREE.Color(0.62, 0.3, 0.26) : new THREE.Color().setHSL(Math.random(), 0.18, 0.18 + Math.random() * 0.14).multiplyScalar(2.4);
+		// муры — тёмная разношёрстная одежда, у каждого свой оттенок; внешники — одна серо-синяя форма, командир темнее
+		const tint = ext ? (boss ? new THREE.Color(0.36, 0.4, 0.46) : new THREE.Color(0.6, 0.67, 0.78).multiplyScalar(0.94 + Math.random() * 0.12))
+			: boss ? new THREE.Color(0.62, 0.3, 0.26) : new THREE.Color().setHSL(Math.random(), 0.18, 0.18 + Math.random() * 0.14).multiplyScalar(2.4);
 		this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (/Cloth|Gear/.test(m.name)) m.color.multiply(tint); });
 		this.gunObj = this.W.make();
 		this.model.getObjectByName('GripR')?.add(this.gunObj);
@@ -1694,7 +1704,7 @@ class Bandit extends Actor {
 	/** Попадание (пуля, осколки, удар заражённого). from — откуда: туда мур и пойдёт разбираться. */
 	damage(dmg, from, knock = 0.2) {
 		if (!this.alive) return;
-		if (this.boss) dmg *= BOSS_ARMOR;
+		dmg *= this.armor; // бронежилет главаря, внешников
 		this.hp -= dmg;
 		this.hitFlash();
 		if (from) {
@@ -1760,12 +1770,12 @@ class Bandit extends Actor {
 			const facing = Math.abs(((ang - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
 			// новая цель: по человеку сначала прицеливается секунду-две, по заражённому — почти сразу
 			const human = isHuman(t);
-			if (t !== this.aimAt) { this.aimAt = t; this.turnT = 0; this.aimT = human ? MUR_AIM[0] + Math.random() * (MUR_AIM[1] - MUR_AIM[0]) : 0.3; }
+			if (t !== this.aimAt) { this.aimAt = t; this.turnT = 0; this.aimT = human ? this.aimRange[0] + Math.random() * (this.aimRange[1] - this.aimRange[0]) : 0.3; }
 			this.aimT -= dt;
 			// по человеку — по очереди: разом стреляют не больше MUR_SHOOTERS, отстрелялся — отдыхает и уступает
 			if (human) {
 				if (this.turnT > 0 && (this.turnT -= dt) <= 0) this.aimT = MUR_REST[0] + Math.random() * (MUR_REST[1] - MUR_REST[0]);
-				if (!(this.turnT > 0) && this.aimT <= 0 && game.bandits.filter((b) => b !== this && b.alive && b.aimAt === t && b.turnT > 0).length < MUR_SHOOTERS) {
+				if (!(this.turnT > 0) && this.aimT <= 0 && game.bandits.filter((b) => b !== this && b.alive && b.faction === this.faction && b.aimAt === t && b.turnT > 0).length < MUR_SHOOTERS) {
 					this.turnT = MUR_TURN[0] + Math.random() * (MUR_TURN[1] - MUR_TURN[0]);
 				}
 			}
@@ -1927,7 +1937,7 @@ class Bandit extends Actor {
 		}
 		// долго не видно цели — выкурить гранатой
 		if (!seen && this.lastSeenT < 9 && this.tryGrenade()) return true;
-		if ((this.phaseT -= dt) <= 0 && game.bandits.filter((b) => b !== this && b.alive && b.foe === foe && b.phase === 'out').length < MUR_SHOOTERS) {
+		if ((this.phaseT -= dt) <= 0 && game.bandits.filter((b) => b !== this && b.alive && b.faction === this.faction && b.foe === foe && b.phase === 'out').length < MUR_SHOOTERS) {
 			this.phase = 'out';
 			this.aimAt = foe;
 			this.aimT = 0.6 + Math.random() * 0.4; // ведёт цель из-за укрытия — на углу целится недолго
@@ -2056,19 +2066,19 @@ class Bandit extends Actor {
 
 	/** Засевшего (видели, а сейчас не видно) в 5–14 м — гранатой, если своих там нет и отряду пора (MUR_NADE_GAP). */
 	tryGrenade() {
-		if (!(this.grenades > 0) || this.reloading > 0 || this.panicT > 0 || game.time < (game.murNadeAt ?? 0)) return false;
+		if (!(this.grenades > 0) || this.reloading > 0 || this.panicT > 0 || game.time < (game[this.faction === 'ext' ? 'extNadeAt' : 'murNadeAt'] ?? 0)) return false;
 		const p = this.lastSeen, d = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
 		if (d < 5 || d > 14 || !game.player.alive) return false;
-		if (game.bandits.some((b) => b.alive && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 7)) return false;
-		const boss = game.murBoss?.alive;
-		game.murNadeAt = game.time + (boss ? MUR_NADE_GAP[0] : MUR_NADE_GAP[1]);
+		if (game.bandits.some((b) => b.alive && b.faction === this.faction && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 7)) return false;
+		const boss = game.leaderOf(this.faction)?.alive, key = this.faction === 'ext' ? 'extNadeAt' : 'murNadeAt';
+		game[key] = game.time + (boss ? MUR_NADE_GAP[0] : MUR_NADE_GAP[1]);
 		this.grenades--;
 		this.root.rotation.y = angleTo(this.pos, p);
 		this.play('Melee', { once: true, fade: 0.06, restart: true, timeScale: 1.25 });
 		Sfx.swing();
 		this.throwT = 0.6;
 		this.nade = { t: 0.27, to: p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0, (Math.random() - 0.5) * 1.5)) };
-		if (boss) game.bossShout('Гранату ему!');
+		if (boss) game.bossShout(this.faction === 'ext' ? 'Граната! Выкурить его!' : 'Гранату ему!', this.faction);
 		if (Math.hypot(p.x - game.player.pos.x, p.z - game.player.pos.z) < 10) game.toast('Граната! Беги из красного круга', 'warn');
 		return true;
 	}
@@ -2089,7 +2099,7 @@ class Bandit extends Actor {
 			this.cooldown = this.burstLeft > 0 ? W.auto : 0.9 + Math.random() * 0.7;
 		} else this.cooldown = W.auto + 0.6 + Math.random() * 0.6;
 		// по людям — хуже и слабее (MUR_ACCURACY, MUR_DAMAGE в game/murs.js), по заражённым — как обычно
-		fireShot(this, W, this.gunObj, target, isHuman(target) ? { accuracy: MUR_ACCURACY, damage: MUR_DAMAGE } : {});
+		fireShot(this, W, this.gunObj, target, isHuman(target) ? this.shotMod : {});
 	}
 }
 
@@ -2185,9 +2195,12 @@ class RaidSquad {
  * выходит следующий, пока муры не кончатся. Заметил героя один — вся стая идёт на звук.
  */
 class Garrison {
-	constructor(reserve, door) {
+	/** faction — чей гарнизон: муры «Карьера» или внешники форпоста (у них свои стволы). */
+	constructor(reserve, door, faction = 'murs') {
 		this.reserve = reserve;
 		this.door = door;
+		this.faction = faction;
+		this.guns = faction === 'ext' ? EXT_GUNS : MUR_GUNS;
 		this.t = 0;
 		this.alerted = null;
 	}
@@ -2195,7 +2208,7 @@ class Garrison {
 	/** Тревога расходится по «Карьеру» постепенно: кто ближе к месту — идёт сразу, дальние — позже. */
 	alarm(from) {
 		// первая тревога — сирена над «Карьером» и окрик главаря
-		if (!this.alerted) { Sfx.siren(); game.bossShout('Тревога! Валите его!'); }
+		if (!this.alerted) { Sfx.siren(); game.bossShout(this.faction === 'ext' ? 'Контакт! Огонь на поражение!' : 'Тревога! Валите его!', this.faction); }
 		this.alerted = from.clone();
 		for (const b of game.bandits) {
 			if (!b.alive || b.aggro || b.alarmT != null) continue;
@@ -2207,14 +2220,74 @@ class Garrison {
 	update(dt) {
 		// кто-то видит героя — поднимает всех
 		if (game.bandits.some((b) => b.alive && b.target === game.player)) this.alarm(game.player.pos);
-		const alive = game.bandits.filter((b) => b.alive && !b.boss).length;
+		const alive = game.bandits.filter((b) => b.alive && !b.boss && b.faction === this.faction).length;
 		if (this.reserve <= 0 || alive >= 14 || (this.t -= dt) > 0) return;
 		this.t = this.alerted ? 5 : 8;
 		this.reserve--;
-		const b = new Bandit(new THREE.Vector3(this.door.x + (Math.random() - 0.5), 0, this.door.z), MUR_GUNS[Math.floor(Math.random() * MUR_GUNS.length)], this);
+		const b = new Bandit(new THREE.Vector3(this.door.x + (Math.random() - 0.5), 0, this.door.z), this.guns[Math.floor(Math.random() * this.guns.length)], this, { faction: this.faction });
 		if (this.alerted) b.aggro = { pos: game.player.pos.clone(), t: 12 };
 		else b.post = { x: this.door.x + (Math.random() - 0.5) * 6, z: this.door.z + 3 + Math.random() * 3, ry: Math.random() * 6 };
 		game.bandits.push(b);
+	}
+}
+
+/**
+ * Группа внешников на охоте в кластере, где герой. Они чуют иммунных: идут туда, где герой, — к точке рядом с ним
+ * (раз в несколько секунд уточняют), по дороге бьют всех, кто попадётся: заражённых, муров, героя, наёмников.
+ * Время охоты вышло — к ближайшему выходу, там уходят.
+ */
+class HuntSquad {
+	constructor(hunt, members) {
+		this.hunt = hunt;
+		this.members = members;
+		this.goal = null; this.flow = null; this.goalT = 0;
+		this.leaving = false;
+	}
+
+	/** Новая цель: точка в 4–10 м от героя (точно не знают, где он), на свободном месте; уходят — ближайший выход. */
+	pick() {
+		const alive = this.members.filter((b) => b.alive && !b.left);
+		if (!alive.length) return;
+		if (this.leaving || !game.player?.alive) {
+			const cx = alive[0].pos.x, cz = alive[0].pos.z;
+			const e = level.exits.reduce((a, b) => (Math.hypot(a.spawn.x - cx, a.spawn.z - cz) < Math.hypot(b.spawn.x - cx, b.spawn.z - cz) ? a : b));
+			this.goal = { x: e.spawn.x, z: e.spawn.z, exit: true };
+		} else {
+			const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 6, p = game.player.pos;
+			const [x, z] = freeNear(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r);
+			this.goal = { x, z };
+		}
+		this.flow = flowFrom(this.goal.x, this.goal.z, this.flow);
+		this.goalT = 8 + Math.random() * 4;
+	}
+
+	goalFor(b) {
+		if (!this.goal) this.pick();
+		if (!this.goal) return null;
+		return this.goal.exit ? tmpV2.set(this.goal.x, 0, this.goal.z) : tmpV2.set(this.goal.x + b.offset.x * 0.6, 0, this.goal.z + b.offset.y * 0.6);
+	}
+
+	stepFor(b) { return this.flow ? flowStep(this.flow, b.pos) : null; }
+
+	/** Уходят с охоты — бегом; ищут — шагом, осторожно. */
+	get hurry() { return this.leaving; }
+
+	/** Дошёл: у выхода — уходит; у точки поиска — ждёт новую. */
+	arrived(b) { if (this.goal?.exit) b.gone = true; }
+
+	/** Кого-то из группы ранили — идут на звук все. */
+	alarm(from) { for (const b of this.members) if (b.alive && !b.aggro) b.aggro = { pos: from.clone(), t: 8 }; }
+
+	update(dt) {
+		if (!this.leaving && game.world.time >= this.hunt.end) { this.leaving = true; this.pick(); }
+		if ((this.goalT -= dt) <= 0) this.pick();
+		for (const b of this.members) {
+			if (!b.gone || b.left) continue;
+			b.left = true;
+			b.dispose();
+			game.bandits = game.bandits.filter((o) => o !== b);
+		}
+		if (this.members.every((b) => !b.alive || b.left)) game.finishHunt();
 	}
 }
 
@@ -2229,7 +2302,8 @@ const game = {
 	loc: 'zarechny', from: null,
 	icons: {},
 	enemies: [], pickups: [], fx: [], npcs: [], mercs: [],
-	bandits: [], raidSquad: null, garrison: null, // муры: отряд на вылазке здесь или гарнизон «Карьера»
+	bandits: [], raidSquad: null, garrison: null, // муры: отряд на вылазке здесь или гарнизон «Карьера» (и форпоста внешников)
+	huntSquad: null, extBoss: null, // внешники: группа на охоте здесь, командир форпоста
 	perks: { maxHp: 100 }, // что даёт съеденная чёрная жемчужина (навсегда)
 	roster: [], // нанятые наёмники: { id, hp, mag, ammo, out } — out: идёт с героем, иначе ждёт в комнате в стабе
 	/** Отряд — кто идёт с героем. */
@@ -2270,13 +2344,14 @@ const game = {
 		// старые сохранения: был только отряд — все в нём идут с героем
 		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0).slice(0, ROOM_BEDS);
 		this.roster.forEach((m, i) => { if (!(m.bed >= 0) || this.roster.some((o, j) => j < i && o.bed === m.bed)) m.bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((o, j) => j !== i && o.bed === b)); });
+		this.syncGuards(); // кто на постах базы — по отряду из сохранения
 		this.kills = 0;
 		this.begin();
 		this.enter(s.world.at, s.from ?? null);
 		if (this.player && s.hp) this.player.hp = Math.max(1, s.hp);
 		this.hud();
 		const kind = NODES[this.loc].kind;
-		this.banner(NODES[this.loc].name, kind === 'stab' ? 'Безопасно' : kind === 'murs' ? 'Логово муров — тебя заметят' : kind === 'base' ? this.baseGreeting() : `До перезагрузки ${approx(timeLeft(this.world, this.loc))}`);
+		this.banner(NODES[this.loc].name, kind === 'stab' ? 'Безопасно' : kind === 'murs' ? 'Логово муров — тебя заметят' : kind === 'ext' ? 'Форпост внешников — тебя заметят' : kind === 'base' ? this.baseGreeting() : `До перезагрузки ${approx(timeLeft(this.world, this.loc))}`);
 	},
 
 	begin() {
@@ -2295,18 +2370,22 @@ const game = {
 		for (const n of this.npcs) n.dispose();
 		for (const m of this.mercs) m.dispose();
 		const raid = this.world?.murs?.raid;
-		if (raid?.live) { raid.live = false; raid.size = this.bandits.filter((b) => b.alive && !b.left).length; }
+		if (raid?.live) { raid.live = false; raid.size = this.bandits.filter((b) => b.alive && !b.left && b.faction === 'murs').length; }
+		const hunt = this.world?.ext?.hunt;
+		if (hunt?.live) { hunt.live = false; hunt.size = this.bandits.filter((b) => b.alive && !b.left && b.faction === 'ext').length; }
 		for (const b of this.bandits) b.dispose();
-		this.bandits = []; this.raidSquad = null; this.garrison = null; this.murBoss = null;
+		this.bandits = []; this.raidSquad = null; this.garrison = null; this.murBoss = null; this.huntSquad = null; this.extBoss = null;
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
 		marks.clear();
 		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = []; this.eliteWarned = false;
 		this.searching = null;
 		this.flow = null;
-		if (level?.id !== id || NODES[id].kind === 'base') {
+		// кластер после перезагрузки — другая копия: свои завалы на цикл (variant, game/changes.js)
+		const variant = this.world.clusters[id]?.reloads ?? 0;
+		if (level?.id !== id || level.variant !== variant || NODES[id].kind === 'base') {
 			level?.dispose();
-			level = buildLevel(scene, { quality: QUALITY, id, base: this.world.base });
+			level = buildLevel(scene, { quality: QUALITY, id, base: this.world.base, variant });
 			this.level = level;
 			this.planLevel();
 		}
@@ -2343,16 +2422,21 @@ const game = {
 		this.exitArmed = false;
 		this.edgeHint = false;
 		this.warnStage = 0;
+		this.rage = 0;
+		Sfx.drone?.(0);
 		this.visited = new Set();
 		this.inventory?.close();
 		spores.density = NODES[id].kind === 'cluster' ? 1 : 0.35;
 		this.updateMurs();
 		if (NODES[id].kind === 'cluster') this.populate(this.world.clusters[id].saved);
 		else if (NODES[id].kind === 'murs') this.populateMurs();
+		else if (NODES[id].kind === 'ext') this.populateExt();
 		else for (const n of level.npcs) this.npcs.push(n.sentry ? new Sentry(n) : new Npc(n));
 		if (NODES[id].kind === 'base') this.baseWaveT = 150 + Math.random() * 120;
 		const raid = this.world.murs.raid;
 		if (raid?.at === id && NODES[id].kind === 'cluster') this.startLiveRaid(raid, true);
+		const hunt = this.world.ext.hunt;
+		if (hunt?.at === id && NODES[id].kind === 'cluster') this.startLiveHunt(hunt, true);
 		// вернулись в стаб: уцелевшие бойцы отряда расходятся по своим койкам — снова брать с собой там
 		const back = level.room ? this.party.map((st) => MERCS[st.id].name) : [];
 		for (const st of back.length ? this.roster : []) st.out = false;
@@ -2463,7 +2547,16 @@ const game = {
 		for (const ev of tickBase(b, this.world.time, NODES[this.loc]?.kind === 'base')) {
 			const a = ev.attack;
 			if (a) this.toast(a.held ? `На базу напали заражённые — отбились (сила ${a.power}, оборона ${a.def})` : `На базу напали — прорвались (сила ${a.power}, оборона ${a.def})${stockText(a.lost) ? `: растащили ${stockText(a.lost)}` : ''}`, a.held ? undefined : 'warn');
+			// прорвались — наёмники на постах ранены, тяжело раненый погибает
+			if (a && !a.held) {
+				for (const st of this.roster.filter((m) => m.job?.kind === 'post')) {
+					st.hp -= MERCS[st.id].hp * (0.25 + Math.random() * 0.5);
+					if (st.hp <= 0) { this.roster = this.roster.filter((m) => m !== st); this.toast(`${MERCS[st.id].name} погиб на посту, защищая базу`, 'warn'); }
+				}
+				this.syncGuards();
+			}
 		}
+		this.resolveTrips();
 		if (this.basePerks().radio && this.world.murs.raid) this.world.murs.raid.known = true;
 	},
 
@@ -2478,6 +2571,23 @@ const game = {
 		this.rebuildBase();
 		if (this.player) { this.player.maxHp = this.heroMaxHp(); this.player.hp = Math.min(this.player.hp, this.player.maxHp); }
 		this.banner(`Построено: ${B.name}`, B.gives);
+		this.hud();
+		this.save();
+		return true;
+	},
+
+	/** Улучшить постройку на уровень (терминал): спораны, перестройка на месте — с новыми деталями и часовыми. */
+	upgradeBuilding(id) {
+		const b = this.world.base, B = BUILDINGS[id];
+		const why = cantUpgrade(b, id, this.bag.spore ?? 0);
+		if (why) { this.toast(`${B?.name ?? id}: ${why}`, 'warn'); return false; }
+		const up = B.up[baseLevel(b, id) - 1];
+		this.bag.spore -= up.price;
+		upgradeOnBase(b, id, this.world.time);
+		Sfx.coins();
+		this.rebuildBase();
+		if (this.player) { const was = this.player.maxHp; this.player.maxHp = this.heroMaxHp(); this.player.hp = Math.min(this.player.maxHp, this.player.hp + Math.max(0, this.player.maxHp - was)); }
+		this.banner(`${B.name}: уровень ${baseLevel(b, id)}`, up.gives);
 		this.hud();
 		this.save();
 		return true;
@@ -2521,12 +2631,12 @@ const game = {
 		this.hud();
 	},
 
-	/** Столовая базы: повар кормит горячим — +30 здоровья (бесплатно, до полного). */
+	/** Столовая базы: повар кормит горячим — +30 здоровья (2-й уровень — +45, 3-й — досыта), бесплатно. */
 	eatCanteen() {
 		const p = this.player;
 		if (!p?.alive) return;
 		if (p.hp >= p.maxHp) { this.toast('Повар: «Сытый? Заходи, как проголодаешься»'); return; }
-		const add = Math.round(Math.min(30, p.maxHp - p.hp));
+		const add = Math.round(Math.min(this.basePerks().meal || 30, p.maxHp - p.hp)); // столовая 3-го уровня — досыта
 		p.hp += add;
 		Sfx.drink();
 		this.toast(`Столовая: миска горячей каши — +${add} здоровья`);
@@ -2535,9 +2645,11 @@ const game = {
 
 	/** Радиорубка базы: радист пересказывает эфир муров — то же, что информатор, бесплатно; вылазка — на карте Улья. */
 	radioIntel() {
-		const murs = this.world.murs;
+		const murs = this.world.murs, ext = this.world.ext, both = this.basePerks().radioExt;
 		if (murs.raid) murs.raid.known = true;
-		this.banner('Радист', intelText(murs, this.world.time).replace('Отметил тебе на карте.', 'Отметил на карте Улья.'));
+		if (both && ext.hunt) ext.hunt.known = true;
+		// радиовышка 2-го уровня — слышно и внешников
+		this.banner('Радист', intelText(murs, this.world.time).replace('Отметил тебе на карте.', 'Отметил на карте Улья.') + (both ? ` ${extText(ext, NODES, this.world.time, approx)}` : ''));
 	},
 
 	/** Мастерская базы: холодное оружие — снова целое. */
@@ -2576,7 +2688,87 @@ const game = {
 			if (ev.ended) this.markRaided(ev.ended.at, ev.summary.mark);
 			if (ev.newBoss) this.toast(`У муров новый главарь — «${ev.newBoss}». Снова пойдут на вылазки`);
 		}
+		// внешники: охоты (game/ext.js) — в кластер героя приходят вживую
+		for (const ev of tickExt(this.world.ext, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1)) {
+			if (ev.started?.live && level) this.startLiveHunt(ev.started);
+			if (ev.ended) this.markRaided(ev.ended.at, ev.summary.mark);
+			if (ev.newCmd) this.toast(`У внешников новый командир — «${ev.newCmd}»`);
+		}
+		if (this.basePerks().radioExt && this.world.ext.hunt) this.world.ext.hunt.known = true;
 	},
+
+	// ---------- Внешники (game/ext.js) ----------
+
+	/** Группа внешников заходит в кластер героя через выход: идут на героя — чуют иммунных. */
+	startLiveHunt(hunt, resumed = false) {
+		hunt.live = true;
+		const e = level.exits[Math.floor(Math.random() * level.exits.length)];
+		const members = [];
+		for (let i = 0; i < hunt.size; i++) {
+			const pos = e.spawn.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3));
+			resolveCollisions(pos, 0.4, level.colliders);
+			const b = new Bandit(pos, EXT_GUNS[Math.floor(Math.random() * EXT_GUNS.length)], null, { faction: 'ext' });
+			members.push(b);
+			this.bandits.push(b);
+		}
+		this.huntSquad = new HuntSquad(hunt, members);
+		for (const b of members) b.squad = this.huntSquad;
+		Sfx.rumble?.(0.3);
+		this.banner('Внешники!', `${resumed ? 'В кластере охотится' : 'В кластер зашла'} группа внешников — ${hunt.size} в броне, с хорошими стволами. Охотятся на иммунных — идут на тебя`);
+	},
+
+	/** Охота кончилась (все ушли или полегли): в форпосте стало меньше на погибших. */
+	finishHunt() {
+		const ext = this.world.ext;
+		if (!this.huntSquad) return;
+		this.huntSquad = null;
+		ext.hunt = null;
+		ext.nextHunt = this.world.time + 900 + Math.random() * 1200;
+	},
+
+	/**
+	 * Форпост внешников: на постах — до 14 (сколько их сейчас дома), остальные выходят из казармы на смену убитым,
+	 * командир — у своего модуля. В контейнерах склада и у командира — их снаряжение: что вынесешь, то у них и убудет.
+	 */
+	populateExt() {
+		const ext = this.world.ext;
+		const home = Math.max(0, ext.count - (ext.hunt ? ext.hunt.size : 0));
+		const all = level.posts ?? [], fix = level.fixedPosts ?? 6, posts = [...all.slice(0, fix), ...all.slice(fix).sort(() => Math.random() - 0.5)];
+		const active = Math.min(14, home, posts.length);
+		this.garrison = new Garrison(home - active, level.barracksDoor ?? { x: 0, z: 0 }, 'ext');
+		const gun = () => EXT_GUNS[Math.floor(Math.random() * EXT_GUNS.length)];
+		const routes = (active >= 10 ? level.patrols ?? [] : []).map((r) => r.map(([x, z]) => freeNear(x, z)));
+		let i = 0;
+		for (const r of routes) for (let k = 0; k < 2; k++, i++) {
+			const [x, z] = r[k * Math.floor(r.length / 2)];
+			const b = new Bandit(new THREE.Vector3(x, 0, z), gun(), this.garrison, { patrol: r, faction: 'ext' });
+			b.patrol.i = (k * Math.floor(r.length / 2) + 1) % r.length;
+			this.bandits.push(b);
+		}
+		for (let j = 0; i < active && j < posts.length; i++, j++) {
+			const [x, z, ry] = posts[j];
+			this.bandits.push(new Bandit(new THREE.Vector3(x, 0, z), gun(), this.garrison, { post: { x, z, ry }, faction: 'ext' }));
+		}
+		this.extBoss = null;
+		if (ext.cmd?.alive !== false && home > 0 && level.bossPost) {
+			const [x, z, ry] = level.bossPost;
+			this.extBoss = new Bandit(new THREE.Vector3(x, 0, z), CMD_GUN, this.garrison, { post: { x, z, ry }, boss: true, faction: 'ext' });
+			this.bandits.push(this.extBoss);
+		}
+		const store = level.containers.filter((c) => /ExtStorage|ExtCommand/.test(c.building));
+		for (const c of level.containers) { c.items = store.includes(c) ? [] : rollLoot(c.loot); c.searched = false; c.spark.visible = true; }
+		Object.entries(ext.stash).forEach(([kind, n], k0) => {
+			if (!(n > 0) || !store.length) return;
+			const parts = Math.min(store.length, Math.max(1, Math.ceil(n / 30)));
+			for (let k = 0; k < parts; k++) {
+				const q = Math.floor(n / parts) + (k < n % parts ? 1 : 0);
+				if (q > 0) store[(k0 + k) % store.length].items.push([kind, q]);
+			}
+		});
+	},
+
+	/** Лидер фракции: главарь муров или командир внешников. */
+	leaderOf(faction) { return faction === 'ext' ? this.extBoss : this.murBoss; },
 
 	/** Заочная вылазка закончилась: кластер запоминает её следы (до своей перезагрузки). */
 	markRaided(at, mark) {
@@ -2646,6 +2838,7 @@ const game = {
 		for (const e of this.enemies) look(e);
 		look(this.player);
 		for (const m of this.mercs) if (m.state.out) look(m);
+		for (const o of this.bandits) if (o.faction !== b.faction) look(o); // муры и внешники бьют друг друга
 		return best;
 	},
 
@@ -2654,10 +2847,16 @@ const game = {
 	 * (он и кричит), без него — один и реже (MUR_FLANK_GAP). Гранаты по засевшему — Bandit.tryGrenade.
 	 */
 	coordinateMurs(dt) {
-		if ((this.murOrderT = (this.murOrderT ?? 3) - dt) > 0) return;
-		const boss = this.murBoss?.alive ? this.murBoss : null;
-		this.murOrderT = (boss ? MUR_FLANK_GAP[0] : MUR_FLANK_GAP[1]) * (0.8 + Math.random() * 0.4);
-		const engaged = this.bandits.filter((b) => b.alive && !b.boss && b.target && isHuman(b.target) && b.panicT <= 0);
+		for (const f of ['murs', 'ext']) this.coordinateFaction(f, dt);
+	},
+
+	/** Обход с фланга для одной фракции (у каждой свой отсчёт и свой лидер). */
+	coordinateFaction(faction, dt) {
+		const key = faction === 'ext' ? 'extOrderT' : 'murOrderT';
+		if ((this[key] = (this[key] ?? 3) - dt) > 0) return;
+		const leader = this.leaderOf(faction), boss = leader?.alive ? leader : null;
+		this[key] = (boss ? MUR_FLANK_GAP[0] : MUR_FLANK_GAP[1]) * (0.8 + Math.random() * 0.4);
+		const engaged = this.bandits.filter((b) => b.alive && b.faction === faction && !b.boss && b.target && isHuman(b.target) && b.panicT <= 0);
 		if (engaged.length < 3 || engaged.some((b) => b.flank)) return;
 		const t = engaged[0].target, n = boss ? 2 : 1;
 		const cx = engaged.reduce((a, b) => a + b.pos.x, 0) / engaged.length, cz = engaged.reduce((a, b) => a + b.pos.z, 0) / engaged.length;
@@ -2665,27 +2864,27 @@ const game = {
 		if (axis.lengthSq() < 1e-4) return;
 		axis.normalize();
 		engaged.sort((a, b) => b.hp - a.hp).slice(0, n).forEach((b, i) => { b.flank = i % 2 ? -1 : 1; b.flankAxis = axis; b.spot = null; b.spotT = 0; });
-		if (boss) this.bossShout(n === 2 ? 'Обходи с двух сторон!' : 'Обходи его!');
+		if (boss) this.bossShout(faction === 'ext' ? (n === 2 ? 'Двойки — в обход, с флангов!' : 'Обойти с фланга!') : n === 2 ? 'Обходи с двух сторон!' : 'Обходи его!', faction);
 	},
 
 	/** Окрик главаря — в ленту, если герой рядом (не чаще раза в 6 с). */
-	bossShout(text) {
-		const b = this.murBoss;
+	bossShout(text, faction = 'murs') {
+		const b = this.leaderOf(faction);
 		if (!b?.alive || this.time < (this.shoutAt ?? 0) || Math.hypot(b.pos.x - this.player.pos.x, b.pos.z - this.player.pos.z) > 35) return;
 		this.shoutAt = this.time + 6;
-		this.toast(`Главарь «${this.world.murs.boss?.name ?? ''}»: «${text}»`, 'warn');
+		this.toast(faction === 'ext' ? `Командир «${this.world.ext.cmd?.name ?? ''}»: «${text}»` : `Главарь «${this.world.murs.boss?.name ?? ''}»: «${text}»`, 'warn');
 	},
 
 	/** Полоска здоровья главаря вверху: когда он рядом или дерётся с героем. */
 	updateBossBar() {
-		const b = this.murBoss, el = $('boss-bar');
+		const b = this.murBoss ?? this.extBoss, el = $('boss-bar');
 		const show = !!(b?.alive && this.state === 'play' && (b.target === this.player || Math.hypot(b.pos.x - this.player.pos.x, b.pos.z - this.player.pos.z) < 22));
 		if (show !== !el.classList.contains('hidden')) el.classList.toggle('hidden', !show);
 		if (!show) return;
 		const k = Math.round((b.hp / b.maxHp) * 100);
 		if (k !== this.bossHpShown) {
 			this.bossHpShown = k;
-			$('boss-name').textContent = `Главарь муров «${this.world.murs.boss?.name ?? ''}»`;
+			$('boss-name').textContent = b.faction === 'ext' ? `Командир внешников «${this.world.ext.cmd?.name ?? ''}»` : `Главарь муров «${this.world.murs.boss?.name ?? ''}»`;
 			$('boss-hp').style.width = `${k}%`;
 		}
 	},
@@ -2700,6 +2899,7 @@ const game = {
 		Sfx.death('human', this.ear(b.pos));
 		this.decal(b.pos, 1.6);
 		const near = (dx, dz) => b.pos.clone().add(new THREE.Vector3(dx, 0, dz));
+		if (b.faction === 'ext') { this.extDied(b, near); return; }
 		const [a0, a1] = MUR_DROP_AMMO;
 		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), a0 + Math.floor(Math.random() * (a1 - a0 + 1)));
 		if (b.boss) {
@@ -2717,6 +2917,28 @@ const game = {
 		this.world.murs.count = Math.max(0, this.world.murs.count - 1);
 		if (this.raidSquad && this.raidSquad.raid) this.raidSquad.raid.size = Math.max(0, this.raidSquad.raid.size - 1);
 		this.hud();
+	},
+
+	/**
+	 * Внешник убит: с него — патроны к стволу, спораны, бывает живчик, граната и сам ствол (EXT_DROP_* в game/ext.js);
+	 * в форпосте стало меньше. Командир — паника и окрик; нового выберут при пополнении.
+	 */
+	extDied(b, near) {
+		const ri = ([a, c]) => a + Math.floor(Math.random() * (c - a + 1)), ext = this.world.ext;
+		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), ri(EXT_DROP_AMMO));
+		this.spawnPickup('spore', near(0, -0.5), ri(EXT_DROP_SPORE) * (b.boss ? 8 : 1));
+		if (Math.random() < EXT_DROP_MED || b.boss) this.spawnPickup('zhivchik', near(-0.4, 0.2), 1);
+		if (Math.random() < EXT_DROP_NADE || b.boss) this.spawnPickup('grenade', near(0.2, -0.6), 1);
+		if (Math.random() < EXT_DROP_GUN || b.boss) this.spawnPickup(b.weapon, near(-0.3, -0.4), 1);
+		if (b.boss) {
+			ext.cmd = { ...(ext.cmd ?? {}), alive: false };
+			this.extBoss = null;
+			for (const o of this.bandits) if (o.alive && o.faction === 'ext') { o.panicT = 4 + Math.random() * 3; o.spot = null; o.flank = 0; }
+			this.banner('Командир убит', `«${ext.cmd.name ?? 'Командир'}» мёртв — внешники без командования. Нового пришлют при пополнении форпоста`);
+		} else ext.count = Math.max(0, ext.count - 1);
+		if (this.huntSquad?.hunt) this.huntSquad.hunt.size = Math.max(0, this.huntSquad.hunt.size - (b.boss ? 0 : 1));
+		this.hud();
+		this.save();
 	},
 
 	/**
@@ -2807,8 +3029,9 @@ const game = {
 			this.setPaused(false);
 			if (node.kind === 'stab') this.banner(node.name, 'Безопасно: торговец, лекарь. Выход — через ворота');
 			else if (node.kind === 'murs') this.banner(node.name, `Логово муров — около ${this.world.murs.count} стволов. Заметят — не уйдёшь`);
+			else if (node.kind === 'ext') this.banner(node.name, `Форпост внешников — около ${this.world.ext.count} бойцов в броне. Заметят — не уйдёшь`);
 			else if (node.kind === 'base') this.banner(node.name, this.baseGreeting());
-			else if (!this.raidSquad) this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
+			else if (!this.raidSquad && !this.huntSquad) this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
 			setTimeout(() => $('travel').classList.add('hidden'), 350);
 		}, 30));
 	},
@@ -2819,8 +3042,19 @@ const game = {
 	 * Совсем без оружия и денег — охрана стаба выдаёт старый пожарный топор.
 	 */
 	respawn() {
+		// бункер 3-го уровня: ствол, что был в руках, остаётся с героем (с магазином и износом)
+		const bp = this.basePerks(), kept = bp.keepGun && this.kit.gear.gun ? { id: this.kit.gear.gun, mag: this.kit.mags[this.kit.gear.gun], wear: this.kit.wear[this.kit.gear.gun] } : null;
 		for (const k of STORABLE) this.bag[k] = 0;
 		this.kit = { gear: { melee: 'fists', gun: null }, owned: [], mags: {}, wear: {} };
+		if (kept) { this.kit.owned.push(kept.id); this.kit.gear.gun = kept.id; if (kept.mag != null) this.kit.mags[kept.id] = kept.mag; if (kept.wear != null) this.kit.wear[kept.id] = kept.wear; }
+		// бункер 2-го уровня: тревожный набор — Glock 17, 34 патрона, живчик
+		if (bp.respawnKit) {
+			if (!this.kit.owned.includes('glock17')) this.kit.owned.push('glock17');
+			this.kit.gear.gun ??= 'glock17';
+			this.kit.mags.glock17 ??= WEAPONS.glock17.mag;
+			this.bag.ammo919 = (this.bag.ammo919 ?? 0) + 34;
+			this.bag.zhivchik = (this.bag.zhivchik ?? 0) + 1;
+		}
 		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.fireaxe.price;
 		if (broke) { this.kit.owned.push('fireaxe'); this.kit.gear.melee = 'fireaxe'; this.kit.wear.fireaxe = Math.ceil(WEAPONS.fireaxe.durability / 2); }
 		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры'; // и разошлись по койкам
@@ -2833,7 +3067,11 @@ const game = {
 		// бункер на базе — возрождение там
 		const atBase = this.basePerks().respawnAtBase;
 		this.enter(atBase ? 'base' : 'stab', undefined);
-		if (atBase) this.banner('База «Опорный»', `${who} — очнулся в бункере базы. Всё, что было с собой, осталось там${broke ? '; в бункере нашёлся старый топор' : ''}`);
+		if (atBase) {
+			if (bp.respawnKit && this.player) this.player.hp = this.player.maxHp;
+			const extra = [kept && `${WEAPONS[kept.id].name} остался в руках`, bp.respawnKit && 'в бункере — тревожный набор: Glock 17, патроны, живчик', broke && 'в бункере нашёлся старый топор'].filter(Boolean).join('; ');
+			this.banner('База «Опорный»', `${who} — очнулся в бункере базы. Всё, что было с собой, осталось там${extra ? `; ${extra}` : ''}`);
+		}
 		else this.banner('Стаб «Полис»', `${who}. Всё, что было с собой, осталось там${broke ? '; охрана выдала старый топор' : ' — запас в хранилище, в твоей комнате'}`);
 	},
 
@@ -3047,6 +3285,7 @@ const game = {
 			if (s.id === 'repair') this.repairMelee();
 			if (s.id === 'eat') this.eatCanteen();
 			if (s.id === 'radio') this.radioIntel();
+			if (s.id === 'basemercs') this.partyWindow.open({ base: true });
 			return;
 		}
 		const c = this.nearContainer();
@@ -3078,6 +3317,7 @@ const game = {
 				if (!c.items.length) this.toast(`${c.name}: пусто`);
 				for (const [kind, n] of c.items) this.take(kind, n);
 				if (NODES[this.loc].kind === 'murs') for (const [kind, n] of c.items) this.world.murs.stash[kind] = Math.max(0, (this.world.murs.stash[kind] ?? 0) - n);
+				if (NODES[this.loc].kind === 'ext') for (const [kind, n] of c.items) this.world.ext.stash[kind] = Math.max(0, (this.world.ext.stash[kind] ?? 0) - n);
 				c.items = [];
 			}
 		}
@@ -3284,7 +3524,7 @@ const game = {
 	/** Наёмники в новой локации: отряд — рядом с героем; в стабе ещё и оставленные — у своих коек. */
 	spawnMercs() {
 		for (const m of this.mercs) m.dispose();
-		this.mercs = this.roster.filter((st) => st.out || level.room).map((st) => {
+		this.mercs = this.roster.filter((st) => st.out || (level.room && !st.job)).map((st) => {
 			const m = new Merc(st);
 			if (st.out || !m.home) m.place(); else { m.pos.set(m.home.x, 0, m.home.z); m.root.rotation.y = m.home.ry; }
 			return m;
@@ -3317,6 +3557,94 @@ const game = {
 
 	merc(id) { return this.roster.find((m) => m.id === id); },
 
+	// ---------- Наёмники на базе «Опорный»: посты и вылазки без героя (game/mercs.js) ----------
+
+	/** Герой на своей базе. */
+	get atBase() { return NODES[this.loc]?.kind === 'base'; },
+	/** Сколько постов для наёмников на базе (с казармой — больше). */
+	postsMax() { return this.world.base?.built.includes('barracks') ? BASE_POSTS_BARRACKS : BASE_POSTS; },
+	/** Кто на постах — в учёт базы (оборона, часовые на месте). */
+	syncGuards() {
+		if (!this.world.base) return;
+		this.world.base.guards = this.roster.filter((st) => st.job?.kind === 'post').map((st) => ({ id: st.id, gun: MERCS[st.id].weapon, tint: MERCS[st.id].tint }));
+	},
+	/** Сколько секунд мира займёт вылазка в кластер at: дорога с базы туда и обратно (гараж — быстрее) и сам кластер. */
+	tripTime(at) { return Math.round(2 * pathTime('base', at) * this.basePerks().travel + TRIP_WORK); },
+	/** Боец сменился на базе: часовые и отряд — заново. */
+	mercsMoved(wasPost) {
+		this.syncGuards();
+		this.spawnMercs();
+		if (this.atBase && wasPost !== undefined) this.rebuildBase();
+		this.renderPartyBar();
+		this.save();
+	},
+
+	/** Поставить бойца на пост базы: часовой у ворот или во дворе, +10 к обороне (с казармой 2-го уровня — +15). */
+	postMerc(id) {
+		const st = this.merc(id);
+		if (!st || st.job) return;
+		if (this.roster.filter((m) => m.job?.kind === 'post').length >= this.postsMax()) { this.toast(`Все посты заняты (${this.postsMax()})${this.postsMax() < BASE_POSTS_BARRACKS ? ' — с казармой постов больше' : ''}`, 'warn'); return; }
+		st.out = false;
+		st.job = { kind: 'post' };
+		this.toast(`${MERCS[id].name} заступил на пост на базе — оборона выше`);
+		this.mercsMoved(true);
+	},
+
+	/** Снять с поста: боец возвращается к своей койке в стабе. */
+	unpostMerc(id) {
+		const st = this.merc(id);
+		if (st?.job?.kind !== 'post') return;
+		st.job = null;
+		this.toast(`${MERCS[id].name} снят с поста — ждёт у своей койки в стабе`);
+		this.mercsMoved(true);
+	},
+
+	/** Отправить бойца на вылазку в кластер at без героя: вернётся с добычей (на склад базы), раненым — или не вернётся. */
+	sendMerc(id, at) {
+		const st = this.merc(id);
+		if (!st || st.job?.kind === 'trip' || NODES[at]?.kind !== 'cluster') return;
+		const wasPost = st.job?.kind === 'post' ? true : undefined;
+		st.out = false;
+		const t = this.tripTime(at);
+		st.job = { kind: 'trip', at, end: this.world.time + t };
+		Sfx.reload();
+		this.toast(`${MERCS[id].name} ушёл на вылазку в «${NODES[at].short}» — вернётся ${approx(t).replace('~', 'примерно через ')}`);
+		this.mercsMoved(wasPost);
+	},
+
+	/** Вылазки, срок которых вышел: итог — добыча на склад базы (забрать у терминала), раны или гибель. */
+	resolveTrips() {
+		const b = this.world.base;
+		for (const st of [...this.roster]) {
+			const job = st.job;
+			if (job?.kind !== 'trip' || this.world.time < job.end) continue;
+			const D = MERCS[st.id], r = resolveTrip(st, NODES[job.at]?.danger ?? 1, this.basePerks().tripBonus);
+			st.job = null;
+			// патроны сжёг из магазина и запаса
+			const fromMag = Math.min(st.mag, r.used);
+			st.mag -= fromMag; st.ammo = Math.max(0, st.ammo - (r.used - fromMag));
+			this.markRaided(job.at, { kill: 0.2, loot: 0.25 }); // зачистил часть кластера
+			let text;
+			if (r.dead) {
+				this.roster = this.roster.filter((m) => m !== st);
+				text = `${D.name} не вернулся с вылазки в «${NODES[job.at].short}»`;
+				this.banner(`${D.name} погиб`, `Не вернулся с вылазки в «${NODES[job.at].short}». Улей вернёт его в стаб — но уже не твоим`);
+				Sfx.death('human');
+			} else {
+				st.hp = Math.max(1, st.hp - r.hurt);
+				for (const [k, n] of Object.entries(r.loot)) b.stock[k] = (b.stock[k] ?? 0) + n;
+				const got = stockText(r.loot);
+				text = `${D.name} вернулся из «${NODES[job.at].short}»${r.hurt ? ', ранен' : ''}${got ? `: ${got}` : ' ни с чем'}`;
+				this.toast(`${text} — добыча на складе базы, забрать у терминала; сам — у койки в стабе`);
+			}
+			b.trips.unshift({ text, time: this.world.time });
+			b.trips.length = Math.min(b.trips.length, 5);
+			this.spawnMercs();
+			this.renderPartyBar();
+			this.save();
+		}
+	},
+
 	/** Нанять у вербовщика: боец идёт в комнату героя и ждёт у своей койки. */
 	hire(id) {
 		const D = MERCS[id];
@@ -3339,7 +3667,7 @@ const game = {
 	/** Взять бойца из комнаты на вылазку (только в комнате). */
 	takeMerc(id) {
 		const st = this.merc(id);
-		if (!st || st.out || !this.inRoom) return;
+		if (!st || st.out || st.job || !this.inRoom) return;
 		if (this.party.length >= this.partyMax) { this.toast(`С тобой уже ${this.partyMax} — сначала оставь кого-нибудь в комнате`, 'warn'); return; }
 		st.out = true;
 		this.slotMercs();
@@ -3363,7 +3691,7 @@ const game = {
 	/** Дать наёмнику патроны его калибра (до магазина за раз; только в комнате). */
 	giveAmmo(id) {
 		const st = this.merc(id);
-		if (!st || !this.inRoom) return;
+		if (!st || !(this.inRoom || this.atBase)) return;
 		const W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
 		if (n <= 0) { this.toast(`Нет патронов ${AMMO[W.ammo]}`, 'warn'); return; }
 		this.bag[W.ammo] -= n;
@@ -3378,7 +3706,7 @@ const game = {
 	/** Живчик наёмнику: сам он не лечится (только в комнате). */
 	healMerc(id) {
 		const st = this.merc(id), D = MERCS[st?.id];
-		if (!st || !this.inRoom || !(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
+		if (!st || !(this.inRoom || this.atBase) || !(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
 		this.bag.zhivchik--;
 		st.hp = Math.min(D.hp, st.hp + MERC_HEAL);
 		Sfx.drink();
@@ -3389,7 +3717,7 @@ const game = {
 	/** Живчик в аптечку медика — он сам лечит им раненых. */
 	giveMeds(id) {
 		const st = this.merc(id);
-		if (!st || !this.inRoom || !(this.bag.zhivchik > 0)) return;
+		if (!st || !(this.inRoom || this.atBase) || !(this.bag.zhivchik > 0)) return;
 		this.bag.zhivchik--;
 		st.meds = (st.meds ?? 0) + 1;
 		Sfx.drink();
@@ -3400,7 +3728,7 @@ const game = {
 	/** Гранату подрывнику. */
 	giveNade(id) {
 		const st = this.merc(id);
-		if (!st || !this.inRoom || !(this.bag.grenade > 0)) return;
+		if (!st || !(this.inRoom || this.atBase) || !(this.bag.grenade > 0)) return;
 		this.bag.grenade--;
 		st.nades = (st.nades ?? 0) + 1;
 		Sfx.reload();
@@ -3413,6 +3741,7 @@ const game = {
 		const st = this.merc(id);
 		if (!st) return;
 		this.roster = this.roster.filter((m) => m !== st);
+		this.syncGuards();
 		const a = this.mercs.find((m) => m.state === st);
 		a?.dispose();
 		this.mercs = this.mercs.filter((m) => m !== a);
@@ -3834,7 +4163,7 @@ const game = {
 	 * по краям экрана — болезненная дымка, гул.
 	 */
 	reloadFx(left) {
-		const k = clamp01(1 - left / WARN);
+		const k = clamp01(1 - left / WARN) ** 1.4; // первые полминуты — едва заметно, к концу — сплошная кислая муть
 		this.sourK = k;
 		scene.fog.near = THREE.MathUtils.lerp(38, 5, k ** 0.8);
 		scene.fog.far = THREE.MathUtils.lerp(95, 30, k);
@@ -3851,16 +4180,42 @@ const game = {
 		if (reloaded.includes(this.loc)) { this.reloadDeath(); return; }
 		const left = timeLeft(this.world, this.loc);
 		this.reloadFx(left);
-		const stage = left < 10 ? 3 : left < 30 ? 2 : left < WARN ? 1 : 0;
+		// кисляк: за минуту до перезагрузки заражённые звереют (rage 0…1 — Enemy.update), гудит всё громче
+		this.rage = left < RAGE ? clamp01((RAGE - left) / (RAGE - 10)) : 0;
+		Sfx.drone?.(this.rage);
+		const stage = left < 10 ? 4 : left < 30 ? 3 : left < RAGE ? 2 : left < WARN ? 1 : 0;
 		if (stage > this.warnStage) {
 			this.warnStage = stage;
-			if (stage === 1) this.banner('Кислый запах', 'Кластер скоро перезагрузится — уходи к выходу!');
-			if (stage === 2) { this.toast('Муть сгущается — меньше 30 секунд!', 'warn'); Sfx.rumble(0.6); Sfx.thunder(0.7); }
-			if (stage === 3) { this.toast('Сейчас перезагрузится!', 'warn'); Sfx.rumble(1.2); Sfx.thunder(1); }
+			if (stage === 1) this.banner('Кислый запах', `Кластер скоро перезагрузится — ${approx(left)}. Уходи к выходу или к краю, в муть`);
+			if (stage === 2) {
+				this.banner('Кисляк', 'Муть сгущается, гудит — заражённые звереют и сбегаются на тебя. Уходи!');
+				Sfx.rumble(0.6); Sfx.thunder(0.6);
+				// просыпаются все в округе: ближние сразу, дальние — позже
+				for (const e of this.enemies) {
+					const d = Math.hypot(e.pos.x - this.player.pos.x, e.pos.z - this.player.pos.z);
+					if (e.alive && e.state === 'idle' && d < 45) setTimeout(() => e.alert?.(), d * 120 + Math.random() * 1500);
+				}
+			}
+			if (stage === 3) { this.toast('Улей гонит заражённых из мути — меньше 30 секунд!', 'warn'); Sfx.rumble(0.9); Sfx.thunder(0.8); this.sourWave(); }
+			if (stage === 4) { this.toast('Сейчас перезагрузится!', 'warn'); Sfx.rumble(1.2); Sfx.thunder(1); }
 		}
 		if (stage >= 2) {
 			this.rumbleT = (this.rumbleT ?? 0) - dt;
-			if (this.rumbleT <= 0) { this.rumbleT = stage === 3 ? 1.2 : 3; Sfx.rumble(stage === 3 ? 1 : 0.5); }
+			if (this.rumbleT <= 0) { this.rumbleT = stage === 4 ? 1.2 : stage === 3 ? 2.5 : 4; Sfx.rumble(stage === 4 ? 1 : 0.5); }
+		}
+	},
+
+	/** Кисляк, последние 30 с: Улей выгоняет из мути свору бегунов — со стороны, ближней к герою (их не больше 40 всего). */
+	sourWave() {
+		const p = this.player.pos, alive = this.enemies.filter((e) => e.alive).length;
+		const n = Math.max(0, Math.min(4 + (NODES[this.loc].danger ?? 1), 40 - alive));
+		const ax = Math.abs(p.x) > Math.abs(p.z), E = PLAY - 3;
+		for (let i = 0; i < n; i++) {
+			const t = THREE.MathUtils.clamp((ax ? p.z : p.x) + (Math.random() - 0.5) * 24, -E, E);
+			const pos = ax ? new THREE.Vector3(Math.sign(p.x || 1) * E, 0, t) : new THREE.Vector3(t, 0, Math.sign(p.z || 1) * E);
+			resolveCollisions(pos, 0.5, level.colliders);
+			if (level.nav.blockedAt(pos.x, pos.z, 0.5)) continue;
+			this.spawnEnemy('runner', pos).alert();
 		}
 	},
 
@@ -3881,6 +4236,7 @@ const game = {
 
 	over(reason) {
 		document.body.classList.remove('low-hp');
+		Sfx.drone?.(0);
 		this.state = 'dead';
 		this.deathReason = reason;
 		this.inventory.close();
@@ -3892,7 +4248,8 @@ const game = {
 		const lostMercs = reason === 'reload' ? this.party.map((m) => MERCS[m.id].name) : [];
 		if (reason === 'reload') this.roster = this.roster.filter((m) => !m.out); // оставленные в стабе живы
 		const low = (s) => (/^.[А-ЯЁA-Z]/.test(s) ? s : `${s[0].toLowerCase()}${s.slice(1)}`); // ПМ, АКС-74У — как есть
-		const lost = [...this.kit.owned.map((id) => low(WEAPONS[id].name)), ...STORABLE.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`)];
+		const keep = this.basePerks().keepGun ? this.kit.gear.gun : null; // бункер 3-го уровня: ствол в руках останется
+		const lost = [...this.kit.owned.filter((id) => id !== keep).map((id) => low(WEAPONS[id].name)), ...STORABLE.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`)];
 		const kept = CURRENCY.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
@@ -3975,6 +4332,7 @@ const game = {
 	hudTimer() {
 		const el = $('loc-timer');
 		if (NODES[this.loc].kind === 'murs') { el.textContent = `муры: ${this.world.murs.count}`; el.className = 'danger'; return; }
+		if (NODES[this.loc].kind === 'ext') { el.textContent = `внешники: ${this.world.ext.count}`; el.className = 'danger'; return; }
 		if (NODES[this.loc].kind === 'base') { el.textContent = `оборона ${baseDefense(this.world.base)}`; el.className = 'safe'; return; }
 		if (NODES[this.loc].kind !== 'cluster') { el.textContent = 'безопасно'; el.className = 'safe'; return; }
 		const left = timeLeft(this.world, this.loc);
@@ -4103,6 +4461,7 @@ function update(dt) {
 	if (game.bandits.length) game.coordinateMurs(dt);
 	game.updateBossBar();
 	game.raidSquad?.update(dt);
+	game.huntSquad?.update(dt);
 	game.garrison?.update(dt);
 
 	// подбор предметов в рюкзак
