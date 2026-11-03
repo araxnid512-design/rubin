@@ -323,6 +323,11 @@ func _gait_sheet() -> void:
 	var sheet := Image.create(CW * N, CH * rows_def.size(), false, Image.FORMAT_RGB8)
 	var size: Vector2 = game.get_viewport().get_visible_rect().size
 	game.hud.visible = false
+	# заражённые локации сбегались к герою и заслоняли кадры
+	for e in game.enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	game.enemies.clear()
 	for ri in rows_def.size():
 		var r: Array = rows_def[ri]
 		game.kit["gun"] = r[0]
@@ -340,7 +345,7 @@ func _gait_sheet() -> void:
 			var cam: Camera3D = game.camera
 			game.set_process(false)
 			var at: Vector3 = p.global_position + Vector3(0, 0.95, 0)
-			var side := Vector3(1, 0, 0)
+			var side := Vector3(-1, 0, 0)   # солнце за камерой — герой освещён, а не силуэтом
 			cam.global_position = at + side * 3.0 + Vector3(0, 0.2, 0)
 			cam.look_at(at, Vector3.UP)
 			await RenderingServer.frame_post_draw
