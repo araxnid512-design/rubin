@@ -516,6 +516,10 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 	if shooter == player:
 		var power := float(w.get("damage", 20)) * float(w.get("pellets", 1))
 		cam_shake = minf(1.0, cam_shake + 0.18 + power / 260.0)
+		if int(w.get("pellets", 1)) > 1:
+			get_tree().create_timer(0.3).timeout.connect(_casing_later.bind(shooter, w, from))
+		else:
+			_casing(shooter, w, from)
 	var reach: float = float(w.get("range", 8.0))
 	var pellets: int = int(w.get("pellets", 1))
 	var aim_dir := Vector3(sin(shooter.rotation.y), 0, cos(shooter.rotation.y))
@@ -625,22 +629,102 @@ func _flash(at: Vector3, size := 1.0) -> void:
 	add_child(l)
 	get_tree().create_timer(0.05).timeout.connect(l.queue_free)
 
+## Трассер: светящаяся полоска от дула на 0,07 с — один общий меш (единичный брусок, длина — масштабом).
+static var _tracer_mesh: BoxMesh
+
 func _tracer(a: Vector3, b: Vector3) -> void:
 	var len := a.distance_to(b)
 	if len < 0.1:
 		return
+	if _tracer_mesh == null:
+		_tracer_mesh = BoxMesh.new()
+		_tracer_mesh.size = Vector3(0.035, 0.035, 1.0)
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.albedo_color = Color(1.0, 0.82, 0.45)
+		_tracer_mesh.material = m
 	var mi := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(0.025, 0.025, len)
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(1.0, 0.85, 0.5)
-	box.material = m
-	mi.mesh = box
+	mi.mesh = _tracer_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	mi.global_position = (a + b) / 2.0
 	mi.look_at(b, Vector3.UP)
-	get_tree().create_timer(0.06).timeout.connect(mi.queue_free)
+	mi.scale = Vector3(1, 1, len)
+	get_tree().create_timer(0.07).timeout.connect(mi.queue_free)
+
+## Гильза героя: вылетает вправо-вверх из окна затвора, падает, крутясь, лежит 2 с (не больше 10 сразу; общий меш).
+## Дробовик с помпой — красная гильза при передёргивании, двустволка — без (гильзы вынимают при перезарядке).
+static var _casing_mesh: CylinderMesh
+static var _shell_mesh: CylinderMesh
+var _casings: Array = []
+
+func _casing(shooter: Node3D, w: Dictionary, from: Vector3) -> void:
+	var id := Data.real_id(str(w.get("id", "")))
+	if id == "dbarrel":
+		return
+	var shell := int(w.get("pellets", 1)) > 1
+	if _casing_mesh == null:
+		for k in 2:
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.018 if k == 1 else 0.011
+			cm.bottom_radius = cm.top_radius
+			cm.height = 0.06 if k == 1 else 0.04
+			cm.radial_segments = 6
+			cm.rings = 0
+			var m := StandardMaterial3D.new()
+			m.albedo_color = Color(0.7, 0.12, 0.1) if k == 1 else Color(0.85, 0.65, 0.25)
+			m.metallic = 0.0 if k == 1 else 0.7
+			m.roughness = 0.5 if k == 1 else 0.35
+			m.emission_enabled = true   # сверху гильза мелкая — чуть светится, чтобы её было видно
+			m.emission = m.albedo_color * 0.35
+			cm.material = m
+			if k == 1:
+				_shell_mesh = cm
+			else:
+				_casing_mesh = cm
+	var ry := shooter.rotation.y
+	var fwd := Vector3(sin(ry), 0, cos(ry))
+	var right := Vector3(-cos(ry), 0, sin(ry))
+	var p0 := from - fwd * (0.35 if not shell else 0.3)
+	var v := right * randf_range(1.6, 2.4) + Vector3(0, randf_range(1.6, 2.2), 0) - fwd * randf_range(0.0, 0.5)
+	var ground := shooter.global_position.y + 0.02
+	var mi := MeshInstance3D.new()
+	mi.mesh = _shell_mesh if shell else _casing_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	mi.global_position = p0
+	mi.rotation = Vector3(randf() * TAU, randf() * TAU, PI * 0.5)
+	_casings.append(mi)
+	while _casings.size() > 10:
+		var old = _casings.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+	var spin := Vector3(randf_range(-20, 20), randf_range(-14, 14), randf_range(-20, 20))
+	# время падения до земли: p0.y + v.y·t − 4.9·t² = ground
+	var dy := p0.y - ground
+	var t_land := (v.y + sqrt(v.y * v.y + 19.6 * maxf(0.0, dy))) / 9.8
+	var tw := mi.create_tween()
+	tw.tween_method(_casing_fly.bind(mi, p0, v, spin), 0.0, t_land, t_land)
+	tw.tween_callback(_casing_land.bind(mi, ground))
+	tw.tween_interval(2.0)
+	tw.tween_callback(_casing_free.bind(mi))
+
+func _casing_later(shooter: Node3D, w: Dictionary, from: Vector3) -> void:
+	if is_instance_valid(shooter):
+		_casing(shooter, w, from)
+
+func _casing_fly(t: float, mi: Node3D, p0: Vector3, v: Vector3, spin: Vector3) -> void:
+	mi.global_position = p0 + v * t + Vector3(0, -4.9 * t * t, 0)
+	mi.rotation = spin * t
+
+func _casing_land(mi: Node3D, ground: float) -> void:
+	mi.global_position.y = ground
+	mi.rotation = Vector3(0, randf() * TAU, PI * 0.5)
+
+func _casing_free(mi: Node3D) -> void:
+	_casings.erase(mi)
+	mi.queue_free()
 
 ## Шум: заражённые в радиусе поднимаются.
 func noise(pos: Vector3, radius: float) -> void:

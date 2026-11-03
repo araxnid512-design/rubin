@@ -69,6 +69,9 @@ static var WEAPONS := {}
 const REMOVED := {"axe": "fireaxe", "pistol": "glock17", "pm63": "glock17", "vector": "mp5", "obrez": "dbarrel",
 	"shotgun": "spas12", "scar": "fnfal", "vss": "svd", "pkm": "rpk"}
 
+## Полуавтоматы и стволы с ручной перезарядкой: один выстрел на нажатие (держать кнопку — не строчить), как у настоящих.
+const SEMI := ["glock17", "deagle", "spas12", "dbarrel", "awm", "svd"]
+
 ## Настоящий id оружия (у псевдонима убранного — id нового).
 static func real_id(id: String) -> String:
 	return str(REMOVED.get(id, id))
@@ -90,6 +93,7 @@ static func load_all() -> void:
 			w["model"] = id
 		if w.get("slot", "") == "gun":
 			w["durability"] = GUN_DURABILITY.get(id, 500)
+			w["semi"] = id in SEMI
 	# убранное оружие (просьбы пользователя: только пожарный топор; только 16 стволов с его листа): в старых
 	# сохранениях, хранилище и на земле оно становится ближайшим новым — запись-псевдоним (alias) с данными и моделью
 	# нового; в перечнях оружия (лавка, проверки, листы) псевдонимы пропускаются

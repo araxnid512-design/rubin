@@ -87,6 +87,11 @@ var equipping := false
 var pending := []
 var move_input := Vector2.ZERO
 var attack_held := false
+## Полуавтомат (Data.SEMI): одно нажатие — один выстрел. Нажатие запоминается на 0,8 с (shot_queued), пока ствол
+## поднимается и доворачивается к цели, — короткий тап тоже стреляет; после выстрела ждёт, пока кнопку отпустят.
+var shot_queued := 0.0
+var _trigger_was := false
+var _semi_lock := false
 ## Магазин: патронов в магазине по стволу (нет записи — полный) и перезарядка (сколько осталось, какой ствол).
 ## Износ — по-прежнему за каждый выстрел; магазин даёт паузу перезарядки, как у настоящего оружия.
 var mag_left := {}
@@ -513,7 +518,14 @@ func _physics_process(delta: float) -> void:
 	var turn := wrapf(want - rotation.y, -PI, PI) * minf(1.0, delta * 12.0)
 	rotation.y = wrapf(rotation.y + clampf(turn, -TURN_RATE * delta, TURN_RATE * delta), -PI, PI)
 	_body_yaw = rotation.y
-	if attack_held and cooldown <= 0.0 and busy <= 0.05 and not equipping:
+	if attack_held and not _trigger_was:
+		shot_queued = 0.8
+		_semi_lock = false
+	_trigger_was = attack_held
+	shot_queued -= delta
+	var semi: bool = gun and bool(w.get("semi", false))
+	var want: bool = (attack_held and not (semi and _semi_lock)) or (semi and shot_queued > 0.0)
+	if want and cooldown <= 0.0 and busy <= 0.05 and not equipping:
 		attack()
 
 func _process(delta: float) -> void:
@@ -721,6 +733,9 @@ func attack() -> void:
 		return
 	mag_left[id] = left - 1
 	cooldown = float(w.get("auto", w.get("cooldown", 0.2)))
+	if bool(w.get("semi", false)):
+		_semi_lock = true
+		shot_queued = 0.0
 	aim_t = 1.4
 	busy = 0.1
 	# выстрел: клип (OneShot верха), толчок отдачи и вспышка с пулей — в один кадр

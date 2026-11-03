@@ -249,7 +249,9 @@ func _fire_all() -> int:
 		_hits = 0
 		p.attack_held = true
 		var t := 0.0
-		while t < 4.0 and not (_hits > 0 and _shots.size() >= 2):
+		# полуавтомат — один выстрел на нажатие (Data.SEMI)
+		var need := 1 if bool(w.get("semi", false)) else 2
+		while t < 4.0 and not (_hits > 0 and _shots.size() >= need) and not (need == 1 and _shots.size() >= 1 and t > 1.5):
 			await game._wait(0.1)
 			t += 0.1
 		p.attack_held = false
@@ -277,9 +279,10 @@ func _fire_all() -> int:
 		var two: bool = bool(p._profile()["two"]) and str(w.get("anim", "")) == "rifle"
 		# дуло смотрит на цель: угол до её центра в допуске или луч ствола проходит через её тело (вплотную угол велик)
 		var ok: bool = _shots.size() > 0 and (yaw <= AIM_YAW_MAX or miss <= 0.0) and pitch <= AIM_PITCH_MAX and off > 0.05 \
-			and ymin > 0.9 and ymax < 1.9 and (_hits > 0 or _shots.size() < 4) and (not two or left <= LEFT_MAX)
-		print(("✓ " if ok else "✗ ") + "стрельба: %s — выстрелов %d, попаданий %d; дуло к цели %.0f° (до цели от %.2f м, луч мимо тела %+.2f м), наклон %.0f°, дуло впереди хвата на %.2f м, на высоте %.2f–%.2f м%s" % [
-			w.get("name", id), _shots.size(), _hits, yaw, dmin if dmin < INF else -1.0, miss if miss > -INF else 0.0, pitch, off if off < INF else -1.0, ymin if ymin < INF else -1.0, ymax,
+			and ymin > 0.9 and ymax < 1.9 and (_hits > 0 or _shots.size() < 4) and (not two or left <= LEFT_MAX) \
+			and (need == 2 or _shots.size() == 1)
+		print(("✓ " if ok else "✗ ") + "стрельба: %s%s — выстрелов %d, попаданий %d; дуло к цели %.0f° (до цели от %.2f м, луч мимо тела %+.2f м), наклон %.0f°, дуло впереди хвата на %.2f м, на высоте %.2f–%.2f м%s" % [
+			w.get("name", id), " (полуавтомат: кнопку держат — один выстрел)" if need == 1 else "", _shots.size(), _hits, yaw, dmin if dmin < INF else -1.0, miss if miss > -INF else 0.0, pitch, off if off < INF else -1.0, ymin if ymin < INF else -1.0, ymax,
 			(", левая кисть до цевья %.3f м" % left) if two else ""])
 		if ok:
 			n_ok += 1
