@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#222}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import { Renderer } from '../engine/renderer.js';
+import { V3 } from '../engine/math.js';
+import { GameWorld } from '../game/world.js';
+import { spawnActors } from '../game/actors.js';
+import { Input } from '../game/input.js';
+import { FollowCamera } from '../game/follow_camera.js';
+import { DayNight } from '../game/daynight.js';
+import { Settings } from '../game/settings.js';
+import { Game } from '../game/state.js';
+const r = new Renderer(document.getElementById('c'));
+const settings = new Settings(); settings.applyPreset(2);
+const w = new GameWorld(r, settings); w.onSpawn = (ww) => { console.log("spawn start"); spawnActors(ww); console.log("spawn done"); };
+w.input = new Input(document.getElementById('c')); w.cam = new FollowCamera(settings);
+const q = new URLSearchParams(location.search);
+if (q.get('time')) Game.time = +q.get('time');
+const dn = new DayNight(r, settings);
+await w.build((p, t) => console.log("progress", p, t));
+let last = performance.now(), frames = 0, acc = 0; window.__fps = 0;
+window.__step = (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) { w.update(dt); dn.update(dt); w.cam.follow(w.player.pos, w.player.vel, dt); w.cam.update(innerWidth / innerHeight); w.updateVisuals(dt, w.cam); } };
+function frame(t) {
+  const dt = Math.min(0.1, (t - last) / 1000); last = t; acc += dt; frames++;
+  if (acc > 1) { window.__fps = frames / acc; frames = 0; acc = 0; }
+  if (!window.__paused) { w.update(dt); dn.update(dt); }
+  w.cam.follow(w.player.pos, w.player.vel, dt); w.cam.update(innerWidth / innerHeight); r.setCamera(w.cam); w.updateVisuals(dt, w.cam);
+  r.render(w.cam); w.input.endFrame(); window.__dc = r.stats.drawCalls; requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__world = w; window.__Game = Game; window.V3 = V3; window.__ready = true;
+</script></body></html>

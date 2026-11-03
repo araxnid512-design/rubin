@@ -7,3 +7,10 @@ build/
 docs/rigtest/
 docs/worldtest/
 docs/poses/
+godot_prototype/.godot/
+godot_prototype/docs/rigtest/
+godot_prototype/docs/worldtest/
+godot_prototype/docs/poses/
+# веб-сборка для публикации и архивы
+dist/
+*.zip
