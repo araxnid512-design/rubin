@@ -725,7 +725,9 @@ func attack() -> void:
 	busy = 0.1
 	# выстрел: клип (OneShot верха), толчок отдачи и вспышка с пулей — в один кадр
 	anim_tree.set("parameters/shot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
-	kick = 1.0
+	# отдача по мощности ствола: Glock и MP5 — едва дёргает, АК — ощутимо, СВД, Desert Eagle, дробовики — сильно
+	var power := float(w.get("damage", 20)) * float(w.get("pellets", 1))
+	kick = clampf(0.45 + power / 70.0, 0.5, 1.6)
 	game.fire_shot(self, w, target, muzzle_pos())
 	wear[id] = wear_of(id) - 1
 	if wear[id] <= 0:

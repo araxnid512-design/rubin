@@ -508,7 +508,10 @@ func line_of_sight(a: Vector3, b: Vector3) -> bool:
 func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 	shot.emit(shooter, w, from)
 	noise(shooter.global_position, float(w.get("noise", 30)))
-	_flash(from)
+	_flash(from, float(w.get("flash", 1.0)) * (1.35 if int(w.get("pellets", 1)) > 1 else 1.0))
+	# дымок из ствола у мощных (дробовики, винтовки 7,62, Desert Eagle) — видно, что бахнуло
+	if float(w.get("damage", 20)) * float(w.get("pellets", 1)) >= 45.0:
+		_smoke(from)
 	# выстрел героя ощущается: толчок камеры по мощности ствола (пистолет — лёгкий, дробовик и СВД — сильный)
 	if shooter == player:
 		var power := float(w.get("damage", 20)) * float(w.get("pellets", 1))
@@ -556,8 +559,43 @@ func fire_shot(shooter: Node3D, w: Dictionary, target, from: Vector3) -> void:
 
 ## Вспышка у дула — яркая плашка на 0,05 с (на всех уровнях, один общий меш); свет вокруг — не на низком.
 static var _flash_mesh: QuadMesh
+static var _smoke_mesh: QuadMesh
 
-func _flash(at: Vector3) -> void:
+## Дымок у дула: серая мягкая плашка поднимается и тает за 0,7 с (общий меш и материал).
+func _smoke(at: Vector3) -> void:
+	if _smoke_mesh == null:
+		_smoke_mesh = QuadMesh.new()
+		_smoke_mesh.size = Vector2(0.5, 0.5)
+		var g := Gradient.new()
+		g.set_color(0, Color(0.75, 0.73, 0.7, 0.55))
+		g.set_color(1, Color(0.75, 0.73, 0.7, 0.0))
+		var gt := GradientTexture2D.new()
+		gt.gradient = g
+		gt.fill = GradientTexture2D.FILL_RADIAL
+		gt.fill_from = Vector2(0.5, 0.5)
+		gt.fill_to = Vector2(1.0, 0.5)
+		gt.width = 64
+		gt.height = 64
+		var sm := StandardMaterial3D.new()
+		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		sm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		sm.albedo_texture = gt
+		sm.vertex_color_use_as_albedo = false
+		_smoke_mesh.material = sm
+	var mi := MeshInstance3D.new()
+	mi.mesh = _smoke_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = at
+	add_child(mi)
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(mi, "position", at + Vector3(randf_range(-0.15, 0.15), 0.5, randf_range(-0.15, 0.15)), 0.7)
+	tw.tween_property(mi, "scale", Vector3.ONE * 2.2, 0.7)
+	tw.tween_property(mi, "transparency", 1.0, 0.7)
+	tw.chain().tween_callback(mi.queue_free)
+
+func _flash(at: Vector3, size := 1.0) -> void:
 	if _flash_mesh == null:
 		_flash_mesh = QuadMesh.new()
 		_flash_mesh.size = Vector2(0.45, 0.45)
@@ -574,7 +612,7 @@ func _flash(at: Vector3) -> void:
 	fl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	fl.position = at
 	fl.rotation.z = randf() * TAU
-	fl.scale = Vector3.ONE * randf_range(0.8, 1.2)
+	fl.scale = Vector3.ONE * randf_range(0.8, 1.2) * clampf(size, 0.5, 2.2)
 	add_child(fl)
 	get_tree().create_timer(0.05).timeout.connect(fl.queue_free)
 	if Level.quality == 0:

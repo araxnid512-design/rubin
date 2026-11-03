@@ -12,34 +12,34 @@ const FILES := [
 	"groan1", "groan2", "groan3", "groan4", "groan5", "zhit1", "zhit2", "zdeath1", "zdeath2", "zdeath3",
 	"step_road1", "step_road2", "step_road3", "step_grass1", "step_grass2", "step_dirt1", "step_dirt2", "step_floor1", "step_floor2",
 	"wind", "thunder", "explosion", "reload_pistol", "reload_rifle", "shell", "casing1", "casing2",
+	"gun_glock17", "gun_deagle", "gun_mp5", "gun_aks", "gun_ak74", "gun_ak47", "gun_ak107", "gun_g36", "gun_aug",
+	"gun_fnfal", "gun_rpk", "gun_pkt", "gun_svd", "gun_awm", "gun_spas12", "gun_dbarrel",
 ]
 const AK := ["ak1", "ak2", "ak3"]
-## Голос ствола: записи, высота (скорость), громкость (доля); click — лязг затвора ВСС, pump — передёрнуть цевьё.
+## Голос ствола: у каждого из 16 — своя запись gun_<ствол> (scripts/build-gun-voices.mjs: калибр — высотой и
+## басом, компактные и ПП — суше, винтовки — с раскатом эха); rate — лёгкий разброс высоты задаёт _vary, громкость —
+## доля. Механика после выстрела: pump — передёрнуть цевьё (SPAS-12), bolt — взвести затвор (Arctic Warfare),
+## click — лязг затвора. Убранные стволы старых сохранений звучат голосом нового (Data.real_id).
 const GUNS := {
+	"glock17": {"s": ["gun_glock17"], "rate": 1.0, "gain": 0.7},
+	"deagle": {"s": ["gun_deagle"], "rate": 1.0, "gain": 1.0},
+	"mp5": {"s": ["gun_mp5"], "rate": 1.0, "gain": 0.55},
+	"aks": {"s": ["gun_aks"], "rate": 1.0, "gain": 0.75},
+	"ak74": {"s": ["gun_ak74"], "rate": 1.0, "gain": 0.8},
+	"ak47": {"s": ["gun_ak47"], "rate": 1.0, "gain": 0.88},
+	"ak107": {"s": ["gun_ak107"], "rate": 1.0, "gain": 0.78},
+	"g36": {"s": ["gun_g36"], "rate": 1.0, "gain": 0.72},
+	"aug": {"s": ["gun_aug"], "rate": 1.0, "gain": 0.74},
+	"fnfal": {"s": ["gun_fnfal"], "rate": 1.0, "gain": 0.92},
+	"rpk": {"s": ["gun_rpk"], "rate": 1.0, "gain": 0.9},
+	"pkt": {"s": ["gun_pkt"], "rate": 1.0, "gain": 1.0},
+	"svd": {"s": ["gun_svd"], "rate": 1.0, "gain": 1.0},
+	"awm": {"s": ["gun_awm"], "rate": 1.0, "gain": 1.0, "bolt": true},
+	"spas12": {"s": ["gun_spas12"], "rate": 1.0, "gain": 0.95, "pump": true},
+	"dbarrel": {"s": ["gun_dbarrel"], "rate": 1.0, "gain": 1.0},
+	# голоса по устройству — для чужих стволов без своей записи
 	"pistol": {"s": ["pistol"], "rate": 1.06, "gain": 0.7},
-	"obrez": {"s": ["shotgun"], "rate": 0.94, "gain": 1.0},
-	"shotgun": {"s": ["shotgun"], "rate": 1.0, "gain": 0.95, "pump": true},
-	"vector": {"s": ["pistol"], "rate": 1.2, "gain": 0.5},
-	"aks": {"s": AK, "rate": 1.08, "gain": 0.75},
-	"ak74": {"s": AK, "rate": 1.0, "gain": 0.75},
-	"ak47": {"s": AK, "rate": 0.86, "gain": 0.85},
-	"vss": {"s": ["pistol"], "rate": 1.4, "gain": 0.2, "click": true},
-	"pkm": {"s": ["mg"], "rate": 0.96, "gain": 0.95},
-	"svd": {"s": ["svd"], "rate": 1.0, "gain": 1.0},
-	"scar": {"s": AK, "rate": 0.8, "gain": 0.9},
-	"fnfal": {"s": ["svd"], "rate": 1.12, "gain": 0.85},
-	"aug": {"s": AK, "rate": 1.04, "gain": 0.72},
-	"pm63": {"s": ["pistol"], "rate": 1.16, "gain": 0.55},
-	"spas12": {"s": ["shotgun"], "rate": 0.97, "gain": 0.95},
-	"glock17": {"s": ["pistol"], "rate": 1.08, "gain": 0.7},
-	"deagle": {"s": ["pistol"], "rate": 0.82, "gain": 1.0},
-	"dbarrel": {"s": ["shotgun"], "rate": 0.92, "gain": 1.0},
-	"mp5": {"s": ["pistol"], "rate": 1.2, "gain": 0.5},
-	"ak107": {"s": AK, "rate": 1.02, "gain": 0.75},
-	"g36": {"s": AK, "rate": 1.08, "gain": 0.7},
-	"rpk": {"s": ["mg"], "rate": 1.0, "gain": 0.9},
-	"pkt": {"s": ["mg"], "rate": 0.9, "gain": 1.0},
-	"awm": {"s": ["svd"], "rate": 0.86, "gain": 1.0},
+	"shotgun": {"s": ["shotgun"], "rate": 1.0, "gain": 0.95},
 }
 ## Голоса заражённых: чем крупнее, тем ниже и громче.
 const VOICES := {"runner": {"rate": 1.02, "gain": 0.55}, "lottery": {"rate": 0.88, "gain": 0.65}, "stomper": {"rate": 0.72, "gain": 0.75}, "ruber": {"rate": 0.58, "gain": 0.9}}
@@ -194,6 +194,8 @@ func _on_shot(_shooter, w: Dictionary, from: Vector3) -> void:
 		play_later(0.02, "dry", from, 0.55, 0.8 * _vary())
 	if G.get("pump", false):
 		play_later(0.28, "bolt", from, 0.55, 1.3)
+	elif G.get("bolt", false):
+		play_later(0.55, "bolt", from, 0.6, 1.0)   # затвор винтовки: рукоять вверх-назад-вперёд-вниз
 	elif int(w.get("pellets", 1)) <= 1 and _shooter == game.player:
 		# гильза звякнула об землю (только у героя — не забивать голоса чужой стрельбой)
 		play_later(0.32 + randf() * 0.1, "casing1" if randf() < 0.5 else "casing2", from - Vector3(0, 1.3, 0), 0.22, _vary(0.1))
