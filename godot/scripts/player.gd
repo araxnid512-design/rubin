@@ -846,6 +846,7 @@ func _update_pose(delta: float) -> void:
 	pose.kick_chest = deg_to_rad(float(prof["chest"]))
 	pose.ik_weight = ik_w
 	pose.carry = carry_w * (1.0 - smoothstep(0.0, 1.0, aim_w))
+	pose.feet_lock = alive
 	# очередь у автоматов накапливает подброс ствола (до +60 %)
 	pose.kick_climb *= 1.0 + 0.12 * burst
 	if not alive or delta <= 0.0:

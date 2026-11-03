@@ -33,6 +33,18 @@ var kick := 0.0
 var kick_back := 0.0
 var kick_climb := 0.0
 var kick_chest := 0.0
+## Фиксация стоп (foot lock): пока стопа по клипу стоит на земле (лодыжка не выше LOCK_H над своей высотой в покое),
+## её точка в мире держится на месте двухзвенным IK ноги — стопа не едет при развороте на месте (ноги
+## поворачиваются вокруг таза), при старте и остановке (смешивание шага со стойкой) и когда темп клипа упёрся в предел.
+## В переносе ноги стопа идёт по клипу (фиксация гаснет за LOCK_OUT с). Дальше LOCK_MAX от клипа — стопа
+## переставляется (новая точка), чтобы нога не тянулась. Выключено (feet_lock = false) — смерть, перенос героя.
+const LOCK_H := 0.03
+const LOCK_MAX := 0.2
+const LOCK_IN := 0.04
+const LOCK_OUT := 0.1
+var feet_lock := true
+var _feet := {}            # сторона → {up, lo, foot, rest_y, on, p (мир), w}
+var _last_us := 0
 ## Наклон корпуса от разгона/торможения (player.gd): x — вперёд (+) / назад, y — вбок (+ — влево), рад.
 var lean := Vector2.ZERO
 ## Отставание ствола при повороте корпуса (рад, плюс — влево) и покачивание от шага (м, в осях корпуса: x — влево,
@@ -96,6 +108,13 @@ func _bind(sk: Skeleton3D) -> void:
 	_l_hand = find_bone(sk, "LeftHand")
 	_grip_r = sk.find_bone("GripR")
 	_grip_l = sk.find_bone("GripL")
+	_feet.clear()
+	for side in ["Left", "Right"]:
+		var f := find_bone(sk, side + "Foot")
+		var lo := find_bone(sk, side + "Leg")
+		var up := find_bone(sk, side + "UpLeg")
+		if f >= 0 and lo >= 0 and up >= 0:
+			_feet[side] = {"up": up, "lo": lo, "foot": f, "rest_y": sk.get_bone_global_rest(f).origin.y, "on": false, "p": Vector3.ZERO, "w": 0.0}
 
 func _process_modification() -> void:
 	var sk := get_skeleton()
@@ -116,6 +135,7 @@ func _process_modification() -> void:
 		_left_hand(sk)
 	else:
 		ik_error = -1.0
+	_lock_feet(sk)
 
 # ---------- 1. Корпус к цели ----------
 
@@ -137,6 +157,37 @@ func _lean(sk: Skeleton3D) -> void:
 		if _spine[k] >= 0:
 			_turn(sk, _spine[k], side, lean.x * float(SPINE_SHARE[k]))
 			_turn(sk, _spine[k], fwd, -lean.y * float(SPINE_SHARE[k]))
+
+## Фиксация стоп (см. LOCK_H): точки — в мировых осях отображаемого (сглаженного физикой) положения скелета.
+func _lock_feet(sk: Skeleton3D) -> void:
+	var now := Time.get_ticks_usec()
+	var dt := clampf(float(now - _last_us) / 1000000.0, 0.0, 0.1) if _last_us > 0 else 0.0
+	_last_us = now
+	var xf := sk.get_global_transform_interpolated()
+	var inv := xf.affine_inverse()
+	for side in _feet:
+		var f: Dictionary = _feet[side]
+		var fp := sk.get_bone_global_pose(int(f["foot"]))
+		var world := xf * fp.origin
+		var planted: bool = feet_lock and fp.origin.y - float(f["rest_y"]) < LOCK_H
+		if planted:
+			if not bool(f["on"]) or Vector2(world.x - f["p"].x, world.z - f["p"].z).length() > LOCK_MAX:
+				f["p"] = world
+			f["on"] = true
+			f["w"] = minf(1.0, float(f["w"]) + (dt / LOCK_IN if dt > 0.0 else 1.0))
+		else:
+			f["on"] = false
+			f["w"] = maxf(0.0, float(f["w"]) - (dt / LOCK_OUT if dt > 0.0 else 1.0))
+		var w: float = f["w"]
+		if w <= 0.001 or not feet_lock:
+			continue
+		var lp: Vector3 = f["p"]
+		var goal_world := Vector3(lp.x, world.y, lp.z).lerp(world, 1.0 - w)
+		if goal_world.distance_squared_to(world) < 1e-8:
+			continue
+		var goal := inv * goal_world
+		# колено — в той же плоскости, что по клипу (вперёд у прямой ноги)
+		_solve(sk, int(f["up"]), int(f["lo"]), int(f["foot"]), Transform3D(fp.basis, goal), Vector3(0, 0, 1))
 
 # ---------- 1а. Переноска ----------
 

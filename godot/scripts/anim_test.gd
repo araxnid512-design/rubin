@@ -42,8 +42,10 @@ var report: Array[String] = []
 var fails := 0
 var sheets := {"top": [], "side": []}
 var ankle0 := {"L": 0.08, "R": 0.08}
-var _prev_foot := {}
+var toe0 := {"L": 0.03, "R": 0.03}
 var acc := {}
+var trace: Array[String] = []
+var _t := 0.0
 
 func run(g: Node, out_dir: String) -> void:
 	game = g
@@ -105,6 +107,9 @@ func run(g: Node, out_dir: String) -> void:
 func _finish() -> void:
 	report.append("Итого: участков %d, вне нормы %d" % [report.size() - 3, fails])
 	print("ANIMTEST: %s" % ("OK" if fails == 0 else "есть замечания: %d" % fails))
+	var ft := FileAccess.open(dir.path_join("anim_trace.txt"), FileAccess.WRITE)
+	ft.store_string("\n".join(PackedStringArray(trace)) + "\n")
+	ft.close()
 	var f := FileAccess.open(dir.path_join("anim_report.txt"), FileAccess.WRITE)
 	f.store_string("\n".join(PackedStringArray(report)) + "\n")
 	f.close()
@@ -164,12 +169,15 @@ func _spot() -> Vector3:
 				return c
 	return best
 
-## Высота лодыжек новой модели стоя — от неё считается «стопа на земле».
+## Высота лодыжек и носков новой модели стоя — от неё считается «стопа на земле».
 func _ankle_ref() -> void:
 	for s in ["L", "R"]:
 		var i: int = b["LeftFoot" if s == "L" else "RightFoot"]
 		if i >= 0:
 			ankle0[s] = _bone(i).y - p.global_position.y
+		var k: int = b["LeftToeBase" if s == "L" else "RightToeBase"]
+		if k >= 0:
+			toe0[s] = _bone(k).y - p.global_position.y
 
 func _bone(i: int) -> Vector3:
 	return dst.global_transform * dst.get_bone_global_pose(i).origin
@@ -180,8 +188,12 @@ func _seg(label: String, secs: float, local: Vector2, mag: float, aim: bool, fir
 	_clear_enemies()
 	if special != "orbit" and special != "switch" and label != "остановка" and not label.begins_with("стрельба") and not label.begins_with("перезарядка"):
 		_place(center)
-	acc = {"slide": [], "hand": [], "twist": 0.0, "barrel": 0, "elbow": 0, "frames": 0, "speed": [], "ts": [], "loco": {}, "blend": Vector2.ZERO}
-	_prev_foot.clear()
+	acc = {"slide": [], "hand": [], "twist": 0.0, "barrel": 0, "elbow": 0, "frames": 0, "speed": [], "ts": [], "loco": {}, "blend": Vector2.ZERO,
+		"feet": {"L": [], "R": []}, "steps": 0, "skate": 0.0}
+	_t = 0.0
+	var tr := label.begins_with("шаг F") or label.begins_with("бег F") or label.begins_with("разворот") or label == "остановка"
+	if tr:
+		trace.append("== " + label + " (t, стопа: высота над землёй лодыжки/носка, x, z мира; скорость героя)")
 	if special == "switch":
 		p.switch_weapon()
 	var t := 0.0
@@ -210,7 +222,17 @@ func _seg(label: String, secs: float, local: Vector2, mag: float, aim: bool, fir
 			p.switch_weapon()
 		await game.get_tree().process_frame
 		_camera()
+		_t = t
 		_measure(dt, aim and mag > 0.0)
+		if tr:
+			var line := "%.3f" % t
+			for side in ["L", "R"]:
+				var fa: Array = acc["feet"][side]
+				if not fa.is_empty():
+					var e: Array = fa[fa.size() - 1]
+					line += "  %s h%.3f/%.3f x%.3f z%.3f" % [side, float(e[2]), float(e[3]), (e[1] as Vector3).x, (e[1] as Vector3).z]
+			line += "  v%.2f %s" % [p.get_real_velocity().length(), p.loco]
+			trace.append(line)
 		if shots_left > 0 and t >= next_shot:
 			await _snap()
 			shots_left -= 1
@@ -233,18 +255,22 @@ func _camera() -> void:
 func _measure(dt: float, moving_aim: bool) -> void:
 	acc["frames"] = int(acc["frames"]) + 1
 	var ground := p.global_position.y
+	# стопа: точка опоры — носок, если он у земли (пятка оторвана), иначе лодыжка; высоты — над своими высотами стоя
 	for s in ["L", "R"]:
 		var i: int = b["LeftFoot" if s == "L" else "RightFoot"]
 		if i < 0:
 			continue
-		var fp := _bone(i)
-		if _prev_foot.has(s):
-			var pp: Vector3 = _prev_foot[s]
-			var low: bool = fp.y - ground < float(ankle0[s]) + 0.03 and pp.y - ground < float(ankle0[s]) + 0.03
-			var vy := absf(fp.y - pp.y) / maxf(dt, 0.001)
-			if low and vy < 0.4:
-				(acc["slide"] as Array).append(Vector2(fp.x - pp.x, fp.z - pp.z).length() / maxf(dt, 0.001))
-		_prev_foot[s] = fp
+		var fa := _bone(i)
+		var ha := fa.y - ground - float(ankle0[s])
+		var ht := 9.0
+		var pt := fa
+		var k: int = b["LeftToeBase" if s == "L" else "RightToeBase"]
+		if k >= 0:
+			var ft := _bone(k)
+			ht = ft.y - ground - float(toe0[s])
+			if ht < 0.025 and ha >= 0.025:
+				pt = ft
+		(acc["feet"][s] as Array).append([_t, pt, ha, ht, dt])
 	if follow.left_error >= 0.0:
 		(acc["hand"] as Array).append(follow.left_error)
 	if moving_aim:
@@ -289,7 +315,44 @@ static func _pct(arr: Array, q: float) -> float:
 	s.sort()
 	return float(s[clampi(int(round(q * (s.size() - 1))), 0, s.size() - 1)])
 
+## Скольжение стоп: кадр, где стопа у земли (лодыжка или носок не выше 2,5 см над высотой стоя) и в соседних кадрах
+## тоже (края опоры — постановка и отрыв — не считаются); скорость — по соседним кадрам. На ходу — после 0,45 с
+## (разгон с места — отдельный участок «старт»). skate — сколько стопа проехала за одну опору, см.
+func _feet_stats(steady_from: float) -> void:
+	var sl: Array = acc["slide"]
+	var steps := 0
+	var skate := 0.0
+	for s in ["L", "R"]:
+		var fa: Array = acc["feet"][s]
+		var run_d := 0.0
+		var run_n := 0
+		for k in range(1, fa.size() - 1):
+			var e0: Array = fa[k - 1]
+			var e1: Array = fa[k]
+			var e2: Array = fa[k + 1]
+			var low := func(e: Array) -> bool: return minf(float(e[2]), float(e[3])) < 0.025
+			if float(e1[0]) < steady_from or not (low.call(e0) and low.call(e1) and low.call(e2)):
+				if run_n >= 2:
+					steps += 1
+					skate += run_d
+				run_d = 0.0
+				run_n = 0
+				continue
+			var a: Vector3 = e0[1]
+			var c: Vector3 = e2[1]
+			var span := float(e1[4]) + float(e2[4])
+			sl.append(Vector2(c.x - a.x, c.z - a.z).length() / maxf(span, 0.001))
+			var bpt: Vector3 = e1[1]
+			run_d += Vector2(c.x - bpt.x, c.z - bpt.z).length()
+			run_n += 1
+		if run_n >= 2:
+			steps += 1
+			skate += run_d
+	acc["steps"] = steps
+	acc["skate"] = skate / maxf(1.0, float(steps))
+
 func _report(label: String, moving_aim: bool) -> void:
+	_feet_stats(0.45 if moving_aim or label.begins_with("бег с") else 0.0)
 	var sl: Array = acc["slide"]
 	var hd: Array = acc["hand"]
 	var s95 := _pct(sl, 0.95)
@@ -303,9 +366,9 @@ func _report(label: String, moving_aim: bool) -> void:
 	for k in lc:
 		states.append("%s %d" % [k, int(lc[k])])
 	var bl: Vector2 = acc["blend"]
-	report.append("%s %s: скорость %.2f м/с, темп клипа %.2f, походка [%s], ход в осях корпуса (%.2f, %.2f); стопы на земле: медиана %.2f, 95 %% %.2f, макс %.2f м/с (кадров %d); левая кисть до цевья: 95 %% %s; скручивание %d°; ствол сквозь корпус %d, локоть в теле %d кадров из %d" % [
+	report.append("%s %s: скорость %.2f м/с, темп клипа %.2f, походка [%s], ход в осях корпуса (%.2f, %.2f); стопы на земле: медиана %.2f, 95 %% %.2f м/с (кадров %d), за опору проезжает %.1f см (опор %d); левая кисть до цевья: 95 %% %s; скручивание %d°; ствол сквозь корпус %d, локоть в теле %d кадров из %d" % [
 		"✓" if ok else "✗", label, _pct(acc["speed"], 0.5), _pct(acc["ts"], 0.5), ", ".join(PackedStringArray(states)), bl.x, bl.y,
-		_pct(sl, 0.5), s95, _pct(sl, 1.0), sl.size(), ("%.1f см" % (h95 * 100.0)) if not hd.is_empty() else "—", int(tw),
+		_pct(sl, 0.5), s95, sl.size(), float(acc["skate"]) * 100.0, int(acc["steps"]), ("%.1f см" % (h95 * 100.0)) if not hd.is_empty() else "—", int(tw),
 		int(acc["barrel"]), int(acc["elbow"]), int(acc["frames"])])
 	print(report[report.size() - 1])
 
