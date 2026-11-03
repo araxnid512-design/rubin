@@ -202,6 +202,13 @@ node scripts/render-previews.mjs   # снимки локаций для карт
     графика/FPS) — найденное исправлено (см. коммиты 2026-11-02/03); сцена хвата `hand_test.gd` — 420 проверок, норма 2 см,
     промах левой — до цевья с учётом перехвата ближе (`SLIDE_MAX`).
 
+16. **Шаг и бег героя — по живым клипам** Quaternius UAL (CC0): `scripts/ual-gait.py` вынимает из Walk_Loop и Jog_Fwd_Loop
+    путь лодыжек, повороты стоп, присед и раскачку таза, скручивание корпуса → `src/gait-ual.js`; `gait()` в
+    `src/hero-animations.js` запекает по ним клипы Walk/Run (+Pistol/Rifle) — руки с оружием свои, шаг подогнан под скорость
+    героя (`GAIT.stride`), корпус с оружием почти не крутится (`twist`). После правки — `npm run build:game player`,
+    скорости клипов (HERO_GAIT) переписать в `GAIT` player.gd, merc.gd, bandit.gd. Сравнение «было/стало» сбоку —
+    `tools/pose.html` (вид `side`). В фотосъёмке CI — `gait.jpg` (6 кадров сбоку + 2 игровой камерой на строку).
+
 ## Подводные камни
 
 - `Batch.add` требует у геометрии uv и нормали (иначе `mergeGeometries` вернёт null) — `geom.js` их

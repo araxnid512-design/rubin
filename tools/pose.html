@@ -82,8 +82,8 @@
 			// отладка отдачи: window.extra = [['mixamorigSpine2', x, y, z], …] — добавочный поворот костей поверх клипа
 			for (const [n, x, y, z] of window.extra ?? []) model.getObjectByName(n)?.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)));
 			model.updateMatrixWorld(true);
-			// view: 'game' — только камера игры, 'top' — строго сверху, 'feet' — ступни крупно
-			const views = view === 'game' ? [2] : view === 'top' ? [3] : view === 'feet' ? [4] : [0, 1, 2];
+			// view: 'game' — только камера игры, 'top' — строго сверху, 'feet' — ступни крупно, 'side' — только сбоку
+			const views = view === 'game' ? [2] : view === 'top' ? [3] : view === 'feet' ? [4] : view === 'side' ? [1] : [0, 1, 2];
 			const near = view === 'game' ? 0.55 : 1;
 			const w = innerWidth / views.length, h = innerHeight;
 			const focus = zoom ? grip.getWorldPosition(new THREE.Vector3()) : null;

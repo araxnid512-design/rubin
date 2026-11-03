@@ -9,7 +9,7 @@ extends CharacterBody3D
 ## alive, global_position, hurt(dmg, from); пуля мура — damage(dmg, from).
 
 ## Естественная скорость клипов ходьбы и бега героя, м/с (как Player.GAIT): темп подгоняется под скорость.
-const GAIT := {"walk": 1.45, "run": 3.9}
+const GAIT := {"walk": 1.397, "run": 4.16}
 ## «Руки заняты» (перевязка у медика) — клип перезарядки под тип оружия.
 const RELOAD := {"rifle": "ReloadRifle", "pistol": "Reload", "axe": "Reload"}
 ## Сколько здоровья даёт живчик из аптечки медика.

@@ -32,7 +32,7 @@ const LOOPED := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
 const TRIPO_MODELS := ["res://assets/tripo/mur_1.glb", "res://assets/tripo/mur_2.glb"]
 const BAKE_CLIPS := ["IdleRifle", "WalkRifle", "RunRifle", "AimRifle", "ShootRifle", "HitRifle", "ReloadRifle", "Death"]
 ## Естественная скорость клипов ходьбы и бега, м/с (как у героя) — под неё подгоняется темп.
-const GAIT := {"WalkRifle": 1.45, "RunRifle": 3.9}
+const GAIT := {"WalkRifle": 1.397, "RunRifle": 4.16}
 const WALK_SPEED := 1.6
 const RUN_SPEED := 3.8
 ## Дальше этого от героя модель не рисуется и не анимируется (экран телефона её всё равно не покажет).

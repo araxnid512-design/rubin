@@ -27,9 +27,9 @@ const EQUIP := {"pistol": {"draw": "EquipPistol", "stow": "EquipAxe"}, "rifle": 
 const EQUIP_TIMES := {"EquipPistol": [0.36, 0.74], "EquipAxe": [0.26, 0.6], "EquipRifle": [0.36, 0.74], "EquipAxeR": [0.32, 0.66]}
 const LOOPED := ["Idle", "Walk", "Run", "IdlePistol", "WalkPistol", "RunPistol", "AimPistol", "IdleRifle", "WalkRifle", "RunRifle", "AimRifle"]
 const MOUNTS := {"axe": "AxeMount", "holster": "HolsterMount", "back": "BackMount"}
-## Скорость клипов шага и бега при темпе 1, м/с (длина шага ÷ время опоры — HERO_GAIT в src/hero-animations.js):
-## темп подгоняется под настоящую скорость героя — ступни не скользят.
-const GAIT := {"Walk": 1.533, "Run": 4.135, "WalkPistol": 1.367, "RunPistol": 3.655, "WalkRifle": 1.433, "RunRifle": 3.838}
+## Скорость клипов шага и бега при темпе 1, м/с (HERO_GAIT в src/hero-animations.js: шаг и бег — по живым клипам
+## Quaternius UAL, CC0): темп подгоняется под настоящую скорость героя — ступни не скользят.
+const GAIT := {"Walk": 1.455, "Run": 4.29, "WalkPistol": 1.339, "RunPistol": 4.03, "WalkRifle": 1.397, "RunRifle": 4.16}
 ## Профили хвата и отдачи (пакет «СТИКС», pose_data/weapon_pose_profiles.json; числа подогнаны под наш скелет и
 ## клипы — клип выстрела сам даёт ~3 см отдачи, здесь — добавка по оружию): two — двуручный хват (левая кисть на
 ## цевье через IK); raise / lower — подъём ствола в прицел и опускание, с; back — толчок назад, м;

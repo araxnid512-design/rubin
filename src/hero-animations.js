@@ -14,8 +14,9 @@
 // Всё запекается в ключевые кадры 30 к/с.
 
 import * as THREE from 'three';
-import { at, curves, eulerQ, gaitFoot } from './animations.js';
+import { at, curves, eulerQ } from './animations.js';
 import { AXE_GRIP_TILT } from '../game/weapons.js';
+import { UAL_GAIT } from './gait-ual.js';
 
 const FPS = 30;
 const D2R = THREE.MathUtils.degToRad;
@@ -65,6 +66,7 @@ class HeroRig {
 		this.hipsY = W('Hips').y;
 		this.ankle = { L: W('LeftFoot').clone(), R: W('RightFoot').clone() };
 		this.shoulder = { L: W('LeftArm').clone(), R: W('RightArm').clone() };
+		this.leg = this.bones.LeftLeg.offset.length() + this.bones.LeftFoot.offset.length();
 		// крепления оружия на теле (позиция кулака и направление топорища/рукояти в стойке)
 		this.mounts = {};
 		for (const [key, name] of [['axe', 'AxeMount'], ['pistol', 'HolsterMount'], ['back', 'BackMount']]) {
@@ -449,48 +451,79 @@ function idleAxe(rig) {
 }
 
 /**
- * Походки героя: d — цикл (два шага), stride — сколько стопа проходит под телом за опору, stance — доля
- * цикла на опоре. Шаг ходьбы — как у человека, идущего бодрым шагом (~1,5 м/с).
+ * Походки героя по живым клипам (Quaternius Universal Animation Library, CC0 — данные src/gait-ual.js, их делает
+ * scripts/ual-gait.py): ноги, таз и раскачка корпуса — из клипа, руки с оружием — свои. Цикл (два шага) — как в клипе.
+ * stride — во сколько раз шаг длиннее/короче клипа (скорость под героя: у бега клипа очень длинный шаг), drop — доля
+ * среднего приседа таза, bob — доля его раскачки вверх-вниз, lift — доля подъёма стопы, twist — доля скручивания таза
+ * и корпуса (с оружием в руках корпус почти не крутится), lean — наклон корпуса вперёд, градусы (свой, у клипа сутулость).
  */
 const GAIT = {
-	walk: { d: { axe: 1.0, pistol: 1.0, rifle: 1.0 }, stride: { axe: 0.92, pistol: 0.82, rifle: 0.86 }, stance: 0.6 },
-	run: { d: { axe: 0.7, pistol: 0.72, rifle: 0.72 }, stride: { axe: 1.1, pistol: 1.0, rifle: 1.05 }, stance: 0.38 },
+	walk: { clip: 'Walk_Loop', stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 1, lift: 0.85,
+		twist: { axe: 0.8, pistol: 0.45, rifle: 0.3 }, lean: { axe: 3, pistol: 6, rifle: 6 }, pelvis: 3, look: { axe: 0, pistol: -3, rifle: -3 } },
+	run: { clip: 'Jog_Fwd_Loop', stride: { axe: 0.66, pistol: 0.62, rifle: 0.64 }, drop: 0.6, bob: 0.45, lift: 0.75,
+		twist: { axe: 0.28, pistol: 0.28, rifle: 0.18 }, lean: { axe: 9, pistol: 9, rifle: 10 }, pelvis: 9, look: { axe: -8, pistol: -8, rifle: -8 } },
 };
+for (const g of Object.values(GAIT)) g.d = UAL_GAIT[g.clip].d;
 const gaitKind = (pistol, rifle) => (rifle ? 'rifle' : pistol ? 'pistol' : 'axe');
-/** Скорость клипа (м/с) при timeScale 1: при ней ноги не скользят. */
+// длина ноги героя (бедро → колено → лодыжка в покое, models/game/player.glb) — для скорости клипов без скелета
+const HERO_LEG = 1.013;
+/** Скорость клипа (м/с) при timeScale 1: при ней ноги не скользят (стопа на земле едет назад со скоростью хода). */
 export const HERO_GAIT = Object.fromEntries([['Walk', 'walk', 'axe'], ['Run', 'run', 'axe'], ['WalkPistol', 'walk', 'pistol'], ['RunPistol', 'run', 'pistol'], ['WalkRifle', 'walk', 'rifle'], ['RunRifle', 'run', 'rifle']]
-	.map(([clip, g, k]) => [clip, GAIT[g].stride[k] / (GAIT[g].stance * GAIT[g].d[k])]));
+	.map(([clip, g, k]) => [clip, +(UAL_GAIT[GAIT[g].clip].speed * HERO_LEG * GAIT[g].stride[k]).toFixed(3)]));
+
+// кадр клипа-источника на доле цикла ph (между кадрами — линейно) и средние за цикл (от них — раскачка)
+const lerpArr = (a, b, w) => a.map((v, i) => v + (b[i] - v) * w);
+function ualAt(clip, ph) {
+	const F = UAL_GAIT[clip].frames, n = F.length;
+	const x = (((ph % 1) + 1) % 1) * n, i = Math.floor(x) % n, j = (i + 1) % n, w = x - Math.floor(x);
+	const a = F[i], b = F[j];
+	const foot = (s) => ({ pos: lerpArr(a.feet[s].pos, b.feet[s].pos, w), rot: lerpArr(a.feet[s].rot, b.feet[s].rot, w), toe: a.feet[s].toe + (b.feet[s].toe - a.feet[s].toe) * w });
+	return { hips: lerpArr(a.hips, b.hips, w), pelvis: lerpArr(a.pelvis, b.pelvis, w), torso: lerpArr(a.torso, b.torso, w), look: lerpArr(a.look, b.look, w), feet: { L: foot('L'), R: foot('R') } };
+}
+const UAL_MEAN = {};
+function ualMean(clip) {
+	if (UAL_MEAN[clip]) return UAL_MEAN[clip];
+	const F = UAL_GAIT[clip].frames;
+	const m = (get) => F.reduce((acc, f) => acc + get(f), 0) / F.length;
+	return (UAL_MEAN[clip] = { hipsY: m((f) => f.hips[1]), pelvis: m((f) => f.pelvis[0]), torso: m((f) => f.torso[0]), look: m((f) => f.look[0]) });
+}
 
 function gait(rig, t, { run, pistol, rifle }) {
 	const H = rig.hipsY, a = rig.ankle;
 	const G = run ? GAIT.run : GAIT.walk, k = gaitKind(pistol, rifle);
-	const d = G.d[k], ph = t / d;
+	const d = G.d, ph = t / d;
 	const c = (f, o = 0) => Math.cos(Math.PI * 2 * (ph * f - o));
-	const opts = run
-		? { stride: G.stride[k], stance: G.stance, lift: 0.15, heel: 10, toeOff: 40, kick: 0.16 }
-		: { stride: G.stride[k], stance: G.stance, lift: 0.08, heel: 14, toeOff: 28 };
-	const feet = {
-		L: gaitFoot(ph, { ...opts, x: a.L.x, y0: a.L.y, z0: run ? 0.05 : 0.02, yaw: 3 }),
-		R: gaitFoot(ph - 0.5, { ...opts, x: a.R.x, y0: a.R.y, z0: run ? 0.05 : 0.02, yaw: -3 }),
-	};
-	const bob = (run ? 0.03 : 0.015) * c(2, run ? 0.19 : 0.05);
-	const yaw = (pistol ? 0.4 : 1) * (run ? -10 : -6) * c(1, 0.75);
-	const sw = -c(1, 0); // мах левой руки: вперёд, когда правая нога впереди
+	const u = ualAt(G.clip, ph), M = ualMean(G.clip), leg = rig.leg, tw = G.twist[k];
+	// ступни: путь лодыжки и поворот стопы — из клипа, длина шага — под скорость героя; носок — как в клипе
+	const feet = {};
+	for (const s of ['L', 'R']) {
+		const f = u.feet[s], pitch = f.rot[0];
+		feet[s] = {
+			pos: [a[s].x + f.pos[0] * leg, a[s].y + f.pos[1] * leg * G.lift, a[s].z + f.pos[2] * leg * G.stride[k]],
+			rot: [pitch, f.rot[1] + (s === 'L' ? 3 : -3), f.rot[2]],
+			toe: f.toe + Math.max(0, Math.min(pitch, 60)),
+		};
+	}
+	// таз: присед и раскачка вверх-вниз и в стороны; bob — смещение от среднего (его повторяют кисти с оружием)
+	const bob = (u.hips[1] - M.hipsY) * G.bob * leg;
+	const sway = u.hips[0] * leg;
+	const pelvisYaw = u.pelvis[1] * tw, torsoYaw = u.torso[1] * tw;
 	const base = {
-		hips: [0.02 * c(1, 0.25), H - (run ? 0.07 : 0.025) - bob, 0],
-		pelvis: [run ? 9 : 3, yaw + (pistol && !run ? -4 : 0), 3 * c(1, 0.25)],
-		torso: [run ? 9 : pistol ? 6 : 3, -0.75 * yaw + (pistol && !run ? 4 : 0), 0],
-		look: [run ? -8 : pistol ? -3 : 0, -0.3 * yaw, 0],
+		hips: [sway, H + M.hipsY * G.drop * leg + bob, 0],
+		pelvis: [G.pelvis + (u.pelvis[0] - M.pelvis), pelvisYaw + (pistol && !run ? -4 : 0), u.pelvis[2] * (run ? 0.7 : 1)],
+		torso: [G.lean[k] + (u.torso[0] - M.torso) * 0.5, torsoYaw + (pistol && !run ? 4 : 0), u.torso[2] * tw],
+		// голова смотрит по ходу: гасит скручивание таза и корпуса
+		look: [G.look[k] + (u.look[0] - M.look) * 0.5, -0.85 * (pelvisYaw + torsoYaw), -0.6 * u.torso[2] * tw],
 		feet,
 	};
+	const sw = -c(1, 0); // мах левой руки: вперёд, когда правая нога впереди
 	if (rifle) {
 		// автомат двумя руками в низкой готовности и шагом, и бегом; корпус гасит раскачку
 		return {
 			...base,
-			pelvis: [run ? 9 : 3, 0.4 * yaw - 8, 3 * c(1, 0.25)],
-			torso: [run ? 10 : 6, -0.3 * yaw + 8, 0],
-			look: [run ? -8 : -3, -0.1 * yaw, 0],
-			hands: { R: { grip: rifleReady([0, -bob * 0.6, 0]), hint: [-0.7, -1, -0.2] }, L: { pos: [0, 0, 0], gun: FOREGRIP, hint: [0.6, -1, -0.2] } },
+			pelvis: [base.pelvis[0], base.pelvis[1] - 8, base.pelvis[2]],
+			torso: [base.torso[0], base.torso[1] + 8, base.torso[2]],
+			hands: { R: { grip: rifleReady([sway * 0.8, bob * 0.6, 0]), hint: [-0.7, -1, -0.2] }, L: { pos: [0, 0, 0], gun: FOREGRIP, hint: [0.6, -1, -0.2] } },
 			fingers: { R: HAND_RIFLE, L: HAND_FOREGRIP },
 		};
 	}
@@ -498,7 +531,7 @@ function gait(rig, t, { run, pistol, rifle }) {
 		// шагом — пистолет двумя руками в низкой готовности, корпус гасит раскачку
 		return {
 			...base,
-			hands: { R: { grip: pistolReady([0, -bob * 0.5, 0]), hint: [-0.6, -1, -0.3] }, L: { pos: [0, 0, 0], attach: SUPPORT, hint: [0.6, -1, -0.3] } },
+			hands: { R: { grip: pistolReady([sway * 0.8, bob * 0.5, 0]), hint: [-0.6, -1, -0.3] }, L: { pos: [0, 0, 0], attach: SUPPORT, hint: [0.6, -1, -0.3] } },
 			fingers: { R: HAND_PISTOL, L: HAND_SUPPORT },
 		};
 	}
@@ -964,22 +997,22 @@ export function createHeroAnimations(root, options) {
 	const rig = new HeroRig(root, options);
 	return [
 		bake(rig, 'Idle', 3.0, idleAxe(rig), { loop: true }),
-		bake(rig, 'Walk', GAIT.walk.d.axe, (t) => gait(rig, t, { run: false }), { loop: true }),
-		bake(rig, 'Run', GAIT.run.d.axe, (t) => gait(rig, t, { run: true }), { loop: true }),
+		bake(rig, 'Walk', GAIT.walk.d, (t) => gait(rig, t, { run: false }), { loop: true }),
+		bake(rig, 'Run', GAIT.run.d, (t) => gait(rig, t, { run: true }), { loop: true }),
 		bake(rig, 'Melee', 0.75, meleeAxe(rig)),
 		bake(rig, 'Hit', 0.4, hit(rig, false)),
 		bake(rig, 'EquipPistol', 1.0, equip(rig, true)),
 		bake(rig, 'IdlePistol', 3.0, idlePistol(rig), { loop: true }),
-		bake(rig, 'WalkPistol', GAIT.walk.d.pistol, (t) => gait(rig, t, { run: false, pistol: true }), { loop: true }),
-		bake(rig, 'RunPistol', GAIT.run.d.pistol, (t) => gait(rig, t, { run: true, pistol: true }), { loop: true }),
+		bake(rig, 'WalkPistol', GAIT.walk.d, (t) => gait(rig, t, { run: false, pistol: true }), { loop: true }),
+		bake(rig, 'RunPistol', GAIT.run.d, (t) => gait(rig, t, { run: true, pistol: true }), { loop: true }),
 		bake(rig, 'AimPistol', 2.0, aimPistol(rig), { loop: true }),
 		bake(rig, 'Shoot', 0.26, shootPistol(rig)),
 		bake(rig, 'Reload', 1.4, reloadPistol(rig)),
 		bake(rig, 'HitPistol', 0.4, hit(rig, true)),
 		bake(rig, 'EquipAxe', 1.0, equip(rig, false)),
 		bake(rig, 'IdleRifle', 3.0, idleRifle(rig), { loop: true }),
-		bake(rig, 'WalkRifle', GAIT.walk.d.rifle, (t) => gait(rig, t, { run: false, rifle: true }), { loop: true }),
-		bake(rig, 'RunRifle', GAIT.run.d.rifle, (t) => gait(rig, t, { run: true, rifle: true }), { loop: true }),
+		bake(rig, 'WalkRifle', GAIT.walk.d, (t) => gait(rig, t, { run: false, rifle: true }), { loop: true }),
+		bake(rig, 'RunRifle', GAIT.run.d, (t) => gait(rig, t, { run: true, rifle: true }), { loop: true }),
 		bake(rig, 'AimRifle', 2.0, aimRifle(rig), { loop: true }),
 		bake(rig, 'ShootRifle', 0.12, shootRifle(rig)),
 		bake(rig, 'ReloadRifle', 2.2, reloadRifle(rig)),
