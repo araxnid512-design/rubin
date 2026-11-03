@@ -524,8 +524,8 @@ func _physics_process(delta: float) -> void:
 	_trigger_was = attack_held
 	shot_queued -= delta
 	var semi: bool = gun and bool(w.get("semi", false))
-	var want: bool = (attack_held and not (semi and _semi_lock)) or (semi and shot_queued > 0.0)
-	if want and cooldown <= 0.0 and busy <= 0.05 and not equipping:
+	var pull: bool = (attack_held and not (semi and _semi_lock)) or (semi and shot_queued > 0.0)
+	if pull and cooldown <= 0.0 and busy <= 0.05 and not equipping:
 		attack()
 
 func _process(delta: float) -> void:
