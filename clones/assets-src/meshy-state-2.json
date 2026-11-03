@@ -1,0 +1,728 @@
+{
+ "img_trooper_refused": {
+  "id": "01a1a304-d191-72f6-ab53-404487a146df",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:06",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Star Wars Phase II clone trooper from Revenge of the Sith, movie-accurate: glossy white plastoid armor plates over a black bodysuit visible at the joints, Phase II helmet with a dark T-shaped visor, brow ridge and small vocoder grille, flat chest plate, segmented ab plate, belt with small white pouches, white gloves and boots, plain white armor without unit markings, light wear and dirt. Full body, T-pose with arms straight out to the sides, palms down, empty hands, no weapon, no holster, no cape. Realistic adult proportions, head about 1/7.5 of total height. Neutral studio lighting, plain light grey background, photorealistic 3D game character reference sheet.",
+   "generate_multi_view": true,
+   "pose_mode": "t-pose"
+  },
+  "status": "FAILED",
+  "credits": 0
+ },
+ "img_trooper": {
+  "id": "01a1a306-4336-777c-a827-649a305d366a",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:07",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi space opera soldier in glossy white plastoid armor plates over a black bodysuit visible at the joints. Fully enclosed white helmet: rounded dome, pronounced brow ridge, a dark T-shaped visor (horizontal eye slit plus vertical slot down the faceplate), angular cheek pieces, small vertical vocoder grille on the chin, small round ear caps. Flat rectangular chest plate, segmented abdomen plate, white belt with small rectangular pouches, white shoulder bells, white armored gloves and boots, plain white armor with thin grey panel gaps, light wear and dirt. Full body, T-pose with arms straight out to the sides, palms down, empty hands, no weapon, no holster, no cape. Realistic adult male proportions, head about 1/7.5 of total height. Neutral studio lighting, plain light grey background, photorealistic 3D game character reference sheet.",
+   "generate_multi_view": true,
+   "pose_mode": "t-pose"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "img_trooper2": {
+  "id": "01a1a307-6c7e-74b0-96db-a16462206276",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:08",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi space opera infantry soldier in glossy white plastoid armor plates over a black bodysuit visible at the joints. Fully enclosed white helmet in the style of late-war clone armor: smooth rounded dome with a raised brow ridge, a wide dark horizontal eye visor joined to a short narrow vertical dark slot, below it a white angular jaw plate that points down like a V with a small three-slot breathing grille, small cheek vents, no antennae. Flat rectangular chest plate, segmented abdomen plate, white belt with small rectangular pouches, rounded shoulder bells, white forearm and shin plates, white armored gloves and boots, plain white armor with thin grey panel gaps, light wear and dirt. Single character, full body from helmet to boots fully visible with margin, front view, T-pose with arms straight out to the sides, palms down, empty hands, no weapon, no holster, no cape. Realistic adult male proportions, head about 1/7.5 of total height. Even neutral studio lighting, plain light grey background, photorealistic 3D game character.",
+   "pose_mode": "t-pose",
+   "aspect_ratio": "1:1"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "m3d_trooper": {
+  "id": "01a1a308-ea3b-76f8-84cc-416cc0f95fd9",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:10",
+  "body": {
+   "input_task_id": "01a1a307-6c7e-74b0-96db-a16462206276",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "rig_trooper": {
+  "id": "01a1a30c-b323-703e-92b7-d0b2e49a281c",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "input_task_id": "01a1a308-ea3b-76f8-84cc-416cc0f95fd9",
+   "height_meters": 1.83
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "img_commander": {
+  "id": "01a1a30c-c28a-721e-94f6-0d738814cdc0",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi space opera infantry officer in glossy white plastoid armor plates over a black bodysuit visible at the joints. Fully enclosed white helmet in the style of late-war clone armor: smooth rounded dome with a raised brow ridge, a wide dark horizontal eye visor joined to a short narrow vertical dark slot, below it a white angular jaw plate pointing down like a V with a small breathing grille, a small rangefinder antenna on the right side of the helmet. Orange-yellow officer markings: a stripe over the helmet dome and around the visor, orange chest panel stripes and orange shoulder bells. Flat chest plate, segmented abdomen plate, white belt with pouches, white gloves and boots, light wear and dirt. Head about 1/7.5 of total height. Single character, full body from head to feet fully visible with margin, front view, A-pose with arms angled down away from the body, empty hands, no weapon held. Realistic proportions. Even neutral studio lighting, plain light grey background, photorealistic 3D game character, movie-quality materials.",
+   "pose_mode": "a-pose",
+   "aspect_ratio": "3:4"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "img_pilot": {
+  "id": "01a1a30c-c7df-77e3-92d9-9d2ae601b071",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi space opera starfighter pilot in a black flight suit with lightweight white armor plates on chest, shoulders, forearms and shins. Fully enclosed white flight helmet with a large dark tinted visor covering the face, yellow stripes on the top of the helmet, a breathing hose from the helmet chin to a grey rectangular life-support box on the chest. Yellow markings on the shoulder plates, white gloves, black flight boots with white shin guards, utility harness. Head about 1/7.5 of total height. Single character, full body from head to feet fully visible with margin, front view, A-pose with arms angled down away from the body, empty hands, no weapon held. Realistic proportions. Even neutral studio lighting, plain light grey background, photorealistic 3D game character, movie-quality materials.",
+   "pose_mode": "a-pose",
+   "aspect_ratio": "3:4"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "img_b1": {
+  "id": "01a1a30c-ce2e-773c-a2b2-8472982d01a9",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi skeletal battle robot of pale tan-ochre painted metal, height of a tall man. Very thin bony humanoid frame: slim cylindrical limbs with exposed ball joints, narrow chest plate over a thin rib-like spine, a compact rectangular backpack power unit on the back. Thin neck. The head is a long narrow flattened shape that juts forward and slightly downward like a long snout, with two small round dark photoreceptors on the sides near the back of the head. Two-toned paint with darker ochre joints, scratched and dusty metal. Single character, full body from head to feet fully visible with margin, front view, A-pose with arms angled down away from the body, empty hands, no weapon held. Realistic proportions. Even neutral studio lighting, plain light grey background, photorealistic 3D game character, movie-quality materials.",
+   "pose_mode": "a-pose",
+   "aspect_ratio": "3:4"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "img_bx": {
+  "id": "01a1a30c-d373-7351-8486-e0b651531332",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi commando battle robot of dark brown metal, height of a tall man. Slim but strong humanoid frame like an athlete's skeleton: thin dark limbs with armored plates on the chest, shoulders, thighs and shins like stylized muscles, slender waist. A small smooth rounded head on a thin neck with one single round white photoreceptor eye in the middle of the face, no mouth. Dark chocolate-brown armor with lighter tan accents, scratched metal. Single character, full body from head to feet fully visible with margin, front view, A-pose with arms angled down away from the body, empty hands, no weapon held. Realistic proportions. Even neutral studio lighting, plain light grey background, photorealistic 3D game character, movie-quality materials.",
+   "pose_mode": "a-pose",
+   "aspect_ratio": "3:4"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "img_b2": {
+  "id": "01a1a30c-d8b9-7582-a4f3-a1553e75e015",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi heavy battle robot of dark blue-grey gunmetal steel, height of a tall man. Massive top-heavy upper body: a huge broad armored chest that bulges forward and outward, a small flat head with a narrow horizontal visor slot set low between the shoulders with no neck. Thick armored upper arms and huge blocky forearms with integrated twin blaster cannons along the wrists, three-fingered clawed hands. Comparatively slender mechanical legs with large flat feet. Scratched metal with darker joints. Single character, full body from head to feet fully visible with margin, front view, A-pose with arms angled down away from the body, empty hands, no weapon held. Realistic proportions. Even neutral studio lighting, plain light grey background, photorealistic 3D game character, movie-quality materials.",
+   "pose_mode": "a-pose",
+   "aspect_ratio": "3:4"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "img_tx": {
+  "id": "01a1a30c-dd6b-7300-8ad7-ecc104cef736",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-03 20:14",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi tactical command robot of dark navy blue metal with lighter blue trim, very tall and slender humanoid frame. Tall smooth elongated dome-shaped head like an upright egg on a thin neck, with two small round yellow photoreceptors. Broad flat shoulder plates, armored chest with panel lines, narrow waist, long thin arms and legs with visible joints. Polished but scratched metal. Single character, full body from head to feet fully visible with margin, front view, A-pose with arms angled down away from the body, empty hands, no weapon held. Realistic proportions. Even neutral studio lighting, plain light grey background, photorealistic 3D game character, movie-quality materials.",
+   "pose_mode": "a-pose",
+   "aspect_ratio": "3:4"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "m3d_commander": {
+  "id": "01a1a30f-6184-752c-a4cd-282529bd3ab4",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "input_task_id": "01a1a30c-c28a-721e-94f6-0d738814cdc0",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "m3d_pilot": {
+  "id": "01a1a30f-670b-7724-a9a8-26f24bec872d",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "input_task_id": "01a1a30c-c7df-77e3-92d9-9d2ae601b071",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "m3d_b1": {
+  "id": "01a1a30f-6e2f-70d6-94b5-3788f3661498",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "input_task_id": "01a1a30c-ce2e-773c-a2b2-8472982d01a9",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "m3d_bx": {
+  "id": "01a1a30f-742c-77ae-b9a1-db4fede52148",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "input_task_id": "01a1a30c-d373-7351-8486-e0b651531332",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "m3d_b2": {
+  "id": "01a1a30f-7a39-706e-8f00-8d640039fada",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "input_task_id": "01a1a30c-d8b9-7582-a4f3-a1553e75e015",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "m3d_tx": {
+  "id": "01a1a30f-7fac-740a-a519-eb16698da2ec",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "input_task_id": "01a1a30c-dd6b-7300-8ad7-ecc104cef736",
+   "ai_model": "meshy-7.1",
+   "pose_mode": "a-pose",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 24000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "anim_trooper_89": {
+  "id": "01a1a30f-869b-7643-b5ca-4a9d238699d2",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "rig_task_id": "01a1a30c-b323-703e-92b7-d0b2e49a281c",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_trooper_183": {
+  "id": "01a1a30f-8b0f-74b7-9023-6e346ac6fdaa",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "rig_task_id": "01a1a30c-b323-703e-92b7-d0b2e49a281c",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_trooper_178": {
+  "id": "01a1a30f-8e96-77d3-9713-23a5d8b5e765",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "rig_task_id": "01a1a30c-b323-703e-92b7-d0b2e49a281c",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_trooper_170": {
+  "id": "01a1a30f-9249-7169-bfdf-8e16cc47dc2a",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "rig_task_id": "01a1a30c-b323-703e-92b7-d0b2e49a281c",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_trooper_239": {
+  "id": "01a1a30f-960d-755b-99ec-94f0eb87404e",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:17",
+  "body": {
+   "rig_task_id": "01a1a30c-b323-703e-92b7-d0b2e49a281c",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "rig_commander": {
+  "id": "01a1a312-3df1-756b-b417-36edcfa55022",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:20",
+  "body": {
+   "input_task_id": "01a1a30f-6184-752c-a4cd-282529bd3ab4",
+   "height_meters": 1.83
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "rig_pilot": {
+  "id": "01a1a312-4f8f-73af-aa14-059e1f44fe40",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:20",
+  "body": {
+   "input_task_id": "01a1a30f-670b-7724-a9a8-26f24bec872d",
+   "height_meters": 1.83
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "rig_b1": {
+  "id": "01a1a312-60b0-7298-a464-81c99b4fe749",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:20",
+  "body": {
+   "input_task_id": "01a1a30f-6e2f-70d6-94b5-3788f3661498",
+   "height_meters": 1.91
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "rig_bx": {
+  "id": "01a1a312-7541-7355-bda5-321c809816c9",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:21",
+  "body": {
+   "input_task_id": "01a1a30f-742c-77ae-b9a1-db4fede52148",
+   "height_meters": 1.91
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "rig_b2": {
+  "id": "01a1a312-87a6-7390-8a5a-9d4e19db0b2b",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:21",
+  "body": {
+   "input_task_id": "01a1a30f-7a39-706e-8f00-8d640039fada",
+   "height_meters": 1.91
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "rig_tx": {
+  "id": "01a1a312-988a-7645-8948-c9b4e51531f3",
+  "ep": "/v1/rigging",
+  "time": "2026-11-03 20:21",
+  "body": {
+   "input_task_id": "01a1a30f-7fac-740a-a519-eb16698da2ec",
+   "height_meters": 1.93
+  },
+  "status": "SUCCEEDED",
+  "credits": 5
+ },
+ "anim_commander_89": {
+  "id": "01a1a313-8a26-7049-a933-555f468b9b29",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-3df1-756b-b417-36edcfa55022",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_commander_183": {
+  "id": "01a1a313-8e2b-70c6-9b31-a1643cf5a210",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-3df1-756b-b417-36edcfa55022",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_commander_178": {
+  "id": "01a1a313-919f-74eb-ad62-bd1f7e52d899",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-3df1-756b-b417-36edcfa55022",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_commander_170": {
+  "id": "01a1a313-9565-77be-a354-51c85c826f40",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-3df1-756b-b417-36edcfa55022",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_commander_239": {
+  "id": "01a1a313-98f8-7413-8559-0234acb8d2af",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-3df1-756b-b417-36edcfa55022",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_pilot_89": {
+  "id": "01a1a313-9d09-758d-9202-05113ea4b7da",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-4f8f-73af-aa14-059e1f44fe40",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_pilot_183": {
+  "id": "01a1a313-a0f4-706f-bc8c-6499122e917c",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-4f8f-73af-aa14-059e1f44fe40",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_pilot_178": {
+  "id": "01a1a313-a494-744b-98fd-43715503e535",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-4f8f-73af-aa14-059e1f44fe40",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_pilot_170": {
+  "id": "01a1a313-a814-72c1-b9bb-e5687c5d8274",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-4f8f-73af-aa14-059e1f44fe40",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_pilot_239": {
+  "id": "01a1a313-abd1-72f8-a1f2-fd1e089204fc",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-4f8f-73af-aa14-059e1f44fe40",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b1_89": {
+  "id": "01a1a313-afab-704f-8ba0-66d4ce2f31bb",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-60b0-7298-a464-81c99b4fe749",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b1_183": {
+  "id": "01a1a313-b40d-72ab-a265-35faf1f91b91",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-60b0-7298-a464-81c99b4fe749",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b1_178": {
+  "id": "01a1a313-b7f7-71eb-8c48-003d2ad57f98",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-60b0-7298-a464-81c99b4fe749",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b1_170": {
+  "id": "01a1a313-bbb2-76cf-8d32-4745babc1ff5",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-60b0-7298-a464-81c99b4fe749",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b1_239": {
+  "id": "01a1a313-bf76-7351-a7fb-80658f2e58dc",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-60b0-7298-a464-81c99b4fe749",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_bx_89": {
+  "id": "01a1a313-c3ea-71e0-be6a-03aa491f5915",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-7541-7355-bda5-321c809816c9",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_bx_183": {
+  "id": "01a1a313-c808-76c0-9bdb-9ca9c81914af",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-7541-7355-bda5-321c809816c9",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_bx_178": {
+  "id": "01a1a313-cc60-7179-8e23-368371ba4df3",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-7541-7355-bda5-321c809816c9",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_bx_170": {
+  "id": "01a1a313-d024-70a7-9f85-1bb82f7f6479",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-7541-7355-bda5-321c809816c9",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_bx_239": {
+  "id": "01a1a313-d434-7758-a828-c360df98a49c",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-7541-7355-bda5-321c809816c9",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b2_89": {
+  "id": "01a1a313-d84d-7188-af40-0399626ecbee",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-87a6-7390-8a5a-9d4e19db0b2b",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b2_183": {
+  "id": "01a1a313-dd21-7081-a9f5-78fd410030be",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-87a6-7390-8a5a-9d4e19db0b2b",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b2_178": {
+  "id": "01a1a313-e123-7641-bfcf-4864c0235405",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-87a6-7390-8a5a-9d4e19db0b2b",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b2_170": {
+  "id": "01a1a313-e4b9-7560-8a6d-78d14047ee19",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-87a6-7390-8a5a-9d4e19db0b2b",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_b2_239": {
+  "id": "01a1a313-e87f-7602-a30b-c56d4a60d981",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-87a6-7390-8a5a-9d4e19db0b2b",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_tx_89": {
+  "id": "01a1a313-ecc8-7320-a216-3e03572e5d34",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-988a-7645-8948-c9b4e51531f3",
+   "action_id": 89
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_tx_183": {
+  "id": "01a1a313-f134-740e-b7fa-cd2bb88af1bf",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-988a-7645-8948-c9b4e51531f3",
+   "action_id": 183
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_tx_178": {
+  "id": "01a1a313-f526-7514-a7ef-6bd8d93bcd29",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-988a-7645-8948-c9b4e51531f3",
+   "action_id": 178
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_tx_170": {
+  "id": "01a1a313-f8fb-76e0-ae63-9abaaa2ab10e",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-988a-7645-8948-c9b4e51531f3",
+   "action_id": 170
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ },
+ "anim_tx_239": {
+  "id": "01a1a313-fcf2-712b-b4a4-634a331009a0",
+  "ep": "/v1/animations",
+  "time": "2026-11-03 20:22",
+  "body": {
+   "rig_task_id": "01a1a312-988a-7645-8948-c9b4e51531f3",
+   "action_id": 239
+  },
+  "status": "SUCCEEDED",
+  "credits": 3
+ }
+}

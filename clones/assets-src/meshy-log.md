@@ -72,3 +72,74 @@
 | 2026-10-27 19:38 | anim_clone1_178 | /v1/animations | 01a17edf-2ff2-71ac-97b5-0fb6c107acaf | баланс до: 1897 |
 | 2026-10-27 19:38 | anim_clone1_170 | /v1/animations | 01a17edf-3305-7392-8cc1-64140c4b2b2d | баланс до: 1894 |
 | 2026-10-27 19:38 | anim_clone1_239 | /v1/animations | 01a17edf-36d4-760f-aaa8-fd127f7b0f2f | баланс до: 1891 |
+
+
+## Сессия 2 — новые персонажи (2026-11-03)
+
+Баланс в начале: 613 (пользователь выделил до 1000, но на счету было 613). Схема: концепт nano-banana-pro
+(один кадр в полный рост, A-поза) → image-to-3d meshy-7.1 с PBR-текстурами (24 тыс. треугольников) → риг
+(ходьба и бег бесплатно) → клипы 89 стойка, 183 гибель, 178 попадание, 170 перезарядка, 239 бросок.
+Сборка: риг + клипы, текстуры 1024 jpeg, упрощение до ~20,5 тыс. треугольников, квантование (gltf-transform).
+
+| время (UTC) | задача | метод | id | кредиты | итог |
+|---|---|---|---|---|---|
+| 2026-11-03 20:06 | img_trooper_refused | /v1/text-to-image | 01a1a304-d191-72f6-ab53-404487a146df | 0 | отказ модерации |
+| 2026-11-03 20:07 | img_trooper | /v1/text-to-image | 01a1a306-4336-777c-a827-649a305d366a | 9 | брак: мульти-ракурс без ног, не использован |
+| 2026-11-03 20:08 | img_trooper2 | /v1/text-to-image | 01a1a307-6c7e-74b0-96db-a16462206276 | 9 | ok |
+| 2026-11-03 20:10 | m3d_trooper | /v1/image-to-3d | 01a1a308-ea3b-76f8-84cc-416cc0f95fd9 | 30 | ok |
+| 2026-11-03 20:14 | rig_trooper | /v1/rigging | 01a1a30c-b323-703e-92b7-d0b2e49a281c | 5 | ok |
+| 2026-11-03 20:14 | img_commander | /v1/text-to-image | 01a1a30c-c28a-721e-94f6-0d738814cdc0 | 9 | ok |
+| 2026-11-03 20:14 | img_pilot | /v1/text-to-image | 01a1a30c-c7df-77e3-92d9-9d2ae601b071 | 9 | ok |
+| 2026-11-03 20:14 | img_b1 | /v1/text-to-image | 01a1a30c-ce2e-773c-a2b2-8472982d01a9 | 9 | ok |
+| 2026-11-03 20:14 | img_bx | /v1/text-to-image | 01a1a30c-d373-7351-8486-e0b651531332 | 9 | ok |
+| 2026-11-03 20:14 | img_b2 | /v1/text-to-image | 01a1a30c-d8b9-7582-a4f3-a1553e75e015 | 9 | ok |
+| 2026-11-03 20:14 | img_tx | /v1/text-to-image | 01a1a30c-dd6b-7300-8ad7-ecc104cef736 | 9 | ok |
+| 2026-11-03 20:17 | m3d_commander | /v1/image-to-3d | 01a1a30f-6184-752c-a4cd-282529bd3ab4 | 30 | ok |
+| 2026-11-03 20:17 | m3d_pilot | /v1/image-to-3d | 01a1a30f-670b-7724-a9a8-26f24bec872d | 30 | ok |
+| 2026-11-03 20:17 | m3d_b1 | /v1/image-to-3d | 01a1a30f-6e2f-70d6-94b5-3788f3661498 | 30 | ok |
+| 2026-11-03 20:17 | m3d_bx | /v1/image-to-3d | 01a1a30f-742c-77ae-b9a1-db4fede52148 | 30 | ok |
+| 2026-11-03 20:17 | m3d_b2 | /v1/image-to-3d | 01a1a30f-7a39-706e-8f00-8d640039fada | 30 | ok |
+| 2026-11-03 20:17 | m3d_tx | /v1/image-to-3d | 01a1a30f-7fac-740a-a519-eb16698da2ec | 30 | ok |
+| 2026-11-03 20:17 | anim_trooper_89 | /v1/animations | 01a1a30f-869b-7643-b5ca-4a9d238699d2 | 3 | ok |
+| 2026-11-03 20:17 | anim_trooper_183 | /v1/animations | 01a1a30f-8b0f-74b7-9023-6e346ac6fdaa | 3 | ok |
+| 2026-11-03 20:17 | anim_trooper_178 | /v1/animations | 01a1a30f-8e96-77d3-9713-23a5d8b5e765 | 3 | ok |
+| 2026-11-03 20:17 | anim_trooper_170 | /v1/animations | 01a1a30f-9249-7169-bfdf-8e16cc47dc2a | 3 | ok |
+| 2026-11-03 20:17 | anim_trooper_239 | /v1/animations | 01a1a30f-960d-755b-99ec-94f0eb87404e | 3 | ok |
+| 2026-11-03 20:20 | rig_commander | /v1/rigging | 01a1a312-3df1-756b-b417-36edcfa55022 | 5 | ok |
+| 2026-11-03 20:20 | rig_pilot | /v1/rigging | 01a1a312-4f8f-73af-aa14-059e1f44fe40 | 5 | ok |
+| 2026-11-03 20:20 | rig_b1 | /v1/rigging | 01a1a312-60b0-7298-a464-81c99b4fe749 | 5 | ok |
+| 2026-11-03 20:21 | rig_bx | /v1/rigging | 01a1a312-7541-7355-bda5-321c809816c9 | 5 | ok |
+| 2026-11-03 20:21 | rig_b2 | /v1/rigging | 01a1a312-87a6-7390-8a5a-9d4e19db0b2b | 5 | ok |
+| 2026-11-03 20:21 | rig_tx | /v1/rigging | 01a1a312-988a-7645-8948-c9b4e51531f3 | 5 | ok |
+| 2026-11-03 20:22 | anim_commander_89 | /v1/animations | 01a1a313-8a26-7049-a933-555f468b9b29 | 3 | ok |
+| 2026-11-03 20:22 | anim_commander_183 | /v1/animations | 01a1a313-8e2b-70c6-9b31-a1643cf5a210 | 3 | ok |
+| 2026-11-03 20:22 | anim_commander_178 | /v1/animations | 01a1a313-919f-74eb-ad62-bd1f7e52d899 | 3 | ok |
+| 2026-11-03 20:22 | anim_commander_170 | /v1/animations | 01a1a313-9565-77be-a354-51c85c826f40 | 3 | ok |
+| 2026-11-03 20:22 | anim_commander_239 | /v1/animations | 01a1a313-98f8-7413-8559-0234acb8d2af | 3 | ok |
+| 2026-11-03 20:22 | anim_pilot_89 | /v1/animations | 01a1a313-9d09-758d-9202-05113ea4b7da | 3 | ok |
+| 2026-11-03 20:22 | anim_pilot_183 | /v1/animations | 01a1a313-a0f4-706f-bc8c-6499122e917c | 3 | ok |
+| 2026-11-03 20:22 | anim_pilot_178 | /v1/animations | 01a1a313-a494-744b-98fd-43715503e535 | 3 | ok |
+| 2026-11-03 20:22 | anim_pilot_170 | /v1/animations | 01a1a313-a814-72c1-b9bb-e5687c5d8274 | 3 | ok |
+| 2026-11-03 20:22 | anim_pilot_239 | /v1/animations | 01a1a313-abd1-72f8-a1f2-fd1e089204fc | 3 | ok |
+| 2026-11-03 20:22 | anim_b1_89 | /v1/animations | 01a1a313-afab-704f-8ba0-66d4ce2f31bb | 3 | ok |
+| 2026-11-03 20:22 | anim_b1_183 | /v1/animations | 01a1a313-b40d-72ab-a265-35faf1f91b91 | 3 | ok |
+| 2026-11-03 20:22 | anim_b1_178 | /v1/animations | 01a1a313-b7f7-71eb-8c48-003d2ad57f98 | 3 | ok |
+| 2026-11-03 20:22 | anim_b1_170 | /v1/animations | 01a1a313-bbb2-76cf-8d32-4745babc1ff5 | 3 | ok |
+| 2026-11-03 20:22 | anim_b1_239 | /v1/animations | 01a1a313-bf76-7351-a7fb-80658f2e58dc | 3 | ok |
+| 2026-11-03 20:22 | anim_bx_89 | /v1/animations | 01a1a313-c3ea-71e0-be6a-03aa491f5915 | 3 | ok |
+| 2026-11-03 20:22 | anim_bx_183 | /v1/animations | 01a1a313-c808-76c0-9bdb-9ca9c81914af | 3 | ok |
+| 2026-11-03 20:22 | anim_bx_178 | /v1/animations | 01a1a313-cc60-7179-8e23-368371ba4df3 | 3 | ok |
+| 2026-11-03 20:22 | anim_bx_170 | /v1/animations | 01a1a313-d024-70a7-9f85-1bb82f7f6479 | 3 | ok |
+| 2026-11-03 20:22 | anim_bx_239 | /v1/animations | 01a1a313-d434-7758-a828-c360df98a49c | 3 | ok |
+| 2026-11-03 20:22 | anim_b2_89 | /v1/animations | 01a1a313-d84d-7188-af40-0399626ecbee | 3 | ok |
+| 2026-11-03 20:22 | anim_b2_183 | /v1/animations | 01a1a313-dd21-7081-a9f5-78fd410030be | 3 | ok |
+| 2026-11-03 20:22 | anim_b2_178 | /v1/animations | 01a1a313-e123-7641-bfcf-4864c0235405 | 3 | ok |
+| 2026-11-03 20:22 | anim_b2_170 | /v1/animations | 01a1a313-e4b9-7560-8a6d-78d14047ee19 | 3 | ok |
+| 2026-11-03 20:22 | anim_b2_239 | /v1/animations | 01a1a313-e87f-7602-a30b-c56d4a60d981 | 3 | ok |
+| 2026-11-03 20:22 | anim_tx_89 | /v1/animations | 01a1a313-ecc8-7320-a216-3e03572e5d34 | 3 | ok |
+| 2026-11-03 20:22 | anim_tx_183 | /v1/animations | 01a1a313-f134-740e-b7fa-cd2bb88af1bf | 3 | ok |
+| 2026-11-03 20:22 | anim_tx_178 | /v1/animations | 01a1a313-f526-7514-a7ef-6bd8d93bcd29 | 3 | ok |
+| 2026-11-03 20:22 | anim_tx_170 | /v1/animations | 01a1a313-f8fb-76e0-ae63-9abaaa2ab10e | 3 | ok |
+| 2026-11-03 20:22 | anim_tx_239 | /v1/animations | 01a1a313-fcf2-712b-b4a4-634a331009a0 | 3 | ok |
+
+Итого за сессию: 422 кредитов.

@@ -1956,7 +1956,7 @@ function prepareCharacters() {
 //  idle, walk, run, death, hit. Рост в метрах (канонический), лицом к +Z.
 //  Если файлов нет (страница открыта без сервера), остаётся модель солдата из models.js.
 // =====================================================================
-const MESHY_OF = { trooper: 'clone1', heavy: 'clone1', sniper: 'clone1', commander: 'clone', pilot: 'pilot', b1: 'b1', cmd: 'b1', snp: 'b1', bx: 'bx', tx: 'tx', b2: 'b2v2' };
+const MESHY_OF = { trooper: 'clone1', heavy: 'clone1', sniper: 'clone1', commander: 'clone', pilot: 'pilot', b1: 'b1', cmd: 'b1', snp: 'b1', bx: 'bx', tx: 'tx', b2: 'b2' };
 const MESHY_BONES = { Spine02: 'Spine', Spine01: 'Spine1', Spine: 'Spine2', neck: 'Neck' }; // имена как у скелета Mixamo: на них настроена IK
 const METER = 0.956; // метры модели → единицы тела юнита (клон 1,83 м = 1,12 клетки при UNIT_SCALE)
 CHAR.meshy = {};
@@ -1998,8 +1998,43 @@ function prepareMeshy(g) {
   { const mx = new THREE.AnimationMixer(sc), act = mx.clipAction(clips.idle); act.play(); mx.update(0); sc.updateMatrixWorld(true);
     const p = body.geometry.attributes.position; let lo = 0, hi = 0; for (let i = 1; i < p.count; i++) { if (p.getY(i) < p.getY(lo)) lo = i; if (p.getY(i) > p.getY(hi)) hi = i; }
     const y = i => body.boneTransform(i, new THREE.Vector3().fromBufferAttribute(p, i)).y; weather(m, y(lo), y(hi), 0.65);
+    M.bell = measureBell(body); M.bellL = measureBell(body, 'Left'); M.headHalf = headHalfWidth(body);
     act.stop(); mx.uncacheRoot(sc); body.skeleton.pose(); sc.updateMatrixWorld(true); }
   return M;
+}
+// наплечник (правый или левый) в позе стойки (в позе привязки модель Meshy в сто раз меньше): сфера по вершинам внешней части
+// наплечника у плечевого сустава (метод наименьших квадратов), относительно сустава; x — наружу. На неё ложится полоса класса
+function measureBell(body, lr = 'Right') {
+  const bones = body.skeleton.bones, ia = bones.findIndex(b => b.name === lr + 'Arm'), is = bones.findIndex(b => b.name === lr + 'Shoulder');
+  if (ia < 0 || is < 0) return null;
+  body.updateMatrixWorld(true); const j = bones[ia].getWorldPosition(new THREE.Vector3()), out = Math.sign(j.x - bones[is].getWorldPosition(_v1).x) || 1;
+  const g = body.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, v = new THREE.Vector3();
+  const A = new Float64Array(16), y = new Float64Array(4); let n = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)], k = w.indexOf(Math.max(...w)), b = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)][k];
+    if (b !== ia && b !== is) continue;
+    body.boneTransform(i, v.fromBufferAttribute(pos, i)).applyMatrix4(body.matrixWorld).sub(j); v.x *= out;
+    if (v.length() > 0.16 || v.x < 0.01 || v.y < -0.01) continue;
+    const r = [v.x, v.y, v.z, 1], t = v.lengthSq();
+    for (let a = 0; a < 4; a++) { y[a] += r[a] * t; for (let c = 0; c < 4; c++) A[a * 4 + c] += r[a] * r[c]; }
+    n++;
+  }
+  if (n < 30) return null;
+  // x² + y² + z² = 2·cx·x + 2·cy·y + 2·cz·z + k
+  const M4 = new THREE.Matrix4().set(...A).invert(), e = M4.elements, sol = [0, 1, 2, 3].map(r => e[r] * y[0] + e[4 + r] * y[1] + e[8 + r] * y[2] + e[12 + r] * y[3]);
+  const c = new THREE.Vector3(sol[0] / 2, sol[1] / 2, sol[2] / 2), rad = Math.sqrt(Math.max(0, sol[3] + c.lengthSq()));
+  return rad > 0.03 && rad < 0.2 ? { c, r: rad } : null;
+}
+// половина ширины головы (шлема) в позе стойки — по вершинам головы; к ней крепится дальномер разведчика
+function headHalfWidth(body) {
+  const bones = body.skeleton.bones, ih = bones.findIndex(b => b.name === 'Head'), g = body.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, v = new THREE.Vector3();
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)], k = w.indexOf(Math.max(...w));
+    if ([si.getX(i), si.getY(i), si.getZ(i), si.getW(i)][k] !== ih) continue;
+    body.boneTransform(i, v.fromBufferAttribute(pos, i)).applyMatrix4(body.matrixWorld); lo = Math.min(lo, v.x); hi = Math.max(hi, v.x);
+  }
+  return hi > lo ? (hi - lo) / 2 : 0.135;
 }
 // пыль на ботинках и голенях цвета наносов биома (песок, снег, грязь); запылённое становится матовым.
 // Высота считается по геометрии модели после скиннинга, поэтому присед и бег её не сдвигают
@@ -2020,7 +2055,7 @@ function weather(m, y0, y1, amt) {
 // навесные детали комплектов брони (смещения — в осях тела в позе привязки: x — бок, y — вверх, z — вперёд)
 const KIT_M = { cloth: new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.95, side: THREE.DoubleSide }), dark: mat(0x23262b, { roughness: 0.6, metalness: 0.3 }),
   metal: mat(0x8a9099, { roughness: 0.35, metalness: 0.8 }), lens: new THREE.MeshBasicMaterial({ color: 0xff3b30 }), leather: mat(0x4a3a2c, { roughness: 0.8 }) };
-function kitParts(kit, attach, bones, body, side, paintMat, corr) {
+function kitParts(kit, attach, bones, body, side, paintMat, corr, M = {}) {
   const at0 = n => body.worldToLocal(bones[n].getWorldPosition(new THREE.Vector3()));
   const head = at0('Head'), headC = head.clone().lerp(at0('head_end'), 0.5).sub(head);
   // крепление по осям тела в текущей позе: у ключиц поворот кости при сборке далёк от исходного,
@@ -2035,13 +2070,16 @@ function kitParts(kit, attach, bones, body, side, paintMat, corr) {
     const kama = mesh(new THREE.CylinderGeometry(0.175, 0.215, 0.27, 20, 1, true, 0.8, Math.PI * 2 - 1.6), KIT_M.cloth);
     place(kama, 'Hips', 0, -0.1, -0.01);
     // наплечник ARC на левом плече, в цвет класса
-    const sh = at0('LeftArm').sub(at0('LeftShoulder')), pad = mesh(new THREE.SphereGeometry(0.11, 18, 6, 0, Math.PI * 2, 0, 1.25), paintMat);
-    pad.scale.set(1.0, 0.6, 1.15); place(pad, 'LeftShoulder', sh.x - side * 0.01, sh.y + 0.045, sh.z - 0.01);
+    const sh = at0('LeftArm').sub(at0('LeftShoulder')), bl = M.bellL;
+    if (bl) { // по сфере левого наплечника модели, чуть больше него и наклонён наружу
+      const pad = mesh(new THREE.SphereGeometry(bl.r * 1.2, 18, 6, 0, Math.PI * 2, 0, 1.15), paintMat); pad.scale.set(1.0, 0.85, 1.1); pad.rotation.z = side * 0.5;
+      place(pad, 'LeftShoulder', sh.x - side * bl.c.x, sh.y + bl.c.y, sh.z + bl.c.z);
+    } else { const pad = mesh(new THREE.SphereGeometry(0.11, 18, 6, 0, Math.PI * 2, 0, 1.25), paintMat); pad.scale.set(1.0, 0.6, 1.15); place(pad, 'LeftShoulder', sh.x - side * 0.01, sh.y + 0.045, sh.z - 0.01); }
   } else if (kit === 'scout') {
     // дальномер сбоку шлема и рация с антенной за спиной
     const rf = new THREE.Group(); rf.add(at(cyl(0.009, 0.009, 0.13, KIT_M.dark, 6), 0, 0.065, 0)); rf.add(at(rbox(0.03, 0.035, 0.07, KIT_M.dark, 0.008), 0, 0.13, 0.025));
     rf.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.011, 10), KIT_M.lens), 0, 0.13, 0.061));
-    place(rf, 'Head', headC.x - side * 0.135, headC.y - 0.02, headC.z + 0.01);
+    place(rf, 'Head', headC.x - side * ((M.headHalf || 0.123) + 0.012), headC.y - 0.02, headC.z + 0.01);
     const pack = new THREE.Group(); pack.add(at(rbox(0.16, 0.13, 0.06, KIT_M.dark, 0.015), 0, 0, 0)); pack.add(at(cyl(0.005, 0.005, 0.42, KIT_M.metal, 5), side * 0.05, 0.27, 0));
     place(pack, 'Spine2', 0, 0.02, -0.17);
   } else if (kit === 'assault') {
@@ -2072,12 +2110,24 @@ function buildMeshy(team, type, paint, M, full, kit) {
     // цвет класса (или раскраска игрока) — полоса на правом наплечнике
     const stripe = mat(paint || CLS_COL[type], { roughness: 0.35 });
     // (крепится к ключице: так полоса не проваливается в наплечник, когда рука поднимает оружие)
-    const band = mesh(new THREE.SphereGeometry(0.085, 16, 5, 0, Math.PI * 2, 0, 0.9), stripe); band.scale.set(1.1, 0.55, 1.1);
-    const sh = body.worldToLocal(bones.RightArm.getWorldPosition(new THREE.Vector3())).sub(body.worldToLocal(bones.RightShoulder.getWorldPosition(new THREE.Vector3())));
-    attach(band, 'RightShoulder', sh.x + side * 0.085, sh.y + 0.035, sh.z);
+    const bl = M.bell;
+    if (bl) {
+      // купол по сфере наплечника, наклонён наружу; мерим в позе стойки и переводим смещение в оси ключицы, как у комплектов брони
+      const band = mesh(new THREE.SphereGeometry(bl.r * 1.05, 18, 6, 0, Math.PI * 2, 0, 0.8), stripe); band.rotation.z = -side * 0.55;
+      mixer.update(0); model.updateMatrixWorld(true);
+      const sh = body.worldToLocal(bones.RightArm.getWorldPosition(new THREE.Vector3())).sub(body.worldToLocal(bones.RightShoulder.getWorldPosition(new THREE.Vector3())));
+      const q = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(_m1.copy(body.matrixWorld).invert(), bones.RightShoulder.matrixWorld).decompose(_v1, q, _v2);
+      q.multiply(M.corr.RightShoulder).invert(); band.quaternion.premultiply(q); const g = new THREE.Group(); g.add(band);
+      const d = new THREE.Vector3(sh.x + side * bl.c.x, sh.y + bl.c.y, sh.z + bl.c.z).applyQuaternion(q);
+      attach(g, 'RightShoulder', d.x, d.y, d.z);
+    } else {
+      const band = mesh(new THREE.SphereGeometry(0.085, 16, 5, 0, Math.PI * 2, 0, 0.9), stripe); band.scale.set(1.1, 0.55, 1.1);
+      const sh = body.worldToLocal(bones.RightArm.getWorldPosition(new THREE.Vector3())).sub(body.worldToLocal(bones.RightShoulder.getWorldPosition(new THREE.Vector3())));
+      attach(band, 'RightShoulder', sh.x + side * 0.085, sh.y + 0.035, sh.z);
+    }
     rig.gun = new THREE.Group(); body.add(rig.gun); rig.muzzle = pivot(rig.gun, 0, 0.012, rifle(rig.gun, type));
     rig.grips = type === 'heavy' ? { r: [0, -0.1, 0.02], l: [-side * 0.11, 0.06, 0.1] } : type === 'sniper' ? { r: [0, -0.08, 0.0], l: [0, -0.03, 0.4] } : { r: [0, -0.08, 0.0], l: [0, -0.03, 0.3] };
-    if (kit && kit !== 'std') { mixer.update(0); model.updateMatrixWorld(true); kitParts(kit, attach, bones, body, side, stripe, M.corr); } // меряем в позе idle: масштаб костей в клипе не как в исходной позе
+    if (kit && kit !== 'std') { mixer.update(0); model.updateMatrixWorld(true); kitParts(kit, attach, bones, body, side, stripe, M.corr, M); } // меряем в позе idle: масштаб костей в клипе не как в исходной позе
   } else if (type === 'b2') {
     // бластеры встроены в предплечья модели
     rig.muzzle = pivot(bones.RightHand, 0, 0, 0); rig.wrist = true; rig.twoHand = false;
@@ -2678,6 +2728,27 @@ function hint(t) { const h = $('hint'); if (t) { h.textContent = t; h.classList.
 function banner(text, cls) { const b = $('banner'); b.textContent = text; b.className = ''; void b.offsetWidth; b.className = 'show ' + cls; }
 // 3D-портрет: голова и плечи настоящей модели, отрисованные в текстуру
 const PORTRAITS = new Map();
+// портрет модели Meshy: голова поворачивается к камере (в клипе стойки она отвёрнута), рамка — по вершинам головы
+// после скиннинга, камера в три четверти. B2 — шире, чтобы был виден массивный корпус
+function framePortrait(rig, pc) {
+  let skin = null; rig.model.traverse(o => { if (o.isSkinnedMesh) skin = o; });
+  const B = rig.bones, hw = () => B.Head.getWorldPosition(new THREE.Vector3());
+  const fwd = B.headfront.getWorldPosition(new THREE.Vector3()).sub(hw()); fwd.y = 0;
+  if (fwd.lengthSq() > 1e-8) { rig.root.rotation.y -= Math.atan2(fwd.x, fwd.z); rig.root.updateMatrixWorld(true); }
+  const g = skin.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, hi = skin.skeleton.bones.indexOf(B.Head);
+  const box = new THREE.Box3(), v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const w = (si.getX(i) === hi ? sw.getX(i) : 0) + (si.getY(i) === hi ? sw.getY(i) : 0) + (si.getZ(i) === hi ? sw.getZ(i) : 0) + (si.getW(i) === hi ? sw.getW(i) : 0);
+    if (w < 0.5) continue;
+    skin.boneTransform(i, v.fromBufferAttribute(pos, i)); box.expandByPoint(v.applyMatrix4(skin.matrixWorld));
+  }
+  if (box.isEmpty()) box.setFromCenterAndSize(hw(), new THREE.Vector3(0.25, 0.25, 0.25));
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  const sz = Math.max(s.y, Math.max(s.x, s.z) / 1.15), fill = rig.kind === 'b2' ? 0.34 : 0.5;
+  const d = sz / fill / (2 * Math.tan(pc.fov * Math.PI / 360)), a = ['b1', 'cmd', 'snp'].includes(rig.kind) ? 1.15 : 0.5; // B1 — ближе к профилю: длинная голова видна целиком
+  const ty = c.y - sz * (rig.kind === 'b2' ? 0.55 : 0.04);
+  pc.position.set(c.x + Math.sin(a) * d, ty + d * 0.1, c.z + Math.cos(a) * d); pc.lookAt(c.x, ty, c.z);
+}
 function portraitImage(team, type, paint, kit) {
   const key = team + type + (paint || '') + (kit || ''); if (PORTRAITS.has(key)) return PORTRAITS.get(key);
   const W = 192, H = 112, rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 }); rt.texture.encoding = THREE.sRGBEncoding;
@@ -2691,9 +2762,13 @@ function portraitImage(team, type, paint, kit) {
   else if (rig.skinned) { const fake = { rig, team, type, state: 'idle', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9 }; for (let i = 0; i < 3; i++) poseSkinned(fake, 0.02); }
   else { if (rig.gun && !rig.wrist) rig.gun.rotation.x = 0.6; if (rig.shR && !rig.wrist) { rig.shR.rotation.x = -0.5; rig.elR.rotation.x = -1.0; rig.shL.rotation.set(-0.75, 0, 0.5); rig.elL.rotation.x = -0.85; } }
   rig.root.updateMatrixWorld(true);
-  const hp = new THREE.Vector3(); rig.head.getWorldPosition(hp);
-  const pc = new THREE.PerspectiveCamera(28, W / H, 0.05, 20), up = type === 'b2' ? -0.25 : type === 'dk' ? -0.2 : team === 'droid' ? 0.0 : 0.02, far = type === 'b2' ? 2.4 : type === 'dk' ? 2.2 : type === 'tx' ? 1.3 : 1;
-  pc.position.set(hp.x + 0.5 * far, hp.y + up + 0.06, hp.z + 0.88 * far); pc.lookAt(hp.x + 0.02, hp.y + up - 0.03, hp.z + (team === 'droid' && type !== 'b2' ? 0.08 : 0));
+  const pc = new THREE.PerspectiveCamera(28, W / H, 0.05, 20);
+  if (rig.meshy) framePortrait(rig, pc);
+  else {
+    const hp = new THREE.Vector3(); rig.head.getWorldPosition(hp);
+    const up = type === 'b2' ? -0.25 : type === 'dk' ? -0.2 : team === 'droid' ? 0.0 : 0.02, far = type === 'b2' ? 2.4 : type === 'dk' ? 2.2 : type === 'tx' ? 1.3 : 1;
+    pc.position.set(hp.x + 0.5 * far, hp.y + up + 0.06, hp.z + 0.88 * far); pc.lookAt(hp.x + 0.02, hp.y + up - 0.03, hp.z + (team === 'droid' && type !== 'b2' ? 0.08 : 0));
+  }
   const prevTone = renderer.toneMapping;
   renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(ps, pc);
   const buf = new Uint8Array(W * H * 4); renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
