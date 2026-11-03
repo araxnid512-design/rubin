@@ -88,6 +88,11 @@ const AUTUMN := {
 }
 ## Качество [низкое, среднее, высокое]: сколько огней с настоящим светом (каждый — лишний проход по мешам рядом).
 const Q_LIGHTS := [0, 1, 2]
+## Качество [низкое, среднее, высокое]: сдвиг LOD у моделей людей без своей логики позы — жители стаба, наёмники и их
+## оружие (группа "npc_lod", npc_lod()). player.glb — 27 тыс. треугольников в 5 поверхностях, ствол Tripo — ещё ~3,8 тыс.,
+## а с камеры сверху человек — около сотни пикселей: меньше 1 — упрощённая модель (автоматические LOD импорта) берётся
+## раньше, как будто человек дальше. На высоком — как было; герой не трогается.
+const NPC_LOD_BIAS := [0.5, 0.75, 1.0]
 
 ## Текущее качество (0/1/2) — общее для всех локаций; меняет apply_quality.
 static var quality := 1
@@ -190,6 +195,9 @@ func apply_quality(q: int) -> void:
 		m.shader = shader(_world_shader_name(m.has_meta("photo")))
 	for i in fire_lights.size():
 		fire_lights[i].visible = i < int(Q_LIGHTS[quality])
+	if is_inside_tree():
+		for n in get_tree().get_nodes_in_group("npc_lod"):
+			(n as GeometryInstance3D).lod_bias = float(NPC_LOD_BIAS[quality])
 	var g := get_parent()
 	if g:
 		var sun := g.get_node_or_null("Sun") as DirectionalLight3D
@@ -848,6 +856,14 @@ static func rim(root: Node) -> void:
 			m.rim_enabled = true
 			m.rim = 0.35
 			m.rim_tint = 0.45
+
+## Модель человека без своей логики позы (житель стаба, наёмник — вместе с оружием): сдвиг LOD по качеству
+## (NPC_LOD_BIAS); группа "npc_lod" — apply_quality меняет его, если качество сменили на месте.
+static func npc_lod(root: Node) -> void:
+	for c in root.find_children("*", "GeometryInstance3D", true, false):
+		var gi: GeometryInstance3D = c
+		gi.lod_bias = float(NPC_LOD_BIAS[quality])
+		gi.add_to_group("npc_lod")
 
 ## Полупрозрачный «призрак» постройки: светлый, без текстур — видно героя и контуры здания.
 static func ghost_material() -> StandardMaterial3D:

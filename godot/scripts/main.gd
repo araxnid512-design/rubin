@@ -48,6 +48,8 @@ var hostiles: Array = []
 var features: Array = []
 var pickups: Array = []
 var npcs: Array = []
+## Анимация жителей стаба — «лениво» (AnimLod): [[модель, AnimLod], …], шаг — _step_npcs.
+var npc_anims: Array = []
 var hud: Hud
 var camera: Camera3D
 var env: Environment
@@ -283,6 +285,7 @@ func _clear_location() -> void:
 		if is_instance_valid(p["node"]):
 			p["node"].queue_free()
 	pickups.clear()
+	npc_anims.clear()
 	for n in npcs:
 		if is_instance_valid(n):
 			n.queue_free()
@@ -372,6 +375,8 @@ func spawn_enemy(t: String, pos: Vector3) -> Enemy:
 	return e
 
 ## Жители стаба: торговец, лекарь, охрана — модель героя в своей позе.
+## FPS: их десять, и все только стоят — клип стойки идёт «лениво» (AnimLod: 15 шагов в секунду и только в кадре,
+## см. _step_npcs), модель с оружием — со сдвигом LOD по качеству (Level.npc_lod).
 func _spawn_npcs() -> void:
 	var scene: PackedScene = load("res://assets/characters/player.glb")
 	for n in level.meta.get("npcs", []):
@@ -389,7 +394,20 @@ func _spawn_npcs() -> void:
 			var grip: Node3D = Player.attach_point(m, "GripR")
 			if grip:
 				Gear.put_in_hand(Gear.weapon(str(n["gun"])), grip)
+		Level.npc_lod(m)
+		if ap:
+			npc_anims.append([m, AnimLod.new(ap)])
 		npcs.append(m)
+
+## Шаг анимации жителей стаба: в кадре — 15 раз в секунду, за кадром — не считать вовсе. Раньше каждый из десяти
+## скелетов player.glb (65 костей, ~23 тыс. вершин кожи) пересчитывался и заново скинился каждый кадр — в «Полисе»
+## это заметно съедало FPS на телефоне, хотя жители только дышат на месте.
+func _step_npcs(delta: float) -> void:
+	for e in npc_anims:
+		if not is_instance_valid(e[0]):
+			continue
+		var m: Node3D = e[0]
+		(e[1] as AnimLod).lazy(delta, camera.is_position_in_frustum(m.global_position + Vector3(0, 1.0, 0)))
 
 # ---------- Цикл ----------
 
@@ -402,6 +420,7 @@ func _process(delta: float) -> void:
 	player.move_input = hud.move_vector() if not hud.panel.visible else Vector2.ZERO
 	player.regen(delta)
 	_update_camera(delta)
+	_step_npcs(delta)
 	view_t -= delta
 	if view_t <= 0.0:
 		view_t = 0.2

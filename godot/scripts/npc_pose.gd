@@ -27,6 +27,15 @@ var left := 0.0
 var unit := 1.0
 ## Для автотеста: насколько левая кисть не достала до цевья, в единицах скелета (−1 — не на цевье).
 var left_error := -1.0
+## FPS (ставит хозяин — наёмник у своей койки, merc.gd/AnimLod): true — позу считать только после шага клипа (хозяин
+## зовёт touch()). Skeleton3D с модификатором будит его каждый кадр; если модификатор ничего не тронул и клип не
+## сдвинулся, кожа не перезаливается — на экране остаётся поза последнего шага (с руками на оружии), а за кадром,
+## где клип стоит, IK не считается вовсе.
+var lazy := false
+var _due := true
+
+func touch() -> void:
+	_due = true
 
 var _bound := false
 var _chest := -1
@@ -79,6 +88,9 @@ func _bind(sk: Skeleton3D) -> void:
 			_chest_fix = sk.get_bone_global_rest(_chest).basis.orthonormalized().inverse() * body
 
 func _process_modification() -> void:
+	if lazy and not _due:
+		return
+	_due = false
 	var sk := get_skeleton()
 	if sk == null:
 		return

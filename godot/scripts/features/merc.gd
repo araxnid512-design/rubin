@@ -42,6 +42,9 @@ var model: Node3D
 var anim: AnimationPlayer
 ## Поза оружия поверх клипа: переноска и левая кисть на цевье (npc_pose.gd) — клипы сделаны под старые стволы.
 var npc: NpcPose
+## FPS: у своей койки боец только стоит — клип и поза рук «лениво» (AnimLod: 15 шагов в секунду, за кадром — не
+## считать); в деле (идёт, в отряде, бой, гибель) — каждый кадр, как раньше. См. _rest и _live.
+var lod: AnimLod
 var grip: Node3D
 var gun: Node3D
 var clip := ""
@@ -101,9 +104,11 @@ func setup(g: Node, m: Node, state: Dictionary, def: Dictionary, cls: Dictionary
 	if npc:
 		(model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D).add_child(npc)
 		npc.set_weapon(gun, str(D["weapon"]))
+	Level.npc_lod(model)
 	play(str(CL["idle"]), 0.0)
 	if anim:
 		anim.seek(randf() * 2.0, true)
+		lod = AnimLod.new(anim)
 
 ## Своя окраска: одежда и снаряжение (материалы Cloth и Gear) умножаются на цвет бойца.
 func _tint(t: Color) -> void:
@@ -129,6 +134,26 @@ func play(c: String, blend := 0.15, restart := false, tempo := 1.0) -> void:
 	anim.play(c, blend)
 	if restart:
 		anim.seek(0.0, true)
+	if npc:
+		npc.touch()   # кости сменятся не по шагу AnimLod — поза рук пересчитается и в «ленивом» режиме
+
+## Стоит у своей койки без дела: клип — шагом AnimLod и только в кадре; поза рук (NpcPose) — только после шага клипа,
+## между шагами кости не меняются и кожа не перезаливается. Было: анимация, IK обеих рук на GDScript и скининг ~23 тыс.
+## вершин у каждого из шести бойцов каждый кадр, даже когда комната за кадром.
+func _rest(delta: float) -> void:
+	if lod == null:
+		return
+	if npc:
+		npc.lazy = true
+	if lod.lazy(delta, _on_screen(global_position)) and npc:
+		npc.touch()
+
+## В деле: анимация и поза рук — каждый кадр, как раньше.
+func _live() -> void:
+	if lod:
+		lod.live()
+	if npc:
+		npc.lazy = false
 
 ## Оружие сломано (износ на нуле): стрелять нечем.
 func broken() -> bool:
@@ -202,11 +227,13 @@ func _physics_process(delta: float) -> void:
 	path_t -= delta
 	var p: Player = game.player
 	if frozen or not p.alive:
+		_live()
 		_stand(str(CL["idle"]))
 		return
 	if not bool(st.get("out", false)):
 		_stay_home(delta)
 		return
+	_live()
 	if not throwing.is_empty():
 		_throw_step(delta)
 		return
@@ -584,11 +611,13 @@ func explode(pos: Vector3) -> void:
 func _stay_home(delta: float) -> void:
 	var h: Dictionary = mgr.home_of(st)
 	if h.is_empty():
+		_live()
 		_stand(str(CL["idle"]))
 		return
 	var home: Vector3 = h["pos"]
 	var d := _flat(home - global_position).length()
 	if d > 0.3:
+		_live()
 		# боец и койка вне экрана — сразу у койки
 		if not _on_screen(global_position) and not _on_screen(home):
 			global_position = home
@@ -628,6 +657,9 @@ func _stay_home(delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, want, minf(1.0, delta * 3.0))
 		if act_t <= 0.0:
 			play(str(CL["idle"]), 0.3)
+			_rest(delta)
+		else:
+			_live()
 
 ## Удар заражённого (или пуля мура через damage): отталкивает, на нуле — гибель.
 func hurt(dmg: float, from: Vector3) -> void:
@@ -656,6 +688,7 @@ func die() -> void:
 	collision_mask = 0
 	velocity = Vector3.ZERO
 	treating = {}
+	_live()   # клип гибели должен доиграть: после гибели _physics_process до шага AnimLod не доходит
 	play("Death", 0.1, true)
 	game.targets.erase(self)
 	mgr.merc_died(self)
