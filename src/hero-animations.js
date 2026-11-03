@@ -481,7 +481,7 @@ function idleAxe(rig) {
  */
 const GAIT = {
 	walk: { set: { F: 'Walk_Loop', FL: 'Walk_Fwd_L_Loop', L: 'Walk_L_Loop', BL: 'Walk_Bwd_L_Loop', B: 'Walk_Bwd_Loop', BR: 'Walk_Bwd_R_Loop', R: 'Walk_R_Loop', FR: 'Walk_Fwd_R_Loop' },
-		stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 0.8, lift: 0.55, contact: 0.05,
+		stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 0.8, lift: 0.65, contact: 0.05,
 		twist: { axe: 0.8, pistol: 0.45, rifle: 0.3 }, lean: { axe: 3, pistol: 6, rifle: 6 }, pelvis: 3, look: { axe: 0, pistol: -3, rifle: -3 } },
 	run: { set: { F: 'Jog_Fwd_Loop', FL: 'Jog_Fwd_L_Loop', L: 'Walk_L_Loop', BL: 'Jog_Bwd_L_Loop', B: 'Jog_Bwd_Loop', BR: 'Jog_Bwd_R_Loop', R: 'Walk_R_Loop', FR: 'Jog_Fwd_R_Loop' },
 		stride: { axe: 0.66, pistol: 0.62, rifle: 0.64 }, drop: 0.45, bob: 0.4, lift: 0.55, contact: 0.06,
