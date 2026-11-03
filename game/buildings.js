@@ -942,10 +942,10 @@ export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
 /**
  * Склад №2 16×10 м из профлиста: три ряда стеллажей с ящиками, погрузчик. Ворота — в передней стене.
  */
-export function buildWarehouse(ctx, { name = 'Warehouse', cx, cz, ry = 0 }) {
+export function buildWarehouse(ctx, { name = 'Warehouse', cx, cz, ry = 0, tidy = false }) {
 	const W = 16, D = 10, H = 4.8;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.6 });
-	b.messKind = 'work';
+	b.messKind = tidy ? 'tidy' : 'work'; // tidy — на базе героя: прибрано, окна целые
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.2, hx = W / 2, hz = D / 2;
@@ -1014,10 +1014,10 @@ function bunk(b, x, z, rot) {
  * Казарма 18×8 м: ряды двухъярусных кроватей, тумбочки между ними, тумба дневального у входа,
  * каптёрка со шкафами в торце. Вход — в передней стене (−Z локально), посередине.
  */
-export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }) {
+export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0, tidy = false }) {
 	const W = 18, D = 8, H = 3.2;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 1.8 });
-	b.messKind = 'army';
+	b.messKind = tidy ? 'tidy' : 'army';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.25, hx = W / 2, hz = D / 2;
@@ -1112,10 +1112,10 @@ export function buildArmory(ctx, { name = 'Armory', cx, cz, ry = 0 }) {
 }
 
 /** КПП 6×4.5 м: окно на дорогу, стол дежурного, шкаф, турникет. Вход — в передней стене (−Z локально). */
-export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0 }) {
+export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0, tidy = false }) {
 	const W = 6, D = 4.5, H = 2.8;
 	const b = new Building(ctx, { name, cx, cz, ry, W, D, H, top: H + 0.3 });
-	b.messKind = 'army';
+	b.messKind = tidy ? 'tidy' : 'army';
 	const { M } = ctx;
 	const IM = b.IM;
 	const t = 0.25, hx = W / 2, hz = D / 2;
@@ -1136,3 +1136,6 @@ export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0 }) {
 	b.furniture(1.6, 0, 0, [[0.1, 1.0, 0.1, -0.5, 0.5, 0, IM.metal], [1.0, 0.05, 0.05, 0, 0.95, 0, IM.metal]], { solid: [0.15, 0.15] }); // турникет
 	return b.finish();
 }
+
+// для построек базы героя (game/base-buildings.js): тот же класс здания и простая мебель
+export { Building, table, chair, bed };

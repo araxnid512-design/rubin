@@ -787,7 +787,8 @@ try {
 	await page.screenshot({ path: join(OUT, 'game-murs.png') });
 	// зашёл во двор — заметили: тревога, на героя идут все
 	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 20); window.__hp0 = g.player.hp; });
-	await page.waitForFunction(() => window.__game.garrison.alerted && window.__hp0 - window.__game.player.hp > 0, null, { timeout: 20000 }).catch(() => {});
+	// муры сначала прячутся за укрытиями и только потом стреляют из-за угла — первый выстрел бывает не сразу
+	await page.waitForFunction(() => window.__game.garrison.alerted && window.__hp0 - window.__game.player.hp > 0, null, { timeout: 45000 }).catch(() => {});
 	// тревога расходится по двору не сразу: дальние подтягиваются через несколько секунд
 	await page.waitForFunction(() => window.__game.bandits.filter((b) => b.alive && b.aggro).length >= 10, null, { timeout: 20000 }).catch(() => {});
 	const alarm = await G(page, () => { const g = window.__game; return { lost: Math.round(window.__hp0 - g.player.hp), aggro: g.bandits.filter((b) => b.alive && b.aggro).length }; });
@@ -873,6 +874,14 @@ try {
 		g.bag.spore = 5000;
 		for (const id of ['armory', 'medbay', 'towerNW', 'kitchen', 'barracks', 'greenhouse', 'warehouse']) g.buyBuilding(id);
 		const r = { built: b.built.length, spore: g.bag.spore, def: defense(b), stations: g.level.stations.map((s) => s.id).join(','), sentries: g.npcs.filter((n) => n.cfg).length, maxHp: g.heroMaxHp() - g.perks.maxHp, party: g.partyMax };
+		// в здания заходят: оружейник — за прилавком внутри оружейной, повар в столовой кормит
+		const arm = g.level.stations.find((s) => s.id === 'armory');
+		r.inside = g.level.buildingAt({ x: arm.x, z: arm.z })?.name;
+		const hp0 = g.player.hp;
+		g.player.hp = 40;
+		g.eatCanteen();
+		r.ate = g.player.hp - 40;
+		g.player.hp = hp0;
 		// оружейник: те же патроны на 20 % дешевле
 		g.trade.open({ armory: true });
 		r.title = document.querySelector('#trade .inv-head b').textContent;
@@ -890,8 +899,8 @@ try {
 		r.attack = ev ? `${ev.held ? 'отбились' : 'прорвались'} (сила ${ev.power}, оборона ${ev.def})` : null;
 		return r;
 	});
-	check(base1.built === 7 && base1.def === 30 && base1.sentries >= 2 && /armory/.test(base1.stations) && /medbay/.test(base1.stations) && /stash/.test(base1.stations) && base1.maxHp === 15 && base1.party === 6 && base1.title === 'Оружейник' && base1.price === '12 сп.' && base1.peas === 2 && base1.attack,
-		`база: построено ${base1.built} (оборона ${base1.def}), часовых ${base1.sentries}; оружейник — 30 патронов 5,45 за ${base1.price} (у торговца 15), столовая +${base1.maxHp} здоровья, в отряде до ${base1.party}, теплица дала ${base1.peas} гороха; нападение: ${base1.attack}`);
+	check(base1.built === 7 && base1.def === 30 && base1.sentries >= 2 && /armory/.test(base1.stations) && /medbay/.test(base1.stations) && /stash/.test(base1.stations) && /eat/.test(base1.stations) && base1.inside === 'armory' && base1.ate === 30 && base1.maxHp === 15 && base1.party === 6 && base1.title === 'Оружейник' && base1.price === '12 сп.' && base1.peas === 2 && base1.attack,
+		`база: построено ${base1.built} (оборона ${base1.def}), часовых ${base1.sentries}; оружейник внутри здания «${base1.inside}» — 30 патронов 5,45 за ${base1.price} (у торговца 15), столовая +${base1.maxHp} здоровья, повар накормил +${base1.ate}, в отряде до ${base1.party}, теплица дала ${base1.peas} гороха; нападение: ${base1.attack}`);
 	await page.screenshot({ path: join(OUT, 'game-base.png') });
 	// нападение на базу при герое: стая из мути, часовой на вышке стреляет
 	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 3.5); g.player.hp = g.player.maxHp = 1e6; g.spawnBaseWave(); for (const e of g.enemies) e.pos.set(-22, 0, -32 + Math.random() * 3); window.__k0 = g.kills; });

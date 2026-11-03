@@ -2521,6 +2521,25 @@ const game = {
 		this.hud();
 	},
 
+	/** Столовая базы: повар кормит горячим — +30 здоровья (бесплатно, до полного). */
+	eatCanteen() {
+		const p = this.player;
+		if (!p?.alive) return;
+		if (p.hp >= p.maxHp) { this.toast('Повар: «Сытый? Заходи, как проголодаешься»'); return; }
+		const add = Math.round(Math.min(30, p.maxHp - p.hp));
+		p.hp += add;
+		Sfx.drink();
+		this.toast(`Столовая: миска горячей каши — +${add} здоровья`);
+		this.hud();
+	},
+
+	/** Радиорубка базы: радист пересказывает эфир муров — то же, что информатор, бесплатно; вылазка — на карте Улья. */
+	radioIntel() {
+		const murs = this.world.murs;
+		if (murs.raid) murs.raid.known = true;
+		this.banner('Радист', intelText(murs, this.world.time).replace('Отметил тебе на карте.', 'Отметил на карте Улья.'));
+	},
+
 	/** Мастерская базы: холодное оружие — снова целое. */
 	repairMelee() {
 		const kit = this.kit, fixed = kit.owned.filter((id) => WEAPONS[id].durability && (kit.wear[id] ?? WEAPONS[id].durability) < WEAPONS[id].durability);
@@ -3026,6 +3045,8 @@ const game = {
 			if (s.id === 'armory') this.trade.open({ armory: true });
 			if (s.id === 'medbay') this.healFree();
 			if (s.id === 'repair') this.repairMelee();
+			if (s.id === 'eat') this.eatCanteen();
+			if (s.id === 'radio') this.radioIntel();
 			return;
 		}
 		const c = this.nearContainer();
