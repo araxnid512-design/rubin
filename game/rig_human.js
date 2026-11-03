@@ -17,6 +17,8 @@ const NB = 17;
 
 const HIP_Y = 0.95, SPINE_L = 0.12, CHEST_L = 0.2, NECK_L = 0.26, HEAD_L = 0.09, SH_X = 0.19, SH_Y = 0.22;
 const UPPER = 0.3, FORE = 0.27, HIP_X = 0.1, HIP_DY = -0.04, THIGH = 0.44, SHIN = 0.4, ANKLE_H = 0.075, LEG = THIGH + SHIN;
+// расстояние «тазобедренный сустав — голеностоп» при сгибе колена 25° (предел для опорной ноги: только стоячие позы)
+const KNEE25 = Math.sqrt(THIGH * THIGH + SHIN * SHIN + 2 * THIGH * SHIN * Math.cos(25 * Math.PI / 180));
 
 const v = (x = 0, y = 0, z = 0) => new V3(x, y, z);
 const PI = Math.PI;
@@ -252,7 +254,7 @@ export class HumanRig {
       if (this._lodC <= this.lodSkip) { this._writeObjects(); return; }
       this._lodC = 0; dt = this._accDt; this._accDt = 0;
     } else this._accDt = 0;
-    dt = Math.min(dt, 0.1);
+    dt = Math.min(dt, 0.25); // дальние персонажи обновляются реже — ноги не должны отставать от тела
     if (this.dead) { this._updateDeath(dt); this._writeObjects(); return; }
     this._pose(dt, xf);
     this._writeObjects();
@@ -269,12 +271,13 @@ export class HumanRig {
     const shamble = this.shamble, W = this.weapon;
     // наклон корпуса стоя: подбор, ремонт, помощь раненому
     let bend = 0;
-    if (act === 'pickup') bend = Math.sin(ap * PI);
+    if (act === 'pickup') bend = Math.sin(ap * PI); // наклон корпусом, ноги прямые — без приседания
     else if (act === 'repair' || act === 'heal_other') bend = 0.35 * seg(this.actionT, 0, 0.3) * (1 - seg(this.actionT, this.actionDur - 0.3, this.actionDur));
     // ---------------- шаги ----------------
     const accel = this.velocity.sub(this.prevVel).mul(1 / Math.max(dt, 0.001)); this.prevVel = this.velocity.clone();
-    const duty = lerp(0.6, 0.36, runK);
-    let stanceHalf = lerp(0.33, 0.42, runK) * clamp(speed / 1.5, 0.4, 1) * lerp(1, 0.55, shamble);
+    const duty = lerp(0.6, 0.4, runK);
+    // короткий шаг при беге: опорная нога остаётся почти прямой (никакого бега «на полусогнутых»)
+    let stanceHalf = lerp(0.3, 0.34, runK) * clamp(speed / 1.5, 0.4, 1) * lerp(1, 0.55, shamble);
     const lateral = Math.abs(lv.x) / Math.max(speed, 0.01);
     stanceHalf *= lerp(1, 0.4, smoothstep(0.3, 0.9, lateral)); // вбок — короче шаг, ноги не перекрещиваются
     const cycleLen = 2 * stanceHalf / duty;
@@ -320,15 +323,16 @@ export class HumanRig {
         }
         if (want) {
           f.swing = true; f.t = 0; f.dur = moving ? clamp(swingTime, 0.16, 0.42) : 0.3;
-          f.from = f.pos.clone(); f.fromYaw = f.yaw; f.lift = moving ? lerp(0.09, 0.2, runK) * (1 - shamble * 0.6) : 0.07;
+          f.from = f.pos.clone(); f.fromYaw = f.yaw; f.lift = moving ? lerp(0.07, 0.09, runK) * (1 - shamble * 0.5) : 0.06;
         }
       }
     }
     // ---------------- таз ----------------
-    const bob = -Math.cos((this.phase - duty * 0.5) * TAU * 2) * 0.035 * runK * this.gaitW;
+    const bob = -Math.cos((this.phase - duty * 0.5) * TAU * 2) * 0.018 * runK * this.gaitW;
     const armed = this.holdClass !== 'none' && !this.holster;
     const heavy = armed ? (prof.heavy || 0) : 0;
-    let hipH = lerp(0.945, 0.925, this.gaitW) - runK * 0.03 - shamble * 0.05 - bend * 0.06 + bob;
+    const hipBase = lerp(0.952, 0.935, this.gaitW) - shamble * 0.01 - bend * 0.02;
+    let hipH = hipBase + bob;
     for (const f of this.feet) {
       if (!f.swing || f.t > 0.85) {
         const rel = inv.mulV(f.cur), hx = f.side * HIP_X + this.hipsPos.x;
@@ -337,7 +341,17 @@ export class HumanRig {
       }
     }
     this.hipSmooth = this.hipSmooth < 0 ? hipH : lerp(this.hipSmooth, hipH, clamp(dt * 18, 0, 1));
-    hipH = Math.min(this.hipSmooth, hipH + 0.01);
+    // нижняя граница таза: только стоячие позы. Если стопа не достаётся — нога выпрямляется и делает шаг,
+    // а таз не опускается (иначе получается приседание)
+    const hipFloor = lerp(0.95, 0.885, this.gaitW) - runK * 0.01 - shamble * 0.01;
+    // опорное колено сгибается не больше чем на 25°: таз поднимается над стоящей стопой
+    let kneeLimit = 0;
+    for (const f of this.feet) {
+      if (f.swing) continue;
+      const rel = inv.mulV(f.cur), dxz = Math.hypot(rel.x - (f.side * HIP_X + this.hipsPos.x), rel.z - this.hipsPos.z);
+      if (dxz < KNEE25) kneeLimit = Math.max(kneeLimit, rel.y + Math.sqrt(KNEE25 * KNEE25 - dxz * dxz) - HIP_DY);
+    }
+    hipH = Math.max(Math.min(this.hipSmooth, hipH + 0.01), hipFloor, Math.min(kneeLimit, hipBase));
     const sway = -Math.sin((this.phase - 0.05) * TAU) * lerp(0.022, 0.01, runK) * this.gaitW;
     const idleShift = Math.sin(this.idleT * 0.4 + this.seed) * 0.015 * (1 - this.gaitW);
     const la = binv.mulV(accel);
@@ -445,7 +459,7 @@ export class HumanRig {
       handR = chestT.mulV(v(0.22, -0.55, 0)).lerp(headT.mulV(v(0.1, 0.12, -0.08)), k); handRB = null; poleR = v(1, 0.2, 0);
     } else if (act === 'pickup' || act === 'use') {
       const k = Math.sin(ap * PI);
-      const reach = act === 'pickup' ? v(-0.18, 0.45, -0.55) : chestT.mulV(v(-0.1, 0.05 + k * 0.05, -0.45));
+      const reach = act === 'pickup' ? v(-0.18, 0.7, -0.55) : chestT.mulV(v(-0.1, 0.05 + k * 0.05, -0.45));
       handL = chestT.mulV(v(-0.1, -0.35, -0.3)).lerp(reach, act === 'pickup' ? k : 1); poleL = v(-0.8, -0.5, 0.4);
     } else if (act === 'talk' && !handL) handL = chestT.mulV(v(-0.2, -0.3 + Math.sin(this.actionT * 3) * 0.05, -0.28));
     // ---------------- руки ----------------
