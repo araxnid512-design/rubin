@@ -6,7 +6,8 @@ import { audio } from '../engine/audio.js';
 import { HumanRig } from './rig_human.js';
 import { DogRig } from './rig_dog.js';
 import { Game, events, msg, MSG } from './state.js';
-import { weapon, item, CAT } from './items.js';
+import { weapon, item, itemName, CAT, wearPerShot } from './items.js';
+import { Grenade, throwVelocity, MAX_THROW } from './mechanics.js';
 import * as L from './layout.js';
 import { LootContainer } from './objects.js';
 
@@ -55,7 +56,9 @@ export function explode(world, source, pos, radius, dmg) {
   for (const a of world.actors) {
     if (!a.alive) continue;
     const d = a.centerPos().dist(pos);
-    if (d < radius) a.takeDamage(dmg * (1 - d / radius) * 0.9, source, a.centerPos(), a.centerPos().sub(pos).norm());
+    if (d >= radius) continue;
+    const cover = world.phys.lineClear(pos, a.centerPos(), 1) ? 1 : 0.3; // за стеной осколки почти не достают
+    a.takeDamage(dmg * (1 - d / radius) * 0.9 * cover, source, a.centerPos(), a.centerPos().sub(pos).norm());
   }
   world.fx.explosion(pos); audio.playAt('explosion', pos, 4);
   if (world.player && world.player.pos.dist(pos) < 30) events.emit('shake', 0.6 * (1 - world.player.pos.dist(pos) / 30));
@@ -206,6 +209,8 @@ export class Player extends Actor {
     this.stamina = 100; this.radiation = 0; this.focus = null; this.holdProgress = 0; this.holding = false; this.holdTarget = null; this.focusT = 0;
     this.useItemId = ''; this.useT = 0; this.switchT = 0; this.target = null; this.retargetT = 0; this.noiseT = 0; this.semiReady = true;
     this.activeSlot = 1; this.godMode = false; this.autoWalk = null; this.prevInteract = false; this.touchHoldInteract = false;
+    this.hunger = 85; this.thirst = 80; this.bleed = 0; this.belt = []; this.jammed = false; this.previewTarget = null; this.previewT = 0; this.manualAim = null;
+    this.grenadeAim = null; this.throwCd = 0; this.pickupT = 0; this.needWarnT = 0;
     this.rig = new HumanRig(world.r, { head: 'bare', hair: [0.32, 0.3, 0.28], headset: true, armband: true, backpack: true, suit: [0.16, 0.16, 0.17], armor: [0.5, 0.08, 0.07], collar: true });
     this.rig.onFootstep = (p, s) => { if (s > 0.6) audio.playAt('step', p, s > 4 ? -10 : -16); };
     this.flashlight = { pos: v(0, -50, 0), range: 11, color: [1, 0.95, 0.85], energy: 0, on: false };
@@ -217,6 +222,7 @@ export class Player extends Actor {
   readState() {
     const ps = Game.playerState;
     this.hp = ps.hp ?? 100; this.stamina = ps.stamina ?? 100; this.radiation = ps.rad || 0;
+    this.hunger = ps.hunger ?? 85; this.thirst = ps.thirst ?? 80; this.bleed = ps.bleed || 0; this.belt = [...(ps.belt || [])];
     this.pos.copy(P3(ps.pos)); this.yaw = ps.yaw || 0;
     this.armor = item(ps.armor || 'armor_duty').armor || 0;
     this.activeSlot = Game.equip.active ?? 1;
@@ -225,6 +231,7 @@ export class Player extends Actor {
   writeState() {
     const ps = Game.playerState;
     ps.hp = this.hp; ps.stamina = this.stamina; ps.rad = this.radiation; ps.pos = this.pos.toArray(); ps.yaw = this.yaw;
+    ps.hunger = this.hunger; ps.thirst = this.thirst; ps.bleed = this.bleed; ps.belt = [...this.belt];
     this.storeMag();
   }
   slotKey(s) { return s === 0 ? 'primary' : 'pistol'; }
@@ -238,19 +245,73 @@ export class Player extends Actor {
   }
   switchSlot(s) {
     if (s === this.activeSlot || !Game.equip[this.slotKey(s)] || this.useItemId) return;
-    this.storeMag(); this.activeSlot = s; this.reloading = false; this.rig.stopAction(); this.switchT = 0.45;
+    this.storeMag(); this.activeSlot = s; this.reloading = false; this.jammed = false; this.rig.stopAction(); this.switchT = 0.45;
     this.syncWeapon(); audio.play('reload', -8, 1.4); events.emit('equipment');
   }
   availableReserve() { return this.weaponId ? Game.inv.count(this.wdef().ammo) : 0; }
   takeReserve(n) { return Game.inv.remove(this.wdef().ammo, n); }
   finishReload() { super.finishReload(); this.storeMag(); }
+  weaponEntry() { const e = Game.equip[this.slotKey(this.activeSlot)]; return e && e.id === this.weaponId ? e : null; }
+  fireAt(target, spreadMul = 1) {
+    if (this.jammed) { if (this.semiReady) { audio.play('click'); msg('Оружие заклинило! «R» — устранить задержку.', MSG.ALERT); this.semiReady = false; } return false; }
+    const e = this.weaponEntry(), cond = e ? (e.cond ?? 100) : 100;
+    if (!super.fireAt(target, spreadMul * (1 + (100 - cond) / 100 * 0.6))) return false;
+    if (e) {
+      e.cond = Math.max(0, cond - wearPerShot(this.weaponId));
+      if (e.cond < 60 && Math.random() < (60 - e.cond) / 60 * 0.07) { this.jammed = true; audio.play('click'); msg(`${weapon(this.weaponId).name}: заклинило! «R» — устранить. Износ ${Math.round(100 - e.cond)}% — почините в мастерской.`, MSG.ALERT); vibrate(60); }
+    }
+    return true;
+  }
+  startReload() {
+    if (this.jammed) { // устранение задержки: передёрнуть затвор
+      if (this.cycleT > 0) return false;
+      this.cycleT = 0.8; this.rig.play('cycle', 0.8); audio.playAt('reload', this.pos.add(v(0, 1, 0)), -6, 1.3);
+      this.world.later(0.8, () => { this.jammed = false; });
+      return true;
+    }
+    return super.startReload();
+  }
+  // ---------- гранаты
+  grenadeId() { return Game.inv.count('grenade_rgd5') > 0 ? 'grenade_rgd5' : Game.inv.count('grenade_f1') > 0 ? 'grenade_f1' : ''; }
+  grenadeOrigin() { return this.pos.add(v(0, 1.75, 0)).add(this.fwd().mul(0.2)); }
+  clampThrow(p) { const d = p.sub(this.pos); d.y = 0; const l = d.len(); return l > MAX_THROW ? this.pos.add(d.mul(MAX_THROW / l)) : v(p.x, 0, p.z); }
+  throwGrenade(target) {
+    const id = this.grenadeId();
+    if (!id) { msg('Нет гранат.', MSG.ALERT); return false; }
+    if (this.throwCd > 0 || this.useItemId || this.holding) return false;
+    const to = this.clampThrow(target || this.pos.add(this.fwd().mul(10)));
+    this.faceTo(to); Game.inv.remove(id, 1); this.throwCd = 1.1;
+    this.rig.play('throw', 0.75);
+    this.world.later(0.38, () => { if (!this.alive) return; const from = this.grenadeOrigin(); new Grenade(this.world, this, from, throwVelocity(from, to), id); audio.playAt('pickup', from, -8, 0.7); });
+    msg(`${itemName(id)} — бросок!`); vibrate(25);
+    return true;
+  }
+  // ---------- быстрое лечение: кровотечение → бинт, низкое здоровье → аптечка
+  quickHeal() {
+    if (this.useItemId) return;
+    const has = (id) => Game.inv.count(id) > 0;
+    let id = '';
+    if (this.bleed > 0) id = has('bandage') ? 'bandage' : has('medkit') ? 'medkit' : '';
+    else if (this.hp < this.maxHp * 0.6) id = has('medkit') ? 'medkit' : has('bandage') ? 'bandage' : '';
+    else if (this.radiation > 30 && has('antirad')) id = 'antirad';
+    else if (this.thirst < 40 && has('water')) id = 'water';
+    else if (this.hunger < 40) id = has('canned') ? 'canned' : has('bread') ? 'bread' : '';
+    else if (this.hp < this.maxHp) id = has('bandage') ? 'bandage' : '';
+    if (!id) { msg(this.hp >= this.maxHp ? 'Лечение не требуется.' : 'Нет подходящих медикаментов.'); return; }
+    this.useItem(id);
+  }
+  beltFx() { const fx = { armor: 0, hp: 0, stamina: 0, rad: 0, bleed: 0 }; for (const id of this.belt) { const f = item(id).fx || {}; for (const k in f) fx[k] += f[k]; } return fx; }
   takeDamage(amount, source, hitPos, dir) {
     if (this.godMode || !this.alive) return;
+    const base = this.armor; this.armor = Math.min(0.6, base + this.beltFx().armor);
     super.takeDamage(amount, source, hitPos, dir);
+    this.armor = base;
+    // ранение от пули, укуса или осколка открывает кровотечение
+    if (source && amount > 6 && Math.random() < 0.55) { const was = this.bleed; this.bleed = Math.min(3, this.bleed + amount * 0.022); if (!was) msg('Кровотечение! Перевяжитесь (бинт или аптечка).', MSG.ALERT); }
     events.emit('player_hit', amount); events.emit('shake', Math.min(0.5, amount * 0.02));
     if (this.useItemId && amount > 5) this.cancelUse();
   }
-  die() { super.die(); msg('Генерал погиб.', MSG.ALERT); events.emit('ui', 'death'); }
+  die() { super.die(); msg('Генерал погиб.', MSG.ALERT); events.emit('ui', 'death'); vibrate(300); }
   addRadiation(x) { this.radiation = clamp(this.radiation + x, 0, 100); }
 
   update(dt) {
@@ -263,7 +324,9 @@ export class Player extends Actor {
     if (Math.hypot(kb[0], kb[1]) > 0.05) mv = kb;
     if (this.autoWalk) { const d = this.autoWalk.sub(this.pos); const l = Math.hypot(d.x, d.z); mv = l > 0.5 ? [d.x / l, d.z / l] : [0, 0]; }
     const magIn = clamp(Math.hypot(mv[0], mv[1]), 0, 1);
-    let sprint = (inp.held('sprint') || inp.touch.sprint) && this.stamina > 3 && magIn > 0.5;
+    const fromStick = mv === inp.touch.move;
+    // автобег: джойстик до упора — спринт (без отдельной кнопки)
+    let sprint = (inp.held('sprint') || inp.touch.sprint || (fromStick && settings.autoSprint !== false && magIn > 0.93)) && this.stamina > 3 && magIn > 0.5;
     let speed = 0;
     if (magIn > 0.05) {
       speed = Math.hypot(kb[0], kb[1]) > 0.05 || this.autoWalk ? RUN : lerp(WALK * 0.6, RUN, smoothstep(0.15, 0.85, magIn));
@@ -282,8 +345,19 @@ export class Player extends Actor {
     let mousePt = null;
     if ((aimHeld || (inp.mouse.left && !inp.touch.fire)) && desktop) mousePt = cam.groundAt(inp.mouse.x, inp.mouse.y, innerWidth, innerHeight, 1.1);
     this.retargetT -= dt;
+    // ручное прицеливание с сенсора: кнопка огня, сдвинутая пальцем, задаёт направление (с мягкой доводкой на врага)
+    this.manualAim = null;
+    const ta = inp.touch.aim;
+    if (inp.touch.fire && ta && Math.hypot(ta[0], ta[1]) > 0.2) {
+      const cr = cam.right, cf = v(cam.fwd.x, 0, cam.fwd.z).norm();
+      const dir = v(cr.x * ta[0] - cf.x * ta[1], 0, cr.z * ta[0] - cf.z * ta[1]).norm();
+      this.manualAim = dir;
+    }
+    this.previewT -= dt;
+    if (this.previewT <= 0) { this.previewT = 0.25; this.previewTarget = this.weaponId ? this.findTarget(this.manualAim) : null; }
     if (fireHeld || aimHeld) {
-      if (mousePt) { const as = this.enemyNear(mousePt, 1.8); this.aimTarget = as ? as.centerPos() : mousePt; }
+      if (this.manualAim) { const t = this.findTarget(this.manualAim); this.target = t; this.aimTarget = t ? t.centerPos() : this.centerPos().add(this.manualAim.mul(12)); }
+      else if (mousePt) { const as = this.enemyNear(mousePt, 1.8); this.aimTarget = as ? as.centerPos() : mousePt; }
       else {
         if (this.retargetT <= 0 || !this.target || !this.target.alive) { this.retargetT = 0.3; this.target = this.findTarget(); }
         this.aimTarget = this.target ? this.target.centerPos() : this.centerPos().add(this.fwd().mul(10));
@@ -305,7 +379,11 @@ export class Player extends Actor {
       if (inp.pressed('reload')) this.startReload();
     }
     // ---- выносливость и радиация
-    if (sprint && want.len() > 0.1) this.stamina = Math.max(0, this.stamina - 16 * dt); else this.stamina = Math.min(100, this.stamina + 11 * dt);
+    const fx = this.beltFx(), hungry = this.hunger < 20 || this.thirst < 20;
+    if (sprint && want.len() > 0.1) this.stamina = Math.max(0, this.stamina - 16 * dt);
+    else this.stamina = Math.min(100, this.stamina + 11 * dt * (hungry ? 0.5 : 1) * (1 + fx.stamina));
+    this.updateNeeds(dt, fx);
+    if (!this.alive) return;
     if (this.radiation > 0) {
       this.radiation = Math.max(0, this.radiation - 0.15 * dt);
       if (this.radiation > 50 && !this.godMode) { this.hp -= (this.radiation < 80 ? 0.4 : 1.6) * dt; if (this.hp <= 0) { this.hp = 0; this.die(); return; } }
@@ -328,6 +406,16 @@ export class Player extends Actor {
     if (inp.pressed('slot1')) this.switchSlot(0);
     if (inp.pressed('slot2')) this.switchSlot(1);
     if (inp.pressed('inspect') && this.weaponId && !this.reloading) this.rig.play('inspect', 2.2);
+    this.throwCd -= dt;
+    if (inp.pressed('grenade')) this.throwGrenade(cam.groundAt(inp.mouse.x, inp.mouse.y, innerWidth, innerHeight, 0) || null);
+    if (inp.pressed('heal')) this.quickHeal();
+    if (inp.pressed('swap')) this.switchSlot(1 - this.activeSlot);
+    // автоподбор мелочи под ногами (патроны, еда, медикаменты)
+    this.pickupT -= dt;
+    if (this.pickupT <= 0 && settings.autoPickup !== false) {
+      this.pickupT = 0.3;
+      for (const n of this.world.interactables) if (n.itemId && n.pid && n.can() && n.p.dist2(this.pos) < 1.3) { this.rig.play('pickup', 0.5); n.interact(this); break; }
+    }
     // фонарь ночью (точечный свет впереди генерала)
     const night = Game.time < 6 || Game.time > 20.3;
     this.flashlight.on = night; this.flashlight.energy = night ? 2.2 : 0;
@@ -336,17 +424,19 @@ export class Player extends Actor {
   }
   updateVisual(dt, cam) {
     const hr = this.rig;
-    hr.aiming = !!this.aimTarget && !!this.weaponId && !this.useItemId && !this.holding;
+    hr.aiming = !!this.aimTarget && !!this.weaponId && !this.useItemId && !this.holding && hr.action !== 'throw';
     hr.holdState = this.vel.len() < 4 ? 'low' : 'carry';
     if (Game.flags.relaxed) hr.holdState = 'idle';
     super.updateVisual(dt, cam);
   }
-  findTarget() {
-    let best = null, bd = Infinity; const rng = this.weaponId ? this.wdef().range : 30, f = this.fwd();
+  findTarget(dir = null) {
+    let best = null, bd = Infinity; const rng = this.weaponId ? this.wdef().range : 30, f = dir || this.fwd();
     for (const e of this.world.enemies) {
       if (!e.alive || e.dormant) continue;
       const d = this.pos.dist(e.pos); if (d > rng) continue;
-      let score = d * (f.dot(e.pos.sub(this.pos).norm()) > 0.3 ? 1 : 1.6);
+      const dot = f.dot(e.pos.sub(this.pos).norm());
+      if (dir && dot < 0.94) continue; // ручной прицел: доводка только в узком конусе (~20°)
+      let score = d * (dot > 0.3 ? 1 : 1.6);
       if (e === this.target) score *= 0.7;
       if (score < bd && this.canSee(e)) { bd = score; best = e; }
     }
@@ -392,13 +482,13 @@ export class Player extends Actor {
     return best;
   }
   // ---------------- предметы
-  useQuick(i) { const id = Game.quick[i]; if (id) this.useItem(id); }
+  useQuick(i) { const id = Game.quick[i]; if (!id) return; if (item(id).cat === CAT.THROW) { if (Game.inv.count(id) > 0) this.throwGrenade(this.previewTarget ? this.previewTarget.pos : null); } else this.useItem(id); }
   useItem(id) {
     if (this.useItemId || Game.inv.count(id) <= 0) return;
     const it = item(id);
     if (it.cat !== CAT.MED && it.cat !== CAT.FOOD) return;
-    if (it.heal && this.hp >= this.maxHp && !it.stamina && !it.rad) { msg('Здоровье в норме.'); return; }
-    this.useItemId = id; this.useT = it.use_time || 2; this.reloading = false; this.rig.play('bandage', this.useT);
+    if (it.heal && this.hp >= this.maxHp && !it.stamina && !it.rad && !it.hunger && !(this.bleed > 0 && it.cat === CAT.MED)) { msg('Здоровье в норме.'); return; }
+    this.useItemId = id; this.useT = it.use_time || 2; this.reloading = false; this.rig.play(it.cat === CAT.FOOD ? 'use' : 'bandage', this.useT);
   }
   cancelUse() { this.useItemId = ''; this.rig.stopAction(); }
   applyItem(id) {
@@ -407,7 +497,23 @@ export class Player extends Actor {
     if (it.heal) this.heal(it.heal);
     if (it.rad) this.radiation = Math.max(0, this.radiation + it.rad);
     if (it.stamina) this.stamina = Math.min(100, this.stamina + it.stamina);
+    if (it.hunger) this.hunger = Math.min(100, this.hunger + it.hunger);
+    if (it.thirst) this.thirst = Math.min(100, this.thirst + it.thirst);
+    if (it.cat === CAT.MED && (id === 'bandage' || id === 'medkit') && this.bleed > 0) { this.bleed = 0; msg('Кровотечение остановлено.', MSG.GOOD); }
     msg('Использовано: ' + it.name);
+  }
+  // сытость, жажда, кровотечение, действие артефактов (время — игровое: сутки = настройка «длина суток»)
+  updateNeeds(dt, fx) {
+    const gh = dt / (Math.max(1, this.world.settings.dayLength || 24) * 60) * 24;
+    this.hunger = Math.max(0, this.hunger - gh * 2.2); this.thirst = Math.max(0, this.thirst - gh * 3.2);
+    let drain = 0;
+    if (this.hunger <= 0) drain += 0.12; if (this.thirst <= 0) drain += 0.15;
+    if (this.bleed > 0) { drain += this.bleed; this.bleed = Math.max(0, this.bleed - dt * (0.012 + fx.bleed * 0.08)); if (Math.random() < dt * this.bleed * 0.8) this.world.fx.blood(this.pos.add(v(0, 0.6, 0)), v(0, -1, 0)); }
+    if (fx.hp > 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + fx.hp * dt);
+    if (fx.rad) this.radiation = clamp(this.radiation + fx.rad * dt, 0, 100);
+    if (drain > 0 && !this.godMode) { this.hp -= drain * dt; if (this.hp <= 0) { this.hp = 0; this.die(); return; } }
+    this.needWarnT -= dt;
+    if (this.needWarnT <= 0 && (this.hunger < 15 || this.thirst < 15)) { this.needWarnT = 40; msg(this.thirst < 15 ? 'Генерал хочет пить.' : 'Генерал проголодался.', MSG.ALERT); }
   }
 }
 
@@ -703,6 +809,7 @@ export class Enemy extends Actor {
   }
   hostiles() { return this.world.actors.filter((a) => a !== this && a.alive && this.isHostile(a) && !a.dormant); }
   think() {
+    if (this.raid) return this.thinkRaid();
     const te = this.targetEnemy;
     if (te && (!te.alive || te.pos.dist(this.home) > this.leash + 10 || insideBase(te.pos))) { this.targetEnemy = null; this.state = 'return'; }
     if (!this.targetEnemy) {
@@ -716,6 +823,16 @@ export class Enemy extends Actor {
     if (this.targetEnemy) this.state = this.kind === 'dog' ? 'chase' : 'combat';
     else if (this.alertPos && this.alertT > 0) this.state = 'investigate';
     else if (this.state !== 'return' || this.pos.dist(this.home) < this.wanderR) this.state = 'idle';
+  }
+  // набег: идут к пролому/воротам, затем вглубь базы; цель — ближайший видимый защитник
+  thinkRaid() {
+    if (this.targetEnemy && !this.targetEnemy.alive) this.targetEnemy = null;
+    if (!this.targetEnemy || Math.random() < 0.25) {
+      let best = null, bd = this.sightRange;
+      for (const e of this.hostiles()) { const d = this.pos.dist(e.pos); if (d < bd && (this.kind === 'dog' ? d < 16 : this.canSee(e))) { bd = d; best = e; } }
+      if (best) this.setTarget(best);
+    } else if (this.kind === 'dog' || this.canSee(this.targetEnemy)) this.lastSeen = this.targetEnemy.pos.clone();
+    this.state = this.targetEnemy ? (this.kind === 'dog' ? 'chase' : 'combat') : 'raid';
   }
   setTarget(e) {
     const was = this.targetEnemy; this.targetEnemy = e; this.lastSeen = e.pos.clone();
@@ -744,6 +861,14 @@ export class Enemy extends Actor {
       case 'flee': { const away = this.pos.sub(this.lastSeen).norm(); this.moveTo(this.pos.add(away.mul(8))); speed = 6; break; }
       case 'chase': speed = this.dogAttack(dt); break;
       case 'combat': speed = this.gunCombat(dt); break;
+      case 'raid': {
+        const wp = this.raidWps[Math.min(this.raidI, this.raidWps.length - 1)];
+        if (this.near(wp, 3) && this.raidI < this.raidWps.length - 1) this.raidI++;
+        // после прорыва — к генералу
+        const goal = this.raidI >= this.raidWps.length - 1 && this.world.player && this.world.player.alive ? this.world.player.pos : wp;
+        this.moveTo(goal, 2); speed = this.kind === 'dog' ? 4.5 : this.kind === 'zombie' ? 1.1 : 2.8;
+        break;
+      }
     }
     if (speed <= 0) this.stopMove();
     this.steer(speed, dt, this.kind === 'dog' ? 14 : 9);
@@ -785,7 +910,7 @@ export class Enemy extends Actor {
     return speed;
   }
   onNoise(pos, radius, source) {
-    if (!this.alive || this.dormant || !source || source.faction === undefined || !this.isHostile(source) || insideBase(pos)) return;
+    if (!this.alive || this.dormant || !source || source.faction === undefined || !this.isHostile(source) || (insideBase(pos) && !this.raid)) return;
     const d = this.pos.dist(pos);
     if (d < radius * this.hearing) {
       if (this.kind === 'dog' && d < radius * this.hearing * 0.6) this.setTarget(source);
@@ -870,3 +995,6 @@ export function spawnActors(world) {
   for (const d of L.SOLDIERS) { const s = new Soldier(world, d); world.soldiers.push(s); world.soldierMap[d.id] = s; }
   for (const g of L.ENEMY_GROUPS) world.groups.push(new EnemyGroup(world, g));
 }
+
+function vibrate(ms) { try { if (globalThis.__vibrate !== false && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* не поддерживается */ } }
+export { vibrate };

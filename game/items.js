@@ -1,6 +1,6 @@
 // База предметов и 20 видов оружия (ближнего боя нет).
 // hold — класс хвата (набор поз и анимаций держания), reload — тип перезарядки.
-export const CAT = { WEAPON: 0, AMMO: 1, MED: 2, RESOURCE: 3, FOOD: 4, GEAR: 5, QUEST: 6 };
+export const CAT = { WEAPON: 0, AMMO: 1, MED: 2, RESOURCE: 3, FOOD: 4, GEAR: 5, QUEST: 6, THROW: 7, ARTIFACT: 8 };
 export const RESOURCES = ['scrap', 'planks', 'electronics', 'tools', 'fuel', 'medicine', 'weapon_parts', 'provisions'];
 
 export const ITEMS = {
@@ -22,7 +22,18 @@ export const ITEMS = {
 	"antirad": {"name": "Антирад", "cat": CAT.MED, "stack": 5, "weight": 0.1, "color": [0.2, 0.55, 0.85],
 		"desc": "Выводит радионуклиды из организма.", "rad": -60.0, "use_time": 1.5},
 	"canned": {"name": "Тушёнка", "cat": CAT.FOOD, "stack": 6, "weight": 0.35, "color": [0.55, 0.55, 0.5],
-		"desc": "Армейская тушёнка. +10 здоровья, восстанавливает выносливость.", "heal": 10.0, "stamina": 100.0, "use_time": 2.5},
+		"desc": "Армейская тушёнка. Сытость +45, +10 здоровья, восстанавливает выносливость.", "heal": 10.0, "stamina": 100.0, "hunger": 45.0, "use_time": 2.5},
+	"bread": {"name": "Хлеб", "cat": CAT.FOOD, "stack": 6, "weight": 0.3, "color": [0.7, 0.55, 0.32], "desc": "Буханка из пайка. Сытость +30.", "hunger": 30.0, "use_time": 1.8},
+	"water": {"name": "Вода", "cat": CAT.FOOD, "stack": 6, "weight": 0.5, "color": [0.45, 0.65, 0.8], "desc": "Бутылка питьевой воды. Жажда +50.", "thirst": 50.0, "use_time": 1.5},
+	"energy": {"name": "Энергетик", "cat": CAT.FOOD, "stack": 6, "weight": 0.25, "color": [0.25, 0.7, 0.3], "desc": "Банка энергетика. Выносливость полностью, жажда +20.", "stamina": 100.0, "thirst": 20.0, "use_time": 1.2},
+	// --- гранаты (бросок, не ближний бой) ---
+	"grenade_f1": {"name": "Граната Ф-1", "cat": CAT.THROW, "stack": 6, "weight": 0.6, "color": [0.32, 0.36, 0.22], "desc": "Оборонительная граната. Запал 3,2 с, большой радиус разлёта осколков.", "fuse": 3.2, "radius": 7.0, "dmg": 130.0},
+	"grenade_rgd5": {"name": "Граната РГД-5", "cat": CAT.THROW, "stack": 6, "weight": 0.31, "color": [0.4, 0.42, 0.3], "desc": "Наступательная граната. Запал 3,2 с, радиус меньше — можно бросать ближе.", "fuse": 3.2, "radius": 5.0, "dmg": 110.0},
+	// --- артефакты (пояс, 3 слота) ---
+	"art_medusa": {"name": "Медуза", "cat": CAT.ARTIFACT, "stack": 1, "weight": 0.5, "color": [0.75, 0.8, 0.35], "desc": "Ускоряет восстановление выносливости. Слабо фонит.", "fx": {"stamina": 0.5, "rad": 0.04}},
+	"art_flash": {"name": "Вспышка", "cat": CAT.ARTIFACT, "stack": 1, "weight": 0.5, "color": [0.45, 0.75, 1.0], "desc": "Рождается в «Электре». Снижает урон на 8%. Заметно фонит.", "fx": {"armor": 0.08, "rad": 0.08}},
+	"art_stoneblood": {"name": "Кровь камня", "cat": CAT.ARTIFACT, "stack": 1, "weight": 0.5, "color": [0.75, 0.2, 0.15], "desc": "Затягивает раны: +0,5 здоровья в секунду, останавливает кровотечение быстрее.", "fx": {"hp": 0.5, "bleed": 0.6, "rad": 0.05}},
+	"art_fireball": {"name": "Огненный шар", "cat": CAT.ARTIFACT, "stack": 1, "weight": 0.5, "color": [1.0, 0.55, 0.15], "desc": "Рождается в «Жарке». Выводит радиацию и греет.", "fx": {"rad": -0.25, "stamina": 0.2}},
 	// --- ресурсы ---
 	"scrap": {"name": "Металлолом", "cat": CAT.RESOURCE, "stack": 50, "weight": 0.5, "color": [0.45, 0.35, 0.3], "desc": "Обрезки металла, арматура, листы железа."},
 	"planks": {"name": "Доски", "cat": CAT.RESOURCE, "stack": 30, "weight": 1.0, "color": [0.6, 0.45, 0.28], "desc": "Строительный пиломатериал."},
@@ -92,3 +103,6 @@ export const isWeapon = (id) => id in WEAPONS;
 export const weapon = (id) => WEAPONS[id] || null;
 export const weaponSlot = (id) => (WEAPONS[id] ? (WEAPONS[id].hold === 'pistol' ? 1 : 0) : -1);
 export const isResource = (id) => item(id).cat === CAT.RESOURCE;
+export const ARTIFACTS = Object.keys(ITEMS).filter((id) => ITEMS[id].cat === CAT.ARTIFACT);
+// износ ствола за выстрел (%), у дешёвых и мощных — быстрее
+export const wearPerShot = (id) => { const w = WEAPONS[id]; if (!w) return 0; return w.auto ? 0.06 : w.hold === 'pistol' ? 0.12 : 0.18; };

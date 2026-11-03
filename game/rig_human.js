@@ -412,7 +412,7 @@ export class HumanRig {
     // ---------------- оружие ----------------
     const shL = chestT.mulV(BP[B.UA_L]), shR = chestT.mulV(BP[B.UA_R]);
     let handL = null, handR = null, handRB = null, poleL = v(-0.3, -1, 0.2), poleR = v(0.9, -0.5, 0.4), wxf = null, oneHand = false;
-    const stowed = ['bandage', 'heal_other', 'repair', 'salute'].includes(act);
+    const stowed = ['bandage', 'heal_other', 'repair', 'salute', 'throw'].includes(act);
     if (armed && !stowed && W) {
       let target = this._weaponTarget(state, prof, chestT, chestB, aimYaw);
       oneHand = state === 'carry' && !!(prof.carry && prof.carry.oneHand);
@@ -454,6 +454,11 @@ export class HumanRig {
       handL = chestT.mulV(v(-0.14, -0.28 + Math.sin(k * 3) * 0.03, -0.42));
       handR = chestT.mulV(v(0.12, -0.24 + Math.abs(Math.sin(k * 6)) * 0.16, -0.4)); handRB = null;
       poleL = v(-0.8, -0.2, 0.4); poleR = v(0.8, 0, 0.5);
+    } else if (act === 'throw') {
+      // бросок гранаты стоя: замах из-за головы и выброс руки вперёд
+      const back = chestT.mulV(v(0.24, 0.34, 0.2)), start = chestT.mulV(v(0.2, -0.18, -0.16)), out = chestT.mulV(v(0.1, 0.26, -0.64));
+      handR = ap < 0.45 ? start.lerp(back, seg(ap, 0, 0.45)) : back.lerp(out, seg(ap, 0.45, 0.62)); handRB = null; poleR = v(1, 0.3, 0.4);
+      handL = chestT.mulV(v(-0.16, 0.08, -0.42)).lerp(chestT.mulV(v(-0.2, -0.32, -0.08)), seg(ap, 0.45, 0.75)); poleL = v(-0.8, -0.3, 0.3);
     } else if (act === 'salute') {
       const k = seg(ap, 0, 0.2) * (1 - seg(ap, 0.8, 1));
       handR = chestT.mulV(v(0.22, -0.55, 0)).lerp(headT.mulV(v(0.1, 0.12, -0.08)), k); handRB = null; poleR = v(1, 0.2, 0);

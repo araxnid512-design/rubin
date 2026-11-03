@@ -12,6 +12,8 @@ export class Settings {
     this.quality = isTouchDevice() ? 1 : 2;
     this.applyPreset(this.quality);
     this.volume = 0.8; this.touch = -1; this.joystickSize = 1; this.cameraZoom = isTouchDevice() ? 0.8 : 1; this.dayLength = 24; this.showFps = false; this.listeners = [];
+    // управление на телефоне: автобег джойстиком до упора, автоподбор мелочи, вибрация, плавающий джойстик, левша, размер кнопок
+    this.autoSprint = true; this.autoPickup = true; this.vibration = true; this.joyFloat = true; this.lefty = false; this.buttonScale = 1;
     try { Object.assign(this, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* без сохранённых настроек */ }
   }
   applyPreset(q) {
@@ -22,7 +24,7 @@ export class Settings {
   useTouch() { return this.touch === -1 ? isTouchDevice() : this.touch === 1; }
   onChange(fn) { this.listeners.push(fn); }
   save() {
-    const o = {}; for (const k of ['quality', 'shadows', 'renderScale', 'grassDensity', 'drawDistance', 'fpsLimit', 'lights', 'volume', 'touch', 'joystickSize', 'cameraZoom', 'dayLength', 'showFps']) o[k] = this[k];
+    const o = {}; for (const k of ['quality', 'shadows', 'renderScale', 'grassDensity', 'drawDistance', 'fpsLimit', 'lights', 'volume', 'touch', 'joystickSize', 'cameraZoom', 'dayLength', 'showFps', 'autoSprint', 'autoPickup', 'vibration', 'joyFloat', 'lefty', 'buttonScale']) o[k] = this[k];
     try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* приватный режим */ }
     for (const f of this.listeners) f(this);
   }

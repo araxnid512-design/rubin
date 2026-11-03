@@ -186,9 +186,9 @@ export const CONTAINERS = [
 	{"id": "garage_cans", "name": "Канистры", "kind": "crate", "pos": [50, 0, 50], "items": {"fuel": 1, "scrap": 3}},
 	{"id": "wh_shelf1", "name": "Стеллаж", "kind": "shelf", "pos": [70, 0, -54], "items": {"planks": 4, "provisions": 3}},
 	{"id": "wh_shelf2", "name": "Стеллаж", "kind": "shelf", "pos": [70, 0, -36], "items": {"scrap": 5, "medicine": 2}},
-	{"id": "barracks_locker", "name": "Шкафчик", "kind": "locker", "pos": [-69, 0, -50], "items": {"canned": 2, "bandage": 2, "ammo_9x18": 8}},
+	{"id": "barracks_locker", "name": "Шкафчик", "kind": "locker", "pos": [-69, 0, -50], "items": {"canned": 2, "bandage": 2, "ammo_9x18": 8, "water": 3, "bread": 2}},
 	{"id": "med_cab", "name": "Медицинский шкаф", "kind": "cabinet", "pos": [-28, 0, 44], "items": {"medicine": 3, "bandage": 3, "antirad": 1}},
-	{"id": "armory_cache", "name": "Оружейный тайник", "kind": "weaponbox", "pos": [-68, 0, 4], "items": {"ak74": 2, "ammo_545": 150, "ammo_762r": 60, "weapon_parts": 2}},
+	{"id": "armory_cache", "name": "Оружейный тайник", "kind": "weaponbox", "pos": [-68, 0, 4], "items": {"ak74": 2, "ammo_545": 150, "ammo_762r": 60, "weapon_parts": 2, "grenade_f1": 3, "grenade_rgd5": 4}},
 	{"id": "kpp_box", "name": "Ящик поста", "kind": "ammobox", "pos": [9.5, 0, 76.5], "items": {"ammo_545": 30, "bandage": 1}},
 	{"id": "base_truck", "name": "Сгоревший ЗИЛ", "kind": "vehicle", "pos": [30, 0, 30], "items": {"scrap": 4, "fuel": 1}},
 	{"id": "boiler_box", "name": "Завал в котельной", "kind": "crate", "pos": [18, 0, 47], "items": {"scrap": 6, "planks": 3}},
@@ -220,6 +220,16 @@ export const PICKUPS = [
 	[[-62, 0, -20], "ammo_9x18", 8], [[60, 0, 30], "electronics", 1], [[-14, 0, 62], "scrap", 2],
 	[[-98, 0, -40], "canned", 1], [[-110, 0, -118], "ammo_545", 15], [[122, 0, -54], "medkit", 1],
 	[[-131, 0, 22], "antirad", 1], [[66, 0, 110], "bandage", 2], [[140, 0, 30], "scrap", 3],
+	[[-8, 0, 60], "water", 2], [[52, 0, -30], "bread", 1], [[-46, 0, -64], "water", 1], [[126, 0, -66], "grenade_rgd5", 2],
+	[[-120, 0, 10], "energy", 1], [[10, 0, -94], "grenade_f1", 1],
+]
+
+// Набеги на базу: точки появления за картой → точка прорыва у периметра (ворота КПП и проломы)
+export const RAID_ROUTES = [
+	{"name": "южных ворот (КПП)", "spawn": [0, 0, 146], "entry": [0, 0, 88], "inside": [0, 0, 60]},
+	{"name": "западного пролома", "spawn": [-146, 0, -40], "entry": [-106, 0, -32], "inside": [-84, 0, -32]},
+	{"name": "северного пролома", "spawn": [41, 0, -146], "entry": [41, 0, -112], "inside": [41, 0, -92]},
+	{"name": "восточного пролома", "spawn": [146, 0, 22], "entry": [106, 0, 24], "inside": [84, 0, 24]},
 ]
 
 // Точки осмотра для задания

@@ -75,7 +75,7 @@ class App {
     try { await w.build(progress); }
     catch (e) { console.error(e); this.loading = false; this.fatal(e.message); return; }
     buildMapBase(w.wb.splat, SPLAT);
-    this.dayNight = new DayNight(this.r, this.settings);
+    this.dayNight = new DayNight(this.r, this.settings); w.dayNight = this.dayNight;
     this.hud = new HUD($('#hud'), this);
     this.bindEvents();
     Game.updatePower(); this.r.uniforms.power = Game.powerOn ? 1 : 0;
@@ -135,7 +135,7 @@ class App {
     if (!r) return;
     r.renderScale = s.renderScale; r.maxDpr = [1.25, 1.5, 2][s.quality]; r.shadowsOn = s.shadows; r.shadowDist = p.shadowDist; r.setShadowSize(p.shadowSize);
     r.fogEnd = Math.min(170, s.drawDistance + 30); r.fogStart = r.fogEnd * 0.32; r.uniforms.detail = p.detail;
-    audio.setVolume(s.volume);
+    audio.setVolume(s.volume); globalThis.__vibrate = s.vibration;
     if (this.world) { this.world.applyQuality(); this.world.fx.lightsOn = s.lights; }
     if (this.hud) this.hud.applySettings();
     s.save();

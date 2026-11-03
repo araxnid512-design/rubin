@@ -8,6 +8,7 @@ import * as L from '../layout.js';
 import { ORDER_NAMES } from '../actors.js';
 import { STAGES } from '../quest.js';
 import { PRESETS } from '../settings.js';
+import { restUntilMorning } from '../mechanics.js';
 import { h, btn, bar, costText, clear, short } from './dom.js';
 import { MapView } from './mapview.js';
 
@@ -58,7 +59,7 @@ function inventory(app) {
     const eq = h('div.row.wrap');
     for (const s of ['primary', 'pistol']) {
       const e = Game.equip[s];
-      eq.append(btn((s === 'primary' ? 'Основное: ' : 'Пистолет: ') + (e ? `${weapon(e.id).name} (${e.ammo || 0})` : '—'), () => {
+      eq.append(btn((s === 'primary' ? 'Основное: ' : 'Пистолет: ') + (e ? `${weapon(e.id).name} (${e.ammo || 0}) · состояние ${Math.round(e.cond ?? 100)}%` : '—'), () => {
         if (!e) return;
         if (Game.inv.add(e.id, 1, { ammo: e.ammo || 0 }) === 0) { Game.equip[s] = null; pl.syncWeapon(); events.emit('equipment'); }
         else msg('Нет места в рюкзаке.', MSG.ALERT);
@@ -66,6 +67,13 @@ function inventory(app) {
       }, 'wide'));
     }
     left.append(eq, lab(`Броня: ${itemName(Game.playerState.armor || 'armor_duty')} · разгрузка (4 быстрых слота) · рюкзак (16 ячеек)`, 'dim'));
+    left.append(lab(`Сытость ${Math.round(pl.hunger)}% · Жажда ${Math.round(pl.thirst)}%${pl.bleed > 0 ? ' · КРОВОТЕЧЕНИЕ' : ''}${pl.radiation > 1 ? ` · радиация ${Math.round(pl.radiation)}` : ''}`, pl.bleed > 0 || pl.hunger < 20 || pl.thirst < 20 ? 'bad' : ''));
+    const belt = h('div.row.wrap');
+    for (let i = 0; i < 3; i++) {
+      const id = pl.belt[i];
+      belt.append(btn(id ? `${itemName(id)}\n(снять)` : 'пусто', () => { if (!id) return; if (Game.inv.add(id, 1) === 0) { pl.belt.splice(i, 1); pl.writeState(); } else msg('Нет места в рюкзаке.', MSG.ALERT); refresh(); }, 'sm', !id));
+    }
+    left.append(lab('Пояс: артефакты (3 слота)', 'sec'), belt);
     left.append(lab(`Рюкзак (${Game.inv.capacity - Game.inv.freeSlots()}/${Game.inv.capacity})`, 'sec'));
     const grid = h('div.grid4');
     Game.inv.slots.forEach((s, i) => {
@@ -82,6 +90,14 @@ function inventory(app) {
     }
     const id = sel.id, it = item(id);
     right.append(lab(it.name, 'big'), lab(it.desc || '', 'dim'), lab(`Количество: ${sel.n} · вес ${((it.weight || 0) * sel.n).toFixed(2)} кг`));
+    if (it.cat === CAT.ARTIFACT) {
+      right.append(lab(Object.entries(it.fx || {}).map(([k, x]) => ({ armor: `броня +${Math.round(x * 100)}%`, hp: `здоровье +${x}/с`, stamina: `выносливость +${Math.round(x * 100)}%`, bleed: 'кровь сворачивается быстрее', rad: x > 0 ? `радиация +${x}/с` : `выводит радиацию ${x}/с` }[k])).join(' · '), 'warn'));
+      right.append(btn(pl.belt.length < 3 ? 'Надеть на пояс' : 'Пояс заполнен', () => { Game.inv.take(st.sel); pl.belt.push(id); pl.writeState(); st.sel = -1; refresh(); }, 'primary', pl.belt.length >= 3));
+    }
+    if (it.cat === CAT.THROW) {
+      right.append(lab(`Радиус поражения ${it.radius} м, запал ${it.fuse} с. Бросок: кнопка «ГРАН» (сдвиньте палец — дуга броска) или клавиша G.`, 'dim'));
+      right.append(h('div.row.wrap', {}, [0, 1, 2, 3].map((q) => btn(`В слот ${q + 1}`, () => { Game.quick[q] = id; events.emit('inventory'); refresh(); }))));
+    }
     if (it.cat === CAT.MED || it.cat === CAT.FOOD) {
       right.append(btn('Использовать', () => { pl.useItem(id); app.close(); }, 'primary'));
       right.append(h('div.row.wrap', {}, [0, 1, 2, 3].map((q) => btn(`В слот ${q + 1}`, () => { Game.quick[q] = id; events.emit('inventory'); refresh(); }))));
@@ -264,6 +280,10 @@ function specific(app, id, lvl, box, refresh) {
         else { Game.setFlag('deposited'); msg('Сдано на склад: ' + keys.map((k) => `${itemName(k)} ×${moved[k]}`).join(', '), MSG.GOOD); }
         refresh();
       }, 'primary'));
+      box.append(btn('Выдать паёк: провизия ×1 → тушёнка ×1 и вода ×2', () => {
+        if (Game.consume({ provisions: 1 })) { Game.give('canned', 1); Game.give('water', 2); msg('Паёк получен: тушёнка и две бутылки воды.', MSG.GOOD); } else msg('Нет провизии на складе.', MSG.ALERT);
+        refresh();
+      }, '', Game.total('provisions') < 1));
       for (const k of Object.keys(Game.warehouse)) box.append(h('div.row', {}, h('span.grow', {}, `${itemName(k)}: ${Game.wh(k)}`), btn('Взять 1', () => {
         if (Game.whRemove(k, 1) > 0) { const left = Game.give(k, 1); if (left > 0) Game.whAdd(k, left); }
         refresh();
@@ -299,10 +319,22 @@ function specific(app, id, lvl, box, refresh) {
       for (const [am, n] of [['ammo_545', 30], ['ammo_9x18', 30], ['ammo_762r', 20]]) {
         box.append(btn(`Снарядить: ${itemName(am)} ×${n} (деталь + металлолом ×2)`, () => { if (Game.consume({ weapon_parts: 1, scrap: 2 })) { Game.whAdd(am, n); msg(`+${n} ${itemName(am)} (на склад)`, MSG.GOOD); } refresh(); }, '', lvl < 1));
       }
+      sec('Ремонт оружия');
+      for (const slot of ['primary', 'pistol']) {
+        const e = Game.equip[slot]; if (!e) continue;
+        const c = Math.round(e.cond ?? 100);
+        box.append(btn(`Починить ${weapon(e.id).name}: ${c}% → ${Math.min(100, c + 40)}% (оружейная деталь ×1)`, () => {
+          if (Game.consume({ weapon_parts: 1 })) { e.cond = Math.min(100, (e.cond ?? 100) + 40); W.player.jammed = false; msg(`${weapon(e.id).name}: состояние ${Math.round(e.cond)}%.`, MSG.GOOD); } else msg('Нет оружейных деталей.', MSG.ALERT);
+          refresh();
+        }, '', lvl < 1 || c >= 100));
+      }
       if (lvl < 1) box.append(lab('Станки не работают — нужен ремонт мастерской.', 'bad'));
       break;
     }
     case 'barracks': {
+      sec('Отдых');
+      box.append(lab('Отдых до 07:00: выносливость полностью, раны затягиваются (в восстановленной казарме — вдвое быстрее), бойцы тоже отдыхают. Сытость и жажда снижаются. Набег прерывает отдых.', 'dim'));
+      box.append(btn('Отдохнуть до утра', () => { if (restUntilMorning(W)) app.close(); else refresh(); }, 'primary'));
       sec('Личный состав');
       box.append(lab(`Вместимость: ${Game.soldierCap()}. Бойцы в казарме восстанавливают здоровье${lvl >= 1 ? ' быстрее' : ''}.`));
       box.append(btn('Отправить раненых отдыхать', () => { for (const so of W.soldiers) if (so.alive && so.hp < so.maxHp * 0.8) so.giveOrder('barracks'); refresh(); }));
@@ -372,8 +404,9 @@ function journal(app) {
     if (!done) for (const o of q.objectives()) f.body.append(lab('    ' + (o.done ? '✓ ' : '• ') + o.text, o.done ? 'good' : ''));
   }
   if (q.log.length) { f.body.append(lab('Записи', 'sec')); for (const e of q.log) f.body.append(lab(`${e.time} — ${e.text}`, 'radio')); }
-  f.body.append(lab('Управление на ПК: WASD — движение, Shift — бег, ЛКМ — огонь, ПКМ — прицел, R — перезарядка, E — действие (удерживать для разбора и ремонта), 1/2 — оружие, 3–6 — быстрые слоты, V — осмотр оружия, I — инвентарь, M — карта, O — отряд, B — стройка, J — журнал, колесо мыши — масштаб, T — тактический обзор, F3 — счётчик кадров, F5/F9 — быстрое сохранение/загрузка, Esc — пауза.', 'dim'));
-  f.body.append(lab('На телефоне: джойстик слева, кнопки «Огонь», «R», «✋» и «»» справа. Огонь автоматически наводится на ближайшего видимого противника.', 'dim'));
+  f.body.append(lab('Управление на ПК: WASD — движение, Shift — бег, ЛКМ — огонь, ПКМ — прицел, R — перезарядка, E — действие (удерживать для разбора и ремонта), G — граната в точку под курсором, H — быстрое лечение, Q — смена оружия, C — быстрые приказы, 1/2 — оружие, 3–6 — быстрые слоты, V — осмотр оружия, I — инвентарь, M — карта, O — отряд, B — стройка, J — журнал, колесо мыши — масштаб, T — тактический обзор, F3 — счётчик кадров, F5/F9 — быстрое сохранение/загрузка, Esc — пауза.', 'dim'));
+  f.body.append(lab('На телефоне: джойстик слева (до упора — бег). Справа: «ОГОНЬ» — нажать для огня с автонаведением (цель в жёлтом кольце), сдвинуть палец — ручной прицел; «R» — перезарядка и устранение задержки; «⇄» — смена оружия; «ГРАН» — граната (сдвинуть — дуга броска, отпустить — бросок); «✋» — действие (подпись показывает, что произойдёт; удерживать для ремонта и разбора); «+» — быстрое лечение (сначала остановит кровотечение); «ПРИКАЗ» — команды бойцам рядом. Двумя пальцами — масштаб. В настройках: левша, неподвижный джойстик, размер кнопок.', 'dim'));
+  f.body.append(lab('Выживание: следите за сытостью и жаждой, перевязывайте кровотечение, артефакты из аномалий надевайте на пояс (детектор пищит рядом), чините оружие в мастерской — изношенное заклинивает. Ночью возможны набеги на базу: держите бойцов в обороне у ворот и проломов.', 'dim'));
   return f;
 }
 
@@ -416,6 +449,13 @@ function settings(app, back) {
       btn(`Свет фонарей: ${s.lights ? 'вкл' : 'выкл'}`, () => { s.lights = !s.lights; app.applySettings(); build(); }),
       btn(`Счётчик FPS: ${s.showFps ? 'вкл' : 'выкл'}`, () => { s.showFps = !s.showFps; app.applySettings(); build(); }),
       btn(`Сенсорное управление: ${['авто', 'выкл', 'вкл'][s.touch + 1]}`, () => { s.touch = ((s.touch + 2) % 3) - 1; app.applySettings(); build(); })));
+    list.append(lab('Управление на телефоне', 'sec'), h('div.row.wrap', {},
+      btn(`Бег джойстиком до упора: ${s.autoSprint ? 'вкл' : 'выкл'}`, () => { s.autoSprint = !s.autoSprint; app.applySettings(); build(); }),
+      btn(`Джойстик: ${s.joyFloat ? 'под пальцем' : 'неподвижный'}`, () => { s.joyFloat = !s.joyFloat; app.applySettings(); build(); }),
+      btn(`Левша (кнопки слева): ${s.lefty ? 'вкл' : 'выкл'}`, () => { s.lefty = !s.lefty; app.applySettings(); build(); }),
+      btn(`Автоподбор мелочи: ${s.autoPickup ? 'вкл' : 'выкл'}`, () => { s.autoPickup = !s.autoPickup; app.applySettings(); build(); }),
+      btn(`Вибрация: ${s.vibration ? 'вкл' : 'выкл'}`, () => { s.vibration = !s.vibration; app.applySettings(); build(); })),
+      slider('Размер кнопок', 0.8, 1.3, s.buttonScale || 1, 0.05, (x) => { s.buttonScale = x; app.applySettings(); }));
   };
   build();
   f.body.append(list, btn('Назад', () => (back === 'pause' ? app.open('pause') : app.close())));

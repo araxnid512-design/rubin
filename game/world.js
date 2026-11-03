@@ -13,6 +13,7 @@ import { Building, LootContainer, Salvage, Pickup, InspectPoint, ExitZone, Rubbl
 import * as BG from './building_gen.js';
 import { FX } from './fx.js';
 import { updateAnomalies } from './actors.js';
+import { ArtifactField, Raids } from './mechanics.js';
 
 const v = (x, y, z) => new V3(x, y, z);
 const frame = () => new Promise((res) => setTimeout(res, 0));
@@ -25,7 +26,7 @@ export class GameWorld {
     this.soldiers = []; this.soldierMap = {}; this.enemies = []; this.groups = []; this.player = null;
     this.lamps = []; this.fires = []; this.anomalies = []; this.labels = [];
     this.stats = {}; this.timings = {}; this.time = 0; this.chunkObjs = []; this.grassObjs = [];
-    this.coverPoints = []; this.actors = []; this.timers = []; this.pathBudget = 6; this.fx = new FX(renderer); this.quest = null; this.input = null; this.cam = null;
+    this.coverPoints = []; this.actors = []; this.timers = []; this.projectiles = []; this.artifacts = null; this.raids = null; this.pathBudget = 6; this.fx = new FX(renderer); this.quest = null; this.input = null; this.cam = null;
   }
   later(t, fn) { this.timers.push({ t, fn }); }
   // шум (выстрел, шаги, взрыв): слышат все персонажи в радиусе
@@ -75,6 +76,7 @@ export class GameWorld {
     this.stats.colliders = this.phys.colliders.length;
     progress(0.92, 'Личный состав…'); await frame();
     if (this.onSpawn) this.onSpawn(this);
+    this.artifacts = new ArtifactField(this); this.raids = new Raids(this);
     this.timings.spawn = t() - t0;
     progress(1, 'Готово');
     console.log('[World] timings', JSON.stringify(this.timings), 'stats', JSON.stringify(this.stats));
@@ -140,6 +142,9 @@ export class GameWorld {
     for (const e of this.enemies) e.update(dt);
     for (const g of this.groups) g.update(dt);
     updateAnomalies(this, dt);
+    for (let i = this.projectiles.length - 1; i >= 0; i--) { const pr = this.projectiles[i]; pr.update(dt); if (pr.dead) this.projectiles.splice(i, 1); }
+    if (this.artifacts) this.artifacts.update(dt);
+    if (this.raids) this.raids.update(dt);
     for (const d of this.doors) d.update(dt);
     for (const b of Object.values(this.buildings)) b.update(dt);
     const night = Game.time < 6.5 || Game.time > 19.5, lightsOk = this.settings.lights;

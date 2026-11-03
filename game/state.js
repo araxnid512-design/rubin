@@ -39,9 +39,11 @@ class GameState {
   newGame() {
     this.inv = new Inventory(16);
     this.inv.add('bandage', 2); this.inv.add('ammo_9x18', 16);
-    this.equip = { primary: null, pistol: { id: 'pm', ammo: 8 }, active: 1 };
-    this.quick = ['bandage', '', '', ''];
-    this.playerState = { hp: 100, stamina: 100, rad: 0, pos: [...L.PLAYER_START], yaw: L.PLAYER_START_YAW, armor: 'armor_duty' };
+    this.equip = { primary: null, pistol: { id: 'pm', ammo: 8, cond: 82 }, active: 1 };
+    this.quick = ['bandage', 'water', '', ''];
+    this.inv.add('water', 1); this.inv.add('bread', 1);
+    // hunger/thirst — сытость и жажда (100 — норма), bleed — кровотечение (ед. здоровья в секунду), belt — артефакты на поясе
+    this.playerState = { hp: 100, stamina: 100, rad: 0, hunger: 85, thirst: 80, bleed: 0, belt: [], pos: [...L.PLAYER_START], yaw: L.PLAYER_START_YAW, armor: 'armor_duty' };
     this.warehouse = { scrap: 2, planks: 2, provisions: 4 };
     this.buildings = {};
     for (const b of L.BUILDINGS) this.buildings[b.id] = { level: b.level, job: '', progress: 0 };
@@ -53,7 +55,9 @@ class GameState {
     this.flags = {};
     this.worldState = { taken: {}, containers: {}, rubble: {}, salvage: {}, dead: {}, doors: {} };
     this.time = 7.5; this.day = 1; this.powerOn = false; this.fuel = 0; this.playTime = 0;
+    this.nextRaid = -1; this.raidsRepelled = 0; // абсолютное игровое время следующего набега (часы), -1 — набеги ещё не начались
   }
+  hours() { return this.day * 24 + this.time; }
   // ---------------- склад и ресурсы
   wh(id) { return this.warehouse[id] || 0; }
   whTotal() { return Object.values(this.warehouse).reduce((a, b) => a + b, 0); }
@@ -155,7 +159,7 @@ class GameState {
       version: 1, t: Date.now(), saved_at: new Date().toLocaleString('ru-RU'), summary,
       inv: this.inv.toData(), equip: this.equip, quick: this.quick, player: this.playerState, warehouse: this.warehouse,
       buildings: this.buildings, soldiers: this.soldiers, flags: this.flags, worldState: this.worldState,
-      time: this.time, day: this.day, fuel: this.fuel, quest: questData, playTime: this.playTime,
+      time: this.time, day: this.day, fuel: this.fuel, quest: questData, playTime: this.playTime, nextRaid: this.nextRaid, raidsRepelled: this.raidsRepelled,
     };
   }
   save(slot, questData, summary) {
@@ -167,7 +171,8 @@ class GameState {
   read(slot) { try { return JSON.parse(localStorage.getItem(SAVE_KEY(slot)) || 'null'); } catch (e) { return null; } }
   apply(d) {
     this.newGame();
-    this.inv.fromData(d.inv); this.equip = d.equip; this.quick = d.quick; this.playerState = d.player; this.warehouse = d.warehouse || {};
+    this.inv.fromData(d.inv); this.equip = d.equip; this.quick = d.quick; this.playerState = { ...this.playerState, ...d.player }; this.warehouse = d.warehouse || {};
+    this.nextRaid = d.nextRaid ?? -1; this.raidsRepelled = d.raidsRepelled || 0;
     for (const k in d.buildings) if (this.buildings[k]) this.buildings[k] = { ...d.buildings[k] };
     for (const k in d.soldiers) if (this.soldiers[k]) this.soldiers[k] = { ...this.soldiers[k], ...d.soldiers[k] };
     this.flags = d.flags || {}; this.worldState = { ...this.worldState, ...(d.worldState || {}) };

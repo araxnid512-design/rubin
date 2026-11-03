@@ -5,12 +5,13 @@ export const KEYMAP = {
   sprint: ['ShiftLeft', 'ShiftRight'], interact: ['KeyE', 'KeyF'], reload: ['KeyR'], slot1: ['Digit1'], slot2: ['Digit2'],
   quick1: ['Digit3'], quick2: ['Digit4'], quick3: ['Digit5'], quick4: ['Digit6'], inventory: ['KeyI', 'Tab'], map: ['KeyM'], squad: ['KeyO'],
   build: ['KeyB'], journal: ['KeyJ'], pause: ['Escape'], inspect: ['KeyV'], quicksave: ['F5'], quickload: ['F9'], fps: ['F3'], tactical: ['KeyT'],
+  grenade: ['KeyG'], heal: ['KeyH'], swap: ['KeyQ'], orders: ['KeyC'],
 };
 
 export class Input {
   constructor(canvas) {
     this.down = new Set(); this.edges = new Set(); this.mouse = { x: 0, y: 0, left: false, right: false, over: true, wheel: 0 };
-    this.touch = { move: [0, 0], fire: false, sprint: false, interact: false };
+    this.touch = { move: [0, 0], fire: false, sprint: false, interact: false, aim: null };
     this.enabled = true; this.uiBlocks = () => false; this.lastDevice = 'kb';
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
