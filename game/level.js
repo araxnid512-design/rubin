@@ -41,8 +41,10 @@ function materials() {
 		woodYellow: T.woodMaterial([1, 1], [150, 128, 70]),
 		slate: T.slateRoofMaterial([1, 1]),
 		roofMetal: T.metalRoofMaterial([1, 1]),
-		roofGreen: T.metalRoofMaterial([1, 1], [64, 92, 66]),
-		roofTar: T.concreteMaterial([1, 1], [60, 58, 56]),
+		roofGreen: T.metalRoofMaterial([1, 1], [82, 106, 82]), // выгоревшая зелёная краска
+		roofTin: T.tinRoofMaterial([1, 1]), // кровельное железо: оцинковка с ржавыми полосами
+		wallGrime: T.wallGrimeMaterial(), // грязь по низу стен (наклейка)
+		roofTar: T.concreteMaterial([1, 1], [84, 82, 78]), // выгоревший рубероид — светлее, чем был
 		metalDark: new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.55, metalness: 0.6 }),
 		metalRust: T.metalRoofMaterial([1, 1], [96, 70, 52]),
 		metalOlive: T.metalRoofMaterial([1, 1], [74, 82, 56]),

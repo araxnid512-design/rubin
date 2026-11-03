@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import * as T from './textures.js';
 import { paperTexture, grimeTexture, quadUV } from './dressing.js';
 import { Batch, box, place, planeXZ, beginProp, endProp } from './geom.js';
+import { hash01, Quads, windowTrim, windowSill, windowBoards } from './facade.js';
 
 /** Высота, по которой срезаются стены, когда герой внутри. */
 export const CUT = 1.05;
@@ -200,6 +201,12 @@ class Building {
 			layers(a0, a1, CUT, H, true);
 			const len = a1 - a0, mid = (a0 + a1) / 2;
 			if (axis === 'x') this.collide(mid, k, len, t + 0.04, 0, true); else this.collide(k, mid, t + 0.04, len, 0, true);
+			// наружная стена (с обоями внутри) — грязь снизу снаружи; у угла полоса заходит на торец соседней стены
+			if (lining) {
+				const half = (axis === 'x' ? this.W : this.D) / 2;
+				const e0 = a0 === s0 && Math.abs(s0) < half - 1e-3 ? t : 0, e1 = a1 === s1 && Math.abs(s1) < half - 1e-3 ? t : 0;
+				this.grime(axis, k + -side * (t / 2 + 0.012), a0 - e0, a1 + e1, -side);
+			}
 		}
 		// перемычки над дверями и открытые двери
 		for (const [d0, d1] of gaps) {
@@ -207,15 +214,70 @@ class Building {
 		}
 	}
 
-	/** Окно-наличник снаружи на стене: side — 'front' (−Z), 'back' (+Z), 'left' (−X), 'right' (+X). */
-	window(side, at, { y = 1.65, t = 0.2 } = {}) {
-		const g = new THREE.PlaneGeometry(1.1, 1.4);
-		const off = t / 2 + 0.015;
-		if (side === 'front') { g.rotateY(Math.PI); g.translate(at, y, -this.D / 2 - off); }
-		if (side === 'back') g.translate(at, y, this.D / 2 + off);
-		if (side === 'left') { g.rotateY(-Math.PI / 2); g.translate(-this.W / 2 - off, y, at); }
-		if (side === 'right') { g.rotateY(Math.PI / 2); g.translate(this.W / 2 + off, y, at); }
-		this.top_(g, this.ctx.M.window);
+	/**
+	 * Геометрию, собранную на плоскости стены (z = 0 — наружная поверхность, лицо к +Z, x — вдоль стены, y — высота),
+	 * поставить на стену side ('front' −Z, 'back' +Z, 'left' −X, 'right' +X) в точку at; t — толщина стены.
+	 */
+	onWall(g, side, at, t = 0.2, off = 0) {
+		const o = t / 2 + off;
+		if (side === 'front') { g.rotateY(Math.PI); g.translate(at, 0, -this.D / 2 - o); }
+		if (side === 'back') g.translate(at, 0, this.D / 2 + o);
+		if (side === 'left') { g.rotateY(-Math.PI / 2); g.translate(-this.W / 2 - o, 0, at); }
+		if (side === 'right') { g.rotateY(Math.PI / 2); g.translate(this.W / 2 + o, 0, at); }
+		return g;
+	}
+
+	/**
+	 * Окно снаружи на стене: side — 'front' (−Z), 'back' (+Z), 'left' (−X), 'right' (+X). Вид (клетка атласа окон) —
+	 * постоянный по месту: целое, выбитое, заколоченное (с досками поверх), заклеенное газетой. trim — материал
+	 * наличника (деревенский дом, дача) или подоконника (sill: кирпичные здания).
+	 */
+	window(side, at, { y = 1.65, t = 0.2, trim = null, sill = null } = {}) {
+		const M = this.ctx.M, h = hash01(this.name, side, at, y);
+		// комната героя в стабе — окна целые; остальные постройки брошены
+		const kind = this.messKind === 'tidy' ? (h < 0.8 ? 0 : 3) : h < 0.42 ? 0 : h < 0.62 ? 1 : h < 0.82 ? 2 : 3;
+		const g = T.windowUV(new THREE.PlaneGeometry(1.1, 1.4), kind);
+		g.translate(0, y, 0);
+		this.top_(this.onWall(g, side, at, t, 0.015), M.window);
+		if (trim) this.top_(this.onWall(windowTrim(1.1, 1.4).translate(0, y, 0), side, at, t), trim);
+		if (sill) this.top_(this.onWall(windowSill(1.1, 1.4).translate(0, y, 0), side, at, t), sill);
+		if (kind === 2) for (const b of windowBoards(1.1, 1.4, hash01(this.name, at, side, 'b'), box)) this.top_(this.onWall(b.translate(0, y, 0), side, at, t), M.woodGrey);
+	}
+
+	/** Грязь по низу наружной стены: полоса-наклейка на плоскости (вдоль axis на линии k, от a0 до a1), лицом в dir. */
+	grime(axis, k, a0, a1, dir) {
+		const len = a1 - a0;
+		if (len < 0.3) return;
+		const hh = Math.min(0.95, CUT - 0.06), g = new THREE.PlaneGeometry(len, hh), uv = g.attributes.uv;
+		for (let i = 0; i < uv.count; i++) uv.setX(i, (a0 + uv.getX(i) * len) / 3);
+		if (axis === 'x') { if (dir < 0) g.rotateY(Math.PI); g.translate((a0 + a1) / 2, hh / 2 + 0.02, k); } else { g.rotateY(dir > 0 ? Math.PI / 2 : -Math.PI / 2); g.translate(k, hh / 2 + 0.02, (a0 + a1) / 2); }
+		this.lower(g, this.ctx.M.wallGrime, { cast: false });
+	}
+
+	/** Коробка от y0 до y1 на стене (дверное полотно, ворота, водосток): ниже пояса — со стенами, выше — с крышей. */
+	wallBox(side, at, w, y0, y1, d, mat, { t = 0.2, off = 0, x = 0 } = {}) {
+		for (const [a, b, up] of [[y0, Math.min(y1, CUT), false], [Math.max(y0, CUT), y1, true]]) {
+			if (b - a < 0.01) continue;
+			const g = this.onWall(box(w, b - a, d, 1).translate(x, (a + b) / 2, d / 2 + off), side, at, t);
+			if (up) this.top_(g, mat); else this.lower(g, mat);
+		}
+	}
+
+	/**
+	 * Козырёк над входом: плита w×d на высоте y с уклоном от стены; posts — материал двух столбов до земли
+	 * (иначе — на кронштейнах). Плита и верх столбов — с крышей (исчезают, когда герой внутри).
+	 */
+	canopy(side, at, { w = 1.8, d = 1.1, y = 2.45, mat, posts = null, t = 0.2, thick = 0.08 }) {
+		const slab = box(w, thick, d, 1).rotateX(0.1).translate(0, y, d / 2);
+		this.top_(this.onWall(slab, side, at, t), mat);
+		if (posts) {
+			for (const s of [-1, 1]) this.wallBox(side, at, 0.1, 0.0, y - 0.06, 0.1, posts, { t, off: d - 0.16, x: s * (w / 2 - 0.1) });
+		} else {
+			for (const s of [-1, 1]) {
+				const g = box(0.06, 0.06, d * 0.9, 1).rotateX(-0.62).translate(s * (w / 2 - 0.12), y - 0.3, d * 0.4);
+				this.top_(this.onWall(g, side, at, t), mat);
+			}
+		}
 	}
 
 	/** Мебель из коробок [w, h, d, x, y, z, материал] в своих осях (поворот rot), с коллайдером. */

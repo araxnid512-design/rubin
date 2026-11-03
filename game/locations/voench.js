@@ -75,7 +75,7 @@ export default {
 				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), mat);
 				kb.add(place(box(W + 0.4, 0.3, D + 0.4, 3), cx, H + 0.15, cz), M.roofTar);
 				for (let i = 0; i < Math.floor(W / 3); i++) for (let f = 0; f < floors; f++) {
-					const win = new THREE.PlaneGeometry(1.1, 1.3);
+					const win = T.windowUV(new THREE.PlaneGeometry(1.1, 1.3), [0, 1, 0, 3, 0, 2, 0][(i * 3 + f * 2 + name.length) % 7]); // клетка атласа окон
 					win.translate(cx - W / 2 + 1.8 + i * 3, 1.7 + f * 3, cz + D / 2 + 0.01);
 					kb.add(win, M.window);
 				}

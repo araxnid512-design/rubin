@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import * as T from '../textures.js';
 import { box, place, planeXZ, beginProp, endProp } from '../geom.js';
 import { buildHouse, buildShop, buildDacha, buildWorkshop } from '../buildings.js';
+import { hash01, balcony, khrushchyovkaDetails } from '../facade.js';
 import {
 	bench, swings, slide, streetLamp, OPTIONS, barricade, garden, woodpile, outhouse, clothesline, bicycle,
 	settlementSign, fencePlot, shed, well, addCar, bus, markingMaterial, powerLine,
@@ -33,20 +34,21 @@ export default {
 			const cx = -18, cz = 30, W = 38.4, D = 12, H = 14;
 			occluder('Khrushchyovka', (kb) => {
 				kb.add(place(box(W, H, D, 3.2, 2.8), cx, H / 2 + 0.6, cz), M.panel);
-				kb.add(place(box(W + 0.3, 0.8, D + 0.3, 2), cx, 0.4, cz), M.concreteDark); // цоколь
-				kb.add(place(box(W + 0.4, 0.5, D + 0.4, 4), cx, H + 0.85, cz), M.concrete); // парапет
-				kb.add(place(box(W, 0.1, D, 4), cx, H + 1.1, cz), M.roofTar);
+				kb.add(place(box(W + 0.3, 0.8, D + 0.3, 2), cx, 0.4, cz), M.brick); // цоколь — кирпичный, темнее панелей
+				khrushchyovkaDetails(kb, M, { cx, cz, W, D, H });
 				for (const ex of [-12.8, 0, 12.8]) {
 					const x = cx + ex, z = cz - D / 2;
 					kb.add(place(box(2.6, 0.15, 1.6), x, 2.9, z - 0.8), M.concrete); // козырёк
-					kb.add(place(box(1.3, 2.2, 0.1), x, 1.7, z - 0.05), M.metalDark); // дверь
+					kb.add(place(box(2.7, 0.08, 0.04), x, 2.9, z - 1.62), M.metalRust); // ржавый отлив по краю козырька
+					for (const s of [-1, 1]) kb.add(place(box(0.1, 0.5, 1.4), x + s * 0.82, 2.58, z - 0.7), M.concrete); // упоры козырька
+					kb.add(place(box(1.3, 2.2, 0.1), x, 1.7, z - 0.05), M.metalRust); // железная дверь
+					kb.add(place(box(1.5, 0.1, 0.14), x, 2.85, z - 0.07), M.metalDark); // коробка двери
 				}
-				// балконы на северном фасаде
+				// балконы на северном фасаде (генератор вызывается, как раньше: какие балконы есть и из чего ограждение)
 				for (let floor = 1; floor < 5; floor++) for (let c = 0; c < 12; c++) {
 					if (c % 4 === 0 || rnd() < 0.45) continue;
-					const x = cx - W / 2 + 1.6 + c * 3.2, y = 0.6 + floor * 2.8, z = cz - D / 2 - 0.55;
-					kb.add(place(box(2.8, 0.12, 1.1), x, y, z), M.concrete);
-					kb.add(place(box(2.8, 1.0, 0.06, 1), x, y + 0.56, z - 0.52), rnd() < 0.5 ? M.metalRust : M.woodGrey);
+					const x = cx - W / 2 + 1.6 + c * 3.2, y = 0.6 + floor * 2.8;
+					balcony(kb, M, x, y, cz - D / 2, -1, rnd() < 0.5 ? M.metalRust : M.woodGrey, hash01('khr-n', c, floor), { top: floor === 4 });
 				}
 			}, { cx, cz, ry: 0, hx: W / 2 + 0.6, hz: D / 2 + 1.2, top: H + 1.5 }, 0.16);
 			collide(cx, cz, W + 0.4, D + 0.4);

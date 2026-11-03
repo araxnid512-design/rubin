@@ -139,11 +139,11 @@ export function panelFacadeMaterial(repeat, { balconyless = false } = {}) {
 	return texMaterial(`panel${balconyless}`, () => {
 		const p = pixels(256, (u, v, x, y) => {
 			const n = tileFbm(u, v, 4, 4, 51), g = tileNoise(u, v, 128, 53);
-			let c = mixc([168, 164, 152], [190, 186, 174], n).map((k) => k * (0.92 + g * 0.12));
+			let c = mixc([158, 154, 143], [184, 180, 168], n).map((k) => k * (0.92 + g * 0.12));
 			const seam = (x < 3 || y < 3) ? 1 : 0;
 			c = mixc(c, [90, 88, 84], seam * 0.8);
 			const streak = ss(0.55, 0.8, tileFbm(u * 0.3, v * 3, 8, 2, 57)) * v; // потёки
-			c = mixc(c, [110, 108, 98], streak * 0.35);
+			c = mixc(c, [104, 100, 90], streak * 0.5 + ss(0.82, 1, v) * 0.18); // и грязь у нижнего шва
 			return [...c, n * 0.5 - seam * 2];
 		});
 		// окно
@@ -158,6 +158,15 @@ export function panelFacadeMaterial(repeat, { balconyless = false } = {}) {
 		ctx.fillRect(wx + ww / 2 - 3, wy, 6, wh); ctx.fillRect(wx, wy + 34, ww, 5);
 		ctx.strokeStyle = '#d8d4c8'; ctx.lineWidth = 5; ctx.strokeRect(wx, wy, ww, wh);
 		ctx.fillStyle = '#9a968c'; ctx.fillRect(wx - 10, wy + wh + 6, ww + 20, 8); // отлив
+		// ржавые и грязные потёки с отлива вниз до шва панели
+		const drips = mulberry(51);
+		for (let i = 0; i < 14; i++) {
+			const x = wx - 6 + drips() * (ww + 12), len = 14 + drips() * 46, w = 2 + drips() * 5;
+			const g = ctx.createLinearGradient(0, wy + wh + 14, 0, wy + wh + 14 + len);
+			const tone = i % 3 ? '70,62,50' : '104,66,40';
+			g.addColorStop(0, `rgba(${tone},${0.28 + drips() * 0.3})`); g.addColorStop(1, `rgba(${tone},0)`);
+			ctx.fillStyle = g; ctx.fillRect(x, wy + wh + 14, w, len);
+		}
 		// трещины на стекле
 		ctx.strokeStyle = 'rgba(200,210,215,0.5)'; ctx.lineWidth = 1;
 		for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(wx + 30 + i * 20, wy + 50); ctx.lineTo(wx + 10 + i * 35, wy + 100); ctx.stroke(); }
@@ -206,14 +215,69 @@ export function woodMaterial(repeat, tint = [110, 84, 60]) {
 }
 
 export function slateRoofMaterial(repeat) {
-	return texMaterial('slate', () => pixels(256, (u, v, x) => {
+	// светлый выгоревший шифер: серо-белые листы, стыки листов, лишайник и тёмные подтёки пятнами
+	return texMaterial('slate', () => pixels(256, (u, v, x, y) => {
 		const wave = Math.sin(u * Math.PI * 2 * 8) * 0.5 + 0.5; // волнистый шифер
 		const n = tileFbm(u, v, 6, 4, 91);
-		const moss = ss(0.6, 0.75, tileFbm(u, v, 4, 4, 93));
-		let c = mixc([150, 150, 144], [110, 112, 106], n).map((k) => k * (0.8 + wave * 0.25));
-		c = mixc(c, [80, 92, 60], moss * 0.6);
-		return [...c.map(clamp), wave * 2 + n];
+		const moss = ss(0.66, 0.8, tileFbm(u, v, 4, 4, 93));
+		const sheet = Math.floor(u * 2) * 7 + Math.floor(v * 2) * 13; // лист 1×1 м: у каждого свой оттенок
+		const tone = 0.9 + tileNoise((sheet * 0.137) % 1, (sheet * 0.291) % 1, 16, 95) * 0.16;
+		const lap = (y % 128) < 5 ? 1 : 0; // нахлёст рядов
+		let c = mixc([174, 172, 164], [136, 136, 130], n).map((k) => k * tone * (0.82 + wave * 0.22));
+		c = mixc(c, [96, 104, 74], moss * 0.45);
+		c = mixc(c, [92, 90, 84], lap * 0.55 + ss(0.55, 0.9, tileFbm(u * 3, v * 0.5, 6, 3, 97)) * 0.25);
+		return [...c.map(clamp), wave * 2 + n - lap];
 	}), { repeat, roughness: 0.9, normal: 2.5 });
+}
+
+/**
+ * Кровельное железо: оцинкованные листы с фальцами вдоль ската (лист 0,5 м), у каждого листа свой оттенок,
+ * ржавчина полосами стекает от фальцев и гвоздей, часть листов заменена ржавыми. Светлее шифера и профлиста.
+ */
+export function tinRoofMaterial(repeat) {
+	return texMaterial('tin', () => pixels(256, (u, v, x) => {
+		const sx = x % 64, sheet = Math.floor(x / 64);
+		const seam = sx < 3 || sx > 61 ? 1 : 0;
+		const h = tileNoise(((sheet * 0.371) % 1), 0.5, 8, 111);
+		const n = tileFbm(u, v, 6, 4, 113);
+		// полосы ржавчины вдоль ската: гуще у фальцев и местами по середине листа
+		const edge = Math.max(0, 1 - Math.min(sx, 64 - sx) / 14);
+		const streak = ss(0.42, 0.85, tileFbm(u * 4, v * 0.35, 16, 3, 115 + sheet)) * (0.45 + edge * 0.8);
+		const rusty = h > 0.78 ? 1 : 0; // заменённый ржавый лист
+		let c = mixc([176, 178, 172], [136, 140, 136], n * 0.8 + h * 0.4);
+		c = mixc(c, [128, 74, 40], Math.min(1, streak * 0.85 + rusty * 0.75));
+		c = mixc(c, [92, 58, 36], ss(0.6, 0.9, n) * (0.25 + rusty * 0.4));
+		if (seam) c = mixc(c, [210, 210, 204], 0.35); // фальц ловит свет
+		return [...c.map(clamp), seam * 2.5 + n * 0.3 - streak * 0.2];
+	}), { repeat, roughness: 0.62, metalness: 0.35, normal: 2 });
+}
+
+/**
+ * Грязь по низу стен (полупрозрачная наклейка): земля и брызги от дождя снизу, неровный верхний край,
+ * редкие подтёки. По u повторяется (3 м на картинку), по v — от земли (0) до верха полосы (1).
+ */
+export function wallGrimeMaterial() {
+	const t = memo('wallgrime', () => {
+		const W = 512, H = 128, c = canvas(W, H), ctx = c.getContext('2d');
+		const img = ctx.createImageData(W, H);
+		for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+			const u = x / W, f = 1 - y / (H - 1); // f: 0 — у земли, 1 — верх полосы
+			const edge = 0.32 + tileFbm(u, 0.5, 8, 4, 151) * 0.5; // где кончается грязь
+			const drip = ss(0.62, 0.8, tileNoise(u, 0.3, 96, 153)) * ss(0.0, 0.5, tileFbm(u, f, 32, 2, 155)) * 0.6;
+			const body = 1 - ss(edge * 0.55, edge, f);
+			const speck = ss(0.7, 0.8, tileNoise(u, f * 0.25, 160, 157)) * (1 - ss(0.2, 0.75, f));
+			const n = tileFbm(u, f * 0.25, 24, 3, 159);
+			const a = Math.min(1, body * (0.35 + n * 0.45) + speck * 0.5 + drip * (1 - ss(0.6, 1, f))) * (1 - ss(0.9, 1, f));
+			const i = (y * W + x) * 4;
+			const k = 0.8 + n * 0.4;
+			img.data[i] = 52 * k; img.data[i + 1] = 46 * k; img.data[i + 2] = 36 * k; img.data[i + 3] = clamp(a * 235);
+		}
+		ctx.putImageData(img, 0, 0);
+		const tex = toTexture(c);
+		tex.wrapT = THREE.ClampToEdgeWrapping;
+		return tex;
+	});
+	return new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 });
 }
 
 export function metalRoofMaterial(repeat, tint = [120, 60, 50]) {
@@ -355,21 +419,139 @@ export function fabricMaterial(tint) {
 	}), { repeat: [2, 2], roughness: 1, normal: 1 });
 }
 
-/** Окно деревенского дома с белыми наличниками. */
+/**
+ * Окна — атлас 4×2 клетки по 128×160: столбцы 0–1 — окна деревенского дома с наличником (0 — целое, 1 — выбитое,
+ * 2 — заколоченное, 3 — заклеено газетой, за стеклом занавеска), столбцы 2–3 — окна хрущёвки 1,62×1,44 м
+ * (4 — целое в старой раме, 5 — выбитое и закопчённое, 6 — заколоченное, 7 — коричневая рама с занавеской).
+ * Клетку выбирает windowUV (у плоскости с UV 0..1).
+ */
 export function houseWindowMaterial() {
-	const t = memo('housewin', () => {
-		const c = canvas(128, 160), ctx = c.getContext('2d');
-		ctx.fillStyle = '#e8e4d8'; ctx.fillRect(0, 0, 128, 160);
-		ctx.fillStyle = '#d2cbb8';
-		ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(64, 0); ctx.lineTo(128, 22); ctx.fill();
-		const g = ctx.createLinearGradient(0, 30, 128, 140);
-		g.addColorStop(0, '#2a3238'); g.addColorStop(1, '#141a1e');
-		ctx.fillStyle = g; ctx.fillRect(14, 30, 100, 110);
-		ctx.fillStyle = '#e8e4d8'; ctx.fillRect(61, 30, 6, 110); ctx.fillRect(14, 64, 100, 5);
-		ctx.strokeStyle = 'rgba(180,190,195,0.45)'; ctx.beginPath(); ctx.moveTo(20, 80); ctx.lineTo(55, 130); ctx.stroke();
+	const t = memo('windows-atlas', () => {
+		const c = canvas(512, 320), ctx = c.getContext('2d');
+		const rnd = mulberry(4242);
+		const cell = (k, draw) => {
+			ctx.save();
+			ctx.translate((k % 4) * 128, Math.floor(k / 4) * 160);
+			ctx.beginPath(); ctx.rect(0, 0, 128, 160); ctx.clip();
+			draw();
+			ctx.restore();
+		};
+		// тёмное стекло с отсветом неба
+		const glass = (x, y, w, h) => {
+			const g = ctx.createLinearGradient(x, y, x + w, y + h);
+			g.addColorStop(0, '#36424a'); g.addColorStop(0.45, '#232c32'); g.addColorStop(1, '#12171a');
+			ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+		};
+		const dark = (x, y, w, h) => {
+			const g = ctx.createLinearGradient(x, y, x, y + h);
+			g.addColorStop(0, '#07080a'); g.addColorStop(1, '#16130f');
+			ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+		};
+		// осколки по краям выбитой рамы
+		const shards = (x, y, w, h) => {
+			ctx.fillStyle = 'rgba(120,138,146,0.75)';
+			for (let i = 0; i < 5; i++) {
+				const cx = x + (i % 2 ? w : 0), cy = y + rnd() * h, s = 6 + rnd() * 12;
+				ctx.beginPath(); ctx.moveTo(cx, cy - s); ctx.lineTo(cx + (i % 2 ? -1 : 1) * (4 + rnd() * 10), cy + rnd() * 4); ctx.lineTo(cx, cy + s * 0.6); ctx.fill();
+			}
+			for (let i = 0; i < 3; i++) {
+				const cx = x + rnd() * w, s = 6 + rnd() * 10;
+				ctx.beginPath(); ctx.moveTo(cx - s, y); ctx.lineTo(cx + s * 0.4, y); ctx.lineTo(cx - s * 0.2, y + 6 + rnd() * 12); ctx.fill();
+			}
+		};
+		// доски поперёк проёма: светлые и серые, с гвоздями и щелями
+		const planks = (x, y, w, h, n, tilt) => {
+			for (let i = 0; i < n; i++) {
+				const py = y + (i + 0.5) * h / n, a = (rnd() - 0.5) * tilt;
+				ctx.save(); ctx.translate(x + w / 2, py); ctx.rotate(a);
+				const tone = 96 + rnd() * 50;
+				ctx.fillStyle = `rgb(${tone + 14},${tone},${tone * 0.78})`;
+				ctx.fillRect(-w / 2 - 8, -h / n * 0.38, w + 16, h / n * 0.76);
+				ctx.fillStyle = 'rgba(30,24,18,0.45)';
+				ctx.fillRect(-w / 2 - 8, h / n * 0.3, w + 16, 2);
+				for (let k = 0; k < 6; k++) { ctx.fillStyle = `rgba(60,48,36,${0.15 + rnd() * 0.2})`; ctx.fillRect(-w / 2 + rnd() * w, -h / n * 0.3 + rnd() * h / n * 0.5, 8 + rnd() * 20, 1); }
+				ctx.fillStyle = '#2a2622';
+				for (const nx of [-w / 2 + 4, w / 2 - 6]) ctx.fillRect(nx, -2, 3, 3);
+				ctx.restore();
+			}
+		};
+		// грязь и облупленная краска по раме
+		const weather = (x, y, w, h) => {
+			for (let i = 0; i < 40; i++) {
+				ctx.fillStyle = `rgba(${70 + rnd() * 40},${60 + rnd() * 30},${44 + rnd() * 20},${0.12 + rnd() * 0.25})`;
+				ctx.fillRect(x + rnd() * w, y + rnd() * h, 2 + rnd() * 9, 1 + rnd() * 4);
+			}
+			const g = ctx.createLinearGradient(0, y + h * 0.65, 0, y + h);
+			g.addColorStop(0, 'rgba(60,52,40,0)'); g.addColorStop(1, 'rgba(60,52,40,0.35)');
+			ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+		};
+		// деревенское окно: наличник с треугольным верхом, переплёт крестом
+		const house = (k, fill) => cell(k, () => {
+			ctx.fillStyle = '#ddd6c4'; ctx.fillRect(0, 0, 128, 160);
+			ctx.fillStyle = '#c8bfa8';
+			ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(64, 0); ctx.lineTo(128, 22); ctx.fill();
+			ctx.fillStyle = 'rgba(90,80,64,0.5)'; ctx.fillRect(10, 26, 108, 3);
+			fill();
+			weather(0, 0, 128, 160);
+		});
+		const cross = (col = '#ddd6c4') => { ctx.fillStyle = col; ctx.fillRect(61, 30, 6, 110); ctx.fillRect(14, 64, 100, 5); };
+		house(0, () => {
+			glass(14, 30, 100, 110); cross();
+			ctx.strokeStyle = 'rgba(180,190,195,0.45)'; ctx.beginPath(); ctx.moveTo(20, 80); ctx.lineTo(55, 130); ctx.stroke();
+		});
+		house(1, () => { dark(14, 30, 100, 110); cross('#b8b0a0'); shards(14, 30, 47, 110); shards(67, 69, 47, 71); });
+		house(2, () => { dark(14, 30, 100, 110); cross('#b8b0a0'); planks(14, 34, 100, 104, 4, 0.5); });
+		house(3, () => {
+			glass(14, 30, 100, 110);
+			ctx.fillStyle = '#8a5a4a'; ctx.fillRect(14, 69, 30, 71); ctx.fillRect(84, 69, 30, 71); // занавески
+			ctx.fillStyle = 'rgba(40,20,16,0.35)'; for (let x = 18; x < 44; x += 6) ctx.fillRect(x, 69, 2, 71);
+			ctx.fillStyle = '#c4b890'; ctx.fillRect(67, 30, 47, 34); // газета на форточке
+			ctx.fillStyle = 'rgba(40,36,30,0.5)'; for (let y = 34; y < 60; y += 4) ctx.fillRect(70, y, 40 - rnd() * 10, 1.5);
+			cross();
+		});
+		// окно хрущёвки (в клетке рисуем в сантиметрах: проём с рамой 162×144)
+		const panel = (k, fill) => cell(k, () => {
+			ctx.scale(128 / 162, 160 / 144);
+			ctx.fillStyle = '#6a665e'; ctx.fillRect(0, 0, 162, 144); // откос
+			fill();
+		});
+		const frame = (col, broken = false) => {
+			ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.strokeRect(10, 10, 142, 122);
+			ctx.fillStyle = col;
+			ctx.fillRect(78, 10, 7, 122); // средник
+			ctx.fillRect(10, 46, 68, 6); // форточка
+			if (!broken) ctx.fillRect(85, 64, 67, 5);
+		};
+		panel(4, () => {
+			glass(13, 13, 136, 116); frame('#cfc9b8');
+			ctx.strokeStyle = 'rgba(190,200,205,0.4)'; ctx.lineWidth = 1.5;
+			ctx.beginPath(); ctx.moveTo(24, 70); ctx.lineTo(60, 118); ctx.moveTo(96, 80); ctx.lineTo(120, 120); ctx.stroke();
+			weather(0, 0, 162, 144);
+		});
+		panel(5, () => {
+			dark(13, 13, 136, 116); frame('#7a746a', true); shards(13, 13, 65, 116); shards(85, 13, 64, 116);
+			const g = ctx.createLinearGradient(0, 0, 0, 70); // копоть над проёмом
+			g.addColorStop(0, 'rgba(14,12,10,0.85)'); g.addColorStop(1, 'rgba(14,12,10,0)');
+			ctx.fillStyle = g; ctx.fillRect(0, 0, 162, 70);
+		});
+		panel(6, () => { dark(13, 13, 136, 116); frame('#9a9484'); planks(6, 14, 150, 114, 5, 0.25); weather(0, 0, 162, 144); });
+		panel(7, () => {
+			glass(13, 13, 136, 116);
+			ctx.fillStyle = '#b8a98a'; ctx.fillRect(13, 13, 40, 116); ctx.fillRect(110, 13, 39, 116); // занавески
+			ctx.fillStyle = 'rgba(80,60,40,0.3)'; for (let x = 16; x < 53; x += 7) ctx.fillRect(x, 13, 2, 116);
+			frame('#5a3e2c');
+			weather(0, 0, 162, 144);
+		});
 		return toTexture(c);
 	});
 	return new THREE.MeshStandardMaterial({ map: t, roughness: 0.4 });
+}
+
+/** UV плоскости окна (0..1) — в клетку атласа окон k (см. houseWindowMaterial). */
+export function windowUV(geo, k) {
+	const uv = geo.attributes.uv, col = k % 4, row = Math.floor(k / 4);
+	for (let i = 0; i < uv.count; i++) uv.setXY(i, (col + uv.getX(i)) / 4, (1 - row + uv.getY(i)) / 2);
+	return geo;
 }
 
 /** Вывеска с надписью. */

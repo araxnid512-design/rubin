@@ -98,7 +98,7 @@ export default {
 				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), M.brick);
 				kb.add(place(box(W + 0.4, 0.3, D + 0.4, 3), cx, H + 0.15, cz), M.roofTar);
 				for (const x of [-3.2, -1.7, 1.7, 3.2]) for (const y of [1.6, 4.4]) {
-					const win = new THREE.PlaneGeometry(1.0, 1.2);
+					const win = T.windowUV(new THREE.PlaneGeometry(1.0, 1.2), x === 1.7 && y > 4 ? 3 : 0); // клетка атласа окон
 					win.translate(cx + x, y, cz + D / 2 + 0.01);
 					kb.add(win, M.window);
 				}

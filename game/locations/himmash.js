@@ -50,7 +50,7 @@ export default {
 			occluder('Boiler', (kb) => {
 				kb.add(place(box(W, H, D, 2, 1.6), cx, H / 2, cz), M.brick);
 				kb.add(place(box(W + 0.4, 0.3, D + 0.4, 3), cx, H + 0.15, cz), M.roofTar);
-				for (const x of [-3, 0, 3]) { const win = new THREE.PlaneGeometry(1.4, 2.0); win.translate(cx + x, 3.6, cz + D / 2 + 0.01); kb.add(win, M.window); }
+				for (const x of [-3, 0, 3]) { const win = T.windowUV(new THREE.PlaneGeometry(1.4, 2.0), x === 0 ? 1 : 0); win.translate(cx + x, 3.6, cz + D / 2 + 0.01); kb.add(win, M.window); }
 				kb.add(place(box(1.6, 2.4, 0.1), cx - 3.6, 1.2, cz + D / 2 + 0.05), M.metalDark);
 			}, { cx, cz, ry: 0, hx: W / 2 + 0.3, hz: D / 2 + 0.6, top: H + 0.4 }, 0.25);
 			collide(cx, cz, W, D);
@@ -93,7 +93,8 @@ export default {
 				kb.add(place(box(W + 0.4, 0.3, D + 0.4, 3), cx, H + 0.15, cz), M.roofTar);
 				for (let i = 0; i < 7; i++) for (const y of [1.7, 4.8, 7.9]) {
 					for (const face of [1, -1]) {
-						const win = new THREE.PlaneGeometry(1.2, 1.4);
+						// окна разные (выбитые, заколоченные, с газетой) — по месту, без генератора случайных чисел
+						const win = T.windowUV(new THREE.PlaneGeometry(1.2, 1.4), [0, 0, 1, 0, 2, 0, 3, 1, 0][(i * 5 + Math.round(y) * 3 + (face > 0 ? 0 : 4)) % 9]);
 						if (face < 0) win.rotateY(Math.PI);
 						win.translate(cx - W / 2 + 2 + i * 3, y, cz + face * (D / 2 + 0.01));
 						kb.add(win, M.window);
