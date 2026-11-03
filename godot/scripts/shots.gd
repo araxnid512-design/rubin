@@ -542,6 +542,13 @@ func _capture(id: String, n: int, label: String, save: bool) -> void:
 		"gpu_ms": RenderingServer.viewport_get_measured_render_time_gpu(vp_rid),
 		"vmem_mb": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0,
 		"enemies": game.enemies.size(),
+		# нагрузка процессора (рендер в CI программный — его время в «ЦП» выше; здесь — скрипты и физика кадра)
+		"proc_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		"phys_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		# персонажи: видимые скелеты; анимации, которые считаются каждый кадр (не «ленивые» — AnimLod)
+		"chars": game.find_children("*", "Skeleton3D", true, false).filter(func(s): return s.is_visible_in_tree()).size(),
+		"anims": game.find_children("*", "AnimationMixer", true, false).filter(func(a): return a.active and a.callback_mode_process != AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL).size(),
 	}
 	if save:
 		var img: Image = game.get_viewport().get_texture().get_image()
@@ -557,8 +564,12 @@ func _write() -> void:
 	var txt := "Снимки локаций Godot-версии (%s)\n" % Time.get_datetime_string_from_system(true)
 	var html := "<!doctype html><meta charset=utf-8><title>Улей Godot: снимки</title><style>body{background:#111;color:#ddd;font:14px sans-serif;margin:12px}img{width:100%;max-width:1600px;display:block}figure{margin:0 0 18px}</style><h1>Снимки локаций</h1>"
 	for r in rows:
-		var line := "%s %d (%s): вызовов %d, треугольников %d, объектов %d, ЦП %.1f мс, ГП %.1f мс, видеопамять %.0f МБ%s" % [
-			r["loc"], r["n"], r["label"], r["draws"], r["prims"], r["objects"], r["cpu_ms"], r["gpu_ms"], r["vmem_mb"],
+		var cpu := ""
+		if r.has("proc_ms"):
+			cpu = ", процесс %.1f мс, физика %.1f мс, узлов %d, персонажей %d, анимаций каждый кадр %d" % [
+				r["proc_ms"], r["phys_ms"], r["nodes"], r["chars"], r["anims"]]
+		var line := "%s %d (%s): вызовов %d, треугольников %d, объектов %d, ЦП %.1f мс, ГП %.1f мс, видеопамять %.0f МБ%s%s" % [
+			r["loc"], r["n"], r["label"], r["draws"], r["prims"], r["objects"], r["cpu_ms"], r["gpu_ms"], r["vmem_mb"], cpu,
 			(" — " + r["file"]) if r["file"] != "" else ""]
 		txt += line + "\n"
 		if r["file"] != "":
