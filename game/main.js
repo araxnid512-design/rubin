@@ -22,7 +22,6 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
 import { leftHandIK } from './hand-ik.js';
-import { crouchPose } from './crouch.js';
 import { loadEnvProps } from './env-props.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
@@ -416,8 +415,6 @@ class Actor {
 	update(dt) {
 		this.mixer.update(dt);
 		if (this.recoil > 0.003) this.applyRecoil(dt);
-		// присед (у героя): таз ниже, стопы на месте, корпус вперёд — поверх любого клипа (game/crouch.js)
-		if (this.crouchK > 0.001 || this.crouchRig) crouchPose(this.model, this.root, this.crouchK, this.crouchRig ??= {});
 		// левая кисть — на цевье именно этой модели ствола (у новых моделей цевьё у каждой своё; у заражённых — ничего)
 		leftHandIK(this.model, this.ik ??= {});
 		if (this.flash > 0) {
@@ -640,9 +637,6 @@ class Player extends Actor {
 		this.pending = [];
 		this.alive = true;
 		this.lastHurt = -99;
-		// присед: crouched — включён (кнопка, C), crouchK — насколько присел сейчас (плавно 0…1)
-		this.crouched = false;
-		this.crouchK = 0;
 		// точка хвата в кулаке и крепления оружия на теле (чехол топора, кобура, ремень за спиной)
 		this.hand = this.model.getObjectByName('GripR');
 		this.mountNodes = Object.fromEntries(Object.entries(MOUNTS).map(([k, n]) => [k, this.model.getObjectByName(n)]));
@@ -738,8 +732,6 @@ class Player extends Actor {
 		if (!this.alive) return;
 		this.hp = 0;
 		this.alive = false;
-		this.crouched = false;
-		this.crouchK = 0; // падает из обычной позы (мёртвому присед не считается)
 		this.play('Death', { once: true, fade: 0.1 });
 		this.pending.push({ t: 0.55, fn: () => this.dropWeapon() });
 		game.over(reason);
@@ -905,8 +897,6 @@ class Player extends Actor {
 		// регенерация, если давно не ранили
 		if (game.time - this.lastHurt > 6 && this.hp < this.maxHp) { this.hp = Math.min(this.maxHp, this.hp + dt * 3); game.hudThrottled(); }
 
-		// присед: тише и медленнее, заражённые и муры замечают ближе (Enemy.idle, game.banditTarget)
-		this.crouchK += ((this.crouched ? 1 : 0) - this.crouchK) * Math.min(1, dt * 7);
 		const mv = input.move;
 		const mag = Math.min(1, Math.hypot(mv.x, mv.y));
 		const c = this.clips;
@@ -914,16 +904,14 @@ class Player extends Actor {
 			// во время удара почти стоим на месте
 			if (mag > 0.1) this.pos.addScaledVector(tmpV.set(mv.x, 0, mv.y).normalize(), dt * 0.6 * mag);
 		} else if (mag > 0.12) {
-			// шаг 1.1–1.7 м/с, бег 3.6–5 м/с, в приседе — шаг 0.55–0.95 м/с (бега нет); анимация ускоряется
-			// вместе с героем, ноги не скользят
-			const run = mag > 0.55 && !this.crouched;
-			const walk = Math.min(1, (mag - 0.12) / 0.43);
-			const speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : this.crouched ? 0.55 + 0.4 * walk : 1.1 + 0.6 * walk;
+			// шаг 1.1–1.7 м/с, бег 3.6–5 м/с; анимация ускоряется вместе с героем, ноги не скользят
+			const run = mag > 0.55;
+			const speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : 1.1 + (0.6 * Math.min(1, (mag - 0.12) / 0.43));
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
 			this.pos.addScaledVector(dir, speed * dt);
 			if (run && (this.stepDust = (this.stepDust ?? 0) + speed * dt) > 1.1) { this.stepDust = 0; game.dust(this.pos); }
 			// шаги слышно: асфальт, трава, грунт или пол — по тому, что под ногами
-			if ((this.stride = (this.stride ?? 0) + speed * dt) > (run ? 1.05 : 0.68)) { this.stride = 0; Sfx.step(level.surface(this.pos), run, this.crouched); }
+			if ((this.stride = (this.stride ?? 0) + speed * dt) > (run ? 1.05 : 0.68)) { this.stride = 0; Sfx.step(level.surface(this.pos), run); }
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 12);
 			const clip = run ? c.run : c.walk;
 			this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
@@ -1036,9 +1024,7 @@ class Enemy extends Actor {
 	}
 
 	idle(dt, p, dist) {
-		// присевшего героя замечают ближе: вплотную — с 2 м вместо 3,5, на виду — с 55 % обычного
-		const low = p.crouched ? 0.55 : 1;
-		if (p.alive && (dist < (p.crouched ? 2 : 3.5) || (dist < (this.T.sight ?? 13) * low && lineOfSight(this.pos, p.pos)))) { this.alert(); return; }
+		if (p.alive && (dist < 3.5 || (dist < (this.T.sight ?? 13) && lineOfSight(this.pos, p.pos)))) { this.alert(); return; }
 		// в стае бегун бродит вокруг вожака и догоняет, если отстал; вожак водит стаю по кластеру
 		if (this.leader && !this.leader.alive) this.leader = null;
 		const lead = this.leader;
@@ -1955,7 +1941,6 @@ const game = {
 			this.player?.dispose();
 			this.player = new Player(assets.player, this.kit);
 			this.player.maxHp = this.player.hp = this.perks.maxHp;
-			$('btn-crouch').classList.remove('on'); // новый герой стоит
 		}
 		this.player.kit = this.kit;
 		this.player.pos.copy(spot.pos);
@@ -2129,8 +2114,7 @@ const game = {
 		let best = null, bd = R;
 		const look = (a) => {
 			if (!a?.alive) return;
-			// присевшего героя мур замечает с 60 % дальности ствола (уже стреляет по нему — видит как обычно)
-			const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) / (a.crouched && b.target !== a ? 0.6 : 1);
+			const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
 			if (d < bd && lineOfSight(b.pos, a.pos)) { bd = d; best = a; }
 		};
 		for (const e of this.enemies) look(e);
@@ -3411,10 +3395,6 @@ function update(dt) {
 		if (input.consume('search')) game.act();
 		if (input.consume('switch')) game.player.switchWeapon();
 		if (input.consume('reload')) game.player.reload();
-		if (input.consume('crouch') && game.player.alive) {
-			game.player.crouched = !game.player.crouched;
-			$('btn-crouch').classList.toggle('on', game.player.crouched);
-		}
 	}
 	game.player.update(dt, input); // там же спуск: тап — один выстрел, удержание — серия
 	// кольцо перезарядки на кнопке ⟳

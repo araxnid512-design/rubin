@@ -183,7 +183,7 @@ export const Sfx = {
 	/** Дальний гром: кластер вот-вот перезагрузится. */
 	thunder(power = 1) { play('thunder', { gain: 0.55 * power, rate: vary(0.08), pan: (Math.random() - 0.5) * 0.8 }); },
 	/** Шаг героя по покрытию (road | grass | dirt | floor); на бегу — громче. */
-	step(surface = 'road', run = false, quiet = false) { play(pick(STEPS[surface] ?? STEPS.road), { gain: run ? 0.32 : quiet ? 0.07 : 0.2, rate: vary(0.08) }); },
+	step(surface = 'road', run = false) { play(pick(STEPS[surface] ?? STEPS.road), { gain: run ? 0.32 : 0.2, rate: vary(0.08) }); },
 	/**
 	 * Выстрел ствола id (kind — запасной синтез: pistol | shotgun | rifle). at — где стреляют ({ d, pan }).
 	 * У каждого выстрела чуть своя высота — очередь не звучит как один и тот же сэмпл.

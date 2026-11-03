@@ -436,8 +436,16 @@ const freeHandL = (rig, d = [0, 0, 0], rot = [8, 0, 6]) => ({ pos: add(rig.shoul
 
 // ---------- Клипы ----------
 
+// Стоя (на месте, в прицеле, при выстреле, перезарядке, смене оружия) — ноги почти прямые: таз ниже позы покоя всего
+// на STAND (колени согнуты на 5–15°). Раньше стойки были на 2,5–4,5 см ниже — колени на 20–30°, таз отставлен назад:
+// со стороны герой будто приседал (жалоба пользователя «не надо приседать»). standH(rig, base) — высота, от которой
+// клип отсчитывает свои ключи «H − base…»: его покой становится H − STAND, движения (присед при ударе, отшатывание
+// от попадания) — прежние относительно покоя.
+const STAND = 0.008;
+const standH = (rig, base) => rig.hipsY + base - STAND;
+
 function idleAxe(rig) {
-	const H = rig.hipsY, d = 3;
+	const H = standH(rig, 0.025), d = 3;
 	return (t) => {
 		const w = (f, ph = 0) => Math.sin((t / d) * Math.PI * 2 * f + ph);
 		return {
@@ -473,11 +481,11 @@ function idleAxe(rig) {
  */
 const GAIT = {
 	walk: { set: { F: 'Walk_Loop', FL: 'Walk_Fwd_L_Loop', L: 'Walk_L_Loop', BL: 'Walk_Bwd_L_Loop', B: 'Walk_Bwd_Loop', BR: 'Walk_Bwd_R_Loop', R: 'Walk_R_Loop', FR: 'Walk_Fwd_R_Loop' },
-		stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 1, lift: 0.85, contact: 0.05,
+		stride: { axe: 1.25, pistol: 1.15, rifle: 1.2 }, drop: 1, bob: 0.8, lift: 0.55, contact: 0.05,
 		twist: { axe: 0.8, pistol: 0.45, rifle: 0.3 }, lean: { axe: 3, pistol: 6, rifle: 6 }, pelvis: 3, look: { axe: 0, pistol: -3, rifle: -3 } },
 	run: { set: { F: 'Jog_Fwd_Loop', FL: 'Jog_Fwd_L_Loop', L: 'Walk_L_Loop', BL: 'Jog_Bwd_L_Loop', B: 'Jog_Bwd_Loop', BR: 'Jog_Bwd_R_Loop', R: 'Walk_R_Loop', FR: 'Jog_Fwd_R_Loop' },
-		stride: { axe: 0.66, pistol: 0.62, rifle: 0.64 }, drop: 0.6, bob: 0.45, lift: 0.75, contact: 0.06,
-		twist: { axe: 0.28, pistol: 0.28, rifle: 0.18 }, lean: { axe: 9, pistol: 9, rifle: 10 }, pelvis: 9, look: { axe: -8, pistol: -8, rifle: -8 } },
+		stride: { axe: 0.66, pistol: 0.62, rifle: 0.64 }, drop: 0.45, bob: 0.4, lift: 0.55, contact: 0.06,
+		twist: { axe: 0.28, pistol: 0.28, rifle: 0.18 }, lean: { axe: 5, pistol: 5, rifle: 6 }, pelvis: 5, look: { axe: -4, pistol: -4, rifle: -4 } },
 };
 for (const g of Object.values(GAIT)) g.d = UAL_GAIT[g.set.F].d;
 /** Направления набора — по кругу против часовой (если смотреть сверху): вперёд, влево, назад, вправо. */
@@ -659,7 +667,7 @@ function swingAxe(deg) {
 }
 
 function meleeAxe(rig) {
-	const H = rig.hipsY, a = rig.ankle;
+	const H = standH(rig, 0.025), a = rig.ankle;
 	const st = stance(rig);
 	const carry = axeCarry(rig);
 	const T = [0, 0.1, 0.2, 0.27, 0.33, 0.45, 0.58, 0.75];
@@ -704,7 +712,7 @@ function meleeAxe(rig) {
 }
 
 function idlePistol(rig) {
-	const H = rig.hipsY, d = 3;
+	const H = standH(rig, 0.035), d = 3;
 	return (t) => {
 		const w = (f, ph = 0) => Math.sin((t / d) * Math.PI * 2 * f + ph);
 		return {
@@ -724,7 +732,7 @@ function idlePistol(rig) {
 
 // Прицеливание: пистолет двумя руками на вытянутых руках на линии глаз, корпус чуть вперёд
 function aimPose(rig, { pos, handle, blade, trigger = 0.45, torso = [6, 3, 0], hips = 0 }) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.045);
 	return {
 		hips: [0, H - 0.045, 0.01 + hips], pelvis: [4, -3, 0], torso, look: [-4, 0, 0],
 		feet: pistolStance(rig),
@@ -766,7 +774,7 @@ function shootPistol(rig) {
 
 // Перезарядка: пистолет к себе, левая рука — за магазином в подсумок на груди, вставляет, досылает
 function reloadPistol(rig) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.035);
 	const k = at([0, 0.18, 0.4, 0.62, 0.82, 1.0, 1.15, 1.4]);
 	const ready = pistolReady();
 	const close = pistolReady([0.03, 0.06, -0.08], 0.35);
@@ -797,7 +805,7 @@ function reloadPistol(rig) {
 
 // Получение урона: вздрагивает, корпус и голова откидываются, оружие поджимается к себе
 function hit(rig, pistol) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.03);
 	const k = at([0, 0.08, 0.2, 0.4]);
 	const P = curves({
 		hips: k([0, H - 0.03, 0], [0, H - 0.05, -0.05], [0, H - 0.045, -0.04], [0, H - 0.03, 0]),
@@ -841,7 +849,7 @@ function handPath(rig, s, T, keys) {
 }
 
 function equip(rig, toPistol) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.03);
 	const carry = axeCarry(rig), ready = pistolReady();
 	const axeM = rig.mounts.axe, holM = rig.mounts.pistol;
 	// подход к креплению: кулак чуть отведён от него, чтобы рука подходила, а не проходила сквозь
@@ -914,7 +922,7 @@ function equip(rig, toPistol) {
 
 /** Поза с автоматом: правая рука держит рукоять, левая — цевьё (вес gun — насколько держит). */
 function riflePose(rig, { grip, torso = [6, 8, 0], look = [-3, 4, 0], hips = 0, left = null, gunW = 1, gunSpec = FOREGRIP, trigger = 0.45 }) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.04);
 	return {
 		hips: [0, H - 0.04, 0.01 + hips], pelvis: [3, -10, 0], torso, look,
 		feet: pistolStance(rig),
@@ -984,7 +992,7 @@ function reloadRifle(rig) {
 }
 
 function hitRifle(rig) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.04);
 	const k = at([0, 0.08, 0.2, 0.4]);
 	const P = curves({ hips: k([0, H - 0.04, 0], [0, H - 0.06, -0.05], [0, H - 0.05, -0.04], [0, H - 0.04, 0]), torso: k([6, 8, 0], [-8, 14, 4], [2, 10, 0], [6, 8, 0]), look: k([-3, 4, 0], [-14, 14, 6], [-3, 6, 0], [-3, 4, 0]), f: k([0], [1], [0.4], [0]) });
 	return (t) => {
@@ -999,7 +1007,7 @@ function hitRifle(rig) {
  * (крепление BackMount): рука тянется назад к рукояти у бедра, выносит автомат вперёд, левая берёт цевьё.
  */
 function equipRifle(rig, toRifle) {
-	const H = rig.hipsY;
+	const H = standH(rig, 0.03);
 	const carry = axeCarry(rig), ready = rifleReady();
 	const axeM = rig.mounts.axe, backM = rig.mounts.back;
 	const near = (m, d) => ({ ...m, pos: m.pos.map((v, i) => v + d[i]) });
@@ -1061,7 +1069,7 @@ function equipRifle(rig, toRifle) {
 
 // Смерть: колени подгибаются, садится и падает на спину, руки раскинуты (оружие игра роняет на 0.55 с)
 function death(rig) {
-	const H = rig.hipsY, a = rig.ankle;
+	const H = standH(rig, 0.03), a = rig.ankle;
 	const k = at([0, 0.15, 0.45, 0.75, 1.05, 1.2, 1.35, 2.2]);
 	const P = curves({
 		hips: k([0, H - 0.03, 0], [0, H - 0.06, -0.03], [0.01, H - 0.32, -0.12], [0.02, 0.22, -0.28], [0.02, 0.14, -0.42], [0.02, 0.17, -0.43], [0.02, 0.125, -0.44], [0.02, 0.125, -0.44]),

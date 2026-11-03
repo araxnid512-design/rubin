@@ -124,10 +124,6 @@
 		#btn-attack { right: calc(22px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 96px; height: 96px; font-size: 40px; }
 		#btn-weapon { right: calc(130px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 64px; height: 64px; }
 		#btn-reload { right: calc(40px + env(safe-area-inset-right)); bottom: calc(138px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 22px; }
-		/* присед: включается и выключается нажатием, пока включён — подсвечен */
-		#btn-crouch { right: calc(208px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 58px; height: 58px; }
-		#btn-crouch svg { width: 60%; height: 60%; }
-		#btn-crouch.on { background: rgba(200,216,106,0.5); border-color: rgba(230,240,180,0.8); }
 		@media (max-width: 480px) { .hp { width: min(250px, 64vw); } .stats { gap: 9px; font-size: 12px; } }
 		/* горизонтальный телефон: низкий экран */
 		body.short .screen { padding: 8px; }
@@ -143,7 +139,6 @@
 		body.rotated .hp { width: 228px; } /* vw при повороте считаются от вертикального экрана */
 		body.short #btn-attack { width: 88px; height: 88px; bottom: 22px; right: 22px; }
 		body.short #btn-weapon { bottom: 30px; right: 124px; }
-		body.short #btn-crouch { bottom: 30px; right: 198px; }
 		body.short #btn-reload { bottom: 124px; right: 36px; }
 		body.short #btn-heal { bottom: 108px; right: 112px; }
 		body.short #avatar { width: 50px; height: 50px; }
@@ -458,7 +453,6 @@
 		<div id="stick-base"><div id="stick-knob"></div></div>
 		<div class="tbtn" id="btn-attack"></div>
 		<div class="tbtn" id="btn-weapon"></div>
-		<div class="tbtn" id="btn-crouch" title="Присесть (C)"><svg viewBox="0 0 24 24" fill="none" stroke="#e8ecdf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M12 7.5v5.5l-4 1.5-1 5.5"/><path d="M12 13l4 1.5 1 5.5"/><path d="M12 9l-3.5 3M12 9l3.5 3"/></svg></div>
 		<div class="tbtn" id="btn-reload">⟳</div>
 		<div class="tbtn" id="btn-heal"><span class="badge" id="heal-count">0</span></div>
 		<div class="tbtn" id="btn-grenade"><span class="badge" id="grenade-count">0</span></div>
@@ -601,7 +595,7 @@
 				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
 				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>
 			</div>
-			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>C</b> — присесть · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
 			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
 			<div class="credits">Звуки — записи GoodSoundForYou, MATRIXXX_, DoctorBoomstick, WEL, battlestar10, FST180081, -sihiL, Slave2theLight, missozzy, Aris621, InspectorJ (CC BY), Rolly-SFX, magnuswaker, unfa, FuzzyTuesday, mazlyn, bananplyte, tonsil5, PaulMorek, Ashe Kirk, ali-6868, kretopi, Apostolinkyyti, chromakei и др. (CC0) из набора CC-Sounds (Fris0uman/cdda-soundpacks), подробно — assets/sounds/CREDITS.md. Персонажи — MakeHuman (CC0).</div>
 		</div>
