@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import * as T from './textures.js';
 import { paperTexture, grimeTexture, quadUV } from './dressing.js';
 import { Batch, box, place, planeXZ, beginProp, endProp } from './geom.js';
-import { hash01, Quads, windowTrim, windowSill, windowBoards } from './facade.js';
+import { hash01, boxTop, windowTrim, windowSill, windowBoards } from './facade.js';
 
 /** Высота, по которой срезаются стены, когда герой внутри. */
 export const CUT = 1.05;
@@ -241,7 +241,7 @@ class Building {
 		this.top_(this.onWall(g, side, at, t, 0.015), M.window);
 		if (trim) this.top_(this.onWall(windowTrim(1.1, 1.4).translate(0, y, 0), side, at, t), trim);
 		if (sill) this.top_(this.onWall(windowSill(1.1, 1.4).translate(0, y, 0), side, at, t), sill);
-		if (kind === 2) for (const b of windowBoards(1.1, 1.4, hash01(this.name, at, side, 'b'), box)) this.top_(this.onWall(b.translate(0, y, 0), side, at, t), M.woodGrey);
+		if (kind === 2) for (const b of windowBoards(1.1, 1.4, hash01(this.name, at, side, 'b'))) this.top_(this.onWall(b.translate(0, y, 0), side, at, t), M.woodGrey);
 	}
 
 	/** Грязь по низу наружной стены: полоса-наклейка на плоскости (вдоль axis на линии k, от a0 до a1), лицом в dir. */
@@ -258,7 +258,7 @@ class Building {
 	wallBox(side, at, w, y0, y1, d, mat, { t = 0.2, off = 0, x = 0 } = {}) {
 		for (const [a, b, up] of [[y0, Math.min(y1, CUT), false], [Math.max(y0, CUT), y1, true]]) {
 			if (b - a < 0.01) continue;
-			const g = this.onWall(box(w, b - a, d, 1).translate(x, (a + b) / 2, d / 2 + off), side, at, t);
+			const g = this.onWall(boxTop(w, b - a, d, 1, 1, { back: false }).translate(x, (a + b) / 2, d / 2 + off), side, at, t);
 			if (up) this.top_(g, mat); else this.lower(g, mat);
 		}
 	}
@@ -268,13 +268,13 @@ class Building {
 	 * (иначе — на кронштейнах). Плита и верх столбов — с крышей (исчезают, когда герой внутри).
 	 */
 	canopy(side, at, { w = 1.8, d = 1.1, y = 2.45, mat, posts = null, t = 0.2, thick = 0.08 }) {
-		const slab = box(w, thick, d, 1).rotateX(0.1).translate(0, y, d / 2);
+		const slab = boxTop(w, thick, d, 1).rotateX(0.1).translate(0, y, d / 2);
 		this.top_(this.onWall(slab, side, at, t), mat);
 		if (posts) {
 			for (const s of [-1, 1]) this.wallBox(side, at, 0.1, 0.0, y - 0.06, 0.1, posts, { t, off: d - 0.16, x: s * (w / 2 - 0.1) });
 		} else {
 			for (const s of [-1, 1]) {
-				const g = box(0.06, 0.06, d * 0.9, 1).rotateX(-0.62).translate(s * (w / 2 - 0.12), y - 0.3, d * 0.4);
+				const g = boxTop(0.06, 0.06, d * 0.9, 1).rotateX(-0.62).translate(s * (w / 2 - 0.12), y - 0.3, d * 0.4);
 				this.top_(this.onWall(g, side, at, t), mat);
 			}
 		}
@@ -282,25 +282,23 @@ class Building {
 
 	/** Вентиляция на крыше (дефлектор): труба и колпак; y — уровень крыши. */
 	vent(x, z, y, mat, { h = 0.7, r = 0.15 } = {}) {
-		this.top_(place(box(r * 2, h, r * 2, 1), x, y + h / 2, z), mat);
-		this.top_(place(box(r * 3.4, 0.05, r * 3.4, 1), x, y + h + 0.07, z), mat);
+		this.top_(place(boxTop(r * 2, h, r * 2, 1), x, y + h / 2, z), mat);
+		this.top_(place(boxTop(r * 3.4, 0.05, r * 3.4, 1), x, y + h + 0.07, z), mat);
 	}
 
-	/** Кирпичная труба на крыше (котельная, печь караулки): от y0 до y1, с оголовком. */
-	chimney(x, z, y0, y1, w = 0.5) {
-		const brick = this.ctx.M.brick;
-		this.top_(place(box(w, y1 - y0, w, 1), x, (y0 + y1) / 2, z), brick);
-		this.top_(place(box(w + 0.14, 0.1, w + 0.14, 1), x, y1 - 0.05, z), brick);
+	/** Кирпичная труба на крыше (печь казармы, караулки): от y0 до y1, с оголовком; brick — кирпич стен. */
+	chimney(x, z, y0, y1, w = 0.5, brick = this.ctx.M.brick) {
+		this.top_(place(boxTop(w, y1 - y0, w, 1), x, (y0 + y1) / 2, z), brick);
+		this.top_(place(boxTop(w + 0.14, 0.1, w + 0.14, 1), x, y1 - 0.05, z), brick);
 	}
 
-	/** Плоская крыша: парапет по краю (h над уровнем y) и заплатки рубероида [x, z, w, d, поворот]. */
-	flatRoof(y, { parapet = null, h = 0.3, patches = [] } = {}) {
-		const { W, D } = this, M = this.ctx.M;
-		if (parapet) for (const s of [-1, 1]) {
-			this.top_(place(box(W + 0.5, h, 0.2, 2), 0, y + h / 2, s * (D / 2 + 0.15)), parapet);
-			this.top_(place(box(0.2, h, D + 0.1, 2), s * (W / 2 + 0.15), y + h / 2, 0), parapet);
+	/** Парапет плоской крыши: по краю, высотой h над уровнем крыши y. */
+	parapet(y, mat, h = 0.3) {
+		const { W, D } = this;
+		for (const s of [-1, 1]) {
+			this.top_(place(boxTop(W + 0.5, h, 0.2, 2), 0, y + h / 2, s * (D / 2 + 0.15)), mat);
+			this.top_(place(boxTop(0.2, h, D + 0.1, 2), s * (W / 2 + 0.15), y + h / 2, 0), mat);
 		}
-		for (const [x, z, w, d, r] of patches) this.top_(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).rotateY(r).translate(x, y + 0.006, z), M.ballast);
 	}
 
 	/** Мебель из коробок [w, h, d, x, y, z, материал] в своих осях (поворот rot), с коллайдером. */
@@ -423,13 +421,12 @@ function stove(b, x, z, rot) {
 		[1.2, 0.35, 1.4, 0.1, 1.72, 0.1, whitewash],
 		[0.5, 0.35, 0.05, -0.3, 0.75, 0.86, b.IM.black], // устье
 	], { solid: [1.5, 1.7], prop: 'stove' });
-	// труба — сквозь крышу, исчезает вместе с ней: в доме побелённая, над крышей — кирпичная с оголовком и копотью
+	// труба — сквозь крышу, исчезает вместе с ней: в доме побелённая, над крышей — кирпичная с оголовком
 	const brick = b.ctx.M.brick, top = b.top + 0.3;
 	b.furniture(x, z, rot, [
 		[0.5, b.H - 1.9, 0.5, 0.35, 1.9 + (b.H - 1.9) / 2, 0.4, whitewash],
 		[0.52, top - b.H, 0.52, 0.35, b.H + (top - b.H) / 2, 0.4, brick],
 		[0.66, 0.12, 0.66, 0.35, top - 0.1, 0.4, brick], // оголовок
-		[0.4, 0.02, 0.4, 0.35, top + 0.01, 0.4, b.ctx.M.tire], // закопчённое устье
 	], { up: true });
 }
 
@@ -533,7 +530,7 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 		b.lower(place(box(w, 0.35, d, 2), x, 0.175, z), M.concreteDark);
 	}
 	b.lower(place(box(1.8, 0.18, 1.0), 3.0, 0.09, -hz - 0.65), M.wood);
-	b.lower(place(box(1.4, 0.09, 0.4), 3.0, 0.045, -hz - 1.33), M.wood); // нижняя ступенька
+	b.lower(place(boxTop(1.4, 0.09, 0.4), 3.0, 0.045, -hz - 1.33), M.wood); // нижняя ступенька
 	// крыша светлая — серый шифер или кровельное железо с ржавыми полосами (своё у каждого дома)
 	const roof = hash01(name, 'roof') < 0.5 ? M.slate : M.roofTin;
 	// наружные стены (бревно) с обоями внутри; дверь в передней стене
@@ -545,7 +542,7 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 	b.wall('z', 1.2, -hz + t / 2, hz - t / 2, { mat: paper, t: 0.14, doors: [-1.6] });
 	b.wall('x', 0.2, -hx + t / 2, 1.2 - 0.07, { mat: paper, t: 0.14, doors: [-1.5] });
 	// окна с наличниками
-	const trim = M.white;
+	const trim = IM.whitewash; // побелка — уже есть у дома (стена кухни): без лишнего вызова отрисовки
 	for (const x of [-3.2, -0.9]) b.window('front', x, { trim });
 	for (const x of [-3.2, -0.9, 3.0]) b.window('back', x, { trim });
 	b.window('left', -1.7, { trim }); b.window('left', 1.9, { trim }); b.window('right', 1.0, { trim });
@@ -560,7 +557,7 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 		place(g, 0, H + rise / 2, s * (hz + 0.5) / 2, 0, s * Math.atan2(rise, hz + 0.5));
 		b.top_(g, roof);
 	}
-	b.top_(place(box(roofLen + 0.04, 0.1, 0.24, 1), 0, H + rise + 0.04, 0), M.metalRust); // конёк
+	b.top_(place(boxTop(roofLen + 0.04, 0.1, 0.24, 1), 0, H + rise + 0.04, 0), M.woodGrey); // конёк — доска, как фронтоны
 	// слуховые окошки на фронтонах
 	for (const sx of [-1, 1]) {
 		const g = T.windowUV(new THREE.PlaneGeometry(0.55, 0.6), 1).rotateY(sx * Math.PI / 2).translate(sx * (hx + 0.03), H + 0.75, 0);
@@ -634,12 +631,11 @@ export function buildShop(ctx, { cx, cz }) {
 		for (let k = -1.2; k <= 1.21; k += 0.4) b.top_(place(box(0.04, 1.6, 0.04), -hx - t / 2 - 0.07, 1.7, dz + k), M.metalDark);
 	}
 	b.lower(place(box(1.6, 0.25, 2.6, 1), -hx - 0.8, 0.125, 0), M.concrete);
-	// козырёк над входом (ниже вывески), на крыше — короба вентиляции и заплатки
+	// козырёк над входом (ниже вывески), на крыше — короба вентиляции
 	b.canopy('left', 0, { w: 2.6, d: 1.3, y: 2.2, mat: M.metalRust, t });
-	b.vent(-2.0, 3.5, H + 0.3, M.silver, { h: 0.8 });
-	b.top_(place(box(1.2, 0.7, 0.8, 1), 1.6, H + 0.65, -3.2), M.silver); // короб вентиляции
-	b.top_(place(box(0.5, 0.35, 2.6, 1), 1.6, H + 0.475, -1.4), M.silver);
-	b.flatRoof(H + 0.3, { patches: [[-1.5, -2.5, 2.4, 1.8, 0.3], [2.2, 4.2, 1.8, 1.4, -0.2]] });
+	b.vent(-2.0, 3.5, H + 0.3, M.metalDark, { h: 0.8 });
+	b.top_(place(boxTop(1.2, 0.7, 0.8, 1), 1.6, H + 0.65, -3.2), M.metalDark); // короб вентиляции
+	b.top_(place(boxTop(0.5, 0.35, 2.6, 1), 1.6, H + 0.475, -1.4), M.metalDark);
 	// торговый зал
 	const shelf = (name, x, z, rot, loot) => b.container(name, x, z, rot, [
 		[2.4, 1.9, 0.5, 0, 0.95, 0, IM.furnitureLight],
@@ -688,12 +684,12 @@ export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 	}
 	// крылечко со ступенькой
 	b.lower(place(box(1.6, 0.2, 0.9), 1.7, 0.1, -hz - 0.55), M.wood);
-	b.lower(place(box(1.2, 0.1, 0.36), 1.7, 0.05, -hz - 1.16), M.wood);
+	b.lower(place(boxTop(1.2, 0.1, 0.36), 1.7, 0.05, -hz - 1.16), M.wood);
 	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: boards, t, doors: [1.7], lining: paper, side: 1, sx: 1.2 });
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: boards, t, lining: paper, side: -1, sx: 1.2 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: boards, t, lining: paper, side: 1, sx: 1.2 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: boards, t, lining: paper, side: -1, sx: 1.2 });
-	const trim = M.white;
+	const trim = IM.whitewash;
 	b.window('front', -1.4, { t, trim }); b.window('back', 0.6, { t, trim }); b.window('left', 0, { t, trim });
 	b.furniture(1.7 - 0.62, -hz + 0.08, -1.6, [[1.2, 1.95, 0.05, 0.6, 0.98, 0, M.wood]], { up: true }); // дверь открыта внутрь
 	// двускатная крыша: кровельное железо с ржавыми полосами, светлый шифер, выгоревший зелёный или ржавый профлист
@@ -705,8 +701,9 @@ export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 		place(g, 0, H + rise / 2, s * (hz + 0.45) / 2, 0, s * Math.atan2(rise, hz + 0.45));
 		b.top_(g, roof);
 	}
-	b.top_(place(box(W + 0.74, 0.09, 0.22, 1), 0, H + rise + 0.035, 0), M.metalRust); // конёк
-	b.canopy('front', 1.7, { w: 1.8, d: 1.15, y: 2.3, mat: roof, posts: M.woodGrey, t });
+	// конёк и столбы навеса — из материалов, что уже есть у дачи (меньше вызовов отрисовки)
+	b.top_(place(boxTop(W + 0.74, 0.09, 0.22, 1), 0, H + rise + 0.035, 0), M.wood); // конёк — доска
+	b.canopy('front', 1.7, { w: 1.8, d: 1.15, y: 2.3, mat: roof, posts: M.wood, t });
 	for (const sx of [-1, 1]) {
 		const x = sx * (hx + 0.01);
 		const a = [x, H, -hz], c = [x, H, hz], tp = [x, H + rise, 0];
@@ -748,14 +745,13 @@ export function buildGuardhouse(ctx, { name = 'Guardhouse', cx, cz, ry = 0 }) {
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.whiteBrick, t, lining: IM.whitewash, side: -1 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.whitewash, side: 1 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.whitewash, side: -1 });
-	b.window('front', 1.0, { t, sill: M.white }); b.window('right', 0, { t, sill: M.white });
+	b.window('front', 1.0, { t, sill: M.whiteBrick }); b.window('right', 0, { t, sill: M.whiteBrick });
 	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
-	// железная дверь распахнута наружу к стене, козырёк над входом; на крыше — труба печки и заплатки
+	// железная дверь распахнута наружу к стене, козырёк над входом; на крыше — труба печки и вытяжка
 	b.wallBox('front', -0.75, 1.15, 0.02, 2.05, 0.05, M.metalRust, { t });
 	b.canopy('front', -2.0, { w: 1.6, d: 0.9, y: 2.35, mat: M.roofTar, t });
-	b.chimney(-2.3, 1.6, H + 0.2, H + 1.15, 0.42);
-	b.vent(2.2, -1.0, H + 0.25, M.silver, { h: 0.5, r: 0.1 });
-	b.flatRoof(H + 0.25, { patches: [[0.8, 0.6, 2.0, 1.4, 0.25]] });
+	b.chimney(-2.3, 1.6, H + 0.2, H + 1.15, 0.42, M.whiteBrick);
+	b.vent(2.2, -1.0, H + 0.25, M.metalDark, { h: 0.5, r: 0.1 });
 	const sign = new THREE.PlaneGeometry(2.6, 0.5);
 	sign.rotateY(Math.PI); sign.translate(1.0, H - 0.35, -hz - t / 2 - 0.02);
 	b.top_(sign, ctx.M.guardSign ?? M.metalDark);
@@ -791,13 +787,12 @@ export function buildQuarters(ctx, { name = 'Quarters', cx, cz, ry = 0 }) {
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: -1 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: 1 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.wallpaper[1], side: -1 });
-	const sill = M.white;
+	const sill = M.brick; // подоконники — из кирпича стен
 	b.window('front', -3.4, { t, sill }); b.window('front', -1.0, { t, sill }); b.window('front', 3.6, { t, sill }); b.window('left', 0, { t, sill });
 	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
 	b.canopy('front', door, { w: 2.2, d: 1.1, y: 2.8, mat: M.metalRust, t }); // козырёк над табличкой
-	b.vent(-3.0, 1.2, H + 0.25, M.silver);
-	b.vent(3.4, -1.4, H + 0.25, M.silver, { h: 0.5, r: 0.1 });
-	b.flatRoof(H + 0.25, { patches: [[0.5, 0.8, 2.6, 1.6, 0.15]] });
+	b.vent(-3.0, 1.2, H + 0.25, M.metalDark);
+	b.vent(3.4, -1.4, H + 0.25, M.metalDark, { h: 0.5, r: 0.1 });
 	b.lower(place(box(1.6, 0.18, 1.0), door, 0.09, -hz - 0.6), M.concrete);
 	b.furniture(door + 0.62, -hz + 0.1, 1.75, [[1.2, 2.05, 0.05, -0.6, 1.03, 0, M.metalDark]], { up: true }); // дверь открыта внутрь
 	// табличка над дверью
@@ -889,7 +884,7 @@ export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
 	b.wall('z', 6.5, 1.5, hz - t / 2, { mat: IM.factoryWall, t: 0.15, doors: [3.0] });
 	b.wall('x', 1.5, 6.5, hx - t / 2, { mat: IM.factoryWall, t: 0.15 });
 	// высокие окна по фасаду и сзади
-	const sill = M.white;
+	const sill = M.brick;
 	for (const x of [-9, 3, 9]) b.window('front', x, { y: 3.4, t, sill });
 	for (const x of [-2, 2]) b.window('back', x, { y: 3.4, t, sill });
 	b.window('left', -3, { y: 3.4, t, sill });
@@ -900,18 +895,18 @@ export function buildWorkshop(ctx, { name = 'Workshop', cx, cz, ry = 0 }) {
 	b.canopy('right', -3.5, { w: 1.8, d: 0.9, y: 2.45, mat: M.metalRust, t });
 	// водостоки по углам фасада
 	for (const s of [-1, 1]) {
-		b.wallBox('front', s * (hx - 0.3), 0.14, 0.25, H + 0.2, 0.14, M.roofTin, { t, off: 0.04 });
-		b.lower(b.onWall(box(0.14, 0.12, 0.42, 1).translate(0, 0.3, 0.25), 'front', s * (hx - 0.3), t), M.roofTin);
+		b.wallBox('front', s * (hx - 0.3), 0.14, 0.25, H + 0.2, 0.14, M.silver, { t, off: 0.04 });
+		b.lower(b.onWall(boxTop(0.14, 0.12, 0.42, 1).translate(0, 0.3, 0.25), 'front', s * (hx - 0.3), t), M.silver);
 	}
 	// плоская кровля со световым фонарём и кран-балка на рельсах
 	b.top_(place(box(W + 0.6, 0.3, D + 0.6, 3), 0, H + 0.15, 0), M.roofTar);
 	b.top_(place(box(W - 4, 0.5, 2.2, 2), 0, H + 0.55, 0), M.glass);
-	// кирпичный парапет, дефлекторы, оцинкованный воздуховод, люк, заплатки рубероида
-	b.flatRoof(H + 0.3, { parapet: M.brick, h: 0.35, patches: [[-7, -4.2, 3.0, 1.8, 0.2], [6.5, 4.0, 2.4, 2.0, -0.35], [-2, 4.6, 1.8, 1.2, 0.5]] });
+	// кирпичный парапет, дефлекторы, оцинкованный воздуховод, люк
+	b.parapet(H + 0.3, M.brick, 0.35);
 	for (const [x, z] of [[-9.5, -4.5], [-5, 4.4], [5.5, -4.6], [9.8, 4.2]]) b.vent(x, z, H + 0.3, M.silver);
-	b.top_(place(box(7, 0.55, 0.55, 1), 4.5, H + 0.58, 3.0), M.silver);
-	b.top_(place(box(0.55, 1.1, 0.55, 1), 8.0, H + 0.85, 3.0), M.silver);
-	b.top_(place(box(1.0, 0.25, 1.0, 1), -9.0, H + 0.42, 2.6), M.metalRust); // люк
+	b.top_(place(boxTop(7, 0.55, 0.55, 1), 4.5, H + 0.58, 3.0), M.silver);
+	b.top_(place(boxTop(0.55, 1.1, 0.55, 1), 8.0, H + 0.85, 3.0), M.silver);
+	b.top_(place(boxTop(1.0, 0.25, 1.0, 1), -9.0, H + 0.42, 2.6), M.metalRust); // люк
 	for (const z of [-hz + 0.6, hz - 0.6]) b.top_(place(box(W - 0.8, 0.25, 0.25), 0, H - 0.6, z), M.metalDark);
 	b.top_(place(box(0.5, 0.45, D - 1.2), 2, H - 0.85, 0), M.yellow);
 	b.top_(place(box(0.6, 0.5, 0.6), 2, H - 1.3, -1), M.metalDark);
@@ -966,7 +961,7 @@ export function buildWarehouse(ctx, { name = 'Warehouse', cx, cz, ry = 0 }) {
 		place(g, 0, H + rise / 2, s * (hz + 0.4) / 2, 0, s * Math.atan2(rise, hz + 0.4));
 		b.top_(g, M.roofMetal);
 	}
-	b.top_(place(box(W + 0.64, 0.1, 0.26, 1), 0, H + rise + 0.035, 0), M.metalRust); // конёк
+	b.top_(place(boxTop(W + 0.64, 0.1, 0.26, 1), 0, H + rise + 0.035, 0), M.metalRust); // конёк
 	for (const x of [-5, 0, 5]) b.vent(x, 0, H + rise - 0.05, M.silver, { h: 0.6, r: 0.18 }); // дефлекторы на коньке
 	// откатные ворота отъехали вбок (рельс над проёмом), решётки вентиляции на фронтонах
 	b.wallBox('front', -0.45, 3.9, 0.02, 2.08, 0.07, M.metalRust, { t });
@@ -1032,7 +1027,7 @@ export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: 1 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: -1 });
 	b.wall('z', 5, -hz + t / 2, hz - t / 2, { mat: IM.armyWall, t: 0.14, doors: [-2.4] }); // каптёрка
-	const sill = M.white;
+	const sill = M.whiteBrick;
 	for (const x of [-7, -4, 2, 4]) b.window('front', x, { t, sill });
 	for (const x of [-7, -4, -1, 2, 7]) b.window('back', x, { t, sill });
 	// двускатная крыша с фронтонами из кирпича, конёк, две печные трубы
@@ -1052,12 +1047,12 @@ export function buildArmyBarracks(ctx, { name = 'ArmyBarracks', cx, cz, ry = 0 }
 		b.top_(tri, M.whiteBrick);
 		b.top_(T.windowUV(new THREE.PlaneGeometry(0.6, 0.6), 1).rotateY(sx * Math.PI / 2).translate(x + sx * 0.02, H + 0.7, 0), M.window);
 	}
-	b.top_(place(box(W + 0.84, 0.1, 0.26, 1), 0, H + rise + 0.04, 0), M.metalRust); // конёк
-	b.chimney(-4.6, 1.6, H + 0.9, H + rise + 0.9);
-	b.chimney(6.2, -1.4, H + 0.9, H + rise + 0.9);
+	b.top_(place(boxTop(W + 0.84, 0.1, 0.26, 1), 0, H + rise + 0.04, 0), M.metalRust); // конёк
+	b.chimney(-4.6, 1.6, H + 0.9, H + rise + 0.9, 0.5, M.whiteBrick);
+	b.chimney(6.2, -1.4, H + 0.9, H + rise + 0.9, 0.5, M.whiteBrick);
 	// вход: козырёк на кирпичных столбах, ступень, дверь распахнута наружу к стене
 	b.canopy('front', -1, { w: 2.4, d: 1.4, y: 2.6, mat: M.metalRust, posts: M.whiteBrick, t });
-	b.lower(place(box(1.8, 0.12, 0.6), -1, 0.06, -hz - t / 2 - 0.3), M.concrete);
+	b.lower(place(boxTop(1.8, 0.12, 0.6), -1, 0.06, -hz - t / 2 - 0.3), M.concrete);
 	b.wallBox('front', 0.25, 1.15, 0.02, 2.05, 0.05, M.metalRust, { t });
 	// кровати вдоль задней стены и тумбочки между ними
 	const beds = [-8.0, -5.6, -3.2, 0.8, 3.2];
@@ -1091,16 +1086,16 @@ export function buildArmory(ctx, { name = 'Armory', cx, cz, ry = 0 }) {
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.brick, t, lining: IM.armyWall, side: -1 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.armyWall, side: 1 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.brick, t, lining: IM.armyWall, side: -1 });
-	b.window('front', 1.5, { t, sill: M.white }); b.window('back', 0, { t, sill: M.white });
+	b.window('front', 1.5, { t, sill: M.brick }); b.window('back', 0, { t, sill: M.brick });
 	for (let k = -0.45; k <= 0.46; k += 0.18) b.top_(place(box(0.04, 1.4, 0.04), 1.5 + k, 1.65, -hz - t / 2 - 0.04), M.metalDark); // решётка
 	b.top_(place(box(W + 0.5, 0.3, D + 0.5, 3), 0, H + 0.15, 0), M.roofTar);
 	b.furniture(-2.2 + 0.62, -hz + 0.1, 1.75, [[1.2, 2.05, 0.06, -0.6, 1.03, 0, M.metalRust]], { up: true }); // ржавая железная дверь открыта
 	// стальной козырёк на кронштейнах; на крыше — парапет, вытяжки, люк
 	b.canopy('front', -2.2, { w: 1.8, d: 1.0, y: 2.5, mat: M.metalRust, t });
-	b.flatRoof(H + 0.3, { parapet: M.brick, h: 0.3, patches: [[1.2, 0.8, 2.2, 1.6, 0.2]] });
+	b.parapet(H + 0.3, M.brick);
 	b.vent(-2.6, 1.6, H + 0.3, M.silver);
 	b.vent(2.8, -1.8, H + 0.3, M.silver, { h: 0.5, r: 0.12 });
-	b.top_(place(box(0.9, 0.22, 0.9, 1), 0.4, H + 0.41, 1.4), M.metalRust); // люк
+	b.top_(place(boxTop(0.9, 0.22, 0.9, 1), 0.4, H + 0.41, 1.4), M.metalRust); // люк
 	// пирамиды: металлические стойки с прикладами (силуэты стволов)
 	const pyramid = (x, z, rot, loot) => b.container('Пирамида', x, z, rot, [
 		[1.8, 0.1, 0.5, 0, 0.1, 0, IM.machine], [1.8, 0.08, 0.3, 0, 1.15, -0.05, IM.machine],
@@ -1129,13 +1124,12 @@ export function buildCheckpoint(ctx, { name = 'Checkpoint', cx, cz, ry = 0 }) {
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: M.whiteBrick, t, doors: [1.6], lining: IM.armyWall, side: -1 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: 1 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: M.whiteBrick, t, lining: IM.armyWall, side: -1 });
-	b.window('left', 0, { t, sill: M.white }); b.window('front', -1.2, { t, sill: M.white });
+	b.window('left', 0, { t, sill: M.whiteBrick }); b.window('front', -1.2, { t, sill: M.whiteBrick });
 	b.top_(place(box(W + 0.5, 0.25, D + 0.5, 3), 0, H + 0.12, 0), M.roofTar);
-	// козырьки над проходом с обеих сторон, на крыше — вытяжка и заплатка
+	// козырьки над проходом с обеих сторон, на крыше — вытяжка
 	b.canopy('front', 1.6, { w: 1.7, d: 0.9, y: 2.35, mat: M.roofTar, t });
 	b.canopy('back', 1.6, { w: 1.7, d: 0.9, y: 2.35, mat: M.roofTar, t });
 	b.vent(-1.8, 1.0, H + 0.25, M.silver, { h: 0.5, r: 0.12 });
-	b.flatRoof(H + 0.25, { patches: [[0.6, -0.4, 1.8, 1.2, 0.3]] });
 	b.container('Стол дежурного', -1.6, 0.2, Math.PI / 2, [[1.3, 0.75, 0.7, 0, 0.375, 0, IM.furniture], [0.4, 0.3, 0.3, 0.3, 0.9, 0, IM.black]], [1.3, 0.7], { ammo9: [6, 12, 0.6], zhivchik: 0.3, ammo545: [5, 10, 0.3] }, 0.95);
 	chair(b, -0.8, 0.2, -Math.PI / 2);
 	cabinet(b, 'Шкаф', -2.4, hz - 0.45, Math.PI, 0.9, 1.9, 0.5, { ammo545: [6, 12, 0.4], grenade: 0.05 });

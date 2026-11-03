@@ -40,15 +40,13 @@ export default {
 					const x = cx + ex, z = cz - D / 2;
 					kb.add(place(box(2.6, 0.15, 1.6), x, 2.9, z - 0.8), M.concrete); // козырёк
 					kb.add(place(box(2.7, 0.08, 0.04), x, 2.9, z - 1.62), M.metalRust); // ржавый отлив по краю козырька
-					for (const s of [-1, 1]) kb.add(place(box(0.1, 0.5, 1.4), x + s * 0.82, 2.58, z - 0.7), M.concrete); // упоры козырька
 					kb.add(place(box(1.3, 2.2, 0.1), x, 1.7, z - 0.05), M.metalRust); // железная дверь
-					kb.add(place(box(1.5, 0.1, 0.14), x, 2.85, z - 0.07), M.metalDark); // коробка двери
 				}
 				// балконы на северном фасаде (генератор вызывается, как раньше: какие балконы есть и из чего ограждение)
 				for (let floor = 1; floor < 5; floor++) for (let c = 0; c < 12; c++) {
 					if (c % 4 === 0 || rnd() < 0.45) continue;
 					const x = cx - W / 2 + 1.6 + c * 3.2, y = 0.6 + floor * 2.8;
-					balcony(kb, M, x, y, cz - D / 2, -1, rnd() < 0.5 ? M.metalRust : M.woodGrey, hash01('khr-n', c, floor), { top: floor === 4 });
+					balcony(kb, M, x, y, cz - D / 2, -1, rnd() < 0.5 ? M.metalRust : M.woodGrey, hash01('khr-n', c, floor), { full: false });
 				}
 			}, { cx, cz, ry: 0, hx: W / 2 + 0.6, hz: D / 2 + 1.2, top: H + 1.5 }, 0.16);
 			collide(cx, cz, W + 0.4, D + 0.4);
