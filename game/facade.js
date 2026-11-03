@@ -181,7 +181,7 @@ export function khrushchyovkaDetails(kb, M, { cx, cz, W, D, H }) {
 		kb.add(box(0.9, 0.04, 0.04, 1).translate(x, top + 1.85, z), M.metalDark);
 	}
 	for (const [ex, ez, w, d, r] of [[-6, 1.8, 3.2, 2.0, 0.2], [8, -1.5, 2.4, 1.6, -0.3], [-15, -2.6, 2.0, 2.6, 0.1]]) {
-		kb.add(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).rotateY(r).translate(cx + ex, top + 0.065, cz + ez), M.tire);
+		kb.add(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).rotateY(r).translate(cx + ex, top + 0.065, cz + ez), M.ballast);
 	}
 	// окна длинных фасадов: клетки атласа (см. houseWindowMaterial) — по месту, без генератора случайных чисел
 	for (const s of [-1, 1]) for (let f = 0; f < 5; f++) for (let c = 0; c < 12; c++) {
