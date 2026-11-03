@@ -803,7 +803,7 @@ try {
 		g.murOrderT = 0; g.coordinateMurs(0.01);
 		const flank = three.filter((b) => b.flank).length;
 		const n = bs[4] ?? bs[0];
-		n.grenades = 1; g.murNadeAt = 0; n.lastSeen = g.player.pos.clone(); n.lastSeenT = 5;
+		n.grenades = 1; g.murNadeAt = 0; n.lastSeen = g.player.pos.clone(); n.lastSeenT = 5; n.reloading = 0; n.panicT = 0; n.throwT = 0;
 		n.pos.set(g.player.pos.x + 9, 0, g.player.pos.z);
 		for (const o of g.bandits) if (o !== n && o.alive && Math.hypot(o.pos.x - g.player.pos.x, o.pos.z - g.player.pos.z) < 7) o.pos.set(-30, 0, -30);
 		const nade = n.tryGrenade();
@@ -820,13 +820,13 @@ try {
 		const g = window.__game, m = g.world.murs, c = g.level.containers.find((k) => /Storage/.test(k.building) && k.items.length);
 		const [kind, n] = c.items[0];
 		const r = { kind, n, before: m.stash[kind] ?? 0 };
-		// под огнём обыск прерывается — муры на это время прячутся (тревога в «Карьере» уже проверена выше)
-		for (const b of g.bandits) if (b.alive) { b.panicT = 60; b.target = null; b.foe = null; }
-		g.player.pos.set(c.ax, 0, c.az); g.searching = { c, t: 99 };
+		// под огнём обыск прерывается — на время обыска герой неуязвим (тревога в «Карьере» уже проверена выше)
+		g.player.hurt = () => {};
+		g.player.pos.set(c.ax, 0, c.az); g.input.stick = { x: 0, y: 0 }; g.input.sync(); g.searching = { c, t: 99 };
 		return r;
 	});
 	await page.waitForTimeout(500);
-	const stash2 = await G(page, (k) => window.__game.world.murs.stash[k] ?? 0, stash.kind);
+	const stash2 = await G(page, (k) => { delete window.__game.player.hurt; return window.__game.world.murs.stash[k] ?? 0; }, stash.kind);
 	check(stash2 <= stash.before - stash.n, `из шкафа склада забрал ${stash.kind} ×${stash.n} — у муров осталось ${stash2}`);
 	// главарь убит: в «Карьере» паника, на вылазки не ходят, пока при пополнении не выберут нового
 	const bossDead = await G(page, async () => {

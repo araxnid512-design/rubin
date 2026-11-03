@@ -58,7 +58,7 @@
 ```bash
 npm ci                 # зависимости (three 0.170, esbuild, playwright уже есть в облачной среде)
 npm start              # http://localhost:8080/game.html
-npm run test:game      # браузерный тест всей игры, ~15 минут, должно быть «GAME E2E: OK» (сейчас 128 проверок)
+npm run test:game      # браузерный тест всей игры, ~15 минут, должно быть «GAME E2E: OK» (сейчас 136 проверок)
 npm run test:offline   # сборка download/ulei-cluster17.html и проверка без сети
 npm test               # тест модели зомби
 node scripts/render-previews.mjs   # снимки локаций для карты Улья (assets/previews/*.jpg)
