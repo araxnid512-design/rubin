@@ -99,6 +99,28 @@ try {
 		return { median: sp[Math.floor(sp.length / 2)] ?? 9, clip: g.player.current };
 	});
 	check(slide.median < 0.35, `шаг без скольжения: стопа на земле движется ${slide.median.toFixed(2)} м/с (${slide.clip})`);
+	// предметы из Tripo: машины, мебель, бочки — модели на местах процедурных, одним мешем на участок (game/env-props.js)
+	const props = await G(page, () => { let n = 0, tris = 0; window.__game.level.root.traverse((o) => { if (o.name?.startsWith('Props:')) { n++; tris += o.geometry.index.count / 3; } }); return { n, tris }; });
+	check(props.n >= 6 && props.tris > 20000, `предметы Tripo в локации: ${props.n} участков, ${Math.round(props.tris / 1000)}k треугольников`);
+	// присед: клавиша C — герой ниже, идёт медленнее (не быстрее 1 м/с), кнопка подсвечена; ещё раз C — встаёт
+	await page.keyboard.press('KeyC');
+	// время — игровое (логика в тесте ускорена: за секунду настоящего времени герой ушёл бы в стену)
+	const crouch = await G(page, async () => {
+		const g = window.__game, p = g.player;
+		const wait = (s) => new Promise((r) => { const end = g.time + s; const f = () => (g.time >= end ? r() : setTimeout(f, 10)); f(); });
+		p.pos.set(-30, 0, 6); g.input.stick = { x: 0.9, y: 0 }; g.input.sync();
+		await wait(0.6);
+		const x0 = p.pos.x, t0 = g.time;
+		await wait(1);
+		const v = Math.abs(p.pos.x - x0) / Math.max(0.01, g.time - t0);
+		const hips = p.model.getObjectByName('mixamorigHips').getWorldPosition(p.pos.clone()).y;
+		g.input.stick = { x: 0, y: 0 }; g.input.sync();
+		return { on: p.crouched, v, hips, btn: document.getElementById('btn-crouch').classList.contains('on') };
+	});
+	await page.keyboard.press('KeyC');
+	await page.waitForTimeout(1000);
+	const stand = await G(page, () => { const p = window.__game.player; return { on: p.crouched, hips: p.model.getObjectByName('mixamorigHips').getWorldPosition(p.pos.clone()).y }; });
+	check(crouch.on && crouch.btn && crouch.v > 0.3 && crouch.v < 1.0 && !stand.on && stand.hips - crouch.hips > 0.2, `присед: C — присел (таз ниже на ${(stand.hips - crouch.hips).toFixed(2)} м), идёт ${crouch.v.toFixed(2)} м/с; C — встал`);
 	// подходим к заражённым — замечают и нападают, отбиваемся топором
 	await G(page, () => { const g = window.__game; g.player.pos.set(-10, 0, 9); g.player.hp = 1e6; g.player.maxHp = 1e6; g.noise(g.player.pos, 22); });
 	await page.waitForTimeout(2500);

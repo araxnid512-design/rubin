@@ -5,7 +5,8 @@
 
 import * as THREE from 'three';
 import * as T from './textures.js';
-import { Batch, box, place, planeXZ, beginProp, endProp } from './geom.js';
+import { Batch, box, place, planeXZ, beginProp, endProp, PROPS } from './geom.js';
+import { envKinds, placeEnvProps } from './env-props.js';
 import { Fader, segmentHitsBox } from './buildings.js';
 import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS } from './props.js';
 import { dressLevel } from './dressing.js';
@@ -90,6 +91,11 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	root.name = `Level:${id}`;
 	scene.add(root);
 	const batch = new Batch({ chunk: CHUNK }); // по участкам: за экраном не рисуется
+	// модели Tripo загружены (game/env-props.js) — предметы этих видов (машины, мебель, бочки…) строители не кладут
+	// в статику, а отдают метками; после сборки на их места встают модели. Не загружены (страницы tools/) — PROPS
+	// не трогаем: выгрузка для Godot включает метки сама.
+	const env = envKinds();
+	if (env) { PROPS.on = true; PROPS.types = env; PROPS.list.length = 0; }
 	const colliders = [];
 	// wall — стена дома (на ней остаются следы пуль); возвращает коллайдер
 	const collide = (x, z, w, d, rot = 0, wall = false) => {
@@ -217,6 +223,10 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 	const fog = spec.fog === false ? null : fogWalls(root);
 
 	batch.build(root);
+	if (env) {
+		placeEnvProps(root, PROPS.list, CHUNK);
+		PROPS.on = false; PROPS.types = null; PROPS.list.length = 0;
+	}
 	const nav = makeNav(colliders);
 	const exits = (spec.exits ?? []).map((e) => ({ ...e, spawn: new THREE.Vector3(e.spawn[0], 0, e.spawn[1]), ry: e.spawn[2] }));
 	return {
@@ -307,7 +317,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny' } = {}) {
 			root.traverse((o) => {
 				o.geometry?.dispose();
 				for (const m of [o.material].flat()) {
-					if (!m) continue;
+					if (!m || m.userData.shared) continue; // общий материал предметов Tripo — на все локации
 					for (const k of ['map', 'normalMap']) m[k]?.dispose();
 					m.dispose();
 				}
