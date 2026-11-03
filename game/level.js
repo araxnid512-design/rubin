@@ -40,7 +40,7 @@ function materials() {
 		woodBlue: T.woodMaterial([1, 1], [78, 98, 120]),
 		woodYellow: T.woodMaterial([1, 1], [150, 128, 70]),
 		slate: T.slateRoofMaterial([1, 1]),
-		roofMetal: T.metalRoofMaterial([1, 1]),
+		roofMetal: T.metalRoofMaterial([1, 1], [112, 72, 60]), // ржавый профлист, краска выгорела
 		roofGreen: T.metalRoofMaterial([1, 1], [82, 106, 82]), // выгоревшая зелёная краска
 		roofTin: T.tinRoofMaterial([1, 1]), // кровельное железо: оцинковка с ржавыми полосами
 		wallGrime: T.wallGrimeMaterial(), // грязь по низу стен (наклейка)

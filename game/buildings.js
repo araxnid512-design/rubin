@@ -400,8 +400,14 @@ function stove(b, x, z, rot) {
 		[1.2, 0.35, 1.4, 0.1, 1.72, 0.1, whitewash],
 		[0.5, 0.35, 0.05, -0.3, 0.75, 0.86, b.IM.black], // устье
 	], { solid: [1.5, 1.7], prop: 'stove' });
-	// труба — сквозь крышу, исчезает вместе с ней
-	b.furniture(x, z, rot, [[0.5, b.top - 1.6, 0.5, 0.35, 1.9 + (b.top - 1.6) / 2, 0.4, whitewash]], { up: true });
+	// труба — сквозь крышу, исчезает вместе с ней: в доме побелённая, над крышей — кирпичная с оголовком и копотью
+	const brick = b.ctx.M.brick, top = b.top + 0.3;
+	b.furniture(x, z, rot, [
+		[0.5, b.H - 1.9, 0.5, 0.35, 1.9 + (b.H - 1.9) / 2, 0.4, whitewash],
+		[0.52, top - b.H, 0.52, 0.35, b.H + (top - b.H) / 2, 0.4, brick],
+		[0.66, 0.12, 0.66, 0.35, top - 0.1, 0.4, brick], // оголовок
+		[0.4, 0.02, 0.4, 0.35, top + 0.01, 0.4, b.ctx.M.tire], // закопчённое устье
+	], { up: true });
 }
 
 function table(b, x, z, rot, { w = 1.1, d = 0.75, cloth = false } = {}) {
@@ -504,6 +510,9 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 		b.lower(place(box(w, 0.35, d, 2), x, 0.175, z), M.concreteDark);
 	}
 	b.lower(place(box(1.8, 0.18, 1.0), 3.0, 0.09, -hz - 0.65), M.wood);
+	b.lower(place(box(1.4, 0.09, 0.4), 3.0, 0.045, -hz - 1.33), M.wood); // нижняя ступенька
+	// крыша светлая — серый шифер или кровельное железо с ржавыми полосами (своё у каждого дома)
+	const roof = hash01(name, 'roof') < 0.5 ? M.slate : M.roofTin;
 	// наружные стены (бревно) с обоями внутри; дверь в передней стене
 	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: logs, doors: [3.0], lining: paper, side: 1 });
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: logs, lining: paper, side: -1 });
@@ -512,18 +521,27 @@ export function buildHouse(ctx, { name, cx, cz, ry, rnd, variant = 0 }) {
 	// перегородки: кухня | зал; зал | спальня
 	b.wall('z', 1.2, -hz + t / 2, hz - t / 2, { mat: paper, t: 0.14, doors: [-1.6] });
 	b.wall('x', 0.2, -hx + t / 2, 1.2 - 0.07, { mat: paper, t: 0.14, doors: [-1.5] });
-	// окна
-	for (const x of [-3.2, -0.9]) b.window('front', x);
-	for (const x of [-3.2, -0.9, 3.0]) b.window('back', x);
-	b.window('left', -1.7); b.window('left', 1.9); b.window('right', 1.0);
+	// окна с наличниками
+	const trim = M.white;
+	for (const x of [-3.2, -0.9]) b.window('front', x, { trim });
+	for (const x of [-3.2, -0.9, 3.0]) b.window('back', x, { trim });
+	b.window('left', -1.7, { trim }); b.window('left', 1.9, { trim }); b.window('right', 1.0, { trim });
 	// открытая входная дверь — внутрь кухни
 	b.furniture(3.0 - 0.62, -hz + 0.1, -1.75, [[1.2, 2.05, 0.05, 0.6, 1.03, 0, M.woodGreen]], { up: true });
-	// двускатная крыша вдоль X и фронтоны
+	// крыльцо под навесом на двух столбах
+	b.canopy('front', 3.0, { w: 2.1, d: 1.35, y: 2.42, mat: roof, posts: M.woodGrey });
+	// двускатная крыша вдоль X (конёк посередине) и фронтоны
 	const rise = 1.8, roofLen = W + 0.8, slope = Math.hypot(hz + 0.5, rise);
 	for (const s of [-1, 1]) {
 		const g = box(roofLen, 0.08, slope, 2);
-		place(g, 0, H + rise / 2, s * (hz + 0.5) / 2, 0, -s * Math.atan2(rise, hz + 0.5));
-		b.top_(g, M.slate);
+		place(g, 0, H + rise / 2, s * (hz + 0.5) / 2, 0, s * Math.atan2(rise, hz + 0.5));
+		b.top_(g, roof);
+	}
+	b.top_(place(box(roofLen + 0.04, 0.1, 0.24, 1), 0, H + rise + 0.04, 0), M.metalRust); // конёк
+	// слуховые окошки на фронтонах
+	for (const sx of [-1, 1]) {
+		const g = T.windowUV(new THREE.PlaneGeometry(0.55, 0.6), 1).rotateY(sx * Math.PI / 2).translate(sx * (hx + 0.03), H + 0.75, 0);
+		b.top_(g, M.window);
 	}
 	for (const sx of [-1, 1]) {
 		const x = sx * (hx + 0.01);
@@ -639,22 +657,27 @@ export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 	for (const [w, d, x, z] of [[W + 0.2, 0.2, 0, -hz], [W + 0.2, 0.2, 0, hz], [0.2, D + 0.2, -hx, 0], [0.2, D + 0.2, hx, 0]]) {
 		b.lower(place(box(w, 0.3, d, 2), x, 0.15, z), M.concreteDark);
 	}
-	// крылечко
+	// крылечко со ступенькой
 	b.lower(place(box(1.6, 0.2, 0.9), 1.7, 0.1, -hz - 0.55), M.wood);
+	b.lower(place(box(1.2, 0.1, 0.36), 1.7, 0.05, -hz - 1.16), M.wood);
 	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { mat: boards, t, doors: [1.7], lining: paper, side: 1, sx: 1.2 });
 	b.wall('x', hz, -hx - t / 2, hx + t / 2, { mat: boards, t, lining: paper, side: -1, sx: 1.2 });
 	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { mat: boards, t, lining: paper, side: 1, sx: 1.2 });
 	b.wall('z', hx, -hz + t / 2, hz - t / 2, { mat: boards, t, lining: paper, side: -1, sx: 1.2 });
-	b.window('front', -1.4, { t }); b.window('back', 0.6, { t }); b.window('left', 0, { t });
+	const trim = M.white;
+	b.window('front', -1.4, { t, trim }); b.window('back', 0.6, { t, trim }); b.window('left', 0, { t, trim });
 	b.furniture(1.7 - 0.62, -hz + 0.08, -1.6, [[1.2, 1.95, 0.05, 0.6, 0.98, 0, M.wood]], { up: true }); // дверь открыта внутрь
-	// двускатная крыша из ржавого или зелёного профлиста
+	// двускатная крыша: кровельное железо с ржавыми полосами, светлый шифер, выгоревший зелёный или ржавый профлист
+	// (генератор вызывается, как раньше, — вид крыши у остальных дач берётся от имени)
 	const rise = 1.4, slope = Math.hypot(hz + 0.45, rise);
-	const roof = rnd() < 0.5 ? M.roofMetal : M.roofGreen;
+	const roof = rnd() < 0.5 ? M.roofTin : [M.slate, M.roofGreen, M.roofMetal][Math.floor(hash01(name, 'roof') * 3)];
 	for (const s of [-1, 1]) {
 		const g = box(W + 0.7, 0.07, slope, 2);
-		place(g, 0, H + rise / 2, s * (hz + 0.45) / 2, 0, -s * Math.atan2(rise, hz + 0.45));
+		place(g, 0, H + rise / 2, s * (hz + 0.45) / 2, 0, s * Math.atan2(rise, hz + 0.45));
 		b.top_(g, roof);
 	}
+	b.top_(place(box(W + 0.74, 0.09, 0.22, 1), 0, H + rise + 0.035, 0), M.metalRust); // конёк
+	b.canopy('front', 1.7, { w: 1.8, d: 1.15, y: 2.3, mat: roof, posts: M.woodGrey, t });
 	for (const sx of [-1, 1]) {
 		const x = sx * (hx + 0.01);
 		const a = [x, H, -hz], c = [x, H, hz], tp = [x, H + rise, 0];
@@ -663,10 +686,12 @@ export function buildDacha(ctx, { name, cx, cz, ry, rnd, variant = 0, paint }) {
 		tri.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(sx > 0 ? [0, 0, D / 4, 1, D / 2, 0] : [0, 0, D / 2, 0, D / 4, 1]), 2));
 		tri.computeVertexNormals();
 		b.top_(tri, boards);
+		// слуховое окошко на фронтоне
+		b.top_(T.windowUV(new THREE.PlaneGeometry(0.45, 0.5), 1).rotateY(sx * Math.PI / 2).translate(sx * (hx + 0.03), H + 0.55, 0), M.window);
 	}
 	// буржуйка с трубой
 	b.furniture(2.6, 1.7, 0, [[0.55, 0.6, 0.45, 0, 0.3, 0, IM.black], [0.14, 0.4, 0.14, 0, 0.8, -0.1, IM.metal]], { solid: [0.6, 0.5], prop: 'burzhuyka' });
-	b.furniture(2.6, 1.6, 0, [[0.14, b.top - 0.9, 0.14, 0, 1.0 + (b.top - 0.9) / 2, 0, IM.metal]], { up: true });
+	b.furniture(2.6, 1.6, 0, [[0.14, b.top - 0.9, 0.14, 0, 1.0 + (b.top - 0.9) / 2, 0, IM.metal], [0.3, 0.04, 0.3, 0, b.top + 0.16, 0, IM.metal]], { up: true }); // с колпаком
 	bed(b, -2.25, 1.35, 0);
 	table(b, -0.2, 0.6, 0, { w: 0.9, d: 0.7, cloth: variant % 2 === 0 });
 	chair(b, -0.2, -0.1, 0);

@@ -225,7 +225,7 @@ export function slateRoofMaterial(repeat) {
 		const lap = (y % 128) < 5 ? 1 : 0; // нахлёст рядов
 		let c = mixc([174, 172, 164], [136, 136, 130], n).map((k) => k * tone * (0.82 + wave * 0.22));
 		c = mixc(c, [96, 104, 74], moss * 0.45);
-		c = mixc(c, [92, 90, 84], lap * 0.55 + ss(0.55, 0.9, tileFbm(u * 3, v * 0.5, 6, 3, 97)) * 0.25);
+		c = mixc(c, [92, 90, 84], lap * 0.55 + ss(0.55, 0.9, tileFbm(u * 3, v, 2, 3, 97)) * 0.25);
 		return [...c.map(clamp), wave * 2 + n - lap];
 	}), { repeat, roughness: 0.9, normal: 2.5 });
 }
@@ -242,10 +242,10 @@ export function tinRoofMaterial(repeat) {
 		const n = tileFbm(u, v, 6, 4, 113);
 		// полосы ржавчины вдоль ската: гуще у фальцев и местами по середине листа
 		const edge = Math.max(0, 1 - Math.min(sx, 64 - sx) / 14);
-		const streak = ss(0.42, 0.85, tileFbm(u * 4, v * 0.35, 16, 3, 115 + sheet)) * (0.45 + edge * 0.8);
+		const streak = ss(0.36, 0.72, tileFbm(u * 4, v, 4, 3, 115 + sheet)) * (0.55 + edge * 0.9);
 		const rusty = h > 0.78 ? 1 : 0; // заменённый ржавый лист
-		let c = mixc([176, 178, 172], [136, 140, 136], n * 0.8 + h * 0.4);
-		c = mixc(c, [128, 74, 40], Math.min(1, streak * 0.85 + rusty * 0.75));
+		let c = mixc([162, 164, 160], [124, 128, 124], n * 0.8 + h * 0.4);
+		c = mixc(c, [128, 74, 40], Math.min(1, streak + rusty * 0.75));
 		c = mixc(c, [92, 58, 36], ss(0.6, 0.9, n) * (0.25 + rusty * 0.4));
 		if (seam) c = mixc(c, [210, 210, 204], 0.35); // фальц ловит свет
 		return [...c.map(clamp), seam * 2.5 + n * 0.3 - streak * 0.2];
