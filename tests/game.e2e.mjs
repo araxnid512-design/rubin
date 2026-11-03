@@ -309,7 +309,7 @@ try {
 	await G(page, () => window.__game.player.pos.set(10, 0, -62.3));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const edge = await G(page, () => ({ open: window.__game.worldMap.isOpen, routes: document.querySelectorAll('#wm-list [data-go]').length }));
-	check(edge.open && edge.routes === 3, 'дошёл до края кластера (муть) — открылась карта Улья');
+	check(edge.open && edge.routes === 5, `дошёл до края кластера (муть) — открылась карта Улья: дорог ${edge.routes}`);
 	await page.click('#wm-stay');
 
 	// выход у края кластера открывает карту; уходим в стаб
