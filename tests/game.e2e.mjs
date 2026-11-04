@@ -682,8 +682,9 @@ try {
 			window.__rpg.forEach((e, i) => e.pos.set(p.pos.x + Math.sin(a) * 10 - Math.cos(a) * (i - 1) * 0.8, 0, p.pos.z + Math.cos(a) * 10 + Math.sin(a) * (i - 1) * 0.8));
 			if (g.blastTarget(p.pos, p.W) && window.__rpg.every((e) => !g.level.nav.blockedAt(e.pos.x, e.pos.z, 0.3))) dir = a;
 		}
+		const mags = { rpg7: g.kit.mags.rpg7, rg6: g.kit.mags.rg6, ksvk: g.kit.mags.ksvk }; // снаряжены при покупке — до выстрела
 		p.attack();
-		return { dir, mags: { rpg7: g.kit.mags.rpg7, rg6: g.kit.mags.rg6, ksvk: g.kit.mags.ksvk }, ammo: p.ammo };
+		return { dir, mags, ammo: p.ammo };
 	});
 	await page.waitForFunction(() => window.__rpg.filter((e) => !e.alive).length >= 2, null, { timeout: 30000 }).catch(() => {});
 	const rpg = await G(page, () => ({ dead: window.__rpg.filter((e) => !e.alive).length, rocket: window.__game.bag.rocket, round: window.__game.player.gun('rpg7').userData.round?.visible }));
