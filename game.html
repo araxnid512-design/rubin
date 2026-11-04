@@ -247,10 +247,23 @@
 		.quests-list { display: grid; gap: 8px; max-height: 60vh; overflow-y: auto; }
 		.offer.quest .offer-text b { white-space: normal; }
 		.offer.quest.ready { border-color: rgba(200,224,138,0.6); }
+		.mod-btns { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 55%; }
+		.mod-btns .buy.small { font-size: 12px; padding: 6px 8px; }
 		.wm-horde { fill: #f09a2c; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
 		.wm-hunt { fill: #5aa0e8; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
 		@keyframes wmRaid { 50% { opacity: 0.35; } }
 		.wm-node.murs .wm-frame { stroke: #b8432c; }
+		/* пояса Улья: рамка и точка кластера — цветом пояса (--zc), легенда под схемой */
+		.wm-node.cluster .wm-frame { stroke: var(--zc, #d8dece); stroke-width: 0.8; }
+		.wm-node.cluster .wm-dot { fill: var(--zc, #6a7262); fill-opacity: 0.85; }
+		.wm-node.zone-off { opacity: 0.3; }
+		.wm-node.zone-on .wm-frame { stroke-width: 1.3; }
+		.wm-left { display: grid; gap: 6px; }
+		.wm-legend { display: flex; flex-wrap: wrap; gap: 4px; }
+		.wm-zone-btn { font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); color: var(--text); cursor: pointer; }
+		.wm-zone-btn i { width: 10px; height: 10px; border-radius: 50%; background: var(--zc); display: inline-block; }
+		.wm-zone-btn.on { border-color: var(--zc); background: rgba(255,255,255,0.08); }
+		.wm-zone { display: inline-block; font-size: 11px; font-weight: 700; color: var(--zc); border: 1px solid var(--zc); border-radius: 6px; padding: 0 5px; margin-left: 4px; vertical-align: middle; white-space: nowrap; }
 		.wm-hero-ring { fill: #232823; stroke: var(--accent); stroke-width: 0.8; }
 		.wm-pulse { fill: none; stroke: var(--accent); stroke-width: 0.6; animation: wmPulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 		@keyframes wmPulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.1); opacity: 0; } }
@@ -545,7 +558,11 @@
 		<div class="inv wm">
 			<div class="inv-head"><b>Карта Улья</b><span class="muted" id="wm-sub"></span><button class="x" id="wm-close" aria-label="Закрыть">✕</button></div>
 			<div class="wm-body">
-				<svg id="wm-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+				<div class="wm-left">
+					<svg id="wm-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+					<div id="wm-legend" class="wm-legend"></div>
+					<div id="wm-zone-desc" class="wm-hint"></div>
+				</div>
 				<div id="wm-list"></div>
 			</div>
 		</div>
@@ -605,6 +622,14 @@
 				<button class="x" id="quests-close" aria-label="Закрыть">✕</button></div>
 			<div id="quests-list" class="quests-list"></div>
 			<div class="stash-note">Взять можно до трёх поручений; выполненное сдают на любой доске — на базе или в «Полисе». Для «принеси» нужное должно быть в рюкзаке. Доска обновляется раз в 20 минут.</div>
+		</div>
+	</div>
+
+	<div id="mods" class="screen hidden">
+		<div class="inv trade">
+			<div class="inv-head"><b>Мастерская</b><span class="muted">база «Опорный» · споранов: <b id="mods-spores">0</b> · игра на паузе</span>
+				<button class="x" id="mods-close" aria-label="Закрыть">✕</button></div>
+			<div id="mods-list" class="quests-list"></div>
 		</div>
 	</div>
 

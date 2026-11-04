@@ -27,10 +27,31 @@ export const NODES = {
 	bolnica: { name: 'Кластер «Больница»', short: 'Больница', kind: 'cluster', danger: 2, at: [74, 76], preview: 'assets/previews/bolnica.jpg', desc: 'Городская больница: корпуса, приёмный покой, морг, гаражи скорой. Живчики и патроны у охраны, топтуны в коридорах.' },
 	lesopilka: { name: 'Кластер «Лесопилка»', short: 'Лесопилка', kind: 'cluster', danger: 1, at: [6, 34], preview: 'assets/previews/lesopilka.jpg', desc: 'Лесопилка у реки: пилорама, штабеля брёвен, бараки рабочих, контора. Тихая окраина — охотничьи ружья и патроны 12 калибра.' },
 	podstanciya: { name: 'Кластер «Подстанция»', short: 'Подстанция', kind: 'cluster', danger: 2, at: [60, 38], preview: 'assets/previews/podstanciya.jpg', desc: 'Электроподстанция и посёлок энергетиков: трансформаторы, щитовая, общежитие, гаражи. Топтуны и рубер у трансформаторов.' },
+	// ещё четыре кластера (2026-11-04): деревня на окраине, станция в промзоне, микрорайон в глубине, аэродром в чёрной зоне
+	bor: { name: 'Кластер «Деревня Бор»', short: 'Бор', kind: 'cluster', danger: 1, at: [7, 64], preview: 'assets/previews/bor.jpg', desc: 'Деревня на опушке бора: избы с огородами, сельпо, колхозная ферма, церковь. Тихо — бегуны и редкий топтун. Охотничьи ружья, патроны 12 калибра.' },
+	vokzal: { name: 'Кластер «Ж/д станция»', short: 'Станция', kind: 'cluster', danger: 2, at: [33, 41], preview: 'assets/previews/vokzal.jpg', desc: 'Узловая станция: вокзал, платформы, составы и цистерны, депо, водокачка. Топтуны в депо, бегуны на путях. Патроны у транспортной милиции.' },
+	mikro: { name: 'Кластер «Микрорайон»', short: 'Микрорайон', kind: 'cluster', danger: 3, at: [92, 31], preview: 'assets/previews/mikro.jpg', desc: 'Спальный район: панельные девятиэтажки с магазинами внизу, школа, гаражи. Логово руберов во дворах. Много тайников, бывает чёрный жемчуг.' },
+	aerodrom: { name: 'Кластер «Аэродром»', short: 'Аэродром', kind: 'cluster', danger: 4, at: [74, 23], preview: 'assets/previews/aerodrom.jpg', desc: 'Военный аэродром: полоса, ангары, вертолёты, командно-диспетчерский пункт, склад вооружения. Элита и руберы. Гранатомёты и выстрелы к ним, крупнокалиберные патроны.' },
 	// внешники — пришлые солдаты с хорошим снаряжением, охотятся на иммунных (game/ext.js); их форпост — глубоко в Улье
 	forpost: { name: 'Форпост внешников', short: 'Форпост', kind: 'ext', at: [33, 7], preview: 'assets/previews/forpost.jpg', desc: 'Укреплённый лагерь внешников — пришлых солдат в форме, с хорошим оружием и бронёй. Охотятся на иммунных. В контейнерах склада — их снаряжение: зайти можно, выйти — вряд ли.' },
 	nii: { name: 'Кластер «НИИ»', short: 'НИИ', kind: 'cluster', danger: 4, at: [60, 8], preview: 'assets/previews/nii.jpg', desc: 'Закрытый научный городок: лабораторный корпус, виварий, ограда с КПП. Логово элиты — самого опасного мутанта Улья. Редкое оружие и чёрный жемчуг.' },
 };
+
+/**
+ * Пояса Улья (2026-11-04, систематизация кластеров): по опасности кластера (danger 1–4) — Окраина, Промзона,
+ * Глубина, Чёрная зона. У пояса — цвет на карте, звёзды, кто водится и что там искать (лут по поясу — game/main.js,
+ * rollLoot: в Глубине и Чёрной зоне в тайники добавляются редкие вещи). Стаб, база, «Карьер» и форпост — вне поясов.
+ */
+export const ZONES = {
+	1: { id: 'okraina', name: 'Окраина', color: '#8fc46a', stars: '★☆☆☆', who: 'бегуны, редкий топтун', loot: 'патроны 9×19 и 12 кал., ружья, живчики, спораны', desc: 'Ближний пояс Улья: деревни, дачи, лесопилка. Безопаснее всего — сюда ходят новички.' },
+	2: { id: 'promzona', name: 'Промзона', color: '#e0c45a', stars: '★★☆☆', who: 'топтуны, рубер', loot: 'автоматные патроны, гранаты, горох, бывает автомат', desc: 'Заводы, станция, больница, подстанция. Топтуны ходят стаями, попадается рубер.' },
+	3: { id: 'glubina', name: 'Глубина', color: '#f08a3c', stars: '★★★☆', who: 'логово руберов', loot: 'стволы, 7,62 и 12,7, чёрный жемчуг, выстрелы к гранатомётам', desc: 'Военная часть, микрорайон. Руберы водят стаи, иногда дорастают до элиты. Без наёмников — не суйся.' },
+	4: { id: 'black', name: 'Чёрная зона', color: '#e0442c', stars: '★★★★', who: 'элита, руберы', loot: 'тяжёлое оружие, 12,7×108, ВОГ-25, ПГ-7В, чёрный жемчуг', desc: 'НИИ и аэродром: логово элиты. Самое опасное и самое богатое место Улья.' },
+};
+/** Пояс кластера id (null — стаб, база, логова). */
+export const zoneOf = (id) => (NODES[id]?.kind === 'cluster' ? ZONES[Math.max(1, Math.min(4, NODES[id].danger ?? 1))] : null);
+/** Кластеры пояса z (1–4). */
+export const clustersOfZone = (z) => Object.keys(NODES).filter((id) => NODES[id].kind === 'cluster' && Math.max(1, Math.min(4, NODES[id].danger ?? 1)) === z);
 
 /** Дороги: [откуда, куда, время в пути, с]. */
 export const ROUTES = [
@@ -55,6 +76,20 @@ export const ROUTES = [
 	['voench', 'nii', 80],
 	['forpost', 'nii', 85],
 	['forpost', 'himmash', 100],
+	['bor', 'base', 70],
+	['bor', 'dachi', 60],
+	['bor', 'lesopilka', 80],
+	['vokzal', 'dachi', 65],
+	['vokzal', 'himmash', 60],
+	['vokzal', 'lesopilka', 70],
+	['vokzal', 'podstanciya', 70],
+	['mikro', 'zarechny', 70],
+	['mikro', 'podstanciya', 75],
+	['mikro', 'voench', 85],
+	['aerodrom', 'voench', 70],
+	['aerodrom', 'nii', 80],
+	['aerodrom', 'mikro', 75],
+	['aerodrom', 'podstanciya', 85],
 ];
 
 /** Сколько живёт кластер между перезагрузками, с. */
@@ -103,6 +138,10 @@ export function newWorld() {
 			lesopilka: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 			podstanciya: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 			nii: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			bor: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			vokzal: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			mikro: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
+			aerodrom: { next: rand(90, CYCLE[1]), saved: null, reloads: 0 },
 		},
 		murs: newMurs(0),
 		base: newBase(0),

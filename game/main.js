@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, resolveCollisions, PLAY } from './level.js';
 import { rollHorde } from './horde.js';
@@ -22,6 +23,7 @@ import { Input } from './input.js';
 import { view, onResize, goLandscape } from './screen.js';
 import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP, makeGrenade, REMOVED, realId } from './weapons.js';
 import { loadTripoWeapons } from './tripo-weapons.js';
+import { gunStats, decorateGun, addMod, cantMod, MODS, ModsWindow } from './mods.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
@@ -144,7 +146,7 @@ async function boot() {
 	const ruber = await loadModel('ruber');
 	assets = { player, runner, stomper, ruber };
 	progress(0.86, 'Загружаем оружие…');
-	await loadTripoWeapons(loadModel, Object.keys(WEAPONS).filter((id) => id !== 'fists'));
+	await loadTripoWeapons(loadModel, Object.keys(WEAPONS).filter((id) => id !== 'fists' && !WEAPONS[id].heavy)); // у тяжёлого оружия моделей Tripo нет
 	// разные заражённые: варианты одежды бегуна и топтуна (цвет, кровь, грязь)
 	const clothOf = (gltf) => { let map = null; gltf.scene.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (m.name === 'Cloth') map ??= m.map; }); return map; };
 	clothSets.runner = clothVariants(clothOf(runner), 5, 11);
@@ -284,6 +286,37 @@ const casingGeo = {}, casingMat = {}; // общие для всех гильз
 const tmpV2 = new THREE.Vector3();
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 let blobMat = null, dustMat = null, debrisGeo = null, debrisMat = null;
+let trailMat = null;
+const shellParts = {};
+/** Снаряд гранатомёта: rocket — граната ПГ-7В с огнём маршевого двигателя, lob — ВОГ-25 (крупнее настоящего — видно). */
+function shellMesh(kind) {
+	const g = new THREE.Group();
+	if (kind === 'rocket') {
+		shellParts.olive ??= new THREE.MeshStandardMaterial({ color: 0x55663a, roughness: 0.5, metalness: 0.2 });
+		shellParts.body ??= mergeGeometries([
+			new THREE.CylinderGeometry(0.03, 0.03, 0.1, 10).rotateX(Math.PI / 2).translate(0, 0, 0.02),
+			new THREE.CylinderGeometry(0.008, 0.03, 0.12, 10).rotateX(Math.PI / 2).translate(0, 0, 0.13),
+			new THREE.CylinderGeometry(0.013, 0.021, 0.04, 8).rotateX(Math.PI / 2).translate(0, 0, -0.05),
+			new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8).rotateX(Math.PI / 2).translate(0, 0, -0.13),
+		].map((q) => q.toNonIndexed()));
+		g.add(new THREE.Mesh(shellParts.body, shellParts.olive));
+		shellParts.flame ??= new THREE.SpriteMaterial({ map: softDotTexture('255,190,90'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+		const f = new THREE.Sprite(shellParts.flame);
+		f.position.z = -0.22;
+		f.scale.setScalar(0.42);
+		g.add(f);
+		g.scale.setScalar(1.3);
+	} else {
+		shellParts.vogMat ??= new THREE.MeshStandardMaterial({ color: 0x3a3e30, roughness: 0.5, metalness: 0.5 });
+		shellParts.vog ??= mergeGeometries([
+			new THREE.CylinderGeometry(0.02, 0.02, 0.05, 10).rotateX(Math.PI / 2),
+			new THREE.SphereGeometry(0.02, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).translate(0, 0, 0.025),
+		].map((q) => q.toNonIndexed()));
+		g.add(new THREE.Mesh(shellParts.vog, shellParts.vogMat));
+		g.scale.setScalar(1.8);
+	}
+	return g;
+}
 let chunkGeo = null, chunkMat = null, bloodMat = null; // ошмётки — общие
 let wreckMat = null; // остовы бочек
 
@@ -490,6 +523,7 @@ function migrateSave(s) {
 function normalizeKit(kit) {
 	kit.wear ??= {};
 	kit.mags ??= {};
+	kit.mods ??= {}; // доработки стволов в мастерской (game/mods.js)
 	for (const id of kit.owned) if (WEAPONS[id]?.durability && kit.wear[id] == null) kit.wear[id] = WEAPONS[id].durability;
 	const melee = kit.gear.melee;
 	if (!melee || (melee !== 'fists' && !kit.owned.includes(melee))) kit.gear.melee = kit.owned.find((w) => WEAPONS[w].slot === 'melee') ?? 'fists';
@@ -500,14 +534,26 @@ const SEARCH_TIME = 1.1; // секунды на обыск
 const SEARCH_REACH = 1.25; // как близко надо подойти к мебели
 const REST_TIME = 120; // отдых у лекаря, секунд мира
 
-/** Что лежит в тайнике: { ammo919: [min, max, шанс], zhivchik: шанс, ... } → [[предмет, количество]]; убранное — новым (REMOVED). */
-function rollLoot(spec) {
+/**
+ * Что лежит в тайнике: { ammo919: [min, max, шанс], zhivchik: шанс, ... } → [[предмет, количество]]; убранное — новым
+ * (REMOVED). danger — пояс кластера (game/world.js, ZONES): в Глубине (3) изредка, в Чёрной зоне (4) чаще в тайник
+ * добавляется редкое — крупнокалиберные патроны, выстрелы к гранатомётам, а в Чёрной зоне бывает и сам гранатомёт.
+ */
+const ZONE_LOOT = {
+	3: { ammo127: [3, 6, 0.04], vog25: [2, 4, 0.04], rocket: [1, 1, 0.025], grenade: 0.03 },
+	4: { ammo127: [4, 10, 0.09], vog25: [2, 6, 0.08], rocket: [1, 2, 0.07], grenade: 0.05, rg6: 0.012, ksvk: 0.01, rpg7: 0.008 },
+};
+function rollLoot(spec, danger = 1) {
 	const out = [];
-	for (const [k, v] of Object.entries(spec)) {
-		const kind = realId(k);
-		if (Array.isArray(v)) { if (Math.random() < v[2]) out.push([kind, v[0] + Math.floor(Math.random() * (v[1] - v[0] + 1))]); }
-		else if (Math.random() < v) out.push([kind, 1]);
-	}
+	const roll = (table) => {
+		for (const [k, v] of Object.entries(table)) {
+			const kind = realId(k);
+			if (Array.isArray(v)) { if (Math.random() < v[2]) out.push([kind, v[0] + Math.floor(Math.random() * (v[1] - v[0] + 1))]); }
+			else if (Math.random() < v) out.push([kind, 1]);
+		}
+	};
+	roll(spec);
+	if (ZONE_LOOT[danger] && Object.keys(spec).length) roll(ZONE_LOOT[danger]);
 	return out;
 }
 
@@ -570,6 +616,7 @@ const shotKind = (W) => (W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 
  * промах бьёт в стену или землю; дробь летит веером.
  */
 function fireShot(shooter, W, gun, target, { player = false, accuracy = 1, damage = 1 } = {}) {
+	if (W.proj) { fireShell(shooter, W, gun, target, { player, damage }); return; }
 	const from = gun.localToWorld(gun.userData.muzzle.clone());
 	const dir = new THREE.Vector3(0, -1, 0).transformDirection(gun.matrixWorld); // ствол смотрит по −Y оружия
 	game.muzzleFlash(gun, from, dir, W.flash ?? 1);
@@ -585,8 +632,9 @@ function fireShot(shooter, W, gun, target, { player = false, accuracy = 1, damag
 	const d = target ? Math.hypot(target.pos.x - pos.x, target.pos.z - pos.z) : 0;
 	const chance = clamp01(1 - (d / W.range) * (W.falloff ?? 0.35) - Math.min(10, shooter.burst) * W.spread);
 	if (target && target.alive && Math.random() < Math.max(0.4, chance) * accuracy) {
+		if (W.pierce > 1) { pierceThrough(shooter, W, target, damage, from); return; }
 		game.tracer(from, target.pos.clone().setY(1.2 * (target.scale ?? 1)));
-		target.damage(W.damage * damage, pos, W.damage > 80 ? 0.6 : 0.25);
+		target.damage(W.damage * damage, pos, W.damage > 80 ? 0.6 : 0.25, W.ap);
 		return;
 	}
 	// мимо: пуля уходит с отклонением и бьёт в стену или землю
@@ -596,6 +644,56 @@ function fireShot(shooter, W, gun, target, { player = false, accuracy = 1, damag
 	game.tracer(from, hit.pos);
 	game.impact(hit.pos, hit.wall);
 	game.hitObstacle(hit, W.damage, pos);
+}
+
+/**
+ * Крупнокалиберная пуля (КСВК): попала в цель — и прошла насквозь, бьёт ещё до pierce − 1 целей на той же линии
+ * (каждая следующая — слабее), пока не упрётся в стену. Бронебойная (W.ap): костяную броню и бронежилеты не замечает.
+ */
+function pierceThrough(shooter, W, first, mul, from) {
+	const pos = shooter.pos;
+	const ox0 = first.pos.x - pos.x, oz0 = first.pos.z - pos.z, d0 = Math.hypot(ox0, oz0) || 1;
+	const dx = ox0 / d0, dz = oz0 / d0;
+	const end = game.bulletEnd(from, dx, dz, W.range);
+	const lim = Math.hypot(end.pos.x - pos.x, end.pos.z - pos.z);
+	const behind = [];
+	for (const e of game.bandits.length ? [...game.enemies, ...game.bandits] : game.enemies) {
+		if (!e.alive || e === first || e === shooter) continue;
+		const ox = e.pos.x - pos.x, oz = e.pos.z - pos.z, t = ox * dx + oz * dz;
+		if (t <= d0 || t > lim) continue;
+		if ((ox - dx * t) ** 2 + (oz - dz * t) ** 2 > (e.radius + 0.2) ** 2) continue;
+		behind.push([t, e]);
+	}
+	behind.sort((a, b) => a[0] - b[0]);
+	first.damage(W.damage * mul, pos, 0.9, W.ap);
+	let k = 0.75;
+	for (const [, e] of behind.slice(0, W.pierce - 1)) { e.damage(W.damage * mul * k, pos, 0.7, W.ap); k *= 0.75; }
+	// трассер — насквозь, до стены или конца дальности; в стене — след
+	game.tracer(from, end.pos.clone().setY(end.wall ? from.y : 1.0));
+	if (end.wall) { game.impact(end.pos, true, 1.3); game.hitObstacle(end, W.damage, pos); }
+}
+
+/**
+ * Выстрел гранатомёта: РПГ-7 — реактивная граната летит прямо, с дымным следом, и рвётся у первой цели или стены;
+ * РГ-6 — ВОГ-25 навесом к цели. Сзади РПГ бьёт струя газов. Полёт и взрыв — game.shell.
+ */
+function fireShell(shooter, W, gun, target, { player = false, damage = 1 } = {}) {
+	gun.updateMatrixWorld();
+	const from = gun.localToWorld(gun.userData.muzzle.clone());
+	const dir = new THREE.Vector3(0, -1, 0).transformDirection(gun.matrixWorld);
+	game.muzzleFlash(gun, from, dir, W.flash ?? 1);
+	game.smoke(from, 2);
+	if (gun.userData.breech) game.backblast(gun.localToWorld(gun.userData.breech.clone()), dir);
+	game.cycleGun(gun);
+	if (gun.userData.round) gun.userData.round.visible = false; // граната ушла — труба пустая до перезарядки
+	if (gun.userData.drum) gun.userData.drum.rotation.y += Math.PI / 3; // барабан — на следующую камору
+	shooter.kick(0.35 + W.kick * 2.2, false);
+	if (player) game.shake = Math.min(1, game.shake + W.kick);
+	const pos = shooter.pos;
+	const base = target ? angleTo(pos, target.pos) : shooter.root.rotation.y;
+	const a = base + (Math.random() - 0.5) * (W.spread ?? 0);
+	const dist = target ? Math.hypot(target.pos.x - pos.x, target.pos.z - pos.z) : W.range * 0.8;
+	game.shell(W, from, a, dist, { own: player || game.mercs.includes(shooter), mul: damage, by: shooter });
 }
 
 /** Картечь: дробины веером, каждая — в первого заражённого на своей линии; урон падает с дистанцией. */
@@ -653,13 +751,13 @@ class Player extends Actor {
 
 	/** Оружие в руках (id), его параметры и набор анимаций. */
 	get weapon() { return this.kit.gear[this.hold]; }
-	get W() { return WEAPONS[this.weapon]; }
+	get W() { return gunStats(this.weapon, this.kit.mods); } // с доработками мастерской
 	get clips() { return CLIPS[this.W.anim]; }
 	get ammo() { return this.kit.mags[this.weapon] ?? 0; }
 	set ammo(v) { this.kit.mags[this.weapon] = v; }
 
 	/** 3D-модель оружия (одна на id). */
-	gun(id) { return (this.models[id] ??= WEAPONS[id].make()); }
+	gun(id) { return (this.models[id] ??= decorateGun(WEAPONS[id].make(), this.kit.mods?.[id])); }
 
 	/** Мгновенно: в руке — оружие слота hold, второе — в креплении на теле, остальное убрано. */
 	attachGear() {
@@ -783,12 +881,12 @@ class Player extends Actor {
 			if ((game.bag[W.ammo] ?? 0) > 0) { this.reload(); return; }
 			Sfx.dry();
 			this.cooldown = 0.35;
-			if (game.time - (this.emptyToast ?? -9) > 2.5) { this.emptyToast = game.time; game.toast(`Патроны ${AMMO[W.ammo]} кончились — бери топор`, 'warn'); }
+			if (game.time - (this.emptyToast ?? -9) > 2.5) { this.emptyToast = game.time; game.toast(`${ITEMS[W.ammo].name} кончились — бери топор`, 'warn'); }
 			game.hud();
 			return;
 		}
 		// у бочки с горючим толпа — прицел бьёт по бочке, иначе по ближайшему заражённому
-		const target = game.barrelTarget(this.pos, W.range) ?? game.nearestEnemy(this.pos, W.range, true);
+		const target = game.barrelTarget(this.pos, W.range) ?? (W.proj ? game.blastTarget(this.pos, W) : null) ?? game.nearestEnemy(this.pos, W.range, true);
 		if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
 		// из прицела отдача начинается сразу, из низкой готовности ствол вскидывается за 0.07 с
 		const c = this.clips;
@@ -825,7 +923,7 @@ class Player extends Actor {
 
 	/** Выстрел — в момент вскидки ствола: звук, вспышка и пуля вместе. */
 	shotHit(W, id, target) {
-		Sfx.gun(id, shotKind(W));
+		Sfx.gun(id, shotKind(W), undefined, { supp: W.supp });
 		fireShot(this, W, this.gun(id), target, { player: true, damage: game.basePerks().gunDamage }); // тир на базе — +10 %
 	}
 
@@ -852,7 +950,7 @@ class Player extends Actor {
 	reload() {
 		const W = this.W;
 		if (!W.ammo || this.reloading > 0 || this.equipping || this.ammo >= W.mag) return;
-		if ((game.bag[W.ammo] ?? 0) <= 0) { Sfx.dry(); game.toast(`Нет патронов ${AMMO[W.ammo]} в запасе`, 'warn'); return; }
+		if ((game.bag[W.ammo] ?? 0) <= 0) { Sfx.dry(); game.toast(`В запасе нет: ${ITEMS[W.ammo].name.toLowerCase()}`, 'warn'); return; }
 		this.reloading = W.reload;
 		this.playReload(0.1);
 		if (W.casing === 'shell' && W.eject !== 'shot') {
@@ -871,6 +969,8 @@ class Player extends Actor {
 
 	update(dt, input) {
 		super.update(dt);
+		const round = this.models.rpg7?.userData.round;
+		if (round) round.visible = (this.kit.mags.rpg7 ?? 0) > 0; // граната в трубе РПГ — пока заряжен
 		this.cooldown -= dt;
 		this.busy -= dt;
 		for (const p of this.pending) p.t -= dt;
@@ -1074,13 +1174,13 @@ class Enemy extends Actor {
 		}
 	}
 
-	damage(dmg, from, knock) {
+	damage(dmg, from, knock, ap = false) {
 		if (!this.alive) return;
 		const T = this.T;
 		const dir = new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize();
 		// костяная броня рубера: срезает часть урона с каждого попадания — слабые пули и картечь почти не берут
 		if (T.armor) {
-			const cut = Math.min(dmg * 0.7, T.armor);
+			const cut = Math.min(dmg * 0.7, T.armor * (ap ? 0.25 : 1)); // бронебойная 12,7 кость почти не держит
 			dmg -= cut;
 			if (cut > dmg * 0.5) game.impact(this.pos.clone().setY(1.3 * this.scale).addScaledVector(dir, -this.radius), true, 0.7); // искры от кости
 		}
@@ -1734,9 +1834,9 @@ class Bandit extends Actor {
 	}
 
 	/** Попадание (пуля, осколки, удар заражённого). from — откуда: туда мур и пойдёт разбираться. */
-	damage(dmg, from, knock = 0.2) {
+	damage(dmg, from, knock = 0.2, ap = false) {
 		if (!this.alive) return;
-		dmg *= this.armor; // бронежилет главаря, внешников
+		dmg *= ap ? Math.max(this.armor, 0.85) : this.armor; // бронежилет главаря, внешников (12,7 — прошивает)
 		this.hp -= dmg;
 		this.hitFlash();
 		if (from) {
@@ -2544,7 +2644,7 @@ const game = {
 			if (hordeHere && !list.some((e) => e?.hordeLead)) this.spawnHorde(null);
 			level.containers.forEach((c, i) => {
 				const s = saved.containers[i];
-				c.items = s ? s.items : rollLoot(c.loot);
+				c.items = s ? s.items : rollLoot(c.loot, NODES[this.loc].danger ?? 1);
 				c.searched = s ? s.searched : false;
 				c.spark.visible = !c.searched;
 			});
@@ -2587,7 +2687,7 @@ const game = {
 		}
 		// тайники в домах: что где лежит — заново на каждый цикл кластера
 		for (const c of level.containers) {
-			c.items = rollLoot(c.loot);
+			c.items = rollLoot(c.loot, NODES[this.loc].danger ?? 1);
 			c.searched = false;
 			c.spark.visible = true;
 		}
@@ -2739,6 +2839,21 @@ const game = {
 	},
 
 	/** Мастерская базы: холодное оружие — снова целое. */
+	/** Мастерская базы: поставить доработку k на ствол id (game/mods.js) — модель в руках пересобирается с ней. */
+	buyMod(id, k) {
+		const why = cantMod(this.kit, id, k, this.bag.spore ?? 0);
+		if (why) { this.toast(`${MODS[k]?.name ?? k}: ${why}`, 'warn'); return false; }
+		this.bag.spore -= MODS[k].price;
+		addMod(this.kit, id, k);
+		const p = this.player;
+		if (p?.models[id]) { p.models[id].removeFromParent(); delete p.models[id]; p.attachGear(); }
+		Sfx.reload('ak74', { dur: 1.2, n: 1 });
+		this.toast(`${WEAPONS[id].name}: ${MODS[k].name.toLowerCase()} — поставлен`);
+		this.hud();
+		this.save();
+		return true;
+	},
+
 	repairMelee() {
 		const kit = this.kit, fixed = kit.owned.filter((id) => WEAPONS[id].durability && (kit.wear[id] ?? WEAPONS[id].durability) < WEAPONS[id].durability);
 		if (!fixed.length) { this.toast('Мастерская: чинить нечего'); return; }
@@ -3404,7 +3519,9 @@ const game = {
 		// бункер 3-го уровня: ствол, что был в руках, остаётся с героем (с магазином и износом)
 		const bp = this.basePerks(), kept = bp.keepGun && this.kit.gear.gun ? { id: this.kit.gear.gun, mag: this.kit.mags[this.kit.gear.gun], wear: this.kit.wear[this.kit.gear.gun] } : null;
 		for (const k of STORABLE) this.bag[k] = 0;
-		this.kit = { gear: { melee: 'fists', gun: null }, owned: [], mags: {}, wear: {} };
+		// доработки остаются у стволов в хранилище и у ствола, что остался в руках
+		const mods = Object.fromEntries(Object.entries(this.kit.mods ?? {}).filter(([id]) => id === kept?.id || this.stash?.guns?.[id]));
+		this.kit = { gear: { melee: 'fists', gun: null }, owned: [], mags: {}, wear: {}, mods };
 		if (kept) { this.kit.owned.push(kept.id); this.kit.gear.gun = kept.id; if (kept.mag != null) this.kit.mags[kept.id] = kept.mag; if (kept.wear != null) this.kit.wear[kept.id] = kept.wear; }
 		// бункер 2-го уровня: тревожный набор — Glock 17, 34 патрона, живчик
 		if (bp.respawnKit) {
@@ -3644,7 +3761,7 @@ const game = {
 			if (s.id === 'terminal') this.terminal.open();
 			if (s.id === 'armory') this.trade.open({ armory: true });
 			if (s.id === 'medbay') this.healFree();
-			if (s.id === 'repair') this.repairMelee();
+			if (s.id === 'repair') this.modsWindow.open(); // мастерская: починить топор, доработать стволы
 			if (s.id === 'eat') this.eatCanteen();
 			if (s.id === 'radio') this.radioIntel();
 			if (s.id === 'basemercs') this.partyWindow.open({ base: true });
@@ -3807,7 +3924,7 @@ const game = {
 			price = sellPrice(kind, 1, W.durability ? kit.wear[kind] ?? W.durability : null);
 			if (W.ammo && kit.mags[kind] > 0) this.bag[W.ammo] = (this.bag[W.ammo] ?? 0) + kit.mags[kind];
 			kit.owned = kit.owned.filter((w) => w !== kind);
-			delete kit.mags[kind]; delete kit.wear[kind];
+			delete kit.mags[kind]; delete kit.wear[kind]; delete kit.mods?.[kind];
 			if (kit.gear[W.slot] === kind) kit.gear[W.slot] = kit.owned.find((w) => WEAPONS[w].slot === W.slot) ?? (W.slot === 'melee' ? 'fists' : null);
 			if (p) {
 				if (p.hold === 'gun' && !kit.gear.gun) p.hold = 'melee';
@@ -4205,18 +4322,124 @@ const game = {
 		}, dispose: () => { scene.remove(g); if (ring) { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } } });
 	},
 
-	/** Взрыв: осколки ранят всех в радиусе 6 м (и героя с наёмниками), шум на весь кластер. */
-	explode(pos) {
-		const R = 6;
+	/**
+	 * Снаряд гранатомёта в полёте (W.proj: rocket — прямо, с дымным следом; lob — навесом). Летит со скоростью W.speed
+	 * из from по углу a; ракета рвётся у первого заражённого или человека на линии (by — стрелок, его не задевает)
+	 * или у стены, ВОГ — на земле в dist м (о стену дома — раньше). Ближе W.arm м — не взвелась: только удар.
+	 */
+	shell(W, from, a, dist, { own = false, mul = 1, by = null } = {}) {
+		const dx = Math.sin(a), dz = Math.cos(a), lob = W.proj === 'lob';
+		const far = lob ? Math.min(W.range, Math.max(2, dist + (Math.random() - 0.5) * 1.4)) : W.range * 1.4;
+		const end = this.bulletEnd(from, dx, dz, far);
+		// навесом ВОГ перелетает низкое (машины, заборы, мешки) — рвётся о стену дома или на земле у цели
+		const stop = lob && end.wall && !end.collider?.wall ? { pos: new THREE.Vector3(from.x + dx * far, 0.05, from.z + dz * far), wall: false } : end;
+		const len = Math.max(0.3, Math.hypot(stop.pos.x - from.x, stop.pos.z - from.z));
+		const m = shellMesh(W.proj);
+		m.position.copy(from);
+		m.rotation.set(0, a, 0, 'YXZ');
+		scene.add(m);
+		const T = len / W.speed, apex = lob ? 0.7 + len * 0.16 : 0, y0 = from.y, y1 = lob ? 0.08 : Math.max(0.7, y0 - 0.4);
+		let t = 0, puff = 0, done = false;
+		const boom = (p, direct) => {
+			done = true;
+			const flown = Math.hypot(p.x - from.x, p.z - from.z);
+			if (flown < (W.arm ?? 0)) {
+				// не успела взвестись: тупой удар болванкой
+				direct?.damage(W.damage * 0.5 * mul, from, 0.8);
+				this.impact(p.clone().setY(Math.max(0.15, p.y)), !!stop.wall, 1.4);
+				Sfx.chop();
+				return;
+			}
+			direct?.damage(W.damage * mul, from, 1.6, true);
+			this.explode(p.clone(), { ...W.blast, own });
+			if (!direct && stop.collider && p.distanceTo(stop.pos) < 0.5) this.hitObstacle(stop, W.blast.dmg, from);
+		};
+		this.fx.push({ life: T + 1, update: (dt) => {
+			if (done) return false;
+			const s0 = (t / T) * len;
+			t = Math.min(T, t + dt);
+			const k = t / T, s1 = k * len;
+			const y = lob ? y0 + (y1 - y0) * k + Math.sin(Math.PI * k) * apex : y0 + (y1 - y0) * k;
+			if (lob) {
+				// носом по ходу полёта и кувырок
+				const vy = (y1 - y0) / T + (apex * Math.PI / T) * Math.cos(Math.PI * k);
+				m.rotation.set(-Math.atan2(vy, len / T), a, (m.rotation.z ?? 0) + dt * 18, 'YXZ');
+			}
+			m.position.set(from.x + dx * s1, y, from.z + dz * s1);
+			if (!lob) {
+				for (const e of this.bandits.length ? [...this.enemies, ...this.bandits] : this.enemies) {
+					if (!e.alive || e === by) continue;
+					const ox = e.pos.x - from.x, oz = e.pos.z - from.z, tt = ox * dx + oz * dz;
+					if (tt < s0 - 0.4 || tt > s1 + 0.3) continue;
+					if ((ox - dx * tt) ** 2 + (oz - dz * tt) ** 2 > (e.radius + 0.25) ** 2) continue;
+					boom(new THREE.Vector3(from.x + dx * tt, 0.7, from.z + dz * tt), e);
+					return false;
+				}
+				if ((puff -= dt) <= 0) { puff = 0.035; this.trailPuff(m.position); }
+			}
+			if (k >= 1) { boom(stop.pos.clone().setY(lob ? 0.1 : Math.max(0.4, Math.min(y, 1.2))), null); return false; }
+			return true;
+		}, dispose: () => scene.remove(m) });
+	},
+
+	/** Дымный след ракеты: серое облачко повисает, расплывается и тает. */
+	trailPuff(pos) {
+		trailMat ??= new THREE.SpriteMaterial({ map: softDotTexture('185,182,172'), transparent: true, opacity: 0.5, depthWrite: false });
+		const s = new THREE.Sprite(trailMat.clone());
+		s.position.copy(pos);
+		s.scale.setScalar(0.3);
+		scene.add(s);
+		this.fx.push({ life: 1.3, update(dt) { this.life -= dt; s.scale.multiplyScalar(1 + dt * 1.4); s.position.y += dt * 0.15; s.material.opacity = 0.5 * this.life / 1.3; return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+	},
+
+	/** Струя газов из раструба РПГ: пыль и дым назад, вспышка. */
+	backblast(pos, dir) {
+		for (let i = 0; i < 7; i++) {
+			const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(i < 2 ? '255,200,120' : '175,165,150'), transparent: true, opacity: i < 2 ? 0.8 : 0.45, depthWrite: false, blending: i < 2 ? THREE.AdditiveBlending : THREE.NormalBlending }));
+			s.position.copy(pos);
+			s.scale.setScalar(i < 2 ? 0.5 : 0.4);
+			const v = dir.clone().multiplyScalar(-(2.5 + Math.random() * 3)).add(new THREE.Vector3((Math.random() - 0.5) * 1.5, Math.random() * 0.6, (Math.random() - 0.5) * 1.5));
+			scene.add(s);
+			const life = i < 2 ? 0.18 : 1.1, o0 = s.material.opacity;
+			this.fx.push({ life, update(dt) { this.life -= dt; s.position.addScaledVector(v, dt); v.multiplyScalar(1 - dt * 2.5); s.scale.multiplyScalar(1 + dt * 2); s.material.opacity = o0 * this.life / life; return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+		}
+	},
+
+	/**
+	 * Цель для гранатомёта: где больше врагов в радиусе разрыва (топтун — за двоих, рубер — за троих, элита — за
+	 * четверых, человек — за двоих), на виду, дальше взвода. Нет таких — null (тогда ближайший).
+	 */
+	blastTarget(from, W) {
+		const list = this.bandits.length ? [...this.enemies, ...this.bandits] : this.enemies;
+		const wt = (o) => ({ stomper: 2, ruber: 3, elite: 4 })[o.type] ?? (o.faction ? 2 : 1);
+		const R = W.blast.r * 0.7;
+		let best = null, bs = 0;
+		for (const e of list) {
+			if (!e.alive) continue;
+			const d = Math.hypot(e.pos.x - from.x, e.pos.z - from.z);
+			if (d > W.range || d < (W.arm ?? 0) + 0.8) continue;
+			let sc = -d * 0.02;
+			for (const o of list) if (o.alive && Math.hypot(o.pos.x - e.pos.x, o.pos.z - e.pos.z) < R) sc += wt(o);
+			if (sc > bs && lineOfSight(from, e.pos)) { bs = sc; best = e; }
+		}
+		return best;
+	},
+
+	/**
+	 * Взрыв: осколки ранят всех в радиусе r (Ф-1 и бочка — 6 м, ПГ-7В — 5, ВОГ-25 — 3,5), и героя с наёмниками тоже
+	 * (своя граната из гранатомёта — вполсилы: осколки летят от стрелка), шум на весь кластер.
+	 */
+	explode(pos, { r = 6, dmg = 170, hurt = 80, own = false } = {}) {
+		const R = r, k = R / 6;
 		for (const e of [...this.enemies, ...this.bandits]) {
 			if (!e.alive) continue;
 			const d = Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z);
-			if (d < R) e.damage(170 * (1 - d / R) ** 0.7, pos, 1.5 * (1 - d / R));
+			if (d < R) e.damage(dmg * (1 - d / R) ** 0.7, pos, 1.5 * (1 - d / R) + (dmg > 200 ? 0.4 : 0));
 		}
 		for (const a of [this.player, ...this.mercs]) {
 			if (!a?.alive) continue;
 			const d = Math.hypot(a.pos.x - pos.x, a.pos.z - pos.z);
-			if (d < R) a.hurt(80 * (1 - d / R), pos);
+			if (d < R) a.hurt(hurt * (1 - d / R) * (own ? 0.5 : 1), pos);
 		}
 		// соседние бочки с горючим рвутся следом — цепочкой
 		for (const b of this.barrels) if (b.alive && Math.hypot(b.pos.x - pos.x, b.pos.z - pos.z) < R) b.damage(200, pos);
@@ -4230,8 +4453,8 @@ const game = {
 		const fire = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,190,90'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
 		fire.position.copy(pos).setY(0.8);
 		scene.add(fire);
-		this.fx.push({ life: 0.45, update(dt) { this.life -= dt; const k = 1 - this.life / 0.45; fire.scale.setScalar(1 + k * 5); fire.material.opacity = 1 - k; flashLight.intensity = 160 * (1 - k); return this.life > 0; }, dispose() { scene.remove(fire); fire.material.dispose(); flashLight.intensity = 0; flashLight.distance = 7; } });
-		for (let i = 0; i < 9; i++) {
+		this.fx.push({ life: 0.45, update(dt) { this.life -= dt; const q = 1 - this.life / 0.45; fire.scale.setScalar((1 + q * 5) * (0.6 + 0.4 * k)); fire.material.opacity = 1 - q; flashLight.intensity = 160 * (1 - q); return this.life > 0; }, dispose() { scene.remove(fire); fire.material.dispose(); flashLight.intensity = 0; flashLight.distance = 7; } });
+		for (let i = 0; i < Math.round(9 * Math.min(1, k + 0.25)); i++) {
 			const sm = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(i % 3 ? '90,88,80' : '60,58,54'), transparent: true, opacity: 0.6, depthWrite: false }));
 			sm.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 2, 0.4 + Math.random(), (Math.random() - 0.5) * 2));
 			sm.scale.setScalar(1.2 + Math.random());
@@ -4708,6 +4931,7 @@ const game = {
 	},
 };
 window.__game = game;
+game.rollLootTest = rollLoot; // для тестов: лут по поясам
 
 // ---------- Кадр ----------
 const clock3 = new THREE.Clock();
@@ -4777,7 +5001,7 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow];
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow, game.modsWindow];
 	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
 	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
 	if (input.consume('escape')) for (const w of windows) w.close();
@@ -4889,9 +5113,10 @@ game.terminal = new TerminalWindow(game);
 game.stashWindow = new StashWindow(game);
 game.intelWindow = new IntelWindow(game);
 game.questWindow = new QuestWindow(game);
+game.modsWindow = new ModsWindow(game);
 // «Назад» в приложении для Android: закрыть открытое окно; закрывать нечего — false, и приложение свернётся
 window.__back = () => {
-	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow].filter((w) => w.isOpen);
+	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow, game.modsWindow].filter((w) => w.isOpen);
 	for (const w of open) w.close();
 	return open.length > 0;
 };

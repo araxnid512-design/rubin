@@ -107,10 +107,15 @@ const vary = (k = 0.05) => 1 - k + Math.random() * 2 * k;
 const GUNS = Object.fromEntries(Object.entries(GUN_GAIN).map(([id, gain]) => [id, { s: [`gun_${id}`], rate: 1, gain }]));
 GUNS.spas12.pump = true;
 GUNS.awm.bolt = true;
+// тяжёлое оружие — своих записей нет: КСВК — выстрел Arctic Warfare ниже и гулче (12,7×108), РПГ-7 — ускоренный
+// взрыв (вышибной заряд) и шипение маршевого двигателя, РГ-6 — глухой «бух» дробовика ниже на октаву
+GUNS.ksvk = { s: ['gun_awm'], rate: 0.72, gain: 1, bolt: true };
+GUNS.rpg7 = { s: ['explosion'], rate: 1.7, gain: 0.6, hiss: true };
+GUNS.rg6 = { s: ['gun_dbarrel'], rate: 0.55, gain: 0.7, lowpass: 1100 };
 // голоса заражённых: высота записи и громкость
 const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 }, elite: { rate: 0.46, gain: 1.0 } };
 // перезарядка по устройству оружия
-const RELOADS = { glock17: 'pistol', deagle: 'pistol', dbarrel: 'obrez', spas12: 'pump', rpk: 'belt' };
+const RELOADS = { glock17: 'pistol', deagle: 'pistol', dbarrel: 'obrez', spas12: 'pump', rpk: 'belt', rpg7: 'rocket', rg6: 'drum' };
 
 function env(node, t, a, peak, dur) {
 	node.gain.setValueAtTime(0.0001, t);
@@ -191,15 +196,17 @@ export const Sfx = {
 	 * Выстрел ствола id (kind — запасной синтез: pistol | shotgun | rifle). at — где стреляют ({ d, pan }).
 	 * У каждого выстрела чуть своя высота — очередь не звучит как один и тот же сэмпл.
 	 */
-	gun(id, kind, at) {
+	gun(id, kind, at, { supp = false } = {}) {
 		const G = GUNS[id], w = where(at);
-		if (!G || !play(pick(G.s), { rate: G.rate * vary(0.04), gain: G.gain * w.att, pan: w.pan, lowpass: G.lowpass || w.lowpass })) {
+		// с глушителем — тише, глухо и чуть выше (хлопок вместо грома)
+		if (!G || !play(pick(G.s), { rate: G.rate * vary(0.04) * (supp ? 1.15 : 1), gain: G.gain * w.att * (supp ? 0.38 : 1), pan: w.pan, lowpass: supp ? 1500 : G.lowpass || w.lowpass })) {
 			if (w.att > 0.3) this.shot(kind);
 			return;
 		}
 		if (G.click) play('dry', { rate: 0.8 * vary(), gain: 0.55 * w.att, pan: w.pan, delay: 0.02 });
 		if (G.pump) play('bolt', { rate: 1.3, gain: 0.55 * w.att, pan: w.pan, lowpass: w.lowpass, delay: 0.28 }); // передёрнуть цевьё
 		if (G.bolt) play('bolt', { rate: 0.95, gain: 0.6 * w.att, pan: w.pan, lowpass: w.lowpass, delay: 0.5 }); // продольно-скользящий затвор
+		if (G.hiss && w.att > 0.2) burst({ dur: 0.9, freq: 2200, sweep: 700, type: 'bandpass', q: 0.7, gain: 0.32 * w.att, attack: 0.03 }); // маршевый двигатель гранаты
 	},
 	/** Гильза звякает о землю (shell — пластиковая гильза дроби: глуше). */
 	casing(kind, at) {
@@ -315,7 +322,14 @@ export const Sfx = {
 			for (let i = 1; i < k; i++) p('shell', 0.3 + (i * (dur - 1.1)) / k, vary(0.05));
 			p('bolt', dur - 0.6, 1.25);
 		} else if (kind === 'belt') ok = p('bolt', 0.4, 0.8) && p('reload_rifle', dur * 0.35, 0.9) && p('shell', dur * 0.6, 0.8) && p('bolt', dur - 0.8, 0.9, 0.9);
-		else if (kind === 'rifle') ok = p('reload_rifle', Math.min(0.3, dur * 0.12)) && p('bolt', dur - 0.65, 1.15);
+		else if (kind === 'rocket') ok = p('dry', 0.3, 0.5) && p('shell', dur * 0.45, 0.55, 1) && p('bolt', dur * 0.75, 0.7) && p('dry', dur - 0.2, 0.6, 1); // граната — в трубу, взвести курок
+		else if (kind === 'drum') {
+			// барабан: откинуть, по одному ВОГ в каморы, закрыть и завести пружину
+			ok = p('dry', 0.25, 0.7);
+			const k = Math.max(1, Math.min(6, n));
+			for (let i = 0; i < k; i++) p('shell', 0.5 + (i * (dur - 1.4)) / k, 0.8 * vary(0.05));
+			p('bolt', dur - 0.6, 0.75);
+		} else if (kind === 'rifle') ok = p('reload_rifle', Math.min(0.3, dur * 0.12)) && p('bolt', dur - 0.65, 1.15);
 		if (!ok && w.att > 0.3) { tone({ freq: 900, dur: 0.05, type: 'square', gain: 0.08 }); setTimeout(() => tone({ freq: 650, dur: 0.06, type: 'square', gain: 0.08 }), 600); }
 	},
 	/** Сердце: два глухих удара. */

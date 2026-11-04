@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(ROOT, 'package.json'));
 const { chromium } = require('playwright');
-const out = process.argv[2] || join(ROOT, 'download/weapon-sizes.jpg');
+const out = (process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : null) || join(ROOT, 'download/weapon-sizes.jpg');
 
 // настоящие размеры, м: длина (у складных — с разложенным прикладом, кроме PM-63) и название
 const REAL = {
@@ -25,6 +25,11 @@ const REAL = {
   rpk: [1.04, 'РПК'], pkt: [1.08, 'ПКТ'], awm: [1.2, 'Arctic Warfare'], g36: [1.0, 'HK G36'], mp5: [0.68, 'HK MP5'],
 };
 const HUMAN = 1.8;
+// процедурные стволы браузерной игры (моделей Tripo нет): модель строит game/weapons.js, длина в игре — по её габариту;
+// настоящая длина РПГ-7 — с выстрелом ПГ-7В в трубе (модель тоже с ним)
+const PROC = { ksvk: [1.42, 'КСВК 12,7'], rg6: [0.69, 'РГ-6'], rpg7: [1.37, 'РПГ-7 с ПГ-7В'] };
+// только часть листа: node scripts/weapon-sizes.mjs out.jpg --only rpg7,rg6,ksvk,svd
+const only = (process.argv.find((a) => a.startsWith('--only=')) ?? (process.argv.includes('--only') ? '--only=' + process.argv[process.argv.indexOf('--only') + 1] : '')).slice(7).split(',').filter(Boolean);
 
 // размеры в игре — из gear.gd: LENGTH (настоящая длина) × SCALE; кого нет в LENGTH — длина старой модели × SCALE
 const gear = readFileSync(join(ROOT, 'godot/scripts/gear.gd'), 'utf8');
@@ -47,10 +52,11 @@ const ids = Object.keys(REAL).filter(id => existsSync(join(ROOT, 'godot/assets/t
 const items = ids.map(id => {
   const base = LENGTH[id] ?? oldLength(id) ?? REAL[id][0];
   return { id, name: REAL[id][1], real: REAL[id][0], game: base * scale };
-});
+}).concat(Object.entries(PROC).map(([id, [real, name]]) => ({ id, name, real, game: 0, proc: true })))
+  .filter((it) => !only.length || only.includes(it.id));
 
 const files = { '/hero.glb': readFileSync(join(ROOT, 'godot/assets/tripo/player.glb')), '/old.glb': readFileSync(join(ROOT, 'godot/assets/characters/player.glb')) };
-for (const it of items) files['/w_' + it.id + '.glb'] = readFileSync(join(ROOT, 'godot/assets/tripo', 'w_' + it.id + '.glb'));
+for (const it of items) if (!it.proc) files['/w_' + it.id + '.glb'] = readFileSync(join(ROOT, 'godot/assets/tripo', 'w_' + it.id + '.glb'));
 const COLS = 4, W = 420, H = 470;
 const rows = Math.ceil(items.length / COLS);
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -81,7 +87,9 @@ const box0=new THREE.Box3().setFromObject(heroSrc); const heroH=box0.max.y*(oldH
 // в профиль (модель Tripo в файле смотрит по +X, руки — к камере и от неё): видно рост и длину ствола рядом
 function hero(height){ const h=SkeletonUtils.clone(heroSrc); const s=height/box0.max.y; h.scale.setScalar(s); return h; }
 // ствол стоймя: самая длинная ось — вверх, нижний край — на земле
-async function weapon(id,len){ const g=(await L.loadAsync('/w_'+id+'.glb')).scene; const b=new THREE.Box3().setFromObject(g); const sz=b.getSize(new THREE.Vector3());
+const { WEAPONS } = await import('/game/weapons.js');
+async function weapon(id,len,proc){ const g=proc?WEAPONS[id].make():(await L.loadAsync('/w_'+id+'.glb')).scene; if(proc) g.rotation.y=Math.PI/2; /* ствол по Y, верх по Z — боком к камере */ g.updateMatrixWorld(true); const b=new THREE.Box3().setFromObject(g); const sz=b.getSize(new THREE.Vector3());
+  if(proc&&!len) len=Math.max(sz.x,sz.y,sz.z); // процедурная модель уже в игровом размере
   // боком к камере: сначала самая длинная ось — на X (поворот вокруг Y), затем X — вверх (поворот вокруг Z)
   const ax=sz.x>=sz.y&&sz.x>=sz.z?'x':(sz.z>=sz.y?'z':'y'); const piv=new THREE.Group(); g.position.sub(b.getCenter(new THREE.Vector3())); piv.add(g);
   if(ax==='z') piv.rotation.y=Math.PI/2;
@@ -92,8 +100,9 @@ const ground=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshLambert
 const marks=new THREE.Group(); scene.add(marks);
 for(let i=0;i<items.length;i++){ const it=items[i]; const cx=i%COLS, cy=Math.floor(i/COLS);
   const g1=new THREE.Group(), g2=new THREE.Group();
-  const h1=hero(heroH); const w1=await weapon(it.id,it.game); w1.position.x=0.42; g1.add(h1,w1);
-  const h2=hero(HUMAN); const w2=await weapon(it.id,it.real); w2.position.x=0.42; g2.add(h2,w2);
+  const h1=hero(heroH); const w1=await weapon(it.id,it.game,it.proc); w1.position.x=0.42; g1.add(h1,w1);
+  if(it.proc){ const b=new THREE.Box3().setFromObject(w1); it.game=Math.max(...b.getSize(new THREE.Vector3()).toArray()); }
+  const h2=hero(HUMAN); const w2=await weapon(it.id,it.real,it.proc); w2.position.x=0.42; g2.add(h2,w2);
   g1.position.x=-0.62; g2.position.x=0.5; scene.add(g1,g2);
   // рамка кадра — относительно камеры: снизу земля (−0,1 м), сверху 2,65 м (над головой — подпись); ширина — по клетке
   const vh=2.75, vw=vh*W/H; const cam=new THREE.OrthographicCamera(-vw/2,vw/2,2.65,-0.1,0.1,50); cam.position.set(0.05,0,10); cam.lookAt(0.05,0,0);
@@ -103,11 +112,12 @@ for(let i=0;i<items.length;i++){ const it=items[i]; const cx=i%COLS, cy=Math.flo
   const f=v=>v.toFixed(2).replace('.',','); const pg=it.game/heroH, pr=it.real/HUMAN;
   lab.innerHTML='<b>'+it.name+'</b> — в игре '+f(it.game)+' м (герой '+f(heroH)+' м), в жизни '+f(it.real)+' м<br>длина к росту: игра '+Math.round(pg*100)+'% · жизнь '+Math.round(pr*100)+'% · игра = '+Math.round(pg/pr*100)+'% от настоящего';
   document.getElementById('wrap').appendChild(lab); }
-window.heroH=heroH; window.done=true;
+window.heroH=heroH; window.items=items; window.done=true;
 </script></body></html>`;
 const srv = createServer((req, res) => {
   if (req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.end(html); }
   if (files[req.url]) return res.end(files[req.url]);
+  if (req.url.startsWith('/game/')) { try { res.setHeader('Content-Type', 'text/javascript'); return res.end(readFileSync(join(ROOT, req.url.slice(1)))); } catch { /* нет файла */ } }
   if (req.url.startsWith('/three/')) { try { res.setHeader('Content-Type', 'text/javascript'); return res.end(readFileSync(join(ROOT, 'node_modules/three', req.url.slice(7)))); } catch { /* нет файла */ } }
   res.statusCode = 404; res.end();
 }).listen(0);
@@ -119,6 +129,7 @@ await p.waitForFunction(() => window.done, null, { timeout: 180000 });
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, await p.screenshot({ type: 'jpeg', quality: 86, fullPage: true }));
 const heroH = await p.evaluate(() => window.heroH);
+for (const [i, it] of (await p.evaluate(() => window.items)).entries()) items[i].game = it.game;
 await b.close(); srv.close();
 console.log(`рост героя в игре ${heroH.toFixed(2)} м, множитель оружия ${scale}`);
 for (const it of items) console.log(`${it.name.padEnd(16)} в игре ${it.game.toFixed(2)} м (${(it.game / heroH * 100).toFixed(0)}% роста), в жизни ${it.real.toFixed(2)} м (${(it.real / HUMAN * 100).toFixed(0)}%) → ${(it.game / heroH / (it.real / HUMAN) * 100).toFixed(0)}% от настоящего`);

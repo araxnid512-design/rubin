@@ -332,7 +332,9 @@ try {
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
-	check(prev.cards === map.routes.length + 1 && prev.nodes === 12, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров, базой, форпостом внешников и новыми кластерами)`);
+	check(prev.cards === map.routes.length + 1 && prev.nodes === 16, `у локаций превью: ${prev.cards} снимка в карточках, ${prev.nodes} — в точках карты (с «Карьером» муров, базой, форпостом внешников и восемью новыми кластерами)`);
+	const zones = await G(page, () => ({ legend: document.querySelectorAll('#wm-legend [data-zone]').length, badges: document.querySelectorAll('#wm-list .wm-zone').length, z: [...document.querySelectorAll('#wm-svg .wm-node.cluster')].map((n) => n.className.baseVal.match(/z\d/)?.[0]).sort().join(' ') }));
+	check(zones.legend === 4 && zones.badges >= 2 && /z1.*z2.*z3.*z4/.test(zones.z), `пояса Улья на карте: легенда из ${zones.legend} поясов, метки пояса у ${zones.badges} кластеров (${zones.z})`);
 	await page.screenshot({ path: join(OUT, 'game-map.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
 	const t0 = await G(page, () => window.__game.world.time);
 	await page.click('#wm-list [data-go="stab"]');
@@ -636,6 +638,94 @@ try {
 	const boom = await G(page, () => ({ dead: window.__blast.filter((e) => !e.alive).length, left: window.__game.bag.grenade, moved: Math.max(...window.__blast.map((e, i) => e.pos.distanceTo(window.__blast0[i]))) }));
 	check(boom.dead >= 2 && boom.left === 2, `граната Ф-1: взрывом убито ${boom.dead} из 3, гранат осталось ${boom.left}`);
 	check(boom.moved > 0.8, `тела отбросило взрывом (до ${boom.moved.toFixed(1)} м)`);
+	// тяжёлое оружие: РПГ-7 — граната летит и рвётся у цели, РГ-6 — ВОГ навесом, КСВК — пуля насквозь через троих
+	const heavy = await G(page, () => {
+		const g = window.__game, p = g.player;
+		g.bag.spore = 5000;
+		window.__gun0 = g.kit.gear.gun; // что было в слоте — вернём после проверок тяжёлого оружия
+		for (const id of ['rpg7', 'rg6', 'ksvk']) g.buy({ id, n: 1, price: 1 });
+		g.buy({ id: 'rocket', n: 4, price: 1 }); g.buy({ id: 'vog25', n: 12, price: 1 }); g.buy({ id: 'ammo127', n: 10, price: 1 });
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		for (const m of g.mercs) { m.cooldown = 1e9; m.pos.set(p.pos.x - 2, 0, p.pos.z); }
+		p.hold = 'gun'; g.equipGear('rpg7'); p.equipping = false; p.cooldown = 0; p.reloading = 0; p.busy = 0;
+		// кучка бегунов в 10 м там, откуда их видно (гранатомёт целится по кучке на виду)
+		window.__rpg = [0, 1, 2].map(() => g.spawnEnemy('runner', p.pos.clone()));
+		window.__rpg.forEach((e) => { e.stagger = 8; });
+		let dir = null;
+		for (let k = 0; k < 8 && dir === null; k++) {
+			const a = k * Math.PI / 4;
+			window.__rpg.forEach((e, i) => e.pos.set(p.pos.x + Math.sin(a) * 10 - Math.cos(a) * (i - 1) * 0.8, 0, p.pos.z + Math.cos(a) * 10 + Math.sin(a) * (i - 1) * 0.8));
+			if (g.blastTarget(p.pos, p.W) && window.__rpg.every((e) => !g.level.nav.blockedAt(e.pos.x, e.pos.z, 0.3))) dir = a;
+		}
+		p.attack();
+		return { dir, mags: { rpg7: g.kit.mags.rpg7, rg6: g.kit.mags.rg6, ksvk: g.kit.mags.ksvk }, ammo: p.ammo };
+	});
+	await page.waitForFunction(() => window.__rpg.filter((e) => !e.alive).length >= 2, null, { timeout: 30000 }).catch(() => {});
+	const rpg = await G(page, () => ({ dead: window.__rpg.filter((e) => !e.alive).length, rocket: window.__game.bag.rocket, round: window.__game.player.gun('rpg7').userData.round?.visible }));
+	check(heavy.dir !== null && heavy.mags.rpg7 === 1 && heavy.mags.rg6 === 6 && heavy.mags.ksvk === 5 && heavy.ammo === 0 && rpg.dead >= 2, `РПГ-7 (куплены ещё РГ-6 и КСВК): граната ПГ-7В долетела и взорвалась — убито ${rpg.dead} из 3, выстрелов в запасе ${rpg.rocket}${heavy.dir === null ? ' [кучку не видно]' : ''}`);
+	await G(page, () => {
+		const g = window.__game, p = g.player;
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		g.equipGear('rg6'); p.equipping = false; p.cooldown = 0; p.reloading = 0; p.busy = 0; p.ammo = 6;
+		window.__rg = [0, 1, 2].map(() => g.spawnEnemy('runner', p.pos.clone()));
+		window.__rg.forEach((e) => { e.stagger = 8; });
+		for (let k = 0; k < 8; k++) {
+			const a = k * Math.PI / 4;
+			window.__rg.forEach((e, i) => e.pos.set(p.pos.x + Math.sin(a) * 9 - Math.cos(a) * (i - 1) * 0.8, 0, p.pos.z + Math.cos(a) * 9 + Math.sin(a) * (i - 1) * 0.8));
+			if (g.blastTarget(p.pos, p.W) && window.__rg.every((e) => !g.level.nav.blockedAt(e.pos.x, e.pos.z, 0.3))) break;
+		}
+		p.attack();
+	});
+	await page.waitForFunction(() => window.__rg.filter((e) => !e.alive).length >= 1, null, { timeout: 30000 }).catch(() => {});
+	const rg = await G(page, () => ({ dead: window.__rg.filter((e) => !e.alive).length, mag: window.__game.player.ammo, drum: +window.__game.player.gun('rg6').userData.drum.rotation.y.toFixed(2) }));
+	check(rg.dead >= 1 && rg.mag === 5 && rg.drum > 1, `РГ-6: ВОГ-25 навесом — убито ${rg.dead} из 3, в барабане ${rg.mag}, барабан провернулся (${rg.drum})`);
+	const ks = await G(page, () => {
+		const g = window.__game, p = g.player;
+		for (const e of g.enemies) if (e.alive) { e.pos.set(40, 0, -44); e.state = 'idle'; }
+		g.equipGear('ksvk'); p.equipping = false; p.cooldown = 0; p.reloading = 0; p.busy = 0; p.ammo = 5;
+		// трое в линию перед героем там, где их видно
+		const line = [0, 1, 2].map(() => g.spawnEnemy('runner', p.pos.clone()));
+		line.forEach((e) => { e.stagger = 8; e.hp = 60; });
+		for (let k = 0; k < 8; k++) {
+			const a = k * Math.PI / 4;
+			line.forEach((e, i) => e.pos.set(p.pos.x + Math.sin(a) * (6 + i * 1.6), 0, p.pos.z + Math.cos(a) * (6 + i * 1.6)));
+			if (g.nearestEnemy(p.pos, 12, true) === line[0] && line.every((e) => !g.level.nav.blockedAt(e.pos.x, e.pos.z, 0.3))) break;
+		}
+		p.attack();
+		for (const q of p.pending) q.t = -1;
+		p.update(0.001, { consume: () => false, held: () => false, move: { x: 0, y: 0 } });
+		const r = { dead: line.filter((e) => !e.alive || e.hp <= 0).length, hp: line.map((e) => Math.round(e.hp)), mag: p.ammo };
+		// бронебойная 12,7 по костяной броне рубера — сильнее обычной пули того же веса
+		const ru = g.spawnEnemy('ruber', p.pos.clone().set(p.pos.x, 0, p.pos.z + 3));
+		ru.stagger = 8;
+		const hp0 = ru.hp;
+		ru.damage(240, p.pos, 0.5, true); r.ap = Math.round(hp0 - ru.hp); ru.hp = hp0;
+		ru.damage(240, p.pos, 0.5, false); r.plain = Math.round(hp0 - ru.hp);
+		ru.hp = 0; ru.alive = false; ru.model.visible = false;
+		for (const e of line) if (e.alive) { e.alive = false; e.model.visible = false; }
+		return r;
+	});
+	check(ks.dead >= 2 && ks.mag === 4 && ks.ap > ks.plain, `КСВК 12,7: один выстрел насквозь — ${ks.dead} из 3 в линию (здоровье ${ks.hp.join('/')}), бронебойная по руберу ${ks.ap} против ${ks.plain}`);
+	// мастерская: доработки стволов — прицел, глушитель, магазин, тормоз (на дуло — что-то одно), видны на модели
+	const mods = await G(page, () => {
+		const g = window.__game, p = g.player;
+		if (!g.kit.owned.includes('ak74')) g.buy({ id: 'ak74', n: 1, price: 1 });
+		g.equipGear('ak74'); p.equipping = false;
+		const W0 = p.W, mag0 = W0.mag, range0 = W0.range, noise0 = W0.noise, kids0 = p.gun('ak74').children.length;
+		const r = { ok: [g.buyMod('ak74', 'scope'), g.buyMod('ak74', 'supp'), g.buyMod('ak74', 'mag')], again: g.buyMod('ak74', 'scope') };
+		const W = p.W;
+		r.stats = `магазин ${mag0}→${W.mag}, дальность ${range0}→${W.range}, шум ${noise0}→${W.noise}`;
+		r.supp = !!W.supp; r.kids = `${kids0}→${p.gun('ak74').children.length}`;
+		r.brake = g.buyMod('ak74', 'brake');
+		r.after = Object.keys(g.kit.mods.ak74).sort().join(',');
+		g.modsWindow.open();
+		r.win = { open: g.modsWindow.isOpen, paused: g.paused, btns: document.querySelectorAll('#mods-list [data-mod]').length, checked: [...document.querySelectorAll('#mods-list [data-mod]')].filter((b) => /✓/.test(b.textContent)).length };
+		g.modsWindow.close();
+		if (window.__gun0) { g.equipGear(window.__gun0); p.equipping = false; }
+		return r;
+	});
+	check(mods.ok.every(Boolean) && !mods.again && /30→45/.test(mods.stats) && mods.supp && mods.kids === '1→9', `мастерская: прицел, глушитель и магазин на АК-74 — ${mods.stats}, деталей на модели ${mods.kids}, повторно не ставится`);
+	check(mods.brake && mods.after === 'brake,mag,scope' && mods.win.open && mods.win.paused && mods.win.checked === 3, `дульный тормоз сменил глушитель (стоит: ${mods.after}); окно мастерской на паузе: ${mods.win.btns} кнопок, ${mods.win.checked} отмечено`);
 
 	// бочка с горючим: толпа рядом — прицел бьёт по бочке; рванула — заражённые вокруг гибнут, соседняя бочка — следом
 	const fuel = await G(page, () => {

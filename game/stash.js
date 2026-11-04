@@ -65,7 +65,8 @@ export class StashWindow {
 		const gunSub = (id, st) => {
 			const W = WEAPONS[id];
 			if (W.durability) return `прочность ${st.wear ?? W.durability}/${W.durability}`;
-			return W.ammo ? `в магазине ${st.mag ?? 0}` : '';
+			const mods = Object.keys(kit.mods?.[id] ?? {}).length ? ' · с доработками' : '';
+			return W.ammo ? `в магазине ${st.mag ?? 0}${mods}` : '';
 		};
 		const kit = g.kit;
 		// с собой: оружие (кроме кулаков) и расходники

@@ -603,6 +603,153 @@ export function makeSpas12() {
 	return merged(g, [bolt]);
 }
 
+// ---------- Тяжёлое оружие (РПГ-7, РГ-6, КСВК) ----------
+// Моделей Tripo у них нет — процедурные, в настоящую величину; потом вся модель ужимается вокруг хвата до SCALE
+// (0,67 — как остальное оружие: просьба пользователя «на треть меньше настоящего»).
+
+const HEAVY_SCALE = 0.67;
+/** Модель в настоящую величину → на треть меньше: детали — во внутреннюю группу, точки дула и цевья — следом. */
+function shrunk(g, k = HEAVY_SCALE, kick = 0.016) {
+	const inner = new THREE.Group();
+	inner.name = `${g.name}_body`;
+	inner.scale.setScalar(k);
+	inner.add(...g.children);
+	g.add(inner);
+	g.userData.muzzle?.multiplyScalar(k);
+	g.userData.breech?.multiplyScalar(k);
+	g.userData.gripL?.pos.multiplyScalar(k);
+	g.userData.action = { part: inner, travel: kick, dur: 0.09 }; // отдача — вся модель назад по стволу
+	return g;
+}
+
+/**
+ * РПГ-7: труба 40 мм с деревянными накладками-теплоизоляторами, раструб сзади, две пистолетные рукоятки,
+ * оптический прицел ПГО-7 слева; в трубе — выстрел ПГ-7В (зелёная надкалиберная граната с конусом и взрывателем).
+ * userData.round — граната в трубе: после выстрела её нет, пока не перезарядишь.
+ */
+export function makeRpg7() {
+	const g = new THREE.Group();
+	g.name = 'RPG7';
+	const steel = M(0x2c2f2c, 0.45, 0.6), wood = M(0x7a4a26, 0.6), olive = M(0x4a5a32, 0.55, 0.2), dark = M(0x161718, 0.6, 0.3), glass = M(0x203040, 0.1, 0.6);
+	steel.name = 'steel'; wood.name = 'wood'; dark.name = 'dark';
+	const z0 = 0.078;
+	part(g, barrelY(0.021, 0.95), steel, 0, 0.115, z0); // труба: дуло y −0,36, казённик +0,59
+	part(g, new THREE.CylinderGeometry(0.036, 0.022, 0.12, 14), steel, 0, 0.53, z0); // раструб
+	part(g, barrelY(0.024, 0.02), dark, 0, -0.35, z0); // дульное кольцо
+	part(g, barrelY(0.031, 0.3), wood, 0, 0.1, z0); // теплоизолятор
+	part(g, barrelY(0.033, 0.012), dark, 0, -0.05, z0);
+	part(g, barrelY(0.033, 0.012), dark, 0, 0.25, z0);
+	pistolGrip(g, dark, { top: z0 - 0.02 });
+	triggerGuard(g, dark, { y0: -0.012, y1: -0.07, top: z0 - 0.03 });
+	part(g, rbox(0.03, 0.035, 0.09), dark, 0, -0.17, 0.012, -0.12); // передняя рукоятка
+	part(g, rbox(0.03, 0.06, 0.02), steel, 0, -0.17, 0.052);
+	// ПГО-7 слева на кронштейне, наглазник назад
+	part(g, rbox(0.016, 0.05, 0.03), steel, 0.03, 0.03, z0 + 0.02);
+	part(g, rbox(0.026, 0.13, 0.044), dark, 0.05, 0.02, z0 + 0.03);
+	part(g, barrelY(0.014, 0.04), dark, 0.05, 0.1, z0 + 0.035);
+	part(g, barrelY(0.012, 0.004), glass, 0.05, -0.05, z0 + 0.035);
+	// мушка и целик сверху
+	part(g, rbox(0.006, 0.01, 0.026), steel, 0, -0.3, z0 + 0.03);
+	part(g, rbox(0.016, 0.01, 0.022), steel, 0, -0.02, z0 + 0.03);
+	// выстрел ПГ-7В: хвостовик в трубе, переходник, корпус, конус, взрыватель
+	const round = new THREE.Group();
+	round.name = 'Round';
+	const stem = new THREE.Mesh(barrelY(0.017, 0.09), olive); stem.position.y = -0.385;
+	const taper = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.0425, 0.05, 16), olive); taper.position.y = -0.455;
+	const body = new THREE.Mesh(barrelY(0.0425, 0.13), olive); body.position.y = -0.545;
+	const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.011, 0.18, 16), olive); nose.position.y = -0.7;
+	const fuse = new THREE.Mesh(barrelY(0.009, 0.03), M(0x8a8a80, 0.35, 0.8)); fuse.position.y = -0.805;
+	round.add(stem, taper, body, nose, fuse);
+	round.position.z = z0;
+	g.add(round);
+	g.userData.round = round;
+	g.userData.muzzle = new THREE.Vector3(0, -0.36, z0);
+	g.userData.breech = new THREE.Vector3(0, 0.6, z0);
+	setGripL(g, -0.17, 0.0);
+	merged(g, [round]);
+	return shrunk(g, HEAVY_SCALE, 0.02);
+}
+
+/**
+ * РГ-6: ручной гранатомёт под ВОГ-25 — барабан на 6 выстрелов, короткий ствол 40 мм, пистолетная и передняя
+ * рукоятки, телескопический приклад с резиновым затыльником, коллиматор сверху. userData.drum — барабан
+ * (после выстрела проворачивается на шестую часть).
+ */
+export function makeRg6() {
+	const g = new THREE.Group();
+	g.name = 'RG6';
+	const black = M(0x22252a, 0.5, 0.45), steel = M(0x3a3e42, 0.4, 0.7), rubber = M(0x111213, 0.85, 0), hole = M(0x050505, 0.9, 0), glass = M(0x2a4a3a, 0.1, 0.6);
+	black.name = 'black'; steel.name = 'steel';
+	const z0 = 0.085;
+	// барабан: ось вдоль ствола, 6 каморы по кругу на переднем торце
+	const drum = new THREE.Group();
+	drum.name = 'Drum';
+	drum.add(new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.072, 0.15, 18), steel));
+	for (let i = 0; i < 6; i++) {
+		const a = (i / 6) * Math.PI * 2;
+		const c = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.004, 10), hole);
+		c.position.set(Math.cos(a) * 0.044, -0.076, Math.sin(a) * 0.044);
+		drum.add(c);
+		const f = new THREE.Mesh(rbox(0.012, 0.13, 0.012), black); // проточки между каморами
+		f.position.set(Math.cos(a + Math.PI / 6) * 0.07, 0, Math.sin(a + Math.PI / 6) * 0.07);
+		drum.add(f);
+	}
+	drum.position.set(0, -0.085, z0);
+	g.add(drum);
+	g.userData.drum = drum;
+	part(g, barrelY(0.03, 0.17), black, 0, -0.245, z0 + 0.03); // ствол над осью барабана
+	part(g, barrelY(0.034, 0.02), steel, 0, -0.325, z0 + 0.03);
+	part(g, rbox(0.05, 0.05, 0.07), black, 0, 0.0, z0 - 0.005); // рамка за барабаном
+	part(g, rbox(0.03, 0.2, 0.014), black, 0, -0.08, z0 + 0.08); // верхняя планка
+	part(g, rbox(0.02, 0.05, 0.04), black, 0, -0.07, z0 + 0.105); // коллиматор
+	part(g, rbox(0.022, 0.004, 0.032), glass, 0, -0.096, z0 + 0.105);
+	pistolGrip(g, rubber, { top: z0 - 0.04 });
+	triggerGuard(g, black, { y0: -0.012, y1: -0.07, top: z0 - 0.045 });
+	part(g, rbox(0.032, 0.035, 0.1), rubber, 0, -0.24, z0 - 0.06, -0.1); // передняя рукоятка
+	// телескопический приклад (выдвинут): две тяги и затыльник
+	for (const x of [-0.018, 0.018]) part(g, barrelY(0.007, 0.3), steel, x, 0.17, z0);
+	part(g, rbox(0.05, 0.03, 0.13), rubber, 0, 0.33, z0 - 0.03);
+	g.userData.muzzle = new THREE.Vector3(0, -0.335, z0 + 0.03);
+	setGripL(g, -0.24, z0 - 0.07);
+	merged(g, [drum]);
+	return shrunk(g, HEAVY_SCALE, 0.018);
+}
+
+/**
+ * КСВК 12,7: крупнокалиберная снайперская винтовка-буллпап — длинный ствол с коробчатым дульным тормозом,
+ * магазин на 5 за рукоятью, затыльник с амортизатором, сошки, оптический прицел. Пуля 12,7×108 пробивает
+ * заражённого насквозь и бьёт следующего за ним.
+ */
+export function makeKsvk() {
+	const g = new THREE.Group();
+	g.name = 'KSVK';
+	const black = M(0x24272a, 0.5, 0.45), steel = M(0x34383c, 0.38, 0.75), rubber = M(0x121314, 0.85, 0), glass = M(0x203040, 0.1, 0.6);
+	black.name = 'black'; steel.name = 'steel';
+	const z0 = 0.08;
+	part(g, rbox(0.064, 0.52, 0.1), black, 0, 0.2, z0); // ствольная коробка (за рукоятью — буллпап)
+	part(g, rbox(0.05, 0.2, 0.04), black, 0, 0.3, z0 + 0.065); // щека
+	part(g, rbox(0.07, 0.04, 0.16), rubber, 0, 0.48, z0 - 0.01); // затыльник
+	part(g, rbox(0.036, 0.1, 0.14), steel, 0, 0.17, z0 - 0.1); // магазин на 5
+	pistolGrip(g, rubber, { top: z0 - 0.04 });
+	triggerGuard(g, black, { y0: -0.012, y1: -0.075, top: z0 - 0.045 });
+	part(g, barrelY(0.03, 0.32), black, 0, -0.2, z0 + 0.005); // цевьё-кожух
+	part(g, barrelY(0.017, 0.56), steel, 0, -0.6, z0 + 0.005); // ствол
+	part(g, rbox(0.07, 0.13, 0.055), black, 0, -0.93, z0 + 0.005); // дульный тормоз
+	for (const y of [-0.9, -0.95]) part(g, box(0.074, 0.012, 0.03), M(0x050505, 0.9, 0), 0, y, z0 + 0.005);
+	// сошки, сложенные под стволом
+	for (const x of [-0.02, 0.02]) part(g, rbox(0.01, 0.34, 0.01), steel, x, -0.5, z0 - 0.035);
+	// прицел на кронштейне
+	part(g, rbox(0.024, 0.12, 0.04), steel, 0, 0.05, z0 + 0.075);
+	part(g, barrelY(0.022, 0.3), black, 0, 0.04, z0 + 0.12);
+	part(g, barrelY(0.028, 0.05), black, 0, -0.13, z0 + 0.12);
+	part(g, barrelY(0.026, 0.004), glass, 0, -0.156, z0 + 0.12);
+	part(g, rbox(0.016, 0.1, 0.03), steel, 0, -0.25, z0 + 0.05); // ручка переноски
+	g.userData.muzzle = new THREE.Vector3(0, -1.0, z0 + 0.005);
+	setGripL(g, -0.24, z0 - 0.02);
+	merged(g);
+	return shrunk(g, HEAVY_SCALE, 0.026);
+}
+
 /**
  * Граната Ф-1 «лимонка»: яйцевидный чугунный корпус, рифлённый сеткой «долек» (8 по кругу, 5 по высоте),
  * донная пробка, запал УЗРГМ сверху — трубка, изогнутый вдоль корпуса рычаг, кольцо с чекой.
@@ -664,7 +811,7 @@ export const EQUIP = {
 };
 
 /** Калибры: id патронов → подпись. */
-export const AMMO = { ammo919: '9×19', ammo50: '.50 AE', ammo12: '12 кал.', ammo545: '5,45×39', ammo556: '5,56×45', ammo762: '7,62×39', ammo76251: '7,62×51', ammo76254: '7,62×54R' };
+export const AMMO = { ammo919: '9×19', ammo50: '.50 AE', ammo12: '12 кал.', ammo545: '5,45×39', ammo556: '5,56×45', ammo762: '7,62×39', ammo76251: '7,62×51', ammo76254: '7,62×54R', ammo127: '12,7×108', vog25: 'ВОГ-25', rocket: 'ПГ-7В' };
 
 /**
  * Убранное оружие и патроны → чем они становятся в старых сохранениях (в игре — только новые стволы из Tripo:
@@ -708,6 +855,12 @@ export const WEAPONS = {
 	rpk: { name: 'РПК', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo762', damage: 36, range: 9, cooldown: 0.1, auto: 0.1, mag: 75, reload: 4.0, noise: 42, kick: 0.11, flash: 1.1, spread: 0.05, casing: 'brass', price: 200, make: tripo('rpk', makeAk47), desc: 'Ручной пулемёт Калашникова 7,62×39: длинный ствол, сошки, барабан на 75 — держит толпу длинными очередями.' },
 	svd: { name: 'СВД', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76254', damage: 130, range: 18, falloff: 0.08, cooldown: 0.95, auto: 1.0, mag: 10, reload: 2.6, noise: 44, kick: 0.25, flash: 1.15, spread: 0, casing: 'brass', price: 160, make: tripo('svd', makeSvd), desc: 'Снайперская винтовка Драгунова, 7,62×54R: бьёт далеко и точно, заражённый падает с одного выстрела. Стреляет редко.' },
 	awm: { name: 'Arctic Warfare', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo76251', damage: 160, range: 20, falloff: 0.06, cooldown: 1.3, auto: 1.4, mag: 5, reload: 2.8, noise: 46, kick: 0.28, flash: 1.2, spread: 0, casing: 'brass', price: 300, make: tripo('awm', makeSvd), desc: 'Снайперская винтовка 7,62×51 с продольно-скользящим затвором: самый дальний и сильный выстрел, после каждого — передёрнуть затвор.' },
+	// тяжёлое оружие (2026-11-04): proj — снаряд летит видимо (rocket — прямо, lob — навесом) и рвётся (blast: радиус,
+	// урон заражённым, урон своим), arm — через сколько метров полёта взводится (ближе — не взорвётся, только ударит);
+	// pierce — сколько целей подряд пробивает пуля, ap — бронебойная (костяная броня рубера и бронежилеты почти не держат)
+	rpg7: { name: 'РПГ-7', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'rocket', proj: 'rocket', speed: 34, arm: 4, blast: { r: 5, dmg: 280, hurt: 75 }, damage: 220, range: 22, falloff: 0.05, cooldown: 1.0, auto: 1.2, mag: 1, reload: 3.2, noise: 55, kick: 0.4, flash: 2.4, spread: 0.03, price: 650, heavy: true, make: makeRpg7, desc: 'Ручной противотанковый гранатомёт. Граната ПГ-7В летит прямо и рвётся у первой цели: рубер — с одного-двух попаданий, толпа — разом. Взводится через 4 м полёта. Сзади бьёт струя газов, перезарядка долгая.' },
+	rg6: { name: 'РГ-6', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'vog25', proj: 'lob', speed: 20, arm: 3, blast: { r: 3.5, dmg: 125, hurt: 45 }, damage: 40, range: 17, falloff: 0.05, cooldown: 0.55, auto: 0.6, mag: 6, reload: 4.6, noise: 40, kick: 0.22, flash: 1.0, spread: 0.08, price: 480, heavy: true, make: makeRg6, desc: 'Револьверный гранатомёт: барабан на 6 ВОГ-25, гранаты летят навесом и рвутся у цели — разрыв 3,5 м. Шесть выстрелов подряд, потом долго набивать барабан.' },
+	ksvk: { name: 'КСВК 12,7', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo127', damage: 240, pierce: 3, ap: true, range: 21, falloff: 0.04, cooldown: 1.5, auto: 1.6, mag: 5, reload: 3.4, noise: 52, kick: 0.42, flash: 1.7, spread: 0, casing: 'brass', price: 560, heavy: true, make: makeKsvk, desc: 'Крупнокалиберная снайперская винтовка 12,7×108: пуля прошивает заражённого насквозь и бьёт ещё двоих за ним, костяная броня и бронежилеты её почти не держат. Пять патронов, тяжёлая отдача.' },
 };
 
 /** Пистолет Макарова: рукоять через кулак, ствол над большим пальцем смотрит по направлению пальцев. */

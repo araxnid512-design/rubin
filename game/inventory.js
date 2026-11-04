@@ -4,6 +4,7 @@
 
 import { ITEMS, BAG_ORDER, plural } from './items.js';
 import { WEAPONS, AMMO } from './weapons.js';
+import { gunStats, MODS } from './mods.js';
 
 const SLOTS = 15;
 const $ = (id) => document.getElementById(id);
@@ -84,7 +85,7 @@ export class Inventory {
 		$('inv-equip').innerHTML = ['melee', 'gun'].map((slot) => {
 			const w = kit.gear[slot];
 			if (!w) return `<div class="slot weapon empty"><span class="slot-name">${SLOT_NAMES[slot]}</span></div>`;
-			const W = WEAPONS[w];
+			const W = gunStats(w, kit.mods); // магазин — с доработками мастерской
 			return `<button class="slot weapon${this.selected === w ? ' sel' : ''}" data-item="${w}">
 				${icons[w] ? `<img src="${icons[w]}" alt="">` : ''}
 				<span class="slot-name">${W.name}</span>
@@ -98,7 +99,7 @@ export class Inventory {
 		$('inv-grid').innerHTML = Array.from({ length: SLOTS }, (_, i) => {
 			const k = items[i];
 			if (!k) return '<div class="slot empty"></div>';
-			const count = WEAPONS[k] ? (WEAPONS[k].ammo ? `${kit.mags[k] ?? 0}/${WEAPONS[k].mag}` : '') : g.bag[k];
+			const count = WEAPONS[k] ? (WEAPONS[k].ammo ? `${kit.mags[k] ?? 0}/${gunStats(k, kit.mods).mag}` : '') : g.bag[k];
 			return `<button class="slot${this.selected === k ? ' sel' : ''}" data-item="${k}" title="${ITEMS[k].name}">
 				${icons[k] ? `<img src="${icons[k]}" alt="">` : `<span class="slot-name">${ITEMS[k].name}</span>`}
 				<span class="count">${count}</span>${WEAPONS[k] ? wearBar(k) : ''}
@@ -110,13 +111,13 @@ export class Inventory {
 		const valid = WEAPONS[kind] ? kit.owned.includes(kind) || Object.values(kit.gear).includes(kind) : (g.bag[kind] ?? 0) > 0;
 		if (!ITEMS[kind] || !valid) kind = items[0] ?? p.weapon;
 		this.selected = kind;
-		const it = ITEMS[kind], W = WEAPONS[kind];
+		const it = ITEMS[kind], W = WEAPONS[kind] && gunStats(kind, kit.mods);
 		$('inv-icon').src = icons[kind] ?? '';
 		$('inv-name').textContent = it.name;
 		let info;
 		if (W) {
 			const where = p.weapon === kind ? 'В руках' : kit.gear[W.slot] === kind ? (W.mount === 'back' ? 'За спиной' : W.mount ? 'На поясе' : 'Свободны') : 'В рюкзаке';
-			if (W.ammo) info = `${where} · в магазине ${kit.mags[kind] ?? 0}/${W.mag}, в запасе ${g.bag[W.ammo] ?? 0} (${AMMO[W.ammo]})`;
+			if (W.ammo) info = `${where} · в магазине ${kit.mags[kind] ?? 0}/${W.mag}, в запасе ${g.bag[W.ammo] ?? 0} (${AMMO[W.ammo]})${W.mods ? ` · доработки: ${W.mods.split(',').map((k) => MODS[k].name.toLowerCase()).join(', ')}` : ''}`;
 			else if (W.durability) info = `${where} · урон ${W.damage} · прочность ${kit.wear[kind] ?? W.durability}/${W.durability} ударов`;
 			else info = `${where} · урон ${W.damage}`;
 		} else {

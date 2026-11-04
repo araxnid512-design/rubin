@@ -63,7 +63,7 @@ const RESIDENTS = {
 	armory: { station: { id: 'armory', name: 'Оружейник', label: 'Купить патроны', r: 2.0 }, tint: [0.5, 0.42, 0.34] },
 	medbay: { station: { id: 'medbay', name: 'Медик', label: 'Лечиться', r: 2.0 }, tint: [0.95, 0.95, 0.92] },
 	kitchen: { station: { id: 'eat', name: 'Повар', label: 'Поесть', r: 2.0 }, tint: [0.92, 0.9, 0.84] },
-	workshop: { station: { id: 'repair', name: 'Механик', label: 'Починить топор', r: 2.0 }, tint: [0.36, 0.42, 0.52] },
+	workshop: { station: { id: 'repair', name: 'Механик', label: 'Мастерская', r: 2.0 }, tint: [0.36, 0.42, 0.52] },
 	radio: { station: { id: 'radio', name: 'Радист', label: 'Слушать эфир', r: 1.8 }, tint: [0.5, 0.55, 0.45] },
 	sporefarm: { tint: [0.8, 0.9, 0.82] },
 };

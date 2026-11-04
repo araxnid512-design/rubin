@@ -9,6 +9,10 @@ import { WEAPONS, AMMO } from './weapons.js';
 export const SHOP = [
 	...['fireaxe', 'glock17', 'deagle', 'dbarrel', 'spas12', 'mp5', 'aks', 'ak74', 'ak47', 'ak107', 'g36', 'aug', 'fnfal', 'rpk', 'svd', 'awm']
 		.map((id) => ({ id, n: 1, price: WEAPONS[id].price, sec: 'Оружие' })),
+	...['ksvk', 'rg6', 'rpg7'].map((id) => ({ id, n: 1, price: WEAPONS[id].price, sec: 'Тяжёлое оружие' })),
+	{ id: 'ammo127', n: 5, price: 22, sec: 'Тяжёлое оружие' },
+	{ id: 'vog25', n: 6, price: 42, sec: 'Тяжёлое оружие' },
+	{ id: 'rocket', n: 1, price: 30, sec: 'Тяжёлое оружие' },
 	{ id: 'ammo919', n: 17, price: 6, sec: 'Патроны' },
 	{ id: 'ammo919', n: 60, price: 18, sec: 'Патроны' },
 	{ id: 'ammo50', n: 7, price: 8, sec: 'Патроны' },
@@ -113,6 +117,8 @@ export class Trade {
 			const renew = !stored && wear !== null && wear < W.durability;
 			let have = `есть: ${bag[o.id] ?? 0}`;
 			if (W?.ammo) have = `${AMMO[W.ammo]} · урон ${W.damage}${W.pellets ? `×${W.pellets}` : ''}`;
+			if (W?.blast) have = `${AMMO[W.ammo]} · разрыв ${String(W.blast.r).replace('.', ',')} м`;
+			if (W?.pierce) have += ' · насквозь';
 			if (W) have = stored ? 'лежит в хранилище' : owned ? (wear !== null ? `прочность ${wear}/${W.durability}` : 'уже есть') : W.ammo ? have : `урон ${W.damage} · ${W.durability} ударов`;
 			const price = this.price(o);
 			const label = renew ? `Новый · ${price} сп.` : stored ? 'В хранилище' : owned ? (wear !== null ? 'Целый' : 'Куплено') : `${price} сп.`;

@@ -1,7 +1,7 @@
 // Карта Улья: стаб и кластеры, дороги со временем в пути, когда какой кластер перезагрузится.
 // Открывается у выхода из локации; выбор пункта — переход (время мира уходит на дорогу).
 
-import { NODES, ROUTES, routesFrom, timeLeft, approx } from './world.js';
+import { NODES, ROUTES, ZONES, zoneOf, clustersOfZone, routesFrom, timeLeft, approx } from './world.js';
 import { defense, BUILD_IDS } from './base.js';
 import { asset } from './assets.js';
 
@@ -18,6 +18,13 @@ export class WorldMap {
 		$('wm-list').addEventListener('click', (e) => {
 			const b = e.target.closest('[data-go]');
 			if (b) this.go(b.dataset.go);
+		});
+		// легенда поясов: нажал — подсветить кластеры пояса на схеме (ещё раз — снять)
+		$('wm-legend')?.addEventListener('click', (e) => {
+			const b = e.target.closest('[data-zone]');
+			if (!b) return;
+			this.zone = this.zone === +b.dataset.zone ? null : +b.dataset.zone;
+			this.render();
 		});
 		$('wm-svg').addEventListener('click', (e) => {
 			const n = e.target.closest('[data-node]');
@@ -79,21 +86,34 @@ export class WorldMap {
 		$('wm-sub').textContent = kind === 'stab' ? 'ты в стабе' : kind === 'murs' ? 'ты в логове муров' : kind === 'ext' ? 'ты на форпосте внешников' : kind === 'base' ? 'ты на своей базе' : `до перезагрузки кластера ${approx(hereLeft)}`;
 		const hereNode = NODES[here];
 		// где ты сейчас и куда можно пойти — у каждого пункта снимок локации
+		// пояс кластера: цветная метка со звёздами, кто водится и что искать
+		const zone = (id) => { const z = zoneOf(id); return z ? `<span class="wm-zone" style="--zc:${z.color}">${z.stars} ${z.name}</span>` : ''; };
+		const zoneInfo = (id) => { const z = zoneOf(id); return z ? `<span class="muted">водятся: ${z.who} · искать: ${z.loot}</span>` : ''; };
 		const herecard = `<div class="route here-card"><img class="route-img" src="${asset(hereNode.preview)}" alt="">
-			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name}</b>
+			<div class="route-text"><span class="muted">ты здесь</span><b>${hereNode.name} ${zone(here)}</b>
 				<span>${kind === 'stab' ? 'безопасно' : kind === 'murs' ? 'логово муров' : kind === 'ext' ? 'форпост внешников' : kind === 'base' ? this.status(here, 0) : `до перезагрузки ${approx(hereLeft)}`}</span></div></div>`;
 		$('wm-list').innerHTML = herecard + routes.map(({ to, time }) => `
 			<div class="route${to === this.suggest ? ' suggest' : ''}">
 				<img class="route-img" src="${asset(NODES[to].preview)}" alt="">
-				<div class="route-text"><b>${NODES[to].name}</b>
+				<div class="route-text"><b>${NODES[to].name} ${zone(to)}</b>
 					<span>в пути ${approx(time)} · ${this.status(to, time)}</span>
-					<span class="muted">${NODES[to].desc}</span></div>
+					<span class="muted">${NODES[to].desc}</span>${zoneInfo(to)}</div>
 				${this.look ? '' : `<button class="go" data-go="${to}">Идти</button>`}
 			</div>`).join('') + (this.look
 			? `<div class="wm-hint">${kind === 'stab' ? 'Выход — через ворота стаба на юге' : kind === 'murs' ? 'Выход — через ворота «Карьера» на юге' : kind === 'ext' ? 'Выход — через ворота форпоста на юге' : 'Чтобы уйти, дойди до края кластера (муть) в любом месте или к синему указателю у дороги'}</div><button class="stay" id="wm-stay">Закрыть</button>`
 			: '<button class="stay" id="wm-stay">Остаться</button>');
 		$('wm-stay').onclick = () => this.close();
 		this.draw(here, routes);
+		this.legend();
+	}
+
+	/** Легенда поясов под схемой: цвет, звёзды, название, сколько кластеров; выбранный пояс — подсвечен. */
+	legend() {
+		const el = $('wm-legend');
+		if (!el) return;
+		el.innerHTML = Object.entries(ZONES).map(([k, z]) => `<button class="wm-zone-btn${this.zone === +k ? ' on' : ''}" data-zone="${k}" style="--zc:${z.color}" title="${z.desc}"><i></i>${z.stars} ${z.name} · ${clustersOfZone(+k).length}</button>`).join('');
+		const z = this.zone && ZONES[this.zone];
+		$('wm-zone-desc').textContent = z ? `${z.name}: ${z.desc} Водятся: ${z.who}. Искать: ${z.loot}.` : 'Пояса Улья: чем дальше от стаба, тем опаснее заражённые и богаче тайники. Нажми пояс — покажу его кластеры.';
 	}
 
 	/**
@@ -129,7 +149,9 @@ export class WorldMap {
 		for (const [id, n] of Object.entries(NODES)) {
 			const [x, y] = n.at;
 			const reachable = !travel && routes.some((r) => r.to === id);
-			const g = el('g', { 'data-node': id, class: `wm-node ${n.kind}${id === here && !travel ? ' here' : ''}${reachable ? ' reachable' : ''}` });
+			const z = zoneOf(id);
+			const g = el('g', { 'data-node': id, class: `wm-node ${n.kind}${z ? ` z${n.danger ?? 1}` : ''}${id === here && !travel ? ' here' : ''}${reachable ? ' reachable' : ''}${this.zone && !travel ? (z === ZONES[this.zone] ? ' zone-on' : ' zone-off') : ''}` });
+			if (z) g.style.setProperty('--zc', z.color);
 			if (n.kind === 'cluster') {
 				// кольцо: доля цикла до перезагрузки
 				const left = Math.max(0, timeLeft(w, id)), frac = Math.min(1, left / 420);

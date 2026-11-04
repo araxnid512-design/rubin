@@ -25,11 +25,15 @@ import podstanciya from './locations/podstanciya.js';
 import nii from './locations/nii.js';
 import base from './locations/base.js';
 import forpost from './locations/forpost.js';
+import bor from './locations/bor.js';
+import vokzal from './locations/vokzal.js';
+import mikro from './locations/mikro.js';
+import aerodrom from './locations/aerodrom.js';
 
 export { HALF, PLAY };
 /** Участок, м: статика, деревья и трава собраны по участкам — видеокарта рисует только те, что в кадре. */
 const CHUNK = 33;
-export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base, forpost };
+export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base, forpost, bor, vokzal, mikro, aerodrom };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
 function materials() {

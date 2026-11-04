@@ -15,6 +15,9 @@ export const ITEMS = {
 	ammo762: { name: 'Патроны 7,62×39', type: 'ammo', forms: ROUNDS, desc: 'Автоматные патроны к АК-47 и РПК: тяжёлая пуля, сильная отдача.' },
 	ammo76251: { name: 'Патроны 7,62×51', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны НАТО к FN FAL и Arctic Warfare. Дорогие и редкие.' },
 	ammo76254: { name: 'Патроны 7,62×54R', type: 'ammo', forms: ROUNDS, desc: 'Винтовочные патроны к СВД. Дорогие — каждый выстрел должен попасть.' },
+	ammo127: { name: 'Патроны 12,7×108', type: 'ammo', forms: ROUNDS, desc: 'Крупнокалиберные бронебойные патроны к КСВК: пуля прошивает заражённого насквозь. Бывают на военных складах — аэродром, военная часть.' },
+	vog25: { name: 'Выстрелы ВОГ-25', type: 'ammo', forms: ['выстрел', 'выстрела', 'выстрелов'], desc: 'Осколочные гранаты 40 мм к РГ-6: летят навесом, разрыв 3,5 м. В глубине Улья — в оружейках и на складах.' },
+	rocket: { name: 'Выстрелы ПГ-7В', type: 'ammo', forms: ['выстрел', 'выстрела', 'выстрелов'], desc: 'Реактивные гранаты к РПГ-7: рвутся у первой цели, разрыв 5 м. Тяжёлые и дорогие — на складах вооружения в Чёрной зоне или у торговца.' },
 	grenade: { name: 'Граната Ф-1', forms: ['граната', 'гранаты', 'гранат'], use: 'Бросить', desc: 'Оборонительная граната: бросок к ближайшим заражённым, взрыв через 2 секунды, разлёт осколков до 6 м — не стой рядом. Кнопка гранаты или G.' },
 	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], use: 'Выпить', desc: 'Лечебное зелье Улья: восстанавливает 45 здоровья.' },
 	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
@@ -23,7 +26,7 @@ export const ITEMS = {
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'grenade', 'zhivchik', 'pearl', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'ammo127', 'vog25', 'rocket', 'grenade', 'zhivchik', 'pearl', 'spore', 'peas'];
 /** Всё, что лежит в рюкзаке (при гибели пропадает, кроме валюты — см. stash.js). */
 export const CONSUMABLES = BAG_ORDER;
 
@@ -122,6 +125,41 @@ export function makeItemMesh(kind) {
 			g.add(s, b);
 		}
 		g.add(box, lid, label);
+	} else if (kind === 'rocket') {
+		// выстрел ПГ-7В на боку: зелёная граната с конусом, хвостовик и бумажный пороховой заряд
+		const olive = mat({ color: 0x55663a, roughness: 0.55, metalness: 0.2 }), paper = mat({ color: 0xb8a878, roughness: 0.9 });
+		const along = (geo, m, x) => { const o = new THREE.Mesh(geo, m); o.rotation.z = Math.PI / 2; o.position.set(x, 0.06, 0); g.add(o); };
+		along(new THREE.CylinderGeometry(0.057, 0.057, 0.09, 14), olive, 0.06);
+		along(new THREE.CylinderGeometry(0.008, 0.057, 0.13, 14), olive, 0.17);
+		along(new THREE.CylinderGeometry(0.024, 0.04, 0.04, 10), olive, -0.005);
+		along(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 10), olive, -0.075);
+		along(new THREE.CylinderGeometry(0.03, 0.03, 0.15, 10), paper, -0.2);
+	} else if (kind === 'vog25') {
+		// ящичек с шестью ВОГ-25: тёмные цилиндры с медным пояском, донцем вверх
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.14), mat({ color: 0x4a5236, roughness: 0.8 }));
+		box.position.y = 0.03;
+		g.add(box);
+		const body = mat({ color: 0x3a3e30, roughness: 0.5, metalness: 0.5 }), band = mat({ color: 0xb87a3e, roughness: 0.3, metalness: 0.9 });
+		for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+			const x = -0.06 + i * 0.06, z = -0.032 + j * 0.064;
+			const c = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.06, 10), body); c.position.set(x, 0.09, z);
+			const b = new THREE.Mesh(new THREE.CylinderGeometry(0.0275, 0.0275, 0.01, 10), band); b.position.set(x, 0.1, z);
+			const d = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), body); d.position.set(x, 0.12, z);
+			g.add(c, b, d);
+		}
+	} else if (kind === 'ammo127') {
+		// цинк и крупнокалиберные патроны 12,7×108 с чёрными бронебойными пулями
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.08, 0.16), mat({ color: 0x5a6650, roughness: 0.45, metalness: 0.6 }));
+		box.position.y = 0.04;
+		g.add(box);
+		const brass = mat({ color: 0xc9a248, roughness: 0.3, metalness: 0.9 }), tip = mat({ color: 0x18191a, roughness: 0.4, metalness: 0.7 });
+		for (let i = 0; i < 5; i++) {
+			const c = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.11, 8), brass);
+			c.rotation.z = Math.PI / 2; c.position.set(-0.01, 0.094, -0.06 + i * 0.03);
+			const b = new THREE.Mesh(new THREE.ConeGeometry(0.0105, 0.05, 8), tip);
+			b.rotation.z = -Math.PI / 2; b.position.set(0.07, 0.094, -0.06 + i * 0.03);
+			g.add(c, b);
+		}
 	} else if (kind === 'zhivchik') {
 		const flask = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 14), mat({ color: 0xa04040, roughness: 0.1, transparent: true, opacity: 0.88, emissive: 0x501010 }));
 		flask.position.y = 0.11;
@@ -162,4 +200,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', tag: '255,240,200' };
+export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', ammo127: '255,210,140', vog25: '220,240,160', rocket: '255,180,110', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', tag: '255,240,200' };
