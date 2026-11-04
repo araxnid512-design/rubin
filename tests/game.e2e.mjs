@@ -416,7 +416,7 @@ try {
 		const g = window.__game;
 		return { owned: g.kit.owned, grenades: g.bag.grenade, secs: [...document.querySelectorAll('#trade-list .trade-sec')].map((x) => x.textContent) };
 	});
-	check(['spas12', 'mp5', 'ak74', 'ak47', 'svd', 'awm', 'rpk'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 3, `у торговца куплены SPAS-12, MP5, АК-74, АК-47, СВД, Arctic Warfare, РПК и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
+	check(['spas12', 'mp5', 'ak74', 'ak47', 'svd', 'awm', 'rpk'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 4 && arsenal.secs.includes('Тяжёлое оружие'), `у торговца куплены SPAS-12, MP5, АК-74, АК-47, СВД, Arctic Warfare, РПК и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
 	await page.click('#trade-close');
 	const shots = await G(page, () => {
 		const g = window.__game, p = g.player, out = {};
