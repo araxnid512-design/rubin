@@ -331,7 +331,7 @@ const Mission = (() => {
     for (let i = 0; i < 6; i++) {
       const m = new THREE.Vector3(); u.rig.muzzle.getWorldPosition(m);
       const e = new THREE.Vector3(t.x + 0.5 + rand(-0.8, 0.8), rand(0.1, 0.9), t.z + 0.5 + rand(-0.8, 0.8));
-      Snd.fx.blaster('clone'); FX.muzzle(m, TEAMCOL.clone); recoil(u); FX.bolt(m, e, 'clone', 45).then(() => FX.spark(e.x, e.y, e.z, 0xffc070, 6, 2)); await wait(0.11);
+      Snd.fx.blaster('clone', 0, { kind: u.type === 'heavy' ? 'heavy' : 'rifle', at: m }); FX.muzzle(m, TEAMCOL.clone); recoil(u); FX.bolt(m, e, 'clone', 0, null, u.type === 'heavy' ? 'heavy' : 'rifle').then(() => FX.spark(e.x, e.y, e.z, 0xffc070, 6, 2)); await wait(0.11);
     }
     t.suppressed = true; u.suppressing = t; t.flinch = 1; popText(t, 'ПОДАВЛЕН', 'crit');
     await wait(0.5); u.state = 'idle'; busy = false; refreshUI(); afterAction();
@@ -349,7 +349,7 @@ const Mission = (() => {
   }
   function absorb(t, dmg) {
     if (!t.shield) return dmg;
-    const a = Math.min(t.shield, dmg); t.shield -= a; Snd.fx.impact();
+    const a = Math.min(t.shield, dmg); t.shield -= a; Snd.fx.impact(0, { shield: true, at: t.rig.root.position.clone().setY(0.6) });
     if (t.rig.shieldMesh) { const m = t.rig.shieldMesh.material; m.opacity = 0.65; if (!t.shield) t.rig.shieldMesh.visible = false; }
     return dmg - a;
   }

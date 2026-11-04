@@ -36,8 +36,16 @@ const Snd = (() => {
     const nl = ac.sampleRate; noise = ac.createBuffer(1, nl, ac.sampleRate);
     const nd = noise.getChannelData(0); for (let i = 0; i < nl; i++) nd[i] = Math.random() * 2 - 1;
     Music.init(ac, mus, verbIn);
-    blastBufs.clone = [0, 1, 2].map(i => dispersiveBlast(ac, { fmax: 3900 + i * 250, fmin: 115, t0: 0.024, p: 1.6, decay: 0.12, dur: 0.42, echo: 0.029 + i * 0.002 }));
-    blastBufs.droid = [0, 1, 2].map(i => dispersiveBlast(ac, { fmax: 5600 + i * 300, fmin: 190, t0: 0.016, p: 1.7, decay: 0.085, dur: 0.32, echo: 0.021 + i * 0.002 }));
+    // у каждого оружия своё звучание: по три варианта, чтобы очередь не звучала одинаково
+    const kinds = {
+      rifle: { fmax: 3900, fmin: 115, t0: 0.024, p: 1.6, decay: 0.12, dur: 0.42, echo: 0.029 },        // DC-15A — сочный «пью-у»
+      heavy: { fmax: 3100, fmin: 95, t0: 0.02, p: 1.5, decay: 0.075, dur: 0.3, echo: 0.024 },          // пулемёт — короче и ниже
+      sniper: { fmax: 3300, fmin: 62, t0: 0.034, p: 1.45, decay: 0.21, dur: 0.75, echo: 0.047 },       // DC-15x — глубокий, с долгим хвостом
+      droid: { fmax: 5600, fmin: 190, t0: 0.016, p: 1.7, decay: 0.085, dur: 0.32, echo: 0.021 },       // E-5 — выше и суше
+      droidHeavy: { fmax: 4500, fmin: 150, t0: 0.013, p: 1.8, decay: 0.065, dur: 0.26, echo: 0.018 },  // бластеры B2 и разрушителя — резкие
+      droidSniper: { fmax: 5000, fmin: 105, t0: 0.026, p: 1.55, decay: 0.17, dur: 0.6, echo: 0.04 },   // E-5s
+    };
+    for (const [k, o] of Object.entries(kinds)) blastBufs[k] = [0, 1, 2].map(i => dispersiveBlast(ac, Object.assign({}, o, { fmax: o.fmax + i * 260, echo: o.echo + i * 0.002 })));
   }
   // одиночный «пью-у»: частота падает по гиперболе (дисперсия изгибной волны), несколько отражений
   function dispersiveBlast(ctx, o) {
@@ -62,6 +70,16 @@ const Snd = (() => {
     return buf;
   }
   const now = () => ac.currentTime;
+  // звук в точке мира: тише и глуше вдали (воздух съедает верха), панорама — по положению на экране; дальше — больше эха
+  const _sp = new THREE.Vector3();
+  function spatial(at, dest) {
+    if (!at || typeof camera === 'undefined') return { node: dest || sfx, gain: 1, wet: 0.28 };
+    const d = camera.position.distanceTo(at), far = clamp((d - 4) / 26, 0, 1);
+    _sp.copy(at).project(camera); const pan = clamp(_sp.x * 0.75, -0.85, 0.85) * (_sp.z > 1 ? -1 : 1);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 17000 - 13000 * far; lp.Q.value = 0.5;
+    let node = lp; if (ac.createStereoPanner) { const pn = ac.createStereoPanner(); pn.pan.value = pan; lp.connect(pn); pn.connect(dest || sfx); } else lp.connect(dest || sfx);
+    return { node, gain: clamp(2.4 / (1 + d * 0.14), 0.22, 1), wet: 0.22 + 0.3 * far };
+  }
   function envGain(t, a, peak, d, dest, wet = 0) {
     const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
@@ -81,28 +99,44 @@ const Snd = (() => {
   const fx = {
     // Бластер: физическая модель удара по натянутому стальному тросу (так звук делали для фильмов) —
     // дисперсия: высокие частоты приходят раньше низких, плюс отражения волны от концов троса
-    blaster(team, delay = 0) {
-      if (!ac) return; const t = now() + delay, set = blastBufs[team === 'droid' ? 'droid' : 'clone']; if (!set) return;
-      const src = ac.createBufferSource(); src.buffer = set[Math.floor(Math.random() * set.length)]; src.playbackRate.value = 0.95 + Math.random() * 0.1;
-      const g = ac.createGain(); g.gain.value = team === 'droid' ? 0.55 : 0.7; src.connect(g); g.connect(sfx);
-      const w = ac.createGain(); w.gain.value = 0.28; g.connect(w); w.connect(verbIn); src.start(t);
-      if (team !== 'droid') osc('sine', 150, 55, t, 0.1, envGain(t, 0.002, 0.22, 0.09));
+    blaster(team, delay = 0, o = {}) {
+      if (!ac) return; const t = now() + delay, kind = o.kind || (team === 'droid' ? 'droid' : 'rifle'), set = blastBufs[kind]; if (!set) return;
+      const S = spatial(o.at), src = ac.createBufferSource(); src.buffer = set[Math.floor(Math.random() * set.length)]; src.playbackRate.value = 0.95 + Math.random() * 0.1;
+      const vol = { rifle: 0.7, heavy: 0.62, sniper: 0.9, droid: 0.55, droidHeavy: 0.6, droidSniper: 0.7 }[kind] || 0.6;
+      const g = ac.createGain(); g.gain.value = vol * S.gain; src.connect(g); g.connect(S.node);
+      const w = ac.createGain(); w.gain.value = S.wet; g.connect(w); w.connect(verbIn); src.start(t);
+      // отдача: низкий удар у клоновских винтовок, у снайперки — сильнее и с хлопком
+      if (team !== 'droid') osc('sine', kind === 'sniper' ? 120 : 150, 45, t, kind === 'sniper' ? 0.18 : 0.1, envGain(t, 0.002, (kind === 'sniper' ? 0.4 : 0.22) * S.gain, kind === 'sniper' ? 0.17 : 0.09, S.node));
+      if (kind === 'sniper') nz(t, 0.05, 'lowpass', 2200, 700, 0.8, envGain(t, 0.001, 0.3 * S.gain, 0.05, S.node));
     },
-    heavy(delay = 0) { for (let i = 0; i < 3; i++) this.blaster('clone', delay + i * 0.1); },
-    impact(delay = 0) {
-      if (!ac) return; const t = now() + delay;
-      // шипящий удар заряда о броню: треск + «пшш» + глухой удар
-      nz(t, 0.35, 'bandpass', 5000, 1200, 1.2, envGain(t, 0.002, 0.45, 0.35, sfx, 0.35));
-      nz(t, 0.08, 'lowpass', 2500, 600, 1, envGain(t, 0.001, 0.5, 0.08));
-      osc('sine', 160, 55, t, 0.14, envGain(t, 0.002, 0.35, 0.13));
-      osc('square', 900, 300, t, 0.06, envGain(t, 0.001, 0.06, 0.05));
+    heavy(delay = 0) { for (let i = 0; i < 3; i++) this.blaster('clone', delay + i * 0.1, { kind: 'heavy' }); },
+    // заряд проходит рядом с камерой: свист с эффектом Доплера и шипение
+    flyby(team, delay = 0, near = 1, at) {
+      if (!ac) return; const t = now() + delay, S = spatial(at), v = near * S.gain, hi = team === 'droid' ? 1.2 : 1;
+      osc('sawtooth', 2300 * hi, 650 * hi, t, 0.2, envGain(t, 0.03, 0.06 * v, 0.18, S.node, 0.3));
+      osc('sine', 4200 * hi, 1300 * hi, t, 0.18, envGain(t, 0.02, 0.07 * v, 0.16, S.node, 0.3));
+      nz(t, 0.22, 'bandpass', 6000, 1800, 2, envGain(t, 0.03, 0.16 * v, 0.2, S.node, 0.3));
     },
-    miss(delay = 0) {
-      if (!ac) return; const t = now() + delay;
-      // пролетающий мимо заряд: доплеровский свист и шипение попадания в песок
-      osc('sawtooth', 1500, 380, t, 0.28, envGain(t, 0.02, 0.07, 0.26, sfx, 0.5));
-      osc('sine', 3200, 900, t, 0.22, envGain(t, 0.01, 0.06, 0.2, sfx, 0.4));
-      nz(t + 0.08, 0.25, 'bandpass', 3500, 1500, 1, envGain(t + 0.08, 0.004, 0.18, 0.22));
+    // попадание: в броню клона — треск, шипение и глухой удар; в металл дроида — ещё звон корпуса; в щит — электрический треск
+    impact(delay = 0, o = {}) {
+      if (!ac) return; const t = now() + delay, S = spatial(o.at), v = S.gain, d = S.node;
+      if (o.shield) {
+        osc('sawtooth', 240, 170, t, 0.32, envGain(t, 0.004, 0.12 * v, 0.3, d, 0.4)); osc('square', 61, 58, t, 0.3, envGain(t, 0.004, 0.06 * v, 0.28, d));
+        nz(t, 0.3, 'bandpass', 2600, 900, 3, envGain(t, 0.002, 0.35 * v, 0.28, d, 0.4)); osc('sine', 1800, 600, t, 0.12, envGain(t, 0.002, 0.08 * v, 0.1, d));
+        return;
+      }
+      nz(t, 0.35, 'bandpass', 5000, 1200, 1.2, envGain(t, 0.002, 0.45 * v, 0.35, d, 0.35));
+      nz(t, 0.08, 'lowpass', 2500, 600, 1, envGain(t, 0.001, 0.5 * v, 0.08, d));
+      osc('sine', 160, 55, t, 0.14, envGain(t, 0.002, 0.35 * v, 0.13, d));
+      if (o.metal) for (const [f, a, dec] of [[1170, 0.09, 0.32], [2790, 0.06, 0.22], [4410, 0.04, 0.15], [610, 0.07, 0.4]]) osc('sine', f, f * 0.985, t, dec, envGain(t, 0.001, a * v, dec, d, 0.3));
+      else osc('square', 900, 300, t, 0.06, envGain(t, 0.001, 0.06 * v, 0.05, d));
+    },
+    // промах: шипение заряда в песке или камне и тупой удар
+    miss(delay = 0, o = {}) {
+      if (!ac) return; const t = now() + delay, S = spatial(o.at), v = S.gain, d = S.node;
+      nz(t, 0.28, 'bandpass', 3800, 1400, 1, envGain(t, 0.003, 0.22 * v, 0.26, d, 0.35));
+      nz(t, 0.06, 'lowpass', 1800, 400, 1, envGain(t, 0.001, 0.25 * v, 0.06, d));
+      osc('sine', 120, 50, t, 0.1, envGain(t, 0.002, 0.15 * v, 0.09, d));
     },
     // гром: треск и раскатистый рокот (шумовой буфер — 1 с, поэтому раскаты — несколькими кусками)
     thunder(near = 0.5) {
@@ -1316,29 +1350,65 @@ const FX = (() => {
     sprites.push({ s, t: 0, life, s0: scale, s1: scale * 1.4, vy: 0, vx: 0, vz: 0, a: 1, flash: true });
     const l = flashLights.reduce((a, b) => a.intensity <= b.intensity ? a : b); l.color.set(color); l.position.set(x, y, z); l.intensity = 3.2; l.distance = 5;
   }
-  // заряд бластера: белое ядро, цветное свечение, шлейф и бегущий свет
-  const boltGeo = new THREE.CapsuleGeometry(0.02, 0.8, 3, 6), glowGeo = new THREE.CapsuleGeometry(0.06, 0.85, 3, 8), trailGeo = new THREE.CylinderGeometry(0.04, 0.0, 1.6, 8, 1, true);
-  boltGeo.rotateX(Math.PI / 2); glowGeo.rotateX(Math.PI / 2); trailGeo.rotateX(Math.PI / 2); trailGeo.translate(0, 0, -1.1);
+  // заряд бластера: тонкая светящаяся полоса — белое ядро в пару сантиметров и мягкий цветной ореол, яркая голова и
+  // гаснущий хвост (как в кино). Полосы всегда развёрнуты к камере, поэтому заряд тонкий с любой стороны
+  function streakTex(core) {
+    const W = 32, H = 128, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), im = g.createImageData(W, H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const u = (x + 0.5) / W * 2 - 1, v = 1 - (y + 0.5) / H; // v: 1 — голова, 0 — хвост
+      const across = core ? Math.min(1, 1.6 * Math.exp(-(u * u) / 0.09)) : Math.min(1, Math.exp(-(u * u) / 0.12) * 0.55 + 1.2 * Math.exp(-(u * u) / 0.025));
+      const along = Math.pow(v, core ? 0.8 : 1.4) * (1 - Math.pow(Math.max(0, v - 0.9) / 0.1, 2)); // к голове ярче, кончик скруглён
+      const a = Math.max(0, Math.min(1, across * along)), k = (y * W + x) * 4;
+      im.data[k] = im.data[k + 1] = im.data[k + 2] = 255; im.data[k + 3] = Math.round(255 * a);
+    }
+    g.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+  }
+  // полоса единичной ширины и длины: поперёк — x, вдоль — от хвоста (z = −1) к голове (z = 0)
+  const streakGeo = new THREE.BufferGeometry();
+  streakGeo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, -1, 0.5, 0, -1, 0.5, 0, 0, -0.5, 0, 0], 3));
+  streakGeo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2)); streakGeo.setIndex([0, 1, 2, 0, 2, 3]);
+  const STREAK = { core: streakTex(true), halo: streakTex(false) };
   const boltMats = {};
   for (const team of ['clone', 'droid']) boltMats[team] = [
-    new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }),
-    new THREE.MeshBasicMaterial({ color: TEAMCOL[team], transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
-    new THREE.MeshBasicMaterial({ color: TEAMCOL[team], transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }),
+    // ядро — почти белое с оттенком цвета, обычным смешиванием: на ярком песке сложение его не видно
+    new THREE.MeshBasicMaterial({ map: STREAK.core, color: new THREE.Color(TEAMCOL[team]).lerp(new THREE.Color(0xffffff), 0.82), transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }),
+    // ореол — обычным смешиванием: насыщенный цвет виден и на светлом песке (сложение с ярким фоном его съедает)
+    new THREE.MeshBasicMaterial({ map: STREAK.halo, color: team === 'droid' ? 0xff2412 : 0x1f8bff, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }),
   ];
-  function bolt(from, to, team, speed = 40, onMove = null) {
+  // виды зарядов: длина полосы, ширина ядра и ореола (в единицах поля, клон ростом 1,83 м ≈ 1,17), скорость
+  const BOLT = {
+    rifle: { len: 0.95, core: 0.018, halo: 0.085, speed: 55 },
+    heavy: { len: 0.7, core: 0.016, halo: 0.075, speed: 60 },
+    sniper: { len: 1.6, core: 0.022, halo: 0.1, speed: 95 },
+    droid: { len: 0.8, core: 0.017, halo: 0.08, speed: 48 },
+  };
+  const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _bm = new THREE.Matrix4();
+  function bolt(from, to, team, speed = 0, onMove = null, kind = team === 'droid' ? 'droid' : 'rifle') {
     return new Promise(res => {
-      const g = new THREE.Group(), [a, b, c] = boltMats[team];
-      g.add(new THREE.Mesh(boltGeo, a), new THREE.Mesh(glowGeo, b), new THREE.Mesh(trailGeo, c));
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.glow, color: TEAMCOL[team], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.7 })); sp.scale.setScalar(0.5); g.add(sp);
-      g.position.copy(from); g.lookAt(to); scene.add(g);
-      boltLight.color.set(TEAMCOL[team]); boltLight.intensity = 2.5;
-      const dist = from.distanceTo(to); live.push({ g, sp, from: from.clone(), to: to.clone(), t: 0, dur: Math.max(0.06, dist / speed), res, team, onMove });
+      const K = BOLT[kind] || BOLT.rifle, g = new THREE.Group(), [a, b] = boltMats[team];
+      const core = new THREE.Mesh(streakGeo, a), halo = new THREE.Mesh(streakGeo, b); core.renderOrder = halo.renderOrder = 5; g.add(halo, core);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.glow, color: TEAMCOL[team], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55 })); sp.scale.setScalar(K.halo * 2.2); g.add(sp);
+      g.position.copy(from); scene.add(g);
+      boltLight.color.set(TEAMCOL[team]); boltLight.intensity = 2.2;
+      const dist = from.distanceTo(to), sp0 = speed || K.speed;
+      // пролетает мимо камеры (не из её ствола и не в неё) — свист в момент наибольшего сближения
+      if (!onMove) { const dir = to.clone().sub(from).normalize(), sc = clamp(camera.position.clone().sub(from).dot(dir), 0, dist), pc = from.clone().addScaledVector(dir, sc), dc = pc.distanceTo(camera.position);
+        if (dc < 1.8 && sc > 0.6 && sc < dist - 0.3) Snd.fx.flyby(team, sc / sp0, 1 - dc / 1.8, pc); }
+      live.push({ g, sp, core, halo, K, from: from.clone(), to: to.clone(), dir: to.clone().sub(from).normalize(), dist, t: 0, dur: Math.max(0.05, dist / sp0), res, team, onMove });
     });
+  }
+  // полоса: вдоль полёта, плоскостью к камере; хвост не длиннее пройденного пути — из ствола заряд «вырастает»
+  function orientBolt(b, k) {
+    _bz.copy(b.dir); _by.copy(camera.position).sub(b.g.position); _bx.crossVectors(_by, _bz); if (_bx.lengthSq() < 1e-8) _bx.set(1, 0, 0); _bx.normalize(); _by.crossVectors(_bz, _bx);
+    b.g.quaternion.setFromRotationMatrix(_bm.makeBasis(_bx, _by, _bz));
+    const L = Math.min(b.K.len, b.dist * k + 0.02), d = camera.position.distanceTo(b.g.position);
+    // не тоньше ~1,5 пикселя ядро и ~4 пикселя ореол: издалека тонкий заряд иначе пропадает и мерцает
+    b.core.scale.set(Math.max(b.K.core, d * 0.004), 1, L); b.halo.scale.set(Math.max(b.K.halo, d * 0.014), 1, L * 1.05);
   }
   function muzzle(p, color) {
     const s = sprite(TEX.star, color, true); s.position.copy(p); s.material.rotation = Math.random() * 3;
-    sprites.push({ s, t: 0, life: 0.09, s0: 0.35, s1: 0.6, vy: 0, vx: 0, vz: 0, a: 1, flash: true });
-    flash(p.x, p.y, p.z, color, 0.5, 0.08); puff(p.x, p.y, p.z, { color: 0x9a9a9a, life: 0.8, s0: 0.08, s1: 0.4, vy: 0.25, a: 0.35 });
+    sprites.push({ s, t: 0, life: 0.07, s0: 0.16, s1: 0.3, vy: 0, vx: 0, vz: 0, a: 1, flash: true });
+    flash(p.x, p.y, p.z, color, 0.4, 0.06); puff(p.x, p.y, p.z, { color: 0x9a9a9a, life: 0.8, s0: 0.08, s1: 0.4, vy: 0.25, a: 0.35 });
   }
   const scorches = [], scorchGeo = new THREE.PlaneGeometry(1, 1); scorchGeo.rotateX(-Math.PI / 2);
   const scorchMat = new THREE.MeshBasicMaterial({ map: TEX.scorch, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
@@ -1370,7 +1440,7 @@ const FX = (() => {
   function update(dt) {
     for (let i = live.length - 1; i >= 0; i--) {
       const b = live[i]; b.t += dt; const k = Math.min(1, b.t / b.dur);
-      b.g.position.lerpVectors(b.from, b.to, k); boltLight.position.copy(b.g.position);
+      b.g.position.lerpVectors(b.from, b.to, k); boltLight.position.copy(b.g.position); orientBolt(b, k);
       if (b.onMove) b.onMove(b.g.position);
       if (k >= 1) { scene.remove(b.g); b.sp.material.dispose(); live.splice(i, 1); b.res(); if (!live.length) boltLight.intensity = 0; }
     }
@@ -1404,7 +1474,7 @@ const FX = (() => {
   // прогрев: по одному объекту каждого вида под землёй, чтобы шейдеры собрались под экраном загрузки
   function warm() {
     const g = new THREE.Group(); g.position.set(N / 2, -40, N / 2); scene.add(g);
-    for (const t of Object.keys(boltMats)) for (const [geo, m] of [[boltGeo, boltMats[t][0]], [glowGeo, boltMats[t][1]], [trailGeo, boltMats[t][2]]]) g.add(new THREE.Mesh(geo, m));
+    for (const t of Object.keys(boltMats)) for (const m of boltMats[t]) g.add(new THREE.Mesh(streakGeo, m));
     puff(N / 2, -40, N / 2); fire(N / 2, -40, N / 2); flash(N / 2, -40, N / 2, 0xffffff, 0.1, 0.05);
     return g;
   }
@@ -2456,12 +2526,14 @@ function poseSkinned(u, dt) {
   const toW = (x, y, z) => body.localToWorld(new THREE.Vector3(x, y, z));
   const fwdW = toW(0, 0, 1).sub(toW(0, 0, 0)).normalize(), upW = toW(0, 1, 0).sub(toW(0, 0, 0)).normalize(), rightW = new THREE.Vector3().crossVectors(fwdW, upW).normalize();
   const S = r.side; // знак оси X правой стороны модели
-  // стойка: в исходной анимации колени согнуты на 40° (боевой полуприсед) — выпрямляем до ~10°, ступни на месте
+  // стойка: в исходной анимации колени согнуты на 40° (боевой полуприсед) — выпрямляем до ~25°, ступни на месте
   u.standK = lerp(u.standK === undefined ? 1 : u.standK, walk || run || u.hitT > 0 ? 0 : 1, 1 - Math.exp(-dt * 8));
   const standAmt = u.standK * (1 - clamp((u.drop || 0) / 0.12, 0, 1));
   if (standAmt > 0.01) standIK(r, upW, fwdW, standAmt);
-  // присед: опускаем таз, ноги стоят на месте
-  const drop = crouch ? (st === 'hunker' ? 0.5 : ow ? 0.42 : 0.36) : 0;
+  // присед: опускаем таз, ноги стоят на месте. Глубина — в долях длины ноги (у моделей она разная; значения
+  // подобраны под ногу 0,9 — у моделей Meshy она около 0,77, и таз уходил ниже стоп, колено выворачивалось назад)
+  if (r.legLen === undefined) { const sc0 = body.getWorldScale(_v1).y; r.legLen = (bonePos(B.LeftUpLeg, _v2).distanceTo(bonePos(B.LeftLeg, _v3)) + bonePos(B.LeftLeg, _v2).distanceTo(bonePos(B.LeftFoot, _v3))) / sc0; }
+  const drop = crouch ? (st === 'hunker' ? 0.5 : ow ? 0.42 : 0.36) * r.legLen / 0.9 : 0;
   u.drop = lerp(u.drop || 0, drop, 1 - Math.exp(-dt * 10));
   if (u.drop > 0.01) crouchIK(r, u.drop, (st === 'hunker' ? 1.3 : ow ? 0.5 : 1), fwdW, upW, rightW);
   // корпус: вздрагивание (с поворотом от попадания) и поворот плеча к оружию при прицеливании
@@ -2529,11 +2601,12 @@ function narrowFeet(B, F, upW, fwdW, k) {
   const side = A[0].clone().sub(A[1]); side.addScaledVector(upW, -side.dot(upW)).normalize();
   for (let i = 0; i < 2; i++) {
     const f = F[i], rel = f.clone().sub(mid), along = rel.dot(fwdW), up = rel.dot(upW);
-    const want = mid.clone().addScaledVector(side, i ? -half : half).addScaledVector(fwdW, along * 0.6).addScaledVector(upW, up);
+    // вперёд-назад стопы сводим сильнее: в широком выпаде задняя нога выпрямлялась до упора и колено казалось вывернутым назад
+    const want = mid.clone().addScaledVector(side, i ? -half : half).addScaledVector(fwdW, along * 0.35).addScaledVector(upW, up);
     f.lerp(want, k);
   }
 }
-// прямая стойка: таз поднимается, пока ноги почти не выпрямятся (колено ~10°), ступни ставим под таз
+// прямая стойка: таз поднимается, пока ноги почти не выпрямятся (колено ~25° вперёд), ступни ставим под таз
 function standIK(r, upW, fwdW, amt) {
   const B = r.bones, legs = [[B.LeftUpLeg, B.LeftLeg, B.LeftFoot], [B.RightUpLeg, B.RightLeg, B.RightFoot]];
   const F = legs.map(l => bonePos(l[2], new THREE.Vector3())); let d = Infinity;
@@ -2541,7 +2614,7 @@ function standIK(r, upW, fwdW, amt) {
   for (let i = 0; i < 2; i++) {
     const [a, k] = legs[i], A = bonePos(a, new THREE.Vector3()), Kp = bonePos(k, new THREE.Vector3());
     const L = A.distanceTo(Kp) + Kp.distanceTo(F[i]), v = A.clone().sub(F[i]), vy = v.dot(upW), h2 = v.lengthSq() - vy * vy;
-    d = Math.min(d, Math.sqrt(Math.max(0, (L * 0.995) ** 2 - h2)) - vy);
+    d = Math.min(d, Math.sqrt(Math.max(0, (L * 0.975) ** 2 - h2)) - vy); // нога на 97,5% длины: колено согнуто вперёд на ~25°
   }
   if (!(d > 0.001)) return;
   const hp = bonePos(B.Hips, new THREE.Vector3()).addScaledVector(upW, d * amt);
@@ -2553,7 +2626,9 @@ function crouchIK(r, drop, bend, fwdW, upW, rightW) {
   const B = r.bones, body = r.body;
   const fl = bonePos(B.LeftFoot, new THREE.Vector3()), fr = bonePos(B.RightFoot, new THREE.Vector3());
   if (r.meshy) narrowFeet(B, [fl, fr], upW, fwdW, 0.5); // в приседе стойка шире, но без «буквы А»
-  const hp = bonePos(B.Hips, new THREE.Vector3()), np = hp.clone().addScaledVector(upW, -drop * body.getWorldScale(_v1).y).addScaledVector(fwdW, -0.05 * drop);
+  const sc = body.getWorldScale(_v1).y, hp = bonePos(B.Hips, new THREE.Vector3()), np = hp.clone().addScaledVector(upW, -drop * sc).addScaledVector(fwdW, -0.05 * drop);
+  // таз не ниже ~45% длины ноги над верхней из стоп: глубже ноге некуда сгибаться, и IK выворачивает колено назад
+  if (r.legLen) { const minH = 0.45 * r.legLen * sc, top = Math.max(fl.dot(upW), fr.dot(upW)), h = np.dot(upW) - top; if (h < minH) np.addScaledVector(upW, minH - h); }
   B.Hips.position.copy(B.Hips.parent.worldToLocal(np)); B.Hips.updateMatrixWorld(true);
   const knee = (foot) => foot.clone().addScaledVector(fwdW, 1).addScaledVector(upW, 0.3);
   twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, fl, knee(fl)); twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, fr, knee(fr));
@@ -3213,6 +3288,9 @@ async function shoot(s, t, opts = {}) {
   await wait(fp ? 0.45 : 0.25);
   // выстрелы
   const shots = s.burst, bulletCam = fp && out.kill && s.type === 'sniper'; let strayBarrel = null;
+  // вид оружия — для звука и вида заряда
+  const wKind = s.team === 'clone' ? (s.type === 'sniper' ? 'sniper' : s.type === 'heavy' ? 'heavy' : 'rifle') : (s.type === 'b2' || s.type === 'dk' ? 'droidHeavy' : s.type === 'snp' ? 'droidSniper' : 'droid');
+  const boltKind = { droidHeavy: 'droid', droidSniper: 'sniper' }[wKind] || wKind;
   for (let i = 0; i < shots; i++) {
     const last = i === shots - 1, m = new THREE.Vector3();
     if (scoped) m.copy(cam.cine.pos).addScaledVector(dir, 0.3).add(new THREE.Vector3(0, -0.04, 0));
@@ -3221,24 +3299,25 @@ async function shoot(s, t, opts = {}) {
     if (hit && (last || Math.random() < 0.7)) end = { p: tChest.clone().add(new THREE.Vector3(rand(-0.05, 0.05), rand(-0.07, 0.09), rand(-0.05, 0.05))), body: true };
     else { const aim = tChest.clone().addScaledVector(right, (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.65)).add(new THREE.Vector3(0, rand(-0.15, 0.3), 0)); end = missEnd(m, aim);
       const bx = Math.floor(end.p.x), bz = Math.floor(end.p.z); if (inb(bx, bz) && kind[id(bx, bz)] === K.BARREL && Math.random() < 0.6) strayBarrel = [bx, bz]; }
-    Snd.fx.blaster(s.team);
+    Snd.fx.blaster(s.team, 0, { kind: wKind, at: m });
     FX.muzzle(m, TEAMCOL[s.team]);
     if (fp) fpKick(); else recoil(s);
     if (last && out.kill) slow = bulletCam ? 0.35 : 0.3;
-    const b = FX.bolt(m, end.p, s.team, bulletCam ? 16 : 40, bulletCam ? pos => { cam.cine.pos.copy(pos).addScaledVector(dir, -0.6).add(new THREE.Vector3(0, 0.08, 0)); cam.cine.look.copy(tChest); cam.cine.fov = 42; } : null);
+    const b = FX.bolt(m, end.p, s.team, bulletCam ? 16 : 0, bulletCam ? pos => { cam.cine.pos.copy(pos).addScaledVector(dir, -0.6).add(new THREE.Vector3(0, 0.08, 0)); cam.cine.look.copy(tChest); cam.cine.fov = 42; } : null, boltKind);
     if (bulletCam) { document.body.classList.remove('scope'); }
     const impact = () => {
       if (end.body) { FX.spark(end.p.x, end.p.y, end.p.z, t.team === 'droid' ? 0xffd27a : 0xffffff, 14, 2.5); return; }
       FX.spark(end.p.x, end.p.y, end.p.z, 0xffc070, 10, 2.2); FX.puff(end.p.x, end.p.y, end.p.z, { color: 0x8a6a50, life: 1.2, s0: 0.15, s1: 0.7, vy: 0.3, a: 0.5 });
       if (end.ground) FX.scorch(end.p.x, end.p.z, 0.22);
-      if (!last || !hit) Snd.fx.miss();
+      if (!last || !hit) Snd.fx.miss(0, { at: end.p });
     };
     if (!last) { b.then(impact); await wait(s.burst > 2 ? 0.09 : 0.14); continue; }
     await b; impact();
   }
   // результат
   if (hit) {
-    Snd.fx.impact(); FX.spark(tChest.x, tChest.y, tChest.z, t.team === 'droid' ? 0xffd27a : 0xffffff, 26, 3);
+    if (!t.shield) Snd.fx.impact(0, { at: tChest, metal: t.team === 'droid' }); // по щиту звучит щит — см. Mission.absorb
+    FX.spark(tChest.x, tChest.y, tChest.z, t.team === 'droid' ? 0xffd27a : 0xffffff, 26, 3);
     FX.flash(tChest.x, tChest.y, tChest.z, 0xffd27a, 0.7, 0.15); t.flinch = 1; cam.shake = fp ? 0.08 : 0.15;
     if (t.team === 'clone') FX.scorch(tp.x + rand(-0.2, 0.2), tp.z + rand(-0.2, 0.2), 0.18);
     const taken = Mission.absorb(t, dmg);
