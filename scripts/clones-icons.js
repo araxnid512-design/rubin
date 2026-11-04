@@ -1,4 +1,5 @@
-// Иконка и заставка «Клонов против дроидов» для Android: рисуются кодом на холсте и сохраняются в PNG.
+// Иконка и заставка «Клонов против дроидов» для Android: рисуются кодом на холсте. Иконки — PNG, заставка — JPEG
+// (градиентный фон в PNG сжимается плохо: заставки занимали 12 МБ из 30 МБ APK, в JPEG — около 1 МБ)
 // Запуск (нужен Playwright с Chromium): node scripts/clones-icons.js
 const fs = require('fs');
 const path = require('path');
@@ -52,7 +53,7 @@ function draw(w, h, mode) {
     g.save(); g.beginPath(); if (mode === 'round') g.arc(w / 2, h / 2, w / 2, 0, 7); else g.roundRect(0, 0, w, h, w * 0.18); g.clip();
     bg(g, w, h); helmet(g, w / 2, h / 2 + w * 0.02, w * 0.84); g.restore();
   }
-  return c.toDataURL('image/png').split(',')[1];
+  return c.toDataURL(mode === 'splash' ? 'image/jpeg' : 'image/png', 0.9).split(',')[1];
 }
 </script>`;
 
@@ -65,10 +66,12 @@ function draw(w, h, mode) {
     await save(`mipmap-${d}/ic_launcher_round.png`, 48 * k, 48 * k, 'round');
     await save(`mipmap-${d}/ic_launcher_foreground.png`, 108 * k, 108 * k, 'fg');
     const [w, h] = SPLASH[d];
-    await save(`drawable-land-${d}/splash.png`, w, h, 'splash');
-    await save(`drawable-port-${d}/splash.png`, h, w, 'splash');
+    await save(`drawable-land-${d}/splash.jpg`, w, h, 'splash');
+    await save(`drawable-port-${d}/splash.jpg`, h, w, 'splash');
   }
-  await save('drawable/splash.png', 480, 320, 'splash');
+  await save('drawable/splash.jpg', 480, 320, 'splash');
+  // старые PNG-заставки с тем же именем ресурса — убрать, иначе сборка ругается на дубликат
+  for (const d of ['drawable', ...Object.keys(DPI).flatMap(k => [`drawable-land-${k}`, `drawable-port-${k}`])]) { const f = path.join(res, d, 'splash.png'); if (fs.existsSync(f)) fs.unlinkSync(f); }
   fs.writeFileSync(path.join(res, 'values', 'ic_launcher_background.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${BG}</color>\n</resources>\n`);
   await b.close();
   console.log('иконки и заставки записаны в', path.relative(process.cwd(), res));
