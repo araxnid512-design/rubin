@@ -1,0 +1,93 @@
+name: Android APK
+
+on:
+  push:
+    # Сборка и из main, и из рабочих веток Claude — чтобы APK можно было проверить до слияния.
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Синхронизировать web-часть с Android
+        run: npm run sync
+
+      - name: Собрать debug APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 0.3.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Переименовать APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk styx-road.apk
+
+      # Вторая игра — «Клоны против дроидов»: свой Capacitor-проект в clones/, зависимости общие (корневой npm ci)
+      - name: Клоны против дроидов — синхронизировать web-часть с Android
+        run: npm run clones:sync
+
+      - name: Клоны против дроидов — собрать debug APK
+        working-directory: clones/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 0.1.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Клоны против дроидов — переименовать APK
+        run: cp clones/android/app/build/outputs/apk/debug/app-debug.apk clones-vs-droids.apk
+
+      - name: Опубликовать в GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Стикс 0.3.${{ github.run_number }} и Клоны против дроидов 0.1.${{ github.run_number }} (${{ github.ref_name }})"
+          target_commitish: ${{ github.sha }}
+          body: |
+            Сборка из ветки ${{ github.ref_name }}, коммит ${{ github.sha }}.
+            Debug-подпись. Установка: скачайте APK на телефон и откройте (разрешите установку из неизвестных источников).
+            styx-road.apk — «Стикс: Дорога стабов», clones-vs-droids.apk — «Клоны против дроидов».
+          files: |
+            styx-road.apk
+            clones-vs-droids.apk
+          make_latest: true
+
+      # Сайт игры: страница с загрузкой APK и инструкцией, игра в браузере (play/).
+      # Публикуется в ветку gh-pages → https://araxnid512-design.github.io/rubin/
+      - name: Собрать сайт игры
+        run: node scripts/build-site.js 0.3.${{ github.run_number }} styx-road.apk 0.1.${{ github.run_number }} clones-vs-droids.apk
+
+      - name: Опубликовать сайт (GitHub Pages)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          force_orphan: true
+          commit_message: "Сайт: сборка 0.3.${{ github.run_number }}"

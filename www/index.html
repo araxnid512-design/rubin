@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Стикс: Дорога стабов</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- HUD заезда -->
+  <div id="hud">
+    <div class="hud-row"><b id="h-speed">0</b><span>км/ч</span></div>
+    <div class="hud-row"><b id="h-dist">0</b><span>м до стаба</span></div>
+    <div class="hud-bar fuel" id="h-fuel-bar"><i id="h-fuel"></i><span>бензин <em id="h-fuel-v"></em></span></div>
+    <div class="hud-bar hp"><i id="h-hp"></i><span>прочность</span></div>
+    <div class="hud-bar nitro" id="h-nitro-bar"><i id="h-nitro"></i><span>нитро</span></div>
+    <div id="h-weapons"></div>
+  </div>
+  <div id="loot">
+    <span title="Спораны"><i class="ico sporan"></i><b id="h-sporan">0</b></span>
+    <span title="Горох"><i class="ico peas"></i><b id="h-peas">0</b></span>
+    <span title="Жемчуг"><i class="ico pearl"></i><b id="h-pearl">0</b></span>
+    <span title="Убито"><i class="ico skull"></i><b id="h-kills">0</b></span>
+  </div>
+  <div id="hurt"></div>
+  <div id="progress"><i id="p-best"></i><span id="p-car"></span></div>
+  <canvas id="scanner" class="hidden" width="440" height="40"></canvas>
+  <div id="boss" class="hidden"><span>Элита</span><div class="bar"><i id="boss-hp"></i></div></div>
+  <div id="h-flip" class="hidden">Машина перевернулась…</div>
+  <div id="toast" class="hidden"></div>
+
+  <!-- Управление -->
+  <div id="stick" class="stick" aria-label="Наклон машины: влево — нос вверх, вправо — нос вниз">
+    <div class="stick-base"><span class="arr l">◀</span><span class="arr r">▶</span><i id="stick-knob" class="stick-knob"></i></div>
+  </div>
+  <button id="btn-nitro" class="ctl nitro" aria-label="Нитро"><span>НИТРО</span></button>
+  <button id="btn-gas" class="ctl right" aria-label="Газ"><span>ГАЗ</span></button>
+
+  <div id="menu" class="overlay">
+    <div class="panel menu">
+      <div class="logo">СТИКС</div>
+      <div class="subtitle">Дорога стабов</div>
+      <p class="muted small">Прорвитесь на машине от стаба к стабу через кластеры Улья.<br>
+        Газ справа — отпустили, машина тормозит сама. Слева джойстик: влево — нос вверх, вправо — нос вниз; стоя до упора влево — задний ход.</p>
+      <button id="m-play" class="primary">Играть</button>
+      <div class="sound-row"><button class="btn-sound ghost">Звук: вкл</button><button class="btn-music ghost">Музыка: вкл</button><button class="btn-gfx ghost">Графика: авто</button></div>
+      <button id="m-reset" class="ghost">Сбросить прогресс</button>
+    </div>
+  </div>
+
+  <div id="stab" class="overlay hidden">
+    <div class="stab">
+      <header>
+        <div><span class="muted small">Вы в стабе</span><h2 id="stab-name"></h2></div>
+        <div class="wallet">
+          <span><i class="ico sporan"></i><b id="w-sporans">0</b></span>
+          <span><i class="ico peas"></i><b id="w-peas">0</b></span>
+          <span><i class="ico pearl"></i><b id="w-pearls">0</b></span>
+        </div>
+      </header>
+      <aside>
+        <canvas id="car-preview"></canvas>
+        <b id="car-name"></b>
+        <div id="car-stats"></div>
+        <div id="depart"></div>
+        <p id="depart-block" class="warn"></p>
+      </aside>
+      <main>
+        <nav>
+          <button class="tab" data-tab="upgrades">Улучшения</button>
+          <button class="tab" data-tab="fuel">Заправка</button>
+          <button class="tab" data-tab="bench">Станок</button>
+          <button class="tab" data-tab="garage">Гараж</button>
+        </nav>
+        <div id="stab-body"></div>
+      </main>
+      <div id="stab-note" class="hidden"></div>
+    </div>
+  </div>
+
+  <div id="results" class="overlay hidden">
+    <div class="panel results">
+      <h1 id="r-title"></h1>
+      <div id="r-table" class="facts"></div>
+      <div class="total">Итого: <i class="ico sporan"></i><b id="r-total"></b></div>
+      <div class="sound-row">
+        <button id="r-ok" class="primary">В стаб: улучшения</button>
+        <button id="r-again" class="hidden">Ещё раз с чекпоинта</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h1>Пауза</h1>
+      <button id="btn-resume" class="primary">Продолжить</button>
+      <button id="btn-quit">Закончить заезд</button>
+      <div class="sound-row"><button class="btn-sound">Звук: вкл</button><button class="btn-music">Музыка: вкл</button><button class="btn-gfx">Графика: авто</button></div>
+      <button id="btn-exit">Выйти из игры</button>
+    </div>
+  </div>
+
+  <div id="rotate" class="overlay hidden">
+    <div class="panel"><p>Поверните устройство горизонтально</p></div>
+  </div>
+
+  <script src="vendor/capacitor.js"></script>
+  <script src="vendor/app.js"></script>
+  <script src="vendor/status-bar.js"></script>
+  <script src="vendor/screen-orientation.js"></script>
+  <script src="vendor/planck.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/platform.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/obstacles.js"></script>
+  <script src="js/zombies.js"></script>
+  <script src="js/pickups.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/run.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/stab.js"></script>
+  <script src="js/carDraw.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
