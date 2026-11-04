@@ -19,7 +19,7 @@ on:
         default: '120'
       budget:
         description: 'Предел трат, кредитов'
-        default: '1000'
+        default: '500'
 
 permissions:
   contents: write
@@ -60,8 +60,23 @@ jobs:
           } > info.raw
           sed "s/$TRIPO_EMAIL/<почта>/g" info.raw > status/info.md
           bash scripts/tripo-publish.sh
+      # бесплатно: справка Tripo по анимациям (список пресетов, версии скелета, цены) и список проектов аккаунта —
+      # какие модели уже со скелетом (для анимаций нужен готовый риг); в status/anim.md и status/projects.json
+      - name: Справка по анимациям, проекты
+        run: |
+          set +e
+          {
+            echo "# Tripo: анимации — документация"; echo
+            for u in https://developers.tripo3d.ai/en/models/animation.md https://developers.tripo3d.com/en/models/animation.md \
+                     https://developers.tripo3d.ai/en/docs/quick-start.md https://docs.comfy.org/built-in-nodes/TripoRetargetNode.md; do
+              echo "## $u"; echo; curl -sL --max-time 60 "$u" | head -c 150000; echo; echo
+            done
+          } > status/anim.md
+          tripo project list --size 60 --output-format json > projects.raw 2>&1
+          sed "s/$TRIPO_EMAIL/<почта>/g" projects.raw > status/projects.json
+          bash scripts/tripo-publish.sh
       - name: Задания из ветки tripo-control
         env:
           TRIPO_MINUTES: ${{ github.event.inputs.minutes || '120' }}
-          TRIPO_BUDGET: ${{ github.event.inputs.budget || '1000' }}
+          TRIPO_BUDGET: ${{ github.event.inputs.budget || '500' }}
         run: python3 scripts/tripo-cli-runner.py
