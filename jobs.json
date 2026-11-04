@@ -1,7 +1,7 @@
 {
  "jobs": [
   {
-   "id": "m0_bal",
+   "id": "g0_bal",
    "timeout": 120,
    "args": [
     "account",
@@ -9,18 +9,172 @@
    ]
   },
   {
-   "id": "m1_shamble",
+   "id": "g1_shamble",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
-    "4b612127-1f94-42fd-a030-23fe3bf242e7",
-    "zombie shambling walk forward: hunched torso leaning forward, head tilted to one side, dragging the right foot, arms hanging loosely and swaying, slow uneven limping steps",
+    "lottery:e0514812-6341-4858-a95e-20ee35ab86e1",
+    "shamble",
     "4",
-    "out/m_pustysh_shamble.glb"
+    "asset:045789d6-0fbb-450f-aec2-fb1d8fd350a2"
    ]
   },
   {
-   "id": "m1_bal",
+   "id": "g1_zrun",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7,lottery:e0514812-6341-4858-a95e-20ee35ab86e1",
+    "zrun",
+    "3",
+    "infected zombie sprinting forward aggressively: body leaning far forward, arms reaching ahead with clawed hands, wild uneven strides, head jerking"
+   ]
+  },
+  {
+   "id": "g1_zlunge",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7,lottery:e0514812-6341-4858-a95e-20ee35ab86e1",
+    "zlunge",
+    "3",
+    "infected zombie lunging attack: steps forward, grabs at the victim with both hands and bites, then pulls back"
+   ]
+  },
+  {
+   "id": "g1_zidle",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7,lottery:e0514812-6341-4858-a95e-20ee35ab86e1",
+    "zidle",
+    "4",
+    "infected zombie standing in place: slowly swaying, head drooping and twitching to the side, shoulders slumped, arms hanging limply"
+   ]
+  },
+  {
+   "id": "g1_bwalk",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "stomper:26942d63-9e4d-4340-a1eb-90c4fcff66e1,ruber:b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "bwalk",
+    "4",
+    "huge heavy brute walking slowly forward with heavy stomping steps: wide stance, hunched massive shoulders, long arms swinging wide, torso rocking from side to side"
+   ]
+  },
+  {
+   "id": "g1_broar",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "stomper:26942d63-9e4d-4340-a1eb-90c4fcff66e1,ruber:b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "broar",
+    "3",
+    "huge brute roaring with rage: chest pushed forward, arms spread wide, fists clenched, head thrown back"
+   ]
+  },
+  {
+   "id": "g1_bsmash",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "stomper:26942d63-9e4d-4340-a1eb-90c4fcff66e1,ruber:b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "bsmash",
+    "3",
+    "huge brute raising both fists high overhead and smashing them down hard onto the ground in front of it"
+   ]
+  },
+  {
+   "id": "g1_bcharge",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "stomper:26942d63-9e4d-4340-a1eb-90c4fcff66e1,ruber:b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
+    "bcharge",
+    "3",
+    "hulking monster charging forward fast: leaning low, pushing off the ground with its long arms like a gorilla, powerful bounding strides"
+   ]
+  },
+  {
+   "id": "g1_rwalk",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "rwalk",
+    "4",
+    "soldier walking forward at a steady pace holding an assault rifle at low ready: rifle stock tucked into the right shoulder, muzzle angled down forty-five degrees, right hand on the pistol grip, left hand holding the handguard from below, elbows tucked in, knees slightly bent, smooth rolling heel-to-toe steps, upper body steady"
+   ]
+  },
+  {
+   "id": "g1_rleft",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "rleft",
+    "4",
+    "soldier side-stepping to the left while aiming an assault rifle straight ahead with both hands, stock in the shoulder, upper body and rifle facing forward, smooth side steps without crossing the feet"
+   ]
+  },
+  {
+   "id": "g1_rright",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "rright",
+    "4",
+    "soldier side-stepping to the right while aiming an assault rifle straight ahead with both hands, stock in the shoulder, upper body and rifle facing forward, smooth side steps without crossing the feet"
+   ]
+  },
+  {
+   "id": "g1_rback",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "rback",
+    "4",
+    "soldier walking backward slowly while aiming an assault rifle forward with both hands, stock in the shoulder, careful heel-first steps, upper body steady"
+   ]
+  },
+  {
+   "id": "g1_rrun",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "rrun",
+    "3",
+    "soldier jogging forward holding an assault rifle diagonally across the chest at port arms with both hands, muzzle up to the left, steady upper body"
+   ]
+  },
+  {
+   "id": "g1_ridle",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "ridle",
+    "4",
+    "soldier standing alert at low ready holding an assault rifle with both hands, stock in the shoulder, muzzle pointing down, breathing, small weight shift, looking around"
+   ]
+  },
+  {
+   "id": "g1_rturn",
+   "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "hero:3156bb09-877e-4aa3-beef-81c7c86e99a2",
+    "rturn",
+    "3",
+    "soldier turning in place ninety degrees to the left with small quick steps while holding an assault rifle at low ready with both hands"
+   ]
+  },
+  {
+   "id": "g9_bal",
    "timeout": 120,
    "args": [
     "account",
