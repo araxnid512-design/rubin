@@ -107,8 +107,21 @@ def main():
                 continue
             args = [str(a) for a in job.get("args", [])]
             t0 = time.time()
-            log(f"\n### {jid}: tripo {' '.join(args)[:300]}")
-            code, out = tripo(args, timeout=int(job.get("timeout", 1800)))
+            if job.get("py"):
+                # скрипт из репозитория (scripts/…) — для того, чего программа tripo не умеет (движение по тексту)
+                script = str(job["py"])
+                if not re.fullmatch(r"scripts/[\w\-]+\.py", script):
+                    log(f"- {jid}: скрипт {script} не из scripts/ — пропущен")
+                    continue
+                log(f"\n### {jid}: python3 {script} {' '.join(args)[:300]}")
+                try:
+                    p = subprocess.run(["python3", script, *args], capture_output=True, text=True, timeout=int(job.get("timeout", 1800)))
+                    code, out = p.returncode, (p.stdout + ("\n" + p.stderr if p.stderr.strip() else "")).strip()
+                except subprocess.TimeoutExpired:
+                    code, out = -1, "превышено время"
+            else:
+                log(f"\n### {jid}: tripo {' '.join(args)[:300]}")
+                code, out = tripo(args, timeout=int(job.get("timeout", 1800)))
             after, _ = balance()
             spent = (now - after) if (now is not None and after is not None) else None
             log(f"код {code}, {time.time() - t0:.0f} с, кредитов {spent}\n```\n{out[-4000:]}\n```")
