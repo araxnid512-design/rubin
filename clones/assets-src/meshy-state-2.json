@@ -724,5 +724,70 @@
   },
   "status": "SUCCEEDED",
   "credits": 3
+ },
+ "img_dk": {
+  "id": "01a1a573-787f-768b-bb49-693ae4432bdc",
+  "ep": "/v1/text-to-image",
+  "time": "2026-11-04 07:26",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "Sci-fi destroyer battle robot standing deployed on three legs, front three-quarter view, movie-quality realistic 3D render. Height of a man, twice as wide. Dark weathered bronze and brass metal with scratches and grime. A large curved segmented carapace made of three overlapping armor plates forms a hump on its back and curves over the top. A compact armored head on a short neck at the front, with three small red photoreceptors, no long snout. A dark ribbed mechanical torso core in the middle. Two arms reaching forward, each forearm ending in twin blaster cannon barrels. Three long thin spindly insect-like legs with curved shins ending in small three-claw feet, two legs at the front and one at the back. Whole robot fully visible from top to feet with margin, plain light grey background, even neutral studio lighting, no force field, no effects.",
+   "aspect_ratio": "1:1"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "m3d_dk": {
+  "id": "01a1a574-a4ee-700d-8086-6767ba047f73",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-04 07:27",
+  "body": {
+   "input_task_id": "01a1a573-787f-768b-bb49-693ae4432bdc",
+   "ai_model": "meshy-7.1",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 16000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
+ },
+ "img_dkw": {
+  "id": "01a1a578-7995-73e2-ad2d-46baae0850df",
+  "ep": "/v1/image-to-image",
+  "time": "2026-11-04 07:31",
+  "body": {
+   "ai_model": "nano-banana-pro",
+   "prompt": "The same robot from the reference image, curled up into its rolling form: a closed armored wheel. The three carapace armor plates wrap all the way around to form a smooth round wheel like a closed shell, legs, arms and head fully tucked inside and not visible, a round hub cap on each side of the wheel. Side view showing the full circular profile of the wheel, standing upright on its rim. Same dark weathered bronze and brass metal with scratches and grime. Fully visible with margin, plain light grey background, even neutral studio lighting, photorealistic 3D render.",
+   "input_task_id": "01a1a573-787f-768b-bb49-693ae4432bdc",
+   "aspect_ratio": "1:1"
+  },
+  "status": "SUCCEEDED",
+  "credits": 9
+ },
+ "m3d_dkw": {
+  "id": "01a1a579-91c0-750e-b2a2-0f86aeb56245",
+  "ep": "/v1/image-to-3d",
+  "time": "2026-11-04 07:32",
+  "body": {
+   "input_task_id": "01a1a578-7995-73e2-ad2d-46baae0850df",
+   "ai_model": "meshy-7.1",
+   "enable_pbr": true,
+   "should_remesh": true,
+   "topology": "triangle",
+   "target_polycount": 6000,
+   "should_texture": true,
+   "target_formats": [
+    "glb"
+   ],
+   "image_enhancement": false
+  },
+  "status": "SUCCEEDED",
+  "credits": 30
  }
 }

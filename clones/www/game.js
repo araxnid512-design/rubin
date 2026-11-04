@@ -1683,6 +1683,58 @@ function buildDroideka() {
   rig.custom = poseDroideka; rig.customDeath = deathDroideka;
   return rig;
 }
+// Разрушитель Meshy (models/dk.glb): жёсткие части в узлах dk_* — корпус с панцирем, голова, две руки,
+// три ноги; суставы, ступни и дула — в extras сцены (координаты модели). Колесо — models/dkw.glb (ось по Z)
+function prepareDroideka(g, w) {
+  const ex = g.scene.userData.dk, parts = {};
+  g.scene.traverse(o => { if (o.isMesh) { parts[o.name.replace(/^dk_/, '')] = o; o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; if (o.material.map) o.material.map.anisotropy = 8; } });
+  const bb = new THREE.Box3().setFromObject(g.scene), wb = new THREE.Box3().setFromObject(w.scene);
+  w.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; } });
+  const ws = wb.getSize(new THREE.Vector3());
+  return { ex, parts, s: 1.83 * METER / (bb.max.y - ex.minY), // рост по канону — 1,83 м
+    wheel: w.scene, wheelC: wb.getCenter(new THREE.Vector3()), wheelR: Math.max(ws.x, ws.y) / 2 };
+}
+function buildDroidekaMeshy(D) {
+  const root = new THREE.Group(), body = pivot(root, 0, 0, 0), rig = { root, body, kind: 'dk', wrist: true, twoHand: false, curl: 0, roll: 0, dkModel: true };
+  const { piv, extra, minY } = D.ex, s = D.s, P = a => new THREE.Vector3(a[0] * s, (a[1] - minY) * s, a[2] * s);
+  // сустав в точке модели (тело пока в начале координат, без поворота)
+  const joint = (parent, a) => { const g = new THREE.Group(); parent.add(g); parent.updateMatrixWorld(true); g.position.copy(parent.worldToLocal(P(a))); return g; };
+  // часть: копия узла модели вешается на сустав, оставаясь на своём месте
+  const holder = new THREE.Group(); holder.scale.setScalar(s); holder.position.y = -minY * s; body.add(holder);
+  const part = (name, parent) => { const m = D.parts[name].clone(); holder.add(m); root.updateMatrixWorld(true); parent.updateMatrixWorld(true); parent.attach(m); return m; };
+  const hub = rig.core = rig.hips = joint(body, piv.torso); hub.userData.y0 = hub.position.y;
+  const torso = rig.torso = joint(hub, piv.torso); rig.plates = [joint(torso, piv.torso)];
+  part('torso', torso);
+  const head = rig.head = joint(torso, piv.head); part('head', head);
+  rig.arms = [];
+  for (const n of ['armL', 'armR']) {
+    const sh = joint(torso, piv[n]), el = joint(sh, piv[n]); part(n, el); rig.arms.push({ sh, el });
+    if (n === 'armR') { rig.muzzle = joint(el, extra.armRMuzzle); rig.elR = el; rig.gun = el; }
+  }
+  rig.shR = rig.arms[1].sh; rig.shL = rig.arms[0].sh; rig.elL = rig.arms[0].el;
+  // ноги: сустав у таза, повёрнут вдоль ноги к стопе — поворот по X поднимает ногу
+  rig.legs = [];
+  for (const n of ['legFL', 'legFR', 'legB']) {
+    const hip = P(piv[n]), foot = P(extra[n + 'Foot']), up = joint(hub, piv[n]);
+    up.rotation.order = 'YXZ'; up.rotation.y = Math.atan2(foot.x - hip.x, foot.z - hip.z);
+    part(n, up); rig.legs.push({ up, kn: pivot(up, 0, 0, 0) });
+  }
+  body.remove(holder);
+  rig.chestY = (piv.torso[1] + 0.3 - minY) * s * UNIT_SCALE; rig.eyeY = (piv.head[1] - minY) * s * UNIT_SCALE;
+  // генератор щита — свечение на спине под панцирем
+  rig.genGlow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: 0x6ab8ff })); rig.genGlow.userData.keep = true;
+  joint(torso, [0, 0.12, -0.44]).add(rig.genGlow);
+  // колесо: свёрнутый дроид, катится вдоль хода (ось модели Z → X тела)
+  const wheel = rig.wheel = pivot(body, 0, 0.56, 0), spin = rig.spin = pivot(wheel, 0, 0, 0);
+  const wg = new THREE.Group(); wg.rotation.y = Math.PI / 2; wg.scale.setScalar(0.56 / D.wheelR); spin.add(wg);
+  const wm = D.wheel.clone(true); wm.position.copy(D.wheelC).negate(); wg.add(wm);
+  wheel.visible = false;
+  rig.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.12, 32, 20), shieldMat());
+  rig.shieldMesh.position.y = 0.88; rig.shieldMesh.userData.keep = true; rig.shieldMesh.renderOrder = 4; body.add(rig.shieldMesh);
+  Object.defineProperty(rig.shieldMesh.material, 'opacity', { get() { return this.uniforms.op.value; }, set(v) { if (this.uniforms) this.uniforms.op.value = v; } });
+  rig.custom = poseDroideka; rig.customDeath = deathDroideka;
+  return rig;
+}
 function poseDroideka(u, dt) {
   const r = u.rig; u.t += dt; if (u.state === 'dead') return;
   const moving = u.state === 'walk' || u.state === 'run', aim = u.state === 'aim', k = 1 - Math.exp(-dt * 7);
@@ -1693,13 +1745,16 @@ function poseDroideka(u, dt) {
   r.wheel.visible = c > 0.6; r.spin.rotation.x = r.roll; r.wheel.scale.setScalar(0.85 + 0.15 * clamp((c - 0.6) / 0.4, 0, 1));
   r.core.visible = c <= 0.6;
   // раскрытый: лёгкое покачивание; сворачиваясь, корпус опускается к оси колеса и нагибается вперёд
-  r.core.position.y = lerp(0.74, 0.56, fold) + Math.sin(u.t * 2.1 + u.seed) * 0.01 * open;
+  const y0 = r.core.userData.y0 || 0.74;
+  r.core.position.y = lerp(y0, y0 - 0.18, fold) + Math.sin(u.t * 2.1 + u.seed) * 0.01 * open;
   r.torso.rotation.x = fold * 1.1 + (aim ? 0.12 : 0.04) - u.flinch * 0.35;
   r.plates[0].rotation.x = fold * 0.6;
   // ноги: подгибаются к корпусу
-  for (const L of r.legs) { L.up.rotation.x = -fold * 1.3; L.kn.rotation.x = fold * 2.0; }
+  // (у модели Meshy ноги жёсткие: поджимаются к тазу — поднимаются и укорачиваются)
+  for (const L of r.legs) { L.up.rotation.x = -fold * (r.dkModel ? 0.7 : 1.3); L.kn.rotation.x = r.dkModel ? 0 : fold * 2.0; if (r.dkModel) L.up.scale.setScalar(1 - 0.55 * fold); }
   // руки: в покое опущены, при стрельбе стволы точно вперёд
-  for (const [i, a] of r.arms.entries()) { a.sh.rotation.x = (aim ? -0.55 : -0.15) * open + fold * 1.2; a.el.rotation.x = (aim ? -0.25 : 0.35) * open + fold * 1.5; a.sh.rotation.z = (i ? -1 : 1) * 0.06 * open; }
+  // (у модели Meshy стволы в исходной позе смотрят вперёд — это и есть прицел)
+  for (const [i, a] of r.arms.entries()) { a.sh.rotation.x = r.dkModel ? (aim ? 0 : 0.3) * open + fold * 0.9 : (aim ? -0.55 : -0.15) * open + fold * 1.2; a.el.rotation.x = r.dkModel ? 0 : (aim ? -0.25 : 0.35) * open + fold * 1.5; a.sh.rotation.z = (i ? -1 : 1) * 0.06 * open; }
   // голова сканирует сектор
   u.headT = (u.headT || 0) - dt; if (u.headT < 0) { u.headT = rand(0.8, 2.6); u.headY = aim ? 0 : rand(-0.5, 0.5); }
   r.head.rotation.y += ((aim ? 0 : u.headY || 0) - r.head.rotation.y) * (1 - Math.exp(-dt * 5)); r.head.rotation.x = aim ? -0.1 : 0;
@@ -1711,13 +1766,14 @@ function poseDroideka(u, dt) {
 }
 async function deathDroideka(u) {
   const r = u.rig; r.shieldMesh.visible = false; r.wheel.visible = false; r.core.visible = true; r.genGlow.visible = false;
+  if (r.dkModel) for (const L of r.legs) L.up.scale.setScalar(1); // погиб свёрнутым — ноги снова в полную длину
   const p = r.root.position; FX.spark(p.x, 0.7, p.z, 0xffc070, 34, 3.5); FX.flash(p.x, 0.7, p.z, 0xffa040, 0.8, 0.2);
   const side = Math.random() < 0.5 ? -1 : 1, y0 = r.core.position.y;
   await tween(1.0, k => {
     const e = easeOut(k), b = k > 0.75 ? Math.sin((k - 0.75) / 0.25 * Math.PI) * 0.03 : 0;
     r.core.position.y = lerp(y0, 0.3, e) + b; r.core.rotation.z = side * e * 0.35; r.torso.rotation.x = 0.1 + e * 0.55;
     r.legs.forEach((L, i) => { L.up.rotation.x = e * (i === 2 ? 0.2 : 0.55); L.kn.rotation.x = -e * 0.6; });
-    for (const [i, a] of r.arms.entries()) { a.sh.rotation.x = 0.1 + e * 0.5; a.sh.rotation.z = (i ? 1 : -1) * e * 0.5; a.el.rotation.x = 0.35 + e * 0.4; }
+    for (const [i, a] of r.arms.entries()) { if (r.dkModel) { a.sh.rotation.x = 0.3 + e * 0.6; a.sh.rotation.z = (i ? 1 : -1) * e * 0.2; continue; } a.sh.rotation.x = 0.1 + e * 0.5; a.sh.rotation.z = (i ? 1 : -1) * e * 0.5; a.el.rotation.x = 0.35 + e * 0.4; }
     r.head.rotation.x = e * 0.5;
   });
   for (let i = 0; i < 5; i++) FX.puff(p.x, 0.5, p.z, { color: 0x2b2b2b, life: 2.2, s0: 0.2, s1: 1.2, vy: 0.6, a: 0.45 });
@@ -1966,12 +2022,17 @@ const MESHY_OF = { trooper: 'clone1', heavy: 'clone1', sniper: 'clone1', command
 const MESHY_BONES = { Spine02: 'Spine', Spine01: 'Spine1', Spine: 'Spine2', neck: 'Neck' }; // имена как у скелета Mixamo: на них настроена IK
 const METER = 0.956; // метры модели → единицы тела юнита (клон 1,83 м = 1,12 клетки при UNIT_SCALE)
 CHAR.meshy = {};
-function loadMeshy() {
-  return Promise.all([...new Set(Object.values(MESHY_OF))].map(k => fetch('models/' + k + '.glb')
+function loadGlb(k) {
+  return fetch('models/' + k + '.glb')
     .then(r => (r.ok ? r.arrayBuffer() : null))
     .then(buf => buf && new Promise(res => new THREE.GLTFLoader().parse(buf, '', res, e => { console.warn('GLTF', k, e); res(null); })))
-    .then(g => { if (g) CHAR.meshy[k] = prepareMeshy(g); })
-    .catch(e => console.warn('модель', k, e))));
+    .catch(e => { console.warn('модель', k, e); return null; });
+}
+function loadMeshy() {
+  const safe = (f, k) => g => { if (g) try { f(g); } catch (e) { console.warn('модель', k, e); } };
+  return Promise.all([...[...new Set(Object.values(MESHY_OF))].map(k => loadGlb(k).then(safe(g => { CHAR.meshy[k] = prepareMeshy(g); }, k))),
+    // разрушитель: стоящий (части на суставах) и свёрнутый в колесо
+    Promise.all([loadGlb('dk'), loadGlb('dkw')]).then(([g, w]) => safe(() => { CHAR.dk = prepareDroideka(g, w); }, 'dk')(g && w))]);
 }
 function prepareMeshy(g) {
   const sc = g.scene; let body = null;
@@ -2505,7 +2566,7 @@ const UNIT_SCALE = 0.64;
 // рост относительно клона (1,83 м) по Star Wars Databank: B1, BX и командир — 1,91 м, B2 — 1,91 м, ТХ — 1,93 м
 const TYPE_SCALE = { b1: 1.065, cmd: 1.065, snp: 1.065, bx: 1.065, b2: 1.14, tx: 0.99 };
 function makeRig(team, type, paint, full, kit) {
-  if (type === 'dk') { const rig = buildDroideka(); mergeRig(rig.root); return rig; }
+  if (type === 'dk') { const rig = CHAR.dk ? buildDroidekaMeshy(CHAR.dk) : buildDroideka(); mergeRig(rig.root); return rig; }
   const M = CHAR.meshy[MESHY_OF[type]]; if (M) return buildMeshy(team, type, paint, M, full, kit);
   if (CHAR.ready) return buildSkinned(team, type, paint, full);
   const rig = team === 'clone' ? buildClone(type, paint) : buildDroid(type); mergeRig(rig.root); return rig;
@@ -2766,7 +2827,7 @@ function portraitImage(team, type, paint, kit) {
   const rim = new THREE.DirectionalLight(team === 'clone' ? 0x6fc4ff : 0xff6a50, 2.0); rim.position.set(-2, 1.5, -2); ps.add(rim);
   const rig = makeRig(team, type, paint, true, kit);
   rig.root.rotation.y = 0.22; ps.add(rig.root);
-  if (rig.custom) { for (let i = 0; i < 8; i++) rig.custom({ rig, state: 'idle', t: 0, flinch: 0, seed: 0, shield: 4 }, 0.5); }
+  if (rig.custom) { for (let i = 0; i < 8; i++) rig.custom({ rig, state: 'idle', t: 0, flinch: 0, seed: 0, shield: 4, headT: 99, headY: 0 }, 0.5); }
   else if (rig.skinned) { const fake = { rig, team, type, state: 'idle', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9 }; for (let i = 0; i < 3; i++) poseSkinned(fake, 0.02); }
   else { if (rig.gun && !rig.wrist) rig.gun.rotation.x = 0.6; if (rig.shR && !rig.wrist) { rig.shR.rotation.x = -0.5; rig.elR.rotation.x = -1.0; rig.shL.rotation.set(-0.75, 0, 0.5); rig.elL.rotation.x = -0.85; } }
   rig.root.updateMatrixWorld(true);
@@ -2774,7 +2835,7 @@ function portraitImage(team, type, paint, kit) {
   if (rig.meshy) framePortrait(rig, pc);
   else {
     const hp = new THREE.Vector3(); rig.head.getWorldPosition(hp);
-    const up = type === 'b2' ? -0.25 : type === 'dk' ? -0.2 : team === 'droid' ? 0.0 : 0.02, far = type === 'b2' ? 2.4 : type === 'dk' ? 2.2 : type === 'tx' ? 1.3 : 1;
+    const up = type === 'b2' ? -0.25 : type === 'dk' ? (rig.dkModel ? 0.02 : -0.2) : team === 'droid' ? 0.0 : 0.02, far = type === 'b2' ? 2.4 : type === 'dk' ? (rig.dkModel ? 2.4 : 2.2) : type === 'tx' ? 1.3 : 1;
     pc.position.set(hp.x + 0.5 * far, hp.y + up + 0.06, hp.z + 0.88 * far); pc.lookAt(hp.x + 0.02, hp.y + up - 0.03, hp.z + (team === 'droid' && type !== 'b2' ? 0.08 : 0));
   }
   const prevTone = renderer.toneMapping;
@@ -3015,8 +3076,8 @@ async function moveUnit(u, path, dash = false) {
 
 // ---------- режиссёр выстрела
 const UP = new THREE.Vector3(0, 1, 0);
-const chestY = u => (u.type === 'dk' ? 0.78 : u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.97 : u.team === 'droid' ? 0.88 : 0.83);
-const eyeY = u => (u.type === 'dk' ? 0.98 : u.type === 'b2' ? 1.2 : u.team === 'droid' ? 1.06 : 1.04);
+const chestY = u => (u.type === 'dk' ? u.rig.chestY || 0.78 : u.state === 'hunker' ? 0.48 : u.crouch ? 0.62 : u.type === 'b2' ? 0.97 : u.team === 'droid' ? 0.88 : 0.83);
+const eyeY = u => (u.type === 'dk' ? u.rig.eyeY || 0.98 : u.type === 'b2' ? 1.2 : u.team === 'droid' ? 1.06 : 1.04);
 let thirdCount = 0, ownShots = 0;
 // режим камеры выстрела: auto — крутые моменты и каждый второй свой выстрел,
 // first — всегда от первого лица, third — кино-ракурсы (снайпер всё равно через оптику)
