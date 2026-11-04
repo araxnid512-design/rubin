@@ -159,3 +159,33 @@ image-to-image по тому же концепту → image-to-3d (6 тыс.). 
 | 2026-11-04 07:32 | m3d_dkw | /v1/image-to-3d | 01a1a579-91c0-750e-b2a2-0f86aeb56245 | 30 | ok |
 
 Итого: 78 кредитов. Всего за сессию 2: 500.
+
+## Сессия 2, продолжение — клипы с винтовкой (2026-11-04)
+
+Клипы ходьбы и бега Meshy держали руки «пустыми» — кисти уходили с оружия (проверщик `scripts/clones-anim-check.js`
+насчитал 1882 кадра «рука мимо хвата»). Пробные клипы из библиотеки на риге штурмовика (tanim_*), выбраны
+234 «Walk Forward While Shooting» (ходьба) и 511 «Rifle Charge» (бег) — их получили остальные риги.
+
+| время (UTC) | задача | метод | id | кредиты | итог |
+|---|---|---|---|---|---|
+| 2026-11-04 16:56 | tanim_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a77d-293d-718b-a1c1-bd7c6eeb3728 | 3 | ok |
+| 2026-11-04 16:56 | tanim_511 | /v1/animations (action 511, Rifle Charge) | 01a1a77d-2e2c-7128-89a1-506c6ed3e40b | 3 | ok |
+| 2026-11-04 16:56 | tanim_524 | /v1/animations (action 524, проба) | 01a1a77d-3230-7629-ad96-c16de266ab11 | 3 | ok |
+| 2026-11-04 16:56 | tanim_585 | /v1/animations (action 585, проба) | 01a1a77d-3645-7663-9e47-cf02cb569180 | 3 | ok |
+| 2026-11-04 16:56 | tanim_95 | /v1/animations (action 95, проба) | 01a1a77d-3a0a-779e-9701-4d6bc6f90ef3 | 3 | ok |
+| 2026-11-04 16:56 | tanim_98 | /v1/animations (action 98, проба) | 01a1a77d-3e03-719e-be02-73363071d283 | 3 | ok |
+| 2026-11-04 16:56 | tanim_292 | /v1/animations (action 292, проба) | 01a1a77d-41f6-70a3-bf6a-d11a474cadb0 | 3 | ok |
+| 2026-11-04 17:12 | anim_commander_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a78b-e204-7073-adab-c1624d765854 | 3 | ok |
+| 2026-11-04 17:12 | anim_commander_511 | /v1/animations (action 511, Rifle Charge) | 01a1a78b-e5e8-722b-9efe-7023c895f221 | 3 | ok |
+| 2026-11-04 17:12 | anim_pilot_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a78b-e9c6-705b-a2f2-2f29a90156c3 | 3 | ok |
+| 2026-11-04 17:12 | anim_pilot_511 | /v1/animations (action 511, Rifle Charge) | 01a1a78b-edef-75c2-bd94-d41948bb1d0a | 3 | ok |
+| 2026-11-04 17:12 | anim_b1_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a78b-f3b2-741c-9836-1b3f8faff31b | 3 | ok |
+| 2026-11-04 17:12 | anim_b1_511 | /v1/animations (action 511, Rifle Charge) | 01a1a78b-f87e-77a2-a612-7f26ce42db5c | 3 | ok |
+| 2026-11-04 17:12 | anim_bx_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a78b-fc74-70cb-acad-0f609b4a129c | 3 | ok |
+| 2026-11-04 17:12 | anim_bx_511 | /v1/animations (action 511, Rifle Charge) | 01a1a78c-01bc-7639-b30e-6ceff4c47def | 3 | ok |
+| 2026-11-04 17:12 | anim_b2_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a78c-0578-74ac-afa5-72f7f1fb2286 | 3 | ok |
+| 2026-11-04 17:12 | anim_b2_511 | /v1/animations (action 511, Rifle Charge) | 01a1a78c-0a23-70b9-af0d-f9bb160e7658 | 3 | ok |
+| 2026-11-04 17:12 | anim_tx_234 | /v1/animations (action 234, Walk Forward While Shooting) | 01a1a78c-0f17-7787-b6f9-65564c746cfd | 3 | ok |
+| 2026-11-04 17:12 | anim_tx_511 | /v1/animations (action 511, Rifle Charge) | 01a1a78c-1426-778e-8725-dea4095834b3 | 3 | ok |
+
+Итого: 57 кредитов. Остаток на счёте: 56.

@@ -2167,7 +2167,9 @@ function prepareMeshy(g) {
     for (const t of c.tracks) { const i = t.name.lastIndexOf('.'), n = t.name.slice(0, i); t.name = (MESHY_BONES[n] || n) + t.name.slice(i); }
     // таз: в стойке тело сдвинуто вбок, «попадание» уводит его на метр — ставим на место; при гибели оставляем половину отката
     const hp = c.tracks.find(t => t.name === 'Hips.position');
-    if (hp && c.name !== 'walk' && c.name !== 'run') {
+    // ходьба и бег с винтовкой из библиотеки Meshy идут вперёд сами (смещение в клипе) — делаем их на месте, как остальные
+    const moving = c.name === 'walk' || c.name === 'run', drift = hp ? Math.hypot(hp.values[hp.values.length - 3] - hp.values[0], hp.values[hp.values.length - 1] - hp.values[2]) : 0;
+    if (hp && (!moving || drift > 0.05 * Math.abs(bind.y))) {
       const v = hp.values, n = v.length / 3, keep = c.name === 'death' ? 0.5 : 0;
       for (const a of [0, 2]) {
         const v0 = v[a], v1 = v[(n - 1) * 3 + a], b = a ? bind.z : bind.x;
@@ -2289,10 +2291,12 @@ function buildMeshy(team, type, paint, M, full, kit) {
   const model = THREE.SkeletonUtils.clone(M.scene); body.add(model);
   let skin = null; model.traverse(o => { if (o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; skin = o; } });
   const bones = {}; model.traverse(o => { if (o.isBone) bones[o.name] = o; });
+  const bindLocal = {}; for (const [n, b] of Object.entries(bones)) bindLocal[n] = b.quaternion.clone(); // для ограничителей суставов
+  model.updateMatrixWorld(true); const headFwd = bones.Head ? new THREE.Vector3(0, 0, 1).applyQuaternion(bones.Head.getWorldQuaternion(new THREE.Quaternion()).invert()) : null; // взгляд головы в её осях
   const mixer = new THREE.AnimationMixer(model), acts = {};
   for (const [k, c] of Object.entries(M.clips)) acts[k] = mixer.clipAction(c);
   acts.idle.play(); acts.idle.time = Math.random() * acts.idle.getClip().duration;
-  const rig = { root, body, model, bones, mixer, acts, cur: 'idle', skinned: true, meshy: true, M, kind: team === 'clone' ? 'clone' : type, att: [], twoHand: true };
+  const rig = { root, body, model, bones, mixer, acts, cur: 'idle', skinned: true, meshy: true, M, kind: team === 'clone' ? 'clone' : type, att: [], twoHand: true, bindLocal, headFwd };
   if (!full && M.geoLo) { skin.geometry = M.geoLo; rig.lod = { mesh: skin, near: false }; } // сразу упрощённая; по расстоянию переключает poseSkinned
   const attach = (obj, bone, x, y, z) => { body.add(obj); rig.att.push({ obj, bone: bones[bone], corr: M.corr[bone], off: new THREE.Vector3(x, y, z) }); obj.traverse(m => { if (m.isMesh) m.castShadow = true; }); return obj; };
   // центр головы — для портретов и камеры
@@ -2341,7 +2345,7 @@ async function deathMeshy(u, back) {
   if (r.gun && !r.wrist) { dropGun(u, back); r.att = r.att.filter(x => x.obj !== r.gun); }
   const prev = r.acts[r.cur]; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = ts; a.play();
   if (prev && prev !== a) a.crossFadeFrom(prev, 0.15, false); r.cur = 'death';
-  let pk = 0; await tween(dur, k => { r.mixer.update((k - pk) * dur); pk = k; syncAtt(r); });
+  let pk = 0; await tween(dur, k => { mixerUpdate(r.mixer, (k - pk) * dur); pk = k; syncAtt(r); });
 }
 
 // ---------- сборка юнита на скелете
@@ -2465,14 +2469,18 @@ function buildSkinned(team, type, paint, full = false) {
 }
 
 // ---------- обратная кинематика: две кости тянутся к цели
-function bonePos(b, v) { return b.getWorldPosition(v); }
+// позиция и поворот кости — из уже посчитанной матрицы: каждая правка позы сразу обновляет матрицы (updateMatrixWorld),
+// а getWorldPosition/getWorldQuaternion при каждом вызове заново считали всю цепочку предков — половина времени анимации
+const _wp = new THREE.Vector3(), _ws = new THREE.Vector3();
+function bonePos(b, v) { return v.setFromMatrixPosition(b.matrixWorld); }
+function worldQuat(o, q) { o.matrixWorld.decompose(_wp, q, _ws); return q; }
 function pointBone(bone, child, target) {
   const bp = bonePos(bone, _v1), cp = bonePos(child, _v2);
   const from = cp.sub(bp).normalize(), to = _v3.copy(target).sub(bp).normalize();
   if (from.lengthSq() < 1e-8 || to.lengthSq() < 1e-8) return;
   _q1.setFromUnitVectors(from, to);
-  bone.getWorldQuaternion(_q2); _q1.multiply(_q2);
-  bone.parent.getWorldQuaternion(_q2).invert(); bone.quaternion.copy(_q2.multiply(_q1));
+  worldQuat(bone, _q2); _q1.multiply(_q2);
+  worldQuat(bone.parent, _q2).invert(); bone.quaternion.copy(_q2.multiply(_q1));
   bone.updateMatrixWorld(true);
 }
 function twoBoneIK(upper, lower, end, target, pole) {
@@ -2486,8 +2494,24 @@ function twoBoneIK(upper, lower, end, target, pole) {
 }
 function rotateBoneWorld(bone, axisWorld, ang) {
   if (Math.abs(ang) < 1e-4) return;
-  _q1.setFromAxisAngle(axisWorld, ang); bone.getWorldQuaternion(_q2); _q1.multiply(_q2);
-  bone.parent.getWorldQuaternion(_q2).invert(); bone.quaternion.copy(_q2.multiply(_q1)); bone.updateMatrixWorld(true);
+  _q1.setFromAxisAngle(axisWorld, ang); worldQuat(bone, _q2); _q1.multiply(_q2);
+  worldQuat(bone.parent, _q2).invert(); bone.quaternion.copy(_q2.multiply(_q1)); bone.updateMatrixWorld(true);
+}
+// тактическое держание (модели Meshy): приклад в «кармане» правого плеча — in: доля пути от правого плеча к левому,
+// dy/dz — вниз/вперёд от сустава; pitch — ствол вниз (0 — ровно вперёд), yaw — к середине корпуса
+const TAC_POSES = {
+  aim: { in: 0.22, dy: 0.03, dz: 0.04, pitch: 0.0, yaw: 0.04 },     // прицел: ствол вперёд на уровне плеча и глаз
+  ready: { in: 0.2, dy: -0.01, dz: 0.04, pitch: 0.55, yaw: 0.16 },  // низкая готовность: ствол вперёд-вниз ~30°
+  run: { in: 0.2, dy: 0.0, dz: 0.05, pitch: 0.6, yaw: 0.26 },
+  crouch: { in: 0.2, dy: 0.0, dz: 0.05, pitch: 0.45, yaw: 0.14 },
+};
+// точка приклада в осях оружия: самая задняя часть (по габариту деталей оружия)
+function gunButt(r) {
+  const g = r.gun, p = g.position.clone(), q = g.quaternion.clone(); g.position.set(0, 0, 0); g.quaternion.identity(); g.updateMatrixWorld(true);
+  const box = new THREE.Box3(), inv = new THREE.Matrix4().copy(r.body.matrixWorld).invert();
+  g.traverse(o => { if (o.isMesh) { o.geometry.computeBoundingBox(); box.union(o.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld))); } });
+  g.position.copy(p); g.quaternion.copy(q); g.updateMatrixWorld(true);
+  return new THREE.Vector3(0, box.isEmpty() ? 0 : Math.min(0, (box.min.y + box.max.y) / 2 * 0.3), box.isEmpty() ? -0.25 : box.min.z + 0.015);
 }
 const RIFLE_POSES = { // положение рукоятки относительно груди (в осях модели) и наклон/поворот ствола
   aim: { off: [0.06, 0.12, 0.3], pitch: 0, yaw: 0.04 },
@@ -2496,6 +2520,14 @@ const RIFLE_POSES = { // положение рукоятки относител�
   crouch: { off: [0.1, -0.05, 0.3], pitch: 0.35, yaw: 0.4 },
   heavy: { off: [0.1, -0.22, 0.26], pitch: 0.05, yaw: 0.05 },
 };
+// AnimationMixer пишет значение клипа в кость, только если оно изменилось с прошлого кадра (сравнивает два буфера
+// накопления). А мы правим кости поверх клипа (наклон, IK ног и рук), и в кадр, где клип стоит на месте (стык цикла:
+// первый ключ равен последнему), правки прошлого кадра оставались и складывались с новыми — корпус дёргался на 13°.
+// Портим запомненное значение: клип перезаписывает кости каждый кадр
+function mixerUpdate(mixer, dt) {
+  mixer.update(dt);
+  for (const pm of mixer._bindings) { const s = pm.valueSize; pm.buffer.fill(1e30, s, 3 * s); }
+}
 function setAnim(rig, name, fade = 0.25) {
   if (rig.cur === name || !rig.acts[name]) return;
   const a = rig.acts[name], b = rig.acts[rig.cur]; a.reset().setEffectiveWeight(1).play(); if (b) a.crossFadeFrom(b, fade, false); rig.cur = name;
@@ -2521,21 +2553,22 @@ function poseSkinned(u, dt) {
   const M = r.M || CHAR;
   if (r.acts.walk) r.acts.walk.timeScale = clamp(vNow / (M.walkSpeed * sc), 0.35, 2.2);
   if (r.acts.run) r.acts.run.timeScale = clamp(vNow / (M.runSpeed * sc), 0.55, 1.35);
-  r.mixer.update(dt);
-  const B = r.bones, body = r.body; body.updateMatrixWorld(true);
+  mixerUpdate(r.mixer, dt);
+  const B = r.bones, body = r.body; r.root.updateMatrixWorld(true); // дальше позиции костей берутся из матриц без пересчёта
   const toW = (x, y, z) => body.localToWorld(new THREE.Vector3(x, y, z));
   const fwdW = toW(0, 0, 1).sub(toW(0, 0, 0)).normalize(), upW = toW(0, 1, 0).sub(toW(0, 0, 0)).normalize(), rightW = new THREE.Vector3().crossVectors(fwdW, upW).normalize();
   const S = r.side; // знак оси X правой стороны модели
   // стойка: в исходной анимации колени согнуты на 40° (боевой полуприсед) — выпрямляем до ~25°, ступни на месте
   u.standK = lerp(u.standK === undefined ? 1 : u.standK, walk || run || u.hitT > 0 ? 0 : 1, 1 - Math.exp(-dt * 8));
   const standAmt = u.standK * (1 - clamp((u.drop || 0) / 0.12, 0, 1));
+  r.plant = !(walk || run || u.hitT > 0) && u.standK > 0.5; r.plantDt = dt; if (!r.plant) r.feet = null;
   if (standAmt > 0.01) standIK(r, upW, fwdW, standAmt);
   // присед: опускаем таз, ноги стоят на месте. Глубина — в долях длины ноги (у моделей она разная; значения
   // подобраны под ногу 0,9 — у моделей Meshy она около 0,77, и таз уходил ниже стоп, колено выворачивалось назад)
   if (r.legLen === undefined) { const sc0 = body.getWorldScale(_v1).y; r.legLen = (bonePos(B.LeftUpLeg, _v2).distanceTo(bonePos(B.LeftLeg, _v3)) + bonePos(B.LeftLeg, _v2).distanceTo(bonePos(B.LeftFoot, _v3))) / sc0; }
   const drop = crouch ? (st === 'hunker' ? 0.5 : ow ? 0.42 : 0.36) * r.legLen / 0.9 : 0;
   u.drop = lerp(u.drop || 0, drop, 1 - Math.exp(-dt * 10));
-  if (u.drop > 0.01) crouchIK(r, u.drop, (st === 'hunker' ? 1.3 : ow ? 0.5 : 1), fwdW, upW, rightW);
+  if (u.drop > 0.01) crouchIK(r, u.drop, (st === 'hunker' ? 1.3 : ow ? 0.5 : 1), fwdW, upW, rightW, 0.5 * (1 - standAmt));
   // корпус: вздрагивание (с поворотом от попадания) и поворот плеча к оружию при прицеливании
   u.flinch = Math.max(0, u.flinch - dt * 3.2);
   if (u.flinch > 0) { rotateBoneWorld(B.Spine1, rightW, u.flinch * 0.45); rotateBoneWorld(B.Spine1, upW, u.flinch * 0.35 * (u.staggerSide || 1)); }
@@ -2546,13 +2579,48 @@ function poseSkinned(u, dt) {
     u.lookY = lerp(u.lookY || 0, u.headY || 0, 1 - Math.exp(-dt * (u.team === 'droid' ? 9 : 3.5)));
     rotateBoneWorld(B.Neck, upW, u.lookY * 0.55);
   } else u.lookY = lerp(u.lookY || 0, 0, 1 - Math.exp(-dt * 6));
-  if (aim && r.twoHand) rotateBoneWorld(B.Spine1, upW, -S * 0.25);
+  // тактическая стойка (модели Meshy): корпус наклонён вперёд к оружию, не откинут назад, как бы ни стоял клип.
+  // Наклон — угол «таз → шея» от вертикали в осях тела; правится поворотом нижнего позвонка
+  const tac = r.meshy && r.twoHand && !(r.kind === 'clone' && u.type === 'heavy');
+  if (r.meshy) {
+    const leanK = 1 - clamp((u.drop || 0) / (0.2 * (r.legLen || 0.8)), 0, 1);
+    if (leanK > 0.01) {
+      const leanOf = () => { const v = bonePos(B.Neck, _v1).sub(bonePos(B.Hips, _v2)); return Math.atan2(v.dot(fwdW), v.dot(upW)); };
+      if (r.leanSign === undefined) { const q0 = B.Spine.quaternion.clone(), l0 = leanOf(); rotateBoneWorld(B.Spine, rightW, 0.1); r.leanSign = leanOf() > l0 ? 1 : -1; B.Spine.quaternion.copy(q0); B.Spine.updateMatrixWorld(true); }
+      const want = aim ? 0.2 : run ? 0.3 : walk ? 0.2 : 0.15; // ~11°–17° вперёд
+      u.leanD = lerp(u.leanD || 0, clamp(want - leanOf(), -0.45, 0.45), 1 - Math.exp(-dt * 12));
+      rotateBoneWorld(B.Spine, rightW, r.leanSign * u.leanD * leanK);
+    }
+  }
+  if (aim && r.twoHand && !r.meshy) rotateBoneWorld(B.Spine1, upW, -S * 0.25);
   if (!r.wrist) {
-    // оружие: положение относительно груди, плавный переход между позами
-    const P = throwing ? RIFLE_POSES.ready : r.kind === 'clone' && u.type === 'heavy' ? (aim ? RIFLE_POSES.heavy : RIFLE_POSES.ready) : aim ? RIFLE_POSES.aim : run ? RIFLE_POSES.run : crouch ? RIFLE_POSES.crouch : RIFLE_POSES.ready;
-    const chest = body.worldToLocal(bonePos(B.Spine2, new THREE.Vector3()));
-    const tp = new THREE.Vector3(chest.x + S * P.off[0], chest.y + P.off[1] - 0.08 * rk, chest.z + P.off[2] - 0.04 * rk);
-    const tq = new THREE.Quaternion().setFromEuler(new THREE.Euler(P.pitch + 0.75 * rk, -S * P.yaw, -S * 0.5 * rk, 'YXZ'));
+    // разворот корпуса левым плечом вперёд (с прошлого кадра) — до того как ставить оружие к правому плечу
+    if (tac && !throwing && u.bladeK > 0.002 && r.bladeSign) { rotateBoneWorld(B.Spine1, upW, r.bladeSign * u.bladeK); rotateBoneWorld(B.Spine2, upW, r.bladeSign * u.bladeK * 0.5); }
+    // при прицеле — голова к прикладу (щекой на приклад)
+    if (tac && aim && r.leanSign) rotateBoneWorld(B.Neck, rightW, r.leanSign * 0.2);
+    // взгляд на горизонт: клипы ходьбы и стойки опускают голову к земле, а в тактическом движении глаза — поверх ствола
+    else if (r.headFwd && r.leanSign && !rk && !throwing) {
+      const pitch = Math.asin(clamp(_v1.copy(r.headFwd).applyQuaternion(worldQuat(B.Head, _q1)).dot(upW), -1, 1));
+      u.headD = lerp(u.headD || 0, clamp(pitch - (st === 'hunker' ? -0.3 : -0.06), -0.6, 0.6), 1 - Math.exp(-dt * 10));
+      rotateBoneWorld(B.Neck, rightW, r.leanSign * u.headD);
+    }
+    let tp, tq;
+    if (tac) {
+      // приклад в плечо: точка приклада оружия ставится в «карман» правого плеча, ствол — вперёд (прицел)
+      // или вперёд-вниз (низкая готовность в покое, на ходу, на бегу, в приседе)
+      if (!r.butt) r.butt = gunButt(r);
+      const T = throwing ? TAC_POSES.ready : aim ? TAC_POSES.aim : run ? TAC_POSES.run : crouch ? TAC_POSES.crouch : TAC_POSES.ready;
+      const sR = body.worldToLocal(bonePos(B.RightArm, new THREE.Vector3())), sL = body.worldToLocal(bonePos(B.LeftArm, new THREE.Vector3()));
+      const pocket = sR.clone().lerp(sL, T.in).add(new THREE.Vector3(0, T.dy - 0.06 * rk, T.dz));
+      tq = new THREE.Quaternion().setFromEuler(new THREE.Euler(T.pitch + 0.75 * rk, -S * T.yaw, -S * 0.5 * rk, 'YXZ'));
+      tp = pocket.sub(r.butt.clone().applyQuaternion(tq));
+    } else {
+      // оружие: положение относительно груди, плавный переход между позами
+      const P = throwing ? RIFLE_POSES.ready : r.kind === 'clone' && u.type === 'heavy' ? (aim ? RIFLE_POSES.heavy : RIFLE_POSES.ready) : aim ? RIFLE_POSES.aim : run ? RIFLE_POSES.run : crouch ? RIFLE_POSES.crouch : RIFLE_POSES.ready;
+      const chest = body.worldToLocal(bonePos(B.Spine2, new THREE.Vector3()));
+      tp = new THREE.Vector3(chest.x + S * P.off[0], chest.y + P.off[1] - 0.08 * rk, chest.z + P.off[2] - 0.04 * rk);
+      tq = new THREE.Quaternion().setFromEuler(new THREE.Euler(P.pitch + 0.75 * rk, -S * P.yaw, -S * 0.5 * rk, 'YXZ'));
+    }
     const k = r.gunInit ? 1 - Math.exp(-dt * 12) : 1; r.gunInit = true;
     r.gunPos.lerp(tp, k); r.gunQuat.slerp(tq, k);
     u.recoilK = Math.max(0, (u.recoilK || 0) - dt * 6);
@@ -2560,29 +2628,69 @@ function poseSkinned(u, dt) {
     r.gun.quaternion.copy(r.gunQuat); r.gun.rotateX(-0.18 * u.recoilK); r.gun.updateMatrixWorld(true);
     // руки на оружие
     const gp = (a) => r.gun.localToWorld(new THREE.Vector3(a[0], a[1], a[2]));
-    const shR = bonePos(B.RightArm, new THREE.Vector3()), shL = bonePos(B.LeftArm, new THREE.Vector3());
+    let shR = bonePos(B.RightArm, new THREE.Vector3()), shL = bonePos(B.LeftArm, new THREE.Vector3());
+    // левая рука должна дотянуться до цевья (иначе она вытягивается в струну и висит мимо оружия):
+    // корпус разворачивается левым плечом вперёд (на следующий кадр, плавно), остаток — оружие ближе к телу
+    if (!throwing && r.twoHand) {
+      if (r.armLen === undefined) r.armLen = bonePos(B.LeftArm, _v1).distanceTo(bonePos(B.LeftForeArm, _v2)) + bonePos(B.LeftForeArm, _v1).distanceTo(bonePos(B.LeftHand, _v2));
+      const reach = r.armLen * 0.93, gl0 = gp(rk ? [0, -0.13, 0.06] : r.grips.l);
+      let ex = shL.distanceTo(gl0) - reach;
+      // в какую сторону поворот приближает левое плечо к цевью — определяем один раз пробным поворотом
+      if (r.bladeSign === undefined && ex > 0.005) { const q0 = B.Spine1.quaternion.clone(); rotateBoneWorld(B.Spine1, upW, 0.3); const e1 = bonePos(B.LeftArm, _v1).distanceTo(gl0); B.Spine1.quaternion.copy(q0); B.Spine1.updateMatrixWorld(true); r.bladeSign = e1 < shL.distanceTo(gl0) ? 1 : -1; }
+      if (tac) u.bladeK = lerp(u.bladeK || 0, clamp((u.bladeK || 0) + ex / (0.6 * r.armLen), 0, 0.45), 1 - Math.exp(-dt * 8));
+      else {
+        u.bladeK = lerp(u.bladeK || 0, ex > 0.005 ? clamp(ex / (0.6 * r.armLen), 0, 0.42) : 0, 1 - Math.exp(-dt * (ex > 0.005 ? 10 : 6)));
+        if (u.bladeK > 0.002 && r.bladeSign) { rotateBoneWorld(B.Spine1, upW, r.bladeSign * u.bladeK); rotateBoneWorld(B.Spine2, upW, r.bladeSign * u.bladeK * 0.5); shR = bonePos(B.RightArm, new THREE.Vector3()); shL = bonePos(B.LeftArm, new THREE.Vector3()); }
+      }
+      const gl1 = gp(rk ? [0, -0.13, 0.06] : r.grips.l); ex = shL.distanceTo(gl1) - reach;
+      if (ex > 0) { // подтянуть оружие к левому плечу на недостающее (в осях тела)
+        const d = body.worldToLocal(shL.clone()).sub(body.worldToLocal(gl1.clone())).normalize().multiplyScalar(ex / body.getWorldScale(_v1).y);
+        r.gun.position.add(d); r.gun.updateMatrixWorld(true);
+      }
+      // то же для правой руки (пулемёт на колене держат низко — кисть не доставала до рукояти)
+      const gr1 = gp(r.grips.r), exR = shR.distanceTo(gr1) - reach;
+      if (exR > 0) { const d = body.worldToLocal(shR.clone()).sub(body.worldToLocal(gr1.clone())).normalize().multiplyScalar(exR / body.getWorldScale(_v1).y); r.gun.position.add(d); r.gun.updateMatrixWorld(true); }
+    }
     if (throwing) {
       // бросок гранаты: правая рука уходит за голову и выбрасывается вперёд, винтовка в левой
       const k = clamp(u.throwK || 0, 0, 1), sc = body.getWorldScale(_v1).y, back = k < 0.6 ? k / 0.6 : 1 - (k - 0.6) / 0.4;
       const hand = shR.clone().addScaledVector(upW, (0.12 + 0.18 * back) * sc).addScaledVector(fwdW, (k < 0.6 ? -0.28 * back : 0.45 * (k - 0.6) / 0.4) * sc).addScaledVector(rightW, 0.08 * sc);
-      twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, hand, shR.clone().addScaledVector(upW, -1).addScaledVector(rightW, 0.5));
+      // локоть при замахе — наружу и чуть назад, как у человека (раньше смотрел вниз-внутрь, в корпус)
+      twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, hand, shR.clone().addScaledVector(rightW, 1).addScaledVector(upW, -0.35).addScaledVector(fwdW, -0.25));
       rotateBoneWorld(B.Spine1, upW, S * 0.35 * (k < 0.6 ? back : 1 - (k - 0.6) / 0.4));
       if (r.hand) B.RightHand.getWorldPosition(r.hand);
     } else twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, gp(r.grips.r), shR.clone().addScaledVector(rightW, 0.6).addScaledVector(upW, -0.8).addScaledVector(fwdW, -0.3));
     // при перезарядке левая рука идёт к магазину
     const gl = rk ? r.grips.l.map((v, i) => lerp(v, [0, -0.13, 0.06][i], rk)) : r.grips.l;
-    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, gp(gl), shL.clone().addScaledVector(rightW, -0.5).addScaledVector(upW, -0.8));
+    // (при броске винтовка в одной левой руке — локоть заметнее наружу, иначе заходит в корпус)
+    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, gp(gl), shL.clone().addScaledVector(rightW, throwing ? -1.1 : u.type === 'sniper' ? -0.85 : -0.5).addScaledVector(upW, -0.8));
   } else if (aim) {
     // B2 вытягивает руки с бластерами вперёд
     const shR = bonePos(B.RightArm, new THREE.Vector3()), shL = bonePos(B.LeftArm, new THREE.Vector3()), sc = body.getWorldScale(_v1).y;
     twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, shR.clone().addScaledVector(fwdW, 0.62 * sc).addScaledVector(upW, -0.05 * sc), shR.clone().addScaledVector(upW, -1));
     twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, shL.clone().addScaledVector(fwdW, 0.62 * sc).addScaledVector(upW, -0.05 * sc), shL.clone().addScaledVector(upW, -1));
   }
+  limitTwist(r);
   syncAtt(r);
   // повреждённые дроиды искрят
   if (u.team === 'droid' && u.hp <= u.maxHp / 2 && r.root.visible) {
     u.dmgT -= dt;
     if (u.dmgT < 0) { u.dmgT = rand(0.3, 1.4); const p = r.root.position; FX.spark(p.x + rand(-0.1, 0.1), rand(0.6, 0.85), p.z + rand(-0.1, 0.1), 0x8fd8ff, 6, 1.5); if (Math.random() < 0.5) FX.puff(p.x, 0.8, p.z, { color: 0x2b2b2b, life: 1.6, s0: 0.15, s1: 0.7, vy: 0.5, a: 0.4 }); }
+  }
+}
+// ограничители суставов: плечо, предплечье и кисть не прокручиваются вокруг своей оси сильнее, чем у человека
+// (от позы привязки: плечо ±85°, предплечье ±80°, кисть ±60°) — ни клип Meshy, ни IK не выворачивают руку
+const TWIST_LIM = { Arm: 85, ForeArm: 80, Hand: 60 }, _tq = new THREE.Quaternion(), _tq2 = new THREE.Quaternion(), _tax = new THREE.Vector3();
+function limitTwist(r) {
+  const B = r.bones;
+  if (!r.bindQ) { r.bindQ = {}; r.twAx = {}; for (const s of ['Left', 'Right']) for (const p of Object.keys(TWIST_LIM)) { const b = B[s + p], ch = b && b.children.find(c => c.isBone); if (!ch) continue; r.bindQ[s + p] = r.bindLocal ? r.bindLocal[s + p] : b.quaternion.clone(); r.twAx[s + p] = ch.position.clone().normalize(); } }
+  for (const s of ['Left', 'Right']) for (const [p, lim] of Object.entries(TWIST_LIM)) {
+    const n = s + p, b = B[n], q0 = r.bindQ[n]; if (!q0) continue;
+    const d = _tq.copy(q0).invert().multiply(b.quaternion), ax = r.twAx[n];
+    const pr = d.x * ax.x + d.y * ax.y + d.z * ax.z; let a = 2 * Math.atan2(pr, d.w); if (a > Math.PI) a -= 2 * Math.PI; if (a < -Math.PI) a += 2 * Math.PI;
+    const L = lim * Math.PI / 180; if (Math.abs(a) <= L) continue;
+    // d = качание · кручение; срезаем лишнее кручение вокруг оси кости
+    _tq2.setFromAxisAngle(ax, Math.sign(a) * L - a); b.quaternion.multiply(_tq2); b.updateMatrixWorld(true);
   }
 }
 // навесные детали (шлем, броня, оружие B2) следуют за костями
@@ -2606,11 +2714,18 @@ function narrowFeet(B, F, upW, fwdW, k) {
     f.lerp(want, k);
   }
 }
+// стоящий боец не переступает: ступни «приклеены» к земле (в осях тела) и плавно переходят на новое место,
+// только когда меняется поза. Иначе на стыке цикла стойки ступня прыгала на 5 см за кадр
+function plantFeet(r, F) {
+  if (!r.plant) return; const body = r.body, L = F.map(f => body.worldToLocal(f.clone()));
+  if (!r.feet) r.feet = L; else for (let i = 0; i < 2; i++) r.feet[i].lerp(L[i], 1 - Math.exp(-r.plantDt * 3));
+  for (let i = 0; i < 2; i++) F[i].copy(body.localToWorld(r.feet[i].clone()));
+}
 // прямая стойка: таз поднимается, пока ноги почти не выпрямятся (колено ~25° вперёд), ступни ставим под таз
 function standIK(r, upW, fwdW, amt) {
   const B = r.bones, legs = [[B.LeftUpLeg, B.LeftLeg, B.LeftFoot], [B.RightUpLeg, B.RightLeg, B.RightFoot]];
   const F = legs.map(l => bonePos(l[2], new THREE.Vector3())); let d = Infinity;
-  narrowFeet(B, F, upW, fwdW, 0.85 * amt);
+  narrowFeet(B, F, upW, fwdW, 0.85 * amt); plantFeet(r, F);
   for (let i = 0; i < 2; i++) {
     const [a, k] = legs[i], A = bonePos(a, new THREE.Vector3()), Kp = bonePos(k, new THREE.Vector3());
     const L = A.distanceTo(Kp) + Kp.distanceTo(F[i]), v = A.clone().sub(F[i]), vy = v.dot(upW), h2 = v.lengthSq() - vy * vy;
@@ -2622,10 +2737,11 @@ function standIK(r, upW, fwdW, amt) {
   for (let i = 0; i < 2; i++) { const [a, k, f] = legs[i]; twoBoneIK(a, k, f, F[i], bonePos(a, new THREE.Vector3()).lerp(F[i], 0.5).addScaledVector(fwdW, 1)); }
 }
 // присед: таз опускается, ступни остаются на месте (две кости ноги тянутся к стопе), корпус наклоняется
-function crouchIK(r, drop, bend, fwdW, upW, rightW) {
+function crouchIK(r, drop, bend, fwdW, upW, rightW, narrow = 0.5) {
   const B = r.bones, body = r.body;
   const fl = bonePos(B.LeftFoot, new THREE.Vector3()), fr = bonePos(B.RightFoot, new THREE.Vector3());
-  if (r.meshy) narrowFeet(B, [fl, fr], upW, fwdW, 0.5); // в приседе стойка шире, но без «буквы А»
+  if (r.meshy && narrow > 0.001) narrowFeet(B, [fl, fr], upW, fwdW, narrow); // в приседе стойка шире, но без «буквы А»
+  plantFeet(r, [fl, fr]);
   const sc = body.getWorldScale(_v1).y, hp = bonePos(B.Hips, new THREE.Vector3()), np = hp.clone().addScaledVector(upW, -drop * sc).addScaledVector(fwdW, -0.05 * drop);
   // таз не ниже ~45% длины ноги над верхней из стоп: глубже ноге некуда сгибаться, и IK выворачивает колено назад
   if (r.legLen) { const minH = 0.45 * r.legLen * sc, top = Math.max(fl.dot(upW), fr.dot(upW)), h = np.dot(upW) - top; if (h < minH) np.addScaledVector(upW, minH - h); }
