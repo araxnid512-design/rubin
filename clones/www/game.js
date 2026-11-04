@@ -325,7 +325,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: !lowEnd, powerPreference: 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowEnd ? 1.5 : 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+// тени в кадре не считаются: неподвижный мир отбрасывает их один раз при постройке поля (bakeShadows)
+renderer.shadowMap.enabled = false; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // карта теней пересчитывается только когда что-то движется (см. frame): в покое это лишний проход по всей сцене
 renderer.shadowMap.autoUpdate = false;
 view.appendChild(renderer.domElement);
@@ -400,7 +401,7 @@ scene.fog = new THREE.Fog(0xe7ab7c, 40, 190);
 const hemi = new THREE.HemisphereLight(0xffe7c7, 0x7a3e22, 0.55); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffd7a8, 2.6);
 sun.position.set(N / 2 - 16, 26, N / 2 + 12); sun.target.position.set(N / 2, 0, N / 2);
-sun.castShadow = true; sun.shadow.mapSize.set(lowEnd ? 1024 : 2048, lowEnd ? 1024 : 2048);
+sun.castShadow = false; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, near: 1, far: 80 }); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
 scene.add(sun, sun.target);
 const fill = new THREE.DirectionalLight(0x8fb6ff, 0.35); fill.position.set(N / 2 + 20, 14, N / 2 - 18); scene.add(fill);
@@ -557,7 +558,7 @@ function magmaCracks(cg, S, R) {
   const t = new THREE.CanvasTexture(ec); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
 }
 const world = new THREE.Group(); scene.add(world);
-const groundMat = new THREE.MeshStandardMaterial({ normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.93 });
+const groundMat = new THREE.MeshStandardMaterial({ normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.93 }); groundMat.userData.bake = true;
 const outerMat = mat(0xc98652, { roughness: 1 });
 {
   const g = mesh(new THREE.PlaneGeometry(N, N), groundMat, false);
@@ -630,7 +631,7 @@ function buildSurround(bio) {
     col.set([r * j, g * j, b * j].map(v => Math.pow(v, 2.2)), i * 3);   // цвета вершин — в линейном пространстве
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  const sm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+  const sm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }); sm.userData.bake = true;
   if (glow) { // свечение лавы: по пикселю на вершину сетки, текстура ложится по развёртке плоскости
     const c = document.createElement('canvas'); c.width = c.height = seg + 1; c.getContext('2d').putImageData(new ImageData(glow, seg + 1, seg + 1), 0, 0);
     sm.emissiveMap = new THREE.CanvasTexture(c); sm.emissiveMap.encoding = THREE.sRGBEncoding; sm.emissive.set(0xffffff); sm.emissiveIntensity = 1.4;
@@ -648,7 +649,7 @@ function loadEnv(name) {
   TEXL.load(`tex/env_${name}.jpg`, t => {
     t.mapping = THREE.EquirectangularReflectionMapping; t.encoding = THREE.sRGBEncoding;
     const pm = new THREE.PMREMGenerator(renderer), e = pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
-    ENVC[name] = e; if (B().envImg === name) { useEnv(e); renderer.shadowMap.needsUpdate = true; }
+    ENVC[name] = e; if (B().envImg === name) { useEnv(e); }
   }, undefined, () => {});
 }
 // отражения окружения (PBR-освещение от панорамы) — самая дорогая часть пикселя на телефоне.
@@ -683,7 +684,6 @@ function applyBiome(idNew) {
   PROPM.rock.forEach((m, i) => m.color.set(b.rocks[i]));
   dust.material.color.set(b.dust);
   buildSurround(b); Weather.build(b);
-  renderer.shadowMap.needsUpdate = true;
 }
 
 // =====================================================================
@@ -696,7 +696,7 @@ const FLAT_N = (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128
 function detailTex(name) {
   if (TEXC[name]) return TEXC[name];
   const u = { value: FLAT_N }; TEXC[name] = u;
-  TEXL.load(`tex/n_${name}.jpg`, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; u.value = t; renderer.shadowMap.needsUpdate = true; }, undefined, () => {});
+  TEXL.load(`tex/n_${name}.jpg`, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; u.value = t; }, undefined, () => {});
   return u;
 }
 const DETAIL = { on: true, mats: new Set() };
@@ -705,7 +705,7 @@ const COVER_COL = { value: new THREE.Color(0.77, 0.57, 0.4).convertSRGBToLinear(
 const DET0 = { ground: 'sand', rock: 'rock', cliff: 'cliff' };
 function detailize(m, o) {
   m.userData.det = o; DETAIL.mats.add(m); m.needsUpdate = true;
-  if (!DETAIL.on) return m;
+  if (!DETAIL.on) return bakeWrap(m);
   const tri = o.mode !== 'uv';
   m.onBeforeCompile = sh => {
     sh.uniforms.tDet = o.tex; sh.uniforms.detScale = { value: o.scale }; sh.uniforms.detStr = { value: o.str }; sh.uniforms.detAlb = { value: o.alb || 0.35 };
@@ -732,12 +732,12 @@ function detailize(m, o) {
         normal = normalize(normal + (viewMatrix * vec4(dpv, 0.0)).xyz * detStr);`);
   };
   m.customProgramCacheKey = () => 'det' + (tri ? 't' : 'u') + (o.cover ? 'c' : '') + o.name;
-  return m;
+  return bakeWrap(m);
 }
 // на низкой графике детали снимаются (простые шейдеры), на остальных — возвращаются
 function setDetail(on) {
   if (DETAIL.on === on) return; DETAIL.on = on;
-  for (const m of DETAIL.mats) { const o = m.userData.det; if (on) detailize(m, o); else { m.onBeforeCompile = () => {}; m.customProgramCacheKey = () => 'nodet'; } m.needsUpdate = true; }
+  for (const m of DETAIL.mats) { const o = m.userData.det; if (on) detailize(m, o); else { m.onBeforeCompile = () => {}; m.customProgramCacheKey = () => 'nodet'; bakeWrap(m); } m.needsUpdate = true; }
 }
 // гладкие нормали для геометрии без индексов: нормали граней, сходящихся в вершине, усредняются
 function smoothNormals(g) {
@@ -785,6 +785,7 @@ const GRASS_TEX = (() => {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
 })();
 const GRASS_MAT = new THREE.MeshStandardMaterial({ map: GRASS_TEX, alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.9 });
+GRASS_MAT.userData.bake = true;
 GRASS_MAT.onBeforeCompile = sh => {
   sh.uniforms.uTime = GRASS_TIME;
   // обе стороны травинки освещаются как лицевая (иначе изнанка смотрит в землю и выходит чёрной)
@@ -793,6 +794,7 @@ GRASS_MAT.onBeforeCompile = sh => {
     float sway = uv.y * uv.y; vec4 wp = modelMatrix * vec4(position, 1.0);
     transformed.x += sin(uTime * 1.7 + wp.x * 0.8 + wp.z * 0.5) * 0.06 * sway; transformed.z += cos(uTime * 1.3 + wp.z * 0.7) * 0.04 * sway;`);
 };
+bakeWrap(GRASS_MAT);
 const GRASS_TIME = { value: 0 };
 // камень со сколами: многогранник из случайных плоскостей раскола (как настоящий расколотый валун),
 // поверх — лёгкая неровность; грани плоские, фактуру камня даёт шейдер деталей
@@ -876,6 +878,58 @@ function buildBlobs() {
   let k = 0; const d = new THREE.Object3D();
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (grid[id(x, z)] !== FLOOR && kind[id(x, z)] !== K.EDGE) { d.position.set(x + 0.5, 0.014, z + 0.5); d.updateMatrix(); blobs.setMatrixAt(k++, d.matrix); }
   blobs.count = k; blobs.instanceMatrix.needsUpdate = true; world.add(blobs);
+}
+// ---------- запечённые тени. Раньше карта теней пересчитывалась каждый кадр (вся геометрия рисовалась второй раз,
+// в каждом пикселе — выборки тени). Теперь неподвижный мир — скалы, укрытия, ящики, объекты заданий — один раз отбрасывает
+// тень на землю: снимок сверху в текстуру по мировым x,z. Земля, рельеф у поля, трава и камешки гасят по ней только прямой
+// свет солнца, как настоящая тень. Под бойцами — мягкие пятна (blob). Перепекается при разрушении укрытий
+const BAKE = { size: 1024, pad: 10, rt: null, tex: { value: null }, box: { value: new THREE.Vector3(0, 0, 1) } };
+function bakePatch(sh) {
+  sh.uniforms.tBake = BAKE.tex; sh.uniforms.bakeBox = BAKE.box;
+  sh.vertexShader = 'varying vec3 vBakeP;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    vec4 bakeP = vec4(transformed, 1.0);
+    #ifdef USE_INSTANCING
+      bakeP = instanceMatrix * bakeP;
+    #endif
+    vBakeP = (modelMatrix * bakeP).xyz;`);
+  sh.fragmentShader = 'uniform sampler2D tBake;\nuniform vec3 bakeBox;\nvarying vec3 vBakeP;\n' + sh.fragmentShader.replace('#include <lights_fragment_begin>',
+    THREE.ShaderChunk.lights_fragment_begin.replace('getDirectionalLightInfo( directionalLight, geometry, directLight );', `getDirectionalLightInfo( directionalLight, geometry, directLight );
+      if ( UNROLLED_LOOP_INDEX == 0 ) { vec2 bUv = vec2( ( vBakeP.x - bakeBox.x ) * bakeBox.z, 1.0 - ( vBakeP.z - bakeBox.y ) * bakeBox.z );
+        if ( all( greaterThan( bUv, vec2( 0.0 ) ) ) && all( lessThan( bUv, vec2( 1.0 ) ) ) ) directLight.color *= texture2D( tBake, bUv ).r; }`));
+}
+// поверх своего onBeforeCompile материала (детали, ветер травы); вызывается после каждой его замены
+function bakeWrap(m) {
+  if (!m.userData.bake) return m;
+  const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
+  m.onBeforeCompile = (sh, r) => { prev.call(m, sh, r); bakePatch(sh); }; m.customProgramCacheKey = () => key.call(m) + '|bake';
+  return m;
+}
+function bakeShadows() {
+  const span = N + 2 * BAKE.pad, c = N / 2, x0 = -BAKE.pad, rt = BAKE.rt || (BAKE.rt = new THREE.WebGLRenderTarget(BAKE.size, BAKE.size));
+  // тень бросают только неподвижные части мира (бойцы, эффекты, погода — нет)
+  const saved = new Map(); scene.traverse(o => { if (o.isMesh) { saved.set(o, [o.castShadow, o.receiveShadow]); o.castShadow = false; } });
+  const unitRoots = new Set(units.map(u => u.rig.root));
+  for (const ch of world.children) if (!unitRoots.has(ch)) ch.traverse(o => { if (saved.has(o)) o.castShadow = saved.get(o)[0]; });
+  // солнце смотрит на центр поля, теневая камера накрывает всю область с запасом на длинные тени
+  const sc = sun.shadow.camera, half = span * 0.78;
+  sun.target.position.set(c, 0, c); sun.position.set(c - 16, 26, c + 12); sun.target.updateMatrixWorld(); sun.updateMatrixWorld();
+  Object.assign(sc, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 90 }); sc.updateProjectionMatrix();
+  sun.castShadow = true; renderer.shadowMap.enabled = true; renderer.shadowMap.needsUpdate = true;
+  // снимок всей сцены одним материалом «только тень» (одна программа шейдера): тень на земле видна, верх скал и ящиков
+  // светлый — под ними земли всё равно не видно. Трава, пятна, бойцы и всё вне мира на это время скрыты
+  const hidden = [], hide = o => { if (o && o.visible) { hidden.push(o); o.visible = false; } };
+  for (const ch of scene.children) if (ch !== world && !ch.isLight) hide(ch);
+  for (const u of units) hide(u.rig.root); hide(grassMesh); hide(blobs);
+  scene.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+  const shm = new THREE.ShadowMaterial({ color: 0x000000, opacity: 1 });
+  const oc = new THREE.OrthographicCamera(-span / 2, span / 2, span / 2, -span / 2, 1, 200); oc.position.set(c, 100, c); oc.up.set(0, 0, -1); oc.lookAt(c, 0, c);
+  const bg = scene.background, fog = scene.fog, cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+  scene.background = null; scene.fog = null; scene.overrideMaterial = shm; renderer.setClearColor(0xffffff, 1); renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, oc);
+  renderer.setRenderTarget(null); renderer.setClearColor(cc, ca); scene.background = bg; scene.fog = fog; scene.overrideMaterial = null;
+  for (const o of hidden) o.visible = true; shm.dispose();
+  for (const [o, [cs, rs]] of saved) { o.castShadow = cs; o.receiveShadow = rs; }
+  sun.castShadow = false; renderer.shadowMap.enabled = false; if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  BAKE.tex.value = rt.texture; BAKE.box.value.set(x0, x0, 1 / span);
 }
 const smokeSources = [];
 function buildProps() {
@@ -1039,7 +1093,8 @@ let pebbles = null;
 function buildPebbles() {
   if (pebbles) { world.remove(pebbles); pebbles.geometry.dispose(); pebbles.material.dispose(); pebbles.dispose(); }
   const R = rng(99), geo = new THREE.IcosahedronGeometry(1, 0), n = 420;
-  pebbles = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), n);
+  const pm = new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }); pm.userData.bake = true;
+  pebbles = new THREE.InstancedMesh(geo, bakeWrap(pm), n);
   const d = new THREE.Object3D(), c = new THREE.Color(); let k = 0;
   for (let i = 0; i < n * 3 && k < n; i++) {
     const x = R() * N, z = R() * N; if (cell(Math.floor(x), Math.floor(z)) !== FLOOR) continue;
@@ -1190,7 +1245,7 @@ function destroyCover(x, z) {
   if (inb(x, z) && kind[id(x, z)] === K.BARREL) kind[id(x, z)] = K.NONE;
   if (!inb(x, z) || grid[id(x, z)] !== HALF) return;
   hideProp(id(x, z));
-  grid[id(x, z)] = FLOOR; kind[id(x, z)] = K.NONE; buildBlobs();
+  grid[id(x, z)] = FLOOR; kind[id(x, z)] = K.NONE; buildBlobs(); bakeShadows();
   for (let i = 0; i < 10; i++) FX.debris(x + 0.5, 0.4, z + 0.5);
 }
 
@@ -2168,7 +2223,7 @@ function buildMeshy(team, type, paint, M, full, kit) {
   for (const [k, c] of Object.entries(M.clips)) acts[k] = mixer.clipAction(c);
   acts.idle.play(); acts.idle.time = Math.random() * acts.idle.getClip().duration;
   const rig = { root, body, model, bones, mixer, acts, cur: 'idle', skinned: true, meshy: true, M, kind: team === 'clone' ? 'clone' : type, att: [], twoHand: true };
-  if (!full && M.geoLo) { rig.lod = { mesh: skin, near: true }; } // переключение сетки по расстоянию — в poseSkinned
+  if (!full && M.geoLo) { skin.geometry = M.geoLo; rig.lod = { mesh: skin, near: false }; } // сразу упрощённая; по расстоянию переключает poseSkinned
   const attach = (obj, bone, x, y, z) => { body.add(obj); rig.att.push({ obj, bone: bones[bone], corr: M.corr[bone], off: new THREE.Vector3(x, y, z) }); obj.traverse(m => { if (m.isMesh) m.castShadow = true; }); return obj; };
   // центр головы — для портретов и камеры
   rig.head = pivot(bones.Head, 0, 0, 0); rig.head.position.copy(bones.head_end.position).multiplyScalar(0.5);
@@ -2583,8 +2638,6 @@ function makeUnit(team, type, x, z, extra = {}) {
   if (rig.gun && !rig.skinned) rig.gun.userData.z0 = rig.gun.position.z;
   rig.root.add(hit); u.hit = hit; hit.scale.setScalar(1 / UNIT_SCALE);
   const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2), BLOB_MAT); blob.position.y = 0.02 / UNIT_SCALE; blob.renderOrder = 1; blob.userData.keep = true; rig.root.add(blob);
-  // тени от фигур: только на высокой графике (на остальных — мягкое пятно под ногами, см. blob)
-  rig.root.traverse(o => { if (o.isMesh) { o.userData.cs = o.castShadow; o.castShadow = o.castShadow && unitShadows; } });
   world.add(rig.root);
   return u;
 }
@@ -2720,13 +2773,6 @@ function squadYaw() {
   const a = Math.atan2(-dx, -dz);
   return Math.round(a / (Math.PI / 4)) * (Math.PI / 4); // кратно 45°, чтобы сетка смотрелась ровно
 }
-// тени строятся вокруг точки обзора — так они чётче
-function sunFollow() {
-  const half = clamp(cam.dist * 0.85, 12, 26), sc = sun.shadow.camera;
-  if (Math.abs(sc.right - half) > 0.5) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); }
-  const tx = Math.round(cam.fx), tz = Math.round(cam.fz);
-  sun.target.position.set(tx, 0, tz); sun.position.set(tx - 16, 26, tz + 12);
-}
 function camUpdate(dt) {
   const k = Math.min(1, dt * 6);
   if (cam.cine) {
@@ -2739,7 +2785,6 @@ function camUpdate(dt) {
     camera.position.set(cam.fx + Math.sin(cam.yaw) * cp * cam.dist, sp * cam.dist, cam.fz + Math.cos(cam.yaw) * cp * cam.dist);
     camera.lookAt(cam.fx, 0, cam.fz); camera.fov = lerp(camera.fov, TAC_FOV, k); camera.updateProjectionMatrix();
   }
-  sunFollow();
   if (cam.shake > 0) { cam.shake = Math.max(0, cam.shake - dt); camera.position.x += rand(-1, 1) * cam.shake * 0.4; camera.position.y += rand(-1, 1) * cam.shake * 0.4; }
 }
 // фокус чуть впереди бойца по направлению взгляда камеры — видно, куда идти
@@ -3684,7 +3729,7 @@ async function startGame() {
   Snd.init(); Music.start(); goFullscreen(); if (biomeId !== Campaign.biome()) applyBiome(Campaign.biome());
   $('startScr').classList.remove('show'); $('endScr').classList.remove('show'); $('howScr').classList.remove('show');
   Hub.hide(); Music.setIntensity(0.35); Mission.reset();
-  setupWorld(); spawnUnits(); turn = 1; kills = 0; shotCount = 0; lastAttacker = null; podsActive = PODS.map(() => false); seenEver.fill(0); FX.clearDecals();
+  setupWorld(); spawnUnits(); bakeShadows(); turn = 1; kills = 0; shotCount = 0; lastAttacker = null; podsActive = PODS.map(() => false); seenEver.fill(0); FX.clearDecals();
   tweens.length = 0; busy = true; phase = 'intro'; cam.cine = null; document.body.classList.remove('cine');
   updateVisibility(); buildSquadUI(); document.body.classList.add('playing');
   // вступление: вид сверху на всё поле, затем спуск к отряду
@@ -3703,8 +3748,8 @@ async function startGame() {
 let last = performance.now(), timeScale = 1, slow = 1; // timeScale — ускорение (тесты, кнопка), slow — замедление на убийствах
 
 // ---------- качество графики: плотность пикселей и тени. «Авто» подстраивается под скорость устройства
-const GFX_LEVELS = [ // от лучшего к самому быстрому: предел плотности пикселей, карта теней (0 — без теней), отражения окружения
-  { pr: 2, sh: 2048, env: 1 }, { pr: 1.5, sh: 2048, env: 1 }, { pr: 1.25, sh: 1024, env: 1 }, { pr: 1.25, sh: 1024, env: 0 }, { pr: 1, sh: 1024, env: 0 }, { pr: 1, sh: 0, env: 0 }, { pr: 0.75, sh: 0, env: 0 },
+const GFX_LEVELS = [ // от лучшего к самому быстрому: предел плотности пикселей, отражения окружения, детали рельефа и трава
+  { pr: 2, env: 1, det: 1 }, { pr: 1.5, env: 1, det: 1 }, { pr: 1.25, env: 1, det: 1 }, { pr: 1.25, env: 0, det: 1 }, { pr: 1, env: 0, det: 1 }, { pr: 1, env: 0, det: 0 }, { pr: 0.75, env: 0, det: 0 },
 ];
 const GFX_MODES = { auto: 'Авто', high: 'Высокая', mid: 'Средняя', low: 'Низкая' }, GFX_PRESET = { high: 0, mid: 3, low: 5 };
 const GFX_NAMES = ['макс.', 'высокая', 'высокая', 'средняя', 'средняя', 'низкая', 'миним.'];
@@ -3712,22 +3757,12 @@ const GFX_NAMES = ['макс.', 'высокая', 'высокая', 'средн�
 // уровень, найденный подстройкой, запоминается — следующий запуск сразу с него, без рывков в начале
 const gfx = { mode: GFX_MODES[store('cvd-gfx')] ? store('cvd-gfx') : 'auto', top: isTouch ? (lowEnd ? 2 : 1) : 0, level: 0, win: [], bad: 0, good: 0, hold: 0, ups: 0, prev: 0, locked: false };
 gfx.start = (() => { const l = +store('cvd-gfxl'); return store('cvd-gfxl') !== null && l >= gfx.top && l < GFX_LEVELS.length ? l : isTouch ? (lowEnd ? 4 : 3) : 0; })();
-const gfxKey = l => Math.min(window.devicePixelRatio || 1, GFX_LEVELS[l].pr) + '/' + GFX_LEVELS[l].sh + '/' + GFX_LEVELS[l].env;
-// фигуры бойцов и дроидов — самые тяжёлые меши (скелет, ~11 тыс. треугольников): в проход теней их пускаем только на высокой графике
-let unitShadows = true;
-function setUnitShadows(on) {
-  unitShadows = on;
-  for (const u of units) u.rig.root.traverse(o => { if (o.isMesh && o.userData.cs !== undefined) o.castShadow = o.userData.cs && on; });
-}
+const gfxKey = l => Math.min(window.devicePixelRatio || 1, GFX_LEVELS[l].pr) + '/' + GFX_LEVELS[l].env + '/' + GFX_LEVELS[l].det;
 function applyGfx(l) {
   gfx.level = l; const v = GFX_LEVELS[l], pr = Math.min(window.devicePixelRatio || 1, v.pr);
-  // тени бойцов рисуются по упрощённой сетке (вдвое легче полной) — их хватает и на «средней» графике
-  if ((l <= 3) !== unitShadows) setUnitShadows(l <= 3);
   if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); resize(); }
-  sun.castShadow = v.sh > 0; // смена числа теней сама перекомпилирует шейдеры
-  setDetail(l <= 4); if (grassMesh) grassMesh.visible = l <= 4; setEnvOn(!!v.env);
-  if (v.sh && sun.shadow.mapSize.x !== v.sh) { sun.shadow.mapSize.set(v.sh, v.sh); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
-  Weather.setDensity([1, 1, 0.8, 0.7, 0.6, 0.45, 0.3][l]); renderer.shadowMap.needsUpdate = true;
+  setDetail(!!v.det); if (grassMesh) grassMesh.visible = !!v.det; setEnvOn(!!v.env);
+  Weather.setDensity([1, 1, 0.8, 0.7, 0.6, 0.45, 0.3][l]);
   if (gfx.mode === 'auto') store('cvd-gfxl', l);
   gfx.win.length = 0; gfx.bad = gfx.good = 0; gfx.hold = 2.5;
   for (const b of document.querySelectorAll('.gfxBtn')) b.textContent = 'Графика: ' + GFX_MODES[gfx.mode] + (gfx.mode === 'auto' ? ' · ' + GFX_NAMES[l] : '');
@@ -3763,7 +3798,7 @@ function resize() {
   $('rotate').classList.toggle('show', isTouch && h > w);
 }
 addEventListener('resize', resize); addEventListener('orientationchange', () => setTimeout(resize, 200));
-let smokeT = 0, attractT = 0, shadowTick = 0;
+let smokeT = 0, attractT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const idle = sceneIdle();
@@ -3792,13 +3827,11 @@ function frame(now) {
   tgtRing.rotation.z += dt * 1.5;
   if (phase === 'start') { attractT += dt; cam.tyaw = cam.yaw = -Math.PI / 4 + attractT * 0.06; cam.fx = cam.tfx = N / 2; cam.fz = cam.tfz = N / 2; }
   fpUpdate(dt); camUpdate(dt); syncLabels();
-  // тени: пока что-то движется — каждый кадр (на средней графике — через кадр), в покое — раз в 4 кадра
-  if ((++shadowTick % (idle ? 4 : gfx.level >= 2 ? 2 : 1)) === 0) renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
 }
 // подготовка поля боя под экраном загрузки: шейдеры и буферы готовы до первой высадки (вызывает campaign.js)
 function warmBattle() {
-  applyBiome(biomeId); setupWorld(); spawnUnits(); for (const u of units) u.rig.root.visible = true;
+  applyBiome(biomeId); setupWorld(); spawnUnits(); bakeShadows(); for (const u of units) u.rig.root.visible = true;
   cam.pitch = cam.tpitch = 1.0; cam.dist = cam.tdist = 50;
   resize(); applyGfx(gfx.mode === 'auto' ? gfx.start : GFX_PRESET[gfx.mode]);
   const warm = FX.warm(); camUpdate(0); renderer.compile(scene, camera); renderer.render(scene, camera); scene.remove(warm);

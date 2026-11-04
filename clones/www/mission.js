@@ -207,7 +207,7 @@ const Mission = (() => {
         o.g.visible = false; o.done = true; grid[id(o.x, o.z)] = FLOOR; kind[id(o.x, o.z)] = K.NONE;
         for (let i = 0; i < 6; i++) FX.puff(o.x + 0.5, 0.6, o.z + 0.5, { color: 0x2b2725, life: 3, s0: 0.5, s1: 2.4, vy: 0.8, a: 0.6 });
       }
-      buildBlobs(); updateVisibility();
+      buildBlobs(); bakeShadows(); updateVisibility();
       banner('ЦЕЛИ УНИЧТОЖЕНЫ', 'rep'); openEvac(); await wait(1);
       if (phase === 'over') return;
     }
