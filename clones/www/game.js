@@ -1687,9 +1687,9 @@ function buildDroideka() {
 // три ноги; суставы, ступни и дула — в extras сцены (координаты модели). Колесо — models/dkw.glb (ось по Z)
 function prepareDroideka(g, w) {
   const ex = g.scene.userData.dk, parts = {};
-  g.scene.traverse(o => { if (o.isMesh) { parts[o.name.replace(/^dk_/, '')] = o; o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; if (o.material.map) o.material.map.anisotropy = 8; } });
+  g.scene.traverse(o => { if (o.isMesh) { parts[o.name.replace(/^dk_/, '')] = o; o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; o.material.side = THREE.FrontSide; if (o.material.map) o.material.map.anisotropy = 8; } });
   const bb = new THREE.Box3().setFromObject(g.scene), wb = new THREE.Box3().setFromObject(w.scene);
-  w.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; } });
+  w.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; o.material.side = THREE.FrontSide; } });
   const ws = wb.getSize(new THREE.Vector3());
   return { ex, parts, s: 1.83 * METER / (bb.max.y - ex.minY), // рост по канону — 1,83 м
     wheel: w.scene, wheelC: wb.getCenter(new THREE.Vector3()), wheelR: Math.max(ws.x, ws.y) / 2 };
@@ -2051,7 +2051,8 @@ function prepareMeshy(g) {
     }
     clips[c.name] = c;
   }
-  const m = body.material; if (m.map) m.map.anisotropy = 8;
+  // материалы Meshy двусторонние — в программном рендере это вдвое больше работы; сетки замкнутые, хватает лицевой стороны
+  const m = body.material; if (m.map) m.map.anisotropy = 8; m.side = THREE.FrontSide;
   sc.scale.setScalar(METER); sc.updateMatrixWorld(true);
   // лицом к +Z, как остальные объекты игры
   const hd = sc.getObjectByName('Head').getWorldPosition(new THREE.Vector3()), hf = sc.getObjectByName('headfront').getWorldPosition(new THREE.Vector3());
