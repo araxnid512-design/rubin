@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Движение по тексту в Tripo Studio и перенос его на модель со скелетом (CI «Tripo (аккаунт)», задания вида
-{"id": "...", "py": "scripts/tripo-motion.py", "args": ["<project-id>", "<описание движения>", "<секунд>", "out/<файл>.glb"]}).
+"""Движение по тексту в Tripo Studio и перенос его на модели со скелетом (CI «Tripo (аккаунт)», задания вида
+{"id": "...", "py": "scripts/tripo-motion.py", "args": ["имя:project-id,имя:project-id", "<метка>", "<секунд>", "<описание>"]}).
+Движение генерируется один раз (стоит кредиты), перенос на каждую модель — отдельно (бесплатно); файлы —
+out/m_<имя>_<метка>.glb. Вместо описания можно дать «asset:<id>» — уже сгенерированное движение.
 
 Программа tripo (CLI 0.8.1) умеет только готовые движения (preset:biped:*). Движение по тексту делает сам Studio:
 POST /motion/generate {segments: [{duration_seconds, prompt}]} → task_id, опрос /motion/get_task → asset_id;
@@ -96,11 +98,9 @@ def first_id(d, *keys):
     return None
 
 
-def main():
-    global TOKEN
-    project, prompt, seconds, out = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
-    TOKEN = token()
-    print(f"движение: «{prompt}», {seconds} с → проект {project}", flush=True)
+def generate(prompt, seconds):
+    if prompt.startswith("asset:"):
+        return prompt[6:]
     gen = api("POST", "/motion/generate", {"segments": [{"duration_seconds": seconds, "prompt": prompt}]})
     print("motion/generate:", json.dumps(gen.get("data"))[:300], flush=True)
     task = first_id(gen.get("data"), "task_id")
@@ -117,6 +117,10 @@ def main():
             raise SystemExit("генерация движения не удалась: " + json.dumps(d)[:300])
         asset = d.get("asset_id")
     print("asset_id:", asset, flush=True)
+    return asset
+
+
+def apply(project, asset, out):
     rt = api("POST", "/operation/retarget_model", {"project_id": project, "model_version": "default", "rig_type": "biped", "motion_asset_id": asset})
     rid = first_id(rt.get("data"), "task_id", "operator_id", "id")
     print("retarget:", rid, flush=True)
@@ -131,6 +135,20 @@ def main():
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     Path(out).write_bytes(api("GET", "", raw_url=url))
     print(f"готово: {out} ({Path(out).stat().st_size / 1e6:.1f} МБ)", flush=True)
+
+
+def main():
+    global TOKEN
+    targets, tag, seconds, prompt = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+    TOKEN = token()
+    print(f"движение «{tag}»: «{prompt}», {seconds} с", flush=True)
+    asset = generate(prompt, seconds)
+    for t in targets.split(","):
+        name, project = t.split(":", 1)
+        try:
+            apply(project, asset, f"out/m_{name}_{tag}.glb")
+        except SystemExit as e:
+            print(f"{name}: не перенеслось — {e}", flush=True)
 
 
 if __name__ == "__main__":
