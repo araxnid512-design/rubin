@@ -1,7 +1,7 @@
 {
  "jobs": [
   {
-   "id": "g0_bal",
+   "id": "g2_bal0",
    "timeout": 120,
    "args": [
     "account",
@@ -9,7 +9,51 @@
    ]
   },
   {
-   "id": "g1_shamble",
+   "id": "g2_xshamble",
+   "timeout": 900,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "xshamble",
+    "3",
+    "asset:773d3995-1142-4dec-99b5-e6f9afe9add2"
+   ]
+  },
+  {
+   "id": "g2_xzrun",
+   "timeout": 900,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "xzrun",
+    "3",
+    "asset:2277268f-a130-4f63-b902-15e02713a20a"
+   ]
+  },
+  {
+   "id": "g2_xzlunge",
+   "timeout": 900,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "xzlunge",
+    "3",
+    "asset:853bb4f5-13da-447e-9aa7-8ce3b55c3dc1"
+   ]
+  },
+  {
+   "id": "g2_xzidle",
+   "timeout": 900,
+   "py": "scripts/tripo-motion.py",
+   "args": [
+    "pustysh:4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "xzidle",
+    "3",
+    "asset:b911f48e-9dfc-44de-a6df-70234fc3816c"
+   ]
+  },
+  {
+   "id": "g2_shamble",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -20,7 +64,7 @@
    ]
   },
   {
-   "id": "g1_zrun",
+   "id": "g2_zrun",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -31,7 +75,7 @@
    ]
   },
   {
-   "id": "g1_zlunge",
+   "id": "g2_zlunge",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -42,7 +86,7 @@
    ]
   },
   {
-   "id": "g1_zidle",
+   "id": "g2_zidle",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -53,7 +97,7 @@
    ]
   },
   {
-   "id": "g1_bwalk",
+   "id": "g2_bwalk",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -64,7 +108,7 @@
    ]
   },
   {
-   "id": "g1_broar",
+   "id": "g2_broar",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -75,7 +119,7 @@
    ]
   },
   {
-   "id": "g1_bsmash",
+   "id": "g2_bsmash",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -86,7 +130,7 @@
    ]
   },
   {
-   "id": "g1_bcharge",
+   "id": "g2_bcharge",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -97,7 +141,7 @@
    ]
   },
   {
-   "id": "g1_rwalk",
+   "id": "g2_rwalk",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -108,7 +152,7 @@
    ]
   },
   {
-   "id": "g1_rleft",
+   "id": "g2_rleft",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -119,7 +163,7 @@
    ]
   },
   {
-   "id": "g1_rright",
+   "id": "g2_rright",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -130,7 +174,7 @@
    ]
   },
   {
-   "id": "g1_rback",
+   "id": "g2_rback",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -141,7 +185,7 @@
    ]
   },
   {
-   "id": "g1_rrun",
+   "id": "g2_rrun",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -152,7 +196,7 @@
    ]
   },
   {
-   "id": "g1_ridle",
+   "id": "g2_ridle",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -163,7 +207,7 @@
    ]
   },
   {
-   "id": "g1_rturn",
+   "id": "g2_rturn",
    "timeout": 1700,
    "py": "scripts/tripo-motion.py",
    "args": [
@@ -174,7 +218,7 @@
    ]
   },
   {
-   "id": "g9_bal",
+   "id": "g2_bal9",
    "timeout": 120,
    "args": [
     "account",
@@ -182,5 +226,5 @@
    ]
   }
  ],
- "stop": true
+ "stop": false
 }
