@@ -1,23 +1,17 @@
 {
  "jobs": [
   {
-   "id": "c1_get_soldier",
-   "timeout": 180,
-   "args": [
-    "project",
-    "get",
-    "3ce297d1-eda6-490c-ac74-7a991e9e49f2",
-    "--output-format",
-    "json"
-   ]
-  },
-  {
-   "id": "c2_list_help",
+   "id": "c3_list_rigged",
    "timeout": 120,
    "args": [
     "project",
     "list",
-    "--help"
+    "--type",
+    "rigged",
+    "--size",
+    "30",
+    "--output-format",
+    "table"
    ]
   }
  ],
