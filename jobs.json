@@ -1,215 +1,67 @@
 {
  "jobs": [
   {
-   "id": "an_bal0",
+   "id": "d1_dry_biped",
    "timeout": 120,
    "args": [
-    "account",
-    "balance"
-   ]
-  },
-  {
-   "id": "an_get_z_pustysh",
-   "timeout": 180,
-   "args": [
-    "project",
-    "get",
-    "4b612127-1f94-42fd-a030-23fe3bf242e7",
-    "--output-format",
-    "json"
-   ]
-  },
-  {
-   "id": "an_get_z_lottery",
-   "timeout": 180,
-   "args": [
-    "project",
-    "get",
-    "e0514812-6341-4858-a95e-20ee35ab86e1",
-    "--output-format",
-    "json"
-   ]
-  },
-  {
-   "id": "an_get_z_stomper",
-   "timeout": 180,
-   "args": [
-    "project",
-    "get",
-    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
-    "--output-format",
-    "json"
-   ]
-  },
-  {
-   "id": "an_get_z_ruber",
-   "timeout": 180,
-   "args": [
-    "project",
-    "get",
-    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
-    "--output-format",
-    "json"
-   ]
-  },
-  {
-   "id": "an_z_pustysh_a",
-   "timeout": 1700,
-   "args": [
     "process",
     "animate",
     "4b612127-1f94-42fd-a030-23fe3bf242e7",
     "--animations",
-    "preset:idle,preset:walk,preset:run,preset:turn,preset:slash",
+    "preset:biped:walk",
     "--rig-type",
     "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_pustysh_a.glb"
+    "--dry-run"
    ]
   },
   {
-   "id": "an_z_pustysh_b",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "4b612127-1f94-42fd-a030-23fe3bf242e7",
-    "--animations",
-    "preset:chop,preset:hurt,preset:fall",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_pustysh_b.glb"
-   ]
-  },
-  {
-   "id": "an_z_lottery_a",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "e0514812-6341-4858-a95e-20ee35ab86e1",
-    "--animations",
-    "preset:idle,preset:walk,preset:run,preset:turn,preset:slash",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_lottery_a.glb"
-   ]
-  },
-  {
-   "id": "an_z_lottery_b",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "e0514812-6341-4858-a95e-20ee35ab86e1",
-    "--animations",
-    "preset:chop,preset:hurt,preset:fall",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_lottery_b.glb"
-   ]
-  },
-  {
-   "id": "an_z_stomper_a",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
-    "--animations",
-    "preset:idle,preset:walk,preset:run,preset:turn,preset:slash",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_stomper_a.glb"
-   ]
-  },
-  {
-   "id": "an_z_stomper_b",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "26942d63-9e4d-4340-a1eb-90c4fcff66e1",
-    "--animations",
-    "preset:chop,preset:hurt,preset:fall",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_stomper_b.glb"
-   ]
-  },
-  {
-   "id": "an_z_ruber_a",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
-    "--animations",
-    "preset:idle,preset:walk,preset:run,preset:turn,preset:slash",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_ruber_a.glb"
-   ]
-  },
-  {
-   "id": "an_z_ruber_b",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "b2844f80-c3ec-4fb5-bb1c-83b3ddf94e74",
-    "--animations",
-    "preset:chop,preset:hurt,preset:fall",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "--output-format",
-    "json",
-    "-o",
-    "out/z_ruber_b.glb"
-   ]
-  },
-  {
-   "id": "an_bal1",
+   "id": "d2_dry_plain",
    "timeout": 120,
    "args": [
-    "account",
-    "balance"
+    "process",
+    "animate",
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "--animations",
+    "preset:walk",
+    "--rig-type",
+    "biped",
+    "--dry-run"
+   ]
+  },
+  {
+   "id": "d3_walk_v",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "--animations",
+    "preset:walk",
+    "--rig-type",
+    "biped",
+    "-v",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/t_walk.glb"
+   ]
+  },
+  {
+   "id": "d4_biped_walk_v",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "--animations",
+    "preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "-v",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/t_biped_walk.glb"
    ]
   }
  ],
