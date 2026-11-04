@@ -1116,7 +1116,7 @@ try {
 	}).catch((err) => ({ error: String(err) }));
 	check(elite.hp === 1400 && elite.armor > 8 && elite.regen > 0 && elite.pearls === 2, `элита: ${elite.hp} здоровья, броня ${elite.armor}, затягивает раны (+${elite.regen}), с неё ${elite.pearls} чёрные жемчужины${elite.error ? ' — ' + elite.error : ''}`);
 	// новые кластеры: все тайники и выходы достижимы от входа; в «НИИ» — логово элиты
-	for (const id of ['bolnica', 'lesopilka', 'podstanciya', 'nii']) {
+	for (const id of ['bolnica', 'lesopilka', 'podstanciya', 'nii', 'bor', 'vokzal', 'mikro', 'aerodrom']) {
 		await G(page, (id) => window.__game.travel(id), id);
 		await page.waitForFunction((id) => window.__game.loc === id && window.__game.state === 'play', id, { timeout: 300000 });
 		await G(page, () => { const g = window.__game, e = g.level.exits[0].spawn; g.player.pos.set(e.x, 0, e.z); g.player.hp = g.player.maxHp = 1e6; });

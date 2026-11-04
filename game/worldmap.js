@@ -150,7 +150,7 @@ export class WorldMap {
 			const [x, y] = n.at;
 			const reachable = !travel && routes.some((r) => r.to === id);
 			const z = zoneOf(id);
-			const g = el('g', { 'data-node': id, class: `wm-node ${n.kind}${z ? ` z${n.danger ?? 1}` : ''}${id === here && !travel ? ' here' : ''}${reachable ? ' reachable' : ''}${this.zone && !travel ? (z === ZONES[this.zone] ? ' zone-on' : ' zone-off') : ''}` });
+			const g = el('g', { 'data-node': id, class: `wm-node ${n.kind}${z ? ` z${n.danger ?? 1}` : ''}${id === here && !travel ? ' here' : ''}${reachable ? ' reachable' : ''}${this.zone && !travel && z ? (z === ZONES[this.zone] ? ' zone-on' : ' zone-off') : ''}` });
 			if (z) g.style.setProperty('--zc', z.color);
 			if (n.kind === 'cluster') {
 				// кольцо: доля цикла до перезагрузки
