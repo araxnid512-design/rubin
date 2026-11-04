@@ -36,9 +36,21 @@ export const EXT_DROP_GUN = 0.15;
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
+/**
+ * Пленные в изоляторе форпоста: кого внешники поймали. merc — иммунный-боец (освободишь — пойдёт к тебе наёмником),
+ * znahar — знахарь, barter — барыга (оба переберутся на базу героя). Новых ловят при пополнении форпоста.
+ */
+export const PRISONER_KINDS = ['merc', 'merc', 'znahar', 'barter'];
+export function rollPrisoners() {
+	const pool = [...PRISONER_KINDS], out = [];
+	for (let i = 0; i < 2; i++) out.push({ kind: pool.splice(Math.floor(Math.random() * pool.length), 1)[0] });
+	return out;
+}
+
 /** Внешники в новом мире: полный форпост, снаряжение на складе, первая охота — через 15–35 минут. */
 export function newExt(time = 0) {
 	return {
+		prisoners: rollPrisoners(),
 		count: EXT_LIMIT,
 		stash: { ammo556: 150, ammo76251: 60, ammo919: 90, zhivchik: 4, grenade: 3, spore: 30 },
 		nextHunt: time + rand(...HUNT_GAP),
@@ -64,6 +76,7 @@ export function normalizeExt(e, time) {
 	e.renewAt ??= time + EXT_RENEW;
 	e.hunts ??= 0;
 	e.cmd ??= newCmd();
+	e.prisoners ??= rollPrisoners();
 	return e;
 }
 
@@ -80,6 +93,7 @@ export function tickExt(e, now, clusters, here, danger = () => 1) {
 		e.count = EXT_LIMIT;
 		if (n > 0) events.push({ renewed: n });
 		if (e.cmd && !e.cmd.alive) { e.cmd = newCmd(e.cmd.name); events.push({ newCmd: e.cmd.name }); }
+		e.prisoners = rollPrisoners(); // наловили новых
 	}
 	if (e.hunt && now >= e.hunt.end && !e.hunt.live) {
 		const hunt = e.hunt;

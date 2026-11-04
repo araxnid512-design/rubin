@@ -202,6 +202,17 @@ export default {
 			endProp();
 			collide(x, z, 1.0, 0.8, r);
 		}
+		// доска заданий у плаца: щит на двух столбах с листовками
+		{
+			const bx = 5.4, bz = 8.4;
+			for (const sx of [-0.9, 0.9]) batch.add(place(box(0.1, 2.1, 0.1), bx + sx, 1.05, bz), M.wood);
+			batch.add(place(box(2.0, 1.1, 0.06), bx, 1.55, bz), M.woodGrey);
+			batch.add(place(box(2.2, 0.08, 0.3), bx, 2.15, bz), M.roofMetal);
+			const sheet = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9), T.signMaterial('ЗАДАНИЯ · НАГРАДЫ', { bg: '#e2dccb', fg: '#3a3a32', w: 384, h: 192 }));
+			sheet.position.set(bx, 1.55, bz + 0.035);
+			root.add(sheet);
+			collide(bx, bz, 2.1, 0.3);
+		}
 		streetLamp(batch, M, collide, -7, 12.5);
 		streetLamp(batch, M, collide, 7, 12.5);
 		// флагшток
@@ -223,7 +234,8 @@ export default {
 			exits: [{ to: null, x0: -gate, x1: gate, z0: WZ + 1.6, z1: WZ + 8, spawn: [0, WZ - 3.2, Math.PI], sign: [gate + 1.4, WZ + 2.4, 'Выход в Улей ↓'] }],
 			stations: [
 				{ id: 'trade', name: 'Торговец', label: 'Торговать', x: shop.x, z: shop.z + 2.6, r: 1.7 },
-				{ id: 'info', name: 'Информатор', label: 'Спросить про муров', x: shop.x - 4.6, z: shop.z + 2.6, r: 1.4 },
+				{ id: 'info', name: 'Информатор', label: 'Муры, внешники, стая', x: shop.x - 4.6, z: shop.z + 2.6, r: 1.4 },
+				{ id: 'quests', name: 'Доска заданий', label: 'Поручения', x: 5.4, z: 9.4, r: 1.5 },
 				{ id: 'mercs', name: 'Наёмники', label: 'Нанять', x: fire.x - 2.6, z: fire.z + 3.0, r: 1.5 },
 				{ id: 'rest', name: 'Лекарь', label: 'Отдохнуть', x: med.x - 0.5, z: med.z + 2.2, r: 1.6 },
 				{ id: 'room', name: 'Твоя комната', label: 'Отряд', x: quarters.table.x, z: quarters.table.z, r: 1.2 },

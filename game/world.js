@@ -11,6 +11,8 @@
 import { newMurs, normalizeMurs } from './murs.js';
 import { newBase, normalizeBase } from './base.js';
 import { newExt, normalizeExt } from './ext.js';
+import { newHorde, normalizeHorde } from './migrant.js';
+import { newQuests, normalizeQuests } from './quests.js';
 
 export const NODES = {
 	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 86], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
@@ -105,6 +107,8 @@ export function newWorld() {
 		murs: newMurs(0),
 		base: newBase(0),
 		ext: newExt(0),
+		horde: newHorde(0), // кочующая стая с вожаком (game/migrant.js)
+		quests: newQuests(0), // доска заданий (game/quests.js)
 	};
 }
 
@@ -116,6 +120,8 @@ export function normalizeWorld(world) {
 	world.murs = normalizeMurs(world.murs, world.time);
 	world.base = normalizeBase(world.base, world.time);
 	world.ext = normalizeExt(world.ext, world.time);
+	world.horde = normalizeHorde(world.horde, world.time);
+	world.quests = normalizeQuests(world.quests, world.time);
 	return world;
 }
 

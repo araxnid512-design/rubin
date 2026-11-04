@@ -256,6 +256,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 		room: spec.room ?? null, // комната героя (только в стабе)
 		posts: spec.posts ?? null, barracksDoor: spec.barracksDoor ?? null, // «Карьер»: посты часовых муров и дверь казармы
 		bossPost: spec.bossPost ?? null, patrols: spec.patrols ?? null, fixedPosts: spec.fixedPosts ?? 6, // «Карьер»: место главаря, маршруты патрулей
+		prisoners: spec.prisoners ?? null, cellDoors: spec.cellDoors ?? null, // форпост внешников: пленные в клетках изолятора
 		// для плана локации: покрытия, препятствия, крупные постройки, деревья, вода; edge — край локации
 		// (муть) — выход на карту Улья в любом месте, у стаба выход только через ворота
 		plan: { grounds, trees, water: spec.water ?? [], blocks: occluders.map((o) => ({ name: o.name, ...o.area })) },

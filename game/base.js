@@ -48,7 +48,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 /** База в новом мире: ничего не построено. */
 export function newBase(time = 0) {
-	return { built: [], lv: {}, stock: {}, made: {}, nextAttack: time + rand(...ATTACK_GAP), attacks: 0, log: [], guards: [], trips: [] };
+	return { built: [], lv: {}, stock: {}, made: {}, nextAttack: time + rand(...ATTACK_GAP), attacks: 0, log: [], guards: [], trips: [], residents: [] };
 }
 
 /** Из старого сохранения — база как в новом мире; неизвестные постройки — вон. */
@@ -58,6 +58,7 @@ export function normalizeBase(b, time) {
 	b.lv ??= {};
 	if (!Array.isArray(b.guards)) b.guards = []; // наёмники на постах: [{ id, gun, tint }] (game/main.js)
 	b.trips ??= []; // последние вылазки наёмников: [{ text, time }]
+	b.residents ??= []; // освобождённые из плена: знахарь, барыга (game/main.js, freePrisoner)
 	b.stock ??= {};
 	b.made ??= {};
 	b.nextAttack ??= time + rand(...ATTACK_GAP);
@@ -166,6 +167,22 @@ export function tickBase(b, now, here) {
 		events.push({ attack: ev });
 	}
 	return events;
+}
+
+/**
+ * Нападение на базу без героя не по расписанию: кочующая стая (game/migrant.js), налёт муров или внешников.
+ * power — сила, who — кто напал (для журнала), loot — трофеи, если отбились. Отбились — трофеи на склад;
+ * нет — накопленное растащили. Возвращает событие { power, def, held, lost, who, time }.
+ */
+export function raid(b, power, now, who, loot = {}) {
+	const def = defense(b), held = def >= power;
+	const lost = held ? {} : { ...b.stock };
+	if (held) for (const [k, n] of Object.entries(loot)) b.stock[k] = (b.stock[k] ?? 0) + n;
+	else b.stock = {};
+	const ev = { power: Math.round(power), def, held, lost, who, loot: held ? loot : {}, time: now };
+	b.log.unshift(ev);
+	b.log.length = Math.min(b.log.length, 5);
+	return ev;
 }
 
 /** Забрать накопленное (всё). Возвращает { kind: n }. */

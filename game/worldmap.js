@@ -60,7 +60,8 @@ export class WorldMap {
 		if (node.kind === 'ext') return `<span class="danger">форпост внешников — около ${w.ext?.count ?? 0} бойцов в броне</span>`;
 		// где отряд муров — знаешь, только если купил сведения у информатора в «Полисе»
 		const murs = (w.murs.raid?.at === to && w.murs.raid.known ? ' · <span class="danger">там муры (сказал информатор)</span>' : '')
-			+ (w.ext?.hunt?.at === to && w.ext.hunt.known ? ' · <span class="danger">там охотятся внешники (радио базы)</span>' : '');
+			+ (w.ext?.hunt?.at === to && w.ext.hunt.known ? ' · <span class="danger">там охотятся внешники</span>' : '')
+			+ (w.horde?.at === to && w.horde.known ? ` · <span class="danger">там стая «${w.horde.name}»</span>` : '');
 		const left = timeLeft(w, to) - travel;
 		if (left <= 0) return 'перезагрузится, пока идёшь — придёшь в свежий кластер';
 		if (left < 60) return `<span class="danger">перезагрузка через ${approx(left)} после прихода!</span>`;
@@ -151,6 +152,8 @@ export class WorldMap {
 			if (n.kind === 'murs' || n.kind === 'ext') el('path', { d: `M${x + 2.6} ${y - 7.6}l3.6 3.6M${x + 6.2} ${y - 7.6}l-3.6 3.6`, class: 'wm-mur' }, g);
 			// охота внешников (слышно по радио базы) — синяя точка
 			if (w.ext?.hunt?.at === id && w.ext.hunt.known) el('circle', { cx: x - 4.6, cy: y - 4.6, r: 1.5, class: 'wm-hunt' }, g);
+			// кочующая стая (сказал информатор) — оранжевая точка снизу
+			if (w.horde?.at === id && w.horde.known) el('circle', { cx: x + 4.6, cy: y + 4.6, r: 1.6, class: 'wm-horde' }, g);
 			if (w.murs?.raid?.at === id && w.murs.raid.known) el('circle', { cx: x + 4.6, cy: y - 4.6, r: 1.5, class: 'wm-raid' }, g);
 			const label = el('text', { x, y: y + (n.kind === 'stab' || n.kind === 'base' ? 11 : 12.5), class: 'wm-label' }, g);
 			label.textContent = n.short;

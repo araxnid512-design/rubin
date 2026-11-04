@@ -141,6 +141,14 @@ export function makeItemMesh(kind) {
 		const geo = new THREE.SphereGeometry(0.035, 12, 10);
 		[[0, 0.035, 0], [0.065, 0.035, 0.01], [-0.06, 0.035, 0.02], [0.02, 0.035, 0.06], [-0.02, 0.035, -0.055], [0.01, 0.095, 0.01]]
 			.forEach((p) => { const m = new THREE.Mesh(geo, pea); m.position.set(...p); g.add(m); });
+	} else if (kind === 'tag') {
+		// жетон пропавшего: стальная пластинка на цепочке
+		const steel = mat({ color: 0xb8bcc0, roughness: 0.3, metalness: 0.85 });
+		const plate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.008, 0.05), steel);
+		plate.position.y = 0.01;
+		const chain = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.004, 4, 16), steel);
+		chain.rotation.x = Math.PI / 2; chain.position.set(-0.05, 0.005, 0);
+		g.add(plate, chain);
 	} else if (kind === 'pearl') {
 		// чёрная жемчужина: глубокий чёрный перламутр с фиолетовым отливом, в обрывке спорового мешка
 		const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.06, 24, 18), mat({ color: 0x0c0a12, roughness: 0.05, metalness: 0.75, emissive: 0x1a1030, emissiveIntensity: 0.6 }));
@@ -154,4 +162,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255' };
+export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', tag: '255,240,200' };

@@ -49,6 +49,9 @@ export const SLOTS = {
 };
 
 let glow = null;
+/** Склянки знахаря (стекло с зельем). */
+const IM_JARS = new THREE.MeshStandardMaterial({ color: 0x7a9a5a, roughness: 0.1, transparent: true, opacity: 0.85 });
+IM_JARS.userData.shared = true;
 /** Светящееся стекло прожектора (один материал на все — сливается). */
 const lampGlow = () => (glow ??= new THREE.MeshStandardMaterial({ color: 0xfff2c8, emissive: 0xffe8a0, emissiveIntensity: 1.4, roughness: 0.3 }));
 
@@ -166,7 +169,10 @@ export default {
 		};
 		// старые строители (казарма, склад, КПП) кладут тайники — на базе их нет
 		const clean = (b) => { for (const c of b.containers) c.spark?.removeFromParent(); b.containers.length = 0; return b; };
-		const stations = [{ id: 'terminal', name: 'Терминал базы', label: 'Постройки', x: 0, z: 1.6, r: 2.0 }];
+		const stations = [
+			{ id: 'terminal', name: 'Терминал базы', label: 'Постройки', x: 0, z: 1.6, r: 2.0 },
+			{ id: 'quests', name: 'Доска заданий', label: 'Поручения', x: -5.4, z: 3.6, r: 1.6 }, // доска объявлений на площади
+		];
 		const npcs = [];
 		let spawn = null; // бункер: после гибели (и при входе в игру) — в нём, иначе — у ворот
 		const resident = (id, b) => {
@@ -322,6 +328,22 @@ export default {
 			npcs.push({ x: s.x - (two ? 0.55 : 0), z: s.z, ry: 0, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: far, cooldown: 0.16, burst: 5 } });
 			if (two) npcs.push({ x: s.x + 0.55, z: s.z, ry: 0, clip: 'IdleRifle', gun: 'rpk', tint: [0.55, 0.6, 0.5], sentry: { range: far, cooldown: 0.16, burst: 5 } });
 		} else foundation('mgnest');
+
+		// освобождённые из плена форпоста (world.base.residents): знахарь у стола со склянками, барыга у прилавка
+		const RES = {
+			znahar: { x: -3.4, z: -5.6, ry: 0, tint: [0.62, 0.56, 0.42], station: { id: 'znahar', name: 'Знахарь', label: 'Подлечиться' }, stall: [M.woodGrey, IM_JARS] },
+			barter: { x: 3.6, z: -5.6, ry: 0, tint: [0.46, 0.4, 0.52], station: { id: 'barter', name: 'Барыга', label: 'Торговать' }, stall: [M.wood, M.metalRust] },
+		};
+		for (const id of st.residents ?? []) {
+			const r = RES[id];
+			if (!r) continue;
+			// прилавок перед жителем (между ним и площадью)
+			batch.add(place(box(1.6, 0.85, 0.6, 1), r.x, 0.43, r.z + 0.9), r.stall[0]);
+			batch.add(place(box(0.5, 0.25, 0.3), r.x + 0.4, 0.98, r.z + 0.9), r.stall[1]);
+			collide(r.x, r.z + 0.9, 1.7, 0.7);
+			npcs.push({ x: r.x, z: r.z, ry: r.ry, clip: 'Idle', tint: r.tint });
+			stations.push({ ...r.station, x: r.x, z: r.z + 1.9, r: 1.6 });
+		}
 
 		// наёмники на постах базы (world.base.guards): часовые у ворот и у казармы со своим стволом
 		const GUARD_SPOTS = [[-2.4, YARD - 6.5, 0], [2.4, YARD - 6.5, 0], [-11, -10.6, Math.PI], [11.6, -10.6, Math.PI]];

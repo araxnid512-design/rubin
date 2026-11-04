@@ -243,6 +243,11 @@
 		.wm-base { fill: rgba(150,210,120,0.25); stroke: #a8e088; stroke-width: 0.5; stroke-linejoin: round; }
 		.wm-mur { stroke: #e0442c; stroke-width: 1.3; stroke-linecap: round; fill: none; }
 		.wm-raid { fill: #e0442c; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
+		.intel-buys { display: flex; flex-wrap: wrap; gap: 8px; }
+		.quests-list { display: grid; gap: 8px; max-height: 60vh; overflow-y: auto; }
+		.offer.quest .offer-text b { white-space: normal; }
+		.offer.quest.ready { border-color: rgba(200,224,138,0.6); }
+		.wm-horde { fill: #f09a2c; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
 		.wm-hunt { fill: #5aa0e8; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
 		@keyframes wmRaid { 50% { opacity: 0.35; } }
 		.wm-node.murs .wm-frame { stroke: #b8432c; }
@@ -590,7 +595,16 @@
 				<span class="wallet"><span id="intel-wallet"></span></span>
 				<button class="x" id="intel-close" aria-label="Закрыть">✕</button></div>
 			<p id="intel-text" class="intel-text"></p>
-			<button class="buy" id="intel-buy">Узнать</button>
+			<div id="intel-buys" class="intel-buys"></div>
+		</div>
+	</div>
+
+	<div id="quests" class="screen hidden">
+		<div class="inv trade">
+			<div class="inv-head"><b>Доска заданий</b><span class="muted" id="quests-where"></span>
+				<button class="x" id="quests-close" aria-label="Закрыть">✕</button></div>
+			<div id="quests-list" class="quests-list"></div>
+			<div class="stash-note">Взять можно до трёх поручений; выполненное сдают на любой доске — на базе или в «Полисе». Для «принеси» нужное должно быть в рюкзаке. Доска обновляется раз в 20 минут.</div>
 		</div>
 	</div>
 
