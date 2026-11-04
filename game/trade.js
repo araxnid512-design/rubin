@@ -23,7 +23,9 @@ export const SHOP = [
 	{ id: 'ammo762', n: 75, price: 42, sec: 'Патроны' }, // барабан к РПК
 	{ id: 'ammo76251', n: 20, price: 20, sec: 'Патроны' },
 	{ id: 'ammo76254', n: 10, price: 16, sec: 'Патроны' },
+	{ id: 'medkit', n: 1, price: 8, sec: 'Разное' },
 	{ id: 'zhivchik', n: 1, price: 6, sec: 'Разное' },
+	{ id: 'zhivchik', n: 5, price: 27, sec: 'Разное' },
 	{ id: 'grenade', n: 1, price: 10, sec: 'Разное' },
 ];
 /** Торговец покупает за такую долю цены прилавка (топор — ещё и по износу). */

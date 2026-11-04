@@ -1,7 +1,7 @@
 // Наёмники стаба: у каждого своё постоянное оружие. Еда им не нужна — нужны патроны их калибра
-// (сами перезаряжаются из своего запаса) и живчики: сами они не лечатся.
+// (сами перезаряжаются из своего запаса) и аптечки: сами они не лечатся.
 // Нанимают у костра в стабе; нанятый живёт в комнате героя (там шесть коек) и стоит у своей койки.
-// Снарядить его — дать патроны и живчик — и взять с собой можно только там: в бою пополнить нечем,
+// Снарядить его — дать патроны и аптечку — и взять с собой можно только там: в бою пополнить нечем,
 // а без патронов боец гибнет от первой же атаки, так что запас продумывают заранее. В отряде — не больше
 // четырёх (MAX_PARTY); вернувшись в стаб, уцелевшие снова расходятся по койкам. Служит, пока жив.
 // Каждый — своего класса: штурмовик, снайпер, пулемётчик, охотник, медик, подрывник.
@@ -21,7 +21,7 @@ export const CLASSES = {
 	sniper: { name: 'Снайпер', short: 'СН', keep: 4.2, prefer: 'far', kite: 3.5, desc: 'Идёт поодаль, первым снимает топтунов и дальних. Вблизи беззащитен — отходит.' },
 	gunner: { name: 'Пулемётчик', short: 'ПУЛ', keep: 2.9, burst: [9, 15], plant: true, desc: 'Держит толпу длинными очередями; стреляет стоя, перезаряжается долго.' },
 	hunter: { name: 'Охотник', short: 'ОХ', keep: 1.9, desc: 'Подпускает близко и бьёт картечью почти без промаха.' },
-	medic: { name: 'Медик', short: 'МЕД', keep: 1.7, burst: [2, 4], heals: true, desc: 'Держится ближе всех и лечит героя и отряд живчиками из своей аптечки — пополняй её.' },
+	medic: { name: 'Медик', short: 'МЕД', keep: 1.7, burst: [2, 4], heals: true, desc: 'Держится ближе всех и лечит героя и отряд из своей аптечки — пополняй её.' },
 	sapper: { name: 'Подрывник', short: 'ПОД', keep: 2.6, burst: [3, 4], grenades: true, desc: 'Кидает Ф-1 в кучу заражённых или в топтуна, если свои не рядом с целью. Гранаты даёшь ты.' },
 };
 
@@ -32,7 +32,7 @@ export const MERCS = {
 	tihonya: { name: 'Тихоня', cls: 'sniper', weapon: 'awm', price: 170, hp: 90, tint: [0.4, 0.44, 0.4], desc: 'Снайпер с Arctic Warfare: бьёт дальше всех и сильнее всех, после выстрела передёргивает затвор.' },
 	kuvalda: { name: 'Кувалда', cls: 'gunner', weapon: 'rpk', price: 200, hp: 160, tint: [0.58, 0.5, 0.42], desc: 'Пулемётчик с РПК. Барабан на 75 — держит улицу, пока не кончится.' },
 	ded: { name: 'Дед', cls: 'hunter', weapon: 'dbarrel', price: 80, hp: 140, tint: [0.78, 0.66, 0.52], desc: 'Старый охотник с двустволкой. Ждёт, пока подойдут, и не промахивается.' },
-	dok: { name: 'Док', cls: 'medic', weapon: 'mp5', price: 140, hp: 100, tint: [0.86, 0.86, 0.82], desc: 'Медик с MP5. В аптечке два живчика — дальше пополняешь ты.' },
+	dok: { name: 'Док', cls: 'medic', weapon: 'mp5', price: 140, hp: 100, tint: [0.86, 0.86, 0.82], desc: 'Медик с MP5. В аптечке две перевязки — дальше пополняешь ты.' },
 	saper: { name: 'Сапёр', cls: 'sapper', weapon: 'aks', price: 150, hp: 120, tint: [0.5, 0.54, 0.4], desc: 'Подрывник с АКС-74У и двумя Ф-1 в разгрузке.' },
 };
 /** Сколько бойцов можно взять на вылазку (остальные ждут у коек). */
@@ -46,9 +46,9 @@ export function jobText(m, g) {
 	return m.out ? 'с тобой' : 'у койки в стабе';
 }
 
-/** Сколько здоровья даёт один живчик: наёмнику от героя и раненому — от медика. */
+/** Сколько здоровья даёт одна аптечка: наёмнику от героя и раненому — от медика. */
 export const MERC_HEAL = 60;
-/** Сколько гранат и живчиков (аптечка медика) у бойца при найме. */
+/** Сколько гранат и перевязок (аптечка медика) у бойца при найме. */
 const KIT = { medic: { meds: 2 }, sapper: { nades: 2 } };
 /** Патронов всего (в магазине и в запасе) у нанятого автоматчика — у кого оружие стреляет очередями. */
 export const AUTO_START = 150;
@@ -100,7 +100,7 @@ export function resolveTrip(st, danger = 1, bonus = false) {
 const $ = (id) => document.getElementById(id);
 
 /**
- * Окно отряда: кто идёт с героем и кто ждёт в комнате. Патроны, живчик, взять/оставить — только в комнате
+ * Окно отряда: кто идёт с героем и кто ждёт в комнате. Патроны, аптечка, взять/оставить — только в комнате
  * героя (подойдя к бойцу — его карточка); в остальных местах окно только показывает, как они. У вербовщика
  * у костра — ещё и кого можно нанять.
  */
@@ -166,7 +166,7 @@ export class PartyWindow {
 			if (room && !m.out) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
 			// своё снаряжение класса: аптечка медика, гранаты подрывника
 			let kit = '', stock = '';
-			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; if (room) kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 ? '' : 'disabled'}>В аптечку живчик <small>(есть ${bag.zhivchik ?? 0})</small></button>`; }
+			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; if (room) kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 ? '' : 'disabled'}>В аптечку перевязку <small>(есть ${bag.medkit ?? 0})</small></button>`; }
 			if (C.grenades) { stock = ` · гранат ${m.nades ?? 0}`; if (room) kit = `<button class="buy" data-act="nade" data-id="${m.id}" ${(bag.grenade ?? 0) > 0 ? '' : 'disabled'}>Ф-1 +1 <small>(есть ${bag.grenade ?? 0})</small></button>`; }
 			const dry = m.mag + m.ammo <= 0;
 			return `<div class="merc" data-merc="${m.id}">
@@ -177,7 +177,7 @@ export class PartyWindow {
 				<div class="merc-btns">
 					${move}
 					${room ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
-					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Живчик +${MERC_HEAL} <small>(есть ${bag.zhivchik ?? 0})</small></button>` : ''}
+					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Аптечка +${MERC_HEAL} <small>(есть ${bag.medkit ?? 0})</small></button>` : ''}
 					${kit}
 					${this.hiring ? `<button class="stay small" data-act="dismiss" data-id="${m.id}">Отпустить совсем</button>` : ''}
 				</div></div>`;
@@ -196,7 +196,7 @@ export class PartyWindow {
 				html += room || this.hiring ? home.map(card).join('') : `<div class="muted">${home.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
 			}
 			if (busy.length) html += `<div class="trade-sec">На базе «Опорный» (${busy.length})</div><div class="muted">${busy.map((m) => `${MERCS[m.id].name} — ${jobText(m, g)}`).join('; ')}.</div>`;
-			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойцов — патроны, живчик — и взять с собой можно только в твоей комнате в стабе, у их коек (и на базе — в казарме).</div>';
+			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойцов — патроны, аптечка — и взять с собой можно только в твоей комнате в стабе, у их коек (и на базе — в казарме).</div>';
 		}
 		if (this.hiring) {
 			// вербовщик: свободные бойцы по классам
@@ -216,7 +216,7 @@ export class PartyWindow {
 			}
 		}
 		$('party-list').innerHTML = html;
-		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: подойди к бойцу — дашь патроны их калибра и живчик (${ITEMS.zhivchik.name} — +${MERC_HEAL}; сами они не лечатся), возьмёшь с собой или оставишь. В бою пополнить нечем, а без патронов боец гибнет — продумывай запас заранее. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись в стаб, они снова у коек. Медику пополняй аптечку, подрывнику — гранаты.`;
+		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: подойди к бойцу — дашь патроны их калибра и аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), возьмёшь с собой или оставишь. В бою пополнить нечем, а без патронов боец гибнет — продумывай запас заранее. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись в стаб, они снова у коек. Медику пополняй аптечку, подрывнику — гранаты.`;
 	}
 
 	/** На базе: каждого бойца — на пост (часовой, оборона выше) или на вылазку в кластер без героя; снарядить. */
@@ -235,7 +235,7 @@ export class PartyWindow {
 				: `${post ? `<button class="stay small" data-act="unpost" data-id="${m.id}">Снять с поста</button>` : `<button class="buy" data-act="post" data-id="${m.id}" ${posted >= max ? 'disabled' : ''}>На пост</button>`}
 					<span class="trip"><select aria-label="Куда">${opts}</select><button class="buy" data-act="trip" data-id="${m.id}">На вылазку</button></span>
 					<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
-					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.zhivchik ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Живчик +${MERC_HEAL}</button>`;
+					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Аптечка +${MERC_HEAL}</button>`;
 			return `<div class="merc" data-merc="${m.id}">${face(m.id)}
 				<div class="merc-text"><b>${D.name}</b> <span class="cls cls-${D.cls}">${CLASSES[D.cls].name}</span> <span class="muted">${W.name}</span>
 					<div class="merc-hp"><i style="width:${Math.max(0, (m.hp / D.hp) * 100).toFixed(0)}%"></i></div>

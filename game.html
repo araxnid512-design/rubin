@@ -230,7 +230,7 @@
 		#stash .trade-sec { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 		.inv .x { font: inherit; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; flex: none; }
 		.wm-body { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.1fr); gap: 12px; align-items: start; }
-		#wm-svg { width: 100%; aspect-ratio: 1.15; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		#wm-svg { width: 100%; aspect-ratio: 1.154; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
 		.wm-road { stroke: #8a927e; stroke-width: 0.8; stroke-dasharray: 2 1.5; }
 		.wm-road.active { stroke: var(--accent); stroke-width: 1.1; animation: wmRoad 1.2s linear infinite; }
 		@keyframes wmRoad { to { stroke-dashoffset: -7; } }
@@ -253,6 +253,16 @@
 		.wm-hunt { fill: #5aa0e8; stroke: #232823; stroke-width: 0.35; animation: wmRaid 1.2s ease-in-out infinite; }
 		@keyframes wmRaid { 50% { opacity: 0.35; } }
 		.wm-node.murs .wm-frame { stroke: #b8432c; }
+		/* секторы схемы: полосы поясов и их подписи вдоль левого края */
+		.wm-band { fill-opacity: 0.07; }
+		.wm-band-line { stroke: rgba(255,255,255,0.14); stroke-width: 0.35; stroke-dasharray: 1.2 1.2; }
+		.wm-band-label { font-size: 2.6px; font-weight: 700; letter-spacing: 0.15px; text-anchor: middle; opacity: 0.8; paint-order: stroke; stroke: #232823; stroke-width: 0.9px; }
+		.wm-node.next .wm-frame { stroke-width: 1.1; }
+		.wm-sec { color: var(--zc); border-color: var(--zc); }
+		.route.far { opacity: 0.7; }
+		.wm-cost { font-weight: 700; color: #c8e08a; }
+		.wm-cost.danger { color: #f06a50; }
+		button.go:disabled { opacity: 0.35; cursor: default; }
 		/* пояса Улья: рамка и точка кластера — цветом пояса (--zc), легенда под схемой */
 		.wm-node.cluster .wm-frame { stroke: var(--zc, #d8dece); stroke-width: 0.8; }
 		.wm-node.cluster .wm-dot { fill: var(--zc, #6a7262); fill-opacity: 0.85; }
@@ -287,7 +297,7 @@
 		.wm-ring-bg { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 1.4; }
 		.wm-ring { fill: none; stroke: #9ad070; stroke-width: 1.4; }
 		.wm-ring.low { stroke: #f06a50; }
-		.wm-label { fill: var(--text); font-size: 4.4px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1.2px; }
+		.wm-label { fill: var(--text); font-size: 4.6px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1.2px; }
 		#wm-list { display: grid; gap: 8px; }
 		.route { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
 		.route.suggest { border-color: var(--accent); }
@@ -463,6 +473,7 @@
 				<div class="stats">
 					<span class="spore">Спораны <b id="spores">0</b></span>
 					<span class="peas">Горох <b id="peas">0</b></span>
+					<span class="zhiv" title="Живчик — на дорогу: по одному за переход между кластерами">Живчик <b id="hud-zhiv">0</b></span>
 					<span>Убито <b id="kills">0</b></span>
 				</div>
 			</div>
@@ -559,7 +570,7 @@
 			<div class="inv-head"><b>Карта Улья</b><span class="muted" id="wm-sub"></span><button class="x" id="wm-close" aria-label="Закрыть">✕</button></div>
 			<div class="wm-body">
 				<div class="wm-left">
-					<svg id="wm-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+					<svg id="wm-svg" viewBox="0 0 120 104" preserveAspectRatio="xMidYMid meet"></svg>
 					<div id="wm-legend" class="wm-legend"></div>
 					<div id="wm-zone-desc" class="wm-hint"></div>
 				</div>
@@ -598,7 +609,7 @@
 			<div class="inv-head"><b>Хранилище</b><span class="muted">твоя комната · игра на паузе</span>
 				<span class="wallet"><span id="stash-wallet"></span></span>
 				<button class="x" id="stash-close" aria-label="Закрыть">✕</button></div>
-			<div class="stash-note">Что лежит здесь, не пропадёт. При гибели всё, что было с собой — оружие, патроны, гранаты, живчики, — остаётся в кластере; спораны, горох и жемчуг остаются при тебе.</div>
+			<div class="stash-note">Что лежит здесь, не пропадёт. При гибели всё, что было с собой — оружие, патроны, гранаты, аптечки, — остаётся в кластере; спораны, горох, жемчуг и живчик остаются при тебе.</div>
 			<div class="stash-cols">
 				<div><div class="trade-sec">С собой <button class="buy" id="stash-store-all">Сложить всё →</button></div><div id="stash-mine" class="stash-list"></div></div>
 				<div><div class="trade-sec">В хранилище <button class="buy" id="stash-take-all">← Забрать всё</button></div><div id="stash-kept" class="stash-list"></div></div>
@@ -656,7 +667,7 @@
 			<p class="lore">Кусок посёлка вместе с тобой перенесло в Улей. Все, кто не оказался иммунным, обратились.
 				Кластер живёт 10–12 минут, потом Улей подменяет его свежей копией — вместе со всеми, кто не успел уйти:
 				перед этим пахнет кислым и сгущается муть. Обыскивай дома (патроны только там), собирай спораны
-				с заражённых и уходи по дороге к стабу «Полис»: там торговец продаёт оружие, патроны и живчики, лекарь лечит.
+				с заражённых и уходи по дороге к стабу «Полис»: там торговец продаёт оружие, патроны, аптечки и живчик (без него не пройти по Улью: каждый переход между кластерами — живчик), лекарь лечит.
 				По карте мира ходи между кластерами, пока они свежие.</p>
 			<div class="menu-buttons">
 				<button class="big" id="btn-continue">Продолжить</button>
@@ -671,8 +682,8 @@
 				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
 				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>
 			</div>
-			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — выпить живчик · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
-			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и живчик; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — аптечка · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
+			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и аптечка; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
 			<div class="credits">Звуки — записи GoodSoundForYou, MATRIXXX_, DoctorBoomstick, WEL, battlestar10, FST180081, -sihiL, Slave2theLight, missozzy, Aris621, InspectorJ (CC BY), Rolly-SFX, magnuswaker, unfa, FuzzyTuesday, mazlyn, bananplyte, tonsil5, PaulMorek, Ashe Kirk, ali-6868, kretopi, Apostolinkyyti, chromakei и др. (CC0) из набора CC-Sounds (Fris0uman/cdda-soundpacks), подробно — assets/sounds/CREDITS.md. Персонажи — MakeHuman (CC0).</div>
 		</div>
 	</div>

@@ -14,27 +14,30 @@ import { newExt, normalizeExt } from './ext.js';
 import { newHorde, normalizeHorde } from './migrant.js';
 import { newQuests, normalizeQuests } from './quests.js';
 
+// at — место на схеме Улья (viewBox 120×104, game/worldmap.js): карта разбита на полосы-сектора по поясам (BANDS),
+// узлы стоят в полосе своего пояса, стаб и база — в нижней; от позиции зависит и сторона прихода в локацию без
+// своего выхода к соседу (level.entry).
 export const NODES = {
-	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [50, 86], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
-	zarechny: { name: 'Кластер «Заречный»', short: 'Заречный', kind: 'cluster', at: [80, 54], preview: 'assets/previews/zarechny.jpg', desc: 'Посёлок у трассы: хрущёвка, гаражи, частные дома, магазин. Патроны 9×18 в домах.' },
-	dachi: { name: 'Кластер «Дачи»', short: 'Дачи', kind: 'cluster', at: [20, 52], preview: 'assets/previews/dachi.jpg', desc: 'Садовое товарищество: домики, теплицы, сторожка. Охотничьи патроны 12 калибра, обрезы.' },
+	stab: { name: 'Стаб «Полис»', short: 'Полис', kind: 'stab', at: [76, 92], preview: 'assets/previews/stab.jpg', desc: 'Стабильная территория: торговец, лекарь, охрана. Не перезагружается.' },
+	zarechny: { name: 'Кластер «Заречный»', short: 'Заречный', kind: 'cluster', at: [82, 68], preview: 'assets/previews/zarechny.jpg', desc: 'Посёлок у трассы: хрущёвка, гаражи, частные дома, магазин. Патроны 9×18 в домах.' },
+	dachi: { name: 'Кластер «Дачи»', short: 'Дачи', kind: 'cluster', at: [58, 74], preview: 'assets/previews/dachi.jpg', desc: 'Садовое товарищество: домики, теплицы, сторожка. Охотничьи патроны 12 калибра, обрезы.' },
 	// глубже в Улье: развитые заражённые — топтуны и руберы, у руберов бывает чёрный жемчуг
-	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [84, 11], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
-	murs: { name: 'Стаб муров «Карьер»', short: 'Карьер', kind: 'murs', at: [13, 16], preview: 'assets/previews/murs.jpg', desc: 'Логово муров — бандитов, которые охотятся на иммунных. До пятидесяти стволов: зайти можно, выйти — вряд ли. В шкафах склада — всё, что они вынесли из кластеров.' },
-	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [46, 26], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
+	voench: { name: 'Кластер «Военная часть»', short: 'В/ч', kind: 'cluster', danger: 3, at: [66, 28], preview: 'assets/previews/voench.jpg', desc: 'Брошенная войсковая часть: КПП, казарма, оружейка, ангары с техникой. Логово руберов — оружие, гранаты, чёрный жемчуг.' },
+	murs: { name: 'Стаб муров «Карьер»', short: 'Карьер', kind: 'murs', at: [14, 30], preview: 'assets/previews/murs.jpg', desc: 'Логово муров — бандитов, которые охотятся на иммунных. До пятидесяти стволов: зайти можно, выйти — вряд ли. В шкафах склада — всё, что они вынесли из кластеров.' },
+	himmash: { name: 'Кластер «Химмаш»', short: 'Химмаш', kind: 'cluster', danger: 2, at: [60, 46], preview: 'assets/previews/himmash.jpg', desc: 'Заводская промзона: цех, склад, ж/д тупик с цистернами. Много топтунов и два рубера — горох, чёрный жемчуг.' },
 	// новые кластеры и база героя
-	base: { name: 'База «Опорный»', short: 'База', kind: 'base', at: [24, 84], preview: 'assets/previews/base.jpg', desc: 'Твоя база — постоянный кластер, не перезагружается. В терминале посреди площадки покупаются постройки: стена, вышки, казарма, оружейная, склад и другие — каждая что-то даёт.' },
-	bolnica: { name: 'Кластер «Больница»', short: 'Больница', kind: 'cluster', danger: 2, at: [74, 76], preview: 'assets/previews/bolnica.jpg', desc: 'Городская больница: корпуса, приёмный покой, морг, гаражи скорой. Живчики и патроны у охраны, топтуны в коридорах.' },
-	lesopilka: { name: 'Кластер «Лесопилка»', short: 'Лесопилка', kind: 'cluster', danger: 1, at: [6, 34], preview: 'assets/previews/lesopilka.jpg', desc: 'Лесопилка у реки: пилорама, штабеля брёвен, бараки рабочих, контора. Тихая окраина — охотничьи ружья и патроны 12 калибра.' },
-	podstanciya: { name: 'Кластер «Подстанция»', short: 'Подстанция', kind: 'cluster', danger: 2, at: [60, 38], preview: 'assets/previews/podstanciya.jpg', desc: 'Электроподстанция и посёлок энергетиков: трансформаторы, щитовая, общежитие, гаражи. Топтуны и рубер у трансформаторов.' },
+	base: { name: 'База «Опорный»', short: 'База', kind: 'base', at: [30, 92], preview: 'assets/previews/base.jpg', desc: 'Твоя база — постоянный кластер, не перезагружается. В терминале посреди площадки покупаются постройки: стена, вышки, казарма, оружейная, склад и другие — каждая что-то даёт.' },
+	bolnica: { name: 'Кластер «Больница»', short: 'Больница', kind: 'cluster', danger: 2, at: [108, 48], preview: 'assets/previews/bolnica.jpg', desc: 'Городская больница: корпуса, приёмный покой, морг, гаражи скорой. Живчики и патроны у охраны, топтуны в коридорах.' },
+	lesopilka: { name: 'Кластер «Лесопилка»', short: 'Лесопилка', kind: 'cluster', danger: 1, at: [36, 66], preview: 'assets/previews/lesopilka.jpg', desc: 'Лесопилка у реки: пилорама, штабеля брёвен, бараки рабочих, контора. Тихая окраина — охотничьи ружья и патроны 12 калибра.' },
+	podstanciya: { name: 'Кластер «Подстанция»', short: 'Подстанция', kind: 'cluster', danger: 2, at: [82, 52], preview: 'assets/previews/podstanciya.jpg', desc: 'Электроподстанция и посёлок энергетиков: трансформаторы, щитовая, общежитие, гаражи. Топтуны и рубер у трансформаторов.' },
 	// ещё четыре кластера (2026-11-04): деревня на окраине, станция в промзоне, микрорайон в глубине, аэродром в чёрной зоне
-	bor: { name: 'Кластер «Деревня Бор»', short: 'Бор', kind: 'cluster', danger: 1, at: [7, 64], preview: 'assets/previews/bor.jpg', desc: 'Деревня на опушке бора: избы с огородами, сельпо, колхозная ферма, церковь. Тихо — бегуны и редкий топтун. Охотничьи ружья, патроны 12 калибра.' },
-	vokzal: { name: 'Кластер «Ж/д станция»', short: 'Станция', kind: 'cluster', danger: 2, at: [33, 41], preview: 'assets/previews/vokzal.jpg', desc: 'Узловая станция: вокзал, платформы, составы и цистерны, депо, водокачка. Топтуны в депо, бегуны на путях. Патроны у транспортной милиции.' },
-	mikro: { name: 'Кластер «Микрорайон»', short: 'Микрорайон', kind: 'cluster', danger: 3, at: [92, 31], preview: 'assets/previews/mikro.jpg', desc: 'Спальный район: панельные девятиэтажки с магазинами внизу, школа, гаражи. Логово руберов во дворах. Много тайников, бывает чёрный жемчуг.' },
-	aerodrom: { name: 'Кластер «Аэродром»', short: 'Аэродром', kind: 'cluster', danger: 4, at: [74, 23], preview: 'assets/previews/aerodrom.jpg', desc: 'Военный аэродром: полоса, ангары, вертолёты, командно-диспетчерский пункт, склад вооружения. Элита и руберы. Гранатомёты и выстрелы к ним, крупнокалиберные патроны.' },
+	bor: { name: 'Кластер «Деревня Бор»', short: 'Бор', kind: 'cluster', danger: 1, at: [14, 74], preview: 'assets/previews/bor.jpg', desc: 'Деревня на опушке бора: избы с огородами, сельпо, колхозная ферма, церковь. Тихо — бегуны и редкий топтун. Охотничьи ружья, патроны 12 калибра.' },
+	vokzal: { name: 'Кластер «Ж/д станция»', short: 'Станция', kind: 'cluster', danger: 2, at: [34, 50], preview: 'assets/previews/vokzal.jpg', desc: 'Узловая станция: вокзал, платформы, составы и цистерны, депо, водокачка. Топтуны в депо, бегуны на путях. Патроны у транспортной милиции.' },
+	mikro: { name: 'Кластер «Микрорайон»', short: 'Микрорайон', kind: 'cluster', danger: 3, at: [106, 32], preview: 'assets/previews/mikro.jpg', desc: 'Спальный район: панельные девятиэтажки с магазинами внизу, школа, гаражи. Логово руберов во дворах. Много тайников, бывает чёрный жемчуг.' },
+	aerodrom: { name: 'Кластер «Аэродром»', short: 'Аэродром', kind: 'cluster', danger: 4, at: [88, 10], preview: 'assets/previews/aerodrom.jpg', desc: 'Военный аэродром: полоса, ангары, вертолёты, командно-диспетчерский пункт, склад вооружения. Элита и руберы. Гранатомёты и выстрелы к ним, крупнокалиберные патроны.' },
 	// внешники — пришлые солдаты с хорошим снаряжением, охотятся на иммунных (game/ext.js); их форпост — глубоко в Улье
-	forpost: { name: 'Форпост внешников', short: 'Форпост', kind: 'ext', at: [33, 7], preview: 'assets/previews/forpost.jpg', desc: 'Укреплённый лагерь внешников — пришлых солдат в форме, с хорошим оружием и бронёй. Охотятся на иммунных. В контейнерах склада — их снаряжение: зайти можно, выйти — вряд ли.' },
-	nii: { name: 'Кластер «НИИ»', short: 'НИИ', kind: 'cluster', danger: 4, at: [60, 8], preview: 'assets/previews/nii.jpg', desc: 'Закрытый научный городок: лабораторный корпус, виварий, ограда с КПП. Логово элиты — самого опасного мутанта Улья. Редкое оружие и чёрный жемчуг.' },
+	forpost: { name: 'Форпост внешников', short: 'Форпост', kind: 'ext', at: [24, 10], preview: 'assets/previews/forpost.jpg', desc: 'Укреплённый лагерь внешников — пришлых солдат в форме, с хорошим оружием и бронёй. Охотятся на иммунных. В контейнерах склада — их снаряжение: зайти можно, выйти — вряд ли.' },
+	nii: { name: 'Кластер «НИИ»', short: 'НИИ', kind: 'cluster', danger: 4, at: [56, 12], preview: 'assets/previews/nii.jpg', desc: 'Закрытый научный городок: лабораторный корпус, виварий, ограда с КПП. Логово элиты — самого опасного мутанта Улья. Редкое оружие и чёрный жемчуг.' },
 };
 
 /**
@@ -53,6 +56,17 @@ export const zoneOf = (id) => (NODES[id]?.kind === 'cluster' ? ZONES[Math.max(1,
 /** Кластеры пояса z (1–4). */
 export const clustersOfZone = (z) => Object.keys(NODES).filter((id) => NODES[id].kind === 'cluster' && Math.max(1, Math.min(4, NODES[id].danger ?? 1)) === z);
 
+/** Полосы-сектора схемы Улья: пояс (ZONES, null — стаб и база), верх и низ по y схемы, подпись. */
+export const BANDS = [
+	{ zone: 4, y0: 0, y1: 20, name: 'Чёрная зона' },
+	{ zone: 3, y0: 20, y1: 40, name: 'Глубина' },
+	{ zone: 2, y0: 40, y1: 60, name: 'Промзона' },
+	{ zone: 1, y0: 60, y1: 82, name: 'Окраина' },
+	{ zone: null, y0: 82, y1: 104, name: 'Стаб и база' },
+];
+/** Размер схемы (viewBox). */
+export const MAP_W = 120, MAP_H = 104;
+
 /** Дороги: [откуда, куда, время в пути, с]. */
 export const ROUTES = [
 	['stab', 'zarechny', 75],
@@ -61,7 +75,7 @@ export const ROUTES = [
 	['dachi', 'himmash', 85],
 	['zarechny', 'himmash', 80],
 	['himmash', 'voench', 90],
-	['murs', 'dachi', 100],
+	['murs', 'vokzal', 80],
 	['murs', 'himmash', 90],
 	['stab', 'base', 60],
 	['base', 'dachi', 75],
@@ -110,6 +124,28 @@ export function routesFrom(id) {
 export function travelTime(from, to) {
 	return ROUTES.find(([a, b]) => (a === from && b === to) || (a === to && b === from))?.[2] ?? 120;
 }
+
+/**
+ * Кратчайший путь по дорогам Улья от from до to: { nodes: [from, …, to], time } (по времени в пути). Идти можно в любую
+ * локацию — через промежуточные кластеры; за каждый переход (ребро пути) герой выпивает живчик (travelCost).
+ */
+export function shortestPath(from, to) {
+	if (from === to) return { nodes: [from], time: 0 };
+	const dist = { [from]: 0 }, prev = {}, left = new Set(Object.keys(NODES));
+	while (left.size) {
+		let u = null;
+		for (const n of left) if (dist[n] != null && (u === null || dist[n] < dist[u])) u = n;
+		if (u === null || u === to) break;
+		left.delete(u);
+		for (const { to: v, time } of routesFrom(u)) if (left.has(v) && (dist[v] == null || dist[u] + time < dist[v])) { dist[v] = dist[u] + time; prev[v] = u; }
+	}
+	if (dist[to] == null) return { nodes: [from, to], time: 240 };
+	const nodes = [to];
+	while (nodes[0] !== from) nodes.unshift(prev[nodes[0]]);
+	return { nodes, time: dist[to] };
+}
+/** Сколько живчика нужно на дорогу from → to: по одному на каждый переход между узлами. */
+export const travelCost = (from, to) => Math.max(0, shortestPath(from, to).nodes.length - 1);
 
 /** Кратчайшая дорога по карте Улья (через другие узлы), с — для вылазок наёмников с базы. */
 export function pathTime(from, to) {

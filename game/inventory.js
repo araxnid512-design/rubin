@@ -57,7 +57,7 @@ export class Inventory {
 	act() {
 		const g = this.game, kind = this.selected, kit = g.kit, p = g.player;
 		const W = WEAPONS[kind];
-		if (kind === 'zhivchik') g.drink();
+		if (kind === 'medkit') g.drink();
 		else if (kind === 'pearl') g.eatPearl();
 		else if (W && kit.gear[W.slot] === kind) {
 			// оружие из слота — в руки (смена анимацией после закрытия рюкзака)
@@ -131,7 +131,7 @@ export class Inventory {
 		const btn = $('inv-action');
 		btn.classList.add('hidden');
 		btn.disabled = false;
-		if (kind === 'zhivchik') {
+		if (kind === 'medkit') {
 			btn.classList.remove('hidden');
 			btn.textContent = p.hp >= p.maxHp ? 'Здоровье полное' : `${it.use} (+45)`;
 			btn.disabled = p.hp >= p.maxHp;

@@ -44,7 +44,7 @@ import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './sta
 import { IntelWindow, INTEL_PRICE, TOPICS, intelText, topicText } from './intel.js';
 import { BUILD } from './version.js';
 import { WorldMap } from './worldmap.js';
-import { NODES, WARN, RAGE, newWorld, normalizeWorld, advance, timeLeft, travelTime, pathTime, clock, approx, saveGame, loadGame, clearSave } from './world.js';
+import { NODES, WARN, RAGE, newWorld, normalizeWorld, advance, timeLeft, travelTime, pathTime, shortestPath, travelCost, clock, approx, saveGame, loadGame, clearSave } from './world.js';
 import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
 import { ZOMBIE_GAIT, RUBER_GAIT } from '../src/animations.js';
 
@@ -260,7 +260,7 @@ function makeIcons() {
 	I.trader = stab[0]; I.medic = stab[1]; I.recruiter = stab[2]; I.informant = stab[3];
 	for (const [id, D] of Object.entries(MERCS)) I[`merc_${id}`] = iconFactory.portrait(assets.player, { tint: D.tint, gear: {} });
 	if (I.trader) $('trade-avatar').src = I.trader;
-	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.zhivchik}" alt="">`);
+	$('btn-heal').insertAdjacentHTML('afterbegin', `<img src="${I.medkit}" alt="">`);
 	$('btn-grenade').insertAdjacentHTML('afterbegin', `<img src="${I.grenade}" alt="">`);
 }
 
@@ -529,7 +529,7 @@ function normalizeKit(kit) {
 	if (!melee || (melee !== 'fists' && !kit.owned.includes(melee))) kit.gear.melee = kit.owned.find((w) => WEAPONS[w].slot === 'melee') ?? 'fists';
 	return kit;
 }
-const START_BAG = { ammo919: 17, zhivchik: 1, spore: 0, peas: 0 };
+const START_BAG = { ammo919: 17, medkit: 1, zhivchik: 3, spore: 0, peas: 0 }; // живчик — на дорогу (3 перехода), аптечка — лечение
 const SEARCH_TIME = 1.1; // секунды на обыск
 const SEARCH_REACH = 1.25; // как близко надо подойти к мебели
 const REST_TIME = 120; // отдых у лекаря, секунд мира
@@ -540,19 +540,23 @@ const REST_TIME = 120; // отдых у лекаря, секунд мира
  * добавляется редкое — крупнокалиберные патроны, выстрелы к гранатомётам, а в Чёрной зоне бывает и сам гранатомёт.
  */
 const ZONE_LOOT = {
-	3: { ammo127: [3, 6, 0.04], vog25: [2, 4, 0.04], rocket: [1, 1, 0.025], grenade: 0.03 },
-	4: { ammo127: [4, 10, 0.09], vog25: [2, 6, 0.08], rocket: [1, 2, 0.07], grenade: 0.05, rg6: 0.012, ksvk: 0.01, rpg7: 0.008 },
+	1: { zhivchik: [1, 1, 0.07] },
+	2: { zhivchik: [1, 2, 0.08] },
+	3: { zhivchik: [1, 2, 0.1], ammo127: [3, 6, 0.04], vog25: [2, 4, 0.04], rocket: [1, 1, 0.025], grenade: 0.03 },
+	4: { zhivchik: [1, 3, 0.12], ammo127: [4, 10, 0.09], vog25: [2, 6, 0.08], rocket: [1, 2, 0.07], grenade: 0.05, rg6: 0.012, ksvk: 0.01, rpg7: 0.008 },
 };
+// живчик в описаниях тайников (аптечные шкафчики, врачи) — это лечение: теперь аптечка; живчик на дорогу — по поясу (ZONE_LOOT)
+const LOOT_AS = { zhivchik: 'medkit' };
 function rollLoot(spec, danger = 1) {
 	const out = [];
-	const roll = (table) => {
+	const roll = (table, as = null) => {
 		for (const [k, v] of Object.entries(table)) {
-			const kind = realId(k);
+			const kind = realId(as?.[k] ?? k);
 			if (Array.isArray(v)) { if (Math.random() < v[2]) out.push([kind, v[0] + Math.floor(Math.random() * (v[1] - v[0] + 1))]); }
 			else if (Math.random() < v) out.push([kind, 1]);
 		}
 	};
-	roll(spec);
+	roll(spec, LOOT_AS);
 	if (ZONE_LOOT[danger] && Object.keys(spec).length) roll(ZONE_LOOT[danger]);
 	return out;
 }
@@ -3400,7 +3404,7 @@ const game = {
 		const ri = ([a, c]) => a + Math.floor(Math.random() * (c - a + 1)), ext = this.world.ext;
 		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), ri(EXT_DROP_AMMO));
 		this.spawnPickup('spore', near(0, -0.5), ri(EXT_DROP_SPORE) * (b.boss ? 8 : 1));
-		if (Math.random() < EXT_DROP_MED || b.boss) this.spawnPickup('zhivchik', near(-0.4, 0.2), 1);
+		if (Math.random() < EXT_DROP_MED || b.boss) this.spawnPickup('medkit', near(-0.4, 0.2), 1);
 		if (Math.random() < EXT_DROP_NADE || b.boss) this.spawnPickup('grenade', near(0.2, -0.6), 1);
 		if (Math.random() < EXT_DROP_GUN || b.boss) this.spawnPickup(b.weapon, near(-0.3, -0.4), 1);
 		if (b.boss) {
@@ -3485,9 +3489,17 @@ const game = {
 	},
 
 	/** Уйти по дороге в to: время мира уходит на путь, за это время кластеры могут перезагрузиться. */
+	/**
+	 * Дорога в любую локацию: по кратчайшему пути через другие кластеры (shortestPath), время складывается (гараж на базе —
+	 * быстрее), за каждый переход герой выпивает живчик — не хватило, остаёмся (false; карта Улья покажет, сколько нужно).
+	 */
 	travel(to) {
 		if (this.state !== 'play') return;
-		const from = this.loc, time = Math.round(travelTime(from, to) * this.basePerks().travel); // гараж на базе — быстрее
+		const from = this.loc, path = shortestPath(from, to), cost = path.nodes.length - 1, have = this.bag.zhivchik ?? 0;
+		if (cost > have) { this.toast(`На дорогу нужно ${cost} ${plural(cost, ITEMS.zhivchik.forms)} — есть ${have}`, 'warn'); return false; }
+		const time = Math.round(path.time * this.basePerks().travel);
+		this.bag.zhivchik = have - cost;
+		if (cost > 0) this.toast(`Выпит ${cost === 1 ? 'живчик' : `${cost} ${plural(cost, ITEMS.zhivchik.forms)}`} на дорогу${cost > 1 ? ` (${cost} ${plural(cost, ['переход', 'перехода', 'переходов'])})` : ''}`);
 		if (NODES[from].kind === 'cluster') this.snapshot();
 		this.state = 'travel';
 		this.setPaused(true);
@@ -3529,10 +3541,11 @@ const game = {
 			this.kit.gear.gun ??= 'glock17';
 			this.kit.mags.glock17 ??= WEAPONS.glock17.mag;
 			this.bag.ammo919 = (this.bag.ammo919 ?? 0) + 34;
-			this.bag.zhivchik = (this.bag.zhivchik ?? 0) + 1;
+			this.bag.medkit = (this.bag.medkit ?? 0) + 1;
 		}
 		const broke = !Object.keys(this.stash.guns).length && (this.bag.spore ?? 0) < WEAPONS.fireaxe.price;
 		if (broke) { this.kit.owned.push('fireaxe'); this.kit.gear.melee = 'fireaxe'; this.kit.wear.fireaxe = Math.ceil(WEAPONS.fireaxe.durability / 2); }
+		if (!(this.bag.zhivchik > 0)) this.bag.zhivchik = 1; // без живчика из стаба не уйти — лекарь наливает один
 		const who = this.party.length ? 'Наёмники вытащили тебя' : 'Тебя вытащили рейдеры'; // и разошлись по койкам
 		// сожрали — кластер запоминает, каким его оставили: кровь, разрушения, выпавшее (перезагрузка всё смыла бы и так)
 		if (this.deathReason !== 'reload' && NODES[this.loc]?.kind === 'cluster') this.snapshot();
@@ -3831,15 +3844,15 @@ const game = {
 		}
 	},
 
-	/** Выпить живчик из рюкзака. */
+	/** Перевязаться аптечкой из рюкзака (кнопка аптечки, H). */
 	drink() {
 		const p = this.player;
-		if (!p?.alive || !(this.bag.zhivchik > 0)) { if (p?.alive) this.toast('Живчиков нет', 'warn'); return; }
+		if (!p?.alive || !(this.bag.medkit > 0)) { if (p?.alive) this.toast('Аптечек нет — продаёт торговец, лежат в аптечных шкафчиках', 'warn'); return; }
 		if (p.hp >= p.maxHp) { this.toast('Здоровье и так полное'); return; }
-		this.bag.zhivchik--;
+		this.bag.medkit--;
 		p.hp = Math.min(p.maxHp, p.hp + 45);
 		Sfx.drink();
-		this.toast('Живчик: +45 здоровья');
+		this.toast('Аптечка: +45 здоровья');
 		this.hud();
 	},
 
@@ -3964,7 +3977,10 @@ const game = {
 		advance(this.world, REST_TIME);
 		p.hp = p.maxHp;
 		Sfx.drink();
-		this.banner('Отдых', `Прошло ${approx(REST_TIME)}. Здоровье восстановлено`);
+		// без живчика из стаба не уйти: лекарь наливает один на дорогу
+		const dry = !(this.bag.zhivchik > 0);
+		if (dry) this.bag.zhivchik = 1;
+		this.banner('Отдых', `Прошло ${approx(REST_TIME)}. Здоровье восстановлено${dry ? '. Лекарь налил живчик на дорогу' : ''}`);
 		this.hud();
 		this.save();
 	},
@@ -4186,25 +4202,25 @@ const game = {
 		this.hud();
 	},
 
-	/** Живчик наёмнику: сам он не лечится (только в комнате). */
+	/** Аптечка наёмнику: сам он не лечится (только в комнате). */
 	healMerc(id) {
 		const st = this.merc(id), D = MERCS[st?.id];
-		if (!st || !(this.inRoom || this.atBase) || !(this.bag.zhivchik > 0) || st.hp >= D.hp) return;
-		this.bag.zhivchik--;
+		if (!st || !(this.inRoom || this.atBase) || !(this.bag.medkit > 0) || st.hp >= D.hp) return;
+		this.bag.medkit--;
 		st.hp = Math.min(D.hp, st.hp + MERC_HEAL);
 		Sfx.drink();
 		this.toast(`${D.name}: +${MERC_HEAL} здоровья`);
 		this.hud();
 	},
 
-	/** Живчик в аптечку медика — он сам лечит им раненых. */
+	/** Перевязка в аптечку медика — он сам лечит ею раненых. */
 	giveMeds(id) {
 		const st = this.merc(id);
-		if (!st || !(this.inRoom || this.atBase) || !(this.bag.zhivchik > 0)) return;
-		this.bag.zhivchik--;
+		if (!st || !(this.inRoom || this.atBase) || !(this.bag.medkit > 0)) return;
+		this.bag.medkit--;
 		st.meds = (st.meds ?? 0) + 1;
 		Sfx.drink();
-		this.toast(`${MERCS[id].name}: в аптечке ${st.meds} ${plural(st.meds, ITEMS.zhivchik.forms)}`);
+		this.toast(`${MERCS[id].name}: в аптечке ${st.meds} ${plural(st.meds, ['перевязка', 'перевязки', 'перевязок'])}`);
 		this.hud();
 	},
 
@@ -4887,9 +4903,10 @@ const game = {
 			ammo.innerHTML = 'без оружия';
 			ammo.classList.add('empty');
 		}
-		const zh = this.bag.zhivchik ?? 0;
-		$('heal-count').textContent = zh;
-		$('btn-heal').classList.toggle('off', zh === 0);
+		const md = this.bag.medkit ?? 0;
+		$('heal-count').textContent = md;
+		$('btn-heal').classList.toggle('off', md === 0);
+		$('hud-zhiv').textContent = this.bag.zhivchik ?? 0;
 		const gr = this.bag.grenade ?? 0;
 		$('grenade-count').textContent = gr;
 		$('btn-grenade').classList.toggle('off', gr === 0);

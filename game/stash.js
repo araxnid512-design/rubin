@@ -6,7 +6,7 @@ import { ITEMS, BAG_ORDER, plural } from './items.js';
 import { WEAPONS } from './weapons.js';
 
 /** Валюта: при гибели остаётся с героем, в хранилище не кладётся. */
-export const CURRENCY = ['spore', 'peas', 'pearl'];
+export const CURRENCY = ['spore', 'peas', 'pearl', 'zhivchik']; // живчик — на дорогу: при гибели остаётся, в хранилище не кладётся
 /** Что из рюкзака можно сложить (всё, кроме валюты). */
 export const STORABLE = BAG_ORDER.filter((k) => !CURRENCY.includes(k));
 

@@ -19,14 +19,15 @@ export const ITEMS = {
 	vog25: { name: 'Выстрелы ВОГ-25', type: 'ammo', forms: ['выстрел', 'выстрела', 'выстрелов'], desc: 'Осколочные гранаты 40 мм к РГ-6: летят навесом, разрыв 3,5 м. В глубине Улья — в оружейках и на складах.' },
 	rocket: { name: 'Выстрелы ПГ-7В', type: 'ammo', forms: ['выстрел', 'выстрела', 'выстрелов'], desc: 'Реактивные гранаты к РПГ-7: рвутся у первой цели, разрыв 5 м. Тяжёлые и дорогие — на складах вооружения в Чёрной зоне или у торговца.' },
 	grenade: { name: 'Граната Ф-1', forms: ['граната', 'гранаты', 'гранат'], use: 'Бросить', desc: 'Оборонительная граната: бросок к ближайшим заражённым, взрыв через 2 секунды, разлёт осколков до 6 м — не стой рядом. Кнопка гранаты или G.' },
-	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], use: 'Выпить', desc: 'Лечебное зелье Улья: восстанавливает 45 здоровья.' },
+	medkit: { name: 'Аптечка', forms: ['аптечка', 'аптечки', 'аптечек'], use: 'Перевязать', desc: 'Бинты, жгут и обезболивающее: восстанавливает 45 здоровья. Кнопка аптечки или H. Лежит в аптечных шкафчиках и у врачей, продаёт торговец.' },
+	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], desc: 'Напиток из споранов. Без него иммунному не пройти по Улью: каждый переход между кластерами на дороге — живчик, дальний путь — несколько. Продаёт торговец, варят знахарь и медпункт базы. Как спораны и жемчуг, при гибели остаётся при тебе.' },
 	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
 	pearl: { name: 'Чёрная жемчужина', forms: ['жемчужина', 'жемчужины', 'жемчужин'], use: 'Съесть', desc: 'Редчайшая находка Улья — бывает в споровых мешках руберов и элиты. Знахари говорят, она развивает дар; иммунного делает крепче: съешь — здоровье навсегда +20. Торговец в стабе даёт за неё 150 споранов. Как и спораны с горохом, при гибели остаётся при тебе.' },
 	peas: { name: 'Горох', forms: ['горошина', 'горошины', 'горошин'], desc: 'Горошины из споровых мешков топтунов и руберов. Торговец в стабе меняет каждую на 5 споранов.' },
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'ammo127', 'vog25', 'rocket', 'grenade', 'zhivchik', 'pearl', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'ammo127', 'vog25', 'rocket', 'grenade', 'medkit', 'zhivchik', 'pearl', 'spore', 'peas'];
 /** Всё, что лежит в рюкзаке (при гибели пропадает, кроме валюты — см. stash.js). */
 export const CONSUMABLES = BAG_ORDER;
 
@@ -160,8 +161,19 @@ export function makeItemMesh(kind) {
 			b.rotation.z = -Math.PI / 2; b.position.set(0.07, 0.094, -0.06 + i * 0.03);
 			g.add(c, b);
 		}
+	} else if (kind === 'medkit') {
+		// аптечка: оливковая сумка-коробка с красным крестом и ремешком
+		const box = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.18), mat({ color: 0x5a6a46, roughness: 0.85 }));
+		box.position.y = 0.06;
+		const red = mat({ color: 0xc83030, roughness: 0.6 });
+		const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.006, 0.03), red); c1.position.set(0, 0.124, 0);
+		const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.1), red); c2.position.set(0, 0.124, 0);
+		const strap = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, 0.03), mat({ color: 0x2a2420, roughness: 0.8 }));
+		strap.position.set(0, 0.125, -0.06);
+		g.add(box, c1, c2, strap);
 	} else if (kind === 'zhivchik') {
-		const flask = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 14), mat({ color: 0xa04040, roughness: 0.1, transparent: true, opacity: 0.88, emissive: 0x501010 }));
+		// живчик: мутно-зелёный напиток из споранов в бутылке с пробкой
+		const flask = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 14), mat({ color: 0x5a9a4a, roughness: 0.1, transparent: true, opacity: 0.88, emissive: 0x1a4a18 }));
 		flask.position.y = 0.11;
 		const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.05, 12), flask.material);
 		neck.position.y = 0.245;
@@ -200,4 +212,4 @@ export function makeItemMesh(kind) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', ammo127: '255,210,140', vog25: '220,240,160', rocket: '255,180,110', grenade: '255,200,120', weapon: '200,220,255', zhivchik: '255,120,120', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', tag: '255,240,200' };
+export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', ammo127: '255,210,140', vog25: '220,240,160', rocket: '255,180,110', grenade: '255,200,120', weapon: '200,220,255', medkit: '255,140,140', zhivchik: '170,255,180', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', tag: '255,240,200' };

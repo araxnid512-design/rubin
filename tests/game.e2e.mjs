@@ -48,6 +48,8 @@ try {
 	await page.waitForFunction(() => window.__game?.state === 'play' && window.__game.enemies.length > 0, null, { timeout: 60000 });
 	// кочующая стая и охоты внешников в тесте — только там, где их вызывают сами проверки (иначе меняют счёт заражённых)
 	await G(page, () => { const w = window.__game.world; w.horde.next = Infinity; w.ext.nextHunt = Infinity; });
+	// дорога стоит живчик (по переходу за узел пути): проверки ходят по всему Улью — запас на весь тест (переход проверяем отдельно)
+	await G(page, () => { window.__game.bag.zhivchik = 80; });
 	const s = await G(page, () => ({ loc: window.__game.loc, n: window.__game.enemies.length, idle: window.__game.enemies.every((e) => e.state === 'idle'), types: [...new Set(window.__game.enemies.map((e) => e.type))].sort().join(), timer: document.getElementById('loc-timer').textContent }));
 	check(s.loc === 'zarechny' && s.n >= 28 && s.n <= 42 && s.idle, `новая игра в Заречном: ${s.n} заражённых (каждый цикл — случайно), все ждут (без волн)`);
 	check(s.types === 'runner,stomper', `есть бегуны и топтуны, руберов на окраине Улья нет (${s.types})`);
@@ -188,15 +190,15 @@ try {
 	const found = await G(page, () => ({ ammo: window.__game.bag.ammo919, roof: window.__game.level.buildings[0].fader.value, searched: window.__game.level.containers.find((x) => x.building === 'House1' && x.name === 'Шкаф').searched }));
 	check(prompt === 'Шкаф' && found.ammo >= 7 && found.searched, `обыск шкафа в доме: подсказка «${prompt}», в запасе ${found.ammo} патронов`);
 	check(found.roof < 0.1, `в доме крыша и верх стен убраны (видимость ${found.roof.toFixed(2)})`);
-	// рюкзак: открывается по I, ставит игру на паузу, живчик из рюкзака лечит
+	// рюкзак: открывается по I, ставит игру на паузу, аптечка из рюкзака лечит
 	await page.keyboard.press('KeyI');
 	await page.waitForSelector('#inventory:not(.hidden)', { timeout: 20000 }).catch(() => {});
-	const inv = await G(page, () => { const g = window.__game; g.player.hp = 40; g.player.maxHp = 100; g.bag.zhivchik = 2; g.inventory.select('zhivchik'); return { paused: g.paused, slots: document.querySelectorAll('#inv-grid [data-item]').length, icon: document.querySelector('#inv-grid img')?.src.startsWith('data:image/png') }; });
+	const inv = await G(page, () => { const g = window.__game; g.player.hp = 40; g.player.maxHp = 100; g.bag.medkit = 2; g.inventory.select('medkit'); return { paused: g.paused, slots: document.querySelectorAll('#inv-grid [data-item]').length, icon: document.querySelector('#inv-grid img')?.src.startsWith('data:image/png') }; });
 	check(inv.paused && inv.slots >= 2 && inv.icon, `рюкзак открыт, игра на паузе, ячеек с предметами: ${inv.slots}, иконки из 3D-моделей`);
 	await page.click('#inv-action');
 	// здоровье снова «бесконечное» ещё на паузе: рядом погоня, а 85 заражённые снимут за пару игровых секунд
-	const healed = await G(page, () => { const p = window.__game.player, r = { hp: p.hp, zh: window.__game.bag.zhivchik }; p.hp = p.maxHp = 1e6; return r; });
-	check(healed.hp === 85 && healed.zh === 1, `живчик из рюкзака: здоровье ${healed.hp}, осталось ${healed.zh}`);
+	const healed = await G(page, () => { const p = window.__game.player, r = { hp: p.hp, zh: window.__game.bag.medkit }; p.hp = p.maxHp = 1e6; return r; });
+	check(healed.hp === 85 && healed.zh === 1, `аптечка из рюкзака: здоровье ${healed.hp}, осталось ${healed.zh}`);
 	await page.keyboard.press('KeyI');
 	await page.waitForSelector('#inventory.hidden', { timeout: 20000 }).catch(() => {});
 	check(!(await G(page, () => window.__game.paused)), 'рюкзак закрывается, игра продолжается');
@@ -328,7 +330,18 @@ try {
 	await G(page, () => window.__game.player.pos.set(62, 0, 6));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const map = await G(page, () => ({ open: window.__game.worldMap.isOpen, paused: window.__game.paused, routes: [...document.querySelectorAll('#wm-list [data-go]')].map((b) => b.dataset.go) }));
-	check(map.open && map.paused && map.routes[0] === 'stab' && map.routes.includes('dachi'), `у выхода открылась карта Улья: ${map.routes.join(', ')}`);
+	check(map.open && map.paused && map.routes[0] === 'stab' && map.routes.includes('dachi') && map.routes.length === 15, `у выхода открылась карта Улья, идти можно в любую из ${map.routes.length} локаций: ${map.routes.slice(0, 5).join(', ')}…`);
+	// секторы и цена дороги: в стаб — 1 переход, в НИИ — через Химмаш (2 живчика); без живчика кнопка не работает
+	const sectors = await G(page, () => {
+		const g = window.__game, card = (id) => document.querySelector(`#wm-list [data-go="${id}"]`).closest('.route');
+		const r = { bands: document.querySelectorAll('#wm-svg .wm-band').length, labels: [...document.querySelectorAll('#wm-svg .wm-band-label')].map((t) => t.textContent.split(' ')[0]).join(','), secs: document.querySelectorAll('#wm-list .wm-sec').length, times: document.querySelectorAll('#wm-svg .wm-time').length, stab: card('stab').textContent.match(/живчик ×(\d)/)?.[1], nii: card('nii').textContent.match(/живчик ×(\d)/)?.[1] };
+		const z = g.bag.zhivchik; g.bag.zhivchik = 0; g.worldMap.render();
+		r.off = document.querySelector('#wm-list [data-go="nii"]').disabled && document.querySelector('#wm-list [data-go="stab"]').disabled;
+		r.refused = g.travel('stab') === false && g.state === 'play';
+		g.bag.zhivchik = z; g.worldMap.render();
+		return r;
+	});
+	check(sectors.bands === 5 && sectors.secs >= 4 && sectors.times <= 4 && sectors.stab === '1' && sectors.nii === '2' && sectors.off && sectors.refused, `карта секторами (${sectors.labels}): в стаб — ${sectors.stab} живчик, в НИИ — ${sectors.nii}; без живчика идти нельзя`);
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
@@ -337,12 +350,14 @@ try {
 	check(zones.legend === 4 && zones.badges >= 2 && /z1.*z2.*z3.*z4/.test(zones.z), `пояса Улья на карте: легенда из ${zones.legend} поясов, метки пояса у ${zones.badges} кластеров (${zones.z})`);
 	await page.screenshot({ path: join(OUT, 'game-map.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
 	const t0 = await G(page, () => window.__game.world.time);
+	const zh0 = await G(page, () => window.__game.bag.zhivchik);
 	await page.click('#wm-list [data-go="stab"]');
 	await page.waitForSelector('#travel:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	check(await G(page, () => !!document.querySelector('#travel-svg .wm-hero')), 'в дороге портрет героя едет по карте');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
 	const st = await G(page, () => ({ t: window.__game.world.time, npcs: window.__game.npcs.length, enemies: window.__game.enemies.length, timer: document.getElementById('loc-timer').textContent, saved: !!window.__game.world.clusters.zarechny.saved }));
 	check(st.t - t0 >= 60, `дорога заняла время мира: ${Math.round(st.t - t0)} с`);
+	check(await G(page, (z) => window.__game.bag.zhivchik === z - 1 && document.getElementById('hud-zhiv').textContent === String(z - 1), zh0), `на дорогу выпит один живчик (осталось ${zh0 - 1}, счётчик в шапке)`);
 	check(st.npcs >= 5 && st.enemies === 0 && st.timer === 'безопасно', `стаб: жителей ${st.npcs}, заражённых нет, «${st.timer}»`);
 	check(st.saved, 'состояние Заречного запомнено до его перезагрузки');
 	// торговец: покупка автомата и патронов, обмен гороха
@@ -568,13 +583,13 @@ try {
 		return { ...r, after: g.party.length, roster: g.roster.length };
 	});
 	check(four.party === 4 && four.home === 1 && four.bar === 4 && four.after === 2 && four.roster === 2, `на вылазку берёшь до четырёх: с тобой ${four.party}, пятый остался у койки (${four.home}); в шапке ${four.bar} портрета`);
-	// снарядить в комнате: патроны и живчик из рюкзака героя
-	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.zhivchik = 2; g.merc('shram').hp = 40; g.partyWindow.open({ merc: 'shram' }); });
+	// снарядить в комнате: патроны и аптечка из рюкзака героя
+	await G(page, () => { const g = window.__game; g.bag.ammo545 = 45; g.bag.medkit = 2; g.merc('shram').hp = 40; g.partyWindow.open({ merc: 'shram' }); });
 	const supply0 = await G(page, () => ({ ammo: window.__game.merc('shram').ammo }));
 	await page.click('[data-act="ammo"][data-id="shram"]');
 	await page.click('[data-act="heal"][data-id="shram"]');
-	const supply = await G(page, () => ({ ammo: window.__game.merc('shram').ammo, hp: window.__game.merc('shram').hp, bag: window.__game.bag.ammo545, zh: window.__game.bag.zhivchik }));
-	check(supply.ammo === supply0.ammo + 30 && supply.bag === 15 && supply.hp === 100 && supply.zh === 1, `в комнате Шраму выданы патроны (+30, в запасе ${supply.ammo}) и живчик (здоровье ${supply.hp})`);
+	const supply = await G(page, () => ({ ammo: window.__game.merc('shram').ammo, hp: window.__game.merc('shram').hp, bag: window.__game.bag.ammo545, zh: window.__game.bag.medkit }));
+	check(supply.ammo === supply0.ammo + 30 && supply.bag === 15 && supply.hp === 100 && supply.zh === 1, `в комнате Шраму выданы патроны (+30, в запасе ${supply.ammo}) и аптечка (здоровье ${supply.hp})`);
 	await page.click('#party-close');
 	await G(page, () => window.__game.equipGear('aks'));
 	// сохранение и «Продолжить»
@@ -611,7 +626,7 @@ try {
 	// на вылазке бойцов не снарядить: окно отряда только показывает, как они
 	const field = await G(page, () => {
 		const g = window.__game, st = g.party[0], a0 = st.ammo;
-		g.bag.ammo545 = 45; g.bag.zhivchik = 2;
+		g.bag.ammo545 = 45; g.bag.medkit = 2;
 		g.partyWindow.open();
 		const r = { cards: document.querySelectorAll('#party-list .merc[data-merc]').length, btns: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="heal"], #party-list [data-act="take"], #party-list [data-act="leave"]').length };
 		g.giveAmmo(st.id);
@@ -619,7 +634,7 @@ try {
 		g.partyWindow.close();
 		return r;
 	});
-	check(field.cards === 2 && field.btns === 0 && field.same, 'на вылазке патроны и живчики бойцам не дать — только в комнате в стабе');
+	check(field.cards === 2 && field.btns === 0 && field.same, 'на вылазке патроны и аптечки бойцам не дать — только в комнате в стабе');
 	// граната: бросок к кучке свежих бегунов (наёмники к этому времени могли перебить кластер), взрыв через 2 с
 	await G(page, () => {
 		const g = window.__game, p = g.player;
