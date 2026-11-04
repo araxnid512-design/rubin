@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeTripo } from './tripo-weapons.js';
+import { GRASP } from './grasp.js';
 
 const shadow = (g) => { g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); return g; };
 
@@ -824,8 +825,26 @@ export const REMOVED = {
 /** Настоящий id (у убранного — новый). */
 export const realId = (id) => REMOVED[id] ?? id;
 
+/**
+ * Посадка в руку по замеру хвата (game/grasp.js): рукоять отодвигается от центра кулака вдоль нормали ладони (+X осей
+ * хвата) на off — ладонь ложится на рукоять, а не проходит сквозь неё; точка цевья для левой кисти сдвигается на gripL
+ * (низ цевья — на ладонь); пальцам — сгиб фаланг под эту модель (userData.grasp, game/hand-ik.js).
+ */
+function seat(id, g) {
+	const G = GRASP[id];
+	if (!G) return g;
+	if (G.off) {
+		for (const c of g.children) c.position.x += G.off;
+		for (const k of ['muzzle', 'breech']) if (g.userData[k]) g.userData[k].x += G.off;
+		if (g.userData.gripL) g.userData.gripL.pos.x += G.off;
+	}
+	if (G.gripL && g.userData.gripL) g.userData.gripL.pos.add(new THREE.Vector3(...G.gripL));
+	g.userData.grasp = G;
+	return g;
+}
 // модель Tripo, посаженная по старой процедурной заготовке (game/tripo-weapons.js), а если её нет — сама заготовка
-const tripo = (id, old) => () => makeTripo(id, old) ?? old();
+const tripo = (id, old) => () => seat(id, makeTripo(id, old) ?? old());
+const heavy = (id, make) => () => seat(id, make());
 
 /**
  * Каталог. slot — ближний бой (melee) или огнестрел (gun); anim — набор анимаций героя (axe, pistol, rifle); mount — где
@@ -858,9 +877,9 @@ export const WEAPONS = {
 	// тяжёлое оружие (2026-11-04): proj — снаряд летит видимо (rocket — прямо, lob — навесом) и рвётся (blast: радиус,
 	// урон заражённым, урон своим), arm — через сколько метров полёта взводится (ближе — не взорвётся, только ударит);
 	// pierce — сколько целей подряд пробивает пуля, ap — бронебойная (костяная броня рубера и бронежилеты почти не держат)
-	rpg7: { name: 'РПГ-7', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'rocket', proj: 'rocket', speed: 34, arm: 4, blast: { r: 5, dmg: 280, hurt: 75 }, damage: 220, range: 22, falloff: 0.05, cooldown: 1.0, auto: 1.2, mag: 1, reload: 3.2, noise: 55, kick: 0.4, flash: 2.4, spread: 0.03, price: 650, heavy: true, make: makeRpg7, desc: 'Ручной противотанковый гранатомёт. Граната ПГ-7В летит прямо и рвётся у первой цели: рубер — с одного-двух попаданий, толпа — разом. Взводится через 4 м полёта. Сзади бьёт струя газов, перезарядка долгая.' },
-	rg6: { name: 'РГ-6', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'vog25', proj: 'lob', speed: 20, arm: 3, blast: { r: 3.5, dmg: 125, hurt: 45 }, damage: 40, range: 17, falloff: 0.05, cooldown: 0.55, auto: 0.6, mag: 6, reload: 4.6, noise: 40, kick: 0.22, flash: 1.0, spread: 0.08, price: 480, heavy: true, make: makeRg6, desc: 'Револьверный гранатомёт: барабан на 6 ВОГ-25, гранаты летят навесом и рвутся у цели — разрыв 3,5 м. Шесть выстрелов подряд, потом долго набивать барабан.' },
-	ksvk: { name: 'КСВК 12,7', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo127', damage: 240, pierce: 3, ap: true, range: 21, falloff: 0.04, cooldown: 1.5, auto: 1.6, mag: 5, reload: 3.4, noise: 52, kick: 0.42, flash: 1.7, spread: 0, casing: 'brass', price: 560, heavy: true, make: makeKsvk, desc: 'Крупнокалиберная снайперская винтовка 12,7×108: пуля прошивает заражённого насквозь и бьёт ещё двоих за ним, костяная броня и бронежилеты её почти не держат. Пять патронов, тяжёлая отдача.' },
+	rpg7: { name: 'РПГ-7', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'rocket', proj: 'rocket', speed: 34, arm: 4, blast: { r: 5, dmg: 280, hurt: 75 }, damage: 220, range: 22, falloff: 0.05, cooldown: 1.0, auto: 1.2, mag: 1, reload: 3.2, noise: 55, kick: 0.4, flash: 2.4, spread: 0.03, price: 650, heavy: true, make: heavy('rpg7', makeRpg7), desc: 'Ручной противотанковый гранатомёт. Граната ПГ-7В летит прямо и рвётся у первой цели: рубер — с одного-двух попаданий, толпа — разом. Взводится через 4 м полёта. Сзади бьёт струя газов, перезарядка долгая.' },
+	rg6: { name: 'РГ-6', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'vog25', proj: 'lob', speed: 20, arm: 3, blast: { r: 3.5, dmg: 125, hurt: 45 }, damage: 40, range: 17, falloff: 0.05, cooldown: 0.55, auto: 0.6, mag: 6, reload: 4.6, noise: 40, kick: 0.22, flash: 1.0, spread: 0.08, price: 480, heavy: true, make: heavy('rg6', makeRg6), desc: 'Револьверный гранатомёт: барабан на 6 ВОГ-25, гранаты летят навесом и рвутся у цели — разрыв 3,5 м. Шесть выстрелов подряд, потом долго набивать барабан.' },
+	ksvk: { name: 'КСВК 12,7', slot: 'gun', anim: 'rifle', mount: 'back', ammo: 'ammo127', damage: 240, pierce: 3, ap: true, range: 21, falloff: 0.04, cooldown: 1.5, auto: 1.6, mag: 5, reload: 3.4, noise: 52, kick: 0.42, flash: 1.7, spread: 0, casing: 'brass', price: 560, heavy: true, make: heavy('ksvk', makeKsvk), desc: 'Крупнокалиберная снайперская винтовка 12,7×108: пуля прошивает заражённого насквозь и бьёт ещё двоих за ним, костяная броня и бронежилеты её почти не держат. Пять патронов, тяжёлая отдача.' },
 };
 
 /** Пистолет Макарова: рукоять через кулак, ствол над большим пальцем смотрит по направлению пальцев. */

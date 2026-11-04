@@ -27,7 +27,7 @@ import { gunStats, decorateGun, addMod, cantMod, MODS, ModsWindow } from './mods
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
 import { createIconFactory } from './icons.js';
-import { leftHandIK } from './hand-ik.js';
+import { leftHandIK, handGrasp } from './hand-ik.js';
 import { loadEnvProps } from './env-props.js';
 import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
@@ -46,7 +46,7 @@ import { IntelWindow, INTEL_PRICE, TOPICS, intelText, topicText } from './intel.
 import { BUILD } from './version.js';
 import { WorldMap } from './worldmap.js';
 import { NODES, WARN, RAGE, newWorld, normalizeWorld, advance, timeLeft, travelTime, pathTime, shortestPath, travelCost, clock, approx, saveGame, loadGame, clearSave } from './world.js';
-import { EQUIP_TIMES, HERO_GAIT } from '../src/hero-animations.js';
+import { EQUIP_TIMES, HERO_GAIT, HERO_GAIT8, DIRS8, DIR_SPEED } from '../src/hero-animations.js';
 import { ZOMBIE_GAIT, RUBER_GAIT } from '../src/animations.js';
 
 const $ = (id) => document.getElementById(id);
@@ -144,13 +144,17 @@ async function boot() {
 	game.planLevel();
 	progress(0.35, 'Загружаем иммунного…');
 	const player = await loadModel('player');
-	progress(0.55, 'Загружаем бегунов…');
-	const runner = await loadModel('runner');
-	progress(0.75, 'Загружаем топтунов…');
-	const stomper = await loadModel('stomper');
-	progress(0.83, 'Загружаем руберов…');
-	const ruber = await loadModel('ruber');
-	assets = { player, runner, stomper, ruber };
+	// заражённые — модели Tripo по картинкам пользователя с клипами Tripo (scripts/build-zombies.mjs): пустыш (бегун),
+	// лотерейщик (часть бегунов), топтун, рубер; не загрузилась модель — старая процедурная (runner/stomper/ruber.glb)
+	const tripoZ = async (name, old, text, p) => {
+		progress(p, text);
+		try { return zombieModel(await loadModel(name)); } catch (e) { console.warn(`модель ${name} не загрузилась — старая`, e); return old && loadModel(old); }
+	};
+	const runner = await tripoZ('z_pustysh', 'runner', 'Загружаем бегунов…', 0.55);
+	const lottery = await tripoZ('z_lottery', null, 'Загружаем лотерейщиков…', 0.65);
+	const stomper = await tripoZ('z_stomper', 'stomper', 'Загружаем топтунов…', 0.75);
+	const ruber = await tripoZ('z_ruber', 'ruber', 'Загружаем руберов…', 0.83);
+	assets = { player, runner, lottery: lottery ?? runner, stomper, ruber };
 	progress(0.86, 'Загружаем оружие…');
 	await loadTripoWeapons(loadModel, Object.keys(WEAPONS).filter((id) => id !== 'fists' && !WEAPONS[id].heavy)); // у тяжёлого оружия моделей Tripo нет
 	// разные заражённые: варианты одежды бегуна и топтуна (цвет, кровь, грязь)
@@ -412,6 +416,8 @@ class Actor {
 		});
 		this.root.add(this.model);
 		scene.add(this.root);
+		// люди (скелет Mixamo): ноги поворачиваются отдельно от корпуса (updateLegs)
+		this.legsOn = !!this.model.getObjectByName('mixamorigSpine');
 		this.mixer = new THREE.AnimationMixer(this.model);
 		this.actions = {};
 		for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
@@ -430,6 +436,8 @@ class Actor {
 	get pos() { return this.root.position; }
 
 	play(name, { fade = 0.18, once = false, timeScale = 1, restart = false } = {}) {
+		// стоя корпус ушёл от ног далеко — вместо стойки ноги переступают (клип разворота с тем же положением рук)
+		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = 1; }
 		const a = this.actions[name];
 		if (!a) return null;
 		a.timeScale = timeScale;
@@ -447,6 +455,67 @@ class Actor {
 	hitFlash() { this.flash = 1; }
 
 	/**
+	 * Ход человека (герой, наёмник, мур, внешник): корпус смотрит по root.rotation.y, ноги идут по ходу dir (мировое
+	 * направление). В прицеле (aim) с автоматом или пистолетом — клип из набора 8 направлений относительно корпуса
+	 * (AimWalk*: шаг вбок и спиной вперёд — своими шагами, ствол на цели); остаток угла (до ±22,5°) доворачивают ноги
+	 * (модель), позвоночник скручивается встречно — грудь и ствол смотрят по корпусу. Без прицела — обычный шаг/бег,
+	 * ноги — по ходу. Темп клипа — под скорость (м/с), стопы не скользят.
+	 */
+	locomote(clips, speed, dx, dz, run, aim) {
+		this.legsOn = true;
+		this.moving = true;
+		const set = aim && AIM_SET[clips.walk];
+		const rel = wrapAngle(Math.atan2(dx, dz) - this.root.rotation.y);
+		if (set && this.actions[`${set.prefix}F`]) {
+			const i = ((Math.round(rel / (Math.PI / 4)) % 8) + 8) % 8, d = DIRS8[i];
+			this.legTarget = wrapAngle(rel - i * (Math.PI / 4));
+			const clip = `${set.prefix}${d}`;
+			const natural = HERO_GAIT8[set.gait][d][0];
+			this.play(clip, { fade: 0.22, timeScale: Math.max(0.5, Math.min(1.8, speed / natural)) });
+			return clip;
+		}
+		// ноги по ходу; если ход за спиной корпуса — корпус всё равно повернёт к ходу (игра), ноги сразу по ходу
+		this.legTarget = Math.abs(rel) < LEG_MAX ? rel : 0;
+		const clip = run ? clips.run : clips.walk;
+		this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+		return clip;
+	}
+
+	/**
+	 * Ноги относительно корпуса: стоя ноги стоят на месте, пока корпус поворачивается (позвоночник скручивается), а
+	 * когда разворот больше TURN_START — переступают (клип Turn*) и догоняют корпус; на ходу — к углу хода.
+	 */
+	updateLegs(dt) {
+		const yaw = this.root.rotation.y;
+		if (this.prevYaw === undefined) this.prevYaw = yaw;
+		const dYaw = wrapAngle(yaw - this.prevYaw);
+		// корпус повернул — ноги остались, где стояли; рывок больше 75° за кадр (поставили в локацию, повернули
+		// извне) — ноги вместе с корпусом
+		let off = Math.abs(dYaw) > 1.3 ? 0 : (this.legOff ?? 0) - dYaw;
+		this.prevYaw = yaw;
+		if (this.moving) {
+			off += Math.max(-dt * 10, Math.min(dt * 10, wrapAngle((this.legTarget ?? 0) - off)));
+			this.turning = false;
+		} else if (this.alive !== false) {
+			if (Math.abs(off) > TURN_START) this.turning = true;
+			if (this.turning) {
+				off -= Math.sign(off) * Math.min(Math.abs(off), dt * LEG_TURN);
+				if (Math.abs(off) < 0.04) this.turning = false;
+			}
+		} else off *= Math.exp(-dt * 6);
+		if (Math.abs(off) > LEG_MAX) off = Math.sign(off) * LEG_MAX; // дальше ноги тянутся за корпусом
+		this.legOff = wrapAngle(off);
+		this.moving = false;
+		this.model.rotation.y = this.legOff;
+		// позвоночник — встречно: грудь, руки и оружие смотрят по корпусу
+		if (Math.abs(this.legOff) > 1e-3) {
+			this.spineBones ??= ['mixamorigSpine', 'mixamorigSpine1', 'mixamorigSpine2'].map((n) => this.model.getObjectByName(n)).filter(Boolean);
+			const a = -this.legOff / this.spineBones.length;
+			for (const b of this.spineBones) b.quaternion.multiply(tmpQ.setFromAxisAngle(UP, a));
+		}
+	}
+
+	/**
 	 * Толчок корпуса поверх анимации: отдача выстрела или попадание. amount — сила, wrist — подбросить кисть
 	 * (пистолет, обрез), lean — куда клонит ({ x: −1 — назад, 1 — вперёд; z — вбок }).
 	 */
@@ -459,9 +528,11 @@ class Actor {
 
 	update(dt) {
 		this.mixer.update(dt);
+		if (this.legsOn) this.updateLegs(dt);
 		if (this.recoil > 0.003) this.applyRecoil(dt);
 		// левая кисть — на цевье именно этой модели ствола (у новых моделей цевьё у каждой своё; у заражённых — ничего)
 		leftHandIK(this.model, this.ik ??= {});
+		handGrasp(this.model, this.ik); // пальцы — на рукояти и цевье именно этой модели (game/grasp.js)
 		if (this.flash > 0) {
 			this.flash = Math.max(0, this.flash - dt * 5);
 			for (const m of this.mats) m.emissive?.setRGB(this.flash * 0.22, this.flash * 0.02, 0); // лёгкий отсвет, без «розового» тела
@@ -476,6 +547,14 @@ class Actor {
 	applyRecoil(dt) {
 		this.recoil *= Math.exp(-dt * 11);
 		const rig = this.kickRig ?? HERO_KICK, r = this.recoil * rig.k, L = this.recoilLean ?? BACK, m = this.model;
+		if (rig.tripo) {
+			// заражённый Tripo: оси костей свои — толчок вокруг осей тела (вперёд-назад, вбок к удару, голова мотается)
+			const A = rig.tripo, B = this.zb, tw = this.recoilTwist;
+			bodyRot(B.chest, A.chest, 0.15 * r * L.x, 0.06 * r * tw, -0.15 * r * L.z);
+			bodyRot(B.spine, A.spine, 0.06 * r * L.x, 0, -0.06 * r * L.z);
+			bodyRot(B.head, A.head, 0.22 * r * L.x, 0.12 * r * tw, -0.22 * r * L.z);
+			return;
+		}
 		this.recoilBones ??= Object.fromEntries(Object.entries(rig.bones).map(([k, n]) => [k, m.getObjectByName(n)]));
 		const { chest, spine, head, hand } = this.recoilBones, tw = this.recoilTwist;
 		chest?.quaternion.multiply(tmpQ.setFromEuler(tmpE.set(0.15 * r * L.x, 0.06 * r * tw, 0.15 * r * L.z)));
@@ -490,6 +569,16 @@ class Actor {
 	}
 }
 const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
+const UP = new THREE.Vector3(0, 1, 0);
+// ход в прицеле: набор клипов 8 направлений (src/hero-animations.js, AIM_WALK) по клипу шага в руках; скорость — HERO_GAIT8
+const AIM_SET = { WalkRifle: { prefix: 'AimWalkRifle_', gait: 'WalkRifle' }, WalkPistol: { prefix: 'AimWalkPistol_', gait: 'WalkPistol' } };
+// стойка → разворот на месте с тем же положением рук (ноги переступают)
+const TURN_OF = { Idle: 'Turn', IdleRifle: 'TurnRifle', AimRifle: 'TurnAimRifle', IdlePistol: 'TurnPistol', AimPistol: 'TurnAimPistol' };
+// стоя ноги переступают за корпусом, когда он ушёл дальше TURN_START (рад, ~45°), со скоростью LEG_TURN (рад/с — как
+// в клипе переступания); дальше LEG_MAX (~80°) позвоночник не скручивается — ноги тянутся за корпусом сразу
+const TURN_START = 0.8, LEG_TURN = 6, LEG_MAX = 1.4;
+// корпус к цели поворачивается быстро, но не мгновенно (рад/с): 180° — за ~0,25 с
+const BODY_TURN = 12;
 // кости для толчка: у героя и наёмников — скелет Mixamo, у заражённых — простой (k — во сколько раз сильнее)
 const HERO_KICK = { k: 1, bones: { chest: 'mixamorigSpine2', spine: 'mixamorigSpine1', hand: 'mixamorigRightHand' } };
 const ZOMBIE_KICK = { k: 1.7, bones: { chest: 'Chest', spine: 'Spine', head: 'Head' } };
@@ -875,7 +964,7 @@ class Player extends Actor {
 		this.autoT = W.auto ?? W.cooldown;
 		if (!W.ammo) {
 			const target = game.nearestEnemy(this.pos, 3.2);
-			if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
+			if (target) this.face(angleTo(this.pos, target.pos), 0.6); // доворот к удару — быстро, но не мгновенно
 			this.play('Melee', { once: true, fade: 0.06, restart: true, timeScale: W.speed });
 			this.cooldown = W.cooldown;
 			this.busy = 0.58 / W.speed;
@@ -897,17 +986,20 @@ class Player extends Actor {
 		}
 		// у бочки с горючим толпа — прицел бьёт по бочке, иначе по ближайшему заражённому
 		const target = game.barrelTarget(this.pos, W.range) ?? (W.proj ? game.blastTarget(this.pos, W) : null) ?? game.nearestEnemy(this.pos, W.range, true);
-		if (target) this.root.rotation.y = angleTo(this.pos, target.pos);
-		// из прицела отдача начинается сразу, из низкой готовности ствол вскидывается за 0.07 с
+		// корпус к цели — быстро, но плавно; выстрел — когда ствол смотрит на цель (патрон уходит сразу)
+		if (target) { this.face(angleTo(this.pos, target.pos), 0.5); this.aimTarget = target; }
+		const turnLeft = target ? Math.abs(wrapAngle(this.faceYaw - this.root.rotation.y)) / BODY_TURN : 0;
+		// из прицела отдача начинается сразу, из низкой готовности ствол вскидывается за 0.07 с; на ходу в прицеле — клип
+		// хода (ствол уже на цели), отдача — толчком (kick)
 		const c = this.clips;
-		const aiming = this.current === c.shoot || this.current === c.aim;
-		this.play(c.shoot, { once: true, fade: aiming ? 0.03 : 0.07, restart: true });
+		const aiming = this.current === c.shoot || this.current === c.aim || this.aimWalking;
+		if (!this.aimWalking) this.play(c.shoot, { once: true, fade: aiming ? 0.03 : 0.07, restart: true });
 		this.cooldown = W.cooldown;
 		this.busy = W.anim === 'rifle' ? 0.14 : 0.25;
 		this.aim = 0.9;
 		this.ammo--;
 		game.noise(this.pos, W.noise, true); // выстрел слышно издалека
-		this.pending.push({ t: aiming ? 0.03 : 0.06, fn: () => this.shotHit(W, this.weapon, target) });
+		this.pending.push({ t: Math.max(aiming ? 0.03 : 0.06, turnLeft + 0.02), fn: () => this.shotHit(W, this.weapon, target) });
 		if (this.ammo === 0 && (game.bag[W.ammo] ?? 0) > 0) this.pending.push({ t: 0.35, fn: () => this.reload() });
 		game.hud();
 	}
@@ -1016,21 +1108,33 @@ class Player extends Actor {
 		const mv = input.move;
 		const mag = Math.min(1, Math.hypot(mv.x, mv.y));
 		const c = this.clips;
-		if (this.busy > 0) {
+		// в прицеле (после выстрела ствол ещё держится, спуск зажат) корпус смотрит на цель; шагом — ноги идут, куда
+		// ведёт стик (клип направления относительно корпуса), бегом прицел не держат — корпус по ходу
+		const aiming = this.hold === 'gun' && !this.equipping && (this.aim > 0 || input.held('attack'));
+		if (aiming) {
+			this.aimT = (this.aimT ?? 0) - dt;
+			if (this.aimT <= 0 || !this.aimTarget?.alive) { this.aimTarget = game.nearestEnemy(this.pos, this.W.range + 1.5, true); this.aimT = 0.3; }
+			if (this.aimTarget) this.face(angleTo(this.pos, this.aimTarget.pos), 0.15);
+		} else this.aimTarget = null;
+		const walkAim = !!(aiming && this.aimTarget && mag <= 0.55 && AIM_SET[c.walk]);
+		this.aimWalking = false;
+		if (this.busy > 0 && !(walkAim && mag > 0.12)) {
 			// во время удара почти стоим на месте
 			if (mag > 0.1) this.pos.addScaledVector(tmpV.set(mv.x, 0, mv.y).normalize(), dt * 0.6 * mag);
 		} else if (mag > 0.12) {
 			// шаг 1.1–1.7 м/с, бег 3.6–5 м/с; анимация ускоряется вместе с героем, ноги не скользят
-			const run = mag > 0.55;
-			const speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : 1.1 + (0.6 * Math.min(1, (mag - 0.12) / 0.43));
+			const run = mag > 0.55 && !walkAim;
+			let speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : 1.1 + (0.6 * Math.min(1, (mag - 0.12) / 0.43));
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
+			// в прицеле боком и спиной вперёд человек идёт медленнее (DIR_SPEED — так же подогнан шаг клипов)
+			if (walkAim) speed *= dirSpeed(wrapAngle(Math.atan2(dir.x, dir.z) - this.root.rotation.y));
 			this.pos.addScaledVector(dir, speed * dt);
 			if (run && (this.stepDust = (this.stepDust ?? 0) + speed * dt) > 1.1) { this.stepDust = 0; game.dust(this.pos); }
 			// шаги слышно: асфальт, трава, грунт или пол — по тому, что под ногами
 			if ((this.stride = (this.stride ?? 0) + speed * dt) > (run ? 1.05 : 0.68)) { this.stride = 0; Sfx.step(level.surface(this.pos), run); }
-			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 12);
-			const clip = run ? c.run : c.walk;
-			this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+			if (!walkAim) this.face(Math.atan2(dir.x, dir.z), 0.1);
+			this.locomote(c, speed, dir.x, dir.z, run, walkAim);
+			this.aimWalking = walkAim;
 		} else if (this.reloading > 0) {
 			if (this.current !== c.reload) this.playReload(0.15);
 		} else if (!ONE_SHOT.has(this.current) || !this.actions[this.current].isRunning()) {
@@ -1038,8 +1142,19 @@ class Player extends Actor {
 			const aim = this.hold === 'gun' && this.aim > 0;
 			this.play(aim ? c.aim : c.idle, { fade: this.current === c.shoot ? 0.05 : 0.25 });
 		}
+		// корпус — к цели или по ходу: быстро, но плавно (ноги догоняют — updateLegs)
+		if (this.faceT > 0) { this.faceT -= dt; this.root.rotation.y = turnTowards(this.root.rotation.y, this.faceYaw, dt * BODY_TURN); }
 		resolveCollisions(this.pos, this.radius, level.colliders);
 	}
+
+	/** Повернуть корпус к yaw (рад) в ближайшие t секунд — со скоростью BODY_TURN. */
+	face(yaw, t) { this.faceYaw = yaw; this.faceT = Math.max(this.faceT ?? 0, t); }
+}
+
+/** Доля скорости хода «вперёд» по направлению относительно корпуса (DIR_SPEED, между соседними — линейно). */
+function dirSpeed(rel) {
+	const f = ((rel / (Math.PI / 4)) % 8 + 8) % 8, i = Math.floor(f) % 8, t = f - Math.floor(f);
+	return DIR_SPEED[DIRS8[i]] + (DIR_SPEED[DIRS8[(i + 1) % 8]] - DIR_SPEED[DIRS8[i]]) * t;
 }
 
 /** Шанс чёрной жемчужины в споровом мешке рубера. */
@@ -1048,6 +1163,58 @@ const PEARL_CHANCE = 0.25;
 const PEARL_HP = 20, MAX_HP_CAP = 200;
 /** Как быстро гаснет толчок от попадания (1/с): весь отъезд тела = сила толчка. */
 const PUSH_DECAY = 9;
+/**
+ * Заражённые Tripo (scripts/build-zombies.mjs): клипы Tripo человеческие (обычные шаг, бег, разворот, удар, падение),
+ * поэтому повадки заражённого — добавкой поверх клипа, по тому, как это выглядит у живых «зомби» в кино и играх:
+ *   • бегун (пустыш, лотерейщик): корпус наклонён вперёд, голова свёрнута набок (у каждого — на свою сторону и угол),
+ *     руки тянутся к добыче, походка неровная — корпус переваливается, темп у каждого свой; бег рывками — скорость
+ *     (и с ней темп клипа, стопы не скользят) то прибавляет, то проседает;
+ *   • топтун: тяжёлый медленный шаг, корпус подан вперёд и раскачивается из стороны в сторону, руки висят;
+ *   • рубер и элита: мощные, ссутуленные, голова втянута и задрана вперёд, руки чуть вперёд; на рывке — ниже к земле.
+ * Разворот к цели — на месте клипом Turn (ноги переступают), удар — Attack (замах двумя руками сверху и рубящий
+ * удар вниз), попадание — Hurt, смерть — падение на бок по ходу удара (Death — на левый, DeathR — на правый).
+ * Повороты добавки — вокруг осей тела в покое (лево +X, верх +Y, вперёд +Z), пересчитанных в оси каждой кости.
+ * lean — наклон корпуса, град. (run — ещё на бегу); head — кивок головы; reach — руки вперёд в погоне; sway — раскачка
+ * корпуса за шагом; tilt — голова набок (наибольший угол); turn — во сколько раз быстрее клипа разворачивается.
+ */
+const POSTURE = {
+	runner: { lean: 9, run: 10, head: 6, reach: 38, sway: 3.5, tilt: 14, turn: 1.6, lurch: 0.18 },
+	stomper: { lean: 11, run: 4, head: 8, reach: 0, sway: 6, tilt: 6, turn: 1, lurch: 0 },
+	ruber: { lean: 14, run: 12, head: -10, reach: 14, sway: 3, tilt: 4, turn: 1.25, lurch: 0 },
+	elite: { lean: 16, run: 12, head: -10, reach: 16, sway: 3, tilt: 3, turn: 1.35, lurch: 0 },
+};
+const TRIPO_BONES = { waist: 'Waist', spine: 'Spine01', chest: 'Spine02', neck: 'NeckTwist01', head: 'Head', armL: 'L_Upperarm', armR: 'R_Upperarm' };
+const _zq = new THREE.Quaternion();
+/** Поворот кости поверх клипа вокруг осей тела в покое (ax — оси в осях кости), углы в радианах. */
+function bodyRot(bone, ax, x, y, z) {
+	if (!bone) return;
+	if (x) bone.quaternion.multiply(_zq.setFromAxisAngle(ax.x, x));
+	if (y) bone.quaternion.multiply(_zq.setFromAxisAngle(ax.y, y));
+	if (z) bone.quaternion.multiply(_zq.setFromAxisAngle(ax.z, z));
+}
+/**
+ * Модель заражённого Tripo: клипы-двойники (Stomp — шаг топтуна, Charge — бег рубера), оси тела в осях костей (для
+ * осанки и толчка от пули), скорости клипов и момент удара — из файла (scene.extras). Старая модель — как есть.
+ */
+function zombieModel(gltf) {
+	const s = gltf.scene, by = (n) => gltf.animations.find((c) => c.name === n);
+	if (!s.getObjectByName('L_Forearm')) return gltf;
+	for (const [alias, src] of [['Stomp', 'Walk'], ['Charge', 'Run']]) if (!by(alias) && by(src)) { const c = by(src).clone(); c.name = alias; gltf.animations.push(c); }
+	s.updateMatrixWorld(true);
+	const axes = {};
+	for (const [k, n] of Object.entries(TRIPO_BONES)) {
+		const b = s.getObjectByName(n);
+		if (!b) continue;
+		const q = b.getWorldQuaternion(new THREE.Quaternion()).invert();
+		axes[k] = { name: n, x: new THREE.Vector3(1, 0, 0).applyQuaternion(q), y: new THREE.Vector3(0, 1, 0).applyQuaternion(q), z: new THREE.Vector3(0, 0, 1).applyQuaternion(q) };
+	}
+	const x = s.userData ?? {};
+	gltf.userData.tripo = { axes, gait: x.gait ?? { Walk: 1, Run: 3.5 }, hit: x.hit ?? { Attack: 1.2 }, turn: x.turn || 2.5, lunge: x.lunge ?? null };
+	return gltf;
+}
+const D2R = Math.PI / 180;
+const wrapAngle = (a) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
+
 const ENEMY_TYPES = {
 	// move — клип погони; его скорость (ZOMBIE_GAIT) подгоняется под настоящую, чтобы ноги не скользили
 	// heavy — во сколько раз хуже отлетает от ударов; stagger — на сколько замирает от попадания;
@@ -1065,9 +1232,29 @@ const ENEMY_TYPES = {
 class Enemy extends Actor {
 	constructor(type, pos, hp) {
 		const T = ENEMY_TYPES[type];
-		super(assets[T.model ?? type], { scale: T.scale });
+		// бегуны двух видов: пустыш и лотерейщик (модели разные, повадки одни)
+		const key = type === 'runner' && assets.lottery !== assets.runner && Math.random() < 0.35 ? 'lottery' : (T.model ?? type);
+		const gltf = assets[key];
+		super(gltf, { scale: T.scale });
 		this.type = type;
 		this.T = T;
+		this.kind = key;
+		// модель Tripo: скорости клипов (м/с при темпе 1 — ступни не скользят), момент удара, разворот, осанка
+		this.tz = gltf.userData.tripo ?? null;
+		const g = this.tz?.gait;
+		this.gait = g ? { Walk: g.Walk, Run: g.Run, Stomp: g.Walk, Charge: g.Charge ?? g.Run } : (T.gait ?? ZOMBIE_GAIT);
+		// удар: темп клипа такой, чтобы удар пришёлся на hitTime (у броска Tripo — не быстрее двух раз: захват виден)
+		this.atkTs = this.tz ? Math.min(2, this.tz.hit.Attack / (T.hitTime / T.attackAnim)) : T.attackAnim;
+		this.hitAt = this.tz ? this.tz.hit.Attack / this.atkTs : T.hitTime / T.attackAnim;
+		// клип погони: рубер Tripo гонится бегом громилы (его шаг для 2,6 м/с слишком медленный)
+		this.move = this.tz && T.charge ? 'Run' : T.move;
+		if (this.tz) {
+			this.zb = Object.fromEntries(Object.entries(this.tz.axes).map(([k, a]) => [k, this.model.getObjectByName(a.name)]));
+			const P = POSTURE[type];
+			this.tilt = (Math.random() < 0.5 ? -1 : 1) * P.tilt * (0.35 + Math.random() * 0.65) * D2R;
+			this.leanVar = 0.75 + Math.random() * 0.5;
+			this.lurchPh = Math.random() * 6;
+		}
 		// у каждого свой рост и сложение, одежда и оттенок кожи
 		const body = bodyVariation();
 		this.model.scale.set(T.scale * body.s * body.w, T.scale * body.s, T.scale * body.s * body.w);
@@ -1076,6 +1263,8 @@ class Enemy extends Actor {
 		if (type === 'elite') this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) { m.color?.multiply(new THREE.Color(0.34, 0.27, 0.3)); if (/eye/i.test(m.name)) m.emissive?.setRGB(0.9, 0.12, 0.05); } });
 		this.maxHp = T.hp;
 		this.scale = T.scale * body.s;
+		// длина шага — по масштабу модели вдоль хода (сложение w растягивает и его): с ним темп клипа — без скольжения
+		this.strideScale = T.scale * body.s * body.w;
 		this.radius = T.radius * body.s;
 		this.hp = hp ?? T.hp;
 		this.alive = true;
@@ -1086,7 +1275,7 @@ class Enemy extends Actor {
 		this.home = pos.clone();
 		this.root.rotation.y = Math.random() * Math.PI * 2;
 		this.growl = 2 + Math.random() * 6;
-		this.kickRig = ZOMBIE_KICK;
+		this.kickRig = this.tz ? { k: 1.7, tripo: this.tz.axes } : ZOMBIE_KICK;
 		// стая (game/horde.js): у бегуна может быть вожак, у топтуна и рубера — свои бегуны
 		this.leader = null;
 		this.followers = type === 'runner' ? null : [];
@@ -1106,7 +1295,7 @@ class Enemy extends Actor {
 			// рубер сначала ревёт во весь рост — и рёв поднимает всех вокруг
 			this.state = 'roar';
 			this.timer = 0;
-			this.root.rotation.y = angleTo(this.pos, game.foeFor(this.pos).pos);
+			if (!this.tz) this.root.rotation.y = angleTo(this.pos, game.foeFor(this.pos).pos); // Tripo — доворачивается в рёве
 			this.play('Roar', { once: true, fade: 0.15, restart: true });
 			Sfx.roar(game.ear(this.pos));
 			if (this.type === 'elite' && !game.eliteWarned) { game.eliteWarned = true; game.banner('Элита!', 'Высшая стадия заражённого: толстая броня, длинные рывки, раны затягивает. Не стой на месте — и не отпускай её отдышаться'); }
@@ -1177,7 +1366,7 @@ class Enemy extends Actor {
 			const speed = behind ? 1.3 : this.type === 'runner' ? 0.55 : 0.6;
 			this.pos.addScaledVector(dir, speed * dt);
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 2.5);
-			this.play('Walk', { fade: 0.4, timeScale: speed / ((this.T.gait ?? ZOMBIE_GAIT).Walk * this.scale) });
+			this.play('Walk', { fade: 0.4, timeScale: speed / (this.gait.Walk * this.strideScale) });
 			resolveCollisions(this.pos, this.radius, level.colliders);
 		} else {
 			this.play('Idle', { fade: 0.4 });
@@ -1206,6 +1395,12 @@ class Enemy extends Actor {
 		const fling = this.hp <= 0 ? 1.8 : 1;
 		this.push = (this.push ?? new THREE.Vector3()).addScaledVector(dir, (knock * fling * PUSH_DECAY) / T.heavy);
 		this.stagger = this.state === 'roar' ? 0 : T.stagger;
+		// отшатывание: лёгкие — от каждого попадания (не чаще трёх раз в секунду), тяжёлые — только от сильного удара;
+		// удар и рывок не прерываются
+		if (this.hp > 0 && this.actions.Hurt && this.state !== 'attack' && this.state !== 'roar' && !(this.charging > 0) && game.time - (this.hurtAt ?? -9) > 0.35 && (T.heavy <= 1 || dmg >= 40)) {
+			this.hurtAt = game.time;
+			this.play('Hurt', { once: true, fade: 0.06, restart: true, timeScale: T.heavy <= 1 ? 1.5 : 2.2 });
+		}
 		this.alert();
 		Sfx.flesh(game.ear(this.pos));
 		if (this.hp <= 0) this.die();
@@ -1216,7 +1411,15 @@ class Enemy extends Actor {
 		this.state = 'dead';
 		this.timer = 0;
 		this.charging = 0;
-		this.play('Death', { once: true, fade: 0.08 });
+		let clip = 'Death';
+		const d = this.lastHit?.dir;
+		if (this.tz && d && this.actions.DeathR) {
+			// бок, на который падать, — тот, что ближе к направлению удара; остаток угла тело докручивает, пока валится
+			const ry = this.root.rotation.y, left = d.x * Math.cos(ry) - d.z * Math.sin(ry) >= 0;
+			clip = left ? 'Death' : 'DeathR';
+			this.deathTurn = wrapAngle(Math.atan2(d.x, d.z) + (left ? -Math.PI / 2 : Math.PI / 2) - ry);
+		}
+		this.play(clip, { once: true, fade: 0.08, timeScale: this.tz ? 1.35 : 1 });
 		this.gore();
 		game.onKill(this);
 	}
@@ -1231,7 +1434,7 @@ class Enemy extends Actor {
 		if (!h || QUALITY === 'low') return;
 		const parts = [];
 		if (h.dmg >= 55 && Math.random() < (h.blast ? 0.7 : 0.55)) parts.push('Head');
-		if ((h.dmg >= 45 || h.blast) && Math.random() < (h.blast ? 0.6 : 0.35)) parts.push(Math.random() < 0.5 ? 'Forearm.L' : 'Forearm.R');
+		if ((h.dmg >= 45 || h.blast) && Math.random() < (h.blast ? 0.6 : 0.35)) parts.push(this.tz ? (Math.random() < 0.5 ? 'L_Forearm' : 'R_Forearm') : (Math.random() < 0.5 ? 'Forearm.L' : 'Forearm.R'));
 		for (const name of parts) {
 			const bone = this.model.getObjectByName(name);
 			if (!bone) continue;
@@ -1239,6 +1442,27 @@ class Enemy extends Actor {
 			game.stump(bone, h.dir, name === 'Head' ? 1 : 0.6);
 		}
 		if (parts.length) { this.gored = parts; Sfx.gib(game.ear(this.pos)); }
+	}
+
+	/** Осанка заражённого поверх клипа Tripo (см. POSTURE). */
+	posture() {
+		const P = POSTURE[this.type], A = this.tz.axes, B = this.zb;
+		const cur = this.current, run = cur === 'Run' || cur === 'Charge';
+		const hunt = this.state === 'chase' || this.state === 'attack';
+		const a = this.actions[cur], ph = a ? (a.time / a.getClip().duration) * Math.PI * 2 : 0;
+		const moving = cur === 'Walk' || cur === 'Run' || cur === 'Stomp' || cur === 'Charge';
+		const lean = (P.lean + (run ? P.run : 0)) * this.leanVar * (cur === 'Death' || cur === 'DeathR' ? 0 : 1) * D2R;
+		const sway = moving ? P.sway * Math.sin(ph) * D2R : 0;
+		bodyRot(B.waist, A.waist, 0, 0, sway * 0.6);
+		bodyRot(B.spine, A.spine, lean * 0.55, 0, -sway);
+		bodyRot(B.chest, A.chest, lean * 0.45, 0, 0);
+		// голова: смотрит вперёд (не в землю при наклоне), свёрнута набок
+		bodyRot(B.head, A.head, P.head * D2R - lean * 0.6, 0, this.tilt);
+		if (P.reach && hunt && cur !== 'Attack' && cur !== 'Hurt') {
+			const r = -P.reach * D2R * (run ? 1 : 0.7);
+			bodyRot(B.armL, A.armL, r, 0, 0);
+			bodyRot(B.armR, A.armR, r * 0.85, 0, 0);
+		}
 	}
 
 	update(dt) {
@@ -1252,7 +1476,12 @@ class Enemy extends Actor {
 		// далеко от камеры — не анимируем и не рисуем (экономия на телефонах)
 		const near = inView(this.pos);
 		this.model.visible = near;
-		if (near) super.update(dt);
+		if (near) { super.update(dt); if (this.tz && this.alive) this.posture(); }
+		if (this.deathTurn) {
+			const step = Math.max(-dt * 2.6, Math.min(dt * 2.6, this.deathTurn));
+			this.root.rotation.y += step;
+			this.deathTurn = Math.abs(this.deathTurn - step) < 1e-3 ? 0 : this.deathTurn - step;
+		}
 		if (this.push) {
 			// скорость толчка гаснет по экспоненте; путь за кадр — точный интеграл
 			const k = Math.exp(-dt * PUSH_DECAY);
@@ -1274,7 +1503,7 @@ class Enemy extends Actor {
 		if (this.state === 'idle') { this.idle(dt, p, dist); return true; }
 		if (this.state === 'roar') {
 			this.timer += dt;
-			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, p.pos), dt * 2);
+			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, p.pos), dt * (this.tz ? 3.5 : 2));
 			if (this.timer > this.actions.Roar.getClip().duration - 0.2) { this.state = 'chase'; this.chargeCd = 0; }
 			return true;
 		}
@@ -1282,23 +1511,32 @@ class Enemy extends Actor {
 		if (this.state === 'attack') {
 			this.timer += dt;
 			const a = this.actions[this.T.attack ?? 'Attack'];
-			if (!this.hitDone && this.timer >= this.T.hitTime / this.T.attackAnim) {
+			// бросок (клип Tripo): тело уходит вперёд на шаг — ход таза из клипа вынут, двигаем здесь (не ближе вплотную)
+			const L = this.tz?.lunge;
+			if (L && this.timer > L.t0 / this.atkTs && this.timer < L.t1 / this.atkTs && dist > this.radius + 0.55) {
+				const v = (L.d * this.scale) / ((L.t1 - L.t0) / this.atkTs);
+				this.pos.addScaledVector(tmpV.set(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y)), Math.min(v * dt, dist - this.radius - 0.55));
+				resolveCollisions(this.pos, this.radius, level.colliders);
+			}
+			if (!this.hitDone && this.timer >= this.hitAt) {
 				this.hitDone = true;
 				if (p.alive && dist < this.T.range + 0.6) p.hurt(p.dry ? p.hp : this.T.damage * (1 + 0.3 * (game.rage ?? 0)), this.pos, this.T.knock); // боец без патронов не отобьётся; в кисляк — злее
 				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }
 			}
 			// во время выпада тело немного продвигается вперёд
 			if (this.timer < 0.9) this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, p.pos), dt * 4);
-			if (this.timer > a.getClip().duration / this.T.attackAnim - 0.15) this.state = 'chase';
+			if (this.timer > a.getClip().duration / this.atkTs - 0.15) this.state = 'chase';
 			return true;
 		}
 
-		if (p.alive && dist < this.T.range && this.state !== 'attack') {
+		// бросок с захватом (клип Tripo) начинается издалека: шаг-рывок покрывает остаток (стопы не едут)
+		const reach = this.T.range + (this.tz?.lunge ? Math.min(0.8, this.tz.lunge.d * this.scale * 0.6) : 0);
+		if (p.alive && dist < reach && this.state !== 'attack' && lineOfSight(this.pos, p.pos)) {
 			this.state = 'attack';
 			this.timer = 0;
 			this.hitDone = false;
 			this.charging = 0;
-			this.play(this.T.attack ?? 'Attack', { once: true, fade: 0.12, restart: true, timeScale: this.T.attackAnim });
+			this.play(this.T.attack ?? 'Attack', { once: true, fade: 0.12, restart: true, timeScale: this.atkTs });
 			return true;
 		}
 		// рубер бросается рывками: разгон к добыче, на рывке плохо поворачивает — можно увернуться
@@ -1324,16 +1562,35 @@ class Enemy extends Actor {
 		}
 		dir.normalize();
 		const charging = this.charging > 0;
+		// цель далеко сбоку или за спиной — сначала разворот на месте (клип Turn: ноги переступают), потом ход
+		if (this.actions.Turn && !charging) {
+			const want = Math.atan2(dir.x, dir.z), off = wrapAngle(want - this.root.rotation.y);
+			if (Math.abs(off) > (this.turning ? 0.3 : 1.75)) {
+				this.turning = true;
+				const k = POSTURE[this.type].turn * (1 + 0.25 * (game.rage ?? 0)), rate = this.tz.turn * k;
+				this.root.rotation.y = turnTowards(this.root.rotation.y, want, rate * dt);
+				this.play('Turn', { fade: 0.15, timeScale: k });
+				resolveCollisions(this.pos, this.radius, level.colliders);
+				return true;
+			}
+			this.turning = false;
+		}
 		if (charging) {
 			// на рывке несётся туда, куда смотрит, и лишь медленно доворачивает
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 1.6);
 			dir.set(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y));
 		}
-		const speed = (charging ? this.T.charge : this.T.speed * this.speedVar) * (1 + 0.35 * (game.rage ?? 0)); // в кисляк — быстрее
+		let speed = (charging ? this.T.charge : this.T.speed * this.speedVar) * (1 + 0.35 * (game.rage ?? 0)); // в кисляк — быстрее
+		// бег рывками: скорость (и темп клипа) то прибавляет, то проседает — неровно, у каждого свой ритм
+		const lurch = this.tz ? POSTURE[this.type].lurch : 0;
+		if (lurch && !charging) {
+			this.lurchPh += dt * (4.2 + 1.8 * Math.sin(this.lurchPh * 0.37));
+			speed *= 1 + lurch * Math.sin(this.lurchPh) * (0.6 + 0.4 * Math.sin(this.lurchPh * 0.53));
+		}
 		this.pos.addScaledVector(dir, speed * dt);
 		if (!charging) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 6);
-		const move = charging ? 'Charge' : this.actions[this.T.move] ? this.T.move : 'Walk';
-		this.play(move, { timeScale: speed / ((this.T.gait ?? ZOMBIE_GAIT)[move] * this.scale) });
+		const move = charging ? 'Charge' : this.actions[this.move] ? this.move : 'Walk';
+		this.play(move, { timeScale: speed / (this.gait[move] * this.strideScale) });
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
 	}
@@ -1591,8 +1848,9 @@ class Merc extends Actor {
 		dir.normalize();
 		this.pos.addScaledVector(dir, speed * dt);
 		if (turn) this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
-		const clip = run ? c.run : c.walk;
-		if (this.reloading <= 0 || run) this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+		// стреляя (корпус к цели) — шагом в прицеле, ноги по ходу: шаг вбок и назад своими шагами
+		if (this.reloading <= 0 || run) this.locomote(c, speed, dir.x, dir.z, run, !turn && !run);
+		else this.moving = this.legsOn; // перезарядка на ходу: клип перезарядки, ноги — по ходу (не переступают)
 	}
 
 	/**
@@ -1726,8 +1984,7 @@ class Merc extends Actor {
 			dir.normalize();
 			this.pos.addScaledVector(dir, Math.min(speed * dt, d));
 			this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
-			const clip = d > 4 ? c.run : c.walk;
-			this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
+			this.locomote(c, speed, dir.x, dir.z, d > 4, false);
 			if (d > 0.6) resolveCollisions(this.pos, this.radius, level.colliders);
 		} else {
 			const dP = p ? Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z) : 99;
@@ -1958,7 +2215,7 @@ class Bandit extends Actor {
 		const speed = run ? 3.8 : 1.6;
 		this.pos.addScaledVector(dir, speed * dt);
 		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 8);
-		this.play(run ? c.run : c.walk, { timeScale: speed / HERO_GAIT[run ? c.run : c.walk] });
+		this.locomote(c, speed, dir.x, dir.z, run, false);
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
 	}
@@ -2012,7 +2269,7 @@ class Bandit extends Actor {
 		const sp = 3.6, dir = this.avoidOthers(tmpV.set(dx / dd, 0, dz / dd));
 		this.pos.addScaledVector(dir, Math.min(dd, sp * dt));
 		this.root.rotation.y = turnTowards(this.root.rotation.y, Math.atan2(dir.x, dir.z), dt * 10);
-		this.play(this.clips.run, { timeScale: sp / HERO_GAIT[this.clips.run] });
+		this.locomote(this.clips, sp, dir.x, dir.z, true, false);
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
 	}
@@ -2044,12 +2301,12 @@ class Bandit extends Actor {
 		const dx = gx - this.pos.x, dz = gz - this.pos.z, dd = Math.hypot(dx, dz);
 		const face = angleTo(this.pos, foe.pos);
 		if (dd > 0.25) {
-			// к углу и обратно за укрытие — боком, лицом к цели; издалека к укрытию — бегом
-			const near = dd < 1.8, sp = near ? 2.4 : 3.6, dir = this.avoidOthers(tmpV.set(dx / dd, 0, dz / dd));
+			// к углу и обратно за укрытие — приставным шагом в прицеле, лицом к цели (ноги — своими шагами вбок и назад);
+			// издалека к укрытию — бегом
+			const near = dd < 1.8, sp = near ? 1.4 : 3.6, dir = this.avoidOthers(tmpV.set(dx / dd, 0, dz / dd));
 			this.pos.addScaledVector(dir, Math.min(dd, sp * dt));
 			this.root.rotation.y = turnTowards(this.root.rotation.y, near ? face : Math.atan2(dir.x, dir.z), dt * 10);
-			const clip = near ? c.walk : c.run;
-			this.play(clip, { timeScale: sp / HERO_GAIT[clip] });
+			this.locomote(c, sp, dir.x, dir.z, !near, near);
 			resolveCollisions(this.pos, this.radius, level.colliders);
 			if ((P.stuck = (P.stuck ?? 0) + dt) > 5) { this.pair = null; this.pairT = 1; }
 			P.at = null;

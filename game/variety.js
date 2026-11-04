@@ -79,6 +79,8 @@ export function dressZombie(actor, variants, { recolor = true } = {}) {
 		for (const m of [o.material].flat()) {
 			if (m.name === 'Cloth') { if (cloth) m.map = cloth; if (recolor) recolorCloth(m); }
 			if (m.name === 'Skin') m.color.setRGB(...skin);
+			// модель Tripo — одна текстура на кожу и одежду: оттенок всего тела, слабее (одежда тоже окрашивается)
+			if (m.name === 'Zombie' && recolor) m.color.setRGB(...skin.map((c) => 0.92 + (c - 1) * 0.6 + Math.random() * 0.08));
 		}
 	});
 }

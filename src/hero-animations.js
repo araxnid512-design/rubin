@@ -33,6 +33,13 @@ export const HERO_ANIMATION_NAMES = [
 	'IdleRifle', 'WalkRifle', 'RunRifle', 'AimRifle', 'ShootRifle', 'ReloadRifle', 'HitRifle', 'EquipRifle', 'EquipAxeR',
 	'Death',
 ];
+/**
+ * Ход в прицеле: корпус и ствол — на цель, ноги идут туда, куда движется человек, — набор из 8 направлений относительно
+ * корпуса (DIRS8) для автомата и пистолета; разворот на месте — ноги переступают (Turn — с топором, Turn<оружие> —
+ * ствол опущен, TurnAim<оружие> — в прицеле). Их выбирает игра по углу между ходом и взглядом (game/main.js, Actor.locomote).
+ */
+export const AIM_WALK = ['Rifle', 'Pistol'];
+HERO_ANIMATION_NAMES.push(...AIM_WALK.flatMap((w) => [...['F', 'FL', 'L', 'BL', 'B', 'BR', 'R', 'FR'].map((d) => `AimWalk${w}_${d}`), `Turn${w}`, `TurnAim${w}`]), 'Turn');
 
 // Оси шарниров в T-позе. Локоть: сгиб уводит предплечье вперёд (+Z) — у левой руки (вдоль +X) это
 // поворот вокруг −Y, у правой (вдоль −X) — вокруг +Y. Колено: сгиб уводит голень назад — вокруг +X.
@@ -388,17 +395,28 @@ function bake(rig, name, duration, poseAt, { loop = false } = {}) {
 
 const add = (p, d) => [p.x + d[0], p.y + d[1], p.z + d[2]];
 const HAND_GRIP = { curl: 0.95, thumb: 0.85, index: 0.95 };
-const HAND_PISTOL = { curl: 0.95, thumb: 0.8, index: 0.42 };
+// указательный — вдоль рамки над спусковой скобой (на спуск — только в прицеле и при выстреле: index 0.45 и 0.8);
+// в игре пальцы на рукояти и цевье ставятся по модели ствола (game/grasp.js), по сгибу указательного в клипе она
+// узнаёт, лежит ли палец на спуске
+const HAND_PISTOL = { curl: 0.95, thumb: 0.8, index: 0.1 };
 const HAND_SUPPORT = { curl: 0.85, thumb: 0.6, index: 0.75 };
 const HAND_RELAXED = { curl: 0.32, thumb: 0.25, index: 0.25, spread: 0.3 };
-// автомат: правая рука на пистолетной рукояти (палец у спуска), левая — на цевье
-const HAND_RIFLE = { curl: 0.95, thumb: 0.8, index: 0.45 };
+// автомат: правая рука на пистолетной рукояти (указательный вдоль ствольной коробки), левая — на цевье
+const HAND_RIFLE = { curl: 0.95, thumb: 0.8, index: 0.1 };
 const HAND_FOREGRIP = { curl: 0.8, thumb: 0.55, index: 0.8 };
 // левая рука на цевье в осях оружия (−Y — ствол, +Z — верх, +X — левый бок): цевьё лежит в ладони
 // наискось — большой палец вперёд-влево вдоль ствола, пальцы обхватывают правый бок
 const FOREGRIP = { offset: [0.03, -0.29, 0.02], handle: [0.6, -0.6, 0.3], blade: [-0.6, -0.6, 0.2] };
-// низкая готовность: приклад под мышкой, ствол вперёд-вниз чуть влево; прицел — приклад в плече, ствол вперёд
-const rifleReady = (d = [0, 0, 0]) => ({ pos: [-0.15 + d[0], 1.18 + d[1], 0.3 + d[2]], handle: [-0.1, 0.9, 0.42], blade: [0.12, -0.42, 0.9] });
+// Низкая готовность (low ready — так ходят с автоматом наготове): приклад в плече, ствол опущен на READY_DROP вперёд-вниз
+// и довёрнут к середине (смотрит в землю в паре метров перед собой), глаза над прицелом — вскинуть в прицел = повернуть
+// ствол вокруг плеча. Рукоять — на READY_R перед плечом по дуге вниз и на 6 см правее прицела: стволы у нас на треть
+// меньше настоящих, рукоять ближе к груди — так руке хватает места и кисть не выламывается (анатомия — src/anatomy.js).
+// Прицел — приклад в плече, ствол вперёд по линии глаз.
+const READY_DROP = 30, READY_R = 0.28, READY_CANT = 0.35;
+const rifleReady = (d = [0, 0, 0]) => {
+	const a = READY_DROP * Math.PI / 180;
+	return { pos: [-0.18 + d[0], 1.61 - READY_R * Math.sin(a) + d[1], 0.25 + READY_R * Math.cos(a) + d[2]], handle: [-0.04, Math.cos(a), Math.sin(a)], blade: [READY_CANT, -Math.sin(a), Math.cos(a)] };
+};
 const rifleAim = (d = [0, 0, 0], climb = 0) => ({ pos: [-0.12 + d[0], 1.6 + d[1], 0.46 + d[2]], handle: [0, 1, -climb], blade: [0, climb, 1] });
 const mixHand = (a, b, w) => Object.fromEntries(['curl', 'thumb', 'index', 'spread'].map((k) => [k, (a[k] ?? 0) + ((b[k] ?? 0) - (a[k] ?? 0)) * w]));
 
@@ -504,6 +522,9 @@ const gaitKind = (pistol, rifle) => (rifle ? 'rifle' : pistol ? 'pistol' : 'axe'
 const HERO_LEG = 1.013;
 
 const lerpArr = (a, b, w) => a.map((v, i) => v + (b[i] - v) * w);
+// в прицеле на ходу колени мягче («на полусогнутых»: таз ниже на 2 см — колени ещё на ~8°), шаг перекатом с пятки,
+// таз гасит раскачку — ствол плывёт ровно (ему достаётся треть подъёма-опускания таза)
+const AIM_DROP = 0.02;
 const smooth01 = (x) => x * x * (3 - 2 * x);
 
 /**
@@ -588,7 +609,7 @@ export const HERO_GAIT8 = Object.fromEntries([['WalkRifle', 'walk', 'rifle'], ['
 		return [d, [+(P.speed * HERO_LEG).toFixed(3), +P.dir[0].toFixed(3), +P.dir[1].toFixed(3)]];
 	}))]));
 
-function gait(rig, t, { run, pistol, rifle, dir = 'F', turn = false }) {
+function gait(rig, t, { run, pistol, rifle, dir = 'F', turn = false, aim = false }) {
 	const H = rig.hipsY, a = rig.ankle;
 	const gName = run ? 'run' : 'walk', G = GAIT[gName], k = gaitKind(pistol, rifle);
 	const P = prepared(gName, dir, k);
@@ -623,6 +644,23 @@ function gait(rig, t, { run, pistol, rifle, dir = 'F', turn = false }) {
 		feet,
 	};
 	const sw = -c(1, 0); // мах левой руки: вперёд, когда правая нога впереди
+	if (aim && (rifle || pistol)) {
+		// в прицеле на ходу: приклад в плече (пистолет — двумя руками на вытянутых), ствол на цель, грудь развёрнута к
+		// цели (поворот таза из клипа направления гасит корпус), голова — за прицелом
+		// автомат на ходу — на 7 см дальше от груди и на 4 см правее, чем стоя: руки свободнее, кисть не выламывается
+		// при шаге вбок (тело раскачивается сильнее); половина подъёма таза и почти вся раскачка уходят в ствол
+		const g = [sway * 0.75 + (rifle ? -0.04 : 0), bob * 0.5 - AIM_DROP, rifle ? 0.07 : 0];
+		const aimed = {
+			...base,
+			hips: [base.hips[0] * 0.6, base.hips[1] - AIM_DROP, 0],
+			pelvis: [base.pelvis[0], base.pelvis[1] + (rifle ? -10 : -3), base.pelvis[2] * 0.6],
+			torso: [(rifle ? 5 : 6) + (u.torso[0] - M.torso) * 0.3, base.torso[1] + (rifle ? 10 : 3), base.torso[2] * 0.5],
+			look: [(rifle ? 3 : -4) + (u.look[0] - M.look) * 0.3, base.look[1] + (rifle ? -6 : 0), base.look[2] * 0.5],
+		};
+		return rifle
+			? { ...aimed, hands: { R: { grip: rifleAim(g), hint: [-0.7, -1, -0.15] }, L: { pos: [0, 0, 0], gun: FOREGRIP, hint: [0.6, -1, -0.2] } }, fingers: { R: { ...HAND_RIFLE, index: 0.45 }, L: HAND_FOREGRIP } }
+			: { ...aimed, hands: { R: { grip: pistolAim(g), hint: [-0.7, -1, -0.1] }, L: { pos: [0, 0, 0], attach: SUPPORT, hint: [0.7, -1, -0.1] } }, fingers: { R: { ...HAND_PISTOL, index: 0.45 }, L: HAND_SUPPORT } };
+	}
 	if (rifle) {
 		// автомат двумя руками в низкой готовности и шагом, и бегом; корпус гасит раскачку
 		return {
@@ -798,7 +836,7 @@ function reloadPistol(rig) {
 				R: { grip: { pos: p.pos, handle: p.handle, blade: p.blade }, hint: [-0.6, -1, -0.3] },
 				L: { pos: p.lPos, rot: p.lRot, attach: { ...SUPPORT, weight: p.attach[0] }, hint: [0.6, -1, -0.2] },
 			},
-			fingers: { R: { ...HAND_PISTOL, index: 0.25 }, L: { curl: p.lCurl[0], thumb: p.lCurl[0] * 0.7 } },
+			fingers: { R: HAND_PISTOL, L: { curl: p.lCurl[0], thumb: p.lCurl[0] * 0.7 } },
 		};
 	};
 }
@@ -921,7 +959,7 @@ function equip(rig, toPistol) {
 // ---------- Автомат ----------
 
 /** Поза с автоматом: правая рука держит рукоять, левая — цевьё (вес gun — насколько держит). */
-function riflePose(rig, { grip, torso = [6, 8, 0], look = [-3, 4, 0], hips = 0, left = null, gunW = 1, gunSpec = FOREGRIP, trigger = 0.45 }) {
+function riflePose(rig, { grip, torso = [6, 8, 0], look = [-3, 4, 0], hips = 0, left = null, gunW = 1, gunSpec = FOREGRIP, trigger = 0.1 }) {
 	const H = standH(rig, 0.04);
 	return {
 		hips: [0, H - 0.04, 0.01 + hips], pelvis: [3, -10, 0], torso, look,
@@ -946,7 +984,7 @@ function aimRifle(rig) {
 	const d = 2;
 	return (t) => {
 		const w = (f, ph = 0) => Math.sin((t / d) * Math.PI * 2 * f + ph);
-		return riflePose(rig, { grip: rifleAim([0.003 * w(1, 0.3), 0.003 * w(2), 0]), torso: [5, 10, 0], look: [3, -6, 0] });
+		return riflePose(rig, { grip: rifleAim([0.003 * w(1, 0.3), 0.003 * w(2), 0]), torso: [5, 10, 0], look: [3, -6, 0], trigger: 0.45 });
 	};
 }
 
@@ -964,7 +1002,7 @@ function shootRifle(rig) {
 function reloadRifle(rig) {
 	const T = [0, 0.25, 0.5, 0.85, 1.15, 1.45, 1.7, 1.95, 2.2];
 	const k = at(T);
-	const ready = rifleReady(), tilt = { pos: [-0.1, 1.24, 0.32], handle: [0.4, 0.82, 0.4], blade: [0.12, -0.42, 0.9] };
+	const ready = rifleReady(), tilt = { pos: [-0.1, 1.3, 0.33], handle: [0.4, 0.82, 0.4], blade: [0.12, -0.42, 0.9] };
 	const MAGWELL = { offset: [0.03, -0.13, -0.11], handle: [0.5, -0.3, 0.8], blade: [-0.6, -0.8, 0.1] };
 	const P = curves({
 		gpos: k(ready.pos, tilt.pos, tilt.pos, tilt.pos, tilt.pos, tilt.pos, tilt.pos, ready.pos, ready.pos),
@@ -986,7 +1024,7 @@ function reloadRifle(rig) {
 			grip: { pos: p.gpos, handle: p.ghandle, blade: ready.blade },
 			torso: [8, 6, 0], look: p.look,
 			left: { pos: p.lPos, rot: p.lRot },
-			gunW: THREE.MathUtils.clamp(p.gun[0], 0, 1), gunSpec: spec, trigger: 0.25,
+			gunW: THREE.MathUtils.clamp(p.gun[0], 0, 1), gunSpec: spec,
 		});
 	};
 }
@@ -1126,17 +1164,23 @@ export function createHeroAnimations(root, options) {
 		bake(rig, 'EquipRifle', 1.05, equipRifle(rig, true)),
 		bake(rig, 'EquipAxeR', 1.05, equipRifle(rig, false)),
 		bake(rig, 'Death', 2.2, death(rig)),
-		// автомат и пистолет: ход в остальные 7 направлений относительно корпуса и переступание при развороте на месте —
-		// только для Godot-версии (options.directional): браузерной игре они не нужны, а модель с ними на 0,9 МБ тяжелее
-		...(!options?.directional ? [] : ['Rifle', 'Pistol']).flatMap((w) => {
+		// в прицеле: ход в 8 направлениях относительно корпуса и переступание при развороте на месте (см. AIM_WALK)
+		...AIM_WALK.flatMap((w) => {
 			const o = w === 'Rifle' ? { rifle: true } : { pistol: true };
 			return [
-				...DIRS8.slice(1).flatMap((dir) => [
-					bake(rig, `Walk${w}_${dir}`, GAIT.walk.d, (t) => gait(rig, t, { ...o, run: false, dir }), { loop: true }),
-					bake(rig, `Run${w}_${dir}`, GAIT.run.d, (t) => gait(rig, t, { ...o, run: true, dir }), { loop: true }),
-				]),
+				...DIRS8.map((dir) => bake(rig, `AimWalk${w}_${dir}`, GAIT.walk.d, (t) => gait(rig, t, { ...o, run: false, dir, aim: true }), { loop: true })),
 				bake(rig, `Turn${w}`, TURN_D, (t) => gait(rig, t, { ...o, run: false, turn: true }), { loop: true }),
+				bake(rig, `TurnAim${w}`, TURN_D, (t) => gait(rig, t, { ...o, run: false, turn: true, aim: true }), { loop: true }),
 			];
+		}),
+		bake(rig, 'Turn', TURN_D, (t) => gait(rig, t, { run: false, turn: true }), { loop: true }),
+		// Godot-версия (options.directional): ещё ход и бег в остальные 7 направлений со стволом в низкой готовности
+		...(!options?.directional ? [] : ['Rifle', 'Pistol']).flatMap((w) => {
+			const o = w === 'Rifle' ? { rifle: true } : { pistol: true };
+			return DIRS8.slice(1).flatMap((dir) => [
+				bake(rig, `Walk${w}_${dir}`, GAIT.walk.d, (t) => gait(rig, t, { ...o, run: false, dir }), { loop: true }),
+				bake(rig, `Run${w}_${dir}`, GAIT.run.d, (t) => gait(rig, t, { ...o, run: true, dir }), { loop: true }),
+			]);
 		}),
 	];
 }
