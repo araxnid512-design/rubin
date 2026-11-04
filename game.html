@@ -229,10 +229,10 @@
 		.stash-note { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
 		#stash .trade-sec { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 		.inv .x { font: inherit; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; flex: none; }
-		.wm-body { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.1fr); gap: 12px; align-items: start; }
-		#wm-svg { width: 100%; aspect-ratio: 1.154; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
-		.wm-road { stroke: #8a927e; stroke-width: 0.8; stroke-dasharray: 2 1.5; }
-		.wm-road.active { stroke: var(--accent); stroke-width: 1.1; animation: wmRoad 1.2s linear infinite; }
+		.wm-body { display: grid; grid-template-columns: minmax(260px, 1.55fr) minmax(240px, 1fr); gap: 12px; align-items: start; }
+		#wm-svg { width: 100%; aspect-ratio: 1.875; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		.wm-road { stroke: #d8dcc8; stroke-width: 1.1; stroke-dasharray: 1.1 0.8; stroke-linecap: round; }
+		.wm-road.active { stroke: var(--accent); stroke-width: 1.3; animation: wmRoad 1.2s linear infinite; }
 		@keyframes wmRoad { to { stroke-dashoffset: -7; } }
 		.wm-fog { animation: wmFog 7s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
 		.wm-fog:nth-child(2n) { animation-duration: 9s; animation-delay: -3s; }
@@ -254,9 +254,13 @@
 		@keyframes wmRaid { 50% { opacity: 0.35; } }
 		.wm-node.murs .wm-frame { stroke: #b8432c; }
 		/* секторы схемы: полосы поясов и их подписи вдоль левого края */
-		.wm-band { fill-opacity: 0.07; }
-		.wm-band-line { stroke: rgba(255,255,255,0.14); stroke-width: 0.35; stroke-dasharray: 1.2 1.2; }
-		.wm-band-label { font-size: 2.6px; font-weight: 700; letter-spacing: 0.15px; text-anchor: middle; opacity: 0.8; paint-order: stroke; stroke: #232823; stroke-width: 0.9px; }
+		.wm-band { fill-opacity: 0.06; }
+		.wm-band-label { font-size: 2.3px; font-weight: 700; letter-spacing: 0.15px; opacity: 0.8; paint-order: stroke; stroke: #232823; stroke-width: 0.8px; }
+		/* ромбы-плитки: снимок внутри, рамка цветом пояса; мостики через зазор между соседями */
+		.wm-node polygon.wm-frame { stroke-linejoin: round; }
+		.wm-node.cluster .wm-shot { opacity: 0.92; }
+		.wm-bridge-bg { stroke: #3a4038; stroke-width: 2.6; stroke-linecap: round; }
+		.wm-node.zone-off .wm-shot { opacity: 0.35; }
 		.wm-node.next .wm-frame { stroke-width: 1.1; }
 		.wm-sec { color: var(--zc); border-color: var(--zc); }
 		.route.far { opacity: 0.7; }
@@ -268,7 +272,7 @@
 		.wm-node.cluster .wm-dot { fill: var(--zc, #6a7262); fill-opacity: 0.85; }
 		.wm-node.zone-off { opacity: 0.3; }
 		.wm-node.zone-on .wm-frame { stroke-width: 1.3; }
-		.wm-left { display: grid; gap: 6px; }
+		.wm-left { display: grid; gap: 6px; position: sticky; top: 0; align-self: start; }
 		.wm-legend { display: flex; flex-wrap: wrap; gap: 4px; }
 		.wm-zone-btn { font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); color: var(--text); cursor: pointer; }
 		.wm-zone-btn i { width: 10px; height: 10px; border-radius: 50%; background: var(--zc); display: inline-block; }
@@ -289,15 +293,15 @@
 		body.short .route-img { width: 72px; }
 		body.short .travel-views #travel-img { max-height: 46vh; }
 		body.short #travel-svg { height: min(170px, 46vh); }
-		.wm-time { fill: #c8d0bc; font-size: 3.6px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
+		.wm-time { fill: #e8eedc; font-size: 2.8px; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1px; }
 		.wm-node .wm-dot { fill: #6a7262; stroke: #d8dece; stroke-width: 0.6; }
 		.wm-node.stab .wm-dot { fill: #4a7a3a; }
 		.wm-node.reachable { cursor: pointer; }
 		.wm-node.here .wm-dot { fill: var(--accent); }
-		.wm-ring-bg { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 1.4; }
-		.wm-ring { fill: none; stroke: #9ad070; stroke-width: 1.4; }
+		.wm-ring-bg { fill: none; stroke: rgba(0,0,0,0.35); stroke-width: 0.9; }
+		.wm-ring { fill: none; stroke: #9ad070; stroke-width: 0.9; stroke-linejoin: round; }
 		.wm-ring.low { stroke: #f06a50; }
-		.wm-label { fill: var(--text); font-size: 4.6px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1.2px; }
+		.wm-label { fill: var(--text); font-size: 3.1px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #232823; stroke-width: 1.2px; }
 		#wm-list { display: grid; gap: 8px; }
 		.route { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
 		.route.suggest { border-color: var(--accent); }
@@ -346,7 +350,7 @@
 		.exchange { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
 		.exchange b { color: var(--text); }
 		.exchange span { flex: 1; min-width: 200px; }
-		body.short .wm-body { grid-template-columns: 1fr 1.2fr; }
+		body.short .wm-body { grid-template-columns: 1.5fr 1fr; }
 		body.short #wm-svg { max-height: 70vh; }
 		body.short .route { padding: 5px 8px; }
 		body.short .route-text .muted { display: none; }
@@ -570,7 +574,7 @@
 			<div class="inv-head"><b>Карта Улья</b><span class="muted" id="wm-sub"></span><button class="x" id="wm-close" aria-label="Закрыть">✕</button></div>
 			<div class="wm-body">
 				<div class="wm-left">
-					<svg id="wm-svg" viewBox="0 0 120 104" preserveAspectRatio="xMidYMid meet"></svg>
+					<svg id="wm-svg" viewBox="0 0 120 64" preserveAspectRatio="xMidYMid meet"></svg>
 					<div id="wm-legend" class="wm-legend"></div>
 					<div id="wm-zone-desc" class="wm-hint"></div>
 				</div>

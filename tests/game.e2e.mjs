@@ -107,7 +107,17 @@ try {
 	const props = await G(page, () => { let n = 0, tris = 0; window.__game.level.root.traverse((o) => { if (o.name?.startsWith('Props:')) { n++; tris += o.geometry.index.count / 3; } }); return { n, tris }; });
 	check(props.n >= 6 && props.tris > 20000, `предметы Tripo в локации: ${props.n} участков, ${Math.round(props.tris / 1000)}k треугольников`);
 	// подходим к заражённым — замечают и нападают, отбиваемся топором
-	await G(page, () => { const g = window.__game; g.player.pos.set(-10, 0, 9); g.player.hp = 1e6; g.player.maxHp = 1e6; g.noise(g.player.pos, 22); });
+	await G(page, () => {
+		const g = window.__game;
+		g.player.pos.set(-10, 0, 9); g.player.hp = 1e6; g.player.maxHp = 1e6;
+		// заражённые каждый цикл встают случайно: если рядом никого — двое ближайших подходят на 10–12 м
+		if (!g.enemies.some((e) => e.alive && Math.hypot(e.pos.x + 10, e.pos.z - 9) < 18)) {
+			const spots = [];
+			for (let a = 0; a < 6.28 && spots.length < 2; a += 0.4) { const x = -10 + Math.cos(a) * 11, z = 9 + Math.sin(a) * 11; if (!g.level.nav.blockedAt(x, z, 0.6)) spots.push([x, z]); }
+			g.enemies.filter((e) => e.alive).sort((a, b) => Math.hypot(a.pos.x + 10, a.pos.z - 9) - Math.hypot(b.pos.x + 10, b.pos.z - 9)).slice(0, spots.length).forEach((e, i) => { e.pos.set(spots[i][0], 0, spots[i][1]); e.home?.copy(e.pos); });
+		}
+		g.noise(g.player.pos, 22);
+	});
 	await page.waitForTimeout(2500);
 	const chasing = await G(page, () => window.__game.enemies.filter((e) => e.state !== 'idle').length);
 	check(chasing > 0, `заражённые заметили игрока (${chasing} в погоне)`);
@@ -334,14 +344,14 @@ try {
 	// секторы и цена дороги: в стаб — 1 переход, в НИИ — через Химмаш (2 живчика); без живчика кнопка не работает
 	const sectors = await G(page, () => {
 		const g = window.__game, card = (id) => document.querySelector(`#wm-list [data-go="${id}"]`).closest('.route');
-		const r = { bands: document.querySelectorAll('#wm-svg .wm-band').length, labels: [...document.querySelectorAll('#wm-svg .wm-band-label')].map((t) => t.textContent.split(' ')[0]).join(','), secs: document.querySelectorAll('#wm-list .wm-sec').length, times: document.querySelectorAll('#wm-svg .wm-time').length, stab: card('stab').textContent.match(/живчик ×(\d)/)?.[1], nii: card('nii').textContent.match(/живчик ×(\d)/)?.[1] };
+		const r = { bands: document.querySelectorAll('#wm-svg .wm-band').length, labels: [...document.querySelectorAll('#wm-svg .wm-band-label')].map((t) => t.textContent.split(' ')[0]).join(','), secs: document.querySelectorAll('#wm-list .wm-sec').length, times: document.querySelectorAll('#wm-svg .wm-time').length, stab: card('stab').textContent.match(/живчик ×(\d)/)?.[1], nii: card('nii').textContent.match(/живчик ×(\d)/)?.[1], niiCost: g.worldMap.routes.find((x) => x.to === 'nii')?.cost, diamonds: document.querySelectorAll('#wm-svg .wm-node polygon.wm-frame').length, bridges: document.querySelectorAll('#wm-svg .wm-road').length };
 		const z = g.bag.zhivchik; g.bag.zhivchik = 0; g.worldMap.render();
 		r.off = document.querySelector('#wm-list [data-go="nii"]').disabled && document.querySelector('#wm-list [data-go="stab"]').disabled;
 		r.refused = g.travel('stab') === false && g.state === 'play';
 		g.bag.zhivchik = z; g.worldMap.render();
 		return r;
 	});
-	check(sectors.bands === 5 && sectors.secs >= 4 && sectors.times <= 4 && sectors.stab === '1' && sectors.nii === '2' && sectors.off && sectors.refused, `карта секторами (${sectors.labels}): в стаб — ${sectors.stab} живчик, в НИИ — ${sectors.nii}; без живчика идти нельзя`);
+	check(sectors.bands === 5 && sectors.diamonds === 16 && sectors.bridges >= 25 && sectors.secs >= 4 && sectors.times <= 4 && sectors.stab === '1' && +sectors.nii === sectors.niiCost && sectors.niiCost >= 2 && sectors.off && sectors.refused, `карта ромбами по секторам (${sectors.labels}; ${sectors.diamonds} ромбов, ${sectors.bridges} мостиков): в стаб — ${sectors.stab} живчик, в НИИ — ${sectors.nii}; без живчика идти нельзя`);
 	check(await G(page, () => !!document.querySelector('#wm-svg .wm-hero image') && !!document.querySelector('#wm-svg .wm-road.active')), 'на карте портрет героя и бегущий пунктир дорог');
 	await page.waitForFunction(() => [...document.querySelectorAll('#wm-list .route-img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => {});
 	const prev = await G(page, () => ({ cards: [...document.querySelectorAll('#wm-list .route-img')].filter((i) => i.naturalWidth >= 320).length, nodes: document.querySelectorAll('#wm-svg .wm-node image').length }));
