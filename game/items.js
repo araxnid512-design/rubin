@@ -2,6 +2,7 @@
 // и для иконок (иконки рендерятся из этих моделей, см. icons.js).
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { WEAPONS, makeGrenade } from './weapons.js';
 
 const ROUNDS = ['патрон', 'патрона', 'патронов'];
@@ -208,7 +209,35 @@ export function makeItemMesh(kind) {
 		g.add(pearl, sac);
 	}
 	g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-	return g;
+	return WEAPONS[kind] ? g : mergeByMaterial(g);
+}
+
+/**
+ * Детали предмета одного материала — в один меш: пачка патронов из двадцати гильз была двадцатью командами
+ * видеокарте, после боя на земле — сотни. Положение деталей сохраняется (геометрия переводится в оси группы).
+ */
+function mergeByMaterial(g) {
+	g.updateMatrixWorld(true);
+	const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), byMat = new Map();
+	g.traverse((o) => {
+		if (!o.isMesh || o.isSkinnedMesh || Array.isArray(o.material)) return;
+		const geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+		for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
+		if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+		if (!geo.attributes.normal) geo.computeVertexNormals();
+		geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+		if (!byMat.has(o.material)) byMat.set(o.material, []);
+		byMat.get(o.material).push(geo);
+	});
+	const out = new THREE.Group();
+	for (const [m, geos] of byMat) {
+		const geo = geos.length > 1 ? mergeGeometries(geos) : geos[0];
+		if (!geo) return g; // не слилось — как было
+		const mesh = new THREE.Mesh(geo, m);
+		mesh.castShadow = true;
+		out.add(mesh);
+	}
+	return out;
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */

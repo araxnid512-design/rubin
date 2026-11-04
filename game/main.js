@@ -33,6 +33,7 @@ import { createSpores } from './atmosphere.js';
 import { drawPlan, Minimap, LocationMap } from './minimap.js';
 import { createPost } from './post.js';
 import { createMuzzleFlashes } from './muzzle.js';
+import { createParticles, createChunks, rgb } from './particles.js';
 import { OFFLINE } from './assets.js';
 import { clothVariants, dressZombie, bodyVariation } from './variety.js';
 import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow, BASE_POSTS, BASE_POSTS_BARRACKS, TRIP_WORK, resolveTrip } from './mercs.js';
@@ -98,6 +99,11 @@ onResize(() => {
 const flashLight = new THREE.PointLight(0xffc070, 0, 7);
 scene.add(flashLight);
 const flashes = createMuzzleFlashes();
+// капли крови, крошка, пыль, дымок — одним мешем на все (game/particles.js), а не спрайтом на каждую
+const particles = createParticles(scene, camera, QUALITY === 'low' ? 500 : 900);
+// ошмётки при расчленении и комья земли от взрыва — тоже по одному мешу на все (раньше — меш на каждый кусок)
+const gore = createChunks(scene, new THREE.IcosahedronGeometry(0.05, 0), new THREE.MeshStandardMaterial({ color: 0x5a0e0a, roughness: 0.45 }), 160);
+const debris = createChunks(scene, new THREE.DodecahedronGeometry(0.09, 0), new THREE.MeshStandardMaterial({ color: 0x4a3f30, roughness: 1 }), 120);
 // споры в воздухе (на низком качестве — меньше)
 const spores = createSpores(scene, { count: QUALITY === 'low' ? 120 : 260 });
 // следы боя — кровь, дырки от пуль, гарь (game/marks.js): держатся до перезагрузки кластера
@@ -284,9 +290,10 @@ function turnTowards(current, target, maxStep) {
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const casingGeo = {}, casingMat = {}; // общие для всех гильз
 const tmpV2 = new THREE.Vector3();
+const tmpV3 = new THREE.Vector3(), tmpV4 = new THREE.Vector3(); // для частиц (пятна от капель)
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-let blobMat = null, dustMat = null, debrisGeo = null, debrisMat = null;
-let trailMat = null;
+let blobMat = null;
+const pickupProto = {}; // образцы предметов на земле по видам (game.spawnPickup)
 const shellParts = {};
 /** Снаряд гранатомёта: rocket — граната ПГ-7В с огнём маршевого двигателя, lob — ВОГ-25 (крупнее настоящего — видно). */
 function shellMesh(kind) {
@@ -317,7 +324,6 @@ function shellMesh(kind) {
 	}
 	return g;
 }
-let chunkGeo = null, chunkMat = null, bloodMat = null; // ошмётки — общие
 let wreckMat = null; // остовы бочек
 
 /**
@@ -2563,6 +2569,7 @@ const game = {
 		this.bandits = []; this.raidSquad = null; this.garrison = null; this.murBoss = null; this.huntSquad = null; this.extBoss = null;
 		for (const p of this.pickups) scene.remove(p.mesh);
 		for (const f of this.fx) f.dispose?.();
+		particles.clear(); gore.clear(); debris.clear();
 		marks.clear();
 		this.enemies = []; this.pickups = []; this.fx = []; this.npcs = []; this.mercs = []; this.eliteWarned = false;
 		this.searching = null;
@@ -3704,7 +3711,8 @@ const game = {
 	/** Предмет на земле: висит и светится; ground — лежит на земле. */
 	spawnPickup(kind, pos, value = 1, { ground = false } = {}) {
 		const mesh = new THREE.Group();
-		const model = makeItemMesh(kind);
+		// образец предмета — один на вид (сетки и материалы общие у всех таких на земле)
+		const model = (pickupProto[kind] ??= makeItemMesh(kind)).clone();
 		model.scale.setScalar(1.3);
 		const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(GLOW[kind] ?? GLOW.weapon), transparent: true, opacity: 0.55, depthWrite: false }));
 		glow.scale.setScalar(ITEMS[kind]?.type === 'ammo' ? 1.1 : 0.85);
@@ -4411,12 +4419,7 @@ const game = {
 
 	/** Дымный след ракеты: серое облачко повисает, расплывается и тает. */
 	trailPuff(pos) {
-		trailMat ??= new THREE.SpriteMaterial({ map: softDotTexture('185,182,172'), transparent: true, opacity: 0.5, depthWrite: false });
-		const s = new THREE.Sprite(trailMat.clone());
-		s.position.copy(pos);
-		s.scale.setScalar(0.3);
-		scene.add(s);
-		this.fx.push({ life: 1.3, update(dt) { this.life -= dt; s.scale.multiplyScalar(1 + dt * 1.4); s.position.y += dt * 0.15; s.material.opacity = 0.5 * this.life / 1.3; return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+		particles.spawn({ x: pos.x, y: pos.y, z: pos.z, size: 0.3, grow: 1.4, rise: 0.15, life: 1.3, color: rgb('185,182,172'), alpha: 0.5, fade: 'life' });
 	},
 
 	/** Струя газов из раструба РПГ: пыль и дым назад, вспышка. */
@@ -4496,28 +4499,9 @@ const game = {
 		scene.add(ring);
 		this.fx.push({ life: 0.4, update(dt) { this.life -= dt; const k = 1 - this.life / 0.4; ring.scale.setScalar(0.5 + k * R); ring.material.opacity = 0.55 * (1 - k); return this.life > 0; }, dispose() { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } });
 		// комья земли и обломки: летят дугой, падают, отскакивают и лежат, потом исчезают
-		debrisGeo ??= new THREE.DodecahedronGeometry(0.09, 0);
-		debrisMat ??= new THREE.MeshStandardMaterial({ color: 0x4a3f30, roughness: 1 });
 		for (let i = 0; i < 14; i++) {
-			const m = new THREE.Mesh(debrisGeo, debrisMat);
-			m.position.copy(pos).setY(0.2);
-			m.scale.setScalar(0.6 + Math.random() * 1.2);
-			m.castShadow = true;
 			const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 5;
-			const v = new THREE.Vector3(Math.cos(a) * sp, 3 + Math.random() * 5, Math.sin(a) * sp);
-			const spin = (Math.random() - 0.5) * 20;
-			scene.add(m);
-			this.fx.push({ life: 3, update(dt) {
-				this.life -= dt;
-				if (v.lengthSq() > 0.01) {
-					v.y -= 18 * dt;
-					m.position.addScaledVector(v, dt);
-					m.rotation.x += spin * dt; m.rotation.z += spin * 0.7 * dt;
-					if (m.position.y < 0.05) { m.position.y = 0.05; v.y *= -0.3; v.x *= 0.5; v.z *= 0.5; if (Math.abs(v.y) < 0.6) v.set(0, 0, 0); }
-				}
-				if (this.life < 0.6) m.scale.multiplyScalar(1 - dt * 3);
-				return this.life > 0;
-			}, dispose() { scene.remove(m); } });
+			debris.spawn({ x: pos.x, y: 0.2, z: pos.z, vx: Math.cos(a) * sp, vy: 3 + Math.random() * 5, vz: Math.sin(a) * sp, scale: 0.6 + Math.random() * 1.2, life: 3, g: 18, bounce: 0.3, floor: 0.05, spin: 20 });
 		}
 		// выжженное пятно
 		marks.scorch(pos);
@@ -4553,28 +4537,14 @@ const game = {
 	 */
 	stump(bone, dir, power = 1) {
 		const at = () => bone.getWorldPosition(new THREE.Vector3());
-		chunkGeo ??= new THREE.IcosahedronGeometry(0.05, 0);
-		chunkMat ??= new THREE.MeshStandardMaterial({ color: 0x5a0e0a, roughness: 0.45 });
 		const p0 = at();
 		for (let i = 0; i < Math.round(5 * power) + 2; i++) {
-			const c = new THREE.Mesh(chunkGeo, chunkMat);
-			c.position.copy(p0);
-			c.scale.setScalar(0.5 + Math.random() * (0.8 + power));
-			const v = new THREE.Vector3((Math.random() - 0.5) * 3, 2 + Math.random() * 3, (Math.random() - 0.5) * 3).addScaledVector(dir, 2 + Math.random() * 2);
-			const spin = new THREE.Vector3(Math.random() * 12, Math.random() * 12, Math.random() * 12);
-			scene.add(c);
-			let landed = false;
-			this.fx.push({ life: 8, update(dt) {
-				this.life -= dt;
-				if (!landed) {
-					v.y -= 9.8 * dt;
-					c.position.addScaledVector(v, dt);
-					c.rotation.x += spin.x * dt; c.rotation.y += spin.y * dt;
-					if (c.position.y < 0.03) { c.position.y = 0.03; landed = true; game.splat(c.position, 0.35 + Math.random() * 0.25, v); }
-				}
-				if (this.life < 1) c.scale.multiplyScalar(1 - dt * 2);
-				return this.life > 0;
-			}, dispose() { scene.remove(c); } });
+			const k = 2 + Math.random() * 2;
+			gore.spawn({
+				x: p0.x, y: p0.y, z: p0.z, scale: 0.5 + Math.random() * (0.8 + power), life: 8, g: 9.8, bounce: 0, floor: 0.03,
+				vx: (Math.random() - 0.5) * 3 + dir.x * k, vy: 2 + Math.random() * 3 + dir.y * k, vz: (Math.random() - 0.5) * 3 + dir.z * k,
+				land: (x, z, vx, vz) => game.splat(tmpV3.set(x, 0.03, z), 0.35 + Math.random() * 0.25, tmpV4.set(vx, 0, vz)),
+			});
 		}
 		this.blood(p0, Math.round(14 * power), dir);
 		// фонтан из обрубка: толчки по 4 в секунду, слабеют
@@ -4588,20 +4558,15 @@ const game = {
 
 	/** Брызги крови; dir — куда шёл удар: брызги летят больше в ту сторону. */
 	blood(pos, n, dir = null) {
-		bloodMat ??= new THREE.SpriteMaterial({ map: softDotTexture('92,6,5'), transparent: true, depthWrite: false });
+		const red = rgb('92,6,5');
 		for (let i = 0; i < n; i++) {
-			const s = new THREE.Sprite(bloodMat);
-			s.position.copy(pos);
-			s.scale.setScalar(0.07 + Math.random() * 0.12);
-			const v = new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3);
-			if (dir) v.addScaledVector(dir, 1.5 + Math.random() * 2.5);
-			scene.add(s);
-			this.fx.push({ life: 0.6, update(dt) {
-				v.y -= 9 * dt; s.position.addScaledVector(v, dt); this.life -= dt;
+			const size = 0.07 + Math.random() * 0.12, k = dir ? 1.5 + Math.random() * 2.5 : 0;
+			particles.spawn({
+				x: pos.x, y: pos.y, z: pos.z, size, g: 9, life: 0.6, color: red, alpha: 1,
+				vx: (Math.random() - 0.5) * 3 + (dir?.x ?? 0) * k, vy: Math.random() * 2.5 + (dir?.y ?? 0) * k, vz: (Math.random() - 0.5) * 3 + (dir?.z ?? 0) * k,
 				// капля долетела до земли — пятно
-				if (s.position.y < 0.05) { this.life = 0; if (Math.random() < 0.3) game.splat(s.position, 0.16 + s.scale.x * 1.3, v); }
-				return this.life > 0;
-			}, dispose() { scene.remove(s); } });
+				land: Math.random() < 0.3 ? (x, y, z, vx, vz) => game.splat(tmpV3.set(x, 0.05, z), 0.16 + size * 1.3, tmpV4.set(vx, 0, vz)) : null,
+			});
 		}
 	},
 
@@ -4642,21 +4607,12 @@ const game = {
 	/** Пыль из-под ног на бегу (на улице; в домах — нет). */
 	dust(pos) {
 		if (level.buildingAt(pos)) return;
-		dustMat ??= new THREE.SpriteMaterial({ map: softDotTexture('170,150,120'), transparent: true, opacity: 0.3, depthWrite: false });
-		const s = new THREE.Sprite(dustMat.clone());
-		s.position.set(pos.x + (Math.random() - 0.5) * 0.3, 0.12, pos.z + (Math.random() - 0.5) * 0.3);
-		s.scale.setScalar(0.3);
-		scene.add(s);
-		this.fx.push({ life: 0.6, update(dt) { this.life -= dt; s.scale.multiplyScalar(1 + dt * 1.8); s.position.y += dt * 0.25; s.material.opacity = 0.3 * this.life / 0.6; return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+		particles.spawn({ x: pos.x + (Math.random() - 0.5) * 0.3, y: 0.12, z: pos.z + (Math.random() - 0.5) * 0.3, size: 0.3, grow: 1.8, rise: 0.25, life: 0.6, color: rgb('170,150,120'), alpha: 0.3, fade: 'life' });
 	},
 
 	/** Пороховой дымок у ствола: сизое облачко поднимается и тает. */
 	smoke(pos, size = 1) {
-		const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('200,200,190'), transparent: true, opacity: 0.35, depthWrite: false }));
-		s.position.copy(pos);
-		s.scale.setScalar(0.25 * size);
-		scene.add(s);
-		this.fx.push({ life: 0.7, update(dt) { this.life -= dt; s.position.y += dt * 0.6; s.scale.multiplyScalar(1 + dt * 2.2); s.material.opacity = 0.35 * (this.life / 0.7); return this.life > 0; }, dispose() { scene.remove(s); s.material.dispose(); } });
+		particles.spawn({ x: pos.x, y: pos.y, z: pos.z, size: 0.25 * size, grow: 2.2, rise: 0.6, life: 0.7, color: rgb('200,200,190'), alpha: 0.35, fade: 'life' });
 	},
 
 	/** Гильза: вылетает вправо-вверх из оружия, падает, отскакивает и полежит немного. kind: brass | shell. */
@@ -4742,14 +4698,12 @@ const game = {
 
 	/** Попадание пули мимо цели: в стену — искры и крошка, в землю — фонтанчик пыли. */
 	impact(pos, wall, size = 1) {
-		const mat = new THREE.SpriteMaterial({ map: softDotTexture(wall ? '230,220,190' : '150,130,100'), transparent: true, opacity: 0.6, depthWrite: false });
+		const c = rgb(wall ? '230,220,190' : '150,130,100');
 		for (let i = 0; i < 4; i++) {
-			const s = new THREE.Sprite(mat);
-			s.position.copy(pos);
-			s.scale.setScalar((0.12 + Math.random() * 0.12) * size);
-			const v = new THREE.Vector3((Math.random() - 0.5) * 1.5, 0.6 + Math.random() * 1.4, (Math.random() - 0.5) * 1.5);
-			scene.add(s);
-			this.fx.push({ life: 0.5, update(dt) { this.life -= dt; v.y -= 4 * dt; s.position.addScaledVector(v, dt); s.scale.multiplyScalar(1 + dt * 1.5); mat.opacity = Math.max(0, this.life); return this.life > 0; }, dispose() { scene.remove(s); } });
+			particles.spawn({
+				x: pos.x, y: pos.y, z: pos.z, size: (0.12 + Math.random() * 0.12) * size, grow: 1.5, g: 4, floor: -1, life: 0.5, color: c, alpha: 0.55, fade: 'life',
+				vx: (Math.random() - 0.5) * 1.5, vy: 0.6 + Math.random() * 1.4, vz: (Math.random() - 0.5) * 1.5,
+			});
 		}
 		if (wall) {
 			const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture('255,220,140'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -5113,6 +5067,9 @@ function update(dt) {
 	}
 	game.pickups = game.pickups.filter((p) => !p.taken);
 	game.fx = game.fx.filter((f) => { const keep = f.update(dt); if (!keep) f.dispose(); return keep; });
+	particles.update(dt);
+	gore.update(dt);
+	debris.update(dt);
 	marks.update(dt);
 	flashes.update(dt);
 	level.update(dt, game.time);
