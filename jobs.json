@@ -1,69 +1,26 @@
 {
  "jobs": [
   {
-   "id": "h1_get",
-   "timeout": 180,
+   "id": "m0_bal",
+   "timeout": 120,
    "args": [
-    "project",
-    "get",
-    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
-    "--output-format",
-    "json"
+    "account",
+    "balance"
    ]
   },
   {
-   "id": "h1_hero_a",
+   "id": "m1_shamble",
    "timeout": 1700,
+   "py": "scripts/tripo-motion.py",
    "args": [
-    "process",
-    "animate",
-    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
-    "--animations",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:shoot",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/hero_a.glb"
+    "4b612127-1f94-42fd-a030-23fe3bf242e7",
+    "zombie shambling walk forward: hunched torso leaning forward, head tilted to one side, dragging the right foot, arms hanging loosely and swaying, slow uneven limping steps",
+    "4",
+    "out/m_pustysh_shamble.glb"
    ]
   },
   {
-   "id": "h1_hero_b",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
-    "--animations",
-    "preset:biped:fire,preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/hero_b.glb"
-   ]
-  },
-  {
-   "id": "h1_hero_c",
-   "timeout": 1700,
-   "args": [
-    "process",
-    "animate",
-    "3156bb09-877e-4aa3-beef-81c7c86e99a2",
-    "--animations",
-    "preset:biped:fall,preset:biped:look_around,preset:biped:standing_relax,preset:biped:wait,preset:biped:swagger",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/hero_c.glb"
-   ]
-  },
-  {
-   "id": "h1_bal",
+   "id": "m1_bal",
    "timeout": 120,
    "args": [
     "account",
@@ -71,5 +28,5 @@
    ]
   }
  ],
- "stop": true
+ "stop": false
 }
