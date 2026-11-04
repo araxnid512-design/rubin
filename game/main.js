@@ -14,7 +14,7 @@ import { tickHorde, hordeBroken, hordeText } from './migrant.js';
 import { planRaid, greedCheck, raidSize, RAID_POWER, RAID_TIME, MASSACRE } from './raids.js';
 import { QuestWindow, QUEST_ACTIVE, questProgress, questReady, questText, refreshQuests, rewardText } from './quests.js';
 import { EXT_GUNS, EXT_AIM, EXT_ACCURACY, EXT_DAMAGE, EXT_ARMOR, EXT_HP, CMD_HP, CMD_ARMOR, CMD_GUN, EXT_DROP_AMMO, EXT_DROP_SPORE, EXT_DROP_MED, EXT_DROP_NADE, EXT_DROP_GUN, tickExt, extText } from './ext.js';
-import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, tickMurs, storeLoot, hireMurs, BOSS_HP, BOSS_ARMOR, BOSS_GUN, MUR_NADE_SHARE, MUR_NADE_GAP, MUR_FLANK_GAP, MUR_DROP_AMMO, MUR_DROP_SPORE } from './murs.js';
+import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, LEAVE_BEFORE, tickMurs, storeLoot, hireMurs, BOSS_HP, BOSS_ARMOR, BOSS_GUN, MUR_NADE_SHARE, MUR_NADE_GAP, MUR_FLANK_GAP, MUR_DROP_AMMO, MUR_DROP_SPORE } from './murs.js';
 import { setAnisotropy, softDotTexture } from './textures.js';
 import { createMarks } from './marks.js';
 import { createFire } from './dressing.js';
@@ -2312,9 +2312,12 @@ class RaidSquad {
 	}
 
 	update() {
-		if (!this.leaving && game.world.time >= this.raid.end) {
+		// время вылазки вышло или кластер скоро перезагрузится (кислый запах) — все к выходам
+		const sour = timeLeft(game.world, game.loc) < LEAVE_BEFORE;
+		if (!this.leaving && (game.world.time >= this.raid.end || sour)) {
 			this.leaving = true;
 			for (const g of this.groups) this.pick(g);
+			if (sour) game.toast('Муры уходят из кластера — чуют перезагрузку', 'warn');
 		}
 		for (const b of this.members) {
 			if (!b.gone || b.left) continue;
@@ -2385,6 +2388,7 @@ class HuntSquad {
 		const alive = this.members.filter((b) => b.alive && !b.left);
 		if (!alive.length) return;
 		if (this.leaving || !game.player?.alive) {
+			if (this.goal?.exit) { this.goalT = 30; return; } // уже идут к выходу
 			const cx = alive[0].pos.x, cz = alive[0].pos.z;
 			const e = level.exits.reduce((a, b) => (Math.hypot(a.spawn.x - cx, a.spawn.z - cz) < Math.hypot(b.spawn.x - cx, b.spawn.z - cz) ? a : b));
 			this.goal = { x: e.spawn.x, z: e.spawn.z, exit: true };
@@ -2415,7 +2419,13 @@ class HuntSquad {
 	alarm(from) { for (const b of this.members) if (b.alive && !b.aggro) b.aggro = { pos: from.clone(), t: 8 }; }
 
 	update(dt) {
-		if (!this.leaving && game.world.time >= this.hunt.end) { this.leaving = true; this.pick(); }
+		// охота кончилась или кластер скоро перезагрузится — к выходу бегом
+		const sour = timeLeft(game.world, game.loc) < LEAVE_BEFORE;
+		if (!this.leaving && (game.world.time >= this.hunt.end || sour)) {
+			this.leaving = true;
+			this.pick();
+			if (sour) game.toast('Внешники уходят из кластера — чуют перезагрузку', 'warn');
+		}
 		if ((this.goalT -= dt) <= 0) this.pick();
 		for (const b of this.members) {
 			if (!b.gone || b.left) continue;
@@ -2893,13 +2903,14 @@ const game = {
 
 	updateMurs() {
 		const murs = this.world.murs, clusters = Object.keys(NODES).filter((id) => NODES[id].kind === 'cluster');
-		for (const ev of tickMurs(murs, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1)) {
+		const left = (id) => timeLeft(this.world, id); // сколько до перезагрузки: туда, где не успеют уйти, не ходят
+		for (const ev of tickMurs(murs, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1, left)) {
 			if (ev.started?.live && level) this.startLiveRaid(ev.started);
 			if (ev.ended) this.markRaided(ev.ended.at, ev.summary.mark);
 			if (ev.newBoss) this.toast(`У муров новый главарь — «${ev.newBoss}». Снова пойдут на вылазки`);
 		}
 		// внешники: охоты (game/ext.js) — в кластер героя приходят вживую
-		for (const ev of tickExt(this.world.ext, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1)) {
+		for (const ev of tickExt(this.world.ext, this.world.time, clusters, this.loc, (id) => NODES[id].danger ?? 1, left)) {
 			if (ev.started?.live && level) this.startLiveHunt(ev.started);
 			if (ev.ended) this.markRaided(ev.ended.at, ev.summary.mark);
 			if (ev.newCmd) this.toast(`У внешников новый командир — «${ev.newCmd}»`);
@@ -4760,7 +4771,21 @@ const game = {
 	reloadDeath() {
 		$('flash').classList.remove('show'); void $('flash').offsetWidth; $('flash').classList.add('show');
 		Sfx.rumble(2);
+		this.reloadKillsBandits();
 		this.player.die('reload');
+	},
+
+	/** Перезагрузка накрыла кластер: муры и внешники, что не успели уйти, гибнут вместе с ним (их меньше в «Карьере» и на форпосте). */
+	reloadKillsBandits() {
+		const lost = { murs: 0, ext: 0 };
+		for (const sq of [this.raidSquad, this.huntSquad]) {
+			if (!sq) continue;
+			for (const b of sq.members) if (b.alive && !b.left) { b.alive = false; b.hp = 0; lost[b.faction ?? 'murs']++; }
+		}
+		const w = this.world;
+		if (this.raidSquad) { w.murs.count = Math.max(0, w.murs.count - lost.murs); w.murs.raid = null; w.murs.nextRaid = w.time + 300 + Math.random() * 900; this.raidSquad = null; }
+		if (this.huntSquad) { w.ext.count = Math.max(0, w.ext.count - lost.ext); w.ext.hunt = null; w.ext.nextHunt = w.time + 900 + Math.random() * 1200; this.huntSquad = null; }
+		return lost;
 	},
 
 	/**

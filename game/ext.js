@@ -1,6 +1,7 @@
 // Внешники — пришлые из внешнего мира: солдаты в одинаковой форме, в бронежилетах, с хорошим натовским оружием.
 // Охотятся на иммунных. Их форпост — глубоко в Улье (NODES.forpost, kind 'ext'): там до EXT_LIMIT бойцов и командир;
-// раз в 15–35 минут времени мира группа в 3–5 человек уходит на охоту в кластер (опасные — чаще): бьёт заражённых,
+// раз в 15–35 минут времени мира группа в 3–5 человек уходит на охоту в кластер (опасные — чаще; до перезагрузки
+// кластера уходят — HUNT_LEAVE, кто не успел, гибнет с ним — game/main.js, reloadDeath): бьёт заражённых,
 // ищет иммунных — в кластере героя идёт прямо на него (они «чуют» иммунных). Раз в три часа форпост пополняется.
 // Стреляют лучше муров, броня держит часть урона; с убитого — патроны, бывает живчик, граната и сам ствол.
 // Здесь — учёт; бой — в game/main.js (Bandit с faction 'ext', HuntSquad, populateExt).
@@ -32,6 +33,9 @@ export const EXT_DROP_SPORE = [1, 3];
 export const EXT_DROP_MED = 0.25;
 export const EXT_DROP_NADE = 0.15;
 export const EXT_DROP_GUN = 0.15;
+
+/** Уходят из кластера за столько секунд до перезагрузки; охоту туда, где времени меньше LEAVE + HUNT_MIN, не начинают. */
+export const HUNT_LEAVE = 120, HUNT_MIN = 90;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -85,7 +89,7 @@ export function normalizeExt(e, time) {
  * (туда группа придёт вживую), danger(id) — опасность кластера: в опасные ходят чаще.
  * Возвращает события: { started: hunt } / { ended: hunt, summary } / { renewed: n } / { newCmd: name }.
  */
-export function tickExt(e, now, clusters, here, danger = () => 1) {
+export function tickExt(e, now, clusters, here, danger = () => 1, left = () => Infinity) {
 	const events = [];
 	while (now >= e.renewAt) {
 		e.renewAt += EXT_RENEW;
@@ -103,12 +107,14 @@ export function tickExt(e, now, clusters, here, danger = () => 1) {
 	}
 	if (!e.hunt && now >= e.nextHunt) {
 		const free = e.count - EXT_GARRISON;
-		if (free >= 3 && clusters.length) {
+		// только туда, где успеют уйти до перезагрузки (left(id) — секунд до неё)
+		const safe = clusters.filter((id) => left(id) > HUNT_LEAVE + HUNT_MIN);
+		if (free >= 3 && safe.length) {
 			// куда — по весу опасности: в логова руберов и элиты ходят чаще
-			const w = clusters.map((id) => Math.max(1, danger(id)));
-			let k = Math.random() * w.reduce((a, b) => a + b, 0), at = clusters[0];
-			for (let i = 0; i < clusters.length; i++) { k -= w[i]; if (k <= 0) { at = clusters[i]; break; } }
-			e.hunt = { at, size: Math.min(free, ri(3, 5)), start: now, end: now + rand(...HUNT_TIME), live: at === here, kills: 0 };
+			const w = safe.map((id) => Math.max(1, danger(id)));
+			let k = Math.random() * w.reduce((a, b) => a + b, 0), at = safe[0];
+			for (let i = 0; i < safe.length; i++) { k -= w[i]; if (k <= 0) { at = safe[i]; break; } }
+			e.hunt = { at, size: Math.min(free, ri(3, 5)), start: now, end: now + Math.min(rand(...HUNT_TIME), left(at) - HUNT_LEAVE), live: at === here, kills: 0 };
 			e.hunts++;
 			events.push({ started: e.hunt });
 		} else e.nextHunt = now + rand(...HUNT_GAP);

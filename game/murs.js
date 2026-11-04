@@ -15,6 +15,12 @@ export const MUR_RENEW = 7200;
 export const RAID_GAP = [300, 1200];
 /** Сколько длится вылазка, с: за это время отряд обходит кластер и уходит. */
 export const RAID_TIME = [180, 300];
+/**
+ * Перезагрузку кластера Улей не прощает никому: муры и внешники уходят из кластера за LEAVE_BEFORE секунд до неё
+ * (кислый запах — пора), вылазку в кластер, где до перезагрузки меньше LEAVE_BEFORE + RAID_MIN, не начинают.
+ */
+export const LEAVE_BEFORE = 120;
+export const RAID_MIN = 90;
 /** Сколько муров всегда остаётся в стабе. */
 export const GARRISON = 10;
 /**
@@ -106,7 +112,7 @@ export function storeLoot(m, loot) {
  * clusters — id кластеров, куда можно пойти; here — где сейчас герой (туда отряд придёт вживую).
  * Возвращает события: { started: raid } / { ended: raid, summary } / { renewed: n }.
  */
-export function tickMurs(m, now, clusters, here, danger = () => 1) {
+export function tickMurs(m, now, clusters, here, danger = () => 1, left = () => Infinity) {
 	const events = [];
 	while (now >= m.renewAt) {
 		m.renewAt += MUR_RENEW;
@@ -125,10 +131,12 @@ export function tickMurs(m, now, clusters, here, danger = () => 1) {
 	if (!m.raid && now >= m.nextRaid) {
 		const free = m.count - GARRISON;
 		// без главаря на вылазки не ходят — некому вести
-		if (free >= 5 && clusters.length && m.boss?.alive !== false) {
-			const at = clusters[Math.floor(Math.random() * clusters.length)];
+		// куда — только туда, где успеют уйти до перезагрузки (left(id) — секунд до неё)
+		const safe = clusters.filter((id) => left(id) > LEAVE_BEFORE + RAID_MIN);
+		if (free >= 5 && safe.length && m.boss?.alive !== false) {
+			const at = safe[Math.floor(Math.random() * safe.length)];
 			m.raid = {
-				at, size: Math.min(free, ri(5, 10)), start: now, end: now + rand(...RAID_TIME),
+				at, size: Math.min(free, ri(5, 10)), start: now, end: now + Math.min(rand(...RAID_TIME), left(at) - LEAVE_BEFORE),
 				mode: Math.random() < 0.5 ? 'crowd' : 'pairs', loot: {}, live: at === here, kills: 0,
 			};
 			m.raids++;

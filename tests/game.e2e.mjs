@@ -331,7 +331,7 @@ try {
 	await G(page, () => window.__game.player.pos.set(10, 0, -62.3));
 	await page.waitForSelector('#worldmap:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	const edge = await G(page, () => ({ open: window.__game.worldMap.isOpen, routes: document.querySelectorAll('#wm-list [data-go]').length }));
-	check(edge.open && edge.routes === 5, `дошёл до края кластера (муть) — открылась карта Улья: дорог ${edge.routes}`);
+	check(edge.open && edge.routes === 15, `дошёл до края кластера (муть) — открылась карта Улья: идти можно в ${edge.routes} локаций`);
 	await page.click('#wm-stay');
 
 	// выход у края кластера открывает карту; уходим в стаб
@@ -1163,6 +1163,24 @@ try {
 		return r;
 	});
 	check(hunt.n === 3 && hunt.armor === 0.7 && hunt.hp === 160 && /Внешники/.test(hunt.banner) && /spore/.test(hunt.drops) && hunt.count === 1, `внешники охотятся: ${hunt.n} в броне (${hunt.guns}); с убитого — ${hunt.drops}`);
+	// перед перезагрузкой кластера внешники и муры уходят (кислый запах), кто не успел — гибнет вместе с кластером;
+	// вылазки туда, где не успеют уйти, не начинаются
+	const leave = await G(page, async () => {
+		const g = window.__game, w = g.world, c = w.clusters[g.loc], next0 = c.next;
+		c.next = w.time + 100; // до перезагрузки меньше двух минут
+		g.huntSquad.update(0.016);
+		const r = { leaving: g.huntSquad.leaving, exit: !!g.huntSquad.goal?.exit };
+		const c0 = w.ext.count, alive = g.huntSquad.members.filter((b) => b.alive && !b.left).length;
+		const lost = g.reloadKillsBandits();
+		r.lost = lost.ext; r.alive = alive; r.count = c0 - w.ext.count; r.cleared = !g.huntSquad && !w.ext.hunt;
+		const { tickMurs } = await import('/game/murs.js');
+		const m = { ...w.murs, raid: null, nextRaid: w.time - 1, count: 50, renewAt: w.time + 1e6, boss: { alive: true } };
+		tickMurs(m, w.time, ['dachi', 'himmash'], 'stab', () => 1, (id) => (id === 'dachi' ? 150 : 600));
+		r.raidAt = m.raid?.at; r.raidEnd = m.raid ? Math.round(m.raid.end - w.time) : null;
+		c.next = next0;
+		return r;
+	});
+	check(leave.leaving && leave.exit && leave.lost === leave.alive && leave.count === leave.alive && leave.cleared && leave.raidAt === 'himmash' && leave.raidEnd <= 480, `перед перезагрузкой внешники уходят к выходу; не успевшие (${leave.lost}) гибнут вместе с кластером; вылазка муров — только туда, где успеют уйти (${leave.raidAt}, на ${leave.raidEnd} с)`);
 	// кочующая стая: приходит в кластер героя с вожаком; убил вожака — стая распалась, новая — не скоро
 	const horde = await G(page, () => {
 		const g = window.__game, h = g.world.horde, t = g.world.time;
