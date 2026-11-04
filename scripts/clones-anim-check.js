@@ -3,14 +3,19 @@
 // Запуск: node scripts/clones-anim-check.js [папка-для-отчёта]   (нужен Playwright с Chromium)
 //
 // Что считается ошибкой:
-//  knee    — колено ушло назад за линию «бедро — стопа» (вывернуто), или согнуто сильнее 160°;
+//  knee    — колено ушло назад за линию «бедро — стопа» (вывернуто), или согнуто сильнее 160°, или в стойке
+//            смотрит в сторону от носка больше чем на 25° (нога выглядит вывернутой);
 //  elbow   — локоть вывернут внутрь, в корпус (смотрит к середине груди) или разогнут дальше прямой;
-//  twist   — плечо, предплечье или кисть скручены вокруг своей оси больше, чем позволяет сустав человека
-//            (плечо ±100°, предплечье ±95°, кисть ±70° от позы привязки) — «вывернутые» руки и перекрученная кожа;
+//  twist   — плечо или предплечье скручены вокруг своей оси больше, чем позволяет сустав человека (плечо ±100°,
+//            предплечье ±95° от позы привязки); кисть — больше ±170° (кручение кисти несут кости скручивания
+//            предплечья, а перекрученную кожу ловит pinch);
 //  grip    — кисть не дотянулась до хвата оружия дальше 4 см (рука «висит» мимо винтовки);
 //  foot    — стопа провалилась под землю или в стойке проскальзывает больше 1,5 см за кадр;
 //  lean    — корпус откинут назад: линия «таз — шея» позади вертикали больше чем на 5° (кроме попадания и броска);
-//  stock   — при прицеле приклад не в плече: дальше 0,8 длины плеча от плечевого сустава.
+//  stock   — при прицеле приклад не в плече: дальше 0,8 длины плеча от плечевого сустава;
+//  wrist   — кисть на оружии согнута относительно предплечья больше 75° (запястье «сломано»);
+//  pinch   — сетка у локтя или запястья стянута к центру сустава (эффект «фантика» от перекрученного сустава): меньше 50%
+//            исходного (перекрученное запястье давало 38–44%, обычный сильный сгиб локтя — 55–65%).
 // Случайности (взгляд по сторонам, фаза клипа) зафиксированы — повторный запуск даёт тот же отчёт.
 const http = require('http');
 const fs = require('fs');
@@ -41,7 +46,7 @@ const server = http.createServer((q, s) => {
   await p.goto(`http://localhost:${port}/index.html`);
   await p.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 300000 });
   const res = await p.evaluate(([TYPES, STATES]) => {
-    const LIM = { knee: 160, twist: { Arm: 100, ForeArm: 95, Hand: 70 }, grip: 0.04, slide: 0.015, leanBack: 5, stock: 0.8 };
+    const LIM = { knee: 160, twist: { Arm: 100, ForeArm: 95, Hand: 170 }, grip: 0.04, slide: 0.015, leanBack: 5, stock: 0.8, wrist: 75, pinch: 0.5 };
     const deg = r => r * 180 / Math.PI, V = () => new THREE.Vector3();
     // скручивание кости вокруг своей оси относительно позы привязки (разложение поворота на «качание» и «кручение»)
     const twistOf = (bone, q0) => {
@@ -55,6 +60,25 @@ const server = http.createServer((q, s) => {
         const rig = makeRig(team, type, null, true); if (!rig.skinned) continue;
         rig.root.scale.setScalar(UNIT_SCALE * (rig.meshy ? 1 : TYPE_SCALE[type] || 1));
         const B = rig.bones, bind = {}; for (const [n, bn] of Object.entries(B)) bind[n] = bn.quaternion.clone();
+        // вершины у локтя и запястья (вес делится между соседними костями) и их радиус до оси сустава в позе привязки
+        let skin = null; rig.model.traverse(o => { if (o.isSkinnedMesh) skin = o; });
+        const joints = [];
+        if (skin && rig.meshy) {
+          const g = skin.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, bl = skin.skeleton.bones, gc = (a, i, k) => k === 0 ? a.getX(i) : k === 1 ? a.getY(i) : k === 2 ? a.getZ(i) : a.getW(i);
+          for (const s of ['Left', 'Right']) for (const [pa, ch] of [['Arm', 'ForeArm'], ['ForeArm', 'Hand']]) {
+            // у запястья вес предплечья частично на костях скручивания — считаем их предплечьем
+            const ips = [B[s + pa], ...(pa === 'ForeArm' ? [B[s + 'Twist1'], B[s + 'Twist2']] : [])].filter(Boolean).map(b => bl.indexOf(b)), ic = bl.indexOf(B[s + ch]), vs = [];
+            for (let i = 0; i < si.count && vs.length < 160; i++) { let wp = 0, wc = 0; for (let k = 0; k < 4; k++) { const j = gc(si, i, k), w = gc(sw, i, k); if (ips.includes(j)) wp += w; if (j === ic) wc += w; } if (wp > 0.25 && wc > 0.25 && wp + wc > 0.8) vs.push(i); }
+            if (vs.length > 10) joints.push({ name: s + ch, pa: B[s + pa], ch: B[s + ch], vs });
+          }
+          const radius = (J) => { const a = J.pa.getWorldPosition(V()), j = J.ch.getWorldPosition(V()), len = a.distanceTo(j), ax = j.clone().sub(a).normalize(), v = V();
+            // расстояние до центра сустава: при сгибе почти не меняется, при перекрученном суставе вершины стягиваются к центру
+            const rs = J.vs.map(i => { skin.boneTransform(i, v.fromBufferAttribute(skin.geometry.attributes.position, i)); v.applyMatrix4(skin.matrixWorld); return v.distanceTo(j) / len; }).sort((x, y) => x - y);
+            return rs[rs.length >> 1]; };
+          const keep = []; rig.root.traverse(o => keep.push([o, o.position.clone(), o.quaternion.clone(), o.scale.clone()]));
+          skin.skeleton.pose(); rig.root.updateMatrixWorld(true); for (const J of joints) { J.r0 = radius(J); J.radius = radius; }
+          for (const [o, p, q, sc] of keep) { o.position.copy(p); o.quaternion.copy(q); o.scale.copy(sc); } rig.root.updateMatrixWorld(true);
+        }
         const u = { rig, team, type, state: st === 'overwatch' ? 'idle' : st, overwatch: st === 'overwatch', t: 0, flinch: 0, x: -5, z: -5, hp: 9, maxHp: 9, dmgT: 9, seed: 0, animSpeed: st === 'run' ? 3.2 : 1.3 };
         const N = 150, worst = {}, bad = {}, add = (k, v, f) => { if (worst[k] === undefined || v > worst[k].v) worst[k] = { v: +v.toFixed(3), f }; };
         const flag = (k, f) => { bad[k] = (bad[k] || 0) + 1; };
@@ -73,6 +97,11 @@ const server = http.createServer((q, s) => {
             const ang = 180 - deg(H.clone().sub(K).angleTo(F.clone().sub(K)));
             add('kneeBack', -off, f); add('kneeBend', ang, f);
             if (off < -0.02 || ang > LIM.knee) flag('knee', f);
+            // колено над носком (в стойке: нога согнута не глубоко)
+            if (B[s + 'ToeBase'] && ang > 10 && ang < 80 && ['idle', 'aim', 'reload', 'throw'].includes(st)) {
+              const ax = F.clone().sub(H).normalize(), kd = K.clone().sub(H.clone().addScaledVector(ax, K.clone().sub(H).dot(ax))), td = P(s + 'ToeBase').sub(F); td.addScaledVector(ax, -td.dot(ax));
+              const kt = Math.abs(deg(Math.atan2(kd.clone().cross(td).dot(ax), kd.dot(td)))); add('kneeToe', kt, f); if (kt > 25) flag('knee', f);
+            }
           }
           // локти: не внутрь корпуса и не разогнуты за прямую
           const chest = P('Spine2');
@@ -102,6 +131,15 @@ const server = http.createServer((q, s) => {
             const bw = rig.gun.parent.localToWorld(rig.butt.clone().applyQuaternion(rig.gun.quaternion).add(rig.gun.position));
             const k = bw.distanceTo(P('RightArm')) / P('RightArm').distanceTo(P('RightForeArm')); add('stock', k, f); if (k > LIM.stock) flag('stock', f);
           }
+          // запястья: угол между предплечьем и направлением пальцев кисти (оси кисти из rig.M.hand)
+          if (rig.M && rig.M.hand && rig.gun && !rig.wrist) for (const s of ['Right', 'Left']) {
+            if ((s === 'Right' && st === 'throw') || (s === 'Left' && st === 'reload')) continue;
+            const H = rig.M.hand[s]; if (!H) continue;
+            const fa = P(s + 'Hand').sub(P(s + 'ForeArm')).normalize(), fh = H.f.clone().transformDirection(B[s + 'Hand'].matrixWorld);
+            const a = deg(fa.angleTo(fh)); add('wrist' + s, a, f); if (a > LIM.wrist) flag('wrist', f);
+          }
+          // сжатие сетки у суставов рук
+          for (const J of joints) { const k = J.radius(J) / J.r0; add('pinch' + J.name, -k, f); if (k < LIM.pinch) flag('pinch', f); }
           // стопы
           const feet = ['LeftFoot', 'RightFoot'].map(P), gnd = rig.root.position.y;
           for (const F of feet) { const below = (gnd - (F.y - 0.03 * sc)) / sc; add('footBelow', below, f); if (below > 0.03) flag('foot', f); }
@@ -118,7 +156,7 @@ const server = http.createServer((q, s) => {
   let total = 0; const byKind = {};
   for (const r of res) for (const [k, n] of Object.entries(r.bad)) { total += n; byKind[k] = (byKind[k] || 0) + n; }
   console.log('кадров с ошибками:', total, JSON.stringify(byKind));
-  for (const r of res) if (Object.keys(r.bad).length) console.log(' ', r.type.padEnd(9), r.state.padEnd(9), JSON.stringify(r.bad), 'хуже всего:', Object.entries(r.worst).filter(([k]) => /twist|elbowIn|kneeBack|grip|leanBack|stock/.test(k)).sort((a, b) => b[1].v - a[1].v).slice(0, 3).map(([k, w]) => k + '=' + w.v).join(' '));
+  for (const r of res) if (Object.keys(r.bad).length) console.log(' ', r.type.padEnd(9), r.state.padEnd(9), JSON.stringify(r.bad), 'хуже всего:', Object.entries(r.worst).filter(([k]) => /twist|elbowIn|kneeBack|kneeToe|grip|leanBack|stock|wrist|pinch/.test(k)).sort((a, b) => b[1].v - a[1].v).slice(0, 3).map(([k, w]) => k + '=' + w.v).join(' '));
   if (errs.length) console.log('ошибки страницы:', errs);
   await b.close(); server.close();
   process.exitCode = total ? 1 : 0;
