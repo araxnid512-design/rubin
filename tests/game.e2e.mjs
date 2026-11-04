@@ -959,10 +959,11 @@ try {
 	const alarm = await G(page, () => { const g = window.__game; return { lost: Math.round(window.__hp0 - g.player.hp), aggro: g.bandits.filter((b) => b.alive && b.aggro).length }; });
 	check(alarm.lost > 0 && alarm.aggro >= 10, `во дворе «Карьера» заметили: тревога, на героя идут ${alarm.aggro} муров (−${alarm.lost} здоровья)`);
 	// тактика: у укрытий на дистанции ствола, главарь посылает в обход, засевшего — гранатой (красный круг)
-	await page.waitForFunction(() => window.__game.bandits.some((b) => b.alive && b.spot), null, { timeout: 20000 }).catch(() => {});
+	// у укрытия — место на дистанции ствола (spot) или пара «укрытие + угол» для стрельбы из-за угла (pair)
+	await page.waitForFunction(() => window.__game.bandits.some((b) => b.alive && (b.spot || b.pair)), null, { timeout: 20000 }).catch(() => {});
 	const tact = await G(page, () => {
 		const g = window.__game, bs = g.bandits.filter((b) => b.alive && !b.boss);
-		const spots = bs.filter((b) => b.spot).length;
+		const spots = bs.filter((b) => b.spot || b.pair).length;
 		const three = bs.slice(0, 3);
 		for (const b of three) { b.target = g.player; b.retarget = 5; b.flank = 0; b.panicT = 0; }
 		for (const b of bs.slice(3)) b.target = null;
