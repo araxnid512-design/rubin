@@ -316,7 +316,7 @@ class App {
     if (!fireHeld) return;
     if (slot.mag <= 0) { if (slot.ammo > 0) this.reloadPlayer(); else if (this.once('noammo', 3)) this.ui.toast('Нет патронов. Возьмите на складе базы.', 'alert'); return; }
     if (this.pFireT > 0) return;
-    slot.mag--; this.pFireT = ws.burst > 1 ? ws.rate : ws.rate * 0.8;
+    slot.mag--; this.pFireT = ws.burst > 1 ? ws.rate : ws.rate * 0.8; this.pShots = (this.pShots || 0) + 1;
     this.player.aimT = 1.2;
     if (tgt) { this.player.face(v(tgt.x, 0, tgt.z)); this.army.shoot(P, tgt, ws); }
     else {

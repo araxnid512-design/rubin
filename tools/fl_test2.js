@@ -225,9 +225,9 @@ const { chromium } = require('playwright');
   const pf = await E(() => {
     const a = window.__fl, c = a.c, slot = a.playerSlot(); if (!slot) return { none: true };
     const f = c.foes[0]; if (!f) return { nofoe: true };
-    a.player.pos.x = f.x; a.player.pos.z = f.z + 12; const m0 = slot.mag + slot.ammo, s0 = c.army.shots.friendly;
+    a.player.pos.x = f.x; a.player.pos.z = f.z + 12; const m0 = slot.mag + slot.ammo, s0 = a.pShots || 0;
     a.input.touch.fire = true; for (let t = 0; t < 1.5; t += 1 / 30) a.step(1 / 30); a.input.touch.fire = false;
-    return { used: m0 - (slot.mag + slot.ammo), shots: c.army.shots.friendly - s0 };
+    return { used: m0 - (slot.mag + slot.ammo), shots: (a.pShots || 0) - s0 };
   });
   check('игрок стреляет из взятого со склада автомата: патрон за выстрел', !pf.none && (pf.nofoe || (pf.used > 0 && pf.used === pf.shots)), JSON.stringify(pf));
   // ===================== аэроразведка №3
