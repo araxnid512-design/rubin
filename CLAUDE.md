@@ -13,6 +13,8 @@
 - Android: `monsters/android` — Gradle-проект, WebView из assets (`../../www`), только горизонтально,
   подпись `app/debug.keystore` (тот же ключ, что у APK «Клонов», который у пользователя ставился). Ключ не менять.
 - APK собирает GitHub Actions (`.github/workflows/monstrohor-apk.yml`) при push в эту ветку; локально Android SDK нет.
+  Вариант сборки — отладочный (assembleDebug), как у установившегося APK «Клонов»; если сборка падает на скачивании
+  Gradle (504), это сбой сервера — перезапустить упавшую задачу.
   Пользователю давать прямую ссылку (всегда последняя сборка):
   https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk
 - Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
