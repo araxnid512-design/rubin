@@ -313,6 +313,30 @@
 		button.go, button.stay, button.buy { font: inherit; font-weight: 700; border-radius: 10px; border: 0; padding: 10px 16px; cursor: pointer; background: var(--accent); color: #141816; }
 		button.stay { background: transparent; color: var(--text); border: 1px solid var(--border); }
 		.wm-hint { font-size: 13px; color: var(--muted); }
+		/* выбранный пункт карты: путь подсвечен, под схемой — цена и «Подтвердить переход» */
+		.wm-pick { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border: 1px solid var(--accent); border-radius: 12px; padding: 8px 10px; background: rgba(200,216,106,0.08); }
+		.wm-pick.short { border-color: #f06a50; background: rgba(240,106,80,0.08); }
+		.wm-pick .route-text { min-width: 160px; }
+		.wm-pick-btns { display: flex; flex-direction: column; gap: 6px; margin-left: auto; }
+		.wm-pick-btns .go:disabled { opacity: 0.35; cursor: default; }
+		.wm-pick-hint { border: 1px dashed var(--border); border-radius: 12px; padding: 8px 10px; }
+		.route[data-to] { cursor: pointer; }
+		.route.sel { border-color: #fff2a8; background: rgba(255,242,168,0.08); }
+		button.go.pick { padding: 8px 12px; background: transparent; color: var(--text); border: 1px solid var(--accent); }
+		button.go.pick.on { background: var(--accent); color: #141816; }
+		.wm-node.sel .wm-frame { stroke: #fff2a8 !important; stroke-width: 1.7 !important; }
+		.wm-node.via .wm-frame { stroke: #fff2a8 !important; stroke-width: 1 !important; stroke-dasharray: 1.4 0.9; }
+		.wm-glow.sel { stroke: #fff2a8; stroke-width: 0.9; opacity: 0.9; }
+		.wm-road.chosen { stroke: #fff2a8; stroke-width: 1.6; }
+		body.short .wm-pick .route-img { display: none; }
+		/* карта не уезжает вбок: колонки и карточки сжимаются, длинные слова переносятся */
+		.inv.wm { overflow-x: hidden; }
+		.wm-body > * { min-width: 0; }
+		#wm-list > * { min-width: 0; }
+		#wm-list .route-text { min-width: 0; overflow-wrap: anywhere; }
+		#wm-list .route .wm-zone { white-space: normal; }
+		#wm-list .route .go { flex: none; }
+		#wm-list button.go.pick { padding: 7px 9px; font-size: 13px; }
 
 		/* Торговец */
 		.trade { width: min(760px, 100%); }
@@ -575,6 +599,7 @@
 			<div class="wm-body">
 				<div class="wm-left">
 					<svg id="wm-svg" viewBox="0 0 120 64" preserveAspectRatio="xMidYMid meet"></svg>
+					<div id="wm-confirm" class="wm-confirm"></div>
 					<div id="wm-legend" class="wm-legend"></div>
 					<div id="wm-zone-desc" class="wm-hint"></div>
 				</div>

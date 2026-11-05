@@ -437,7 +437,7 @@ class Actor {
 
 	play(name, { fade = 0.18, once = false, timeScale = 1, restart = false } = {}) {
 		// стоя корпус ушёл от ног далеко — вместо стойки ноги переступают (клип разворота с тем же положением рук)
-		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = 1; }
+		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = LEG_TURN / TURN_CLIP; }
 		const a = this.actions[name];
 		if (!a) return null;
 		a.timeScale = timeScale;
@@ -574,9 +574,10 @@ const UP = new THREE.Vector3(0, 1, 0);
 const AIM_SET = { WalkRifle: { prefix: 'AimWalkRifle_', gait: 'WalkRifle' }, WalkPistol: { prefix: 'AimWalkPistol_', gait: 'WalkPistol' } };
 // стойка → разворот на месте с тем же положением рук (ноги переступают)
 const TURN_OF = { Idle: 'Turn', IdleRifle: 'TurnRifle', AimRifle: 'TurnAimRifle', IdlePistol: 'TurnPistol', AimPistol: 'TurnAimPistol' };
-// стоя ноги переступают за корпусом, когда он ушёл дальше TURN_START (рад, ~45°), со скоростью LEG_TURN (рад/с — как
-// в клипе переступания); дальше LEG_MAX (~80°) позвоночник не скручивается — ноги тянутся за корпусом сразу
-const TURN_START = 0.8, LEG_TURN = 6, LEG_MAX = 1.4;
+// стоя ноги переступают за корпусом, когда он ушёл дальше TURN_START (рад, ~20°: иначе при стрельбе ноги смотрят в одну
+// сторону, а корпус — в другую), со скоростью LEG_TURN (рад/с; клип переступания запечён под TURN_CLIP — темп по ней);
+// дальше LEG_MAX (~80°) позвоночник не скручивается — ноги тянутся за корпусом сразу
+const TURN_START = 0.35, LEG_TURN = 9, TURN_CLIP = 6, LEG_MAX = 1.4;
 // корпус к цели поворачивается быстро, но не мгновенно (рад/с): 180° — за ~0,25 с
 const BODY_TURN = 12;
 // кости для толчка: у героя и наёмников — скелет Mixamo, у заражённых — простой (k — во сколько раз сильнее)
@@ -984,10 +985,10 @@ class Player extends Actor {
 			game.hud();
 			return;
 		}
-		// у бочки с горючим толпа — прицел бьёт по бочке, иначе по ближайшему заражённому
-		const target = game.barrelTarget(this.pos, W.range) ?? (W.proj ? game.blastTarget(this.pos, W) : null) ?? game.nearestEnemy(this.pos, W.range, true);
+		// цель — та же, что держит прицел (aimPick): корпус не мечется между заражёнными от выстрела к выстрелу
+		const target = this.aimPick(W, true);
 		// корпус к цели — быстро, но плавно; выстрел — когда ствол смотрит на цель (патрон уходит сразу)
-		if (target) { this.face(angleTo(this.pos, target.pos), 0.5); this.aimTarget = target; }
+		if (target) this.face(angleTo(this.pos, target.pos), 0.5);
 		const turnLeft = target ? Math.abs(wrapAngle(this.faceYaw - this.root.rotation.y)) / BODY_TURN : 0;
 		// из прицела отдача начинается сразу, из низкой готовности ствол вскидывается за 0.07 с; на ходу в прицеле — клип
 		// хода (ствол уже на цели), отдача — толчком (kick)
@@ -1113,18 +1114,21 @@ class Player extends Actor {
 		const aiming = this.hold === 'gun' && !this.equipping && (this.aim > 0 || input.held('attack'));
 		if (aiming) {
 			this.aimT = (this.aimT ?? 0) - dt;
-			if (this.aimT <= 0 || !this.aimTarget?.alive) { this.aimTarget = game.nearestEnemy(this.pos, this.W.range + 1.5, true); this.aimT = 0.3; }
+			if (this.aimT <= 0 || !this.aimTarget?.alive) { this.aimPick(this.W); this.aimT = 0.3; }
 			if (this.aimTarget) this.face(angleTo(this.pos, this.aimTarget.pos), 0.15);
 		} else this.aimTarget = null;
-		const walkAim = !!(aiming && this.aimTarget && mag <= 0.55 && AIM_SET[c.walk]);
+		// в прицеле с целью корпус смотрит только на цель: на ходу — шаг в прицеле в нужную сторону (боком, спиной),
+		// не бег — иначе корпус дёргается между целью и направлением хода
+		const locked = !!(aiming && this.aimTarget);
+		const walkAim = locked && !!AIM_SET[c.walk];
 		this.aimWalking = false;
 		if (this.busy > 0 && !(walkAim && mag > 0.12)) {
 			// во время удара почти стоим на месте
 			if (mag > 0.1) this.pos.addScaledVector(tmpV.set(mv.x, 0, mv.y).normalize(), dt * 0.6 * mag);
 		} else if (mag > 0.12) {
 			// шаг 1.1–1.7 м/с, бег 3.6–5 м/с; анимация ускоряется вместе с героем, ноги не скользят
-			const run = mag > 0.55 && !walkAim;
-			let speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : 1.1 + (0.6 * Math.min(1, (mag - 0.12) / 0.43));
+			const run = mag > 0.55 && !locked;
+			let speed = run ? 3.6 + (1.4 * (mag - 0.55)) / 0.45 : walkAim ? 1.1 + 1.1 * Math.min(1, (mag - 0.12) / 0.88) : 1.1 + (0.6 * Math.min(1, (mag - 0.12) / 0.43));
 			const dir = tmpV.set(mv.x, 0, mv.y).normalize();
 			// в прицеле боком и спиной вперёд человек идёт медленнее (DIR_SPEED — так же подогнан шаг клипов)
 			if (walkAim) speed *= dirSpeed(wrapAngle(Math.atan2(dir.x, dir.z) - this.root.rotation.y));
@@ -1132,7 +1136,7 @@ class Player extends Actor {
 			if (run && (this.stepDust = (this.stepDust ?? 0) + speed * dt) > 1.1) { this.stepDust = 0; game.dust(this.pos); }
 			// шаги слышно: асфальт, трава, грунт или пол — по тому, что под ногами
 			if ((this.stride = (this.stride ?? 0) + speed * dt) > (run ? 1.05 : 0.68)) { this.stride = 0; Sfx.step(level.surface(this.pos), run); }
-			if (!walkAim) this.face(Math.atan2(dir.x, dir.z), 0.1);
+			if (!locked) this.face(Math.atan2(dir.x, dir.z), 0.1);
 			this.locomote(c, speed, dir.x, dir.z, run, walkAim);
 			this.aimWalking = walkAim;
 		} else if (this.reloading > 0) {
@@ -1149,6 +1153,23 @@ class Player extends Actor {
 
 	/** Повернуть корпус к yaw (рад) в ближайшие t секунд — со скоростью BODY_TURN. */
 	face(yaw, t) { this.faceYaw = yaw; this.faceT = Math.max(this.faceT ?? 0, t); }
+
+	/**
+	 * Цель прицела — одна для поворота корпуса и для выстрела. Держится, пока жива, видна и в дальности; на другую
+	 * переключается, только если та заметно ближе (на 40 %) или это бочка с горючим у толпы — иначе при двух
+	 * заражённых на равном расстоянии корпус мечется между ними. shot — выбор для выстрела (гранатомёт целит по толпе).
+	 */
+	aimPick(W, shot = false) {
+		const cur = this.aimTarget, range = W.range;
+		const dist = (t) => Math.hypot(t.pos.x - this.pos.x, t.pos.z - this.pos.z);
+		const barrel = game.barrelTarget(this.pos, range);
+		const blast = W.proj && shot ? game.blastTarget(this.pos, W) : null;
+		if (barrel || blast) return (this.aimTarget = barrel ?? blast);
+		const near = game.nearestEnemy(this.pos, range + (shot ? 0 : 1.5), true);
+		const keep = cur?.alive && !(cur instanceof FuelBarrel) && dist(cur) <= range + (shot ? 0 : 1.5) && lineOfSight(this.pos, cur.pos);
+		if (!keep || (near && near !== cur && dist(near) < dist(cur) * 0.6)) this.aimTarget = near;
+		return this.aimTarget;
+	}
 }
 
 /** Доля скорости хода «вперёд» по направлению относительно корпуса (DIR_SPEED, между соседними — линейно). */

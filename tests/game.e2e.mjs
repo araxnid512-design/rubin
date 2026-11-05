@@ -345,8 +345,10 @@ try {
 	const sectors = await G(page, () => {
 		const g = window.__game, card = (id) => document.querySelector(`#wm-list [data-go="${id}"]`).closest('.route');
 		const r = { bands: document.querySelectorAll('#wm-svg .wm-band').length, labels: [...document.querySelectorAll('#wm-svg .wm-band-label')].map((t) => t.textContent.split(' ')[0]).join(','), secs: document.querySelectorAll('#wm-list .wm-sec').length, times: document.querySelectorAll('#wm-svg .wm-time').length, stab: card('stab').textContent.match(/живчик ×(\d)/)?.[1], nii: card('nii').textContent.match(/живчик ×(\d)/)?.[1], niiCost: g.worldMap.routes.find((x) => x.to === 'nii')?.cost, diamonds: document.querySelectorAll('#wm-svg .wm-node polygon.wm-frame').length, bridges: document.querySelectorAll('#wm-svg .wm-road').length };
-		const z = g.bag.zhivchik; g.bag.zhivchik = 0; g.worldMap.render();
-		r.off = document.querySelector('#wm-list [data-go="nii"]').disabled && document.querySelector('#wm-list [data-go="stab"]').disabled;
+		const z = g.bag.zhivchik; g.bag.zhivchik = 0;
+		g.worldMap.select('nii'); const offNii = document.getElementById('wm-go')?.disabled && /не хватает живчика/i.test(document.getElementById('wm-confirm').textContent);
+		g.worldMap.select('stab'); r.off = offNii && document.getElementById('wm-go')?.disabled;
+		g.worldMap.select(null);
 		r.refused = g.travel('stab') === false && g.state === 'play';
 		g.bag.zhivchik = z; g.worldMap.render();
 		return r;
@@ -361,7 +363,11 @@ try {
 	await page.screenshot({ path: join(OUT, 'game-map.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
 	const t0 = await G(page, () => window.__game.world.time);
 	const zh0 = await G(page, () => window.__game.bag.zhivchik);
+	// одно нажатие — только выбор: показана цена, переход — кнопкой «Подтвердить переход»
 	await page.click('#wm-list [data-go="stab"]');
+	const pick = await G(page, () => ({ open: window.__game.worldMap.isOpen, loc: window.__game.loc, text: document.getElementById('wm-confirm').textContent, go: !document.getElementById('wm-go')?.disabled, sel: !!document.querySelector('#wm-svg .wm-node.sel[data-node="stab"]') && !!document.querySelector('#wm-svg .wm-road.chosen') }));
+	check(pick.open && pick.loc === 'zarechny' && /живчик: нужно 1, есть \d/.test(pick.text) && pick.go && pick.sel, `выбор на карте не уводит сразу: стаб выбран, путь подсвечен, «${pick.text.match(/живчик: нужно \d+, есть \d+/)?.[0] ?? ''}», кнопка «Подтвердить переход»`);
+	await page.click('#wm-go');
 	await page.waitForSelector('#travel:not(.hidden)', { timeout: 20000 }).catch(() => {});
 	check(await G(page, () => !!document.querySelector('#travel-svg .wm-hero')), 'в дороге портрет героя едет по карте');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
