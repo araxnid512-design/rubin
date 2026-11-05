@@ -74,9 +74,6 @@ function buildStatic() {
   const X0 = vx0(), X1 = vx1(), Y0 = vy0(), Y1 = vy1(), HZ = 432;
   const sky = x.createLinearGradient(0, Y0, 0, HZ); sky.addColorStop(0, '#4fb4f4'); sky.addColorStop(0.55, '#9fdcff'); sky.addColorStop(1, '#ffe9c8');
   x.fillStyle = sky; x.fillRect(X0, Y0, X1 - X0, HZ - Y0 + 1);
-  // солнце
-  const sun = x.createRadialGradient(1010, 130, 10, 1010, 130, 170); sun.addColorStop(0, 'rgba(255,255,230,1)'); sun.addColorStop(0.25, 'rgba(255,246,190,.9)'); sun.addColorStop(1, 'rgba(255,240,200,0)');
-  x.fillStyle = sun; x.fillRect(820, -60, 380, 380);
   // дальние горы-облака у горизонта
   x.fillStyle = 'rgba(255,255,255,.55)'; for (let i = 0; i < 9; i++) { const cx = X0 + (i + 0.5) * (X1 - X0) / 9; x.beginPath(); x.ellipse(cx, HZ - 6, 110, 34 + (i % 3) * 10, 0, Math.PI, 0); x.fill(); }
   // море
@@ -302,6 +299,7 @@ function updateMon(m, dt) {
   const now = Sound.now(), n = Sound.onsets(m.id, r.lastOn); r.lastOn = now;
   if (n && !m.mute) {
     r.sv -= JELLY[K.part] || 0.4;
+    if (rings.length < 40 && (K.part !== 'shaker' || Math.random() < 0.25)) rings.push({ x, y, t: 0, col: ELEMENTS[K.el[(r.ringN = (r.ringN || 0) + 1) % K.el.length]].col });
     if (Math.random() < 0.55) parts.push({ kind: 'note', x: x + rand(-20, 20), y: y - sz * 0.95 - r.jy, vx: rand(-14, 14), vy: rand(-55, -35), life: 1.5, t: 0, col: ELEMENTS[K.el[n % K.el.length]].col, ch: Math.random() < 0.5 ? '♪' : '♫' });
   }
   // пружина: сплющился — вытянулся — успокоился
@@ -338,6 +336,7 @@ function monBubble(m) {
   const amt = Math.floor(m.stored); if (amt < Math.max(5, rateOf(m) * 0.75)) return;
   const [x, y] = SLOTS[m.slot], sz = monSize(m); bubble(x, y - sz * (KINDS[m.kind].hover ? 1.35 : 1.18) - 12, String(amt), '#e8b020', 'coin');
 }
+const panOf = m => clamp((SLOTS[m.slot][0] - ISL.x) / ISL.x * 0.8, -0.8, 0.8);
 const monAt = slot => S.mons.find(m => m.slot === slot);
 const freeSlots = () => SLOT_ORDER.slice(0, slotsOpen()).filter(i => !monAt(i));
 
@@ -398,11 +397,78 @@ function ambient(dt) {
   mistT -= dt; if (mistT < 0) { mistT = 0.08; parts.push({ kind: 'mist', x: 1168 + rand(-16, 16), y: VH - rand(0, 12), vx: rand(-30, 30), vy: rand(-45, -15), life: rand(0.8, 1.4), t: 0, r: rand(6, 12) }); }
   petalT -= dt; if (petalT < 0) { petalT = rand(1.8, 4.5); parts.push({ kind: 'petal', x: vx0() - 20, y: rand(240, 560), vx: rand(45, 85), vy: 0, life: 40, t: 0, rot: rand(0, 6), vr: rand(-2.5, 2.5), col: Math.random() < 0.5 ? '#ffc0d8' : '#fff2b8' }); }
 }
+// ---------- день и ночь: круг 5 минут — день, закат, ночь со звёздами и фонариками, рассвет
+const DAY_LEN = 300; let NIGHT = 0, DUSK = 0;
+const STARS = Array.from({ length: 110 }, () => [rand(-300, 1580), Math.pow(Math.random(), 1.3) * 300, rand(0, 6), rand(0.6, 1.6)]);
+const FIREFLIES = Array.from({ length: 14 }, () => ({ x: rand(200, 1080), y: rand(340, 600), ph: rand(0, 6), vx: rand(-14, 14), vy: rand(-8, 8) }));
+// гирлянда: четыре провиса между пятью столбиками
+const GARLAND = Array.from({ length: 45 }, (_, i) => { const k = i / 44; return [215 + k * 860, 348 + 18 * (1 - Math.abs(Math.cos(k * Math.PI * 4)))]; });
+const GCOL = ['#ff5a6a', '#ffd84a', '#5ad0ff', '#7ee05a', '#ff9ad0'];
+function dayCycle() {
+  const p = ((T + 25) / DAY_LEN) % 1, step = (a, b, x) => clamp((x - a) / (b - a), 0, 1), tri = (c, w) => Math.max(0, 1 - Math.abs(p - c) / w);
+  NIGHT = step(0.6, 0.67, p) * (1 - step(0.88, 0.95, p));
+  DUSK = Math.max(tri(0.6, 0.065), tri(0.925, 0.05) * 0.8);
+}
+function drawSun() {
+  const a = 1 - NIGHT; if (a <= 0.01) return;
+  const y = 130 + DUSK * 90 + NIGHT * 260, sun = g.createRadialGradient(1010, y, 10, 1010, y, 170);
+  sun.addColorStop(0, `rgba(255,${255 - DUSK * 60 | 0},${230 - DUSK * 120 | 0},${a})`); sun.addColorStop(0.25, `rgba(255,${246 - DUSK * 80 | 0},${190 - DUSK * 120 | 0},${0.9 * a})`); sun.addColorStop(1, 'rgba(255,240,200,0)');
+  g.fillStyle = sun; g.fillRect(820, y - 190, 380, 380);
+}
+// гирлянда над задним краем острова: днём цветные шарики, ночью светятся
+function drawGarland() {
+  g.strokeStyle = 'rgba(60,50,40,.55)'; g.lineWidth = 2; g.beginPath(); GARLAND.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+  for (let i = 0; i <= 4; i++) { const x = 215 + i * 215; g.fillStyle = '#7a5030'; g.fillRect(x - 3, 344, 6, 54); g.fillStyle = '#a07040'; g.beginPath(); g.arc(x, 344, 5, 0, Math.PI * 2); g.fill(); }
+  GARLAND.forEach(([x, y], i) => { if (i % 2) return; g.fillStyle = GCOL[(i / 2) % GCOL.length]; g.beginPath(); g.arc(x, y + 5, 4.2, 0, Math.PI * 2); g.fill(); });
+}
+// ночной свет поверх затемнения: звёзды, луна, гирлянда, грибы, светлячки, прожекторы на поющих
+function drawNight() {
+  if (DUSK > 0.01) { g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgba(255,160,110,${DUSK * 0.5})`; g.fillRect(vx0(), vy0(), vx1() - vx0(), vy1() - vy0()); }
+  if (NIGHT < 0.01) { g.globalCompositeOperation = 'source-over'; return; }
+  g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgba(66,84,168,${NIGHT * 0.78})`; g.fillRect(vx0(), vy0(), vx1() - vx0(), vy1() - vy0());
+  g.globalCompositeOperation = 'lighter';
+  // звёзды (не поверх облаков)
+  for (const [x, y, ph, r] of STARS) {
+    if (x < vx0() || x > vx1() || clouds.some(c => Math.abs(x - c.x - 20 * c.s) < 70 * c.s && Math.abs(y - c.y) < 34 * c.s)) continue;
+    const a = NIGHT * (0.55 + 0.45 * Math.sin(T * 2 + ph)); g.fillStyle = `rgba(255,255,230,${a})`; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // луна
+  const mg = g.createRadialGradient(250, 115, 10, 250, 115, 120); mg.addColorStop(0, `rgba(220,230,255,${0.5 * NIGHT})`); mg.addColorStop(1, 'rgba(220,230,255,0)'); g.fillStyle = mg; g.fillRect(130, -5, 240, 240);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = NIGHT;
+  g.fillStyle = '#f4f2e0'; g.beginPath(); g.arc(250, 115, 34, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(180,180,160,.5)'; for (const [dx, dy, r] of [[-10, -8, 7], [12, 6, 5], [-4, 14, 4], [14, -14, 3]]) { g.beginPath(); g.arc(250 + dx, 115 + dy, r, 0, Math.PI * 2); g.fill(); }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'lighter';
+  const glow = (x, y, r, col, a) => { const gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, col.replace('A', a)); gr.addColorStop(1, col.replace('A', 0)); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); };
+  // гирлянда
+  GARLAND.forEach(([x, y], i) => { if (i % 2) return; const c = GCOL[(i / 2) % GCOL.length], n = parseInt(c.slice(1), 16); glow(x, y + 5, 16, `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},A)`, NIGHT * (0.75 + 0.25 * Math.sin(T * 3 + i))); });
+  // светящиеся грибы
+  for (const [x, y] of [[1180, 546], [96, 534], [700, 598]]) glow(x, y, 34, 'rgba(255,120,90,A)', NIGHT * 0.55);
+  // светлячки
+  for (const f of FIREFLIES) glow(f.x, f.y, 9, 'rgba(220,255,120,A)', NIGHT * Math.max(0, Math.sin(T * 2.4 + f.ph)));
+  // прожекторы: поющие монстры в столбе света
+  for (const m of S.mons) {
+    const r = stateOf(m); if (r.sing < 0.05) continue; const [x, y] = SLOTS[m.slot], sz = monSize(m), a = NIGHT * r.sing;
+    const col = g.createLinearGradient(0, y - sz * 2.2, 0, y); col.addColorStop(0, 'rgba(255,240,200,0)'); col.addColorStop(1, `rgba(255,240,200,${0.12 * a})`);
+    g.fillStyle = col; g.beginPath(); g.moveTo(x - sz * 0.18, y - sz * 2.2); g.lineTo(x + sz * 0.18, y - sz * 2.2); g.lineTo(x + sz * 0.5, y); g.lineTo(x - sz * 0.5, y); g.closePath(); g.fill();
+    glow(x, y - sz * 0.45, sz * 0.7, 'rgba(255,235,190,A)', 0.22 * a);
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+// круги от нот у ног монстра — звук видно
+const rings = [];
+function drawRings(dt) {
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i]; r.t += dt; const k = r.t / 0.7; if (k >= 1) { rings.splice(i, 1); continue; }
+    g.strokeStyle = r.col; g.globalAlpha = (1 - k) * 0.55; g.lineWidth = 3 * (1 - k) + 1; g.beginPath(); g.ellipse(r.x, r.y, 30 + k * 46, 9 + k * 13, 0, 0, Math.PI * 2); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
 function drawRays() {
+  if (NIGHT > 0.98) return; g.globalAlpha = (1 - NIGHT) * (1 - DUSK * 0.4);
   if (!raysG) { raysG = g.createRadialGradient(1010, 130, 20, 1010, 130, 780); raysG.addColorStop(0, 'rgba(255,250,215,.24)'); raysG.addColorStop(1, 'rgba(255,250,215,0)'); }
   g.fillStyle = raysG; g.beginPath();
   for (let i = 0; i < 9; i++) { const a = T * 0.02 + i * Math.PI * 2 / 9, w = 0.08 + 0.04 * Math.sin(T * 0.6 + i * 1.7); g.moveTo(1010, 130); g.lineTo(1010 + Math.cos(a - w) * 900, 130 + Math.sin(a - w) * 900); g.lineTo(1010 + Math.cos(a + w) * 900, 130 + Math.sin(a + w) * 900); g.closePath(); }
-  g.fill();
+  g.fill(); g.globalAlpha = 1;
 }
 function drawBirds() {
   g.strokeStyle = 'rgba(40,50,80,.7)'; g.lineWidth = 2.4; g.lineCap = 'round';
@@ -452,15 +518,16 @@ function frame(now) {
   for (const c of clouds) { c.x += c.v * dt; if (c.x > vx1() + 150) { c.x = vx0() - 200; c.y = rand(40, 260); } }
   for (const m of S.mons) updateMon(m, dt);
   for (const b of S.bushes) b.n = Math.min(BERRY_CAP, b.n + dt / BERRY_SEC);
-  updateParts(dt); tick(dt); hatchStep(dt); ambient(dt);
+  updateParts(dt); tick(dt); hatchStep(dt); ambient(dt); dayCycle();
+  for (const f of FIREFLIES) { f.x += (f.vx + Math.sin(T + f.ph) * 10) * dt; f.y += (f.vy + Math.cos(T * 1.3 + f.ph) * 8) * dt; if (f.x < 180 || f.x > 1100) f.vx *= -1; if (f.y < 330 || f.y > 610) f.vy *= -1; }
   // рисование
   g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(bgLayer, 0, 0);
   worldT(g);
-  drawRays();
+  drawSun(); drawRays();
   for (const c of clouds) drawCloud(c);
-  drawBirds(); drawSea(); drawGlints(); drawIslets();
+  if (NIGHT < 0.9) drawBirds(); drawSea(); drawGlints(); drawIslets();
   g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(islLayer, 0, 0); worldT(g);
-  drawCloudShadows(); drawWaterfall();
+  drawCloudShadows(); drawWaterfall(); drawGarland(); drawRings(dt);
   // подсветка мест при расстановке
   if (mode) {
     const free = new Set(freeSlots());
@@ -477,7 +544,8 @@ function frame(now) {
   S.bushes.forEach((b, i) => ents.push({ y: BUSH_POS[i][1], d: () => drawBush(i) }));
   for (const m of S.mons) ents.push({ y: SLOTS[m.slot][1], d: () => drawMon(m) });
   ents.sort((a, b) => a.y - b.y).forEach(e => e.d());
-  drawFlies();
+  if (NIGHT < 0.7) drawFlies();
+  drawNight();
   for (const m of S.mons) monBubble(m);
   drawParts();
   drawVignette();
@@ -543,14 +611,14 @@ function place(slot) {
   if (mode.from === 'nest') S.nest.splice(mode.idx, 1);
   const m = { id: S.nid++, kind, slot, lvl: 1, feed: 0, stored: 0 }; S.mons.push(m);
   const fresh = !S.found[kind]; S.found[kind] = 1; if (fresh) addXP(25);
-  Sound.add(m.id, KINDS[kind].part); Sound.sfx('hatch');
+  Sound.add(m.id, KINDS[kind].part, panOf(m)); Sound.sfx('hatch');
   const r = stateOf(m), [x, y] = SLOTS[slot]; r.jy = 420; r.jv = -150; burst(x, y - 50, KINDS[kind].col, 24); confetti(x, y - 60, 26, 0.7);
   mode = null; hint(''); save(); hud();
   toast(`${KINDS[kind].name} поёт в хоре!`);
 }
 function moveTo(slot) {
   const m = S.mons.find(q => q.id === mode.id); mode = null; hint('');
-  if (!m || monAt(slot)) return; m.slot = slot; Sound.sfx('pop'); const r = stateOf(m); r.jy = 160; r.jv = 120; save();
+  if (!m || monAt(slot)) return; m.slot = slot; Sound.setPan(m.id, panOf(m)); Sound.sfx('pop'); const r = stateOf(m); r.jy = 160; r.jv = 120; save();
 }
 function feed(m) {
   if (m.lvl >= MAX_LVL) { toast('Монстр уже самый большой'); return; }
@@ -809,7 +877,7 @@ let started = false;
 function startGame() {
   if (started) return; started = true;
   Sound.start(); Sound.setOn(S.music !== false);
-  for (const m of S.mons) { Sound.add(m.id, KINDS[m.kind].part); if (m.mute) Sound.mute(m.id, true); }
+  for (const m of S.mons) { Sound.add(m.id, KINDS[m.kind].part, panOf(m)); if (m.mute) Sound.mute(m.id, true); }
   $('start').classList.add('gone'); $('hud').classList.add('show');
   try { const d = document.documentElement; if (d.requestFullscreen && !document.fullscreenElement && /Android|Mobi/i.test(navigator.userAgent)) d.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {}
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {}
