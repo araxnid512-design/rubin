@@ -7,109 +7,102 @@
   const UI = G.UI = G.UI || {};
   UI.views = UI.views || {};
 
-  // ---------- Доклад ----------
+  // ---------- Доклад: коротко, значками ----------
+  const TONE_ICON = { good: '✓', bad: '✕', battle: '⚔', event: '✦', info: '•' };
+  UI.reportOpen = false;
+
   function reportCard(s) {
     const r = s.lastReport;
     if (!r) return null;
     const card = h('div', { class: 'card report' });
     if (r.day === 0) {
-      card.appendChild(h('h2', null, 'Крушение'));
-      card.appendChild(h('div', { class: 'morning' }, paragraphs(r.morning)));
-      card.appendChild(h('p', { class: 'muted small' }, G.TEXT.firstDayHint));
+      const paras = String(r.morning).split(/\n\n+/);
+      card.appendChild(h('div', { class: 'ev-head' }, G.Avatar.npc('general', 44), h('h2', null, 'Крушение')));
+      card.appendChild(h('div', { class: 'morning' }, UI.reportOpen ? paragraphs(r.morning) : h('p', null, paras[paras.length - 1])));
+      if (!UI.reportOpen) card.appendChild(h('button', { class: 'btn small ghost', onclick: () => { UI.reportOpen = true; UI.render(); } }, 'Что случилось ▾'));
       return card;
     }
-    card.appendChild(h('div', { class: 'ev-head' }, G.Avatar.npc('general', 44), h('div', null, h('div', { class: 'small muted' }, 'Доклад генералу Колрату'), h('h2', { style: 'margin:0' }, r.title))));
-    if (r.lines.length) {
-      card.appendChild(h('ul', { class: 'lines' }, r.lines.map((l) => h('li', { class: 'k-' + l.k }, l.t))));
-    } else {
-      card.appendChild(h('p', { class: 'muted' }, 'День прошёл спокойно.'));
-    }
+    card.appendChild(h('div', { class: 'ev-head' }, G.Avatar.npc('general', 40),
+      h('div', null, h('h2', { style: 'margin:0' }, r.title), r.morning && !s.over ? h('div', { class: 'small muted morning-line' }, r.morning) : null)));
     if (r.delta) {
       const d = r.delta;
-      const items = [['water', 'Вода'], ['scrap', 'Металл'], ['energy', 'Энергия'], ['credits', 'Кредиты'], ['discipline', 'Дисциплина'], ['people', 'Люди'], ['droids', 'Дроиды']];
-      card.appendChild(h('div', { class: 'deltas' }, items.filter(([k]) => d[k]).map(([k, n]) =>
-        h('span', { class: 'delta ' + (d[k] > 0 ? 'pos' : 'neg') }, n + ' ' + U.signed(d[k])))));
+      const items = [['water', 'ico-water'], ['scrap', 'ico-scrap'], ['energy', 'ico-energy'], ['credits', 'ico-credits'], ['discipline', 'ico-discipline'], ['people', 'ico-troops'], ['droids', 'ico-droid']];
+      card.appendChild(h('div', { class: 'deltas' }, items.filter(([k]) => d[k]).map(([k, ic]) =>
+        h('span', { class: 'delta ' + (d[k] > 0 ? 'pos' : 'neg') }, h('i', { class: 'ico ' + ic }), U.signed(d[k])))));
     }
-    if (r.morning && !s.over) {
-      card.appendChild(h('hr', { class: 'sep' }));
-      card.appendChild(h('h3', null, 'Утро дня ' + s.day));
-      card.appendChild(h('div', { class: 'morning' }, r.morning));
-    }
+    if (!r.lines.length) { card.appendChild(h('p', { class: 'muted small' }, 'День прошёл спокойно.')); return card; }
+    const limit = UI.reportOpen ? r.lines.length : 5;
+    card.appendChild(h('ul', { class: 'lines compact' }, r.lines.slice(0, limit).map((l, k) =>
+      h('li', { class: 'k-' + l.k, style: 'animation-delay:' + (k * 0.06).toFixed(2) + 's' }, h('span', { class: 'li-ico' }, TONE_ICON[l.k] || '•'), h('span', { class: 'li-t' }, l.t)))));
+    if (r.lines.length > 5) card.appendChild(h('button', { class: 'btn small ghost', onclick: () => { UI.reportOpen = !UI.reportOpen; UI.render(); } },
+      UI.reportOpen ? 'Свернуть ▴' : 'Ещё ' + (r.lines.length - 5) + ' ▾'));
     return card;
   }
 
-  // ---------- Состояние ----------
+  // ---------- Живая сцена лагеря ----------
+  function campScene(s) {
+    const v = G.CampView(s, { cols: [0, 21], rows: [1, 14], maxCell: 30,
+      maxHeight: () => (UI.isLandscapePhone() ? Math.max(150, ((globalThis.innerHeight || 360) - 60) * 0.62) : 330) });
+    return h('div', { class: 'card camp-card hq-scene', onclick: () => UI.go('base'), title: 'Лагерь — нажмите, чтобы строить' }, v.el);
+  }
+
+  // ---------- Обстановка: плитки ----------
+  function tile(ico, val, label, cls) {
+    return h('div', { class: 'tile ' + (cls || '') }, h('div', { class: 'tile-v' }, h('i', { class: 'ico ' + ico }), val), h('div', { class: 'tile-l' }, label));
+  }
   function statusCard(s) {
     const people = G.Units.people(s);
-    const fit = people.filter((u) => G.Units.isFit(s, u));
-    const light = people.filter((u) => G.Units.woundLevel(u) === 1).length;
-    const heavy = people.filter((u) => G.Units.woundLevel(u) === 2).length;
-    const droids = G.Units.droids(s);
-    const need = G.Day.waterNeed(s, s.orders);
-    const prod = G.Base.waterProduction(s);
+    const fit = people.filter((u) => G.Units.isFit(s, u)).length;
+    const wounded = people.filter((u) => G.Units.woundLevel(u) > 0).length;
     const days = G.Day.waterDaysLeft(s);
     const eNet = G.Base.energyProduction(s) - G.Base.energyUse(s);
     const raid = G.Day.raidChance(s, s.guards + U.sum(s.orders.filter((o) => o.type === 'guard'), (o) => o.unitIds.length));
-    const kv = (k, v, cls) => [h('span', { class: 'k' }, k), h('span', { class: cls || '' }, v)];
     return h('div', { class: 'card' },
-      h('h2', null, 'Обстановка'),
-      h('div', { class: 'kv' },
-        kv('В строю', fit.length + ' из ' + people.length + (light ? ' · легкораненых ' + light : '')),
-        heavy ? kv('Тяжелораненые', String(heavy), 'warn') : null,
-        kv('Дроиды', droids.length ? droids.length + (s.droidsOffline ? ' — без питания!' : '') : 'нет', s.droidsOffline ? 'bad' : ''),
-        kv('Вода', 'расход ~' + need + ' л/сут' + (prod ? ', сбор +' + prod : '') + ' · ' + (days >= 99 ? 'запас не убывает' : 'хватит на ' + days.toFixed(1) + ' дн.'), days < 2 ? 'bad' : days < 4 ? 'warn' : ''),
-        kv('Энергия', (eNet >= 0 ? '+' : '') + eNet + ' в сутки', eNet < 0 ? 'bad' : ''),
-        kv('Бакта', String(s.items.bacta || 0)),
-        kv('Угроза налёта', G.Actions.riskWord(raid), raid > 0.2 ? 'warn' : '')
-      ),
-      h('hr', { class: 'sep' }),
-      h('div', { class: 'small muted', style: 'margin-bottom:6px' }, 'Паёк: ' + G.TEXT.rations[s.rations].desc),
-      h('div', { class: 'seg' }, ['full', 'reduced', 'minimal'].map((r) =>
-        h('button', { class: 'btn small' + (s.rations === r ? ' sel' : ''), disabled: s.phase !== 'orders',
-          onclick: () => { G.Game.setRations(s, r); UI.commit(); } }, G.TEXT.rations[r].name)))
-    );
+      h('div', { class: 'tiles' },
+        tile('ico-troops', fit + '/' + people.length, wounded ? 'в строю, 🩹' + wounded : 'в строю'),
+        tile('ico-water', days >= 99 ? '∞' : days.toFixed(1), 'дней воды', days < 2 ? 'alert' : days < 4 ? 'caution' : ''),
+        tile('ico-energy', (eNet >= 0 ? '+' : '') + eNet, 'энергии/сут', eNet < 0 ? 'alert' : ''),
+        tile('ico-discipline', String(s.res.discipline), 'дисциплина', s.res.discipline < 35 ? 'alert' : s.res.discipline < 50 ? 'caution' : ''),
+        tile('ico-bacta', String(s.items.bacta || 0), 'бакта'),
+        tile('ico-alert', G.Actions.riskWord(raid), 'угроза налёта', raid > 0.2 ? 'caution' : '')),
+      h('div', { class: 'seg rations' }, ['full', 'reduced', 'minimal'].map((r) =>
+        h('button', { class: 'btn small' + (s.rations === r ? ' sel' : ''), title: G.TEXT.rations[r].desc, disabled: s.phase !== 'orders',
+          onclick: () => { G.Game.setRations(s, r); UI.commit(); } }, G.TEXT.rations[r].name))));
   }
 
-  // ---------- Приказы ----------
+  // ---------- Приказы: одна строка на приказ ----------
   function orderRow(s, o, idx) {
     const T = G.TEXT.actions[o.type];
     const target = G.Actions.targetName(o.type, o.target);
     const nPeople = o.unitIds.filter((id) => G.Units.byId(s, id).kind !== 'droid').length;
     const nDroids = o.unitIds.length - nPeople;
-    const squad = o.unitIds.length ? U.pl(nPeople, F.fighter) + (nDroids ? ' + ' + U.pl(nDroids, F.droid) : '') : '';
     return h('div', { class: 'order' },
       h('div', { class: 'oi' }, T.icon),
       h('div', { class: 'ob' },
-        h('div', { class: 'ot' }, T.name + (target ? ' — ' + target : '')),
-        squad ? h('div', { class: 'small muted' }, squad) : null,
-        h('div', { class: 'small' }, G.Game.preview(s, o))
-      ),
-      h('button', { class: 'btn small ghost', title: 'Отменить приказ', onclick: () => { G.Game.removeOrder(s, idx); UI.commit(); } }, '✕')
-    );
+        h('div', { class: 'ot' }, T.name + (target ? ' → ' + target : ''),
+          o.unitIds.length ? h('span', { class: 'chip mini' }, '👤' + nPeople + (nDroids ? ' 🤖' + nDroids : '')) : null),
+        h('div', { class: 'small muted clamp1' }, G.Game.preview(s, o))),
+      h('button', { class: 'btn small ghost', title: 'Отменить приказ', onclick: () => { G.Game.removeOrder(s, idx); UI.commit(); } }, '✕'));
   }
 
   function ordersCard(s) {
     const left = G.Game.ordersLeft(s);
     const free = G.Game.freeCounts(s);
     const card = h('div', { class: 'card' },
-      h('div', { class: 'row between' },
-        h('h2', null, 'Приказы на день'),
-        h('span', { class: 'mono muted' }, s.orders.length + '/' + G.CONFIG.orders.perDay)
-      ));
+      h('div', { class: 'row between' }, h('h2', null, 'Приказы'), h('span', { class: 'mono muted' }, s.orders.length + '/' + G.CONFIG.orders.perDay + ' · в лагере 👤' + free.people + (free.droids ? ' 🤖' + free.droids : ''))));
     s.orders.forEach((o, i) => card.appendChild(orderRow(s, o, i)));
     if (UI.builder) card.appendChild(UI.builderView(s));
     else if (left > 0 && s.phase === 'orders') {
-      card.appendChild(h('button', { class: 'btn', style: 'width:100%', onclick: () => { UI.builder = { step: 'type' }; UI.render(); } },
-        '+ Отдать приказ (осталось ' + left + ')'));
+      card.appendChild(h('button', { class: 'btn add-order', onclick: () => { UI.builder = { step: 'type' }; UI.render(); } }, '+ Приказ'));
     }
-    card.appendChild(h('p', { class: 'small muted', style: 'margin-top:10px' },
-      'Свободны и останутся в лагере: ' + U.pl(free.people, F.fighter) + (free.droids ? ', ' + U.pl(free.droids, F.droid) : '') + '.'));
-    card.appendChild(h('button', { class: 'btn primary big', disabled: s.phase !== 'orders' || !!s.pending || !!s.over, onclick: () => {
+    card.appendChild(h('button', { class: 'btn primary big end-day', disabled: s.phase !== 'orders' || !!s.pending || !!s.over, onclick: () => {
       UI.builder = null;
+      UI.reportOpen = false;
       G.Game.endDay(s);
+      UI.dayTransition(s);
       UI.commit();
       window.scrollTo(0, 0);
-    } }, s.orders.length ? 'Завершить день ▸' : 'Завершить день без приказов ▸'));
+    } }, '☀ Завершить день ▸'));
     return card;
   }
 
@@ -176,13 +169,13 @@
       box.appendChild(h('div', { class: 'actions-grid' }, G.Actions.list.filter((type) => !(G.Actions.defs[type].hidden && G.Actions.defs[type].hidden(s))).map((type) => {
         const T = G.TEXT.actions[type];
         const why = actionAvailability(s, type);
-        return h('button', { class: 'act', disabled: !!why, title: why || '', onclick: () => {
+        return h('button', { class: 'act', disabled: !!why, title: why || T.desc, onclick: () => {
           const def = G.Actions.defs[type];
           b.type = type; b.target = null; b.err = null;
           b.step = def.targets ? 'target' : 'squad';
           initSquad(s, b);
           UI.render();
-        } }, h('div', { class: 'an' }, h('span', { class: 'ai' }, T.icon), T.name), h('div', { class: 'ad' }, why || T.desc));
+        } }, h('div', { class: 'an' }, h('span', { class: 'ai' }, T.icon), T.name), why ? h('div', { class: 'ad' }, why) : null);
       })));
       return box;
     }
@@ -211,37 +204,50 @@
       h('h3', null, T.icon + ' ' + T.name + (b.target ? ' — ' + G.Actions.targetName(b.type, b.target) : '')),
       h('div', { class: 'row' }, def.targets ? back('target') : back('type'), cancel)));
 
+    // Ползунки: состав отряда меняется на лету, без перерисовки всего экрана
+    const faces = h('div', { class: 'squad-faces' });
+    const prevBox = h('div', { class: 'preview' });
+    const errBox = h('div', { class: 'err' });
+    const okBtn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:6px' }, 'Отдать приказ');
+    let current = null;
+    const refresh = () => {
+      current = G.Game.makeOrder(s, b.type, b.target, b.troopers, b.droids);
+      const err = G.Game.validateOrder(s, current);
+      const prev = G.Game.preview(s, current);
+      prevBox.textContent = prev || '';
+      prevBox.style.display = prev ? '' : 'none';
+      errBox.textContent = err || '';
+      okBtn.disabled = !!err;
+      G.Dom.clear(faces);
+      const ids = current.unitIds || [];
+      for (const id of ids.slice(0, 16)) { const u = G.Units.byId(s, id); if (u) faces.appendChild(G.Avatar.img(u, 30)); }
+      if (ids.length > 16) faces.appendChild(h('span', { class: 'more' }, '+' + (ids.length - 16)));
+    };
     if (!def.noSquad) {
       const maxT = Math.min(cfg.max, free.people);
-      const maxD = cfg.droids ? Math.min(free.droids, Math.max(0, cfg.max - b.troopers)) : 0;
+      const maxD = cfg.droids ? Math.min(free.droids, cfg.max) : 0;
       b.troopers = U.clamp(b.troopers, 0, maxT);
       b.droids = U.clamp(b.droids, 0, maxD);
-      const stepper = (label, key, max) => h('div', { class: 'row', style: 'margin-bottom:8px' },
-        h('span', { style: 'min-width:110px' }, label),
-        h('div', { class: 'stepper' },
-          h('button', { class: 'btn', disabled: b[key] <= 0, onclick: () => { b[key] = Math.max(0, b[key] - 1); UI.render(); } }, '−'),
-          h('span', { class: 'val' }, String(b[key])),
-          h('button', { class: 'btn', disabled: b[key] >= max, onclick: () => { b[key] = Math.min(max, b[key] + 1); UI.render(); } }, '+')),
-        h('div', { class: 'row' }, [1, 5, 10].filter((n) => n <= max).map((n) =>
-          h('button', { class: 'btn small ghost', onclick: () => { b[key] = Math.min(max, b[key] + n); UI.render(); } }, '+' + n)),
-          h('button', { class: 'btn small ghost', onclick: () => { b[key] = max; UI.render(); } }, 'все'))
-      );
-      box.appendChild(stepper('Бойцы (' + maxT + ')', 'troopers', maxT));
-      if (cfg.droids && free.droids) box.appendChild(stepper('Дроиды (' + free.droids + ')', 'droids', maxD));
-      box.appendChild(h('div', { class: 'small muted' }, 'Нужно от ' + cfg.min + ' до ' + cfg.max + '. Состав подбирается автоматически: ' + G.TEXT.preferHint[def.prefer] + '.'));
+      const slider = (icon, key, max) => {
+        const val = h('span', { class: 'slider-val mono' }, String(b[key]));
+        const input = h('input', { type: 'range', min: 0, max: max, step: 1, value: b[key], class: 'slider', 'aria-label': key });
+        input.addEventListener('input', () => { b[key] = Number(input.value); val.textContent = b[key]; refresh(); });
+        return h('div', { class: 'slider-row' }, h('span', { class: 'slider-ico' }, icon), input, val, h('span', { class: 'muted small mono' }, '/' + max));
+      };
+      box.appendChild(slider('👤', 'troopers', maxT));
+      if (cfg.droids && free.droids) box.appendChild(slider('🤖', 'droids', maxD));
+      box.appendChild(faces);
     }
-
-    const o = G.Game.makeOrder(s, b.type, b.target, b.troopers, b.droids);
-    const err = G.Game.validateOrder(s, o);
-    const prev = G.Game.preview(s, o);
-    if (prev) box.appendChild(h('div', { class: 'preview' }, prev));
-    if (err) box.appendChild(h('div', { class: 'err' }, err));
-    box.appendChild(h('button', { class: 'btn primary', style: 'width:100%;margin-top:6px', disabled: !!err, onclick: () => {
-      const e = G.Game.addOrder(s, o);
-      if (e) { b.err = e; UI.render(); return; }
+    box.appendChild(prevBox);
+    box.appendChild(errBox);
+    okBtn.addEventListener('click', () => {
+      const e = G.Game.addOrder(s, current);
+      if (e) { errBox.textContent = e; return; }
       UI.builder = null;
       UI.commit();
-    } }, 'Отдать приказ'));
+    });
+    box.appendChild(okBtn);
+    refresh();
     return box;
   };
 
@@ -274,8 +280,8 @@
   }
 
   UI.views.hq = function (s) {
-    return h('div', { class: 'cols' },
-      h('div', null, reportCard(s)),
+    return h('div', { class: 'cols hq' },
+      h('div', null, campScene(s), reportCard(s)),
       h('div', null, statusCard(s), ordersCard(s), goalsCard(s))
     );
   };

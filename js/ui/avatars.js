@@ -104,6 +104,69 @@
     return s;
   }
 
+  // ---------- шлем штурмовика (стилизованный: не копия шлема из фильмов) ----------
+  const STRIPES = [null, null, '#3d6fb6', '#c0392b', '#d9822b', '#3f8f5a', '#7a5bb0', '#1d2228'];
+  function helmet(r, o) {
+    const shell = o.shell || '#eef0f2';
+    const line = '#2a2e35';
+    let s = '';
+    if (o.hood) s += '<path d="M10 64 Q8 30 18 18 Q32 6 46 18 Q56 30 54 64 Z" fill="' + o.hood + '"/>';
+    // уши-диски и купол
+    s += '<circle cx="15.5" cy="33" r="3.2" fill="' + shell + '" stroke="' + line + '" stroke-width="0.9"/><circle cx="48.5" cy="33" r="3.2" fill="' + shell + '" stroke="' + line + '" stroke-width="0.9"/>';
+    s += '<path d="M16 31 Q15 10 32 9 Q49 10 48 31 L49 38 Q47 45 41 47.5 L23 47.5 Q17 45 15 38 Z" fill="' + shell + '" stroke="' + line + '" stroke-width="1.2"/>';
+    s += '<path d="M17.5 23.5 Q32 18.5 46.5 23.5" stroke="rgba(40,45,52,0.35)" stroke-width="1.1" fill="none"/>';
+    if (o.stripe) s += '<path d="M29 9.6 Q32 9.3 35 9.6 L34.4 19.5 L29.6 19.5 Z" fill="' + o.stripe + '"/>';
+    if (o.cross) s += '<path d="M30.6 11 H33.4 V13.6 H36 V16.4 H33.4 V19 H30.6 V16.4 H28 V13.6 H30.6 Z" fill="#c0392b"/>';
+    // визор
+    if (o.longVisor) {
+      s += '<path d="M18 24.5 L46 24.5 L44 31.5 L20 31.5 Z" fill="#14171b"/><path d="M21 26 L31 26" stroke="rgba(150,190,255,0.45)" stroke-width="1"/>';
+      if (o.antenna) s += '<path d="M46 20 L51 9" stroke="' + line + '" stroke-width="1.1"/><circle cx="51" cy="9" r="1.1" fill="#c0392b"/>';
+    } else {
+      s += '<path d="M19 25.2 Q24 23 29.2 26 L28.2 31.6 Q23 32.6 18.8 29.4 Z" fill="#14171b"/>';
+      s += '<path d="M45 25.2 Q40 23 34.8 26 L35.8 31.6 Q41 32.6 45.2 29.4 Z" fill="#14171b"/>';
+      s += '<path d="M21 26 L25.5 25.4" stroke="rgba(150,190,255,0.5)" stroke-width="0.9"/><path d="M38.5 25.4 L43 26" stroke="rgba(150,190,255,0.5)" stroke-width="0.9"/>';
+      s += '<path d="M30.4 26.2 L33.6 26.2 L33.2 35.5 L30.8 35.5 Z" fill="' + shade(shell) + '"/>';
+    }
+    // дыхательный фильтр и трубки
+    s += '<path d="M25.5 38 L38.5 38 L36.4 44.6 L27.6 44.6 Z" fill="#2a2e35"/>';
+    for (const x of [29, 31, 33, 35]) s += '<path d="M' + x + ' 39.3 L' + x + ' 43.4" stroke="#8a9097" stroke-width="0.8"/>';
+    s += '<path d="M18.5 35.5 L23.4 36.8 L22.6 41.2 L18 39.8 Z" fill="#3a3f46"/><path d="M45.5 35.5 L40.6 36.8 L41.4 41.2 L46 39.8 Z" fill="#3a3f46"/>';
+    s += '<path d="M19.2 37.2 L22.6 38.1 M19 38.8 L22.3 39.7 M44.8 37.2 L41.4 38.1 M45 38.8 L41.7 39.7" stroke="#8a9097" stroke-width="0.6"/>';
+    // потёртости, пыль и царапины — у каждого свои
+    const dirt = o.dirt != null ? o.dirt : r.f() * 0.5;
+    for (let k = 0; k < 3; k++) {
+      const x = 18 + r.f() * 28, y = 12 + r.f() * 30;
+      s += '<ellipse cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="' + (2 + r.f() * 4).toFixed(1) + '" ry="' + (1 + r.f() * 2).toFixed(1) + '" fill="rgba(150,115,70,' + (dirt * 0.35).toFixed(2) + ')"/>';
+    }
+    if (r.f() < 0.45) { const x = 20 + r.f() * 20, y = 14 + r.f() * 8; s += '<path d="M' + x.toFixed(1) + ' ' + y.toFixed(1) + ' l4 3 l-1 2" stroke="rgba(40,45,52,0.45)" stroke-width="0.7" fill="none"/>'; }
+    return s;
+  }
+  function shade(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const f = (v) => Math.max(0, Math.round(v * 0.86));
+    return 'rgb(' + f((n >> 16) & 255) + ',' + f((n >> 8) & 255) + ',' + f(n & 255) + ')';
+  }
+  function helmetDamage(level) {
+    // лёгкое ранение — треснувшая линза, тяжёлое — ещё и повязка поверх шлема
+    let s = '<path d="M21 26.5 L24 28.5 L22.5 30.6 M24 28.5 L27 27.6" stroke="#e8edf2" stroke-width="0.7" fill="none"/>';
+    s += '<path d="M40 14 l2 4 l-2 3" stroke="rgba(40,45,52,0.6)" stroke-width="0.8" fill="none"/>';
+    if (level >= 2) {
+      s += '<path d="M15 17 Q32 10 49 17 L49 21.5 Q32 14.5 15 21.5 Z" fill="#f1ede4" stroke="#c9c2b2" stroke-width="0.6"/><circle cx="40" cy="16.6" r="1.7" fill="#b8322a" opacity="0.85"/>';
+      s += '<rect x="0" y="0" width="64" height="64" fill="rgba(150,160,180,0.15)"/>';
+    }
+    return s;
+  }
+  function officerUniform(rank) {
+    let s = '<path d="M4 64 Q6 50 20 47 L44 47 Q58 50 60 64 Z" fill="#59606a" stroke="#2a2e35"/><path d="M24 46 L40 46 L38 52 L26 52 Z" fill="#4a5058"/>';
+    s += '<rect x="40" y="52" width="12" height="5" fill="#2a2e35"/>';
+    const cols = rank >= 5 ? ['#d9a85b', '#e2574c', '#6fb3e0', '#7cc287'] : ['#e2574c', '#6fb3e0', '#7cc287'];
+    cols.forEach((c, k) => { s += '<rect x="' + (41 + k * 2.6) + '" y="53" width="1.8" height="3" fill="' + c + '"/>'; });
+    return s;
+  }
+  function officerCap() {
+    return '<path d="M17 21 Q32 9 47 21 L47 24 L17 24 Z" fill="#3f454d" stroke="#1d2125"/><path d="M15.5 24 H48.5 L51 27 H13 Z" fill="#1d2125"/><rect x="29.5" y="15.5" width="5" height="3.6" rx="0.6" fill="#b9bec5"/>';
+  }
+
   // ================= ПОРТРЕТ БОЙЦА =================
   A.unitSvg = function (u) {
     const r = rngFrom(u.num + '|' + u.name + '|' + u.id);
@@ -114,9 +177,26 @@
     const rank = G.Units.rankIndex(u);
     const bg = u.spec ? SPEC_BG[u.spec] : rank >= 4 ? ['#5a3434', '#241414'] : ['#36414f', '#161b22'];
     const first = String(u.name || '').split(' ')[0];
-    let body = armorShoulders({ rank: rank, armor: u.spec === 'sand' ? '#ebe3d2' : u.spec === 'sniper' ? '#c3c8cc' : '#eef0f2' });
-    body += face(r, { female: FEMALE.has(first) });
-    if (alive && wound) body += bandage(wound);
+    let body;
+    if (rank >= 4 && !u.spec) {
+      // офицеры — без шлема, в фуражке
+      body = officerUniform(rank) + face(r, { female: FEMALE.has(first), hairStyle: FEMALE.has(first) ? 'bun' : 'side', mouth: 'flat' }) + officerCap();
+      if (alive && wound) body += bandage(wound);
+    } else {
+      const sand = u.spec === 'sand', sniper = u.spec === 'sniper', scout = u.spec === 'scout';
+      body = armorShoulders({ rank: rank, armor: sand ? '#e6dcc6' : sniper ? '#c3c8cc' : '#eef0f2' });
+      if (sand) body += '<path d="M44 48 Q56 50 58 64 L46 64 Z" fill="#d9822b"/>';
+      body += helmet(r, {
+        shell: sand ? '#e9e0cc' : sniper ? '#cfd3d8' : '#eef0f2',
+        hood: sand ? '#a88a5a' : sniper ? '#4f5646' : null,
+        stripe: u.spec === 'heavy' ? '#1d2228' : r.pick(STRIPES),
+        cross: u.spec === 'medic',
+        longVisor: sniper || scout,
+        antenna: scout,
+        dirt: sand ? 0.9 : null,
+      });
+      if (alive && wound) body += helmetDamage(wound);
+    }
     if (u.spec) body += '<g transform="translate(52 52)"><circle r="8" fill="#e9e2cf" stroke="#2a2e35" stroke-width="1"/>' + SPEC_BADGE[u.spec] + '</g>';
     return wrap(bg.concat(rank >= 4 ? '#e2574c' : '#d9a85b'), body);
   };
@@ -236,9 +316,7 @@
       case 'droid': return droidSvg(r, 50);
       case 'trooper':
       default: {
-        let s = armorShoulders({ rank: 1 });
-        s += '<path d="M19 33 Q18 14 32 13 Q46 14 45 33 Q45 41 40 44 L24 44 Q19 41 19 33 Z" fill="#eef0f2" stroke="#2a2e35"/>';
-        s += '<rect x="22" y="26" width="20" height="6" rx="3" fill="#1d2228"/><path d="M27 39 H37" stroke="#555" stroke-width="1.2"/>';
+        const s = armorShoulders({ rank: 2 }) + helmet(r, { stripe: '#3d6fb6' });
         return wrap(['#36414f', '#161b22', '#d9a85b'], s);
       }
     }

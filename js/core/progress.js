@@ -105,9 +105,7 @@
 
   P.projectTargets = function (s) {
     const out = [];
-    s.fort = s.fort || { walls: 0 };
-    if (s.fort.walls < G.CONFIG.projects.wall.max) out.push('wall');
-    for (const v of s.vehicles || []) if (!v.ok) out.push('fix:' + v.id);
+    for (const v of s.vehicles || []) if (!v.ok && G.CONFIG.projects['fix_' + v.type]) out.push('fix:' + v.id);
     if (G.Units.droids(s).some((d) => d.health < 100)) out.push('droid_repair');
     out.push('droid_build');
     if (!s.shuttleReady && s.sections.hangar.level >= 1) out.push('shuttle');
@@ -121,7 +119,6 @@
     if (c.needSection && s.sections[c.needSection[0]].level < c.needSection[1]) {
       return 'нужен отсек «' + G.TEXT.sections[c.needSection[0]].name + '» (уровень ' + c.needSection[1] + ')';
     }
-    if (key === 'wall' && (s.fort.walls || 0) >= c.max) return 'укрепления достроены';
     if (key === 'droid_repair' && !G.Units.droids(s).some((d) => d.health < 100)) return 'дроиды исправны';
     if (key === 'shuttle' && s.shuttleReady) return 'шаттл готов';
     const st = P.projectState(s, key);
@@ -142,8 +139,7 @@
     const kind = P.projectKind(s, key);
     const c = G.CONFIG.projects[kind];
     const st = P.projectState(s, key);
-    const extra = key === 'wall' ? ' · построено ' + (s.fort.walls || 0) + '/' + c.max : '';
-    return (st.paid ? 'материалы заложены' : 'нужно: ' + G.Res.costText(c.cost)) + ' · работы ' + Math.floor(st.progress) + '/' + c.work + extra;
+    return (st.paid ? 'материалы заложены' : 'нужно: ' + G.Res.costText(c.cost)) + ' · работы ' + Math.floor(st.progress) + '/' + c.work;
   };
 
   // Вклад работ; возвращает текст
@@ -163,10 +159,6 @@
     if (st.progress < c.work) return pre + name + ': выполнено ' + Math.floor((st.progress / c.work) * 100) + '%.';
     // Завершено
     delete s.projects[key];
-    if (kind === 'wall') {
-      s.fort.walls = (s.fort.walls || 0) + 1;
-      return pre + 'Ещё одна секция баррикад перед лагерем готова (' + s.fort.walls + '/' + c.max + ').';
-    }
     if (kind === 'droid_repair') {
       for (const d of G.Units.droids(s)) d.health = Math.min(100, d.health + c.heal);
       return pre + 'Техники перебрали сервоприводы и заменили броневые пластины: дроиды отремонтированы.';

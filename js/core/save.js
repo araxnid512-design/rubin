@@ -49,6 +49,7 @@
     for (const id in C.regions) {
       if (!s.regions[id]) s.regions[id] = { known: false, explored: 0, water: C.regions[id].waterPool || 0, scrap: C.regions[id].scrapPool || 0, visits: 0, cleared: false };
     }
+    if (G.Camp) G.Camp.migrate(s);
     if (G.Save.migrateExtra) G.Save.migrateExtra(s);
     s.v = C.saveVersion;
     return s;

@@ -42,6 +42,7 @@
     if (s.regions.tusken_camp && s.regions.tusken_camp.cleared) p *= 0.4;
     p *= G.Res.diff(s).danger;
     if (s.signal) p *= G.CONFIG.final.signalRaidMult;
+    if (G.Camp) p *= G.Camp.raidMult(s);
     return U.clamp(p, 0, 0.9);
   };
 
@@ -129,7 +130,7 @@
     if (G.Progress) G.Progress.dawn(s);
 
     // Лечение: медотсек и медики
-    let heal = G.Base.healBonus(s);
+    let heal = G.Base.healBonus(s) + (G.Camp ? G.Camp.heal(s) : 0);
     if (G.Progress) {
       const M = G.CONFIG.specs.medic;
       heal += Math.min(M.campHealMax, G.Progress.countSpec(s, 'medic', true) * M.campHeal);

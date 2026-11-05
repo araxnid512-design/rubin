@@ -78,13 +78,12 @@
       },
       unitIds: o.unitIds.slice(0, C().maxPerSide),
       enemies: BF.army(s, rng, army, strength),
-      map: { type: o.map || (o.mode === 'camp' ? 'camp' : (C().armies[army] || {}).map || 'desert'), walls: o.mode === 'camp' ? BF.campWalls(s) : 0 },
+      map: o.mode === 'camp' ? { type: 'camp', campSeed: s.seed, layout: G.Camp.layout(s) } : { type: o.map || (C().armies[army] || {}).map || 'desert' },
       choices: choices,
     };
   };
 
-  BF.campWalls = (s) => (s.fort && s.fort.walls) || 0;
-  BF.campTurrets = (s) => (s.vehicles || []).filter((v) => v.type === 'turret' && v.ok).length;
+  BF.campTurrets = (s) => G.Camp.count(s, 'turret');
   BF.walkers = (s) => (s.vehicles || []).filter((v) => v.type === 'walker' && v.ok);
 
   BF.campSquad = function (s) {
@@ -163,12 +162,19 @@
     const ours = p.unitIds.map((id) => G.Units.byId(s, id)).filter((u) => u && G.Units.isAlive(u)).map((u) => BF.unitEntry(s, u));
     // Техника: шагоход идёт в атаки и обороняет лагерь, турели — только в лагере
     if (p.ctx.mode === 'camp' || p.ctx.type === 'attack') for (const v of BF.walkers(s)) ours.unshift(BF.vehicleEntry(s, v));
-    if (p.ctx.mode === 'camp') for (const v of (s.vehicles || []).filter((x) => x.type === 'turret' && x.ok)) ours.unshift(BF.vehicleEntry(s, v));
+    if (p.ctx.mode === 'camp') {
+      let k = 0;
+      for (const it of G.Camp.ensure(s).items) {
+        if (it.t !== 'turret') continue;
+        ours.unshift({ uid: null, campId: it.id, at: [it.x, it.y], type: 'turret', kind: 'turret', label: 'турель №' + (++k), rank: 0, health: 100 });
+      }
+    }
     let enemyTactic = A.tactic;
     if (p.ctx.type === 'attack' && enemyTactic !== 'assault') enemyTactic = 'defense';
     if (p.ctx.mode === 'camp' && enemyTactic === 'defense') enemyTactic = 'assault';
     return {
       v: 1, seed: p.seed, map: p.map, mode: p.ctx.mode, defender: p.ctx.defender,
+      light: p.ctx.mode === 'camp' ? G.Camp.nightBonus(s) : 0,
       night: p.ctx.night, surprise: p.ctx.surprise, army: p.ctx.army,
       sides: [
         { units: ours, tactic: p.choices.tactic, formation: p.ctx.surprise ? 'spread' : p.choices.formation,
@@ -203,6 +209,14 @@
     for (const r of res.units) if (r.side === 0 && r.type === 'medic' && r.state === 'active') medics++;
     let kills = 0;
     for (const r of res.units) {
+      if (r.side === 0 && r.campId != null) {
+        // турель лагеря: разбитая может не подлежать восстановлению
+        if (r.state === 'down' && rng.chance(G.CONFIG.camp.items.turret.destroyChance)) {
+          G.Camp.ensure(s).items = s.camp.items.filter((it) => it.id !== r.campId);
+          killed.push(r.label + ' (уничтожена)');
+        }
+        continue;
+      }
       if (r.side === 0 && r.vid != null) {
         const v = (s.vehicles || []).find((x) => x.id === r.vid);
         if (!v) continue;

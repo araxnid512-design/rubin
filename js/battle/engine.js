@@ -78,7 +78,7 @@
       if (side === 0 && B.setup.surprise) morale += C.surprise.morale;
     }
     return {
-      i: i, side: side, uid: e.uid != null ? e.uid : null, vid: e.vid != null ? e.vid : null, type: e.type, kind: e.kind || 'enemy',
+      i: i, side: side, uid: e.uid != null ? e.uid : null, vid: e.vid != null ? e.vid : null, campId: e.campId != null ? e.campId : null, at: e.at || null, type: e.type, kind: e.kind || 'enemy',
       label: e.label || BT().nom(e.type),
       x: 0, y: 0, nx: -1, ny: -1, moveT: 0, moveTotal: 0,
       hp: Math.max(1, Math.round(maxHp * (e.health != null ? e.health : 100) / 100)), maxHp: maxHp,
@@ -214,7 +214,13 @@
     for (let side = 0; side < 2; side++) {
       const sd = B.sides[side];
       let zone = zoneFor(B, side);
-      const list = B.units.filter((u) => u.side === side);
+      // Сначала — юниты с заданным местом (турели лагеря)
+      for (const u of B.units) {
+        if (u.side !== side || !u.at) continue;
+        const [x, y] = u.at;
+        if (passable(B, x, y) && B.occ[idx(B, x, y)] === -1) { u.x = x; u.y = y; B.occ[idx(B, x, y)] = u.i; u.placed = true; }
+      }
+      const list = B.units.filter((u) => u.side === side && !u.placed);
       list.sort((a, b) => (ROLE[a.type] || 1) - (ROLE[b.type] || 1) || a.i - b.i);
       let cells = candidates(B, side, zone, sd.formation);
       while (cells.length < list.length && (zone.x1 - zone.x0) < B.W / 2) {
@@ -375,7 +381,7 @@
     if (e.nx >= 0) ch -= C.hit.moving;
     ch -= Math.min(C.supp.max, u.supp) * C.hit.suppFactor;
     if (u.base.desert && B.map.type === 'desert') ch += 6;
-    if (B.setup.night) ch += C.night.acc[u.side];
+    if (B.setup.night) ch += Math.min(0, C.night.acc[u.side] + (u.side === 0 ? B.setup.light || 0 : 0));
     ch -= extraPenalty || 0;
     return Math.max(C.hit.min, Math.min(C.hit.max, Math.round(ch)));
   }
@@ -759,7 +765,7 @@
 
   Engine.result = function (B) {
     const units = B.units.map((u) => ({
-      i: u.i, side: u.side, uid: u.uid, vid: u.vid, type: u.type, kind: u.kind, label: u.label,
+      i: u.i, side: u.side, uid: u.uid, vid: u.vid, campId: u.campId, type: u.type, kind: u.kind, label: u.label,
       state: u.state, hp: Math.max(0, u.hp), maxHp: u.maxHp, kills: u.kills,
     }));
     let h = 2166136261 >>> 0;

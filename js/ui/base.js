@@ -1,10 +1,69 @@
-/* Вкладка «Лагерь»: отсеки корабля, производство, запасы, отношения. */
+/* Вкладка «Лагерь»: живая сцена со стройкой, палитра построек, отсеки, техника. */
 (function (G) {
   'use strict';
   const { h, bar } = G.Dom;
   const U = G.U;
   const UI = G.UI = G.UI || {};
   UI.views = UI.views || {};
+  UI.campSel = null; // { t: тип постройки } — ставим; { id } — выбрана построенная
+
+  function costChips(cost) {
+    const out = [];
+    if (cost.scrap) out.push(h('span', { class: 'cost' }, h('i', { class: 'ico ico-scrap' }), cost.scrap));
+    if (cost.energy) out.push(h('span', { class: 'cost' }, h('i', { class: 'ico ico-energy' }), cost.energy));
+    return out;
+  }
+
+  function onCell(s, x, y) {
+    const sel = UI.campSel;
+    const at = G.Camp.at(s, x, y);
+    if (sel && sel.t) {
+      if (at) { UI.campSel = { id: at.id }; UI.render(); return; }
+      const err = G.Camp.build(s, sel.t, x, y);
+      if (err) { UI.flash(err); return; }
+      G.CampView.puff(x, y);
+      UI.commit();
+      return;
+    }
+    UI.campSel = at ? { id: at.id } : null;
+    UI.render();
+  }
+
+  function palette(s) {
+    const C = G.CONFIG.camp.items;
+    const sel = UI.campSel;
+    const box = h('div', { class: 'palette' });
+    for (const t of Object.keys(C)) {
+      const T = G.TEXT.camp[t];
+      const why = G.Camp.canBuild(s, t);
+      const n = G.Camp.count(s, t);
+      const kit = C[t].kit ? ' · комплектов ' + (G.Camp.ensure(s).kits[t] || 0) : '';
+      box.appendChild(h('button', { class: 'pal' + (sel && sel.t === t ? ' sel' : '') + (why ? ' dim' : ''), title: why || T.desc,
+        onclick: () => { UI.campSel = sel && sel.t === t ? null : { t: t }; UI.render(); } },
+        h('span', { class: 'pal-ico' }, T.icon),
+        h('span', { class: 'pal-name' }, T.name),
+        h('span', { class: 'pal-meta' }, costChips(C[t].cost), h('span', { class: 'mono muted' }, n + '/' + C[t].max + kit))));
+    }
+    return box;
+  }
+
+  function selectionInfo(s) {
+    const sel = UI.campSel;
+    if (!sel) return h('p', { class: 'small muted' }, 'Выберите постройку и нажмите на клетку перед корпусом.');
+    if (sel.t) {
+      const T = G.TEXT.camp[sel.t];
+      const why = G.Camp.canBuild(s, sel.t);
+      return h('p', { class: 'small' }, h('b', null, T.icon + ' ' + T.name), ' — ' + T.desc + (why ? ' ' : ''), why ? h('span', { class: 'bad' }, why) : null);
+    }
+    const it = G.Camp.ensure(s).items.find((i) => i.id === sel.id);
+    if (!it) return null;
+    const T = G.TEXT.camp[it.t];
+    const c = G.CONFIG.camp.items[it.t];
+    return h('div', { class: 'row between small' },
+      h('span', null, h('b', null, T.icon + ' ' + T.name), ' — ' + T.desc),
+      h('button', { class: 'btn small danger', onclick: () => { G.Camp.demolish(s, it.id); UI.campSel = null; UI.commit(); } },
+        'Снести (+' + Math.floor((c.cost.scrap || 0) * G.CONFIG.camp.refund) + ' металла)'));
+  }
 
   function sectionRow(s, id) {
     const sec = s.sections[id];
@@ -13,30 +72,27 @@
     const cost = G.Base.nextCost(s, id);
     const can = s.phase === 'orders' && G.Game.ordersLeft(s) > 0;
     const check = cost ? G.Base.canRepair(s, id) : null;
-    return h('div', { class: 'section' },
-      h('div', { class: 'row between' },
-        h('div', null, h('b', null, T.name), ' ', h('span', { class: 'lvl' }, sec.level + '/' + max), ' — ', h('span', { class: sec.level ? 'good' : 'muted' }, T.levels[sec.level])),
-        cost ? h('button', { class: 'btn small', disabled: !can || !check.ok, title: check.ok ? '' : check.reason, onclick: () => UI.openBuilder('repair', id) }, '⚙ Ремонт') : h('span', { class: 'good small' }, 'восстановлен')
-      ),
-      h('div', { class: 'small muted' }, T.desc + (UI.sectionEffect ? ' ' + UI.sectionEffect(s, id) : '')),
-      cost ? h('div', { style: 'margin-top:6px' },
-        bar(sec.progress, cost.work, 'sand'),
-        h('div', { class: 'small' + (check.ok ? '' : ' warn') }, 'Следующий уровень «' + T.levels[sec.level + 1] + '»: ' +
-          (sec.paid ? 'материалы заложены' : G.Res.costText(cost)) + ' · работы ' + Math.floor(sec.progress) + '/' + cost.work + ' чел.-дней')) : null
-    );
+    const pips = [];
+    for (let k = 1; k <= max; k++) pips.push(h('i', { class: 'pip' + (k <= sec.level ? ' on' : '') }));
+    return h('div', { class: 'sec-row', title: T.desc + (UI.sectionEffect ? ' ' + UI.sectionEffect(s, id) : '') },
+      h('div', { class: 'sec-name' }, h('b', null, T.name), h('span', { class: 'pips' }, pips)),
+      cost ? h('div', { class: 'sec-bar' }, bar(sec.progress, cost.work, 'sand'),
+        h('span', { class: 'small ' + (check.ok ? 'muted' : 'warn') }, sec.paid ? 'идёт ремонт' : costChips(cost), cost.items ? ' + ' + G.Res.costText({ items: cost.items }) : ''))
+        : h('div', { class: 'sec-bar good small' }, 'восстановлен'),
+      cost ? h('button', { class: 'btn small', disabled: !can || !check.ok, title: check.ok ? '' : check.reason, onclick: () => UI.openBuilder('repair', id) }, '⚙') : null);
   }
 
   UI.sectionEffect = function (s, id) {
     const C = G.CONFIG.sections[id];
     const lv = s.sections[id].level;
     switch (id) {
-      case 'reactor': return 'Даёт ' + C.energy[lv] + ' энергии в сутки.';
-      case 'vapor': return lv ? 'Даёт ' + C.water[lv] + ' л воды в сутки.' : '';
-      case 'medbay': return lv ? 'Лечение +' + C.heal[lv] + ' в сутки; можно готовить медиков.' : 'Открывает медиков и медпакеты в бою.';
-      case 'sensors': return lv ? 'Налёты реже на ' + Math.round(C.raidReduce[lv] * 100) + '%, засады реже.' : '';
-      case 'armory': return ['Открывает: тяжёлых штурмовиков, снайперов, термодетонаторы.', 'Тяжёлые штурмовики, снайперы, термодетонаторы.', 'Лучшее оружие: точность штурмовиков +' + G.CONFIG.armoryAccBonus[2] + '.'][lv];
-      case 'workshop': return ['Открывает ремонт дроидов и установку турелей.', 'Дроиды чинятся сами; можно ставить турели.', 'Сборка новых дроидов.'][lv];
-      case 'hangar': return lv ? '' : 'Без него технику не починить.';
+      case 'reactor': return 'Сейчас +' + C.energy[lv] + ' энергии в сутки.';
+      case 'vapor': return lv ? 'Сейчас +' + C.water[lv] + ' л воды в сутки.' : '';
+      case 'medbay': return 'Открывает медиков и медпакеты в бою.';
+      case 'sensors': return 'Реже налёты и засады.';
+      case 'armory': return 'Тяжёлые штурмовики, снайперы, термодетонаторы; на 2-м уровне — точность.';
+      case 'workshop': return 'Дроиды чинятся сами; на 2-м уровне — сборка новых.';
+      case 'hangar': return 'Ремонт спидеров, шагохода и шаттла.';
       default: return '';
     }
   };
@@ -48,72 +104,35 @@
       return h('button', { class: 'btn small', disabled: !can || !!lock, title: lock || '', onclick: () => UI.openBuilder('engineer', key) }, label);
     };
     const vehicles = s.vehicles || [];
-    const P = G.CONFIG.projects;
     const droids = G.Units.droids(s);
     return h('div', { class: 'card' },
-      h('h2', null, 'Техника и укрепления'),
-      h('div', { class: 'section' },
-        h('div', { class: 'row between' },
-          h('div', null, h('b', null, 'Баррикады'), ' ', h('span', { class: 'lvl' }, (s.fort.walls || 0) + '/' + P.wall.max)),
-          (s.fort.walls || 0) < P.wall.max ? projBtn('wall', '⚒ Строить') : h('span', { class: 'good small' }, 'достроены')),
-        bar(s.fort.walls || 0, P.wall.max, 'sand'),
-        h('div', { class: 'small muted' }, 'Секции укрытий на линии обороны лагеря. Видны на поле боя при налётах. ' + G.Progress.projectInfo(s, 'wall'))),
-      h('div', { class: 'section' },
-        h('b', null, 'Машины'),
-        vehicles.length ? vehicles.map((v) => h('div', { class: 'row between', style: 'margin-top:6px' },
-          h('div', null, G.Progress.vehicleName(v), ' — ', h('span', { class: v.ok ? 'good' : 'warn' }, v.ok ? 'исправна' + (v.health < 100 ? ' (' + v.health + '%)' : '') : 'неисправна'),
-            h('div', { class: 'small muted' }, G.TEXT.vehicles[v.type].desc + (v.ok ? '' : ' ' + G.Progress.projectInfo(s, 'fix:' + v.id)))),
-          v.ok ? null : projBtn('fix:' + v.id, v.type === 'turret' ? '⚒ Установить' : '⚒ Чинить')))
-          : h('p', { class: 'small muted' }, 'Пока нет. Технику находят при разборе обломков или покупают у джав.')),
-      h('div', { class: 'section' },
-        h('div', { class: 'row between' }, h('b', null, 'Дроиды: ' + droids.length),
-          h('div', { class: 'row' }, projBtn('droid_repair', '⚒ Ремонт'), projBtn('droid_build', '⚒ Собрать нового'))),
-        droids.map((d) => h('div', { class: 'small' }, d.num + ' ' + d.name + ' — ' + d.health + '%')),
-        h('div', { class: 'small muted' }, 'Мастерская дроидов чинит их понемногу сама; сборочный цех (уровень 2) собирает новых.'))
-    );
+      h('h2', null, 'Техника'),
+      vehicles.length ? vehicles.map((v) => h('div', { class: 'row between small', style: 'margin:4px 0' },
+        h('span', null, G.Progress.vehicleName(v) + ' — ', h('span', { class: v.ok ? 'good' : 'warn' }, v.ok ? 'на ходу' : 'сломан')),
+        v.ok ? null : projBtn('fix:' + v.id, '⚒ Чинить')))
+        : h('p', { class: 'small muted' }, 'Найдите при разборе обломков или купите у джав.'),
+      h('div', { class: 'row between small', style: 'margin-top:6px' },
+        h('span', null, '🤖 Дроиды: ' + droids.map((d) => d.health + '%').join(' · ')),
+        h('span', { class: 'row' }, projBtn('droid_repair', '⚒ Чинить'), projBtn('droid_build', '⚒ Новый'))));
   }
 
   UI.views.base = function (s) {
-    const eProd = G.Base.energyProduction(s);
-    const eUse = G.Base.energyUse(s);
-    const kv = (k, v) => [h('span', { class: 'k' }, k), h('span', null, v)];
+    const eNet = G.Base.energyProduction(s) - G.Base.energyUse(s);
     const items = Object.keys(G.TEXT.items).filter((k) => s.items[k] > 0);
-    return h('div', { class: 'cols' },
+    const view = G.CampView(s, { cols: [0, 15], rows: [0, 15], build: true, maxCell: 42,
+      maxHeight: () => (UI.isLandscapePhone() ? (globalThis.innerHeight || 360) - 60 : (globalThis.innerHeight || 800) * 0.72),
+      onCell: (x, y) => onCell(s, x, y) });
+    return h('div', { class: 'cols base-cols' },
       h('div', null,
-        h('div', { class: 'card' },
-          h('h2', null, 'Отсеки «Железного Предела»'),
-          h('p', { class: 'small muted' }, 'Ремонт — это приказ: выделите бойцов, и каждый день работ приближает восстановление. Материалы списываются в первый день.'),
-          Object.keys(G.CONFIG.sections).map((id) => sectionRow(s, id))
-        )
-      ),
+        h('div', { class: 'card camp-card' }, view.el,
+          h('div', { class: 'eco' },
+            h('span', { class: 'chip' }, h('i', { class: 'ico ico-water' }), '+' + G.Base.waterProduction(s) + ' л/сут'),
+            h('span', { class: 'chip' + (eNet < 0 ? ' alert' : '') }, h('i', { class: 'ico ico-energy' }), (eNet >= 0 ? '+' : '') + eNet + '/сут'),
+            h('span', { class: 'chip' }, h('i', { class: 'ico ico-scrap' }), '~' + s.regions.crash.scrap + ' в обломках'),
+            items.map((k) => h('span', { class: 'chip' }, G.TEXT.items[k].name + ' ×' + s.items[k]))))),
       h('div', null,
-        techCard(s),
-        h('div', { class: 'card' },
-          h('h2', null, 'Хозяйство'),
-          h('div', { class: 'kv' },
-            kv('Реактор', '+' + eProd + ' энергии в сутки'),
-            kv('Потребление', '−' + eUse + ' (лагерь ' + G.CONFIG.upkeep.baseEnergy + ', дроиды и техника ' + (eUse - G.CONFIG.upkeep.baseEnergy) + ')'),
-            kv('Ёмкость батарей', G.Res.energyCap(s) + ''),
-            kv('Влагоуловители', '+' + G.Base.waterProduction(s) + ' л в сутки'),
-            kv('Металл в обломках', '~' + s.regions.crash.scrap + ' ед.')
-          )
-        ),
-        h('div', { class: 'card' },
-          h('h2', null, 'Особые запасы'),
-          items.length ? h('div', { class: 'kv' }, items.map((k) => kv(G.TEXT.items[k].name, '×' + s.items[k]))) : h('p', { class: 'muted' }, 'Пусто.'),
-          h('p', { class: 'small muted', style: 'margin-top:8px' }, 'Бакта тратится сама на тяжелораненых. Модули связи нужны для восстановления узла дальней связи.')
-        ),
-        h('div', { class: 'card' },
-          h('h2', null, 'Отношения'),
-          ['jawa', 'hutt', 'tusken'].map((f) => {
-            const v = s.relations[f];
-            return h('div', { style: 'margin-bottom:8px' },
-              h('div', { class: 'row between' }, h('span', null, G.TEXT.factions[f].name), h('span', { class: 'mono ' + (v > 10 ? 'good' : v < -10 ? 'bad' : '') }, (v > 0 ? '+' : '') + v)),
-              bar(v + 100, 200, v >= 0 ? '' : 'red'),
-              h('div', { class: 'small muted' }, G.TEXT.factions[f].desc));
-          })
-        )
-      )
-    );
+        h('div', { class: 'card' }, h('h2', null, 'Стройка'), palette(s), selectionInfo(s)),
+        h('div', { class: 'card' }, h('h2', null, 'Отсеки корабля'), Object.keys(G.CONFIG.sections).map((id) => sectionRow(s, id))),
+        techCard(s)));
   };
 })(globalThis.G = globalThis.G || {});

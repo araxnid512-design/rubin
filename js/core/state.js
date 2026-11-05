@@ -100,6 +100,7 @@
       vehicles: [],
       vehicleSeq: 0,
       fort: { walls: 0 },
+      camp: { items: [], kits: { turret: 0 }, seq: 0, migrated: true },
       projects: {},
       visitors: {},
       lastSpeechDay: -10,

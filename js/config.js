@@ -13,7 +13,7 @@
     // Множители сложности
     difficulty: {
       easy:   { upkeep: 0.8,  enemy: 0.8,  danger: 0.7, loot: 1.25, events: 0.8 },
-      normal: { upkeep: 1.05, enemy: 1.12, danger: 1.1, loot: 1.0,  events: 1.1 },
+      normal: { upkeep: 1.08, enemy: 1.2,  danger: 1.15, loot: 1.0, events: 1.1 },
       hard:   { upkeep: 1.2,  enemy: 1.3,  danger: 1.35, loot: 0.8, events: 1.25 },
     },
 
@@ -144,7 +144,7 @@
       baseChance: 0.045, perDay: 0.0025, maxChance: 0.26,
       guardReducePer: 0.03, guardReduceMax: 0.5,   // каждый часовой снижает шанс на 3% (до 50%)
       tuskenRelationFactor: 0.004,                 // отношения с таскенами
-      strengthBase: 10, strengthPerDay: 0.3,
+      strengthBase: 11, strengthPerDay: 0.32,
       alertGuards: 4,                              // столько часовых — и налёт не застанет врасплох
       surpriseMult: 1.5,
       lootWaterPerStrength: 6, lootScrapPerStrength: 2,
@@ -184,7 +184,7 @@
       { id: 'cells',      weight: 25, res: { energy: [15, 40] } },
       { id: 'water',      weight: 15, res: { water: [30, 80] } },
       { id: 'commModule', weight: 7,  items: { commModule: [1, 1] }, minSalvaged: 300, maxItem: 2 },
-      { id: 'turret',     weight: 9,  vehicle: 'turret', minSalvaged: 80 },
+      { id: 'turret',     weight: 9,  kit: 'turret', minSalvaged: 80 },
       { id: 'speeder',    weight: 6,  vehicle: 'speeder', minSalvaged: 150 },
       { id: 'walker',     weight: 3,  vehicle: 'walker', minSalvaged: 600, max: 1 },
     ],
@@ -193,7 +193,7 @@
     // Когда в районе разобрано столько металла — гарантированная находка (один раз)
     milestones: [
       { id: 'crash_comms', region: 'crash', salvaged: 350, items: { commModule: 1 } },
-      { id: 'crash_turret', region: 'crash', salvaged: 150, vehicle: 'turret' },
+      { id: 'crash_turret', region: 'crash', salvaged: 150, kit: 'turret' },
       { id: 'graveyard_speeder', region: 'graveyard', salvaged: 120, vehicle: 'speeder' },
       { id: 'graveyard_comms', region: 'graveyard', salvaged: 300, items: { commModule: 1 } },
       { id: 'graveyard_parts', region: 'graveyard', salvaged: 450, items: { hyperParts: 1 } },
@@ -312,13 +312,29 @@
       medic:  { minRank: 1, minMissions: 0, needSection: ['medbay', 1], cost: { items: { bacta: 2 } }, days: 2, campHeal: 1, campHealMax: 3 },
     },
 
+    // ---------- ОБУСТРОЙСТВО ЛАГЕРЯ ----------
+    // Постройки ставятся на поле перед корпусом (клетки x0..x1 поля боя) и видны в бою при обороне.
+    // cell: wall — низкое укрытие, low — низкий объект (укрытие, не мешает стрелять), block — закрывает обзор,
+    // unit — турель (стреляет в бою). upkeep — энергия в сутки.
+    camp: {
+      zone: { x0: 5, x1: 14 },
+      refund: 0.5,
+      items: {
+        wall:   { cost: { scrap: 25 }, max: 16, cell: 'wall' },
+        turret: { cost: { scrap: 25, energy: 25 }, max: 6, cell: 'unit', kit: true, upkeep: 1, destroyChance: 0.35 },
+        vapor:  { cost: { scrap: 75, energy: 25 }, max: 3, cell: 'block', water: 8, need: ['vapor', 1] },
+        panel:  { cost: { scrap: 60 }, max: 4, cell: 'low', energy: 4 },
+        tent:   { cost: { scrap: 35 }, max: 4, cell: 'block', heal: 1 },
+        mast:   { cost: { scrap: 40, energy: 20 }, max: 2, cell: 'block', raid: 0.12, upkeep: 1 },
+        lamp:   { cost: { scrap: 20, energy: 10 }, max: 6, cell: 'low', night: 2, upkeep: 1 },
+      },
+    },
+
     // ---------- ТЕХНИКА, УКРЕПЛЕНИЯ, ДРОИДЫ ----------
     // Инженерные работы (приказ «Инженерные работы»): cost — материалы, work — человеко-дни
     projects: {
-      wall:         { cost: { scrap: 25 }, work: 6, max: 12 },
       fix_speeder:  { needSection: ['hangar', 1], cost: { scrap: 40, energy: 20 }, work: 8 },
       fix_walker:   { needSection: ['hangar', 1], cost: { scrap: 160, energy: 60 }, work: 32 },
-      fix_turret:   { needSection: ['workshop', 1], cost: { scrap: 30, energy: 30 }, work: 8 },
       droid_repair: { needSection: ['workshop', 1], cost: { scrap: 30, energy: 20 }, work: 6, heal: 45 },
       droid_build:  { needSection: ['workshop', 2], cost: { scrap: 150, energy: 80 }, work: 30 },
       shuttle:      { needSection: ['hangar', 1], cost: { scrap: 300, energy: 150, items: { hyperParts: 2, fuel: 4 } }, work: 60 },
@@ -340,7 +356,7 @@
       strikeChance: 0.4,       // шанс ночного удара повстанцев, услышавших сигнал
       strikeStrength: 24,
       finalArmy: 'rebels',
-      finalStrength: 48,       // финальный бой перед посадкой флота
+      finalStrength: 54,       // финальный бой перед посадкой флота
       mercyStrengthMult: 0.75, // если отпустили пленного повстанца — их меньше
       shuttleCapacity: 24,
       abandonCredits: 300,

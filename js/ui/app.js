@@ -88,8 +88,21 @@
     const fit = G.Units.people(s).filter((u) => G.Units.isFit(s, u)).length;
     const ppl = G.Units.people(s).length;
     const dr = G.Units.droids(s).length;
-    const chip = (ico, label, value, cls, title) =>
-      h('span', { class: 'chip ' + (cls || ''), title: title || label }, h('i', { class: 'ico ico-' + ico }), h('span', { class: 'lbl' }, label), value);
+    // Всплывающие изменения: +87 / −108 над ресурсом, если он изменился с прошлого кадра
+    const prev = UI._prevRes && UI._prevSeed === s.seed ? UI._prevRes : null;
+    const cur = { water: s.res.water, scrap: s.res.scrap, energy: s.res.energy, credits: s.res.credits, discipline: s.res.discipline, troops: fit, droid: dr };
+    UI._prevRes = cur;
+    UI._prevSeed = s.seed;
+    const chip = (ico, label, value, cls, title) => {
+      const el = h('span', { class: 'chip ' + (cls || ''), title: title || label }, h('i', { class: 'ico ico-' + ico }), h('span', { class: 'lbl' }, label), value);
+      const key = ico === 'troops' || ico === 'droid' ? ico : ico;
+      if (prev && prev[key] != null && cur[key] !== prev[key]) {
+        const d = cur[key] - prev[key];
+        el.classList.add('bump');
+        el.appendChild(h('span', { class: 'float ' + (d > 0 ? 'pos' : 'neg') }, U.signed(d)));
+      }
+      return el;
+    };
     return h('div', { class: 'top-row' },
       h('span', { class: 'top-day' }, 'День ' + s.day),
       h('div', { class: 'chips' },
@@ -255,6 +268,23 @@
     el.style.display = 'block';
     clearTimeout(UI._flashT);
     UI._flashT = setTimeout(() => { el.style.display = 'none'; }, 3200);
+  };
+
+  // ---------- Смена суток: закат, ночь, восход ----------
+  UI.dayTransition = function (s) {
+    const old = document.querySelector('.day-fx');
+    if (old) old.remove();
+    const done = s.phase === 'orders';
+    const stars = [];
+    for (let k = 0; k < 40; k++) stars.push(h('i', { class: 'star', style: 'left:' + (Math.random() * 100).toFixed(1) + '%;top:' + (Math.random() * 60).toFixed(1) + '%;animation-delay:' + (Math.random() * 0.6).toFixed(2) + 's' }));
+    const el = h('div', { class: 'day-fx' + (done ? '' : ' short') },
+      h('div', { class: 'fx-sky' }), h('div', { class: 'fx-stars' }, stars),
+      h('div', { class: 'fx-sun s1' }), h('div', { class: 'fx-sun s2' }),
+      h('div', { class: 'fx-dunes' }),
+      h('div', { class: 'fx-text' }, h('div', { class: 't-night' }, 'Ночь над лагерем'), done ? h('div', { class: 't-day' }, 'День ' + s.day) : null));
+    el.addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), done ? 2300 : 1300);
   };
 
   // ---------- Телефон, ориентация, полный экран ----------

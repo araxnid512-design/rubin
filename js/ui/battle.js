@@ -17,6 +17,14 @@
     4: '#8b8e93', // баррикада
   };
 
+  // Скорость просмотра боя запоминается (по умолчанию ×2 — динамичнее)
+  UI.battleSpeed = function (v) {
+    try {
+      if (v) localStorage.setItem('kolrat.speed', String(v));
+      return Number(localStorage.getItem('kolrat.speed')) || 2;
+    } catch (e) { return v || 2; }
+  };
+
   // ================= ПРОСМОТР БОЯ =================
   G.BattleView = function (opts) {
     const res = opts.res;
@@ -24,13 +32,13 @@
     const W = res.map.w, H = res.map.h;
     const tps = G.CONFIG.battle.playbackTps;
     const ranks = setup.sides[0].units.map((e) => e.rank || 0);
-    const st = { tick: 0, playing: opts.autoplay !== false, speed: 1, shownLog: 0, ended: false, destroyed: false, last: 0 };
+    const st = { tick: 0, playing: opts.autoplay !== false, speed: UI.battleSpeed(), shownLog: 0, ended: false, destroyed: false, last: 0 };
 
     const canvas = h('canvas', { class: 'bv-canvas' });
     const ctx = canvas.getContext('2d');
     const timeEl = h('span', { class: 'mono muted small' });
     const playBtn = h('button', { class: 'btn small', onclick: () => { if (st.ended) { st.tick = 0; st.shownLog = 0; logEl.textContent = ''; st.ended = false; } st.playing = !st.playing; syncBtns(); } });
-    const speedBtns = [1, 2, 4].map((sp) => h('button', { class: 'btn small', onclick: () => { st.speed = sp; syncBtns(); } }, '×' + sp));
+    const speedBtns = [1, 2, 4].map((sp) => h('button', { class: 'btn small', onclick: () => { st.speed = sp; UI.battleSpeed(sp); syncBtns(); } }, '×' + sp));
     const skipBtn = h('button', { class: 'btn small', onclick: () => { st.tick = res.ticks; st.playing = false; syncBtns(); } }, '⏭ к итогам');
     const logEl = h('div', { class: 'bv-log' });
     const legend = h('div', { class: 'small muted bv-legend' },

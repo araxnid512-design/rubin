@@ -230,7 +230,10 @@
     for (const m of G.CONFIG.milestones || []) {
       if (m.region !== regionId || done[m.id] || (s.regions[regionId].salvaged || 0) < m.salvaged) continue;
       done[m.id] = true;
-      if (m.vehicle && G.Progress) {
+      if (m.kit) {
+        G.Camp.ensure(s).kits[m.kit] = (s.camp.kits[m.kit] || 0) + 1;
+        say(s, G.TEXT.milestones[m.id], 'good');
+      } else if (m.vehicle && G.Progress) {
         const v = G.Progress.addVehicle(s, rng, m.vehicle, false);
         say(s, U.fill(G.TEXT.milestones[m.id], { name: G.Progress.vehicleName(v) }), 'good');
       } else {
@@ -246,6 +249,11 @@
       (!f.max || !f.vehicle || G.Progress.vehiclesOf(s, f.vehicle).length < f.max));
     const f = rng.weighted(list, (x) => x.weight);
     if (!f) return;
+    if (f.kit) {
+      G.Camp.ensure(s).kits[f.kit] = (s.camp.kits[f.kit] || 0) + 1;
+      say(s, G.TEXT.finds[f.id], 'good');
+      return;
+    }
     if (f.vehicle) {
       const v = G.Progress.addVehicle(s, rng, f.vehicle, false);
       say(s, U.fill(G.TEXT.finds[f.id], { name: G.Progress.vehicleName(v) }), 'good');

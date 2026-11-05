@@ -101,10 +101,6 @@
     for (let i = 0; i < d; i++) blob(m, rng, rng.int(12, m.w - 3), rng.int(1, m.h - 2), 2, 1, T.DUNE, 0.6);
     const r = rng.int(2, 4);
     for (let i = 0; i < r; i++) blob(m, rng, rng.int(14, m.w - 4), rng.int(1, m.h - 2), 1, 1, T.ROCK, 0.7);
-    // Баррикады (укрепления лагеря) — дуга перед позицией
-    const walls = Math.min(12, (spec && spec.walls) || 0);
-    const rows = [7, 8, 5, 10, 3, 12, 6, 9, 2, 13, 4, 11];
-    for (let i = 0; i < walls; i++) set(m, 10 + (Math.abs(rows[i] - 7.5) > 4 ? -1 : 0), rows[i], T.WALL);
   };
 
   // Крепость: каменные стены с воротами вокруг позиции защитника
@@ -121,11 +117,14 @@
     const C = G.CONFIG.battle;
     const m = make(C.w, C.h);
     const type = (spec && spec.type) || 'desert';
+    // Местность лагеря постоянна в кампании (зерно лагеря), постройки игрока — поверх неё
+    if (type === 'camp' && spec.campSeed != null) rng = G.Rng.make(spec.campSeed);
     (gen[type] || gen.desert)(m, rng, spec);
     if (type !== 'camp') clearZone(m, rng, 0, 2, 0.15);
     else clearZone(m, rng, 5, 9, 0.3);
     if (type !== 'fort') clearZone(m, rng, m.w - 3, m.w - 1, 0.15);
     ensurePath(m, rng);
+    if (spec && spec.layout && G.Camp) G.Camp.applyLayout(m, spec.layout);
     m.type = type;
     return m;
   };

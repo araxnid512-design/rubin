@@ -121,10 +121,9 @@ function smartOrders(s) {
     if (built) break;
   }
   if (!built) {
-    const eng = ['shuttle', 'wall'].concat((s.vehicles || []).filter((v) => !v.ok).map((v) => 'fix:' + v.id));
+    const eng = ['shuttle'].concat((s.vehicles || []).filter((v) => !v.ok).map((v) => 'fix:' + v.id));
     for (const key of eng) {
       if (G.Progress.projectTargets(s).indexOf(key) < 0 || G.Progress.projectLock(s, key)) continue;
-      if (key === 'wall' && s.fort.walls >= 6) continue;
       built = add(s, 'engineer', key, 10, 2);
       if (built) break;
     }
@@ -149,7 +148,17 @@ function smartOrders(s) {
   if (G.Game.ordersLeft(s) > 0 && (s.signal || G.Day.raidChance(s) > 0.15)) add(s, 'guard', null, 8, 0);
 }
 
+// Обустройство лагеря: баррикады перед строем, турели, панели и влагоуловители при избытке металла
+function buildCamp(s) {
+  const tryAt = (t, xs, ys) => { for (const x of xs) for (const y of ys) if (!G.Camp.canBuild(s, t, x, y)) { G.Camp.build(s, t, x, y); return true; } return false; };
+  while (G.Camp.ensure(s).kits.turret > 0 && tryAt('turret', [11, 12], [4, 7, 10, 13, 2])) { /* ставим все турели */ }
+  if (s.res.scrap > 220 && G.Camp.count(s, 'wall') < 8) tryAt('wall', [11], [3, 5, 7, 9, 11, 13, 1, 15]);
+  if (s.res.scrap > 260 && s.res.energy > 60) tryAt('vapor', [6, 7], [1, 14, 2, 13]);
+  if (s.res.scrap > 260) tryAt('panel', [6, 7], [0, 15, 3, 12]);
+}
+
 function botDay(s) {
+  buildCamp(s);
   smartOrders(s);
   G.Game.endDay(s);
   resolvePending(s);
