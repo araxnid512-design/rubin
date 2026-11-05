@@ -1281,13 +1281,14 @@ try {
 	check(chg.v > 0 && chg.n >= 3 && rch.bad.length === 0 && rch.exits === 0, `Дачи после перезагрузки другие: ${chg.n} новых завалов (${chg.kinds}), все ${rch.n} тайников и выходы достижимы${rch.bad.length ? ' — нет пути к ' + rch.bad.join(', ') : ''}`);
 
 	// перезагрузка кластера, пока герой внутри: кислый запах, муть, смерть; очнулся в стабе без рюкзака
-	await G(page, () => { const g = window.__game; g.bag.spore = 7; g.bag.ammo545 = 11; g.world.clusters.dachi.next = g.world.time + 20; });
+	// (заражённые в кисляк звереют и бьют — герой должен дожить до перезагрузки, поэтому удары по нему на это время отключены)
+	await G(page, () => { const g = window.__game; g.player.hurt = () => {}; g.bag.spore = 7; g.bag.ammo545 = 11; g.world.clusters.dachi.next = g.world.time + 20; });
 	await page.waitForFunction(() => window.__game.warnStage >= 1, null, { timeout: 60000 }).catch(() => {});
 	const sour = await G(page, () => ({ fog: window.__game.level && document.getElementById('sour').style.opacity, stage: window.__game.warnStage, rage: window.__game.rage ?? 0 }));
 	await page.screenshot({ path: join(OUT, 'game-sour.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
 	check(sour.stage >= 1 && +sour.fog > 0.2 && sour.rage > 0, `перед перезагрузкой — кисляк: муть (дымка ${sour.fog}), заражённые звереют (${sour.rage.toFixed(2)})`);
 	await page.waitForSelector('#gameover:not(.hidden)', { timeout: 90000 }).catch(() => {});
-	const dead = await G(page, () => ({ title: document.getElementById('go-title').textContent, stats: document.getElementById('go-stats').textContent }));
+	const dead = await G(page, () => { delete window.__game.player.hurt; return { title: document.getElementById('go-title').textContent, stats: document.getElementById('go-stats').textContent }; });
 	check(dead.title === 'Кластер перезагрузился' && /При тебе: споран ×([7-9]|\d\d)/.test(dead.stats) && /Останется там: .*патроны 5,45×39 ×11/.test(dead.stats), `не успел уйти: «${dead.title}», ${dead.stats}`);
 	await page.click('#btn-respawn');
 	await page.waitForFunction(() => window.__game.loc === 'stab' && window.__game.state === 'play', null, { timeout: 60000 });
