@@ -1,9 +1,11 @@
 // Наёмники стаба: у каждого своё постоянное оружие. Еда им не нужна — нужны патроны их калибра
 // (сами перезаряжаются из своего запаса) и аптечки: сами они не лечатся.
 // Нанимают у костра в стабе; нанятый живёт в комнате героя (там шесть коек) и стоит у своей койки.
-// Снарядить его — дать патроны и аптечку — и взять с собой можно только там: в бою пополнить нечем,
-// а без патронов боец гибнет от первой же атаки, так что запас продумывают заранее. В отряде — не больше
-// четырёх (MAX_PARTY); вернувшись в стаб, уцелевшие снова расходятся по койкам. Служит, пока жив.
+// Взять с собой или оставить — только там. Снарядить — дать патроны, аптечку, перевязки медику, гранаты подрывнику —
+// можно и в вылазке: подойди к бойцу, когда рядом нет врагов (кнопка «Снарядить»), или из окна отряда, стоя рядом.
+// Без патронов боец гибнет от первой же атаки. В отряде — не больше четырёх (MAX_PARTY); вернувшись в стаб,
+// уцелевшие снова расходятся по койкам. Служит, пока жив. Заражённый подобрался близко — боец пятится к герою лицом
+// к нему и стреляет (retreat — с какого расстояния).
 // Каждый — своего класса: штурмовик, снайпер, пулемётчик, охотник, медик, подрывник.
 
 import { WEAPONS, AMMO } from './weapons.js';
@@ -17,12 +19,12 @@ import { NODES, approx } from './world.js';
  * остальные — вблизи.
  */
 export const CLASSES = {
-	assault: { name: 'Штурмовик', short: 'ШТ', keep: 2.3, burst: [3, 5], desc: 'Держится рядом, бьёт короткими очередями по ближайшим.' },
-	sniper: { name: 'Снайпер', short: 'СН', keep: 4.2, prefer: 'far', kite: 3.5, desc: 'Идёт поодаль, первым снимает топтунов и дальних. Вблизи беззащитен — отходит.' },
-	gunner: { name: 'Пулемётчик', short: 'ПУЛ', keep: 2.9, burst: [9, 15], plant: true, desc: 'Держит толпу длинными очередями; стреляет стоя, перезаряжается долго.' },
-	hunter: { name: 'Охотник', short: 'ОХ', keep: 1.9, desc: 'Подпускает близко и бьёт картечью почти без промаха.' },
-	medic: { name: 'Медик', short: 'МЕД', keep: 1.7, burst: [2, 4], heals: true, desc: 'Держится ближе всех и лечит героя и отряд из своей аптечки — пополняй её.' },
-	sapper: { name: 'Подрывник', short: 'ПОД', keep: 2.6, burst: [3, 4], grenades: true, desc: 'Кидает Ф-1 в кучу заражённых или в топтуна, если свои не рядом с целью. Гранаты даёшь ты.' },
+	assault: { name: 'Штурмовик', short: 'ШТ', keep: 2.3, burst: [3, 5], retreat: 3, desc: 'Держится рядом, бьёт короткими очередями по ближайшим; прёт заражённый — отходит, стреляя.' },
+	sniper: { name: 'Снайпер', short: 'СН', keep: 4.2, prefer: 'far', retreat: 5, desc: 'Идёт поодаль, первым снимает топтунов и дальних. Вблизи беззащитен — заранее отходит, стреляя.' },
+	gunner: { name: 'Пулемётчик', short: 'ПУЛ', keep: 2.9, burst: [9, 15], plant: true, retreat: 2.6, desc: 'Держит толпу длинными очередями; стреляет стоя, перезаряжается долго. Вплотную — пятится с огнём от бедра.' },
+	hunter: { name: 'Охотник', short: 'ОХ', keep: 1.9, retreat: 1.9, desc: 'Подпускает близко и бьёт картечью почти без промаха; отходит, только когда вцепились.' },
+	medic: { name: 'Медик', short: 'МЕД', keep: 1.7, burst: [2, 4], heals: true, retreat: 3.4, desc: 'Держится ближе всех и лечит героя и отряд из своей аптечки — пополняй её.' },
+	sapper: { name: 'Подрывник', short: 'ПОД', keep: 2.6, burst: [3, 4], grenades: true, retreat: 3, desc: 'Кидает Ф-1 в кучу заражённых или в топтуна, если свои не рядом с целью. Гранаты даёшь ты.' },
 };
 
 export const MERCS = {
@@ -100,12 +102,12 @@ export function resolveTrip(st, danger = 1, bonus = false) {
 const $ = (id) => document.getElementById(id);
 
 /**
- * Окно отряда: кто идёт с героем и кто ждёт в комнате. Патроны, аптечка, взять/оставить — только в комнате
- * героя (подойдя к бойцу — его карточка); в остальных местах окно только показывает, как они. У вербовщика
- * у костра — ещё и кого можно нанять.
+ * Окно отряда: кто идёт с героем и кто ждёт в комнате. Взять/оставить — только в комнате героя; патроны, аптечку,
+ * перевязки и гранаты — в комнате, на базе и в вылазке бойцу, рядом с которым стоишь (game.canEquip; подошёл к нему —
+ * его карточка). У вербовщика у костра — ещё и кого можно нанять.
  */
 export class PartyWindow {
-	/** game: { roster, party, bag, icons, inRoom, hire(id), giveAmmo(id), healMerc(id), giveMeds(id), giveNade(id), takeMerc(id), leaveMerc(id), dismiss(id), setPaused(bool) } */
+	/** game: { roster, party, bag, icons, inRoom, canEquip(id), hire(id), giveAmmo(id, all), healMerc(id), giveMeds(id), giveNade(id), takeMerc(id), leaveMerc(id), dismiss(id), setPaused(bool) } */
 	constructor(game) {
 		this.game = game;
 		this.el = $('party');
@@ -116,6 +118,7 @@ export class PartyWindow {
 			if (!b || b.disabled) return;
 			const g = this.game, id = b.dataset.id;
 			if (b.dataset.act === 'ammo') g.giveAmmo(id);
+			if (b.dataset.act === 'ammoAll') g.giveAmmo(id, true);
 			if (b.dataset.act === 'heal') g.healMerc(id);
 			if (b.dataset.act === 'meds') g.giveMeds(id);
 			if (b.dataset.act === 'nade') g.giveNade(id);
@@ -161,13 +164,15 @@ export class PartyWindow {
 		$('party-spores').textContent = bag.spore ?? 0;
 		const card = (m) => {
 			const D = MERCS[m.id], C = CLASSES[D.cls], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag);
+			// снарядить можно в комнате, на базе и в вылазке — стоя рядом с бойцом
+			const here = room || !!g.canEquip?.(m.id);
 			let move = '';
 			if (room && m.out) move = `<button class="stay small" data-act="leave" data-id="${m.id}">Оставить у койки</button>`;
 			if (room && !m.out) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
 			// своё снаряжение класса: аптечка медика, гранаты подрывника
 			let kit = '', stock = '';
-			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; if (room) kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 ? '' : 'disabled'}>В аптечку перевязку <small>(есть ${bag.medkit ?? 0})</small></button>`; }
-			if (C.grenades) { stock = ` · гранат ${m.nades ?? 0}`; if (room) kit = `<button class="buy" data-act="nade" data-id="${m.id}" ${(bag.grenade ?? 0) > 0 ? '' : 'disabled'}>Ф-1 +1 <small>(есть ${bag.grenade ?? 0})</small></button>`; }
+			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; if (here) kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 ? '' : 'disabled'}>В аптечку перевязку <small>(есть ${bag.medkit ?? 0})</small></button>`; }
+			if (C.grenades) { stock = ` · гранат ${m.nades ?? 0}`; if (here) kit = `<button class="buy" data-act="nade" data-id="${m.id}" ${(bag.grenade ?? 0) > 0 ? '' : 'disabled'}>Ф-1 +1 <small>(есть ${bag.grenade ?? 0})</small></button>`; }
 			const dry = m.mag + m.ammo <= 0;
 			return `<div class="merc" data-merc="${m.id}">
 				${face(m.id)}
@@ -176,13 +181,14 @@ export class PartyWindow {
 					<span>здоровье ${Math.ceil(m.hp)}/${D.hp} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo} (${AMMO[W.ammo]})${dry ? ' — без патронов не отобьётся' : ''}</span>${stock}</span></div>
 				<div class="merc-btns">
 					${move}
-					${room ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
+					${here ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
+					${spare > W.mag ? `<button class="buy" data-act="ammoAll" data-id="${m.id}">Все ${spare}</button>` : ''}
 					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Аптечка +${MERC_HEAL} <small>(есть ${bag.medkit ?? 0})</small></button>` : ''}
 					${kit}
 					${this.hiring ? `<button class="stay small" data-act="dismiss" data-id="${m.id}">Отпустить совсем</button>` : ''}
 				</div></div>`;
 		};
-		const home = g.roster.filter((m) => !m.out && !m.job), one = room && g.roster.find((m) => m.id === this.focus && !m.job);
+		const home = g.roster.filter((m) => !m.out && !m.job), one = (room || g.canEquip?.(this.focus)) && g.roster.find((m) => m.id === this.focus && !m.job);
 		const busy = g.roster.filter((m) => m.job);
 		let html = '';
 		if (one) {
@@ -196,7 +202,7 @@ export class PartyWindow {
 				html += room || this.hiring ? home.map(card).join('') : `<div class="muted">${home.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
 			}
 			if (busy.length) html += `<div class="trade-sec">На базе «Опорный» (${busy.length})</div><div class="muted">${busy.map((m) => `${MERCS[m.id].name} — ${jobText(m, g)}`).join('; ')}.</div>`;
-			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойцов — патроны, аптечка — и взять с собой можно только в твоей комнате в стабе, у их коек (и на базе — в казарме).</div>';
+			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойца — патроны, аптечка, перевязки, гранаты — подойди к нему (когда рядом нет врагов — «Снарядить»). Взять с собой или оставить — только в твоей комнате в стабе, у коек.</div>';
 		}
 		if (this.hiring) {
 			// вербовщик: свободные бойцы по классам
@@ -216,7 +222,7 @@ export class PartyWindow {
 			}
 		}
 		$('party-list').innerHTML = html;
-		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: подойди к бойцу — дашь патроны их калибра и аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), возьмёшь с собой или оставишь. В бою пополнить нечем, а без патронов боец гибнет — продумывай запас заранее. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись в стаб, они снова у коек. Медику пополняй аптечку, подрывнику — гранаты.`;
+		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: там берёшь с собой или оставляешь. Снарядить — патроны их калибра, аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), медику перевязки, подрывнику гранаты — можно и в вылазке: подойди к бойцу, когда рядом нет врагов. Без патронов боец гибнет. Прёт заражённый — бойцы пятятся к тебе и стреляют. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись в стаб, они снова у коек.`;
 	}
 
 	/** На базе: каждого бойца — на пост (часовой, оборона выше) или на вылазку в кластер без героя; снарядить. */

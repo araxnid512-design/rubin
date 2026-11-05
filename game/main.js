@@ -385,8 +385,13 @@ function flowStep(dist, pos) {
 function lineOfSight(a, b) {
 	const { N, CELL, blocked, cell } = level.nav;
 	const d = Math.hypot(b.x - a.x, b.z - a.z), steps = Math.ceil(d / (CELL * 0.5));
+	// стоящий вплотную к машине или стене — в «занятой» клетке (сетка с запасом на радиус): первые (последние) полметра
+	// пути от такой точки не считаем — иначе боец у машины не видит заражённого в шаге от себя и не стреляет
+	const [ax, az] = cell(a.x, a.z), [bx, bz] = cell(b.x, b.z);
+	const t0 = blocked[az * N + ax] ? 0.55 / (d || 1) : 0, t1 = blocked[bz * N + bx] ? 1 - 0.55 / (d || 1) : 1;
 	for (let i = 1; i < steps; i++) {
 		const t = i / steps;
+		if (t < t0 || t > t1) continue;
 		const [gx, gz] = cell(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t);
 		if (blocked[gz * N + gx]) return false;
 	}
@@ -436,16 +441,22 @@ class Actor {
 	get pos() { return this.root.position; }
 
 	play(name, { fade = 0.18, once = false, timeScale = 1, restart = false } = {}) {
-		// стоя корпус ушёл от ног далеко — вместо стойки ноги переступают (клип разворота с тем же положением рук)
-		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = LEG_TURN / TURN_CLIP; }
+		// стоя (и стреляя) корпус ушёл от ног далеко — вместо стойки ноги переступают (клип разворота с тем же положением
+		// рук); клип переступания не перезапускается с каждым выстрелом — иначе ноги дёргаются на месте
+		let turn = false;
+		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = LEG_TURN / TURN_CLIP; once = false; turn = true; }
 		const a = this.actions[name];
 		if (!a) return null;
 		a.timeScale = timeScale;
-		if (this.current === name && !restart) return a;
+		if (this.current === name && (!restart || turn)) return a;
 		const prev = this.current && this.actions[this.current];
+		// шаг → шаг (в прицеле в другую сторону, шаг → бег): новый клип — с той же фазы шага, иначе при смешивании
+		// ноги из разных фаз дают «строевой» подъём колена и скольжение
+		const phase = prev && !once && LOCO.test(name) && LOCO.test(this.current) ? prev.time / prev.getClip().duration : null;
 		a.reset();
 		a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
 		a.clampWhenFinished = once;
+		if (phase != null) a.time = (phase % 1) * a.getClip().duration;
 		a.play();
 		if (prev && prev !== a) a.crossFadeFrom(prev, fade, false);
 		this.current = name;
@@ -467,7 +478,13 @@ class Actor {
 		const set = aim && AIM_SET[clips.walk];
 		const rel = wrapAngle(Math.atan2(dx, dz) - this.root.rotation.y);
 		if (set && this.actions[`${set.prefix}F`]) {
-			const i = ((Math.round(rel / (Math.PI / 4)) % 8) + 8) % 8, d = DIRS8[i];
+			let i = ((Math.round(rel / (Math.PI / 4)) % 8) + 8) % 8;
+			// запас 12° у границы соседних направлений: пока ход не ушёл явно, клип прежний (корпус доворачивает к цели —
+			// угол хода к корпусу гуляет, клипы BR → R → B менялись бы каждые полсекунды)
+			const prevI = this.aimDir;
+			if (prevI != null && prevI !== i && Math.abs(wrapAngle(rel - prevI * (Math.PI / 4))) < Math.PI / 8 + 0.21) i = prevI;
+			this.aimDir = i;
+			const d = DIRS8[i];
 			this.legTarget = wrapAngle(rel - i * (Math.PI / 4));
 			const clip = `${set.prefix}${d}`;
 			const natural = HERO_GAIT8[set.gait][d][0];
@@ -475,6 +492,7 @@ class Actor {
 			return clip;
 		}
 		// ноги по ходу; если ход за спиной корпуса — корпус всё равно повернёт к ходу (игра), ноги сразу по ходу
+		this.aimDir = null;
 		this.legTarget = Math.abs(rel) < LEG_MAX ? rel : 0;
 		const clip = run ? clips.run : clips.walk;
 		this.play(clip, { timeScale: speed / HERO_GAIT[clip] });
@@ -573,7 +591,9 @@ const UP = new THREE.Vector3(0, 1, 0);
 // ход в прицеле: набор клипов 8 направлений (src/hero-animations.js, AIM_WALK) по клипу шага в руках; скорость — HERO_GAIT8
 const AIM_SET = { WalkRifle: { prefix: 'AimWalkRifle_', gait: 'WalkRifle' }, WalkPistol: { prefix: 'AimWalkPistol_', gait: 'WalkPistol' } };
 // стойка → разворот на месте с тем же положением рук (ноги переступают)
-const TURN_OF = { Idle: 'Turn', IdleRifle: 'TurnRifle', AimRifle: 'TurnAimRifle', IdlePistol: 'TurnPistol', AimPistol: 'TurnAimPistol' };
+const TURN_OF = { Idle: 'Turn', IdleRifle: 'TurnRifle', AimRifle: 'TurnAimRifle', ShootRifle: 'TurnAimRifle', IdlePistol: 'TurnPistol', AimPistol: 'TurnAimPistol', Shoot: 'TurnAimPistol' };
+// клипы хода — между ними фаза шага сохраняется (Actor.play)
+const LOCO = /^(Walk|Run|AimWalk)/;
 // стоя ноги переступают за корпусом, когда он ушёл дальше TURN_START (рад, ~20°: иначе при стрельбе ноги смотрят в одну
 // сторону, а корпус — в другую), со скоростью LEG_TURN (рад/с; клип переступания запечён под TURN_CLIP — темп по ней);
 // дальше LEG_MAX (~80°) позвоночник не скручивается — ноги тянутся за корпусом сразу
@@ -1004,7 +1024,9 @@ class Player extends Actor {
 		// хода (ствол уже на цели), отдача — толчком (kick)
 		const c = this.clips;
 		const aiming = this.current === c.shoot || this.current === c.aim || this.aimWalking;
-		if (!this.aimWalking) this.play(c.shoot, { once: true, fade: aiming ? 0.03 : 0.07, restart: true });
+		// на ходу — клип хода (ствол уже на цели), отдача — толчком: клип выстрела стоя заморозил бы ноги посреди шага
+		const walking = this.aimWalking || (this.moveMag ?? 0) > 0.12;
+		if (!walking) this.play(c.shoot, { once: true, fade: aiming ? 0.03 : 0.07, restart: true });
 		this.cooldown = W.cooldown;
 		this.busy = W.anim === 'rifle' ? 0.14 : 0.25;
 		this.aim = 0.9;
@@ -1118,6 +1140,7 @@ class Player extends Actor {
 
 		const mv = input.move;
 		const mag = Math.min(1, Math.hypot(mv.x, mv.y));
+		this.moveMag = mag;
 		const c = this.clips;
 		// в прицеле (после выстрела ствол ещё держится, спуск зажат) корпус смотрит на цель; шагом — ноги идут, куда
 		// ведёт стик (клип направления относительно корпуса), бегом прицел не держат — корпус по ходу
@@ -1175,9 +1198,14 @@ class Player extends Actor {
 		const barrel = game.barrelTarget(this.pos, range);
 		const blast = W.proj && shot ? game.blastTarget(this.pos, W) : null;
 		if (barrel || blast) return (this.aimTarget = barrel ?? blast);
-		const near = game.nearestEnemy(this.pos, range + (shot ? 0 : 1.5), true);
-		const keep = cur?.alive && !(cur instanceof FuelBarrel) && dist(cur) <= range + (shot ? 0 : 1.5) && lineOfSight(this.pos, cur.pos);
-		if (!keep || (near && near !== cur && dist(near) < dist(cur) * 0.6)) this.aimTarget = near;
+		// берём цель до дальности +1 м, держим до +2 м: на границе дальности цель не теряется и не находится снова каждые 0,3 с
+		const near = game.nearestEnemy(this.pos, range + (shot ? 0 : 1), true);
+		const sight = cur?.alive && lineOfSight(this.pos, cur.pos);
+		if (sight) this.lostAt = null; else this.lostAt ??= game.time;
+		// пропала из виду меньше чем на 0,6 с (угол машины, столб) — держим (пуля упрётся в препятствие): иначе корпус
+		// дёргается туда-сюда между целью и направлением хода
+		const keep = cur?.alive && !(cur instanceof FuelBarrel) && dist(cur) <= range + (shot ? 0 : 2) && (sight || game.time - this.lostAt < 0.6);
+		if (!keep || (near && near !== cur && dist(near) < dist(cur) * 0.6)) { this.aimTarget = near; this.lostAt = null; }
 		return this.aimTarget;
 	}
 }
@@ -1826,17 +1854,17 @@ class Merc extends Actor {
 			this.retarget = 0.35;
 			this.target = this.pickTarget(W.range); // та же дальность, что у героя с этим оружием
 		}
-		const t = this.target;
-		// снайпер вблизи беззащитен: от заражённого, подобравшегося вплотную, отходит (к герою, а не от него)
-		const close = C.kite && this.reloading <= 0 ? game.nearestEnemy(this.pos, C.kite) : null;
-		const follow = dP > (t ? 12 + C.keep - 2.3 : C.keep + 1.1);
+		// заражённый прёт и уже близко — отходим, не прекращая огня: лицом к нему, шагом назад в прицеле, к герою
+		const close = this.threat(C.retreat ?? 3);
+		const t = close ?? this.target;
+		const follow = !close && dP > (t ? 12 + C.keep - 2.3 : C.keep + 1.1);
 		let shooting = false;
-		if (t && !follow && !close) {
+		if (t && !follow) {
 			shooting = true;
-			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, t.pos), dt * 8);
+			this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, t.pos), dt * (close ? 12 : 8));
 			const facing = Math.abs(((angleTo(this.pos, t.pos) - this.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.35;
-			// пулемётчик сначала встаёт и упирает приклад
-			const ready = !C.plant || this.planted > 0.45;
+			// пулемётчик сначала встаёт и упирает приклад; пятясь — бьёт от бедра
+			const ready = !C.plant || this.planted > 0.45 || !!close;
 			if (st.mag <= 0) {
 				if (st.ammo > 0 && this.reloading <= 0) this.startReload();
 				else if (st.ammo <= 0 && !this.warned) { this.warned = true; game.toast(`${this.def.name}: патроны кончились — без них не отобьётся!`, 'warn'); }
@@ -1845,18 +1873,16 @@ class Merc extends Actor {
 		// строй: держится сзади героя; во время стрельбы стоит
 		const s = this.spot();
 		const dS = Math.hypot(s.x - this.pos.x, s.z - this.pos.z);
-		if (close || (!shooting && dS > 0.9) || follow) {
-			let dir;
-			if (close) {
-				// отход: прочь от заражённого, с уклоном к герою
-				dir = tmpV.set(this.pos.x - close.pos.x, 0, this.pos.z - close.pos.z).normalize();
-				dir.x += (p.pos.x - this.pos.x) / (dP || 1) * 0.6; dir.z += (p.pos.z - this.pos.z) / (dP || 1) * 0.6;
-				dir.normalize();
-			} else dir = lineOfSight(this.pos, s) ? tmpV.set(s.x - this.pos.x, 0, s.z - this.pos.z).normalize() : game.flowDir(this.pos);
+		// отход: прочь от заражённого с уклоном к герою, в обход стен; некуда — стоит и стреляет
+		const back = close ? this.retreatDir(close, p, dP) : null;
+		if (back || (!close && ((!shooting && dS > 0.9) || follow))) {
+			let dir = back;
+			if (!dir) dir = lineOfSight(this.pos, s) ? tmpV.set(s.x - this.pos.x, 0, s.z - this.pos.z).normalize() : game.flowDir(this.pos);
 			dir ??= tmpV.set(p.pos.x - this.pos.x, 0, p.pos.z - this.pos.z).normalize();
-			const run = close || dP > 6 || dS > 4;
-			const speed = (run ? 4.6 : Math.min(1.7, 0.6 + dS)) * (C.plant ? 0.88 : 1); // с пулемётом — тяжелее
-			this.walk(dir, speed, run, !shooting || close, dt);
+			const run = !back && (dP > 6 || dS > 4);
+			// пятится шагом в прицеле (бегун всё равно догонит — но под огнём), догоняет героя бегом
+			const speed = back ? 2.1 : (run ? 4.6 : Math.min(1.7, 0.6 + dS)) * (C.plant ? 0.88 : 1); // с пулемётом — тяжелее
+			this.walk(dir, speed, run, !shooting, dt);
 			this.planted = 0;
 		} else {
 			this.planted += dt;
@@ -1868,6 +1894,34 @@ class Merc extends Actor {
 		}
 		resolveCollisions(this.pos, this.radius, level.colliders);
 		return true;
+	}
+
+	/** Заражённый, который прёт на бойца и уже ближе r (на виду): от него отходят, стреляя. Люди (муры) — не в счёт. */
+	threat(r) {
+		let best = null, bd = r;
+		for (const e of game.enemies) {
+			if (!e.alive || e.state === 'idle') continue;
+			const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+			if (d < bd && lineOfSight(this.pos, e.pos)) { bd = d; best = e; }
+		}
+		return best;
+	}
+
+	/**
+	 * Куда пятиться от заражённого: прочь от него, к герою (далеко от героя — сильнее к нему), в обход стен и машин —
+	 * пробует отклонения ±35°, ±70°, ±100°; всё занято — null (стоит и стреляет).
+	 */
+	retreatDir(threat, p, dP) {
+		let bx = this.pos.x - threat.pos.x, bz = this.pos.z - threat.pos.z;
+		const bl = Math.hypot(bx, bz) || 1, k = dP > 8 ? 1.4 : 0.4;
+		bx = bx / bl + ((p.pos.x - this.pos.x) / (dP || 1)) * k;
+		bz = bz / bl + ((p.pos.z - this.pos.z) / (dP || 1)) * k;
+		const base = Math.atan2(bx, bz);
+		for (const off of [0, 0.6, -0.6, 1.2, -1.2, 1.75, -1.75]) {
+			const a = base + off, dx = Math.sin(a), dz = Math.cos(a);
+			if (!level.nav.blockedAt(this.pos.x + dx * 1.1, this.pos.z + dz * 1.1, 0.35)) return tmpV.set(dx, 0, dz);
+		}
+		return null;
 	}
 
 	/** Шаг в сторону dir: не наступает на героя и соседей; turn — разворачиваться по ходу. */
@@ -2038,7 +2092,8 @@ class Merc extends Actor {
 	fire(target) {
 		const W = this.W;
 		this.state.mag--;
-		this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
+		// на ходу (пятится, выходит из-за угла) — клип хода не прерываем: клип выстрела стоя заморозил бы ноги посреди шага
+		if (!LOCO.test(this.current ?? '')) this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
 		Sfx.gun(this.def.weapon, shotKind(W), game.ear(this.pos));
 		game.noise(this.pos, W.noise, true);
 		if (W.auto < 0.2) {
@@ -2524,7 +2579,8 @@ class Bandit extends Actor {
 	fire(target) {
 		const W = this.W;
 		this.mag--;
-		this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
+		// на ходу (пятится, выходит из-за угла) — клип хода не прерываем: клип выстрела стоя заморозил бы ноги посреди шага
+		if (!LOCO.test(this.current ?? '')) this.play(this.clips.shoot, { once: true, fade: 0.04, restart: true });
 		Sfx.gun(this.weapon, shotKind(W), game.ear(this.pos));
 		game.noise(this.pos, W.noise);
 		if (W.auto < 0.2) {
@@ -4078,6 +4134,9 @@ const game = {
 		for (const s of level.stations) consider(s);
 		if (this.inRoom) {
 			for (const m of this.mercs) if (m.alive) consider({ id: 'merc', merc: m, name: m.def.name, label: 'Снарядить', x: m.pos.x, z: m.pos.z, r: m.state.out ? 2.8 : 1.6 });
+		} else if (!best && this.party.length && (this.player.moveMag ?? 0) < 0.1 && !this.nearContainer() && !this.nearestEnemy(p, 9)) {
+			// в вылазке: стоишь рядом со своим бойцом, тайника рядом нет, врагов в 9 м нет — «Снарядить»
+			for (const m of this.mercs) if (m.alive && m.state.out) consider({ id: 'merc', merc: m, name: m.def.name, label: 'Снарядить', x: m.pos.x, z: m.pos.z, r: 2.2 });
 		}
 		return best;
 	},
@@ -4512,11 +4571,23 @@ const game = {
 		this.save();
 	},
 
-	/** Дать наёмнику патроны его калибра (до магазина за раз; только в комнате). */
-	giveAmmo(id) {
+	/**
+	 * Можно ли снарядить бойца: в комнате, на базе — всегда; в вылазке — своего, если стоишь рядом (до 3,2 м).
+	 */
+	canEquip(id) {
 		const st = this.merc(id);
-		if (!st || !(this.inRoom || this.atBase)) return;
-		const W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, W.mag);
+		if (!st || !this.player?.alive) return false;
+		if (this.inRoom || this.atBase) return true;
+		if (!st.out) return false;
+		const a = this.mercs.find((m) => m.state === st && m.alive);
+		return !!a && Math.hypot(a.pos.x - this.player.pos.x, a.pos.z - this.player.pos.z) <= 3.2;
+	},
+
+	/** Дать наёмнику патроны его калибра: магазин за раз или все (all). */
+	giveAmmo(id, all = false) {
+		const st = this.merc(id);
+		if (!st || !this.canEquip(id)) return;
+		const W = WEAPONS[MERCS[st.id].weapon], n = Math.min(this.bag[W.ammo] ?? 0, all ? Infinity : W.mag);
 		if (n <= 0) { this.toast(`Нет патронов ${AMMO[W.ammo]}`, 'warn'); return; }
 		this.bag[W.ammo] -= n;
 		st.ammo += n;
@@ -4530,7 +4601,7 @@ const game = {
 	/** Аптечка наёмнику: сам он не лечится (только в комнате). */
 	healMerc(id) {
 		const st = this.merc(id), D = MERCS[st?.id];
-		if (!st || !(this.inRoom || this.atBase) || !(this.bag.medkit > 0) || st.hp >= D.hp) return;
+		if (!st || !this.canEquip(id) || !(this.bag.medkit > 0) || st.hp >= D.hp) return;
 		this.bag.medkit--;
 		st.hp = Math.min(D.hp, st.hp + MERC_HEAL);
 		Sfx.drink();
@@ -4541,7 +4612,7 @@ const game = {
 	/** Перевязка в аптечку медика — он сам лечит ею раненых. */
 	giveMeds(id) {
 		const st = this.merc(id);
-		if (!st || !(this.inRoom || this.atBase) || !(this.bag.medkit > 0)) return;
+		if (!st || !this.canEquip(id) || !(this.bag.medkit > 0)) return;
 		this.bag.medkit--;
 		st.meds = (st.meds ?? 0) + 1;
 		Sfx.drink();
@@ -4552,7 +4623,7 @@ const game = {
 	/** Гранату подрывнику. */
 	giveNade(id) {
 		const st = this.merc(id);
-		if (!st || !(this.inRoom || this.atBase) || !(this.bag.grenade > 0)) return;
+		if (!st || !this.canEquip(id) || !(this.bag.grenade > 0)) return;
 		this.bag.grenade--;
 		st.nades = (st.nades ?? 0) + 1;
 		Sfx.reload();

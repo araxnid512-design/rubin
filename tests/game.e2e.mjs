@@ -648,18 +648,45 @@ try {
 	const mf = await G(page, () => ({ kills: window.__game.kills - window.__k0, spent: window.__game.party.map((m, i) => window.__mercAmmo[i] - (m.mag + m.ammo)), roster: window.__game.roster.map((m) => `${m.id}:${m.out}:${Math.round(m.hp)}`).join(' ') }));
 	check(mercFight === 2 && mf.kills > 0 && mf.spent.some((n) => n > 0), `наёмники в бою: убили ${mf.kills}, потратили патронов ${mf.spent.join(' и ')}${mf.spent.length ? '' : ` [${mf.roster}]`}`);
 	await page.screenshot({ path: join(OUT, 'game-mercs.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
-	// на вылазке бойцов не снарядить: окно отряда только показывает, как они
+	// на вылазке: далеко от бойца — не снарядить; подошёл — патроны и аптечка (взять/оставить — только в комнате)
 	const field = await G(page, () => {
-		const g = window.__game, st = g.party[0], a0 = st.ammo;
-		g.bag.ammo545 = 45; g.bag.medkit = 2;
+		const g = window.__game, p = g.player, st = g.party[0], a = g.mercs.find((m) => m.state === st), a0 = st.ammo;
+		const ammo = a.W.ammo;
+		g.bag[ammo] = 45; g.bag.medkit = 2;
+		a.pos.set(p.pos.x + 10, 0, p.pos.z);
 		g.partyWindow.open();
-		const r = { cards: document.querySelectorAll('#party-list .merc[data-merc]').length, btns: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="heal"], #party-list [data-act="take"], #party-list [data-act="leave"]').length };
+		const far = { cards: document.querySelectorAll('#party-list .merc[data-merc]').length, btns: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="heal"], #party-list [data-act="take"], #party-list [data-act="leave"]').length };
 		g.giveAmmo(st.id);
-		r.same = st.ammo === a0 && g.bag.ammo545 === 45;
+		far.same = st.ammo === a0 && g.bag[ammo] === 45;
 		g.partyWindow.close();
+		a.pos.set(p.pos.x + 1.5, 0, p.pos.z);
+		g.partyWindow.open({ merc: st.id });
+		const near = { ammo: !!document.querySelector('#party-list [data-act="ammo"]'), heal: !!document.querySelector('#party-list [data-act="heal"]'), move: document.querySelectorAll('#party-list [data-act="take"], #party-list [data-act="leave"]').length };
+		g.giveAmmo(st.id);
+		near.got = st.ammo > a0 && g.bag[ammo] < 45;
+		g.partyWindow.close();
+		// подсказка у бойца: врагов рядом нет, стоишь — «Снарядить» (если рядом нет тайника — он важнее)
+		for (const e of g.enemies) if (e.alive && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < 12) { e.pos.set(60, 0, -60); e.state = 'idle'; }
+		p.moveMag = 0;
+		const s = g.nearStation();
+		near.prompt = s?.id === 'merc' ? s.label : g.nearContainer() ? 'тайник' : s?.id ?? 'нет';
+		return { far, near };
+	}).catch((e) => ({ err: e.message }));
+	check(field.far?.cards === 2 && field.far.btns === 0 && field.far.same && field.near.ammo && field.near.heal && field.near.move === 0 && field.near.got && /Снарядить|тайник/.test(field.near.prompt), `на вылазке: далеко от бойца — не снарядить; подошёл — «${field.near?.prompt}»: патроны и аптечка (взять/оставить — только в комнате)${field.err ? ` [${field.err}]` : ''}`);
+	// заражённый прёт на бойца — тот пятится шагом в прицеле, не прекращая огня
+	const kite = await G(page, async () => {
+		const g = window.__game, p = g.player, a = g.mercs.find((m) => m.alive && m.state.out && !m.C.heals && !m.C.grenades) ?? g.mercs.find((m) => m.alive && m.state.out);
+		for (const e of g.enemies) if (e.alive) { e.pos.set(60, 0, -60); e.state = 'idle'; }
+		a.pos.set(p.pos.x + 2, 0, p.pos.z); a.state.mag = Math.max(a.state.mag, 8); a.state.ammo = Math.max(a.state.ammo, 30); a.reloading = 0; a.cooldown = 0;
+		const z = g.spawnEnemy('runner', a.pos.clone().set(a.pos.x + 2.6, 0, a.pos.z)); z.hp = z.maxHp = 1e5; z.alert?.(); z.state = 'chase'; z.foe = a; z.foeT = 99;
+		const x0 = a.pos.clone(), m0 = a.state.mag + a.state.ammo, clips = new Set();
+		const t0 = g.time, r0 = Date.now();
+		while (g.time - t0 < 1.5 && Date.now() - r0 < 20000) { await new Promise((r) => setTimeout(r, 20)); clips.add(a.current); }
+		const r = { who: a.def.name, moved: +Math.hypot(a.pos.x - x0.x, a.pos.z - x0.z).toFixed(1), shots: m0 - (a.state.mag + a.state.ammo), clips: [...clips].join(',') };
+		z.damage(1e9, a.pos.clone(), 0);
 		return r;
 	});
-	check(field.cards === 2 && field.btns === 0 && field.same, 'на вылазке патроны и аптечки бойцам не дать — только в комнате в стабе');
+	check(kite.moved > 0.5 && kite.shots > 0 && /AimWalk/.test(kite.clips), `заражённый прёт на бойца — ${kite.who} пятится (${kite.moved} м) шагом в прицеле и стреляет (${kite.shots} патронов)${/AimWalk/.test(kite.clips) ? '' : ` [${kite.clips}]`}`);
 	// граната: бросок к кучке свежих бегунов (наёмники к этому времени могли перебить кластер), взрыв через 2 с
 	await G(page, () => {
 		const g = window.__game, p = g.player;
