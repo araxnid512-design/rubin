@@ -25,7 +25,8 @@ async function open(viewport, mobile, sim = 30, storage = null, q = 'medium') {
 	// у каждой страницы своё хранилище: сохранение переносим вручную
 	if (storage) await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); } }, storage);
 	page.on('pageerror', (e) => { errors.push(e.message); if (errors.length <= 5) console.log(`! ошибка на странице: ${e.message} ${e.stack?.split('\n')[1]?.trim() ?? ''}`); });
-	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+	// ошибки в кадре игра ловит сама (console.error) и продолжает — печатаем первые, иначе их не видно до конца теста
+	page.on('console', (m) => { if (m.type() !== 'error') return; errors.push(m.text()); if (errors.length <= 5) console.log(`! ошибка в консоли: ${m.text().slice(0, 300)}`); });
 	await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', (route) => {
 		const rel = new URL(route.request().url()).pathname.replace('/npm/three@0.170.0/', '');
 		route.fulfill({ path: join(ROOT, 'node_modules/three', rel), contentType: 'text/javascript' });
