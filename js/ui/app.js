@@ -339,7 +339,7 @@
     rotateHint();
     UI.render();
     // Офлайн-режим и установка на телефон (только по https или localhost)
-    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !UI.isNativeApp()) {
+    if ('serviceWorker' in navigator && !globalThis.KOLRAT_NO_SW && (location.protocol === 'https:' || location.hostname === 'localhost') && !UI.isNativeApp()) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   }

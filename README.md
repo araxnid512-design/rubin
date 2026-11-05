@@ -249,6 +249,7 @@ icons/                иконки
 android-app/          Android-приложение: WebView на весь экран, горизонтально
 tools/build-www.js    сборка www/ — веб-версии для приложения
 tools/build-single.js игра одним HTML-файлом (dist/kolrat.html)
+tools/build-artifact.js страница игры для claude.ai (без внешних тегов документа)
 .github/workflows/    автосборка APK, ZIP и HTML в релиз kolrat
 js/battle/            автобой: map.js (поле), engine.js (симуляция), text.ru.js (лог)
 js/core/battleflow.js подготовка боя, итоги, повторы

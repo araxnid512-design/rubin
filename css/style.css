@@ -16,10 +16,12 @@
   --mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
   --radius: 10px;
   --tabh: 0px;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html { margin: 0; }
+body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
   background-image: radial-gradient(ellipse at 50% -20%, rgba(217, 168, 91, 0.10), transparent 60%);
