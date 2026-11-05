@@ -172,7 +172,7 @@ const { chromium } = require('playwright');
   await shot('10_storage');
   await E(() => window.__fl.ui.close());
   // казарма: найм рабочего
-  const hire = await E(() => { const a = window.__fl, c = a.c, ent = [...a.sector.buildings.values()].find((e) => e.rec.id === 'military_barracks'); const s0 = c.scrap; const r = c.hire(ent.rec.uid, 'npc_scrap_worker'); c.advance(25.5); return { ok: r.ok, spent: s0 - c.scrap, recruits: c.recruits.length, npcs: a.npcs.length }; });
+  const hire = await E(() => { const a = window.__fl, c = a.c, ent = [...a.sector.buildings.values()].find((e) => e.rec.id === 'military_barracks'); const s0 = c.scrap; const r = c.hire(ent.rec.uid, 'npc_scrap_worker'); c.advance(25.5); return { ok: r.ok, spent: s0 - c.scrap, recruits: c.recruits.length, npcs: c.recruits.filter((u) => u.sector === 'friendly_home' && c.distToFootprint(ent.rec, u.x, u.z) < 8).length }; });
   check('казарма: найм рабочего за 55 металла, 25 с', hire.ok && hire.spent === 55 && hire.recruits === 1 && hire.npcs === 1, JSON.stringify(hire));
   await E(() => { const a = window.__fl, ent = [...a.sector.buildings.values()].find((e) => e.rec.id === 'military_barracks'); window.__walk(ent.rec.x, ent.rec.z + 11, 30); });
   await shot('11_barracks_recruit');
@@ -196,12 +196,14 @@ const { chromium } = require('playwright');
   const bd = JSON.parse(before), ad = JSON.parse(after.s);
   // после загрузки игра сразу продолжает идти: допускаем несколько секунд активного времени
   const es = (d) => JSON.stringify([d.enemy_state.structures, d.enemy_state.recruits, d.enemy_state.total_harvested]);
+  if (!(JSON.stringify(bd.buildings) === JSON.stringify(ad.buildings) && bd.scrap === ad.scrap && es(bd) === es(ad) && JSON.stringify(bd.storage) === JSON.stringify(ad.storage))) console.log('DIFF', JSON.stringify(bd.buildings) === JSON.stringify(ad.buildings), bd.scrap, ad.scrap, es(bd) === es(ad), JSON.stringify(bd.storage), JSON.stringify(ad.storage), JSON.stringify(bd.player), JSON.stringify(ad.player));
   check('после перезагрузки: здания, металл, склад, таймер, ИИ врага сохранены', ad.campaign_seconds - bd.campaign_seconds >= 0 && ad.campaign_seconds - bd.campaign_seconds < 6 && JSON.stringify(bd.buildings) === JSON.stringify(ad.buildings) && bd.scrap === ad.scrap && es(bd) === es(ad) && JSON.stringify(bd.storage) === JSON.stringify(ad.storage) && after.ents === 4 && Math.abs(bd.player.x - ad.player.x) < 3,
     `зданий ${after.ents}, металл ${ad.scrap}, время ${bd.campaign_seconds.toFixed(1)} → ${ad.campaign_seconds.toFixed(1)} с`);
   // 30:00 → переход на поле боя пешком и обратно
   const trip = await E(() => {
     const a = window.__fl, c = a.c; window.__sim = window.__sim || null;
     const walk = (x, z, m = 120) => { const V = a.player.pos.constructor; a.autoWalk = new V(x, 0, z); let t = 0; while (t < m && Math.hypot(a.player.pos.x - x, a.player.pos.z - z) > 0.8 && c.sector_index === a.__s) { a.step(1 / 30); t += 1 / 30; } a.autoWalk = null; };
+    c.army.waveT = 1e9; // здесь проверяются только правила переходов — без волн врага
     c.advance(Math.max(0, 1800 - c.campaign_seconds + 1));
     a.__s = 0; walk(0, -160, 200); const s1 = c.sector_index, z1 = a.player.pos.z;
     a.__s = 1; walk(0, -160, 200); const s2 = c.sector_index;

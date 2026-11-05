@@ -6,12 +6,13 @@ import { RenderObject } from '../../engine/renderer.js';
 import { Physics } from '../../engine/physics.js';
 import { Terrain, fbm } from './terrain.js';
 import * as M from './models.js';
+import { FrontNav } from './nav.js';
 
 const v = (x, y, z) => new V3(x, y, z);
 
 export class Sector {
-  constructor(r, def, campaign) {
-    this.r = r; this.def = def; this.c = campaign; this.index = def.index;
+  constructor(r, def, campaign, assets = null) {
+    this.r = r; this.def = def; this.c = campaign; this.index = def.index; this.assets = assets;
     this.phys = new Physics(150); this.objects = []; this.piles = []; this.buildings = new Map(); this.obstacles = [];
   }
   build() {
@@ -23,6 +24,8 @@ export class Sector {
     this.vegetation();
     this.scrapField();
     for (const b of this.c.buildingsIn(this.index)) this.addBuilding(b);
+    if (this.index === 2) this.enemyStructures();
+    const tn = performance.now(); this.nav = new FrontNav(this).buildAll(this.phys); this.timings.nav = performance.now() - tn;
     this.timings.total = performance.now() - t0;
     const st = this.terrain.style, e = r.env;
     e.sky = st.sky; e.ground = st.ground; e.fog = st.fog; e.clear = st.fog; e.sunCol = st.sun; e.sunDir = new V3(0.42, 0.78, 0.46).norm();
@@ -108,8 +111,11 @@ export class Sector {
     const [cx, cz] = f.center_xz, n = f.nodes || 12;
     for (let i = 0; i < n; i++) {
       const col = i % 4, row = Math.floor(i / 4), x = cx - f.width_m / 2 + 6 + col * (f.width_m - 12) / 3, z = cz - f.depth_m / 2 + 7 + row * (f.depth_m - 14) / 2;
-      const y = this.h(x, z), mesh = this.r.createMesh(M.scrapPile(i + this.index * 20).data());
-      const o = this.r.add(new RenderObject(mesh, 'world')); o.setXf(new Xf(M3.ry(i * 1.7), v(x, y, z)));
+      const y = this.h(x, z), glb = this.assets && this.assets.instance('scrap_metal', 'world', { size: [3.2, 1.6, 3.2] });
+      let o;
+      if (glb) o = { glb, objs: glb.objs, set visible(on) { glb.setVisible(on); }, get visible() { return glb.objs.length ? glb.objs[0].visible : false; }, setXf(xf) { glb.setXf(xf); glb.update(0); } };
+      else o = this.r.add(new RenderObject(this.r.createMesh(M.scrapPile(i + this.index * 20).data()), 'world'));
+      o.setXf(new Xf(M3.ry(i * 1.7), v(x, y, z)));
       const pile = { i, x, z, y, o, radius: 1.5 };
       this.piles.push(pile); this.objects.push(o);
     }
@@ -125,8 +131,31 @@ export class Sector {
   }
   // ---------------------------------------------------------------- здания
   footprint(id) { const b = this.c.bdefs[id]; return b.footprint_m; }
-  addBuilding(rec) {
+  // вражеские постройки на №3 — реальные 3D-здания из сохранённого состояния ИИ (экономика при этом не пересчитывается)
+  enemyStructures() {
+    const E = this.c.enemy; this.enemyLots = [];
+    E.structures.forEach((s, k) => {
+      const [fw, fd] = this.footprint(s.id); let [x, z] = s.position_xz, ang = s.angle_degrees || 0;
+      // точка из плана ИИ может попасть на дорогу/поле этой карты — ищем ближайшую допустимую площадку
+      if (this.validate(s.id, x, z, ang)) {
+        let found = false;
+        for (let r = 4; r <= 40 && !found; r += 4) for (let a = 0; a < 16 && !found; a++) { const nx = x + Math.cos(a / 16 * 6.283) * r, nz = z + Math.sin(a / 16 * 6.283) * r; for (const an of [0, 90]) if (!this.validate(s.id, nx, nz, an)) { x = nx; z = nz; ang = an; found = true; break; } }
+      }
+      const rec = { uid: 'E' + k, id: s.id, sector: 'enemy_home', x, z, angle: ang, hp: 100, enemy: true };
+      this.enemyLots.push(rec); this.addBuilding(rec, 'enemy');
+    });
+  }
+  removeBuilding(uid) {
+    const e = this.buildings.get(uid); if (!e) return;
+    for (const o of [e.shell, e.roof]) if (o) this.r.remove(o);
+    if (e.glb) e.glb.destroy();
+    for (const c of e.cols) this.phys.remove(c);
+    this.buildings.delete(uid);
+    if (this.nav) this.nav.rebuildRegion(e.rec.x, e.rec.z, Math.hypot(e.fw, e.fd) / 2 + 2, this.phys);
+  }
+  addBuilding(rec, faction = 'friendly') {
     const [fw, fd] = this.footprint(rec.id), m = M.buildingModel(rec.id, fw, fd), yaw = -rec.angle * Math.PI / 180;
+    if (faction === 'enemy') { M.enemyTint(m.shell); if (m.roof) M.enemyTint(m.roof); }
     const pts = this.cornerSamples(rec.x, rec.z, fw, fd, yaw); const hs = pts.map(([x, z]) => this.h(x, z));
     const y = hs.reduce((a, b) => a + b, 0) / hs.length, ymin = Math.min(...hs);
     const xf = new Xf(M3.ry(yaw), v(rec.x, y, rec.z));
@@ -134,9 +163,14 @@ export class Sector {
     plinth.append(m.shell);
     const shell = this.r.add(new RenderObject(this.r.createMesh(plinth.data()), 'world')); shell.setXf(xf);
     let roof = null; if (m.roof) { roof = this.r.add(new RenderObject(this.r.createMesh(m.roof.data()), 'world')); roof.setXf(xf); }
+    // модель GLB (Tripo), если есть: снаружи видна она; внутри входного здания — процедурные стены и интерьер без крыши
+    const gid = faction === 'enemy' && this.assets && this.assets.has('enemy_' + rec.id) ? 'enemy_' + rec.id : rec.id;
+    const glb = this.assets && this.assets.instance(gid, 'world', { size: [fw - 0.3, null, fd - 0.3] });
+    if (glb) { glb.setXf(xf); glb.update(0); shell.visible = false; if (roof) roof.visible = false; }
     const cols = m.cols.map(([cx, size]) => this.phys.add(xf.mul(cx), size, 1, rec));
-    const ent = { rec, xf, y, shell, roof, cols, enterable: m.enterable, fw, fd, yaw, inside: false };
+    const ent = { rec, xf, y, shell, roof, cols, enterable: m.enterable, fw, fd, yaw, inside: false, glb };
     this.buildings.set(rec.uid, ent);
+    if (this.nav) this.nav.rebuildRegion(rec.x, rec.z, Math.hypot(fw, fd) / 2 + 2, this.phys);
     return ent;
   }
   cornerSamples(x, z, fw, fd, yaw, step = 2.5) {
@@ -153,7 +187,7 @@ export class Sector {
     for (const [, e] of this.buildings) {
       if (!e.enterable || !e.roof) continue;
       const [lx, lz] = this.local(e, p), ins = Math.abs(lx) < e.fw / 2 - 0.9 && Math.abs(lz) < e.fd / 2 - 0.9;
-      if (ins !== e.inside) { e.inside = ins; e.roof.visible = !ins; }
+      if (ins !== e.inside) { e.inside = ins; if (e.glb) { e.glb.setVisible(!ins); e.shell.visible = ins; e.roof.visible = false; } else e.roof.visible = !ins; }
       if (ins) insideAny = e;
     }
     return insideAny;

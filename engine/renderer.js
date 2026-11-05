@@ -86,10 +86,11 @@ export class Renderer {
       return b;
     };
     buf(d.pos, 0, 3, gl.FLOAT, false); buf(d.nrm, 1, 3, gl.FLOAT, false); buf(d.col, 2, 4, gl.UNSIGNED_BYTE, true);
-    if (d.bones) { buf(d.bones, 3, 4, gl.UNSIGNED_BYTE, false, true); buf(d.weights, 4, 4, gl.UNSIGNED_BYTE, true); }
+    if (d.bones) { buf(d.bones, 3, 4, d.bones instanceof Uint16Array ? gl.UNSIGNED_SHORT : gl.UNSIGNED_BYTE, false, true); buf(d.weights, 4, 4, gl.UNSIGNED_BYTE, true); }
+    if (d.uv) buf(d.uv, 6, 2, gl.FLOAT, false);
     const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, d.idx, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
-    return { vao, count: d.count, skinned: !!d.bones, center: d.center, radius: d.radius, tris: d.count / 3 };
+    return { vao, count: d.count, skinned: !!d.bones, uv: !!d.uv, center: d.center, radius: d.radius, tris: d.count / 3 };
   }
 
   createInstanced(d, inst, kind = 'foliage') {
@@ -123,6 +124,24 @@ export class Renderer {
     return t;
   }
 
+  // текстура из картинки (GLB): sRGB-данные как есть, мип-карты
+  textureImage(img, repeat = true) {
+    const gl = this.gl, t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    const wrap = repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    return t;
+  }
+  // матрицы костей скелета GLB: RGBA32F, 4 текселя на кость
+  boneTexture(n) {
+    const gl = this.gl, t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, n, 0, gl.RGBA, gl.FLOAT, null);
+    for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return { tex: t, n, data: new Float32Array(n * 16), dirty: true, frame: -1 };
+  }
   add(obj) { this.objects.push(obj); return obj; }
   remove(obj) { const i = this.objects.indexOf(obj); if (i >= 0) this.objects.splice(i, 1); }
   clear() { this.objects = []; this.instanced = []; this.lights = []; }
@@ -221,6 +240,9 @@ export class Renderer {
   _defines(o, depth = false) {
     const d = [];
     if (o.mesh.skinned) d.push('SKINNED');
+    if (o.mesh.skinned && o.boneTex) d.push('BONETEX');
+    if (!depth && o.mesh.uv && o.tex) d.push('TEXTURED');
+    if (o.clipY != null) d.push('CLIPY');
     if (o.instanced) d.push('INSTANCED');
     if (!depth && o.kind === 'foliage') d.push(o.instanced ? 'SWAY=0.5' : 'SWAY=0.06');
     if (depth && o.kind === 'foliage' && !o.instanced) d.push('SWAY=0.06');
@@ -333,7 +355,13 @@ export class Renderer {
   _draw(prog, o) {
     const gl = this.gl;
     gl.uniformMatrix4fv(prog.loc.uModel, false, o.model);
-    if (o.mesh.skinned && o.bones) gl.uniformMatrix4fv(prog.loc.uBones, false, o.bones);
+    if (o.mesh.skinned && o.boneTex) {
+      const bt = o.boneTex; gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, bt.tex);
+      if (bt.dirty) { gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4, bt.n, gl.RGBA, gl.FLOAT, bt.data); bt.dirty = false; }
+      gl.uniform1i(prog.loc.uBoneTex, 6);
+    } else if (o.mesh.skinned && o.bones) gl.uniformMatrix4fv(prog.loc.uBones, false, o.bones);
+    if (o.tex && prog.loc.uAlbedo) { gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, o.tex); gl.uniform1i(prog.loc.uAlbedo, 5); }
+    if (o.clipY != null && prog.loc.uClipY) gl.uniform1f(prog.loc.uClipY, o.clipY);
     gl.bindVertexArray(o.mesh.vao);
     gl.drawElements(gl.TRIANGLES, o.mesh.count, gl.UNSIGNED_INT, 0);
     this.stats.drawCalls++; this.stats.tris += o.mesh.tris;

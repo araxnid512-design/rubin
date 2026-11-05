@@ -16,7 +16,7 @@ export class EnemyDirector {
     this.scrap_durability = Array(n).fill(dur); this.scrap_respawn_at = Array(n).fill(0);
     this.structures = []; this.recruits = []; this.manufactured = {};
     this.development_index = 0; this.production_index = 0; this.next_production_at = 60;
-    this.hiring = {}; this.production_job = {};
+    this.hiring = {}; this.production_job = {}; this.replacements_needed = 0;
   }
   advance(seconds) {
     if (seconds <= 0) return;
@@ -43,6 +43,7 @@ export class EnemyDirector {
       elapsed_seconds: this.elapsed_seconds, next_tick_at: this.next_tick_at, scrap_metal: this.scrap_metal, total_harvested: this.total_harvested, total_spent: this.total_spent,
       scrap_durability: this.scrap_durability, scrap_respawn_at: this.scrap_respawn_at, structures: this.structures, recruits: this.recruits, manufactured: this.manufactured,
       development_index: this.development_index, production_index: this.production_index, next_production_at: this.next_production_at, hiring: this.hiring, production_job: this.production_job,
+      replacements_needed: this.replacements_needed,
     }));
   }
   loadState(d) {
@@ -55,7 +56,7 @@ export class EnemyDirector {
     this.structures = c.structures || []; this.recruits = c.recruits || []; this.manufactured = c.manufactured || {};
     this.development_index = Math.max(0, c.development_index | 0); this.production_index = Math.max(0, c.production_index | 0);
     this.next_production_at = +(c.next_production_at ?? this.elapsed_seconds + 30);
-    this.hiring = c.hiring || {}; this.production_job = c.production_job || {};
+    this.hiring = c.hiring || {}; this.production_job = c.production_job || {}; this.replacements_needed = Math.max(0, c.replacements_needed | 0);
     // неполное или старое сохранение отвергается, а не ломает массивы
     if (this.scrap_durability.length !== 12 || this.scrap_respawn_at.length !== 12) this.reset();
   }
@@ -63,8 +64,19 @@ export class EnemyDirector {
     this._refreshNodes();
     const miners = Math.min(+(this.config.miners_maximum ?? 4), 1 + this._count('npc_scrap_worker'));
     for (let i = 0; i < miners; i++) this._harvestOne();
-    this._finishJobs(); this._developmentPlan(); this._startProduction();
+    this._finishJobs(); this._developmentPlan(); this._replacements(); this._startProduction();
   }
+  // Расширение для этапа 7а: погибших в бою солдат враг нанимает заново по той же цене и времени
+  // (только после завершения стартового плана, поэтому 1800-секундный эталон не меняется).
+  _replacements() {
+    if (!this.replacements_needed || Object.keys(this.hiring).length) return;
+    if (this.development_index < (this.config.initial_development_plan || []).length || !this._has('military_barracks')) return;
+    if (this.recruits.length >= this._barracksCapacity()) return;
+    const r = (this.buildingData.military_barracks.recruitment || []).find((x) => x.npc_role_id === 'npc_infantry'); if (!r) return;
+    if (this.scrap_metal < (r.scrap_cost | 0) + 40) return;
+    this._spend(r.scrap_cost | 0); this.hiring = { id: 'npc_infantry', finish_at: this.elapsed_seconds + +r.seconds }; this.replacements_needed--;
+  }
+  _nextRecruitId() { let m = -1; for (const r of this.recruits) m = Math.max(m, r.id | 0); return Math.max(m + 1, this.recruits.length); }
   _refreshNodes() {
     for (let i = 0; i < this.scrap_durability.length; i++) {
       if (this.scrap_durability[i] === 0 && this.scrap_respawn_at[i] <= this.elapsed_seconds) { this.scrap_durability[i] = +(this.config.resource_node_durability ?? 6); this.scrap_respawn_at[i] = 0; }
@@ -108,7 +120,7 @@ export class EnemyDirector {
   _barracksCapacity() { return this.structures.filter((s) => s.id === 'military_barracks').length * (this.buildingData.military_barracks.npc_capacity || 8); }
   _finishJobs() {
     if (Object.keys(this.hiring).length && this.elapsed_seconds >= +(this.hiring.finish_at ?? Infinity)) {
-      this.recruits.push({ id: this.recruits.length, role_id: this.hiring.id, faction: 'enemy', hired_at: this.elapsed_seconds, sector_id: 'enemy_home', order: 'guard_base' });
+      this.recruits.push({ id: this._nextRecruitId(), role_id: this.hiring.id, faction: 'enemy', hired_at: this.elapsed_seconds, sector_id: 'enemy_home', order: 'guard_base' });
       this.hiring = {};
     }
     if (Object.keys(this.production_job).length && this.elapsed_seconds >= +(this.production_job.finish_at ?? Infinity)) {

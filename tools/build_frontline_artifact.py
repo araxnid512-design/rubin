@@ -13,9 +13,10 @@ head = head.replace(' media="print" onload="this.media=\'all\'"', '').replace('h
 body = body.replace('src="main.js"', 'src="frontline/main.js"')
 open(os.path.join(out, 'index.html'), 'w', encoding='utf-8').write(head.strip() + '\n' + body.strip() + '\n')
 files = {}
-for d in ['engine', 'frontline', 'frontline/sim', 'frontline/world', 'frontline/data']:
+for d in ['engine', 'frontline', 'frontline/sim', 'frontline/world', 'frontline/data', 'frontline/assets', 'frontline/assets/models']:
+    if not os.path.isdir(os.path.join(root, d)): continue
     for f in sorted(os.listdir(os.path.join(root, d))):
-        if f.endswith(('.js', '.json', '.css')): files[f'{d}/{f}'] = os.path.join(root, d, f)
+        if f.endswith(('.js', '.json', '.css', '.glb')) and f != 'tripo_state.json': files[f'{d}/{f}'] = os.path.join(root, d, f)
 for f in ['input.js', 'follow_camera.js', 'fx.js', 'rig_human.js', 'weapons.js', 'items.js']:
     files[f'game/{f}'] = os.path.join(root, 'game', f)
 json.dump(files, open(os.path.join(out, 'files.json'), 'w'), ensure_ascii=False)

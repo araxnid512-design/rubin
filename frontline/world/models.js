@@ -196,3 +196,14 @@ export function rock(mb, x, y, z, s, rng, col = [0.48, 0.47, 0.44, MAT.CONCRETE]
 // ===================================================================== инструменты в руке
 export function hammerMesh() { const mb = new MeshBuilder(); mb.addBox(new Xf(I(), v(0, -0.18, 0)), v(0.035, 0.42, 0.035), C.wood); mb.addBox(new Xf(I(), v(0, -0.4, 0)), v(0.07, 0.08, 0.2), C.dark); return mb; }
 export function wrenchMesh() { const mb = new MeshBuilder(); mb.addBox(new Xf(I(), v(0, -0.17, 0)), v(0.03, 0.36, 0.06), C.metal); mb.addBox(new Xf(I(), v(0, -0.37, 0)), v(0.035, 0.08, 0.13), C.metal); return mb; }
+
+// раскраска фракции противника: оливковые и жёлтые поверхности → ржаво-красные и тёмно-серые (тот же меш, другая краска)
+export function enemyTint(mb) {
+  const c = mb.c;
+  for (let i = 0; i < c.length; i += 4) {
+    const r = c[i], g = c[i + 1], b = c[i + 2], lum = 0.3 * r + 0.59 * g + 0.11 * b;
+    if (g > r * 1.02 && g > b * 1.12) { c[i] = Math.min(1, lum * 1.3); c[i + 1] = lum * 0.6; c[i + 2] = lum * 0.5; }
+    else if (r > 0.6 && g > 0.45 && b < 0.3) { c[i] = 0.6; c[i + 1] = 0.2; c[i + 2] = 0.14; }
+  }
+  return mb;
+}

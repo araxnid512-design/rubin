@@ -1,0 +1,4 @@
+{
+  "comment": "GLB-модели из Tripo AI: id из data/*.json → файл в assets/models. Заполняется tools/tripo_pipeline.py; пустой список — используются процедурные модели.",
+  "models": {}
+}

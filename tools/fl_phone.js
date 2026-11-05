@@ -26,5 +26,23 @@ const { chromium } = require('playwright');
   await p.waitForTimeout(600);
   await p.screenshot({ path: `${out}/phone_placement.jpg`, type: 'jpeg', quality: 82 });
   console.log('ok', await p.evaluate(() => window.__fl.placing && window.__fl.placing.why));
+  // штаб: тактический стол; бой на №2 с оружием со склада
+  await p.evaluate(() => {
+    const a = window.__fl, c = a.c; a.cancelPlacement(); c.scrap = 999;
+    const put = (id, x, z) => { for (let r = 0; r < 50; r += 2) for (let k = 0; k < 12; k++) { const px = Math.round(x + Math.cos(k) * r), pz = Math.round(z + Math.sin(k) * r); if (!a.sector.validate(id, px, pz, 0)) { const res = c.build(id, px, pz, 0, true); if (res.ok) { a.sector.addBuilding(res.rec); return res.rec; } } } };
+    const bar = put('military_barracks', -60, 60); put('military_headquarters', -95, 25); c.scrap = 999;
+    for (const role of ['npc_scrap_worker', 'npc_mechanic', 'npc_infantry', 'npc_infantry']) c.hire(bar.uid, role); c.advance(160);
+    a.ui.open('command'); a.ui.cmdSel = a.ui.cmdSel || new Set(); for (const u of c.recruits) if (u.role === 'npc_infantry') a.ui.cmdSel.add(u.uid); a.ui.open('command');
+  });
+  await p.waitForTimeout(600);
+  await p.screenshot({ path: `${out}/phone_command.jpg`, type: 'jpeg', quality: 82 });
+  await p.evaluate(() => {
+    const a = window.__fl, c = a.c; a.ui.close();
+    c.storage.wp_assault_a47 = 3; c.storage.ammo_762x39 = 300; const t = c.takeWeapon('wp_assault_a47'); c.select(t.slot); a.ui.refreshTool();
+    c.advance(Math.max(0, 1800 - c.campaign_seconds) + 1); c.army.waveT = 0; a.army._waves(0);
+    const f = c.foes[0]; a.transitionTo(1, [f ? f.x : 0, 141]); a.player.pos.x = (f ? f.x : 0) + 3; a.player.pos.z = (f ? f.z : -100) + 24; c.playerHp = 74; a.cam.snap();
+  });
+  await p.waitForTimeout(1500);
+  await p.screenshot({ path: `${out}/phone_battle.jpg`, type: 'jpeg', quality: 82 });
   await b.close();
 })();

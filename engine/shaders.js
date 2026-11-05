@@ -6,9 +6,19 @@ uniform mat4 uModel;
 uniform mat4 uShadowMat;
 uniform float uTime;
 #ifdef SKINNED
+#ifdef BONETEX
+// скелеты моделей GLB: матрицы костей в float-текстуре (любое число костей)
+uniform highp sampler2D uBoneTex;
+mat4 boneM(uint i) { int y = int(i); return mat4(texelFetch(uBoneTex, ivec2(0, y), 0), texelFetch(uBoneTex, ivec2(1, y), 0), texelFetch(uBoneTex, ivec2(2, y), 0), texelFetch(uBoneTex, ivec2(3, y), 0)); }
+#else
 uniform mat4 uBones[20];
+mat4 boneM(uint i) { return uBones[i]; }
+#endif
 layout(location=3) in uvec4 aBones;
 layout(location=4) in vec4 aWeights;
+#endif
+#ifdef TEXTURED
+layout(location=6) in vec2 aUV;
 #endif
 #ifdef INSTANCED
 layout(location=5) in vec4 aInst; // x, z, поворот, масштаб
@@ -26,11 +36,17 @@ out vec3 vNrm;
 out vec4 vCol;
 out vec3 vLocal;
 out vec4 vShadow;
+#ifdef TEXTURED
+out vec2 vUV;
+#endif
 void main() {
   vec4 p = vec4(aPos, 1.0);
   vec3 n = aNrm;
+#ifdef TEXTURED
+  vUV = aUV;
+#endif
 #ifdef SKINNED
-  mat4 sk = uBones[aBones.x] * aWeights.x + uBones[aBones.y] * aWeights.y + uBones[aBones.z] * aWeights.z + uBones[aBones.w] * aWeights.w;
+  mat4 sk = boneM(aBones.x) * aWeights.x + boneM(aBones.y) * aWeights.y + boneM(aBones.z) * aWeights.z + boneM(aBones.w) * aWeights.w;
   p = sk * p;
   n = mat3(sk) * n;
 #endif
@@ -68,7 +84,7 @@ ${COMMON_VS}
 void main() {
   vec4 p = vec4(aPos, 1.0);
 #ifdef SKINNED
-  mat4 sk = uBones[aBones.x] * aWeights.x + uBones[aBones.y] * aWeights.y + uBones[aBones.z] * aWeights.z + uBones[aBones.w] * aWeights.w;
+  mat4 sk = boneM(aBones.x) * aWeights.x + boneM(aBones.y) * aWeights.y + boneM(aBones.z) * aWeights.z + boneM(aBones.w) * aWeights.w;
   p = sk * p;
 #endif
   vec4 w = uModel * p;
@@ -107,6 +123,13 @@ uniform float uCutout;
 uniform float uPower;
 uniform vec4 uGrade; // x — насыщенность, y — контраст, z — экспозиция, w — тёплый/холодный сдвиг
 uniform float uTime;
+#ifdef TEXTURED
+in vec2 vUV;
+uniform sampler2D uAlbedo;
+#endif
+#ifdef CLIPY
+uniform float uClipY; // скрытие «крыши» цельной модели: всё выше плоскости не рисуется
+#endif
 in vec3 vWorld;
 in vec3 vNrm;
 in vec4 vCol;
@@ -187,9 +210,15 @@ export const FS_WORLD = `#version 300 es
 precision highp float;
 ${LIGHTING}
 void main() {
+#ifdef CLIPY
+  if (vWorld.y > uClipY) discard;
+#endif
   cutoutTest();
   int mid = int(vCol.a * 10.0 + 0.5);
   vec3 base = pow(vCol.rgb, vec3(2.2));
+#ifdef TEXTURED
+  base *= pow(texture(uAlbedo, vUV).rgb, vec3(2.2));
+#endif
   vec3 n = normalize(vNrm);
   if (!gl_FrontFacing) n = -n;
   float big = triTex(uNoise, vWorld, n, 0.07);
@@ -276,6 +305,9 @@ uniform vec3 uTint;
 void main() {
   int mid = int(vCol.a * 10.0 + 0.5);
   vec3 base = pow(vCol.rgb, vec3(2.2)) * uTint;
+#ifdef TEXTURED
+  base *= pow(texture(uAlbedo, vUV).rgb, vec3(2.2));
+#endif
   float fine = mix(0.5, texture(uDetail, vLocal.xy * 1.7 + vLocal.zz * 0.9).r, uDetailLevel);
   float rough = 0.8, metal = 0.0;
   if (mid == 2) { rough = 0.6; metal = 0.3; }

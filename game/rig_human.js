@@ -238,6 +238,7 @@ export class HumanRig {
     if (!this.weapon || !this.weaponXf) return this.xf.basis.mulV(FORWARD);
     return this.xf.basis.mul(this.weaponXf.basis).mulV(FORWARD).norm();
   }
+  handXf() { return this.xf.mul(new Xf(this.g[B.HAND_R], this.O[B.HAND_R])); }
   headWorld() { return this.xf.mulV(this.O[B.HEAD].add(this.g[B.HEAD].mulV(v(0, 0.12, 0)))); }
 
   _neutral(f) { return v(f.side * 0.11, ANKLE_H, 0); }
