@@ -1245,7 +1245,7 @@ class Enemy extends Actor {
 		this.gait = g ? { Walk: g.Walk, Run: g.Run, Stomp: g.Walk, Charge: g.Charge ?? g.Run } : (T.gait ?? ZOMBIE_GAIT);
 		// удар: темп клипа такой, чтобы удар пришёлся на hitTime (у броска Tripo — не быстрее двух раз: захват виден)
 		this.atkTs = this.tz ? Math.min(2, this.tz.hit.Attack / (T.hitTime / T.attackAnim)) : T.attackAnim;
-		this.hitAt = this.tz ? this.tz.hit.Attack / this.atkTs : T.hitTime / T.attackAnim;
+		this.strikeAt = this.tz ? this.tz.hit.Attack / this.atkTs : T.hitTime / T.attackAnim;
 		// клип погони: рубер Tripo гонится бегом громилы (его шаг для 2,6 м/с слишком медленный)
 		this.move = this.tz && T.charge ? 'Run' : T.move;
 		if (this.tz) {
@@ -1518,7 +1518,7 @@ class Enemy extends Actor {
 				this.pos.addScaledVector(tmpV.set(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y)), Math.min(v * dt, dist - this.radius - 0.55));
 				resolveCollisions(this.pos, this.radius, level.colliders);
 			}
-			if (!this.hitDone && this.timer >= this.hitAt) {
+			if (!this.hitDone && this.timer >= this.strikeAt) {
 				this.hitDone = true;
 				if (p.alive && dist < this.T.range + 0.6) p.hurt(p.dry ? p.hp : this.T.damage * (1 + 0.3 * (game.rage ?? 0)), this.pos, this.T.knock); // боец без патронов не отобьётся; в кисляк — злее
 				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }

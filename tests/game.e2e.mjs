@@ -926,6 +926,23 @@ try {
 	check(ru.roar && ru.run, 'рубер заметил героя: рёв, потом рывок галопом на четырёх лапах');
 	check(ru.pm === 18 && ru.svd === 122, `костяная броня рубера: пуля ПМ ${ru.pm} из 26, СВД ${ru.svd} из 130`);
 	check(ru.dead && ru.peas === 1, 'убитый рубер: горох из спорового мешка');
+	// раненые заражённые тоже бьют: попадание по ним не сбивает момент удара (было: раненый не наносил урона)
+	const wounded = await G(page, async () => {
+		const g = window.__game, p = g.player, keep = { hp: p.hp, max: p.maxHp }, out = {};
+		p.hp = p.maxHp = 1e6;
+		for (const type of ['runner', 'stomper', 'ruber', 'elite']) {
+			const e = g.spawnEnemy(type, p.pos.clone().set(p.pos.x + 2.5, 0, p.pos.z));
+			e.alert?.(); e.state = 'chase'; e.stagger = 0;
+			e.damage(5, p.pos.clone(), 0.05);
+			const hp0 = p.hp, t0 = g.time;
+			while (g.time - t0 < 6 && p.hp === hp0) await new Promise((r) => setTimeout(r, 20));
+			out[type] = Math.round(hp0 - p.hp);
+			e.damage(1e6, p.pos.clone(), 0.1);
+		}
+		p.maxHp = keep.max; p.hp = keep.hp;
+		return out;
+	});
+	check(Object.values(wounded).every((d) => d > 0), `раненые заражённые бьют героя: ${Object.entries(wounded).map(([k, d]) => `${k} ${d}`).join(', ')}`);
 	// чёрная жемчужина: съесть — здоровье навсегда больше
 	await G(page, () => { const g = window.__game; g.bag.pearl = 2; g.inventory.open(); g.inventory.select('pearl'); });
 	await page.click('#inv-action');
