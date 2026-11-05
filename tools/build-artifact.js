@@ -2,7 +2,10 @@
 /*
  * Страница игры для claude.ai (Artifact): тот же единый файл, но без внешних тегов документа —
  * обёртку <!doctype>/<head>/<body> добавляет сама площадка. Офлайн-кэш (service worker) там не нужен.
- * Запуск: node tools/build-artifact.js [файл]  (по умолчанию dist/kolrat-artifact.html)
+ * Запуск: node tools/build-artifact.js [файл] [kolrat-apk.zip]
+ *   файл — куда записать страницу (по умолчанию dist/kolrat-artifact.html);
+ *   kolrat-apk.zip — если указан, APK в ZIP встраивается в страницу: кнопка «Скачать приложение для Android»
+ *   сохраняет его через площадку (сам .apk она сохранять не даёт, а ZIP — можно).
  */
 'use strict';
 const fs = require('fs');
@@ -23,7 +26,9 @@ html = html
   .replace(/\s*<meta name="(mobile-web-app-capable|apple-mobile-web-app-capable|apple-mobile-web-app-status-bar-style)"[^>]*>/gi, '')
   .replace(title, '');
 // название — в самом начале файла, отключение офлайн-кэша — до скриптов игры
-html = title + '\n<script>globalThis.KOLRAT_NO_SW = true;</script>\n' + html.trim() + '\n';
+let flags = 'globalThis.KOLRAT_ARTIFACT = true;';
+if (process.argv[3]) flags += '\nglobalThis.KOLRAT_APK_ZIP = "' + fs.readFileSync(process.argv[3]).toString('base64') + '";';
+html = title + '\n<script>' + flags + '</script>\n' + html.trim() + '\n';
 const out = process.argv[2] || path.join(ROOT, 'dist', 'kolrat-artifact.html');
 fs.writeFileSync(out, html);
 console.log(path.relative(ROOT, out) + ': ' + Math.round(html.length / 1024) + ' КБ');

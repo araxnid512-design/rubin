@@ -150,6 +150,7 @@
       wrap.appendChild(h('button', { class: 'btn big', onclick: () => UI.importSave() }, 'Загрузить из файла'));
       wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.pasteSave() }, 'Вставить сохранение текстом'));
       if (UI.canFullscreen() && !document.fullscreenElement) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.fullscreen() }, '⛶ Во весь экран (горизонтально)'));
+      if (UI.canGetApk()) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.getApk() }, '📱 Скачать приложение для Android'));
       const slots = ['1', '2', '3'].map((k) => [k, G.Save.meta(k)]).filter((x) => x[1]);
       if (slots.length) {
         wrap.appendChild(h('div', { class: 'card' }, h('h3', null, 'Сохранения'),
@@ -189,6 +190,33 @@
     if (!G.Save.available()) wrap.appendChild(h('p', { class: 'warn small' }, 'Браузер не даёт доступа к локальному хранилищу — сохраняйтесь в файл через меню.'));
     wrap.appendChild(h('div', { class: 'footer-note' }, 'Некоммерческий фанатский проект по мотивам вселенной «Звёздных войн». Все персонажи и тексты оригинальные.'));
     return wrap;
+  };
+
+  // ---------- Файлы на claude.ai ----------
+  // Страница на claude.ai не может скачивать файлы сама: сохраняет площадка, спросив игрока
+  UI.inClaude = () => !!globalThis.KOLRAT_ARTIFACT;
+  UI.claudeSave = async function (filename, data, okText) {
+    let dl = null;
+    try { dl = globalThis.claude && globalThis.claude.use ? await globalThis.claude.use('downloads') : null; } catch (e) { dl = null; }
+    if (!dl) { UI.flash('Здесь сохранить файл нельзя. Перенесите сохранение текстом: «Копировать сохранение».'); return; }
+    try {
+      await dl.save({ filename: filename, data: data });
+      UI.flash(okText || 'Файл сохранён: ' + filename);
+    } catch (e) {
+      UI.flash(e && e.code === 'declined' ? 'Скачивание отменено.' : 'Не удалось сохранить файл' + (e && e.message ? ': ' + e.message : '.'));
+    }
+  };
+  UI.exportSave = function (s) {
+    if (UI.inClaude()) UI.claudeSave('kolrat-den-' + s.day + '.json', G.Save.serialize(s));
+    else G.Save.exportFile(s);
+  };
+  // Приложение для Android внутри страницы: ZIP с APK (сам .apk площадка сохранять не даёт)
+  UI.canGetApk = () => UI.inClaude() && typeof globalThis.KOLRAT_APK_ZIP === 'string';
+  UI.getApk = function () {
+    const bin = atob(globalThis.KOLRAT_APK_ZIP);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    UI.claudeSave('kolrat-apk.zip', new Blob([bytes]), 'Сохранено. Откройте «Файли» → Завантаження → kolrat-apk.zip → kolrat.apk → «Встановити».');
   };
 
   // ---------- Импорт сохранения из файла ----------
@@ -339,7 +367,7 @@
     rotateHint();
     UI.render();
     // Офлайн-режим и установка на телефон (только по https или localhost)
-    if ('serviceWorker' in navigator && !globalThis.KOLRAT_NO_SW && (location.protocol === 'https:' || location.hostname === 'localhost') && !UI.isNativeApp()) {
+    if ('serviceWorker' in navigator && !globalThis.KOLRAT_ARTIFACT && (location.protocol === 'https:' || location.hostname === 'localhost') && !UI.isNativeApp()) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   }
