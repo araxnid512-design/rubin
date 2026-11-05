@@ -53,6 +53,28 @@
     );
   };
 
+  // ---------- Событие ----------
+  UI.modals.event = function (s) {
+    const p = s.pending;
+    const act = (choice) => { G.Game.act(s, { choice: choice }); UI.commit(); };
+    const box = h('div', { class: 'modal' },
+      h('div', { class: 'small muted' }, 'День ' + s.day),
+      h('h2', null, p.title),
+      h('div', { class: 'lead' }, paragraphs(p.text)));
+    if (p.result == null) {
+      box.appendChild(h('div', { class: 'choices' }, G.Events.options(s, p).map((o) =>
+        h('button', { class: 'choice', disabled: !!o.blocked, onclick: () => act(o.id) },
+          h('div', { class: 'cn' }, o.label),
+          o.blocked || o.hint ? h('div', { class: 'ch' + (o.blocked ? ' bad' : '') }, o.blocked || o.hint) : null))));
+    } else {
+      box.appendChild(h('div', { class: 'card flat' },
+        h('div', { class: 'small muted', style: 'margin-bottom:6px' }, 'Решение: ' + p.choice),
+        h('p', { style: 'margin:0' }, p.result)));
+      box.appendChild(h('button', { class: 'btn primary big', onclick: () => act('continue') }, 'Продолжить'));
+    }
+    return box;
+  };
+
   // ---------- Конец игры ----------
   UI.modals.over = function (s) {
     const E = G.TEXT.endings[s.over.reason] || { title: 'Конец', text: '' };

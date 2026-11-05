@@ -20,6 +20,7 @@
     const ration = C.rations[s.rations].water;
     let need = 0;
     for (const u of G.Units.people(s)) {
+      if (u.status === 'away' || u.status === 'missing') continue;
       need += ration;
       if (G.Units.woundLevel(u) === 2) need += C.upkeep.woundedExtraWater;
     }
@@ -103,8 +104,15 @@
   // ---------- НОЧЬ ----------
   Day.night = function (s, rng) {
     if (rng.chance(Day.raidChance(s))) {
-      G.Battle.nightRaid(s, rng);
+      if (!G.Events) { G.Battle.nightRaid(s, rng); return; }
+      const R = G.CONFIG.raids;
+      const surprised = s.guards < R.alertGuards && s.sections.sensors.level === 0;
+      let strength = (R.strengthBase + R.strengthPerDay * s.day) * rng.range(0.7, 1.3);
+      if (surprised) strength *= R.surpriseMult;
+      G.Events.queueNow(s, 'tusken_raid', { surprised: surprised, strength: Math.round(strength * 10) / 10 });
+      return;
     }
+    if (G.Events) G.Events.rollNight(s, rng);
   };
 
   // ---------- РАССВЕТ ----------

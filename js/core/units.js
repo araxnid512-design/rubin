@@ -123,6 +123,8 @@
   Units.healthLabel = function (u) {
     if (u.status === 'dead') return 'погиб';
     if (u.status === 'deserted') return 'дезертировал';
+    if (u.status === 'away') return 'в отлучке';
+    if (u.status === 'missing') return 'пропал без вести';
     if (u.kind === 'droid') {
       if (u.health <= 0) return 'отключён';
       return u.health < 40 ? 'сильно повреждён' : u.health < 80 ? 'повреждён' : 'исправен';

@@ -24,9 +24,12 @@
     return rel >= need ? null : 'Нужны отношения ' + need + ' (сейчас ' + rel + ')';
   };
 
-  Trade.open = function (s, partner) {
+  Trade.make = function (s, partner) {
     const t = G.CONFIG.trade[partner];
-    s.pending = { kind: 'trade', partner: partner, stock: G.U.clone(t.stock), bought: {}, sold: {} };
+    return { kind: 'trade', partner: partner, stock: G.U.clone(t.stock), bought: {}, sold: {} };
+  };
+  Trade.open = function (s, partner) {
+    s.pending = Trade.make(s, partner);
   };
 
   const isRes = (k) => k === 'water' || k === 'scrap' || k === 'energy' || k === 'credits';

@@ -95,6 +95,7 @@
       chronicle: [],
       flags: {},
       timers: [],
+      eventLog: {},
       visitors: {},
       lastSpeechDay: -10,
       speechStreak: 0,

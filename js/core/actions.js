@@ -118,7 +118,8 @@
       if (maybeAmbush(s, rng, o.target, squad, 1) && squad.every((u) => !G.Units.isAlive(u))) return;
       const alive = squad.filter(G.Units.isAlive);
       const eff = workforce(s, alive, { cap: a.effCap, overCapEff: 0.2 });
-      const gained = G.Regions.explore(s, o.target, (a.exploreBase + a.explorePerTrooper * eff) * rng.range(0.8, 1.2));
+      const bonus = s.flags.dewback ? 1 + G.CONFIG.events.list.dewback.reconBonus : 1;
+      const gained = G.Regions.explore(s, o.target, (a.exploreBase + a.explorePerTrooper * eff) * bonus * rng.range(0.8, 1.2));
       if (gained > 0) say(s, rng.pick(G.TEXT.results.recon) + ' Район «' + name + '» разведан на ' + r.explored + '%.', 'info');
       else say(s, 'Район «' + name + '» уже изучен вдоль и поперёк.', 'info');
       const cfg = G.Regions.cfg(o.target);
@@ -271,7 +272,7 @@
     prefer: 'fighters',
     targets(s) {
       const list = G.Regions.known(s).filter((id) => G.Regions.canTrade(s, id));
-      if (s.visitors.jawa > 0) list.unshift('jawa');
+      if (s.visitors.jawa > 0 && !s.flags.jawaHostile) list.unshift('jawa');
       return list;
     },
     targetName: (id) => (id === 'jawa' ? 'Песчаный краулер джав' : G.Regions.name(id)),
@@ -297,6 +298,7 @@
       const D = G.CONFIG.diplomacy;
       return ['jawa', 'hutt', 'tusken'].filter((f) => {
         const r = s.regions[D[f].needRegion];
+        if (f === 'jawa' && s.flags.jawaHostile) return false;
         return (r && r.known && r.explored >= D[f].needExplored) || (f === 'jawa' && s.visitors.jawa > 0);
       });
     },

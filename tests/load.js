@@ -18,6 +18,8 @@ const CORE_FILES = [
   'js/core/actions.js',
   'js/core/day.js',
   'js/core/game.js',
+  'js/core/events.js',
+  'js/content/events.ru.js',
   'js/core/save.js',
 ];
 

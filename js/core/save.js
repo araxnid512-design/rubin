@@ -37,6 +37,7 @@
     s.items = Object.assign({}, C.start.items, s.items || {});
     s.flags = s.flags || {};
     s.timers = s.timers || [];
+    s.eventLog = s.eventLog || {};
     s.visitors = s.visitors || {};
     s.stats = Object.assign({ kills: 0, deaths: 0, battles: 0, victories: 0, defeats: 0, waterFound: 0, scrapFound: 0, deserted: 0, raids: 0 }, s.stats || {});
     for (const id in C.sections) if (!s.sections[id]) s.sections[id] = { level: C.sections[id].level, progress: 0, paid: false };
