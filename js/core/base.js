@@ -53,7 +53,7 @@
 
   Base.energyUse = function (s) {
     const up = G.CONFIG.upkeep;
-    return up.baseEnergy + up.droidEnergy * G.Units.droids(s).length;
+    return up.baseEnergy + up.droidEnergy * G.Units.droids(s).length + (G.Progress ? G.Progress.energyUpkeep(s) : 0);
   };
 
   G.Base = Base;

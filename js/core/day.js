@@ -19,9 +19,10 @@
     const C = G.CONFIG;
     const ration = C.rations[s.rations].water;
     let need = 0;
+    const save = G.CONFIG.specs ? G.CONFIG.specs.sand.waterSave : 0;
     for (const u of G.Units.people(s)) {
       if (u.status === 'away' || u.status === 'missing') continue;
-      need += ration;
+      need += u.spec === 'sand' ? Math.max(0.5, ration - save) : ration;
       if (G.Units.woundLevel(u) === 2) need += C.upkeep.woundedExtraWater;
     }
     for (const o of orders || []) {
@@ -64,6 +65,8 @@
       if (s.droidsOffline) say(s, 'Питание восстановлено — дроиды снова в строю.', 'good');
       s.droidsOffline = false;
     }
+
+    if (G.Progress) G.Progress.evening(s);
 
     // Вода
     const need = Day.waterNeed(s, s.orders);
@@ -120,8 +123,14 @@
     const C = G.CONFIG;
     const H = C.health;
 
-    // Лечение
-    const heal = G.Base.healBonus(s);
+    if (G.Progress) G.Progress.dawn(s);
+
+    // Лечение: медотсек и медики
+    let heal = G.Base.healBonus(s);
+    if (G.Progress) {
+      const M = G.CONFIG.specs.medic;
+      heal += Math.min(M.campHealMax, G.Progress.countSpec(s, 'medic', true) * M.campHeal);
+    }
     for (const u of G.Units.people(s)) {
       if (u.health >= 100) continue;
       const heavy = u.health < H.heavyBelow;

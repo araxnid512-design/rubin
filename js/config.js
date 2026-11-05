@@ -100,6 +100,7 @@
       salvage:   { min: 1, max: 30, droids: true, suggest: 12, suggestDroids: 2, perWorker: 3, droidMult: 1.6, effCap: 14, overCapEff: 0.3,
                    richness: [0, 0.6, 1.0, 1.4], noise: [0.8, 1.2],
                    injuryChance: 0.012, findChance: 0.14, ambushMult: 0.5, xp: 1 },
+      engineer:  { min: 1, max: 30, droids: true, suggest: 8, suggestDroids: 2, xp: 1 },
       repair:    { min: 1, max: 30, droids: true, suggest: 12, suggestDroids: 2, droidMult: 1.5, xp: 1 },
       guard:     { min: 1, max: 52, droids: true, suggest: 8, suggestDroids: 0, xp: 1 },
       trade:     { min: 2, max: 10, droids: false, suggest: 4, xp: 2, needExplored: 10 },
@@ -180,6 +181,9 @@
       { id: 'cells',      weight: 25, res: { energy: [15, 40] } },
       { id: 'water',      weight: 15, res: { water: [30, 80] } },
       { id: 'commModule', weight: 5,  items: { commModule: [1, 1] }, minSalvaged: 300 },
+      { id: 'turret',     weight: 9,  vehicle: 'turret', minSalvaged: 80 },
+      { id: 'speeder',    weight: 6,  vehicle: 'speeder', minSalvaged: 150 },
+      { id: 'walker',     weight: 3,  vehicle: 'walker', minSalvaged: 600, max: 1 },
     ],
 
     // ---------- РЕГИОНЫ ----------
@@ -279,6 +283,35 @@
         tusken_raid:   { when: 'raid', flareEnergy: 15, flareChance: 0.6, tributeWater: 60, tributeRelation: 3 },
       },
     },
+
+    // ---------- СПЕЦИАЛИЗАЦИИ ----------
+    // minRank — минимальное звание (индекс в ranks), minMissions — вылазок за плечами,
+    // needSection — нужный отсек, cost — стоимость подготовки, days — дней учёбы
+    specs: {
+      sand:   { minRank: 1, minMissions: 6, cost: { water: 20 }, days: 1, waterSave: 0.4, fieldBonus: 0.15 },
+      scout:  { minRank: 0, minMissions: 3, needVehicle: 'speeder', cost: { energy: 15 }, days: 1, reconMult: 1.6, ambushMult: 0.7 },
+      heavy:  { minRank: 1, minMissions: 0, needSection: ['armory', 1], cost: { scrap: 40, energy: 20 }, days: 2 },
+      sniper: { minRank: 2, minMissions: 0, needSection: ['armory', 1], cost: { scrap: 30, energy: 25 }, days: 3 },
+      medic:  { minRank: 1, minMissions: 0, needSection: ['medbay', 1], cost: { items: { bacta: 2 } }, days: 2, campHeal: 1, campHealMax: 3 },
+    },
+
+    // ---------- ТЕХНИКА, УКРЕПЛЕНИЯ, ДРОИДЫ ----------
+    // Инженерные работы (приказ «Инженерные работы»): cost — материалы, work — человеко-дни
+    projects: {
+      wall:         { cost: { scrap: 25 }, work: 6, max: 12 },
+      fix_speeder:  { needSection: ['hangar', 1], cost: { scrap: 40, energy: 20 }, work: 8 },
+      fix_walker:   { needSection: ['hangar', 1], cost: { scrap: 160, energy: 60 }, work: 32 },
+      fix_turret:   { needSection: ['workshop', 1], cost: { scrap: 30, energy: 30 }, work: 8 },
+      droid_repair: { needSection: ['workshop', 1], cost: { scrap: 30, energy: 20 }, work: 6, heal: 45 },
+      droid_build:  { needSection: ['workshop', 2], cost: { scrap: 150, energy: 80 }, work: 30 },
+    },
+    vehicles: {
+      upkeep: { speeder: 1, walker: 6, turret: 2 },   // энергия в сутки за исправную машину
+      battleDestroyChance: { walker: 0.3, turret: 0.4 },
+    },
+    droidSelfRepair: { perDay: [0, 6, 10], energy: 2 },  // мастерская дроидов чинит их сама
+    armoryAccBonus: [0, 0, 4],                         // лучшее оружие из арсенала: +точность
+    jawaSpeederPrice: 160,
 
     // ---------- АВТОБОЙ ----------
     battle: {

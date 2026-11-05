@@ -143,6 +143,7 @@
   }
 
   function targetInfo(s, type, id) {
+    if (type === 'engineer') return G.Progress.projectInfo(s, id);
     if (type === 'repair') {
       const sec = s.sections[id];
       const cost = G.Base.nextCost(s, id);

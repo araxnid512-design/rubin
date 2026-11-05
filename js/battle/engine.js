@@ -78,7 +78,7 @@
       if (side === 0 && B.setup.surprise) morale += C.surprise.morale;
     }
     return {
-      i: i, side: side, uid: e.uid != null ? e.uid : null, type: e.type, kind: e.kind || 'enemy',
+      i: i, side: side, uid: e.uid != null ? e.uid : null, vid: e.vid != null ? e.vid : null, type: e.type, kind: e.kind || 'enemy',
       label: e.label || BT().nom(e.type),
       x: 0, y: 0, nx: -1, ny: -1, moveT: 0, moveTotal: 0,
       hp: Math.max(1, Math.round(maxHp * (e.health != null ? e.health : 100) / 100)), maxHp: maxHp,
@@ -759,7 +759,7 @@
 
   Engine.result = function (B) {
     const units = B.units.map((u) => ({
-      i: u.i, side: u.side, uid: u.uid, type: u.type, kind: u.kind, label: u.label,
+      i: u.i, side: u.side, uid: u.uid, vid: u.vid, type: u.type, kind: u.kind, label: u.label,
       state: u.state, hp: Math.max(0, u.hp), maxHp: u.maxHp, kills: u.kills,
     }));
     let h = 2166136261 >>> 0;

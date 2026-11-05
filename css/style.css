@@ -280,3 +280,8 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
   .bv-log { height: 140px; }
   .formations { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------- Специализации ---------- */
+.spec-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #2b2f37; }
+.spec-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.lead { white-space: pre-line; }

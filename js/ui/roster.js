@@ -13,6 +13,7 @@
     ['all', 'Все'],
     ['fit', 'В строю'],
     ['wounded', 'Ранены'],
+    ['specs', 'Специалисты'],
     ['droids', 'Дроиды'],
     ['fallen', 'Павшие'],
   ];
@@ -24,6 +25,7 @@
       case 'fit': return alive && u.kind !== 'droid' && G.Units.woundLevel(u) === 0;
       case 'wounded': return alive && u.kind !== 'droid' && G.Units.woundLevel(u) > 0;
       case 'droids': return alive && u.kind === 'droid';
+      case 'specs': return alive && (!!u.spec || u.status === 'training');
       case 'fallen': return !alive;
     }
     return true;
@@ -65,6 +67,40 @@
     return [row, det];
   }
 
+  // Специализация в карточке бойца
+  UI.unitExtra = function (s, u) {
+    if (u.kind !== 'trooper' || !G.Units.isAlive(u)) return null;
+    const box = h('div', { class: 'spec-box' });
+    if (u.status === 'training') {
+      box.appendChild(h('div', { class: 'warn' }, 'На подготовке: «' + G.TEXT.specs[u.trainSpec].name + '», вернётся в строй на ' + (u.trainUntil + 1) + '-й день.'));
+      return box;
+    }
+    box.appendChild(h('div', null, 'Специализация: ', h('b', null, u.spec ? G.TEXT.specs[u.spec].name : 'нет'),
+      u.spec ? h('span', { class: 'muted' }, ' — ' + G.TEXT.specs[u.spec].desc) : null));
+    const row = h('div', { class: 'spec-row' });
+    for (const id of G.Progress.specIds()) {
+      if (u.spec === id) continue;
+      const why = G.Progress.specReq(s, u, id);
+      const c = G.CONFIG.specs[id];
+      row.appendChild(h('button', { class: 'btn small', disabled: !!why, title: why || G.TEXT.specs[id].desc,
+        onclick: (e) => {
+          e.stopPropagation();
+          UI.confirm('Подготовка: ' + G.TEXT.specs[id].name, G.TEXT.specs[id].desc + '\n\nСтоимость: ' + (G.Res.costText(c.cost) || 'бесплатно') + '. Боец выбудет на ' + U.pl(c.days, U.FORMS.day) + '.' + (u.spec ? ' Прежняя специализация будет утрачена.' : ''), () => {
+            const err = G.Progress.train(s, u, id);
+            if (err) UI.flash(err);
+            UI.commit();
+          });
+        } }, G.TEXT.specs[id].name + (why ? ' 🔒' : '')));
+    }
+    box.appendChild(row);
+    const reasons = G.Progress.specIds().filter((id) => id !== u.spec).map((id) => {
+      const why = G.Progress.specReq(s, u, id);
+      return why ? G.TEXT.specs[id].name + ': ' + why : null;
+    }).filter(Boolean);
+    if (reasons.length) box.appendChild(h('div', { class: 'small muted', style: 'margin-top:4px' }, reasons.join(' · ')));
+    return box;
+  };
+
   UI.views.roster = function (s) {
     const all = s.units;
     const people = G.Units.people(s);
@@ -73,6 +109,7 @@
       fit: people.filter((u) => G.Units.woundLevel(u) === 0).length,
       wounded: people.filter((u) => G.Units.woundLevel(u) > 0).length,
       droids: G.Units.droids(s).length,
+      specs: people.filter((u) => u.spec || u.status === 'training').length,
       fallen: all.filter((u) => !G.Units.isAlive(u)).length,
     };
     const list = all.filter((u) => matches(s, u, UI.rosterFilter)).sort((a, b) => {

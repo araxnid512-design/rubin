@@ -5,7 +5,7 @@
   const F = U.FORMS;
 
   const Actions = {};
-  Actions.list = ['recon', 'water', 'salvage', 'repair', 'guard', 'trade', 'diplomacy', 'attack', 'speech', 'reward'];
+  Actions.list = ['recon', 'water', 'salvage', 'repair', 'engineer', 'guard', 'trade', 'diplomacy', 'attack', 'speech', 'reward'];
 
   const A = () => G.CONFIG.actions;
   const say = (s, t, tone) => G.Game.say(s, t, tone);
@@ -16,6 +16,7 @@
     for (const u of units) {
       let x = G.Units.efficiency(s, u);
       if (u.kind === 'droid') x *= opts.droidMult || 1;
+      if (opts.spec && u.spec && opts.spec[u.spec]) x *= opts.spec[u.spec];
       e += x;
     }
     if (opts.cap && e > opts.cap) e = opts.cap + (e - opts.cap) * (opts.overCapEff || 0);
@@ -25,11 +26,13 @@
   function regionOk(s, id) { return s.regions[id] && s.regions[id].known; }
 
   // ---------- Засады и стычки (упрощённый расчёт) ----------
-  Actions.ambushChance = function (s, regionId, squadSize, mult) {
+  Actions.ambushChance = function (s, regionId, squadSize, mult, squad) {
     const a = A().recon;
     const cfg = G.Regions.cfg(regionId);
     let p = (a.ambushBase + a.ambushPerDanger * cfg.danger) * G.Res.diff(s).danger * (mult || 1);
     if (squadSize < a.smallSquad) p *= a.smallSquadRisk;
+    if (squad && squad.some((u) => u.spec === 'scout')) p *= G.CONFIG.specs.scout.ambushMult;
+    if (s.sections.sensors.level > 0) p *= 0.85;
     return Math.min(0.6, p);
   };
 
@@ -81,7 +84,7 @@
   }
 
   function maybeAmbush(s, rng, regionId, squad, mult) {
-    const p = Actions.ambushChance(s, regionId, squad.length, mult);
+    const p = Actions.ambushChance(s, regionId, squad.length, mult, squad);
     if (!rng.chance(p)) return false;
     if (G.BattleFlow && squad.some(G.Units.isAlive)) {
       // Автобой: засада разыгрывается отдельным боем сразу после приказа
@@ -123,7 +126,7 @@
       r.visits++;
       if (maybeAmbush(s, rng, o.target, squad, 1) && squad.every((u) => !G.Units.isAlive(u))) return;
       const alive = squad.filter(G.Units.isAlive);
-      const eff = workforce(s, alive, { cap: a.effCap, overCapEff: 0.2 });
+      const eff = workforce(s, alive, { cap: a.effCap, overCapEff: 0.2, spec: { scout: G.CONFIG.specs.scout.reconMult, sand: 1 + G.CONFIG.specs.sand.fieldBonus } });
       const bonus = s.flags.dewback ? 1 + G.CONFIG.events.list.dewback.reconBonus : 1;
       const gained = G.Regions.explore(s, o.target, (a.exploreBase + a.explorePerTrooper * eff) * bonus * rng.range(0.8, 1.2));
       if (gained > 0) say(s, rng.pick(G.TEXT.results.recon) + ' Район «' + name + '» разведан на ' + r.explored + '%.', 'info');
@@ -159,7 +162,7 @@
       maybeAmbush(s, rng, o.target, squad, a.ambushMult);
       const alive = squad.filter(G.Units.isAlive);
       if (!alive.length) return;
-      const eff = workforce(s, alive, { cap: a.effCap, overCapEff: a.overCapEff });
+      const eff = workforce(s, alive, { cap: a.effCap, overCapEff: a.overCapEff, spec: { sand: 1 + G.CONFIG.specs.sand.fieldBonus } });
       let amount = Math.round(a.perWorker * eff * a.richness[c.water] * rng.range(a.noise[0], a.noise[1]));
       amount = Math.min(amount, r.water);
       r.water -= amount;
@@ -220,9 +223,15 @@
   };
 
   Actions.rollFind = function (s, rng) {
-    const list = G.CONFIG.finds.filter((f) => !f.minSalvaged || s.salvaged >= f.minSalvaged);
+    const list = G.CONFIG.finds.filter((f) => (!f.minSalvaged || s.salvaged >= f.minSalvaged) &&
+      (!f.max || !f.vehicle || G.Progress.vehiclesOf(s, f.vehicle).length < f.max));
     const f = rng.weighted(list, (x) => x.weight);
     if (!f) return;
+    if (f.vehicle) {
+      const v = G.Progress.addVehicle(s, rng, f.vehicle, false);
+      say(s, U.fill(G.TEXT.finds[f.id], { name: G.Progress.vehicleName(v) }), 'good');
+      return;
+    }
     let n = 0;
     if (f.res) for (const k in f.res) { n = U.rollRange(rng, f.res[k]); G.Res.add(s, k, n); }
     if (f.items) for (const k in f.items) { n = U.rollRange(rng, f.items[k]); G.Res.addItem(s, k, n); }
@@ -254,6 +263,31 @@
       const text = G.Base.work(s, o.target, pts);
       const done = text.indexOf('завершён') >= 0;
       say(s, text, done ? 'good' : 'info');
+      for (const u of alive) G.Units.addXp(s, u, A().repair.xp);
+    },
+  };
+
+  // ---------- Инженерные работы: укрепления, техника, дроиды ----------
+  defs.engineer = {
+    prefer: 'workers',
+    targets: (s) => G.Progress.projectTargets(s),
+    validate(s, o) { return G.Progress.projectLock(s, o.target); },
+    preview(s, o) {
+      const kind = G.Progress.projectKind(s, o.target);
+      const c = G.CONFIG.projects[kind];
+      const st = G.Progress.projectState(s, o.target);
+      const units = (o.unitIds || []).map((id) => G.Units.byId(s, id)).filter(Boolean);
+      const pts = units.length ? workforce(s, units, { droidMult: A().repair.droidMult }) : o.troopers;
+      const left = c.work - st.progress;
+      const days = Math.max(1, Math.ceil(left / Math.max(0.1, pts)));
+      return (st.paid ? 'Материалы уже заложены. ' : 'Будут списаны: ' + G.Res.costText(c.cost) + '. ') +
+        'Осталось ' + Math.ceil(left) + ' чел.-дней — при таком отряде около ' + U.pl(days, F.day) + '.';
+    },
+    resolve(s, o, rng, squad) {
+      const alive = squad.filter(G.Units.isAlive);
+      const pts = workforce(s, alive, { droidMult: A().repair.droidMult });
+      const text = G.Progress.work(s, rng, o.target, pts);
+      say(s, text, /готов|в строю|собран|отремонтированы/.test(text) ? 'good' : 'info');
       for (const u of alive) G.Units.addXp(s, u, A().repair.xp);
     },
   };
@@ -416,9 +450,10 @@
   Actions.workforce = workforce;
 
   // Название цели для интерфейса
-  Actions.targetName = function (type, target) {
+  Actions.targetName = function (type, target, s) {
     const d = defs[type];
     if (!target) return '';
+    if (type === 'engineer') return G.Progress.projectName(s || (G.UI && G.UI.s), target);
     if (d.targetName) return d.targetName(target);
     return G.Regions.name(target);
   };

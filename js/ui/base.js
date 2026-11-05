@@ -32,11 +32,46 @@
     switch (id) {
       case 'reactor': return 'Даёт ' + C.energy[lv] + ' энергии в сутки.';
       case 'vapor': return lv ? 'Даёт ' + C.water[lv] + ' л воды в сутки.' : '';
-      case 'medbay': return lv ? 'Лечение +' + C.heal[lv] + ' в сутки.' : '';
-      case 'sensors': return lv ? 'Налёты реже на ' + Math.round(C.raidReduce[lv] * 100) + '%.' : '';
+      case 'medbay': return lv ? 'Лечение +' + C.heal[lv] + ' в сутки; можно готовить медиков.' : 'Открывает медиков и медпакеты в бою.';
+      case 'sensors': return lv ? 'Налёты реже на ' + Math.round(C.raidReduce[lv] * 100) + '%, засады реже.' : '';
+      case 'armory': return ['Открывает: тяжёлых штурмовиков, снайперов, термодетонаторы.', 'Тяжёлые штурмовики, снайперы, термодетонаторы.', 'Лучшее оружие: точность штурмовиков +' + G.CONFIG.armoryAccBonus[2] + '.'][lv];
+      case 'workshop': return ['Открывает ремонт дроидов и установку турелей.', 'Дроиды чинятся сами; можно ставить турели.', 'Сборка новых дроидов.'][lv];
+      case 'hangar': return lv ? '' : 'Без него технику не починить.';
       default: return '';
     }
   };
+
+  function techCard(s) {
+    const can = s.phase === 'orders' && G.Game.ordersLeft(s) > 0;
+    const projBtn = (key, label) => {
+      const lock = G.Progress.projectLock(s, key);
+      return h('button', { class: 'btn small', disabled: !can || !!lock, title: lock || '', onclick: () => UI.openBuilder('engineer', key) }, label);
+    };
+    const vehicles = s.vehicles || [];
+    const P = G.CONFIG.projects;
+    const droids = G.Units.droids(s);
+    return h('div', { class: 'card' },
+      h('h2', null, 'Техника и укрепления'),
+      h('div', { class: 'section' },
+        h('div', { class: 'row between' },
+          h('div', null, h('b', null, 'Баррикады'), ' ', h('span', { class: 'lvl' }, (s.fort.walls || 0) + '/' + P.wall.max)),
+          (s.fort.walls || 0) < P.wall.max ? projBtn('wall', '⚒ Строить') : h('span', { class: 'good small' }, 'достроены')),
+        bar(s.fort.walls || 0, P.wall.max, 'sand'),
+        h('div', { class: 'small muted' }, 'Секции укрытий на линии обороны лагеря. Видны на поле боя при налётах. ' + G.Progress.projectInfo(s, 'wall'))),
+      h('div', { class: 'section' },
+        h('b', null, 'Машины'),
+        vehicles.length ? vehicles.map((v) => h('div', { class: 'row between', style: 'margin-top:6px' },
+          h('div', null, G.Progress.vehicleName(v), ' — ', h('span', { class: v.ok ? 'good' : 'warn' }, v.ok ? 'исправна' + (v.health < 100 ? ' (' + v.health + '%)' : '') : 'неисправна'),
+            h('div', { class: 'small muted' }, G.TEXT.vehicles[v.type].desc + (v.ok ? '' : ' ' + G.Progress.projectInfo(s, 'fix:' + v.id)))),
+          v.ok ? null : projBtn('fix:' + v.id, v.type === 'turret' ? '⚒ Установить' : '⚒ Чинить')))
+          : h('p', { class: 'small muted' }, 'Пока нет. Технику находят при разборе обломков или покупают у джав.')),
+      h('div', { class: 'section' },
+        h('div', { class: 'row between' }, h('b', null, 'Дроиды: ' + droids.length),
+          h('div', { class: 'row' }, projBtn('droid_repair', '⚒ Ремонт'), projBtn('droid_build', '⚒ Собрать нового'))),
+        droids.map((d) => h('div', { class: 'small' }, d.num + ' ' + d.name + ' — ' + d.health + '%')),
+        h('div', { class: 'small muted' }, 'Мастерская дроидов чинит их понемногу сама; сборочный цех (уровень 2) собирает новых.'))
+    );
+  }
 
   UI.views.base = function (s) {
     const eProd = G.Base.energyProduction(s);
@@ -52,11 +87,12 @@
         )
       ),
       h('div', null,
+        techCard(s),
         h('div', { class: 'card' },
           h('h2', null, 'Хозяйство'),
           h('div', { class: 'kv' },
             kv('Реактор', '+' + eProd + ' энергии в сутки'),
-            kv('Потребление', '−' + eUse + ' (лагерь ' + G.CONFIG.upkeep.baseEnergy + ', дроиды ' + (eUse - G.CONFIG.upkeep.baseEnergy) + ')'),
+            kv('Потребление', '−' + eUse + ' (лагерь ' + G.CONFIG.upkeep.baseEnergy + ', дроиды и техника ' + (eUse - G.CONFIG.upkeep.baseEnergy) + ')'),
             kv('Ёмкость батарей', G.Res.energyCap(s) + ''),
             kv('Влагоуловители', '+' + G.Base.waterProduction(s) + ' л в сутки'),
             kv('Металл в обломках', '~' + s.regions.crash.scrap + ' ед.')

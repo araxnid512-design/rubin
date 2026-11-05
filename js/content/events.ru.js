@@ -104,6 +104,15 @@
           s.visitors.jawa = c.stay;
           return 'Из недр краулера выкатили побитого охранного дроида. После пары ударов гаечным ключом он ожил и доложил о готовности. В отряде новый боец: ' + d.num + ' ' + d.name + '.';
         } },
+      { id: 'speeder', label: (s) => 'Купить у джав спидер-байк (' + G.CONFIG.jawaSpeederPrice + ' кр.)', hint: 'Подержанный, но на ходу. Нужен для разведчиков',
+        req: needCredits(G.CONFIG.jawaSpeederPrice),
+        run(s, ctx, rng, E) {
+          E.res(s, { credits: -G.CONFIG.jawaSpeederPrice });
+          const v = G.Progress.addVehicle(s, rng, 'speeder', true);
+          v.health = 70;
+          s.visitors.jawa = C('jawa_caravan').stay;
+          return 'Джавы выкатили из трюма дребезжащий спидер-байк и долго уверяли, что «почти новый». ' + G.Progress.vehicleName(v) + ' в нашем распоряжении.';
+        } },
       { id: 'rob', label: 'Захватить краулер', hint: 'Добыча будет богатой, но джавы больше никогда не придут торговать',
         run(s, ctx, rng, E) {
           const c = C('jawa_caravan');

@@ -35,7 +35,11 @@
     return u.spec || 'trooper';
   };
   BF.unitEntry = function (s, u) {
-    return { uid: u.id, type: BF.unitType(u), kind: u.kind, label: G.Units.title(u), rank: G.Units.rankIndex(u), health: u.health };
+    const acc = u.kind === 'trooper' ? (G.CONFIG.armoryAccBonus[s.sections.armory.level] || 0) : 0;
+    return { uid: u.id, type: BF.unitType(u), kind: u.kind, label: G.Units.title(u), rank: G.Units.rankIndex(u), health: u.health, accBonus: acc };
+  };
+  BF.vehicleEntry = function (s, v) {
+    return { uid: null, vid: v.id, type: v.type, kind: v.type, label: G.Progress.vehicleName(v).toLowerCase(), rank: 0, health: v.health };
   };
 
   // Состав противника по силе
@@ -80,7 +84,8 @@
   };
 
   BF.campWalls = (s) => (s.fort && s.fort.walls) || 0;
-  BF.campTurrets = (s) => (s.fort && s.fort.turrets) || 0;
+  BF.campTurrets = (s) => (s.vehicles || []).filter((v) => v.type === 'turret' && v.ok).length;
+  BF.walkers = (s) => (s.vehicles || []).filter((v) => v.type === 'walker' && v.ok);
 
   BF.campSquad = function (s) {
     // Дроиды — в первую очередь, затем самые здоровые и опытные бойцы
@@ -154,9 +159,9 @@
   BF.toSetup = function (s, p) {
     const A = C().armies[p.ctx.army] || C().armies.tusken;
     const ours = p.unitIds.map((id) => G.Units.byId(s, id)).filter((u) => u && G.Units.isAlive(u)).map((u) => BF.unitEntry(s, u));
-    if (p.ctx.mode === 'camp') {
-      for (let i = 0; i < BF.campTurrets(s); i++) ours.push({ uid: null, type: 'turret', kind: 'turret', label: 'турель №' + (i + 1), rank: 0, health: 100 });
-    }
+    // Техника: шагоход идёт в атаки и обороняет лагерь, турели — только в лагере
+    if (p.ctx.mode === 'camp' || p.ctx.type === 'attack') for (const v of BF.walkers(s)) ours.unshift(BF.vehicleEntry(s, v));
+    if (p.ctx.mode === 'camp') for (const v of (s.vehicles || []).filter((x) => x.type === 'turret' && x.ok)) ours.unshift(BF.vehicleEntry(s, v));
     let enemyTactic = A.tactic;
     if (p.ctx.type === 'attack' && enemyTactic !== 'assault') enemyTactic = 'defense';
     if (p.ctx.mode === 'camp' && enemyTactic === 'defense') enemyTactic = 'assault';
@@ -196,6 +201,18 @@
     for (const r of res.units) if (r.side === 0 && r.type === 'medic' && r.state === 'active') medics++;
     let kills = 0;
     for (const r of res.units) {
+      if (r.side === 0 && r.vid != null) {
+        const v = (s.vehicles || []).find((x) => x.id === r.vid);
+        if (!v) continue;
+        if (r.state === 'down') {
+          v.ok = false; v.health = 0;
+          if (rng.chance(G.CONFIG.vehicles.battleDestroyChance[v.type] || 0)) {
+            s.vehicles = s.vehicles.filter((x) => x !== v);
+            killed.push(G.Progress.vehicleName(v) + ' (уничтожен)');
+          } else heavy.push(G.Progress.vehicleName(v) + ' (нужен ремонт)');
+        } else v.health = U.clamp(Math.round((r.hp / r.maxHp) * 100), 1, 100);
+        continue;
+      }
       if (r.side !== 0 || r.uid == null) continue;
       const u = G.Units.byId(s, r.uid);
       if (!u || !G.Units.isAlive(u)) continue;
