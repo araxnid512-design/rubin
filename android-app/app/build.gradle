@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.kolrat.tatooine'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.kolrat.tatooine'
+        minSdk 24
+        targetSdk 36
+        // номер сборки GitHub Actions: каждая новая версия ставится поверх старой
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName System.getenv('VERSION_NAME') ?: '1.0-dev'
+    }
+
+    // Постоянный debug-ключ (тот же, что у других игр репозитория): обновления ставятся без удаления игры
+    signingConfigs {
+        release {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    // сама игра — веб-версия из www/ (собирается командой: node tools/build-www.js)
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../www']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}

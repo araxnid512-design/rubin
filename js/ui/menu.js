@@ -34,6 +34,7 @@
             UI.isNativeApp() ? null : h('button', { class: 'btn', onclick: () => G.Save.exportFile(s) }, '⇩ Скачать файл'),
             h('button', { class: 'btn', onclick: () => UI.importSave() }, '⇧ Загрузить файл'),
             h('button', { class: 'btn', onclick: () => UI.copySave(s) }, '⧉ Копировать сохранение'),
+            globalThis.KolratAndroid ? h('button', { class: 'btn', onclick: () => UI.shareSave(s) }, '⇪ Отправить сохранение') : null,
             h('button', { class: 'btn', onclick: () => UI.pasteSave() }, '⎘ Вставить сохранение')),
           h('p', { class: 'small muted', style: 'margin-top:8px' }, 'Сохранение можно перенести на другой компьютер или телефон — файлом или текстом через буфер обмена (например, переслать себе в мессенджере).')
         ),

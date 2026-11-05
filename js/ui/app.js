@@ -206,8 +206,13 @@
   UI.copySave = function (s) {
     const text = G.Save.serialize(s);
     const done = () => UI.flash('Сохранение скопировано в буфер обмена (' + Math.round(text.length / 1024) + ' КБ).');
+    if (globalThis.KolratAndroid) { KolratAndroid.copy(text); done(); return; }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => UI.showSaveText(text));
     else UI.showSaveText(text);
+  };
+  // Отправить сохранение в мессенджер или почту (в Android-приложении)
+  UI.shareSave = function (s) {
+    if (globalThis.KolratAndroid) KolratAndroid.share(G.Save.serialize(s));
   };
   UI.showSaveText = function (text) {
     UI.overlay = () => h('div', { class: 'modal' },
@@ -233,7 +238,8 @@
       ta,
       h('div', { class: 'row', style: 'margin-top:8px' },
         h('button', { class: 'btn', onclick: () => { UI.overlay = null; UI.render(); } }, 'Отмена'),
-        navigator.clipboard && navigator.clipboard.readText ? h('button', { class: 'btn', onclick: () => navigator.clipboard.readText().then((t) => { ta.value = t; }, () => UI.flash('Нет доступа к буферу — вставьте вручную.')) }, 'Из буфера') : null,
+        globalThis.KolratAndroid ? h('button', { class: 'btn', onclick: () => { ta.value = KolratAndroid.paste(); } }, 'Из буфера')
+          : navigator.clipboard && navigator.clipboard.readText ? h('button', { class: 'btn', onclick: () => navigator.clipboard.readText().then((t) => { ta.value = t; }, () => UI.flash('Нет доступа к буферу — вставьте вручную.')) }, 'Из буфера') : null,
         h('button', { class: 'btn primary', onclick: load }, 'Загрузить')));
     UI.render();
   };
@@ -254,7 +260,7 @@
   // ---------- Телефон, ориентация, полный экран ----------
   UI.isLandscapePhone = () => !!(globalThis.matchMedia && matchMedia('(orientation: landscape) and (max-height: 540px)').matches);
   UI.canFullscreen = () => !!(document.fullscreenEnabled && !UI.isNativeApp());
-  UI.isNativeApp = () => !!(globalThis.Capacitor && globalThis.Capacitor.isNativePlatform && globalThis.Capacitor.isNativePlatform());
+  UI.isNativeApp = () => !!(globalThis.KolratAndroid || /KolratApp/.test(navigator.userAgent || ''));
   UI.fullscreen = function () {
     const el = document.documentElement;
     const p = document.fullscreenElement ? Promise.resolve() : (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : Promise.reject());
@@ -281,6 +287,22 @@
       UI.render();
     }, 250);
   });
+
+  // ---------- Android-приложение: кнопка «Назад» и сворачивание ----------
+  // true — игра обработала «Назад» сама; false — приложение свернётся
+  globalThis.appBack = function () {
+    if (UI.overlay) { UI.overlay = null; UI.render(); return true; }
+    const s = UI.s;
+    if (!s) {
+      if (UI.titleState.mode !== 'main') { UI.titleState.mode = 'main'; UI.render(); return true; }
+      return false;
+    }
+    if (s.pending || (s.over && !UI.overSeen)) return true; // окна событий и боёв закрываются только выбором
+    if (UI.builder) { UI.builder = null; UI.render(); return true; }
+    if (UI.tab !== 'hq') { UI.go('hq'); return true; }
+    return false;
+  };
+  globalThis.appPause = function () { if (UI.s) G.Save.write('auto', UI.s); };
 
   // ---------- Запуск ----------
   function boot() {

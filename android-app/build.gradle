@@ -1,0 +1,4 @@
+// Android-обёртка игры «Колрат»: WebView на весь экран, игра лежит в assets (папка www/, её собирает tools/build-www.js)
+plugins {
+    id 'com.android.application' version '8.13.0' apply false
+}
