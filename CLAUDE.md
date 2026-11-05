@@ -15,6 +15,8 @@
   Пользователю давать прямую ссылку (всегда последняя сборка):
   https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk
 - Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
+- Ссылка из чата открывается во встроенном браузере приложения Claude: там скачивание APK зависает на 100%
+  («Скачивание…», окно «всё равно скачать» не показывается). Сразу писать: ⋮ → «Открыть в Chrome» → «Скачать».
 
 ## Новая линия «Клонов» (ветка `claude/styx-android-lore-rwjww2`, папка `clones/www/`)
 
