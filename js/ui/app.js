@@ -64,6 +64,8 @@
     view.appendChild(fn(UI.s));
     renderModal();
   };
+  // Музыка: в бою — боевая тема, в остальное время — пустынная
+  function syncMusic() { if (G.Audio) G.Audio.music(UI._bv ? 'battle' : 'desert'); }
 
   function renderModal() {
     const root = document.getElementById('modal-root');
@@ -73,6 +75,10 @@
     if (UI.overlay) content = UI.overlay();
     else if (s && s.pending && UI.modals[s.pending.kind]) content = UI.modals[s.pending.kind](s);
     else if (s && s.over && !UI.overSeen) content = UI.modals.over(s);
+    syncMusic();
+    // вызов по связи — когда открывается новое событие или тревога
+    const key = s && s.pending && (s.pending.kind === 'event' || s.pending.kind === 'battle') ? s.pending.kind + ':' + s.day + ':' + (s.pending.id || '') + ':' + (s.pending.result != null) : null;
+    if (key && key !== UI._lastAlert && !(s.pending.result != null)) { UI._lastAlert = key; if (G.Audio) G.Audio.sfx('alert'); }
     if (content) {
       root.appendChild(h('div', { class: 'overlay' }, content));
       document.body.style.overflow = 'hidden';
@@ -113,7 +119,9 @@
         chip('discipline', 'Дисциплина', s.res.discipline, s.res.discipline < G.CONFIG.discipline.lowThreshold ? 'alert' : s.res.discipline < 50 ? 'caution' : ''),
         chip('troops', 'Бойцы', fit + '/' + ppl, '', 'В строю / всего людей'),
         chip('droid', 'Дроиды', dr)
-      )
+      ),
+      G.Audio && G.Audio.available() ? h('button', { class: 'snd-btn', title: G.Audio.prefs.mute ? 'Включить звук' : 'Выключить звук',
+        onclick: () => { G.Audio.set('mute', !G.Audio.prefs.mute); UI.render(); } }, G.Audio.prefs.mute ? '🔇' : '🔊') : null
     );
   };
 
@@ -135,7 +143,7 @@
     const st = UI.titleState;
     const meta = G.Save.meta('auto');
     const wrap = h('div', { class: 'title-screen' },
-      emblem(),
+      G.TitleScene ? G.TitleScene() : emblem(),
       h('h1', null, 'КОЛРАТ'),
       h('div', { class: 'sub' }, 'Песок Татуина · выживание после крушения')
     );
@@ -312,6 +320,7 @@
       h('div', { class: 'fx-text' }, h('div', { class: 't-night' }, 'Ночь над лагерем'), done ? h('div', { class: 't-day' }, 'День ' + s.day) : null));
     el.addEventListener('click', () => el.remove());
     document.body.appendChild(el);
+    if (G.Audio) G.Audio.sfx('day');
     setTimeout(() => el.remove(), done ? 2300 : 1300);
   };
 
@@ -365,6 +374,8 @@
   // ---------- Запуск ----------
   function boot() {
     rotateHint();
+    // тихий щелчок на кнопках
+    document.addEventListener('click', (e) => { if (G.Audio && e.target.closest && e.target.closest('button, .choice')) G.Audio.sfx('click', { max: 2 }); }, true);
     UI.render();
     // Офлайн-режим и установка на телефон (только по https или localhost)
     if ('serviceWorker' in navigator && !globalThis.KOLRAT_ARTIFACT && (location.protocol === 'https:' || location.hostname === 'localhost') && !UI.isNativeApp()) {

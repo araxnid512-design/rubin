@@ -22,6 +22,7 @@
       const err = G.Camp.build(s, sel.t, x, y);
       if (err) { UI.flash(err); return; }
       G.CampView.puff(x, y);
+      if (G.Audio) G.Audio.sfx('build');
       UI.commit();
       return;
     }

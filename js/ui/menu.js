@@ -23,6 +23,21 @@
     );
   }
 
+  // Звук и музыка: громкость ползунками, выключить одним касанием
+  function soundCard() {
+    const A = G.Audio, P = A.prefs;
+    const slider = (key, label) => h('label', { class: 'snd-row', for: 'snd-' + key },
+      h('span', null, label),
+      h('input', { id: 'snd-' + key, type: 'range', min: 0, max: 100, step: 5, value: Math.round(P[key] * 100),
+        oninput: (e) => { A.set(key, Number(e.target.value) / 100); if (key === 'sfx') A.sfx('blaster', { side: 0 }); } }));
+    return h('div', { class: 'card' },
+      h('div', { class: 'row between' }, h('h2', null, 'Звук и музыка'),
+        h('button', { class: 'btn small' + (P.mute ? '' : ' sel'), onclick: () => { A.set('mute', !P.mute); UI.render(); } }, P.mute ? '🔇 выключен' : '🔊 включён')),
+      slider('music', 'Музыка'),
+      slider('sfx', 'Звуки'),
+      h('p', { class: 'small muted', style: 'margin:6px 0 0' }, 'Музыка и звуки свои, в духе космической оперы. Звук включается после первого касания экрана.'));
+  }
+
   UI.views.menu = function (s) {
     return h('div', { class: 'cols' },
       h('div', null,
@@ -39,6 +54,7 @@
             h('button', { class: 'btn', onclick: () => UI.pasteSave() }, '⎘ Вставить сохранение')),
           h('p', { class: 'small muted', style: 'margin-top:8px' }, 'Сохранение можно перенести на другой компьютер или телефон — файлом или текстом через буфер обмена (например, переслать себе в мессенджере).')
         ),
+        G.Audio && G.Audio.available() ? soundCard() : null,
         UI.canFullscreen() ? h('div', { class: 'card' },
           h('h2', null, 'Экран'),
           h('button', { class: 'btn', onclick: () => (document.fullscreenElement ? document.exitFullscreen().then(() => UI.render()) : UI.fullscreen()) },

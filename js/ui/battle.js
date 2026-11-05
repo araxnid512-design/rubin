@@ -39,51 +39,86 @@
     c.closePath();
   }
 
-  // Местность: песок, дюны, скалы, обломки, баррикады
+  // Местность: песок, дюны, скалы, обломки, баррикады. Свет падает слева сверху.
   function drawTerrain(c, cells, W, H, cell) {
-    c.fillStyle = TERRAIN[0];
-    c.fillRect(0, 0, W * cell, H * cell);
-    // лёгкая рябь песка
-    c.fillStyle = 'rgba(255,240,200,0.06)';
-    for (let k = 0; k < W * H / 3; k++) c.fillRect(hr(k) * W * cell, hr(k + 999) * H * cell, cell * 0.5, 1);
+    const PW = W * cell, PH = H * cell;
+    const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? -1 : cells[y * W + x]);
+    // песок: тёплый градиент, пятна, рябь
+    const g = c.createLinearGradient(0, 0, PW, PH);
+    g.addColorStop(0, '#c49a5e'); g.addColorStop(0.5, '#b38f58'); g.addColorStop(1, '#a07e4b');
+    c.fillStyle = g; c.fillRect(0, 0, PW, PH);
+    for (let k = 0; k < 26; k++) {
+      const x = hr(k * 3) * PW, y = hr(k * 3 + 1) * PH, r = cell * (1.5 + hr(k * 3 + 2) * 3.5);
+      const rg = c.createRadialGradient(x, y, 0, x, y, r);
+      const light = k % 2 === 0;
+      rg.addColorStop(0, light ? 'rgba(230,200,150,0.18)' : 'rgba(110,80,45,0.13)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+    }
+    c.strokeStyle = 'rgba(120,88,48,0.18)'; c.lineWidth = Math.max(1, cell * 0.04);
+    for (let k = 0; k < W * H / 5; k++) {
+      const x = hr(k + 500) * PW, y = hr(k + 900) * PH, w = cell * (0.4 + hr(k + 1300) * 0.6);
+      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + w / 2, y - cell * 0.08, x + w, y); c.stroke();
+    }
+    c.fillStyle = 'rgba(90,64,36,0.35)';
+    for (let k = 0; k < W * H / 2; k++) c.fillRect(hr(k + 2000) * PW, hr(k + 4000) * PH, Math.max(1, cell * 0.05), Math.max(1, cell * 0.05));
+    // дюны: гребень светлее, подветренный склон в тени
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const t = cells[y * W + x];
+      if (cells[y * W + x] !== 1) continue;
       const px = x * cell, py = y * cell;
-      if (t === 1) {
-        c.fillStyle = TERRAIN[1];
-        c.fillRect(px, py, cell, cell);
-        c.strokeStyle = 'rgba(120,85,40,0.35)';
+      const dg = c.createLinearGradient(px, py, px + cell, py + cell);
+      dg.addColorStop(0, 'rgba(236,206,150,0.55)'); dg.addColorStop(0.55, 'rgba(206,168,108,0.35)'); dg.addColorStop(1, 'rgba(140,100,55,0.35)');
+      c.fillStyle = dg; c.fillRect(px, py, cell, cell);
+      c.strokeStyle = 'rgba(255,240,200,0.45)'; c.lineWidth = Math.max(1, cell * 0.05);
+      c.beginPath(); c.moveTo(px + 2, py + cell * 0.62); c.quadraticCurveTo(px + cell / 2, py + cell * 0.3, px + cell - 2, py + cell * 0.6); c.stroke();
+      c.strokeStyle = 'rgba(110,78,40,0.3)';
+      c.beginPath(); c.moveTo(px + 3, py + cell * 0.8); c.quadraticCurveTo(px + cell / 2, py + cell * 0.55, px + cell - 3, py + cell * 0.82); c.stroke();
+    }
+    // тени от скал, обломков и баррикад — вправо вниз
+    c.fillStyle = 'rgba(40,26,12,0.32)';
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = cells[y * W + x];
+      if (v < 2) continue;
+      const px = x * cell, py = y * cell, o = cell * (v === 4 ? 0.18 : 0.3);
+      roundRect(c, px + o, py + o, cell - 1, cell - 1, cell * 0.3); c.fill();
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = cells[y * W + x];
+      const px = x * cell, py = y * cell;
+      if (v === 2) { // скала: объём, трещины, блик сверху слева
+        const rg = c.createRadialGradient(px + cell * 0.32, py + cell * 0.28, cell * 0.05, px + cell * 0.5, py + cell * 0.5, cell * 0.75);
+        rg.addColorStop(0, '#8a7258'); rg.addColorStop(0.55, '#6a5440'); rg.addColorStop(1, '#45362a');
+        c.fillStyle = rg;
+        const n = (dx, dy) => (at(x + dx, y + dy) === 2 ? 0 : cell * 0.12);
         c.beginPath();
-        c.moveTo(px + 2, py + cell * 0.65);
-        c.quadraticCurveTo(px + cell / 2, py + cell * 0.35, px + cell - 2, py + cell * 0.65);
-        c.stroke();
-      } else if (t === 2) {
-        c.fillStyle = 'rgba(0,0,0,0.22)';
-        roundRect(c, px + 2, py + 3, cell - 2, cell - 2, cell * 0.3); c.fill();
-        c.fillStyle = TERRAIN[2];
-        roundRect(c, px + 1, py + 1, cell - 2, cell - 2, cell * 0.3);
-        c.fill();
-        c.fillStyle = 'rgba(255,255,255,0.08)';
-        c.fillRect(px + cell * 0.2, py + cell * 0.2, cell * 0.35, cell * 0.2);
-      } else if (t === 3) {
-        c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(px + 2, py + 3, cell - 2, cell - 2);
-        c.fillStyle = TERRAIN[3];
-        c.fillRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
-        c.strokeStyle = 'rgba(0,0,0,0.35)';
-        c.beginPath();
-        c.moveTo(px + 2, py + cell / 2); c.lineTo(px + cell - 2, py + cell / 2);
-        c.moveTo(px + cell / 2, py + 2); c.lineTo(px + cell / 2, py + cell / 2);
-        c.stroke();
-        c.fillStyle = 'rgba(160,80,40,0.35)'; c.fillRect(px + cell * 0.6, py + cell * 0.6, cell * 0.25, cell * 0.2);
-      } else if (t === 4) {
-        c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(px + 2, py + cell * 0.36, cell - 2, cell * 0.4);
-        c.fillStyle = TERRAIN[4];
-        c.fillRect(px + 1, py + cell * 0.3, cell - 2, cell * 0.4);
+        c.moveTo(px + n(-1, -1), py + n(0, -1)); c.lineTo(px + cell - n(1, -1), py + n(0, -1) * 0.6);
+        c.lineTo(px + cell - n(1, 0) * 0.5, py + cell - n(1, 1)); c.lineTo(px + n(-1, 1), py + cell - n(0, 1) * 0.7);
+        c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(30,20,12,0.45)'; c.lineWidth = Math.max(1, cell * 0.035);
+        c.beginPath(); c.moveTo(px + cell * (0.25 + hr(x * 7 + y) * 0.3), py + cell * 0.2); c.lineTo(px + cell * 0.5, py + cell * 0.55); c.lineTo(px + cell * (0.4 + hr(y * 5 + x) * 0.3), py + cell * 0.85); c.stroke();
+        c.fillStyle = 'rgba(255,235,200,0.16)'; c.beginPath(); c.ellipse(px + cell * 0.33, py + cell * 0.27, cell * 0.2, cell * 0.1, -0.4, 0, TAU); c.fill();
+      } else if (v === 3) { // обломки: металлические листы, заклёпки, ржавчина
+        const mg = c.createLinearGradient(px, py, px + cell, py + cell);
+        mg.addColorStop(0, '#8d949c'); mg.addColorStop(0.5, '#6d737b'); mg.addColorStop(1, '#4a4f56');
+        c.fillStyle = mg; c.fillRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
+        c.strokeStyle = 'rgba(20,22,26,0.5)'; c.lineWidth = Math.max(1, cell * 0.04);
+        c.strokeRect(px + cell * 0.08, py + cell * 0.08, cell * 0.84, cell * 0.84);
+        c.beginPath(); c.moveTo(px + cell * 0.08, py + cell * 0.5); c.lineTo(px + cell * 0.92, py + cell * 0.46); c.stroke();
+        c.fillStyle = 'rgba(30,32,36,0.7)';
+        for (const [rx, ry] of [[0.18, 0.18], [0.82, 0.18], [0.18, 0.82], [0.82, 0.82]]) { c.beginPath(); c.arc(px + cell * rx, py + cell * ry, Math.max(0.8, cell * 0.035), 0, TAU); c.fill(); }
+        c.fillStyle = 'rgba(160,80,40,' + (0.25 + hr(x * 13 + y * 7) * 0.3).toFixed(2) + ')';
+        c.beginPath(); c.ellipse(px + cell * (0.3 + hr(x + y * 31) * 0.4), py + cell * (0.6 + hr(x * 3 + y) * 0.2), cell * 0.18, cell * 0.1, 0.3, 0, TAU); c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(px + cell * 0.1, py + cell * 0.1, cell * 0.8, Math.max(1, cell * 0.05));
+      } else if (v === 4) { // баррикада: мешки с песком — два внизу, один сверху
+        for (const [bx, by, col] of [[0.03, 0.5, '#998a6c'], [0.51, 0.5, '#9d8e70'], [0.27, 0.26, '#ab9b7b']]) {
+          c.fillStyle = col; c.strokeStyle = 'rgba(50,40,25,0.6)'; c.lineWidth = 1;
+          roundRect(c, px + cell * bx, py + cell * by, cell * 0.46, cell * 0.26, cell * 0.11); c.fill(); c.stroke();
+          c.fillStyle = 'rgba(255,250,230,0.2)'; c.fillRect(px + cell * (bx + 0.08), py + cell * (by + 0.04), cell * 0.28, Math.max(1, cell * 0.04));
+        }
       }
     }
-    c.strokeStyle = 'rgba(0,0,0,0.05)';
-    for (let x = 1; x < W; x++) { c.beginPath(); c.moveTo(x * cell, 0); c.lineTo(x * cell, H * cell); c.stroke(); }
-    for (let y = 1; y < H; y++) { c.beginPath(); c.moveTo(0, y * cell); c.lineTo(W * cell, y * cell); c.stroke(); }
+    c.strokeStyle = 'rgba(0,0,0,0.04)'; c.lineWidth = 1;
+    for (let x = 1; x < W; x++) { c.beginPath(); c.moveTo(x * cell, 0); c.lineTo(x * cell, PH); c.stroke(); }
+    for (let y = 1; y < H; y++) { c.beginPath(); c.moveTo(0, y * cell); c.lineTo(PW, y * cell); c.stroke(); }
   }
 
   function drawBarrel(c, x, y, cell) {
@@ -107,6 +142,7 @@
     const st = { tick: 0, playing: opts.autoplay !== false, speed: UI.battleSpeed(), shownLog: 0, ended: false, destroyed: false, last: 0,
       sel: -1, fxShown: 0, auto: true, armRetreat: 0, finished: false, skip: false };
     let B, N, shotsBy, hitsOn, deathTick, shotI, frameI, decalShot, decalBoom, ranks, facing;
+    const snd = { shot: 0, boom: 0, thr: 0, fx: 0 };
     const nums = [];
 
     // ---------- DOM ----------
@@ -193,6 +229,7 @@
       hitsOn = Array.from({ length: N }, () => []);
       deathTick = new Array(N).fill(-1);
       shotI = 0; frameI = 0; decalShot = 0; decalBoom = 0;
+      snd.shot = 0; snd.boom = 0; snd.thr = 0; snd.fx = 0;
       st.fxShown = 0; st.shownLog = 0; st.tick = 0; st.ended = false; st.sel = -1;
       ranks = sup.sides[0].units.map((e) => e.rank || 0);
       facing = B.units.map((u) => (u.side === 0 ? 1 : -1));
@@ -438,20 +475,30 @@
         const x1 = fa.x + dir * cell * 0.45, y1 = fa.y - cell * hgt(shooter.type) * 0.55;
         const x2 = tx + miss * cell, y2 = ty - miss * cell * 0.6;
         const col = shooter.side === 0 ? BOLT[0] : BOLT[setup.army] || BOLT.default;
-        if (dt < 1) { // вспышка у ствола
-          ctx.fillStyle = 'rgba(255,240,200,' + (1 - dt).toFixed(3) + ')';
-          ctx.beginPath(); ctx.arc(x1, y1, cell * 0.16 * (1.2 - dt), 0, TAU); ctx.fill();
+        if (dt < 1.2) { // вспышка у ствола — с ореолом
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          const r = cell * 0.5 * (1.2 - dt);
+          const mg = ctx.createRadialGradient(x1, y1, 0, x1, y1, r);
+          mg.addColorStop(0, 'rgba(255,245,220,' + (0.9 * (1.2 - dt)).toFixed(3) + ')'); mg.addColorStop(0.35, col); mg.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = Math.min(1, 1.2 - dt); ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(x1, y1, r, 0, TAU); ctx.fill();
+          ctx.restore();
         }
         const prog = Math.min(1, dt / 1.2);
         if (dt < 2.7) {
           const bx = x1 + (x2 - x1) * prog, by = y1 + (y2 - y1) * prog;
           const tail = Math.max(0, prog - 0.35);
-          ctx.globalAlpha = prog >= 1 ? Math.max(0, 1 - (dt - 1.2) / 1.5) : 1;
-          ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.5, cell * 0.09); ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(x1 + (x2 - x1) * tail, y1 + (y2 - y1) * tail); ctx.lineTo(bx, by); ctx.stroke();
-          ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = Math.max(0.6, cell * 0.03);
-          ctx.beginPath(); ctx.moveTo(x1 + (x2 - x1) * tail, y1 + (y2 - y1) * tail); ctx.lineTo(bx, by); ctx.stroke();
-          ctx.globalAlpha = 1;
+          const fade = prog >= 1 ? Math.max(0, 1 - (dt - 1.2) / 1.5) : 1;
+          const tx0 = x1 + (x2 - x1) * tail, ty0 = y1 + (y2 - y1) * tail;
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.lineCap = 'round';
+          ctx.globalAlpha = 0.28 * fade; ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, cell * 0.3);
+          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
+          ctx.globalAlpha = 0.9 * fade; ctx.lineWidth = Math.max(1.5, cell * 0.1);
+          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
+          ctx.globalAlpha = fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.7, cell * 0.035);
+          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
+          ctx.restore();
         }
         if (dt >= 1.2 && dt < 5) {
           const q = (dt - 1.2) / 3.8;
@@ -520,8 +567,23 @@
         }
       }
 
+      // ветер несёт песок через поле
+      ctx.strokeStyle = setup.night ? 'rgba(200,190,170,0.12)' : 'rgba(255,236,200,0.22)';
+      ctx.lineWidth = Math.max(1, cell * 0.04); ctx.lineCap = 'round';
+      const PW = W * cell, PH = H * cell;
+      for (let k = 0; k < 28; k++) {
+        const sp = 0.5 + hr(k + 70) * 0.9;
+        const x = ((hr(k) * PW + t * cell * 0.09 * sp * 3) % (PW + cell * 2)) - cell;
+        const y = hr(k + 33) * PH + Math.sin(t * 0.05 + k) * cell * 0.3;
+        const len = cell * (0.4 + hr(k + 9) * 0.9);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - len * 0.08); ctx.stroke();
+      }
       // ночь: темнота с пятнами света
       if (setup.night) drawNight(t, cell, list);
+      // виньетка — края поля темнее
+      const vg = ctx.createRadialGradient(PW / 2, PH / 2, Math.min(PW, PH) * 0.35, PW / 2, PH / 2, Math.max(PW, PH) * 0.72);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,10,0,0.32)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, PW, PH);
 
       // поверх тьмы: лечение, полоски, значки, цифры урона
       ctx.fillStyle = '#7cff9a';
@@ -580,6 +642,14 @@
 
     function explosion(cx, cy, dt, cell, big, seed) {
       if (dt > 40) return;
+      if (dt < 12) { // свет вспышки на песке
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        const r = cell * 3.2 * big, a = 0.45 * (1 - dt / 12);
+        const lg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        lg.addColorStop(0, 'rgba(255,170,80,' + a.toFixed(3) + ')'); lg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
       if (dt < 2) {
         ctx.fillStyle = 'rgba(255,250,230,' + (0.9 * (1 - dt / 2)).toFixed(3) + ')';
         ctx.beginPath(); ctx.arc(cx, cy, cell * 1.5 * big, 0, TAU); ctx.fill();
@@ -714,16 +784,59 @@
       st.sel = best === st.sel ? -1 : best;
     });
 
+    // ---------- звук: всё, что случилось между прошлым и нынешним кадром ----------
+    const SND_KIND = { sniper: 'sniper', heavy: 'heavy', rebel_heavy: 'heavy', deserter_heavy: 'heavy', scav_boss: 'heavy', walker: 'heavy', turret: 'turret',
+      droid: 'droid', assassin_droid: 'droid', scav_droid: 'droid' };
+    function sounds(prev, now, silent) {
+      const Au = G.Audio;
+      const panX = (x) => Math.max(-0.85, Math.min(0.85, (x / Math.max(1, W)) * 1.7 - 0.85));
+      const vol = st.speed >= 4 ? 0.55 : st.speed >= 2 ? 0.8 : 1;
+      let lastShooter = -1, lastT = -1;
+      for (; snd.shot < B.shots.length && B.shots[snd.shot][0] <= now; snd.shot++) {
+        const sh = B.shots[snd.shot];
+        if (silent || !Au || sh[0] <= prev || sh[6]) continue;
+        const u = B.units[sh[1]];
+        const pan = panX(posAt(sh[1], sh[0]).x);
+        if (sh[1] === lastShooter && sh[0] === lastT) continue; // очередь — один звук
+        lastShooter = sh[1]; lastT = sh[0];
+        const L = G.Sprites.LOOKS[u.type] || {};
+        if (meleeType(u.type)) { if (sh[3]) Au.sfx('melee', { pan: pan }); }
+        else if (L.weapon === 'ion') Au.sfx('ion', { pan: pan });
+        else if (L.weapon === 'longrifle') Au.sfx('slug', { pan: pan });
+        else Au.sfx('blaster', { side: u.side, kind: SND_KIND[u.type] || (L.weapon === 'pistol' ? 'pistol' : 'rifle'), pan: pan, vol: vol, max: 5 });
+        if (sh[3] && (sh[4] || METAL.has(B.units[sh[2]].type)) && snd.shot % 2 === 0) Au.sfx('hit', { metal: METAL.has(B.units[sh[2]].type), pan: panX(posAt(sh[2], sh[0]).x), max: 3 });
+      }
+      for (; snd.thr < B.booms.length && B.booms[snd.thr][0] <= now + 12; snd.thr++) {
+        const bm = B.booms[snd.thr];
+        if (bm[4] > now) break;
+        if (!silent && Au && bm[4] > prev && bm[3] >= 0 && bm[5] === 'nade') Au.sfx('nade', { pan: panX(bm[1]) });
+      }
+      for (; snd.boom < B.booms.length && B.booms[snd.boom][0] <= now; snd.boom++) {
+        const bm = B.booms[snd.boom];
+        if (!silent && Au && bm[0] > prev) Au.sfx('boom', { big: bm[5] === 'barrel', pan: panX(bm[1]), max: 3 });
+      }
+      for (; snd.fx < B.fx.length && B.fx[snd.fx][0] <= now; snd.fx++) {
+        const fx = B.fx[snd.fx];
+        if (silent || !Au || fx[0] <= prev) continue;
+        if (fx[2] === 0 && fx[1] !== 'nade') Au.sfx('order');
+        else if (fx[1] === 'cry') Au.sfx('cry', { pan: panX(fx[3]) });
+        else if (fx[1] === 'roar') Au.sfx('roar', { pan: panX(fx[3]) });
+      }
+    }
+
     function frame(ts) {
       if (st.destroyed) return;
       const dt = st.last ? Math.min(0.1, (ts - st.last) / 1000) : 0;
       st.last = ts;
       if (root.isConnected) {
         resize();
-        if (st.skip) { while (!B.over) E.tick(B); st.tick = B.t; st.skip = false; }
+        const prev = st.tick;
+        let skipped = false;
+        if (st.skip) { while (!B.over) E.tick(B); st.tick = B.t; st.skip = false; skipped = true; }
         else if (st.playing) st.tick = Math.min(B.over ? B.t : Infinity, st.tick + dt * tps * st.speed);
         ensure(Math.ceil(st.tick));
         if (B.over) st.tick = Math.min(st.tick, B.t);
+        if (st.tick > prev || skipped) sounds(prev, st.tick, skipped);
         if (B.over && st.tick >= B.t && !st.ended) {
           st.ended = true; st.playing = false; syncBtns();
           ended();
@@ -737,6 +850,7 @@
     }
 
     function ended() {
+      if (G.Audio && !opts.startAtEnd) G.Audio.stinger(B.winner === 0 ? 'victory' : 'defeat');
       if (live && !st.finished) {
         st.finished = true;
         live = false;
@@ -754,6 +868,7 @@
       while (!B.over) E.tick(B);
       ensure(B.t);
       st.tick = B.t; st.playing = false; st.ended = true; st.finished = true; live = false;
+      sounds(0, B.t, true);
       root.classList.remove('live'); buildOrders(); syncBtns();
     }
     requestAnimationFrame(frame);
