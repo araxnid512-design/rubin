@@ -316,3 +316,37 @@ void main() {
   if (vCol.a < 0.0) { float op = -vCol.a * a; o = vec4(vCol.rgb * op, op); }
   else o = vec4(vCol.rgb * vCol.a * a, 0.0);
 }`;
+
+// Рельеф: цвет вершины (биом), A — склонность к скальным выходам на крутых склонах
+export const FS_TERRAIN = `#version 300 es
+precision highp float;
+${LIGHTING}
+void main() {
+  vec3 n = normalize(vNrm);
+  vec3 base = pow(vCol.rgb, vec3(2.2));
+  float big = texture(uNoise, vWorld.xz * 0.028).r;
+  float mid = texture(uNoise, vWorld.xz * 0.13 + vec2(0.31, 0.77)).r;
+  float fine = mix(0.5, texture(uDetail, vWorld.xz * 0.9).r, uDetailLevel);
+  float fine2 = mix(0.5, texture(uDetail, vWorld.xz * 3.1).r, uDetailLevel);
+  vec3 col = base * (0.8 + 0.4 * big) * (0.78 + 0.3 * fine + 0.14 * fine2);
+  float slope = 1.0 - n.y;
+  float rock = smoothstep(0.2, 0.36, slope + (mid - 0.5) * 0.14) * vCol.a;
+  vec3 rockCol = vec3(0.31, 0.3, 0.28) * (0.7 + 0.5 * fine) * (0.8 + 0.4 * big);
+  col = mix(col, rockCol, rock);
+  vec3 c = shade(col, n, 0.95, 0.0, shadowAt(n));
+  outColor = vec4(finish(c), 1.0);
+}`;
+
+// Полупрозрачный «призрак» здания в режиме размещения (зелёный — можно, красный — нельзя)
+export const FS_GHOST = `#version 300 es
+precision highp float;
+${LIGHTING}
+uniform vec3 uTint;
+void main() {
+  vec3 n = normalize(vNrm);
+  if (!gl_FrontFacing) n = -n;
+  float l = 0.55 + 0.45 * max(dot(n, uSunDir), 0.0);
+  float rim = pow(1.0 - abs(dot(n, normalize(uCamPos - vWorld))), 2.0);
+  vec3 c = uTint * l + rim * 0.35;
+  outColor = vec4(c * 0.85, 0.38 + rim * 0.35);
+}`;

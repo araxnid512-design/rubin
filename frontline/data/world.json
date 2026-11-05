@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "name": "Линия снабжения",
+  "platform": "Android",
+  "orientation": "landscape",
+  "single_player": true,
+  "npcs_enabled": true,
+  "initial_npc_count": 0,
+  "npc_recruitment_requires_barracks": true,
+  "enemy_ai_initially_enabled": true,
+  "enemy_initial_operators": 1,
+  "preparation_phase": {
+    "duration_seconds": 1800,
+    "clock": "active_unpaused_gameplay_seconds",
+    "count_while_app_closed": false,
+    "battlefield_entry_from_friendly_home_locked_until_complete": true,
+    "battlefield_entry_from_enemy_home_locked_until_complete": true,
+    "show_countdown_on_hud": true
+  },
+  "battle_rules": {
+    "battle_sector_ids": ["battlefield"],
+    "friendly_player_can_enter_enemy_home": false,
+    "enemy_npcs_can_enter_friendly_home": false,
+    "capture_home_bases_enabled": false,
+    "friendly_allowed_sectors_after_preparation": ["friendly_home", "battlefield"],
+    "enemy_allowed_sectors_after_preparation": ["enemy_home", "battlefield"],
+    "friendly_build_allowed_sectors": ["friendly_home"],
+    "enemy_build_allowed_sectors": ["enemy_home"],
+    "bunker_exception_battlefield_after_preparation": true
+  },
+  "multiplayer_enabled": false,
+  "coordinate_system": "+X east, -Z north",
+  "sector_size_m": 300,
+  "half_extent_m": 150,
+  "boundary_trigger_m": 149,
+  "transition_inset_m": 8,
+  "sector_order": ["friendly_home", "battlefield", "enemy_home"],
+  "sectors": [
+    {
+      "id": "friendly_home",
+      "index": 0,
+      "display_name": "Наша территория",
+      "reference": "references/maps/01_friendly_home_with_scrap.png",
+      "terrain_style": "summer_grass_pine_birch",
+      "north_neighbor": "battlefield",
+      "south_neighbor": null,
+      "road_centerline_xz": [[0, 145], [7, 80], [-8, 15], [12, -60], [0, -145]],
+      "buildable_zone_center_xz": [-60, 50],
+      "buildable_zone_radius_m": 80,
+      "player_spawn_xz": [0, 112],
+      "scrap_field": {"center_xz": [105, -55], "width_m": 48, "depth_m": 40, "nodes": 12},
+      "buildings_initially_present": 0
+    },
+    {
+      "id": "battlefield",
+      "index": 1,
+      "display_name": "Поле боя",
+      "reference": "references/maps/02_central_battlefield_empty.png",
+      "terrain_style": "worn_grass_mud_craters_bare_trees",
+      "north_neighbor": "enemy_home",
+      "south_neighbor": "friendly_home",
+      "combat_only_after_preparation": true,
+      "northern_boundary_locked_for_player": true,
+      "southern_boundary_locked_for_enemy": true,
+      "road_centerline_xz": [[0, 145], [-9, 60], [9, 0], [-7, -72], [0, -145]],
+      "buildable_zone_center_xz": null,
+      "player_spawn_xz": [0, 140],
+      "scrap_field": null,
+      "buildings_initially_present": 0
+    },
+    {
+      "id": "enemy_home",
+      "index": 2,
+      "display_name": "Вражеская территория",
+      "reference": "references/maps/03_enemy_home_with_scrap.png",
+      "terrain_style": "cold_rocky_plateau_sparse_pines",
+      "north_neighbor": null,
+      "south_neighbor": "battlefield",
+      "enemy_faction_autonomous_growth": true,
+      "road_centerline_xz": [[0, 145], [-8, 70], [5, 15], [-15, -60]],
+      "buildable_zone_center_xz": [-20, -30],
+      "buildable_zone_radius_m": 82,
+      "player_spawn_xz": [0, 140],
+      "scrap_field": {"center_xz": [105, -12], "width_m": 48, "depth_m": 40, "nodes": 12},
+      "buildings_initially_present": 0
+    }
+  ],
+  "scrap_node": {
+    "durability_units": 6,
+    "respawn_seconds": 120,
+    "interaction_radius_m": 2.2,
+    "hammer": {"durability_spent": 1, "scrap_gained": 5, "cooldown_seconds": 0.45},
+    "harvester_vehicle": {"durability_spent": 2, "scrap_gained": 20, "cooldown_seconds": 0.8}
+  }
+}
+

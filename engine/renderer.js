@@ -1,9 +1,9 @@
 // Движок «Долг»: рендерер WebGL2.
 // Проходы: карта теней солнца → непрозрачная геометрия (земля, мир, растительность, персонажи) → аддитивные эффекты.
 import { V3, mat4, frustumPlanes, sphereInFrustum } from './math.js';
-import { VS, DEPTH_VS, DEPTH_FS, FS_WORLD, FS_GROUND, FS_FOLIAGE, FS_CHAR, FX_VS, FX_FS } from './shaders.js';
+import { VS, DEPTH_VS, DEPTH_FS, FS_WORLD, FS_GROUND, FS_FOLIAGE, FS_CHAR, FX_VS, FX_FS, FS_TERRAIN, FS_GHOST } from './shaders.js';
 
-const FS_BY_KIND = { world: FS_WORLD, ground: FS_GROUND, foliage: FS_FOLIAGE, char: FS_CHAR };
+const FS_BY_KIND = { world: FS_WORLD, ground: FS_GROUND, foliage: FS_FOLIAGE, char: FS_CHAR, terrain: FS_TERRAIN, ghost: FS_GHOST };
 
 export class RenderObject {
   constructor(mesh, kind = 'world') {
@@ -288,17 +288,19 @@ export class Renderer {
     const c = this.env.clear;
     gl.clearColor(Math.pow(c[0], 1 / 2.2), Math.pow(c[1], 1 / 2.2), Math.pow(c[2], 1 / 2.2), 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    const order = { ground: 0, world: 1, foliage: 2, char: 3 };
+    const order = { ground: 0, terrain: 0, world: 1, foliage: 2, char: 3, ghost: 4 };
     vis.sort((a, b) => order[a.kind] - order[b.kind] || (a.mesh.skinned - b.mesh.skinned));
     let cur = null;
     for (const o of vis) {
       const prog = this.program(o.kind, this._defines(o));
       if (prog !== cur) { gl.useProgram(prog.p); this._common(prog, viewProj); cur = prog; }
-      if (o.kind === 'foliage' || o.doubleSided) gl.disable(gl.CULL_FACE); else gl.enable(gl.CULL_FACE);
+      if (o.kind === 'foliage' || o.doubleSided || o.kind === 'ghost') gl.disable(gl.CULL_FACE); else gl.enable(gl.CULL_FACE);
+      if (o.kind === 'ghost') { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
       if (prog.loc.uCutout) gl.uniform1f(prog.loc.uCutout, o.cutout ? 1 : 0);
       if (prog.loc.uHitFlash) gl.uniform1f(prog.loc.uHitFlash, o.hit || 0);
       if (prog.loc.uTint) gl.uniform3fv(prog.loc.uTint, o.tint);
       this._draw(prog, o);
+      if (o.kind === 'ghost') { gl.disable(gl.BLEND); gl.depthMask(true); }
     }
     gl.disable(gl.CULL_FACE);
     for (const o of ivis) {

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "resource": {"id": "scrap_metal", "name_ru": "Металлолом", "initial_amount": 0, "maximum_stack": 999},
+  "initial_tools": ["tool_hammer", "tool_wrench"],
+  "tools": [
+    {"id": "tool_hammer", "name_ru": "Молоток", "role": "harvest_scrap"},
+    {"id": "tool_wrench", "name_ru": "Гаечный ключ", "role": "open_build_menu"}
+  ],
+  "weapons": [
+    {"id": "wp_pistol_p9", "name_ru": "Пистолет П-9", "class": "pistol", "ammo_id": "ammo_9x19", "magazine": 12},
+    {"id": "wp_rifle_v7", "name_ru": "Винтовка В-7", "class": "rifle", "ammo_id": "ammo_762x54", "magazine": 5},
+    {"id": "wp_hand_grenade", "name_ru": "Осколочная граната", "class": "throwable", "ammo_id": null, "magazine": 1},
+    {"id": "wp_smg_pp9", "name_ru": "Пистолет-пулемёт ПП-9", "class": "smg", "ammo_id": "ammo_9x19", "magazine": 30},
+    {"id": "wp_assault_a39", "name_ru": "Автомат А-39", "class": "assault_rifle", "ammo_id": "ammo_556x45", "magazine": 30},
+    {"id": "wp_assault_a47", "name_ru": "Автомат А-47", "class": "assault_rifle", "ammo_id": "ammo_762x39", "magazine": 30},
+    {"id": "wp_assault_a56", "name_ru": "Автомат А-56", "class": "assault_rifle", "ammo_id": "ammo_545x39", "magazine": 30},
+    {"id": "wp_lmg_r7", "name_ru": "Ручной пулемёт РП-7", "class": "machine_gun", "ammo_id": "ammo_762x54_belt", "magazine": 60},
+    {"id": "wp_launcher_g40", "name_ru": "Гранатомёт Г-40", "class": "grenade_launcher", "compatible_ammo_ids": ["ammo_40mm_he", "ammo_40mm_smoke"], "magazine": 1}
+  ],
+  "ammunition": [
+    {"id": "ammo_9x19", "name_ru": "9×19 мм"},
+    {"id": "ammo_762x54", "name_ru": "7,62×54 мм"},
+    {"id": "ammo_545x39", "name_ru": "5,45×39 мм"},
+    {"id": "ammo_556x45", "name_ru": "5,56×45 мм"},
+    {"id": "ammo_762x39", "name_ru": "7,62×39 мм"},
+    {"id": "ammo_762x54_belt", "name_ru": "Пулемётная лента 7,62×54 мм"},
+    {"id": "ammo_40mm_he", "name_ru": "40-мм гранатомётный выстрел"},
+    {"id": "ammo_40mm_smoke", "name_ru": "40-мм дымовой выстрел"},
+    {"id": "ammo_37mm_tank", "name_ru": "37-мм танковый снаряд"}
+  ],
+  "vehicles": [
+    {"id": "veh_motorcycle", "name_ru": "Мотоцикл", "class": "motorcycle", "cargo_slots": 1, "ammo_ids": []},
+    {"id": "veh_light_car", "name_ru": "Легковой автомобиль", "class": "car", "cargo_slots": 3, "ammo_ids": []},
+    {"id": "veh_utility_car", "name_ru": "Малый утилитарный автомобиль", "class": "utility_car", "cargo_slots": 6, "ammo_ids": []},
+    {"id": "veh_cargo_truck", "name_ru": "Грузовик", "class": "truck", "cargo_slots": 20, "ammo_ids": []},
+    {"id": "veh_scrap_harvester", "name_ru": "Сборщик металлолома", "class": "harvester", "cargo_slots": 15, "ammo_ids": [], "harvest_yield_multiplier": 2.0},
+    {"id": "veh_fuel_tanker", "name_ru": "Бензовоз", "class": "tanker", "cargo_slots": 10, "ammo_ids": []},
+    {"id": "veh_armored_scout", "name_ru": "Разведывательный бронеавтомобиль", "class": "armored_car", "cargo_slots": 2, "ammo_ids": ["ammo_762x54_belt"]},
+    {"id": "veh_light_tank", "name_ru": "Лёгкий танк", "class": "light_tank", "cargo_slots": 2, "ammo_ids": ["ammo_37mm_tank", "ammo_762x54_belt"]},
+    {"id": "veh_apc", "name_ru": "Бронетранспортёр", "class": "apc", "cargo_slots": 10, "ammo_ids": ["ammo_762x54_belt"]}
+  ],
+  "notes": [
+    "До производства у игрока нет бесплатного огнестрельного оружия, патронов или транспорта.",
+    "Все названия моделей вымышлены; боевые механики будут разработаны позднее.",
+    "Машины в стадии изготовления могут учитываться как предмет склада, пока не реализована физика вождения."
+  ]
+}
+

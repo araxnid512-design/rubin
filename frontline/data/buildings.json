@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "currency_item_id": "scrap_metal",
+  "building_categories": ["vehicles", "weapons", "ammunition", "military_support"],
+  "buildings": [
+    {
+      "id": "vehicle_light_garage", "name_ru": "Малый гараж", "category": "vehicles", "card_order": 1,
+      "footprint_m": [12, 10], "build_scrap_cost": 120,
+      "model_reference": "references/buildings/vehicles_three_variants.png#left",
+      "recipes": [
+        {"output_item_id": "veh_motorcycle", "quantity": 1, "scrap_cost": 70, "seconds": 20},
+        {"output_item_id": "veh_light_car", "quantity": 1, "scrap_cost": 110, "seconds": 28},
+        {"output_item_id": "veh_utility_car", "quantity": 1, "scrap_cost": 125, "seconds": 32}
+      ]
+    },
+    {
+      "id": "vehicle_truck_workshop", "name_ru": "Грузовой автоцех", "category": "vehicles", "card_order": 2,
+      "footprint_m": [18, 12], "build_scrap_cost": 240,
+      "model_reference": "references/buildings/vehicles_three_variants.png#center",
+      "recipes": [
+        {"output_item_id": "veh_cargo_truck", "quantity": 1, "scrap_cost": 180, "seconds": 44},
+        {"output_item_id": "veh_scrap_harvester", "quantity": 1, "scrap_cost": 260, "seconds": 60},
+        {"output_item_id": "veh_fuel_tanker", "quantity": 1, "scrap_cost": 200, "seconds": 48}
+      ]
+    },
+    {
+      "id": "vehicle_armor_factory", "name_ru": "Бронетанковый завод", "category": "vehicles", "card_order": 3,
+      "footprint_m": [25, 20], "build_scrap_cost": 480,
+      "model_reference": "references/buildings/vehicles_three_variants.png#right",
+      "recipes": [
+        {"output_item_id": "veh_armored_scout", "quantity": 1, "scrap_cost": 300, "seconds": 70},
+        {"output_item_id": "veh_light_tank", "quantity": 1, "scrap_cost": 450, "seconds": 90},
+        {"output_item_id": "veh_apc", "quantity": 1, "scrap_cost": 390, "seconds": 80}
+      ]
+    },
+    {
+      "id": "weapon_bench", "name_ru": "Оружейный верстак", "category": "weapons", "card_order": 1,
+      "footprint_m": [8, 7], "build_scrap_cost": 80,
+      "model_reference": "references/buildings/weapons_three_variants.png#left",
+      "recipes": [
+        {"output_item_id": "wp_pistol_p9", "quantity": 1, "scrap_cost": 15, "seconds": 4},
+        {"output_item_id": "wp_rifle_v7", "quantity": 1, "scrap_cost": 25, "seconds": 7},
+        {"output_item_id": "wp_hand_grenade", "quantity": 2, "scrap_cost": 18, "seconds": 6}
+      ]
+    },
+    {
+      "id": "weapon_workshop", "name_ru": "Оружейная мастерская", "category": "weapons", "card_order": 2,
+      "footprint_m": [14, 10], "build_scrap_cost": 180,
+      "model_reference": "references/buildings/weapons_three_variants.png#center",
+      "recipes": [
+        {"output_item_id": "wp_smg_pp9", "quantity": 1, "scrap_cost": 36, "seconds": 9},
+        {"output_item_id": "wp_assault_a39", "quantity": 1, "scrap_cost": 45, "seconds": 12},
+        {"output_item_id": "wp_assault_a47", "quantity": 1, "scrap_cost": 50, "seconds": 12}
+      ]
+    },
+    {
+      "id": "weapon_factory", "name_ru": "Оружейный завод", "category": "weapons", "card_order": 3,
+      "footprint_m": [22, 14], "build_scrap_cost": 320,
+      "model_reference": "references/buildings/weapons_three_variants.png#right",
+      "recipes": [
+        {"output_item_id": "wp_assault_a56", "quantity": 1, "scrap_cost": 55, "seconds": 13},
+        {"output_item_id": "wp_lmg_r7", "quantity": 1, "scrap_cost": 85, "seconds": 17},
+        {"output_item_id": "wp_launcher_g40", "quantity": 1, "scrap_cost": 100, "seconds": 20}
+      ]
+    },
+    {
+      "id": "ammo_bench", "name_ru": "Патронный верстак", "category": "ammunition", "card_order": 1,
+      "footprint_m": [8, 7], "build_scrap_cost": 60,
+      "model_reference": "references/buildings/ammo_three_variants.png#left",
+      "recipes": [
+        {"output_item_id": "ammo_9x19", "quantity": 30, "scrap_cost": 10, "seconds": 4},
+        {"output_item_id": "ammo_762x54", "quantity": 20, "scrap_cost": 14, "seconds": 5},
+        {"output_item_id": "ammo_545x39", "quantity": 30, "scrap_cost": 16, "seconds": 6}
+      ]
+    },
+    {
+      "id": "ammo_workshop", "name_ru": "Патронный цех", "category": "ammunition", "card_order": 2,
+      "footprint_m": [14, 10], "build_scrap_cost": 130,
+      "model_reference": "references/buildings/ammo_three_variants.png#center",
+      "recipes": [
+        {"output_item_id": "ammo_556x45", "quantity": 30, "scrap_cost": 19, "seconds": 7},
+        {"output_item_id": "ammo_762x39", "quantity": 30, "scrap_cost": 20, "seconds": 7},
+        {"output_item_id": "ammo_762x54_belt", "quantity": 60, "scrap_cost": 32, "seconds": 10}
+      ]
+    },
+    {
+      "id": "ammo_factory", "name_ru": "Завод боеприпасов", "category": "ammunition", "card_order": 3,
+      "footprint_m": [22, 16], "build_scrap_cost": 300,
+      "model_reference": "references/buildings/ammo_three_variants.png#right",
+      "recipes": [
+        {"output_item_id": "ammo_40mm_he", "quantity": 1, "scrap_cost": 35, "seconds": 12},
+        {"output_item_id": "ammo_40mm_smoke", "quantity": 1, "scrap_cost": 25, "seconds": 12},
+        {"output_item_id": "ammo_37mm_tank", "quantity": 1, "scrap_cost": 45, "seconds": 15}
+      ]
+    },
+    {
+      "id": "military_barracks", "name_ru": "Казарма", "category": "military_support", "card_order": 1,
+      "footprint_m": [16, 12], "build_scrap_cost": 190,
+      "model_reference": "references/tripo/models/military_barracks.jpg",
+      "allowed_sector_ids": ["friendly_home", "enemy_home"],
+      "interaction_type": "recruitment", "npc_capacity": 8,
+      "recruitment": [
+        {"npc_role_id": "npc_scrap_worker", "scrap_cost": 55, "seconds": 25},
+        {"npc_role_id": "npc_mechanic", "scrap_cost": 75, "seconds": 35},
+        {"npc_role_id": "npc_infantry", "scrap_cost": 95, "seconds": 40}
+      ],
+      "recipes": []
+    },
+    {
+      "id": "military_headquarters", "name_ru": "Штаб", "category": "military_support", "card_order": 2,
+      "footprint_m": [18, 14], "build_scrap_cost": 280,
+      "model_reference": "references/tripo/models/military_headquarters.jpg",
+      "allowed_sector_ids": ["friendly_home", "enemy_home"],
+      "interaction_type": "squad_command",
+      "orders": ["follow", "hold_position", "move", "patrol", "defend", "mine_scrap", "repair"],
+      "max_squad_size": 6,
+      "recipes": []
+    },
+    {
+      "id": "military_bunker", "name_ru": "Бункер", "category": "military_support", "card_order": 3,
+      "footprint_m": [14, 12], "build_scrap_cost": 230,
+      "model_reference": "references/tripo/models/military_bunker.jpg",
+      "allowed_sector_ids": ["friendly_home", "battlefield", "enemy_home"],
+      "interaction_type": "enterable_bunker", "interior_accessible": true,
+      "roof_visibility": "hide_for_local_camera_when_player_inside", "max_occupants": 8,
+      "recipes": []
+    }
+  ]
+}
+

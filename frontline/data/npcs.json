@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "starting_population": 0,
+  "recruitment_building_id": "military_barracks",
+  "command_building_id": "military_headquarters",
+  "orders_require_command_building": true,
+  "factions": ["friendly", "enemy"],
+  "enemy_initial_pioneer": {
+    "id": "enemy_pioneer",
+    "name_ru": "Вражеский инженер-первопроходец",
+    "role": "miner_and_builder",
+    "start_sector_id": "enemy_home",
+    "start_gear": ["tool_hammer", "tool_wrench"],
+    "can_recruit_without_barracks": false,
+    "reference": "references/tripo/models/enemy_npc_scrap_worker.jpg"
+  },
+  "roles": [
+    {
+      "id": "npc_scrap_worker",
+      "name_ru": "Рабочий-сборщик",
+      "type": "civilian_worker",
+      "reference": "references/tripo/models/npc_scrap_worker.jpg",
+      "enemy_reference": "references/tripo/models/enemy_npc_scrap_worker.jpg",
+      "max_health": 100,
+      "allowed_orders": ["follow", "hold_position", "move", "mine_scrap", "haul_scrap"],
+      "mining": {"scrap_gained_per_action": 5, "durability_spent_per_action": 1, "action_seconds": 4.0, "inventory_capacity": 60},
+      "description_ru": "Ходит к полю, добывает металл, переносит его в местное хранилище. Не создаёт металл из пустого узла."
+    },
+    {
+      "id": "npc_mechanic",
+      "name_ru": "Механик-ремонтник",
+      "type": "civilian_repairer",
+      "reference": "references/tripo/models/npc_mechanic.jpg",
+      "enemy_reference": "references/tripo/models/enemy_npc_mechanic.jpg",
+      "max_health": 100,
+      "allowed_orders": ["follow", "hold_position", "move", "repair", "haul_scrap"],
+      "repair": {"health_restored_per_action": 10, "scrap_cost_per_action": 2, "action_seconds": 5.0},
+      "description_ru": "Ремонтирует повреждённые здания, бункеры и машины; списывает металл со склада."
+    },
+    {
+      "id": "npc_infantry",
+      "name_ru": "Солдат",
+      "type": "combat_infantry",
+      "reference": "references/tripo/models/npc_infantry.jpg",
+      "enemy_reference": "references/tripo/models/enemy_npc_infantry.jpg",
+      "max_health": 100,
+      "allowed_orders": ["follow", "hold_position", "move", "patrol", "defend", "attack_target", "garrison_bunker"],
+      "max_squad_size": 6,
+      "requires_produced_weapon": true,
+      "requires_produced_ammunition": true,
+      "description_ru": "Получает приказы через штаб. Оружие и патроны берёт из реально изготовленных запасов."
+    }
+  ],
+  "simulation": {
+    "inactive_sector_updates": "time_step_simulation_with_save_timestamps",
+    "no_resource_creation_without_remaining_scrap_node_durability": true,
+    "enemy_faction_ai_is_future_milestone": false,
+    "enemy_economy_config": "data/enemy_ai.json",
+    "initial_enemy_building_count": 0,
+    "enemy_npc_deployment_to_battlefield_requires_preparation": true,
+    "home_base_cross_faction_entry_forbidden": true
+  }
+}
