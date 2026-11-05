@@ -654,7 +654,7 @@ try {
 		const g = window.__game, p = g.player, st = g.party[0], a = g.mercs.find((m) => m.state === st), a0 = st.ammo;
 		const ammo = a.W.ammo;
 		g.bag[ammo] = 45; g.bag.medkit = 2;
-		a.pos.set(p.pos.x + 10, 0, p.pos.z);
+		g.mercs.forEach((m, i) => m.pos.set(p.pos.x + 10 + i, 0, p.pos.z)); // все бойцы далеко
 		g.partyWindow.open();
 		const far = { cards: document.querySelectorAll('#party-list .merc[data-merc]').length, btns: document.querySelectorAll('#party-list [data-act="ammo"], #party-list [data-act="heal"], #party-list [data-act="take"], #party-list [data-act="leave"]').length };
 		g.giveAmmo(st.id);
@@ -673,18 +673,20 @@ try {
 		near.prompt = s?.id === 'merc' ? s.label : g.nearContainer() ? 'тайник' : s?.id ?? 'нет';
 		return { far, near };
 	}).catch((e) => ({ err: e.message }));
-	check(field.far?.cards === 2 && field.far.btns === 0 && field.far.same && field.near.ammo && field.near.heal && field.near.move === 0 && field.near.got && /Снарядить|тайник/.test(field.near.prompt), `на вылазке: далеко от бойца — не снарядить; подошёл — «${field.near?.prompt}»: патроны и аптечка (взять/оставить — только в комнате)${field.err ? ` [${field.err}]` : ''}`);
+	const fieldOk = field.far?.cards === 2 && field.far.btns === 0 && field.far.same && field.near.ammo && field.near.heal && field.near.move === 0 && field.near.got && /Снарядить|тайник/.test(field.near.prompt);
+	check(fieldOk, `на вылазке: далеко от бойца — не снарядить; подошёл — «${field.near?.prompt}»: патроны и аптечка (взять/оставить — только в комнате)${fieldOk ? '' : ` [${JSON.stringify(field)}]`}`);
 	// заражённый прёт на бойца — тот пятится шагом в прицеле, не прекращая огня
 	const kite = await G(page, async () => {
 		const g = window.__game, p = g.player, a = g.mercs.find((m) => m.alive && m.state.out && !m.C.heals && !m.C.grenades) ?? g.mercs.find((m) => m.alive && m.state.out);
 		for (const e of g.enemies) if (e.alive) { e.pos.set(60, 0, -60); e.state = 'idle'; }
-		a.pos.set(p.pos.x + 2, 0, p.pos.z); a.state.mag = Math.max(a.state.mag, 8); a.state.ammo = Math.max(a.state.ammo, 30); a.reloading = 0; a.cooldown = 0;
+		a.pos.set(p.pos.x + 2, 0, p.pos.z); a.state.mag = a.W.mag; a.state.ammo = Math.max(a.state.ammo, 60); a.reloading = 0; a.cooldown = 0; // полный магазин: проверяем отход, а не перезарядку
 		const z = g.spawnEnemy('runner', a.pos.clone().set(a.pos.x + 2.6, 0, a.pos.z)); z.hp = z.maxHp = 1e5; z.alert?.(); z.state = 'chase'; z.foe = a; z.foeT = 99;
+		const zd = z.damage; z.damage = () => {}; // пули его не берут и не отталкивают — прёт на бойца (проверяем отход)
 		const x0 = a.pos.clone(), m0 = a.state.mag + a.state.ammo, clips = new Set();
 		const t0 = g.time, r0 = Date.now();
 		while (g.time - t0 < 1.5 && Date.now() - r0 < 20000) { await new Promise((r) => setTimeout(r, 20)); clips.add(a.current); }
 		const r = { who: a.def.name, moved: +Math.hypot(a.pos.x - x0.x, a.pos.z - x0.z).toFixed(1), shots: m0 - (a.state.mag + a.state.ammo), clips: [...clips].join(',') };
-		z.damage(1e9, a.pos.clone(), 0);
+		z.damage = zd; z.damage(1e9, a.pos.clone(), 0);
 		return r;
 	});
 	check(kite.moved > 0.5 && kite.shots > 0 && /AimWalk/.test(kite.clips), `заражённый прёт на бойца — ${kite.who} пятится (${kite.moved} м) шагом в прицеле и стреляет (${kite.shots} патронов)${/AimWalk/.test(kite.clips) ? '' : ` [${kite.clips}]`}`);
