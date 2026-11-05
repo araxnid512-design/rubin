@@ -59,11 +59,11 @@ button { font: inherit; }
 .slot { width: 4.2em; height: 3.4em; border-radius: 0.4em; border: 2px solid #4a4b3f; background: rgba(28, 30, 24, 0.9); color: var(--fg); font-family: var(--display); font-size: 0.82em; cursor: pointer; padding: 0.2em; }
 .slot.sel { border-color: var(--accent); background: #4a3916; box-shadow: 0 0 0 2px rgba(231, 164, 44, 0.35); } .slot.empty { opacity: 0.45; }
 .btn.inv { font-size: 0.85em; min-height: 0; }
-.act { position: absolute; right: calc(1.6em + env(safe-area-inset-right, 0px)); bottom: calc(1.6em + env(safe-area-inset-bottom, 0px)); width: 9em; height: 9em; border-radius: 50%; border: 3px solid rgba(255, 220, 140, 0.8); background: radial-gradient(circle at 40% 35%, #f0b23a, #b9741a); color: #1d1406; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; touch-action: none; }
-.act b { font-family: var(--display); font-size: 1.02em; letter-spacing: 0; white-space: nowrap; } .act small { font-size: 0.75em; max-width: 90%; line-height: 1.1; }
+.act { position: absolute; right: calc(1.4em + env(safe-area-inset-right, 0px)); bottom: calc(1.4em + env(safe-area-inset-bottom, 0px)); width: 6em; height: 6em; border-radius: 50%; border: 3px solid rgba(255, 220, 140, 0.8); background: radial-gradient(circle at 40% 35%, #f0b23a, #b9741a); color: #1d1406; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; touch-action: none; }
+.act b { font-family: var(--display); font-size: 0.9em; letter-spacing: 0; white-space: nowrap; } .act small { font-size: 0.66em; max-width: 86%; line-height: 1.05; max-height: 2.2em; overflow: hidden; }
 .act.off { filter: grayscale(1) brightness(0.6); opacity: 0.55; } .act.warn { background: radial-gradient(circle at 40% 35%, #b7b7a8, #6f6f66); }
 .act:active { transform: scale(0.96); }
-.act.build { right: calc(11.6em + env(safe-area-inset-right, 0px)); bottom: calc(4.2em + env(safe-area-inset-bottom, 0px)); width: 6.2em; height: 6.2em; background: radial-gradient(circle at 40% 35%, #7fa1ad, #3e5a64); border-color: #b8d6e0; color: #fff; }
+.act.build { right: calc(8.2em + env(safe-area-inset-right, 0px)); bottom: calc(1.6em + env(safe-area-inset-bottom, 0px)); width: 4.8em; height: 4.8em; background: radial-gradient(circle at 40% 35%, #7fa1ad, #3e5a64); border-color: #b8d6e0; color: #fff; }
 .joy-zone { position: absolute; left: 0; bottom: 0; width: 38vw; height: 64vh; touch-action: none; }
 .joy-base { position: absolute; left: calc(8em + env(safe-area-inset-left, 0px)); top: calc(100% - 7.5em - env(safe-area-inset-bottom, 0px)); width: 9.5em; height: 9.5em; margin: -4.75em 0 0 -4.75em; border-radius: 50%; background: rgba(0, 0, 0, 0.3); border: 2px solid rgba(255, 255, 255, 0.25); }
 .joy-base.active { background: rgba(0, 0, 0, 0.4); } .joy-base.run { border-color: var(--accent); }
@@ -109,8 +109,8 @@ button { font: inherit; }
 .hpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#7ed35f, #4f9a35); transition: width 0.2s; } .hpbar i.low { background: linear-gradient(#ef5a40, #a8321f); }
 .hpbar span { position: relative; padding-left: 0.4em; font-family: var(--display); font-size: 0.85em; text-shadow: 0 1px 2px #000; }
 .battle { font-size: 0.85em; color: #ffd0c6; font-family: var(--mono); }
-.act.fire { right: calc(11.6em + env(safe-area-inset-right, 0px)); bottom: calc(10.8em + env(safe-area-inset-bottom, 0px)); width: 7em; height: 7em; background: radial-gradient(circle at 40% 35%, #f2725a, #9f2b18); border-color: #ffc0a8; color: #fff; }
-.act.exit { right: calc(1.6em + env(safe-area-inset-right, 0px)); bottom: calc(11.4em + env(safe-area-inset-bottom, 0px)); width: 5.6em; height: 5.6em; background: radial-gradient(circle at 40% 35%, #c8c8b8, #6d6d62); border-color: #eee; color: #111; }
+.act.fire { right: calc(8.2em + env(safe-area-inset-right, 0px)); bottom: calc(1.4em + env(safe-area-inset-bottom, 0px)); width: 5.4em; height: 5.4em; background: radial-gradient(circle at 40% 35%, #f2725a, #9f2b18); border-color: #ffc0a8; color: #fff; }
+.act.exit { right: calc(1.4em + env(safe-area-inset-right, 0px)); bottom: calc(8.2em + env(safe-area-inset-bottom, 0px)); width: 4.4em; height: 4.4em; background: radial-gradient(circle at 40% 35%, #c8c8b8, #6d6d62); border-color: #eee; color: #111; }
 .slot.weapon { border-color: #a35b48; }
 .recon-bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(0.6em + env(safe-area-inset-bottom, 0px)); padding: 0.5em 0.8em; display: flex; gap: 0.8em; align-items: center; pointer-events: auto; border-color: var(--bad); max-width: 92vw; }
 .recon-bar b { font-family: var(--display); color: #ffb4a4; white-space: nowrap; } .recon-bar small { color: var(--dim); }

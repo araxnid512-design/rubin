@@ -194,7 +194,7 @@ export class UI {
     if (!this.battle.hidden) this.battle.textContent = `Поле боя: наши ${sm.friendlyOnField + (c.sector_index === 1 ? 1 : 0)} · враг ${sm.enemyOnField} · потери ${sm.losses.friendly}/${sm.losses.enemy}`;
     if (app.recon) { const r = c.enemy.report(); this.reconInfo.textContent = `Зданий ${r.buildings} · рабочие ${r.workers + 1} · механики ${r.mechanics} · солдаты ${r.soldiers} (на поле ${sm.enemyOnField}) · металл ${r.scrap_metal}. Джойстик/WASD — обзор.`; }
     const ctx = this.context();
-    this.actBtn.classList.toggle('off', !ctx); this.actBtn.classList.toggle('warn', !!ctx && ctx.ok === false);
+    this.actBtn.hidden = !ctx || !!app.placing || !!app.recon; this.actBtn.classList.toggle('warn', !!ctx && ctx.ok === false);
     this.actBtn.firstChild.textContent = ctx ? ctx.label : 'ДЕЙСТВИЕ'; this.actBtn.lastChild.textContent = ctx ? ctx.sub : 'подойдите к объекту';
     if (this.win && this.win.tick) this.win.tick();
     this.drawMinimap();

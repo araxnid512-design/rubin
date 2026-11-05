@@ -21,9 +21,9 @@ import { UI } from './ui.js';
 
 const v = (x = 0, y = 0, z = 0) => new V3(x, y, z);
 const QUALITY = [
-  { name: 'Низкое', shadows: false, shadowSize: 1024, shadowDist: 26, scale: 0.65, dpr: 1.25, draw: 110, fps: 30 },
-  { name: 'Среднее', shadows: true, shadowSize: 1024, shadowDist: 32, scale: 0.8, dpr: 1.5, draw: 150, fps: 30 },
-  { name: 'Высокое', shadows: true, shadowSize: 2048, shadowDist: 44, scale: 1, dpr: 2, draw: 190, fps: 60 },
+  { name: 'Низкое', shadows: false, shadowSize: 512, shadowDist: 26, scale: 0.65, dpr: 1.25, draw: 110, fps: 30 },
+  { name: 'Среднее', shadows: false, shadowSize: 512, shadowDist: 32, scale: 0.8, dpr: 1.5, draw: 150, fps: 30 },
+  { name: 'Высокое', shadows: false, shadowSize: 512, shadowDist: 44, scale: 1, dpr: 2, draw: 190, fps: 60 },
 ];
 const SKEY = 'supply_line_settings';
 const touchDevice = () => ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
