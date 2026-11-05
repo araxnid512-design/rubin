@@ -270,7 +270,9 @@ try {
 			.sort((a, c) => Math.hypot(a.x - g.player.pos.x, a.z - g.player.pos.z) - Math.hypot(c.x - g.player.pos.x, c.z - g.player.pos.z))[0];
 		const nx = -Math.sin(car.rot), nz = Math.cos(car.rot);
 		for (const e of g.enemies) if (e.alive) { e.pos.set(-60, 0, -60); e.state = 'idle'; }
-		for (const o of g.bandits) if (o !== b && o.alive) o.pos.set(car.x + 30, 0, car.z + 30);
+		// остальные муры — далеко и без цели: иначе занимают очередь «из-за угла» (MUR_SHOOTERS), и проверяемый мур,
+		// так и не выглянув, забывает героя (проверка то проходила, то нет — и до правок поворота)
+		for (const o of g.bandits) if (o !== b && o.alive) { o.pos.set(car.x - nx * 55, 0, car.z - nz * 55); o.foe = null; o.phase = null; o.pair = null; o.lastSeenT = 0; o.aggro = null; o.target = null; o.retarget = 99; o.cooldown = 1e9; }
 		g.player.pos.set(car.x + nx * 6, 0, car.z + nz * 6);
 		b.pos.set(car.x - nx * 1.6, 0, car.z - nz * 1.6);
 		b.foe = g.player; b.lastSeen = g.player.pos.clone(); b.lastSeenT = 12; b.pair = null; b.pairT = 0; b.flank = 0; b.aggro = null;
@@ -279,7 +281,7 @@ try {
 		b.update = (dt) => { const r = orig(dt); const q = window.__peek.seq, ph = b.pair ? (b.phase === 'out' && b.target === g.player ? 'out' : b.phase === 'hide' && b.target !== g.player ? 'hide' : '') : ''; if (ph && q.at(-1) !== ph) q.push(ph); return r; };
 	});
 	await page.waitForFunction(() => window.__peek.seq.join(' ').includes('hide out hide'), null, { timeout: 40000 }).catch(() => {});
-	const peek = await G(page, () => { const b = window.__peek.b; delete b.update; return window.__peek.seq.join(' → '); });
+	const peek = await G(page, () => { const b = window.__peek.b; delete b.update; for (const o of window.__game.bandits) if (o.cooldown >= 1e9) { o.cooldown = 0; o.retarget = 0; } return window.__peek.seq.join(' → '); });
 	check(/hide → out → hide/.test(peek), `мур за машиной: прячется и стреляет из-за угла (${peek.slice(0, 60)})`);
 	// убитый мур: горсть патронов, бывает споран, стволов нет (лута вчетверо меньше прежнего); в «Карьере» на одного меньше
 	const murKill = await G(page, () => {

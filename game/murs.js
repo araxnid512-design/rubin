@@ -154,7 +154,7 @@ export function resolveRaid(m, raid, danger = 1) {
 	const kills = ri(4, 8) * raid.size / 6 | 0;
 	const losses = Math.min(raid.size, ri(0, Math.max(1, Math.round(danger))));
 	m.count = Math.max(0, m.count - losses);
-	const loot = { spore: kills * ri(1, 2), ammo545: ri(10, 40), ammo762: ri(0, 30), ammo9: ri(0, 16), zhivchik: ri(0, 2), grenade: Math.random() < 0.2 ? 1 : 0 };
+	const loot = { spore: kills * ri(1, 2), ammo545: ri(10, 40), ammo762: ri(0, 30), ammo919: ri(0, 16), zhivchik: ri(0, 2), grenade: Math.random() < 0.2 ? 1 : 0 };
 	for (const [k, n] of Object.entries(raid.loot ?? {})) loot[k] = (loot[k] ?? 0) + n;
 	storeLoot(m, loot);
 	const hired = hireMurs(m);

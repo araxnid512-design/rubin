@@ -84,12 +84,14 @@ export class Trade {
 	/** Цена предложения с учётом скидки (у оружейника базы — дешевле). */
 	price(o) { return Math.max(1, Math.ceil(o.price * (this.discount ?? 1))); }
 
-	/** armory — лавка оружейника на базе: те же товары на 20 % дешевле (base.js perks.discount). */
-	open({ armory = false } = {}) {
+	/** armory — лавка оружейника на базе: те же товары дешевле (base.js perks.discount: 20/30/40 % по уровню);
+	 * barter — барыга на базе (освобождённый пленный): цены как у торговца. */
+	open({ armory = false, barter = false } = {}) {
 		if (this.isOpen) return;
 		this.discount = armory ? this.game.basePerks?.().discount ?? 0.8 : 1;
-		this.el.querySelector('.inv-head b').textContent = armory ? 'Оружейник' : 'Торговец';
-		this.el.querySelector('.inv-head .muted').textContent = armory ? 'база «Опорный» · на 20 % дешевле · игра на паузе' : 'стаб «Полис» · игра на паузе';
+		const off = Math.round((1 - this.discount) * 100);
+		this.el.querySelector('.inv-head b').textContent = armory ? 'Оружейник' : barter ? 'Барыга' : 'Торговец';
+		this.el.querySelector('.inv-head .muted').textContent = armory ? `база «Опорный» · на ${off} % дешевле · игра на паузе` : barter ? 'база «Опорный» · игра на паузе' : 'стаб «Полис» · игра на паузе';
 		this.el.classList.remove('hidden');
 		this.game.setPaused(true);
 		this.render();

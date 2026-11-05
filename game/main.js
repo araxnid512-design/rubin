@@ -678,6 +678,7 @@ class FuelBarrel {
 
 	damage(dmg, from) {
 		if (!this.alive) return;
+		this.lastHitBy = HIT_BY;
 		this.hp -= dmg;
 		game.impact(this.pos.clone().setY(0.55), true, 0.6);
 		if (this.hp > 0) return;
@@ -698,7 +699,7 @@ class FuelBarrel {
 	}
 
 	blow() {
-		game.explode(this.pos.clone().setY(0.5));
+		byWho(this.lastHitBy, () => game.explode(this.pos.clone().setY(0.5)));
 		this.wreck();
 		// разлитое горючее догорает секунд восемь
 		const fire = createFire(scene, this.pos.x, 0.15, this.pos.z, { size: 0.85, light: false });
@@ -715,7 +716,15 @@ const shotKind = (W) => (W.pellets ? 'shotgun' : W.anim === 'rifle' ? 'rifle' : 
  * Вспышка, дымок, гильза; пуля попадает в цель с вероятностью (падает с дальностью и длиной очереди),
  * промах бьёт в стену или землю; дробь летит веером.
  */
-function fireShot(shooter, W, gun, target, { player = false, accuracy = 1, damage = 1 } = {}) {
+// Кто нанёс попадание — для счёта «Убито» и заданий (засчитываются только герой, его наёмники и часовые базы):
+// ставится на время выстрела, удара, взрыва; damage() у заражённых, людей и бочек запоминает его в lastHitBy.
+let HIT_BY = null;
+function byWho(who, fn) { const prev = HIT_BY; HIT_BY = who ?? null; try { return fn(); } finally { HIT_BY = prev; } }
+/** Свой: герой, наёмник, часовой базы — или неизвестно кто (вызов напрямую, без стрелка). */
+const heroSide = (a) => !a || a === game.player || a instanceof Merc || a instanceof Sentry;
+
+function fireShot(shooter, W, gun, target, opts) { return byWho(shooter, () => fireShotNow(shooter, W, gun, target, opts)); }
+function fireShotNow(shooter, W, gun, target, { player = false, accuracy = 1, damage = 1 } = {}) {
 	if (W.proj) { fireShell(shooter, W, gun, target, { player, damage }); return; }
 	const from = gun.localToWorld(gun.userData.muzzle.clone());
 	const dir = new THREE.Vector3(0, -1, 0).transformDirection(gun.matrixWorld); // ствол смотрит по −Y оружия
@@ -906,10 +915,11 @@ class Player extends Actor {
 	}
 
 	/** knock — насколько отбрасывает (удар рубера сбивает с ног и отшвыривает). */
-	/** Пуля мура — тот же удар (fireShot зовёт damage). */
-	damage(dmg, from, knock) { this.hurt(dmg, from, knock); }
+	/** Пуля мура — тот же удар (fireShot зовёт damage), но гибель — «застрелили». */
+	damage(dmg, from, knock) { this.hurt(dmg, from, knock, 'shot'); }
 
-	hurt(dmg, from, knock) {
+	/** cause — от чего гибель: eaten (заражённые), shot (пуля), blast (взрыв). */
+	hurt(dmg, from, knock, cause = 'eaten') {
 		if (!this.alive) return;
 		game.cancelSearch('Обыск прерван');
 		this.hp -= dmg;
@@ -924,7 +934,7 @@ class Player extends Actor {
 			const d = knock ?? (dmg > 20 ? 0.6 : 0.2);
 			this.push = (this.push ?? new THREE.Vector3()).addScaledVector(tmpV.subVectors(this.pos, from).setY(0).normalize(), d * PUSH_DECAY);
 		}
-		if (this.hp <= 0) this.die('eaten');
+		if (this.hp <= 0) this.die(cause);
 		else if (this.busy <= 0) {
 			this.play(this.clips.hit, { once: true, fade: 0.06, restart: true });
 			this.busy = 0.3;
@@ -1019,7 +1029,7 @@ class Player extends Actor {
 			if (sc < score) { score = sc; best = e; }
 		}
 		if (!best) return;
-		best.damage(W.damage, this.pos, 0.45);
+		byWho(this, () => best.damage(W.damage, this.pos, 0.45));
 		Sfx.chop();
 		if (W.durability) game.wearOut(id); // топор тупится от каждого удара по заражённому
 	}
@@ -1396,6 +1406,7 @@ class Enemy extends Actor {
 
 	damage(dmg, from, knock, ap = false) {
 		if (!this.alive) return;
+		this.lastHitBy = HIT_BY;
 		const T = this.T;
 		const dir = new THREE.Vector3().subVectors(this.pos, from).setY(0).normalize();
 		// костяная броня рубера: срезает часть урона с каждого попадания — слабые пули и картечь почти не берут
@@ -1541,7 +1552,7 @@ class Enemy extends Actor {
 			}
 			if (!this.hitDone && this.timer >= this.strikeAt) {
 				this.hitDone = true;
-				if (p.alive && dist < this.T.range + 0.6) p.hurt(p.dry ? p.hp : this.T.damage * (1 + 0.3 * (game.rage ?? 0)), this.pos, this.T.knock); // боец без патронов не отобьётся; в кисляк — злее
+				if (p.alive && dist < this.T.range + 0.6) byWho(this, () => p.hurt(p.dry ? p.hp : this.T.damage * (1 + 0.3 * (game.rage ?? 0)), this.pos, this.T.knock)); // боец без патронов не отобьётся; в кисляк — злее
 				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }
 			}
 			// во время выпада тело немного продвигается вперёд
@@ -1552,7 +1563,7 @@ class Enemy extends Actor {
 
 		// бросок с захватом (клип Tripo) начинается издалека: шаг-рывок покрывает остаток (стопы не едут)
 		const reach = this.T.range + (this.tz?.lunge ? Math.min(0.8, this.tz.lunge.d * this.scale * 0.6) : 0);
-		if (p.alive && dist < reach && this.state !== 'attack' && lineOfSight(this.pos, p.pos)) {
+		if (p.alive && dist < reach && this.state !== 'attack' && (dist < this.T.range + 0.4 || lineOfSight(this.pos, p.pos))) {
 			this.state = 'attack';
 			this.timer = 0;
 			this.hitDone = false;
@@ -1586,15 +1597,16 @@ class Enemy extends Actor {
 		// цель далеко сбоку или за спиной — сначала разворот на месте (клип Turn: ноги переступают), потом ход
 		if (this.actions.Turn && !charging) {
 			const want = Math.atan2(dir.x, dir.z), off = wrapAngle(want - this.root.rotation.y);
-			if (Math.abs(off) > (this.turning ? 0.3 : 1.75)) {
-				this.turning = true;
+			// своё поле pivoting: turning читает Actor.play (подмена стойки клипом переступания у людей)
+			if (Math.abs(off) > (this.pivoting ? 0.3 : 1.75)) {
+				this.pivoting = true;
 				const k = POSTURE[this.type].turn * (1 + 0.25 * (game.rage ?? 0)), rate = this.tz.turn * k;
 				this.root.rotation.y = turnTowards(this.root.rotation.y, want, rate * dt);
 				this.play('Turn', { fade: 0.15, timeScale: k });
 				resolveCollisions(this.pos, this.radius, level.colliders);
 				return true;
 			}
-			this.turning = false;
+			this.pivoting = false;
 		}
 		if (charging) {
 			// на рывке несётся туда, куда смотрит, и лишь медленно доворачивает
@@ -1714,7 +1726,7 @@ class Sentry extends Npc {
 		this.play('ShootRifle', { once: true, fade: 0.04, restart: true });
 		Sfx.gun(this.gunId, shotKind(W), game.ear(this.pos));
 		if (this.gunObj?.userData.muzzle) fireShot(this, W, this.gunObj, t, { accuracy: 0.8 });
-		else t.damage(W.damage * 0.8, this.pos, 0.3);
+		else byWho(this, () => t.damage(W.damage * 0.8, this.pos, 0.3));
 	}
 }
 
@@ -1980,7 +1992,7 @@ class Merc extends Actor {
 			const from = th.nade.getWorldPosition(new THREE.Vector3());
 			th.nade.removeFromParent();
 			const d = Math.hypot(th.to.x - from.x, th.to.z - from.z);
-			game.launchGrenade(from, th.to, 0.5 + d / 22 + 0.3);
+			game.launchGrenade(from, th.to, 0.5 + d / 22 + 0.3, false, this);
 		}
 		if (th.t <= 0) { this.throwing = null; this.gunObj.visible = true; }
 		return true;
@@ -2124,6 +2136,7 @@ class Bandit extends Actor {
 	/** Попадание (пуля, осколки, удар заражённого). from — откуда: туда мур и пойдёт разбираться. */
 	damage(dmg, from, knock = 0.2, ap = false) {
 		if (!this.alive) return;
+		this.lastHitBy = HIT_BY;
 		dmg *= ap ? Math.max(this.armor, 0.85) : this.armor; // бронежилет главаря, внешников (12,7 — прошивает)
 		this.hp -= dmg;
 		this.hitFlash();
@@ -2160,7 +2173,7 @@ class Bandit extends Actor {
 		// бросает гранату: замах, на 0,27 с граната летит
 		if (this.throwT > 0) {
 			this.throwT -= dt;
-			if (this.nade && (this.nade.t -= dt) <= 0) { game.launchGrenade(this.pos.clone().setY(1.7), this.nade.to, 2.4, true); this.nade = null; }
+			if (this.nade && (this.nade.t -= dt) <= 0) { game.launchGrenade(this.pos.clone().setY(1.7), this.nade.to, 2.4, true, this); this.nade = null; }
 			return true;
 		}
 		if (this.aggro && (this.aggro.t -= dt) <= 0) this.aggro = null;
@@ -2838,9 +2851,10 @@ const game = {
 		for (const n of this.npcs) n.dispose();
 		for (const m of this.mercs) m.dispose();
 		const raid = this.world?.murs?.raid;
-		if (raid?.live) { raid.live = false; raid.size = this.bandits.filter((b) => b.alive && !b.left && b.faction === 'murs').length; }
+		// сколько бойцов отряда уцелело — по самому отряду (после «Продолжить» отряда ещё нет: размер прежний)
+		if (raid?.live) { raid.live = false; if (this.raidSquad) raid.size = this.raidSquad.members.filter((b) => b.alive && !b.left).length; }
 		const hunt = this.world?.ext?.hunt;
-		if (hunt?.live) { hunt.live = false; hunt.size = this.bandits.filter((b) => b.alive && !b.left && b.faction === 'ext').length; }
+		if (hunt?.live) { hunt.live = false; if (this.huntSquad) hunt.size = this.huntSquad.members.filter((b) => b.alive && !b.left).length; }
 		for (const b of this.bandits) b.dispose();
 		// налёт на базу не досмотрели (ушёл с базы) — налётчики считаются ушедшими с добычей
 		if (this.assault) { const st = this.world.base; st.stock = {}; this.assault = null; }
@@ -2906,9 +2920,9 @@ const game = {
 		else for (const n of level.npcs) this.npcs.push(n.sentry ? new Sentry(n) : new Npc(n));
 		if (NODES[id].kind === 'base') this.baseWaveT = 150 + Math.random() * 120;
 		const raid = this.world.murs.raid;
-		if (raid?.at === id && NODES[id].kind === 'cluster') this.startLiveRaid(raid, true);
+		if (raid?.at === id && NODES[id].kind === 'cluster' && !this.raidSquad) this.startLiveRaid(raid, true); // уже вышли в updateMurs — не дважды
 		const hunt = this.world.ext.hunt;
-		if (hunt?.at === id && NODES[id].kind === 'cluster') this.startLiveHunt(hunt, true);
+		if (hunt?.at === id && NODES[id].kind === 'cluster' && !this.huntSquad) this.startLiveHunt(hunt, true);
 		// задание «найди пропавшего» в этом кластере — его тело и жетон у одного из тайников
 		for (const t of this.world.quests.active) if (t.kind === 'find' && t.at === id && !t.got) this.placeTag(t);
 		// вернулись в стаб: уцелевшие бойцы отряда расходятся по своим койкам — снова брать с собой там
@@ -2940,7 +2954,7 @@ const game = {
 				const L = list[e.lead];
 				if (L?.followers) { me.leader = L; L.followers.push(me); }
 			});
-			if (hordeHere && !list.some((e) => e?.hordeLead)) this.spawnHorde(null);
+			if (hordeHere && !list.some((e) => e?.hordeLead) && !this.enemies.some((e) => e.alive && e.hordeLead)) this.spawnHorde(null);
 			level.containers.forEach((c, i) => {
 				const s = saved.containers[i];
 				c.items = s ? s.items : rollLoot(c.loot, NODES[this.loc].danger ?? 1);
@@ -2993,8 +3007,8 @@ const game = {
 		// здесь уже побывали муры: часть заражённых перебита, часть тайников выгребена
 		const mark = this.world.clusters[this.loc]?.raided;
 		if (mark) this.applyMarkHere(mark);
-		// здесь стоит кочующая стая
-		if (hordeHere) this.spawnHorde(null);
+		// здесь стоит кочующая стая (если уже пришла в updateMurs — не дважды)
+		if (hordeHere && !this.enemies.some((e) => e.alive && e.hordeLead)) this.spawnHorde(null);
 	},
 
 	/** Следы вылазки муров в построенном кластере: убрать долю заражённых, выгрести долю тайников. */
@@ -3664,13 +3678,14 @@ const game = {
 	 * вылазок, пока не выберут нового.
 	 */
 	banditDied(b) {
-		this.kills++;
+		const mine = heroSide(b.lastHitBy); // мура убил внешник или заражённый — не в счёт героя
+		if (mine) this.kills++;
 		Sfx.death('human', this.ear(b.pos));
 		this.decal(b.pos, 1.6);
 		const near = (dx, dz) => b.pos.clone().add(new THREE.Vector3(dx, 0, dz));
-		this.questEvent('bandit', b);
+		if (mine) this.questEvent('bandit', b);
 		// резня в логове: десяток убитых за визит — придут мстить на базу
-		if (NODES[this.loc].kind === (b.faction === 'ext' ? 'ext' : 'murs') && (this.lairKills = (this.lairKills ?? 0) + 1) === MASSACRE) this.planBaseRaid(b.faction, 'месть за резню в логове');
+		if (mine && NODES[this.loc].kind === (b.faction === 'ext' ? 'ext' : 'murs') && (this.lairKills = (this.lairKills ?? 0) + 1) === MASSACRE) this.planBaseRaid(b.faction, 'месть за резню в логове');
 		if (b.faction === 'ext') { this.extDied(b, near); return; }
 		const [a0, a1] = MUR_DROP_AMMO;
 		if (b.W.ammo) this.spawnPickup(b.W.ammo, near(0.4, 0.3), a0 + Math.floor(Math.random() * (a1 - a0 + 1)));
@@ -3755,7 +3770,7 @@ const game = {
 			const parts = Math.min(store.length, Math.max(1, Math.ceil(n / 30)));
 			for (let k = 0; k < parts; k++) {
 				const q = Math.floor(n / parts) + (k < n % parts ? 1 : 0);
-				if (q > 0) store[(i + k) % store.length].items.push([kind, q]);
+				if (q > 0) store[(i + k) % store.length].items.push([realId(kind), q]);
 			}
 		});
 	},
@@ -3854,7 +3869,7 @@ const game = {
 		this.enter(atBase ? 'base' : 'stab', undefined);
 		if (atBase) {
 			if (bp.respawnKit && this.player) this.player.hp = this.player.maxHp;
-			const extra = [kept && `${WEAPONS[kept.id].name} остался в руках`, bp.respawnKit && 'в бункере — тревожный набор: Glock 17, патроны, живчик', broke && 'в бункере нашёлся старый топор'].filter(Boolean).join('; ');
+			const extra = [kept && `${WEAPONS[kept.id].name} остался в руках`, bp.respawnKit && 'в бункере — тревожный набор: Glock 17, патроны, аптечка', broke && 'в бункере нашёлся старый топор'].filter(Boolean).join('; ');
 			this.banner('База «Опорный»', `${who} — очнулся в бункере базы. Всё, что было с собой, осталось там${extra ? `; ${extra}` : ''}`);
 		}
 		else this.banner('Стаб «Полис»', `${who}. Всё, что было с собой, осталось там${broke ? '; охрана выдала старый топор' : ' — запас в хранилище, в твоей комнате'}`);
@@ -3890,6 +3905,14 @@ const game = {
 			const st = this.stash.guns[kind];
 			if (!st) return;
 			delete this.stash.guns[kind];
+			// такой ствол уже при себе — второй не нужен: патроны из его магазина — в рюкзак
+			if (kit.owned.includes(kind)) {
+				const A = WEAPONS[kind].ammo;
+				if (A && st.mag) this.bag[A] = (this.bag[A] ?? 0) + st.mag;
+				this.toast(`${WEAPONS[kind].name} уже при себе${A && st.mag ? ` — ${st.mag} патронов из его магазина в рюкзак` : ''}`);
+				this.hud(); this.save();
+				return;
+			}
 			kit.owned.push(kind);
 			if (WEAPONS[kind].ammo) kit.mags[kind] = st.mag ?? 0;
 			if (WEAPONS[kind].durability) kit.wear[kind] = st.wear ?? WEAPONS[kind].durability;
@@ -3962,9 +3985,11 @@ const game = {
 	flowDir(pos) { return this.flow ? flowStep(this.flow, pos) : null; },
 
 	onKill(e) {
-		this.kills++;
+		// «Убито» и задания — только то, что убили герой, его наёмники и часовые (не муры, не внешники)
+		const mine = heroSide(e.lastHitBy);
+		if (mine) this.kills++;
 		if (e.hordeLead) this.hordeLeaderDied(e);
-		this.questEvent?.('kill', e);
+		if (mine) this.questEvent?.('kill', e);
 		Sfx.death(e.type, this.ear(e.pos));
 		this.decal(e.pos, e.type === 'runner' ? 1.6 : e.type === 'stomper' ? 2.4 : 3);
 		// споровый мешок на затылке: чем развитее заражённый, тем он богаче. У бегуна — споран, у топтуна — ещё
@@ -4003,18 +4028,21 @@ const game = {
 
 	/** Подобрать предмет в рюкзак. Найденное оружие — в коллекцию (повторное — разбираем на патроны). */
 	take(kind, n) {
+		kind = realId(kind); // убранное (ammo9 из старых запасов муров и т. п.) — ближайшее новое
+		if (kind !== 'tag' && !WEAPONS[kind] && !ITEMS[kind]) { console.warn('неизвестный предмет', kind); return; }
 		if (kind === 'tag') { this.questEvent('tag'); Sfx.chime(); this.toast('Жетон пропавшего — отнеси на доску заданий'); return; }
 		const W = WEAPONS[kind];
 		if (W) {
 			const kit = this.kit;
-			if (kit.owned.includes(kind)) {
-				if (W.ammo) { this.bag[W.ammo] = (this.bag[W.ammo] ?? 0) + 4; this.toast(`${W.name} уже есть — забрал 4 патрона ${AMMO[W.ammo]}`); }
+			if (kit.owned.includes(kind) || this.stash.guns[kind]) {
+				// такой уже есть (при себе или в хранилище) — второй не берём: только патроны
+				if (W.ammo) { this.bag[W.ammo] = (this.bag[W.ammo] ?? 0) + 4; this.toast(`${W.name} уже есть${kit.owned.includes(kind) ? '' : ' (в хранилище)'} — забрал 4 патрона ${AMMO[W.ammo]}`); }
 				if (W.durability) { kit.wear[kind] = W.durability; this.toast(`${W.name}: сменил затупленный на целый`); this.hud(); }
 			} else {
 				kit.owned.push(kind);
 				if (W.ammo) kit.mags[kind] = Math.min(W.mag, 2);
 				if (W.durability) kit.wear[kind] = W.durability;
-				if (kit.gear[W.slot] === 'fists') { kit.gear[W.slot] = kind; this.player.attachGear(); this.toast(`Найден: ${W.name}! Сразу в слот`); }
+				if (!kit.gear[W.slot] || kit.gear[W.slot] === 'fists') { kit.gear[W.slot] = kind; this.player.attachGear(); this.toast(`Найден: ${W.name}! Сразу в слот`); }
 				else this.toast(`Найден: ${W.name}! Возьми его в рюкзаке`);
 			}
 		} else {
@@ -4078,7 +4106,7 @@ const game = {
 			if (s.id === 'quests') this.questWindow.open(s.name);
 			if (s.id === 'free') this.freePrisoner(s.idx);
 			if (s.id === 'znahar') this.znaharHeal();
-			if (s.id === 'barter') this.trade.open();
+			if (s.id === 'barter') this.trade.open({ barter: true });
 			return;
 		}
 		const c = this.nearContainer();
@@ -4598,14 +4626,14 @@ const game = {
 		p.pending.push({ t: 0.27, fn: () => {
 			const from = nade.getWorldPosition(new THREE.Vector3());
 			nade.removeFromParent();
-			this.launchGrenade(from, to);
+			this.launchGrenade(from, to, 2.0, false, this.player);
 		} });
 		p.pending.push({ t: 0.5, fn: () => { held.visible = true; } });
 		this.hud();
 	},
 
 	/** Полёт гранаты дугой; fuse — через сколько после броска взрыв (у героя — 2 с, у подрывника — выдержана). */
-	launchGrenade(from, to, fuse = 2.0, warn = false) {
+	launchGrenade(from, to, fuse = 2.0, warn = false, by = null) {
 		const g = makeGrenade();
 		// граната мура: красный круг на земле — куда упадёт и докуда достанут осколки (успеть выбежать)
 		let ring = null;
@@ -4630,7 +4658,7 @@ const game = {
 				g.rotation.x += spin.x * dt; g.rotation.y += spin.y * dt;
 			}
 			if (ring) ring.material.opacity = 0.35 + 0.25 * Math.sin(fuse * 14);
-			if (fuse <= 0) { this.explode(g.position.clone()); return false; }
+			if (fuse <= 0) { byWho(by, () => this.explode(g.position.clone())); return false; }
 			return true;
 		}, dispose: () => { scene.remove(g); if (ring) { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } } });
 	},
@@ -4658,13 +4686,12 @@ const game = {
 			const flown = Math.hypot(p.x - from.x, p.z - from.z);
 			if (flown < (W.arm ?? 0)) {
 				// не успела взвестись: тупой удар болванкой
-				direct?.damage(W.damage * 0.5 * mul, from, 0.8);
+				byWho(by, () => direct?.damage(W.damage * 0.5 * mul, from, 0.8));
 				this.impact(p.clone().setY(Math.max(0.15, p.y)), !!stop.wall, 1.4);
 				Sfx.chop();
 				return;
 			}
-			direct?.damage(W.damage * mul, from, 1.6, true);
-			this.explode(p.clone(), { ...W.blast, own });
+			byWho(by, () => { direct?.damage(W.damage * mul, from, 1.6, true); this.explode(p.clone(), { ...W.blast, own }); });
 			if (!direct && stop.collider && p.distanceTo(stop.pos) < 0.5) this.hitObstacle(stop, W.blast.dmg, from);
 		};
 		this.fx.push({ life: T + 1, update: (dt) => {
@@ -4747,7 +4774,7 @@ const game = {
 		for (const a of [this.player, ...this.mercs]) {
 			if (!a?.alive) continue;
 			const d = Math.hypot(a.pos.x - pos.x, a.pos.z - pos.z);
-			if (d < R) a.hurt(hurt * (1 - d / R) * (own ? 0.5 : 1), pos);
+			if (d < R) a.hurt(hurt * (1 - d / R) * (own ? 0.5 : 1), pos, undefined, 'blast');
 		}
 		// соседние бочки с горючим рвутся следом — цепочкой
 		for (const b of this.barrels) if (b.alive && Math.hypot(b.pos.x - pos.x, b.pos.z - pos.z) < R) b.damage(200, pos);
@@ -5115,8 +5142,12 @@ const game = {
 		const kept = CURRENCY.filter((k) => (this.bag[k] ?? 0) > 0).map((k) => `${low(ITEMS[k].name)} ×${this.bag[k]}`);
 		clearTimeout(this.overTimer);
 		this.overTimer = setTimeout(() => {
-			$('go-title').textContent = reason === 'reload' ? 'Кластер перезагрузился' : 'Тебя сожрали';
-			$('go-sub').textContent = reason === 'reload' ? 'Ты не успел уйти: Улей подменил кластер свежей копией вместе с тобой.' : 'Заражённые оказались быстрее.';
+			const why = { reload: ['Кластер перезагрузился', 'Ты не успел уйти: Улей подменил кластер свежей копией вместе с тобой.'],
+				shot: ['Тебя застрелили', 'Пули оказались быстрее — держись за укрытиями.'],
+				blast: ['Тебя накрыло взрывом', 'Осколки не разбирают, кто свой, кто чужой.'] }[reason] ?? ['Тебя сожрали', 'Заражённые оказались быстрее.'];
+			$('go-title').textContent = why[0];
+			$('go-sub').textContent = why[1];
+			$('btn-respawn').textContent = this.basePerks().respawnAtBase ? 'Очнуться на базе' : 'Очнуться в стабе';
 			$('go-stats').innerHTML = `Убито: <b>${this.kills}</b>${lost.length ? `<br>Останется там: ${lost.join(', ')}` : ''}${kept.length ? `<br>При тебе: ${kept.join(', ')}` : ''}${lostMercs.length ? `<br>Наёмники вернутся в стаб без тебя: ${lostMercs.join(', ')} — нанять заново можно у костра` : ''}`;
 			$('gameover').classList.remove('hidden');
 			$('hud').classList.add('hidden');
@@ -5225,10 +5256,16 @@ game.gpuInfo = () => ({ ...renderer.info.memory, programs: renderer.info.program
 function frame() {
 	const raw = clock3.getDelta(), real = Math.min(0.05, raw);
 	const t0 = performance.now();
-	if (game.state !== 'menu' && SIM_STEPS) {
-		for (let i = 0; i < SIM_STEPS; i++) update(1 / 30);
-	} else {
-		update(real);
+	// ошибка в логике не должна навсегда останавливать игру: пишем в консоль, игроку — один раз
+	try {
+		if (game.state !== 'menu' && SIM_STEPS) {
+			for (let i = 0; i < SIM_STEPS; i++) update(1 / 30);
+		} else {
+			update(real);
+		}
+	} catch (err) {
+		console.error('Ошибка в кадре:', err);
+		if (!frame.warned) { frame.warned = true; game.toast?.('Что-то пошло не так — игра продолжается. Если повторится, сообщи разработчику', 'warn'); }
 	}
 	const t1 = performance.now();
 	post.render(real);

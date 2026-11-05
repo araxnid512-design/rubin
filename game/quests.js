@@ -16,7 +16,10 @@ const clusters = () => Object.keys(NODES).filter((id) => NODES[id].kind === 'clu
 const ENEMY_NAMES = { stomper: ['топтуна', 'топтунов', 'топтунов'], ruber: ['рубера', 'руберов', 'руберов'], elite: ['элиту', 'элиты', 'элит'] };
 const FACTION_NAMES = { murs: ['мура', 'муров', 'муров'], ext: ['внешника', 'внешников', 'внешников'] };
 /** Что просят принести: [вид, сколько, споранов за штуку]. */
-const FETCH = [['peas', [3, 6], 7], ['zhivchik', [2, 3], 10], ['ammo545', [60, 90], 0.7], ['ammo762', [45, 75], 0.8], ['grenade', [1, 2], 16], ['ammo12', [16, 24], 1.2]];
+// «Принеси»: награда за штуку — ниже цены торговца (живчик 5,4 за штуку пачкой, 5,45 — 0,5, 7,62 — 0,56, граната 10,
+// 12 кал. — 0,875) и выше цены продажи ему (40 %): купить и сдать — в убыток, принести найденное — выгоднее продажи.
+// Горох торговец не продаёт (меняет по 5 споранов) — за него больше.
+const FETCH = [['peas', [3, 6], 7], ['zhivchik', [2, 3], 4.4], ['ammo545', [60, 90], 0.42], ['ammo762', [45, 75], 0.46], ['grenade', [1, 2], 8], ['ammo12', [16, 24], 0.72]];
 
 /** Доска в новом мире: три предложения. */
 export function newQuests(time = 0) {
@@ -37,7 +40,7 @@ export function makeQuest(q, horde = false) {
 	if (horde && roll < 0.12) return { id, kind: 'horde', n: 1, got: 0, reward: { spore: 250, pearl: 1 } };
 	if (roll < 0.3) {
 		const [item, [a, b], per] = pick(FETCH), n = ri(a, b);
-		return { id, kind: 'fetch', item, n, got: 0, reward: { spore: Math.max(10, Math.round(n * per * 1.3)) } };
+		return { id, kind: 'fetch', item, n, got: 0, reward: { spore: Math.max(8, Math.round(n * per)) } };
 	}
 	if (roll < 0.5) {
 		const type = pick(['stomper', 'stomper', 'ruber', 'ruber', 'elite']), n = type === 'stomper' ? ri(2, 4) : type === 'ruber' ? ri(1, 2) : 1;

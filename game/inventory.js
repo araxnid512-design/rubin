@@ -96,7 +96,9 @@ export class Inventory {
 		// рюкзак: запасное оружие, затем расходники
 		const spare = kit.owned.filter((w) => !Object.values(kit.gear).includes(w));
 		const items = [...spare, ...BAG_ORDER.filter((k) => (g.bag[k] ?? 0) > 0)];
-		$('inv-grid').innerHTML = Array.from({ length: SLOTS }, (_, i) => {
+		// предметов больше 15 — сетка растёт рядами по 5 (ничего не прячется: жемчуг, живчик видны всегда)
+		const cells = Math.max(SLOTS, Math.ceil(items.length / 5) * 5);
+		$('inv-grid').innerHTML = Array.from({ length: cells }, (_, i) => {
 			const k = items[i];
 			if (!k) return '<div class="slot empty"></div>';
 			const count = WEAPONS[k] ? (WEAPONS[k].ammo ? `${kit.mags[k] ?? 0}/${gunStats(k, kit.mods).mag}` : '') : g.bag[k];
@@ -105,7 +107,7 @@ export class Inventory {
 				<span class="count">${count}</span>${WEAPONS[k] ? wearBar(k) : ''}
 			</button>`;
 		}).join('');
-		$('inv-weight').textContent = `${items.length} / ${SLOTS}`;
+		$('inv-weight').textContent = `${items.length} / ${cells}`;
 		// описание выбранного
 		let kind = this.selected;
 		const valid = WEAPONS[kind] ? kit.owned.includes(kind) || Object.values(kit.gear).includes(kind) : (g.bag[kind] ?? 0) > 0;
