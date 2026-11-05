@@ -36,6 +36,7 @@
     const C = G.CONFIG;
     s.items = Object.assign({}, C.start.items, s.items || {});
     s.flags = s.flags || {};
+    s.relations = Object.assign({}, C.start.relations, s.relations || {});
     s.timers = s.timers || [];
     s.eventLog = s.eventLog || {};
     s.replays = s.replays || [];

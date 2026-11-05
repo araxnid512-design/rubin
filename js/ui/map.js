@@ -67,7 +67,7 @@
     const anchor = t.x >= 85 ? 'end' : t.x <= 20 ? 'start' : 'middle';
     const x = anchor === 'end' ? t.x + 2.6 : anchor === 'start' ? t.x - 2.6 : t.x;
     const y = t.labelUp ? Y(t.y) - 3.4 : Y(t.y) + 5;
-    return txt(x, y, t.name, sel ? '#f3cd8c' : '#d8cfbd', 2.2, anchor);
+    return txt(x, y, t.short || t.name, sel ? '#f3cd8c' : '#d8cfbd', 2.2, anchor);
   }
 
   function txt(x, y, str, fill, size, anchor) {
@@ -109,6 +109,32 @@
     return card;
   }
 
+  // Фракции: отношения, статус, что даёт дружба
+  function factionsCard(s) {
+    const F = G.Factions;
+    const dip = G.Actions.defs.diplomacy;
+    const canDip = dip.targets ? dip.targets(s) : [];
+    const can = s.phase === 'orders' && G.Game.ordersLeft(s) > 0;
+    const rows = F.list.map((f) => {
+      const T = G.TEXT.factions[f];
+      const v = F.rel(s, f);
+      const met = F.contact(s, f) || s.flags['hostile_' + f] || v !== (G.CONFIG.start.relations[f] || 0);
+      const st = F.status(v);
+      const pct = Math.max(0, Math.min(100, (v + 100) / 2));
+      return h('div', { class: 'fac-row' + (met ? '' : ' fac-unknown') },
+        h('span', { class: 'fac-icon' }, T.icon || '•'),
+        h('div', { class: 'fac-main' },
+          h('div', { class: 'row between' },
+            h('b', null, T.name),
+            h('span', { class: 'small ' + st.cls }, met ? st.word + ' ' + (v > 0 ? '+' : '') + v : 'нет связи')),
+          h('div', { class: 'fac-bar' }, h('i', { class: v < 0 ? 'neg' : 'pos', style: v < 0 ? 'left:' + pct + '%;width:' + (50 - pct) + '%' : 'left:50%;width:' + (pct - 50) + '%' })),
+          met ? h('div', { class: 'small muted' }, F.perks(s, f)) : null),
+        canDip.indexOf(f) >= 0 ? h('button', { class: 'btn small', disabled: !can, title: 'Переговоры', onclick: () => UI.openBuilder('diplomacy', f) }, '✉') : null
+      );
+    });
+    return h('div', { class: 'card' }, h('h2', null, 'Фракции'), rows);
+  }
+
   UI.views.map = function (s) {
     if (!s.regions[UI.mapSel] || !s.regions[UI.mapSel].known) UI.mapSel = 'crash';
     return h('div', { class: 'cols' },
@@ -116,7 +142,7 @@
         h('div', { class: 'mapwrap' }, drawMap(s)),
         h('p', { class: 'small muted', style: 'margin-top:6px' }, '■ лагерь · ● пустошь · ◉ поселение · ▲ враг · ? неразведанное место. Нажмите на место, чтобы увидеть сведения.')
       ),
-      h('div', null, regionCard(s, UI.mapSel))
+      h('div', null, regionCard(s, UI.mapSel), factionsCard(s))
     );
   };
 })(globalThis.G = globalThis.G || {});

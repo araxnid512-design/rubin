@@ -47,7 +47,7 @@
   };
 
   Base.energyProduction = (s) => (G.CONFIG.sections.reactor.energy[s.sections.reactor.level] || 0) + (G.Camp ? G.Camp.energy(s) : 0);
-  Base.waterProduction = (s) => (G.CONFIG.sections.vapor.water[s.sections.vapor.level] || 0) + (G.Camp ? G.Camp.water(s) : 0);
+  Base.waterProduction = (s) => (G.CONFIG.sections.vapor.water[s.sections.vapor.level] || 0) + (G.Camp ? G.Camp.water(s) : 0) + (G.Factions ? G.Factions.waterBonus(s) : 0);
   Base.healBonus = (s) => G.CONFIG.sections.medbay.heal[s.sections.medbay.level] || 0;
   Base.deathMult = (s) => G.CONFIG.sections.medbay.deathMult[s.sections.medbay.level];
 

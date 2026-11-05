@@ -38,12 +38,23 @@ const PREF = {
   rebel_strike: ['fight'],
   shuttle_launch: ['all', 'some'],
   hutt_job_return: ['ok'],
+  farm_plea: (s) => (G.Units.people(s).filter((u) => G.Units.isFit(s, u)).length >= 30 ? ['help', 'supply', 'refuse'] : ['supply', 'refuse']),
+  farm_fair: ['go', 'no'],
+  bounty_posted: ['guard'],
+  assassin_night: ['fight'],
+  guild_offer: ['payoff', 'no'],
+  scav_theft: ['deal', 'fight'],
+  scav_caravan: ['trade', 'no'],
+  deserter_signal: (s) => (G.Day.waterDaysLeft(s) > 6 ? ['envoy', 'note'] : ['note']),
+  deserter_defectors: ['accept'],
+  deserter_raid: ['fight'],
+  deserter_return: ['accept'],
 };
 
 function chooseEvent(s) {
   const p = s.pending;
   const opts = G.Events.options(s, p).filter((o) => !o.blocked);
-  const pref = PREF[p.id] || [];
+  const pref = (typeof PREF[p.id] === 'function' ? PREF[p.id](s) : PREF[p.id]) || [];
   for (const id of pref) { const o = opts.find((x) => x.id === id); if (o) return o.id; }
   const safe = opts.filter((o) => o.id !== 'escape');
   return (safe[0] || opts[0]).id;
@@ -140,6 +151,10 @@ function smartOrders(s) {
       s.relations.hutt >= 25 && s.res.credits >= 700) add(s, 'trade', 'mos_espa', 3);
   if (G.Game.ordersLeft(s) > 0 && G.Regions.canTrade(s, 'mos_espa') && s.relations.hutt < 25 && s.res.credits >= 250) add(s, 'diplomacy', 'hutt', 2);
   if (G.Game.ordersLeft(s) > 0 && s.items.kraytPearl && G.Regions.canTrade(s, 'mos_espa')) add(s, 'trade', 'mos_espa', 3);
+  // Фракции: фермеры дают воду, мир с дезертирами прекращает налёты и приводит ветеранов
+  const dipT = G.Actions.defs.diplomacy.targets(s);
+  if (G.Game.ordersLeft(s) > 0 && dipT.indexOf('farmers') >= 0 && s.relations.farmers < 60 && s.res.credits >= 160) add(s, 'diplomacy', 'farmers', 2);
+  if (G.Game.ordersLeft(s) > 0 && dipT.indexOf('deserters') >= 0 && s.relations.deserters < 50 && G.Day.waterDaysLeft(s) > 8) add(s, 'diplomacy', 'deserters', 2);
   if (G.Game.ordersLeft(s) > 0) {
     const rec = G.Actions.defs.recon.targets(s).filter((id) => s.regions[id].explored < 100 && G.CONFIG.regions[id].kind !== 'hostile')
       .sort((a, b) => G.CONFIG.regions[a].dist - G.CONFIG.regions[b].dist);

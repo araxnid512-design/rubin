@@ -40,7 +40,10 @@
 
   Regions.canTrade = function (s, id) {
     const cfg = Regions.cfg(id);
-    return !!(cfg.trade && s.regions[id].known && s.regions[id].explored >= G.CONFIG.actions.trade.needExplored);
+    if (!cfg.trade || !s.regions[id].known || s.regions[id].cleared) return false;
+    const t = G.CONFIG.trade[cfg.trade];
+    if (t && t.minRelation != null && (s.relations[t.faction] || 0) < t.minRelation) return false;
+    return s.regions[id].explored >= G.CONFIG.actions.trade.needExplored;
   };
 
   // Оценка богатства для интерфейса: 0..4 → «нет / мало / есть / много / очень много»

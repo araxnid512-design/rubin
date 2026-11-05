@@ -29,7 +29,7 @@
       heavyWounded: 2,
       lightHealth: [50, 75],
       heavyHealth: [26, 36],
-      relations: { jawa: 0, hutt: 0, tusken: -40 },
+      relations: { jawa: 0, hutt: 0, tusken: -40, farmers: 10, guild: 0, scavengers: -10, deserters: -20 },
       knownRegions: ['dunes', 'ridge'],
     },
 
@@ -117,6 +117,10 @@
       jawa:   { cost: { credits: 40 }, gain: [6, 12], needRegion: 'anchorhead', needExplored: 10 },
       hutt:   { cost: { credits: 80 }, gain: [5, 10], needRegion: 'mos_espa',   needExplored: 10 },
       tusken: { cost: { water: 60 },   gain: [4, 10], needRegion: 'jundland',   needExplored: 30, failChance: 0.25, failLoss: 6 },
+      farmers:    { cost: { credits: 30 },  gain: [6, 12], needRegion: 'anchorhead', needExplored: 10 },
+      scavengers: { cost: { scrap: 60 },    gain: [6, 12], needRegion: 'junkyard',   needExplored: 10 },
+      deserters:  { cost: { water: 50 },    gain: [5, 10], needRegion: 'outpost',    needExplored: 30, failChance: 0.3, failLoss: 6 },
+      guild:      { cost: { credits: 120 }, gain: [8, 14], needRegion: 'mos_espa',   needExplored: 30 },
       priceFactorPerPoint: 0.004,  // каждая единица отношения меняет цены на 0,4%
     },
 
@@ -124,7 +128,7 @@
     // buy — цена, по которой МЫ покупаем; sell — цена, по которой продаём.
     // stock — запас торговца на одну встречу.
     trade: {
-      anchorhead: { faction: 'jawa',
+      anchorhead: { faction: 'farmers',
         buy:  { water: 2, bacta: 32 },
         sell: { scrap: 2 },
         stock: { water: 300, bacta: 5 } },
@@ -137,6 +141,21 @@
         buy:  { water: 2, bacta: 30 },
         sell: { scrap: 3 },
         stock: { water: 200, bacta: 3 } },
+      // падальщики хорошо платят за металл и торгуют деталями
+      junkyard: { faction: 'scavengers', minRelation: 0,
+        buy:  { fuel: 120, hyperParts: 320, bacta: 34 },
+        sell: { scrap: 4 },
+        stock: { fuel: 2, hyperParts: 1, bacta: 2 },
+        needRelation: { fuel: 10, hyperParts: 25 } },
+    },
+
+    // ---------- ФРАКЦИИ: бонусы за отношения ----------
+    factions: {
+      farmersWater: [[25, 8], [50, 16]],   // [порог, литров в сутки] — фермеры привозят воду
+      guildSafe: 30,                        // с этого уровня гильдия не присылает убийц
+      scavengersPeace: 20,                  // с этого уровня падальщики не воруют обломки
+      desertersJoin: 50,                    // с этого уровня аванпост может вернуться под знамёна
+      attackRelation: -100,                 // отношения после нападения на их лагерь
     },
 
     // ---------- НОЧНЫЕ НАЛЁТЫ ----------
@@ -213,11 +232,11 @@
       farm:        { kind: 'wild', terrain: 'desert', ambush: 'tusken', dist: 2, danger: 1, water: 3, waterPool: 600, waterRegen: 14,
                      scrap: 1, scrapPool: 150, links: [['anchorhead', 60]] },
       jundland:    { kind: 'wild', terrain: 'rocks', ambush: 'tusken', dist: 2, danger: 3, water: 2, waterPool: 500, waterRegen: 10,
-                     scrap: 0, links: [['tusken_camp', 50], ['anchorhead', 80]] },
+                     scrap: 0, links: [['tusken_camp', 50], ['anchorhead', 80], ['outpost', 65]] },
       canyon:      { kind: 'wild', terrain: 'rocks', ambush: 'bandits', dist: 2, danger: 2, water: 1, waterPool: 200, waterRegen: 4,
                      scrap: 1, scrapPool: 200, links: [['bandit_den', 45], ['mos_espa', 85]] },
       graveyard:   { kind: 'wild', terrain: 'wreck', ambush: 'bandits', dist: 3, danger: 2, water: 0, scrap: 3, scrapPool: 1400,
-                     links: [['krayt_lair', 60]] },
+                     links: [['krayt_lair', 60], ['junkyard', 40]] },
       anchorhead:  { kind: 'town', terrain: 'desert', ambush: 'bandits', dist: 3, danger: 1, trade: 'anchorhead', links: [] },
       mos_espa:    { kind: 'town', terrain: 'desert', ambush: 'bandits', dist: 4, danger: 2, trade: 'mos_espa', links: [['hutt_palace', 70]] },
       tusken_camp: { kind: 'hostile', terrain: 'rocks', ambush: 'tusken', dist: 3, danger: 3, enemy: 'tusken_camp', strength: 18 },
@@ -225,6 +244,9 @@
       krayt_lair:  { kind: 'hostile', terrain: 'desert', ambush: 'tusken', dist: 4, danger: 4, enemy: 'krayt', strength: 40 },
       hutt_palace: { kind: 'hostile', terrain: 'fort', ambush: 'hutt_guard', dist: 5, danger: 4, enemy: 'hutt_guard', strength: 60 },
       rebel_post:  { kind: 'hostile', terrain: 'rocks', ambush: 'rebels', dist: 4, danger: 3, enemy: 'rebels', strength: 17, hidden: true },
+      junkyard:    { kind: 'town', terrain: 'wreck', ambush: 'scavengers', dist: 3, danger: 2, trade: 'junkyard', faction: 'scavengers',
+                     attackable: true, enemy: 'scavengers', strength: 16, links: [] },
+      outpost:     { kind: 'hostile', terrain: 'rocks', ambush: 'deserters', dist: 3, danger: 3, enemy: 'deserters', strength: 20, faction: 'deserters' },
     },
 
     // Добыча за победу над лагерем (упрощённый бой; в этапе 3 — по итогам автобоя)
@@ -234,6 +256,8 @@
       krayt:       { items: { kraytPearl: [1, 1] }, scrap: [0, 0] },
       hutt_guard:  { credits: [400, 700], water: [200, 300], items: { fuel: [1, 2] } },
       rebels:      { items: { commModule: [1, 1] }, credits: [50, 120], scrap: [30, 60] },
+      scavengers:  { scrap: [150, 260], credits: [40, 120], items: { hyperParts: [0, 1], fuel: [0, 1] } },
+      deserters:   { scrap: [60, 120], credits: [100, 220], water: [60, 120], items: { commModule: [0, 1], bacta: [2, 4] } },
     },
 
     // ---------- СОБЫТИЯ ----------
@@ -297,6 +321,18 @@
         fleet_arrival: { when: 'signal' },
         rebel_strike:  { when: 'signal' },
         shuttle_launch:{ when: 'chain' },
+        // новые фракции
+        farm_plea:     { when: 'day', weight: 6, minDay: 8, cooldown: 9, squad: 10, allies: 3, strength: 9, water: 80, relation: 15, supplyCredits: 50, supplyRelation: 5, refuseRelation: -8 },
+        farm_fair:     { when: 'day', weight: 4, minDay: 10, cooldown: 14, minRelation: 20, credits: 20, discipline: 6, relation: 4 },
+        bounty_posted: { when: 'day', weight: 6, minDay: 12, max: 1, rumorChance: 0.4, rumorDisc: -3 },
+        assassin_night:{ when: 'night', weight: 4, minDay: 13, cooldown: 8, strength: 9, hideScrap: 40, hideEnergy: 30 },
+        guild_offer:   { when: 'day', weight: 4, minDay: 14, cooldown: 12, hirePrice: 260, payoff: 320, payoffRelation: 35 },
+        scav_theft:    { when: 'night', weight: 5, minDay: 7, cooldown: 6, strength: 7, dealScrap: 40, dealCredits: 30, dealRelation: 8, ignoreScrap: 80, ignoreRelation: 2 },
+        scav_caravan:  { when: 'day', weight: 4, minDay: 9, cooldown: 12, minRelation: 0, speederPrice: 150, kitPrice: 120 },
+        deserter_signal:{ when: 'day', weight: 6, minDay: 8, max: 1, envoyWater: 30, envoyRelation: 12 },
+        deserter_defectors:{ when: 'day', weight: 5, minDay: 12, cooldown: 10, minRelation: 15, count: [2, 4], xp: [60, 160], disc: -3, refuseRelation: -4 },
+        deserter_raid: { when: 'night', weight: 4, minDay: 14, cooldown: 10, maxRelation: -10, strength: 12 },
+        deserter_return:{ when: 'day', weight: 10, minDay: 15, max: 1, count: [6, 10], xp: [80, 220], disc: 6 },
         tusken_raid:   { when: 'raid', flareEnergy: 15, flareChance: 0.6, tributeWater: 60, tributeRelation: 3 },
       },
     },
@@ -401,6 +437,15 @@
         smuggler:     { hp: 54,  armor: 1, acc: 58, dmg: [11, 16], range: 6,  cd: 11, speed: 5, morale: 55 },
         gamorrean:    { hp: 110, armor: 3, acc: 50, dmg: [20, 30], range: 1,  cd: 13, speed: 7, morale: 60 },
         hutt_guard:   { hp: 58,  armor: 2, acc: 54, dmg: [11, 15], range: 7,  cd: 12, speed: 6, morale: 55 },
+        bounty_hunter:{ hp: 120, armor: 5, acc: 70, dmg: [16, 24], range: 9,  cd: 14, speed: 5, morale: 90 },
+        assassin_droid:{ hp: 140, armor: 6, acc: 66, dmg: [18, 26], range: 8, cd: 16, speed: 6, morale: null },
+        scavenger:    { hp: 40,  armor: 1, acc: 42, dmg: [7, 11],  range: 5,  cd: 10, speed: 4, morale: 40 },
+        scav_droid:   { hp: 95,  armor: 4, acc: 40, dmg: [10, 14], range: 4,  cd: 14, speed: 7, morale: null },
+        scav_boss:    { hp: 85,  armor: 3, acc: 50, dmg: [8, 12],  range: 6,  cd: 18, speed: 5, morale: 80, leader: true, burst: 3 },
+        deserter:     { hp: 60,  armor: 2, acc: 50, dmg: [10, 15], range: 7,  cd: 12, speed: 6, morale: 55 },
+        deserter_heavy:{ hp: 72, armor: 3, acc: 44, dmg: [8, 12],  range: 7,  cd: 20, speed: 8, morale: 60, burst: 3 },
+        deserter_captain:{ hp: 80, armor: 2, acc: 58, dmg: [11, 15], range: 7, cd: 12, speed: 5, morale: 85, leader: true },
+        farmer:       { hp: 45,  armor: 0, acc: 46, dmg: [12, 18], range: 9,  cd: 22, speed: 6, morale: 50 },
         krayt:        { hp: 1500, armor: 6, acc: 72, dmg: [40, 60], range: 2, cd: 15, speed: 5, morale: null, big: true, sweep: 0.7 },
       },
       // Состав врага: [тип, вес в отряде, «цена» в единицах силы]
@@ -412,6 +457,9 @@
         rebels:      { units: [['rebel', 3, 1.1], ['rebel_heavy', 1, 1.3]], leader: 'rebel_officer', leaderFrom: 10, tactic: 'defense', map: 'rocks', retreatAt: 0.7 },
         smugglers:   { units: [['smuggler', 1, 1.1]], tactic: 'defense', map: 'desert', retreatAt: 0.6 },
         hutt_guard:  { units: [['hutt_guard', 2, 1.1], ['gamorrean', 1, 1.5]], tactic: 'defense', map: 'fort', retreatAt: 0.8 },
+        guild:       { units: [['bounty_hunter', 2, 4], ['assassin_droid', 1, 4.5]], tactic: 'flank', map: 'desert', retreatAt: 0.6 },
+        scavengers:  { units: [['scavenger', 3, 0.8], ['scav_droid', 1, 1.6]], leader: 'scav_boss', leaderFrom: 10, tactic: 'assault', map: 'wreck', retreatAt: 0.5 },
+        deserters:   { units: [['deserter', 3, 1], ['deserter_heavy', 1, 1.3]], leader: 'deserter_captain', leaderFrom: 12, tactic: 'defense', map: 'rocks', retreatAt: 0.6 },
         krayt:       { units: [['krayt', 1, 34]], max: 1, tactic: 'assault', map: 'desert', retreatAt: 1 },
       },
       maxEnemies: 34,

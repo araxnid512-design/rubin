@@ -20,6 +20,7 @@ const CORE_FILES = [
   'js/core/game.js',
   'js/core/events.js',
   'js/content/events.ru.js',
+  'js/content/events.factions.ru.js',
   'js/battle/map.js',
   'js/battle/text.ru.js',
   'js/battle/engine.js',
@@ -27,6 +28,7 @@ const CORE_FILES = [
   'js/core/progress.js',
   'js/core/goals.js',
   'js/core/camp.js',
+  'js/core/factions.js',
   'js/core/save.js',
 ];
 

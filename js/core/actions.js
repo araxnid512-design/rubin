@@ -363,11 +363,11 @@
   defs.diplomacy = {
     prefer: 'scouts',
     targets(s) {
-      const D = G.CONFIG.diplomacy;
-      return ['jawa', 'hutt', 'tusken'].filter((f) => {
-        const r = s.regions[D[f].needRegion];
+      return G.Factions.list.filter((f) => {
+        if (!G.CONFIG.diplomacy[f] || s.flags['hostile_' + f]) return false;
         if (f === 'jawa' && s.flags.jawaHostile) return false;
-        return (r && r.known && r.explored >= D[f].needExplored) || (f === 'jawa' && s.visitors.jawa > 0);
+        if (f === 'deserters' && s.regions.outpost.cleared) return false;
+        return G.Factions.contact(s, f) || (f === 'jawa' && s.visitors.jawa > 0);
       });
     },
     targetName: (id) => G.TEXT.factions[id].name,
@@ -398,7 +398,10 @@
   // ---------- Атака ----------
   defs.attack = {
     prefer: 'fighters',
-    targets: (s) => G.Regions.known(s).filter((id) => G.Regions.cfg(id).kind === 'hostile' && !s.regions[id].cleared),
+    targets: (s) => G.Regions.known(s).filter((id) => {
+      const c = G.Regions.cfg(id);
+      return (c.kind === 'hostile' || c.attackable) && !s.regions[id].cleared;
+    }),
     preview(s, o) {
       const cfg = G.Regions.cfg(o.target);
       const e = cfg.strength * G.Res.diff(s).enemy;

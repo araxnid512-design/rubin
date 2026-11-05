@@ -28,7 +28,7 @@ test('бой детерминирован: одно зерно — один ис
 });
 
 test('бой всегда заканчивается в пределах лимита', () => {
-  for (const army of ['tusken', 'bandits', 'rebels', 'jawa', 'smugglers', 'hutt_guard', 'krayt']) {
+  for (const army of ['tusken', 'bandits', 'rebels', 'jawa', 'smugglers', 'hutt_guard', 'krayt', 'guild', 'scavengers', 'deserters']) {
     for (const tactic of ['assault', 'defense', 'flank']) {
       const st = setupFor(5, army);
       st.sides[0].tactic = tactic;

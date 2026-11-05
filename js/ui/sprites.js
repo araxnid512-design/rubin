@@ -39,6 +39,15 @@
     smuggler: { body: 'vest', cloth: '#22252b', shirt: '#e9e4d8', trim: '#111', head: 'bare', weapon: 'pistol' },
     gamorrean: { body: 'brute', skin: '#7e9a4e', cloth: '#5a3d26', trim: '#2a1b10', head: 'pig', weapon: 'axe', scale: 1.28 },
     hutt_guard: { body: 'armor', armor: '#7a54b0', trim: '#2a1a3c', head: 'slit', weapon: 'rifle' },
+    bounty_hunter: { body: 'coat', cloth: '#4e4438', trim: '#1e1914', head: 'hunter', helm: '#7d8a8f', weapon: 'rifle' },
+    assassin_droid: { body: 'droid', metal: '#2b2e33', trim: '#0e0f11', head: 'probe', eye: '#ff3b2f', weapon: 'rifle', tall: 1.22 },
+    scavenger: { body: 'jacket', cloth: '#8a6d45', trim: '#3d2e1c', head: 'goggles', mask: '#a8916a', weapon: 'pistol' },
+    scav_droid: { body: 'droid', metal: '#8a5a33', trim: '#3b2414', head: 'droid', eye: '#ffc04a', weapon: 'rifle', scale: 0.95 },
+    scav_boss: { body: 'coat', cloth: '#6b5236', trim: '#2b1f12', head: 'goggles', mask: '#7a2e22', weapon: 'heavy', scale: 1.12 },
+    deserter: { body: 'armor', armor: '#9ea4aa', trim: '#33363b', head: 'helmet', pad: '#b03028', weapon: 'rifle' },
+    deserter_heavy: { body: 'armor', armor: '#949aa0', trim: '#33363b', head: 'helmet', pad: '#b03028', bulky: 1.25, weapon: 'heavy' },
+    deserter_captain: { body: 'armor', armor: '#aab0b6', trim: '#33363b', head: 'helmet', pad: '#b03028', cape: '#7a2620', weapon: 'pistol', scale: 1.08 },
+    farmer: { body: 'vest', cloth: '#cdbb94', shirt: '#efe6d0', trim: '#6b5a3c', head: 'bare', weapon: 'longrifle' },
   };
   S.LOOKS = LOOKS;
 
@@ -154,6 +163,22 @@
         ctx.fillStyle = '#f2ead2'; ctx.beginPath(); ctx.moveTo(hx + 4, hy + 5); ctx.lineTo(hx + 6, hy + 1); ctx.lineTo(hx + 6.5, hy + 5); ctx.closePath(); ctx.fill();
         ctx.fillStyle = L.skin; ctx.beginPath(); ctx.moveTo(hx - 6, hy - 6); ctx.lineTo(hx - 9, hy - 12); ctx.lineTo(hx - 2, hy - 8); ctx.closePath(); ctx.fill();
         break;
+      case 'hunter':
+        // Гладкий шлем с узкой янтарной прорезью и боковой антенной (оригинальный дизайн)
+        ctx.fillStyle = L.helm; ctx.strokeStyle = L.trim;
+        ctx.beginPath(); ctx.arc(hx, hy, 8.8, Math.PI, 0); ctx.lineTo(hx + 8.8, hy + 7);
+        ctx.quadraticCurveTo(hx, hy + 10, hx - 8.8, hy + 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#ffb23d'; ctx.fillRect(hx - 1, hy - 2, 9, 2);
+        ctx.strokeStyle = L.trim; line(ctx, hx - 6, hy - 5, hx - 8, hy - 15);
+        ctx.fillStyle = '#ff5a4a'; circle(ctx, hx - 8, hy - 15, 1.3); ctx.fill();
+        break;
+      case 'probe':
+        ctx.fillStyle = L.metal; ctx.strokeStyle = L.trim;
+        rr(ctx, hx - 4.5, hy - 11, 9, 18, 4); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = L.eye; circle(ctx, hx + 2, hy - 4, 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,60,40,0.25)'; circle(ctx, hx + 2, hy - 4, 4); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'; line(ctx, hx - 2, hy - 8, hx - 2, hy + 4);
+        break;
       case 'slit':
         ctx.fillStyle = L.armor; ctx.strokeStyle = L.trim;
         rr(ctx, hx - 8, hy - 9, 16, 17, 5); ctx.fill(); ctx.stroke();
@@ -170,6 +195,7 @@
         if (L.head === 'bare' || L.head === 'goggles') {
           ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(hx - 1, hy - 2, 8.3, Math.PI, Math.PI * 1.95); ctx.closePath(); ctx.fill();
         }
+        if (L.mask) { ctx.fillStyle = L.mask; rr(ctx, hx - 8, hy + 1, 16, 6.5, 2); ctx.fill(); }
         if (L.bandana) { ctx.fillStyle = L.bandana; ctx.fillRect(hx - 8, hy - 5, 16, 3); }
         if (L.head === 'goggles') { ctx.fillStyle = '#ffb23d'; rr(ctx, hx, hy - 4, 8, 3.4, 1.5); ctx.fill(); ctx.strokeStyle = '#222'; ctx.stroke(); }
         if (L.head === 'cap') { ctx.fillStyle = L.cap; ctx.beginPath(); ctx.arc(hx, hy - 2, 8.6, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); ctx.fill(); ctx.fillRect(hx + 2, hy - 3, 9, 2); }

@@ -77,6 +77,7 @@
         after: o.after || null, afterCtx: o.afterCtx || null, intel: o.intel != null ? o.intel : true,
       },
       unitIds: o.unitIds.slice(0, C().maxPerSide),
+      allies: o.allies || [],
       enemies: BF.army(s, rng, army, strength),
       map: o.mode === 'camp' ? { type: 'camp', campSeed: s.seed, layout: G.Camp.layout(s) } : { type: o.map || (C().armies[army] || {}).map || 'desert' },
       choices: choices,
@@ -96,6 +97,7 @@
   // ---------- точки входа ----------
   BF.fromAttack = function (s, rng, order, squad) {
     const rc = G.Regions.cfg(order.target);
+    if (rc.faction && G.Factions) G.Factions.setHostile(s, rc.faction);
     const army = rc.enemy;
     s.pending = BF.create(s, rng, {
       type: 'attack', title: 'Атака: ' + G.Regions.name(order.target), army: army,
@@ -114,7 +116,7 @@
     const strength = spec.strength * G.Res.diff(s).enemy * (spec.after === 'raid' ? 1 : 1 + s.day * G.CONFIG.events.fightGrowthPerDay);
     const night = !!spec.night;
     E.next(BF.create(s, rng, {
-      type: 'event', title: U.cap(spec.title || 'бой'), army: spec.enemy, strength: strength, unitIds: ids,
+      type: 'event', title: U.cap(spec.title || 'бой'), army: spec.enemy, strength: strength, unitIds: ids, allies: spec.allies,
       mode: camp ? 'camp' : 'field', defender: camp ? 0 : null, night: night,
       surprise: !!(spec.ctx && spec.ctx.surprised), after: spec.after, afterCtx: spec.ctx || {},
     }));
@@ -160,6 +162,8 @@
   BF.toSetup = function (s, p) {
     const A = C().armies[p.ctx.army] || C().armies.tusken;
     const ours = p.unitIds.map((id) => G.Units.byId(s, id)).filter((u) => u && G.Units.isAlive(u)).map((u) => BF.unitEntry(s, u));
+    // союзники (например, ополчение фермеров) воюют рядом, но в отряд не входят
+    (p.allies || []).forEach((a, k) => ours.push({ uid: null, type: a.type, kind: 'ally', label: (G.TEXT.allyNames[a.type] || a.type) + ' №' + (k + 1), rank: 0, health: 100 }));
     // Техника: шагоход идёт в атаки и обороняет лагерь, турели — только в лагере
     if (p.ctx.mode === 'camp' || p.ctx.type === 'attack') for (const v of BF.walkers(s)) ours.unshift(BF.vehicleEntry(s, v));
     if (p.ctx.mode === 'camp') {

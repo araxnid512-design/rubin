@@ -314,6 +314,47 @@
         return wrap(['#3a2e18', '#120e08', '#ffd34d'], s);
       }
       case 'droid': return droidSvg(r, 50);
+      case 'farmer': {
+        let s = '<path d="M4 64 Q6 50 20 47 L44 47 Q58 50 60 64 Z" fill="#cdbb94" stroke="#6b5a3c"/><path d="M27 47 L32 57 L37 47" fill="#efe6d0"/><path d="M12 52 L52 60" stroke="#6b5a3c" stroke-width="3"/>';
+        s += face(r, { skin: '#d9a07a', hair: '#8a5a2b', hairStyle: 'crew', mouth: 'flat', noScar: true });
+        s += '<rect x="20" y="17" width="24" height="5" rx="2.5" fill="#3a3a3a"/><circle cx="26" cy="19.5" r="3" fill="#ffb23d" stroke="#222"/><circle cx="38" cy="19.5" r="3" fill="#ffb23d" stroke="#222"/>';
+        return wrap(['#6a5a3c', '#241e12', '#e6d3a3'], s);
+      }
+      case 'hunter': {
+        let s = '<path d="M4 64 Q6 48 20 45 L44 45 Q58 48 60 64 Z" fill="#4e4438" stroke="#1e1914"/><path d="M44 46 Q58 50 60 64 L50 64 Z" fill="#6b2a22"/>';
+        s += '<path d="M17 30 Q17 11 32 11 Q47 11 47 30 L47 40 Q32 47 17 40 Z" fill="#7d8a8f" stroke="#2a2e35" stroke-width="1.2"/>';
+        s += '<rect x="20" y="25" width="24" height="4" rx="1.5" fill="#ffb23d"/><rect x="20" y="25" width="24" height="4" rx="1.5" fill="#fff" opacity="0.15"/>';
+        s += '<path d="M22 35 H42 M24 39 H40" stroke="#4d565c" stroke-width="1.2"/><path d="M45 18 L51 6" stroke="#2a2e35" stroke-width="1.4"/><circle cx="51" cy="6" r="1.6" fill="#ff5a4a"/>';
+        s += '<path d="M24 14 Q32 11 40 14" stroke="#c8d0d4" stroke-width="1.2" fill="none" opacity="0.6"/>';
+        return wrap(['#3a3530', '#121010', '#ffb23d'], s);
+      }
+      case 'zabrak': {
+        let s = '<path d="M4 64 Q6 50 20 47 L44 47 Q58 50 60 64 Z" fill="#2e2a3a" stroke="#14121a"/><path d="M28 47 L32 55 L36 47" fill="#b8a98a"/>';
+        s += face(r, { skin: '#c99a7a', hair: '#9a9a9a', grey: true, hairStyle: 'bald', mouth: 'flat', noScar: true });
+        s += '<path d="M25 37 Q32 47 39 37 Q36 41 32 41 Q28 41 25 37 Z" fill="#a8a8a8"/>';
+        for (const [x, y] of [[22, 16], [28, 12], [36, 12], [42, 16], [32, 10.5]]) s += '<path d="M' + (x - 1.4) + ' ' + (y + 2) + ' L' + x + ' ' + (y - 3) + ' L' + (x + 1.4) + ' ' + (y + 2) + ' Z" fill="#efe0c4"/>';
+        s += '<path d="M20 22 l3 2 M44 22 l-3 2" stroke="#3a2a22" stroke-width="1"/>';
+        return wrap(['#3a3448', '#141220', '#b8a6d8'], s);
+      }
+      case 'scavenger': {
+        let s = '<path d="M4 64 Q6 50 20 47 L44 47 Q58 50 60 64 Z" fill="#8a6d45" stroke="#3d2e1c"/><path d="M14 54 H24 V64 H14 Z" fill="#6b5236"/>';
+        s += face(r, { skin: '#b9825c', hairStyle: 'side', mouth: 'flat' });
+        s += '<path d="M19 31 Q32 29 45 31 L45 42 Q32 49 19 42 Z" fill="#a8916a" stroke="#6b5a3c"/>';
+        s += '<rect x="18" y="21" width="28" height="6" rx="3" fill="#2a2a2a"/><circle cx="26" cy="24" r="3.6" fill="#ffb23d" stroke="#111"/><circle cx="38" cy="24" r="3.6" fill="#ffb23d" stroke="#111"/>';
+        return wrap(['#5a4630', '#1c160e', '#d9a85b'], s);
+      }
+      case 'deserter': {
+        let s = armorShoulders({ rank: 1, armor: '#9ea4aa' }) + '<rect x="6" y="54" width="12" height="4" fill="#b03028"/>';
+        s += helmet(r, { shell: '#a9aeb4', stripe: '#b03028', dirt: 0.95 });
+        s += '<path d="M40 14 l2 4 l-2 3 M20 24 l3 2" stroke="rgba(40,45,52,0.6)" stroke-width="0.8" fill="none"/>';
+        return wrap(['#3c3436', '#141112', '#e2574c'], s);
+      }
+      case 'assassin': {
+        let s = '<path d="M10 64 Q12 52 24 50 L40 50 Q52 52 54 64 Z" fill="#2b2e33" stroke="#0e0f11"/><rect x="29" y="40" width="6" height="11" fill="#1a1c1f"/>';
+        s += '<rect x="22" y="6" width="20" height="36" rx="9" fill="#2b2e33" stroke="#0e0f11" stroke-width="1.2"/>';
+        s += '<circle cx="35" cy="20" r="3.4" fill="#ff3b2f"/><circle cx="35" cy="20" r="7" fill="#ff3b2f" opacity="0.2"/><path d="M26 12 V36" stroke="#4a4e55" stroke-width="1.2"/>';
+        return wrap(['#2a1c1c', '#0a0808', '#ff3b2f'], s);
+      }
       case 'trooper':
       default: {
         const s = armorShoulders({ rank: 2 }) + helmet(r, { stripe: '#3d6fb6' });
@@ -328,6 +369,9 @@
     smugglers: 'smuggler', merc_offer: 'trandoshan', tusken_sign: 'tusken', tusken_raid: 'tusken',
     bandit_toll: 'bandit', bandit_raid: 'bandit', fleet_arrival: 'fleet', security_droid: 'droid',
     capsule_signal: 'trooper', desertion_plot: 'trooper', sentry_shot: 'trooper', missing_patrol: 'trooper',
+    farm_plea: 'farmer', farm_fair: 'farmer', bounty_posted: 'hunter', assassin_night: 'assassin',
+    guild_offer: 'zabrak', scav_theft: 'scavenger', scav_caravan: 'scavenger',
+    deserter_signal: 'deserter', deserter_defectors: 'deserter', deserter_raid: 'deserter', deserter_return: 'deserter',
   };
 
   A.img = function (u, size, cls) {

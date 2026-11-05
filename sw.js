@@ -3,7 +3,7 @@
  * При изменении файлов игры увеличьте VERSION — телефоны получат обновление.
  */
 'use strict';
-const VERSION = 'kolrat-v1';
+const VERSION = 'kolrat-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -31,6 +31,7 @@ const ASSETS = [
   'js/core/game.js',
   'js/core/events.js',
   'js/content/events.ru.js',
+  'js/content/events.factions.ru.js',
   'js/battle/map.js',
   'js/battle/text.ru.js',
   'js/battle/engine.js',
@@ -38,6 +39,7 @@ const ASSETS = [
   'js/core/progress.js',
   'js/core/goals.js',
   'js/core/camp.js',
+  'js/core/factions.js',
   'js/core/save.js',
   'js/ui/dom.js',
   'js/ui/avatars.js',
