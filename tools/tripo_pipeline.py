@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Конвейер Tripo AI → GLB-модели «Линии снабжения» с жёстким лимитом кредитов.
 
-Для каждого объекта из каталога (frontline/spec/docs/TRIPO_ASSET_CATALOG.md) берётся отдельная картинка
-frontline/spec/references/tripo/models/<id>.jpg и делается:
+Для каждого объекта из каталога (spec/docs/TRIPO_ASSET_CATALOG.md) берётся отдельная картинка
+spec/references/tripo/models/<id>.jpg и делается:
   1) Image to 3D (текстура, ограничение полигонов для телефона);
   2) для людей — скелет (biped, имена костей Mixamo) и анимации idle/walk/run/shoot/fall;
-  3) скачивание GLB в frontline/assets/models/<id>.glb и запись в frontline/assets/manifest.json —
+  3) скачивание GLB в assets/models/<id>.glb и запись в assets/manifest.json —
      игра сама подхватит модели вместо процедурных.
 
 Ключ берётся только из переменной окружения TRIPO_API_KEY (в чат и в репозиторий не попадает).
@@ -13,7 +13,7 @@ frontline/spec/references/tripo/models/<id>.jpg и делается:
 
 Бюджет: --budget (по умолчанию 3000). Перед каждой задачей проверяется, что оценка её стоимости помещается
 в остаток; после задачи учитывается фактический расход (credits_consumed или разница баланса).
-Состояние пишется в frontline/assets/tripo_state.json — повторный запуск продолжает с места остановки
+Состояние пишется в assets/tripo_state.json — повторный запуск продолжает с места остановки
 и не тратит кредиты на уже готовые модели.
 
 Примеры:
@@ -24,8 +24,8 @@ frontline/spec/references/tripo/models/<id>.jpg и делается:
 import argparse, json, mimetypes, os, sys, time, uuid, urllib.request, urllib.error, urllib.parse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REF = os.path.join(ROOT, 'frontline', 'spec', 'references', 'tripo', 'models')
-OUT = os.path.join(ROOT, 'frontline', 'assets')
+REF = os.path.join(ROOT, 'spec', 'references', 'tripo', 'models')
+OUT = os.path.join(ROOT, 'assets')
 API = 'https://openapi.tripo3d.ai'
 ANIMS = ['preset:idle', 'preset:walk', 'preset:run', 'preset:shoot', 'preset:fall']
 
@@ -59,7 +59,7 @@ class Tripo:
 
     def _req(self, method, path, body=None, headers=None, raw=False, tries=5):
         url = path if path.startswith('http') else API + path
-        h = {'Authorization': 'Bearer ' + self.key, 'Accept': 'application/json', 'User-Agent': 'rubin-frontline-pipeline/1.0', 'X-Tripo-Trace-ID': str(uuid.uuid4())}
+        h = {'Authorization': 'Bearer ' + self.key, 'Accept': 'application/json', 'User-Agent': 'supply-line-pipeline/1.0', 'X-Tripo-Trace-ID': str(uuid.uuid4())}
         if headers: h.update(headers)
         data = body
         if isinstance(body, (dict, list)): data = json.dumps(body).encode(); h['Content-Type'] = 'application/json'
@@ -112,7 +112,7 @@ class Tripo:
         raise RuntimeError(f'В результате нет модели: {list(o.keys())}')
 
     def download(self, url, dest):
-        req = urllib.request.Request(url, headers={'User-Agent': 'rubin-frontline-pipeline/1.0'})
+        req = urllib.request.Request(url, headers={'User-Agent': 'supply-line-pipeline/1.0'})
         with urllib.request.urlopen(req, timeout=300) as r, open(dest + '.part', 'wb') as f:
             while True:
                 b = r.read(1 << 16)

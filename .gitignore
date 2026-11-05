@@ -1,16 +1,5 @@
-# Godot
-.godot/
-export_credentials.cfg
-build/
-*.tmp
-# отладочные кадры
-docs/rigtest/
-docs/worldtest/
-docs/poses/
-godot_prototype/.godot/
-godot_prototype/docs/rigtest/
-godot_prototype/docs/worldtest/
-godot_prototype/docs/poses/
-# веб-сборка для публикации и архивы
+# сборка для публикации, временные файлы и архивы
 dist/
+*.tmp
+*.part
 *.zip

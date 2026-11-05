@@ -2,13 +2,12 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Долг: Возрождение</title>
+<title>Линия снабжения</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="theme-color" content="#0b0c0a">
-<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#11130f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Mono&family=PT+Sans+Narrow:wght@400;700&family=Russo+One&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=PT+Sans+Narrow:wght@400;700&family=PT+Mono&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,27 +16,17 @@
 <section id="menu">
   <div class="menu-card">
     <div class="brand">
-      <div class="eyebrow">Зона отчуждения · район Ростока</div>
-      <h1>Долг:<span>Возрождение</span></h1>
-      <p>Группировка «Долг» почти уничтожена. Генерал возвращается на разрушенную базу с шестью выжившими бойцами. Восстановите свет и связь, вооружите охрану и найдите своих.</p>
-      <p class="dim">Вид сверху, управление генералом, приказы отряду, восстановление построек. Собственный движок на WebGL2.</p>
-      <div class="stamp">ЭТАП 1 · БАЗА 300×300 м</div>
+      <div class="eyebrow">Одиночная военная экономика · три сектора по 300 м</div>
+      <h1>Линия<span>снабжения</span></h1>
+      <p>Добывайте металлолом молотком, стройте ключом заводы техники, оружия и боеприпасов, казарму, штаб и бункер. У противника на севере — свой инженер и своя экономика.</p>
+      <p class="dim">Первые 30 минут активной игры каждая сторона развивается у себя: центральное поле боя закрыто. Чужая база недоступна никогда.</p>
+      <div class="sectors"><span>№1 Наша база</span><span>№2 Поле боя</span><span>№3 Враг</span></div>
     </div>
-    <div>
-      <div id="menu-actions"></div>
-      <div id="menu-info"></div>
-    </div>
-  </div>
-</section>
-<section id="loading" hidden>
-  <div class="load-card">
-    <h2>Выдвигаемся на базу…</h2>
-    <div class="load-track"><div id="load-bar"></div></div>
-    <div id="load-text">Подготовка…</div>
+    <div><div id="menu-actions"></div><div id="menu-info"></div></div>
   </div>
 </section>
 <div id="windows"></div>
-<div class="rotate-hint">Поверните телефон горизонтально — игра рассчитана на альбомную ориентацию.</div>
+<div class="rotate-hint">Поверните телефон горизонтально.</div>
 <script type="module" src="main.js"></script>
 </body>
 </html>

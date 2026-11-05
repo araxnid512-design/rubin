@@ -1,4 +1,4 @@
-// Движок «Долг»: шейдеры GLSL ES 3.00. Варианты собираются из флагов (#define).
+// Движок: шейдеры GLSL ES 3.00. Варианты собираются из флагов (#define).
 
 const COMMON_VS = `
 uniform mat4 uViewProj;

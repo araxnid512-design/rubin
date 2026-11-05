@@ -1,4 +1,4 @@
-// Движок «Долг»: рендерер WebGL2.
+// Движок: рендерер WebGL2.
 // Проходы: карта теней солнца → непрозрачная геометрия (земля, мир, растительность, персонажи) → аддитивные эффекты.
 import { V3, mat4, frustumPlanes, sphereInFrustum } from './math.js';
 import { VS, DEPTH_VS, DEPTH_FS, FS_WORLD, FS_GROUND, FS_FOLIAGE, FS_CHAR, FX_VS, FX_FS, FS_TERRAIN, FS_GHOST } from './shaders.js';
