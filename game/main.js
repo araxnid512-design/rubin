@@ -444,7 +444,7 @@ class Actor {
 		// стоя (и стреляя) корпус ушёл от ног далеко — вместо стойки ноги переступают (клип разворота с тем же положением
 		// рук); клип переступания не перезапускается с каждым выстрелом — иначе ноги дёргаются на месте
 		let turn = false;
-		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = LEG_TURN / TURN_CLIP; once = false; turn = true; }
+		if (this.turning && TURN_OF[name] && this.actions[TURN_OF[name]]) { name = TURN_OF[name]; timeScale = (this.legRate ?? LEG_TURN) / TURN_CLIP; once = false; turn = true; }
 		const a = this.actions[name];
 		if (!a) return null;
 		a.timeScale = timeScale;
@@ -511,13 +511,17 @@ class Actor {
 		// извне) — ноги вместе с корпусом
 		let off = Math.abs(dYaw) > 1.3 ? 0 : (this.legOff ?? 0) - dYaw;
 		this.prevYaw = yaw;
+		// в стрельбе (стойка с прицелом, выстрел, шаг в прицеле) к врагу поворачивается всё тело: ноги — вместе с корпусом
+		const combat = COMBAT_CLIP.test(this.current ?? '');
+		this.legRate = combat ? LEG_TURN_COMBAT : LEG_TURN;
 		if (this.moving) {
-			off += Math.max(-dt * 10, Math.min(dt * 10, wrapAngle((this.legTarget ?? 0) - off)));
+			const want = combat ? 0 : this.legTarget ?? 0;
+			off += Math.max(-dt * 12, Math.min(dt * 12, wrapAngle(want - off)));
 			this.turning = false;
 		} else if (this.alive !== false) {
-			if (Math.abs(off) > TURN_START) this.turning = true;
+			if (Math.abs(off) > (combat ? 0.07 : TURN_START)) this.turning = true;
 			if (this.turning) {
-				off -= Math.sign(off) * Math.min(Math.abs(off), dt * LEG_TURN);
+				off -= Math.sign(off) * Math.min(Math.abs(off), dt * this.legRate);
 				if (Math.abs(off) < 0.04) this.turning = false;
 			}
 		} else off *= Math.exp(-dt * 6);
@@ -598,6 +602,9 @@ const LOCO = /^(Walk|Run|AimWalk)/;
 // сторону, а корпус — в другую), со скоростью LEG_TURN (рад/с; клип переступания запечён под TURN_CLIP — темп по ней);
 // дальше LEG_MAX (~80°) позвоночник не скручивается — ноги тянутся за корпусом сразу
 const TURN_START = 0.35, LEG_TURN = 9, TURN_CLIP = 6, LEG_MAX = 1.4;
+// в стрельбе ноги не отстают: поворачиваются вместе с корпусом (быстрое переступание), шаг в прицеле — без остатка угла
+const LEG_TURN_COMBAT = 14;
+const COMBAT_CLIP = /^(Aim|Shoot|TurnAim)/;
 // корпус к цели поворачивается быстро, но не мгновенно (рад/с): 180° — за ~0,25 с
 const BODY_TURN = 12;
 // кости для толчка: у героя и наёмников — скелет Mixamo, у заражённых — простой (k — во сколько раз сильнее)
