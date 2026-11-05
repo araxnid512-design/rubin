@@ -193,7 +193,7 @@
       if (!s.pending) Game.run(s);
       return;
     }
-    if (G.BattleFlow && (p.kind === 'battle' || p.kind === 'battleResult')) {
+    if (G.BattleFlow && (p.kind === 'battle' || p.kind === 'battleLive' || p.kind === 'battleResult')) {
       G.BattleFlow.act(s, payload);
       if (!s.pending) Game.run(s);
     }

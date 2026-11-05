@@ -28,6 +28,7 @@ function resolvePending(s) {
         G.Game.act(s, { choice: o.id });
       }
     } else if (p.kind === 'battle') G.Game.act(s, { action: 'quick' });
+    else if (p.kind === 'battleLive') G.Game.act(s, { action: 'finish', cmds: [] });
     else if (p.kind === 'battleResult') G.Game.act(s, { action: 'close' });
     else break;
   }

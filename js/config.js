@@ -426,27 +426,30 @@
         // противники
         tusken:       { hp: 66,  armor: 1, acc: 52, dmg: [15, 23], range: 1,  cd: 10, speed: 4, morale: 70 },
         tusken_rifle: { hp: 50,  armor: 0, acc: 62, dmg: [18, 26], range: 11, cd: 32, speed: 6, morale: 60 },
-        tusken_chief: { hp: 95,  armor: 2, acc: 56, dmg: [20, 28], range: 1,  cd: 10, speed: 5, morale: 95, leader: true },
+        tusken_chief: { hp: 95,  armor: 2, acc: 56, dmg: [20, 28], range: 1,  cd: 10, speed: 5, morale: 95, leader: true,
+                        abil: { kind: 'cry', cd: 200, radius2: 36, below: 50, min: 2, morale: 25, supp: 15 } },
         jawa:         { hp: 26,  armor: 0, acc: 42, dmg: [6, 10],  range: 5,  cd: 12, speed: 5, morale: 30, ion: 2.5 },
         bandit:       { hp: 48,  armor: 1, acc: 46, dmg: [9, 13],  range: 6,  cd: 11, speed: 5, morale: 50 },
         swoop:        { hp: 42,  armor: 1, acc: 42, dmg: [9, 13],  range: 5,  cd: 11, speed: 2, morale: 50 },
-        bandit_boss:  { hp: 90,  armor: 3, acc: 54, dmg: [12, 17], range: 6,  cd: 11, speed: 5, morale: 85, leader: true },
+        bandit_boss:  { hp: 90,  armor: 3, acc: 54, dmg: [12, 17], range: 6,  cd: 11, speed: 5, morale: 85, leader: true, abil: { kind: 'nade', cd: 190, range: 6, radius2: 2, dmg: [14, 22], supp: 22, min: 2 } },
         rebel:        { hp: 56,  armor: 1, acc: 56, dmg: [10, 14], range: 7,  cd: 12, speed: 5, morale: 65 },
         rebel_heavy:  { hp: 64,  armor: 2, acc: 48, dmg: [8, 12],  range: 7,  cd: 20, speed: 7, morale: 70, burst: 3 },
-        rebel_officer:{ hp: 70,  armor: 2, acc: 60, dmg: [11, 15], range: 7,  cd: 12, speed: 5, morale: 90, leader: true },
+        rebel_officer:{ hp: 70,  armor: 2, acc: 60, dmg: [11, 15], range: 7,  cd: 12, speed: 5, morale: 90, leader: true, abil: { kind: 'nade', cd: 190, range: 6, radius2: 2, dmg: [14, 22], supp: 22, min: 2 } },
         smuggler:     { hp: 54,  armor: 1, acc: 58, dmg: [11, 16], range: 6,  cd: 11, speed: 5, morale: 55 },
         gamorrean:    { hp: 110, armor: 3, acc: 50, dmg: [20, 30], range: 1,  cd: 13, speed: 7, morale: 60 },
         hutt_guard:   { hp: 58,  armor: 2, acc: 54, dmg: [11, 15], range: 7,  cd: 12, speed: 6, morale: 55 },
-        bounty_hunter:{ hp: 120, armor: 5, acc: 70, dmg: [16, 24], range: 9,  cd: 14, speed: 5, morale: 90 },
+        bounty_hunter:{ hp: 120, armor: 5, acc: 70, dmg: [16, 24], range: 9,  cd: 14, speed: 5, morale: 90,
+                        abil: { kind: 'nade', cd: 200, range: 7, radius2: 2, dmg: [16, 24], supp: 22, min: 2 } },
         assassin_droid:{ hp: 140, armor: 6, acc: 66, dmg: [18, 26], range: 8, cd: 16, speed: 6, morale: null },
         scavenger:    { hp: 40,  armor: 1, acc: 42, dmg: [7, 11],  range: 5,  cd: 10, speed: 4, morale: 40 },
-        scav_droid:   { hp: 95,  armor: 4, acc: 40, dmg: [10, 14], range: 4,  cd: 14, speed: 7, morale: null },
-        scav_boss:    { hp: 85,  armor: 3, acc: 50, dmg: [8, 12],  range: 6,  cd: 18, speed: 5, morale: 80, leader: true, burst: 3 },
+        scav_droid:   { hp: 95,  armor: 4, acc: 40, dmg: [10, 14], range: 4,  cd: 14, speed: 7, morale: null, blast: { radius2: 2, dmg: [14, 22] } },
+        scav_boss:    { hp: 85,  armor: 3, acc: 50, dmg: [8, 12],  range: 6,  cd: 18, speed: 5, morale: 80, leader: true, burst: 3, abil: { kind: 'nade', cd: 190, range: 6, radius2: 2, dmg: [14, 22], supp: 22, min: 2 } },
         deserter:     { hp: 60,  armor: 2, acc: 50, dmg: [10, 15], range: 7,  cd: 12, speed: 6, morale: 55 },
         deserter_heavy:{ hp: 72, armor: 3, acc: 44, dmg: [8, 12],  range: 7,  cd: 20, speed: 8, morale: 60, burst: 3 },
-        deserter_captain:{ hp: 80, armor: 2, acc: 58, dmg: [11, 15], range: 7, cd: 12, speed: 5, morale: 85, leader: true },
+        deserter_captain:{ hp: 80, armor: 2, acc: 58, dmg: [11, 15], range: 7, cd: 12, speed: 5, morale: 85, leader: true, abil: { kind: 'nade', cd: 190, range: 6, radius2: 2, dmg: [14, 22], supp: 22, min: 2 } },
         farmer:       { hp: 45,  armor: 0, acc: 46, dmg: [12, 18], range: 9,  cd: 22, speed: 6, morale: 50 },
-        krayt:        { hp: 1500, armor: 6, acc: 72, dmg: [40, 60], range: 2, cd: 15, speed: 5, morale: null, big: true, sweep: 0.7 },
+        krayt:        { hp: 1500, armor: 6, acc: 72, dmg: [40, 60], range: 2, cd: 15, speed: 5, morale: null, big: true, sweep: 0.7,
+                        abil: { kind: 'roar', cd: 170, radius2: 49, supp: 30, morale: 8 } },
       },
       // Состав врага: [тип, вес в отряде, «цена» в единицах силы]
       armies: {
@@ -463,6 +466,11 @@
         krayt:       { units: [['krayt', 1, 34]], max: 1, tactic: 'assault', map: 'desert', retreatAt: 1 },
       },
       maxEnemies: 34,
+      // Командиры (наши — от звания officerRank) воодушевляют бойцов в радиусе: +точность, быстрее восстанавливается дух
+      aura: { officerRank: 3, radius2: 16, acc: 4, regen: 3 },
+      throwTicks: 6,                // полёт гранаты (тики)
+      // Бочки с топливом: сколько на поле по типу местности, где стоят, прочность, взрыв
+      barrels: { count: { desert: [1, 3], rocks: [1, 2], wreck: [3, 5], fort: [2, 3] }, x0: 6, x1: 17, hp: 20, strayChance: 0.3, radius2: 5, dmg: [24, 40], supp: 35 },
       night: { acc: [-10, -3] },    // ночной бой: штраф точности [нашим, противнику]
       surprise: { morale: -20, enemyZone: [13, 18] }, // внезапный налёт
       hit: { min: 5, max: 95, distFree: 3, distPenalty: 3, moving: 10, suppFactor: 0.5, meleeBonus: 15, burstPenalty: 10 },

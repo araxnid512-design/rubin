@@ -32,7 +32,7 @@ function resolveAll(s, firstChoice) {
       assert.ok(typeof p.result === 'string' && p.result.length > 0, 'пустой итог: ' + p.id + '/' + pick.id);
     } else if (p.kind === 'trade') {
       G.Trade.close(s);
-    } else if (G.BattleFlow && (p.kind === 'battle' || p.kind === 'battleResult')) {
+    } else if (G.BattleFlow && (p.kind === 'battle' || p.kind === 'battleLive' || p.kind === 'battleResult')) {
       G.BattleFlow.autoResolve(s);
     } else break;
   }

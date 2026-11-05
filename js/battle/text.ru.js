@@ -111,6 +111,15 @@
     return '';
   };
 
+  BT.nade = function (B, u) {
+    return u.side === 0 ? cap(u.label) + ' бросает гранату!' : cap(BT.nom(u.type)) + ' швыряет термодетонатор!';
+  };
+  BT.cry = (B, u) => cap(BT.nom(u.type)) + ' издаёт боевой клич — враги воспряли духом.';
+  BT.roar = () => 'Рёв крайт-дракона прижимает бойцов к земле.';
+  BT.barrel = (B, b) => 'Взорвалась бочка с топливом!';
+  BT.retreatCmd = () => 'Приказ генерала: «Отходим!»';
+  BT.noTarget = () => 'Приказ не выполнить: нет подходящей цели.';
+
   BT.broken = function (B, u) {
     if (u.side === 0) return cap(u.label) + ' дрогнул и бежит с позиции.';
     return cap(BT.nom(u.type)) + ' бросает позицию и бежит.';

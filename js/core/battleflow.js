@@ -177,7 +177,7 @@
     if (p.ctx.type === 'attack' && enemyTactic !== 'assault') enemyTactic = 'defense';
     if (p.ctx.mode === 'camp' && enemyTactic === 'defense') enemyTactic = 'assault';
     return {
-      v: 1, seed: p.seed, map: p.map, mode: p.ctx.mode, defender: p.ctx.defender,
+      v: 2, seed: p.seed, map: p.map, mode: p.ctx.mode, defender: p.ctx.defender,
       light: p.ctx.mode === 'camp' ? G.Camp.nightBonus(s) : 0,
       night: p.ctx.night, surprise: p.ctx.surprise, army: p.ctx.army,
       sides: [
@@ -189,10 +189,30 @@
   };
 
   // ---------- бой ----------
+  // «В бой» — живой бой: игрок смотрит и отдаёт приказы, итог считается по его командам.
+  // «Быстрый расчёт» — сразу итог, приказы отдаёт штаб сам.
   BF.fight = function (s, quick) {
     const p = s.pending;
     if (!p || p.kind !== 'battle') return;
     const setup = BF.toSetup(s, p);
+    if (!quick) { s.pending = { kind: 'battleLive', id: p.id, title: p.ctx.title, battle: p, setup: setup }; return; }
+    BF.resolve(s, p, setup, true);
+  };
+
+  const CMD_IDS = new Set(['auto', 'retreat']);
+  BF.finish = function (s, cmds) {
+    const L = s.pending;
+    if (!L || L.kind !== 'battleLive') return;
+    const setup = U.clone(L.setup);
+    const ok = new Set([...CMD_IDS, ...setup.sides[0].orders]);
+    setup.cmds = (Array.isArray(cmds) ? cmds : [])
+      .filter((c) => Array.isArray(c) && Number.isInteger(c[0]) && c[0] > 0 && ok.has(c[1]))
+      .map((c) => (c.length > 2 ? [c[0], c[1], c[2] ? 1 : 0] : [c[0], c[1]]))
+      .slice(0, 200);
+    BF.resolve(s, L.battle, setup, false);
+  };
+
+  BF.resolve = function (s, p, setup, quick) {
     const res = G.BattleEngine.run(setup);
     BF.lastRun = { id: p.id, res: res };
     const report = BF.apply(s, p, setup, res);
@@ -283,6 +303,13 @@
     if (p.ctx.after && G.Events && G.Events.after[p.ctx.after]) {
       afterText = G.Events.after[p.ctx.after](s, rng, won, p.ctx.afterCtx || {}, G.Events.E);
     }
+    // лучший боец и меткость отряда
+    let mvp = null, shots = 0, hits = 0;
+    for (const r of res.units) {
+      if (r.side !== 0 || r.uid == null || !(r.kills > 0 || r.dealt > 0)) continue;
+      if (!mvp || r.kills > mvp.kills || (r.kills === mvp.kills && r.dealt > mvp.dealt)) mvp = { uid: r.uid, kills: r.kills, dealt: r.dealt || 0 };
+    }
+    for (const x of res.shots) { if (x[6] || res.units[x[1]].side !== 0) continue; shots++; if (x[3]) hits++; }
     const head = won ? 'Победа' : retreated ? 'Отступление' : 'Поражение';
     let line = p.ctx.title + ' — ' + head.toLowerCase() + '. Врагов выбито: ' + enemyDown + '.';
     if (killed.length) line += ' Погибли: ' + killed.join(', ') + '.';
@@ -293,7 +320,8 @@
     // Последствия боя могли обнулить гарнизон
     G.Game.checkOver(s);
     return { won: won, reason: res.reason, head: head, killed: killed, heavy: heavy, light: light.length, promoted: promoted, killedIds: killedIds, heavyIds: heavyIds,
-      enemyDown: enemyDown, enemyFled: enemyFled, kills: kills, loot: loot, afterText: afterText, ticks: res.ticks, hash: res.hash };
+      enemyDown: enemyDown, enemyFled: enemyFled, kills: kills, loot: loot, afterText: afterText, ticks: res.ticks, hash: res.hash,
+      mvp: mvp, acc: shots ? Math.round((100 * hits) / shots) : null };
   };
 
   BF.act = function (s, payload) {
@@ -303,6 +331,8 @@
       if (payload.action === 'set') BF.set(s, payload.key, payload.value);
       else if (payload.action === 'fight') BF.fight(s, false);
       else if (payload.action === 'quick') BF.fight(s, true);
+    } else if (p.kind === 'battleLive') {
+      if (payload.action === 'finish') BF.finish(s, payload.cmds);
     } else if (p.kind === 'battleResult' && payload.action === 'close') {
       s.pending = null;
     }
@@ -311,6 +341,7 @@
   // Для тестов и бота: быстрый бой без просмотра
   BF.autoResolve = function (s) {
     if (s.pending && s.pending.kind === 'battle') BF.fight(s, true);
+    if (s.pending && s.pending.kind === 'battleLive') BF.finish(s, []);
     if (s.pending && s.pending.kind === 'battleResult') s.pending = null;
   };
 

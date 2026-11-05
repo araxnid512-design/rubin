@@ -5,8 +5,10 @@
  * setup = {
  *   seed, map: { type, walls }, mode: 'field' | 'camp' | 'fort', defender: 0 | 1 | null,
  *   sides: [ { units: [...], tactic, formation, orders, retreatAt, discipline }, { ... } ],
- *   army: ключ армии противника (для текста)
+ *   army: ключ армии противника (для текста),
+ *   cmds: [[тик, команда, значение], ...] — приказы генерала, отданные во время боя
  * }
+ * Команды: id приказа ('grenade', 'focus'…) — отдать сейчас; 'auto' — автоприказы вкл/выкл; 'retreat' — отход.
  * Тик = 0,1 с боевого времени.
  */
 (function (G) {
@@ -25,11 +27,14 @@
     const C = cfg();
     const rng = G.Rng.make(setup.seed);
     const map = BM.generate(setup.map || { type: 'desert' }, rng);
+    const cells0 = map.cells.slice();
     const B = {
       setup: setup, rng: rng, map: map, W: map.w, H: map.h, cells: map.cells,
       occ: new Int16Array(map.w * map.h).fill(-1),
       units: [], t: 0, over: false, winner: -1, reason: '',
-      frames: [], shots: [], log: [], smokes: [], booms: [], heals: [],
+      frames: [], shots: [], log: [], smokes: [], booms: [], heals: [], fx: [],
+      cells0: cells0, props: [], pend: [],
+      cmds: (setup.cmds || []).map((c) => c.slice()).sort((a, b) => a[0] - b[0]), cmdI: 0,
       sides: [mkSide(setup.sides[0]), mkSide(setup.sides[1])],
       fieldCache: [null, null], fieldAt: [-99, -99],
       retreatField: [null, null],
@@ -38,6 +43,7 @@
     for (let side = 0; side < 2; side++) {
       for (const e of setup.sides[side].units.slice(0, C.maxPerSide)) B.units.push(mkUnit(B, e, side, B.units.length));
     }
+    placeBarrels(B);
     deploy(B);
     B.retreatField[0] = bfs(B, edgeCells(B, 0), false);
     B.retreatField[1] = bfs(B, edgeCells(B, 1), false);
@@ -56,6 +62,7 @@
       formation: sd.formation || 'line',
       retreatAt: sd.retreatAt || 0,
       orders: (sd.orders || []).map((id) => ({ id: id, readyAt: 0, uses: 0 })),
+      auto: sd.auto !== false,
       retreating: false,
       start: 0,
       lost: 0,
@@ -70,6 +77,7 @@
     const base = C.types[e.type] || C.types.trooper;
     const R = G.CONFIG.ranks[e.rank || 0] || G.CONFIG.ranks[0];
     const human = e.kind === 'trooper' || e.kind === 'merc';
+    const officer = side === 0 && human && (e.rank || 0) >= C.aura.officerRank;
     const maxHp = base.hp + (human ? R.hp : 0);
     let morale = null;
     if (base.morale != null) {
@@ -86,7 +94,7 @@
       morale: morale, maxMorale: morale, supp: 0,
       state: 'active', broken: false, fireT: 0, target: -1, kills: 0, dealt: 0,
       group: 0, waypoint: null, healT: 0, idleT: 0, hitT: -99,
-      leader: !!base.leader, base: base,
+      leader: !!base.leader || officer, officer: officer, base: base, abilT: 0,
     };
   }
 
@@ -194,6 +202,88 @@
     if (sy) check(e.x, e.y + sy);
     if (cell(B, e.x, e.y) === T.DUNE) c = Math.max(c, C.dune);
     return c;
+  }
+
+  // ================= БОЧКИ С ТОПЛИВОМ =================
+  // Ставятся у скал и обломков в середине поля; взрываются от шальных выстрелов и гранат
+  function connected(B) {
+    const seen = new Uint8Array(B.W * B.H);
+    const q = [];
+    for (let y = 0; y < B.H; y++) if (passable(B, 0, y)) { seen[idx(B, 0, y)] = 1; q.push(idx(B, 0, y)); }
+    for (let h = 0; h < q.length; h++) {
+      const j = q[h], x = j % B.W, y = (j / B.W) | 0;
+      if (x === B.W - 1) return true;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (!passable(B, nx, ny) || seen[idx(B, nx, ny)]) continue;
+        seen[idx(B, nx, ny)] = 1; q.push(idx(B, nx, ny));
+      }
+    }
+    return false;
+  }
+  function placeBarrels(B) {
+    const P = cfg().barrels;
+    const range = P.count[B.map.type];
+    if (!range || !(B.setup.v >= 2)) return;
+    const n = B.rng.int(range[0], range[1]);
+    const spots = [];
+    for (let y = 1; y < B.H - 1; y++) for (let x = P.x0; x <= P.x1; x++) {
+      if (cell(B, x, y) !== T.SAND) continue;
+      let near = 0;
+      for (const [dx, dy] of DIRS) { const c = cell(B, x + dx, y + dy); if (c === T.ROCK || c === T.WRECK) near++; }
+      if (near) spots.push([x, y]);
+    }
+    for (let k = 0; k < n && spots.length; k++) {
+      const [x, y] = spots.splice(B.rng.int(0, spots.length - 1), 1)[0];
+      if (B.props.some((p) => cheb(p, { x: x, y: y }) < 3)) continue;
+      B.cells[idx(B, x, y)] = T.WRECK;
+      if (!connected(B)) { B.cells[idx(B, x, y)] = T.SAND; continue; }
+      B.props.push({ x: x, y: y, hp: P.hp, boomT: -1 });
+    }
+  }
+  function barrelHit(B, near, dmg) {
+    const P = cfg().barrels;
+    for (const b of B.props) {
+      if (b.boomT >= 0 || cheb(b, near) > 1 || !B.rng.chance(P.strayChance)) continue;
+      b.hp -= dmg;
+      if (b.hp <= 0) blowBarrel(B, b);
+    }
+  }
+  function blowBarrel(B, b) {
+    if (b.boomT >= 0) return;
+    const P = cfg().barrels;
+    b.boomT = B.t;
+    B.cells[idx(B, b.x, b.y)] = T.SAND;
+    B.fieldAt[0] = B.fieldAt[1] = -99;
+    say(B, BT().barrel(B, b), 'info');
+    explode(B, { x: b.x, y: b.y, r2: P.radius2, dmg: P.dmg, supp: P.supp, side: -1, src: null, kind: 'barrel', throwT: B.t, from: -1 });
+  }
+
+  // Взрыв: урон всем в радиусе (кроме своих у бросившего), подавление, цепная реакция бочек
+  function explode(B, ex) {
+    B.booms.push([B.t, ex.x, ex.y, ex.from, ex.throwT, ex.kind]);
+    for (const e of B.units) {
+      if (e.state !== 'active' || (ex.side >= 0 && e.side === ex.side)) continue;
+      const dd = d2(e, ex);
+      if (dd > ex.r2) continue;
+      e.supp = Math.min(cfg().supp.max, e.supp + ex.supp);
+      if (e.morale != null) e.morale -= 6;
+      const dmg = B.rng.int(ex.dmg[0], ex.dmg[1]) * (dd === 0 ? 1 : 0.75);
+      const real = damage(B, e, Math.round(dmg), ex.src);
+      B.shots.push([B.t, ex.src ? ex.src.i : e.i, e.i, 1, 0, real, 1]);
+    }
+    for (const b of B.props) if (b.boomT < 0 && d2(b, ex) <= ex.r2) blowBarrel(B, b);
+  }
+  // Брошенная граната взрывается через несколько тиков
+  function throwAt(B, u, target, o, side) {
+    B.pend.push({ t: B.t + cfg().throwTicks, x: target.x, y: target.y, r2: o.radius2, dmg: o.dmg, supp: o.supp, side: side, src: u, kind: 'nade', throwT: B.t, from: u ? u.i : -1 });
+  }
+  function runPending(B) {
+    if (!B.pend.length) return;
+    const now = B.pend.filter((p) => p.t <= B.t);
+    if (!now.length) return;
+    B.pend = B.pend.filter((p) => p.t > B.t);
+    for (const p of now) explode(B, p);
   }
 
   // ================= РАЗВЁРТЫВАНИЕ =================
@@ -382,6 +472,7 @@
     ch -= Math.min(C.supp.max, u.supp) * C.hit.suppFactor;
     if (u.base.desert && B.map.type === 'desert') ch += 6;
     if (B.setup.night) ch += Math.min(0, C.night.acc[u.side] + (u.side === 0 ? B.setup.light || 0 : 0));
+    if (u.aura) ch += C.aura.acc;
     ch -= extraPenalty || 0;
     return Math.max(C.hit.min, Math.min(C.hit.max, Math.round(ch)));
   }
@@ -391,6 +482,7 @@
     const rng = B.rng;
     const shots = u.base.burst || 1;
     for (let k = 0; k < shots && e.state === 'active'; k++) {
+      let real = 0;
       const ch = hitChance(B, u, e, k > 0 ? C.hit.burstPenalty : 0);
       const hit = rng.int(1, 100) <= ch;
       let crit = false;
@@ -398,7 +490,7 @@
         let dmg = rng.int(u.base.dmg[0], u.base.dmg[1]);
         if (rng.chance(C.crit.chance)) { dmg = Math.round(dmg * C.crit.mult); crit = true; }
         if (u.base.ion && (e.type === 'droid' || e.type === 'walker' || e.type === 'turret')) dmg = Math.round(dmg * u.base.ion);
-        damage(B, e, dmg, u);
+        real = damage(B, e, dmg, u);
         e.supp = Math.min(C.supp.max, e.supp + C.supp.perHit);
         // Удар крайт-дракона задевает всех рядом
         if (u.base.sweep) {
@@ -411,8 +503,9 @@
         const before = e.supp;
         e.supp = Math.min(C.supp.max, e.supp + C.supp.perMiss * (u.base.burst ? 1.3 : 1));
         if (before < 30 && e.supp >= 30) logSuppress(B, u, e);
+        if (B.props.length && u.base.range > 2) barrelHit(B, e, rng.int(u.base.dmg[0], u.base.dmg[1]));
       }
-      B.shots.push([B.t, u.i, e.i, hit ? 1 : 0, crit ? 1 : 0]);
+      B.shots.push([B.t, u.i, e.i, hit ? 1 : 0, crit ? 1 : 0, real]);
     }
     u.fireT = u.base.cd + B.rng.int(0, 2);
   }
@@ -421,11 +514,13 @@
     const sd = B.sides[e.side];
     let armor = e.armor + (sd.buff.armorUntil > B.t ? sd.buff.armor : 0);
     const real = Math.max(1, dmg - armor);
+    if (e.state !== 'active') return 0;
     e.hp -= real;
     e.hitT = B.t;
     if (src) src.dealt += real;
     if (e.morale != null) e.morale += cfg().morale.hit;
     if (e.hp <= 0) down(B, e, src);
+    return real;
   }
 
   function down(B, e, src) {
@@ -442,7 +537,8 @@
       if (e.leader) o.morale += C.morale.leaderDown;
       else if (d2(o, e) <= C.morale.allyRadius * C.morale.allyRadius) o.morale += C.morale.allyDown;
     }
-    if (e.leader) say(B, BT().leaderDown(B, e), e.side === 0 ? 'bad' : 'good');
+    if (e.leader && !e.officer) say(B, BT().leaderDown(B, e), e.side === 0 ? 'bad' : 'good');
+    if (e.base.blast) B.pend.push({ t: B.t + 2, x: e.x, y: e.y, r2: e.base.blast.radius2, dmg: e.base.blast.dmg, supp: 20, side: e.side, src: null, kind: 'blast', throwT: B.t, from: -1 });
   }
 
   function logSuppress(B, u, e) {
@@ -455,14 +551,14 @@
   // ================= ПРИКАЗЫ ГЕНЕРАЛА =================
   const ORDERS = {
     focus: {
-      trigger(B, side) {
-        if (B.t < 10) return null;
+      trigger(B, side, manual) {
+        if (B.t < 10 && !manual) return null;
         let best = null, bestScore = -1;
         for (const e of B.units) {
           if (e.side === side || e.state !== 'active') continue;
           let seen = 0;
           for (const u of B.units) if (u.side === side && u.state === 'active' && u.base.range > 2 && canHit(B, u, e)) seen++;
-          if (seen < 3) continue;
+          if (seen < (manual ? 1 : 3)) continue;
           const score = seen * 10 + (e.leader ? 30 : 0) + (1 - e.hp / e.maxHp) * 20 + e.base.dmg[1];
           if (score > bestScore) { bestScore = score; best = e; }
         }
@@ -478,7 +574,8 @@
       },
     },
     hold: {
-      trigger(B, side) {
+      trigger(B, side, manual) {
+        if (manual) return true;
         const sd = B.sides[side];
         const o = cfg().orders.hold;
         const act = B.units.filter((u) => u.side === side && u.state === 'active' && u.morale != null);
@@ -499,7 +596,8 @@
       },
     },
     smoke: {
-      trigger(B, side) {
+      trigger(B, side, manual) {
+        if (manual) return true;
         const sd = B.sides[side];
         if (sd.tactic === 'defense' && !sd.retreating) return null;
         let n = 0;
@@ -519,7 +617,8 @@
       },
     },
     rush: {
-      trigger(B, side) {
+      trigger(B, side, manual) {
+        if (manual) return true;
         const sd = B.sides[side];
         if (sd.tactic === 'defense') return null;
         return B.t < 20 || sd.noTargetT > 25 ? true : null;
@@ -532,8 +631,9 @@
       },
     },
     grenade: {
-      trigger(B, side) {
+      trigger(B, side, manual) {
         const o = cfg().orders.grenade;
+        let best = null, bestN = 0;
         for (const e of B.units) {
           if (e.side === side || e.state !== 'active') continue;
           let n = 0, friendly = false;
@@ -541,28 +641,25 @@
             if (f.state !== 'active' || d2(e, f) > o.radius2) continue;
             if (f.side === side) friendly = true; else n++;
           }
-          if (friendly || n < o.minTargets) continue;
-          for (const u of B.units) if (u.side === side && u.state === 'active' && d2(u, e) <= 36 && los(B, u, e)) return e;
+          if (friendly || n < (manual ? 1 : o.minTargets) || n <= bestN) continue;
+          if (thrower(B, side, e)) { best = e; bestN = n; if (!manual) break; }
         }
-        return null;
+        return best;
       },
       apply(B, side, center, o) {
-        B.booms.push([B.t, center.x, center.y]);
-        const text = BT().order('grenade', B, center);
-        for (const e of B.units) {
-          if (e.side === side || e.state !== 'active' || d2(e, center) > o.radius2) continue;
-          e.supp = Math.min(cfg().supp.max, e.supp + o.supp);
-          damage(B, e, B.rng.int(o.dmg[0], o.dmg[1]), null);
-        }
-        return text;
+        const u = thrower(B, side, center);
+        if (!u) return null;
+        throwAt(B, u, { x: center.x, y: center.y }, o, side);
+        u.fireT = Math.max(u.fireT, 8);
+        return BT().order('grenade', B, center);
       },
     },
     medkit: {
-      trigger(B, side) {
+      trigger(B, side, manual) {
         const o = cfg().orders.medkit;
         let n = 0;
-        for (const u of B.units) if (u.side === side && u.state === 'active' && u.hp < u.maxHp * o.below) n++;
-        return n >= o.minWounded ? true : null;
+        for (const u of B.units) if (u.side === side && u.state === 'active' && u.hp < u.maxHp * (manual ? 0.9 : o.below)) n++;
+        return n >= (manual ? 1 : o.minWounded) ? true : null;
       },
       apply(B, side, x, o) {
         for (const u of B.units) {
@@ -576,23 +673,126 @@
   };
   Engine.ORDERS = ORDERS;
 
+  // Боец, который добросит гранату до цели: ближайший свой в 6 клетках с линией видимости
+  function thrower(B, side, e) {
+    let best = null;
+    for (const u of B.units) {
+      if (u.side !== side || u.state !== 'active' || u.base.static || u.base.big || u.type === 'droid') continue;
+      if (d2(u, e) > 36 || !los(B, u, e)) continue;
+      if (!best || d2(u, e) < d2(best, e)) best = u;
+    }
+    return best;
+  }
+
+  // Отдать приказ; manual — по команде игрока (условия мягче). Возвращает true, если исполнен.
+  function issue(B, side, ord, manual) {
+    if (B.t < ord.readyAt) return false;
+    const def = ORDERS[ord.id];
+    const o = cfg().orders[ord.id];
+    if (!def || !o) return false;
+    const arg = def.trigger(B, side, manual);
+    if (!arg) return false;
+    const text = def.apply(B, side, arg, o);
+    if (text == null) return false;
+    ord.readyAt = B.t + o.cd;
+    ord.uses++;
+    B.fx.push([B.t, ord.id, side, arg.x != null ? arg.x : -1, arg.y != null ? arg.y : -1, arg.i != null ? arg.i : -1]);
+    say(B, text, 'order');
+    return true;
+  }
+
   function runOrders(B) {
     for (let side = 0; side < 2; side++) {
       const sd = B.sides[side];
-      for (const ord of sd.orders) {
-        if (B.t < ord.readyAt) continue;
-        const def = ORDERS[ord.id];
-        const o = cfg().orders[ord.id];
-        if (!def || !o) continue;
-        const arg = def.trigger(B, side);
-        if (!arg) continue;
-        const text = def.apply(B, side, arg, o);
-        if (text == null) continue;
-        ord.readyAt = B.t + o.cd;
-        ord.uses++;
-        say(B, text, 'order');
-      }
+      if (!sd.auto) continue;
+      for (const ord of sd.orders) issue(B, side, ord, false);
     }
+  }
+
+  // Команды генерала, отданные во время боя
+  function runCmds(B) {
+    while (B.cmdI < B.cmds.length && B.cmds[B.cmdI][0] <= B.t) {
+      const [, id, v] = B.cmds[B.cmdI++];
+      const sd = B.sides[0];
+      if (id === 'auto') { sd.auto = !!v; continue; }
+      if (id === 'retreat') {
+        if (!sd.retreating) { sd.retreating = true; B.fx.push([B.t, 'retreat', 0, -1, -1]); say(B, BT().retreatCmd(B), 'order'); }
+        continue;
+      }
+      const ord = sd.orders.find((x) => x.id === id);
+      if (ord && !issue(B, 0, ord, true)) say(B, BT().noTarget(id), 'info');
+    }
+  }
+
+  // Для живого боя: команда исполнится на следующем тике
+  Engine.command = function (B, id, v) {
+    if (B.over) return null;
+    const c = v != null ? [B.t + 1, id, v] : [B.t + 1, id];
+    B.cmds.push(c);
+    return c;
+  };
+  // Сколько тиков до готовности приказа (0 — готов)
+  Engine.orderWait = function (B, id) {
+    const ord = B.sides[0].orders.find((x) => x.id === id);
+    return ord ? Math.max(0, ord.readyAt - B.t) : -1;
+  };
+
+  // ================= УМЕНИЯ БОЙЦОВ =================
+  function nearestFoe(B, u) {
+    let best = null;
+    for (const e of B.units) if (e.side !== u.side && e.state === 'active' && (!best || d2(u, e) < d2(u, best))) best = e;
+    return best;
+  }
+  function useAbility(B, u) {
+    const A = u.base.abil;
+    if (!A || u.abilT > B.t || u.broken) return false;
+    if (A.kind === 'nade') {
+      let best = null, bestN = 0;
+      for (const e of B.units) {
+        if (e.side === u.side || e.state !== 'active' || d2(u, e) > A.range * A.range || d2(u, e) < 4 || !los(B, u, e)) continue;
+        let n = 0, friendly = false;
+        for (const f of B.units) {
+          if (f.state !== 'active' || d2(e, f) > A.radius2) continue;
+          if (f.side === u.side) friendly = true; else n++;
+        }
+        if (!friendly && n >= A.min && n > bestN) { best = e; bestN = n; }
+      }
+      if (!best) return false;
+      throwAt(B, u, { x: best.x, y: best.y }, A, u.side);
+      u.abilT = B.t + A.cd;
+      u.fireT = Math.max(u.fireT, 8);
+      B.fx.push([B.t, 'nade', u.side, best.x, best.y, u.i]);
+      say(B, BT().nade(B, u), u.side === 0 ? 'good' : 'bad');
+      return true;
+    }
+    if (A.kind === 'cry') {
+      let low = 0;
+      for (const f of B.units) if (f.side === u.side && f.state === 'active' && f.morale != null && f.morale < A.below && d2(u, f) <= A.radius2) low++;
+      if (low < A.min) return false;
+      for (const f of B.units) {
+        if (f.state !== 'active' || d2(u, f) > A.radius2) continue;
+        if (f.side === u.side) { if (f.morale != null) { f.morale = Math.min(f.maxMorale + 10, f.morale + A.morale); f.broken = false; } f.supp = 0; }
+        else f.supp = Math.min(cfg().supp.max, f.supp + A.supp);
+      }
+      u.abilT = B.t + A.cd;
+      B.fx.push([B.t, 'cry', u.side, u.x, u.y, u.i]);
+      say(B, BT().cry(B, u), u.side === 0 ? 'good' : 'bad');
+      return true;
+    }
+    if (A.kind === 'roar') {
+      const near = nearestFoe(B, u);
+      if (!near || d2(u, near) > A.radius2) return false;
+      for (const f of B.units) {
+        if (f.side === u.side || f.state !== 'active' || d2(u, f) > A.radius2) continue;
+        f.supp = Math.min(cfg().supp.max, f.supp + A.supp);
+        if (f.morale != null) f.morale -= A.morale;
+      }
+      u.abilT = B.t + A.cd;
+      B.fx.push([B.t, 'roar', u.side, u.x, u.y, u.i]);
+      say(B, BT().roar(B, u), 'bad');
+      return true;
+    }
+    return false;
   }
 
   // ================= ПОВЕДЕНИЕ =================
@@ -622,14 +822,28 @@
         B.heals.push([B.t, best.i]);
         return;
       }
+      // раненый подальше — медик пробирается к нему, если не прижат огнём
+      if (u.supp < C.supp.coverAt && (B.t + u.i) % 4 === 0) {
+        let far = null;
+        for (const o of B.units) {
+          if (o.side !== u.side || o === u || o.state !== 'active' || o.base.morale == null) continue;
+          if (d2(u, o) <= 36 && o.hp < o.maxHp * 0.5 && (!far || o.hp / o.maxHp < far.hp / far.maxHp)) far = o;
+        }
+        if (far && stepToward(B, u, far)) return;
+      }
     }
+
+    if (u.base.abil && useAbility(B, u)) return;
 
     const tgt = pickTarget(B, u);
     if (tgt) {
       u.idleT = 0;
       if (u.fireT <= 0) { fire(B, u, tgt); return; }
-      // Пока перезаряжается — ищет укрытие, если его прижали или тактика оборонительная
-      if (!u.base.static && u.base.range > 2 && (sd.tactic === 'defense' || u.supp >= C.supp.coverAt) && (B.t + u.i) % 5 === 0) stepToCover(B, u, tgt);
+      // Пока перезаряжается — ищет укрытие: в обороне, под огнём, раненым или (реже) в атаке
+      if (!u.base.static && !u.base.big && u.base.range > 2) {
+        const want = sd.tactic === 'defense' || u.supp >= C.supp.coverAt || u.hp < u.maxHp * 0.4;
+        if ((want && (B.t + u.i) % 5 === 0) || (B.t + u.i) % 11 === 0) stepToCover(B, u, tgt);
+      }
       return;
     }
     if (u.base.static) return;
@@ -651,7 +865,46 @@
         return;
       }
     }
-    stepAlong(B, u, field, true);
+    stepAdvance(B, u, field);
+  }
+
+  // Шаг к союзнику (жадно, по прямой)
+  function stepToward(B, u, o) {
+    let best = null, bestD = d2(u, o);
+    for (const [dx, dy] of DIRS) {
+      const nx = u.x + dx, ny = u.y + dy;
+      if (!passable(B, nx, ny) || B.occ[idx(B, nx, ny)] !== -1) continue;
+      if (dx && dy && (!passable(B, u.x + dx, u.y) || !passable(B, u.x, u.y + dy))) continue;
+      const dd = (nx - o.x) * (nx - o.x) + (ny - o.y) * (ny - o.y);
+      if (dd < bestD && dd > 0) { bestD = dd; best = [nx, ny]; }
+    }
+    if (!best) return false;
+    startMove(B, u, best[0], best[1]);
+    return true;
+  }
+
+  // Продвижение: вблизи врага — перебежками, выбирая клетки с укрытием
+  function stepAdvance(B, u, field) {
+    const here = field[idx(B, u.x, u.y)];
+    if (u.base.big || u.base.range <= 2 || here > u.base.range + 4) return stepAlong(B, u, field, true);
+    const foe = nearestFoe(B, u);
+    let best = null, bestS = Infinity;
+    const start = B.rng.int(0, 7);
+    for (let k = 0; k < 8; k++) {
+      const [dx, dy] = DIRS[(start + k) % 8];
+      const nx = u.x + dx, ny = u.y + dy;
+      if (!passable(B, nx, ny)) continue;
+      if (dx && dy && (!passable(B, u.x + dx, u.y) || !passable(B, u.x, u.y + dy))) continue;
+      if (B.occ[idx(B, nx, ny)] !== -1) continue;
+      const d = field[idx(B, nx, ny)];
+      if (d > here) continue;
+      let sc = d * 10 + (d === here ? 7 : 0);
+      if (foe && coverOf(B, { x: nx, y: ny }, foe) > 0) sc -= 9;
+      if (sc < bestS) { bestS = sc; best = [nx, ny]; }
+    }
+    if (!best) return false;
+    startMove(B, u, best[0], best[1]);
+    return true;
   }
 
   function exit(B, u) {
@@ -663,7 +916,7 @@
   function updateMorale(B, u) {
     const M = cfg().morale;
     if (u.morale == null) return;
-    if (B.t - u.hitT > 20) u.morale = Math.min(u.maxMorale, u.morale + M.regen);
+    if (B.t - u.hitT > 20) u.morale = Math.min(u.maxMorale, u.morale + M.regen * (u.aura ? cfg().aura.regen : 1));
     if (!u.broken && u.morale < M.breakAt) {
       u.broken = true;
       say(B, BT().broken(B, u), u.side === 0 ? 'bad' : 'good');
@@ -677,7 +930,10 @@
     if (B.over) return;
     const C = cfg();
     B.t++;
+    runCmds(B);
     runOrders(B);
+    runPending(B);
+    auras(B);
     for (let side = 0; side < 2; side++) {
       const sd = B.sides[side];
       if (!sd.retreating && sd.retreatAt > 0 && sd.lost / Math.max(1, sd.start) >= sd.retreatAt) {
@@ -703,6 +959,18 @@
     record(B);
     checkEnd(B);
   };
+
+  // Командиры воодушевляют бойцов рядом: точность и восстановление духа
+  function auras(B) {
+    if (B.t % 5 !== 1) return;
+    const R2 = cfg().aura.radius2;
+    const leaders = B.units.filter((u) => u.leader && u.state === 'active' && !u.broken);
+    for (const u of B.units) {
+      if (u.state !== 'active') continue;
+      u.aura = false;
+      for (const l of leaders) if (l !== u && l.side === u.side && d2(u, l) <= R2) { u.aura = true; break; }
+    }
+  }
 
   function checkEnd(B) {
     const act = [0, 0];
@@ -745,14 +1013,20 @@
       if (u.state === 'exited' || u.state === 'fled') fl |= 2;
       if (u.broken) fl |= 4;
       if (u.supp >= 25) fl |= 8;
+      if (u.state === 'active' && u.target >= 0 && B.units[u.target].state === 'active' && coverOf(B, u, B.units[u.target]) > 0) fl |= 32;
+      if (u.aura) fl |= 64;
       const k = u.i * 4;
       f[k] = Math.round(x * 10); f[k + 1] = Math.round(y * 10); f[k + 2] = Math.max(0, u.hp); f[k + 3] = fl;
     }
     B.frames.push(f);
   }
 
+  // Одинаковые сообщения подряд склеиваются: «… ×3»
   function say(B, text, tone) {
-    if (text) B.log.push({ t: B.t, text: text, k: tone || 'info' });
+    if (!text) return;
+    const last = B.log[B.log.length - 1];
+    if (last && last.text === text && B.t - last.t < 40) { last.n = (last.n || 1) + 1; return; }
+    B.log.push({ t: B.t, text: text, k: tone || 'info' });
   }
 
   // ================= ЗАПУСК =================
@@ -766,15 +1040,16 @@
   Engine.result = function (B) {
     const units = B.units.map((u) => ({
       i: u.i, side: u.side, uid: u.uid, vid: u.vid, campId: u.campId, type: u.type, kind: u.kind, label: u.label,
-      state: u.state, hp: Math.max(0, u.hp), maxHp: u.maxHp, kills: u.kills,
+      state: u.state, hp: Math.max(0, u.hp), maxHp: u.maxHp, kills: u.kills, dealt: u.dealt, leader: u.leader, officer: u.officer,
     }));
     let h = 2166136261 >>> 0;
     const str = B.t + '|' + B.winner + '|' + units.map((u) => u.state[0] + u.hp + ':' + u.kills).join(',');
     for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
     return {
       winner: B.winner, reason: B.reason, ticks: B.t, units: units,
-      log: B.log, frames: B.frames, shots: B.shots, smokes: B.smokes, booms: B.booms, heals: B.heals,
-      map: { w: B.W, h: B.H, cells: B.cells, type: B.map.type },
+      log: B.log, frames: B.frames, shots: B.shots, smokes: B.smokes, booms: B.booms, heals: B.heals, fx: B.fx,
+      props: B.props, cmds: B.cmds.map((c) => c.slice()),
+      map: { w: B.W, h: B.H, cells: B.cells0, type: B.map.type },
       hash: (h >>> 0).toString(16),
     };
   };

@@ -39,7 +39,8 @@
     s.relations = Object.assign({}, C.start.relations, s.relations || {});
     s.timers = s.timers || [];
     s.eventLog = s.eventLog || {};
-    s.replays = s.replays || [];
+    // повторы старых версий боя (до живых приказов) пересчитались бы иначе — убираем
+    s.replays = (s.replays || []).filter((r) => r.setup && r.setup.v >= 2);
     s.vehicles = s.vehicles || [];
     s.vehicleSeq = s.vehicleSeq || 0;
     s.fort = s.fort || { walls: 0 };

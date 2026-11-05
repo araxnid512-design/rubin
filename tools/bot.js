@@ -86,7 +86,8 @@ function resolvePending(s) {
       G.Game.act(s, { action: 'set', key: 'tactic', value: camp ? 'defense' : 'assault' });
       G.Game.act(s, { action: 'set', key: 'retreatAt', value: camp ? 0 : 0.5 });
       G.Game.act(s, { action: 'quick' });
-    } else if (p.kind === 'battleResult') G.Game.act(s, { action: 'close' });
+    } else if (p.kind === 'battleLive') G.Game.act(s, { action: 'finish', cmds: [] });
+    else if (p.kind === 'battleResult') G.Game.act(s, { action: 'close' });
     else break;
   }
 }

@@ -27,7 +27,8 @@ test('вызов флота: сигнал, отсчёт, последний бо
     } else if (p.kind === 'battle') {
       if (/рубеж/i.test(p.ctx.title)) sawFinal = true;
       G.Game.act(s, { action: 'quick' });
-    } else if (p.kind === 'battleResult') G.Game.act(s, { action: 'close' });
+    } else if (p.kind === 'battleLive') G.Game.act(s, { action: 'finish', cmds: [] });
+    else if (p.kind === 'battleResult') G.Game.act(s, { action: 'close' });
     else resolvePending(s);
   }
   assert.ok(sawFinal, 'финальный бой должен состояться');

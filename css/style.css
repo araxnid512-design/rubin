@@ -259,12 +259,59 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 }
 
 /* ---------- Автобой ---------- */
-.bv { margin: 8px 0; }
-.bv-stage { display: flex; justify-content: center; background: #0b0b0c; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .bv-canvas { display: block; touch-action: manipulation; }
-.bv-controls { margin: 8px 0 4px; }
-.bv-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-.bv-log { height: 170px; overflow-y: auto; background: #111214; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+/* ---------- живой бой ---------- */
+.bv { margin: 6px 0; }
+.bv-head { margin-bottom: 4px; }
+.bv-stage { position: relative; display: flex; justify-content: center; background: #0b0b0c; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.bv-inner { position: relative; }
+.bv-hud { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 4px 8px 10px; pointer-events: none;
+  background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0)); }
+.bv-side { flex: 1; display: flex; align-items: center; gap: 6px; font: 700 14px var(--mono); }
+.bv-side.ours { color: #8fd0ff; }
+.bv-side.foe { color: #ff8f80; flex-direction: row-reverse; }
+.bv-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; display: flex; max-width: 160px; }
+.bv-side.foe .bv-bar { justify-content: flex-end; }
+.bv-bar i { display: block; height: 100%; background: currentColor; transition: width 0.3s; }
+.bv-time { font-size: 12px; color: #d8cfbd; }
+.bv-banner { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); font: 800 22px system-ui, sans-serif; letter-spacing: 1px;
+  color: #ffe1a8; text-shadow: 0 2px 10px #000, 0 0 3px #000; opacity: 0; pointer-events: none; white-space: nowrap; }
+.bv-banner.foe { color: #ff9a8a; }
+.bv-banner.show { animation: bvBanner 1.5s ease-out both; }
+@keyframes bvBanner {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(0.85); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  70% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(1); }
+}
+.bv-tip { position: absolute; left: 8px; bottom: 6px; padding: 3px 9px; border-radius: 6px; background: rgba(10,10,12,0.85); font-size: 12px; display: none; pointer-events: none; }
+.bv-tip.on { display: block; }
+.bv-orders { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.bv-orders:empty { display: none; }
+.ob { position: relative; display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 10px; border: 1px solid #6b5530; background: #2a2113;
+  color: var(--text); font: 600 14px system-ui, sans-serif; overflow: hidden; cursor: pointer; --cd: 0deg; transition: transform 0.08s; }
+.ob::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: conic-gradient(rgba(0,0,0,0.62) var(--cd), transparent 0); }
+.ob .oi { font-size: 19px; line-height: 1; color: var(--sand2, #f3cd8c); }
+.ob:not(:disabled):active { transform: scale(0.94); }
+.ob:disabled { cursor: default; }
+.ob.ord:not(:disabled) { box-shadow: 0 0 0 1px rgba(243,205,140,0.35), 0 0 12px rgba(243,205,140,0.15); }
+.ob.ret { border-color: #6a3a32; background: #2a1714; }
+.ob.ret .oi { color: #ff9a8a; }
+.ob.ret.armed { background: #6a2018; border-color: #e2574c; }
+.ob.auto { border-color: #2f3a46; background: #161c22; opacity: 0.7; }
+.ob.auto.on { border-color: #6fb3e0; opacity: 1; }
+.ob.auto .oi { color: #6fb3e0; font-weight: 800; }
+.bv-controls { margin: 6px 0 4px; }
+.bv-log { height: 120px; overflow-y: auto; background: #111214; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.bv-log .n { color: var(--sand2, #f3cd8c); font-weight: 700; }
+.bv.done .bv-log { display: none; }
+.bv.done .bv-orders { display: none; }
+.bv-report:empty { display: none; }
+.rep-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 15px; margin: 2px 0 6px; }
+.mvp { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin: 6px 0; border-radius: 10px; background: rgba(243,205,140,0.08); border: 1px solid rgba(243,205,140,0.3); }
+.prep-top { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 10px; }
+.prep-top .kv { flex: 1; min-width: 200px; }
+.bv-preview { border-radius: 6px; border: 1px solid var(--line); flex: none; }
 .bv-log .bl { padding: 2px 0; }
 .bv-log .k-good { color: #bfe8c6; }
 .bv-log .k-bad { color: #ffc2bb; }
@@ -277,7 +324,6 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 .battle-report > div { margin: 3px 0; }
 @media (max-width: 760px) {
   .orders-list { grid-template-columns: 1fr; }
-  .bv-log { height: 140px; }
   .formations { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -292,8 +338,6 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 .goals .goal .bar { margin: 6px 0 4px; }
 .countdown { background: #182235; border: 1px solid #36507a; color: #cfe2ff; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-weight: 600; }
 .score { font-size: 17px; margin: 8px 0; color: var(--sand2); }
-.bv-legend .lg-ours { color: #9fd3ff; }
-.bv-legend .lg-foe { color: #ff9a8a; }
 
 /* ---------- Аватарки ---------- */
 .ava { border-radius: 50%; display: block; flex: none; background: #111; }
@@ -341,11 +385,15 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
   }
   .modal h2 { font-size: 17px; }
   /* бой: поле слева, управление и лог справа */
-  .bv { display: grid; grid-template-columns: auto minmax(180px, 1fr); grid-template-rows: auto 1fr; gap: 6px 10px; margin: 4px 0; }
-  .bv-stage { grid-row: 1 / 3; align-self: start; }
-  .bv-controls { grid-column: 2; margin: 0; }
-  .bv-legend { display: none; }
-  .bv-log { grid-column: 2; height: auto; max-height: calc(100vh - 120px); }
+  .battle-live { padding-top: 6px; }
+  .bv { display: grid; grid-template-columns: auto minmax(170px, 1fr); gap: 8px; margin: 0; align-items: start; }
+  .bv-panel { display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 44px); overflow-y: auto; }
+  .bv-orders { display: grid; grid-template-columns: 1fr 1fr; margin: 0 0 6px; }
+  .ob { padding: 10px 8px; font-size: 13px; }
+  .bv-controls { margin: 0 0 6px; }
+  .bv-log { flex: 1; height: auto; min-height: 60px; }
+  .bv-head { font-size: 13px; margin-bottom: 4px; }
+  .bv-banner { font-size: 18px; }
   .battle-setup .grid2 { grid-template-columns: 1fr 1fr; }
   .orders-list { grid-template-columns: 1fr 1fr 1fr; }
   .formations { grid-template-columns: repeat(4, 1fr); }
