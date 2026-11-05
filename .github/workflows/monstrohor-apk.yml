@@ -27,6 +27,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # Отладочный вариант, как у APK «Клонов», который на телефоне пользователя ставился
       - name: Собрать APK
         working-directory: monsters/android
         env:
@@ -34,11 +35,11 @@ jobs:
           VERSION_NAME: 1.0.${{ github.run_number }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Проверить подпись и манифест
         run: |
-          APK=monsters/android/app/build/outputs/apk/release/app-release.apk
+          APK=monsters/android/app/build/outputs/apk/debug/app-debug.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT"/apksigner verify --verbose --print-certs "$APK"
           "$BT"/aapt2 dump badging "$APK" | head -8
