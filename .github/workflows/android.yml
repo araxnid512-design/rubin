@@ -20,6 +20,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # номер сборки → versionCode: каждая новая версия ставится поверх старой
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
 
@@ -39,9 +43,6 @@ jobs:
           npm test
 
       - name: Android-проект (Capacitor)
-        env:
-          VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 1.0.${{ github.run_number }}
         run: |
           npm run build:www
           npx cap add android
@@ -65,7 +66,10 @@ jobs:
           APK=android/app/build/outputs/apk/debug/app-debug.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT"/apksigner verify --verbose --print-certs "$APK" | head -12
-          "$BT"/aapt2 dump badging "$APK" | grep -E "^package|orientation|application-label" | head -6
+          "$BT"/aapt2 dump badging "$APK" | grep -E "^package|^application-label:" || true
+          "$BT"/aapt2 dump badging "$APK" | grep -q "versionCode='$VERSION_CODE'" || { echo "Неверный versionCode"; exit 1; }
+          # горизонтальная ориентация: sensorLandscape = 6
+          "$BT"/aapt2 dump xmltree --file AndroidManifest.xml "$APK" | grep -i "screenOrientation" | tee /dev/stderr | grep -q "6" || { echo "Нет горизонтальной ориентации"; exit 1; }
           cp "$APK" kolrat.apk
 
       - uses: actions/upload-artifact@v4
