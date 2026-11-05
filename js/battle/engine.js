@@ -77,11 +77,11 @@
     const base = C.types[e.type] || C.types.trooper;
     const R = G.CONFIG.ranks[e.rank || 0] || G.CONFIG.ranks[0];
     const human = e.kind === 'trooper' || e.kind === 'merc';
-    const officer = side === 0 && human && (e.rank || 0) >= C.aura.officerRank;
-    const maxHp = base.hp + (human ? R.hp : 0);
+    const officer = side === 0 && human && ((e.rank || 0) >= C.aura.officerRank || !!e.leaderTrait);
+    const maxHp = base.hp + (human ? R.hp : 0) + (e.hpBonus || 0);
     let morale = null;
     if (base.morale != null) {
-      morale = base.morale + (human ? R.morale : 0);
+      morale = base.morale + (human ? R.morale : 0) + (e.moraleBonus || 0);
       if (side === 0) morale += Math.round(((e.discipline != null ? e.discipline : B.setup.sides[0].discipline || 50) - 50) * C.morale.disciplineFactor);
       if (side === 0 && B.setup.surprise) morale += C.surprise.morale;
     }
@@ -94,7 +94,7 @@
       morale: morale, maxMorale: morale, supp: 0,
       state: 'active', broken: false, fireT: 0, target: -1, kills: 0, dealt: 0,
       group: 0, waypoint: null, healT: 0, idleT: 0, hitT: -99,
-      leader: !!base.leader || officer, officer: officer, base: base, abilT: 0,
+      leader: !!base.leader || officer, officer: officer, base: base, abilT: 0, speedMult: e.speedMult || 1,
     };
   }
 
@@ -373,7 +373,7 @@
   // ================= ДВИЖЕНИЕ =================
   function startMove(B, u, nx, ny) {
     const sd = B.sides[u.side];
-    let cost = u.base.speed;
+    let cost = u.base.speed * u.speedMult;
     const t = cell(B, nx, ny);
     if (t === T.DUNE && !(u.base.desert)) cost *= 1.5;
     if (nx !== u.x && ny !== u.y) cost *= 1.4;

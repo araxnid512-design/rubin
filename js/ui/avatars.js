@@ -196,6 +196,11 @@
         dirt: sand ? 0.9 : null,
       });
       if (alive && wound) body += helmetDamage(wound);
+      // отметки побед на шлеме — у тех, кто заслужил прозвище
+      if (u.kills >= 5) {
+        const n = Math.min(6, Math.floor(u.kills / 5));
+        for (let k = 0; k < n; k++) body += '<path d="M' + (17.5 + k * 1.9) + ' 17.5 l0.6 4" stroke="#2a2e35" stroke-width="0.9" stroke-linecap="round"/>';
+      }
     }
     if (u.spec) body += '<g transform="translate(52 52)"><circle r="8" fill="#e9e2cf" stroke="#2a2e35" stroke-width="1"/>' + SPEC_BADGE[u.spec] + '</g>';
     return wrap(bg.concat(rank >= 4 ? '#e2574c' : '#d9a85b'), body);

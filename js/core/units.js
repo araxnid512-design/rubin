@@ -15,6 +15,43 @@
     return num;
   }
 
+  // ---------- черты характера и прозвища ----------
+  function mix(a, b) {
+    let h = Math.imul((a | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul((b | 0) + 0x632be5ab, 0xc2b2ae35);
+    h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12;
+    return (h >>> 0) / 4294967296;
+  }
+  // Черта выбирается по зерну кампании и номеру бойца — без расхода случайных чисел игры
+  Units.assignTrait = function (s, u, forced) {
+    if (u.kind === 'droid') { u.trait = null; return; }
+    const T = G.CONFIG.traits;
+    if (forced !== undefined) { u.trait = forced; return; }
+    if (mix(s.seed, u.id * 7 + 1) >= T.chance) { u.trait = null; return; }
+    const ids = Object.keys(T.list);
+    const total = ids.reduce((a, id) => a + T.list[id].weight, 0);
+    let r = mix(s.seed, u.id * 13 + 5) * total;
+    for (const id of ids) { r -= T.list[id].weight; if (r < 0) { u.trait = id; return; } }
+    u.trait = ids[ids.length - 1];
+  };
+  Units.trait = (u) => (u && u.trait ? G.CONFIG.traits.list[u.trait] || null : null);
+  Units.traitVal = (u, key, def) => { const t = Units.trait(u); return t && t[key] != null ? t[key] : def; };
+
+  // Прозвище за боевые заслуги; возвращает его, если появилось только что
+  Units.checkNickname = function (s, u) {
+    if (u.nick || u.kind === 'droid' || u.kills < G.CONFIG.traits.nicknameKills) return null;
+    const N = G.TEXT.nicknames;
+    const own = (u.trait && N[u.trait]) || [];
+    const pool = own.concat(N.any);
+    const taken = new Set(s.units.filter((x) => x.nick).map((x) => x.nick));
+    const free = pool.filter((n) => !taken.has(n));
+    const list = free.length ? free : pool;
+    const pickOwn = own.length && mix(s.seed, u.id * 3) < 0.6 ? own.filter((n) => !taken.has(n)) : [];
+    const from = pickOwn.length ? pickOwn : list;
+    u.nick = from[Math.floor(mix(s.seed, u.id + u.kills * 31) * from.length)];
+    G.Game.say(s, u.num + ' ' + u.name + ' получает прозвище «' + u.nick + '».', 'good');
+    return u.nick;
+  };
+
   Units.createTrooper = function (s, rng, opts) {
     opts = opts || {};
     const N = G.TEXT.names;
@@ -33,6 +70,7 @@
       joined: s.day,
       origin: opts.origin || 'crash',
     };
+    Units.assignTrait(s, u, opts.trait);
     s.units.push(u);
     return u;
   };
@@ -45,6 +83,7 @@
       kind: 'droid',
       num: uniqueNum(s, rng, 'КД'),
       name: '«' + name + '»',
+      trait: null,
       xp: 0,
       health: opts.health || 100,   // у дроидов — техническое состояние
       spec: null,
@@ -73,6 +112,7 @@
       joined: s.day,
       origin: 'merc',
     };
+    Units.assignTrait(s, u, opts.trait);
     s.units.push(u);
     return u;
   };
@@ -91,13 +131,13 @@
 
   // «сержант ТК-412» (со строчной — для середины фразы; в начале фразы — U.cap)
   Units.title = function (u) {
-    if (u.kind === 'trooper') return Units.rankName(u).toLowerCase() + ' ' + u.num;
+    if (u.kind === 'trooper') return Units.rankName(u).toLowerCase() + ' ' + u.num + (u.nick ? ' «' + u.nick + '»' : '');
     if (u.kind === 'droid') return 'дроид ' + u.num + ' ' + u.name;
     return 'наёмник ' + u.name + ' (' + u.num + ')';
   };
   // «сержант ТК-412 Кейл Маррен»
   Units.fullTitle = function (u) {
-    if (u.kind === 'trooper') return Units.rankName(u).toLowerCase() + ' ' + u.num + ' ' + u.name;
+    if (u.kind === 'trooper') return Units.rankName(u).toLowerCase() + ' ' + u.num + ' ' + u.name + (u.nick ? ' «' + u.nick + '»' : '');
     return Units.title(u);
   };
 
@@ -179,7 +219,7 @@
     let e;
     if (u.kind === 'droid') e = u.health >= 80 ? 1 : u.health >= 40 ? 0.75 : 0.5;
     else e = u.health >= H.lightBelow ? 1 : u.health >= H.heavyBelow ? H.lightEff : 0;
-    if (u.kind !== 'droid') e *= 1 + Units.rank(u).eff;
+    if (u.kind !== 'droid') e *= 1 + Units.rank(u).eff + Units.traitVal(u, 'work', 0);
     return e;
   };
 

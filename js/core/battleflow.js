@@ -36,7 +36,13 @@
   };
   BF.unitEntry = function (s, u) {
     const acc = u.kind === 'trooper' ? (G.CONFIG.armoryAccBonus[s.sections.armory.level] || 0) : 0;
-    return { uid: u.id, type: BF.unitType(u), kind: u.kind, label: G.Units.title(u), rank: G.Units.rankIndex(u), health: u.health, accBonus: acc };
+    const T = G.Units.trait(u) || {};
+    const e = { uid: u.id, type: BF.unitType(u), kind: u.kind, label: G.Units.title(u), rank: G.Units.rankIndex(u), health: u.health, accBonus: acc + (T.acc || 0) };
+    if (T.hp) e.hpBonus = T.hp;
+    if (T.morale) e.moraleBonus = T.morale;
+    if (T.speed) e.speedMult = T.speed;
+    if (T.leader) e.leaderTrait = true;
+    return e;
   };
   BF.vehicleEntry = function (s, v) {
     return { uid: null, vid: v.id, type: v.type, kind: v.type, label: G.Progress.vehicleName(v).toLowerCase(), rank: 0, health: v.health };
@@ -228,7 +234,7 @@
     const rng = G.Game.rng(s);
     const won = res.winner === 0;
     const retreated = res.reason === 'retreat';
-    const killed = [], heavy = [], light = [], promoted = [], killedIds = [], heavyIds = [];
+    const killed = [], heavy = [], light = [], promoted = [], killedIds = [], heavyIds = [], nicknames = [];
     let medics = 0;
     for (const r of res.units) if (r.side === 0 && r.type === 'medic' && r.state === 'active') medics++;
     let kills = 0;
@@ -265,7 +271,7 @@
           else { u.health = U.rollRange(rng, D.droidHealth); heavy.push(G.Units.title(u)); heavyIds.push(u.id); }
           continue;
         }
-        const chance = won || retreated ? D.deathChance - Math.min(D.medicReduceMax, medics * D.medicReduce) : D.lostDeathChance;
+        const chance = (won || retreated ? D.deathChance - Math.min(D.medicReduceMax, medics * D.medicReduce) : D.lostDeathChance) * G.Units.traitVal(u, 'death', 1);
         if (rng.chance(chance)) { G.Units.kill(s, u, 'погиб в бою: ' + p.ctx.title); killed.push(G.Units.title(u)); killedIds.push(u.id); continue; }
         u.health = U.rollRange(rng, D.heavyHealth);
         heavy.push(G.Units.title(u));
@@ -280,6 +286,7 @@
       const before = G.Units.rankIndex(u);
       G.Units.addXp(s, u, X.participate + r.kills * X.kill + (won ? X.win : 0));
       if (G.Units.rankIndex(u) > before) promoted.push(u.num);
+      if (G.Units.checkNickname(s, u)) nicknames.push(u.num + ' «' + u.nick + '»');
     }
     s.stats.kills += kills;
     s.stats.battles++;
@@ -321,7 +328,7 @@
     G.Game.checkOver(s);
     return { won: won, reason: res.reason, head: head, killed: killed, heavy: heavy, light: light.length, promoted: promoted, killedIds: killedIds, heavyIds: heavyIds,
       enemyDown: enemyDown, enemyFled: enemyFled, kills: kills, loot: loot, afterText: afterText, ticks: res.ticks, hash: res.hash,
-      mvp: mvp, acc: shots ? Math.round((100 * hits) / shots) : null };
+      mvp: mvp, acc: shots ? Math.round((100 * hits) / shots) : null, nicknames: nicknames };
   };
 
   BF.act = function (s, payload) {

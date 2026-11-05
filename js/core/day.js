@@ -138,7 +138,7 @@
     for (const u of G.Units.people(s)) {
       if (u.health >= 100) continue;
       const heavy = u.health < H.heavyBelow;
-      let gain = (heavy ? H.healHeavy : H.healLight) + heal;
+      let gain = ((heavy ? H.healHeavy : H.healLight) + heal) * G.Units.traitVal(u, 'heal', 1);
       let usedBacta = false;
       if (heavy && s.items.bacta > 0) {
         s.items.bacta--;

@@ -543,3 +543,12 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 .fac-bar i.pos { background: #7cc287; }
 .fac-bar i.neg { background: #e2574c; }
 .fac-unknown { opacity: 0.45; }
+
+/* ---------- черты характера ---------- */
+.trait { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 5px; padding: 0 3px; border-radius: 9px; font-size: 11px; line-height: 1;
+  background: rgba(124,194,135,0.18); color: #9fd8a8; border: 1px solid rgba(124,194,135,0.4); vertical-align: middle; }
+.trait.t-nervous, .trait.t-clumsy { background: rgba(226,87,76,0.15); color: #ff9a8a; border-color: rgba(226,87,76,0.4); }
+.trait.t-leader { background: rgba(243,205,140,0.15); color: var(--sand2); border-color: rgba(243,205,140,0.45); }
+.nick { color: var(--sand2); font-weight: 600; }
+.trait-line { margin: 4px 0; }
+.trait-line .trait { margin-left: 0; }

@@ -52,6 +52,8 @@
       if (!s.regions[id]) s.regions[id] = { known: false, explored: 0, water: C.regions[id].waterPool || 0, scrap: C.regions[id].scrapPool || 0, visits: 0, cleared: false };
     }
     if (G.Camp) G.Camp.migrate(s);
+    // черты характера у бойцов из старых сохранений
+    for (const u of s.units) if (u.trait === undefined) G.Units.assignTrait(s, u);
     if (G.Save.migrateExtra) G.Save.migrateExtra(s);
     s.v = C.saveVersion;
     return s;

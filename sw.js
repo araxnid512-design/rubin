@@ -3,7 +3,7 @@
  * При изменении файлов игры увеличьте VERSION — телефоны получат обновление.
  */
 'use strict';
-const VERSION = 'kolrat-v3';
+const VERSION = 'kolrat-v4';
 const ASSETS = [
   './',
   'index.html',

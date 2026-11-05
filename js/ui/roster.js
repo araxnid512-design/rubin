@@ -48,7 +48,8 @@
     const row = h('div', { class: 'unit' + (alive ? '' : ' dead'), onclick: () => { UI.rosterOpen = open ? null : u.id; UI.render(); } },
       G.Avatar.img(u, 36),
       h('div', { class: 'rk' }, G.Units.rankShort(u)),
-      h('div', { class: 'nm' }, h('span', { class: 'num' }, u.num), u.name,
+      h('div', { class: 'nm' }, h('span', { class: 'num' }, u.num), u.name, u.nick ? h('span', { class: 'nick' }, ' «' + u.nick + '»') : null,
+        u.trait ? h('span', { class: 'trait t-' + u.trait, title: G.TEXT.traits[u.trait].name + ': ' + G.TEXT.traits[u.trait].desc }, G.TEXT.traits[u.trait].icon) : null,
         u.spec ? h('span', { class: 'spec' }, G.TEXT.specs ? G.TEXT.specs[u.spec].short : u.spec) : null),
       h('div', { class: 'st' },
         alive ? h('div', null, healthBar(u), h('div', { class: u.health < 40 ? 'bad' : u.health < 80 ? 'warn' : 'muted' }, G.Units.healthLabel(u)))
@@ -59,6 +60,7 @@
     const det = h('div', { class: 'unit-detail' },
       h('div', { class: 'ud-head' }, G.Avatar.img(u, 84, 'ava-big'),
         h('div', null, h('b', null, U.cap(G.Units.fullTitle(u))), h('div', { class: 'muted' }, G.Units.healthLabel(u)))),
+      u.trait ? h('div', { class: 'trait-line' }, h('span', { class: 'trait t-' + u.trait }, G.TEXT.traits[u.trait].icon), h('b', null, ' ' + G.TEXT.traits[u.trait].name), h('span', { class: 'muted' }, ' — ' + G.TEXT.traits[u.trait].desc)) : null,
       u.kind === 'trooper' ? h('div', null, 'Опыт: ' + u.xp + (nx ? ' (до следующего звания ' + (nx - u.xp) + ')' : ' — высшее доступное звание')) : null,
       h('div', null, (u.kind === 'droid' ? 'Техсостояние: ' : 'Здоровье: ') + u.health + '%'),
       h('div', null, 'Вылазок: ' + u.missions + ' · боёв: ' + u.battles + ' · уничтожено врагов: ' + u.kills),

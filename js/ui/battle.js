@@ -312,6 +312,7 @@
         const sh = shotsBy[i][k];
         const dt = t - sh[0];
         if (dt < 20) {
+          s.aiming = true;
           const tp = posAt(sh[2], sh[0]);
           if (Math.abs(tp.x - p.x) > 0.05) facing[i] = s.facing = tp.x > p.x ? 1 : -1;
           const dx = Math.abs(tp.x - p.x) * cell, dy = (tp.y - p.y) * cell;
@@ -901,11 +902,12 @@
         rep.killed.length ? h('span', { class: 'bad' }, '✝ ', h('b', null, rep.killed.length)) : null,
         rep.heavy.length ? h('span', { class: 'warn' }, '✚ ', h('b', null, rep.heavy.length)) : null),
       mvp ? h('div', { class: 'mvp' }, G.Avatar.img(mvp, 44), h('div', null, h('div', { class: 'small muted' }, 'Лучший в бою'), h('b', null, G.Units.title(mvp)),
-        h('div', { class: 'small' }, U.pl(rep.mvp.kills, ['враг', 'врага', 'врагов']) + ' · урон ' + rep.mvp.dealt))) : null,
+        h('div', { class: 'small' }, U.pl(rep.mvp.kills, ['враг', 'врага', 'врагов']) + ' · урон ' + rep.mvp.dealt + (mvp.trait ? ' · ' + G.TEXT.traits[mvp.trait].icon + ' ' + G.TEXT.traits[mvp.trait].name : '')))) : null,
       rep.killed.length ? h('div', { class: 'bad small' }, 'Погибли: ' + rep.killed.join(', ')) : null,
       faces(rep.killedIds),
       rep.heavy.length ? h('div', { class: 'warn small' }, 'Тяжело ранены: ' + rep.heavy.join(', ')) : null,
       rep.promoted && rep.promoted.length ? h('div', { class: 'good small' }, '▲ Новое звание: ' + rep.promoted.join(', ')) : null,
+      rep.nicknames && rep.nicknames.length ? h('div', { class: 'good small' }, '✦ Прозвище: ' + rep.nicknames.join(', ')) : null,
       rep.loot ? h('div', { class: 'small' }, '⚙ ' + rep.loot) : null,
       rep.afterText ? h('p', { class: 'small', style: 'margin:6px 0 0' }, rep.afterText) : null,
       extra || null);

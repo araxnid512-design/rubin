@@ -500,6 +500,26 @@
       zones: { attackerDepth: 4, defenderDepth: 5 },
     },
 
+    // ---------- ЧЕРТЫ ХАРАКТЕРА ----------
+    // Даются бойцу (и наёмнику) при появлении. В бою: acc — точность, hp — здоровье, morale — стойкость,
+    // speed — множитель времени на шаг (меньше — быстрее); leader — воодушевляет бойцов рядом, как офицер.
+    // death — множитель шанса гибели от тяжёлой раны, heal — множитель выздоровления, work — к работам и вылазкам.
+    traits: {
+      chance: 0.75,
+      list: {
+        eagle:   { weight: 3, acc: 6 },
+        tough:   { weight: 3, hp: 12, heal: 1.3 },
+        brave:   { weight: 3, morale: 15 },
+        swift:   { weight: 2, speed: 0.85 },
+        lucky:   { weight: 2, death: 0.55 },
+        handy:   { weight: 2, work: 0.15 },
+        leader:  { weight: 1, leader: true, morale: 5 },
+        nervous: { weight: 2, morale: -15 },
+        clumsy:  { weight: 1, acc: -5 },
+      },
+      nicknameKills: 5,             // столько побед в бою — и у бойца появляется прозвище
+    },
+
     chronicleLimit: 1500,
   };
 })(globalThis.G = globalThis.G || {});
