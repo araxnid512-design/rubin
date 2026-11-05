@@ -96,6 +96,7 @@
       flags: {},
       timers: [],
       eventLog: {},
+      replays: [],
       visitors: {},
       lastSpeechDay: -10,
       speechStreak: 0,

@@ -140,6 +140,7 @@
       case 'evening': G.Day.evening(s, rng); return;
       case 'night': G.Day.night(s, rng); return;
       case 'dawn': G.Day.dawn(s, rng); return;
+      case 'battle': s.pending = step.battle; return;
       default:
         if (G.Events && step.step === 'event') { G.Events.trigger(s, rng, step.id, step.ctx); return; }
     }

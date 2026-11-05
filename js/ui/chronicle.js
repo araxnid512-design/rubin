@@ -23,7 +23,7 @@
           h('ul', { class: 'lines' }, byDay.get(d).map((e) => h('li', { class: 'k-' + e.k }, e.t))))),
         days.length > shown.length ? h('button', { class: 'btn', onclick: () => { UI.chronDays += 15; UI.render(); } }, 'Показать ещё') : null
       ),
-      h('div', { class: 'card' },
+      h('div', null, UI.replaysCard ? UI.replaysCard(s) : null, h('div', { class: 'card' },
         h('h2', null, 'Итоги'),
         h('div', { class: 'kv' }, [
           ['Дней на Татуине', s.day],
@@ -35,7 +35,7 @@
           ['Погибло бойцов', st.deaths],
           ['Дезертировало', st.deserted]
         ].map(([k, v]) => [h('span', { class: 'k' }, k), h('span', null, String(v))]))
-      )
+      ))
     );
   };
 })(globalThis.G = globalThis.G || {});

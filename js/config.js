@@ -187,27 +187,27 @@
     // water/scrap — богатство (индекс в richness), pool — запас, regen — восстановление в сутки
     // links: [регион, % разведки, после которого он открывается]
     regions: {
-      crash:       { kind: 'base', dist: 0, danger: 0, water: 0, scrap: 3, scrapPool: 2600,
+      crash:       { kind: 'base', terrain: 'camp', ambush: 'tusken', dist: 0, danger: 0, water: 0, scrap: 3, scrapPool: 2600,
                      links: [['dunes', 0], ['ridge', 0]] },
-      dunes:       { kind: 'wild', dist: 1, danger: 1, water: 1, waterPool: 260, waterRegen: 4,
+      dunes:       { kind: 'wild', terrain: 'desert', ambush: 'tusken', dist: 1, danger: 1, water: 1, waterPool: 260, waterRegen: 4,
                      scrap: 1, scrapPool: 300, links: [['farm', 35], ['graveyard', 70]] },
-      ridge:       { kind: 'wild', dist: 1, danger: 1, water: 2, waterPool: 320, waterRegen: 8,
+      ridge:       { kind: 'wild', terrain: 'rocks', ambush: 'tusken', dist: 1, danger: 1, water: 2, waterPool: 320, waterRegen: 8,
                      scrap: 0, links: [['jundland', 40], ['canyon', 60]] },
-      farm:        { kind: 'wild', dist: 2, danger: 1, water: 3, waterPool: 600, waterRegen: 14,
+      farm:        { kind: 'wild', terrain: 'desert', ambush: 'tusken', dist: 2, danger: 1, water: 3, waterPool: 600, waterRegen: 14,
                      scrap: 1, scrapPool: 150, links: [['anchorhead', 60]] },
-      jundland:    { kind: 'wild', dist: 2, danger: 3, water: 2, waterPool: 500, waterRegen: 10,
+      jundland:    { kind: 'wild', terrain: 'rocks', ambush: 'tusken', dist: 2, danger: 3, water: 2, waterPool: 500, waterRegen: 10,
                      scrap: 0, links: [['tusken_camp', 50], ['anchorhead', 80]] },
-      canyon:      { kind: 'wild', dist: 2, danger: 2, water: 1, waterPool: 200, waterRegen: 4,
+      canyon:      { kind: 'wild', terrain: 'rocks', ambush: 'bandits', dist: 2, danger: 2, water: 1, waterPool: 200, waterRegen: 4,
                      scrap: 1, scrapPool: 200, links: [['bandit_den', 45], ['mos_espa', 85]] },
-      graveyard:   { kind: 'wild', dist: 3, danger: 2, water: 0, scrap: 3, scrapPool: 1400,
+      graveyard:   { kind: 'wild', terrain: 'wreck', ambush: 'bandits', dist: 3, danger: 2, water: 0, scrap: 3, scrapPool: 1400,
                      links: [['krayt_lair', 60]] },
-      anchorhead:  { kind: 'town', dist: 3, danger: 1, trade: 'anchorhead', links: [] },
-      mos_espa:    { kind: 'town', dist: 4, danger: 2, trade: 'mos_espa', links: [['hutt_palace', 70]] },
-      tusken_camp: { kind: 'hostile', dist: 3, danger: 3, enemy: 'tusken_camp', strength: 18 },
-      bandit_den:  { kind: 'hostile', dist: 3, danger: 3, enemy: 'bandits', strength: 15 },
-      krayt_lair:  { kind: 'hostile', dist: 4, danger: 4, enemy: 'krayt', strength: 40 },
-      hutt_palace: { kind: 'hostile', dist: 5, danger: 4, enemy: 'hutt_guard', strength: 60 },
-      rebel_post:  { kind: 'hostile', dist: 4, danger: 3, enemy: 'rebels', strength: 24, hidden: true },
+      anchorhead:  { kind: 'town', terrain: 'desert', ambush: 'bandits', dist: 3, danger: 1, trade: 'anchorhead', links: [] },
+      mos_espa:    { kind: 'town', terrain: 'desert', ambush: 'bandits', dist: 4, danger: 2, trade: 'mos_espa', links: [['hutt_palace', 70]] },
+      tusken_camp: { kind: 'hostile', terrain: 'rocks', ambush: 'tusken', dist: 3, danger: 3, enemy: 'tusken_camp', strength: 18 },
+      bandit_den:  { kind: 'hostile', terrain: 'wreck', ambush: 'bandits', dist: 3, danger: 3, enemy: 'bandits', strength: 15 },
+      krayt_lair:  { kind: 'hostile', terrain: 'desert', ambush: 'tusken', dist: 4, danger: 4, enemy: 'krayt', strength: 40 },
+      hutt_palace: { kind: 'hostile', terrain: 'fort', ambush: 'hutt_guard', dist: 5, danger: 4, enemy: 'hutt_guard', strength: 60 },
+      rebel_post:  { kind: 'hostile', terrain: 'rocks', ambush: 'rebels', dist: 4, danger: 3, enemy: 'rebels', strength: 24, hidden: true },
     },
 
     // Добыча за победу над лагерем (упрощённый бой; в этапе 3 — по итогам автобоя)
@@ -278,6 +278,82 @@
         womp_rats:     { when: 'night', weight: 5, minDay: 3, cooldown: 7, waterLoss: [10, 30], huntDisc: 1, trapEnergy: 5 },
         tusken_raid:   { when: 'raid', flareEnergy: 15, flareChance: 0.6, tributeWater: 60, tributeRelation: 3 },
       },
+    },
+
+    // ---------- АВТОБОЙ ----------
+    battle: {
+      w: 24, h: 16,                 // размер поля в клетках
+      maxTicks: 900,                // предел боя (тик = 0,1 с боевого времени)
+      maxPerSide: 40,               // больше бойцов на поле не выводится
+      playbackTps: 16,              // тиков в секунду при скорости ×1
+      // Характеристики: hp — здоровье, armor — броня, acc — точность (%), dmg — урон,
+      // range — дальность (клетки), cd — перезарядка (тики), speed — тиков на клетку, morale — стойкость (null — нет)
+      types: {
+        trooper:      { hp: 60,  armor: 2, acc: 48, dmg: [10, 15], range: 7,  cd: 12, speed: 6, morale: 60 },
+        sand:         { hp: 62,  armor: 2, acc: 50, dmg: [10, 15], range: 7,  cd: 12, speed: 5, morale: 65, desert: true },
+        heavy:        { hp: 74,  armor: 3, acc: 44, dmg: [8, 12],  range: 7,  cd: 20, speed: 8, morale: 65, burst: 3 },
+        sniper:       { hp: 52,  armor: 1, acc: 70, dmg: [24, 32], range: 12, cd: 30, speed: 6, morale: 60, coverPierce: 0.5 },
+        scout:        { hp: 56,  armor: 2, acc: 46, dmg: [9, 13],  range: 5,  cd: 11, speed: 3, morale: 60 },
+        medic:        { hp: 56,  armor: 2, acc: 44, dmg: [8, 12],  range: 6,  cd: 14, speed: 6, morale: 65, heal: 9, healCd: 24 },
+        droid:        { hp: 150, armor: 5, acc: 48, dmg: [12, 17], range: 6,  cd: 14, speed: 8, morale: null },
+        merc:         { hp: 66,  armor: 2, acc: 50, dmg: [11, 16], range: 7,  cd: 12, speed: 6, morale: 55 },
+        walker:       { hp: 320, armor: 8, acc: 58, dmg: [26, 34], range: 9,  cd: 22, speed: 9, morale: null, big: true },
+        turret:       { hp: 140, armor: 6, acc: 60, dmg: [16, 22], range: 9,  cd: 14, speed: 0, morale: null, static: true },
+        // противники
+        tusken:       { hp: 66,  armor: 1, acc: 52, dmg: [15, 23], range: 1,  cd: 10, speed: 4, morale: 70 },
+        tusken_rifle: { hp: 50,  armor: 0, acc: 62, dmg: [18, 26], range: 11, cd: 32, speed: 6, morale: 60 },
+        tusken_chief: { hp: 95,  armor: 2, acc: 56, dmg: [20, 28], range: 1,  cd: 10, speed: 5, morale: 95, leader: true },
+        jawa:         { hp: 26,  armor: 0, acc: 42, dmg: [6, 10],  range: 5,  cd: 12, speed: 5, morale: 30, ion: 2.5 },
+        bandit:       { hp: 48,  armor: 1, acc: 46, dmg: [9, 13],  range: 6,  cd: 11, speed: 5, morale: 50 },
+        swoop:        { hp: 42,  armor: 1, acc: 42, dmg: [9, 13],  range: 5,  cd: 11, speed: 2, morale: 50 },
+        bandit_boss:  { hp: 90,  armor: 3, acc: 54, dmg: [12, 17], range: 6,  cd: 11, speed: 5, morale: 85, leader: true },
+        rebel:        { hp: 56,  armor: 1, acc: 56, dmg: [10, 14], range: 7,  cd: 12, speed: 5, morale: 65 },
+        rebel_heavy:  { hp: 64,  armor: 2, acc: 48, dmg: [8, 12],  range: 7,  cd: 20, speed: 7, morale: 70, burst: 3 },
+        rebel_officer:{ hp: 70,  armor: 2, acc: 60, dmg: [11, 15], range: 7,  cd: 12, speed: 5, morale: 90, leader: true },
+        smuggler:     { hp: 54,  armor: 1, acc: 58, dmg: [11, 16], range: 6,  cd: 11, speed: 5, morale: 55 },
+        gamorrean:    { hp: 110, armor: 3, acc: 50, dmg: [20, 30], range: 1,  cd: 13, speed: 7, morale: 60 },
+        hutt_guard:   { hp: 58,  armor: 2, acc: 54, dmg: [11, 15], range: 7,  cd: 12, speed: 6, morale: 55 },
+        krayt:        { hp: 1500, armor: 6, acc: 72, dmg: [40, 60], range: 2, cd: 15, speed: 5, morale: null, big: true, sweep: 0.7 },
+      },
+      // Состав врага: [тип, вес в отряде, «цена» в единицах силы]
+      armies: {
+        tusken:      { units: [['tusken', 3, 1], ['tusken_rifle', 1, 1.1]], leader: 'tusken_chief', leaderFrom: 14, tactic: 'flank', map: 'rocks', retreatAt: 0.65 },
+        tusken_camp: { units: [['tusken', 3, 1], ['tusken_rifle', 1, 1.1]], leader: 'tusken_chief', leaderFrom: 0, tactic: 'defense', map: 'rocks', retreatAt: 0.75 },
+        jawa:        { units: [['jawa', 1, 0.6]], tactic: 'defense', map: 'desert', retreatAt: 0.4 },
+        bandits:     { units: [['bandit', 2, 1], ['swoop', 1, 1]], leader: 'bandit_boss', leaderFrom: 12, tactic: 'assault', map: 'rocks', retreatAt: 0.6 },
+        rebels:      { units: [['rebel', 3, 1.1], ['rebel_heavy', 1, 1.3]], leader: 'rebel_officer', leaderFrom: 10, tactic: 'defense', map: 'rocks', retreatAt: 0.7 },
+        smugglers:   { units: [['smuggler', 1, 1.1]], tactic: 'defense', map: 'desert', retreatAt: 0.6 },
+        hutt_guard:  { units: [['hutt_guard', 2, 1.1], ['gamorrean', 1, 1.5]], tactic: 'defense', map: 'fort', retreatAt: 0.8 },
+        krayt:       { units: [['krayt', 1, 34]], max: 1, tactic: 'assault', map: 'desert', retreatAt: 1 },
+      },
+      maxEnemies: 30,
+      night: { acc: [-14, -4] },    // ночной бой: штраф точности [нашим, противнику]
+      surprise: { morale: -20, enemyZone: [13, 18] }, // внезапный налёт
+      hit: { min: 5, max: 95, distFree: 3, distPenalty: 3, moving: 10, suppFactor: 0.5, meleeBonus: 15, burstPenalty: 10 },
+      cover: { solid: 30, wall: 40, dune: 10 },
+      crit: { chance: 0.08, mult: 1.6 },
+      morale: { allyDown: -10, allyRadius: 5, leaderDown: -25, hit: -4, regen: 0.08, breakAt: 15, rallyAt: 40, disciplineFactor: 0.4 },
+      supp: { perMiss: 7, perHit: 4, decay: 0.5, max: 60, coverAt: 20 },
+      defenseIdleAdvance: 70,       // обороняющиеся без цели столько тиков — начинают выдвигаться
+      flankMaxTicks: 160,           // сколько длится обходной манёвр
+      // Исход для упавших бойцов
+      downed: { deathChance: 0.5, medicReduce: 0.12, medicReduceMax: 0.3, lostDeathChance: 0.85,
+                heavyHealth: [12, 30], droidDestroyChance: 0.5, droidHealth: [10, 25] },
+      xp: { participate: 3, kill: 8, win: 5 },
+      scrapPerKill: 2,
+      // Приказы генерала: cd — перезарядка, dur — длительность (тики)
+      orders: {
+        focus:   { cd: 180, dur: 50, acc: 12 },
+        hold:    { cd: 240, dur: 60, morale: 30, armor: 2, lossTrigger: 0.2, moraleTrigger: 45 },
+        smoke:   { cd: 260, dur: 80, radius2: 3, suppTrigger: 3 },
+        rush:    { cd: 250, dur: 50, speed: 1.5 },
+        grenade: { cd: 200, dmg: [26, 40], radius2: 2, supp: 30, minTargets: 3, needSection: ['armory', 1] },
+        medkit:  { cd: 300, heal: 20, below: 0.5, minWounded: 3, needSection: ['medbay', 1] },
+      },
+      maxOrders: 2,
+      retreatOptions: [0, 0.25, 0.5],
+      // Ширина зон развёртывания
+      zones: { attackerDepth: 4, defenderDepth: 5 },
     },
 
     chronicleLimit: 1500,

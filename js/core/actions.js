@@ -83,6 +83,12 @@
   function maybeAmbush(s, rng, regionId, squad, mult) {
     const p = Actions.ambushChance(s, regionId, squad.length, mult);
     if (!rng.chance(p)) return false;
+    if (G.BattleFlow && squad.some(G.Units.isAlive)) {
+      // Автобой: засада разыгрывается отдельным боем сразу после приказа
+      say(s, 'На обратном пути из района «' + G.Regions.name(regionId) + '» отряд попал в засаду!', 'battle');
+      G.BattleFlow.ambush(s, rng, regionId, squad);
+      return false;
+    }
     const enemy = Actions.enemyStrengthFor(s, rng, regionId);
     const res = Actions.skirmish(s, rng, squad, enemy, 'засада');
     const head = 'Засада в районе «' + G.Regions.name(regionId) + '»! ';
@@ -338,7 +344,8 @@
       return r.explored >= 30 ? 'Разведка оценивает силы врага: ' + strengthWord(s, e) + '.' : 'Силы врага неизвестны — сначала стоит провести разведку.';
     },
     resolve(s, o, rng, squad) {
-      G.Battle.fromAttack(s, rng, o, squad);
+      if (G.BattleFlow) G.BattleFlow.fromAttack(s, rng, o, squad);
+      else G.Battle.fromAttack(s, rng, o, squad);
     },
   };
 

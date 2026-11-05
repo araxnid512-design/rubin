@@ -347,7 +347,7 @@
       { id: 'fight', label: 'Открыть огонь из всего, что есть', hint: 'Безумие. Но жемчужина крайт-дракона стоит целое состояние',
         run(s, ctx, rng, E) {
           E.reveal(s, 'krayt_lair');
-          return E.fight(s, rng, { enemy: 'krayt', strength: C('krayt_roar').fightStrength, squad: 'camp', title: 'бой с крайт-драконом', after: 'krayt_fight' });
+          return E.fight(s, rng, { enemy: 'krayt', strength: C('krayt_roar').fightStrength, squad: 'camp', title: 'бой с крайт-драконом', after: 'krayt_fight', night: true });
         } },
     ],
   });
@@ -799,7 +799,7 @@
     choices: [
       { id: 'fight', label: (s, ctx) => (ctx && ctx.surprised ? 'К оружию!' : 'Встретить огнём'),
         run(s, ctx, rng, E) {
-          return E.fight(s, rng, { enemy: 'tusken', strength: ctx.strength, squad: 'camp', title: 'ночной налёт таскенов', after: 'raid', ctx: ctx });
+          return E.fight(s, rng, { enemy: 'tusken', strength: ctx.strength, squad: 'camp', title: 'ночной налёт таскенов', after: 'raid', ctx: ctx, night: true });
         } },
       { id: 'flare', label: (s) => 'Осветительные ракеты — отпугнуть (' + C('tusken_raid').flareEnergy + ' энергии)',
         show: (s, ctx) => !ctx.surprised, req: needRes('energy', C('tusken_raid').flareEnergy),
@@ -808,7 +808,7 @@
           E.res(s, { energy: -c.flareEnergy });
           if (rng.chance(c.flareChance)) return 'Белый свет залил пустыню. Таскены замерли — и растворились за гребнем.';
           ctx.strength *= 1.15;
-          return 'Ракеты не напугали налётчиков. ' + E.fight(s, rng, { enemy: 'tusken', strength: ctx.strength, squad: 'camp', title: 'ночной налёт таскенов', after: 'raid', ctx: ctx });
+          return 'Ракеты не напугали налётчиков. ' + E.fight(s, rng, { enemy: 'tusken', strength: ctx.strength, squad: 'camp', title: 'ночной налёт таскенов', after: 'raid', ctx: ctx, night: true });
         } },
       { id: 'tribute', label: (s) => 'Оставить за периметром воду (' + C('tusken_raid').tributeWater + ' л) и не стрелять',
         show: (s, ctx) => !ctx.surprised, req: needRes('water', C('tusken_raid').tributeWater),

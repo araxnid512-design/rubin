@@ -3,23 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const G = require('./load.js').load();
 
-// Простой «бот»: каждый день добывает воду, разведывает и разбирает/ремонтирует
-function botDay(s) {
-  const water = G.Actions.defs.water.targets(s);
-  if (water.length) G.Game.addOrder(s, G.Game.makeOrder(s, 'water', water[0], 12, 0));
-  const recon = G.Actions.defs.recon.targets(s).filter((id) => s.regions[id].explored < 100);
-  if (recon.length) G.Game.addOrder(s, G.Game.makeOrder(s, 'recon', recon[0], 5, 0));
-  const rep = G.Actions.defs.repair.targets(s).filter((id) => G.Base.canRepair(s, id).ok);
-  if (rep.length) G.Game.addOrder(s, G.Game.makeOrder(s, 'repair', rep[0], 12, 2));
-  else G.Game.addOrder(s, G.Game.makeOrder(s, 'salvage', 'crash', 12, 2));
-  G.Game.endDay(s);
-  let guard = 0;
-  while (s.pending && guard++ < 50) {
-    if (s.pending.kind === 'trade') G.Game.act(s, { action: 'close' });
-    else if (G.TestBot && G.TestBot.handle(s)) continue;
-    else break;
-  }
-}
+const { botDay } = require('./bot.js');
 
 test('новая игра: 52 штурмовика, 2 дроида, уникальные номера', () => {
   const s = G.Game.newGame({ seed: 1 });
@@ -110,4 +94,3 @@ test('кампания в 40 дней проходит без ошибок', () 
   }
 });
 
-module.exports = { botDay };
