@@ -387,8 +387,9 @@ function lineOfSight(a, b) {
 	const d = Math.hypot(b.x - a.x, b.z - a.z), steps = Math.ceil(d / (CELL * 0.5));
 	// стоящий вплотную к машине или стене — в «занятой» клетке (сетка с запасом на радиус): первые (последние) полметра
 	// пути от такой точки не считаем — иначе боец у машины не видит заражённого в шаге от себя и не стреляет
-	const [ax, az] = cell(a.x, a.z), [bx, bz] = cell(b.x, b.z);
-	const t0 = blocked[az * N + ax] ? 0.55 / (d || 1) : 0, t1 = blocked[bz * N + bx] ? 1 - 0.55 / (d || 1) : 1;
+	// (только вблизи, до 3,5 м: на расстоянии — как прежде, чтобы укрытие за машиной оставалось укрытием)
+	const [ax, az] = cell(a.x, a.z), [bx, bz] = cell(b.x, b.z), near = d < 3.5;
+	const t0 = near && blocked[az * N + ax] ? 0.55 / (d || 1) : 0, t1 = near && blocked[bz * N + bx] ? 1 - 0.55 / (d || 1) : 1;
 	for (let i = 1; i < steps; i++) {
 		const t = i / steps;
 		if (t < t0 || t > t1) continue;
