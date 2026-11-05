@@ -1,55 +1,90 @@
-# Сборка Android-приложения (APK) из веб-версии игры с помощью Capacitor.
-# Готовый APK — в артефактах запуска: Actions → «Android APK» → kolrat-apk.
-name: Android APK
+# Сборка Android-приложения «Колрат» (Capacitor) при каждом изменении игры.
+# Готовый APK лежит по постоянной ссылке:
+# https://github.com/araxnid512-design/rubin/releases/download/kolrat/kolrat.apk
+name: Колрат APK
 
 on:
   push:
+    branches: ['claude/star-wars-survival-strategy-035wez']
     paths-ignore: ['**.md']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: kolrat-apk
+  cancel-in-progress: true
+
 jobs:
-  apk:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Зависимости
-        run: npm ci
-
-      - name: Тесты игры
-        run: npm test
+      - name: Зависимости и тесты игры
+        run: |
+          npm ci
+          npm test
 
       - name: Android-проект (Capacitor)
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
         run: |
           npm run build:www
           npx cap add android
           node tools/android-setup.js
           npx cap sync android
 
-      - name: Сборка APK
+      # Постоянный debug-ключ (тот же, что у других игр репозитория): обновления ставятся без удаления
+      - name: Ключ подписи
+        run: |
+          mkdir -p ~/.android
+          cp android-res/debug.keystore ~/.android/debug.keystore
+
+      - name: Собрать APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Переименовать APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk kolrat-tatooine.apk
+      - name: Проверить подпись и манифест
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT"/apksigner verify --verbose --print-certs "$APK" | head -12
+          "$BT"/aapt2 dump badging "$APK" | grep -E "^package|orientation|application-label" | head -6
+          cp "$APK" kolrat.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: kolrat-apk
-          path: kolrat-tatooine.apk
+          path: kolrat.apk
           retention-days: 30
+
+      # Отдельный релиз с постоянным тегом; «последним» не помечается, чтобы не сбить ссылки других игр
+      - name: Опубликовать
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TITLE="Колрат: Песок Татуина 1.0.${{ github.run_number }}"
+          NOTES="Сборка из коммита ${{ github.sha }}. Скачайте kolrat.apk на телефон и откройте его; новая версия ставится поверх старой, прогресс сохраняется. Игра запускается горизонтально и во весь экран."
+          if gh release view kolrat >/dev/null 2>&1; then
+            gh release upload kolrat kolrat.apk --clobber
+            gh release edit kolrat --title "$TITLE" --notes "$NOTES" --latest=false
+          else
+            gh release create kolrat kolrat.apk --title "$TITLE" --notes "$NOTES" --target "${{ github.sha }}" --latest=false
+          fi

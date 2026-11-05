@@ -32,6 +32,7 @@ fs.writeFileSync(stylesPath, styles);
 // 3. Иконки: копируем готовые PNG по плотностям, фон адаптивной иконки — тёмный
 const RES = path.join(ROOT, 'android-res');
 for (const dir of fs.readdirSync(RES)) {
+  if (!fs.statSync(path.join(RES, dir)).isDirectory()) continue; // debug.keystore и прочие файлы — не ресурсы
   const dst = path.join(APP, 'res', dir);
   fs.mkdirSync(dst, { recursive: true });
   for (const f of fs.readdirSync(path.join(RES, dir))) fs.copyFileSync(path.join(RES, dir, f), path.join(dst, f));
@@ -39,4 +40,11 @@ for (const dir of fs.readdirSync(RES)) {
 const bgPath = path.join(APP, 'res', 'values', 'ic_launcher_background.xml');
 fs.writeFileSync(bgPath, '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#16181C</color>\n</resources>\n');
 
-console.log('Android-проект настроен: горизонтально, во весь экран, иконки игры.');
+// 4. Номер версии из сборки (VERSION_CODE / VERSION_NAME): новая версия ставится поверх старой
+const gradlePath = path.join(ROOT, 'android', 'app', 'build.gradle');
+let gradle = fs.readFileSync(gradlePath, 'utf8');
+gradle = gradle.replace(/versionCode\s+\d+/, "versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')");
+gradle = gradle.replace(/versionName\s+"[^"]*"/, "versionName System.getenv('VERSION_NAME') ?: '1.0-dev'");
+fs.writeFileSync(gradlePath, gradle);
+
+console.log('Android-проект настроен: горизонтально, во весь экран, иконки игры, номер версии.');
