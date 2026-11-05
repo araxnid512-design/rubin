@@ -38,6 +38,22 @@
   <div class="logo">Монстрохор<small>поющие монстрики</small></div>
   <button class="play">▶ Играть</button>
   <div class="note">Включи звук: каждый монстр поёт свою партию</div>
+  <button class="inst" id="bInstall" hidden>Установить на Android</button>
+</div>
+<div id="install" hidden>
+  <div class="ibox">
+    <h3>Как установить на телефон</h3>
+    <ol>
+      <li>Нажми «Скопировать ссылку».</li>
+      <li>Открой <b>Chrome</b> значком на рабочем столе (не внутри Claude).</li>
+      <li>Вставь ссылку в адресную строку и нажми Enter.</li>
+      <li>На вопрос «Всё равно скачать?» — <b>«Скачать»</b>.</li>
+      <li>Открой файл → <b>«Встановити»</b>, в окне Play Захисту — <b>«Не надсилати»</b>.</li>
+    </ol>
+    <input id="instLink" readonly value="https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk">
+    <div class="ibtns"><button class="btn green" id="bCopy">Скопировать ссылку</button><a class="btn" id="bChrome" href="intent://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk#Intent;scheme=https;package=com.android.chrome;end">Открыть в Chrome</a><button class="btn" id="bInstClose">Закрыть</button></div>
+    <small>Во встроенном окне Claude установочный файл не докачивается — нужен сам Chrome.</small>
+  </div>
 </div>
 
 <script src="js/audio.js"></script>

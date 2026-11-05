@@ -884,7 +884,18 @@ function startGame() {
   const got = offline(); if (got > 0) setTimeout(() => toast(`Пока тебя не было, монстры напели ${got} монет — собери их!`), 600);
   hud();
 }
-$('start').addEventListener('click', startGame);
+$('start').addEventListener('click', e => { if (!e.target.closest('#bInstall')) startGame(); });
+// онлайн-версия (не установленная игра): подсказка, как поставить APK через Chrome
+if (location.protocol !== 'file:') {
+  $('bInstall').hidden = false;
+  $('bInstall').addEventListener('click', () => { $('install').hidden = false; });
+  $('bInstClose').addEventListener('click', () => { $('install').hidden = true; });
+  $('bCopy').addEventListener('click', () => {
+    const t = $('instLink').value, ok = () => { $('bCopy').textContent = 'Ссылка скопирована'; };
+    const sel = () => { $('instLink').focus(); $('instLink').select(); try { if (document.execCommand('copy')) ok(); } catch (e) {} };
+    try { navigator.clipboard.writeText(t).then(ok, sel); } catch (e) { sel(); }
+  });
+}
 document.addEventListener('visibilitychange', () => { if (!S) return; if (document.hidden) { save(); Sound.suspend(); } else { Sound.resume(); } });
 window.appPause = () => { if (S) save(); Sound.suspend(); };
 window.appResume = () => Sound.resume();

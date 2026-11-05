@@ -17,6 +17,10 @@
   Gradle (504), это сбой сервера — перезапустить упавшую задачу.
   Пользователю давать прямую ссылку (всегда последняя сборка):
   https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk
+- Онлайн-версия (играть в приложении Claude без установки) — артефакт https://claude.ai/artifact/1w11qfMcuvMMXtXsBbuS1T.
+  Обновлять этот же артефакт: страница — `<title>`, CSS из `www/style.css` внутри `<style>` и тело `www/index.html`;
+  рядом файлы `js/audio.js`, `js/monsters.js`, `js/game.js`. В онлайн-версии на заставке кнопка «Установить на Android»
+  с подсказкой и копированием ссылки (в APK скрыта: там `location.protocol === 'file:'`).
 - Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
 - Ссылка из чата открывается во встроенном браузере приложения Claude: там скачивание APK зависает на 100%
   («Скачивание…», окно «всё равно скачать» не показывается). Сразу писать: ⋮ → «Открыть в Chrome» → «Скачать».
