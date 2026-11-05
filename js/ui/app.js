@@ -71,8 +71,8 @@
     const s = UI.s;
     let content = null;
     if (UI.overlay) content = UI.overlay();
-    else if (s && s.over && !UI.overSeen) content = UI.modals.over(s);
     else if (s && s.pending && UI.modals[s.pending.kind]) content = UI.modals[s.pending.kind](s);
+    else if (s && s.over && !UI.overSeen) content = UI.modals.over(s);
     if (content) {
       root.appendChild(h('div', { class: 'overlay' }, content));
       document.body.style.overflow = 'hidden';
@@ -143,6 +143,14 @@
             h('button', { class: 'btn small', onclick: () => { const s = G.Save.read(k); if (s) UI.start(s); } }, 'Загрузить')))));
       }
       wrap.appendChild(h('div', { class: 'card' }, G.Dom.paragraphs(G.TEXT.titleBlurb)));
+      const recs = UI.records ? UI.records() : [];
+      if (recs.length) {
+        const dn = { easy: 'лёгк.', normal: 'обычн.', hard: 'тяж.' };
+        wrap.appendChild(h('div', { class: 'card' }, h('h3', null, 'Рекорды генерала'),
+          recs.slice(0, 5).map((r, i) => h('div', { class: 'row between small', style: 'padding:3px 0' },
+            h('span', null, (i + 1) + '. ' + (G.TEXT.endings[r.reason] ? G.TEXT.endings[r.reason].title : r.reason) + ' · день ' + r.day + ' · выжило ' + r.alive + ' · ' + dn[r.difficulty]),
+            h('b', { class: 'mono' }, String(r.score))))));
+      }
     } else {
       const diffs = [['easy', 'Лёгкая'], ['normal', 'Обычная'], ['hard', 'Тяжёлая']];
       wrap.appendChild(h('div', { class: 'card' },

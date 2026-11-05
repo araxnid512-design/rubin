@@ -13,8 +13,8 @@
     // Множители сложности
     difficulty: {
       easy:   { upkeep: 0.8,  enemy: 0.8,  danger: 0.7, loot: 1.25, events: 0.8 },
-      normal: { upkeep: 1.0,  enemy: 1.0,  danger: 1.0, loot: 1.0,  events: 1.0 },
-      hard:   { upkeep: 1.15, enemy: 1.25, danger: 1.3, loot: 0.85, events: 1.2 },
+      normal: { upkeep: 1.05, enemy: 1.12, danger: 1.1, loot: 1.0,  events: 1.1 },
+      hard:   { upkeep: 1.2,  enemy: 1.3,  danger: 1.35, loot: 0.8, events: 1.25 },
     },
 
     // ---------- СТАРТ ----------
@@ -66,7 +66,7 @@
     upkeep: {
       woundedExtraWater: 1,         // тяжелораненым — доп. вода в сутки
       expeditionWaterPerDist: 0.5,  // доп. вода бойцу вылазки за единицу расстояния
-      droidEnergy: 4,               // энергия на дроида в сутки
+      droidEnergy: 3,               // энергия на дроида в сутки
       baseEnergy: 8,                // жизнеобеспечение лагеря
       thirstHealth: 12,             // если воды нет совсем: потеря здоровья
       thirstDiscipline: 10,         // и дисциплины
@@ -107,6 +107,8 @@
       diplomacy: { min: 1, max: 6, droids: false, suggest: 2, xp: 3, giftCredits: 40, giftWater: 40 },
       attack:    { min: 4, max: 52, droids: true, suggest: 20, suggestDroids: 2, xp: 10 },
       speech:    { gainMin: 4, gainMax: 9, repeatPenalty: 3, repeatDays: 3 },
+      signal:    {},
+      launch:    {},
       reward:    { credits: 60, discipline: 8, xp: 20 },
     },
 
@@ -139,10 +141,10 @@
 
     // ---------- НОЧНЫЕ НАЛЁТЫ ----------
     raids: {
-      baseChance: 0.05, perDay: 0.004, maxChance: 0.35,
+      baseChance: 0.045, perDay: 0.0025, maxChance: 0.26,
       guardReducePer: 0.03, guardReduceMax: 0.5,   // каждый часовой снижает шанс на 3% (до 50%)
       tuskenRelationFactor: 0.004,                 // отношения с таскенами
-      strengthBase: 8, strengthPerDay: 0.35,
+      strengthBase: 10, strengthPerDay: 0.3,
       alertGuards: 4,                              // столько часовых — и налёт не застанет врасплох
       surpriseMult: 1.5,
       lootWaterPerStrength: 6, lootScrapPerStrength: 2,
@@ -151,6 +153,7 @@
     // ---------- ЗАСАДЫ И СТЫЧКИ (упрощённый расчёт) ----------
     skirmish: {
       enemyStrengthPerDanger: 4, enemyStrengthNoise: [0.7, 1.3],
+      ambushBase: 0.5, ambushPerDanger: 0.2,  // засада: сила = (база + опасность × k) × размер отряда
       woundRate: 0.25, killRate: 0.08,      // от числа бойцов при равных силах
       winXp: 8,
     },
@@ -160,18 +163,18 @@
     // (scrap — металлолом, energy — энергия, work — человеко-дни работы, items — особые детали)
     sections: {
       reactor:  { level: 1, levels: [null, null, { scrap: 140, energy: 0, work: 50 }, { scrap: 260, energy: 0, work: 80 }],
-                  energy: [0, 24, 40, 60] },
+                  energy: [0, 24, 42, 64] },
       vapor:    { level: 0, levels: [null, { scrap: 70, energy: 25, work: 30 }, { scrap: 180, energy: 60, work: 60 }],
-                  water: [0, 30, 60] },
+                  water: [0, 28, 52] },
       medbay:   { level: 0, levels: [null, { scrap: 60, energy: 30, work: 28 }, { scrap: 140, energy: 60, work: 50 }],
                   heal: [0, 4, 7], deathMult: [1, 0.35, 0.12] },
       armory:   { level: 0, levels: [null, { scrap: 80, energy: 20, work: 34 }, { scrap: 180, energy: 50, work: 60 }] },
       workshop: { level: 0, levels: [null, { scrap: 90, energy: 30, work: 38 }, { scrap: 190, energy: 60, work: 64 }] },
       hangar:   { level: 0, levels: [null, { scrap: 120, energy: 30, work: 48 }] },
       sensors:  { level: 0, levels: [null, { scrap: 50, energy: 30, work: 20 }], raidReduce: [0, 0.3] },
-      comms:    { level: 0, levels: [null, { scrap: 100, energy: 40, work: 40 },
-                                        { scrap: 160, energy: 80, work: 55, items: { commModule: 1 } },
-                                        { scrap: 220, energy: 150, work: 70, items: { commModule: 2 } }] },
+      comms:    { level: 0, levels: [null, { scrap: 100, energy: 40, work: 30 },
+                                        { scrap: 160, energy: 80, work: 40, items: { commModule: 1 } },
+                                        { scrap: 220, energy: 120, work: 50, items: { commModule: 1 } }] },
     },
 
     // ---------- НАХОДКИ ПРИ РАЗБОРЕ ОБЛОМКОВ ----------
@@ -180,10 +183,20 @@
       { id: 'credits',    weight: 25, res: { credits: [20, 70] } },
       { id: 'cells',      weight: 25, res: { energy: [15, 40] } },
       { id: 'water',      weight: 15, res: { water: [30, 80] } },
-      { id: 'commModule', weight: 5,  items: { commModule: [1, 1] }, minSalvaged: 300 },
+      { id: 'commModule', weight: 7,  items: { commModule: [1, 1] }, minSalvaged: 300, maxItem: 2 },
       { id: 'turret',     weight: 9,  vehicle: 'turret', minSalvaged: 80 },
       { id: 'speeder',    weight: 6,  vehicle: 'speeder', minSalvaged: 150 },
       { id: 'walker',     weight: 3,  vehicle: 'walker', minSalvaged: 600, max: 1 },
+    ],
+
+    // ---------- ВЕХИ РАЗБОРА ----------
+    // Когда в районе разобрано столько металла — гарантированная находка (один раз)
+    milestones: [
+      { id: 'crash_comms', region: 'crash', salvaged: 350, items: { commModule: 1 } },
+      { id: 'crash_turret', region: 'crash', salvaged: 150, vehicle: 'turret' },
+      { id: 'graveyard_speeder', region: 'graveyard', salvaged: 120, vehicle: 'speeder' },
+      { id: 'graveyard_comms', region: 'graveyard', salvaged: 300, items: { commModule: 1 } },
+      { id: 'graveyard_parts', region: 'graveyard', salvaged: 450, items: { hyperParts: 1 } },
     ],
 
     // ---------- РЕГИОНЫ ----------
@@ -211,13 +224,13 @@
       bandit_den:  { kind: 'hostile', terrain: 'wreck', ambush: 'bandits', dist: 3, danger: 3, enemy: 'bandits', strength: 15 },
       krayt_lair:  { kind: 'hostile', terrain: 'desert', ambush: 'tusken', dist: 4, danger: 4, enemy: 'krayt', strength: 40 },
       hutt_palace: { kind: 'hostile', terrain: 'fort', ambush: 'hutt_guard', dist: 5, danger: 4, enemy: 'hutt_guard', strength: 60 },
-      rebel_post:  { kind: 'hostile', terrain: 'rocks', ambush: 'rebels', dist: 4, danger: 3, enemy: 'rebels', strength: 24, hidden: true },
+      rebel_post:  { kind: 'hostile', terrain: 'rocks', ambush: 'rebels', dist: 4, danger: 3, enemy: 'rebels', strength: 17, hidden: true },
     },
 
     // Добыча за победу над лагерем (упрощённый бой; в этапе 3 — по итогам автобоя)
     loot: {
       tusken_camp: { water: [80, 160], scrap: [20, 50], credits: [0, 40] },
-      bandits:     { water: [40, 90], scrap: [40, 90], credits: [80, 180] },
+      bandits:     { water: [40, 90], scrap: [40, 90], credits: [80, 180], items: { hyperParts: [1, 1], fuel: [0, 1] } },
       krayt:       { items: { kraytPearl: [1, 1] }, scrap: [0, 0] },
       hutt_guard:  { credits: [400, 700], water: [200, 300], items: { fuel: [1, 2] } },
       rebels:      { items: { commModule: [1, 1] }, credits: [50, 120], scrap: [30, 60] },
@@ -227,6 +240,7 @@
     // weight — вес при случайном выборе, minDay — не раньше дня, cooldown — дней до повтора,
     // max — сколько раз за кампанию. Остальные числа — последствия вариантов выбора.
     events: {
+      fightGrowthPerDay: 0.005, // сила врагов в событиях растёт со временем
       dayChance: 0.45,     // шанс дневного события
       nightChance: 0.22,   // шанс ночного события (помимо налётов)
       list: {
@@ -245,7 +259,7 @@
         hutt_job_return: { when: 'timer' },
         capsule_signal:{ when: 'any', weight: 7, minDay: 2, cooldown: 4, max: 4,
                          squad: 8, waterCost: 30, foundChance: 0.5, jawaChance: 0.25,
-                         survivors: [2, 5], survivorHp: [35, 80], tuskenStrength: 9, ignoreDisc: -4 },
+                         survivors: [2, 5], survivorHp: [35, 80], tuskenStrength: 6, ignoreDisc: -4 },
         capsule_jawas: { when: 'chain', ransomCredits: 120, ransomScrap: 90, forceStrength: 6, forceRelation: -30 },
         rebel_tracks:  { when: 'day', weight: 6, minDay: 6, cooldown: 8, max: 3,
                          ambushStrength: 8, trackChance: 0.6, trackRisk: 0.3, trackStrength: 10 },
@@ -269,7 +283,7 @@
         tusken_sign:   { when: 'day', weight: 4, minDay: 8, cooldown: 10, minRelation: -20,
                          water: 80, relation: 12, ignoreRelation: -5 },
         missing_patrol:{ when: 'day', weight: 4, minDay: 10, cooldown: 12,
-                         lost: [2, 3], searchSquad: 10, searchStrength: 10, waitChance: 0.45, writeOffDisc: -5 },
+                         lost: [2, 3], searchSquad: 10, searchStrength: 7, waitChance: 0.45, writeOffDisc: -5 },
         smugglers:     { when: 'day', weight: 3, minDay: 14, cooldown: 14, max: 3,
                          partsPrice: 350, fuelPrice: 110, fuelQty: 2, raidStrength: 16 },
         security_droid:{ when: 'day', weight: 4, minDay: 4, cooldown: 12, max: 3,
@@ -280,6 +294,9 @@
         bandit_raid:   { when: 'timer', strength: 13, lootWater: [40, 80], lootScrap: [30, 60], payWater: 90, payScrap: 90 },
         empire_day:    { when: 'fixed', day: 30, feastWater: 50, feastDisc: 8, plainDisc: 3 },
         womp_rats:     { when: 'night', weight: 5, minDay: 3, cooldown: 7, waterLoss: [10, 30], huntDisc: 1, trapEnergy: 5 },
+        fleet_arrival: { when: 'signal' },
+        rebel_strike:  { when: 'signal' },
+        shuttle_launch:{ when: 'chain' },
         tusken_raid:   { when: 'raid', flareEnergy: 15, flareChance: 0.6, tributeWater: 60, tributeRelation: 3 },
       },
     },
@@ -304,14 +321,36 @@
       fix_turret:   { needSection: ['workshop', 1], cost: { scrap: 30, energy: 30 }, work: 8 },
       droid_repair: { needSection: ['workshop', 1], cost: { scrap: 30, energy: 20 }, work: 6, heal: 45 },
       droid_build:  { needSection: ['workshop', 2], cost: { scrap: 150, energy: 80 }, work: 30 },
+      shuttle:      { needSection: ['hangar', 1], cost: { scrap: 300, energy: 150, items: { hyperParts: 2, fuel: 4 } }, work: 60 },
     },
     vehicles: {
-      upkeep: { speeder: 1, walker: 6, turret: 2 },   // энергия в сутки за исправную машину
+      upkeep: { speeder: 0, walker: 4, turret: 1 },   // энергия в сутки за исправную машину
       battleDestroyChance: { walker: 0.3, turret: 0.4 },
     },
     droidSelfRepair: { perDay: [0, 6, 10], energy: 2 },  // мастерская дроидов чинит их сама
     armoryAccBonus: [0, 0, 4],                         // лучшее оружие из арсенала: +точность
     jawaSpeederPrice: 160,
+
+    // ---------- ФИНАЛ ----------
+    final: {
+      fleetDays: 10,           // через сколько дней после сигнала приходит флот
+      sectorBonusDays: 2,      // если известен сектор флота (событие «Обрывок передачи»)
+      signalRaidMult: 2.0,     // после сигнала налёты чаще…
+      signalStrengthMult: 1.3, // …и сильнее
+      strikeChance: 0.4,       // шанс ночного удара повстанцев, услышавших сигнал
+      strikeStrength: 24,
+      finalArmy: 'rebels',
+      finalStrength: 48,       // финальный бой перед посадкой флота
+      mercyStrengthMult: 0.75, // если отпустили пленного повстанца — их меньше
+      shuttleCapacity: 24,
+      abandonCredits: 300,
+    },
+    // Итоговый счёт: base — за исход, survivor — за каждого выжившего и т.д.
+    score: {
+      base: { fleet: 1000, fleet_costly: 650, shuttle_all: 900, shuttle_some: 550, abandon: 50, dead: 0, mutiny: 0 },
+      survivor: 40, kill: 2, death: -15, day: -4,
+      diffMult: { easy: 0.7, normal: 1.0, hard: 1.4 },
+    },
 
     // ---------- АВТОБОЙ ----------
     battle: {
@@ -359,8 +398,8 @@
         hutt_guard:  { units: [['hutt_guard', 2, 1.1], ['gamorrean', 1, 1.5]], tactic: 'defense', map: 'fort', retreatAt: 0.8 },
         krayt:       { units: [['krayt', 1, 34]], max: 1, tactic: 'assault', map: 'desert', retreatAt: 1 },
       },
-      maxEnemies: 30,
-      night: { acc: [-14, -4] },    // ночной бой: штраф точности [нашим, противнику]
+      maxEnemies: 34,
+      night: { acc: [-10, -3] },    // ночной бой: штраф точности [нашим, противнику]
       surprise: { morale: -20, enemyZone: [13, 18] }, // внезапный налёт
       hit: { min: 5, max: 95, distFree: 3, distPenalty: 3, moving: 10, suppFactor: 0.5, meleeBonus: 15, burstPenalty: 10 },
       cover: { solid: 30, wall: 40, dune: 10 },
@@ -370,7 +409,7 @@
       defenseIdleAdvance: 70,       // обороняющиеся без цели столько тиков — начинают выдвигаться
       flankMaxTicks: 160,           // сколько длится обходной манёвр
       // Исход для упавших бойцов
-      downed: { deathChance: 0.5, medicReduce: 0.12, medicReduceMax: 0.3, lostDeathChance: 0.85,
+      downed: { deathChance: 0.4, medicReduce: 0.1, medicReduceMax: 0.25, lostDeathChance: 0.7,
                 heavyHealth: [12, 30], droidDestroyChance: 0.5, droidHealth: [10, 25] },
       xp: { participate: 3, kill: 8, win: 5 },
       scrapPerKill: 2,

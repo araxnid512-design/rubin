@@ -204,6 +204,8 @@
       G.Res.add(s, 'scrap', amount);
       s.stats.scrapFound += amount;
       if (o.target === 'crash') s.salvaged += amount;
+      r.salvaged = (r.salvaged || 0) + amount;
+      Actions.milestones(s, rng, o.target);
       if (amount <= 0) {
         say(s, 'Здесь больше нечего снимать: «' + G.Regions.name(o.target) + '» разобран до основания.', 'info');
         return;
@@ -222,8 +224,25 @@
     },
   };
 
+  // Гарантированные находки по мере разбора
+  Actions.milestones = function (s, rng, regionId) {
+    const done = (s.flags.milestones = s.flags.milestones || {});
+    for (const m of G.CONFIG.milestones || []) {
+      if (m.region !== regionId || done[m.id] || (s.regions[regionId].salvaged || 0) < m.salvaged) continue;
+      done[m.id] = true;
+      if (m.vehicle && G.Progress) {
+        const v = G.Progress.addVehicle(s, rng, m.vehicle, false);
+        say(s, U.fill(G.TEXT.milestones[m.id], { name: G.Progress.vehicleName(v) }), 'good');
+      } else {
+        for (const k in m.items || {}) G.Res.addItem(s, k, m.items[k]);
+        say(s, G.TEXT.milestones[m.id], 'good');
+      }
+    }
+  };
+
   Actions.rollFind = function (s, rng) {
     const list = G.CONFIG.finds.filter((f) => (!f.minSalvaged || s.salvaged >= f.minSalvaged) &&
+      (!f.maxItem || (s.flags['found_' + f.id] || 0) < f.maxItem) &&
       (!f.max || !f.vehicle || G.Progress.vehiclesOf(s, f.vehicle).length < f.max));
     const f = rng.weighted(list, (x) => x.weight);
     if (!f) return;
@@ -233,6 +252,7 @@
       return;
     }
     let n = 0;
+    if (f.maxItem) s.flags['found_' + f.id] = (s.flags['found_' + f.id] || 0) + 1;
     if (f.res) for (const k in f.res) { n = U.rollRange(rng, f.res[k]); G.Res.add(s, k, n); }
     if (f.items) for (const k in f.items) { n = U.rollRange(rng, f.items[k]); G.Res.addItem(s, k, n); }
     say(s, U.fill(G.TEXT.finds[f.id], { n: n, packs: U.plural(n, F.pack) }), 'good');
@@ -287,7 +307,7 @@
       const alive = squad.filter(G.Units.isAlive);
       const pts = workforce(s, alive, { droidMult: A().repair.droidMult });
       const text = G.Progress.work(s, rng, o.target, pts);
-      say(s, text, /готов|в строю|собран|отремонтированы/.test(text) ? 'good' : 'info');
+      say(s, text, /готов|в строю|собран|отремонтированы|восстановлен/.test(text) ? 'good' : 'info');
       for (const u of alive) G.Units.addXp(s, u, A().repair.xp);
     },
   };

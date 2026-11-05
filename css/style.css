@@ -285,3 +285,10 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 .spec-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #2b2f37; }
 .spec-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .lead { white-space: pre-line; }
+
+/* ---------- Цели и финал ---------- */
+.goals .goal { padding: 8px 0; border-bottom: 1px dashed #24272d; }
+.goals .goal:last-child { border-bottom: none; }
+.goals .goal .bar { margin: 6px 0 4px; }
+.countdown { background: #182235; border: 1px solid #36507a; color: #cfe2ff; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-weight: 600; }
+.score { font-size: 17px; margin: 8px 0; color: var(--sand2); }

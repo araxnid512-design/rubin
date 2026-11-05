@@ -112,7 +112,7 @@
     const fit = G.Units.alive(s).filter((u) => G.Units.isFit(s, u));
     const ids = camp ? BF.campSquad(s) : G.Units.pickSquad(s, fit, spec.squad || 8, 0, 'fighters');
     if (!ids.length) return G.Events.abstractFight(s, rng, spec);
-    const strength = spec.strength * G.Res.diff(s).enemy * (1 + s.day * 0.01);
+    const strength = spec.strength * G.Res.diff(s).enemy * (spec.after === 'raid' ? 1 : 1 + s.day * G.CONFIG.events.fightGrowthPerDay);
     const night = !!spec.night;
     E.next(BF.create(s, rng, {
       type: 'event', title: U.cap(spec.title || 'бой'), army: spec.enemy, strength: strength, unitIds: ids,
@@ -125,7 +125,9 @@
   // Засада на отряд в поле — бой ставится в очередь сразу за приказом
   BF.ambush = function (s, rng, regionId, squad) {
     const rc = G.Regions.cfg(regionId);
-    const strength = G.Actions.enemyStrengthFor(s, rng, regionId);
+    const sk = G.CONFIG.skirmish;
+    const size = U.sum(squad.filter(G.Units.isAlive), (u) => G.Units.combatValue(s, u));
+    const strength = Math.max(2, size * (sk.ambushBase + sk.ambushPerDanger * rc.danger) * rng.range(0.8, 1.2) * G.Res.diff(s).enemy);
     const b = BF.create(s, rng, {
       type: 'ambush', title: 'Засада: ' + G.Regions.name(regionId), army: rc.ambush || 'tusken', strength: strength,
       unitIds: squad.filter(G.Units.isAlive).map((u) => u.id), place: regionId, map: rc.terrain || 'desert', defender: null,

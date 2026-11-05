@@ -41,6 +41,7 @@
     p *= U.clamp(1 - s.relations.tusken * R.tuskenRelationFactor, 0.3, 1.6);
     if (s.regions.tusken_camp && s.regions.tusken_camp.cleared) p *= 0.4;
     p *= G.Res.diff(s).danger;
+    if (s.signal) p *= G.CONFIG.final.signalRaidMult;
     return U.clamp(p, 0, 0.9);
   };
 
@@ -112,9 +113,11 @@
       const surprised = s.guards < R.alertGuards && s.sections.sensors.level === 0;
       let strength = (R.strengthBase + R.strengthPerDay * s.day) * rng.range(0.7, 1.3);
       if (surprised) strength *= R.surpriseMult;
+      if (s.signal) strength *= G.CONFIG.final.signalStrengthMult;
       G.Events.queueNow(s, 'tusken_raid', { surprised: surprised, strength: Math.round(strength * 10) / 10 });
       return;
     }
+    if (G.Goals && G.Goals.night(s, rng)) return;
     if (G.Events) G.Events.rollNight(s, rng);
   };
 

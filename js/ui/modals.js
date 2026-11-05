@@ -76,13 +76,32 @@
   };
 
   // ---------- Конец игры ----------
+  UI.records = function () {
+    try { return JSON.parse(localStorage.getItem('kolrat.records') || '[]'); } catch (e) { return []; }
+  };
+  function saveRecord(s, score) {
+    try {
+      const list = UI.records();
+      const key = s.seed + ':' + s.over.day + ':' + s.over.reason;
+      if (list.some((r) => r.key === key)) return;
+      list.push({ key: key, score: score, reason: s.over.reason, day: s.over.day, alive: G.Units.people(s).length, difficulty: s.difficulty, date: Date.now() });
+      list.sort((a, b) => b.score - a.score);
+      localStorage.setItem('kolrat.records', JSON.stringify(list.slice(0, 10)));
+    } catch (e) { /* хранилище недоступно — не страшно */ }
+  }
+
   UI.modals.over = function (s) {
     const E = G.TEXT.endings[s.over.reason] || { title: 'Конец', text: '' };
     const st = s.stats;
     const alive = G.Units.people(s).length;
+    const score = G.Goals ? G.Goals.score(s) : 0;
+    saveRecord(s, score);
+    const vars = G.Goals ? G.Goals.endingVars(s) : {};
     return h('div', { class: 'modal' },
+      h('div', { class: 'small muted' }, s.over.type === 'victory' ? 'Кампания завершена' : 'Кампания проиграна'),
       h('h2', { class: s.over.type === 'victory' ? 'good' : 'bad' }, E.title),
-      h('div', { class: 'lead' }, paragraphs(E.text)),
+      h('div', { class: 'lead' }, paragraphs(U.fill(E.text, vars))),
+      h('div', { class: 'score' }, 'Итоговый счёт: ', h('b', { class: 'mono' }, String(score))),
       h('div', { class: 'kv', style: 'margin:10px 0' }, [
         ['Дней на Татуине', s.day],
         ['Выжило', U.pl(alive, U.FORMS.man)],

@@ -25,6 +25,7 @@ const CORE_FILES = [
   'js/battle/engine.js',
   'js/core/battleflow.js',
   'js/core/progress.js',
+  'js/core/goals.js',
   'js/core/save.js',
 ];
 

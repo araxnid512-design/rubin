@@ -173,7 +173,7 @@
 
     if (b.step === 'type') {
       box.appendChild(h('div', { class: 'row between', style: 'margin-bottom:8px' }, h('h3', null, 'Выберите приказ'), cancel));
-      box.appendChild(h('div', { class: 'actions-grid' }, G.Actions.list.map((type) => {
+      box.appendChild(h('div', { class: 'actions-grid' }, G.Actions.list.filter((type) => !(G.Actions.defs[type].hidden && G.Actions.defs[type].hidden(s))).map((type) => {
         const T = G.TEXT.actions[type];
         const why = actionAvailability(s, type);
         return h('button', { class: 'act', disabled: !!why, title: why || '', onclick: () => {
@@ -245,10 +245,38 @@
     return box;
   };
 
+  // ---------- Пути домой ----------
+  function goalsCard(s) {
+    const T = G.TEXT.goals;
+    const card = h('div', { class: 'card goals' }, h('h2', null, T.title));
+    if (s.signal) {
+      const d = G.Goals.daysToFleet(s);
+      card.appendChild(h('div', { class: 'countdown' }, d > 0 ? 'Флот прибудет через ' + U.pl(d, F.day) + '. Держитесь!' : 'Флот на подходе — сегодня!'));
+    }
+    const comms = s.sections.comms;
+    const cmax = G.Base.maxLevel('comms');
+    const modNeed = G.Goals.modulesNeeded(s);
+    card.appendChild(h('div', { class: 'goal' },
+      h('div', { class: 'row between' }, h('b', null, '✆ ' + T.comms), h('span', { class: 'mono' }, comms.level + '/' + cmax)),
+      bar(comms.level, cmax, 'blue'),
+      h('div', { class: 'small muted' }, G.Goals.commsReady(s)
+        ? (s.signal ? 'Сигнал отправлен.' : 'Узел восстановлен — отдайте приказ «Вызвать флот».')
+        : 'Ремонт узла на вкладке «Лагерь». Модулей связи: ' + (s.items.commModule || 0) + ' из ' + modNeed + ' нужных.')));
+    const hp = s.items.hyperParts || 0, fuel = s.items.fuel || 0;
+    const sc = G.CONFIG.projects.shuttle.cost.items;
+    card.appendChild(h('div', { class: 'goal' },
+      h('div', { class: 'row between' }, h('b', null, '➶ ' + T.shuttle), h('span', { class: 'mono' }, s.shuttleReady ? 'готов' : '')),
+      s.shuttleReady ? null : bar(Math.min(hp, sc.hyperParts) + Math.min(fuel, sc.fuel), sc.hyperParts + sc.fuel, 'sand'),
+      h('div', { class: 'small muted' }, s.shuttleReady ? 'Отдайте приказ «Старт шаттла», когда будете готовы.'
+        : s.sections.hangar.level < 1 ? T.noHangar + ' Детали гипердвигателя: ' + hp + '/' + sc.hyperParts + ', топливо: ' + fuel + '/' + sc.fuel + '.'
+          : 'Детали гипердвигателя: ' + hp + '/' + sc.hyperParts + ', топливо: ' + fuel + '/' + sc.fuel + '. Ремонт — приказ «Инженерные работы».')));
+    return card;
+  }
+
   UI.views.hq = function (s) {
     return h('div', { class: 'cols' },
       h('div', null, reportCard(s)),
-      h('div', null, statusCard(s), ordersCard(s))
+      h('div', null, statusCard(s), ordersCard(s), goalsCard(s))
     );
   };
 })(globalThis.G = globalThis.G || {});

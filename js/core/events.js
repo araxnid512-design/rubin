@@ -52,6 +52,7 @@
       const c = Events.cfg(id);
       if (c.when === 'fixed' && c.day === s.day && Events.defs[id] && !log(s)[id]) s.queue.push({ step: 'event', id: id, ctx: {} });
     }
+    if (G.Goals) G.Goals.planDay(s);
     const p = G.CONFIG.events.dayChance * G.Res.diff(s).events;
     if (rng.chance(p)) {
       const id = Events.roll(s, rng, 'day');
@@ -221,7 +222,7 @@
       const t = Events.after[spec.after] ? Events.after[spec.after](s, rng, false, spec.ctx || {}, E) : '';
       return 'Сражаться некому. ' + t;
     }
-    const strength = spec.strength * G.Res.diff(s).enemy * (1 + s.day * 0.01);
+    const strength = spec.strength * G.Res.diff(s).enemy * (spec.after === 'raid' ? 1 : 1 + s.day * G.CONFIG.events.fightGrowthPerDay);
     const res = G.Actions.skirmish(s, rng, squad, strength, spec.title || 'бой');
     if (res.won) G.Res.discipline(s, G.CONFIG.discipline.victory);
     else G.Res.discipline(s, G.CONFIG.discipline.defeat);

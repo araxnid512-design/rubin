@@ -110,6 +110,7 @@
     for (const v of s.vehicles || []) if (!v.ok) out.push('fix:' + v.id);
     if (G.Units.droids(s).some((d) => d.health < 100)) out.push('droid_repair');
     out.push('droid_build');
+    if (!s.shuttleReady && s.sections.hangar.level >= 1) out.push('shuttle');
     return out;
   };
 
@@ -122,6 +123,7 @@
     }
     if (key === 'wall' && (s.fort.walls || 0) >= c.max) return 'укрепления достроены';
     if (key === 'droid_repair' && !G.Units.droids(s).some((d) => d.health < 100)) return 'дроиды исправны';
+    if (key === 'shuttle' && s.shuttleReady) return 'шаттл готов';
     const st = P.projectState(s, key);
     if (!st.paid && !G.Res.canPay(s, c.cost)) return 'не хватает: ' + G.Res.costText(c.cost);
     return null;
@@ -168,6 +170,10 @@
     if (kind === 'droid_repair') {
       for (const d of G.Units.droids(s)) d.health = Math.min(100, d.health + c.heal);
       return pre + 'Техники перебрали сервоприводы и заменили броневые пластины: дроиды отремонтированы.';
+    }
+    if (kind === 'shuttle') {
+      s.shuttleReady = true;
+      return pre + 'Шаттл восстановлен! Гипердвигатель прошёл проверку, баки заправлены. Можно отдавать приказ на старт.';
     }
     if (kind === 'droid_build') {
       const d = G.Units.createDroid(s, rng, { origin: 'built' });

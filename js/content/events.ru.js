@@ -662,6 +662,13 @@
           return E.fight(s, rng, { enemy: 'smugglers', strength: C('smugglers').raidStrength, squad: 14, title: 'захват грузовика', after: 'smuggler_seize' });
         } },
       { id: 'leave', label: 'Отпустить их с миром', run: () => 'Через час грузовик поднялся в небо и исчез в белёсой дымке.' },
+      { id: 'escape', label: (s) => 'Тайно улететь с ними одному (' + G.CONFIG.final.abandonCredits + ' кр.)', hint: 'Бросить гарнизон. Это конец кампании',
+        req: needCredits(G.CONFIG.final.abandonCredits),
+        run(s, ctx, rng, E) {
+          E.res(s, { credits: -G.CONFIG.final.abandonCredits });
+          G.Goals.end(s, 'abandon');
+          return 'Ночью генерал вышел за периметр с вещмешком и полковой кассой. Человек со шрамом не задал ни одного вопроса.';
+        } },
     ],
   });
   Ev.after.smuggler_seize = function (s, rng, won, ctx, E) {
@@ -842,4 +849,68 @@
     G.Res.add(s, 'scrap', -m);
     return 'Налётчики прорвались к складам и унесли ' + w + ' л воды и ' + m + ' ед. металла.';
   };
+})(globalThis.G = globalThis.G || {});
+
+/* ---------------------------------------------------------------- Финал */
+(function (G) {
+  'use strict';
+  const U = G.U;
+  const F = U.FORMS;
+  const Ev = G.Events;
+  const def = Ev.def;
+  const FC = () => G.CONFIG.final;
+
+  def('fleet_arrival', {
+    title: 'Флот на орбите',
+    text: () => 'Ровно в срок связисты поймали позывные: на орбиту Татуина вышла имперская эскадра, к лагерю идут десантные челноки. ' +
+      'Но сенсоры показывают и другое: с севера к периметру стягиваются повстанцы. Они тоже слушали эфир — и не дадут челнокам сесть без боя.',
+    choices: [
+      { id: 'hold', label: 'Держать периметр до посадки челноков', hint: 'Последний бой гарнизона',
+        run(s, ctx, rng, E) {
+          const str = FC().finalStrength * (s.flags.rebelMercy ? FC().mercyStrengthMult : 1);
+          return 'Генерал вышел к строю: «Ещё один бой. Последний». ' +
+            E.fight(s, rng, { enemy: FC().finalArmy, strength: str, squad: 'camp', title: 'последний рубеж', after: 'final' });
+        } },
+    ],
+  });
+  Ev.after.final = function (s, rng, won, ctx, E) {
+    if (won) { G.Goals.end(s, 'fleet'); return 'Повстанцы отброшены. Челноки садятся у кормы «Железного Предела».'; }
+    if (G.Units.people(s).length) { G.Goals.end(s, 'fleet_costly'); return 'Периметр прорван, но челноки всё же сели — под огнём.'; }
+    return 'Гарнизон пал за час до посадки.';
+  };
+
+  def('rebel_strike', {
+    title: 'Удар повстанцев',
+    text: () => 'Повстанцы перехватили наш сигнал и не собираются ждать прихода флота. Ночью в лагерь полетели гранаты, у северного края периметра — вспышки выстрелов.',
+    choices: [
+      { id: 'fight', label: 'Отбить атаку',
+        run(s, ctx, rng, E) {
+          return E.fight(s, rng, { enemy: 'rebels', strength: ctx.strength || FC().strikeStrength, squad: 'camp', title: 'ночной удар повстанцев', after: 'strike', ctx: ctx, night: true });
+        } },
+    ],
+  });
+  Ev.after.strike = function (s, rng, won, ctx, E) {
+    if (won) return 'Атака отбита.';
+    const r = E.res(s, { water: -rng.int(40, 90), scrap: -rng.int(30, 60), energy: -rng.int(20, 50) });
+    return 'Повстанцы прорвались к складам и подожгли их: ' + r + '.';
+  };
+
+  def('shuttle_launch', {
+    title: 'Старт шаттла',
+    text: (s) => {
+      const n = G.Units.people(s).length;
+      const cap = FC().shuttleCapacity;
+      return 'Шаттл стоит на расчищенной площадке у ангара. Двигатели прогреты, курс рассчитан. ' +
+        (n <= cap ? 'Мест хватит на всех: ' + U.pl(n, F.man) + '.' : 'Мест на борту — ' + cap + '. Людей в лагере — ' + n + '.');
+    },
+    choices: [
+      { id: 'all', label: 'Все на борт — взлёт!', show: (s) => G.Units.people(s).length <= FC().shuttleCapacity,
+        run(s) { G.Goals.end(s, 'shuttle_all'); return 'Шаттл оторвался от песка и ушёл в небо.'; } },
+      { id: 'some', label: 'Лететь с теми, кто поместится', hint: 'Остальным — вся вода лагеря и обещание вернуться',
+        show: (s) => G.Units.people(s).length > FC().shuttleCapacity,
+        run(s) { G.Goals.end(s, 'shuttle_some'); return 'Шаттл ушёл с первой группой.'; } },
+      { id: 'wait', label: 'Отложить старт', hint: 'Можно вызвать флот и забрать всех',
+        run() { return 'Генерал приказал заглушить двигатели. Шаттл подождёт.'; } },
+    ],
+  });
 })(globalThis.G = globalThis.G || {});
