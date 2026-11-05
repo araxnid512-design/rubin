@@ -1,0 +1,214 @@
+/* Корневой контроллер интерфейса: титульный экран, панель ресурсов, вкладки, модальные окна. */
+(function (G) {
+  'use strict';
+  const { h, svg, clear } = G.Dom;
+  const U = G.U;
+
+  const UI = G.UI = G.UI || {};
+  UI.s = null;
+  UI.tab = 'hq';
+  UI.builder = null;
+  UI.views = UI.views || {};
+  UI.modals = UI.modals || {};
+  UI.toast = null;
+
+  UI.TABS = [
+    { id: 'hq', name: 'Штаб', icon: '◉' },
+    { id: 'roster', name: 'Отряд', icon: '☰' },
+    { id: 'map', name: 'Карта', icon: '⌖' },
+    { id: 'base', name: 'Лагерь', icon: '⌂' },
+    { id: 'chron', name: 'Хроника', icon: '✎' },
+    { id: 'menu', name: 'Меню', icon: '⚙' },
+  ];
+
+  // Сохранить и перерисовать
+  UI.commit = function () {
+    if (UI.s) G.Save.write('auto', UI.s);
+    UI.render();
+  };
+
+  UI.start = function (s) {
+    UI.s = s;
+    UI.tab = 'hq';
+    UI.builder = null;
+    UI.commit();
+    window.scrollTo(0, 0);
+  };
+
+  UI.go = function (tab) {
+    UI.tab = tab;
+    UI.render();
+    window.scrollTo(0, 0);
+  };
+
+  UI.render = function () {
+    const top = document.getElementById('topbar');
+    const tabs = document.getElementById('tabs');
+    const view = document.getElementById('view');
+    clear(top); clear(tabs); clear(view);
+    if (!UI.s) {
+      top.classList.add('hidden');
+      tabs.classList.add('hidden');
+      view.appendChild(UI.titleScreen());
+      renderModal();
+      return;
+    }
+    top.classList.remove('hidden');
+    tabs.classList.remove('hidden');
+    top.appendChild(UI.topBar(UI.s));
+    for (const t of UI.TABS) {
+      tabs.appendChild(h('button', { class: 'tab' + (UI.tab === t.id ? ' active' : ''), onclick: () => UI.go(t.id) },
+        h('span', { class: 'ti' }, t.icon), h('span', null, t.name)));
+    }
+    const fn = UI.views[UI.tab] || UI.views.hq;
+    view.appendChild(fn(UI.s));
+    renderModal();
+  };
+
+  function renderModal() {
+    const root = document.getElementById('modal-root');
+    clear(root);
+    const s = UI.s;
+    let content = null;
+    if (UI.overlay) content = UI.overlay();
+    else if (s && s.over && !UI.overSeen) content = UI.modals.over(s);
+    else if (s && s.pending && UI.modals[s.pending.kind]) content = UI.modals[s.pending.kind](s);
+    if (content) {
+      root.appendChild(h('div', { class: 'overlay' }, content));
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  }
+  UI.renderModal = renderModal;
+
+  // ---------- Панель ресурсов ----------
+  UI.topBar = function (s) {
+    const days = G.Day.waterDaysLeft(s);
+    const fit = G.Units.people(s).filter((u) => G.Units.isFit(s, u)).length;
+    const ppl = G.Units.people(s).length;
+    const dr = G.Units.droids(s).length;
+    const chip = (ico, label, value, cls, title) =>
+      h('span', { class: 'chip ' + (cls || ''), title: title || label }, h('i', { class: 'ico ico-' + ico }), h('span', { class: 'lbl' }, label), value);
+    return h('div', { class: 'top-row' },
+      h('span', { class: 'top-day' }, 'День ' + s.day),
+      h('div', { class: 'chips' },
+        chip('water', 'Вода', s.res.water + (days < 99 ? ' · ' + days.toFixed(1) + ' дн' : ''), days < 2 ? 'alert' : days < 4 ? 'caution' : '', 'Вода (запас в днях при нынешнем расходе)'),
+        chip('scrap', 'Металл', s.res.scrap),
+        chip('energy', 'Энергия', s.res.energy + '/' + G.Res.energyCap(s), s.droidsOffline ? 'alert' : ''),
+        chip('credits', 'Кредиты', s.res.credits),
+        chip('discipline', 'Дисциплина', s.res.discipline, s.res.discipline < G.CONFIG.discipline.lowThreshold ? 'alert' : s.res.discipline < 50 ? 'caution' : ''),
+        chip('troops', 'Бойцы', fit + '/' + ppl, '', 'В строю / всего людей'),
+        chip('droid', 'Дроиды', dr)
+      )
+    );
+  };
+
+  // ---------- Титульный экран ----------
+  function emblem() {
+    // Условная эмблема: два солнца над дюнами
+    return svg('svg', { viewBox: '0 0 100 100', class: 'title-emblem' },
+      svg('circle', { cx: 50, cy: 50, r: 47, fill: '#16181c', stroke: '#d9a85b', 'stroke-width': 2 }),
+      svg('circle', { cx: 40, cy: 40, r: 11, fill: '#f3cd8c' }),
+      svg('circle', { cx: 62, cy: 33, r: 7, fill: '#e2874c' }),
+      svg('path', { d: 'M8 66 Q 28 54 46 64 T 92 60 L 92 80 Q 50 100 8 80 Z', fill: '#b9884a' }),
+      svg('path', { d: 'M8 74 Q 30 66 52 74 T 92 70 L 92 84 Q 50 102 8 84 Z', fill: '#8a6334' })
+    );
+  }
+
+  UI.titleState = { mode: 'main', difficulty: 'normal', seed: '' };
+
+  UI.titleScreen = function () {
+    const st = UI.titleState;
+    const meta = G.Save.meta('auto');
+    const wrap = h('div', { class: 'title-screen' },
+      emblem(),
+      h('h1', null, 'КОЛРАТ'),
+      h('div', { class: 'sub' }, 'Песок Татуина · выживание после крушения')
+    );
+    if (st.mode === 'main') {
+      if (meta && !meta.over) {
+        wrap.appendChild(h('button', { class: 'btn primary big', onclick: () => {
+          const s = G.Save.read('auto');
+          if (s) UI.start(s); else UI.flash('Сохранение повреждено.');
+        } }, 'Продолжить — день ' + meta.day + ', ' + U.pl(meta.people, U.FORMS.fighter)));
+      }
+      wrap.appendChild(h('button', { class: 'btn big' + (meta && !meta.over ? '' : ' primary'), onclick: () => { st.mode = 'new'; UI.render(); } }, 'Новая кампания'));
+      wrap.appendChild(h('button', { class: 'btn big', onclick: () => UI.importSave() }, 'Загрузить из файла'));
+      const slots = ['1', '2', '3'].map((k) => [k, G.Save.meta(k)]).filter((x) => x[1]);
+      if (slots.length) {
+        wrap.appendChild(h('div', { class: 'card' }, h('h3', null, 'Сохранения'),
+          slots.map(([k, m]) => h('div', { class: 'row between', style: 'margin-bottom:6px' },
+            h('span', null, 'Ячейка ' + k + ': день ' + m.day + ', ' + U.pl(m.people, U.FORMS.fighter)),
+            h('button', { class: 'btn small', onclick: () => { const s = G.Save.read(k); if (s) UI.start(s); } }, 'Загрузить')))));
+      }
+      wrap.appendChild(h('div', { class: 'card' }, G.Dom.paragraphs(G.TEXT.titleBlurb)));
+    } else {
+      const diffs = [['easy', 'Лёгкая'], ['normal', 'Обычная'], ['hard', 'Тяжёлая']];
+      wrap.appendChild(h('div', { class: 'card' },
+        h('h3', null, 'Новая кампания'),
+        h('p', { class: 'muted small' }, G.TEXT.difficultyHint),
+        h('div', { class: 'seg', style: 'margin-bottom:12px' },
+          diffs.map(([id, name]) => h('button', { class: 'btn' + (st.difficulty === id ? ' sel' : ''), onclick: () => { st.difficulty = id; UI.render(); } }, name))),
+        h('div', { class: 'row', style: 'margin-bottom:12px' },
+          h('label', { class: 'muted small', for: 'seed' }, 'Зерно мира (необязательно):'),
+          h('input', { id: 'seed', value: st.seed, placeholder: 'случайное', style: 'background:#1d2025;border:1px solid #2b2f37;color:#e7e2d6;border-radius:6px;padding:6px 8px;width:140px',
+            oninput: (e) => { st.seed = e.target.value; } })),
+        h('button', { class: 'btn primary big', onclick: () => {
+          const seed = st.seed.trim() ? (/^\d+$/.test(st.seed.trim()) ? Number(st.seed.trim()) : G.Rng.hashString(st.seed.trim())) : null;
+          st.mode = 'main';
+          UI.overSeen = false;
+          UI.start(G.Game.newGame({ difficulty: st.difficulty, seed: seed }));
+        } }, 'Начать'),
+        h('button', { class: 'btn big ghost', onclick: () => { st.mode = 'main'; UI.render(); } }, 'Назад')
+      ));
+    }
+    if (!G.Save.available()) wrap.appendChild(h('p', { class: 'warn small' }, 'Браузер не даёт доступа к локальному хранилищу — сохраняйтесь в файл через меню.'));
+    wrap.appendChild(h('div', { class: 'footer-note' }, 'Некоммерческий фанатский проект по мотивам вселенной «Звёздных войн». Все персонажи и тексты оригинальные.'));
+    return wrap;
+  };
+
+  // ---------- Импорт сохранения из файла ----------
+  UI.importSave = function () {
+    const inp = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
+    inp.addEventListener('change', () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const s = G.Save.parse(String(r.result));
+          UI.overSeen = false;
+          UI.start(s);
+          UI.flash('Сохранение загружено: день ' + s.day + '.');
+        } catch (e) {
+          UI.flash('Не удалось загрузить: ' + e.message);
+        }
+      };
+      r.readAsText(f);
+    });
+    document.body.appendChild(inp);
+    inp.click();
+    setTimeout(() => inp.remove(), 60000);
+  };
+
+  // Всплывающее сообщение
+  UI.flash = function (text) {
+    let el = document.getElementById('flash');
+    if (!el) {
+      el = h('div', { id: 'flash', style: 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:99;background:#2a2216;border:1px solid #d9a85b;color:#f3cd8c;padding:10px 16px;border-radius:8px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.5)' });
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.style.display = 'block';
+    clearTimeout(UI._flashT);
+    UI._flashT = setTimeout(() => { el.style.display = 'none'; }, 3200);
+  };
+
+  // ---------- Запуск ----------
+  function boot() {
+    UI.render();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})(globalThis.G = globalThis.G || {});
