@@ -88,6 +88,9 @@ function buildStatic() {
   if (X1 > 1400) farIsland(x, 1420, 380, 0.45, '#86ce70'); if (X0 < -120) farIsland(x, -150, 350, 0.5, '#7ecb6a');
   [islLayer, x] = layer();
   drawIsland(x);
+  ISL_PATH = new Path2D(); islandPath(ISL_PATH); vig = null;
+  const R = mulberry(3); GLINTS = [];
+  for (let i = 0; i < 60 && GLINTS.length < 34; i++) { const gx = X0 + R() * (X1 - X0), gy = 440 + Math.pow(R(), 1.6) * (Y1 - 440); if (Math.abs(gx - ISL.x) < ISL.rx - 40 && gy < ISL.y + 220) continue; GLINTS.push([gx, gy, R() * 6]); }
 }
 function farIsland(x, cx, cy, s, col) {
   x.save(); x.translate(cx, cy); x.scale(s, s);
@@ -99,7 +102,7 @@ function farIsland(x, cx, cy, s, col) {
   x.restore();
 }
 function islandPath(x, dy = 0, sx = 1) {
-  x.beginPath();
+  if (x.beginPath) x.beginPath(); // годится и для холста, и для Path2D
   for (let i = 0; i <= 120; i++) {
     const a = i / 120 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
     const px = ISL.x + ISL.rx * sx * Math.sign(c) * Math.pow(Math.abs(c), 0.5), py = ISL.y + dy + ISL.ry * Math.sign(s) * Math.pow(Math.abs(s), 0.5);
@@ -214,11 +217,18 @@ function drawArch() {
       g.fillStyle = '#fff'; g.font = '800 17px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText(fmtTime(left), 0, -54);
       if (Math.random() < 0.05) parts.push({ kind: 'heart', x: x + rand(-30, 30), y: y - 70, vx: rand(-10, 10), vy: -30, life: 1.6, t: 0 });
     } else {
-      // готово: яйцо в арке
-      const bob = Math.sin(T * 4) * 3;
-      g.fillStyle = 'rgba(255,240,150,.5)'; g.beginPath(); g.arc(0, -46 + bob, 40, 0, Math.PI * 2); g.fill();
-      drawEgg(g, 0, -20 + bob, 1, b.kind);
-      bubble(0, -130 + bob, '!', '#ff5a8a');
+      // готово: яйцо в арке; при нажатии качается, трескается и лопается
+      const h = hatching, bob = h ? 0 : Math.sin(T * 4) * 3, glow = h ? 0.5 + h.t * 0.4 : 0.5;
+      const gl = g.createRadialGradient(0, -46, 4, 0, -46, 54 + (h ? h.t * 30 : 0)); gl.addColorStop(0, `rgba(255,246,170,${glow})`); gl.addColorStop(1, 'rgba(255,240,150,0)');
+      g.fillStyle = gl; g.beginPath(); g.arc(0, -46, 90, 0, Math.PI * 2); g.fill();
+      g.save(); g.translate(0, -20 + bob);
+      if (h) g.rotate(Math.sin(h.t * 34) * 0.16 * Math.min(1, h.t * 3));
+      drawEgg(g, 0, 0, 1 + (h ? Math.max(0, h.t - 0.9) * 0.6 : 0), b.kind);
+      if (h) { g.strokeStyle = '#5a4a3a'; g.lineWidth = 2.6; g.lineJoin = 'round';
+        const CR = [[[-14, -30], [-6, -24], [-10, -16], [-2, -12]], [[12, -34], [4, -28], [9, -20], [2, -16]], [[-16, -12], [-6, -8], [2, -12], [12, -8], [18, -12]]];
+        CR.slice(0, h.cracks).forEach(cr => { g.beginPath(); cr.forEach(([cx, cy], i) => (i ? g.lineTo(cx, cy) : g.moveTo(cx, cy))); g.stroke(); }); }
+      g.restore();
+      if (!h) bubble(0, -130 + bob, '!', '#ff5a8a');
     }
   }
   g.restore();
@@ -270,27 +280,57 @@ const fmtTime = s => { s = Math.max(0, Math.ceil(s)); return s >= 60 ? `${Math.f
 function monSize(m) { const [, y] = SLOTS[m.slot]; return 108 * ROW_SCALE(y) * (1 + 0.04 * (m.lvl - 1)); }
 function stateOf(m) {
   let r = rt.get(m.id);
-  if (!r) { r = { phase: Math.random() * 6, blinkT: rand(1, 4), blink: 0, look: 0, lookT: rand(1, 3), lastOn: 0, pop: 0 }; rt.set(m.id, r); }
+  if (!r) { r = { phase: Math.random() * 6, blinkT: rand(1, 4), blinkP: 1, blink: 0, look: 0, lookY: 0, lookT: rand(1, 3), lastOn: 0, pop: 0, sp: 0, sv: 0, jy: 0, jv: 0, actT: rand(4, 12), wig: 0, tilt: 0, bob: 0 }; rt.set(m.id, r); }
   return r;
 }
+// сила «желе» на каждую ноту: барабаны трясут сильнее, долгие ноты — мягко
+const JELLY = { kick: 1.5, snare: 1.0, tom: 0.9, shaker: 0.16, bass: 0.75, marimba: 0.45, glock: 0.4, flute: 0.35, pluck: 0.5, brass: 0.85, frog: 0.8, lead: 0.45, whistle: 0.3, pad: 0.35, opera: 0.55 };
+let lookAt = null; // куда все смотрят после нажатия
+function jumpMon(m, v) { const r = stateOf(m); if (r.jy > 0) return; r.jv = v; r.jy = 0.01; r.sv -= 0.9; }
 function updateMon(m, dt) {
-  const r = stateOf(m), K = KINDS[m.kind];
-  r.blinkT -= dt; if (r.blinkT < 0) { r.blink = 0.15; r.blinkT = rand(2, 5); } r.blink = Math.max(0, r.blink - dt);
-  r.lookT -= dt; if (r.lookT < 0) { r.lookT = rand(1.5, 4); r.look = rand(-1, 1); }
-  r.sing = Sound.ready ? Sound.singing(m.id) : 0;
-  const drum = ['kick', 'tom', 'snare', 'shaker'].includes(K.part);
-  r.hop = drum ? r.sing * 7 : r.sing * 3;
+  const r = stateOf(m), K = KINDS[m.kind], [x, y] = SLOTS[m.slot], sz = monSize(m);
+  // моргание: веко опускается и поднимается за 0,2 с, иногда дважды
+  r.blinkT -= dt; if (r.blinkT < 0) { r.blinkP = 0; r.blinkT = Math.random() < 0.2 ? 0.3 : rand(2.2, 5.5); }
+  if (r.blinkP < 1) { r.blinkP = Math.min(1, r.blinkP + dt / 0.2); r.blink = Math.sin(r.blinkP * Math.PI); } else r.blink = 0;
+  // взгляд: на нажатие, иначе по сторонам
+  if (lookAt && T < lookAt.until) { r.lookTo = clamp((lookAt.x - x) / 220, -1, 1); r.lookYTo = clamp((lookAt.y - (y - sz * 0.6)) / 220, -1, 1); }
+  else { r.lookT -= dt; if (r.lookT < 0) { r.lookT = rand(1.5, 4); r.lookTo = rand(-1, 1); r.lookYTo = rand(-0.5, 0.3); } }
+  const ek = 1 - Math.exp(-dt * 12); r.look = lerp(r.look, r.lookTo || 0, ek); r.lookY = lerp(r.lookY, r.lookYTo || 0, ek);
+  r.sing = Sound.ready && !m.mute ? Sound.singing(m.id) : 0;
   r.pop = Math.max(0, r.pop - dt * 2.5);
-  // ноты над поющими
+  // новая нота: толчок «желе» и нота-частица
   const now = Sound.now(), n = Sound.onsets(m.id, r.lastOn); r.lastOn = now;
-  if (n && Math.random() < 0.6) { const [x, y] = SLOTS[m.slot], sz = monSize(m); parts.push({ kind: 'note', x: x + rand(-20, 20), y: y - sz * 0.95, vx: rand(-14, 14), vy: rand(-55, -35), life: 1.5, t: 0, col: ELEMENTS[K.el[n % K.el.length]].col, ch: Math.random() < 0.5 ? '♪' : '♫' }); }
+  if (n && !m.mute) {
+    r.sv -= JELLY[K.part] || 0.4;
+    if (Math.random() < 0.55) parts.push({ kind: 'note', x: x + rand(-20, 20), y: y - sz * 0.95 - r.jy, vx: rand(-14, 14), vy: rand(-55, -35), life: 1.5, t: 0, col: ELEMENTS[K.el[n % K.el.length]].col, ch: Math.random() < 0.5 ? '♪' : '♫' });
+  }
+  // пружина: сплющился — вытянулся — успокоился
+  const acc = -260 * r.sp - 10 * r.sv; r.sv += acc * dt; r.sp = clamp(r.sp + r.sv * dt, -0.24, 0.24);
+  // прыжок с отскоком и пылью при приземлении
+  if (r.jy > 0) {
+    r.jv -= 1800 * dt; r.jy += r.jv * dt;
+    if (r.jy <= 0) {
+      r.jy = 0; const hit = -r.jv;
+      if (hit > 180) { r.sv -= Math.min(2.6, hit / 380); dust(x, y, Math.min(1.6, hit / 500)); if (hit > 420) { r.jv = hit * 0.28; r.jy = 0.01; } }
+      if (r.jy === 0) r.jv = 0;
+    }
+  }
+  // сам по себе: подпрыгнуть или покачаться
+  r.actT -= dt;
+  if (r.actT < 0) { r.actT = rand(6, 15); const k = Math.random(); if (k < 0.4) jumpMon(m, rand(260, 380)); else if (k < 0.75) r.wig = 1; else r.lookT = 0; }
+  r.wig = Math.max(0, r.wig - dt * 1.1); r.tilt = Math.sin(r.wig * 16) * 0.13 * r.wig;
+  // кивок в такт: короткий наклон на каждую долю
+  if (Sound.ready && S.music && !m.mute) { const b = Sound.beat(), f = b - Math.floor(b); r.bob = Math.pow(1 - f, 5) * 3.2; } else r.bob = 0;
   // монеты копятся
   if (m.stored < capOf(m)) m.stored = Math.min(capOf(m), m.stored + rateOf(m) * dt / 60);
+}
+function dust(x, y, k = 1) {
+  for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; parts.push({ kind: 'dust', x: x + Math.cos(a) * 20 * k, y: y - 2 + Math.sin(a) * 4, vx: Math.cos(a) * rand(40, 90) * k, vy: Math.sin(a) * 10 - 12, life: rand(0.45, 0.7), t: 0, r: rand(7, 12) * k }); }
 }
 function drawMon(m) {
   const r = stateOf(m), [x, y] = SLOTS[m.slot], sz = monSize(m) * (1 + r.pop * 0.15);
   if (mode && mode.type === 'move' && mode.id === m.id) g.globalAlpha = 0.45 + 0.25 * Math.sin(T * 8);
-  drawMonster(g, m.kind, x, y, sz, { t: T, sing: m.mute ? 0 : r.sing, blink: r.blink, look: r.look, phase: r.phase, hop: r.hop });
+  drawMonster(g, m.kind, x, y, sz, { t: T, sing: r.sing, blink: r.blink, look: r.look, lookY: r.lookY, phase: r.phase, sq: r.sp, jump: r.jy, bob: r.bob, tilt: r.tilt });
   g.globalAlpha = 1;
   if (m.mute) { g.fillStyle = 'rgba(40,40,60,.75)'; g.beginPath(); g.arc(x + sz * 0.32, y - sz * 0.9, 13, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x + sz * 0.32 - 6, y - sz * 0.9 - 6); g.lineTo(x + sz * 0.32 + 6, y - sz * 0.9 + 6); g.stroke(); }
 }
@@ -307,6 +347,10 @@ function updateParts(dt) {
     const p = parts[i]; p.t += dt;
     if (p.kind === 'fly') { const k = clamp(p.t / p.life, 0, 1), e = k * k; p.x = lerp(p.x0, p.tx, e) + Math.sin(k * Math.PI) * p.arc; p.y = lerp(p.y0, p.ty, e) - Math.sin(k * Math.PI) * 60; if (k >= 1) { parts.splice(i, 1); if (p.done) p.done(); } continue; }
     p.x += p.vx * dt; p.y += p.vy * dt; if (p.kind === 'spark') p.vy += 120 * dt;
+    if (p.kind === 'confetti') { p.vy += 420 * dt; p.vx *= 1 - dt * 1.5; p.vy *= 1 - dt * 1.2; p.rot += p.vr * dt; }
+    if (p.kind === 'dust') { p.vx *= 1 - dt * 5; p.vy *= 1 - dt * 3; }
+    if (p.kind === 'mist') { p.vx *= 1 - dt * 2; }
+    if (p.kind === 'petal') { p.y += Math.sin(p.t * 2.2) * 22 * dt; p.rot += p.vr * dt; if (p.x > vx1() + 40) p.t = p.life + 1; }
     if (p.t > p.life) parts.splice(i, 1);
   }
 }
@@ -318,16 +362,86 @@ function drawParts() {
     else if (p.kind === 'heart') { g.fillStyle = '#ff5a9a'; g.font = '900 22px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('♥', p.x, p.y); }
     else if (p.kind === 'spark') { g.fillStyle = p.col || '#ffe680'; g.beginPath(); g.arc(p.x, p.y, 4 * a + 1, 0, Math.PI * 2); g.fill(); }
     else if (p.kind === 'fly') { if (p.icon === 'coin') coinIcon(g, p.x, p.y, 11); else { g.fillStyle = '#e8304a'; g.strokeStyle = '#7a1020'; g.lineWidth = 2; g.beginPath(); g.arc(p.x, p.y, 8, 0, Math.PI * 2); g.fill(); g.stroke(); } }
+    else if (p.kind === 'dust') { const k = p.t / p.life; g.fillStyle = `rgba(250,240,220,${0.75 * a})`; g.beginPath(); g.arc(p.x, p.y, p.r * (0.6 + k), 0, Math.PI * 2); g.fill(); }
+    else if (p.kind === 'mist') { g.fillStyle = `rgba(255,255,255,${0.35 * a})`; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + p.t), 0, Math.PI * 2); g.fill(); }
+    else if (p.kind === 'petal') { g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.scale(1, 0.4 + 0.6 * Math.abs(Math.cos(p.rot * 1.3))); g.fillStyle = p.col; g.beginPath(); g.ellipse(0, 0, 6, 3.5, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
+    else if (p.kind === 'confetti') { g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.scale(1, Math.cos(p.rot * 1.7)); g.fillStyle = p.col; g.fillRect(-5, -3, 10, 6); g.restore(); }
     else if (p.kind === 'text') { g.font = '900 26px system-ui, sans-serif'; g.textAlign = 'center'; g.lineWidth = 5; g.strokeStyle = 'rgba(0,0,0,.45)'; g.strokeText(p.text, p.x, p.y); g.fillStyle = p.col || '#fff'; g.fillText(p.text, p.x, p.y); }
   }
   g.globalAlpha = 1;
 }
+const CONF = ['#ff5a8a', '#ffd84a', '#5ad0ff', '#7ee05a', '#b07aff', '#ff9a3a'];
+function confetti(x, y, n = 40, spread = 1) { for (let i = 0; i < n; i++) { const a = rand(-Math.PI * 0.95, -Math.PI * 0.05), v = rand(180, 460) * spread; parts.push({ kind: 'confetti', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: rand(0, 6), vr: rand(-12, 12), life: rand(1.4, 2.2), t: 0, col: CONF[i % CONF.length] }); } }
 function burst(x, y, col, n = 14) { for (let i = 0; i < n; i++) { const a = rand(0, Math.PI * 2), v = rand(60, 200); parts.push({ kind: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, life: rand(0.5, 1), t: 0, col }); } }
 function floatText(x, y, text, col) { parts.push({ kind: 'text', x, y, vx: 0, vy: -40, life: 1.3, t: 0, text, col }); }
 // иконка летит в счётчик наверху
 function flyTo(x, y, el, icon, n, done) {
   const r = $(el).getBoundingClientRect(), [tx, ty] = toWorld(r.left + r.width * 0.3, r.top + r.height / 2);
   for (let i = 0; i < n; i++) parts.push({ kind: 'fly', icon, x0: x + rand(-14, 14), y0: y + rand(-10, 10), x, y, tx, ty, arc: rand(-60, 60), life: 0.6 + i * 0.05, t: 0, done: i === n - 1 ? done : null });
+}
+
+// ---------- живая природа вокруг острова
+const birds = [], flies = Array.from({ length: 3 }, (_, i) => ({ x: rand(250, 1030), y: rand(330, 520), tx: 0, ty: 0, t: rand(0, 5), col: ['#ff9ad0', '#ffd84a', '#9fe3ff'][i] }));
+const ISLETS = [[18, 604, 0.42, 0], [1264, 620, 0.36, 2], [-120, 520, 0.3, 4], [1420, 470, 0.28, 1]];
+let birdT = 3, mistT = 0, petalT = 2, raysG = null, vig = null, ISL_PATH = null, GLINTS = [];
+function ambient(dt) {
+  birdT -= dt;
+  if (birdT < 0) {
+    birdT = rand(14, 26); const dir = Math.random() < 0.5 ? 1 : -1, y0 = rand(90, 220), x0 = dir > 0 ? vx0() - 60 : vx1() + 60;
+    for (let i = 0, n = 3 + (Math.random() * 3 | 0); i < n; i++) birds.push({ x: x0 - dir * i * rand(30, 50), y: y0 + rand(-20, 20) + Math.abs(i - 1) * 12, v: dir * rand(70, 90), ph: rand(0, 6), s: rand(0.7, 1) });
+  }
+  for (let i = birds.length - 1; i >= 0; i--) { const b = birds[i]; b.x += b.v * dt; b.y += Math.sin(T * 1.5 + b.ph) * 6 * dt; if (b.x < vx0() - 250 || b.x > vx1() + 250) birds.splice(i, 1); }
+  for (const f of flies) {
+    f.t += dt; if (!f.tx || Math.hypot(f.tx - f.x, f.ty - f.y) < 12) { f.tx = rand(220, 1060); f.ty = rand(330, 560); }
+    const a = Math.atan2(f.ty - f.y, f.tx - f.x); f.x += Math.cos(a) * 42 * dt + Math.sin(f.t * 5) * 22 * dt; f.y += Math.sin(a) * 42 * dt + Math.cos(f.t * 7) * 26 * dt;
+  }
+  mistT -= dt; if (mistT < 0) { mistT = 0.08; parts.push({ kind: 'mist', x: 1168 + rand(-16, 16), y: VH - rand(0, 12), vx: rand(-30, 30), vy: rand(-45, -15), life: rand(0.8, 1.4), t: 0, r: rand(6, 12) }); }
+  petalT -= dt; if (petalT < 0) { petalT = rand(1.8, 4.5); parts.push({ kind: 'petal', x: vx0() - 20, y: rand(240, 560), vx: rand(45, 85), vy: 0, life: 40, t: 0, rot: rand(0, 6), vr: rand(-2.5, 2.5), col: Math.random() < 0.5 ? '#ffc0d8' : '#fff2b8' }); }
+}
+function drawRays() {
+  if (!raysG) { raysG = g.createRadialGradient(1010, 130, 20, 1010, 130, 780); raysG.addColorStop(0, 'rgba(255,250,215,.24)'); raysG.addColorStop(1, 'rgba(255,250,215,0)'); }
+  g.fillStyle = raysG; g.beginPath();
+  for (let i = 0; i < 9; i++) { const a = T * 0.02 + i * Math.PI * 2 / 9, w = 0.08 + 0.04 * Math.sin(T * 0.6 + i * 1.7); g.moveTo(1010, 130); g.lineTo(1010 + Math.cos(a - w) * 900, 130 + Math.sin(a - w) * 900); g.lineTo(1010 + Math.cos(a + w) * 900, 130 + Math.sin(a + w) * 900); g.closePath(); }
+  g.fill();
+}
+function drawBirds() {
+  g.strokeStyle = 'rgba(40,50,80,.7)'; g.lineWidth = 2.4; g.lineCap = 'round';
+  for (const b of birds) { const f = Math.sin(T * 9 + b.ph) * 7 * b.s, w = 11 * b.s; g.beginPath(); g.moveTo(b.x - w, b.y - f); g.quadraticCurveTo(b.x - w / 2, b.y - 4 * b.s, b.x, b.y); g.quadraticCurveTo(b.x + w / 2, b.y - 4 * b.s, b.x + w, b.y - f); g.stroke(); }
+}
+function drawGlints() {
+  g.fillStyle = '#fff';
+  for (const [x, y, ph] of GLINTS) { const a = Math.sin(T * 2.6 + ph); if (a < 0.3) continue; const r = 2 + a * 3; g.globalAlpha = a * 0.9; g.beginPath(); g.moveTo(x - r * 2, y); g.lineTo(x, y - r * 0.5); g.lineTo(x + r * 2, y); g.lineTo(x, y + r * 0.5); g.closePath(); g.fill(); }
+  g.globalAlpha = 1;
+}
+function drawIslets() {
+  for (const [x, y, s, ph] of ISLETS) {
+    if (x < vx0() - 80 || x > vx1() + 80) continue;
+    g.save(); g.translate(x, y + Math.sin(T * 0.9 + ph) * 6); g.scale(s, s);
+    g.fillStyle = '#9a6a3e'; g.strokeStyle = '#4a2e18'; g.lineWidth = 5; g.beginPath(); g.moveTo(-110, 0); g.quadraticCurveTo(-60, 110, 0, 170); g.quadraticCurveTo(50, 110, 110, 0); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#7fd552'; g.strokeStyle = '#3f8a24'; g.beginPath(); g.ellipse(0, 0, 118, 30, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = 'rgba(255,255,220,.28)'; g.beginPath(); g.ellipse(-22, -8, 70, 12, 0, 0, Math.PI * 2); g.fill();
+    if (ph % 2 === 0) { g.fillStyle = '#3f9a2a'; g.strokeStyle = '#1f5a14'; g.lineWidth = 4; g.beginPath(); g.arc(24, -22, 26, 0, Math.PI * 2); g.arc(-6, -14, 20, 0, Math.PI * 2); g.stroke(); g.fill(); }
+    else { g.fillStyle = '#c8b8a0'; g.strokeStyle = '#5a4a3a'; g.lineWidth = 4; g.beginPath(); g.ellipse(26, -6, 24, 18, 0, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); }
+    g.restore();
+  }
+}
+function drawCloudShadows() {
+  g.save(); g.clip(ISL_PATH); g.fillStyle = 'rgba(20,70,30,.1)';
+  for (const c of clouds) { const sx = c.x + 40 * c.s, sy = 360 + c.y * 0.85; g.beginPath(); g.ellipse(sx, sy, 125 * c.s, 34 * c.s, 0, 0, Math.PI * 2); g.fill(); }
+  g.restore();
+}
+function drawFlies() {
+  for (const f of flies) {
+    const k = 0.25 + 0.75 * Math.abs(Math.sin(f.t * 16)); g.save(); g.translate(f.x, f.y);
+    g.fillStyle = f.col; g.strokeStyle = 'rgba(70,30,70,.7)'; g.lineWidth = 1.2;
+    for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(sd * 6 * k, -3, 6.5 * k + 0.5, 5, sd * 0.4, 0, Math.PI * 2); g.fill(); g.stroke(); g.beginPath(); g.ellipse(sd * 4.5 * k, 3.5, 4.5 * k + 0.5, 3.5, -sd * 0.3, 0, Math.PI * 2); g.fill(); g.stroke(); }
+    g.strokeStyle = '#3a2a3a'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(0, -6); g.lineTo(0, 6); g.stroke(); g.restore();
+  }
+}
+function drawVignette() {
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  if (!vig) { const w = cv.width, h = cv.height; vig = g.createRadialGradient(w / 2, h * 0.55, Math.min(w, h) * 0.5, w / 2, h * 0.55, Math.max(w, h) * 0.78); vig.addColorStop(0, 'rgba(10,30,70,0)'); vig.addColorStop(1, 'rgba(10,30,70,.3)'); }
+  g.fillStyle = vig; g.fillRect(0, 0, cv.width, cv.height); worldT(g);
 }
 
 // ---------- кадр
@@ -338,14 +452,15 @@ function frame(now) {
   for (const c of clouds) { c.x += c.v * dt; if (c.x > vx1() + 150) { c.x = vx0() - 200; c.y = rand(40, 260); } }
   for (const m of S.mons) updateMon(m, dt);
   for (const b of S.bushes) b.n = Math.min(BERRY_CAP, b.n + dt / BERRY_SEC);
-  updateParts(dt); tick(dt);
+  updateParts(dt); tick(dt); hatchStep(dt); ambient(dt);
   // рисование
   g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(bgLayer, 0, 0);
   worldT(g);
+  drawRays();
   for (const c of clouds) drawCloud(c);
-  drawSea();
+  drawBirds(); drawSea(); drawGlints(); drawIslets();
   g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(islLayer, 0, 0); worldT(g);
-  drawWaterfall();
+  drawCloudShadows(); drawWaterfall();
   // подсветка мест при расстановке
   if (mode) {
     const free = new Set(freeSlots());
@@ -362,8 +477,10 @@ function frame(now) {
   S.bushes.forEach((b, i) => ents.push({ y: BUSH_POS[i][1], d: () => drawBush(i) }));
   for (const m of S.mons) ents.push({ y: SLOTS[m.slot][1], d: () => drawMon(m) });
   ents.sort((a, b) => a.y - b.y).forEach(e => e.d());
+  drawFlies();
   for (const m of S.mons) monBubble(m);
   drawParts();
+  drawVignette();
 }
 
 // ---------- игровые таймеры и подсказки (раз в кадр, дёшево)
@@ -375,13 +492,17 @@ function tick(dt) {
 function addXP(n) {
   S.xp += n;
   while (S.lvl < LEVEL_XP.length && S.xp >= LEVEL_XP[S.lvl]) {
-    S.lvl++; Sound.sfx('level'); toast(`Уровень острова ${S.lvl}! Открыто новое место для монстра`);
-    for (let i = 0; i < 30; i++) burst(rand(300, 980), rand(300, 500), ['#ffe680', '#ff9ad0', '#9fe3ff'][i % 3], 1);
+    S.lvl++; Sound.sfx('level'); banner(`Уровень острова ${S.lvl}!`, 'Открыто новое место для монстра');
+    for (let i = 0; i < 5; i++) confetti(rand(300, 980), rand(280, 380), 22);
   }
   hud();
 }
+let lastCoins = -1, lastBerries = -1;
+function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function hud() {
-  $('coins').textContent = Math.floor(S.coins).toLocaleString('ru-RU'); $('berries').textContent = Math.floor(S.berries);
+  const c = Math.floor(S.coins), b0 = Math.floor(S.berries);
+  if (lastCoins >= 0 && c > lastCoins) bump($('coins').parentElement); if (lastBerries >= 0 && b0 > lastBerries) bump($('berries').parentElement); lastCoins = c; lastBerries = b0;
+  $('coins').textContent = c.toLocaleString('ru-RU'); $('berries').textContent = b0;
   $('lvl').textContent = S.lvl;
   const a = LEVEL_XP[S.lvl - 1], b = LEVEL_XP[S.lvl] || a + 1; $('xpbar').style.width = (S.lvl >= LEVEL_XP.length ? 100 : clamp((S.xp - a) / (b - a) * 100, 0, 100)) + '%';
   const ready = S.mons.reduce((s, m) => s + (m.stored >= 5 ? Math.floor(m.stored) : 0), 0);
@@ -423,13 +544,13 @@ function place(slot) {
   const m = { id: S.nid++, kind, slot, lvl: 1, feed: 0, stored: 0 }; S.mons.push(m);
   const fresh = !S.found[kind]; S.found[kind] = 1; if (fresh) addXP(25);
   Sound.add(m.id, KINDS[kind].part); Sound.sfx('hatch');
-  stateOf(m).pop = 1; const [x, y] = SLOTS[slot]; burst(x, y - 50, KINDS[kind].col, 24);
+  const r = stateOf(m), [x, y] = SLOTS[slot]; r.jy = 420; r.jv = -150; burst(x, y - 50, KINDS[kind].col, 24); confetti(x, y - 60, 26, 0.7);
   mode = null; hint(''); save(); hud();
   toast(`${KINDS[kind].name} поёт в хоре!`);
 }
 function moveTo(slot) {
   const m = S.mons.find(q => q.id === mode.id); mode = null; hint('');
-  if (!m || monAt(slot)) return; m.slot = slot; Sound.sfx('pop'); stateOf(m).pop = 1; save();
+  if (!m || monAt(slot)) return; m.slot = slot; Sound.sfx('pop'); const r = stateOf(m); r.jy = 160; r.jv = 120; save();
 }
 function feed(m) {
   if (m.lvl >= MAX_LVL) { toast('Монстр уже самый большой'); return; }
@@ -468,8 +589,19 @@ function startBreed(a, b) {
   closeSheet(); save(); Sound.sfx('pop'); toast(`${KINDS[A.kind].name} и ${KINDS[B.kind].name} поют дуэтом у Арки…`);
   addXP(4);
 }
+let hatching = null;
 function hatch() {
-  const b = S.breed; if (!b || Date.now() < b.end) return; S.breed = null;
+  const b = S.breed; if (!b || Date.now() < b.end || hatching) return;
+  hatching = { t: 0, cracks: 0 }; closeSheet(); Sound.sfx('tap');
+}
+function hatchStep(dt) {
+  if (!hatching) return; hatching.t += dt;
+  const c = Math.floor(hatching.t / 0.32); if (c > hatching.cracks && c <= 3) { hatching.cracks = c; Sound.sfx('tap'); }
+  if (hatching.t > 1.25) { hatching = null; finishHatch(); }
+}
+function finishHatch() {
+  const b = S.breed; if (!b) return; S.breed = null;
+  confetti(ARCH.x, ARCH.y - 50, 60); burst(ARCH.x, ARCH.y - 40, '#fff8c0', 20);
   const fresh = !S.found[b.kind]; S.found[b.kind] = 1; if (fresh) addXP(25);
   Sound.sfx('hatch'); burst(ARCH.x, ARCH.y - 40, KINDS[b.kind].col, 30);
   showNew(b.kind, fresh);
@@ -492,12 +624,14 @@ function onTap(cx, cy) {
   // пузыри с монетами
   for (const m of S.mons) { if (Math.floor(m.stored) < Math.max(5, rateOf(m) * 0.75)) continue; const [mx, my] = SLOTS[m.slot], sz = monSize(m), by = my - sz * (KINDS[m.kind].hover ? 1.35 : 1.18) - 12; if (Math.hypot(x - mx, y - by) < 40) { collect(m); return; } }
   // арка, гнездо, кусты
+  if (hatching) return;
   if (Math.abs(x - ARCH.x) < 75 && y > ARCH.y - 170 && y < ARCH.y + 15) { if (S.breed && Date.now() >= S.breed.end) hatch(); else openBreed(); return; }
   if (Math.abs(x - NEST.x) < 62 && y > NEST.y - 80 && y < NEST.y + 15) { openNest(); return; }
   for (let i = 0; i < S.bushes.length; i++) { const [bx, by] = BUSH_POS[i]; if (Math.abs(x - bx) < 50 && y > by - 90 && y < by + 10) { if (S.bushes[i].n >= 1) harvest(i); else toast('Ягоды ещё растут'); return; } }
   // монстры (сначала передние)
   const hit = S.mons.slice().sort((a, b) => SLOTS[b.slot][1] - SLOTS[a.slot][1]).find(m => { const [mx, my] = SLOTS[m.slot], sz = monSize(m), top = my - sz * (KINDS[m.kind].hover ? 1.2 : 1); return Math.abs(x - mx) < sz * 0.45 && y > top && y < my + 12; });
-  if (hit) { sel = hit.id; stateOf(hit).pop = 0.5; Sound.sfx('pop'); showInfo(hit); return; }
+  lookAt = { x, y, until: T + 1.6 };
+  if (hit) { sel = hit.id; jumpMon(hit, 300); Sound.sfx('pop'); const [hx, hy] = SLOTS[hit.slot]; for (let i = 0; i < 3; i++) parts.push({ kind: 'heart', x: hx + rand(-20, 20), y: hy - monSize(hit) * 0.9, vx: rand(-25, 25), vy: rand(-70, -40), life: 1, t: 0 }); showInfo(hit); return; }
   sel = null; closeSheet();
 }
 cv.addEventListener('pointerdown', e => { if (!started) return; onTap(e.clientX, e.clientY); });
@@ -643,6 +777,7 @@ sheet.addEventListener('click', e => {
 // отмена расстановки
 $('bCancel').addEventListener('click', () => { if (mode && mode.from === 'new') S.nest.push(mode.kind); mode = null; hint(''); save(); });
 function hint(t) { $('hintbar').textContent = t; $('hintbar').classList.toggle('show', !!t); document.body.classList.toggle('placing', !!mode); }
+function banner(t, sub) { const el = $('banner'); el.innerHTML = `${t}<small>${sub || ''}</small>`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
 let toastT = 0;
 function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
 

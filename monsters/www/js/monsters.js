@@ -52,14 +52,25 @@ function blobFill(g, col, w, h, top = -h) {
   return gr;
 }
 // силуэт из нескольких фигур: сначала толстый контур всех, потом заливка всех — получается единый контур
+// после заливки — объём: свет сверху слева, тень у земли, светлая кромка изнутри сверху и тёмная снизу
 function silhouette(g, figs, col, outline, lw = 3.2) {
   g.lineJoin = 'round'; g.lineCap = 'round';
+  const ps = figs.map(f => { const p = new Path2D(); f.path(p); return p; });
   g.strokeStyle = outline; g.lineWidth = lw * 2;
-  for (const f of figs) { g.beginPath(); f.path(g); g.stroke(); }
-  for (const f of figs) { g.beginPath(); f.path(g); g.fillStyle = f.fill || col; g.fill(); }
+  for (const p of ps) g.stroke(p);
+  ps.forEach((p, i) => { g.fillStyle = figs[i].fill || col; g.fill(p); });
+  const all = new Path2D(); for (const p of ps) all.addPath(p);
+  g.save(); g.clip(all);
+  g.fillStyle = LIGHT(g); g.fillRect(-90, -160, 180, 170);
+  g.fillStyle = AO(g); g.fillRect(-90, -36, 180, 40);
+  // кромка — только у цельного силуэта: у составного обводка прошла бы по внутренним стыкам
+  if (ps.length === 1) { g.lineWidth = 8; g.strokeStyle = 'rgba(255,255,255,.2)'; g.translate(3.5, 4.5); g.stroke(all); g.strokeStyle = 'rgba(40,10,50,.16)'; g.translate(-7, -9); g.stroke(all); }
+  g.restore();
 }
+const LIGHT = g => { const r = g.createRadialGradient(-24, -84, 3, -24, -84, 72); r.addColorStop(0, 'rgba(255,255,255,.42)'); r.addColorStop(0.5, 'rgba(255,255,255,.12)'); r.addColorStop(1, 'rgba(255,255,255,0)'); return r; };
+const AO = g => { const r = g.createLinearGradient(0, -34, 0, 0); r.addColorStop(0, 'rgba(30,10,40,0)'); r.addColorStop(1, 'rgba(30,10,40,.3)'); return r; };
 function eye(g, x, y, r, st, o = {}) {
-  const closed = st.blink > 0.5 || (o.happy && st.sing > 0.55);
+  const closed = st.blink > 0.85 || (o.happy && st.sing > 0.55);
   if (closed) {
     g.strokeStyle = '#2a1a22'; g.lineWidth = r * 0.28; g.lineCap = 'round'; g.beginPath();
     if (o.happy && st.sing > 0.55) g.arc(x, y + r * 0.25, r * 0.7, Math.PI * 1.15, Math.PI * 1.85); else g.arc(x, y - r * 0.15, r * 0.75, Math.PI * 0.15, Math.PI * 0.85);
@@ -67,10 +78,21 @@ function eye(g, x, y, r, st, o = {}) {
   }
   g.fillStyle = '#fff'; g.strokeStyle = '#2a1a22'; g.lineWidth = Math.max(1.6, r * 0.16);
   g.beginPath(); g.ellipse(x, y, r, r * (o.tall || 1.08), 0, 0, Math.PI * 2); g.fill(); g.stroke();
-  const px = x + st.look * r * 0.32, py = y + r * 0.12, pr = r * (o.pupil || 0.55);
+  const px = x + st.look * r * 0.32, py = y + r * 0.12 + (st.lookY || 0) * r * 0.18, pr = r * (o.pupil || 0.55) * (1 + (st.wide || 0) * 0.15);
   g.fillStyle = o.iris || '#2a1a22'; g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.fill();
   if (o.iris) { g.fillStyle = '#1a0e14'; g.beginPath(); g.arc(px, py, pr * 0.55, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#fff'; g.beginPath(); g.arc(px - pr * 0.35, py - pr * 0.4, pr * 0.32, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(px - pr * 0.35, py - pr * 0.4, pr * 0.34, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(px + pr * 0.38, py + pr * 0.35, pr * 0.14, 0, Math.PI * 2); g.fill();
+  // веко цвета тела: плавное моргание, а певцы на долгих нотах прикрывают глаза
+  const lid = Math.max(o.lid ? Math.max(0, st.sing - 0.35) * 0.8 : 0, st.blink || 0);
+  if (lid > 0.04) {
+    const ry = r * (o.tall || 1.08), ly = y - ry + ry * 2 * lid;
+    g.save(); g.beginPath(); g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2); g.clip();
+    g.fillStyle = st.col ? shade(st.col, -0.08) : '#888'; g.fillRect(x - r - 1, y - ry - 1, r * 2 + 2, ly - (y - ry) + 1);
+    g.strokeStyle = '#2a1a22'; g.lineWidth = Math.max(1.4, r * 0.13); g.beginPath(); g.moveTo(x - r, ly); g.quadraticCurveTo(x, ly + r * 0.25, x + r, ly); g.stroke();
+    g.restore();
+    g.strokeStyle = '#2a1a22'; g.lineWidth = Math.max(1.6, r * 0.16); g.beginPath(); g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2); g.stroke();
+  }
 }
 function mouth(g, x, y, w, open, style = 'smile') {
   g.lineCap = 'round'; g.lineJoin = 'round';
@@ -269,7 +291,7 @@ const KINDS = {
       g.fillStyle = '#ff9ad0'; g.beginPath(); for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; g.ellipse(6 + Math.cos(a) * 5, -92 + Math.sin(a) * 2.5, 4.5, 3, a, 0, Math.PI * 2); } g.fill();
       // горловой мешок
       const sac = 4 + s * 14; g.fillStyle = '#ffc0d4'; g.strokeStyle = shade(c, -0.6); g.lineWidth = 2.4; g.beginPath(); g.ellipse(0, -18, sac * 1.4, sac, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-      eye(g, -22, -66, 9.5, st, { iris: '#e8b020' }); eye(g, 22, -66, 9.5, st, { iris: '#e8b020' });
+      eye(g, -22, -66, 9.5, st, { iris: '#e8b020', lid: 1 }); eye(g, 22, -66, 9.5, st, { iris: '#e8b020', lid: 1 });
       mouth(g, 0, -40, 44, s * 0.7); cheeks(g, 0, -42, 32, 6);
     },
   },
@@ -282,7 +304,7 @@ const KINDS = {
       feet(g, w, c);
       silhouette(g, [{ path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
       shine(g, -11, -84, 6, 10);
-      eye(g, -11, -70, 8, st); eye(g, 11, -70, 8, st);
+      eye(g, -11, -70, 8, st, { lid: 1 }); eye(g, 11, -70, 8, st, { lid: 1 });
       mouth(g, 0, -54, 18, s); cheeks(g, 0, -58, 18, 4.5);
       // лютня
       g.save(); g.translate(-4, -26); g.rotate(-0.5);
@@ -344,7 +366,7 @@ const KINDS = {
       // крылья
       for (const k of [-1, 1]) { g.fillStyle = shade(c, -0.2); g.strokeStyle = shade(c, -0.6); g.lineWidth = 2.4; g.beginPath(); g.ellipse(k * 36, -44, 9, 22, k * (0.25 + s * 0.25), 0, Math.PI * 2); g.fill(); g.stroke(); }
       g.fillStyle = '#f6f0e0'; for (const k of [-1, 1]) { g.beginPath(); g.arc(k * 15, -66, 14, 0, Math.PI * 2); g.fill(); }
-      eye(g, -15, -66, 10, st, { iris: '#ff9a20', pupil: 0.62 }); eye(g, 15, -66, 10, st, { iris: '#ff9a20', pupil: 0.62 });
+      eye(g, -15, -66, 10, st, { iris: '#ff9a20', pupil: 0.62, lid: 1 }); eye(g, 15, -66, 10, st, { iris: '#ff9a20', pupil: 0.62, lid: 1 });
       // клюв-свистулька
       g.fillStyle = '#ffb02a'; g.strokeStyle = '#7a4a10'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-6, -54); g.lineTo(6, -54); g.lineTo(0, -44 + s * 2); g.closePath(); g.fill(); g.stroke();
     },
@@ -397,16 +419,24 @@ const BASE_IDS = KIND_IDS.filter(k => KINDS[k].el.length === 1);
 const RARITY = n => ['', 'Обычный', 'Редкий', 'Очень редкий', 'Легендарный'][n];
 
 // полный рисунок монстра: тень, подпрыгивание, сжатие на ноте, раскачивание
+// st: t — время, sing — громкость своей ноты, sq — пружина «желе» (+ вытянулся, − сплющился),
+// jump — высота прыжка, bob — кивок в такт, tilt — наклон, look/lookY — куда смотрит
 function drawMonster(g, kind, x, y, size, st) {
   const K = KINDS[kind], s = st.sing || 0;
-  const breathe = Math.sin(st.t * 2.2 + (st.phase || 0)) * 0.025;
-  const hop = K.hover ? -14 - Math.sin(st.t * 1.8 + (st.phase || 0)) * 5 : -(st.hop || 0);
+  const breathe = Math.sin(st.t * 2.2 + (st.phase || 0)) * 0.025, sq = st.sq || 0;
+  const lift = (K.hover ? 14 + Math.sin(st.t * 1.8 + (st.phase || 0)) * 5 : 0) + (st.jump || 0) + (st.hop || 0);
   g.save(); g.translate(x, y);
-  // тень
-  g.fillStyle = 'rgba(30,40,20,.28)'; g.beginPath(); g.ellipse(0, 0, size * 0.36 * (K.hover ? 0.7 : 1), size * 0.07, 0, 0, Math.PI * 2); g.fill();
-  g.translate(0, hop); g.scale(size / 100, size / 100);
-  const sy = 1 + breathe + s * 0.06, sx = 1 - breathe * 0.6 - s * 0.03;
-  g.scale(sx, sy); g.rotate(Math.sin(st.t * 1.3 + (st.phase || 0)) * 0.02 + (st.tilt || 0));
-  K.draw(g, st);
+  // тень: мягкая, сжимается, когда монстр в воздухе
+  const shK = 1 / (1 + lift / 60), sr = size * 0.36 * (K.hover ? 0.75 : 1) * shK * (1 - sq * 0.4);
+  if (sr > 1) {
+    g.save(); g.scale(1, 0.2); const sh = g.createRadialGradient(0, 0, sr * 0.2, 0, 0, sr);
+    sh.addColorStop(0, `rgba(20,40,10,${0.42 * shK})`); sh.addColorStop(1, 'rgba(20,40,10,0)');
+    g.fillStyle = sh; g.beginPath(); g.arc(0, 0, sr, 0, Math.PI * 2); g.fill(); g.restore();
+  }
+  g.translate(0, -lift + (st.bob || 0)); g.scale(size / 100, size / 100);
+  const sy = 1 + breathe + s * 0.05 + sq, sx = 1 - breathe * 0.6 - s * 0.025 - sq * 0.55;
+  g.rotate(Math.sin(st.t * 1.3 + (st.phase || 0)) * 0.02 + (st.tilt || 0));
+  g.scale(sx, sy);
+  st.col = K.col; K.draw(g, st);
   g.restore();
 }
