@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#4fb4f4">
+<title>Монстрохор</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud">
+  <div class="top">
+    <div class="pill lvl" title="Уровень острова"><span class="star"><b id="lvl">1</b></span><span class="xp"><i id="xpbar"></i></span></div>
+    <div class="pill"><span class="ic coin"></span><b id="coins">0</b></div>
+    <div class="pill"><span class="ic berry"></span><b id="berries">0</b></div>
+    <div class="sp"></div>
+    <button class="rb" id="bBook" aria-label="Книга монстров"><svg viewBox="0 0 24 24"><path d="M4 5c3-1.5 5.5-1.5 8 0v14c-2.5-1.5-5-1.5-8 0zM12 5c2.5-1.5 5-1.5 8 0v14c-3-1.5-5.5-1.5-8 0z"/></svg></button>
+    <button class="rb" id="bSound" aria-label="Музыка"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></button>
+  </div>
+  <div class="bottom">
+    <button class="big gold" id="bCollect"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 8v8M9.5 10.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/></svg><span>Собрать</span><b id="collectN"></b></button>
+    <div class="sp"></div>
+    <button class="big pink" id="bBreed"><svg viewBox="0 0 24 24"><path d="M5 20V10a7 7 0 0 1 14 0v10"/><path d="M12 9.5c-1.2-1.6-3.6-.6-2.8 1.3.5 1.1 2.8 2.7 2.8 2.7s2.3-1.6 2.8-2.7c.8-1.9-1.6-2.9-2.8-1.3z"/></svg><span>Скрестить</span></button>
+    <button class="big green" id="bShop"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 10.5h-13z"/><path d="M8 9a4 4 0 0 1 8 0"/></svg><span>Магазин</span></button>
+  </div>
+</div>
+
+<div id="hintbar"></div>
+<button id="bCancel" class="big">Отмена</button>
+<div id="tip"><span id="tipText"></span><small>нажми, чтобы закрыть</small></div>
+<div id="toast"></div>
+<div id="sheet" class="sheet"></div>
+
+<div id="start">
+  <div class="logo">Монстрохор<small>поющие монстрики</small></div>
+  <button class="play">▶ Играть</button>
+  <div class="note">Включи звук: каждый монстр поёт свою партию</div>
+</div>
+
+<script src="js/audio.js"></script>
+<script src="js/monsters.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

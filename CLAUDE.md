@@ -4,6 +4,18 @@
 - `android/build.py` собирает APK без Android SDK, готовые файлы лежат в `dist/`.
 - Онлайн-версия «Клонов» — артефакт https://claude.ai/artifact/D7tKManz4kjhnwNfve7ssC. Обновлять этот же артефакт: страница — тело `clones/index.html` без `<head>`, рядом `game.js`, `three.min.js`, `three-addons.js`, `models.js`.
 
+## «Монстрохор» — поющие монстрики (текущий проект, папка `monsters/`)
+
+- Игра в духе «поющих монстров», но всё своё: 15 монстров нарисованы кодом (`www/js/monsters.js`),
+  партии синтезируются на Web Audio (`www/js/audio.js`, 100 BPM, C–Am–F–G), логика и интерфейс — `www/js/game.js`.
+  Чужих персонажей, названий и звуков не брать.
+- Android: `monsters/android` — Gradle-проект, WebView из assets (`../../www`), только горизонтально,
+  подпись `app/debug.keystore` (тот же ключ, что у APK «Клонов», который у пользователя ставился). Ключ не менять.
+- APK собирает GitHub Actions (`.github/workflows/monstrohor-apk.yml`) при push в эту ветку; локально Android SDK нет.
+  Пользователю давать прямую ссылку (всегда последняя сборка):
+  https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk
+- Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
+
 ## Новая линия «Клонов» (ветка `claude/styx-android-lore-rwjww2`, папка `clones/www/`)
 
 - Пользователь играет в неё. Её APK (`com.araxnid.clones`) собирает GitHub Actions при push в эту ветку

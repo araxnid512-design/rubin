@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- без заголовка, фон как небо игры: при запуске нет белой вспышки -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/sky</item>
+        <item name="android:statusBarColor">@color/sky</item>
+        <item name="android:navigationBarColor">@color/sky</item>
+    </style>
+    <color name="sky">#4FB4F4</color>
+</resources>

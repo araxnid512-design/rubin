@@ -1,0 +1,60 @@
+name: Монстрохор APK
+
+# Сборка Android-версии «Монстрохора» при каждом изменении игры (monsters/).
+# Готовый APK лежит по постоянной ссылке:
+# https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk
+on:
+  push:
+    branches: ['claude/prehistoric-mario-platformer-b054am']
+    paths: ['monsters/**', '.github/workflows/monstrohor-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monstrohor-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Собрать APK
+        working-directory: monsters/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Проверить подпись и манифест
+        run: |
+          APK=monsters/android/app/build/outputs/apk/release/app-release.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT"/apksigner verify --verbose --print-certs "$APK"
+          "$BT"/aapt2 dump badging "$APK" | head -8
+          cp "$APK" monstrohor.apk
+
+      # Отдельный релиз с постоянным тегом; «последним» не помечается, чтобы не сбить ссылки других игр
+      - name: Опубликовать
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TITLE="Монстрохор 1.0.${{ github.run_number }}"
+          NOTES="Сборка из коммита ${{ github.sha }}. Скачайте monstrohor.apk на телефон и откройте его; новая версия ставится поверх старой, прогресс сохраняется."
+          if gh release view monstrohor >/dev/null 2>&1; then
+            gh release upload monstrohor monstrohor.apk --clobber
+            gh release edit monstrohor --title "$TITLE" --notes "$NOTES" --latest=false
+          else
+            gh release create monstrohor monstrohor.apk --title "$TITLE" --notes "$NOTES" --target "${{ github.sha }}" --latest=false
+          fi
