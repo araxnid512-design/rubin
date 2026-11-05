@@ -46,21 +46,23 @@ jobs:
           node tools/build-www.js
           node tools/build-single.js
 
+      # APK собирается так же, как у «Клонов против дроидов» (их APK на телефоне ставится):
+      # tools/build-apk.py — манифест и ресурсы вручную, подписи v1 + v2, minSdk 21, пакет com.rubin.kolrat
       - name: Собрать APK
-        working-directory: android-app
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          python3 -m pip install --quiet cryptography
+          python3 tools/build-apk.py
 
       - name: Проверить подпись и манифест
         run: |
-          APK=android-app/app/build/outputs/apk/release/app-release.apk
+          APK=dist/kolrat.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT"/apksigner verify --verbose --print-certs "$APK" | tee apksigner.txt | head -12
-          grep -q "Verified using v1 scheme (JAR signing): true" apksigner.txt || echo "::warning::нет подписи v1"
+          grep -q "Verified using v1 scheme (JAR signing): true" apksigner.txt || { echo "Нет подписи v1"; exit 1; }
           grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" apksigner.txt || { echo "Нет подписи v2"; exit 1; }
           "$BT"/aapt2 dump badging "$APK" | grep -E "targetSdkVersion|sdkVersion" || true
-          "$BT"/aapt2 dump badging "$APK" | grep -E "^package|^application-label:" || true
+          "$BT"/aapt2 dump badging "$APK" | grep -E "^package|^application-label:|launchable-activity" || true
+          "$BT"/aapt2 dump badging "$APK" | grep -q "package: name='com.rubin.kolrat'" || { echo "Неверный пакет"; exit 1; }
           "$BT"/aapt2 dump badging "$APK" | grep -q "versionCode='$VERSION_CODE'" || { echo "Неверный versionCode"; exit 1; }
           # горизонтальная ориентация: sensorLandscape = 6
           "$BT"/aapt2 dump xmltree --file AndroidManifest.xml "$APK" | grep -i "screenOrientation" | tee /dev/stderr | grep -q "6" || { echo "Нет горизонтальной ориентации"; exit 1; }
@@ -79,7 +81,8 @@ jobs:
           NOTES=$(printf '%s\n' \
             "Сборка из коммита ${{ github.sha }}." \
             "" \
-            "kolrat.apk — приложение для Android (горизонтально, во весь экран). Новая версия ставится поверх старой, сохранения остаются." \
+            "kolrat.apk — приложение для Android (горизонтально, во весь экран), собрано так же, как «Клоны против дроидов». Новая версия ставится поверх старой, сохранения остаются." \
+            "С версии 1.0.10 у приложения новое имя пакета: если остался старый «Колрат», удалите его." \
             "" \
             "Как установить: ссылку открыть в Chrome (в приложении Claude: ⋮ → «Відкрити в Chrome»), «Завантажити» → открыть файл → «Встановити»." \
             "Если появится окно Play Захисту — нажать «Надіслати цього разу» или «Не надсилати» (не закрывать окно мимо кнопок)." \

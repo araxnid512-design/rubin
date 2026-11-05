@@ -34,7 +34,7 @@ Android попросит разрешить установку из неизве
 
 Если экран «Скачивание…» завис на 100% (так бывает во встроенном браузере Telegram, GitHub и других приложений), файл уже скачан. Не нажимайте «Отмена». Откройте уведомление о загрузке в шторке или приложение «Файлы» → «Скачанные файлы». Можно также открыть ссылку в обычном Chrome: ⋮ → «Открыть в Chrome».
 
-Собрать APK самостоятельно (нужны Android SDK и JDK 21): `npm run android:apk` → `android-app/app/build/outputs/apk/release/app-release.apk`.
+APK собирается так же, как у «Клонов против дроидов»: `node tools/build-single.js && python3 tools/build-apk.py` → `dist/kolrat.apk` (нужны JDK, Python с `cryptography` и Android SDK для `android.jar` и `d8`). Манифест и ресурсы пишутся самим сборщиком, подписи v1 + v2, minSdk 21, пакет `com.rubin.kolrat`, ключ — `android-app/kolrat-key.pem` (не менять). Gradle-проект `android-app/` остался для отладки в Android Studio.
 
 **Вариант 2 — как приложение из браузера (PWA).** Откройте игру по https (например, через GitHub Pages) в Chrome на Android → меню → «Добавить на главный экран». Игра установится с иконкой, будет запускаться во весь экран, горизонтально и работать офлайн.
 
