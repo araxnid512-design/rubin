@@ -31,9 +31,11 @@
           h('p', { class: 'small muted' }, 'Игра сохраняется автоматически после каждого действия. Ячейки — для ручных сохранений.'),
           ['1', '2', '3'].map((k) => slotRow(s, k)),
           h('div', { class: 'row', style: 'margin-top:12px' },
-            h('button', { class: 'btn', onclick: () => G.Save.exportFile(s) }, '⇩ Скачать файл'),
-            h('button', { class: 'btn', onclick: () => UI.importSave() }, '⇧ Загрузить файл')),
-          h('p', { class: 'small muted', style: 'margin-top:8px' }, 'Файл сохранения можно перенести на другой компьютер или телефон.')
+            UI.isNativeApp() ? null : h('button', { class: 'btn', onclick: () => G.Save.exportFile(s) }, '⇩ Скачать файл'),
+            h('button', { class: 'btn', onclick: () => UI.importSave() }, '⇧ Загрузить файл'),
+            h('button', { class: 'btn', onclick: () => UI.copySave(s) }, '⧉ Копировать сохранение'),
+            h('button', { class: 'btn', onclick: () => UI.pasteSave() }, '⎘ Вставить сохранение')),
+          h('p', { class: 'small muted', style: 'margin-top:8px' }, 'Сохранение можно перенести на другой компьютер или телефон — файлом или текстом через буфер обмена (например, переслать себе в мессенджере).')
         ),
         UI.canFullscreen() ? h('div', { class: 'card' },
           h('h2', null, 'Экран'),

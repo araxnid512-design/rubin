@@ -369,3 +369,4 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 @media (orientation: landscape) and (max-height: 540px) {
   .sticky-actions { bottom: -10px; }
 }
+.save-text { width: 100%; min-height: 140px; background: #111214; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 12px/1.3 var(--mono); margin: 6px 0; resize: vertical; }

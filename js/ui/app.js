@@ -135,6 +135,7 @@
       }
       wrap.appendChild(h('button', { class: 'btn big' + (meta && !meta.over ? '' : ' primary'), onclick: () => { st.mode = 'new'; UI.render(); } }, 'Новая кампания'));
       wrap.appendChild(h('button', { class: 'btn big', onclick: () => UI.importSave() }, 'Загрузить из файла'));
+      wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.pasteSave() }, 'Вставить сохранение текстом'));
       if (UI.canFullscreen() && !document.fullscreenElement) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.fullscreen() }, '⛶ Во весь экран (горизонтально)'));
       const slots = ['1', '2', '3'].map((k) => [k, G.Save.meta(k)]).filter((x) => x[1]);
       if (slots.length) {
@@ -199,6 +200,42 @@
     document.body.appendChild(inp);
     inp.click();
     setTimeout(() => inp.remove(), 60000);
+  };
+
+  // ---------- Перенос сохранения текстом ----------
+  UI.copySave = function (s) {
+    const text = G.Save.serialize(s);
+    const done = () => UI.flash('Сохранение скопировано в буфер обмена (' + Math.round(text.length / 1024) + ' КБ).');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => UI.showSaveText(text));
+    else UI.showSaveText(text);
+  };
+  UI.showSaveText = function (text) {
+    UI.overlay = () => h('div', { class: 'modal' },
+      h('h2', null, 'Текст сохранения'),
+      h('p', { class: 'small muted' }, 'Выделите весь текст и скопируйте его вручную.'),
+      h('textarea', { class: 'save-text', readonly: true }, text),
+      h('button', { class: 'btn primary', onclick: () => { UI.overlay = null; UI.render(); } }, 'Готово'));
+    UI.render();
+  };
+  UI.pasteSave = function () {
+    const ta = h('textarea', { class: 'save-text', placeholder: 'Вставьте сюда текст сохранения' });
+    const load = () => {
+      try {
+        const s = G.Save.parse(ta.value.trim());
+        UI.overlay = null;
+        UI.overSeen = false;
+        UI.start(s);
+        UI.flash('Сохранение загружено: день ' + s.day + '.');
+      } catch (e) { UI.flash('Не удалось загрузить: ' + e.message); }
+    };
+    UI.overlay = () => h('div', { class: 'modal' },
+      h('h2', null, 'Вставить сохранение'),
+      ta,
+      h('div', { class: 'row', style: 'margin-top:8px' },
+        h('button', { class: 'btn', onclick: () => { UI.overlay = null; UI.render(); } }, 'Отмена'),
+        navigator.clipboard && navigator.clipboard.readText ? h('button', { class: 'btn', onclick: () => navigator.clipboard.readText().then((t) => { ta.value = t; }, () => UI.flash('Нет доступа к буферу — вставьте вручную.')) }, 'Из буфера') : null,
+        h('button', { class: 'btn primary', onclick: load }, 'Загрузить')));
+    UI.render();
   };
 
   // Всплывающее сообщение
