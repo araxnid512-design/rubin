@@ -258,6 +258,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 		groups: spec.groups ?? [],
 		stations: spec.stations ?? [],
 		room: spec.room ?? null, // комната героя (только в стабе)
+		mercSpots: spec.mercSpots ?? null, // база «Опорный»: где стоят наёмники, что живут на базе
 		posts: spec.posts ?? null, barracksDoor: spec.barracksDoor ?? null, // «Карьер»: посты часовых муров и дверь казармы
 		bossPost: spec.bossPost ?? null, patrols: spec.patrols ?? null, fixedPosts: spec.fixedPosts ?? 6, // «Карьер»: место главаря, маршруты патрулей
 		prisoners: spec.prisoners ?? null, cellDoors: spec.cellDoors ?? null, // форпост внешников: пленные в клетках изолятора

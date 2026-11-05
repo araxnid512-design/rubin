@@ -36,7 +36,7 @@ import { createMuzzleFlashes } from './muzzle.js';
 import { createParticles, createChunks, rgb } from './particles.js';
 import { OFFLINE } from './assets.js';
 import { clothVariants, dressZombie, bodyVariation } from './variety.js';
-import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, MERC_HEAL, newMerc, PartyWindow, BASE_POSTS, BASE_POSTS_BARRACKS, TRIP_WORK, resolveTrip } from './mercs.js';
+import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, BASE_BEDS, MERC_HEAL, newMerc, PartyWindow, BASE_POSTS, BASE_POSTS_BARRACKS, TRIP_WORK, resolveTrip } from './mercs.js';
 import { Inventory } from './inventory.js';
 import { Trade, PEA_RATE, PEARL_PRICE, sellPrice, SELLABLE } from './trade.js';
 import { BUILDINGS, raid as raidBase, cantBuy, build as buildOnBase, cantUpgrade, upgrade as upgradeOnBase, level as baseLevel, tickBase, collect as collectStock, perks as basePerks, defense as baseDefense } from './base.js';
@@ -1787,8 +1787,8 @@ class Merc extends Actor {
 		this.clips = CLIPS[this.W.anim];
 		this.slot = 0;
 		this.planted = 0;
-		// своя койка в комнате героя (в стабе)
-		this.home = level.room?.spots[state.bed ?? 0] ?? null;
+		// своё место: койка в комнате героя (в стабе) или место у казармы на базе
+		this.home = game.homeSpot(state);
 		this.radius = 0.38;
 		this.scale = 1;
 		this.alive = true;
@@ -2887,8 +2887,13 @@ const game = {
 		this.stash = normalizeStash(s.stash);
 		this.perks = { maxHp: 100, ...s.perks };
 		// старые сохранения: был только отряд — все в нём идут с героем
-		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0).slice(0, ROOM_BEDS);
-		this.roster.forEach((m, i) => { if (!(m.bed >= 0) || this.roster.some((o, j) => j < i && o.bed === m.bed)) m.bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((o, j) => j !== i && o.bed === b)); });
+		this.roster = (s.roster ?? (s.party ?? []).map((m) => ({ ...m, out: true }))).filter((m) => MERCS[m.id] && m.hp > 0).slice(0, ROOM_BEDS + BASE_BEDS.at(-1));
+		// места — по дому (койка в комнате стаба или место на базе); занятое другим — ближайшее свободное
+		this.roster.forEach((m, i) => {
+			const home = this.homeOf(m), cap = home === 'base' ? BASE_BEDS.at(-1) : ROOM_BEDS;
+			const taken = (b) => this.roster.some((o, j) => j < i && this.homeOf(o) === home && o.bed === b);
+			if (!(m.bed >= 0 && m.bed < cap) || taken(m.bed)) m.bed = [...Array(cap).keys()].find((b) => !taken(b)) ?? 0;
+		});
 		this.syncGuards(); // кто на постах базы — по отряду из сохранения
 		this.kills = 0;
 		this.begin();
@@ -2989,11 +2994,14 @@ const game = {
 		if (hunt?.at === id && NODES[id].kind === 'cluster' && !this.huntSquad) this.startLiveHunt(hunt, true);
 		// задание «найди пропавшего» в этом кластере — его тело и жетон у одного из тайников
 		for (const t of this.world.quests.active) if (t.kind === 'find' && t.at === id && !t.got) this.placeTag(t);
-		// вернулись в стаб: уцелевшие бойцы отряда расходятся по своим койкам — снова брать с собой там
-		const back = level.room ? this.party.map((st) => MERCS[st.id].name) : [];
-		for (const st of back.length ? this.roster : []) st.out = false;
+		// вернулись домой (в стаб или на базу): уцелевшие бойцы отряда, кто здесь живёт, расходятся по своим местам —
+		// снова брать с собой там; живущие в другом месте идут дальше с героем
+		const here = level.room ? 'stab' : level.mercSpots ? 'base' : null;
+		const backSt = here ? this.party.filter((st) => this.homeOf(st) === here) : [];
+		for (const st of backSt) st.out = false;
+		const back = backSt.map((st) => MERCS[st.id].name);
 		this.spawnMercs();
-		if (back.length) this.toast(`${back.join(' и ')} — у ${back.length > 1 ? 'своих коек' : 'своей койки'} в твоей комнате`);
+		if (back.length) this.toast(`${back.join(' и ')} — ${here === 'stab' ? `у ${back.length > 1 ? 'своих коек' : 'своей койки'} в твоей комнате` : 'на базе, у казармы'}`);
 		this.reloadFx(Infinity);
 		this.hud();
 		this.save();
@@ -3507,15 +3515,16 @@ const game = {
 		if ((kind === 'znahar' || kind === 'barter') && res.includes(kind)) kind = 'merc';
 		if (kind === 'merc') {
 			const free = Object.keys(MERCS).filter((id) => !this.merc(id));
-			if (free.length && this.roster.length < ROOM_BEDS) {
+			const where = this.freeBed('stab') != null ? 'stab' : this.freeBed('base') != null ? 'base' : null;
+			if (free.length && where) {
 				const id = free[Math.floor(Math.random() * free.length)], D = MERCS[id];
-				const bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((m) => m.bed === b));
-				const st = newMerc(id, bed);
+				const st = newMerc(id, this.freeBed(where));
+				st.home = where;
 				st.ammo = 0; st.hp = Math.round(D.hp * 0.6); // из клетки — без запаса и побитый
 				st.out = this.party.length < this.partyMax;
 				this.roster.push(st);
 				this.spawnMercs();
-				this.banner(`${D.name} освобождён`, `${CLASSES[D.cls].name} с ${WEAPONS[D.weapon].name}: ${st.out ? 'идёт с тобой — патронов у него только магазин' : 'отряд полон — ждёт тебя у койки в «Полисе»'}. Внешники подняли тревогу!`);
+				this.banner(`${D.name} освобождён`, `${CLASSES[D.cls].name} с ${WEAPONS[D.weapon].name}: ${st.out ? 'идёт с тобой — патронов у него только магазин' : `отряд полон — ждёт тебя ${this.homeText(st)}`}. Внешники подняли тревогу!`);
 			} else {
 				this.bag.spore = (this.bag.spore ?? 0) + 40;
 				this.banner('Пленный освобождён', 'Коек в комнате нет — отблагодарил сорока споранами и ушёл в «Полис». Внешники подняли тревогу!');
@@ -4140,7 +4149,7 @@ const game = {
 		let best = null, bd = Infinity;
 		const consider = (s) => { const d = Math.hypot(s.x - p.x, s.z - p.z); if (d < s.r && d < bd) { bd = d; best = s; } };
 		for (const s of level.stations) consider(s);
-		if (this.inRoom) {
+		if (this.inRoom || this.atBase) {
 			for (const m of this.mercs) if (m.alive) consider({ id: 'merc', merc: m, name: m.def.name, label: 'Снарядить', x: m.pos.x, z: m.pos.z, r: m.state.out ? 2.8 : 1.6 });
 		} else if (!best && this.party.length && (this.player.moveMag ?? 0) < 0.1 && !this.nearContainer() && !this.nearestEnemy(p, 9)) {
 			// в вылазке: стоишь рядом со своим бойцом, тайника рядом нет, врагов в 9 м нет — «Снарядить»
@@ -4415,7 +4424,7 @@ const game = {
 	/** Наёмники в новой локации: отряд — рядом с героем; в стабе ещё и оставленные — у своих коек. */
 	spawnMercs() {
 		for (const m of this.mercs) m.dispose();
-		this.mercs = this.roster.filter((st) => st.out || (level.room && !st.job)).map((st) => {
+		this.mercs = this.roster.filter((st) => st.out || (!st.job && ((level.room && this.homeOf(st) === 'stab') || (level.mercSpots && this.homeOf(st) === 'base')))).map((st) => {
 			const m = new Merc(st);
 			if (st.out || !m.home) m.place(); else { m.pos.set(m.home.x, 0, m.home.z); m.root.rotation.y = m.home.ry; }
 			return m;
@@ -4486,7 +4495,7 @@ const game = {
 		const st = this.merc(id);
 		if (st?.job?.kind !== 'post') return;
 		st.job = null;
-		this.toast(`${MERCS[id].name} снят с поста — ждёт у своей койки в стабе`);
+		this.toast(`${MERCS[id].name} снят с поста — ждёт ${this.homeText(st)}`);
 		this.mercsMoved(true);
 	},
 
@@ -4526,7 +4535,7 @@ const game = {
 				for (const [k, n] of Object.entries(r.loot)) b.stock[k] = (b.stock[k] ?? 0) + n;
 				const got = stockText(r.loot);
 				text = `${D.name} вернулся из «${NODES[job.at].short}»${r.hurt ? ', ранен' : ''}${got ? `: ${got}` : ' ни с чем'}`;
-				this.toast(`${text} — добыча на складе базы, забрать у терминала; сам — у койки в стабе`);
+				this.toast(`${text} — добыча на складе базы, забрать у терминала; сам — ${this.homeText(st)}`);
 			}
 			b.trips.unshift({ text, time: this.world.time });
 			b.trips.length = Math.min(b.trips.length, 5);
@@ -4536,29 +4545,79 @@ const game = {
 		}
 	},
 
-	/** Нанять у вербовщика: боец идёт в комнату героя и ждёт у своей койки. */
+	/**
+	 * Нанять у вербовщика: боец идёт в комнату героя и ждёт у своей койки; коек нет — сразу на базу «Опорный» (места —
+	 * по казарме, baseBeds). Уже нанятые остаются где были.
+	 */
 	hire(id) {
 		const D = MERCS[id];
-		if (this.roster.length >= ROOM_BEDS || this.merc(id)) return;
+		if (this.merc(id)) return;
+		const where = this.freeBed('stab') != null ? 'stab' : this.freeBed('base') != null ? 'base' : null;
+		if (!where) { this.toast(`Мест нет: в комнате ${ROOM_BEDS} коек, на базе ${this.baseBeds()} — улучши казарму на базе`, 'warn'); return; }
 		if ((this.bag.spore ?? 0) < D.price) { this.toast('Не хватает споранов', 'warn'); return; }
 		this.bag.spore -= D.price;
-		const bed = [...Array(ROOM_BEDS).keys()].find((b) => !this.roster.some((m) => m.bed === b));
-		const st = newMerc(id, bed);
+		const st = newMerc(id, this.freeBed(where));
+		st.home = where;
 		this.roster.push(st);
-		const m = new Merc(st);
-		m.place();
-		this.mercs.push(m);
+		if (where === 'stab' && level.room) {
+			const m = new Merc(st);
+			m.place();
+			this.mercs.push(m);
+		}
 		Sfx.coins();
-		this.toast(`${D.name} (${CLASSES[D.cls].name.toLowerCase()}) нанят — ждёт в твоей комнате (жилой блок у казармы)`);
+		this.toast(where === 'stab' ? `${D.name} (${CLASSES[D.cls].name.toLowerCase()}) нанят — идёт к своей койке в твоей комнате (жилой блок у казармы)` : `${D.name} (${CLASSES[D.cls].name.toLowerCase()}) нанят — коек в комнате нет, ушёл на базу «Опорный» (там ${this.roster.filter((m) => this.homeOf(m) === 'base').length}/${this.baseBeds()})`);
 		this.renderPartyBar();
 		this.hud();
 		this.save();
 	},
 
-	/** Взять бойца из комнаты на вылазку (только в комнате). */
+	/** Где живёт боец: 'stab' (комната героя) или 'base' (база «Опорный»). */
+	homeOf(st) { return st?.home === 'base' ? 'base' : 'stab'; },
+	/** Сколько мест для наёмников на базе: без казармы — у костра, с казармой — по её уровню (BASE_BEDS). */
+	baseBeds() { const b = this.world.base; return BASE_BEDS[b?.built.includes('barracks') ? Math.min(3, b.lv?.barracks ?? 1) : 0]; },
+	/** Свободное место дома where ('stab' — койка в комнате, 'base' — у казармы); null — мест нет. */
+	freeBed(where) {
+		const cap = where === 'base' ? this.baseBeds() : ROOM_BEDS;
+		for (let b = 0; b < cap; b++) if (!this.roster.some((m) => this.homeOf(m) === where && m.bed === b)) return b;
+		return null;
+	},
+	/** Точка дома бойца в этой локации (койка в комнате, место у казармы) или null. */
+	homeSpot(st) { return (this.homeOf(st) === 'base' ? level.mercSpots : level.room?.spots)?.[st.bed ?? 0] ?? null; },
+	/** «у своей койки в стабе» / «на базе, у казармы». */
+	homeText(st) { return this.homeOf(st) === 'base' ? 'на базе «Опорный», у казармы' : 'у своей койки в стабе'; },
+	/** Герой у дома бойца: в комнате стаба (живёт в стабе) или на базе (живёт на базе). */
+	atHomeOf(st) { return this.homeOf(st) === 'base' ? this.atBase : this.inRoom; },
+	/** Можно взять с собой: боец дома, не на посту и не на вылазке. */
+	canTake(id) { const st = this.merc(id); return !!st && !st.out && !st.job && this.atHomeOf(st); },
+	/** Можно оставить: в комнате стаба или на базе — у себя дома или там, где есть свободное место. */
+	canLeave(id) {
+		const st = this.merc(id);
+		if (!st?.out) return false;
+		if (this.inRoom) return this.homeOf(st) === 'stab' || this.freeBed('stab') != null;
+		if (this.atBase) return this.homeOf(st) === 'base' || this.freeBed('base') != null;
+		return false;
+	},
+	/** Можно переселить (стаб ↔ база): боец дома, рядом с героем. Хватит ли мест — проверяет relocate. */
+	canRelocate(id) { return this.canTake(id); },
+
+	/** Переселить бойца: из комнаты стаба на базу «Опорный» или с базы в стаб (если там есть место). */
+	relocate(id) {
+		const st = this.merc(id);
+		if (!st || !this.canRelocate(id)) return;
+		const to = this.homeOf(st) === 'base' ? 'stab' : 'base', bed = this.freeBed(to);
+		if (bed == null) { this.toast(to === 'base' ? `На базе мест нет (${this.baseBeds()}) — улучши казарму` : `В комнате все ${ROOM_BEDS} коек заняты`, 'warn'); return; }
+		st.home = to;
+		st.bed = bed;
+		Sfx.reload();
+		this.toast(to === 'base' ? `${MERCS[id].name} ушёл на базу «Опорный» — ждёт там у казармы (взять с собой — на базе)` : `${MERCS[id].name} ушёл в стаб — ждёт у своей койки в твоей комнате`);
+		this.spawnMercs();
+		this.save();
+	},
+
+	/** Взять бойца на вылазку — у его дома: в комнате стаба или на базе. */
 	takeMerc(id) {
 		const st = this.merc(id);
-		if (!st || st.out || st.job || !this.inRoom) return;
+		if (!st || st.out || st.job || !this.atHomeOf(st)) return;
 		if (this.party.length >= this.partyMax) { this.toast(`С тобой уже ${this.partyMax} — сначала оставь кого-нибудь в комнате`, 'warn'); return; }
 		st.out = true;
 		this.slotMercs();
@@ -4568,13 +4627,17 @@ const game = {
 		this.save();
 	},
 
-	/** Оставить бойца в комнате (только в комнате): он уходит к своей койке. */
+	/** Оставить бойца: в комнате стаба — у койки, на базе — у казармы (живёт в другом месте — переселяется, если есть место). */
 	leaveMerc(id) {
 		const st = this.merc(id);
-		if (!st?.out || !this.inRoom) return;
+		if (!st?.out || !this.canLeave(id)) return;
+		const here = this.inRoom ? 'stab' : 'base';
+		if (this.homeOf(st) !== here) { st.home = here; st.bed = this.freeBed(here); }
 		st.out = false;
+		const a = this.mercs.find((m) => m.state === st);
+		if (a) { a.home = this.homeSpot(st); a.homeFlow = null; }
 		this.slotMercs();
-		this.toast(`${MERCS[id].name} остаётся в комнате`);
+		this.toast(`${MERCS[id].name} остаётся ${here === 'stab' ? 'в комнате' : 'на базе, у казармы'}`);
 		this.renderPartyBar();
 		this.save();
 	},

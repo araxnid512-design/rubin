@@ -558,6 +558,27 @@ try {
 	const startAmmo = await G(page, () => ({ shram: window.__game.merc('shram').mag + window.__game.merc('shram').ammo, ded: window.__game.merc('ded').mag + window.__game.merc('ded').ammo }));
 	check(startAmmo.shram === 150 && startAmmo.ded === 12, `у нанятого автоматчика ${startAmmo.shram} патронов, у охотника ${startAmmo.ded}`);
 	check(hired.equip === 0, 'у костра бойцов не снарядить и не взять — только в комнате');
+	// отпустить совсем — только с подтверждением (раньше бойцы пропадали от случайного нажатия)
+	await page.click('[data-act="dismiss"][data-id="ded"]');
+	const dism = await G(page, () => ({ kept: !!window.__game.merc('ded'), ask: !!document.querySelector('[data-act="dismissYes"][data-id="ded"]') }));
+	await page.click('[data-act="dismissNo"][data-id="ded"]');
+	check(dism.kept && dism.ask && await G(page, () => !!window.__game.merc('ded')), '«Отпустить совсем» — только с подтверждением: нажал «Нет» — Дед остался');
+	// из комнаты — на базу «Опорный» (и обратно — только оттуда); нанятый сверх коек — сразу на базу
+	const relo = await G(page, () => {
+		const g = window.__game, p = g.player, back = p.pos.clone(), sp = g.level.room.spots[0];
+		g.bag.spore = (g.bag.spore ?? 0) + 200;
+		g.hire('botsman');
+		p.pos.set(sp.x, 0, sp.z + 0.5);
+		const r = { can: g.canRelocate('botsman') };
+		g.relocate('botsman');
+		r.home = g.homeOf(g.merc('botsman'));
+		r.actor = g.mercs.some((m) => m.state.id === 'botsman');
+		r.text = document.getElementById('toast')?.textContent ?? '';
+		g.dismiss('botsman');
+		p.pos.copy(back);
+		return r;
+	});
+	check(relo.can && relo.home === 'base' && !relo.actor, `из комнаты наёмника — на базу «Опорный»: ушёл из стаба (дом — ${relo.home})`);
 	await page.screenshot({ path: join(OUT, 'game-party.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
 	await page.click('#party-close');
 	// бойцы сами дошли до своих коек в комнате
@@ -1086,6 +1107,15 @@ try {
 	// база «Опорный»: постоянный кластер, терминал посередине, 20 построек — каждая встаёт на своё место и что-то даёт
 	await G(page, () => window.__game.travel('base'));
 	await page.waitForFunction(() => window.__game.loc === 'base' && window.__game.state === 'play', null, { timeout: 300000 });
+	const baseMerc = await G(page, () => {
+		const g = window.__game;
+		g.roster.push({ id: 'botsman', hp: 130, mag: 30, ammo: 60, out: false, home: 'base', bed: g.freeBed('base') ?? 0 });
+		g.spawnMercs();
+		const a = g.mercs.find((m) => m.state.id === 'botsman'), r = { spots: g.level.mercSpots?.length ?? 0, at: a && a.home ? +Math.hypot(a.pos.x - a.home.x, a.pos.z - a.home.z).toFixed(2) : -1, cap: g.baseBeds() };
+		g.dismiss('botsman');
+		return r;
+	});
+	check(baseMerc.spots >= 2 && baseMerc.at >= 0 && baseMerc.at < 0.5, `на базе живущий там наёмник стоит на своём месте (мест на базе ${baseMerc.cap}, у казармы — больше)`);
 	const base0 = await G(page, async () => {
 		const g = window.__game, b = g.world.base, { BUILD_IDS } = await import('/game/base.js');
 		g.player.pos.set(0, 0, 3.5);

@@ -387,7 +387,16 @@ export default {
 		hazardBarrels(batch, M, collide, 37, -10, rnd, 3);
 		woodpile(batch, M, collide, -37, 12, 0.4);
 
+		// наёмники, что живут на базе: с казармой — в ряд у её входа (мест — по уровню, BASE_BEDS в game/mercs.js),
+		// без казармы — у костра (два места)
+		const mercSpots = [];
+		if (built('barracks')) {
+			const s = SLOTS.barracks;
+			for (let i = 0; i < 10; i++) mercSpots.push({ x: s.x - 6.3 + (i % 5) * 1.5 - (i % 5 >= 3 ? 0 : 0.6), z: s.z + 7.4 + Math.floor(i / 5) * 1.3, ry: 0 });
+		} else for (const [dx, dz, ry] of [[-1.3, 3, Math.PI - 0.3], [1.3, 3, Math.PI + 0.3]]) mercSpots.push({ x: fire.x + dx, z: fire.z + dz, ry });
+
 		return {
+			mercSpots,
 			start: spawn ? [spawn.x, spawn.z, spawn.ry] : [0, YARD + 12, Math.PI],
 			exits: [
 				{ to: 'stab', x0: 61.2, x1: 66, z0: YARD + 7, z1: YARD + 13, spawn: [58.5, YARD + 10, -Math.PI / 2], sign: [59.6, YARD + 13.6, 'Стаб «Полис» →'] },

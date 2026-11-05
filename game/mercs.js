@@ -1,7 +1,8 @@
 // Наёмники стаба: у каждого своё постоянное оружие. Еда им не нужна — нужны патроны их калибра
 // (сами перезаряжаются из своего запаса) и аптечки: сами они не лечатся.
-// Нанимают у костра в стабе; нанятый живёт в комнате героя (там шесть коек) и стоит у своей койки.
-// Взять с собой или оставить — только там. Снарядить — дать патроны, аптечку, перевязки медику, гранаты подрывнику —
+// Нанимают у костра в стабе; нанятый живёт в комнате героя (там шесть коек) и стоит у своей койки, а коек нет — на
+// базе «Опорный» (места у казармы: BASE_BEDS по её уровню). Из комнаты бойца можно отправить на базу и обратно
+// (relocate). Взять с собой или оставить — у его дома: в комнате или на базе. Снарядить — дать патроны, аптечку, перевязки медику, гранаты подрывнику —
 // можно и в вылазке: подойди к бойцу, когда рядом нет врагов (кнопка «Снарядить»), или из окна отряда, стоя рядом.
 // Без патронов боец гибнет от первой же атаки. В отряде — не больше четырёх (MAX_PARTY); вернувшись в стаб,
 // уцелевшие снова расходятся по койкам. Служит, пока жив. Заражённый подобрался близко — боец пятится к герою лицом
@@ -39,13 +40,15 @@ export const MERCS = {
 };
 /** Сколько бойцов можно взять на вылазку (остальные ждут у коек). */
 export const MAX_PARTY = 4;
-/** Коек в комнате героя — столько наёмников можно нанять. */
+/** Коек в комнате героя в стабе. */
 export const ROOM_BEDS = 6;
+/** Мест для наёмников на базе «Опорный»: без казармы — 2 (у костра), с казармой 1/2/3-го уровня — 6/8/10. */
+export const BASE_BEDS = [2, 6, 8, 10];
 /** Что сейчас делает боец (для окна): с героем, у койки, на посту, на вылазке. */
 export function jobText(m, g) {
 	if (m.job?.kind === 'post') return 'на посту на базе';
 	if (m.job?.kind === 'trip') return `на вылазке в «${NODES[m.job.at].short}», вернётся ${approx(Math.max(0, m.job.end - g.world.time)).replace('~', 'через ~')}`;
-	return m.out ? 'с тобой' : 'у койки в стабе';
+	return m.out ? 'с тобой' : m.home === 'base' ? 'на базе «Опорный»' : 'у койки в стабе';
 }
 
 /** Сколько здоровья даёт одна аптечка: наёмнику от героя и раненому — от медика. */
@@ -124,7 +127,11 @@ export class PartyWindow {
 			if (b.dataset.act === 'nade') g.giveNade(id);
 			if (b.dataset.act === 'take') g.takeMerc(id);
 			if (b.dataset.act === 'leave') g.leaveMerc(id);
-			if (b.dataset.act === 'dismiss') g.dismiss(id);
+			// отпустить совсем — только после подтверждения (кнопка рядом с наймом: раньше бойцы пропадали от случайного нажатия)
+			if (b.dataset.act === 'dismiss') this.askDismiss = id;
+			if (b.dataset.act === 'dismissNo') this.askDismiss = null;
+			if (b.dataset.act === 'dismissYes') { this.askDismiss = null; g.dismiss(id); }
+			if (b.dataset.act === 'relocate') g.relocate(id);
 			if (b.dataset.act === 'hire') g.hire(id);
 			if (b.dataset.act === 'post') g.postMerc(id);
 			if (b.dataset.act === 'unpost') g.unpostMerc(id);
@@ -167,8 +174,14 @@ export class PartyWindow {
 			// снарядить можно в комнате, на базе и в вылазке — стоя рядом с бойцом
 			const here = room || !!g.canEquip?.(m.id);
 			let move = '';
-			if (room && m.out) move = `<button class="stay small" data-act="leave" data-id="${m.id}">Оставить у койки</button>`;
-			if (room && !m.out) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
+			if (g.canLeave?.(m.id)) move = `<button class="stay small" data-act="leave" data-id="${m.id}">${g.inRoom ? 'Оставить у койки' : 'Оставить на базе'}</button>`;
+			if (g.canTake?.(m.id)) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
+			// переселить: из комнаты стаба — на базу, с базы — в стаб (если там есть место)
+			if (g.canRelocate?.(m.id)) {
+				const to = g.homeOf(m) === 'base' ? 'stab' : 'base', cap = to === 'base' ? g.baseBeds() : ROOM_BEDS, free = g.freeBed(to) != null;
+				const used = g.roster.filter((o) => g.homeOf(o) === to).length;
+				move += `<button class="stay small" data-act="relocate" data-id="${m.id}" ${free ? '' : 'disabled'}>${to === 'base' ? 'На базу «Опорный»' : 'Перевести в стаб'} <small>(мест ${used}/${cap})</small></button>`;
+			}
 			// своё снаряжение класса: аптечка медика, гранаты подрывника
 			let kit = '', stock = '';
 			if (C.heals) { stock = ` · в аптечке ${m.meds ?? 0}`; if (here) kit = `<button class="buy" data-act="meds" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 ? '' : 'disabled'}>В аптечку перевязку <small>(есть ${bag.medkit ?? 0})</small></button>`; }
@@ -185,10 +198,12 @@ export class PartyWindow {
 					${spare > W.mag ? `<button class="buy" data-act="ammoAll" data-id="${m.id}">Все ${spare}</button>` : ''}
 					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Аптечка +${MERC_HEAL} <small>(есть ${bag.medkit ?? 0})</small></button>` : ''}
 					${kit}
-					${this.hiring ? `<button class="stay small" data-act="dismiss" data-id="${m.id}">Отпустить совсем</button>` : ''}
+					${this.hiring ? (this.askDismiss === m.id ? `<span class="warn">Отпустить ${D.name} совсем?</span><button class="stay small" data-act="dismissYes" data-id="${m.id}">Да, отпустить</button><button class="buy" data-act="dismissNo" data-id="${m.id}">Нет</button>` : `<button class="stay small dismiss" data-act="dismiss" data-id="${m.id}">Отпустить совсем…</button>`) : ''}
 				</div></div>`;
 		};
 		const home = g.roster.filter((m) => !m.out && !m.job), one = (room || g.canEquip?.(this.focus)) && g.roster.find((m) => m.id === this.focus && !m.job);
+		const homeOf = (m) => (g.homeOf ? g.homeOf(m) : 'stab');
+		const inStab = home.filter((m) => homeOf(m) === 'stab'), inBase = home.filter((m) => homeOf(m) === 'base');
 		const busy = g.roster.filter((m) => m.job);
 		let html = '';
 		if (one) {
@@ -197,17 +212,23 @@ export class PartyWindow {
 		} else {
 			html += `<div class="trade-sec">С тобой (${g.party.length}/${g.partyMax ?? MAX_PARTY})</div>`;
 			html += g.party.map(card).join('') || `<div class="muted">${g.roster.length ? 'Никого — возьми бойца у его койки в комнате.' : 'Наёмников нет. Нанять можно у костра в стабе «Полис».'}</div>`;
-			if (home.length) {
-				html += `<div class="trade-sec">В твоей комнате в стабе (${home.length})</div>`;
-				html += room || this.hiring ? home.map(card).join('') : `<div class="muted">${home.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
+			if (inStab.length) {
+				html += `<div class="trade-sec">В твоей комнате в стабе (${inStab.length}/${ROOM_BEDS})</div>`;
+				html += room || this.hiring ? inStab.map(card).join('') : `<div class="muted">${inStab.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
+			}
+			if (inBase.length) {
+				html += `<div class="trade-sec">На базе «Опорный» (${inBase.length}/${g.baseBeds?.() ?? 0})</div>`;
+				html += g.atBase || this.hiring ? inBase.map(card).join('') : `<div class="muted">${inBase.map((m) => MERCS[m.id].name).join(', ')} — ждут на базе у казармы.</div>`;
 			}
 			if (busy.length) html += `<div class="trade-sec">На базе «Опорный» (${busy.length})</div><div class="muted">${busy.map((m) => `${MERCS[m.id].name} — ${jobText(m, g)}`).join('; ')}.</div>`;
 			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойца — патроны, аптечка, перевязки, гранаты — подойди к нему (когда рядом нет врагов — «Снарядить»). Взять с собой или оставить — только в твоей комнате в стабе, у коек.</div>';
 		}
 		if (this.hiring) {
-			// вербовщик: свободные бойцы по классам
-			const beds = g.roster.length >= ROOM_BEDS;
-			html += `<div class="trade-sec">Нанять ${beds ? `<span class="muted">· в комнате все ${ROOM_BEDS} койки заняты</span>` : `<span class="muted">· свободных коек ${ROOM_BEDS - g.roster.length}</span>`}</div>`;
+			// вербовщик: свободные бойцы по классам; коек в комнате нет — нанятый уходит на базу
+			const stabFree = g.freeBed ? ROOM_BEDS - g.roster.filter((m) => homeOf(m) === 'stab').length : ROOM_BEDS - g.roster.length;
+			const baseCap = g.baseBeds?.() ?? 0, baseFree = g.freeBed ? baseCap - g.roster.filter((m) => homeOf(m) === 'base').length : 0;
+			const where = stabFree > 0 ? 'stab' : baseFree > 0 ? 'base' : null, beds = !where;
+			html += `<div class="trade-sec">Нанять <span class="muted">· в комнате свободных коек ${Math.max(0, stabFree)} из ${ROOM_BEDS}, на базе мест ${Math.max(0, baseFree)} из ${baseCap}${beds ? ' — мест нет, улучши казарму на базе' : where === 'base' ? ' — нанятый пойдёт на базу' : ''}</span></div>`;
 			for (const [cls, C] of Object.entries(CLASSES)) {
 				const free = Object.entries(MERCS).filter(([id, D]) => D.cls === cls && !g.roster.some((m) => m.id === id));
 				if (!free.length) continue;
@@ -217,12 +238,12 @@ export class PartyWindow {
 					return `<div class="merc" data-hire="${id}">
 						${face(id)}
 						<div class="merc-text"><b>${D.name}</b> <span class="muted">${W.name} · ${AMMO[W.ammo]} · здоровье ${D.hp}</span><span>${D.desc}</span></div>
-						<div class="merc-btns"><button class="buy" data-act="hire" data-id="${id}" ${beds || (bag.spore ?? 0) < D.price ? 'disabled' : ''}>Нанять · ${D.price} сп.</button></div></div>`;
+						<div class="merc-btns"><button class="buy" data-act="hire" data-id="${id}" ${beds || (bag.spore ?? 0) < D.price ? 'disabled' : ''}>Нанять · ${D.price} сп.${where === 'base' ? ' (на базу)' : ''}</button></div></div>`;
 				}).join('');
 			}
 		}
 		$('party-list').innerHTML = html;
-		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе и стоят у своих коек: там берёшь с собой или оставляешь. Снарядить — патроны их калибра, аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), медику перевязки, подрывнику гранаты — можно и в вылазке: подойди к бойцу, когда рядом нет врагов. Без патронов боец гибнет. Прёт заражённый — бойцы пятятся к тебе и стреляют. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись в стаб, они снова у коек.`;
+		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе (${ROOM_BEDS} коек) или на базе «Опорный» (места у казармы — больше с её уровнем): из комнаты бойца можно отправить на базу и обратно. Взять с собой или оставить — у его дома. Снарядить — патроны их калибра, аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), медику перевязки, подрывнику гранаты — можно и в вылазке: подойди к бойцу, когда рядом нет врагов. Без патронов боец гибнет. Прёт заражённый — бойцы пятятся к тебе и стреляют. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись домой (в стаб или на базу), они снова на своих местах.`;
 	}
 
 	/** На базе: каждого бойца — на пост (часовой, оборона выше) или на вылазку в кластер без героя; снарядить. */
@@ -251,6 +272,6 @@ export class PartyWindow {
 		const log = g.world.base?.trips ?? [];
 		if (log.length) html += `<div class="trade-sec">Вылазки</div><div class="muted">${log.slice(0, 4).map((t) => t.text).join('; ')}.</div>`;
 		$('party-list').innerHTML = html;
-		$('party-hint').textContent = 'На посту боец — часовой базы: бьёт заражённых и прибавляет к обороне, пока ты в Улье. На вылазке — сам ходит в кластер: чем опаснее кластер, тем больше добычи и выше риск; раненый и без патронов гибнет чаще. Добыча — на склад базы (забрать у терминала), боец возвращается к своей койке в стабе.';
+		$('party-hint').textContent = 'На посту боец — часовой базы: бьёт заражённых и прибавляет к обороне, пока ты в Улье. На вылазке — сам ходит в кластер: чем опаснее кластер, тем больше добычи и выше риск; раненый и без патронов гибнет чаще. Добыча — на склад базы (забрать у терминала), боец возвращается домой — к койке в стабе или к казарме на базе.';
 	}
 }
