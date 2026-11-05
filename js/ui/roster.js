@@ -46,6 +46,7 @@
     const open = UI.rosterOpen === u.id;
     const alive = G.Units.isAlive(u);
     const row = h('div', { class: 'unit' + (alive ? '' : ' dead'), onclick: () => { UI.rosterOpen = open ? null : u.id; UI.render(); } },
+      G.Avatar.img(u, 36),
       h('div', { class: 'rk' }, G.Units.rankShort(u)),
       h('div', { class: 'nm' }, h('span', { class: 'num' }, u.num), u.name,
         u.spec ? h('span', { class: 'spec' }, G.TEXT.specs ? G.TEXT.specs[u.spec].short : u.spec) : null),
@@ -56,7 +57,8 @@
     if (!open) return row;
     const nx = nextRankXp(u);
     const det = h('div', { class: 'unit-detail' },
-      h('div', null, h('b', null, U.cap(G.Units.fullTitle(u)))),
+      h('div', { class: 'ud-head' }, G.Avatar.img(u, 84, 'ava-big'),
+        h('div', null, h('b', null, U.cap(G.Units.fullTitle(u))), h('div', { class: 'muted' }, G.Units.healthLabel(u)))),
       u.kind === 'trooper' ? h('div', null, 'Опыт: ' + u.xp + (nx ? ' (до следующего звания ' + (nx - u.xp) + ')' : ' — высшее доступное звание')) : null,
       h('div', null, (u.kind === 'droid' ? 'Техсостояние: ' : 'Здоровье: ') + u.health + '%'),
       h('div', null, 'Вылазок: ' + u.missions + ' · боёв: ' + u.battles + ' · уничтожено врагов: ' + u.kills),

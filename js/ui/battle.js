@@ -7,33 +7,6 @@
   const UI = G.UI = G.UI || {};
   UI.modals = UI.modals || {};
 
-  // ================= ВНЕШНИЙ ВИД ЮНИТОВ (условные фигуры) =================
-  const LOOK = {
-    trooper: { shape: 'circle', fill: '#eceae4' },
-    sand: { shape: 'circle', fill: '#e3cfa3' },
-    heavy: { shape: 'circle', fill: '#eceae4', ring: true },
-    sniper: { shape: 'circle', fill: '#eceae4', glyph: 'scope' },
-    scout: { shape: 'circle', fill: '#eceae4', glyph: 'arrow' },
-    medic: { shape: 'circle', fill: '#eceae4', glyph: 'plus' },
-    droid: { shape: 'square', fill: '#8fb0c8' },
-    merc: { shape: 'circle', fill: '#a9ad72' },
-    walker: { shape: 'hex', fill: '#c9ccd1', size: 1.35 },
-    turret: { shape: 'square', fill: '#9aa3ad', glyph: 'barrel' },
-    tusken: { shape: 'tri', fill: '#a3713f' },
-    tusken_rifle: { shape: 'tri', fill: '#7e5631', glyph: 'line' },
-    tusken_chief: { shape: 'tri', fill: '#c1803f', size: 1.3, glyph: 'dot' },
-    jawa: { shape: 'tri', fill: '#5c3f24', size: 0.75 },
-    bandit: { shape: 'diamond', fill: '#d0503f' },
-    swoop: { shape: 'diamond', fill: '#e8743f', glyph: 'tail' },
-    bandit_boss: { shape: 'diamond', fill: '#ef4b3a', size: 1.3, glyph: 'dot' },
-    rebel: { shape: 'tri', fill: '#e08a3a' },
-    rebel_heavy: { shape: 'tri', fill: '#c46f2a', ring: true },
-    rebel_officer: { shape: 'tri', fill: '#f2a85a', size: 1.25, glyph: 'dot' },
-    smuggler: { shape: 'diamond', fill: '#3fb5a5' },
-    gamorrean: { shape: 'square', fill: '#6f8f3f', size: 1.2 },
-    hutt_guard: { shape: 'diamond', fill: '#a07ad4' },
-    krayt: { shape: 'blob', fill: '#bfa86e', size: 2.3 },
-  };
   const BOLT = { 0: '#ff4d3d', tusken: '#f3e9c9', tusken_camp: '#f3e9c9', jawa: '#7cc0ff', krayt: '#ffd27a', default: '#8dff7a' };
 
   const TERRAIN = {
@@ -61,7 +34,7 @@
     const skipBtn = h('button', { class: 'btn small', onclick: () => { st.tick = res.ticks; st.playing = false; syncBtns(); } }, '⏭ к итогам');
     const logEl = h('div', { class: 'bv-log' });
     const legend = h('div', { class: 'small muted bv-legend' },
-      h('span', null, '● наши'), h('span', null, '■ дроиды'), h('span', null, '▲ ◆ противник'), h('span', null, 'линии — выстрелы'));
+      h('span', { class: 'lg-ours' }, '◯ голубое кольцо — наши'), h('span', { class: 'lg-foe' }, '◯ красное — противник'), h('span', null, '! — паника'), h('span', null, 'красные болты — наш огонь'));
     const root = h('div', { class: 'bv' },
       h('div', { class: 'bv-stage' }, canvas),
       h('div', { class: 'row bv-controls' }, playBtn, h('div', { class: 'seg' }, speedBtns), skipBtn, h('span', { class: 'spacer' }), timeEl),
@@ -77,9 +50,11 @@
     // Подложка — местность, рисуется один раз на размер
     let cellPx = 0, terrainCanvas = null;
     function resize() {
-      const avail = Math.max(240, (root.clientWidth || canvas.parentElement.clientWidth || 600));
       const vh = globalThis.innerHeight || 800;
-      const cell = Math.max(10, Math.min(Math.floor(avail / W), Math.floor((vh * 0.48) / H), 34));
+      const land = UI.isLandscapePhone();
+      let avail = Math.max(240, (root.clientWidth || canvas.parentElement.clientWidth || 600));
+      if (land) avail = Math.max(240, avail - 190);
+      const cell = Math.max(10, Math.min(Math.floor(avail / W), Math.floor((land ? vh - 70 : vh * 0.48) / H), 34));
       if (cell === cellPx) return;
       cellPx = cell;
       const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
@@ -154,59 +129,78 @@
       return { x: (f0[k] + (f1[k] - f0[k]) * a) / 10, y: (f0[k + 1] + (f1[k + 1] - f0[k + 1]) * a) / 10, hp: f0[k + 2], fl: f0[k + 3] };
     }
 
-    function drawUnit(u, p, cell) {
-      const look = LOOK[u.type] || LOOK.trooper;
-      const cx = (p.x + 0.5) * cell, cy = (p.y + 0.5) * cell;
-      const r = cell * 0.36 * (look.size || 1);
-      if (p.fl & 1) { // выбыл
-        ctx.strokeStyle = 'rgba(40,20,15,0.55)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cx - r * 0.6, cy - r * 0.6); ctx.lineTo(cx + r * 0.6, cy + r * 0.6);
-        ctx.moveTo(cx + r * 0.6, cy - r * 0.6); ctx.lineTo(cx - r * 0.6, cy + r * 0.6);
-        ctx.stroke();
-        ctx.lineWidth = 1;
-        return;
+    // ---------- Подготовка анимаций: выстрелы, попадания, гибель ----------
+    const N = res.units.length;
+    const shotsBy = Array.from({ length: N }, () => []);
+    const hitsOn = Array.from({ length: N }, () => []);
+    for (const sh of res.shots) {
+      shotsBy[sh[1]].push(sh);
+      if (sh[3]) hitsOn[sh[2]].push(sh[0]);
+    }
+    const deathTick = new Array(N).fill(-1);
+    for (let f = 0; f < res.frames.length; f++) {
+      const fr = res.frames[f];
+      for (let i = 0; i < N; i++) if (deathTick[i] < 0 && (fr[i * 4 + 3] & 1)) deathTick[i] = f;
+    }
+    const facing = res.units.map((u) => (u.side === 0 ? 1 : -1));
+    const meleeType = (type) => ((G.CONFIG.battle.types[type] || {}).range || 5) <= 2;
+    // последний элемент массива с временем <= t (массивы отсортированы по времени)
+    function lastBefore(arr, t, key) {
+      let lo = 0, hi = arr.length - 1, ans = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const v = key ? arr[mid][0] : arr[mid];
+        if (v <= t) { ans = mid; lo = mid + 1; } else hi = mid - 1;
       }
+      return ans;
+    }
+    // Точка у ног фигурки (пиксели)
+    const feet = (p, cell) => ({ x: (p.x + 0.5) * cell, y: (p.y + 0.82) * cell });
+    const hgt = (type) => G.Sprites.height(type);
+
+    function unitState(u, p, t, cell) {
+      const i = u.i;
+      const st = { t: t / 10, facing: facing[i], moving: !!(p.fl & 16), aim: 0, recoil: 0, melee: 0, hit: 0, dead: 0,
+        broken: !!(p.fl & 4), side: u.side, rank: u.side === 0 ? ranks[i] || 0 : 0, seed: i * 31 + 7 };
+      if (st.moving) {
+        const a = posAt(i, Math.max(0, t - 0.6)), b = posAt(i, Math.min(res.ticks, t + 0.6));
+        if (Math.abs(b.x - a.x) > 0.01) facing[i] = st.facing = b.x > a.x ? 1 : -1;
+      }
+      const k = lastBefore(shotsBy[i], t, true);
+      if (k >= 0) {
+        const sh = shotsBy[i][k];
+        const dt = t - sh[0];
+        if (dt < 20) {
+          const tp = posAt(sh[2], sh[0]);
+          if (Math.abs(tp.x - p.x) > 0.05) facing[i] = st.facing = tp.x > p.x ? 1 : -1;
+          const dx = Math.abs(tp.x - p.x) * cell, dy = (tp.y - p.y) * cell;
+          st.aim = Math.atan2(dy, Math.max(1, dx));
+          if (meleeType(u.type)) { if (dt < 6) st.melee = dt / 6; }
+          else if (dt < 3) st.recoil = 1 - dt / 3;
+        }
+      }
+      const h = lastBefore(hitsOn[i], t, false);
+      if (h >= 0 && t - hitsOn[i][h] < 2) st.hit = 1 - (t - hitsOn[i][h]) / 2;
+      if (p.fl & 1) st.dead = deathTick[i] >= 0 ? Math.max(0.05, Math.min(1, (t - deathTick[i]) / 3.5)) : 1;
+      return st;
+    }
+
+    function drawUnit(u, p, t, cell) {
       if (p.fl & 2) return; // покинул поле
-      ctx.fillStyle = look.fill;
-      ctx.strokeStyle = u.side === 0 ? '#1b1d21' : '#2a160c';
-      ctx.lineWidth = Math.max(1, cell * 0.07);
-      ctx.beginPath();
-      switch (look.shape) {
-        case 'square': ctx.rect(cx - r, cy - r, r * 2, r * 2); break;
-        case 'tri': ctx.moveTo(cx, cy - r * 1.1); ctx.lineTo(cx + r, cy + r * 0.8); ctx.lineTo(cx - r, cy + r * 0.8); ctx.closePath(); break;
-        case 'diamond': ctx.moveTo(cx, cy - r * 1.1); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r * 1.1); ctx.lineTo(cx - r, cy); ctx.closePath(); break;
-        case 'hex': for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; ctx[k ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); } ctx.closePath(); break;
-        case 'blob': for (let k = 0; k < 10; k++) { const a = Math.PI / 5 * k; const rr = k % 2 ? r * 0.75 : r; ctx[k ? 'lineTo' : 'moveTo'](cx + rr * Math.cos(a), cy + rr * Math.sin(a)); } ctx.closePath(); break;
-        default: ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      }
-      ctx.fill();
-      ctx.stroke();
-      // Знаки специализации
-      ctx.strokeStyle = '#1b1d21';
-      ctx.fillStyle = '#1b1d21';
-      ctx.lineWidth = Math.max(1, cell * 0.06);
-      if (look.ring) { ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2); ctx.stroke(); }
-      if (look.glyph === 'plus') { ctx.fillStyle = '#c0392b'; ctx.fillRect(cx - r * 0.15, cy - r * 0.55, r * 0.3, r * 1.1); ctx.fillRect(cx - r * 0.55, cy - r * 0.15, r * 1.1, r * 0.3); }
-      if (look.glyph === 'scope') { ctx.beginPath(); ctx.moveTo(cx - r * 0.6, cy); ctx.lineTo(cx + r * 0.6, cy); ctx.moveTo(cx, cy - r * 0.6); ctx.lineTo(cx, cy + r * 0.6); ctx.stroke(); }
-      if (look.glyph === 'arrow') { ctx.beginPath(); ctx.moveTo(cx - r * 0.4, cy - r * 0.4); ctx.lineTo(cx + r * 0.4, cy); ctx.lineTo(cx - r * 0.4, cy + r * 0.4); ctx.stroke(); }
-      if (look.glyph === 'dot') { ctx.beginPath(); ctx.arc(cx, cy + r * 0.1, r * 0.22, 0, Math.PI * 2); ctx.fill(); }
-      if (look.glyph === 'line') { ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.5); ctx.lineTo(cx, cy + r * 0.5); ctx.stroke(); }
-      if (look.glyph === 'barrel') { ctx.fillRect(cx, cy - r * 0.15, r * 1.2 * (u.side === 0 ? 1 : -1), r * 0.3); }
-      if (look.glyph === 'tail') { ctx.beginPath(); ctx.moveTo(cx + r, cy); ctx.lineTo(cx + r * 1.5, cy); ctx.stroke(); }
-      // Сержанты и выше — тёмная полоса
-      if (u.side === 0 && u.kind === 'trooper' && ranks[u.i] >= 2) { ctx.fillStyle = '#1b1d21'; ctx.fillRect(cx - r * 0.7, cy - r * 0.75, r * 1.4, r * 0.25); }
-      // Здоровье
-      const hpw = cell * 0.74 * Math.max(1, (look.size || 1) * 0.8);
+      const f = feet(p, cell);
+      const st = unitState(u, p, t, cell);
+      G.Sprites.draw(ctx, u.type, f.x, f.y, cell, st);
+      if (st.dead) return;
+      // полоска здоровья над головой
+      const top = f.y - hgt(u.type) * cell - cell * 0.12;
+      const hpw = cell * 0.7 * (u.type === 'krayt' ? 2 : 1);
       const frac = Math.max(0, p.hp / u.maxHp);
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(cx - hpw / 2, cy - r - cell * 0.2, hpw, Math.max(2, cell * 0.1));
+      ctx.fillRect(f.x - hpw / 2, top, hpw, Math.max(2, cell * 0.09));
       ctx.fillStyle = frac > 0.6 ? '#7cc287' : frac > 0.3 ? '#f2b33d' : '#e2574c';
-      ctx.fillRect(cx - hpw / 2, cy - r - cell * 0.2, hpw * Math.min(1, frac), Math.max(2, cell * 0.1));
-      if (p.fl & 8) { ctx.strokeStyle = 'rgba(30,30,30,0.5)'; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.arc(cx, cy, r + cell * 0.12, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
-      if (p.fl & 4) { ctx.fillStyle = '#ffd34d'; ctx.font = 'bold ' + Math.round(cell * 0.6) + 'px system-ui'; ctx.fillText('!', cx + r * 0.7, cy - r * 0.4); }
-      ctx.lineWidth = 1;
+      ctx.fillRect(f.x - hpw / 2, top, hpw * Math.min(1, frac), Math.max(2, cell * 0.09));
+      if (st.broken) { ctx.fillStyle = '#ffd34d'; ctx.font = 'bold ' + Math.round(cell * 0.55) + 'px system-ui'; ctx.fillText('!', f.x + cell * 0.25, top - 2); }
+      if (p.fl & 8) { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.arc(f.x, top - cell * 0.12, cell * 0.12, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
     }
 
     function draw() {
@@ -224,24 +218,33 @@
         ctx.arc((sm.x + 0.5) * cell, (sm.y + 0.5) * cell, (Math.sqrt(sm.r2) + 0.6) * cell, 0, Math.PI * 2);
         ctx.fill();
       }
-      // юниты
-      for (const u of res.units) drawUnit(u, posAt(u.i, t), cell);
+      // фигурки: сначала павшие, затем живые сверху вниз (чтобы ближние перекрывали дальних)
+      const list = res.units.map((u) => ({ u: u, p: posAt(u.i, t) }));
+      list.sort((a, b) => ((b.p.fl & 1) - (a.p.fl & 1)) || a.p.y - b.p.y || a.u.i - b.u.i);
+      for (const it of list) drawUnit(it.u, it.p, t, cell);
       // выстрелы
       ctx.lineWidth = Math.max(1, cell * 0.08);
       for (let k = 0; k < res.shots.length; k++) {
         const sh = res.shots[k];
         if (sh[0] > t || sh[0] < t - 3) continue;
-        const a = posAt(sh[1], sh[0]);
-        const b = posAt(sh[2], sh[0]);
         const shooter = res.units[sh[1]];
+        if (meleeType(shooter.type)) continue; // удар в ближнем бою виден по взмаху
+        const fa = feet(posAt(sh[1], sh[0]), cell);
+        const fb = feet(posAt(sh[2], sh[0]), cell);
+        const dir = fb.x >= fa.x ? 1 : -1;
         const miss = sh[3] ? 0 : (k % 2 ? 0.35 : -0.35);
+        const x1 = fa.x + dir * cell * 0.45, y1 = fa.y - cell * hgt(shooter.type) * 0.55;
+        const x2 = fb.x + miss * cell, y2 = fb.y - cell * hgt(res.units[sh[2]].type) * 0.5 - miss * cell;
+        // «болт» — короткий светящийся отрезок, летящий от стрелка к цели
+        const prog = Math.min(1, (t - sh[0]) / 1.2);
+        const bx = x1 + (x2 - x1) * prog, by = y1 + (y2 - y1) * prog;
+        const tail = 0.35;
+        const tx = x1 + (x2 - x1) * Math.max(0, prog - tail), ty = y1 + (y2 - y1) * Math.max(0, prog - tail);
         ctx.strokeStyle = shooter.side === 0 ? BOLT[0] : BOLT[setup.army] || BOLT.default;
-        ctx.globalAlpha = 1 - (t - sh[0]) / 3;
-        ctx.beginPath();
-        ctx.moveTo((a.x + 0.5) * cell, (a.y + 0.5) * cell);
-        ctx.lineTo((b.x + 0.5 + miss) * cell, (b.y + 0.5 - miss) * cell);
-        ctx.stroke();
-        if (sh[4]) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc((b.x + 0.5) * cell, (b.y + 0.5) * cell, cell * 0.18, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = prog >= 1 ? Math.max(0, 1 - (t - sh[0] - 1.2) / 1.5) : 1;
+        ctx.lineWidth = Math.max(1.5, cell * 0.09);
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(bx, by); ctx.stroke();
+        if (sh[4] && prog >= 1) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x2, y2, cell * 0.16, 0, Math.PI * 2); ctx.fill(); }
       }
       ctx.globalAlpha = 1;
       // взрывы
@@ -259,7 +262,7 @@
         const dt = t - hl[0];
         if (dt < 0 || dt > 8) continue;
         const p = posAt(hl[1], t);
-        const cx = (p.x + 0.5) * cell, cy = (p.y + 0.5) * cell - cell * 0.6 - dt * 0.6;
+        const cx = (p.x + 0.5) * cell, cy = (p.y + 0.82) * cell - cell * 1.4 - dt * 0.6;
         ctx.fillRect(cx - cell * 0.05, cy - cell * 0.18, cell * 0.1, cell * 0.36);
         ctx.fillRect(cx - cell * 0.18, cy - cell * 0.05, cell * 0.36, cell * 0.1);
       }
@@ -384,7 +387,7 @@
           h('div', { class: 'ch' }, lock ? 'Недоступно: ' + lock : T.desc + ' Перезарядка ' + cd + ' с.'));
       }))));
 
-    box.appendChild(h('div', { class: 'row', style: 'margin-top:14px' },
+    box.appendChild(h('div', { class: 'row sticky-actions', style: 'margin-top:14px' },
       h('button', { class: 'btn primary', style: 'flex:2', onclick: () => act({ action: 'fight' }) }, '⚔ В бой — смотреть'),
       h('button', { class: 'btn', style: 'flex:1', onclick: () => act({ action: 'quick' }) }, 'Быстрый расчёт')));
     return box;
@@ -392,12 +395,17 @@
 
   // ================= ИТОГИ И ПРОСМОТР =================
   function reportBlock(rep, extra) {
+    const s = UI.s;
+    const faces = (ids) => (ids && ids.length && s ? h('div', { class: 'ava-row' }, ids.map((id) => G.Units.byId(s, id)).filter(Boolean).map((u) =>
+      h('div', { class: 'ava-chip' }, G.Avatar.img(u, 40), h('span', null, u.num)))) : null);
     const list = (label, arr, cls) => (arr && arr.length ? h('div', { class: cls || '' }, h('b', null, label + ': '), arr.join(', ')) : null);
     return h('div', { class: 'card flat battle-report' },
       h('h3', { class: rep.won ? 'good' : 'bad', style: 'font-size:18px' }, rep.head),
       h('div', null, 'Врагов выбито: ' + rep.enemyDown + (rep.enemyFled ? ', бежали: ' + rep.enemyFled : '') + '. Время боя: ' + (rep.ticks / 10).toFixed(0) + ' с.'),
       list('Погибли', rep.killed, 'bad'),
+      faces(rep.killedIds),
       list('Тяжело ранены', rep.heavy, 'warn'),
+      faces(rep.heavyIds),
       rep.light ? h('div', null, 'Легко ранены: ' + U.pl(rep.light, F.fighter) + '.') : null,
       rep.promoted && rep.promoted.length ? h('div', { class: 'good' }, 'Повышены в звании: ' + rep.promoted.join(', ') + '.') : null,
       rep.loot ? h('div', null, 'Трофеи: ' + rep.loot + '.') : null,
@@ -428,11 +436,11 @@
     const done = () => {
       G.Dom.clear(reportHolder);
       reportHolder.appendChild(reportBlock(p.report));
-      reportHolder.appendChild(h('button', { class: 'btn primary big', style: 'margin-top:10px', onclick: () => {
+      reportHolder.appendChild(h('div', { class: 'sticky-actions' }, h('button', { class: 'btn primary big', onclick: () => {
         if (UI._bv) { UI._bv.view.destroy(); UI._bv = null; }
         G.Game.act(s, { action: 'close' });
         UI.commit();
-      } }, 'Продолжить'));
+      } }, 'Продолжить')));
     };
     const view = getView('p' + p.id + ':' + s.seed, res, p.setup, { autoplay: !p.quick, startAtEnd: p.quick, onEnd: done });
     if (p.quick || view.ended()) done();

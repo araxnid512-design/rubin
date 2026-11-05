@@ -57,9 +57,9 @@
   UI.modals.event = function (s) {
     const p = s.pending;
     const act = (choice) => { G.Game.act(s, { choice: choice }); UI.commit(); };
-    const box = h('div', { class: 'modal' },
-      h('div', { class: 'small muted' }, 'День ' + s.day),
-      h('h2', null, p.title),
+    const box = h('div', { class: 'modal event-modal' },
+      h('div', { class: 'ev-head' }, G.Avatar.forEvent(p.id, 72),
+        h('div', null, h('div', { class: 'small muted' }, 'День ' + s.day), h('h2', null, p.title))),
       h('div', { class: 'lead' }, paragraphs(p.text)));
     if (p.result == null) {
       box.appendChild(h('div', { class: 'choices' }, G.Events.options(s, p).map((o) =>
@@ -98,8 +98,9 @@
     saveRecord(s, score);
     const vars = G.Goals ? G.Goals.endingVars(s) : {};
     return h('div', { class: 'modal' },
-      h('div', { class: 'small muted' }, s.over.type === 'victory' ? 'Кампания завершена' : 'Кампания проиграна'),
-      h('h2', { class: s.over.type === 'victory' ? 'good' : 'bad' }, E.title),
+      h('div', { class: 'ev-head' }, G.Avatar.npc(s.over.reason === 'fleet' || s.over.reason === 'fleet_costly' ? 'fleet' : 'general', 72),
+        h('div', null, h('div', { class: 'small muted' }, s.over.type === 'victory' ? 'Кампания завершена' : 'Кампания проиграна'),
+          h('h2', { class: s.over.type === 'victory' ? 'good' : 'bad' }, E.title))),
       h('div', { class: 'lead' }, paragraphs(U.fill(E.text, vars))),
       h('div', { class: 'score' }, 'Итоговый счёт: ', h('b', { class: 'mono' }, String(score))),
       h('div', { class: 'kv', style: 'margin:10px 0' }, [

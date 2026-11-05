@@ -198,7 +198,7 @@
     const rng = G.Game.rng(s);
     const won = res.winner === 0;
     const retreated = res.reason === 'retreat';
-    const killed = [], heavy = [], light = [], promoted = [];
+    const killed = [], heavy = [], light = [], promoted = [], killedIds = [], heavyIds = [];
     let medics = 0;
     for (const r of res.units) if (r.side === 0 && r.type === 'medic' && r.state === 'active') medics++;
     let kills = 0;
@@ -223,14 +223,15 @@
       kills += r.kills;
       if (r.state === 'down') {
         if (u.kind === 'droid') {
-          if (rng.chance(D.droidDestroyChance)) { G.Units.kill(s, u, 'уничтожен в бою: ' + p.ctx.title); killed.push(G.Units.title(u)); }
-          else { u.health = U.rollRange(rng, D.droidHealth); heavy.push(G.Units.title(u)); }
+          if (rng.chance(D.droidDestroyChance)) { G.Units.kill(s, u, 'уничтожен в бою: ' + p.ctx.title); killed.push(G.Units.title(u)); killedIds.push(u.id); }
+          else { u.health = U.rollRange(rng, D.droidHealth); heavy.push(G.Units.title(u)); heavyIds.push(u.id); }
           continue;
         }
         const chance = won || retreated ? D.deathChance - Math.min(D.medicReduceMax, medics * D.medicReduce) : D.lostDeathChance;
-        if (rng.chance(chance)) { G.Units.kill(s, u, 'погиб в бою: ' + p.ctx.title); killed.push(G.Units.title(u)); continue; }
+        if (rng.chance(chance)) { G.Units.kill(s, u, 'погиб в бою: ' + p.ctx.title); killed.push(G.Units.title(u)); killedIds.push(u.id); continue; }
         u.health = U.rollRange(rng, D.heavyHealth);
         heavy.push(G.Units.title(u));
+        heavyIds.push(u.id);
       } else {
         const hp = U.clamp(Math.round((r.hp / r.maxHp) * 100), 1, 100);
         if (hp < u.health) {
@@ -273,7 +274,7 @@
     G.Game.say(s, line, won ? 'battle' : 'bad');
     // Последствия боя могли обнулить гарнизон
     G.Game.checkOver(s);
-    return { won: won, reason: res.reason, head: head, killed: killed, heavy: heavy, light: light.length, promoted: promoted,
+    return { won: won, reason: res.reason, head: head, killed: killed, heavy: heavy, light: light.length, promoted: promoted, killedIds: killedIds, heavyIds: heavyIds,
       enemyDown: enemyDown, enemyFled: enemyFled, kills: kills, loot: loot, afterText: afterText, ticks: res.ticks, hash: res.hash };
   };
 

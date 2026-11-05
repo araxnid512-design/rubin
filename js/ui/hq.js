@@ -18,7 +18,7 @@
       card.appendChild(h('p', { class: 'muted small' }, G.TEXT.firstDayHint));
       return card;
     }
-    card.appendChild(h('h2', null, r.title));
+    card.appendChild(h('div', { class: 'ev-head' }, G.Avatar.npc('general', 44), h('div', null, h('div', { class: 'small muted' }, 'Доклад генералу Колрату'), h('h2', { style: 'margin:0' }, r.title))));
     if (r.lines.length) {
       card.appendChild(h('ul', { class: 'lines' }, r.lines.map((l) => h('li', { class: 'k-' + l.k }, l.t))));
     } else {

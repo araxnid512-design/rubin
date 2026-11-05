@@ -35,6 +35,11 @@
             h('button', { class: 'btn', onclick: () => UI.importSave() }, '⇧ Загрузить файл')),
           h('p', { class: 'small muted', style: 'margin-top:8px' }, 'Файл сохранения можно перенести на другой компьютер или телефон.')
         ),
+        UI.canFullscreen() ? h('div', { class: 'card' },
+          h('h2', null, 'Экран'),
+          h('button', { class: 'btn', onclick: () => (document.fullscreenElement ? document.exitFullscreen().then(() => UI.render()) : UI.fullscreen()) },
+            document.fullscreenElement ? 'Выйти из полноэкранного режима' : '⛶ Во весь экран (горизонтально)'),
+          h('p', { class: 'small muted', style: 'margin-top:8px' }, 'На Android игру можно установить как приложение: меню браузера → «Добавить на главный экран». Она будет запускаться во весь экран и горизонтально.')) : null,
         h('div', { class: 'card' },
           h('h2', null, 'Кампания'),
           h('p', { class: 'small' }, 'Сложность: ' + { easy: 'лёгкая', normal: 'обычная', hard: 'тяжёлая' }[s.difficulty] + ' · зерно мира: ' + s.seed),

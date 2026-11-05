@@ -135,6 +135,7 @@
       }
       wrap.appendChild(h('button', { class: 'btn big' + (meta && !meta.over ? '' : ' primary'), onclick: () => { st.mode = 'new'; UI.render(); } }, 'Новая кампания'));
       wrap.appendChild(h('button', { class: 'btn big', onclick: () => UI.importSave() }, 'Загрузить из файла'));
+      if (UI.canFullscreen() && !document.fullscreenElement) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.fullscreen() }, '⛶ Во весь экран (горизонтально)'));
       const slots = ['1', '2', '3'].map((k) => [k, G.Save.meta(k)]).filter((x) => x[1]);
       if (slots.length) {
         wrap.appendChild(h('div', { class: 'card' }, h('h3', null, 'Сохранения'),
@@ -142,7 +143,7 @@
             h('span', null, 'Ячейка ' + k + ': день ' + m.day + ', ' + U.pl(m.people, U.FORMS.fighter)),
             h('button', { class: 'btn small', onclick: () => { const s = G.Save.read(k); if (s) UI.start(s); } }, 'Загрузить')))));
       }
-      wrap.appendChild(h('div', { class: 'card' }, G.Dom.paragraphs(G.TEXT.titleBlurb)));
+      wrap.appendChild(h('div', { class: 'card blurb' }, G.Avatar.npc('general', 88, 'ava-float'), G.Dom.paragraphs(G.TEXT.titleBlurb)));
       const recs = UI.records ? UI.records() : [];
       if (recs.length) {
         const dn = { easy: 'лёгк.', normal: 'обычн.', hard: 'тяж.' };
@@ -213,9 +214,45 @@
     UI._flashT = setTimeout(() => { el.style.display = 'none'; }, 3200);
   };
 
+  // ---------- Телефон, ориентация, полный экран ----------
+  UI.isLandscapePhone = () => !!(globalThis.matchMedia && matchMedia('(orientation: landscape) and (max-height: 540px)').matches);
+  UI.canFullscreen = () => !!(document.fullscreenEnabled && !UI.isNativeApp());
+  UI.isNativeApp = () => !!(globalThis.Capacitor && globalThis.Capacitor.isNativePlatform && globalThis.Capacitor.isNativePlatform());
+  UI.fullscreen = function () {
+    const el = document.documentElement;
+    const p = document.fullscreenElement ? Promise.resolve() : (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : Promise.reject());
+    p.then(() => { if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('landscape'); })
+      .catch(() => {})
+      .then(() => setTimeout(() => UI.render(), 300));
+  };
+  function rotateHint() {
+    if (document.querySelector('.rotate-hint')) return;
+    const box = h('div', { class: 'rotate-hint' },
+      h('div', { class: 'phone' }),
+      h('h2', null, 'Поверните телефон горизонтально'),
+      h('p', { class: 'muted' }, 'Игра рассчитана на горизонтальный экран: так помещаются и поле боя, и лог.'),
+      UI.canFullscreen() ? h('button', { class: 'btn primary', onclick: () => UI.fullscreen() }, '⛶ Во весь экран') : null,
+      h('button', { class: 'btn ghost', onclick: () => { document.body.classList.add('allow-portrait'); } }, 'Играть вертикально'));
+    document.body.appendChild(box);
+  }
+  let resizeT = null;
+  globalThis.addEventListener && globalThis.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => {
+      const ae = document.activeElement;
+      if (UI._bv || (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'))) return;
+      UI.render();
+    }, 250);
+  });
+
   // ---------- Запуск ----------
   function boot() {
+    rotateHint();
     UI.render();
+    // Офлайн-режим и установка на телефон (только по https или localhost)
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !UI.isNativeApp()) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
