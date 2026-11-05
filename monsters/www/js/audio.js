@@ -17,15 +17,16 @@ const Sound = (() => {
     graph();
   }
   // общая цепочка: компрессор, мастер, зал, эхо (строится и для живого звука, и для записи песни в файл)
+  const MASTER = 0.84; // запас до перегруза, когда поют все двадцать
   function graph() {
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.2;
-    master = ctx.createGain(); master.gain.value = on ? 0.9 : 0; master.connect(ctx.destination);
+    master = ctx.createGain(); master.gain.value = on ? MASTER : 0; master.connect(ctx.destination);
     // мастер: убрать гул ниже 50 Гц, чуть «воздуха» сверху
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 45;
     const air = ctx.createBiquadFilter(); air.type = 'highshelf'; air.frequency.value = 7000; air.gain.value = 2.5;
     comp.connect(hp); hp.connect(air); air.connect(master);
-    bus = ctx.createGain(); bus.gain.value = 0.6; bus.connect(comp);
+    bus = ctx.createGain(); bus.gain.value = 0.55; bus.connect(comp);
     // хвост зала: свёртка с затухающим шумом
     const rev = ctx.createConvolver(); rev.buffer = impulse(2.3, 2.8);
     revIn = ctx.createGain(); revIn.gain.value = 1; revIn.connect(rev);
@@ -45,7 +46,7 @@ const Sound = (() => {
       const pn = ctx.createStereoPanner(); pn.pan.value = pan; ch.connect(pn); pn.connect(bus);
       const rs = ctx.createGain(); rs.gain.value = REV[part] || 0.25; ch.connect(rs); rs.connect(revIn);
       if (DLY[part]) { const d = ctx.createGain(); d.gain.value = DLY[part]; ch.connect(d); d.connect(dlyIn); }
-      for (let st = 0; st < STEPS; st++) { const t = 0.05 + st * STEP; if (t > sec - 2) break; const evs = PARTS[part][st]; if (evs) for (const e of evs) INSTR[part](ch, t, e[0], e[1] * STEP, e[2], e[3]); }
+      for (let st = 0; st < STEPS; st++) { const t = 0.05 + st * STEP; if (t > sec - 2) break; const evs = PARTS[part][st]; if (evs) for (const e of evs) play(part, ch, t, e, e[1] * STEP, e[2]); }
     }
     const buf = await ctx.startRendering();
     [ctx, master, bus, revIn, dlyIn, noise] = saved;
@@ -68,7 +69,7 @@ const Sound = (() => {
         const evs = PARTS[v.part][nextStep]; if (!evs) continue;
         for (const e of evs) {
           const dur = e[1] * STEP, vel = e[2] * (0.92 + Math.random() * 0.16); // живая игра: сила чуть гуляет
-          INSTR[v.part](v.ch, nextTime, e[0], dur, vel, e[3]);
+          play(v.part, v.ch, nextTime, e, dur, vel);
           v.notes.push({ t: nextTime, end: nextTime + Math.max(dur, 0.12), vel, m: e[0] });
           if (v.notes.length > 24) v.notes.shift();
         }
@@ -123,7 +124,7 @@ const Sound = (() => {
   }
   const now = () => (ctx ? ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) : 0);
   const beat = () => (ctx && timer ? (now() - startT) / (STEP * 4) : 0); // номер доли с дробной частью
-  function setOn(v) { on = v; if (master) master.gain.setTargetAtTime(v ? 0.9 : 0, ctx.currentTime, 0.05); }
+  function setOn(v) { on = v; if (master) master.gain.setTargetAtTime(v ? MASTER : 0, ctx.currentTime, 0.05); }
   function setSfx(v) { sfxOn = v; }
   function suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); }
   function resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); }
@@ -143,29 +144,57 @@ const Sound = (() => {
     const l = osc('sine', rate, t), g = gain(0); l.connect(g); g.connect(o.detune);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(cents, t + delay + 0.15); l.start(t); return l;
   }
-  // гласные: форманты (Гц) — по ним голос звучит как «а», «о», «у»
-  const VOWELS = { a: [800, 1150, 2900], o: [450, 800, 2830], u: [325, 700, 2700], e: [400, 1700, 2600], i: [300, 2200, 3000] };
-  // поющий голос: пила через три полосовых фильтра-форманты, вибрато, мягкая атака
+  // гласные: форманты (Гц) — по ним голос звучит как «а», «о», «у»…
+  const VOWELS = { a: [800, 1150, 2900], o: [450, 800, 2830], u: [325, 700, 2700], e: [420, 1800, 2600], i: [300, 2200, 3000], y: [350, 1350, 2500] };
+  // звонкие согласные — начальные форманты, из которых голос плавно переходит в гласную
+  const CONS = { l: [380, 1100, 2600], m: [260, 950, 2300], n: [260, 1500, 2500], d: [320, 1650, 2600], b: [280, 850, 2300], v: [300, 1000, 2400], r: [420, 1300, 1800] };
+  // взрывные — короткий шумовой щелчок перед гласной: [полоса, громкость]
+  const BURST = { b: [500, 0.16], d: [1900, 0.2], t: [4200, 0.32], k: [2600, 0.3], p: [900, 0.22] };
+  // шипящие и придыхание — шум перед слогом: [тип фильтра, частота, громкость]
+  const FRIC = { s: ['highpass', 5200, 0.22], x: ['bandpass', 2600, 0.3], f: ['bandpass', 1500, 0.12], h: ['bandpass', 1400, 0.22] };
+  // поющий голос: две пилы через три полосовых фильтра-форманты, вибрато, согласная в начале,
+  // переход в другую гласную к концу ноты (o.to), шёпот и крик (o.breath)
   function voice(out, t, f, dur, vel, o = {}) {
-    const vw = VOWELS[o.vowel || 'a'], sh = o.shift || 1.12, end = t + dur;
-    const src = osc('sawtooth', o.glide ? f * o.glide : f, t); if (o.glide) src.frequency.exponentialRampToValueAtTime(f, t + 0.06);
-    const s2 = osc('sawtooth', f * 1.003, t);
-    const l = vib(src, t, o.vibRate || 5.5, o.vib === undefined ? 22 : o.vib, Math.min(0.25, dur * 0.4)); const l2 = vib(s2, t, (o.vibRate || 5.5) * 1.02, o.vib === undefined ? 22 : o.vib, Math.min(0.25, dur * 0.4));
+    const v1 = VOWELS[o.vowel || 'a'], v2 = o.to ? VOWELS[o.to] : null, sh = o.shift || 1.12, c = o.cons, att = o.att || 0.04;
+    const src = osc('sawtooth', o.glide ? f * o.glide : f, t), s2 = osc('sawtooth', (o.glide ? f * o.glide : f) * 1.003, t);
+    if (o.glide) { src.frequency.exponentialRampToValueAtTime(f, t + 0.07); s2.frequency.exponentialRampToValueAtTime(f * 1.003, t + 0.07); }
+    const vb = o.vib === undefined ? 22 : o.vib, vr = o.vibRate || 5.5, vd = Math.min(0.25, dur * 0.4);
+    const l = vib(src, t, vr, vb, vd), l2 = vib(s2, t, vr * 1.02, vb, vd);
     const mix = gain(0.5); src.connect(mix); s2.connect(mix);
-    const g = gain(); const fg = [1, 0.55, 0.2];
-    vw.forEach((F, i) => { const b = filt('bandpass', F * sh, (F * sh) / (60 + i * 40)); const bg = gain(fg[i] * 2.4); mix.connect(b); b.connect(bg); bg.connect(g); });
+    const g = gain(), fg = [1, 0.55, 0.2], C = CONS[c];
+    v1.forEach((F, i) => {
+      const b = filt('bandpass', F * sh, (F * sh) / (60 + i * 40));
+      if (C) { b.frequency.setValueAtTime(C[i] * sh, t); b.frequency.linearRampToValueAtTime(F * sh, t + 0.06); }
+      if (v2) { b.frequency.setValueAtTime(F * sh, t + Math.max(0.07, dur * 0.35)); b.frequency.linearRampToValueAtTime(v2[i] * sh, t + Math.max(0.12, dur)); }
+      const bg = gain(fg[i] * 2.4); mix.connect(b); b.connect(bg); bg.connect(g);
+    });
+    // шёпот/крик: шум, окрашенный теми же формантами
+    if (o.breath) { const n = noiseSrc(t, dur + 0.2), ng = gain(o.breath); n.connect(ng); ng.connect(mix); }
     g.connect(out);
-    const stop = env(g, t, o.att || 0.04, 0.55 * vel, Math.max(0, dur - (o.att || 0.04) - 0.05), o.rel || 0.12);
+    const nasal = c === 'm' || c === 'n';
+    const stop = env(g, t, nasal ? Math.max(att, 0.07) : att, 0.55 * vel, Math.max(0, dur - att - 0.05), o.rel || 0.12);
     [src, s2].forEach(x => { x.start(t); x.stop(stop); }); l.stop(stop); l2.stop(stop);
-    // согласная в начале слога: «б», «к», «п» — короткий шумовой щелчок
-    if (o.cons) { const n = noiseSrc(t - 0.005, 0.05), b = filt('bandpass', o.cons === 'k' ? 2600 : 900, 1.2), cg = gain(); n.connect(b); b.connect(cg); cg.connect(out); env(cg, t - 0.005, 0.003, 0.25 * vel, 0.01, 0.025); }
+    if (BURST[c]) { const [bf, ba] = BURST[c], n = noiseSrc(t - 0.012, 0.06), bp = filt('bandpass', bf, 1.2), cg = gain(); n.connect(bp); bp.connect(cg); cg.connect(out); env(cg, t - 0.012, 0.002, ba * vel, 0.008, 0.03); }
+    if (FRIC[c]) { const [ft, ff, fa] = FRIC[c], n = noiseSrc(t - 0.09, 0.14), fp = filt(ft, ff, ft === 'bandpass' ? 1.4 : 0.7), cg = gain(); n.connect(fp); fp.connect(cg); cg.connect(out); env(cg, t - 0.09, 0.03, fa * vel, 0.04, 0.03); }
   }
+  // выкрики обычных монстров: свой слог у каждого
+  const VOX = {
+    kick: { cons: 'b', vowel: 'u', shift: 1, vib: 8, att: 0.02 },              // «бум»
+    tom: { cons: 't', vowel: 'u', shift: 1.05, vib: 10 },                       // «тум»
+    marimba: { cons: 'b', vowel: 'u', to: 'i', shift: 1.22, vib: 16 },         // «бу-уль»
+    bass: { cons: 'm', vowel: 'o', to: 'u', shift: 0.95, vib: 12 },             // «о-ом»
+    flute: { cons: 'f', vowel: 'u', to: 'i', shift: 1.28, vib: 20, breath: 0.08 }, // «фью»
+    whistle: { cons: 'h', vowel: 'u', shift: 1.1, vib: 14, glide: 1.12 },       // «у-ху»
+    shaker: { cons: 'x', vowel: 'u', shift: 1.2, vib: 0, breath: 0.35 },        // «шу» шёпотом
+    pluck: { cons: 'l', vowel: 'a', shift: 1.15, vib: 20 },                     // «ля»
+    snare: { cons: 't', vowel: 'a', shift: 1.1, vib: 0, att: 0.01 },            // «та»
+    brass: { cons: 'p', vowel: 'a', shift: 1.05, vib: 10, att: 0.02 },          // «па»
+  };
 
   // ---------- инструменты монстров
   const INSTR = {
     // Бумбо: бочка животом и низкое «бум»
     kick(out, t, m, dur, vel, x) {
-      if (x === 'v') { voice(out, t, hz(m), 0.32, vel * 0.8, { vowel: 'u', shift: 1, vib: 8, cons: 'b', att: 0.02 }); return; }
       const o = osc('sine', 150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
       const g = gain(); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.003, 1.1 * vel, 0.02, 0.32));
       const c = osc('triangle', 900, t); c.frequency.exponentialRampToValueAtTime(120, t + 0.02); const cg = gain(); c.connect(cg); cg.connect(out); c.start(t); c.stop(env(cg, t, 0.001, 0.25 * vel, 0, 0.02));
@@ -246,12 +275,38 @@ const Sound = (() => {
       const n = noiseSrc(t, 0.25), hp = filt('highpass', 1200, 0.7), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.55 * vel, 0, 0.16);
       const o = osc('triangle', 210, t), og = gain(); o.frequency.exponentialRampToValueAtTime(150, t + 0.06); o.connect(og); og.connect(out); o.start(t); o.stop(env(og, t, 0.002, 0.45 * vel, 0, 0.08));
     },
+    // Бубун: басом «дум-ду-дам» по басовой линии
+    bassvox(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.85, { cons: x[0], vowel: x[1], shift: 0.95, vib: 10, att: 0.02, rel: 0.08 }); },
+    // Тыц: битбокс — бочка губами «бм», хэт «тс», малый «пф», призвук «к»
+    beatbox(out, t, m, dur, vel, x) {
+      if (x === 'B') {
+        const o = osc('sine', 130, t), g = gain(); o.frequency.exponentialRampToValueAtTime(48, t + 0.1); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.004, 0.95 * vel, 0.02, 0.2));
+        const n = noiseSrc(t, 0.05), lp = filt('lowpass', 700, 1), ng = gain(); n.connect(lp); lp.connect(ng); ng.connect(out); env(ng, t, 0.002, 0.3 * vel, 0.005, 0.03); return;
+      }
+      if (x === 'ts') { const n = noiseSrc(t, 0.12), hp = filt('highpass', 6500, 0.8), bp = filt('bandpass', 9000, 1.5), g = gain(); n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.003, 0.4 * vel, dur > 0.2 ? 0.06 : 0.01, 0.05); return; }
+      if (x === 'pf') { const n = noiseSrc(t, 0.25), bp = filt('bandpass', 1700, 0.9), g = gain(); n.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.002, 0.75 * vel, 0.02, 0.14);
+        const o = osc('triangle', 190, t), og = gain(); o.frequency.exponentialRampToValueAtTime(120, t + 0.05); o.connect(og); og.connect(out); o.start(t); o.stop(env(og, t, 0.002, 0.25 * vel, 0, 0.06)); return; }
+      const n = noiseSrc(t, 0.06), bp = filt('bandpass', 3200, 2), g = gain(); n.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.001, 0.35 * vel, 0, 0.03);
+    },
+    // Хейхо: выкрики «хей!» и «хо!»
+    chant(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel, { cons: 'h', vowel: x === 'хо' ? 'o' : 'e', to: x === 'хо' ? 'u' : 'i', shift: 1.12, vib: 6, breath: 0.12, att: 0.015, rel: 0.1, glide: 0.94 }); },
+    // Пузырик: сопрано «ла-а» и колокольчик на усике
+    soprano(out, t, m, dur, vel, x) {
+      voice(out, t, hz(m), dur, vel * 0.7, { cons: 'l', vowel: 'a', shift: 1.32, vib: 30, vibRate: 6, att: 0.06, rel: 0.25 });
+      if (x) { const f = hz(m + 12), o = osc('sine', f, t), g = gain(); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.002, 0.12 * vel, 0, 0.9)); }
+    },
+    // Жар-птичка: йодль «о-ли-о-и» с прыжками через октаву
+    yodel(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.8, { cons: x === 'i' ? 'l' : null, vowel: x, shift: 1.25, vib: 34, vibRate: 6.5, glide: x === 'i' ? 0.9 : 1.06, att: 0.02, rel: 0.08 }); },
+    // Дубидуб: скэт «ду-би-ду-ба»
+    scat(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.85, { cons: x[0], vowel: x[1], shift: 1.1, vib: 14, att: 0.015, rel: 0.07 }); },
     // Маэстро: оперный голос, мелодия октавой ниже
     opera(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel, { vowel: x || 'a', shift: 1.02, vib: 38, vibRate: 5.8, att: 0.06, rel: 0.2 }); },
   };
-  const REV = { pad: 0.45, opera: 0.4, lead: 0.35, whistle: 0.35, flute: 0.3, glock: 0.35, kick: 0.08, bass: 0.06, snare: 0.2, shaker: 0.12 };
-  const DLY = { flute: 0.2, whistle: 0.24, glock: 0.3, lead: 0.12, marimba: 0.1, pluck: 0.1, opera: 0.1, frog: 0.08 };
-  const VOL = { kick: 0.95, marimba: 0.9, flute: 0.85, shaker: 0.7, bass: 0.85, pad: 0.75, tom: 0.8, glock: 0.7, frog: 0.85, pluck: 0.8, brass: 0.7, lead: 0.75, whistle: 0.8, snare: 0.75, opera: 0.85 };
+  const REV = { pad: 0.45, opera: 0.4, lead: 0.35, whistle: 0.35, flute: 0.3, glock: 0.35, kick: 0.08, bass: 0.06, snare: 0.2, shaker: 0.12, soprano: 0.5, yodel: 0.35, chant: 0.3, bassvox: 0.15, beatbox: 0.1, scat: 0.25 };
+  const DLY = { flute: 0.2, whistle: 0.24, glock: 0.3, lead: 0.12, marimba: 0.1, pluck: 0.1, opera: 0.1, frog: 0.08, soprano: 0.22, yodel: 0.25, scat: 0.1, chant: 0.12 };
+  // событие партии: 'v' — выкрик голосом (свой слог у каждого обычного монстра), иначе — инструмент
+  function play(part, out, t, e, dur, vel) { if (e[3] === 'v') voice(out, t, hz(e[0]), dur, vel * 0.8, VOX[part]); else INSTR[part](out, t, e[0], dur, vel, e[3]); }
+  const VOL = { kick: 0.95, marimba: 0.9, flute: 0.64, shaker: 0.7, bass: 0.48, pad: 0.95, tom: 1.0, frog: 1.7, pluck: 1.4, brass: 1.0, lead: 0.95, whistle: 0.8, snare: 1.05, opera: 0.85, bassvox: 0.8, beatbox: 0.75, chant: 1.4, soprano: 1.5, yodel: 1.0, scat: 0.75 };
 
   // ---------- партитура: шаг 0…255, нота MIDI, длина в шагах, сила, дополнительно
   // такт: bass — нота баса (с обращением), root — основной тон аккорда, voc — 4 голоса аккорда, pad — 3 голоса хора
@@ -298,6 +353,9 @@ const Sound = (() => {
   const DESCANT = [88, 86, 84, 83, 81, 79, 81, 83, 81, 79, 79, 76, 77, 79, 79, 77];
   const third = m => { const pc = ((m % 12) + 12) % 12; return m - ({ 0: 3, 2: 3, 4: 4, 5: 3, 7: 3, 9: 4, 11: 4 }[pc] || 3); };
   const fifthNear = (b, r) => { const pc = (r + 7) % 12; let v = b + 1; while (v % 12 !== pc) v++; return v; };
+  // ближайший к нужной высоте звук аккорда (в любой октаве)
+  const nearTone = (target, voc) => { let best = voc[0], bd = 99; for (const v of voc) for (const k of [-24, -12, 0, 12]) { const d = Math.abs(v + k - target); if (d < bd) { bd = d; best = v + k; } } return best; };
+  const SYL = { du: ['d', 'u'], da: ['d', 'a'], bu: ['b', 'u'], bi: ['b', 'i'], ba: ['b', 'a'] };
   const PARTS = {};
   const put = (name, step, ...ev) => { (PARTS[name] = PARTS[name] || [])[step] = (PARTS[name][step] || []).concat([ev]); };
   BARS.forEach((B, b) => {
@@ -321,10 +379,9 @@ const Sound = (() => {
     // Тумтум: бонги; в конце каждой половины — сбивка томами
     [3, 7, 11].forEach(q => put('tom', o + q, 67, 1, 0.5)); put('tom', o + 6, 60, 1, 0.55);
     if (last || b % 8 === 3) [[12, 57], [13, 53], [14, 50], [15, 45]].forEach(([q, m], i) => put('tom', o + q, m, 1, 0.55 + i * 0.12)); else put('tom', o + 14, 60, 1, 0.55);
-    // Пузырик: колокольчики-пузыри; в припеве — россыпь
-    put('glock', o, B.voc[3] + 12, 4, 0.8); put('glock', o + 10, B.voc[1] + 12, 2, 0.5);
-    if (ch) { put('glock', o + 6, B.voc[2] + 12, 2, 0.45); put('glock', o + 14, B.voc[3] + 12, 2, 0.4); }
-    if (last) [0, 1, 2, 3].forEach(i => put('glock', o + 12 + i, B.voc[i] + 24, 1, 0.45));
+    // Пузырик: сопрано «ла-а» — долгие звуки аккорда сверху, в припеве четвертями вниз
+    if (ch) [84, 81, 79, 76].forEach((tg, i) => put('soprano', o + i * 4, nearTone(tg, B.voc), 3, i ? 0.7 : 0.85, i === 0));
+    else { put('soprano', o, nearTone(79, B.voc), 7, 0.8, true); put('soprano', o + 8, nearTone(76, B.voc), 7, 0.7, false); }
     // Квакуша: «ква-ква» в конце такта, в паузах мелодии
     put('frog', o + 12, B.voc[2] - 12 + (B.voc[2] < 62 ? 12 : 0), 2, 0.85); put('frog', o + 14, B.voc[1] - 12 + (B.voc[1] < 60 ? 12 : 0), 2, 0.7);
     // Бренчик: щипки на слабые доли, в припеве ещё и шестнадцатые
@@ -338,6 +395,35 @@ const Sound = (() => {
     // Барабас: малый на 2 и 4, лёгкие призвуки, дробь перед повтором
     put('snare', o + 4, 0, 1, 0.9); put('snare', o + 12, 0, 1, 0.95);
     if (last) [12, 13, 14, 15].forEach((q, i) => put('snare', o + q, 0, 1, 0.35 + i * 0.18)); else [7, 10, 15].forEach(q => put('snare', o + q, 0, 1, ch ? 0.32 : 0.22));
+    // ---- элитные певцы
+    // Бубун: басом «дум-ду-дам» по басовой линии
+    let fv = f5 + 12; if (fv > B.bass + 19) fv -= 12;
+    [[0, B.bass + 12, 3, 'du'], [6, B.bass + 12, 2, 'du'], [8, fv, 3, 'da'], [11, B.bass + 12, 1, 'bu'], [14, fv, 2, 'du']].forEach(([q, m, l, sy], i) => put('bassvox', o + q, m, l, i ? 0.75 : 0.95, SYL[sy]));
+    // Тыц: битбокс
+    put('beatbox', o, 0, 1, 1, 'B'); put('beatbox', o + 8, 0, 1, 0.9, 'B'); if (ch) put('beatbox', o + 10, 0, 1, 0.7, 'B'); if (b % 4 === 3) put('beatbox', o + 6, 0, 1, 0.6, 'B');
+    [2, 6, 10, 14].forEach(q => put('beatbox', o + q, 0, q === 14 && b % 2 ? 2 : 1, 0.7, 'ts')); if (ch) [1, 5, 9, 13].forEach(q => put('beatbox', o + q, 0, 1, 0.3, 'ts'));
+    if (last) [12, 13, 14, 15].forEach((q, i) => put('beatbox', o + q, 0, 1, 0.45 + i * 0.15, 'pf')); else { put('beatbox', o + 4, 0, 1, 0.9, 'pf'); put('beatbox', o + 12, 0, 1, 0.95, 'pf'); [7, 15].forEach(q => put('beatbox', o + q, 0, 1, 0.45, 'k')); }
+    // Хейхо: «хей! — хо!» в конце фраз куплета, в припеве — каждый такт
+    const cp = 55 + ((R % 12) - 7 + 12) % 12;
+    if (ch) { put('chant', o + 4, cp, 2, 0.8, 'хей'); put('chant', o + 12, cp, 2, 0.9, 'хо'); if (last) put('chant', o + 14, cp + 5, 2, 0.95, 'хей'); }
+    else if (b % 4 === 3) { put('chant', o + 12, cp, 2, 0.9, 'хей'); put('chant', o + 14, cp, 2, 0.95, 'хо'); }
+    // Жар-птичка: йодль восьмыми с прыжком через октаву
+    const yl = Math.min(B.voc[0] + 12, 79), yh = Math.min(B.voc[1] + 12, 83);
+    if (ch) [[8, B.voc[0], 'o'], [10, yl, 'i'], [12, B.voc[2], 'o'], [14, yh, 'i']].forEach(([q, m, v]) => put('yodel', o + q, m, 2, 0.85, v));
+    else if (b % 2 === 1) [[10, B.voc[0], 'o'], [12, yl, 'i'], [14, B.voc[2], 'o']].forEach(([q, m, v]) => put('yodel', o + q, m, 2, 0.8, v));
+    // Дубидуб: скэт «ду-би-ду-ба» на слабые доли
+    (ch ? [[0, 'du', 0], [2, 'bi', 1], [3, 'du', 2], [6, 'ba', 3], [8, 'du', 2], [10, 'bi', 1], [11, 'da', 0], [14, 'ba', 2]]
+        : [[2, 'du', 0], [3, 'bi', 1], [6, 'du', 2], [10, 'ba', 1], [14, 'da', 0]]).forEach(([q, sy, k], i) => put('scat', o + q, B.voc[k], q % 2 ? 1 : 2, i % 2 ? 0.7 : 0.85, SYL[sy]));
+    // ---- выкрики обычных монстров (по слогу у каждого)
+    if (b % 4 === 3) put('tom', o + 8, nearTone(57, B.voc), 2, 0.85, 'v');
+    if (b % 2 === 1) put('marimba', o + 14, B.voc[2], 2, 0.8, 'v');
+    if (b % 8 === 0) put('bass', o, B.bass + 12, 8, 0.85, 'v');
+    if (b % 4 === 3) put('flute', o + 14, nearTone(79, B.voc), 2, 0.75, 'v');
+    if (b % 4 === 1) { put('whistle', o + 12, nearTone(76, B.voc), 1, 0.85, 'v'); put('whistle', o + 14, nearTone(71, B.voc), 2, 0.85, 'v'); }
+    if (b % 2 === 0) put('shaker', o + 14, 67, 1, 0.6, 'v');
+    if (ch && b % 2 === 0) { put('pluck', o + 8, nearTone(69, B.voc), 2, 0.75, 'v'); put('pluck', o + 10, nearTone(67, B.voc), 2, 0.7, 'v'); }
+    if (b === 15) [14, 15].forEach(q => put('snare', o + q, 64, 1, 0.8, 'v'));
+    if (b % 4 === 3) { put('brass', o + 8, nearTone(67, B.voc), 1, 0.7, 'v'); put('brass', o + 10, nearTone(72, B.voc), 2, 0.8, 'v'); }
     // мелодия и её голоса
     MEL[b].forEach(([q, m, l], i) => {
       put('flute', o + q, m, l, l >= 6 ? 0.95 : i % 2 ? 0.78 : 0.88);
@@ -362,7 +448,7 @@ const Sound = (() => {
     init(); if (ctx.state === 'suspended') ctx.resume();
     const ch = gain(VOL[part] || 1); ch.connect(bus); const s = gain(0.25); ch.connect(s); s.connect(revIn);
     const t0 = ctx.currentTime + 0.05;
-    for (let st = 0; st < 32; st++) { const evs = PARTS[part][st]; if (evs) for (const e of evs) INSTR[part](ch, t0 + st * STEP, e[0], e[1] * STEP, e[2], e[3]); }
+    for (let st = 0; st < 32; st++) { const evs = PARTS[part][st]; if (evs) for (const e of evs) play(part, ch, t0 + st * STEP, e, e[1] * STEP, e[2]); }
     setTimeout(() => ch.disconnect(), (32 * STEP + 2.5) * 1000);
   }
 

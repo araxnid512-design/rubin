@@ -7,6 +7,7 @@ const ELEMENTS = {
   water: { name: 'Вода', col: '#3aa6ff', icon: '●' },
   wind: { name: 'Ветер', col: '#7fd6f2', icon: '≈' },
   leaf: { name: 'Лист', col: '#4fc24a', icon: '♣' },
+  fire: { name: 'Огонь', col: '#ff6a2a', icon: '▲' },
 };
 
 // цвет: светлее (k > 0) или темнее (k < 0)
@@ -210,7 +211,7 @@ const KINDS = {
     },
   },
   glubun: {
-    name: 'Глубун', el: ['stone', 'water'], part: 'bass', rate: 32,
+    name: 'Глубун', el: ['water'], part: 'bass', price: 300, rate: 20, need: 3,
     desc: 'Живёт в подводных пещерах. Его низкий бас слышно на дне моря.', col: '#2f8a92',
     draw(g, st) {
       const w = 104, h = 70, c = this.col, s = st.sing;
@@ -224,7 +225,7 @@ const KINDS = {
     },
   },
   gudun: {
-    name: 'Гудун', el: ['stone', 'wind'], part: 'pad', rate: 30,
+    name: 'Гудун', el: ['stone', 'wind'], part: 'pad', rate: 45,
     desc: 'Поющая скала с горных вершин. Тянет «у-у-о» так, что дрожат облака.', col: '#9b8cf0',
     draw(g, st) {
       const w = 70, h = 112, c = this.col, s = st.sing;
@@ -241,7 +242,7 @@ const KINDS = {
     },
   },
   tumtum: {
-    name: 'Тумтум', el: ['stone', 'leaf'], part: 'tom', rate: 30,
+    name: 'Тумтум', el: ['stone'], part: 'tom', price: 300, rate: 20, need: 3,
     desc: 'Стучит в бонги из кокосов. Ушами ловит ритм всего острова.', col: '#ee9440',
     draw(g, st) {
       const w = 86, h = 80, c = this.col, s = st.sing, hit = Math.abs(Math.sin(st.t * 14)) * s;
@@ -262,8 +263,8 @@ const KINDS = {
     },
   },
   puzyrik: {
-    name: 'Пузырик', el: ['water', 'wind'], part: 'glock', rate: 32, hover: true,
-    desc: 'Мыльный пузырь с характером. Звенит колокольчиком на усике.', col: '#8fd0ff',
+    name: 'Пузырик', el: ['water', 'wind'], part: 'soprano', rate: 48, hover: true,
+    desc: 'Мыльный пузырь-сопрано. Поёт «ла-а» так высоко, что звенит колокольчик на усике.', col: '#8fd0ff',
     draw(g, st) {
       const c = this.col, s = st.sing, r = 38;
       // усик с колокольчиком
@@ -279,7 +280,7 @@ const KINDS = {
     },
   },
   kvakusha: {
-    name: 'Квакуша', el: ['water', 'leaf'], part: 'frog', rate: 34,
+    name: 'Квакуша', el: ['water', 'leaf'], part: 'frog', rate: 46,
     desc: 'Болотная певица. Раздувает горлышко и выводит «ква-ква» точно в такт.', col: '#46c48e',
     draw(g, st) {
       const w = 96, h = 72, c = this.col, s = st.sing;
@@ -296,7 +297,7 @@ const KINDS = {
     },
   },
   brenchik: {
-    name: 'Бренчик', el: ['wind', 'leaf'], part: 'pluck', rate: 30,
+    name: 'Бренчик', el: ['leaf'], part: 'pluck', price: 350, rate: 22, need: 4,
     desc: 'Степной гитарист с травяной чёлкой. Бренчит аккорды на слабую долю.', col: '#cbe04a',
     draw(g, st) {
       const w = 66, h = 104, c = this.col, s = st.sing, strum = Math.sin(st.t * 16) * s;
@@ -317,8 +318,8 @@ const KINDS = {
     },
   },
   gromofon: {
-    name: 'Громофон', el: ['stone', 'water', 'wind'], part: 'brass', rate: 70,
-    desc: 'Вместо рта — труба. Когда он играет «па-пам», чайки сбиваются с курса.', col: '#e4584a',
+    name: 'Громофон', el: ['fire'], part: 'brass', price: 450, rate: 26, need: 5,
+    desc: 'Вместо рта — труба. Когда он играет «па-пам», чайки сбиваются с курса.', col: '#ef8a3a',
     draw(g, st) {
       const w = 96, h = 92, c = this.col, s = st.sing;
       feet(g, w, c);
@@ -336,7 +337,7 @@ const KINDS = {
     },
   },
   pevunya: {
-    name: 'Певунья', el: ['water', 'wind', 'leaf'], part: 'lead', rate: 72,
+    name: 'Певунья', el: ['wind', 'leaf'], part: 'lead', rate: 48,
     desc: 'Цветочная примадонна. Поёт вторым голосом и никогда не фальшивит.', col: '#ff8fc6',
     draw(g, st) {
       const w = 72, h = 104, c = this.col, s = st.sing;
@@ -354,7 +355,7 @@ const KINDS = {
     },
   },
   svistun: {
-    name: 'Свистун', el: ['stone', 'wind', 'leaf'], part: 'whistle', rate: 70,
+    name: 'Свистун', el: ['wind'], part: 'whistle', price: 350, rate: 22, need: 4,
     desc: 'Совёнок-свистульщик. Тянет длинные ноты высоко-высоко.', col: '#a08a5a',
     draw(g, st) {
       const w = 78, h = 92, c = this.col, s = st.sing;
@@ -372,14 +373,14 @@ const KINDS = {
     },
   },
   barabas: {
-    name: 'Барабас', el: ['stone', 'water', 'leaf'], part: 'snare', rate: 72,
-    desc: 'Барабанщик-марширолог. Держит ритм так, что под него можно ставить часы.', col: '#7d5fd6',
+    name: 'Барабас', el: ['fire'], part: 'snare', price: 250, rate: 18, need: 2,
+    desc: 'Барабанщик-марширолог. Держит ритм так, что под него можно ставить часы.', col: '#cf3d52',
     draw(g, st) {
       const w = 84, h = 96, c = this.col, s = st.sing, hit = Math.abs(Math.sin(st.t * 15)) * s;
       feet(g, w, c);
       silhouette(g, [{ path: g2 => SHAPES.box(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
       // повязка
-      g.fillStyle = '#ff4a4a'; g.strokeStyle = '#7a1a1a'; g.lineWidth = 2.2; g.beginPath(); g.roundRect(-42, -88, 84, 10, 4); g.fill(); g.stroke();
+      g.fillStyle = '#ffd84a'; g.strokeStyle = '#8a6a10'; g.lineWidth = 2.2; g.beginPath(); g.roundRect(-42, -88, 84, 10, 4); g.fill(); g.stroke();
       g.beginPath(); g.moveTo(38, -84); g.lineTo(52, -92 + Math.sin(st.t * 5) * 3); g.lineTo(50, -78); g.closePath(); g.fill(); g.stroke();
       eye(g, -15, -64, 8.5, st); eye(g, 15, -64, 8.5, st);
       g.strokeStyle = '#2a1a22'; g.lineWidth = 3; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 8, -76); g.lineTo(k * 22, -79); g.stroke(); } // брови
@@ -392,8 +393,8 @@ const KINDS = {
     },
   },
   maestro: {
-    name: 'Маэстро', el: ['stone', 'water', 'wind', 'leaf'], part: 'opera', rate: 150, legend: true,
-    desc: 'Легендарный тенор в золотой короне. Если он запел — весь остров слушает.', col: '#ffc63a',
+    name: 'Маэстро', el: ['water', 'fire'], part: 'opera', rate: 60,
+    desc: 'Тенор в золотой короне. Поёт главную мелодию оперным голосом — весь остров слушает.', col: '#ffc63a',
     draw(g, st) {
       const w = 96, h = 112, c = this.col, s = st.sing;
       // плащ
@@ -413,10 +414,101 @@ const KINDS = {
       arm(g, -38, -46, Math.PI * 0.9 - s * 0.9, 18, c, 10); arm(g, 38, -46, Math.PI * 0.1 + s * 0.9, 18, c, 10);
     },
   },
+  // ---------- новые элитные певцы
+  bubun: {
+    name: 'Бубун', el: ['stone', 'water'], part: 'bassvox', rate: 46,
+    desc: 'Подводный валун с бородой из водорослей. Поёт басом «дум-дум» вместе с басовой линией.', col: '#5f7fa6',
+    draw(g, st) {
+      const w = 108, h = 84, c = this.col, s = st.sing;
+      feet(g, w, c);
+      const rocks = [[-26, -80, 14], [4, -86, 12], [28, -76, 10]].map(([x, y, r]) => ({ path: g2 => g2.ellipse(x, y, r * 1.3, r, 0, 0, Math.PI * 2), fill: '#9aa6b2' }));
+      silhouette(g, [...rocks, { path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
+      for (let i = -3; i <= 3; i++) { g.strokeStyle = i % 2 ? '#3f9a5a' : '#2f7a46'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(i * 7, -24); g.quadraticCurveTo(i * 8 + Math.sin(st.t * 3 + i) * 4, -12, i * 7 + Math.sin(st.t * 2 + i) * 5, -3); g.stroke(); }
+      eye(g, -20, -58, 8, st, { lid: 1, iris: '#2a5a8a' }); eye(g, 20, -58, 8, st, { lid: 1, iris: '#2a5a8a' });
+      g.fillStyle = '#2a1a22'; for (const k of [-1, 1]) { g.beginPath(); g.ellipse(k * 20, -71, 9, 3, k * 0.2, 0, Math.PI * 2); g.fill(); }
+      mouth(g, 0, -38, 26, 0.12 + s * 0.88, 'o'); cheeks(g, 0, -46, 30, 6);
+    },
+  },
+  tyc: {
+    name: 'Тыц', el: ['stone', 'leaf'], part: 'beatbox', rate: 46,
+    desc: 'Уличный битбоксер в наушниках из ракушек. Делает ртом бочку, тарелки и малый барабан.', col: '#7d9a52',
+    draw(g, st) {
+      const w = 82, h = 88, c = this.col, s = st.sing, bob = Math.sin(st.t * 10) * s * 3;
+      feet(g, w, c);
+      silhouette(g, [{ path: g2 => SHAPES.box(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
+      g.fillStyle = '#3f8a2a'; g.strokeStyle = '#1f4a14'; g.lineWidth = 2.6;
+      g.beginPath(); g.ellipse(0, -86, 34, 12, 0, Math.PI, 0); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(28, -88); g.quadraticCurveTo(52, -92, 50, -80); g.quadraticCurveTo(40, -84, 28, -82); g.closePath(); g.fill(); g.stroke();
+      g.strokeStyle = '#3a3a4a'; g.lineWidth = 5; g.beginPath(); g.arc(0, -66, 42, Math.PI * 1.12, Math.PI * 1.88); g.stroke();
+      for (const k of [-1, 1]) { g.fillStyle = '#f0e6d8'; g.strokeStyle = '#5a4a3a'; g.lineWidth = 2.4; g.beginPath(); g.ellipse(k * 40, -58, 9, 13, 0, 0, Math.PI * 2); g.fill(); g.stroke(); g.fillStyle = '#ff8a6a'; g.beginPath(); g.ellipse(k * 40, -58, 4, 7, 0, 0, Math.PI * 2); g.fill(); }
+      eye(g, -14, -62, 8, st, { lid: 1 }); eye(g, 14, -62, 8, st, { lid: 1 });
+      mouth(g, 0, -42, 18, s, 'o');
+      g.save(); g.translate(20, -34 + bob); g.rotate(-0.6); g.fillStyle = '#3a3a4a'; g.fillRect(-3, 0, 6, 22); g.fillStyle = '#9aa0ae'; g.strokeStyle = '#3a3a4a'; g.lineWidth = 2; g.beginPath(); g.arc(0, -2, 8, 0, Math.PI * 2); g.fill(); g.stroke(); g.restore();
+      arm(g, 30, -28, Math.PI * 0.8, 12, c, 9); arm(g, -32, -34, Math.PI * 0.15 + s * 0.5, 14, c, 9);
+    },
+  },
+  heyho: {
+    name: 'Хейхо', el: ['stone', 'fire'], part: 'chant', rate: 46,
+    desc: 'Вулканический заводила. Кричит «хей!» и «хо!», и весь остров кричит вместе с ним.', col: '#5b4e55',
+    draw(g, st) {
+      const w = 96, h = 90, c = this.col, s = st.sing;
+      const fl = (x, y, sc, ph) => { const k = 1 + Math.sin(st.t * 12 + ph) * 0.12 + s * 0.3; g.save(); g.translate(x, y); g.scale(sc, sc * k); g.fillStyle = '#ffb02a'; g.beginPath(); g.moveTo(0, -30); g.quadraticCurveTo(14, -10, 10, 0); g.quadraticCurveTo(0, 6, -10, 0); g.quadraticCurveTo(-14, -10, 0, -30); g.fill(); g.fillStyle = '#ff5a2a'; g.beginPath(); g.moveTo(0, -18); g.quadraticCurveTo(8, -6, 6, 0); g.quadraticCurveTo(0, 4, -6, 0); g.quadraticCurveTo(-8, -6, 0, -18); g.fill(); g.restore(); };
+      fl(-14, -90, 0.8, 0); fl(4, -96, 1, 1.3); fl(20, -88, 0.7, 2.6);
+      feet(g, w, c);
+      silhouette(g, [{ path: g2 => SHAPES.rock(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
+      g.strokeStyle = `rgba(255,${120 + s * 80 | 0},40,${0.7 + s * 0.3})`; g.lineWidth = 3; g.lineJoin = 'round';
+      for (const P of [[[-38, -60], [-26, -50], [-30, -36]], [[30, -70], [22, -56], [32, -44]], [[-10, -16], [0, -10], [12, -16]]]) { g.beginPath(); P.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); }
+      eye(g, -16, -62, 8.5, st, { iris: '#ff7a20' }); eye(g, 16, -62, 8.5, st, { iris: '#ff7a20' });
+      g.strokeStyle = '#2a1a22'; g.lineWidth = 3; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 8, -74); g.lineTo(k * 24, -78 + s * 3); g.stroke(); }
+      mouth(g, 0, -42, 30, s, 'teeth');
+      arm(g, 40, -44, -Math.PI * 0.35 - s * 0.6, 20, c, 11); arm(g, -40, -40, Math.PI * 0.85, 14, c, 10);
+    },
+  },
+  zharptica: {
+    name: 'Жар-птичка', el: ['wind', 'fire'], part: 'yodel', rate: 48,
+    desc: 'Огненная певчая птичка. Выводит переливы «о-ли-и» с прыжками через октаву.', col: '#ff5a4a',
+    draw(g, st) {
+      const w = 74, h = 92, c = this.col, s = st.sing;
+      for (let i = -1; i <= 1; i++) { g.save(); g.translate(-24, -24); g.rotate(-2.5 + i * 0.35 + Math.sin(st.t * 3 + i) * 0.08); g.fillStyle = ['#ffb02a', '#ff7a2a', '#ffd84a'][i + 1]; g.strokeStyle = '#8a2a10'; g.lineWidth = 2.2; g.beginPath(); g.ellipse(22, 0, 24, 7, 0, 0, Math.PI * 2); g.fill(); g.stroke(); g.restore(); }
+      feet(g, w, '#e8a03a');
+      silhouette(g, [{ path: g2 => SHAPES.pear(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
+      g.fillStyle = '#ffd84a'; g.beginPath(); g.ellipse(0, -30, 20, 22, 0, 0, Math.PI * 2); g.fill();
+      for (let i = -1; i <= 1; i++) { const k = 1 + Math.sin(st.t * 14 + i) * 0.15; g.save(); g.translate(i * 8, -88); g.rotate(i * 0.35); g.scale(1, k); g.fillStyle = i ? '#ffb02a' : '#ffd84a'; g.strokeStyle = '#8a2a10'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -22); g.quadraticCurveTo(8, -8, 5, 0); g.lineTo(-5, 0); g.quadraticCurveTo(-8, -8, 0, -22); g.fill(); g.stroke(); g.restore(); }
+      for (const k of [-1, 1]) { g.save(); g.translate(k * 30, -48); g.rotate(k * (0.3 + Math.sin(st.t * 10) * 0.25 * (0.3 + s))); g.fillStyle = shade(c, -0.12); g.strokeStyle = shade(c, -0.6); g.lineWidth = 2.4; g.beginPath(); g.ellipse(k * 8, 4, 10, 18, k * 0.3, 0, Math.PI * 2); g.fill(); g.stroke(); g.restore(); }
+      eye(g, -11, -66, 8, st, { lid: 1 }); eye(g, 11, -66, 8, st, { lid: 1 });
+      const op = s * 7; g.fillStyle = '#ffcc2a'; g.strokeStyle = '#8a5a10'; g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(-6, -50 + op * 0.3); g.lineTo(6, -50 + op * 0.3); g.lineTo(0, -42 + op); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(-8, -55); g.lineTo(8, -55); g.lineTo(0, -45); g.closePath(); g.fill(); g.stroke();
+    },
+  },
+  dubidub: {
+    name: 'Дубидуб', el: ['leaf', 'fire'], part: 'scat', rate: 48,
+    desc: 'Джазовый кот-монстрик в листовом берете. Импровизирует «ду-би-ду-ба» на слабые доли.', col: '#9a5ad6',
+    draw(g, st) {
+      const w = 80, h = 96, c = this.col, s = st.sing, sw = Math.sin(st.t * 6) * 0.15;
+      g.lineCap = 'round'; g.strokeStyle = shade(c, -0.6); g.lineWidth = 12; g.beginPath(); g.moveTo(30, -16); g.quadraticCurveTo(58, -30 + sw * 20, 50, -60); g.stroke();
+      g.strokeStyle = c; g.lineWidth = 7; g.beginPath(); g.moveTo(30, -16); g.quadraticCurveTo(58, -30 + sw * 20, 50, -60); g.stroke();
+      feet(g, w, c);
+      const ears = [-1, 1].map(k => ({ path: g2 => { g2.moveTo(k * 14, -88); g2.lineTo(k * 30, -112); g2.lineTo(k * 34, -80); g2.closePath(); }, fill: shade(c, -0.05) }));
+      silhouette(g, [...ears, { path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
+      g.save(); g.translate(-6, -96); g.rotate(-0.25); g.fillStyle = '#5cc040'; g.strokeStyle = '#2f6a1f'; g.lineWidth = 2.6; g.beginPath(); g.ellipse(0, 0, 30, 10, 0, 0, Math.PI * 2); g.fill(); g.stroke(); g.lineWidth = 2; g.beginPath(); g.moveTo(-22, 0); g.lineTo(22, 0); g.stroke(); g.restore();
+      for (const k of [-1, 1]) { g.fillStyle = '#2a2236'; g.strokeStyle = '#ffb02a'; g.lineWidth = 2.4; g.beginPath(); g.ellipse(k * 14, -66, 12, 9, 0, 0, Math.PI * 2); g.fill(); g.stroke(); g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.ellipse(k * 14 - 4, -69, 4, 2, -0.4, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = '#ffb02a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-2, -66); g.lineTo(2, -66); g.stroke();
+      g.strokeStyle = '#2a1a22'; g.lineWidth = 1.6; for (const k of [-1, 1]) for (const d of [-2, 2]) { g.beginPath(); g.moveTo(k * 14, -50 + d); g.lineTo(k * 32, -52 + d * 2); g.stroke(); }
+      mouth(g, 0, -46, 18, s, s > 0.5 ? 'o' : 'smile');
+      g.fillStyle = '#ff7a2a'; g.strokeStyle = '#7a2a10'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -30); g.lineTo(-12, -36); g.lineTo(-12, -24); g.closePath(); g.moveTo(0, -30); g.lineTo(12, -36); g.lineTo(12, -24); g.closePath(); g.fill(); g.stroke();
+      arm(g, -30, -34, Math.PI * 0.75 - Math.abs(sw) * 2 - s * 0.3, 16, c, 9); arm(g, 30, -36, Math.PI * 0.25 + Math.abs(sw) * 2 + s * 0.3, 16, c, 9);
+    },
+  },
 };
-const KIND_IDS = Object.keys(KINDS);
-const BASE_IDS = KIND_IDS.filter(k => KINDS[k].el.length === 1);
-const RARITY = n => ['', 'Обычный', 'Редкий', 'Очень редкий', 'Легендарный'][n];
+// порядок в магазине и книге: обычные по цене, затем элитные
+const BASE_IDS = ['bumbo', 'fyuti', 'bulya', 'shursha', 'barabas', 'glubun', 'tumtum', 'brenchik', 'svistun', 'gromofon'];
+const ELITE_IDS = ['bubun', 'gudun', 'tyc', 'heyho', 'puzyrik', 'kvakusha', 'maestro', 'pevunya', 'zharptica', 'dubidub'];
+const KIND_IDS = [...BASE_IDS, ...ELITE_IDS];
+const RARITY = n => (n > 1 ? 'Элитный' : 'Обычный');
+// скрещивание: по стихии от каждого родителя; разные — элитный этой пары, одинаковые — обычный этой стихии
+const ELITE_BY_PAIR = Object.fromEntries(ELITE_IDS.map(k => [KINDS[k].el.slice().sort().join('+'), k]));
+const BASE_BY_EL = {}; for (const k of BASE_IDS) (BASE_BY_EL[KINDS[k].el[0]] = BASE_BY_EL[KINDS[k].el[0]] || []).push(k);
 
 // полный рисунок монстра: тень, подпрыгивание, сжатие на ноте, раскачивание
 // st: t — время, sing — громкость своей ноты, sq — пружина «желе» (+ вытянулся, − сплющился),

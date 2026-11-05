@@ -10,6 +10,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ic.sm { width: 14px; height: 14px; vertical-align: -2px; }
 .ic.coin { background: radial-gradient(circle at 35% 35%, #fff2a0 0 18%, #ffcc2a 30% 70%, #d89a10 100%); box-shadow: 0 0 0 2px #a07010 inset; }
 .ic.berry { background: radial-gradient(circle at 35% 35%, #ffb0b8 0 14%, #e8304a 30% 75%, #a01830 100%); box-shadow: 0 0 0 2px #7a1020 inset; position: relative; }
+.ic.mon { border-radius: 50% 50% 42% 42%; background: radial-gradient(circle at 34% 40%, #fff 0 13%, #222 14% 20%, transparent 21%), radial-gradient(circle at 66% 40%, #fff 0 13%, #222 14% 20%, transparent 21%), radial-gradient(circle at 40% 30%, #9ef07a, #3fae2a 70%); box-shadow: 0 0 0 2px #24751a inset; }
 .ic.berry::after { content: ""; position: absolute; width: 8px; height: 5px; background: #4fae32; border-radius: 50% 50% 50% 0; top: -3px; left: 7px; }
 
 /* --- верхняя и нижняя панели */
@@ -36,12 +37,9 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .big b:empty { display: none; }
 .big.hot { animation: hot 1s ease-in-out infinite; }
 @keyframes hot { 50% { transform: scale(1.07); } }
-body.placing #hud .bottom { visibility: hidden; }
 
 #hintbar { position: fixed; top: 54px; left: 50%; transform: translate(-50%, -8px); padding: 8px 18px; border-radius: 999px; background: rgba(28, 48, 96, .8); color: #fff; opacity: 0; transition: .25s; pointer-events: none; white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis; }
 #hintbar.show { opacity: 1; transform: translate(-50%, 0); }
-#bCancel { display: none; position: fixed; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: linear-gradient(#ff8a7a, #d8483a); height: 50px; }
-body.placing #bCancel { display: flex; }
 #toast { position: fixed; top: 54px; left: 50%; transform: translate(-50%, -10px); padding: 9px 18px; border-radius: 14px; background: #fff8e8; border: 3px solid #5a3a1a; color: #3a2a1a; opacity: 0; transition: .25s; pointer-events: none; max-width: 86vw; text-align: center; z-index: 30; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #tip { position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: 84px; max-width: min(280px, 32vw); padding: 8px 12px 5px; font-size: 12.5px; border-radius: 18px 18px 18px 4px; background: #fff; border: 3px solid #3aa6ff; color: #2a3a5a; box-shadow: 0 6px 0 rgba(0, 0, 0, .15); opacity: 0; transform: scale(.85); transform-origin: bottom left; transition: .25s; pointer-events: none; z-index: 5; }
