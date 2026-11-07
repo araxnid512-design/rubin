@@ -575,3 +575,110 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
   100% { opacity: 0.94; transform: translate(-50%, 0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) { .bv-banner.show, .bv-banner.end.show { animation-duration: 0.01s; } }
+
+/* ==========================================================================
+   Оформление 2: голо-панели — скошенные углы, уголки-скобы, свечение янтаря.
+   Свой стиль «пульта звёздного корабля»; без чужих логотипов и эмблем.
+   ========================================================================== */
+:root { --glow: rgba(243, 205, 140, 0.35); --edge: rgba(217, 168, 91, 0.26); }
+body {
+  background-image:
+    radial-gradient(ellipse at 50% -20%, rgba(217, 168, 91, 0.12), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: auto, 32px 32px, 32px 32px;
+}
+/* едва заметные строки развёртки, как на мониторе */
+body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 150;
+  background: repeating-linear-gradient(rgba(0, 0, 0, 0.06) 0 1px, transparent 1px 3px);
+}
+
+/* карточки: скос углов, градиент, уголки-скобы */
+.card {
+  position: relative;
+  background: linear-gradient(180deg, #1b1e23, #14161a);
+  border: 1px solid var(--edge); border-radius: 3px;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.card::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.7;
+  background:
+    linear-gradient(135deg, var(--sand) 0 50%, transparent 50%) top left / 13px 13px no-repeat,
+    linear-gradient(-45deg, var(--sand) 0 50%, transparent 50%) bottom right / 13px 13px no-repeat;
+}
+.card.flat { background: linear-gradient(180deg, #20242a, #191c20); }
+.card h2 { text-transform: uppercase; letter-spacing: 0.09em; font-size: 14px; text-shadow: 0 0 10px var(--glow); }
+.card h3 { letter-spacing: 0.04em; }
+
+/* кнопки: градиент, мягкое свечение, нажатие */
+.btn {
+  background: linear-gradient(180deg, #23272e, #191c21);
+  border-color: rgba(217, 168, 91, 0.22); border-radius: 4px;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.08s;
+}
+.btn:hover:not(:disabled) { border-color: var(--sand); box-shadow: 0 0 12px rgba(217, 168, 91, 0.18); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn.primary {
+  background: linear-gradient(180deg, #5a4220, #33250f); border-color: var(--sand2); color: #ffe7bd;
+  text-shadow: 0 0 8px rgba(255, 210, 140, 0.5); box-shadow: 0 0 14px rgba(217, 168, 91, 0.25), inset 0 1px 0 rgba(255, 240, 200, 0.2);
+}
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #6a4e26, #3d2c12); box-shadow: 0 0 20px rgba(217, 168, 91, 0.4); }
+.btn.big { letter-spacing: 0.06em; }
+.btn.sel { background: linear-gradient(180deg, #3a2e1a, #2a2113); box-shadow: inset 0 0 10px rgba(217, 168, 91, 0.25); }
+
+/* вкладки: активная светится и подчёркнута полосой */
+.tab { transition: color 0.15s, background 0.15s; }
+.tab.active { background: linear-gradient(180deg, rgba(217, 168, 91, 0.18), rgba(217, 168, 91, 0.05)); color: #ffe1a8; text-shadow: 0 0 10px var(--glow); box-shadow: inset 0 -2px 0 var(--sand); border-color: var(--edge); }
+@media (orientation: landscape) and (max-height: 540px) {
+  .tab.active { box-shadow: inset 3px 0 0 var(--sand); }
+  #tabs { background: linear-gradient(90deg, #121418, #0d0e10) !important; }
+}
+
+/* верхняя панель: день светится, ресурсы — плашки со скосом */
+#topbar { background: linear-gradient(180deg, rgba(20, 22, 26, 0.97), rgba(13, 14, 16, 0.94)); border-bottom-color: var(--edge); box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4); }
+.top-day { text-shadow: 0 0 10px var(--glow); letter-spacing: 0.05em; }
+.chip { border-radius: 3px; background: linear-gradient(180deg, #22262c, #1a1d21); border-color: rgba(217, 168, 91, 0.18); clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+
+/* окна: подсветка рамки, затемнение фона с размытием */
+.overlay { background: radial-gradient(ellipse at center, rgba(10, 12, 16, 0.7), rgba(0, 0, 0, 0.88)); backdrop-filter: blur(3px); }
+.modal { border-color: var(--edge) !important; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 40px rgba(217, 168, 91, 0.12); }
+.modal h2 { text-shadow: 0 0 12px var(--glow); }
+
+/* варианты выбора: строка пульта с полосой слева */
+.choice { position: relative; background: linear-gradient(90deg, #22262c, #1a1d21); border-color: rgba(217, 168, 91, 0.2); border-radius: 3px; padding-left: 16px; transition: border-color 0.15s, background 0.15s, transform 0.08s; }
+.choice::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--sand); opacity: 0.5; transition: opacity 0.15s; }
+.choice:hover:not(:disabled)::before { opacity: 1; box-shadow: 0 0 10px var(--sand); }
+.choice:active:not(:disabled) { transform: translateX(2px); }
+
+/* портрет в событии — голографическая передача: синеватый оттенок, развёртка, мерцание */
+.holo { position: relative; display: inline-block; flex: none; border-radius: 50%; }
+.holo::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: repeating-linear-gradient(rgba(120, 200, 255, 0.16) 0 1px, transparent 1px 3px);
+  box-shadow: 0 0 16px rgba(120, 200, 255, 0.45), inset 0 0 12px rgba(120, 200, 255, 0.35);
+  animation: holoFlick 3.5s infinite steps(1);
+}
+.holo img { filter: saturate(0.75) hue-rotate(-8deg) brightness(1.05); }
+@keyframes holoFlick { 0%, 100% { opacity: 1; } 47% { opacity: 0.75; } 48% { opacity: 1; } 83% { opacity: 0.85; } }
+
+/* титульный экран: название с сиянием, кнопки меню шире и строже */
+.title-screen h1 { font-size: 40px; letter-spacing: 0.22em; text-shadow: 0 0 18px rgba(243, 205, 140, 0.55), 0 0 2px #fff4dc; }
+.title-screen .sub { letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; }
+.title-screen .btn.big { clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); text-transform: uppercase; letter-spacing: 0.1em; font-size: 14px; }
+.title-screen .btn.big.primary { box-shadow: none; }
+
+/* бой: готовые приказы пульсируют */
+.ob.ord:not(:disabled) { animation: obReady 1.6s ease-in-out infinite; }
+@keyframes obReady { 0%, 100% { box-shadow: 0 0 0 1px rgba(243, 205, 140, 0.35), 0 0 8px rgba(243, 205, 140, 0.15); } 50% { box-shadow: 0 0 0 1px rgba(243, 205, 140, 0.8), 0 0 18px rgba(243, 205, 140, 0.45); } }
+.ob { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); border-radius: 2px; }
+.ob.ord:not(:disabled) { clip-path: none; border-radius: 6px; }
+.bv-stage { border-color: var(--edge); box-shadow: 0 0 24px rgba(0, 0, 0, 0.5); }
+.bv-side b { text-shadow: 0 0 8px currentColor; }
+.bv-bar { height: 7px; border-radius: 2px; }
+.bv-bar i { box-shadow: 0 0 8px currentColor; }
+
+@media (prefers-reduced-motion: reduce) {
+  .holo::after, .ob.ord:not(:disabled) { animation: none; }
+}

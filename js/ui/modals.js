@@ -58,7 +58,7 @@
     const p = s.pending;
     const act = (choice) => { G.Game.act(s, { choice: choice }); UI.commit(); };
     const box = h('div', { class: 'modal event-modal' },
-      h('div', { class: 'ev-head' }, G.Avatar.forEvent(p.id, 72),
+      h('div', { class: 'ev-head' }, h('span', { class: 'holo' }, G.Avatar.forEvent(p.id, 72)),
         h('div', null, h('div', { class: 'small muted' }, 'День ' + s.day), h('h2', null, p.title))),
       h('div', { class: 'lead' }, paragraphs(p.text)));
     if (p.result == null) {

@@ -619,8 +619,17 @@
     ctx.translate(x, y);
     // тень и метка стороны
     const big = type === 'krayt' ? 2.2 : type === 'walker' ? 1.3 : (L && L.scale) || 1;
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath(); ctx.ellipse(0, 0, cell * 0.36 * big, cell * 0.12 * big, 0, 0, TAU); ctx.fill();
+    if (st.night || st.dead) {
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath(); ctx.ellipse(0, 0, cell * 0.36 * big, cell * 0.12 * big, 0, 0, TAU); ctx.fill();
+    } else { // два солнца — две тени под разными углами
+      ctx.fillStyle = 'rgba(40,20,0,0.2)';
+      ctx.beginPath(); ctx.ellipse(cell * 0.16 * big, cell * 0.03, cell * 0.42 * big, cell * 0.11 * big, 0.12, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(40,20,0,0.14)';
+      ctx.beginPath(); ctx.ellipse(cell * 0.1 * big, cell * 0.09, cell * 0.36 * big, cell * 0.1 * big, 0.55, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath(); ctx.ellipse(0, 0, cell * 0.24 * big, cell * 0.08 * big, 0, 0, TAU); ctx.fill();
+    }
     if (!st.dead) {
       ctx.strokeStyle = st.side === 0 ? 'rgba(150,210,255,0.85)' : 'rgba(255,110,90,0.85)';
       ctx.lineWidth = Math.max(1, cell * 0.05);

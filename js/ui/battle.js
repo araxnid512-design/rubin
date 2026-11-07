@@ -141,7 +141,7 @@
     const lamps = ((setup.map && setup.map.layout) || []).filter((it) => it.t === 'lamp');
     const st = { tick: 0, playing: opts.autoplay !== false, speed: UI.battleSpeed(), shownLog: 0, ended: false, destroyed: false, last: 0,
       sel: -1, fxShown: 0, auto: true, armRetreat: 0, finished: false, skip: false };
-    let B, N, shotsBy, hitsOn, deathTick, lastHit, shotI, frameI, decalShot, decalBoom, ranks, facing;
+    let B, N, shotsBy, hitsOn, deathTick, lastHit, killsBy, shotI, frameI, decalShot, decalBoom, ranks, facing;
     const snd = { shot: 0, boom: 0, thr: 0, fx: 0 };
     const nums = [];
 
@@ -229,6 +229,7 @@
       hitsOn = Array.from({ length: N }, () => []);
       deathTick = new Array(N).fill(-1);
       lastHit = new Array(N).fill(-1);
+      killsBy = Array.from({ length: N }, () => []);
       st.slowUntil = 0; st.slowFrom = 0;
       shotI = 0; frameI = 0; decalShot = 0; decalBoom = 0;
       snd.shot = 0; snd.boom = 0; snd.thr = 0; snd.fx = 0;
@@ -255,7 +256,7 @@
       }
       for (; frameI < B.frames.length; frameI++) {
         const fr = B.frames[frameI];
-        for (let i = 0; i < N; i++) if (deathTick[i] < 0 && (fr[i * 4 + 3] & 1)) deathTick[i] = frameI;
+        for (let i = 0; i < N; i++) if (deathTick[i] < 0 && (fr[i * 4 + 3] & 1)) { deathTick[i] = frameI; if (lastHit[i] >= 0) killsBy[lastHit[i]].push(frameI); }
       }
     }
 
@@ -357,7 +358,7 @@
     function unitState(u, p, t, cell) {
       const i = u.i;
       const s = { t: t / 10, facing: facing[i], moving: !!(p.fl & 16), aim: 0, recoil: 0, melee: 0, hit: 0, dead: 0,
-        broken: !!(p.fl & 4), side: u.side, rank: u.side === 0 ? ranks[i] || 0 : 0, seed: i * 31 + 7 };
+        broken: !!(p.fl & 4), side: u.side, rank: u.side === 0 ? ranks[i] || 0 : 0, seed: i * 31 + 7, night: !!setup.night };
       if (s.moving) {
         const a = posAt(i, Math.max(0, t - 0.6)), b = posAt(i, t + 0.6);
         if (Math.abs(b.x - a.x) > 0.01) facing[i] = s.facing = b.x > a.x ? 1 : -1;
@@ -463,7 +464,19 @@
       gctx.globalCompositeOperation = 'lighter';
       ctx.drawImage(terrainCanvas, 0, 0, W * cell, H * cell);
       ctx.drawImage(decalCanvas, 0, 0, W * cell, H * cell);
-      if (!setup.night) cloudShadows(t, cell);
+      for (const [bt, bx, by] of (B.broken || [])) {
+        if (t < bt) continue;
+        const px = bx * cell, py = by * cell;
+        ctx.fillStyle = '#b08c56'; ctx.fillRect(px, py + cell * 0.2, cell, cell * 0.6);
+        ctx.fillStyle = 'rgba(70,50,30,0.35)'; ctx.beginPath(); ctx.ellipse(px + cell / 2, py + cell / 2, cell * 0.45, cell * 0.25, 0, 0, TAU); ctx.fill();
+        for (let j = 0; j < 3; j++) {
+          ctx.save(); ctx.translate(px + cell * (0.2 + hr(bx * 7 + by + j) * 0.6), py + cell * (0.3 + hr(bx + by * 5 + j) * 0.45)); ctx.rotate(hr(bx + j * 3) * 3);
+          ctx.fillStyle = '#9d8e70'; roundRect(ctx, -cell * 0.18, -cell * 0.08, cell * 0.36, cell * 0.16, cell * 0.07); ctx.fill();
+          ctx.restore();
+        }
+        if (t - bt < 16) debris(px + cell / 2, py + cell * 0.4, t - bt, cell, bx * 13 + by);
+      }
+      if (!setup.night && !st.lowQ) cloudShadows(t, cell);
 
       // бочки и пожары на их месте
       for (const b of B.props) {
@@ -663,20 +676,25 @@
         }
       }
 
-      if (!setup.night) dustDevil(t, cell);
+      if (!setup.night && !st.lowQ) dustDevil(t, cell);
       // ветер несёт песок через поле
       ctx.strokeStyle = setup.night ? 'rgba(200,190,170,0.12)' : 'rgba(255,236,200,0.22)';
       ctx.lineWidth = Math.max(1, cell * 0.04); ctx.lineCap = 'round';
       const PW = W * cell, PH = H * cell;
-      for (let k = 0; k < 28; k++) {
+      for (let k = 0; k < (st.lowQ ? 10 : 28); k++) {
         const sp = 0.5 + hr(k + 70) * 0.9;
         const x = ((hr(k) * PW + t * cell * 0.09 * sp * 3) % (PW + cell * 2)) - cell;
         const y = hr(k + 33) * PH + Math.sin(t * 0.05 + k) * cell * 0.3;
         const len = cell * (0.4 + hr(k + 9) * 0.9);
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - len * 0.08); ctx.stroke();
       }
-      // ночь: темнота с пятнами света
+      // ночь: темнота с пятнами света; днём — тёплый свет солнц сверху слева
       if (setup.night) drawNight(t, cell, list);
+      else {
+        const sg = ctx.createLinearGradient(0, 0, PW, PH);
+        sg.addColorStop(0, 'rgba(255,210,140,0.12)'); sg.addColorStop(0.5, 'rgba(255,190,120,0)'); sg.addColorStop(1, 'rgba(60,30,10,0.12)');
+        ctx.fillStyle = sg; ctx.fillRect(0, 0, PW, PH);
+      }
       // виньетка — края поля темнее
       const vg = ctx.createRadialGradient(PW / 2, PH / 2, Math.min(PW, PH) * 0.35, PW / 2, PH / 2, Math.max(PW, PH) * 0.72);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,10,0,0.32)');
@@ -711,6 +729,24 @@
         ctx.fillRect(cx - cell * 0.18, cy - cell * 0.05, cell * 0.36, cell * 0.1);
       }
       for (const it of list) drawMarks(it.u, it.p, cell, t);
+      // серия: два и больше врагов подряд за короткое время
+      ctx.textAlign = 'center';
+      for (const it of list) {
+        const ks = killsBy[it.u.i];
+        if (!ks.length || (it.p.fl & 3)) continue;
+        let n = 0, lastK = -1;
+        for (const kt of ks) if (kt <= t) { if (lastK >= 0 && kt - lastK <= 30) n++; else n = 1; lastK = kt; }
+        if (n < 2 || t - lastK > 18) continue;
+        const f = feet(it.p, cell), q = (t - lastK) / 18;
+        const y = f.y - hgt(it.u.type) * cell - cell * (0.55 + q * 0.3);
+        ctx.globalAlpha = 1 - q * q;
+        ctx.font = 'bold ' + Math.round(cell * 0.42) + 'px system-ui';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.strokeText('СЕРИЯ ×' + n, f.x, y);
+        ctx.fillStyle = it.u.side === 0 ? '#ffd27a' : '#ff8f80';
+        ctx.fillText('СЕРИЯ ×' + n, f.x, y);
+      }
+      ctx.globalAlpha = 1; ctx.textAlign = 'start';
       ctx.textAlign = 'center';
       for (const n of nums) {
         if (n.dt < 0 || n.dt > 9.5) continue;
@@ -1008,6 +1044,11 @@
       if (st.destroyed) return;
       const dt = st.last ? Math.min(0.1, (ts - st.last) / 1000) : 0;
       st.last = ts;
+      // автоэкономия: если кадры идут медленно, второстепенные эффекты выключаются
+      if (dt > 0 && st.playing) {
+        st.ft = st.ft ? st.ft * 0.96 + dt * 1000 * 0.04 : 16;
+        if (!st.lowQ && st.ft > 30 && st.tick > 30) st.lowQ = true;
+      }
       if (root.isConnected) {
         resize();
         const prev = st.tick;

@@ -183,7 +183,7 @@
     if (p.ctx.type === 'attack' && enemyTactic !== 'assault') enemyTactic = 'defense';
     if (p.ctx.mode === 'camp' && enemyTactic === 'defense') enemyTactic = 'assault';
     return {
-      v: 2, seed: p.seed, map: p.map, mode: p.ctx.mode, defender: p.ctx.defender,
+      v: 3, seed: p.seed, map: p.map, mode: p.ctx.mode, defender: p.ctx.defender,
       light: p.ctx.mode === 'camp' ? G.Camp.nightBonus(s) : 0,
       night: p.ctx.night, surprise: p.ctx.surprise, army: p.ctx.army,
       sides: [

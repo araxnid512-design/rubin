@@ -33,7 +33,7 @@
       occ: new Int16Array(map.w * map.h).fill(-1),
       units: [], t: 0, over: false, winner: -1, reason: '',
       frames: [], shots: [], log: [], smokes: [], booms: [], heals: [], fx: [],
-      cells0: cells0, props: [], pend: [],
+      cells0: cells0, props: [], pend: [], broken: [],
       cmds: (setup.cmds || []).map((c) => c.slice()).sort((a, b) => a[0] - b[0]), cmdI: 0,
       sides: [mkSide(setup.sides[0]), mkSide(setup.sides[1])],
       fieldCache: [null, null], fieldAt: [-99, -99],
@@ -273,6 +273,17 @@
       B.shots.push([B.t, ex.src ? ex.src.i : e.i, e.i, 1, 0, real, 1]);
     }
     for (const b of B.props) if (b.boomT < 0 && d2(b, ex) <= ex.r2) blowBarrel(B, b);
+    // баррикады из мешков в радиусе взрыва разлетаются
+    if (B.setup.v >= 3) {
+      const r = Math.ceil(Math.sqrt(ex.r2));
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const x = ex.x + dx, y = ex.y + dy;
+        if (dx * dx + dy * dy > ex.r2 || cell(B, x, y) !== T.WALL) continue;
+        B.cells[idx(B, x, y)] = T.SAND;
+        B.broken.push([B.t, x, y]);
+        B.fieldAt[0] = B.fieldAt[1] = -99;
+      }
+    }
   }
   // Брошенная граната взрывается через несколько тиков
   function throwAt(B, u, target, o, side) {
@@ -1048,7 +1059,7 @@
     return {
       winner: B.winner, reason: B.reason, ticks: B.t, units: units,
       log: B.log, frames: B.frames, shots: B.shots, smokes: B.smokes, booms: B.booms, heals: B.heals, fx: B.fx,
-      props: B.props, cmds: B.cmds.map((c) => c.slice()),
+      props: B.props, broken: B.broken, cmds: B.cmds.map((c) => c.slice()),
       map: { w: B.W, h: B.H, cells: B.cells0, type: B.map.type },
       hash: (h >>> 0).toString(16),
     };

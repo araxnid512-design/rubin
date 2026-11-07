@@ -96,7 +96,7 @@ test('в игре: «В бой» открывает живой бой, итог 
   assert.strictEqual(s.pending.kind, 'battle');
   G.Game.act(s, { action: 'fight' });
   assert.strictEqual(s.pending.kind, 'battleLive');
-  assert.strictEqual(s.pending.setup.v, 2);
+  assert.ok(s.pending.setup.v >= 2);
   // как в интерфейсе: шагаем движок и отдаём приказ
   const B = E().init(JSON.parse(JSON.stringify(s.pending.setup)));
   while (B.t < 25) E().tick(B);
@@ -118,4 +118,15 @@ test('старые повторы (без живых приказов) убир�
   s.replays = [{ id: 1, day: 1, title: 'старый', won: true, setup: { v: 1, seed: 1, sides: [] } }, { id: 2, day: 2, title: 'новый', won: true, setup: { v: 2, seed: 2, sides: [] } }];
   const back = G.Save.migrate(JSON.parse(JSON.stringify(s)));
   assert.deepStrictEqual(back.replays.map((r) => r.id), [2]);
+});
+
+test('взрывы разрушают баррикады из мешков (новые бои)', () => {
+  let broken = 0;
+  for (let seed = 1; seed <= 15; seed++) {
+    const r = E().run(Object.assign(setup(seed, 'deserters'), { v: 3, map: { type: 'wreck' } }));
+    broken += r.broken.length;
+    const old = E().run(Object.assign(setup(seed, 'deserters'), { v: 2, map: { type: 'wreck' } }));
+    assert.strictEqual(old.broken.length, 0, 'старые бои повторяются как были');
+  }
+  assert.ok(broken > 0, 'ни одна баррикада не разрушилась');
 });
