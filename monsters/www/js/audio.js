@@ -72,14 +72,16 @@ const Sound = (() => {
     nextTime = startT = ctx.currentTime + 0.12; nextStep = 0;
     timer = setInterval(tick, 25);
   }
+  const TIGHT = new Set(['kick', 'snare', 'shaker', 'tom', 'bass', 'beatbox', 'rockkick', 'anvil', 'cowbell', 'fuzzbass', 'riff', 'oompah', 'woodblock', 'sleigh', 'claves', 'bongo', 'subbass', 'ukulele']);
   function tick() {
     while (nextTime < ctx.currentTime + 0.16) {
       for (const v of voices.values()) {
         const evs = PARTS[v.part][nextStep]; if (!evs) continue;
         for (const e of evs) {
           const dur = e[1] * STEP, vel = e[2] * (0.92 + Math.random() * 0.16); // живая игра: сила чуть гуляет
-          play(v.part, v.ch, nextTime, e, dur, vel);
-          v.notes.push({ t: nextTime, end: nextTime + Math.max(dur, 0.12), vel, m: e[0] });
+          const lag = TIGHT.has(v.part) ? 0 : Math.random() * 0.012; // певцы и мелодия чуть «дышат», ритм — точно в долю
+          play(v.part, v.ch, nextTime + lag, e, dur, vel);
+          v.notes.push({ t: nextTime, end: nextTime + Math.max(dur, 0.12), vel, m: e[0], v: vowelOf(v.part, e) });
           if (v.notes.length > 24) v.notes.shift();
         }
       }
@@ -130,6 +132,24 @@ const Sound = (() => {
     const now = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0); let c = 0;
     for (const n of v.notes) if (n.t > since && n.t <= now) c++;
     return c;
+  }
+  // гласная ноты — по ней монстр складывает рот: «а», «о», «у», «э», «и»
+  function vowelOf(part, e) {
+    const x = e[3];
+    if (x === 'v') return VOX[part] ? VOX[part].vowel : 'a';
+    switch (part) {
+      case 'lead': case 'opera': case 'yodel': case 'rockvox': case 'icesoprano': return typeof x === 'string' ? x : part === 'rockvox' ? 'e' : 'a';
+      case 'bassvox': case 'scat': case 'growl': case 'baritone': case 'calypsovox': case 'reggaevox': return Array.isArray(x) ? x[1] : 'o';
+      case 'chant': return x === 'хо' ? 'o' : 'e';
+      case 'pad': return 'o';
+      case 'frog': case 'soprano': return 'a';
+    }
+    return null;
+  }
+  function vowel(id) {
+    const v = voices.get(id); if (!v || v.muted || !ctx) return null;
+    const t = now(); for (let i = v.notes.length - 1; i >= 0; i--) { const n = v.notes[i]; if (t >= n.t && t <= n.end + 0.05) return n.v; }
+    return null;
   }
   const now = () => (ctx ? ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) : 0);
   const beat = () => (ctx && timer ? (now() - startT) / (STEP * 4) : 0); // номер доли с дробной частью
@@ -897,5 +917,5 @@ const Sound = (() => {
     setTimeout(() => ch.disconnect(), (n * step + 2.5) * 1000);
   }
 
-  return { init, start, add, remove, mute, setPan, renderMix, setSong, SONGS, partSong: p => PART_SONG[p], get song() { return SONG; }, get SONG_SEC() { return STEPS * STEP; }, PARTS_LIST: () => Object.keys(PARTS), singing, onsets, now, beat, setOn, setSfx, sfx, preview, suspend, resume, get on() { return on; }, get sfxOn() { return sfxOn; }, get ready() { return !!ctx; } };
+  return { init, start, add, remove, mute, setPan, renderMix, setSong, SONGS, vowel, bpb: () => SONGS[SONG].bar / 4, partSong: p => PART_SONG[p], get song() { return SONG; }, get SONG_SEC() { return STEPS * STEP; }, PARTS_LIST: () => Object.keys(PARTS), singing, onsets, now, beat, setOn, setSfx, sfx, preview, suspend, resume, get on() { return on; }, get sfxOn() { return sfxOn; }, get ready() { return !!ctx; } };
 })();

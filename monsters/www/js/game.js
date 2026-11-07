@@ -518,18 +518,33 @@ const JELLY = { kick: 1.5, snare: 1.0, tom: 0.9, shaker: 0.16, bass: 0.75, marim
   strings: 0.35, woodblock: 0.5, icesoprano: 0.4, baritone: 0.45, claves: 0.5, steel: 0.45, bongo: 0.7, subbass: 0.7, ukulele: 0.5, panflute: 0.35, calypsovox: 0.5, reggaevox: 0.55 };
 const DENSE = new Set(['shaker', 'cowbell', 'woodblock', 'bongo', 'claves', 'sleigh']);
 let lookAt = null; // куда все смотрят после нажатия
+function spinMon(m) { const r = stateOf(m); if (!r.turn && !r.lift) r.turn = 0.001; }
 function jumpMon(m, v) { const r = stateOf(m); if (r.jy > 0) return; r.jv = v; r.jy = 0.01; r.sv -= 0.9; }
 function updateMon(m, dt) {
   const r = stateOf(m), K = KINDS[m.kind], x = m.x, y = m.y, sz = monSize(m);
   r.blinkT -= dt; if (r.blinkT < 0) { r.blinkP = 0; r.blinkT = Math.random() < 0.2 ? 0.3 : rand(2.2, 5.5); }
   if (r.blinkP < 1) { r.blinkP = Math.min(1, r.blinkP + dt / 0.2); r.blink = Math.sin(r.blinkP * Math.PI); } else r.blink = 0;
   if (lookAt && T < lookAt.until) { r.lookTo = clamp((lookAt.x - x) / 220, -1, 1); r.lookYTo = clamp((lookAt.y - (y - sz * 0.6)) / 220, -1, 1); }
-  else { r.lookT -= dt; if (r.lookT < 0) { r.lookT = rand(1.5, 4); r.lookTo = rand(-1, 1); r.lookYTo = rand(-0.5, 0.3); } }
+  else {
+    r.lookT -= dt;
+    if (r.lookT < 0) {
+      r.lookT = rand(1.2, 3.5);
+      // чаще всего смотрит на того, кто сейчас громко поёт рядом, — как в настоящем хоре
+      const near = S.mons.filter(o => o !== m && Math.abs(o.x - x) < 700 && (rt.get(o.id) || {}).sing > 0.3);
+      if (near.length && Math.random() < 0.65) { const o = pick(near), os = monSize(o); r.lookTo = clamp((o.x - x) / 160, -1, 1); r.lookYTo = clamp((o.y - os * 0.6 - (y - sz * 0.6)) / 200, -0.6, 0.4); }
+      else { r.lookTo = rand(-1, 1); r.lookYTo = rand(-0.5, 0.3); }
+    }
+  }
   const ek = 1 - Math.exp(-dt * 12); r.look = lerp(r.look, r.lookTo || 0, ek); r.lookY = lerp(r.lookY, r.lookYTo || 0, ek);
   r.sing = Sound.ready && !m.mute ? Sound.singing(m.id) : 0;
+  r.vowel = r.sing > 0.05 ? Sound.vowel(m.id) : null;
+  r.hit = Math.max(0, (r.hit || 0) - dt * 7);
+  const on = Sound.ready && S.music && !m.mute;
+  r.dance = lerp(r.dance || 0, on ? 0.4 + 0.6 * Math.min(1, r.sing * 1.5 + CROWD * 0.5) : 0, 1 - Math.exp(-dt * 2.5));
+  if (r.turn > 0) { r.turn += dt / 0.7; if (r.turn >= 1) r.turn = 0; else if (Math.random() < dt * 30) parts.push({ kind: 'spark', x: x + rand(-sz * 0.4, sz * 0.4), y: y - rand(10, sz), vx: rand(-40, 40), vy: rand(-90, -30), life: rand(0.4, 0.8), t: 0, col: ELEMENTS[pick(K.el)].col }); }
   const now = Sound.now(), n = Sound.onsets(m.id, r.lastOn); r.lastOn = now;
   if (n && !m.mute) {
-    r.sv -= JELLY[K.part] || 0.4;
+    r.sv -= JELLY[K.part] || 0.4; r.hit = 1;
     if (rings.length < 50 && (!DENSE.has(K.part) || Math.random() < 0.25)) rings.push({ x, y, t: 0, col: ELEMENTS[K.el[(r.ringN = (r.ringN || 0) + 1) % K.el.length]].col });
     if (Math.random() < 0.55) parts.push({ kind: 'note', x: x + rand(-20, 20), y: y - sz * 0.95 - r.jy, vx: rand(-14, 14), vy: rand(-55, -35), life: 1.5, t: 0, col: ELEMENTS[K.el[n % K.el.length]].col, ch: Math.random() < 0.5 ? '♪' : '♫' });
   }
@@ -543,7 +558,7 @@ function updateMon(m, dt) {
     }
   }
   r.actT -= dt;
-  if (r.actT < 0 && !r.lift) { r.actT = rand(6, 15); const k = Math.random(); if (k < 0.4) jumpMon(m, rand(260, 380)); else if (k < 0.75) r.wig = 1; else r.lookT = 0; }
+  if (r.actT < 0 && !r.lift) { r.actT = rand(6, 15); const k = Math.random(); if (k < 0.3) jumpMon(m, rand(260, 380)); else if (k < 0.55) r.wig = 1; else if (k < 0.75) spinMon(m); else r.lookT = 0; }
   r.wig = Math.max(0, r.wig - dt * 1.1); r.tilt = Math.sin(r.wig * 16) * 0.13 * r.wig + (r.lift ? Math.sin(T * 9) * 0.08 : 0);
   if (Sound.ready && S.music && !m.mute) { const b = Sound.beat(), f = b - Math.floor(b); r.bob = Math.pow(1 - f, 5) * 3.2; } else r.bob = 0;
   if (m.stored < capOf(m)) m.stored = Math.min(capOf(m), m.stored + rateOf(m) * dt / 60);
@@ -555,7 +570,8 @@ function drawMon(m) {
   const r = stateOf(m), sz = monSize(m);
   // поднятый пальцем: подсвеченный круг — можно ли сюда поставить
   if (drag && drag.m === m) { g.strokeStyle = drag.ok ? 'rgba(120,255,140,.95)' : 'rgba(255,90,90,.95)'; g.fillStyle = drag.ok ? 'rgba(120,255,140,.2)' : 'rgba(255,90,90,.2)'; g.lineWidth = 4; g.beginPath(); g.ellipse(m.x, m.y, 50, 16, 0, 0, Math.PI * 2); g.fill(); g.stroke(); }
-  drawMonster(g, m.kind, m.x, m.y, sz, { t: T, sing: r.sing, blink: r.blink, look: r.look, lookY: r.lookY, phase: r.phase, sq: r.sp, jump: r.jy + (r.lift ? 26 : 0), bob: r.bob, tilt: r.tilt });
+  drawMonster(g, m.kind, m.x, m.y, sz, { t: T, sing: r.sing, blink: r.blink, look: r.look, lookY: r.lookY, phase: r.phase, sq: r.sp, jump: r.jy + (r.lift ? 26 : 0), bob: r.bob, tilt: r.tilt,
+    beat: BEAT, bpb: BPB, dance: r.lift ? 0 : r.dance, hit: r.hit, turn: r.turn, vowel: r.vowel });
   if (m.mute) { const mx = m.x + sz * 0.32, my = m.y - sz * 0.9; g.fillStyle = 'rgba(40,40,60,.75)'; g.beginPath(); g.arc(mx, my, 13, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(mx - 6, my - 6); g.lineTo(mx + 6, my + 6); g.stroke(); }
 }
 const bubbleY = m => m.y - monSize(m) * (KINDS[m.kind].hover ? 1.35 : 1.18) - 12;
@@ -761,6 +777,16 @@ function drawVignette() {
 }
 
 // ---------- кадр
+let BEAT = 0, BPB = 4, CROWD = 0, lastBar = -1;
+function groove(dt) {
+  const on = Sound.ready && S.music;
+  BEAT = on ? Sound.beat() : BEAT; BPB = Sound.bpb ? Sound.bpb() : 4;
+  let sum = 0; for (const m of S.mons) sum += (rt.get(m.id) || {}).sing || 0;
+  CROWD = lerp(CROWD, on && S.mons.length ? Math.min(1, sum / Math.max(3, S.mons.length * 0.6)) : 0, 1 - Math.exp(-dt * 1.5));
+  // каждые четыре такта, когда хор поёт дружно, несколько монстров кружатся вместе
+  const bar = Math.floor(BEAT / BPB);
+  if (on && bar !== lastBar) { if (bar % 4 === 0 && CROWD > 0.35) for (const m of S.mons) if (Math.random() < 0.3) spinMon(m); lastBar = bar; }
+}
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = Math.max(last, now); T += dt;
@@ -770,6 +796,7 @@ function frame(now) {
   if (camGoal) { const k = 1 - Math.exp(-dt * 2.5); cam.x = lerp(cam.x, camGoal.x, k); cam.y = lerp(cam.y, camGoal.y, k); cam.z = lerp(cam.z, camGoal.z, k); clampCam(); if (Math.abs(cam.z - camGoal.z) < 0.002) camGoal = null; }
   if (drag && drag.sx !== undefined) { const e = Math.max(40, W * 0.08), v = 520 / cam.z * dt; if (drag.sx < e) cam.x -= v; else if (drag.sx > W - e) cam.x += v; clampCam(); moveDrag(drag.sx, drag.sy); }
   for (const c of clouds) { c.x += c.v * SKS() * dt; if (c.x > W + 260) { c.x = -200; c.y = rand(0.04, 0.4); } }
+  groove(dt);
   for (const m of S.mons) updateMon(m, dt);
   for (const b of S.bushes) b.n = Math.min(BERRY_CAP, b.n + dt / BERRY_SEC);
   updateParts(dt); tick(dt); hatchStep(dt); ambient(dt); dayCycle(); growOther(dt);
@@ -949,7 +976,7 @@ function dropDrag(cancel) {
   if (cancel || !ok) {
     m.x = ox; m.y = oy; r.jy = 30; r.jv = 0;
     if (!cancel) { Sound.sfx('deny'); toast('Сюда нельзя: занято или край острова'); }
-  } else { r.jy = 26; r.jv = 0; Sound.setPan(m.id, panOf(m)); Sound.sfx('pop'); save(); }
+  } else { r.jy = 26; r.jv = 0; r.turn = 0.001; Sound.setPan(m.id, panOf(m)); Sound.sfx('pop'); save(); }
 }
 cv.addEventListener('pointerdown', e => {
   if (!started) return;
@@ -1001,7 +1028,7 @@ function onTap(sx, sy) {
   for (let i = 0; i < S.bushes.length; i++) { const [bx, by] = BUSH_POS[i]; if (Math.abs(x - bx) < 50 && y > by - 90 && y < by + 10) { if (S.bushes[i].n >= 1) harvest(i); else toast('Ягоды ещё растут'); return; } }
   const hit = hitMon(x, y);
   lookAt = { x, y, until: T + 1.6 };
-  if (hit) { sel = hit.id; jumpMon(hit, 300); Sound.sfx('pop'); for (let i = 0; i < 3; i++) parts.push({ kind: 'heart', x: hit.x + rand(-20, 20), y: hit.y - monSize(hit) * 0.9, vx: rand(-25, 25), vy: rand(-70, -40), life: 1, t: 0 }); showInfo(hit); return; }
+  if (hit) { sel = hit.id; jumpMon(hit, 300); spinMon(hit); Sound.sfx('pop'); for (let i = 0; i < 3; i++) parts.push({ kind: 'heart', x: hit.x + rand(-20, 20), y: hit.y - monSize(hit) * 0.9, vx: rand(-25, 25), vy: rand(-70, -40), life: 1, t: 0 }); showInfo(hit); return; }
   sel = null; closeSheet();
 }
 
