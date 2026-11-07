@@ -141,7 +141,7 @@
     const lamps = ((setup.map && setup.map.layout) || []).filter((it) => it.t === 'lamp');
     const st = { tick: 0, playing: opts.autoplay !== false, speed: UI.battleSpeed(), shownLog: 0, ended: false, destroyed: false, last: 0,
       sel: -1, fxShown: 0, auto: true, armRetreat: 0, finished: false, skip: false };
-    let B, N, shotsBy, hitsOn, deathTick, shotI, frameI, decalShot, decalBoom, ranks, facing;
+    let B, N, shotsBy, hitsOn, deathTick, lastHit, shotI, frameI, decalShot, decalBoom, ranks, facing;
     const snd = { shot: 0, boom: 0, thr: 0, fx: 0 };
     const nums = [];
 
@@ -228,9 +228,12 @@
       shotsBy = Array.from({ length: N }, () => []);
       hitsOn = Array.from({ length: N }, () => []);
       deathTick = new Array(N).fill(-1);
+      lastHit = new Array(N).fill(-1);
+      st.slowUntil = 0; st.slowFrom = 0;
       shotI = 0; frameI = 0; decalShot = 0; decalBoom = 0;
       snd.shot = 0; snd.boom = 0; snd.thr = 0; snd.fx = 0;
       st.fxShown = 0; st.shownLog = 0; st.tick = 0; st.ended = false; st.sel = -1;
+      if (banner) banner.className = 'bv-banner';
       ranks = sup.sides[0].units.map((e) => e.rank || 0);
       facing = B.units.map((u) => (u.side === 0 ? 1 : -1));
       G.Dom.clear(logEl);
@@ -248,7 +251,7 @@
       for (; shotI < B.shots.length; shotI++) {
         const sh = B.shots[shotI];
         if (!sh[6]) shotsBy[sh[1]].push(sh);
-        if (sh[3]) hitsOn[sh[2]].push(sh[0]);
+        if (sh[3]) { hitsOn[sh[2]].push(sh[0]); if (sh[1] !== sh[2]) lastHit[sh[2]] = sh[1]; }
       }
       for (; frameI < B.frames.length; frameI++) {
         const fr = B.frames[frameI];
@@ -421,8 +424,24 @@
       }
       ctx.save();
       ctx.translate(sx, sy);
+      // «удар» камеры: лёгкое приближение к взрыву и к месту, где пал вожак
+      let zoom = 1, zx = W * cell / 2, zy = H * cell / 2;
+      for (let k = B.booms.length - 1; k >= 0; k--) {
+        const dt = t - B.booms[k][0];
+        if (dt < 0) continue;
+        if (dt > 10) break;
+        const z = (B.booms[k][5] === 'barrel' ? 0.06 : 0.035) * (1 - dt / 10);
+        if (z > zoom - 1) { zoom = 1 + z; zx = (B.booms[k][1] + 0.5) * cell; zy = (B.booms[k][2] + 0.5) * cell; }
+      }
+      if (st.focusI >= 0 && performance.now() < st.slowUntil) {
+        const k = Math.min(1, (st.slowUntil - performance.now()) / 300);
+        const p = posAt(st.focusI, t);
+        zoom = Math.max(zoom, 1 + 0.07 * k); zx = (p.x + 0.5) * cell; zy = (p.y + 0.5) * cell;
+      }
+      if (zoom > 1.001) { ctx.translate(zx, zy); ctx.scale(zoom, zoom); ctx.translate(-zx, -zy); }
       ctx.drawImage(terrainCanvas, 0, 0, W * cell, H * cell);
       ctx.drawImage(decalCanvas, 0, 0, W * cell, H * cell);
+      if (!setup.night) cloudShadows(t, cell);
 
       // бочки и пожары на их месте
       for (const b of B.props) {
@@ -446,10 +465,38 @@
       }
       // фигурки: павшие снизу, затем живые сверху вниз
       list.sort((a, b) => ((b.p.fl & 1) - (a.p.fl & 1)) || a.p.y - b.p.y || a.u.i - b.u.i);
+      const appear = Math.min(1, t / 6);
       for (const it of list) {
         if (it.p.fl & 2) continue;
         const f = feet(it.p, cell);
+        const i = it.u.i;
+        if ((it.p.fl & 1) && deathTick[i] >= 0 && !it.u.base.big && !it.u.base.static) {
+          const d = Math.min(1, (t - deathTick[i]) / 3.5);
+          const from = lastHit[i] >= 0 ? posAt(lastHit[i], deathTick[i]).x : it.p.x - facing[i];
+          const dir = it.p.x >= from ? 1 : -1;
+          f.x += dir * cell * 0.38 * (1 - Math.pow(1 - d, 2));
+          f.y -= Math.sin(d * Math.PI) * cell * 0.22;
+        }
+        if (appear < 1) ctx.globalAlpha = appear;
         G.Sprites.draw(ctx, it.u.type, f.x, f.y, cell, unitState(it.u, it.p, t, cell));
+        ctx.globalAlpha = 1;
+      }
+      // гибель: дроиды и техника взрываются, люди поднимают пыль
+      for (const it of list) {
+        const i = it.u.i;
+        if (deathTick[i] < 0 || t < deathTick[i]) continue;
+        const dt = t - deathTick[i];
+        const f = feet(it.p, cell);
+        if (METAL.has(it.u.type)) {
+          const big = it.u.base.big || it.u.type === 'turret';
+          if (dt < 40) explosion(f.x, f.y - cell * (big ? 0.7 : 0.4), dt, cell, big ? 1.1 : 0.6, i * 17 + 3);
+          if (big && dt < 220) flames(f.x - cell * 0.1, f.y - cell * 0.2, cell * 0.45, t + i, 1 - dt / 220);
+          if (dt < 18) debris(f.x, f.y - cell * 0.4, dt, cell, i * 7 + 1);
+        } else if (dt > 2.5 && dt < 10) {
+          const q = (dt - 2.5) / 7.5;
+          ctx.fillStyle = 'rgba(220,195,150,' + (0.4 * (1 - q)).toFixed(3) + ')';
+          ctx.beginPath(); ctx.ellipse(f.x - facing[i] * cell * 0.4, f.y, cell * (0.3 + q * 0.5), cell * (0.1 + q * 0.12), 0, 0, TAU); ctx.fill();
+        }
       }
 
       // выстрелы: болты, вспышки, искры, фонтанчики песка
@@ -475,6 +522,14 @@
         const x1 = fa.x + dir * cell * 0.45, y1 = fa.y - cell * hgt(shooter.type) * 0.55;
         const x2 = tx + miss * cell, y2 = ty - miss * cell * 0.6;
         const col = shooter.side === 0 ? BOLT[0] : BOLT[setup.army] || BOLT.default;
+        const wpn = (G.Sprites.LOOKS[shooter.type] || {}).weapon;
+        const fat = wpn === 'heavy' || shooter.base.big || shooter.type === 'turret' ? 1.6 : wpn === 'pistol' ? 0.8 : 1;
+        const longB = wpn === 'sniper' ? 0.65 : 0.35;
+        if (wpn === 'longrifle' && dt < 10) {
+          const q = dt / 10;
+          ctx.fillStyle = 'rgba(200,195,185,' + (0.4 * (1 - q)).toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(x1 + dir * cell * 0.2 * q, y1 - cell * 0.4 * q, cell * (0.1 + q * 0.25), 0, TAU); ctx.fill();
+        }
         if (dt < 1.2) { // вспышка у ствола — с ореолом
           ctx.save(); ctx.globalCompositeOperation = 'lighter';
           const r = cell * 0.5 * (1.2 - dt);
@@ -486,23 +541,36 @@
         const prog = Math.min(1, dt / 1.2);
         if (dt < 2.7) {
           const bx = x1 + (x2 - x1) * prog, by = y1 + (y2 - y1) * prog;
-          const tail = Math.max(0, prog - 0.35);
+          const tail = Math.max(0, prog - longB);
           const fade = prog >= 1 ? Math.max(0, 1 - (dt - 1.2) / 1.5) : 1;
           const tx0 = x1 + (x2 - x1) * tail, ty0 = y1 + (y2 - y1) * tail;
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
           ctx.lineCap = 'round';
-          ctx.globalAlpha = 0.28 * fade; ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, cell * 0.3);
+          ctx.globalAlpha = 0.28 * fade; ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, cell * 0.3 * fat);
           ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
-          ctx.globalAlpha = 0.9 * fade; ctx.lineWidth = Math.max(1.5, cell * 0.1);
+          ctx.globalAlpha = 0.9 * fade; ctx.lineWidth = Math.max(1.5, cell * 0.1 * fat);
           ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
-          ctx.globalAlpha = fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.7, cell * 0.035);
+          ctx.globalAlpha = fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.7, cell * 0.035 * fat);
           ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
+          if (prog < 1) { // светящийся наконечник
+            const hg = ctx.createRadialGradient(bx, by, 0, bx, by, cell * 0.28 * fat);
+            hg.addColorStop(0, 'rgba(255,255,255,0.95)'); hg.addColorStop(0.3, col); hg.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalAlpha = 0.9; ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(bx, by, cell * 0.28 * fat, 0, TAU); ctx.fill();
+          }
           ctx.restore();
         }
         if (dt >= 1.2 && dt < 5) {
           const q = (dt - 1.2) / 3.8;
-          if (sh[3]) sparks(x2, y2, cell, q, k, METAL.has(target.type) ? '255,235,140' : '255,190,120');
+          if (sh[3]) {
+            sparks(x2, y2, cell, q, k, METAL.has(target.type) ? '255,235,140' : '255,190,120');
+            if (q < 0.5) { // вспышка попадания
+              ctx.save(); ctx.globalCompositeOperation = 'lighter';
+              const r = cell * (0.35 + q * 0.6) * fat, fg = ctx.createRadialGradient(x2, y2, 0, x2, y2, r);
+              fg.addColorStop(0, 'rgba(255,240,210,' + (0.85 * (1 - q * 2)).toFixed(3) + ')'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(x2, y2, r, 0, TAU); ctx.fill(); ctx.restore();
+            }
+          }
           else { // фонтанчик песка у ног
             ctx.fillStyle = 'rgba(230,205,160,' + (0.5 * (1 - q)).toFixed(3) + ')';
             ctx.beginPath(); ctx.arc(x2, fb.y - cell * 0.05 - q * cell * 0.25, cell * (0.08 + q * 0.18), 0, TAU); ctx.fill();
@@ -567,6 +635,7 @@
         }
       }
 
+      if (!setup.night) dustDevil(t, cell);
       // ветер несёт песок через поле
       ctx.strokeStyle = setup.night ? 'rgba(200,190,170,0.12)' : 'rgba(255,236,200,0.22)';
       ctx.lineWidth = Math.max(1, cell * 0.04); ctx.lineCap = 'round';
@@ -617,6 +686,44 @@
       ctx.globalAlpha = 1;
       ctx.textAlign = 'start';
       ctx.restore();
+    }
+
+    // тени облаков медленно плывут по песку
+    function cloudShadows(t, cell) {
+      const PW = W * cell, PH = H * cell;
+      for (let k = 0; k < 3; k++) {
+        const r = cell * (4 + k * 1.5);
+        const x = ((hr(k + 40) * PW + t * cell * 0.012 * (1 + k * 0.3)) % (PW + r * 2)) - r;
+        const y = PH * (0.2 + 0.3 * k) + Math.sin(t * 0.004 + k) * cell;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(40,25,10,0.16)'); g.addColorStop(1, 'rgba(40,25,10,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.6, 0, 0, TAU); ctx.fill();
+      }
+    }
+    // пылевой вихрь бродит по полю
+    function dustDevil(t, cell) {
+      const cyc = 520, ph = (t % cyc) / cyc, n = Math.floor(t / cyc);
+      if (n % 2) return;
+      const x = (-0.1 + ph * 1.2) * W * cell, y = (0.25 + hr(n + 3) * 0.5) * H * cell + Math.sin(t * 0.03) * cell;
+      const a = Math.sin(ph * Math.PI);
+      ctx.fillStyle = 'rgba(214,186,140,' + (0.18 * a).toFixed(3) + ')';
+      ctx.beginPath(); ctx.ellipse(x, y, cell * 0.9, cell * 0.3, 0, 0, TAU); ctx.fill();
+      for (let k = 0; k < 18; k++) {
+        const h = k / 18, ang = t * 0.35 + k * 1.7, rad = cell * (0.25 + h * 0.9);
+        ctx.fillStyle = 'rgba(225,198,150,' + (0.45 * a * (1 - h * 0.6)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(x + Math.cos(ang) * rad, y - h * cell * 2.4 + Math.sin(ang) * rad * 0.25, cell * (0.06 + h * 0.08), 0, TAU); ctx.fill();
+      }
+    }
+    // обломки дроида или техники разлетаются и падают
+    function debris(x, y, dt, cell, seed) {
+      for (let j = 0; j < 7; j++) {
+        const a = -Math.PI * (0.15 + hr(seed + j) * 0.7), v = cell * (0.12 + hr(seed + j * 3) * 0.14);
+        const px = x + Math.cos(a) * v * dt, py = Math.min(y + cell * 0.45, y + Math.sin(a) * v * dt + 0.03 * cell * dt * dt);
+        ctx.save(); ctx.translate(px, py); ctx.rotate(dt * (0.4 + hr(seed + j * 5)));
+        ctx.fillStyle = j % 2 ? '#3a3f46' : '#6d737b';
+        ctx.fillRect(-cell * 0.06, -cell * 0.04, cell * 0.12, cell * 0.08);
+        ctx.restore();
+      }
     }
 
     function sparks(x, y, cell, q, seed, rgb) {
@@ -824,6 +931,28 @@
       }
     }
 
+    // Замедление на ярких моментах: гибель вожака, взрыв бочки, последний выстрел боя
+    st.focusI = -1;
+    function dramatic(prev, now) {
+      let hit = -1, ms = 0;
+      for (let i = 0; i < N; i++) {
+        if (deathTick[i] <= prev || deathTick[i] > now) continue;
+        if (B.units[i].leader || B.units[i].base.big) { hit = i; ms = 900; }
+      }
+      for (let k = B.booms.length - 1; k >= 0; k--) {
+        const bm = B.booms[k];
+        if (bm[0] <= prev) break;
+        if (bm[0] <= now && bm[5] === 'barrel' && ms < 600) { ms = 600; hit = -1; }
+      }
+      if (B.over && prev < B.t - 6 && now >= B.t - 6) {
+        ms = 1200;
+        let last = -1;
+        for (let i = 0; i < N; i++) if (deathTick[i] >= 0 && (last < 0 || deathTick[i] > deathTick[last])) last = i;
+        hit = last;
+      }
+      if (ms) { st.slowUntil = performance.now() + ms; st.focusI = hit; }
+    }
+
     function frame(ts) {
       if (st.destroyed) return;
       const dt = st.last ? Math.min(0.1, (ts - st.last) / 1000) : 0;
@@ -833,10 +962,14 @@
         const prev = st.tick;
         let skipped = false;
         if (st.skip) { while (!B.over) E.tick(B); st.tick = B.t; st.skip = false; skipped = true; }
-        else if (st.playing) st.tick = Math.min(B.over ? B.t : Infinity, st.tick + dt * tps * st.speed);
+        else if (st.playing) {
+          const slow = performance.now() < st.slowUntil ? 0.3 : 1;
+          st.tick = Math.min(B.over ? B.t : Infinity, st.tick + dt * tps * st.speed * slow);
+        }
         ensure(Math.ceil(st.tick));
         if (B.over) st.tick = Math.min(st.tick, B.t);
         if (st.tick > prev || skipped) sounds(prev, st.tick, skipped);
+        if (st.tick > prev && !skipped) dramatic(prev, st.tick);
         if (B.over && st.tick >= B.t && !st.ended) {
           st.ended = true; st.playing = false; syncBtns();
           ended();
@@ -849,8 +982,15 @@
       requestAnimationFrame(frame);
     }
 
+    function showBanner(text, cls) {
+      banner.textContent = text;
+      banner.className = 'bv-banner ' + cls;
+      void banner.offsetWidth;
+      banner.classList.add('show');
+    }
     function ended() {
       if (G.Audio && !opts.startAtEnd) G.Audio.stinger(B.winner === 0 ? 'victory' : 'defeat');
+      showBanner(B.winner === 0 ? (B.reason === 'timeout' ? 'Позиция удержана' : 'Победа') : (B.reason === 'retreat' ? 'Отступление' : 'Поражение'), 'end ' + (B.winner === 0 ? 'ours' : 'foe'));
       if (live && !st.finished) {
         st.finished = true;
         live = false;
@@ -864,6 +1004,7 @@
     W = B.W; H = B.H;
     buildOrders();
     syncBtns();
+    if (!opts.startAtEnd && opts.autoplay !== false) setTimeout(() => showBanner('⚔ В бой!', 'ours'), 50);
     if (opts.startAtEnd) {
       while (!B.over) E.tick(B);
       ensure(B.t);
