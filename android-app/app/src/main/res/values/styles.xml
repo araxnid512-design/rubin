@@ -7,5 +7,5 @@
         <item name="android:navigationBarColor">@color/night</item>
     </style>
     <color name="night">#0D0E10</color>
-    <color name="ic_bg">#16181C</color>
+    <color name="ic_bg">#C4583A</color>
 </resources>

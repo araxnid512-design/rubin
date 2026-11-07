@@ -292,8 +292,8 @@ def build():
         ('classes.dex', open(dex, 'rb').read(), True),
         ('resources.arsc', arsc(), False),
         ('res/drawable/icon.png', open(os.path.join(ROOT, 'icons', 'icon-192.png'), 'rb').read(), False),
-        ('res/drawable/icon_fg.png', open(os.path.join(res, 'mipmap-xxxhdpi', 'ic_launcher_foreground.png'), 'rb').read(), False),
-        ('res/drawable/icon_bg.png', solid_png(108, 108, ICON_BG), False),
+        ('res/drawable/icon_fg.png', open(os.path.join(ROOT, 'icons', 'ic-fg.png'), 'rb').read(), False),
+        ('res/drawable/icon_bg.png', open(os.path.join(ROOT, 'icons', 'ic-bg.png'), 'rb').read(), False),
         ('res/drawable-anydpi-v26/icon.xml', adaptive, True),
         ('assets/index.html', open(html, 'rb').read(), True),
     ]
