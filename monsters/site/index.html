@@ -1,0 +1,145 @@
+<title>Монстрохор для Android</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@700&family=PT+Sans:wght@400;700&display=swap">
+<style>
+/* Сайт игры: небо и остров сверху, ниже — карточка скачивания, шаги установки, острова и помощь. Одна колонка, на широком экране острова в сетку. */
+:root {
+  --sky: #59baf2; --sky2: #bfe8ff; --bg: #eaf6ff; --panel: #fffaf0; --ink: #3a2a1a; --dim: #7a6650;
+  --line: #e2c89a; --go: #45b52e; --go-edge: #2f8a1d; --pink: #e8508e; --warn: #fff1c4; --warn-ink: #6a4a00; --gold: #ffcc2a;
+  --display: "Balsamiq Sans", "Comic Sans MS", "Trebuchet MS", system-ui, sans-serif;
+  --body: "PT Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --sky: #1d3266; --sky2: #304a86; --bg: #121a33; --panel: #1d2747; --ink: #f4ecdc; --dim: #b4a890;
+  --line: #3a4a78; --go: #4cc232; --go-edge: #2c7a1a; --pink: #ff6aa6; --warn: #3a3214; --warn-ink: #ffe08a; --gold: #ffd84a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --sky: #1d3266; --sky2: #304a86; --bg: #121a33; --panel: #1d2747; --ink: #f4ecdc; --dim: #b4a890;
+  --line: #3a4a78; --go: #4cc232; --go-edge: #2c7a1a; --pink: #ff6aa6; --warn: #3a3214; --warn-ink: #ffe08a; --gold: #ffd84a; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 400 17px/1.5 var(--body); }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.hero { background: linear-gradient(180deg, var(--sky) 0%, var(--sky2) 72%, var(--bg) 100%); padding-block: 28px 8px; text-align: center; }
+h1 { font: 700 clamp(42px, 11vw, 68px)/1 var(--display); margin: 0; color: #fff; text-shadow: 0 3px 0 #2a6aa8, 0 6px 14px rgba(20, 50, 100, .35); letter-spacing: .5px; }
+.lead { margin: 10px auto 0; max-width: 34em; color: #fff; font-size: 18px; text-shadow: 0 1px 2px rgba(20, 50, 100, .5); text-wrap: balance; }
+.strip { display: block; width: 100%; max-width: 100%; height: auto; margin: 14px auto 0; aspect-ratio: 1320 / 190; }
+.card { background: var(--panel); border: 3px solid var(--line); border-radius: 22px; padding: 18px; }
+.get { display: grid; gap: 12px; margin-top: -4px; text-align: center; }
+.dl { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px 20px; border-radius: 18px; background: var(--go); color: #fff; text-decoration: none;
+  font: 700 24px/1.1 var(--display); box-shadow: 0 6px 0 var(--go-edge); border: 3px solid var(--go-edge); }
+.dl:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--go-edge); }
+.dl:focus-visible, .btn:focus-visible, .play:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; }
+.dl svg { width: 30px; height: 30px; flex: none; }
+.meta { color: var(--dim); font-size: 15px; font-variant-numeric: tabular-nums; }
+.play { color: var(--pink); font-weight: 700; text-decoration: none; border-bottom: 2px solid currentColor; justify-self: center; }
+.ok { display: flex; gap: 8px; align-items: flex-start; text-align: left; font-size: 14px; color: var(--dim); }
+.ok b { color: var(--go-edge); }
+main { display: grid; gap: 26px; padding-block: 22px 40px; }
+h2 { font: 700 26px/1.2 var(--display); margin: 0 0 10px; text-wrap: balance; }
+.warn { background: var(--warn); color: var(--warn-ink); border: 2px dashed currentColor; border-radius: 18px; padding: 14px 16px; display: grid; gap: 10px; }
+.warn h3 { margin: 0; font: 700 18px/1.3 var(--display); }
+.warn p { margin: 0; }
+.link { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.link input { flex: 1 1 220px; min-width: 0; font: 14px/1.3 var(--body); padding: 9px 10px; border-radius: 10px; border: 2px solid var(--line); background: var(--panel); color: var(--ink); }
+.btn { font: 700 15px var(--body); padding: 10px 14px; border-radius: 12px; border: 2px solid var(--ink); background: var(--panel); color: var(--ink); cursor: pointer; }
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: s; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: start; background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+ol.steps li::before { content: counter(s); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #3a2a1a; font: 700 20px var(--display); border: 2px solid #a07010; }
+ol.steps li > div { min-width: 0; }
+ol.steps b.k { white-space: nowrap; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; }
+.note { margin: 10px 0 0; color: var(--dim); font-size: 15px; }
+.isles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.isle { background: var(--panel); border: 2px solid var(--line); border-radius: 18px; overflow: hidden; display: grid; }
+.isle img { display: block; width: 100%; height: auto; aspect-ratio: 960 / 432; object-fit: cover; }
+.isle div { padding: 10px 14px 14px; display: grid; gap: 2px; }
+.isle b { font: 700 20px var(--display); }
+.isle span { color: var(--dim); font-size: 15px; }
+.help { display: grid; gap: 10px; }
+details { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+summary { font-weight: 700; cursor: pointer; }
+details p, details ul { margin: 8px 0 0; }
+footer { color: var(--dim); font-size: 14px; text-align: center; padding-block: 0 30px; }
+@media (prefers-reduced-motion: no-preference) { .strip { animation: bob 3.2s ease-in-out infinite; } @keyframes bob { 50% { transform: translateY(-4px); } } }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Монстрохор</h1>
+    <p class="lead">Поющие монстрики на четырёх островах. Каждый монстр поёт свою партию, а вместе получается песня.</p>
+    <img class="strip" src="img/monsters.webp" width="1320" height="190" alt="Монстры игры: Бумбо, Маэстро, Фьюти, Дракоша, Снежинка, Квакуша, Дельфа, Искра, Пингви, Тыц, Медуза и Дубидуб">
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="card get" aria-label="Скачать игру">
+    <a class="dl" id="dl" href="https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M6.5 10 12 15.5 17.5 10M4 20h16"/></svg>
+      Скачать для Android
+    </a>
+    <div class="meta">Версия 1.1.11 · 557 КБ · Android 7 и новее · без рекламы</div>
+    <a class="play" href="https://claude.ai/artifact/1w11qfMcuvMMXtXsBbuS1T" target="_blank" rel="noopener">Играть в браузере без установки</a>
+    <div class="ok"><span aria-hidden="true">✔</span><span><b>Файл проверен 7 ноября 2026:</b> скачивается целиком (556 876 байт), подпись проходит проверку тем же кодом, которым её проверяет Android 14 при установке.</span></div>
+  </section>
+</div>
+
+<main class="wrap">
+  <section class="warn" aria-labelledby="w">
+    <h3 id="w">Открыли эту страницу в приложении Claude?</h3>
+    <p>Встроенное окно приложения не докачивает установочные файлы: загрузка застывает на 100%. Нажмите <b>⋮</b> вверху справа → <b>«Відкрити в Chrome»</b> и уже там нажмите «Скачать для Android». Или скопируйте ссылку и вставьте её в адресную строку Chrome:</p>
+    <div class="link">
+      <input id="url" readonly value="https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk" aria-label="Ссылка на файл игры">
+      <button class="btn" id="copy" type="button">Скопировать ссылку</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-steps">
+    <h2 id="h-steps">Как установить</h2>
+    <ol class="steps">
+      <li><div>Нажмите <b>«Скачать для Android»</b>. Chrome предупредит, что такие файлы бывают опасными: нажмите <b class="k">«Завантажити»</b> или <b class="k">«Усе одно завантажити»</b>.</div></li>
+      <li><div>Когда загрузка закончится, нажмите <b class="k">«Відкрити»</b> внизу экрана. Если надпись пропала — откройте <b>monstrohor.apk</b> в шторке уведомлений или в «Завантаження».</div></li>
+      <li><div>Если телефон попросит разрешение: <b class="k">«Налаштування»</b> → включите <b class="k">«Дозволити з цього джерела»</b> → вернитесь назад.</div></li>
+      <li><div>Нажмите <b class="k">«Встановити»</b>.</div></li>
+      <li><div>Появится окно Google Play Захисту. Нажмите <b class="k">«Не надсилати»</b> или <b class="k">«Надіслати цього разу»</b>. Не закрывайте окно мимо кнопок, иначе будет «Додаток не встановлено».</div></li>
+      <li><div>Нажмите <b class="k">«Відкрити»</b>, включите звук — и монстры запоют.</div></li>
+    </ol>
+    <p class="note">Новая версия ставится поверх старой: монстры, монеты и острова сохраняются. Ссылка всегда ведёт на самую свежую версию.</p>
+  </section>
+
+  <section aria-labelledby="h-isles">
+    <h2 id="h-isles">Четыре острова — четыре песни</h2>
+    <div class="isles">
+      <article class="isle"><img src="img/green.jpg" width="960" height="432" alt="Певучий остров" loading="lazy"><div><b>Певучий остров</b><span>Весёлая песня в до мажоре · 20 монстров · с самого начала</span></div></article>
+      <article class="isle"><img src="img/lava.jpg" width="960" height="432" alt="Остров Вулкан" loading="lazy"><div><b>Вулкан</b><span>«Огненный рок» с гитарой и наковальней · 8 монстров · с 3 уровня</span></div></article>
+      <article class="isle"><img src="img/ice.jpg" width="960" height="432" alt="Остров Льдинка" loading="lazy"><div><b>Льдинка</b><span>«Снежный вальс» на три четверти · 8 монстров · с 5 уровня</span></div></article>
+      <article class="isle"><img src="img/sea.jpg" width="960" height="432" alt="Остров Лагуна" loading="lazy"><div><b>Лагуна</b><span>«Солнечная лагуна», калипсо со стальным барабаном · 8 монстров · с 7 уровня</span></div></article>
+    </div>
+    <p class="note">Покупайте монстров, кормите их ягодами, скрещивайте на Арке, чтобы вывести элитных певцов, и ставьте их, куда хочется: монстра можно зажать пальцем и перетащить.</p>
+  </section>
+
+  <section class="help" aria-labelledby="h-help">
+    <h2 id="h-help">Если не устанавливается</h2>
+    <details><summary>Пишет «Додаток не встановлено»</summary>
+      <ul>
+        <li>Повторите установку и в окне Play Захисту нажмите кнопку «Не надсилати», а не крестик и не «Назад».</li>
+        <li>Освободите место в памяти телефона: нужно хотя бы около 500 МБ.</li>
+        <li>Временно выключите проверку: Play Маркет → аватар → Play Захист → ⚙ → «Сканувати додатки за допомогою Play Захисту». После установки включите обратно.</li>
+      </ul>
+    </details>
+    <details><summary>Загрузка застыла на 100% или «Скачивание…» не заканчивается</summary>
+      <p>Так бывает во встроенном окне приложений (Claude, мессенджеры). Откройте страницу в Chrome: ⋮ → «Відкрити в Chrome», или скопируйте ссылку выше и вставьте её в Chrome.</p>
+    </details>
+    <details><summary>Старая версия не обновляется</summary>
+      <p>Если игра стояла из другого источника, удалите её: «Налаштування» → «Додатки» → «Монстрохор» → «Видалити», затем установите заново. Учтите: при удалении прогресс сотрётся.</p>
+    </details>
+  </section>
+</main>
+
+<footer class="wrap">Монстрохор: все монстры, рисунки и песни сделаны с нуля. Игра работает без интернета и без рекламы.</footer>
+
+<script>
+document.getElementById('copy').addEventListener('click', () => {
+  const inp = document.getElementById('url'), btn = document.getElementById('copy'), done = () => { btn.textContent = 'Ссылка скопирована'; };
+  const fallback = () => { inp.focus(); inp.select(); try { if (document.execCommand('copy')) done(); else btn.textContent = 'Выделено — скопируйте'; } catch (e) { btn.textContent = 'Выделено — скопируйте'; } };
+  try { navigator.clipboard.writeText(inp.value).then(done, fallback); } catch (e) { fallback(); }
+});
+</script>

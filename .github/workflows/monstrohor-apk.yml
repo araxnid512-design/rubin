@@ -6,7 +6,7 @@ name: Монстрохор APK
 on:
   push:
     branches: ['claude/prehistoric-mario-platformer-b054am']
-    paths: ['monsters/**', '.github/workflows/monstrohor-apk.yml']
+    paths: ['monsters/**', '!monsters/site/**', '.github/workflows/monstrohor-apk.yml']
   workflow_dispatch:
 
 permissions:

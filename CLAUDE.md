@@ -35,6 +35,13 @@
   Обновлять этот же артефакт: страница — `<title>`, CSS из `www/style.css` внутри `<style>` и тело `www/index.html`;
   рядом файлы `js/audio.js`, `js/monsters.js`, `js/kinds-lava.js`, `js/kinds-ice.js`, `js/kinds-sea.js`, `js/game.js`. В онлайн-версии на заставке кнопка «Установить на Android»
   с подсказкой и копированием ссылки (в APK скрыта: там `location.protocol === 'file:'`).
+- Сайт игры (скачать APK, шаги установки, острова, «Играть в браузере») — артефакт https://claude.ai/artifact/E9mgBhtADp6YxJcEo1uJxv,
+  исходник `monsters/site/index.html` и картинки `monsters/site/img/` (публиковать тем же путём, рядом `img/*`).
+  Изменения сайта сборку APK не запускают. Версию, размер и дату проверки на сайте обновлять после новой сборки.
+  Артефакты приватные: открыть всем может только сам пользователь (на странице «Поделиться» → доступ по ссылке).
+  GitHub Pages в репозитории не включён (нет workflow «pages-build-deployment»); ветка gh-pages — чужой сайт, её не трогать.
+- Проверка скачивания: curl с телефонным User-Agent (302 → 200, `application/vnd.android.package-archive`, размер = Content-Length),
+  `unzip -t`, подпись — `android/verify/ApkCheck.java` с android-all 14 из `~/.gradle` (код самого Android).
 - Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
 - Ссылка из чата открывается во встроенном браузере приложения Claude: там скачивание APK зависает на 100%
   («Скачивание…», окно «всё равно скачать» не показывается). Сразу писать: ⋮ → «Открыть в Chrome» → «Скачать».
