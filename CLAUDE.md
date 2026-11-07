@@ -49,6 +49,11 @@
 - Проверка скачивания: curl с телефонным User-Agent (302 → 200, `application/vnd.android.package-archive`, размер = Content-Length),
   `unzip -t`, подпись — `android/verify/ApkCheck.java` с android-all 14 из `~/.gradle` (код самого Android).
 - Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
+- Зависание на 99–100%: браузер ждёт подтверждения «Усе одно завантажити» для APK, а во встроенном окне Claude вопрос
+  не показывается. Обходы: релиз кладёт рядом `monstrohor.zip` (на архив вопроса нет) —
+  https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.zip ; на сайте кнопка «Скачать через
+  приложение Claude (ZIP)» — capability `downloads` (APK в списке разрешённых нет, ZIP есть), ZIP публикуется рядом со
+  страницей сайта (`monstrohor.zip`, брать из релиза после сборки, чтобы versionCode совпадал); в Chrome — ⋮ → «Завантаження».
 - Ссылка из чата открывается во встроенном браузере приложения Claude: там скачивание APK зависает на 100%
   («Скачивание…», окно «всё равно скачать» не показывается). Сразу писать: ⋮ → «Открыть в Chrome» → «Скачать».
 

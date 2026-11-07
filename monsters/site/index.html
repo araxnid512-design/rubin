@@ -32,6 +32,14 @@ h1 { font: 700 clamp(42px, 11vw, 68px)/1 var(--display); margin: 0; color: #fff;
 .dl svg { width: 30px; height: 30px; flex: none; }
 .meta { color: var(--dim); font-size: 15px; font-variant-numeric: tabular-nums; }
 .play { color: var(--pink); font-weight: 700; text-decoration: none; border-bottom: 2px solid currentColor; justify-self: center; }
+.alt { font: 700 18px/1.2 var(--display); padding: 12px 16px; border-radius: 16px; border: 3px solid var(--go-edge); background: var(--panel); color: var(--ink); cursor: pointer; box-shadow: 0 4px 0 var(--go-edge); }
+.alt:disabled { opacity: .6; }
+.alt:focus-visible, .zip:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; }
+.state { font-size: 15px; color: var(--ink); min-height: 0; }
+.state:empty { display: none; }
+.zip { color: var(--ink); font-size: 15px; justify-self: center; }
+.ways { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+h3.sub { font: 700 20px/1.3 var(--display); margin: 18px 0 10px; }
 .ok { display: flex; gap: 8px; align-items: flex-start; text-align: left; font-size: 14px; color: var(--dim); }
 .ok b { color: var(--go-edge); }
 main { display: grid; gap: 26px; padding-block: 22px 40px; }
@@ -76,16 +84,25 @@ footer { color: var(--dim); font-size: 14px; text-align: center; padding-block: 
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M6.5 10 12 15.5 17.5 10M4 20h16"/></svg>
       Скачать для Android
     </a>
-    <div class="meta">Версия 1.1.12 · 557 КБ · Android 7 и новее · без рекламы</div>
+    <div class="meta">Версия 1.1.13 · 562 КБ · Android 7 и новее · без рекламы</div>
+    <button class="alt" id="viaClaude" type="button" hidden>Скачать через приложение Claude (ZIP)</button>
+    <div class="state" id="viaState" role="status"></div>
+    <a class="zip" href="https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.zip" target="_blank" rel="noopener">Скачать ZIP-архивом — если APK застывает на 99%</a>
     <a class="play" href="https://claude.ai/artifact/1w11qfMcuvMMXtXsBbuS1T" target="_blank" rel="noopener">Играть в браузере без установки</a>
-    <div class="ok"><span aria-hidden="true">✔</span><span><b>Файл проверен 7 ноября 2026:</b> скачивается целиком (556 880 байт), подпись проходит проверку тем же кодом, которым её проверяет Android 14 при установке.</span></div>
+    <div class="ok"><span aria-hidden="true">✔</span><span><b>Файл проверен 7 ноября 2026:</b> скачивается целиком (561 672 байта), подпись проходит проверку тем же кодом, которым её проверяет Android 14 при установке.</span></div>
   </section>
 </div>
 
 <main class="wrap">
   <section class="warn" aria-labelledby="w">
-    <h3 id="w">Открыли эту страницу в приложении Claude?</h3>
-    <p>Встроенное окно приложения не докачивает установочные файлы: загрузка застывает на 100%. Нажмите <b>⋮</b> вверху справа → <b>«Відкрити в Chrome»</b> и уже там нажмите «Скачать для Android». Или скопируйте ссылку и вставьте её в адресную строку Chrome:</p>
+    <h3 id="w">Загрузка застыла на 99%?</h3>
+    <p>Так телефон ждёт вашего разрешения: на любой APK из интернета браузер спрашивает «Усе одно завантажити?». Во встроенном окне приложения Claude этот вопрос не появляется, и загрузка стоит. Что делать — любой из способов:</p>
+    <ul class="ways">
+      <li><b>Кнопка «Скачать через приложение Claude (ZIP)»</b> выше — файл сохранит само приложение Claude, без встроенного браузера.</li>
+      <li><b>«Скачать ZIP-архивом»</b> — на архив браузер вопрос не задаёт, загрузка доходит до конца.</li>
+      <li><b>В Chrome:</b> ⋮ → <b>«Завантаження»</b> → нажмите на monstrohor.apk → <b>«Усе одно завантажити»</b>.</li>
+    </ul>
+    <p>Или откройте эту страницу в Chrome (⋮ → «Відкрити в Chrome») либо вставьте ссылку на файл в адресную строку Chrome:</p>
     <div class="link">
       <input id="url" readonly value="https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.apk" aria-label="Ссылка на файл игры">
       <button class="btn" id="copy" type="button">Скопировать ссылку</button>
@@ -103,6 +120,12 @@ footer { color: var(--dim); font-size: 14px; text-align: center; padding-block: 
       <li><div>Нажмите <b class="k">«Відкрити»</b>, включите звук — и монстры запоют.</div></li>
     </ol>
     <p class="note">Новая версия ставится поверх старой: монстры, монеты и острова сохраняются. Ссылка всегда ведёт на самую свежую версию.</p>
+    <h3 class="sub">Если скачали ZIP</h3>
+    <ol class="steps">
+      <li><div>Откройте <b>monstrohor.zip</b> из шторки уведомлений или в приложении <b class="k">«Файли»</b> (или <b class="k">«Мої файли»</b>) → папка <b class="k">«Завантаження»</b>.</div></li>
+      <li><div>Нажмите <b class="k">«Видобути»</b> (или <b class="k">«Розпакувати»</b>).</div></li>
+      <li><div>Нажмите на <b>monstrohor.apk</b> → <b class="k">«Встановити»</b>, дальше как в шагах 3–6 выше.</div></li>
+    </ol>
   </section>
 
   <section aria-labelledby="h-isles">
@@ -137,6 +160,26 @@ footer { color: var(--dim); font-size: 14px; text-align: center; padding-block: 
 <footer class="wrap">Монстрохор: все монстры, рисунки и песни сделаны с нуля. Игра работает без интернета и без рекламы.</footer>
 
 <script>
+// приложение Claude само сохраняет файл (мимо встроенного браузера): ZIP с игрой лежит рядом со страницей
+(async () => {
+  const btn = document.getElementById('viaClaude'), st = document.getElementById('viaState');
+  let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) {}
+  if (!dl) return;
+  btn.hidden = false;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; st.textContent = 'Готовлю файл…';
+    try {
+      const r = await fetch('monstrohor.zip'); if (!r.ok) throw new Error('нет файла');
+      await dl.save({ filename: 'monstrohor.zip', data: await r.blob() });
+      st.textContent = 'Сохранено. Откройте monstrohor.zip в «Файли» → «Видобути» → monstrohor.apk → «Встановити».';
+    } catch (e) {
+      if (e && e.code === 'declined') st.textContent = 'Сохранение отменено.';
+      else if (e && (e.code === 'unavailable' || e.code === 'not_granted')) { st.textContent = ''; btn.hidden = true; }
+      else st.textContent = 'Здесь сохранить не вышло — нажмите «Скачать ZIP-архивом» ниже.';
+    }
+    btn.disabled = false;
+  });
+})();
 document.getElementById('copy').addEventListener('click', () => {
   const inp = document.getElementById('url'), btn = document.getElementById('copy'), done = () => { btn.textContent = 'Ссылка скопирована'; };
   const fallback = () => { inp.focus(); inp.select(); try { if (document.execCommand('copy')) done(); else btn.textContent = 'Выделено — скопируйте'; } catch (e) { btn.textContent = 'Выделено — скопируйте'; } };
