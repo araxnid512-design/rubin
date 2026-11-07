@@ -682,3 +682,8 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
   .holo::after, .ob.ord:not(:disabled) { animation: none; }
 }
+
+/* ---------- страница игры на claude.ai: скачать ---------- */
+.dl-card { text-align: left; }
+.dl-card .btn.big { margin-bottom: 6px; }
+.apk-url { display: block; word-break: break-all; user-select: all; color: var(--sand2); background: rgba(0,0,0,0.25); padding: 6px 8px; border-radius: 3px; }

@@ -158,7 +158,7 @@
       wrap.appendChild(h('button', { class: 'btn big', onclick: () => UI.importSave() }, 'Загрузить из файла'));
       wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.pasteSave() }, 'Вставить сохранение текстом'));
       if (UI.canFullscreen() && !document.fullscreenElement) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.fullscreen() }, '⛶ Во весь экран (горизонтально)'));
-      if (UI.canGetApk()) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.getApk() }, '📱 Скачать приложение для Android'));
+      if (UI.inClaude()) wrap.appendChild(UI.downloadCard());
       if (UI.canInstall()) wrap.insertBefore(h('button', { class: 'btn big primary install-btn', onclick: () => UI.installApp() }, '📲 Установить на телефон'), wrap.querySelector('.btn'));
       const slots = ['1', '2', '3'].map((k) => [k, G.Save.meta(k)]).filter((x) => x[1]);
       if (slots.length) {
@@ -243,6 +243,25 @@
     try { await e.userChoice; } catch (err) { /* окно закрыто */ }
     UI.installEvt = null;
     UI.render();
+  };
+
+  // ---------- Страница игры на claude.ai: играть онлайн и скачать ----------
+  UI.APK_URL = 'https://github.com/araxnid512-design/rubin/releases/download/kolrat/kolrat.apk';
+  UI.downloadCard = function () {
+    const copy = () => {
+      const done = () => UI.flash('Ссылка скопирована — вставьте её в адресную строку Chrome.');
+      try {
+        navigator.clipboard.writeText(UI.APK_URL).then(done, () => { box.querySelector('code').classList.add('sel-me'); UI.flash('Выделите ссылку и скопируйте её вручную.'); });
+      } catch (e) { UI.flash('Выделите ссылку и скопируйте её вручную.'); }
+    };
+    const box = h('div', { class: 'card dl-card' },
+      h('h2', null, 'Скачать игру на Android'),
+      UI.canGetApk() ? h('button', { class: 'btn big primary', onclick: () => UI.getApk() }, '📱 Скачать (ZIP с APK)') : null,
+      UI.canGetApk() ? h('p', { class: 'small muted' }, 'Сохранится kolrat-apk.zip → откройте его в «Файли» → нажмите kolrat.apk → «Встановити».') : null,
+      h('button', { class: 'btn big', onclick: copy }, '⧉ Скопировать ссылку на APK'),
+      h('p', { class: 'small muted' }, 'Вставьте ссылку в Chrome — APK скачается, нажмите на него → «Встановити» → «Відкрити».'),
+      h('code', { class: 'small apk-url' }, UI.APK_URL));
+    return box;
   };
 
   // ---------- Импорт сохранения из файла ----------
