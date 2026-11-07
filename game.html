@@ -310,6 +310,7 @@
 		.route-text span { color: #cfd6c8; }
 		.route-text .muted { color: var(--muted); font-size: 12px; }
 		.danger { color: #f06a50 !important; font-weight: 700; }
+		.stance-friend { color: #9ad070; font-weight: 700; }
 		button.go, button.stay, button.buy { font: inherit; font-weight: 700; border-radius: 10px; border: 0; padding: 10px 16px; cursor: pointer; background: var(--accent); color: #141816; }
 		button.stay { background: transparent; color: var(--text); border: 1px solid var(--border); }
 		.wm-hint { font-size: 13px; color: var(--muted); }
@@ -435,6 +436,12 @@
 		body.short .lm-body { grid-template-columns: auto 1fr; }
 		/* Гранаты, отряд наёмников */
 		#btn-grenade { right: calc(186px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 54px; height: 54px; }
+		/* муры в мире: напасть первым — только этой кнопкой (сами по ним не стреляют ни герой, ни бойцы) */
+		#btn-provoke { position: fixed; z-index: 13; pointer-events: auto; display: flex; align-items: center; gap: 6px; right: calc(124px + env(safe-area-inset-right)); bottom: calc(186px + env(safe-area-inset-bottom)); font: inherit; font-size: 13px; font-weight: 700; color: #f3d6c8; background: rgba(90,24,18,0.72); border: 1px solid rgba(240,120,90,0.6); border-radius: 18px; padding: 7px 12px; cursor: pointer; }
+		body.short #btn-provoke { bottom: 172px; right: 112px; padding: 5px 10px; }
+		#btn-provoke.hidden, #hud.hidden ~ #btn-provoke { display: none; }
+		#btn-provoke kbd { font: 11px system-ui; border: 1px solid rgba(240,120,90,0.6); border-radius: 4px; padding: 0 5px; }
+		@media (pointer: fine) { #btn-provoke, body.short #btn-provoke { right: 50%; transform: translateX(50%); bottom: calc(96px + env(safe-area-inset-bottom)); } }
 		body.short #btn-grenade { bottom: 108px; right: 172px; }
 		#party-bar { position: absolute; left: calc(12px + env(safe-area-inset-left)); top: calc(96px + env(safe-area-inset-top)); display: flex; gap: 8px; pointer-events: auto; }
 		body.short #party-bar { top: 80px; }
@@ -457,8 +464,15 @@
 		.merc { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); }
 		.merc-text { display: grid; gap: 3px; flex: 1; min-width: 0; font-size: 13px; }
 		.merc-text b { font-size: 15px; }
+		.merc-text > .cls, .merc-text > .rank { justify-self: start; } /* значки — по содержимому, а не на всю ширину */
 		.merc-text .muted { color: var(--muted); }
 		.merc-text .warn { color: #f0a080; }
+		/* звание наёмника: имя, звёзды, полоска опыта до следующего */
+		.rank { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #e8d690; vertical-align: 1px; }
+		.rank i { font-style: normal; color: #f0c850; letter-spacing: -1px; }
+		.rank .xp { display: inline-block; width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
+		.rank .xp i { display: block; height: 100%; background: #e8c05a; }
+		.rank.mur { color: #e0a080; }
 		.merc-hp { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
 		.merc-hp i { display: block; height: 100%; background: linear-gradient(90deg, #3e7a2c, #6ab04c); }
 		.merc-btns { display: grid; gap: 6px; }
@@ -540,6 +554,7 @@
 		<div class="tbtn" id="btn-grenade"><span class="badge" id="grenade-count">0</span></div>
 	</div>
 
+	<button id="btn-provoke" class="hidden" title="Напасть на муров (V)">⚔ Напасть на муров<kbd class="desktop-only">V</kbd></button>
 	<button id="search" class="hidden" aria-label="Обыскать">
 			<span class="search-row"><img id="search-face" class="hidden" alt=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
 			<span><span id="search-verb">Обыскать</span>: <b id="search-name"></b></span><kbd class="desktop-only">E</kbd></span>
@@ -711,7 +726,7 @@
 				<label>Графика <select id="opt-quality"><option value="auto">авто</option><option value="high">высокая</option><option value="medium">средняя</option><option value="low">низкая</option></select></label>
 				<label><input type="checkbox" id="opt-fps"> показывать FPS</label>
 			</div>
-			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — аптечка · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять</div>
+			<div class="controls desktop-only"><b>WASD</b> — движение · <b>Пробел / ЛКМ</b> — атака · <b>Q</b> — сменить оружие · <b>R</b> — перезарядка · <b>I</b> — рюкзак · <b>M</b> — карта · <b>H</b> — аптечка · <b>G</b> — граната · <b>E</b> — обыскать / торговать / нанять · <b>V</b> — напасть на муров</div>
 			<div class="controls mobile-only">Слева — джойстик, справа — атака (тап — один выстрел, удержание — серия), смена оружия, перезарядка и аптечка; рюкзак и карта — вверху справа. Прицел — автоматический.</div>
 			<div class="credits">Звуки — записи GoodSoundForYou, MATRIXXX_, DoctorBoomstick, WEL, battlestar10, FST180081, -sihiL, Slave2theLight, missozzy, Aris621, InspectorJ (CC BY), Rolly-SFX, magnuswaker, unfa, FuzzyTuesday, mazlyn, bananplyte, tonsil5, PaulMorek, Ashe Kirk, ali-6868, kretopi, Apostolinkyyti, chromakei и др. (CC0) из набора CC-Sounds (Fris0uman/cdda-soundpacks), подробно — assets/sounds/CREDITS.md. Персонажи — MakeHuman (CC0).</div>
 		</div>

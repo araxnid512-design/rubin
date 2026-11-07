@@ -249,6 +249,22 @@ try {
 	await page.waitForFunction(() => window.__game.level.containers.filter((c) => c.searched).length > window.__m0.searched, null, { timeout: 180000 }).catch(() => {});
 	const raid1 = await G(page, () => { const g = window.__game; return { looted: g.level.containers.filter((c) => c.searched).length - window.__m0.searched, loot: Object.entries(g.raidSquad?.loot ?? {}).map(([k, n]) => `${k}×${n}`).join(', ') }; });
 	check(raid1.looted >= 1, `муры выгребли тайников: ${raid1.looted} (${raid1.loot || 'пусто'})`);
+	// отношения с мурами: в нейтралитете отряд героя не трогает — проходит мимо; напал первым (кнопка) — бой
+	await G(page, () => {
+		const g = window.__game, b = g.bandits.find((x) => x.alive);
+		for (const e of g.enemies) if (e.alive) { e.pos.set(-60, 0, -60); e.state = 'idle'; }
+		b.pos.set(20, 0, 6); b.aggro = null; g.player.pos.set(24, 0, 6);
+		window.__hp0 = g.player.hp; window.__calmMin = g.player.hp;
+	});
+	await page.waitForFunction(() => { window.__calmMin = Math.min(window.__calmMin, window.__game.player.hp); return false; }, null, { timeout: 2500, polling: 100 }).catch(() => {});
+	const calm = await G(page, () => {
+		const g = window.__game;
+		return { stance: g.mursStance(), lost: Math.max(0, Math.round(window.__hp0 - Math.min(window.__calmMin, g.player.hp))), aimed: g.bandits.filter((b) => b.alive && b.target === g.player).length, btn: !document.getElementById('btn-provoke').classList.contains('hidden'), rep: g.world.murs.rep };
+	});
+	check(calm.stance === 'neutral' && calm.lost <= 0 && calm.aimed === 0 && calm.btn, `муры в нейтралитете: отряд рядом, но героя не трогает (−${calm.lost} здоровья, целятся ${calm.aimed}), видна кнопка «Напасть на муров»`);
+	await page.click('#btn-provoke', { force: true }).catch(() => G(page, () => window.__game.attackMurs()));
+	const angry = await G(page, () => { const g = window.__game; return { angry: !!g.raidSquad?.angry, raid: !!g.world.murs.raid?.angry, rep: Math.round(g.world.murs.rep), btn: document.getElementById('btn-provoke').classList.contains('hidden') || !g.peacefulMur(22) }; });
+	check(angry.angry && angry.raid && angry.rep < calm.rep && angry.btn, `напал первым: отряд муров в бою с героем, отношения ${Math.round(calm.rep)} → ${angry.rep}`);
 	// мур стреляет в героя; заражённый рядом бросается на мура
 	await G(page, () => {
 		const g = window.__game, b = g.bandits.find((x) => x.alive);
@@ -712,6 +728,21 @@ try {
 		z.damage = zd; z.damage(1e9, a.pos.clone(), 0);
 		return r;
 	});
+	// опыт бойца: убил заражённого — опыт (XP_KILL); набрал до звания — точнее, крепче, перезаряжается быстрее
+	const xp = await G(page, async () => {
+		const g = window.__game, a = g.mercs.find((m) => m.alive && m.state.out), st = a.state;
+		const { mercMaxHp, XP_KILL, RANKS } = await import('/game/mercs.js');
+		for (const e of g.enemies) if (e.alive) { e.pos.set(60, 0, -60); e.state = 'idle'; }
+		const x0 = st.xp ?? 0, r0 = a.rank, hp0 = mercMaxHp(st);
+		const z = g.spawnEnemy('runner', a.pos.clone().set(a.pos.x + 3, 0, a.pos.z)); z.hp = 1; z.state = 'idle'; z.stagger = 9;
+		for (let i = 0; i < 40 && z.alive; i++) { st.mag = Math.max(st.mag, 2); a.fire(z); }
+		const kill = (st.xp ?? 0) - x0;
+		a.reloading = 0; a.startReload(); const t0 = a.reloading;
+		g.awardXp(st, RANKS[Math.min(r0 + 1, RANKS.length - 1)].xp - (st.xp ?? 0) + 1, 'проверка');
+		a.reloading = 0; a.startReload(); const t1 = a.reloading; a.reloading = 0; st.mag = a.W.mag;
+		return { kill, want: XP_KILL.runner, dead: !z.alive, r0, r: a.rank, name: RANKS[a.rank].name, hp: [hp0, mercMaxHp(st)], reload: [+t0.toFixed(2), +t1.toFixed(2)] };
+	});
+	check(xp.dead && xp.kill === xp.want && xp.r === xp.r0 + 1 && xp.hp[1] > xp.hp[0] && xp.reload[1] < xp.reload[0], `опыт наёмника: убил бегуна — +${xp.kill} опыта; новое звание «${xp.name}» — здоровье ${xp.hp.join(' → ')}, перезарядка ${xp.reload.join(' → ')} с`);
 	check(kite.moved > 0.5 && kite.shots > 0 && /AimWalk/.test(kite.clips), `заражённый прёт на бойца — ${kite.who} пятится (${kite.moved} м) шагом в прицеле и стреляет (${kite.shots} патронов)${/AimWalk/.test(kite.clips) ? '' : ` [${kite.clips}]`}`);
 	// граната: бросок к кучке свежих бегунов (наёмники к этому времени могли перебить кластер), взрыв через 2 с
 	await G(page, () => {
@@ -1035,6 +1066,49 @@ try {
 	const rm = await reach();
 	check(rm.bad.length === 0 && rm.exits === 0, `«Карьер»: все ${rm.n} тайников и выход достижимы${rm.bad.length ? ': нет пути к ' + rm.bad.join(', ') : ''}`);
 	await page.screenshot({ path: join(OUT, 'game-murs.png'), timeout: 180000 }).catch(() => {}); // снимок — не проверка: под нагрузкой бывает долгим
+	// в мире с мурами (отношения выше войны) «Карьер» не стреляет: у костра барыга и бригадир
+	await G(page, () => { const g = window.__game; g.world.murs.rep = 0; g.world.murs.warUntil = 0; g.player.pos.set(0, 0, 20); window.__hp0 = window.__calmMin = g.player.hp; });
+	await page.waitForFunction(() => { window.__calmMin = Math.min(window.__calmMin, window.__game.player.hp); return false; }, null, { timeout: 2500, polling: 100 }).catch(() => {});
+	const camp0 = await G(page, () => { const g = window.__game; return { alerted: !!g.garrison.alerted, angry: !!g.garrison.angry, lost: Math.max(0, Math.round(window.__hp0 - Math.min(window.__calmMin, g.player.hp))), st: g.level.stations.map((s) => s.id).join(','), npcs: g.npcs.length }; });
+	check(!camp0.alerted && !camp0.angry && camp0.lost <= 0 && /murtrade/.test(camp0.st) && /murhire/.test(camp0.st) && camp0.npcs >= 2, `«Карьер» в нейтралитете: тревоги нет, героя не трогают (−${camp0.lost}); у костра барыга и бригадир (${camp0.st})`);
+	const murShop = await G(page, async () => {
+		const g = window.__game, s = g.level.stations.find((x) => x.id === 'murtrade'), { MUR_SHOP, SHOP } = await import('/game/trade.js');
+		g.player.pos.set(s.x, 0, s.z); g.player.busy = 0; g.player.equipping = false;
+		g.bag.spore = Math.max(g.bag.spore ?? 0, 500);
+		const r0 = g.world.murs.rep;
+		g.act();
+		const r = { open: g.trade.isOpen, head: document.querySelector('#trade .inv-head b').textContent, offers: document.querySelectorAll('#trade-list .offer').length, want: SHOP.filter((o) => MUR_SHOP.has(o.id)).length };
+		document.querySelector(`#trade-list [data-buy="${SHOP.findIndex((o) => o.id === 'ammo545')}"]`)?.click(); // патроны, не ствол: ствол сменил бы оружие героя
+		r.rep = +(g.world.murs.rep - r0).toFixed(1);
+		g.trade.close();
+		return r;
+	});
+	check(murShop.open && murShop.head === 'Барыга муров' && murShop.offers === murShop.want && murShop.rep > 0, `барыга «Карьера»: свой товар (${murShop.offers} предложений — стволы муров, патроны, гранаты, аптечки), сделка — муры довольны (+${murShop.rep})`);
+	const murHire = await G(page, () => {
+		const g = window.__game, s = g.level.stations.find((x) => x.id === 'murhire');
+		g.player.pos.set(s.x, 0, s.z);
+		g.act();
+		const list = [...document.querySelectorAll('#party-list [data-act="hireMur"]')].map((b) => b.dataset.id);
+		document.querySelector('#party-list [data-act="hireMur"][data-id="kaban"]')?.click();
+		g.partyWindow.close();
+		const st = g.merc('kaban');
+		return { list: list.join(','), temp: !!st?.temp, out: !!st?.out, actor: g.mercs.some((m) => m.state === st), polis: false };
+	});
+	check(murHire.list.split(',').length === 4 && murHire.temp && murHire.out && murHire.actor, `бригадир «Карьера»: муры на одну вылазку (${murHire.list}); нанятый Кабан сразу идёт с героем`);
+	// полез в шкаф муров при них — сначала предупреждение (вторым нажатием — воровство и бой)
+	const theft = await G(page, () => {
+		const g = window.__game, c = g.level.containers.find((k) => /Storage/.test(k.building) && !k.searched);
+		g.player.pos.set(c.ax, 0, c.az); g.player.busy = 0;
+		g.act();
+		return { searching: !!g.searching, angry: !!g.garrison.angry, toast: [...document.querySelectorAll('#toasts > *')].map((t) => t.textContent).join(' | ').slice(-160) };
+	});
+	check(!theft.searching && !theft.angry && /шкаф муров/.test(theft.toast), 'шкаф муров в «Карьере»: сначала предупреждение — полезешь, и весь «Карьер» откроет огонь');
+	// напал первым — тревога по всему «Карьеру», нанятый мур уходит к своим
+	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 20); });
+	await page.waitForTimeout(400);
+	await G(page, () => window.__game.attackMurs());
+	const provoked = await G(page, () => { const g = window.__game; return { angry: !!g.garrison.angry, alerted: !!g.garrison.alerted, kaban: !!g.merc('kaban'), grudge: g.world.murs.grudgeUntil > g.world.time }; });
+	check(provoked.angry && provoked.alerted && !provoked.kaban && provoked.grudge, '«Карьер»: напал первым — тревога, весь гарнизон в бою; нанятый мур ушёл («против своих не пойду»)');
 	// зашёл во двор — заметили: тревога, на героя идут все
 	await G(page, () => { const g = window.__game; g.player.pos.set(0, 0, 20); window.__hp0 = g.player.hp; });
 	// муры сначала прячутся за укрытиями и только потом стреляют из-за угла — первый выстрел бывает не сразу
@@ -1101,6 +1175,17 @@ try {
 	});
 	check(bossDead && !bossDead.alive && bossDead.panic > 0 && /Главарь/.test(bossDead.banner) && !bossDead.raid && bossDead.newBoss, `главарь убит: паника у ${bossDead?.panic} муров, без главаря вылазок нет; при пополнении выбрали нового — «${bossDead?.newBoss}»`);
 	await G(page, () => { window.__game.world.murs.count = 50; });
+	const war = await G(page, () => {
+		const g = window.__game, m = g.world.murs;
+		m.rep = 0; m.warUntil = 0; m.greedAt = g.world.time + 99999;
+		g.murRep(-35, 'проверка');
+		const r = { stance: g.mursStance(), banner: document.getElementById('banner-title').textContent, greed: m.greedAt - g.world.time, hostile: g.hostile({ faction: 'murs' }) };
+		m.warUntil = g.world.time - 1; g.updateMurs();
+		r.after = g.mursStance(); r.rep = m.rep;
+		m.rep = 0; m.grudgeUntil = 0;
+		return r;
+	});
+	check(war.stance === 'war' && /Война/.test(war.banner) && war.greed <= 1800 && war.hostile && war.after === 'neutral', `война с мурами: отношения −35 — «${war.banner}», набег на базу — через ${Math.round(war.greed / 60)} мин; без новых обид — снова нейтралитет (${war.rep})`);
 	await G(page, () => window.__game.travel('dachi'));
 	await page.waitForFunction(() => window.__game.loc === 'dachi' && window.__game.state === 'play', null, { timeout: 300000 });
 

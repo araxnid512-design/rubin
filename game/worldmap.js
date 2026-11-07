@@ -12,6 +12,7 @@ import { NODES, ROUTES, ZONES, BANDS, MAP_W, MAP_H, TILE_W, TILE_H, TILE_GAP, zo
 import { defense, BUILD_IDS } from './base.js';
 import { asset } from './assets.js';
 import { plural } from './items.js';
+import { murStance, STANCE } from './murs.js';
 
 const $ = (id) => document.getElementById(id);
 const SVG = 'http://www.w3.org/2000/svg';
@@ -103,7 +104,11 @@ export class WorldMap {
 		const w = this.game.world, node = NODES[to];
 		if (node.kind === 'stab') return 'безопасно';
 		if (node.kind === 'base') return `твоя база · оборона ${defense(w.base)} · построено ${w.base.built.length}/${BUILD_IDS.length}`;
-		if (node.kind === 'murs') return `<span class="danger">логово муров — около ${w.murs.count} стволов</span>`;
+		if (node.kind === 'murs') {
+			// отношения с мурами: в войну стреляют сразу, в мире — барыга и наём бойца на одну вылазку
+			const st = murStance(w.murs), how = st === 'war' ? 'стреляют сразу' : st === 'friend' ? 'торговля дешевле, бойцы на вылазку' : 'не стреляй первым — торговля и наём';
+			return `<span class="${st === 'war' ? 'danger' : st === 'friend' ? 'stance-friend' : ''}">логово муров — около ${w.murs.count} стволов · ${STANCE[st]}: ${how}</span>`;
+		}
 		if (node.kind === 'ext') return `<span class="danger">форпост внешников — около ${w.ext?.count ?? 0} бойцов в броне</span>`;
 		// где отряд муров — знаешь, только если купил сведения у информатора в «Полисе»
 		const murs = (w.murs.raid?.at === to && w.murs.raid.known ? ' · <span class="danger">там муры (сказал информатор)</span>' : '')

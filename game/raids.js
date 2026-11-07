@@ -28,13 +28,21 @@ export function planRaid(f, now, reason) {
 	return true;
 }
 
-/** Набег муров за запасами: раз в 45–90 минут думают, большая ли база, — и идут с вероятностью GREED_CHANCE. */
-export function greedCheck(murs, base, now) {
+/** В войну с мурами набеги чаще (перерыв × WAR_GREED.gap), с первой же постройки и почти наверняка. */
+export const WAR_GREED = { gap: 0.35, built: 1, chance: 0.85 };
+
+/**
+ * Набег муров за запасами: раз в 45–90 минут думают, большая ли база, — и идут с вероятностью GREED_CHANCE.
+ * stance — отношения с героем (game/murs.js): «свои» на базу не ходят, в войну — чаще и наверняка.
+ */
+export function greedCheck(murs, base, now, stance = 'neutral') {
+	const war = stance === 'war';
 	murs.greedAt ??= now + rand(...GREED_GAP);
 	if (now < murs.greedAt) return false;
-	murs.greedAt = now + rand(...GREED_GAP);
-	if ((base?.built.length ?? 0) < GREED_BUILT || Math.random() > GREED_CHANCE) return false;
-	return planRaid(murs, now, 'набег за запасами');
+	murs.greedAt = now + rand(...GREED_GAP) * (war ? WAR_GREED.gap : 1);
+	if (stance === 'friend') return false;
+	if ((base?.built.length ?? 0) < (war ? WAR_GREED.built : GREED_BUILT) || Math.random() > (war ? WAR_GREED.chance : GREED_CHANCE)) return false;
+	return planRaid(murs, now, war ? 'война: набег на базу' : 'набег за запасами');
 }
 
 /** Сколько бойцов пойдёт (не больше, чем у фракции есть сверх гарнизона). */

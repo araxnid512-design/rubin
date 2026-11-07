@@ -61,6 +61,43 @@ export const MUR_DROP_SPORE = 0.5;
 /** Оружие муров: у каждого — одно из этих (без дробовиков: картечь рассчитана на заражённых). */
 export const MUR_GUNS = ['aks', 'aks', 'ak74', 'ak74', 'ak47', 'ak47', 'rpk', 'svd'];
 
+/**
+ * Отношения героя с мурами (m.rep, −100…100). Не выше MUR_WAR — война: стреляют сразу, «Карьер» закрыт, ходят набегом
+ * за запасами базы. Выше — нейтралитет: не трогают, пока ты или твой боец не задел кого-то из них (тогда этот отряд или
+ * весь «Карьер» — в бой); в «Карьере» барыга и наём бойца на одну вылазку. Не ниже MUR_FRIEND — свои: дешевле.
+ * Война со временем остывает, дружба — тоже (MUR_REP_DRIFT в минуту мира к нулю).
+ */
+export const MUR_WAR = -30, MUR_FRIEND = 25;
+/** На сколько меняются отношения: напал первым, убил мура, главаря; помог (убил заражённого рядом с муром), убил внешника, сделка, наём. */
+export const MUR_REP = { provoke: -10, kill: -5, boss: -40, helped: 2, ext: 1, trade: 1, hire: 3, start: 0 };
+/** Отношения вне войны в минуту мира — к нулю на столько. */
+export const MUR_REP_DRIFT = 0.25;
+/** Война держится столько секунд мира после последней обиды, потом — нейтралитет (отношения PEACE_REP). */
+export const WAR_TIME = 1800;
+export const PEACE_REP = MUR_WAR + 10;
+/** Задели «Карьер» — он помнит это столько секунд (зайдёшь снова — всё ещё стреляют). */
+export const CAMP_GRUDGE = 600;
+/** В войну отряд идёт туда, где герой, с такой вероятностью; вылазки — чаще (перерыв × WAR_GAP). */
+export const WAR_HUNT = 0.6, WAR_GAP = 0.5;
+export const STANCE = { war: 'война', neutral: 'нейтралитет', friend: 'свои' };
+/** 'war' | 'neutral' | 'friend' — по отношениям. */
+export function murStance(m) { const r = m?.rep ?? 0; return r <= MUR_WAR ? 'war' : r >= MUR_FRIEND ? 'friend' : 'neutral'; }
+/** Изменить отношения на d (−100…100); в войне каждая новая обида продлевает её на WAR_TIME. */
+export function murOffend(m, now, d) {
+	m.rep = Math.max(-100, Math.min(100, (m.rep ?? 0) + d));
+	if (murStance(m) === 'war' && d < 0) m.warUntil = now + WAR_TIME;
+	return murStance(m);
+}
+/** Отношения с течением времени мира: война кончается через WAR_TIME без обид, остальное понемногу к нулю. */
+function driftRep(m, now, events) {
+	const mins = Math.max(0, now - (m.repAt ?? now)) / 60;
+	m.repAt = now;
+	if (murStance(m) === 'war') {
+		if (!m.warUntil) m.warUntil = now + WAR_TIME;
+		if (now >= m.warUntil) { m.rep = PEACE_REP; m.warUntil = 0; events.push({ peace: true }); }
+	} else if (m.rep) m.rep = Math.sign(m.rep) * Math.max(0, Math.abs(m.rep) - MUR_REP_DRIFT * mins);
+}
+
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
@@ -74,6 +111,7 @@ export function newMurs(time = 0) {
 		raid: null,
 		raids: 0,
 		boss: newBoss(),
+		rep: MUR_REP.start,
 	};
 }
 
@@ -92,6 +130,7 @@ export function normalizeMurs(m, time) {
 	m.renewAt ??= time + MUR_RENEW;
 	m.raids ??= 0;
 	m.boss ??= newBoss();
+	m.rep ??= MUR_REP.start;
 	return m;
 }
 
@@ -114,6 +153,8 @@ export function storeLoot(m, loot) {
  */
 export function tickMurs(m, now, clusters, here, danger = () => 1, left = () => Infinity) {
 	const events = [];
+	driftRep(m, now, events);
+	const war = murStance(m) === 'war';
 	while (now >= m.renewAt) {
 		m.renewAt += MUR_RENEW;
 		const n = MUR_LIMIT - m.count;
@@ -126,7 +167,7 @@ export function tickMurs(m, now, clusters, here, danger = () => 1, left = () => 
 		const raid = m.raid;
 		m.raid = null;
 		events.push({ ended: raid, summary: resolveRaid(m, raid, danger(raid.at)) });
-		m.nextRaid = now + rand(...RAID_GAP);
+		m.nextRaid = now + rand(...RAID_GAP) * (war ? WAR_GAP : 1);
 	}
 	if (!m.raid && now >= m.nextRaid) {
 		const free = m.count - GARRISON;
@@ -134,14 +175,15 @@ export function tickMurs(m, now, clusters, here, danger = () => 1, left = () => 
 		// куда — только туда, где успеют уйти до перезагрузки (left(id) — секунд до неё)
 		const safe = clusters.filter((id) => left(id) > LEAVE_BEFORE + RAID_MIN);
 		if (free >= 5 && safe.length && m.boss?.alive !== false) {
-			const at = safe[Math.floor(Math.random() * safe.length)];
+			// в войну чаще идут туда, где герой: ищут его
+			const at = war && safe.includes(here) && Math.random() < WAR_HUNT ? here : safe[Math.floor(Math.random() * safe.length)];
 			m.raid = {
 				at, size: Math.min(free, ri(5, 10)), start: now, end: now + Math.min(rand(...RAID_TIME), left(at) - LEAVE_BEFORE),
 				mode: Math.random() < 0.5 ? 'crowd' : 'pairs', loot: {}, live: at === here, kills: 0,
 			};
 			m.raids++;
 			events.push({ started: m.raid });
-		} else m.nextRaid = now + rand(...RAID_GAP);
+		} else m.nextRaid = now + rand(...RAID_GAP) * (war ? WAR_GAP : 1);
 	}
 	return events;
 }

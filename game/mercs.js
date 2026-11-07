@@ -37,7 +37,32 @@ export const MERCS = {
 	ded: { name: 'Дед', cls: 'hunter', weapon: 'dbarrel', price: 80, hp: 140, tint: [0.78, 0.66, 0.52], desc: 'Старый охотник с двустволкой. Ждёт, пока подойдут, и не промахивается.' },
 	dok: { name: 'Док', cls: 'medic', weapon: 'mp5', price: 140, hp: 100, tint: [0.86, 0.86, 0.82], desc: 'Медик с MP5. В аптечке две перевязки — дальше пополняешь ты.' },
 	saper: { name: 'Сапёр', cls: 'sapper', weapon: 'aks', price: 150, hp: 120, tint: [0.5, 0.54, 0.4], desc: 'Подрывник с АКС-74У и двумя Ф-1 в разгрузке.' },
+	// муры «Карьера» — нанимаются у их бригадира на одну вылазку (mur: true): вернулся в стаб или на базу — ушёл к своим
+	kaban: { name: 'Кабан', cls: 'assault', weapon: 'ak47', price: 70, hp: 125, tint: [0.42, 0.36, 0.3], mur: true, desc: 'Мур с АК-47. Здоровый и злой — бьёт в упор.' },
+	kosoy: { name: 'Косой', cls: 'assault', weapon: 'aks', price: 55, hp: 105, tint: [0.36, 0.34, 0.3], mur: true, desc: 'Мур с АКС-74У. Шустрый, патроны жжёт быстро.' },
+	lom: { name: 'Лом', cls: 'gunner', weapon: 'rpk', price: 100, hp: 150, tint: [0.4, 0.33, 0.28], mur: true, desc: 'Мур-пулемётчик с РПК. Держит толпу, пока не кончится барабан.' },
+	shilo: { name: 'Шило', cls: 'sniper', weapon: 'svd', price: 90, hp: 95, tint: [0.38, 0.38, 0.32], mur: true, desc: 'Мур со СВД. Снимает дальних, вблизи отходит.' },
 };
+
+/**
+ * Звания наёмников: опыт — за убитых (XP_KILL) и уцелевшие вылазки (XP_SORTIE; с базы без героя — XP_TRIP); каждое
+ * звание — точнее (RANK_BONUS.acc), крепче (hp) и быстрее перезаряжается (reload).
+ */
+export const RANKS = [
+	{ name: 'Рядовой', xp: 0 }, { name: 'Ефрейтор', xp: 25 }, { name: 'Мл. сержант', xp: 70 }, { name: 'Сержант', xp: 150 }, { name: 'Старшина', xp: 280 },
+];
+export const RANK_BONUS = { acc: 0.07, hp: 0.1, reload: 0.08 };
+export const XP_KILL = { runner: 1, stomper: 4, ruber: 8, elite: 20, murs: 5, ext: 7 };
+export const XP_SORTIE = 5, XP_TRIP = 6;
+/** Звание бойца (номер в RANKS). */
+export function rankOf(st) { let r = 0; for (let i = 0; i < RANKS.length; i++) if ((st?.xp ?? 0) >= RANKS[i].xp) r = i; return r; }
+/** Полное здоровье бойца с учётом звания. */
+export function mercMaxHp(st) { return Math.round(MERCS[st.id].hp * (1 + RANK_BONUS.hp * rankOf(st))); }
+/** «Сержант ★★★» и сколько до следующего звания. */
+export function rankText(st) {
+	const r = rankOf(st), next = RANKS[r + 1];
+	return { name: RANKS[r].name, stars: '★'.repeat(r), next: next ? `${st.xp ?? 0}/${next.xp} опыта` : 'высшее звание', frac: next ? ((st.xp ?? 0) - RANKS[r].xp) / (next.xp - RANKS[r].xp) : 1 };
+}
 /** Сколько бойцов можно взять на вылазку (остальные ждут у коек). */
 export const MAX_PARTY = 4;
 /** Коек в комнате героя в стабе. */
@@ -81,13 +106,14 @@ export const TRIP_WORK = 240;
  * сжёг, что принёс. bonus — казарма 3-го уровня (добычи на треть больше, гибнут реже). Без патронов — втрое опаснее.
  */
 export function resolveTrip(st, danger = 1, bonus = false) {
-	const D = MERCS[st.id], W = WEAPONS[D.weapon], d = Math.max(1, danger);
+	const D = MERCS[st.id], W = WEAPONS[D.weapon], d = Math.max(1, danger), max = mercMaxHp(st);
 	const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 	const dry = st.mag + st.ammo <= 0;
-	let risk = (0.04 + 0.06 * d) * (dry ? 3 : 1) * (0.6 + 0.8 * (1 - st.hp / D.hp)) * (bonus ? 0.6 : 1);
+	// бывалый (звание) гибнет реже: −10 % риска за ступень
+	let risk = (0.04 + 0.06 * d) * (dry ? 3 : 1) * (0.6 + 0.8 * (1 - st.hp / max)) * (bonus ? 0.6 : 1) * (1 - 0.1 * rankOf(st));
 	const dead = Math.random() < Math.min(0.85, risk);
 	const used = Math.min(st.mag + st.ammo, ri(1, 3) * W.mag);
-	const hurt = !dead && Math.random() < 0.3 + 0.08 * d ? Math.round(D.hp * (0.2 + Math.random() * 0.4)) : 0;
+	const hurt = !dead && Math.random() < 0.3 + 0.08 * d ? Math.round(max * (0.2 + Math.random() * 0.4)) : 0;
 	const k = bonus ? 1.33 : 1, loot = {};
 	const add = (kind, n) => { n = Math.round(n * k); if (n > 0) loot[kind] = (loot[kind] ?? 0) + n; };
 	if (!dead) {
@@ -103,6 +129,12 @@ export function resolveTrip(st, danger = 1, bonus = false) {
 }
 
 const $ = (id) => document.getElementById(id);
+
+/** Звание в карточке: «Сержант ★★★» и полоска опыта до следующего. */
+function rankBadge(m) {
+	const t = rankText(m);
+	return `<span class="rank" title="${t.next}">${t.name}${t.stars ? ` <i>${t.stars}</i>` : ''}<span class="xp"><i style="width:${(t.frac * 100).toFixed(0)}%"></i></span></span>`;
+}
 
 /**
  * Окно отряда: кто идёт с героем и кто ждёт в комнате. Взять/оставить — только в комнате героя; патроны, аптечку,
@@ -133,6 +165,7 @@ export class PartyWindow {
 			if (b.dataset.act === 'dismissYes') { this.askDismiss = null; g.dismiss(id); }
 			if (b.dataset.act === 'relocate') g.relocate(id);
 			if (b.dataset.act === 'hire') g.hire(id);
+			if (b.dataset.act === 'hireMur') g.hireMur(id);
 			if (b.dataset.act === 'post') g.postMerc(id);
 			if (b.dataset.act === 'unpost') g.unpostMerc(id);
 			if (b.dataset.act === 'trip') g.sendMerc(id, b.closest('.merc').querySelector('select')?.value);
@@ -146,9 +179,10 @@ export class PartyWindow {
 	 * hiring — открыто у вербовщика: можно нанимать; merc — подошёл к этому бойцу в комнате: только его карточка;
 	 * base — на базе (казарма, терминал): посты и вылазки без героя.
 	 */
-	open({ hiring = false, merc = null, base = false } = {}) {
+	open({ hiring = false, merc = null, base = false, murs = false } = {}) {
 		if (this.isOpen) return;
 		this.hiring = hiring;
+		this.murs = murs; // бригадир «Карьера»: муры на одну вылазку
 		this.baseMode = base;
 		this.focus = merc;
 		this.el.classList.remove('hidden');
@@ -170,7 +204,7 @@ export class PartyWindow {
 		const full = g.party.length >= (g.partyMax ?? MAX_PARTY);
 		$('party-spores').textContent = bag.spore ?? 0;
 		const card = (m) => {
-			const D = MERCS[m.id], C = CLASSES[D.cls], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag);
+			const D = MERCS[m.id], C = CLASSES[D.cls], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag), max = mercMaxHp(m);
 			// снарядить можно в комнате, на базе и в вылазке — стоя рядом с бойцом
 			const here = room || !!g.canEquip?.(m.id);
 			let move = '';
@@ -189,16 +223,16 @@ export class PartyWindow {
 			const dry = m.mag + m.ammo <= 0;
 			return `<div class="merc" data-merc="${m.id}">
 				${face(m.id)}
-				<div class="merc-text"><b>${D.name}</b> ${badge(D.cls)} <span class="muted">${W.name}</span>
-					<div class="merc-hp"><i style="width:${Math.max(0, (m.hp / D.hp) * 100).toFixed(0)}%"></i></div>
-					<span>здоровье ${Math.ceil(m.hp)}/${D.hp} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo} (${AMMO[W.ammo]})${dry ? ' — без патронов не отобьётся' : ''}</span>${stock}</span></div>
+				<div class="merc-text"><b>${D.name}</b> ${badge(D.cls)} <span class="muted">${W.name}</span> ${m.temp ? '<span class="rank mur">мур · на одну вылазку</span>' : rankBadge(m)}
+					<div class="merc-hp"><i style="width:${Math.max(0, (m.hp / max) * 100).toFixed(0)}%"></i></div>
+					<span>здоровье ${Math.ceil(m.hp)}/${max} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo} (${AMMO[W.ammo]})${dry ? ' — без патронов не отобьётся' : ''}</span>${stock}</span></div>
 				<div class="merc-btns">
 					${move}
 					${here ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
 					${spare > W.mag ? `<button class="buy" data-act="ammoAll" data-id="${m.id}">Все ${spare}</button>` : ''}
-					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Аптечка +${MERC_HEAL} <small>(есть ${bag.medkit ?? 0})</small></button>` : ''}
+					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < max ? '' : 'disabled'}>Аптечка +${MERC_HEAL} <small>(есть ${bag.medkit ?? 0})</small></button>` : ''}
 					${kit}
-					${this.hiring ? (this.askDismiss === m.id ? `<span class="warn">Отпустить ${D.name} совсем?</span><button class="stay small" data-act="dismissYes" data-id="${m.id}">Да, отпустить</button><button class="buy" data-act="dismissNo" data-id="${m.id}">Нет</button>` : `<button class="stay small dismiss" data-act="dismiss" data-id="${m.id}">Отпустить совсем…</button>`) : ''}
+					${this.hiring && (!this.murs || m.temp) ? (this.askDismiss === m.id ? `<span class="warn">Отпустить ${D.name} совсем?</span><button class="stay small" data-act="dismissYes" data-id="${m.id}">Да, отпустить</button><button class="buy" data-act="dismissNo" data-id="${m.id}">Нет</button>` : `<button class="stay small dismiss" data-act="dismiss" data-id="${m.id}">Отпустить совсем…</button>`) : ''}
 				</div></div>`;
 		};
 		const home = g.roster.filter((m) => !m.out && !m.job), one = (room || g.canEquip?.(this.focus)) && g.roster.find((m) => m.id === this.focus && !m.job);
@@ -214,23 +248,34 @@ export class PartyWindow {
 			html += g.party.map(card).join('') || `<div class="muted">${g.roster.length ? 'Никого — возьми бойца у его койки в комнате.' : 'Наёмников нет. Нанять можно у костра в стабе «Полис».'}</div>`;
 			if (inStab.length) {
 				html += `<div class="trade-sec">В твоей комнате в стабе (${inStab.length}/${ROOM_BEDS})</div>`;
-				html += room || this.hiring ? inStab.map(card).join('') : `<div class="muted">${inStab.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
+				html += room || (this.hiring && !this.murs) ? inStab.map(card).join('') : `<div class="muted">${inStab.map((m) => MERCS[m.id].name).join(', ')} — ждут у своих коек.</div>`;
 			}
 			if (inBase.length) {
 				html += `<div class="trade-sec">На базе «Опорный» (${inBase.length}/${g.baseBeds?.() ?? 0})</div>`;
-				html += g.atBase || this.hiring ? inBase.map(card).join('') : `<div class="muted">${inBase.map((m) => MERCS[m.id].name).join(', ')} — ждут на базе у казармы.</div>`;
+				html += g.atBase || (this.hiring && !this.murs) ? inBase.map(card).join('') : `<div class="muted">${inBase.map((m) => MERCS[m.id].name).join(', ')} — ждут на базе у казармы.</div>`;
 			}
 			if (busy.length) html += `<div class="trade-sec">На базе «Опорный» (${busy.length})</div><div class="muted">${busy.map((m) => `${MERCS[m.id].name} — ${jobText(m, g)}`).join('; ')}.</div>`;
 			if (g.roster.length && !room) html += '<div class="muted">Снарядить бойца — патроны, аптечка, перевязки, гранаты — подойди к нему (когда рядом нет врагов — «Снарядить»). Взять с собой или оставить — только в твоей комнате в стабе, у коек.</div>';
 		}
-		if (this.hiring) {
+		if (this.hiring && this.murs) {
+			// бригадир «Карьера»: мур идёт сразу с героем, без койки, и уходит к своим, когда герой вернётся домой
+			const free = Object.entries(MERCS).filter(([id, D]) => D.mur && !g.roster.some((m) => m.id === id));
+			html += `<div class="trade-sec">Нанять мура на одну вылазку <span class="muted">· с тобой ${g.party.length}/${g.partyMax ?? MAX_PARTY}${g.mursStance?.() === 'friend' ? ' · «своим» — на четверть дешевле' : ''}</span></div>`;
+			html += free.map(([id, D]) => {
+				const W = WEAPONS[D.weapon], price = g.murPrice?.(id) ?? D.price;
+				return `<div class="merc" data-hire="${id}">
+					${face(id)}
+					<div class="merc-text"><b>${D.name}</b> ${badge(D.cls)} <span class="muted">${W.name} · ${AMMO[W.ammo]} · здоровье ${D.hp}</span><span>${D.desc}</span></div>
+					<div class="merc-btns"><button class="buy" data-act="hireMur" data-id="${id}" ${full || (bag.spore ?? 0) < price ? 'disabled' : ''}>Нанять · ${price} сп.</button></div></div>`;
+			}).join('') || '<div class="muted">Свободных бойцов нет — все уже с тобой.</div>';
+		} else if (this.hiring) {
 			// вербовщик: свободные бойцы по классам; коек в комнате нет — нанятый уходит на базу
 			const stabFree = g.freeBed ? ROOM_BEDS - g.roster.filter((m) => homeOf(m) === 'stab').length : ROOM_BEDS - g.roster.length;
 			const baseCap = g.baseBeds?.() ?? 0, baseFree = g.freeBed ? baseCap - g.roster.filter((m) => homeOf(m) === 'base').length : 0;
 			const where = stabFree > 0 ? 'stab' : baseFree > 0 ? 'base' : null, beds = !where;
 			html += `<div class="trade-sec">Нанять <span class="muted">· в комнате свободных коек ${Math.max(0, stabFree)} из ${ROOM_BEDS}, на базе мест ${Math.max(0, baseFree)} из ${baseCap}${beds ? ' — мест нет, улучши казарму на базе' : where === 'base' ? ' — нанятый пойдёт на базу' : ''}</span></div>`;
 			for (const [cls, C] of Object.entries(CLASSES)) {
-				const free = Object.entries(MERCS).filter(([id, D]) => D.cls === cls && !g.roster.some((m) => m.id === id));
+				const free = Object.entries(MERCS).filter(([id, D]) => D.cls === cls && !D.mur && !g.roster.some((m) => m.id === id));
 				if (!free.length) continue;
 				html += `<div class="cls-head">${badge(cls)} <span class="muted">${C.desc}</span></div>`;
 				html += free.map(([id, D]) => {
@@ -243,6 +288,7 @@ export class PartyWindow {
 			}
 		}
 		$('party-list').innerHTML = html;
+		if (this.murs) { $('party-hint').textContent = 'Мур идёт с тобой сразу и дерётся как наёмник — патроны и аптечку даёшь ты. Койки ему не нужно: вернёшься в стаб, на базу или в «Карьер» — уйдёт к своим. Нападёшь на муров — уйдёт сразу: против своих не пойдёт. Опыта не копит.'; return; }
 		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе (${ROOM_BEDS} коек) или на базе «Опорный» (места у казармы — больше с её уровнем): из комнаты бойца можно отправить на базу и обратно. Взять с собой или оставить — у его дома. Снарядить — патроны их калибра, аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), медику перевязки, подрывнику гранаты — можно и в вылазке: подойди к бойцу, когда рядом нет врагов. Без патронов боец гибнет. Прёт заражённый — бойцы пятятся к тебе и стреляют. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись домой (в стаб или на базу), они снова на своих местах.`;
 	}
 
@@ -255,18 +301,18 @@ export class PartyWindow {
 		$('party-spores').textContent = bag.spore ?? 0;
 		let html = `<div class="trade-sec">Посты на базе: ${posted}/${max} <span class="muted">· каждый на посту — к обороне базы; при прорыве заражённых часовые ранены</span></div>`;
 		html += g.roster.map((m) => {
-			const D = MERCS[m.id], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag), dry = m.mag + m.ammo <= 0;
+			const D = MERCS[m.id], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag), dry = m.mag + m.ammo <= 0, max = mercMaxHp(m);
 			const trip = m.job?.kind === 'trip', post = m.job?.kind === 'post';
 			const opts = clusters.map((id) => `<option value="${id}">${NODES[id].short} · опасность ${NODES[id].danger ?? 1} · ${approx(g.tripTime(id))}</option>`).join('');
 			const acts = trip ? '<button class="buy" disabled>В пути</button>'
 				: `${post ? `<button class="stay small" data-act="unpost" data-id="${m.id}">Снять с поста</button>` : `<button class="buy" data-act="post" data-id="${m.id}" ${posted >= max ? 'disabled' : ''}>На пост</button>`}
 					<span class="trip"><select aria-label="Куда">${opts}</select><button class="buy" data-act="trip" data-id="${m.id}">На вылазку</button></span>
 					<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
-					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < D.hp ? '' : 'disabled'}>Аптечка +${MERC_HEAL}</button>`;
+					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < max ? '' : 'disabled'}>Аптечка +${MERC_HEAL}</button>`;
 			return `<div class="merc" data-merc="${m.id}">${face(m.id)}
-				<div class="merc-text"><b>${D.name}</b> <span class="cls cls-${D.cls}">${CLASSES[D.cls].name}</span> <span class="muted">${W.name}</span>
-					<div class="merc-hp"><i style="width:${Math.max(0, (m.hp / D.hp) * 100).toFixed(0)}%"></i></div>
-					<span>${jobText(m, g)} · здоровье ${Math.ceil(m.hp)}/${D.hp} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo}${dry ? ' — без патронов на вылазке почти верная гибель' : ''}</span></span></div>
+				<div class="merc-text"><b>${D.name}</b> <span class="cls cls-${D.cls}">${CLASSES[D.cls].name}</span> <span class="muted">${W.name}</span> ${m.temp ? '' : rankBadge(m)}
+					<div class="merc-hp"><i style="width:${Math.max(0, (m.hp / max) * 100).toFixed(0)}%"></i></div>
+					<span>${jobText(m, g)} · здоровье ${Math.ceil(m.hp)}/${max} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo}${dry ? ' — без патронов на вылазке почти верная гибель' : ''}</span></span></div>
 				<div class="merc-btns">${acts}</div></div>`;
 		}).join('') || '<div class="muted">Наёмников нет. Нанять можно у костра в стабе «Полис».</div>';
 		const log = g.world.base?.trips ?? [];

@@ -8,6 +8,7 @@ import { NODES, approx } from './world.js';
 import { plural } from './items.js';
 import { extText } from './ext.js';
 import { hordeText } from './migrant.js';
+import { murStance } from './murs.js';
 
 /** Сколько споранов стоят сведения о мурах (и по темам — TOPICS). */
 export const INTEL_PRICE = 10;
@@ -32,8 +33,20 @@ export function topicKnown(topic, world) {
 	return !!world.murs.raid?.known;
 }
 
+/** Как муры относятся к герою — словами информатора. */
+export function stanceText(murs, now) {
+	const st = murStance(murs);
+	if (st === 'war') return ` И учти: у муров ты в чёрном списке — стреляют без разговоров, ищут тебя. Остынут ${murs.warUntil ? `примерно через ${approx(Math.max(0, murs.warUntil - now))}` : 'не скоро'}, если не будешь их больше трогать.`;
+	if (st === 'friend') return ' К тебе у муров уважение — в «Карьере» примут как своего: барыга уступит, бригадир даст бойца дешевле.';
+	return ' Тебя муры пока не трогают: не стреляй первым — пройдут мимо. В «Карьере» с тобой и поторгуют, и бойца на вылазку дадут.';
+}
+
 /** Что скажет информатор о мурах сейчас (now — время мира). */
 export function intelText(murs, now) {
+	return intelBody(murs, now) + stanceText(murs, now);
+}
+
+function intelBody(murs, now) {
 	const r = murs.raid;
 	if (r) {
 		const how = r.mode === 'pairs' ? 'ходят парами' : 'идут кучей';

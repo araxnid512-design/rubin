@@ -28,6 +28,10 @@ export const SHOP = [
 	{ id: 'zhivchik', n: 5, price: 27, sec: 'Разное' },
 	{ id: 'grenade', n: 1, price: 10, sec: 'Разное' },
 ];
+/** Барыга «Карьера» (game/murs.js — отношения): только стволы муров, их патроны, гранаты, аптечки и живчики. */
+export const MUR_SHOP = new Set(['aks', 'ak74', 'ak47', 'rpk', 'svd', 'ammo545', 'ammo762', 'ammo76254', 'grenade', 'medkit', 'zhivchik']);
+/** Его цены: «своим» — дешевле, остальным — с наценкой. */
+export const MUR_PRICE_K = { friend: 0.85, neutral: 1.1 };
 /** Торговец покупает за такую долю цены прилавка (топор — ещё и по износу). */
 export const SELL_RATE = 0.4;
 /** Что можно продать, кроме оружия: патроны всех калибров и гранаты. */
@@ -70,9 +74,9 @@ export class Trade {
 		this.el.addEventListener('pointerdown', (e) => { if (e.target === this.el) this.close(); });
 		$('trade-list').addEventListener('click', (e) => {
 			const b = e.target.closest('[data-buy]');
-			if (b && !b.disabled) { const o = SHOP[+b.dataset.buy]; this.game.buy({ ...o, price: this.price(o) }); this.render(); }
+			if (b && !b.disabled) { const o = SHOP[+b.dataset.buy]; if (this.game.buy({ ...o, price: this.price(o) }) && this.only) this.game.murDeal?.(); this.render(); }
 			const s = e.target.closest('[data-sell]');
-			if (s && !s.disabled) { this.game.sell(s.dataset.sell, +s.dataset.n); this.render(); }
+			if (s && !s.disabled) { if (this.game.sell(s.dataset.sell, +s.dataset.n) && this.only) this.game.murDeal?.(); this.render(); }
 		});
 		$('trade-peas-1').onclick = () => { this.game.exchangePeas(1); this.render(); };
 		$('trade-peas-all').onclick = () => { this.game.exchangePeas(this.game.bag.peas ?? 0); this.render(); };
@@ -85,13 +89,17 @@ export class Trade {
 	price(o) { return Math.max(1, Math.ceil(o.price * (this.discount ?? 1))); }
 
 	/** armory — лавка оружейника на базе: те же товары дешевле (base.js perks.discount: 20/30/40 % по уровню);
-	 * barter — барыга на базе (освобождённый пленный): цены как у торговца. */
-	open({ armory = false, barter = false } = {}) {
+	 * barter — барыга на базе (освобождённый пленный): цены как у торговца;
+	 * murs — барыга «Карьера» ('friend' | 'neutral'): товар муров, «своим» дешевле, остальным с наценкой. */
+	open({ armory = false, barter = false, murs = null } = {}) {
 		if (this.isOpen) return;
-		this.discount = armory ? this.game.basePerks?.().discount ?? 0.8 : 1;
+		this.only = murs ? MUR_SHOP : null;
+		this.discount = armory ? this.game.basePerks?.().discount ?? 0.8 : murs ? MUR_PRICE_K[murs] ?? MUR_PRICE_K.neutral : 1;
 		const off = Math.round((1 - this.discount) * 100);
-		this.el.querySelector('.inv-head b').textContent = armory ? 'Оружейник' : barter ? 'Барыга' : 'Торговец';
-		this.el.querySelector('.inv-head .muted').textContent = armory ? `база «Опорный» · на ${off} % дешевле · игра на паузе` : barter ? 'база «Опорный» · игра на паузе' : 'стаб «Полис» · игра на паузе';
+		this.el.querySelector('.inv-head b').textContent = armory ? 'Оружейник' : murs ? 'Барыга муров' : barter ? 'Барыга' : 'Торговец';
+		this.el.querySelector('.inv-head .muted').textContent = armory ? `база «Опорный» · на ${off} % дешевле · игра на паузе`
+			: murs ? `«Карьер» · ${off > 0 ? `«своим» на ${off} % дешевле` : `наценка ${-off} %`} · игра на паузе`
+			: barter ? 'база «Опорный» · игра на паузе' : 'стаб «Полис» · игра на паузе';
 		this.el.classList.remove('hidden');
 		this.game.setPaused(true);
 		this.render();
@@ -112,6 +120,7 @@ export class Trade {
 		if (this.mode === 'sell') { $('trade-list').innerHTML = this.sellList(); this.renderExchange(); return; }
 		let sec = null;
 		$('trade-list').innerHTML = SHOP.map((o, i) => {
+			if (this.only && !this.only.has(o.id)) return '';
 			const head = o.sec !== sec ? `<div class="trade-sec">${(sec = o.sec)}</div>` : '';
 			const it = ITEMS[o.id], W = WEAPONS[o.id];
 			const stored = !!W && !!g.stash?.guns[o.id];

@@ -22,6 +22,7 @@ export class Input {
 			if (e.code === 'KeyE') this.pressed.add('search');
 			if (e.code === 'KeyM') this.pressed.add('map');
 			if (e.code === 'KeyG') this.pressed.add('grenade');
+			if (e.code === 'KeyV') this.pressed.add('provoke'); // напасть на муров первым
 			if (e.code === 'Escape') this.pressed.add('escape');
 			this.updateKeys();
 		});
