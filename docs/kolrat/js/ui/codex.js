@@ -92,7 +92,7 @@
       A().place(id, 64),
       h('div', { class: 'cx-body' },
         h('div', { class: 'row between' }, h('b', null, T.name), r.cleared ? h('span', { class: 'small good' }, 'разгромлен') : null),
-        h('div', { class: 'small muted' }, kind + (G.TEXT.terrain[c.terrain] ? ' · ' + G.TEXT.terrain[c.terrain] : '') + (id !== 'crash' ? ' · разведано ' + r.explored + '%' : '')),
+        h('div', { class: 'small muted' }, kind + (G.TEXT.terrain[c.terrain] && c.kind !== 'base' ? ' · ' + G.TEXT.terrain[c.terrain] : '') + (id !== 'crash' ? ' · разведано ' + r.explored + '%' : '')),
         h('div', { class: 'small' }, G.TEXT.codex.terrain[c.terrain] || '')));
   }
 
