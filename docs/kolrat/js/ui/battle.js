@@ -39,6 +39,60 @@
     c.closePath();
   }
 
+  // Рельеф песка: шум из нескольких масштабов, рябь от ветра и холмы дюн; освещение слева сверху.
+  // Считается в низком разрешении и растягивается со сглаживанием — мягкие объёмные тени.
+  function sandRelief(c, cells, W, H, cell, type) {
+    const PW = W * cell, PH = H * cell;
+    const S = Math.max(2, Math.round(cell / 7));
+    const nx = Math.ceil(PW / S) + 1, ny = Math.ceil(PH / S) + 1;
+    let seed = 7;
+    for (let i = 0; i < cells.length; i++) seed = (seed * 31 + cells[i] + i) | 0;
+    const lat = (ix, iy, o) => hr(((ix * 73856093) ^ (iy * 19349663) ^ (o * 83492791) ^ seed) | 0);
+    const sm = (v) => v * v * (3 - 2 * v);
+    function noise(x, y, o) {
+      const ix = Math.floor(x), iy = Math.floor(y), fx = sm(x - ix), fy = sm(y - iy);
+      const a = lat(ix, iy, o), b = lat(ix + 1, iy, o), c2 = lat(ix, iy + 1, o), d = lat(ix + 1, iy + 1, o);
+      return a + (b - a) * fx + (c2 - a) * fy + (a - b - c2 + d) * fx * fy;
+    }
+    const dune = (gx, gy) => { // сглаженная маска дюн по клеткам
+      const x = gx - 0.5, y = gy - 0.5, ix = Math.floor(x), iy = Math.floor(y), fx = sm(x - ix), fy = sm(y - iy);
+      const v = (X, Y) => (X >= 0 && Y >= 0 && X < W && Y < H && cells[Y * W + X] === 1 ? 1 : 0);
+      const a = v(ix, iy), b = v(ix + 1, iy), c2 = v(ix, iy + 1), d = v(ix + 1, iy + 1);
+      return a + (b - a) * fx + (c2 - a) * fy + (a - b - c2 + d) * fx * fy;
+    };
+    const salt = type === 'salt';
+    const rip = salt ? 0.01 : 0.035;
+    const hgt = new Float32Array(nx * ny);
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const gx = i * S / cell, gy = j * S / cell;
+      let v = noise(gx / 3.5, gy / 3.5, 1) * 0.9 + noise(gx / 1.6, gy / 1.6, 2) * 0.35 + noise(gx * 1.2, gy * 1.2, 3) * 0.06;
+      const w = noise(gx / 2.5, gy / 2.5, 4) * 5;
+      v += Math.sin((gx * 0.9 + gy * 0.45) * 15 + w) * rip * (0.4 + noise(gx / 2, gy / 2, 5) * 0.9);
+      v += dune(gx, gy) * 1.0;
+      hgt[j * nx + i] = v;
+    }
+    const cv = document.createElement('canvas');
+    cv.width = nx; cv.height = ny;
+    const cx = cv.getContext('2d');
+    const img = cx.createImageData(nx, ny), d = img.data;
+    const k = cell / S * 0.55;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const hL = hgt[j * nx + Math.max(0, i - 1)], hR = hgt[j * nx + Math.min(nx - 1, i + 1)];
+      const hU = hgt[Math.max(0, j - 1) * nx + i], hD = hgt[Math.min(ny - 1, j + 1) * nx + i];
+      const sx = (hR - hL) * k, sy = (hD - hU) * k;
+      // свет из левого верхнего угла: склон к свету — светлее
+      const sh = Math.max(-1, Math.min(1, (-sx * 0.7 - sy * 0.7) * 0.45));
+      const o = (j * nx + i) * 4;
+      if (sh > 0) { d[o] = 255; d[o + 1] = 238; d[o + 2] = 205; d[o + 3] = sh * (salt ? 70 : 105); }
+      else { d[o] = salt ? 90 : 70; d[o + 1] = salt ? 90 : 44; d[o + 2] = salt ? 100 : 18; d[o + 3] = -sh * (salt ? 70 : 120); }
+    }
+    cx.putImageData(img, 0, 0);
+    c.save();
+    c.imageSmoothingEnabled = true;
+    c.drawImage(cv, 0, 0, nx * S, ny * S);
+    c.restore();
+  }
+
   // Местность: песок, дюны, скалы, обломки, баррикады. Свет падает слева сверху.
   function drawTerrain(c, cells, W, H, cell, type) {
     const PW = W * cell, PH = H * cell;
@@ -56,8 +110,9 @@
       rg.addColorStop(0, light ? 'rgba(230,200,150,0.18)' : 'rgba(110,80,45,0.13)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
     }
-    c.strokeStyle = 'rgba(120,88,48,0.18)'; c.lineWidth = Math.max(1, cell * 0.04);
-    for (let k = 0; k < W * H / 5; k++) {
+    try { sandRelief(c, cells, W, H, cell, type); } catch (e) { /* без рельефа — тоже можно играть */ }
+    c.strokeStyle = 'rgba(120,88,48,0.08)'; c.lineWidth = Math.max(1, cell * 0.035);
+    for (let k = 0; k < W * H / 8; k++) {
       const x = hr(k + 500) * PW, y = hr(k + 900) * PH, w = cell * (0.4 + hr(k + 1300) * 0.6);
       c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + w / 2, y - cell * 0.08, x + w, y); c.stroke();
     }
@@ -67,12 +122,9 @@
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (cells[y * W + x] !== 1) continue;
       const px = x * cell, py = y * cell;
-      const dg = c.createLinearGradient(px, py, px + cell, py + cell);
-      dg.addColorStop(0, 'rgba(236,206,150,0.55)'); dg.addColorStop(0.55, 'rgba(206,168,108,0.35)'); dg.addColorStop(1, 'rgba(140,100,55,0.35)');
-      c.fillStyle = dg; c.fillRect(px, py, cell, cell);
-      c.strokeStyle = 'rgba(255,240,200,0.45)'; c.lineWidth = Math.max(1, cell * 0.05);
+      c.strokeStyle = 'rgba(255,240,200,0.22)'; c.lineWidth = Math.max(1, cell * 0.04);
       c.beginPath(); c.moveTo(px + 2, py + cell * 0.62); c.quadraticCurveTo(px + cell / 2, py + cell * 0.3, px + cell - 2, py + cell * 0.6); c.stroke();
-      c.strokeStyle = 'rgba(110,78,40,0.3)';
+      c.strokeStyle = 'rgba(110,78,40,0.14)';
       c.beginPath(); c.moveTo(px + 3, py + cell * 0.8); c.quadraticCurveTo(px + cell / 2, py + cell * 0.55, px + cell - 3, py + cell * 0.82); c.stroke();
     }
     // тени от скал, обломков и баррикад — вправо вниз
@@ -81,7 +133,8 @@
       const v = cells[y * W + x];
       if (v < 2 || v === 5) continue;
       const px = x * cell, py = y * cell, o = cell * (v === 4 ? 0.18 : 0.3);
-      roundRect(c, px + o, py + o, cell - 1, cell - 1, cell * 0.3); c.fill();
+      if (v === 2 && !salt) { c.beginPath(); c.ellipse(px + cell * 0.5 + o, py + cell * 0.55 + o * 0.8, cell * 0.62, cell * 0.48, 0.3, 0, TAU); c.fill(); }
+      else { roundRect(c, px + o, py + o, cell - 1, cell - 1, cell * 0.3); c.fill(); }
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = cells[y * W + x];
@@ -105,18 +158,31 @@
           const bx = px + cell * (0.25 + k * 0.25), h = cell * (0.4 + hr(x * 3 + y + k) * 0.45);
           c.beginPath(); c.moveTo(bx - cell * 0.1, py + cell * 0.9); c.lineTo(bx, py + cell * 0.9 - h); c.lineTo(bx + cell * 0.1, py + cell * 0.9); c.closePath(); c.fill(); c.stroke();
         }
-      } else if (v === 2) { // скала: объём, трещины, блик сверху слева
-        const rg = c.createRadialGradient(px + cell * 0.32, py + cell * 0.28, cell * 0.05, px + cell * 0.5, py + cell * 0.5, cell * 0.75);
-        rg.addColorStop(0, '#8a7258'); rg.addColorStop(0.55, '#6a5440'); rg.addColorStop(1, '#45362a');
-        c.fillStyle = rg;
-        const n = (dx, dy) => (at(x + dx, y + dy) === 2 ? 0 : cell * 0.12);
-        c.beginPath();
-        c.moveTo(px + n(-1, -1), py + n(0, -1)); c.lineTo(px + cell - n(1, -1), py + n(0, -1) * 0.6);
-        c.lineTo(px + cell - n(1, 0) * 0.5, py + cell - n(1, 1)); c.lineTo(px + n(-1, 1), py + cell - n(0, 1) * 0.7);
-        c.closePath(); c.fill();
-        c.strokeStyle = 'rgba(30,20,12,0.45)'; c.lineWidth = Math.max(1, cell * 0.035);
-        c.beginPath(); c.moveTo(px + cell * (0.25 + hr(x * 7 + y) * 0.3), py + cell * 0.2); c.lineTo(px + cell * 0.5, py + cell * 0.55); c.lineTo(px + cell * (0.4 + hr(y * 5 + x) * 0.3), py + cell * 0.85); c.stroke();
-        c.fillStyle = 'rgba(255,235,200,0.16)'; c.beginPath(); c.ellipse(px + cell * 0.33, py + cell * 0.27, cell * 0.2, cell * 0.1, -0.4, 0, TAU); c.fill();
+      } else if (v === 2) { // скала: валуны неправильной формы, свет слева сверху, грани, трещины
+        const seed = x * 131 + y * 71;
+        const boulder = (bx, by, r, sd) => {
+          const pts = [];
+          for (let e = 0; e < 8; e++) {
+            const a = e / 8 * TAU + hr(sd + e) * 0.4, rr = r * (0.78 + hr(sd * 3 + e) * 0.3);
+            pts.push([bx + Math.cos(a) * rr, by + Math.sin(a) * rr * 0.82]);
+          }
+          const rg = c.createLinearGradient(bx - r, by - r, bx + r * 0.8, by + r * 0.9);
+          rg.addColorStop(0, '#a88a68'); rg.addColorStop(0.45, '#7a6048'); rg.addColorStop(1, '#3f3024');
+          c.fillStyle = rg;
+          c.beginPath(); pts.forEach(([qx, qy], e) => (e ? c.lineTo(qx, qy) : c.moveTo(qx, qy))); c.closePath(); c.fill();
+          c.strokeStyle = 'rgba(35,24,14,0.55)'; c.lineWidth = Math.max(1, cell * 0.03); c.stroke();
+          // освещённая верхняя грань
+          c.fillStyle = 'rgba(255,232,190,0.22)';
+          c.beginPath(); c.moveTo(pts[4][0], pts[4][1]); c.lineTo(pts[5][0], pts[5][1]); c.lineTo(pts[6][0], pts[6][1]); c.lineTo(bx + r * 0.1, by - r * 0.05); c.closePath(); c.fill();
+          // тёмная нижняя грань
+          c.fillStyle = 'rgba(25,16,8,0.25)';
+          c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); c.lineTo(pts[1][0], pts[1][1]); c.lineTo(pts[2][0], pts[2][1]); c.lineTo(bx, by + r * 0.1); c.closePath(); c.fill();
+          // трещина
+          c.strokeStyle = 'rgba(30,20,12,0.5)'; c.lineWidth = Math.max(1, cell * 0.025);
+          c.beginPath(); c.moveTo(bx - r * 0.3 + hr(sd + 9) * r * 0.3, by - r * 0.55); c.lineTo(bx + r * 0.05, by - r * 0.05); c.lineTo(bx - r * 0.1 + hr(sd + 11) * r * 0.4, by + r * 0.5); c.stroke();
+        };
+        boulder(px + cell * 0.5, py + cell * 0.52, cell * 0.6, seed);
+        if (hr(seed + 5) > 0.35) boulder(px + cell * (0.25 + hr(seed + 6) * 0.5), py + cell * (0.3 + hr(seed + 7) * 0.45), cell * 0.32, seed + 50);
       } else if (v === 3) { // обломки: металлические листы, заклёпки, ржавчина
         const mg = c.createLinearGradient(px, py, px + cell, py + cell);
         mg.addColorStop(0, '#8d949c'); mg.addColorStop(0.5, '#6d737b'); mg.addColorStop(1, '#4a4f56');
@@ -142,6 +208,8 @@
     for (let y = 1; y < H; y++) { c.beginPath(); c.moveTo(0, y * cell); c.lineTo(PW, y * cell); c.stroke(); }
   }
 
+  G.BattleTerrain = drawTerrain; // та же местность — для лагеря в штабе
+
   function drawBarrel(c, x, y, cell) {
     const w = cell * 0.46, hh = cell * 0.58;
     c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(x, y + hh * 0.48, w * 0.6, w * 0.22, 0, 0, TAU); c.fill();
@@ -163,6 +231,7 @@
     const st = { tick: 0, playing: opts.autoplay !== false, speed: UI.battleSpeed(), shownLog: 0, ended: false, destroyed: false, last: 0,
       sel: -1, fxShown: 0, auto: true, armRetreat: 0, finished: false, skip: false };
     let B, N, shotsBy, hitsOn, deathTick, lastHit, killsBy, shotI, frameI, decalShot, decalBoom, ranks, facing;
+    let fpT = 0, fpLast = [];
     const snd = { shot: 0, boom: 0, thr: 0, fx: 0 };
     const nums = [];
 
@@ -252,7 +321,7 @@
       lastHit = new Array(N).fill(-1);
       killsBy = Array.from({ length: N }, () => []);
       st.slowUntil = 0; st.slowFrom = 0;
-      shotI = 0; frameI = 0; decalShot = 0; decalBoom = 0;
+      shotI = 0; frameI = 0; decalShot = 0; decalBoom = 0; fpT = 0; fpLast = [];
       snd.shot = 0; snd.boom = 0; snd.thr = 0; snd.fx = 0;
       st.fxShown = 0; st.shownLog = 0; st.tick = 0; st.ended = false; st.sel = -1;
       if (banner) banner.className = 'bv-banner';
@@ -324,7 +393,7 @@
       [terrainCanvas] = layer();
       drawTerrainLayer();
       [decalCanvas, decalCtx] = layer();
-      decalShot = 0; decalBoom = 0;
+      decalShot = 0; decalBoom = 0; fpT = 0; fpLast = [];
       [lightCanvas, lightCtx] = layer();
       glowCanvas = document.createElement('canvas');
       glowCanvas.width = Math.ceil(W * cell * GS); glowCanvas.height = Math.ceil(H * cell * GS);
@@ -344,6 +413,30 @@
     // Следы: подпалины от промахов и воронки от взрывов (накапливаются по ходу боя)
     function updateDecals(t) {
       const cell = cellPx, dc = decalCtx;
+      // следы ног в песке: пара отпечатков каждые полклетки пути
+      const salt = B.map.type === 'salt';
+      for (; fpT + 2 <= t; fpT += 2) {
+        for (let i = 0; i < N; i++) {
+          const u = B.units[i];
+          if (u.base.static) continue;
+          const p = posAt(i, fpT);
+          if (p.fl & 3) continue;
+          const L = fpLast[i];
+          if (!L) { fpLast[i] = [p.x, p.y, 0]; continue; }
+          const dx = p.x - L[0], dy = p.y - L[1], d = Math.hypot(dx, dy);
+          if (d < 0.45) continue;
+          const ux = dx / d, uy = dy / d, side = L[2] ? 1 : -1;
+          const big = u.base.big ? 2.2 : 1;
+          const fx = (p.x + 0.5) * cell - uy * side * cell * 0.08 * big, fy = (p.y + 0.82) * cell + ux * side * cell * 0.05 * big;
+          dc.save(); dc.translate(fx, fy); dc.rotate(Math.atan2(uy, ux));
+          dc.fillStyle = salt ? 'rgba(120,115,105,0.16)' : 'rgba(80,52,24,0.2)';
+          dc.beginPath(); dc.ellipse(0, 0, cell * 0.07 * big, cell * 0.035 * big, 0, 0, TAU); dc.fill();
+          dc.fillStyle = salt ? 'rgba(255,255,255,0.12)' : 'rgba(255,230,180,0.12)';
+          dc.beginPath(); dc.ellipse(-cell * 0.015, -cell * 0.03 * big, cell * 0.06 * big, cell * 0.012 * big, 0, 0, TAU); dc.fill();
+          dc.restore();
+          fpLast[i] = [p.x, p.y, 1 - L[2]];
+        }
+      }
       for (; decalShot < B.shots.length && B.shots[decalShot][0] <= t; decalShot++) {
         const sh = B.shots[decalShot];
         if (sh[3] || sh[6] || decalShot % 3) continue;
@@ -563,20 +656,23 @@
         if (sh[0] > t) continue;
         const dt = t - sh[0];
         const target = B.units[sh[2]];
-        if (sh[3] && sh[5] > 0 && dt < 11) nums.push({ i: sh[2], dt: dt - (sh[6] ? 0 : 1.2), v: sh[5], crit: sh[4], ex: sh[6], k: k });
-        if (sh[6]) continue;
+        if (sh[6]) { if (sh[3] && sh[5] > 0 && dt < 11) nums.push({ i: sh[2], dt: dt, v: sh[5], crit: sh[4], ex: 1, k: k }); continue; }
         const shooter = B.units[sh[1]];
-        const fb = feet(posAt(sh[2], sh[0]), cell);
+        const tpos = posAt(sh[2], sh[0]);
+        const fb = feet(tpos, cell);
         const tx = fb.x, ty = fb.y - cell * hgt(target.type) * 0.5;
         if (meleeType(shooter.type)) {
+          if (sh[3] && sh[5] > 0 && dt < 11) nums.push({ i: sh[2], dt: dt - 0.6, v: sh[5], crit: sh[4], ex: 0, k: k });
           if (sh[3] && dt < 3) sparks(tx, ty, cell, dt / 3, k, '255,230,200');
           continue;
         }
         const fa = feet(posAt(sh[1], sh[0]), cell);
         const dir = fb.x >= fa.x ? 1 : -1;
-        const miss = sh[3] ? 0 : (k % 2 ? 0.45 : -0.45);
+        // промах по бойцу в укрытии — болт бьёт в камень или мешки перед ним и рикошетит
+        const ric = !sh[3] && (tpos.fl & 32) && (k % 3 !== 0);
+        const miss = sh[3] || ric ? 0 : (k % 2 ? 0.45 : -0.45);
         const x1 = fa.x + dir * cell * 0.45, y1 = fa.y - cell * hgt(shooter.type) * 0.55;
-        const x2 = tx + miss * cell, y2 = ty - miss * cell * 0.6;
+        const x2 = ric ? tx - dir * cell * 0.42 : tx + miss * cell, y2 = ric ? fb.y - cell * 0.28 : ty - miss * cell * 0.6;
         const col = shooter.side === 0 ? BOLT[0] : BOLT[setup.army] || BOLT.default;
         const wpn = (G.Sprites.LOOKS[shooter.type] || {}).weapon;
         const fat = wpn === 'heavy' || shooter.base.big || shooter.type === 'turret' ? 1.6 : wpn === 'pistol' ? 0.8 : 1;
@@ -589,8 +685,14 @@
         const dist = Math.max(1, Math.hypot(x2 - x1, y2 - y1)), ux = (x2 - x1) / dist, uy = (y2 - y1) / dist;
         const beam = wpn === 'sniper';
         const Lb = cell * (beam ? 0 : wpn === 'pistol' ? 0.75 : fat > 1.2 ? 1.3 : 1.05);
-        const T = 1.1; // время полёта болта, тиков
+        const T = 1.3 + Math.min(1.4, dist / (cell * 7)); // время полёта болта, тиков: дальше — дольше летит
         const hitT = beam ? 0.15 : T * dist / (dist + Lb);
+        if (sh[3] && sh[5] > 0 && dt < hitT + 10) nums.push({ i: sh[2], dt: dt - hitT, v: sh[5], crit: sh[4], ex: 0, k: k });
+        if (!st.lowQ && !beam && wpn !== 'longrifle' && k % 2 === 0 && dt > 1 && dt < 10) { // дымок перегретого ствола
+          const q = (dt - 1) / 9;
+          ctx.fillStyle = 'rgba(235,232,225,' + (0.2 * (1 - q)).toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(x1 + dir * cell * 0.05 + Math.sin(dt * 0.8 + k) * cell * 0.05, y1 - q * cell * 0.45, cell * (0.05 + q * 0.12), 0, TAU); ctx.fill();
+        }
         if (dt < 1.4) { // вспышка у ствола: белая звезда и неоновый ореол
           const q = dt / 1.4;
           ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,250,235,' + (1 - q).toFixed(3) + ')';
@@ -624,7 +726,24 @@
         if (sh[3] && dt >= hitT && dt < hitT + 2.5) gDot(x2, y2, cell * (0.8 + (dt - hitT) * 0.2) * fat, METAL.has(target.type) ? 'rgba(255,240,160,1)' : col, 0.9 * (1 - (dt - hitT) / 2.5));
         if (dt >= hitT && dt < hitT + 3.8) {
           const q = (dt - hitT) / 3.8;
-          if (sh[3]) {
+          if (ric) { // рикошет: сноп искр, каменная крошка, отскочивший обрывок болта
+            sparks(x2, y2, cell, q, k + 3, '255,225,160');
+            sparks(x2, y2, cell, Math.min(1, q * 1.4), k + 9, '255,250,220');
+            if (q < 0.4) {
+              const rl = cell * 0.9 * (q / 0.4), ra = Math.atan2(-uy, -ux) + (k % 2 ? -1.1 : 1.1);
+              ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, cell * 0.06); ctx.lineCap = 'round';
+              ctx.globalAlpha = 1 - q / 0.4;
+              ctx.beginPath(); ctx.moveTo(x2 + Math.cos(ra) * rl * 0.4, y2 + Math.sin(ra) * rl * 0.4); ctx.lineTo(x2 + Math.cos(ra) * rl, y2 + Math.sin(ra) * rl); ctx.stroke();
+              ctx.restore();
+              gDot(x2, y2, cell * 0.9, 'rgba(255,220,150,1)', 0.8 * (1 - q / 0.4));
+            }
+            ctx.fillStyle = 'rgba(160,140,115,' + (0.4 * (1 - q)).toFixed(3) + ')';
+            ctx.beginPath(); ctx.arc(x2 - dir * cell * 0.1 * q, y2 - q * cell * 0.3, cell * (0.06 + q * 0.16), 0, TAU); ctx.fill();
+          } else if (sh[3]) {
+            if (!METAL.has(target.type) && q > 0.15) { // от попадания по броне и ткани — струйка дыма
+              ctx.fillStyle = 'rgba(70,64,58,' + (0.32 * (1 - q)).toFixed(3) + ')';
+              ctx.beginPath(); ctx.arc(x2 + Math.sin(q * 6 + k) * cell * 0.05, y2 - q * cell * 0.5, cell * (0.05 + q * 0.12), 0, TAU); ctx.fill();
+            }
             sparks(x2, y2, cell, q, k, METAL.has(target.type) ? '255,235,140' : '255,190,120');
             if (q < 0.5) { // вспышка попадания
               ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -633,9 +752,15 @@
               ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(x2, y2, r, 0, TAU); ctx.fill(); ctx.restore();
             }
           }
-          else { // фонтанчик песка у ног
+          else { // фонтанчик песка у ног и тлеющая подпалина
             ctx.fillStyle = 'rgba(230,205,160,' + (0.5 * (1 - q)).toFixed(3) + ')';
             ctx.beginPath(); ctx.arc(x2, fb.y - cell * 0.05 - q * cell * 0.25, cell * (0.08 + q * 0.18), 0, TAU); ctx.fill();
+            for (let j = 0; j < 3 && q < 0.6; j++) {
+              const a = -Math.PI / 2 + (hr(k * 5 + j) - 0.5) * 1.6, v = cell * (0.25 + hr(k + j * 7) * 0.3) * q;
+              ctx.fillStyle = 'rgba(200,170,120,' + (0.7 * (1 - q / 0.6)).toFixed(3) + ')';
+              ctx.fillRect(x2 + Math.cos(a) * v, fb.y + Math.sin(a) * v + q * q * cell * 0.4, Math.max(1, cell * 0.04), Math.max(1, cell * 0.04));
+            }
+            gDot(x2, fb.y, cell * 0.45, 'rgba(255,120,40,1)', 0.55 * (1 - q));
           }
         }
       }
@@ -650,6 +775,9 @@
             const p0 = feet(posAt(from, throwT), cell);
             const k = (t - throwT) / Math.max(1, bt - throwT);
             const x = p0.x + (cx - p0.x) * k, y = p0.y - cell + (cy - p0.y + cell) * k - Math.sin(k * Math.PI) * cell * 1.8;
+            const gy = p0.y + (cy - p0.y) * k, hgtK = Math.sin(k * Math.PI);
+            ctx.fillStyle = 'rgba(30,18,8,' + (0.35 - hgtK * 0.2).toFixed(3) + ')'; // тень гранаты на песке
+            ctx.beginPath(); ctx.ellipse(x, gy, cell * (0.1 + hgtK * 0.06), cell * 0.04, 0, 0, TAU); ctx.fill();
             ctx.fillStyle = '#2a2d31'; ctx.beginPath(); ctx.arc(x, y, cell * 0.1, 0, TAU); ctx.fill();
             ctx.fillStyle = (Math.floor(t * 2) % 2) ? '#ff3b2f' : '#ffd34d'; ctx.beginPath(); ctx.arc(x, y, cell * 0.04, 0, TAU); ctx.fill();
           }
@@ -698,6 +826,15 @@
       }
 
       if (!setup.night && !st.lowQ) dustDevil(t, cell);
+      if (!st.lowQ) { // пылинки в лучах солнца (ночью — светлячки пыли в свете фонарей)
+        for (let k = 0; k < 16; k++) {
+          const x = ((hr(k + 300) * W * cell + t * cell * 0.03 * (0.5 + hr(k + 310))) % (W * cell));
+          const y = hr(k + 320) * H * cell + Math.sin(t * 0.04 + k * 2) * cell * 0.4;
+          const a = 0.25 + 0.25 * Math.sin(t * 0.08 + k);
+          ctx.fillStyle = setup.night ? 'rgba(200,210,230,' + (a * 0.5).toFixed(3) + ')' : 'rgba(255,245,215,' + a.toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(x, y, Math.max(0.8, cell * 0.03), 0, TAU); ctx.fill();
+        }
+      }
       // ветер несёт песок через поле
       ctx.strokeStyle = setup.night ? 'rgba(200,190,170,0.12)' : 'rgba(255,236,200,0.22)';
       ctx.lineWidth = Math.max(1, cell * 0.04); ctx.lineCap = 'round';
@@ -877,6 +1014,11 @@
         g.addColorStop(0.45, 'rgba(255,140,40,' + (0.85 * a).toFixed(3) + ')');
         g.addColorStop(1, 'rgba(120,40,10,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+      }
+      if (dt < 26) { // пыль по земле расходится кольцом
+        const q = dt / 26;
+        ctx.strokeStyle = 'rgba(205,175,125,' + (0.4 * (1 - q)).toFixed(3) + ')'; ctx.lineWidth = cell * (0.35 + q * 0.4) * big;
+        ctx.beginPath(); ctx.ellipse(cx, cy + cell * 0.15, cell * (0.6 + q * 1.8) * big, cell * (0.25 + q * 0.75) * big, 0, 0, TAU); ctx.stroke();
       }
       if (dt < 6) {
         ctx.strokeStyle = 'rgba(255,235,200,' + (0.6 * (1 - dt / 6)).toFixed(3) + ')'; ctx.lineWidth = 2;

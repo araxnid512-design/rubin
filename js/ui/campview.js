@@ -78,7 +78,21 @@
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       c.fillStyle = TERRAIN[0];
       c.fillRect(0, 0, W * cell, H * cell);
-      for (let y = rows[0]; y <= rows[1]; y++) for (let x = cols[0]; x <= cols[1]; x++) {
+      // объёмная местность, как в бою: рельеф песка, валуны, обломки
+      let painted = false;
+      if (G.BattleTerrain) {
+        try {
+          const cells = base.cells.map((t, i) => ((i % base.w) <= 4 && t === 3 ? 0 : t));
+          const tmp = document.createElement('canvas');
+          tmp.width = base.w * cell * dpr; tmp.height = base.h * cell * dpr;
+          const tc = tmp.getContext('2d');
+          tc.setTransform(dpr, 0, 0, dpr, 0, 0);
+          G.BattleTerrain(tc, cells, base.w, base.h, cell, 'camp');
+          c.drawImage(tmp, -cols[0] * cell, -rows[0] * cell, base.w * cell, base.h * cell);
+          painted = true;
+        } catch (e) { painted = false; }
+      }
+      for (let y = rows[0]; y <= rows[1] && !painted; y++) for (let x = cols[0]; x <= cols[1]; x++) {
         const t = base.cells[y * base.w + x];
         const X = px(x), Y = py(y);
         if (x <= 4 && t === 3) continue; // корпус рисуем отдельно

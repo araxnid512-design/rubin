@@ -62,6 +62,10 @@
         h('span', { class: 'ti' }, t.icon), h('span', null, t.name)));
     }
     const fn = UI.views[UI.tab] || UI.views.hq;
+    // карточки «выезжают» только при смене вкладки, а не при каждом нажатии
+    const tabKey = UI.tab + ':' + (UI.tab === 'menu' ? UI.menuTab : '');
+    view.classList.toggle('anim', tabKey !== UI._lastTabKey);
+    UI._lastTabKey = tabKey;
     view.appendChild(fn(UI.s));
     renderModal();
   };
@@ -81,9 +85,14 @@
     const key = s && s.pending && (s.pending.kind === 'event' || s.pending.kind === 'battle') ? s.pending.kind + ':' + s.day + ':' + (s.pending.id || '') + ':' + (s.pending.result != null) : null;
     if (key && key !== UI._lastAlert && !(s.pending.result != null)) { UI._lastAlert = key; if (G.Audio) G.Audio.sfx('alert'); }
     if (content) {
+      // окно выезжает только когда открывается новое, а не при каждом нажатии внутри
+      const mkey = UI.overlay ? 'overlay' : s && s.pending ? s.pending.kind + ':' + (s.pending.id || '') + ':' + s.day : 'over';
+      if (mkey !== UI._lastModal && content.classList) content.classList.add('enter');
+      UI._lastModal = mkey;
       root.appendChild(h('div', { class: 'overlay' }, content));
       document.body.style.overflow = 'hidden';
     } else {
+      UI._lastModal = null;
       document.body.style.overflow = '';
     }
   }
