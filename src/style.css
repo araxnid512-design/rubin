@@ -257,6 +257,7 @@ body.lefty .hud { grid-template-columns: 4.9rem minmax(0, 1fr) 8.6rem; grid-temp
   background: repeating-linear-gradient(-45deg, var(--amber) 0 10px, var(--amber-2) 10px 20px);
 }
 .act.end.ready { animation: pulse 1.4s ease-in-out infinite; }
+.act.end.armed { background: var(--rust); color: #fff3ea; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(232, 166, 43, 0.4); } }
 .mid { grid-area: mid; pointer-events: none; display: flex; justify-content: center; align-items: flex-start; }
 .banner {

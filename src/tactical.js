@@ -382,6 +382,11 @@ function afterAction() {
   if (!m) return;
   if (!liveUnits(m).length) { finishMission(); return; }
   if (!curUnit()) { const n = liveUnits(m)[0]; TAC.sel = n ? n.id : 0; }
+  const cu = curUnit();
+  if (CFG.autoNext && cu && cu.ap <= 0 && m.phase === 'player' && !TAC.busy) {
+    const n = liveUnits(m).find(o => o.ap > 0);
+    if (n) { selectUnit(n); return; }
+  }
   refreshReach();
   HUD.refresh();
 }

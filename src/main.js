@@ -2,7 +2,7 @@
 // ---------- Запуск, экраны, настройки, сохранения ----------
 
 const SETTINGS_KEY = 'rubezh.settings.v1', SAVE_KEY = 'rubezh.save.v1', HELP_KEY = 'rubezh.help.v1';
-const DEF_CFG = { ui: 1, lefty: false, confirmMove: true, speed: 1, sound: true, vol: 0.7, vibro: true, shake: true, follow: true, hq: true, autoRotate: true };
+const DEF_CFG = { ui: 1, lefty: false, confirmMove: true, confirmEnd: true, autoNext: true, speed: 1, sound: true, vol: 0.7, vibro: true, shake: true, follow: true, hq: true, autoRotate: true };
 let CFG = Object.assign({}, DEF_CFG, store.get(SETTINGS_KEY) || {});
 let S = null;
 const APP = { rot: false, vw: 0 };
@@ -201,6 +201,8 @@ const Game = {
         <label for="s-ui">Размер интерфейса<small id="s-ui-v">${Math.round(CFG.ui * 100)}%</small></label><input type="range" id="s-ui" min="0.8" max="1.4" step="0.05" value="${CFG.ui}">
         ${tg('s-lefty', 'Для левой руки', 'кнопки действий слева, отряд справа')}
         ${tg('s-confirmMove', 'Ход вторым касанием', 'защищает от случайных шагов')}
+        ${tg('s-confirmEnd', 'Подтверждать конец хода', 'если у бойцов остались очки действий')}
+        ${tg('s-autoNext', 'Следующий боец сам', 'когда у текущего кончились ОД')}
         <label>Скорость анимации</label><div class="seg" id="s-speed">${speeds.map((s, i) => `<button data-v="${i}" class="${CFG.speed === i ? 'on' : ''}">${s}</button>`).join('')}</div>
         ${tg('s-sound', 'Звук')}
         <label for="s-vol">Громкость</label><input type="range" id="s-vol" min="0" max="1" step="0.05" value="${CFG.vol}">
@@ -218,7 +220,7 @@ const Game = {
     $('#s-ui', root).oninput = e => { CFG.ui = +e.target.value; $('#s-ui-v', root).textContent = Math.round(CFG.ui * 100) + '%'; saveSettings(); };
     $('#s-vol', root).oninput = e => { CFG.vol = +e.target.value; saveSettings(); };
     $('#s-vol', root).onchange = () => { Sfx.init(); Sfx.play('shot'); };
-    for (const k of ['lefty', 'confirmMove', 'sound', 'vibro', 'shake', 'follow', 'hq', 'autoRotate']) {
+    for (const k of ['lefty', 'confirmMove', 'confirmEnd', 'autoNext', 'sound', 'vibro', 'shake', 'follow', 'hq', 'autoRotate']) {
       $('#s-' + k, root).onchange = e => { CFG[k] = e.target.checked; saveSettings(); if (k === 'vibro' && CFG.vibro) vibrate(40); };
     }
     $$('#s-speed button', root).forEach(b => { b.onclick = () => { CFG.speed = +b.dataset.v; $$('#s-speed button', root).forEach(x => x.classList.toggle('on', x === b)); saveSettings(); }; });

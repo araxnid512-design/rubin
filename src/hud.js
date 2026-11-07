@@ -17,6 +17,8 @@ const HUD = {
           <div class="chip" id="tTod"></div>
           <div class="chip threat" id="tThreat"></div>
           <div class="grow"></div>
+          <button class="hbtn" id="tZoomOut" aria-label="Отдалить">${icon('zout')}</button>
+          <button class="hbtn" id="tZoomIn" aria-label="Приблизить">${icon('zin')}</button>
           <button class="hbtn" id="tMap" aria-label="Карта местности">${icon('map')}</button>
         </header>
         <aside class="squad" id="tSquad"></aside>
@@ -40,6 +42,9 @@ const HUD = {
       </div>`;
     $('#tMenu').onclick = () => { Sfx.play('click'); this.openMenu(); };
     $('#tMap').onclick = () => { Sfx.play('click'); this.openMap(); };
+    const zoom = f => { const a = $('#app'); R.zoomAt(a.clientWidth / 2, a.clientHeight / 2, f); this.hidePop(); };
+    $('#tZoomIn').onclick = () => zoom(1.25);
+    $('#tZoomOut').onclick = () => zoom(0.8);
     $('#tMapClose').onclick = () => this.closeMap();
     $('#tMapBg').addEventListener('click', e => { if (e.target.id === 'tMapBg') this.closeMap(); });
     $('#tMini').addEventListener('click', e => this.mapClick(e));
@@ -56,7 +61,24 @@ const HUD = {
       R.dirty = true; this.refresh();
     };
     $('#aEvac').onclick = () => { const u = curUnit(); if (u) doEvac(u); };
-    $('#aEnd').onclick = () => { Sfx.play('click'); endTurn(); };
+    $('#aEnd').onclick = () => {
+      Sfx.play('click');
+      const m = TAC.m;
+      if (!m || !canAct()) return;
+      const left = liveUnits(m).filter(u => u.ap >= 3);
+      if (CFG.confirmEnd && left.length && !this.endArmed) {
+        this.endArmed = true;
+        const b = $('#aEnd');
+        b.classList.add('armed');
+        b.innerHTML = `<span>Точно?<br>${left.length} с ОД</span>`;
+        this.log(`Ещё есть очки действий: ${left.map(u => u.name).join(', ')}. Нажмите ещё раз, чтобы закончить ход.`, 'warn');
+        clearTimeout(this.endT);
+        this.endT = setTimeout(() => this.disarmEnd(), 2800);
+        return;
+      }
+      this.disarmEnd();
+      endTurn();
+    };
     $('#tSquad').addEventListener('click', e => {
       const b = e.target.closest('.uc');
       if (!b || !TAC.m) return;
@@ -117,6 +139,13 @@ const HUD = {
     while (box.children.length > 3) box.firstChild.remove();
     setTimeout(() => e.classList.add('old'), 6500);
     setTimeout(() => e.remove(), 8000);
+  },
+  endArmed: false, endT: 0,
+  disarmEnd() {
+    clearTimeout(this.endT);
+    this.endArmed = false;
+    const b = $('#aEnd');
+    if (b) { b.classList.remove('armed'); b.innerHTML = '<span>Конец<br>хода</span>'; }
   },
   clearLog() { const box = $('#tLog'); if (box) box.innerHTML = ''; },
   banner(text) {

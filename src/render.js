@@ -51,7 +51,7 @@ const GC = {
 const WALLC = {
   [T.WALL]: ['#8f8c82', '#56544d', '#a6a397'],
   [T.BRICK]: ['#8a5340', '#5a3326', '#a06651'],
-  [T.WWALL]: ['#7a5634', '#4a321d', '#8f6942'],
+  [T.WWALL]: ['#a27b4d', '#5a3d22', '#bb9361'],
   [T.WINDOW]: ['#8f8c82', '#56544d', '#a6a397'],
 };
 const MAPRGB = [];
@@ -68,8 +68,8 @@ function rr(c, x, y, w, h, r) {
 function circ(c, x, y, r) { c.beginPath(); c.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2); }
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
-  const ch = s => clamp(Math.round(((n >> s) & 255) * f), 0, 255);
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+  const ch = s => clamp(Math.round(((n >> s) & 255) * f), 0, 255).toString(16).padStart(2, '0');
+  return '#' + ch(16) + ch(8) + ch(0);
 }
 const isWallAt = (m, x, y) => inb(m, x, y) && TP[m.tiles[MI(m, x, y)]].wall;
 const reducedMotion = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
@@ -191,9 +191,10 @@ const R = {
 // ----- Карта -----
 function drawMap(c, m, cam, W, H, now, all) {
   const ts = cam.ts;
+  if (ts >= 11) return drawMap3(c, m, cam, W, H, now, all);
   const x0 = Math.max(0, Math.floor(cam.x)), y0 = Math.max(0, Math.floor(cam.y));
   const x1 = Math.min(m.w - 1, Math.ceil(cam.x + W / ts)), y1 = Math.min(m.h - 1, Math.ceil(cam.y + H / ts));
-  const lod = ts < 11 ? 0 : ts < 20 ? 1 : 2;
+  const lod = 0;
   const SX = x => Math.round((x - cam.x) * ts), SY = y => Math.round((y - cam.y) * ts);
   const seen = i => all || m.seen[i], vis = i => all || m.vis[i];
 
@@ -243,24 +244,6 @@ function drawMap(c, m, cam, W, H, now, all) {
     if (!ct.s) { c.fillStyle = '#e8a62b'; c.fill(); c.strokeStyle = '#1b1406'; c.lineWidth = 1; c.stroke(); }
     else { c.strokeStyle = '#e8a62b'; c.lineWidth = 1.5; c.stroke(); }
   }
-  // 6. зона эвакуации
-  if (m.evac && m.evac.length) {
-    const set = new Set(m.evac);
-    c.fillStyle = 'rgba(134,168,93,0.16)';
-    c.strokeStyle = 'rgba(160,200,110,0.75)'; c.lineWidth = Math.max(1, ts * 0.05);
-    c.beginPath();
-    for (const i of m.evac) {
-      const x = i % m.w, y = (i / m.w) | 0;
-      if (x < x0 || x > x1 || y < y0 || y > y1 || !seen(i)) continue;
-      const X = SX(x), Y = SY(y), w = SX(x + 1) - X, h = SY(y + 1) - Y;
-      c.fillRect(X, Y, w, h);
-      if (!set.has(i - 1) || x === 0) { c.moveTo(X, Y); c.lineTo(X, Y + h); }
-      if (!set.has(i + 1)) { c.moveTo(X + w, Y); c.lineTo(X + w, Y + h); }
-      if (!set.has(i - m.w)) { c.moveTo(X, Y); c.lineTo(X + w, Y); }
-      if (!set.has(i + m.w)) { c.moveTo(X, Y + h); c.lineTo(X + w, Y + h); }
-    }
-    c.stroke();
-  }
   // 7. туман
   if (!all) for (let y = y0; y <= y1; y++) {
     const Y = SY(y), h = SY(y + 1) - Y;
@@ -277,50 +260,8 @@ function drawMap(c, m, cam, W, H, now, all) {
   if (tod) { c.fillStyle = tod === 1 ? 'rgba(40,24,60,0.16)' : 'rgba(8,14,44,0.32)'; c.fillRect(-10, -10, W + 20, H + 20); }
   if (all) return;
 
-  // 9. подсветка ходов
-  const u = curUnit(), rf = TAC.reach;
-  if (u && rf && rf.uid === u.id && m.phase === 'player' && !TAC.busy && TAC.mode !== 'lure') {
-    c.fillStyle = 'rgba(232,166,43,0.13)';
-    c.strokeStyle = 'rgba(232,166,43,0.75)'; c.lineWidth = Math.max(1, ts * 0.035);
-    c.beginPath();
-    const occ = new Set();
-    for (const o of m.units) if (!o.dead && !o.evac) occ.add(MI(m, o.x, o.y));
-    for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) occ.add(MI(m, z.x, z.y));
-    const ok = j => j >= 0 && j < m.n && (rf.dist[j] >= 0 || !TP[m.tiles[j]].walk || occ.has(j));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const i = y * m.w + x;
-      if (rf.dist[i] <= 0) continue;
-      const X = SX(x), Y = SY(y), w = SX(x + 1) - X, h = SY(y + 1) - Y;
-      c.fillRect(X, Y, w, h);
-      if (x === 0 || !ok(i - 1)) { c.moveTo(X, Y); c.lineTo(X, Y + h); }
-      if (x === m.w - 1 || !ok(i + 1)) { c.moveTo(X + w, Y); c.lineTo(X + w, Y + h); }
-      if (!ok(i - m.w)) { c.moveTo(X, Y); c.lineTo(X + w, Y); }
-      if (!ok(i + m.w)) { c.moveTo(X, Y + h); c.lineTo(X + w, Y + h); }
-    }
-    c.stroke();
-  }
-  if (u && TAC.mode === 'lure') {
-    c.setLineDash([6, 6]); c.strokeStyle = 'rgba(232,166,43,0.7)'; c.lineWidth = 1.5;
-    circ(c, SX(u.x) + ts / 2, SY(u.y) + ts / 2, LURE_RANGE * ts); c.stroke(); c.setLineDash([]);
-  }
+  drawGroundMarks(c, m, cam, ts, x0, x1, y0, y1, SX, SY);
   const pd = TAC.pend;
-  if (pd && pd.path && u) {
-    c.fillStyle = '#e8a62b';
-    for (const i of pd.path) { const x = i % m.w, y = (i / m.w) | 0; circ(c, SX(x) + ts / 2, SY(y) + ts / 2, Math.max(2, ts * 0.08)); c.fill(); }
-    const last = pd.path[pd.path.length - 1], lx = last % m.w, ly = (last / m.w) | 0;
-    c.strokeStyle = '#e8a62b'; c.lineWidth = Math.max(1.5, ts * 0.06);
-    circ(c, SX(lx) + ts / 2, SY(ly) + ts / 2, ts * 0.32); c.stroke();
-  }
-  if (pd && pd.tx != null) {
-    const X = SX(pd.tx), Y = SY(pd.ty), s = ts * 0.28;
-    c.strokeStyle = pd.col || '#ff6a50'; c.lineWidth = Math.max(1.5, ts * 0.06);
-    c.beginPath();
-    c.moveTo(X, Y + s); c.lineTo(X, Y); c.lineTo(X + s, Y);
-    c.moveTo(X + ts - s, Y); c.lineTo(X + ts, Y); c.lineTo(X + ts, Y + s);
-    c.moveTo(X + ts, Y + ts - s); c.lineTo(X + ts, Y + ts); c.lineTo(X + ts - s, Y + ts);
-    c.moveTo(X + s, Y + ts); c.lineTo(X, Y + ts); c.lineTo(X, Y + ts - s);
-    c.stroke();
-  }
   // 10. существа: 2.5D-фигуры, отсортированные по глубине
   const ents = [];
   for (const z of m.zombies) {
@@ -366,35 +307,7 @@ function drawMap(c, m, cam, W, H, now, all) {
     }
     for (const it of ents) drawBadges(c, it, ts, lod);
   }
-  // 11. эффекты
-  const keep = [];
-  for (const f of FX.list) {
-    const p = (now - f.t0) / f.d;
-    if (p >= 1) continue;
-    keep.push(f);
-    if (f.k === 'ring') {
-      c.strokeStyle = `rgba(232,166,43,${(1 - p) * 0.55})`; c.lineWidth = 2;
-      circ(c, (f.x + 0.5 - cam.x) * ts, (f.y + 0.5 - cam.y) * ts, f.r * ts * (0.15 + 0.85 * p)); c.stroke();
-    } else if (f.k === 'tr') {
-      const ax = (f.x0 + 0.5 - cam.x) * ts, ay = (f.y0 + 0.5 - cam.y) * ts, bx = (f.x1 + 0.5 - cam.x) * ts, by = (f.y1 + 0.5 - cam.y) * ts;
-      c.strokeStyle = `rgba(255,226,150,${1 - p})`; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
-      c.fillStyle = `rgba(255,200,90,${1 - p})`; circ(c, ax, ay, ts * 0.25 * (1 - p)); c.fill();
-    } else if (f.k === 'arc') {
-      const x = f.x0 + (f.x1 - f.x0) * p, y = f.y0 + (f.y1 - f.y0) * p - Math.sin(Math.PI * p) * 2;
-      c.fillStyle = '#7fb08a'; circ(c, (x + 0.5 - cam.x) * ts, (y + 0.5 - cam.y) * ts, Math.max(2.5, ts * 0.1)); c.fill();
-    } else if (f.k === 'text') {
-      const fs = clamp(ts * 0.42, 12, 22);
-      c.font = `600 ${fs}px Oswald, "Arial Narrow", sans-serif`;
-      c.textAlign = 'center'; c.textBaseline = 'middle';
-      const X = (f.x + 0.5 - cam.x) * ts, Y = (f.y + 0.1 - cam.y) * ts - p * ts * 0.9;
-      c.globalAlpha = p < 0.7 ? 1 : (1 - p) / 0.3;
-      c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.85)'; c.strokeText(f.s, X, Y);
-      c.fillStyle = f.col; c.fillText(f.s, X, Y);
-      c.globalAlpha = 1;
-    }
-  }
-  FX.list = keep;
+  drawFX(c, cam, ts, now);
 }
 
 function drawTile(c, m, x, y, i, X, Y, w, h, lod) {
@@ -807,4 +720,101 @@ function drawLineup(c, W, H, now) {
     c.beginPath(); c.ellipse(cx + ts * 0.06, fy, ts * 0.3, ts * 0.11, 0, 0, Math.PI * 2); c.fill();
     Spr.draw(c, Spr.look(s, 'h'), frameOf({ id: s.id }, now), dirs[i], cx, fy, ts, 6);
   });
+}
+
+// Разметка на земле: зона эвакуации, доступные клетки, путь, цель
+function drawGroundMarks(c, m, cam, ts, x0, x1, y0, y1, SX, SY) {
+  const seen = i => m.seen[i];
+  // 6. зона эвакуации
+  if (m.evac && m.evac.length) {
+    const set = new Set(m.evac);
+    c.fillStyle = 'rgba(134,168,93,0.16)';
+    c.strokeStyle = 'rgba(160,200,110,0.75)'; c.lineWidth = Math.max(1, ts * 0.05);
+    c.beginPath();
+    for (const i of m.evac) {
+      const x = i % m.w, y = (i / m.w) | 0;
+      if (x < x0 || x > x1 || y < y0 || y > y1 || !seen(i)) continue;
+      const X = SX(x), Y = SY(y), w = SX(x + 1) - X, h = SY(y + 1) - Y;
+      c.fillRect(X, Y, w, h);
+      if (!set.has(i - 1) || x === 0) { c.moveTo(X, Y); c.lineTo(X, Y + h); }
+      if (!set.has(i + 1)) { c.moveTo(X + w, Y); c.lineTo(X + w, Y + h); }
+      if (!set.has(i - m.w)) { c.moveTo(X, Y); c.lineTo(X + w, Y); }
+      if (!set.has(i + m.w)) { c.moveTo(X, Y + h); c.lineTo(X + w, Y + h); }
+    }
+    c.stroke();
+  }
+  const u = curUnit(), rf = TAC.reach, pd = TAC.pend;
+  if (u && rf && rf.uid === u.id && m.phase === 'player' && !TAC.busy && TAC.mode !== 'lure') {
+    c.fillStyle = 'rgba(232,166,43,0.13)';
+    c.strokeStyle = 'rgba(232,166,43,0.75)'; c.lineWidth = Math.max(1, ts * 0.035);
+    c.beginPath();
+    const occ = new Set();
+    for (const o of m.units) if (!o.dead && !o.evac) occ.add(MI(m, o.x, o.y));
+    for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) occ.add(MI(m, z.x, z.y));
+    const ok = j => j >= 0 && j < m.n && (rf.dist[j] >= 0 || !TP[m.tiles[j]].walk || occ.has(j) || !m.seen[j]);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * m.w + x;
+      if (rf.dist[i] <= 0 || !m.seen[i]) continue;
+      const X = SX(x), Y = SY(y), w = SX(x + 1) - X, h = SY(y + 1) - Y;
+      c.fillRect(X, Y, w, h);
+      if (x === 0 || !ok(i - 1)) { c.moveTo(X, Y); c.lineTo(X, Y + h); }
+      if (x === m.w - 1 || !ok(i + 1)) { c.moveTo(X + w, Y); c.lineTo(X + w, Y + h); }
+      if (!ok(i - m.w)) { c.moveTo(X, Y); c.lineTo(X + w, Y); }
+      if (!ok(i + m.w)) { c.moveTo(X, Y + h); c.lineTo(X + w, Y + h); }
+    }
+    c.stroke();
+  }
+  if (u && TAC.mode === 'lure') {
+    c.setLineDash([6, 6]); c.strokeStyle = 'rgba(232,166,43,0.7)'; c.lineWidth = 1.5;
+    circ(c, SX(u.x) + ts / 2, SY(u.y) + ts / 2, LURE_RANGE * ts); c.stroke(); c.setLineDash([]);
+  }
+  if (pd && pd.path && u) {
+    c.fillStyle = '#e8a62b';
+    for (const i of pd.path) { const x = i % m.w, y = (i / m.w) | 0; circ(c, SX(x) + ts / 2, SY(y) + ts / 2, Math.max(2, ts * 0.08)); c.fill(); }
+    const last = pd.path[pd.path.length - 1], lx = last % m.w, ly = (last / m.w) | 0;
+    c.strokeStyle = '#e8a62b'; c.lineWidth = Math.max(1.5, ts * 0.06);
+    circ(c, SX(lx) + ts / 2, SY(ly) + ts / 2, ts * 0.32); c.stroke();
+  }
+  if (pd && pd.tx != null) {
+    const X = SX(pd.tx), Y = SY(pd.ty), s = ts * 0.28;
+    c.strokeStyle = pd.col || '#ff6a50'; c.lineWidth = Math.max(1.5, ts * 0.06);
+    c.beginPath();
+    c.moveTo(X, Y + s); c.lineTo(X, Y); c.lineTo(X + s, Y);
+    c.moveTo(X + ts - s, Y); c.lineTo(X + ts, Y); c.lineTo(X + ts, Y + s);
+    c.moveTo(X + ts, Y + ts - s); c.lineTo(X + ts, Y + ts); c.lineTo(X + ts - s, Y + ts);
+    c.moveTo(X + s, Y + ts); c.lineTo(X, Y + ts); c.lineTo(X, Y + ts - s);
+    c.stroke();
+  }
+}
+
+// Эффекты: кольца шума, трассеры, бутылки, всплывающий текст
+function drawFX(c, cam, ts, now) {
+  const keep = [];
+  for (const f of FX.list) {
+    const p = (now - f.t0) / f.d;
+    if (p >= 1) continue;
+    keep.push(f);
+    if (f.k === 'ring') {
+      c.strokeStyle = `rgba(232,166,43,${(1 - p) * 0.55})`; c.lineWidth = 2;
+      circ(c, (f.x + 0.5 - cam.x) * ts, (f.y + 0.5 - cam.y) * ts, f.r * ts * (0.15 + 0.85 * p)); c.stroke();
+    } else if (f.k === 'tr') {
+      const ax = (f.x0 + 0.5 - cam.x) * ts, ay = (f.y0 + 0.5 - cam.y) * ts, bx = (f.x1 + 0.5 - cam.x) * ts, by = (f.y1 + 0.5 - cam.y) * ts;
+      c.strokeStyle = `rgba(255,226,150,${1 - p})`; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+      c.fillStyle = `rgba(255,200,90,${1 - p})`; circ(c, ax, ay, ts * 0.25 * (1 - p)); c.fill();
+    } else if (f.k === 'arc') {
+      const x = f.x0 + (f.x1 - f.x0) * p, y = f.y0 + (f.y1 - f.y0) * p - Math.sin(Math.PI * p) * 2;
+      c.fillStyle = '#7fb08a'; circ(c, (x + 0.5 - cam.x) * ts, (y + 0.5 - cam.y) * ts, Math.max(2.5, ts * 0.1)); c.fill();
+    } else if (f.k === 'text') {
+      const fs = clamp(ts * 0.42, 12, 22);
+      c.font = `600 ${fs}px Oswald, "Arial Narrow", sans-serif`;
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      const X = (f.x + 0.5 - cam.x) * ts, Y = (f.y + (ts >= 11 ? -0.45 : 0.1) - cam.y) * ts - p * ts * 0.9;
+      c.globalAlpha = p < 0.7 ? 1 : (1 - p) / 0.3;
+      c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.85)'; c.strokeText(f.s, X, Y);
+      c.fillStyle = f.col; c.fillText(f.s, X, Y);
+      c.globalAlpha = 1;
+    }
+  }
+  FX.list = keep;
 }
