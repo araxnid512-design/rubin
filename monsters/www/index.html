@@ -30,6 +30,7 @@
 </div>
 
 <div id="hintbar"></div>
+<div id="placebar"><span id="placeName"></span><button class="big" id="bPlaceNo">Отмена</button><button class="big green" id="bPlaceOk">✔ Поставить</button></div>
 <div id="tip"><span id="tipText"></span><small>нажми, чтобы закрыть</small></div>
 <div id="toast"></div>
 <div id="banner"></div>
@@ -37,7 +38,14 @@
 
 <div id="start">
   <div class="logo">Монстрохор<small>поющие монстрики</small></div>
-  <button class="play">▶ Играть</button>
+  <button class="play" id="bPlay">▶ Играть</button>
+  <div class="saveinfo" id="saveInfo" hidden></div>
+  <button class="newgame" id="bNew" hidden>Начать заново</button>
+  <div class="ask" id="newAsk" hidden>
+    <b>Начать заново?</b>
+    <span>Все монстры, монеты и острова пропадут.</span>
+    <div><button class="danger" id="bNewYes">Да, начать заново</button><button id="bNewNo">Нет</button></div>
+  </div>
   <div class="note">Включи звук: каждый монстр поёт свою партию</div>
   <button class="inst" id="bInstall" hidden>Установить на Android</button>
 </div>

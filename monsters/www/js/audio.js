@@ -15,34 +15,38 @@ const Sound = (() => {
 
   function init() {
     if (ctx) return;
-    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    // 24 кГц вместо 48: вдвое меньше работы для телефона, а всё выше 12 кГц и так срезает мастер-фильтр
+    const AC = window.AudioContext || window.webkitAudioContext;
+    try { ctx = new AC({ latencyHint: 'balanced', sampleRate: 24000 }); } catch (e) { ctx = new AC({ latencyHint: 'balanced' }); }
     graph();
   }
   // общая цепочка: компрессор, мастер, зал, эхо (строится и для живого звука, и для записи песни в файл)
-  const MASTER = 0.84; // запас до перегруза, когда поют все двадцать
+  const MASTER = 0.72; // запас до перегруза, когда поют все двадцать (пик около −0,6 дБ)
   function graph() {
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.2;
+    comp.threshold.value = -18; comp.knee.value = 18; comp.ratio.value = 2.5; comp.attack.value = 0.006; comp.release.value = 0.25;
     master = ctx.createGain(); master.gain.value = on ? MASTER : 0; master.connect(ctx.destination);
-    // мастер: убрать гул ниже 50 Гц, чуть «воздуха» сверху
+    // мастер: убрать гул ниже 45 Гц, добавить тепла внизу, смягчить резкие верха — звук приятнее на телефоне
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 45;
-    const air = ctx.createBiquadFilter(); air.type = 'highshelf'; air.frequency.value = 7000; air.gain.value = 2.5;
-    comp.connect(hp); hp.connect(air); air.connect(master);
+    const warm = ctx.createBiquadFilter(); warm.type = 'peaking'; warm.frequency.value = 220; warm.Q.value = 0.8; warm.gain.value = 1.5;
+    const soft = ctx.createBiquadFilter(); soft.type = 'highshelf'; soft.frequency.value = 5500; soft.gain.value = -2.5;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(12500, ctx.sampleRate * 0.45); lp.Q.value = 0.5;
+    comp.connect(hp); hp.connect(warm); warm.connect(soft); soft.connect(lp); lp.connect(master);
     bus = ctx.createGain(); bus.gain.value = 0.55; bus.connect(comp);
     // хвост зала: свёртка с затухающим шумом
-    const rev = ctx.createConvolver(); rev.buffer = impulse(2.3, 2.8);
+    const rev = ctx.createConvolver(); rev.buffer = impulse(2.6, 3);
     revIn = ctx.createGain(); revIn.gain.value = 1; revIn.connect(rev);
-    const revOut = ctx.createGain(); revOut.gain.value = 0.35; rev.connect(revOut); revOut.connect(comp);
+    const revOut = ctx.createGain(); revOut.gain.value = 0.32; rev.connect(revOut); revOut.connect(comp);
     // эхо на пунктирную восьмую: мягкое, с затуханием высоких
-    const dl = ctx.createDelay(1.5); dl.delayTime.value = STEP * 3; dlyNode = dl; const fb = ctx.createGain(); fb.gain.value = 0.33; const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2600;
+    const dl = ctx.createDelay(1.5); dl.delayTime.value = STEP * 3; dlyNode = dl; const fb = ctx.createGain(); fb.gain.value = 0.28; const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2200;
     dlyIn = ctx.createGain(); dlyIn.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); const dlOut = ctx.createGain(); dlOut.gain.value = 0.5; dlp.connect(dlOut); dlOut.connect(comp);
     noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
   // запись песни целиком без динамика (OfflineAudioContext) — для проверки громкости и для превью
-  async function renderMix(list, sec, song) {
+  async function renderMix(list, sec, song, sr = 44100) {
     const saved = [ctx, master, bus, revIn, dlyIn, noise, dlyNode, SONG]; if (song) useSong(song);
-    ctx = new OfflineAudioContext(2, Math.ceil(44100 * sec), 44100); graph();
+    ctx = new OfflineAudioContext(2, Math.ceil(sr * sec), sr); graph();
     for (const [part, pan] of list) {
       const ch = ctx.createGain(); ch.gain.value = (VOL[part] || 1) / Math.sqrt(list.filter(l => l[0] === part).length);
       const pn = ctx.createStereoPanner(); pn.pan.value = pan; ch.connect(pn); pn.connect(bus);
@@ -55,8 +59,14 @@ const Sound = (() => {
     return buf;
   }
   function impulse(sec, decay) {
-    const n = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, n, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay); }
+    const sr = ctx.sampleRate, n = Math.floor(sr * sec), pre = Math.floor(sr * 0.012), b = ctx.createBuffer(2, n, sr);
+    for (let c = 0; c < 2; c++) {
+      const d = b.getChannelData(c); let y = 0;
+      for (let i = pre; i < n; i++) {
+        const k = (i - pre) / (n - pre), a = 0.85 - 0.75 * k; // фильтр закрывается к концу хвоста
+        y += a * ((Math.random() * 2 - 1) - y); d[i] = y * Math.pow(1 - k, decay) * (1.2 + k);
+      }
+    }
     return b;
   }
   function useSong(id) { const S = SONGS[id]; SONG = id; BPM = S.bpm; STEP = 60 / BPM / 4; STEPS = S.steps; }
@@ -185,24 +195,27 @@ const Sound = (() => {
   // переход в другую гласную к концу ноты (o.to), шёпот и крик (o.breath)
   function voice(out, t, f, dur, vel, o = {}) {
     const v1 = VOWELS[o.vowel || 'a'], v2 = o.to ? VOWELS[o.to] : null, sh = o.shift || 1.12, c = o.cons, att = o.att || 0.04;
-    const src = osc('sawtooth', o.glide ? f * o.glide : f, t), s2 = osc('sawtooth', (o.glide ? f * o.glide : f) * 1.003, t);
-    if (o.glide) { src.frequency.exponentialRampToValueAtTime(f, t + 0.07); s2.frequency.exponentialRampToValueAtTime(f * 1.003, t + 0.07); }
+    // один генератор с вибрато (лёгкий для телефона) и чистый тон под ним для тепла
+    const src = osc('sawtooth', o.glide ? f * o.glide : f, t), body = osc('sine', o.glide ? f * o.glide : f, t);
+    if (o.glide) { src.frequency.exponentialRampToValueAtTime(f, t + 0.07); body.frequency.exponentialRampToValueAtTime(f, t + 0.07); }
     const vb = o.vib === undefined ? 22 : o.vib, vr = o.vibRate || 5.5, vd = Math.min(0.25, dur * 0.4);
-    const l = vib(src, t, vr, vb, vd), l2 = vib(s2, t, vr * 1.02, vb, vd);
-    const mix = gain(0.5); src.connect(mix); s2.connect(mix);
-    const g = gain(), fg = [1, 0.55, 0.2], C = CONS[c];
-    v1.forEach((F, i) => {
-      const b = filt('bandpass', F * sh, (F * sh) / (60 + i * 40));
+    const l = vib(src, t, vr, vb, vd);
+    const mix = gain(0.62); src.connect(mix);
+    const bg0 = gain(0.22); body.connect(bg0);
+    // две главные форманты: голос узнаётся по ним, а звучит мягче и считается легче, чем с третьей
+    const g = gain(), fg = [1, 0.62], C = CONS[c];
+    v1.slice(0, 2).forEach((F, i) => {
+      const b = filt('bandpass', F * sh, (F * sh) / (85 + i * 55));
       if (C) { b.frequency.setValueAtTime(C[i] * sh, t); b.frequency.linearRampToValueAtTime(F * sh, t + 0.06); }
       if (v2) { b.frequency.setValueAtTime(F * sh, t + Math.max(0.07, dur * 0.35)); b.frequency.linearRampToValueAtTime(v2[i] * sh, t + Math.max(0.12, dur)); }
       const bg = gain(fg[i] * 2.4); mix.connect(b); b.connect(bg); bg.connect(g);
     });
     // шёпот/крик: шум, окрашенный теми же формантами
     if (o.breath) { const n = noiseSrc(t, dur + 0.2), ng = gain(o.breath); n.connect(ng); ng.connect(mix); }
-    g.connect(out);
+    bg0.connect(g); g.connect(out);
     const nasal = c === 'm' || c === 'n';
     const stop = env(g, t, nasal ? Math.max(att, 0.07) : att, 0.55 * vel, Math.max(0, dur - att - 0.05), o.rel || 0.12);
-    [src, s2].forEach(x => { x.start(t); x.stop(stop); }); l.stop(stop); l2.stop(stop);
+    [src, body].forEach(x => { x.start(t); x.stop(stop); }); l.stop(stop);
     if (BURST[c]) { const [bf, ba] = BURST[c], n = noiseSrc(t - 0.012, 0.06), bp = filt('bandpass', bf, 1.2), cg = gain(); n.connect(bp); bp.connect(cg); cg.connect(out); env(cg, t - 0.012, 0.002, ba * vel, 0.008, 0.03); }
     if (FRIC[c]) { const [ft, ff, fa] = FRIC[c], n = noiseSrc(t - 0.09, 0.14), fp = filt(ft, ff, ft === 'bandpass' ? 1.4 : 0.7), cg = gain(); n.connect(fp); fp.connect(cg); cg.connect(out); env(cg, t - 0.09, 0.03, fa * vel, 0.04, 0.03); }
   }
@@ -226,7 +239,7 @@ const Sound = (() => {
     kick(out, t, m, dur, vel, x) {
       const o = osc('sine', 150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
       const g = gain(); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.003, 1.1 * vel, 0.02, 0.32));
-      const c = osc('triangle', 900, t); c.frequency.exponentialRampToValueAtTime(120, t + 0.02); const cg = gain(); c.connect(cg); cg.connect(out); c.start(t); c.stop(env(cg, t, 0.001, 0.25 * vel, 0, 0.02));
+      const c = osc('triangle', 900, t); c.frequency.exponentialRampToValueAtTime(120, t + 0.02); const cg = gain(); c.connect(cg); cg.connect(out); c.start(t); c.stop(env(cg, t, 0.001, 0.12 * vel, 0, 0.02));
     },
     // Буля: маримба — тёплая деревянная «капля»
     marimba(out, t, m, dur, vel) {
@@ -250,7 +263,7 @@ const Sound = (() => {
         for (let i = 0; i < 3; i++) { g.gain.setValueAtTime(0.7 * vel, t + i * 0.011); g.gain.exponentialRampToValueAtTime(0.05, t + i * 0.011 + 0.009); }
         g.gain.setValueAtTime(0.5 * vel, t + 0.034); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); return;
       }
-      const n = noiseSrc(t, 0.1), b = filt('highpass', 6500, 0.7), g = gain(); n.connect(b); b.connect(g); g.connect(out); env(g, t, 0.006, 0.3 * vel, 0.01, 0.045);
+      const n = noiseSrc(t, 0.1), b = filt('bandpass', 8000, 0.9), g = gain(); n.connect(b); b.connect(g); g.connect(out); env(g, t, 0.006, 0.26 * vel, 0.01, 0.045);
     },
     // Глубун: басовая линия — пила через фильтр и чистый суб
     bass(out, t, m, dur, vel) {
@@ -301,7 +314,7 @@ const Sound = (() => {
     },
     // Барабас: малый барабан
     snare(out, t, m, dur, vel) {
-      const n = noiseSrc(t, 0.25), hp = filt('highpass', 1200, 0.7), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.55 * vel, 0, 0.16);
+      const n = noiseSrc(t, 0.25), hp = filt('bandpass', 2200, 0.6), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.5 * vel, 0, 0.15);
       const o = osc('triangle', 210, t), og = gain(); o.frequency.exponentialRampToValueAtTime(150, t + 0.06); o.connect(og); og.connect(out); o.start(t); o.stop(env(og, t, 0.002, 0.45 * vel, 0, 0.08));
     },
     // Бубун: басом «дум-ду-дам» по басовой линии
@@ -312,7 +325,7 @@ const Sound = (() => {
         const o = osc('sine', 130, t), g = gain(); o.frequency.exponentialRampToValueAtTime(48, t + 0.1); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.004, 0.95 * vel, 0.02, 0.2));
         const n = noiseSrc(t, 0.05), lp = filt('lowpass', 700, 1), ng = gain(); n.connect(lp); lp.connect(ng); ng.connect(out); env(ng, t, 0.002, 0.3 * vel, 0.005, 0.03); return;
       }
-      if (x === 'ts') { const n = noiseSrc(t, 0.12), hp = filt('highpass', 6500, 0.8), bp = filt('bandpass', 9000, 1.5), g = gain(); n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.003, 0.4 * vel, dur > 0.2 ? 0.06 : 0.01, 0.05); return; }
+      if (x === 'ts') { const n = noiseSrc(t, 0.12), hp = filt('highpass', 6500, 0.8), bp = filt('bandpass', 8000, 1.5), g = gain(); n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.003, 0.3 * vel, dur > 0.2 ? 0.06 : 0.01, 0.05); return; }
       if (x === 'pf') { const n = noiseSrc(t, 0.25), bp = filt('bandpass', 1700, 0.9), g = gain(); n.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.002, 0.75 * vel, 0.02, 0.14);
         const o = osc('triangle', 190, t), og = gain(); o.frequency.exponentialRampToValueAtTime(120, t + 0.05); o.connect(og); og.connect(out); o.start(t); o.stop(env(og, t, 0.002, 0.25 * vel, 0, 0.06)); return; }
       const n = noiseSrc(t, 0.06), bp = filt('bandpass', 3200, 2), g = gain(); n.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.001, 0.35 * vel, 0, 0.03);
@@ -334,7 +347,7 @@ const Sound = (() => {
   const REV = { pad: 0.45, opera: 0.4, lead: 0.35, whistle: 0.35, flute: 0.3, glock: 0.35, kick: 0.08, bass: 0.06, snare: 0.2, shaker: 0.12, soprano: 0.5, yodel: 0.35, chant: 0.3, bassvox: 0.15, beatbox: 0.1, scat: 0.25 };
   const DLY = { flute: 0.2, whistle: 0.24, glock: 0.3, lead: 0.12, marimba: 0.1, pluck: 0.1, opera: 0.1, frog: 0.08, soprano: 0.22, yodel: 0.25, scat: 0.1, chant: 0.12 };
   // событие партии: 'v' — выкрик голосом (свой слог у каждого обычного монстра), иначе — инструмент
-  function play(part, out, t, e, dur, vel) { if (e[3] === 'v') voice(out, t, hz(e[0]), dur, vel * 0.8, VOX[part]); else INSTR[part](out, t, e[0], dur, vel, e[3]); }
+  function play(part, out, t, e, dur, vel) { if (e[3] === 'v') voice(out, t, hz(e[0]), dur, vel * 0.55, VOX[part]); else INSTR[part](out, t, e[0], dur, vel, e[3]); }
   const VOL = { kick: 0.95, marimba: 0.9, flute: 0.64, shaker: 0.7, bass: 0.48, pad: 0.95, tom: 1.0, frog: 1.7, pluck: 1.4, brass: 1.0, lead: 0.95, whistle: 0.8, snare: 1.05, opera: 0.85, bassvox: 0.8, beatbox: 0.75, chant: 1.4, soprano: 1.5, yodel: 1.0, scat: 0.75 };
   // ---------- инструменты монстров других островов
   // «перегруз» для рок-гитары и баса: мягкое ограничение волны
@@ -371,7 +384,7 @@ const Sound = (() => {
     },
     // Перчик: коровий колокольчик и хэт
     cowbell(out, t, m, dur, vel, x) {
-      if (x === 'hat' || x === 'open') { const n = noiseSrc(t, 0.3), hp = filt('highpass', 7500, 0.8), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.28 * vel, x === 'open' ? 0.08 : 0.005, x === 'open' ? 0.12 : 0.035); return; }
+      if (x === 'hat' || x === 'open') { const n = noiseSrc(t, 0.3), hp = filt('bandpass', 8500, 0.9), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.2 * vel, x === 'open' ? 0.08 : 0.005, x === 'open' ? 0.12 : 0.035); return; }
       const bp = filt('bandpass', 820, 1.4), g = gain(); bp.connect(g); g.connect(out);
       const stop = env(g, t, 0.001, 0.5 * vel, 0.01, 0.22); [562, 845].forEach(f => { const o = osc('square', f, t); o.connect(bp); o.start(t); o.stop(stop); });
     },

@@ -49,11 +49,11 @@ const THEMES = {
     glow: 'rgba(220,255,120,A)', decoGlow: 'rgba(255,120,90,A)', far: ['#7ecb6a', '#8fd47a', '#a0dc8c', '#86ce70'], farTree: '#6fb85a', shadow: 'rgba(20,70,30,.1)', vig: '10,30,70',
   },
   lava: {
-    sky: ['#3a1f45', '#b4505a', '#ffb878'], haze: 'rgba(255,170,110,.45)', sea: ['#ffc04a', '#ff6a1a', '#8a1a0a'], wave: 'rgba(255,240,150,.6)', glint: '#fff2a0', cloud: '#b8a4a8', lavaSea: true,
+    cloudShade: 'rgba(110,80,90,.9)', sky: ['#3a1f45', '#b4505a', '#ffb878'], haze: 'rgba(255,170,110,.45)', sea: ['#ffc04a', '#ff6a1a', '#8a1a0a'], wave: 'rgba(255,240,150,.6)', glint: '#fff2a0', cloud: '#b8a4a8', lavaSea: true,
     cliff: ['#5e4c50', '#3e3236', '#221a1e'], cliffLine: '#1a1214', rocks: ['#4a3c40', '#2e2428'], hang: 'drips', hangCol: '#ff7a2a', soil: '#2e2226',
     grass: ['#8e7e76', '#706258', '#54463f'], grassLine: '#2e2420', blades: ['#3e322c', '#9a7a5a'], nBlades: 700, patch: ['rgba(255,140,60,.12)', 'rgba(20,10,10,.16)'],
     flower: 'ember', flowers: ['#ff6a2a', '#ffb02a', '#ff3a1a'], path: ['rgba(40,28,30,.7)', 'rgba(255,120,40,.4)'], stone: ['#4a3e42', '#1e1618'],
-    pond: 'lava', fall: 'lava', tree: 'ember', deco: 'crystalRed', bush: ['#4a6a2a', '#22340e', '#ff3a1a'], flies: 'ember', drift: 'ash', driftCol: ['#9a9090', '#c8b8b0'],
+    pond: 'lava', fall: 'lava', tree: 'ember', sunGlow: 'rgba(255,150,70,.26)', deco: 'crystalRed', bush: ['#4a6a2a', '#22340e', '#ff3a1a'], flies: 'ember', drift: 'ash', driftCol: ['#9a9090', '#c8b8b0'],
     glow: 'rgba(255,150,60,A)', decoGlow: 'rgba(255,80,40,A)', far: ['#5a4448', '#6a5054', '#4e3a3e', '#62484c'], farTree: '#ff6a2a', shadow: 'rgba(40,10,10,.16)', vig: '60,10,10',
   },
   ice: {
@@ -61,7 +61,7 @@ const THEMES = {
     cliff: ['#b4d2ea', '#7fa2c6', '#4a6a92'], cliffLine: '#3a5478', rocks: ['#d0e2f4', '#94b4d4'], hang: 'icicles', hangCol: '#dff2ff', soil: '#8fb0d4',
     grass: ['#ffffff', '#eef6ff', '#d2e4f6'], grassLine: '#8aa8c8', blades: ['#c4d8ee', '#ffffff'], nBlades: 500, patch: ['rgba(255,255,255,.4)', 'rgba(120,160,210,.1)'],
     flower: 'sparkle', flowers: ['#8fd0ff', '#ffffff', '#c8b8ff'], path: ['rgba(170,210,240,.7)', 'rgba(255,255,255,.6)'], stone: ['#c8dcf0', '#5a7a9a'],
-    pond: 'ice', fall: 'ice', tree: 'pine', deco: 'crystalBlue', bush: ['#2f6a5a', '#173a30', '#e8304a'], flies: 'none', drift: 'snow', driftCol: ['#ffffff', '#e8f4ff'],
+    pond: 'ice', fall: 'ice', tree: 'pine', sunGlow: 'rgba(255,250,235,.3)', deco: 'crystalBlue', bush: ['#2f6a5a', '#173a30', '#e8304a'], flies: 'none', drift: 'snow', driftCol: ['#ffffff', '#e8f4ff'],
     glow: 'rgba(160,220,255,A)', decoGlow: 'rgba(120,200,255,A)', far: ['#e8f2fc', '#d8e8f8', '#f4f8ff', '#dcecfa'], farTree: '#2f6a5a', shadow: 'rgba(40,70,120,.08)', vig: '20,40,90',
   },
   sea: {
@@ -69,7 +69,7 @@ const THEMES = {
     cliff: ['#e8c890', '#c8a060', '#8a6a3a'], cliffLine: '#6a4a24', rocks: ['#d8b880', '#a8824a'], hang: 'vines', hangCol: '#3f9a3a', soil: '#c09050',
     grass: ['#fff0b8', '#f6dc94', '#e6c474'], grassLine: '#c8a050', blades: ['#6ac048', '#a6e070'], nBlades: 520, patch: ['rgba(255,255,255,.2)', 'rgba(190,140,60,.12)'],
     flower: 'shell', flowers: ['#ff8a7a', '#ffd0a0', '#ffffff', '#ff6a9a', '#ffb04a'], path: ['rgba(150,100,55,.75)', 'rgba(90,60,30,.5)'], stone: ['#e0c8a0', '#8a6a44'],
-    pond: 'lagoon', fall: 'water', tree: 'palm', deco: 'starfish', bush: ['#2f9a4a', '#145a26', '#e8304a'], flies: 'butterfly', drift: 'petal', driftCol: ['#ff8ac0', '#ffe080'],
+    pond: 'lagoon', fall: 'water', tree: 'palm', sunGlow: 'rgba(255,240,170,.3)', deco: 'starfish', bush: ['#2f9a4a', '#145a26', '#e8304a'], flies: 'butterfly', drift: 'petal', driftCol: ['#ff8ac0', '#ffe080'],
     glow: 'rgba(120,255,220,A)', decoGlow: 'rgba(255,170,120,A)', far: ['#7ed86a', '#f4dc94', '#8fe07a', '#f0d088'], farTree: '#3fa83a', shadow: 'rgba(120,90,20,.1)', vig: '10,50,80',
   },
 };
@@ -114,9 +114,9 @@ function newState() {
     isles: { green: { mons: [{ id: 1, kind: 'bumbo', x: 1090, y: 600, lvl: 1, feed: 0, stored: 0 }, { id: 2, kind: 'fyuti', x: 1310, y: 590, lvl: 1, feed: 0, stored: 0 }], bushes: [{ n: 6 }, { n: 6 }], breed: null, nest: [] } },
     found: { bumbo: 1, fyuti: 1 }, music: true, sfx: true, tips: {}, t: Date.now() };
 }
-function load() {
+function load(json) {
   let s = null;
-  try { s = JSON.parse(localStorage.getItem(SAVE)); } catch (e) {}
+  try { s = JSON.parse(json !== undefined ? json : localStorage.getItem(SAVE)); } catch (e) {}
   if (!(s && s.v === 3)) {
     try { s = JSON.parse(localStorage.getItem(SAVE2)); } catch (e) { s = null; }
     if (!(s && s.v === 2)) { try { s = JSON.parse(localStorage.getItem(SAVE1)); } catch (e) { s = null; } s = s && s.v === 1 ? migrate(s) : null; }
@@ -144,7 +144,33 @@ function migrate(s) {
   return s;
 }
 function fixPositions() { const cur = S.isl; for (const id in S.isles) { S.isl = id; for (const m of S.mons) if (!(m.x > 0) || !canPlace(m.x, m.y, m.id)) { const p = findSpot(m.x || ISL.x, m.y || ISL.y, m.id); if (p) [m.x, m.y] = p; } } S.isl = cur; }
-function save() { S.t = Date.now(); try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
+function save() { S.t = Date.now(); try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} cloudSave(false); }
+// есть ли что продолжать: прогресс сверх самого начала
+const hasProgress = s => !!s && (s.lvl > 1 || s.xp > 0 || Object.keys(s.isles).length > 1 || Object.values(s.isles).some(I => I.mons.length !== 2) || Math.floor(s.coins) !== 250);
+// онлайн-версия: сохранение ещё и в облаке (у каждого игрока своё), чтобы прогресс не терялся
+let cloud = null, cloudJson = '', cloudT = 0, cloudBusy = false;
+function cloudSave(force) {
+  if (!cloud || cloudBusy) return; const now = Date.now(); if (!force && now - cloudT < 20000) return;
+  const json = JSON.stringify(S); if (json === cloudJson) return;
+  cloudT = now; cloudBusy = true;
+  cloud.set({ json, t: S.t }).then(() => { cloudJson = json; }, () => {}).finally(() => { cloudBusy = false; });
+}
+async function cloudInit() {
+  try {
+    if (location.protocol === 'file:' || !window.claude || !window.claude.use) return;
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); if (!db || !user) return;
+    const uid = await user.id(); if (!uid) return;
+    const ref = db.doc('data/users/' + uid + '/save');
+    const snap = await Promise.race([ref.get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]);
+    const d = snap.exists ? snap.data() : null;
+    if (d && typeof d.json === 'string') {
+      cloudJson = d.json;
+      // в облаке свежее, чем здесь (другое устройство или очищенный браузер) — берём его, пока игра не началась
+      if (!started && (d.t || 0) > (S.t || 0) + 1000) { const s2 = load(d.json); if (s2 && s2.isles) { S = s2; try { localStorage.setItem(SAVE, d.json); } catch (e) {} TH = THEMES[S.isl]; applyTheme(); fixPositions(); hud(); menu(); } }
+    }
+    cloud = ref; if (started) cloudSave(true);
+  } catch (e) {}
+}
 // пока игры не было: монеты копятся до предела, кусты растят ягоды (не больше 12 часов)
 function offline() {
   const dt = clamp((Date.now() - (S.t || Date.now())) / 1000, 0, 12 * 3600); if (dt < 5) return 0;
@@ -213,7 +239,7 @@ function buildBg() {
 }
 // остров — один раз в собственный холст в координатах мира (рисуется камерой с масштабом)
 function buildIsland() {
-  const res = clamp(DPR * zDef() * 1.3, 0.7, 1.5);
+  const res = clamp(DPR * zDef() * 1.75, 0.8, 1.9);
   if (islC && Math.abs(res - islRes) < 0.05 && islTheme === TH) return;
   islRes = res; islTheme = TH; islC = document.createElement('canvas'); islC.width = Math.round(BX.w * res); islC.height = Math.round(BX.h * res);
   const x = islC.getContext('2d'); x.setTransform(res, 0, 0, res, -BX.x * res, -BX.y * res);
@@ -259,10 +285,22 @@ function drawIsland(x) {
   x.fillStyle = TH.soil; islandPath(x, 26, 0.997); x.fill();
   const grass = x.createLinearGradient(0, ISL.y - ISL.ry, 0, ISL.y + ISL.ry); grass.addColorStop(0, TH.grass[0]); grass.addColorStop(0.5, TH.grass[1]); grass.addColorStop(1, TH.grass[2]);
   x.fillStyle = grass; x.strokeStyle = TH.grassLine; x.lineWidth = 5; islandPath(x); x.fill(); x.stroke();
+  x.save(); x.beginPath(); x.rect(L - 20, ISL.y - ISL.ry - 20, Rr - L + 40, ISL.ry * 0.9); x.clip(); x.strokeStyle = 'rgba(255,255,240,.45)'; x.lineWidth = 3; islandPath(x, 4, 0.994); x.stroke(); x.restore();
   x.fillStyle = TH.grass[2];
   for (let px = L + 30; px < Rr - 30; px += 14) { const py = islandEdge(px) - 2; x.beginPath(); x.moveTo(px - 8, py); x.lineTo(px, py + rnd(10, 24)); x.lineTo(px + 8, py); x.fill(); }
   x.save(); islandPath(x); x.clip();
   for (let i = 0; i < 90; i++) { const px = rnd(L + 60, Rr - 60), py = rnd(ISL.y - ISL.ry + 20, ISL.y + ISL.ry - 10); x.fillStyle = R() < 0.5 ? TH.patch[0] : TH.patch[1]; x.beginPath(); x.ellipse(px, py, rnd(50, 150), rnd(16, 36), 0, 0, Math.PI * 2); x.fill(); }
+  const depth = x.createLinearGradient(0, ISL.y - ISL.ry, 0, ISL.y + ISL.ry); depth.addColorStop(0, 'rgba(255,255,235,.16)'); depth.addColorStop(0.55, 'rgba(255,255,235,0)'); depth.addColorStop(1, 'rgba(0,30,10,.14)');
+  x.fillStyle = depth; x.fillRect(L, ISL.y - ISL.ry, Rr - L, ISL.ry * 2);
+  const sun = x.createRadialGradient(ISL.x + 650, ISL.y - 260, 40, ISL.x + 650, ISL.y - 260, 1100); sun.addColorStop(0, TH.sunGlow || 'rgba(255,246,190,.28)'); sun.addColorStop(1, 'rgba(255,246,190,0)');
+  x.fillStyle = sun; x.fillRect(L, ISL.y - ISL.ry, Rr - L, ISL.ry * 2);
+  // кустики травы и полянки цветов — не ровной россыпью, а островками
+  if (TH.flower !== 'sparkle') for (let i = 0; i < 280; i++) {
+    const px = rnd(L + 40, Rr - 40), py = rnd(ISL.y - ISL.ry + 6, ISL.y + ISL.ry); if (!onTop(px, py, 6)) continue;
+    const n = 4 + (R() * 4 | 0), h = rnd(9, 17) * (0.75 + 0.5 * (py - ISL.y + ISL.ry) / (2 * ISL.ry));
+    for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + (k - (n - 1) / 2) * 0.32 + rnd(-0.1, 0.1); x.strokeStyle = k % 2 ? TH.blades[0] : TH.blades[1]; x.lineWidth = 2.6; x.lineCap = 'round'; x.beginPath(); x.moveTo(px + (k - n / 2) * 1.5, py); x.quadraticCurveTo(px + Math.cos(a) * h * 0.5, py + Math.sin(a) * h * 0.6, px + Math.cos(a) * h, py + Math.sin(a) * h); x.stroke(); }
+  }
+  else for (let i = 0; i < 160; i++) { const px = rnd(L + 40, Rr - 40), py = rnd(ISL.y - ISL.ry + 6, ISL.y + ISL.ry); if (!onTop(px, py, 6)) continue; x.fillStyle = 'rgba(255,255,255,.85)'; x.beginPath(); x.ellipse(px, py, rnd(10, 26), rnd(4, 8), 0, Math.PI, 0); x.fill(); x.fillStyle = 'rgba(150,185,225,.35)'; x.beginPath(); x.ellipse(px, py + 1, rnd(10, 22), 2.5, 0, 0, Math.PI); x.fill(); }
   // тропинка к арке
   x.strokeStyle = TH.path[0]; x.lineWidth = 30; x.lineCap = 'round'; x.beginPath(); x.moveTo(1880, 800); x.quadraticCurveTo(1990, 690, 2060, 530); x.stroke();
   x.strokeStyle = TH.path[1]; x.lineWidth = 2; x.setLineDash([6, 10]); x.beginPath(); x.moveTo(1880, 800); x.quadraticCurveTo(1990, 690, 2060, 530); x.stroke(); x.setLineDash([]);
@@ -272,9 +310,9 @@ function drawIsland(x) {
     const px = rnd(L + 30, Rr - 30), py = rnd(ISL.y - ISL.ry, ISL.y + ISL.ry); if (!onTop(px, py)) continue;
     x.strokeStyle = R() < 0.5 ? TH.blades[0] : TH.blades[1]; x.lineWidth = 2; x.beginPath(); x.moveTo(px, py); x.lineTo(px + rnd(-3, 3), py - rnd(5, 11)); x.stroke();
   }
-  const FL = TH.flowers;
-  for (let i = 0; i < 230; i++) {
-    const px = rnd(L + 40, Rr - 40), py = rnd(ISL.y - ISL.ry + 10, ISL.y + ISL.ry); if (!onTop(px, py, 8)) continue;
+  const FL = TH.flowers, beds = Array.from({ length: 26 }, () => [rnd(L + 120, Rr - 120), rnd(ISL.y - ISL.ry + 40, ISL.y + ISL.ry - 30)]);
+  for (let i = 0; i < 330; i++) {
+    const bed = i % 3 ? beds[i % beds.length] : null, px = bed ? bed[0] + rnd(-46, 46) : rnd(L + 40, Rr - 40), py = bed ? bed[1] + rnd(-16, 16) : rnd(ISL.y - ISL.ry + 10, ISL.y + ISL.ry); if (!onTop(px, py, 8)) continue;
     const col = FL[i % FL.length];
     if (TH.flower === 'flower') { x.fillStyle = col; for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; x.beginPath(); x.arc(px + Math.cos(a) * 3, py + Math.sin(a) * 2, 2.4, 0, Math.PI * 2); x.fill(); } x.fillStyle = '#ffb02a'; x.beginPath(); x.arc(px, py, 1.6, 0, Math.PI * 2); x.fill(); }
     else if (TH.flower === 'ember') { x.fillStyle = '#2a2024'; x.beginPath(); x.ellipse(px, py, 5, 3, 0, 0, Math.PI * 2); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(px, py - 0.5, 2.2, 0, Math.PI * 2); x.fill(); }
@@ -337,8 +375,10 @@ const rt = new Map(); // id монстра → живое состояние д�
 const SKS = () => H / 412;
 function drawCloud(c) {
   const k = SKS() * c.s, cx = c.x - (cam.x - ISL.x) * cam.z * 0.08, cy = c.y * H;
-  g.globalAlpha = c.a; g.fillStyle = TH.cloud;
-  g.beginPath(); for (const [dx, dy, r] of [[0, 0, 22], [21, -8, 18], [40, 1, 19], [18, 7, 19], [-19, 4, 15]]) { g.moveTo(cx + dx * k + r * k, cy + dy * k); g.arc(cx + dx * k, cy + dy * k, r * k, 0, Math.PI * 2); } g.fill();
+  const P = [[0, 0, 22], [21, -8, 18], [40, 1, 19], [18, 7, 19], [-19, 4, 15]], blob = (oy, sc) => { g.beginPath(); for (const [dx, dy, r] of P) { g.moveTo(cx + dx * k + r * k * sc, cy + (dy + oy) * k); g.arc(cx + dx * k, cy + (dy + oy) * k, r * k * sc, 0, Math.PI * 2); } g.fill(); };
+  g.globalAlpha = c.a; g.fillStyle = TH.cloudShade || 'rgba(176,200,232,.9)'; blob(5, 1);
+  g.fillStyle = TH.cloud; blob(0, 0.96);
+  g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.ellipse(cx + 12 * k, cy - 12 * k, 14 * k, 6 * k, -0.2, 0, Math.PI * 2); g.fill();
   g.globalAlpha = 1;
 }
 function drawSea() {
@@ -569,7 +609,8 @@ function dust(x, y, k = 1) {
 function drawMon(m) {
   const r = stateOf(m), sz = monSize(m);
   // поднятый пальцем: подсвеченный круг — можно ли сюда поставить
-  if (drag && drag.m === m) { g.strokeStyle = drag.ok ? 'rgba(120,255,140,.95)' : 'rgba(255,90,90,.95)'; g.fillStyle = drag.ok ? 'rgba(120,255,140,.2)' : 'rgba(255,90,90,.2)'; g.lineWidth = 4; g.beginPath(); g.ellipse(m.x, m.y, 50, 16, 0, 0, Math.PI * 2); g.fill(); g.stroke(); }
+  const dg = drag && drag.m === m ? drag : place && place.m === m ? place : null;
+  if (dg) { g.strokeStyle = dg.ok ? 'rgba(120,255,140,.95)' : 'rgba(255,90,90,.95)'; g.fillStyle = dg.ok ? 'rgba(120,255,140,.2)' : 'rgba(255,90,90,.2)'; g.lineWidth = 4; g.beginPath(); g.ellipse(m.x, m.y, 50, 16, 0, 0, Math.PI * 2); g.fill(); g.stroke(); }
   drawMonster(g, m.kind, m.x, m.y, sz, { t: T, sing: r.sing, blink: r.blink, look: r.look, lookY: r.lookY, phase: r.phase, sq: r.sp, jump: r.jy + (r.lift ? 26 : 0), bob: r.bob, tilt: r.tilt,
     beat: BEAT, bpb: BPB, dance: r.lift ? 0 : r.dance, hit: r.hit, turn: r.turn, vowel: r.vowel });
   if (m.mute) { const mx = m.x + sz * 0.32, my = m.y - sz * 0.9; g.fillStyle = 'rgba(40,40,60,.75)'; g.beginPath(); g.arc(mx, my, 13, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(mx - 6, my - 6); g.lineTo(mx + 6, my + 6); g.stroke(); }
@@ -794,6 +835,7 @@ function frame(now) {
   quality(dt);
   // камера: плавный перелёт (вступление) и подкрутка к краю, пока тащим монстра
   if (camGoal) { const k = 1 - Math.exp(-dt * 2.5); cam.x = lerp(cam.x, camGoal.x, k); cam.y = lerp(cam.y, camGoal.y, k); cam.z = lerp(cam.z, camGoal.z, k); clampCam(); if (Math.abs(cam.z - camGoal.z) < 0.002) camGoal = null; }
+  if (place && place.dragging && place.sx !== undefined) { const e = Math.max(40, W * 0.08), v = 520 / cam.z * dt; if (place.sx < e) cam.x -= v; else if (place.sx > W - e) cam.x += v; clampCam(); const [wx, wy] = toWorld(place.sx, place.sy); movePlace(wx + place.gx, wy + place.gy); }
   if (drag && drag.sx !== undefined) { const e = Math.max(40, W * 0.08), v = 520 / cam.z * dt; if (drag.sx < e) cam.x -= v; else if (drag.sx > W - e) cam.x += v; clampCam(); moveDrag(drag.sx, drag.sy); }
   for (const c of clouds) { c.x += c.v * SKS() * dt; if (c.x > W + 260) { c.x = -200; c.y = rand(0.04, 0.4); } }
   groove(dt);
@@ -819,7 +861,8 @@ function frame(now) {
   // за краем экрана монстров не рисуем
   const vl = viewL() - 90, vr = viewR() + 90, vt = cam.y - H / 2 / cam.z - 20, vb = cam.y + H / 2 / cam.z + 220;
   const vis = S.mons.filter(m => (m.x > vl && m.x < vr && m.y > vt && m.y < vb) || (drag && drag.m === m));
-  for (const m of vis) ents.push({ y: m.y + (drag && drag.m === m ? 1000 : 0), d: () => drawMon(m) });
+  for (const m of vis) ents.push({ y: m.y + ((drag && drag.m === m) || (place && place.m === m) ? 1000 : 0), d: () => drawMon(m) });
+  if (place && place.mode !== 'move') ents.push({ y: place.m.y + 1000, d: drawPlace });
   ents.sort((a, b) => a.y - b.y).forEach(e => e.d());
   if (NIGHT < 0.7) drawFlies();
   drawNightSky(); drawNightGlow();
@@ -879,9 +922,9 @@ function harvest(i, quiet) {
   if (!quiet) { Sound.sfx('pop'); floatText(x, y - 60, '+' + n, '#ff8a9a'); }
 }
 const full = () => S.mons.length >= maxMons();
-// новый монстр: падает в свободное место рядом с центром экрана
-function addMon(kind) {
-  const p = findSpot(cam.x, clamp(cam.y + 60, ISL.y - 140, ISL.y + 170)); if (!p) return null;
+// новый монстр: падает в указанное место (или в свободное рядом с центром экрана)
+function addMon(kind, at) {
+  const p = at || findSpot(cam.x, clamp(cam.y + 60, ISL.y - 140, ISL.y + 170)); if (!p) return null;
   const m = { id: S.nid++, kind, x: p[0], y: p[1], lvl: 1, feed: 0, stored: 0 }; S.mons.push(m);
   const fresh = !S.found[kind]; S.found[kind] = 1; if (fresh) addXP(25);
   Sound.add(m.id, KINDS[kind].part, panOf(m)); Sound.sfx('hatch');
@@ -893,10 +936,50 @@ function buy(kind) {
   if (S.lvl < (K.need || 1)) { Sound.sfx('deny'); toast(`Откроется на ${K.need} уровне острова`); return; }
   if (S.coins < K.price) { Sound.sfx('deny'); toast('Не хватает монет — собери их у монстров'); return; }
   if (full()) { Sound.sfx('deny'); toast(`Остров полон (${S.mons.length} из ${maxMons()}): подними уровень острова или продай монстра`); return; }
-  closeSheet();
-  const m = addMon(kind); if (!m) { Sound.sfx('deny'); toast('Не нашлось свободного места — передвинь монстров'); return; }
-  S.coins -= K.price; addXP(8); hud(); save();
-  toast(`${K.name} поёт в хоре! Зажми монстра, чтобы перетащить`);
+  startPlace({ kind, mode: 'buy' });
+}
+// ---------- расстановка: монстр-призрак, его можно тащить или нажать на место; «Поставить» — здесь
+let place = null;
+function startPlace(o) {
+  closeSheet(); sel = null; if (drag) dropDrag(true);
+  let x, y;
+  if (o.mode === 'move') { x = o.m.x; y = o.m.y; } else { const p = findSpot(cam.x, clamp(cam.y + 40, ISL.y - 140, ISL.y + 170)) || [cam.x, clamp(cam.y, ISL.y - 150, ISL.y + 180)]; [x, y] = p; }
+  const m = o.mode === 'move' ? o.m : { id: -1, kind: o.kind, x, y, lvl: 1, feed: 0, stored: 0 };
+  place = { ...o, m, ox: x, oy: y, ok: canPlace(x, y, m.id), dragging: false };
+  if (o.mode === 'move') stateOf(m).lift = 1;
+  document.body.classList.add('placing'); $('placeName').textContent = KINDS[m.kind].name;
+  hint('Нажми на свободное место или перетащи монстра — и «Поставить»');
+  Sound.sfx('pop'); placeCheck();
+}
+function placeCheck() { $('bPlaceOk').classList.toggle('off', !place.ok); }
+function movePlace(wx, wy) { place.m.x = wx; place.m.y = wy; place.ok = canPlace(wx, wy, place.m.id); placeCheck(); }
+function endPlace() { place = null; document.body.classList.remove('placing'); hint(''); }
+function placeOk() {
+  const P = place; if (!P) return;
+  if (!P.ok) { Sound.sfx('deny'); toast('Сюда нельзя: занято или край острова. Выбери другое место'); return; }
+  if (P.mode === 'move') { endPlace(); const r = stateOf(P.m); r.lift = 0; r.jy = 26; r.jv = 0; r.turn = 0.001; Sound.setPan(P.m.id, panOf(P.m)); Sound.sfx('pop'); save(); return; }
+  const K = KINDS[P.kind];
+  if (full()) { Sound.sfx('deny'); toast(`Остров полон (${S.mons.length} из ${maxMons()})`); return; }
+  if (P.mode === 'buy' && S.coins < K.price) { Sound.sfx('deny'); endPlace(); toast('Не хватает монет — собери их у монстров'); return; }
+  endPlace();
+  if (P.mode === 'buy') { S.coins -= K.price; addXP(8); }
+  if (P.mode === 'nest') { const i = S.nest.indexOf(P.kind); if (i >= 0) S.nest.splice(i, 1); }
+  const m = addMon(P.kind, [P.m.x, P.m.y]); stateOf(m).turn = 0.001;
+  hud(); save(); toast(`${K.name} поёт в хоре!`);
+}
+function placeCancel() {
+  const P = place; if (!P) return; endPlace();
+  if (P.mode === 'move') { P.m.x = P.ox; P.m.y = P.oy; stateOf(P.m).lift = 0; }
+  else if (P.mode === 'nest') toast('Малыш ждёт в гнезде');
+}
+function drawPlace() {
+  const m = place.m; if (place.mode === 'move') return;
+  const r = stateOf(m), sz = monSize(m), ok = place.ok;
+  g.strokeStyle = ok ? 'rgba(120,255,140,.95)' : 'rgba(255,90,90,.95)'; g.fillStyle = ok ? 'rgba(120,255,140,.22)' : 'rgba(255,90,90,.22)'; g.lineWidth = 4;
+  g.setLineDash([10, 8]); g.lineDashOffset = -T * 30; g.beginPath(); g.ellipse(m.x, m.y, 54, 17, 0, 0, Math.PI * 2); g.fill(); g.stroke(); g.setLineDash([]);
+  g.globalAlpha = 0.9;
+  drawMonster(g, m.kind, m.x, m.y, sz, { t: T, sing: 0.25 + 0.25 * Math.sin(T * 3), blink: r.blink, look: Math.sin(T * 0.8) * 0.6, lookY: 0, phase: 0, sq: 0, jump: 22 + Math.sin(T * 4) * 6, bob: 0, tilt: Math.sin(T * 2.2) * 0.06, beat: BEAT, bpb: BPB, dance: 0, hit: 0, turn: 0 });
+  g.globalAlpha = 1;
 }
 function feed(m) {
   if (m.lvl >= MAX_LVL) { toast('Монстр уже самый большой'); return; }
@@ -953,6 +1036,7 @@ function finishHatch() {
   confetti(ARCH.x, ARCH.y - 50, 60); burst(ARCH.x, ARCH.y - 40, '#fff8c0', 20);
   const fresh = !S.found[b.kind]; S.found[b.kind] = 1; if (fresh) addXP(KINDS[b.kind].el.length > 1 ? 40 : 25);
   Sound.sfx('hatch'); burst(ARCH.x, ARCH.y - 40, KINDS[b.kind].col, 30);
+  S.nest.push(b.kind); // пока не поставили — ждёт в гнезде (не пропадёт, если закрыть игру)
   showNew(b.kind, fresh);
   save();
 }
@@ -989,7 +1073,14 @@ cv.addEventListener('pointerdown', e => {
     return;
   }
   if (ptrs.size > 2) return;
-  const [wx, wy] = toWorld(e.clientX, e.clientY), m = hitMon(wx, wy);
+  const [wx, wy] = toWorld(e.clientX, e.clientY);
+  if (place) {
+    const pm = place.m, sz = monSize(pm);
+    if (Math.abs(wx - pm.x) < sz * 0.55 && wy > pm.y - sz * 1.25 && wy < pm.y + 24) { gest = { type: 'pdrag', id: e.pointerId }; place.dragging = true; place.gx = pm.x - wx; place.gy = pm.y - wy; place.sx = e.clientX; place.sy = e.clientY; return; }
+    gest = { type: 'tap', id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, cx: cam.x, cy: cam.y, mon: null };
+    return;
+  }
+  const m = hitMon(wx, wy);
   gest = { type: 'tap', id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, cx: cam.x, cy: cam.y, mon: m };
   if (m) gest.hold = setTimeout(() => { if (gest && gest.type === 'tap' && gest.mon === m) startDrag(m); }, 300);
 });
@@ -1004,6 +1095,7 @@ cv.addEventListener('pointermove', e => {
   if (e.pointerId !== gest.id) return;
   gest.lx = e.clientX; gest.ly = e.clientY;
   if (gest.type === 'drag') { moveDrag(e.clientX, e.clientY); return; }
+  if (gest.type === 'pdrag') { place.sx = e.clientX; place.sy = e.clientY; const [wx, wy] = toWorld(e.clientX, e.clientY); movePlace(wx + place.gx, wy + place.gy); return; }
   if (gest.type === 'tap' && Math.hypot(e.clientX - gest.sx, e.clientY - gest.sy) > 10) { cancelHold(); gest.type = 'pan'; }
   if (gest.type === 'pan') { cam.x = gest.cx - (e.clientX - gest.sx) / cam.z; cam.y = gest.cy - (e.clientY - gest.sy) / cam.z; clampCam(); }
 });
@@ -1012,8 +1104,10 @@ function pointerUp(e) {
   if (gest.type === 'pinch') { if (!ptrs.size) gest = null; return; }
   if (e.pointerId !== gest.id) return;
   cancelHold();
-  if (gest.type === 'tap') onTap(e.clientX, e.clientY);
+  if (gest.type === 'tap' && place) { const [wx, wy] = toWorld(e.clientX, e.clientY); movePlace(wx, wy + 20); Sound.sfx('tap'); }
+  else if (gest.type === 'tap') onTap(e.clientX, e.clientY);
   else if (gest.type === 'drag') dropDrag(e.type === 'pointercancel');
+  else if (gest.type === 'pdrag' && place) place.dragging = false;
   gest = null;
 }
 cv.addEventListener('pointerup', pointerUp); cv.addEventListener('pointercancel', pointerUp);
@@ -1036,8 +1130,9 @@ function onTap(sx, sy) {
 const sheet = $('sheet');
 let sheetKind = null;
 // малыш из Арки, которого не поставили на остров, уходит в гнездо
-function dropNew() { if (sheetKind === 'new' && sheet.dataset.kind) { S.nest.push(sheet.dataset.kind); sheet.dataset.kind = ''; save(); } }
+function dropNew() { if (sheetKind === 'new') sheet.dataset.kind = ''; } // малыш уже в гнезде (кладётся туда при вылуплении)
 function openSheet(kind, html, cls = '') {
+  if (place) placeCancel();
   dropNew(); $('toast').classList.remove('show'); sheetKind = kind; sheet.className = 'sheet show ' + cls; sheet.innerHTML = `<button class="x" data-a="close">✕</button>${html}`;
 }
 function closeSheet() { dropNew(); sheet.className = 'sheet'; sheetKind = null; }
@@ -1197,7 +1292,7 @@ sheet.addEventListener('click', e => {
   if (a === 'close') { closeSheet(); sel = null; }
   else if (a === 'feed' && m) feed(m);
   else if (a === 'mute' && m) toggleMute(m);
-  else if (a === 'move' && m) { closeSheet(); sel = null; toast('Зажми монстра пальцем на полсекунды и перетащи, куда хочешь'); }
+  else if (a === 'move' && m) startPlace({ mode: 'move', m });
   else if (a === 'sell' && m) sell(m);
   else if (a === 'listen') { e.preventDefault(); Sound.preview(KINDS[b.dataset.k].part); }
   else if (a === 'buy') { if (e.target.closest('.play')) { Sound.preview(KINDS[b.dataset.k].part); return; } buy(b.dataset.k); }
@@ -1210,9 +1305,9 @@ sheet.addEventListener('click', e => {
   else if (a === 'breed') { const ids = sheet.dataset.pick.split(',').map(Number); if (ids.length === 2) startBreed(ids[0], ids[1]); }
   else if (a === 'nestplace') {
     if (full()) { Sound.sfx('deny'); toast(`Остров полон (${S.mons.length} из ${maxMons()})`); return; }
-    const i = +b.dataset.i, k = S.nest[i]; closeSheet(); if (addMon(k)) S.nest.splice(i, 1); else toast('Не нашлось свободного места — передвинь монстров'); save();
+    const k = S.nest[+b.dataset.i]; startPlace({ kind: k, mode: 'nest' });
   }
-  else if (a === 'newplace') { const k = sheet.dataset.kind; sheet.dataset.kind = ''; closeSheet(); if (!addMon(k)) { S.nest.push(k); save(); toast('Не нашлось места — малыш ждёт в гнезде'); } else toast(`${KINDS[k].name} поёт в хоре! Зажми монстра, чтобы перетащить`); }
+  else if (a === 'newplace') { const k = sheet.dataset.kind; sheet.dataset.kind = ''; if (full()) { Sound.sfx('deny'); toast(`Остров полон (${S.mons.length} из ${maxMons()}) — малыш ждёт в гнезде`); closeSheet(); return; } startPlace({ kind: k, mode: 'nest' }); }
   else if (a === 'newnest') { closeSheet(); toast('Малыш ждёт в гнезде'); }
   else if (a === 'yes') { const cb = confirmCb; confirmCb = null; closeSheet(); if (cb) cb(); }
   else if (a === 'isle') {
@@ -1270,7 +1365,23 @@ function startGame() {
   const got = offline(); if (got > 0) setTimeout(() => toast(`Пока тебя не было, монстры напели ${got} монет — собери их!`), 600);
   hud();
 }
-$('start').addEventListener('click', e => { if (!e.target.closest('#bInstall')) startGame(); });
+// меню: «Продолжить» с итогом прогресса или «Играть»; «Начать заново» — с подтверждением
+function menu() {
+  const go = hasProgress(S), n = Object.values(S.isles).reduce((a, I) => a + I.mons.length, 0), k = Object.keys(S.isles).length;
+  $('bPlay').textContent = go ? '▶ Продолжить' : '▶ Играть';
+  $('saveInfo').hidden = !go; $('bNew').hidden = !go;
+  if (go) $('saveInfo').textContent = `Уровень ${S.lvl} · ${Math.floor(S.coins).toLocaleString('ru-RU')} монет · монстров: ${n} · ${k === 1 ? '1 остров' : k + (k < 5 ? ' острова' : ' островов')}`;
+}
+$('bPlay').addEventListener('click', () => startGame());
+$('bPlaceOk').addEventListener('click', () => { Sound.sfx('tap'); placeOk(); });
+$('bPlaceNo').addEventListener('click', () => { Sound.sfx('tap'); placeCancel(); });
+$('bNew').addEventListener('click', () => { $('newAsk').hidden = false; });
+$('bNewNo').addEventListener('click', () => { $('newAsk').hidden = true; });
+$('bNewYes').addEventListener('click', () => {
+  for (const k of [SAVE, SAVE2, SAVE1]) try { localStorage.removeItem(k); } catch (e) {}
+  S = bindIsle(newState()); rt.clear(); parts.length = 0; TH = THEMES[S.isl]; applyTheme(); fixPositions();
+  $('newAsk').hidden = true; menu(); save(); cloudSave(true); startGame();
+});
 // онлайн-версия (не установленная игра): подсказка, как поставить APK через Chrome
 if (location.protocol !== 'file:') {
   $('bInstall').hidden = false;
@@ -1287,6 +1398,7 @@ window.appPause = () => { if (S) save(); Sound.suspend(); };
 window.appResume = () => Sound.resume();
 // кнопка «Назад» в Android: закрыть окно или подсказку; false — свернуть игру
 window.appBack = () => {
+  if (place) { placeCancel(); return true; }
   if (sheetKind) { closeSheet(); sel = null; return true; }
   if ($('tip').classList.contains('show')) { $('tip').classList.remove('show'); return true; }
   return false;
@@ -1298,4 +1410,6 @@ TH = THEMES[S.isl];
 fixPositions();
 resize();
 hud();
+menu();
+cloudInit();
 requestAnimationFrame(frame);

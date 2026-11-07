@@ -142,3 +142,19 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .card em.here { background: #3aa6ff; border-color: #1f6fb8; }
 .card em.gray { background: #b8b0a4; border-color: #8a8070; }
 .rb.hot { animation: hot 1s ease-in-out infinite; background: rgba(255, 140, 40, .8); }
+#start .saveinfo { color: #fff; font-size: 15px; margin-top: -6px; padding: 5px 16px; border-radius: 999px; background: rgba(28, 48, 96, .62); }
+#start .newgame { padding: 8px 18px; border-radius: 999px; color: #fff; background: rgba(28, 48, 96, .55); border: 2px solid rgba(255, 255, 255, .75); font-size: 14px; }
+#start .ask { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 18px; border-radius: 18px; background: #fff8e8; border: 3px solid #5a3a1a; color: #3a2a1a; box-shadow: 0 6px 0 rgba(0, 0, 0, .2); }
+#start .ask[hidden] { display: none; }
+#start .ask span { font-weight: 700; font-size: 14px; color: #7a5a3a; }
+#start .ask div { display: flex; gap: 10px; }
+#start .ask button { padding: 9px 16px; border-radius: 12px; border: 2px solid #5a3a1a; background: #fff; font-size: 15px; }
+#start .ask .danger { background: linear-gradient(#ff8a7a, #d8483a); color: #fff; border-color: #8a2a1a; }
+#placebar { position: fixed; left: 0; right: 0; bottom: 0; display: none; align-items: center; justify-content: center; gap: 14px; padding: 10px max(14px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); z-index: 6; pointer-events: none; }
+#placebar > * { pointer-events: auto; }
+#placebar #placeName { padding: 8px 14px; border-radius: 999px; background: rgba(28, 48, 96, .75); color: #fff; font-size: 15px; }
+#placebar .big { height: 52px; padding: 0 22px; font-size: 18px; }
+#placebar #bPlaceNo { background: linear-gradient(#ffb0a0, #e86a5a); }
+#placebar #bPlaceOk.off { filter: grayscale(.8); opacity: .7; }
+body.placing #placebar { display: flex; }
+body.placing #hud .bottom { visibility: hidden; }
