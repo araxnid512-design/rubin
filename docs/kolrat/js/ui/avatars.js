@@ -390,5 +390,194 @@
     return A.npc(A.EVENT_PORTRAIT[eventId] || 'general', size);
   };
 
+  // ---------- места: маленькие сценки в круге ----------
+  const RING = { base: '#e8b866', wild: '#c9b48c', town: '#6fb3e0', hostile: '#e2574c' };
+  function placeWrap(sky, ring, body) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+      '<defs><clipPath id="c"><circle cx="32" cy="32" r="30"/></clipPath>' +
+      '<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + sky[0] + '"/><stop offset="1" stop-color="' + sky[1] + '"/></linearGradient>' +
+      '<linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2b874"/><stop offset="1" stop-color="#a8743e"/></linearGradient></defs>' +
+      '<g clip-path="url(#c)"><rect width="64" height="64" fill="url(#s)"/>' + body + '</g>' +
+      '<circle cx="32" cy="32" r="30" fill="none" stroke="#0d0e10" stroke-width="4"/>' +
+      '<circle cx="32" cy="32" r="30" fill="none" stroke="' + ring + '" stroke-width="2.4"/></svg>';
+  }
+  const DAY = ['#f2c27a', '#f7dfae'], DUSK = ['#3a2440', '#d9764a'], NIGHT = ['#141826', '#3a3550'], HAZE = ['#d8c3a0', '#f3e6cc'];
+  const suns = (x, y) => '<circle cx="' + x + '" cy="' + y + '" r="4.2" fill="#fff4cf"/><circle cx="' + (x + 8) + '" cy="' + (y + 3) + '" r="2.8" fill="#ffd79a"/>';
+  const sand = (y, col) => '<path d="M0 ' + y + ' Q16 ' + (y - 4) + ' 32 ' + y + ' T64 ' + y + ' V64 H0 Z" fill="' + (col || 'url(#d)') + '"/>';
+  const PLACES = {
+    crash: () => suns(10, 12) + sand(44) +
+      '<path d="M6 46 L14 34 L38 30 L40 24 L46 24 L48 31 L58 36 L54 44 L46 40 L44 47 Z" fill="#6d6862" stroke="#2a2724" stroke-width="1"/>' +
+      '<path d="M14 36 L38 32" stroke="#9a948c" stroke-width="1"/><circle cx="50" cy="38" r="2" fill="#ff8a3a"/>' +
+      '<circle cx="47" cy="20" r="4" fill="#5a524c" opacity="0.7"/><circle cx="51" cy="13" r="5" fill="#5a524c" opacity="0.5"/><circle cx="55" cy="6" r="6" fill="#5a524c" opacity="0.3"/>',
+    dunes: () => suns(42, 14) + sand(38, '#e7bf7c') + sand(46, '#cf9a5a') + sand(54, '#b07a42') +
+      '<path d="M10 37 Q18 33 26 37" stroke="#fff1cf" stroke-width="1" fill="none"/>',
+    ridge: () => suns(12, 12) + sand(50) +
+      '<path d="M4 52 L12 30 L18 40 L24 22 L32 44 L38 28 L46 46 L52 32 L60 52 Z" fill="#8a6a4c" stroke="#4a3626" stroke-width="1"/>' +
+      '<path d="M24 22 L28 34 L24 44 M38 28 L41 38" stroke="#5a4232" stroke-width="1" fill="none"/>',
+    farm: () => suns(12, 12) + sand(46) +
+      '<path d="M20 46 Q28 34 38 46 Z" fill="#d9cbb0" stroke="#7a6a50"/><rect x="42" y="16" width="5" height="30" fill="#b9b2a4" stroke="#55504a"/>' +
+      '<rect x="39" y="20" width="11" height="2.5" fill="#8a847a"/><rect x="39" y="28" width="11" height="2.5" fill="#8a847a"/><rect x="40" y="36" width="9" height="2.5" fill="#8a847a"/>' +
+      '<circle cx="44.5" cy="15" r="2" fill="#ffd34d"/><rect x="25" y="40" width="5" height="6" fill="#3a3024"/>',
+    jundland: () => suns(48, 12) + sand(50) +
+      '<path d="M2 50 V30 L8 28 L16 29 L18 50 Z M22 50 V22 L30 20 L38 22 L40 50 Z M44 50 V34 L52 33 L60 35 V50 Z" fill="#9a6e48" stroke="#4a3626"/>' +
+      '<path d="M22 22 H40 M2 30 H18 M44 34 H60" stroke="#c99a6a" stroke-width="1.4"/>',
+    canyon: () => suns(30, 10) + sand(54) +
+      '<path d="M0 64 V12 L10 10 L18 20 L22 40 L26 64 Z" fill="#8a5e3c" stroke="#3e2a1c"/><path d="M64 64 V8 L54 12 L46 24 L42 44 L38 64 Z" fill="#7a5234" stroke="#3e2a1c"/>' +
+      '<path d="M26 64 Q32 50 38 64" fill="#d9a868"/><path d="M8 24 L14 30 M54 20 L50 30" stroke="#5a3c26" stroke-width="1"/>',
+    graveyard: () => suns(10, 12) + sand(48) +
+      '<path d="M8 50 Q10 26 22 18 M18 50 Q20 28 30 20 M28 50 Q30 30 40 22 M38 50 Q40 32 50 26" stroke="#8a847a" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<path d="M4 50 L60 44" stroke="#6d6862" stroke-width="3"/><circle cx="52" cy="46" r="3" fill="#5a5550"/>',
+    anchorhead: () => suns(46, 12) + sand(48) +
+      '<path d="M6 48 Q14 34 22 48 Z M24 48 Q34 30 44 48 Z M44 48 Q51 38 58 48 Z" fill="#e6d8bc" stroke="#7a6a50"/>' +
+      '<rect x="31" y="20" width="4" height="16" fill="#cfc2a6" stroke="#7a6a50"/><circle cx="33" cy="19" r="3" fill="#cfc2a6" stroke="#7a6a50"/>' +
+      '<rect x="12" y="43" width="3" height="5" fill="#3a3024"/><rect x="32" y="42" width="4" height="6" fill="#3a3024"/>',
+    mos_espa: () => suns(10, 10) + sand(50) +
+      '<path d="M2 50 Q8 38 14 50 Z M12 50 Q22 30 32 50 Z M30 50 Q38 36 46 50 Z M44 50 Q54 32 64 50 Z" fill="#e9dcc0" stroke="#7a6a50"/>' +
+      '<path d="M36 34 L38 10 L40 34 Z" fill="#d6c7a6" stroke="#7a6a50"/><rect x="20" y="40" width="4" height="10" fill="#3a3024"/>' +
+      '<path d="M48 18 L60 16 M50 22 L58 21" stroke="#5a6a7a" stroke-width="1.2"/><rect x="52" y="17" width="4" height="2" fill="#4a5a6a"/>',
+    tusken_camp: () => suns(46, 10) + sand(50) +
+      '<path d="M6 50 L16 30 L26 50 Z M24 50 L34 34 L44 50 Z" fill="#b89a6e" stroke="#5a4630"/><path d="M16 30 V50 M34 34 V50" stroke="#5a4630" stroke-width="0.8"/>' +
+      '<path d="M50 50 V18" stroke="#4a3626" stroke-width="2"/><path d="M50 18 L60 21 L56 24 L60 28 L50 26 Z" fill="#9c2f24"/>' +
+      '<circle cx="50" cy="16" r="2" fill="#e8dcc0"/>',
+    bandit_den: () => suns(10, 12) + sand(50) +
+      '<path d="M14 50 V30 L28 24 L50 28 V50 Z" fill="#6d5a4a" stroke="#2a1e16"/><path d="M14 30 L28 24 L50 28" stroke="#9a8270" stroke-width="1.4" fill="none"/>' +
+      '<rect x="28" y="38" width="8" height="12" fill="#1e1612"/><path d="M52 50 V14" stroke="#3a2a20" stroke-width="2"/>' +
+      '<path d="M52 14 L62 18 L52 22 Z" fill="#c0392b"/><path d="M18 34 H24 M40 34 H46" stroke="#ffb23d" stroke-width="2"/>',
+    krayt_lair: () => '<rect width="64" height="64" fill="#2a2018"/>' + sand(50, '#8a6a44') +
+      '<path d="M8 50 Q32 6 56 50 Z" fill="#14100c"/>' +
+      '<path d="M10 52 Q14 40 20 36 M20 54 Q22 42 28 38 M44 54 Q42 42 36 38 M54 52 Q50 40 44 36" stroke="#e8dcc0" stroke-width="2.6" fill="none" stroke-linecap="round"/>' +
+      '<ellipse cx="26" cy="32" rx="2.4" ry="1.4" fill="#ffd34d"/><ellipse cx="38" cy="32" rx="2.4" ry="1.4" fill="#ffd34d"/>',
+    hutt_palace: () => ['<rect width="64" height="64" fill="url(#s)"/>', suns(8, 10), sand(52)].join('') +
+      '<path d="M4 52 V30 H14 V24 H18 V30 H46 V24 H50 V30 H60 V52 Z" fill="#b3a07e" stroke="#5a4a32"/>' +
+      '<path d="M22 30 Q32 6 42 30 Z" fill="#c9b690" stroke="#5a4a32"/><rect x="28" y="40" width="8" height="12" rx="4" fill="#2a2018"/>' +
+      '<path d="M32 12 V6" stroke="#5a4a32" stroke-width="1.4"/><path d="M32 6 L39 8 L32 10 Z" fill="#7a54b0"/>',
+    junkyard: () => suns(46, 10) + sand(50) +
+      '<path d="M4 50 L12 36 L20 40 L26 32 L34 50 Z" fill="#7a6a58" stroke="#3a2e22"/><path d="M30 50 L40 38 L50 42 L58 50 Z" fill="#6a5e50" stroke="#3a2e22"/>' +
+      '<path d="M44 38 V12 L58 16" stroke="#c48a3a" stroke-width="2.4" fill="none"/><path d="M58 16 V24" stroke="#3a2e22" stroke-width="1"/><rect x="55" y="24" width="6" height="4" fill="#5a4e40"/>' +
+      '<circle cx="16" cy="44" r="3" fill="none" stroke="#a89880" stroke-width="1.4"/>',
+    outpost: () => DUSKBG() + sand(50, '#9a7048') +
+      '<rect x="12" y="32" width="30" height="18" fill="#a9aeb4" stroke="#33363b"/><rect x="12" y="30" width="30" height="4" fill="#b03028"/>' +
+      '<rect x="18" y="38" width="6" height="5" fill="#1a1c20"/><rect x="30" y="38" width="6" height="5" fill="#1a1c20"/>' +
+      '<path d="M48 50 V14 M44 18 H52 M45 24 H51" stroke="#55504a" stroke-width="1.6"/><circle cx="48" cy="12" r="1.8" fill="#ff5a4a"/>' +
+      '<path d="M40 34 L46 30" stroke="#33363b" stroke-width="1"/>',
+    oasis: () => suns(46, 10) + sand(44, '#d9b072') +
+      '<ellipse cx="30" cy="50" rx="22" ry="7" fill="#2f7a86"/><ellipse cx="30" cy="49" rx="16" ry="4" fill="#4aa0aa"/><path d="M18 49 Q24 47 30 49" stroke="#c8f0f4" stroke-width="1" fill="none"/>' +
+      '<path d="M14 46 Q15 30 16 22" stroke="#6b5236" stroke-width="2" fill="none"/>' +
+      '<path d="M16 22 Q8 20 4 26 M16 22 Q12 14 6 14 M16 22 Q22 14 28 16 M16 22 Q24 20 26 28" stroke="#4e7a3a" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<path d="M48 46 L50 40 L52 46 M54 46 L55 42 L56 46" stroke="#5a8a44" stroke-width="1.4" fill="none"/>',
+    saltflat: () => '<rect width="64" height="64" fill="url(#s)"/>' + suns(48, 10) +
+      '<rect x="0" y="36" width="64" height="28" fill="#eef0ee"/><path d="M0 36 H64" stroke="#c8ccd0" stroke-width="1"/>' +
+      '<path d="M4 44 L14 48 L10 56 M14 48 L26 46 L30 54 M26 46 L36 50 L46 46 L56 52 M36 50 L34 60" stroke="#b8bec4" stroke-width="0.9" fill="none"/>' +
+      '<path d="M40 44 L42 32 L44 44 Z M46 44 L47 36 L49 44 Z M18 42 L19 34 L21 42 Z" fill="#ffffff" stroke="#8a96a4" stroke-width="0.8"/>',
+    freighter: () => suns(10, 12) + sand(48) +
+      '<path d="M8 48 L12 30 L48 26 L58 34 L54 46 Z" fill="#8a7a62" stroke="#3a3024"/><path d="M12 30 L48 26 L50 32 L14 36 Z" fill="#a8977a"/>' +
+      '<rect x="18" y="38" width="8" height="6" fill="#c48a3a" stroke="#3a3024"/><rect x="28" y="37" width="8" height="6" fill="#5a7a8a" stroke="#3a3024"/><rect x="38" y="36" width="7" height="6" fill="#9c2f24" stroke="#3a3024"/>' +
+      '<path d="M50 34 L56 38" stroke="#2a2018" stroke-width="2"/><circle cx="53" cy="20" r="3" fill="#5a524c" opacity="0.5"/>',
+    windcaves: () => DUSKBG() + sand(56, '#9a6a40') +
+      '<path d="M0 60 V14 Q20 4 40 12 Q56 8 64 16 V60 Z" fill="#7a5234" stroke="#3e2a1c"/>' +
+      '<path d="M10 48 Q16 32 22 48 Z M30 52 Q38 30 46 52 Z M50 44 Q54 36 58 44 Z" fill="#140e0a"/>' +
+      '<path d="M4 26 Q16 22 28 26 M34 22 Q46 18 60 22" stroke="#f3dcb4" stroke-width="1" fill="none" opacity="0.7"/>',
+    rebel_post: () => suns(46, 10) + sand(50) +
+      '<path d="M4 50 L14 30 L26 50 Z M28 50 L40 26 L54 50 Z" fill="#8a6a4c" stroke="#4a3626"/>' +
+      '<path d="M18 50 L30 38 L42 50" fill="#5f6a3e" stroke="#2f3420"/><path d="M22 46 L30 40 L38 46" stroke="#7a8a50" stroke-width="1" fill="none"/>' +
+      '<path d="M40 26 V12 M36 16 H44" stroke="#55504a" stroke-width="1.4"/><circle cx="40" cy="11" r="1.6" fill="#ffd34d"/>',
+  };
+  function DUSKBG() { return '<rect width="64" height="64" fill="#2a1e2c"/><rect width="64" height="64" fill="url(#s)"/><circle cx="14" cy="40" r="5" fill="#ffb27a" opacity="0.9"/>'; }
+  const PLACE_SKY = { crash: DUSK, outpost: DUSK, windcaves: DUSK, krayt_lair: NIGHT, saltflat: HAZE, hutt_palace: DAY };
+  A.placeSvg = function (id) {
+    const c = G.CONFIG.regions[id];
+    const fn = PLACES[id] || PLACES.dunes;
+    return placeWrap(PLACE_SKY[id] || DAY, RING[(c && c.kind) || 'wild'], fn());
+  };
+  A.placeUrl = function (id) {
+    const svg = A.placeSvg(id);
+    let url = cache.get(svg);
+    if (!url) { url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); cache.set(svg, url); }
+    return url;
+  };
+  A.place = function (id, size, cls) {
+    const T = G.TEXT.regions[id];
+    return toImg(A.placeSvg(id), size || 48, 'ava-place ' + (cls || ''), T ? T.name : '');
+  };
+
+  // ---------- фракции и торговцы ----------
+  A.FACTION_NPC = { farmers: 'farmer', jawa: 'jawa', hutt: 'rodian', scavengers: 'scavenger', guild: 'hunter', deserters: 'deserter', tusken: 'tusken', rebels: 'rebel' };
+  A.TRADER_NPC = { anchorhead: 'farmer', mos_espa: 'rodian', jawa: 'jawa', junkyard: 'scavenger', hutt: 'rodian', smugglers: 'smuggler' };
+  A.faction = (f, size, cls) => A.npc(A.FACTION_NPC[f] || 'general', size || 40, cls);
+  A.trader = (partner, size, cls) => A.npc(A.TRADER_NPC[partner] || 'smuggler', size || 72, cls);
+
+  // ---------- противники и бойцы: та же фигурка, что в бою, в рамке ----------
+  const figCache = new Map();
+  A.figureUrl = function (type, side) {
+    const key = type + ':' + side;
+    if (figCache.has(key)) return figCache.get(key);
+    if (!G.Sprites || typeof document === 'undefined') return '';
+    const N = 128;
+    const cv = document.createElement('canvas');
+    cv.width = N; cv.height = N;
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(N * 0.5, N * 0.38, N * 0.05, N * 0.5, N * 0.5, N * 0.62);
+    if (side === 1) { g.addColorStop(0, '#5a3a30'); g.addColorStop(1, '#1a1210'); } else { g.addColorStop(0, '#34485e'); g.addColorStop(1, '#10161e'); }
+    c.save();
+    c.beginPath(); c.arc(N / 2, N / 2, N / 2 - 3, 0, Math.PI * 2); c.clip();
+    c.fillStyle = g; c.fillRect(0, 0, N, N);
+    c.fillStyle = side === 1 ? 'rgba(200,140,90,0.25)' : 'rgba(120,170,220,0.2)';
+    c.fillRect(0, N * 0.8, N, N * 0.2);
+    const hgt = G.Sprites.height(type);
+    const wide = type === 'krayt' ? 2.6 : type === 'walker' ? 1.4 : 1;
+    // портрет по пояс: люди крупно, большие звери и машины — целиком
+    const whole = wide > 1 || type === 'turret';
+    const cell = whole ? Math.min(N * 0.7 / hgt, N * 0.62 / wide) : N * 0.98 / hgt;
+    G.Sprites.draw(c, type, N * (type === 'krayt' ? 0.55 : 0.47), whole ? N * 0.86 : N * 1.1, cell, { t: 0.4, facing: 1, aim: -0.05, recoil: 0, melee: 0, hit: 0, dead: 0, side: side, rank: 0, seed: 7 });
+    c.restore();
+    c.lineWidth = 4; c.strokeStyle = side === 1 ? '#e2574c' : '#6fb3e0';
+    c.beginPath(); c.arc(N / 2, N / 2, N / 2 - 3, 0, Math.PI * 2); c.stroke();
+    let url = '';
+    try { url = cv.toDataURL('image/png'); } catch (e) { url = ''; }
+    figCache.set(key, url);
+    return url;
+  };
+  A.enemy = function (type, size, cls, title) {
+    const url = A.figureUrl(type, 1);
+    return h('img', { class: 'ava ava-fig ' + (cls || ''), src: url, width: size || 40, height: size || 40, alt: title || '', title: title || '', draggable: 'false' });
+  };
+  A.figure = function (type, size, cls, title) {
+    const url = A.figureUrl(type, 0);
+    return h('img', { class: 'ava ava-fig ' + (cls || ''), src: url, width: size || 40, height: size || 40, alt: title || '', title: title || '', draggable: 'false' });
+  };
+
+  // ---------- медали ----------
+  const MEDAL_TIER = { 1: ['#e0a26a', '#8a5426', '#c0392b'], 2: ['#e8ecf0', '#8a96a4', '#3d6fb6'], 3: ['#ffe08a', '#b8862a', '#7a54b0'] };
+  const ICONS = {
+    star: '<path d="M32 22 L35 30 L43 30 L37 35 L39 43 L32 38 L25 43 L27 35 L21 30 L29 30 Z"/>',
+    shield: '<path d="M32 22 L42 26 V33 Q42 41 32 45 Q22 41 22 33 V26 Z"/>',
+    bolt: '<path d="M35 21 L25 35 H31 L28 45 L39 30 H33 Z"/>',
+    cross: '<path d="M30 22 H34 V30 H42 V34 H34 V42 H30 V34 H22 V30 H30 Z"/><circle cx="32" cy="32" r="9" fill="none" stroke-width="2"/>',
+    fang: '<path d="M24 24 Q32 46 40 24 Q36 30 32 30 Q28 30 24 24 Z"/>',
+    flag: '<path d="M25 44 V21 M25 22 L41 26 L25 31 Z" stroke-width="2.4"/>',
+    crown: '<path d="M22 40 L23 26 L28 32 L32 23 L36 32 L41 26 L42 40 Z"/>',
+    eye: '<path d="M21 33 Q32 22 43 33 Q32 44 21 33 Z"/><circle cx="32" cy="33" r="3.6" fill="#1a1a1a"/>',
+    drop: '<path d="M32 21 Q41 33 40 37 Q39 44 32 44 Q25 44 24 37 Q23 33 32 21 Z"/>',
+    gear: '<circle cx="32" cy="33" r="7"/><path d="M30 21 H34 V26 H30 Z M30 40 H34 V45 H30 Z M20 31 H25 V35 H20 Z M39 31 H44 V35 H39 Z"/><circle cx="32" cy="33" r="2.6" fill="#1a1a1a"/>',
+    coin: '<circle cx="32" cy="33" r="9"/><path d="M29 29 H35 M29 33 H35 M29 37 H35" stroke="#1a1a1a" stroke-width="1.6"/>',
+    hand: '<path d="M21 36 L27 30 L33 32 L38 28 L43 33 L36 40 L28 40 Z"/>',
+    chevron: '<path d="M22 30 L32 24 L42 30 V34 L32 28 L22 34 Z M22 38 L32 32 L42 38 V42 L32 36 L22 42 Z"/>',
+    sun: '<circle cx="32" cy="33" r="6"/><path d="M32 21 V24 M32 42 V45 M20 33 H23 M41 33 H44 M24 25 L26 27 M38 39 L40 41 M40 25 L38 27 M24 41 L26 39" stroke-width="2"/>',
+  };
+  A.medalSvg = function (m, earned) {
+    const [face, edge, ribbon] = earned ? MEDAL_TIER[m.tier] : ['#4a4d52', '#2a2c30', '#33363b'];
+    const ink = earned ? '#2a1e10' : '#6a6d72';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+      '<defs><radialGradient id="m" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity="' + (earned ? 0.55 : 0.1) + '"/><stop offset="0.5" stop-color="' + face + '"/><stop offset="1" stop-color="' + edge + '"/></radialGradient></defs>' +
+      '<path d="M20 2 H30 L34 16 L26 18 Z" fill="' + ribbon + '"/><path d="M44 2 H34 L30 16 L38 18 Z" fill="' + ribbon + '" opacity="0.8"/>' +
+      '<path d="M24 2 H26 L30 16 H28 Z M38 2 H40 L36 16 H34 Z" fill="#fff" opacity="' + (earned ? 0.35 : 0.08) + '"/>' +
+      '<circle cx="32" cy="34" r="17" fill="url(#m)" stroke="' + edge + '" stroke-width="2"/>' +
+      '<circle cx="32" cy="34" r="13.5" fill="none" stroke="' + edge + '" stroke-width="0.8" stroke-dasharray="1.6 1.4"/>' +
+      '<g fill="' + ink + '" stroke="' + ink + '" stroke-width="0.6" stroke-linejoin="round">' + (ICONS[m.icon] || ICONS.star) + '</g></svg>';
+  };
+  A.medal = function (m, earned, size, cls) {
+    return toImg(A.medalSvg(m, earned), size || 48, 'ava-medal ' + (earned ? '' : 'locked ') + (cls || ''), '');
+  };
+
   G.Avatar = A;
 })(globalThis.G = globalThis.G || {});

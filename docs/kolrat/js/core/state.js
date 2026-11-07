@@ -107,7 +107,8 @@
       speechStreak: 0,
       salvaged: 0,
       droidsOffline: false,
-      stats: { kills: 0, deaths: 0, battles: 0, victories: 0, defeats: 0, waterFound: 0, scrapFound: 0, deserted: 0, raids: 0 },
+      stats: { kills: 0, deaths: 0, battles: 0, victories: 0, defeats: 0, waterFound: 0, scrapFound: 0, deserted: 0, raids: 0, flawless: 0, trades: 0, bestStreak: 0, streak: 0 },
+      seen: {},
       over: null,
       phase: 'orders',
     };

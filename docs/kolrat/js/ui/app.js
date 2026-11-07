@@ -23,6 +23,7 @@
 
   // Сохранить и перерисовать
   UI.commit = function () {
+    if (UI.s && UI.checkMedals) UI.checkMedals(UI.s);
     if (UI.s) G.Save.write('auto', UI.s);
     UI.render();
   };

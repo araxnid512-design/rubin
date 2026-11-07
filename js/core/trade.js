@@ -65,6 +65,8 @@
 
   Trade.close = function (s) {
     const p = s.pending;
+    for (const k in p.bought) if (p.bought[k]) { s.stats.trades = (s.stats.trades || 0) + 1; break; }
+    if (!Object.keys(p.bought).some((k) => p.bought[k])) for (const k in p.sold) if (p.sold[k]) { s.stats.trades = (s.stats.trades || 0) + 1; break; }
     const parts = [];
     const name = (k) => (isRes(k) ? G.TEXT.res[k].name.toLowerCase() : G.TEXT.items[k].name.toLowerCase());
     for (const k in p.bought) if (p.bought[k]) parts.push('куплено: ' + name(k) + ' ×' + p.bought[k]);

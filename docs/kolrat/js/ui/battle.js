@@ -9,7 +9,7 @@
   const TAU = Math.PI * 2;
 
   const BOLT = { 0: '#ff4d3d', tusken: '#f3e9c9', tusken_camp: '#f3e9c9', jawa: '#7cc0ff', krayt: '#ffd27a', default: '#8dff7a' };
-  const TERRAIN = { 0: '#b38f58', 1: '#c4a067', 2: '#5e4a36', 3: '#6d737b', 4: '#8b8e93' };
+  const TERRAIN = { 0: '#b38f58', 1: '#c4a067', 2: '#5e4a36', 3: '#6d737b', 4: '#8b8e93', 5: '#2f6f7a' };
   const METAL = new Set(['droid', 'walker', 'turret', 'scav_droid', 'assassin_droid']);
   const ORDER_ICON = { focus: '⌖', hold: '⛨', smoke: '☁', rush: '➤', grenade: '✸', medkit: '✚', retreat: '↩' };
   const FX_BANNER = { nade: 'Термодетонатор!', cry: 'Боевой клич!', roar: 'Рёв дракона!', retreat: 'Отход!' };
@@ -40,12 +40,14 @@
   }
 
   // Местность: песок, дюны, скалы, обломки, баррикады. Свет падает слева сверху.
-  function drawTerrain(c, cells, W, H, cell) {
+  function drawTerrain(c, cells, W, H, cell, type) {
     const PW = W * cell, PH = H * cell;
+    const salt = type === 'salt';
     const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? -1 : cells[y * W + x]);
-    // песок: тёплый градиент, пятна, рябь
+    // песок: тёплый градиент, пятна, рябь (на соляной равнине — белая корка)
     const g = c.createLinearGradient(0, 0, PW, PH);
-    g.addColorStop(0, '#c49a5e'); g.addColorStop(0.5, '#b38f58'); g.addColorStop(1, '#a07e4b');
+    if (salt) { g.addColorStop(0, '#ece6da'); g.addColorStop(0.5, '#ddd4c2'); g.addColorStop(1, '#c9bea8'); }
+    else { g.addColorStop(0, '#c49a5e'); g.addColorStop(0.5, '#b38f58'); g.addColorStop(1, '#a07e4b'); }
     c.fillStyle = g; c.fillRect(0, 0, PW, PH);
     for (let k = 0; k < 26; k++) {
       const x = hr(k * 3) * PW, y = hr(k * 3 + 1) * PH, r = cell * (1.5 + hr(k * 3 + 2) * 3.5);
@@ -77,14 +79,33 @@
     c.fillStyle = 'rgba(40,26,12,0.32)';
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = cells[y * W + x];
-      if (v < 2) continue;
+      if (v < 2 || v === 5) continue;
       const px = x * cell, py = y * cell, o = cell * (v === 4 ? 0.18 : 0.3);
       roundRect(c, px + o, py + o, cell - 1, cell - 1, cell * 0.3); c.fill();
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = cells[y * W + x];
       const px = x * cell, py = y * cell;
-      if (v === 2) { // скала: объём, трещины, блик сверху слева
+      if (v === 5) { // вода: глубина к центру, блики, светлый край
+        const wg = c.createRadialGradient(px + cell * 0.5, py + cell * 0.5, 0, px + cell * 0.5, py + cell * 0.5, cell * 0.8);
+        wg.addColorStop(0, '#1f5560'); wg.addColorStop(1, '#3f8a8f');
+        c.fillStyle = wg; c.fillRect(px, py, cell, cell);
+        c.strokeStyle = 'rgba(220,250,255,0.35)'; c.lineWidth = Math.max(1, cell * 0.04);
+        c.beginPath(); c.moveTo(px + cell * 0.2, py + cell * (0.3 + hr(x + y * 9) * 0.4)); c.quadraticCurveTo(px + cell * 0.5, py + cell * 0.25, px + cell * 0.8, py + cell * 0.45); c.stroke();
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+          if (at(x + dx, y + dy) === 5 || at(x + dx, y + dy) < 0) continue;
+          c.fillStyle = 'rgba(210,190,140,0.55)';
+          c.fillRect(px + (dx > 0 ? cell * 0.88 : 0), py + (dy > 0 ? cell * 0.88 : 0), dx ? cell * 0.12 : cell, dy ? cell * 0.12 : cell);
+          c.fillStyle = 'rgba(70,110,60,0.6)'; // трава у воды
+          for (let k = 0; k < 3; k++) c.fillRect(px + cell * (0.15 + k * 0.3) + (dx ? (dx > 0 ? cell * 0.3 : -cell * 0.3) : 0), py + (dy > 0 ? cell : dy < 0 ? -cell * 0.15 : cell * 0.4), cell * 0.04, cell * 0.15);
+        }
+      } else if (v === 2 && salt) { // соляные кристаллы
+        c.fillStyle = 'rgba(255,255,255,0.9)'; c.strokeStyle = 'rgba(120,130,150,0.7)'; c.lineWidth = 1;
+        for (let k = 0; k < 3; k++) {
+          const bx = px + cell * (0.25 + k * 0.25), h = cell * (0.4 + hr(x * 3 + y + k) * 0.45);
+          c.beginPath(); c.moveTo(bx - cell * 0.1, py + cell * 0.9); c.lineTo(bx, py + cell * 0.9 - h); c.lineTo(bx + cell * 0.1, py + cell * 0.9); c.closePath(); c.fill(); c.stroke();
+        }
+      } else if (v === 2) { // скала: объём, трещины, блик сверху слева
         const rg = c.createRadialGradient(px + cell * 0.32, py + cell * 0.28, cell * 0.05, px + cell * 0.5, py + cell * 0.5, cell * 0.75);
         rg.addColorStop(0, '#8a7258'); rg.addColorStop(0.55, '#6a5440'); rg.addColorStop(1, '#45362a');
         c.fillStyle = rg;
@@ -284,7 +305,7 @@
     function drawTerrainLayer() {
       const tc = terrainCanvas.getContext('2d');
       tc.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawTerrain(tc, B.cells0, W, H, cellPx);
+      drawTerrain(tc, B.cells0, W, H, cellPx, B.map.type);
     }
     function resize() {
       const vh = globalThis.innerHeight || 800;
@@ -1120,7 +1141,18 @@
     if (!p.ctx.intel) return 'Силы противника неизвестны — разведка не проводилась.';
     const counts = {};
     for (const e of p.enemies) counts[e.type] = (counts[e.type] || 0) + 1;
-    return Object.keys(counts).map((t) => G.TEXT.battleUnits[t] ? U.pl(counts[t], G.TEXT.battleUnits[t]) : t + ' ×' + counts[t]).join(', ');
+    const name = (t) => G.TEXT.battleUnits[t] ? U.pl(counts[t], G.TEXT.battleUnits[t]) : t + ' ×' + counts[t];
+    return h('div', null,
+      h('div', { class: 'intel-row' }, Object.keys(counts).map((t) =>
+        h('div', { class: 'intel-chip', title: name(t) }, G.Avatar.enemy(t, 38), h('b', null, '×' + counts[t])))),
+      h('div', { class: 'small muted' }, Object.keys(counts).map(name).join(', ')));
+  }
+  // Лица отряда: первые бойцы стопкой
+  function squadFaces(s, p) {
+    const units = p.unitIds.map((id) => G.Units.byId(s, id)).filter(Boolean);
+    const shown = units.slice(0, 9);
+    return h('div', { class: 'face-stack' }, shown.map((u) => G.Avatar.img(u, 34)),
+      units.length > shown.length ? h('span', { class: 'more' }, '+' + (units.length - shown.length)) : null);
   }
 
   function ourForces(s, p) {
@@ -1159,7 +1191,7 @@
     c.style.width = B.W * cell + 'px'; c.style.height = B.H * cell + 'px';
     const x = c.getContext('2d');
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawTerrain(x, B.cells0, B.W, B.H, cell);
+    drawTerrain(x, B.cells0, B.W, B.H, cell, B.map.type);
     for (const b of B.props) drawBarrel(x, (b.x + 0.5) * cell, (b.y + 0.55) * cell, cell * 1.3);
     if (!p.ctx.intel) {
       x.fillStyle = 'rgba(226,87,76,0.18)';
@@ -1192,7 +1224,7 @@
       h('div', { class: 'prep-top' },
         previewCanvas(s, p),
         h('div', { class: 'kv' },
-          h('span', { class: 'k' }, 'Наши силы'), h('span', null, ourForces(s, p)),
+          h('span', { class: 'k' }, 'Наши силы'), h('div', null, squadFaces(s, p), h('div', { class: 'small' }, ourForces(s, p))),
           h('span', { class: 'k' }, 'Противник'), h('span', null, enemyIntel(s, p)))),
       p.ctx.surprise ? h('p', { class: 'warn small' }, B.surpriseHint) : null);
 
@@ -1263,7 +1295,7 @@
 
   // Вид кэшируется, чтобы бой не начинался заново при перерисовке интерфейса
   UI._bv = null;
-  const viewKey = (s, id) => 'b' + id + ':' + s.seed;
+  const viewKey = (s, id) => 'b' + id + ':' + s.seed + ':' + ((s.pending && s.pending.setup && s.pending.setup.seed) || 0);
   function getView(key, setup, opts) {
     if (UI._bv && UI._bv.key === key) return UI._bv.view;
     if (UI._bv) UI._bv.view.destroy();

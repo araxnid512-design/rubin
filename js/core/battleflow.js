@@ -290,8 +290,18 @@
     }
     s.stats.kills += kills;
     s.stats.battles++;
-    if (won) { s.stats.victories++; G.Res.discipline(s, G.CONFIG.discipline.victory); }
-    else { s.stats.defeats++; G.Res.discipline(s, retreated ? Math.round(G.CONFIG.discipline.defeat / 2) : G.CONFIG.discipline.defeat); }
+    // справочник: кого встречали и скольких одолели
+    s.seen = s.seen || {};
+    for (const r of res.units) {
+      if (r.side !== 1 || !r.type) continue;
+      s.seen[r.type] = (s.seen[r.type] || 0) + (r.state === 'down' ? 1 : 0);
+    }
+    if (won) {
+      s.stats.victories++; G.Res.discipline(s, G.CONFIG.discipline.victory);
+      if (!killedIds.length) s.stats.flawless = (s.stats.flawless || 0) + 1;
+      s.stats.streak = (s.stats.streak || 0) + 1;
+      s.stats.bestStreak = Math.max(s.stats.bestStreak || 0, s.stats.streak);
+    } else { s.stats.streak = 0; s.stats.defeats++; G.Res.discipline(s, retreated ? Math.round(G.CONFIG.discipline.defeat / 2) : G.CONFIG.discipline.defeat); }
 
     const enemyDown = res.units.filter((r) => r.side === 1 && r.state === 'down').length;
     const enemyFled = res.units.filter((r) => r.side === 1 && (r.state === 'fled' || r.state === 'exited')).length;

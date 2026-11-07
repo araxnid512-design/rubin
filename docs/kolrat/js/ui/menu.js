@@ -39,6 +39,11 @@
   }
 
   UI.views.menu = function (s) {
+    const sec = UI.menuSection && UI.menuSection(s, UI.menuTab);
+    return h('div', null, UI.menuTabs ? UI.menuTabs() : null, sec || settingsView(s));
+  };
+
+  function settingsView(s) {
     return h('div', { class: 'cols' },
       h('div', null,
         h('div', { class: 'card' },
@@ -75,5 +80,5 @@
         paragraphs(G.TEXT.rules)
       )
     );
-  };
+  }
 })(globalThis.G = globalThis.G || {});

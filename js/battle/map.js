@@ -2,7 +2,7 @@
 (function (G) {
   'use strict';
 
-  const T = { SAND: 0, DUNE: 1, ROCK: 2, WRECK: 3, WALL: 4 };
+  const T = { SAND: 0, DUNE: 1, ROCK: 2, WRECK: 3, WALL: 4, WATER: 5 };
 
   const BM = { T: T };
 
@@ -101,6 +101,31 @@
     for (let i = 0; i < d; i++) blob(m, rng, rng.int(12, m.w - 3), rng.int(1, m.h - 2), 2, 1, T.DUNE, 0.6);
     const r = rng.int(2, 4);
     for (let i = 0; i < r; i++) blob(m, rng, rng.int(14, m.w - 4), rng.int(1, m.h - 2), 1, 1, T.ROCK, 0.7);
+  };
+
+  // Оазис: пруд посреди поля — не пройти, но и не укрыться; вокруг камни и трава
+  gen.oasis = function (m, rng) {
+    const d = rng.int(2, 4);
+    for (let i = 0; i < d; i++) blob(m, rng, rng.int(2, m.w - 3), rng.int(1, m.h - 2), 2, 1, T.DUNE, 0.6);
+    const cx = rng.int(10, 13), cy = rng.int(6, 9);
+    blob(m, rng, cx, cy, rng.int(2, 3), 2, T.WATER, 1);
+    blob(m, rng, cx + rng.int(-1, 1), cy + rng.int(-1, 1), 3, 1, T.WATER, 0.9);
+    const r = rng.int(3, 5);
+    for (let i = 0; i < r; i++) blob(m, rng, rng.int(5, m.w - 6), rng.int(1, m.h - 2), 0, 1, T.ROCK, 0.8);
+  };
+  // Соляная равнина: почти ровно, редкие кристаллы — укрыться негде
+  gen.salt = function (m, rng) {
+    const n = rng.int(4, 7);
+    for (let i = 0; i < n; i++) blob(m, rng, rng.int(4, m.w - 5), rng.int(1, m.h - 2), rng.int(0, 1), 0, T.ROCK, 0.9);
+  };
+  // Ущелье: две длинные каменные гряды с проходами, бой в коридорах
+  gen.canyon = function (m, rng) {
+    for (const row of [rng.int(3, 4), rng.int(11, 12)]) {
+      for (let x = 3; x < m.w - 3; x++) if (!rng.chance(0.18)) set(m, x, row, T.ROCK);
+      set(m, rng.int(6, 9), row, T.SAND); set(m, rng.int(14, 17), row, T.SAND);
+    }
+    const r = rng.int(3, 5);
+    for (let i = 0; i < r; i++) blob(m, rng, rng.int(5, m.w - 6), rng.int(5, 10), 0, 0, T.ROCK, 0.8);
   };
 
   // Крепость: каменные стены с воротами вокруг позиции защитника

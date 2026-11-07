@@ -9,6 +9,7 @@ const CORE_FILES = [
   'js/content/names.ru.js',
   'js/content/regions.ru.js',
   'js/content/texts.ru.js',
+  'js/content/codex.ru.js',
   'js/core/units.js',
   'js/core/state.js',
   'js/core/base.js',
@@ -29,6 +30,7 @@ const CORE_FILES = [
   'js/core/goals.js',
   'js/core/camp.js',
   'js/core/factions.js',
+  'js/core/medals.js',
   'js/core/save.js',
 ];
 

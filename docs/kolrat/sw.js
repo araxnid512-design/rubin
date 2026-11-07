@@ -3,7 +3,7 @@
  * При изменении файлов игры увеличьте VERSION — телефоны получат обновление.
  */
 'use strict';
-const VERSION = 'kolrat-v9';
+const VERSION = 'kolrat-v10';
 const ASSETS = [
   './',
   'index.html',
@@ -20,6 +20,7 @@ const ASSETS = [
   'js/content/names.ru.js',
   'js/content/regions.ru.js',
   'js/content/texts.ru.js',
+  'js/content/codex.ru.js',
   'js/core/units.js',
   'js/core/state.js',
   'js/core/base.js',
@@ -40,6 +41,7 @@ const ASSETS = [
   'js/core/goals.js',
   'js/core/camp.js',
   'js/core/factions.js',
+  'js/core/medals.js',
   'js/core/save.js',
   'js/ui/dom.js',
   'js/ui/audio.js',
@@ -54,6 +56,7 @@ const ASSETS = [
   'js/ui/campview.js',
   'js/ui/titlescene.js',
   'js/ui/battle.js',
+  'js/ui/codex.js',
   'js/ui/menu.js',
   'js/ui/app.js',
 ];

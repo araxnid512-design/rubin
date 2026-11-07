@@ -70,6 +70,14 @@
           onclick: () => { G.Game.setRations(s, r); UI.commit(); } }, G.TEXT.rations[r].name))));
   }
 
+  // Картинка цели приказа: место на карте или портрет фракции
+  function targetPic(id, size) {
+    if (id == null) return null;
+    if (G.CONFIG.regions[id] && G.TEXT.regions[id]) return G.Avatar.place(id, size);
+    if (G.Factions && G.Factions.list.indexOf(id) >= 0) return G.Avatar.faction(id, size);
+    return null;
+  }
+
   // ---------- Приказы: одна строка на приказ ----------
   function orderRow(s, o, idx) {
     const T = G.TEXT.actions[o.type];
@@ -77,7 +85,7 @@
     const nPeople = o.unitIds.filter((id) => G.Units.byId(s, id).kind !== 'droid').length;
     const nDroids = o.unitIds.length - nPeople;
     return h('div', { class: 'order' },
-      h('div', { class: 'oi' }, T.icon),
+      targetPic(o.target, 36) || h('div', { class: 'oi' }, T.icon),
       h('div', { class: 'ob' },
         h('div', { class: 'ot' }, T.name + (target ? ' → ' + target : ''),
           o.unitIds.length ? h('span', { class: 'chip mini' }, '👤' + nPeople + (nDroids ? ' 🤖' + nDroids : '')) : null),
@@ -191,8 +199,10 @@
         let why = dup ? 'Уже назначено.' : null;
         if (!why && def.validate) why = def.validate(s, { type: b.type, target: id, unitIds: [] });
         return h('button', { class: 'target', disabled: !!why, onclick: () => { b.target = id; b.step = 'squad'; b.err = null; UI.render(); } },
-          h('div', { class: 'tn' }, G.Actions.targetName(b.type, id)),
-          h('div', { class: 'td' }, why || targetInfo(s, b.type, id)));
+          targetPic(id, 40),
+          h('div', { class: 'tb' },
+            h('div', { class: 'tn' }, G.Actions.targetName(b.type, id)),
+            h('div', { class: 'td' }, why || targetInfo(s, b.type, id))));
       })));
       return box;
     }

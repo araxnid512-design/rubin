@@ -41,8 +41,11 @@
       );
     });
     return h('div', { class: 'modal' },
-      h('h2', null, G.TEXT.tradePartners[p.partner]),
-      h('p', { class: 'lead' }, G.TEXT.tradeFlavor[p.partner]),
+      h('div', { class: 'trader-head' },
+        h('span', { class: 'holo' }, G.Avatar.trader(p.partner, 84, 'ava-big')),
+        h('div', null,
+          h('h2', null, G.TEXT.tradePartners[p.partner]),
+          h('p', { class: 'lead' }, G.TEXT.tradeFlavor[p.partner]))),
       h('div', { class: 'row', style: 'gap:14px;margin-bottom:8px' },
         h('span', { class: 'chip' }, h('i', { class: 'ico ico-credits' }), s.res.credits + ' кр.'),
         h('span', { class: 'chip' }, h('i', { class: 'ico ico-water' }), s.res.water + ' л'),
