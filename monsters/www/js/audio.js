@@ -6,7 +6,7 @@
 //  Все партии в одной гармонии — любые монстры звучат вместе.
 // =====================================================================
 const Sound = (() => {
-  let BPM = 96, STEP = 60 / BPM / 4, STEPS = 512, SONG = 'green', dlyNode = null;
+  let BPM = 112, STEP = 60 / BPM / 4, STEPS = 512, SONG = 'green', dlyNode = null;
   const SONGS = {}; // песни островов: темп, шагов в такте, длина, откуда играть пробу
   let ctx = null, master, bus, revIn, dlyIn, noise = null, timer = 0, nextStep = 0, nextTime = 0, startT = 0, on = true, sfxOn = true;
   const voices = new Map(); // id монстра → { part, ch, send, notes: [] }
@@ -162,6 +162,12 @@ const Sound = (() => {
     return null;
   }
   const now = () => (ctx ? ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) : 0);
+  // какой раздел песни звучит сейчас (куплет, припев…) — по нему игра решает, как бурно танцевать
+  function section() {
+    if (!ctx || !timer) return null; const el = now() - startT; if (el < 0) return null;
+    const so = SONGS[SONG], step = Math.floor(el / STEP) % STEPS, b = Math.floor(step / so.bar);
+    return { sec: so.secs ? so.secs[b] : '', bar: b, inBar: step % so.bar };
+  }
   const beat = () => (ctx && timer ? (now() - startT) / (STEP * 4) : 0); // номер доли с дробной частью
   function setOn(v) { on = v; if (master) master.gain.setTargetAtTime(v ? MASTER : 0, ctx.currentTime, 0.05); }
   function setSfx(v) { sfxOn = v; }
@@ -233,6 +239,17 @@ const Sound = (() => {
     brass: { cons: 'p', vowel: 'a', shift: 1.05, vib: 10, att: 0.02 },          // «па»
   };
 
+  // тарелка: шипящий долгий звон; «взлёт»: шум, фильтр которого поднимается к припеву
+  function crash(out, t, vel) {
+    const n = noiseSrc(t, 2), hp = filt('highpass', 4200, 0.7), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.003, 0.32 * vel, 0.02, 1.5);
+    const o = osc('square', 410, t), o2 = osc('square', 593, t), bp = filt('bandpass', 5200, 1), mg = gain(); o.connect(bp); o2.connect(bp); bp.connect(mg); mg.connect(out);
+    const e = env(mg, t, 0.002, 0.05 * vel, 0, 0.9); o.start(t); o2.start(t); o.stop(e); o2.stop(e);
+  }
+  function riser(out, t, dur, vel) {
+    const n = noiseSrc(t, dur + 0.05), bp = filt('bandpass', 400, 2.5), g = gain(); n.connect(bp); bp.connect(g); g.connect(out);
+    bp.frequency.setValueAtTime(400, t); bp.frequency.exponentialRampToValueAtTime(7000, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * vel, t + dur * 0.95); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.04);
+  }
   // ---------- инструменты монстров
   const INSTR = {
     // Бумбо: бочка животом и низкое «бум»
@@ -257,6 +274,7 @@ const Sound = (() => {
     },
     // Шурша: шуршалка и хлопки
     shaker(out, t, m, dur, vel, x) {
+      if (x === 'riser') { riser(out, t, dur, vel); return; }
       if (x === 'clap') {
         const n = noiseSrc(t, 0.3), b = filt('bandpass', 1400, 0.9), g = gain(); n.connect(b); b.connect(g); g.connect(out);
         g.gain.setValueAtTime(0.0001, t);
@@ -312,8 +330,9 @@ const Sound = (() => {
       const f = hz(m), o = osc('sine', f * 0.95, t), g = gain(); o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
       const l = vib(o, t, 6, 18, 0.2); o.connect(g); g.connect(out); o.start(t); const e = env(g, t, 0.05, 0.22 * vel, Math.max(0, dur - 0.12), 0.12); o.stop(e); l.stop(e);
     },
-    // Барабас: малый барабан
-    snare(out, t, m, dur, vel) {
+    // Барабас: малый барабан, а на старте раздела — тарелка
+    snare(out, t, m, dur, vel, x) {
+      if (x === 'crash') { crash(out, t, vel); return; }
       const n = noiseSrc(t, 0.25), hp = filt('bandpass', 2200, 0.6), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.5 * vel, 0, 0.15);
       const o = osc('triangle', 210, t), og = gain(); o.frequency.exponentialRampToValueAtTime(150, t + 0.06); o.connect(og); og.connect(out); o.start(t); o.stop(env(og, t, 0.002, 0.45 * vel, 0, 0.08));
     },
@@ -384,12 +403,14 @@ const Sound = (() => {
     },
     // Перчик: коровий колокольчик и хэт
     cowbell(out, t, m, dur, vel, x) {
+      if (x === 'riser') { riser(out, t, dur, vel); return; }
       if (x === 'hat' || x === 'open') { const n = noiseSrc(t, 0.3), hp = filt('bandpass', 8500, 0.9), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.2 * vel, x === 'open' ? 0.08 : 0.005, x === 'open' ? 0.12 : 0.035); return; }
       const bp = filt('bandpass', 820, 1.4), g = gain(); bp.connect(g); g.connect(out);
       const stop = env(g, t, 0.001, 0.5 * vel, 0.01, 0.22); [562, 845].forEach(f => { const o = osc('square', f, t); o.connect(bp); o.start(t); o.stop(stop); });
     },
     // Кремень: наковальня вместо малого барабана
     anvil(out, t, m, dur, vel, x) {
+      if (x === 'crash') { crash(out, t, vel); return; }
       metal(out, t, x === 'fill' ? 1150 : 920, [[1, 0.22, 0.5], [1.49, 0.14, 0.35], [2.31, 0.1, 0.25], [3.17, 0.06, 0.15]], vel);
       const n = noiseSrc(t, 0.2), bp = filt('bandpass', 2600, 0.8), g = gain(); n.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.001, 0.5 * vel, 0.01, 0.12);
     },
@@ -454,6 +475,7 @@ const Sound = (() => {
     },
     // Кокос: бонги, шлепок ладонью
     bongo(out, t, m, dur, vel, x) {
+      if (x === 'riser') { riser(out, t, dur, vel); return; }
       const f = hz(m), o = osc('sine', f * 1.5, t), g = gain(); o.frequency.exponentialRampToValueAtTime(f, t + 0.03); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.001, 0.6 * vel, 0, 0.14));
       if (x === 'slap') { const n = noiseSrc(t, 0.05), bp = filt('bandpass', 2200, 1.2), ng = gain(); n.connect(bp); bp.connect(ng); ng.connect(out); env(ng, t, 0.001, 0.35 * vel, 0, 0.04); }
     },
@@ -579,14 +601,15 @@ const Sound = (() => {
     const v = (p, q, m, l, vel, x) => put(p, o + q, m, l, Math.min(1, vel * E), x);
 
     // ---- Бумбо: бочка
-    if (verse) { v('kick', 0, 0, 1, 1); v('kick', 8, 0, 1, 0.9); if (ib % 4 === 3) v('kick', 10, 0, 1, 0.6); }
+    if (verse) { [[0, 1], [6, 0.6], [8, 0.92], [ib % 2 ? 14 : 11, 0.55]].forEach(([q, k]) => v('kick', q, 0, 1, k)); }
     else if (pre) { [0, 4, 8, 12].forEach(q => v('kick', q, 0, 1, 0.8 + ib * 0.05)); if (end) [10, 14].forEach(q => v('kick', q, 0, 1, 0.7)); }
-    else if (cho) { v('kick', 0, 0, 1, 1); v('kick', 6, 0, 1, 0.6); v('kick', 8, 0, 1, 0.92); if (fin) v('kick', 11, 0, 1, 0.5); }
+    else if (cho) { [0, 4, 8, 12].forEach(q => v('kick', q, 0, 1, q % 8 ? 0.85 : 1)); v('kick', 14, 0, 1, 0.5); if (fin) v('kick', 7, 0, 1, 0.45); } // ровный бит припева
     else if (bri) { v('kick', 0, 0, 1, 0.75); if (ib >= 2) v('kick', 8, 0, 1, 0.8); if (ib === 3) [4, 12, 14].forEach(q => v('kick', q, 0, 1, 0.7)); }
     if (end && !bri) v('kick', 14, 0, 1, 0.7);
     if ((verse || cho) && ib % 2 === 0) v('kick', 0, (A.root % 12) + 48, 3, 0.85, 'v');                 // «бум»
     // ---- Барабас: малый барабан, призвуки, дробь в конце раздела
     if (!bri || ib === 2) { v('snare', 4, 0, 1, bri ? 0.6 : 0.9); v('snare', 12, 0, 1, bri ? 0.65 : 0.95); }
+    if (ib === 0 && (cho || verse)) v('snare', 0, 0, 16, cho ? 1 : 0.7, 'crash');                           // тарелка на старте раздела
     if (bri && ib === 3) for (let q = 0; q < 16; q++) v('snare', q, 0, 1, 0.18 + q * 0.05);           // нарастающая дробь к последнему припеву
     else if (end) [12, 13, 14, 15].forEach((q, i) => v('snare', q, 0, 1, 0.35 + i * 0.18));
     else if (!bri) [7, 10, 15].forEach(q => v('snare', q, 0, 1, cho ? 0.32 : pre ? 0.28 : 0.22));
@@ -598,11 +621,12 @@ const Sound = (() => {
     if (!bri || ib >= 2) { v('shaker', 4, 0, 1, 0.9, 'clap'); v('shaker', 12, 0, 1, 0.9, 'clap'); }
     if (cho && ib % 2 === 1) v('shaker', 14, 0, 1, 0.55, 'clap');
     if (bri && ib === 3) [6, 8, 10, 14].forEach(q => v('shaker', q, 0, 1, 0.7, 'clap'));
+    if ((pre || bri) && end) v('shaker', 0, 0, 16, 0.9, 'riser');                                           // «взлёт» перед припевом
     if ((verse || cho) && ib % 2 === 0) v('shaker', 14, nearTone(67 + K, B), 1, 0.6, 'v');                           // «шу»
     // ---- Глубун: басовая линия
-    if (verse) [[0, A.bass, 6], [6, A.bass, 2], [8, fifthUp(B), 4], [12, B.bass + 12, 2], [14, fifthUp(B), 2]].forEach(([q, m, l], i) => v('bass', q, m, l, i ? 0.72 : 1));
+    if (verse) [[0, A.bass, 3], [3, A.bass, 1], [6, A.bass + 12, 2], [8, B.bass, 3], [11, B.bass, 1], [14, B.bass + 12, 2]].forEach(([q, m, l], i) => v('bass', q, m, l, i % 3 ? 0.72 : 1)); // с октавными скачками
     else if (pre) for (let q = 0; q < 16; q += 2) { const C = at(q); v('bass', q, C.bass + (q === 6 || q === 14 ? 12 : 0), 2, 0.7 + (q === 0) * 0.25 + ib * 0.03); }
-    else if (cho) [[0, A.bass, 3], [3, A.bass, 3], [6, A.bass + 12, 2], [8, B.bass, 3], [11, B.bass, 3], [14, fifthUp(B), 2]].forEach(([q, m, l], i) => v('bass', q, m, l, i % 3 ? 0.75 : 1));
+    else if (cho) for (let q = 0; q < 16; q += 2) { const C = at(q); v('bass', q, C.bass + (q % 4 === 2 ? 12 : 0), 2, q % 8 ? 0.75 : 1); } // упругие восьмые с октавой
     else if (bri) {
       if (ib < 2) v('bass', 0, A.bass, 15, 0.9);
       else if (ib === 2) { v('bass', 0, A.bass, 6, 0.9); v('bass', 8, A.bass, 6, 0.85); }
@@ -697,7 +721,7 @@ const Sound = (() => {
     });
   });
 
-  SONGS.green = { name: 'Песня Певучего острова', bpm: 96, bar: 16, steps: 512, preview: 12 * 16 };
+  SONGS.green = { name: 'Песня Певучего острова', bpm: 112, bar: 16, steps: 512, preview: 12 * 16, secs: FORM.map(f => f[0]) };
 
   // =====================================================================
   //  ПЕСНИ ДРУГИХ ОСТРОВОВ: у каждой свой темп, лад, размер и свои монстры
@@ -714,13 +738,13 @@ const Sound = (() => {
       const v = (p, q, m, l, vel, ex) => put(p, off + q, m, l, Math.min(1, vel * (o.energy ? o.energy(x.sec, ib) : 1)), ex);
       o.gen({ ...x, b, ib, end, at, v, mel: o.mel[b] || [], next: nb });
     });
-    SONGS[id] = { name: o.name, bpm: o.bpm, bar: o.bar, steps: bars.length * o.bar, preview: o.preview * o.bar, bars };
+    SONGS[id] = { name: o.name, bpm: o.bpm, bar: o.bar, steps: bars.length * o.bar, preview: o.preview * o.bar, bars, secs: bars.map(x => x.sec) };
   }
   const near = (prev, C, lo, hi) => { let best = prev, bd = 99; for (let m = lo; m <= hi; m++) if (tone(m, C) && Math.abs(m - prev) < bd) { bd = Math.abs(m - prev); best = m; } return best; };
 
   // ---------- «Огненный рок» — остров Вулкан: ля минор, 112 ударов, рифф → куплет → припев → соло гитары
   song('lava', {
-    name: 'Огненный рок', bpm: 112, bar: 16, preview: 12, bass0: 45, voc0: [57, 60, 64, 69],
+    name: 'Огненный рок', bpm: 128, bar: 16, preview: 12, bass0: 45, voc0: [57, 60, 64, 69],
     form: [
       ['riff', 'Am'], ['riff', 'Am'], ['riff', 'F', 'G'], ['riff', 'Am'],
       ['verse', 'Am'], ['verse', 'F'], ['verse', 'C'], ['verse', 'G'], ['verse', 'Am'], ['verse', 'F'], ['verse', 'Dm'], ['verse', 'E7'],
@@ -759,6 +783,8 @@ const Sound = (() => {
       // Кремень — удары по наковальне на 2 и 4, в конце раздела — сбивка
       if (!(riff && ib < 1)) { v('anvil', 4, 0, 1, 0.9); v('anvil', 12, 0, 1, 0.95); }
       if (end) [10, 11, 14, 15].forEach((q, i) => v('anvil', q, 0, 1, 0.45 + i * 0.15, 'fill'));
+      if (ib === 0 && !riff) v('anvil', 0, 0, 16, cho ? 1 : 0.75, 'crash');                    // тарелка на старте раздела
+      if (end && (verse || solo)) v('cowbell', 0, 0, 16, 0.85, 'riser');                      // «взлёт» к припеву и к риффу
       // Перчик — коровий колокольчик и хэт
       for (let q = 0; q < 16; q += 2) v('cowbell', q, 0, 1, q % 4 ? 0.45 : 0.7, solo && q % 8 === 6 ? 'open' : 'hat');
       if (cho) [0, 4, 8, 12].forEach(q => v('cowbell', q, 0, 1, q ? 0.7 : 0.9));
@@ -801,7 +827,7 @@ const Sound = (() => {
   let bari = 57; // баритон Йетика ведёт свой голос от аккорда к аккорду
   // ---------- «Снежный вальс» — остров Льдинка: ре мажор, на три четверти, колыбельная; середина начинается в си миноре
   song('ice', {
-    name: 'Снежный вальс', bpm: 156, bar: 12, preview: 8, bass0: 38, voc0: [57, 62, 66, 69],
+    name: 'Снежный вальс', bpm: 168, bar: 12, preview: 8, bass0: 38, voc0: [57, 62, 66, 69],
     form: [
       ['a', 'D'], ['a', 'D'], ['a', 'G'], ['a', 'D'], ['a', 'Bm'], ['a', 'Em'], ['a', 'A7'], ['a', 'D'],
       ['a2', 'D'], ['a2', 'F#m'], ['a2', 'G'], ['a2', 'Gm'], ['a2', 'D/F#'], ['a2', 'Em'], ['a2', 'A7'], ['a2', 'D'],
@@ -847,7 +873,7 @@ const Sound = (() => {
 
   // ---------- «Солнечная лагуна» — остров Лагуна: фа мажор, калипсо, 104 удара
   song('sea', {
-    name: 'Солнечная лагуна', bpm: 104, bar: 16, preview: 8, bass0: 41, voc0: [57, 60, 65, 69],
+    name: 'Солнечная лагуна', bpm: 116, bar: 16, preview: 8, bass0: 41, voc0: [57, 60, 65, 69],
     form: [
       ['verse', 'F'], ['verse', 'Dm'], ['verse', 'Gm7'], ['verse', 'C7'], ['verse', 'F'], ['verse', 'Dm'], ['verse', 'Gm7', 'C7'], ['verse', 'F'],
       ['chorus', 'Bb'], ['chorus', 'C7'], ['chorus', 'Am'], ['chorus', 'Dm'], ['chorus', 'Gm7'], ['chorus', 'C7'], ['chorus', 'F'], ['chorus', 'F'],
@@ -896,6 +922,7 @@ const Sound = (() => {
       for (let q = 0; q < 16; q += 2) v('bongo', q, q % 4 ? 71 : 64, 1, q % 4 ? 0.55 : 0.75);
       [6, 14].forEach(q => v('bongo', q, 69, 1, 0.9, 'slap')); if (cho) [5, 13].forEach(q => v('bongo', q, 71, 1, 0.4));
       if (end) [11, 13, 15].forEach(q => v('bongo', q, 64, 1, 0.7));
+      if (end && !cho) v('bongo', 0, 0, 16, 0.8, 'riser');                                         // «взлёт» к припеву
       // Медуза — стальной барабан: мелодия, в середине — переливы аккорда
       if (!bri) mel.forEach(([q, m, l]) => v('steel', q, m, l, 0.9));
       else for (let q = 0; q < 16; q += 2) { const C = at(q); v('steel', q, C.voc[[0, 1, 2, 3, 2, 1, 2, 3][q / 2]] + 12, 2, q % 4 ? 0.55 : 0.75); }
@@ -934,5 +961,5 @@ const Sound = (() => {
     setTimeout(() => ch.disconnect(), (n * step + 2.5) * 1000);
   }
 
-  return { init, start, add, remove, mute, setPan, renderMix, setSong, SONGS, vowel, bpb: () => SONGS[SONG].bar / 4, partSong: p => PART_SONG[p], get song() { return SONG; }, get SONG_SEC() { return STEPS * STEP; }, PARTS_LIST: () => Object.keys(PARTS), singing, onsets, now, beat, setOn, setSfx, sfx, preview, suspend, resume, get on() { return on; }, get sfxOn() { return sfxOn; }, get ready() { return !!ctx; } };
+  return { init, start, add, remove, mute, setPan, renderMix, setSong, SONGS, vowel, section, bpb: () => SONGS[SONG].bar / 4, partSong: p => PART_SONG[p], get song() { return SONG; }, get SONG_SEC() { return STEPS * STEP; }, PARTS_LIST: () => Object.keys(PARTS), singing, onsets, now, beat, setOn, setSfx, sfx, preview, suspend, resume, get on() { return on; }, get sfxOn() { return sfxOn; }, get ready() { return !!ctx; } };
 })();

@@ -201,7 +201,7 @@ function clampCam() {
   cam.x = 2 * hw >= x1 - x0 ? ISL.x : clamp(cam.x, x0 + hw, x1 - hw);
   cam.y = 2 * hh >= y1 - y0 ? (y0 + y1) / 2 : clamp(cam.y, y0 + hh, y1 - hh);
 }
-const worldT = c => c.setTransform(DPR * cam.z, 0, 0, DPR * cam.z, DPR * (W / 2 - cam.x * cam.z), DPR * (H / 2 - cam.y * cam.z));
+const worldT = c => { const z = cam.z * (1 + (typeof ZP === 'number' ? ZP : 0)); c.setTransform(DPR * z, 0, 0, DPR * z, DPR * (W / 2 - cam.x * z), DPR * (H / 2 - cam.y * z)); };
 const screenT = c => c.setTransform(DPR, 0, 0, DPR, 0, 0);
 const toWorld = (sx, sy) => [(sx - W / 2) / cam.z + cam.x, (sy - H / 2) / cam.z + cam.y];
 const viewL = () => cam.x - W / 2 / cam.z, viewR = () => cam.x + W / 2 / cam.z;
@@ -580,7 +580,7 @@ function updateMon(m, dt) {
   r.vowel = r.sing > 0.05 ? Sound.vowel(m.id) : null;
   r.hit = Math.max(0, (r.hit || 0) - dt * 7);
   const on = Sound.ready && S.music && !m.mute;
-  r.dance = lerp(r.dance || 0, on ? 0.4 + 0.6 * Math.min(1, r.sing * 1.5 + CROWD * 0.5) : 0, 1 - Math.exp(-dt * 2.5));
+  r.dance = lerp(r.dance || 0, on ? (0.35 + 0.65 * Math.min(1, r.sing * 1.5 + CROWD * 0.5)) * (0.7 + 0.65 * SECE) : 0, 1 - Math.exp(-dt * 2.5)); // в припеве — бурнее
   if (r.turn > 0) { r.turn += dt / 0.7; if (r.turn >= 1) r.turn = 0; else if (Math.random() < dt * 30) parts.push({ kind: 'spark', x: x + rand(-sz * 0.4, sz * 0.4), y: y - rand(10, sz), vx: rand(-40, 40), vy: rand(-90, -30), life: rand(0.4, 0.8), t: 0, col: ELEMENTS[pick(K.el)].col }); }
   const now = Sound.now(), n = Sound.onsets(m.id, r.lastOn); r.lastOn = now;
   if (n && !m.mute) {
@@ -818,15 +818,45 @@ function drawVignette() {
 }
 
 // ---------- кадр
-let BEAT = 0, BPB = 4, CROWD = 0, lastBar = -1;
+let BEAT = 0, BPB = 4, CROWD = 0, lastBar = -1, lastBeat = -1, SECE = 0.5, lastSec = '', ZP = 0, FLASH = 0;
+// как бурно звучит раздел песни: припев — во всю силу, затишье — тихо
+const SEC_E = { chorus: 1, final: 1, pre: 0.75, verse: 0.6, bridge: 0.4, riff: 0.75, solo: 0.9, a: 0.5, a2: 0.75, b: 0.6, b2: 0.9 };
 function groove(dt) {
   const on = Sound.ready && S.music;
   BEAT = on ? Sound.beat() : BEAT; BPB = Sound.bpb ? Sound.bpb() : 4;
   let sum = 0; for (const m of S.mons) sum += (rt.get(m.id) || {}).sing || 0;
   CROWD = lerp(CROWD, on && S.mons.length ? Math.min(1, sum / Math.max(3, S.mons.length * 0.6)) : 0, 1 - Math.exp(-dt * 1.5));
+  const cur = on && Sound.section ? Sound.section() : null, sec = cur ? cur.sec : '';
+  SECE = lerp(SECE, on ? (SEC_E[sec] !== undefined ? SEC_E[sec] : 0.6) : 0.3, 1 - Math.exp(-dt * 2));
+  // начался припев — праздник: конфетти, вспышка, все подпрыгивают
+  if (on && sec !== lastSec) { if ((sec === 'chorus' || sec === 'final') && S.mons.length) hype(); lastSec = sec; }
   // каждые четыре такта, когда хор поёт дружно, несколько монстров кружатся вместе
   const bar = Math.floor(BEAT / BPB);
   if (on && bar !== lastBar) { if (bar % 4 === 0 && CROWD > 0.35) for (const m of S.mons) if (Math.random() < 0.3) spinMon(m); lastBar = bar; }
+  // в припеве на каждую долю кто-нибудь подпрыгивает, а весь остров чуть «толкается» в такт
+  const bt = Math.floor(BEAT);
+  if (on && bt !== lastBeat) { lastBeat = bt; if (SECE > 0.85) for (const m of S.mons) if (Math.random() < 0.1) jumpMon(m, rand(170, 240)); }
+  const f = BEAT - Math.floor(BEAT); ZP = on ? Math.max(0, SECE - 0.7) / 0.3 * 0.006 * Math.exp(-f * 7) : 0;
+  FLASH = Math.max(0, FLASH - dt * 1.6);
+}
+function hype() {
+  FLASH = 1;
+  for (let i = 0; i < 4; i++) { const [x, y] = toWorld(W * (0.15 + i * 0.23), H * 0.12); confetti(x, y, 26, 0.8); }
+  for (const m of S.mons) if (Math.random() < 0.6) jumpMon(m, rand(260, 340));
+}
+// прожекторы над сценой, когда звучит припев (ярче вечером и ночью)
+function drawStageLights() {
+  const k = clamp((SECE - 0.72) / 0.28, 0, 1); if (k <= 0.01) return;
+  screenT(g); g.globalCompositeOperation = 'lighter';
+  const a0 = k * (0.22 + 0.2 * NIGHT);
+  for (let i = 0; i < 4; i++) {
+    const x0 = W * (0.12 + i * 0.25), ang = Math.sin(T * 0.8 + i * 1.7) * 0.45 + (i < 2 ? 0.2 : -0.2), len = H * 1.2, w = W * 0.11;
+    const ex = x0 + Math.sin(ang) * len, ey = Math.cos(ang) * len, col = GCOL[(i + Math.floor(BEAT / BPB)) % GCOL.length], n = parseInt(col.slice(1), 16);
+    const gr = g.createLinearGradient(x0, 0, ex, ey); gr.addColorStop(0, `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a0})`); gr.addColorStop(1, `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},0)`);
+    g.fillStyle = gr; g.beginPath(); g.moveTo(x0 - 6, -4); g.lineTo(x0 + 6, -4); g.lineTo(ex + w * Math.cos(ang), ey - w * Math.sin(ang)); g.lineTo(ex - w * Math.cos(ang), ey + w * Math.sin(ang)); g.closePath(); g.fill();
+  }
+  if (FLASH > 0) { g.fillStyle = `rgba(255,250,220,${FLASH * 0.18})`; g.fillRect(0, 0, W, H); }
+  g.globalCompositeOperation = 'source-over'; worldT(g);
 }
 function frame(now) {
   requestAnimationFrame(frame);
@@ -865,7 +895,7 @@ function frame(now) {
   if (place && place.mode !== 'move') ents.push({ y: place.m.y + 1000, d: drawPlace });
   ents.sort((a, b) => a.y - b.y).forEach(e => e.d());
   if (NIGHT < 0.7) drawFlies();
-  drawNightSky(); drawNightGlow();
+  drawNightSky(); drawNightGlow(); drawStageLights();
   for (const m of vis) monBubble(m);
   drawParts();
   drawVignette();
