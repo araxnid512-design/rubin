@@ -188,7 +188,7 @@ let DPR_CAP = 2, qT = -4, qN = 0;
 function quality(dt) {
   if (!started || document.hidden) return; qT += dt; if (qT < 0) return; qN++;
   if (qT < 2.5) return; const fps = qN / qT; qT = qN = 0;
-  if (fps < 40 && DPR_CAP > 1.25 && (window.devicePixelRatio || 1) > 1.25) { DPR_CAP = Math.max(1.25, Math.min(DPR, DPR_CAP) - 0.25); resize(); }
+  if (fps < 40 && DPR_CAP > 1 && (window.devicePixelRatio || 1) > 1) { DPR_CAP = Math.max(1, Math.min(DPR, DPR_CAP) - 0.25); resize(); }
 }
 function resize() {
   DPR = Math.min(DPR_CAP, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;

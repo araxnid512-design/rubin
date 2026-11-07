@@ -148,89 +148,301 @@ const KINDS = {
     name: 'Бумбо', el: ['stone'], part: 'kick', price: 100, rate: 12, need: 1,
     desc: 'Каменный малыш. Отбивает ритм пузом и басит «бум».', col: '#a3917f',
     draw(g, st) {
-      const w = 92, h = 80, c = this.col, s = st.sing;
-      arm(g, -40, -34, Math.PI * 0.85 - s * 0.6, 22, c, 11); arm(g, 40, -34, Math.PI * 0.15 + s * 0.6, 22, c, 11);
-      feet(g, w, c);
-      silhouette(g, [{ path: g2 => SHAPES.rock(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      g.strokeStyle = rgba('#000000', 0.15); g.lineWidth = 2; g.beginPath(); g.moveTo(-22, -96); g.lineTo(-10, -70); g.lineTo(-30, -50); g.moveTo(30, -64); g.lineTo(18, -46); g.stroke();
-      g.fillStyle = '#6fbf4a'; g.beginPath(); g.ellipse(-6, -78, 18, 7, -0.15, 0, Math.PI * 2); g.fill(); // мох
-      g.fillStyle = '#8fd860'; g.beginPath(); g.ellipse(-10, -80, 9, 3.5, -0.15, 0, Math.PI * 2); g.fill();
-      // барабан-пузо
-      g.fillStyle = shade(c, 0.35); g.strokeStyle = shade(c, -0.55); g.lineWidth = 2.6; g.beginPath(); g.ellipse(0, -24, 22 + s * 3, 16 + s * 2, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.strokeStyle = rgba('#5a3c2a', 0.4); g.lineWidth = 1.8; g.beginPath(); g.ellipse(0, -24, 14 + s * 2, 9, 0, 0, Math.PI * 2); g.stroke();
-      eye(g, -15, -60, 9, st, { happy: true }); eye(g, 15, -60, 9, st, { happy: true });
-      mouth(g, 0, -44, 26, s, 'teeth'); cheeks(g, 0, -48, 25, 6);
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2;
+      const B = st.beat != null ? st.beat : t * 5 / 3, f = B - Math.floor(B), p = hit * hit * (3 - 2 * hit);
+      const act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      // гладкий каменный контур через точки
+      const smooth = (q, P, k) => { const n = P.length; q.moveTo(P[0][0], P[0][1]); for (let i = 0; i < n; i++) { const a = P[(i + n - 1) % n], b = P[i], d = P[(i + 1) % n], e = P[(i + 2) % n]; q.bezierCurveTo(b[0] + (d[0] - a[0]) / 6 * k, b[1] + (d[1] - a[1]) / 6 * k, d[0] - (e[0] - b[0]) / 6 * k, d[1] - (e[1] - b[1]) / 6 * k, d[0], d[1]); } q.closePath(); };
+      const P = [[-46, -10], [-48, -42], [-36, -70], [-10, -84], [20, -82], [42, -64], [49, -32], [43, -6], [0, -1], [-38, -2]];
+      // пыль из-под ног на ударе
+      if (hit > 0.05) { g.fillStyle = `rgba(210,190,160,${hit * 0.55})`; for (const k of [-1, 1]) { const u = 1 - hit; g.beginPath(); g.ellipse(k * (42 + u * 12), -4 - u * 4, 6 + u * 4, 4 + u * 2, 0, 0, TAU); g.fill(); } }
+      feet(g, 94, c);
+      silhouette(g, [{ path: q => smooth(q, P, 0.7), fill: blobFill(g, c, 96, 84) }], c, o);
+      const body = new Path2D(); smooth(body, P, 0.7);
+      g.save(); g.clip(body);
+      g.fillStyle = rgba('#5a4636', 0.14); for (const [x, y, rx, ry] of [[-32, -40, 12, 9], [32, -50, 10, 13], [24, -12, 14, 6], [-28, -12, 9, 5]]) { g.beginPath(); g.ellipse(x, y, rx, ry, 0.4, 0, TAU); g.fill(); }
+      g.fillStyle = 'rgba(255,255,255,.25)'; for (const [x, y, r] of [[-38, -54, 2.2], [-30, -62, 1.5], [36, -40, 1.8], [40, -22, 1.4], [-42, -28, 1.6], [12, -70, 1.3]]) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+      g.strokeStyle = rgba('#2a1a12', 0.3); g.lineWidth = 2; g.lineCap = 'round'; g.lineJoin = 'round';
+      g.beginPath(); g.moveTo(-48, -48); g.lineTo(-38, -44); g.lineTo(-41, -34); g.moveTo(48, -56); g.lineTo(38, -52); g.lineTo(41, -44); g.moveTo(38, -52); g.lineTo(33, -55); g.stroke();
+      g.restore();
+      // мох на макушке и росток, который качается в такт
+      const moss = new Path2D(); moss.moveTo(-32, -72); moss.bezierCurveTo(-26, -92, 28, -94, 36, -70);
+      [[30, -66, 25, -73], [19, -66, 12, -76], [4, -69, -4, -76], [-12, -68, -19, -74], [-26, -67, -32, -72]].forEach(([a, b, x, y]) => moss.quadraticCurveTo(a, b, x, y)); moss.closePath();
+      const mg = g.createLinearGradient(0, -92, 0, -64); mg.addColorStop(0, '#9be060'); mg.addColorStop(1, '#4f9a34');
+      g.fillStyle = mg; g.strokeStyle = '#2a5a1c'; g.lineWidth = 2.4; g.fill(moss); g.stroke(moss);
+      g.fillStyle = 'rgba(220,255,170,.55)'; for (const [x, y, r] of [[-14, -84, 4], [-4, -86, 2.6], [16, -85, 3.2]]) { g.beginPath(); g.ellipse(x, y, r * 1.4, r * 0.8, 0, 0, TAU); g.fill(); }
+      const sw = Math.sin(TAU * B) * 0.22 * act + Math.sin(t * 2) * 0.05 - p * 0.15;
+      g.save(); g.translate(6, -88); g.rotate(sw);
+      g.strokeStyle = '#2a5a1c'; g.lineWidth = 4.6; g.lineCap = 'round'; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(-2, -8, 1, -14); g.stroke();
+      g.strokeStyle = '#6fbf4a'; g.lineWidth = 2.2; g.stroke();
+      leafShape(g, 1, -14, 13, -2.6, '#7cd24e'); leafShape(g, 1, -14, 15, -0.5, '#62c43e');
+      g.restore();
+      // пузо-барабан: латунный обод, кожа выгибается и идёт кругами на каждом «бум»
+      const by = -22, bul = 1 + p * 0.08;
+      g.fillStyle = '#9a6a3c'; g.strokeStyle = '#3a2210'; g.lineWidth = 2.6; g.beginPath(); g.ellipse(0, by, 26, 17, 0, 0, TAU); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(255,220,160,.35)'; g.lineWidth = 2; g.beginPath(); g.ellipse(0, by, 23.5, 14.8, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      g.fillStyle = '#ffd56a'; g.strokeStyle = '#7a5210'; g.lineWidth = 1;
+      for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + 0.31; g.beginPath(); g.arc(Math.cos(a) * 23.2, by + Math.sin(a) * 14.6, 1.8, 0, TAU); g.fill(); g.stroke(); }
+      const sk = g.createRadialGradient(-6, by - 6, 2, 0, by, 22); sk.addColorStop(0, '#fffaf0'); sk.addColorStop(1, p > 0.3 ? '#ffe9b8' : '#e2cfa8');
+      g.fillStyle = sk; g.strokeStyle = '#6a4a2a'; g.lineWidth = 1.8; g.beginPath(); g.ellipse(0, by, 19 * bul, 11 * bul, 0, 0, TAU); g.fill(); g.stroke();
+      g.fillStyle = 'rgba(150,100,50,.18)'; g.beginPath(); g.ellipse(0, by + 1, 7, 4, 0, 0, TAU); g.fill();
+      if (hit > 0.02) { g.strokeStyle = `rgba(140,95,45,${hit * 0.7})`; g.lineWidth = 1.5; for (const k of [0.3, 0.62]) { const u = Math.min(0.96, k + (1 - hit) * 0.4); g.beginPath(); g.ellipse(0, by, 19 * u, 11 * u, 0, 0, TAU); g.stroke(); } }
+      // мордочка
+      eye(g, -16, -60, 9.5, st, { happy: true }); eye(g, 16, -60, 9.5, st, { happy: true });
+      mouth(g, 0, -45, 22, s * 0.9, 'teeth'); cheeks(g, 0, -48, 27, 6);
+      // кулаки бьют в пузо: между ударами замахиваются, на ноте — бух в кожу
+      const up = act > 0.02 ? (1 - p) * (0.65 + 0.35 * f) : 0.5;
+      for (const k of [-1, 1]) {
+        const fx = k * (12 + 36 * up), fy = -20 - 34 * up;
+        g.lineCap = 'round'; for (const [col, lw] of [[shade(c, -0.55), 16], [shade(c, -0.05), 11]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(k * 40, -38); g.quadraticCurveTo(k * (40 + 8 * up), -28 - 10 * up, fx, fy); g.stroke(); }
+        const fg = g.createRadialGradient(fx - 3, fy - 3, 1, fx, fy, 10); fg.addColorStop(0, shade(c, 0.35)); fg.addColorStop(1, shade(c, -0.12));
+        g.fillStyle = fg; g.strokeStyle = o; g.lineWidth = 2.6; g.beginPath(); g.arc(fx, fy, 9, 0, TAU); g.fill(); g.stroke();
+        g.strokeStyle = rgba('#2a1a12', 0.45); g.lineWidth = 1.6; for (const d of [-3.5, 0.5]) { g.beginPath(); g.moveTo(fx - k * 2 + d, fy - 7); g.lineTo(fx - k * 2 + d + 1, fy - 2); g.stroke(); }
+      }
+      // волны «бум» в стороны
+      if (hit > 0.08 && s > 0.05) {
+        g.lineCap = 'round';
+        for (const k of [-1, 1]) for (const d of [0, 8]) {
+          const r = 12 + d + (1 - hit) * 10; g.strokeStyle = `rgba(255,255,255,${hit * (d ? 0.55 : 0.9)})`; g.lineWidth = 3;
+          g.beginPath(); g.arc(k * 36, -24, r, k > 0 ? -0.55 : Math.PI - 0.55, k > 0 ? 0.55 : Math.PI + 0.55); g.stroke();
+        }
+      }
     },
   },
   bulya: {
     name: 'Буля', el: ['water'], part: 'marimba', price: 150, rate: 14, need: 1,
     desc: 'Капелька-непоседа. Стучит по маримбе, будто дождь по крыше.', col: '#4aa8ff',
     draw(g, st) {
-      const w = 78, h = 100, c = this.col, s = st.sing;
-      // плавники
-      for (const k of [-1, 1]) { g.save(); g.translate(k * 34, -32); g.rotate(k * (0.5 + s * 0.5)); g.fillStyle = shade(c, 0.25); g.strokeStyle = shade(c, -0.55); g.lineWidth = 2.6; g.beginPath(); g.moveTo(0, -8); g.quadraticCurveTo(k * 22, -4, k * 18, 12); g.quadraticCurveTo(k * 6, 6, 0, 8); g.fill(); g.stroke(); g.restore(); }
-      feet(g, w, c);
-      silhouette(g, [{ path: g2 => SHAPES.drop(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.ellipse(0, -26, 24, 18, 0, 0, Math.PI * 2); g.fill();
-      shine(g, -14, -66, 7, 13);
-      eye(g, -13, -48, 10, st, { iris: '#1d4f9a' }); eye(g, 13, -48, 10, st, { iris: '#1d4f9a' });
-      mouth(g, 0, -28, 20, s, 'o'); cheeks(g, 0, -34, 22, 5);
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2;
+      const B = st.beat != null ? st.beat : t * 5 / 3, p = hit * hit * (3 - 2 * hit);
+      const act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      // какой брусок звучит: левая палочка — низкие, правая — высокие
+      const nb = B - (1 - hit) * 0.24, n = Math.round(nb * 4), bar = ((n * 5 + Math.floor(nb / 4) * 2) % 6 + 6) % 6, side = bar < 3 ? -1 : 1;
+      // капля с гибкой макушкой
+      const tip = Math.sin(Math.PI * B) * 5 * act + Math.sin(t * 2.3) * 1.5;
+      const drop = q => { q.moveTo(tip, -104); q.quadraticCurveTo(5 + tip * 0.4, -78, 30, -56); q.bezierCurveTo(48, -36, 38, -2, 0, -2); q.bezierCurveTo(-38, -2, -48, -36, -30, -56); q.quadraticCurveTo(-5 + tip * 0.4, -78, tip, -104); q.closePath(); };
+      feet(g, 76, c);
+      silhouette(g, [{ path: drop, fill: blobFill(g, c, 80, 104) }], c, o);
+      const body = new Path2D(); drop(body);
+      g.save(); g.clip(body);
+      g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(2, -30, 28, 24, 0, 0, TAU); g.fill();
+      for (let i = 0; i < 5; i++) { const u = (t * 0.3 + i / 5) % 1, x = -20 + i * 10 + Math.sin(t * 2 + i) * 3, y = -14 - u * 66; g.strokeStyle = `rgba(255,255,255,${0.55 * (1 - u)})`; g.lineWidth = 1.4; g.beginPath(); g.arc(x, y, 1.6 + (i % 3) * 0.9, 0, TAU); g.stroke(); }
+      g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(30, -48); g.quadraticCurveTo(38, -30, 30, -14); g.stroke();
+      g.restore();
+      shine(g, -15, -66, 5.5, 13); g.fillStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(-8, -84, 2.4, 0, TAU); g.fill();
+      // мордочка
+      eye(g, -13, -63, 10, st, { iris: '#1d4f9a' }); eye(g, 13, -63, 10, st, { iris: '#1d4f9a' });
+      mouth(g, 0, -46, 17, s, 'o'); cheeks(g, 0, -50, 23, 5);
+      // маримба: ножки, две планки рамы и бруски — длинные (низкие) слева, короткие (высокие) справа
+      const BX = i => -30 + i * 12, BH = i => 25 - i * 2.2, CY = -17;
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      for (const k of [-1, 1]) { g.strokeStyle = '#3a1e0a'; g.lineWidth = 6.5; g.beginPath(); g.moveTo(k * 36, CY + 4); g.lineTo(k * 40, -1); g.stroke(); g.strokeStyle = '#a0643a'; g.lineWidth = 3; g.stroke(); }
+      for (const d of [-1, 1]) {
+        const y0 = CY + d * (BH(0) / 2 - 5), y1 = CY + d * (BH(5) / 2 - 4);
+        g.strokeStyle = '#3a1e0a'; g.lineWidth = 6; g.beginPath(); g.moveTo(-40, y0); g.lineTo(40, y1); g.stroke(); g.strokeStyle = '#8a5028'; g.lineWidth = 3; g.stroke();
+      }
+      for (let i = 0; i < 6; i++) {
+        const lit = i === bar ? p : 0, hgt = BH(i), y0 = CY - hgt / 2 + lit * 1.2;
+        const bg = g.createLinearGradient(BX(i) - 5, 0, BX(i) + 5, 0); bg.addColorStop(0, lit > 0.3 ? '#ffe2b8' : '#ee9c62'); bg.addColorStop(1, lit > 0.3 ? '#e8a060' : '#a8522a');
+        g.fillStyle = bg; g.strokeStyle = '#4a2010'; g.lineWidth = 2; g.beginPath(); g.roundRect(BX(i) - 5, y0, 10, hgt, 3); g.fill(); g.stroke();
+        g.fillStyle = 'rgba(255,240,210,.55)'; g.fillRect(BX(i) - 3.2, y0 + 2.5, 1.8, hgt - 5);
+        g.fillStyle = '#3a1a08'; for (const d of [-1, 1]) { g.beginPath(); g.arc(BX(i), CY + d * (hgt / 2 - 4.5), 1, 0, TAU); g.fill(); }
+      }
+      // брызги с бруска, по которому попали
+      if (hit > 0.05 && s > 0.05) {
+        g.fillStyle = '#e4f6ff'; g.strokeStyle = '#2a6ab0'; g.lineWidth = 1.3; const u = 1 - hit;
+        for (const j of [-1, 0, 1]) { const x = BX(bar) + j * (4 + u * 9), y = CY - 6 - u * 14 * (1.2 - Math.abs(j) * 0.4) + u * u * 6; g.beginPath(); g.arc(x, y, 2.2 - u * 0.6, 0, TAU); g.fill(); g.stroke(); }
+      }
+      // ручки с палочками
+      for (const k of [-1, 1]) {
+        const mine = side === k ? p : 0, bi = side === k ? bar : (k < 0 ? 1 : 4);
+        const lift = (1 - mine) * (12 + 3 * Math.sin(TAU * B + (k > 0 ? Math.PI : 0)) * act);
+        const hx = BX(bi), hy = CY - 3 - lift, gx = hx + k * 17, gy = hy - 10;
+        for (const [col, lw] of [[o, 11.5], [shade(c, 0.12), 7]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(k * 29, -46); g.quadraticCurveTo(k * 42, -42, gx, gy); g.stroke(); }
+        g.strokeStyle = '#4a2a10'; g.lineWidth = 3.8; g.beginPath(); g.moveTo(gx, gy); g.lineTo(hx, hy); g.stroke();
+        g.strokeStyle = '#e0b070'; g.lineWidth = 1.8; g.stroke();
+        g.fillStyle = k < 0 ? '#ff7aa8' : '#ffd23a'; g.strokeStyle = k < 0 ? '#7a1a3a' : '#7a5a10'; g.lineWidth = 2; g.beginPath(); g.arc(hx, hy, 4.6, 0, TAU); g.fill(); g.stroke();
+        g.fillStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(hx - 1.5, hy - 1.6, 1.4, 0, TAU); g.fill();
+        g.fillStyle = shade(c, 0.2); g.strokeStyle = o; g.lineWidth = 2.2; g.beginPath(); g.ellipse(gx, gy, 6, 5, k * 0.5, 0, TAU); g.fill(); g.stroke();
+      }
     },
   },
   fyuti: {
     name: 'Фьюти', el: ['wind'], part: 'flute', price: 150, rate: 14, need: 1,
     desc: 'Пушистое облачко. Дует в дудочку и ведёт главную мелодию.', col: '#bfe9fb',
     draw(g, st) {
-      const c = this.col, s = st.sing;
-      // крылышки
-      for (const k of [-1, 1]) { g.save(); g.translate(k * 36, -56); g.rotate(k * (-0.4 + Math.sin(st.t * 9) * 0.25 * (0.3 + s))); g.fillStyle = '#fff'; g.strokeStyle = shade(c, -0.55); g.lineWidth = 2.4; g.beginPath(); g.ellipse(k * 14, -6, 16, 9, k * -0.5, 0, Math.PI * 2); g.fill(); g.stroke(); g.restore(); }
+      const c = this.col, s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, o = '#4a86a8';
+      const B = st.beat != null ? st.beat : t * 5 / 3, act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      const nb = B - (1 - hit) * 0.24, n = Math.round(nb * 4) + Math.floor(nb / 4) * 3;
+      // крылышки машут в такт
+      for (const k of [-1, 1]) {
+        g.save(); g.translate(k * 33, -62); g.rotate(k * (-0.3 + Math.sin(TAU * B + (k > 0 ? 0.6 : 0)) * 0.25 * (0.25 + act)));
+        const F = [[14, -8, 14, 7, -0.55], [17, 0, 14, 6.5, -0.15], [14, 7, 10.5, 5.5, 0.25]].map(([x, y, rx, ry, a]) => { const q = new Path2D(); q.ellipse(k * x, y, rx, ry, k * a, 0, TAU); return q; });
+        g.strokeStyle = o; g.lineWidth = 4.8; g.lineJoin = 'round'; for (const q of F) g.stroke(q);
+        F.forEach((q, i) => { g.fillStyle = i === 1 ? '#f2fbff' : '#ffffff'; g.fill(q); });
+        g.strokeStyle = 'rgba(74,134,168,.35)'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(k * 6, -3); g.lineTo(k * 24, -9); g.moveTo(k * 6, 1); g.lineTo(k * 27, 1); g.stroke();
+        g.restore();
+      }
       feet(g, 70, '#9fc8dc');
-      const puffs = [[0, -50, 36, 34], [-26, -38, 20, 20], [26, -38, 20, 20], [-16, -78, 18, 16], [16, -80, 18, 16], [0, -86, 16, 14], [0, -22, 32, 20]];
-      const cf = g.createLinearGradient(0, -100, 0, 0); cf.addColorStop(0, '#ffffff'); cf.addColorStop(0.6, '#e4f6ff'); cf.addColorStop(1, '#a9d8ef');
-      silhouette(g, puffs.map(([x, y, rx, ry]) => ({ path: g2 => g2.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2), fill: cf })), c, '#4a86a8');
-      shine(g, -14, -76, 8, 5);
-      eye(g, -12, -56, 8.5, st); eye(g, 12, -56, 8.5, st); cheeks(g, 0, -45, 21, 5);
-      // дудочка
-      g.save(); g.translate(2, -38); g.rotate(0.35); g.fillStyle = '#d99a4e'; g.strokeStyle = '#6a4220'; g.lineWidth = 2.2;
-      g.beginPath(); g.roundRect(0, -4, 34, 8, 4); g.fill(); g.stroke(); g.fillStyle = '#6a4220';
-      for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(12 + i * 7, 0, 1.6, 0, Math.PI * 2); g.fill(); } g.restore();
-      mouth(g, 0, -38, 14, 0.3 + s * 0.4, 'o');
+      // облачко: пушинки чуть дышат
+      const puffs = [[0, -50, 36, 34], [-26, -38, 20, 20], [26, -38, 20, 20], [-17, -78, 18, 16], [17, -80, 18, 16], [0, -88, 16, 14], [0, -22, 32, 20], [-34, -58, 12, 12], [34, -58, 12, 12]];
+      const br = i => 1 + Math.sin(TAU * B / 2 + i * 1.3) * 0.025 * (0.4 + act);
+      const cf = g.createLinearGradient(0, -102, 0, 0); cf.addColorStop(0, '#ffffff'); cf.addColorStop(0.55, '#eaf8ff'); cf.addColorStop(1, '#a6d6ee');
+      silhouette(g, puffs.map(([x, y, rx, ry], i) => ({ path: q => q.ellipse(x, y, rx * br(i), ry * br(i), 0, 0, TAU), fill: cf })), c, o);
+      g.strokeStyle = 'rgba(110,170,210,.35)'; g.lineWidth = 2.4; g.lineCap = 'round';
+      for (const [x, y, r] of [[-17, -78, 15], [17, -80, 15], [0, -88, 13], [-26, -38, 17], [26, -38, 17]]) { g.beginPath(); g.arc(x, y, r, Math.PI * 0.25, Math.PI * 0.75); g.stroke(); }
+      // завиток ветра на макушке
+      g.strokeStyle = o; g.lineWidth = 2.6; g.beginPath(); g.moveTo(-2, -101); g.bezierCurveTo(-4, -112, 10, -116, 11, -108); g.bezierCurveTo(12, -102, 4, -102, 5, -107); g.stroke();
+      shine(g, -16, -80, 7, 4.5); shine(g, -8, -66, 4, 2.6);
+      // мордочка
+      eye(g, -12, -60, 8.5, st, { lid: 1 }); eye(g, 12, -60, 8.5, st, { lid: 1 });
+      g.strokeStyle = '#4a6a8a'; g.lineWidth = 2; for (const k of [-1, 1]) { g.beginPath(); g.arc(k * 12, -66 - s * 3, 9, Math.PI * (k < 0 ? 1.2 : 1.45), Math.PI * (k < 0 ? 1.55 : 1.8)); g.stroke(); }
+      cheeks(g, 0, -49, 21, 5 + s * 1.5);
+      mouth(g, -3, -44, 12, 0.15 + s * 0.45, 'o');
+      // поперечная флейта: серебро, клапаны, пальчики-пушинки перебирают на каждой ноте
+      const ang = 0.12 + Math.sin(TAU * B / 4) * 0.04 - s * 0.05;
+      g.save(); g.translate(-14, -38); g.rotate(ang);
+      const tb = g.createLinearGradient(0, -3.5, 0, 3.5); tb.addColorStop(0, '#ffffff'); tb.addColorStop(0.45, '#d4dde8'); tb.addColorStop(1, '#7d8ca0');
+      g.fillStyle = tb; g.strokeStyle = '#3a4658'; g.lineWidth = 2; g.beginPath(); g.roundRect(0, -3.3, 74, 6.6, 3.3); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(58,70,88,.6)'; g.lineWidth = 1.2; for (const x of [22, 60]) { g.beginPath(); g.moveTo(x, -3.3); g.lineTo(x, 3.3); g.stroke(); }
+      g.fillStyle = '#5a6678'; g.beginPath(); g.ellipse(11, -0.5, 2.6, 1.6, 0, 0, TAU); g.fill();
+      const FING = [63, 62, 60, 56, 48, 32, 30, 15], mask = s > 0.05 ? FING[((n % 8) + 8) % 8] : 63;
+      const KX = [28, 33, 38, 45, 50, 55];
+      KX.forEach(x => { g.fillStyle = '#eef3f8'; g.strokeStyle = '#4a5668'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, -0.5, 2.3, 0, TAU); g.fill(); g.stroke(); });
+      for (const [hx, ks] of [[33, [0, 1, 2]], [50, [3, 4, 5]]]) {
+        g.fillStyle = '#ffffff'; g.strokeStyle = o; g.lineWidth = 2; g.beginPath(); g.ellipse(hx, 6, 8, 5, 0, 0, TAU); g.fill(); g.stroke();
+        for (const i of ks) { const down = mask >> (5 - i) & 1, y = down ? -2.6 : -7; g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(KX[i], y, 2.8, 2.6, 0, 0, TAU); g.fill(); g.stroke(); }
+      }
+      g.restore();
+      // ноты улетают из флейты
+      for (let i = 0; i < 3; i++) {
+        const u = (t * 0.55 + i / 3) % 1, a = s * Math.sin(Math.PI * u);
+        if (a < 0.03) continue;
+        const x = 44 + u * 10 + Math.sin(u * 7 + i * 2) * 3, y = -50 - u * 50;
+        g.fillStyle = `rgba(42,90,140,${a})`; g.strokeStyle = `rgba(42,90,140,${a})`; g.lineWidth = 1.6;
+        g.beginPath(); g.ellipse(x, y, 3.4, 2.5, -0.4, 0, TAU); g.fill();
+        g.beginPath(); g.moveTo(x + 3, y - 0.5); g.lineTo(x + 3, y - 11); g.quadraticCurveTo(x + 7, y - 8, x + 6.5, y - 4.5); g.stroke();
+      }
     },
   },
   shursha: {
     name: 'Шурша', el: ['leaf'], part: 'shaker', price: 200, rate: 16, need: 2,
     desc: 'Лесной шуршун. Трясёт маракасами из орехов и хлопает в ладоши.', col: '#74cf4a',
     draw(g, st) {
-      const w = 76, h = 92, c = this.col, s = st.sing, sh = Math.sin(st.t * 22) * s;
-      leafShape(g, 0, -88, 34, -1.9, '#4fae32'); leafShape(g, 2, -88, 30, -1.1, '#62c43e');
-      // маракасы
-      for (const k of [-1, 1]) {
-        g.save(); g.translate(k * 34, -40); g.rotate(k * (0.9 + sh * 0.35));
-        g.strokeStyle = '#7a4f2a'; g.lineWidth = 4; g.beginPath(); g.moveTo(0, 0); g.lineTo(k * 20, -10); g.stroke();
-        g.fillStyle = '#e8a33c'; g.strokeStyle = '#7a4f2a'; g.lineWidth = 2.2; g.beginPath(); g.ellipse(k * 26, -13, 9, 7, k * -0.45, 0, Math.PI * 2); g.fill(); g.stroke();
-        g.restore();
-        arm(g, k * 30, -38, k > 0 ? -0.2 - sh * 0.3 : Math.PI + 0.2 + sh * 0.3, 12, c, 9);
-      }
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, t = st.t || 0, TAU = Math.PI * 2, w = 76, h = 92;
+      const B = st.beat != null ? st.beat : t * 5 / 3, act = Math.min(1, s * 1.5 + (st.dance || 0) * 0.6);
+      const lerp = (a, b, k) => a + (b - a) * k;
+      // трясёт туда-сюда на каждую восьмую, а на 2 и 4 долю стукает маракасами друг о друга
+      const shake = Math.sin(TAU * B * 2) * (0.15 + 0.85 * act);
+      const x2 = ((B - 1) % 2 + 2) % 2, dist = Math.min(x2, 2 - x2), cl0 = act * Math.max(0, 1 - dist / 0.24), cl = cl0 * cl0 * (3 - 2 * cl0);
+      // листья на макушке
+      const sw = Math.sin(TAU * B) * 0.12 * act + Math.sin(t * 2) * 0.04;
+      leafShape(g, -2, -88, 34, -1.95 + sw, '#4fae32'); leafShape(g, 2, -88, 30, -1.15 + sw * 1.3, '#62c43e'); leafShape(g, 0, -88, 20, -1.55 - sw, '#86d856');
       feet(g, w, c);
-      silhouette(g, [{ path: g2 => SHAPES.pear(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      g.fillStyle = shade(c, 0.4); g.beginPath(); g.ellipse(0, -24, 20, 16, 0, 0, Math.PI * 2); g.fill();
+      silhouette(g, [{ path: q => SHAPES.pear(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      const body = new Path2D(); SHAPES.pear(body, w, h);
+      g.save(); g.clip(body);
+      g.fillStyle = shade(c, 0.4); g.beginPath(); g.ellipse(0, -22, 22, 18, 0, 0, TAU); g.fill();
+      // узор из листиков по бокам
+      g.fillStyle = rgba('#2f7a1f', 0.22);
+      for (const [x, y, a] of [[-30, -40, -0.6], [-34, -24, -0.2], [30, -44, 0.6], [34, -26, 0.2], [-22, -62, -0.9], [22, -64, 0.9]]) { g.save(); g.translate(x, y); g.rotate(a); g.beginPath(); g.moveTo(0, -7); g.quadraticCurveTo(5, 0, 0, 7); g.quadraticCurveTo(-5, 0, 0, -7); g.fill(); g.restore(); }
+      g.restore();
       shine(g, -12, -74, 6, 9);
-      eye(g, -11, -58, 8, st, { happy: true }); eye(g, 11, -58, 8, st, { happy: true });
-      mouth(g, 0, -42, 18, s); cheeks(g, 0, -46, 19, 5);
+      eye(g, -12, -60, 8.5, st, { happy: true }); eye(g, 12, -60, 8.5, st, { happy: true });
+      g.fillStyle = rgba('#2f7a1f', 0.45); for (const k of [-1, 1]) for (const [dx, dy] of [[0, 0], [4, 2], [-3, 3]]) { g.beginPath(); g.arc(k * (21 + dx), -48 + dy, 1.1, 0, TAU); g.fill(); }
+      mouth(g, 0, -45, 18, s); cheeks(g, 0, -49, 20, 5);
+      // маракасы-орехи
+      const maraca = (x, y, a, k) => {
+        g.save(); g.translate(x, y); g.rotate(a);
+        g.lineCap = 'round'; g.strokeStyle = '#4a2a12'; g.lineWidth = 6.5; g.beginPath(); g.moveTo(0, 10); g.lineTo(0, -4); g.stroke();
+        g.strokeStyle = '#c8904a'; g.lineWidth = 3; g.stroke();
+        const ng = g.createRadialGradient(-3, -17, 1, 0, -13, 12); ng.addColorStop(0, '#ffe0a0'); ng.addColorStop(0.5, '#e09a48'); ng.addColorStop(1, '#a0602a');
+        g.fillStyle = ng; g.strokeStyle = '#4a2a12'; g.lineWidth = 2.4; g.beginPath(); g.ellipse(0, -13, 8.5, 10, 0, 0, TAU); g.fill(); g.stroke();
+        g.strokeStyle = k < 0 ? '#ff5a4a' : '#ffffff'; g.lineWidth = 2; g.beginPath(); for (let i = 0; i <= 6; i++) { const xx = -7.5 + i * 2.5; g.lineTo(xx, -9 + (i % 2) * 2.5); } g.stroke();
+        g.fillStyle = '#7a4a22'; g.strokeStyle = '#3a1e0a'; g.lineWidth = 2; g.beginPath(); g.moveTo(-9, -18); g.quadraticCurveTo(-9.5, -27, 0, -27.5); g.quadraticCurveTo(9.5, -27, 9, -18); g.quadraticCurveTo(0, -15.5, -9, -18); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = 'rgba(255,220,170,.35)'; for (const [xx, yy] of [[-4, -22], [1, -24], [5, -21], [-1, -20]]) { g.beginPath(); g.arc(xx, yy, 1, 0, TAU); g.fill(); }
+        g.strokeStyle = '#3a1e0a'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(0, -27); g.lineTo(1.5, -31); g.stroke();
+        g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(-3.5, -12, 2, 3.5, 0.3, 0, TAU); g.fill();
+        g.restore();
+      };
+      for (const k of [-1, 1]) {
+        const hx = k * lerp(42, 17, cl), hy = lerp(-50 - k * shake * 3, -16, cl), a = lerp(k * 0.35 + shake * 0.45, -k * 0.95, cl);
+        for (const [col, lw] of [[shade(c, -0.55), 14], [shade(c, -0.05), 9]]) { g.strokeStyle = col; g.lineWidth = lw; g.lineCap = 'round'; g.beginPath(); g.moveTo(k * 30, -42); g.quadraticCurveTo(k * lerp(40, 30, cl), lerp(-40, -24, cl), hx, hy); g.stroke(); }
+        maraca(hx, hy, a, k);
+        g.fillStyle = shade(c, 0.15); g.strokeStyle = o; g.lineWidth = 2.2; g.beginPath(); g.ellipse(hx, hy + 1, 6, 5, 0, 0, TAU); g.fill(); g.stroke();
+        // «ш-ш»: дуги у головки на размахе
+        const sa = act * (1 - cl) * Math.abs(shake);
+        if (sa > 0.15) {
+          const ex = hx + Math.sin(a) * 14, ey = hy - Math.cos(a) * 14, dir = Math.sign(shake) * k || 1;
+          g.strokeStyle = `rgba(255,255,255,${sa * 0.9})`; g.lineWidth = 2.2;
+          for (const r of [10, 14]) { g.beginPath(); g.arc(ex, ey, r, dir > 0 ? -0.5 : Math.PI - 0.5, dir > 0 ? 0.5 : Math.PI + 0.5); g.stroke(); }
+        }
+      }
+      // хлопок!
+      if (cl > 0.7 && s > 0.1) {
+        g.strokeStyle = '#fff3a0'; g.lineWidth = 2.4; g.lineCap = 'round';
+        for (const a of [-0.5, 0, 0.5, Math.PI - 0.5, Math.PI, Math.PI + 0.5]) { const r1 = 15, r2 = 15 + 7 * cl; g.beginPath(); g.moveTo(Math.cos(a) * r1, -29 + Math.sin(a) * r1); g.lineTo(Math.cos(a) * r2, -29 + Math.sin(a) * r2); g.stroke(); }
+      }
     },
   },
   glubun: {
     name: 'Глубун', el: ['water'], part: 'bass', price: 300, rate: 20, need: 3,
     desc: 'Живёт в подводных пещерах. Его низкий бас слышно на дне моря.', col: '#2f8a92',
     draw(g, st) {
-      const w = 104, h = 70, c = this.col, s = st.sing;
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, w = 104, h = 80;
+      const B = st.beat != null ? st.beat : t * 5 / 3, f = B - Math.floor(B), p = hit * hit * (3 - 2 * hit);
+      const act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6), nod = act * 2.6 * Math.pow(Math.cos(Math.PI * f), 2);
       feet(g, w, c);
-      const spikes = [[-30, -62], [-10, -72], [12, -70], [32, -58]].map(([x, y]) => ({ path: g2 => { g2.moveTo(x - 10, y + 12); g2.lineTo(x, y - 8); g2.lineTo(x + 10, y + 12); g2.closePath(); }, fill: '#8a7a6a' }));
-      silhouette(g, [...spikes, { path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      g.fillStyle = shade(c, 0.35); g.beginPath(); g.ellipse(0, -16, 34, 13, 0, 0, Math.PI * 2); g.fill();
-      for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.arc(-30 + i * 9, -40 + (i % 2) * 6, 2.6, 0, Math.PI * 2); g.fill(); }
-      eye(g, -20, -52, 7.5, st, { iris: '#c8e84a', pupil: 0.6 }); eye(g, 20, -52, 7.5, st, { iris: '#c8e84a', pupil: 0.6 });
-      mouth(g, 0, -34, 40, s * 0.85, 'teeth');
+      const spikes = [[-34, -62, 9, 13], [-13, -76, 10, 14], [10, -76, 10, 15], [32, -62, 9, 12]].map(([x, y, r, hh]) => ({ path: q => { q.moveTo(x - r, y + 10); q.quadraticCurveTo(x - r * 0.4, y - hh * 0.5, x + r * 0.15, y - hh); q.quadraticCurveTo(x + r * 0.5, y - hh * 0.3, x + r, y + 10); q.closePath(); }, fill: '#7f8c7a' }));
+      silhouette(g, [...spikes, { path: q => SHAPES.gum(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      const body = new Path2D(); SHAPES.gum(body, w, h);
+      g.save(); g.clip(body);
+      g.fillStyle = shade(c, 0.32); g.beginPath(); g.ellipse(0, -10, 38, 16, 0, 0, TAU); g.fill();
+      g.strokeStyle = rgba('#1a4a50', 0.25); g.lineWidth = 1.8; for (const y of [-18, -12]) { g.beginPath(); g.moveTo(-26, y); g.quadraticCurveTo(0, y + 4, 26, y); g.stroke(); }
+      g.restore();
+      // светящиеся пятнышки, как у глубоководных рыб: вспыхивают на каждой ноте
+      for (const [x, y, r] of [[-40, -44, 3], [-33, -56, 2.4], [-44, -30, 2.2], [38, -50, 2.8], [44, -36, 2.2], [26, -64, 2]]) {
+        const gl = 0.35 + 0.65 * Math.max(p, s * 0.5);
+        const gg = g.createRadialGradient(x, y, 0, x, y, r * 3); gg.addColorStop(0, `rgba(170,255,235,${gl * 0.6})`); gg.addColorStop(1, 'rgba(170,255,235,0)');
+        g.fillStyle = gg; g.beginPath(); g.arc(x, y, r * 3, 0, TAU); g.fill();
+        g.fillStyle = `rgba(210,255,245,${0.5 + gl * 0.5})`; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      }
+      shine(g, -26, -62, 8, 4.5);
+      // голова кивает на каждую долю
+      g.save(); g.translate(0, nod);
+      eye(g, -20, -58, 8, st, { iris: '#c8e84a', pupil: 0.6, lid: 1 }); eye(g, 20, -58, 8, st, { iris: '#c8e84a', pupil: 0.6, lid: 1 });
+      g.strokeStyle = '#1a2a2a'; g.lineWidth = 3; g.lineCap = 'round'; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 12, -70 - s * 2); g.quadraticCurveTo(k * 20, -73 - s * 3, k * 28, -69); g.stroke(); }
+      mouth(g, 0, -44, 27, s * 0.85, 'teeth'); cheeks(g, 0, -47, 30, 5.5);
+      g.restore();
+      // пузырьки изо рта
+      for (let i = 0; i < 3; i++) { const u = (t * 0.7 + i / 3) % 1, a = s * (1 - u); if (a < 0.05) continue; g.strokeStyle = `rgba(230,250,255,${a})`; g.lineWidth = 1.6; g.beginPath(); g.arc(-26 - u * 14 + Math.sin(u * 9 + i) * 3, -46 - u * 50, 2.2 + i, 0, TAU); g.stroke(); }
+      // бас-гитара: большой корпус, длинный гриф торчит вправо вверх
+      const ang = -0.47 + Math.sin(TAU * B / 2) * 0.03 * act, ca = Math.cos(ang), sa = Math.sin(ang), OX = -17, OY = -13;
+      const W = (x, y) => [OX + x * ca - y * sa, OY + x * sa + y * ca];
+      g.save(); g.translate(OX, OY); g.rotate(ang);
+      const sh = [[-5, 0, 18.5, 14], [11, -1, 12, 10.5]].map(([x, y, rx, ry]) => { const q = new Path2D(); q.ellipse(x, y, rx, ry, 0, 0, TAU); return q; });
+      g.strokeStyle = '#3a0e08'; g.lineWidth = 5.4; g.lineJoin = 'round'; for (const q of sh) g.stroke(q);
+      const bg = g.createRadialGradient(-2, -4, 2, 0, 0, 22); bg.addColorStop(0, '#ffc070'); bg.addColorStop(0.5, '#e0602e'); bg.addColorStop(1, '#7a1e12');
+      g.fillStyle = bg; for (const q of sh) g.fill(q);
+      g.fillStyle = '#f6ecd8'; g.strokeStyle = '#6a3a20'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(5, 4, 10, 6.5, 0.2, 0, TAU); g.fill(); g.stroke();
+      g.fillStyle = '#1a1a1a'; g.beginPath(); g.roundRect(0, -5, 4, 10, 1.5); g.fill(); g.beginPath(); g.roundRect(-11, -5, 3.5, 10, 1.5); g.fill();
+      g.fillStyle = '#c8c8d0'; g.strokeStyle = '#4a4a5a'; g.lineWidth = 1; g.beginPath(); g.roundRect(-18, -4.5, 3.5, 9, 1); g.fill(); g.stroke();
+      // гриф и голова с колками
+      g.fillStyle = '#e8c890'; g.strokeStyle = '#5a3a18'; g.lineWidth = 2; g.beginPath(); g.roundRect(18, -3.6, 54, 7.2, 1.5); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(90,58,24,.6)'; g.lineWidth = 1; for (let i = 0; i < 8; i++) { const x = 24 + i * 6; g.beginPath(); g.moveTo(x, -3.6); g.lineTo(x, 3.6); g.stroke(); }
+      g.fillStyle = '#5a3a18'; for (const x of [33, 45, 57]) { g.beginPath(); g.arc(x, 0, 1.1, 0, TAU); g.fill(); }
+      g.fillStyle = '#9a2e1a'; g.strokeStyle = '#3a0e08'; g.lineWidth = 2; g.beginPath(); g.moveTo(71, -4); g.lineTo(84, -7); g.quadraticCurveTo(87, 0, 84, 6); g.lineTo(71, 4); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#f2f2f8'; g.strokeStyle = '#4a4a5a'; g.lineWidth = 1.2; for (const x of [75, 81]) for (const k of [-1, 1]) { g.beginPath(); g.ellipse(x, k * 8.5, 2.2, 2.6, 0, 0, TAU); g.fill(); g.stroke(); }
+      // струны дрожат, пока нота звучит
+      g.strokeStyle = 'rgba(255,250,235,.95)'; g.lineWidth = 1;
+      for (let i = 0; i < 4; i++) { const y0 = -2.4 + i * 1.6; g.beginPath(); g.moveTo(-16, y0); for (let x = -11; x <= 72; x += 4) g.lineTo(x, y0 + Math.sin(x * 0.9 + t * 60 + i) * s * 1.1 * Math.max(0, 1 - Math.abs(x - 28) / 46)); g.stroke(); }
+      g.restore();
+      // левая лапа щиплет струны (оттягивает на каждой ноте), правая перебирает лады
+      const limb = (x1, y1, cx, cy, x2, y2) => { g.lineCap = 'round'; for (const [col, lw] of [[shade(c, -0.55), 13], [shade(c, -0.05), 8]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(x1, y1); g.quadraticCurveTo(cx, cy, x2, y2); g.stroke(); } };
+      const [px, py] = W(6, -7 + p * 7), fret = 36 + [0, 14, 7, 21][Math.floor(B / 2) % 4 | 0], [fx, fy] = W(fret, 1);
+      limb(-45, -34, -44, -12, px, py); limb(47, -44, 50, -26, fx, fy);
+      g.fillStyle = shade(c, 0.18); g.strokeStyle = o; g.lineWidth = 2.2;
+      for (const [x, y] of [[px, py], [fx, fy]]) { g.beginPath(); g.ellipse(x, y, 6, 5, ang, 0, TAU); g.fill(); g.stroke(); }
     },
   },
   gudun: {
@@ -304,20 +516,47 @@ const KINDS = {
     name: 'Тумтум', el: ['stone'], part: 'tom', price: 300, rate: 20, need: 3,
     desc: 'Стучит в бонги из кокосов. Ушами ловит ритм всего острова.', col: '#ee9440',
     draw(g, st) {
-      const w = 86, h = 80, c = this.col, s = st.sing, hit = Math.abs(Math.sin(st.t * 14)) * s;
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, w = 86, h = 80;
+      const B = st.beat != null ? st.beat : t * 5 / 3, p = hit * hit * (3 - 2 * hit), act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      const nb = B - (1 - hit) * 0.24, hand = Math.round(nb * 4) % 2 ? 1 : -1;
+      // уши ловят ритм: качаются в такт и вздрагивают на каждом ударе
+      const R = (x, y, a, cx, cy) => [cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)];
+      const earA = k => Math.sin(TAU * B / 2) * 0.1 * act + k * (p * (hand === k ? 0.16 : 0.07) + Math.sin(t * 1.7 + k) * 0.03);
+      const earPath = (k, sc) => q => { const a = earA(k), P = [[k * 18, -70], [k * 50, -114], [k * 40, -64]].map(([x, y]) => R(k * 29 + (x - k * 29) * sc, -68 + (y + 68) * sc, a, k * 29, -68)); q.moveTo(P[0][0], P[0][1]); q.quadraticCurveTo(P[1][0], P[1][1], P[2][0], P[2][1]); q.closePath(); };
       feet(g, w, c);
-      const ears = [-1, 1].map(k => ({ path: g2 => { g2.moveTo(k * 18, -70); g2.quadraticCurveTo(k * 46, -110, k * 40, -66); g2.closePath(); }, fill: shade(c, -0.08) }));
-      silhouette(g, [...ears, { path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      for (const k of [-1, 1]) { g.fillStyle = '#ffb6a0'; g.beginPath(); g.moveTo(k * 22, -72); g.quadraticCurveTo(k * 40, -98, k * 36, -70); g.closePath(); g.fill(); }
-      g.fillStyle = shade(c, 0.38); g.beginPath(); g.ellipse(0, -26, 24, 15, 0, 0, Math.PI * 2); g.fill();
-      eye(g, -14, -56, 8, st); eye(g, 14, -56, 8, st);
-      mouth(g, 0, -40, 22, s); cheeks(g, 0, -44, 24, 5);
-      // бонги перед собой
+      const tuft = { path: q => { q.moveTo(-12, -76); q.quadraticCurveTo(-8, -92, -2, -82); q.quadraticCurveTo(2, -98, 7, -82); q.quadraticCurveTo(13, -90, 13, -76); q.closePath(); }, fill: shade(c, 0.05) };
+      silhouette(g, [...[-1, 1].map(k => ({ path: earPath(k, 1), fill: shade(c, -0.08) })), tuft, { path: q => SHAPES.gum(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      for (const k of [-1, 1]) { const q = new Path2D(); earPath(k, 0.62)(q); g.fillStyle = '#ffb6a0'; g.fill(q); }
+      const body = new Path2D(); SHAPES.gum(body, w, h);
+      g.save(); g.clip(body);
+      g.fillStyle = shade(c, 0.4); g.beginPath(); g.ellipse(0, -30, 26, 20, 0, 0, TAU); g.fill();
+      g.strokeStyle = rgba('#8a3a10', 0.35); g.lineWidth = 3; g.lineCap = 'round';
+      for (const k of [-1, 1]) for (const d of [0, 7]) { g.beginPath(); g.moveTo(k * 44, -56 + d); g.lineTo(k * 34, -54 + d); g.stroke(); }
+      g.restore();
+      shine(g, -22, -66, 6, 9);
+      eye(g, -14, -59, 8.5, st); eye(g, 14, -59, 8.5, st);
+      g.fillStyle = '#7a3418'; g.beginPath(); g.ellipse(0, -50, 3.4, 2.4, 0, 0, TAU); g.fill();
+      mouth(g, 0, -43, 19, s); cheeks(g, 0, -48, 25, 5);
+      // бонги из кокосов
+      const drum = (x, top, rx, lit) => {
+        const hgt = rx * 1.15, q = new Path2D(); q.moveTo(x - rx, top); q.bezierCurveTo(x - rx, top + hgt * 1.2, x + rx, top + hgt * 1.2, x + rx, top); q.closePath();
+        const cg = g.createRadialGradient(x - rx * 0.4, top + 4, 2, x, top + 6, rx * 1.3); cg.addColorStop(0, '#a8703a'); cg.addColorStop(1, '#4a2810');
+        g.fillStyle = cg; g.strokeStyle = '#2a1408'; g.lineWidth = 2.4; g.fill(q); g.stroke(q);
+        g.save(); g.clip(q); g.strokeStyle = 'rgba(255,220,170,.35)'; g.lineWidth = 1.2; for (let i = 0; i < 9; i++) { const xx = x - rx + 2 + i * rx / 4.4, yy = top + 6 + (i % 3) * 4; g.beginPath(); g.moveTo(xx, yy); g.lineTo(xx + 2.5, yy + 3); g.stroke(); } g.restore();
+        g.strokeStyle = '#e8c070'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(x - rx * 0.98, top + 3.5); g.quadraticCurveTo(x, top + 6.5, x + rx * 0.98, top + 3.5); g.stroke();
+        g.fillStyle = lit > 0.3 ? '#fffaf0' : '#f2e2c0'; g.strokeStyle = '#4a2a12'; g.lineWidth = 2; g.beginPath(); g.ellipse(x, top, rx, rx * 0.32 * (1 - lit * 0.15), 0, 0, TAU); g.fill(); g.stroke();
+        if (lit > 0.02) { g.strokeStyle = `rgba(160,110,60,${lit * 0.7})`; g.lineWidth = 1.2; const u = 0.4 + (1 - lit) * 0.5; g.beginPath(); g.ellipse(x, top, rx * u, rx * 0.32 * u, 0, 0, TAU); g.stroke(); }
+      };
+      g.fillStyle = '#5a3418'; g.strokeStyle = '#2a1408'; g.lineWidth = 2; g.beginPath(); g.roundRect(-8, -16, 16, 7, 2); g.fill(); g.stroke();
+      drum(-21, -21, 17.5, hand < 0 ? p : 0); drum(22, -19, 14.5, hand > 0 ? p : 0);
+      // ладошки шлёпают по очереди
       for (const k of [-1, 1]) {
-        g.fillStyle = '#9a5a2a'; g.strokeStyle = '#4a2a12'; g.lineWidth = 2.4;
-        g.beginPath(); g.moveTo(k * 26 - 13, -18); g.lineTo(k * 26 + 13, -18); g.lineTo(k * 26 + 9, 4); g.lineTo(k * 26 - 9, 4); g.closePath(); g.fill(); g.stroke();
-        g.fillStyle = '#f2e2c0'; g.beginPath(); g.ellipse(k * 26, -18, 13, 4.5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-        arm(g, k * 34, -34, k > 0 ? Math.PI * 0.62 - hit * 0.3 : Math.PI * 0.38 + hit * 0.3, 16, c, 9);
+        const dn = hand === k ? p : 0, bob = Math.sin(TAU * B + (k > 0 ? Math.PI : 0)) * 3 * act;
+        const hx = k * (21 + 27 * (1 - dn)), hy = (k < 0 ? -25 : -23) - (1 - dn) * (8 + bob);
+        g.lineCap = 'round'; for (const [col, lw] of [[shade(c, -0.55), 14], [shade(c, -0.05), 9]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(k * 36, -42); g.quadraticCurveTo(k * (44 - 6 * dn), hy - 6, hx, hy); g.stroke(); }
+        g.fillStyle = shade(c, 0.3); g.strokeStyle = o; g.lineWidth = 2.4; g.beginPath(); g.ellipse(hx, hy, 9, 6, k * 0.15, 0, TAU); g.fill(); g.stroke();
+        g.fillStyle = '#ff9a8a'; g.beginPath(); g.ellipse(hx, hy + 1, 3.6, 2.4, 0, 0, TAU); g.fill(); for (const d of [-5, 0, 5]) { g.beginPath(); g.arc(hx + d, hy - 3, 1.3, 0, TAU); g.fill(); }
+        if (dn > 0.55 && s > 0.05) { g.strokeStyle = '#fff6c0'; g.lineWidth = 2.2; for (const a of [-2.5, -1.9, -1.25, -0.65]) { const ex = hx + Math.cos(a) * 11, ey = hy + Math.sin(a) * 9; g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex + Math.cos(a) * 6, ey + Math.sin(a) * 6); g.stroke(); } }
       }
     },
   },
@@ -431,40 +670,128 @@ const KINDS = {
     name: 'Бренчик', el: ['leaf'], part: 'pluck', price: 350, rate: 22, need: 4,
     desc: 'Степной гитарист с травяной чёлкой. Бренчит аккорды на слабую долю.', col: '#cbe04a',
     draw(g, st) {
-      const w = 66, h = 104, c = this.col, s = st.sing, strum = Math.sin(st.t * 16) * s;
-      for (let i = -2; i <= 2; i++) { g.strokeStyle = i % 2 ? '#5fa83a' : '#7cc84a'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(i * 6, -96); g.quadraticCurveTo(i * 10, -118, i * 14 + Math.sin(st.t * 3 + i) * 3, -122); g.stroke(); }
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, w = 66, h = 104;
+      const B = st.beat != null ? st.beat : t * 5 / 3, p = hit * hit * (3 - 2 * hit), act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      const nb = B - (1 - hit) * 0.24, dir = Math.round(nb * 4) % 2 ? 1 : -1, bpb = st.bpb || 4;
+      // травяная чёлка качается в такт
+      for (let i = -3; i <= 3; i++) {
+        const bx = i * 5, tx = i * 11 + Math.sin(TAU * B / 2 + i * 0.5) * 4 * act + Math.sin(t * 3 + i) * 1.5, ty = -124 + Math.abs(i) * 4;
+        const col = ['#5fa83a', '#7cc84a', '#94d85a'][(i + 3) % 3];
+        g.fillStyle = col; g.strokeStyle = '#2f5a1a'; g.lineWidth = 2; g.lineJoin = 'round';
+        g.beginPath(); g.moveTo(bx - 3.5, -96); g.quadraticCurveTo(bx + (tx - bx) * 0.3 - 3, -114, tx, ty); g.quadraticCurveTo(bx + (tx - bx) * 0.3 + 3, -112, bx + 3.5, -96); g.closePath(); g.fill(); g.stroke();
+      }
       feet(g, w, c);
-      silhouette(g, [{ path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      shine(g, -11, -84, 6, 10);
-      eye(g, -11, -70, 8, st, { lid: 1 }); eye(g, 11, -70, 8, st, { lid: 1 });
-      mouth(g, 0, -54, 18, s); cheeks(g, 0, -58, 18, 4.5);
-      // лютня
-      g.save(); g.translate(-4, -26); g.rotate(-0.5);
-      g.fillStyle = '#c87a3a'; g.strokeStyle = '#5a3218'; g.lineWidth = 2.4;
-      g.beginPath(); g.ellipse(0, 0, 16, 12, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.fillStyle = '#5a3218'; g.beginPath(); g.arc(2, 0, 4, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#8a5228'; g.beginPath(); g.roundRect(12, -3, 30, 6, 2); g.fill(); g.stroke();
+      silhouette(g, [{ path: q => SHAPES.gum(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      // ромашка в чёлке
+      g.save(); g.translate(-14, -100); g.rotate(Math.sin(TAU * B / 2) * 0.15 * act);
+      g.fillStyle = '#ffffff'; g.strokeStyle = '#8a8a6a'; g.lineWidth = 1.2; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; g.beginPath(); g.ellipse(Math.cos(a) * 4.6, Math.sin(a) * 4.6, 3.6, 2.2, a, 0, TAU); g.fill(); g.stroke(); }
+      g.fillStyle = '#ffc83a'; g.beginPath(); g.arc(0, 0, 2.8, 0, TAU); g.fill(); g.restore();
+      shine(g, -14, -86, 5, 10);
+      eye(g, -11, -72, 8, st, { lid: 1 }); eye(g, 11, -72, 8, st, { lid: 1 });
+      g.fillStyle = rgba('#6a8a1a', 0.55); for (const k of [-1, 1]) for (const [dx, dy] of [[0, 0], [4, 2], [-3, 3]]) { g.beginPath(); g.arc(k * (18 + dx), -60 + dy, 1, 0, TAU); g.fill(); }
+      mouth(g, 0, -57, 17, s); cheeks(g, 0, -61, 19, 4.5);
+      // гитара
+      const ang = -0.52 + Math.sin(TAU * B / bpb) * 0.03 * act, ca = Math.cos(ang), sa = Math.sin(ang), OX = -6, OY = -27;
+      const W = (x, y) => [OX + x * ca - y * sa, OY + x * sa + y * ca];
+      g.save(); g.translate(OX, OY); g.rotate(ang);
+      const sh = [[-7, 0, 13, 15.5], [10, 0, 10, 12]].map(([x, y, rx, ry]) => { const q = new Path2D(); q.ellipse(x, y, rx, ry, 0, 0, TAU); return q; });
+      g.strokeStyle = '#4a2410'; g.lineWidth = 5; g.lineJoin = 'round'; for (const q of sh) g.stroke(q);
+      const gg = g.createRadialGradient(-2, -4, 2, 0, 0, 18); gg.addColorStop(0, '#ffd890'); gg.addColorStop(0.6, '#e09a48'); gg.addColorStop(1, '#a0582a');
+      g.fillStyle = gg; for (const q of sh) g.fill(q);
+      g.strokeStyle = '#7a3a1a'; g.lineWidth = 1.8; g.beginPath(); g.arc(3, 0, 6.4, 0, TAU); g.stroke();
+      g.fillStyle = '#3a1a0a'; g.beginPath(); g.arc(3, 0, 4.8, 0, TAU); g.fill();
+      g.fillStyle = '#5a2a10'; g.beginPath(); g.roundRect(-14, -6, 3.5, 12, 1); g.fill();
+      g.fillStyle = '#9a5228'; g.strokeStyle = '#4a2410'; g.lineWidth = 1.8; g.beginPath(); g.roundRect(18, -3, 36, 6, 1.2); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(255,230,180,.65)'; g.lineWidth = 0.9; for (let i = 0; i < 7; i++) { const x = 23 + i * 4.6; g.beginPath(); g.moveTo(x, -3); g.lineTo(x, 3); g.stroke(); }
+      g.fillStyle = '#7a3a1a'; g.strokeStyle = '#4a2410'; g.lineWidth = 1.8; g.beginPath(); g.moveTo(53, -3.8); g.lineTo(64, -5); g.lineTo(65, 5); g.lineTo(53, 3.8); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#fff0c0'; g.strokeStyle = '#4a2410'; g.lineWidth = 1; for (const x of [56.5, 61]) for (const k of [-1, 1]) { g.beginPath(); g.arc(x, k * 6.2, 1.7, 0, TAU); g.fill(); g.stroke(); }
+      // струны дрожат, пока звучит аккорд
+      g.strokeStyle = 'rgba(255,250,230,.95)'; g.lineWidth = 0.9;
+      for (let i = 0; i < 4; i++) { const y0 = -2.1 + i * 1.4; g.beginPath(); g.moveTo(-13, y0); for (let x = -9; x <= 54; x += 4) g.lineTo(x, y0 + Math.sin(x * 1.1 + t * 70 + i * 2) * s * 0.9 * Math.max(0, 1 - Math.abs(x - 20) / 36)); g.stroke(); }
       g.restore();
-      arm(g, 26, -40, Math.PI * 0.75 + strum * 0.4, 18, c, 9); arm(g, -28, -46, Math.PI * 0.2, 14, c, 9);
+      // правая рука бренчит вверх-вниз на каждой ноте, левая держит аккорд — новый на каждый такт
+      const limb = (x1, y1, cx, cy, x2, y2) => { g.lineCap = 'round'; for (const [col, lw] of [[shade(c, -0.55), 12], [shade(c, -0.05), 7.5]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(x1, y1); g.quadraticCurveTo(cx, cy, x2, y2); g.stroke(); } };
+      const [sx, sy] = W(5, dir * (9 - 18 * p)), fr = 28 + [0, 10, 5, 15][Math.floor(B / bpb) % 4 | 0], [fx, fy] = W(fr, -1);
+      limb(-29, -50, -38, -30, sx, sy); limb(29, -52, 36, -42, fx, fy);
+      g.fillStyle = shade(c, 0.2); g.strokeStyle = o; g.lineWidth = 2.2;
+      g.beginPath(); g.ellipse(sx, sy, 5.5, 4.8, ang, 0, TAU); g.fill(); g.stroke();
+      g.beginPath(); g.ellipse(fx, fy, 5, 6, ang, 0, TAU); g.fill(); g.stroke();
     },
   },
   gromofon: {
     name: 'Громофон', el: ['fire'], part: 'brass', price: 450, rate: 26, need: 5,
     desc: 'Вместо рта — труба. Когда он играет «па-пам», чайки сбиваются с курса.', col: '#ef8a3a',
     draw(g, st) {
-      const w = 96, h = 92, c = this.col, s = st.sing;
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, w = 96, h = 92;
+      const B = st.beat != null ? st.beat : t * 5 / 3, p = hit * hit * (3 - 2 * hit), act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      const nb = B - (1 - hit) * 0.24, n = Math.round(nb * 4) + Math.floor(nb / 4);
+      // огонёк между рогами
+      for (const [x, sc, ph] of [[-9, 0.55, 0], [0, 0.75, 1.7], [9, 0.5, 3.1]]) {
+        const fk = 1 + Math.sin(t * 12 + ph) * 0.1 + s * 0.18 + p * 0.1;
+        g.save(); g.translate(x, -88); g.scale(sc, sc * fk);
+        g.fillStyle = '#ff6a1a'; g.strokeStyle = '#8a2a0a'; g.lineWidth = 2.4 / sc; g.beginPath(); g.moveTo(0, -30); g.quadraticCurveTo(14, -10, 10, 0); g.quadraticCurveTo(0, 6, -10, 0); g.quadraticCurveTo(-14, -10, 0, -30); g.fill(); g.stroke();
+        g.fillStyle = '#ffd04a'; g.beginPath(); g.moveTo(0, -18); g.quadraticCurveTo(8, -6, 6, 0); g.quadraticCurveTo(0, 4, -6, 0); g.quadraticCurveTo(-8, -6, 0, -18); g.fill();
+        g.restore();
+      }
       feet(g, w, c);
-      const horns = [-1, 1].map(k => ({ path: g2 => { g2.moveTo(k * 22, -82); g2.quadraticCurveTo(k * 40, -118, k * 52, -104); g2.quadraticCurveTo(k * 42, -96, k * 36, -76); g2.closePath(); }, fill: '#f2e2c0' }));
-      silhouette(g, [...horns, { path: g2 => SHAPES.ball(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      shine(g, -20, -72, 8, 13);
-      eye(g, -17, -62, 9, st); eye(g, 17, -62, 9, st);
-      // труба
-      const bell = 13 + s * 5;
-      g.fillStyle = '#ffcc3a'; g.strokeStyle = '#8a5a10'; g.lineWidth = 2.6;
-      g.beginPath(); g.moveTo(-6, -40); g.lineTo(6, -40); g.lineTo(bell, -18); g.lineTo(-bell, -18); g.closePath(); g.fill(); g.stroke();
-      g.fillStyle = '#5a3a08'; g.beginPath(); g.ellipse(0, -18, bell, 4.5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-      shine(g, -4, -32, 2, 6);
-      cheeks(g, 0, -46, 30, 7 + s * 3);
+      const horns = [-1, 1].map(k => ({ path: q => { q.moveTo(k * 20, -82); q.quadraticCurveTo(k * 38, -120, k * 54, -106); q.quadraticCurveTo(k * 44, -98, k * 36, -76); q.closePath(); }, fill: '#f2e2c0' }));
+      silhouette(g, [...horns, { path: q => SHAPES.ball(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      g.strokeStyle = 'rgba(140,110,70,.55)'; g.lineWidth = 1.6; g.lineCap = 'round';
+      for (const k of [-1, 1]) for (const u of [0.35, 0.55, 0.75]) { const x = k * (24 + u * 22), y = -86 - u * 20; g.beginPath(); g.moveTo(x - k * 3, y - 4); g.lineTo(x + k * 3, y + 4); g.stroke(); }
+      const body = new Path2D(); SHAPES.ball(body, w, h);
+      g.save(); g.clip(body); g.fillStyle = shade(c, 0.35); g.beginPath(); g.ellipse(0, -14, 30, 16, 0, 0, TAU); g.fill(); g.restore();
+      shine(g, -24, -74, 7, 12);
+      eye(g, -15, -66, 8.5, st, { happy: true }); eye(g, 15, -66, 8.5, st, { happy: true });
+      g.strokeStyle = '#5a2a10'; g.lineWidth = 3; g.lineCap = 'round'; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 8, -78 - s * 3); g.quadraticCurveTo(k * 15, -82 - s * 4, k * 23, -78 - s * 2); g.stroke(); }
+      // щёки надуваются на каждой ноте
+      const puff = 6 + s * 6 + p * 2;
+      for (const k of [-1, 1]) {
+        const x = k * (15 + puff * 0.4), y = -44, cg = g.createRadialGradient(x - k * 2, y - 4, 1, x, y, puff);
+        cg.addColorStop(0, shade(c, 0.5)); cg.addColorStop(0.7, shade(c, 0.15)); cg.addColorStop(1, rgba('#ef8a3a', 0));
+        g.fillStyle = cg; g.beginPath(); g.arc(x, y, puff * 1.1, 0, TAU); g.fill();
+        g.strokeStyle = rgba('#7a2a08', 0.35 + s * 0.3); g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.arc(x, y, puff, Math.PI * (k > 0 ? 0.05 : 0.45), Math.PI * (k > 0 ? 0.55 : 0.95)); g.stroke();
+        g.fillStyle = 'rgba(255,100,110,.35)'; g.beginPath(); g.ellipse(x, y + 1, puff * 0.62, puff * 0.42, 0, 0, TAU); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(x - k * puff * 0.15 - 1, y - puff * 0.45, puff * 0.28, puff * 0.16, -0.4, 0, TAU); g.fill();
+      }
+      g.fillStyle = '#e8605a'; g.strokeStyle = '#5a1a14'; g.lineWidth = 2.2; g.beginPath(); g.ellipse(0, -43, 6, 5, 0, 0, TAU); g.fill(); g.stroke();
+      // труба вместо рта: мундштук в губах, три клапана, раструб распахивается на каждой ноте
+      const ang = -0.24 - s * 0.24 + Math.sin(TAU * B) * 0.03 * act, ca = Math.cos(ang), sa = Math.sin(ang), OX = 2, OY = -43;
+      const W = (x, y) => [OX + x * ca - y * sa, OY + x * sa + y * ca];
+      const gold = (y0, y1) => { const gr = g.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, '#fff2a8'); gr.addColorStop(0.45, '#ffc83a'); gr.addColorStop(1, '#a06a10'); return gr; };
+      const masks = [0, 4, 6, 2, 3, 1, 5, 7], mask = s > 0.05 ? masks[((n % 8) + 8) % 8] : 0;
+      g.save(); g.translate(OX, OY); g.rotate(ang); g.lineJoin = 'round'; g.lineCap = 'round';
+      g.strokeStyle = '#6a4208'; g.lineWidth = 7; g.beginPath(); g.moveTo(24, 3); g.quadraticCurveTo(22, 11, 30, 11); g.lineTo(38, 11); g.quadraticCurveTo(44, 11, 42, 3); g.stroke();
+      g.strokeStyle = '#ffc83a'; g.lineWidth = 3.4; g.stroke();
+      g.fillStyle = gold(-2, 2); g.strokeStyle = '#6a4208'; g.lineWidth = 1.8; g.beginPath(); g.roundRect(2, -1.8, 42, 3.6, 1.8); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(2, -3); g.lineTo(8, -1.6); g.lineTo(8, 1.6); g.lineTo(2, 3); g.closePath(); g.fill(); g.stroke();
+      const R = 11 * (1 + 0.22 * p + s * 0.06);
+      g.fillStyle = gold(-R, R); g.beginPath(); g.moveTo(42, -2.2); g.quadraticCurveTo(51, -3, 56, -R); g.lineTo(57, R); g.quadraticCurveTo(51, 3, 42, 2.2); g.closePath(); g.fill(); g.stroke();
+      const ig = g.createRadialGradient(56.5, 0, 1, 56.5, 0, R); ig.addColorStop(0, '#3a2204'); ig.addColorStop(1, '#a06a10');
+      g.fillStyle = ig; g.beginPath(); g.ellipse(56.5, 0, 3.6, R, 0, 0, TAU); g.fill(); g.strokeStyle = '#fff0a0'; g.lineWidth = 2.2; g.stroke(); g.strokeStyle = '#6a4208'; g.lineWidth = 1; g.stroke();
+      for (let i = 0; i < 3; i++) {
+        const x = 26 + i * 6, dn = mask >> i & 1;
+        g.fillStyle = gold(-8, 6); g.strokeStyle = '#6a4208'; g.lineWidth = 1.6; g.beginPath(); g.roundRect(x - 2.4, -7, 4.8, 13, 1.2); g.fill(); g.stroke();
+        g.beginPath(); g.roundRect(x - 1, -10 + dn * 2.4, 2, 3.5, 0.5); g.fill(); g.stroke();
+        g.fillStyle = '#fff6d0'; g.beginPath(); g.ellipse(x, -10.5 + dn * 2.4, 2.6, 1.4, 0, 0, TAU); g.fill(); g.stroke();
+      }
+      g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(10, -0.9); g.lineTo(22, -0.9); g.moveTo(44, -1.6); g.quadraticCurveTo(51, -2.6, 55, -R * 0.8); g.stroke();
+      g.restore();
+      // правая лапа жмёт на клапаны
+      const limb = (x1, y1, cx, cy, x2, y2) => { g.lineCap = 'round'; for (const [col, lw] of [[shade(c, -0.55), 15], [shade(c, -0.05), 10]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(x1, y1); g.quadraticCurveTo(cx, cy, x2, y2); g.stroke(); } };
+      const [hx, hy] = W(32, 9);
+      limb(40, -30, 44, -18, hx, hy);
+      g.fillStyle = shade(c, 0.2); g.strokeStyle = o; g.lineWidth = 2.2; g.beginPath(); g.ellipse(hx, hy, 8, 5.5, ang, 0, TAU); g.fill(); g.stroke();
+      g.lineWidth = 1.6; for (let i = 0; i < 3; i++) if (mask >> i & 1) { const [fx, fy] = W(26 + i * 6, -12.2); g.beginPath(); g.ellipse(fx, fy, 2.4, 2, 0, 0, TAU); g.fill(); g.stroke(); }
+      // левая лапа отстукивает такт по пузу
+      const pat = act * Math.max(0, Math.sin(TAU * B)), lx = -20, ly = -24 - pat * 7;
+      limb(-42, -36, -40, -18, lx, ly);
+      g.fillStyle = shade(c, 0.2); g.lineWidth = 2.2; g.beginPath(); g.ellipse(lx, ly, 7.5, 6, 0.3, 0, TAU); g.fill(); g.stroke();
+      // звук из раструба
+      const [bx, by] = W(56, 0);
+      if (s > 0.05) {
+        g.strokeStyle = `rgba(255,240,170,${Math.min(1, s * 0.6 + p * 0.6)})`; g.lineWidth = 2.6; g.lineCap = 'round';
+        for (const [r, sp] of [[5 + (1 - hit) * 3, 0.7], [9 + (1 - hit) * 3, 0.55]]) { g.beginPath(); g.arc(bx, by, r, ang - sp, ang + sp); g.stroke(); }
+      }
     },
   },
   pevunya: {
@@ -514,38 +841,128 @@ const KINDS = {
     name: 'Свистун', el: ['wind'], part: 'whistle', price: 350, rate: 22, need: 4,
     desc: 'Совёнок-свистульщик. Тянет длинные ноты высоко-высоко.', col: '#a08a5a',
     draw(g, st) {
-      const w = 78, h = 92, c = this.col, s = st.sing;
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, w = 78, h = 92;
+      const B = st.beat != null ? st.beat : t * 5 / 3, p = hit * hit * (3 - 2 * hit), act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      // кисточки на ушах шевелятся в такт
+      const tw = k => Math.sin(TAU * B / 2 + (k > 0 ? 1 : 0)) * 0.12 * act + p * 0.08;
+      const tufts = [-1, 1].map(k => ({ path: q => { const a = k * tw(k), cx = k * 22, cy = -84, P = [[k * 12, -86], [k * 30, -114], [k * 36, -76]].map(([x, y]) => [cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)]); q.moveTo(P[0][0], P[0][1]); q.quadraticCurveTo((P[0][0] + P[1][0]) / 2 - k * 4, (P[0][1] + P[1][1]) / 2, P[1][0], P[1][1]); q.lineTo(P[2][0], P[2][1]); q.closePath(); }, fill: shade(c, -0.12) }));
+      // лапки с коготками
       feet(g, w, '#e8a03a');
-      const tufts = [-1, 1].map(k => ({ path: g2 => { g2.moveTo(k * 14, -86); g2.lineTo(k * 30, -112); g2.lineTo(k * 34, -78); g2.closePath(); }, fill: shade(c, -0.1) }));
-      silhouette(g, [...tufts, { path: g2 => SHAPES.gum(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      g.fillStyle = '#f2e2c0'; g.beginPath(); g.ellipse(0, -30, 24, 24, 0, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = rgba('#8a6a3a', 0.5); g.lineWidth = 1.8; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(0, -36 + i * 9, 10, Math.PI * 0.2, Math.PI * 0.8); g.stroke(); }
-      // крылья
-      for (const k of [-1, 1]) { g.fillStyle = shade(c, -0.2); g.strokeStyle = shade(c, -0.6); g.lineWidth = 2.4; g.beginPath(); g.ellipse(k * 36, -44, 9, 22, k * (0.25 + s * 0.25), 0, Math.PI * 2); g.fill(); g.stroke(); }
-      g.fillStyle = '#f6f0e0'; for (const k of [-1, 1]) { g.beginPath(); g.arc(k * 15, -66, 14, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = shade('#e8a03a', -0.55); g.lineWidth = 1.6; g.lineCap = 'round'; for (const k of [-1, 1]) for (const d of [-3.5, 3.5]) { g.beginPath(); g.moveTo(k * 17 + d, -1); g.lineTo(k * 17 + d, 3.5); g.stroke(); }
+      silhouette(g, [...tufts, { path: q => SHAPES.gum(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      const body = new Path2D(); SHAPES.gum(body, w, h);
+      g.save(); g.clip(body);
+      g.fillStyle = '#f2e2c0'; g.beginPath(); g.ellipse(0, -26, 25, 25, 0, 0, TAU); g.fill();
+      g.strokeStyle = rgba('#8a6a3a', 0.5); g.lineWidth = 1.6;
+      for (let r = 0; r < 3; r++) for (let i = -2; i <= 2; i++) { const x = i * 8 + (r % 2) * 4 - 2, y = -36 + r * 9; if (Math.abs(x) > 20) continue; g.beginPath(); g.arc(x, y, 4, Math.PI * 0.15, Math.PI * 0.85); g.stroke(); }
+      g.fillStyle = rgba('#5a4626', 0.2); for (const [x, y] of [[-30, -56], [-34, -44], [30, -58], [34, -42], [-24, -80], [24, -80]]) { g.beginPath(); g.ellipse(x, y, 4, 2.4, 0, 0, TAU); g.fill(); }
+      g.restore();
+      // лицевые диски
+      const disc = 14 + s * 1.5;
+      for (const k of [-1, 1]) { const dg = g.createRadialGradient(k * 15, -66, 4, k * 15, -66, disc); dg.addColorStop(0, '#fffaf0'); dg.addColorStop(0.75, '#f2e6d0'); dg.addColorStop(1, '#d8c4a0'); g.fillStyle = dg; g.beginPath(); g.arc(k * 15, -66, disc, 0, TAU); g.fill(); }
+      g.strokeStyle = '#4a3a20'; g.lineWidth = 3; g.lineCap = 'round'; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 4, -77 - s * 2); g.quadraticCurveTo(k * 14, -84 - s * 3, k * 27, -80); g.stroke(); }
       eye(g, -15, -66, 10, st, { iris: '#ff9a20', pupil: 0.62, lid: 1 }); eye(g, 15, -66, 10, st, { iris: '#ff9a20', pupil: 0.62, lid: 1 });
-      // клюв-свистулька
-      g.fillStyle = '#ffb02a'; g.strokeStyle = '#7a4a10'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-6, -54); g.lineTo(6, -54); g.lineTo(0, -44 + s * 2); g.closePath(); g.fill(); g.stroke();
+      // щёчки надуваются
+      const cp = 2.5 + s * 4 + p * 1.5;
+      g.fillStyle = 'rgba(255,140,150,.5)'; g.strokeStyle = 'rgba(160,70,60,.45)'; g.lineWidth = 1.4; for (const k of [-1, 1]) { g.beginPath(); g.arc(k * (10 + cp * 0.45), -51, cp, 0, TAU); g.fill(); g.stroke(); }
+      // свистулька-слайд: трубочка в клюве, поршень ходит туда-сюда — нота тянется и скользит
+      const ext = s > 0.05 ? 0.5 + 0.45 * Math.sin(B * Math.PI / 2 + 0.6) : 0.2, ang = 0.9, ca = Math.cos(ang), sa = Math.sin(ang), OX = 1, OY = -49;
+      const W = (x, y) => [OX + x * ca - y * sa, OY + x * sa + y * ca];
+      const rodL = 28 + ext * 11;
+      g.save(); g.translate(OX, OY); g.rotate(ang);
+      g.strokeStyle = '#4a5a6a'; g.lineWidth = 3.2; g.lineCap = 'round'; g.beginPath(); g.moveTo(22, 0); g.lineTo(rodL, 0); g.stroke();
+      g.strokeStyle = '#d8e2ec'; g.lineWidth = 1.4; g.stroke();
+      g.strokeStyle = '#7a1a1a'; g.lineWidth = 4.4; g.beginPath(); g.arc(rodL + 3.6, 0, 3.6, 0, TAU); g.stroke(); g.strokeStyle = '#e04a4a'; g.lineWidth = 2.2; g.stroke();
+      const tg = g.createLinearGradient(0, -3.8, 0, 3.8); tg.addColorStop(0, '#d0f4ff'); tg.addColorStop(0.5, '#5ac8f0'); tg.addColorStop(1, '#1a6a9a');
+      g.fillStyle = tg; g.strokeStyle = '#14405a'; g.lineWidth = 1.8; g.beginPath(); g.roundRect(-1, -3.8, 24, 7.6, 2.5); g.fill(); g.stroke();
+      g.fillStyle = '#ffffff'; for (const x of [12, 18]) g.fillRect(x, -3.1, 2, 6.2);
+      g.fillStyle = '#14405a'; g.fillRect(4.5, -3.8, 3.5, 2.8);
+      g.restore();
+      // клюв
+      g.fillStyle = '#ffb02a'; g.strokeStyle = '#7a4a10'; g.lineWidth = 2.4; g.lineJoin = 'round';
+      g.beginPath(); g.moveTo(-7, -57); g.quadraticCurveTo(0, -61, 7, -57); g.quadraticCurveTo(4, -49, 0, -45); g.quadraticCurveTo(-4, -49, -7, -57); g.closePath(); g.fill(); g.stroke();
+      shine(g, -2.5, -56, 2, 1.4);
+      // крылья: правое тянет поршень, левое поднимается на долгой ноте
+      const wing = (x, y, a, len) => {
+        g.save(); g.translate(x, y); g.rotate(a);
+        const q = new Path2D();
+        q.moveTo(-8, 0); q.bezierCurveTo(-11, len * 0.4, -8, len * 0.8, -3.5, len);
+        q.quadraticCurveTo(-1.5, len + 3, 0.5, len - 2); q.quadraticCurveTo(2.5, len + 2.5, 4, len - 3.5); q.quadraticCurveTo(6.5, len - 0.5, 7, len - 6);
+        q.bezierCurveTo(9.5, len * 0.55, 9.5, len * 0.2, 7, 0); q.closePath();
+        g.fillStyle = shade(c, -0.2); g.strokeStyle = o; g.lineWidth = 2.4; g.lineJoin = 'round'; g.fill(q); g.stroke(q);
+        g.save(); g.clip(q); g.fillStyle = shade(c, 0.08); g.beginPath(); g.ellipse(0, 0, 11, len * 0.42, 0, 0, TAU); g.fill();
+        g.strokeStyle = rgba('#3a2a10', 0.3); g.lineWidth = 1.3; for (const yy of [len * 0.18, len * 0.32]) { g.beginPath(); g.arc(-3, yy, 3.5, 0.2, Math.PI - 0.2); g.arc(4, yy, 3.5, 0.2, Math.PI - 0.2); g.stroke(); }
+        g.restore();
+        g.strokeStyle = rgba('#3a2a10', 0.4); g.lineWidth = 1.3; g.beginPath(); g.moveTo(-2.5, len * 0.55); g.lineTo(-1.5, len * 0.9); g.moveTo(3, len * 0.55); g.lineTo(3.2, len * 0.88); g.stroke();
+        g.restore();
+      };
+      const [rx, ry] = W(rodL + 3.6, 0), SX = 34, SY = -46, ra = Math.atan2(ry - SY, rx - SX) - Math.PI / 2;
+      wing(SX, SY, ra, Math.hypot(rx - SX, ry - SY) + 2);
+      wing(-34, -50, 0.3 + s * 1.05 + Math.sin(TAU * B / 2) * 0.16 * act, 27);
+      // ноты вылетают из окошка свистульки
+      const [wx, wy] = W(6, -4);
+      for (let i = 0; i < 3; i++) {
+        const u = (t * 0.5 + i / 3) % 1, al = s * Math.sin(Math.PI * u);
+        if (al < 0.03) continue;
+        const x = wx + 6 + u * 40 + Math.sin(u * 6 + i) * 2, y = wy - 8 - u * 56;
+        g.fillStyle = `rgba(90,50,10,${al})`; g.strokeStyle = `rgba(90,50,10,${al})`; g.lineWidth = 1.6;
+        g.beginPath(); g.ellipse(x, y, 3.3, 2.5, -0.4, 0, TAU); g.fill();
+        g.beginPath(); g.moveTo(x + 3, y - 0.5); g.lineTo(x + 3, y - 11); g.quadraticCurveTo(x + 7, y - 8, x + 6.5, y - 4.5); g.stroke();
+      }
     },
   },
   barabas: {
     name: 'Барабас', el: ['fire'], part: 'snare', price: 250, rate: 18, need: 2,
     desc: 'Барабанщик-марширолог. Держит ритм так, что под него можно ставить часы.', col: '#cf3d52',
     draw(g, st) {
-      const w = 84, h = 96, c = this.col, s = st.sing, hit = Math.abs(Math.sin(st.t * 15)) * s;
+      const c = this.col, o = shade(c, -0.6), s = st.sing || 0, hit = st.hit || 0, t = st.t || 0, TAU = Math.PI * 2, w = 84, h = 96;
+      const B = st.beat != null ? st.beat : t * 5 / 3, f = B - Math.floor(B), p = hit * hit * (3 - 2 * hit), act = Math.min(1, s * 1.4 + (st.dance || 0) * 0.6);
+      const nb = B - (1 - hit) * 0.24, hand = Math.round(nb * 4) % 2 ? -1 : 1;
+      // огненный чубчик
+      for (const [x, sc, ph] of [[-8, 0.45, 0], [2, 0.6, 1.9], [11, 0.42, 3.3]]) {
+        const fk = 1 + Math.sin(t * 13 + ph) * 0.12 + p * 0.2;
+        g.save(); g.translate(x, -92); g.rotate((x / 40) + Math.sin(TAU * B / 2) * 0.08 * act); g.scale(sc, sc * fk);
+        g.fillStyle = '#ffb02a'; g.strokeStyle = '#8a2a0a'; g.lineWidth = 2.4 / sc; g.beginPath(); g.moveTo(0, -30); g.quadraticCurveTo(14, -10, 10, 0); g.quadraticCurveTo(0, 6, -10, 0); g.quadraticCurveTo(-14, -10, 0, -30); g.fill(); g.stroke();
+        g.fillStyle = '#fff07a'; g.beginPath(); g.moveTo(0, -16); g.quadraticCurveTo(7, -5, 5, 0); g.quadraticCurveTo(0, 3, -5, 0); g.quadraticCurveTo(-7, -5, 0, -16); g.fill();
+        g.restore();
+      }
       feet(g, w, c);
-      silhouette(g, [{ path: g2 => SHAPES.box(g2, w, h), fill: blobFill(g, c, w, h) }], c, shade(c, -0.6));
-      // повязка
-      g.fillStyle = '#ffd84a'; g.strokeStyle = '#8a6a10'; g.lineWidth = 2.2; g.beginPath(); g.roundRect(-42, -88, 84, 10, 4); g.fill(); g.stroke();
-      g.beginPath(); g.moveTo(38, -84); g.lineTo(52, -92 + Math.sin(st.t * 5) * 3); g.lineTo(50, -78); g.closePath(); g.fill(); g.stroke();
-      eye(g, -15, -64, 8.5, st); eye(g, 15, -64, 8.5, st);
-      g.strokeStyle = '#2a1a22'; g.lineWidth = 3; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 8, -76); g.lineTo(k * 22, -79); g.stroke(); } // брови
-      mouth(g, 0, -46, 22, s, 'teeth');
-      // малый барабан
-      g.fillStyle = '#e8e8f0'; g.strokeStyle = '#3a3a5a'; g.lineWidth = 2.4; g.beginPath(); g.roundRect(-24, -26, 48, 20, 5); g.fill(); g.stroke();
-      g.strokeStyle = '#d23a3a'; g.lineWidth = 2; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(i * 9 - 4, -24); g.lineTo(i * 9 + 4, -8); g.stroke(); }
-      g.fillStyle = '#f6f2e6'; g.strokeStyle = '#3a3a5a'; g.beginPath(); g.ellipse(0, -26, 24, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-      for (const k of [-1, 1]) { g.save(); g.translate(k * 30, -40); g.rotate(k > 0 ? Math.PI * 0.75 - hit * 0.5 : Math.PI * 0.25 + hit * 0.5); g.strokeStyle = '#5a3a1a'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 0); g.lineTo(26, 0); g.stroke(); g.fillStyle = '#5a3a1a'; g.beginPath(); g.arc(26, 0, 3, 0, Math.PI * 2); g.fill(); g.restore(); }
+      silhouette(g, [{ path: q => SHAPES.box(q, w, h), fill: blobFill(g, c, w, h) }], c, o);
+      shine(g, -26, -70, 5, 10);
+      // повязка с узлом и развевающимися концами
+      g.fillStyle = '#ffd84a'; g.strokeStyle = '#8a6a10'; g.lineWidth = 2.2; g.beginPath(); g.roundRect(-43, -89, 86, 11, 4); g.fill(); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(-38, -87, 76, 2.4);
+      for (const [d, ph] of [[0, 0], [7, 1.2]]) { const fl = Math.sin(t * 7 + ph) * 3 + Math.sin(TAU * B) * 2 * act; g.beginPath(); g.moveTo(40, -86 + d * 0.3); g.quadraticCurveTo(50, -90 + d + fl, 58, -86 + d * 1.6 + fl * 1.4); g.lineTo(55, -80 + d * 1.4 + fl); g.quadraticCurveTo(48, -82 + d, 40, -80 + d * 0.3); g.closePath(); g.fillStyle = '#ffd84a'; g.fill(); g.stroke(); }
+      g.beginPath(); g.ellipse(40, -83.5, 4, 5, 0, 0, TAU); g.fill(); g.stroke();
+      // золотые эполеты
+      for (const k of [-1, 1]) { g.fillStyle = '#ffd84a'; g.strokeStyle = '#8a6a10'; g.lineWidth = 2; g.beginPath(); g.ellipse(k * 38, -60, 8, 5, k * 0.3, 0, TAU); g.fill(); g.stroke(); g.lineWidth = 1.4; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(k * 38 + i * 3, -56); g.lineTo(k * 38 + i * 3.4, -51); g.stroke(); } }
+      eye(g, -15, -65, 8.5, st); eye(g, 15, -65, 8.5, st);
+      g.strokeStyle = '#2a1a22'; g.lineWidth = 3.4; g.lineCap = 'round'; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * 7, -75 + p * 1.5); g.lineTo(k * 23, -79 + p * 1.5); g.stroke(); } // брови
+      mouth(g, 0, -48, 20, Math.max(s, p * 0.4), 'teeth');
+      // малый барабан: светлый корпус, золотые обода, верёвочная шнуровка
+      const top = -27, bot = -9, RX = 26;
+      for (const k of [-1, 1]) { g.strokeStyle = '#f6f2e6'; g.lineWidth = 4; g.beginPath(); g.moveTo(k * 22, top + 2); g.lineTo(k * 34, -48); g.stroke(); g.strokeStyle = 'rgba(90,60,40,.5)'; g.lineWidth = 1; g.stroke(); }
+      const shell = g.createLinearGradient(-RX, 0, RX, 0); shell.addColorStop(0, '#c8c0b0'); shell.addColorStop(0.35, '#ffffff'); shell.addColorStop(0.7, '#e6e0d4'); shell.addColorStop(1, '#a8a090');
+      g.fillStyle = shell; g.strokeStyle = '#3a3a5a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-RX, top); g.lineTo(-RX, bot); g.ellipse(0, bot, RX, 5, 0, Math.PI, 0, true); g.lineTo(RX, top); g.closePath(); g.fill(); g.stroke();
+      g.strokeStyle = '#d23a3a'; g.lineWidth = 1.8; g.beginPath(); for (let i = 0; i <= 8; i++) { const x = -RX + 3 + i * (RX * 2 - 6) / 8, y = i % 2 ? bot + 2 : top + 4; i ? g.lineTo(x, y + (i % 2 ? Math.sin((x / RX) * Math.PI / 2) ** 2 * 1.5 : 0)) : g.moveTo(x, y); } g.stroke();
+      g.fillStyle = '#7a4a2a'; for (let i = 1; i < 8; i += 2) { const x = -RX + 3 + i * (RX * 2 - 6) / 8; g.fillRect(x - 2, bot - 4, 4, 3); }
+      g.fillStyle = '#ffcf4a'; g.strokeStyle = '#8a6010'; g.lineWidth = 1.8;
+      g.beginPath(); g.ellipse(0, bot, RX, 5, 0, 0, Math.PI); g.lineTo(-RX, bot - 2.5); g.ellipse(0, bot - 2.5, RX, 5, 0, Math.PI, 0, true); g.closePath(); g.fill(); g.stroke();
+      const skin = g.createRadialGradient(-6, top - 2, 1, 0, top, RX); skin.addColorStop(0, '#ffffff'); skin.addColorStop(1, p > 0.3 ? '#fff6d8' : '#e8e0cc');
+      g.fillStyle = '#ffcf4a'; g.beginPath(); g.ellipse(0, top, RX + 1.5, 7, 0, 0, TAU); g.fill(); g.stroke();
+      g.fillStyle = skin; g.strokeStyle = '#8a6010'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(0, top, RX - 2, 5, 0, 0, TAU); g.fill(); g.stroke();
+      // палочки: бьют по очереди, отскакивают и снова замахиваются
+      for (const k of [-1, 1]) {
+        const d = hand === k ? p : 0, pre = act * 0.25 * f, up = (1 - d) * (0.75 + pre);
+        const gx = k * (32 + 3 * up), gy = -38 - 8 * up, tx = k * 10 + k * 18 * up, ty = top - 1 - 34 * up;
+        g.lineCap = 'round'; for (const [col, lw] of [[shade(c, -0.55), 15], [shade(c, -0.05), 10]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(k * 40, -54); g.quadraticCurveTo(k * 44, -44, gx, gy); g.stroke(); }
+        const ux = tx - gx, uy = ty - gy, L = Math.hypot(ux, uy) || 1, bx = gx - ux / L * 6, by = gy - uy / L * 6;
+        g.strokeStyle = '#4a2a12'; g.lineWidth = 5; g.beginPath(); g.moveTo(bx, by); g.lineTo(tx, ty); g.stroke();
+        g.strokeStyle = '#e8b878'; g.lineWidth = 2.6; g.stroke();
+        g.fillStyle = '#f6dca8'; g.strokeStyle = '#4a2a12'; g.lineWidth = 1.6; g.beginPath(); g.arc(tx, ty, 3, 0, TAU); g.fill(); g.stroke();
+        g.fillStyle = shade(c, 0.15); g.strokeStyle = o; g.lineWidth = 2.4; g.beginPath(); g.ellipse(gx, gy, 7, 6, 0, 0, TAU); g.fill(); g.stroke();
+        if (d > 0.5 && s > 0.05) { g.strokeStyle = '#fff6a0'; g.lineWidth = 2.2; for (const a of [-2.6, -1.57, -0.55]) { g.beginPath(); g.moveTo(tx + Math.cos(a) * 6, ty + Math.sin(a) * 4); g.lineTo(tx + Math.cos(a) * 12, ty + Math.sin(a) * 8); g.stroke(); } }
+      }
     },
   },
   maestro: {
