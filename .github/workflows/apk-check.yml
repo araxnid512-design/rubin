@@ -1,0 +1,56 @@
+# Проверка APK на настоящем Android: эмулятор ставит kolrat.apk из релиза, запускает игру,
+# снимает экран и пишет журнал. Так видно, принимает ли Android сам файл и запускается ли игра.
+name: Колрат — проверка установки
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/star-wars-survival-strategy-035wez']
+    paths: ['.github/workflows/apk-check.yml']
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 34]
+    steps:
+      - name: Включить ускорение эмулятора (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Скачать APK из релиза — тот же файл, что у игроков
+        run: |
+          curl -sSL -o kolrat.apk "https://github.com/${{ github.repository }}/releases/download/kolrat/kolrat.apk"
+          ls -l kolrat.apk
+          sha256sum kolrat.apk
+
+      - name: Установить и запустить на Android ${{ matrix.api }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb install kolrat.apk 2>&1 | tee install.txt
+            adb shell pm list packages | grep -i kolrat
+            adb shell dumpsys package com.rubin.kolrat | grep -E "versionName|versionCode|targetSdk|signatures" | head -10
+            adb shell am start -W -n com.rubin.kolrat/.MainActivity
+            sleep 20
+            adb shell screencap -p /sdcard/shot.png
+            adb pull /sdcard/shot.png shot-${{ matrix.api }}.png
+            adb logcat -d | grep -iE "kolrat|AndroidRuntime|FATAL|chromium" | tail -80 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kolrat-android-${{ matrix.api }}
+          path: |
+            shot-*.png
+            install.txt
