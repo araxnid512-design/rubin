@@ -46,6 +46,11 @@ jobs:
           node tools/build-www.js
           node tools/build-single.js
 
+      - name: Сайт docs/ совпадает с игрой?
+        run: |
+          node tools/build-site.js
+          git status --porcelain docs | grep -q . && echo "::warning::сайт docs/ устарел — запустите node tools/build-site.js" || echo "сайт docs/ свежий"
+
       # APK собирается так же, как у «Клонов против дроидов» (их APK на телефоне ставится):
       # tools/build-apk.py — манифест и ресурсы вручную, подписи v1 + v2, minSdk 21, пакет com.rubin.kolrat
       - name: Собрать APK

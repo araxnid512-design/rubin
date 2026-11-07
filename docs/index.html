@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Колрат: Песок Татуина</title>
+<meta name="description" content="Стратегия выживания с живыми боями: генерал Колрат и его отряд после крушения в пустыне. Играть в браузере, установить на телефон или скачать APK.">
+<meta name="theme-color" content="#0d0e10">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  :root {
+    --bg: #0d0e10; --panel: #17191d; --line: rgba(217, 168, 91, 0.28); --text: #e7e2d6; --muted: #a39d90;
+    --sand: #d9a85b; --sand2: #f3cd8c; --red: #e2574c; --blue: #6fb3e0; --green: #7cc287;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { margin: 0; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+    background-image: radial-gradient(ellipse at 50% -10%, rgba(217, 168, 91, 0.14), transparent 60%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+  }
+  main { max-width: 760px; margin: 0 auto; padding-block: max(16px, env(safe-area-inset-top, 0px)) 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .scene { display: block; width: 100%; height: 210px; border-radius: 10px; border: 1px solid var(--line); background: #120f1c; }
+  h1 { margin: 18px 0 2px; text-align: center; font-size: 42px; letter-spacing: 0.22em; color: var(--sand2);
+    text-shadow: 0 0 18px rgba(243, 205, 140, 0.55), 0 0 2px #fff4dc; }
+  .sub { text-align: center; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; margin-bottom: 18px; }
+  .panel { position: relative; background: linear-gradient(180deg, #1c1f24, #14161a); border: 1px solid var(--line); padding: 16px;
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); margin-bottom: 14px; }
+  .panel::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.75;
+    background: linear-gradient(135deg, var(--sand) 0 50%, transparent 50%) top left / 13px 13px no-repeat,
+      linear-gradient(-45deg, var(--sand) 0 50%, transparent 50%) bottom right / 13px 13px no-repeat; }
+  .panel h2 { margin: 0 0 8px; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sand2); text-shadow: 0 0 10px rgba(243, 205, 140, 0.35); }
+  .panel p { margin: 0 0 10px; color: #d6d0c3; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; padding: 12px 16px;
+    font: 600 16px system-ui, sans-serif; letter-spacing: 0.04em; text-decoration: none; cursor: pointer; color: var(--text);
+    background: linear-gradient(180deg, #262a31, #1a1d22); border: 1px solid var(--line); border-radius: 4px; margin-bottom: 10px; }
+  .btn:active { transform: scale(0.98); }
+  .btn:focus-visible { outline: 2px solid var(--sand2); outline-offset: 2px; }
+  .btn.primary { background: linear-gradient(180deg, #6a4e26, #36270f); border-color: var(--sand2); color: #ffe7bd; font-size: 18px;
+    text-shadow: 0 0 8px rgba(255, 210, 140, 0.5); box-shadow: 0 0 22px rgba(217, 168, 91, 0.3); }
+  .btn small { font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .warn { display: none; border-color: rgba(226, 87, 76, 0.6); }
+  .warn.on { display: block; }
+  .warn h2 { color: #ffb3aa; }
+  .steps { margin: 0; padding-left: 22px; }
+  .steps li { margin: 4px 0; }
+  .feat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .feat div { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(217, 168, 91, 0.15); padding: 10px 12px; border-radius: 4px; font-size: 14px; color: #d6d0c3; }
+  .feat b { display: block; color: var(--sand2); margin-bottom: 2px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--sand2); word-break: break-all; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
+  @media (max-width: 480px) { h1 { font-size: 32px; } .feat { grid-template-columns: 1fr; } .scene { height: 160px; } }
+  @media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+</style>
+</head>
+<body>
+<main>
+  <canvas class="scene" id="scene" aria-hidden="true"></canvas>
+  <h1>КОЛРАТ</h1>
+  <div class="sub">Песок Татуина · выживание после крушения</div>
+
+  <section class="panel warn" id="inapp">
+    <h2>Откройте сайт в Chrome</h2>
+    <p>Сейчас сайт открыт во встроенном браузере приложения — здесь скачивание останавливается на 99% и установка не работает.</p>
+    <a class="btn primary" id="toChrome" href="#">Открыть в Chrome</a>
+    <p class="muted">Если кнопка не сработала: ⋮ (меню справа вверху) → «Відкрити в Chrome». Или скопируйте адрес: <code id="addr"></code></p>
+  </section>
+
+  <section class="panel">
+    <h2>Установить игру</h2>
+    <p>Одно нажатие — и «Колрат» на главном экране: полный экран, горизонтально, работает без интернета. Без APK и без скачивания файла.</p>
+    <a class="btn primary" id="install" href="kolrat/#install">📲 Установить на телефон</a>
+    <a class="btn" href="kolrat/">▶ Играть сразу в браузере</a>
+    <p class="muted" id="installHint">Если окно установки не появилось: в Chrome ⋮ → «Встановити додаток» или «Додати на головний екран».</p>
+  </section>
+
+  <section class="panel">
+    <h2>Или приложение APK</h2>
+    <a class="btn" id="apk" href="https://github.com/araxnid512-design/rubin/releases/download/kolrat/kolrat.apk">⬇ Скачать APK <small>около 200 КБ</small></a>
+    <ol class="steps">
+      <li>Нажмите «Скачать APK» — файл маленький, скачается за секунду.</li>
+      <li>Откройте его из уведомления → «Встановити».</li>
+      <li>Если Android спросит — «Налаштування» → «Дозволити з цього джерела» → назад → «Встановити».</li>
+      <li>Окно Play Захисту → «Встановити все одно». Затем «Відкрити» — игра запустится.</li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Что в игре</h2>
+    <div class="feat">
+      <div><b>Живые бои</b>Отряд против таскенов, банд, повстанцев. Приказы кнопками прямо в бою, лазеры, взрывы, замедление на главных моментах.</div>
+      <div><b>Выживание</b>Вода, металл, энергия, дисциплина. Каждый погибший — навсегда.</div>
+      <div><b>Фракции</b>Фермеры, джавы, хатты, падальщики, охотники, дезертиры: дружба и вражда.</div>
+      <div><b>Свои бойцы</b>Звания, специализации, черты характера и прозвища за победы.</div>
+    </div>
+  </section>
+
+  <footer>Некоммерческий фанатский проект по мотивам вселенной «Звёздных войн». Персонажи, тексты, графика и музыка — оригинальные.</footer>
+</main>
+<script src="titlescene.js"></script>
+<script>
+  (function () {
+    'use strict';
+    var c = document.getElementById('scene');
+    if (window.G && G.TitleScene) {
+      var s = G.TitleScene();
+      s.className = 'scene'; s.id = 'scene';
+      c.parentNode.replaceChild(s, c);
+    }
+    // встроенный браузер приложения (WebView): скачивание там зависает — предлагаем Chrome
+    var ua = navigator.userAgent || '';
+    var android = /Android/i.test(ua);
+    var inApp = android && (/; wv\)/.test(ua) || /FBAN|FBAV|Instagram|Telegram|Line\/|Claude/i.test(ua));
+    var url = location.href.split('#')[0];
+    document.getElementById('addr').textContent = url;
+    if (inApp) {
+      document.getElementById('inapp').classList.add('on');
+      document.getElementById('toChrome').href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+    } else {
+      document.getElementById('toChrome').href = url;
+    }
+    // уже установлено как приложение — сразу в игру
+    if (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) location.replace('kolrat/');
+  })();
+</script>
+</body>
+</html>

@@ -159,6 +159,7 @@
       wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.pasteSave() }, 'Вставить сохранение текстом'));
       if (UI.canFullscreen() && !document.fullscreenElement) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.fullscreen() }, '⛶ Во весь экран (горизонтально)'));
       if (UI.canGetApk()) wrap.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.getApk() }, '📱 Скачать приложение для Android'));
+      if (UI.canInstall()) wrap.insertBefore(h('button', { class: 'btn big primary install-btn', onclick: () => UI.installApp() }, '📲 Установить на телефон'), wrap.querySelector('.btn'));
       const slots = ['1', '2', '3'].map((k) => [k, G.Save.meta(k)]).filter((x) => x[1]);
       if (slots.length) {
         wrap.appendChild(h('div', { class: 'card' }, h('h3', null, 'Сохранения'),
@@ -225,6 +226,23 @@
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     UI.claudeSave('kolrat-apk.zip', new Blob([bytes]), 'Сохранено. Откройте «Файли» → Завантаження → kolrat-apk.zip → kolrat.apk → «Встановити».');
+  };
+
+  // ---------- Установка как приложения (с сайта, без APK) ----------
+  UI.installEvt = null;
+  UI.standalone = () => !!(globalThis.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches);
+  UI.canInstall = () => !UI.isNativeApp() && !UI.inClaude() && !UI.standalone() && (!!UI.installEvt || /install/.test(location.hash || ''));
+  if (globalThis.addEventListener) {
+    addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); UI.installEvt = e; if (!UI.s) UI.render(); });
+    addEventListener('appinstalled', () => { UI.installEvt = null; UI.flash('Готово: «Колрат» на главном экране — запускайте оттуда.'); UI.render(); });
+  }
+  UI.installApp = async function () {
+    const e = UI.installEvt;
+    if (!e) { UI.flash('Chrome: ⋮ → «Встановити додаток» (или «Додати на головний екран»).'); return; }
+    e.prompt();
+    try { await e.userChoice; } catch (err) { /* окно закрыто */ }
+    UI.installEvt = null;
+    UI.render();
   };
 
   // ---------- Импорт сохранения из файла ----------
