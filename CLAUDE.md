@@ -49,6 +49,9 @@
 - Проверка скачивания: curl с телефонным User-Agent (302 → 200, `application/vnd.android.package-archive`, размер = Content-Length),
   `unzip -t`, подпись — `android/verify/ApkCheck.java` с android-all 14 из `~/.gradle` (код самого Android).
 - Проверка: `python3 -m http.server` в `monsters/www`, Playwright с экраном телефона 915×412.
+- 07.11.2026 скриншот пользователя: встроенное окно Claude, «Скачивание… monstrohor.apk 561,67 КБ из 561,67 КБ» — файл скачан
+  целиком и ждёт подтверждения. Интерфейс Chrome у пользователя на русском («Скачивание…», «Отмена»), окна Android — на украинском.
+  Пользователю по умолчанию давать ссылку на ZIP (на архив вопроса нет), APK — для тех, кто качает в самом Chrome.
 - Зависание на 99–100%: браузер ждёт подтверждения «Усе одно завантажити» для APK, а во встроенном окне Claude вопрос
   не показывается. Обходы: релиз кладёт рядом `monstrohor.zip` (на архив вопроса нет) —
   https://github.com/araxnid512-design/rubin/releases/download/monstrohor/monstrohor.zip ; на сайте кнопка «Скачать через
