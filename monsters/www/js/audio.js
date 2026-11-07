@@ -6,7 +6,8 @@
 //  Все партии в одной гармонии — любые монстры звучат вместе.
 // =====================================================================
 const Sound = (() => {
-  const BPM = 100, STEP = 60 / BPM / 4, STEPS = 512;
+  let BPM = 100, STEP = 60 / BPM / 4, STEPS = 512, SONG = 'green', dlyNode = null;
+  const SONGS = {}; // песни островов: темп, шагов в такте, длина, откуда играть пробу
   let ctx = null, master, bus, revIn, dlyIn, noise = null, timer = 0, nextStep = 0, nextTime = 0, startT = 0, on = true, sfxOn = true;
   const voices = new Map(); // id монстра → { part, ch, send, notes: [] }
 
@@ -33,14 +34,14 @@ const Sound = (() => {
     revIn = ctx.createGain(); revIn.gain.value = 1; revIn.connect(rev);
     const revOut = ctx.createGain(); revOut.gain.value = 0.35; rev.connect(revOut); revOut.connect(comp);
     // эхо на пунктирную восьмую: мягкое, с затуханием высоких
-    const dl = ctx.createDelay(1.5); dl.delayTime.value = STEP * 3; const fb = ctx.createGain(); fb.gain.value = 0.33; const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2600;
+    const dl = ctx.createDelay(1.5); dl.delayTime.value = STEP * 3; dlyNode = dl; const fb = ctx.createGain(); fb.gain.value = 0.33; const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2600;
     dlyIn = ctx.createGain(); dlyIn.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); const dlOut = ctx.createGain(); dlOut.gain.value = 0.5; dlp.connect(dlOut); dlOut.connect(comp);
     noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
   // запись песни целиком без динамика (OfflineAudioContext) — для проверки громкости и для превью
-  async function renderMix(list, sec) {
-    const saved = [ctx, master, bus, revIn, dlyIn, noise];
+  async function renderMix(list, sec, song) {
+    const saved = [ctx, master, bus, revIn, dlyIn, noise, dlyNode, SONG]; if (song) useSong(song);
     ctx = new OfflineAudioContext(2, Math.ceil(44100 * sec), 44100); graph();
     for (const [part, pan] of list) {
       const ch = ctx.createGain(); ch.gain.value = (VOL[part] || 1) / Math.sqrt(list.filter(l => l[0] === part).length);
@@ -50,13 +51,20 @@ const Sound = (() => {
       for (let st = 0; st < STEPS; st++) { const t = 0.05 + st * STEP; if (t > sec - 2) break; const evs = PARTS[part][st]; if (evs) for (const e of evs) play(part, ch, t, e, e[1] * STEP, e[2]); }
     }
     const buf = await ctx.startRendering();
-    [ctx, master, bus, revIn, dlyIn, noise] = saved;
+    [ctx, master, bus, revIn, dlyIn, noise, dlyNode] = saved; useSong(saved[7]);
     return buf;
   }
   function impulse(sec, decay) {
     const n = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, n, ctx.sampleRate);
     for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay); }
     return b;
+  }
+  function useSong(id) { const S = SONGS[id]; SONG = id; BPM = S.bpm; STEP = 60 / BPM / 4; STEPS = S.steps; }
+  // смена острова — смена песни: новая начинается с первого такта
+  function setSong(id) {
+    if (!SONGS[id] || id === SONG) return; useSong(id);
+    if (dlyNode) dlyNode.delayTime.setValueAtTime(STEP * 3, ctx.currentTime);
+    if (ctx && timer) { nextStep = 0; nextTime = startT = ctx.currentTime + 0.12; }
   }
   function start() {
     init(); if (ctx.state === 'suspended') ctx.resume();
@@ -308,6 +316,145 @@ const Sound = (() => {
   // событие партии: 'v' — выкрик голосом (свой слог у каждого обычного монстра), иначе — инструмент
   function play(part, out, t, e, dur, vel) { if (e[3] === 'v') voice(out, t, hz(e[0]), dur, vel * 0.8, VOX[part]); else INSTR[part](out, t, e[0], dur, vel, e[3]); }
   const VOL = { kick: 0.95, marimba: 0.9, flute: 0.64, shaker: 0.7, bass: 0.48, pad: 0.95, tom: 1.0, frog: 1.7, pluck: 1.4, brass: 1.0, lead: 0.95, whistle: 0.8, snare: 1.05, opera: 0.85, bassvox: 0.8, beatbox: 0.75, chant: 1.4, soprano: 1.5, yodel: 1.0, scat: 0.75 };
+  // ---------- инструменты монстров других островов
+  // «перегруз» для рок-гитары и баса: мягкое ограничение волны
+  let DRIVE = null;
+  const drive = () => { if (!DRIVE) { DRIVE = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; DRIVE[i] = Math.tanh(x * 3.2) / Math.tanh(3.2); } } const w = ctx.createWaveShaper(); w.curve = DRIVE; w.oversample = '2x'; return w; };
+  // металлический удар: набор негармоничных призвуков
+  function metal(out, t, f, parts, vel) { for (const [k, a, d] of parts) { const o = osc('sine', f * k, t), g = gain(); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.001, a * vel, 0, d)); } }
+  Object.assign(INSTR, {
+    // --- Вулкан
+    // Уголёк: тяжёлая рок-бочка
+    rockkick(out, t, m, dur, vel) {
+      const o = osc('sine', 170, t), g = gain(); o.frequency.exponentialRampToValueAtTime(44, t + 0.11); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.002, 1.2 * vel, 0.04, 0.3));
+      const n = noiseSrc(t, 0.03), b = filt('bandpass', 3500, 0.8), ng = gain(); n.connect(b); b.connect(ng); ng.connect(out); env(ng, t, 0.001, 0.35 * vel, 0, 0.02);
+    },
+    // Магмус: бас с перегрузом
+    fuzzbass(out, t, m, dur, vel) {
+      const f = hz(m), o = osc('sawtooth', f, t), s = osc('square', f / 2, t), sg = gain(0.35), d = drive(), lp = filt('lowpass', 900, 1.5), g = gain();
+      lp.frequency.setValueAtTime(1400, t); lp.frequency.exponentialRampToValueAtTime(500, t + 0.2);
+      o.connect(d); s.connect(sg); sg.connect(d); d.connect(lp); lp.connect(g); g.connect(out);
+      const e = env(g, t, 0.004, 0.32 * vel, Math.max(0, dur - 0.05), 0.07); o.start(t); s.start(t); o.stop(e); s.stop(e);
+    },
+    // Искра: электрогитара — аккорды «пауэр», глухие восьмые и соло
+    riff(out, t, m, dur, vel, x) {
+      const notes = x || [m], muted = dur < 0.2 && x, d = drive(), lp = filt('lowpass', muted ? 1300 : 3400, 1.2), pk = filt('peaking', 1800, 1), g = gain();
+      pk.gain.value = 5; d.connect(lp); lp.connect(pk); pk.connect(g); g.connect(out);
+      const stop = env(g, t, 0.003, (x ? 0.16 : 0.2) * vel, muted ? 0.02 : Math.max(0, dur - 0.06), muted ? 0.07 : 0.16);
+      notes.forEach((mm, i) => [0, 9].forEach(dt => { const o = osc('sawtooth', hz(mm), t + i * 0.006); o.detune.value = dt; if (!x) vib(o, t, 6, 18, 0.15).stop(stop); const og = gain(0.5); o.connect(og); og.connect(d); o.start(t + i * 0.006); o.stop(stop); }));
+    },
+    // Дымок: рок-орган с «вращающимся» дрожанием
+    organ(out, t, m, dur, vel, x) {
+      const g = gain(); g.connect(out); const stop = env(g, t, 0.012, 0.09 * vel, Math.max(0, dur - 0.05), 0.08);
+      const l = osc('sine', 6.3, t), lg = gain(7); l.connect(lg); l.start(t); l.stop(stop);
+      (x || [m]).forEach(mm => [[0.5, 0.5], [1, 1], [2, 0.6], [3, 0.3], [4, 0.25]].forEach(([k, a]) => { const o = osc('sine', hz(mm) * k, t), og = gain(a); lg.connect(o.detune); o.connect(og); og.connect(g); o.start(t); o.stop(stop); }));
+    },
+    // Перчик: коровий колокольчик и хэт
+    cowbell(out, t, m, dur, vel, x) {
+      if (x === 'hat' || x === 'open') { const n = noiseSrc(t, 0.3), hp = filt('highpass', 7500, 0.8), g = gain(); n.connect(hp); hp.connect(g); g.connect(out); env(g, t, 0.002, 0.28 * vel, x === 'open' ? 0.08 : 0.005, x === 'open' ? 0.12 : 0.035); return; }
+      const bp = filt('bandpass', 820, 1.4), g = gain(); bp.connect(g); g.connect(out);
+      const stop = env(g, t, 0.001, 0.5 * vel, 0.01, 0.22); [562, 845].forEach(f => { const o = osc('square', f, t); o.connect(bp); o.start(t); o.stop(stop); });
+    },
+    // Кремень: наковальня вместо малого барабана
+    anvil(out, t, m, dur, vel, x) {
+      metal(out, t, x === 'fill' ? 1150 : 920, [[1, 0.22, 0.5], [1.49, 0.14, 0.35], [2.31, 0.1, 0.25], [3.17, 0.06, 0.15]], vel);
+      const n = noiseSrc(t, 0.2), bp = filt('bandpass', 2600, 0.8), g = gain(); n.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.001, 0.5 * vel, 0.01, 0.12);
+    },
+    // Дракоша: рок-вокал с хрипотцой
+    rockvox(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.85, { vowel: x || 'e', shift: 1.14, vib: 30, vibRate: 5.6, breath: 0.07, att: 0.02, rel: 0.12, glide: 0.96 }); },
+    // Вулканя: низкий рык «ро-ок», «хо!»
+    growl(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.9, { cons: x[0], vowel: x[1], shift: 0.9, vib: 6, breath: 0.22, att: 0.02, rel: 0.12 }); },
+    // --- Льдинка
+    // Снежок: челеста — музыкальная шкатулка
+    celesta(out, t, m, dur, vel) { metal(out, t, hz(m), [[1, 0.32, 1.3], [2, 0.08, 0.5], [4, 0.04, 0.18], [5.4, 0.015, 0.1]], vel); },
+    // Сосулька: стеклянная гармоника — мягкий долгий звон с дрожанием
+    glass(out, t, m, dur, vel) {
+      const f = hz(m), g = gain(), tr = osc('sine', 5.2, t), tg = gain(0.25); tr.connect(tg); tg.connect(g.gain);
+      g.connect(out); const stop = env(g, t, 0.18, 0.13 * vel, Math.max(0, dur - 0.3), 0.6);
+      [[1, 1], [2, 0.18], [3.01, 0.05]].forEach(([k, a]) => { const o = osc('sine', f * k, t), og = gain(a); o.connect(og); og.connect(g); o.start(t); o.stop(stop); });
+      tr.start(t); tr.stop(stop);
+    },
+    // Пингви: туба «умпа»
+    oompah(out, t, m, dur, vel) {
+      const f = hz(m), o = osc('sawtooth', f, t), s = osc('sine', f, t), lp = filt('lowpass', 400, 1.2), g = gain(), sg = gain(0.6);
+      lp.frequency.setValueAtTime(350, t); lp.frequency.linearRampToValueAtTime(950, t + 0.05); lp.frequency.exponentialRampToValueAtTime(500, t + 0.25);
+      o.connect(lp); lp.connect(g); s.connect(sg); sg.connect(g); g.connect(out);
+      const e = env(g, t, 0.025, 0.5 * vel, Math.max(0, dur * 0.6 - 0.05), 0.12); o.start(t); s.start(t); o.stop(e); s.stop(e);
+    },
+    // Ёлочка: бубенцы
+    sleigh(out, t, m, dur, vel, x) {
+      const n = x === 'roll' ? 8 : 1;
+      for (let i = 0; i < n; i++) {
+        const tt = t + i * Math.min(0.09, dur / n), a = vel * (x === 'roll' ? 0.4 + i * 0.07 : 1);
+        const ns = noiseSrc(tt, 0.2), bp = filt('bandpass', 7800, 2), g = gain(); ns.connect(bp); bp.connect(g); g.connect(out); env(g, tt, 0.002, 0.3 * a, 0.01, 0.12);
+        metal(out, tt + 0.004, 2600, [[1, 0.05, 0.18], [1.43, 0.04, 0.14], [2.07, 0.03, 0.1]], a);
+      }
+    },
+    // Морозик: скрипки — щипком (коротко) или смычком (долго)
+    strings(out, t, m, dur, vel, x) {
+      const notes = x || [m], pizz = dur < 0.3, lp = filt('lowpass', pizz ? 2200 : 1900, 0.8), g = gain(); lp.connect(g); g.connect(out);
+      const stop = pizz ? env(g, t, 0.003, 0.18 * vel, 0, 0.28) : env(g, t, 0.16, 0.07 * vel, Math.max(0, dur - 0.25), 0.35);
+      const l = osc('sine', 5.2, t), lg = gain(pizz ? 0 : 9); l.connect(lg); l.start(t); l.stop(stop);
+      notes.forEach(mm => [-6, 6].forEach(dt => { const o = osc(pizz ? 'triangle' : 'sawtooth', hz(mm), t); o.detune.value = dt; lg.connect(o.detune); o.connect(lp); o.start(t); o.stop(stop); }));
+    },
+    // Шишка: деревянная коробочка «цок»
+    woodblock(out, t, m, dur, vel) {
+      const f = hz(m) * 1.2, o = osc('sine', f * 1.4, t), g = gain(); o.frequency.exponentialRampToValueAtTime(f, t + 0.015); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.001, 0.45 * vel, 0, 0.06));
+      const n = noiseSrc(t, 0.02), bp = filt('bandpass', 2400, 2), ng = gain(); n.connect(bp); bp.connect(ng); ng.connect(out); env(ng, t, 0.001, 0.15 * vel, 0, 0.01);
+    },
+    // Снежинка: высокое сопрано с хрустальным призвуком
+    icesoprano(out, t, m, dur, vel, x) {
+      voice(out, t, hz(m), dur, vel * 0.65, { cons: x === 'a' ? 'l' : null, vowel: x || 'a', shift: 1.36, vib: 30, vibRate: 6.2, att: 0.06, rel: 0.3 });
+      const o = osc('sine', hz(m + 24), t), g = gain(); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.002, 0.04 * vel, 0, 0.5));
+    },
+    // Йетик: тёплый баритон
+    baritone(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.8, { cons: x[0], vowel: x[1], shift: 0.98, vib: 18, vibRate: 5, att: 0.08, rel: 0.3 }); },
+    // --- Лагуна
+    // Крабик: клаве и щелчки клешнями
+    claves(out, t, m, dur, vel, x) {
+      const f = x === 'clack' ? 3300 : 2500, o = osc('sine', f, t), g = gain(); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.001, (x ? 0.25 : 0.4) * vel, 0, x ? 0.025 : 0.06));
+    },
+    // Медуза: стальной барабан
+    steel(out, t, m, dur, vel) {
+      const f = hz(m); metal(out, t, f, [[1, 0.3, 0.9], [2, 0.2, 0.55], [3, 0.08, 0.3], [4.2, 0.03, 0.14]], vel);
+      const n = noiseSrc(t, 0.02), bp = filt('bandpass', f * 3, 2), ng = gain(); n.connect(bp); bp.connect(ng); ng.connect(out); env(ng, t, 0.001, 0.05 * vel, 0, 0.012);
+    },
+    // Кокос: бонги, шлепок ладонью
+    bongo(out, t, m, dur, vel, x) {
+      const f = hz(m), o = osc('sine', f * 1.5, t), g = gain(); o.frequency.exponentialRampToValueAtTime(f, t + 0.03); o.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.001, 0.6 * vel, 0, 0.14));
+      if (x === 'slap') { const n = noiseSrc(t, 0.05), bp = filt('bandpass', 2200, 1.2), ng = gain(); n.connect(bp); bp.connect(ng); ng.connect(out); env(ng, t, 0.001, 0.35 * vel, 0, 0.04); }
+    },
+    // Китёнок: глубокий мягкий бас
+    subbass(out, t, m, dur, vel) {
+      const f = hz(m), o = osc('sine', f, t), o2 = osc('triangle', f * 2, t), g2 = gain(0.18), g = gain(); o.connect(g); o2.connect(g2); g2.connect(g); g.connect(out);
+      const e = env(g, t, 0.008, 0.6 * vel, Math.max(0, dur - 0.08), 0.1); o.start(t); o2.start(t); o.stop(e); o2.stop(e);
+    },
+    // Ракушка: укулеле — короткий бой
+    ukulele(out, t, m, dur, vel, x) {
+      (x || [m]).forEach((mm, i) => {
+        const tt = t + i * 0.009, f = hz(mm + 12), o = osc('triangle', f, tt), o2 = osc('sawtooth', f, tt), g2 = gain(0.3), lp = filt('lowpass', 2600, 1), g = gain();
+        lp.frequency.setValueAtTime(3000, tt); lp.frequency.exponentialRampToValueAtTime(700, tt + 0.12);
+        o.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(out); const e = env(g, tt, 0.002, 0.13 * vel, 0, 0.17); o.start(tt); o2.start(tt); o.stop(e); o2.stop(e);
+      });
+    },
+    // Попугайка: свирель с дыханием
+    panflute(out, t, m, dur, vel) {
+      const f = hz(m), o = osc('sine', f * 0.985, t), g = gain(); o.frequency.exponentialRampToValueAtTime(f, t + 0.06); const l = vib(o, t, 5, 12, 0.12);
+      o.connect(g); g.connect(out); const e = env(g, t, 0.05, 0.3 * vel, Math.max(0, dur - 0.1), 0.12); o.start(t); o.stop(e); l.stop(e);
+      const n = noiseSrc(t, dur + 0.1), bp = filt('bandpass', f * 2, 4), ng = gain(); n.connect(bp); bp.connect(ng); ng.connect(out); env(ng, t, 0.02, 0.12 * vel, Math.max(0, dur - 0.08), 0.08);
+    },
+    // Дельфа: звонкий голос «ла-ла»
+    calypsovox(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.85, { cons: x[0], vowel: x[1], shift: 1.2, vib: 24, vibRate: 5.8, att: 0.03, rel: 0.12 }); },
+    // Панцирь: низкое «йо-о», «хей», «м-м»
+    reggaevox(out, t, m, dur, vel, x) { voice(out, t, hz(m), dur, vel * 0.85, { cons: x[0], vowel: x[1], shift: 0.94, vib: 12, breath: 0.06, att: 0.03, rel: 0.15 }); },
+  });
+  Object.assign(REV, { rockkick: 0.06, fuzzbass: 0.04, riff: 0.12, organ: 0.25, cowbell: 0.12, anvil: 0.2, rockvox: 0.3, growl: 0.2,
+    celesta: 0.45, glass: 0.55, oompah: 0.15, sleigh: 0.3, strings: 0.4, woodblock: 0.2, icesoprano: 0.55, baritone: 0.4,
+    claves: 0.15, steel: 0.3, bongo: 0.12, subbass: 0.04, ukulele: 0.18, panflute: 0.35, calypsovox: 0.3, reggaevox: 0.25 });
+  Object.assign(DLY, { riff: 0.12, rockvox: 0.14, celesta: 0.25, glass: 0.2, icesoprano: 0.2, steel: 0.18, panflute: 0.2, calypsovox: 0.12 });
+  Object.assign(VOL, { rockkick: 0.95, fuzzbass: 0.8, riff: 0.9, organ: 0.9, cowbell: 0.75, anvil: 1.4, rockvox: 1.35, growl: 1.5,
+    celesta: 1.25, glass: 0.7, oompah: 0.65, sleigh: 1.8, strings: 1.6, woodblock: 1.4, icesoprano: 1.7, baritone: 1.0,
+    claves: 1.4, steel: 1.25, bongo: 0.9, subbass: 0.5, ukulele: 2.2, panflute: 0.9, calypsovox: 1.05, reggaevox: 1.0 });
 
   // ---------- партитура: 32 такта по 16 шестнадцатых, нота MIDI, длина в шагах, сила, дополнительно
   // Форма песни: куплет (8 тактов) → распевка с подъёмом (4) → припев (8) → затишье-проигрыш (4)
@@ -354,8 +501,8 @@ const Sound = (() => {
   const QUAL = { '': [0, 4, 7], m: [0, 3, 7], '7': [0, 4, 7, 10], m7: [0, 3, 7, 10], sus4: [0, 5, 7] };
   let prevBass = 48, prevVoc = [60, 64, 67, 72];
   function chord(name) {
-    const [, r, q, s] = name.match(/^([A-G])(m7|m|7|sus4)?(?:\/([A-G]))?$/);
-    const root = PC[r], pcs = QUAL[q || ''].map(i => (root + i) % 12), bpc = s ? PC[s] : root;
+    const [, r, acc, q, s] = name.match(/^([A-G])([#b]?)(m7|m|7|sus4)?(?:\/([A-G]))?$/);
+    const root = (PC[r] + (acc === '#' ? 1 : acc === 'b' ? 11 : 0)) % 12, pcs = QUAL[q || ''].map(i => (root + i) % 12), bpc = s ? PC[s] : root;
     let bass = 0, best = 99;
     for (let m = 38; m <= 52; m++) if (m % 12 === bpc && Math.abs(m - prevBass) < best) { best = Math.abs(m - prevBass); bass = m; }
     let voc = null; best = 1e9;
@@ -384,7 +531,8 @@ const Sound = (() => {
   }
   const SYL = { du: ['d', 'u'], da: ['d', 'a'], bu: ['b', 'u'], bi: ['b', 'i'], ba: ['b', 'a'], do: ['d', 'o'], dom: ['d', 'o'] };
   const PARTS = {};
-  const put = (name, step, ...ev) => { (PARTS[name] = PARTS[name] || [])[step] = (PARTS[name][step] || []).concat([ev]); };
+  const PART_SONG = {}; let building = 'green'; // какая партия в какой песне
+  const put = (name, step, ...ev) => { PART_SONG[name] = building; (PARTS[name] = PARTS[name] || [])[step] = (PARTS[name][step] || []).concat([ev]); };
   const BARS = FORM.map(([sec, n1, n2]) => { const A = chord(n1), B = n2 ? chord(n2) : A; return { sec, A, B }; });
   BARS.forEach(({ sec, A, B }, b) => {
     const o = b * 16, at = q => (q >= 8 ? B : A);
@@ -515,6 +663,220 @@ const Sound = (() => {
     });
   });
 
+  SONGS.green = { name: 'Песня Певучего острова', bpm: 100, bar: 16, steps: 512, preview: 12 * 16 };
+
+  // =====================================================================
+  //  ПЕСНИ ДРУГИХ ОСТРОВОВ: у каждой свой темп, лад, размер и свои монстры
+  // =====================================================================
+  // общий построитель: такты по аккордам, мелодия по тактам, партии раскладывает gen(бар) — v(партия, шаг, нота, длина, сила, доп.)
+  function song(id, o) {
+    prevBass = o.bass0; prevVoc = o.voc0.slice(); building = id;
+    const bars = o.form.map(([sec, n1, n2]) => { const A = chord(n1), B = n2 ? chord(n2) : A; return { sec, A, B }; });
+    const half = o.bar / 2;
+    bars.forEach((x, b) => {
+      const off = b * o.bar, at = q => (q >= half ? x.B : x.A);
+      const ib = bars.slice(0, b).filter(y => y.sec === x.sec).length, nb = bars[(b + 1) % bars.length];
+      const end = nb.sec !== x.sec || b === bars.length - 1;
+      const v = (p, q, m, l, vel, ex) => put(p, off + q, m, l, Math.min(1, vel * (o.energy ? o.energy(x.sec, ib) : 1)), ex);
+      o.gen({ ...x, b, ib, end, at, v, mel: o.mel[b] || [], next: nb });
+    });
+    SONGS[id] = { name: o.name, bpm: o.bpm, bar: o.bar, steps: bars.length * o.bar, preview: o.preview * o.bar, bars };
+  }
+  const near = (prev, C, lo, hi) => { let best = prev, bd = 99; for (let m = lo; m <= hi; m++) if (tone(m, C) && Math.abs(m - prev) < bd) { bd = Math.abs(m - prev); best = m; } return best; };
+
+  // ---------- «Огненный рок» — остров Вулкан: ми минор, 120 ударов, рифф → куплет → припев → соло гитары
+  song('lava', {
+    name: 'Огненный рок', bpm: 120, bar: 16, preview: 12, bass0: 40, voc0: [52, 59, 64, 67],
+    form: [
+      ['riff', 'Em'], ['riff', 'Em'], ['riff', 'C', 'D'], ['riff', 'Em'],
+      ['verse', 'Em'], ['verse', 'C'], ['verse', 'G'], ['verse', 'D'], ['verse', 'Em'], ['verse', 'C'], ['verse', 'Am'], ['verse', 'B7'],
+      ['chorus', 'C'], ['chorus', 'D'], ['chorus', 'Bm'], ['chorus', 'Em'], ['chorus', 'C'], ['chorus', 'D'], ['chorus', 'B7'], ['chorus', 'B7'],
+      ['solo', 'Am'], ['solo', 'Em'], ['solo', 'C'], ['solo', 'B7'],
+    ],
+    mel: [, , , ,
+      [[0, 64, 2], [2, 67, 2], [4, 67, 2], [6, 69, 2], [8, 71, 6], [14, 69, 2]],
+      [[0, 67, 4], [4, 64, 2], [6, 67, 2], [8, 72, 4], [12, 67, 4]],
+      [[0, 71, 2], [2, 74, 2], [4, 74, 2], [6, 71, 2], [8, 74, 4], [12, 76, 2], [14, 74, 2]],
+      [[0, 74, 6], [6, 72, 2], [8, 69, 8]],
+      [[0, 64, 2], [2, 67, 2], [4, 67, 2], [6, 69, 2], [8, 71, 6], [14, 72, 2]],
+      [[0, 72, 4], [4, 71, 2], [6, 67, 2], [8, 64, 4], [12, 67, 4]],
+      [[0, 69, 2], [2, 72, 2], [4, 76, 4], [8, 76, 2], [10, 72, 2], [12, 69, 4]],
+      [[0, 71, 6], [6, 75, 2], [8, 78, 4], [12, 75, 4]],
+      [[0, 76, 6], [6, 74, 2], [8, 72, 2], [10, 74, 2], [12, 76, 4]],
+      [[0, 78, 6], [6, 76, 2], [8, 74, 4], [12, 69, 4]],
+      [[0, 74, 2], [2, 74, 2], [4, 78, 4], [8, 78, 2], [10, 74, 2], [12, 71, 4]],
+      [[0, 71, 6], [6, 74, 2], [8, 76, 8]],
+      [[0, 76, 6], [6, 74, 2], [8, 72, 2], [10, 74, 2], [12, 79, 4]],
+      [[0, 78, 6], [6, 76, 2], [8, 74, 2], [10, 76, 2], [12, 78, 4]],
+      [[0, 78, 4], [4, 75, 4], [8, 71, 4], [12, 75, 4]],
+      [[0, 78, 12]],
+    ],
+    energy: (sec, ib) => ({ riff: 0.85 + ib * 0.04, verse: 0.9, chorus: 1.05, solo: 1 }[sec]),
+    gen({ sec, A, B, ib, end, at, v, mel, b }) {
+      const riff = sec === 'riff', verse = sec === 'verse', cho = sec === 'chorus', solo = sec === 'solo';
+      const pw = C => [C.bass + 12, C.bass + 19, C.bass + 24]; // «пауэр-аккорд»: основной тон, квинта, октава
+      // Уголёк — бочка
+      if (riff) { [0, 8].forEach(q => v('rockkick', q, 0, 1, 1)); if (ib >= 1) [3, 10].forEach(q => v('rockkick', q, 0, 1, 0.7)); }
+      else if (verse) { [0, 7, 8].forEach(q => v('rockkick', q, 0, 1, q === 7 ? 0.6 : 0.95)); if (ib % 2) v('rockkick', 10, 0, 1, 0.65); }
+      else if (cho) [0, 4, 8, 12].forEach(q => v('rockkick', q, 0, 1, q % 8 ? 0.8 : 1));
+      else [0, 6, 8, 14].forEach(q => v('rockkick', q, 0, 1, q % 8 ? 0.7 : 0.95));
+      if (end) [12, 13, 14, 15].forEach((q, i) => v('rockkick', q, 0, 1, 0.6 + i * 0.12));
+      // Кремень — удары по наковальне на 2 и 4, в конце раздела — сбивка
+      if (!(riff && ib < 1)) { v('anvil', 4, 0, 1, 0.9); v('anvil', 12, 0, 1, 0.95); }
+      if (end) [10, 11, 14, 15].forEach((q, i) => v('anvil', q, 0, 1, 0.45 + i * 0.15, 'fill'));
+      // Перчик — коровий колокольчик и хэт
+      for (let q = 0; q < 16; q += 2) v('cowbell', q, 0, 1, q % 4 ? 0.45 : 0.7, solo && q % 8 === 6 ? 'open' : 'hat');
+      if (cho) [0, 4, 8, 12].forEach(q => v('cowbell', q, 0, 1, q ? 0.7 : 0.9));
+      if (riff && ib === 3) [0, 2, 4, 6].forEach(q => v('cowbell', q, 0, 1, 0.8));
+      if (solo) [2, 10].forEach(q => v('cowbell', q, 0, 1, 0.7));
+      // Искра — гитара: рифф, глухие восьмые, мощные аккорды, соло
+      const RIFF = [[0, 52, 2], [3, 52, 1], [4, 55, 2], [6, 52, 1], [7, 57, 2], [10, 52, 1], [11, 58, 1], [12, 57, 2], [14, 55, 2]];
+      if (riff && A.root === 4) RIFF.forEach(([q, m, l]) => v('riff', q, m, l, q % 4 ? 0.75 : 0.95));
+      else if (riff) { v('riff', 0, A.bass + 12, 6, 0.95, pw(A)); v('riff', 8, B.bass + 12, 6, 0.95, pw(B)); }
+      else if (verse) for (let q = 0; q < 16; q += 2) { const C = at(q); v('riff', q, C.bass + 12, 1, q % 4 ? 0.6 : 0.85, pw(C).slice(0, 2)); }
+      else if (cho) [[0, 6], [6, 2], [8, 6], [14, 2]].forEach(([q, l]) => v('riff', q, at(q).bass + 12, l, q % 8 ? 0.75 : 1, pw(at(q))));
+      else ([
+        [[0, 76, 2], [2, 74, 1], [3, 72, 1], [4, 69, 2], [6, 72, 1], [7, 74, 1], [8, 76, 4], [12, 79, 2], [14, 76, 2]],
+        [[0, 79, 3], [3, 76, 1], [4, 74, 2], [6, 71, 2], [8, 74, 2], [10, 76, 2], [12, 71, 4]],
+        [[0, 72, 1], [1, 74, 1], [2, 76, 1], [3, 79, 1], [4, 81, 4], [8, 79, 2], [10, 76, 2], [12, 79, 1], [13, 76, 1], [14, 74, 2]],
+        [[0, 75, 2], [2, 78, 2], [4, 81, 2], [6, 83, 6], [12, 81, 1], [13, 78, 1], [14, 75, 2]],
+      ][ib]).forEach(([q, m, l]) => v('riff', q, m, l, 0.9));
+      // Магмус — бас: в риффе вместе с гитарой, в куплете восьмыми, в припеве с октавами, в соло ходом
+      if (riff && A.root === 4) RIFF.forEach(([q, m, l]) => v('fuzzbass', q, m - 12, l, 0.9));
+      else if (riff) { v('fuzzbass', 0, A.bass, 6, 1); v('fuzzbass', 8, B.bass, 6, 1); }
+      else if (verse) for (let q = 0; q < 16; q += 2) v('fuzzbass', q, at(q).bass, 2, q ? 0.75 : 1);
+      else if (cho) [[0, 0], [3, 0], [6, 12], [8, 0], [11, 0], [14, 12]].forEach(([q, d]) => v('fuzzbass', q, at(q).bass + d, 2, q % 8 ? 0.8 : 1));
+      else [0, 4, 8, 12].forEach((q, i) => v('fuzzbass', q, nearTone(A.bass + [0, 3, 5, 7][i], A) , 4, 0.85));
+      // Дымок — орган: держит аккорды, в соло — отрывистые «удары»
+      if (riff && ib >= 2) v('organ', 0, A.voc[0], 15, 0.6 + ib * 0.1, A.voc);
+      else if (verse) [0, 8].forEach(q => v('organ', q, at(q).voc[0], 7, 0.7, at(q).voc));
+      else if (cho) v('organ', 0, A.voc[0], 15, 0.9, A.voc);
+      else if (solo) [0, 3, 6, 10].forEach(q => v('organ', q, A.voc[0], 2, 0.75, A.voc));
+      // Дракоша — главный голос: «е-е», «о-о», «йе!»
+      mel.forEach(([q, m, l], i) => v('rockvox', q, m, l, l >= 6 ? 0.95 : 0.85, ['e', 'a', 'o', 'e', 'a'][(i + b) % 5]));
+      // Вулканя — рык и выкрики
+      const gp = C => near(52, C, 45, 57);
+      if (riff && ib === 3) [[8, 'h', 'o'], [12, 'h', 'o'], [14, 'h', 'e']].forEach(([q, c, x]) => v('growl', q, gp(B), 2, 0.95, [c, x]));
+      else if (verse && ib % 4 === 3) v('growl', 0, gp(A), 8, 0.85, ['r', 'o']);
+      else if (cho) { v('growl', 12, gp(B) + 12 > 64 ? gp(B) : gp(B) + 12, 2, 0.9, ['h', 'e']); if (ib % 2) v('growl', 14, gp(B), 2, 0.9, ['h', 'o']); }
+      else if (solo && ib === 3) v('growl', 0, gp(A), 12, 0.95, ['j', 'e']);
+    },
+  });
+
+  let bari = 57; // баритон Йетика ведёт свой голос от аккорда к аккорду
+  // ---------- «Снежный вальс» — остров Льдинка: ре мажор, на три четверти, середина в си миноре
+  song('ice', {
+    name: 'Снежный вальс', bpm: 156, bar: 12, preview: 8, bass0: 38, voc0: [57, 62, 66, 69],
+    form: [
+      ['a', 'D'], ['a', 'Bm'], ['a', 'Em'], ['a', 'A7'], ['a', 'D'], ['a', 'F#m'], ['a', 'G'], ['a', 'A7'],
+      ['a2', 'D'], ['a2', 'Bm'], ['a2', 'Em'], ['a2', 'A7'], ['a2', 'G'], ['a2', 'A7'], ['a2', 'D'], ['a2', 'D'],
+      ['b', 'Bm'], ['b', 'F#7'], ['b', 'Bm'], ['b', 'Bm'], ['b', 'G'], ['b', 'D'], ['b', 'E7'], ['b', 'A7'],
+      ['b2', 'D'], ['b2', 'D7'], ['b2', 'G'], ['b2', 'Gm'], ['b2', 'D'], ['b2', 'A7'], ['b2', 'D'], ['b2', 'A7'],
+    ],
+    mel: [
+      [[0, 78, 8], [8, 81, 4]], [[0, 83, 8], [8, 81, 4]], [[0, 79, 4], [4, 78, 4], [8, 76, 4]], [[0, 76, 8], [8, 73, 4]],
+      [[0, 74, 4], [4, 78, 4], [8, 81, 4]], [[0, 85, 8], [8, 81, 4]], [[0, 83, 4], [4, 79, 4], [8, 76, 4]], [[0, 79, 8], [8, 73, 4]],
+      [[0, 78, 8], [8, 81, 4]], [[0, 83, 8], [8, 86, 4]], [[0, 88, 4], [4, 86, 4], [8, 83, 4]], [[0, 85, 8], [8, 81, 4]],
+      [[0, 83, 4], [4, 86, 4], [8, 88, 4]], [[0, 85, 4], [4, 88, 4], [8, 85, 4]], [[0, 86, 12]], [[0, 74, 4], [4, 78, 4], [8, 81, 4]],
+      [[0, 83, 8], [8, 78, 4]], [[0, 82, 8], [8, 78, 4]], [[0, 83, 4], [4, 85, 4], [8, 86, 4]], [[0, 86, 8], [8, 83, 4]],
+      [[0, 79, 4], [4, 83, 4], [8, 86, 4]], [[0, 90, 8], [8, 86, 4]], [[0, 88, 4], [4, 86, 4], [8, 80, 4]], [[0, 81, 8], [8, 79, 4]],
+      [[0, 78, 8], [8, 81, 4]], [[0, 84, 8], [8, 81, 4]], [[0, 83, 8], [8, 79, 4]], [[0, 82, 8], [8, 79, 4]],
+      [[0, 78, 4], [4, 81, 4], [8, 86, 4]], [[0, 85, 4], [4, 88, 4], [8, 79, 4]], [[0, 86, 12]], [[0, 81, 4], [4, 79, 4], [8, 76, 4]],
+    ],
+    energy: (sec) => ({ a: 0.85, a2: 0.95, b: 0.9, b2: 1 }[sec]),
+    gen({ sec, A, ib, end, v, mel, b }) {
+      const second = sec === 'a2' || sec === 'b2', minor = sec === 'b';
+      // Пингви — туба «умпа» на первую долю, на третью — квинта; в конце восьмитактов — ход вверх
+      v('oompah', 0, A.bass, 4, 1); const f5 = fifthUp(A); if (ib % 2) v('oompah', 8, f5 - 12 >= 36 ? f5 - 12 : f5, 3, 0.7);
+      if (end) [[4, 2], [8, 4]].forEach(([q, d]) => v('oompah', q, A.bass + d, 3, 0.75));
+      // Морозик — скрипки: «па-па» щипком на 2 и 3, в середине — смычком долгими аккордами
+      if (minor) v('strings', 0, A.voc[0], 11, 0.75, A.voc.slice(0, 3));
+      else [4, 8].forEach(q => v('strings', q, A.voc[0], 2, q === 4 ? 0.85 : 0.7, A.voc.slice(0, 3)));
+      // Ёлочка — бубенцы на 2 и 3, перед новой частью — перезвон
+      [4, 8].forEach(q => v('sleigh', q, 0, 1, second ? 0.8 : 0.6)); if (second) v('sleigh', 10, 0, 1, 0.4);
+      if (end) v('sleigh', 0, 0, 12, 0.7, 'roll');
+      // Шишка — «цок-цок» деревяшками, как копытца
+      if (second || minor) [0, 2, 4, 6, 8, 10].forEach(q => v('woodblock', q, q % 4 ? 79 : 72, 1, q ? 0.55 : 0.8)); else [0, 4, 8].forEach(q => v('woodblock', q, q ? 79 : 72, 1, 0.6));
+      // Сосулька — стеклянная гармоника: долгий звук сверху раз в два такта, в середине — каждый такт
+      if (ib % 2 === 0 || minor) v('glass', 0, nearTone(minor ? 86 : 90, A), minor ? 11 : 22, 0.8);
+      // Снежок — мелодия на челесте, во второй раз с подголоском октавой выше
+      mel.forEach(([q, m, l]) => { v('celesta', q, m, l, 0.9); if (second && l >= 8) v('celesta', q, m + 12, l, 0.45); });
+      // Снежинка — сопрано: в повторах поёт мелодию, в первый раз — долгие верхние ноты
+      if (second) mel.forEach(([q, m, l], i) => v('icesoprano', q, m, l, 0.85, ['a', 'a', 'o', 'i'][(i + b) % 4]));
+      else if (ib % 2 === 1) v('icesoprano', 0, nearTone(88, A), 11, 0.75, 'a');
+      // Йетик — баритон: подголосок долгими звуками, плавно от аккорда к аккорду
+      v('baritone', 0, (bari = near(bari, A, 50, 62)), 11, 0.85, [['d', 'o'], ['m', 'o'], ['l', 'a'], ['d', 'u']][b % 4]);
+    },
+  });
+
+  // ---------- «Солнечная лагуна» — остров Лагуна: фа мажор, калипсо, 108 ударов
+  song('sea', {
+    name: 'Солнечная лагуна', bpm: 108, bar: 16, preview: 8, bass0: 41, voc0: [57, 60, 65, 69],
+    form: [
+      ['verse', 'F'], ['verse', 'Bb'], ['verse', 'C7'], ['verse', 'F'], ['verse', 'F'], ['verse', 'Bb'], ['verse', 'C7'], ['verse', 'F'],
+      ['chorus', 'Bb'], ['chorus', 'F'], ['chorus', 'C7'], ['chorus', 'F'], ['chorus', 'Bb'], ['chorus', 'F'], ['chorus', 'Gm7', 'C7'], ['chorus', 'F'],
+      ['bridge', 'Dm'], ['bridge', 'Gm'], ['bridge', 'C7'], ['bridge', 'F'], ['bridge', 'Dm'], ['bridge', 'Gm'], ['bridge', 'C7'], ['bridge', 'C7'],
+    ],
+    mel: [
+      [[0, 72, 2], [2, 77, 2], [4, 77, 3], [7, 77, 1], [8, 76, 2], [10, 77, 2], [12, 81, 4]],
+      [[0, 82, 3], [3, 81, 3], [6, 79, 2], [8, 77, 4], [12, 74, 4]],
+      [[0, 76, 2], [2, 79, 2], [4, 82, 3], [7, 81, 1], [8, 79, 4], [12, 76, 4]],
+      [[0, 77, 6], [6, 76, 2], [8, 77, 8]],
+      [[0, 72, 2], [2, 77, 2], [4, 77, 3], [7, 77, 1], [8, 79, 2], [10, 81, 2], [12, 84, 4]],
+      [[0, 86, 3], [3, 84, 3], [6, 82, 2], [8, 77, 4], [12, 74, 4]],
+      [[0, 79, 3], [3, 82, 3], [6, 81, 2], [8, 79, 2], [10, 76, 2], [12, 72, 4]],
+      [[0, 77, 12]],
+      [[0, 82, 4], [4, 86, 4], [8, 89, 3], [11, 86, 1], [12, 82, 4]],
+      [[0, 81, 3], [3, 77, 3], [6, 81, 2], [8, 84, 8]],
+      [[0, 82, 3], [3, 79, 3], [6, 76, 2], [8, 79, 4], [12, 82, 4]],
+      [[0, 81, 6], [6, 79, 2], [8, 77, 8]],
+      [[0, 82, 4], [4, 86, 4], [8, 89, 3], [11, 86, 1], [12, 82, 4]],
+      [[0, 81, 3], [3, 84, 3], [6, 89, 2], [8, 86, 4], [12, 84, 4]],
+      [[0, 82, 4], [4, 86, 4], [8, 84, 4], [12, 79, 4]],
+      [[0, 77, 12]],
+      [[0, 74, 4], [4, 77, 4], [8, 81, 8]],
+      [[0, 82, 6], [6, 81, 2], [8, 79, 8]],
+      [[0, 79, 4], [4, 76, 4], [8, 72, 4], [12, 76, 4]],
+      [[0, 77, 8], [8, 81, 8]],
+      [[0, 74, 4], [4, 77, 4], [8, 81, 6], [14, 84, 2]],
+      [[0, 86, 6], [6, 84, 2], [8, 82, 8]],
+      [[0, 84, 4], [4, 82, 4], [8, 79, 4], [12, 76, 4]],
+      [[0, 79, 6], [6, 76, 2], [8, 72, 8]],
+    ],
+    energy: (sec) => ({ verse: 0.9, chorus: 1.05, bridge: 0.88 }[sec]),
+    gen({ sec, A, B, ib, end, at, v, mel, b }) {
+      const verse = sec === 'verse', cho = sec === 'chorus', bri = sec === 'bridge';
+      // Китёнок — бас калипсо «3+3+2»
+      [[0, 0, 3], [3, 0, 3], [6, 5, 2], [8, 0, 3], [11, 0, 3], [14, 5, 2]].forEach(([q, f, l], i) => { const C = at(q); v('subbass', q, f ? fifthUp(C) - (fifthUp(C) > 47 ? 12 : 0) : C.bass, l, i % 3 ? 0.75 : 1); });
+      // Ракушка — укулеле: короткие аккорды на слабые доли
+      [2, 6, 10, 14].forEach(q => v('ukulele', q, at(q).voc[0], 1, q % 8 === 6 ? 0.9 : 0.7, at(q).voc.slice(0, 3)));
+      if (cho) [4, 12].forEach(q => v('ukulele', q, at(q).voc[0], 1, 0.55, at(q).voc.slice(1, 4)));
+      // Крабик — клаве «3-2» и щелчки клешнями
+      (b % 2 ? [4, 8] : [0, 6, 12]).forEach(q => v('claves', q, 0, 1, 0.9));
+      if (cho) [3, 7, 11, 15].forEach(q => v('claves', q, 0, 1, 0.5, 'clack'));
+      if (end) [12, 13, 14, 15].forEach((q, i) => v('claves', q, 0, 1, 0.5 + i * 0.12, 'clack'));
+      // Кокос — бонги: «мартильо» восьмыми, шлепки на 2 и 4
+      for (let q = 0; q < 16; q += 2) v('bongo', q, q % 4 ? 71 : 64, 1, q % 4 ? 0.55 : 0.75);
+      [6, 14].forEach(q => v('bongo', q, 69, 1, 0.9, 'slap')); if (cho) [5, 13].forEach(q => v('bongo', q, 71, 1, 0.4));
+      if (end) [11, 13, 15].forEach(q => v('bongo', q, 64, 1, 0.7));
+      // Медуза — стальной барабан: мелодия, в середине — переливы аккорда
+      if (!bri) mel.forEach(([q, m, l]) => v('steel', q, m, l, 0.9));
+      else for (let q = 0; q < 16; q += 2) { const C = at(q); v('steel', q, C.voc[[0, 1, 2, 3, 2, 1, 2, 3][q / 2]] + 12, 2, q % 4 ? 0.55 : 0.75); }
+      // Попугайка — свирель: отвечает в паузах припева, в середине ведёт мелодию
+      if (bri) mel.forEach(([q, m, l]) => v('panflute', q, m, l, 0.85));
+      else if (cho && ib % 2 === 1) [[12, 0], [14, 1]].forEach(([q, k]) => v('panflute', q, nearTone([84, 81][k], B), 2, 0.8));
+      else if (verse && ib % 4 === 3) [[12, 81], [13, 84], [14, 89]].forEach(([q, m]) => v('panflute', q, nearTone(m, B), q === 14 ? 2 : 1, 0.8));
+      // Дельфа — главный голос в припеве и в середине, в куплете подпевает концы фраз
+      if (!verse) mel.forEach(([q, m, l], i) => v('calypsovox', q, m - 12, l, 0.9, [['l', 'a'], [null, 'a'], ['l', 'e'], [null, 'o']][(i + b) % 4]));
+      else if (ib % 2 === 1) mel.slice(-2).forEach(([q, m, l]) => v('calypsovox', q, m - 12, l, 0.8, ['l', 'a']));
+      // Панцирь — низкое «йо-о» и «хей», в середине тянет «м-м»
+      if (bri) v('reggaevox', 0, near(53, A, 48, 58), 14, 0.75, ['m', 'u']);
+      else { v('reggaevox', 12, near(53, B, 48, 58), 2, 0.9, ['h', 'e']); v('reggaevox', 14, near(50, B, 45, 55), 2, 0.95, ['j', 'o']); }
+    },
+  });
+
+  useSong('green');
+
   // ---------- звуки интерфейса
   function sfx(kind) {
     if (!ctx || !sfxOn) return; const t = ctx.currentTime + 0.01, out = bus;
@@ -527,14 +889,13 @@ const Sound = (() => {
     else if (kind === 'deny') { const o = osc('square', 180, t), g = gain(), lp = filt('lowpass', 900); o.connect(lp); lp.connect(g); g.connect(out); o.start(t); o.stop(env(g, t, 0.003, 0.1, 0.08, 0.06)); }
   }
   // короткая проба голоса монстра (в магазине и книге): начало припева
-  const PREVIEW_AT = 12 * 16;
   function preview(part) {
     init(); if (ctx.state === 'suspended') ctx.resume();
     const ch = gain(VOL[part] || 1); ch.connect(bus); const s = gain(0.25); ch.connect(s); s.connect(revIn);
-    const t0 = ctx.currentTime + 0.05;
-    for (let st = 0; st < 32; st++) { const evs = PARTS[part][PREVIEW_AT + st]; if (evs) for (const e of evs) play(part, ch, t0 + st * STEP, e, e[1] * STEP, e[2]); }
-    setTimeout(() => ch.disconnect(), (32 * STEP + 2.5) * 1000);
+    const t0 = ctx.currentTime + 0.05, S = SONGS[PART_SONG[part]] || SONGS[SONG], step = 60 / S.bpm / 4, n = S.bar * 2;
+    for (let st = 0; st < n; st++) { const evs = PARTS[part][S.preview + st]; if (evs) for (const e of evs) play(part, ch, t0 + st * step, e, e[1] * step, e[2]); }
+    setTimeout(() => ch.disconnect(), (n * step + 2.5) * 1000);
   }
 
-  return { init, start, add, remove, mute, setPan, renderMix, SONG_SEC: STEPS * STEP, PARTS_LIST: () => Object.keys(PARTS), singing, onsets, now, beat, setOn, setSfx, sfx, preview, suspend, resume, get on() { return on; }, get sfxOn() { return sfxOn; }, get ready() { return !!ctx; } };
+  return { init, start, add, remove, mute, setPan, renderMix, setSong, SONGS, partSong: p => PART_SONG[p], get song() { return SONG; }, get SONG_SEC() { return STEPS * STEP; }, PARTS_LIST: () => Object.keys(PARTS), singing, onsets, now, beat, setOn, setSfx, sfx, preview, suspend, resume, get on() { return on; }, get sfxOn() { return sfxOn; }, get ready() { return !!ctx; } };
 })();
