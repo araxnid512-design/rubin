@@ -2,8 +2,11 @@
 // ---------- Запуск, экраны, настройки, сохранения ----------
 
 const SETTINGS_KEY = 'rubezh.settings.v1', SAVE_KEY = 'rubezh.save.v1', HELP_KEY = 'rubezh.help.v1';
-const DEF_CFG = { ui: 1, lefty: false, confirmMove: true, confirmEnd: true, autoNext: true, speed: 1, sound: true, vol: 0.7, vibro: true, shake: true, follow: true, hq: true, autoRotate: true };
-let CFG = Object.assign({}, DEF_CFG, store.get(SETTINGS_KEY) || {});
+const DEF_CFG = { ui: 1, lefty: false, confirmMove: true, confirmEnd: true, autoNext: true, speed: 1, sound: true, vol: 0.7, vibro: true, shake: true, follow: true, gfx: 2, autoRotate: true };
+const SAVED_CFG = store.get(SETTINGS_KEY) || {};
+let CFG = Object.assign({}, DEF_CFG, SAVED_CFG);
+if (SAVED_CFG.gfx === undefined && SAVED_CFG.hq === false) CFG.gfx = 0;
+CFG.hq = CFG.gfx >= 1;
 let S = null;
 const APP = { rot: false, vw: 0 };
 
@@ -55,6 +58,7 @@ function layout() {
   R.resize();
 }
 function applySettings() {
+  CFG.hq = CFG.gfx >= 1;
   document.documentElement.style.fontSize = (15 * CFG.ui).toFixed(2) + 'px';
   document.body.classList.toggle('lefty', !!CFG.lefty);
   Sfx.setVol();
@@ -120,9 +124,9 @@ const Game = {
     R.mode = 'tac';
     R.resize();
     if (center) {
-      R.cam.ts = clamp(Math.round(R.H / 8.5), 34, 60);
+      R.cam.k = clamp(Math.round(R.H / 8), 34, 64);
       const u = curUnit();
-      if (u) R.centerOn(u.x, u.y - 2, true);
+      if (u) R.centerOn(u.x, u.y, true);
     }
     refreshReach();
     HUD.refresh();
@@ -151,6 +155,8 @@ const Game = {
     }
     if (R.mode !== 'tac' || $$('#modals .modal-bg').length || !$('#tLootBg').hidden) return;
     if (e.key === 'Tab') { e.preventDefault(); nextUnit(); }
+    else if (e.key === 'q' || e.key === 'й') R.rotate(-1);
+    else if (e.key === 'e' || e.key === 'у') R.rotate(1);
     else if (e.key === 'Enter' && !e.target.closest('button')) endTurn();
   },
   modal({ title, html, buttons = [{ label: 'Понятно', cls: 'primary' }], noClose = false }) {
@@ -187,7 +193,8 @@ const Game = {
         <li><b>Жёлтые ромбы</b> — несобранная добыча. Обыск стоит 2 ОД, унести можно сколько позволяет вес.</li>
         <li>Чтобы уехать, дойдите до <b>зелёной зоны у машины</b> и нажмите «В машину».</li>
         <li><b>Укус</b> — три дня до обращения. Лечится медикаментами в лазарете.</li>
-        <li>Карта: перетаскивание — сдвиг, два пальца — масштаб, кнопка карты — обзор всей местности.</li>
+        <li>Камера: перетаскивание — сдвиг, два пальца или кнопки +/− — масштаб, круглая стрелка — поворот на 90°, кнопка карты — обзор всей местности.</li>
+        <li>Стены, которые закрывают бойцов, сами опускаются. Ночью видно только то, что освещают фонари отряда.</li>
       </ul>`,
     });
   },
@@ -209,7 +216,7 @@ const Game = {
         ${tg('s-vibro', 'Вибрация', 'при ранениях и укусах')}
         ${tg('s-shake', 'Тряска экрана')}
         ${tg('s-follow', 'Камера к атакам', 'показывать, кого атакуют')}
-        ${tg('s-hq', 'Чёткая графика', 'выключите, если телефон греется')}
+        <label>Графика<small>если телефон греется — понизьте</small></label><div class="seg" id="s-gfx">${['Экономно', 'Высоко', 'Максимум'].map((s, i) => `<button data-v="${i}" class="${CFG.gfx === i ? 'on' : ''}">${s}</button>`).join('')}</div>
         ${tg('s-autoRotate', 'Поворачивать интерфейс', 'если телефон держат вертикально')}
       </div>
       ${fsOk ? '<button class="btn" id="s-fs">' + icon('full') + 'Во весь экран</button>' : ''}
@@ -220,7 +227,8 @@ const Game = {
     $('#s-ui', root).oninput = e => { CFG.ui = +e.target.value; $('#s-ui-v', root).textContent = Math.round(CFG.ui * 100) + '%'; saveSettings(); };
     $('#s-vol', root).oninput = e => { CFG.vol = +e.target.value; saveSettings(); };
     $('#s-vol', root).onchange = () => { Sfx.init(); Sfx.play('shot'); };
-    for (const k of ['lefty', 'confirmMove', 'confirmEnd', 'autoNext', 'sound', 'vibro', 'shake', 'follow', 'hq', 'autoRotate']) {
+    $$('#s-gfx button', root).forEach(b => { b.onclick = () => { CFG.gfx = +b.dataset.v; $$('#s-gfx button', root).forEach(x => x.classList.toggle('on', x === b)); Spr.sprites.clear(); Spr.sBytes = 0; saveSettings(); }; });
+    for (const k of ['lefty', 'confirmMove', 'confirmEnd', 'autoNext', 'sound', 'vibro', 'shake', 'follow', 'autoRotate']) {
       $('#s-' + k, root).onchange = e => { CFG[k] = e.target.checked; saveSettings(); if (k === 'vibro' && CFG.vibro) vibrate(40); };
     }
     $$('#s-speed button', root).forEach(b => { b.onclick = () => { CFG.speed = +b.dataset.v; $$('#s-speed button', root).forEach(x => x.classList.toggle('on', x === b)); saveSettings(); }; });

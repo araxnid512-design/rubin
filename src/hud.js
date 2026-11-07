@@ -19,6 +19,7 @@ const HUD = {
           <div class="grow"></div>
           <button class="hbtn" id="tZoomOut" aria-label="Отдалить">${icon('zout')}</button>
           <button class="hbtn" id="tZoomIn" aria-label="Приблизить">${icon('zin')}</button>
+          <button class="hbtn" id="tRot" aria-label="Повернуть камеру">${icon('rotate')}</button>
           <button class="hbtn" id="tMap" aria-label="Карта местности">${icon('map')}</button>
         </header>
         <aside class="squad" id="tSquad"></aside>
@@ -45,6 +46,7 @@ const HUD = {
     const zoom = f => { const a = $('#app'); R.zoomAt(a.clientWidth / 2, a.clientHeight / 2, f); this.hidePop(); };
     $('#tZoomIn').onclick = () => zoom(1.25);
     $('#tZoomOut').onclick = () => zoom(0.8);
+    $('#tRot').onclick = () => { Sfx.play('click'); R.rotate(1); this.hidePop(); TAC.pend = null; };
     $('#tMapClose').onclick = () => this.closeMap();
     $('#tMapBg').addEventListener('click', e => { if (e.target.id === 'tMapBg') this.closeMap(); });
     $('#tMini').addEventListener('click', e => this.mapClick(e));
@@ -364,12 +366,12 @@ const HUD = {
 
 // ----- Касания: тап, перетаскивание, щипок -----
 const Input = {
-  ptrs: new Map(), start: null, moved: false, pinch: null,
+  ptrs: new Map(), start: null, moved: false,
   attach(cv) {
     cv.addEventListener('pointerdown', e => this.down(e));
     cv.addEventListener('pointermove', e => this.move(e));
     cv.addEventListener('pointerup', e => this.up(e));
-    cv.addEventListener('pointercancel', e => { this.ptrs.delete(e.pointerId); if (!this.ptrs.size) { this.start = null; this.pinch = null; } });
+    cv.addEventListener('pointercancel', e => { this.ptrs.delete(e.pointerId); if (!this.ptrs.size) this.start = null; });
     cv.addEventListener('wheel', e => {
       if (R.mode !== 'tac') return;
       e.preventDefault();
@@ -378,35 +380,24 @@ const Input = {
       HUD.hidePop();
     }, { passive: false });
   },
+  mid() { const [a, b] = [...this.ptrs.values()]; return [(a.x + b.x) / 2, (a.y + b.y) / 2, Math.hypot(a.x - b.x, a.y - b.y)]; },
   down(e) {
     if (R.mode !== 'tac') return;
     Sfx.init();
     try { e.target.setPointerCapture(e.pointerId); } catch (er) { /* старые браузеры */ }
     const p = toApp(e.clientX, e.clientY);
     this.ptrs.set(e.pointerId, p);
-    if (this.ptrs.size === 1) { this.start = { x: p.x, y: p.y, cx: R.cam.x, cy: R.cam.y, t: performance.now() }; this.moved = false; }
-    else if (this.ptrs.size === 2) {
-      const [a, b] = [...this.ptrs.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, ts: R.cam.ts, wx: R.cam.x + mx / R.cam.ts, wy: R.cam.y + my / R.cam.ts };
-      this.moved = true;
-      R.camAnim = null;
-    }
+    if (this.ptrs.size === 1) { this.start = { x: p.x, y: p.y, t: performance.now() }; this.moved = false; R.panStart(p.x, p.y); }
+    else if (this.ptrs.size === 2) { const [mx, my, d] = this.mid(); R.pinchStart(mx, my, d); this.moved = true; }
   },
   move(e) {
     if (!this.ptrs.has(e.pointerId)) return;
     const p = toApp(e.clientX, e.clientY);
     this.ptrs.set(e.pointerId, p);
     if (this.ptrs.size === 1 && this.start) {
-      const dx = p.x - this.start.x, dy = p.y - this.start.y;
-      if (!this.moved && Math.hypot(dx, dy) > 9) { this.moved = true; HUD.hidePop(); R.camAnim = null; }
-      if (this.moved) { R.cam.x = this.start.cx - dx / R.cam.ts; R.cam.y = this.start.cy - dy / R.cam.ts; R.clampCam(); R.dirty = true; }
-    } else if (this.ptrs.size >= 2 && this.pinch) {
-      const [a, b] = [...this.ptrs.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-      R.cam.ts = clamp(this.pinch.ts * d / this.pinch.d, R.minTs(), 84);
-      R.cam.x = this.pinch.wx - mx / R.cam.ts; R.cam.y = this.pinch.wy - my / R.cam.ts;
-      R.clampCam(); R.dirty = true; HUD.hidePop();
-    }
+      if (!this.moved && Math.hypot(p.x - this.start.x, p.y - this.start.y) > 9) { this.moved = true; HUD.hidePop(); }
+      if (this.moved) R.panTo(p.x, p.y);
+    } else if (this.ptrs.size >= 2) { const [mx, my, d] = this.mid(); R.pinchTo(mx, my, d); HUD.hidePop(); }
   },
   up(e) {
     const p = this.ptrs.get(e.pointerId);
@@ -414,11 +405,10 @@ const Input = {
     if (!p) return;
     if (this.ptrs.size === 0) {
       if (!this.moved && this.start && performance.now() - this.start.t < 700) HUD.tap(p.x, p.y);
-      this.start = null; this.pinch = null;
+      this.start = null;
     } else if (this.ptrs.size === 1) {
       const q = [...this.ptrs.values()][0];
-      this.start = { x: q.x, y: q.y, cx: R.cam.x, cy: R.cam.y, t: 0 };
-      this.moved = true; this.pinch = null;
+      this.start = { x: q.x, y: q.y, t: 0 }; this.moved = true; R.panStart(q.x, q.y);
     }
   },
 };

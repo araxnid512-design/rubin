@@ -233,7 +233,7 @@ async function bashDoor(m, z, i) {
   m.doorHP[i] = (m.doorHP[i] ?? 6) - (brute ? rint(4, 6) : rint(1, 3));
   z.ap -= 2;
   const x = i % m.w, y = (i / m.w) | 0, seen = m.vis[i];
-  if (seen) { await lunge(z, x, y); Sfx.play('bash'); R.shake(3); }
+  if (seen) { await lunge(z, x, y); Sfx.play('bash'); R.shake(3); FX.chips(x, y); }
   noise(m, x, y, 5);
   if (m.doorHP[i] <= 0) {
     m.tiles[i] = T.DOOR_BROKEN;
@@ -248,6 +248,8 @@ async function zombieAttack(m, z, u) {
   if (rnd() < t.acc) {
     const d = rint(t.dmg[0], t.dmg[1]);
     u.hp -= d;
+    u.hitT = performance.now(); R.until = Math.max(R.until, u.hitT + 280);
+    FX.blood(u.x, u.y);
     FX.text(u.x, u.y, '−' + d, '#ff6a50');
     Sfx.play('hurt'); vibrate(70); R.shake(5);
     let msg = `${t.name} ранит: ${u.name} −${d}`;
@@ -265,7 +267,8 @@ async function zombieAttack(m, z, u) {
 function killUnit(m, u) {
   u.dead = true; u.hp = 0; u.ow = null;
   if (m.uocc) m.uocc[MI(m, u.x, u.y)] = 0;
-  m.decals.push({ x: u.x, y: u.y, k: 'blood', r: rnd() });
+  m.decals.push({ x: u.x, y: u.y, k: 'ucorpse', r: rnd(), f: u.f ?? 2, t0: performance.now(), u: { id: u.sid, name: u.name, g: u.g, color: u.color, melee: u.melee, ranged: u.ranged, trait: u.trait } });
+  R.until = Math.max(R.until, performance.now() + 700);
   HUD.log(`${u.name} ${gv(u, 'погиб', 'погибла')}.`, 'bad');
   Sfx.play('death'); vibrate(250);
   for (const z of m.zombies) if (z.target === u.id) { z.state = 'investigate'; z.tx = u.x; z.ty = u.y; }
@@ -273,6 +276,8 @@ function killUnit(m, u) {
 }
 function damageZombie(m, z, d, u) {
   z.hp -= d;
+  z.hitT = performance.now(); R.until = Math.max(R.until, z.hitT + 280);
+  FX.blood(z.x, z.y, d > 6 ? 14 : 9);
   FX.text(z.x, z.y, '−' + d, '#ffd27a');
   if (z.hp <= 0) { killZombie(m, z, u); return true; }
   if (z.state !== 'chase') { z.state = 'chase'; z.target = u.id; z.tx = u.x; z.ty = u.y; }
@@ -282,7 +287,8 @@ function damageZombie(m, z, d, u) {
 function killZombie(m, z, u) {
   m.zombies = m.zombies.filter(o => o !== z);
   if (m.zocc) m.zocc[MI(m, z.x, z.y)] = 0;
-  m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd() });
+  m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd(), zt: z.type, zid: z.id, f: z.f ?? 2, t0: performance.now() });
+  R.until = Math.max(R.until, performance.now() + 700);
   if (u) { u.kills++; m.kills++; }
   Sfx.play('zdie');
 }
@@ -460,6 +466,7 @@ async function shootAt(m, u, z, reaction) {
   R.until = Math.max(R.until, u.aimT);
   R.dirty = true;
   await sleep(spd(130));
+  FX.flash(u.x, u.y, u.f);
   const p = shotChance(m, u, z, reaction), d0 = edist(u.x, u.y, z.x, z.y);
   Sfx.play(silenced(u) ? 'silenced' : w.snd);
   FX.tracer(u.x, u.y, z.x, z.y);
@@ -666,14 +673,21 @@ function startMission(loc, ids) {
   }
   S.mission = m;
   TAC.m = m; TAC.sel = m.units[0].id; TAC.pend = null; TAC.mode = null; TAC.busy = false;
+  warmSprites(m);
   HUD.clearLog();
   computeVis(m);
   saveGame();
   Game.showTac(true);
   HUD.log(`${L.name}. Ищите добычу и возвращайтесь к машине. Шум привлекает зомби.`);
 }
+function warmSprites(m) {
+  for (const u of m.units) if (!u.dead && !u.evac) Spr.warm(Spr.look(u, 'h'), WARM_FRAMES);
+  const seenT = new Set();
+  for (const z of m.zombies) { const k = z.type + (z.id % 3); if (seenT.has(k)) continue; seenT.add(k); Spr.warm(Spr.look(z, 'z'), ['i0', 'i1', 'w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'a0', 'a1', 'hit', 'd0', 'd1', 'd2']); }
+}
 function resumeMission(m) {
   TAC.m = m; TAC.pend = null; TAC.mode = null; TAC.busy = false;
+  warmSprites(m);
   m.phase = 'player';
   const u = liveUnits(m)[0];
   if (!u) { finishMission(); return; }
