@@ -320,7 +320,10 @@
     // вздрагивание от попадания
     if (st.hit > 0 && !dead) { ctx.translate(-1.5 * st.hit, 0); ctx.rotate(-0.12 * st.hit); }
     ctx.translate(0, -bob);
-    const hipY = -18;
+    // присел за укрытием или под огнём: бёдра ниже, колени согнуты, корпус опущен
+    const crouch = !dead && !moving && !st.seated && !robe ? (st.crouch || 0) : 0;
+    const drop = crouch * 6;
+    const hipY = -18 + drop;
     const lw = (droid ? 2.8 : 4.4) * Math.min(1.25, bul);
 
     // ---- ноги ----
@@ -331,6 +334,7 @@
       if (dead) { fx = hx + side * 1.2; fy = 0; }
       else if (st.seated) { fx = hx + 8; fy = hipY + 9; }
       else if (moving) { const s = Math.sin(ph + off); fx = hx + s * 6.5; fy = -Math.max(0, Math.cos(ph + off)) * 4; }
+      else if (crouch) { fx = hx + (side > 0 ? 4.5 : -5.5); fy = 0; }
       else { fx = hx + side * 2.6; fy = 0; }
       legs.push({ hx: hx, fx: fx, fy: fy + bob, j: ik(hx, hipY, fx, fy + bob, THIGH, SHIN, false) });
     }
@@ -370,20 +374,25 @@
     }
 
     // ---- порядок: задний план → передний ----
+    ctx.save(); ctx.translate(0, drop);
     if (L.cape) { // плащ
       const sw = moving ? Math.sin(ph) * 2 : Math.sin(st.t * 1.5 + st.seed) * 0.8;
       ctx.fillStyle = shade(L.cape, -0.15); ctx.strokeStyle = out; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(-5.5 * bul, -33); ctx.quadraticCurveTo(-9 - sw, -22, -8.5 - sw * 1.5, -8); ctx.lineTo(-2, -12); ctx.lineTo(1, -32); ctx.closePath(); ctx.fill(); ctx.stroke();
     }
     if (L.pack) { ctx.fillStyle = L.packCol || '#7d6a4a'; ctx.strokeStyle = out; ctx.lineWidth = 1; rr(ctx, -7.5 * bul - 3.5, -33.5, 6, 13, 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(-7.5 * bul - 3.5, -27, 6, 1.2); }
+    ctx.restore();
 
     if (!robe) drawLeg(legs[0], true);
     // дальняя рука — за туловищем
     const armW = droid ? 2.6 : 3.6 * Math.min(1.2, bul);
     const farJ = ik(shF[0], shF[1], farHand[0], farHand[1], UPPER, FORE, true);
+    ctx.save(); ctx.translate(0, drop);
     limb(ctx, shF[0], shF[1], farJ, armW, shade(armor ? (L.under || '#1f2226') : bodyCol, -0.25), out, armor ? shade(plate, -0.25) : null);
     hand(ctx, farJ[2], farJ[3], shade(glove, -0.2));
+    ctx.restore();
     if (!robe) drawLeg(legs[1], false);
+    ctx.translate(0, drop); // всё, что выше пояса, — ниже на величину приседа
 
     // ---- туловище ----
     const W = (droid ? 11 : brute ? 17 : 13.5) * bul;
@@ -602,9 +611,10 @@
   }
 
   // ================= ГЛАВНАЯ ФУНКЦИЯ =================
+  const SC = 1.12; // фигуры чуть крупнее клетки — лучше видно детали
   S.draw = function (ctx, type, x, y, cell, st) {
     const L = LOOKS[type];
-    const k = cell / 40;
+    const k = cell / 40 * SC;
     ctx.save();
     ctx.translate(x, y);
     // тень и метка стороны
@@ -660,11 +670,11 @@
 
   // Высота фигурки над точкой ног (в клетках) — для полоски здоровья и линий выстрелов
   S.height = function (type) {
-    if (type === 'krayt') return 0.75;
-    if (type === 'walker') return 1.55;
-    if (type === 'turret') return 0.65;
+    if (type === 'krayt') return 0.75 * SC;
+    if (type === 'walker') return 1.55 * SC;
+    if (type === 'turret') return 0.65 * SC;
     const L = LOOKS[type] || {};
-    return 1.25 * (L.scale || 1) * (L.tall || 1) + (L.bike ? 0.35 : 0);
+    return (1.25 * (L.scale || 1) * (L.tall || 1) + (L.bike ? 0.35 : 0)) * SC;
   };
 
   G.Sprites = S;

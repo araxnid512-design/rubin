@@ -271,6 +271,8 @@
     // ---------- слои ----------
     let cellPx = 0, dpr = 1, W = 0, H = 0;
     let terrainCanvas = null, decalCanvas = null, decalCtx = null, lightCanvas = null, lightCtx = null;
+    let glowCanvas = null, gctx = null;
+    const GS = 1 / 3;
     function layer() {
       const c = document.createElement('canvas');
       c.width = canvas.width; c.height = canvas.height;
@@ -302,6 +304,19 @@
       [decalCanvas, decalCtx] = layer();
       decalShot = 0; decalBoom = 0;
       [lightCanvas, lightCtx] = layer();
+      glowCanvas = document.createElement('canvas');
+      glowCanvas.width = Math.ceil(W * cell * GS); glowCanvas.height = Math.ceil(H * cell * GS);
+      gctx = glowCanvas.getContext('2d');
+    }
+    // свечение: линия и пятно на слое ореолов
+    function gLine(x1, y1, x2, y2, w, col, a) {
+      gctx.globalAlpha = a; gctx.strokeStyle = col; gctx.lineWidth = w; gctx.lineCap = 'round';
+      gctx.beginPath(); gctx.moveTo(x1, y1); gctx.lineTo(x2, y2); gctx.stroke();
+    }
+    function gDot(x, y, r, col, a) {
+      const g = gctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+      gctx.globalAlpha = a; gctx.fillStyle = g; gctx.beginPath(); gctx.arc(x, y, r, 0, TAU); gctx.fill();
     }
 
     // Следы: подпалины от промахов и воронки от взрывов (накапливаются по ходу боя)
@@ -360,6 +375,7 @@
           if (meleeType(u.type)) { if (dt < 6) s.melee = dt / 6; } else if (dt < 3) s.recoil = 1 - dt / 3;
         }
       }
+      if (!s.moving && (p.fl & 40)) s.crouch = 1; // в укрытии или прижат огнём — присел
       const hh = lastBefore(hitsOn[i], t, false);
       if (hh >= 0 && t - hitsOn[i][hh] < 2) s.hit = 1 - (t - hitsOn[i][hh]) / 2;
       if (p.fl & 1) s.dead = deathTick[i] >= 0 ? Math.max(0.05, Math.min(1, (t - deathTick[i]) / 3.5)) : 1;
@@ -439,6 +455,12 @@
         zoom = Math.max(zoom, 1 + 0.07 * k); zx = (p.x + 0.5) * cell; zy = (p.y + 0.5) * cell;
       }
       if (zoom > 1.001) { ctx.translate(zx, zy); ctx.scale(zoom, zoom); ctx.translate(-zx, -zy); }
+      // слой свечения повторяет камеру
+      gctx.setTransform(1, 0, 0, 1, 0, 0); gctx.globalAlpha = 1; gctx.globalCompositeOperation = 'source-over';
+      gctx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+      gctx.setTransform(GS, 0, 0, GS, 0, 0); gctx.translate(sx, sy);
+      if (zoom > 1.001) { gctx.translate(zx, zy); gctx.scale(zoom, zoom); gctx.translate(-zx, -zy); }
+      gctx.globalCompositeOperation = 'lighter';
       ctx.drawImage(terrainCanvas, 0, 0, W * cell, H * cell);
       ctx.drawImage(decalCanvas, 0, 0, W * cell, H * cell);
       if (!setup.night) cloudShadows(t, cell);
@@ -530,38 +552,44 @@
           ctx.fillStyle = 'rgba(200,195,185,' + (0.4 * (1 - q)).toFixed(3) + ')';
           ctx.beginPath(); ctx.arc(x1 + dir * cell * 0.2 * q, y1 - cell * 0.4 * q, cell * (0.1 + q * 0.25), 0, TAU); ctx.fill();
         }
-        if (dt < 1.2) { // вспышка у ствола — с ореолом
-          ctx.save(); ctx.globalCompositeOperation = 'lighter';
-          const r = cell * 0.5 * (1.2 - dt);
-          const mg = ctx.createRadialGradient(x1, y1, 0, x1, y1, r);
-          mg.addColorStop(0, 'rgba(255,245,220,' + (0.9 * (1.2 - dt)).toFixed(3) + ')'); mg.addColorStop(0.35, col); mg.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.globalAlpha = Math.min(1, 1.2 - dt); ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(x1, y1, r, 0, TAU); ctx.fill();
-          ctx.restore();
+        const dist = Math.max(1, Math.hypot(x2 - x1, y2 - y1)), ux = (x2 - x1) / dist, uy = (y2 - y1) / dist;
+        const beam = wpn === 'sniper';
+        const Lb = cell * (beam ? 0 : wpn === 'pistol' ? 0.75 : fat > 1.2 ? 1.3 : 1.05);
+        const T = 1.1; // время полёта болта, тиков
+        const hitT = beam ? 0.15 : T * dist / (dist + Lb);
+        if (dt < 1.4) { // вспышка у ствола: белая звезда и неоновый ореол
+          const q = dt / 1.4;
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,250,235,' + (1 - q).toFixed(3) + ')';
+          ctx.beginPath();
+          for (let j = 0; j < 8; j++) { const a = j * Math.PI / 4 + k, r = cell * (j % 2 ? 0.06 : 0.22) * (1 - q * 0.5) * fat; ctx.lineTo(x1 + Math.cos(a) * r, y1 + Math.sin(a) * r); }
+          ctx.closePath(); ctx.fill(); ctx.restore();
+          gDot(x1, y1, cell * 1.1 * fat, col, 0.9 * (1 - q));
         }
-        const prog = Math.min(1, dt / 1.2);
-        if (dt < 2.7) {
-          const bx = x1 + (x2 - x1) * prog, by = y1 + (y2 - y1) * prog;
-          const tail = Math.max(0, prog - longB);
-          const fade = prog >= 1 ? Math.max(0, 1 - (dt - 1.2) / 1.5) : 1;
-          const tx0 = x1 + (x2 - x1) * tail, ty0 = y1 + (y2 - y1) * tail;
-          ctx.save();
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.lineCap = 'round';
-          ctx.globalAlpha = 0.28 * fade; ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, cell * 0.3 * fat);
-          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
-          ctx.globalAlpha = 0.9 * fade; ctx.lineWidth = Math.max(1.5, cell * 0.1 * fat);
-          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
-          ctx.globalAlpha = fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.7, cell * 0.035 * fat);
-          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(bx, by); ctx.stroke();
-          if (prog < 1) { // светящийся наконечник
-            const hg = ctx.createRadialGradient(bx, by, 0, bx, by, cell * 0.28 * fat);
-            hg.addColorStop(0, 'rgba(255,255,255,0.95)'); hg.addColorStop(0.3, col); hg.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.globalAlpha = 0.9; ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(bx, by, cell * 0.28 * fat, 0, TAU); ctx.fill();
-          }
+        if (beam && dt < 2.4) { // снайперский луч — вспыхивает сразу на всю длину
+          const a = dt < 0.4 ? 1 : Math.max(0, 1 - (dt - 0.4) / 2);
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+          ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.4, cell * 0.08);
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.7, cell * 0.03);
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
           ctx.restore();
+          gLine(x1, y1, x2, y2, cell * 0.5, col, 0.85 * a);
+        } else if (!beam && dt < T) {
+          const sHead = (dt / T) * (dist + Lb);
+          const h0 = Math.min(sHead, dist), t0 = Math.max(0, sHead - Lb);
+          const hx = x1 + ux * h0, hy = y1 + uy * h0, tx0 = x1 + ux * t0, ty0 = y1 + uy * t0;
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+          ctx.strokeStyle = col; ctx.lineWidth = Math.max(2, cell * 0.13 * fat);
+          ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(hx, hy); ctx.stroke();
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, cell * 0.055 * fat);
+          ctx.beginPath(); ctx.moveTo(tx0 + ux * cell * 0.08, ty0 + uy * cell * 0.08); ctx.lineTo(hx, hy); ctx.stroke();
+          ctx.restore();
+          gLine(tx0, ty0, hx, hy, cell * 0.55 * fat, col, 0.95);
+          gDot(hx, hy, cell * 0.7 * fat, col, 0.6);
         }
-        if (dt >= 1.2 && dt < 5) {
-          const q = (dt - 1.2) / 3.8;
+        if (sh[3] && dt >= hitT && dt < hitT + 2.5) gDot(x2, y2, cell * (0.8 + (dt - hitT) * 0.2) * fat, METAL.has(target.type) ? 'rgba(255,240,160,1)' : col, 0.9 * (1 - (dt - hitT) / 2.5));
+        if (dt >= hitT && dt < hitT + 3.8) {
+          const q = (dt - hitT) / 3.8;
           if (sh[3]) {
             sparks(x2, y2, cell, q, k, METAL.has(target.type) ? '255,235,140' : '255,190,120');
             if (q < 0.5) { // вспышка попадания
@@ -653,6 +681,22 @@
       const vg = ctx.createRadialGradient(PW / 2, PH / 2, Math.min(PW, PH) * 0.35, PW / 2, PH / 2, Math.max(PW, PH) * 0.72);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,10,0,0.32)');
       ctx.fillStyle = vg; ctx.fillRect(0, 0, PW, PH);
+      // неоновое свечение лазеров, огня и взрывов поверх всего (и сквозь ночную тьму)
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = setup.night ? 1 : 0.85;
+      ctx.drawImage(glowCanvas, 0, 0, PW, PH);
+      ctx.restore();
+      // белая вспышка на весь экран при взрыве бочки
+      for (let k = B.booms.length - 1; k >= 0; k--) {
+        const dt = t - B.booms[k][0];
+        if (dt < 0) continue;
+        if (dt > 3) break;
+        if (B.booms[k][5] !== 'barrel') continue;
+        ctx.fillStyle = 'rgba(255,240,215,' + (0.32 * (1 - dt / 3)).toFixed(3) + ')';
+        ctx.fillRect(-PW, -PH, PW * 3, PH * 3);
+      }
 
       // поверх тьмы: лечение, полоски, значки, цифры урона
       ctx.fillStyle = '#7cff9a';
@@ -736,6 +780,7 @@
     }
 
     function flames(x, y, s, t, k) {
+      gDot(x, y - s * 0.6, s * (2.2 + 0.3 * Math.sin(t * 0.7)), 'rgba(255,140,50,1)', 0.75 * Math.max(0.2, k));
       for (let j = 0; j < 3; j++) {
         const fl = 0.7 + 0.3 * Math.sin(t * 0.9 + j * 2.1);
         const hh = s * (0.9 + 0.4 * fl) * Math.max(0.3, k);
@@ -748,15 +793,21 @@
     }
 
     function explosion(cx, cy, dt, cell, big, seed) {
-      if (dt > 40) return;
-      if (dt < 12) { // свет вспышки на песке
-        ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        const r = cell * 3.2 * big, a = 0.45 * (1 - dt / 12);
-        const lg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        lg.addColorStop(0, 'rgba(255,170,80,' + a.toFixed(3) + ')'); lg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
-        ctx.restore();
+      if (dt > 60) return;
+      if (dt < 14) gDot(cx, cy - dt * cell * 0.04, cell * (2.2 + dt * 0.25) * big, 'rgba(255,150,60,1)', 0.95 * (1 - dt / 14));
+      if (dt < 4) gDot(cx, cy, cell * 3.5 * big, 'rgba(255,240,200,1)', 0.8 * (1 - dt / 4));
+      // искры летят вверх и гаснут
+      for (let j = 0; j < 12; j++) {
+        const life = 25 + hr(seed * 5 + j) * 35;
+        if (dt > life) continue;
+        const q = dt / life;
+        const a = -Math.PI / 2 + (hr(seed + j * 7) - 0.5) * 2.2, v = cell * (0.08 + hr(seed * 3 + j) * 0.12) * big;
+        const ex = cx + Math.cos(a) * v * dt + Math.sin(dt * 0.3 + j) * cell * 0.15, ey = cy + Math.sin(a) * v * dt + 0.004 * cell * dt * dt;
+        ctx.fillStyle = 'rgba(255,' + (200 - q * 120 | 0) + ',90,' + (1 - q).toFixed(3) + ')';
+        ctx.fillRect(ex, ey, Math.max(1, cell * 0.05), Math.max(1, cell * 0.05));
+        gDot(ex, ey, cell * 0.35, 'rgba(255,170,80,1)', 0.7 * (1 - q));
       }
+      if (dt > 40) return;
       if (dt < 2) {
         ctx.fillStyle = 'rgba(255,250,230,' + (0.9 * (1 - dt / 2)).toFixed(3) + ')';
         ctx.beginPath(); ctx.arc(cx, cy, cell * 1.5 * big, 0, TAU); ctx.fill();
