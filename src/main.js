@@ -120,7 +120,7 @@ const Game = {
     R.mode = 'tac';
     R.resize();
     if (center) {
-      R.cam.ts = clamp(Math.round(R.H / 10), 30, 56);
+      R.cam.ts = clamp(Math.round(R.H / 8.5), 34, 60);
       const u = curUnit();
       if (u) R.centerOn(u.x, u.y - 2, true);
     }

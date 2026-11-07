@@ -12,12 +12,14 @@ const FX = {
 function animTo(e, x, y, ms) {
   const fx = e.x, fy = e.y;
   e.x = x; e.y = y;
+  if (x !== fx || y !== fy) { e.f = dirIdx(x - fx, y - fy); e.step = (e.step || 0) + 1; }
   if (!(ms > 0)) { e.anim = null; R.dirty = true; return Promise.resolve(); }
   e.anim = { k: 'mv', fx, fy, t0: performance.now(), d: ms };
   R.moving.add(e);
   return sleep(ms);
 }
 function lunge(e, tx, ty) {
+  if (tx !== e.x || ty !== e.y) e.f = dirIdx(tx - e.x, ty - e.y);
   const ms = spd(150);
   if (!(ms > 0)) return Promise.resolve();
   e.anim = { k: 'lg', dx: tx - e.x, dy: ty - e.y, t0: performance.now(), d: ms };
@@ -76,7 +78,7 @@ const reducedMotion = (() => { try { return matchMedia('(prefers-reduced-motion:
 const R = {
   cv: null, c: null, dpr: 1, W: 1, H: 1,
   cam: { x: 0, y: 0, ts: 36 }, dirty: true, mode: null, moving: new Set(),
-  camAnim: null, shakeA: 0, shakeT: 0, menu: null,
+  camAnim: null, shakeA: 0, shakeT: 0, menu: null, until: 0, lastIdle: 0, hits: [],
 
   init(cv) {
     this.cv = cv; this.c = cv.getContext('2d', { alpha: false });
@@ -133,7 +135,9 @@ const R = {
   toTile(sx, sy) { return { x: Math.floor(this.cam.x + sx / this.cam.ts), y: Math.floor(this.cam.y + sy / this.cam.ts) }; },
   tick() {
     if (!this.mode) return;
-    const active = this.moving.size || FX.list.length || this.camAnim || this.shakeA > 0;
+    const now = performance.now();
+    if (CFG.hq && now - this.lastIdle > 320) { this.lastIdle = now; this.dirty = true; }
+    const active = this.moving.size || FX.list.length || this.camAnim || this.shakeA > 0 || this.until > now;
     if (!this.dirty && !active) return;
     this.dirty = false;
     try { this.draw(performance.now()); } catch (e) { console.error(e); }
@@ -162,7 +166,17 @@ const R = {
       const g = c.createLinearGradient(0, 0, this.W, 0);
       g.addColorStop(0, 'rgba(11,10,8,0.94)'); g.addColorStop(0.55, 'rgba(11,10,8,0.7)'); g.addColorStop(1, 'rgba(11,10,8,0.35)');
       c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
+      if (this.W >= 600) drawLineup(c, this.W, this.H, now);
     }
+  },
+  // Фигура под пальцем (тело может заходить на соседнюю клетку)
+  pick(ax, ay, onlyZ) {
+    for (let k = this.hits.length - 1; k >= 0; k--) {
+      const h = this.hits[k];
+      if (onlyZ && !h.z) continue;
+      if (ax >= h.x0 && ax <= h.x1 && ay >= h.y0 && ay <= h.y1) return h.e;
+    }
+    return null;
   },
   setMenuMap() {
     const { m } = genMap('factory', 9137);
@@ -269,7 +283,10 @@ function drawMap(c, m, cam, W, H, now, all) {
     c.fillStyle = 'rgba(232,166,43,0.13)';
     c.strokeStyle = 'rgba(232,166,43,0.75)'; c.lineWidth = Math.max(1, ts * 0.035);
     c.beginPath();
-    const ok = j => j >= 0 && j < m.n && (rf.dist[j] >= 0 || !TP[m.tiles[j]].walk);
+    const occ = new Set();
+    for (const o of m.units) if (!o.dead && !o.evac) occ.add(MI(m, o.x, o.y));
+    for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) occ.add(MI(m, z.x, z.y));
+    const ok = j => j >= 0 && j < m.n && (rf.dist[j] >= 0 || !TP[m.tiles[j]].walk || occ.has(j));
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const i = y * m.w + x;
       if (rf.dist[i] <= 0) continue;
@@ -304,17 +321,50 @@ function drawMap(c, m, cam, W, H, now, all) {
     c.moveTo(X + s, Y + ts); c.lineTo(X, Y + ts); c.lineTo(X, Y + ts - s);
     c.stroke();
   }
-  // 10. существа
+  // 10. существа: 2.5D-фигуры, отсортированные по глубине
+  const ents = [];
   for (const z of m.zombies) {
     if (!m.vis[MI(m, z.x, z.y)] && !(z.anim && z.anim.k === 'mv' && m.vis[MI(m, Math.round(z.anim.fx), Math.round(z.anim.fy))])) continue;
     const [px, py] = animPos(z, now);
-    if (px < x0 - 1 || px > x1 + 1 || py < y0 - 1 || py > y1 + 1) continue;
-    drawZombie(c, z, (px - cam.x) * ts, (py - cam.y) * ts, ts, lod);
+    if (px < x0 - 2 || px > x1 + 1 || py < y0 - 1 || py > y1 + 2) continue;
+    ents.push({ e: z, z: true, px, py });
   }
   for (const un of m.units) {
     if (un.dead || un.evac) continue;
     const [px, py] = animPos(un, now);
-    drawUnit(c, un, (px - cam.x) * ts, (py - cam.y) * ts, ts, un.id === TAC.sel, lod);
+    ents.push({ e: un, z: false, px, py });
+  }
+  ents.sort((a, b) => a.py - b.py || a.px - b.px);
+  R.hits = [];
+  if (lod === 0) {
+    for (const it of ents) {
+      if (it.z) drawZombie(c, it.e, (it.px - cam.x) * ts, (it.py - cam.y) * ts, ts, lod);
+      else drawUnit(c, it.e, (it.px - cam.x) * ts, (it.py - cam.y) * ts, ts, it.e.id === TAC.sel, lod);
+    }
+  } else {
+    const tgt = pd && pd.tx != null ? MI(m, pd.tx, pd.ty) : -1;
+    for (const it of ents) {
+      it.cx = (it.px + 0.5 - cam.x) * ts; it.fy = (it.py + 0.74 - cam.y) * ts;
+      const big = it.z && it.e.type === 'brute' ? 1.3 : 1;
+      c.fillStyle = 'rgba(0,0,0,0.4)';
+      c.beginPath(); c.ellipse(it.cx + ts * 0.07, it.fy + ts * 0.02, ts * 0.3 * big, ts * 0.12 * big, 0, 0, Math.PI * 2); c.fill();
+      if (!it.z) {
+        const sel = it.e.id === TAC.sel;
+        c.strokeStyle = sel ? '#e8a62b' : it.e.color; c.globalAlpha = sel ? 1 : 0.55;
+        c.lineWidth = Math.max(sel ? 2 : 1.5, ts * (sel ? 0.055 : 0.035));
+        c.beginPath(); c.ellipse(it.cx, it.fy, ts * 0.4, ts * 0.17, 0, 0, Math.PI * 2); c.stroke();
+        c.globalAlpha = 1;
+      } else if (MI(m, it.e.x, it.e.y) === tgt) {
+        c.strokeStyle = '#ff6a50'; c.lineWidth = Math.max(2, ts * 0.05);
+        c.beginPath(); c.ellipse(it.cx, it.fy, ts * 0.42 * big, ts * 0.18 * big, 0, 0, Math.PI * 2); c.stroke();
+      }
+    }
+    for (const it of ents) {
+      const L = Spr.look(it.e, it.z ? 'z' : 'h');
+      it.top = Spr.draw(c, L, frameOf(it.e, now), it.e.f ?? 2, it.cx, it.fy, ts);
+      R.hits.push({ e: it.e, z: it.z, x0: it.cx - ts * 0.34, x1: it.cx + ts * 0.34, y0: it.top, y1: it.fy + ts * 0.1 });
+    }
+    for (const it of ents) drawBadges(c, it, ts, lod);
   }
   // 11. эффекты
   const keep = [];
@@ -700,4 +750,61 @@ function drawMinimap(cv, m) {
   c.strokeStyle = '#ece4cc'; c.lineWidth = 1.5;
   c.strokeRect(ox + R.cam.x * k, oy + R.cam.y * k, R.W / R.cam.ts * k, R.H / R.cam.ts * k);
   return { k, ox, oy };
+}
+
+// Полоски здоровья, значки и шеврон над головами
+function drawBadges(c, it, ts, lod) {
+  const e = it.e, cx = it.cx, top = it.top;
+  const maxhp = it.z ? ZT[e.type].hp : e.maxhp, hp = Math.max(0, e.hp);
+  const showHp = !it.z || hp < maxhp || (TAC.pend && TAC.pend.tx === e.x && TAC.pend.ty === e.y);
+  let y = top - Math.max(5, ts * 0.12);
+  if (showHp) {
+    const n = Math.ceil(maxhp / 2), fill = Math.ceil(hp / 2);
+    const pw = Math.max(2, ts * 0.062), ph = Math.max(3, ts * 0.075), gap = Math.max(1, Math.round(ts * 0.018));
+    const W = n * pw + (n - 1) * gap, x0 = cx - W / 2;
+    c.fillStyle = 'rgba(10,9,7,0.8)'; c.fillRect(x0 - 2, y - 2, W + 4, ph + 4);
+    const f = hp / maxhp, col = it.z ? '#d9553c' : f > 0.6 ? '#9cc96a' : f > 0.3 ? '#e8a62b' : '#d9553c';
+    for (let k = 0; k < n; k++) {
+      c.fillStyle = k < fill ? col : '#3a3528';
+      c.fillRect(x0 + k * (pw + gap), y, pw, ph);
+    }
+    if (!it.z && e.ow) {
+      const ex = x0 - ph * 1.6, ey = y + ph / 2, s = Math.max(3.5, ts * 0.1);
+      c.fillStyle = '#e8a62b'; c.beginPath(); c.ellipse(ex, ey, s, s * 0.6, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#1b1406'; circ(c, ex, ey, s * 0.35); c.fill();
+    }
+    if (!it.z && e.bitten) { c.fillStyle = '#a4d03c'; circ(c, x0 + W + ph * 1.3, y + ph / 2, Math.max(2.5, ts * 0.075)); c.fill(); }
+    y -= Math.max(4, ts * 0.06);
+  }
+  if (!it.z && e.id === TAC.sel) {
+    const s = Math.max(5, ts * 0.13);
+    c.fillStyle = '#e8a62b'; c.strokeStyle = '#1b1406'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(cx - s, y - s * 1.1); c.lineTo(cx + s, y - s * 1.1); c.lineTo(cx, y - 1); c.closePath(); c.fill(); c.stroke();
+  }
+  if (it.z && ts >= 14 && (e.state === 'chase' || e.state === 'investigate')) {
+    const br = Math.max(5, ts * 0.15), bx = cx + ts * 0.3, by = top + br * 0.6;
+    c.fillStyle = e.state === 'chase' ? '#c9472f' : '#b98420'; circ(c, bx, by, br); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1; c.stroke();
+    c.fillStyle = '#fff3d6'; c.font = `700 ${br * 1.5}px Oswald, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(e.state === 'chase' ? '!' : '?', bx, by + br * 0.08);
+  }
+}
+
+// Отряд на фоне главного меню
+const DEFAULT_SQUAD = [
+  { id: 1, name: 'Марина', g: 'f', trait: 'medic', melee: 'knife', ranged: 'pistol', color: UNIT_COLORS[1] },
+  { id: 2, name: 'Гоша', g: 'm', trait: 'strong', melee: 'bat', ranged: null, color: UNIT_COLORS[2] },
+  { id: 3, name: 'Лёха', g: 'm', trait: 'marksman', melee: 'crowbar', ranged: 'pistol', color: UNIT_COLORS[0] },
+  { id: 4, name: 'Семёныч', g: 'm', trait: 'hunter', melee: 'axe', ranged: 'shotgun', color: UNIT_COLORS[3] },
+];
+function drawLineup(c, W, H, now) {
+  const ppl = (typeof S !== 'undefined' && S && S.survivors && S.survivors.length ? S.survivors : DEFAULT_SQUAD).slice(0, 4);
+  const ts = clamp(H * 0.38, 80, 210), dirs = [3, 2, 1, 2];
+  const x0 = W - ts * 0.55 * ppl.length - ts * 0.35 - Math.max(16, W * 0.03);
+  ppl.forEach((s, i) => {
+    const cx = x0 + i * ts * 0.62 + ts * 0.3, fy = H * 0.9 - (i % 2) * ts * 0.12;
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    c.beginPath(); c.ellipse(cx + ts * 0.06, fy, ts * 0.3, ts * 0.11, 0, 0, Math.PI * 2); c.fill();
+    Spr.draw(c, Spr.look(s, 'h'), frameOf({ id: s.id }, now), dirs[i], cx, fy, ts, 6);
+  });
 }

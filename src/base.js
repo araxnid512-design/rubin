@@ -84,6 +84,7 @@ const Base = {
     $('#bSet').onclick = () => { Sfx.play('click'); Game.openSettings(); };
     $$('.tabs button', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.tab = b.dataset.tab; this.render(); }; });
     $$('.sc', root).forEach(b => { b.onclick = () => this.toggle(+b.dataset.id); });
+    $$('canvas[data-pt]', root).forEach(cv => { const s = S.survivors.find(o => o.id === +cv.dataset.pt); if (s) try { drawPortrait(cv, s); } catch (e) { console.error(e); } });
     $$('[data-cure]', root).forEach(b => { b.onclick = () => this.cure(+b.dataset.cure); });
     $$('[data-loc]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.loc = b.dataset.loc; this.render(); }; });
     $$('[data-build]', root).forEach(b => { b.onclick = () => this.build(b.dataset.build); });
@@ -95,6 +96,7 @@ const Base = {
     const sel = S.squad.includes(s.id), hp = (s.hp / s.maxhp) * 100;
     return `<div class="sw">
       <button class="sc ${sel ? 'sel' : ''} ${s.infected ? 'inf' : ''}" data-id="${s.id}" style="--uc:${s.color}" aria-pressed="${sel}">
+        <canvas class="pt" data-pt="${s.id}" aria-hidden="true"></canvas>
         <span class="sc-top"><b>${esc(s.name)}</b><i class="trait" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</i>${s.level > 1 ? `<i class="lvl">${icon('star')}${s.level}</i>` : ''}${sel ? '<i class="sq">в отряде</i>' : ''}</span>
         <span class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></span>
         <span class="sc-meta">${s.hp}/${s.maxhp} · ${WEAP[s.melee].name}${s.ranged ? ' и ' + WEAP[s.ranged].name.toLowerCase() : ''}</span>

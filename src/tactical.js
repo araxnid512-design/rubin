@@ -189,7 +189,7 @@ function noise(m, x, y, r) {
 
 // ----- Зомби -----
 function addZombie(m, x, y, type, state) {
-  const z = { id: m.zid++, type, x, y, hp: ZT[type].hp, state, tx: x, ty: y, target: 0, screamed: false };
+  const z = { id: m.zid++, type, x, y, hp: ZT[type].hp, state, tx: x, ty: y, target: 0, screamed: false, f: rint(0, 7) };
   m.zombies.push(z);
   if (m.zocc) m.zocc[MI(m, x, y)] = 1;
   return z;
@@ -450,6 +450,11 @@ async function shootAt(m, u, z, reaction) {
   const w = WEAP[u.ranged];
   if (!reaction) u.ap -= w.ap;
   u.ammo--;
+  u.f = dirIdx(z.x - u.x, z.y - u.y);
+  u.aimT = performance.now() + Math.max(200, spd(560));
+  R.until = Math.max(R.until, u.aimT);
+  R.dirty = true;
+  await sleep(spd(130));
   const p = shotChance(m, u, z, reaction), d0 = edist(u.x, u.y, z.x, z.y);
   Sfx.play(silenced(u) ? 'silenced' : w.snd);
   FX.tracer(u.x, u.y, z.x, z.y);
@@ -633,6 +638,7 @@ function startMission(loc, ids) {
   squad.forEach((s, k) => {
     const i = spots[k + 2] ?? spots[k];
     const u = makeUnit(m, s, { x: i % m.w, y: (i / m.w) | 0 });
+    u.f = k % 2 ? 7 : 5;
     if (s.ranged) { u.ammo = per; S.res.ammo -= per; }
     s.away = true;
     m.units.push(u);

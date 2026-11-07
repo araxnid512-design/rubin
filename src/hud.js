@@ -146,8 +146,13 @@ const HUD = {
   tap(ax, ay) {
     const m = TAC.m;
     if (!m || !canAct()) return;
-    const t = R.toTile(ax, ay), u = curUnit();
+    let t = R.toTile(ax, ay);
+    const u = curUnit();
     if (!u) return;
+    if (TAC.mode !== 'lure' && inb(m, t.x, t.y) && !unitAt(m, t.x, t.y) && !(zombieAt(m, t.x, t.y) && m.vis[MI(m, t.x, t.y)])) {
+      const hz = R.pick(ax, ay, true);
+      if (hz) t = { x: hz.x, y: hz.y };
+    }
     if (!inb(m, t.x, t.y)) { this.hidePop(); TAC.pend = null; R.dirty = true; return; }
     const i = MI(m, t.x, t.y), pd = TAC.pend;
     if (pd && pd.i === i && pd.fn) { const fn = pd.fn; TAC.pend = null; this.hidePop(); fn(); return; }
