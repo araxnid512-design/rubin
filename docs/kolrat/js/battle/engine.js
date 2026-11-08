@@ -495,7 +495,12 @@
     for (let k = 0; k < shots && e.state === 'active'; k++) {
       let real = 0;
       const ch = hitChance(B, u, e, k > 0 ? C.hit.burstPenalty : 0);
-      const hit = rng.int(1, 100) <= ch;
+      let hit = rng.int(1, 100) <= ch;
+      // клинок отбивает болты: часть попаданий уходит в сторону
+      if (hit && e.base.deflect && u.base.range > 2 && rng.chance(e.base.deflect)) {
+        hit = false;
+        if (!e.deflT || B.t - e.deflT > 40) { e.deflT = B.t; const nm = BT().nom(e.type); say(B, nm.charAt(0).toUpperCase() + nm.slice(1) + ' отбивает выстрел светящимся клинком!', 'info'); }
+      }
       let crit = false;
       if (hit) {
         let dmg = rng.int(u.base.dmg[0], u.base.dmg[1]);

@@ -29,7 +29,7 @@
   // ---------- СПРАВОЧНИК ----------
   const ENEMY_ORDER = ['tusken', 'tusken_rifle', 'tusken_chief', 'bandit', 'swoop', 'bandit_boss', 'scavenger', 'scav_droid', 'scav_boss',
     'deserter', 'deserter_heavy', 'deserter_captain', 'rebel', 'rebel_heavy', 'rebel_officer', 'jawa', 'smuggler', 'farmer',
-    'hutt_guard', 'gamorrean', 'bounty_hunter', 'assassin_droid', 'krayt'];
+    'hutt_guard', 'gamorrean', 'bounty_hunter', 'assassin_droid', 'krayt', 'hermit'];
   const OURS = ['trooper', 'sand', 'heavy', 'sniper', 'scout', 'medic', 'droid', 'merc', 'walker', 'turret'];
 
   function statLine(t) {
@@ -87,7 +87,7 @@
     if (!r || !r.known) {
       return h('div', { class: 'cx-card unknown' }, h('span', { class: 'cx-q' }, '?'), h('div', { class: 'cx-body' }, h('b', null, '???'), h('div', { class: 'small muted' }, 'Место ещё не найдено.')));
     }
-    const kind = { base: 'наш лагерь', wild: 'пустошь', town: 'поселение', hostile: 'вражеский лагерь' }[c.kind];
+    const kind = { base: 'наш лагерь', wild: 'пустошь', town: 'поселение', hostile: 'вражеский лагерь', point: 'стратегическая точка' }[c.kind];
     return h('div', { class: 'cx-card click', onclick: () => { UI.mapSel = id; UI.go('map'); } },
       A().place(id, 64),
       h('div', { class: 'cx-body' },

@@ -81,13 +81,22 @@
         type: o.type, title: o.title, army: army, mode: o.mode || 'field', defender: o.defender != null ? o.defender : null,
         night: !!o.night, surprise: !!o.surprise, place: o.place || null, target: o.target || null,
         after: o.after || null, afterCtx: o.afterCtx || null, intel: o.intel != null ? o.intel : true, loot: o.loot || null,
+        siege: o.siege || null, battery: !!(G.Territory && G.Territory.point(s, 'battery')),
       },
       unitIds: o.unitIds.slice(0, C().maxPerSide),
       allies: o.allies || [],
-      enemies: BF.army(s, rng, army, strength),
+      enemies: BF.supportFire(s, BF.army(s, rng, army, strength)),
       map: o.mode === 'camp' ? { type: 'camp', campSeed: s.seed, layout: G.Camp.layout(s) } : { type: o.map || (C().armies[army] || {}).map || 'desert' },
       choices: choices,
     };
+  };
+
+  // Турбобатарея под нашим контролем: первый залп ослабляет каждого врага
+  BF.supportFire = function (s, enemies) {
+    if (!G.Territory || !G.Territory.point(s, 'battery')) return enemies;
+    const k = G.CONFIG.territory.points.batteryHp;
+    for (const e of enemies) { const t = C().types[e.type]; if (t && !t.big) e.hpBonus = (e.hpBonus || 0) - Math.round(t.hp * k); }
+    return enemies;
   };
 
   BF.campTurrets = (s) => G.Camp.count(s, 'turret');
@@ -102,17 +111,30 @@
 
   // ---------- точки входа ----------
   BF.fromAttack = function (s, rng, order, squad) {
-    const rc = G.Regions.cfg(order.target);
     const sp = G.Territory.attackSpec(s, order.target);
     if (sp.faction && G.Factions) G.Factions.setHostile(s, sp.faction);
-    const army = sp.army;
+    s.pending = BF.siegeBattle(s, rng, order.target, G.Territory.stageOf(s, order.target), squad.map((u) => u.id));
+  };
+
+  // Бой одного этапа штурма: доля сил врага, карта и название зависят от этапа
+  BF.siegeBattle = function (s, rng, id, stage, ids) {
+    const rc = G.Regions.cfg(id);
+    const T = G.Territory;
+    const sp = T.attackSpec(s, id);
+    const n = T.stages(s, id);
+    stage = Math.max(1, Math.min(n, stage || 1));
+    const fr = (G.CONFIG.territory.stageFr[n] || [1])[stage - 1] || 1;
     const growth = sp.kind === 'wild' ? 1 + s.day * 0.01 : 1;
-    s.pending = BF.create(s, rng, {
-      type: 'attack', title: (sp.kind === 'wild' ? 'Зачистка: ' : sp.kind === 'town' ? 'Захват: ' : 'Атака: ') + G.Regions.name(order.target), army: army,
-      strength: sp.strength * growth * G.Res.diff(s).enemy * rng.range(0.9, 1.1), loot: sp.loot,
-      unitIds: squad.map((u) => u.id), place: order.target, target: order.target,
-      defender: 1, mode: army === 'hutt_guard' ? 'fort' : 'field', map: rc.terrain,
-      intel: s.regions[order.target].explored >= 30,
+    const last = n > 1 && stage === n;
+    const fortify = last && (sp.kind === 'base' || sp.kind === 'town') && rc.terrain !== 'fort';
+    const name = T.stageName(s, id, stage);
+    const head = sp.kind === 'wild' ? 'Зачистка: ' : sp.kind === 'town' ? 'Захват: ' : sp.kind === 'point' ? 'Захват точки: ' : 'Штурм: ';
+    return BF.create(s, rng, {
+      type: 'attack', title: head + G.Regions.name(id) + (n > 1 ? ' — этап ' + stage + ' из ' + n + (name ? ': ' + name : '') : ''), army: sp.army,
+      strength: sp.strength * fr * growth * G.Res.diff(s).enemy * rng.range(0.9, 1.1), loot: sp.loot,
+      unitIds: ids, place: id, target: id,
+      defender: 1, mode: sp.army === 'hutt_guard' || fortify || rc.terrain === 'fort' ? 'fort' : 'field', map: fortify ? 'fort' : rc.terrain,
+      intel: s.regions[id].explored >= 30, siege: { region: id, stage: stage, stages: n },
     });
   };
 
@@ -312,9 +334,17 @@
       const sc = Math.round(enemyDown * C().scrapPerKill * G.Res.diff(s).loot);
       if (sc) { G.Res.add(s, 'scrap', sc); loot = 'металл с поля боя +' + sc; }
     }
-    if (p.ctx.type === 'attack' && won) {
+    const sg = p.ctx.siege;
+    if (p.ctx.type === 'attack' && won && sg && sg.stage < sg.stages) {
+      // этап взят — впереди следующий; прогресс держится несколько дней
+      s.sieges = s.sieges || {};
+      s.sieges[p.ctx.target] = { stage: sg.stage + 1, until: s.day + G.CONFIG.territory.siegeDays };
+      const ids = p.unitIds.filter((uid) => { const u = G.Units.byId(s, uid); return u && G.Units.isAlive(u) && G.Units.isFit(s, u); });
+      if (G.Events) G.Events.queueNow(s, 'siege_next', { region: p.ctx.target, stage: sg.stage + 1, stages: sg.stages, ids: ids });
+    } else if (p.ctx.type === 'attack' && won) {
       const rc = G.Regions.cfg(p.ctx.target);
       if (rc.kind === 'hostile') s.regions[p.ctx.target].cleared = true;
+      if (s.sieges) delete s.sieges[p.ctx.target];
       if (G.Territory) G.Territory.capture(s, p.ctx.target);
       const extra = G.Battle.grantLoot(s, rng, G.CONFIG.loot[p.ctx.loot || rc.enemy]);
       if (extra) loot += (loot ? '; ' : '') + extra.replace(/^ Трофеи: /, '').replace(/\.$/, '');

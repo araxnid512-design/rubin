@@ -191,7 +191,7 @@
       items.push({ id: id, x: t.x, y: Y(t.y), r: 2.4, hint: true, text: '?', size: 2.6 });
     }
     // Известные места
-    const order = { base: 0, town: 1, hostile: 2, wild: 3 };
+    const order = { base: 0, town: 1, hostile: 2, point: 3, wild: 4 };
     const ids = Object.keys(C).filter(known).sort((a, b) => order[C[a].kind] - order[C[b].kind]);
     for (const id of ids) {
       const t = T[id];
@@ -242,7 +242,7 @@
     const c = G.CONFIG.regions[id];
     const r = s.regions[id];
     const T = G.TEXT.regions[id];
-    const kindName = { base: 'Наш лагерь', wild: 'Пустошь', town: 'Поселение', hostile: 'Вражеский лагерь' }[c.kind];
+    const kindName = { base: 'Наш лагерь', wild: 'Пустошь', town: 'Поселение', hostile: 'Вражеский лагерь', point: 'Стратегическая точка' }[c.kind];
     const card = h('div', { class: 'card region-card' },
       h('div', { class: 'region-head' },
         G.Avatar.place(id, 76, 'ava-big'),
@@ -251,6 +251,10 @@
           h('div', { class: 'muted small' }, kindName + (r.cleared ? ' · разгромлен' : '') + (c.terrain && G.TEXT.terrain[c.terrain] ? ' · местность: ' + G.TEXT.terrain[c.terrain] : '')))),
       h('p', null, r.visits || id === 'crash' || r.explored > 0 ? T.desc : 'Сведений почти нет. Нужна разведка.'),
       whoHere(s, id),
+      c.point && G.TEXT.points ? h('div', { class: 'point-box' + (G.Territory.owned(s, id) ? ' on' : '') }, h('b', null, G.Territory.owned(s, id) ? '◆ Бонус действует' : '◇ Если захватить'), h('div', { class: 'small' }, G.TEXT.points[c.point])) : null,
+      G.Territory && G.Territory.siege(s, id) && !G.Territory.owned(s, id) ? h('div', { class: 'siege-box' },
+        h('b', null, '⚔ Штурм идёт'), h('div', { class: 'small' }, 'Взято этапов: ' + (G.Territory.siege(s, id).stage - 1) + ' из ' + G.Territory.stages(s, id) +
+          '. Следующий — «' + G.Territory.stageName(s, id, G.Territory.siege(s, id).stage) + '». Позиции держим до дня ' + G.Territory.siege(s, id).until + '.')) : null,
       G.Territory && G.Territory.owned(s, id) ? h('div', { class: 'territory-box' },
         h('b', null, '⚑ Наша территория'), h('span', { class: 'small muted' }, ' с дня ' + (r.heldSince || 1)),
         h('div', { class: 'small' }, 'Доход в сутки: ' + (G.Territory.incomeText(G.Territory.income(s, id)) || 'нет') + '. Засад здесь почти нет.'),
@@ -269,7 +273,11 @@
       if (!def.targets || def.targets(s).indexOf(id) < 0) continue;
       const can = s.phase === 'orders' && G.Game.ordersLeft(s) > 0;
       let label = G.TEXT.actions[type].icon + ' ' + G.TEXT.actions[type].name;
-      if (type === 'attack' && G.Territory) { const k = G.Territory.attackSpec(s, id).kind; if (k === 'wild') label = '⚑ Зачистка'; else if (k === 'town') label = '⚑ Захват'; }
+      if (type === 'attack' && G.Territory) {
+        const k = G.Territory.attackSpec(s, id).kind, n = G.Territory.stages(s, id), st = G.Territory.stageOf(s, id);
+        label = k === 'wild' ? '⚑ Зачистка' : k === 'town' || k === 'point' ? '⚑ Захват' : '✕ Штурм';
+        if (n > 1) label += ' · этап ' + st + '/' + n;
+      }
       btns.push(h('button', { class: 'btn small' + (type === 'attack' ? ' danger' : ''), disabled: !can, onclick: () => UI.openBuilder(type, id) }, label));
     }
     if (btns.length) card.appendChild(h('div', { class: 'row' }, btns));
@@ -332,6 +340,7 @@
         h('div', { class: 'map-legend small muted' },
           h('span', null, h('i', { class: 'lg base' }), 'лагерь'), h('span', null, h('i', { class: 'lg wild' }), 'пустошь'),
           h('span', null, h('i', { class: 'lg town' }), 'поселение'), h('span', null, h('i', { class: 'lg hostile' }), 'враг'),
+          h('span', null, h('i', { class: 'lg point' }), 'точка'),
           h('span', null, '? — неразведанное место'),
           G.Territory ? h('span', { class: 'terr-count' }, '⚑ наших мест: ' + G.Territory.count(s) + ' из ' + G.Territory.total()) : null)
       ),

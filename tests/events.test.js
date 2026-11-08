@@ -39,13 +39,15 @@ function resolveAll(s, firstChoice) {
   assert.strictEqual(s.pending, null);
 }
 
+// Особые контексты для событий, которые запускаются только из других механик
+const CTX = { directive: { d: { type: 'territory', need: 3, deadline: 30, reward: 'credits' } }, beacon_strike: { strength: 8, trap: true } };
 test('каждый вариант каждого события отрабатывает без ошибок', () => {
   let checked = 0;
   for (const id of Object.keys(G.Events.defs)) {
     // Найдём варианты на «пустом» прогоне
     const probe = richState(1);
     if (id === 'missing_patrol') G.Game.addOrder(probe, G.Game.makeOrder(probe, 'recon', 'ridge', 6, 0));
-    const ctx0 = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : id === 'counterattack' ? { region: 'dunes', army: 'tusken', strength: 8 } : {};
+    const ctx0 = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : id === 'counterattack' ? { region: 'dunes', army: 'tusken', strength: 8 } : id === 'siege_next' ? { region: 'tusken_camp', stage: 2, stages: 3, ids: [1, 2, 3, 4, 5, 6] } : CTX[id] || {};
     if (id === 'hutt_job_return') for (const uid of [1, 2, 3]) G.Units.byId(probe, uid).status = 'away';
     if (id === 'counterattack') probe.regions.dunes.owner = 'us';
     G.Events.trigger(probe, G.Game.rng(probe), id, ctx0);
@@ -55,7 +57,7 @@ test('каждый вариант каждого события отрабаты
       for (const seed of [1, 2, 3]) {
         const s = richState(seed);
         if (id === 'missing_patrol') G.Game.addOrder(s, G.Game.makeOrder(s, 'recon', 'ridge', 6, 0));
-        const ctx = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : id === 'counterattack' ? { region: 'dunes', army: 'tusken', strength: 8 } : {};
+        const ctx = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : id === 'counterattack' ? { region: 'dunes', army: 'tusken', strength: 8 } : id === 'siege_next' ? { region: 'tusken_camp', stage: 2, stages: 3, ids: [1, 2, 3, 4, 5, 6] } : CTX[id] || {};
         if (id === 'hutt_job_return') for (const uid of [1, 2, 3]) G.Units.byId(s, uid).status = 'away';
         if (id === 'counterattack') s.regions.dunes.owner = 'us';
         G.Events.trigger(s, G.Game.rng(s), id, ctx);

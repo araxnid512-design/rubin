@@ -41,6 +41,8 @@
     Object.assign({ id: 'shuttle', icon: 'bolt', tier: 1 }, goal((s) => st(s, 'shuttles'), 1)),
     Object.assign({ id: 'contracts', icon: 'coin', tier: 2 }, goal((s) => st(s, 'contracts'), 3)),
     Object.assign({ id: 'territory', icon: 'flag', tier: 3 }, goal((s) => (G.Territory ? G.Territory.count(s) : 0), 6)),
+    Object.assign({ id: 'directives', icon: 'chevron', tier: 2 }, goal((s) => st(s, 'directives'), 3)),
+    { id: 'hermit', icon: 'eye', tier: 3, test: (s) => !!(s.flags && s.flags.hermitBeaten) },
     { id: 'home', icon: 'crown', tier: 3, test: (s) => !!(s.over && s.over.type === 'victory') },
   ];
 

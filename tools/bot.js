@@ -49,6 +49,14 @@ const PREF = {
   deserter_defectors: ['accept'],
   deserter_raid: ['fight'],
   deserter_return: ['accept'],
+  // новые сюжеты и механики: бот берёт то, что выполнимо без особых усилий
+  directive: (s) => { const d = s.pending.ctx.d; return d && (d.type === 'stock' || d.type === 'recon') ? ['accept'] : ['decline']; },
+  droid_secret: ['buy', 'pass'],
+  droid_decoded: ['jam', 'trap'],
+  beacon_strike: ['fight'],
+  hermit_rumor: ['talk'],
+  counterattack: (s) => (G.Units.people(s).filter((u) => G.Units.isFit(s, u)).length >= 20 ? ['hold', 'leave'] : ['leave']),
+  siege_next: ['push', 'dig'],
 };
 
 function chooseEvent(s) {

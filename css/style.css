@@ -993,3 +993,13 @@ body.modal-open #view, body.modal-open #tabs, body.modal-open #topbar { visibili
   background: linear-gradient(180deg, rgba(217, 168, 91, 0.16), rgba(217, 168, 91, 0.05)); box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.15); }
 .territory-box b { color: var(--sand2); }
 .terr-count { color: var(--sand2); font-weight: 600; }
+
+.map-legend .lg.point { border-color: #b59be6; }
+.point-box, .siege-box { margin: 6px 0; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(181, 155, 230, 0.45); background: rgba(181, 155, 230, 0.08); }
+.point-box.on { border-color: rgba(181, 155, 230, 0.9); background: linear-gradient(180deg, rgba(181, 155, 230, 0.22), rgba(181, 155, 230, 0.06)); box-shadow: 0 0 14px rgba(181, 155, 230, 0.25); }
+.point-box b { color: #d6c6ff; }
+.siege-box { border-color: rgba(226, 87, 76, 0.55); background: rgba(226, 87, 76, 0.08); }
+.siege-box b { color: #ff9a8a; }
+
+.directive-card { border-color: rgba(111, 179, 224, 0.4); }
+.directive-card .grow { flex: 1; min-width: 0; }

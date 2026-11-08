@@ -48,6 +48,7 @@
     s.visitors = s.visitors || {};
     s.stats = Object.assign({ kills: 0, deaths: 0, battles: 0, victories: 0, defeats: 0, waterFound: 0, scrapFound: 0, deserted: 0, raids: 0, flawless: 0, trades: 0, bestStreak: 0, streak: 0 }, s.stats || {});
     s.seen = s.seen || {};
+    if (G.Directives) G.Directives.ensure(s);
     // старые сохранения: разгромленные лагеря — наши территории
     for (const id in s.regions) if (s.regions[id].cleared && s.regions[id].owner === undefined) { s.regions[id].owner = 'us'; s.regions[id].heldSince = s.day; }
     if (G.Terminal) { const t = G.Terminal.ensure(s); if (!t.nextRefresh) G.Terminal.refresh(s, s.day); }

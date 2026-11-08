@@ -43,6 +43,8 @@
     p *= G.Res.diff(s).danger;
     if (s.signal) p *= G.CONFIG.final.signalRaidMult;
     if (G.Camp) p *= G.Camp.raidMult(s);
+    if (G.Territory && G.Territory.point(s, 'sensor')) p *= G.CONFIG.territory.points.sensorRaid;
+    if (s.flags && s.flags.hermitWarn >= s.day) p *= 0.5; // странник предупредил о налётчиках
     return U.clamp(p, 0, 0.9);
   };
 
@@ -130,6 +132,7 @@
     if (G.Progress) G.Progress.dawn(s);
     if (G.Terminal) G.Terminal.dawn(s, rng);
     if (G.Territory) G.Territory.dawn(s, rng);
+    if (G.Directives) G.Directives.dawn(s);
 
     // Лечение: медотсек и медики
     let heal = G.Base.healBonus(s) + (G.Camp ? G.Camp.heal(s) : 0);

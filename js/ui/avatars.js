@@ -360,6 +360,14 @@
         s += '<circle cx="35" cy="20" r="3.4" fill="#ff3b2f"/><circle cx="35" cy="20" r="7" fill="#ff3b2f" opacity="0.2"/><path d="M26 12 V36" stroke="#4a4e55" stroke-width="1.2"/>';
         return wrap(['#2a1c1c', '#0a0808', '#ff3b2f'], s);
       }
+      case 'hermit': {
+        let s = '<path d="M4 64 Q6 46 20 42 L44 42 Q58 46 60 64 Z" fill="#4a3d30" stroke="#2a2218"/>';
+        s += '<path d="M14 44 Q12 10 32 8 Q52 10 50 44 Q44 36 32 36 Q20 36 14 44 Z" fill="#5a4a3a" stroke="#2a2218" stroke-width="1.2"/>';
+        s += '<ellipse cx="32" cy="30" rx="11" ry="12" fill="#1a140e"/><ellipse cx="33" cy="29" rx="6" ry="7" fill="#b98f6a" opacity="0.85"/>';
+        s += '<path d="M27 32 Q33 46 39 32 Q36 36 33 36 Q30 36 27 32 Z" fill="#d8d4cc"/><circle cx="31" cy="27" r="1" fill="#1a140e"/><circle cx="36" cy="27" r="1" fill="#1a140e"/>';
+        s += '<path d="M48 64 L54 20" stroke="rgba(110,255,170,0.35)" stroke-width="6" stroke-linecap="round"/><path d="M48 64 L54 20" stroke="#eafff2" stroke-width="2" stroke-linecap="round"/>';
+        return wrap(['#2a3a30', '#0c120e', '#7dffb2'], s);
+      }
       case 'trooper':
       default: {
         const s = armorShoulders({ rank: 2 }) + helmet(r, { stripe: '#3d6fb6' });
@@ -393,7 +401,7 @@
   };
 
   // ---------- места: маленькие сценки в круге ----------
-  const RING = { base: '#e8b866', wild: '#c9b48c', town: '#6fb3e0', hostile: '#e2574c' };
+  const RING = { base: '#e8b866', wild: '#c9b48c', town: '#6fb3e0', hostile: '#e2574c', point: '#b59be6' };
   function placeWrap(sky, ring, body) {
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
       '<defs><clipPath id="c"><circle cx="32" cy="32" r="30"/></clipPath>' +
@@ -479,13 +487,35 @@
       '<path d="M0 60 V14 Q20 4 40 12 Q56 8 64 16 V60 Z" fill="#7a5234" stroke="#3e2a1c"/>' +
       '<path d="M10 48 Q16 32 22 48 Z M30 52 Q38 30 46 52 Z M50 44 Q54 36 58 44 Z" fill="#140e0a"/>' +
       '<path d="M4 26 Q16 22 28 26 M34 22 Q46 18 60 22" stroke="#f3dcb4" stroke-width="1" fill="none" opacity="0.7"/>',
+    relay: () => DUSKBG() + sand(54, '#9a7048') +
+      '<path d="M32 54 L26 14 L38 14 Z" fill="none" stroke="#c9ccd1" stroke-width="1.6"/><path d="M28 24 H36 M27 34 H37 M26 44 H38 M28 24 L37 34 M36 24 L27 34 M27 34 L38 44 M37 34 L26 44" stroke="#9aa1a8" stroke-width="0.9"/>' +
+      '<ellipse cx="32" cy="12" rx="9" ry="3" fill="#dfe4e8" stroke="#6a7179"/><circle cx="32" cy="9" r="1.8" fill="#ff5a4a"/>' +
+      '<path d="M44 8 Q50 14 44 20 M48 5 Q56 14 48 23" stroke="#b59be6" stroke-width="1.4" fill="none" opacity="0.8"/>',
+    sensor: () => suns(10, 12) + sand(52, '#b08850') +
+      '<path d="M0 64 V30 L12 28 L18 64 Z M64 64 V26 L52 30 L48 64 Z" fill="#7a5234"/>' +
+      '<path d="M32 52 V22" stroke="#6a7179" stroke-width="3"/><path d="M28 52 L32 30 L36 52" stroke="#4a5056" stroke-width="1.2" fill="none"/>' +
+      '<circle cx="32" cy="18" r="6" fill="#c9ccd1" stroke="#4a5056"/><circle cx="34" cy="17" r="2.4" fill="#ff5a4a"/>' +
+      '<path d="M40 14 L58 6 M40 20 L58 22" stroke="rgba(255,90,74,0.6)" stroke-width="1" />',
+    depot: () => suns(46, 10) + sand(48) +
+      '<path d="M6 50 V34 Q18 24 30 34 V50 Z M30 50 V30 Q44 18 58 30 V50 Z" fill="#9a958c" stroke="#4a4740"/>' +
+      '<rect x="14" y="40" width="8" height="10" fill="#2a2620"/><rect x="40" y="38" width="10" height="12" fill="#2a2620"/>' +
+      '<rect x="24" y="50" width="6" height="5" fill="#c48a3a" stroke="#5a3e1c"/><rect x="31" y="51" width="6" height="4" fill="#d9a85b" stroke="#5a3e1c"/>' +
+      '<path d="M8 34 L28 34 M32 30 L56 30" stroke="#c0392b" stroke-width="1.4"/>',
+    battery: () => DUSKBG() + sand(50, '#9a7048') +
+      '<ellipse cx="30" cy="46" rx="18" ry="7" fill="#5a6067" stroke="#2a2e35"/><path d="M14 46 V38 Q30 28 46 38 V46" fill="#7d848c" stroke="#2a2e35"/>' +
+      '<path d="M34 36 L60 18" stroke="#4a5056" stroke-width="5" stroke-linecap="round"/><path d="M34 40 L60 22" stroke="#4a5056" stroke-width="3" stroke-linecap="round"/>' +
+      '<circle cx="61" cy="17" r="2" fill="#ff8a3a"/><path d="M22 38 H38" stroke="#a7aeb5" stroke-width="1.2"/>',
+    power: () => '<rect width="64" height="64" fill="url(#s)"/>' + suns(48, 10) +
+      '<rect x="0" y="38" width="64" height="26" fill="#ece8de"/>' +
+      [8, 24, 40].map((x) => '<path d="M' + x + ' 52 L' + (x + 4) + ' 40 L' + (x + 16) + ' 40 L' + (x + 12) + ' 52 Z" fill="#23406e" stroke="#9fd2ff" stroke-width="0.6"/><path d="M' + (x + 6) + ' 52 V56" stroke="#4a5056" stroke-width="1.2"/>').join('') +
+      '<path d="M10 46 H58" stroke="rgba(255,255,255,0.35)" stroke-width="0.6"/>',
     rebel_post: () => suns(46, 10) + sand(50) +
       '<path d="M4 50 L14 30 L26 50 Z M28 50 L40 26 L54 50 Z" fill="#8a6a4c" stroke="#4a3626"/>' +
       '<path d="M18 50 L30 38 L42 50" fill="#5f6a3e" stroke="#2f3420"/><path d="M22 46 L30 40 L38 46" stroke="#7a8a50" stroke-width="1" fill="none"/>' +
       '<path d="M40 26 V12 M36 16 H44" stroke="#55504a" stroke-width="1.4"/><circle cx="40" cy="11" r="1.6" fill="#ffd34d"/>',
   };
   function DUSKBG() { return '<rect width="64" height="64" fill="#2a1e2c"/><rect width="64" height="64" fill="url(#s)"/><circle cx="14" cy="40" r="5" fill="#ffb27a" opacity="0.9"/>'; }
-  const PLACE_SKY = { crash: DUSK, outpost: DUSK, windcaves: DUSK, krayt_lair: NIGHT, saltflat: HAZE, hutt_palace: DAY };
+  const PLACE_SKY = { crash: DUSK, outpost: DUSK, windcaves: DUSK, krayt_lair: NIGHT, saltflat: HAZE, hutt_palace: DAY, relay: DUSK, battery: DUSK, power: HAZE };
   A.placeSvg = function (id) {
     const c = G.CONFIG.regions[id];
     const fn = PLACES[id] || PLACES.dunes;

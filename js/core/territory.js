@@ -24,6 +24,7 @@
       return { army: rc.enemy, strength: rc.strength, faction: rc.faction || null, kind: 'base', loot: rc.enemy };
     }
     if (town) return { army: town.army, strength: town.strength, faction: town.faction, kind: 'town', loot: town.army };
+    if (rc.kind === 'point') return { army: rc.enemy, strength: rc.strength, faction: null, kind: 'point', loot: 'sweep' };
     const W = C().wild;
     return { army: rc.ambush || 'tusken', strength: W.base + W.perDanger * (rc.danger || 1), faction: null, kind: 'wild', loot: 'sweep' };
   };
@@ -33,7 +34,7 @@
     const rc = G.CONFIG.regions[id];
     if (rc.kind === 'hostile') return !s.regions[id].cleared;
     if (rc.kind === 'town') return !!(rc.attackable || C().towns[id]);
-    return rc.kind === 'wild';
+    return rc.kind === 'wild' || rc.kind === 'point';
   };
 
   // Взять место под контроль (после победы при атаке)
@@ -59,7 +60,7 @@
   T.income = function (s, id) {
     const I = C().income;
     const rc = G.CONFIG.regions[id];
-    const out = { water: 0, scrap: 0, credits: 0 };
+    const out = { water: 0, scrap: 0, credits: 0, energy: 0 };
     if (I.towns[id]) Object.assign(out, I.towns[id]);
     else if (rc.kind === 'hostile') { out.water = I.base.water; out.scrap = I.base.scrap; }
     else { out.water = (rc.water || 0) * I.waterPerLevel; out.scrap = (rc.scrap || 0) * I.scrapPerLevel; }
@@ -70,6 +71,7 @@
     if (inc.water) p.push('сухари +' + inc.water);
     if (inc.scrap) p.push('металл +' + inc.scrap);
     if (inc.credits) p.push('кредиты +' + inc.credits);
+    if (inc.energy) p.push('энергия +' + inc.energy);
     return p.join(', ');
   };
 
@@ -85,7 +87,7 @@
   T.dawn = function (s, rng) {
     const owned = T.list(s);
     if (!owned.length) return;
-    const sum = { water: 0, scrap: 0, credits: 0 };
+    const sum = { water: 0, scrap: 0, credits: 0, energy: 0 };
     for (const id of owned) {
       const inc = T.income(s, id);
       for (const k in sum) sum[k] += inc[k] || 0;
@@ -100,6 +102,29 @@
       const spec = T.attackSpec(s, id);
       G.Events.queueNow(s, 'counterattack', { region: id, army: spec.army, strength: Math.round(spec.strength * C().counter.strengthMult) });
     }
+  };
+
+  // ---------- стратегические точки ----------
+  T.point = (s, key) => Object.keys(G.CONFIG.regions).some((id) => G.CONFIG.regions[id].point === key && T.owned(s, id));
+  T.points = (s) => Object.keys(G.CONFIG.regions).filter((id) => G.CONFIG.regions[id].kind === 'point');
+  T.pointsOwned = (s) => T.points(s).filter((id) => T.owned(s, id)).length;
+
+  // ---------- штурм в несколько этапов ----------
+  T.stages = function (s, id) {
+    const S = C().stages;
+    if (S[id] != null) return S[id];
+    return S[T.attackSpec(s, id).kind] || 1;
+  };
+  T.siege = function (s, id) {
+    const g = s.sieges && s.sieges[id];
+    return g && g.until >= s.day ? g : null;
+  };
+  T.stageOf = (s, id) => (T.siege(s, id) ? T.siege(s, id).stage : 1);
+  T.stageName = function (s, id, k) {
+    const n = T.stages(s, id);
+    const kind = T.attackSpec(s, id).kind;
+    const names = G.TEXT.siege[n === 3 ? 'base' : kind === 'town' ? 'town' : kind === 'point' ? 'point' : 'base2'];
+    return n === 1 ? '' : names[k - 1] || '';
   };
 
   G.Territory = T;

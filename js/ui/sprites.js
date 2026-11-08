@@ -47,6 +47,7 @@
     deserter: { body: 'armor', armor: '#9ea4aa', trim: '#33363b', head: 'helmet', pad: '#b03028', dirt: true, weapon: 'rifle' },
     deserter_heavy: { body: 'armor', armor: '#949aa0', trim: '#33363b', head: 'helmet', pad: '#b03028', bulky: 1.25, weapon: 'heavy' },
     deserter_captain: { body: 'armor', armor: '#aab0b6', trim: '#33363b', head: 'helmet', pad: '#b03028', cape: '#7a2620', weapon: 'pistol', scale: 1.08 },
+    hermit: { body: 'robe', cloth: '#4a3d30', band: '#2a2218', head: 'cowl', weapon: 'blade', glove: '#2a2218', cape: '#3a3026' },
     farmer: { body: 'vest', cloth: '#cdbb94', shirt: '#efe6d0', trim: '#6b5a3c', head: 'hat', hat: '#8a6d45', pants: '#6b5a3c', weapon: 'longrifle' },
   };
   S.LOOKS = LOOKS;
@@ -112,6 +113,14 @@
         ctx.fillStyle = '#a7adb3'; ctx.strokeStyle = '#4b5056'; ctx.lineWidth = 0.8;
         ctx.beginPath(); ctx.moveTo(12, -1); ctx.quadraticCurveTo(18, -11, 24, -8); ctx.quadraticCurveTo(21, -3, 20, 1); ctx.closePath(); ctx.fill(); ctx.stroke();
         tip = 21; break;
+      case 'blade': { // световой клинок: рукоять и светящееся лезвие
+        ctx.fillStyle = '#2a2d31'; rr(ctx, -4, -1.4, 8, 2.8, 0.8); ctx.fill();
+        ctx.fillStyle = '#9aa1a8'; ctx.fillRect(-2, -1.6, 1.2, 3.2); ctx.fillRect(1.5, -1.6, 0.8, 3.2);
+        ctx.strokeStyle = 'rgba(110,255,170,0.28)'; ctx.lineWidth = 6; line(ctx, 4, 0, 30, 0);
+        ctx.strokeStyle = 'rgba(110,255,170,0.65)'; ctx.lineWidth = 3; line(ctx, 4, 0, 30, 0);
+        ctx.strokeStyle = '#f2fff6'; ctx.lineWidth = 1.3; line(ctx, 4, 0, 30, 0);
+        tip = 30; break;
+      }
       case 'ion':
         ctx.fillStyle = '#3a2c1c'; rr(ctx, -3, -1.8, 12, 3.6, 1); ctx.fill();
         ctx.fillStyle = '#5c4630'; ctx.fillRect(2, -3, 4, 1.4);
@@ -127,7 +136,7 @@
         for (let k = 0; k < 3; k++) { ctx.fillStyle = M; ctx.fillRect(5 + k * 2, -0.3, 1, 1.6); }
         tip = 16;
     }
-    if (flash && kind !== 'staff' && kind !== 'axe') {
+    if (flash && kind !== 'staff' && kind !== 'axe' && kind !== 'blade') {
       const col = side === 0 ? '255,90,70' : kind === 'ion' ? '124,192,255' : '255,230,140';
       ctx.fillStyle = 'rgba(' + col + ',0.95)';
       ctx.beginPath();
@@ -185,6 +194,14 @@
         ctx.fillStyle = '#1a1612'; circle(ctx, hx + 3, hy - 2, 2.3); ctx.fill(); circle(ctx, hx + 7, hy - 2, 1.9); ctx.fill();
         ctx.fillStyle = '#8a8f96'; ctx.fillRect(hx + 3, hy + 3, 5, 2.4);
         if (L.horn) { ctx.fillStyle = '#efe6cf'; ctx.beginPath(); ctx.moveTo(hx - 3, hy - 7); ctx.lineTo(hx - 7, hy - 16); ctx.lineTo(hx, hy - 8); ctx.closePath(); ctx.fill(); }
+        break;
+      case 'cowl': // глубокий капюшон: лицо в тени, седая борода
+        ctx.fillStyle = L.cloth; ctx.strokeStyle = L.band;
+        ctx.beginPath(); ctx.moveTo(hx - 10, hy + 9); ctx.quadraticCurveTo(hx - 8, hy - 13, hx + 3, hy - 12); ctx.quadraticCurveTo(hx + 11, hy - 4, hx + 10, hy + 9); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#1a140e'; circle(ctx, hx + 3, hy + 1.5, 5.6); ctx.fill();
+        ctx.fillStyle = '#c9a07a'; circle(ctx, hx + 4.2, hy + 0.8, 3.2); ctx.fill();
+        ctx.fillStyle = '#d8d4cc'; ctx.beginPath(); ctx.moveTo(hx + 1.5, hy + 2.5); ctx.quadraticCurveTo(hx + 4.5, hy + 9, hx + 7.5, hy + 2.5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#1a140e'; circle(ctx, hx + 5.6, hy - 0.4, 0.8); ctx.fill();
         break;
       case 'hood':
         ctx.fillStyle = L.cloth; ctx.strokeStyle = L.band;

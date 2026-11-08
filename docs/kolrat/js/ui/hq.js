@@ -289,10 +289,24 @@
     return card;
   }
 
+  // ---------- Директива командования ----------
+  function directiveCard(s) {
+    const d = s.directive;
+    if (!d || !G.Directives) return null;
+    const [a, b] = G.Directives.progress(s, d);
+    const left = d.deadline - s.day;
+    return h('div', { class: 'card directive-card' },
+      h('div', { class: 'row between' }, h('h2', null, 'Директива'), h('span', { class: 'small ' + (left <= 2 ? 'bad' : 'muted') }, left > 0 ? 'осталось ' + U.pl(left, ['день', 'дня', 'дней']) : 'последний день')),
+      h('div', { class: 'row', style: 'gap:10px;flex-wrap:nowrap' }, G.Avatar.npc('fleet', 40),
+        h('div', { class: 'grow' }, h('b', null, G.Directives.title(d)),
+          h('div', { class: 'term-bar' + (a >= b ? ' full' : '') }, h('i', { style: 'width:' + Math.round(Math.min(1, a / b) * 100) + '%' })),
+          h('div', { class: 'small muted' }, a + ' из ' + b + ' · награда: ' + G.Directives.rewardText(d)))));
+  }
+
   UI.views.hq = function (s) {
     return h('div', { class: 'cols hq' },
       h('div', null, campScene(s), reportCard(s)),
-      h('div', null, statusCard(s), ordersCard(s), UI.terminalBrief ? UI.terminalBrief(s) : null, goalsCard(s))
+      h('div', null, statusCard(s), ordersCard(s), directiveCard(s), UI.terminalBrief ? UI.terminalBrief(s) : null, goalsCard(s))
     );
   };
 })(globalThis.G = globalThis.G || {});

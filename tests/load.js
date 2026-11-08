@@ -24,6 +24,7 @@ const CORE_FILES = [
   'js/content/events.ru.js',
   'js/content/events.factions.ru.js',
   'js/content/territory.ru.js',
+  'js/content/story.ru.js',
   'js/battle/map.js',
   'js/battle/text.ru.js',
   'js/battle/engine.js',
@@ -35,6 +36,7 @@ const CORE_FILES = [
   'js/core/medals.js',
   'js/core/terminal.js',
   'js/core/territory.js',
+  'js/core/directives.js',
   'js/core/save.js',
 ];
 

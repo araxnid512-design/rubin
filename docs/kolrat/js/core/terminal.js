@@ -23,6 +23,7 @@
       const r = G.Factions ? G.Factions.rel(s, g.rel) : 0;
       k = r >= 0 ? 1 - Math.min(C().relDiscountMax, r * C().relDiscount) : 1 + -r * C().relPenalty;
     }
+    if (G.Territory && G.Territory.point(s, 'relay')) k *= G.CONFIG.territory.points.relayPrice;
     return Math.round(g.price * k * (G.Res.diff ? (G.Res.diff(s).prices || 1) : 1));
   };
 
@@ -58,6 +59,7 @@
   function riskOf(s, g) {
     let p = C().lossChance * (g.risk || 1);
     if (s.sections.sensors && s.sections.sensors.level > 0) p *= C().sensorsMult;
+    if (G.Territory && G.Territory.point(s, 'relay')) p *= G.CONFIG.territory.points.relayRisk;
     return p;
   }
   T.risk = (s, id) => riskOf(s, C().goods[id]);
@@ -176,7 +178,7 @@
     const busy = new Set(t.active.map((c) => c.type + ':' + (c.target || c.res)));
     const offers = [];
     for (const p of pool) {
-      if (offers.length >= K.slots) break;
+      if (offers.length >= K.slots + (G.Territory && G.Territory.point(s, 'relay') ? 1 : 0)) break;
       const key = p.type + ':' + (p.target || p.res);
       if (busy.has(key) || offers.some((o) => o.type + ':' + (o.target || o.res) === key)) continue;
       const c = Object.assign({ id: ++t.cseq }, p);

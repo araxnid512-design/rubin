@@ -34,6 +34,7 @@
     if (squad && squad.some((u) => u.spec === 'scout')) p *= G.CONFIG.specs.scout.ambushMult;
     if (s.sections.sensors.level > 0) p *= 0.85;
     if (G.Territory && G.Territory.owned(s, regionId)) p *= G.CONFIG.territory.ambushMult;
+    if (G.Territory && G.Territory.point(s, 'sensor')) p *= G.CONFIG.territory.points.sensorAmbush;
     return Math.min(0.6, p);
   };
 
