@@ -118,6 +118,32 @@
     }
     c.fillStyle = 'rgba(90,64,36,0.35)';
     for (let k = 0; k < W * H / 2; k++) c.fillRect(hr(k + 2000) * PW, hr(k + 4000) * PH, Math.max(1, cell * 0.05), Math.max(1, cell * 0.05));
+    // камешки с бликом и тенью
+    for (let k = 0; k < W * H / 3; k++) {
+      const x = hr(k + 6000) * PW, y = hr(k + 7000) * PH, r = cell * (0.04 + hr(k + 8000) * 0.06);
+      const cv = at(Math.floor(x / cell), Math.floor(y / cell));
+      if (cv !== 0 && cv !== 1) continue;
+      c.fillStyle = 'rgba(40,26,12,0.3)'; c.beginPath(); c.ellipse(x + r * 0.5, y + r * 0.5, r, r * 0.7, 0, 0, TAU); c.fill();
+      c.fillStyle = salt ? '#c8c4bc' : (k % 3 ? '#8a6e50' : '#a08664'); c.beginPath(); c.ellipse(x, y, r, r * 0.75, hr(k) * 3, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(255,240,210,0.35)'; c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.3, r * 0.4, r * 0.25, 0, 0, TAU); c.fill();
+    }
+    // сухая трава у камней
+    if (!salt) {
+      c.lineCap = 'round';
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        if (at(x, y) !== 0 || hr(x * 17 + y * 29) > 0.22) continue;
+        let near = false;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (at(x + dx, y + dy) === 2 || at(x + dx, y + dy) === 5) near = true;
+        if (!near && hr(x * 5 + y) > 0.25) continue;
+        const bx = (x + 0.2 + hr(x + y * 3) * 0.6) * cell, by = (y + 0.3 + hr(x * 3 + y) * 0.5) * cell;
+        for (let j = 0; j < 6; j++) {
+          const a = -Math.PI / 2 + (j - 2.5) * 0.28, l = cell * (0.16 + hr(x * 7 + y + j) * 0.14);
+          c.strokeStyle = j % 2 ? 'rgba(150,140,70,0.85)' : 'rgba(120,110,55,0.85)'; c.lineWidth = Math.max(1, cell * 0.025);
+          c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx + Math.cos(a) * l * 0.5, by + Math.sin(a) * l * 0.6, bx + Math.cos(a) * l, by + Math.sin(a) * l); c.stroke();
+        }
+      }
+      c.lineCap = 'butt';
+    }
     // дюны: гребень светлее, подветренный склон в тени
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (cells[y * W + x] !== 1) continue;
@@ -136,22 +162,11 @@
       if (v === 2 && !salt) { c.beginPath(); c.ellipse(px + cell * 0.5 + o, py + cell * 0.55 + o * 0.8, cell * 0.62, cell * 0.48, 0.3, 0, TAU); c.fill(); }
       else { roundRect(c, px + o, py + o, cell - 1, cell - 1, cell * 0.3); c.fill(); }
     }
+    drawWater(c, cells, W, H, cell, at);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = cells[y * W + x];
       const px = x * cell, py = y * cell;
-      if (v === 5) { // вода: глубина к центру, блики, светлый край
-        const wg = c.createRadialGradient(px + cell * 0.5, py + cell * 0.5, 0, px + cell * 0.5, py + cell * 0.5, cell * 0.8);
-        wg.addColorStop(0, '#1f5560'); wg.addColorStop(1, '#3f8a8f');
-        c.fillStyle = wg; c.fillRect(px, py, cell, cell);
-        c.strokeStyle = 'rgba(220,250,255,0.35)'; c.lineWidth = Math.max(1, cell * 0.04);
-        c.beginPath(); c.moveTo(px + cell * 0.2, py + cell * (0.3 + hr(x + y * 9) * 0.4)); c.quadraticCurveTo(px + cell * 0.5, py + cell * 0.25, px + cell * 0.8, py + cell * 0.45); c.stroke();
-        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-          if (at(x + dx, y + dy) === 5 || at(x + dx, y + dy) < 0) continue;
-          c.fillStyle = 'rgba(210,190,140,0.55)';
-          c.fillRect(px + (dx > 0 ? cell * 0.88 : 0), py + (dy > 0 ? cell * 0.88 : 0), dx ? cell * 0.12 : cell, dy ? cell * 0.12 : cell);
-          c.fillStyle = 'rgba(70,110,60,0.6)'; // трава у воды
-          for (let k = 0; k < 3; k++) c.fillRect(px + cell * (0.15 + k * 0.3) + (dx ? (dx > 0 ? cell * 0.3 : -cell * 0.3) : 0), py + (dy > 0 ? cell : dy < 0 ? -cell * 0.15 : cell * 0.4), cell * 0.04, cell * 0.15);
-        }
+      if (v === 5) { // вода рисуется ниже одним плавным пятном
       } else if (v === 2 && salt) { // соляные кристаллы
         c.fillStyle = 'rgba(255,255,255,0.9)'; c.strokeStyle = 'rgba(120,130,150,0.7)'; c.lineWidth = 1;
         for (let k = 0; k < 3; k++) {
@@ -183,18 +198,45 @@
         };
         boulder(px + cell * 0.5, py + cell * 0.52, cell * 0.6, seed);
         if (hr(seed + 5) > 0.35) boulder(px + cell * (0.25 + hr(seed + 6) * 0.5), py + cell * (0.3 + hr(seed + 7) * 0.45), cell * 0.32, seed + 50);
-      } else if (v === 3) { // обломки: металлические листы, заклёпки, ржавчина
+      } else if (v === 3) { // обломки обшивки: рваный лист, гнутое ребро, заклёпки, ржавчина и копоть
+        const sd = x * 97 + y * 41;
+        // рваный лист: прямоугольник под углом, одна кромка зубцами
+        const ang = (hr(sd + 1) - 0.5) * 1.2, ca = Math.cos(ang), sa = Math.sin(ang);
+        const hw = cell * (0.5 + hr(sd + 2) * 0.12), hh2 = cell * (0.36 + hr(sd + 3) * 0.1);
+        const loc = [[-hw, -hh2], [hw * 0.2, -hh2 * 1.05], [hw, -hh2 * 0.8], [hw * 0.75, -hh2 * 0.2], [hw * 1.02, hh2 * 0.25], [hw * 0.7, hh2 * 0.55], [hw * 0.92, hh2], [-hw * 0.95, hh2 * 1.02]];
+        const pts = loc.map(([lx, ly]) => [px + cell / 2 + lx * ca - ly * sa, py + cell / 2 + lx * sa + ly * ca]);
+        const poly = () => { c.beginPath(); pts.forEach(([qx, qy], e) => (e ? c.lineTo(qx, qy) : c.moveTo(qx, qy))); c.closePath(); };
+        // нижняя грань листа — толщина
+        c.save(); c.translate(0, cell * 0.08); c.fillStyle = '#2f3338'; poly(); c.fill(); c.restore();
         const mg = c.createLinearGradient(px, py, px + cell, py + cell);
-        mg.addColorStop(0, '#8d949c'); mg.addColorStop(0.5, '#6d737b'); mg.addColorStop(1, '#4a4f56');
-        c.fillStyle = mg; c.fillRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
-        c.strokeStyle = 'rgba(20,22,26,0.5)'; c.lineWidth = Math.max(1, cell * 0.04);
-        c.strokeRect(px + cell * 0.08, py + cell * 0.08, cell * 0.84, cell * 0.84);
-        c.beginPath(); c.moveTo(px + cell * 0.08, py + cell * 0.5); c.lineTo(px + cell * 0.92, py + cell * 0.46); c.stroke();
-        c.fillStyle = 'rgba(30,32,36,0.7)';
-        for (const [rx, ry] of [[0.18, 0.18], [0.82, 0.18], [0.18, 0.82], [0.82, 0.82]]) { c.beginPath(); c.arc(px + cell * rx, py + cell * ry, Math.max(0.8, cell * 0.035), 0, TAU); c.fill(); }
-        c.fillStyle = 'rgba(160,80,40,' + (0.25 + hr(x * 13 + y * 7) * 0.3).toFixed(2) + ')';
-        c.beginPath(); c.ellipse(px + cell * (0.3 + hr(x + y * 31) * 0.4), py + cell * (0.6 + hr(x * 3 + y) * 0.2), cell * 0.18, cell * 0.1, 0.3, 0, TAU); c.fill();
-        c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(px + cell * 0.1, py + cell * 0.1, cell * 0.8, Math.max(1, cell * 0.05));
+        mg.addColorStop(0, '#b4bbc2'); mg.addColorStop(0.35, '#8a9199'); mg.addColorStop(0.42, '#c9cfd4'); mg.addColorStop(0.5, '#7a8189'); mg.addColorStop(1, '#4a4f55');
+        c.fillStyle = mg; poly(); c.fill();
+        c.strokeStyle = 'rgba(20,22,26,0.6)'; c.lineWidth = Math.max(1, cell * 0.035); c.stroke();
+        c.save(); poly(); c.clip();
+        // изгиб листа — светлая и тёмная полосы
+        // панельные швы и заклёпки
+        c.strokeStyle = 'rgba(30,33,38,0.55)'; c.lineWidth = 1;
+        const L = (lx, ly) => [px + cell / 2 + lx * ca - ly * sa, py + cell / 2 + lx * sa + ly * ca];
+        c.beginPath(); c.moveTo(...L(-hw, -hh2 * 0.15)); c.lineTo(...L(hw, -hh2 * 0.15)); c.stroke();
+        c.strokeStyle = 'rgba(255,255,255,0.2)';
+        c.beginPath(); c.moveTo(...L(-hw, -hh2 * 0.15 + 1.2)); c.lineTo(...L(hw, -hh2 * 0.15 + 1.2)); c.stroke();
+        c.fillStyle = 'rgba(30,32,36,0.75)';
+        for (let e = 0; e < 5; e++) { const [rx, ry] = L(-hw * 0.8 + e * hw * 0.38, -hh2 * 0.45); c.beginPath(); c.arc(rx, ry, Math.max(0.8, cell * 0.03), 0, TAU); c.fill(); }
+        // ржавчина и копоть по краю
+        c.fillStyle = 'rgba(160,80,40,' + (0.3 + hr(sd + 3) * 0.3).toFixed(2) + ')';
+        c.beginPath(); c.ellipse(px + cell * (0.25 + hr(sd + 4) * 0.5), py + cell * (0.6 + hr(sd + 5) * 0.25), cell * 0.22, cell * 0.12, 0.4, 0, TAU); c.fill();
+        const sg = c.createRadialGradient(pts[2][0], pts[2][1], 1, pts[2][0], pts[2][1], cell * 0.5);
+        sg.addColorStop(0, 'rgba(20,16,12,0.55)'); sg.addColorStop(1, 'rgba(20,16,12,0)');
+        c.fillStyle = sg; c.fillRect(px - cell, py - cell, cell * 3, cell * 3);
+        c.restore();
+        // торчащее ребро набора
+        if (hr(sd + 9) > 0.55) {
+          c.strokeStyle = '#3c4147'; c.lineWidth = Math.max(1.5, cell * 0.08); c.lineCap = 'round';
+          c.beginPath(); c.moveTo(px + cell * 0.2, py + cell * 0.75); c.quadraticCurveTo(px + cell * 0.5, py + cell * 0.1, px + cell * 0.95, py + cell * 0.2); c.stroke();
+          c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 1;
+          c.beginPath(); c.moveTo(px + cell * 0.2, py + cell * 0.72); c.quadraticCurveTo(px + cell * 0.5, py + cell * 0.07, px + cell * 0.95, py + cell * 0.17); c.stroke();
+          c.lineCap = 'butt';
+        }
       } else if (v === 4) { // баррикада: мешки с песком — два внизу, один сверху
         for (const [bx, by, col] of [[0.03, 0.5, '#998a6c'], [0.51, 0.5, '#9d8e70'], [0.27, 0.26, '#ab9b7b']]) {
           c.fillStyle = col; c.strokeStyle = 'rgba(50,40,25,0.6)'; c.lineWidth = 1;
@@ -208,15 +250,66 @@
     for (let y = 1; y < H; y++) { c.beginPath(); c.moveTo(0, y * cell); c.lineTo(PW, y * cell); c.stroke(); }
   }
 
+  // Вода: одно плавное пятно из кругов по клеткам — мокрый песок, мелководье, глубина, блики, трава по берегу
+  function drawWater(c, cells, W, H, cell, at) {
+    const list = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (cells[y * W + x] === 5) list.push([x, y]);
+    if (!list.length) return;
+    const blob = (r, style) => { c.fillStyle = style; c.beginPath(); for (const [x, y] of list) { c.moveTo((x + 0.5) * cell + r * cell, (y + 0.5) * cell); c.arc((x + 0.5) * cell, (y + 0.5) * cell, r * cell, 0, TAU); } c.fill(); };
+    blob(0.86, 'rgba(110,80,45,0.35)');   // мокрый песок
+    blob(0.74, '#3f8a8f');                // мелководье
+    c.save();
+    if ('filter' in c) c.filter = 'blur(' + Math.max(1, Math.round(cell * 0.25)) + 'px)';
+    c.fillStyle = '#25616c';              // глубина — там, где вокруг тоже вода
+    c.beginPath();
+    for (const [x, y] of list) {
+      let n = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (at(x + dx, y + dy) === 5) n++;
+      if (n < 3) continue;
+      c.moveTo((x + 0.5) * cell + cell * 0.74, (y + 0.5) * cell); c.arc((x + 0.5) * cell, (y + 0.5) * cell, cell * 0.74, 0, TAU);
+    }
+    c.fill();
+    c.restore();
+    // отражение неба и блики
+    for (const [x, y] of list) {
+      if (hr(x * 7 + y * 13) > 0.5) continue;
+      c.strokeStyle = 'rgba(220,250,255,0.3)'; c.lineWidth = Math.max(1, cell * 0.035);
+      const bx = (x + 0.2 + hr(x + y) * 0.4) * cell, by = (y + 0.3 + hr(x * 3 + y) * 0.4) * cell;
+      c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx + cell * 0.2, by - cell * 0.08, bx + cell * 0.4, by); c.stroke();
+    }
+    // тростник и трава по берегу
+    c.lineCap = 'round';
+    for (const [x, y] of list) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (at(x + dx, y + dy) === 5 || at(x + dx, y + dy) < 0 || hr(x * 11 + y * 5 + dx * 3 + dy) > 0.6) continue;
+      const bx = (x + 0.5 + dx * 0.72) * cell, by = (y + 0.5 + dy * 0.72) * cell;
+      for (let j = 0; j < 5; j++) {
+        const a = -Math.PI / 2 + (j - 2) * 0.3, l = cell * (0.22 + hr(x + y * 7 + j) * 0.2);
+        c.strokeStyle = j % 2 ? 'rgba(90,130,60,0.9)' : 'rgba(70,105,50,0.9)'; c.lineWidth = Math.max(1, cell * 0.035);
+        c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx + Math.cos(a) * l * 0.4, by + Math.sin(a) * l * 0.6, bx + Math.cos(a) * l, by + Math.sin(a) * l); c.stroke();
+      }
+    }
+    c.lineCap = 'butt';
+  }
+
   G.BattleTerrain = drawTerrain; // та же местность — для лагеря в штабе
 
+  // Бочка: цилиндр со светом слева, обручи, крышка с ободом, знак опасности
   function drawBarrel(c, x, y, cell) {
     const w = cell * 0.46, hh = cell * 0.58;
-    c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(x, y + hh * 0.48, w * 0.6, w * 0.22, 0, 0, TAU); c.fill();
-    c.fillStyle = '#b5482e'; c.fillRect(x - w / 2, y - hh / 2, w, hh);
-    c.fillStyle = '#8a321f'; c.fillRect(x - w / 2, y - hh * 0.18, w, hh * 0.1); c.fillRect(x - w / 2, y + hh * 0.18, w, hh * 0.1);
-    c.fillStyle = '#e7c34a'; c.fillRect(x - w * 0.15, y - hh * 0.08, w * 0.3, hh * 0.16);
-    c.fillStyle = '#d0644a'; c.beginPath(); c.ellipse(x, y - hh / 2, w / 2, w * 0.2, 0, 0, TAU); c.fill();
+    c.fillStyle = 'rgba(30,18,8,0.35)'; c.beginPath(); c.ellipse(x + w * 0.25, y + hh * 0.5, w * 0.7, w * 0.24, 0.2, 0, TAU); c.fill();
+    const g = c.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+    g.addColorStop(0, '#7a2a1a'); g.addColorStop(0.28, '#d0603e'); g.addColorStop(0.5, '#b5482e'); g.addColorStop(1, '#5e2014');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(x - w / 2, y - hh / 2); c.lineTo(x - w / 2, y + hh / 2); c.ellipse(x, y + hh / 2, w / 2, w * 0.18, 0, Math.PI, 0, true); c.lineTo(x + w / 2, y - hh / 2); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(40,12,6,0.7)'; c.lineWidth = Math.max(1, cell * 0.035);
+    for (const k of [-0.2, 0.2]) { c.beginPath(); c.ellipse(x, y + hh * k, w / 2, w * 0.16, 0, 0, Math.PI); c.stroke(); }
+    c.fillStyle = '#e7c34a'; c.beginPath(); c.moveTo(x - w * 0.14, y + hh * 0.08); c.lineTo(x, y - hh * 0.12); c.lineTo(x + w * 0.14, y + hh * 0.08); c.closePath(); c.fill();
+    c.fillStyle = '#2a1a10'; c.fillRect(x - w * 0.015, y - hh * 0.05, w * 0.03, hh * 0.08);
+    const tg = c.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+    tg.addColorStop(0, '#9a4030'); tg.addColorStop(0.4, '#e08066'); tg.addColorStop(1, '#8a3424');
+    c.fillStyle = tg; c.beginPath(); c.ellipse(x, y - hh / 2, w / 2, w * 0.18, 0, 0, TAU); c.fill();
+    c.strokeStyle = 'rgba(40,12,6,0.6)'; c.stroke();
+    c.fillStyle = '#3a1810'; c.beginPath(); c.arc(x + w * 0.18, y - hh / 2, w * 0.06, 0, TAU); c.fill();
   }
 
   // ================= ПРОСМОТР И ЖИВОЙ БОЙ =================
@@ -591,6 +684,19 @@
         if (t - bt < 16) debris(px + cell / 2, py + cell * 0.4, t - bt, cell, bx * 13 + by);
       }
       if (!setup.night && !st.lowQ) cloudShadows(t, cell);
+      // блеск воды: бегущие по ряби искорки
+      if (!st.lowQ) for (let k = 0; k < B.cells0.length; k++) {
+        if (B.cells0[k] !== 5) continue;
+        const x = k % W, y = (k / W) | 0;
+        for (let j = 0; j < 2; j++) {
+          const ph = (t * 0.02 + hr(k * 3 + j)) % 1;
+          const a = Math.sin(ph * Math.PI);
+          const sx = (x + 0.15 + ph * 0.7) * cell, sy = (y + 0.25 + hr(k + j * 7) * 0.5) * cell + Math.sin(t * 0.1 + k) * cell * 0.04;
+          ctx.strokeStyle = setup.night ? 'rgba(180,200,255,' + (0.35 * a).toFixed(3) + ')' : 'rgba(255,255,240,' + (0.55 * a).toFixed(3) + ')';
+          ctx.lineWidth = Math.max(1, cell * 0.035);
+          ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + cell * 0.18, sy - cell * 0.02); ctx.stroke();
+        }
+      }
 
       // бочки и пожары на их месте
       for (const b of B.props) {

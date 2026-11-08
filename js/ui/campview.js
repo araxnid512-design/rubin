@@ -41,8 +41,10 @@
   G.CampView = function (s, opts) {
     opts = opts || {};
     const cols = opts.cols || [0, 15];
-    const rows = opts.rows || [0, 15];
-    const W = cols[1] - cols[0] + 1, H = rows[1] - rows[0] + 1;
+    let rows = opts.rows || [0, 15];
+    const W = cols[1] - cols[0] + 1;
+    let H = rows[1] - rows[0] + 1;
+    const rowsWant = rows.slice();
     const canvas = h('canvas', { class: 'camp-canvas' + (opts.build ? ' build' : '') });
     const ctx = canvas.getContext('2d');
     const wrap = h('div', { class: 'camp-view' }, canvas);
@@ -52,7 +54,17 @@
     function resize() {
       const avail = Math.max(200, wrap.clientWidth || 600);
       const maxH = opts.maxHeight ? (typeof opts.maxHeight === 'function' ? opts.maxHeight() : opts.maxHeight) : 9999;
-      const c = Math.max(8, Math.min(Math.floor(avail / W), Math.floor(maxH / H), opts.maxCell || 40));
+      let c = Math.max(8, Math.min(Math.floor(avail / W), Math.floor(maxH / H), opts.maxCell || 40));
+      if (opts.fill) {
+        // сцена во всю ширину: клетка по ширине, строки — сколько влезает по высоте (вокруг середины)
+        c = Math.max(8, Math.min(Math.floor(avail / W), opts.maxCell || 40));
+        const lim = opts.fill;
+        const n = Math.max(8, Math.min(lim[1] - lim[0] + 1, Math.floor(maxH / c)));
+        const mid = (rowsWant[0] + rowsWant[1] + 1) / 2;
+        let r0 = Math.round(mid - n / 2);
+        r0 = Math.max(lim[0], Math.min(lim[1] - n + 1, r0));
+        if (r0 !== rows[0] || n !== H) { rows = [r0, r0 + n - 1]; H = n; cell = 0; }
+      }
       if (c === cell) return;
       cell = c;
       const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
@@ -68,7 +80,7 @@
     // ---------- неподвижный слой: местность и корпус ----------
     function buildStatic() {
       const base = G.Camp.baseMap(s);
-      const key = cell + '|' + Object.keys(s.sections).map((k) => s.sections[k].level).join('');
+      const key = cell + '|' + rows[0] + '|' + H + '|' + Object.keys(s.sections).map((k) => s.sections[k].level).join('');
       if (key === staticKey && staticLayer) return;
       staticKey = key;
       const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
@@ -118,22 +130,110 @@
     function drawHull(c) {
       if (cols[0] > 4) return;
       const P = (x, y) => [px(x), py(y)];
-      c.save();
-      c.fillStyle = '#7d848c'; c.strokeStyle = '#2a2e35'; c.lineWidth = Math.max(1, cell * 0.06);
-      c.beginPath();
       const pts = [[-0.5, 3.4], [1.0, 3.7], [1.6, 3.3], [3.3, 3.9], [5.05, 4.9], [5.05, 11.1], [3.3, 12.1], [1.4, 12.5], [0.7, 12.0], [-0.5, 12.6]];
-      pts.forEach(([x, y], k) => { const [X, Y] = P(x, y); k ? c.lineTo(X, Y) : c.moveTo(X, Y); });
-      c.closePath(); c.fill(); c.stroke();
-      // обшивка
-      c.strokeStyle = 'rgba(40,45,52,0.35)'; c.lineWidth = 1;
-      for (let y = 4.3; y < 12; y += 0.75) { c.beginPath(); c.moveTo(...P(0, y)); c.lineTo(...P(4.9, y)); c.stroke(); }
-      for (let x = 0.8; x < 5; x += 1.3) { c.beginPath(); c.moveTo(...P(x, 3.9)); c.lineTo(...P(x, 12.2)); c.stroke(); }
-      // пробоины и копоть
-      c.fillStyle = 'rgba(20,20,22,0.55)';
-      for (const [x, y, r] of [[0.4, 5.3, 0.45], [3.9, 11.2, 0.4], [0.5, 11.3, 0.5]]) { c.beginPath(); c.arc(...P(x, y), r * cell, 0, TAU); c.fill(); }
-      // шлюз
+      const path = (list, dx, dy) => { c.beginPath(); list.forEach(([x, y], k) => { const [X, Y] = P(x + (dx || 0), y + (dy || 0)); k ? c.lineTo(X, Y) : c.moveTo(X, Y); }); c.closePath(); };
+      const hr2 = (n) => { n = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); n ^= n >>> 13; n = Math.imul(n, 0xc2b2ae35); n ^= n >>> 16; return (n >>> 0) / 4294967296; };
+      c.save();
+      // тень корпуса на песке — вправо вниз
+      c.fillStyle = 'rgba(40,24,10,0.38)';
+      path(pts, 0.55, 0.65); c.fill();
+      // южный борт: видимая стенка под краем палубы
+      const south = [[-0.5, 12.6], [0.7, 12.0], [1.4, 12.5], [3.3, 12.1], [5.05, 11.1]];
+      const wall = south.concat(south.slice().reverse().map(([x, y]) => [x, y + 0.55]));
+      const wg = c.createLinearGradient(0, py(11.1), 0, py(13.2));
+      wg.addColorStop(0, '#4f555c'); wg.addColorStop(1, '#2c3035');
+      c.fillStyle = wg; path(wall); c.fill();
+      c.strokeStyle = 'rgba(15,17,20,0.6)'; c.lineWidth = Math.max(1, cell * 0.03);
+      for (let x = -0.3; x < 5; x += 0.42) { // рёбра борта
+        const y = x < 0.7 ? 12.6 - (x + 0.5) * 0.5 : x < 1.4 ? 12.0 + (x - 0.7) * 0.7 : x < 3.3 ? 12.5 - (x - 1.4) * 0.21 : 12.1 - (x - 3.3) * 0.57;
+        c.beginPath(); c.moveTo(...P(x, y + 0.04)); c.lineTo(...P(x, y + 0.52)); c.stroke();
+      }
+      // восточный торец — тонкая грань
+      c.fillStyle = '#3c4147'; path([[5.05, 4.9], [5.25, 5.1], [5.25, 11.3], [5.05, 11.1]]); c.fill();
+      // палуба: свет слева сверху
+      const dg = c.createLinearGradient(px(-0.5), py(3.3), px(5), py(12.6));
+      dg.addColorStop(0, '#aab1b8'); dg.addColorStop(0.5, '#848b93'); dg.addColorStop(1, '#5b6168');
+      c.fillStyle = dg; path(pts); c.fill();
+      c.save(); path(pts); c.clip();
+      // плиты обшивки разного тона
+      let k = 0;
+      for (let y = 3.2; y < 12.7; y += 0.55) for (let x = -0.5; x < 5.1; x += 0.68, k++) {
+        const v = hr2(k + 17);
+        c.fillStyle = v > 0.5 ? 'rgba(255,255,255,' + ((v - 0.5) * 0.14).toFixed(3) + ')' : 'rgba(0,0,0,' + ((0.5 - v) * 0.16).toFixed(3) + ')';
+        c.fillRect(px(x) + 1, py(y) + 1, cell * 0.68 - 2, cell * 0.55 - 2);
+      }
+      // швы: тёмная линия и светлая фаска
+      c.lineWidth = 1;
+      for (let y = 3.2; y < 12.7; y += 0.55) {
+        c.strokeStyle = 'rgba(25,28,32,0.45)'; c.beginPath(); c.moveTo(px(-0.5), py(y)); c.lineTo(px(5.1), py(y)); c.stroke();
+        c.strokeStyle = 'rgba(255,255,255,0.1)'; c.beginPath(); c.moveTo(px(-0.5), py(y) + 1); c.lineTo(px(5.1), py(y) + 1); c.stroke();
+      }
+      for (let x = -0.5; x < 5.1; x += 1.36) { c.strokeStyle = 'rgba(25,28,32,0.35)'; c.beginPath(); c.moveTo(px(x), py(3.2)); c.lineTo(px(x), py(12.7)); c.stroke(); }
+      // продольная траншея с трубами
+      c.fillStyle = 'rgba(20,22,26,0.55)'; c.fillRect(px(-0.5), py(8.35), cell * 4.3, cell * 0.32);
+      c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(px(-0.5), py(8.67), cell * 4.3, Math.max(1, cell * 0.04));
+      c.strokeStyle = '#6a7179'; c.lineWidth = Math.max(1, cell * 0.06);
+      c.beginPath(); c.moveTo(px(-0.5), py(8.47)); c.lineTo(px(3.8), py(8.47)); c.moveTo(px(-0.5), py(8.57)); c.lineTo(px(3.8), py(8.57)); c.stroke();
+      // надстройки: верх, южная и восточная грани, тень
+      const block = (x0, y0, x1, y1, hh) => {
+        c.fillStyle = 'rgba(20,14,8,0.35)'; c.fillRect(px(x0 + hh * 0.6), py(y0 + hh * 0.7), cell * (x1 - x0), cell * (y1 - y0));
+        c.fillStyle = '#4a5057'; c.fillRect(px(x0), py(y1), cell * (x1 - x0), cell * hh * 0.5);
+        c.fillStyle = '#5a6067'; c.fillRect(px(x1), py(y0 + hh * 0.1), cell * hh * 0.25, cell * (y1 - y0 + hh * 0.4));
+        const bg = c.createLinearGradient(px(x0), py(y0), px(x1), py(y1));
+        bg.addColorStop(0, '#b9c0c6'); bg.addColorStop(1, '#7c838a');
+        c.fillStyle = bg; c.fillRect(px(x0), py(y0), cell * (x1 - x0), cell * (y1 - y0));
+        c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 1; c.strokeRect(px(x0) + 0.5, py(y0) + 0.5, cell * (x1 - x0) - 1, cell * (y1 - y0) - 1);
+        c.strokeStyle = 'rgba(30,34,38,0.35)';
+        c.beginPath(); c.moveTo(px(x0), py((y0 + y1) / 2)); c.lineTo(px(x1), py((y0 + y1) / 2)); c.stroke();
+      };
+      block(0.2, 4.4, 1.9, 5.0, 0.5);
+      block(1.9, 6.6, 3.2, 7.6, 0.6);
+      block(0.1, 9.3, 1.6, 10.3, 0.45);
+      block(2.6, 10.6, 3.8, 11.3, 0.35);
+      // броневые купола
+      for (const [x, y, r] of [[3.4, 5.4, 0.32], [0.9, 7.4, 0.26], [3.0, 9.4, 0.3]]) {
+        c.fillStyle = 'rgba(20,14,8,0.35)'; c.beginPath(); c.ellipse(px(x + 0.12), py(y + 0.14), cell * r, cell * r * 0.8, 0, 0, TAU); c.fill();
+        const rg = c.createRadialGradient(px(x - r * 0.35), py(y - r * 0.35), 1, px(x), py(y), cell * r);
+        rg.addColorStop(0, '#dfe4e8'); rg.addColorStop(0.6, '#8d949b'); rg.addColorStop(1, '#4a5056');
+        c.fillStyle = rg; c.beginPath(); c.arc(px(x), py(y), cell * r, 0, TAU); c.fill();
+        c.strokeStyle = '#2a2e35'; c.lineWidth = Math.max(1, cell * 0.05);
+        c.beginPath(); c.moveTo(px(x), py(y)); c.lineTo(px(x + r * 1.6), py(y - r * 0.3)); c.stroke();
+      }
+      // пробоины: копоть, рваные края, оголённые рёбра
+      for (const [x, y, r] of [[0.4, 5.6, 0.55], [3.9, 11.4, 0.45], [0.5, 11.3, 0.6], [4.4, 6.1, 0.35]]) {
+        const sg = c.createRadialGradient(px(x), py(y), 1, px(x), py(y), cell * r * 2.2);
+        sg.addColorStop(0, 'rgba(15,12,10,0.75)'); sg.addColorStop(0.5, 'rgba(30,24,20,0.35)'); sg.addColorStop(1, 'rgba(30,24,20,0)');
+        c.fillStyle = sg; c.beginPath(); c.arc(px(x), py(y), cell * r * 2.2, 0, TAU); c.fill();
+        const hg = c.createRadialGradient(px(x), py(y), 1, px(x), py(y), cell * r);
+        hg.addColorStop(0, 'rgba(255,120,40,0.35)'); hg.addColorStop(0.35, '#1a1512'); hg.addColorStop(1, '#2b2622');
+        c.fillStyle = hg;
+        c.beginPath();
+        for (let e = 0; e < 9; e++) { const a = e / 9 * TAU, rr2 = cell * r * (0.55 + hr2(x * 31 + y * 7 + e) * 0.5); const X = px(x) + Math.cos(a) * rr2, Y = py(y) + Math.sin(a) * rr2 * 0.8; e ? c.lineTo(X, Y) : c.moveTo(X, Y); }
+        c.closePath(); c.fill();
+        c.strokeStyle = '#5a5f66'; c.lineWidth = Math.max(1, cell * 0.04);
+        for (let e = 0; e < 3; e++) { c.beginPath(); c.moveTo(px(x - r * 0.5), py(y - r * 0.3 + e * r * 0.3)); c.lineTo(px(x + r * 0.5), py(y - r * 0.2 + e * r * 0.3)); c.stroke(); }
+      }
+      c.restore();
+      // контур
+      c.strokeStyle = '#22262b'; c.lineWidth = Math.max(1, cell * 0.06); path(pts); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.18)'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(...P(-0.5, 3.45)); c.lineTo(...P(1.0, 3.75)); c.lineTo(...P(1.6, 3.35)); c.lineTo(...P(3.3, 3.95)); c.lineTo(...P(5.0, 4.95)); c.stroke();
+      // песок наметён к борту
+      for (const [x, y, r] of [[0.2, 12.5, 0.9], [2.3, 12.4, 0.8], [4.6, 11.4, 0.6], [-0.2, 3.6, 0.7], [2.4, 3.7, 0.6]]) {
+        const sg = c.createRadialGradient(px(x), py(y), 1, px(x), py(y), cell * r);
+        sg.addColorStop(0, 'rgba(206,168,110,0.95)'); sg.addColorStop(0.6, 'rgba(196,158,100,0.6)'); sg.addColorStop(1, 'rgba(196,158,100,0)');
+        c.fillStyle = sg; c.beginPath(); c.ellipse(px(x), py(y), cell * r, cell * r * 0.55, 0, 0, TAU); c.fill();
+      }
+      // шлюз в восточном торце
       c.fillStyle = '#1b1d21'; c.fillRect(px(4.2), py(7), cell * 0.85, cell * 2);
-      c.fillStyle = 'rgba(255,210,120,0.35)'; c.fillRect(px(4.35), py(7.15), cell * 0.55, cell * 1.7);
+      c.strokeStyle = '#3c4147'; c.lineWidth = Math.max(1, cell * 0.05); c.strokeRect(px(4.2), py(7), cell * 0.85, cell * 2);
+      const lg = c.createLinearGradient(px(4.35), 0, px(5.05), 0);
+      lg.addColorStop(0, 'rgba(255,210,120,0.55)'); lg.addColorStop(1, 'rgba(255,210,120,0.1)');
+      c.fillStyle = lg; c.fillRect(px(4.35), py(7.15), cell * 0.55, cell * 1.7);
+      // свет из шлюза на песок
+      const og = c.createRadialGradient(px(5.3), py(8), 1, px(5.3), py(8), cell * 1.4);
+      og.addColorStop(0, 'rgba(255,215,140,0.3)'); og.addColorStop(1, 'rgba(255,215,140,0)');
+      c.fillStyle = og; c.beginPath(); c.ellipse(px(5.6), py(8), cell * 1.4, cell * 0.9, 0, 0, TAU); c.fill();
       c.restore();
     }
 
@@ -163,11 +263,25 @@
         ctx.fillStyle = '#15171a'; rr(ctx, X - w / 2, Y - hh / 2, w, hh, 2); ctx.fill();
         if (lv > 0) {
           const flick = 0.75 + 0.25 * Math.sin(t * 3 + x * 7);
+          const ga = (0.18 + 0.12 * flick) * Math.min(1, lv / 2 + 0.3);
+          const halo = ctx.createRadialGradient(X, Y, 1, X, Y, cell * 0.9);
+          halo.addColorStop(0, 'rgba(255,205,110,' + ga.toFixed(3) + ')'); halo.addColorStop(1, 'rgba(255,205,110,0)');
+          ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(X, Y, cell * 0.9, 0, TAU); ctx.fill();
           ctx.fillStyle = 'rgba(255,205,110,' + (0.55 + 0.35 * flick * Math.min(1, lv / 2)).toFixed(2) + ')';
           rr(ctx, X - w / 2 + 1.5, Y - hh / 2 + 1.5, w - 3, hh - 3, 1.5); ctx.fill();
+          ctx.fillStyle = 'rgba(255,250,230,0.5)'; ctx.fillRect(X - w / 2 + 2, Y - hh / 2 + 2, w - 4, Math.max(1, hh * 0.18));
         } else if (Math.random() < 0.02) {
           sparks(X, Y);
         }
+      }
+      // навигационные огни по углам корпуса
+      for (const [x, y, col, ph] of [[5.0, 5.0, '255,80,60', 0], [5.0, 11.0, '120,255,150', 1.3], [1.6, 3.4, '255,255,255', 2.1]]) {
+        const on = Math.sin(t * 2.2 + ph) > 0.55;
+        if (!on) continue;
+        const X = px(x), Y = py(y);
+        const g = ctx.createRadialGradient(X, Y, 0, X, Y, cell * 0.45);
+        g.addColorStop(0, 'rgba(' + col + ',0.9)'); g.addColorStop(1, 'rgba(' + col + ',0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X, Y, cell * 0.45, 0, TAU); ctx.fill();
       }
       // дым из повреждённого реактора
       if (s.sections.reactor.level <= 1 && Math.random() < 0.08) particles.push({ x: px(1.2), y: py(5.6), vx: 4 + Math.random() * 6, vy: -8 - Math.random() * 6, life: 2.5, max: 2.5, kind: 'smoke' });

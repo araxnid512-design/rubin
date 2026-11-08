@@ -41,7 +41,7 @@
 
   // ---------- Живая сцена лагеря ----------
   function campScene(s) {
-    const v = G.CampView(s, { cols: [0, 21], rows: [1, 14], maxCell: 30,
+    const v = G.CampView(s, { cols: [0, 23], rows: [1, 14], fill: [0, 15], maxCell: 30,
       maxHeight: () => (UI.isLandscapePhone() ? Math.max(150, ((globalThis.innerHeight || 360) - 60) * 0.62) : 330) });
     return h('div', { class: 'card camp-card hq-scene', onclick: () => UI.go('base'), title: 'Лагерь — нажмите, чтобы строить' }, v.el);
   }

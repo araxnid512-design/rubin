@@ -120,7 +120,7 @@
   UI.views.base = function (s) {
     const eNet = G.Base.energyProduction(s) - G.Base.energyUse(s);
     const items = Object.keys(G.TEXT.items).filter((k) => s.items[k] > 0);
-    const view = G.CampView(s, { cols: [0, 15], rows: [0, 15], build: true, maxCell: 42,
+    const view = G.CampView(s, { cols: [0, 23], rows: [0, 15], fill: [0, 15], build: true, maxCell: 42,
       maxHeight: () => (UI.isLandscapePhone() ? (globalThis.innerHeight || 360) - 60 : (globalThis.innerHeight || 800) * 0.72),
       onCell: (x, y) => onCell(s, x, y) });
     return h('div', { class: 'cols base-cols' },
