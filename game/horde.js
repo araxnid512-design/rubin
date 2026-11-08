@@ -20,7 +20,7 @@ const ELITE_RARE = 0.12;
  * Состав на цикл: [{ type, at, r, pack, lead }] — at/r: где и в каком радиусе (null — бродячая стая, место
  * выбирает populate); pack — номер стаи (0 — сам по себе), lead — вожак стаи.
  */
-export function rollHorde(groups, danger = 1, rnd = Math.random) {
+export function rollHorde(groups, danger = 1, rnd = Math.random, half = 66) {
 	const d = Math.max(1, Math.min(4, Math.round(danger)));
 	const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
 	const f = 0.5 + 0.2 * d; // густота групп: 0.7 / 0.9 / 1.1
@@ -28,13 +28,14 @@ export function rollHorde(groups, danger = 1, rnd = Math.random) {
 	let packs = 0;
 	for (const g of groups) {
 		let runners = Math.round((g.runners ?? 0) * f * (0.6 + rnd() * 0.8));
-		let stompers = g.stompers ?? 0, rubers = g.rubers ?? 0, elites = g.elites ?? 0;
+		let stompers = g.stompers ?? 0, rubers = g.rubers ?? 0, elites = g.elites ?? 0, skrebers = g.skrebers ?? 0;
 		if (rnd() < 0.08 * (d - 1)) stompers++; // глубже в Улье — топтун и там, где его обычно нет
 		if (d >= 3 && stompers && rnd() < 0.15) { stompers--; rubers++; } // в логове топтун перерастает в рубера
-		const pack = elites || rubers || stompers ? ++packs : 0;
+		const pack = skrebers || elites || rubers || stompers ? ++packs : 0;
 		const at = g.at, r = g.r;
-		const lead = elites ? 'elite' : rubers ? 'ruber' : stompers ? 'stomper' : null;
-		if (lead === 'elite') elites--; else if (lead === 'ruber') rubers--; else if (lead) stompers--;
+		// скребер (высшая стадия, логово — «Провал») водит свою стаю
+		const lead = skrebers ? 'skreber' : elites ? 'elite' : rubers ? 'ruber' : stompers ? 'stomper' : null;
+		if (lead === 'skreber') skrebers--; else if (lead === 'elite') elites--; else if (lead === 'ruber') rubers--; else if (lead) stompers--;
 		if (lead) runners += ri(1, d); // сильный уже собрал вокруг себя бегунов
 		if (lead) out.push({ type: lead, at, r, pack, lead: true });
 		for (let i = 0; i < elites; i++) out.push({ type: 'elite', at, r, pack });
@@ -56,7 +57,8 @@ export function rollHorde(groups, danger = 1, rnd = Math.random) {
 	// руберов больше потолка — лишние так и не доросли, остаются топтунами
 	for (let rubers = out.filter((e) => e.type === 'ruber'); rubers.length > RUBER_CAP[d];) rubers.splice(Math.floor(rnd() * rubers.length), 1)[0].type = 'stomper';
 	// слишком много — убираем случайных бегунов: сначала одиночек, потом из стай (вожаков и сильных не трогаем)
-	const cap = CAP[d] - ri(0, 10);
+	// большая локация (180×180 м вместо 132×132) — потолок выше на четверть: заражённых не так редко, но FPS телефона цел
+	const cap = Math.round(CAP[d] * (half > 70 ? 1.25 : 1)) - ri(0, 10);
 	while (out.length > cap) {
 		let idx = out.map((e, i) => (e.type === 'runner' && !e.pack ? i : -1)).filter((i) => i >= 0);
 		if (!idx.length) idx = out.map((e, i) => (e.type === 'runner' ? i : -1)).filter((i) => i >= 0);

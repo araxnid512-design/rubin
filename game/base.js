@@ -159,8 +159,7 @@ export function tickBase(b, now, here) {
 		const power = Math.round(Math.min(ATTACK_MAX, rand(...ATTACK_POWER) + b.attacks * ATTACK_GROW));
 		const def = defense(b), held = def >= power;
 		b.attacks++;
-		const lost = held ? {} : { ...b.stock };
-		if (!held) b.stock = {};
+		const lost = held ? {} : plunder(b);
 		const ev = { power, def, held, lost, time: now };
 		b.log.unshift(ev);
 		b.log.length = Math.min(b.log.length, 5);
@@ -176,19 +175,36 @@ export function tickBase(b, now, here) {
  */
 export function raid(b, power, now, who, loot = {}) {
 	const def = defense(b), held = def >= power;
-	const lost = held ? {} : { ...b.stock };
+	const lost = held ? {} : plunder(b);
 	if (held) for (const [k, n] of Object.entries(loot)) b.stock[k] = (b.stock[k] ?? 0) + n;
-	else b.stock = {};
 	const ev = { power: Math.round(power), def, held, lost, who, loot: held ? loot : {}, time: now };
 	b.log.unshift(ev);
 	b.log.length = Math.min(b.log.length, 5);
 	return ev;
 }
 
-/** Забрать накопленное (всё). Возвращает { kind: n }. */
-export function collect(b) {
-	const got = { ...b.stock };
-	b.stock = {};
+/** Ресурсы склада (game/economy.js) — при прорыве растаскивают половину, накопленное добро построек — всё. */
+const RES = ['scrap', 'parts', 'powder', 'chem', 'fuel', 'food'];
+export function plunder(b) {
+	const lost = {};
+	for (const [k, n] of Object.entries(b.stock)) {
+		const take = RES.includes(k) ? Math.ceil(n / 2) : n;
+		if (take > 0) { lost[k] = take; b.stock[k] = n - take; }
+	}
+	return lost;
+}
+
+/**
+ * Забрать накопленное: всё, кроме ресурсов (они — сырьё для производства, караванов и верстака, остаются на складе,
+ * game/economy.js) и запаса споранов на плату жителям (keepSpore). Возвращает { kind: n }.
+ */
+export function collect(b, keepSpore = 0, keep = []) {
+	const got = {};
+	for (const [k, n] of Object.entries(b.stock)) {
+		if (keep.includes(k) || !(n > 0)) continue;
+		const take = k === 'spore' ? Math.max(0, n - keepSpore) : n;
+		if (take > 0) { got[k] = take; b.stock[k] = n - take; }
+	}
 	return got;
 }
 

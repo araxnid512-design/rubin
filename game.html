@@ -230,7 +230,20 @@
 		#stash .trade-sec { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 		.inv .x { font: inherit; font-size: 18px; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; flex: none; }
 		.wm-body { display: grid; grid-template-columns: minmax(260px, 1.55fr) minmax(240px, 1fr); gap: 12px; align-items: start; }
-		#wm-svg { width: 100%; aspect-ratio: 1.875; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		#wm-svg { width: 100%; aspect-ratio: 1.6; max-height: 62vh; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		/* карта-местность: земля, пояса, холмы, лес, болото, река, озеро; дороги — изгибистые просёлки */
+		.wm-land { fill: #2f3a2c; }
+		.wm-zonefield { pointer-events: none; }
+		.wm-hill { fill: rgba(120,104,78,0.16); stroke: rgba(170,150,110,0.35); stroke-width: 0.35; }
+		.wm-tree { fill: #3f5c34; stroke: #263a22; stroke-width: 0.25; }
+		.wm-tree.dark { fill: #2f4a2a; }
+		.wm-swamp { fill: rgba(90,110,80,0.35); stroke: rgba(120,150,110,0.4); stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }
+		.wm-swamp-line { stroke: #7d9a76; stroke-width: 0.35; stroke-linecap: round; }
+		.wm-river-bank { fill: rgba(170,160,120,0.25); stroke: rgba(170,160,120,0.35); stroke-width: 4.2; stroke-linecap: round; }
+		.wm-river { fill: none; stroke: #4a7da0; stroke-width: 2.4; stroke-linecap: round; }
+		.wm-lake { fill: #4a7da0; stroke: none; }
+		path.wm-road, path.wm-road-bg { fill: none; }
+		.wm-road-bg { stroke: #262b24; stroke-width: 2.3; stroke-linecap: round; }
 		.wm-road { stroke: #d8dcc8; stroke-width: 1.1; stroke-dasharray: 1.1 0.8; stroke-linecap: round; }
 		.wm-road.active { stroke: var(--accent); stroke-width: 1.3; animation: wmRoad 1.2s linear infinite; }
 		@keyframes wmRoad { to { stroke-dashoffset: -7; } }
@@ -257,11 +270,11 @@
 		.wm-band { fill-opacity: 0.06; }
 		.wm-band-label { font-size: 2.3px; font-weight: 700; letter-spacing: 0.15px; opacity: 0.8; paint-order: stroke; stroke: #232823; stroke-width: 0.8px; }
 		/* ромбы-плитки: снимок внутри, рамка цветом пояса; мостики через зазор между соседями */
-		.wm-node polygon.wm-frame { stroke-linejoin: round; }
+		.wm-node .wm-frame { stroke-linejoin: round; }
 		.wm-node.cluster .wm-shot { opacity: 0.92; }
 		.wm-bridge-bg { stroke: #3a4038; stroke-width: 2.6; stroke-linecap: round; }
 		.wm-node.zone-off .wm-shot { opacity: 0.35; }
-		.wm-node.next .wm-frame { stroke-width: 1.1; }
+		.wm-node.next .wm-frame { stroke-width: 0.9; }
 		.wm-sec { color: var(--zc); border-color: var(--zc); }
 		.route.far { opacity: 0.7; }
 		.wm-cost { font-weight: 700; color: #c8e08a; }
@@ -284,7 +297,7 @@
 		.travel-card { max-width: 760px; }
 		.travel-views { display: flex; gap: 10px; justify-content: center; align-items: stretch; margin-bottom: 8px; }
 		#travel-img { width: min(400px, 46vw); aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; border: 1px solid var(--border); max-height: 52vh; }
-		#travel-svg { height: min(225px, 52vh); aspect-ratio: 1.15; display: block; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
+		#travel-svg { height: min(225px, 52vh); aspect-ratio: 1.6; display: block; background: radial-gradient(ellipse at 50% 50%, #3c463a, #232823 75%); border-radius: 12px; border: 1px solid var(--border); }
 		.route-img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; flex: none; border: 1px solid var(--border); }
 		.route.here-card { background: rgba(200,216,106,0.08); }
 		.wm-frame { fill: none; stroke: #d8dece; stroke-width: 0.6; }
@@ -356,6 +369,8 @@
 		button.buy:disabled { background: #4a5044; color: #a8ae9e; cursor: default; }
 		/* терминал базы: постройки */
 		#term-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-top: 8px; max-height: 58vh; overflow-y: auto; }
+		#term-list .trade-sec { grid-column: 1 / -1; margin: 6px 0 0; }
+		#term-list .eco-row { margin-bottom: 0; }
 		.offer.build .offer-text span { white-space: normal; }
 		.offer.build .gives { color: #c8e08a; }
 		.merc-btns .trip { display: inline-flex; gap: 4px; align-items: center; }
@@ -370,6 +385,23 @@
 		#trade-tabs { display: flex; gap: 6px; margin: 0 0 10px; }
 		#trade-tabs button { font: inherit; font-weight: 700; font-size: 14px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); padding: 8px 18px; cursor: pointer; }
 		#trade-tabs button.on { background: var(--accent); color: #141816; border-color: transparent; }
+		/* терминал базы: вкладки; ресурсы строкой; хозяйство, жители, караваны */
+		#term-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+		#term-tabs button { font: inherit; font-weight: 700; font-size: 13px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text); padding: 7px 14px; cursor: pointer; }
+		#term-tabs button.on { background: var(--accent); color: #141816; border-color: transparent; }
+		.wm-modes { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0; }
+		.wm-modes button { font-size: 12px; padding: 5px 10px; }
+		.res-row { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+		.res-row span { display: inline-flex; align-items: center; gap: 4px; }
+		.res-row img { width: 22px; height: 22px; object-fit: contain; }
+		.res-row b { color: var(--text); }
+		.eco-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; background: rgba(255,255,255,0.03); font-size: 13px; }
+		.eco-row .eco-text { flex: 1; min-width: 180px; display: grid; gap: 2px; }
+		.eco-row .eco-text b { font-size: 14px; }
+		.eco-row .warn, #craft-list .warn { color: #f0a080; }
+		.eco-row select { font: inherit; font-size: 13px; background: #1f2420; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px; }
+		.morale { height: 6px; width: 120px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; display: inline-block; vertical-align: middle; }
+		.morale i { display: block; height: 100%; background: linear-gradient(90deg, #c84a3a, #c8b03a, #6ab04c); }
 		.sell-btns { display: grid; gap: 4px; }
 		.sell-empty { grid-column: 1 / -1; font-size: 13px; padding: 2px 4px 6px; }
 		.exchange { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
@@ -613,7 +645,7 @@
 			<div class="inv-head"><b>Карта Улья</b><span class="muted" id="wm-sub"></span><button class="x" id="wm-close" aria-label="Закрыть">✕</button></div>
 			<div class="wm-body">
 				<div class="wm-left">
-					<svg id="wm-svg" viewBox="0 0 120 64" preserveAspectRatio="xMidYMid meet"></svg>
+					<svg id="wm-svg" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid meet"></svg>
 					<div id="wm-confirm" class="wm-confirm"></div>
 					<div id="wm-legend" class="wm-legend"></div>
 					<div id="wm-zone-desc" class="wm-hint"></div>
@@ -634,15 +666,27 @@
 				<button class="buy" id="trade-peas-1">Обменять 1</button><button class="buy" id="trade-peas-all">Все</button></div>
 			<div class="exchange"><span>Чёрная жемчужина → <b>150 споранов</b> <span class="muted">(есть <b id="trade-pearls">0</b>)</span></span>
 				<button class="buy" id="trade-pearl">Продать 1</button></div>
+			<div class="exchange"><span>Красная жемчужина → <b>600 споранов</b> <span class="muted">(есть <b id="trade-redpearls">0</b>)</span></span>
+				<button class="buy" id="trade-redpearl">Продать 1</button></div>
+		</div>
+	</div>
+
+	<div id="craft" class="screen hidden">
+		<div class="inv trade">
+			<div class="inv-head"><b>Верстак</b><span class="muted"><span id="craft-lv"></span> · ресурсы из рюкзака и со склада базы · игра на паузе</span>
+				<button class="x" id="craft-close" aria-label="Закрыть">✕</button></div>
+			<div class="res-row" id="craft-res"></div>
+			<div id="craft-list"></div>
 		</div>
 	</div>
 
 	<div id="terminal" class="screen hidden">
 		<div class="inv trade">
 			<div class="inv-head"><b>Терминал базы «Опорный»</b><span class="muted">построено <b id="term-count">0</b> · игра на паузе</span>
-				<span class="wallet"><span class="spore">Спораны <b id="term-spores">0</b></span><span>Оборона <b id="term-def">0</b></span></span>
+				<span class="wallet"><span class="spore">Твои спораны <b id="term-spores">0</b></span><span class="spore">Казна базы <b id="term-treasury">0</b></span><span>Оборона <b id="term-def">0</b></span></span>
 				<button class="x" id="term-close" aria-label="Закрыть">✕</button></div>
 			<div class="exchange"><span id="term-stock-text"></span><button class="buy" id="term-collect">Забрать</button><button class="buy" id="term-mercs">Наёмники</button></div>
+			<div id="term-tabs"><button data-tab="build" class="on">Постройки</button><button data-tab="eco">Хозяйство</button><button data-tab="people">Жители</button><button data-tab="caravan">Караваны</button></div>
 			<div id="term-list"></div>
 			<div class="stash-note" id="term-log"></div>
 		</div>

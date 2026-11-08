@@ -6,12 +6,23 @@ import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometr
 import * as T from './textures.js';
 import { box, place, beginProp, endProp, propObject } from './geom.js';
 
-/** Половина размера локации, м (локация — квадрат 132×132 м). */
-export const HALF = 66;
+/**
+ * Половина размера локации, м: у каждой локации свой (поле half в game/locations/<id>.js; по умолчанию 66 — квадрат
+ * 132×132 м, у больших кластеров 90 — 180×180 м). Ставит buildLevel (setHalf) перед сборкой; значения «живые» —
+ * все модули видят размер текущей локации.
+ */
+export const HALF_DEFAULT = 66;
+export let HALF = HALF_DEFAULT;
 /** Граница, за которую нельзя зайти: дальше — муть по краям кластера. */
-export const PLAY = HALF - 3.5;
+export let PLAY = HALF - 3.5;
 /** Во сколько раз локация больше по площади, чем прежняя 100×100 м: столько же мелочей на квадратный метр. */
-export const AREA = (HALF / 50) ** 2;
+export let AREA = (HALF / 50) ** 2;
+/** Размер локации для следующей сборки. */
+export function setHalf(h = HALF_DEFAULT) {
+	HALF = h;
+	PLAY = h - 3.5;
+	AREA = (h / 50) ** 2;
+}
 
 /** Время для ветра (секунды): обновляет уровень каждый кадр. */
 export const WIND = { value: 0 };

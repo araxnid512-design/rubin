@@ -6,7 +6,7 @@ import { ITEMS, BAG_ORDER, plural } from './items.js';
 import { WEAPONS } from './weapons.js';
 
 /** Валюта: при гибели остаётся с героем, в хранилище не кладётся. */
-export const CURRENCY = ['spore', 'peas', 'pearl', 'zhivchik']; // живчик — на дорогу: при гибели остаётся, в хранилище не кладётся
+export const CURRENCY = ['spore', 'peas', 'pearl', 'redpearl', 'zhivchik']; // живчик — на дорогу: при гибели остаётся, в хранилище не кладётся
 /** Что из рюкзака можно сложить (всё, кроме валюты). */
 export const STORABLE = BAG_ORDER.filter((k) => !CURRENCY.includes(k));
 
@@ -80,6 +80,6 @@ export class StashWindow {
 		$('stash-kept').innerHTML = kept.join('') || '<div class="muted">Пусто. Купи у торговца оружие и патроны про запас и сложи сюда — при гибели они не пропадут.</div>';
 		$('stash-store-all').disabled = !mine.length;
 		$('stash-take-all').disabled = !kept.length;
-		$('stash-wallet').textContent = `Спораны ${g.bag.spore ?? 0} · горох ${g.bag.peas ?? 0} · жемчуг ${g.bag.pearl ?? 0}`;
+		$('stash-wallet').textContent = `Спораны ${g.bag.spore ?? 0} · горох ${g.bag.peas ?? 0} · жемчуг ${g.bag.pearl ?? 0}${g.bag.redpearl ? ` · красный ${g.bag.redpearl}` : ''}`;
 	}
 }

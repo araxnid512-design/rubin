@@ -52,7 +52,7 @@ export const RANKS = [
 	{ name: 'Рядовой', xp: 0 }, { name: 'Ефрейтор', xp: 25 }, { name: 'Мл. сержант', xp: 70 }, { name: 'Сержант', xp: 150 }, { name: 'Старшина', xp: 280 },
 ];
 export const RANK_BONUS = { acc: 0.07, hp: 0.1, reload: 0.08 };
-export const XP_KILL = { runner: 1, stomper: 4, ruber: 8, elite: 20, murs: 5, ext: 7 };
+export const XP_KILL = { runner: 1, stomper: 4, ruber: 8, elite: 20, skreber: 60, murs: 5, ext: 7 };
 export const XP_SORTIE = 5, XP_TRIP = 6;
 /** Звание бойца (номер в RANKS). */
 export function rankOf(st) { let r = 0; for (let i = 0; i < RANKS.length; i++) if ((st?.xp ?? 0) >= RANKS[i].xp) r = i; return r; }
@@ -90,10 +90,17 @@ export const AUTO_START = 150;
  */
 export const newMerc = (id, bed = 0) => {
 	const D = MERCS[id], W = WEAPONS[D.weapon];
-	// автоматчикам — 150 патронов, дробовикам (у двустволки магазин на 2) — 10 в запас, остальным — магазин
-	const ammo = W.auto < 0.2 ? Math.max(AUTO_START - W.mag, W.mag) : W.pellets ? 10 : W.mag;
-	return { id, hp: D.hp, mag: W.mag, ammo, out: false, bed, ...KIT[D.cls] };
+	return { id, hp: D.hp, mag: W.mag, ammo: spareAmmo(id), out: false, bed, ...KIT[D.cls] };
 };
+/** Запас патронов сверх магазина: автоматчикам — до 150 всего, дробовикам (у двустволки магазин на 2) — 10, остальным — магазин. */
+export function spareAmmo(id) {
+	const W = WEAPONS[MERCS[id].weapon];
+	return W.auto < 0.2 ? Math.max(AUTO_START - W.mag, W.mag) : W.pellets ? 10 : W.mag;
+}
+/** Полный боекомплект бойца (магазин + запас) — до него он дома пополняется из казны базы. */
+export const fullAmmo = (id) => WEAPONS[MERCS[id].weapon].mag + spareAmmo(id);
+/** Сколько перевязок у медика и гранат у подрывника — до этого дома пополняются из казны. */
+export const KIT_FULL = { meds: 2, nades: 2 };
 
 // ---------- Наёмники на базе «Опорный»: посты и вылазки без героя ----------
 
@@ -202,11 +209,12 @@ export class PartyWindow {
 		const face = (id) => (icons[`merc_${id}`] ? `<img class="npc-face" src="${icons[`merc_${id}`]}" alt="">` : '');
 		const badge = (cls) => `<span class="cls cls-${cls}">${CLASSES[cls].name}</span>`;
 		const full = g.party.length >= (g.partyMax ?? MAX_PARTY);
-		$('party-spores').textContent = bag.spore ?? 0;
+		$('party-spores').textContent = `${bag.spore ?? 0} · казна базы ${g.world?.base?.treasury ?? 0}`;
 		const card = (m) => {
 			const D = MERCS[m.id], C = CLASSES[D.cls], W = WEAPONS[D.weapon], spare = bag[W.ammo] ?? 0, give = Math.min(spare, W.mag), max = mercMaxHp(m);
-			// снарядить можно в комнате, на базе и в вылазке — стоя рядом с бойцом
-			const here = room || !!g.canEquip?.(m.id);
+			// снарядить можно в комнате, на базе и в вылазке — стоя рядом с бойцом; дома патроны, перевязки и гранаты
+			// боец пополняет сам — за счёт казны базы (game.resupplyMercs)
+			const here = room || !!g.canEquip?.(m.id), atHome = room || !!g.atBase;
 			let move = '';
 			if (g.canLeave?.(m.id)) move = `<button class="stay small" data-act="leave" data-id="${m.id}">${g.inRoom ? 'Оставить у койки' : 'Оставить на базе'}</button>`;
 			if (g.canTake?.(m.id)) move = `<button class="buy" data-act="take" data-id="${m.id}" ${full ? 'disabled' : ''}>Взять с собой</button>`;
@@ -228,8 +236,8 @@ export class PartyWindow {
 					<span>здоровье ${Math.ceil(m.hp)}/${max} · <span class="${dry ? 'warn' : ''}">патроны ${m.mag} + ${m.ammo} (${AMMO[W.ammo]})${dry ? ' — без патронов не отобьётся' : ''}</span>${stock}</span></div>
 				<div class="merc-btns">
 					${move}
-					${here ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
-					${spare > W.mag ? `<button class="buy" data-act="ammoAll" data-id="${m.id}">Все ${spare}</button>` : ''}
+					${here && !atHome ? `<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
+					${spare > W.mag ? `<button class="buy" data-act="ammoAll" data-id="${m.id}">Все ${spare}</button>` : ''}` : ''}${here && atHome ? `<span class="muted">патроны — из казны базы</span>` : ''}${here ? `
 					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < max ? '' : 'disabled'}>Аптечка +${MERC_HEAL} <small>(есть ${bag.medkit ?? 0})</small></button>` : ''}
 					${kit}
 					${this.hiring && (!this.murs || m.temp) ? (this.askDismiss === m.id ? `<span class="warn">Отпустить ${D.name} совсем?</span><button class="stay small" data-act="dismissYes" data-id="${m.id}">Да, отпустить</button><button class="buy" data-act="dismissNo" data-id="${m.id}">Нет</button>` : `<button class="stay small dismiss" data-act="dismiss" data-id="${m.id}">Отпустить совсем…</button>`) : ''}
@@ -289,7 +297,7 @@ export class PartyWindow {
 		}
 		$('party-list').innerHTML = html;
 		if (this.murs) { $('party-hint').textContent = 'Мур идёт с тобой сразу и дерётся как наёмник — патроны и аптечку даёшь ты. Койки ему не нужно: вернёшься в стаб, на базу или в «Карьер» — уйдёт к своим. Нападёшь на муров — уйдёт сразу: против своих не пойдёт. Опыта не копит.'; return; }
-		$('party-hint').textContent = `Нанятые живут в твоей комнате в стабе (${ROOM_BEDS} коек) или на базе «Опорный» (места у казармы — больше с её уровнем): из комнаты бойца можно отправить на базу и обратно. Взять с собой или оставить — у его дома. Снарядить — патроны их калибра, аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), медику перевязки, подрывнику гранаты — можно и в вылазке: подойди к бойцу, когда рядом нет врагов. Без патронов боец гибнет. Прёт заражённый — бойцы пятятся к тебе и стреляют. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись домой (в стаб или на базу), они снова на своих местах.`;
+		$('party-hint').textContent = `Патроны, перевязки и гранаты бойцы дома (в стабе и на базе) пополняют сами — за счёт казны базы (положить спораны в казну — в терминале базы, вкладка «Хозяйство»). Нанятые живут в твоей комнате в стабе (${ROOM_BEDS} коек) или на базе «Опорный» (места у казармы — больше с её уровнем): из комнаты бойца можно отправить на базу и обратно. Взять с собой или оставить — у его дома. Снарядить — патроны их калибра, аптечку (${ITEMS.medkit.name} — +${MERC_HEAL}; сами они не лечатся), медику перевязки, подрывнику гранаты — можно и в вылазке: подойди к бойцу, когда рядом нет врагов. Без патронов боец гибнет. Прёт заражённый — бойцы пятятся к тебе и стреляют. На вылазку — не больше ${g.partyMax ?? MAX_PARTY} (с казармой на базе — на двоих больше); вернувшись домой (в стаб или на базу), они снова на своих местах.`;
 	}
 
 	/** На базе: каждого бойца — на пост (часовой, оборона выше) или на вылазку в кластер без героя; снарядить. */
@@ -307,7 +315,7 @@ export class PartyWindow {
 			const acts = trip ? '<button class="buy" disabled>В пути</button>'
 				: `${post ? `<button class="stay small" data-act="unpost" data-id="${m.id}">Снять с поста</button>` : `<button class="buy" data-act="post" data-id="${m.id}" ${posted >= max ? 'disabled' : ''}>На пост</button>`}
 					<span class="trip"><select aria-label="Куда">${opts}</select><button class="buy" data-act="trip" data-id="${m.id}">На вылазку</button></span>
-					<button class="buy" data-act="ammo" data-id="${m.id}" ${give ? '' : 'disabled'}>Патроны +${give || W.mag} <small>(есть ${spare})</small></button>
+					<span class="muted">патроны — из казны базы</span>
 					<button class="buy" data-act="heal" data-id="${m.id}" ${(bag.medkit ?? 0) > 0 && m.hp < max ? '' : 'disabled'}>Аптечка +${MERC_HEAL}</button>`;
 			return `<div class="merc" data-merc="${m.id}">${face(m.id)}
 				<div class="merc-text"><b>${D.name}</b> <span class="cls cls-${D.cls}">${CLASSES[D.cls].name}</span> <span class="muted">${W.name}</span> ${m.temp ? '' : rankBadge(m)}

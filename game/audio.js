@@ -113,7 +113,7 @@ GUNS.ksvk = { s: ['gun_awm'], rate: 0.72, gain: 1, bolt: true };
 GUNS.rpg7 = { s: ['explosion'], rate: 1.7, gain: 0.6, hiss: true };
 GUNS.rg6 = { s: ['gun_dbarrel'], rate: 0.55, gain: 0.7, lowpass: 1100 };
 // голоса заражённых: высота записи и громкость
-const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 }, elite: { rate: 0.46, gain: 1.0 } };
+const VOICES = { runner: { rate: 1.02, gain: 0.55 }, stomper: { rate: 0.72, gain: 0.75 }, ruber: { rate: 0.58, gain: 0.9 }, elite: { rate: 0.46, gain: 1.0 }, skreber: { rate: 0.36, gain: 1.15 } };
 // перезарядка по устройству оружия
 const RELOADS = { glock17: 'pistol', deagle: 'pistol', dbarrel: 'obrez', spas12: 'pump', rpk: 'belt', rpg7: 'rocket', rg6: 'drum' };
 

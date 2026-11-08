@@ -270,6 +270,8 @@ export default {
 			const b = HOUSES[id](bctx, { name: id, cx: s.x, cz: s.z, ry: s.ry });
 			buildings.push(b);
 			resident(id, b);
+			// верстак в мастерской: крафт из ресурсов (game/craft.js)
+			if (b.bench) stations.push({ id: 'craft', name: 'Верстак', label: 'Крафт', x: b.bench.x, z: b.bench.z, r: 1.6 });
 			if (b.spawn) spawn = b.spawn;
 		}
 		// тир: огневой рубеж под навесом на юге, мишени-силуэты на севере, по бокам — мешки, позади — земляной вал

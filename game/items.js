@@ -24,11 +24,21 @@ export const ITEMS = {
 	zhivchik: { name: 'Живчик', forms: ['живчик', 'живчика', 'живчиков'], desc: 'Напиток из споранов. Без него иммунному не пройти по Улью: каждый переход между кластерами на дороге — живчик, дальний путь — несколько. Продаёт торговец, варят знахарь и медпункт базы. Как спораны и жемчуг, при гибели остаётся при тебе.' },
 	spore: { name: 'Споран', forms: ['споран', 'спорана', 'споранов'], desc: 'Споровый мешок из затылка заражённого — валюта Улья. В стабе на них покупают оружие и патроны.' },
 	pearl: { name: 'Чёрная жемчужина', forms: ['жемчужина', 'жемчужины', 'жемчужин'], use: 'Съесть', desc: 'Редчайшая находка Улья — бывает в споровых мешках руберов и элиты. Знахари говорят, она развивает дар; иммунного делает крепче: съешь — здоровье навсегда +20. Торговец в стабе даёт за неё 150 споранов. Как и спораны с горохом, при гибели остаётся при тебе.' },
+	redpearl: { name: 'Красная жемчужина', forms: ['красная жемчужина', 'красные жемчужины', 'красных жемчужин'], use: 'Съесть', desc: 'Багровая жемчужина из спорового мешка скребера — хозяина Провала; у элиты бывает изредка. Съешь — здоровье навсегда +40 (предел выше, чем от чёрных — до 300). Торговец в стабе даёт за неё 600 споранов. При гибели остаётся при тебе.' },
 	peas: { name: 'Горох', forms: ['горошина', 'горошины', 'горошин'], desc: 'Горошины из споровых мешков топтунов и руберов. Торговец в стабе меняет каждую на 5 споранов.' },
+	// ресурсы (game/economy.js): из тайников, производства базы и караванов; на них крафт, постройки, машина
+	scrap: { name: 'Металлолом', type: 'res', forms: ['кусок металлолома', 'куска металлолома', 'кусков металлолома'], desc: 'Обрезки труб, листы, арматура. Из него на верстаке — детали, патроны и гранаты; разборка на базе добывает его сама. Много в гаражах, на заводах и в порту.' },
+	parts: { name: 'Детали', type: 'res', forms: ['деталь', 'детали', 'деталей'], desc: 'Болты, пружины, подшипники, шестерни. Нужны на верстаке (гранаты, доработки), для ремонта машины и построек. Мастерская базы собирает их из металлолома.' },
+	powder: { name: 'Порох', type: 'res', forms: ['мешочек пороха', 'мешочка пороха', 'мешочков пороха'], desc: 'Порох и капсюли — из него на верстаке снаряжают патроны и гранаты. Бывает на военных складах и в тюремной оружейной; пороховой цех базы делает его из химии и металлолома.' },
+	chem: { name: 'Химия', type: 'res', forms: ['банка химии', 'банки химии', 'банок химии'], desc: 'Реактивы и медикаменты. Из них — аптечки, живчик и порох. Больницы, НИИ, лаборатории; химлаборатория базы гонит её из споранов.' },
+	fuel: { name: 'Бензин', type: 'res', forms: ['канистра бензина', 'канистры бензина', 'канистр бензина'], desc: 'Канистра на 10 литров. Генератор базы жжёт её, машина — ездит на ней по карте Улья без живчика. Больше всего — на нефтебазе, в гаражах и у бензовозов.' },
+	food: { name: 'Консервы', type: 'res', forms: ['банка консервов', 'банки консервов', 'банок консервов'], desc: 'Тушёнка и каша в банках. Жители базы едят каждый день: голодные работают хуже и уходят. Магазины, склады, торговый центр; огород базы растит еду сам.' },
 };
 
 /** Порядок предметов в рюкзаке. */
-export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'ammo127', 'vog25', 'rocket', 'grenade', 'medkit', 'zhivchik', 'pearl', 'spore', 'peas'];
+export const BAG_ORDER = ['ammo919', 'ammo50', 'ammo12', 'ammo545', 'ammo556', 'ammo762', 'ammo76251', 'ammo76254', 'ammo127', 'vog25', 'rocket', 'grenade', 'medkit', 'zhivchik', 'pearl', 'redpearl', 'spore', 'peas', 'scrap', 'parts', 'powder', 'chem', 'fuel', 'food'];
+/** Ресурсы базы и крафта (game/economy.js). */
+export const RESOURCES = ['scrap', 'parts', 'powder', 'chem', 'fuel', 'food'];
 /** Всё, что лежит в рюкзаке (при гибели пропадает, кроме валюты — см. stash.js). */
 export const CONSUMABLES = BAG_ORDER;
 
@@ -192,6 +202,59 @@ export function makeItemMesh(kind) {
 		const geo = new THREE.SphereGeometry(0.035, 12, 10);
 		[[0, 0.035, 0], [0.065, 0.035, 0.01], [-0.06, 0.035, 0.02], [0.02, 0.035, 0.06], [-0.02, 0.035, -0.055], [0.01, 0.095, 0.01]]
 			.forEach((p) => { const m = new THREE.Mesh(geo, pea); m.position.set(...p); g.add(m); });
+	} else if (kind === 'scrap') {
+		// металлолом: обрезок трубы, мятый лист и арматура
+		const rust = mat({ color: 0x8a5a3a, roughness: 0.75, metalness: 0.5 });
+		const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.26, 10), rust);
+		pipe.rotation.set(0, 0.4, Math.PI / 2); pipe.position.y = 0.035;
+		const sheet = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.01, 0.14), mat({ color: 0x6a6460, roughness: 0.6, metalness: 0.6 }));
+		sheet.rotation.set(0.15, -0.3, 0.1); sheet.position.set(0.02, 0.08, 0.03);
+		const bar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.014, 0.014), rust);
+		bar.rotation.y = 1.1; bar.position.set(-0.02, 0.012, -0.04);
+		g.add(pipe, sheet, bar);
+	} else if (kind === 'parts') {
+		// детали: шестерня, пружина и болты в ящичке
+		const steel = mat({ color: 0xb8bcc0, roughness: 0.35, metalness: 0.85 });
+		const tray = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.16), mat({ color: 0x3a4a2a, roughness: 0.8 }));
+		tray.position.y = 0.025;
+		const gear = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), steel);
+		gear.position.set(-0.04, 0.06, 0.01);
+		const spring = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.006, 4, 12), steel);
+		spring.rotation.x = Math.PI / 2; spring.position.set(0.05, 0.06, -0.02);
+		g.add(tray, gear, spring);
+	} else if (kind === 'powder') {
+		// порох: холщовый мешочек, перевязанный бечёвкой
+		const bag = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10).scale(1, 1.15, 1), mat({ color: 0x6a6450, roughness: 0.95 }));
+		bag.position.y = 0.09;
+		const tie = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.05, 8), mat({ color: 0x4a4436, roughness: 0.9 }));
+		tie.position.y = 0.19;
+		g.add(bag, tie);
+	} else if (kind === 'chem') {
+		// химия: тёмная банка с этикеткой и крышкой
+		const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 12), mat({ color: 0x2a4a5a, roughness: 0.2, transparent: true, opacity: 0.9 }));
+		jar.position.y = 0.08;
+		const label = new THREE.Mesh(new THREE.CylinderGeometry(0.061, 0.061, 0.06, 12, 1, true), mat({ color: 0xe0dcc8, roughness: 0.8 }));
+		label.position.y = 0.08;
+		const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.064, 0.064, 0.025, 12), mat({ color: 0xc8a020, roughness: 0.5 }));
+		lid.position.y = 0.17;
+		g.add(jar, label, lid);
+	} else if (kind === 'fuel') {
+		// канистра: красная, с ручкой и горловиной
+		const red = mat({ color: 0xa02a20, roughness: 0.45, metalness: 0.3 });
+		const can = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.1), red);
+		can.position.y = 0.12;
+		const handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.03), red);
+		handle.position.set(-0.01, 0.26, 0);
+		const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.04, 8), mat({ color: 0x2a2a2a, roughness: 0.5 }));
+		neck.position.set(0.055, 0.26, 0);
+		g.add(can, handle, neck);
+	} else if (kind === 'food') {
+		// консервы: две жестяные банки, одна на боку
+		const tin = mat({ color: 0xa8acb0, roughness: 0.35, metalness: 0.8 }), lab = mat({ color: 0x8a3a2a, roughness: 0.7 });
+		const a = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 12), tin); a.position.set(-0.03, 0.05, 0);
+		const al = new THREE.Mesh(new THREE.CylinderGeometry(0.051, 0.051, 0.05, 12, 1, true), lab); al.position.set(-0.03, 0.05, 0);
+		const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 12), tin); b.rotation.z = Math.PI / 2; b.position.set(0.07, 0.05, 0.04);
+		g.add(a, al, b);
 	} else if (kind === 'tag') {
 		// жетон пропавшего: стальная пластинка на цепочке
 		const steel = mat({ color: 0xb8bcc0, roughness: 0.3, metalness: 0.85 });
@@ -200,6 +263,13 @@ export function makeItemMesh(kind) {
 		const chain = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.004, 4, 16), steel);
 		chain.rotation.x = Math.PI / 2; chain.position.set(-0.05, 0.005, 0);
 		g.add(plate, chain);
+	} else if (kind === 'redpearl') {
+		// красная жемчужина: багровый перламутр с внутренним огнём, в обрывке спорового мешка
+		const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.07, 24, 18), mat({ color: 0x6a0a0a, roughness: 0.05, metalness: 0.7, emissive: 0x5a0808, emissiveIntensity: 0.9 }));
+		pearl.position.y = 0.085;
+		const sac = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45), mat({ color: 0x5a3a30, roughness: 0.7, side: THREE.DoubleSide }));
+		sac.position.y = 0.1;
+		g.add(pearl, sac);
 	} else if (kind === 'pearl') {
 		// чёрная жемчужина: глубокий чёрный перламутр с фиолетовым отливом, в обрывке спорового мешка
 		const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.06, 24, 18), mat({ color: 0x0c0a12, roughness: 0.05, metalness: 0.75, emissive: 0x1a1030, emissiveIntensity: 0.6 }));
@@ -241,4 +311,4 @@ function mergeByMaterial(g) {
 }
 
 /** Цвет свечения предмета на земле (r,g,b). */
-export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', ammo127: '255,210,140', vog25: '220,240,160', rocket: '255,180,110', grenade: '255,200,120', weapon: '200,220,255', medkit: '255,140,140', zhivchik: '170,255,180', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', tag: '255,240,200' };
+export const GLOW = { ammo919: '200,220,255', ammo50: '255,220,120', ammo12: '255,190,120', ammo545: '230,230,150', ammo556: '200,240,200', ammo762: '220,230,170', ammo76251: '240,220,180', ammo76254: '255,230,160', ammo127: '255,210,140', vog25: '220,240,160', rocket: '255,180,110', grenade: '255,200,120', weapon: '200,220,255', medkit: '255,140,140', zhivchik: '170,255,180', spore: '170,255,120', peas: '200,255,140', pearl: '190,170,255', redpearl: '255,90,70', tag: '255,240,200', scrap: '230,190,150', parts: '210,220,230', powder: '230,220,170', chem: '170,220,255', fuel: '255,150,120', food: '240,210,160' };

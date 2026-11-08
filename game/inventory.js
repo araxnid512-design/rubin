@@ -59,6 +59,7 @@ export class Inventory {
 		const W = WEAPONS[kind];
 		if (kind === 'medkit') g.drink();
 		else if (kind === 'pearl') g.eatPearl();
+		else if (kind === 'redpearl') g.eatRedPearl();
 		else if (W && kit.gear[W.slot] === kind) {
 			// оружие из слота — в руки (смена анимацией после закрытия рюкзака)
 			if (p.weapon !== kind) { this.close(); g.hold(W.slot); return; }
@@ -141,6 +142,11 @@ export class Inventory {
 			btn.classList.remove('hidden');
 			const full = (g.perks?.maxHp ?? 100) >= 200; // предел, до которого растёт здоровье от жемчуга
 			btn.textContent = full ? 'Здоровье на пределе' : `${it.use} (здоровье +20 навсегда)`;
+			btn.disabled = full;
+		} else if (kind === 'redpearl' && g.bag.redpearl > 0) {
+			btn.classList.remove('hidden');
+			const full = (g.perks?.maxHp ?? 100) >= 300; // предел от красных жемчужин
+			btn.textContent = full ? 'Здоровье на пределе' : `${it.use} (здоровье +40 навсегда)`;
 			btn.disabled = full;
 		} else if (W && kit.gear[W.slot] === kind && p.weapon !== kind) {
 			btn.classList.remove('hidden');

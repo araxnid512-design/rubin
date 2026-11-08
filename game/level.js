@@ -1,4 +1,4 @@
-// Локация 132×132 м (HALF в props.js): кластер (кусок мира, перенесённый в Улей) или стаб.
+// Локация 132×132 м или больше (HALF в props.js — у каждой своя, поле half): кластер (кусок мира, перенесённый в Улей) или стаб.
 // Общее для всех локаций: земля, материалы, деревья, мелочи, трава, муть по краям, выходы,
 // навигация. Своё у каждой — в game/locations/*.js.
 // Статика сливается в несколько мешей по материалам; препятствия → коллайдеры и сетка навигации.
@@ -9,7 +9,7 @@ import { applyChanges } from './changes.js';
 import { Batch, box, place, planeXZ, beginProp, endProp, PROPS } from './geom.js';
 import { envKinds, placeEnvProps } from './env-props.js';
 import { Fader, segmentHitsBox } from './buildings.js';
-import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS } from './props.js';
+import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS, setHalf } from './props.js';
 import { dressLevel } from './dressing.js';
 import { NODES } from './world.js';
 import { groundVariation, scatterGroundDetail } from './ground-detail.js';
@@ -29,11 +29,17 @@ import bor from './locations/bor.js';
 import vokzal from './locations/vokzal.js';
 import mikro from './locations/mikro.js';
 import aerodrom from './locations/aerodrom.js';
+import port from './locations/port.js';
+import neftebaza from './locations/neftebaza.js';
+import tyurma from './locations/tyurma.js';
+import tc from './locations/tc.js';
+import shahta from './locations/shahta.js';
+import proval from './locations/proval.js';
 
 export { HALF, PLAY };
 /** Участок, м: статика, деревья и трава собраны по участкам — видеокарта рисует только те, что в кадре. */
 const CHUNK = 33;
-export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base, forpost, bor, vokzal, mikro, aerodrom };
+export const LOCATIONS = { zarechny, dachi, stab, himmash, voench, murs, bolnica, lesopilka, podstanciya, nii, base, forpost, bor, vokzal, mikro, aerodrom, port, neftebaza, tyurma, tc, shahta, proval };
 
 /** Материалы локации (один экземпляр на тип — для слияния). */
 function materials() {
@@ -97,6 +103,7 @@ function materials() {
  */
 export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = null, variant = 0 } = {}) {
 	const L = LOCATIONS[id];
+	setHalf(L.half); // свой размер у локации (по умолчанию 132×132 м)
 	const rnd = T.mulberry(L.seed);
 	const R = (a, b) => a + (b - a) * rnd();
 	const root = new THREE.Group();
@@ -252,7 +259,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 	const nav = makeNav(colliders);
 	const exits = (spec.exits ?? []).map((e) => ({ ...e, spawn: new THREE.Vector3(e.spawn[0], 0, e.spawn[1]), ry: e.spawn[2] }));
 	return {
-		id, variant, root, colliders, nav, buildings, exits, changes,
+		id, variant, root, colliders, nav, buildings, exits, changes, half: HALF,
 		barrels: dressing.barrels, // бочки с горючим (взрываются — game/main.js)
 		containers: buildings.flatMap((b) => b.containers),
 		groups: spec.groups ?? [],
@@ -395,15 +402,16 @@ export const CELL = 0.5;
 
 /** Сетка CELL×CELL: занятые клетки (с запасом под радиус персонажа). */
 export function makeNav(colliders, pad = 0.35) {
-	const N = Math.round((HALF * 2) / CELL);
+	const H = HALF, P = PLAY; // размер этой локации (HALF — живое значение, у следующей локации может быть другим)
+	const N = Math.round((H * 2) / CELL);
 	const blocked = new Uint8Array(N * N);
-	const center = (g) => g * CELL - HALF + CELL / 2;
+	const center = (g) => g * CELL - H + CELL / 2;
 	const inside = (c, x, z, p) => {
 		const dx = x - c.x, dz = z - c.z;
 		const lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
 		return Math.abs(lx) <= c.hx + p && Math.abs(lz) <= c.hz + p;
 	};
-	const cellOf = (v) => Math.floor((v + HALF) / CELL);
+	const cellOf = (v) => Math.floor((v + H) / CELL);
 	for (const c of colliders) {
 		const r = Math.hypot(c.hx, c.hz) + pad + CELL;
 		for (let gz = Math.max(0, cellOf(c.z - r)); gz < Math.min(N, cellOf(c.z + r) + 1); gz++) {
@@ -419,7 +427,7 @@ export function makeNav(colliders, pad = 0.35) {
 		/** Центр клетки в мировых координатах. */
 		center,
 		blockedAt(x, z, p = 0) {
-			if (Math.abs(x) > PLAY || Math.abs(z) > PLAY) return true;
+			if (Math.abs(x) > P || Math.abs(z) > P) return true;
 			return colliders.some((c) => inside(c, x, z, p));
 		},
 		/** Коллайдер, в котором точка (или null). */

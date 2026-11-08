@@ -6,10 +6,12 @@
 import { NODES } from './world.js';
 import { HALF, PLAY } from './level.js';
 
-const S = 10; // пикселей на метр
-const SIZE = HALF * 2 * S;
+// пикселей на метр: 10, у больших локаций меньше — план не больше 1440 px (память телефона); SIZE — сторона плана
+let S = 10, SIZE = HALF * 2 * S;
 const $ = (id) => document.getElementById(id);
 const toPx = (v) => (v + HALF) * S;
+/** Масштаб плана под размер текущей локации (HALF — живое значение из props.js). */
+function fitScale() { S = Math.min(10, Math.floor(1440 / (HALF * 2))); SIZE = HALF * 2 * S; }
 
 const GROUND = { asphalt: '#4b4d4f', dirt: '#8a7550', concrete: '#9c9a91', sand: '#b8a27a' };
 const TREE = { birch: ['#5f7c37', 1.7], pine: ['#33502c', 1.9], apple: ['#7d8c3c', 1.7] };
@@ -25,6 +27,7 @@ export const exitLabel = (e) => (e.to ? NODES[e.to].short : 'карта Улья
 
 /** Нарисовать план локации в canvas (SIZE×SIZE, север сверху). */
 export function drawPlan(level) {
+	fitScale();
 	const c = document.createElement('canvas');
 	c.width = c.height = SIZE;
 	const g = c.getContext('2d');
@@ -202,6 +205,7 @@ export class LocationMap {
 		// герой: стрелка по направлению взгляда
 		const deg = 180 - (p.root.rotation.y * 180) / Math.PI;
 		svg.push(`<g transform="translate(${toPx(p.pos.x)} ${toPx(p.pos.z)}) rotate(${deg})"><circle r="26" class="lm-you-pulse"/><path d="M0 -24 L16 16 L0 7 L-16 16 Z" class="lm-you"/></g>`);
+		$('lm-svg').setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`); // план — SIZE×SIZE (было 1000 при плане 1320 — значки съезжали)
 		$('lm-svg').innerHTML = svg.join('');
 		const left = L.containers.filter((c) => !c.searched).length;
 		$('lm-info').innerHTML = `

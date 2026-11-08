@@ -27,6 +27,13 @@ export const SHOP = [
 	{ id: 'zhivchik', n: 1, price: 6, sec: 'Разное' },
 	{ id: 'zhivchik', n: 5, price: 27, sec: 'Разное' },
 	{ id: 'grenade', n: 1, price: 10, sec: 'Разное' },
+	// ресурсы базы (game/economy.js): у торговца дороже, чем караваном
+	{ id: 'fuel', n: 1, price: 14, sec: 'Ресурсы' },
+	{ id: 'parts', n: 2, price: 18, sec: 'Ресурсы' },
+	{ id: 'powder', n: 2, price: 16, sec: 'Ресурсы' },
+	{ id: 'chem', n: 2, price: 14, sec: 'Ресурсы' },
+	{ id: 'food', n: 3, price: 12, sec: 'Ресурсы' },
+	{ id: 'scrap', n: 5, price: 12, sec: 'Ресурсы' },
 ];
 /** Барыга «Карьера» (game/murs.js — отношения): только стволы муров, их патроны, гранаты, аптечки и живчики. */
 export const MUR_SHOP = new Set(['aks', 'ak74', 'ak47', 'rpk', 'svd', 'ammo545', 'ammo762', 'ammo76254', 'grenade', 'medkit', 'zhivchik']);
@@ -34,8 +41,8 @@ export const MUR_SHOP = new Set(['aks', 'ak74', 'ak47', 'rpk', 'svd', 'ammo545',
 export const MUR_PRICE_K = { friend: 0.85, neutral: 1.1 };
 /** Торговец покупает за такую долю цены прилавка (топор — ещё и по износу). */
 export const SELL_RATE = 0.4;
-/** Что можно продать, кроме оружия: патроны всех калибров и гранаты. */
-export const SELLABLE = [...Object.keys(AMMO), 'grenade'];
+/** Что можно продать, кроме оружия: патроны всех калибров, гранаты и ресурсы. */
+export const SELLABLE = [...Object.keys(AMMO), 'grenade', 'scrap', 'parts', 'powder', 'chem', 'fuel', 'food'];
 /** Пачка вида kind на прилавке (самая маленькая): { n, price } — по ней считается цена продажи. */
 export function packOf(kind) {
 	return SHOP.filter((o) => o.id === kind).sort((a, b) => a.n - b.n)[0] ?? null;
@@ -81,6 +88,7 @@ export class Trade {
 		$('trade-peas-1').onclick = () => { this.game.exchangePeas(1); this.render(); };
 		$('trade-peas-all').onclick = () => { this.game.exchangePeas(this.game.bag.peas ?? 0); this.render(); };
 		$('trade-pearl').onclick = () => { this.game.sellPearl(); this.render(); };
+		$('trade-redpearl').onclick = () => { this.game.sellRedPearl(); this.render(); };
 	}
 
 	get isOpen() { return !this.el.classList.contains('hidden'); }
@@ -168,7 +176,7 @@ export class Trade {
 		const sec = (t) => `<div class="trade-sec">${t}</div>`;
 		const empty = (t) => `<div class="muted sell-empty">${t}</div>`;
 		return sec('Оружие при себе') + (guns.length ? guns.join('') : empty('Нечего продать: оружие в хранилище продаётся, только если взять его с собой'))
-			+ sec('Патроны и гранаты') + (goods.length ? goods.join('') : empty('Патронов и гранат нет'));
+			+ sec('Патроны, гранаты, ресурсы') + (goods.length ? goods.join('') : empty('Патронов, гранат и ресурсов нет'));
 	}
 
 	renderExchange() {
@@ -179,5 +187,7 @@ export class Trade {
 		const pearls = bag.pearl ?? 0;
 		$('trade-pearls').textContent = pearls;
 		$('trade-pearl').disabled = pearls < 1;
+		$('trade-redpearls').textContent = bag.redpearl ?? 0;
+		$('trade-redpearl').disabled = !(bag.redpearl > 0);
 	}
 }

@@ -25,7 +25,9 @@ import { WEAPONS, AMMO, MOUNTS, CLIPS, EQUIP, makeGrenade, REMOVED, realId } fro
 import { loadTripoWeapons } from './tripo-weapons.js';
 import { gunStats, decorateGun, addMod, cantMod, MODS, ModsWindow } from './mods.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES } from './items.js';
+import { ITEMS, plural, makeItemMesh, GLOW, CONSUMABLES, RESOURCES } from './items.js';
+import { WORK, RECIPES, CAR, MARKETS, REFUGEE_PRICE, WAGE, normalizeEconomy, tickEconomy, sendCaravan, newPerson, peopleCap, workersOn, idlePeople, priceOf, sellValue, buyCost, powered, rollResources } from './economy.js';
+import { CraftWindow } from './craft.js';
 import { createIconFactory } from './icons.js';
 import { leftHandIK, handGrasp } from './hand-ik.js';
 import { loadEnvProps } from './env-props.js';
@@ -36,10 +38,10 @@ import { createMuzzleFlashes } from './muzzle.js';
 import { createParticles, createChunks, rgb } from './particles.js';
 import { OFFLINE } from './assets.js';
 import { clothVariants, dressZombie, bodyVariation } from './variety.js';
-import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, BASE_BEDS, MERC_HEAL, newMerc, PartyWindow, BASE_POSTS, BASE_POSTS_BARRACKS, TRIP_WORK, resolveTrip, RANKS, RANK_BONUS, XP_KILL, XP_SORTIE, XP_TRIP, rankOf, mercMaxHp } from './mercs.js';
+import { MERCS, CLASSES, MAX_PARTY, ROOM_BEDS, BASE_BEDS, MERC_HEAL, newMerc, PartyWindow, BASE_POSTS, BASE_POSTS_BARRACKS, TRIP_WORK, resolveTrip, RANKS, RANK_BONUS, XP_KILL, XP_SORTIE, XP_TRIP, rankOf, mercMaxHp, fullAmmo, KIT_FULL } from './mercs.js';
 import { Inventory } from './inventory.js';
-import { Trade, PEA_RATE, PEARL_PRICE, sellPrice, SELLABLE } from './trade.js';
-import { BUILDINGS, raid as raidBase, cantBuy, build as buildOnBase, cantUpgrade, upgrade as upgradeOnBase, level as baseLevel, tickBase, collect as collectStock, perks as basePerks, defense as baseDefense } from './base.js';
+import { Trade, PEA_RATE, PEARL_PRICE, sellPrice, SELLABLE, packOf } from './trade.js';
+import { BUILDINGS, raid as raidBase, cantBuy, build as buildOnBase, cantUpgrade, upgrade as upgradeOnBase, level as baseLevel, tickBase, collect as collectStock, perks as basePerks, defense as baseDefense, plunder as plunderBase } from './base.js';
 import { TerminalWindow, stockText } from './terminal.js';
 import { StashWindow, newStash, normalizeStash, CURRENCY, STORABLE } from './stash.js';
 import { IntelWindow, INTEL_PRICE, TOPICS, intelText, topicText } from './intel.js';
@@ -671,7 +673,7 @@ const ZONE_LOOT = {
 };
 // живчик в описаниях тайников (аптечные шкафчики, врачи) — это лечение: теперь аптечка; живчик на дорогу — по поясу (ZONE_LOOT)
 const LOOT_AS = { zhivchik: 'medkit' };
-function rollLoot(spec, danger = 1) {
+function rollLoot(spec, danger = 1, loc = null) {
 	const out = [];
 	const roll = (table, as = null) => {
 		for (const [k, v] of Object.entries(table)) {
@@ -682,6 +684,8 @@ function rollLoot(spec, danger = 1) {
 	};
 	roll(spec, LOOT_AS);
 	if (ZONE_LOOT[danger] && Object.keys(spec).length) roll(ZONE_LOOT[danger]);
+	// ресурсы базы (game/economy.js): у каждой локации свой уклон — бензин на нефтебазе, химия в больнице…
+	if (loc && Object.keys(spec).length) out.push(...rollResources(loc));
 	return out;
 }
 
@@ -858,6 +862,25 @@ function firePellets(shooter, W, from, target) {
 		if (i % 2 === 0) game.tracer(from, new THREE.Vector3(pos.x + dx * bt, best ? 1.1 * best.scale : from.y * 0.5, pos.z + dz * bt));
 	}
 	for (const [e, dmg] of hits) e.damage(dmg, pos, Math.min(1.2, dmg / 60));
+}
+
+/**
+ * УАЗ героя (машина из гаража базы): кузов, кабина с окнами, запаска, колёса; сломанный — с поднятым капотом и чёрным
+ * дымом нет (дешевле): просто ржавее. Начало — центр машины на земле, перед — к +Z.
+ */
+function makeUaz(broken = false) {
+	const g = new THREE.Group(), mat = (o) => new THREE.MeshStandardMaterial(o);
+	const body = mat({ color: broken ? 0x5a4a36 : 0x4a5a3a, roughness: 0.7, metalness: 0.3 });
+	const dark = mat({ color: 0x1a1d1e, roughness: 0.15, metalness: 0.5 }), tire = mat({ color: 0x18181a, roughness: 0.9 });
+	const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+	add(new THREE.BoxGeometry(1.8, 0.75, 4.0), body, 0, 0.85, 0);
+	add(new THREE.BoxGeometry(1.74, 0.8, 2.3), body, 0, 1.6, -0.45);
+	add(new THREE.BoxGeometry(1.6, 0.5, 0.05), dark, 0, 1.68, 0.71);
+	for (const x of [-0.88, 0.88]) add(new THREE.BoxGeometry(0.05, 0.46, 1.9), dark, x, 1.66, -0.45);
+	add(new THREE.CylinderGeometry(0.36, 0.36, 0.24, 14).rotateZ(Math.PI / 2), tire, 0, 1.0, -2.1).rotation.y = Math.PI / 2;
+	for (const [x, z] of [[-0.86, 1.25], [0.86, 1.25], [-0.86, -1.25], [0.86, -1.25]]) add(new THREE.CylinderGeometry(0.4, 0.4, 0.28, 14).rotateZ(Math.PI / 2), tire, x, 0.4, z);
+	if (broken) add(new THREE.BoxGeometry(1.7, 0.05, 1.0), body, 0, 1.5, 1.6).rotation.x = -0.9; // капот поднят
+	return g;
 }
 
 const ONE_SHOT = new Set(['Melee', 'Shoot', 'ShootRifle', 'Hit', 'HitPistol', 'HitRifle', 'Reload', 'ReloadRifle', 'EquipPistol', 'EquipAxe', 'EquipRifle', 'EquipAxeR']);
@@ -1229,6 +1252,8 @@ function dirSpeed(rel) {
 const PEARL_CHANCE = 0.25;
 /** Чёрная жемчужина: на сколько навсегда растёт здоровье и до какого предела. */
 const PEARL_HP = 20, MAX_HP_CAP = 200;
+/** Красная жемчужина (с элиты — изредка, со скребера — всегда): здоровье навсегда +RED_PEARL_HP, свой предел выше; торговец — RED_PEARL_PRICE. */
+const RED_PEARL_HP = 40, RED_HP_CAP = 300, RED_PEARL_ELITE = 0.12, RED_PEARL_PRICE = 600;
 /** Как быстро гаснет толчок от попадания (1/с): весь отъезд тела = сила толчка. */
 const PUSH_DECAY = 9;
 /**
@@ -1250,6 +1275,7 @@ const POSTURE = {
 	stomper: { lean: 11, run: 4, head: 8, reach: 0, sway: 6, tilt: 6, turn: 1, lurch: 0 },
 	ruber: { lean: 14, run: 12, head: -10, reach: 14, sway: 3, tilt: 4, turn: 1.25, lurch: 0 },
 	elite: { lean: 16, run: 12, head: -10, reach: 16, sway: 3, tilt: 3, turn: 1.35, lurch: 0 },
+	skreber: { lean: 20, run: 14, head: -14, reach: 20, sway: 4, tilt: 2, turn: 1.2, lurch: 0 },
 };
 const TRIPO_BONES = { waist: 'Waist', spine: 'Spine01', chest: 'Spine02', neck: 'NeckTwist01', head: 'Head', armL: 'L_Upperarm', armR: 'R_Upperarm' };
 const _zq = new THREE.Quaternion();
@@ -1295,6 +1321,10 @@ const ENEMY_TYPES = {
 	// элита: высшая стадия — рубер-переросток, почти чёрный, в толстой броне; быстрее и злее, рывки длиннее,
 	// раны затягивает (regen, ед./с — через 4 с без попаданий); рёв поднимает всех вокруг. Модель — рубера
 	elite: { hp: 1400, speed: 3.0, charge: 8.2, scale: 1.34, radius: 0.72, damage: 48, knock: 2.2, range: 2.3, hitTime: 0.45, attackAnim: 1.15, attack: 'Attack', move: 'Walk', gait: RUBER_GAIT, score: 12, heavy: 8, stagger: 0.01, sight: 22, armor: 14, roar: true, regen: 10, model: 'ruber' },
+	// скребер (2026-11-08): высшая стадия после элиты, логово — «Провал»; огромный, в костяных наростах, тёмно-багровый.
+	// Каждый удар — по земле (slam, м): задевает всех вокруг вполсилы и сбивает с ног; рёв зовёт бегунов из мути (call);
+	// раны затягивает быстрее элиты. С него — красная жемчужина
+	skreber: { hp: 4200, speed: 3.2, charge: 9.0, scale: 1.8, radius: 0.95, damage: 64, knock: 3.0, range: 2.9, hitTime: 0.5, attackAnim: 1.05, attack: 'Attack', move: 'Walk', gait: RUBER_GAIT, score: 30, heavy: 14, stagger: 0.004, sight: 28, armor: 22, roar: true, regen: 16, slam: 4.8, call: 5, model: 'ruber' },
 };
 
 class Enemy extends Actor {
@@ -1326,9 +1356,10 @@ class Enemy extends Actor {
 		// у каждого свой рост и сложение, одежда и оттенок кожи
 		const body = bodyVariation();
 		this.model.scale.set(T.scale * body.s * body.w, T.scale * body.s, T.scale * body.s * body.w);
-		dressZombie(this, clothSets[type], { recolor: type !== 'ruber' && type !== 'elite' });
-		// элита — почти чёрная, с багровым отливом и тлеющими глазами
+		dressZombie(this, clothSets[type], { recolor: type !== 'ruber' && type !== 'elite' && type !== 'skreber' });
+		// элита — почти чёрная, с багровым отливом и тлеющими глазами; скребер — тёмно-багровый, глаза горят, тело тлеет
 		if (type === 'elite') this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) { m.color?.multiply(new THREE.Color(0.34, 0.27, 0.3)); if (/eye/i.test(m.name)) m.emissive?.setRGB(0.9, 0.12, 0.05); } });
+		if (type === 'skreber') this.model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) { m.color?.multiply(new THREE.Color(0.62, 0.22, 0.2)); m.emissive?.setRGB(0.09, 0.0, 0.0); if (/eye/i.test(m.name)) m.emissive?.setRGB(1.0, 0.25, 0.05); } });
 		this.maxHp = T.hp;
 		this.scale = T.scale * body.s;
 		// длина шага — по масштабу модели вдоль хода (сложение w растягивает и его): с ним темп клипа — без скольжения
@@ -1367,6 +1398,7 @@ class Enemy extends Actor {
 			this.play('Roar', { once: true, fade: 0.15, restart: true });
 			Sfx.roar(game.ear(this.pos));
 			if (this.type === 'elite' && !game.eliteWarned) { game.eliteWarned = true; game.banner('Элита!', 'Высшая стадия заражённого: толстая броня, длинные рывки, раны затягивает. Не стой на месте — и не отпускай её отдышаться'); }
+			if (this.type === 'skreber') { game.banner('Скребер!', 'Хозяин Провала: броня, которую не пробить пистолетом, удар по земле сбивает с ног всех вокруг, рёв зовёт стаю. Бей издалека и не стой рядом'); game.skreberCall(this); }
 			const near = clamp01(1 - this.pos.distanceTo(game.player.pos) / 20);
 			game.shake = Math.min(1, game.shake + near * 0.35);
 			for (const o of game.enemies) if (o !== this && o.state === 'idle' && o.pos.distanceTo(this.pos) < 18) setTimeout(() => o.alert(), 400 + Math.random() * 700);
@@ -1591,6 +1623,8 @@ class Enemy extends Actor {
 				this.hitDone = true;
 				if (p.alive && dist < this.T.range + 0.6) byWho(this, () => p.hurt(p.dry ? p.hp : this.T.damage * (1 + 0.3 * (game.rage ?? 0)), this.pos, this.T.knock)); // боец без патронов не отобьётся; в кисляк — злее
 				if (this.T.knock) { const near = clamp01(1 - dist / 12); game.shake = Math.min(1, game.shake + near * 0.4); Sfx.thud(); }
+				// скребер бьёт по земле: всех вокруг (кроме цели) — вполсилы и с ног
+				if (this.T.slam) game.slam(this, p);
 			}
 			// во время выпада тело немного продвигается вперёд
 			if (this.timer < 0.9) this.root.rotation.y = turnTowards(this.root.rotation.y, angleTo(this.pos, p.pos), dt * 4);
@@ -3020,6 +3054,7 @@ const game = {
 		if (kind === 'cluster' || kind === 'ext') for (const st of this.party) st.sortie = true;
 		if (kind === 'stab' || kind === 'base' || kind === 'murs') this.dropTempMercs('home');
 		if (kind === 'stab' || kind === 'base') for (const st of this.party) if (st.sortie) { st.sortie = false; this.awardXp(st, XP_SORTIE, 'вылазка'); }
+		if (kind === 'stab' || kind === 'base') this.resupplyMercs(true); // дома — патроны из казны базы
 		// вернулись домой (в стаб или на базу): уцелевшие бойцы отряда, кто здесь живёт, расходятся по своим местам —
 		// снова брать с собой там; живущие в другом месте идут дальше с героем
 		const here = level.room ? 'stab' : level.mercSpots ? 'base' : null;
@@ -3027,6 +3062,7 @@ const game = {
 		for (const st of backSt) st.out = false;
 		const back = backSt.map((st) => MERCS[st.id].name);
 		this.spawnMercs();
+		this.placeCar(spot);
 		if (back.length) this.toast(`${back.join(' и ')} — ${here === 'stab' ? `у ${back.length > 1 ? 'своих коек' : 'своей койки'} в твоей комнате` : 'на базе, у казармы'}`);
 		this.reloadFx(Infinity);
 		this.hud();
@@ -3055,7 +3091,7 @@ const game = {
 			if (hordeHere && !list.some((e) => e?.hordeLead) && !this.enemies.some((e) => e.alive && e.hordeLead)) this.spawnHorde(null);
 			level.containers.forEach((c, i) => {
 				const s = saved.containers[i];
-				c.items = s ? s.items : rollLoot(c.loot, NODES[this.loc].danger ?? 1);
+				c.items = s ? s.items : rollLoot(c.loot, NODES[this.loc].danger ?? 1, this.loc);
 				c.searched = s ? s.searched : false;
 				c.spark.visible = !c.searched;
 			});
@@ -3088,7 +3124,7 @@ const game = {
 		};
 		// состав — случайный на каждый цикл, по опасности кластера; стая встаёт вокруг своего вожака
 		const leaders = new Map();
-		for (const s of rollHorde(level.groups, NODES[this.loc].danger ?? 1)) {
+		for (const s of rollHorde(level.groups, NODES[this.loc].danger ?? 1, Math.random, level.half)) {
 			const L = s.pack && !s.lead ? leaders.get(s.pack) : null;
 			const pos = L ? free(L.pos.x, L.pos.z, 4) : s.at ? free(s.at[0], s.at[1], s.r) : anywhere();
 			if (!pos) continue;
@@ -3098,7 +3134,7 @@ const game = {
 		}
 		// тайники в домах: что где лежит — заново на каждый цикл кластера
 		for (const c of level.containers) {
-			c.items = rollLoot(c.loot, NODES[this.loc].danger ?? 1);
+			c.items = rollLoot(c.loot, NODES[this.loc].danger ?? 1, this.loc);
 			c.searched = false;
 			c.spark.visible = true;
 		}
@@ -3155,6 +3191,11 @@ const game = {
 		}
 		this.resolveTrips();
 		if (this.basePerks().radio && this.world.murs.raid) this.world.murs.raid.known = true;
+		this.resupplyMercs();
+		// экономика базы: работа жителей, генератор, содержание, беженцы, спрос, караваны (game/economy.js)
+		for (const ev of tickEconomy(this.world, this.world.time, (id) => baseLevel(b, id), this.mursStance())) {
+			if (ev.text) this.toast(ev.text, ev.warn ? 'warn' : undefined);
+		}
 	},
 
 	/** Купить постройку в терминале: спораны — в счёт, постройка встаёт на место (локация перестраивается). */
@@ -3164,6 +3205,7 @@ const game = {
 		if (why) { this.toast(`${B?.name ?? id}: ${why}`, 'warn'); return false; }
 		this.bag.spore -= B.price;
 		buildOnBase(b, id, this.world.time);
+		if (id === 'garage') this.world.car ??= { at: 'base', fuel: CAR.tank / 2, cond: 100 }; // УАЗ на ходу, полбака
 		Sfx.coins();
 		this.rebuildBase();
 		if (this.player) { this.player.maxHp = this.heroMaxHp(); this.player.hp = Math.min(this.player.hp, this.player.maxHp); }
@@ -3207,7 +3249,8 @@ const game = {
 
 	/** Забрать накопленное постройками (теплица, ферма, мастерская, медпункт) — у терминала. */
 	collectBase() {
-		const got = collectStock(this.world.base);
+		const b = this.world.base;
+		const got = collectStock(b, (b.people?.length ?? 0) * WAGE * 2, RESOURCES);
 		const text = stockText(got);
 		if (!text) return;
 		for (const [k, n] of Object.entries(got)) this.bag[k] = (this.bag[k] ?? 0) + n;
@@ -3215,6 +3258,243 @@ const game = {
 		this.toast(`Забрал с базы: ${text}`);
 		this.hud();
 		this.save();
+	},
+
+	// ---------- Экономика базы (game/economy.js) ----------
+
+	/** Ресурсы: в рюкзаке + на складе базы (если герой на базе). */
+	resHave(kind) { return (this.bag[kind] ?? 0) + (this.atBase ? this.world.base.stock[kind] ?? 0 : 0); },
+
+	/** Сдать все ресурсы из рюкзака на склад базы (сырьё для жителей, караванов и верстака). */
+	depositRes() {
+		if (!this.atBase) return;
+		const b = this.world.base, got = {};
+		for (const r of RESOURCES) {
+			const n = this.bag[r] ?? 0;
+			if (n > 0) { b.stock[r] = (b.stock[r] ?? 0) + n; this.bag[r] = 0; got[r] = n; }
+		}
+		const text = stockText(got);
+		if (!text) { this.toast('В рюкзаке ресурсов нет'); return; }
+		Sfx.coins();
+		this.toast(`Сдал на склад базы: ${text}`);
+		this.hud();
+		this.save();
+	},
+
+	/** Взять ресурс со склада базы в рюкзак (бензин — для машины, сырьё — на вылазку). */
+	takeRes(kind, n = Infinity) {
+		if (!this.atBase) return;
+		const b = this.world.base, have = b.stock[kind] ?? 0, k = Math.min(have, n);
+		if (k <= 0) return;
+		b.stock[kind] = have - k;
+		this.bag[kind] = (this.bag[kind] ?? 0) + k;
+		this.toast(`Со склада: ${k} ${plural(k, ITEMS[kind].forms)}`);
+		this.hud();
+		this.save();
+	},
+
+	/** Положить свои спораны в казну базы (n — сколько; Infinity — все). */
+	toTreasury(n) {
+		const b = this.world.base, k = Math.min(n, this.bag.spore ?? 0);
+		if (k <= 0) return;
+		this.bag.spore -= k;
+		b.treasury = (b.treasury ?? 0) + k;
+		Sfx.coins();
+		this.toast(`В казну базы: +${k} сп. (в казне ${b.treasury})`);
+		this.resupplyMercs(true);
+		this.hud();
+		this.save();
+	},
+
+	/** Взять спораны из казны базы себе (только на базе). */
+	fromTreasury(n) {
+		if (!this.atBase) return;
+		const b = this.world.base, k = Math.min(n, b.treasury ?? 0);
+		if (k <= 0) return;
+		b.treasury -= k;
+		this.bag.spore = (this.bag.spore ?? 0) + k;
+		Sfx.coins();
+		this.toast(`Из казны базы: ${k} сп. (в казне ${b.treasury})`);
+		this.hud();
+		this.save();
+	},
+
+	/**
+	 * Наёмники дома сами пополняют боекомплект — за счёт казны базы (герою патроны им покупать не надо): кто живёт в
+	 * стабе или на базе и сейчас там (не в вылазке; на посту — тоже), а пока герой в стабе или на базе — и его отряд.
+	 * Патроны — до полного (fullAmmo) по оптовой цене (80 % цены торговца), медику — перевязки, подрывнику — гранаты (KIT_FULL).
+	 */
+	resupplyMercs(force = false) {
+		const b = this.world.base;
+		if (!b || !this.roster.length) return;
+		if (!force && this.world.time < (b.supplyAt ?? 0)) return;
+		b.supplyAt = this.world.time + 20;
+		const homeHere = NODES[this.loc]?.kind === 'stab' || NODES[this.loc]?.kind === 'base';
+		const unit = (kind) => { const pk = packOf(kind); return pk ? (pk.price / pk.n) * 0.8 : 1; };
+		let spent = 0, short = false;
+		const who = [];
+		for (const st of this.roster) {
+			if (st.temp || st.job?.kind === 'trip' || (st.out && !homeHere)) continue;
+			const D = MERCS[st.id], W = WEAPONS[D.weapon];
+			let got = false;
+			const need = fullAmmo(st.id) - (st.mag + st.ammo);
+			if (need > 0) {
+				const per = unit(W.ammo), can = Math.min(need, Math.floor((b.treasury ?? 0) / per));
+				if (can > 0) { const cost = Math.ceil(can * per); b.treasury -= cost; spent += cost; st.ammo += can; got = true; }
+				if (can < need) short = true;
+			}
+			for (const [field, item] of [['meds', 'medkit'], ['nades', 'grenade']]) {
+				if (st[field] == null) continue;
+				const lack = KIT_FULL[field] - st[field], per = unit(item) / 0.8;
+				for (let i = 0; i < lack; i++) {
+					if ((b.treasury ?? 0) < per) { short = true; break; }
+					b.treasury -= Math.ceil(per); spent += Math.ceil(per); st[field]++; got = true;
+				}
+			}
+			if (got) { who.push(D.name); const a = this.mercs.find((m) => m.state === st); if (a) a.warned = false; }
+		}
+		if (spent > 0) this.toast(`${who.join(', ')} пополнили боекомплект за счёт казны базы: −${spent} сп. (в казне ${b.treasury})`);
+		if (short && this.world.time - (b.shortAt ?? -1e9) > 300) { b.shortAt = this.world.time; this.toast('Казне базы не хватает на патроны наёмникам — положи спораны в казну (терминал базы)', 'warn'); }
+		if (spent > 0) { this.hudParty(); this.save(); }
+	},
+
+	/** Принять беженца жителем базы (за спораны). */
+	acceptRefugee() {
+		const b = this.world.base;
+		if (!(b.refugees > 0)) { this.toast('Беженцев у ворот нет — приходят сами, бывает с караваном из «Полиса»', 'warn'); return; }
+		if (b.people.length >= peopleCap(b, (id) => baseLevel(b, id))) { this.toast('Мест для жителей нет — улучши столовую или построй казарму', 'warn'); return; }
+		if ((this.bag.spore ?? 0) < REFUGEE_PRICE) { this.toast('Не хватает споранов', 'warn'); return; }
+		this.bag.spore -= REFUGEE_PRICE;
+		b.refugees--;
+		const p = newPerson(b);
+		b.people.push(p);
+		Sfx.coins();
+		this.toast(`${p.name} теперь живёт на базе — поставь на работу в терминале`);
+		this.hud();
+		this.save();
+	},
+
+	/** Поставить жителя на работу (id постройки из WORK) или снять (job = null). */
+	assignJob(pid, job) {
+		const b = this.world.base, p = b.people.find((x) => x.id === pid);
+		if (!p || p.job === 'caravan') return;
+		if (job) {
+			const W = WORK[job];
+			if (!W || !b.built.includes(job)) return;
+			if (workersOn(b, job) >= W.slots + (baseLevel(b, job) - 1)) { this.toast(`${W.name}: все места заняты`, 'warn'); return; }
+		}
+		p.job = job ?? null;
+		this.save();
+	},
+
+	/** Отпустить жителя совсем. */
+	releasePerson(pid) {
+		const b = this.world.base, p = b.people.find((x) => x.id === pid);
+		if (!p || p.job === 'caravan') return;
+		b.people = b.people.filter((x) => x !== p);
+		this.toast(`${p.name} ушёл с базы`);
+		this.save();
+	},
+
+	/** Караван: продать со склада (mode 'sell') или купить (mode 'buy', платит герой) n штук ресурса kind на рынке market. */
+	caravan(market, kind, n, mode = 'sell') {
+		const b = this.world.base, M = MARKETS[market];
+		if (!M || !RESOURCES.includes(kind) || !(n > 0)) return false;
+		const trip = Math.round(2 * pathTime('base', market) * this.basePerks().travel);
+		let r;
+		if (mode === 'buy') {
+			// покупает караван — за казну базы
+			const cost = buyCost(this.world, market, kind, n);
+			if ((b.treasury ?? 0) < cost) { this.toast(`В казне базы не хватает: нужно ${cost} сп., есть ${b.treasury ?? 0} — положи в казну в терминале`, 'warn'); return false; }
+			r = sendCaravan(this.world, market, { buy: { [kind]: n } }, this.world.time, trip, this.mursStance());
+			if (typeof r !== 'string') b.treasury -= cost;
+		} else {
+			n = Math.min(n, b.stock[kind] ?? 0);
+			if (n <= 0) { this.toast('На складе этого нет', 'warn'); return false; }
+			r = sendCaravan(this.world, market, { sell: { [kind]: n } }, this.world.time, trip, this.mursStance());
+		}
+		if (typeof r === 'string') { this.toast(`Караван: ${r}`, 'warn'); return false; }
+		Sfx.coins();
+		this.toast(`Караван ушёл в ${M.name}: ${mode === 'buy' ? `купить ${n} ${plural(n, ITEMS[kind].forms)}` : `продать ${n} ${plural(n, ITEMS[kind].forms)} — выручка ${r.pay} сп.`}; вернётся ${approx(r.back - this.world.time).replace('~', 'примерно через ')}`);
+		this.hud();
+		this.save();
+		return true;
+	},
+
+	/** Верстак: сделать по рецепту id (ресурсы — из рюкзака, на базе — и со склада). */
+	craft(id) {
+		const R = RECIPES.find((x) => x.id === id), b = this.world.base;
+		if (!R) return false;
+		const lv = baseLevel(b, 'workshop');
+		if (!lv) { this.toast('Верстак — в мастерской базы', 'warn'); return false; }
+		if (lv < R.lv) { this.toast(`${R.name}: нужна мастерская ${R.lv}-го уровня`, 'warn'); return false; }
+		const miss = Object.entries(R.need).filter(([k, n]) => this.resHave(k) < n);
+		if (miss.length) { this.toast(`Не хватает: ${miss.map(([k, n]) => `${ITEMS[k].name.toLowerCase()} ${this.resHave(k)}/${n}`).join(', ')}`, 'warn'); return false; }
+		for (const [k, n] of Object.entries(R.need)) {
+			const fromBag = Math.min(this.bag[k] ?? 0, n);
+			this.bag[k] = (this.bag[k] ?? 0) - fromBag;
+			if (n > fromBag) b.stock[k] = (b.stock[k] ?? 0) - (n - fromBag);
+		}
+		for (const [k, n] of Object.entries(R.out)) this.bag[k] = (this.bag[k] ?? 0) + n;
+		Sfx.reload();
+		this.toast(`Верстак: ${R.name}`);
+		this.hud();
+		this.save();
+		return true;
+	},
+
+	// ---------- Машина: УАЗ из гаража (game/economy.js, CAR) ----------
+
+	/** Машина стоит в этой локации. */
+	carHere() { const c = this.world?.car; return !!c && c.at === this.loc; },
+
+	/** УАЗ в локации — у точки, где появился герой (сбоку от него); станция «Сесть за руль». */
+	placeCar(spot) {
+		if (this.carMesh) { scene.remove(this.carMesh); this.carMesh = null; }
+		if (level.stations) level.stations = level.stations.filter((x) => x.id !== 'car');
+		if (this.carCollider) { level.colliders = level.colliders.filter((x) => x !== this.carCollider); this.carCollider = null; }
+		if (!this.carHere()) return;
+		// место: сбоку от героя, на свободном месте
+		const ry = spot.ry ?? 0, side = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry));
+		let x = spot.pos.x + side.x * 3.4, z = spot.pos.z + side.z * 3.4;
+		if (level.nav.blockedAt(x, z, 1.4)) { x = spot.pos.x - side.x * 3.4; z = spot.pos.z - side.z * 3.4; }
+		if (level.nav.blockedAt(x, z, 1.4)) [x, z] = freeNear(x, z);
+		this.carMesh = makeUaz(this.world.car.cond <= 0);
+		this.carMesh.position.set(x, 0, z);
+		this.carMesh.rotation.y = ry;
+		scene.add(this.carMesh);
+		// коллайдер — чтобы не проходили насквозь (сетку навигации не трогаем: машина маленькая)
+		const c = { x, z, hx: 2.1, hz: 0.95, rot: ry + Math.PI / 2, c: Math.cos(ry + Math.PI / 2), s: Math.sin(ry + Math.PI / 2), wall: false };
+		level.colliders.push(c);
+		this.carCollider = c;
+		level.stations.push({ id: 'car', name: 'УАЗ', label: 'Сесть за руль', x: x - side.x * 1.6, z: z - side.z * 1.6, r: 2.0 });
+	},
+
+	/** Залить бензин из канистр (рюкзак, на базе — и склад) и починить деталями — сколько нужно. Возвращает текст. */
+	serviceCar() {
+		const c = this.world.car, b = this.world.base, out = [];
+		const use = (kind) => {
+			if ((this.bag[kind] ?? 0) > 0) { this.bag[kind]--; return true; }
+			if (this.atBase && (b.stock[kind] ?? 0) > 0) { b.stock[kind]--; return true; }
+			return false;
+		};
+		let cans = 0;
+		while (c.fuel <= CAR.tank - CAR.can && use('fuel')) { c.fuel += CAR.can; cans++; }
+		if (cans) out.push(`залил ${cans} ${plural(cans, ['канистру', 'канистры', 'канистр'])}`);
+		let parts = 0;
+		while (c.cond < 100 - CAR.fix * 0.5 && use('parts')) { c.cond = Math.min(100, c.cond + CAR.fix); parts++; }
+		if (parts) out.push(`починил (${parts} ${plural(parts, ITEMS.parts.forms)})`);
+		if (cans || parts) { Sfx.reload(); this.hud(); this.save(); if (this.carMesh && c.cond > 0) this.placeCar({ pos: this.player.pos.clone(), ry: this.carMesh.rotation.y }); }
+		return `${out.length ? `${out.join(', ')}. ` : ''}Бак ${Math.round(c.fuel)}/${CAR.tank} л, состояние ${Math.round(c.cond)} %`;
+	},
+
+	/** Сесть за руль: заправить и починить, что можно, — и карта Улья в режиме «на машине». */
+	driveCar() {
+		if (!this.carHere()) return;
+		const text = this.serviceCar();
+		this.toast(`УАЗ: ${text}`);
+		if (this.world.car.cond <= 0) { this.toast('Машина сломана — нужны детали (верстак, тайники, караван)', 'warn'); return; }
+		this.worldMap.open(null, { car: true });
 	},
 
 	/** Медпункт базы: здоровье полное, бесплатно и без ожидания. */
@@ -3640,8 +3920,7 @@ const game = {
 			b.log.length = Math.min(b.log.length, 5);
 			this.banner('Налёт отбит', `Все ${dead} налётчиков полегли. Трофеи — на складе базы: ${stockText(loot)}`);
 		} else {
-			const lost = stockText(b.stock);
-			b.stock = {};
+			const lost = stockText(plunderBase(b)); // накопленное — всё, ресурсы — половину
 			this.toast(`Налётчики ушли${lost ? ` и вынесли со склада: ${lost}` : ''}`, 'warn');
 		}
 		this.save();
@@ -4050,13 +4329,26 @@ const game = {
 	 * Дорога в любую локацию: по кратчайшему пути через другие кластеры (shortestPath), время складывается (гараж на базе —
 	 * быстрее), за каждый переход герой выпивает живчик — не хватило, остаёмся (false; карта Улья покажет, сколько нужно).
 	 */
-	travel(to) {
+	travel(to, { car = false } = {}) {
 		if (this.state !== 'play') return;
 		const from = this.loc, path = shortestPath(from, to), cost = path.nodes.length - 1, have = this.bag.zhivchik ?? 0;
-		if (cost > have) { this.toast(`На дорогу нужно ${cost} ${plural(cost, ITEMS.zhivchik.forms)} — есть ${have}`, 'warn'); return false; }
-		const time = Math.round(path.time * this.basePerks().travel);
-		this.bag.zhivchik = have - cost;
-		if (cost > 0) this.toast(`Выпит ${cost === 1 ? 'живчик' : `${cost} ${plural(cost, ITEMS.zhivchik.forms)}`} на дорогу${cost > 1 ? ` (${cost} ${plural(cost, ['переход', 'перехода', 'переходов'])})` : ''}`);
+		let time = Math.round(path.time * this.basePerks().travel);
+		if (car) {
+			// на машине: без живчика, вдвое быстрее; бензин по переходам, машина изнашивается и остаётся там, куда приехал
+			const c = this.world.car, fuel = cost * CAR.perHop;
+			if (!this.carHere()) { this.toast('Машины здесь нет', 'warn'); return false; }
+			if (c.cond <= 0) { this.toast('Машина сломана — почини деталями', 'warn'); return false; }
+			if (fuel > c.fuel) { this.toast(`Бензина нужно ${fuel} л — в баке ${Math.round(c.fuel)} л`, 'warn'); return false; }
+			c.fuel -= fuel;
+			c.cond = Math.max(0, c.cond - cost * (CAR.wear[0] + Math.random() * (CAR.wear[1] - CAR.wear[0])));
+			c.at = to;
+			time = Math.round(time * CAR.speed);
+			this.toast(`Едешь на УАЗе: −${fuel} л бензина (в баке ${Math.round(c.fuel)} л), состояние ${Math.round(c.cond)} %${c.cond <= 0 ? ' — заглох у въезда, нужен ремонт' : ''}`);
+		} else {
+			if (cost > have) { this.toast(`На дорогу нужно ${cost} ${plural(cost, ITEMS.zhivchik.forms)} — есть ${have}`, 'warn'); return false; }
+			this.bag.zhivchik = have - cost;
+			if (cost > 0) this.toast(`Выпит ${cost === 1 ? 'живчик' : `${cost} ${plural(cost, ITEMS.zhivchik.forms)}`} на дорогу${cost > 1 ? ` (${cost} ${plural(cost, ['переход', 'перехода', 'переходов'])})` : ''}`);
+		}
 		if (NODES[from].kind === 'cluster') this.snapshot();
 		this.state = 'travel';
 		this.setPaused(true);
@@ -4259,7 +4551,16 @@ const game = {
 			this.spawnPickup('peas', near(-0.7, 0.6), 4 + Math.floor(Math.random() * 3));
 			this.spawnPickup('pearl', near(0.7, -0.5), 1);
 			this.spawnPickup('pearl', near(0.2, 0.8), 1);
-			this.banner('Элита убита', 'Высшая стадия заражённого мертва — в споровом мешке две чёрные жемчужины');
+			const red = Math.random() < RED_PEARL_ELITE;
+			if (red) this.spawnPickup('redpearl', near(-0.3, -0.8), 1);
+			this.banner('Элита убита', `Высшая стадия заражённого мертва — в споровом мешке две чёрные жемчужины${red ? ' и красная!' : ''}`);
+		}
+		// скребер: красная жемчужина всегда, три чёрных, много гороха
+		if (e.type === 'skreber') {
+			this.spawnPickup('peas', near(-0.9, 0.7), 8 + Math.floor(Math.random() * 5));
+			for (const [dx, dz] of [[0.9, -0.6], [0.3, 1.0], [-1.0, -0.4]]) this.spawnPickup('pearl', near(dx, dz), 1);
+			this.spawnPickup('redpearl', near(0, -1.1), 1);
+			this.banner('Скребер убит', 'Хозяин Провала мёртв — в споровом мешке красная жемчужина и три чёрных');
 		}
 		this.hud();
 	},
@@ -4364,6 +4665,8 @@ const game = {
 			if (s.id === 'znahar') this.znaharHeal();
 			if (s.id === 'barter') this.trade.open({ barter: true });
 			if (s.id === 'murtrade') this.murTrade();
+			if (s.id === 'craft') this.craftWindow.open();
+			if (s.id === 'car') this.driveCar();
 			if (s.id === 'murhire') this.murHire();
 			return;
 		}
@@ -4456,6 +4759,32 @@ const game = {
 		p.hp = p.maxHp;
 		Sfx.chime();
 		this.banner('Организм окреп', `Здоровье навсегда ${p.maxHp} (+${PEARL_HP})`);
+		this.hud();
+		this.save();
+	},
+
+	/** Съесть красную жемчужину: здоровье навсегда +40 (предел — 300), и сразу полное. */
+	eatRedPearl() {
+		const p = this.player;
+		if (!p?.alive || !(this.bag.redpearl > 0)) return;
+		if (this.perks.maxHp >= RED_HP_CAP) { this.toast(`Здоровье и так на пределе (${RED_HP_CAP}) — лучше продай торговцу`, 'warn'); return; }
+		this.bag.redpearl--;
+		this.perks.maxHp = Math.min(RED_HP_CAP, this.perks.maxHp + RED_PEARL_HP);
+		p.maxHp = this.heroMaxHp();
+		p.hp = p.maxHp;
+		Sfx.chime();
+		this.banner('Красная жемчужина', `Дар окреп: здоровье навсегда ${p.maxHp} (+${RED_PEARL_HP})`);
+		this.hud();
+		this.save();
+	},
+
+	/** Продать красную жемчужину торговцу. */
+	sellRedPearl() {
+		if (!(this.bag.redpearl > 0)) return;
+		this.bag.redpearl--;
+		this.bag.spore = (this.bag.spore ?? 0) + RED_PEARL_PRICE;
+		Sfx.coins();
+		this.toast(`Красная жемчужина → ${RED_PEARL_PRICE} споранов`);
 		this.hud();
 		this.save();
 	},
@@ -4695,6 +5024,7 @@ const game = {
 		if (!st || st.job?.kind === 'trip' || NODES[at]?.kind !== 'cluster') return;
 		const wasPost = st.job?.kind === 'post' ? true : undefined;
 		st.out = false;
+		this.resupplyMercs(true); // перед вылазкой — полный боекомплект из казны
 		const t = this.tripTime(at);
 		st.job = { kind: 'trip', at, end: this.world.time + t };
 		Sfx.reload();
@@ -5097,7 +5427,7 @@ const game = {
 	 */
 	blastTarget(from, W) {
 		const list = this.bandits.length ? [...this.enemies, ...this.bandits] : this.enemies;
-		const wt = (o) => ({ stomper: 2, ruber: 3, elite: 4 })[o.type] ?? (o.faction ? 2 : 1);
+		const wt = (o) => ({ stomper: 2, ruber: 3, elite: 4, skreber: 6 })[o.type] ?? (o.faction ? 2 : 1);
 		const R = W.blast.r * 0.7;
 		let best = null, bs = 0;
 		const calm = (o) => o.faction && !this.hostile(o); // мур в мире: по нему не стреляют, рядом с ним не рвут
@@ -5447,6 +5777,40 @@ const game = {
 	},
 
 	/** Кисляк, последние 30 с: Улей выгоняет из мути свору бегунов — со стороны, ближней к герою (их не больше 40 всего). */
+	/**
+	 * Удар скребера по земле: кольцо пыли, всех людей (героя, бойцов, муров, внешников) в радиусе T.slam, кроме цели
+	 * удара, — вполсилы урона и с ног (толчок). Дрожь земли.
+	 */
+	slam(e, target) {
+		const R = e.T.slam, at = e.pos;
+		for (let i = 0; i < 14; i++) {
+			const a = (i / 14) * Math.PI * 2;
+			particles.spawn({ x: at.x + Math.sin(a) * R * 0.5, y: 0.15, z: at.z + Math.cos(a) * R * 0.5, size: 0.7, grow: 3, rise: 0.4, life: 0.9, color: rgb('150,130,110'), alpha: 0.4, fade: 'life' });
+		}
+		game.shake = Math.min(1, game.shake + 0.5 * clamp01(1 - at.distanceTo(this.player.pos) / 20));
+		const people = [this.player, ...this.mercs.filter((m) => m.state.out), ...this.bandits];
+		for (const a of people) {
+			if (!a?.alive || a === target) continue;
+			const d = Math.hypot(a.pos.x - at.x, a.pos.z - at.z);
+			if (d > R) continue;
+			byWho(e, () => (a.hurt ?? a.damage).call(a, e.T.damage * 0.5 * (1 - d / R * 0.5), at, 1.6));
+		}
+	},
+
+	/** Рёв скребера зовёт стаю: из мути у ближайшего края бегут бегуны (T.call), если в кластере не слишком людно. */
+	skreberCall(e) {
+		const alive = this.enemies.filter((x) => x.alive).length;
+		const n = Math.max(0, Math.min(e.T.call ?? 0, 45 - alive));
+		const ax = Math.abs(e.pos.x) > Math.abs(e.pos.z), E = PLAY - 3;
+		for (let i = 0; i < n; i++) {
+			const t = THREE.MathUtils.clamp((ax ? e.pos.z : e.pos.x) + (Math.random() - 0.5) * 30, -E, E);
+			const pos = ax ? new THREE.Vector3(Math.sign(e.pos.x || 1) * E, 0, t) : new THREE.Vector3(t, 0, Math.sign(e.pos.z || 1) * E);
+			resolveCollisions(pos, 0.5, level.colliders);
+			if (level.nav.blockedAt(pos.x, pos.z, 0.5)) continue;
+			setTimeout(() => this.spawnEnemy('runner', pos)?.alert(), 600 + i * 350);
+		}
+	},
+
 	sourWave() {
 		const p = this.player.pos, alive = this.enemies.filter((e) => e.alive).length;
 		const n = Math.max(0, Math.min(4 + (NODES[this.loc].danger ?? 1), 40 - alive));
@@ -5664,7 +6028,7 @@ function update(dt) {
 		return;
 	}
 	const input = game.input;
-	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow, game.modsWindow];
+	const windows = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow, game.modsWindow, game.craftWindow];
 	if (input.consume('inventory') && game.state === 'play' && !windows.slice(1).some((w) => w.isOpen)) game.inventory.toggle();
 	if (input.consume('map') && game.state === 'play' && (game.locationMap.isOpen || !game.paused)) game.locationMap.toggle();
 	if (input.consume('escape')) for (const w of windows) w.close();
@@ -5787,9 +6151,10 @@ game.stashWindow = new StashWindow(game);
 game.intelWindow = new IntelWindow(game);
 game.questWindow = new QuestWindow(game);
 game.modsWindow = new ModsWindow(game);
+game.craftWindow = new CraftWindow(game);
 // «Назад» в приложении для Android: закрыть открытое окно; закрывать нечего — false, и приложение свернётся
 window.__back = () => {
-	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow, game.modsWindow].filter((w) => w.isOpen);
+	const open = [game.inventory, game.trade, game.worldMap, game.locationMap, game.partyWindow, game.stashWindow, game.intelWindow, game.terminal, game.questWindow, game.modsWindow, game.craftWindow].filter((w) => w.isOpen);
 	for (const w of open) w.close();
 	return open.length > 0;
 };

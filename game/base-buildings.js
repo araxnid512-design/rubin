@@ -162,8 +162,10 @@ export function baseWorkshop(ctx, { name = 'workshop', cx, cz, ry = 0 }) {
 	b.furniture(-hx + 0.6, 1.8, 0, [[0.6, 0.9, 0.6, 0, 0.45, 0, M.metalRust]], { solid: [0.6, 0.6], prop: 'barrel' });
 	b.furniture(-hx + 0.6, 1.0, 0, [[0.6, 0.9, 0.6, 0, 0.45, 0, M.metalRust]], { solid: [0.6, 0.6], prop: 'barrel' });
 	b.furniture(hx - 0.8, -hz + 1.0, 0, [[0.9, 0.5, 0.9, 0, 0.25, 0, M.tire]], { solid: [0.9, 0.9], prop: 'tire' });
-	b.station = spot(b, -1.5, hz - 1.4);
+	// механик — у станка (доработка стволов, ремонт топора), верстак — крафт (game/craft.js)
+	b.station = spot(b, hx - 2.6, 0.6);
 	b.npc = spot(b, 0.6, hz - 1.3, Math.PI);
+	b.bench = spot(b, -1.5, hz - 1.4);
 	return done(b);
 }
 

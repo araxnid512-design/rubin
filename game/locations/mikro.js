@@ -1,12 +1,18 @@
 // Кластер «Микрорайон»: спальный район на краю города, который Улей забрал вместе с проспектом и перекрёстком.
-// Четыре панельные девятиэтажки: внутрь заходят только на первый этаж (одно здание на весь след дома — магазин
-// «Продукты», хозтовары, аптека, почта, ателье, участковый пункт, подъезды с почтовыми ящиками и лестницей);
-// этажи 2–9 — фасад с окнами и балконами (occluder: становится прозрачным, когда загораживает героя). Между домами —
-// дворы с детскими площадками, лавками и мусорными площадками; двухэтажная школа с классами на первом этаже и
-// спортплощадкой; два ряда кирпичных гаражей (внутрь заходят — верстаки, стеллажи, в двух гаражах оружейные тайники);
-// гаражи-ракушки, трансформаторная будка, брошенные машины и горящий автобус на перекрёстке.
+// Локация большая — 180×180 м (half 90). Ядро (прежние 132×132 м): четыре панельные девятиэтажки — внутрь заходят только
+// на первый этаж (одно здание на весь след дома — магазин «Продукты», хозтовары, аптека, почта, ателье, участковый пункт,
+// подъезды с почтовыми ящиками и лестницей); этажи 2–9 — фасад с окнами и балконами (occluder: становится прозрачным,
+// когда загораживает героя). Между домами — дворы с детскими площадками, лавками и мусорными площадками; двухэтажная
+// школа с классами на первом этаже и спортплощадкой; два ряда кирпичных гаражей (внутрь заходят — верстаки, стеллажи,
+// в двух гаражах оружейные тайники); гаражи-ракушки, трансформаторная будка, брошенные машины и горящий автобус.
+// Кольцо окраины (66…86 м): на севере — девятиэтажка с кафе и «Продуктами», недострой (каркас пятиэтажки без стен —
+// колонны и начатая кладка как укрытия, башенный кран, бытовка), гаражный кооператив «Восход» (два ряда боксов
+// воротами в проезд); на западе — крытый рынок и ларьки у улицы, поликлиника; на юге — пятиэтажка с аптекой и
+// парикмахерской, детский сад «Солнышко» за оградой (группы, пищеблок, медкабинет, веранды); на востоке — дворы
+// с детскими площадками, хоккейная коробка, голубятня, трансформаторные будки и брошенные машины.
 // Выходы: на юг по проспекту (Заречный), на север (Военная часть), на запад по улице (Подстанция), на северо-запад
-// по проезду (Аэродром). Опасность 3 — логово руберов: во дворах, у школы и гаражей; топтуны и много бегунов.
+// по проезду (Аэродром). Опасность 3 — логово руберов: во дворах, у школы, гаражей, на стройке и у детсада; топтуны
+// и много бегунов.
 
 import * as THREE from 'three';
 import * as T from '../textures.js';
@@ -14,6 +20,7 @@ import { box, place, planeXZ, beginProp, endProp } from '../geom.js';
 import { Building, table, chair } from '../buildings.js';
 import { hash01, balcony, boxTop } from '../facade.js';
 import { bench, swings, slide, streetLamp, addCar, bus, markingMaterial, transformer } from '../props.js';
+import { barrier, billboard } from '../props-industrial.js';
 
 // ---------- Мебель-тайники (лицо мебели — в +Z её осей) ----------
 
@@ -192,6 +199,38 @@ const ROOMS = {
 			b.furniture(c - 5.2, 2.6, Math.PI / 2, [[1.9, 0.35, 0.8, 0, 0.35, 0, IM.furniture], [1.8, 0.1, 0.75, 0, 0.56, 0, IM.blanketArmy]], { solid: [1.9, 0.8] }); // топчан
 		},
 	},
+	// кафе: барная стойка, за ней холодильник и посудный шкаф, столики в зале
+	cafe: {
+		door: 3.6,
+		fill(b, r, { M, IM, hz, t }) {
+			const c = r.cx;
+			shopWindow(b, c - 1.6, 6.4, hz, t);
+			shopSign(b, T.signMaterial('КАФЕ «ВСТРЕЧА»', { bg: '#3a2a22', fg: '#e8c890' }), c - 1.6, 4.4, hz, t);
+			b.canopy('back', c + 3.6, { w: 2.3, d: 1.0, y: 2.5, mat: M.concrete, t });
+			counter(b, 'Барная стойка', c + 1.2, -hz + 2.6, 0, 4.4, { zhivchik: 0.35, spore: 0.3, ammo919: [3, 6, 0.3] });
+			b.container('Холодильник', c + 4.8, -hz + 0.45, 0, [[0.62, 1.5, 0.6, 0, 0.75, 0, IM.white], [0.04, 0.3, 0.04, -0.24, 1.0, 0.32, IM.metal]], [0.62, 0.6], { zhivchik: [1, 2, 0.4], spore: 0.2 }, 1.5);
+			cabinet(b, 'Шкаф', c - 1.2, -hz + 0.4, 0, 1.4, 2.0, 0.55, { ammo919: [3, 6, 0.35], spore: 0.25 }, IM.furnitureLight);
+			for (const [x, z] of [[-4.6, -2.6], [-4.6, 0.6], [-1.8, 2.0], [-4.6, 3.6]]) table(b, c + x, z, 0, { w: 0.9, d: 0.9, cloth: true });
+			for (const [x, z] of [[-4.6, -1.7], [-3.7, 0.6], [-1.8, 2.9]]) chair(b, c + x, z, Math.PI);
+		},
+	},
+	// парикмахерская: зеркала и кресла у задней стены, тумбочка мастера, касса у входа
+	hair: {
+		door: -3.4,
+		fill(b, r, { M, IM, hz, t }) {
+			const c = r.cx;
+			shopWindow(b, c + 1.6, 6.0, hz, t);
+			shopSign(b, T.signMaterial('ПАРИКМАХЕРСКАЯ', { bg: '#e8e0ec', fg: '#5a2a7a' }), c + 1.6, 4.8, hz, t);
+			b.canopy('back', c - 3.4, { w: 2.3, d: 1.0, y: 2.5, mat: M.concrete, t });
+			for (const x of [-2.2, 0.6, 3.4]) {
+				b.furniture(c + x, -hz + 0.16, 0, [[1.0, 1.2, 0.04, 0, 1.5, 0, M.glass], [1.1, 0.06, 0.3, 0, 0.85, 0.14, IM.furnitureLight]], { solid: [1.1, 0.3] });
+				b.furniture(c + x, -hz + 1.5, 0, [[0.62, 0.5, 0.6, 0, 0.25, 0, IM.black], [0.6, 0.6, 0.12, 0, 0.75, 0.25, IM.black]], { solid: [0.62, 0.62] });
+			}
+			b.container('Тумбочка', c + 5.2, -hz + 0.4, 0, [[0.6, 0.8, 0.45, 0, 0.4, 0, IM.furnitureLight], [0.5, 0.02, 0.02, 0, 0.55, 0.23, IM.black]], [0.6, 0.45], { ammo919: [3, 6, 0.4], zhivchik: 0.3, spore: 0.25 }, 0.8);
+			counter(b, 'Касса', c - 4.2, 1.2, Math.PI / 2, 2.4, { ammo919: [3, 6, 0.35], spore: 0.3, ammo50: [2, 4, 0.15] });
+			b.furniture(c + 1.6, 4.4, 0, [[2.0, 0.42, 0.7, 0, 0.21, 0, IM.sofa], [2.0, 0.5, 0.15, 0, 0.6, -0.28, IM.sofa]], { solid: [2.0, 0.7], prop: 'sofa' }); // диванчик для ожидающих
+		},
+	},
 };
 
 /**
@@ -336,12 +375,13 @@ function buildSchool(bctx, occluder, { cx, cz }) {
 
 /**
  * Ряд кирпичных гаражей (туда заходят): одно здание, боксы через перегородки, у каждого ворота в передней стене;
- * side — где ворота: 'back' (+Z, на юг) или 'left' (−X, на запад). loot — тайник каждого бокса (null — ворота заперты).
+ * side — где ворота: 'back' (+Z своих осей) или 'left' (−X); ry — поворот ряда (π — ворота 'back' смотрят на север).
+ * loot — тайник каждого бокса (null — ворота заперты).
  */
-function buildGarages(bctx, { name, cx, cz, n, side, loot }) {
+function buildGarages(bctx, { name, cx, cz, n, side, loot, ry = 0 }) {
 	const bay = 4, depth = 6, t = 0.25, H = 2.6;
 	const W = side === 'back' ? n * bay : depth, D = side === 'back' ? depth : n * bay;
-	const b = new Building(bctx, { name, cx, cz, ry: 0, W, D, H, top: H + 0.3 });
+	const b = new Building(bctx, { name, cx, cz, ry, W, D, H, top: H + 0.3 });
 	b.messKind = 'work';
 	const { M } = bctx, IM = b.IM, hx = W / 2, hz = D / 2;
 	const along = side === 'back' ? 'x' : 'z';
@@ -384,24 +424,342 @@ function buildGarages(bctx, { name, cx, cz, n, side, loot }) {
 	return b.finish();
 }
 
+// ---------- Новые районы окраины (кольцо между прежним краем 66 м и новым 86 м) ----------
+
+/** Забор из профлиста (стройка): листы по ~3 м от (x0, z0) до (x1, z1), стойки; коллайдер — одним куском. */
+function sheetFence(batch, M, collide, x0, z0, x1, z1, h = 2.1) {
+	const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0), n = Math.max(1, Math.round(len / 3));
+	for (let i = 0; i < n; i++) {
+		const k = (i + 0.5) / n;
+		batch.add(place(box(len / n - 0.04, h, 0.05, 1.2, 1.2), x0 + (x1 - x0) * k, h / 2 + 0.05, z0 + (z1 - z0) * k, -ang), i % 4 === 1 ? M.metalRust : M.metalOlive);
+	}
+	for (let i = 0; i <= n; i++) batch.add(place(box(0.08, h + 0.1, 0.08), x0 + (x1 - x0) * i / n, (h + 0.1) / 2, z0 + (z1 - z0) * i / n), M.metalDark);
+	collide((x0 + x1) / 2, (z0 + z1) / 2, len, 0.3, -ang);
+}
+
+/** Низкая крашеная ограда (детский сад): стойки через 2,5 м и две перекладины. */
+function lowFence(batch, M, collide, x0, z0, x1, z1) {
+	const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0), n = Math.max(1, Math.round(len / 2.5));
+	const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+	for (let i = 0; i <= n; i++) batch.add(place(box(0.07, 1.3, 0.07), x0 + (x1 - x0) * i / n, 0.65, z0 + (z1 - z0) * i / n), M.green);
+	for (const y of [0.4, 1.15]) batch.add(place(box(len, 0.05, 0.05), cx, y, cz, -ang), M.green);
+	collide(cx, cz, len, 0.25, -ang);
+}
+
+/** Башенный кран: решётчатая башня, стрела (rot — куда смотрит, как ry у place), противовес, кабина, трос с обоймой. */
+function towerCrane(batch, M, collide, x, z, rot, { h = 17, jib = 19 } = {}) {
+	batch.add(place(box(3, 0.6, 3, 1), x, 0.3, z), M.concreteDark);
+	for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) batch.add(place(box(0.14, h, 0.14), x + dx * 0.6, 0.6 + h / 2, z + dz * 0.6), M.yellow);
+	for (let y = 2.2; y < h; y += 2.4) for (const s of [-1, 1]) {
+		batch.add(place(box(1.3, 0.07, 0.07), x, 0.6 + y, z + s * 0.6), M.yellow);
+		batch.add(place(box(0.07, 0.07, 1.3), x + s * 0.6, 0.6 + y, z), M.yellow);
+		batch.add(place(box(0.05, 2.7, 0.05), x, 0.6 + y + 1.2, z + s * 0.6, 0, 0, s * 0.46), M.yellow); // раскосы
+	}
+	const top = 0.6 + h, c = Math.cos(rot), s = Math.sin(rot);
+	batch.add(place(box(jib, 0.8, 0.8, 1).translate(jib / 2, 0, 0), x, top + 0.6, z, rot), M.yellow); // стрела
+	batch.add(place(box(7, 0.6, 0.9, 1).translate(-3.5, 0, 0), x, top + 0.5, z, rot), M.yellow); // консоль противовеса
+	batch.add(place(box(1.8, 1.6, 1.4, 1).translate(-6, -0.6, 0), x, top + 0.5, z, rot), M.concreteDark); // противовес
+	batch.add(place(box(1.6, 1.5, 1.4).translate(1.0, -0.4, -1.1), x, top, z, rot), M.yellow); // кабина
+	batch.add(place(box(0.02, 0.9, 1.2).translate(1.81, -0.3, -1.1), x, top, z, rot), M.glass);
+	batch.add(place(box(0.12, 3.4, 0.12), x, top + 2.4, z), M.yellow); // оголовок
+	const hx = x + jib * 0.7 * c, hz = z - jib * 0.7 * s;
+	batch.add(place(box(0.04, top - 3.6, 0.04), hx, (top + 3.6) / 2 + 0.2, hz), M.metalDark); // трос
+	batch.add(place(box(0.35, 0.5, 0.35), hx, 3.6, hz), M.red); // крюковая обойма
+	collide(x, z, 3, 3);
+}
+
+/**
+ * Недострой: каркас пятиэтажки 16×12 м — колонны, плиты, начатая кладка, лестница на перекрытие. Первый этаж —
+ * здание (заходят: колонны и кладка — укрытия, в углу ящик прораба), этажи выше — occluder (прозрачные, когда
+ * загораживают героя или он под ними).
+ */
+function buildFrame(bctx, occluder, { cx, cz }) {
+	const W = 16, D = 12, H = 3.0, hx = W / 2, hz = D / 2, F = 3.0, floors = 4;
+	const b = new Building(bctx, { name: 'Nedostroy', cx, cz, ry: 0, W, D, H, top: H + 0.3 });
+	b.messKind = 'work';
+	const { M } = bctx, IM = b.IM;
+	b.lower(place(planeXZ(W + 0.6, D + 0.6, 2), 0, 0.03, 0), M.concrete, { cast: false });
+	const XS = [-hx + 0.25, -hx / 3, hx / 3, hx - 0.25], ZS = [-hz + 0.25, 0, hz - 0.25];
+	for (const x of XS) for (const z of ZS) b.furniture(x, z, 0, [[0.5, H, 0.5, 0, H / 2, 0, M.concrete]], { solid: [0.5, 0.5] });
+	// начатая кладка: глухие куски стен и стенки по пояс — укрытия
+	b.wall('x', -hz, -hx + 0.5, -hx / 3 - 0.25, { mat: M.brick, t: 0.25 });
+	b.wall('z', -hx, 0.25, hz - 0.5, { mat: M.brick, t: 0.25 });
+	b.furniture(hx / 3 + 2.6, hz - 0.25, 0, [[4.6, 1.2, 0.25, 0, 0.6, 0, M.brick]], { solid: [4.6, 0.25] });
+	b.furniture(-1.0, -1.8, 0, [[3.2, 0.8, 0.25, 0, 0.4, 0, M.whiteBrick]], { solid: [3.2, 0.25] });
+	// лестница на перекрытие (выше не попасть)
+	const steps = [];
+	for (let i = 0; i < 10; i++) steps.push([1.4, 0.3 * (i + 1), 0.5, 0, 0.15 * (i + 1), 2.25 - 0.5 * i, M.concrete]);
+	b.furniture(hx - 1.6, -0.5, 0, steps, { solid: [1.5, 5.0] });
+	b.container('Ящик прораба', -hx + 1.6, -hz + 1.0, 0, [[1.4, 0.7, 0.8, 0, 0.35, 0, IM.crateGreen], [1.42, 0.06, 0.82, 0, 0.72, 0, IM.metal], [0.12, 0.1, 0.03, 0, 0.55, 0.41, IM.black]], [1.4, 0.8], { ammo545: [6, 12, 0.4], ammo12: [3, 6, 0.35], grenade: 0.06, fireaxe: 0.1 }, 0.8);
+	// мешки с цементом на поддоне, тачка, связка арматуры
+	b.furniture(-3.4, 3.6, 0.2, [[1.2, 0.14, 1.0, 0, 0.07, 0, IM.crate], [1.1, 0.5, 0.9, 0, 0.39, 0, IM.rag]], { solid: [1.2, 1.0] });
+	b.furniture(1.8, 3.4, -0.5, [[0.6, 0.3, 1.0, 0, 0.45, 0, IM.metal], [0.1, 0.4, 0.1, 0, 0.2, 0.55, IM.black]], { solid: [0.6, 1.1] });
+	b.furniture(4.6, -4.4, 0.1, [[3.6, 0.2, 0.3, 0, 0.1, 0, M.metalRust]], { solid: [0, 0] });
+	b.top_(place(box(W + 0.4, 0.25, D + 0.4, 3), 0, H + 0.12, 0), M.concrete); // плита над первым этажом
+	const y0 = H + 0.25, top = H + floors * F;
+	occluder('NedostroyTop', (kb) => {
+		for (const x of XS) for (const z of ZS) {
+			const hgt = x > 0 && z < 0 ? (floors - 1) * F - 0.25 : floors * F - 0.25; // северо-восток — на этаж ниже
+			kb.add(place(box(0.5, hgt, 0.5, 1, 1), cx + x, y0 + hgt / 2, cz + z), M.concrete);
+			for (const d of [-0.15, 0.15]) kb.add(place(box(0.03, 0.8, 0.03), cx + x + d, y0 + hgt + 0.4, cz + z + d), M.metalRust); // арматура
+		}
+		for (let f = 1; f < floors; f++) {
+			const y = H + f * F, part = f === floors - 1; // верхнее перекрытие — только на западной половине
+			kb.add(place(box(part ? W / 2 + 0.2 : W + 0.4, 0.25, D + 0.4, 3), cx - (part ? W / 4 : 0), y + 0.12, cz), M.concrete);
+		}
+		// лестничная клетка до верха и кладка второго этажа кусками
+		kb.add(place(box(1.9, top - y0, 0.25, 2), cx + hx - 1.6, (top + y0) / 2, cz - 3.2), M.brick);
+		kb.add(place(box(0.25, top - y0, 5.0, 2), cx + hx - 2.65, (top + y0) / 2, cz - 0.7), M.brick);
+		kb.add(place(box(6, F - 0.25, 0.25, 1.5), cx - hx + 3.5, y0 + (F - 0.25) / 2, cz + hz), M.brick);
+		kb.add(place(box(0.25, F - 0.25, 7, 1.5), cx - hx, y0 + F + (F - 0.25) / 2, cz - 1.5), M.brick);
+	}, { cx, cz, ry: 0, hx: hx + 0.6, hz: hz + 0.6, top: top + 1 }, 0.18);
+	return b.finish();
+}
+
+/** Бытовка строителей 6×2,6 м: шкафчик и стол прораба, лавка; дверь — с юга (+Z). */
+function buildBytovka(bctx, { cx, cz }) {
+	const W = 6, D = 2.6, H = 2.5, t = 0.1, hx = W / 2, hz = D / 2;
+	const b = new Building(bctx, { name: 'Bytovka', cx, cz, ry: 0, W, D, H, top: H + 0.25 });
+	b.messKind = 'work';
+	const { M } = bctx, IM = b.IM;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.03, 0), IM.linoleum, { cast: false });
+	const wo = { mat: M.metalOlive, t, lining: IM.furnitureLight, sx: 1.2 };
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { ...wo, doors: [1.6], side: -1 });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { ...wo, side: 1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { ...wo, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { ...wo, side: -1 });
+	b.window('back', -1.2, { t, y: 1.5 });
+	b.top_(place(box(W + 0.3, 0.12, D + 0.3, 2), 0, H + 0.06, 0), M.metalRust);
+	b.container('Шкафчик', -2.3, -hz + 0.35, 0, [[0.85, 1.9, 0.5, 0, 0.95, 0, IM.locker], [0.02, 1.8, 0.02, 0, 0.95, 0.26, IM.black]], [0.85, 0.5], { ammo919: [4, 8, 0.4], zhivchik: 0.25, spore: 0.25 }, 1.9);
+	b.container('Стол прораба', 0.1, -hz + 0.42, 0, [
+		[1.3, 0.05, 0.62, 0, 0.75, 0, IM.furniture], [0.45, 0.7, 0.55, 0.38, 0.36, 0, IM.furniture],
+		[0.05, 0.7, 0.05, -0.6, 0.36, 0.25, IM.furniture], [0.05, 0.7, 0.05, -0.6, 0.36, -0.25, IM.furniture], [0.5, 0.02, 0.35, -0.2, 0.79, 0, IM.paper],
+	], [1.3, 0.62], { ammo545: [5, 10, 0.4], ammo919: [4, 8, 0.35], spore: [1, 2, 0.3] }, 0.9);
+	b.furniture(hx - 0.3, 0.1, 0, [[0.4, 0.45, 1.6, 0, 0.22, 0, IM.furnitureLight]], { solid: [0.4, 1.6] }); // лавка
+	return b.finish();
+}
+
+/** Крытый рынок 20×14 м: навес на столбах у кирпичной стены, ряды прилавков, ящики с гнилыми овощами; открыт с трёх сторон. */
+function buildMarket(bctx, { cx, cz }) {
+	const W = 20, D = 14, H = 3.0, hx = W / 2, hz = D / 2;
+	const b = new Building(bctx, { name: 'Rynok', cx, cz, ry: 0, W, D, H, top: H + 1.3 });
+	b.messKind = 'shop';
+	const { M } = bctx, IM = b.IM;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.022, 0), M.concrete, { cast: false });
+	b.wall('x', -hz, -hx, hx, { mat: M.brick, t: 0.25, lining: IM.whitewash, side: 1 });
+	for (const [x, z] of [[-hx + 0.15, hz - 0.15], [-3.4, hz - 0.15], [3.4, hz - 0.15], [hx - 0.15, hz - 0.15], [-hx + 0.15, 0], [hx - 0.15, 0], [-6, 1.6], [0, 1.6], [6, 1.6]]) {
+		b.furniture(x, z, 0, [[0.16, H + 0.4, 0.16, 0, (H + 0.4) / 2, 0, M.metalDark]], { solid: [0.25, 0.25] });
+	}
+	// навес: скат на юг, прогон по краю; вывеска над краем навеса
+	b.top_(place(box(W + 0.8, 0.08, D + 1.2, 2), 0, H + 0.6, 0.3, 0, 0.06), M.roofMetal);
+	b.top_(place(box(W + 0.8, 0.3, 0.12), 0, H + 0.2, hz + 0.4), M.metalDark);
+	b.top_(new THREE.PlaneGeometry(5.0, 0.9).translate(0, H + 0.95, hz + 0.62), T.signMaterial('РЫНОК', { bg: '#2a5a3a', fg: '#f0e8c0' }));
+	// ряд у стены: два прилавка-тайника и пустой посередине; островок из прилавков с ящиками
+	counter(b, 'Прилавок', -6.4, -hz + 1.4, 0, 3.4, { zhivchik: 0.3, spore: 0.3, ammo919: [2, 5, 0.25] });
+	counter(b, 'Прилавок', 6.2, -hz + 1.4, 0, 3.4, { ammo12: [3, 6, 0.35], ammo919: [3, 6, 0.3], spore: 0.25 });
+	b.furniture(0, -hz + 1.4, 0, [[3.4, 1.0, 0.7, 0, 0.5, 0, IM.furnitureLight], [0.6, 0.35, 0.45, -0.9, 1.18, 0, IM.crate], [0.6, 0.35, 0.45, 0.6, 1.18, 0, IM.crate]], { solid: [3.4, 0.7] });
+	for (const s of [-1, 1]) {
+		b.furniture(s * 3, 1.6, 0, [
+			[4.6, 0.9, 1.4, 0, 0.45, 0, IM.furnitureLight],
+			...[-1.6, -0.5, 0.6, 1.7].map((x, i) => [0.6, 0.3, 0.45, x, 1.05, (i % 2 ? 0.3 : -0.3), i % 2 ? IM.crate : IM.crateGreen]),
+		], { solid: [4.6, 1.4] });
+	}
+	b.container('Ящики', -hx + 1.3, hz - 2.0, Math.PI / 2, [[1.2, 0.7, 1.0, 0, 0.35, 0, IM.crate], [1.0, 0.6, 0.8, 0.05, 1.0, 0, IM.crate]], [1.2, 1.0], { zhivchik: 0.3, ammo919: [3, 6, 0.3], spore: 0.25 }, 1.3);
+	b.furniture(hx - 1.4, 4.6, 0.3, [[1.0, 0.8, 1.0, 0, 0.4, 0, IM.crate], [0.9, 0.6, 0.9, 0.05, 1.1, 0, IM.crate]], { solid: [1.0, 1.0], prop: 'crate' });
+	return b.finish();
+}
+
+/** Ряд ларьков (заходят): секции 3,2×3 м, у каждой дверь и витрина с юга (+Z); loot — тайник секции (null — закрыт ставнем). */
+function buildKiosks(bctx, { name, cx, cz, signs, loot }) {
+	const n = loot.length, cell = 3.2, W = n * cell, D = 3.0, H = 2.6, t = 0.12, hx = W / 2, hz = D / 2;
+	const b = new Building(bctx, { name, cx, cz, ry: 0, W, D, H, top: H + 0.3 });
+	b.messKind = 'shop';
+	const { M } = bctx, IM = b.IM;
+	const centers = [...Array(n)].map((_, i) => -hx + cell / 2 + i * cell);
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), IM.linoleum, { cast: false });
+	const wo = { mat: M.plaster, t, lining: IM.shopWall };
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { ...wo, doors: centers.filter((_, i) => loot[i]).map((c) => c + 0.75), side: -1 });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { ...wo, side: 1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { ...wo, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { ...wo, side: -1 });
+	for (let i = 1; i < n; i++) b.wall('z', -hx + i * cell, -hz + t / 2, hz - t / 2, { mat: IM.shopWall, t: 0.1 });
+	b.top_(place(box(W + 0.4, 0.12, D + 0.5, 2), 0, H + 0.06, 0.1), M.metalRust);
+	for (const [i, c] of centers.entries()) {
+		b.top_(new THREE.PlaneGeometry(1.3, 1.1).translate(c - 0.65, 1.55, hz + t / 2 + 0.02), M.glass);
+		if (signs[i]) b.top_(new THREE.PlaneGeometry(2.9, 0.42).translate(c, H - 0.24, hz + t / 2 + 0.03), signs[i]);
+		if (loot[i]) counter(b, 'Прилавок', c, -hz + 0.5, 0, 2.4, loot[i]);
+		else b.wallBox('back', c, 2.9, 0.05, H - 0.5, 0.05, M.metalOlive, { t }); // опущенный ставень
+	}
+	return b.finish();
+}
+
+/**
+ * Поликлиника 22×14 м: первый этаж (заходят) — коридор вдоль южной стены с регистратурой и картотекой, три кабинета
+ * (терапевт, процедурный, кабинет с сейфом); второй этаж — фасад (occluder). Вход — с юга, под козырьком на столбах.
+ */
+function buildClinic(bctx, occluder, { cx, cz }) {
+	const W = 22, D = 14, H = 3.4, t = 0.3, hx = W / 2, hz = D / 2;
+	const b = new Building(bctx, { name: 'Clinic', cx, cz, ry: 0, W, D, H, top: H + 0.4 });
+	b.messKind = 'home';
+	const { M } = bctx, IM = b.IM;
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), IM.linoleum, { cast: false });
+	const wo = { mat: M.plaster, t, lining: IM.shopWall };
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { ...wo, doors: [0], w: 2.0, side: -1 });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { ...wo, side: 1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { ...wo, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { ...wo, side: -1 });
+	b.wall('x', 2.0, -hx + t / 2, hx - t / 2, { mat: IM.shopWall, t: 0.15, doors: [-7.4, 0, 7.4] });
+	for (const x of [-3.7, 3.7]) b.wall('z', x, -hz + t / 2, 2.0 - 0.075, { mat: IM.shopWall, t: 0.15 });
+	for (const x of [-9.5, -6.5, -3.4, 3.4, 6.5, 9.5]) b.window('back', x, { t, sill: M.concrete });
+	for (const x of [-9, -5.5, -1.8, 1.8, 5.5, 9]) b.window('front', x, { t, sill: M.concrete });
+	b.lower(place(box(4.0, 0.25, 2.0, 1), 0, 0.12, hz + 1.0), M.concrete);
+	b.canopy('back', 0, { w: 4.0, d: 2.0, y: 2.9, mat: M.concrete, posts: M.concrete, t, thick: 0.18 });
+	for (const s of [-1, 1]) b.furniture(s * 1.0, hz - 0.1, s * 1.75, [[0.95, 2.05, 0.05, s * -0.47, 1.03, 0, IM.white]], { up: true });
+	// регистратура в западном конце коридора: стойка, за ней картотека
+	counter(b, 'Регистратура', -7.0, 4.75, Math.PI / 2, 2.7, { zhivchik: 0.3, ammo919: [3, 6, 0.35], spore: 0.25 }, IM.white);
+	b.container('Картотека', -hx + 0.45, 4.6, Math.PI / 2, [
+		[2.4, 1.9, 0.5, 0, 0.95, 0, IM.furnitureLight],
+		...[0.4, 0.8, 1.2, 1.6].map((y) => [2.3, 0.3, 0.42, 0, y, 0.05, IM.paper]),
+	], [2.4, 0.5], { zhivchik: 0.4, spore: 0.25, ammo919: [2, 4, 0.2] }, 1.9);
+	for (const x of [-3.5, 4.0]) b.furniture(x, hz - 0.55, 0, [[2.2, 0.05, 0.4, 0, 0.45, 0, IM.furnitureLight], [0.06, 0.45, 0.4, -0.95, 0.22, 0, IM.metal], [0.06, 0.45, 0.4, 0.95, 0.22, 0, IM.metal]], { solid: [2.2, 0.4] });
+	// кабинеты: терапевт (шкаф с лекарствами), процедурный (стеклянный шкаф), заведующий (сейф)
+	cabinet(b, 'Шкаф с лекарствами', -hx + 0.42, -3.5, Math.PI / 2, 1.2, 2.0, 0.5, { zhivchik: [1, 2, 0.5], spore: 0.25 }, IM.white);
+	table(b, -6.4, -3.0, 0, { w: 1.3, d: 0.7 });
+	chair(b, -6.4, -2.2, 0);
+	b.furniture(-6.0, -hz + 0.6, 0, [[1.9, 0.5, 0.7, 0, 0.25, 0, IM.sofa]], { solid: [1.9, 0.7] }); // кушетка
+	b.container('Стеклянный шкаф', 0, -hz + 0.4, 0, [[1.4, 1.9, 0.45, 0, 0.95, 0, IM.white], [1.3, 1.2, 0.02, 0, 1.3, 0.23, IM.glass]], [1.4, 0.45], { zhivchik: [1, 2, 0.5], spore: 0.25 }, 1.9);
+	b.furniture(-2.2, -2.2, 0, [[0.7, 0.5, 1.9, 0, 0.25, 0, IM.white]], { solid: [0.7, 1.9] });
+	table(b, 1.8, -2.0, 0, { w: 1.0, d: 0.6 });
+	safe(b, hx - 0.45, -4.5, -Math.PI / 2, { zhivchik: [1, 3, 0.5], ammo919: [6, 12, 0.5], spore: [2, 4, 0.4] });
+	table(b, 6.4, -3.0, 0, { w: 1.3, d: 0.7 });
+	chair(b, 6.4, -2.2, 0);
+	// второй этаж: штукатурка, окна на обоих фасадах, вывеска с красным крестом, плоская крыша
+	const y0 = H + 0.4, H2 = 3.2, top = y0 + H2;
+	occluder('ClinicTop', (kb) => {
+		kb.add(place(box(W + 0.3, 0.3, D + 0.3, 2), cx, y0 - 0.15, cz), M.concrete);
+		kb.add(place(box(W, H2, D, 2, 1.6), cx, y0 + H2 / 2, cz), M.plaster);
+		kb.add(new THREE.PlaneGeometry(5.0, 0.8).translate(cx - 4.5, y0 + 0.55, cz + D / 2 + 0.03), T.signMaterial('ПОЛИКЛИНИКА', { bg: '#e8eef0', fg: '#1a4a8a' }));
+		kb.add(place(box(0.9, 0.3, 0.04), cx - 0.8, y0 + 0.55, cz + D / 2 + 0.04), M.red);
+		kb.add(place(box(0.3, 0.9, 0.04), cx - 0.8, y0 + 0.55, cz + D / 2 + 0.04), M.red);
+		for (let i = 0; i < 7; i++) for (const s of [1, -1]) {
+			const x = cx - 9 + i * 3, h = hash01('clinic', s, i), k = h < 0.2 ? 5 : h < 0.35 ? 6 : h < 0.6 ? 7 : 4;
+			const g = T.windowUV(new THREE.PlaneGeometry(1.62, 1.5), k);
+			if (s < 0) g.rotateY(Math.PI);
+			kb.add(g.translate(x, y0 + 1.75, cz + s * (D / 2 + 0.02)), M.window);
+		}
+		kb.add(planeXZ(W, D, 4).translate(cx, top + 0.04, cz), M.roofTar);
+		for (const s of [-1, 1]) {
+			kb.add(boxTop(W + 0.4, 0.5, 0.25, 2).translate(cx, top + 0.25, cz + s * (D / 2 + 0.075)), M.concrete);
+			kb.add(boxTop(0.25, 0.5, D - 0.1, 2).translate(cx + s * (W / 2 + 0.075), top + 0.25, cz), M.concrete);
+		}
+		for (const [ex, ez] of [[-7, -3], [2, 2.5], [8, -2]]) kb.add(boxTop(1.0, 0.8, 0.6, 1).translate(cx + ex, top + 0.4, cz + ez), M.concrete);
+	}, { cx, cz, ry: 0, hx: W / 2 + 0.5, hz: D / 2 + 1.0, top: top + 0.8 }, 0.2);
+	return b.finish();
+}
+
+/**
+ * Детский сад «Солнышко» 26×11 м: две групповые (кроватки, столики, шкафчики-тайники), посередине пищеблок
+ * (холодильник) и медкабинет (шкаф медсестры). Входы — с юга (+Z), над ними козырьки; плоская крыша с парапетом.
+ */
+function buildKindergarten(bctx, { cx, cz }) {
+	const W = 26, D = 11, H = 3.2, t = 0.25, hx = W / 2, hz = D / 2;
+	const b = new Building(bctx, { name: 'Detsad', cx, cz, ry: 0, W, D, H, top: H + 0.65 });
+	b.messKind = 'home';
+	const { M } = bctx, IM = b.IM;
+	const wo = { mat: M.plaster, t, lining: IM.wallpaper[2] };
+	b.lower(place(planeXZ(W - 0.1, D - 0.1, 2), 0, 0.025, 0), IM.linoleum, { cast: false });
+	b.wall('x', hz, -hx - t / 2, hx + t / 2, { ...wo, doors: [-8.5, 0, 8.5], w: 1.4, side: -1 });
+	b.wall('x', -hz, -hx - t / 2, hx + t / 2, { ...wo, side: 1 });
+	b.wall('z', -hx, -hz + t / 2, hz - t / 2, { ...wo, side: 1 });
+	b.wall('z', hx, -hz + t / 2, hz - t / 2, { ...wo, side: -1 });
+	for (const x of [-4, 4]) b.wall('z', x, -hz + t / 2, hz - t / 2, { mat: IM.whitewash, t: 0.15 });
+	b.wall('x', -0.5, -4 + 0.075, 4 - 0.075, { mat: IM.whitewash, t: 0.15, doors: [2.2] }); // пищеблок | медкабинет
+	for (const x of [-11.6, -5.6, -2.4, 2.4, 5.6, 11.6]) b.window('back', x, { t, sill: M.concrete });
+	for (const x of [-11, -7, -1.5, 1.5, 7, 11]) b.window('front', x, { t, sill: M.concrete });
+	b.top_(place(box(W + 0.5, 0.3, D + 0.5, 3), 0, H + 0.15, 0), M.roofTar);
+	b.parapet(H + 0.3, M.plaster, 0.35);
+	for (const x of [-8.5, 0, 8.5]) b.canopy('back', x, { w: 2.0, d: 1.1, y: 2.5, mat: M.roofGreen, t });
+	b.top_(b.onWall(new THREE.PlaneGeometry(5.6, 0.6).translate(0, H - 0.3, 0.02), 'back', -4.2, t), T.signMaterial('ДЕТСКИЙ САД «СОЛНЫШКО»', { bg: '#f0e6c8', fg: '#c04a20', w: 640, h: 80 }));
+	const toys = [M.red, M.yellow, M.woodBlue];
+	const group = (gx, side, loot) => {
+		const cots = [];
+		for (let i = 0; i < 6; i++) { const x = -3.4 + i * 1.15; cots.push([0.62, 0.32, 1.3, x, 0.16, 0, IM.blanket], [0.6, 0.1, 0.32, x, 0.37, -0.45, IM.linen]); }
+		b.furniture(gx, -hz + 1.0, 0, cots, { solid: [7.6, 1.3] });
+		for (const dx of [-2.0, 1.6]) table(b, gx + dx, 0.8, 0, { w: 1.4, d: 0.7 });
+		b.container('Шкафчики', gx + side * 4.12, 2.6, -side * Math.PI / 2, [
+			...[0, 1, 2, 3, 4].map((i) => [0.42, 1.3, 0.4, -0.88 + i * 0.44, 0.65, 0, toys[i % 3]]),
+			...[0, 1, 2, 3, 4].map((i) => [0.02, 1.2, 0.02, -0.66 + i * 0.44, 0.65, 0.21, IM.black]),
+		], [2.2, 0.4], loot, 1.3);
+		for (let i = 0; i < 5; i++) b.lower(place(box(0.25, 0.25, 0.25), gx - 1.5 + i * 0.7, 0.125, 3.2 + (i % 2) * 0.6, i), toys[i % 3], { cast: false }); // кубики
+	};
+	group(-8.5, -1, { zhivchik: 0.3, ammo919: [2, 5, 0.3], spore: 0.25 });
+	group(8.5, 1, { zhivchik: 0.25, spore: 0.3, ammo12: [2, 4, 0.2] });
+	// пищеблок: холодильник, плита, стол; медкабинет: шкаф медсестры, кушетка
+	b.container('Холодильник', -3.3, -hz + 0.45, 0, [[0.62, 1.5, 0.6, 0, 0.75, 0, IM.white], [0.04, 0.3, 0.04, -0.24, 1.0, 0.32, IM.metal]], [0.62, 0.6], { zhivchik: [1, 2, 0.4], spore: 0.2 }, 1.5);
+	b.furniture(-1.6, -hz + 0.45, 0, [[1.2, 0.85, 0.65, 0, 0.42, 0, IM.white], [1.2, 0.03, 0.65, 0, 0.86, 0, IM.black], [0.45, 0.4, 0.45, 0.2, 1.08, 0, IM.metal]], { solid: [1.2, 0.65] });
+	table(b, 1.4, -3.0, 0, { w: 1.4, d: 0.8 });
+	cabinet(b, 'Шкаф медсестры', 3.68, 2.2, -Math.PI / 2, 1.0, 1.9, 0.45, { zhivchik: [1, 2, 0.5], spore: 0.25 }, IM.white);
+	b.furniture(-2.8, 2.4, 0, [[0.7, 0.5, 1.8, 0, 0.25, 0, IM.white]], { solid: [0.7, 1.8] });
+	return b.finish();
+}
+
+/** Веранда детского сада: дощатые стенки с трёх сторон, крыша, лавка; открыта на юг (внутрь не зайти — сплошная). */
+function veranda(batch, M, collide, x, z) {
+	batch.add(place(box(4.4, 2.1, 0.12, 1.5), x, 1.05, z - 1.4), M.woodGreen);
+	for (const s of [-1, 1]) batch.add(place(box(0.12, 2.1, 2.8, 1.5), x + s * 2.14, 1.05, z), M.woodGreen);
+	batch.add(place(box(4.4, 0.08, 2.8, 2), x, 0.04, z), M.wood);
+	batch.add(place(box(4.0, 0.06, 0.35), x, 0.45, z - 1.1), M.woodYellow);
+	batch.add(place(box(4.9, 0.1, 3.4, 2), x, 2.25, z, 0, -0.07), M.roofGreen);
+	collide(x, z, 4.5, 2.9);
+}
+
+/** Хоккейная коробка: деревянные борта 1,1 м, проходы посередине длинных сторон, ворота у торцов. */
+function rink(batch, M, collide, x0, z0, x1, z1) {
+	const h = 1.1, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+	const seg = (ax, az, bx, bz) => {
+		const len = Math.hypot(bx - ax, bz - az), ang = Math.atan2(bz - az, bx - ax);
+		batch.add(place(box(len, h, 0.12, 1.5), (ax + bx) / 2, h / 2, (az + bz) / 2, -ang), M.woodBlue);
+		collide((ax + bx) / 2, (az + bz) / 2, len, 0.25, -ang);
+	};
+	seg(x0, z0, x1, z0); seg(x0, z1, x1, z1);
+	for (const x of [x0, x1]) { seg(x, z0, x, cz - 2); seg(x, cz + 2, x, z1); }
+	for (const [z, d] of [[z0 + 1.6, -1], [z1 - 1.6, 1]]) {
+		for (const s of [-1, 1]) batch.add(place(box(0.08, 1.2, 0.08), cx + s * 0.9, 0.6, z), M.red);
+		batch.add(place(box(1.9, 0.08, 0.08), cx, 1.2, z), M.red);
+		batch.add(place(box(1.9, 1.2, 0.04), cx, 0.6, z + d * 0.6, 0, d * 0.35), M.metalDark); // сетка
+		collide(cx, z + d * 0.3, 2.0, 0.8);
+	}
+}
+
+/** Голубятня: будка на столбах, лесенка, клетка-выгул на крыше. */
+function dovecote(batch, M, collide, x, z) {
+	for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) batch.add(place(box(0.16, 3.2, 0.16), x + dx * 1.1, 1.6, z + dz * 1.1), M.wood);
+	batch.add(place(box(2.8, 2.2, 2.8, 1.5), x, 4.3, z), M.woodGrey);
+	batch.add(place(box(3.2, 0.12, 3.2, 2), x, 5.46, z), M.roofMetal);
+	batch.add(place(box(1.8, 1.0, 1.8), x, 6.0, z), M.metalDark);
+	for (let y = 0.4; y < 3.2; y += 0.4) batch.add(place(box(0.5, 0.04, 0.04), x, y, z + 1.55), M.wood);
+	collide(x, z, 2.6, 2.6);
+}
+
 export default {
 	id: 'mikro',
 	seed: 4433,
+	half: 90, // 180×180 м: ядро — прежние 132×132 м, вокруг — кольцо новых районов
 	build(ctx) {
 		const { rnd, R, root, batch, collide, M, ground, occluder, buildings, bctx } = ctx;
 		const mark = markingMaterial();
 
 		// ---------- Проспект, улица, проезды, тротуары ----------
-		ground(12, 150, -6, 0, M.asphalt, 5, 0.02); // проспект с севера на юг
-		ground(150, 8, 0, 10, M.asphalt, 5, 0.022); // улица запад—восток (к Подстанции)
-		ground(6, 72, -40, -30, M.asphalt, 5, 0.021); // проезд на северо-запад (к Аэродрому)
+		ground(12, 184, -6, 0, M.asphalt, 5, 0.02); // проспект с севера на юг
+		ground(184, 8, 0, 10, M.asphalt, 5, 0.022); // улица запад—восток (к Подстанции)
+		ground(6, 98, -40, -43, M.asphalt, 5, 0.021); // проезд на северо-запад (к Аэродрому) — до края
 		ground(5, 56, 46.5, -22, M.asphalt, 5, 0.0215); // дворовый проезд между домами и гаражами
-		ground(150, 0.15, -6, 0, mark, 6, 0.027, Math.PI / 2);
-		ground(150, 0.15, 0, 10, mark, 6, 0.026);
-		ground(2.4, 150, -13.2, 0, M.concrete, 3, 0.014); // тротуары проспекта
-		ground(2.4, 150, 1.2, 0, M.concrete, 3, 0.014);
-		ground(150, 2.4, 0, 4.8, M.concrete, 3, 0.0145); // тротуары улицы
-		ground(150, 2.4, 0, 15.2, M.concrete, 3, 0.0145);
+		ground(180, 0.15, -6, 0, mark, 6, 0.027, Math.PI / 2);
+		ground(180, 0.15, 0, 10, mark, 6, 0.026);
+		ground(2.4, 180, -13.2, 0, M.concrete, 3, 0.014); // тротуары проспекта
+		ground(2.4, 180, 1.2, 0, M.concrete, 3, 0.014);
+		ground(180, 2.4, 0, 4.8, M.concrete, 3, 0.0145); // тротуары улицы
+		ground(180, 2.4, 0, 15.2, M.concrete, 3, 0.0145);
 		// «зебры» на перекрёстке
 		for (let i = 0; i < 7; i++) {
 			batch.add(place(planeXZ(1.2, 0.5), -11 + i * 1.7, 0.03, 3.0), M.white, { cast: false });
@@ -410,10 +768,10 @@ export default {
 			batch.add(place(planeXZ(0.5, 1.2), 4.0, 0.03, 7.0 + i), M.white, { cast: false });
 		}
 		// бордюры (разрывы — на перекрёстке и у проездов)
-		for (const [x, z0, z1] of [[-12.05, -66, 4.5], [-12.05, 15.5, 66], [0.05, -66, 4.5], [0.05, 15.5, 66]]) {
+		for (const [x, z0, z1] of [[-12.05, -90, 4.5], [-12.05, 15.5, 90], [0.05, -90, 4.5], [0.05, 15.5, 90]]) {
 			batch.add(place(box(0.24, 0.14, z1 - z0, 2), x, 0.07, (z0 + z1) / 2), M.concrete, { cast: false });
 		}
-		for (const [z, x0, x1] of [[5.95, -66, -43.5], [5.95, -36.5, -12.5], [5.95, 0.5, 43.5], [5.95, 49.5, 66], [14.05, -66, -12.5], [14.05, 0.5, 66]]) {
+		for (const [z, x0, x1] of [[5.95, -90, -43.5], [5.95, -36.5, -12.5], [5.95, 0.5, 43.5], [5.95, 49.5, 90], [14.05, -90, -12.5], [14.05, 0.5, 90]]) {
 			batch.add(place(box(x1 - x0, 0.14, 0.24, 2), (x0 + x1) / 2, 0.07, z), M.concrete, { cast: false });
 		}
 		// площадки перед домами (магазины), двор с площадкой, дорожки, стоянки, площадка у гаражей, спортплощадка
@@ -435,7 +793,7 @@ export default {
 		ground(4, 26, 53, 33, M.dirt, 4, 0.015); // перед ракушками на юго-востоке
 		ground(6, 40, -52, -32, M.dirt, 4, 0.015); // перед ракушками в парке
 		ground(10, 2.4, 7.5, 38.5, M.concrete, 3, 0.0165); // от проспекта к школе
-		const roads = [[-12, 0, -80, 80], [-80, 80, 6, 14], [-43, -37, -70, 6], [44, 49, -50, 6]];
+		const roads = [[-12, 0, -95, 95], [-95, 95, 6, 14], [-43, -37, -95, 6], [44, 49, -72, 6], [45, 57, -72, -66], [57, 83, -76, -62], [-86, -62, -3.3, 6], [-84, -62, 42, 53], [-58.5, -21.5, 76.4, 83.2], [66, 82, 20, 42]];
 		const onRoad = (x, z, m = 0) => roads.some(([x0, x1, z0, z1]) => x > x0 - m && x < x1 + m && z > z0 - m && z < z1 + m);
 
 		// ---------- Девятиэтажки: первый этаж — здание (заходят), выше — фасад ----------
@@ -583,13 +941,197 @@ export default {
 		bus(batch, M, root, -26, 9.6, Math.PI / 2 + 0.05); // горит на улице у остановки
 		collide(-26, 9.6, 2.6, 8.4, Math.PI / 2 + 0.05);
 
+		// ================= Кольцо окраины: новые районы =================
+
+		// ---------- Север: девятиэтажка 5 (кафе, подъезд, «Продукты»), двор с деревьями до дома 2 ----------
+		buildings.push(floor1(bctx, { name: 'Dom5', cx: 24, cz: -72, W: HW, D: HD, rooms: [{ kind: 'cafe', w: 12.8 }, { kind: 'hall', w: 6.4 }, { kind: 'shop', w: 16 }] }));
+		tower(occluder, M, 'Dom5Top', { cx: 24, cz: -72, W: HW, D: HD, halls: [-1.6], balc: [0, 1, 6, 9, 10] });
+		ground(40, 2.4, 22.5, -64.2, M.concrete, 3, 0.0155);
+		bench(batch, M, 24.8, -64.0, Math.PI); bench(batch, M, 20.0, -64.0, Math.PI);
+		for (const [x, z] of [[1.8, -60], [42.6, -62]]) streetLamp(batch, M, collide, x, z);
+
+		// ---------- Северо-восток: гаражный кооператив «Восход» — два ряда боксов воротами в общий проезд ----------
+		ground(5, 22, 46.5, -60, M.asphalt, 5, 0.0206); // дворовый проезд — дальше на север
+		ground(12, 6, 51, -69, M.asphalt, 5, 0.0207);
+		ground(26, 14, 70, -69, M.asphalt, 5, 0.0208);
+		buildings.push(buildGarages(bctx, {
+			name: 'GaragesC', cx: 70, cz: -79, n: 6, side: 'back',
+			loot: [
+				{ kind: 'bench', loot: { ammo12: [3, 6, 0.4], ammo762: [5, 10, 0.35], fireaxe: 0.08 } },
+				null,
+				{ kind: 'shelf', loot: { ammo545: [8, 16, 0.4], spore: 0.3, zhivchik: 0.2 } },
+				null,
+				{ kind: 'cache', loot: { ak47: 0.25, rpk: 0.08, ammo762: [20, 40, 0.8], grenade: [1, 2, 0.3] } }, // оружейный тайник
+				null,
+			],
+		}));
+		buildings.push(buildGarages(bctx, {
+			name: 'GaragesD', cx: 70, cz: -59, n: 6, side: 'back', ry: Math.PI,
+			loot: [
+				null,
+				{ kind: 'safe', loot: { spas12: 0.12, dbarrel: 0.2, ammo12: [10, 20, 0.7], ammo50: [5, 10, 0.3] } }, // сейф с ружьями
+				null,
+				{ kind: 'bench', loot: { ammo919: [4, 8, 0.4], spore: 0.3, grenade: 0.05 } },
+				null,
+				null,
+			],
+		}));
+		batch.add(place(box(2.4, 2.5, 2.4, 1.5), 53.6, 1.25, -75.6), M.whiteBrick); // сторожка
+		batch.add(place(box(2.7, 0.12, 2.7, 2), 53.6, 2.56, -75.6), M.roofTar);
+		batch.add(new THREE.PlaneGeometry(1.0, 0.8).translate(53.6, 1.6, -74.38), M.glass);
+		collide(53.6, -75.6, 2.5, 2.5);
+		barrier(batch, M, collide, 57.2, -72.6, -Math.PI / 2, 6, true);
+		billboard(batch, M, root, collide, 52.5, -64.6, 0, 'ГСК «ВОСХОД»', { w: 3.6, h: 0.8, y: 2.6, bg: '#d8d0b8', fg: '#2a4a8a' });
+		car(66, -69.5, 0.1, 0x6a6a5a);
+		car(78, -68, -0.2, 0x1c1a18, { burned: true });
+
+		// ---------- Северо-запад: недострой за забором из профлиста, башенный кран, бытовка, стройматериалы ----------
+		ground(20, 36, -25.75, -63, M.dirt, 4, 0.0152);
+		buildings.push(buildFrame(bctx, occluder, { cx: -26, cz: -67 }), buildBytovka(bctx, { cx: -21, cz: -50 }));
+		sheetFence(batch, M, collide, -35.5, -81, -16, -81);
+		sheetFence(batch, M, collide, -16, -81, -16, -45);
+		sheetFence(batch, M, collide, -35.5, -81, -35.5, -58);
+		sheetFence(batch, M, collide, -35.5, -52, -35.5, -45);
+		sheetFence(batch, M, collide, -35.5, -45, -29, -45);
+		sheetFence(batch, M, collide, -23, -45, -16, -45);
+		towerCrane(batch, M, collide, -31, -53, 1.23);
+		for (const [x, z] of [[-31.5, -77], [-29, -77.3]]) { // поддоны с кирпичом
+			batch.add(place(box(1.2, 0.14, 1.0, 1), x, 0.07, z), M.wood);
+			batch.add(place(box(1.1, 0.9, 0.9, 1), x, 0.6, z), M.brick);
+			collide(x, z, 1.3, 1.1);
+		}
+		for (const [x, z] of [[-21.5, -77], [-19.6, -77.4], [-20.6, -75.6]]) { // бетонные кольца
+			batch.add(place(new THREE.CylinderGeometry(0.75, 0.75, 0.9, 16, 1, true), x, 0.45, z), M.concrete);
+			collide(x, z, 1.5, 1.5);
+		}
+		batch.add(place(new THREE.ConeGeometry(2.0, 1.4, 12), -33, 0.7, -48.6), M.sand); // куча песка
+		collide(-33, -48.6, 3.0, 3.0);
+		batch.add(place(new THREE.CylinderGeometry(0.55, 0.75, 1.1, 12).rotateZ(1.1), -29, 1.0, -58.4), M.yellow); // бетономешалка
+		batch.add(place(box(1.4, 0.7, 1.0), -29.3, 0.35, -58.4), M.metalDark);
+		collide(-29.2, -58.4, 1.8, 1.2);
+		batch.add(place(box(2.4, 1.0, 1.6, 1), -33.2, 0.5, -65.5, 0.3), M.white); // поддон с газоблоком
+
+		// ---------- Северо-западный угол: ракушки, голубятня, трансформаторная, сгоревшая машина ----------
+		for (let i = 0; i < 4; i++) shell(-84 + i * 3.6, -62, 0, i % 2 ? M.metalOlive : M.metalRust);
+		dovecote(batch, M, collide, -56, -72);
+		transformer(batch, root, M, collide, -48, -80);
+		car(-66, -76, 0.7, 0x1c1a18, { burned: true });
+		car(-50, -60.5, 1.4, 0x7b8a5a);
+
+		// ---------- Запад: крытый рынок у улицы, ларьки на краю парка ----------
+		ground(24, 9, -74, 1.2, M.asphalt, 5, 0.0204); // площадка перед рынком — до улицы
+		buildings.push(buildMarket(bctx, { cx: -74, cz: -12 }));
+		buildings.push(buildKiosks(bctx, {
+			name: 'Larki', cx: -54, cz: -1.5,
+			signs: [T.signMaterial('ТАБАК', { bg: '#1e3a7a', fg: '#e8e8f0' }), null, T.signMaterial('ПЕЧАТЬ', { bg: '#e0d8c0', fg: '#8a1a10' })],
+			loot: [{ ammo919: [3, 6, 0.4], spore: 0.3 }, null, { zhivchik: 0.3, ammo12: [2, 5, 0.3], spore: 0.25 }],
+		}));
+		car(-66, 1.5, 0.15, 0xc8c0a8);
+		car(-82, -28, 1.7, 0x2a2826, { burned: true });
+		trashSpot(-76, -30);
+
+		// ---------- Запад, за улицей: поликлиника, стоянка перед ней ----------
+		buildings.push(buildClinic(bctx, occluder, { cx: -73, cz: 34 }));
+		ground(22, 11, -73, 47.5, M.asphalt, 5, 0.0204);
+		car(-79, 47.5, Math.PI / 2 + 0.1, 0xc8c0a8); // «скорая»
+		car(-66.5, 48.5, -Math.PI / 2 + 0.2, 0x5a6a7a);
+		bench(batch, M, -76, 42.6, Math.PI); bench(batch, M, -70, 42.6, Math.PI);
+		streetLamp(batch, M, collide, -62.5, 52);
+
+		// ---------- Юго-запад: двор с площадкой, стоянка, трансформаторная ----------
+		ground(16, 12, -72, 66, M.dirt, 4, 0.015);
+		swings(batch, M, -72, 63);
+		collide(-72, 63, 3.6, 1.6);
+		slide(batch, M, -78, 70);
+		collide(-78, 70, 1.2, 1.2);
+		batch.add(place(box(3, 0.3, 3, 1), -67, 0.15, 70), M.wood); // песочница
+		batch.add(place(planeXZ(2.7, 2.7, 1), -67, 0.31, 70), M.sand, { cast: false });
+		collide(-67, 70, 3, 3);
+		for (const [x, z, ry] of [[-76, 60, 0], [-68, 60, 0]]) bench(batch, M, x, z, ry);
+		transformer(batch, root, M, collide, -82, 58);
+		car(-66, 81.5, 0.1, 0xa8a49a);
+		car(-78, 82.2, -0.2, 0x3a5a7a);
+		car(-62, 61, 1.2, 0x5a6a3a, { crashed: true });
+
+		// ---------- Юг: пятиэтажка 6 (подъезды, аптека, парикмахерская), стоянка вдоль дома ----------
+		buildings.push(floor1(bctx, { name: 'Dom6', cx: -40, cz: 70, W: HW, D: HD, rooms: [{ kind: 'hall', w: 6.4 }, { kind: 'pharm', w: 10 }, { kind: 'hall', w: 6.4 }, { kind: 'hair', w: 12.4 }] }));
+		tower(occluder, M, 'Dom6Top', { cx: -40, cz: 70, W: HW, D: HD, floors: 4, halls: [-14.4, 2.0], balc: [3, 4, 8, 9] });
+		ground(37, 2.4, -40, 77.6, M.concrete, 3, 0.0155);
+		ground(37, 4, -40, 81.2, M.asphalt, 5, 0.0204);
+		for (const x of [-54.4, -38]) { bench(batch, M, x + 2.4, 78.0, Math.PI); bench(batch, M, x - 2.4, 78.0, Math.PI); }
+		car(-50, 81.4, 0.05, 0x5a6a7a);
+		car(-44, 81.6, Math.PI + 0.05, 0x2a2826, { burned: true });
+		car(-29, 81.2, -0.1, 0x7b5a3a);
+
+		// ---------- Юг: детский сад за низкой оградой, веранды, площадка ----------
+		buildings.push(buildKindergarten(bctx, { cx: 29, cz: 68 }));
+		ground(38, 8, 29, 79.6, M.dirt, 4, 0.015);
+		lowFence(batch, M, collide, 9, 59.5, 27, 59.5);
+		lowFence(batch, M, collide, 31, 59.5, 49, 59.5);
+		lowFence(batch, M, collide, 49, 59.5, 49, 84);
+		lowFence(batch, M, collide, 9, 84, 49, 84);
+		lowFence(batch, M, collide, 9, 59.5, 9, 64);
+		lowFence(batch, M, collide, 9, 68.5, 9, 84);
+		veranda(batch, M, collide, 14.6, 79.4);
+		veranda(batch, M, collide, 44, 72.4);
+		swings(batch, M, 33, 79);
+		collide(33, 79, 3.6, 1.6);
+		slide(batch, M, 40, 81.5);
+		collide(40, 81.5, 1.2, 1.2);
+		batch.add(place(box(3, 0.3, 3, 1), 22, 0.15, 79.4), M.wood); // песочница
+		batch.add(place(planeXZ(2.7, 2.7, 1), 22, 0.31, 79.4), M.sand, { cast: false });
+		collide(22, 79.4, 3, 3);
+		car(-2, 80, Math.PI / 2, 0x5a6a7a);
+		car(-9, 71, 2.6, 0x2a2826, { burned: true });
+
+		// ---------- Восток: двор за гаражами — площадка, мусорка, брошенные машины ----------
+		ground(20, 12, 74, -36, M.dirt, 4, 0.015);
+		swings(batch, M, 70, -39);
+		collide(70, -39, 3.6, 1.6);
+		slide(batch, M, 79, -33);
+		collide(79, -33, 1.2, 1.2);
+		batch.add(place(box(3, 0.3, 3, 1), 68, 0.15, -32), M.wood);
+		batch.add(place(planeXZ(2.7, 2.7, 1), 68, 0.31, -32), M.sand, { cast: false });
+		collide(68, -32, 3, 3);
+		for (const [x, z, ry] of [[66, -44, 0], [74, -44, 0], [82, -38, -Math.PI / 2]]) bench(batch, M, x, z, ry);
+		transformer(batch, root, M, collide, 64, -48);
+		trashSpot(82, -14);
+		car(70, -18, 0.6, 0x1c1a18, { burned: true });
+		car(78, -4, Math.PI / 2, 0x8a8a7a);
+		car(65, -8, -0.4, 0x5a7a8a, { crashed: true });
+		streetLamp(batch, M, collide, 62, -24);
+
+		// ---------- Юго-восток: хоккейная коробка, двор с площадкой, ракушки у края ----------
+		ground(16, 22, 74, 31, M.asphalt, 5, 0.0204);
+		rink(batch, M, collide, 66, 20, 82, 42);
+		transformer(batch, root, M, collide, 82, 50);
+		car(66, 50, 1.4, 0x9a9a8a);
+		car(74, 52.5, 0.2, 0x3a5a3a);
+		ground(18, 12, 66, 74, M.dirt, 4, 0.015);
+		swings(batch, M, 62, 70);
+		collide(62, 70, 3.6, 1.6);
+		slide(batch, M, 70, 77);
+		collide(70, 77, 1.2, 1.2);
+		for (const [x, z, ry] of [[58, 76, Math.PI / 2], [66, 64, 0]]) bench(batch, M, x, z, ry);
+		trashSpot(76, 64);
+		for (let i = 0; i < 4; i++) shell(84, 70 + i * 3.6, -Math.PI / 2, i % 2 ? M.metalOlive : M.metalRust);
+		car(58, 82.5, 0.1, 0x6a6a5a);
+		car(72, 83, Math.PI - 0.1, 0x8a2e24, { crashed: true });
+		car(56, 64, 1.0, 0x2a2826, { burned: true });
+		streetLamp(batch, M, collide, 62, 58);
+
+		// ---------- Проспект к новым краям: брошенные машины ----------
+		car(-9.5, -70, -Math.PI / 2 + 0.1, 0x8a8a7a);
+		car(-3, -79, 0.4, 0x8a2e24, { crashed: true });
+		car(-1.6, 66, Math.PI / 2, 0xc8c0a8);
+
 		return {
-			start: [-6, 58.5, Math.PI],
+			start: [-6, 82.5, Math.PI],
 			exits: [
-				{ to: 'zarechny', x0: -10, x1: -2, z0: 61.2, z1: 66, spawn: [-6, 58.5, Math.PI], sign: [-1, 60.2, '↓ Заречный'] },
-				{ to: 'podstanciya', x0: -66, x1: -61.2, z0: 6, z1: 14, spawn: [-59, 10, Math.PI / 2], sign: [-60, 16.4, '← Подстанция'] },
-				{ to: 'voench', x0: -10, x1: -2, z0: -66, z1: -61.2, spawn: [-6, -58.5, 0], sign: [0.5, -60.2, '↑ Военная часть'] },
-				{ to: 'aerodrom', x0: -44, x1: -36, z0: -66, z1: -61.2, spawn: [-40, -58.5, 0], sign: [-34.5, -60.2, '↖ Аэродром'] },
+				{ to: 'bolnica', x0: -10, x1: -2, z0: 85.2, z1: 90, spawn: [-6, 82.5, Math.PI], sign: [-1, 84, '↓ Больница'] },
+				{ to: 'tc', x0: -90, x1: -85.2, z0: 6, z1: 14, spawn: [-82.5, 10, Math.PI / 2], sign: [-84, 16.4, '← ТЦ'] },
+				{ to: 'tyurma', x0: -10, x1: -2, z0: -90, z1: -85.2, spawn: [-6, -82.5, 0], sign: [0.5, -84, '↑ Тюрьма'] },
+				{ to: 'aerodrom', x0: -44, x1: -36, z0: -90, z1: -85.2, spawn: [-40, -82.5, 0], sign: [-34.5, -84, '↖ Аэродром'] },
 			],
 			// логово руберов: во дворе у детской площадки, на спортплощадке школы, у гаражей и во дворе дома 4;
 			// топтуны водят стаи у мусорок, на стоянках и у ракушек; бегуны — по улицам
@@ -611,15 +1153,30 @@ export default {
 				{ at: [24, -54], r: 7, runners: 2, stompers: 1 },
 				{ at: [-26, 56], r: 5, runners: 2 },
 				{ at: [-8, 30], r: 5, runners: 1 },
+				// окраина: двор дома 5, гаражный кооператив, недострой (логово), рынок, поликлиника, пятиэтажка,
+				// детский сад, дворы на востоке и юго-западе, проспект у северного края
+				{ at: [24, -59], r: 7, runners: 2, rubers: 1 },
+				{ at: [70, -69], r: 6, runners: 2, stompers: 1 },
+				{ at: [-26, -67], r: 6, runners: 3, rubers: 1 },
+				{ at: [-24, -55], r: 5, runners: 2 },
+				{ at: [-74, -10], r: 6, runners: 3, stompers: 1 },
+				{ at: [-73, 48], r: 6, runners: 2, rubers: 1 },
+				{ at: [-40, 80], r: 6, runners: 2, stompers: 1 },
+				{ at: [30, 78], r: 6, runners: 2, rubers: 1 },
+				{ at: [74, -34], r: 6, runners: 2, stompers: 1 },
+				{ at: [74, 31], r: 6, runners: 3 },
+				{ at: [66, 72], r: 6, runners: 2, stompers: 1 },
+				{ at: [-72, 68], r: 6, runners: 2 },
+				{ at: [-6, -76], r: 6, runners: 2 },
 			],
 			onRoad,
 			// горит автобус у остановки и машина на проспекте; бочка у гаражей, костёр во дворе
-			fires: [[-26, 9.6, 'car', 2.8], [-6, 44, 'car'], [-32, 30], [33, -31, 'ground']],
-			barrels: 6,
+			fires: [[-26, 9.6, 'car', 2.8], [-6, 44, 'car'], [-32, 30], [33, -31, 'ground'], [-44, 81.6, 'car'], [-66, -76, 'car'], [-30, -60, 'ground']],
+			barrels: 10,
 			trees(tryTree) {
 				// берёзы вдоль проспекта и улицы, во дворах; на западе — парк
-				for (let z = -58; z < 60; z += 6) { tryTree(-15.6 + R(-0.5, 0.5), z + R(-1, 1), 'birch'); tryTree(3.6 + R(-0.5, 0.5), z + R(-1, 1), 'birch'); }
-				for (let x = -58; x < 60; x += 7) tryTree(x + R(-1, 1), 17.6 + R(-0.3, 0.6), 'birch');
+				for (let z = -84; z < 85; z += 6) { tryTree(-15.6 + R(-0.5, 0.5), z + R(-1, 1), 'birch'); tryTree(3.6 + R(-0.5, 0.5), z + R(-1, 1), 'birch'); }
+				for (let x = -84; x < 85; x += 7) tryTree(x + R(-1, 1), 17.6 + R(-0.3, 0.6), 'birch');
 				for (let i = 0; i < 14; i++) tryTree(R(7, 41), R(-31, -17), 'birch'); // двор
 				for (let i = 0; i < 8; i++) tryTree(R(-36, -17), R(-22, -8), 'birch');
 				for (let i = 0; i < 10; i++) tryTree(R(-51, -17), R(49, 60), 'birch');
@@ -627,13 +1184,19 @@ export default {
 				for (let i = 0; i < 10; i++) tryTree(R(6, 44), R(-60, -48), 'birch');
 				for (let i = 0; i < 8; i++) tryTree(R(4, 12), R(20, 60), 'birch');
 				for (let i = 0; i < 6; i++) tryTree(R(48, 54), R(20, 40), 'birch');
+				// окраина: парк на северо-западе, вдоль улицы у поликлиники, за гаражами, у детсада, за пятиэтажкой
+				for (let i = 0; i < 18; i++) tryTree(R(-84, -60), R(-84, -36), 'birch');
+				for (let i = 0; i < 8; i++) tryTree(R(-86, -62), R(18, 26), 'birch');
+				for (let i = 0; i < 8; i++) tryTree(R(52, 84), R(-54, -50), 'birch');
+				for (let i = 0; i < 8; i++) tryTree(R(10, 48), R(60, 66), 'birch');
+				for (let i = 0; i < 6; i++) tryTree(R(-56, -24), R(84, 86), 'birch');
 			},
 			beltTrees: ['birch'], // город: одни берёзы (каждый вид дерева на участке — лишние вызовы отрисовки)
 			beltDensity: 0.8,
 			clutter: 12,
 			blood: 24,
 			puddles: 10,
-			puddle: () => [R(-58, 58), rnd() < 0.5 ? R(6.5, 13.5) : R(-56, 56)],
+			puddle: () => [R(-84, 84), rnd() < 0.5 ? R(6.5, 13.5) : R(-84, 84)],
 			grass: 0.6,
 			hint: (b) => ({
 				Dom1: 'Первый этаж: «Продукты», подъезд, хозтовары — обыщи стеллажи, прилавки и сейфы',
@@ -643,6 +1206,16 @@ export default {
 				School: 'Школа — учительские столы и шкафы в классах, гардероб и буфет в коридоре',
 				GaragesA: 'Гаражи — верстаки и стеллажи; в одном боксе тайник с оружием под верстаком',
 				GaragesB: 'Гаражи — верстаки и стеллажи; в одном боксе сейф с оружием',
+				Dom5: 'Первый этаж: кафе, подъезд, «Продукты» — барная стойка, холодильник, стеллажи и сейф',
+				Dom6: 'Пятиэтажка: подъезды, аптека, парикмахерская — витрина и сейф аптеки, касса и тумбочка мастера',
+				GaragesC: 'ГСК «Восход» — верстаки и стеллажи; в одном боксе тайник с оружием под верстаком',
+				GaragesD: 'ГСК «Восход» — верстак; в одном боксе сейф с ружьями',
+				Nedostroy: 'Недострой — ящик прораба; колонны и кладка — укрытия',
+				Bytovka: 'Бытовка строителей — шкафчик и стол прораба',
+				Rynok: 'Рынок — прилавки и ящики торговцев',
+				Larki: 'Ларьки — прилавки; средний закрыт ставнем',
+				Clinic: 'Поликлиника — регистратура и картотека, шкаф терапевта, стеклянный шкаф процедурной, сейф заведующего',
+				Detsad: 'Детский сад — шкафчики в группах, холодильник на пищеблоке, шкаф медсестры',
 			}[b.name]),
 		};
 	},
