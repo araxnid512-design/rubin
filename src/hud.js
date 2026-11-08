@@ -119,6 +119,7 @@ const HUD = {
       $('#tThreat').innerHTML = `<span class="lbl">Угроза</span><span class="pips">${pips}</span><span class="wv">${icon('wave')}${left}</span>`;
       $('#tThreat').title = `Новая волна примерно через ${left} ${plural(left, 'ход', 'хода', 'ходов')} или раньше, если шуметь`;
     }
+    $('#tSquad').classList.toggle('many', m.units.length > 4);
     $('#tSquad').innerHTML = m.units.map(o => {
       const st = o.dead ? 'dead' : o.evac ? 'evac' : '';
       const hp = Math.max(0, (o.hp / o.maxhp) * 100);

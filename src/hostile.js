@@ -281,6 +281,14 @@ function doFree(u, c) {
     c.freed = true;
     const i = MI(m, c.x, c.y);
     m.tiles[i] = m.ground[i];
+    if (S.survivors.length >= GROUP_MAX) {
+      Sfx.play('pickup', { x: c.x, y: c.y });
+      FX.text(c.x, c.y, 'спасибо', '#86c25d');
+      HUD.log(`${u.name} освобождает пленного: ${c.name}. В группе уже ${GROUP_MAX} человек — ${c.name} благодарит и уходит своей дорогой.`, 'good');
+      computeVis(m);
+      await sleep(spd(240));
+      return;
+    }
     const used = new Set(S.survivors.map(s => s.name));
     let name = c.name;
     if (used.has(name)) { const pool = NAMES.filter(n => !used.has(n[0]) && n[1] === c.g); if (pool.length) name = pick(pool)[0]; }

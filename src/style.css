@@ -429,3 +429,9 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
 }
 .dock-p .tabc { padding-right: 0.6rem; }
 .rail .ic { width: 1.35rem; height: 1.35rem; }
+.squad.many { gap: 0.2rem; }
+.squad.many .uc { padding-block: 0.18rem; gap: 0.1rem; }
+.squad.many .uc-n { font-size: 0.84rem; }
+.squad.many .uc-s { font-size: 0.72rem; }
+.wcard #wGo { position: sticky; bottom: 0; flex: none; box-shadow: 0 -0.6rem 0.8rem var(--bg-2); }
+.wsq-b { min-height: 2.5rem; padding-block: 0.22rem; }

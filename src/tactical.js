@@ -712,7 +712,7 @@ function startMission(loc, ids, opts = {}) {
     m.units.push(u);
   });
   // зомби
-  const count = siege ? 0 : L.zombies + Math.min(18, Math.floor((S.day - 1) * 1.2));
+  const count = siege ? 0 : L.zombies + Math.min(18, Math.floor((S.day - 1) * 1.2)) + Math.max(0, squad.length - 4) * 2;
   const open = [];
   for (let i = 0; i < m.n; i++) if (reach[i] && TP[m.tiles[i]].walk && m.tiles[i] !== T.DOOR) open.push(i);
   for (let k = 0, placed = 0; k < 6000 && placed < count; k++) {

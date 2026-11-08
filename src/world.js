@@ -170,7 +170,7 @@ const World = {
       ${F ? `<p class="wc-f" style="--fc:${F.color}">${icon('shield')}<span>${fs.met ? F.name : 'Здесь кто-то есть'}${fs.beaten ? ' · разгромлены' : ''}${L.camp ? ' · лагерь' : ''}${L.captives ? ` · пленных: ${L.captives}` : ''}</span></p>` : ''}
       <p class="wc-d">${L.desc}</p>
       <div class="loc-l">${L.loot.map(r => `<i style="--rc:${RES[r].color}" title="${RES[r].name}">${icon(r)}</i>`).join('')}</div>
-      <h3>Отряд <span>${sq.length}/4</span></h3>
+      <h3>Отряд <span>${sq.length}/${SQUAD_MAX}</span></h3>
       <div class="wsq">${S.survivors.map(s => {
         const on = S.squad.includes(s.id), hp = Math.round((s.hp / s.maxhp) * 100);
         return `<button class="wsq-b ${on ? 'on' : ''} ${s.infected ? 'inf' : ''}" data-sq="${s.id}" style="--uc:${s.color}" aria-pressed="${on}">
@@ -185,8 +185,8 @@ const World = {
     Sfx.init(); Sfx.play('click');
     const k = S.squad.indexOf(id);
     if (k >= 0) S.squad.splice(k, 1);
-    else if (S.squad.length < 4) S.squad.push(id);
-    else { Game.toast('В отряде уже четверо'); return; }
+    else if (S.squad.length < SQUAD_MAX) S.squad.push(id);
+    else { Game.toast(`В отряде уже ${SQUAD_MAX}: больше не взять`); return; }
     saveGame();
     this.render();
   },

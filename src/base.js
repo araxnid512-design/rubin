@@ -139,7 +139,7 @@ const Base = {
       </header>
       <div class="bmain">
         <section class="survs">
-          <h2>Группа <span>${n}</span><small>за ночь: ${n} еды и ${n} воды</small></h2>
+          <h2>Группа <span>${n}/${GROUP_MAX}</span><small>за ночь: ${n} еды и ${n} воды</small></h2>
           <div class="slist">${S.survivors.map(s => this.card(s)).join('')}</div>
           <div class="bact">
             <button class="btn hazard big" id="bWorld">${icon('map')}<span>Карта округи</span></button>
@@ -333,7 +333,7 @@ const Base = {
     S.pendingNight = { lines, atk };
     saveGame();
     Sfx.play('alarm');
-    const fighters = S.survivors.filter(s => s.hp > 0).slice(0, 6);
+    const fighters = S.survivors.filter(s => s.hp > 0).slice(0, SQUAD_MAX);
     Game.modal({
       title: 'Ночь. Тревога!',
       html: `<p>${attackText(atk)}</p><p>Можно встретить их у стен — бой на карте базы, ${fighters.length} ${plural(fighters.length, 'боец', 'бойца', 'бойцов')} против ${atk.waves} ${plural(atk.waves, 'волны', 'волн', 'волн')}. Или запереться в насосной и надеяться на укрепления (уровень ${S.build.walls}).</p>`,
@@ -350,7 +350,7 @@ const Base = {
       lines.push({ t: `${s.name} не ${gv(s, 'пережил', 'пережила')} ночь.`, c: 'bad' });
     }
     const chanceRecruit = [0.06, 0.25, 0.4][S.build.radio];
-    if (S.survivors.length && S.survivors.length < 8 && rnd() < chanceRecruit) {
+    if (S.survivors.length && S.survivors.length < GROUP_MAX && rnd() < chanceRecruit) {
       const s = newSurvivor();
       S.survivors.push(s);
       lines.push({ t: `${S.build.radio ? 'На позывной ответили.' : 'Под утро в ворота постучали.'} ${s.name} (${TRAITS[s.trait].name.toLowerCase()}) теперь с нами.`, c: 'good' });
