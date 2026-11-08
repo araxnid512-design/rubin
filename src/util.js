@@ -1,4 +1,7 @@
 'use strict';
+// Заменители для старых WebView (Android 7–10 без обновлений)
+if (!Object.fromEntries) Object.fromEntries = it => { const o = {}; for (const [k, v] of it) o[k] = v; return o; };
+if (!String.prototype.padStart) String.prototype.padStart = function (n, s) { let r = String(this); while (r.length < n) r = s + r; return r.slice(-n); };
 // ---------- Общие утилиты ----------
 
 const rnd = Math.random;

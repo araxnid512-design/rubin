@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: rubezh-apk
@@ -36,8 +37,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Игра в один файл
-        run: node tools/build.mjs
+      - name: Игра в один файл (код переводится для старых WebView)
+        run: |
+          npm ci --no-audit --no-fund
+          node tools/build.mjs
 
       - name: Сборка APK (без Gradle, подписи v1 + v2)
         run: |
@@ -149,6 +152,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          npm ci --no-audit --no-fund
           node tools/build.mjs
           cp dist/index.html rubezh.html
           TITLE="Рубеж 1.0.${{ github.run_number }}"
@@ -188,3 +192,24 @@ jobs:
           user_name: github-actions[bot]
           user_email: 41898282+github-actions[bot]@users.noreply.github.com
           commit_message: Рубеж 1.0.${{ github.run_number }}
+
+      - name: Включить GitHub Pages из ветки gh-pages (если хватит прав)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api repos/${{ github.repository }}/pages --jq .html_url 2>/dev/null; then echo "Pages уже включены"; else
+            gh api -X POST repos/${{ github.repository }}/pages -f "source[branch]=gh-pages" -f "source[path]=/" --jq .html_url || echo "Включить не удалось: это может только владелец в настройках репозитория"
+          fi
+
+      - name: Проверить адреса сайта
+        continue-on-error: true
+        run: |
+          sleep 20
+          for u in https://araxnid512-design.github.io/rubin/rubezh/ \
+                   https://raw.githack.com/araxnid512-design/rubin/gh-pages/rubezh/index.html \
+                   https://raw.githack.com/araxnid512-design/rubin/gh-pages/rubezh/rubezh.apk \
+                   https://raw.githack.com/araxnid512-design/rubin/gh-pages/rubezh/sw.js \
+                   https://raw.githack.com/araxnid512-design/rubin/gh-pages/rubezh/manifest.webmanifest; do
+            curl -sS -o /dev/null -L -w "%{http_code} %{content_type} %{size_download}  $u\n" --max-time 30 "$u" || echo "нет ответа  $u"
+          done
