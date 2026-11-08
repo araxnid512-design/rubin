@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- artifact:start -->
+<title>Курьер миров</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<!-- artifact:head-end -->
+</head>
+<body>
+<!-- artifact:body -->
+<div class="stage" id="stage">
+  <canvas id="cv" width="960" height="544" aria-label="Игровое поле"></canvas>
+  <button class="pausebtn" id="pausebtn" type="button" aria-label="Пауза" hidden>II</button>
+  <div class="touch" id="touch" hidden>
+    <div class="tgroup">
+      <div class="tbtn big" data-b="left" aria-label="Влево">◀</div>
+      <div class="tbtn big" data-b="right" aria-label="Вправо">▶</div>
+    </div>
+    <div class="tgroup">
+      <div class="tbtn" data-b="fire" aria-label="Огонь">ОГОНЬ</div>
+      <div class="tbtn" data-b="dash" aria-label="Рывок">РЫВОК</div>
+      <div class="tbtn big" data-b="jump" aria-label="Прыжок">ПРЫЖОК</div>
+    </div>
+  </div>
+  <div class="ov" id="ov"></div>
+</div>
+<script src="js/worlds.js"></script>
+<script src="js/levelgen.js"></script>
+<script src="js/gfx.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/main.js"></script>
+<!-- artifact:end -->
+</body>
+</html>

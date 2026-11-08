@@ -1,0 +1,93 @@
+/* Аркадный автомат: тёмный корпус, экран 960×544 по центру, меню поверх экрана пиксельным шрифтом. Одна тёмная тема намеренно — это экран игрового автомата. */
+:root {
+  --bg: #08070f;
+  --panel: rgba(10, 8, 22, 0.88);
+  --ink: #f4efe4;
+  --muted: #b3acc9;
+  --accent: #ffd56b;
+  --green: #2fae5c;
+  --pink: #ff4f8b;
+  --violet: #b48aff;
+  --line: rgba(255, 255, 255, 0.14);
+  --f-display: 'Press Start 2P', 'Pixelify Sans', monospace;
+  --f-body: 'Pixelify Sans', 'Trebuchet MS', sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 18px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px;
+  display: grid; place-items: center; overflow-x: hidden;
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(120, 80, 220, 0.18), transparent 60%);
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.stage { position: relative; width: min(100%, calc((100vh - 24px) * 960 / 544), 1440px); aspect-ratio: 960 / 544; max-width: 100%; background: #000; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 2px #1d1830, 0 20px 60px -20px rgba(120, 80, 255, 0.45); touch-action: none; user-select: none; -webkit-user-select: none; }
+#cv { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+.ov { position: absolute; inset: 0; display: grid; place-items: center; padding: 3%; overflow: auto; }
+.panel { background: var(--panel); border: 2px solid var(--line); border-radius: 6px; padding: clamp(14px, 3vw, 28px); max-width: 640px; width: 100%; display: grid; gap: 12px; backdrop-filter: blur(2px); }
+.panel.wide { max-width: 940px; }
+.panel.center { text-align: center; justify-items: center; }
+.kicker { margin: 0; font-family: var(--f-display); font-size: clamp(9px, 1.1vw, 12px); letter-spacing: 0.08em; color: var(--accent); text-transform: uppercase; }
+.logo { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: clamp(26px, 5.6vw, 58px); line-height: 1.15; color: var(--ink); text-shadow: 4px 4px 0 var(--pink), 8px 8px 0 rgba(180, 138, 255, 0.5); }
+h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: clamp(14px, 2.2vw, 22px); line-height: 1.3; }
+h3 { margin: 0; font-size: 1.1em; }
+.lede { margin: 0; color: var(--muted); max-width: 52ch; }
+.meta { margin: 0; color: var(--muted); font-size: 0.85em; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.col { display: grid; gap: 10px; width: min(100%, 360px); }
+.small { font-size: 0.85em; }
+.btn { font-family: var(--f-display); font-size: clamp(9px, 1.1vw, 12px); padding: 12px 16px; border: 2px solid var(--ink); background: transparent; border-radius: 4px; cursor: pointer; line-height: 1.4; box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5); }
+.btn:hover { background: rgba(255, 255, 255, 0.08); }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5); }
+.btn.primary { background: var(--accent); color: #1a1408; border-color: var(--accent); }
+.btn.primary:hover { background: #ffe39a; }
+.btn.ghost { border-color: var(--line); color: var(--muted); }
+
+.story { max-width: 720px; }
+.story-text { margin: 0; font-size: clamp(16px, 2.1vw, 22px); line-height: 1.5; min-height: 4.5em; }
+
+.keys { border-collapse: collapse; text-align: left; font-size: 0.95em; }
+.keys td { padding: 5px 10px; border-bottom: 1px solid var(--line); }
+.keys td:first-child { color: var(--accent); white-space: nowrap; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.stats div { display: grid; gap: 2px; padding: 10px 6px; border: 2px solid var(--line); border-radius: 4px; }
+.stats b { font-family: var(--f-display); font-weight: 400; font-size: clamp(11px, 1.6vw, 16px); }
+.stats span { color: var(--muted); font-size: 0.8em; }
+.stats .shards { color: var(--violet); letter-spacing: 0.1em; }
+
+.map-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.map-head .btn { margin-left: auto; }
+.worlds { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.world { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; border-radius: 4px; border: 2px solid var(--line); background: linear-gradient(135deg, color-mix(in srgb, var(--w1) 55%, #000), color-mix(in srgb, var(--w2) 25%, #000)); }
+.world.locked { filter: grayscale(1) brightness(0.6); }
+.wnum { font-family: var(--f-display); font-size: 22px; color: var(--wa); display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); border-radius: 4px; }
+.wbody { display: grid; gap: 6px; min-width: 0; }
+.wbody p { margin: 0; font-size: 0.85em; color: #e2dcef; }
+.stages { display: flex; gap: 6px; flex-wrap: wrap; }
+.st { position: relative; width: 44px; height: 40px; font-family: var(--f-display); font-size: 12px; border: 2px solid var(--ink); background: rgba(0, 0, 0, 0.45); border-radius: 4px; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.st i { position: absolute; bottom: -2px; right: 2px; font-style: normal; font-size: 7px; color: var(--violet); }
+.st.done { background: var(--green); border-color: var(--green); color: #08200f; }
+.st.boss { border-color: var(--pink); }
+.st.boss.done { background: var(--pink); color: #2a0612; }
+.st.next { animation: pulse 1s ease-in-out infinite alternate; background: var(--accent); color: #1a1408; border-color: var(--accent); }
+.st:disabled { opacity: 0.3; cursor: not-allowed; }
+@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
+
+.pausebtn { position: absolute; top: calc(6px + env(safe-area-inset-top, 0px)); right: 6px; width: 34px; height: 30px; border: 0; background: rgba(0, 0, 0, 0.35); color: #fff; border-radius: 4px; font-family: var(--f-display); font-size: 10px; cursor: pointer; z-index: 3; }
+
+.touch { position: absolute; inset: auto 0 0 0; height: 40%; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 1.2% 1.2%; pointer-events: none; z-index: 2; }
+.tgroup { display: flex; gap: 10px; align-items: flex-end; pointer-events: none; }
+.tbtn { pointer-events: auto; width: clamp(46px, 8.5vw, 80px); aspect-ratio: 1; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.1); color: #fff; font-family: var(--f-display); font-size: clamp(9px, 1.6vw, 14px); display: grid; place-items: center; touch-action: none; }
+.tbtn.on { background: rgba(255, 213, 107, 0.55); }
+.tbtn.big { width: clamp(54px, 10vw, 92px); }
+.tbtn.off { opacity: 0.25; }
+
+@media (prefers-reduced-motion: reduce) { .st.next { animation: none; } }
+@media (max-width: 600px) { body { padding-block: 6px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (orientation: portrait) and (pointer: coarse) { .stage::after { content: 'Поверните телефон горизонтально'; position: absolute; left: 0; right: 0; top: 4px; text-align: center; font-size: 11px; color: rgba(255, 255, 255, 0.6); pointer-events: none; } }

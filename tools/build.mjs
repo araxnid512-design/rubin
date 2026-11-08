@@ -10,6 +10,7 @@ const dist = join(root, 'dist');
 const GAMES = [
   { src: 'game', out: 'prishly', artifact: 'artifact' },
   { src: 'orc', out: 'klyk', artifact: 'klyk-artifact' },
+  { src: 'kurier', out: 'kurier', artifact: 'kurier-artifact' },
 ];
 
 const between = (s, a, b) => {
