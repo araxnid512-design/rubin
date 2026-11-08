@@ -1,8 +1,9 @@
 name: Рубеж APK
 
-# Собирает игру в один HTML, заворачивает в Android-приложение и обновляет постоянный релиз «rubezh».
-# Ссылка на свежий APK не меняется:
-# https://github.com/araxnid512-design/rubin/releases/download/rubezh/rubezh.apk
+# Собирает игру в один HTML, заворачивает в Android-приложение, обновляет постоянный релиз «rubezh»
+# и выкладывает сайт для установки в ветку gh-pages, папку rubezh/ (файлы других игр в ветке не трогает).
+# Свежий APK: https://github.com/araxnid512-design/rubin/releases/download/rubezh/rubezh.apk
+# Сайт:       https://araxnid512-design.github.io/rubin/rubezh/
 on:
   push:
     branches: ['claude/zombie-apocalypse-strategy-game-g3fgaw']
@@ -60,8 +61,10 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rubezh-apk
-          path: rubezh.apk
+          name: rubezh-files
+          path: |
+            rubezh.apk
+            rubezh-apk.zip
 
       - name: Опубликовать
         env:
@@ -86,3 +89,36 @@ jobs:
           else
             gh release create rubezh $FILES --title "$TITLE" --notes "$NOTES" --target "${{ github.sha }}" --latest=false
           fi
+
+  site:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rubezh-files
+          path: apk
+
+      - name: Сайт для установки
+        run: |
+          node tools/build.mjs
+          node tools/build-site.mjs --apk apk/rubezh.apk --zip apk/rubezh-apk.zip --version 1.0.${{ github.run_number }}
+
+      - name: Выложить в gh-pages/rubezh
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./_site
+          destination_dir: rubezh
+          keep_files: true
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_message: Рубеж 1.0.${{ github.run_number }}

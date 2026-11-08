@@ -176,7 +176,7 @@ const Game = {
   newGame() {
     store.del(SAVE_KEY);
     newGameState();
-    Base.tab = null; World.sel = 'farm';
+    Base.tab = 'group'; Base.deckOpen = true; Base.pick = null; World.sel = 'farm';
     saveGame();
     this.showBase();
   },

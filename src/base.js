@@ -61,11 +61,11 @@ const BASE_ZONES = [
   ['radio', 26, 4, 28, 6], ['garden', 5, 6, 13, 15], ['water', 28, 5, 34, 13], ['infirmary', 5, 18, 12, 24],
   ['workshop', 26, 16, 34, 27], ['walls', 0, 0, 39, 4], ['walls', 0, 29, 39, 35], ['walls', 0, 0, 5, 35], ['walls', 34, 0, 39, 35],
 ];
-const DOCK = { build: ['Постройки', 'home'], arms: ['Оружие', 'target'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+const DECK = [['group', 'Группа', 'hp'], ['build', 'Постройки', 'home'], ['arms', 'Оружие', 'target'], ['craft', 'Мастерская', 'hammer'], ['fac', 'Группировки', 'shield'], ['log', 'Журнал', 'log']];
 const wStat = w => { const W = WEAP[w]; return W.melee ? `урон ${W.dmg[0]}–${W.dmg[1]}, ${W.ap} ОД${W.assassin ? ', тихо' : ''}` : `урон ${W.dmg[0]}–${W.dmg[1]}, дальность ${W.range}, шум ${W.noise}`; };
 
 const Base = {
-  tab: null, hl: null, life: null,
+  tab: 'group', hl: null, life: null, deckOpen: true, pick: null,
   // ----- сцена: карта базы с людьми у костра -----
   scene() {
     const { m } = genBase(S);
@@ -107,146 +107,197 @@ const Base = {
   },
   frame() {
     const root = $('#scr-base');
-    const lw = $('.survs', root) ? $('.survs', root).offsetWidth : 0, rw = $('.dock', root) ? $('.dock', root).offsetWidth : 0;
+    const top = $('.bbar', root) ? $('.bbar', root).offsetHeight : 0, bot = $('.deck', root) ? $('.deck', root).offsetHeight : 0;
     R.cam.k = clamp(Math.round(R.H / 15.5), 22, 36);
     R.cam.cx = 20; R.cam.cy = 16.5; R.camAnim = null;
-    R.panStart(0, 0); R.panTo((lw - rw) / 2, R.H * 0.03); R.pan = null;
+    R.panStart(0, 0); R.panTo(0, (top - bot) / 2); R.pan = null;
     R.dirty = true;
   },
   tapMap(x, y) {
     const e = R.pick(x, y);
-    if (e && e.name) {
-      const s = S.survivors.find(o => o.id === e.id);
-      if (s) { Sfx.play('click'); Game.toast(`${s.name}: ${TRAITS[s.trait].name.toLowerCase()}, ${s.hp}/${s.maxhp}${s.infected ? ', укус' : ''}`); }
-      return;
-    }
+    if (e && e.name) { Sfx.play('click'); this.open('group', e.id); return; }
     const t = R.toTile(x, y);
     const z = BASE_ZONES.find(([, x0, y0, x1, y1]) => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1);
-    if (z) { Sfx.play('click'); this.tab = 'build'; this.hl = z[0]; this.render(); }
+    if (z) { Sfx.play('click'); this.open('build', z[0]); }
   },
-  // ----- интерфейс -----
+  open(tab, hl) {
+    this.tab = tab; this.hl = hl ?? null; this.deckOpen = true;
+    this.render(); this.frame();
+  },
+  // ----- интерфейс: карта базы сверху, внизу вкладки и лента карточек -----
   render() {
     const root = $('#scr-base');
     ensureWorld();
+    if (!DECK.some(d => d[0] === this.tab)) this.tab = 'group';
     const n = S.survivors.length, tr = S.fac.collectors.tribute;
     const due = tr && !tr.paid && !S.fac.collectors.beaten ? tr.due - S.day : null;
+    const strip = this.deckOpen ? this['deck_' + this.tab]() : '';
     root.innerHTML = `
       <header class="bbar">
         <div class="brand">Рубеж</div>
         <div class="day"><span>День</span><b>${S.day}</b><small>из ${VICTORY_DAY}</small></div>
-        ${due != null ? `<button class="chip-tr ${due <= 0 ? 'now' : ''}" id="bTr">${icon('shield')}<span>Доля Сборщикам ${due <= 0 ? 'сегодня' : `через ${due} ${plural(due, 'день', 'дня', 'дней')}`}</span></button>` : ''}
+        ${due != null ? `<button class="chip-tr ${due <= 0 ? 'now' : ''}" id="bTr">${icon('shield')}<span>Доля ${due <= 0 ? 'сегодня' : `через ${due} ${plural(due, 'день', 'дня', 'дней')}`}</span></button>` : ''}
         <div class="resrow">${RES_ORDER.map(k => `<span class="res ${(k === 'food' || k === 'water') && S.res[k] < n ? 'low' : ''}" title="${RES[k].name}" style="--rc:${RES[k].color}">${icon(k)}<b>${S.res[k]}</b></span>`).join('')}</div>
         <button class="hbtn" id="bSet" aria-label="Настройки">${icon('gear')}</button>
       </header>
-      <div class="bmain">
-        <section class="survs">
-          <h2>Группа <span>${n}/${GROUP_MAX}</span><small>за ночь: ${n} еды и ${n} воды</small></h2>
-          <div class="slist">${S.survivors.map(s => this.card(s)).join('')}</div>
-          <div class="bact">
-            <button class="btn hazard big" id="bWorld">${icon('map')}<span>Карта округи</span></button>
-            <button class="btn" id="bRest">${icon('moon')}<span>Отдыхать</span></button>
+      <div class="bview"></div>
+      <section class="deck ${this.deckOpen ? 'open' : ''}">
+        <div class="dtabs">
+          <nav class="dt-n" role="tablist">${DECK.map(([k, l, ic]) => `<button role="tab" aria-selected="${this.deckOpen && this.tab === k}" class="${this.deckOpen && this.tab === k ? 'on' : ''}" data-tab="${k}">${icon(ic)}<span>${l}${k === 'group' ? ` <i>${n}/${GROUP_MAX}</i>` : ''}</span></button>`).join('')}</nav>
+          <div class="dt-a">
+            <button class="btn sq" id="bRest" title="Отдыхать до утра" aria-label="Отдыхать до утра">${icon('moon')}</button>
+            <button class="btn hazard" id="bWorld">${icon('map')}<span>Карта округи</span></button>
           </div>
-        </section>
-        <div class="bview"></div>
-        <section class="dock ${this.tab ? 'open' : ''}">
-          ${this.tab ? `<div class="dock-p">
-            <header><h2>${DOCK[this.tab][0]}</h2><button class="hbtn" id="bClose" aria-label="Закрыть">${icon('close')}</button></header>
-            <div class="tabc">${this['tab_' + this.tab]()}</div>
-          </div>` : ''}
-          <nav class="rail" role="tablist">${Object.keys(DOCK).map(k => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-tab="${k}" title="${DOCK[k][0]}">${icon(DOCK[k][1])}<span>${DOCK[k][0]}</span></button>`).join('')}</nav>
-        </section>
-      </div>`;
+        </div>
+        ${this.deckOpen ? `<div class="strip ${this.tab === 'log' ? 'log' : ''}" id="bStrip">${strip}</div>` : ''}
+      </section>
+      ${this.pick ? this.pickerHtml() : ''}`;
     $('#bSet').onclick = () => { Sfx.play('click'); Game.openSettings(); };
     $('#bWorld').onclick = () => { Sfx.init(); Sfx.play('click'); Game.showWorld(); };
     $('#bRest').onclick = () => this.rest();
-    const tb = $('#bTr'); if (tb) tb.onclick = () => { Sfx.play('click'); this.tab = 'fac'; this.render(); };
-    const cl = $('#bClose'); if (cl) cl.onclick = () => { Sfx.play('click'); this.tab = null; this.hl = null; this.render(); this.frame(); };
-    $$('.rail button', root).forEach(b => { b.onclick = () => { Sfx.play('click'); const k = b.dataset.tab; this.tab = this.tab === k ? null : k; this.hl = null; this.render(); this.frame(); }; });
-    $$('canvas[data-pt]', root).forEach(cv => { const s = S.survivors.find(o => o.id === +cv.dataset.pt); if (s) try { drawPortrait(cv, s); } catch (e) { console.error(e); } });
+    const tb = $('#bTr'); if (tb) tb.onclick = () => { Sfx.play('click'); this.open('fac'); };
+    $$('.dt-n button', root).forEach(b => {
+      b.onclick = () => {
+        Sfx.play('click');
+        const k = b.dataset.tab;
+        if (this.deckOpen && this.tab === k) this.deckOpen = false; else { this.deckOpen = true; this.tab = k; }
+        this.hl = null; this.render(); this.frame();
+      };
+    });
     $$('[data-cure]', root).forEach(b => { b.onclick = () => this.cure(+b.dataset.cure); });
     $$('[data-build]', root).forEach(b => { b.onclick = () => this.build(b.dataset.build); });
     $$('[data-craft]', root).forEach(b => { b.onclick = () => this.craft(b.dataset.craft); });
+    $$('[data-slot]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.pick = { sid: +b.dataset.sid, slot: b.dataset.slot }; this.render(); }; });
+    $$('[data-scrap]', root).forEach(b => { b.onclick = () => { const w = b.dataset.scrap, k = scrapWeapon(w); if (k) { Sfx.play('build'); Game.toast(`${wName(w)}: разобрано, +${k} деталей`); addLog(`${wName(w)} разобран на детали (+${k}).`); saveGame(); } this.render(); }; });
     const pt = $('#bPay'); if (pt) pt.onclick = () => { payTribute(); this.render(); };
-    $$('[data-eq]', root).forEach(sel => { sel.onchange = () => { if (equip(+sel.dataset.sid, sel.dataset.eq, sel.value || null)) { Sfx.play('pickup'); saveGame(); this.scene(); } this.render(); }; });
-    $$('[data-scrap]', root).forEach(b => { b.onclick = () => { const w = b.dataset.scrap, n = scrapWeapon(w); if (n) { Sfx.play('build'); Game.toast(`${wName(w)}: разобрано, +${n} деталей`); addLog(`${wName(w)} разобран на детали (+${n}).`); saveGame(); } this.render(); }; });
-    if (this.hl) { const el = $(`[data-bk="${this.hl}"]`, root); if (el) el.scrollIntoView({ block: 'nearest' }); }
+    $$('[data-tab-go]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.open(b.dataset.tabGo); }; });
+    if (this.pick) {
+      const close = () => { this.pick = null; this.render(); };
+      $('#pkBg').onclick = e => { if (e.target.id === 'pkBg') close(); };
+      $('#pkClose').onclick = close;
+      $$('[data-eqw]', root).forEach(b => {
+        b.onclick = () => {
+          const { sid, slot } = this.pick, w = b.dataset.eqw || null;
+          if (equip(sid, slot, w)) { Sfx.play('pickup'); saveGame(); this.scene(); }
+          this.pick = null; this.render();
+        };
+      });
+    }
+    paintAvatars(root);
+    if (this.hl != null) { const el = $(`[data-hl="${this.hl}"]`, root); if (el) try { el.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) { /* старые браузеры */ } }
   },
-  card(s) {
-    const hp = (s.hp / s.maxhp) * 100;
-    return `<div class="sw">
-      <div class="sc ${s.infected ? 'inf' : ''}" style="--uc:${s.color}">
-        <canvas class="pt" data-pt="${s.id}" aria-hidden="true"></canvas>
-        <span class="sc-top"><b>${esc(s.name)}</b><i class="trait" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</i>${s.level > 1 ? `<i class="lvl">${icon('star')}${s.level}</i>` : ''}</span>
-        <span class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></span>
-        <span class="sc-meta">${s.hp}/${s.maxhp} · ${WEAP[s.melee].name}${s.ranged ? ' и ' + WEAP[s.ranged].name.toLowerCase() : ''}</span>
-        ${s.infected ? `<span class="sc-inf">${icon('bite')}Укус: ${s.infected === 1 ? 'обратится этой ночью' : `обратится через ${s.infected} ${plural(s.infected, 'день', 'дня', 'дней')}`}</span>` : ''}
-      </div>
-      ${s.infected ? (S.build.infirmary >= 1 ? `<button class="btn sm cure" data-cure="${s.id}" ${S.res.meds >= cureCost() ? '' : 'disabled'}>Лечить: ${cureCost()} мед.</button>` : '<span class="cure-hint">Лечить укус можно только в лазарете</span>') : ''}
-    </div>`;
+  // Боец: портрет слева; имя, здоровье и два слота оружия справа
+  deck_group() {
+    return S.survivors.map(s => {
+      const hp = (s.hp / s.maxhp) * 100;
+      const slot = (kind, w) => `<button class="slot ${w ? '' : 'none'}" data-slot="${kind}" data-sid="${s.id}" aria-label="${kind === 'melee' ? 'Ближний бой' : 'Огнестрел'}: ${w ? wName(w) : 'нет'}. Сменить">
+          ${w ? `<canvas data-wpn="${w}" aria-hidden="true"></canvas><span>${wName(w)}</span>` : `${icon('target')}<span>без ствола</span>`}</button>`;
+      return `<article class="cd sv ${this.hl === s.id ? 'hl' : ''} ${s.infected ? 'inf' : ''}" data-hl="${s.id}" style="--uc:${s.color}">
+        <div class="cd-l"><canvas class="av" data-pt="${s.id}" aria-hidden="true"></canvas>${s.level > 1 ? `<span class="lvb">${icon('star')}${s.level}</span>` : ''}</div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${esc(s.name)}</b><span class="tr" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</span></div>
+          <div class="hpl"><span class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></span><small>${s.hp}/${s.maxhp}</small></div>
+          <div class="slots">${slot('melee', s.melee)}${slot('ranged', s.ranged)}</div>
+          ${s.infected ? `<div class="sv-inf">${icon('bite')}<span>${s.infected === 1 ? 'обратится ночью' : `укус · ${s.infected} ${plural(s.infected, 'день', 'дня', 'дней')}`}</span>${S.build.infirmary >= 1 ? `<button class="btn sm" data-cure="${s.id}" ${S.res.meds >= cureCost() ? '' : 'disabled'}>Лечить ${cureCost()}</button>` : '<em>нужен лазарет</em>'}</div>` : ''}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_build() {
-    return `<div class="blds">${BUILD_ORDER.map(k => {
+  // Постройка: миниатюра слева; уровень, что даёт сейчас, что дальше и цена справа
+  deck_build() {
+    return BUILD_ORDER.map(k => {
       const B = BUILD[k], lv = S.build[k];
       let pips = '';
       for (let i = 0; i < B.max; i++) pips += `<i class="${i < lv ? 'on' : ''}"></i>`;
       const cost = lv < B.max ? B.cost[lv] : null;
-      return `<div class="bld ${this.hl === k ? 'hl' : ''}" data-bk="${k}">
-        <div class="bld-h"><b>${B.name}</b><span class="lv" title="Уровень ${lv} из ${B.max}">${pips}</span></div>
-        <p class="now">${B.eff[lv]}</p>
-        ${cost ? `<p class="next">Дальше: ${B.eff[lv + 1]}</p><div class="bld-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
-      </div>`;
-    }).join('')}</div>`;
+      return `<article class="cd bd ${this.hl === k ? 'hl' : ''}" data-hl="${k}">
+        <div class="cd-l"><canvas class="thumb" data-bth="${k}" data-lv="${lv}" aria-hidden="true"></canvas></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${B.name}</b><span class="lv" title="Уровень ${lv} из ${B.max}">${pips}</span></div>
+          <p class="now">${lv ? B.eff[lv] : 'Не построено'}</p>
+          ${cost ? `<p class="next">→ ${B.eff[lv + 1]}</p><div class="cd-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_arms() {
+  // Оружие: картинка слева; сколько в запасе и у кого справа
+  deck_arms() {
     ensureArsenal();
-    const ars = S.arsenal, mech = S.survivors.some(s => s.trait === 'mechanic') ? 1 : 0;
-    const keys = MELEE_W.concat(RANGED_W).filter(w => ars[w]);
-    const stock = keys.length ? keys.map(w => `<div class="ars-i">${icon(RANGED_W.includes(w) ? 'target' : 'melee')}<span><b>${wName(w)}</b> ×${ars[w]}<small>${wStat(w)}</small></span><button class="btn sm" data-scrap="${w}">Разобрать +${WSCRAP[w] + mech}</button></div>`).join('') :
-      '<p class="dim">Пусто. Оружие находят в оружейных шкафах, сейфах полиции, армейских ящиках и на телах врагов.</p>';
-    const sel = (slot, s) => {
-      const cur = slot === 'melee' ? s.melee : s.ranged, list = slot === 'melee' ? MELEE_W : RANGED_W, o = [];
-      if (slot === 'ranged') o.push(`<option value="" ${!cur ? 'selected' : ''}>без огнестрела</option>`);
-      for (const w of list) if (w === cur || w === 'knife' || ars[w]) o.push(`<option value="${w}" ${w === cur ? 'selected' : ''}>${wName(w)}${w !== cur && ars[w] ? ` · в запасе ${ars[w]}` : ''}</option>`);
-      return `<select data-eq="${slot}" data-sid="${s.id}" aria-label="${slot === 'melee' ? 'Ближний бой' : 'Огнестрел'}: ${esc(s.name)}">${o.join('')}</select>`;
-    };
-    const rows = S.survivors.map(s => `<div class="eq" style="--uc:${s.color}"><b>${esc(s.name)}</b>${sel('melee', s)}${sel('ranged', s)}<small>${s.ranged ? wStat(s.ranged) : wStat(s.melee)}</small></div>`).join('');
-    return `<div class="ars"><h3>Запас</h3>${stock}</div><div class="eqs"><h3>Кто чем вооружён</h3>${rows}</div>
-      <p class="dim">Смена оружия бесплатна: старое уходит в запас. Нож всегда под рукой.</p>`;
+    const ars = S.arsenal, mech = hasMechanic() ? 1 : 0;
+    const head = `<article class="cd note"><div class="cd-r"><b>Арсенал</b><p>Находки с вылазок лежат здесь. Выдать оружие — нажмите на слот бойца во вкладке «Группа».</p><div class="cd-f"><span></span><button class="btn sm" data-tab-go="group">К группе</button></div></div></article>`;
+    return head + MELEE_W.concat(RANGED_W).map(w => {
+      const holders = S.survivors.filter(s => s.melee === w || s.ranged === w).map(s => s.name), have = w === 'knife' ? '∞' : ars[w] || 0;
+      return `<article class="cd wp ${!have && !holders.length ? 'off' : ''}">
+        <div class="cd-l"><canvas class="wpic" data-wpn="${w}" aria-hidden="true"></canvas><span class="cnt">${have === '∞' ? 'всегда' : `запас ${have}`}</span></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${wName(w)}</b><small>${WKG[w]} кг</small></div>
+          <p class="now">${wStat(w)}</p>
+          <p class="next">${holders.length ? 'В руках: ' + holders.map(esc).join(', ') : 'Ни у кого'}</p>
+          ${w !== 'knife' && ars[w] ? `<div class="cd-f"><span></span><button class="btn sm" data-scrap="${w}">Разобрать +${WSCRAP[w] + mech}</button></div>` : ''}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_craft() {
+  deck_craft() {
     const lv = S.build.workshop;
-    const perks = WORKSHOP_PERKS.slice(1).map((p, i) => `<li class="${lv > i ? 'on' : ''}">${i + 1}. ${p}</li>`).join('');
-    return `<div class="crafts">${RECIPES.map(r => {
-      const cost = recipeCost(r), ok = lv >= r.need;
-      return `<div class="rc">
-        <div class="rc-t"><b>${r.name}</b><span>${r.desc}</span></div>
-        <span class="cost">${costChips(cost)}</span>
-        <button class="btn sm" data-craft="${r.id}" ${ok && canPay(cost) ? '' : 'disabled'}>${ok ? 'Сделать' : `Мастерская ${r.need}`}</button>
-      </div>`;
-    }).join('')}</div>
-    <div class="perks"><h3>Мастерская, уровень ${lv}</h3><ul>${perks}</ul>${hasMechanic() ? '<p>Механик в группе: крафт на 1 деталь дешевле.</p>' : ''}</div>`;
+    const perks = WORKSHOP_PERKS.slice(1).map((p, i) => `<li class="${lv > i ? 'on' : ''}">${p}</li>`).join('');
+    return `<article class="cd note"><div class="cd-r"><b>Мастерская · ур. ${lv}</b><ul class="perks-l">${perks}</ul>${hasMechanic() ? '<p class="ok">Механик: на 1 деталь дешевле.</p>' : ''}</div></article>` + RECIPES.map(r => {
+      const cost = recipeCost(r), ok = lv >= r.need, out = Object.keys(r.give)[0];
+      return `<article class="cd rc2">
+        <div class="cd-l"><div class="ravt" style="--rc:${RES[out].color}">${icon(out)}<b>+${r.give[out]}</b></div></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${r.name}</b></div>
+          <p class="now">${r.desc}</p>
+          <div class="cd-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-craft="${r.id}" ${ok && canPay(cost) ? '' : 'disabled'}>${ok ? 'Сделать' : `Ур. ${r.need}`}</button></div>
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_fac() {
-    return `<div class="facs">${Object.keys(FACTIONS).map(f => {
-      const F = FACTIONS[f], st = S.fac[f], camp = LOCS[F.camp];
+  deck_fac() {
+    return Object.keys(FACTIONS).map(f => {
+      const F = FACTIONS[f], st = S.fac[f], known = st.met || st.beaten;
       const status = st.beaten ? 'разгромлены' : !st.met ? 'неизвестны' : f === 'collectors' && st.tribute ? 'требуют долю' : 'враждебны';
       let extra = '';
       if (f === 'collectors' && st.tribute && !st.beaten) {
-        const tr = st.tribute, d = tr.due - S.day;
-        extra = tr.paid ? `<p class="ok">Доля отложена. Приедут ${d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`}.</p>` :
-          `<p class="warn">Приедут за долей ${d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`}. Не отдадите — будет налёт.</p>
-           <div class="bld-f"><span class="cost">${costChips(tr.cost)}</span><button class="btn sm" id="bPay" ${canPay(tr.cost) ? '' : 'disabled'}>Отложить долю</button></div>`;
+        const tr = st.tribute, d = tr.due - S.day, when = d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`;
+        extra = tr.paid ? `<p class="ok">Доля отложена. Приедут ${when}.</p>` :
+          `<p class="warn">Приедут ${when}. Не отдадите — налёт.</p><div class="cd-f"><span class="cost">${costChips(tr.cost)}</span><button class="btn sm" id="bPay" ${canPay(tr.cost) ? '' : 'disabled'}>Отдать</button></div>`;
       }
-      return `<div class="fac ${st.beaten ? 'off' : ''}" style="--fc:${F.color}">
-        <div class="bld-h"><b>${st.met || st.beaten ? F.name : '???'}</b><span class="fst">${status}</span></div>
-        <p>${st.met || st.beaten ? F.desc : 'О них пока ничего не известно. Слухи доходят с дорог.'}</p>
-        <p class="fmeta">${st.kills ? `Убито: ${st.kills}. ` : ''}Лагерь: ${isKnown(F.camp) ? `${camp.name}, на карте` : 'неизвестно где'}.</p>
-        ${extra}
-      </div>`;
-    }).join('')}</div>`;
+      return `<article class="cd fc ${st.beaten ? 'off' : ''}" data-hl="${f}" style="--fc:${F.color}">
+        <div class="cd-l"><canvas class="av" data-fig="x:${F.types[F.types.length - 1]}" aria-hidden="true"></canvas></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${known ? F.name : '???'}</b><span class="fst">${status}</span></div>
+          <p class="now">${known ? F.desc : 'О них пока ничего не известно. Слухи доходят с дорог.'}</p>
+          <small class="fmeta">${st.kills ? `Убито: ${st.kills}. ` : ''}Лагерь ${isKnown(F.camp) ? 'отмечен на карте' : 'не найден'}.</small>
+          ${extra}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_log() {
+  deck_log() {
     return `<ol class="journal">${S.log.map(e => `<li class="${e.c || ''}"><span>День ${e.d}</span>${esc(e.t)}</li>`).join('')}</ol>`;
+  },
+  // Выбор оружия для слота: карточки того, что есть
+  pickerHtml() {
+    const { sid, slot } = this.pick, s = S.survivors.find(o => o.id === sid);
+    if (!s) { this.pick = null; return ''; }
+    ensureArsenal();
+    const cur = slot === 'melee' ? s.melee : s.ranged, list = slot === 'melee' ? MELEE_W : RANGED_W;
+    const opts = [];
+    if (slot === 'ranged') opts.push({ w: '', note: cur ? 'сдать в запас' : 'сейчас' });
+    for (const w of list) {
+      if (w === cur) opts.push({ w, note: 'сейчас в руках' });
+      else if (w === 'knife') opts.push({ w, note: 'всегда есть' });
+      else if (S.arsenal[w]) opts.push({ w, note: `в запасе: ${S.arsenal[w]}` });
+    }
+    const more = list.filter(w => w !== cur && w !== 'knife' && !S.arsenal[w]);
+    return `<div class="pick-bg" id="pkBg"><div class="pick" role="dialog" aria-label="Выбор оружия">
+      <header><canvas class="av" data-pt="${s.id}" aria-hidden="true"></canvas><div><b>${esc(s.name)}</b><span>${slot === 'melee' ? 'Ближний бой' : 'Огнестрел'}</span></div><button class="hbtn" id="pkClose" aria-label="Закрыть">${icon('close')}</button></header>
+      <div class="strip">${opts.map(o => `<button class="cd wp pk ${(o.w || null) === (cur || null) ? 'cur' : ''}" data-eqw="${o.w}">
+        ${o.w ? `<canvas class="wpic" data-wpn="${o.w}" aria-hidden="true"></canvas><b>${wName(o.w)}</b><small>${wStat(o.w)}</small>` : `<span class="wnone">${icon('close')}</span><b>Без огнестрела</b><small>руки свободны, рюкзак легче</small>`}
+        <em>${o.note}</em></button>`).join('')}</div>
+      ${more.length ? `<p class="dim">Нет в запасе: ${more.map(w => wName(w).toLowerCase()).join(', ')}. Ищите на вылазках.</p>` : ''}
+    </div></div>`;
   },
   cure(id) {
     const s = S.survivors.find(o => o.id === id), c = cureCost();

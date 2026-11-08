@@ -401,7 +401,7 @@ const R = {
       const g = c.createLinearGradient(0, 0, this.W, 0);
       g.addColorStop(0, 'rgba(11,10,8,0.95)'); g.addColorStop(0.5, 'rgba(11,10,8,0.66)'); g.addColorStop(1, 'rgba(11,10,8,0.25)');
       c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
-      if (this.W >= 600) drawLineup(c, this.W, this.H, now);
+      drawLineup(c, this.W, this.H, now);
     }
   },
   setMenuMap() {
@@ -640,8 +640,12 @@ const DEFAULT_SQUAD = [
 ];
 function drawLineup(c, W, H, now) {
   const ppl = (typeof S !== 'undefined' && S && S.survivors && S.survivors.length ? S.survivors : DEFAULT_SQUAD).slice(0, 4);
-  const ts = clamp(H * 0.46, 90, 260), dirs = [3, 2, 1, 2];
-  const x0 = W - ts * 0.6 * ppl.length - ts * 0.3 - Math.max(16, W * 0.03);
+  // фигурки — только в свободной полосе справа от панели меню
+  const panel = document.querySelector('#scr-menu .menu-in'), left = panel ? panel.getBoundingClientRect().width + 12 : W * 0.45;
+  const room = W - left - Math.max(16, W * 0.03);
+  const ts = Math.min(clamp(H * 0.46, 90, 260), room / (0.66 * ppl.length + 0.12)), dirs = [3, 2, 1, 2];
+  if (ts < 70) return;
+  const x0 = W - ts * 0.66 * ppl.length - ts * 0.06 - Math.max(16, W * 0.03);
   ppl.forEach((s, i) => {
     const cx = x0 + i * ts * 0.66 + ts * 0.3, fy = H * 0.92 - (i % 2) * ts * 0.12;
     const g = c.createRadialGradient(cx, fy, 0, cx, fy, ts * 0.42);

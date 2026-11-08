@@ -509,6 +509,118 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
   .menu-in { gap: 0.55rem; }
   .mt { min-height: 3.2rem; }
 }
+/* ----- база: карта сверху, внизу вкладки и лента горизонтальных карточек ----- */
+#scr-base { display: flex; flex-direction: column; pointer-events: none; background: transparent; }
+#scr-base .bbar, #scr-base .deck, #scr-base .pick-bg { pointer-events: auto; }
+.bview { flex: 1; min-height: 0; }
+.deck { flex: none; display: flex; flex-direction: column; background: rgba(19, 18, 14, 0.95); border-top: 1px solid var(--line); padding-bottom: var(--gut-b); }
+.dtabs { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem var(--gut-r) 0.3rem var(--gut-l); }
+.dt-n { display: flex; gap: 0.2rem; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.dt-n button {
+  flex: none; display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.5rem; padding: 0.2rem 0.6rem; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); color: var(--ink-2);
+  font-family: var(--f-ui); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.dt-n button .ic { width: 1.1rem; height: 1.1rem; color: var(--amber); }
+.dt-n button i { font-style: normal; color: var(--dim); }
+.dt-n button.on { color: var(--amber-ink); background: var(--amber); border-color: var(--amber); }
+.dt-n button.on .ic, .dt-n button.on i { color: var(--amber-ink); }
+.dt-a { display: flex; gap: 0.35rem; flex: none; }
+.dt-a .btn { min-height: 2.5rem; }
+.btn.sq { width: 2.6rem; padding: 0; justify-content: center; }
+.strip { display: flex; align-items: stretch; gap: 0.45rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 0.1rem var(--gut-r) 0.4rem var(--gut-l); scrollbar-width: thin; }
+.strip.log { display: block; overflow-x: hidden; overflow-y: auto; max-height: 9.5rem; }
+.cd {
+  flex: none; display: flex; gap: 0.55rem; width: 17rem; min-height: 6.6rem; padding: 0.45rem 0.55rem; scroll-snap-align: start; text-align: left;
+  border-radius: var(--r); border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+}
+.cd.hl { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.cd.off { opacity: 0.55; }
+.cd-l { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; position: relative; }
+.cd-r { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.22rem; }
+.cd-h { display: flex; justify-content: space-between; align-items: baseline; gap: 0.4rem; }
+.cd-h b, .cd-r > b { font-family: var(--f-ui); font-weight: 500; font-size: 0.98rem; line-height: 1.15; }
+.cd-h small { color: var(--dim); font-size: 0.72rem; white-space: nowrap; }
+.cd p { margin: 0; font-size: 0.78rem; line-height: 1.25; }
+.cd .now { color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cd .next { color: var(--dim); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.cd .max, .cd .ok { color: var(--moss); }
+.cd .warn { color: var(--warn-ink); }
+.cd-f { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; margin-top: auto; }
+.cd-f .btn { flex: none; }
+.cd .cost .cc { font-size: 0.78rem; padding: 0.05rem 0.3rem; }
+.av { width: 3.2rem; height: 4rem; border-radius: 4px; background: radial-gradient(ellipse at 50% 30%, rgba(236, 228, 204, 0.14), transparent 70%), rgba(0, 0, 0, 0.32); }
+/* боец */
+.sv { width: 17.5rem; border-left: 3px solid var(--uc); }
+.sv .tr { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.lvb { position: absolute; top: -0.2rem; right: -0.3rem; display: inline-flex; align-items: center; gap: 0.05rem; padding: 0 0.2rem; border-radius: 3px; background: var(--amber); color: var(--amber-ink); font-family: var(--f-ui); font-size: 0.65rem; }
+.lvb .ic { width: 0.65rem; height: 0.65rem; }
+.hpl { display: flex; align-items: center; gap: 0.35rem; }
+.hpl .bar { flex: 1; }
+.hpl small { font-size: 0.72rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+.slots { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+.slot {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.05rem; min-height: 2.9rem; padding: 0.15rem 0.2rem; cursor: pointer;
+  border-radius: 4px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.28); color: var(--ink-2);
+  font-family: var(--f-ui); font-size: 0.68rem; letter-spacing: 0.02em;
+}
+.slot canvas { width: 100%; height: 1.5rem; }
+.slot.none { border-style: dashed; color: var(--dim); }
+.slot.none .ic { width: 1.2rem; height: 1.2rem; }
+.slot:active { border-color: var(--amber); }
+.sv-inf { display: flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; color: var(--toxic); }
+.sv-inf span { flex: 1; }
+.sv-inf em { font-style: normal; color: var(--dim); }
+.sv-inf .btn { min-height: 2rem; }
+/* постройка */
+.bd { width: 19.5rem; }
+.bd .cd-l { width: 6.6rem; align-self: stretch; }
+.thumb { width: 100%; height: 100%; min-height: 5.6rem; border-radius: 4px; display: block; }
+/* оружие */
+.wp { width: 17rem; }
+.wp .cd-l { width: 5.4rem; }
+.wpic { width: 100%; height: 2.2rem; }
+.cnt { font-family: var(--f-ui); font-size: 0.7rem; color: var(--muted); }
+.note { width: 13rem; background: rgba(232, 166, 43, 0.07); border-style: dashed; }
+.perks-l { margin: 0; padding-left: 1rem; font-size: 0.74rem; color: var(--dim); }
+.perks-l li.on { color: var(--ink); }
+.rc2 { width: 17rem; }
+.ravt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; width: 3.4rem; height: 3.4rem; border-radius: 4px; background: rgba(0, 0, 0, 0.32); color: var(--rc); }
+.ravt .ic { width: 1.6rem; height: 1.6rem; }
+.ravt b { font-family: var(--f-ui); font-weight: 600; font-size: 0.9rem; }
+/* группировка */
+.fc { width: 19rem; border-left: 3px solid var(--fc); }
+.fc .fst { font-family: var(--f-ui); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fc); white-space: nowrap; }
+.fmeta { font-size: 0.72rem; color: var(--dim); }
+/* выбор оружия */
+.pick-bg { position: absolute; inset: 0; z-index: 20; display: flex; align-items: flex-end; background: var(--scrim); }
+.pick { width: 100%; display: flex; flex-direction: column; gap: 0.3rem; background: var(--panel-solid); border-top: 1px solid var(--line-2); padding-bottom: var(--gut-b); box-shadow: 0 -0.5rem 1.5rem rgba(0, 0, 0, 0.5); }
+.pick header { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem var(--gut-r) 0.2rem var(--gut-l); }
+.pick header div { display: flex; flex-direction: column; flex: 1; }
+.pick header b { font-family: var(--f-ui); font-weight: 500; font-size: 1.05rem; }
+.pick header span { font-size: 0.8rem; color: var(--muted); }
+.pick header .av { width: 2.4rem; height: 3rem; }
+.pk { width: 11rem; flex-direction: column; gap: 0.15rem; cursor: pointer; min-height: 0; }
+.pk.cur { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.pk b { font-family: var(--f-ui); font-weight: 500; font-size: 0.95rem; }
+.pk small { font-size: 0.72rem; color: var(--dim); }
+.pk em { font-style: normal; font-size: 0.74rem; color: var(--amber); margin-top: auto; }
+.pk .wpic { height: 2.4rem; }
+.wnone { display: grid; place-items: center; width: 100%; height: 2.4rem; color: var(--dim); }
+.pick .dim { padding: 0 var(--gut-r) 0.3rem var(--gut-l); }
+@media (max-height: 380px) {
+  .cd { min-height: 6rem; padding-block: 0.35rem; }
+  .dt-n button, .dt-a .btn { min-height: 2.3rem; }
+}
+.strip { scroll-padding-inline: max(10px, env(safe-area-inset-left, 0px)); }
+.wsq-b { flex-direction: row; align-items: center; gap: 0.4rem; }
+.wsq-b .mini { flex: none; width: 2rem; height: 2.5rem; border-radius: 3px; background: rgba(0, 0, 0, 0.3); }
+.wsq-t { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.wsq-t span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 880px) {
+  .dt-n button:not(.on) span { display: none; }
+  .dt-n button:not(.on) { padding-inline: 0.55rem; }
+}
 </style>
 </head>
 <body>
@@ -4309,7 +4421,7 @@ const R = {
       const g = c.createLinearGradient(0, 0, this.W, 0);
       g.addColorStop(0, 'rgba(11,10,8,0.95)'); g.addColorStop(0.5, 'rgba(11,10,8,0.66)'); g.addColorStop(1, 'rgba(11,10,8,0.25)');
       c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
-      if (this.W >= 600) drawLineup(c, this.W, this.H, now);
+      drawLineup(c, this.W, this.H, now);
     }
   },
   setMenuMap() {
@@ -4548,8 +4660,12 @@ const DEFAULT_SQUAD = [
 ];
 function drawLineup(c, W, H, now) {
   const ppl = (typeof S !== 'undefined' && S && S.survivors && S.survivors.length ? S.survivors : DEFAULT_SQUAD).slice(0, 4);
-  const ts = clamp(H * 0.46, 90, 260), dirs = [3, 2, 1, 2];
-  const x0 = W - ts * 0.6 * ppl.length - ts * 0.3 - Math.max(16, W * 0.03);
+  // фигурки — только в свободной полосе справа от панели меню
+  const panel = document.querySelector('#scr-menu .menu-in'), left = panel ? panel.getBoundingClientRect().width + 12 : W * 0.45;
+  const room = W - left - Math.max(16, W * 0.03);
+  const ts = Math.min(clamp(H * 0.46, 90, 260), room / (0.66 * ppl.length + 0.12)), dirs = [3, 2, 1, 2];
+  if (ts < 70) return;
+  const x0 = W - ts * 0.66 * ppl.length - ts * 0.06 - Math.max(16, W * 0.03);
   ppl.forEach((s, i) => {
     const cx = x0 + i * ts * 0.66 + ts * 0.3, fy = H * 0.92 - (i % 2) * ts * 0.12;
     const g = c.createRadialGradient(cx, fy, 0, cx, fy, ts * 0.42);
@@ -6341,6 +6457,159 @@ function lightLayer(c, m, now, W, H, dpr, gfx) {
 </script>
 <script>
 'use strict';
+// ---------- Картинки для интерфейса: оружие сбоку, постройки движком карты, портреты ----------
+
+// Оружие нарисовано в рамке 100×40, ствол/лезвие смотрит вправо
+const WPN_ART = {
+  knife(c) {
+    c.fillStyle = '#3a2a1c'; c.fillRect(8, 16, 30, 8);
+    c.fillStyle = '#c9c3b2'; c.fillRect(14, 19, 2, 2); c.fillRect(26, 19, 2, 2);
+    c.fillStyle = '#5a5d60'; c.fillRect(37, 12, 5, 16);
+    c.fillStyle = '#b9bec4'; c.beginPath(); c.moveTo(42, 15); c.lineTo(86, 18); c.lineTo(93, 21); c.lineTo(42, 25); c.closePath(); c.fill();
+    c.fillStyle = '#e8ecef'; c.beginPath(); c.moveTo(42, 15); c.lineTo(86, 18); c.lineTo(93, 21); c.lineTo(42, 18.5); c.closePath(); c.fill();
+  },
+  bat(c) {
+    c.fillStyle = '#9a7444'; c.beginPath(); c.moveTo(6, 18); c.lineTo(40, 17); c.lineTo(90, 12); c.quadraticCurveTo(97, 20, 90, 28); c.lineTo(40, 23); c.lineTo(6, 22); c.closePath(); c.fill();
+    c.fillStyle = '#c29a62'; c.beginPath(); c.moveTo(40, 17); c.lineTo(90, 12); c.quadraticCurveTo(94, 15, 93, 18); c.lineTo(40, 19.5); c.closePath(); c.fill();
+    c.fillStyle = '#26221c'; c.fillRect(6, 17, 22, 6);
+    c.strokeStyle = 'rgba(60,40,20,0.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(48, 21); c.lineTo(84, 18); c.stroke();
+    c.strokeStyle = '#8a8f94'; c.lineWidth = 1.2; c.beginPath();
+    for (let x = 56; x < 88; x += 6) { c.moveTo(x, 13); c.lineTo(x + 3, 27); }
+    c.stroke();
+  },
+  crowbar(c) {
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.strokeStyle = '#7a2a22'; c.lineWidth = 6;
+    c.beginPath(); c.moveTo(14, 30); c.lineTo(82, 14); c.quadraticCurveTo(94, 11, 92, 22); c.stroke();
+    c.strokeStyle = '#b8483a'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(16, 28); c.lineTo(80, 13); c.stroke();
+    c.strokeStyle = '#7a2a22'; c.lineWidth = 5; c.beginPath(); c.moveTo(14, 30); c.lineTo(6, 26); c.stroke();
+  },
+  axe(c) {
+    c.lineCap = 'round';
+    c.strokeStyle = '#6e4f2c'; c.lineWidth = 6; c.beginPath(); c.moveTo(8, 33); c.lineTo(80, 12); c.stroke();
+    c.strokeStyle = '#a07a48'; c.lineWidth = 2; c.beginPath(); c.moveTo(10, 31); c.lineTo(78, 11); c.stroke();
+    c.fillStyle = '#b83a2a'; c.beginPath(); c.moveTo(66, 6); c.lineTo(80, 4); c.lineTo(84, 20); c.lineTo(70, 22); c.closePath(); c.fill();
+    c.fillStyle = '#9aa0a6'; c.beginPath(); c.moveTo(80, 4); c.lineTo(96, 0); c.quadraticCurveTo(100, 14, 96, 30); c.lineTo(84, 20); c.closePath(); c.fill();
+    c.fillStyle = '#e2e6ea'; c.beginPath(); c.moveTo(96, 0); c.quadraticCurveTo(100, 14, 96, 30); c.lineTo(94, 28); c.quadraticCurveTo(97, 14, 94, 3); c.closePath(); c.fill();
+  },
+  pistol(c) {
+    c.fillStyle = '#2c2f33'; c.fillRect(28, 10, 54, 9);
+    c.fillStyle = '#4a4f55'; c.fillRect(28, 10, 54, 3);
+    c.fillStyle = '#1e2023'; c.fillRect(80, 12, 8, 5);
+    c.fillStyle = '#3a2a1c'; c.beginPath(); c.moveTo(32, 19); c.lineTo(48, 19); c.lineTo(44, 36); c.lineTo(28, 36); c.closePath(); c.fill();
+    c.strokeStyle = '#2c2f33'; c.lineWidth = 2; c.beginPath(); c.arc(54, 21, 6, 0, Math.PI); c.stroke();
+    c.fillStyle = '#c9c3b2'; c.fillRect(31, 23, 2, 9);
+  },
+  shotgun(c) {
+    c.fillStyle = '#7a5530'; c.beginPath(); c.moveTo(2, 22); c.lineTo(34, 15); c.lineTo(44, 15); c.lineTo(44, 24); c.lineTo(30, 24); c.lineTo(4, 31); c.closePath(); c.fill();
+    c.fillStyle = '#9a7444'; c.beginPath(); c.moveTo(2, 22); c.lineTo(34, 15); c.lineTo(44, 15); c.lineTo(44, 18); c.lineTo(33, 18); c.lineTo(3, 25); c.closePath(); c.fill();
+    c.fillStyle = '#2c2f33'; c.fillRect(43, 13, 55, 4); c.fillRect(43, 17, 55, 4);
+    c.fillStyle = '#4a4f55'; c.fillRect(43, 13, 55, 1.5);
+    c.fillStyle = '#7a5530'; c.fillRect(56, 21, 22, 4);
+    c.strokeStyle = '#2c2f33'; c.lineWidth = 2; c.beginPath(); c.arc(46, 25, 4, 0, Math.PI); c.stroke();
+  },
+  rifle(c) {
+    c.fillStyle = '#6e4f2c'; c.beginPath(); c.moveTo(2, 21); c.lineTo(30, 16); c.lineTo(38, 16); c.lineTo(38, 25); c.lineTo(28, 25); c.lineTo(4, 30); c.closePath(); c.fill();
+    c.fillStyle = '#2c2f33'; c.fillRect(37, 15, 26, 9); c.fillRect(62, 17, 36, 3);
+    c.fillStyle = '#6e4f2c'; c.fillRect(56, 20, 22, 4);
+    c.fillStyle = '#1e2023'; c.fillRect(44, 6, 20, 5); c.fillRect(48, 11, 3, 4); c.fillRect(58, 11, 3, 4);
+    c.fillStyle = '#7ea6c4'; c.fillRect(63, 7, 2, 3);
+    c.fillStyle = '#2c2f33'; c.fillRect(46, 24, 6, 9);
+    c.strokeStyle = '#2c2f33'; c.lineWidth = 2; c.beginPath(); c.arc(41, 26, 4, 0, Math.PI); c.stroke();
+  },
+};
+function drawWeaponArt(cv, w) {
+  const dpr = Math.min(3, window.devicePixelRatio || 1), W = cv.clientWidth || 80, H = cv.clientHeight || 32;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
+  if (!WPN_ART[w]) return;
+  const s = Math.min(W / 100, H / 40) * dpr;
+  c.setTransform(s, 0, 0, s, (W * dpr - 100 * s) / 2, (H * dpr - 40 * s) / 2);
+  c.save(); c.translate(1.5, 2.5); c.globalAlpha = 0.35; c.filter = 'brightness(0)'; WPN_ART[w](c); c.restore();
+  c.filter = 'none'; c.globalAlpha = 1;
+  WPN_ART[w](c);
+}
+
+// ----- миниатюры построек: маленькая сцена, нарисованная движком карты -----
+const THUMBS = new Map();
+function thumbScene(key, lv) {
+  const m = newMap(8, 6, 99), r = makeRng(5);
+  for (let i = 0; i < m.n; i++) { m.tiles[i] = m.ground[i] = (hash2(i % 8, (i / 8) | 0, 3) > 0.55 ? T.DIRT : T.GRASS); }
+  const g = (x, y, t, meta = 0) => { m.tiles[MI(m, x, y)] = t; if (TP[t].floor) m.ground[MI(m, x, y)] = t; m.meta[MI(m, x, y)] = meta; };
+  const prop = (k, x, y, w, h, o = {}) => { m.props.push(Object.assign({ k, x, y, w, h }, o)); for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) g(xx, yy, o.tall ? T.BLOCKH : T.BLOCK); };
+  const L = Math.max(1, lv);
+  if (key === 'walls') {
+    for (let x = 0; x < 8; x++) {
+      if (L === 1) g(x, 3, T.FENCE, 0);
+      else if (L === 2) { g(x, 3, T.FENCE, 0); g(x, 1, T.FENCE, 1); }
+      else g(x, 3, T.WALL);
+    }
+    if (L >= 2) { g(2, 4, T.SANDBAG); g(3, 4, T.SANDBAG); g(4, 4, T.SANDBAG); }
+    if (L >= 3) prop('tower', 5, 4, 2, 2, { tall: true });
+  } else if (key === 'water') {
+    const nd = [1, 2, 4, 6][L];
+    for (let k = 0; k < nd; k++) g(1 + (k % 3) * 2, 1 + Math.floor(k / 3) * 2, T.DRUM);
+    if (L >= 2) prop('wtower', 5, 2, 2, 2, { tall: true });
+  } else if (key === 'garden') {
+    const beds = [2, 2, 4, 6][L];
+    for (let k = 0; k < beds; k++) { const x = 1 + (k % 2) * 4, y = Math.floor(k / 2) * 2; for (let xx = 0; xx < 3; xx++) { m.ground[MI(m, x + xx, y)] = T.DIRT; g(x + xx, y, T.CROP, k % 2); } }
+    if (L >= 3) g(7, 5, T.CRATE);
+  } else if (key === 'infirmary') {
+    prop('medtent', 1, 1, 3, 3, { c: '#d6d2c4' });
+    g(5, 2, T.FURN, FURN_V.cot); if (L >= 2) { g(6, 2, T.FURN, FURN_V.cot); g(5, 4, T.MEDCAB); } if (L >= 3) g(6, 4, T.MEDCAB);
+  } else if (key === 'workshop') {
+    g(1, 3, T.CRATE); g(2, 3, T.BENCH); g(3, 3, T.CRATE);
+    if (L >= 2) { for (let x = 4; x < 8; x++) { g(x, 0, T.WWALL); } g(4, 1, T.WWALL); g(4, 2, T.WWALL); g(5, 1, T.BENCH); g(6, 1, T.DRUM); }
+    if (L >= 3) prop('machine', 4, 3, 3, 2, { c: '#5d6b70' });
+  } else if (key === 'radio') {
+    prop('mast', 3, 2, 1, 1, { tall: true, hgt: L >= 2 ? 6 : 4 });
+    g(5, 3, T.DRUM); g(1, 3, T.CRATE);
+  }
+  m.seen = new Uint8Array(m.n).fill(1); m.vis = new Uint8Array(m.n).fill(1);
+  m.units = []; m.zombies = []; m.turn = 1; m.tod = 0;
+  return m;
+}
+function buildThumb(key, lv, W, H) {
+  const id = `${key}|${lv}|${W}x${H}`;
+  let cv = THUMBS.get(id);
+  if (cv) return cv;
+  const dpr = 2, m = thumbScene(key, lv);
+  cv = document.createElement('canvas'); cv.width = W * dpr; cv.height = H * dpr;
+  const c = cv.getContext('2d');
+  const tall = { radio: 6, water: 3.2, walls: 2.4, infirmary: 1.4, workshop: 1.6, garden: 0.8 }[key] || 1;
+  const k = Math.max(17, W / 8.4), cam = { cx: 4, cy: 3, k, rot: 0 };
+  const save = { dpr: R.dpr, hits: R.hits, obj: R.objHits, budget: GroundTex.budget };
+  R.dpr = dpr; GroundTex.budget = 60;
+  try {
+    c.fillStyle = '#1c1b16'; c.fillRect(0, 0, cv.width, cv.height);
+    drawIso(c, m, cam, W, H, performance.now(), true, [0, Math.min(H * 0.32, tall * k * VX.cE * 0.42)]);
+  } catch (e) { console.error(e); }
+  R.dpr = save.dpr; R.hits = save.hits; R.objHits = save.obj; GroundTex.budget = save.budget;
+  R.dirty = true;
+  THUMBS.set(id, cv);
+  return cv;
+}
+function drawBuildThumb(cv, key, lv) {
+  const W = cv.clientWidth || 160, H = cv.clientHeight || 70, dpr = Math.min(3, window.devicePixelRatio || 1);
+  const src = buildThumb(key, lv, W, H);
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const c = cv.getContext('2d');
+  c.drawImage(src, 0, 0, cv.width, cv.height);
+  if (!lv) { c.fillStyle = 'rgba(19,18,14,0.55)'; c.fillRect(0, 0, cv.width, cv.height); }
+}
+
+// Нарисовать все картинки внутри узла
+function paintAvatars(root) {
+  for (const cv of root.querySelectorAll('canvas[data-pt]')) { const s = S.survivors.find(o => o.id === +cv.dataset.pt); if (s) try { drawPortrait(cv, s); } catch (e) { console.error(e); } }
+  for (const cv of root.querySelectorAll('canvas[data-wpn]')) try { drawWeaponArt(cv, cv.dataset.wpn); } catch (e) { console.error(e); }
+  for (const cv of root.querySelectorAll('canvas[data-bth]')) try { drawBuildThumb(cv, cv.dataset.bth, +cv.dataset.lv); } catch (e) { console.error(e); }
+  for (const cv of root.querySelectorAll('canvas[data-fig]')) try { drawFigure(cv, cv.dataset.fig); } catch (e) { console.error(e); }
+}
+</script>
+<script>
+'use strict';
 // ---------- Интерфейс боя и управление касаниями ----------
 
 const ZSTATE = { idle: 'стоит', wander: 'бродит', investigate: 'идёт на шум', chase: 'видит вас', guard: 'на посту' };
@@ -6878,11 +7147,11 @@ const BASE_ZONES = [
   ['radio', 26, 4, 28, 6], ['garden', 5, 6, 13, 15], ['water', 28, 5, 34, 13], ['infirmary', 5, 18, 12, 24],
   ['workshop', 26, 16, 34, 27], ['walls', 0, 0, 39, 4], ['walls', 0, 29, 39, 35], ['walls', 0, 0, 5, 35], ['walls', 34, 0, 39, 35],
 ];
-const DOCK = { build: ['Постройки', 'home'], arms: ['Оружие', 'target'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+const DECK = [['group', 'Группа', 'hp'], ['build', 'Постройки', 'home'], ['arms', 'Оружие', 'target'], ['craft', 'Мастерская', 'hammer'], ['fac', 'Группировки', 'shield'], ['log', 'Журнал', 'log']];
 const wStat = w => { const W = WEAP[w]; return W.melee ? `урон ${W.dmg[0]}–${W.dmg[1]}, ${W.ap} ОД${W.assassin ? ', тихо' : ''}` : `урон ${W.dmg[0]}–${W.dmg[1]}, дальность ${W.range}, шум ${W.noise}`; };
 
 const Base = {
-  tab: null, hl: null, life: null,
+  tab: 'group', hl: null, life: null, deckOpen: true, pick: null,
   // ----- сцена: карта базы с людьми у костра -----
   scene() {
     const { m } = genBase(S);
@@ -6924,146 +7193,197 @@ const Base = {
   },
   frame() {
     const root = $('#scr-base');
-    const lw = $('.survs', root) ? $('.survs', root).offsetWidth : 0, rw = $('.dock', root) ? $('.dock', root).offsetWidth : 0;
+    const top = $('.bbar', root) ? $('.bbar', root).offsetHeight : 0, bot = $('.deck', root) ? $('.deck', root).offsetHeight : 0;
     R.cam.k = clamp(Math.round(R.H / 15.5), 22, 36);
     R.cam.cx = 20; R.cam.cy = 16.5; R.camAnim = null;
-    R.panStart(0, 0); R.panTo((lw - rw) / 2, R.H * 0.03); R.pan = null;
+    R.panStart(0, 0); R.panTo(0, (top - bot) / 2); R.pan = null;
     R.dirty = true;
   },
   tapMap(x, y) {
     const e = R.pick(x, y);
-    if (e && e.name) {
-      const s = S.survivors.find(o => o.id === e.id);
-      if (s) { Sfx.play('click'); Game.toast(`${s.name}: ${TRAITS[s.trait].name.toLowerCase()}, ${s.hp}/${s.maxhp}${s.infected ? ', укус' : ''}`); }
-      return;
-    }
+    if (e && e.name) { Sfx.play('click'); this.open('group', e.id); return; }
     const t = R.toTile(x, y);
     const z = BASE_ZONES.find(([, x0, y0, x1, y1]) => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1);
-    if (z) { Sfx.play('click'); this.tab = 'build'; this.hl = z[0]; this.render(); }
+    if (z) { Sfx.play('click'); this.open('build', z[0]); }
   },
-  // ----- интерфейс -----
+  open(tab, hl) {
+    this.tab = tab; this.hl = hl ?? null; this.deckOpen = true;
+    this.render(); this.frame();
+  },
+  // ----- интерфейс: карта базы сверху, внизу вкладки и лента карточек -----
   render() {
     const root = $('#scr-base');
     ensureWorld();
+    if (!DECK.some(d => d[0] === this.tab)) this.tab = 'group';
     const n = S.survivors.length, tr = S.fac.collectors.tribute;
     const due = tr && !tr.paid && !S.fac.collectors.beaten ? tr.due - S.day : null;
+    const strip = this.deckOpen ? this['deck_' + this.tab]() : '';
     root.innerHTML = `
       <header class="bbar">
         <div class="brand">Рубеж</div>
         <div class="day"><span>День</span><b>${S.day}</b><small>из ${VICTORY_DAY}</small></div>
-        ${due != null ? `<button class="chip-tr ${due <= 0 ? 'now' : ''}" id="bTr">${icon('shield')}<span>Доля Сборщикам ${due <= 0 ? 'сегодня' : `через ${due} ${plural(due, 'день', 'дня', 'дней')}`}</span></button>` : ''}
+        ${due != null ? `<button class="chip-tr ${due <= 0 ? 'now' : ''}" id="bTr">${icon('shield')}<span>Доля ${due <= 0 ? 'сегодня' : `через ${due} ${plural(due, 'день', 'дня', 'дней')}`}</span></button>` : ''}
         <div class="resrow">${RES_ORDER.map(k => `<span class="res ${(k === 'food' || k === 'water') && S.res[k] < n ? 'low' : ''}" title="${RES[k].name}" style="--rc:${RES[k].color}">${icon(k)}<b>${S.res[k]}</b></span>`).join('')}</div>
         <button class="hbtn" id="bSet" aria-label="Настройки">${icon('gear')}</button>
       </header>
-      <div class="bmain">
-        <section class="survs">
-          <h2>Группа <span>${n}/${GROUP_MAX}</span><small>за ночь: ${n} еды и ${n} воды</small></h2>
-          <div class="slist">${S.survivors.map(s => this.card(s)).join('')}</div>
-          <div class="bact">
-            <button class="btn hazard big" id="bWorld">${icon('map')}<span>Карта округи</span></button>
-            <button class="btn" id="bRest">${icon('moon')}<span>Отдыхать</span></button>
+      <div class="bview"></div>
+      <section class="deck ${this.deckOpen ? 'open' : ''}">
+        <div class="dtabs">
+          <nav class="dt-n" role="tablist">${DECK.map(([k, l, ic]) => `<button role="tab" aria-selected="${this.deckOpen && this.tab === k}" class="${this.deckOpen && this.tab === k ? 'on' : ''}" data-tab="${k}">${icon(ic)}<span>${l}${k === 'group' ? ` <i>${n}/${GROUP_MAX}</i>` : ''}</span></button>`).join('')}</nav>
+          <div class="dt-a">
+            <button class="btn sq" id="bRest" title="Отдыхать до утра" aria-label="Отдыхать до утра">${icon('moon')}</button>
+            <button class="btn hazard" id="bWorld">${icon('map')}<span>Карта округи</span></button>
           </div>
-        </section>
-        <div class="bview"></div>
-        <section class="dock ${this.tab ? 'open' : ''}">
-          ${this.tab ? `<div class="dock-p">
-            <header><h2>${DOCK[this.tab][0]}</h2><button class="hbtn" id="bClose" aria-label="Закрыть">${icon('close')}</button></header>
-            <div class="tabc">${this['tab_' + this.tab]()}</div>
-          </div>` : ''}
-          <nav class="rail" role="tablist">${Object.keys(DOCK).map(k => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-tab="${k}" title="${DOCK[k][0]}">${icon(DOCK[k][1])}<span>${DOCK[k][0]}</span></button>`).join('')}</nav>
-        </section>
-      </div>`;
+        </div>
+        ${this.deckOpen ? `<div class="strip ${this.tab === 'log' ? 'log' : ''}" id="bStrip">${strip}</div>` : ''}
+      </section>
+      ${this.pick ? this.pickerHtml() : ''}`;
     $('#bSet').onclick = () => { Sfx.play('click'); Game.openSettings(); };
     $('#bWorld').onclick = () => { Sfx.init(); Sfx.play('click'); Game.showWorld(); };
     $('#bRest').onclick = () => this.rest();
-    const tb = $('#bTr'); if (tb) tb.onclick = () => { Sfx.play('click'); this.tab = 'fac'; this.render(); };
-    const cl = $('#bClose'); if (cl) cl.onclick = () => { Sfx.play('click'); this.tab = null; this.hl = null; this.render(); this.frame(); };
-    $$('.rail button', root).forEach(b => { b.onclick = () => { Sfx.play('click'); const k = b.dataset.tab; this.tab = this.tab === k ? null : k; this.hl = null; this.render(); this.frame(); }; });
-    $$('canvas[data-pt]', root).forEach(cv => { const s = S.survivors.find(o => o.id === +cv.dataset.pt); if (s) try { drawPortrait(cv, s); } catch (e) { console.error(e); } });
+    const tb = $('#bTr'); if (tb) tb.onclick = () => { Sfx.play('click'); this.open('fac'); };
+    $$('.dt-n button', root).forEach(b => {
+      b.onclick = () => {
+        Sfx.play('click');
+        const k = b.dataset.tab;
+        if (this.deckOpen && this.tab === k) this.deckOpen = false; else { this.deckOpen = true; this.tab = k; }
+        this.hl = null; this.render(); this.frame();
+      };
+    });
     $$('[data-cure]', root).forEach(b => { b.onclick = () => this.cure(+b.dataset.cure); });
     $$('[data-build]', root).forEach(b => { b.onclick = () => this.build(b.dataset.build); });
     $$('[data-craft]', root).forEach(b => { b.onclick = () => this.craft(b.dataset.craft); });
+    $$('[data-slot]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.pick = { sid: +b.dataset.sid, slot: b.dataset.slot }; this.render(); }; });
+    $$('[data-scrap]', root).forEach(b => { b.onclick = () => { const w = b.dataset.scrap, k = scrapWeapon(w); if (k) { Sfx.play('build'); Game.toast(`${wName(w)}: разобрано, +${k} деталей`); addLog(`${wName(w)} разобран на детали (+${k}).`); saveGame(); } this.render(); }; });
     const pt = $('#bPay'); if (pt) pt.onclick = () => { payTribute(); this.render(); };
-    $$('[data-eq]', root).forEach(sel => { sel.onchange = () => { if (equip(+sel.dataset.sid, sel.dataset.eq, sel.value || null)) { Sfx.play('pickup'); saveGame(); this.scene(); } this.render(); }; });
-    $$('[data-scrap]', root).forEach(b => { b.onclick = () => { const w = b.dataset.scrap, n = scrapWeapon(w); if (n) { Sfx.play('build'); Game.toast(`${wName(w)}: разобрано, +${n} деталей`); addLog(`${wName(w)} разобран на детали (+${n}).`); saveGame(); } this.render(); }; });
-    if (this.hl) { const el = $(`[data-bk="${this.hl}"]`, root); if (el) el.scrollIntoView({ block: 'nearest' }); }
+    $$('[data-tab-go]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.open(b.dataset.tabGo); }; });
+    if (this.pick) {
+      const close = () => { this.pick = null; this.render(); };
+      $('#pkBg').onclick = e => { if (e.target.id === 'pkBg') close(); };
+      $('#pkClose').onclick = close;
+      $$('[data-eqw]', root).forEach(b => {
+        b.onclick = () => {
+          const { sid, slot } = this.pick, w = b.dataset.eqw || null;
+          if (equip(sid, slot, w)) { Sfx.play('pickup'); saveGame(); this.scene(); }
+          this.pick = null; this.render();
+        };
+      });
+    }
+    paintAvatars(root);
+    if (this.hl != null) { const el = $(`[data-hl="${this.hl}"]`, root); if (el) try { el.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) { /* старые браузеры */ } }
   },
-  card(s) {
-    const hp = (s.hp / s.maxhp) * 100;
-    return `<div class="sw">
-      <div class="sc ${s.infected ? 'inf' : ''}" style="--uc:${s.color}">
-        <canvas class="pt" data-pt="${s.id}" aria-hidden="true"></canvas>
-        <span class="sc-top"><b>${esc(s.name)}</b><i class="trait" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</i>${s.level > 1 ? `<i class="lvl">${icon('star')}${s.level}</i>` : ''}</span>
-        <span class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></span>
-        <span class="sc-meta">${s.hp}/${s.maxhp} · ${WEAP[s.melee].name}${s.ranged ? ' и ' + WEAP[s.ranged].name.toLowerCase() : ''}</span>
-        ${s.infected ? `<span class="sc-inf">${icon('bite')}Укус: ${s.infected === 1 ? 'обратится этой ночью' : `обратится через ${s.infected} ${plural(s.infected, 'день', 'дня', 'дней')}`}</span>` : ''}
-      </div>
-      ${s.infected ? (S.build.infirmary >= 1 ? `<button class="btn sm cure" data-cure="${s.id}" ${S.res.meds >= cureCost() ? '' : 'disabled'}>Лечить: ${cureCost()} мед.</button>` : '<span class="cure-hint">Лечить укус можно только в лазарете</span>') : ''}
-    </div>`;
+  // Боец: портрет слева; имя, здоровье и два слота оружия справа
+  deck_group() {
+    return S.survivors.map(s => {
+      const hp = (s.hp / s.maxhp) * 100;
+      const slot = (kind, w) => `<button class="slot ${w ? '' : 'none'}" data-slot="${kind}" data-sid="${s.id}" aria-label="${kind === 'melee' ? 'Ближний бой' : 'Огнестрел'}: ${w ? wName(w) : 'нет'}. Сменить">
+          ${w ? `<canvas data-wpn="${w}" aria-hidden="true"></canvas><span>${wName(w)}</span>` : `${icon('target')}<span>без ствола</span>`}</button>`;
+      return `<article class="cd sv ${this.hl === s.id ? 'hl' : ''} ${s.infected ? 'inf' : ''}" data-hl="${s.id}" style="--uc:${s.color}">
+        <div class="cd-l"><canvas class="av" data-pt="${s.id}" aria-hidden="true"></canvas>${s.level > 1 ? `<span class="lvb">${icon('star')}${s.level}</span>` : ''}</div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${esc(s.name)}</b><span class="tr" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</span></div>
+          <div class="hpl"><span class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></span><small>${s.hp}/${s.maxhp}</small></div>
+          <div class="slots">${slot('melee', s.melee)}${slot('ranged', s.ranged)}</div>
+          ${s.infected ? `<div class="sv-inf">${icon('bite')}<span>${s.infected === 1 ? 'обратится ночью' : `укус · ${s.infected} ${plural(s.infected, 'день', 'дня', 'дней')}`}</span>${S.build.infirmary >= 1 ? `<button class="btn sm" data-cure="${s.id}" ${S.res.meds >= cureCost() ? '' : 'disabled'}>Лечить ${cureCost()}</button>` : '<em>нужен лазарет</em>'}</div>` : ''}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_build() {
-    return `<div class="blds">${BUILD_ORDER.map(k => {
+  // Постройка: миниатюра слева; уровень, что даёт сейчас, что дальше и цена справа
+  deck_build() {
+    return BUILD_ORDER.map(k => {
       const B = BUILD[k], lv = S.build[k];
       let pips = '';
       for (let i = 0; i < B.max; i++) pips += `<i class="${i < lv ? 'on' : ''}"></i>`;
       const cost = lv < B.max ? B.cost[lv] : null;
-      return `<div class="bld ${this.hl === k ? 'hl' : ''}" data-bk="${k}">
-        <div class="bld-h"><b>${B.name}</b><span class="lv" title="Уровень ${lv} из ${B.max}">${pips}</span></div>
-        <p class="now">${B.eff[lv]}</p>
-        ${cost ? `<p class="next">Дальше: ${B.eff[lv + 1]}</p><div class="bld-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
-      </div>`;
-    }).join('')}</div>`;
+      return `<article class="cd bd ${this.hl === k ? 'hl' : ''}" data-hl="${k}">
+        <div class="cd-l"><canvas class="thumb" data-bth="${k}" data-lv="${lv}" aria-hidden="true"></canvas></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${B.name}</b><span class="lv" title="Уровень ${lv} из ${B.max}">${pips}</span></div>
+          <p class="now">${lv ? B.eff[lv] : 'Не построено'}</p>
+          ${cost ? `<p class="next">→ ${B.eff[lv + 1]}</p><div class="cd-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_arms() {
+  // Оружие: картинка слева; сколько в запасе и у кого справа
+  deck_arms() {
     ensureArsenal();
-    const ars = S.arsenal, mech = S.survivors.some(s => s.trait === 'mechanic') ? 1 : 0;
-    const keys = MELEE_W.concat(RANGED_W).filter(w => ars[w]);
-    const stock = keys.length ? keys.map(w => `<div class="ars-i">${icon(RANGED_W.includes(w) ? 'target' : 'melee')}<span><b>${wName(w)}</b> ×${ars[w]}<small>${wStat(w)}</small></span><button class="btn sm" data-scrap="${w}">Разобрать +${WSCRAP[w] + mech}</button></div>`).join('') :
-      '<p class="dim">Пусто. Оружие находят в оружейных шкафах, сейфах полиции, армейских ящиках и на телах врагов.</p>';
-    const sel = (slot, s) => {
-      const cur = slot === 'melee' ? s.melee : s.ranged, list = slot === 'melee' ? MELEE_W : RANGED_W, o = [];
-      if (slot === 'ranged') o.push(`<option value="" ${!cur ? 'selected' : ''}>без огнестрела</option>`);
-      for (const w of list) if (w === cur || w === 'knife' || ars[w]) o.push(`<option value="${w}" ${w === cur ? 'selected' : ''}>${wName(w)}${w !== cur && ars[w] ? ` · в запасе ${ars[w]}` : ''}</option>`);
-      return `<select data-eq="${slot}" data-sid="${s.id}" aria-label="${slot === 'melee' ? 'Ближний бой' : 'Огнестрел'}: ${esc(s.name)}">${o.join('')}</select>`;
-    };
-    const rows = S.survivors.map(s => `<div class="eq" style="--uc:${s.color}"><b>${esc(s.name)}</b>${sel('melee', s)}${sel('ranged', s)}<small>${s.ranged ? wStat(s.ranged) : wStat(s.melee)}</small></div>`).join('');
-    return `<div class="ars"><h3>Запас</h3>${stock}</div><div class="eqs"><h3>Кто чем вооружён</h3>${rows}</div>
-      <p class="dim">Смена оружия бесплатна: старое уходит в запас. Нож всегда под рукой.</p>`;
+    const ars = S.arsenal, mech = hasMechanic() ? 1 : 0;
+    const head = `<article class="cd note"><div class="cd-r"><b>Арсенал</b><p>Находки с вылазок лежат здесь. Выдать оружие — нажмите на слот бойца во вкладке «Группа».</p><div class="cd-f"><span></span><button class="btn sm" data-tab-go="group">К группе</button></div></div></article>`;
+    return head + MELEE_W.concat(RANGED_W).map(w => {
+      const holders = S.survivors.filter(s => s.melee === w || s.ranged === w).map(s => s.name), have = w === 'knife' ? '∞' : ars[w] || 0;
+      return `<article class="cd wp ${!have && !holders.length ? 'off' : ''}">
+        <div class="cd-l"><canvas class="wpic" data-wpn="${w}" aria-hidden="true"></canvas><span class="cnt">${have === '∞' ? 'всегда' : `запас ${have}`}</span></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${wName(w)}</b><small>${WKG[w]} кг</small></div>
+          <p class="now">${wStat(w)}</p>
+          <p class="next">${holders.length ? 'В руках: ' + holders.map(esc).join(', ') : 'Ни у кого'}</p>
+          ${w !== 'knife' && ars[w] ? `<div class="cd-f"><span></span><button class="btn sm" data-scrap="${w}">Разобрать +${WSCRAP[w] + mech}</button></div>` : ''}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_craft() {
+  deck_craft() {
     const lv = S.build.workshop;
-    const perks = WORKSHOP_PERKS.slice(1).map((p, i) => `<li class="${lv > i ? 'on' : ''}">${i + 1}. ${p}</li>`).join('');
-    return `<div class="crafts">${RECIPES.map(r => {
-      const cost = recipeCost(r), ok = lv >= r.need;
-      return `<div class="rc">
-        <div class="rc-t"><b>${r.name}</b><span>${r.desc}</span></div>
-        <span class="cost">${costChips(cost)}</span>
-        <button class="btn sm" data-craft="${r.id}" ${ok && canPay(cost) ? '' : 'disabled'}>${ok ? 'Сделать' : `Мастерская ${r.need}`}</button>
-      </div>`;
-    }).join('')}</div>
-    <div class="perks"><h3>Мастерская, уровень ${lv}</h3><ul>${perks}</ul>${hasMechanic() ? '<p>Механик в группе: крафт на 1 деталь дешевле.</p>' : ''}</div>`;
+    const perks = WORKSHOP_PERKS.slice(1).map((p, i) => `<li class="${lv > i ? 'on' : ''}">${p}</li>`).join('');
+    return `<article class="cd note"><div class="cd-r"><b>Мастерская · ур. ${lv}</b><ul class="perks-l">${perks}</ul>${hasMechanic() ? '<p class="ok">Механик: на 1 деталь дешевле.</p>' : ''}</div></article>` + RECIPES.map(r => {
+      const cost = recipeCost(r), ok = lv >= r.need, out = Object.keys(r.give)[0];
+      return `<article class="cd rc2">
+        <div class="cd-l"><div class="ravt" style="--rc:${RES[out].color}">${icon(out)}<b>+${r.give[out]}</b></div></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${r.name}</b></div>
+          <p class="now">${r.desc}</p>
+          <div class="cd-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-craft="${r.id}" ${ok && canPay(cost) ? '' : 'disabled'}>${ok ? 'Сделать' : `Ур. ${r.need}`}</button></div>
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_fac() {
-    return `<div class="facs">${Object.keys(FACTIONS).map(f => {
-      const F = FACTIONS[f], st = S.fac[f], camp = LOCS[F.camp];
+  deck_fac() {
+    return Object.keys(FACTIONS).map(f => {
+      const F = FACTIONS[f], st = S.fac[f], known = st.met || st.beaten;
       const status = st.beaten ? 'разгромлены' : !st.met ? 'неизвестны' : f === 'collectors' && st.tribute ? 'требуют долю' : 'враждебны';
       let extra = '';
       if (f === 'collectors' && st.tribute && !st.beaten) {
-        const tr = st.tribute, d = tr.due - S.day;
-        extra = tr.paid ? `<p class="ok">Доля отложена. Приедут ${d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`}.</p>` :
-          `<p class="warn">Приедут за долей ${d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`}. Не отдадите — будет налёт.</p>
-           <div class="bld-f"><span class="cost">${costChips(tr.cost)}</span><button class="btn sm" id="bPay" ${canPay(tr.cost) ? '' : 'disabled'}>Отложить долю</button></div>`;
+        const tr = st.tribute, d = tr.due - S.day, when = d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`;
+        extra = tr.paid ? `<p class="ok">Доля отложена. Приедут ${when}.</p>` :
+          `<p class="warn">Приедут ${when}. Не отдадите — налёт.</p><div class="cd-f"><span class="cost">${costChips(tr.cost)}</span><button class="btn sm" id="bPay" ${canPay(tr.cost) ? '' : 'disabled'}>Отдать</button></div>`;
       }
-      return `<div class="fac ${st.beaten ? 'off' : ''}" style="--fc:${F.color}">
-        <div class="bld-h"><b>${st.met || st.beaten ? F.name : '???'}</b><span class="fst">${status}</span></div>
-        <p>${st.met || st.beaten ? F.desc : 'О них пока ничего не известно. Слухи доходят с дорог.'}</p>
-        <p class="fmeta">${st.kills ? `Убито: ${st.kills}. ` : ''}Лагерь: ${isKnown(F.camp) ? `${camp.name}, на карте` : 'неизвестно где'}.</p>
-        ${extra}
-      </div>`;
-    }).join('')}</div>`;
+      return `<article class="cd fc ${st.beaten ? 'off' : ''}" data-hl="${f}" style="--fc:${F.color}">
+        <div class="cd-l"><canvas class="av" data-fig="x:${F.types[F.types.length - 1]}" aria-hidden="true"></canvas></div>
+        <div class="cd-r">
+          <div class="cd-h"><b>${known ? F.name : '???'}</b><span class="fst">${status}</span></div>
+          <p class="now">${known ? F.desc : 'О них пока ничего не известно. Слухи доходят с дорог.'}</p>
+          <small class="fmeta">${st.kills ? `Убито: ${st.kills}. ` : ''}Лагерь ${isKnown(F.camp) ? 'отмечен на карте' : 'не найден'}.</small>
+          ${extra}
+        </div>
+      </article>`;
+    }).join('');
   },
-  tab_log() {
+  deck_log() {
     return `<ol class="journal">${S.log.map(e => `<li class="${e.c || ''}"><span>День ${e.d}</span>${esc(e.t)}</li>`).join('')}</ol>`;
+  },
+  // Выбор оружия для слота: карточки того, что есть
+  pickerHtml() {
+    const { sid, slot } = this.pick, s = S.survivors.find(o => o.id === sid);
+    if (!s) { this.pick = null; return ''; }
+    ensureArsenal();
+    const cur = slot === 'melee' ? s.melee : s.ranged, list = slot === 'melee' ? MELEE_W : RANGED_W;
+    const opts = [];
+    if (slot === 'ranged') opts.push({ w: '', note: cur ? 'сдать в запас' : 'сейчас' });
+    for (const w of list) {
+      if (w === cur) opts.push({ w, note: 'сейчас в руках' });
+      else if (w === 'knife') opts.push({ w, note: 'всегда есть' });
+      else if (S.arsenal[w]) opts.push({ w, note: `в запасе: ${S.arsenal[w]}` });
+    }
+    const more = list.filter(w => w !== cur && w !== 'knife' && !S.arsenal[w]);
+    return `<div class="pick-bg" id="pkBg"><div class="pick" role="dialog" aria-label="Выбор оружия">
+      <header><canvas class="av" data-pt="${s.id}" aria-hidden="true"></canvas><div><b>${esc(s.name)}</b><span>${slot === 'melee' ? 'Ближний бой' : 'Огнестрел'}</span></div><button class="hbtn" id="pkClose" aria-label="Закрыть">${icon('close')}</button></header>
+      <div class="strip">${opts.map(o => `<button class="cd wp pk ${(o.w || null) === (cur || null) ? 'cur' : ''}" data-eqw="${o.w}">
+        ${o.w ? `<canvas class="wpic" data-wpn="${o.w}" aria-hidden="true"></canvas><b>${wName(o.w)}</b><small>${wStat(o.w)}</small>` : `<span class="wnone">${icon('close')}</span><b>Без огнестрела</b><small>руки свободны, рюкзак легче</small>`}
+        <em>${o.note}</em></button>`).join('')}</div>
+      ${more.length ? `<p class="dim">Нет в запасе: ${more.map(w => wName(w).toLowerCase()).join(', ')}. Ищите на вылазках.</p>` : ''}
+    </div></div>`;
   },
   cure(id) {
     const s = S.survivors.find(o => o.id === id), c = cureCost();
@@ -7390,6 +7710,7 @@ const World = {
     this.cv.onclick = e => this.click(e);
     $$('[data-sq]', root).forEach(b => { b.onclick = () => this.toggle(+b.dataset.sq); });
     const go = $('#wGo'); if (go) go.onclick = () => this.go();
+    paintAvatars(root);
     requestAnimationFrame(() => this.draw());
   },
   card() {
@@ -7410,8 +7731,9 @@ const World = {
       <div class="wsq">${S.survivors.map(s => {
         const on = S.squad.includes(s.id), hp = Math.round((s.hp / s.maxhp) * 100);
         return `<button class="wsq-b ${on ? 'on' : ''} ${s.infected ? 'inf' : ''}" data-sq="${s.id}" style="--uc:${s.color}" aria-pressed="${on}">
-          <b>${esc(s.name)}</b><span>${TRAITS[s.trait].name} · ${s.ranged ? WEAP[s.ranged].name.toLowerCase() : WEAP[s.melee].name.toLowerCase()}</span>
-          <i class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></i></button>`;
+          <canvas class="mini" data-pt="${s.id}" aria-hidden="true"></canvas>
+          <span class="wsq-t"><b>${esc(s.name)}</b><span>${TRAITS[s.trait].name} · ${s.ranged ? WEAP[s.ranged].name.toLowerCase() : WEAP[s.melee].name.toLowerCase()}</span>
+          <i class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></i></span></button>`;
       }).join('')}</div>
       ${locked ? `<p class="warn">Сюда не доехать без ${L.needRadio > 1 ? 'мощной антенны (радиоточка 2)' : 'радиоточки'}: не знаем дороги.</p>` : ''}
       ${!fuelOk ? '<p class="warn">Не хватает топлива.</p>' : ''}
@@ -7878,7 +8200,7 @@ const Game = {
   newGame() {
     store.del(SAVE_KEY);
     newGameState();
-    Base.tab = null; World.sel = 'farm';
+    Base.tab = 'group'; Base.deckOpen = true; Base.pick = null; World.sel = 'farm';
     saveGame();
     this.showBase();
   },

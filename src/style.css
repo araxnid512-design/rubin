@@ -495,3 +495,115 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
   .menu-in { gap: 0.55rem; }
   .mt { min-height: 3.2rem; }
 }
+/* ----- база: карта сверху, внизу вкладки и лента горизонтальных карточек ----- */
+#scr-base { display: flex; flex-direction: column; pointer-events: none; background: transparent; }
+#scr-base .bbar, #scr-base .deck, #scr-base .pick-bg { pointer-events: auto; }
+.bview { flex: 1; min-height: 0; }
+.deck { flex: none; display: flex; flex-direction: column; background: rgba(19, 18, 14, 0.95); border-top: 1px solid var(--line); padding-bottom: var(--gut-b); }
+.dtabs { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem var(--gut-r) 0.3rem var(--gut-l); }
+.dt-n { display: flex; gap: 0.2rem; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.dt-n button {
+  flex: none; display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.5rem; padding: 0.2rem 0.6rem; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); color: var(--ink-2);
+  font-family: var(--f-ui); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.dt-n button .ic { width: 1.1rem; height: 1.1rem; color: var(--amber); }
+.dt-n button i { font-style: normal; color: var(--dim); }
+.dt-n button.on { color: var(--amber-ink); background: var(--amber); border-color: var(--amber); }
+.dt-n button.on .ic, .dt-n button.on i { color: var(--amber-ink); }
+.dt-a { display: flex; gap: 0.35rem; flex: none; }
+.dt-a .btn { min-height: 2.5rem; }
+.btn.sq { width: 2.6rem; padding: 0; justify-content: center; }
+.strip { display: flex; align-items: stretch; gap: 0.45rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 0.1rem var(--gut-r) 0.4rem var(--gut-l); scrollbar-width: thin; }
+.strip.log { display: block; overflow-x: hidden; overflow-y: auto; max-height: 9.5rem; }
+.cd {
+  flex: none; display: flex; gap: 0.55rem; width: 17rem; min-height: 6.6rem; padding: 0.45rem 0.55rem; scroll-snap-align: start; text-align: left;
+  border-radius: var(--r); border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+}
+.cd.hl { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.cd.off { opacity: 0.55; }
+.cd-l { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; position: relative; }
+.cd-r { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.22rem; }
+.cd-h { display: flex; justify-content: space-between; align-items: baseline; gap: 0.4rem; }
+.cd-h b, .cd-r > b { font-family: var(--f-ui); font-weight: 500; font-size: 0.98rem; line-height: 1.15; }
+.cd-h small { color: var(--dim); font-size: 0.72rem; white-space: nowrap; }
+.cd p { margin: 0; font-size: 0.78rem; line-height: 1.25; }
+.cd .now { color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cd .next { color: var(--dim); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.cd .max, .cd .ok { color: var(--moss); }
+.cd .warn { color: var(--warn-ink); }
+.cd-f { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; margin-top: auto; }
+.cd-f .btn { flex: none; }
+.cd .cost .cc { font-size: 0.78rem; padding: 0.05rem 0.3rem; }
+.av { width: 3.2rem; height: 4rem; border-radius: 4px; background: radial-gradient(ellipse at 50% 30%, rgba(236, 228, 204, 0.14), transparent 70%), rgba(0, 0, 0, 0.32); }
+/* боец */
+.sv { width: 17.5rem; border-left: 3px solid var(--uc); }
+.sv .tr { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.lvb { position: absolute; top: -0.2rem; right: -0.3rem; display: inline-flex; align-items: center; gap: 0.05rem; padding: 0 0.2rem; border-radius: 3px; background: var(--amber); color: var(--amber-ink); font-family: var(--f-ui); font-size: 0.65rem; }
+.lvb .ic { width: 0.65rem; height: 0.65rem; }
+.hpl { display: flex; align-items: center; gap: 0.35rem; }
+.hpl .bar { flex: 1; }
+.hpl small { font-size: 0.72rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+.slots { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+.slot {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.05rem; min-height: 2.9rem; padding: 0.15rem 0.2rem; cursor: pointer;
+  border-radius: 4px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.28); color: var(--ink-2);
+  font-family: var(--f-ui); font-size: 0.68rem; letter-spacing: 0.02em;
+}
+.slot canvas { width: 100%; height: 1.5rem; }
+.slot.none { border-style: dashed; color: var(--dim); }
+.slot.none .ic { width: 1.2rem; height: 1.2rem; }
+.slot:active { border-color: var(--amber); }
+.sv-inf { display: flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; color: var(--toxic); }
+.sv-inf span { flex: 1; }
+.sv-inf em { font-style: normal; color: var(--dim); }
+.sv-inf .btn { min-height: 2rem; }
+/* постройка */
+.bd { width: 19.5rem; }
+.bd .cd-l { width: 6.6rem; align-self: stretch; }
+.thumb { width: 100%; height: 100%; min-height: 5.6rem; border-radius: 4px; display: block; }
+/* оружие */
+.wp { width: 17rem; }
+.wp .cd-l { width: 5.4rem; }
+.wpic { width: 100%; height: 2.2rem; }
+.cnt { font-family: var(--f-ui); font-size: 0.7rem; color: var(--muted); }
+.note { width: 13rem; background: rgba(232, 166, 43, 0.07); border-style: dashed; }
+.perks-l { margin: 0; padding-left: 1rem; font-size: 0.74rem; color: var(--dim); }
+.perks-l li.on { color: var(--ink); }
+.rc2 { width: 17rem; }
+.ravt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; width: 3.4rem; height: 3.4rem; border-radius: 4px; background: rgba(0, 0, 0, 0.32); color: var(--rc); }
+.ravt .ic { width: 1.6rem; height: 1.6rem; }
+.ravt b { font-family: var(--f-ui); font-weight: 600; font-size: 0.9rem; }
+/* группировка */
+.fc { width: 19rem; border-left: 3px solid var(--fc); }
+.fc .fst { font-family: var(--f-ui); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fc); white-space: nowrap; }
+.fmeta { font-size: 0.72rem; color: var(--dim); }
+/* выбор оружия */
+.pick-bg { position: absolute; inset: 0; z-index: 20; display: flex; align-items: flex-end; background: var(--scrim); }
+.pick { width: 100%; display: flex; flex-direction: column; gap: 0.3rem; background: var(--panel-solid); border-top: 1px solid var(--line-2); padding-bottom: var(--gut-b); box-shadow: 0 -0.5rem 1.5rem rgba(0, 0, 0, 0.5); }
+.pick header { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem var(--gut-r) 0.2rem var(--gut-l); }
+.pick header div { display: flex; flex-direction: column; flex: 1; }
+.pick header b { font-family: var(--f-ui); font-weight: 500; font-size: 1.05rem; }
+.pick header span { font-size: 0.8rem; color: var(--muted); }
+.pick header .av { width: 2.4rem; height: 3rem; }
+.pk { width: 11rem; flex-direction: column; gap: 0.15rem; cursor: pointer; min-height: 0; }
+.pk.cur { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.pk b { font-family: var(--f-ui); font-weight: 500; font-size: 0.95rem; }
+.pk small { font-size: 0.72rem; color: var(--dim); }
+.pk em { font-style: normal; font-size: 0.74rem; color: var(--amber); margin-top: auto; }
+.pk .wpic { height: 2.4rem; }
+.wnone { display: grid; place-items: center; width: 100%; height: 2.4rem; color: var(--dim); }
+.pick .dim { padding: 0 var(--gut-r) 0.3rem var(--gut-l); }
+@media (max-height: 380px) {
+  .cd { min-height: 6rem; padding-block: 0.35rem; }
+  .dt-n button, .dt-a .btn { min-height: 2.3rem; }
+}
+.strip { scroll-padding-inline: max(10px, env(safe-area-inset-left, 0px)); }
+.wsq-b { flex-direction: row; align-items: center; gap: 0.4rem; }
+.wsq-b .mini { flex: none; width: 2rem; height: 2.5rem; border-radius: 3px; background: rgba(0, 0, 0, 0.3); }
+.wsq-t { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.wsq-t span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 880px) {
+  .dt-n button:not(.on) span { display: none; }
+  .dt-n button:not(.on) { padding-inline: 0.55rem; }
+}

@@ -156,6 +156,7 @@ const World = {
     this.cv.onclick = e => this.click(e);
     $$('[data-sq]', root).forEach(b => { b.onclick = () => this.toggle(+b.dataset.sq); });
     const go = $('#wGo'); if (go) go.onclick = () => this.go();
+    paintAvatars(root);
     requestAnimationFrame(() => this.draw());
   },
   card() {
@@ -176,8 +177,9 @@ const World = {
       <div class="wsq">${S.survivors.map(s => {
         const on = S.squad.includes(s.id), hp = Math.round((s.hp / s.maxhp) * 100);
         return `<button class="wsq-b ${on ? 'on' : ''} ${s.infected ? 'inf' : ''}" data-sq="${s.id}" style="--uc:${s.color}" aria-pressed="${on}">
-          <b>${esc(s.name)}</b><span>${TRAITS[s.trait].name} · ${s.ranged ? WEAP[s.ranged].name.toLowerCase() : WEAP[s.melee].name.toLowerCase()}</span>
-          <i class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></i></button>`;
+          <canvas class="mini" data-pt="${s.id}" aria-hidden="true"></canvas>
+          <span class="wsq-t"><b>${esc(s.name)}</b><span>${TRAITS[s.trait].name} · ${s.ranged ? WEAP[s.ranged].name.toLowerCase() : WEAP[s.melee].name.toLowerCase()}</span>
+          <i class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></i></span></button>`;
       }).join('')}</div>
       ${locked ? `<p class="warn">Сюда не доехать без ${L.needRadio > 1 ? 'мощной антенны (радиоточка 2)' : 'радиоточки'}: не знаем дороги.</p>` : ''}
       ${!fuelOk ? '<p class="warn">Не хватает топлива.</p>' : ''}
