@@ -98,10 +98,11 @@ jobs:
             grep -q Success install.txt
             adb shell pm list packages | grep ru.rubezh.game
             adb shell dumpsys package ru.rubezh.game | grep -E "versionName|versionCode|targetSdk" | head -5
-            adb shell am start -W -n ru.rubezh.game/.MainActivity
-            sleep 25
+            sleep 15
+            for t in 1 2 3; do adb shell am start -W -n ru.rubezh.game/.MainActivity; sleep 20; adb shell pidof ru.rubezh.game && break; echo "запуск $t не удался, ещё раз"; done
             adb shell screencap -p /sdcard/shot.png
             adb pull /sdcard/shot.png shot-${{ matrix.api }}.png
+            adb logcat -d -b crash | tail -40 || true
             adb logcat -d | grep -iE "rubezh|AndroidRuntime|FATAL|chromium" | tail -60 || true
             adb shell pidof ru.rubezh.game
 
