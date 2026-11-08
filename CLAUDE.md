@@ -49,6 +49,10 @@
   чтобы она открылась по https://araxnid512-design.github.io/rubin/ulei/, пользователь включает
   Settings → Pages → Deploy from branch → `gh-pages`, `/ (root)`.
 
+После выкладки та же сборка ставит APK из релиза на эмуляторы Android 10 и 14 (job `install-test`,
+`scripts/apk-install-test.sh`: установка, установка поверх, запуск, снимки через 30 и 90 с, журнал) — результат в
+gh-pages/apk-test/api29|api34/ (`result.txt`, `screen-90s.png`, `logcat.txt`; читать через raw.githubusercontent.com).
+
 Номер сборки — номер запуска workflow (`1.N`, он же `versionCode` APK). Игра сама проверяет, вышла ли новая
 версия, и предлагает скачать (`game/version.js` пишет `scripts/build-offline.mjs` — файл коммитится).
 

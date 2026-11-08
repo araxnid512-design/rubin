@@ -23,6 +23,7 @@ on:
       - 'site/ulei/**'
       - 'package-lock.json'
       - 'android/**'
+      - 'scripts/apk-install-test.sh'
       - '.github/workflows/offline-release.yml'
   workflow_dispatch:
 
@@ -89,3 +90,46 @@ jobs:
           destination_dir: ulei
           keep_files: true
           commit_message: "Сайт: Улей. Кластер-17, сборка 1.${{ github.run_number }}"
+
+  # установка APK на Android-эмуляторе — тем же путём, что у игрока: скачать по открытой ссылке из релиза, поставить,
+  # поставить поверх, запустить; снимки экрана и журнал — в gh-pages/apk-test/api<N>/ (выкладка не ждёт этой проверки)
+  install-test:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # по очереди: обе пишут в gh-pages
+      matrix:
+        api: [29, 34] # Android 10 и Android 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Включить KVM для эмулятора
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # пакет эмулятора качается с серверов Google и иногда обрывается — заранее, с повтором
+      - name: Скачать эмулятор Android (с повтором)
+        continue-on-error: true
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          for i in 1 2 3; do yes | "$SDKM" --install emulator --channel=0 > /dev/null && break; echo "повтор $i"; sleep 15; done
+      - name: Установить и запустить APK на Android (API ${{ matrix.api }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          ram-size: 3072M
+          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/apk-install-test.sh
+      - name: Выложить результат проверки
+        if: always() && hashFiles('apk-test/result.txt') != ''
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./apk-test
+          destination_dir: apk-test/api${{ matrix.api }}
+          keep_files: true # сайты «Стикса» и «Клонов» в gh-pages не трогаем
+          commit_message: "APK: проверка установки на Android (API ${{ matrix.api }}), сборка 1.${{ github.run_number }}"
