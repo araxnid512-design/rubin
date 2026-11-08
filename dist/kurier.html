@@ -41,10 +41,10 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
-.stage { position: relative; width: min(100%, calc((100vh - 24px) * 960 / 544), 1440px); aspect-ratio: 960 / 544; max-width: 100%; background: #000; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 2px #1d1830, 0 20px 60px -20px rgba(120, 80, 255, 0.45); touch-action: none; user-select: none; -webkit-user-select: none; }
+.stage { position: relative; width: 100%; width: min(100%, calc((100vh - 24px) * 960 / 544), 1440px); aspect-ratio: 960 / 544; max-width: 100%; background: #000; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 2px #1d1830, 0 20px 60px -20px rgba(120, 80, 255, 0.45); touch-action: none; user-select: none; -webkit-user-select: none; }
 #cv { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
 
-.ov { position: absolute; inset: 0; display: grid; place-items: center; padding: 3%; overflow: auto; }
+.ov { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; padding: 3%; overflow: auto; }
 .panel { background: var(--panel); border: 2px solid var(--line); border-radius: 6px; padding: clamp(14px, 3vw, 28px); max-width: 640px; width: 100%; display: grid; gap: 12px; backdrop-filter: blur(2px); }
 .panel.wide { max-width: 940px; }
 .panel.center { text-align: center; justify-items: center; }
@@ -80,7 +80,7 @@ h3 { margin: 0; font-size: 1.1em; }
 .map-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .map-head .btn { margin-left: auto; }
 .worlds { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
-.world { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; border-radius: 4px; border: 2px solid var(--line); background: linear-gradient(135deg, color-mix(in srgb, var(--w1) 55%, #000), color-mix(in srgb, var(--w2) 25%, #000)); }
+.world { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; border-radius: 4px; border: 2px solid var(--line); background: #15122a; background: linear-gradient(135deg, color-mix(in srgb, var(--w1) 55%, #000), color-mix(in srgb, var(--w2) 25%, #000)); }
 .world.locked { filter: grayscale(1) brightness(0.6); }
 .wnum { font-family: var(--f-display); font-size: 22px; color: var(--wa); display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); border-radius: 4px; }
 .wbody { display: grid; gap: 6px; min-width: 0; }
@@ -99,11 +99,11 @@ h3 { margin: 0; font-size: 1.1em; }
 
 .pausebtn { position: absolute; top: calc(6px + env(safe-area-inset-top, 0px)); right: 6px; width: 34px; height: 30px; border: 0; background: rgba(0, 0, 0, 0.35); color: #fff; border-radius: 4px; font-family: var(--f-display); font-size: 10px; cursor: pointer; z-index: 3; }
 
-.touch { position: absolute; inset: auto 0 0 0; height: 40%; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 1.2% 1.2%; pointer-events: none; z-index: 2; }
+.touch { position: absolute; left: 0; right: 0; bottom: 0; height: 40%; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 1.2% 1.2%; pointer-events: none; z-index: 2; }
 .tgroup { display: flex; gap: 10px; align-items: flex-end; pointer-events: none; }
-.tbtn { pointer-events: auto; width: clamp(46px, 8.5vw, 80px); aspect-ratio: 1; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.1); color: #fff; font-family: var(--f-display); font-size: clamp(9px, 1.6vw, 14px); display: grid; place-items: center; touch-action: none; }
+.tbtn { pointer-events: auto; width: 64px; height: 64px; width: clamp(46px, 8.5vw, 80px); height: clamp(46px, 8.5vw, 80px); border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.1); color: #fff; font-family: var(--f-display); font-size: clamp(9px, 1.6vw, 14px); display: grid; place-items: center; touch-action: none; }
 .tbtn.on { background: rgba(255, 213, 107, 0.55); }
-.tbtn.big { width: clamp(54px, 10vw, 92px); }
+.tbtn.big { width: 76px; height: 76px; width: clamp(54px, 10vw, 92px); height: clamp(54px, 10vw, 92px); }
 .tbtn.off { opacity: 0.25; }
 
 @media (prefers-reduced-motion: reduce) { .st.next { animation: none; } }
@@ -129,6 +129,31 @@ h3 { margin: 0; font-size: 1.1em; }
   </div>
   <div class="ov" id="ov"></div>
 </div>
+<script>
+/* Курьер миров — страховка запуска. Подключается первым: если игра не стартует или падает,
+   на экране появится понятное сообщение с текстом ошибки, которое можно сфотографировать. */
+(function () {
+  'use strict';
+  var shown = false;
+  function show(msg) {
+    if (shown) return;
+    shown = true;
+    var box = document.createElement('div');
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#2a0612;color:#fff;border:2px solid #ff4f8b;border-radius:6px;padding:10px 12px;font:14px/1.4 sans-serif;';
+    box.innerHTML = '<b>Игра столкнулась с ошибкой.</b> Сделайте скриншот и пришлите его — так проще всего починить.<br><code style="display:block;margin-top:6px;white-space:pre-wrap;word-break:break-word;color:#ffd56b"></code>';
+    box.querySelector('code').textContent = String(msg).slice(0, 600) + '\n' + navigator.userAgent;
+    (document.body || document.documentElement).appendChild(box);
+  }
+  window.addEventListener('error', function (e) { show((e.message || 'ошибка') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
+  window.addEventListener('unhandledrejection', function (e) { show('promise: ' + (e.reason && e.reason.message || e.reason)); });
+  // Если через 4 секунды игра так и не запустилась — значит, её скрипты не загрузились.
+  setTimeout(function () {
+    if (!window.K || !window.K.debug) show('Игра не запустилась: скрипты не загрузились. Возможно, устарел Android System WebView — обновите его в Play Маркете.');
+  }, 4000);
+})();
+
+</script>
 <script>
 /* Курьер миров — миры, палитры, враги, боссы и сюжет. */
 (function () {

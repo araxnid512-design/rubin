@@ -8,7 +8,8 @@ android {
 
     defaultConfig {
         applicationId 'ru.rubin.kurier'
-        minSdk 24
+        // Android 5.0 и новее: на бюджетных телефонах ещё встречаются 5–6
+        minSdk 21
         targetSdk 34
         // номер сборки GitHub Actions — чтобы новая версия ставилась поверх старой
         versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as Integer)
@@ -22,6 +23,10 @@ android {
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
+            // старая подпись v1 нужна Android 5–6, новые v2/v3 — свежим версиям
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
         }
     }
 
