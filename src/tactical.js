@@ -9,7 +9,7 @@ const WAVE_EVERY = 7;
 const LURE_RANGE = 8;
 
 function spd(ms) { return ms * [1.6, 1, 0.5, 0][CFG.speed ?? 1]; }
-function timeOfDay(m) { return m.turn <= 14 ? 0 : m.turn <= 24 ? 1 : 2; }
+function timeOfDay(m) { return m.tod ?? (m.turn <= 14 ? 0 : m.turn <= 24 ? 1 : 2); }
 function sightR(m) { return [9, 7, 5][timeOfDay(m)]; }
 function liveUnits(m) { return m.units.filter(u => !u.dead && !u.evac); }
 function unitAt(m, x, y) { return m.units.find(u => u.x === x && u.y === y && !u.dead && !u.evac); }
@@ -205,9 +205,15 @@ function perceive(m, z) {
     if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 2.5);
     if ((d <= 1.5 || (d <= sr && los(m, z, u))) && d < bd) { bd = d; best = u; }
   }
+  for (const h of m.zombies) {
+    if (!isHuman(h) || isFlock(h) || h.hp <= 0) continue;
+    const d = edist(z.x, z.y, h.x, h.y);
+    if (d + 0.5 < bd && (d <= 1.5 || (d <= t.sight - tod && los(m, z, h)))) { bd = d + 0.5; best = h; }
+  }
   if (best) {
     const was = z.state;
-    z.state = 'chase'; z.target = best.id; z.tx = best.x; z.ty = best.y;
+    z.state = 'chase'; z.tx = best.x; z.ty = best.y;
+    if (best.type) { z.tz = best.id; z.target = 0; } else { z.target = best.id; z.tz = 0; }
     if (was !== 'chase' && zVisible(m, z) && chance(0.5)) Sfx.play('groan', { x: z.x, y: z.y, fall: 14 });
     return was !== 'chase';
   }
@@ -269,34 +275,56 @@ async function zombieAttack(m, z, u) {
   } else { FX.text(u.x, u.y, 'увернулся', '#cfc6ae'); knock(u, z.x, z.y, 0.1); }
   await sleep(spd(260));
 }
+async function zombieAttackH(m, z, h) {
+  const t = ZT[z.type], show = m.vis[MI(m, z.x, z.y)] || m.vis[MI(m, h.x, h.y)];
+  if (show) { Sfx.play('zswipe', { x: z.x, y: z.y }); await swing(z, h.x, h.y, 500); }
+  if (rnd() < t.acc) {
+    const d = rint(t.dmg[0], t.dmg[1]);
+    if (show && rnd() < 0.5) Sfx.play('hurt', { x: h.x, y: h.y, vol: 0.7 });
+    damageZombie(m, h, d, z);
+  }
+  if (show) await sleep(spd(200));
+}
 function killUnit(m, u) {
   u.dead = true; u.hp = 0; u.ow = null;
   if (m.uocc) m.uocc[MI(m, u.x, u.y)] = 0;
-  m.decals.push({ x: u.x, y: u.y, k: 'ucorpse', r: rnd(), f: u.f ?? 2, t0: performance.now(), u: { id: u.sid, name: u.name, g: u.g, color: u.color, melee: u.melee, ranged: u.ranged, trait: u.trait } });
+  m.decals.push({ x: u.x, y: u.y, k: 'ucorpse', r: rnd(), f: u.f ?? 2, t0: performance.now(), rise: m.isBase ? 0 : m.turn + rint(2, 3), u: { id: u.sid, name: u.name, g: u.g, color: u.color, melee: u.melee, ranged: u.ranged, trait: u.trait } });
   R.until = Math.max(R.until, performance.now() + 700);
   HUD.log(`${u.name} ${gv(u, 'погиб', 'погибла')}.`, 'bad');
   Sfx.play('death'); vibrate(250);
-  for (const z of m.zombies) if (z.target === u.id) { z.state = 'investigate'; z.tx = u.x; z.ty = u.y; }
+  for (const z of m.zombies) if (z.target === u.id && !z.tz) { z.state = 'investigate'; z.tx = u.x; z.ty = u.y; }
   if (TAC.sel === u.id) { const n = liveUnits(m)[0]; TAC.sel = n ? n.id : 0; }
 }
-function damageZombie(m, z, d, u) {
+// Урон зомби или человеку из группировки; src — кто бил (боец, зомби или человек)
+function damageZombie(m, z, d, src, brain) {
   z.hp -= d;
+  const show = m.vis[MI(m, z.x, z.y)];
   z.hitT = performance.now(); R.until = Math.max(R.until, z.hitT + 280);
-  FX.blood(z.x, z.y, d > 6 ? 14 : 9);
-  FX.text(z.x, z.y, '−' + d, '#ffd27a');
-  if (z.hp <= 0) { killZombie(m, z, u); return true; }
-  if (z.state !== 'chase') { z.state = 'chase'; z.target = u.id; z.tx = u.x; z.ty = u.y; }
-  if (u) knock(z, u.x, u.y, 0.18);
-  Sfx.play('flesh', { x: z.x, y: z.y });
+  if (show) { FX.blood(z.x, z.y, d > 6 ? 14 : 9); FX.text(z.x, z.y, '−' + d, '#ffd27a'); }
+  const byUnit = src && !src.type;
+  if (z.hp <= 0) { killZombie(m, z, byUnit ? src : null, brain); return true; }
+  if (src) {
+    if (byUnit) { if (z.state !== 'chase' || isHuman(z)) { z.state = 'chase'; z.target = src.id; z.tz = 0; z.tx = src.x; z.ty = src.y; } }
+    else if (isHuman(z) !== isHuman(src) && (z.state !== 'chase' || !z.tz)) { z.state = 'chase'; z.tz = src.id; z.target = 0; z.tx = src.x; z.ty = src.y; }
+    knock(z, src.x, src.y, 0.18);
+  }
+  if (show) Sfx.play('flesh', { x: z.x, y: z.y });
   return false;
 }
-function killZombie(m, z, u) {
+function killZombie(m, z, u, brain) {
   m.zombies = m.zombies.filter(o => o !== z);
   if (m.zocc) m.zocc[MI(m, z.x, z.y)] = 0;
-  m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd(), zt: z.type, zid: z.id, f: z.f ?? 2, t0: performance.now() });
+  const hum = isHuman(z);
+  m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd(), zt: z.type, zid: z.id, rf: z.rf, f: z.f ?? 2, t0: performance.now(), rise: hum && !brain ? m.turn + rint(2, 3) : 0 });
   R.until = Math.max(R.until, performance.now() + 700);
   if (u) { u.kills++; m.kills++; }
-  Sfx.play('zdie', { x: z.x, y: z.y });
+  if (hum) {
+    dropBody(m, z);
+    m.hkills = m.hkills || {};
+    const f = ZT[z.type].fac; m.hkills[f] = (m.hkills[f] || 0) + 1;
+    if (m.vis[MI(m, z.x, z.y)]) { Sfx.play('death', { x: z.x, y: z.y }); if (!brain) HUD.log(`${ZT[z.type].name} убит. Если не добить — встанет.`, 'warn'); }
+  } else Sfx.play('zdie', { x: z.x, y: z.y });
+  for (const o of m.zombies) if (o.tz === z.id) { o.tz = 0; o.state = 'investigate'; o.tx = z.x; o.ty = z.y; }
 }
 async function overwatchCheck(m, z) {
   let fired = false;
@@ -313,7 +341,7 @@ async function overwatchCheck(m, z) {
       await swing(u, z.x, z.y);
       const w = WEAP[u.melee];
       Sfx.play(MELEE_SND[u.melee] || 'hit_bat', { x: z.x, y: z.y });
-      damageZombie(m, z, rint(w.dmg[0], w.dmg[1]) + u.meleeB, u);
+      damageZombie(m, z, rint(w.dmg[0], w.dmg[1]) + u.meleeB, u, true);
       noise(m, u.x, u.y, w.noise);
       await sleep(spd(120));
     }
@@ -321,6 +349,7 @@ async function overwatchCheck(m, z) {
   return fired;
 }
 async function zombieAct(m, z) {
+  if (isHuman(z)) return humanAct(m, z);
   const t = ZT[z.type];
   z.ap = t.ap + (timeOfDay(m) === 2 && z.type !== 'brute' ? 1 : 0);
   perceive(m, z);
@@ -331,9 +360,9 @@ async function zombieAct(m, z) {
   for (let guard = 0; z.ap > 0 && z.hp > 0 && guard < 30; guard++) {
     let tx, ty;
     if (z.state === 'chase') {
-      const u = m.units.find(o => o.id === z.target && !o.dead && !o.evac);
-      if (!u) { z.state = 'investigate'; continue; }
-      if (adjOK(m, z.x, z.y, u.x, u.y)) { await zombieAttack(m, z, u); z.ap = 0; break; }
+      const u = z.tz ? m.zombies.find(o => o.id === z.tz && o.hp > 0) : m.units.find(o => o.id === z.target && !o.dead && !o.evac);
+      if (!u) { z.state = 'investigate'; z.tz = 0; continue; }
+      if (adjOK(m, z.x, z.y, u.x, u.y)) { if (z.tz) await zombieAttackH(m, z, u); else await zombieAttack(m, z, u); z.ap = 0; break; }
       tx = u.x; ty = u.y;
     } else if (z.state === 'investigate') {
       if (cheb(z.x, z.y, z.tx, z.ty) <= 1) { z.state = 'idle'; break; }
@@ -395,6 +424,7 @@ function afterAction() {
   const m = TAC.m;
   if (!m) return;
   if (!liveUnits(m).length) { finishMission(); return; }
+  if (m.siege && m.siege.spawned >= m.siege.waves && !m.zombies.length) { m.siege.won = true; finishMission(); return; }
   if (!curUnit()) { const n = liveUnits(m)[0]; TAC.sel = n ? n.id : 0; }
   const cu = curUnit();
   if (CFG.autoNext && cu && cu.ap <= 0 && m.phase === 'player' && !TAC.busy) {
@@ -435,7 +465,7 @@ function doMelee(u, z) {
     const m = TAC.m, w = WEAP[u.melee];
     if (u.ap < w.ap || !adjOK(m, u.x, u.y, z.x, z.y)) return;
     u.ap -= w.ap; u.ow = null;
-    const sneak = z.state === 'idle' || z.state === 'wander';
+    const sneak = isUnaware(z);
     Sfx.play('whoosh', { x: u.x, y: u.y, dur: u.melee === 'knife' ? 0.12 : 0.22 });
     await swing(u, z.x, z.y);
     if (sneak && w.assassin) {
@@ -443,24 +473,26 @@ function doMelee(u, z) {
       Sfx.play('stab', { x: z.x, y: z.y });
       FX.blood(z.x, z.y, 8);
       HUD.log(`${u.name} бесшумно снимает: ${ZT[z.type].name.toLowerCase()}.`);
-      killZombie(m, z, u);
+      killZombie(m, z, u, true);
       noise(m, u.x, u.y, 1);
     } else {
       if (rnd() < (sneak ? 1 : 0.85)) {
         Sfx.play(MELEE_SND[u.melee] || 'hit_bat', { x: z.x, y: z.y }); R.shake(2);
         let d = rint(w.dmg[0], w.dmg[1]) + u.meleeB;
         if (sneak) { d *= 2; FX.text(u.x, u.y, 'со спины', '#ece4cc'); }
-        if (damageZombie(m, z, d, u)) HUD.log(`${u.name} добивает: ${ZT[z.type].name.toLowerCase()}.`);
+        if (damageZombie(m, z, d, u, true)) HUD.log(`${u.name} добивает: ${ZT[z.type].name.toLowerCase()}.`);
       } else FX.text(z.x, z.y, 'мимо', '#cfc6ae');
       noise(m, u.x, u.y, w.noise);
     }
     await sleep(spd(280));
   });
 }
+function isUnaware(z) { return z.state === 'idle' || z.state === 'wander' || z.state === 'guard'; }
 function shotChance(m, u, z, reaction) {
   const w = WEAP[u.ranged], d = edist(u.x, u.y, z.x, z.y);
   let p = w.acc + u.accB - Math.max(0, d - w.opt) * w.fall;
   if (TP[m.tiles[MI(m, z.x, z.y)]].hide) p -= 0.15;
+  if (isHuman(z)) p -= coverOf(m, u.x, u.y, z);
   if (reaction) p -= 0.1;
   return clamp(p, 0.05, 0.95);
 }
@@ -489,8 +521,9 @@ async function shootAt(m, u, z, reaction) {
   if (rnd() < p) {
     let d = rint(w.dmg[0], w.dmg[1]) + u.dmgB;
     if (w.close && d0 > 3) d = Math.round(d * 0.6);
-    if (rnd() < 0.1) { d = Math.round(d * 1.5); FX.text(z.x, z.y - 0.5, 'в голову', '#ffd27a'); }
-    if (damageZombie(m, z, d, u)) HUD.log(`${u.name}: ${ZT[z.type].name.toLowerCase()} готов.`);
+    const head = rnd() < 0.12;
+    if (head) { d = Math.round(d * 1.5); FX.text(z.x, z.y - 0.5, 'в голову', '#ffd27a'); }
+    if (damageZombie(m, z, d, u, head || !isHuman(z))) HUD.log(`${u.name}: ${ZT[z.type].name.toLowerCase()} готов.`);
   } else FX.text(z.x, z.y, 'промах', '#cfc6ae');
   await sleep(spd(160));
 }
@@ -589,7 +622,7 @@ async function endTurn() {
   if (!canAct()) return;
   const m = TAC.m;
   m.phase = 'enemy'; TAC.busy = true; TAC.pend = null; TAC.mode = null; TAC.reach = null;
-  HUD.hidePop(); HUD.banner('Ход зомби'); HUD.refresh();
+  HUD.hidePop(); HUD.banner(hostilesOf(m).length ? 'Ход противника' : 'Ход зомби'); HUD.refresh();
   buildOcc(m);
   const near = z => Math.min(...liveUnits(m).map(u => edist(u.x, u.y, z.x, z.y)));
   const order = m.zombies.slice().sort((a, b) => near(a) - near(b));
@@ -603,9 +636,15 @@ async function endTurn() {
   if (!liveUnits(m).length) { TAC.busy = false; HUD.banner(null); finishMission(); return; }
   const tod0 = timeOfDay(m);
   m.turn++;
+  buildOcc(m);
+  riseCorpses(m);
+  if (m.ambush && m.turn >= m.ambush.turn) spawnAmbush(m);
+  if (m.herd && m.turn >= m.herd.turn) spawnHerd(m);
+  if (m.siege) siegeTurn(m);
   const tod = timeOfDay(m);
   if (tod !== tod0) HUD.log(tod === 1 ? 'Смеркается: обзор сократился.' : 'Наступила ночь. Зомби быстрее, вы видите хуже.', 'warn');
-  if (m.turn - m.lastWave >= WAVE_EVERY || m.tp >= 10) { m.threat++; m.tp = 0; m.lastWave = m.turn; spawnWave(m); }
+  if (!m.siege && (m.turn - m.lastWave >= WAVE_EVERY || m.tp >= 10)) { m.threat++; m.tp = 0; m.lastWave = m.turn; spawnWave(m); }
+  if (m.done) return;
   for (const u of liveUnits(m)) { u.ap = u.maxap - (carried(u) > u.cap ? 2 : 0); u.ow = null; }
   m.phase = 'player'; TAC.busy = false;
   HUD.banner(null);
@@ -650,18 +689,22 @@ function makeUnit(m, s, p) {
   u.ap = u.maxap;
   return u;
 }
-function startMission(loc, ids) {
-  const L = LOCS[loc];
-  const { m, reach } = genMap(loc, (Math.random() * 2 ** 31) | 0);
-  Object.assign(m, { loc, turn: 1, threat: 0, tp: 0, lastWave: 1, lastNoise: null, phase: 'player', units: [], zombies: [], uid: 1, zid: 1, kills: 0 });
+function startMission(loc, ids, opts = {}) {
+  const siege = opts.siege || null;
+  const L = siege ? { name: 'Оборона базы', zombies: 0 } : LOCS[loc];
+  const visits = (S.visits && S.visits[loc]) || 0;
+  const { m, reach } = siege ? genBase(S) : genMap(loc, (Math.random() * 2 ** 31) | 0, Math.max(0.35, 1 - visits * 0.22));
+  Object.assign(m, { loc: siege ? 'base' : loc, turn: 1, threat: 0, tp: 0, lastWave: 1, lastNoise: null, phase: 'player', units: [], zombies: [], uid: 1, zid: 1, kills: 0, hkills: {} });
   m.seen = new Uint8Array(m.n); m.vis = new Uint8Array(m.n);
-  S.res.fuel -= L.fuel;
+  if (!siege) S.res.fuel -= L.fuel;
+  for (const c of m.captives || []) m.tiles[MI(m, c.x, c.y)] = T.BLOCK;
   const squad = ids.map(id => S.survivors.find(s => s.id === id)).filter(Boolean);
-  const spots = m.evac.slice().sort((a, b) => edist(a % m.w, (a / m.w) | 0, m.start.x, m.start.y) - edist(b % m.w, (b / m.w) | 0, m.start.x, m.start.y));
+  const spots = siege ? m.idle.map(([x, y]) => MI(m, x, y)).filter(i => TP[m.tiles[i]].walk) :
+    m.evac.slice().sort((a, b) => edist(a % m.w, (a / m.w) | 0, m.start.x, m.start.y) - edist(b % m.w, (b / m.w) | 0, m.start.x, m.start.y));
   const gunners = squad.filter(s => s.ranged).length;
   const per = gunners ? Math.min(14, Math.floor(S.res.ammo / gunners)) : 0;
   squad.forEach((s, k) => {
-    const i = spots[k + 2] ?? spots[k];
+    const i = siege ? spots[k % spots.length] : spots[k + 2] ?? spots[k];
     const u = makeUnit(m, s, { x: i % m.w, y: (i / m.w) | 0 });
     u.f = k % 2 ? 7 : 5;
     if (s.ranged) { u.ammo = per; S.res.ammo -= per; }
@@ -669,7 +712,7 @@ function startMission(loc, ids) {
     m.units.push(u);
   });
   // зомби
-  const count = L.zombies + Math.min(18, Math.floor((S.day - 1) * 1.2));
+  const count = siege ? 0 : L.zombies + Math.min(18, Math.floor((S.day - 1) * 1.2));
   const open = [];
   for (let i = 0; i < m.n; i++) if (reach[i] && TP[m.tiles[i]].walk && m.tiles[i] !== T.DOOR) open.push(i);
   for (let k = 0, placed = 0; k < 6000 && placed < count; k++) {
@@ -684,6 +727,14 @@ function startMission(loc, ids) {
       if (walkT(m, nx, ny) && !zombieAt(m, nx, ny) && reach[MI(m, nx, ny)]) { addZombie(m, nx, ny, pickZType(S.day, 0), 'idle'); placed++; }
     }
   }
+  if (siege) {
+    m.siege = Object.assign({ spawned: 0, next: 1, won: false }, siege);
+    m.tod = 1;
+    m.seen.fill(1);
+    buildOcc(m);
+    spawnSiegeWave(m);
+  } else setupHostiles(m, L, reach);
+  m.hostTotal = hostilesOf(m).length;
   S.mission = m;
   TAC.m = m; TAC.sel = m.units[0].id; TAC.pend = null; TAC.mode = null; TAC.busy = false;
   warmSprites(m);
@@ -691,12 +742,71 @@ function startMission(loc, ids) {
   computeVis(m);
   saveGame();
   Game.showTac(true);
-  HUD.log(`${L.name}. Ищите добычу и возвращайтесь к машине. Шум привлекает зомби.`);
+  if (siege) HUD.log(`Оборона базы: ${SIEGE_NAME[siege.kind](siege)}. Держите ворота, волн будет ${siege.waves}.`, 'warn');
+  else {
+    HUD.log(`${L.name}. Ищите добычу и возвращайтесь к машине. Шум привлекает зомби.`);
+    if (L.faction) HUD.log(FAC_HINT[L.faction], 'warn');
+    if (m.captives && m.captives.length) HUD.log(`Где-то здесь держат пленных: ${m.captives.length}. Освободите и довезите до машины.`, 'good');
+  }
+}
+const FAC_HINT = {
+  collectors: 'Здесь Сборщики: бьют битами, стреляют из пистолетов. Убитые встают, если их не добить.',
+  raiders: 'Здесь Вольница: обрезы и монтировки, прячутся за машинами. Убитые встают, если их не добить.',
+  garrison: 'Здесь Гарнизон: карабины бьют далеко. Держитесь за укрытиями. Убитые встают, если их не добить.',
+  flock: 'Здесь Паства: мёртвые их не трогают, а они режут чужих ножами. Убитые встают, если их не добить.',
+};
+// ----- осада базы -----
+const SIEGE_NAME = {
+  horde: () => 'к стенам идёт толпа мёртвых',
+  herd: () => 'Паства гонит стадо мёртвых',
+  raid: sg => `${FACTIONS[sg.fac].name} пришли за своим`,
+};
+function spawnSiegeWave(m) {
+  const sg = m.siege, day = S.day, lu = liveUnits(m);
+  sg.spawned++;
+  let nz = 0, nh = 0, types = null;
+  if (sg.kind === 'horde') nz = 4 + Math.floor(day * 0.55) + sg.spawned * 2;
+  else if (sg.kind === 'herd') { nz = 6 + Math.floor(day * 0.6); if (sg.spawned === 1) { nh = 2; types = ['cultist']; } }
+  else { nh = 2 + Math.floor(day / 7) + (sg.spawned === 1 ? 1 : 0); types = FACTIONS[sg.fac].types; nz = sg.spawned === sg.waves ? 3 : 0; }
+  const ok = i => !m.zocc[i] && !m.uocc[i] && lu.every(u => edist(u.x, u.y, i % m.w, (i / m.w) | 0) >= 9);
+  const edge = m.edge.filter(ok);
+  const side = pick([0, 1, 2, 3]);
+  const sideOf = i => { const x = i % m.w, y = (i / m.w) | 0; return y >= m.h - 2 ? 2 : x < 2 ? 3 : x >= m.w - 2 ? 1 : 0; };
+  const pref = edge.filter(i => sideOf(i) === side || sideOf(i) === 2);
+  const place = (n, mk) => {
+    for (let k = 0; k < n * 20 && n > 0; k++) {
+      const i = pick(pref.length > n ? pref : edge);
+      if (i == null || m.zocc[i]) continue;
+      const z = mk(i % m.w, (i / m.w) | 0);
+      z.state = 'investigate'; z.tx = m.start.x + rint(-2, 2); z.ty = m.start.y + rint(-2, 2);
+      m.zocc[i] = 1; n--;
+    }
+  };
+  place(nz, (x, y) => addZombie(m, x, y, pickZType(day, sg.spawned + 1), 'investigate'));
+  place(nh, (x, y) => addHostile(m, x, y, pick(types), 'investigate'));
+  if (sg.spawned > 1) { HUD.log(`Новая волна: ${nz + nh}.`, 'warn'); HUD.flash(); Sfx.play('alarm'); }
+}
+function siegeTurn(m) {
+  const sg = m.siege;
+  if (sg.spawned < sg.waves && m.turn >= sg.next + 3) { sg.next = m.turn; spawnSiegeWave(m); }
+  // нападающие знают, где защитники: кто не в бою — идёт к ближайшему
+  const lu = liveUnits(m);
+  if (lu.length) for (const z of m.zombies) {
+    if (z.state === 'chase') continue;
+    let best = lu[0], bd = 1e9;
+    for (const u of lu) { const d = edist(z.x, z.y, u.x, u.y); if (d < bd) { bd = d; best = u; } }
+    z.state = 'investigate'; z.tx = best.x; z.ty = best.y;
+  }
 }
 function warmSprites(m) {
   for (const u of m.units) if (!u.dead && !u.evac) Spr.warm(Spr.look(u, 'h'), WARM_FRAMES);
   const seenT = new Set();
-  for (const z of m.zombies) { const k = z.type + (z.id % 3); if (seenT.has(k)) continue; seenT.add(k); Spr.warm(Spr.look(z, 'z'), ['i0', 'i1', 'w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'a0', 'a1', 'hit', 'd0', 'd1', 'd2']); }
+  for (const z of m.zombies) {
+    const k = z.type + (z.id % 3) + (z.rf ? 'r' : '');
+    if (seenT.has(k)) continue;
+    seenT.add(k);
+    Spr.warm(Spr.look(z, 'z'), isHuman(z) ? WARM_FRAMES.concat(['i0', 'i1', 'd0', 'd1', 'd2']) : ['i0', 'i1', 'w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'a0', 'a1', 'hit', 'd0', 'd1', 'd2']);
+  }
 }
 function resumeMission(m) {
   TAC.m = m; TAC.pend = null; TAC.mode = null; TAC.busy = false;
@@ -712,6 +822,7 @@ function resumeMission(m) {
 function abandonMission() {
   const m = TAC.m;
   if (!m) return;
+  if (m.siege) { m.siege.fled = true; for (const u of liveUnits(m)) u.evac = true; finishMission(); return; }
   for (const u of liveUnits(m)) { if (inEvac(m, u)) u.evac = true; else { u.lost = true; u.dead = true; } }
   finishMission();
 }
@@ -719,7 +830,7 @@ function finishMission() {
   const m = TAC.m;
   if (!m || m.done) return;
   m.done = true;
-  const rep = { loc: m.loc, got: {}, lines: [], kills: m.kills, turns: m.turn };
+  const rep = { loc: m.loc, got: {}, lines: [], kills: m.kills, turns: m.turn, siege: m.siege || null, hkills: m.hkills || {} };
   for (const u of m.units) {
     const s = S.survivors.find(o => o.id === u.sid);
     if (!s) continue;
@@ -731,6 +842,7 @@ function finishMission() {
     }
     s.hp = Math.max(1, u.hp);
     s.kills = (s.kills || 0) + u.kills;
+    if (s.freed) { delete s.freed; rep.lines.push({ t: `${s.name} — бывший пленник — теперь в группе.`, c: 'good' }); }
     const lvl = Math.min(5, 1 + Math.floor(s.kills / 5));
     if (lvl > (s.level || 1)) { s.level = lvl; s.maxhp += 2; s.hp += 2; rep.lines.push({ t: `${u.name}: опыт растёт, уровень ${lvl}.`, c: 'good' }); }
     if (u.bitten && !s.infected) { s.infected = 3; rep.lines.push({ t: `${u.name} ${gv(u, 'укушен', 'укушена')}. До обращения 3 дня.`, c: 'bad' }); }
@@ -738,6 +850,20 @@ function finishMission() {
     if (u.ammo) rep.got.ammo = (rep.got.ammo || 0) + u.ammo;
   }
   for (const k in rep.got) S.res[k] = (S.res[k] || 0) + rep.got[k];
+  if (!m.siege) {
+    S.visits = S.visits || {};
+    S.visits[m.loc] = (S.visits[m.loc] || 0) + 1;
+    const L = LOCS[m.loc];
+    if (L.faction && m.hostTotal) {
+      const left = m.zombies.filter(z => isHuman(z) && ZT[z.type].fac === L.faction).length;
+      if (!left) {
+        rep.lines.push({ t: L.camp ? `${FACTIONS[L.faction].name}: лагерь разгромлен.` : `${L.short}: люди группировки «${FACTIONS[L.faction].name}» перебиты.`, c: 'good' });
+        if (L.camp) factionBeaten(L.faction, rep.lines);
+      }
+    }
+    for (const f in m.hkills) factionHit(f, m.hkills[f]);
+    revealAfterMission(m, rep.lines);
+  } else for (const f in m.hkills) factionHit(f, m.hkills[f]);
   S.mission = null;
   TAC.m = null; TAC.reach = null;
   Game.afterMission(rep);

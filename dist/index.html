@@ -98,9 +98,10 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
 .ver { margin: 0; font-size: 0.78rem; color: var(--dim); }
 
 /* ----- убежище ----- */
-#scr-base { background: var(--bg); display: flex; flex-direction: column; }
+#scr-base { background: transparent; display: flex; flex-direction: column; pointer-events: none; }
+#scr-base .bbar, #scr-base .survs, #scr-base .dock-p, #scr-base .rail { pointer-events: auto; }
 .bbar {
-  display: flex; align-items: center; gap: 0.8rem; background: var(--bg-2); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 0.8rem; background: rgba(19, 18, 14, 0.9); border-bottom: 1px solid var(--line);
   padding: var(--gut-t) var(--gut-r) 0.35rem var(--gut-l);
 }
 .brand { font-family: var(--f-title); font-size: 1.55rem; color: var(--amber); line-height: 1; }
@@ -113,10 +114,68 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
 .res .ic { color: var(--rc); }
 .res b { font-weight: 500; min-width: 1.1em; }
 .res.low b { color: #ff8a70; }
-.bmain { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(13rem, 17rem) 1fr; }
-.survs { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); padding: 0.5rem 0.55rem 0 var(--gut-l); }
-.survs h2 { margin: 0; display: flex; gap: 0.4rem; font-family: var(--f-ui); font-weight: 500; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.bmain { flex: 1; min-height: 0; display: flex; }
+.survs {
+  width: min(15.5rem, 31vw); flex: none; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line);
+  padding: 0.45rem 0.5rem 0 var(--gut-l); background: linear-gradient(90deg, rgba(19, 18, 14, 0.93), rgba(19, 18, 14, 0.84));
+}
+.survs h2 { margin: 0 0 0.35rem; display: flex; align-items: baseline; gap: 0.4rem; font-family: var(--f-ui); font-weight: 500; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
 .survs h2 span { color: var(--ink); }
+.survs h2 small { margin-left: auto; font-size: 0.7rem; letter-spacing: 0.02em; text-transform: none; color: var(--dim); font-family: var(--f-body); }
+.bview { flex: 1; min-width: 0; }
+.bact { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.45rem 0 var(--gut-b); border-top: 1px solid var(--line); }
+.bact .btn { width: 100%; }
+.bact .btn.big { min-height: 3rem; font-size: 1.02rem; }
+.dock { display: flex; align-items: stretch; flex: none; }
+.dock-p { width: min(23rem, 44vw); display: flex; flex-direction: column; min-height: 0; background: rgba(24, 22, 17, 0.95); border-left: 1px solid var(--line); }
+.dock-p > header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.25rem 0.4rem 0.25rem 0.75rem; border-bottom: 1px solid var(--line); }
+.dock-p h2 { margin: 0; font-family: var(--f-ui); font-weight: 500; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.rail { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.45rem var(--gut-r) var(--gut-b) 0.4rem; background: rgba(19, 18, 14, 0.9); border-left: 1px solid var(--line); }
+.rail button {
+  width: 3.5rem; min-height: 3.3rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.15rem; cursor: pointer;
+  font-family: var(--f-ui); font-weight: 500; font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.03em; line-height: 1.05;
+  color: var(--ink-2); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r);
+}
+.rail button.on { color: var(--amber-ink); background: var(--amber); border-color: var(--amber); }
+.chip-tr {
+  display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.2rem; padding: 0.15rem 0.6rem; cursor: pointer;
+  font-family: var(--f-ui); font-size: 0.8rem; color: var(--rust-ink); background: rgba(201, 71, 47, 0.14); border: 1px solid var(--rust); border-radius: var(--r);
+}
+.chip-tr.now { background: var(--rust); color: #fff3e8; }
+.bld.hl { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.facs { display: flex; flex-direction: column; gap: 0.45rem; }
+.fac { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.55rem 0.65rem; border-radius: var(--r); border: 1px solid var(--line); border-left: 4px solid var(--fc); background: var(--panel-2); }
+.fac p { margin: 0; font-size: 0.86rem; }
+.fac.off { opacity: 0.6; }
+.fst { font-family: var(--f-ui); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fc); }
+.fmeta { color: var(--muted); }
+.fac .warn { color: var(--warn-ink); }
+.fac .ok { color: var(--moss); }
+/* ----- карта округи ----- */
+#scr-world { background: var(--bg); display: flex; flex-direction: column; }
+.wbar { display: flex; align-items: center; gap: 0.7rem; padding: var(--gut-t) var(--gut-r) 0.35rem var(--gut-l); background: var(--bg-2); border-bottom: 1px solid var(--line); }
+.wbar h2 { margin: 0; font-family: var(--f-ui); font-weight: 500; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.wsub { color: var(--dim); font-size: 0.85rem; margin-right: auto; }
+.wmain { flex: 1; min-height: 0; display: flex; }
+.wmap { flex: 1; min-width: 0; position: relative; }
+.wmap canvas { position: absolute; left: 0; top: 0; display: block; cursor: pointer; touch-action: manipulation; }
+.wcard { width: min(21rem, 42vw); flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; padding: 0.55rem var(--gut-r) var(--gut-b) 0.7rem; border-left: 1px solid var(--line); background: var(--bg-2); }
+.wc-h { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.wc-h b { font-family: var(--f-ui); font-weight: 500; font-size: 1.15rem; line-height: 1.15; }
+.wc-m { margin: 0; font-size: 0.82rem; color: var(--dim); }
+.wc-f { margin: 0; display: flex; align-items: center; gap: 0.35rem; color: var(--fc); font-family: var(--f-ui); font-size: 0.9rem; }
+.wc-d { margin: 0; font-size: 0.9rem; color: var(--ink-2); }
+.wcard h3 { margin: 0.2rem 0 0; font-family: var(--f-ui); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.wcard h3 span { color: var(--ink); }
+.wsq { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+.wsq-b { text-align: left; display: flex; flex-direction: column; gap: 0.1rem; min-height: 2.75rem; padding: 0.3rem 0.45rem; cursor: pointer; color: var(--ink); border-radius: var(--r); border: 1px solid var(--line); border-left: 3px solid var(--uc); background: var(--panel-2); }
+.wsq-b b { font-family: var(--f-ui); font-weight: 500; font-size: 0.92rem; }
+.wsq-b span { font-size: 0.72rem; color: var(--muted); }
+.wsq-b.on { border-color: var(--amber); border-left-color: var(--uc); background: #2e2919; }
+.wsq-b.inf span { color: var(--toxic); }
+.wcard .warn { margin: 0; color: var(--warn-ink); font-size: 0.85rem; }
+.wcard .btn.big { margin-top: auto; min-height: 3rem; }
+.hint { color: var(--dim); }
 .need { margin: 0.1rem 0 0.4rem; font-size: 0.8rem; color: var(--dim); }
 .slist { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; padding-bottom: var(--gut-b); }
 .sw { display: flex; flex-direction: column; gap: 0.25rem; }
@@ -382,6 +441,8 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
   .menu-in { gap: 0.7rem; }
   .mbtns .btn { min-height: 2.55rem; }
 }
+.dock-p .tabc { padding-right: 0.6rem; }
+.rail .ic { width: 1.35rem; height: 1.35rem; }
 </style>
 </head>
 <body>
@@ -389,6 +450,7 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
   <canvas id="cv"></canvas>
   <section id="scr-menu" class="screen" hidden></section>
   <section id="scr-base" class="screen" hidden></section>
+  <section id="scr-world" class="screen" hidden></section>
   <section id="scr-tac" class="screen tac" hidden></section>
   <div id="modals"></div>
   <div id="toast" role="status" hidden></div>
@@ -487,7 +549,7 @@ const T = {
   WALL: 10, BRICK: 11, WWALL: 12, FENCE: 13, DOOR: 14, DOOR_OPEN: 15, DOOR_BROKEN: 16, WINDOW: 17,
   CROP: 20, TREE: 21, BUSH: 22, HAY: 23,
   CRATE: 30, SHELF: 31, LOCKER: 32, FRIDGE: 33, DESK: 34, DRUM: 35, WELL: 36, MEDCAB: 37, FURN: 38, BENCH: 39,
-  BLOCK: 40, BLOCKH: 41,
+  BLOCK: 40, BLOCKH: 41, SANDBAG: 42, GRAVE: 43,
 };
 const TP = [];
 function defT(id, o) {
@@ -526,6 +588,8 @@ defT(T.FURN, { walk: false, furn: true, map: '#6a5440' });
 defT(T.BENCH, { walk: false, furn: true, map: '#6f6a5c' });
 defT(T.BLOCK, { walk: false, map: '#575551' });
 defT(T.BLOCKH, { walk: false, block: true, map: '#55585a' });
+defT(T.SANDBAG, { walk: false, map: '#8a7a56' });
+defT(T.GRAVE, { walk: false, map: '#77776f' });
 
 // Ресурсы
 const RES = {
@@ -569,6 +633,34 @@ const ZT = {
   runner: { name: 'Бегун', hp: 5, ap: 7, dmg: [2, 3], acc: 0.65, sight: 7, bite: 0.1, r: 0.31, body: '#7d6c4c', skin: '#a3906a' },
   screamer: { name: 'Крикун', hp: 5, ap: 4, dmg: [1, 2], acc: 0.5, sight: 8, bite: 0.08, r: 0.33, body: '#7b5a66', skin: '#a07f8a', scream: true },
   brute: { name: 'Громила', hp: 16, ap: 3, dmg: [4, 7], acc: 0.62, sight: 5, bite: 0.08, r: 0.45, body: '#4f5642', skin: '#6c7559' },
+  // Люди из группировок
+  collector: { name: 'Сборщик', human: true, fac: 'collectors', hp: 12, ap: 8, dmg: [4, 7], acc: 0.72, sight: 9, bite: 0, r: 0.36, body: '#c4402f', melee: 'bat' },
+  collector_gun: { name: 'Сборщик с пистолетом', human: true, fac: 'collectors', hp: 11, ap: 8, dmg: [3, 5], acc: 0.7, sight: 10, bite: 0, r: 0.36, body: '#c4402f', melee: 'knife', ranged: 'pistol', ammo: 10 },
+  raider: { name: 'Мародёр', human: true, fac: 'raiders', hp: 11, ap: 8, dmg: [4, 6], acc: 0.7, sight: 9, bite: 0, r: 0.36, body: '#c98a2a', melee: 'crowbar' },
+  raider_gun: { name: 'Мародёр с обрезом', human: true, fac: 'raiders', hp: 11, ap: 8, dmg: [3, 5], acc: 0.68, sight: 9, bite: 0, r: 0.36, body: '#c98a2a', melee: 'knife', ranged: 'shotgun', ammo: 6 },
+  soldier: { name: 'Солдат', human: true, fac: 'garrison', hp: 15, ap: 8, dmg: [3, 5], acc: 0.72, sight: 11, bite: 0, r: 0.38, body: '#6f8a4a', melee: 'knife', ranged: 'rifle', ammo: 14 },
+  cultist: { name: 'Сектант', human: true, fac: 'flock', hp: 10, ap: 8, dmg: [3, 6], acc: 0.78, sight: 8, bite: 0, r: 0.34, body: '#9a958a', melee: 'knife' },
+};
+const isHuman = z => !!(ZT[z.type] && ZT[z.type].human);
+
+// Группировки
+const FACTIONS = {
+  collectors: {
+    name: 'Сборщики', color: '#c4402f', camp: 'camp_collectors', types: ['collector', 'collector', 'collector_gun'],
+    desc: 'Банда в чёрной коже. «Защищает» поселения и раз в неделю приходит за долей. Не платишь — приходят с битами в колючке.',
+  },
+  flock: {
+    name: 'Паства', color: '#9a958a', camp: 'camp_flock', types: ['cultist'],
+    desc: 'Культ, который ходит среди мёртвых, обмазавшись их кровью. Зомби их не трогают, а они приводят толпы к чужим стенам.',
+  },
+  garrison: {
+    name: 'Гарнизон', color: '#6f8a4a', camp: 'garrison', types: ['soldier'],
+    desc: 'Остатки военной части. Хорошо вооружены, держат блокпосты и стреляют без предупреждения. Помнят обиды.',
+  },
+  raiders: {
+    name: 'Вольница', color: '#c98a2a', camp: 'camp_raiders', types: ['raider', 'raider_gun'],
+    desc: 'Мародёры с трассы. Сидят на заправках и складах, устраивают засады на чужие вылазки.',
+  },
 };
 function pickZType(day, threat) {
   const w = [['walker', 10]];
@@ -596,6 +688,16 @@ const CONT = {
   medcab: { name: 'Аптечка', tile: T.MEDCAB, loot: { meds: [0.8, 1, 3] } },
   gun: { name: 'Оружейный шкаф', tile: T.LOCKER, loot: { ammo: [1, 6, 14], meds: [0.2, 1, 1] } },
   seeds: { name: 'Мешки', tile: T.CRATE, loot: { seeds: [0.8, 1, 2], food: [0.5, 1, 2] } },
+  register: { name: 'Касса', tile: T.DESK, loot: { food: [0.3, 1, 2], meds: [0.15, 1, 1], ammo: [0.12, 2, 6], parts: [0.2, 1, 1] } },
+  vending: { name: 'Автомат с едой', tile: T.FRIDGE, loot: { food: [0.7, 1, 3], water: [0.7, 1, 3] } },
+  cooler: { name: 'Холодильная витрина', tile: T.FRIDGE, loot: { food: [0.6, 1, 3], water: [0.7, 1, 3] } },
+  mshelf: { name: 'Полка с товаром', tile: T.SHELF, loot: { food: [0.45, 1, 3], water: [0.3, 1, 2], meds: [0.08, 1, 1] } },
+  foodcrate: { name: 'Ящик консервов', tile: T.CRATE, loot: { food: [0.9, 3, 6], water: [0.3, 1, 2] } },
+  armory: { name: 'Оружейная', tile: T.LOCKER, loot: { ammo: [1, 10, 24], meds: [0.3, 1, 2], tools: [0.1, 1, 1] } },
+  evidence: { name: 'Сейф с уликами', tile: T.LOCKER, loot: { ammo: [0.7, 4, 12], meds: [0.3, 1, 2], tools: [0.12, 1, 1] } },
+  ration: { name: 'Армейский ящик', tile: T.CRATE, loot: { food: [0.8, 2, 4], water: [0.6, 1, 3], ammo: [0.5, 4, 10], meds: [0.3, 1, 1] } },
+  pump: { name: 'Бензоколонка', tile: null, loot: { fuel: [0.85, 1, 3] } },
+  body: { name: 'Тело', tile: null, loot: {} },
   ambtrunk: { name: 'Укладка скорой', tile: null, loot: { meds: [0.75, 1, 3], water: [0.3, 1, 1] } },
   trunk: { name: 'Багажник', tile: null, loot: { fuel: [0.35, 1, 1], parts: [0.4, 1, 2], food: [0.3, 1, 2], water: [0.3, 1, 1], ammo: [0.1, 2, 6] } },
 };
@@ -637,28 +739,55 @@ const BUILD_ORDER = ['walls', 'water', 'garden', 'infirmary', 'workshop', 'radio
 
 // Локации для вылазок
 const LOCS = {
-  farm: {
-    name: 'Ферма «Рассвет»', short: 'Ферма', w: 64, h: 64, fuel: 0, danger: 1, zombies: 11,
-    desc: 'Кукурузные поля, дом фермера, амбар. В посевах легко спрятаться и так же легко нарваться на ползуна.',
-    loot: ['food', 'water', 'seeds', 'fuel'],
-  },
-  suburb: {
-    name: 'Посёлок Сосновый', short: 'Посёлок', w: 64, h: 64, fuel: 1, danger: 2, zombies: 17,
-    desc: 'Частный сектор, гаражи, брошенные машины. Всего понемногу, улицы простреливаются.',
-    loot: ['food', 'meds', 'ammo', 'parts'],
-  },
-  factory: {
-    name: 'Завод «Металлист»', short: 'Завод', w: 60, h: 64, fuel: 2, danger: 3, zombies: 19,
-    desc: 'Цех, склад, заводоуправление. Детали, инструменты и топливо. Станки закрывают обзор.',
-    loot: ['parts', 'tools', 'fuel', 'ammo'],
-  },
-  hospital: {
-    name: 'Горбольница №2', short: 'Больница', w: 64, h: 60, fuel: 2, danger: 4, zombies: 25, needRadio: 1,
-    desc: 'Палаты и длинные коридоры. Больше всего медикаментов в округе и больше всего заражённых.',
-    loot: ['meds', 'food', 'water', 'ammo'],
-  },
+  farm: { gen: 'farm', name: 'Ферма «Рассвет»', short: 'Ферма', w: 64, h: 64, fuel: 0, danger: 1, zombies: 11, pos: [36, 20], start: true,
+    desc: 'Кукурузные поля, дом фермера, амбар. В посевах легко спрятаться и так же легко нарваться на ползуна.', loot: ['food', 'water', 'seeds', 'fuel'] },
+  farm2: { gen: 'farm', name: 'Хутор у реки', short: 'Хутор', w: 48, h: 48, fuel: 1, danger: 1, zombies: 7, pos: [22, 42], start: true,
+    desc: 'Дом и пара сараев у реки. Тихое место — пока не начнёшь шуметь.', loot: ['food', 'water', 'seeds'] },
+  gas1: { gen: 'gas', name: 'Заправка на трассе', short: 'Заправка', w: 40, h: 40, fuel: 1, danger: 1, zombies: 8, pos: [60, 20], start: true,
+    desc: 'Колонки, магазинчик и брошенные машины. Топливо в баках колонок ещё осталось.', loot: ['fuel', 'food', 'water'] },
+  school: { gen: 'school', name: 'Школа №14', short: 'Школа', w: 56, h: 52, fuel: 1, danger: 2, zombies: 18, pos: [58, 44], start: true,
+    desc: 'Длинные коридоры и классы. В столовой были запасы, в медкабинете — аптечки.', loot: ['food', 'meds', 'parts'] },
+  church: { gen: 'church', name: 'Церковь и кладбище', short: 'Церковь', w: 48, h: 48, fuel: 1, danger: 2, zombies: 12, pos: [44, 52], start: true, faction: 'flock', hostiles: 3,
+    desc: 'Сюда приходили молиться, теперь здесь бывает Паства. Между могил бродят те, кого не успели похоронить.', loot: ['food', 'water', 'meds'] },
+  suburb: { gen: 'suburb', name: 'Посёлок Сосновый', short: 'Посёлок', w: 64, h: 64, fuel: 1, danger: 2, zombies: 17, pos: [28, 30], start: true,
+    desc: 'Частный сектор, гаражи, брошенные машины. Всего понемногу, улицы простреливаются.', loot: ['food', 'meds', 'ammo', 'parts'] },
+  market: { gen: 'market', name: 'Гастроном на Ленина', short: 'Гастроном', w: 48, h: 48, fuel: 1, danger: 3, zombies: 18, pos: [66, 32],
+    desc: 'Ряды полок, кассы и склад за ними. Еды много, но в торговом зале толпа.', loot: ['food', 'water', 'meds'] },
+  police: { gen: 'police', name: 'Отдел полиции', short: 'Полиция', w: 52, h: 48, fuel: 1, danger: 3, zombies: 16, pos: [72, 40],
+    desc: 'Кабинеты, камеры и оружейная. Патроны есть — если открыть сейфы.', loot: ['ammo', 'meds', 'tools'] },
+  dacha: { gen: 'suburb', v: 2, name: 'Дачный посёлок', short: 'Дачи', w: 56, h: 56, fuel: 2, danger: 2, zombies: 14, pos: [14, 22],
+    desc: 'Домики, теплицы и сарайчики. Семена, инструменты и немного консервации.', loot: ['food', 'seeds', 'parts', 'fuel'] },
+  downtown: { gen: 'suburb', v: 1, name: 'Райцентр', short: 'Райцентр', w: 64, h: 64, fuel: 2, danger: 3, zombies: 24, pos: [78, 26],
+    desc: 'Кирпичные магазины и конторы вдоль улиц. Добычи много, мёртвых ещё больше.', loot: ['food', 'meds', 'ammo', 'parts'] },
+  factory: { gen: 'factory', name: 'Завод «Металлист»', short: 'Завод', w: 60, h: 64, fuel: 2, danger: 3, zombies: 19, pos: [86, 14],
+    desc: 'Цех, склад, заводоуправление. Детали, инструменты и топливо. Станки закрывают обзор.', loot: ['parts', 'tools', 'fuel', 'ammo'] },
+  depot: { gen: 'factory', v: 1, name: 'Склады у железной дороги', short: 'Склады', w: 60, h: 56, fuel: 2, danger: 3, zombies: 16, pos: [90, 34], faction: 'raiders', hostiles: 3,
+    desc: 'Пакгаузы и вагоны на путях. Вольница держит тут перевалочную базу.', loot: ['parts', 'tools', 'food'] },
+  motel: { gen: 'motel', name: 'Мотель «Дорожный»', short: 'Мотель', w: 48, h: 40, fuel: 2, danger: 2, zombies: 12, pos: [50, 9], faction: 'raiders', hostiles: 2,
+    desc: 'Ряд номеров вдоль парковки и высохший бассейн. Мародёры любят здесь ночевать.', loot: ['food', 'water', 'meds'] },
+  gas2: { gen: 'gas', name: 'АЗС у моста', short: 'АЗС', w: 40, h: 40, fuel: 2, danger: 2, zombies: 8, pos: [10, 48], faction: 'raiders', hostiles: 3,
+    desc: 'Заправку у моста держит Вольница. Топливо есть, но его охраняют.', loot: ['fuel', 'ammo'] },
+  mall: { gen: 'market', v: 1, name: 'Торговый центр «Орбита»', short: 'ТЦ', w: 64, h: 60, fuel: 2, danger: 4, zombies: 30, pos: [82, 50],
+    desc: 'Огромный зал, отделы по бокам, склад в глубине. Сюда сбежались многие — и остались.', loot: ['food', 'water', 'meds', 'parts'] },
+  hospital: { gen: 'hospital', name: 'Горбольница №2', short: 'Больница', w: 64, h: 60, fuel: 2, danger: 4, zombies: 25, pos: [70, 56], needRadio: 1,
+    desc: 'Палаты и длинные коридоры. Больше всего медикаментов в округе и больше всего заражённых.', loot: ['meds', 'food', 'water', 'ammo'] },
+  forest: { gen: 'forest', name: 'Турбаза «Лесная»', short: 'Турбаза', w: 56, h: 56, fuel: 2, danger: 2, zombies: 12, pos: [8, 10],
+    desc: 'Домики среди сосен, озеро, кострища. Можно найти воду, еду и канистры.', loot: ['food', 'water', 'fuel', 'seeds'] },
+  checkpoint: { gen: 'checkpoint', name: 'Блокпост на въезде', short: 'Блокпост', w: 48, h: 48, fuel: 2, danger: 4, zombies: 10, pos: [94, 24], faction: 'garrison', hostiles: 5,
+    desc: 'Мешки с песком, вышки, армейские палатки. Гарнизон стреляет на подходе.', loot: ['ammo', 'meds', 'food', 'fuel'] },
+  prison: { gen: 'prison', name: 'Колония №7', short: 'Колония', w: 64, h: 64, fuel: 3, danger: 5, zombies: 32, pos: [94, 58], needRadio: 1,
+    desc: 'Двойной забор и вышки — когда-то надёжная крепость. Внутри бывшие заключённые и охрана, все мёртвые.', loot: ['ammo', 'meds', 'tools', 'food'] },
+  camp_raiders: { gen: 'raidcamp', name: 'Стоянка Вольницы', short: 'Вольница', w: 48, h: 48, fuel: 2, danger: 4, zombies: 5, pos: [6, 34], faction: 'raiders', hostiles: 8, captives: 1, camp: true,
+    desc: 'Баррикада из машин, палатки и награбленное. Здесь держат пленных.', loot: ['ammo', 'fuel', 'food'] },
+  camp_collectors: { gen: 'raidcamp', v: 1, name: 'Лагерь Сборщиков', short: 'Сборщики', w: 52, h: 52, fuel: 3, danger: 5, zombies: 5, pos: [96, 8], faction: 'collectors', hostiles: 10, captives: 2, camp: true,
+    desc: 'Укреплённый склад, вышка, сторожа. Сюда свозят «долю» со всей округи.', loot: ['ammo', 'food', 'meds', 'parts'] },
+  camp_flock: { gen: 'forest', v: 1, name: 'Стан Паствы', short: 'Паства', w: 52, h: 52, fuel: 3, danger: 4, zombies: 16, pos: [32, 58], faction: 'flock', hostiles: 7, captives: 1, camp: true,
+    desc: 'Поляна с шатрами и кострами посреди леса. Мёртвые бродят вокруг, как стадо.', loot: ['food', 'water', 'meds'] },
+  garrison: { gen: 'checkpoint', v: 1, name: 'Военная часть', short: 'Часть', w: 64, h: 60, fuel: 3, danger: 5, zombies: 12, pos: [98, 44], needRadio: 2, faction: 'garrison', hostiles: 9, captives: 1, camp: true,
+    desc: 'Казармы, склад, бетонный забор. Оружия здесь больше, чем во всей округе.', loot: ['ammo', 'meds', 'food', 'tools'] },
 };
-const LOC_ORDER = ['farm', 'suburb', 'factory', 'hospital'];
+const LOC_ORDER = Object.keys(LOCS);
+const BASE_POS = [46, 32];
 
 const NAMES = [
   ['Марина', 'f'], ['Гоша', 'm'], ['Лёха', 'm'], ['Семёныч', 'm'], ['Оля', 'f'], ['Тимур', 'm'], ['Вика', 'f'],
@@ -1042,7 +1171,7 @@ function clearRect(m, x, y, w, h) {
 
 function rollLoot(r, table) {
   const out = {};
-  for (const k in table) { const [p, lo, hi] = table[k]; if (r() < p) out[k] = r.int(lo, hi); }
+  for (const k in table) { const [p, lo, hi] = table[k]; if (r() < p * LOOT_MUL) out[k] = r.int(lo, hi); }
   return out;
 }
 function addCont(m, r, x, y, kind) {
@@ -1050,7 +1179,8 @@ function addCont(m, r, x, y, kind) {
   if (C.tile != null) put(m, x, y, C.tile);
   m.cont[MI(m, x, y)] = { k: kind, loot: rollLoot(r, C.loot), s: 0 };
 }
-const FURN_V = { bed: 0, table: 1, sofa: 2, bench: 3 };
+const FURN_V = { bed: 0, table: 1, sofa: 2, bench: 3, pew: 4, desk: 5, bunk: 6, counter: 7, cot: 8 };
+let LOOT_MUL = 1;   // меньше добычи при повторных вылазках
 function placeItem(m, r, x, y, item) {
   if (item.startsWith('furn:')) { put(m, x, y, T.FURN); m.meta[MI(m, x, y)] = FURN_V[item.slice(5)] || 0; }
   else if (item === 'hay') put(m, x, y, T.HAY);
@@ -1291,6 +1421,26 @@ function genFarm(m, r) {
   placeStart(m, r, rx, H - 7);
 }
 
+// Квартал райцентра: кирпичные магазины, конторы и аптека вдоль улиц
+function townBlock(m, r, x0, y0, x1, y1) {
+  groundRect(m, x0, y0, x1 - x0 + 1, y1 - y0 + 1, T.SIDEWALK);
+  const kinds = [
+    ['mshelf', 'mshelf', 'register', 'cooler', 'foodcrate'],
+    ['medcab', 'medcab', 'register', 'shelf'],
+    ['desk', 'desk', 'locker', 'shelf', 'furn:table'],
+    ['shelf', 'toolbox', 'crate', 'register'],
+    ['fridge', 'furn:table', 'furn:counter', 'pantry', 'register'],
+  ];
+  for (let k = 0; k < 4; k++) {
+    const bw = r.int(9, 14), bh = r.int(8, 10);
+    const sp = findSpot(m, r, bw, bh, { x0: x0 + 1, y0: y0 + 1, x1: x1 - 1, y1: y1 - 1 }, 1, 60);
+    if (!sp) continue;
+    const b = building(m, r, sp.x, sp.y, bw, bh, { wall: T.BRICK, floor: r() < 0.5 ? T.TILE : T.WOOD, minRoom: 4, maxDepth: 2, doors: 2, windows: 6 });
+    const pal = r.pick(kinds);
+    furnish(m, r, b, pal, 7);
+  }
+}
+
 // ----- Посёлок -----
 function genSuburb(m, r) {
   const W = m.w, H = m.h;
@@ -1312,13 +1462,21 @@ function genSuburb(m, r) {
   const xs = [[1, vx[0] - 2], [vx[0] + 4, vx[1] - 2], [vx[1] + 4, W - 2]];
   const ys = [[1, hy[0] - 2], [hy[0] + 4, hy[1] - 2], [hy[1] + 4, H - 2]];
   for (const [x0, x1] of xs) for (const [y0, y1] of ys) {
+    if (m.v === 1) { townBlock(m, r, x0, y0, x1, y1); continue; }
     for (let k = 0; k < 5; k++) {
-      const hw = r.int(8, 12), hh = r.int(7, 9);
+      const dacha = m.v === 2;
+      const hw = dacha ? r.int(5, 7) : r.int(8, 12), hh = dacha ? r.int(5, 6) : r.int(7, 9);
       const sp = findSpot(m, r, hw, hh, { x0: x0 + 2, y0: y0 + 2, x1: x1 - 2, y1: y1 - 2 }, 3, 60);
       if (!sp) continue;
-      const brick = r() < 0.5;
-      const hb = building(m, r, sp.x, sp.y, hw, hh, { wall: brick ? T.BRICK : T.WWALL, floor: r() < 0.6 ? T.WOOD : T.TILE, minRoom: 3, maxDepth: 3, doors: r.int(1, 2), windows: 4 });
-      furnish(m, r, hb, ['fridge', 'pantry', 'desk', 'furn:bed', 'furn:sofa', 'furn:table', 'locker', 'medcab', 'shelf', 'gun', 'furn:bed'], 9);
+      const brick = !dacha && r() < 0.5;
+      const hb = building(m, r, sp.x, sp.y, hw, hh, { wall: brick ? T.BRICK : T.WWALL, floor: r() < 0.6 ? T.WOOD : T.TILE, minRoom: 3, maxDepth: dacha ? 1 : 3, doors: r.int(1, 2), windows: dacha ? 2 : 4 });
+      if (dacha) furnish(m, r, hb, ['pantry', 'furn:bed', 'toolbox', 'seeds', 'furn:table', 'drum', 'fridge'], 6);
+      else furnish(m, r, hb, ['fridge', 'pantry', 'desk', 'furn:bed', 'furn:sofa', 'furn:table', 'locker', 'medcab', 'shelf', 'gun', 'furn:bed'], 9);
+      if (dacha) for (let g = 0; g < 2; g++) {
+        const gx = sp.x + (g ? hw - 4 : 0), gy = sp.y + hh + 1;
+        if (!isFree(m, gx, gy, 4, 2)) continue;
+        for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 4; xx++) { setGround(m, gx + xx, gy + yy, T.DIRT); put(m, gx + xx, gy + yy, T.CROP); m.meta[MI(m, gx + xx, gy + yy)] = 0; }
+      }
       // забор вокруг двора с калитками у дверей
       const fx = sp.x - 2, fy = sp.y - 2, fw = hw + 4, fh = hh + 4, meta = r() < 0.5 ? 0 : 2;
       const gates = hb.doors.filter(d => d.x === sp.x || d.y === sp.y || d.x === sp.x + hw - 1 || d.y === sp.y + hh - 1);
@@ -1355,11 +1513,11 @@ function genSuburb(m, r) {
       if (ok) addCar(m, r, x, y, false);
     }
   }
-  for (let k = 0; k < 40; k++) {
+  for (let k = 0; k < (m.v === 1 ? 90 : 40); k++) {
     const x = r.int(1, W - 2), y = r.int(1, H - 14), i = MI(m, x, y);
-    if (m.tiles[i] === T.ASPHALT && !m.resv[i] && r() < 0.5) put(m, x, y, T.RUBBLE);
+    if ((m.tiles[i] === T.ASPHALT || m.tiles[i] === T.SIDEWALK) && !m.resv[i] && r() < 0.5) put(m, x, y, T.RUBBLE);
   }
-  scatterGreen(m, r, 0.035, 0.035, 1);
+  scatterGreen(m, r, m.v === 1 ? 0.01 : 0.035, m.v === 1 ? 0.015 : 0.035, 1);
   placeStart(m, r, vx[0], H - 7);
 }
 
@@ -1387,6 +1545,24 @@ function genFactory(m, r) {
   reserve(m, gx - 3, H - 11, 10, 11);
   for (let y = sgy; y < sgy + 3; y++) for (let x = (sgx === fx0 ? 0 : fx1); x <= (sgx === fx0 ? fx0 : W - 1); x++) setGround(m, x, y, T.ASPHALT);
   const area = { x0: fx0 + 2, y0: fy0 + 2, x1: fx1 - 1, y1: fy1 - 2 };
+  if (m.v === 1) {
+    // пути и вагоны вдоль северного забора
+    for (const ry of [fy0 + 3, fy0 + 7]) {
+      for (let x = fx0 + 1; x < fx1; x++) for (let yy = ry; yy < ry + 2; yy++) { setGround(m, x, yy, T.DIRT); m.meta[MI(m, x, yy)] = yy === ry ? 16 : 32; }
+      let x = fx0 + 2 + r.int(0, 4);
+      while (x + 8 < fx1 - 1) {
+        if (r() < 0.75) {
+          const p = addProp(m, 'wagon', x, ry, 8, 2, { c: r.pick(['#6a3a2a', '#4a5a6a', '#5a4a3a', '#7a6a4a']), v: 0, f: 0, tall: true });
+          if (r() < 0.7) m.cont[MI(m, p.x + 4, p.y + 1)] = { k: r.pick(['foodcrate', 'pallet', 'crate', 'ration']), loot: {}, s: 0 };
+          const ct = m.cont[MI(m, p.x + 4, p.y + 1)]; if (ct) ct.loot = rollLoot(r, CONT[ct.k].loot);
+        }
+        x += 9 + r.int(0, 3);
+      }
+      reserve(m, fx0, ry - 1, fx1 - fx0, 4);
+    }
+    area.y0 = fy0 + 11;
+    guard(m, Math.floor(W / 2), fy0 + 6, 5);
+  }
 
   // главный цех
   const sw = r.int(24, 30), sh = r.int(14, 17);
@@ -1581,11 +1757,603 @@ function finalize(m) {
   return reach;
 }
 
-function genMap(loc, seed) {
+function genMap(loc, seed, lootMul = 1) {
   const L = LOCS[loc];
   const r = makeRng(seed);
   const m = newMap(L.w, L.h, seed);
-  ({ farm: genFarm, suburb: genSuburb, factory: genFactory, hospital: genHospital })[loc](m, r);
+  m.v = L.v || 0; m.loc = loc;
+  const GEN = {
+    farm: genFarm, suburb: genSuburb, factory: genFactory, hospital: genHospital, gas: genGas, market: genMarket, police: genPolice,
+    school: genSchool, church: genChurch, checkpoint: genCheckpoint, forest: genForest, motel: genMotel, prison: genPrison, raidcamp: genRaidCamp,
+  };
+  LOOT_MUL = lootMul;
+  try { GEN[L.gen](m, r); } finally { LOOT_MUL = 1; }
+  const reach = finalize(m);
+  return { m, reach };
+}
+</script>
+<script>
+'use strict';
+// ---------- Новые локации и карта базы ----------
+
+// Здание с коридором посередине и комнатами по обе стороны
+function corridorBuilding(m, r, bx, by, bw, bh, o) {
+  const b = { x: bx, y: by, w: bw, h: bh, o: { floor: o.floor }, rooms: [], doors: [] };
+  for (let yy = by; yy < by + bh; yy++) for (let xx = bx; xx < bx + bw; xx++) {
+    const i = MI(m, xx, yy);
+    m.ground[i] = o.floor;
+    m.tiles[i] = (xx === bx || yy === by || xx === bx + bw - 1 || yy === by + bh - 1) ? o.wall : o.floor;
+  }
+  const cy0 = by + Math.floor((bh - 3) / 2);
+  for (let xx = bx + 1; xx < bx + bw - 1; xx++) { put(m, xx, cy0 - 1, o.wall); put(m, xx, cy0 + 3, o.wall); }
+  const mid = bx + Math.floor(bw / 2), [rw0, rw1] = o.rw || [5, 8];
+  const row = (y0, h, doorY, south) => {
+    let x = bx + 1;
+    const end = bx + bw - 1, rooms = [];
+    while (end - x >= rw0 - 1) {
+      let w = r.int(rw0, rw1);
+      if (end - (x + w) < rw0 + 1) w = end - x;
+      rooms.push({ x, y: y0, w, h, south });
+      x += w;
+      if (x < end) { for (let yy = y0; yy < y0 + h; yy++) put(m, x, yy, o.wall); x += 1; }
+    }
+    for (const rm of rooms) {
+      rm.lobby = south && o.entrance !== false && mid >= rm.x && mid + 1 < rm.x + rm.w;
+      const dx = rm.lobby ? mid : rm.x + Math.floor(rm.w / 2);
+      makeDoor(m, b, dx, doorY, rm.lobby ? 'broken' : o.cellDoor || innerDoorState(r, {}), o.metal);
+      if (rm.lobby) makeDoor(m, b, dx + 1, doorY, 'broken');
+    }
+    return rooms;
+  };
+  const north = row(by + 1, cy0 - 1 - (by + 1), cy0 - 1, false);
+  const south = row(cy0 + 4, by + bh - 1 - (cy0 + 4), cy0 + 3, true);
+  if (south.some(x => x.lobby)) { makeDoor(m, b, mid, by + bh - 1, 'open'); makeDoor(m, b, mid + 1, by + bh - 1, 'broken'); }
+  else makeDoor(m, b, south[0].x + 1, by + bh - 1, 'open');
+  makeDoor(m, b, bx, cy0 + 1, 'closed'); makeDoor(m, b, bx + bw - 1, cy0 + 1, 'closed');
+  for (let k = 0; k < bw / 4; k++) {
+    const xx = r.int(bx + 2, bx + bw - 3);
+    for (const yy of [by, by + bh - 1]) if (!nearDoor(m, xx, yy, 1) && m.tiles[MI(m, xx, yy)] === o.wall && r() < 0.6) {
+      const inner = yy === by ? yy + 1 : yy - 1;
+      if (TP[m.tiles[MI(m, xx, inner)]].floor) put(m, xx, yy, T.WINDOW);
+    }
+  }
+  b.rooms.push(...north, ...south, { x: bx + 1, y: cy0, w: bw - 2, h: 3 });
+  m.buildings.push(b);
+  reserve(m, bx - 2, by - 2, bw + 4, bh + 4);
+  return { b, north, south, cy0, mid };
+}
+// Парты рядами
+function deskRows(m, rm, kind = 'furn:desk') {
+  for (let yy = rm.y + 1; yy < rm.y + rm.h - 1; yy += 2) for (let xx = rm.x + 1; xx < rm.x + rm.w - 1; xx += 2) {
+    if (TP[m.tiles[MI(m, xx, yy)]].floor && !nearDoor(m, xx, yy, 1)) placeItem(m, null, xx, yy, kind);
+  }
+}
+function guard(m, x, y, rad = 2) {
+  m.guard = m.guard || [];
+  for (let yy = y - rad; yy <= y + rad; yy++) for (let xx = x - rad; xx <= x + rad; xx++) if (inb(m, xx, yy)) m.guard.push(MI(m, xx, yy));
+}
+function campfire(m, x, y) { addProp(m, 'campfire', x, y, 1, 1); m.fires = m.fires || []; m.fires.push([x, y]); }
+function tents(m, r, area, n, col, round) {
+  for (let k = 0; k < n; k++) {
+    const sp = findSpot(m, r, 2, 2, area, 1, 80);
+    if (sp) addProp(m, 'tent', sp.x, sp.y, 2, 2, { c: col || r.pick(['#6a6f52', '#7a5a3a', '#5a6a7a', '#8a7a5a']), round: round ? 1 : 0 });
+  }
+}
+// Схрон у палаток
+function tentStash(m, r, pal, p = 0.6) {
+  for (const t of m.props) {
+    if (t.k !== 'tent' || r() > p) continue;
+    for (const [x, y] of [[t.x + 2, t.y + 1], [t.x - 1, t.y], [t.x, t.y + 2], [t.x + 1, t.y - 1]]) {
+      if (!inb(m, x, y) || !TP[m.tiles[MI(m, x, y)]].floor || m.cont[MI(m, x, y)]) continue;
+      addCont(m, r, x, y, r.pick(pal)); break;
+    }
+  }
+}
+function captive(m, r, x, y) {
+  m.captives = m.captives || [];
+  const [name, g] = r.pick(NAMES);
+  m.captives.push({ x, y, name, g, color: r.pick(UNIT_COLORS), freed: false });
+  if (inb(m, x + 1, y) && TP[m.tiles[MI(m, x + 1, y)]].floor) { put(m, x + 1, y, T.FENCE); m.meta[MI(m, x + 1, y)] = 0; }
+  reserve(m, x - 1, y - 1, 3, 3);
+}
+
+// ----- заправка -----
+function genGas(m, r) {
+  const W = m.w, H = m.h;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.6);
+  const rx = r.int(7, 11);
+  groundRect(m, rx, 0, 4, H, T.ASPHALT);
+  for (let y = 0; y < H; y++) m.meta[MI(m, rx + 2, y)] |= 2;
+  reserve(m, rx - 1, 0, 6, H);
+  reserve(m, rx - 3, H - 11, 10, 11);
+  const lx = rx + 5, ly = 5, lw = W - lx - 2, lh = 24;
+  groundRect(m, lx, ly, lw, lh, T.ASPHALT);
+  const b = building(m, r, lx + lw - 12, ly + 1, 11, 8, { wall: T.BRICK, floor: T.TILE, minRoom: 4, maxDepth: 1, doors: 2, doorSides: ['w', 's'], windows: 4 });
+  const rooms = b.rooms.slice().sort((a, c) => c.w * c.h - a.w * a.h);
+  furnishRoom(m, r, rooms[0], ['mshelf', 'vending', 'register', 'cooler', 'mshelf'], 6);
+  for (const rm of rooms.slice(1)) furnishRoom(m, r, rm, ['crate', 'drum', 'toolbox', 'foodcrate'], 3);
+  for (const px of [lx + 3, lx + 8]) for (const py of [ly + 12, ly + 17]) {
+    groundRect(m, px - 1, py - 1, 3, 3, T.CONCRETE);
+    addProp(m, 'pump', px, py, 1, 1, { tall: true });
+    m.cont[MI(m, px, py)] = { k: 'pump', loot: rollLoot(r, CONT.pump.loot), s: 0 };
+    reserve(m, px - 1, py - 1, 3, 3);
+  }
+  for (let k = 0; k < 3; k++) { const sp = findSpot(m, r, 2, 4, { x0: lx, y0: ly, x1: lx + lw, y1: ly + lh }, 1, 60); if (sp) addCar(m, r, sp.x, sp.y, true); }
+  for (let k = 0; k < 4; k++) { const sp = findSpot(m, r, 1, 1, { x0: lx, y0: ly, x1: lx + lw, y1: ly + lh }, 1, 40); if (sp) { addCont(m, r, sp.x, sp.y, r() < 0.6 ? 'drum' : 'crate'); reserve(m, sp.x, sp.y, 1, 1); } }
+  guard(m, lx + lw - 7, ly + 11, 3);
+  reserve(m, lx - 1, ly - 1, lw + 2, lh + 2);
+  scatterGreen(m, r, 0.03, 0.04, 2);
+  placeStart(m, r, rx, H - 7);
+}
+
+// ----- гастроном / торговый центр -----
+function genMarket(m, r) {
+  const W = m.w, H = m.h, big = m.v === 1;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.7);
+  const bw = big ? 46 : 30, bh = big ? 28 : 19, bx = Math.floor((W - bw) / 2), by = 3;
+  const py0 = by + bh + 2, ph = H - py0 - 11;
+  groundRect(m, 3, py0, W - 6, ph, T.ASPHALT);
+  for (let x = 5; x < W - 5; x += 3) { m.meta[MI(m, x, py0 + 1)] |= 8; m.meta[MI(m, x, py0 + ph - 2)] |= 8; }
+  const rdx = r.int(6, W - 10);
+  groundRect(m, rdx, py0 + ph, 3, H - py0 - ph, T.ASPHALT);
+  reserve(m, rdx - 3, H - 11, 9, 11);
+  const wall = big ? T.WALL : T.BRICK;
+  const b = { x: bx, y: by, w: bw, h: bh, o: { floor: T.TILE }, rooms: [], doors: [] };
+  for (let yy = by; yy < by + bh; yy++) for (let xx = bx; xx < bx + bw; xx++) {
+    const i = MI(m, xx, yy);
+    m.ground[i] = T.TILE;
+    m.tiles[i] = (xx === bx || yy === by || xx === bx + bw - 1 || yy === by + bh - 1) ? wall : T.TILE;
+  }
+  const sy = by + 5;
+  for (let xx = bx + 1; xx < bx + bw - 1; xx++) put(m, xx, sy, wall);
+  makeDoor(m, b, bx + Math.floor(bw * 0.3), sy, 'closed'); makeDoor(m, b, bx + Math.floor(bw * 0.7), sy, 'open');
+  let hx0 = bx + 1, hx1 = bx + bw - 2;
+  if (big) {
+    for (const wx of [bx + 9, bx + bw - 10]) {
+      for (let yy = sy + 1; yy < by + bh - 1; yy++) put(m, wx, yy, wall);
+      const left = wx === bx + 9;
+      for (let yy = sy + 1; yy < by + bh - 1; yy += 6) {
+        if (yy > sy + 1) for (let xx = left ? bx + 1 : wx + 1; xx < (left ? wx : bx + bw - 1); xx++) put(m, xx, yy, wall);
+        const dy = Math.min(yy + 3, by + bh - 2);
+        makeDoor(m, b, wx, dy, r() < 0.5 ? 'open' : 'broken');
+        const rm = { x: left ? bx + 1 : wx + 1, y: yy + (yy > sy + 1 ? 1 : 0), w: 8, h: 5 };
+        b.rooms.push(rm);
+        furnishRoom(m, r, rm, r.pick([['mshelf', 'register', 'shelf'], ['medcab', 'shelf', 'register'], ['locker', 'shelf', 'crate'], ['cooler', 'mshelf', 'register']]), 4);
+      }
+    }
+    hx0 = bx + 10; hx1 = bx + bw - 11;
+  }
+  const hy0 = sy + 1, hy1 = by + bh - 2;
+  for (let yy = hy0 + 2; yy <= hy1 - 4; yy += 3) for (let xx = hx0 + 2; xx <= hx1 - 2; xx++) {
+    if ((xx - hx0 - 2) % 8 === 7) continue;
+    if (TP[m.tiles[MI(m, xx, yy)]].floor && !nearDoor(m, xx, yy, 1)) addCont(m, r, xx, yy, 'mshelf');
+  }
+  for (let xx = hx0 + 1; xx <= hx1 - 1; xx += 2) if (TP[m.tiles[MI(m, xx, hy0)]].floor && !nearDoor(m, xx, hy0, 1) && r() < 0.6) addCont(m, r, xx, hy0, 'cooler');
+  const mid = bx + Math.floor(bw / 2);
+  for (let xx = hx0 + 2; xx <= hx1 - 2; xx += 3) {
+    if (Math.abs(xx - mid) <= 1) continue;
+    placeItem(m, r, xx, hy1 - 1, 'furn:counter');
+    if (r() < 0.6) addCont(m, r, xx + 1 <= hx1 ? xx : xx, hy1 - 2, 'register');
+  }
+  for (let yy = by + 1; yy < sy; yy++) for (let xx = bx + 2; xx < bx + bw - 2; xx += 2) if (r() < 0.45 && !nearDoor(m, xx, yy, 1)) addCont(m, r, xx, yy, r() < 0.6 ? 'foodcrate' : 'pallet');
+  makeDoor(m, b, mid, by + bh - 1, 'open'); makeDoor(m, b, mid + 1, by + bh - 1, 'broken');
+  makeDoor(m, b, bx, sy + 3, 'closed'); makeDoor(m, b, bx + bw - 1, by + 2, 'closed');
+  for (let k = 0; k < bw / 3; k++) { const xx = r.int(bx + 2, bx + bw - 3); if (!nearDoor(m, xx, by + bh - 1, 1)) put(m, xx, by + bh - 1, T.WINDOW); }
+  b.rooms.push({ x: hx0, y: hy0, w: hx1 - hx0 + 1, h: hy1 - hy0 + 1 }, { x: bx + 1, y: by + 1, w: bw - 2, h: sy - by - 1 });
+  m.buildings.push(b);
+  reserve(m, bx - 2, by - 2, bw + 4, bh + 4);
+  for (let x = 5; x < W - 7; x += 3) for (const y of [py0 + 1, py0 + ph - 4]) {
+    if (r() > 0.45) continue;
+    let ok = true;
+    for (let yy = y; yy < y + 3; yy++) for (let xx = x; xx < x + 2; xx++) if (m.tiles[MI(m, xx, yy)] !== T.ASPHALT || m.resv[MI(m, xx, yy)]) ok = false;
+    if (ok) { const p = addProp(m, 'car', x, y, 2, 3, { c: r.pick(CAR_COLORS), v: 1, f: r() < 0.5 ? 1 : 0 }); if (r() < 0.4) m.cont[MI(m, p.x, p.y + 2)] = { k: 'trunk', loot: rollLoot(r, CONT.trunk.loot), s: 0 }; }
+  }
+  reserve(m, 3, py0, W - 6, ph);
+  scatterGreen(m, r, 0.03, 0.04, 2);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- отдел полиции -----
+function genPolice(m, r) {
+  const W = m.w, H = m.h;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.75);
+  const sy = H - 13;
+  groundRect(m, 0, sy, W, 3, T.ASPHALT);
+  for (let x = 0; x < W; x++) m.meta[MI(m, x, sy + 1)] |= 4;
+  const rdx = r.int(8, W - 12);
+  groundRect(m, rdx, sy, 3, H - sy, T.ASPHALT);
+  reserve(m, 0, sy - 1, W, 5); reserve(m, rdx - 3, H - 11, 9, 11);
+  const fx0 = 3, fy0 = 3, fx1 = W - 4, fy1 = sy - 2;
+  groundRect(m, fx0 + 1, fy0 + 1, fx1 - fx0 - 1, fy1 - fy0 - 1, T.CONCRETE);
+  const gx = r.int(fx0 + 6, fx1 - 9);
+  for (let x = fx0; x <= fx1; x++) { if (x < gx || x > gx + 3) { put(m, x, fy1, T.FENCE); m.meta[MI(m, x, fy1)] = 1; } put(m, x, fy0, T.FENCE); m.meta[MI(m, x, fy0)] = 1; }
+  for (let y = fy0; y <= fy1; y++) for (const x of [fx0, fx1]) { put(m, x, y, T.FENCE); m.meta[MI(m, x, y)] = 1; }
+  groundRect(m, gx, fy1, 4, sy - fy1, T.ASPHALT);
+  reserve(m, fx0 - 1, fy0 - 1, fx1 - fx0 + 3, 2); reserve(m, fx0 - 1, fy1 - 1, fx1 - fx0 + 3, 2);
+  reserve(m, fx0 - 1, fy0, 2, fy1 - fy0); reserve(m, fx1, fy0, 2, fy1 - fy0);
+  const area = { x0: fx0 + 2, y0: fy0 + 2, x1: fx1 - 1, y1: fy1 - 2 };
+  let bw = 24, bh = 14, sp = findSpot(m, r, bw, bh, area, 2);
+  if (!sp) { bw = 20; bh = 12; sp = findSpot(m, r, bw, bh, area, 1); }
+  if (sp) {
+    const b = building(m, r, sp.x, sp.y, bw, bh, { wall: T.BRICK, floor: T.TILE, minRoom: 4, maxDepth: 3, doors: 2, windows: 7, doorSides: ['s', 'w', 'e'] });
+    const rooms = b.rooms.slice().sort((a, c) => a.w * a.h - c.w * c.h);
+    furnishRoom(m, r, rooms[0], ['armory', 'armory', 'locker'], 3);
+    if (rooms[1]) furnishRoom(m, r, rooms[1], ['evidence', 'locker', 'shelf'], 3);
+    for (const rm of rooms.slice(2)) furnishRoom(m, r, rm, ['desk', 'desk', 'locker', 'furn:table', 'medcab', 'shelf'], Math.max(2, Math.round(rm.w * rm.h / 8)));
+  }
+  sp = findSpot(m, r, 13, 6, area, 1);
+  if (sp) {
+    const cb = building(m, r, sp.x, sp.y, 13, 6, { wall: T.WALL, floor: T.CONCRETE, split: false, doors: 1, doorSides: ['s'], metal: true });
+    for (let k = 0; k < 3; k++) {
+      const cx = sp.x + 1 + k * 4;
+      for (let xx = cx; xx < cx + 3; xx++) if (xx !== cx + 1) { put(m, xx, sp.y + 3, T.FENCE); m.meta[MI(m, xx, sp.y + 3)] = 1; }
+      if (k < 2) for (let yy = sp.y + 1; yy <= sp.y + 3; yy++) put(m, cx + 3, yy, T.WALL);
+      placeItem(m, r, cx, sp.y + 1, 'furn:cot');
+    }
+    m.buildings[m.buildings.length - 1] = cb;
+  }
+  for (let k = 0; k < 4; k++) { const s2 = findSpot(m, r, 2, 4, area, 1, 60); if (s2) { const p = addCar(m, r, s2.x, s2.y, true, 'car', 'trunk', 0.5); p.c = '#dcdad2'; p.pol = 1; } }
+  for (let k = 0; k < 3; k++) { const s2 = findSpot(m, r, 4, 2, { x0: 1, y0: sy, x1: W - 1, y1: sy + 3 }, 0, 40); if (s2) addCar(m, r, s2.x, s2.y, false); }
+  scatterGreen(m, r, 0.03, 0.04, 2);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- школа -----
+function genSchool(m, r) {
+  const W = m.w, H = m.h;
+  baseGround(m, T.GRASS, T.DIRT, 7, 0.78);
+  const bw = r.int(40, 46), bh = 17, bx = Math.floor((W - bw) / 2), by = 4;
+  const yard = { x: 4, y: by + bh + 2, w: W - 8, h: H - by - bh - 14 };
+  groundRect(m, yard.x, yard.y, yard.w, yard.h, T.ASPHALT);
+  const rdx = r.int(6, W - 10);
+  groundRect(m, rdx, yard.y + yard.h, 3, H - yard.y - yard.h, T.ASPHALT);
+  reserve(m, rdx - 3, H - 11, 9, 11);
+  const cb = corridorBuilding(m, r, bx, by, bw, bh, { wall: T.BRICK, floor: T.WOOD, rw: [6, 9] });
+  const kinds = shuffle(['class', 'class', 'class', 'class', 'class', 'canteen', 'office', 'gym', 'class', 'class', 'medic'], r);
+  let ki = 0;
+  for (const rm of [...cb.north, ...cb.south]) {
+    if (rm.lobby) { furnishRoom(m, r, rm, ['furn:bench', 'locker', 'shelf'], 3); continue; }
+    const k = kinds[ki++ % kinds.length];
+    if (k === 'class') { deskRows(m, rm); furnishRoom(m, r, rm, ['desk', 'locker', 'shelf'], 2); }
+    else if (k === 'canteen') furnishRoom(m, r, rm, ['fridge', 'pantry', 'foodcrate', 'furn:table', 'furn:table'], 6);
+    else if (k === 'medic') furnishRoom(m, r, rm, ['medcab', 'medcab', 'furn:bed', 'desk'], 4);
+    else if (k === 'gym') furnishRoom(m, r, rm, ['locker', 'crate'], 2);
+    else furnishRoom(m, r, rm, ['desk', 'locker', 'medcab', 'shelf'], 3);
+  }
+  const fx0 = yard.x - 1, fy0 = by - 2, fx1 = yard.x + yard.w, fy1 = yard.y + yard.h;
+  const gate = rdx;
+  for (let x = fx0; x <= fx1; x++) { if (x < gate - 1 || x > gate + 3) { put(m, x, fy1, T.FENCE); m.meta[MI(m, x, fy1)] = 2; } }
+  for (let y = fy0 + 6; y <= fy1; y++) for (const x of [fx0, fx1]) if (inb(m, x, y) && TP[m.tiles[MI(m, x, y)]].floor) { put(m, x, y, T.FENCE); m.meta[MI(m, x, y)] = 2; }
+  reserve(m, fx0 - 1, fy1 - 1, fx1 - fx0 + 3, 3);
+  const sp = findSpot(m, r, 7, 3, { x0: yard.x + 1, y0: yard.y + 1, x1: yard.x + yard.w - 1, y1: yard.y + yard.h - 1 }, 1, 60);
+  if (sp) addProp(m, 'bus', sp.x, sp.y, 7, 3, { c: '#d9a62b', v: 0, f: r() < 0.5 ? 1 : 0 });
+  for (let k = 0; k < 5; k++) { const s2 = findSpot(m, r, 1, 1, { x0: yard.x + 1, y0: yard.y + 1, x1: yard.x + yard.w - 1, y1: yard.y + yard.h - 1 }, 1, 40); if (s2) { placeItem(m, r, s2.x, s2.y, 'furn:bench'); reserve(m, s2.x, s2.y, 1, 1); } }
+  reserve(m, yard.x, yard.y, yard.w, yard.h);
+  scatterGreen(m, r, 0.04, 0.04, 2);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- церковь и кладбище -----
+function genChurch(m, r) {
+  const W = m.w, H = m.h;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.74);
+  const rdx = r.int(Math.floor(W * 0.35), Math.floor(W * 0.5));
+  groundRect(m, rdx, Math.floor(H * 0.55), 3, H, T.DIRT);
+  for (let y = Math.floor(H * 0.55); y < H; y++) { m.meta[MI(m, rdx, y)] |= 2; m.meta[MI(m, rdx + 2, y)] |= 2; }
+  reserve(m, rdx - 1, Math.floor(H * 0.55), 5, H); reserve(m, rdx - 3, H - 11, 9, 11);
+  const cw = 11, ch = 17, cx = rdx - 4, cy = 4;
+  const b = building(m, r, cx, cy, cw, ch, { wall: T.WALL, floor: T.WOOD, split: false, doors: 1, doorSides: ['s'], extDoor: 'open', windows: 8 });
+  makeDoor(m, b, cx + cw - 1, cy + 4, 'closed');
+  for (let yy = cy + 5; yy <= cy + ch - 4; yy += 2) for (const xx of [cx + 2, cx + 3, cx + 4, cx + cw - 5, cx + cw - 4, cx + cw - 3]) if (TP[m.tiles[MI(m, xx, yy)]].floor) placeItem(m, r, xx, yy, 'furn:pew');
+  addCont(m, r, cx + Math.floor(cw / 2), cy + 2, 'desk');
+  addCont(m, r, cx + 1, cy + 1, 'pantry'); addCont(m, r, cx + cw - 2, cy + 1, 'medcab');
+  const rightSp = W - 3 - (cx + cw + 2), leftSp = cx - 4;
+  const gw = Math.min(16, Math.max(rightSp, leftSp)), gh = 14, gx = rightSp >= leftSp ? cx + cw + 2 : cx - 2 - gw, gy = 5;
+  if (gw >= 8 && isFree(m, gx - 1, gy - 1, gw + 2, gh + 2)) {
+    for (let yy = gy; yy < gy + gh; yy++) for (let xx = gx; xx < gx + gw; xx++) {
+      const edge = xx === gx || yy === gy || xx === gx + gw - 1 || yy === gy + gh - 1;
+      if (edge) { if (!(yy === gy + gh - 1 && Math.abs(xx - (gx + gw / 2)) < 1.5)) { put(m, xx, yy, T.FENCE); m.meta[MI(m, xx, yy)] = 2; } }
+      else if ((xx - gx) % 2 === 1 && (yy - gy) % 3 === 1 && r() < 0.85) { put(m, xx, yy, T.GRAVE); m.meta[MI(m, xx, yy)] = r() < 0.5 ? 1 : 0; }
+    }
+    reserve(m, gx - 1, gy - 1, gw + 2, gh + 2);
+    // склеп-сторожка у кладбища
+    const kx = gx + Math.floor(gw / 2) - 2, ky = gy + gh + 1;
+    if (isFree(m, kx - 1, ky, 6, 5)) { const kb = building(m, r, kx, ky, 5, 4, { wall: T.WALL, floor: T.CONCRETE, split: false, doors: 1, doorSides: ['s'] }); furnish(m, r, kb, ['crate', 'medcab', 'pantry', 'toolbox'], 2); }
+  }
+  for (let k = 0; k < 2; k++) {
+    const sp = findSpot(m, r, 8, 6, { x0: 2, y0: 2, x1: W - 2, y1: H - 12 }, 2);
+    if (sp) { const hb = building(m, r, sp.x, sp.y, 8, 6, { wall: T.WWALL, floor: T.WOOD, minRoom: 3, maxDepth: 1, doors: 1, windows: 2 }); furnish(m, r, hb, ['fridge', 'pantry', 'furn:bed', 'locker', 'medcab', 'desk'], 5); }
+  }
+  const camp = { x0: 3, y0: cy + ch + 1, x1: W - 3, y1: H - 12 };
+  tents(m, r, camp, 3, '#7a7466', true);
+  tentStash(m, r, ['crate', 'foodcrate', 'medcab', 'pantry'], 0.8);
+  const fsp = findSpot(m, r, 1, 1, camp, 1);
+  if (fsp) { campfire(m, fsp.x, fsp.y); guard(m, fsp.x, fsp.y, 3); }
+  scatterGreen(m, r, 0.05, 0.04, 2);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- блокпост / военная часть -----
+function genCheckpoint(m, r) {
+  const W = m.w, H = m.h, big = m.v === 1;
+  baseGround(m, T.DIRT, T.GRASS, 6, 0.55);
+  const rx = Math.floor(W / 2) - 2;
+  groundRect(m, rx, 0, 4, H, T.ASPHALT);
+  for (let y = 0; y < H; y++) m.meta[MI(m, rx + 2, y)] |= 2;
+  reserve(m, rx - 1, 0, 6, H); reserve(m, rx - 3, H - 11, 10, 11);
+  const ly = Math.floor(H * (big ? 0.62 : 0.5));
+  if (big) {
+    const fx0 = 3, fy0 = 3, fx1 = W - 4, fy1 = ly;
+    for (let x = fx0; x <= fx1; x++) { put(m, x, fy0, T.WALL); if (x < rx || x > rx + 3) put(m, x, fy1, T.WALL); }
+    for (let y = fy0; y <= fy1; y++) { put(m, fx0, y, T.WALL); put(m, fx1, y, T.WALL); }
+    groundRect(m, fx0 + 1, fy0 + 1, fx1 - fx0 - 1, fy1 - fy0 - 1, T.CONCRETE);
+    reserve(m, fx0 - 1, fy0 - 1, fx1 - fx0 + 3, 2); reserve(m, fx0 - 1, fy1 - 1, fx1 - fx0 + 3, 3);
+    reserve(m, fx0 - 1, fy0, 2, fy1 - fy0); reserve(m, fx1, fy0, 2, fy1 - fy0);
+    for (const [tx, ty] of [[fx0 + 1, fy0 + 1], [fx1 - 2, fy0 + 1], [rx - 3, fy1 - 2], [rx + 5, fy1 - 2]]) { addProp(m, 'tower', tx, ty, 2, 2, { tall: true }); guard(m, tx, ty + 2, 2); }
+    const area = { x0: fx0 + 2, y0: fy0 + 2, x1: fx1 - 1, y1: fy1 - 2 };
+    let sp = findSpot(m, r, 20, 7, area, 1);
+    if (sp) { const bb = building(m, r, sp.x, sp.y, 20, 7, { wall: T.WALL, floor: T.CONCRETE, minRoom: 6, maxDepth: 1, doors: 2, windows: 5 }); for (const rm of bb.rooms) furnishRoom(m, r, rm, ['furn:bunk', 'furn:bunk', 'locker', 'ration'], Math.max(3, Math.round(rm.w * rm.h / 6))); guard(m, sp.x + 10, sp.y + 8, 3); }
+    sp = findSpot(m, r, 12, 8, area, 1);
+    if (sp) { const hq = building(m, r, sp.x, sp.y, 12, 8, { wall: T.WALL, floor: T.TILE, minRoom: 3, maxDepth: 2, doors: 2, windows: 4 }); const rooms = hq.rooms.slice().sort((a, c) => a.w * a.h - c.w * c.h); furnishRoom(m, r, rooms[0], ['armory', 'armory'], 2); for (const rm of rooms.slice(1)) furnishRoom(m, r, rm, ['desk', 'medcab', 'locker', 'ration'], 3); }
+    sp = findSpot(m, r, 12, 8, area, 1);
+    if (sp) { const wh = building(m, r, sp.x, sp.y, 12, 8, { wall: T.WALL, floor: T.CONCRETE, split: false, doors: 1, metal: true }); furnish(m, r, wh, ['ration', 'crate', 'ration', 'drum', 'armory'], 5); }
+    for (let k = 0; k < 3; k++) { const s2 = findSpot(m, r, 3, 6, area, 1, 60); if (s2) { const p = addCar(m, r, s2.x, s2.y, true, 'truck', 'ration', 0.8); p.c = '#4a5a3a'; } }
+    for (let k = 0; k < 3; k++) { const s2 = findSpot(m, r, 3, 4, area, 1, 60); if (s2) addProp(m, 'mtent', s2.x, s2.y, 3, 4, { c: '#4a5a3a' }); }
+    const cpts = findSpot(m, r, 2, 2, area, 1);
+    if (cpts) captive(m, r, cpts.x, cpts.y);
+  }
+  // линия мешков с песком поперёк дороги и гнёзда
+  const sy = big ? ly + 6 : ly;
+  for (let x = rx - 6; x <= rx + 9; x++) if (x < rx + 1 || x > rx + 2) { put(m, x, sy, T.SANDBAG); }
+  for (const nx of [rx - 9, rx + 11]) for (let k = 0; k < 3; k++) { put(m, nx + k, sy - 2, T.SANDBAG); put(m, nx, sy - 2 + k, T.SANDBAG); put(m, nx + 2, sy - 2 + k, T.SANDBAG); }
+  reserve(m, rx - 10, sy - 3, 24, 4);
+  guard(m, rx + 1, sy - 2, 3);
+  if (!big) {
+    for (const tx of [rx - 4, rx + 6]) if (isFree(m, tx, sy - 5, 2, 2)) { addProp(m, 'tower', tx, sy - 5, 2, 2, { tall: true }); guard(m, tx, sy - 3, 1); }
+    const camp = { x0: 3, y0: 3, x1: W - 3, y1: sy - 4 };
+    for (let k = 0; k < 4; k++) { const s2 = findSpot(m, r, 3, 4, camp, 1, 60); if (s2) { addProp(m, 'mtent', s2.x, s2.y, 3, 4, { c: '#4a5a3a' }); if (inb(m, s2.x + 3, s2.y + 1) && !m.resv[MI(m, s2.x + 3, s2.y + 1)]) { addCont(m, r, s2.x + 3, s2.y + 1, 'ration'); reserve(m, s2.x + 3, s2.y + 1, 1, 1); } guard(m, s2.x + 1, s2.y + 5, 1); } }
+    const bsp = findSpot(m, r, 6, 5, camp, 1);
+    if (bsp) { const bk = building(m, r, bsp.x, bsp.y, 6, 5, { wall: T.WALL, floor: T.CONCRETE, split: false, doors: 1, metal: true }); furnish(m, r, bk, ['armory', 'ration', 'medcab'], 3); }
+    for (let k = 0; k < 2; k++) { const s2 = findSpot(m, r, 3, 6, camp, 1, 60); if (s2) { const p = addCar(m, r, s2.x, s2.y, true, 'truck', 'ration', 0.7); p.c = '#4a5a3a'; } }
+    fenceLine(m, 2, sy - 1, rx - 11, sy - 1, 1, 9); fenceLine(m, rx + 14, sy - 1, W - 3, sy - 1, 1, 9);
+  }
+  scatterGreen(m, r, 0.02, 0.05, 2);
+  placeStart(m, r, rx, H - 7);
+}
+
+// ----- турбаза / стан Паствы -----
+function genForest(m, r) {
+  const W = m.w, H = m.h, cult = m.v === 1;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.72);
+  const rdx = r.int(Math.floor(W * 0.4), Math.floor(W * 0.55)), ry = Math.floor(H * 0.45);
+  groundRect(m, rdx, ry, 3, H - ry, T.DIRT);
+  for (let y = ry; y < H; y++) { m.meta[MI(m, rdx, y)] |= 2; m.meta[MI(m, rdx + 2, y)] |= 2; }
+  reserve(m, rdx - 1, ry, 5, H - ry); reserve(m, rdx - 3, H - 11, 9, 11);
+  if (cult) {
+    const cx = rdx + 1, cy = Math.floor(H * 0.3), rad = 10;
+    for (let y = cy - rad; y <= cy + rad; y++) for (let x = cx - rad; x <= cx + rad; x++) if (inb(m, x, y) && (x - cx) ** 2 + (y - cy) ** 2 <= rad * rad) setGround(m, x, y, T.DIRT);
+    groundRect(m, rdx, cy, 3, ry - cy, T.DIRT);
+    campfire(m, cx, cy); reserve(m, cx - 1, cy - 1, 3, 3);
+    addCont(m, r, cx, cy - 3, 'desk'); reserve(m, cx, cy - 3, 1, 1);
+    for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2, tx = Math.round(cx + Math.cos(a) * 6) - 1, ty = Math.round(cy + Math.sin(a) * 6) - 1; if (isFree(m, tx, ty, 2, 2)) addProp(m, 'tent', tx, ty, 2, 2, { c: r.pick(['#7a7466', '#6a645a', '#8a8070']), round: 1 }); }
+    for (let k = 0; k < 6; k++) { const a = r() * Math.PI * 2, tx = Math.round(cx + Math.cos(a) * 3.5), ty = Math.round(cy + Math.sin(a) * 3.5); if (isFree(m, tx, ty, 1, 1)) { addCont(m, r, tx, ty, r.pick(['pantry', 'crate', 'medcab', 'drum'])); reserve(m, tx, ty, 1, 1); } }
+    tentStash(m, r, ['crate', 'foodcrate', 'medcab', 'pantry', 'drum'], 0.9);
+    for (let k = 0; k < 3; k++) {
+      const sp = findSpot(m, r, 5, 4, { x0: 2, y0: 2, x1: W - 2, y1: H - 12 }, 2, 80);
+      if (sp) { const hb = building(m, r, sp.x, sp.y, 5, 4, { wall: T.WWALL, floor: T.WOOD, split: false, doors: 1, windows: 1 }); furnish(m, r, hb, ['pantry', 'crate', 'medcab', 'furn:bed'], 3); }
+    }
+    const caps = findSpot(m, r, 1, 1, { x0: cx - 8, y0: cy - 8, x1: cx + 8, y1: cy + 8 }, 1, 80);
+    if (caps) captive(m, r, caps.x, caps.y);
+    guard(m, cx, cy, 5);
+    reserve(m, cx - rad, cy - rad, rad * 2 + 1, rad * 2 + 1);
+  } else {
+    const lsp = findSpot(m, r, 14, 9, { x0: 2, y0: 2, x1: W - 2, y1: H - 14 }, 1);
+    if (lsp) { for (let yy = 0; yy < 9; yy++) for (let xx = 0; xx < 14; xx++) if (((xx - 6.5) / 7) ** 2 + ((yy - 4) / 4.5) ** 2 < 1) put(m, lsp.x + xx, lsp.y + yy, T.WATER); reserve(m, lsp.x, lsp.y, 14, 9); }
+    for (let k = 0; k < 6; k++) {
+      const sp = findSpot(m, r, 6, 5, { x0: 2, y0: 2, x1: W - 2, y1: H - 12 }, 2, 80);
+      if (!sp) continue;
+      const b = building(m, r, sp.x, sp.y, 6, 5, { wall: T.WWALL, floor: T.WOOD, split: false, doors: 1, windows: 2 });
+      furnish(m, r, b, ['furn:bed', 'fridge', 'pantry', 'locker', 'desk'], 4);
+    }
+    tents(m, r, { x0: 3, y0: 3, x1: W - 3, y1: H - 12 }, 3);
+    tentStash(m, r, ['crate', 'foodcrate', 'drum'], 0.6);
+    const fsp = findSpot(m, r, 1, 1, { x0: 3, y0: 3, x1: W - 3, y1: H - 12 }, 2);
+    if (fsp) { campfire(m, fsp.x, fsp.y); for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2]]) if (isFree(m, fsp.x + dx, fsp.y + dy, 1, 1)) { placeItem(m, r, fsp.x + dx, fsp.y + dy, 'furn:bench'); reserve(m, fsp.x + dx, fsp.y + dy, 1, 1); } }
+    const csp = findSpot(m, r, 2, 4, { x0: 2, y0: 2, x1: W - 2, y1: H - 12 }, 1);
+    if (csp) addCar(m, r, csp.x, csp.y, true, 'car', 'trunk', 0.8);
+  }
+  scatterGreen(m, r, 0.12, 0.06, 3);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- мотель -----
+function genMotel(m, r) {
+  const W = m.w, H = m.h;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.7);
+  const ry = H - 9;
+  groundRect(m, 0, ry, W, 3, T.ASPHALT);
+  for (let x = 0; x < W; x++) m.meta[MI(m, x, ry + 1)] |= 4;
+  const rdx = r.int(5, 10);
+  groundRect(m, rdx, ry, 3, H - ry, T.ASPHALT);
+  reserve(m, 0, ry - 1, W, 4); reserve(m, rdx - 3, H - 11, 9, 11);
+  const py = ry - 12;
+  groundRect(m, 3, py, W - 6, 11, T.ASPHALT);
+  for (let x = 5; x < W - 5; x += 3) m.meta[MI(m, x, py + 1)] |= 8;
+  const n = r.int(6, 7), bw = n * 5 + 1, bx = 3, by = py - 8;
+  const b = { x: bx, y: by, w: bw, h: 8, o: { floor: T.WOOD }, rooms: [], doors: [] };
+  for (let yy = by; yy < by + 8; yy++) for (let xx = bx; xx < bx + bw; xx++) {
+    const i = MI(m, xx, yy);
+    m.ground[i] = T.WOOD;
+    m.tiles[i] = (xx === bx || yy === by || xx === bx + bw - 1 || yy === by + 7 || (xx - bx) % 5 === 0) ? T.BRICK : T.WOOD;
+  }
+  for (let k = 0; k < n; k++) {
+    const x0 = bx + k * 5 + 1, rm = { x: x0, y: by + 1, w: 4, h: 6 };
+    b.rooms.push(rm);
+    const v = r();
+    makeDoor(m, b, x0 + 1, by + 7, v < 0.5 ? 'closed' : v < 0.8 ? 'open' : 'broken');
+    put(m, x0 + 3, by + 7, T.WINDOW);
+    placeItem(m, r, x0, by + 1, 'furn:bed'); placeItem(m, r, x0 + 1, by + 1, 'furn:bed');
+    furnishRoom(m, r, rm, ['fridge', 'locker', 'desk', 'medcab'], 2);
+  }
+  m.buildings.push(b);
+  reserve(m, bx - 1, by - 1, bw + 2, 10);
+  const ob = building(m, r, bx + bw + 2, by + 1, 8, 6, { wall: T.BRICK, floor: T.TILE, split: false, doors: 1, doorSides: ['s'], windows: 2 });
+  furnishRoom(m, r, ob.rooms[0], ['register', 'desk', 'locker', 'vending'], 4);
+  const psp = findSpot(m, r, 9, 6, { x0: 2, y0: 2, x1: W - 2, y1: by - 1 }, 1, 80) || findSpot(m, r, 9, 6, { x0: bx + bw + 2, y0: 2, x1: W - 2, y1: py }, 1, 80);
+  if (psp) { groundRect(m, psp.x, psp.y, 9, 6, T.SIDEWALK); for (let yy = 1; yy < 5; yy++) for (let xx = 1; xx < 8; xx++) put(m, psp.x + xx, psp.y + yy, T.WATER); reserve(m, psp.x, psp.y, 9, 6); }
+  for (let k = 0; k < 6; k++) { const x = r.int(4, W - 6); let ok = true; for (let yy = py + 2; yy < py + 5; yy++) for (let xx = x; xx < x + 2; xx++) if (m.tiles[MI(m, xx, yy)] !== T.ASPHALT || m.resv[MI(m, xx, yy)]) ok = false; if (ok) { const p = addProp(m, 'car', x, py + 2, 2, 3, { c: r.pick(CAR_COLORS), v: 1, f: 0 }); if (r() < 0.5) m.cont[MI(m, p.x, p.y + 2)] = { k: 'trunk', loot: rollLoot(r, CONT.trunk.loot), s: 0 }; } }
+  const tsp = findSpot(m, r, 3, 5, { x0: 3, y0: py, x1: W - 3, y1: py + 11 }, 0, 40);
+  if (tsp) addProp(m, 'trailer', tsp.x, tsp.y, 3, 5, { c: '#d6d2c4', v: 1 });
+  guard(m, bx + Math.floor(bw / 2), py + 5, 4);
+  reserve(m, 3, py, W - 6, 11);
+  scatterGreen(m, r, 0.04, 0.04, 2);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- колония -----
+function genPrison(m, r) {
+  const W = m.w, H = m.h;
+  baseGround(m, T.DIRT, T.GRASS, 6, 0.6);
+  const gx = Math.floor(W / 2) - 2;
+  groundRect(m, gx, H - 12, 4, 12, T.ASPHALT);
+  reserve(m, gx - 3, H - 11, 10, 11);
+  const ring = (mg, gap) => {
+    const x0 = mg, y0 = mg, x1 = W - 1 - mg, y1 = H - 11 - mg;
+    for (let x = x0; x <= x1; x++) { put(m, x, y0, T.FENCE); m.meta[MI(m, x, y0)] = 1; if (x < gap || x > gap + 3) { put(m, x, y1, T.FENCE); m.meta[MI(m, x, y1)] = 1; } }
+    for (let y = y0; y <= y1; y++) for (const x of [x0, x1]) { put(m, x, y, T.FENCE); m.meta[MI(m, x, y)] = 1; }
+    reserve(m, x0 - 1, y0 - 1, x1 - x0 + 3, 3); reserve(m, x0 - 1, y1 - 1, x1 - x0 + 3, 3);
+    reserve(m, x0 - 1, y0, 3, y1 - y0); reserve(m, x1 - 1, y0, 3, y1 - y0);
+    return [x0, y0, x1, y1];
+  };
+  const [ox0, oy0, ox1, oy1] = ring(2, gx);
+  const [ix0, iy0, ix1, iy1] = ring(5, gx);
+  groundRect(m, gx, oy1, 4, H - oy1, T.ASPHALT);
+  groundRect(m, ix0 + 1, iy0 + 1, ix1 - ix0 - 1, iy1 - iy0 - 1, T.ASPHALT);
+  for (const [tx, ty] of [[ox0 + 1, oy0 + 1], [ox1 - 2, oy0 + 1], [ox0 + 1, oy1 - 2], [ox1 - 2, oy1 - 2]]) addProp(m, 'tower', tx, ty, 2, 2, { tall: true });
+  const area = { x0: ix0 + 2, y0: iy0 + 2, x1: ix1 - 1, y1: iy1 - 2 };
+  const left = r() < 0.5, bx0 = left ? ix0 + 3 : ix1 - 3 - 28, ox = left ? ix0 + 3 + 28 + 4 : ix0 + 3;
+  for (let k = 0; k < 2; k++) {
+    const sy = iy0 + 3 + k * 15;
+    if (sy + 11 > iy1 - 2) break;
+    const cb = corridorBuilding(m, r, bx0, sy, 28, 11, { wall: T.WALL, floor: T.CONCRETE, rw: [3, 4], entrance: true, metal: true, cellDoor: 'open' });
+    for (const rm of [...cb.north, ...cb.south]) { if (rm.lobby) continue; placeItem(m, r, rm.x, rm.y + (rm.south ? rm.h - 1 : 0), 'furn:cot'); if (r() < 0.55) addCont(m, r, rm.x + rm.w - 1, rm.y + (rm.south ? rm.h - 1 : 0), r() < 0.8 ? 'locker' : 'pantry'); }
+  }
+  let sp = isFree(m, ox - 1, iy0 + 2, 16, 11) ? { x: ox, y: iy0 + 3 } : findSpot(m, r, 14, 9, area, 1);
+  if (sp) { const ad = building(m, r, sp.x, sp.y, 14, 9, { wall: T.BRICK, floor: T.TILE, minRoom: 3, maxDepth: 2, doors: 2, windows: 4 }); const rooms = ad.rooms.slice().sort((a, c) => a.w * a.h - c.w * c.h); furnishRoom(m, r, rooms[0], ['armory', 'evidence'], 2); for (const rm of rooms.slice(1)) furnishRoom(m, r, rm, ['desk', 'medcab', 'locker', 'shelf'], 3); }
+  sp = isFree(m, ox - 1, iy0 + 15, 14, 10) ? { x: ox, y: iy0 + 16 } : findSpot(m, r, 12, 8, area, 1);
+  if (sp) { const cn = building(m, r, sp.x, sp.y, 12, 8, { wall: T.WALL, floor: T.TILE, split: false, doors: 2, windows: 3 }); furnishRoom(m, r, cn.rooms[0], ['fridge', 'pantry', 'foodcrate', 'furn:table', 'furn:table', 'furn:table'], 8); }
+  for (let k = 0; k < 6; k++) { const s2 = findSpot(m, r, 1, 1, area, 1, 40); if (s2) { placeItem(m, r, s2.x, s2.y, 'furn:bench'); reserve(m, s2.x, s2.y, 1, 1); } }
+  scatterGreen(m, r, 0.015, 0.03, 2);
+  placeStart(m, r, gx, H - 7);
+}
+
+// ----- лагерь группировки -----
+function genRaidCamp(m, r) {
+  const W = m.w, H = m.h, big = m.v === 1;
+  baseGround(m, T.DIRT, T.GRASS, 6, 0.6);
+  const cw = big ? 36 : 30, ch = big ? 30 : 26, cx0 = Math.floor((W - cw) / 2), cy0 = 3;
+  const gate = cx0 + Math.floor(cw / 2) - 1, rdx = gate;
+  groundRect(m, rdx, cy0 + ch, 3, H - cy0 - ch, T.DIRT);
+  reserve(m, rdx - 1, cy0 + ch - 1, 5, H - cy0 - ch + 1); reserve(m, rdx - 3, H - 11, 9, 11);
+  // баррикада: забор, мешки и машины по кругу, ворота снизу
+  for (let x = cx0; x < cx0 + cw; x++) for (const y of [cy0, cy0 + ch - 1]) {
+    if (y === cy0 + ch - 1 && x >= gate && x < gate + 3) continue;
+    put(m, x, y, (x + y) % 7 < 2 ? T.SANDBAG : T.FENCE); m.meta[MI(m, x, y)] = big ? 1 : 0;
+  }
+  for (let y = cy0; y < cy0 + ch; y++) for (const x of [cx0, cx0 + cw - 1]) { put(m, x, y, (x + y) % 6 < 2 ? T.SANDBAG : T.FENCE); m.meta[MI(m, x, y)] = big ? 1 : 0; }
+  reserve(m, cx0 - 1, cy0 - 1, cw + 2, 2); reserve(m, cx0 - 1, cy0 + ch - 2, cw + 2, 3);
+  reserve(m, cx0 - 1, cy0, 2, ch); reserve(m, cx0 + cw - 2, cy0, 3, ch);
+  const area = { x0: cx0 + 2, y0: cy0 + 2, x1: cx0 + cw - 2, y1: cy0 + ch - 3 };
+  const sp = findSpot(m, r, big ? 14 : 9, big ? 9 : 7, area, 1);
+  if (sp) {
+    const mb = building(m, r, sp.x, sp.y, big ? 14 : 9, big ? 9 : 7, { wall: big ? T.BRICK : T.WWALL, floor: big ? T.CONCRETE : T.WOOD, minRoom: 3, maxDepth: big ? 2 : 1, doors: 2, windows: 3 });
+    const rooms = mb.rooms.slice().sort((a, c) => a.w * a.h - c.w * c.h);
+    furnishRoom(m, r, rooms[0], ['armory', 'ration', 'foodcrate'], 3);
+    for (const rm of rooms.slice(1)) furnishRoom(m, r, rm, ['foodcrate', 'ration', 'furn:bed', 'crate', 'drum', 'medcab'], 4);
+    guard(m, sp.x + 3, sp.y + (big ? 10 : 8), 2);
+  }
+  tents(m, r, area, big ? 5 : 4);
+  tentStash(m, r, ['crate', 'foodcrate', 'ration', 'drum', 'medcab'], 0.7);
+  const fsp = findSpot(m, r, 1, 1, area, 2);
+  if (fsp) { campfire(m, fsp.x, fsp.y); guard(m, fsp.x, fsp.y, 3); }
+  if (isFree(m, gate - 4, cy0 + ch - 5, 2, 2)) addProp(m, 'tower', gate - 4, cy0 + ch - 5, 2, 2, { tall: true });
+  guard(m, gate + 1, cy0 + ch - 3, 2);
+  for (let k = 0; k < 2; k++) { const s2 = findSpot(m, r, 3, 6, area, 1, 60); if (s2) addCar(m, r, s2.x, s2.y, true, 'truck', 'ration', 0.7); }
+  for (let k = 0; k < 6; k++) { const s2 = findSpot(m, r, 1, 1, area, 1, 40); if (s2) { addCont(m, r, s2.x, s2.y, r.pick(['crate', 'drum', 'ration', 'pallet'])); reserve(m, s2.x, s2.y, 1, 1); } }
+  const nc = big ? 2 : 1;
+  for (let k = 0; k < nc; k++) { const s2 = findSpot(m, r, 1, 1, area, 1, 80); if (s2) captive(m, r, s2.x, s2.y); }
+  scatterGreen(m, r, 0.04, 0.04, 2);
+  placeStart(m, r, rdx, H - 7);
+}
+
+// ----- карта базы: насосная станция и всё, что построено -----
+const BASE_W = 40, BASE_H = 36;
+function genBase(st) {
+  const W = BASE_W, H = BASE_H, seed = st.seed || 777;
+  const m = newMap(W, H, seed), r = makeRng(seed), B = st.build;
+  m.v = 0; m.loc = 'base'; m.isBase = true;
+  baseGround(m, T.GRASS, T.DIRT, 6, 0.62);
+  const fx0 = 4, fy0 = 3, fx1 = 35, fy1 = 30, gx = 19;
+  groundRect(m, fx0 + 1, fy0 + 1, fx1 - fx0 - 1, fy1 - fy0 - 1, T.DIRT);
+  groundRect(m, gx, fy1, 3, H - fy1, T.DIRT);
+  for (let y = fy1; y < H; y++) { m.meta[MI(m, gx, y)] |= 2; m.meta[MI(m, gx + 2, y)] |= 2; }
+  groundRect(m, gx, 14, 3, fy1 - 14, T.DIRT);
+  // насосная станция
+  const sb = building(m, r, 15, 5, 12, 9, { wall: T.WALL, floor: T.CONCRETE, minRoom: 4, maxDepth: 1, doors: 0, windows: 0 });
+  makeDoor(m, sb, 20, 13, 'open'); makeDoor(m, sb, 26, 9, 'closed');
+  for (const [x, y] of [[17, 5], [23, 5], [15, 9], [18, 13], [24, 13]]) if (!nearDoor(m, x, y, 1)) put(m, x, y, T.WINDOW);
+  const rooms = sb.rooms.slice().sort((a, c) => c.w * c.h - a.w * a.h);
+  furnishRoom(m, r, rooms[0], ['furn:bunk', 'furn:bunk', 'furn:table', 'locker', 'shelf'], 6);
+  for (const rm of rooms.slice(1)) furnishRoom(m, r, rm, ['shelf', 'crate', 'drum', 'locker', 'fridge'], 3);
+  // периметр
+  if (B.walls >= 1) {
+    const wallT = B.walls >= 3 ? T.WALL : T.FENCE;
+    for (let x = fx0; x <= fx1; x++) for (const y of [fy0, fy1]) { if (y === fy1 && x >= gx && x <= gx + 2) continue; put(m, x, y, wallT); m.meta[MI(m, x, y)] = 0; }
+    for (let y = fy0; y <= fy1; y++) for (const x of [fx0, fx1]) { put(m, x, y, wallT); m.meta[MI(m, x, y)] = 0; }
+    if (B.walls >= 3) for (const x of [gx - 1, gx + 3]) put(m, x, fy1, T.WALL);
+  } else {
+    for (let x = fx0 + 1; x < fx1; x += 1) for (const y of [fy0, fy1]) { if (y === fy1 && x >= gx - 1 && x <= gx + 3) continue; if (r() < 0.22) put(m, x, y, r() < 0.5 ? T.CRATE : T.DRUM); }
+  }
+  if (B.walls >= 2) {
+    for (let x = fx0 - 2; x <= fx1 + 2; x++) for (const y of [fy0 - 2, fy1 + 2]) { if (!inb(m, x, y) || (y === fy1 + 2 && x >= gx - 1 && x <= gx + 3)) continue; put(m, x, y, T.FENCE); m.meta[MI(m, x, y)] = 1; }
+    for (let y = fy0 - 2; y <= fy1 + 2; y++) for (const x of [fx0 - 2, fx1 + 2]) { if (inb(m, x, y)) { put(m, x, y, T.FENCE); m.meta[MI(m, x, y)] = 1; } }
+    for (const x of [gx - 2, gx + 4]) for (let k = 0; k < 2; k++) put(m, x, fy1 - 1 - k, T.SANDBAG);
+    for (let k = -1; k <= 3; k++) if (k < 0 || k > 2) put(m, gx + k, fy1 - 3, T.SANDBAG);
+  }
+  if (B.walls >= 3) { addProp(m, 'tower', fx0 + 1, fy1 - 3, 2, 2, { tall: true }); addProp(m, 'tower', fx1 - 2, fy1 - 3, 2, 2, { tall: true }); addProp(m, 'tower', fx0 + 1, fy0 + 1, 2, 2, { tall: true }); }
+  // огород — грядки слева
+  const beds = [2, 2, 4, 6][B.garden] - (B.garden ? 0 : 1);
+  for (let k = 0; k < beds; k++) {
+    const x = 6 + (k % 2) * 4, y = 7 + Math.floor(k / 2) * 3;
+    for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 3; xx++) { setGround(m, x + xx, y + yy, T.DIRT); put(m, x + xx, y + yy, B.garden ? T.CROP : T.DIRT); m.meta[MI(m, x + xx, y + yy)] = k % 2; }
+  }
+  if (B.garden >= 3) addCont(m, r, 13, 7, 'seeds');
+  // вода — бочки и башня справа
+  const nd = [1, 2, 4, 6][B.water];
+  for (let k = 0; k < nd; k++) put(m, 29 + (k % 3) * 2, 6 + Math.floor(k / 3) * 2, T.DRUM);
+  if (B.water >= 2) addProp(m, 'wtower', 30, 10, 2, 2, { tall: true });
+  // рация
+  if (B.radio >= 1) addProp(m, 'mast', 27, 5, 1, 1, { tall: true, hgt: B.radio >= 2 ? 6 : 4 });
+  // лазарет слева внизу
+  if (B.infirmary >= 1) {
+    addProp(m, 'medtent', 7, 19, 3, 3, { c: '#d6d2c4' });
+    put(m, 6, 23, T.FURN); m.meta[MI(m, 6, 23)] = FURN_V.cot;
+    if (B.infirmary >= 2) { put(m, 8, 23, T.FURN); m.meta[MI(m, 8, 23)] = FURN_V.cot; put(m, 11, 19, T.MEDCAB); }
+    if (B.infirmary >= 3) { put(m, 10, 23, T.FURN); m.meta[MI(m, 10, 23)] = FURN_V.cot; put(m, 11, 20, T.MEDCAB); }
+  }
+  // мастерская справа внизу
+  if (B.workshop >= 1) { put(m, 28, 18, T.BENCH); put(m, 29, 18, T.CRATE); put(m, 27, 18, T.CRATE); }
+  if (B.workshop >= 2) { const wb = building(m, r, 27, 22, 7, 5, { wall: T.WWALL, floor: T.CONCRETE, split: false, doors: 0 }); makeDoor(m, wb, 29, 22, 'open'); put(m, 28, 24, T.BENCH); put(m, 32, 24, T.DRUM); put(m, 32, 23, T.SHELF); }
+  if (B.workshop >= 3) addProp(m, 'machine', 31, 17, 3, 2, { c: '#5d6b70' });
+  // костёр, лавки, машина
+  campfire(m, 20, 20);
+  for (const [x, y] of [[18, 20], [22, 20]]) { put(m, x, y, T.FURN); m.meta[MI(m, x, y)] = FURN_V.bench; }
+  addProp(m, 'car', 15, 25, 2, 3, { c: '#8a3424', v: 1, f: 1 });
+  for (const k in m.cont) m.cont[k].loot = {};
+  m.start = { x: 20, y: 22 };
+  m.evac = [];
+  m.idle = [[19, 19], [21, 19], [19, 21], [21, 21], [20, 15], [12, 12], [26, 19], [11, 22], [24, 23], [16, 17]];
+  m.gate = { x: gx + 1, y: fy1 };
   const reach = finalize(m);
   return { m, reach };
 }
@@ -1602,7 +2370,7 @@ const WAVE_EVERY = 7;
 const LURE_RANGE = 8;
 
 function spd(ms) { return ms * [1.6, 1, 0.5, 0][CFG.speed ?? 1]; }
-function timeOfDay(m) { return m.turn <= 14 ? 0 : m.turn <= 24 ? 1 : 2; }
+function timeOfDay(m) { return m.tod ?? (m.turn <= 14 ? 0 : m.turn <= 24 ? 1 : 2); }
 function sightR(m) { return [9, 7, 5][timeOfDay(m)]; }
 function liveUnits(m) { return m.units.filter(u => !u.dead && !u.evac); }
 function unitAt(m, x, y) { return m.units.find(u => u.x === x && u.y === y && !u.dead && !u.evac); }
@@ -1798,9 +2566,15 @@ function perceive(m, z) {
     if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 2.5);
     if ((d <= 1.5 || (d <= sr && los(m, z, u))) && d < bd) { bd = d; best = u; }
   }
+  for (const h of m.zombies) {
+    if (!isHuman(h) || isFlock(h) || h.hp <= 0) continue;
+    const d = edist(z.x, z.y, h.x, h.y);
+    if (d + 0.5 < bd && (d <= 1.5 || (d <= t.sight - tod && los(m, z, h)))) { bd = d + 0.5; best = h; }
+  }
   if (best) {
     const was = z.state;
-    z.state = 'chase'; z.target = best.id; z.tx = best.x; z.ty = best.y;
+    z.state = 'chase'; z.tx = best.x; z.ty = best.y;
+    if (best.type) { z.tz = best.id; z.target = 0; } else { z.target = best.id; z.tz = 0; }
     if (was !== 'chase' && zVisible(m, z) && chance(0.5)) Sfx.play('groan', { x: z.x, y: z.y, fall: 14 });
     return was !== 'chase';
   }
@@ -1862,34 +2636,56 @@ async function zombieAttack(m, z, u) {
   } else { FX.text(u.x, u.y, 'увернулся', '#cfc6ae'); knock(u, z.x, z.y, 0.1); }
   await sleep(spd(260));
 }
+async function zombieAttackH(m, z, h) {
+  const t = ZT[z.type], show = m.vis[MI(m, z.x, z.y)] || m.vis[MI(m, h.x, h.y)];
+  if (show) { Sfx.play('zswipe', { x: z.x, y: z.y }); await swing(z, h.x, h.y, 500); }
+  if (rnd() < t.acc) {
+    const d = rint(t.dmg[0], t.dmg[1]);
+    if (show && rnd() < 0.5) Sfx.play('hurt', { x: h.x, y: h.y, vol: 0.7 });
+    damageZombie(m, h, d, z);
+  }
+  if (show) await sleep(spd(200));
+}
 function killUnit(m, u) {
   u.dead = true; u.hp = 0; u.ow = null;
   if (m.uocc) m.uocc[MI(m, u.x, u.y)] = 0;
-  m.decals.push({ x: u.x, y: u.y, k: 'ucorpse', r: rnd(), f: u.f ?? 2, t0: performance.now(), u: { id: u.sid, name: u.name, g: u.g, color: u.color, melee: u.melee, ranged: u.ranged, trait: u.trait } });
+  m.decals.push({ x: u.x, y: u.y, k: 'ucorpse', r: rnd(), f: u.f ?? 2, t0: performance.now(), rise: m.isBase ? 0 : m.turn + rint(2, 3), u: { id: u.sid, name: u.name, g: u.g, color: u.color, melee: u.melee, ranged: u.ranged, trait: u.trait } });
   R.until = Math.max(R.until, performance.now() + 700);
   HUD.log(`${u.name} ${gv(u, 'погиб', 'погибла')}.`, 'bad');
   Sfx.play('death'); vibrate(250);
-  for (const z of m.zombies) if (z.target === u.id) { z.state = 'investigate'; z.tx = u.x; z.ty = u.y; }
+  for (const z of m.zombies) if (z.target === u.id && !z.tz) { z.state = 'investigate'; z.tx = u.x; z.ty = u.y; }
   if (TAC.sel === u.id) { const n = liveUnits(m)[0]; TAC.sel = n ? n.id : 0; }
 }
-function damageZombie(m, z, d, u) {
+// Урон зомби или человеку из группировки; src — кто бил (боец, зомби или человек)
+function damageZombie(m, z, d, src, brain) {
   z.hp -= d;
+  const show = m.vis[MI(m, z.x, z.y)];
   z.hitT = performance.now(); R.until = Math.max(R.until, z.hitT + 280);
-  FX.blood(z.x, z.y, d > 6 ? 14 : 9);
-  FX.text(z.x, z.y, '−' + d, '#ffd27a');
-  if (z.hp <= 0) { killZombie(m, z, u); return true; }
-  if (z.state !== 'chase') { z.state = 'chase'; z.target = u.id; z.tx = u.x; z.ty = u.y; }
-  if (u) knock(z, u.x, u.y, 0.18);
-  Sfx.play('flesh', { x: z.x, y: z.y });
+  if (show) { FX.blood(z.x, z.y, d > 6 ? 14 : 9); FX.text(z.x, z.y, '−' + d, '#ffd27a'); }
+  const byUnit = src && !src.type;
+  if (z.hp <= 0) { killZombie(m, z, byUnit ? src : null, brain); return true; }
+  if (src) {
+    if (byUnit) { if (z.state !== 'chase' || isHuman(z)) { z.state = 'chase'; z.target = src.id; z.tz = 0; z.tx = src.x; z.ty = src.y; } }
+    else if (isHuman(z) !== isHuman(src) && (z.state !== 'chase' || !z.tz)) { z.state = 'chase'; z.tz = src.id; z.target = 0; z.tx = src.x; z.ty = src.y; }
+    knock(z, src.x, src.y, 0.18);
+  }
+  if (show) Sfx.play('flesh', { x: z.x, y: z.y });
   return false;
 }
-function killZombie(m, z, u) {
+function killZombie(m, z, u, brain) {
   m.zombies = m.zombies.filter(o => o !== z);
   if (m.zocc) m.zocc[MI(m, z.x, z.y)] = 0;
-  m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd(), zt: z.type, zid: z.id, f: z.f ?? 2, t0: performance.now() });
+  const hum = isHuman(z);
+  m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd(), zt: z.type, zid: z.id, rf: z.rf, f: z.f ?? 2, t0: performance.now(), rise: hum && !brain ? m.turn + rint(2, 3) : 0 });
   R.until = Math.max(R.until, performance.now() + 700);
   if (u) { u.kills++; m.kills++; }
-  Sfx.play('zdie', { x: z.x, y: z.y });
+  if (hum) {
+    dropBody(m, z);
+    m.hkills = m.hkills || {};
+    const f = ZT[z.type].fac; m.hkills[f] = (m.hkills[f] || 0) + 1;
+    if (m.vis[MI(m, z.x, z.y)]) { Sfx.play('death', { x: z.x, y: z.y }); if (!brain) HUD.log(`${ZT[z.type].name} убит. Если не добить — встанет.`, 'warn'); }
+  } else Sfx.play('zdie', { x: z.x, y: z.y });
+  for (const o of m.zombies) if (o.tz === z.id) { o.tz = 0; o.state = 'investigate'; o.tx = z.x; o.ty = z.y; }
 }
 async function overwatchCheck(m, z) {
   let fired = false;
@@ -1906,7 +2702,7 @@ async function overwatchCheck(m, z) {
       await swing(u, z.x, z.y);
       const w = WEAP[u.melee];
       Sfx.play(MELEE_SND[u.melee] || 'hit_bat', { x: z.x, y: z.y });
-      damageZombie(m, z, rint(w.dmg[0], w.dmg[1]) + u.meleeB, u);
+      damageZombie(m, z, rint(w.dmg[0], w.dmg[1]) + u.meleeB, u, true);
       noise(m, u.x, u.y, w.noise);
       await sleep(spd(120));
     }
@@ -1914,6 +2710,7 @@ async function overwatchCheck(m, z) {
   return fired;
 }
 async function zombieAct(m, z) {
+  if (isHuman(z)) return humanAct(m, z);
   const t = ZT[z.type];
   z.ap = t.ap + (timeOfDay(m) === 2 && z.type !== 'brute' ? 1 : 0);
   perceive(m, z);
@@ -1924,9 +2721,9 @@ async function zombieAct(m, z) {
   for (let guard = 0; z.ap > 0 && z.hp > 0 && guard < 30; guard++) {
     let tx, ty;
     if (z.state === 'chase') {
-      const u = m.units.find(o => o.id === z.target && !o.dead && !o.evac);
-      if (!u) { z.state = 'investigate'; continue; }
-      if (adjOK(m, z.x, z.y, u.x, u.y)) { await zombieAttack(m, z, u); z.ap = 0; break; }
+      const u = z.tz ? m.zombies.find(o => o.id === z.tz && o.hp > 0) : m.units.find(o => o.id === z.target && !o.dead && !o.evac);
+      if (!u) { z.state = 'investigate'; z.tz = 0; continue; }
+      if (adjOK(m, z.x, z.y, u.x, u.y)) { if (z.tz) await zombieAttackH(m, z, u); else await zombieAttack(m, z, u); z.ap = 0; break; }
       tx = u.x; ty = u.y;
     } else if (z.state === 'investigate') {
       if (cheb(z.x, z.y, z.tx, z.ty) <= 1) { z.state = 'idle'; break; }
@@ -1988,6 +2785,7 @@ function afterAction() {
   const m = TAC.m;
   if (!m) return;
   if (!liveUnits(m).length) { finishMission(); return; }
+  if (m.siege && m.siege.spawned >= m.siege.waves && !m.zombies.length) { m.siege.won = true; finishMission(); return; }
   if (!curUnit()) { const n = liveUnits(m)[0]; TAC.sel = n ? n.id : 0; }
   const cu = curUnit();
   if (CFG.autoNext && cu && cu.ap <= 0 && m.phase === 'player' && !TAC.busy) {
@@ -2028,7 +2826,7 @@ function doMelee(u, z) {
     const m = TAC.m, w = WEAP[u.melee];
     if (u.ap < w.ap || !adjOK(m, u.x, u.y, z.x, z.y)) return;
     u.ap -= w.ap; u.ow = null;
-    const sneak = z.state === 'idle' || z.state === 'wander';
+    const sneak = isUnaware(z);
     Sfx.play('whoosh', { x: u.x, y: u.y, dur: u.melee === 'knife' ? 0.12 : 0.22 });
     await swing(u, z.x, z.y);
     if (sneak && w.assassin) {
@@ -2036,24 +2834,26 @@ function doMelee(u, z) {
       Sfx.play('stab', { x: z.x, y: z.y });
       FX.blood(z.x, z.y, 8);
       HUD.log(`${u.name} бесшумно снимает: ${ZT[z.type].name.toLowerCase()}.`);
-      killZombie(m, z, u);
+      killZombie(m, z, u, true);
       noise(m, u.x, u.y, 1);
     } else {
       if (rnd() < (sneak ? 1 : 0.85)) {
         Sfx.play(MELEE_SND[u.melee] || 'hit_bat', { x: z.x, y: z.y }); R.shake(2);
         let d = rint(w.dmg[0], w.dmg[1]) + u.meleeB;
         if (sneak) { d *= 2; FX.text(u.x, u.y, 'со спины', '#ece4cc'); }
-        if (damageZombie(m, z, d, u)) HUD.log(`${u.name} добивает: ${ZT[z.type].name.toLowerCase()}.`);
+        if (damageZombie(m, z, d, u, true)) HUD.log(`${u.name} добивает: ${ZT[z.type].name.toLowerCase()}.`);
       } else FX.text(z.x, z.y, 'мимо', '#cfc6ae');
       noise(m, u.x, u.y, w.noise);
     }
     await sleep(spd(280));
   });
 }
+function isUnaware(z) { return z.state === 'idle' || z.state === 'wander' || z.state === 'guard'; }
 function shotChance(m, u, z, reaction) {
   const w = WEAP[u.ranged], d = edist(u.x, u.y, z.x, z.y);
   let p = w.acc + u.accB - Math.max(0, d - w.opt) * w.fall;
   if (TP[m.tiles[MI(m, z.x, z.y)]].hide) p -= 0.15;
+  if (isHuman(z)) p -= coverOf(m, u.x, u.y, z);
   if (reaction) p -= 0.1;
   return clamp(p, 0.05, 0.95);
 }
@@ -2082,8 +2882,9 @@ async function shootAt(m, u, z, reaction) {
   if (rnd() < p) {
     let d = rint(w.dmg[0], w.dmg[1]) + u.dmgB;
     if (w.close && d0 > 3) d = Math.round(d * 0.6);
-    if (rnd() < 0.1) { d = Math.round(d * 1.5); FX.text(z.x, z.y - 0.5, 'в голову', '#ffd27a'); }
-    if (damageZombie(m, z, d, u)) HUD.log(`${u.name}: ${ZT[z.type].name.toLowerCase()} готов.`);
+    const head = rnd() < 0.12;
+    if (head) { d = Math.round(d * 1.5); FX.text(z.x, z.y - 0.5, 'в голову', '#ffd27a'); }
+    if (damageZombie(m, z, d, u, head || !isHuman(z))) HUD.log(`${u.name}: ${ZT[z.type].name.toLowerCase()} готов.`);
   } else FX.text(z.x, z.y, 'промах', '#cfc6ae');
   await sleep(spd(160));
 }
@@ -2182,7 +2983,7 @@ async function endTurn() {
   if (!canAct()) return;
   const m = TAC.m;
   m.phase = 'enemy'; TAC.busy = true; TAC.pend = null; TAC.mode = null; TAC.reach = null;
-  HUD.hidePop(); HUD.banner('Ход зомби'); HUD.refresh();
+  HUD.hidePop(); HUD.banner(hostilesOf(m).length ? 'Ход противника' : 'Ход зомби'); HUD.refresh();
   buildOcc(m);
   const near = z => Math.min(...liveUnits(m).map(u => edist(u.x, u.y, z.x, z.y)));
   const order = m.zombies.slice().sort((a, b) => near(a) - near(b));
@@ -2196,9 +2997,15 @@ async function endTurn() {
   if (!liveUnits(m).length) { TAC.busy = false; HUD.banner(null); finishMission(); return; }
   const tod0 = timeOfDay(m);
   m.turn++;
+  buildOcc(m);
+  riseCorpses(m);
+  if (m.ambush && m.turn >= m.ambush.turn) spawnAmbush(m);
+  if (m.herd && m.turn >= m.herd.turn) spawnHerd(m);
+  if (m.siege) siegeTurn(m);
   const tod = timeOfDay(m);
   if (tod !== tod0) HUD.log(tod === 1 ? 'Смеркается: обзор сократился.' : 'Наступила ночь. Зомби быстрее, вы видите хуже.', 'warn');
-  if (m.turn - m.lastWave >= WAVE_EVERY || m.tp >= 10) { m.threat++; m.tp = 0; m.lastWave = m.turn; spawnWave(m); }
+  if (!m.siege && (m.turn - m.lastWave >= WAVE_EVERY || m.tp >= 10)) { m.threat++; m.tp = 0; m.lastWave = m.turn; spawnWave(m); }
+  if (m.done) return;
   for (const u of liveUnits(m)) { u.ap = u.maxap - (carried(u) > u.cap ? 2 : 0); u.ow = null; }
   m.phase = 'player'; TAC.busy = false;
   HUD.banner(null);
@@ -2243,18 +3050,22 @@ function makeUnit(m, s, p) {
   u.ap = u.maxap;
   return u;
 }
-function startMission(loc, ids) {
-  const L = LOCS[loc];
-  const { m, reach } = genMap(loc, (Math.random() * 2 ** 31) | 0);
-  Object.assign(m, { loc, turn: 1, threat: 0, tp: 0, lastWave: 1, lastNoise: null, phase: 'player', units: [], zombies: [], uid: 1, zid: 1, kills: 0 });
+function startMission(loc, ids, opts = {}) {
+  const siege = opts.siege || null;
+  const L = siege ? { name: 'Оборона базы', zombies: 0 } : LOCS[loc];
+  const visits = (S.visits && S.visits[loc]) || 0;
+  const { m, reach } = siege ? genBase(S) : genMap(loc, (Math.random() * 2 ** 31) | 0, Math.max(0.35, 1 - visits * 0.22));
+  Object.assign(m, { loc: siege ? 'base' : loc, turn: 1, threat: 0, tp: 0, lastWave: 1, lastNoise: null, phase: 'player', units: [], zombies: [], uid: 1, zid: 1, kills: 0, hkills: {} });
   m.seen = new Uint8Array(m.n); m.vis = new Uint8Array(m.n);
-  S.res.fuel -= L.fuel;
+  if (!siege) S.res.fuel -= L.fuel;
+  for (const c of m.captives || []) m.tiles[MI(m, c.x, c.y)] = T.BLOCK;
   const squad = ids.map(id => S.survivors.find(s => s.id === id)).filter(Boolean);
-  const spots = m.evac.slice().sort((a, b) => edist(a % m.w, (a / m.w) | 0, m.start.x, m.start.y) - edist(b % m.w, (b / m.w) | 0, m.start.x, m.start.y));
+  const spots = siege ? m.idle.map(([x, y]) => MI(m, x, y)).filter(i => TP[m.tiles[i]].walk) :
+    m.evac.slice().sort((a, b) => edist(a % m.w, (a / m.w) | 0, m.start.x, m.start.y) - edist(b % m.w, (b / m.w) | 0, m.start.x, m.start.y));
   const gunners = squad.filter(s => s.ranged).length;
   const per = gunners ? Math.min(14, Math.floor(S.res.ammo / gunners)) : 0;
   squad.forEach((s, k) => {
-    const i = spots[k + 2] ?? spots[k];
+    const i = siege ? spots[k % spots.length] : spots[k + 2] ?? spots[k];
     const u = makeUnit(m, s, { x: i % m.w, y: (i / m.w) | 0 });
     u.f = k % 2 ? 7 : 5;
     if (s.ranged) { u.ammo = per; S.res.ammo -= per; }
@@ -2262,7 +3073,7 @@ function startMission(loc, ids) {
     m.units.push(u);
   });
   // зомби
-  const count = L.zombies + Math.min(18, Math.floor((S.day - 1) * 1.2));
+  const count = siege ? 0 : L.zombies + Math.min(18, Math.floor((S.day - 1) * 1.2));
   const open = [];
   for (let i = 0; i < m.n; i++) if (reach[i] && TP[m.tiles[i]].walk && m.tiles[i] !== T.DOOR) open.push(i);
   for (let k = 0, placed = 0; k < 6000 && placed < count; k++) {
@@ -2277,6 +3088,14 @@ function startMission(loc, ids) {
       if (walkT(m, nx, ny) && !zombieAt(m, nx, ny) && reach[MI(m, nx, ny)]) { addZombie(m, nx, ny, pickZType(S.day, 0), 'idle'); placed++; }
     }
   }
+  if (siege) {
+    m.siege = Object.assign({ spawned: 0, next: 1, won: false }, siege);
+    m.tod = 1;
+    m.seen.fill(1);
+    buildOcc(m);
+    spawnSiegeWave(m);
+  } else setupHostiles(m, L, reach);
+  m.hostTotal = hostilesOf(m).length;
   S.mission = m;
   TAC.m = m; TAC.sel = m.units[0].id; TAC.pend = null; TAC.mode = null; TAC.busy = false;
   warmSprites(m);
@@ -2284,12 +3103,71 @@ function startMission(loc, ids) {
   computeVis(m);
   saveGame();
   Game.showTac(true);
-  HUD.log(`${L.name}. Ищите добычу и возвращайтесь к машине. Шум привлекает зомби.`);
+  if (siege) HUD.log(`Оборона базы: ${SIEGE_NAME[siege.kind](siege)}. Держите ворота, волн будет ${siege.waves}.`, 'warn');
+  else {
+    HUD.log(`${L.name}. Ищите добычу и возвращайтесь к машине. Шум привлекает зомби.`);
+    if (L.faction) HUD.log(FAC_HINT[L.faction], 'warn');
+    if (m.captives && m.captives.length) HUD.log(`Где-то здесь держат пленных: ${m.captives.length}. Освободите и довезите до машины.`, 'good');
+  }
+}
+const FAC_HINT = {
+  collectors: 'Здесь Сборщики: бьют битами, стреляют из пистолетов. Убитые встают, если их не добить.',
+  raiders: 'Здесь Вольница: обрезы и монтировки, прячутся за машинами. Убитые встают, если их не добить.',
+  garrison: 'Здесь Гарнизон: карабины бьют далеко. Держитесь за укрытиями. Убитые встают, если их не добить.',
+  flock: 'Здесь Паства: мёртвые их не трогают, а они режут чужих ножами. Убитые встают, если их не добить.',
+};
+// ----- осада базы -----
+const SIEGE_NAME = {
+  horde: () => 'к стенам идёт толпа мёртвых',
+  herd: () => 'Паства гонит стадо мёртвых',
+  raid: sg => `${FACTIONS[sg.fac].name} пришли за своим`,
+};
+function spawnSiegeWave(m) {
+  const sg = m.siege, day = S.day, lu = liveUnits(m);
+  sg.spawned++;
+  let nz = 0, nh = 0, types = null;
+  if (sg.kind === 'horde') nz = 4 + Math.floor(day * 0.55) + sg.spawned * 2;
+  else if (sg.kind === 'herd') { nz = 6 + Math.floor(day * 0.6); if (sg.spawned === 1) { nh = 2; types = ['cultist']; } }
+  else { nh = 2 + Math.floor(day / 7) + (sg.spawned === 1 ? 1 : 0); types = FACTIONS[sg.fac].types; nz = sg.spawned === sg.waves ? 3 : 0; }
+  const ok = i => !m.zocc[i] && !m.uocc[i] && lu.every(u => edist(u.x, u.y, i % m.w, (i / m.w) | 0) >= 9);
+  const edge = m.edge.filter(ok);
+  const side = pick([0, 1, 2, 3]);
+  const sideOf = i => { const x = i % m.w, y = (i / m.w) | 0; return y >= m.h - 2 ? 2 : x < 2 ? 3 : x >= m.w - 2 ? 1 : 0; };
+  const pref = edge.filter(i => sideOf(i) === side || sideOf(i) === 2);
+  const place = (n, mk) => {
+    for (let k = 0; k < n * 20 && n > 0; k++) {
+      const i = pick(pref.length > n ? pref : edge);
+      if (i == null || m.zocc[i]) continue;
+      const z = mk(i % m.w, (i / m.w) | 0);
+      z.state = 'investigate'; z.tx = m.start.x + rint(-2, 2); z.ty = m.start.y + rint(-2, 2);
+      m.zocc[i] = 1; n--;
+    }
+  };
+  place(nz, (x, y) => addZombie(m, x, y, pickZType(day, sg.spawned + 1), 'investigate'));
+  place(nh, (x, y) => addHostile(m, x, y, pick(types), 'investigate'));
+  if (sg.spawned > 1) { HUD.log(`Новая волна: ${nz + nh}.`, 'warn'); HUD.flash(); Sfx.play('alarm'); }
+}
+function siegeTurn(m) {
+  const sg = m.siege;
+  if (sg.spawned < sg.waves && m.turn >= sg.next + 3) { sg.next = m.turn; spawnSiegeWave(m); }
+  // нападающие знают, где защитники: кто не в бою — идёт к ближайшему
+  const lu = liveUnits(m);
+  if (lu.length) for (const z of m.zombies) {
+    if (z.state === 'chase') continue;
+    let best = lu[0], bd = 1e9;
+    for (const u of lu) { const d = edist(z.x, z.y, u.x, u.y); if (d < bd) { bd = d; best = u; } }
+    z.state = 'investigate'; z.tx = best.x; z.ty = best.y;
+  }
 }
 function warmSprites(m) {
   for (const u of m.units) if (!u.dead && !u.evac) Spr.warm(Spr.look(u, 'h'), WARM_FRAMES);
   const seenT = new Set();
-  for (const z of m.zombies) { const k = z.type + (z.id % 3); if (seenT.has(k)) continue; seenT.add(k); Spr.warm(Spr.look(z, 'z'), ['i0', 'i1', 'w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'a0', 'a1', 'hit', 'd0', 'd1', 'd2']); }
+  for (const z of m.zombies) {
+    const k = z.type + (z.id % 3) + (z.rf ? 'r' : '');
+    if (seenT.has(k)) continue;
+    seenT.add(k);
+    Spr.warm(Spr.look(z, 'z'), isHuman(z) ? WARM_FRAMES.concat(['i0', 'i1', 'd0', 'd1', 'd2']) : ['i0', 'i1', 'w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'a0', 'a1', 'hit', 'd0', 'd1', 'd2']);
+  }
 }
 function resumeMission(m) {
   TAC.m = m; TAC.pend = null; TAC.mode = null; TAC.busy = false;
@@ -2305,6 +3183,7 @@ function resumeMission(m) {
 function abandonMission() {
   const m = TAC.m;
   if (!m) return;
+  if (m.siege) { m.siege.fled = true; for (const u of liveUnits(m)) u.evac = true; finishMission(); return; }
   for (const u of liveUnits(m)) { if (inEvac(m, u)) u.evac = true; else { u.lost = true; u.dead = true; } }
   finishMission();
 }
@@ -2312,7 +3191,7 @@ function finishMission() {
   const m = TAC.m;
   if (!m || m.done) return;
   m.done = true;
-  const rep = { loc: m.loc, got: {}, lines: [], kills: m.kills, turns: m.turn };
+  const rep = { loc: m.loc, got: {}, lines: [], kills: m.kills, turns: m.turn, siege: m.siege || null, hkills: m.hkills || {} };
   for (const u of m.units) {
     const s = S.survivors.find(o => o.id === u.sid);
     if (!s) continue;
@@ -2324,6 +3203,7 @@ function finishMission() {
     }
     s.hp = Math.max(1, u.hp);
     s.kills = (s.kills || 0) + u.kills;
+    if (s.freed) { delete s.freed; rep.lines.push({ t: `${s.name} — бывший пленник — теперь в группе.`, c: 'good' }); }
     const lvl = Math.min(5, 1 + Math.floor(s.kills / 5));
     if (lvl > (s.level || 1)) { s.level = lvl; s.maxhp += 2; s.hp += 2; rep.lines.push({ t: `${u.name}: опыт растёт, уровень ${lvl}.`, c: 'good' }); }
     if (u.bitten && !s.infected) { s.infected = 3; rep.lines.push({ t: `${u.name} ${gv(u, 'укушен', 'укушена')}. До обращения 3 дня.`, c: 'bad' }); }
@@ -2331,9 +3211,377 @@ function finishMission() {
     if (u.ammo) rep.got.ammo = (rep.got.ammo || 0) + u.ammo;
   }
   for (const k in rep.got) S.res[k] = (S.res[k] || 0) + rep.got[k];
+  if (!m.siege) {
+    S.visits = S.visits || {};
+    S.visits[m.loc] = (S.visits[m.loc] || 0) + 1;
+    const L = LOCS[m.loc];
+    if (L.faction && m.hostTotal) {
+      const left = m.zombies.filter(z => isHuman(z) && ZT[z.type].fac === L.faction).length;
+      if (!left) {
+        rep.lines.push({ t: L.camp ? `${FACTIONS[L.faction].name}: лагерь разгромлен.` : `${L.short}: люди группировки «${FACTIONS[L.faction].name}» перебиты.`, c: 'good' });
+        if (L.camp) factionBeaten(L.faction, rep.lines);
+      }
+    }
+    for (const f in m.hkills) factionHit(f, m.hkills[f]);
+    revealAfterMission(m, rep.lines);
+  } else for (const f in m.hkills) factionHit(f, m.hkills[f]);
   S.mission = null;
   TAC.m = null; TAC.reach = null;
   Game.afterMission(rep);
+}
+</script>
+<script>
+'use strict';
+// ---------- Люди из группировок: ИИ, засады, пленные, восставшие мёртвые ----------
+// Враги-люди живут в том же списке m.zombies (так их видно, можно бить и стрелять),
+// но ходят по своему ИИ: стреляют из-за укрытий, отступают раненными, дерутся с мёртвыми.
+
+const isFlock = z => ZT[z.type] && ZT[z.type].fac === 'flock';
+const hostilesOf = m => m.zombies.filter(z => isHuman(z) && z.hp > 0);
+
+function addHostile(m, x, y, type, state = 'guard') {
+  const z = addZombie(m, x, y, type, state);
+  z.ammo = ZT[type].ammo || 0;
+  m.hseen = m.hseen || {}; m.hseen[ZT[type].fac] = 1;
+  z.home = MI(m, x, y);
+  return z;
+}
+
+// Расставить отряд группировки по постам карты
+function spawnHostiles(m, L, reach, n, fac) {
+  const F = FACTIONS[fac];
+  const free = i => reach[i] && TP[m.tiles[i]].walk && m.tiles[i] !== T.DOOR && !zombieAt(m, i % m.w, (i / m.w) | 0) && edist(i % m.w, (i / m.w) | 0, m.start.x, m.start.y) >= 13;
+  let spots = (m.guard || []).filter(free);
+  if (spots.length < n) for (const i of m.indoor) if (free(i)) spots.push(i);
+  if (spots.length < n) for (let i = 0; i < m.n; i++) if (free(i) && chance(0.05)) spots.push(i);
+  spots = shuffle(spots.slice());
+  const made = [];
+  for (const i of spots) {
+    if (made.length >= n) break;
+    const x = i % m.w, y = (i / m.w) | 0;
+    if (zombieAt(m, x, y) || made.some(o => cheb(o.x, o.y, x, y) < 2)) continue;
+    made.push(addHostile(m, x, y, pick(F.types), 'guard'));
+  }
+  return made;
+}
+
+// Засада Вольницы: выходят с края карты, где их не видно
+function spawnAmbush(m) {
+  const a = m.ambush, lu = liveUnits(m);
+  if (!a || !lu.length) return;
+  m.ambush = null;
+  const F = FACTIONS[a.fac], tg = pick(lu);
+  let made = 0;
+  for (let k = 0; k < 400 && made < a.n; k++) {
+    const i = pick(m.edge), x = i % m.w, y = (i / m.w) | 0;
+    if (m.vis[i] || m.zocc[i] || m.uocc[i]) continue;
+    if (lu.some(u => edist(u.x, u.y, x, y) < 11)) continue;
+    const h = addHostile(m, x, y, pick(F.types), 'investigate');
+    h.tx = tg.x; h.ty = tg.y;
+    made++;
+  }
+  if (made) { HUD.log(`${F.name}: на вас вышли ${made} ${made > 4 ? 'человек' : 'человека'}. Засада!`, 'bad'); HUD.flash(); Sfx.play('alarm'); }
+}
+
+// ----- укрытие -----
+// Клетка рядом с целью со стороны стрелка, которая закрывает её по пояс
+function coverOf(m, sx, sy, t) {
+  const dx = Math.sign(sx - t.x), dy = Math.sign(sy - t.y);
+  const cells = dx && dy ? [[dx, dy], [dx, 0], [0, dy]] : [[dx, dy]];
+  for (const [ax, ay] of cells) {
+    const x = t.x + ax, y = t.y + ay;
+    if (!inb(m, x, y)) continue;
+    const tt = m.tiles[MI(m, x, y)], tp = TP[tt];
+    if (tt === T.SANDBAG || tt === T.BLOCK || tt === T.BLOCKH || tt === T.WALL || tt === T.BRICK || tt === T.WWALL || tp.furn) return tt === T.SANDBAG || tp.wall ? 0.35 : 0.25;
+    if (tt === T.FENCE && m.meta[MI(m, x, y)] !== 1) return 0.15;
+  }
+  return 0;
+}
+
+// ----- восприятие -----
+function perceiveH(m, h) {
+  const t = ZT[h.type], tod = timeOfDay(m);
+  let best = null, bs = 1e9;
+  for (const u of liveUnits(m)) {
+    const d = edist(h.x, h.y, u.x, u.y);
+    let sr = t.sight - tod;
+    if (u.trait === 'quiet') sr -= 2;
+    if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 3.5);
+    if ((d <= 1.5 || (d <= sr && los(m, h, u))) && d < bs) { bs = d; best = u; }
+  }
+  if (!isFlock(h)) for (const z of m.zombies) {
+    if (isHuman(z) || z.hp <= 0) continue;
+    const d = edist(h.x, h.y, z.x, z.y);
+    if (d > 7 || d + 2.5 >= bs) continue;
+    if (d <= 1.5 || los(m, h, z)) { bs = d + 2.5; best = z; }
+  }
+  if (best) {
+    const was = h.state;
+    h.state = 'chase'; h.tx = best.x; h.ty = best.y;
+    if (best.type) { h.tz = best.id; h.target = 0; } else { h.target = best.id; h.tz = 0; }
+    if (was !== 'chase' && !best.type && m.vis[MI(m, h.x, h.y)]) {
+      FX.text(h.x, h.y, '!', ZT[h.type].body);
+      HUD.log(`${ZT[h.type].name} замечает ${best.name}.`, 'warn');
+    }
+    return best;
+  }
+  if (h.state === 'chase') h.state = 'investigate';
+  return null;
+}
+
+// ----- урон людям-бойцам игрока -----
+function hurtUnit(m, u, d, src, how) {
+  u.hp -= d;
+  u.hitT = performance.now(); R.until = Math.max(R.until, u.hitT + 280);
+  FX.blood(u.x, u.y);
+  FX.text(u.x, u.y, '−' + d, '#ff6a50');
+  knock(u, src.x, src.y, 0.16);
+  Sfx.play('hurt', { x: u.x, y: u.y }); vibrate(70); R.shake(4);
+  HUD.log(`${ZT[src.type].name} ${how}: ${u.name} −${d}`, 'bad');
+  if (u.hp <= 0) killUnit(m, u);
+}
+
+async function hShoot(m, h, tg, w) {
+  h.ammo--; h.ap -= w.ap; h.shots = (h.shots || 0) + 1;
+  h.f = dirIdx(tg.x - h.x, tg.y - h.y);
+  const show = m.vis[MI(m, h.x, h.y)] || m.vis[MI(m, tg.x, tg.y)];
+  if (show && CFG.follow) R.ensureVisible(h.x, h.y);
+  h.aimT = performance.now() + Math.max(200, spd(560));
+  R.until = Math.max(R.until, h.aimT); R.dirty = true;
+  await sleep(show ? spd(220) : 0);
+  FX.flash(h.x, h.y, h.f);
+  Sfx.play(w.snd, { x: h.x, y: h.y, fall: 40 });
+  knock(h, tg.x, tg.y, 0.05, 140);
+  FX.tracer(h.x, h.y, tg.x, tg.y);
+  if (show) R.shake(w.noise > 15 ? 3 : 1);
+  noise(m, h.x, h.y, w.noise);
+  await sleep(show ? spd(140) : 0);
+  const t = ZT[h.type], d0 = edist(h.x, h.y, tg.x, tg.y);
+  let p = t.acc - Math.max(0, d0 - w.opt) * w.fall - coverOf(m, h.x, h.y, tg);
+  if (TP[m.tiles[MI(m, tg.x, tg.y)]].hide) p -= 0.15;
+  if (rnd() < clamp(p, 0.08, 0.9)) {
+    let d = Math.max(1, Math.round(rint(w.dmg[0], w.dmg[1]) * 0.7));
+    if (w.close && d0 > 3) d = Math.max(1, Math.round(d * 0.6));
+    if (tg.type) damageZombie(m, tg, d, h, rnd() < 0.15);
+    else hurtUnit(m, tg, d, h, 'стреляет');
+  } else if (show) FX.text(tg.x, tg.y, 'мимо', '#cfc6ae');
+  await sleep(show ? spd(200) : 0);
+}
+
+async function hMelee(m, h, tg) {
+  const t = ZT[h.type], w = WEAP[t.melee || 'knife'];
+  h.ap -= w.ap;
+  const show = m.vis[MI(m, h.x, h.y)] || m.vis[MI(m, tg.x, tg.y)];
+  if (show && CFG.follow) R.ensureVisible(h.x, h.y);
+  if (show) { Sfx.play('whoosh', { x: h.x, y: h.y }); await swing(h, tg.x, tg.y, 520); }
+  if (rnd() < t.acc + 0.1) {
+    const d = rint(t.dmg[0], t.dmg[1]);
+    Sfx.play(MELEE_SND[t.melee] || 'hit_bat', { x: tg.x, y: tg.y });
+    if (tg.type) damageZombie(m, tg, d, h, true);
+    else hurtUnit(m, tg, d, h, 'бьёт');
+  } else if (show) FX.text(tg.x, tg.y, 'увернулся', '#cfc6ae');
+  noise(m, h.x, h.y, w.noise);
+  await sleep(show ? spd(220) : 0);
+}
+
+// Отойти от угрозы: клетка, где дальше всего от неё и есть укрытие
+async function hRetreat(m, h, tg) {
+  for (let s = 0; s < 4 && h.ap > 0; s++) {
+    let best = -1, bs = -1e9;
+    for (const [dx, dy] of DIR8) {
+      const nx = h.x + dx, ny = h.y + dy;
+      if (!walkT(m, nx, ny) || !adjOK(m, h.x, h.y, nx, ny)) continue;
+      const j = MI(m, nx, ny);
+      if (m.zocc[j] || m.uocc[j]) continue;
+      const sc = edist(nx, ny, tg.x, tg.y) + coverOf(m, tg.x, tg.y, { x: nx, y: ny }) * 4;
+      if (sc > bs) { bs = sc; best = j; }
+    }
+    if (best < 0 || bs <= edist(h.x, h.y, tg.x, tg.y)) break;
+    await zMove(m, h, best);
+    h.ap -= TP[m.tiles[best]].cost;
+    await overwatchCheck(m, h);
+    if (h.hp <= 0) return;
+  }
+}
+
+function targetOf(m, h) {
+  if (h.state !== 'chase') return null;
+  if (h.tz) return m.zombies.find(o => o.id === h.tz && o.hp > 0) || null;
+  return m.units.find(o => o.id === h.target && !o.dead && !o.evac) || null;
+}
+
+async function humanAct(m, h) {
+  const t = ZT[h.type];
+  h.ap = t.ap; h.shots = 0;
+  const w = t.ranged ? WEAP[t.ranged] : null;
+  let path = null, key = '';
+  for (let g = 0; g < 16 && h.ap > 0 && h.hp > 0; g++) {
+    perceiveH(m, h);
+    const tg = targetOf(m, h);
+    if (!tg) {
+      if (h.state === 'investigate') {
+        if (cheb(h.x, h.y, h.tx, h.ty) <= 1) { h.state = 'guard'; h.home = MI(m, h.x, h.y); break; }
+        const k = h.tx + ',' + h.ty;
+        if (!path || !path.length || key !== k) { path = zPath(m, h, h.tx, h.ty); key = k; }
+        if (!path || !path.length) { h.state = 'guard'; break; }
+        if (!(await hStep(m, h, path.shift()))) break;
+        continue;
+      }
+      if (h.state === 'guard' && chance(0.2)) {
+        const hx = h.home % m.w, hy = (h.home / m.w) | 0, opts = [];
+        for (const [dx, dy] of DIR4) { const nx = h.x + dx, ny = h.y + dy; if (walkT(m, nx, ny) && cheb(nx, ny, hx, hy) <= 3 && !m.zocc[MI(m, nx, ny)] && !m.uocc[MI(m, nx, ny)]) opts.push(MI(m, nx, ny)); }
+        if (opts.length) await hStep(m, h, pick(opts));
+      }
+      break;
+    }
+    path = null;
+    const d = edist(h.x, h.y, tg.x, tg.y);
+    if (h.hp <= t.hp * 0.3 && !h.fled && d <= 5 && !tg.type) { h.fled = true; if (m.vis[MI(m, h.x, h.y)]) FX.text(h.x, h.y, 'отходит', '#cfc6ae'); await hRetreat(m, h, tg); continue; }
+    const adj = adjOK(m, h.x, h.y, tg.x, tg.y);
+    if (w && h.ammo > 0 && !h.shots && h.ap >= w.ap && d <= w.range + 0.5 && los(m, h, tg) && !(adj && t.melee && !w.close)) { await hShoot(m, h, tg, w); continue; }
+    if (adj) { if (h.ap >= WEAP[t.melee || 'knife'].ap) { await hMelee(m, h, tg); continue; } break; }
+    // стрелок, уже стрелявший, не лезет врукопашную, а ищет укрытие
+    if (w && h.shots) { if (!coverOf(m, tg.x, tg.y, h)) await hRetreat(m, h, tg); break; }
+    const pth = zPath(m, h, tg.x, tg.y);
+    if (!pth || !pth.length) { const s = sideStep(m, h, tg.x, tg.y); if (s < 0 || !(await hStep(m, h, s))) break; continue; }
+    if (!(await hStep(m, h, pth[0]))) break;
+  }
+}
+// Шаг человека: двери открывает, а не ломает
+async function hStep(m, h, j) {
+  if (j == null || j < 0) return false;
+  if (m.tiles[j] === T.DOOR) {
+    if (h.ap < 1) return false;
+    m.tiles[j] = T.DOOR_OPEN; h.ap -= 1;
+    const x = j % m.w, y = (j / m.w) | 0;
+    Sfx.play('door', { x, y, vol: m.vis[j] ? 1 : 0.5 });
+    if (m.vis[j]) computeVis(m);
+    return true;
+  }
+  if (m.zocc[j] || m.uocc[j]) return false;
+  const cost = TP[m.tiles[j]].cost;
+  if (h.ap < cost) return false;
+  await zMove(m, h, j);
+  h.ap -= cost;
+  await overwatchCheck(m, h);
+  return h.hp > 0;
+}
+
+// ----- мёртвые встают -----
+function riseCorpses(m) {
+  for (const d of m.decals) {
+    if (!d.rise || m.turn < d.rise) continue;
+    const i = MI(m, d.x, d.y);
+    if (m.zocc[i] || m.uocc[i]) continue;
+    d.rise = 0; d.gone = true;
+    const z = addZombie(m, d.x, d.y, 'walker', 'investigate');
+    z.rf = d.k === 'ucorpse' ? { c: d.u.color, g: d.u.g, n: d.u.name } : { t: d.zt };
+    z.f = d.f;
+    const lu = liveUnits(m);
+    if (lu.length) { const u = pick(lu); z.tx = u.x; z.ty = u.y; }
+    if (m.vis[i]) {
+      FX.text(d.x, d.y, 'ВСТАЁТ', '#a4d03c');
+      HUD.log(d.k === 'ucorpse' ? `${d.u.name} поднимается. Это уже не ${gv(d.u, 'он', 'она')}.` : `Убитый ${ZT[d.zt].name.toLowerCase()} поднимается мертвецом.`, 'bad');
+      Sfx.play('groan', { x: d.x, y: d.y });
+      R.ensureVisible(d.x, d.y);
+    }
+  }
+  m.decals = m.decals.filter(d => !d.gone);
+}
+function doFinish(u, d) {
+  return act(async () => {
+    const m = TAC.m;
+    if (u.ap < 1 || cheb(u.x, u.y, d.x, d.y) > 1 || !d.rise) return;
+    u.ap -= 1;
+    Sfx.play('whoosh', { x: u.x, y: u.y, dur: 0.12 });
+    await swing(u, d.x, d.y);
+    Sfx.play('stab', { x: d.x, y: d.y });
+    FX.blood(d.x, d.y, 6);
+    d.rise = 0;
+    FX.text(d.x, d.y, 'добит', '#ece4cc');
+    noise(m, u.x, u.y, 1);
+    await sleep(spd(200));
+  });
+}
+
+// ----- пленные -----
+function captiveAt(m, x, y) { return (m.captives || []).find(c => !c.freed && c.x === x && c.y === y); }
+function doFree(u, c) {
+  return act(async () => {
+    const m = TAC.m;
+    if (u.ap < 2 || cheb(u.x, u.y, c.x, c.y) > 1 || c.freed) return;
+    u.ap -= 2;
+    c.freed = true;
+    const i = MI(m, c.x, c.y);
+    m.tiles[i] = m.ground[i];
+    const used = new Set(S.survivors.map(s => s.name));
+    let name = c.name;
+    if (used.has(name)) { const pool = NAMES.filter(n => !used.has(n[0]) && n[1] === c.g); if (pool.length) name = pick(pool)[0]; }
+    const hp = rint(11, 14);
+    const s = { id: S.nid++, name, g: c.g, trait: pick(Object.keys(TRAITS)), melee: 'knife', ranged: null, hp: Math.ceil(hp * 0.6), maxhp: hp, color: c.color, kills: 0, level: 1, infected: 0, away: true, freed: true };
+    S.survivors.push(s);
+    const nu = makeUnit(m, s, { x: c.x, y: c.y });
+    nu.f = dirIdx(u.x - c.x, u.y - c.y); nu.ap = 0; nu.lures = 0;
+    m.units.push(nu);
+    Sfx.play('pickup', { x: c.x, y: c.y });
+    FX.text(c.x, c.y, 'свобод' + (c.g === 'f' ? 'на' : 'ен'), '#86c25d');
+    HUD.log(`${u.name} освобождает пленного: ${name}. Довезите ${gv(s, 'его', 'её')} до машины — и в группе прибавится.`, 'good');
+    Spr.warm(Spr.look(nu, 'h'), WARM_FRAMES);
+    computeVis(m);
+    await sleep(spd(240));
+  });
+}
+
+// ----- тела врагов: что было при себе -----
+function dropBody(m, z) {
+  const t = ZT[z.type], i = MI(m, z.x, z.y);
+  const loot = {};
+  if (t.ranged && z.ammo > 0) loot.ammo = z.ammo;
+  if (chance(0.35)) loot.food = rint(1, 2);
+  if (chance(0.3)) loot.water = 1;
+  if (chance(0.22)) loot.meds = 1;
+  if (t.fac === 'garrison' && chance(0.5)) loot.ammo = (loot.ammo || 0) + rint(3, 8);
+  if (!Object.keys(loot).length) return;
+  const ct = m.cont[i];
+  if (ct) { for (const k in loot) ct.loot[k] = (ct.loot[k] || 0) + loot[k]; ct.s = 1; }
+  else m.cont[i] = { k: 'body', loot, s: 1 };
+}
+
+// ----- перед вылазкой: кто будет на карте -----
+function setupHostiles(m, L, reach) {
+  const day = S.day;
+  if (L.faction && L.hostiles) {
+    const st = S.fac && S.fac[L.faction];
+    let n = L.hostiles + Math.floor(day / 7);
+    if (st && st.beaten) n = Math.max(1, Math.round(n * 0.4));
+    spawnHostiles(m, L, reach, n, L.faction);
+  }
+  // Засады Вольницы на дорогах — со 4-го дня
+  if (!L.faction && day >= 4 && chance(0.12 + Math.min(0.13, day * 0.006))) {
+    m.ambush = { turn: rint(4, 9), n: rint(2, 3) + Math.floor(day / 10), fac: 'raiders' };
+  }
+  // Паства иногда гонит толпу через чужую вылазку
+  if (!L.faction && day >= 6 && chance(0.08)) m.herd = { turn: rint(6, 11) };
+}
+function spawnHerd(m) {
+  const lu = liveUnits(m);
+  m.herd = null;
+  if (!lu.length) return;
+  const i0 = pick(m.edge.filter(i => !m.vis[i] && lu.every(u => edist(u.x, u.y, i % m.w, (i / m.w) | 0) > 14)));
+  if (i0 == null) return;
+  const x0 = i0 % m.w, y0 = (i0 / m.w) | 0, tg = pick(lu);
+  const lead = addHostile(m, x0, y0, 'cultist', 'investigate');
+  lead.tx = tg.x; lead.ty = tg.y;
+  let made = 0;
+  for (let k = 0; k < 200 && made < 8 + Math.floor(S.day / 3); k++) {
+    const x = clamp(x0 + rint(-4, 4), 0, m.w - 1), y = clamp(y0 + rint(-4, 4), 0, m.h - 1), j = MI(m, x, y);
+    if (!walkT(m, x, y) || m.zocc[j] || m.uocc[j]) continue;
+    const z = addZombie(m, x, y, pickZType(S.day, m.threat), 'investigate');
+    z.tx = clamp(tg.x + rint(-3, 3), 0, m.w - 1); z.ty = clamp(tg.y + rint(-3, 3), 0, m.h - 1);
+    made++;
+  }
+  HUD.log('Вдалеке слышен колокольчик и шарканье сотен ног: Паства гонит толпу в вашу сторону.', 'bad');
+  HUD.flash(); Sfx.play('alarm');
 }
 </script>
 <script>
@@ -2572,6 +3820,14 @@ function drawGround(c, m, g, x, y, i, X, Y, w, h, lod) {
     if (md & 2) c.fillRect(X + w * 0.38, Y, w * 0.24, h);
     if (md & 4) c.fillRect(X, Y + h * 0.38, w, h * 0.24);
   }
+  if (md & 48 && !TP[t].wall) {
+    // рельсы: 16 — верхняя нитка пути, 32 — нижняя
+    const top = md & 16, a = top ? 0.3 : 0, b = top ? 1 : 0.7, rl = top ? 0.62 : 0.38;
+    c.fillStyle = 'rgba(66,48,30,0.92)';
+    for (let s = 0.08; s < 1; s += 0.34) c.fillRect(X + w * s, Y + h * a, w * 0.14, h * (b - a));
+    c.fillStyle = '#85847e'; c.fillRect(X, Y + h * rl, w, Math.max(1, h * 0.06));
+    c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(X, Y + h * (rl + 0.06), w, Math.max(1, h * 0.03));
+  }
   if (gfx >= 2 && lod === 2 && TP[t].floor) litter(c, g, x, y, X, Y, w);
 }
 // Мусор на земле: бумага, банки, шины, листья, осколки
@@ -2611,14 +3867,15 @@ const R = {
   },
   proj(x, y, z = 0) { setCB(this.cam, this.W, this.H); P(x, y, z); return [PX, PY]; },
   unproj(sx, sy) { setCB(this.cam, this.W, this.H); return unP(sx, sy); },
+  curMap() { return this.mode === 'base' ? this.base && this.base.m : TAC.m; },
   kMin() {
-    const m = TAC.m;
+    const m = this.curMap();
     if (!m) return 8;
     const d = (m.w + m.h) * Math.SQRT1_2;
     return Math.max(6, Math.min(this.W / d, this.H / (d * VX.sE)) * 0.95);
   },
   clampCam() {
-    const m = TAC.m;
+    const m = this.curMap();
     if (!m) return;
     this.cam.k = clamp(this.cam.k, this.kMin(), 110);
     this.cam.cx = clamp(this.cam.cx, 0, m.w); this.cam.cy = clamp(this.cam.cy, 0, m.h);
@@ -2683,7 +3940,7 @@ const R = {
   tick() {
     if (!this.mode) return;
     const now = performance.now();
-    if (CFG.hq && this.cam.k >= 14 && now - this.lastIdle > 320) { this.lastIdle = now; this.dirty = true; }
+    if (CFG.hq && this.cam.k >= 14 && now - this.lastIdle > (this.fireVis ? 100 : 320)) { this.lastIdle = now; this.dirty = true; }
     const active = this.moving.size || FX.list.length || FX.parts.length || this.camAnim || this.shakeA > 0 || this.until > now;
     if (!this.dirty && !active) return;
     this.dirty = false;
@@ -2692,6 +3949,7 @@ const R = {
   },
   draw(now) {
     const c = this.c;
+    this.fireVis = false;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#0b0a08';
     c.fillRect(0, 0, this.cv.width, this.cv.height);
@@ -2709,6 +3967,17 @@ const R = {
         else { const a = this.shakeA * (1 - p); ox = (Math.random() * 2 - 1) * a; oy = (Math.random() * 2 - 1) * a; }
       }
       drawIso(c, TAC.m, this.cam, this.W, this.H, now, false, [ox, oy]);
+    } else if (this.mode === 'base' && this.base) {
+      if (this.camAnim) {
+        const a = this.camAnim, p = Math.min(1, (now - a.t0) / a.d), e = 1 - (1 - p) ** 3;
+        this.cam.cx = a.fx + (a.tx - a.fx) * e; this.cam.cy = a.fy + (a.ty - a.fy) * e;
+        if (p >= 1) this.camAnim = null;
+      }
+      drawIso(c, this.base.m, this.cam, this.W, this.H, now, true, [0, 0], this.base.ents);
+      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      const g = c.createLinearGradient(0, 0, 0, this.H);
+      g.addColorStop(0, 'rgba(11,10,8,0.55)'); g.addColorStop(0.18, 'rgba(11,10,8,0)'); g.addColorStop(0.82, 'rgba(11,10,8,0)'); g.addColorStop(1, 'rgba(11,10,8,0.6)');
+      c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
     } else if (this.mode === 'menu' && this.menu) {
       drawIso(c, this.menu.m, this.menu.cam, this.W, this.H, now, true);
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -2896,7 +4165,8 @@ function drawMinimap(cv, m) {
   c.drawImage(off, ox, oy, m.w * k, m.h * k);
   c.fillStyle = 'rgba(160,200,110,0.6)';
   for (const i of m.evac) c.fillRect(ox + (i % m.w) * k, oy + ((i / m.w) | 0) * k, k, k);
-  for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) { c.fillStyle = '#ff5a3c'; c.fillRect(ox + z.x * k, oy + z.y * k, k, k); }
+  for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) { c.fillStyle = isHuman(z) ? ZT[z.type].body : '#ff5a3c'; c.fillRect(ox + z.x * k, oy + z.y * k, k, k); }
+  for (const cp of m.captives || []) if (!cp.freed && m.seen[MI(m, cp.x, cp.y)]) { c.fillStyle = '#f0c46a'; c.fillRect(ox + cp.x * k - k / 2, oy + cp.y * k - k / 2, k * 2, k * 2); }
   for (const u of m.units) if (!u.dead && !u.evac) { c.fillStyle = u.color; c.fillRect(ox + u.x * k - k / 2, oy + u.y * k - k / 2, k * 2, k * 2); }
   const pts = [[0, 0], [R.W, 0], [R.W, R.H], [0, R.H]].map(([sx, sy]) => R.unproj(sx, sy));
   c.strokeStyle = '#ece4cc'; c.lineWidth = 1.5;
@@ -2907,15 +4177,24 @@ function drawMinimap(cv, m) {
 // ----- полоски здоровья, значки и шеврон над головами -----
 function drawBadges(c, it, ts, lod) {
   const e = it.e, cx = it.cx, top = it.top;
-  const maxhp = it.z ? ZT[e.type].hp : e.maxhp, hp = Math.max(0, e.hp);
-  const showHp = lod > 0 && (!it.z || hp < maxhp || (TAC.pend && TAC.pend.tx === e.x && TAC.pend.ty === e.y));
+  if (it.cap) {
+    if (lod === 0) return;
+    const fs = clamp(ts * 0.24, 10, 14);
+    c.font = `600 ${fs}px Oswald, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+    c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.8)'; c.strokeText('ПЛЕННИК', cx, top - 3);
+    c.fillStyle = '#f0c46a'; c.fillText('ПЛЕННИК', cx, top - 3);
+    return;
+  }
+  const hum = it.z && isHuman(e);
+  const maxhp = it.z ? (e.rf ? ZT.walker.hp : ZT[e.type].hp) : e.maxhp, hp = Math.max(0, e.hp);
+  const showHp = lod > 0 && (!it.z || hum || hp < maxhp || (TAC.pend && TAC.pend.tx === e.x && TAC.pend.ty === e.y));
   let y = top - Math.max(5, ts * 0.12);
   if (showHp) {
     const n = Math.ceil(maxhp / 2), fill = Math.ceil(hp / 2);
     const pw = Math.max(2, ts * 0.062), ph = Math.max(3, ts * 0.075), gap = Math.max(1, Math.round(ts * 0.018));
     const W = n * pw + (n - 1) * gap, x0 = cx - W / 2;
     c.fillStyle = 'rgba(10,9,7,0.8)'; c.fillRect(x0 - 2, y - 2, W + 4, ph + 4);
-    const f = hp / maxhp, col = it.z ? '#d9553c' : f > 0.6 ? '#9cc96a' : f > 0.3 ? '#e8a62b' : '#d9553c';
+    const f = hp / maxhp, col = hum ? ZT[e.type].body : it.z ? '#d9553c' : f > 0.6 ? '#9cc96a' : f > 0.3 ? '#e8a62b' : '#d9553c';
     for (let k = 0; k < n; k++) { c.fillStyle = k < fill ? col : '#3a3528'; c.fillRect(x0 + k * (pw + gap), y, pw, ph); }
     if (!it.z && e.ow) {
       const ex = x0 - ph * 1.6, ey = y + ph / 2, s = Math.max(3.5, ts * 0.1);
@@ -3117,6 +4396,44 @@ const ZPAL = {
   screamer: [['#8fa6b0', '#8fa6b0'], ['#b6aca0', '#57504a'], ['#8a6f86', '#3a3a38']],
   brute: [['#c66a2a', '#3a3f4a'], ['#4a5a3a', '#2f2f2f'], ['#5a5048', '#38342c']],
 };
+// Люди группировок: у каждой своя «форма»
+const HPAL = {
+  collectors: { top: ['#1e1d20', '#262326', '#2a2622'], pants: ['#2a2a30', '#33302a'], cap: '#c4402f', mask: '#c4402f' },
+  raiders: { top: ['#6a4a2a', '#4a5238', '#7a5a2a'], pants: ['#3a3a34', '#4a4030'], cap: '#3a3a34', mask: '#2a2826' },
+  garrison: { top: ['#4f5f3a', '#56633f', '#4a5636'], pants: ['#4a5636', '#3f4a30'], cap: '#4a5636', mask: '#3a4430' },
+  flock: { top: ['#8a8578', '#7a7468', '#958f80'], pants: ['#6a6458', '#5a564c'], cap: '#6a6458', mask: '#5a3a30' },
+};
+function lookHostile(z) {
+  const t = ZT[z.type], fac = t.fac, v = z.id % 3, hp = HPAL[fac], pal = basePal(), h = (z.id * 2654435761) >>> 0;
+  pal[C.SKIN] = hexRgb(SKINS[h % SKINS.length]);
+  pal[C.SKIN2] = mixRgb(pal[C.SKIN], [60, 30, 20], 0.25);
+  pal[C.HAIR] = hexRgb(HAIRS[(h >>> 3) % HAIRS.length]);
+  pal[C.TOP] = hexRgb(hp.top[v]);
+  pal[C.TOP2] = mixRgb(pal[C.TOP], [10, 10, 8], 0.4);
+  pal[C.PANTS] = hexRgb(hp.pants[v % 2]);
+  pal[C.BOOTS] = hexRgb('#22201c');
+  pal[C.PACK] = hexRgb(fac === 'garrison' ? '#3f4a30' : '#4a3f30');
+  pal[C.EYE] = hexRgb('#2a1e16');
+  pal[C.CAP] = hexRgb(hp.cap);
+  pal[C.VEST] = hexRgb(fac === 'garrison' ? '#3f4a30' : '#3a3530');
+  pal[C.STRIPE] = hexRgb(hp.mask);
+  const body = fac === 'flock' && v === 1 ? BODY.woman : fac === 'collectors' && v === 0 ? BODY.bulky : BODY.man;
+  return {
+    kind: 'h', key: `x${z.type}${v}`, pal, body, female: body === BODY.woman, hostile: fac,
+    melee: t.melee, ranged: t.ranged, hairStyle: fac === 'garrison' ? undefined : [0, 1, 5][v],
+    beard: fac === 'collectors' && v !== 2, vest: fac === 'garrison' || (fac === 'raiders' && v === 1), knee: fac === 'garrison',
+    gloves: fac !== 'flock', rolled: fac === 'raiders' && v === 2, pads: fac === 'collectors' && v === 0,
+    nopack: fac !== 'garrison', helmet: fac === 'garrison', mask: fac === 'collectors' ? v !== 1 : fac === 'raiders',
+    hood: fac === 'flock' || (fac === 'raiders' && v === 0), gown: fac === 'flock', smear: fac === 'flock', seed: v * 131 + 7,
+  };
+}
+// Восставший мертвец: одежда того, кем он был
+function lookRisen(z) {
+  const L = lookZombie(z), rf = z.rf, pal = L.pal.slice();
+  if (rf.t) { const H = lookHostile({ type: rf.t, id: z.id }); pal[C.TOP] = H.pal[C.TOP]; pal[C.PANTS] = H.pal[C.PANTS]; pal[C.TOP2] = mixRgb(H.pal[C.TOP], [0, 0, 0], 0.35); }
+  else { const top = mixRgb(hexRgb(rf.c), [60, 60, 48], 0.38); pal[C.TOP] = top; pal[C.TOP2] = mixRgb(top, [0, 0, 0], 0.4); }
+  return Object.assign({}, L, { pal, key: `r${rf.t || rf.c}${z.id % 3}`, hood: false, hardhat: false, gown: false, ribs: false });
+}
 function lookZombie(z) {
   const v = z.id % 3, pz = ZPAL[z.type][v], pal = basePal();
   const skin = hexRgb(['#8b977a', '#7f8c6c', '#949a80'][v]);
@@ -3250,8 +4567,13 @@ function buildFigure(L, P) {
       for (let k = -1; k <= 1; k++) vbox(g, vadd(at(3.6), [k * 1.7 - 0.65, front * 1.02, 0]), vadd(at(3.6), [k * 1.7 + 0.65, front * 1.32, 1.9]), C.VEST);
       for (let k = -1; k <= 1; k++) vbox(g, vadd(at(5.3), [k * 1.7 - 0.65, front * 1.3, 0]), vadd(at(5.3), [k * 1.7 + 0.65, front * 1.36, 0.25]), C.TOP2, -1);
     }
+    if (L.smear) for (let k = 0; k < 4; k++) {
+      const hh = hash3(L.seed, k, 7), hv = hash3(L.seed, k, 11);
+      vdot(g, vadd(chest, [(hh - 0.5) * 5, front * 0.98, -1 - hv * 7]), C.BLOOD, 0.9 + hv * 0.6, -1);
+    }
     // рюкзак со скаткой и лямками
     const back = vadd(chest, [0, -front - 1.7, -2.5]);
+    if (!L.nopack) {
     vcap(g, vadd(back, [0, 0, -4.4]), back, 2.5, C.PACK, 1.25, 0.75);
     vcap(g, vadd(back, [0, -0.6, 0.4]), vadd(back, [0, -0.6, 0.9]), 2.15, C.TOP2, 1.3, 0.7);
     vcap(g, vadd(back, [0, -0.9, -3.4]), vadd(back, [0, -0.9, -2.4]), 1.5, C.TOP2, 1.1, 0.7);
@@ -3259,6 +4581,7 @@ function buildFigure(L, P) {
     for (const sx of [-1, 1]) {
       const s0 = vadd(chest, [sx * 1.9, -front - 0.6, -2]), s1 = vadd(chest, [sx * 1.9, 0, 0.9]), s2 = vadd(chest, [sx * 1.7, front + 0.25, -4]);
       vcap(g, s0, s1, 0.48, C.PACK); vcap(g, s1, s2, 0.48, C.PACK);
+    }
     }
   } else {
     if (L.type === 'brute' && L.v === 0) {
@@ -3295,6 +4618,11 @@ function buildFigure(L, P) {
     if (L.hardhat) vcap(g, onHead(0, -0.2, 0.2), onHead(0, -0.2, 0.45), B.head + 1.25, C.CAP);
     else vcap(g, onHead(0, -0.2, 0.15), onHead(0, -0.2, 0.55), B.head + 0.62, C.TOP2);
   }
+  if (L.helmet) {
+    vdot(g, onHead(0, -0.15, 0.85), C.CAP, B.head + 0.85);
+    vcap(g, onHead(0, -0.15, 0.1), onHead(0, -0.15, 0.3), B.head + 1.05, C.CAP);
+    vcap(g, onHead(-B.head * 0.9, 0.2, -0.9), onHead(-B.head * 0.9, B.head * 0.8, -1.9), 0.22, C.BELT);
+  }
   if (hs === 5) {
     vdot(g, onHead(0, -0.25, 0.7), C.CAP, B.head + 0.45);
     vbox(g, onHead(-1.7, B.head * 0.6, 1.25), onHead(1.7, B.head + 1.7, 1.75), C.CAP);
@@ -3327,6 +4655,11 @@ function buildFigure(L, P) {
   if (zom && L.type === 'screamer') { vcap(g, onHead(0, B.head * 0.98, -1.3), onHead(0, B.head * 0.98, -2.5), 1.0, C.MOUTH); vdot(g, onHead(-0.5, B.head * 1.05, -1.0), C.BONE, 0.3); vdot(g, onHead(0.5, B.head * 1.05, -1.0), C.BONE, 0.3); }
   else if (zom) { vcap(g, onHead(-0.75, B.head * 0.98, -1.75), onHead(0.75, B.head * 0.98, -1.75), 0.48, C.MOUTH); vdot(g, onHead(-0.3, B.head * 1.04, -1.45), C.BONE, 0.26); vdot(g, onHead(0.35, B.head * 1.04, -1.45), C.BONE, 0.26); }
   else vcap(g, onHead(-0.6, B.head * 1.02, -1.55), onHead(0.6, B.head * 1.02, -1.55), 0.24, C.MOUTH, 1, 1, -1);
+  // повязка на лицо: бандана или балаклава
+  if (L.mask) {
+    vcap(g, onHead(-B.head * 0.9, B.head * 0.45, -1.4), onHead(B.head * 0.9, B.head * 0.45, -1.4), B.head * 0.62, C.STRIPE);
+    vcap(g, onHead(0, B.head * 0.6, -1.0), onHead(0, B.head * 0.75, -2.3), B.head * 0.6, C.STRIPE);
+  }
   // руки
   const hands = {};
   for (const side of [-1, 1]) {
@@ -3567,9 +4900,10 @@ const Spr = {
   models: new Map(), mBytes: 0, sprites: new Map(), sBytes: 0, looks: new Map(), queue: [], pumping: false,
   look(e, kind) {
     if (kind === 'z') {
-      const k = 'z' + e.type + (e.id % 3);
+      const hum = ZT[e.type] && ZT[e.type].human;
+      const k = hum ? 'x' + e.type + (e.id % 3) : e.rf ? `r${e.rf.t || e.rf.c}${e.id % 3}` : 'z' + e.type + (e.id % 3);
       let L = this.looks.get(k);
-      if (!L) { L = lookZombie(e); this.looks.set(k, L); }
+      if (!L) { L = hum ? lookHostile(e) : e.rf ? lookRisen(e) : lookZombie(e); this.looks.set(k, L); }
       return L;
     }
     const id = e.sid ?? e.id, k = `h${id}${e.color}${e.melee}${e.ranged || ''}${e.g}`;
@@ -3808,6 +5142,78 @@ function pBall(c, x, y, z, r, col) {
   c.fillStyle = sh(col, 1.14); circ(c, PX - R0 * 0.36, PY - R0 * 0.42, R0 * 0.3); c.fill();
 }
 
+// Выпуклый многогранник: грани — списки вершин [x, y, z]
+function pPoly(c, faces, col, ctr) {
+  if (MODE === 1) {
+    const sx = SHD[0] * CB.k, sy = SHD[1] * CB.k, pts = [];
+    for (const f of faces) for (const v of f) { P(v[0], v[1], 0); pts.push(PX + v[2] * sx, PY + v[2] * sy); }
+    hullFill(pts);
+    return;
+  }
+  // знак площади «верхней» грани задаёт, какие грани смотрят на камеру
+  P(0, 0, 0); const ox = PX, oy = PY; P(1, 0, 0); const ax = PX - ox, ay = PY - oy; P(0, 1, 0);
+  const ref = Math.sign(ax * (PY - oy) - ay * (PX - ox));
+  for (const f of faces) {
+    const [a, b, d] = f;
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    let mx = 0, my = 0, mz = 0;
+    for (const v of f) { mx += v[0]; my += v[1]; mz += v[2]; }
+    mx /= f.length; my /= f.length; mz /= f.length;
+    let flip = nx * (mx - ctr[0]) + ny * (my - ctr[1]) + nz * (mz - ctr[2]) < 0;
+    if (flip) { nx = -nx; ny = -ny; nz = -nz; }
+    const pts = [];
+    for (const v of f) { P(v[0], v[1], v[2]); pts.push(PX, PY); }
+    let area = 0;
+    for (let i = 0; i < pts.length; i += 2) { const j = (i + 2) % pts.length; area += pts[i] * pts[j + 1] - pts[j] * pts[i + 1]; }
+    if (Math.sign(area) * (flip ? -1 : 1) !== ref) continue;
+    const L = Math.hypot(nx, ny, nz) || 1, h = Math.hypot(nx, ny) || 1;
+    const side = (nx * -CB.rx + ny * -CB.ry) / h > 0 ? 0.9 : 0.64, up = Math.max(0, nz / L);
+    c.fillStyle = sh(col, side + (1.04 - side) * up);
+    c.beginPath(); c.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+    c.closePath(); c.fill();
+  }
+}
+// Двускатная крыша/палатка: стенки до z1, конёк на zr вдоль оси ax ('x' или 'y')
+function ridgeFaces(x0, y0, x1, y1, z0, z1, zr, ax) {
+  const F = [];
+  if (ax === 'x') {
+    const ym = (y0 + y1) / 2;
+    if (z1 > z0) { F.push([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]); }
+    F.push([[x0, y0, z1], [x1, y0, z1], [x1, ym, zr], [x0, ym, zr]], [[x0, y1, z1], [x1, y1, z1], [x1, ym, zr], [x0, ym, zr]]);
+    F.push([[x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, ym, zr], [x0, y0, z1]], [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, ym, zr], [x1, y0, z1]]);
+  } else {
+    const xm = (x0 + x1) / 2;
+    if (z1 > z0) { F.push([[x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]], [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]); }
+    F.push([[x0, y0, z1], [x0, y1, z1], [xm, y1, zr], [xm, y0, zr]], [[x1, y0, z1], [x1, y1, z1], [xm, y1, zr], [xm, y0, zr]]);
+    F.push([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [xm, y0, zr], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [xm, y1, zr], [x0, y1, z1]]);
+  }
+  return F;
+}
+// Костёр: камни, поленья и живое пламя
+function pFire(c, x, y, lit = true) {
+  for (let a = 0; a < 7; a++) { const q = (a / 7) * Math.PI * 2; pBox(c, x + Math.cos(q) * 0.3 - 0.06, y + Math.sin(q) * 0.3 - 0.05, x + Math.cos(q) * 0.3 + 0.06, y + Math.sin(q) * 0.3 + 0.05, 0, 0.1, '#5e5a52'); }
+  pBox(c, x - 0.22, y - 0.05, x + 0.22, y + 0.05, 0.02, 0.1, '#4a3420'); pBox(c, x - 0.05, y - 0.22, x + 0.05, y + 0.22, 0.08, 0.16, '#4a3420');
+  if (MODE === 1 || !lit) return;
+  const t = performance.now() / 1000;
+  P(x, y, 0.1); const bx = PX, by = PY, k = CB.k;
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) {
+    const ph = t * (5 + i * 1.7) + i * 2.1, hgt = k * (0.42 + 0.14 * Math.sin(ph) + (i === 0 ? 0.12 : 0)), w = k * (0.15 - i * 0.022);
+    const ox = Math.sin(ph * 0.7 + i) * k * 0.05 + (i - 1.5) * k * 0.05;
+    const g = c.createLinearGradient(bx, by, bx, by - hgt);
+    g.addColorStop(0, `rgba(255,${150 + i * 20},40,${0.85 * DIM})`); g.addColorStop(1, 'rgba(255,90,20,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(bx + ox - w, by); c.quadraticCurveTo(bx + ox - w * 0.6, by - hgt * 0.5, bx + ox, by - hgt); c.quadraticCurveTo(bx + ox + w * 0.6, by - hgt * 0.5, bx + ox + w, by); c.closePath(); c.fill();
+  }
+  const g2 = c.createRadialGradient(bx, by - k * 0.15, 0, bx, by - k * 0.15, k * 1.4);
+  g2.addColorStop(0, `rgba(255,150,60,${0.32 * DIM})`); g2.addColorStop(1, 'rgba(255,120,40,0)');
+  c.fillStyle = g2; c.fillRect(bx - k * 1.4, by - k * 1.55, k * 2.8, k * 2.8);
+  c.globalCompositeOperation = 'source-over';
+  R.fireVis = true;
+}
+
 // ----- соседство стен -----
 const wallish = (m, x, y) => { if (!inb(m, x, y)) return false; const t = m.tiles[MI(m, x, y)]; return TP[t].wall || isDoorT(t); };
 function wallPieces(m, x, y) { return { n: wallish(m, x, y - 1), s: wallish(m, x, y + 1), w: wallish(m, x - 1, y), e: wallish(m, x + 1, y) }; }
@@ -3817,6 +5223,7 @@ const WALL_DET = { [T.WALL]: 'panel', [T.BRICK]: 'brick', [T.WWALL]: 'plank', [T
 const OBJ_H = {
   [T.CRATE]: 0.7, [T.SHELF]: 1.2, [T.LOCKER]: 1.27, [T.FRIDGE]: 1.23, [T.DESK]: 0.56, [T.DRUM]: 0.85,
   [T.WELL]: 0.45, [T.MEDCAB]: 0.92, [T.BENCH]: 0.62, [T.FURN]: 0.5, [T.HAY]: 0.68, [T.BLOCK]: 1.05, [T.BLOCKH]: 1.5,
+  [T.SANDBAG]: 0.6, [T.GRAVE]: 0.7,
 };
 
 // ----- объект в клетке -----
@@ -3828,6 +5235,26 @@ function drawTileObj(c, m, x, y, i, lod, cut) {
   const B = (a, b, cc, d, z0, z1, col, det, top) => pBox(c, x + a, y + b, x + cc, y + d, z0, z1, col, det, top);
   switch (t) {
     case T.FENCE: return drawFenceIso(c, m, x, y, i);
+    case T.SANDBAG: {
+      const nb = (dx, dy) => inb(m, x + dx, y + dy) && m.tiles[MI(m, x + dx, y + dy)] === T.SANDBAG;
+      const hx = nb(-1, 0) || nb(1, 0), a0 = nb(-1, 0) ? 0 : 0.1, a1 = nb(1, 0) ? 1 : 0.9, b0 = nb(0, -1) ? 0 : 0.1, b1 = nb(0, 1) ? 1 : 0.9;
+      for (let l = 0; l < 3; l++) {
+        const z = l * 0.19, o = l % 2 ? 0.05 : 0.02, col = (l + x + y) % 2 ? '#8a7a56' : '#978763', top = shade(col, 1.1);
+        // мешки по два на клетку, ряды вперевязку
+        const cuts = l % 2 ? [0, 0.5, 1] : [0, 0.25, 0.75, 1];
+        for (let s2 = 0; s2 < cuts.length - 1; s2++) {
+          const c0 = cuts[s2] + 0.015, c1 = cuts[s2 + 1] - 0.015;
+          if (hx) B(Math.max(a0, c0), b0 + o, Math.min(a1, c1), b1 - o, z, z + 0.17, col, null, top);
+          else B(a0 + o, Math.max(b0, c0), a1 - o, Math.min(b1, c1), z, z + 0.17, col, null, top);
+        }
+      }
+      return;
+    }
+    case T.GRAVE:
+      B(0.22, 0.16, 0.78, 0.86, 0, 0.07, '#5a4a33');
+      if (m.meta[i]) { B(0.46, 0.2, 0.54, 0.3, 0, 0.82, '#5a4128'); B(0.3, 0.2, 0.7, 0.3, 0.52, 0.6, '#5a4128'); }
+      else { B(0.26, 0.18, 0.74, 0.3, 0, 0.62, '#8a8a82', null, '#a2a29a'); if (MODE === 0) B(0.34, 0.3, 0.66, 0.31, 0.3, 0.5, '#6a6a62'); }
+      return;
     case T.TREE: return drawTreeIso(c, x, y, cut);
     case T.HAY:
       B(0.06, 0.1, 0.94, 0.9, 0, 0.68, '#b39a52', null, '#c8ad62');
@@ -3883,7 +5310,25 @@ function drawTileObj(c, m, x, y, i, lod, cut) {
         if (MODE === 0) { B(0.18, 0.1, 0.82, 0.3, 0.4, 0.48, '#e8e2d2'); B(0.12, 0.42, 0.88, 0.92, 0.4, 0.44, '#5c6170'); }
       } else if (v === 1) { pCyl(c, x + 0.5, y + 0.5, 0.06, 0, 0.5, '#4a3520'); pCyl(c, x + 0.5, y + 0.5, 0.4, 0.5, 0.56, '#8a6946'); }
       else if (v === 2) { B(0.06, 0.32, 0.94, 0.86, 0, 0.36, '#6b5878'); B(0.06, 0.14, 0.94, 0.32, 0, 0.72, '#5a4868'); B(0.04, 0.14, 0.14, 0.86, 0, 0.5, '#5a4868'); B(0.86, 0.14, 0.96, 0.86, 0, 0.5, '#5a4868'); }
-      else { B(0.1, 0.42, 0.16, 0.58, 0, 0.3, '#3e2c1a'); B(0.84, 0.42, 0.9, 0.58, 0, 0.3, '#3e2c1a'); B(0.06, 0.36, 0.94, 0.64, 0.3, 0.36, '#7a5b3a'); }
+      else if (v === 3) { B(0.1, 0.42, 0.16, 0.58, 0, 0.3, '#3e2c1a'); B(0.84, 0.42, 0.9, 0.58, 0, 0.3, '#3e2c1a'); B(0.06, 0.36, 0.94, 0.64, 0.3, 0.36, '#7a5b3a'); }
+      else if (v === 4) { // церковная скамья
+        B(0.04, 0.3, 0.1, 0.75, 0, 0.42, '#4a3420'); B(0.9, 0.3, 0.96, 0.75, 0, 0.42, '#4a3420');
+        B(0.04, 0.32, 0.96, 0.72, 0.36, 0.42, '#6e4f30'); B(0.04, 0.66, 0.96, 0.74, 0.42, 0.88, '#5e4228');
+      } else if (v === 5) { // парта и стул
+        B(0.14, 0.12, 0.2, 0.56, 0, 0.52, '#5a5d60'); B(0.8, 0.12, 0.86, 0.56, 0, 0.52, '#5a5d60');
+        B(0.1, 0.1, 0.9, 0.58, 0.52, 0.58, '#b39062');
+        B(0.32, 0.66, 0.68, 0.9, 0, 0.32, '#5a5d60'); B(0.32, 0.66, 0.68, 0.9, 0.32, 0.36, '#7a5b3a'); B(0.32, 0.86, 0.68, 0.92, 0.36, 0.7, '#7a5b3a');
+      } else if (v === 6) { // двухъярусная койка
+        for (const a of [0.1, 0.84]) for (const b of [0.06, 0.88]) B(a, b, a + 0.06, b + 0.06, 0, 1.25, '#3f4a3a');
+        for (const z of [0.3, 0.9]) { B(0.1, 0.06, 0.9, 0.94, z, z + 0.08, '#4a5a3a'); B(0.12, 0.08, 0.88, 0.92, z + 0.08, z + 0.17, '#6f7a5a'); }
+        if (MODE === 0) B(0.16, 0.1, 0.84, 0.3, 1.07, 1.13, '#d6d0bf');
+      } else if (v === 7) { // прилавок
+        B(0.02, 0.28, 0.98, 0.72, 0, 0.82, '#6a5440', 'plank', '#8a7454');
+        if (MODE === 0) B(0.0, 0.26, 1.0, 0.74, 0.82, 0.86, '#b8b2a2');
+      } else { // нары / раскладушка
+        B(0.12, 0.08, 0.18, 0.92, 0, 0.32, '#5a5d60'); B(0.82, 0.08, 0.88, 0.92, 0, 0.32, '#5a5d60');
+        B(0.1, 0.06, 0.9, 0.94, 0.32, 0.4, '#6f7468'); if (MODE === 0) B(0.14, 0.08, 0.86, 0.26, 0.4, 0.46, '#c8c2b0');
+      }
       return;
     }
   }
@@ -4018,6 +5463,7 @@ function propPrims(p) {
       along(0.32, 0.7, 0.18, 0.82, 0.98, 1.04, shade(p.c, 1.08));
       along(0.97, 0.995, 0.14, 0.3, 0.38, 0.5, '#e8dca0'); along(0.97, 0.995, 0.7, 0.86, 0.38, 0.5, '#e8dca0');
       along(0.005, 0.03, 0.14, 0.3, 0.4, 0.5, '#a8322a'); along(0.005, 0.03, 0.7, 0.86, 0.4, 0.5, '#a8322a');
+      if (p.pol) { along(0.05, 0.95, 0.09, 0.91, 0.36, 0.44, '#2f4f8f'); along(0.45, 0.55, 0.22, 0.5, 1.04, 1.13, '#c4402f'); along(0.45, 0.55, 0.5, 0.78, 1.04, 1.13, '#3a6ab0'); }
       break;
     case 'ambulance':
       wheels([0.18, 0.82], 0.1);
@@ -4056,6 +5502,76 @@ function propPrims(p) {
       box(x + 0.15, y + 0.6, x + w - 0.15, y + h - 0.6, 1.25, 1.38, '#b6b3a8');
       box(x + w * 0.1, y + h - 0.32, x + w * 0.24, y + h - 0.3, 0.6, 0.8, '#c4402f');
       break;
+    case 'bus':
+      wheels([0.13, 0.82], 0.06);
+      along(0.01, 0.99, 0.06, 0.94, 0.25, 1.55, p.c, shade(p.c, 1.1));
+      along(0.06, 0.95, 0.05, 0.95, 0.85, 1.25, '#3e4e5a');
+      along(0.0, 0.01, 0.1, 0.9, 0.25, 0.5, '#2a2a28'); along(0.99, 1.0, 0.1, 0.9, 0.25, 0.5, '#2a2a28');
+      along(0.3, 0.7, 0.2, 0.8, 1.55, 1.6, '#c4c0b0');
+      break;
+    case 'trailer':
+      wheels([0.45, 0.55], 0.05);
+      along(0.0, 0.9, 0.04, 0.96, 0.3, 1.45, p.c, '#e4e0d4');
+      along(0.05, 0.85, 0.03, 0.97, 0.7, 0.78, '#4a6a8a');
+      along(0.15, 0.3, 0.03, 0.97, 0.9, 1.15, '#3e4e5a'); along(0.6, 0.75, 0.03, 0.97, 0.9, 1.15, '#3e4e5a');
+      along(0.9, 1.0, 0.45, 0.55, 0.25, 0.35, '#2a2a28');
+      break;
+    case 'wagon':
+      for (const s of [0.12, 0.88]) for (const [i0, i1] of [[0.02, 0.2], [0.8, 0.98]]) along(s - 0.08, s + 0.08, i0, i1, 0, 0.35, '#1e1d1a');
+      along(0.0, 1.0, 0.08, 0.92, 0.3, 0.4, '#2a2826');
+      along(0.01, 0.99, 0.04, 0.96, 0.4, 1.9, p.c, shade(p.c, 1.12));
+      along(0.42, 0.58, 0.02, 0.98, 0.5, 1.75, shade(p.c, 0.78));
+      along(0.0, 1.0, 0.1, 0.9, 1.9, 1.98, shade(p.c, 1.2));
+      break;
+    case 'pump':
+      box(x + 0.22, y + 0.3, x + 0.78, y + 0.7, 0, 1.25, '#b8402f', '#d8d4c8');
+      box(x + 0.3, y + 0.28, x + 0.7, y + 0.72, 0.75, 1.05, '#d8d4c8');
+      box(x + 0.36, y + 0.27, x + 0.64, y + 0.73, 0.82, 0.98, '#2a3a2a');
+      box(x + 0.78, y + 0.44, x + 0.86, y + 0.56, 0.2, 0.9, '#1e1d1a');
+      break;
+    case 'tent': {
+      if (p.round) { out.push({ t: 'cone', x: x + w / 2, y: y + h / 2, r: Math.min(w, h) * 0.48, z0: 0, z1: 1.55, col: p.c }); out.push({ t: 'box', x0: x + w / 2 - 0.04, y0: y + h / 2 - 0.04, x1: x + w / 2 + 0.04, y1: y + h / 2 + 0.04, z0: 1.4, z1: 1.8, col: '#4a3420' }); break; }
+      out.push({ t: 'ridge', x0: x + 0.1, y0: y + 0.12, x1: x + w - 0.1, y1: y + h - 0.12, z0: 0, z1: 0.08, zr: 1.05, ax: w >= h ? 'x' : 'y', col: p.c });
+      break;
+    }
+    case 'mtent':
+    case 'medtent': {
+      const ax = h > w ? 'y' : 'x', med = p.k === 'medtent';
+      out.push({ t: 'ridge', x0: x + 0.08, y0: y + 0.08, x1: x + w - 0.08, y1: y + h - 0.08, z0: 0, z1: med ? 0.5 : 0.4, zr: med ? 1.45 : 1.3, ax, col: p.c });
+      if (med) {
+        const cx = x + w / 2, cy = y + h / 2;
+        if (ax === 'x') for (const xx of [x + 0.06, x + w - 0.08]) { box(xx, cy - 0.3, xx + 0.02, cy + 0.3, 0.55, 0.69, '#c4402f'); box(xx, cy - 0.07, xx + 0.02, cy + 0.07, 0.35, 0.9, '#c4402f'); }
+        else for (const yy of [y + 0.06, y + h - 0.08]) { box(cx - 0.3, yy, cx + 0.3, yy + 0.02, 0.55, 0.69, '#c4402f'); box(cx - 0.07, yy, cx + 0.07, yy + 0.02, 0.35, 0.9, '#c4402f'); }
+      }
+      break;
+    }
+    case 'tower': {
+      for (const [a, b] of [[0.1, 0.1], [w - 0.24, 0.1], [0.1, h - 0.24], [w - 0.24, h - 0.24]]) box(x + a, y + b, x + a + 0.14, y + b + 0.14, 0, 3.2, '#5a4a36');
+      box(x + 0.02, y + 0.02, x + w - 0.02, y + h - 0.02, 2.1, 2.24, '#6e5a40');
+      for (const [a0, b0, a1, b1] of [[0.02, 0.02, w - 0.02, 0.1], [0.02, h - 0.1, w - 0.02, h - 0.02], [0.02, 0.1, 0.1, h - 0.1], [w - 0.1, 0.1, w - 0.02, h - 0.1]]) box(x + a0, y + b0, x + a1, y + b1, 2.24, 2.62, '#8a7a56');
+      box(x - 0.08, y - 0.08, x + w + 0.08, y + h + 0.08, 3.2, 3.3, '#4a4438');
+      box(x + w * 0.3, y + h * 0.3, x + w * 0.7, y + h * 0.7, 3.3, 3.45, '#4a4438');
+      break;
+    }
+    case 'mast': {
+      const H2 = p.hgt || 4;
+      box(x + 0.38, y + 0.38, x + 0.62, y + 0.62, 0, 0.2, '#5e5c55');
+      box(x + 0.45, y + 0.45, x + 0.55, y + 0.55, 0.2, H2, '#9a9c97');
+      for (let z = 1; z < H2; z += 1) box(x + 0.36, y + 0.36, x + 0.64, y + 0.64, z, z + 0.05, '#7a7c77');
+      box(x + 0.2, y + 0.47, x + 0.8, y + 0.53, H2 - 0.6, H2 - 0.55, '#9a9c97');
+      box(x + 0.46, y + 0.46, x + 0.54, y + 0.54, H2, H2 + 0.12, '#e0402f');
+      break;
+    }
+    case 'wtower': {
+      for (const [a, b] of [[0.2, 0.2], [w - 0.32, 0.2], [0.2, h - 0.32], [w - 0.32, h - 0.32]]) box(x + a, y + b, x + a + 0.12, y + b + 0.12, 0, 1.9, '#5a5d60');
+      box(x + 0.3, y + 0.3, x + w - 0.3, y + h - 0.3, 0.9, 0.96, '#5a5d60');
+      out.push({ t: 'cyl', x: x + w / 2, y: y + h / 2, r: w * 0.42, z0: 1.9, z1: 2.9, col: '#6f8a8a', rings: [2.2, 2.55] });
+      out.push({ t: 'cone', x: x + w / 2, y: y + h / 2, r: w * 0.44, z0: 2.9, z1: 3.25, col: '#5a6e6e' });
+      break;
+    }
+    case 'campfire':
+      out.push({ t: 'fire', x: x + 0.5, y: y + 0.5, z0: 0 });
+      break;
     case 'silo':
       out.push({ t: 'cyl', x: x + w / 2, y: y + h / 2, r: w * 0.46, z0: 0, z1: 2.8, col: '#878984', rings: [0.7, 1.4, 2.1] });
       out.push({ t: 'cone', x: x + w / 2, y: y + h / 2, r: w * 0.48, z0: 2.8, z1: 3.5, col: '#9a9c97' });
@@ -4070,6 +5586,7 @@ function propSlices(m) {
   map = new Map();
   const push = (i, q) => { if (!map.has(i)) map.set(i, []); map.get(i).push(q); };
   for (const p of m.props) for (const q of propPrims(p)) {
+    if (q.t === 'ridge') { push(MI(m, Math.floor((q.x0 + q.x1) / 2), Math.floor((q.y0 + q.y1) / 2)), q); continue; }
     if (q.t !== 'box') { push(MI(m, Math.floor(q.x), Math.floor(q.y)), q); continue; }
     for (let ty = Math.floor(q.y0); ty < Math.ceil(q.y1); ty++) for (let tx = Math.floor(q.x0); tx < Math.ceil(q.x1); tx++) {
       if (!inb(m, tx, ty)) continue;
@@ -4081,10 +5598,12 @@ function propSlices(m) {
   return map;
 }
 function drawPrims(c, list) {
-  const key = q => (q.t === 'box' ? nearF((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2) : nearF(q.x, q.y));
+  const key = q => (q.t === 'box' || q.t === 'ridge' ? nearF((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2) : nearF(q.x, q.y));
   list.sort((a, b) => a.z0 - b.z0 || key(a) - key(b));
   for (const q of list) {
     if (q.t === 'cyl') pCyl(c, q.x, q.y, q.r, q.z0, q.z1, q.col, q.rings);
+    else if (q.t === 'ridge') pPoly(c, q.f || (q.f = ridgeFaces(q.x0, q.y0, q.x1, q.y1, q.z0, q.z1, q.zr, q.ax)), q.col, [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, q.z1 / 2]);
+    else if (q.t === 'fire') pFire(c, q.x, q.y);
     else if (q.t === 'cone') pCone(c, q.x, q.y, q.r, q.z0, q.z1, q.col);
     else {
       if (q.alpha && MODE === 0) c.globalAlpha = q.alpha;
@@ -4105,7 +5624,7 @@ function layer(name, W, H, dpr) {
 }
 const MAPCSS = MAPRGB.map(c => c && `rgb(${c[0]},${c[1]},${c[2]})`);
 const isFlatT = t => TP[t].floor || t === T.CROP || t === T.BUSH || t === T.BLOCK || t === T.BLOCKH;
-function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
+function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
   const dpr = R.dpr, gfx = CFG.gfx ?? 2;
   setCB(cam, W, H, shk[0], shk[1]);
   const k = cam.k, lod = k < 14 ? 0 : k < 24 ? 1 : 2;
@@ -4154,6 +5673,11 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
       const [px, py] = animPos(un, now);
       bucket(Math.round(nearKey(px, py)), { e: un, z: false, px, py });
     }
+    for (const cp of m.captives || []) if (!cp.freed && m.seen[MI(m, cp.x, cp.y)]) bucket(Math.round(nearKey(cp.x, cp.y)), { e: cp, z: false, cap: true, px: cp.x, py: cp.y });
+  } else if (extra) {
+    for (const it of extra) { const [px, py] = animPos(it.e, now); bucket(Math.round(nearKey(px, py)), { e: it.e, z: false, base: true, px, py }); }
+  }
+  if (!all || extra) {
     for (const list of rows.values()) for (const it of list) {
       const ex = Math.round(it.px), ey = Math.round(it.py), nk = nearKey(ex, ey);
       occ.add(MI(m, ex, ey));
@@ -4244,10 +5768,16 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
       P(d.x + 0.5, d.y + 0.5, 0);
       const p = d.t0 ? (now - d.t0) / 620 : 2, fr = p < 0.33 ? 'd0' : p < 0.66 ? 'd1' : 'd2';
       if (p < 1) R.until = Math.max(R.until, now + 60);
-      const L = d.k === 'ucorpse' ? Spr.look(d.u, 'h') : Spr.look({ type: d.zt, id: d.zid }, 'z');
+      const L = d.k === 'ucorpse' ? Spr.look(d.u, 'h') : Spr.look({ type: d.zt, id: d.zid, rf: d.rf }, 'z');
       c.globalAlpha = vis(MI(m, d.x, d.y)) ? 1 : 0.5;
       Spr.draw(c, L, fr, spriteDir(d.f ?? 2), PX, PY, k);
       c.globalAlpha = 1;
+      if (d.rise && !all && vis(MI(m, d.x, d.y))) {
+        const left = d.rise - m.turn, a = 0.35 + 0.25 * Math.sin(now / 260);
+        c.strokeStyle = `rgba(164,208,60,${left <= 1 ? a + 0.25 : a})`; c.lineWidth = Math.max(1.5, k * 0.035);
+        c.beginPath(); c.ellipse(PX, PY, k * 0.42, k * 0.42 * CB.sE, 0, 0, Math.PI * 2); c.stroke();
+        R.until = Math.max(R.until, now + 300);
+      }
     }
     const el = rows.get(nk);
     if (el) {
@@ -4307,7 +5837,17 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
   it.cx = PX; it.fy = PY;
   const big = it.z && it.e.type === 'brute' ? 1.3 : 1, rx = k * 0.36 * big, ry = rx * CB.sE;
   if (!((CFG.gfx ?? 2) >= 1 && lod >= 1)) { c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(PX, PY, rx * 0.8, ry * 0.8, 0, 0, Math.PI * 2); c.fill(); }
-  if (!it.z) {
+  if (it.cap) {
+    const L = Spr.look({ sid: 'cap' + it.e.name, name: it.e.name, g: it.e.g, color: it.e.color, trait: 'quiet', melee: null, ranged: null }, 'h');
+    it.top = Spr.draw(c, L, 'i0', spriteDir(0), PX, PY, k);
+    c.strokeStyle = '#8a7a56'; c.lineWidth = Math.max(1, k * 0.03);
+    P(it.px + 0.8, it.py + 0.5, 0.75); const rx2 = PX, ry2 = PY; P(it.px + 0.55, it.py + 0.5, 0.55);
+    c.beginPath(); c.moveTo(PX, PY); c.lineTo(rx2, ry2); c.stroke();
+    R.objHits.push({ x: it.e.x, y: it.e.y, x0: it.cx - k * 0.4, x1: it.cx + k * 0.4, y0: it.top, y1: it.fy + k * 0.2 });
+    return;
+  }
+  if (it.base) {
+  } else if (!it.z) {
     const sel = it.e.id === TAC.sel;
     c.strokeStyle = sel ? '#e8a62b' : it.e.color; c.globalAlpha = sel ? 1 : 0.6;
     c.lineWidth = Math.max(sel ? 2 : 1.5, k * (sel ? 0.05 : 0.032));
@@ -4316,6 +5856,11 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
   } else if (MI(m, it.e.x, it.e.y) === tgt) {
     c.strokeStyle = '#ff6a50'; c.lineWidth = Math.max(2, k * 0.05);
     c.beginPath(); c.ellipse(PX, PY, rx * 1.05, ry * 1.05, 0, 0, Math.PI * 2); c.stroke();
+  } else if (isHuman(it.e)) {
+    c.strokeStyle = ZT[it.e.type].body; c.globalAlpha = 0.75; c.lineWidth = Math.max(1.5, k * 0.035);
+    c.setLineDash([k * 0.12, k * 0.08]);
+    c.beginPath(); c.ellipse(PX, PY, rx, ry, 0, 0, Math.PI * 2); c.stroke();
+    c.setLineDash([]); c.globalAlpha = 1;
   }
   if (lod === 0) {
     c.fillStyle = it.z ? ZT[it.e.type].body : it.e.color;
@@ -4333,7 +5878,7 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
   R.hits.push({ e: it.e, z: it.z, x0: PX - k * 0.38, x1: PX + k * 0.38, y0: it.top, y1: PY + k * 0.15 });
 }
 function lightLayer(c, m, now, W, H, dpr, gfx) {
-  const tod = timeOfDay(m);
+  const tod = m.tod ?? timeOfDay(m);
   const flashes = FX.list.filter(f => f.k === 'flash' && now - f.t0 < f.d);
   if (!tod && !flashes.length) return;
   if (gfx === 0) {
@@ -4350,7 +5895,7 @@ function lightLayer(c, m, now, W, H, dpr, gfx) {
     l.setTransform(dpr, 0, 0, dpr, 0, 0);
     l.globalCompositeOperation = 'destination-out';
     const sr = sightR(m);
-    for (const u of liveUnits(m)) {
+    for (const u of m.units ? liveUnits(m) : []) {
       const [px, py] = animPos(u, now);
       P(px + 0.5, py + 0.5, 0);
       const rad = (sr + (u.trait === 'hunter' ? 2 : 0)) * k * 0.9;
@@ -4369,6 +5914,15 @@ function lightLayer(c, m, now, W, H, dpr, gfx) {
         g2.addColorStop(0, 'rgba(0,0,0,0.95)'); g2.addColorStop(1, 'rgba(0,0,0,0)');
         l.fillStyle = g2; l.beginPath(); l.moveTo(sx0, sy0); l.lineTo(ax, ay); l.lineTo(bx, by); l.closePath(); l.fill();
       }
+    }
+    for (const [fx, fy] of m.fires || []) {
+      P(fx + 0.5, fy + 0.5, 0);
+      const fl = 1 + Math.sin(now / 90) * 0.04 + Math.sin(now / 37) * 0.03, rad = k * 4.2 * fl;
+      l.save(); l.translate(PX, PY); l.scale(1, CB.sE);
+      const g = l.createRadialGradient(0, 0, rad * 0.1, 0, 0, rad);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.5, 'rgba(0,0,0,0.75)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      l.fillStyle = g; l.beginPath(); l.arc(0, 0, rad, 0, Math.PI * 2); l.fill();
+      l.restore();
     }
     for (const fl of flashes) {
       P(fl.x + 0.5, fl.y + 0.5, 1);
@@ -4395,7 +5949,7 @@ function lightLayer(c, m, now, W, H, dpr, gfx) {
 'use strict';
 // ---------- Интерфейс боя и управление касаниями ----------
 
-const ZSTATE = { idle: 'стоит', wander: 'бродит', investigate: 'идёт на шум', chase: 'видит вас' };
+const ZSTATE = { idle: 'стоит', wander: 'бродит', investigate: 'идёт на шум', chase: 'видит вас', guard: 'на посту' };
 function canOverwatch(u) { return (u.ranged && u.ammo > 0 && u.ap >= WEAP[u.ranged].ap) || u.ap >= WEAP[u.melee].ap; }
 function unitSub(u) { return `${u.hp}/${u.maxhp} здоровья · ${u.ap} ОД`; }
 
@@ -4502,9 +6056,17 @@ const HUD = {
     $('#tTod').className = 'chip tod' + tod;
     const left = Math.max(1, WAVE_EVERY - (m.turn - m.lastWave));
     let pips = '';
-    for (let k = 0; k < 5; k++) pips += `<i class="${k < m.threat ? 'on' : ''}"></i>`;
-    $('#tThreat').innerHTML = `<span class="lbl">Угроза</span><span class="pips">${pips}</span><span class="wv">${icon('wave')}${left}</span>`;
-    $('#tThreat').title = `Новая волна примерно через ${left} ${plural(left, 'ход', 'хода', 'ходов')} или раньше, если шуметь`;
+    if (m.siege) {
+      const sg = m.siege;
+      for (let k = 0; k < sg.waves; k++) pips += `<i class="${k < sg.spawned ? 'on' : ''}"></i>`;
+      const nx = sg.spawned < sg.waves ? sg.next + 3 - m.turn : 0;
+      $('#tThreat').innerHTML = `<span class="lbl">Волны</span><span class="pips">${pips}</span><span class="wv">${icon('skull')}${m.zombies.length}</span>`;
+      $('#tThreat').title = nx > 0 ? `Следующая волна через ${nx} ${plural(nx, 'ход', 'хода', 'ходов')}` : 'Это последняя волна: перебейте всех';
+    } else {
+      for (let k = 0; k < 5; k++) pips += `<i class="${k < m.threat ? 'on' : ''}"></i>`;
+      $('#tThreat').innerHTML = `<span class="lbl">Угроза</span><span class="pips">${pips}</span><span class="wv">${icon('wave')}${left}</span>`;
+      $('#tThreat').title = `Новая волна примерно через ${left} ${plural(left, 'ход', 'хода', 'ходов')} или раньше, если шуметь`;
+    }
     $('#tSquad').innerHTML = m.units.map(o => {
       const st = o.dead ? 'dead' : o.evac ? 'evac' : '';
       const hp = Math.max(0, (o.hp / o.maxhp) * 100);
@@ -4524,6 +6086,7 @@ const HUD = {
     set('aLure', player && u && u.lures > 0 && u.ap >= 2, TAC.mode === 'lure');
     $('#aLure span').textContent = u ? `Приманка ${u.lures}` : 'Приманка';
     set('aEvac', player && u && inEvac(m, u) && u.ap >= 1);
+    $('#aEvac').hidden = !!m.siege;
     set('aEnd', player);
     $('#aEnd').classList.toggle('ready', player && liveUnits(m).every(o => o.ap < 2));
   },
@@ -4569,6 +6132,7 @@ const HUD = {
     p.style.left = x + 'px'; p.style.top = y + 'px';
   },
   tap(ax, ay) {
+    if (R.mode === 'base') { Base.tapMap(ax, ay); return; }
     const m = TAC.m;
     if (!m || !canAct()) return;
     let t = R.toTile(ax, ay);
@@ -4613,7 +6177,7 @@ const HUD = {
       return;
     }
     if (zv) {
-      const w = WEAP[u.melee], adj = adjOK(m, u.x, u.y, zv.x, zv.y), sneak = zv.state === 'idle' || zv.state === 'wander';
+      const w = WEAP[u.melee], adj = adjOK(m, u.x, u.y, zv.x, zv.y), sneak = isUnaware(zv), hum = isHuman(zv);
       const items = [{
         ic: 'melee', cost: w.ap, ok: adj && u.ap >= w.ap, fn: () => doMelee(u, zv),
         label: !adj ? `${w.name}: нужно подойти вплотную` : sneak && w.assassin ? `${w.name}: тихое убийство` : sneak ? `${w.name}: удар со спины ×2` : `${w.name}: удар 85%`,
@@ -4626,9 +6190,35 @@ const HUD = {
           note: silenced(u) ? 'с глушителем, почти тихо' : `громко: слышно за ${rw.noise} клеток`,
         });
       }
-      const zt = ZT[zv.type];
+      const zt = ZT[zv.type], cov = hum && u.ranged ? coverOf(m, u.x, u.y, zv) : 0;
+      if (cov && items[1]) items[1].note = `за укрытием: −${Math.round(cov * 100)}% к попаданию`;
       TAC.pend = { tx: zv.x, ty: zv.y, col: '#ff6a50' };
-      this.showPop(ax, ay, zt.name, `${Math.max(0, zv.hp)}/${zt.hp} здоровья · ${ZSTATE[zv.state]}`, items);
+      const title = hum ? `${zt.name} · ${FACTIONS[zt.fac].name}` : zv.rf ? (zv.rf.n ? `${zv.rf.n}, мертвец` : 'Восставший') : zt.name;
+      const mhp = zv.rf ? ZT.walker.hp : zt.hp;
+      this.showPop(ax, ay, title, `${Math.max(0, zv.hp)}/${mhp} здоровья · ${hum && zv.state === 'chase' ? 'в бою' : ZSTATE[zv.state]}${hum && zt.ranged ? ` · патронов ${zv.ammo}` : ''}`, items);
+      return;
+    }
+    // пленный у столба
+    const cap = captiveAt(m, t.x, t.y);
+    if (cap) {
+      const adj = cheb(u.x, u.y, t.x, t.y) <= 1, items = [];
+      if (adj) items.push({ ic: 'exit', label: 'Освободить', cost: 2, ok: u.ap >= 2, fn: () => doFree(u, cap), note: 'пойдёт с вами, оружия нет' });
+      else {
+        let best = -1, bd = 1e9;
+        if (rf) for (const [dx, dy] of DIR8) { const nx = t.x + dx, ny = t.y + dy; if (!inb(m, nx, ny)) continue; const j = MI(m, nx, ny); if (rf.dist[j] > 0 && rf.dist[j] < bd) { bd = rf.dist[j]; best = j; } }
+        if (best >= 0) { const go = () => doMove(u, best); TAC.pend = { i, path: pathTo(m, rf, best), fn: go }; items.push({ ic: 'walk', label: 'Подойти', cost: bd, fn: go }); }
+      }
+      this.showPop(ax, ay, `Пленный: ${cap.name}`, adj ? 'связан и избит, но живой' : 'нужно подойти вплотную', items);
+      return;
+    }
+    // тело, которое скоро встанет
+    const dc = m.decals.find(d => d.rise && d.x === t.x && d.y === t.y);
+    if (dc && cheb(u.x, u.y, t.x, t.y) <= 1) {
+      const ct0 = m.cont[i], left = dc.rise - m.turn;
+      const items = [{ ic: 'melee', label: 'Добить, чтобы не встал', cost: 1, ok: u.ap >= 1, fn: () => doFinish(u, dc), note: 'удар в голову, почти тихо' }];
+      if (ct0 && Object.keys(ct0.loot).length) items.push({ ic: 'search', label: 'Обыскать тело', cost: 0, fn: () => doSearch(u, i) });
+      const nm = dc.k === 'ucorpse' ? dc.u.name : ZT[dc.zt].name;
+      this.showPop(ax, ay, nm, left <= 1 ? 'встанет на следующем ходу' : `встанет через ${left} ${plural(left, 'ход', 'хода', 'ходов')}`, items);
       return;
     }
     const ct = m.cont[i];
@@ -4738,6 +6328,19 @@ const HUD = {
     if (inb(m, x, y)) { R.centerOn(x, y, true); this.closeMap(); }
   },
   openMenu() {
+    if (TAC.m && TAC.m.siege) {
+      Game.modal({
+        title: 'Оборона на паузе',
+        html: `<p>Ход ${TAC.m.turn}. Можно запереться в насосной и переждать: люди уцелеют, но нападающие растащат часть припасов.</p>`,
+        buttons: [
+          { label: CFG.music ? 'Музыка: выкл' : 'Музыка: вкл', fn: () => Game.toggleMusic() },
+          { label: 'Настройки', fn: () => Game.openSettings() },
+          { label: 'Запереться и переждать', cls: 'danger', fn: () => abandonMission() },
+          { label: 'Продолжить', cls: 'primary' },
+        ],
+      });
+      return;
+    }
     Game.modal({
       title: 'Вылазка на паузе',
       html: `<p>Ход ${TAC.m.turn}. Если покинуть вылазку сейчас, уедут только те, кто стоит в зелёной зоне у машины. Остальные останутся на карте навсегда.</p>`,
@@ -4768,7 +6371,7 @@ const Input = {
     cv.addEventListener('pointerup', e => this.up(e));
     cv.addEventListener('pointercancel', e => { this.ptrs.delete(e.pointerId); if (!this.ptrs.size) this.start = null; });
     cv.addEventListener('wheel', e => {
-      if (R.mode !== 'tac') return;
+      if (R.mode !== 'tac' && R.mode !== 'base') return;
       e.preventDefault();
       const p = toApp(e.clientX, e.clientY);
       R.zoomAt(p.x, p.y, e.deltaY < 0 ? 1.15 : 1 / 1.15);
@@ -4777,7 +6380,7 @@ const Input = {
   },
   mid() { const [a, b] = [...this.ptrs.values()]; return [(a.x + b.x) / 2, (a.y + b.y) / 2, Math.hypot(a.x - b.x, a.y - b.y)]; },
   down(e) {
-    if (R.mode !== 'tac') return;
+    if (R.mode !== 'tac' && R.mode !== 'base') return;
     Sfx.init();
     try { e.target.setPointerCapture(e.pointerId); } catch (er) { /* старые браузеры */ }
     const p = toApp(e.clientX, e.clientY);
@@ -4862,83 +6465,134 @@ function newGameState() {
     mk('Семёныч', 'm', 'hunter', 'axe', 'shotgun', 12, UNIT_COLORS[3]),
   );
   S.squad = [1, 2, 3];
+  ensureWorld();
   addLog('Мы заняли старую насосную станцию на окраине. Стены крепкие, но еды и воды хватит дня на два.');
-  addLog('Первую вылазку лучше сделать на ферму: туда можно дойти пешком.');
+  addLog('Первую вылазку лучше сделать на ферму: туда можно дойти пешком. Все места — на карте округи.');
 }
 
+// Зоны карты базы: касание открывает нужную постройку
+const BASE_ZONES = [
+  ['radio', 26, 4, 28, 6], ['garden', 5, 6, 13, 15], ['water', 28, 5, 34, 13], ['infirmary', 5, 18, 12, 24],
+  ['workshop', 26, 16, 34, 27], ['walls', 0, 0, 39, 4], ['walls', 0, 29, 39, 35], ['walls', 0, 0, 5, 35], ['walls', 34, 0, 39, 35],
+];
+const DOCK = { build: ['Постройки', 'home'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+
 const Base = {
-  tab: 'sortie', loc: 'farm',
+  tab: null, hl: null, life: null,
+  // ----- сцена: карта базы с людьми у костра -----
+  scene() {
+    const { m } = genBase(S);
+    m.seen = new Uint8Array(m.n).fill(1); m.vis = new Uint8Array(m.n).fill(1);
+    m.units = []; m.zombies = []; m.turn = 1; m.tod = 0;
+    m.uocc = new Uint8Array(m.n); m.zocc = new Uint8Array(m.n);
+    const ents = [], spots = m.idle.slice(), sick = [[7, 22], [9, 22], [11, 22]];
+    for (const s of S.survivors) {
+      const hurt = S.build.infirmary && (s.infected || s.hp < s.maxhp * 0.5) && sick.length;
+      const [x, y] = hurt ? sick.shift() : spots.shift() || [20 + rint(-3, 3), 17];
+      const e = { id: s.id, name: s.name, g: s.g, color: s.color, melee: s.melee, ranged: s.ranged, trait: s.trait, x, y, hp: s.hp, maxhp: s.maxhp };
+      e.f = dirIdx(20 - x, 20 - y);
+      ents.push({ e });
+      m.uocc[MI(m, x, y)] = 1;
+    }
+    R.base = { m, ents };
+  },
+  startLife() {
+    clearInterval(this.life);
+    this.life = setInterval(() => this.lifeTick(), 2600);
+  },
+  stopLife() { clearInterval(this.life); this.life = null; },
+  async lifeTick() {
+    const B = R.base;
+    if (R.mode !== 'base' || !B || document.hidden) return;
+    const free = B.ents.filter(it => !it.busy);
+    if (!free.length || chance(0.35)) return;
+    const it = pick(free), e = it.e, m = B.m;
+    const spot = pick(m.idle.filter(([x, y]) => !m.uocc[MI(m, x, y)]));
+    if (!spot) return;
+    const path = zPath(m, e, spot[0], spot[1]);
+    if (!path || !path.length || path.length > 14) return;
+    it.busy = true;
+    m.uocc[MI(m, e.x, e.y)] = 0;
+    for (const j of path) { if (R.mode !== 'base' || R.base !== B) break; await animTo(e, j % m.w, (j / m.w) | 0, 330); }
+    m.uocc[MI(m, e.x, e.y)] = 1;
+    e.f = dirIdx(20 - e.x, 20 - e.y);
+    it.busy = false; R.dirty = true;
+  },
+  frame() {
+    const root = $('#scr-base');
+    const lw = $('.survs', root) ? $('.survs', root).offsetWidth : 0, rw = $('.dock', root) ? $('.dock', root).offsetWidth : 0;
+    R.cam.k = clamp(Math.round(R.H / 15.5), 22, 36);
+    R.cam.cx = 20; R.cam.cy = 16.5; R.camAnim = null;
+    R.panStart(0, 0); R.panTo((lw - rw) / 2, R.H * 0.03); R.pan = null;
+    R.dirty = true;
+  },
+  tapMap(x, y) {
+    const e = R.pick(x, y);
+    if (e && e.name) {
+      const s = S.survivors.find(o => o.id === e.id);
+      if (s) { Sfx.play('click'); Game.toast(`${s.name}: ${TRAITS[s.trait].name.toLowerCase()}, ${s.hp}/${s.maxhp}${s.infected ? ', укус' : ''}`); }
+      return;
+    }
+    const t = R.toTile(x, y);
+    const z = BASE_ZONES.find(([, x0, y0, x1, y1]) => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1);
+    if (z) { Sfx.play('click'); this.tab = 'build'; this.hl = z[0]; this.render(); }
+  },
+  // ----- интерфейс -----
   render() {
     const root = $('#scr-base');
-    S.squad = S.squad.filter(id => S.survivors.some(s => s.id === id));
-    const n = S.survivors.length;
-    const tabs = [['sortie', 'Вылазка', 'walk'], ['build', 'Убежище', 'home'], ['craft', 'Мастерская', 'hammer'], ['log', 'Журнал', 'log']];
+    ensureWorld();
+    const n = S.survivors.length, tr = S.fac.collectors.tribute;
+    const due = tr && !tr.paid && !S.fac.collectors.beaten ? tr.due - S.day : null;
     root.innerHTML = `
       <header class="bbar">
         <div class="brand">Рубеж</div>
         <div class="day"><span>День</span><b>${S.day}</b><small>из ${VICTORY_DAY}</small></div>
+        ${due != null ? `<button class="chip-tr ${due <= 0 ? 'now' : ''}" id="bTr">${icon('shield')}<span>Доля Сборщикам ${due <= 0 ? 'сегодня' : `через ${due} ${plural(due, 'день', 'дня', 'дней')}`}</span></button>` : ''}
         <div class="resrow">${RES_ORDER.map(k => `<span class="res ${(k === 'food' || k === 'water') && S.res[k] < n ? 'low' : ''}" title="${RES[k].name}" style="--rc:${RES[k].color}">${icon(k)}<b>${S.res[k]}</b></span>`).join('')}</div>
         <button class="hbtn" id="bSet" aria-label="Настройки">${icon('gear')}</button>
       </header>
-      <main class="bmain">
+      <div class="bmain">
         <section class="survs">
-          <h2>Группа <span>${n}</span></h2>
-          <p class="need">За ночь уйдёт ${n} еды и ${n} воды</p>
+          <h2>Группа <span>${n}</span><small>за ночь: ${n} еды и ${n} воды</small></h2>
           <div class="slist">${S.survivors.map(s => this.card(s)).join('')}</div>
+          <div class="bact">
+            <button class="btn hazard big" id="bWorld">${icon('map')}<span>Карта округи</span></button>
+            <button class="btn" id="bRest">${icon('moon')}<span>Отдыхать</span></button>
+          </div>
         </section>
-        <section class="bpanel">
-          <nav class="tabs" role="tablist">${tabs.map(([k, l, ic]) => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-tab="${k}">${icon(ic)}<span>${l}</span></button>`).join('')}</nav>
-          <div class="tabc">${this['tab_' + this.tab]()}</div>
-          ${this.tab === 'sortie' ? this.sortieBar() : ''}
+        <div class="bview"></div>
+        <section class="dock ${this.tab ? 'open' : ''}">
+          ${this.tab ? `<div class="dock-p">
+            <header><h2>${DOCK[this.tab][0]}</h2><button class="hbtn" id="bClose" aria-label="Закрыть">${icon('close')}</button></header>
+            <div class="tabc">${this['tab_' + this.tab]()}</div>
+          </div>` : ''}
+          <nav class="rail" role="tablist">${Object.keys(DOCK).map(k => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-tab="${k}" title="${DOCK[k][0]}">${icon(DOCK[k][1])}<span>${DOCK[k][0]}</span></button>`).join('')}</nav>
         </section>
-      </main>`;
+      </div>`;
     $('#bSet').onclick = () => { Sfx.play('click'); Game.openSettings(); };
-    $$('.tabs button', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.tab = b.dataset.tab; this.render(); }; });
-    $$('.sc', root).forEach(b => { b.onclick = () => this.toggle(+b.dataset.id); });
+    $('#bWorld').onclick = () => { Sfx.init(); Sfx.play('click'); Game.showWorld(); };
+    $('#bRest').onclick = () => this.rest();
+    const tb = $('#bTr'); if (tb) tb.onclick = () => { Sfx.play('click'); this.tab = 'fac'; this.render(); };
+    const cl = $('#bClose'); if (cl) cl.onclick = () => { Sfx.play('click'); this.tab = null; this.hl = null; this.render(); this.frame(); };
+    $$('.rail button', root).forEach(b => { b.onclick = () => { Sfx.play('click'); const k = b.dataset.tab; this.tab = this.tab === k ? null : k; this.hl = null; this.render(); this.frame(); }; });
     $$('canvas[data-pt]', root).forEach(cv => { const s = S.survivors.find(o => o.id === +cv.dataset.pt); if (s) try { drawPortrait(cv, s); } catch (e) { console.error(e); } });
     $$('[data-cure]', root).forEach(b => { b.onclick = () => this.cure(+b.dataset.cure); });
-    $$('[data-loc]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.loc = b.dataset.loc; this.render(); }; });
     $$('[data-build]', root).forEach(b => { b.onclick = () => this.build(b.dataset.build); });
     $$('[data-craft]', root).forEach(b => { b.onclick = () => this.craft(b.dataset.craft); });
-    const go = $('#bGo'); if (go) go.onclick = () => this.go();
-    const rest = $('#bRest'); if (rest) rest.onclick = () => this.rest();
+    const pt = $('#bPay'); if (pt) pt.onclick = () => { payTribute(); this.render(); };
+    if (this.hl) { const el = $(`[data-bk="${this.hl}"]`, root); if (el) el.scrollIntoView({ block: 'nearest' }); }
   },
   card(s) {
-    const sel = S.squad.includes(s.id), hp = (s.hp / s.maxhp) * 100;
+    const hp = (s.hp / s.maxhp) * 100;
     return `<div class="sw">
-      <button class="sc ${sel ? 'sel' : ''} ${s.infected ? 'inf' : ''}" data-id="${s.id}" style="--uc:${s.color}" aria-pressed="${sel}">
+      <div class="sc ${s.infected ? 'inf' : ''}" style="--uc:${s.color}">
         <canvas class="pt" data-pt="${s.id}" aria-hidden="true"></canvas>
-        <span class="sc-top"><b>${esc(s.name)}</b><i class="trait" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</i>${s.level > 1 ? `<i class="lvl">${icon('star')}${s.level}</i>` : ''}${sel ? '<i class="sq">в отряде</i>' : ''}</span>
+        <span class="sc-top"><b>${esc(s.name)}</b><i class="trait" title="${esc(TRAITS[s.trait].desc)}">${TRAITS[s.trait].name}</i>${s.level > 1 ? `<i class="lvl">${icon('star')}${s.level}</i>` : ''}</span>
         <span class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></span>
         <span class="sc-meta">${s.hp}/${s.maxhp} · ${WEAP[s.melee].name}${s.ranged ? ' и ' + WEAP[s.ranged].name.toLowerCase() : ''}</span>
         ${s.infected ? `<span class="sc-inf">${icon('bite')}Укус: ${s.infected === 1 ? 'обратится этой ночью' : `обратится через ${s.infected} ${plural(s.infected, 'день', 'дня', 'дней')}`}</span>` : ''}
-      </button>
+      </div>
       ${s.infected ? (S.build.infirmary >= 1 ? `<button class="btn sm cure" data-cure="${s.id}" ${S.res.meds >= cureCost() ? '' : 'disabled'}>Лечить: ${cureCost()} мед.</button>` : '<span class="cure-hint">Лечить укус можно только в лазарете</span>') : ''}
-    </div>`;
-  },
-  tab_sortie() {
-    const L = LOCS[this.loc];
-    return `<div class="locs">${LOC_ORDER.map(k => {
-      const l = LOCS[k], locked = l.needRadio && S.build.radio < l.needRadio;
-      let dng = '';
-      for (let d = 0; d < 4; d++) dng += `<i class="${d < l.danger ? 'on' : ''}"></i>`;
-      return `<button class="loc ${this.loc === k ? 'sel' : ''} ${locked ? 'locked' : ''}" data-loc="${k}" ${locked ? 'disabled' : ''}>
-        <span class="loc-h"><b>${l.short}</b><span class="dng" title="Опасность">${dng}</span></span>
-        <span class="loc-n">${l.name}</span>
-        <span class="loc-m">${l.w}×${l.h} · ${l.fuel ? `топливо ${l.fuel}` : 'пешком'}</span>
-        <span class="loc-l">${l.loot.map(r => `<i style="--rc:${RES[r].color}" title="${RES[r].name}">${icon(r)}</i>`).join('')}</span>
-        ${locked ? '<span class="lock">Нужна радиоточка</span>' : ''}
-      </button>`;
-    }).join('')}</div>
-    <p class="loc-d">${L.desc}</p>`;
-  },
-  sortieBar() {
-    const L = LOCS[this.loc], sq = S.squad.map(id => S.survivors.find(s => s.id === id)).filter(Boolean);
-    const fuelOk = S.res.fuel >= L.fuel;
-    return `<div class="sortie-f">
-      <div class="sq-list">${sq.length ? `<span>Отряд ${sq.length}/4 · ${L.short}</span><b>${sq.map(s => esc(s.name)).join(', ')}</b>` : '<span class="warn">Выберите бойцов слева, до четырёх</span>'}${!fuelOk ? '<span class="warn">Не хватает топлива</span>' : ''}</div>
-      <button class="btn" id="bRest">Отдохнуть</button>
-      <button class="btn hazard" id="bGo" ${sq.length && fuelOk ? '' : 'disabled'}>Выдвигаться</button>
     </div>`;
   },
   tab_build() {
@@ -4947,7 +6601,7 @@ const Base = {
       let pips = '';
       for (let i = 0; i < B.max; i++) pips += `<i class="${i < lv ? 'on' : ''}"></i>`;
       const cost = lv < B.max ? B.cost[lv] : null;
-      return `<div class="bld">
+      return `<div class="bld ${this.hl === k ? 'hl' : ''}" data-bk="${k}">
         <div class="bld-h"><b>${B.name}</b><span class="lv" title="Уровень ${lv} из ${B.max}">${pips}</span></div>
         <p class="now">${B.eff[lv]}</p>
         ${cost ? `<p class="next">Дальше: ${B.eff[lv + 1]}</p><div class="bld-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
@@ -4967,18 +6621,27 @@ const Base = {
     }).join('')}</div>
     <div class="perks"><h3>Мастерская, уровень ${lv}</h3><ul>${perks}</ul>${hasMechanic() ? '<p>Механик в группе: крафт на 1 деталь дешевле.</p>' : ''}</div>`;
   },
+  tab_fac() {
+    return `<div class="facs">${Object.keys(FACTIONS).map(f => {
+      const F = FACTIONS[f], st = S.fac[f], camp = LOCS[F.camp];
+      const status = st.beaten ? 'разгромлены' : !st.met ? 'неизвестны' : f === 'collectors' && st.tribute ? 'требуют долю' : 'враждебны';
+      let extra = '';
+      if (f === 'collectors' && st.tribute && !st.beaten) {
+        const tr = st.tribute, d = tr.due - S.day;
+        extra = tr.paid ? `<p class="ok">Доля отложена. Приедут ${d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`}.</p>` :
+          `<p class="warn">Приедут за долей ${d <= 0 ? 'этой ночью' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`}. Не отдадите — будет налёт.</p>
+           <div class="bld-f"><span class="cost">${costChips(tr.cost)}</span><button class="btn sm" id="bPay" ${canPay(tr.cost) ? '' : 'disabled'}>Отложить долю</button></div>`;
+      }
+      return `<div class="fac ${st.beaten ? 'off' : ''}" style="--fc:${F.color}">
+        <div class="bld-h"><b>${st.met || st.beaten ? F.name : '???'}</b><span class="fst">${status}</span></div>
+        <p>${st.met || st.beaten ? F.desc : 'О них пока ничего не известно. Слухи доходят с дорог.'}</p>
+        <p class="fmeta">${st.kills ? `Убито: ${st.kills}. ` : ''}Лагерь: ${isKnown(F.camp) ? `${camp.name}, на карте` : 'неизвестно где'}.</p>
+        ${extra}
+      </div>`;
+    }).join('')}</div>`;
+  },
   tab_log() {
     return `<ol class="journal">${S.log.map(e => `<li class="${e.c || ''}"><span>День ${e.d}</span>${esc(e.t)}</li>`).join('')}</ol>`;
-  },
-  toggle(id) {
-    Sfx.init(); Sfx.play('click');
-    const k = S.squad.indexOf(id);
-    if (k >= 0) S.squad.splice(k, 1);
-    else if (S.squad.length < 4) S.squad.push(id);
-    else { Game.toast('В отряде уже четверо'); return; }
-    this.tab = 'sortie';
-    this.render();
-    saveGame();
   },
   cure(id) {
     const s = S.survivors.find(o => o.id === id), c = cureCost();
@@ -4994,9 +6657,11 @@ const Base = {
     pay(B.cost[lv]);
     S.build[k]++;
     addLog(`${B.name}: уровень ${S.build[k]}. ${B.eff[S.build[k]]}.`, 'good');
-    if (k === 'radio' && S.build.radio === 1) addLog('В эфире нашлась больница на юге города. Теперь туда можно съездить.', 'good');
+    if (k === 'radio') for (const l of LOC_ORDER) if (LOCS[l].needRadio === S.build.radio && !LOCS[l].camp && reveal(l)) addLog(`В эфире нашлось место: ${LOCS[l].name}. Теперь туда можно съездить.`, 'good');
     Sfx.play('build');
     Game.toast(`${B.name}: уровень ${S.build[k]}`);
+    this.hl = k;
+    this.scene();
     this.render(); saveGame();
   },
   craft(id) {
@@ -5008,13 +6673,6 @@ const Base = {
     Game.toast(`Готово: ${r.name}`);
     this.render(); saveGame();
   },
-  go() {
-    Sfx.init();
-    const L = LOCS[this.loc];
-    if (!S.squad.length || S.res.fuel < L.fuel) return;
-    addLog(`Вылазка: ${L.name}. Отряд: ${S.squad.map(id => S.survivors.find(s => s.id === id).name).join(', ')}.`);
-    startMission(this.loc, S.squad.slice());
-  },
   rest() {
     Sfx.init();
     Game.modal({
@@ -5024,19 +6682,35 @@ const Base = {
     });
   },
   missionReport(rep) {
+    if (rep.siege) return this.siegeReport(rep);
     const L = LOCS[rep.loc];
     const got = RES_ORDER.filter(k => rep.got[k]).map(k => `<span class="cc" style="--rc:${RES[k].color}">${icon(k)}${RES[k].name} +${rep.got[k]}</span>`).join('');
-    addLog(`${L.short}: вернулись за ${rep.turns} ${plural(rep.turns, 'ход', 'хода', 'ходов')}, убито зомби: ${rep.kills}.`);
+    const hk = Object.values(rep.hkills || {}).reduce((a, b) => a + b, 0);
+    addLog(`${L.short}: вернулись за ${rep.turns} ${plural(rep.turns, 'ход', 'хода', 'ходов')}, убито: ${rep.kills}.`);
     for (const l of rep.lines) addLog(l.t, l.c);
     Game.modal({
       title: `${L.short}: итоги`,
       html: `<div class="rep">${got || '<p>Ничего не привезли.</p>'}</div>
-        <p>Убито зомби: <b>${rep.kills}</b>. Ходов: ${rep.turns}.</p>
+        <p>Убито: <b>${rep.kills}</b>${hk ? `, из них людей: ${hk}` : ''}. Ходов: ${rep.turns}.</p>
         ${rep.lines.length ? `<ul class="lines">${rep.lines.map(l => `<li class="${l.c || ''}">${esc(l.t)}</li>`).join('')}</ul>` : ''}`,
       buttons: [{ label: 'Наступает ночь', cls: 'primary', fn: () => this.night([]) }],
       noClose: true,
     });
   },
+  siegeReport(rep) {
+    const pn = S.pendingNight || { lines: [] };
+    const lines = siegeLines(rep).concat(rep.lines);
+    S.pendingNight = null;
+    const all = pn.lines.concat(lines);
+    const got = RES_ORDER.filter(k => rep.got[k]).map(k => `<span class="cc" style="--rc:${RES[k].color}">${icon(k)}${RES[k].name} +${rep.got[k]}</span>`).join('');
+    Game.modal({
+      title: rep.siege.won ? 'Отбились' : rep.siege.fled ? 'Пересидели' : 'Ночь кончилась',
+      html: `${got ? `<div class="rep">${got}</div>` : ''}<ul class="lines">${lines.map(l => `<li class="${l.c || ''}">${esc(l.t)}</li>`).join('')}</ul>`,
+      buttons: [{ label: 'Дождаться утра', cls: 'primary', fn: () => this.nightEnd(all) }],
+      noClose: true,
+    });
+  },
+  // ----- ночь -----
   night(lines) {
     const ppl = S.survivors, n = ppl.length;
     const wProd = [1, 2, 3, 5][S.build.water], fProd = [0, 1, 2, 4][S.build.garden];
@@ -5065,17 +6739,26 @@ const Base = {
         if (other) other.hp -= 3;
       } else lines.push({ t: `${s.name}: жар. ${s.infected === 1 ? 'Без лечения — последняя ночь.' : `Осталось ${s.infected} ${plural(s.infected, 'день', 'дня', 'дней')}.`}`, c: 'bad' });
     }
-    const p = clamp(0.12 + S.day * 0.012 - S.build.walls * 0.06, 0.03, 0.45);
-    if (S.survivors.length && rnd() < p) {
-      const w = S.build.walls;
-      if (w >= 1 && chance(0.35 + w * 0.15)) lines.push({ t: 'Ночью у ворот бродила стая. Укрепления выдержали.', c: 'good' });
-      else {
-        const v = pick(S.survivors), d = Math.max(1, rint(2, 6) - w * 2);
-        const lf = Math.min(S.res.food, rint(1, 3)), lp = Math.min(S.res.parts, rint(0, 2));
-        v.hp -= d; S.res.food -= lf; S.res.parts -= lp;
-        lines.push({ t: `Ночной набег. ${v.name} ${gv(v, 'ранен', 'ранена')} (−${d}). Пропало: еда ${lf}${lp ? `, детали ${lp}` : ''}.`, c: 'bad' });
-      }
-    }
+    const atk = S.survivors.length ? rollAttack(lines) : null;
+    if (atk) { this.alarm(atk, lines); return; }
+    this.nightEnd(lines);
+  },
+  alarm(atk, lines) {
+    S.pendingNight = { lines, atk };
+    saveGame();
+    Sfx.play('alarm');
+    const fighters = S.survivors.filter(s => s.hp > 0).slice(0, 6);
+    Game.modal({
+      title: 'Ночь. Тревога!',
+      html: `<p>${attackText(atk)}</p><p>Можно встретить их у стен — бой на карте базы, ${fighters.length} ${plural(fighters.length, 'боец', 'бойца', 'бойцов')} против ${atk.waves} ${plural(atk.waves, 'волны', 'волн', 'волн')}. Или запереться в насосной и надеяться на укрепления (уровень ${S.build.walls}).</p>`,
+      buttons: [
+        { label: 'Запереться', fn: () => { const pn = S.pendingNight; S.pendingNight = null; resolveAuto(pn.atk, pn.lines); this.nightEnd(pn.lines); } },
+        { label: 'К оружию!', cls: 'hazard', fn: () => { addLog(`Ночью на базу напали: ${SIEGE_NAME[atk.kind](atk)}. Приняли бой.`, 'bad'); startMission('base', fighters.map(s => s.id), { siege: atk }); } },
+      ],
+      noClose: true,
+    });
+  },
+  nightEnd(lines) {
     for (const s of S.survivors.slice()) if (s.hp <= 0) {
       S.survivors = S.survivors.filter(o => o !== s);
       lines.push({ t: `${s.name} не ${gv(s, 'пережил', 'пережила')} ночь.`, c: 'bad' });
@@ -5087,10 +6770,12 @@ const Base = {
       lines.push({ t: `${S.build.radio ? 'На позывной ответили.' : 'Под утро в ворота постучали.'} ${s.name} (${TRAITS[s.trait].name.toLowerCase()}) теперь с нами.`, c: 'good' });
     }
     S.day++;
+    if (S.survivors.length) morningNews(lines);
     for (const l of lines) addLog(l.t, l.c);
     saveGame();
     if (!S.survivors.length) return this.gameOver();
     if (S.day > VICTORY_DAY) return this.victory();
+    Game.showBase();
     Game.modal({
       title: `Утро. День ${S.day}`,
       html: `<ul class="lines">${lines.map(l => `<li class="${l.c || ''}">${esc(l.t)}</li>`).join('')}</ul>`,
@@ -5115,6 +6800,313 @@ const Base = {
       buttons: [{ label: 'Новая игра', cls: 'primary', fn: () => Game.newGame() }],
       noClose: true,
     });
+  },
+};
+</script>
+<script>
+'use strict';
+// ---------- Округа: карта локаций, разведка, группировки ----------
+
+function ensureWorld() {
+  if (!S) return;
+  S.known = S.known || LOC_ORDER.filter(k => LOCS[k].start);
+  S.known = S.known.filter(k => LOCS[k]);
+  S.visits = S.visits || {};
+  S.seed = S.seed || ((Math.random() * 2 ** 31) | 0) || 777;
+  S.fac = S.fac || {};
+  for (const f in FACTIONS) S.fac[f] = Object.assign({ met: false, beaten: false, kills: 0, anger: 0 }, S.fac[f]);
+  if (S.fac.collectors.tribute === undefined) S.fac.collectors.tribute = null;
+}
+const isKnown = k => S.known.includes(k);
+function reveal(k) { if (LOCS[k] && !isKnown(k)) { S.known.push(k); return true; } return false; }
+function locLocked(k) { const L = LOCS[k]; return !!L.needRadio && S.build.radio < L.needRadio; }
+const pdist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+function tributeCost() {
+  const d = S.day;
+  return { food: 3 + Math.floor(d / 5), water: 2 + Math.floor(d / 7), ammo: 4 + Math.floor(d / 4) };
+}
+function metFaction(f, lines) {
+  const st = S.fac[f];
+  if (!st || st.met) return;
+  st.met = true;
+  const F = FACTIONS[f];
+  lines.push({ t: `Новая группировка: ${F.name}. ${F.desc}`, c: 'bad' });
+}
+function factionHit(f, n) { if (S.fac[f]) { S.fac[f].kills += n; S.fac[f].anger += n; } }
+function factionBeaten(f, lines) {
+  const st = S.fac[f];
+  if (!st || st.beaten) return;
+  st.beaten = true;
+  const eff = {
+    collectors: 'Сборщики больше не придут за долей.',
+    raiders: 'Засад на дорогах станет меньше, ночных налётов Вольницы не будет.',
+    flock: 'Паства рассеяна: стад мёртвых у стен больше не будет.',
+    garrison: 'Гарнизон отошёл. Блокпост охраняет горстка солдат.',
+  }[f];
+  if (f === 'collectors') st.tribute = null;
+  lines.push({ t: eff, c: 'good' });
+}
+// После вылазки: что увидели с крыш и что нашли на телах
+function revealAfterMission(m, lines) {
+  const L = LOCS[m.loc];
+  const cand = LOC_ORDER.filter(k => !isKnown(k) && !LOCS[k].camp).sort((a, b) => pdist(L.pos, LOCS[a].pos) - pdist(L.pos, LOCS[b].pos));
+  for (const k of cand.slice(0, chance(0.5) ? 2 : 1)) { reveal(k); lines.push({ t: `На карте новая точка: ${LOCS[k].name}.`, c: 'good' }); }
+  for (const f in m.hseen || {}) {
+    metFaction(f, lines);
+    const camp = FACTIONS[f].camp;
+    if ((m.hkills[f] || 0) >= 1 && !isKnown(camp)) { reveal(camp); lines.push({ t: `У убитого нашли карту с пометкой: ${LOCS[camp].name}.`, c: 'good' }); }
+  }
+}
+
+// ----- нападения на базу -----
+function rollAttack(lines) {
+  const fc = S.fac, tr = fc.collectors.tribute;
+  if (tr && !fc.collectors.beaten && S.day >= tr.due) {
+    const paid = tr.paid;
+    fc.collectors.tribute = { due: S.day + 6, cost: tributeCost(), paid: false };
+    if (paid) { lines.push({ t: 'Сборщики приехали, забрали долю и уехали. Следующий раз — через шесть дней.' }); return null; }
+    fc.collectors.anger++;
+    return { kind: 'raid', fac: 'collectors', waves: S.day >= 16 ? 3 : 2 };
+  }
+  if (fc.raiders.met && !fc.raiders.beaten && S.day >= 6 && chance(0.09 + Math.min(0.1, fc.raiders.anger * 0.015))) return { kind: 'raid', fac: 'raiders', waves: 2 };
+  if (fc.flock.met && !fc.flock.beaten && S.day >= 8 && chance(0.09)) return { kind: 'herd', waves: 2 };
+  if (chance(clamp(0.1 + S.day * 0.012 - S.build.walls * 0.035, 0.05, 0.42))) return { kind: 'horde', waves: S.day >= 12 ? 3 : 2 };
+  return null;
+}
+function attackText(atk) {
+  if (atk.kind === 'horde') return 'Со стороны дороги идёт толпа мёртвых. Их много, и они уже у забора.';
+  if (atk.kind === 'herd') return 'В темноте звенит колокольчик: Паства гонит к вашим стенам стадо мёртвых.';
+  return atk.fac === 'collectors' ? 'Доли не было — Сборщики приехали сами. Фары, биты, крики у ворот.' : 'Вольница решила, что у вас есть чем поживиться. Тени у забора, щелчки затворов.';
+}
+// Если запереться и не выходить: решают стены и удача
+function resolveAuto(atk, lines) {
+  const w = S.build.walls, ppl = S.survivors;
+  if (!ppl.length) return;
+  const strength = atk.kind === 'raid' ? 2.2 : atk.kind === 'herd' ? 2 : 1.4 + S.day / 15;
+  const hold = w * 0.9 + rnd() * 1.5;
+  if (hold >= strength) { lines.push({ t: 'Ночь прошла под стук в ворота. Укрепления выдержали.', c: 'good' }); return; }
+  const v = pick(ppl), d = Math.max(1, rint(2, 7) - w);
+  v.hp -= d;
+  const take = {};
+  for (const k of atk.kind === 'raid' ? ['food', 'water', 'ammo', 'meds', 'parts'] : ['food', 'parts']) {
+    const n = Math.min(S.res[k], atk.kind === 'raid' ? rint(1, 4) : rint(0, 2));
+    if (n > 0) { S.res[k] -= n; take[k] = n; }
+  }
+  const lost = Object.keys(take).map(k => `${RES[k].name.toLowerCase()} ${take[k]}`).join(', ');
+  lines.push({ t: `${atk.kind === 'raid' ? FACTIONS[atk.fac].name + ' прорвались' : 'Мёртвые прорвались'} во двор. ${v.name} ${gv(v, 'ранен', 'ранена')} (−${d}).${lost ? ` Пропало: ${lost}.` : ''}`, c: 'bad' });
+}
+function siegeLines(rep) {
+  const sg = rep.siege, lines = [];
+  if (sg.fled) {
+    const atk = sg;
+    resolveAuto(atk, lines);
+  } else if (sg.won) {
+    lines.push({ t: `Нападение отбито. Убито: ${rep.kills}.`, c: 'good' });
+    if (sg.kind === 'raid') { S.fac[sg.fac].anger = Math.max(0, S.fac[sg.fac].anger - 2); lines.push({ t: `${FACTIONS[sg.fac].name} потеряли людей и надолго запомнят эту ночь.` }); }
+  }
+  return lines;
+}
+// Утро: новости округи
+function morningNews(lines) {
+  const fc = S.fac.collectors;
+  if (!fc.met && S.day >= 4 && !fc.beaten) {
+    fc.met = true;
+    fc.tribute = { due: S.day + 2, cost: tributeCost(), paid: false };
+    reveal('camp_collectors');
+    lines.push({ t: `Утром у ворот остановился пикап. Люди в чёрной коже: «Теперь вы под защитой Сборщиков. Через два дня — доля». Их лагерь отмечен на карте.`, c: 'bad' });
+  }
+  if (S.build.radio && chance(0.3 + S.build.radio * 0.1)) {
+    const cand = LOC_ORDER.filter(k => !isKnown(k) && !LOCS[k].camp);
+    if (cand.length) { const k = pick(cand); reveal(k); lines.push({ t: `По радио рассказали про место: ${LOCS[k].name}. Отмечено на карте.`, c: 'good' }); }
+  }
+}
+function payTribute() {
+  const tr = S.fac.collectors.tribute;
+  if (!tr || tr.paid || !canPay(tr.cost)) return;
+  pay(tr.cost); tr.paid = true;
+  addLog('Отложили долю для Сборщиков.', '');
+  Sfx.play('search');
+  Game.toast('Доля отложена');
+  saveGame();
+}
+
+// ----- экран карты округи -----
+// Река и трасса — постоянные черты местности (координаты карты 0..100 × 0..62)
+const RIVER = [[-2, 40], [8, 44], [16, 50], [24, 48], [34, 47], [42, 44], [52, 46], [60, 52], [70, 50], [80, 46], [90, 42], [102, 40]];
+const HIGHWAY = [[-2, 17], [20, 18], [40, 15], [60, 18], [80, 22], [102, 26]];
+const World = {
+  sel: null, cv: null, hit: [],
+  render() {
+    ensureWorld();
+    if (this.sel && !isKnown(this.sel)) this.sel = null;
+    if (!this.sel) this.sel = S.known.find(k => !locLocked(k)) || null;
+    S.squad = S.squad.filter(id => S.survivors.some(s => s.id === id));
+    const root = $('#scr-world');
+    root.innerHTML = `
+      <header class="wbar">
+        <button class="btn sm" id="wBack">${icon('home')}<span>База</span></button>
+        <h2>Карта округи</h2>
+        <span class="wsub">Известно мест: ${S.known.length} из ${LOC_ORDER.length}</span>
+        <span class="res" title="Топливо" style="--rc:${RES.fuel.color}">${icon('fuel')}<b>${S.res.fuel}</b></span>
+        <span class="res" title="Патроны" style="--rc:${RES.ammo.color}">${icon('ammo')}<b>${S.res.ammo}</b></span>
+      </header>
+      <div class="wmain">
+        <div class="wmap"><canvas id="wcv" aria-label="Карта округи"></canvas></div>
+        <aside class="wcard">${this.card()}</aside>
+      </div>`;
+    $('#wBack').onclick = () => { Sfx.play('click'); Game.showBase(); };
+    this.cv = $('#wcv');
+    this.cv.onclick = e => this.click(e);
+    $$('[data-sq]', root).forEach(b => { b.onclick = () => this.toggle(+b.dataset.sq); });
+    const go = $('#wGo'); if (go) go.onclick = () => this.go();
+    requestAnimationFrame(() => this.draw());
+  },
+  card() {
+    const k = this.sel;
+    if (!k) return '<p class="hint">Выберите точку на карте.</p>';
+    const L = LOCS[k], locked = locLocked(k), v = S.visits[k] || 0, F = L.faction && FACTIONS[L.faction], fs = F && S.fac[L.faction];
+    let dng = '';
+    for (let d = 0; d < 5; d++) dng += `<i class="${d < L.danger ? 'on' : ''}"></i>`;
+    const sq = S.squad.map(id => S.survivors.find(s => s.id === id)).filter(Boolean);
+    const fuelOk = S.res.fuel >= L.fuel;
+    const lootLeft = Math.round(Math.max(0.35, 1 - v * 0.22) * 100);
+    return `<div class="wc-h"><b>${L.name}</b><span class="dng" title="Опасность">${dng}</span></div>
+      <p class="wc-m">${L.w}×${L.h} клеток · ${L.fuel ? `топливо ${L.fuel}` : 'пешком'}${v ? ` · были ${v} ${plural(v, 'раз', 'раза', 'раз')}, добычи ~${lootLeft}%` : ''}</p>
+      ${F ? `<p class="wc-f" style="--fc:${F.color}">${icon('shield')}<span>${fs.met ? F.name : 'Здесь кто-то есть'}${fs.beaten ? ' · разгромлены' : ''}${L.camp ? ' · лагерь' : ''}${L.captives ? ` · пленных: ${L.captives}` : ''}</span></p>` : ''}
+      <p class="wc-d">${L.desc}</p>
+      <div class="loc-l">${L.loot.map(r => `<i style="--rc:${RES[r].color}" title="${RES[r].name}">${icon(r)}</i>`).join('')}</div>
+      <h3>Отряд <span>${sq.length}/4</span></h3>
+      <div class="wsq">${S.survivors.map(s => {
+        const on = S.squad.includes(s.id), hp = Math.round((s.hp / s.maxhp) * 100);
+        return `<button class="wsq-b ${on ? 'on' : ''} ${s.infected ? 'inf' : ''}" data-sq="${s.id}" style="--uc:${s.color}" aria-pressed="${on}">
+          <b>${esc(s.name)}</b><span>${TRAITS[s.trait].name} · ${s.ranged ? WEAP[s.ranged].name.toLowerCase() : WEAP[s.melee].name.toLowerCase()}</span>
+          <i class="bar ${hp < 40 ? 'lowhp' : ''}"><i style="width:${hp}%"></i></i></button>`;
+      }).join('')}</div>
+      ${locked ? `<p class="warn">Сюда не доехать без ${L.needRadio > 1 ? 'мощной антенны (радиоточка 2)' : 'радиоточки'}: не знаем дороги.</p>` : ''}
+      ${!fuelOk ? '<p class="warn">Не хватает топлива.</p>' : ''}
+      <button class="btn hazard big" id="wGo" ${sq.length && fuelOk && !locked ? '' : 'disabled'}>Выдвигаться</button>`;
+  },
+  toggle(id) {
+    Sfx.init(); Sfx.play('click');
+    const k = S.squad.indexOf(id);
+    if (k >= 0) S.squad.splice(k, 1);
+    else if (S.squad.length < 4) S.squad.push(id);
+    else { Game.toast('В отряде уже четверо'); return; }
+    saveGame();
+    this.render();
+  },
+  go() {
+    Sfx.init();
+    const k = this.sel, L = LOCS[k];
+    if (!k || !S.squad.length || S.res.fuel < L.fuel || locLocked(k)) return;
+    addLog(`Вылазка: ${L.name}. Отряд: ${S.squad.map(id => S.survivors.find(s => s.id === id).name).join(', ')}.`);
+    startMission(k, S.squad.slice());
+  },
+  click(e) {
+    const x = e.offsetX, y = e.offsetY;
+    let best = null, bd = 26;
+    for (const h of this.hit) { const d = Math.hypot(h.x - x, h.y - y); if (d < bd) { bd = d; best = h.k; } }
+    if (best && best !== 'base') { Sfx.play('click'); this.sel = best; this.render(); }
+  },
+  draw() {
+    const cv = this.cv;
+    if (!cv || !cv.isConnected) return;
+    const box = cv.parentElement, W = box.clientWidth, H = box.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (!W || !H) return;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    const c = cv.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sc = Math.min(W / 104, H / 66), ox = (W - 100 * sc) / 2, oy = (H - 62 * sc) / 2;
+    const X = x => ox + x * sc, Y = y => oy + y * sc;
+    const r = makeRng(S.seed);
+    // бумага
+    c.fillStyle = '#1c1d16'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#23251b'; c.fillRect(X(0), Y(0), 100 * sc, 62 * sc);
+    // леса
+    for (let k = 0; k < 70; k++) {
+      const fx = r() * 100, fy = r() * 62;
+      if (fy > 26 && fy < 40 && fx > 25 && fx < 85) continue;
+      c.fillStyle = `rgba(${40 + r() * 12},${58 + r() * 14},${36 + r() * 8},${0.5 + r() * 0.3})`;
+      for (let j = 0; j < 6; j++) { c.beginPath(); c.arc(X(fx + (r() - 0.5) * 7), Y(fy + (r() - 0.5) * 5), sc * (1.2 + r() * 2.2), 0, Math.PI * 2); c.fill(); }
+    }
+    // поля
+    for (let k = 0; k < 12; k++) {
+      const fx = r() * 90, fy = r() * 55, w = 4 + r() * 6, h = 3 + r() * 4;
+      c.fillStyle = 'rgba(120,110,60,0.18)'; c.fillRect(X(fx), Y(fy), w * sc, h * sc);
+      c.strokeStyle = 'rgba(120,110,60,0.25)'; c.lineWidth = 1;
+      for (let j = 1; j < 4; j++) { c.beginPath(); c.moveTo(X(fx), Y(fy + (h * j) / 4)); c.lineTo(X(fx + w), Y(fy + (h * j) / 4)); c.stroke(); }
+    }
+    // город
+    c.fillStyle = 'rgba(150,145,130,0.16)';
+    for (let gx = 52; gx < 92; gx += 3.2) for (let gy = 24; gy < 46; gy += 3) if (r() < 0.72) c.fillRect(X(gx), Y(gy), sc * (1.6 + r() * 1.2), sc * (1.4 + r() * 1.1));
+    // река
+    const line = (pts, col, w, dash) => {
+      c.strokeStyle = col; c.lineWidth = w; c.lineJoin = 'round'; c.lineCap = 'round'; c.setLineDash(dash || []);
+      c.beginPath(); c.moveTo(X(pts[0][0]), Y(pts[0][1]));
+      for (let k = 1; k < pts.length - 1; k++) { const mx = (pts[k][0] + pts[k + 1][0]) / 2, my = (pts[k][1] + pts[k + 1][1]) / 2; c.quadraticCurveTo(X(pts[k][0]), Y(pts[k][1]), X(mx), Y(my)); }
+      const l = pts[pts.length - 1]; c.lineTo(X(l[0]), Y(l[1])); c.stroke(); c.setLineDash([]);
+    };
+    line(RIVER, '#2b3d45', sc * 2.4); line(RIVER, '#35505a', sc * 1.2);
+    line(HIGHWAY, '#4a463a', sc * 1.2); line(HIGHWAY, 'rgba(214,180,80,0.5)', 1, [sc * 1.2, sc * 1.2]);
+    // дороги к известным местам: каждая точка — к двум ближайшим
+    const pts = [['base', BASE_POS], ...S.known.map(k => [k, LOCS[k].pos])];
+    const edges = new Set();
+    for (const [a, pa] of pts) {
+      const near = pts.filter(q => q[0] !== a).sort((p1, p2) => pdist(pa, p1[1]) - pdist(pa, p2[1])).slice(0, 2);
+      for (const [b] of near) edges.add([a, b].sort().join('|'));
+    }
+    const P = Object.fromEntries(pts);
+    c.strokeStyle = '#5c5440'; c.lineWidth = Math.max(1.5, sc * 0.5); c.setLineDash([sc * 0.9, sc * 0.6]);
+    for (const e of edges) { const [a, b] = e.split('|'); c.beginPath(); c.moveTo(X(P[a][0]), Y(P[a][1])); c.lineTo(X(P[b][0]), Y(P[b][1])); c.stroke(); }
+    c.setLineDash([]);
+    // туман: темно везде, кроме окрестностей известного
+    const fog = document.createElement('canvas'); fog.width = cv.width; fog.height = cv.height;
+    const f = fog.getContext('2d');
+    f.setTransform(dpr, 0, 0, dpr, 0, 0);
+    f.fillStyle = 'rgba(12,12,9,0.82)'; f.fillRect(0, 0, W, H);
+    f.globalCompositeOperation = 'destination-out';
+    for (const [, p] of pts) {
+      const g = f.createRadialGradient(X(p[0]), Y(p[1]), 0, X(p[0]), Y(p[1]), sc * 13);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,0.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      f.fillStyle = g; f.fillRect(X(p[0]) - sc * 13, Y(p[1]) - sc * 13, sc * 26, sc * 26);
+    }
+    c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(fog, 0, 0); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // метки
+    this.hit = [];
+    const fs = clamp(sc * 1.9, 10, 14);
+    c.font = `500 ${fs}px Oswald, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'top';
+    const label = (t, x, y, col) => { c.lineWidth = 3; c.strokeStyle = 'rgba(10,10,8,0.85)'; c.strokeText(t, x, y); c.fillStyle = col; c.fillText(t, x, y); };
+    // база
+    { const x = X(BASE_POS[0]), y = Y(BASE_POS[1]), s = Math.max(9, sc * 2);
+      c.fillStyle = '#e8a62b'; c.strokeStyle = '#1b1406'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x + s * 0.7, y); c.lineTo(x + s * 0.7, y + s * 0.8); c.lineTo(x - s * 0.7, y + s * 0.8); c.lineTo(x - s * 0.7, y); c.lineTo(x - s, y); c.closePath(); c.fill(); c.stroke();
+      label('База', x, y + s, '#f0c46a'); this.hit.push({ k: 'base', x, y }); }
+    for (const k of S.known) {
+      const L = LOCS[k], x = X(L.pos[0]), y = Y(L.pos[1]), sel = k === this.sel, locked = locLocked(k);
+      const s = Math.max(7, sc * 1.55);
+      const F = L.faction && FACTIONS[L.faction], beaten = F && S.fac[L.faction].beaten;
+      const dc = ['#86a85d', '#86a85d', '#c9a43a', '#d9813a', '#c9472f', '#a8322a'][L.danger];
+      if (sel) { c.strokeStyle = '#e8a62b'; c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, s + 6, 0, Math.PI * 2); c.stroke(); }
+      if (L.camp) {
+        c.fillStyle = beaten ? '#4a463a' : F.color; c.strokeStyle = '#0d0c09'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(x, y - s * 1.25); c.lineTo(x + s * 1.1, y); c.lineTo(x, y + s * 1.25); c.lineTo(x - s * 1.1, y); c.closePath(); c.fill(); c.stroke();
+        c.fillStyle = '#0d0c09'; c.fillRect(x - s * 0.15, y - s * 0.6, s * 0.3, s * 1.2);
+      } else {
+        c.fillStyle = locked ? '#3a372c' : '#1d1c16'; c.strokeStyle = locked ? '#5a5440' : dc; c.lineWidth = 2.5;
+        c.beginPath(); c.arc(x, y, s, 0, Math.PI * 2); c.fill(); c.stroke();
+        if (F && !beaten) { c.fillStyle = F.color; c.beginPath(); c.arc(x + s * 0.75, y - s * 0.75, s * 0.42, 0, Math.PI * 2); c.fill(); }
+        c.fillStyle = locked ? '#5a5440' : dc; c.beginPath(); c.arc(x, y, s * 0.38, 0, Math.PI * 2); c.fill();
+      }
+      const v = S.visits[k] || 0;
+      for (let j = 0; j < Math.min(4, v); j++) { c.fillStyle = '#a09781'; c.fillRect(x - s + j * (s * 0.55), y + s + 2, s * 0.4, 2); }
+      label(L.short, x, y + s + (v ? 6 : 3), sel ? '#f0c46a' : locked ? '#746c58' : '#ece4cc');
+      this.hit.push({ k, x, y });
+    }
+    // масштабная линейка и роза ветров
+    c.fillStyle = '#746c58'; c.font = `500 ${clamp(sc * 1.5, 9, 12)}px Oswald, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    c.fillText('С ↑', X(1.5), Y(4));
   },
 };
 </script>
@@ -5177,6 +7169,8 @@ function layout() {
   $('#rot-hint').hidden = !(portrait && coarse && !CFG.autoRotate);
   HUD.hidePop();
   R.resize();
+  const ws = $('#scr-world');
+  if (ws && !ws.hidden) World.draw();
 }
 function applySettings() {
   CFG.hq = CFG.gfx >= 1;
@@ -5200,6 +7194,7 @@ const Game = {
     document.addEventListener('pointerdown', () => Sfx.init(), { once: true });
     const hot = data && data.save ? restore(data.save) : null;
     S = hot || restore(store.get(SAVE_KEY));
+    if (S) ensureWorld();
     if (hot && !S.over) { if (S.mission) resumeMission(S.mission); else this.showBase(); }
     else this.showMenu();
   },
@@ -5208,6 +7203,7 @@ const Game = {
     HUD.hidePop();
   },
   showMenu() {
+    Base.stopLife();
     this.show('scr-menu');
     Music.set('menu');
     R.mode = 'menu';
@@ -5240,11 +7236,22 @@ const Game = {
   showBase() {
     TAC.m = null;
     Music.set('base');
-    R.mode = null;
     this.show('scr-base');
+    R.mode = 'base';
+    Base.scene();
     Base.render();
+    R.resize();
+    Base.frame();
+    Base.startLife();
+  },
+  showWorld() {
+    Base.stopLife();
+    this.show('scr-world');
+    R.mode = null;
+    World.render();
   },
   showTac(center) {
+    Base.stopLife();
     this.show('scr-tac');
     Music.set('mission');
     R.mode = 'tac';
@@ -5266,7 +7273,7 @@ const Game = {
   newGame() {
     store.del(SAVE_KEY);
     newGameState();
-    Base.tab = 'sortie'; Base.loc = 'farm';
+    Base.tab = null; World.sel = 'farm';
     saveGame();
     this.showBase();
   },
@@ -5326,6 +7333,11 @@ const Game = {
         <li><b>Жёлтые ромбы</b> — несобранная добыча. Обыск стоит 2 ОД, унести можно сколько позволяет вес.</li>
         <li>Чтобы уехать, дойдите до <b>зелёной зоны у машины</b> и нажмите «В машину».</li>
         <li><b>Укус</b> — три дня до обращения. Лечится медикаментами в лазарете.</li>
+        <li><b>Люди опаснее мёртвых.</b> Группировки стреляют из-за укрытий и отходят ранеными. Укрытие рядом с целью снижает шанс попасть.</li>
+        <li><b>Мёртвые встают.</b> Убитый не в голову через 2–3 хода поднимается. Тело с зелёным кольцом можно добить за 1 ОД.</li>
+        <li><b>Пленных</b> держат в лагерях: освободите (2 ОД) и довезите до машины — человек останется в группе.</li>
+        <li><b>База</b> — отдельная карта: касание постройки открывает её улучшение. Ночью на базу могут напасть — тогда бой идёт на её карте.</li>
+        <li><b>Карта округи</b> — все места для вылазок. Новые точки открываются после вылазок и по радио. Повторные вылазки дают меньше добычи.</li>
         <li>Камера: перетаскивание — сдвиг, два пальца или кнопки +/− — масштаб, круглая стрелка — поворот на 90°, кнопка карты — обзор всей местности.</li>
         <li>Стены, которые закрывают бойцов, сами опускаются. Ночью видно только то, что освещают фонари отряда.</li>
       </ul>`,

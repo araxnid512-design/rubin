@@ -1,7 +1,7 @@
 'use strict';
 // ---------- Интерфейс боя и управление касаниями ----------
 
-const ZSTATE = { idle: 'стоит', wander: 'бродит', investigate: 'идёт на шум', chase: 'видит вас' };
+const ZSTATE = { idle: 'стоит', wander: 'бродит', investigate: 'идёт на шум', chase: 'видит вас', guard: 'на посту' };
 function canOverwatch(u) { return (u.ranged && u.ammo > 0 && u.ap >= WEAP[u.ranged].ap) || u.ap >= WEAP[u.melee].ap; }
 function unitSub(u) { return `${u.hp}/${u.maxhp} здоровья · ${u.ap} ОД`; }
 
@@ -108,9 +108,17 @@ const HUD = {
     $('#tTod').className = 'chip tod' + tod;
     const left = Math.max(1, WAVE_EVERY - (m.turn - m.lastWave));
     let pips = '';
-    for (let k = 0; k < 5; k++) pips += `<i class="${k < m.threat ? 'on' : ''}"></i>`;
-    $('#tThreat').innerHTML = `<span class="lbl">Угроза</span><span class="pips">${pips}</span><span class="wv">${icon('wave')}${left}</span>`;
-    $('#tThreat').title = `Новая волна примерно через ${left} ${plural(left, 'ход', 'хода', 'ходов')} или раньше, если шуметь`;
+    if (m.siege) {
+      const sg = m.siege;
+      for (let k = 0; k < sg.waves; k++) pips += `<i class="${k < sg.spawned ? 'on' : ''}"></i>`;
+      const nx = sg.spawned < sg.waves ? sg.next + 3 - m.turn : 0;
+      $('#tThreat').innerHTML = `<span class="lbl">Волны</span><span class="pips">${pips}</span><span class="wv">${icon('skull')}${m.zombies.length}</span>`;
+      $('#tThreat').title = nx > 0 ? `Следующая волна через ${nx} ${plural(nx, 'ход', 'хода', 'ходов')}` : 'Это последняя волна: перебейте всех';
+    } else {
+      for (let k = 0; k < 5; k++) pips += `<i class="${k < m.threat ? 'on' : ''}"></i>`;
+      $('#tThreat').innerHTML = `<span class="lbl">Угроза</span><span class="pips">${pips}</span><span class="wv">${icon('wave')}${left}</span>`;
+      $('#tThreat').title = `Новая волна примерно через ${left} ${plural(left, 'ход', 'хода', 'ходов')} или раньше, если шуметь`;
+    }
     $('#tSquad').innerHTML = m.units.map(o => {
       const st = o.dead ? 'dead' : o.evac ? 'evac' : '';
       const hp = Math.max(0, (o.hp / o.maxhp) * 100);
@@ -130,6 +138,7 @@ const HUD = {
     set('aLure', player && u && u.lures > 0 && u.ap >= 2, TAC.mode === 'lure');
     $('#aLure span').textContent = u ? `Приманка ${u.lures}` : 'Приманка';
     set('aEvac', player && u && inEvac(m, u) && u.ap >= 1);
+    $('#aEvac').hidden = !!m.siege;
     set('aEnd', player);
     $('#aEnd').classList.toggle('ready', player && liveUnits(m).every(o => o.ap < 2));
   },
@@ -175,6 +184,7 @@ const HUD = {
     p.style.left = x + 'px'; p.style.top = y + 'px';
   },
   tap(ax, ay) {
+    if (R.mode === 'base') { Base.tapMap(ax, ay); return; }
     const m = TAC.m;
     if (!m || !canAct()) return;
     let t = R.toTile(ax, ay);
@@ -219,7 +229,7 @@ const HUD = {
       return;
     }
     if (zv) {
-      const w = WEAP[u.melee], adj = adjOK(m, u.x, u.y, zv.x, zv.y), sneak = zv.state === 'idle' || zv.state === 'wander';
+      const w = WEAP[u.melee], adj = adjOK(m, u.x, u.y, zv.x, zv.y), sneak = isUnaware(zv), hum = isHuman(zv);
       const items = [{
         ic: 'melee', cost: w.ap, ok: adj && u.ap >= w.ap, fn: () => doMelee(u, zv),
         label: !adj ? `${w.name}: нужно подойти вплотную` : sneak && w.assassin ? `${w.name}: тихое убийство` : sneak ? `${w.name}: удар со спины ×2` : `${w.name}: удар 85%`,
@@ -232,9 +242,35 @@ const HUD = {
           note: silenced(u) ? 'с глушителем, почти тихо' : `громко: слышно за ${rw.noise} клеток`,
         });
       }
-      const zt = ZT[zv.type];
+      const zt = ZT[zv.type], cov = hum && u.ranged ? coverOf(m, u.x, u.y, zv) : 0;
+      if (cov && items[1]) items[1].note = `за укрытием: −${Math.round(cov * 100)}% к попаданию`;
       TAC.pend = { tx: zv.x, ty: zv.y, col: '#ff6a50' };
-      this.showPop(ax, ay, zt.name, `${Math.max(0, zv.hp)}/${zt.hp} здоровья · ${ZSTATE[zv.state]}`, items);
+      const title = hum ? `${zt.name} · ${FACTIONS[zt.fac].name}` : zv.rf ? (zv.rf.n ? `${zv.rf.n}, мертвец` : 'Восставший') : zt.name;
+      const mhp = zv.rf ? ZT.walker.hp : zt.hp;
+      this.showPop(ax, ay, title, `${Math.max(0, zv.hp)}/${mhp} здоровья · ${hum && zv.state === 'chase' ? 'в бою' : ZSTATE[zv.state]}${hum && zt.ranged ? ` · патронов ${zv.ammo}` : ''}`, items);
+      return;
+    }
+    // пленный у столба
+    const cap = captiveAt(m, t.x, t.y);
+    if (cap) {
+      const adj = cheb(u.x, u.y, t.x, t.y) <= 1, items = [];
+      if (adj) items.push({ ic: 'exit', label: 'Освободить', cost: 2, ok: u.ap >= 2, fn: () => doFree(u, cap), note: 'пойдёт с вами, оружия нет' });
+      else {
+        let best = -1, bd = 1e9;
+        if (rf) for (const [dx, dy] of DIR8) { const nx = t.x + dx, ny = t.y + dy; if (!inb(m, nx, ny)) continue; const j = MI(m, nx, ny); if (rf.dist[j] > 0 && rf.dist[j] < bd) { bd = rf.dist[j]; best = j; } }
+        if (best >= 0) { const go = () => doMove(u, best); TAC.pend = { i, path: pathTo(m, rf, best), fn: go }; items.push({ ic: 'walk', label: 'Подойти', cost: bd, fn: go }); }
+      }
+      this.showPop(ax, ay, `Пленный: ${cap.name}`, adj ? 'связан и избит, но живой' : 'нужно подойти вплотную', items);
+      return;
+    }
+    // тело, которое скоро встанет
+    const dc = m.decals.find(d => d.rise && d.x === t.x && d.y === t.y);
+    if (dc && cheb(u.x, u.y, t.x, t.y) <= 1) {
+      const ct0 = m.cont[i], left = dc.rise - m.turn;
+      const items = [{ ic: 'melee', label: 'Добить, чтобы не встал', cost: 1, ok: u.ap >= 1, fn: () => doFinish(u, dc), note: 'удар в голову, почти тихо' }];
+      if (ct0 && Object.keys(ct0.loot).length) items.push({ ic: 'search', label: 'Обыскать тело', cost: 0, fn: () => doSearch(u, i) });
+      const nm = dc.k === 'ucorpse' ? dc.u.name : ZT[dc.zt].name;
+      this.showPop(ax, ay, nm, left <= 1 ? 'встанет на следующем ходу' : `встанет через ${left} ${plural(left, 'ход', 'хода', 'ходов')}`, items);
       return;
     }
     const ct = m.cont[i];
@@ -344,6 +380,19 @@ const HUD = {
     if (inb(m, x, y)) { R.centerOn(x, y, true); this.closeMap(); }
   },
   openMenu() {
+    if (TAC.m && TAC.m.siege) {
+      Game.modal({
+        title: 'Оборона на паузе',
+        html: `<p>Ход ${TAC.m.turn}. Можно запереться в насосной и переждать: люди уцелеют, но нападающие растащат часть припасов.</p>`,
+        buttons: [
+          { label: CFG.music ? 'Музыка: выкл' : 'Музыка: вкл', fn: () => Game.toggleMusic() },
+          { label: 'Настройки', fn: () => Game.openSettings() },
+          { label: 'Запереться и переждать', cls: 'danger', fn: () => abandonMission() },
+          { label: 'Продолжить', cls: 'primary' },
+        ],
+      });
+      return;
+    }
     Game.modal({
       title: 'Вылазка на паузе',
       html: `<p>Ход ${TAC.m.turn}. Если покинуть вылазку сейчас, уедут только те, кто стоит в зелёной зоне у машины. Остальные останутся на карте навсегда.</p>`,
@@ -374,7 +423,7 @@ const Input = {
     cv.addEventListener('pointerup', e => this.up(e));
     cv.addEventListener('pointercancel', e => { this.ptrs.delete(e.pointerId); if (!this.ptrs.size) this.start = null; });
     cv.addEventListener('wheel', e => {
-      if (R.mode !== 'tac') return;
+      if (R.mode !== 'tac' && R.mode !== 'base') return;
       e.preventDefault();
       const p = toApp(e.clientX, e.clientY);
       R.zoomAt(p.x, p.y, e.deltaY < 0 ? 1.15 : 1 / 1.15);
@@ -383,7 +432,7 @@ const Input = {
   },
   mid() { const [a, b] = [...this.ptrs.values()]; return [(a.x + b.x) / 2, (a.y + b.y) / 2, Math.hypot(a.x - b.x, a.y - b.y)]; },
   down(e) {
-    if (R.mode !== 'tac') return;
+    if (R.mode !== 'tac' && R.mode !== 'base') return;
     Sfx.init();
     try { e.target.setPointerCapture(e.pointerId); } catch (er) { /* старые браузеры */ }
     const p = toApp(e.clientX, e.clientY);

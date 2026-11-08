@@ -155,6 +155,44 @@ const ZPAL = {
   screamer: [['#8fa6b0', '#8fa6b0'], ['#b6aca0', '#57504a'], ['#8a6f86', '#3a3a38']],
   brute: [['#c66a2a', '#3a3f4a'], ['#4a5a3a', '#2f2f2f'], ['#5a5048', '#38342c']],
 };
+// Люди группировок: у каждой своя «форма»
+const HPAL = {
+  collectors: { top: ['#1e1d20', '#262326', '#2a2622'], pants: ['#2a2a30', '#33302a'], cap: '#c4402f', mask: '#c4402f' },
+  raiders: { top: ['#6a4a2a', '#4a5238', '#7a5a2a'], pants: ['#3a3a34', '#4a4030'], cap: '#3a3a34', mask: '#2a2826' },
+  garrison: { top: ['#4f5f3a', '#56633f', '#4a5636'], pants: ['#4a5636', '#3f4a30'], cap: '#4a5636', mask: '#3a4430' },
+  flock: { top: ['#8a8578', '#7a7468', '#958f80'], pants: ['#6a6458', '#5a564c'], cap: '#6a6458', mask: '#5a3a30' },
+};
+function lookHostile(z) {
+  const t = ZT[z.type], fac = t.fac, v = z.id % 3, hp = HPAL[fac], pal = basePal(), h = (z.id * 2654435761) >>> 0;
+  pal[C.SKIN] = hexRgb(SKINS[h % SKINS.length]);
+  pal[C.SKIN2] = mixRgb(pal[C.SKIN], [60, 30, 20], 0.25);
+  pal[C.HAIR] = hexRgb(HAIRS[(h >>> 3) % HAIRS.length]);
+  pal[C.TOP] = hexRgb(hp.top[v]);
+  pal[C.TOP2] = mixRgb(pal[C.TOP], [10, 10, 8], 0.4);
+  pal[C.PANTS] = hexRgb(hp.pants[v % 2]);
+  pal[C.BOOTS] = hexRgb('#22201c');
+  pal[C.PACK] = hexRgb(fac === 'garrison' ? '#3f4a30' : '#4a3f30');
+  pal[C.EYE] = hexRgb('#2a1e16');
+  pal[C.CAP] = hexRgb(hp.cap);
+  pal[C.VEST] = hexRgb(fac === 'garrison' ? '#3f4a30' : '#3a3530');
+  pal[C.STRIPE] = hexRgb(hp.mask);
+  const body = fac === 'flock' && v === 1 ? BODY.woman : fac === 'collectors' && v === 0 ? BODY.bulky : BODY.man;
+  return {
+    kind: 'h', key: `x${z.type}${v}`, pal, body, female: body === BODY.woman, hostile: fac,
+    melee: t.melee, ranged: t.ranged, hairStyle: fac === 'garrison' ? undefined : [0, 1, 5][v],
+    beard: fac === 'collectors' && v !== 2, vest: fac === 'garrison' || (fac === 'raiders' && v === 1), knee: fac === 'garrison',
+    gloves: fac !== 'flock', rolled: fac === 'raiders' && v === 2, pads: fac === 'collectors' && v === 0,
+    nopack: fac !== 'garrison', helmet: fac === 'garrison', mask: fac === 'collectors' ? v !== 1 : fac === 'raiders',
+    hood: fac === 'flock' || (fac === 'raiders' && v === 0), gown: fac === 'flock', smear: fac === 'flock', seed: v * 131 + 7,
+  };
+}
+// Восставший мертвец: одежда того, кем он был
+function lookRisen(z) {
+  const L = lookZombie(z), rf = z.rf, pal = L.pal.slice();
+  if (rf.t) { const H = lookHostile({ type: rf.t, id: z.id }); pal[C.TOP] = H.pal[C.TOP]; pal[C.PANTS] = H.pal[C.PANTS]; pal[C.TOP2] = mixRgb(H.pal[C.TOP], [0, 0, 0], 0.35); }
+  else { const top = mixRgb(hexRgb(rf.c), [60, 60, 48], 0.38); pal[C.TOP] = top; pal[C.TOP2] = mixRgb(top, [0, 0, 0], 0.4); }
+  return Object.assign({}, L, { pal, key: `r${rf.t || rf.c}${z.id % 3}`, hood: false, hardhat: false, gown: false, ribs: false });
+}
 function lookZombie(z) {
   const v = z.id % 3, pz = ZPAL[z.type][v], pal = basePal();
   const skin = hexRgb(['#8b977a', '#7f8c6c', '#949a80'][v]);
@@ -288,8 +326,13 @@ function buildFigure(L, P) {
       for (let k = -1; k <= 1; k++) vbox(g, vadd(at(3.6), [k * 1.7 - 0.65, front * 1.02, 0]), vadd(at(3.6), [k * 1.7 + 0.65, front * 1.32, 1.9]), C.VEST);
       for (let k = -1; k <= 1; k++) vbox(g, vadd(at(5.3), [k * 1.7 - 0.65, front * 1.3, 0]), vadd(at(5.3), [k * 1.7 + 0.65, front * 1.36, 0.25]), C.TOP2, -1);
     }
+    if (L.smear) for (let k = 0; k < 4; k++) {
+      const hh = hash3(L.seed, k, 7), hv = hash3(L.seed, k, 11);
+      vdot(g, vadd(chest, [(hh - 0.5) * 5, front * 0.98, -1 - hv * 7]), C.BLOOD, 0.9 + hv * 0.6, -1);
+    }
     // рюкзак со скаткой и лямками
     const back = vadd(chest, [0, -front - 1.7, -2.5]);
+    if (!L.nopack) {
     vcap(g, vadd(back, [0, 0, -4.4]), back, 2.5, C.PACK, 1.25, 0.75);
     vcap(g, vadd(back, [0, -0.6, 0.4]), vadd(back, [0, -0.6, 0.9]), 2.15, C.TOP2, 1.3, 0.7);
     vcap(g, vadd(back, [0, -0.9, -3.4]), vadd(back, [0, -0.9, -2.4]), 1.5, C.TOP2, 1.1, 0.7);
@@ -297,6 +340,7 @@ function buildFigure(L, P) {
     for (const sx of [-1, 1]) {
       const s0 = vadd(chest, [sx * 1.9, -front - 0.6, -2]), s1 = vadd(chest, [sx * 1.9, 0, 0.9]), s2 = vadd(chest, [sx * 1.7, front + 0.25, -4]);
       vcap(g, s0, s1, 0.48, C.PACK); vcap(g, s1, s2, 0.48, C.PACK);
+    }
     }
   } else {
     if (L.type === 'brute' && L.v === 0) {
@@ -333,6 +377,11 @@ function buildFigure(L, P) {
     if (L.hardhat) vcap(g, onHead(0, -0.2, 0.2), onHead(0, -0.2, 0.45), B.head + 1.25, C.CAP);
     else vcap(g, onHead(0, -0.2, 0.15), onHead(0, -0.2, 0.55), B.head + 0.62, C.TOP2);
   }
+  if (L.helmet) {
+    vdot(g, onHead(0, -0.15, 0.85), C.CAP, B.head + 0.85);
+    vcap(g, onHead(0, -0.15, 0.1), onHead(0, -0.15, 0.3), B.head + 1.05, C.CAP);
+    vcap(g, onHead(-B.head * 0.9, 0.2, -0.9), onHead(-B.head * 0.9, B.head * 0.8, -1.9), 0.22, C.BELT);
+  }
   if (hs === 5) {
     vdot(g, onHead(0, -0.25, 0.7), C.CAP, B.head + 0.45);
     vbox(g, onHead(-1.7, B.head * 0.6, 1.25), onHead(1.7, B.head + 1.7, 1.75), C.CAP);
@@ -365,6 +414,11 @@ function buildFigure(L, P) {
   if (zom && L.type === 'screamer') { vcap(g, onHead(0, B.head * 0.98, -1.3), onHead(0, B.head * 0.98, -2.5), 1.0, C.MOUTH); vdot(g, onHead(-0.5, B.head * 1.05, -1.0), C.BONE, 0.3); vdot(g, onHead(0.5, B.head * 1.05, -1.0), C.BONE, 0.3); }
   else if (zom) { vcap(g, onHead(-0.75, B.head * 0.98, -1.75), onHead(0.75, B.head * 0.98, -1.75), 0.48, C.MOUTH); vdot(g, onHead(-0.3, B.head * 1.04, -1.45), C.BONE, 0.26); vdot(g, onHead(0.35, B.head * 1.04, -1.45), C.BONE, 0.26); }
   else vcap(g, onHead(-0.6, B.head * 1.02, -1.55), onHead(0.6, B.head * 1.02, -1.55), 0.24, C.MOUTH, 1, 1, -1);
+  // повязка на лицо: бандана или балаклава
+  if (L.mask) {
+    vcap(g, onHead(-B.head * 0.9, B.head * 0.45, -1.4), onHead(B.head * 0.9, B.head * 0.45, -1.4), B.head * 0.62, C.STRIPE);
+    vcap(g, onHead(0, B.head * 0.6, -1.0), onHead(0, B.head * 0.75, -2.3), B.head * 0.6, C.STRIPE);
+  }
   // руки
   const hands = {};
   for (const side of [-1, 1]) {
@@ -605,9 +659,10 @@ const Spr = {
   models: new Map(), mBytes: 0, sprites: new Map(), sBytes: 0, looks: new Map(), queue: [], pumping: false,
   look(e, kind) {
     if (kind === 'z') {
-      const k = 'z' + e.type + (e.id % 3);
+      const hum = ZT[e.type] && ZT[e.type].human;
+      const k = hum ? 'x' + e.type + (e.id % 3) : e.rf ? `r${e.rf.t || e.rf.c}${e.id % 3}` : 'z' + e.type + (e.id % 3);
       let L = this.looks.get(k);
-      if (!L) { L = lookZombie(e); this.looks.set(k, L); }
+      if (!L) { L = hum ? lookHostile(e) : e.rf ? lookRisen(e) : lookZombie(e); this.looks.set(k, L); }
       return L;
     }
     const id = e.sid ?? e.id, k = `h${id}${e.color}${e.melee}${e.ranged || ''}${e.g}`;

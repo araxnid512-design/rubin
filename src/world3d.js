@@ -151,6 +151,78 @@ function pBall(c, x, y, z, r, col) {
   c.fillStyle = sh(col, 1.14); circ(c, PX - R0 * 0.36, PY - R0 * 0.42, R0 * 0.3); c.fill();
 }
 
+// Выпуклый многогранник: грани — списки вершин [x, y, z]
+function pPoly(c, faces, col, ctr) {
+  if (MODE === 1) {
+    const sx = SHD[0] * CB.k, sy = SHD[1] * CB.k, pts = [];
+    for (const f of faces) for (const v of f) { P(v[0], v[1], 0); pts.push(PX + v[2] * sx, PY + v[2] * sy); }
+    hullFill(pts);
+    return;
+  }
+  // знак площади «верхней» грани задаёт, какие грани смотрят на камеру
+  P(0, 0, 0); const ox = PX, oy = PY; P(1, 0, 0); const ax = PX - ox, ay = PY - oy; P(0, 1, 0);
+  const ref = Math.sign(ax * (PY - oy) - ay * (PX - ox));
+  for (const f of faces) {
+    const [a, b, d] = f;
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    let mx = 0, my = 0, mz = 0;
+    for (const v of f) { mx += v[0]; my += v[1]; mz += v[2]; }
+    mx /= f.length; my /= f.length; mz /= f.length;
+    let flip = nx * (mx - ctr[0]) + ny * (my - ctr[1]) + nz * (mz - ctr[2]) < 0;
+    if (flip) { nx = -nx; ny = -ny; nz = -nz; }
+    const pts = [];
+    for (const v of f) { P(v[0], v[1], v[2]); pts.push(PX, PY); }
+    let area = 0;
+    for (let i = 0; i < pts.length; i += 2) { const j = (i + 2) % pts.length; area += pts[i] * pts[j + 1] - pts[j] * pts[i + 1]; }
+    if (Math.sign(area) * (flip ? -1 : 1) !== ref) continue;
+    const L = Math.hypot(nx, ny, nz) || 1, h = Math.hypot(nx, ny) || 1;
+    const side = (nx * -CB.rx + ny * -CB.ry) / h > 0 ? 0.9 : 0.64, up = Math.max(0, nz / L);
+    c.fillStyle = sh(col, side + (1.04 - side) * up);
+    c.beginPath(); c.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+    c.closePath(); c.fill();
+  }
+}
+// Двускатная крыша/палатка: стенки до z1, конёк на zr вдоль оси ax ('x' или 'y')
+function ridgeFaces(x0, y0, x1, y1, z0, z1, zr, ax) {
+  const F = [];
+  if (ax === 'x') {
+    const ym = (y0 + y1) / 2;
+    if (z1 > z0) { F.push([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]); }
+    F.push([[x0, y0, z1], [x1, y0, z1], [x1, ym, zr], [x0, ym, zr]], [[x0, y1, z1], [x1, y1, z1], [x1, ym, zr], [x0, ym, zr]]);
+    F.push([[x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, ym, zr], [x0, y0, z1]], [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, ym, zr], [x1, y0, z1]]);
+  } else {
+    const xm = (x0 + x1) / 2;
+    if (z1 > z0) { F.push([[x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]], [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]); }
+    F.push([[x0, y0, z1], [x0, y1, z1], [xm, y1, zr], [xm, y0, zr]], [[x1, y0, z1], [x1, y1, z1], [xm, y1, zr], [xm, y0, zr]]);
+    F.push([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [xm, y0, zr], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [xm, y1, zr], [x0, y1, z1]]);
+  }
+  return F;
+}
+// Костёр: камни, поленья и живое пламя
+function pFire(c, x, y, lit = true) {
+  for (let a = 0; a < 7; a++) { const q = (a / 7) * Math.PI * 2; pBox(c, x + Math.cos(q) * 0.3 - 0.06, y + Math.sin(q) * 0.3 - 0.05, x + Math.cos(q) * 0.3 + 0.06, y + Math.sin(q) * 0.3 + 0.05, 0, 0.1, '#5e5a52'); }
+  pBox(c, x - 0.22, y - 0.05, x + 0.22, y + 0.05, 0.02, 0.1, '#4a3420'); pBox(c, x - 0.05, y - 0.22, x + 0.05, y + 0.22, 0.08, 0.16, '#4a3420');
+  if (MODE === 1 || !lit) return;
+  const t = performance.now() / 1000;
+  P(x, y, 0.1); const bx = PX, by = PY, k = CB.k;
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) {
+    const ph = t * (5 + i * 1.7) + i * 2.1, hgt = k * (0.42 + 0.14 * Math.sin(ph) + (i === 0 ? 0.12 : 0)), w = k * (0.15 - i * 0.022);
+    const ox = Math.sin(ph * 0.7 + i) * k * 0.05 + (i - 1.5) * k * 0.05;
+    const g = c.createLinearGradient(bx, by, bx, by - hgt);
+    g.addColorStop(0, `rgba(255,${150 + i * 20},40,${0.85 * DIM})`); g.addColorStop(1, 'rgba(255,90,20,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(bx + ox - w, by); c.quadraticCurveTo(bx + ox - w * 0.6, by - hgt * 0.5, bx + ox, by - hgt); c.quadraticCurveTo(bx + ox + w * 0.6, by - hgt * 0.5, bx + ox + w, by); c.closePath(); c.fill();
+  }
+  const g2 = c.createRadialGradient(bx, by - k * 0.15, 0, bx, by - k * 0.15, k * 1.4);
+  g2.addColorStop(0, `rgba(255,150,60,${0.32 * DIM})`); g2.addColorStop(1, 'rgba(255,120,40,0)');
+  c.fillStyle = g2; c.fillRect(bx - k * 1.4, by - k * 1.55, k * 2.8, k * 2.8);
+  c.globalCompositeOperation = 'source-over';
+  R.fireVis = true;
+}
+
 // ----- соседство стен -----
 const wallish = (m, x, y) => { if (!inb(m, x, y)) return false; const t = m.tiles[MI(m, x, y)]; return TP[t].wall || isDoorT(t); };
 function wallPieces(m, x, y) { return { n: wallish(m, x, y - 1), s: wallish(m, x, y + 1), w: wallish(m, x - 1, y), e: wallish(m, x + 1, y) }; }
@@ -160,6 +232,7 @@ const WALL_DET = { [T.WALL]: 'panel', [T.BRICK]: 'brick', [T.WWALL]: 'plank', [T
 const OBJ_H = {
   [T.CRATE]: 0.7, [T.SHELF]: 1.2, [T.LOCKER]: 1.27, [T.FRIDGE]: 1.23, [T.DESK]: 0.56, [T.DRUM]: 0.85,
   [T.WELL]: 0.45, [T.MEDCAB]: 0.92, [T.BENCH]: 0.62, [T.FURN]: 0.5, [T.HAY]: 0.68, [T.BLOCK]: 1.05, [T.BLOCKH]: 1.5,
+  [T.SANDBAG]: 0.6, [T.GRAVE]: 0.7,
 };
 
 // ----- объект в клетке -----
@@ -171,6 +244,26 @@ function drawTileObj(c, m, x, y, i, lod, cut) {
   const B = (a, b, cc, d, z0, z1, col, det, top) => pBox(c, x + a, y + b, x + cc, y + d, z0, z1, col, det, top);
   switch (t) {
     case T.FENCE: return drawFenceIso(c, m, x, y, i);
+    case T.SANDBAG: {
+      const nb = (dx, dy) => inb(m, x + dx, y + dy) && m.tiles[MI(m, x + dx, y + dy)] === T.SANDBAG;
+      const hx = nb(-1, 0) || nb(1, 0), a0 = nb(-1, 0) ? 0 : 0.1, a1 = nb(1, 0) ? 1 : 0.9, b0 = nb(0, -1) ? 0 : 0.1, b1 = nb(0, 1) ? 1 : 0.9;
+      for (let l = 0; l < 3; l++) {
+        const z = l * 0.19, o = l % 2 ? 0.05 : 0.02, col = (l + x + y) % 2 ? '#8a7a56' : '#978763', top = shade(col, 1.1);
+        // мешки по два на клетку, ряды вперевязку
+        const cuts = l % 2 ? [0, 0.5, 1] : [0, 0.25, 0.75, 1];
+        for (let s2 = 0; s2 < cuts.length - 1; s2++) {
+          const c0 = cuts[s2] + 0.015, c1 = cuts[s2 + 1] - 0.015;
+          if (hx) B(Math.max(a0, c0), b0 + o, Math.min(a1, c1), b1 - o, z, z + 0.17, col, null, top);
+          else B(a0 + o, Math.max(b0, c0), a1 - o, Math.min(b1, c1), z, z + 0.17, col, null, top);
+        }
+      }
+      return;
+    }
+    case T.GRAVE:
+      B(0.22, 0.16, 0.78, 0.86, 0, 0.07, '#5a4a33');
+      if (m.meta[i]) { B(0.46, 0.2, 0.54, 0.3, 0, 0.82, '#5a4128'); B(0.3, 0.2, 0.7, 0.3, 0.52, 0.6, '#5a4128'); }
+      else { B(0.26, 0.18, 0.74, 0.3, 0, 0.62, '#8a8a82', null, '#a2a29a'); if (MODE === 0) B(0.34, 0.3, 0.66, 0.31, 0.3, 0.5, '#6a6a62'); }
+      return;
     case T.TREE: return drawTreeIso(c, x, y, cut);
     case T.HAY:
       B(0.06, 0.1, 0.94, 0.9, 0, 0.68, '#b39a52', null, '#c8ad62');
@@ -226,7 +319,25 @@ function drawTileObj(c, m, x, y, i, lod, cut) {
         if (MODE === 0) { B(0.18, 0.1, 0.82, 0.3, 0.4, 0.48, '#e8e2d2'); B(0.12, 0.42, 0.88, 0.92, 0.4, 0.44, '#5c6170'); }
       } else if (v === 1) { pCyl(c, x + 0.5, y + 0.5, 0.06, 0, 0.5, '#4a3520'); pCyl(c, x + 0.5, y + 0.5, 0.4, 0.5, 0.56, '#8a6946'); }
       else if (v === 2) { B(0.06, 0.32, 0.94, 0.86, 0, 0.36, '#6b5878'); B(0.06, 0.14, 0.94, 0.32, 0, 0.72, '#5a4868'); B(0.04, 0.14, 0.14, 0.86, 0, 0.5, '#5a4868'); B(0.86, 0.14, 0.96, 0.86, 0, 0.5, '#5a4868'); }
-      else { B(0.1, 0.42, 0.16, 0.58, 0, 0.3, '#3e2c1a'); B(0.84, 0.42, 0.9, 0.58, 0, 0.3, '#3e2c1a'); B(0.06, 0.36, 0.94, 0.64, 0.3, 0.36, '#7a5b3a'); }
+      else if (v === 3) { B(0.1, 0.42, 0.16, 0.58, 0, 0.3, '#3e2c1a'); B(0.84, 0.42, 0.9, 0.58, 0, 0.3, '#3e2c1a'); B(0.06, 0.36, 0.94, 0.64, 0.3, 0.36, '#7a5b3a'); }
+      else if (v === 4) { // церковная скамья
+        B(0.04, 0.3, 0.1, 0.75, 0, 0.42, '#4a3420'); B(0.9, 0.3, 0.96, 0.75, 0, 0.42, '#4a3420');
+        B(0.04, 0.32, 0.96, 0.72, 0.36, 0.42, '#6e4f30'); B(0.04, 0.66, 0.96, 0.74, 0.42, 0.88, '#5e4228');
+      } else if (v === 5) { // парта и стул
+        B(0.14, 0.12, 0.2, 0.56, 0, 0.52, '#5a5d60'); B(0.8, 0.12, 0.86, 0.56, 0, 0.52, '#5a5d60');
+        B(0.1, 0.1, 0.9, 0.58, 0.52, 0.58, '#b39062');
+        B(0.32, 0.66, 0.68, 0.9, 0, 0.32, '#5a5d60'); B(0.32, 0.66, 0.68, 0.9, 0.32, 0.36, '#7a5b3a'); B(0.32, 0.86, 0.68, 0.92, 0.36, 0.7, '#7a5b3a');
+      } else if (v === 6) { // двухъярусная койка
+        for (const a of [0.1, 0.84]) for (const b of [0.06, 0.88]) B(a, b, a + 0.06, b + 0.06, 0, 1.25, '#3f4a3a');
+        for (const z of [0.3, 0.9]) { B(0.1, 0.06, 0.9, 0.94, z, z + 0.08, '#4a5a3a'); B(0.12, 0.08, 0.88, 0.92, z + 0.08, z + 0.17, '#6f7a5a'); }
+        if (MODE === 0) B(0.16, 0.1, 0.84, 0.3, 1.07, 1.13, '#d6d0bf');
+      } else if (v === 7) { // прилавок
+        B(0.02, 0.28, 0.98, 0.72, 0, 0.82, '#6a5440', 'plank', '#8a7454');
+        if (MODE === 0) B(0.0, 0.26, 1.0, 0.74, 0.82, 0.86, '#b8b2a2');
+      } else { // нары / раскладушка
+        B(0.12, 0.08, 0.18, 0.92, 0, 0.32, '#5a5d60'); B(0.82, 0.08, 0.88, 0.92, 0, 0.32, '#5a5d60');
+        B(0.1, 0.06, 0.9, 0.94, 0.32, 0.4, '#6f7468'); if (MODE === 0) B(0.14, 0.08, 0.86, 0.26, 0.4, 0.46, '#c8c2b0');
+      }
       return;
     }
   }
@@ -361,6 +472,7 @@ function propPrims(p) {
       along(0.32, 0.7, 0.18, 0.82, 0.98, 1.04, shade(p.c, 1.08));
       along(0.97, 0.995, 0.14, 0.3, 0.38, 0.5, '#e8dca0'); along(0.97, 0.995, 0.7, 0.86, 0.38, 0.5, '#e8dca0');
       along(0.005, 0.03, 0.14, 0.3, 0.4, 0.5, '#a8322a'); along(0.005, 0.03, 0.7, 0.86, 0.4, 0.5, '#a8322a');
+      if (p.pol) { along(0.05, 0.95, 0.09, 0.91, 0.36, 0.44, '#2f4f8f'); along(0.45, 0.55, 0.22, 0.5, 1.04, 1.13, '#c4402f'); along(0.45, 0.55, 0.5, 0.78, 1.04, 1.13, '#3a6ab0'); }
       break;
     case 'ambulance':
       wheels([0.18, 0.82], 0.1);
@@ -399,6 +511,76 @@ function propPrims(p) {
       box(x + 0.15, y + 0.6, x + w - 0.15, y + h - 0.6, 1.25, 1.38, '#b6b3a8');
       box(x + w * 0.1, y + h - 0.32, x + w * 0.24, y + h - 0.3, 0.6, 0.8, '#c4402f');
       break;
+    case 'bus':
+      wheels([0.13, 0.82], 0.06);
+      along(0.01, 0.99, 0.06, 0.94, 0.25, 1.55, p.c, shade(p.c, 1.1));
+      along(0.06, 0.95, 0.05, 0.95, 0.85, 1.25, '#3e4e5a');
+      along(0.0, 0.01, 0.1, 0.9, 0.25, 0.5, '#2a2a28'); along(0.99, 1.0, 0.1, 0.9, 0.25, 0.5, '#2a2a28');
+      along(0.3, 0.7, 0.2, 0.8, 1.55, 1.6, '#c4c0b0');
+      break;
+    case 'trailer':
+      wheels([0.45, 0.55], 0.05);
+      along(0.0, 0.9, 0.04, 0.96, 0.3, 1.45, p.c, '#e4e0d4');
+      along(0.05, 0.85, 0.03, 0.97, 0.7, 0.78, '#4a6a8a');
+      along(0.15, 0.3, 0.03, 0.97, 0.9, 1.15, '#3e4e5a'); along(0.6, 0.75, 0.03, 0.97, 0.9, 1.15, '#3e4e5a');
+      along(0.9, 1.0, 0.45, 0.55, 0.25, 0.35, '#2a2a28');
+      break;
+    case 'wagon':
+      for (const s of [0.12, 0.88]) for (const [i0, i1] of [[0.02, 0.2], [0.8, 0.98]]) along(s - 0.08, s + 0.08, i0, i1, 0, 0.35, '#1e1d1a');
+      along(0.0, 1.0, 0.08, 0.92, 0.3, 0.4, '#2a2826');
+      along(0.01, 0.99, 0.04, 0.96, 0.4, 1.9, p.c, shade(p.c, 1.12));
+      along(0.42, 0.58, 0.02, 0.98, 0.5, 1.75, shade(p.c, 0.78));
+      along(0.0, 1.0, 0.1, 0.9, 1.9, 1.98, shade(p.c, 1.2));
+      break;
+    case 'pump':
+      box(x + 0.22, y + 0.3, x + 0.78, y + 0.7, 0, 1.25, '#b8402f', '#d8d4c8');
+      box(x + 0.3, y + 0.28, x + 0.7, y + 0.72, 0.75, 1.05, '#d8d4c8');
+      box(x + 0.36, y + 0.27, x + 0.64, y + 0.73, 0.82, 0.98, '#2a3a2a');
+      box(x + 0.78, y + 0.44, x + 0.86, y + 0.56, 0.2, 0.9, '#1e1d1a');
+      break;
+    case 'tent': {
+      if (p.round) { out.push({ t: 'cone', x: x + w / 2, y: y + h / 2, r: Math.min(w, h) * 0.48, z0: 0, z1: 1.55, col: p.c }); out.push({ t: 'box', x0: x + w / 2 - 0.04, y0: y + h / 2 - 0.04, x1: x + w / 2 + 0.04, y1: y + h / 2 + 0.04, z0: 1.4, z1: 1.8, col: '#4a3420' }); break; }
+      out.push({ t: 'ridge', x0: x + 0.1, y0: y + 0.12, x1: x + w - 0.1, y1: y + h - 0.12, z0: 0, z1: 0.08, zr: 1.05, ax: w >= h ? 'x' : 'y', col: p.c });
+      break;
+    }
+    case 'mtent':
+    case 'medtent': {
+      const ax = h > w ? 'y' : 'x', med = p.k === 'medtent';
+      out.push({ t: 'ridge', x0: x + 0.08, y0: y + 0.08, x1: x + w - 0.08, y1: y + h - 0.08, z0: 0, z1: med ? 0.5 : 0.4, zr: med ? 1.45 : 1.3, ax, col: p.c });
+      if (med) {
+        const cx = x + w / 2, cy = y + h / 2;
+        if (ax === 'x') for (const xx of [x + 0.06, x + w - 0.08]) { box(xx, cy - 0.3, xx + 0.02, cy + 0.3, 0.55, 0.69, '#c4402f'); box(xx, cy - 0.07, xx + 0.02, cy + 0.07, 0.35, 0.9, '#c4402f'); }
+        else for (const yy of [y + 0.06, y + h - 0.08]) { box(cx - 0.3, yy, cx + 0.3, yy + 0.02, 0.55, 0.69, '#c4402f'); box(cx - 0.07, yy, cx + 0.07, yy + 0.02, 0.35, 0.9, '#c4402f'); }
+      }
+      break;
+    }
+    case 'tower': {
+      for (const [a, b] of [[0.1, 0.1], [w - 0.24, 0.1], [0.1, h - 0.24], [w - 0.24, h - 0.24]]) box(x + a, y + b, x + a + 0.14, y + b + 0.14, 0, 3.2, '#5a4a36');
+      box(x + 0.02, y + 0.02, x + w - 0.02, y + h - 0.02, 2.1, 2.24, '#6e5a40');
+      for (const [a0, b0, a1, b1] of [[0.02, 0.02, w - 0.02, 0.1], [0.02, h - 0.1, w - 0.02, h - 0.02], [0.02, 0.1, 0.1, h - 0.1], [w - 0.1, 0.1, w - 0.02, h - 0.1]]) box(x + a0, y + b0, x + a1, y + b1, 2.24, 2.62, '#8a7a56');
+      box(x - 0.08, y - 0.08, x + w + 0.08, y + h + 0.08, 3.2, 3.3, '#4a4438');
+      box(x + w * 0.3, y + h * 0.3, x + w * 0.7, y + h * 0.7, 3.3, 3.45, '#4a4438');
+      break;
+    }
+    case 'mast': {
+      const H2 = p.hgt || 4;
+      box(x + 0.38, y + 0.38, x + 0.62, y + 0.62, 0, 0.2, '#5e5c55');
+      box(x + 0.45, y + 0.45, x + 0.55, y + 0.55, 0.2, H2, '#9a9c97');
+      for (let z = 1; z < H2; z += 1) box(x + 0.36, y + 0.36, x + 0.64, y + 0.64, z, z + 0.05, '#7a7c77');
+      box(x + 0.2, y + 0.47, x + 0.8, y + 0.53, H2 - 0.6, H2 - 0.55, '#9a9c97');
+      box(x + 0.46, y + 0.46, x + 0.54, y + 0.54, H2, H2 + 0.12, '#e0402f');
+      break;
+    }
+    case 'wtower': {
+      for (const [a, b] of [[0.2, 0.2], [w - 0.32, 0.2], [0.2, h - 0.32], [w - 0.32, h - 0.32]]) box(x + a, y + b, x + a + 0.12, y + b + 0.12, 0, 1.9, '#5a5d60');
+      box(x + 0.3, y + 0.3, x + w - 0.3, y + h - 0.3, 0.9, 0.96, '#5a5d60');
+      out.push({ t: 'cyl', x: x + w / 2, y: y + h / 2, r: w * 0.42, z0: 1.9, z1: 2.9, col: '#6f8a8a', rings: [2.2, 2.55] });
+      out.push({ t: 'cone', x: x + w / 2, y: y + h / 2, r: w * 0.44, z0: 2.9, z1: 3.25, col: '#5a6e6e' });
+      break;
+    }
+    case 'campfire':
+      out.push({ t: 'fire', x: x + 0.5, y: y + 0.5, z0: 0 });
+      break;
     case 'silo':
       out.push({ t: 'cyl', x: x + w / 2, y: y + h / 2, r: w * 0.46, z0: 0, z1: 2.8, col: '#878984', rings: [0.7, 1.4, 2.1] });
       out.push({ t: 'cone', x: x + w / 2, y: y + h / 2, r: w * 0.48, z0: 2.8, z1: 3.5, col: '#9a9c97' });
@@ -413,6 +595,7 @@ function propSlices(m) {
   map = new Map();
   const push = (i, q) => { if (!map.has(i)) map.set(i, []); map.get(i).push(q); };
   for (const p of m.props) for (const q of propPrims(p)) {
+    if (q.t === 'ridge') { push(MI(m, Math.floor((q.x0 + q.x1) / 2), Math.floor((q.y0 + q.y1) / 2)), q); continue; }
     if (q.t !== 'box') { push(MI(m, Math.floor(q.x), Math.floor(q.y)), q); continue; }
     for (let ty = Math.floor(q.y0); ty < Math.ceil(q.y1); ty++) for (let tx = Math.floor(q.x0); tx < Math.ceil(q.x1); tx++) {
       if (!inb(m, tx, ty)) continue;
@@ -424,10 +607,12 @@ function propSlices(m) {
   return map;
 }
 function drawPrims(c, list) {
-  const key = q => (q.t === 'box' ? nearF((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2) : nearF(q.x, q.y));
+  const key = q => (q.t === 'box' || q.t === 'ridge' ? nearF((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2) : nearF(q.x, q.y));
   list.sort((a, b) => a.z0 - b.z0 || key(a) - key(b));
   for (const q of list) {
     if (q.t === 'cyl') pCyl(c, q.x, q.y, q.r, q.z0, q.z1, q.col, q.rings);
+    else if (q.t === 'ridge') pPoly(c, q.f || (q.f = ridgeFaces(q.x0, q.y0, q.x1, q.y1, q.z0, q.z1, q.zr, q.ax)), q.col, [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, q.z1 / 2]);
+    else if (q.t === 'fire') pFire(c, q.x, q.y);
     else if (q.t === 'cone') pCone(c, q.x, q.y, q.r, q.z0, q.z1, q.col);
     else {
       if (q.alpha && MODE === 0) c.globalAlpha = q.alpha;
@@ -448,7 +633,7 @@ function layer(name, W, H, dpr) {
 }
 const MAPCSS = MAPRGB.map(c => c && `rgb(${c[0]},${c[1]},${c[2]})`);
 const isFlatT = t => TP[t].floor || t === T.CROP || t === T.BUSH || t === T.BLOCK || t === T.BLOCKH;
-function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
+function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
   const dpr = R.dpr, gfx = CFG.gfx ?? 2;
   setCB(cam, W, H, shk[0], shk[1]);
   const k = cam.k, lod = k < 14 ? 0 : k < 24 ? 1 : 2;
@@ -497,6 +682,11 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
       const [px, py] = animPos(un, now);
       bucket(Math.round(nearKey(px, py)), { e: un, z: false, px, py });
     }
+    for (const cp of m.captives || []) if (!cp.freed && m.seen[MI(m, cp.x, cp.y)]) bucket(Math.round(nearKey(cp.x, cp.y)), { e: cp, z: false, cap: true, px: cp.x, py: cp.y });
+  } else if (extra) {
+    for (const it of extra) { const [px, py] = animPos(it.e, now); bucket(Math.round(nearKey(px, py)), { e: it.e, z: false, base: true, px, py }); }
+  }
+  if (!all || extra) {
     for (const list of rows.values()) for (const it of list) {
       const ex = Math.round(it.px), ey = Math.round(it.py), nk = nearKey(ex, ey);
       occ.add(MI(m, ex, ey));
@@ -587,10 +777,16 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
       P(d.x + 0.5, d.y + 0.5, 0);
       const p = d.t0 ? (now - d.t0) / 620 : 2, fr = p < 0.33 ? 'd0' : p < 0.66 ? 'd1' : 'd2';
       if (p < 1) R.until = Math.max(R.until, now + 60);
-      const L = d.k === 'ucorpse' ? Spr.look(d.u, 'h') : Spr.look({ type: d.zt, id: d.zid }, 'z');
+      const L = d.k === 'ucorpse' ? Spr.look(d.u, 'h') : Spr.look({ type: d.zt, id: d.zid, rf: d.rf }, 'z');
       c.globalAlpha = vis(MI(m, d.x, d.y)) ? 1 : 0.5;
       Spr.draw(c, L, fr, spriteDir(d.f ?? 2), PX, PY, k);
       c.globalAlpha = 1;
+      if (d.rise && !all && vis(MI(m, d.x, d.y))) {
+        const left = d.rise - m.turn, a = 0.35 + 0.25 * Math.sin(now / 260);
+        c.strokeStyle = `rgba(164,208,60,${left <= 1 ? a + 0.25 : a})`; c.lineWidth = Math.max(1.5, k * 0.035);
+        c.beginPath(); c.ellipse(PX, PY, k * 0.42, k * 0.42 * CB.sE, 0, 0, Math.PI * 2); c.stroke();
+        R.until = Math.max(R.until, now + 300);
+      }
     }
     const el = rows.get(nk);
     if (el) {
@@ -650,7 +846,17 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
   it.cx = PX; it.fy = PY;
   const big = it.z && it.e.type === 'brute' ? 1.3 : 1, rx = k * 0.36 * big, ry = rx * CB.sE;
   if (!((CFG.gfx ?? 2) >= 1 && lod >= 1)) { c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(PX, PY, rx * 0.8, ry * 0.8, 0, 0, Math.PI * 2); c.fill(); }
-  if (!it.z) {
+  if (it.cap) {
+    const L = Spr.look({ sid: 'cap' + it.e.name, name: it.e.name, g: it.e.g, color: it.e.color, trait: 'quiet', melee: null, ranged: null }, 'h');
+    it.top = Spr.draw(c, L, 'i0', spriteDir(0), PX, PY, k);
+    c.strokeStyle = '#8a7a56'; c.lineWidth = Math.max(1, k * 0.03);
+    P(it.px + 0.8, it.py + 0.5, 0.75); const rx2 = PX, ry2 = PY; P(it.px + 0.55, it.py + 0.5, 0.55);
+    c.beginPath(); c.moveTo(PX, PY); c.lineTo(rx2, ry2); c.stroke();
+    R.objHits.push({ x: it.e.x, y: it.e.y, x0: it.cx - k * 0.4, x1: it.cx + k * 0.4, y0: it.top, y1: it.fy + k * 0.2 });
+    return;
+  }
+  if (it.base) {
+  } else if (!it.z) {
     const sel = it.e.id === TAC.sel;
     c.strokeStyle = sel ? '#e8a62b' : it.e.color; c.globalAlpha = sel ? 1 : 0.6;
     c.lineWidth = Math.max(sel ? 2 : 1.5, k * (sel ? 0.05 : 0.032));
@@ -659,6 +865,11 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
   } else if (MI(m, it.e.x, it.e.y) === tgt) {
     c.strokeStyle = '#ff6a50'; c.lineWidth = Math.max(2, k * 0.05);
     c.beginPath(); c.ellipse(PX, PY, rx * 1.05, ry * 1.05, 0, 0, Math.PI * 2); c.stroke();
+  } else if (isHuman(it.e)) {
+    c.strokeStyle = ZT[it.e.type].body; c.globalAlpha = 0.75; c.lineWidth = Math.max(1.5, k * 0.035);
+    c.setLineDash([k * 0.12, k * 0.08]);
+    c.beginPath(); c.ellipse(PX, PY, rx, ry, 0, 0, Math.PI * 2); c.stroke();
+    c.setLineDash([]); c.globalAlpha = 1;
   }
   if (lod === 0) {
     c.fillStyle = it.z ? ZT[it.e.type].body : it.e.color;
@@ -676,7 +887,7 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
   R.hits.push({ e: it.e, z: it.z, x0: PX - k * 0.38, x1: PX + k * 0.38, y0: it.top, y1: PY + k * 0.15 });
 }
 function lightLayer(c, m, now, W, H, dpr, gfx) {
-  const tod = timeOfDay(m);
+  const tod = m.tod ?? timeOfDay(m);
   const flashes = FX.list.filter(f => f.k === 'flash' && now - f.t0 < f.d);
   if (!tod && !flashes.length) return;
   if (gfx === 0) {
@@ -693,7 +904,7 @@ function lightLayer(c, m, now, W, H, dpr, gfx) {
     l.setTransform(dpr, 0, 0, dpr, 0, 0);
     l.globalCompositeOperation = 'destination-out';
     const sr = sightR(m);
-    for (const u of liveUnits(m)) {
+    for (const u of m.units ? liveUnits(m) : []) {
       const [px, py] = animPos(u, now);
       P(px + 0.5, py + 0.5, 0);
       const rad = (sr + (u.trait === 'hunter' ? 2 : 0)) * k * 0.9;
@@ -712,6 +923,15 @@ function lightLayer(c, m, now, W, H, dpr, gfx) {
         g2.addColorStop(0, 'rgba(0,0,0,0.95)'); g2.addColorStop(1, 'rgba(0,0,0,0)');
         l.fillStyle = g2; l.beginPath(); l.moveTo(sx0, sy0); l.lineTo(ax, ay); l.lineTo(bx, by); l.closePath(); l.fill();
       }
+    }
+    for (const [fx, fy] of m.fires || []) {
+      P(fx + 0.5, fy + 0.5, 0);
+      const fl = 1 + Math.sin(now / 90) * 0.04 + Math.sin(now / 37) * 0.03, rad = k * 4.2 * fl;
+      l.save(); l.translate(PX, PY); l.scale(1, CB.sE);
+      const g = l.createRadialGradient(0, 0, rad * 0.1, 0, 0, rad);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.5, 'rgba(0,0,0,0.75)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      l.fillStyle = g; l.beginPath(); l.arc(0, 0, rad, 0, Math.PI * 2); l.fill();
+      l.restore();
     }
     for (const fl of flashes) {
       P(fl.x + 0.5, fl.y + 0.5, 1);

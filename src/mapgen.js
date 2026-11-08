@@ -66,7 +66,7 @@ function clearRect(m, x, y, w, h) {
 
 function rollLoot(r, table) {
   const out = {};
-  for (const k in table) { const [p, lo, hi] = table[k]; if (r() < p) out[k] = r.int(lo, hi); }
+  for (const k in table) { const [p, lo, hi] = table[k]; if (r() < p * LOOT_MUL) out[k] = r.int(lo, hi); }
   return out;
 }
 function addCont(m, r, x, y, kind) {
@@ -74,7 +74,8 @@ function addCont(m, r, x, y, kind) {
   if (C.tile != null) put(m, x, y, C.tile);
   m.cont[MI(m, x, y)] = { k: kind, loot: rollLoot(r, C.loot), s: 0 };
 }
-const FURN_V = { bed: 0, table: 1, sofa: 2, bench: 3 };
+const FURN_V = { bed: 0, table: 1, sofa: 2, bench: 3, pew: 4, desk: 5, bunk: 6, counter: 7, cot: 8 };
+let LOOT_MUL = 1;   // меньше добычи при повторных вылазках
 function placeItem(m, r, x, y, item) {
   if (item.startsWith('furn:')) { put(m, x, y, T.FURN); m.meta[MI(m, x, y)] = FURN_V[item.slice(5)] || 0; }
   else if (item === 'hay') put(m, x, y, T.HAY);
@@ -315,6 +316,26 @@ function genFarm(m, r) {
   placeStart(m, r, rx, H - 7);
 }
 
+// Квартал райцентра: кирпичные магазины, конторы и аптека вдоль улиц
+function townBlock(m, r, x0, y0, x1, y1) {
+  groundRect(m, x0, y0, x1 - x0 + 1, y1 - y0 + 1, T.SIDEWALK);
+  const kinds = [
+    ['mshelf', 'mshelf', 'register', 'cooler', 'foodcrate'],
+    ['medcab', 'medcab', 'register', 'shelf'],
+    ['desk', 'desk', 'locker', 'shelf', 'furn:table'],
+    ['shelf', 'toolbox', 'crate', 'register'],
+    ['fridge', 'furn:table', 'furn:counter', 'pantry', 'register'],
+  ];
+  for (let k = 0; k < 4; k++) {
+    const bw = r.int(9, 14), bh = r.int(8, 10);
+    const sp = findSpot(m, r, bw, bh, { x0: x0 + 1, y0: y0 + 1, x1: x1 - 1, y1: y1 - 1 }, 1, 60);
+    if (!sp) continue;
+    const b = building(m, r, sp.x, sp.y, bw, bh, { wall: T.BRICK, floor: r() < 0.5 ? T.TILE : T.WOOD, minRoom: 4, maxDepth: 2, doors: 2, windows: 6 });
+    const pal = r.pick(kinds);
+    furnish(m, r, b, pal, 7);
+  }
+}
+
 // ----- Посёлок -----
 function genSuburb(m, r) {
   const W = m.w, H = m.h;
@@ -336,13 +357,21 @@ function genSuburb(m, r) {
   const xs = [[1, vx[0] - 2], [vx[0] + 4, vx[1] - 2], [vx[1] + 4, W - 2]];
   const ys = [[1, hy[0] - 2], [hy[0] + 4, hy[1] - 2], [hy[1] + 4, H - 2]];
   for (const [x0, x1] of xs) for (const [y0, y1] of ys) {
+    if (m.v === 1) { townBlock(m, r, x0, y0, x1, y1); continue; }
     for (let k = 0; k < 5; k++) {
-      const hw = r.int(8, 12), hh = r.int(7, 9);
+      const dacha = m.v === 2;
+      const hw = dacha ? r.int(5, 7) : r.int(8, 12), hh = dacha ? r.int(5, 6) : r.int(7, 9);
       const sp = findSpot(m, r, hw, hh, { x0: x0 + 2, y0: y0 + 2, x1: x1 - 2, y1: y1 - 2 }, 3, 60);
       if (!sp) continue;
-      const brick = r() < 0.5;
-      const hb = building(m, r, sp.x, sp.y, hw, hh, { wall: brick ? T.BRICK : T.WWALL, floor: r() < 0.6 ? T.WOOD : T.TILE, minRoom: 3, maxDepth: 3, doors: r.int(1, 2), windows: 4 });
-      furnish(m, r, hb, ['fridge', 'pantry', 'desk', 'furn:bed', 'furn:sofa', 'furn:table', 'locker', 'medcab', 'shelf', 'gun', 'furn:bed'], 9);
+      const brick = !dacha && r() < 0.5;
+      const hb = building(m, r, sp.x, sp.y, hw, hh, { wall: brick ? T.BRICK : T.WWALL, floor: r() < 0.6 ? T.WOOD : T.TILE, minRoom: 3, maxDepth: dacha ? 1 : 3, doors: r.int(1, 2), windows: dacha ? 2 : 4 });
+      if (dacha) furnish(m, r, hb, ['pantry', 'furn:bed', 'toolbox', 'seeds', 'furn:table', 'drum', 'fridge'], 6);
+      else furnish(m, r, hb, ['fridge', 'pantry', 'desk', 'furn:bed', 'furn:sofa', 'furn:table', 'locker', 'medcab', 'shelf', 'gun', 'furn:bed'], 9);
+      if (dacha) for (let g = 0; g < 2; g++) {
+        const gx = sp.x + (g ? hw - 4 : 0), gy = sp.y + hh + 1;
+        if (!isFree(m, gx, gy, 4, 2)) continue;
+        for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 4; xx++) { setGround(m, gx + xx, gy + yy, T.DIRT); put(m, gx + xx, gy + yy, T.CROP); m.meta[MI(m, gx + xx, gy + yy)] = 0; }
+      }
       // забор вокруг двора с калитками у дверей
       const fx = sp.x - 2, fy = sp.y - 2, fw = hw + 4, fh = hh + 4, meta = r() < 0.5 ? 0 : 2;
       const gates = hb.doors.filter(d => d.x === sp.x || d.y === sp.y || d.x === sp.x + hw - 1 || d.y === sp.y + hh - 1);
@@ -379,11 +408,11 @@ function genSuburb(m, r) {
       if (ok) addCar(m, r, x, y, false);
     }
   }
-  for (let k = 0; k < 40; k++) {
+  for (let k = 0; k < (m.v === 1 ? 90 : 40); k++) {
     const x = r.int(1, W - 2), y = r.int(1, H - 14), i = MI(m, x, y);
-    if (m.tiles[i] === T.ASPHALT && !m.resv[i] && r() < 0.5) put(m, x, y, T.RUBBLE);
+    if ((m.tiles[i] === T.ASPHALT || m.tiles[i] === T.SIDEWALK) && !m.resv[i] && r() < 0.5) put(m, x, y, T.RUBBLE);
   }
-  scatterGreen(m, r, 0.035, 0.035, 1);
+  scatterGreen(m, r, m.v === 1 ? 0.01 : 0.035, m.v === 1 ? 0.015 : 0.035, 1);
   placeStart(m, r, vx[0], H - 7);
 }
 
@@ -411,6 +440,24 @@ function genFactory(m, r) {
   reserve(m, gx - 3, H - 11, 10, 11);
   for (let y = sgy; y < sgy + 3; y++) for (let x = (sgx === fx0 ? 0 : fx1); x <= (sgx === fx0 ? fx0 : W - 1); x++) setGround(m, x, y, T.ASPHALT);
   const area = { x0: fx0 + 2, y0: fy0 + 2, x1: fx1 - 1, y1: fy1 - 2 };
+  if (m.v === 1) {
+    // пути и вагоны вдоль северного забора
+    for (const ry of [fy0 + 3, fy0 + 7]) {
+      for (let x = fx0 + 1; x < fx1; x++) for (let yy = ry; yy < ry + 2; yy++) { setGround(m, x, yy, T.DIRT); m.meta[MI(m, x, yy)] = yy === ry ? 16 : 32; }
+      let x = fx0 + 2 + r.int(0, 4);
+      while (x + 8 < fx1 - 1) {
+        if (r() < 0.75) {
+          const p = addProp(m, 'wagon', x, ry, 8, 2, { c: r.pick(['#6a3a2a', '#4a5a6a', '#5a4a3a', '#7a6a4a']), v: 0, f: 0, tall: true });
+          if (r() < 0.7) m.cont[MI(m, p.x + 4, p.y + 1)] = { k: r.pick(['foodcrate', 'pallet', 'crate', 'ration']), loot: {}, s: 0 };
+          const ct = m.cont[MI(m, p.x + 4, p.y + 1)]; if (ct) ct.loot = rollLoot(r, CONT[ct.k].loot);
+        }
+        x += 9 + r.int(0, 3);
+      }
+      reserve(m, fx0, ry - 1, fx1 - fx0, 4);
+    }
+    area.y0 = fy0 + 11;
+    guard(m, Math.floor(W / 2), fy0 + 6, 5);
+  }
 
   // главный цех
   const sw = r.int(24, 30), sh = r.int(14, 17);
@@ -605,11 +652,17 @@ function finalize(m) {
   return reach;
 }
 
-function genMap(loc, seed) {
+function genMap(loc, seed, lootMul = 1) {
   const L = LOCS[loc];
   const r = makeRng(seed);
   const m = newMap(L.w, L.h, seed);
-  ({ farm: genFarm, suburb: genSuburb, factory: genFactory, hospital: genHospital })[loc](m, r);
+  m.v = L.v || 0; m.loc = loc;
+  const GEN = {
+    farm: genFarm, suburb: genSuburb, factory: genFactory, hospital: genHospital, gas: genGas, market: genMarket, police: genPolice,
+    school: genSchool, church: genChurch, checkpoint: genCheckpoint, forest: genForest, motel: genMotel, prison: genPrison, raidcamp: genRaidCamp,
+  };
+  LOOT_MUL = lootMul;
+  try { GEN[L.gen](m, r); } finally { LOOT_MUL = 1; }
   const reach = finalize(m);
   return { m, reach };
 }

@@ -233,6 +233,14 @@ function drawGround(c, m, g, x, y, i, X, Y, w, h, lod) {
     if (md & 2) c.fillRect(X + w * 0.38, Y, w * 0.24, h);
     if (md & 4) c.fillRect(X, Y + h * 0.38, w, h * 0.24);
   }
+  if (md & 48 && !TP[t].wall) {
+    // рельсы: 16 — верхняя нитка пути, 32 — нижняя
+    const top = md & 16, a = top ? 0.3 : 0, b = top ? 1 : 0.7, rl = top ? 0.62 : 0.38;
+    c.fillStyle = 'rgba(66,48,30,0.92)';
+    for (let s = 0.08; s < 1; s += 0.34) c.fillRect(X + w * s, Y + h * a, w * 0.14, h * (b - a));
+    c.fillStyle = '#85847e'; c.fillRect(X, Y + h * rl, w, Math.max(1, h * 0.06));
+    c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(X, Y + h * (rl + 0.06), w, Math.max(1, h * 0.03));
+  }
   if (gfx >= 2 && lod === 2 && TP[t].floor) litter(c, g, x, y, X, Y, w);
 }
 // Мусор на земле: бумага, банки, шины, листья, осколки
@@ -272,14 +280,15 @@ const R = {
   },
   proj(x, y, z = 0) { setCB(this.cam, this.W, this.H); P(x, y, z); return [PX, PY]; },
   unproj(sx, sy) { setCB(this.cam, this.W, this.H); return unP(sx, sy); },
+  curMap() { return this.mode === 'base' ? this.base && this.base.m : TAC.m; },
   kMin() {
-    const m = TAC.m;
+    const m = this.curMap();
     if (!m) return 8;
     const d = (m.w + m.h) * Math.SQRT1_2;
     return Math.max(6, Math.min(this.W / d, this.H / (d * VX.sE)) * 0.95);
   },
   clampCam() {
-    const m = TAC.m;
+    const m = this.curMap();
     if (!m) return;
     this.cam.k = clamp(this.cam.k, this.kMin(), 110);
     this.cam.cx = clamp(this.cam.cx, 0, m.w); this.cam.cy = clamp(this.cam.cy, 0, m.h);
@@ -344,7 +353,7 @@ const R = {
   tick() {
     if (!this.mode) return;
     const now = performance.now();
-    if (CFG.hq && this.cam.k >= 14 && now - this.lastIdle > 320) { this.lastIdle = now; this.dirty = true; }
+    if (CFG.hq && this.cam.k >= 14 && now - this.lastIdle > (this.fireVis ? 100 : 320)) { this.lastIdle = now; this.dirty = true; }
     const active = this.moving.size || FX.list.length || FX.parts.length || this.camAnim || this.shakeA > 0 || this.until > now;
     if (!this.dirty && !active) return;
     this.dirty = false;
@@ -353,6 +362,7 @@ const R = {
   },
   draw(now) {
     const c = this.c;
+    this.fireVis = false;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#0b0a08';
     c.fillRect(0, 0, this.cv.width, this.cv.height);
@@ -370,6 +380,17 @@ const R = {
         else { const a = this.shakeA * (1 - p); ox = (Math.random() * 2 - 1) * a; oy = (Math.random() * 2 - 1) * a; }
       }
       drawIso(c, TAC.m, this.cam, this.W, this.H, now, false, [ox, oy]);
+    } else if (this.mode === 'base' && this.base) {
+      if (this.camAnim) {
+        const a = this.camAnim, p = Math.min(1, (now - a.t0) / a.d), e = 1 - (1 - p) ** 3;
+        this.cam.cx = a.fx + (a.tx - a.fx) * e; this.cam.cy = a.fy + (a.ty - a.fy) * e;
+        if (p >= 1) this.camAnim = null;
+      }
+      drawIso(c, this.base.m, this.cam, this.W, this.H, now, true, [0, 0], this.base.ents);
+      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      const g = c.createLinearGradient(0, 0, 0, this.H);
+      g.addColorStop(0, 'rgba(11,10,8,0.55)'); g.addColorStop(0.18, 'rgba(11,10,8,0)'); g.addColorStop(0.82, 'rgba(11,10,8,0)'); g.addColorStop(1, 'rgba(11,10,8,0.6)');
+      c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
     } else if (this.mode === 'menu' && this.menu) {
       drawIso(c, this.menu.m, this.menu.cam, this.W, this.H, now, true);
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -557,7 +578,8 @@ function drawMinimap(cv, m) {
   c.drawImage(off, ox, oy, m.w * k, m.h * k);
   c.fillStyle = 'rgba(160,200,110,0.6)';
   for (const i of m.evac) c.fillRect(ox + (i % m.w) * k, oy + ((i / m.w) | 0) * k, k, k);
-  for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) { c.fillStyle = '#ff5a3c'; c.fillRect(ox + z.x * k, oy + z.y * k, k, k); }
+  for (const z of m.zombies) if (m.vis[MI(m, z.x, z.y)]) { c.fillStyle = isHuman(z) ? ZT[z.type].body : '#ff5a3c'; c.fillRect(ox + z.x * k, oy + z.y * k, k, k); }
+  for (const cp of m.captives || []) if (!cp.freed && m.seen[MI(m, cp.x, cp.y)]) { c.fillStyle = '#f0c46a'; c.fillRect(ox + cp.x * k - k / 2, oy + cp.y * k - k / 2, k * 2, k * 2); }
   for (const u of m.units) if (!u.dead && !u.evac) { c.fillStyle = u.color; c.fillRect(ox + u.x * k - k / 2, oy + u.y * k - k / 2, k * 2, k * 2); }
   const pts = [[0, 0], [R.W, 0], [R.W, R.H], [0, R.H]].map(([sx, sy]) => R.unproj(sx, sy));
   c.strokeStyle = '#ece4cc'; c.lineWidth = 1.5;
@@ -568,15 +590,24 @@ function drawMinimap(cv, m) {
 // ----- полоски здоровья, значки и шеврон над головами -----
 function drawBadges(c, it, ts, lod) {
   const e = it.e, cx = it.cx, top = it.top;
-  const maxhp = it.z ? ZT[e.type].hp : e.maxhp, hp = Math.max(0, e.hp);
-  const showHp = lod > 0 && (!it.z || hp < maxhp || (TAC.pend && TAC.pend.tx === e.x && TAC.pend.ty === e.y));
+  if (it.cap) {
+    if (lod === 0) return;
+    const fs = clamp(ts * 0.24, 10, 14);
+    c.font = `600 ${fs}px Oswald, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+    c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.8)'; c.strokeText('ПЛЕННИК', cx, top - 3);
+    c.fillStyle = '#f0c46a'; c.fillText('ПЛЕННИК', cx, top - 3);
+    return;
+  }
+  const hum = it.z && isHuman(e);
+  const maxhp = it.z ? (e.rf ? ZT.walker.hp : ZT[e.type].hp) : e.maxhp, hp = Math.max(0, e.hp);
+  const showHp = lod > 0 && (!it.z || hum || hp < maxhp || (TAC.pend && TAC.pend.tx === e.x && TAC.pend.ty === e.y));
   let y = top - Math.max(5, ts * 0.12);
   if (showHp) {
     const n = Math.ceil(maxhp / 2), fill = Math.ceil(hp / 2);
     const pw = Math.max(2, ts * 0.062), ph = Math.max(3, ts * 0.075), gap = Math.max(1, Math.round(ts * 0.018));
     const W = n * pw + (n - 1) * gap, x0 = cx - W / 2;
     c.fillStyle = 'rgba(10,9,7,0.8)'; c.fillRect(x0 - 2, y - 2, W + 4, ph + 4);
-    const f = hp / maxhp, col = it.z ? '#d9553c' : f > 0.6 ? '#9cc96a' : f > 0.3 ? '#e8a62b' : '#d9553c';
+    const f = hp / maxhp, col = hum ? ZT[e.type].body : it.z ? '#d9553c' : f > 0.6 ? '#9cc96a' : f > 0.3 ? '#e8a62b' : '#d9553c';
     for (let k = 0; k < n; k++) { c.fillStyle = k < fill ? col : '#3a3528'; c.fillRect(x0 + k * (pw + gap), y, pw, ph); }
     if (!it.z && e.ow) {
       const ex = x0 - ph * 1.6, ey = y + ph / 2, s = Math.max(3.5, ts * 0.1);

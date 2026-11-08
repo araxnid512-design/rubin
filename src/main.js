@@ -56,6 +56,8 @@ function layout() {
   $('#rot-hint').hidden = !(portrait && coarse && !CFG.autoRotate);
   HUD.hidePop();
   R.resize();
+  const ws = $('#scr-world');
+  if (ws && !ws.hidden) World.draw();
 }
 function applySettings() {
   CFG.hq = CFG.gfx >= 1;
@@ -79,6 +81,7 @@ const Game = {
     document.addEventListener('pointerdown', () => Sfx.init(), { once: true });
     const hot = data && data.save ? restore(data.save) : null;
     S = hot || restore(store.get(SAVE_KEY));
+    if (S) ensureWorld();
     if (hot && !S.over) { if (S.mission) resumeMission(S.mission); else this.showBase(); }
     else this.showMenu();
   },
@@ -87,6 +90,7 @@ const Game = {
     HUD.hidePop();
   },
   showMenu() {
+    Base.stopLife();
     this.show('scr-menu');
     Music.set('menu');
     R.mode = 'menu';
@@ -119,11 +123,22 @@ const Game = {
   showBase() {
     TAC.m = null;
     Music.set('base');
-    R.mode = null;
     this.show('scr-base');
+    R.mode = 'base';
+    Base.scene();
     Base.render();
+    R.resize();
+    Base.frame();
+    Base.startLife();
+  },
+  showWorld() {
+    Base.stopLife();
+    this.show('scr-world');
+    R.mode = null;
+    World.render();
   },
   showTac(center) {
+    Base.stopLife();
     this.show('scr-tac');
     Music.set('mission');
     R.mode = 'tac';
@@ -145,7 +160,7 @@ const Game = {
   newGame() {
     store.del(SAVE_KEY);
     newGameState();
-    Base.tab = 'sortie'; Base.loc = 'farm';
+    Base.tab = null; World.sel = 'farm';
     saveGame();
     this.showBase();
   },
@@ -205,6 +220,11 @@ const Game = {
         <li><b>Жёлтые ромбы</b> — несобранная добыча. Обыск стоит 2 ОД, унести можно сколько позволяет вес.</li>
         <li>Чтобы уехать, дойдите до <b>зелёной зоны у машины</b> и нажмите «В машину».</li>
         <li><b>Укус</b> — три дня до обращения. Лечится медикаментами в лазарете.</li>
+        <li><b>Люди опаснее мёртвых.</b> Группировки стреляют из-за укрытий и отходят ранеными. Укрытие рядом с целью снижает шанс попасть.</li>
+        <li><b>Мёртвые встают.</b> Убитый не в голову через 2–3 хода поднимается. Тело с зелёным кольцом можно добить за 1 ОД.</li>
+        <li><b>Пленных</b> держат в лагерях: освободите (2 ОД) и довезите до машины — человек останется в группе.</li>
+        <li><b>База</b> — отдельная карта: касание постройки открывает её улучшение. Ночью на базу могут напасть — тогда бой идёт на её карте.</li>
+        <li><b>Карта округи</b> — все места для вылазок. Новые точки открываются после вылазок и по радио. Повторные вылазки дают меньше добычи.</li>
         <li>Камера: перетаскивание — сдвиг, два пальца или кнопки +/− — масштаб, круглая стрелка — поворот на 90°, кнопка карты — обзор всей местности.</li>
         <li>Стены, которые закрывают бойцов, сами опускаются. Ночью видно только то, что освещают фонари отряда.</li>
       </ul>`,
