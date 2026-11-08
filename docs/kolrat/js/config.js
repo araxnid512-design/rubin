@@ -114,6 +114,24 @@
       drill:     { min: 2, max: 16, droids: false, suggest: 8, xp: [9, 15], armoryXp: 4, injuryChance: 0.03, injury: [8, 18], disciplineFrom: 6, discipline: 1 },
     },
 
+    // ---------- ТЕРРИТОРИИ: захват мест, доход, контратаки ----------
+    territory: {
+      wild: { base: 6, perDanger: 5 },          // сила засевших в пустоши при зачистке
+      towns: {                                   // поселения можно захватить — фракция станет врагом
+        anchorhead: { army: 'militia', strength: 24, faction: 'farmers' },
+        mos_espa:   { army: 'hutt_guard', strength: 46, faction: 'hutt' },
+      },
+      income: {
+        waterPerLevel: 4, scrapPerLevel: 3,      // пустошь: сухари и металл в сутки по богатству места
+        base: { water: 6, scrap: 4 },            // бывший вражеский лагерь
+        towns: { anchorhead: { water: 12, credits: 25 }, mos_espa: { credits: 50, water: 6 }, junkyard: { scrap: 15, credits: 10 } },
+      },
+      ambushMult: 0.25,                          // засады на своей территории — вчетверо реже
+      counter: { base: 0.01, perDanger: 0.007, perOwned: 0.003, max: 0.05, graceDays: 5, strengthMult: 0.7, squad: 10,
+                 never: ['krayt_lair'] },
+      holdDiscipline: 2,
+    },
+
     // ---------- ТЕРМИНАЛ: поставки шаттлом и контракты ----------
     terminal: {
       maxOrders: 3,               // сколько шаттлов одновременно в пути
@@ -294,6 +312,8 @@
       rebels:      { items: { commModule: [1, 1] }, credits: [50, 120], scrap: [30, 60] },
       scavengers:  { scrap: [150, 260], credits: [40, 120], items: { hyperParts: [0, 1], fuel: [0, 1] } },
       deserters:   { scrap: [60, 120], credits: [100, 220], water: [60, 120], items: { commModule: [0, 1], bacta: [2, 4] } },
+      militia:     { water: [120, 220], credits: [120, 240], items: { bacta: [1, 3] } },
+      sweep:       { water: [20, 60], scrap: [10, 40], credits: [0, 40] },
     },
 
     // ---------- СОБЫТИЯ ----------
@@ -500,6 +520,7 @@
         scavengers:  { units: [['scavenger', 3, 0.8], ['scav_droid', 1, 1.6]], leader: 'scav_boss', leaderFrom: 10, tactic: 'assault', map: 'wreck', retreatAt: 0.5 },
         deserters:   { units: [['deserter', 3, 1], ['deserter_heavy', 1, 1.3]], leader: 'deserter_captain', leaderFrom: 12, tactic: 'defense', map: 'rocks', retreatAt: 0.6 },
         krayt:       { units: [['krayt', 1, 34]], max: 1, tactic: 'assault', map: 'desert', retreatAt: 1 },
+        militia:     { units: [['farmer', 3, 1], ['smuggler', 1, 1.1]], tactic: 'defense', map: 'desert', retreatAt: 0.55 },
       },
       maxEnemies: 34,
       // Командиры (наши — от звания officerRank) воодушевляют бойцов в радиусе: +точность, быстрее восстанавливается дух

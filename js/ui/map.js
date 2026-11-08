@@ -213,6 +213,11 @@
       if (sel) g.appendChild(svg('circle', { class: 'map-pulse', cx: it.x, cy: it.y, r: r + 0.9, fill: 'none', stroke: '#ffd98a', 'stroke-width': 0.6 }));
       g.appendChild(image(A.placeUrl(id), it.x - r, it.y - r, r * 2, r * 2, cleared ? { opacity: 0.55 } : null));
       if (cleared) g.appendChild(svg('path', { d: 'M' + (it.x - r * 0.6) + ' ' + (it.y - r * 0.6) + ' L' + (it.x + r * 0.6) + ' ' + (it.y + r * 0.6) + ' M' + (it.x + r * 0.6) + ' ' + (it.y - r * 0.6) + ' L' + (it.x - r * 0.6) + ' ' + (it.y + r * 0.6), stroke: '#e2574c', 'stroke-width': 0.9, 'stroke-linecap': 'round' }));
+      if (G.Territory && G.Territory.owned(s, id)) { // наш флаг над значком
+        const fx = it.x + r * 0.55, fy = it.y - r * 0.55;
+        g.appendChild(svg('path', { d: 'M' + fx + ' ' + (fy + 0.2) + ' V' + (fy - 4.2), stroke: '#2a2016', 'stroke-width': 0.45, 'stroke-linecap': 'round' }));
+        g.appendChild(svg('path', { d: 'M' + (fx + 0.1) + ' ' + (fy - 4.2) + ' L' + (fx + 3) + ' ' + (fy - 3.4) + ' L' + (fx + 0.1) + ' ' + (fy - 2.5) + ' Z', fill: '#f3cd8c', stroke: '#6a4a1c', 'stroke-width': 0.25 }));
+      }
       const L = it.label;
       g.appendChild(txt(L.x, L.y, it.text, sel ? '#ffd98a' : '#f3ead8', it.size, L.anchor, true));
       root.appendChild(g);
@@ -246,9 +251,13 @@
           h('div', { class: 'muted small' }, kindName + (r.cleared ? ' · разгромлен' : '') + (c.terrain && G.TEXT.terrain[c.terrain] ? ' · местность: ' + G.TEXT.terrain[c.terrain] : '')))),
       h('p', null, r.visits || id === 'crash' || r.explored > 0 ? T.desc : 'Сведений почти нет. Нужна разведка.'),
       whoHere(s, id),
+      G.Territory && G.Territory.owned(s, id) ? h('div', { class: 'territory-box' },
+        h('b', null, '⚑ Наша территория'), h('span', { class: 'small muted' }, ' с дня ' + (r.heldSince || 1)),
+        h('div', { class: 'small' }, 'Доход в сутки: ' + (G.Territory.incomeText(G.Territory.income(s, id)) || 'нет') + '. Засад здесь почти нет.'),
+        G.Territory.counterChance(s, id) > 0 ? h('div', { class: 'small muted' }, 'Враги могут попытаться отбить это место.') : null) : null,
       h('div', { class: 'region-stats' },
         id !== 'crash' ? h('div', null, h('span', { class: 'muted' }, 'Разведано: '), r.explored + '%') : null,
-        c.water ? h('div', null, h('span', { class: 'muted' }, 'Вода: '), h('span', { class: 'dots' }, dots(c.water, 4)), r.explored >= 20 ? ' ~' + r.water + ' л' : '') : null,
+        c.water ? h('div', null, h('span', { class: 'muted' }, 'Провизия: '), h('span', { class: 'dots' }, dots(c.water, 4)), r.explored >= 20 ? ' ~' + r.water : '') : null,
         c.scrap ? h('div', null, h('span', { class: 'muted' }, 'Металл: '), h('span', { class: 'dots' }, dots(c.scrap, 3)), ' ~' + r.scrap) : null,
         c.danger ? h('div', null, h('span', { class: 'muted' }, 'Опасность: '), h('span', { class: 'dots bad' }, dots(c.danger, 4))) : null,
         c.dist ? h('div', null, h('span', { class: 'muted' }, 'Путь: '), U.pl(c.dist, ['час', 'часа', 'часов']) + ' по жаре') : null
@@ -259,7 +268,9 @@
       const def = G.Actions.defs[type];
       if (!def.targets || def.targets(s).indexOf(id) < 0) continue;
       const can = s.phase === 'orders' && G.Game.ordersLeft(s) > 0;
-      btns.push(h('button', { class: 'btn small', disabled: !can, onclick: () => UI.openBuilder(type, id) }, G.TEXT.actions[type].icon + ' ' + G.TEXT.actions[type].name));
+      let label = G.TEXT.actions[type].icon + ' ' + G.TEXT.actions[type].name;
+      if (type === 'attack' && G.Territory) { const k = G.Territory.attackSpec(s, id).kind; if (k === 'wild') label = '⚑ Зачистка'; else if (k === 'town') label = '⚑ Захват'; }
+      btns.push(h('button', { class: 'btn small' + (type === 'attack' ? ' danger' : ''), disabled: !can, onclick: () => UI.openBuilder(type, id) }, label));
     }
     if (btns.length) card.appendChild(h('div', { class: 'row' }, btns));
     return card;
@@ -321,7 +332,8 @@
         h('div', { class: 'map-legend small muted' },
           h('span', null, h('i', { class: 'lg base' }), 'лагерь'), h('span', null, h('i', { class: 'lg wild' }), 'пустошь'),
           h('span', null, h('i', { class: 'lg town' }), 'поселение'), h('span', null, h('i', { class: 'lg hostile' }), 'враг'),
-          h('span', null, '? — неразведанное место'))
+          h('span', null, '? — неразведанное место'),
+          G.Territory ? h('span', { class: 'terr-count' }, '⚑ наших мест: ' + G.Territory.count(s) + ' из ' + G.Territory.total()) : null)
       ),
       h('div', null, regionCard(s, UI.mapSel), factionsCard(s))
     );

@@ -37,7 +37,7 @@
           const r = E.res(s, { water: -R(rng, c.waterLoss), scrap: -R(rng, c.scrapLoss), discipline: c.waitDisc });
           return 'Буря выла до глубокой ночи. Утром откопали шлюзы; то, что лежало снаружи, пропало: ' + r + '.';
         } },
-      { id: 'droids', label: 'Выслать дроидов укрыть склад и влагоуловители', hint: 'Дроиды не дышат пылью, но износятся',
+      { id: 'droids', label: 'Выслать дроидов укрыть склад и кухню', hint: 'Дроиды не дышат пылью, но износятся',
         show: (s) => fitDroids(s).length > 0, req: needRes('energy', C('sandstorm').droidEnergy),
         run(s, ctx, rng, E) {
           const c = C('sandstorm');
@@ -60,12 +60,12 @@
     title: 'Пекло',
     text: () => 'Термометр у шлюза показывает плюс пятьдесят восемь — и это в тени, которой нет. Металл раскалён, броня превращается в печь. К обеду двое бойцов падают в обморок прямо на разборе.',
     choices: [
-      { id: 'water', label: (s) => 'Выдать дополнительную воду (' + G.Units.people(s).length * C('heatwave').extraWaterPer + ' л)',
+      { id: 'water', label: (s) => 'Выдать двойной паёк (' + G.Units.people(s).length * C('heatwave').extraWaterPer + ' сухарей)',
         req: (s) => needRes('water', G.Units.people(s).length * C('heatwave').extraWaterPer)(s),
         run(s, ctx, rng, E) {
           const c = C('heatwave');
           const r = E.res(s, { water: -G.Units.people(s).length * c.extraWaterPer, discipline: c.extraDisc });
-          return 'Каждый получил лишнюю флягу. Солдаты оценили заботу: ' + r + '.';
+          return 'Каждый получил лишнюю пачку сухарей. Солдаты оценили заботу: ' + r + '.';
         } },
       { id: 'tents', label: 'Натянуть навесы из листов обшивки', hint: 'Металл пригодится и потом, но тень нужна сейчас',
         req: needRes('scrap', C('heatwave').tentScrap),
@@ -209,10 +209,10 @@
     title: 'Сигнал спасательной капсулы',
     text: (s, ctx, rng) => 'Связисты поймали слабый, прерывистый сигнал на аварийной частоте флота. Это спасательная капсула «Железного Предела» — где-то ' +
       rng.pick(['за грядой на востоке', 'в дюнах к югу', 'у старого русла на севере', 'среди скал на западе']) +
-      '. Если в ней живые, воды у них — на день, от силы на два.',
+      '. Если в ней живые, пайков у них — на день, от силы на два.',
     choices: [
       { id: 'rescue', label: (s) => 'Немедленно выслать спасателей (' + U.pl(C('capsule_signal').squad, F.fighter) + ')',
-        hint: (s) => 'Расход: ' + C('capsule_signal').waterCost + ' л воды',
+        hint: (s) => 'Расход: ' + C('capsule_signal').waterCost + ' сухарей',
         req: (s) => needPeople(C('capsule_signal').squad)(s) || needRes('water', C('capsule_signal').waterCost)(s),
         run(s, ctx, rng, E) {
           const c = C('capsule_signal');
@@ -326,7 +326,7 @@
         run(s, ctx, rng, E) {
           s.flags.rebelMercy = true;
           E.res(s, { discipline: C('rebel_prisoner').releaseDisc });
-          return 'Пленному дали флягу и указали на север. Он долго смотрел на генерала, прежде чем уйти. Солдаты не поняли этого решения.';
+          return 'Пленному дали сухарей и указали на север. Он долго смотрел на генерала, прежде чем уйти. Солдаты не поняли этого решения.';
         } },
     ],
   });
@@ -346,7 +346,7 @@
           }
           return 'Рёв удалялся до самого рассвета. Обошлось.' + (lair ? ' Следы ведут на юг: ' + lair + '.' : '');
         } },
-      { id: 'bait', label: (s) => 'Выкатить за периметр бочку воды как приманку (' + C('krayt_roar').baitWater + ' л)',
+      { id: 'bait', label: (s) => 'Выложить за периметр приманку из пайков (' + C('krayt_roar').baitWater + ' сухарей)',
         req: needRes('water', C('krayt_roar').baitWater),
         run(s, ctx, rng, E) {
           E.res(s, { water: -C('krayt_roar').baitWater });
@@ -372,19 +372,19 @@
     title: 'Шёпот в казарме',
     cond: (s) => s.res.discipline < C('desertion_plot').below,
     weightMod: (s) => (s.res.discipline < 25 ? 2 : 1),
-    text: () => 'Квартирмейстер докладывает вполголоса: несколько бойцов копят воду и собираются ночью уйти в Анкорхед. «Империя нас уже похоронила, — говорят они. — Зачем умирать за обломки?»',
+    text: () => 'Квартирмейстер докладывает вполголоса: несколько бойцов копят сухари и собираются ночью уйти в Анкорхед. «Империя нас уже похоронила, — говорят они. — Зачем умирать за обломки?»',
     choices: [
       { id: 'arrest', label: 'Арестовать зачинщиков', hint: 'Жёстко, но действенно',
         run(s, ctx, rng, E) {
           const r = E.res(s, { discipline: C('desertion_plot').arrestDisc });
-          return 'Двоих зачинщиков взяли на рассвете, у тайника с флягами. Остальные притихли: ' + r + '.';
+          return 'Двоих зачинщиков взяли на рассвете, у тайника с сухарями. Остальные притихли: ' + r + '.';
         } },
       { id: 'talk', label: 'Поговорить с ними лично', hint: 'Может сработать — а может и нет',
         run(s, ctx, rng, E) {
           const c = C('desertion_plot');
           if (rng.chance(c.talkChance)) {
             const r = E.res(s, { discipline: c.talkDisc });
-            return 'Генерал пришёл в казарму без охраны и говорил до полуночи. Утром фляги вернулись на склад: ' + r + '.';
+            return 'Генерал пришёл в казарму без охраны и говорил до полуночи. Утром сухари вернулись на склад: ' + r + '.';
           }
           const gone = desert(s, rng, R(rng, c.talkFail));
           return 'Разговор не помог. Ночью ушли ' + (E.names(gone) || 'никто') + '.';
@@ -394,7 +394,7 @@
           const c = C('desertion_plot');
           const gone = desert(s, rng, R(rng, c.letGo));
           const r = E.res(s, { water: -gone.length * c.letGoWater, discipline: c.letGoDisc });
-          return 'На построении генерал разрешил уйти всем, кто хочет. Вышли из строя ' + U.pl(gone.length, F.man) + ': ' + E.names(gone) + '. Каждому дали воды на дорогу. Оставшиеся смотрят на командира иначе: ' + r + '.';
+          return 'На построении генерал разрешил уйти всем, кто хочет. Вышли из строя ' + U.pl(gone.length, F.man) + ': ' + E.names(gone) + '. Каждому дали сухарей на дорогу. Оставшиеся смотрят на командира иначе: ' + r + '.';
         } },
     ],
   });
@@ -557,7 +557,7 @@
           const c = C('dewback');
           if (rng.chance(c.tameChance)) {
             s.flags.dewback = true;
-            return 'После трёх часов уговоров и двух фляг воды ящер позволил себя оседлать. Разведка теперь пойдёт быстрее.';
+            return 'После трёх часов уговоров и двух мешков сухарей ящер позволил себя оседлать. Разведка теперь пойдёт быстрее.';
           }
           const hurt = E.hurt(s, rng, 1, c.tameHurtHp, 'погиб от удара хвостом дьюбэка');
           return 'Ящер махнул хвостом — и ' + E.names(hurt) + ' отлетел на три метра. Дьюбэк ушёл в дюны.';
@@ -575,13 +575,13 @@
   def('tusken_sign', {
     title: 'Знак на камне',
     cond: (s) => s.regions.jundland.known && s.relations.tusken >= C('tusken_sign').minRelation,
-    text: () => 'У межевого камня на краю пустоши часовые нашли свежий знак: круг, пересечённый тремя линиями, и рядом — пустой бурдюк. Старики в Анкорхеде объяснили бы: так песчаный народ просит дань. Или предупреждает в последний раз.',
+    text: () => 'У межевого камня на краю пустоши часовые нашли свежий знак: круг, пересечённый тремя линиями, и рядом — пустой мешок. Старики в Анкорхеде объяснили бы: так песчаный народ просит дань. Или предупреждает в последний раз.',
     choices: [
-      { id: 'give', label: (s) => 'Наполнить бурдюк водой (' + C('tusken_sign').water + ' л)', req: needRes('water', C('tusken_sign').water),
+      { id: 'give', label: (s) => 'Оставить мешок сухарей (' + C('tusken_sign').water + ')', req: needRes('water', C('tusken_sign').water),
         run(s, ctx, rng, E) {
           const c = C('tusken_sign');
           E.res(s, { water: -c.water });
-          return 'Утром бурдюка не было, а на камне появился новый знак — две параллельные линии. ' + U.cap(E.rel(s, 'tusken', c.relation)) + '.';
+          return 'Утром мешка не было, а на камне появился новый знак — две параллельные линии. ' + U.cap(E.rel(s, 'tusken', c.relation)) + '.';
         } },
       { id: 'ignore', label: 'Оставить без ответа',
         run(s, ctx, rng, E) { return 'Знак стёрли. ' + U.cap(E.rel(s, 'tusken', C('tusken_sign').ignoreRelation)) + '.'; } },
@@ -727,8 +727,8 @@
     cond: (s) => s.regions.canyon.known && !s.regions.bandit_den.cleared && !(s.flags.huttProtection > s.day),
     text: () => 'К лагерю с рёвом подлетели три свупа, подняв тучу пыли. Главарь — забрак с выкрашенными в ржавый цвет рогами — даже не слез с сиденья: «Это наша пустыня, солдатики. За проезд платят все. Водой или железом — выбирайте».',
     choices: [
-      { id: 'water', label: (s) => 'Заплатить водой (' + C('bandit_toll').water + ' л)', req: needRes('water', C('bandit_toll').water),
-        run(s, ctx, rng, E) { const r = E.res(s, { water: -C('bandit_toll').water, discipline: -2 }); return 'Банда укатила, увозя канистры: ' + r + '.'; } },
+      { id: 'water', label: (s) => 'Заплатить сухарями (' + C('bandit_toll').water + ')', req: needRes('water', C('bandit_toll').water),
+        run(s, ctx, rng, E) { const r = E.res(s, { water: -C('bandit_toll').water, discipline: -2 }); return 'Банда укатила, увозя мешки с сухарями: ' + r + '.'; } },
       { id: 'scrap', label: (s) => 'Заплатить металлом (' + C('bandit_toll').scrap + ')', req: needRes('scrap', C('bandit_toll').scrap),
         run(s, ctx, rng, E) { const r = E.res(s, { scrap: -C('bandit_toll').scrap, discipline: -2 }); return 'Металл погрузили на свупы: ' + r + '.'; } },
       { id: 'refuse', label: 'Ответить отказом', hint: 'Они вернутся — и не одни',
@@ -749,7 +749,7 @@
         run(s, ctx, rng, E) {
           return E.fight(s, rng, { enemy: 'bandits', strength: C('bandit_raid').strength, squad: 'camp', title: 'налёт свуп-банды', after: 'bandit_raid' });
         } },
-      { id: 'pay', label: (s) => 'Откупиться (' + C('bandit_raid').payWater + ' л воды и ' + C('bandit_raid').payScrap + ' металла)',
+      { id: 'pay', label: (s) => 'Откупиться (' + C('bandit_raid').payWater + ' сухарей и ' + C('bandit_raid').payScrap + ' металла)',
         run(s, ctx, rng, E) {
           const c = C('bandit_raid');
           const r = E.res(s, { water: -c.payWater, scrap: -c.payScrap, discipline: -5 });
@@ -769,7 +769,7 @@
     title: 'День Империи',
     text: () => 'По календарю флота сегодня — годовщина провозглашения Империи. На корабле это значило парад в ангаре, двойной паёк и речь адмирала по всем каналам. Здесь — только песок, жара и сорок с лишним человек, которые ждут, что скажет генерал.',
     choices: [
-      { id: 'feast', label: (s) => 'Праздничный паёк (' + C('empire_day').feastWater + ' л воды)', req: needRes('water', C('empire_day').feastWater),
+      { id: 'feast', label: (s) => 'Праздничный паёк (' + C('empire_day').feastWater + ' сухарей)', req: needRes('water', C('empire_day').feastWater),
         run(s, ctx, rng, E) {
           const r = E.res(s, { water: -C('empire_day').feastWater, discipline: C('empire_day').feastDisc });
           return 'Вечером был праздник — скромный, но настоящий: ' + r + '.';
@@ -789,7 +789,7 @@
       ctx.loss = Math.min(s.res.water, R(rng, C('womp_rats').waterLoss));
       G.Res.add(s, 'water', -ctx.loss);
     },
-    text: (s, ctx) => 'Ночью на склад пробрались вомп-крысы — здоровенные, с локоть длиной. Прогрызли две канистры: потеряно ' + ctx.loss + ' л воды.',
+    text: (s, ctx) => 'Ночью на склад пробрались вомп-крысы — здоровенные, с локоть длиной. Прогрызли мешки: потеряно ' + ctx.loss + ' сухарей.',
     choices: [
       { id: 'hunt', label: 'Устроить облаву',
         run(s, ctx, rng, E) {
@@ -801,7 +801,7 @@
           E.res(s, { energy: -C('womp_rats').trapEnergy });
           const back = Math.round(ctx.loss / 2);
           E.res(s, { water: back });
-          return 'Ловушки сработали, часть воды удалось спасти: +' + back + ' л.';
+          return 'Ловушки сработали, часть сухарей удалось спасти: +' + back + '.';
         } },
     ],
   });
@@ -826,13 +826,13 @@
           ctx.strength *= 1.15;
           return 'Ракеты не напугали налётчиков. ' + E.fight(s, rng, { enemy: 'tusken', strength: ctx.strength, squad: 'camp', title: 'ночной налёт таскенов', after: 'raid', ctx: ctx, night: true });
         } },
-      { id: 'tribute', label: (s) => 'Оставить за периметром воду (' + C('tusken_raid').tributeWater + ' л) и не стрелять',
+      { id: 'tribute', label: (s) => 'Оставить за периметром сухари (' + C('tusken_raid').tributeWater + ') и не стрелять',
         show: (s, ctx) => !ctx.surprised, req: needRes('water', C('tusken_raid').tributeWater),
         run(s, ctx, rng, E) {
           const c = C('tusken_raid');
           E.res(s, { water: -c.tributeWater, discipline: -2 });
           E.rel(s, 'tusken', c.tributeRelation);
-          return 'Канистры выкатили за периметр. Таскены забрали воду и ушли, не сделав ни выстрела.';
+          return 'Мешки вынесли за периметр. Таскены забрали сухари и ушли, не сделав ни выстрела.';
         } },
     ],
   });
@@ -847,7 +847,7 @@
     const m = Math.min(s.res.scrap, Math.round(ctx.strength * R2.lootScrapPerStrength));
     G.Res.add(s, 'water', -w);
     G.Res.add(s, 'scrap', -m);
-    return 'Налётчики прорвались к складам и унесли ' + w + ' л воды и ' + m + ' ед. металла.';
+    return 'Налётчики прорвались к складам и унесли ' + w + ' сухарей и ' + m + ' ед. металла.';
   };
 })(globalThis.G = globalThis.G || {});
 
@@ -906,7 +906,7 @@
     choices: [
       { id: 'all', label: 'Все на борт — взлёт!', show: (s) => G.Units.people(s).length <= FC().shuttleCapacity,
         run(s) { G.Goals.end(s, 'shuttle_all'); return 'Шаттл оторвался от песка и ушёл в небо.'; } },
-      { id: 'some', label: 'Лететь с теми, кто поместится', hint: 'Остальным — вся вода лагеря и обещание вернуться',
+      { id: 'some', label: 'Лететь с теми, кто поместится', hint: 'Остальным — все сухари лагеря и обещание вернуться',
         show: (s) => G.Units.people(s).length > FC().shuttleCapacity,
         run(s) { G.Goals.end(s, 'shuttle_some'); return 'Шаттл ушёл с первой группой.'; } },
       { id: 'wait', label: 'Отложить старт', hint: 'Можно вызвать флот и забрать всех',

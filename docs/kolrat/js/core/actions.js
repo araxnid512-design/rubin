@@ -33,6 +33,7 @@
     if (squadSize < a.smallSquad) p *= a.smallSquadRisk;
     if (squad && squad.some((u) => u.spec === 'scout')) p *= G.CONFIG.specs.scout.ambushMult;
     if (s.sections.sensors.level > 0) p *= 0.85;
+    if (G.Territory && G.Territory.owned(s, regionId)) p *= G.CONFIG.territory.ambushMult;
     return Math.min(0.6, p);
   };
 
@@ -139,7 +140,7 @@
     },
   };
 
-  // ---------- Поиск воды ----------
+  // ---------- Добыча провизии (сухари) ----------
   defs.water = {
     prefer: 'workers',
     targets: (s) => G.Regions.known(s).filter((id) => {
@@ -151,7 +152,7 @@
       const c = G.Regions.cfg(o.target);
       const est = Math.round(a.perWorker * Math.min(o.troopers, a.effCap) * a.richness[c.water] * G.Day.disciplineFactor(s));
       const left = s.regions[o.target].water;
-      return 'Ожидается около ' + Math.min(est, left) + ' л (в районе осталось примерно ' + left + ' л). Риск засады: ' +
+      return 'Ожидается около ' + Math.min(est, left) + ' сухарей (в районе осталось примерно ' + left + '). Риск засады: ' +
         riskWord(Actions.ambushChance(s, o.target, o.troopers, a.ambushMult)) + '.';
     },
     resolve(s, o, rng, squad) {
@@ -170,7 +171,7 @@
       s.stats.waterFound += amount;
       const good = amount >= alive.length * a.perWorker * 0.5;
       say(s, rng.pick(good ? G.TEXT.results.water.good : G.TEXT.results.water.poor) +
-        ' Добыто ' + amount + ' л воды («' + G.Regions.name(o.target) + '»).', good ? 'good' : 'info');
+        ' Добыто ' + amount + ' сухарей («' + G.Regions.name(o.target) + '»).', good ? 'good' : 'info');
       for (const u of alive) G.Units.addXp(s, u, a.xp);
     },
   };
@@ -398,15 +399,16 @@
   // ---------- Атака ----------
   defs.attack = {
     prefer: 'fighters',
-    targets: (s) => G.Regions.known(s).filter((id) => {
-      const c = G.Regions.cfg(id);
-      return (c.kind === 'hostile' || c.attackable) && !s.regions[id].cleared;
-    }),
+    targets: (s) => G.Regions.known(s).filter((id) => G.Territory ? G.Territory.canAttack(s, id) : (G.Regions.cfg(id).kind === 'hostile' || G.Regions.cfg(id).attackable) && !s.regions[id].cleared),
     preview(s, o) {
-      const cfg = G.Regions.cfg(o.target);
-      const e = cfg.strength * G.Res.diff(s).enemy;
+      const sp = G.Territory.attackSpec(s, o.target);
+      const e = sp.strength * G.Res.diff(s).enemy;
       const r = s.regions[o.target];
-      return r.explored >= 30 ? 'Разведка оценивает силы врага: ' + strengthWord(s, e) + '.' : 'Силы врага неизвестны — сначала стоит провести разведку.';
+      const est = r.explored >= 30 ? 'Силы врага: ' + strengthWord(s, e) + '.' : 'Силы врага неизвестны — сначала стоит провести разведку.';
+      const what = sp.kind === 'wild' ? ' Зачистка: после победы место станет нашим — засад меньше, каждый день доход.'
+        : sp.kind === 'town' ? ' Захват поселения: «' + G.TEXT.factions[sp.faction].name + '» станут врагами, зато поселение будет платить дань.'
+          : ' После победы лагерь перейдёт под наш контроль.';
+      return est + what;
     },
     resolve(s, o, rng, squad) {
       if (G.BattleFlow) G.BattleFlow.fromAttack(s, rng, o, squad);

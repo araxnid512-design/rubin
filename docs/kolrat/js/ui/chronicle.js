@@ -27,7 +27,7 @@
         h('h2', null, 'Итоги'),
         h('div', { class: 'kv' }, [
           ['Дней на Татуине', s.day],
-          ['Найдено воды', st.waterFound + ' л'],
+          ['Добыто сухарей', st.waterFound],
           ['Добыто металла', st.scrapFound + ' ед.'],
           ['Боёв', st.battles + ' (побед ' + st.victories + ')'],
           ['Уничтожено врагов', st.kills],

@@ -477,7 +477,9 @@
       const cell = Math.max(10, Math.min(Math.floor(avail / W), Math.floor((land ? vh - 52 : vh * 0.5) / H), 36));
       if (cell === cellPx) return;
       cellPx = cell;
-      dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      // плотность пикселей: в массовом бою и на слабом телефоне — ниже, чтобы не было рывков
+      const cap = st.lowQ ? 1 : N >= 50 ? 1.5 : 2;
+      dpr = Math.min(cap, globalThis.devicePixelRatio || 1);
       canvas.width = W * cell * dpr;
       canvas.height = H * cell * dpr;
       canvas.style.width = W * cell + 'px';
@@ -733,7 +735,7 @@
           f.y -= Math.sin(d * Math.PI) * cell * 0.22;
         }
         if (appear < 1) ctx.globalAlpha = appear;
-        G.Sprites.draw(ctx, it.u.type, f.x, f.y, cell, unitState(it.u, it.p, t, cell));
+        G.Sprites.drawCached(ctx, it.u.type, f.x, f.y, cell, unitState(it.u, it.p, t, cell), dpr);
         ctx.globalAlpha = 1;
       }
       // гибель: дроиды и техника взрываются, люди поднимают пыль
@@ -1316,7 +1318,7 @@
       // автоэкономия: если кадры идут медленно, второстепенные эффекты выключаются
       if (dt > 0 && st.playing) {
         st.ft = st.ft ? st.ft * 0.96 + dt * 1000 * 0.04 : 16;
-        if (!st.lowQ && st.ft > 30 && st.tick > 30) st.lowQ = true;
+        if (!st.lowQ && st.ft > 30 && st.tick > 30) { st.lowQ = true; cellPx = 0; } // пересоздать слои в низком разрешении
       }
       if (root.isConnected) {
         resize();

@@ -412,6 +412,8 @@
     function frame(ts) {
       if (!alive) return;
       if (!wrap.isConnected) { if (last) { alive = false; return; } requestAnimationFrame(frame); return; }
+      // под открытым окном (бой, событие) и в фоне сцена лагеря не рисуется — не отнимает время у боя
+      if ((typeof document !== 'undefined' && (document.hidden || document.body.classList.contains('modal-open'))) ) { last = ts; requestAnimationFrame(frame); return; }
       const dt = last ? Math.min(0.1, (ts - last) / 1000) : 0;
       last = ts;
       const t = ts / 1000;
@@ -432,7 +434,7 @@
         if (th.it) drawItem(th.it, t);
         else {
           const w = th.w;
-          G.Sprites.draw(ctx, G.BattleFlow.unitType(w.u), px(w.x), py(w.y), cell, { t: t, facing: w.face, moving: w.moving, aim: 0, recoil: 0, melee: 0, hit: 0, dead: 0, side: 0, rank: G.Units.rankIndex(w.u), seed: w.u.id * 13 });
+          G.Sprites.drawCached(ctx, G.BattleFlow.unitType(w.u), px(w.x), py(w.y), cell, { t: t, facing: w.face, moving: w.moving, aim: 0, recoil: 0, melee: 0, hit: 0, dead: 0, side: 0, rank: G.Units.rankIndex(w.u), seed: w.u.id * 13 }, Math.min(2, globalThis.devicePixelRatio || 1));
         }
       }
       while (puffs.length) {

@@ -677,6 +677,65 @@
     ctx.restore();
   };
 
+  // ================= КЭШ КАДРОВ =================
+  // Готовые кадры фигурок: время квантуется (8 кадров шага, 4 — покоя), прицел — шагами 0,25 рад.
+  // Падающие фигурки, крайт и шагоход рисуются напрямую. Вспышка попадания — поверх кадра.
+  const CACHE = new Map();
+  let cachePx = 0;
+  const CACHE_PX = 9e6;
+  S.cacheStats = () => ({ entries: CACHE.size, px: cachePx });
+  S.clearCache = () => { CACHE.clear(); cachePx = 0; };
+  function hitFlash(ctx, type, x, y, cell, st) {
+    const L = LOOKS[type];
+    const k = cell / 40 * SC;
+    ctx.save(); ctx.translate(x, y); ctx.scale(k * (st.facing || 1), k);
+    const sc = (L && L.scale) || 1; if (sc !== 1) ctx.scale(sc, sc);
+    ctx.globalAlpha = st.hit; ctx.fillStyle = '#fff6d0';
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * TAU + st.seed;
+      ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(Math.cos(a) * 8, -26 + Math.sin(a) * 8); ctx.lineTo(Math.cos(a + 0.3) * 3, -26 + Math.sin(a + 0.3) * 3); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  S.drawCached = function (ctx, type, x, y, cell, st, dpr) {
+    if ((st.dead > 0 && st.dead < 1) || type === 'krayt' || type === 'walker' || typeof document === 'undefined') return S.draw(ctx, type, x, y, cell, st);
+    dpr = dpr || 1;
+    const variant = Math.abs(st.seed | 0) % 3;
+    let tq, fk;
+    if (st.moving && !st.dead) {
+      const ph = st.t * 9 + variant, f = Math.round((((ph % TAU) + TAU) % TAU) / TAU * 8) % 8;
+      tq = (f / 8 * TAU - variant) / 9; fk = 'm' + f;
+    } else {
+      const ph = st.t * 2.2 + variant, f = Math.round((((ph % TAU) + TAU) % TAU) / TAU * 4) % 4;
+      tq = (f / 4 * TAU - variant) / 2.2; fk = 'i' + f;
+    }
+    const q = {
+      t: tq, seed: variant, facing: st.facing || 1, moving: !!st.moving && !st.dead, aim: st.dead ? 0 : Math.round((st.aim || 0) * 4) / 4,
+      recoil: st.recoil > 0.3 ? 1 : 0, melee: Math.round((st.melee || 0) * 4) / 4, hit: 0, dead: st.dead ? 1 : 0,
+      broken: !!st.broken, side: st.side, rank: st.side === 0 ? (st.rank >= 4 ? 4 : st.rank >= 2 ? 2 : 0) : 0,
+      crouch: st.crouch ? 1 : 0, aiming: !!st.aiming, night: !!st.night,
+    };
+    const key = type + '|' + q.side + '|' + q.facing + '|' + q.rank + '|' + variant + '|' + fk + '|' + q.aim + '|' + q.recoil + '|' + q.melee + '|' +
+      q.crouch + q.broken + q.aiming + q.night + q.dead + '|' + cell + '|' + dpr;
+    let e = CACHE.get(key);
+    if (e) { CACHE.delete(key); CACHE.set(key, e); }
+    else {
+      const big = ((LOOKS[type] && LOOKS[type].scale) || 1);
+      const ox = cell * 1.7 * big, top = (S.height(type) + 0.85) * cell, bot = cell * 0.5 * big;
+      const w = Math.ceil(ox * 2 * dpr), hh = Math.ceil((top + bot) * dpr);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = hh;
+      const c = cv.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      S.draw(c, type, ox, top, cell, q);
+      e = { cv: cv, ox: ox, oy: top, w: w / dpr, h: hh / dpr, px: w * hh };
+      CACHE.set(key, e); cachePx += e.px;
+      while (cachePx > CACHE_PX && CACHE.size > 1) { const k0 = CACHE.keys().next().value; cachePx -= CACHE.get(k0).px; CACHE.delete(k0); }
+    }
+    ctx.drawImage(e.cv, x - e.ox, y - e.oy, e.w, e.h);
+    if (st.hit > 0 && !st.dead) hitFlash(ctx, type, x, y, cell, st);
+  };
+
   // Высота фигурки над точкой ног (в клетках) — для полоски здоровья и линий выстрелов
   S.height = function (type) {
     if (type === 'krayt') return 0.75 * SC;

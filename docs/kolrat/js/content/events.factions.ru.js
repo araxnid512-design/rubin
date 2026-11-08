@@ -214,13 +214,13 @@
     title: 'Чужие позывные',
     text: () => 'Связисты поймали позывной на старой имперской частоте: аванпост связи в Юндландских скалах. На запрос ответили не по уставу: «Здесь никто никому не служит. Не подходите».',
     choices: [
-      { id: 'envoy', label: (s) => 'Отправить парламентёров с водой (' + C('deserter_signal').envoyWater + ' л)', req: needRes('water', C('deserter_signal').envoyWater),
+      { id: 'envoy', label: (s) => 'Отправить парламентёров с сухарями (' + C('deserter_signal').envoyWater + ')', req: needRes('water', C('deserter_signal').envoyWater),
         run(s, ctx, rng, E) {
           const c = C('deserter_signal');
           const rv = E.reveal(s, 'outpost');
           s.flags.contact_deserters = true;
           E.res(s, { water: -c.envoyWater });
-          return 'Парламентёров не пустили за ворота, но воду взяли. ' + U.cap(E.rel(s, 'deserters', c.envoyRelation)) + '.' + (rv ? ' ' + U.cap(rv) + '.' : '');
+          return 'Парламентёров не пустили за ворота, но сухари взяли. ' + U.cap(E.rel(s, 'deserters', c.envoyRelation)) + '.' + (rv ? ' ' + U.cap(rv) + '.' : '');
         } },
       { id: 'note', label: 'Принять к сведению',
         run(s, ctx, rng, E) {
@@ -253,13 +253,13 @@
   def('deserter_raid', {
     title: 'Налёт дезертиров',
     cond: (s) => s.regions.outpost.known && !s.regions.outpost.cleared && rel(s, 'deserters') <= C('deserter_raid').maxRelation,
-    text: () => 'Ночью из темноты ударили бластеры — точно, по-уставному, короткими очередями. Дезертиры с аванпоста пришли за водой и металлом.',
+    text: () => 'Ночью из темноты ударили бластеры — точно, по-уставному, короткими очередями. Дезертиры с аванпоста пришли за сухарями и металлом.',
     choices: [
       { id: 'fight', label: 'Занять оборону',
         run(s, ctx, rng, E) {
           return E.fight(s, rng, { enemy: 'deserters', strength: C('deserter_raid').strength, squad: 'camp', title: 'ночной бой с дезертирами', after: 'deserter_raid', night: true });
         } },
-      { id: 'pay', label: 'Отдать воду и не стрелять (60 л)', req: needRes('water', 60),
+      { id: 'pay', label: 'Отдать сухари и не стрелять (60)', req: needRes('water', 60),
         run(s, ctx, rng, E) {
           const r = E.res(s, { water: -60, discipline: -3 });
           E.rel(s, 'deserters', 2);

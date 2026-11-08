@@ -60,7 +60,7 @@
     return h('div', { class: 'card' },
       h('div', { class: 'tiles' },
         tile('ico-troops', fit + '/' + people.length, wounded ? 'в строю, 🩹' + wounded : 'в строю'),
-        tile('ico-water', days >= 99 ? '∞' : days.toFixed(1), 'дней воды', days < 2 ? 'alert' : days < 4 ? 'caution' : ''),
+        tile('ico-water', days >= 99 ? '∞' : days.toFixed(1), 'дней на сухарях', days < 2 ? 'alert' : days < 4 ? 'caution' : ''),
         tile('ico-energy', (eNet >= 0 ? '+' : '') + eNet, 'энергии/сут', eNet < 0 ? 'alert' : ''),
         tile('ico-discipline', String(s.res.discipline), 'дисциплина', s.res.discipline < 35 ? 'alert' : s.res.discipline < 50 ? 'caution' : ''),
         tile('ico-bacta', String(s.items.bacta || 0), 'бакта'),
@@ -158,7 +158,7 @@
     const r = s.regions[id];
     const parts = [];
     if (c.kind === 'hostile') parts.push('вражеский лагерь');
-    if (c.water) parts.push('вода: ' + G.Regions.richLabel(c.water) + (r.explored >= 20 ? ' (~' + r.water + ' л)' : ''));
+    if (c.water) parts.push('провизия: ' + G.Regions.richLabel(c.water) + (r.explored >= 20 ? ' (~' + r.water + ')' : ''));
     if (c.scrap && (type === 'salvage' || id !== 'crash')) parts.push('металл: ~' + r.scrap);
     if (c.danger) parts.push('опасность: ' + G.Regions.dangerLabel(c.danger));
     parts.push('путь: ' + (c.dist || 0));

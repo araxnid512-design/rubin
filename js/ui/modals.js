@@ -48,7 +48,7 @@
           h('p', { class: 'lead' }, G.TEXT.tradeFlavor[p.partner]))),
       h('div', { class: 'row', style: 'gap:14px;margin-bottom:8px' },
         h('span', { class: 'chip' }, h('i', { class: 'ico ico-credits' }), s.res.credits + ' кр.'),
-        h('span', { class: 'chip' }, h('i', { class: 'ico ico-water' }), s.res.water + ' л'),
+        h('span', { class: 'chip' }, h('i', { class: 'ico ico-water' }), s.res.water + ' сух.'),
         h('span', { class: 'chip' }, h('i', { class: 'ico ico-scrap' }), s.res.scrap)),
       h('h3', null, 'Купить'), rowsBuy,
       h('h3', { style: 'margin-top:12px' }, 'Продать'), rowsSell,
@@ -61,7 +61,7 @@
     const p = s.pending;
     const act = (choice) => { G.Game.act(s, { choice: choice }); UI.commit(); };
     const box = h('div', { class: 'modal event-modal' },
-      h('div', { class: 'ev-head' }, h('span', { class: 'holo' }, G.Avatar.forEvent(p.id, 72)),
+      h('div', { class: 'ev-head' }, h('span', { class: 'holo' }, G.Avatar.forEvent(p.id, 72, s, p.ctx)),
         h('div', null, h('div', { class: 'small muted' }, 'День ' + s.day), h('h2', null, p.title))),
       h('div', { class: 'lead' }, paragraphs(p.text)));
     if (p.result == null) {

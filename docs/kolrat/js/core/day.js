@@ -14,7 +14,7 @@
     return 1;
   };
 
-  // Потребность в воде на сутки; orders — приказы дня (для расчёта вылазок)
+  // Потребность в сухарях на сутки; orders — приказы дня (для расчёта вылазок)
   Day.waterNeed = function (s, orders) {
     const C = G.CONFIG;
     const ration = C.rations[s.rations].water;
@@ -70,23 +70,23 @@
 
     if (G.Progress) G.Progress.evening(s);
 
-    // Вода
+    // Сухари
     const need = Day.waterNeed(s, s.orders);
     const R = C.rations[s.rations];
     if (s.res.water >= need) {
       G.Res.add(s, 'water', -need);
-      parts.push('выпито ' + need + ' л воды');
+      parts.push('съедено ' + need + ' сухарей');
     } else {
       const f = 1 - s.res.water / Math.max(1, need);
-      parts.push('воды хватило лишь на ' + Math.round((1 - f) * 100) + '% нормы');
+      parts.push('сухарей хватило лишь на ' + Math.round((1 - f) * 100) + '% нормы');
       G.Res.add(s, 'water', -s.res.water);
       const hpLoss = Math.round(C.upkeep.thirstHealth * f);
       let died = 0;
-      for (const u of G.Units.people(s)) if (G.Units.damage(s, u, hpLoss, 'умер от жажды')) died++;
+      for (const u of G.Units.people(s)) if (G.Units.damage(s, u, hpLoss, 'умер от истощения')) died++;
       G.Res.discipline(s, -Math.round(C.upkeep.thirstDiscipline * f));
-      say(s, 'Жажда! Бойцы слабеют, в строю ропот.' + (died ? ' От обезвоживания умерли: ' + U.pl(died, F.man) + '.' : ''), 'bad');
+      say(s, 'Голод! Бойцы слабеют, в строю ропот.' + (died ? ' От истощения умерли: ' + U.pl(died, F.man) + '.' : ''), 'bad');
     }
-    if (wProd) parts.push('влагоуловители дали ' + wProd + ' л');
+    if (wProd) parts.push('кухня дала ' + wProd + ' сухарей');
     parts.push('энергия ' + U.signed(eNet));
 
     // Паёк
@@ -129,6 +129,7 @@
 
     if (G.Progress) G.Progress.dawn(s);
     if (G.Terminal) G.Terminal.dawn(s, rng);
+    if (G.Territory) G.Territory.dawn(s, rng);
 
     // Лечение: медотсек и медики
     let heal = G.Base.healBonus(s) + (G.Camp ? G.Camp.heal(s) : 0);
@@ -167,7 +168,7 @@
         s.stats.deserted++;
         names.push(G.Units.title(cands[i]));
       }
-      if (n) say(s, 'Ночью из лагеря ушли ' + U.pl(n, F.fighter) + ' — забрав оружие и флягу воды: ' + names.join(', ') + '.', 'bad');
+      if (n) say(s, 'Ночью из лагеря ушли ' + U.pl(n, F.fighter) + ' — забрав оружие и мешок сухарей: ' + names.join(', ') + '.', 'bad');
     }
 
     G.Regions.regen(s);

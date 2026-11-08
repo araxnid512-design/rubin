@@ -386,7 +386,9 @@
   A.npc = function (key, size, cls) {
     return toImg(npcSvg(key || 'general'), size || 64, cls, '');
   };
-  A.forEvent = function (eventId, size) {
+  A.forEvent = function (eventId, size, s, ctx) {
+    const d = G.Events && G.Events.defs[eventId];
+    if (d && d.portrait) return A.npc(d.portrait(s, ctx || {}), size);
     return A.npc(A.EVENT_PORTRAIT[eventId] || 'general', size);
   };
 

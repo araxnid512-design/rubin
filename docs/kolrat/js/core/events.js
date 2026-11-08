@@ -142,7 +142,7 @@
   const E = {
     _p: null,
 
-    // Изменить ресурсы, вернуть текст: «вода −30, металл +20»
+    // Изменить ресурсы, вернуть текст: «сухари −30, металл +20»
     res(s, delta) {
       const parts = [];
       for (const k of ['water', 'scrap', 'energy', 'credits', 'discipline']) {

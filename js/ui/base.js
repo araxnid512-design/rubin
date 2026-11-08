@@ -88,7 +88,7 @@
     const lv = s.sections[id].level;
     switch (id) {
       case 'reactor': return 'Сейчас +' + C.energy[lv] + ' энергии в сутки.';
-      case 'vapor': return lv ? 'Сейчас +' + C.water[lv] + ' л воды в сутки.' : '';
+      case 'vapor': return lv ? 'Сейчас +' + C.water[lv] + ' сухарей в сутки.' : '';
       case 'medbay': return 'Открывает медиков и медпакеты в бою.';
       case 'sensors': return 'Реже налёты и засады.';
       case 'armory': return 'Тяжёлые штурмовики, снайперы, термодетонаторы; на 2-м уровне — точность.';
@@ -127,7 +127,7 @@
       h('div', null,
         h('div', { class: 'card camp-card' }, view.el,
           h('div', { class: 'eco' },
-            h('span', { class: 'chip' }, h('i', { class: 'ico ico-water' }), '+' + G.Base.waterProduction(s) + ' л/сут'),
+            h('span', { class: 'chip' }, h('i', { class: 'ico ico-water' }), '+' + G.Base.waterProduction(s) + ' сух./сут'),
             h('span', { class: 'chip' + (eNet < 0 ? ' alert' : '') }, h('i', { class: 'ico ico-energy' }), (eNet >= 0 ? '+' : '') + eNet + '/сут'),
             h('span', { class: 'chip' }, h('i', { class: 'ico ico-scrap' }), '~' + s.regions.crash.scrap + ' в обломках'),
             items.map((k) => h('span', { class: 'chip' }, G.TEXT.items[k].name + ' ×' + s.items[k]))))),

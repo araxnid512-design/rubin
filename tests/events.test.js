@@ -45,8 +45,9 @@ test('каждый вариант каждого события отрабаты
     // Найдём варианты на «пустом» прогоне
     const probe = richState(1);
     if (id === 'missing_patrol') G.Game.addOrder(probe, G.Game.makeOrder(probe, 'recon', 'ridge', 6, 0));
-    const ctx0 = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : {};
+    const ctx0 = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : id === 'counterattack' ? { region: 'dunes', army: 'tusken', strength: 8 } : {};
     if (id === 'hutt_job_return') for (const uid of [1, 2, 3]) G.Units.byId(probe, uid).status = 'away';
+    if (id === 'counterattack') probe.regions.dunes.owner = 'us';
     G.Events.trigger(probe, G.Game.rng(probe), id, ctx0);
     assert.ok(probe.pending, 'событие не запустилось: ' + id);
     const opts = G.Events.options(probe, probe.pending);
@@ -54,8 +55,9 @@ test('каждый вариант каждого события отрабаты
       for (const seed of [1, 2, 3]) {
         const s = richState(seed);
         if (id === 'missing_patrol') G.Game.addOrder(s, G.Game.makeOrder(s, 'recon', 'ridge', 6, 0));
-        const ctx = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : {};
+        const ctx = id === 'tusken_raid' ? { surprised: false, strength: 10 } : id === 'hutt_job_return' ? { ids: [1, 2, 3] } : id === 'counterattack' ? { region: 'dunes', army: 'tusken', strength: 8 } : {};
         if (id === 'hutt_job_return') for (const uid of [1, 2, 3]) G.Units.byId(s, uid).status = 'away';
+        if (id === 'counterattack') s.regions.dunes.owner = 'us';
         G.Events.trigger(s, G.Game.rng(s), id, ctx);
         resolveAll(s, o.id);
         checked++;

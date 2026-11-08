@@ -80,7 +80,7 @@
       ctx: {
         type: o.type, title: o.title, army: army, mode: o.mode || 'field', defender: o.defender != null ? o.defender : null,
         night: !!o.night, surprise: !!o.surprise, place: o.place || null, target: o.target || null,
-        after: o.after || null, afterCtx: o.afterCtx || null, intel: o.intel != null ? o.intel : true,
+        after: o.after || null, afterCtx: o.afterCtx || null, intel: o.intel != null ? o.intel : true, loot: o.loot || null,
       },
       unitIds: o.unitIds.slice(0, C().maxPerSide),
       allies: o.allies || [],
@@ -103,11 +103,13 @@
   // ---------- точки входа ----------
   BF.fromAttack = function (s, rng, order, squad) {
     const rc = G.Regions.cfg(order.target);
-    if (rc.faction && G.Factions) G.Factions.setHostile(s, rc.faction);
-    const army = rc.enemy;
+    const sp = G.Territory.attackSpec(s, order.target);
+    if (sp.faction && G.Factions) G.Factions.setHostile(s, sp.faction);
+    const army = sp.army;
+    const growth = sp.kind === 'wild' ? 1 + s.day * 0.01 : 1;
     s.pending = BF.create(s, rng, {
-      type: 'attack', title: 'Атака: ' + G.Regions.name(order.target), army: army,
-      strength: rc.strength * G.Res.diff(s).enemy * rng.range(0.9, 1.1),
+      type: 'attack', title: (sp.kind === 'wild' ? 'Зачистка: ' : sp.kind === 'town' ? 'Захват: ' : 'Атака: ') + G.Regions.name(order.target), army: army,
+      strength: sp.strength * growth * G.Res.diff(s).enemy * rng.range(0.9, 1.1), loot: sp.loot,
       unitIds: squad.map((u) => u.id), place: order.target, target: order.target,
       defender: 1, mode: army === 'hutt_guard' ? 'fort' : 'field', map: rc.terrain,
       intel: s.regions[order.target].explored >= 30,
@@ -312,8 +314,9 @@
     }
     if (p.ctx.type === 'attack' && won) {
       const rc = G.Regions.cfg(p.ctx.target);
-      s.regions[p.ctx.target].cleared = true;
-      const extra = G.Battle.grantLoot(s, rng, G.CONFIG.loot[rc.enemy]);
+      if (rc.kind === 'hostile') s.regions[p.ctx.target].cleared = true;
+      if (G.Territory) G.Territory.capture(s, p.ctx.target);
+      const extra = G.Battle.grantLoot(s, rng, G.CONFIG.loot[p.ctx.loot || rc.enemy]);
       if (extra) loot += (loot ? '; ' : '') + extra.replace(/^ Трофеи: /, '').replace(/\.$/, '');
     }
     let afterText = '';

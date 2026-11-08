@@ -49,13 +49,13 @@
     const T = G.TEXT;
     const parts = [];
     for (const k of ['scrap', 'energy', 'water', 'credits']) {
-      if (cost[k]) parts.push(k === 'water' ? cost[k] + ' л воды' : k === 'credits' ? cost[k] + ' кр.' : cost[k] + ' ' + T.res[k].gen);
+      if (cost[k]) parts.push(k === 'water' ? cost[k] + ' сухарей' : k === 'credits' ? cost[k] + ' кр.' : cost[k] + ' ' + T.res[k].gen);
     }
     if (cost.items) for (const k in cost.items) parts.push(T.items[k].name + ' ×' + cost.items[k]);
     return parts.join(', ');
   };
 
-  // Запас воды в днях при текущем расходе
+  // Запас сухарей в днях при текущем расходе
   Res.waterDays = function (s) {
     const need = G.Day.waterNeed(s, null) - G.Base.waterProduction(s);
     if (need <= 0) return Infinity;

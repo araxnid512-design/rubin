@@ -38,6 +38,7 @@
     const res = G.Actions.skirmish(s, rng, squad, enemy, name);
     if (res.won) {
       s.regions[order.target].cleared = true;
+      if (G.Territory) G.Territory.capture(s, order.target);
       G.Res.discipline(s, G.CONFIG.discipline.victory);
       G.Game.say(s, 'Атака на «' + name + '» удалась: противник рассеян.' + losses(res) +
         grantLoot(s, rng, G.CONFIG.loot[cfg.enemy]), 'battle');
@@ -67,7 +68,7 @@
       G.Res.add(s, 'water', -w);
       G.Res.add(s, 'scrap', -m);
       G.Res.discipline(s, -5);
-      G.Game.say(s, head + 'Налётчики прорвались к складам и унесли ' + w + ' л воды и ' + m + ' ед. металла.' + losses(res), 'bad');
+      G.Game.say(s, head + 'Налётчики прорвались к складам и унесли ' + w + ' сухарей и ' + m + ' ед. металла.' + losses(res), 'bad');
     }
   };
 

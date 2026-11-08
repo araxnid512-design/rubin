@@ -48,7 +48,7 @@
     switch (f) {
       case 'farmers': {
         const w = Fac.waterBonus(s);
-        return w ? 'привозят ' + w + ' л воды в сутки' : 'от ' + FC().farmersWater[0][0] + ' — будут привозить воду';
+        return w ? 'привозят ' + w + ' сухарей в сутки' : 'от ' + FC().farmersWater[0][0] + ' — будут привозить провизию';
       }
       case 'guild': return !s.flags.bounty ? 'награды за генерала нет' : v >= FC().guildSafe ? 'убийц больше не присылают' : 'за голову генерала назначена награда';
       case 'scavengers': return s.flags.hostile_scavengers ? 'свалка разгромлена' : v >= FC().scavengersPeace ? 'не трогают обломки; торгуют деталями' : 'по ночам растаскивают обломки';

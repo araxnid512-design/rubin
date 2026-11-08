@@ -146,7 +146,7 @@
     if (c.type === 'hunt') return X.hunt.replace('{n}', c.need).replace('{who}', G.TEXT.terminal.groups[c.target]);
     if (c.type === 'clear') return X.clear.replace('{place}', G.TEXT.regions[c.target].name);
     if (c.type === 'scout') return X.scout.replace('{place}', G.TEXT.regions[c.target].name).replace('{n}', c.need);
-    if (c.type === 'deliver') return X.deliver.replace('{n}', c.need).replace('{what}', c.res === 'water' ? 'л воды' : 'ед. металла');
+    if (c.type === 'deliver') return X.deliver.replace('{n}', c.need).replace('{what}', c.res === 'water' ? 'сухарей' : 'ед. металла');
     return '';
   };
 

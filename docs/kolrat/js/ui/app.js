@@ -97,9 +97,11 @@
       UI._lastModal = mkey;
       root.appendChild(h('div', { class: 'overlay' }, content));
       document.body.style.overflow = 'hidden';
+      document.body.classList.add('modal-open');
     } else {
       UI._lastModal = null;
       document.body.style.overflow = '';
+      document.body.classList.remove('modal-open');
     }
   }
   UI.renderModal = renderModal;
@@ -128,7 +130,7 @@
     return h('div', { class: 'top-row' },
       h('span', { class: 'top-day' }, 'День ' + s.day),
       h('div', { class: 'chips' },
-        chip('water', 'Вода', s.res.water + (days < 99 ? ' · ' + days.toFixed(1) + ' дн' : ''), days < 2 ? 'alert' : days < 4 ? 'caution' : '', 'Вода (запас в днях при нынешнем расходе)'),
+        chip('water', 'Сухари', s.res.water + (days < 99 ? ' · ' + days.toFixed(1) + ' дн' : ''), days < 2 ? 'alert' : days < 4 ? 'caution' : '', 'Сухари (запас в днях при нынешнем расходе)'),
         chip('scrap', 'Металл', s.res.scrap),
         chip('energy', 'Энергия', s.res.energy + '/' + G.Res.energyCap(s), s.droidsOffline ? 'alert' : ''),
         chip('credits', 'Кредиты', s.res.credits),

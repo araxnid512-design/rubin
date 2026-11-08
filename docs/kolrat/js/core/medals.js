@@ -40,6 +40,7 @@
     Object.assign({ id: 'base', icon: 'gear', tier: 2 }, goal((s) => Object.keys(s.sections).filter((k) => s.sections[k].level >= 2).length, 3)),
     Object.assign({ id: 'shuttle', icon: 'bolt', tier: 1 }, goal((s) => st(s, 'shuttles'), 1)),
     Object.assign({ id: 'contracts', icon: 'coin', tier: 2 }, goal((s) => st(s, 'contracts'), 3)),
+    Object.assign({ id: 'territory', icon: 'flag', tier: 3 }, goal((s) => (G.Territory ? G.Territory.count(s) : 0), 6)),
     { id: 'home', icon: 'crown', tier: 3, test: (s) => !!(s.over && s.over.type === 'victory') },
   ];
 
