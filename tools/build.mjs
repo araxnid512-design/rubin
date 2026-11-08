@@ -1,32 +1,41 @@
-// Собирает игру в один HTML-файл.
-//   dist/prishly.html  — самостоятельная страница: скачать и открыть двойным щелчком, интернет не нужен (кроме шрифтов).
-//   dist/artifact.html — фрагмент без <html>/<head>/<body> для публикации как Artifact на claude.ai.
+// Собирает игры в одиночные HTML-файлы.
+//   dist/prishly.html, dist/klyk.html — самостоятельные страницы: скачать и открыть, интернет нужен только для шрифтов.
+//   dist/*-artifact.html — фрагменты без <html>/<head>/<body> для публикации как Artifact на claude.ai.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const src = join(here, '..', 'game');
-const dist = join(here, '..', 'dist');
-const html = readFileSync(join(src, 'index.html'), 'utf8');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const dist = join(root, 'dist');
+const GAMES = [
+  { src: 'game', out: 'prishly', artifact: 'artifact' },
+  { src: 'orc', out: 'klyk', artifact: 'klyk-artifact' },
+];
 
 const between = (s, a, b) => {
   const i = s.indexOf(a), j = s.indexOf(b);
   if (i < 0 || j < 0) throw new Error(`Не найдены метки ${a} / ${b}`);
   return s.slice(i + a.length, j);
 };
-const inline = (s) => s
-  .replace(/<link rel="stylesheet" href="(css\/[^"]+)">/g, (_, p) => `<style>\n${readFileSync(join(src, p), 'utf8')}\n</style>`)
-  .replace(/<script src="(js\/[^"]+)"><\/script>/g, (_, p) => {
-    const code = readFileSync(join(src, p), 'utf8');
-    if (code.includes('</script')) throw new Error(`${p} содержит </script>`);
-    return `<script>\n${code}\n</script>`;
-  });
 
-const head = inline(between(html, '<!-- artifact:start -->', '<!-- artifact:head-end -->'));
-const body = inline(between(html, '<!-- artifact:body -->', '<!-- artifact:end -->'));
+function build({ src, out, artifact }) {
+  const dir = join(root, src);
+  const html = readFileSync(join(dir, 'index.html'), 'utf8');
+  const local = (p) => !/^https?:/.test(p);
+  const inline = (s) => s
+    .replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, p) => (local(p) ? `<style>\n${readFileSync(resolve(dir, p), 'utf8')}\n</style>` : m))
+    .replace(/<script src="([^"]+)"><\/script>/g, (m, p) => {
+      if (!local(p)) return m;
+      const code = readFileSync(resolve(dir, p), 'utf8');
+      if (code.includes('</script')) throw new Error(`${p} содержит </script>`);
+      return `<script>\n${code}\n</script>`;
+    });
+  const head = inline(between(html, '<!-- artifact:start -->', '<!-- artifact:head-end -->'));
+  const body = inline(between(html, '<!-- artifact:body -->', '<!-- artifact:end -->'));
+  writeFileSync(join(dist, `${artifact}.html`), head.trim() + '\n' + body.trim() + '\n');
+  writeFileSync(join(dist, `${out}.html`), `<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n${head.trim()}\n</head>\n<body>\n${body.trim()}\n</body>\n</html>\n`);
+  console.log(`Готово: dist/${out}.html, dist/${artifact}.html`);
+}
 
 mkdirSync(dist, { recursive: true });
-writeFileSync(join(dist, 'artifact.html'), head.trim() + '\n' + body.trim() + '\n');
-writeFileSync(join(dist, 'prishly.html'), `<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n${head.trim()}\n</head>\n<body>\n${body.trim()}\n</body>\n</html>\n`);
-console.log('Готово: dist/prishly.html, dist/artifact.html');
+for (const g of GAMES) build(g);

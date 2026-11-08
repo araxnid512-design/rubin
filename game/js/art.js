@@ -1629,6 +1629,9 @@
     CATS,
     SCENES,
     byId,
+    Pic, // движок открыт для других книг: они рисуют свои сцены тем же художником
+    PAL,
+    mix,
     render(id) {
       const s = byId[id] || SCENES[0];
       const pic = new Pic(s.id);

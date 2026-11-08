@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- artifact:start -->
+<title>Клык</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kelly+Slab&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<!-- artifact:head-end -->
+</head>
+<body>
+<!-- artifact:body -->
+<header class="top">
+  <button class="brand" type="button" id="btn-home" title="На титульную страницу">Клык</button>
+  <span class="where" id="where">Книга первая · Степь</span>
+  <nav class="nav" aria-label="Разделы">
+    <button class="nbtn" type="button" id="btn-rail">Герой</button>
+    <button class="nbtn" type="button" id="btn-about">О Сказителе</button>
+  </nav>
+  <div class="mini" id="mini" hidden></div>
+</header>
+<div class="layout">
+  <main class="story-col">
+    <div class="story" id="story" aria-live="polite"></div>
+    <div class="turn" id="turn"></div>
+  </main>
+  <aside class="rail" id="rail" aria-label="Герой"></aside>
+</div>
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-head"><h2 id="sheet-title"></h2><button class="nbtn" type="button" id="sheet-close">Закрыть</button></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</div>
+<script src="../game/js/rng.js"></script>
+<script src="../game/js/art.js"></script>
+<script src="js/art-orc.js"></script>
+<script src="js/story.js"></script>
+<script src="js/skazitel.js"></script>
+<script src="js/game.js"></script>
+<!-- artifact:end -->
+</body>
+</html>
