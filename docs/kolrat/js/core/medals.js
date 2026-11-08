@@ -38,6 +38,8 @@
     { id: 'officer', icon: 'chevron', tier: 2, test: (s) => people(s).some((u) => G.Units.isAlive(u) && G.Units.rankIndex(u) >= 5) },
     Object.assign({ id: 'day30', icon: 'sun', tier: 2 }, goal((s) => s.day, 30)),
     Object.assign({ id: 'base', icon: 'gear', tier: 2 }, goal((s) => Object.keys(s.sections).filter((k) => s.sections[k].level >= 2).length, 3)),
+    Object.assign({ id: 'shuttle', icon: 'bolt', tier: 1 }, goal((s) => st(s, 'shuttles'), 1)),
+    Object.assign({ id: 'contracts', icon: 'coin', tier: 2 }, goal((s) => st(s, 'contracts'), 3)),
     { id: 'home', icon: 'crown', tier: 3, test: (s) => !!(s.over && s.over.type === 'victory') },
   ];
 

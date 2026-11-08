@@ -128,6 +128,7 @@
     const H = C.health;
 
     if (G.Progress) G.Progress.dawn(s);
+    if (G.Terminal) G.Terminal.dawn(s, rng);
 
     // Лечение: медотсек и медики
     let heal = G.Base.healBonus(s) + (G.Camp ? G.Camp.heal(s) : 0);

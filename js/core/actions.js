@@ -5,7 +5,7 @@
   const F = U.FORMS;
 
   const Actions = {};
-  Actions.list = ['recon', 'water', 'salvage', 'repair', 'engineer', 'guard', 'trade', 'diplomacy', 'attack', 'speech', 'reward'];
+  Actions.list = ['recon', 'water', 'salvage', 'repair', 'engineer', 'guard', 'drill', 'trade', 'diplomacy', 'attack', 'speech', 'reward'];
 
   const A = () => G.CONFIG.actions;
   const say = (s, t, tone) => G.Game.say(s, t, tone);
@@ -434,6 +434,32 @@
       const gain = Math.max(0, rng.int(a.gainMin, a.gainMax) - a.repeatPenalty * s.speechStreak);
       G.Res.discipline(s, gain);
       say(s, (gain > 2 ? rng.pick(G.TEXT.speech) : G.TEXT.speechTired) + ' Дисциплина ' + U.signed(gain) + '.', gain > 2 ? 'good' : 'info');
+    },
+  };
+
+  // ---------- Учения ----------
+  defs.drill = {
+    prefer: 'fighters',
+    targets: null,
+    validate(s) { return s.orders.some((x) => x.type === 'drill') ? 'Плац один — учения уже назначены.' : null; },
+    preview(s, o) {
+      const a = A().drill;
+      const xp = Math.round((a.xp[0] + a.xp[1]) / 2 + (s.sections.armory.level > 0 ? a.armoryXp : 0));
+      return 'Каждый получит около ' + xp + ' опыта' + (o.troopers >= a.disciplineFrom ? ', дисциплина +' + a.discipline : '') + '. Бывают лёгкие травмы.';
+    },
+    resolve(s, o, rng, squad) {
+      const a = A().drill;
+      const alive = squad.filter(G.Units.isAlive);
+      let promoted = 0, hurt = 0;
+      for (const u of alive) {
+        const before = G.Units.rankIndex(u);
+        G.Units.addXp(s, u, rng.int(a.xp[0], a.xp[1]) + (s.sections.armory.level > 0 ? a.armoryXp : 0));
+        if (G.Units.rankIndex(u) > before) promoted++;
+        if (u.kind !== 'droid' && rng.chance(a.injuryChance)) { u.health = Math.max(20, u.health - rng.int(a.injury[0], a.injury[1])); hurt++; }
+      }
+      if (alive.length >= a.disciplineFrom) G.Res.discipline(s, a.discipline);
+      say(s, rng.pick(G.TEXT.drill) + ' На плацу отработали ' + U.pl(alive.length, F.fighter) + '.' +
+        (promoted ? ' Повышены в звании: ' + promoted + '.' : '') + (hurt ? ' Лёгкие травмы: ' + hurt + '.' : ''), 'info');
     },
   };
 

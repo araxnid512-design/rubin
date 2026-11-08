@@ -110,6 +110,35 @@
       signal:    {},
       launch:    {},
       reward:    { credits: 60, discipline: 8, xp: 20 },
+      // Учения: отряд весь день тренируется на плацу — опыт, немного дисциплины, редкие лёгкие травмы
+      drill:     { min: 2, max: 16, droids: false, suggest: 8, xp: [9, 15], armoryXp: 4, injuryChance: 0.03, injury: [8, 18], disciplineFrom: 6, discipline: 1 },
+    },
+
+    // ---------- ТЕРМИНАЛ: поставки шаттлом и контракты ----------
+    terminal: {
+      maxOrders: 3,               // сколько шаттлов одновременно в пути
+      lossChance: 0.05,           // шанс, что шаттл перехватят (деньги пропадают)
+      sensorsMult: 0.5,           // сенсоры вдвое снижают риск перехвата
+      delayChance: 0.1,           // буря задерживает шаттл на сутки
+      relDiscount: 0.004, relDiscountMax: 0.25, relPenalty: 0.012,
+      goods: {
+        // бойцы
+        mercs:    { group: 'troops', unit: 'merc', n: 2, price: 170, days: 2, rel: 'guild', minRel: -15, risk: 0.8 },
+        droid:    { group: 'troops', unit: 'droid', n: 1, price: 160, days: 3, rel: 'jawa', minRel: -15 },
+        troopers: { group: 'troops', unit: 'trooper', n: 3, price: 210, days: 4, need: ['comms', 1], xp: [20, 110], risk: 1.4 },
+        veterans: { group: 'troops', unit: 'trooper', n: 2, price: 300, days: 5, need: ['comms', 2], xp: [190, 320], risk: 1.4 },
+        // припасы
+        water:    { group: 'supply', give: { water: 220 }, price: 95, days: 1, rel: 'hutt', minRel: -40 },
+        bacta:    { group: 'supply', give: { bacta: 3 }, price: 85, days: 2, rel: 'hutt', minRel: -40 },
+        scrap:    { group: 'supply', give: { scrap: 70 }, price: 80, days: 2, rel: 'jawa', minRel: -40 },
+        cells:    { group: 'supply', give: { energy: 60 }, price: 70, days: 2, rel: 'jawa', minRel: -40 },
+      },
+      contracts: {
+        slots: 3, refreshDays: 4, maxActive: 2, failRel: -4, doneRel: 5,
+        hunt: [5, 10],
+        days: { hunt: 8, clear: 10, scout: 6, deliver: 6 },
+        reward: { perKill: 16, clear: [220, 320], scout: [70, 110], water: 0.85, scrap: 2.6 },
+      },
     },
 
     // ---------- ДИПЛОМАТИЯ ----------

@@ -949,3 +949,32 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
   .modal.enter, #view.anim .card { animation: none; }
 }
 .rations .btn { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+
+/* ---------- Терминал ---------- */
+.term-row { display: flex; gap: 10px; align-items: center; padding: 9px 10px; margin: 6px 0; border-radius: 12px;
+  background: linear-gradient(180deg, #1f2328, #17191d); border: 1px solid rgba(217, 168, 91, 0.16); border-top-color: rgba(255, 230, 190, 0.14);
+  box-shadow: 0 2px 0 #08090b, 0 5px 12px -4px rgba(0, 0, 0, 0.6); }
+.term-row.off { opacity: 0.7; }
+.term-row .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.term-row.contract.active { border-color: rgba(124, 194, 135, 0.35); }
+.term-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--mono); font-size: 12px; color: var(--sand2); }
+.term-meta .warn, .small.warn { color: var(--amber); }
+.term-buy { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 96px; padding: 6px 10px; line-height: 1.2; }
+.term-buy span { font-size: 12px; opacity: 0.85; }
+.term-buy b { font-family: var(--mono); font-size: 15px; }
+.term-bar { height: 7px; border-radius: 4px; background: #0e0f12; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7); overflow: hidden; margin: 3px 0; }
+.term-bar i { display: block; height: 100%; background: linear-gradient(90deg, #3a5a7a, var(--blue)); box-shadow: 0 0 8px rgba(111, 179, 224, 0.5); }
+.term-bar.full i { background: linear-gradient(90deg, #3d7a4a, var(--green)); }
+.contract .reward { font-family: var(--mono); color: var(--green); font-weight: 700; white-space: nowrap; }
+.term-brief { cursor: pointer; }
+.term-brief .row { gap: 8px; margin: 4px 0; flex-wrap: nowrap; }
+.tab { position: relative; }
+.tab .badge { position: absolute; top: 2px; right: 6px; margin: 0; background: var(--blue); box-shadow: 0 0 8px rgba(111, 179, 224, 0.6); }
+@media (max-width: 760px) { .term-buy { min-width: 80px; } }
+/* семь вкладок помещаются в боковую колонку на телефоне */
+@media (orientation: landscape) and (max-height: 540px) {
+  #tabs { gap: 3px; padding-top: 4px; padding-bottom: 4px; }
+  .tab { padding: 2px 2px; font-size: 10px; line-height: 1.15; min-height: 0; border-radius: 10px; }
+  .tab .ti { font-size: 16px; margin-bottom: 0; }
+  .tab .badge { top: 1px; right: 3px; font-size: 10px; padding: 0 5px; }
+}

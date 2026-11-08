@@ -48,6 +48,7 @@
     s.visitors = s.visitors || {};
     s.stats = Object.assign({ kills: 0, deaths: 0, battles: 0, victories: 0, defeats: 0, waterFound: 0, scrapFound: 0, deserted: 0, raids: 0, flawless: 0, trades: 0, bestStreak: 0, streak: 0 }, s.stats || {});
     s.seen = s.seen || {};
+    if (G.Terminal) { const t = G.Terminal.ensure(s); if (!t.nextRefresh) G.Terminal.refresh(s, s.day); }
     for (const id in C.sections) if (!s.sections[id]) s.sections[id] = { level: C.sections[id].level, progress: 0, paid: false };
     for (const id in C.regions) {
       if (!s.regions[id]) s.regions[id] = { known: false, explored: 0, water: C.regions[id].waterPool || 0, scrap: C.regions[id].scrapPool || 0, visits: 0, cleared: false };

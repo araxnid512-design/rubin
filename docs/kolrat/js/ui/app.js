@@ -17,12 +17,17 @@
     { id: 'roster', name: 'Отряд', icon: '☰' },
     { id: 'map', name: 'Карта', icon: '⌖' },
     { id: 'base', name: 'Лагерь', icon: '⌂' },
+    { id: 'term', name: 'Терминал', icon: '◈', badge: (s) => (s.terminal ? s.terminal.orders.length : 0) },
     { id: 'chron', name: 'Хроника', icon: '✎' },
     { id: 'menu', name: 'Меню', icon: '⚙' },
   ];
 
   // Сохранить и перерисовать
   UI.commit = function () {
+    if (UI.s && G.Terminal && !UI.s.over) {
+      const done = G.Terminal.check(UI.s, UI.s.day);
+      if (done.length) UI.flash('Контракт выполнен: ' + G.Terminal.title(done[0]) + '. +' + done[0].reward + ' кр.');
+    }
     if (UI.s && UI.checkMedals) UI.checkMedals(UI.s);
     if (UI.s) G.Save.write('auto', UI.s);
     UI.render();
@@ -58,8 +63,9 @@
     tabs.classList.remove('hidden');
     top.appendChild(UI.topBar(UI.s));
     for (const t of UI.TABS) {
+      const b = t.badge ? t.badge(UI.s) : 0;
       tabs.appendChild(h('button', { class: 'tab' + (UI.tab === t.id ? ' active' : ''), onclick: () => UI.go(t.id) },
-        h('span', { class: 'ti' }, t.icon), h('span', null, t.name)));
+        h('span', { class: 'ti' }, t.icon), h('span', null, t.name), b ? h('span', { class: 'badge' }, String(b)) : null));
     }
     const fn = UI.views[UI.tab] || UI.views.hq;
     // карточки «выезжают» только при смене вкладки, а не при каждом нажатии

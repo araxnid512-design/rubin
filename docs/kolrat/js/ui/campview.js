@@ -15,6 +15,7 @@
     armory: [2.4, 7.2], workshop: [1.2, 9.8], hangar: [2.6, 10.3], sensors: [3.6, 6.0],
   };
 
+  const landing = { key: '', t0: 0, dust: false }; // посадка шаттла — анимация один раз за день
   // Состояние гуляющих бойцов переживает перерисовки интерфейса
   const walkers = new Map();
   const puffs = []; // облачка пыли от новых построек — подхватывает следующий кадр
@@ -290,6 +291,31 @@
       for (let k = 0; k < 4; k++) particles.push({ x: X, y: Y, vx: (Math.random() - 0.5) * 40, vy: -Math.random() * 30, life: 0.4, max: 0.4, kind: 'spark' });
     }
 
+    // ---------- шаттл с поставкой: садится на площадку в день прибытия ----------
+    function drawShuttle(ts) {
+      const L = s.terminal && s.terminal.landed;
+      if (!L || L.day !== s.day || !G.drawShuttle) return;
+      const key = s.seed + ':' + s.day;
+      if (landing.key !== key) { landing.key = key; landing.t0 = ts; landing.dust = false; }
+      const k = Math.min(1, (ts - landing.t0) / 2600), e = 1 - Math.pow(1 - k, 3);
+      const X = px(17.5), Y = py(8.2), len = cell * 2.6;
+      // посадочные огни площадки
+      ctx.fillStyle = 'rgba(40,30,20,0.25)'; ctx.beginPath(); ctx.ellipse(X, Y + cell * 0.2, cell * 1.9, cell * 1.3, 0, 0, TAU); ctx.fill();
+      for (let j = 0; j < 8; j++) {
+        const a = j / 8 * TAU, on = Math.sin(ts / 300 - j) > 0;
+        ctx.fillStyle = on ? 'rgba(255,200,90,0.9)' : 'rgba(120,90,40,0.6)';
+        ctx.beginPath(); ctx.arc(X + Math.cos(a) * cell * 1.7, Y + cell * 0.2 + Math.sin(a) * cell * 1.15, Math.max(1.2, cell * 0.06), 0, TAU); ctx.fill();
+      }
+      // тень растёт по мере снижения
+      ctx.fillStyle = 'rgba(30,18,8,' + (0.15 + 0.25 * e).toFixed(3) + ')';
+      ctx.beginPath(); ctx.ellipse(X + cell * 0.5 * (1 - e) + cell * 0.25, Y + cell * 0.35, len * 0.42 * (0.7 + 0.3 * e), len * 0.3 * (0.7 + 0.3 * e), 0, 0, TAU); ctx.fill();
+      if (k >= 0.92 && !landing.dust) {
+        landing.dust = true;
+        for (let j = 0; j < 22; j++) { const a = j / 22 * TAU; particles.push({ x: X, y: Y + cell * 0.3, vx: Math.cos(a) * 60, vy: Math.sin(a) * 30, life: 1.2, max: 1.2, kind: 'dust' }); }
+      }
+      G.drawShuttle(ctx, X, Y - (1 - e) * cell * 3.2, len, { scale: 1 + (1 - e) * 0.35, engines: k < 1 ? 1 : 0.25 + 0.1 * Math.sin(ts / 200), ramp: k < 1 ? 0 : Math.min(1, (ts - landing.t0 - 2600) / 800), blink: Math.sin(ts / 250) > 0 });
+    }
+
     // ---------- постройки ----------
     function drawItem(it, t) {
       const X = px(it.x) + cell / 2, Y = py(it.y) + cell / 2;
@@ -395,6 +421,7 @@
       ctx.drawImage(staticLayer, 0, 0, W * cell, H * cell);
       if (opts.build) drawBuildGrid();
       drawWindows(t);
+      drawShuttle(ts);
       updateWalkers(dt, t);
       // постройки и фигурки — по глубине
       const things = [];

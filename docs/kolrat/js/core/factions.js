@@ -9,6 +9,7 @@
   Fac.list = ['farmers', 'jawa', 'hutt', 'scavengers', 'guild', 'deserters', 'tusken'];
 
   Fac.rel = (s, f) => s.relations[f] || 0;
+  Fac.change = function (s, f, d) { s.relations[f] = Math.max(-100, Math.min(100, (s.relations[f] || 0) + d)); };
 
   // Есть ли связь с фракцией (можно вести переговоры)
   Fac.contact = function (s, f) {

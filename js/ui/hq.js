@@ -292,7 +292,7 @@
   UI.views.hq = function (s) {
     return h('div', { class: 'cols hq' },
       h('div', null, campScene(s), reportCard(s)),
-      h('div', null, statusCard(s), ordersCard(s), goalsCard(s))
+      h('div', null, statusCard(s), ordersCard(s), UI.terminalBrief ? UI.terminalBrief(s) : null, goalsCard(s))
     );
   };
 })(globalThis.G = globalThis.G || {});
