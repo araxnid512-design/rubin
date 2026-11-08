@@ -100,9 +100,16 @@ jobs:
             adb shell dumpsys package ru.rubezh.game | grep -E "versionName|versionCode|targetSdk" | head -5
             sleep 15
             for t in 1 2 3; do adb shell am start -W -n ru.rubezh.game/.MainActivity; sleep 20; adb shell pidof ru.rubezh.game && break; echo "запуск $t не удался, ещё раз"; done
-            adb shell screencap -p /sdcard/shot.png
-            adb pull /sdcard/shot.png shot-${{ matrix.api }}.png
+            # снимок меню, затем «Новая игра» (кнопка в 152,149 при экране 640×320) и снимок базы
+            adb shell wm size
+            adb shell screencap -p /sdcard/a.png
+            adb pull /sdcard/a.png shot-${{ matrix.api }}-menu.png
+            adb shell input tap 152 149
+            sleep 12
+            adb shell screencap -p /sdcard/b.png
+            adb pull /sdcard/b.png shot-${{ matrix.api }}-base.png
             adb logcat -d -b crash | tail -40 || true
+            adb logcat -d | grep -iE "chromium.*(Uncaught|Error)|console" | tail -30 || true
             adb logcat -d | grep -iE "rubezh|AndroidRuntime|FATAL|chromium" | tail -60 || true
             adb shell pidof ru.rubezh.game
 
@@ -129,6 +136,13 @@ jobs:
         with:
           name: rubezh-files
           path: apk
+
+      - name: Снимки с эмуляторов
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rubezh-android-*
+          merge-multiple: true
+          path: ci
 
       - name: Обновить релиз «rubezh»
         env:
@@ -158,7 +172,10 @@ jobs:
           fi
 
       - name: Сайт для установки
-        run: node tools/build-site.mjs --apk apk/rubezh.apk --zip apk/rubezh-apk.zip --version 1.0.${{ github.run_number }}
+        run: |
+          node tools/build-site.mjs --apk apk/rubezh.apk --zip apk/rubezh-apk.zip --version 1.0.${{ github.run_number }}
+          mkdir -p _site/ci && cp ci/*.png _site/ci/ 2>/dev/null || true
+          ls -l _site/ci
 
       - name: Выложить в gh-pages/rubezh
         uses: peaceiris/actions-gh-pages@v4
