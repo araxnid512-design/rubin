@@ -1,9 +1,9 @@
 name: Рубеж APK
 
-# Собирает игру в один HTML, заворачивает в Android-приложение, обновляет постоянный релиз «rubezh»
-# и выкладывает сайт для установки в ветку gh-pages, папку rubezh/ (файлы других игр в ветке не трогает).
-# Свежий APK: https://github.com/araxnid512-design/rubin/releases/download/rubezh/rubezh.apk
-# Сайт:       https://araxnid512-design.github.io/rubin/rubezh/
+# Собирает игру в один HTML и APK тем же способом, что у «Колрата» и «Клонов» (без Gradle, подписи v1 + v2),
+# ставит и запускает APK на эмуляторах Android 10 и 14 и только потом публикует:
+#   релиз «rubezh»: https://github.com/araxnid512-design/rubin/releases/download/rubezh/rubezh.apk
+#   сайт (ветка gh-pages, папка rubezh/): https://araxnid512-design.github.io/rubin/rubezh/
 on:
   push:
     branches: ['claude/zombie-apocalypse-strategy-game-g3fgaw']
@@ -20,7 +20,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,30 +37,26 @@ jobs:
           java-version: 17
 
       - name: Игра в один файл
-        run: |
-          node tools/build.mjs
-          mkdir -p android/app/src/main/assets
-          cp dist/index.html android/app/src/main/assets/index.html
+        run: node tools/build.mjs
 
-      - name: Сборка APK
-        working-directory: android
+      - name: Сборка APK (без Gradle, подписи v1 + v2)
         run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+          python3 -m pip install --quiet cryptography
+          python3 tools/build-apk.py
 
       - name: Проверить подпись и манифест
         run: |
-          APK=android/app/build/outputs/apk/release/app-release.apk
+          APK=dist/rubezh.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT"/apksigner verify --verbose --print-certs "$APK" | tee apksigner.txt | head -12
+          grep -q "Verified using v1 scheme (JAR signing): true" apksigner.txt || { echo "Нет подписи v1"; exit 1; }
           grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" apksigner.txt || { echo "Нет подписи v2"; exit 1; }
           "$BT"/aapt2 dump badging "$APK" | grep -E "^package|^application-label:|launchable-activity|sdkVersion" || true
           "$BT"/aapt2 dump badging "$APK" | grep -q "package: name='ru.rubezh.game'" || { echo "Неверный пакет"; exit 1; }
-          "$BT"/aapt2 dump badging "$APK" | grep -q "versionCode='${{ github.run_number }}'" || { echo "Неверный versionCode"; exit 1; }
+          "$BT"/aapt2 dump badging "$APK" | grep -q "versionCode='$VERSION_CODE'" || { echo "Неверный versionCode"; exit 1; }
           cp "$APK" rubezh.apk
           zip -9 rubezh-apk.zip rubezh.apk
-          cp dist/index.html rubezh.html
-          ls -l rubezh.apk rubezh-apk.zip rubezh.html
+          ls -l rubezh.apk rubezh-apk.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -66,32 +65,56 @@ jobs:
             rubezh.apk
             rubezh-apk.zip
 
-      - name: Опубликовать
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          TITLE="Рубеж 1.0.${{ github.run_number }}"
-          NOTES=$(printf '%s\n' \
-            "Сборка из коммита ${{ github.sha }}." \
-            "" \
-            "rubezh.apk — приложение для Android (горизонтально, во весь экран). Новая версия ставится поверх старой, сохранения остаются." \
-            "" \
-            "Как установить: ссылку открыть в Chrome, скачать файл → открыть его → «Установить». Android попросит разрешить установку из браузера или «Файлов» — разрешите." \
-            "Если появится окно Play Защиты — нажмите «Всё равно установить» (или «Не отправлять»)." \
-            "" \
-            "rubezh-apk.zip — то же приложение в ZIP: если браузер не даёт скачать .apk, скачайте ZIP, откройте его в «Файлах» и нажмите на rubezh.apk." \
-            "rubezh.html — игра одним файлом: откройте в браузере, без установки.")
-          FILES="rubezh.apk rubezh-apk.zip rubezh.html"
-          if gh release view rubezh >/dev/null 2>&1; then
-            gh release upload rubezh $FILES --clobber
-            gh release edit rubezh --title "$TITLE" --notes "$NOTES" --latest=false
-          else
-            gh release create rubezh $FILES --title "$TITLE" --notes "$NOTES" --target "${{ github.sha }}" --latest=false
-          fi
-
-  site:
+  # Проверка на настоящем Android: эмулятор ставит APK, запускает игру и снимает экран
+  emulator:
     needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 34]
+    steps:
+      - name: Включить ускорение эмулятора (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rubezh-files
+
+      - name: Установить и запустить на Android ${{ matrix.api }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb install -r rubezh.apk 2>&1 | tee install.txt
+            grep -q Success install.txt
+            adb shell pm list packages | grep ru.rubezh.game
+            adb shell dumpsys package ru.rubezh.game | grep -E "versionName|versionCode|targetSdk" | head -5
+            adb shell am start -W -n ru.rubezh.game/.MainActivity
+            sleep 25
+            adb shell screencap -p /sdcard/shot.png
+            adb pull /sdcard/shot.png shot-${{ matrix.api }}.png
+            adb logcat -d | grep -iE "rubezh|AndroidRuntime|FATAL|chromium" | tail -60 || true
+            adb shell pidof ru.rubezh.game
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rubezh-android-${{ matrix.api }}
+          path: |
+            shot-*.png
+            install.txt
+
+  publish:
+    needs: [build, emulator]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -106,10 +129,35 @@ jobs:
           name: rubezh-files
           path: apk
 
-      - name: Сайт для установки
+      - name: Обновить релиз «rubezh»
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           node tools/build.mjs
-          node tools/build-site.mjs --apk apk/rubezh.apk --zip apk/rubezh-apk.zip --version 1.0.${{ github.run_number }}
+          cp dist/index.html rubezh.html
+          TITLE="Рубеж 1.0.${{ github.run_number }}"
+          NOTES=$(printf '%s\n' \
+            "Сборка из коммита ${{ github.sha }}. Проверено: ставится и запускается на Android 10 и 14." \
+            "" \
+            "rubezh.apk — приложение для Android (горизонтально, во весь экран). Новая версия ставится поверх старой, сохранения остаются." \
+            "" \
+            "Как установить: ссылку открыть в Chrome (в приложении Claude: ⋮ → «Открыть в браузере»), скачать → открыть файл → «Установить»." \
+            "Если появится окно Play Защиты — нажмите кнопку в окне («Всё равно установить», «Отправить» или «Не отправлять»), не закрывайте его мимо кнопок." \
+            "Если «Приложение не установлено» — удалите старый «Рубеж» (Настройки → Приложения) и поставьте заново." \
+            "" \
+            "rubezh-apk.zip — то же приложение в ZIP: если браузер не даёт скачать .apk, откройте ZIP в «Файлах» и нажмите на rubezh.apk." \
+            "rubezh.html — игра одним файлом: откройте в браузере, без установки.")
+          FILES="apk/rubezh.apk apk/rubezh-apk.zip rubezh.html"
+          if gh release view rubezh >/dev/null 2>&1; then
+            gh release upload rubezh $FILES --clobber
+            gh release edit rubezh --title "$TITLE" --notes "$NOTES" --latest=false
+          else
+            gh release create rubezh $FILES --title "$TITLE" --notes "$NOTES" --target "${{ github.sha }}" --latest=false
+          fi
+
+      - name: Сайт для установки
+        run: node tools/build-site.mjs --apk apk/rubezh.apk --zip apk/rubezh-apk.zip --version 1.0.${{ github.run_number }}
 
       - name: Выложить в gh-pages/rubezh
         uses: peaceiris/actions-gh-pages@v4

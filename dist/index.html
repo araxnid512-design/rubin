@@ -8093,6 +8093,22 @@ function applySettings() {
 }
 function saveSettings() { store.set(SETTINGS_KEY, CFG); applySettings(); }
 
+// Кнопка «Назад» в Android-приложении: закрыть верхнее окно или вернуться на шаг; false — свернуть игру
+window.appBack = () => {
+  const md = $$('#modals .modal-bg');
+  if (md.length) { const top = md[md.length - 1]; if (!top.dataset.lock) top.remove(); return true; }
+  if (!$('#tLootBg').hidden) { HUD.closeLoot(); return true; }
+  if (!$('#tMapBg').hidden) { HUD.closeMap(); return true; }
+  if (!$('#tPop').hidden) { HUD.hidePop(); TAC.pend = null; R.dirty = true; return true; }
+  if (Base.pick) { Base.pick = null; Base.render(); return true; }
+  const w = $('#scr-world');
+  if (w && !w.hidden) { Game.showBase(); return true; }
+  if (R.mode === 'tac') { HUD.openMenu(); return true; }
+  if (R.mode === 'base') { Game.showMenu(); return true; }
+  return false;
+};
+window.appPause = () => { if (S && (!TAC.m || TAC.m.phase === 'player')) saveGame(); };
+
 const Game = {
   init(data) {
     R.init($('#cv'));
@@ -8221,6 +8237,7 @@ const Game = {
   },
   modal({ title, html, buttons = [{ label: 'Понятно', cls: 'primary' }], noClose = false }) {
     const bg = el(`<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2><div class="mb">${html}</div><div class="mf"></div></div></div>`);
+    if (noClose) bg.dataset.lock = '1';
     const close = () => bg.remove();
     for (const b of buttons) {
       const btn = el(`<button class="btn ${b.cls || ''}">${esc(b.label)}</button>`);

@@ -1,90 +1,72 @@
 package ru.rubezh.game;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.window.OnBackInvokedDispatcher;
 
-import androidx.webkit.WebViewAssetLoader;
-
-// Игра целиком лежит в assets/index.html и открывается во весь экран.
-// Страница отдаётся с адреса https://appassets.androidplatform.net,
-// поэтому сохранения в localStorage живут между запусками.
+/**
+ * Полноэкранная WebView-обёртка: игра «Рубеж» из assets/index.html, только горизонтально.
+ * Без библиотек — только то, что есть в самом Android. Сохранения — в localStorage WebView.
+ */
 public class MainActivity extends Activity {
-    private static final String START = "https://appassets.androidplatform.net/assets/index.html";
-    // Назад: закрыть верхнее окно игры, если оно есть
-    private static final String BACK_JS =
-        "(function(){var m=document.querySelectorAll('#modals .modal-bg');" +
-        "if(m.length){m[m.length-1].remove();return true;}" +
-        "var l=document.getElementById('tLootBg');if(l&&!l.hidden){HUD.closeLoot();return true;}" +
-        "var p=document.getElementById('tMapBg');if(p&&!p.hidden){HUD.closeMap();return true;}" +
-        "var w=document.getElementById('scr-world');if(w&&!w.hidden){Game.showBase();return true;}" +
-        "return false;})()";
-
     private WebView web;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        Window w = getWindow();
+        w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            w.setAttributes(lp);
+        }
 
         web = new WebView(this);
         web.setBackgroundColor(0xFF13120E);
-        setContentView(web);
-
-        final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
-            .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
-            .build();
-
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setAllowFileAccess(false);
-        s.setAllowContentAccess(false);
-        s.setSupportZoom(false);
-        s.setBuiltInZoomControls(false);
         s.setTextZoom(100);
-
+        s.setUserAgentString(s.getUserAgentString() + " RubezhApp/1");
+        web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient());
-        web.setWebViewClient(new WebViewClient() {
-            @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
-                return loader.shouldInterceptRequest(req.getUrl());
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
-                Uri u = req.getUrl();
-                if ("appassets.androidplatform.net".equals(u.getHost())) return false;
-                try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { /* нет браузера */ }
-                return true;
-            }
-        });
-
-        if (state != null) web.restoreState(state);
-        if (web.getUrl() == null) web.loadUrl(START);
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        setContentView(web);
         hideBars();
+        // Android 13+: «Назад» приходит через OnBackInvokedCallback
+        if (Build.VERSION.SDK_INT >= 33)
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+        if (state != null) web.restoreState(state);
+        if (web.getUrl() == null) web.loadUrl("file:///android_asset/index.html");
     }
 
     @SuppressWarnings("deprecation")
     private void hideBars() {
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        }
     }
 
     @Override
@@ -94,15 +76,14 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
-    public void onBackPressed() {
-        web.evaluateJavascript(BACK_JS, res -> {
-            if (!"true".equals(res)) moveTaskToBack(true);
-        });
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        web.saveState(out);
     }
 
     @Override
     protected void onPause() {
+        web.evaluateJavascript("window.appPause && appPause()", null);
         web.onPause();
         super.onPause();
     }
@@ -114,15 +95,22 @@ public class MainActivity extends Activity {
         hideBars();
     }
 
+    /** «Назад» закрывает окно игры; если закрывать нечего — сворачивает игру. */
+    private void back() {
+        web.evaluateJavascript("window.appBack ? appBack() : false", value -> {
+            if (!"true".equals(value)) moveTaskToBack(true);
+        });
+    }
+
+    @SuppressWarnings("deprecation")
     @Override
-    protected void onSaveInstanceState(Bundle out) {
-        super.onSaveInstanceState(out);
-        web.saveState(out);
+    public void onBackPressed() {
+        back();
     }
 
     @Override
     protected void onDestroy() {
-        web.destroy();
+        if (web != null) web.destroy();
         super.onDestroy();
     }
 }

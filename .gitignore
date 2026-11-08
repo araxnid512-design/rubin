@@ -9,3 +9,6 @@ android/app/build/
 android/local.properties
 android/app/src/main/assets/
 _site/
+dist/.apk-build/
+dist/rubezh.apk
+__pycache__/
