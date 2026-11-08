@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Рубеж — пошаговая игра про выживших</title>
+<meta name="description" content="Пошаговая тактика про группу выживших в зомби-апокалипсисе. Скачать APK для Android, установить как приложение или играть в браузере.">
+<meta name="theme-color" content="#13120e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=PT+Sans+Narrow:wght@400;700&family=Rubik+Dirt&display=swap">
+<style>
+/* Сайт одной темы — в цветах игры: копоть, ржавчина, жёлтые полосы ограждения */
+:root {
+  --bg: #13120e; --bg2: #1a1914; --panel: #221f18; --line: #3a3528; --line2: #4d4733;
+  --ink: #ece4cc; --ink2: #d0c8b0; --muted: #a09781; --dim: #776f5b;
+  --amber: #e8a62b; --amber2: #cf9020; --amber-ink: #1b1406; --rust: #c9472f; --moss: #93b56a; --sky: #8fb7d6;
+  --f-title: "Rubik Dirt", Impact, "Arial Black", sans-serif;
+  --f-ui: "Oswald", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --r: 6px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.4; -webkit-text-size-adjust: 100%; }
+a { color: var(--amber); }
+img { max-width: 100%; display: block; }
+.wrap { max-width: 64rem; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.hazard-line { height: 0.5rem; background: repeating-linear-gradient(-45deg, var(--amber) 0 12px, var(--bg) 12px 24px); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 3rem; padding: 0.4rem 1.1rem; cursor: pointer; text-decoration: none;
+  font-family: var(--f-ui); font-weight: 500; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink); background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r);
+}
+.btn:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.btn.hazard { color: var(--amber-ink); border: 0; font-weight: 600; background: repeating-linear-gradient(-45deg, var(--amber) 0 14px, var(--amber2) 14px 28px); box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.45), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+.btn.big { min-height: 3.6rem; font-size: 1.1rem; padding-inline: 1.4rem; }
+.btn svg { width: 1.3rem; height: 1.3rem; flex: none; }
+/* предупреждение о встроенном браузере */
+.warnbar { background: #3a1f17; border-bottom: 2px solid var(--rust); }
+.warnbar .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; padding-block: 0.7rem; }
+.warnbar p { margin: 0; flex: 1 1 18rem; }
+.warnbar small { display: block; color: var(--muted); }
+/* шапка */
+.hero { background: radial-gradient(ellipse at 20% 0%, rgba(232, 166, 43, 0.12), transparent 55%), var(--bg); }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1.6rem; align-items: center; padding-block: 1.6rem 1.8rem; }
+.brand { display: flex; align-items: center; gap: 0.9rem; }
+.appicon { width: 4.2rem; height: 4.2rem; border-radius: 1rem; box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.5); }
+h1 { margin: 0; font-family: var(--f-title); font-weight: 400; font-size: clamp(3rem, 9vw, 4.6rem); line-height: 0.9; letter-spacing: 0.02em; }
+.lead { margin: 0.9rem 0 1.1rem; color: var(--ink2); font-size: 1.08rem; max-width: 36ch; }
+.cta { display: flex; flex-direction: column; gap: 0.55rem; max-width: 23rem; }
+.cta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+.meta { margin: 0.8rem 0 0; color: var(--muted); font-size: 0.92rem; }
+.meta b { color: var(--ink2); font-weight: 400; }
+.shots { display: flex; gap: 0.6rem; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.4rem; min-width: 0; }
+.shots figure { flex: none; width: min(34rem, 82vw); margin: 0; scroll-snap-align: start; }
+.shots img { width: 100%; aspect-ratio: 1266 / 585; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel); }
+.shots figcaption { margin-top: 0.3rem; font-family: var(--f-ui); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+/* разделы */
+section { padding-block: 1.6rem; border-top: 1px solid var(--line); }
+h2 { margin: 0 0 0.9rem; font-family: var(--f-ui); font-weight: 600; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 0.04em; text-wrap: balance; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); gap: 0.7rem; counter-reset: st; }
+.steps li { counter-increment: st; position: relative; padding: 0.9rem 0.9rem 0.9rem 3.2rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.steps li::before { content: counter(st); position: absolute; left: 0.8rem; top: 0.8rem; width: 1.8rem; height: 1.8rem; display: grid; place-items: center; border-radius: 50%; background: var(--amber); color: var(--amber-ink); font-family: var(--f-ui); font-weight: 600; }
+.steps b, .fix b { display: block; font-family: var(--f-ui); font-weight: 500; font-size: 1.05rem; margin-bottom: 0.2rem; }
+.steps span, .fix span { color: var(--ink2); font-size: 0.98rem; }
+.say { color: var(--amber); font-weight: 700; white-space: nowrap; }
+.fixes { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.7rem; }
+.fix { padding: 0.9rem; background: var(--bg2); border: 1px solid var(--line); border-left: 3px solid var(--rust); border-radius: var(--r); }
+.fix .btn { margin-top: 0.6rem; min-height: 2.6rem; font-size: 0.9rem; }
+.ios { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.ios p { margin: 0; flex: 1 1 20rem; color: var(--ink2); }
+.feat { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.6rem 1.4rem; margin: 0; padding: 0; list-style: none; }
+.feat li { padding-left: 1.1rem; position: relative; color: var(--ink2); }
+.feat li::before { content: ""; position: absolute; left: 0; top: 0.55rem; width: 0.5rem; height: 0.5rem; background: var(--amber); transform: rotate(45deg); }
+.feat b { color: var(--ink); font-weight: 700; }
+footer { border-top: 1px solid var(--line); padding-block: 1.2rem calc(1.2rem + env(safe-area-inset-bottom, 0px)); color: var(--dim); font-size: 0.9rem; }
+.toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 0.6rem 1rem; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line2); font-family: var(--f-ui); }
+@media (max-width: 760px) {
+  .hero .wrap { grid-template-columns: 1fr; }
+  .cta { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="warnbar" id="inapp" hidden>
+  <div class="wrap">
+    <p><b>Страница открыта внутри другого приложения.</b> Отсюда файлы обычно не скачиваются.
+      <small>Откройте её в Chrome кнопкой справа или через ⋮ вверху → «Открыть в браузере».</small></p>
+    <a class="btn hazard" id="toChrome" href="#">Открыть в Chrome</a>
+    <button class="btn" id="copy1" type="button">Скопировать ссылку</button>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="hazard-line"></div>
+  <div class="wrap">
+    <div>
+      <div class="brand"><img class="appicon" src="icons/icon-192.png" alt="" width="192" height="192"><h1>Рубеж</h1></div>
+      <p class="lead">Пошаговая тактика про небольшую группу выживших. Вылазки в 23 места округи, база на своей карте, банды людей, засады и ночные осады. Весь мир нарисован прямо в телефоне.</p>
+      <div class="cta">
+        <a class="btn hazard big" id="dl" href="rubezh.apk" download="rubezh.apk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg>
+          Скачать APK · 1,1 МБ</a>
+        <div class="cta-row">
+          <button class="btn" id="install" type="button" hidden>Как приложение</button>
+          <a class="btn" href="play.html">Играть в браузере</a>
+        </div>
+      </div>
+      <p class="meta">Android 7 и новее · версия <b>1.0.32</b> от 8 ноября 2026 г. · <a href="rubezh-apk.zip">APK в ZIP</a> · <a href="https://github.com/araxnid512-design/rubin/releases/tag/rubezh">все файлы</a></p>
+    </div>
+    <div class="shots" aria-label="Снимки игры">
+      <figure><img src="shots/tac.webp" alt="Бой в дождь: отряд у забора лагеря Сборщиков" width="1266" height="585" loading="eager"><figcaption>Бой у лагеря Сборщиков, дождь</figcaption></figure>
+      <figure><img src="shots/base.webp" alt="База: насосная станция, костёр, карточки построек" width="1266" height="585" loading="lazy"><figcaption>База и постройки</figcaption></figure>
+      <figure><img src="shots/world.webp" alt="Карта округи с местами для вылазок" width="1266" height="585" loading="lazy"><figcaption>Карта округи</figcaption></figure>
+      <figure><img src="shots/menu.webp" alt="Главное меню: улица в сумерках под дождём" width="1266" height="585" loading="lazy"><figcaption>Главное меню</figcaption></figure>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="how">
+    <h2>Как установить на Android</h2>
+    <ol class="steps">
+      <li><b>Скачайте файл</b><span>Нажмите «Скачать APK». Если Chrome спросит, не опасен ли файл, нажмите <span class="say">«Всё равно скачать»</span>.</span></li>
+      <li><b>Откройте его</b><span>Нажмите на уведомление о загрузке или найдите <span class="say">rubezh.apk</span> в «Файлах» → «Загрузки».</span></li>
+      <li><b>Разрешите установку</b><span>Android попросит разрешить установку из Chrome или «Файлов». Включите <span class="say">«Разрешить из этого источника»</span> и вернитесь назад.</span></li>
+      <li><b>Установите</b><span>Нажмите <span class="say">«Установить»</span>. Если появится Play Защита — <span class="say">«Всё равно установить»</span>. Новая версия ставится поверх старой, сохранения остаются.</span></li>
+    </ol>
+  </section>
+
+  <section id="help">
+    <h2>Не скачивается или не ставится</h2>
+    <div class="fixes">
+      <div class="fix"><b>Ссылка открылась внутри Claude, Telegram или VK</b><span>Встроенные браузеры часто не умеют скачивать. Нажмите ⋮ вверху → «Открыть в браузере» или кнопку ниже.</span><br><a class="btn" id="toChrome2" href="#">Открыть в Chrome</a></div>
+      <div class="fix"><b>Не открывается файл .apk</b><span>Скачайте тот же APK в архиве: откройте ZIP в «Файлах» и нажмите на rubezh.apk внутри.</span><br><a class="btn" href="rubezh-apk.zip" download="rubezh-apk.zip">Скачать ZIP</a></div>
+      <div class="fix"><b>Не хочется ставить APK</b><span>В Chrome игру можно поставить как приложение прямо с сайта: без «неизвестных источников» и Play Защиты. Нажмите кнопку или ⋮ → «Установить приложение».</span><br><button class="btn" id="install2" type="button">Установить как приложение</button></div>
+      <div class="fix"><b>«Приложение не установлено»</b><span>Обычно мешает старая версия с другой подписью. Удалите «Рубеж» в «Настройки» → «Приложения» и установите заново.</span></div>
+    </div>
+  </section>
+
+  <section id="iphone">
+    <h2>iPhone и iPad</h2>
+    <div class="ios">
+      <p>APK на iPhone не ставится. Откройте эту страницу в <b>Safari</b>, нажмите «Поделиться» → <span class="say">«На экран „Домой“»</span> — появится значок «Рубеж», игра откроется во весь экран и будет работать без интернета. Или просто играйте в браузере.</p>
+      <a class="btn" href="play.html">Играть в браузере</a>
+    </div>
+  </section>
+
+  <section id="game">
+    <h2>Что в игре</h2>
+    <ul class="feat">
+      <li><b>23 места на карте округи:</b> фермы, школа, полиция, торговый центр, больница, колония, лагеря банд.</li>
+      <li><b>База на своей карте:</b> стены, огород, вода, лазарет, мастерская, радио — всё видно и растёт.</li>
+      <li><b>Четыре группировки:</b> Сборщики требуют долю, Паства водит мёртвых, Гарнизон стреляет издалека, Вольница устраивает засады.</li>
+      <li><b>Шум решает всё:</b> выстрел слышно за квартал, нож убивает тихо, бутылка уводит толпу.</li>
+      <li><b>Мёртвые встают:</b> кого не добили в голову — через пару ходов поднимется.</li>
+      <li><b>Погода:</b> дождь глушит шаги и выстрелы, туман прячет всех.</li>
+      <li><b>Оружие и арсенал:</b> находки с вылазок, выдача бойцам, разборка на детали.</li>
+      <li><b>Ночные осады:</b> бой на карте базы или запереться и надеяться на стены.</li>
+      <li><b>Группа до 10 человек,</b> в бой — до шести. Цель — продержаться 30 дней.</li>
+    </ul>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">«Рубеж» · версия 1.0.32 · игра работает без интернета, сохранения хранятся на устройстве.</div>
+</footer>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  var ua = navigator.userAgent || '';
+  var android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // встроенный браузер другого приложения: WebView Android или известные приложения
+  var inApp = android && (/; wv\)/.test(ua) || /FBAN|FBAV|Instagram|Telegram|VKAndroidApp|OKApp|Line\//i.test(ua));
+  var here = location.href.split('#')[0];
+  var intent = 'intent://' + location.host + location.pathname + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(here) + ';end';
+  ['toChrome', 'toChrome2'].forEach(function (id) { var a = document.getElementById(id); if (a) a.href = android ? intent : here; });
+  if (inApp) document.getElementById('inapp').hidden = false;
+  function toast(t) { var el = document.getElementById('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { el.hidden = true; }, 2200); }
+  document.getElementById('copy1').onclick = function () {
+    var done = function () { toast('Ссылка скопирована. Вставьте её в адресную строку Chrome.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(here).then(done, function () { prompt('Скопируйте ссылку:', here); });
+    else prompt('Скопируйте ссылку:', here);
+  };
+  if (ios) { var dl = document.getElementById('dl'); dl.removeAttribute('download'); dl.href = '#iphone'; dl.lastChild.textContent = ' Как поставить на iPhone'; }
+  // установка как приложения (Chrome, Edge, Samsung Internet)
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; document.getElementById('install').hidden = false; });
+  function install() {
+    if (deferred) { deferred.prompt(); deferred.userChoice.then(function () { deferred = null; }); return; }
+    toast(ios ? 'Safari: «Поделиться» → «На экран „Домой“»' : 'Chrome: ⋮ вверху → «Установить приложение» или «Добавить на главный экран»');
+  }
+  document.getElementById('install').onclick = install;
+  document.getElementById('install2').onclick = install;
+  window.addEventListener('appinstalled', function () { toast('Готово: значок «Рубеж» на главном экране.'); });
+  if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+})();
+</script>
+</body>
+</html>
