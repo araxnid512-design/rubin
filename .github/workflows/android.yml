@@ -1,24 +1,25 @@
-name: Android APK
+name: Рубеж APK
 
-# Собирает игру в один HTML, заворачивает в Android-приложение и выкладывает APK в релизы.
-# Свежая сборка всегда по ссылке:
-# https://github.com/araxnid512-design/rubin/releases/latest/download/rubezh.apk
+# Собирает игру в один HTML, заворачивает в Android-приложение и обновляет постоянный релиз «rubezh».
+# Ссылка на свежий APK не меняется:
+# https://github.com/araxnid512-design/rubin/releases/download/rubezh/rubezh.apk
 on:
   push:
-    branches: [main, 'claude/**']
-    paths: ['src/**', 'index.html', 'tools/**', 'android/**', '.github/workflows/android.yml']
+    branches: ['claude/zombie-apocalypse-strategy-game-g3fgaw']
+    paths-ignore: ['**.md']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: rubezh-apk
   cancel-in-progress: true
 
 jobs:
-  apk:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -43,22 +44,45 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon assembleRelease
 
-      - name: Имя файла
-        run: cp android/app/build/outputs/apk/release/app-release.apk rubezh.apk
+      - name: Проверить подпись и манифест
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT"/apksigner verify --verbose --print-certs "$APK" | tee apksigner.txt | head -12
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" apksigner.txt || { echo "Нет подписи v2"; exit 1; }
+          "$BT"/aapt2 dump badging "$APK" | grep -E "^package|^application-label:|launchable-activity|sdkVersion" || true
+          "$BT"/aapt2 dump badging "$APK" | grep -q "package: name='ru.rubezh.game'" || { echo "Неверный пакет"; exit 1; }
+          "$BT"/aapt2 dump badging "$APK" | grep -q "versionCode='${{ github.run_number }}'" || { echo "Неверный versionCode"; exit 1; }
+          cp "$APK" rubezh.apk
+          zip -9 rubezh-apk.zip rubezh.apk
+          cp dist/index.html rubezh.html
+          ls -l rubezh.apk rubezh-apk.zip rubezh.html
 
       - uses: actions/upload-artifact@v4
         with:
           name: rubezh-apk
           path: rubezh.apk
 
-      - name: Выложить в релизы
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk-${{ github.run_number }}
-          target_commitish: ${{ github.sha }}
-          name: Рубеж для Android, сборка ${{ github.run_number }}
-          make_latest: true
-          files: rubezh.apk
-          body: |
-            Скачайте rubezh.apk на телефон и откройте его. Android попросит разрешить установку из этого источника (браузера или файлового менеджера) — разрешите.
-            Новая сборка ставится поверх старой, сохранения остаются.
+      - name: Опубликовать
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TITLE="Рубеж 1.0.${{ github.run_number }}"
+          NOTES=$(printf '%s\n' \
+            "Сборка из коммита ${{ github.sha }}." \
+            "" \
+            "rubezh.apk — приложение для Android (горизонтально, во весь экран). Новая версия ставится поверх старой, сохранения остаются." \
+            "" \
+            "Как установить: ссылку открыть в Chrome, скачать файл → открыть его → «Установить». Android попросит разрешить установку из браузера или «Файлов» — разрешите." \
+            "Если появится окно Play Защиты — нажмите «Всё равно установить» (или «Не отправлять»)." \
+            "" \
+            "rubezh-apk.zip — то же приложение в ZIP: если браузер не даёт скачать .apk, скачайте ZIP, откройте его в «Файлах» и нажмите на rubezh.apk." \
+            "rubezh.html — игра одним файлом: откройте в браузере, без установки.")
+          FILES="rubezh.apk rubezh-apk.zip rubezh.html"
+          if gh release view rubezh >/dev/null 2>&1; then
+            gh release upload rubezh $FILES --clobber
+            gh release edit rubezh --title "$TITLE" --notes "$NOTES" --latest=false
+          else
+            gh release create rubezh $FILES --title "$TITLE" --notes "$NOTES" --target "${{ github.sha }}" --latest=false
+          fi
