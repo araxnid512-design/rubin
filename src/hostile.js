@@ -59,11 +59,25 @@ function coverOf(m, sx, sy, t) {
     const x = t.x + ax, y = t.y + ay;
     if (!inb(m, x, y)) continue;
     const tt = m.tiles[MI(m, x, y)], tp = TP[tt];
-    if (tt === T.SANDBAG || tt === T.BLOCK || tt === T.BLOCKH || tt === T.WALL || tt === T.BRICK || tt === T.WWALL || tp.furn) return tt === T.SANDBAG || tp.wall ? 0.35 : 0.25;
+    if (tt === T.SANDBAG || tt === T.BLOCK || tt === T.BLOCKH || tt === T.WALL || tt === T.BRICK || tt === T.WWALL || tp.furn || tt === T.HAY) return tt === T.SANDBAG || tt === T.BLOCKH || tp.wall ? 0.35 : 0.25;
     if (tt === T.FENCE && m.meta[MI(m, x, y)] !== 1) return 0.15;
   }
   return 0;
 }
+
+// Укрытия вокруг клетки для подсказки игроку: [dx, dy, 2 — полное, 1 — частичное]
+function coverDirs(m, x, y) {
+  const out = [];
+  for (const [dx, dy] of DIR4) {
+    const nx = x + dx, ny = y + dy;
+    if (!inb(m, nx, ny)) continue;
+    const i = MI(m, nx, ny), t = m.tiles[i], tp = TP[t];
+    const lv = tp.wall || t === T.SANDBAG || t === T.BLOCKH ? 2 : tp.furn || t === T.BLOCK || t === T.HAY || (t === T.FENCE && m.meta[i] !== 1) ? 1 : 0;
+    if (lv) out.push([dx, dy, lv]);
+  }
+  return out;
+}
+const coverWord = cd => !cd.length ? '' : cd.some(c => c[2] === 2) ? 'полное укрытие' : 'частичное укрытие';
 
 // ----- восприятие -----
 function perceiveH(m, h) {
@@ -71,7 +85,7 @@ function perceiveH(m, h) {
   let best = null, bs = 1e9;
   for (const u of liveUnits(m)) {
     const d = edist(h.x, h.y, u.x, u.y);
-    let sr = t.sight - tod;
+    let sr = t.sight - tod - wxOf(m).sight;
     if (u.trait === 'quiet') sr -= 2;
     if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 3.5);
     if ((d <= 1.5 || (d <= sr && los(m, h, u))) && d < bs) { bs = d; best = u; }
@@ -124,7 +138,7 @@ async function hShoot(m, h, tg, w) {
   noise(m, h.x, h.y, w.noise);
   await sleep(show ? spd(140) : 0);
   const t = ZT[h.type], d0 = edist(h.x, h.y, tg.x, tg.y);
-  let p = t.acc - Math.max(0, d0 - w.opt) * w.fall - coverOf(m, h.x, h.y, tg);
+  let p = t.acc - Math.max(0, d0 - w.opt) * w.fall - coverOf(m, h.x, h.y, tg) - wxOf(m).acc;
   if (TP[m.tiles[MI(m, tg.x, tg.y)]].hide) p -= 0.15;
   if (rnd() < clamp(p, 0.08, 0.9)) {
     let d = Math.max(1, Math.round(rint(w.dmg[0], w.dmg[1]) * 0.7));
@@ -316,10 +330,11 @@ function dropBody(m, z) {
   if (chance(0.3)) loot.water = 1;
   if (chance(0.22)) loot.meds = 1;
   if (t.fac === 'garrison' && chance(0.5)) loot.ammo = (loot.ammo || 0) + rint(3, 8);
-  if (!Object.keys(loot).length) return;
+  const wd = WDROP[z.type], wpn = wd && chance(wd[0]) ? wd[1] : null;
+  if (!Object.keys(loot).length && !wpn) return;
   const ct = m.cont[i];
-  if (ct) { for (const k in loot) ct.loot[k] = (ct.loot[k] || 0) + loot[k]; ct.s = 1; }
-  else m.cont[i] = { k: 'body', loot, s: 1 };
+  if (ct) { for (const k in loot) ct.loot[k] = (ct.loot[k] || 0) + loot[k]; ct.s = 1; if (wpn && !ct.wpn) ct.wpn = wpn; }
+  else m.cont[i] = { k: 'body', loot, s: 1, wpn: wpn || undefined };
 }
 
 // ----- перед вылазкой: кто будет на карте -----

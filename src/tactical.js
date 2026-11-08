@@ -10,7 +10,7 @@ const LURE_RANGE = 8;
 
 function spd(ms) { return ms * [1.6, 1, 0.5, 0][CFG.speed ?? 1]; }
 function timeOfDay(m) { return m.tod ?? (m.turn <= 14 ? 0 : m.turn <= 24 ? 1 : 2); }
-function sightR(m) { return [9, 7, 5][timeOfDay(m)]; }
+function sightR(m) { return Math.max(3, [9, 7, 5][timeOfDay(m)] - wxOf(m).sight); }
 function liveUnits(m) { return m.units.filter(u => !u.dead && !u.evac); }
 function unitAt(m, x, y) { return m.units.find(u => u.x === x && u.y === y && !u.dead && !u.evac); }
 function zombieAt(m, x, y) { return m.zombies.find(z => z.x === x && z.y === y); }
@@ -18,7 +18,7 @@ function curUnit() { const m = TAC.m; return m && m.units.find(u => u.id === TAC
 function zVisible(m, z) { return !!m.vis[MI(m, z.x, z.y)]; }
 function visibleZombies(m) { return m.zombies.filter(z => zVisible(m, z)); }
 function inEvac(m, u) { return m.evac.includes(MI(m, u.x, u.y)); }
-function carried(u) { let w = 0; for (const k in u.inv) w += u.inv[k] * RES[k].w; return Math.round(w * 10) / 10; }
+function carried(u) { let w = gearW(u); for (const k in u.inv) w += u.inv[k] * RES[k].w; return Math.round(w * 10) / 10; }
 function walkT(m, x, y) { if (!inb(m, x, y)) return false; const t = m.tiles[MI(m, x, y)]; return TP[t].walk && t !== T.DOOR; }
 // Соседство с учётом углов стен
 function adjOK(m, ax, ay, bx, by) {
@@ -176,6 +176,7 @@ function buildOcc(m) {
 // ----- Шум -----
 function noise(m, x, y, r) {
   if (r <= 0) return;
+  r = Math.max(1, Math.round(r * wxOf(m).noise));
   FX.ring(x, y, r);
   m.tp += r / 5;
   if (r >= 4) m.lastNoise = { x, y, turn: m.turn };
@@ -200,7 +201,7 @@ function perceive(m, z) {
   let best = null, bd = 1e9;
   for (const u of liveUnits(m)) {
     const d = edist(z.x, z.y, u.x, u.y);
-    let sr = t.sight - tod;
+    let sr = t.sight - tod - wxOf(m).sight;
     if (u.trait === 'quiet') sr -= 2;
     if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 2.5);
     if ((d <= 1.5 || (d <= sr && los(m, z, u))) && d < bd) { bd = d; best = u; }
@@ -208,7 +209,7 @@ function perceive(m, z) {
   for (const h of m.zombies) {
     if (!isHuman(h) || isFlock(h) || h.hp <= 0) continue;
     const d = edist(z.x, z.y, h.x, h.y);
-    if (d + 0.5 < bd && (d <= 1.5 || (d <= t.sight - tod && los(m, z, h)))) { bd = d + 0.5; best = h; }
+    if (d + 0.5 < bd && (d <= 1.5 || (d <= t.sight - tod - wxOf(m).sight && los(m, z, h)))) { bd = d + 0.5; best = h; }
   }
   if (best) {
     const was = z.state;
@@ -493,6 +494,7 @@ function shotChance(m, u, z, reaction) {
   let p = w.acc + u.accB - Math.max(0, d - w.opt) * w.fall;
   if (TP[m.tiles[MI(m, z.x, z.y)]].hide) p -= 0.15;
   if (isHuman(z)) p -= coverOf(m, u.x, u.y, z);
+  p -= wxOf(m).acc;
   if (reaction) p -= 0.1;
   return clamp(p, 0.05, 0.95);
 }
@@ -697,6 +699,8 @@ function startMission(loc, ids, opts = {}) {
   Object.assign(m, { loc: siege ? 'base' : loc, turn: 1, threat: 0, tp: 0, lastWave: 1, lastNoise: null, phase: 'player', units: [], zombies: [], uid: 1, zid: 1, kills: 0, hkills: {} });
   m.seen = new Uint8Array(m.n); m.vis = new Uint8Array(m.n);
   if (!siege) S.res.fuel -= L.fuel;
+  m.weather = rollWeather();
+  if (!siege) seedWeapons(m, Math.max(0.35, 1 - visits * 0.22));
   for (const c of m.captives || []) m.tiles[MI(m, c.x, c.y)] = T.BLOCK;
   const squad = ids.map(id => S.survivors.find(s => s.id === id)).filter(Boolean);
   const spots = siege ? m.idle.map(([x, y]) => MI(m, x, y)).filter(i => TP[m.tiles[i]].walk) :
@@ -830,7 +834,7 @@ function finishMission() {
   const m = TAC.m;
   if (!m || m.done) return;
   m.done = true;
-  const rep = { loc: m.loc, got: {}, lines: [], kills: m.kills, turns: m.turn, siege: m.siege || null, hkills: m.hkills || {} };
+  const rep = { loc: m.loc, got: {}, wpn: [], lines: [], kills: m.kills, turns: m.turn, siege: m.siege || null, hkills: m.hkills || {} };
   for (const u of m.units) {
     const s = S.survivors.find(o => o.id === u.sid);
     if (!s) continue;
@@ -842,11 +846,12 @@ function finishMission() {
     }
     s.hp = Math.max(1, u.hp);
     s.kills = (s.kills || 0) + u.kills;
-    if (s.freed) { delete s.freed; rep.lines.push({ t: `${s.name} — бывший пленник — теперь в группе.`, c: 'good' }); }
+    if (s.freed) { delete s.freed; rep.rescued = (rep.rescued || 0) + 1; rep.lines.push({ t: `${s.name} — бывший пленник — теперь в группе.`, c: 'good' }); }
     const lvl = Math.min(5, 1 + Math.floor(s.kills / 5));
     if (lvl > (s.level || 1)) { s.level = lvl; s.maxhp += 2; s.hp += 2; rep.lines.push({ t: `${u.name}: опыт растёт, уровень ${lvl}.`, c: 'good' }); }
     if (u.bitten && !s.infected) { s.infected = 3; rep.lines.push({ t: `${u.name} ${gv(u, 'укушен', 'укушена')}. До обращения 3 дня.`, c: 'bad' }); }
     for (const k in u.inv) rep.got[k] = (rep.got[k] || 0) + u.inv[k];
+    for (const w of u.found || []) { stash(w); rep.wpn.push(w); }
     if (u.ammo) rep.got.ammo = (rep.got.ammo || 0) + u.ammo;
   }
   for (const k in rep.got) S.res[k] = (S.res[k] || 0) + rep.got[k];
@@ -865,6 +870,7 @@ function finishMission() {
     revealAfterMission(m, rep.lines);
   } else for (const f in m.hkills) factionHit(f, m.hkills[f]);
   S.mission = null;
+  try { statMission(rep, m); } catch (e) { console.error(e); }
   TAC.m = null; TAC.reach = null;
   Game.afterMission(rep);
 }

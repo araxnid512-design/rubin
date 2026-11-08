@@ -449,11 +449,72 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
 .squad.many .uc-s { font-size: 0.72rem; }
 .wcard #wGo { position: sticky; bottom: 0; flex: none; box-shadow: 0 -0.6rem 0.8rem var(--bg-2); }
 .wsq-b { min-height: 2.5rem; padding-block: 0.22rem; }
+#wx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.chip .wx { font-style: normal; display: inline-flex; align-items: center; gap: 0.2rem; margin-left: 0.35rem; padding-left: 0.45rem; border-left: 1px solid var(--line-2); color: #a9c3dc; }
+.ars, .eqs { display: flex; flex-direction: column; gap: 0.35rem; }
+.ars h3, .eqs h3 { margin: 0.1rem 0 0; font-family: var(--f-ui); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.ars-i { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.5rem; padding: 0.4rem 0.55rem; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel-2); }
+.ars-i .ic { color: var(--amber); }
+.ars-i span { display: flex; flex-direction: column; font-size: 0.92rem; }
+.ars-i small, .eq small { color: var(--dim); font-size: 0.74rem; }
+.eq { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.4rem; padding: 0.4rem 0.55rem; border-radius: var(--r); border: 1px solid var(--line); border-left: 3px solid var(--uc); background: var(--panel-2); }
+.eq b { grid-column: 1 / -1; font-family: var(--f-ui); font-weight: 500; }
+.eq small { grid-column: 1 / -1; }
+.eq select { min-height: 2.4rem; min-width: 0; padding: 0 0.4rem; border-radius: 4px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink); font-family: var(--f-body); font-size: 0.9rem; }
+.dim { margin: 0; color: var(--dim); font-size: 0.86rem; }
+/* ----- меню: продолжение, плитки ----- */
+.mcont {
+  display: flex; flex-direction: column; gap: 0.2rem; width: min(19rem, 100%); padding: 0.55rem 0.8rem; text-align: left; cursor: pointer;
+  color: var(--amber-ink); border: 0; border-radius: var(--r);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 60%), repeating-linear-gradient(-45deg, var(--amber) 0 14px, var(--amber-2) 14px 28px);
+  box-shadow: 0 0.35rem 1.2rem rgba(0, 0, 0, 0.45), inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+}
+.mcont:active { transform: translateY(1px); }
+.mc-t { display: flex; align-items: center; gap: 0.4rem; font-family: var(--f-ui); text-transform: uppercase; letter-spacing: 0.05em; }
+.mc-t b { font-weight: 600; font-size: 1.15rem; }
+.mc-t i { margin-left: auto; font-style: normal; font-size: 0.82rem; opacity: 0.85; }
+.mc-s { font-size: 0.86rem; font-weight: 700; }
+.mc-r { display: flex; gap: 0.6rem; font-family: var(--f-ui); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.mc-r i { font-style: normal; display: inline-flex; align-items: center; gap: 0.15rem; }
+.mc-r .ic { width: 0.95rem; height: 0.95rem; }
+.mtiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.35rem; width: min(22rem, 100%); }
+.mt {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 3.6rem; padding: 0.3rem 0.2rem; cursor: pointer;
+  font-family: var(--f-ui); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.03em; line-height: 1.1; text-align: center;
+  color: var(--ink-2); background: rgba(30, 28, 22, 0.86); border: 1px solid var(--line-2); border-radius: var(--r);
+}
+.mt .ic { width: 1.35rem; height: 1.35rem; color: var(--amber); }
+.mt[aria-pressed="false"] .ic { color: var(--dim); }
+.mbtns .btn .ic { margin-right: 0.35rem; }
+/* ----- справочник и статистика ----- */
+.modal.wide { width: min(46rem, calc(100vw - 2rem)); }
+.cx { display: flex; flex-direction: column; gap: 0.5rem; }
+.cx-t { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+.cx-t button { min-height: 2.4rem; padding: 0.3rem 0.7rem; cursor: pointer; font-family: var(--f-ui); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r); }
+.cx-t button.on { color: var(--amber-ink); background: var(--amber); border-color: var(--amber); }
+.cx-b { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.4rem; }
+.cx-c { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0.6rem; border-radius: var(--r); border: 1px solid var(--line); border-left: 3px solid var(--fc, var(--line-2)); background: var(--panel-2); }
+.cx-c b { font-family: var(--f-ui); font-weight: 500; font-size: 1rem; }
+.cx-c small { display: block; color: var(--muted); font-size: 0.76rem; margin-top: 0.1rem; }
+.cx-c p { margin: 0.25rem 0 0; font-size: 0.86rem; color: var(--ink-2); }
+.cx-f { flex: none; width: 3.4rem; height: 4.6rem; border-radius: 4px; background: radial-gradient(ellipse at 50% 35%, rgba(236, 228, 204, 0.12), transparent 70%), rgba(0, 0, 0, 0.3); }
+.cx-i { flex: none; width: 2.6rem; height: 2.6rem; display: grid; place-items: center; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #a9c3dc; }
+.stats h3 { margin: 0.2rem 0 0.35rem; font-family: var(--f-ui); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.st-g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; margin-bottom: 0.4rem; }
+.st-t { display: flex; flex-direction: column; padding: 0.45rem 0.55rem; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel-2); }
+.st-t b { font-family: var(--f-ui); font-weight: 600; font-size: 1.3rem; color: var(--amber); font-variant-numeric: tabular-nums; }
+.st-t span { font-size: 0.78rem; color: var(--muted); }
+@media (max-height: 430px) {
+  .logo { font-size: clamp(2.6rem, 14vh, 4.2rem); }
+  .menu-in { gap: 0.55rem; }
+  .mt { min-height: 3.2rem; }
+}
 </style>
 </head>
 <body>
 <div id="app">
   <canvas id="cv"></canvas>
+  <canvas id="wx" aria-hidden="true"></canvas>
   <section id="scr-menu" class="screen" hidden></section>
   <section id="scr-base" class="screen" hidden></section>
   <section id="scr-world" class="screen" hidden></section>
@@ -836,6 +897,11 @@ const ICONS = {
   search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>',
   door: '<path d="M6 21V3.5h12V21M3.5 21h17"/><path d="M14.5 12.5h.01"/>',
   walk: '<path d="M8 21c-1.7 0-2.3-1.6-2.3-3.2S6.8 11 9 11s2.3 2.7 2.3 4.3S9.7 21 8 21zM16 14c-1.7 0-2.3-1.6-2.3-3.2S14.8 4 17 4s2.3 2.7 2.3 4.3S17.7 14 16 14z"/>',
+  cloud: '<path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.4 4.4 0 0 0 7 18z"/>',
+  rain: '<path d="M7 14h10.5a3.6 3.6 0 0 0 .5-7.15A5.5 5.5 0 0 0 7.4 5.9 4 4 0 0 0 7 14z"/><path d="M8.5 17l-1 3M12.5 17l-1 3M16.5 17l-1 3"/>',
+  fog: '<path d="M4 9h12M7 13h13M4 17h10M17 17h3"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M3 20h18"/>',
+  book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 21H20"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   moon: '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
   dusk: '<path d="M3 18h18M6 14a6 6 0 0 1 12 0M12 4.5v2.5M4.5 9l1.8 1.3M19.5 9l-1.8 1.3"/>',
@@ -878,7 +944,40 @@ const Sfx = {
       this.build(new AC());
       document.addEventListener('visibilitychange', () => { if (!this.ctx) return; if (document.hidden) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {}); });
       Music.kick();
+      if (this.ambKind) { const k = this.ambKind; this.ambKind = null; this.ambient(k); }
     } catch (e) { this.ctx = null; }
+  },
+  // Фон погоды: шум дождя или ветер в тумане
+  ambient(kind) {
+    if (!this.ctx) { this.ambKind = kind; return; }
+    const c = this.ctx, t = c.currentTime;
+    if (this.amb) {
+      const a = this.amb; this.amb = null;
+      a.g.gain.setTargetAtTime(0, t, 0.5);
+      setTimeout(() => { try { a.s.stop(); if (a.lfo) a.lfo.stop(); } catch (e) { /* уже остановлен */ } }, 2500);
+    }
+    if (!kind) return;
+    const s = c.createBufferSource(); s.buffer = this.nb; s.loop = true;
+    const f = c.createBiquadFilter(), g = c.createGain();
+    let lfo = null;
+    if (kind === 'rain') { f.type = 'bandpass'; f.frequency.value = 2600; f.Q.value = 0.45; }
+    else {
+      f.type = 'lowpass'; f.frequency.value = 420; f.Q.value = 2;
+      lfo = c.createOscillator(); lfo.frequency.value = 0.11;
+      const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(g.gain); lfo.start();
+    }
+    g.gain.value = 0; g.gain.setTargetAtTime(kind === 'rain' ? 0.075 : 0.045, t, 1.2);
+    s.connect(f); f.connect(g); g.connect(this.master);
+    s.start(t, Math.random());
+    this.amb = { s, g, lfo, kind };
+  },
+  thunder() {
+    if (!CFG.sound || !this.ctx) return;
+    const t = this.ctx.currentTime + 0.02, dist = 0.4 + Math.random() * 0.6;
+    const to = this.out({ vol: 0.55 * dist, pan: Math.random() * 1.2 - 0.6, rev: 0.7 });
+    this.noise(t, 0.35, { type: 'highpass', f0: 900, g: 0.25 * dist, a: 0.005, to });
+    this.noise(t + 0.05, 3.2, { type: 'lowpass', f0: 420, f1: 50, q: 0.9, g: 0.8, a: 0.12, to });
+    this.noise(t + 0.6, 2.2, { type: 'lowpass', f0: 260, f1: 40, g: 0.5, a: 0.3, to });
   },
   build(c) {
     this.ctx = c;
@@ -1109,6 +1208,191 @@ const Music = {
     o.connect(bp); bp.connect(gg); gg.connect(to); o.start(t); o.stop(t + dur + 0.05);
   },
 };
+</script>
+<script>
+'use strict';
+// ---------- Погода: дождь, туман, пасмурно — что она меняет в бою и как выглядит ----------
+// Осадки рисуются на отдельном холсте поверх карты, чтобы не перерисовывать мир каждый кадр.
+
+const WEATHER = {
+  clear: { name: 'Ясно', icon: 'sun', noise: 1, sight: 0, acc: 0, desc: 'Видно далеко — и слышно далеко.' },
+  overcast: { name: 'Пасмурно', icon: 'cloud', noise: 1, sight: 0, acc: 0, desc: 'Серое небо. Ничего особенного.' },
+  rain: { name: 'Дождь', icon: 'rain', noise: 0.7, sight: 1, acc: 0.05, desc: 'Дождь глушит шаги и выстрелы: их слышно на треть ближе. Обзор −1, стрелять чуть труднее.' },
+  fog: { name: 'Туман', icon: 'fog', noise: 1, sight: 3, acc: 0.1, desc: 'Обзор −3 — и у вас, и у них. Можно подкрасться вплотную, но стрелять труднее.' },
+};
+function rollWeather() { const v = rnd(); return v < 0.46 ? 'clear' : v < 0.66 ? 'overcast' : v < 0.87 ? 'rain' : 'fog'; }
+function wxOf(m) { return WEATHER[(m && m.weather) || 'clear']; }
+
+const WX = {
+  cv: null, c: null, kind: null, raf: 0, last: 0, W: 0, H: 0, dpr: 1, blob: null, bolt: 0, nextBolt: 0,
+  init() {
+    this.cv = document.getElementById('wx');
+    if (!this.cv) return;
+    this.c = this.cv.getContext('2d');
+    // мягкое облако для тумана
+    const b = document.createElement('canvas'); b.width = b.height = 256;
+    const g = b.getContext('2d'), gr = g.createRadialGradient(128, 128, 10, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(170,172,168,0.55)'); gr.addColorStop(0.6, 'rgba(160,162,158,0.22)'); gr.addColorStop(1, 'rgba(160,162,158,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    this.blob = b;
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && this.kind) this.loop(); });
+  },
+  set(kind) {
+    if (kind === 'clear' || kind === 'overcast') kind = kind === 'overcast' ? 'overcast' : null;
+    if (kind === this.kind) return;
+    this.kind = kind;
+    Sfx.ambient(kind === 'rain' ? 'rain' : kind === 'fog' ? 'wind' : null);
+    this.nextBolt = performance.now() + 15000 + Math.random() * 20000;
+    if (!this.cv) return;
+    if (!kind) { this.clear(); return; }
+    this.loop();
+  },
+  clear() { if (this.c) { this.c.setTransform(1, 0, 0, 1, 0, 0); this.c.clearRect(0, 0, this.cv.width, this.cv.height); } cancelAnimationFrame(this.raf); this.raf = 0; },
+  resize() {
+    const W = this.cv.clientWidth || 1, H = this.cv.clientHeight || 1, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (W !== this.W || H !== this.H || dpr !== this.dpr) { this.W = W; this.H = H; this.dpr = dpr; this.cv.width = Math.round(W * dpr); this.cv.height = Math.round(H * dpr); }
+  },
+  loop() {
+    if (this.raf || !this.kind) return;
+    const step = now => {
+      this.raf = 0;
+      if (!this.kind || document.hidden) return;
+      this.raf = requestAnimationFrame(step);
+      if (now - this.last < 33) return;   // 30 кадров хватает
+      this.last = now;
+      try { this.frame(now); } catch (e) { console.error(e); this.kind = null; this.clear(); }
+    };
+    this.raf = requestAnimationFrame(step);
+  },
+  frame(now) {
+    this.resize();
+    const c = this.c, W = this.W, H = this.H, t = now / 1000, gfx = CFG.gfx ?? 2, calm = reducedMotion;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.cv.width, this.cv.height);
+    c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const k = this.kind, inTac = R.mode === 'tac' && TAC.m;
+    if (k === 'overcast') { c.fillStyle = 'rgba(40,48,58,0.12)'; c.fillRect(0, 0, W, H); this.raf && cancelAnimationFrame(this.raf); this.raf = 0; return; }
+    if (k === 'rain') {
+      c.fillStyle = 'rgba(22,32,46,0.16)'; c.fillRect(0, 0, W, H);
+      if (calm) return;
+      const n = Math.round((W * H) / [15000, 8000, 5200][gfx]);
+      c.strokeStyle = 'rgba(190,206,226,0.34)'; c.lineWidth = 1;
+      c.beginPath();
+      for (let i = 0; i < n; i++) {
+        const h1 = hash2(i, 1, 7), h2 = hash2(i, 2, 7), h3 = hash2(i, 3, 7);
+        const sp = 1.1 + h1 * 0.6, y = (((h2 + t * sp) % 1) * 1.15 - 0.08) * H, len = 9 + h1 * 15;
+        const x = ((h3 * 1.3 + y / H * 0.18) % 1) * W;
+        c.moveTo(x, y); c.lineTo(x - len * 0.2, y - len);
+      }
+      c.stroke();
+      // брызги на земле
+      const ns = Math.round(n / 3);
+      c.strokeStyle = 'rgba(200,214,230,0.4)';
+      for (let i = 0; i < ns; i++) {
+        const ph = t / 0.55 + hash2(i, 4, 7), cyc = Math.floor(ph), p = ph - cyc;
+        const x = hash2(i, cyc, 11) * W, y = (0.12 + hash2(i, cyc, 13) * 0.88) * H, r = 1 + p * 5;
+        c.globalAlpha = (1 - p) * 0.8;
+        c.beginPath(); c.ellipse(x, y, r, r * 0.42, 0, 0, Math.PI * 2); c.stroke();
+      }
+      c.globalAlpha = 1;
+      // молния вдалеке
+      if (now > this.nextBolt) { this.bolt = now; this.nextBolt = now + 18000 + Math.random() * 30000; setTimeout(() => Sfx.thunder(), 500 + Math.random() * 1500); }
+      const bp = (now - this.bolt) / 380;
+      if (bp >= 0 && bp < 1) { c.fillStyle = `rgba(210,220,255,${(bp < 0.15 || (bp > 0.3 && bp < 0.4) ? 0.32 : 0.08) * (1 - bp)})`; c.fillRect(0, 0, W, H); }
+      return;
+    }
+    if (k === 'fog') {
+      // серая пелена, а вокруг бойцов — то, что они видят
+      c.fillStyle = 'rgba(150,153,150,0.42)'; c.fillRect(0, 0, W, H);
+      if (inTac) {
+        const m = TAC.m, kk = R.cam.k, rad = (sightR(m) + 0.8) * kk * 0.85;
+        c.globalCompositeOperation = 'destination-out';
+        for (const u of liveUnits(m)) {
+          const [px, py] = animPos(u, now), [sx, sy] = R.proj(px + 0.5, py + 0.5, 0.4);
+          c.save(); c.translate(sx, sy); c.scale(1, VX.sE);
+          const g = c.createRadialGradient(0, 0, rad * 0.2, 0, 0, rad);
+          g.addColorStop(0, 'rgba(0,0,0,0.92)'); g.addColorStop(0.6, 'rgba(0,0,0,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+          c.fillStyle = g; c.beginPath(); c.arc(0, 0, rad, 0, Math.PI * 2); c.fill();
+          c.restore();
+        }
+        c.globalCompositeOperation = 'source-over';
+      }
+      if (!calm) for (let i = 0; i < 6; i++) {
+        const s = Math.max(W, H) * (0.45 + hash2(i, 5, 3) * 0.35), x = (((hash2(i, 6, 3) + t * (0.006 + hash2(i, 7, 3) * 0.008)) % 1.4) - 0.2) * W, y = hash2(i, 8, 3) * H;
+        c.globalAlpha = 0.5; c.drawImage(this.blob, x - s / 2, y - s / 3, s, s * 0.66);
+      }
+      c.globalAlpha = 1;
+    }
+  },
+};
+</script>
+<script>
+'use strict';
+// ---------- Оружие: находки на вылазках и арсенал базы ----------
+
+const MELEE_W = ['knife', 'bat', 'crowbar', 'axe'];
+const RANGED_W = ['pistol', 'shotgun', 'rifle'];
+const WKG = { knife: 0.3, bat: 1, crowbar: 1.5, axe: 2, pistol: 1, shotgun: 3, rifle: 3.5 };   // вес в рюкзаке
+const WSCRAP = { knife: 0, bat: 1, crowbar: 1, axe: 2, pistol: 3, shotgun: 4, rifle: 5 };      // деталей при разборке
+// Где что лежит: [шанс, что может найтись]
+const WFIND = {
+  gun: [0.45, ['shotgun', 'rifle', 'pistol', 'shotgun']],
+  armory: [0.6, ['rifle', 'pistol', 'shotgun', 'rifle']],
+  evidence: [0.35, ['pistol', 'pistol', 'shotgun']],
+  ration: [0.1, ['rifle', 'pistol']],
+  locker: [0.05, ['pistol', 'crowbar', 'bat']],
+  toolbox: [0.1, ['axe', 'crowbar']],
+  trunk: [0.06, ['bat', 'crowbar', 'pistol']],
+  crate: [0.02, ['crowbar', 'axe']],
+};
+// Что можно снять с убитого
+const WDROP = { collector: [0.15, 'bat'], collector_gun: [0.3, 'pistol'], raider: [0.15, 'crowbar'], raider_gun: [0.3, 'shotgun'], soldier: [0.4, 'rifle'] };
+
+function seedWeapons(m, mul = 1) {
+  for (const k in m.cont) {
+    const c = m.cont[k], f = WFIND[c.k];
+    if (f && rnd() < f[0] * mul) c.wpn = pick(f[1]);
+  }
+}
+const contEmpty = c => !c.wpn && !Object.keys(c.loot).length;
+function gearW(u) { let w = 0; for (const x of u.found || []) w += WKG[x]; return w; }
+function takeWeapon(u, c) {
+  if (!c.wpn) return false;
+  if (carried(u) + WKG[c.wpn] > u.cap + 1e-6) return false;
+  u.found = u.found || [];
+  u.found.push(c.wpn);
+  delete c.wpn;
+  return true;
+}
+const wName = w => WEAP[w].name;
+function wList(ws) {
+  const cnt = {};
+  for (const w of ws) cnt[w] = (cnt[w] || 0) + 1;
+  return Object.keys(cnt).map(w => wName(w).toLowerCase() + (cnt[w] > 1 ? ` ×${cnt[w]}` : '')).join(', ');
+}
+
+// ----- арсенал базы -----
+function ensureArsenal() { S.arsenal = S.arsenal || {}; }
+function stash(w) { if (!w || w === 'knife') return; ensureArsenal(); S.arsenal[w] = (S.arsenal[w] || 0) + 1; }
+function unstash(w) { if (!w || w === 'knife') return true; ensureArsenal(); if (!S.arsenal[w]) return false; S.arsenal[w]--; if (!S.arsenal[w]) delete S.arsenal[w]; return true; }
+// Сменить оружие выжившему: старое уходит в арсенал
+function equip(sid, slot, w) {
+  const s = S.survivors.find(o => o.id === sid);
+  if (!s) return false;
+  const cur = slot === 'melee' ? s.melee : s.ranged;
+  if ((w || null) === (cur || null)) return false;
+  if (w && !unstash(w)) return false;
+  stash(cur);
+  if (slot === 'melee') s.melee = w || 'knife'; else s.ranged = w || null;
+  return true;
+}
+function scrapWeapon(w) {
+  if (!unstash(w)) return 0;
+  const n = WSCRAP[w] + (S.survivors.some(s => s.trait === 'mechanic') ? 1 : 0);
+  S.res.parts += n;
+  return n;
+}
+// Выживший погиб на базе: его оружие остаётся
+function dropGear(s) { stash(s.melee); stash(s.ranged); }
 </script>
 <script>
 'use strict';
@@ -2379,7 +2663,7 @@ const LURE_RANGE = 8;
 
 function spd(ms) { return ms * [1.6, 1, 0.5, 0][CFG.speed ?? 1]; }
 function timeOfDay(m) { return m.tod ?? (m.turn <= 14 ? 0 : m.turn <= 24 ? 1 : 2); }
-function sightR(m) { return [9, 7, 5][timeOfDay(m)]; }
+function sightR(m) { return Math.max(3, [9, 7, 5][timeOfDay(m)] - wxOf(m).sight); }
 function liveUnits(m) { return m.units.filter(u => !u.dead && !u.evac); }
 function unitAt(m, x, y) { return m.units.find(u => u.x === x && u.y === y && !u.dead && !u.evac); }
 function zombieAt(m, x, y) { return m.zombies.find(z => z.x === x && z.y === y); }
@@ -2387,7 +2671,7 @@ function curUnit() { const m = TAC.m; return m && m.units.find(u => u.id === TAC
 function zVisible(m, z) { return !!m.vis[MI(m, z.x, z.y)]; }
 function visibleZombies(m) { return m.zombies.filter(z => zVisible(m, z)); }
 function inEvac(m, u) { return m.evac.includes(MI(m, u.x, u.y)); }
-function carried(u) { let w = 0; for (const k in u.inv) w += u.inv[k] * RES[k].w; return Math.round(w * 10) / 10; }
+function carried(u) { let w = gearW(u); for (const k in u.inv) w += u.inv[k] * RES[k].w; return Math.round(w * 10) / 10; }
 function walkT(m, x, y) { if (!inb(m, x, y)) return false; const t = m.tiles[MI(m, x, y)]; return TP[t].walk && t !== T.DOOR; }
 // Соседство с учётом углов стен
 function adjOK(m, ax, ay, bx, by) {
@@ -2545,6 +2829,7 @@ function buildOcc(m) {
 // ----- Шум -----
 function noise(m, x, y, r) {
   if (r <= 0) return;
+  r = Math.max(1, Math.round(r * wxOf(m).noise));
   FX.ring(x, y, r);
   m.tp += r / 5;
   if (r >= 4) m.lastNoise = { x, y, turn: m.turn };
@@ -2569,7 +2854,7 @@ function perceive(m, z) {
   let best = null, bd = 1e9;
   for (const u of liveUnits(m)) {
     const d = edist(z.x, z.y, u.x, u.y);
-    let sr = t.sight - tod;
+    let sr = t.sight - tod - wxOf(m).sight;
     if (u.trait === 'quiet') sr -= 2;
     if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 2.5);
     if ((d <= 1.5 || (d <= sr && los(m, z, u))) && d < bd) { bd = d; best = u; }
@@ -2577,7 +2862,7 @@ function perceive(m, z) {
   for (const h of m.zombies) {
     if (!isHuman(h) || isFlock(h) || h.hp <= 0) continue;
     const d = edist(z.x, z.y, h.x, h.y);
-    if (d + 0.5 < bd && (d <= 1.5 || (d <= t.sight - tod && los(m, z, h)))) { bd = d + 0.5; best = h; }
+    if (d + 0.5 < bd && (d <= 1.5 || (d <= t.sight - tod - wxOf(m).sight && los(m, z, h)))) { bd = d + 0.5; best = h; }
   }
   if (best) {
     const was = z.state;
@@ -2862,6 +3147,7 @@ function shotChance(m, u, z, reaction) {
   let p = w.acc + u.accB - Math.max(0, d - w.opt) * w.fall;
   if (TP[m.tiles[MI(m, z.x, z.y)]].hide) p -= 0.15;
   if (isHuman(z)) p -= coverOf(m, u.x, u.y, z);
+  p -= wxOf(m).acc;
   if (reaction) p -= 0.1;
   return clamp(p, 0.05, 0.95);
 }
@@ -3066,6 +3352,8 @@ function startMission(loc, ids, opts = {}) {
   Object.assign(m, { loc: siege ? 'base' : loc, turn: 1, threat: 0, tp: 0, lastWave: 1, lastNoise: null, phase: 'player', units: [], zombies: [], uid: 1, zid: 1, kills: 0, hkills: {} });
   m.seen = new Uint8Array(m.n); m.vis = new Uint8Array(m.n);
   if (!siege) S.res.fuel -= L.fuel;
+  m.weather = rollWeather();
+  if (!siege) seedWeapons(m, Math.max(0.35, 1 - visits * 0.22));
   for (const c of m.captives || []) m.tiles[MI(m, c.x, c.y)] = T.BLOCK;
   const squad = ids.map(id => S.survivors.find(s => s.id === id)).filter(Boolean);
   const spots = siege ? m.idle.map(([x, y]) => MI(m, x, y)).filter(i => TP[m.tiles[i]].walk) :
@@ -3199,7 +3487,7 @@ function finishMission() {
   const m = TAC.m;
   if (!m || m.done) return;
   m.done = true;
-  const rep = { loc: m.loc, got: {}, lines: [], kills: m.kills, turns: m.turn, siege: m.siege || null, hkills: m.hkills || {} };
+  const rep = { loc: m.loc, got: {}, wpn: [], lines: [], kills: m.kills, turns: m.turn, siege: m.siege || null, hkills: m.hkills || {} };
   for (const u of m.units) {
     const s = S.survivors.find(o => o.id === u.sid);
     if (!s) continue;
@@ -3211,11 +3499,12 @@ function finishMission() {
     }
     s.hp = Math.max(1, u.hp);
     s.kills = (s.kills || 0) + u.kills;
-    if (s.freed) { delete s.freed; rep.lines.push({ t: `${s.name} — бывший пленник — теперь в группе.`, c: 'good' }); }
+    if (s.freed) { delete s.freed; rep.rescued = (rep.rescued || 0) + 1; rep.lines.push({ t: `${s.name} — бывший пленник — теперь в группе.`, c: 'good' }); }
     const lvl = Math.min(5, 1 + Math.floor(s.kills / 5));
     if (lvl > (s.level || 1)) { s.level = lvl; s.maxhp += 2; s.hp += 2; rep.lines.push({ t: `${u.name}: опыт растёт, уровень ${lvl}.`, c: 'good' }); }
     if (u.bitten && !s.infected) { s.infected = 3; rep.lines.push({ t: `${u.name} ${gv(u, 'укушен', 'укушена')}. До обращения 3 дня.`, c: 'bad' }); }
     for (const k in u.inv) rep.got[k] = (rep.got[k] || 0) + u.inv[k];
+    for (const w of u.found || []) { stash(w); rep.wpn.push(w); }
     if (u.ammo) rep.got.ammo = (rep.got.ammo || 0) + u.ammo;
   }
   for (const k in rep.got) S.res[k] = (S.res[k] || 0) + rep.got[k];
@@ -3234,6 +3523,7 @@ function finishMission() {
     revealAfterMission(m, rep.lines);
   } else for (const f in m.hkills) factionHit(f, m.hkills[f]);
   S.mission = null;
+  try { statMission(rep, m); } catch (e) { console.error(e); }
   TAC.m = null; TAC.reach = null;
   Game.afterMission(rep);
 }
@@ -3300,11 +3590,25 @@ function coverOf(m, sx, sy, t) {
     const x = t.x + ax, y = t.y + ay;
     if (!inb(m, x, y)) continue;
     const tt = m.tiles[MI(m, x, y)], tp = TP[tt];
-    if (tt === T.SANDBAG || tt === T.BLOCK || tt === T.BLOCKH || tt === T.WALL || tt === T.BRICK || tt === T.WWALL || tp.furn) return tt === T.SANDBAG || tp.wall ? 0.35 : 0.25;
+    if (tt === T.SANDBAG || tt === T.BLOCK || tt === T.BLOCKH || tt === T.WALL || tt === T.BRICK || tt === T.WWALL || tp.furn || tt === T.HAY) return tt === T.SANDBAG || tt === T.BLOCKH || tp.wall ? 0.35 : 0.25;
     if (tt === T.FENCE && m.meta[MI(m, x, y)] !== 1) return 0.15;
   }
   return 0;
 }
+
+// Укрытия вокруг клетки для подсказки игроку: [dx, dy, 2 — полное, 1 — частичное]
+function coverDirs(m, x, y) {
+  const out = [];
+  for (const [dx, dy] of DIR4) {
+    const nx = x + dx, ny = y + dy;
+    if (!inb(m, nx, ny)) continue;
+    const i = MI(m, nx, ny), t = m.tiles[i], tp = TP[t];
+    const lv = tp.wall || t === T.SANDBAG || t === T.BLOCKH ? 2 : tp.furn || t === T.BLOCK || t === T.HAY || (t === T.FENCE && m.meta[i] !== 1) ? 1 : 0;
+    if (lv) out.push([dx, dy, lv]);
+  }
+  return out;
+}
+const coverWord = cd => !cd.length ? '' : cd.some(c => c[2] === 2) ? 'полное укрытие' : 'частичное укрытие';
 
 // ----- восприятие -----
 function perceiveH(m, h) {
@@ -3312,7 +3616,7 @@ function perceiveH(m, h) {
   let best = null, bs = 1e9;
   for (const u of liveUnits(m)) {
     const d = edist(h.x, h.y, u.x, u.y);
-    let sr = t.sight - tod;
+    let sr = t.sight - tod - wxOf(m).sight;
     if (u.trait === 'quiet') sr -= 2;
     if (TP[m.tiles[MI(m, u.x, u.y)]].hide) sr = Math.min(sr, 3.5);
     if ((d <= 1.5 || (d <= sr && los(m, h, u))) && d < bs) { bs = d; best = u; }
@@ -3365,7 +3669,7 @@ async function hShoot(m, h, tg, w) {
   noise(m, h.x, h.y, w.noise);
   await sleep(show ? spd(140) : 0);
   const t = ZT[h.type], d0 = edist(h.x, h.y, tg.x, tg.y);
-  let p = t.acc - Math.max(0, d0 - w.opt) * w.fall - coverOf(m, h.x, h.y, tg);
+  let p = t.acc - Math.max(0, d0 - w.opt) * w.fall - coverOf(m, h.x, h.y, tg) - wxOf(m).acc;
   if (TP[m.tiles[MI(m, tg.x, tg.y)]].hide) p -= 0.15;
   if (rnd() < clamp(p, 0.08, 0.9)) {
     let d = Math.max(1, Math.round(rint(w.dmg[0], w.dmg[1]) * 0.7));
@@ -3557,10 +3861,11 @@ function dropBody(m, z) {
   if (chance(0.3)) loot.water = 1;
   if (chance(0.22)) loot.meds = 1;
   if (t.fac === 'garrison' && chance(0.5)) loot.ammo = (loot.ammo || 0) + rint(3, 8);
-  if (!Object.keys(loot).length) return;
+  const wd = WDROP[z.type], wpn = wd && chance(wd[0]) ? wd[1] : null;
+  if (!Object.keys(loot).length && !wpn) return;
   const ct = m.cont[i];
-  if (ct) { for (const k in loot) ct.loot[k] = (ct.loot[k] || 0) + loot[k]; ct.s = 1; }
-  else m.cont[i] = { k: 'body', loot, s: 1 };
+  if (ct) { for (const k in loot) ct.loot[k] = (ct.loot[k] || 0) + loot[k]; ct.s = 1; if (wpn && !ct.wpn) ct.wpn = wpn; }
+  else m.cont[i] = { k: 'body', loot, s: 1, wpn: wpn || undefined };
 }
 
 // ----- перед вылазкой: кто будет на карте -----
@@ -3959,6 +4264,8 @@ const R = {
     if (CFG.hq && this.cam.k >= 14 && now - this.lastIdle > (this.fireVis ? 100 : 320)) { this.lastIdle = now; this.dirty = true; }
     const active = this.moving.size || FX.list.length || FX.parts.length || this.camAnim || this.shakeA > 0 || this.until > now;
     if (!this.dirty && !active) return;
+    if (this.mode === 'menu' && !this.dirty && now - (this.lastDraw || 0) < 40) return;   // фон меню — 25 кадров
+    this.lastDraw = now;
     this.dirty = false;
     GroundTex.budget = 7;
     try { this.draw(now); } catch (e) { console.error(e); }
@@ -3995,7 +4302,9 @@ const R = {
       g.addColorStop(0, 'rgba(11,10,8,0.55)'); g.addColorStop(0.18, 'rgba(11,10,8,0)'); g.addColorStop(0.82, 'rgba(11,10,8,0)'); g.addColorStop(1, 'rgba(11,10,8,0.6)');
       c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
     } else if (this.mode === 'menu' && this.menu) {
-      drawIso(c, this.menu.m, this.menu.cam, this.W, this.H, now, true);
+      const M = this.menu, t = (now - M.t0) / 1000;
+      if (M.base && !reducedMotion) { M.cam.cx = M.base.cx + Math.sin(t * 0.045) * 4; M.cam.cy = M.base.cy + Math.sin(t * 0.031 + 1) * 3; this.until = Math.max(this.until, now + 200); }
+      drawIso(c, M.m, M.cam, this.W, this.H, now, true, [0, 0], M.ents);
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       const g = c.createLinearGradient(0, 0, this.W, 0);
       g.addColorStop(0, 'rgba(11,10,8,0.95)'); g.addColorStop(0.5, 'rgba(11,10,8,0.66)'); g.addColorStop(1, 'rgba(11,10,8,0.25)');
@@ -4004,11 +4313,7 @@ const R = {
     }
   },
   setMenuMap() {
-    const { m } = genMap('suburb', 4242);
-    m.seen = new Uint8Array(m.n).fill(1); m.vis = new Uint8Array(m.n).fill(1);
-    m.units = []; m.zombies = []; m.turn = 1;
-    const b = m.buildings[Math.min(2, m.buildings.length - 1)] || { x: 30, y: 30, w: 4, h: 4 };
-    this.menu = { m, cam: { cx: b.x + b.w * 0.2, cy: b.y + b.h * 0.6, k: clamp(this.H / 9, 30, 70), rot: 1 } };
+    MenuScene.build();
     this.dirty = true;
   },
 };
@@ -5247,7 +5552,7 @@ function drawTileObj(c, m, x, y, i, lod, cut) {
   const t = m.tiles[i];
   if (TP[t].wall) return drawWallIso(c, m, x, y, t, lod, cut);
   if (isDoorT(t)) return drawDoorIso(c, m, x, y, t, i, cut);
-  const ct = m.cont[i], loot = ct && Object.keys(ct.loot).length > 0;
+  const ct = m.cont[i], loot = ct && !contEmpty(ct);
   const B = (a, b, cc, d, z0, z1, col, det, top) => pBox(c, x + a, y + b, x + cc, y + d, z0, z1, col, det, top);
   switch (t) {
     case T.FENCE: return drawFenceIso(c, m, x, y, i);
@@ -5629,6 +5934,48 @@ function drawPrims(c, list) {
   }
 }
 
+// Затенение у основания стен и высокой мебели: биты N=1, S=2, W=4, E=8
+const AOM = new WeakMap();
+const aoSrc = t => TP[t].wall || t === T.BLOCKH || t === T.SHELF || t === T.LOCKER || t === T.FRIDGE || t === T.TREE;
+function aoMask(m) {
+  let a = AOM.get(m);
+  if (a) return a;
+  a = new Uint8Array(m.n);
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+    const i = y * m.w + x, t = m.tiles[i];
+    if (TP[t].wall || t === T.BLOCKH) continue;
+    let b = 0;
+    if (y > 0 && aoSrc(m.tiles[i - m.w])) b |= 1;
+    if (y < m.h - 1 && aoSrc(m.tiles[i + m.w])) b |= 2;
+    if (x > 0 && aoSrc(m.tiles[i - 1])) b |= 4;
+    if (x < m.w - 1 && aoSrc(m.tiles[i + 1])) b |= 8;
+    a[i] = b;
+  }
+  AOM.set(m, a);
+  return a;
+}
+function drawAO(c, b, X, Y, k) {
+  for (const [bit, f] of [[1, (d) => c.fillRect(X, Y, k, d)], [2, (d) => c.fillRect(X, Y + k - d, k, d)], [4, (d) => c.fillRect(X, Y, d, k)], [8, (d) => c.fillRect(X + k - d, Y, d, k)]]) {
+    if (!(b & bit)) continue;
+    c.fillStyle = 'rgba(0,0,0,0.16)'; f(k * 0.3);
+    c.fillStyle = 'rgba(0,0,0,0.14)'; f(k * 0.14);
+  }
+}
+// Пучки травы: тонкие стебли из земли, по рядам вместе с фигурами
+function drawTuft(c, x, y, i) {
+  const n = 5, hv = hash2(x, y, 41);
+  const bx = x + 0.2 + hash2(x, y, 42) * 0.6, by = y + 0.2 + hash2(x, y, 43) * 0.6, H0 = 0.13 + hv * 0.12;
+  P(bx, by, 0); const ox = PX, oy = PY, s = CB.k;
+  c.strokeStyle = sh(hv > 0.5 ? '#6f8a44' : '#58703a', 1); c.lineWidth = Math.max(1, s * 0.022);
+  c.beginPath();
+  for (let j = 0; j < n; j++) {
+    const a = (j / (n - 1) - 0.5) * 1.1 + (hash2(i, j, 44) - 0.5) * 0.3, h = H0 * (0.7 + hash2(i, j, 45) * 0.5) * s * CB.cE;
+    c.moveTo(ox + (j - n / 2) * s * 0.02, oy);
+    c.quadraticCurveTo(ox + Math.sin(a) * h * 0.3, oy - h * 0.6, ox + Math.sin(a) * h * 0.75, oy - h);
+  }
+  c.stroke();
+}
+
 // ----- кадр целиком -----
 const LAYERS = { sc: null, lc: null, vg: null, vgKey: '' };
 function layer(name, W, H, dpr) {
@@ -5659,11 +6006,15 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
   const e = CB.ox - k * (CB.cx * CB.rx + CB.cy * CB.ry), f = CB.oy + k * CB.sE * (CB.cx * CB.fx + CB.cy * CB.fy);
   const groundT = () => c.setTransform(dpr * CB.rx, -dpr * CB.fx * CB.sE, dpr * CB.ry, -dpr * CB.fy * CB.sE, dpr * e, dpr * f);
   groundT();
+  const ao = aoMask(m);
   for (const i of tiles) {
     if (!seen(i)) continue;
     const x = i % m.w, y = (i / m.w) | 0;
     if (lod === 0) { const t = m.tiles[i]; c.fillStyle = MAPCSS[TP[t].floor ? m.ground[i] : t]; c.fillRect(x * k - 0.6, y * k - 0.6, k + 1.2, k + 1.2); }
-    else drawGround(c, m, m.ground[i], x, y, i, x * k, y * k, k, k, lod);
+    else {
+      drawGround(c, m, m.ground[i], x, y, i, x * k, y * k, k, k, lod);
+      if (gfx >= 1 && ao[i]) drawAO(c, ao[i], x * k, y * k, k);
+    }
   }
   for (const d of m.decals) {
     if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1 || !seen(MI(m, d.x, d.y))) continue;
@@ -5691,7 +6042,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     }
     for (const cp of m.captives || []) if (!cp.freed && m.seen[MI(m, cp.x, cp.y)]) bucket(Math.round(nearKey(cp.x, cp.y)), { e: cp, z: false, cap: true, px: cp.x, py: cp.y });
   } else if (extra) {
-    for (const it of extra) { const [px, py] = animPos(it.e, now); bucket(Math.round(nearKey(px, py)), { e: it.e, z: false, base: true, px, py }); }
+    for (const it of extra) { const [px, py] = animPos(it.e, now); bucket(Math.round(nearKey(px, py)), { e: it.e, z: !!it.z, base: true, px, py }); }
   }
   if (!all || extra) {
     for (const list of rows.values()) for (const it of list) {
@@ -5767,7 +6118,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
       const t = m.tiles[i], x = i % m.w, y = (i / m.w) | 0;
       DIM = vis(i) ? 1 : 0.45;
       const ct = m.cont[i];
-      if (ct && ct.s && !Object.keys(ct.loot).length) DIM *= 0.72;
+      if (ct && ct.s && contEmpty(ct)) DIM *= 0.72;
       if (lod === 0) continue;
       if (pSl.has(i)) drawPrims(c, pSl.get(i));
       if (isFlatT(t) && !ct) continue;
@@ -5803,6 +6154,11 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     }
     if (lod > 0) for (const i of list) {
       const t = m.tiles[i];
+      if (lod === 2 && gfx >= 2 && t === T.GRASS && !occ.has(i)) {
+        const x = i % m.w, y = (i / m.w) | 0;
+        if (hash2(x, y, 40) < 0.22) { DIM = vis(i) ? 1 : 0.45; drawTuft(c, x, y, i); }
+        continue;
+      }
       if (t !== T.CROP && t !== T.BUSH) continue;
       DIM = vis(i) ? 1 : 0.45;
       const x = i % m.w, y = (i / m.w) | 0;
@@ -5811,8 +6167,13 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     }
     DIM = 1;
   }
-  // E. свет: сумерки и ночь — темнота с пятнами фонарей
-  if (!all) lightLayer(c, m, now, W, H, dpr, gfx);
+  // E. свет: сумерки и ночь — темнота с пятнами фонарей; днём — тёплый свет с одной стороны
+  if (!all || m.tod) lightLayer(c, m, now, W, H, dpr, gfx);
+  if (gfx >= 1 && !(m.tod ?? timeOfDay(m))) {
+    const g = c.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, 'rgba(255,214,150,0.07)'); g.addColorStop(0.55, 'rgba(255,214,150,0)'); g.addColorStop(1, 'rgba(30,50,80,0.1)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
   // F. виньетка
   if (gfx >= 2) {
     const vg = layer('vg', W, H, dpr), key = vg.width + 'x' + vg.height;
@@ -5829,7 +6190,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     const i = +kk, x = i % m.w, y = (i / m.w) | 0;
     if (x < x0 || x > x1 || y < y0 || y > y1 || !seen(i)) continue;
     const ct = m.cont[kk];
-    if (ct.s && !Object.keys(ct.loot).length) continue;
+    if (ct.s && contEmpty(ct)) continue;
     P(x + 0.5, y + 0.5, (OBJ_H[m.tiles[i]] ?? 0.8) + 0.32);
     if (PX < -20 || PX > W + 20 || PY < -20 || PY > H + 20) continue;
     const s = Math.max(3.5, k * 0.12);
@@ -5845,6 +6206,23 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     c.fillStyle = '#a0c86e'; c.fillText('ВЫХОД', PX, PY);
   }
   if (all) return;
+  // щиты укрытия у клетки, куда собирается идти боец
+  if (pd && pd.path && pd.path.length && curUnit()) {
+    const last = pd.path[pd.path.length - 1], lx = last % m.w, ly = (last / m.w) | 0;
+    for (const [dx, dy, lv] of coverDirs(m, lx, ly)) {
+      P(lx + 0.5 + dx * 0.4, ly + 0.5 + dy * 0.4, 0.62);
+      const w = Math.max(9, k * 0.24), h = w * 1.2, x = PX, y = PY;
+      c.beginPath();
+      c.moveTo(x - w / 2, y - h / 2); c.lineTo(x + w / 2, y - h / 2); c.lineTo(x + w / 2, y);
+      c.quadraticCurveTo(x + w / 2, y + h * 0.35, x, y + h / 2); c.quadraticCurveTo(x - w / 2, y + h * 0.35, x - w / 2, y); c.closePath();
+      c.fillStyle = 'rgba(12,22,34,0.75)'; c.fill();
+      c.lineWidth = Math.max(1.5, k * 0.03); c.strokeStyle = '#7cc3f0'; c.stroke();
+      c.save(); c.clip();
+      c.fillStyle = '#5fb3e9';
+      if (lv === 2) c.fillRect(x - w, y - h, w * 2, h * 2); else c.fillRect(x - w, y, w * 2, h);
+      c.restore();
+    }
+  }
   for (const it of ents) drawBadges(c, it, k, lod);
   drawFX(c, now, gfx);
 }
@@ -6068,7 +6446,9 @@ const HUD = {
     if (!m || !this.built) return;
     const u = curUnit(), tod = timeOfDay(m), player = m.phase === 'player' && !TAC.busy;
     $('#tTurn').innerHTML = `Ход <b>${m.turn}</b>`;
-    $('#tTod').innerHTML = `${icon(['sun', 'dusk', 'moon'][tod])}<span>${TOD_NAME[tod]}</span>`;
+    const wx = wxOf(m);
+    $('#tTod').innerHTML = `${icon(['sun', 'dusk', 'moon'][tod])}<span>${TOD_NAME[tod]}</span>${m.weather && m.weather !== 'clear' ? `<i class="wx">${icon(wx.icon)}${wx.name}</i>` : ''}`;
+    $('#tTod').title = wx.desc;
     $('#tTod').className = 'chip tod' + tod;
     const left = Math.max(1, WAVE_EVERY - (m.turn - m.lastWave));
     let pips = '';
@@ -6233,7 +6613,7 @@ const HUD = {
     if (dc && cheb(u.x, u.y, t.x, t.y) <= 1) {
       const ct0 = m.cont[i], left = dc.rise - m.turn;
       const items = [{ ic: 'melee', label: 'Добить, чтобы не встал', cost: 1, ok: u.ap >= 1, fn: () => doFinish(u, dc), note: 'удар в голову, почти тихо' }];
-      if (ct0 && Object.keys(ct0.loot).length) items.push({ ic: 'search', label: 'Обыскать тело', cost: 0, fn: () => doSearch(u, i) });
+      if (ct0 && !contEmpty(ct0)) items.push({ ic: 'search', label: 'Обыскать тело', cost: 0, fn: () => doSearch(u, i) });
       const nm = dc.k === 'ucorpse' ? dc.u.name : ZT[dc.zt].name;
       this.showPop(ax, ay, nm, left <= 1 ? 'встанет на следующем ходу' : `встанет через ${left} ${plural(left, 'ход', 'хода', 'ходов')}`, items);
       return;
@@ -6274,7 +6654,8 @@ const HUD = {
       TAC.pend = { i, path: pathTo(m, rf, i), fn: go };
       const items = [{ ic: 'walk', label: 'Идти сюда', cost, fn: go, note: 'или нажмите на клетку ещё раз' }];
       if (u.lures > 0 && edist(u.x, u.y, t.x, t.y) <= LURE_RANGE) items.push({ ic: 'lure', label: 'Бросить приманку сюда', cost: 2, ok: u.ap >= 2, fn: () => doLure(u, t.x, t.y) });
-      this.showPop(ax, ay, TP[tile].name || 'Клетка', `после хода останется ${u.ap - cost} ОД`, items);
+      const cw = coverWord(coverDirs(m, t.x, t.y));
+      this.showPop(ax, ay, TP[tile].name || 'Клетка', `после хода останется ${u.ap - cost} ОД${cw ? ' · ' + cw : ''}`, items);
       return;
     }
     if (TP[tile].walk) {
@@ -6293,7 +6674,8 @@ const HUD = {
   renderLoot() {
     const { u, i } = this.lootCtx, c = TAC.m.cont[i];
     const keys = RES_ORDER.filter(k => c.loot[k]);
-    const rows = keys.map(k => {
+    const wrow = c.wpn ? `<div class="lr wpn">${icon(RANGED_W.includes(c.wpn) ? 'target' : 'melee')}<span class="ln-n">${wName(c.wpn)}<small>в арсенал базы</small></span><b>×1</b><em>${WKG[c.wpn]} кг</em><button class="btn sm" data-k="wpn">Взять</button></div>` : '';
+    const rows = wrow + keys.map(k => {
       const n = c.loot[k], toGun = k === 'ammo' && u.ranged;
       return `<div class="lr">${icon(k)}<span class="ln-n">${RES[k].name}${toGun ? '<small>сразу в оружие</small>' : ''}</span><b>×${n}</b><em>${toGun ? '' : (RES[k].w * n).toFixed(1) + ' кг'}</em><button class="btn sm" data-k="${k}">Взять</button></div>`;
     }).join('');
@@ -6301,7 +6683,7 @@ const HUD = {
       <div class="sh-h"><div><b>${esc(CONT[c.k].name)}</b><span>${esc(u.name)} несёт ${carried(u)} из ${u.cap} кг</span></div>
         <button class="hbtn" id="lClose" aria-label="Закрыть">${icon('close')}</button></div>
       <div class="sh-b">${rows || '<p class="empty">Пусто. Кто-то был здесь раньше.</p>'}</div>
-      <div class="sh-f"><button class="btn" id="lDone">Закрыть</button>${keys.length ? '<button class="btn primary" id="lAll">Взять всё</button>' : ''}</div>`;
+      <div class="sh-f"><button class="btn" id="lDone">Закрыть</button>${keys.length || c.wpn ? '<button class="btn primary" id="lAll">Взять всё</button>' : ''}</div>`;
     $('#lClose').onclick = () => this.closeLoot();
     $('#lDone').onclick = () => this.closeLoot();
     if ($('#lAll')) $('#lAll').onclick = () => { this.take(null); };
@@ -6309,15 +6691,19 @@ const HUD = {
   },
   take(k) {
     const { u, i } = this.lootCtx, c = TAC.m.cont[i];
-    const keys = k ? [k] : RES_ORDER.filter(x => c.loot[x]);
     let any = false, full = false;
+    if ((k === 'wpn' || !k) && c.wpn) {
+      const w = c.wpn;
+      if (takeWeapon(u, c)) { any = true; this.log(`${u.name} забирает: ${wName(w).toLowerCase()}. Дома — в арсенал.`, 'good'); } else full = true;
+    }
+    const keys = k === 'wpn' ? [] : k ? [k] : RES_ORDER.filter(x => c.loot[x]);
     for (const key of keys) { const got = takeLoot(u, c, key, c.loot[key]); if (got) any = true; if (c.loot[key]) full = true; }
     if (any) Sfx.play('pickup');
     if (full) this.log(`${u.name}: больше не унести. Вес — ${carried(u)} из ${u.cap} кг.`, 'warn');
     this.renderLoot();
     this.refresh();
     R.dirty = true;
-    if (!k && !Object.keys(c.loot).length) this.closeLoot();
+    if (!k && contEmpty(c)) this.closeLoot();
   },
   closeLoot() { $('#tLootBg').hidden = true; this.lootCtx = null; R.dirty = true; },
   miniInfo: null,
@@ -6492,7 +6878,8 @@ const BASE_ZONES = [
   ['radio', 26, 4, 28, 6], ['garden', 5, 6, 13, 15], ['water', 28, 5, 34, 13], ['infirmary', 5, 18, 12, 24],
   ['workshop', 26, 16, 34, 27], ['walls', 0, 0, 39, 4], ['walls', 0, 29, 39, 35], ['walls', 0, 0, 5, 35], ['walls', 34, 0, 39, 35],
 ];
-const DOCK = { build: ['Постройки', 'home'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+const DOCK = { build: ['Постройки', 'home'], arms: ['Оружие', 'target'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+const wStat = w => { const W = WEAP[w]; return W.melee ? `урон ${W.dmg[0]}–${W.dmg[1]}, ${W.ap} ОД${W.assassin ? ', тихо' : ''}` : `урон ${W.dmg[0]}–${W.dmg[1]}, дальность ${W.range}, шум ${W.noise}`; };
 
 const Base = {
   tab: null, hl: null, life: null,
@@ -6597,6 +6984,8 @@ const Base = {
     $$('[data-build]', root).forEach(b => { b.onclick = () => this.build(b.dataset.build); });
     $$('[data-craft]', root).forEach(b => { b.onclick = () => this.craft(b.dataset.craft); });
     const pt = $('#bPay'); if (pt) pt.onclick = () => { payTribute(); this.render(); };
+    $$('[data-eq]', root).forEach(sel => { sel.onchange = () => { if (equip(+sel.dataset.sid, sel.dataset.eq, sel.value || null)) { Sfx.play('pickup'); saveGame(); this.scene(); } this.render(); }; });
+    $$('[data-scrap]', root).forEach(b => { b.onclick = () => { const w = b.dataset.scrap, n = scrapWeapon(w); if (n) { Sfx.play('build'); Game.toast(`${wName(w)}: разобрано, +${n} деталей`); addLog(`${wName(w)} разобран на детали (+${n}).`); saveGame(); } this.render(); }; });
     if (this.hl) { const el = $(`[data-bk="${this.hl}"]`, root); if (el) el.scrollIntoView({ block: 'nearest' }); }
   },
   card(s) {
@@ -6624,6 +7013,22 @@ const Base = {
         ${cost ? `<p class="next">Дальше: ${B.eff[lv + 1]}</p><div class="bld-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
       </div>`;
     }).join('')}</div>`;
+  },
+  tab_arms() {
+    ensureArsenal();
+    const ars = S.arsenal, mech = S.survivors.some(s => s.trait === 'mechanic') ? 1 : 0;
+    const keys = MELEE_W.concat(RANGED_W).filter(w => ars[w]);
+    const stock = keys.length ? keys.map(w => `<div class="ars-i">${icon(RANGED_W.includes(w) ? 'target' : 'melee')}<span><b>${wName(w)}</b> ×${ars[w]}<small>${wStat(w)}</small></span><button class="btn sm" data-scrap="${w}">Разобрать +${WSCRAP[w] + mech}</button></div>`).join('') :
+      '<p class="dim">Пусто. Оружие находят в оружейных шкафах, сейфах полиции, армейских ящиках и на телах врагов.</p>';
+    const sel = (slot, s) => {
+      const cur = slot === 'melee' ? s.melee : s.ranged, list = slot === 'melee' ? MELEE_W : RANGED_W, o = [];
+      if (slot === 'ranged') o.push(`<option value="" ${!cur ? 'selected' : ''}>без огнестрела</option>`);
+      for (const w of list) if (w === cur || w === 'knife' || ars[w]) o.push(`<option value="${w}" ${w === cur ? 'selected' : ''}>${wName(w)}${w !== cur && ars[w] ? ` · в запасе ${ars[w]}` : ''}</option>`);
+      return `<select data-eq="${slot}" data-sid="${s.id}" aria-label="${slot === 'melee' ? 'Ближний бой' : 'Огнестрел'}: ${esc(s.name)}">${o.join('')}</select>`;
+    };
+    const rows = S.survivors.map(s => `<div class="eq" style="--uc:${s.color}"><b>${esc(s.name)}</b>${sel('melee', s)}${sel('ranged', s)}<small>${s.ranged ? wStat(s.ranged) : wStat(s.melee)}</small></div>`).join('');
+    return `<div class="ars"><h3>Запас</h3>${stock}</div><div class="eqs"><h3>Кто чем вооружён</h3>${rows}</div>
+      <p class="dim">Смена оружия бесплатна: старое уходит в запас. Нож всегда под рукой.</p>`;
   },
   tab_craft() {
     const lv = S.build.workshop;
@@ -6703,6 +7108,7 @@ const Base = {
     const L = LOCS[rep.loc];
     const got = RES_ORDER.filter(k => rep.got[k]).map(k => `<span class="cc" style="--rc:${RES[k].color}">${icon(k)}${RES[k].name} +${rep.got[k]}</span>`).join('');
     const hk = Object.values(rep.hkills || {}).reduce((a, b) => a + b, 0);
+    if (rep.wpn && rep.wpn.length) rep.lines.unshift({ t: `Привезли оружие: ${wList(rep.wpn)}. Оно в арсенале — выдайте в панели «Оружие».`, c: 'good' });
     addLog(`${L.short}: вернулись за ${rep.turns} ${plural(rep.turns, 'ход', 'хода', 'ходов')}, убито: ${rep.kills}.`);
     for (const l of rep.lines) addLog(l.t, l.c);
     Game.modal({
@@ -6751,6 +7157,7 @@ const Base = {
       s.infected--;
       if (s.infected <= 0) {
         S.survivors = S.survivors.filter(o => o !== s);
+        dropGear(s);
         const other = S.survivors.length ? pick(S.survivors) : null;
         lines.push({ t: `Ночью ${s.name} ${gv(s, 'обратился', 'обратилась')}.${other ? ` ${other.name} ${gv(other, 'ранен', 'ранена')}, пока всё не кончилось.` : ''}`, c: 'bad' });
         if (other) other.hp -= 3;
@@ -6778,16 +7185,18 @@ const Base = {
   nightEnd(lines) {
     for (const s of S.survivors.slice()) if (s.hp <= 0) {
       S.survivors = S.survivors.filter(o => o !== s);
+      dropGear(s);
       lines.push({ t: `${s.name} не ${gv(s, 'пережил', 'пережила')} ночь.`, c: 'bad' });
     }
     const chanceRecruit = [0.06, 0.25, 0.4][S.build.radio];
     if (S.survivors.length && S.survivors.length < GROUP_MAX && rnd() < chanceRecruit) {
       const s = newSurvivor();
       S.survivors.push(s);
+      S.stats.recruits++;
       lines.push({ t: `${S.build.radio ? 'На позывной ответили.' : 'Под утро в ворота постучали.'} ${s.name} (${TRAITS[s.trait].name.toLowerCase()}) теперь с нами.`, c: 'good' });
     }
     S.day++;
-    if (S.survivors.length) morningNews(lines);
+    if (S.survivors.length) { morningNews(lines); careerAdd({ bestDay: S.day }); }
     for (const l of lines) addLog(l.t, l.c);
     saveGame();
     if (!S.survivors.length) return this.gameOver();
@@ -6802,6 +7211,7 @@ const Base = {
   },
   gameOver() {
     S.over = true; saveGame();
+    careerAdd({ runs: 1, bestDay: S.day - 1 });
     Game.modal({
       title: 'Убежище опустело',
       html: `<p>Группа продержалась ${S.day - 1} ${plural(S.day - 1, 'день', 'дня', 'дней')}. Ворота насосной станции так и остались открытыми.</p>`,
@@ -6811,6 +7221,7 @@ const Base = {
   },
   victory() {
     S.over = true; saveGame();
+    careerAdd({ runs: 1, wins: 1, bestDay: VICTORY_DAY });
     Game.modal({
       title: 'Колонна пришла',
       html: `<p>На ${VICTORY_DAY}-й день по радио назвали точку сбора. Выжили: <b>${S.survivors.map(s => esc(s.name)).join(', ')}</b>.</p><p>Вы продержались. Можно начать заново и попробовать сохранить всех.</p>`,
@@ -6833,6 +7244,8 @@ function ensureWorld() {
   S.fac = S.fac || {};
   for (const f in FACTIONS) S.fac[f] = Object.assign({ met: false, beaten: false, kills: 0, anger: 0 }, S.fac[f]);
   if (S.fac.collectors.tribute === undefined) S.fac.collectors.tribute = null;
+  ensureStats();
+  ensureArsenal();
 }
 const isKnown = k => S.known.includes(k);
 function reveal(k) { if (LOCS[k] && !isKnown(k)) { S.known.push(k); return true; } return false; }
@@ -7129,6 +7542,165 @@ const World = {
 </script>
 <script>
 'use strict';
+// ---------- Главное меню: живая сцена, справочник, статистика ----------
+
+const CAREER_KEY = 'rubezh.career.v1';
+
+// ----- сцена за меню: сумеречная улица, костры, бредущие мертвецы -----
+const MenuScene = {
+  timer: 0,
+  build() {
+    const { m } = genMap('suburb', 4242);
+    m.seen = new Uint8Array(m.n).fill(1); m.vis = new Uint8Array(m.n).fill(1);
+    m.units = []; m.zombies = []; m.turn = 1; m.tod = 1; m.fires = [];
+    const b = m.buildings[Math.min(2, m.buildings.length - 1)] || { x: 30, y: 30, w: 4, h: 4 };
+    const cx = b.x + b.w * 0.2, cy = b.y + b.h * 0.6;
+    const r = makeRng(77);
+    const walk = (x, y) => inb(m, x, y) && TP[m.tiles[MI(m, x, y)]].walk && m.tiles[MI(m, x, y)] !== T.DOOR;
+    // горящие бочки и костры поблизости от камеры
+    for (let k = 0, made = 0; k < 400 && made < 4; k++) {
+      const x = Math.round(cx + r.int(-12, 12)), y = Math.round(cy + r.int(-10, 10));
+      if (!walk(x, y) || m.ground[MI(m, x, y)] !== T.ASPHALT && m.ground[MI(m, x, y)] !== T.SIDEWALK) continue;
+      if (m.fires.some(([fx, fy]) => Math.abs(fx - x) + Math.abs(fy - y) < 6)) continue;
+      m.props.push({ k: 'campfire', x, y, w: 1, h: 1 }); m.tiles[MI(m, x, y)] = T.BLOCK; m.fires.push([x, y]);
+      made++;
+    }
+    const ents = [];
+    for (let k = 0, made = 0; k < 600 && made < 7; k++) {
+      const x = Math.round(cx + r.int(-14, 14)), y = Math.round(cy + r.int(-12, 12));
+      if (!walk(x, y) || ents.some(it => it.e.x === x && it.e.y === y)) continue;
+      const type = ['walker', 'walker', 'walker', 'runner', 'brute', 'screamer', 'walker'][made];
+      ents.push({ e: { type, id: made, x, y, f: r.int(0, 7), goal: null }, z: true });
+      made++;
+    }
+    R.menu = { m, ents, cam: { cx, cy, k: clamp(R.H / 9, 30, 70), rot: 1 }, base: { cx, cy }, t0: performance.now() };
+    for (const it of ents) Spr.warm(Spr.look(it.e, 'z'), ['i0', 'i1', 'w0', 'w1', 'w2', 'w3', 'w4', 'w5']);
+  },
+  start() {
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.step(), 900);
+  },
+  stop() { clearInterval(this.timer); this.timer = 0; },
+  step() {
+    const M = R.menu;
+    if (R.mode !== 'menu' || !M || document.hidden) return;
+    const m = M.m, now = performance.now();
+    const walk = (x, y) => inb(m, x, y) && TP[m.tiles[MI(m, x, y)]].walk && m.tiles[MI(m, x, y)] !== T.DOOR;
+    for (const it of M.ents) {
+      const e = it.e;
+      if (e.anim && now - e.anim.t0 < e.anim.d) continue;
+      if (Math.random() < 0.35) continue;
+      if (!e.goal || (e.goal[0] === e.x && e.goal[1] === e.y) || Math.random() < 0.05) e.goal = [Math.round(M.base.cx + rint(-14, 14)), Math.round(M.base.cy + rint(-12, 12))];
+      let best = null, bd = edist(e.x, e.y, e.goal[0], e.goal[1]);
+      for (const [dx, dy] of DIR8) {
+        const nx = e.x + dx, ny = e.y + dy;
+        if (!walk(nx, ny) || (dx && dy && (!walk(e.x + dx, e.y) || !walk(e.x, e.y + dy)))) continue;
+        if (M.ents.some(o => o !== it && o.e.x === nx && o.e.y === ny)) continue;
+        const d = edist(nx, ny, e.goal[0], e.goal[1]) + Math.random() * 0.8;
+        if (d < bd) { bd = d; best = [nx, ny]; }
+      }
+      if (best) animTo(e, best[0], best[1], e.type === 'runner' ? 900 : 1700);
+      else e.goal = null;
+    }
+  },
+};
+
+// ----- статистика -----
+function ensureStats() {
+  S.stats = Object.assign({ missions: 0, sieges: 0, siegesWon: 0, zk: 0, hk: 0, rescued: 0, lost: 0, weapons: 0, recruits: 0, locs: [] }, S.stats || {});
+}
+function career() { return Object.assign({ runs: 0, wins: 0, bestDay: 0, missions: 0, zk: 0, hk: 0, rescued: 0, lost: 0 }, store.get(CAREER_KEY) || {}); }
+function careerAdd(o) { const c = career(); for (const k in o) c[k] = k === 'bestDay' ? Math.max(c[k], o[k]) : c[k] + o[k]; store.set(CAREER_KEY, c); }
+// Итоги вылазки или обороны — в статистику
+function statMission(rep, m) {
+  ensureStats();
+  const st = S.stats, hk = Object.values(rep.hkills || {}).reduce((a, b) => a + b, 0), zk = Math.max(0, rep.kills - hk);
+  const lost = m.units.filter(u => u.dead).length, rescued = rep.rescued || 0;
+  if (rep.siege) { st.sieges++; if (rep.siege.won) st.siegesWon++; } else { st.missions++; if (!st.locs.includes(rep.loc)) st.locs.push(rep.loc); }
+  st.zk += zk; st.hk += hk; st.lost += lost; st.rescued += rescued; st.weapons += (rep.wpn || []).length;
+  careerAdd({ missions: rep.siege ? 0 : 1, zk, hk, lost, rescued });
+}
+
+// ----- справочник -----
+const ZDESC = {
+  walker: 'Медленный и упрямый. Идёт на шум, ломится в двери, кусает, если подпустить.',
+  runner: 'Свежий, быстрый, почти не устаёт. Догоняет того, кто решил убежать.',
+  screamer: 'Увидев живых, кричит — и сюда идёт всё, что слышало.',
+  brute: 'Огромный, в рабочем жилете. Держит много попаданий и выбивает двери за пару ударов.',
+};
+const Codex = {
+  tab: 'z',
+  open() {
+    const md = Game.modal({ title: 'Справочник', html: '<div class="cx"><nav class="cx-t" role="tablist"></nav><div class="cx-b"></div></div>', buttons: [{ label: 'Закрыть', cls: 'primary' }] });
+    md.el.querySelector('.modal').classList.add('wide');
+    this.md = md;
+    this.render();
+  },
+  render() {
+    const root = this.md.el, tabs = [['z', 'Мертвецы'], ['h', 'Группировки'], ['w', 'Оружие'], ['t', 'Черты'], ['x', 'Погода']];
+    $('.cx-t', root).innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-cx="${k}">${l}</button>`).join('');
+    $$('[data-cx]', root).forEach(b => { b.onclick = () => { Sfx.play('click'); this.tab = b.dataset.cx; this.render(); }; });
+    let html = '';
+    if (this.tab === 'z') html = ['walker', 'runner', 'screamer', 'brute'].map(k => {
+      const z = ZT[k];
+      return this.card(`z:${k}`, z.name, `${z.hp} здоровья · ${z.ap} ОД · урон ${z.dmg[0]}–${z.dmg[1]} · видит на ${z.sight} · укус ${Math.round(z.bite * 100)}%`, ZDESC[k]);
+    }).join('');
+    else if (this.tab === 'h') html = Object.keys(FACTIONS).map(f => {
+      const F = FACTIONS[f], st = S && S.fac ? S.fac[f] : null, known = !S || !st || st.met || st.beaten;
+      const types = [...new Set(F.types)].map(t => ZT[t]);
+      return this.card(`x:${F.types[F.types.length - 1]}`, known ? F.name : '???', types.map(t => `${t.name}: ${t.hp} здоровья, ${t.ranged ? WEAP[t.ranged].name.toLowerCase() : WEAP[t.melee].name.toLowerCase()}`).join(' · '), known ? F.desc : 'О них пока ничего не известно.', F.color);
+    }).join('');
+    else if (this.tab === 'w') html = Object.keys(WEAP).map(k => {
+      const W = WEAP[k];
+      const s = W.melee ? `ближний бой · ${W.ap} ОД · урон ${W.dmg[0]}–${W.dmg[1]} · шум ${W.noise}` : `${W.ap} ОД · урон ${W.dmg[0]}–${W.dmg[1]} · дальность ${W.range} · точность ${Math.round(W.acc * 100)}% · шум ${W.noise}`;
+      const d = { knife: 'Тихо убивает тех, кто вас не видит.', bat: 'Надёжная и громкая.', crowbar: 'Удобна, вскрывает что угодно.', axe: 'Самый сильный удар, но дольше замах.', pistol: 'С глушителем из мастерской почти не слышен.', shotgun: 'Страшен вплотную, бесполезен издалека.', rifle: 'Бьёт далеко и точно. Слышно на полкарты.' }[k];
+      return this.card(null, W.name, s, `${d} Вес ${WKG[k]} кг.`);
+    }).join('');
+    else if (this.tab === 't') html = Object.keys(TRAITS).map(k => this.card(null, TRAITS[k].name, '', TRAITS[k].desc)).join('');
+    else html = Object.keys(WEATHER).map(k => this.card(null, WEATHER[k].name, '', WEATHER[k].desc, null, WEATHER[k].icon)).join('');
+    $('.cx-b', root).innerHTML = html;
+    $$('canvas[data-fig]', root).forEach(cv => { try { drawFigure(cv, cv.dataset.fig); } catch (e) { console.error(e); } });
+  },
+  card(fig, name, stats, desc, col, ic) {
+    return `<div class="cx-c" ${col ? `style="--fc:${col}"` : ''}>
+      ${fig ? `<canvas class="cx-f" data-fig="${fig}" aria-hidden="true"></canvas>` : ic ? `<span class="cx-i">${icon(ic)}</span>` : ''}
+      <div><b>${esc(name)}</b>${stats ? `<small>${esc(stats)}</small>` : ''}<p>${esc(desc)}</p></div></div>`;
+  },
+};
+// Фигура для справочника: «z:тип» — мертвец, «x:тип» — человек группировки
+function drawFigure(cv, spec) {
+  const [kind, type] = spec.split(':');
+  const dpr = Math.min(3, window.devicePixelRatio || 1), W = cv.clientWidth || 56, H = cv.clientHeight || 72;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const L = Spr.look({ type, id: kind === 'x' ? 1 : 0 }, 'z'), ts = H * 1.2;
+  const save = R.dpr; R.dpr = dpr;
+  Spr.draw(c, L, 'i0', 3, W * 0.5, H * 0.97, ts, 8);
+  R.dpr = save;
+}
+
+// ----- окно статистики -----
+function openStats() {
+  const c = career(), st = S && !S.over ? (ensureStats(), S.stats) : null;
+  const tile = (n, l) => `<div class="st-t"><b>${n}</b><span>${l}</span></div>`;
+  const run = st ? `<h3>Эта игра · день ${S.day}</h3><div class="st-g">
+      ${tile(S.survivors.length, 'в группе')}${tile(st.missions, 'вылазок')}${tile(st.locs.length + ' из ' + LOC_ORDER.length, 'мест посетили')}
+      ${tile(st.zk, 'мертвецов упокоено')}${tile(st.hk, 'людей убито')}${tile(`${st.siegesWon}/${st.sieges}`, 'атак на базу отбито')}
+      ${tile(st.rescued, 'пленных спасено')}${tile(st.lost, 'погибло своих')}${tile(st.weapons, 'стволов найдено')}
+    </div>` : '<p class="dim">Сейчас нет начатой игры.</p>';
+  Game.modal({
+    title: 'Статистика',
+    html: `<div class="stats">${run}<h3>За всё время</h3><div class="st-g">
+      ${tile(c.runs, 'игр сыграно')}${tile(c.wins, 'раз дождались колонны')}${tile(c.bestDay, 'лучший день')}
+      ${tile(c.missions, 'вылазок')}${tile(c.zk, 'мертвецов')}${tile(c.hk, 'людей')}
+    </div></div>`,
+    buttons: [{ label: 'Закрыть', cls: 'primary' }],
+  });
+}
+</script>
+<script>
+'use strict';
 // ---------- Запуск, экраны, настройки, сохранения ----------
 
 const SETTINGS_KEY = 'rubezh.settings.v1', SAVE_KEY = 'rubezh.save.v1', HELP_KEY = 'rubezh.help.v1';
@@ -7202,6 +7774,7 @@ function saveSettings() { store.set(SETTINGS_KEY, CFG); applySettings(); }
 const Game = {
   init(data) {
     R.init($('#cv'));
+    WX.init();
     HUD.build();
     applySettings();
     window.addEventListener('resize', () => layout());
@@ -7221,25 +7794,34 @@ const Game = {
   },
   showMenu() {
     Base.stopLife();
+    WX.set('rain');
     this.show('scr-menu');
     Music.set('menu');
     R.mode = 'menu';
     if (!R.menu) R.setMenuMap();
     R.dirty = true;
+    MenuScene.start();
     const can = S && !S.over;
+    const where = can ? (S.mission ? `на вылазке: ${S.mission.siege ? 'оборона базы' : LOCS[S.mission.loc] ? LOCS[S.mission.loc].short : ''}` : 'на базе') : '';
+    const tile = (id, ic, label, extra = '') => `<button class="mt" id="${id}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
     $('#scr-menu').innerHTML = `
       <div class="menu-in">
         <h1 class="logo">Рубеж</h1>
         <p class="tagline">Небольшая группа, насосная станция на окраине и город, полный мёртвых. Каждый выстрел слышно за квартал.</p>
-        <div class="mbtns">
-          ${can ? `<button class="btn hazard big" id="mCont">${icon('play')}Продолжить · день ${S.day}</button>` : ''}
-          <button class="btn ${can ? '' : 'hazard big'}" id="mNew">Новая игра</button>
-          <button class="btn" id="mHelp">Как играть</button>
-          <button class="btn" id="mMusic" aria-pressed="${CFG.music}">${icon('note')}<span>Музыка: ${CFG.music ? 'вкл' : 'выкл'}</span></button>
-          <button class="btn" id="mSet">${icon('gear')}Настройки</button>
+        ${can ? `<button class="mcont" id="mCont">
+          <span class="mc-t">${icon('play')}<b>Продолжить</b><i>день ${S.day} из ${VICTORY_DAY}</i></span>
+          <span class="mc-s">${S.survivors.length} в группе · ${where}</span>
+          <span class="mc-r">${['food', 'water', 'ammo', 'meds', 'fuel'].map(k => `<i style="--rc:${RES[k].color}">${icon(k)}${S.res[k]}</i>`).join('')}</span>
+        </button>` : ''}
+        <div class="mbtns"><button class="btn ${can ? '' : 'hazard big'}" id="mNew">${icon('skull')}Новая игра</button></div>
+        <div class="mtiles">
+          ${tile('mCodex', 'book', 'Справочник')}${tile('mStats', 'chart', 'Статистика')}${tile('mHelp', 'eye', 'Как играть')}
+          ${tile('mMusic', 'note', CFG.music ? 'Музыка вкл' : 'Музыка выкл', `aria-pressed="${CFG.music}"`)}${tile('mSet', 'gear', 'Настройки')}
         </div>
-        <p class="ver">Пошаговая тактика · карты до 64×64 клеток · сохранение в этом браузере</p>
+        <p class="ver">Пошаговая тактика · 23 места · группировки · сохранение в этом браузере</p>
       </div>`;
+    $('#mCodex').onclick = () => { Sfx.init(); Sfx.play('click'); Codex.open(); };
+    $('#mStats').onclick = () => { Sfx.init(); Sfx.play('click'); openStats(); };
     if (can) $('#mCont').onclick = () => { Sfx.init(); if (S.mission) resumeMission(S.mission); else this.showBase(); };
     $('#mNew').onclick = () => {
       Sfx.init();
@@ -7247,11 +7829,13 @@ const Game = {
       else this.newGame();
     };
     $('#mHelp').onclick = () => this.help();
-    $('#mMusic').onclick = () => { this.toggleMusic(); const b = $('#mMusic'); if (b) { b.setAttribute('aria-pressed', CFG.music); $('span', b).textContent = `Музыка: ${CFG.music ? 'вкл' : 'выкл'}`; } };
+    $('#mMusic').onclick = () => { this.toggleMusic(); const b = $('#mMusic'); if (b) { b.setAttribute('aria-pressed', CFG.music); $('span', b).textContent = CFG.music ? 'Музыка вкл' : 'Музыка выкл'; } };
     $('#mSet').onclick = () => this.openSettings();
   },
   showBase() {
     TAC.m = null;
+    MenuScene.stop();
+    WX.set(null);
     Music.set('base');
     this.show('scr-base');
     R.mode = 'base';
@@ -7263,12 +7847,16 @@ const Game = {
   },
   showWorld() {
     Base.stopLife();
+    MenuScene.stop();
+    WX.set(null);
     this.show('scr-world');
     R.mode = null;
     World.render();
   },
   showTac(center) {
     Base.stopLife();
+    MenuScene.stop();
+    WX.set(TAC.m && TAC.m.weather);
     this.show('scr-tac');
     Music.set('mission');
     R.mode = 'tac';
@@ -7354,6 +7942,9 @@ const Game = {
         <li><b>Мёртвые встают.</b> Убитый не в голову через 2–3 хода поднимается. Тело с зелёным кольцом можно добить за 1 ОД.</li>
         <li><b>Пленных</b> держат в лагерях: освободите (2 ОД) и довезите до машины — человек останется в группе.</li>
         <li><b>База</b> — отдельная карта: касание постройки открывает её улучшение. Ночью на базу могут напасть — тогда бой идёт на её карте.</li>
+        <li><b>Укрытия:</b> когда выбираете клетку, синий щит показывает укрытие с той стороны — полный щит для стены и мешков, половинка для мебели и машин. Люди из группировок по вам за укрытием попадают реже.</li>
+        <li><b>Погода</b> меняется от вылазки к вылазке: в дождь шум слышно на треть ближе, в тумане обзор у всех на 3 клетки меньше.</li>
+        <li><b>Оружие</b> находят в оружейных шкафах, сейфах и на телах врагов. Дома его выдают в панели «Оружие», лишнее разбирают на детали.</li>
         <li><b>Группа</b> растёт до 10 человек, но на вылазку и в бой берите не больше 6. Чем больше отряд, тем больше на карте мертвецов.</li>
         <li><b>Карта округи</b> — все места для вылазок. Новые точки открываются после вылазок и по радио. Повторные вылазки дают меньше добычи.</li>
         <li>Камера: перетаскивание — сдвиг, два пальца или кнопки +/− — масштаб, круглая стрелка — поворот на 90°, кнопка карты — обзор всей местности.</li>

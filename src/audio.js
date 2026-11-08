@@ -13,7 +13,40 @@ const Sfx = {
       this.build(new AC());
       document.addEventListener('visibilitychange', () => { if (!this.ctx) return; if (document.hidden) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {}); });
       Music.kick();
+      if (this.ambKind) { const k = this.ambKind; this.ambKind = null; this.ambient(k); }
     } catch (e) { this.ctx = null; }
+  },
+  // Фон погоды: шум дождя или ветер в тумане
+  ambient(kind) {
+    if (!this.ctx) { this.ambKind = kind; return; }
+    const c = this.ctx, t = c.currentTime;
+    if (this.amb) {
+      const a = this.amb; this.amb = null;
+      a.g.gain.setTargetAtTime(0, t, 0.5);
+      setTimeout(() => { try { a.s.stop(); if (a.lfo) a.lfo.stop(); } catch (e) { /* уже остановлен */ } }, 2500);
+    }
+    if (!kind) return;
+    const s = c.createBufferSource(); s.buffer = this.nb; s.loop = true;
+    const f = c.createBiquadFilter(), g = c.createGain();
+    let lfo = null;
+    if (kind === 'rain') { f.type = 'bandpass'; f.frequency.value = 2600; f.Q.value = 0.45; }
+    else {
+      f.type = 'lowpass'; f.frequency.value = 420; f.Q.value = 2;
+      lfo = c.createOscillator(); lfo.frequency.value = 0.11;
+      const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(g.gain); lfo.start();
+    }
+    g.gain.value = 0; g.gain.setTargetAtTime(kind === 'rain' ? 0.075 : 0.045, t, 1.2);
+    s.connect(f); f.connect(g); g.connect(this.master);
+    s.start(t, Math.random());
+    this.amb = { s, g, lfo, kind };
+  },
+  thunder() {
+    if (!CFG.sound || !this.ctx) return;
+    const t = this.ctx.currentTime + 0.02, dist = 0.4 + Math.random() * 0.6;
+    const to = this.out({ vol: 0.55 * dist, pan: Math.random() * 1.2 - 0.6, rev: 0.7 });
+    this.noise(t, 0.35, { type: 'highpass', f0: 900, g: 0.25 * dist, a: 0.005, to });
+    this.noise(t + 0.05, 3.2, { type: 'lowpass', f0: 420, f1: 50, q: 0.9, g: 0.8, a: 0.12, to });
+    this.noise(t + 0.6, 2.2, { type: 'lowpass', f0: 260, f1: 40, g: 0.5, a: 0.3, to });
   },
   build(c) {
     this.ctx = c;

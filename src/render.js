@@ -356,6 +356,8 @@ const R = {
     if (CFG.hq && this.cam.k >= 14 && now - this.lastIdle > (this.fireVis ? 100 : 320)) { this.lastIdle = now; this.dirty = true; }
     const active = this.moving.size || FX.list.length || FX.parts.length || this.camAnim || this.shakeA > 0 || this.until > now;
     if (!this.dirty && !active) return;
+    if (this.mode === 'menu' && !this.dirty && now - (this.lastDraw || 0) < 40) return;   // фон меню — 25 кадров
+    this.lastDraw = now;
     this.dirty = false;
     GroundTex.budget = 7;
     try { this.draw(now); } catch (e) { console.error(e); }
@@ -392,7 +394,9 @@ const R = {
       g.addColorStop(0, 'rgba(11,10,8,0.55)'); g.addColorStop(0.18, 'rgba(11,10,8,0)'); g.addColorStop(0.82, 'rgba(11,10,8,0)'); g.addColorStop(1, 'rgba(11,10,8,0.6)');
       c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
     } else if (this.mode === 'menu' && this.menu) {
-      drawIso(c, this.menu.m, this.menu.cam, this.W, this.H, now, true);
+      const M = this.menu, t = (now - M.t0) / 1000;
+      if (M.base && !reducedMotion) { M.cam.cx = M.base.cx + Math.sin(t * 0.045) * 4; M.cam.cy = M.base.cy + Math.sin(t * 0.031 + 1) * 3; this.until = Math.max(this.until, now + 200); }
+      drawIso(c, M.m, M.cam, this.W, this.H, now, true, [0, 0], M.ents);
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       const g = c.createLinearGradient(0, 0, this.W, 0);
       g.addColorStop(0, 'rgba(11,10,8,0.95)'); g.addColorStop(0.5, 'rgba(11,10,8,0.66)'); g.addColorStop(1, 'rgba(11,10,8,0.25)');
@@ -401,11 +405,7 @@ const R = {
     }
   },
   setMenuMap() {
-    const { m } = genMap('suburb', 4242);
-    m.seen = new Uint8Array(m.n).fill(1); m.vis = new Uint8Array(m.n).fill(1);
-    m.units = []; m.zombies = []; m.turn = 1;
-    const b = m.buildings[Math.min(2, m.buildings.length - 1)] || { x: 30, y: 30, w: 4, h: 4 };
-    this.menu = { m, cam: { cx: b.x + b.w * 0.2, cy: b.y + b.h * 0.6, k: clamp(this.H / 9, 30, 70), rot: 1 } };
+    MenuScene.build();
     this.dirty = true;
   },
 };

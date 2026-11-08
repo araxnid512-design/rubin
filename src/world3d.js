@@ -240,7 +240,7 @@ function drawTileObj(c, m, x, y, i, lod, cut) {
   const t = m.tiles[i];
   if (TP[t].wall) return drawWallIso(c, m, x, y, t, lod, cut);
   if (isDoorT(t)) return drawDoorIso(c, m, x, y, t, i, cut);
-  const ct = m.cont[i], loot = ct && Object.keys(ct.loot).length > 0;
+  const ct = m.cont[i], loot = ct && !contEmpty(ct);
   const B = (a, b, cc, d, z0, z1, col, det, top) => pBox(c, x + a, y + b, x + cc, y + d, z0, z1, col, det, top);
   switch (t) {
     case T.FENCE: return drawFenceIso(c, m, x, y, i);
@@ -622,6 +622,48 @@ function drawPrims(c, list) {
   }
 }
 
+// Затенение у основания стен и высокой мебели: биты N=1, S=2, W=4, E=8
+const AOM = new WeakMap();
+const aoSrc = t => TP[t].wall || t === T.BLOCKH || t === T.SHELF || t === T.LOCKER || t === T.FRIDGE || t === T.TREE;
+function aoMask(m) {
+  let a = AOM.get(m);
+  if (a) return a;
+  a = new Uint8Array(m.n);
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+    const i = y * m.w + x, t = m.tiles[i];
+    if (TP[t].wall || t === T.BLOCKH) continue;
+    let b = 0;
+    if (y > 0 && aoSrc(m.tiles[i - m.w])) b |= 1;
+    if (y < m.h - 1 && aoSrc(m.tiles[i + m.w])) b |= 2;
+    if (x > 0 && aoSrc(m.tiles[i - 1])) b |= 4;
+    if (x < m.w - 1 && aoSrc(m.tiles[i + 1])) b |= 8;
+    a[i] = b;
+  }
+  AOM.set(m, a);
+  return a;
+}
+function drawAO(c, b, X, Y, k) {
+  for (const [bit, f] of [[1, (d) => c.fillRect(X, Y, k, d)], [2, (d) => c.fillRect(X, Y + k - d, k, d)], [4, (d) => c.fillRect(X, Y, d, k)], [8, (d) => c.fillRect(X + k - d, Y, d, k)]]) {
+    if (!(b & bit)) continue;
+    c.fillStyle = 'rgba(0,0,0,0.16)'; f(k * 0.3);
+    c.fillStyle = 'rgba(0,0,0,0.14)'; f(k * 0.14);
+  }
+}
+// Пучки травы: тонкие стебли из земли, по рядам вместе с фигурами
+function drawTuft(c, x, y, i) {
+  const n = 5, hv = hash2(x, y, 41);
+  const bx = x + 0.2 + hash2(x, y, 42) * 0.6, by = y + 0.2 + hash2(x, y, 43) * 0.6, H0 = 0.13 + hv * 0.12;
+  P(bx, by, 0); const ox = PX, oy = PY, s = CB.k;
+  c.strokeStyle = sh(hv > 0.5 ? '#6f8a44' : '#58703a', 1); c.lineWidth = Math.max(1, s * 0.022);
+  c.beginPath();
+  for (let j = 0; j < n; j++) {
+    const a = (j / (n - 1) - 0.5) * 1.1 + (hash2(i, j, 44) - 0.5) * 0.3, h = H0 * (0.7 + hash2(i, j, 45) * 0.5) * s * CB.cE;
+    c.moveTo(ox + (j - n / 2) * s * 0.02, oy);
+    c.quadraticCurveTo(ox + Math.sin(a) * h * 0.3, oy - h * 0.6, ox + Math.sin(a) * h * 0.75, oy - h);
+  }
+  c.stroke();
+}
+
 // ----- кадр целиком -----
 const LAYERS = { sc: null, lc: null, vg: null, vgKey: '' };
 function layer(name, W, H, dpr) {
@@ -652,11 +694,15 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
   const e = CB.ox - k * (CB.cx * CB.rx + CB.cy * CB.ry), f = CB.oy + k * CB.sE * (CB.cx * CB.fx + CB.cy * CB.fy);
   const groundT = () => c.setTransform(dpr * CB.rx, -dpr * CB.fx * CB.sE, dpr * CB.ry, -dpr * CB.fy * CB.sE, dpr * e, dpr * f);
   groundT();
+  const ao = aoMask(m);
   for (const i of tiles) {
     if (!seen(i)) continue;
     const x = i % m.w, y = (i / m.w) | 0;
     if (lod === 0) { const t = m.tiles[i]; c.fillStyle = MAPCSS[TP[t].floor ? m.ground[i] : t]; c.fillRect(x * k - 0.6, y * k - 0.6, k + 1.2, k + 1.2); }
-    else drawGround(c, m, m.ground[i], x, y, i, x * k, y * k, k, k, lod);
+    else {
+      drawGround(c, m, m.ground[i], x, y, i, x * k, y * k, k, k, lod);
+      if (gfx >= 1 && ao[i]) drawAO(c, ao[i], x * k, y * k, k);
+    }
   }
   for (const d of m.decals) {
     if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1 || !seen(MI(m, d.x, d.y))) continue;
@@ -684,7 +730,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     }
     for (const cp of m.captives || []) if (!cp.freed && m.seen[MI(m, cp.x, cp.y)]) bucket(Math.round(nearKey(cp.x, cp.y)), { e: cp, z: false, cap: true, px: cp.x, py: cp.y });
   } else if (extra) {
-    for (const it of extra) { const [px, py] = animPos(it.e, now); bucket(Math.round(nearKey(px, py)), { e: it.e, z: false, base: true, px, py }); }
+    for (const it of extra) { const [px, py] = animPos(it.e, now); bucket(Math.round(nearKey(px, py)), { e: it.e, z: !!it.z, base: true, px, py }); }
   }
   if (!all || extra) {
     for (const list of rows.values()) for (const it of list) {
@@ -760,7 +806,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
       const t = m.tiles[i], x = i % m.w, y = (i / m.w) | 0;
       DIM = vis(i) ? 1 : 0.45;
       const ct = m.cont[i];
-      if (ct && ct.s && !Object.keys(ct.loot).length) DIM *= 0.72;
+      if (ct && ct.s && contEmpty(ct)) DIM *= 0.72;
       if (lod === 0) continue;
       if (pSl.has(i)) drawPrims(c, pSl.get(i));
       if (isFlatT(t) && !ct) continue;
@@ -796,6 +842,11 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     }
     if (lod > 0) for (const i of list) {
       const t = m.tiles[i];
+      if (lod === 2 && gfx >= 2 && t === T.GRASS && !occ.has(i)) {
+        const x = i % m.w, y = (i / m.w) | 0;
+        if (hash2(x, y, 40) < 0.22) { DIM = vis(i) ? 1 : 0.45; drawTuft(c, x, y, i); }
+        continue;
+      }
       if (t !== T.CROP && t !== T.BUSH) continue;
       DIM = vis(i) ? 1 : 0.45;
       const x = i % m.w, y = (i / m.w) | 0;
@@ -804,8 +855,13 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     }
     DIM = 1;
   }
-  // E. свет: сумерки и ночь — темнота с пятнами фонарей
-  if (!all) lightLayer(c, m, now, W, H, dpr, gfx);
+  // E. свет: сумерки и ночь — темнота с пятнами фонарей; днём — тёплый свет с одной стороны
+  if (!all || m.tod) lightLayer(c, m, now, W, H, dpr, gfx);
+  if (gfx >= 1 && !(m.tod ?? timeOfDay(m))) {
+    const g = c.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, 'rgba(255,214,150,0.07)'); g.addColorStop(0.55, 'rgba(255,214,150,0)'); g.addColorStop(1, 'rgba(30,50,80,0.1)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
   // F. виньетка
   if (gfx >= 2) {
     const vg = layer('vg', W, H, dpr), key = vg.width + 'x' + vg.height;
@@ -822,7 +878,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     const i = +kk, x = i % m.w, y = (i / m.w) | 0;
     if (x < x0 || x > x1 || y < y0 || y > y1 || !seen(i)) continue;
     const ct = m.cont[kk];
-    if (ct.s && !Object.keys(ct.loot).length) continue;
+    if (ct.s && contEmpty(ct)) continue;
     P(x + 0.5, y + 0.5, (OBJ_H[m.tiles[i]] ?? 0.8) + 0.32);
     if (PX < -20 || PX > W + 20 || PY < -20 || PY > H + 20) continue;
     const s = Math.max(3.5, k * 0.12);
@@ -838,6 +894,23 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0], extra = null) {
     c.fillStyle = '#a0c86e'; c.fillText('ВЫХОД', PX, PY);
   }
   if (all) return;
+  // щиты укрытия у клетки, куда собирается идти боец
+  if (pd && pd.path && pd.path.length && curUnit()) {
+    const last = pd.path[pd.path.length - 1], lx = last % m.w, ly = (last / m.w) | 0;
+    for (const [dx, dy, lv] of coverDirs(m, lx, ly)) {
+      P(lx + 0.5 + dx * 0.4, ly + 0.5 + dy * 0.4, 0.62);
+      const w = Math.max(9, k * 0.24), h = w * 1.2, x = PX, y = PY;
+      c.beginPath();
+      c.moveTo(x - w / 2, y - h / 2); c.lineTo(x + w / 2, y - h / 2); c.lineTo(x + w / 2, y);
+      c.quadraticCurveTo(x + w / 2, y + h * 0.35, x, y + h / 2); c.quadraticCurveTo(x - w / 2, y + h * 0.35, x - w / 2, y); c.closePath();
+      c.fillStyle = 'rgba(12,22,34,0.75)'; c.fill();
+      c.lineWidth = Math.max(1.5, k * 0.03); c.strokeStyle = '#7cc3f0'; c.stroke();
+      c.save(); c.clip();
+      c.fillStyle = '#5fb3e9';
+      if (lv === 2) c.fillRect(x - w, y - h, w * 2, h * 2); else c.fillRect(x - w, y, w * 2, h);
+      c.restore();
+    }
+  }
   for (const it of ents) drawBadges(c, it, k, lod);
   drawFX(c, now, gfx);
 }

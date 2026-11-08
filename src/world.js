@@ -10,6 +10,8 @@ function ensureWorld() {
   S.fac = S.fac || {};
   for (const f in FACTIONS) S.fac[f] = Object.assign({ met: false, beaten: false, kills: 0, anger: 0 }, S.fac[f]);
   if (S.fac.collectors.tribute === undefined) S.fac.collectors.tribute = null;
+  ensureStats();
+  ensureArsenal();
 }
 const isKnown = k => S.known.includes(k);
 function reveal(k) { if (LOCS[k] && !isKnown(k)) { S.known.push(k); return true; } return false; }

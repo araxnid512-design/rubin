@@ -104,7 +104,9 @@ const HUD = {
     if (!m || !this.built) return;
     const u = curUnit(), tod = timeOfDay(m), player = m.phase === 'player' && !TAC.busy;
     $('#tTurn').innerHTML = `Ход <b>${m.turn}</b>`;
-    $('#tTod').innerHTML = `${icon(['sun', 'dusk', 'moon'][tod])}<span>${TOD_NAME[tod]}</span>`;
+    const wx = wxOf(m);
+    $('#tTod').innerHTML = `${icon(['sun', 'dusk', 'moon'][tod])}<span>${TOD_NAME[tod]}</span>${m.weather && m.weather !== 'clear' ? `<i class="wx">${icon(wx.icon)}${wx.name}</i>` : ''}`;
+    $('#tTod').title = wx.desc;
     $('#tTod').className = 'chip tod' + tod;
     const left = Math.max(1, WAVE_EVERY - (m.turn - m.lastWave));
     let pips = '';
@@ -269,7 +271,7 @@ const HUD = {
     if (dc && cheb(u.x, u.y, t.x, t.y) <= 1) {
       const ct0 = m.cont[i], left = dc.rise - m.turn;
       const items = [{ ic: 'melee', label: 'Добить, чтобы не встал', cost: 1, ok: u.ap >= 1, fn: () => doFinish(u, dc), note: 'удар в голову, почти тихо' }];
-      if (ct0 && Object.keys(ct0.loot).length) items.push({ ic: 'search', label: 'Обыскать тело', cost: 0, fn: () => doSearch(u, i) });
+      if (ct0 && !contEmpty(ct0)) items.push({ ic: 'search', label: 'Обыскать тело', cost: 0, fn: () => doSearch(u, i) });
       const nm = dc.k === 'ucorpse' ? dc.u.name : ZT[dc.zt].name;
       this.showPop(ax, ay, nm, left <= 1 ? 'встанет на следующем ходу' : `встанет через ${left} ${plural(left, 'ход', 'хода', 'ходов')}`, items);
       return;
@@ -310,7 +312,8 @@ const HUD = {
       TAC.pend = { i, path: pathTo(m, rf, i), fn: go };
       const items = [{ ic: 'walk', label: 'Идти сюда', cost, fn: go, note: 'или нажмите на клетку ещё раз' }];
       if (u.lures > 0 && edist(u.x, u.y, t.x, t.y) <= LURE_RANGE) items.push({ ic: 'lure', label: 'Бросить приманку сюда', cost: 2, ok: u.ap >= 2, fn: () => doLure(u, t.x, t.y) });
-      this.showPop(ax, ay, TP[tile].name || 'Клетка', `после хода останется ${u.ap - cost} ОД`, items);
+      const cw = coverWord(coverDirs(m, t.x, t.y));
+      this.showPop(ax, ay, TP[tile].name || 'Клетка', `после хода останется ${u.ap - cost} ОД${cw ? ' · ' + cw : ''}`, items);
       return;
     }
     if (TP[tile].walk) {
@@ -329,7 +332,8 @@ const HUD = {
   renderLoot() {
     const { u, i } = this.lootCtx, c = TAC.m.cont[i];
     const keys = RES_ORDER.filter(k => c.loot[k]);
-    const rows = keys.map(k => {
+    const wrow = c.wpn ? `<div class="lr wpn">${icon(RANGED_W.includes(c.wpn) ? 'target' : 'melee')}<span class="ln-n">${wName(c.wpn)}<small>в арсенал базы</small></span><b>×1</b><em>${WKG[c.wpn]} кг</em><button class="btn sm" data-k="wpn">Взять</button></div>` : '';
+    const rows = wrow + keys.map(k => {
       const n = c.loot[k], toGun = k === 'ammo' && u.ranged;
       return `<div class="lr">${icon(k)}<span class="ln-n">${RES[k].name}${toGun ? '<small>сразу в оружие</small>' : ''}</span><b>×${n}</b><em>${toGun ? '' : (RES[k].w * n).toFixed(1) + ' кг'}</em><button class="btn sm" data-k="${k}">Взять</button></div>`;
     }).join('');
@@ -337,7 +341,7 @@ const HUD = {
       <div class="sh-h"><div><b>${esc(CONT[c.k].name)}</b><span>${esc(u.name)} несёт ${carried(u)} из ${u.cap} кг</span></div>
         <button class="hbtn" id="lClose" aria-label="Закрыть">${icon('close')}</button></div>
       <div class="sh-b">${rows || '<p class="empty">Пусто. Кто-то был здесь раньше.</p>'}</div>
-      <div class="sh-f"><button class="btn" id="lDone">Закрыть</button>${keys.length ? '<button class="btn primary" id="lAll">Взять всё</button>' : ''}</div>`;
+      <div class="sh-f"><button class="btn" id="lDone">Закрыть</button>${keys.length || c.wpn ? '<button class="btn primary" id="lAll">Взять всё</button>' : ''}</div>`;
     $('#lClose').onclick = () => this.closeLoot();
     $('#lDone').onclick = () => this.closeLoot();
     if ($('#lAll')) $('#lAll').onclick = () => { this.take(null); };
@@ -345,15 +349,19 @@ const HUD = {
   },
   take(k) {
     const { u, i } = this.lootCtx, c = TAC.m.cont[i];
-    const keys = k ? [k] : RES_ORDER.filter(x => c.loot[x]);
     let any = false, full = false;
+    if ((k === 'wpn' || !k) && c.wpn) {
+      const w = c.wpn;
+      if (takeWeapon(u, c)) { any = true; this.log(`${u.name} забирает: ${wName(w).toLowerCase()}. Дома — в арсенал.`, 'good'); } else full = true;
+    }
+    const keys = k === 'wpn' ? [] : k ? [k] : RES_ORDER.filter(x => c.loot[x]);
     for (const key of keys) { const got = takeLoot(u, c, key, c.loot[key]); if (got) any = true; if (c.loot[key]) full = true; }
     if (any) Sfx.play('pickup');
     if (full) this.log(`${u.name}: больше не унести. Вес — ${carried(u)} из ${u.cap} кг.`, 'warn');
     this.renderLoot();
     this.refresh();
     R.dirty = true;
-    if (!k && !Object.keys(c.loot).length) this.closeLoot();
+    if (!k && contEmpty(c)) this.closeLoot();
   },
   closeLoot() { $('#tLootBg').hidden = true; this.lootCtx = null; R.dirty = true; },
   miniInfo: null,

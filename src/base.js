@@ -61,7 +61,8 @@ const BASE_ZONES = [
   ['radio', 26, 4, 28, 6], ['garden', 5, 6, 13, 15], ['water', 28, 5, 34, 13], ['infirmary', 5, 18, 12, 24],
   ['workshop', 26, 16, 34, 27], ['walls', 0, 0, 39, 4], ['walls', 0, 29, 39, 35], ['walls', 0, 0, 5, 35], ['walls', 34, 0, 39, 35],
 ];
-const DOCK = { build: ['Постройки', 'home'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+const DOCK = { build: ['Постройки', 'home'], arms: ['Оружие', 'target'], craft: ['Мастерская', 'hammer'], fac: ['Группировки', 'shield'], log: ['Журнал', 'log'] };
+const wStat = w => { const W = WEAP[w]; return W.melee ? `урон ${W.dmg[0]}–${W.dmg[1]}, ${W.ap} ОД${W.assassin ? ', тихо' : ''}` : `урон ${W.dmg[0]}–${W.dmg[1]}, дальность ${W.range}, шум ${W.noise}`; };
 
 const Base = {
   tab: null, hl: null, life: null,
@@ -166,6 +167,8 @@ const Base = {
     $$('[data-build]', root).forEach(b => { b.onclick = () => this.build(b.dataset.build); });
     $$('[data-craft]', root).forEach(b => { b.onclick = () => this.craft(b.dataset.craft); });
     const pt = $('#bPay'); if (pt) pt.onclick = () => { payTribute(); this.render(); };
+    $$('[data-eq]', root).forEach(sel => { sel.onchange = () => { if (equip(+sel.dataset.sid, sel.dataset.eq, sel.value || null)) { Sfx.play('pickup'); saveGame(); this.scene(); } this.render(); }; });
+    $$('[data-scrap]', root).forEach(b => { b.onclick = () => { const w = b.dataset.scrap, n = scrapWeapon(w); if (n) { Sfx.play('build'); Game.toast(`${wName(w)}: разобрано, +${n} деталей`); addLog(`${wName(w)} разобран на детали (+${n}).`); saveGame(); } this.render(); }; });
     if (this.hl) { const el = $(`[data-bk="${this.hl}"]`, root); if (el) el.scrollIntoView({ block: 'nearest' }); }
   },
   card(s) {
@@ -193,6 +196,22 @@ const Base = {
         ${cost ? `<p class="next">Дальше: ${B.eff[lv + 1]}</p><div class="bld-f"><span class="cost">${costChips(cost)}</span><button class="btn sm" data-build="${k}" ${canPay(cost) ? '' : 'disabled'}>${lv ? 'Улучшить' : 'Построить'}</button></div>` : '<p class="max">Готово полностью</p>'}
       </div>`;
     }).join('')}</div>`;
+  },
+  tab_arms() {
+    ensureArsenal();
+    const ars = S.arsenal, mech = S.survivors.some(s => s.trait === 'mechanic') ? 1 : 0;
+    const keys = MELEE_W.concat(RANGED_W).filter(w => ars[w]);
+    const stock = keys.length ? keys.map(w => `<div class="ars-i">${icon(RANGED_W.includes(w) ? 'target' : 'melee')}<span><b>${wName(w)}</b> ×${ars[w]}<small>${wStat(w)}</small></span><button class="btn sm" data-scrap="${w}">Разобрать +${WSCRAP[w] + mech}</button></div>`).join('') :
+      '<p class="dim">Пусто. Оружие находят в оружейных шкафах, сейфах полиции, армейских ящиках и на телах врагов.</p>';
+    const sel = (slot, s) => {
+      const cur = slot === 'melee' ? s.melee : s.ranged, list = slot === 'melee' ? MELEE_W : RANGED_W, o = [];
+      if (slot === 'ranged') o.push(`<option value="" ${!cur ? 'selected' : ''}>без огнестрела</option>`);
+      for (const w of list) if (w === cur || w === 'knife' || ars[w]) o.push(`<option value="${w}" ${w === cur ? 'selected' : ''}>${wName(w)}${w !== cur && ars[w] ? ` · в запасе ${ars[w]}` : ''}</option>`);
+      return `<select data-eq="${slot}" data-sid="${s.id}" aria-label="${slot === 'melee' ? 'Ближний бой' : 'Огнестрел'}: ${esc(s.name)}">${o.join('')}</select>`;
+    };
+    const rows = S.survivors.map(s => `<div class="eq" style="--uc:${s.color}"><b>${esc(s.name)}</b>${sel('melee', s)}${sel('ranged', s)}<small>${s.ranged ? wStat(s.ranged) : wStat(s.melee)}</small></div>`).join('');
+    return `<div class="ars"><h3>Запас</h3>${stock}</div><div class="eqs"><h3>Кто чем вооружён</h3>${rows}</div>
+      <p class="dim">Смена оружия бесплатна: старое уходит в запас. Нож всегда под рукой.</p>`;
   },
   tab_craft() {
     const lv = S.build.workshop;
@@ -272,6 +291,7 @@ const Base = {
     const L = LOCS[rep.loc];
     const got = RES_ORDER.filter(k => rep.got[k]).map(k => `<span class="cc" style="--rc:${RES[k].color}">${icon(k)}${RES[k].name} +${rep.got[k]}</span>`).join('');
     const hk = Object.values(rep.hkills || {}).reduce((a, b) => a + b, 0);
+    if (rep.wpn && rep.wpn.length) rep.lines.unshift({ t: `Привезли оружие: ${wList(rep.wpn)}. Оно в арсенале — выдайте в панели «Оружие».`, c: 'good' });
     addLog(`${L.short}: вернулись за ${rep.turns} ${plural(rep.turns, 'ход', 'хода', 'ходов')}, убито: ${rep.kills}.`);
     for (const l of rep.lines) addLog(l.t, l.c);
     Game.modal({
@@ -320,6 +340,7 @@ const Base = {
       s.infected--;
       if (s.infected <= 0) {
         S.survivors = S.survivors.filter(o => o !== s);
+        dropGear(s);
         const other = S.survivors.length ? pick(S.survivors) : null;
         lines.push({ t: `Ночью ${s.name} ${gv(s, 'обратился', 'обратилась')}.${other ? ` ${other.name} ${gv(other, 'ранен', 'ранена')}, пока всё не кончилось.` : ''}`, c: 'bad' });
         if (other) other.hp -= 3;
@@ -347,16 +368,18 @@ const Base = {
   nightEnd(lines) {
     for (const s of S.survivors.slice()) if (s.hp <= 0) {
       S.survivors = S.survivors.filter(o => o !== s);
+      dropGear(s);
       lines.push({ t: `${s.name} не ${gv(s, 'пережил', 'пережила')} ночь.`, c: 'bad' });
     }
     const chanceRecruit = [0.06, 0.25, 0.4][S.build.radio];
     if (S.survivors.length && S.survivors.length < GROUP_MAX && rnd() < chanceRecruit) {
       const s = newSurvivor();
       S.survivors.push(s);
+      S.stats.recruits++;
       lines.push({ t: `${S.build.radio ? 'На позывной ответили.' : 'Под утро в ворота постучали.'} ${s.name} (${TRAITS[s.trait].name.toLowerCase()}) теперь с нами.`, c: 'good' });
     }
     S.day++;
-    if (S.survivors.length) morningNews(lines);
+    if (S.survivors.length) { morningNews(lines); careerAdd({ bestDay: S.day }); }
     for (const l of lines) addLog(l.t, l.c);
     saveGame();
     if (!S.survivors.length) return this.gameOver();
@@ -371,6 +394,7 @@ const Base = {
   },
   gameOver() {
     S.over = true; saveGame();
+    careerAdd({ runs: 1, bestDay: S.day - 1 });
     Game.modal({
       title: 'Убежище опустело',
       html: `<p>Группа продержалась ${S.day - 1} ${plural(S.day - 1, 'день', 'дня', 'дней')}. Ворота насосной станции так и остались открытыми.</p>`,
@@ -380,6 +404,7 @@ const Base = {
   },
   victory() {
     S.over = true; saveGame();
+    careerAdd({ runs: 1, wins: 1, bestDay: VICTORY_DAY });
     Game.modal({
       title: 'Колонна пришла',
       html: `<p>На ${VICTORY_DAY}-й день по радио назвали точку сбора. Выжили: <b>${S.survivors.map(s => esc(s.name)).join(', ')}</b>.</p><p>Вы продержались. Можно начать заново и попробовать сохранить всех.</p>`,

@@ -72,6 +72,7 @@ function saveSettings() { store.set(SETTINGS_KEY, CFG); applySettings(); }
 const Game = {
   init(data) {
     R.init($('#cv'));
+    WX.init();
     HUD.build();
     applySettings();
     window.addEventListener('resize', () => layout());
@@ -91,25 +92,34 @@ const Game = {
   },
   showMenu() {
     Base.stopLife();
+    WX.set('rain');
     this.show('scr-menu');
     Music.set('menu');
     R.mode = 'menu';
     if (!R.menu) R.setMenuMap();
     R.dirty = true;
+    MenuScene.start();
     const can = S && !S.over;
+    const where = can ? (S.mission ? `на вылазке: ${S.mission.siege ? 'оборона базы' : LOCS[S.mission.loc] ? LOCS[S.mission.loc].short : ''}` : 'на базе') : '';
+    const tile = (id, ic, label, extra = '') => `<button class="mt" id="${id}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
     $('#scr-menu').innerHTML = `
       <div class="menu-in">
         <h1 class="logo">Рубеж</h1>
         <p class="tagline">Небольшая группа, насосная станция на окраине и город, полный мёртвых. Каждый выстрел слышно за квартал.</p>
-        <div class="mbtns">
-          ${can ? `<button class="btn hazard big" id="mCont">${icon('play')}Продолжить · день ${S.day}</button>` : ''}
-          <button class="btn ${can ? '' : 'hazard big'}" id="mNew">Новая игра</button>
-          <button class="btn" id="mHelp">Как играть</button>
-          <button class="btn" id="mMusic" aria-pressed="${CFG.music}">${icon('note')}<span>Музыка: ${CFG.music ? 'вкл' : 'выкл'}</span></button>
-          <button class="btn" id="mSet">${icon('gear')}Настройки</button>
+        ${can ? `<button class="mcont" id="mCont">
+          <span class="mc-t">${icon('play')}<b>Продолжить</b><i>день ${S.day} из ${VICTORY_DAY}</i></span>
+          <span class="mc-s">${S.survivors.length} в группе · ${where}</span>
+          <span class="mc-r">${['food', 'water', 'ammo', 'meds', 'fuel'].map(k => `<i style="--rc:${RES[k].color}">${icon(k)}${S.res[k]}</i>`).join('')}</span>
+        </button>` : ''}
+        <div class="mbtns"><button class="btn ${can ? '' : 'hazard big'}" id="mNew">${icon('skull')}Новая игра</button></div>
+        <div class="mtiles">
+          ${tile('mCodex', 'book', 'Справочник')}${tile('mStats', 'chart', 'Статистика')}${tile('mHelp', 'eye', 'Как играть')}
+          ${tile('mMusic', 'note', CFG.music ? 'Музыка вкл' : 'Музыка выкл', `aria-pressed="${CFG.music}"`)}${tile('mSet', 'gear', 'Настройки')}
         </div>
-        <p class="ver">Пошаговая тактика · карты до 64×64 клеток · сохранение в этом браузере</p>
+        <p class="ver">Пошаговая тактика · 23 места · группировки · сохранение в этом браузере</p>
       </div>`;
+    $('#mCodex').onclick = () => { Sfx.init(); Sfx.play('click'); Codex.open(); };
+    $('#mStats').onclick = () => { Sfx.init(); Sfx.play('click'); openStats(); };
     if (can) $('#mCont').onclick = () => { Sfx.init(); if (S.mission) resumeMission(S.mission); else this.showBase(); };
     $('#mNew').onclick = () => {
       Sfx.init();
@@ -117,11 +127,13 @@ const Game = {
       else this.newGame();
     };
     $('#mHelp').onclick = () => this.help();
-    $('#mMusic').onclick = () => { this.toggleMusic(); const b = $('#mMusic'); if (b) { b.setAttribute('aria-pressed', CFG.music); $('span', b).textContent = `Музыка: ${CFG.music ? 'вкл' : 'выкл'}`; } };
+    $('#mMusic').onclick = () => { this.toggleMusic(); const b = $('#mMusic'); if (b) { b.setAttribute('aria-pressed', CFG.music); $('span', b).textContent = CFG.music ? 'Музыка вкл' : 'Музыка выкл'; } };
     $('#mSet').onclick = () => this.openSettings();
   },
   showBase() {
     TAC.m = null;
+    MenuScene.stop();
+    WX.set(null);
     Music.set('base');
     this.show('scr-base');
     R.mode = 'base';
@@ -133,12 +145,16 @@ const Game = {
   },
   showWorld() {
     Base.stopLife();
+    MenuScene.stop();
+    WX.set(null);
     this.show('scr-world');
     R.mode = null;
     World.render();
   },
   showTac(center) {
     Base.stopLife();
+    MenuScene.stop();
+    WX.set(TAC.m && TAC.m.weather);
     this.show('scr-tac');
     Music.set('mission');
     R.mode = 'tac';
@@ -224,6 +240,9 @@ const Game = {
         <li><b>Мёртвые встают.</b> Убитый не в голову через 2–3 хода поднимается. Тело с зелёным кольцом можно добить за 1 ОД.</li>
         <li><b>Пленных</b> держат в лагерях: освободите (2 ОД) и довезите до машины — человек останется в группе.</li>
         <li><b>База</b> — отдельная карта: касание постройки открывает её улучшение. Ночью на базу могут напасть — тогда бой идёт на её карте.</li>
+        <li><b>Укрытия:</b> когда выбираете клетку, синий щит показывает укрытие с той стороны — полный щит для стены и мешков, половинка для мебели и машин. Люди из группировок по вам за укрытием попадают реже.</li>
+        <li><b>Погода</b> меняется от вылазки к вылазке: в дождь шум слышно на треть ближе, в тумане обзор у всех на 3 клетки меньше.</li>
+        <li><b>Оружие</b> находят в оружейных шкафах, сейфах и на телах врагов. Дома его выдают в панели «Оружие», лишнее разбирают на детали.</li>
         <li><b>Группа</b> растёт до 10 человек, но на вылазку и в бой берите не больше 6. Чем больше отряд, тем больше на карте мертвецов.</li>
         <li><b>Карта округи</b> — все места для вылазок. Новые точки открываются после вылазок и по радио. Повторные вылазки дают меньше добычи.</li>
         <li>Камера: перетаскивание — сдвиг, два пальца или кнопки +/− — масштаб, круглая стрелка — поворот на 90°, кнопка карты — обзор всей местности.</li>
