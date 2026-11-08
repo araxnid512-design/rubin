@@ -1,0 +1,32 @@
+== устройство: Android 10, API 29
+== APK из релиза (как у игроков)
+-rw-r--r-- 1 runner runner 11928575 Nov  8 20:04 apk-test/ulei.apk
+== установка
+Performing Streamed Install
+Success
+INSTALL: OK
+== установка поверх (обновление той же подписью)
+Performing Streamed Install
+Success
+UPDATE: OK
+    versionCode=61 minSdk=23 targetSdk=35
+    versionName=1.61
+    firstInstallTime=2026-11-08 20:04:47
+    lastUpdateTime=2026-11-08 20:05:06
+== запуск
+  bash arg: -p
+  bash arg: com.araxnid.ulei17
+  bash arg: -c
+  bash arg: android.intent.category.LAUNCHER
+  bash arg: 1
+args: [-p, com.araxnid.ulei17, -c, android.intent.category.LAUNCHER, 1]
+ arg: "-p"
+ arg: "com.araxnid.ulei17"
+ arg: "-c"
+ arg: "android.intent.category.LAUNCHER"
+ arg: "1"
+data="com.araxnid.ulei17"
+data="android.intent.category.LAUNCHER"
+Events injected: 1
+## Network stats: elapsed time=151ms (0ms mobile, 0ms wifi, 151ms not connected)
+RUN: OK (процесс жив через 90 с)
