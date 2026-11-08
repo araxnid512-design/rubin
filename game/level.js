@@ -10,7 +10,7 @@ import { Batch, box, place, planeXZ, beginProp, endProp, PROPS } from './geom.js
 import { envKinds, placeEnvProps } from './env-props.js';
 import { Fader, segmentHitsBox } from './buildings.js';
 import { HALF, PLAY, AREA, WIND, birchMaterial, buildTrees, grassTufts, fogWalls, OPTIONS, setHalf } from './props.js';
-import { dressLevel } from './dressing.js';
+import { dressLevel, resetFireLights } from './dressing.js';
 import { NODES } from './world.js';
 import { groundVariation, scatterGroundDetail } from './ground-detail.js';
 import zarechny from './locations/zarechny.js';
@@ -109,6 +109,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 	const root = new THREE.Group();
 	root.name = `Level:${id}`;
 	scene.add(root);
+	resetFireLights(scene, quality); // источники света огней — постоянное число в сцене (шейдеры не пересобираются)
 	const batch = new Batch({ chunk: CHUNK }); // по участкам: за экраном не рисуется
 	// модели Tripo загружены (game/env-props.js) — предметы этих видов (машины, мебель, бочки…) строители не кладут
 	// в статику, а отдают метками; после сборки на их места встают модели. Не загружены (страницы tools/) — PROPS
@@ -228,7 +229,7 @@ export function buildLevel(scene, { quality = 'high', id = 'zarechny', base = nu
 		if (!indoors(x, z, s)) batch.add(place(new THREE.PlaneGeometry(s, s).rotateX(-Math.PI / 2), x, 0.03, z, R(0, 6.28)), bloodMats[i % 5], { cast: false });
 	}
 	// неровная лужа с мягким краем: блестит и отражает небо, а не тёмная дыра
-	const puddleMats = [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ color: 0x59636a, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.7, alphaMap: T.puddleTexture(i), envMapIntensity: 3.5, depthWrite: false }));
+	const puddleMats = [0, 1, 2, 3].map((i) => T.ownEnv(new THREE.MeshStandardMaterial({ color: 0x59636a, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.7, alphaMap: T.puddleTexture(i), envMapIntensity: 3.5, depthWrite: false })));
 	for (let i = 0; i < Math.round((spec.puddles ?? 14) * AREA); i++) {
 		const sx = R(0.9, 2.4), sz = R(0.6, 1.5);
 		const [px, pz] = spec.puddle?.() ?? [R(-E, E), R(-E, E)];
@@ -400,6 +401,38 @@ function exitMarker(batch, root, collide, M, e) {
 /** Шаг сетки навигации, м: мелкая сетка, чтобы зомби проходили в двери домов. */
 export const CELL = 0.5;
 
+/**
+ * Индекс коллайдеров по участкам GRID м: кто рядом с точкой — без перебора всех (в больших локациях их 1000–2000,
+ * а столкновения считаются для каждого персонажа в каждом кадре). Коллайдер лежит во всех участках, которых касается
+ * его описанный круг с запасом GRID_PAD — запросы с радиусом до GRID_PAD смотрят один участок. Массив только растёт
+ * (push) — новые дописываются; новый массив (filter) — свой индекс.
+ */
+const GRID = 4, GRID_PAD = 2;
+function gridOf(colliders) {
+	let g = colliders.grid;
+	if (!g || colliders.length < g.n) {
+		const H = HALF + 60, N = Math.ceil((2 * H) / GRID);
+		g = colliders.grid = { n: 0, o: -H, N, cells: new Array(N * N) };
+	}
+	for (; g.n < colliders.length; g.n++) {
+		const c = colliders[g.n], r = Math.hypot(c.hx, c.hz) + GRID_PAD;
+		const x0 = Math.max(0, Math.floor((c.x - r - g.o) / GRID)), x1 = Math.min(g.N - 1, Math.floor((c.x + r - g.o) / GRID));
+		const z0 = Math.max(0, Math.floor((c.z - r - g.o) / GRID)), z1 = Math.min(g.N - 1, Math.floor((c.z + r - g.o) / GRID));
+		for (let gz = z0; gz <= z1; gz++) for (let gx = x0; gx <= x1; gx++) {
+			(g.cells[gz * g.N + gx] ??= []).push(c);
+		}
+	}
+	return g;
+}
+const NONE = [];
+/** Коллайдеры, которые могут оказаться ближе чем GRID_PAD к точке (x, z). */
+export function collidersNear(colliders, x, z) {
+	const g = gridOf(colliders);
+	const gx = Math.floor((x - g.o) / GRID), gz = Math.floor((z - g.o) / GRID);
+	if (gx < 0 || gz < 0 || gx >= g.N || gz >= g.N) return NONE;
+	return g.cells[gz * g.N + gx] ?? NONE;
+}
+
 /** Сетка CELL×CELL: занятые клетки (с запасом под радиус персонажа). */
 export function makeNav(colliders, pad = 0.35) {
 	const H = HALF, P = PLAY; // размер этой локации (HALF — живое значение, у следующей локации может быть другим)
@@ -428,15 +461,26 @@ export function makeNav(colliders, pad = 0.35) {
 		center,
 		blockedAt(x, z, p = 0) {
 			if (Math.abs(x) > P || Math.abs(z) > P) return true;
-			return colliders.some((c) => inside(c, x, z, p));
+			return (p <= GRID_PAD ? collidersNear(colliders, x, z) : colliders).some((c) => inside(c, x, z, p));
 		},
 		/** Коллайдер, в котором точка (или null). */
-		colliderAt(x, z) { return colliders.find((c) => inside(c, x, z, 0)) ?? null; },
+		colliderAt(x, z) { return collidersNear(colliders, x, z).find((c) => inside(c, x, z, 0)) ?? null; },
 	};
 }
 
 /** Отталкивание круга (x,z,r) от коллайдеров. Возвращает исправленную позицию. */
 export function resolveCollisions(pos, r, colliders) {
+	if (r > GRID_PAD) return pushOut(pos, r, colliders);
+	// по индексу — только соседи; вытолкнуло далеко (стоял глубоко в стене) — ещё проход с нового места
+	for (let pass = 0; pass < 3; pass++) {
+		const x = pos.x, z = pos.z;
+		pushOut(pos, r, collidersNear(colliders, x, z));
+		if (Math.abs(pos.x - x) + Math.abs(pos.z - z) < GRID_PAD - r) break;
+	}
+	return pos;
+}
+
+function pushOut(pos, r, colliders) {
 	for (const c of colliders) {
 		const dx = pos.x - c.x, dz = pos.z - c.z;
 		if (Math.abs(dx) > c.hx + c.hz + r + 1 || Math.abs(dz) > c.hx + c.hz + r + 1) continue;

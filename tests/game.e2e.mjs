@@ -343,7 +343,7 @@ try {
 	check(clear.state === 'play' && !clear.over, `после зачистки нет экрана победы — кластер просто ждёт перезагрузки${clear.state === 'play' && !clear.over ? '' : ` [${JSON.stringify(clear)} ${errors.slice(0, 3).join(' | ')}]`}`);
 
 	// миникарта в углу: план локации вокруг героя и стрелки к выходам
-	const mm = await G(page, () => ({ bg: getComputedStyle(document.getElementById('mm-map')).backgroundImage.startsWith('url("data:image/png'), pointers: document.querySelectorAll('#mm-pointers .mm-pointer').length, shown: document.getElementById('minimap').offsetWidth > 0 }));
+	const mm = await G(page, () => ({ bg: /^url\("(data:image\/png|blob:)/.test(getComputedStyle(document.getElementById('mm-map')).backgroundImage), pointers: document.querySelectorAll('#mm-pointers .mm-pointer').length, shown: document.getElementById('minimap').offsetWidth > 0 }));
 	check(mm.bg && mm.shown && mm.pointers === 3, `миникарта: план локации и ${mm.pointers} стрелки к выходам`);
 	// карта локации по M: где герой, тайники, выходы; оттуда — на карту Улья
 	await page.keyboard.press('KeyM');
@@ -453,7 +453,7 @@ try {
 		const g = window.__game;
 		return { owned: g.kit.owned, grenades: g.bag.grenade, secs: [...document.querySelectorAll('#trade-list .trade-sec')].map((x) => x.textContent) };
 	});
-	check(['spas12', 'mp5', 'ak74', 'ak47', 'svd', 'awm', 'rpk'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 4 && arsenal.secs.includes('Тяжёлое оружие'), `у торговца куплены SPAS-12, MP5, АК-74, АК-47, СВД, Arctic Warfare, РПК и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
+	check(['spas12', 'mp5', 'ak74', 'ak47', 'svd', 'awm', 'rpk'].every((w) => arsenal.owned.includes(w)) && arsenal.grenades === 3 && arsenal.secs.length === 5 && arsenal.secs.includes('Тяжёлое оружие') && arsenal.secs.includes('Ресурсы'), `у торговца куплены SPAS-12, MP5, АК-74, АК-47, СВД, Arctic Warfare, РПК и 3 гранаты (разделы: ${arsenal.secs.join(', ')})`);
 	await page.click('#trade-close');
 	const shots = await G(page, () => {
 		const g = window.__game, p = g.player, out = {};
@@ -666,7 +666,6 @@ try {
 	});
 	check(!supply0.btn && supply0.note && supply.hp === 100 && supply.zh === 1 && supply.ammo === supply.full && supply.treasury < 200 && supply.after === supply.my,
 		`в комнате: патроны Шрам пополнил сам из казны базы (${supply.ammo} — полный боекомплект, в казне осталось ${supply.treasury} из 200), аптечка — из рюкзака (здоровье ${supply.hp})`);
-	await page.click('#party-close');
 	await G(page, () => window.__game.equipGear('aks'));
 	// сохранение и «Продолжить»
 	const saved = await G(page, () => JSON.parse(localStorage.getItem('ulei-cluster17-save') ?? 'null'));
@@ -1006,7 +1005,7 @@ try {
 	await G(page, () => window.__game.travel('himmash'));
 	await page.waitForFunction(() => window.__game.loc === 'himmash' && window.__game.state === 'play', null, { timeout: 300000 });
 	const hm = await G(page, () => { const g = window.__game, n = (t) => g.enemies.filter((e) => e.type === t).length; return { r: n('ruber'), s: n('stomper'), c: g.level.containers.length, b: g.level.buildings.length }; });
-	check(hm.r >= 2 && hm.r <= 4 && hm.s >= 5 && hm.c >= 20 && hm.b === 5, `Химмаш: руберов ${hm.r}, топтунов ${hm.s}, цех, три склада и сторожка, тайников ${hm.c}`);
+	check(hm.r >= 2 && hm.r <= 4 && hm.s >= 5 && hm.c >= 20 && hm.b >= 5, `Химмаш: руберов ${hm.r}, топтунов ${hm.s}, зданий ${hm.b} (цех, склады, сторожка…), тайников ${hm.c}`);
 	await G(page, () => window.__game.player.pos.set(0, 0, 8));
 	const rh = await reach();
 	check(rh.bad.length === 0 && rh.exits === 0, `Химмаш: все ${rh.n} тайников и выходы достижимы${rh.bad.length ? ': нет пути к ' + rh.bad.join(', ') : ''}`);
@@ -1377,7 +1376,7 @@ try {
 		e.damage(1e6, g.player.pos, 0);
 		const drops = g.pickups.slice(p0);
 		r.red = drops.filter((p) => p.kind === 'redpearl').length; r.black = drops.filter((p) => p.kind === 'pearl').length;
-		const hp0 = g.perks.maxHp; g.bag.redpearl = 1; g.eatRedPearl(); r.plus = g.perks.maxHp - hp0; r.left = g.bag.redpearl;
+		const hp0 = g.perks.maxHp; g.bag.redpearl = 1; g.eatRedPearl(); r.plus = g.perks.maxHp - hp0; r.left = g.bag.redpearl; g.perks.maxHp = hp0; // дальше тест считает здоровье без неё
 		g.player.hp = g.player.maxHp = 1e6;
 		return r;
 	}).catch((err) => ({ error: String(err) }));

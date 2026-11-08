@@ -15,7 +15,7 @@ import { planRaid, greedCheck, raidSize, RAID_POWER, RAID_TIME, MASSACRE } from 
 import { QuestWindow, QUEST_ACTIVE, questProgress, questReady, questText, refreshQuests, rewardText } from './quests.js';
 import { EXT_GUNS, EXT_AIM, EXT_ACCURACY, EXT_DAMAGE, EXT_ARMOR, EXT_HP, CMD_HP, CMD_ARMOR, CMD_GUN, EXT_DROP_AMMO, EXT_DROP_SPORE, EXT_DROP_MED, EXT_DROP_NADE, EXT_DROP_GUN, tickExt, extText } from './ext.js';
 import { MUR_GUNS, MUR_AIM, MUR_ACCURACY, MUR_DAMAGE, MUR_SHOOTERS, MUR_TURN, MUR_REST, LEAVE_BEFORE, tickMurs, storeLoot, hireMurs, BOSS_HP, BOSS_ARMOR, BOSS_GUN, MUR_NADE_SHARE, MUR_NADE_GAP, MUR_FLANK_GAP, MUR_DROP_AMMO, MUR_DROP_SPORE, MUR_REP, CAMP_GRUDGE, STANCE, murStance, murOffend } from './murs.js';
-import { setAnisotropy, softDotTexture } from './textures.js';
+import { setAnisotropy, softDotTexture, ENV as WATER_ENV } from './textures.js';
 import { createMarks } from './marks.js';
 import { createFire } from './dressing.js';
 import { Sfx } from './audio.js';
@@ -79,12 +79,18 @@ const FOG = new THREE.Color(0x6e6c64), FOG_SOUR = new THREE.Color(0x8a8658);
 scene.background = SKY.clone();
 scene.fog = new THREE.Fog(FOG.clone(), 34, 90);
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.2;
+const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+// отражения окружения (IBL) — только на высоком качестве: в каждом пикселе по нескольку выборок из кубической
+// карты, на слабом GPU это почти половина кадра (замер: 120 → 65 мс на программной видеокарте). На низком и
+// среднем (телефон по умолчанию) — ровная подсветка той же яркости (замер средней яркости кадра: 114,0 → 114,4);
+// лужам отражение неба оставлено своим envMap (см. level.js)
+const IBL = QUALITY === 'high';
+if (IBL) { scene.environment = envMap; scene.environmentIntensity = 0.2; } else WATER_ENV.map = envMap;
 
 const camera = new THREE.PerspectiveCamera(42, view.w / view.h, 0.5, 220);
 // заливка темнее и холоднее, солнце низкое и тёплое — жёсткий свет, освещённые и тёмные стороны
-scene.add(new THREE.HemisphereLight(0xa8b4bc, 0x3c362c, 1.0));
+scene.add(new THREE.HemisphereLight(0xa8b4bc, 0x3c362c, IBL ? 1.0 : 1.2));
+if (!IBL) scene.add(new THREE.AmbientLight(0xffffff, 1.05)); // вместо рассеянного света окружения
 const sun = new THREE.DirectionalLight(0xffd9b0, 2.45);
 scene.add(sun, sun.target);
 // ACES с цветом Улья; на высоком — ещё затенение в углах, свечение и зерно
@@ -594,6 +600,9 @@ class Actor {
 	}
 }
 const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
+const updateMatrixWorldBase = THREE.Object3D.prototype.updateMatrixWorld;
+/** updateMatrixWorld, который пропускает скрытую модель вместе со всем скелетом (см. Enemy). */
+function updateIfVisible(force) { if (this.visible) updateMatrixWorldBase.call(this, force); }
 const UP = new THREE.Vector3(0, 1, 0);
 // ход в прицеле: набор клипов 8 направлений (src/hero-animations.js, AIM_WALK) по клипу шага в руках; скорость — HERO_GAIT8
 const AIM_SET = { WalkRifle: { prefix: 'AimWalkRifle_', gait: 'WalkRifle' }, WalkPistol: { prefix: 'AimWalkPistol_', gait: 'WalkPistol' } };
@@ -1337,6 +1346,10 @@ class Enemy extends Actor {
 		this.type = type;
 		this.T = T;
 		this.kind = key;
+		// за кадром (model.visible = false) кости не пересчитываются: у 40–70 заражённых за экраном это тысячи матриц
+		// в каждом кадре (на телефоне — миллисекунды); положение кости при надобности даёт getWorldPosition — он
+		// пересчитывает цепочку сам
+		this.model.updateMatrixWorld = updateIfVisible;
 		// модель Tripo: скорости клипов (м/с при темпе 1 — ступни не скользят), момент удара, разворот, осанка
 		this.tz = gltf.userData.tripo ?? null;
 		const g = this.tz?.gait;
@@ -3002,9 +3015,19 @@ const game = {
 
 	/** План новой локации: миникарта и карта локации. */
 	planLevel() {
-		level.planUrl = drawPlan(level).toDataURL('image/png');
-		this.minimap.setLevel(level, level.planUrl);
-		this.locationMap.setLevel(level.planUrl);
+		const L = level, c = drawPlan(L);
+		this.minimap.setLevel(L, null); // стрелки к выходам — сразу, картинка плана — когда закодируется
+		const set = (url) => {
+			if (L !== level) { if (url.startsWith('blob:')) URL.revokeObjectURL(url); return; } // пока кодировалось, ушли дальше
+			const old = this.planUrl;
+			L.planUrl = this.planUrl = url;
+			this.minimap.setPlan(url);
+			this.locationMap.setLevel(url);
+			if (old?.startsWith('blob:')) URL.revokeObjectURL(old);
+		};
+		// PNG 1440×1440 кодируется не в главном потоке (toBlob): toDataURL замораживал переход на телефоне на секунды
+		if (c.toBlob) c.toBlob((b) => set(b ? URL.createObjectURL(b) : c.toDataURL('image/png')), 'image/png');
+		else set(c.toDataURL('image/png'));
 	},
 
 	/**
@@ -4367,8 +4390,26 @@ const game = {
 			else if (node.kind === 'ext') this.banner(node.name, `Форпост внешников — около ${this.world.ext.count} бойцов в броне. Заметят — не уйдёшь`);
 			else if (node.kind === 'base') this.banner(node.name, this.baseGreeting());
 			else if (!this.raidSquad && !this.huntSquad) this.banner(node.name, `До перезагрузки ${approx(timeLeft(this.world, to))}${visited ? ' · здесь ты уже был' : ''}`);
-			setTimeout(() => $('travel').classList.add('hidden'), 350);
+			this.warmShaders(() => setTimeout(() => $('travel').classList.add('hidden'), 350));
 		}, 30));
+	},
+
+	/**
+	 * Шейдеры новой локации — заранее, пока на экране «Дорога…»: compileAsync собирает их параллельно (на телефоне —
+	 * KHR_parallel_shader_compile, в потоках драйвера), в том числе для участков за экраном; пока идёт сборка, кадр не
+	 * рисуется (иначе первый же кадр ждал бы все шейдеры разом — заминка в секунду и больше). done — когда готово.
+	 */
+	warmShaders(done) {
+		let over = false;
+		const finish = () => { if (over) return; over = true; this.compiling = false; done?.(); };
+		try {
+			// без расширения проверка готовности блокирует — тогда только запускаем сборку заранее (compile) и не ждём:
+			// драйвер успеет собрать, пока догорает «Дорога», а участки за экраном не дёрнут кадр, когда войдут в кадр
+			if (!renderer.extensions.has('KHR_parallel_shader_compile')) { renderer.compile(scene, camera); finish(); return; }
+			this.compiling = true;
+			renderer.compileAsync(scene, camera).then(finish, finish);
+		} catch { finish(); }
+		setTimeout(finish, 6000); // на всякий случай: драйвер не ответил — всё равно показываем
 	},
 
 	/**
@@ -5969,6 +6010,8 @@ const MIN_RATIO = isMobile ? 0.65 : 0.75;
 game.perf = perf;
 /** Для отладки и тестов: сколько всего в видеопамяти. */
 game.gpuInfo = () => ({ ...renderer.info.memory, programs: renderer.info.programs?.length ?? 0, ratio: renderer.getPixelRatio() });
+/** Для замеров и тестов: сцена, рендер, камера (scratchpad-скрипты переключают через них тяжёлые части картинки). */
+game.three = { scene, renderer, camera, flashLight };
 function frame() {
 	const raw = clock3.getDelta(), real = Math.min(0.05, raw);
 	const t0 = performance.now();
@@ -5984,7 +6027,7 @@ function frame() {
 		if (!frame.warned) { frame.warned = true; game.toast?.('Что-то пошло не так — игра продолжается. Если повторится, сообщи разработчику', 'warn'); }
 	}
 	const t1 = performance.now();
-	post.render(real);
+	if (!game.compiling) post.render(real); // шейдеры новой локации ещё собираются (warmShaders) — экран закрыт «Дорогой»
 	const t2 = performance.now();
 	const k = 0.08;
 	perf.fps += ((raw > 0 ? 1 / raw : 60) - perf.fps) * k;

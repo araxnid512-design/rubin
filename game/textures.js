@@ -11,6 +11,9 @@ export function setAnisotropy(n) { maxAniso = n; }
 function canvas(w, h = w) {
 	const c = document.createElement('canvas');
 	c.width = w; c.height = h;
+	// холст в памяти, а не на видеокарте: getImageData (выгоревшие вывески, стёртая разметка, муть) не ждёт GPU —
+	// на телефоне каждое чтение с видеокарты стоило десятки миллисекунд, переход в локацию с вывесками — секунды
+	c.getContext('2d', { willReadFrequently: true });
 	return c;
 }
 
@@ -399,6 +402,16 @@ export function linoleumMaterial(repeat) {
 }
 
 /** Вода пруда: тёмная, глянцевая, с мелкой рябью (карту нормалей сдвигает уровень — рябь бежит). */
+/**
+ * Отражение неба для воды и луж, когда общего (scene.environment) нет — на низком и среднем качестве (см. main.js):
+ * своя карта только у них, остальные материалы без выборок из кубической карты. k — прежняя общая сила (0,2).
+ */
+export const ENV = { map: null, k: 0.2 };
+export function ownEnv(m) {
+	if (ENV.map) { m.envMap = ENV.map; m.envMapIntensity *= ENV.k; }
+	return m;
+}
+
 export function waterMaterial() {
 	const m = texMaterial('water', () => pixels(256, (u, v) => {
 		const h = tileFbm(u, v, 6, 4, 171) * 0.7 + tileFbm(u, v, 14, 3, 173) * 0.3;
@@ -407,7 +420,7 @@ export function waterMaterial() {
 	}), { repeat: [6, 6], roughness: 0.08, metalness: 0.15, normal: 3 });
 	m.envMapIntensity = 2.2;
 	m.normalScale.set(0.5, 0.5);
-	return m;
+	return ownEnv(m);
 }
 
 /** Ткань (диван, покрывало) — однотонная с фактурой. */

@@ -30,7 +30,8 @@ export function drawPlan(level) {
 	fitScale();
 	const c = document.createElement('canvas');
 	c.width = c.height = SIZE;
-	const g = c.getContext('2d');
+	// холст в памяти: из него потом кодируется PNG — чтение с видеокарты на телефоне стоило секунды
+	const g = c.getContext('2d', { willReadFrequently: true });
 	const rect = (x, z, w, d, ry, fill, stroke) => {
 		g.save();
 		g.translate(toPx(x), toPx(z));
@@ -122,11 +123,14 @@ export class Minimap {
 	/** Новая локация: свой план. */
 	setLevel(level, planUrl) {
 		this.level = level;
-		this.map.style.backgroundImage = `url(${planUrl})`;
+		this.setPlan(planUrl);
 		this.map.style.backgroundSize = `${HALF * 2 * this.k}px ${HALF * 2 * this.k}px`;
 		this.pointers.innerHTML = level.exits.map((e, i) => `<div class="mm-pointer" data-i="${i}"><i></i><span>${exitLabel(e)}</span></div>`).join('');
 		this.t = 1;
 	}
+
+	/** Картинка плана (null — ещё кодируется: пока без подложки). */
+	setPlan(planUrl) { this.map.style.backgroundImage = planUrl ? `url(${planUrl})` : 'none'; }
 
 	update(dt, player) {
 		if (!this.level || (this.t += dt) < 0.05) return;

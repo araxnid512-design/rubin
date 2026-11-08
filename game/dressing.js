@@ -116,6 +116,24 @@ export function quadUV(geo, q) {
 }
 
 /**
+ * Источники света огней — постоянный набор в сцене (по качеству: высокое 3, среднее 2, низкое 0). Число точечных
+ * источников «зашито» в шейдеры: в одной локации два горящих огня, в другой ни одного — и при каждом переходе
+ * пересобирались почти все шейдеры (на телефоне — секунды заминки). Теперь огни берут источник из набора, а
+ * свободные стоят погашенными (intensity 0) — их число в сцене не меняется.
+ */
+const fireLights = { scene: null, list: [], used: 0 };
+export function resetFireLights(scene, quality) {
+	const n = quality === 'high' ? 3 : quality === 'medium' ? 2 : 0;
+	if (fireLights.scene !== scene) { for (const l of fireLights.list) l.removeFromParent(); fireLights.list = []; fireLights.scene = scene; }
+	while (fireLights.list.length < n) { const l = new THREE.PointLight(0xff8a40, 0, 9, 1.6); l.name = 'FireLight'; scene.add(l); fireLights.list.push(l); }
+	while (fireLights.list.length > n) fireLights.list.pop().removeFromParent();
+	for (const l of fireLights.list) l.intensity = 0;
+	fireLights.used = 0;
+}
+/** Свободный источник из набора (или null — все заняты / набора нет, например на страницах tools/). */
+function takeFireLight() { return fireLights.list[fireLights.used++] ?? null; }
+
+/**
  * Огонь: в бочке, на остове машины или костёр. size — 1 для бочки; light — свой источник света
  * (иначе только отсвет на земле). Возвращает { update(dt, t) }.
  */
@@ -148,8 +166,8 @@ export function createFire(root, x, y, z, { size = 1, light = true, smoke = true
 	halo.position.y = 0.038 - y;
 	halo.scale.setScalar(10 * size);
 	group.add(halo);
-	const lamp = light ? new THREE.PointLight(0xff8a40, 8 * size, 9 * size, 1.6) : null;
-	if (lamp) { lamp.position.y = 0.9 * size; group.add(lamp); }
+	const lamp = light ? takeFireLight() : null;
+	if (lamp) { lamp.position.set(x, y + 0.9 * size, z); lamp.distance = 9 * size; lamp.intensity = 8 * size; }
 	// дым и искры — по кругу из небольшого запаса
 	const puffs = [], sparks = [];
 	if (smoke) {

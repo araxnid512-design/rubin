@@ -242,6 +242,7 @@ const carMaterials = () => carMats ??= {
 	soot: new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 1 }),
 };
 
+
 /**
  * Старая советская легковушка (седан): кузов со скруглёнными кромками, крыша в цвет, стёкла кругом
  * (сверху — крыша, капот и багажник, а не чёрный ящик), хромированные бамперы, фары, фонари, номер,
@@ -447,6 +448,17 @@ export function markingMaterial() {
 	return new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.8 });
 }
 
+let ringMat = null; // край кластера — общий шейдерный материал (см. fogWalls)
+/** Квадратная рамка в плоскости XY: внутренний полуразмер a, внешний b (4 четырёхугольника). */
+function frameXY(a, b) {
+	const pos = [], idx = [];
+	const quad = (x0, y0, x1, y1) => { const i = pos.length / 3; pos.push(x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y1, 0); idx.push(i, i + 1, i + 2, i, i + 2, i + 3); };
+	quad(-b, -b, b, -a); quad(-b, a, b, b); quad(-b, -a, -a, a); quad(a, -a, b, a);
+	const g = new THREE.BufferGeometry();
+	g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+	g.setIndex(idx);
+	return g;
+}
 export function fogWalls(root) {
 	const tex = T.fogWallTexture();
 	const mats = [];
@@ -459,23 +471,37 @@ export function fogWalls(root) {
 			t.repeat.set(3, 1);
 			const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.42 + layer * 0.18, depthWrite: false, color: 0xb4b09a, fog: false, side: THREE.DoubleSide });
 			mats.push({ m, speed: (0.004 + layer * 0.003) * (side % 2 ? -1 : 1) });
-			const plane = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2 + 30, 26), m);
-			const d = HALF - 3 + layer * 2.5;
-			plane.position.y = 11;
-			if (side === 0) { plane.position.z = -d; }
-			if (side === 1) { plane.position.z = d; plane.rotation.y = Math.PI; }
-			if (side === 2) { plane.position.x = -d; plane.rotation.y = Math.PI / 2; }
-			if (side === 3) { plane.position.x = d; plane.rotation.y = -Math.PI / 2; }
-			group.add(plane);
+			// стена — кусками по ~30 м: целиком (210 м) она всегда «в кадре» для отсечения и рисовалась в каждом кадре,
+			// хоть край и далеко; куски за экраном отсекаются (текстура по кускам — та же, без шва)
+			const W = HALF * 2 + 30, n = Math.ceil(W / 30), d = HALF - 3 + layer * 2.5;
+			for (let k = 0; k < n; k++) {
+				const geo = new THREE.PlaneGeometry(W / n, 26).translate(-W / 2 + (k + 0.5) * (W / n), 0, 0);
+				const uv = geo.attributes.uv;
+				for (let i = 0; i < uv.count; i++) uv.setX(i, (k + uv.getX(i)) / n);
+				const plane = new THREE.Mesh(geo, m);
+				plane.position.y = 11;
+				if (side === 0) { plane.position.z = -d; }
+				if (side === 1) { plane.position.z = d; plane.rotation.y = Math.PI; }
+				if (side === 2) { plane.position.x = -d; plane.rotation.y = Math.PI / 2; }
+				if (side === 3) { plane.position.x = d; plane.rotation.y = -Math.PI / 2; }
+				group.add(plane);
+			}
 		}
 	}
 	// земля у края тонет в светлой мути: дальше края — сплошная дымка, но без черноты
-	const ring = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2 + 50, HALF * 2 + 50), new THREE.ShaderMaterial({
+	// материал общий на все локации (userData.shared — level.dispose его не трогает): свой шейдер не собирается заново
+	// при каждом переходе (на телефоне сборка шейдера — заметная заминка); край — своей локации
+	ringMat ??= new THREE.ShaderMaterial({
 		transparent: true, depthWrite: false,
 		uniforms: { color: { value: new THREE.Color(0x8d8a78) }, edge: { value: HALF - 1 } },
 		vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
 		fragmentShader: 'uniform vec3 color; uniform float edge; varying vec2 vP; void main(){ float d = max(abs(vP.x), abs(vP.y)); float k = smoothstep(edge - 10.0, edge + 4.0, d); gl_FragColor = vec4(color, k * k * (3.0 - 2.0 * k) * 0.88); }',
-	}));
+	});
+	ringMat.userData.shared = true;
+	ringMat.uniforms.edge.value = HALF - 1;
+	// не плоскость на всю локацию (прозрачный проход по всему экрану в каждом кадре — дорого на телефоне), а рамка
+	// там, где муть видна: от HALF − 11 м (дальше — прозрачно, см. шейдер) до внешнего края
+	const ring = new THREE.Mesh(frameXY(HALF - 12, HALF + 25), ringMat);
 	ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
 	group.add(ring);
 	root.add(group);
