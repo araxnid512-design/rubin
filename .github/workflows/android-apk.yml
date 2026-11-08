@@ -1,0 +1,65 @@
+name: Android APK
+
+on:
+  push:
+    paths:
+      - 'kurier/**'
+      - 'android/**'
+      - 'tools/build.mjs'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Собрать игру в один файл
+        run: |
+          node tools/build.mjs
+          mkdir -p android/app/src/main/assets
+          cp dist/kurier.html android/app/src/main/assets/index.html
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Собрать APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Подготовить файл
+        run: cp android/app/build/outputs/apk/release/app-release.apk kurier.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kurier-apk
+          path: kurier.apk
+
+      - name: Выложить в релиз
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=kurier-apk
+          NOTES="Курьер миров для Android. Сборка ${GITHUB_RUN_NUMBER}, ветка ${GITHUB_REF_NAME}, коммит ${GITHUB_SHA::7}. Установка: скачайте kurier.apk на телефон, откройте файл и разрешите установку из этого источника."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$NOTES"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Курьер миров для Android" --notes "$NOTES"
+          fi
+          gh release upload "$TAG" kurier.apk --repo "$GITHUB_REPOSITORY" --clobber
