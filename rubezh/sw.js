@@ -1,5 +1,5 @@
 // Сервис-воркер «Рубежа»: игра открывается и без интернета, новая версия подтягивается при сети.
-const V = 'rubezh-1.0.32';
+const V = 'rubezh-1.0.36';
 const CORE = ['./', './index.html', './play.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
