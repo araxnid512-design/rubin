@@ -53,6 +53,21 @@
   }
   function dust(x, y) { for (let i = 0; i < 5; i++) S.parts.push({ x: x + Math.random() * 16 - 8, y, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 1.2, life: 18, max: 18, s: 3, c: 'rgba(230,230,230,0.7)', g: 0 }); }
 
+  function pop(text, x, y) { S.pops.push({ text, x, y, life: 55 }); }
+
+  /* ---------- погоня ---------- */
+  // Преследователь держится позади: если герой бежит, он отстаёт за экран; если стоит — быстро нагоняет.
+  function updateChase() {
+    const c = S.chase, P = S.P;
+    if (!c || S.done) return;
+    if (c.wait > 0) { c.wait--; return; }
+    const gap = P.x - c.x;
+    c.x += c.speed + (gap > 560 ? 1.3 : gap > 380 ? 0.5 : 0);
+    if (gap < 260) S.shake = Math.max(S.shake, 2);
+    if (S.t % 3 === 0) S.parts.push({ x: c.x - 6, y: Math.random() * K.VH, vx: 1 + Math.random() * 2, vy: (Math.random() - 0.5) * 2, life: 26, max: 26, s: 4, c: GFX.chaseColor(c.kind), g: 0.05 });
+    if (P.x + 4 < c.x) die();
+  }
+
   /* ---------- загрузка уровня ---------- */
   const ENEMY_SIZE = { knight: [24, 30], yeti: [24, 26], imp: [24, 24], shade: [24, 24], drone: [24, 18], goblin: [24, 24], archer: [24, 24], plant: [24, 24], iceturret: [24, 24], turret: [24, 24], eye: [24, 24] };
   function spawnEnemy(e) {
@@ -73,6 +88,7 @@
       world: wid, stage, title: L.boss ? world.bossName : `${wid}-${stage} · ${world.name}`, ents: [], shots: [], parts: [], movers: [],
       cam: { x: 0 }, t: 0, time: 0, coins: 0, totalCoins: L.totalCoins, shards: [false, false, false], deaths: keep ? keep.deaths : 0,
       hp: 3, maxHp: 3, cp: null, done: false, boss: null, bossName: world.bossName, shake: 0, abil: L.abilities, sign: null, freeze: 0, banner: null, lava: null, flash: 0,
+      chase: L.chase ? { x: -480, wait: 170, speed: L.chase.speed, kind: L.chase.kind } : null, stop: 0, combo: 0, pops: [],
     };
     for (const e of L.ents) {
       const px = e.x * TS, py = e.y * TS;
@@ -94,6 +110,7 @@
     S.P = P;
     S.cp = { x: P.x, y: P.y };
     if (S.boss) S.banner = { text: world.bossName, t: 140 };
+    else if (L.chase) S.banner = { text: `${wid}-${stage}  ${L.chase.name}`, sub: L.chase.note, t: 150 };
     else S.banner = { text: `${wid}-${stage}  ${world.name}`, t: 110 };
     return S;
   };
@@ -125,6 +142,8 @@
     P.x = S.cp.x; P.y = S.cp.y; P.vx = 0; P.vy = 0; P.inv = 70; P.dashT = 0;
     S.hp = S.maxHp;
     S.dead = false;
+    S.combo = 0;
+    if (S.chase) { S.chase.x = Math.min(S.chase.x, S.cp.x - 460); S.chase.wait = 110; }
     for (const e of S.shots) e.life = 0;
   }
 
@@ -335,6 +354,8 @@
         else if (P.vy > 0 && P.y + P.h - P.vy <= e.y + 10) {
           e.hp--;
           if (e.hp <= 0) killEnemy(e); else { e.hurt = 24; AU.sfx('stomp'); }
+          S.combo++; S.stop = 3;
+          if (S.combo >= 2) pop(['', '', 'Дважды!', 'Трижды!', 'Четыре!', 'Пять!'][Math.min(S.combo, 5)] || 'Серия!', e.x + e.w / 2, e.y - 6);
           P.vy = E.input.jump ? -12.5 : -8.5; P.bounced = true; P.djUsed = false; P.dashUsed = false;
         } else hurt(e.x + e.w / 2);
       }
@@ -405,7 +426,7 @@
       if (!ov(P, e.t === 'portal' ? { x: e.x, y: e.y - 40, w: 32, h: 72 } : e)) continue;
       switch (e.t) {
         case 'coin': e.taken = true; S.coins++; AU.sfx('coin'); burst(e.x + 10, e.y + 10, 4, [GFX.pal().light, '#ffffff'], 1.5); break;
-        case 'shard': e.taken = true; S.shards[e.i] = true; AU.sfx('shard'); S.flash = 12; burst(e.x + 12, e.y + 14, 16, ['#b48aff', '#ffffff', '#ff6ad8'], 3.5); break;
+        case 'shard': e.taken = true; S.shards[e.i] = true; AU.sfx('shard'); S.flash = 12; pop(`Осколок ${S.shards.filter(Boolean).length}/3`, e.x + 12, e.y - 8); burst(e.x + 12, e.y + 14, 16, ['#b48aff', '#ffffff', '#ff6ad8'], 3.5); break;
         case 'heart': if (S.hp < S.maxHp) { e.taken = true; S.hp++; AU.sfx('heart'); } break;
         case 'flag': if (!e.on) { e.on = true; S.cp = { x: e.x, y: e.y + 32 - P.h }; AU.sfx('checkpoint'); burst(e.x + 14, e.y - 20, 10, ['#2fae5c', '#ffffff'], 2.5); } break;
         case 'portal': complete(); break;
@@ -439,6 +460,7 @@
     b.hp--;
     b.inv = 50;
     S.shake = 10;
+    S.stop = 7;
     AU.sfx('bossHit');
     burst(b.x + b.w / 2, b.y + b.h / 3, 14, ['#ffffff', '#ffd56b', '#ff4f6a'], 4);
     if (b.hp <= 0) {
@@ -569,6 +591,8 @@
     // частицы живут всегда
     for (const p of S.parts) { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life--; }
     S.parts = S.parts.filter((p) => p.life > 0);
+    for (const p of S.pops) { p.y -= 0.7; p.life--; }
+    S.pops = S.pops.filter((p) => p.life > 0);
     if (S.freeze) {
       if (S.done) return;
       S.freeze--;
@@ -578,9 +602,13 @@
       }
       return;
     }
+    if (S.stop > 0) { S.stop--; return; }
     S.time++;
     updateMovers();
     updatePlayer();
+    if (S.freeze) return;
+    if (S.P.onGround) S.combo = 0;
+    updateChase();
     if (S.freeze) return;
     updateCrumble();
     updateEnemies();
@@ -617,8 +645,11 @@
     for (const s of S.shots) GFX.drawShot(ctx, s, camX, t);
     if (!(S.dead && S.freeze)) GFX.drawHero(ctx, S.P, camX, t);
     if (S.lava) { ctx.fillStyle = '#ff6a1a'; ctx.fillRect(0, S.lava.y, K.VW, K.VH - S.lava.y); ctx.fillStyle = '#ffd06a'; for (let x = 0; x < K.VW; x += 16) ctx.fillRect(x, S.lava.y + Math.sin(t * 0.1 + x) * 3, 10, 4); }
+    if (S.chase) GFX.drawChase(ctx, S.chase, camX, t);
     GFX.drawParticles(ctx, S.parts, camX);
+    for (const p of S.pops) { ctx.globalAlpha = Math.min(1, p.life / 20); ctx.font = GFX.font(18); ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(p.text, p.x - camX + 2, p.y + 2); ctx.fillStyle = '#ffd56b'; ctx.fillText(p.text, p.x - camX, p.y); ctx.textAlign = 'left'; ctx.globalAlpha = 1; }
     ctx.restore();
+    if (S.chase && !S.done) GFX.drawChaseWarn(ctx, S.P.x - S.chase.x, t);
     if (S.flash > 0) { ctx.fillStyle = `rgba(200,160,255,${S.flash / 30})`; ctx.fillRect(0, 0, K.VW, K.VH); }
     GFX.drawHud(ctx, S);
     if (S.boss && S.boss.hp > 0 && S.boss.st !== 'intro') GFX.drawBossBar(ctx, S.boss, S.bossName);
@@ -630,7 +661,7 @@
       ctx.fillStyle = '#ffffff'; ctx.font = GFX.font(34); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(S.banner.text, K.VW / 2, K.VH / 2 - 10);
       ctx.font = GFX.font(16); ctx.fillStyle = GFX.pal().light;
-      ctx.fillText(L.boss ? 'Босс' : K.worldById(S.world).sub, K.VW / 2, K.VH / 2 + 20);
+      ctx.fillText(L.boss ? 'Босс' : S.banner.sub || K.worldById(S.world).sub, K.VW / 2, K.VH / 2 + 20);
       ctx.textAlign = 'left'; ctx.globalAlpha = 1;
     }
   };

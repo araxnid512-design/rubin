@@ -407,6 +407,42 @@
     ctx.globalAlpha = 1;
   };
 
+  /* ================= ПОГОНЯ ================= */
+  const CHASE = { stampede: ['#4a3020', '#a07a4a', '#e0c49a'], rubble: ['#3f444d', '#8a8f99', '#c8ccd4'], swamp: ['#14382a', '#3f8a6a', '#a8f0c0'], avalanche: ['#9fb4c8', '#e2ecf6', '#ffffff'], lava: ['#6a1404', '#ff6a1a', '#ffd06a'], void: ['#04020c', '#3a1460', '#c08aff'] };
+  G.chaseColor = (k) => CHASE[k][2];
+  G.drawChase = function (ctx, c, camX, t) {
+    const fx = Math.round(c.x - camX), col = CHASE[c.kind];
+    if (fx < -60) return;
+    if (fx > 0) {
+      const g = ctx.createLinearGradient(fx - 260, 0, fx, 0);
+      g.addColorStop(0, col[0]); g.addColorStop(1, col[1]);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, fx, K.VH);
+    }
+    for (let y = -16; y < K.VH + 16; y += 16) {
+      const wob = Math.sin(t * 0.21 + y * 0.07) * 10 + Math.sin(t * 0.13 + y * 0.21) * 6;
+      R(ctx, fx - 34 + wob, y, 38, 18, col[1]);
+      R(ctx, fx - 10 + wob, y + 4, 16, 10, col[2]);
+    }
+    if (c.kind === 'stampede') for (let i = 0; i < 4; i++) {
+      const hx = fx - 40 - i * 46, hy = 380 + (i % 2) * 40 + Math.round(Math.abs(Math.sin(t * 0.25 + i)) * -14);
+      R(ctx, hx, hy, 40, 18, '#2a1a10'); R(ctx, hx + 28, hy - 18, 14, 22, '#2a1a10'); R(ctx, hx + 36, hy - 12, 12, 8, '#2a1a10'); R(ctx, hx + 30, hy - 22, 4, 6, '#2a1a10');
+    }
+    if (c.kind === 'rubble' || c.kind === 'avalanche') for (let i = 0; i < 8; i++) {
+      const sx = fx - 20 + ((i * 37 + t * 3) % 70), sy = ((t * (4 + i % 3) + i * 90) % (K.VH + 40)) - 20, sz = 10 + (i % 3) * 6;
+      R(ctx, sx, sy, sz, sz, c.kind === 'rubble' ? '#6c717b' : '#ffffff');
+    }
+    if (c.kind === 'lava') { ctx.fillStyle = 'rgba(255,140,40,0.18)'; ctx.fillRect(fx, 0, 80, K.VH); }
+    if (c.kind === 'void') for (let i = 0; i < 26; i++) R(ctx, (fx - 30 - ((i * 53) % Math.max(60, fx + 30))), (i * 97 + t) % K.VH, 2, 2, '#ffffff');
+  };
+  // Когда погоня за краем экрана — красная полоса слева, ярче по мере приближения.
+  G.drawChaseWarn = function (ctx, gap, t) {
+    if (gap > 900) return;
+    const k = Math.max(0, Math.min(1, (900 - gap) / 600));
+    const g = ctx.createLinearGradient(0, 0, 90, 0);
+    g.addColorStop(0, `rgba(255,60,60,${0.55 * k * (0.75 + 0.25 * Math.sin(t * 0.3))})`); g.addColorStop(1, 'rgba(255,60,60,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 40, 90, K.VH - 40);
+  };
+
   /* ================= ИНТЕРФЕЙС НА ХОЛСТЕ ================= */
   G.font = (px) => `${px}px "Pixelify Sans", "Press Start 2P", monospace`;
   G.drawHud = function (ctx, S) {

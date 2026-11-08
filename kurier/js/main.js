@@ -85,7 +85,8 @@
       for (let s = 1; s <= K.stageCount(wd); s++) {
         const id = `${wd.id}-${s}`, d = save.done[id], ok = unlocked(wd.id, s), boss = K.isBoss(wd.id, s);
         const isNext = nx && nx[0] === wd.id && nx[1] === s;
-        html += `<button class="st ${d ? 'done' : ''} ${isNext ? 'next' : ''} ${boss ? 'boss' : ''}" data-act="stage" data-w="${wd.id}" data-s="${s}" ${ok ? '' : 'disabled'} title="${boss ? esc(wd.bossName) : 'Уровень ' + id}">${boss ? 'Б' : s}${d && !boss ? `<i>${d.shards.filter(Boolean).length}/3</i>` : ''}</button>`;
+        const chase = K.isChase(wd.id, s);
+        html += `<button class="st ${d ? 'done' : ''} ${isNext ? 'next' : ''} ${boss ? 'boss' : ''} ${chase ? 'chase' : ''}" data-act="stage" data-w="${wd.id}" data-s="${s}" ${ok ? '' : 'disabled'} title="${boss ? esc(wd.bossName) : chase ? 'Погоня: ' + esc(wd.chase.name) : 'Уровень ' + id}">${boss ? 'Б' : s}${d && !boss ? `<i>${d.shards.filter(Boolean).length}/3</i>` : ''}</button>`;
       }
       html += `</div>${open ? `<p class="meta">Осколков ${sh} из ${wd.levels * 3}${wd.gives && save.done[`${wd.id}-${K.stageCount(wd)}`] ? ` · получено: ${K.ABILITY_NAMES[wd.gives]}` : ''}</p>` : ''}</div></article>`;
     }
@@ -125,7 +126,7 @@
     show('');
     E.load(w, s);
     E.onComplete = onComplete;
-    music(K.worldById(w).music, K.isBoss(w, s));
+    music(K.worldById(w).music, K.isBoss(w, s) || K.isChase(w, s));
     $('#pausebtn').hidden = false;
     updateTouch();
   }

@@ -299,7 +299,9 @@
       flat(2); tip(x - 1, K.TUTORIAL[4]); seg.shard();
     }
 
+    const chase = K.isChase(wid, stage) ? world.chase : null;
     const weights = Object.assign({}, world.seg);
+    if (chase) { delete weights.moving; weights.enemies = (weights.enemies || 2) * 0.6; weights.gap = (weights.gap || 2) + 1; }
     const need = { dashgap: 'dash', djwall: 'double', walljump: 'wall', breakable: null };
     for (const k of Object.keys(weights)) {
       if (need[k] && !ab[need[k]]) delete weights[k];
@@ -339,7 +341,7 @@
     // обрезаем лишнюю ширину
     const out = new Uint8Array(realW * H);
     for (let y = 0; y < H; y++) for (let cx = 0; cx < realW; cx++) out[y * realW + cx] = tiles[y * W + cx];
-    return { id: K.stageId(wid, stage), world: wid, stage, w: realW, h: H, tiles: out, ents, start, totalCoins: total, boss: false, top: Array.from(top.slice(0, realW)), abilities: ab };
+    return { id: K.stageId(wid, stage), world: wid, stage, w: realW, h: H, tiles: out, ents, start, totalCoins: total, boss: false, chase, top: Array.from(top.slice(0, realW)), abilities: ab };
   }
 
   // Арены боссов: один экран, стены по краям.

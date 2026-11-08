@@ -20,6 +20,7 @@
       seg: { flat: 2, gap: 3, step: 3, platforms: 2, spikes: 2, enemies: 3, pillars: 2, moving: 1, crumble: 1, shooter: 2, charger: 1 },
       pal: { sky: ['#2a1a3d', '#a3485a', '#f0a05a'], far: '#7a4a5e', mid: '#4f3045', near: '#2a1b26', ground: '#7a5532', groundDark: '#58391f', top: '#b0a84c', topHi: '#d6cf6a', block: '#8a6a4a', blockDark: '#5c4430', plat: '#a07a4a', hazard: '#c9c2b0', accent: '#e8553b', light: '#ffcf7a', fog: 'rgba(240,160,90,0.08)' },
       gives: 'dash',
+      chase: { kind: 'stampede', name: 'Табун!', note: 'За Мишей мчится табун диких коней. Беги!', speed: 2.9 },
     },
     {
       id: 3, name: 'Королевство', sub: 'Стены, флаги и рыцари', levels: 3, len: [200, 220, 240], boss: 'knight', bossName: 'Чёрный рыцарь',
@@ -27,6 +28,7 @@
       seg: { flat: 2, gap: 2, step: 2, platforms: 3, spikes: 3, enemies: 3, pillars: 3, moving: 2, crumble: 2, shooter: 2, dashgap: 2 },
       pal: { sky: ['#3d7cc4', '#86bde6', '#dff0fa'], far: '#9fb6c9', mid: '#7a8fa3', near: '#4f5f6e', ground: '#7c828d', groundDark: '#5a5f69', top: '#5f9a4a', topHi: '#86c060', block: '#9a9fa8', blockDark: '#6c717b', plat: '#9a6f45', hazard: '#d8dde5', accent: '#c23a3a', light: '#ffe08a', fog: 'rgba(255,255,255,0.06)' },
       gives: 'double',
+      chase: { kind: 'rubble', name: 'Обвал!', note: 'Стена замка рушится следом. Беги!', speed: 3.0 },
     },
     {
       id: 4, name: 'Колдовской лес', sub: 'Грибы с дом и болотные огни', levels: 3, len: [210, 230, 250], boss: 'treant', bossName: 'Древень',
@@ -34,6 +36,7 @@
       seg: { flat: 2, gap: 2, step: 2, platforms: 3, spikes: 1, enemies: 3, pillars: 2, moving: 2, bounce: 3, djwall: 2, dashgap: 2, hazardpit: 2, shooter: 1 },
       pal: { sky: ['#06140f', '#123a2c', '#2e6a4c'], far: '#1c4a38', mid: '#123326', near: '#0a1f17', ground: '#4a3a2a', groundDark: '#33281c', top: '#4f9a3a', topHi: '#7fcf5a', block: '#5a4a6a', blockDark: '#3d3249', plat: '#7a5a3a', hazard: '#3f8a6a', accent: '#c06cff', light: '#c9ff8a', fog: 'rgba(120,255,180,0.07)' },
       gives: 'fire',
+      chase: { kind: 'swamp', name: 'Болотная волна!', note: 'Древень поднял болото. Волна идёт следом. Беги!', speed: 3.0 },
     },
     {
       id: 5, name: 'Ледяные пики', sub: 'Скользкий лёд и падающие сосульки', levels: 3, len: [220, 240, 260], boss: 'serpent', bossName: 'Снежный змей',
@@ -41,10 +44,12 @@
       seg: { flat: 1, gap: 2, step: 2, platforms: 3, spikes: 2, enemies: 3, pillars: 2, moving: 2, ice: 4, icicles: 3, breakable: 2, djwall: 2, dashgap: 2, shooter: 2 },
       pal: { sky: ['#5e86b0', '#a9c9e3', '#eef6fc'], far: '#c2d6e8', mid: '#8fb0cc', near: '#5f7f9c', ground: '#8fa9c2', groundDark: '#6c87a2', top: '#f4f8fc', topHi: '#ffffff', block: '#a8d8ef', blockDark: '#76b4d6', plat: '#8a9fb4', hazard: '#dff3ff', accent: '#3a7fd0', light: '#fff4c2', fog: 'rgba(255,255,255,0.12)' },
       gives: 'wall',
+      chase: { kind: 'avalanche', name: 'Лавина!', note: 'Сверху сходит лавина. Беги!', speed: 3.1 },
     },
     {
       id: 6, name: 'Подземные кузни', sub: 'Лава, конвейеры, гномьи машины', levels: 3, len: [230, 250, 270], boss: 'golem', bossName: 'Кузнечный голем',
       enemies: { walk: 'imp', fly: 'firebat', shoot: 'turret', jump: 'imp' }, hazard: 'lava', music: 'forge',
+      chase: { kind: 'lava', name: 'Лава!', note: 'Голем прорвал плотину. Лава течёт следом. Беги!', speed: 3.1 },
       seg: { flat: 1, gap: 2, step: 2, platforms: 2, enemies: 3, pillars: 2, moving: 3, conveyor: 3, firejet: 3, hazardpit: 3, walljump: 3, breakable: 1, dashgap: 2, djwall: 1, shooter: 2 },
       pal: { sky: ['#0d0402', '#2b0b05', '#5a1a08'], far: '#3a140a', mid: '#260c06', near: '#140603', ground: '#3a2a26', groundDark: '#241916', top: '#6a4a3e', topHi: '#8f6a58', block: '#4a3a36', blockDark: '#2f2421', plat: '#7a6a5a', hazard: '#ff6a1a', accent: '#ffb02a', light: '#ffd06a', fog: 'rgba(255,90,20,0.10)' },
       gives: null,
@@ -52,6 +57,7 @@
     {
       id: 7, name: 'Разлом', sub: 'Пустота между мирами', levels: 2, len: [260, 290], boss: 'keeper', bossName: 'Хранитель Разлома',
       enemies: { walk: 'shade', fly: 'wisp', shoot: 'eye', jump: 'shadeJ' }, hazard: 'void', music: 'rift',
+      chase: { kind: 'void', name: 'Пустота!', note: 'Пустота пожирает мир позади. Беги!', speed: 3.2 },
       seg: { flat: 1, gap: 3, step: 2, platforms: 3, spikes: 2, enemies: 3, moving: 3, crumble: 2, bounce: 1, djwall: 2, dashgap: 2, walljump: 2, hazardpit: 2, ice: 1, conveyor: 1, shooter: 2, breakable: 1 },
       pal: { sky: ['#05020f', '#1c0a3a', '#4a1a7a'], far: '#2a1050', mid: '#1a0838', near: '#0d0420', ground: '#3a2a5a', groundDark: '#261a40', top: '#8a6aff', topHi: '#c0a8ff', block: '#4a3a7a', blockDark: '#30245a', plat: '#7a6ab0', hazard: '#b06aff', accent: '#ff6ad8', light: '#e8d8ff', fog: 'rgba(180,120,255,0.10)' },
       gives: null,
@@ -62,6 +68,8 @@
   K.stageCount = (w) => w.levels + 1; // последняя ступень — босс
   K.stageId = (w, s) => `${w}-${s}`;
   K.isBoss = (w, s) => s === K.worldById(w).levels + 1;
+  // Последний обычный уровень мира с погоней.
+  K.isChase = (w, s) => !!K.worldById(w).chase && s === K.worldById(w).levels;
   // Какие способности уже есть у героя в мире w (получены у боссов прошлых миров).
   K.abilitiesFor = (w) => {
     const a = {};
