@@ -2,7 +2,7 @@
 // ---------- Запуск, экраны, настройки, сохранения ----------
 
 const SETTINGS_KEY = 'rubezh.settings.v1', SAVE_KEY = 'rubezh.save.v1', HELP_KEY = 'rubezh.help.v1';
-const DEF_CFG = { ui: 1, lefty: false, confirmMove: true, confirmEnd: true, autoNext: true, speed: 1, sound: true, vol: 0.7, vibro: true, shake: true, follow: true, gfx: 2, autoRotate: true };
+const DEF_CFG = { ui: 1, lefty: false, confirmMove: true, confirmEnd: true, autoNext: true, speed: 1, sound: true, vol: 0.7, music: true, musicVol: 0.5, vibro: true, shake: true, follow: true, gfx: 2, autoRotate: true };
 const SAVED_CFG = store.get(SETTINGS_KEY) || {};
 let CFG = Object.assign({}, DEF_CFG, SAVED_CFG);
 if (SAVED_CFG.gfx === undefined && SAVED_CFG.hq === false) CFG.gfx = 0;
@@ -88,6 +88,7 @@ const Game = {
   },
   showMenu() {
     this.show('scr-menu');
+    Music.set('menu');
     R.mode = 'menu';
     if (!R.menu) R.setMenuMap();
     R.dirty = true;
@@ -100,6 +101,7 @@ const Game = {
           ${can ? `<button class="btn hazard big" id="mCont">${icon('play')}Продолжить · день ${S.day}</button>` : ''}
           <button class="btn ${can ? '' : 'hazard big'}" id="mNew">Новая игра</button>
           <button class="btn" id="mHelp">Как играть</button>
+          <button class="btn" id="mMusic" aria-pressed="${CFG.music}">${icon('note')}<span>Музыка: ${CFG.music ? 'вкл' : 'выкл'}</span></button>
           <button class="btn" id="mSet">${icon('gear')}Настройки</button>
         </div>
         <p class="ver">Пошаговая тактика · карты до 64×64 клеток · сохранение в этом браузере</p>
@@ -111,20 +113,23 @@ const Game = {
       else this.newGame();
     };
     $('#mHelp').onclick = () => this.help();
+    $('#mMusic').onclick = () => { this.toggleMusic(); const b = $('#mMusic'); if (b) { b.setAttribute('aria-pressed', CFG.music); $('span', b).textContent = `Музыка: ${CFG.music ? 'вкл' : 'выкл'}`; } };
     $('#mSet').onclick = () => this.openSettings();
   },
   showBase() {
     TAC.m = null;
+    Music.set('base');
     R.mode = null;
     this.show('scr-base');
     Base.render();
   },
   showTac(center) {
     this.show('scr-tac');
+    Music.set('mission');
     R.mode = 'tac';
     R.resize();
     if (center) {
-      R.cam.k = clamp(Math.round(R.H / 8), 34, 64);
+      R.cam.k = clamp(Math.round(R.H / 9.5), 30, 56);
       const u = curUnit();
       if (u) R.centerOn(u.x, u.y, true);
     }
@@ -173,6 +178,13 @@ const Game = {
     if (last) try { last.focus({ preventScroll: true }); } catch (e) { /* ок */ }
     return { el: bg, close };
   },
+  toggleMusic() {
+    Sfx.init();
+    CFG.music = !CFG.music;
+    saveSettings();
+    Music.set(Music.want, true);
+    this.toast(CFG.music ? 'Музыка включена' : 'Музыка выключена');
+  },
   toastT: 0,
   toast(text) {
     const t = $('#toast');
@@ -211,8 +223,10 @@ const Game = {
         ${tg('s-confirmEnd', 'Подтверждать конец хода', 'если у бойцов остались очки действий')}
         ${tg('s-autoNext', 'Следующий боец сам', 'когда у текущего кончились ОД')}
         <label>Скорость анимации</label><div class="seg" id="s-speed">${speeds.map((s, i) => `<button data-v="${i}" class="${CFG.speed === i ? 'on' : ''}">${s}</button>`).join('')}</div>
-        ${tg('s-sound', 'Звук')}
-        <label for="s-vol">Громкость</label><input type="range" id="s-vol" min="0" max="1" step="0.05" value="${CFG.vol}">
+        ${tg('s-sound', 'Звуки')}
+        <label for="s-vol">Громкость звуков</label><input type="range" id="s-vol" min="0" max="1" step="0.05" value="${CFG.vol}">
+        ${tg('s-music', 'Музыка', 'своя для меню, убежища и вылазки')}
+        <label for="s-mvol">Громкость музыки</label><input type="range" id="s-mvol" min="0" max="1" step="0.05" value="${CFG.musicVol}">
         ${tg('s-vibro', 'Вибрация', 'при ранениях и укусах')}
         ${tg('s-shake', 'Тряска экрана')}
         ${tg('s-follow', 'Камера к атакам', 'показывать, кого атакуют')}
@@ -227,7 +241,9 @@ const Game = {
     $('#s-ui', root).oninput = e => { CFG.ui = +e.target.value; $('#s-ui-v', root).textContent = Math.round(CFG.ui * 100) + '%'; saveSettings(); };
     $('#s-vol', root).oninput = e => { CFG.vol = +e.target.value; saveSettings(); };
     $('#s-vol', root).onchange = () => { Sfx.init(); Sfx.play('shot'); };
+    $('#s-mvol', root).oninput = e => { CFG.musicVol = +e.target.value; saveSettings(); };
     $$('#s-gfx button', root).forEach(b => { b.onclick = () => { CFG.gfx = +b.dataset.v; $$('#s-gfx button', root).forEach(x => x.classList.toggle('on', x === b)); Spr.sprites.clear(); Spr.sBytes = 0; saveSettings(); }; });
+    $('#s-music', root).onchange = e => { CFG.music = e.target.checked; saveSettings(); Sfx.init(); Music.set(Music.want, true); };
     for (const k of ['lefty', 'confirmMove', 'confirmEnd', 'autoNext', 'sound', 'vibro', 'shake', 'follow', 'autoRotate']) {
       $('#s-' + k, root).onchange = e => { CFG[k] = e.target.checked; saveSettings(); if (k === 'vibro' && CFG.vibro) vibrate(40); };
     }

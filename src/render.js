@@ -46,14 +46,35 @@ function lunge(e, tx, ty) {
   R.moving.add(e);
   return sleep(ms);
 }
+// Удар: замах (откат назад), выпад к цели, доводка. Промис завершается в момент удара
+function swing(e, tx, ty, ms = 520) {
+  if (tx !== e.x || ty !== e.y) e.f = dirIdx(tx - e.x, ty - e.y);
+  const d = spd(ms);
+  if (!(d > 0)) return Promise.resolve();
+  const l = Math.hypot(tx - e.x, ty - e.y) || 1;
+  e.anim = { k: 'sw', dx: (tx - e.x) / l, dy: (ty - e.y) / l, t0: performance.now(), d };
+  R.moving.add(e);
+  return sleep(d * 0.5);
+}
+// Отшатнуться от точки (попадание, отдача)
+function knock(e, fx, fy, a = 0.15, ms = 240) {
+  const dx = e.x - fx, dy = e.y - fy, l = Math.hypot(dx, dy) || 1;
+  e.kb = { dx: dx / l, dy: dy / l, a, t0: performance.now(), d: ms };
+  R.until = Math.max(R.until, e.kb.t0 + ms);
+}
 function animPos(e, now) {
+  let x = e.x, y = e.y;
   const a = e.anim;
-  if (!a) return [e.x, e.y];
-  let p = (now - a.t0) / a.d;
-  if (p >= 1) { e.anim = null; R.moving.delete(e); return [e.x, e.y]; }
-  if (a.k === 'mv') { p = p * (2 - p); return [a.fx + (e.x - a.fx) * p, a.fy + (e.y - a.fy) * p]; }
-  const o = Math.sin(Math.PI * p) * 0.35;
-  return [e.x + a.dx * o, e.y + a.dy * o];
+  if (a) {
+    let p = (now - a.t0) / a.d;
+    if (p >= 1) { e.anim = null; R.moving.delete(e); }
+    else if (a.k === 'mv') { p = p * (2 - p); x = a.fx + (e.x - a.fx) * p; y = a.fy + (e.y - a.fy) * p; }
+    else if (a.k === 'sw') { const o = p < 0.42 ? -0.07 * Math.sin((p / 0.42) * Math.PI / 2) : 0.3 * Math.sin(((p - 0.42) / 0.58) * Math.PI); x += a.dx * o; y += a.dy * o; }
+    else { const o = Math.sin(Math.PI * p) * 0.35; x += a.dx * o; y += a.dy * o; }
+  }
+  const kb = e.kb;
+  if (kb) { const p = (now - kb.t0) / kb.d; if (p >= 1) e.kb = null; else { const o = kb.a * Math.sin(Math.PI * p) * (1 - p * 0.3); x += kb.dx * o; y += kb.dy * o; } }
+  return [x, y];
 }
 
 // ----- палитра и помощники -----
@@ -588,7 +609,7 @@ const DEFAULT_SQUAD = [
 ];
 function drawLineup(c, W, H, now) {
   const ppl = (typeof S !== 'undefined' && S && S.survivors && S.survivors.length ? S.survivors : DEFAULT_SQUAD).slice(0, 4);
-  const ts = clamp(H * 0.4, 80, 230), dirs = [3, 2, 1, 2];
+  const ts = clamp(H * 0.46, 90, 260), dirs = [3, 2, 1, 2];
   const x0 = W - ts * 0.6 * ppl.length - ts * 0.3 - Math.max(16, W * 0.03);
   ppl.forEach((s, i) => {
     const cx = x0 + i * ts * 0.66 + ts * 0.3, fy = H * 0.92 - (i % 2) * ts * 0.12;

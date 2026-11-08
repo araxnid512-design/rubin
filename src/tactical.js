@@ -3,7 +3,8 @@
 
 const TAC = { m: null, sel: 0, reach: null, busy: false, pend: null, mode: null };
 const TOD_NAME = ['День', 'Сумерки', 'Ночь'];
-const STEP_MS = 120;
+const STEP_MS = 190;
+const MELEE_SND = { bat: 'hit_bat', axe: 'hit_axe', crowbar: 'hit_crowbar', knife: 'stab' };
 const WAVE_EVERY = 7;
 const LURE_RANGE = 8;
 
@@ -207,7 +208,7 @@ function perceive(m, z) {
   if (best) {
     const was = z.state;
     z.state = 'chase'; z.target = best.id; z.tx = best.x; z.ty = best.y;
-    if (was !== 'chase' && zVisible(m, z) && chance(0.5)) Sfx.play('groan');
+    if (was !== 'chase' && zVisible(m, z) && chance(0.5)) Sfx.play('groan', { x: z.x, y: z.y, fall: 14 });
     return was !== 'chase';
   }
   if (z.state === 'chase') z.state = 'investigate';
@@ -216,7 +217,8 @@ function perceive(m, z) {
 async function zMove(m, z, j) {
   const show = zVisible(m, z) || m.vis[j];
   m.zocc[MI(m, z.x, z.y)] = 0; m.zocc[j] = 1;
-  await animTo(z, j % m.w, (j / m.w) | 0, show ? spd(STEP_MS * 0.75) : 0);
+  await animTo(z, j % m.w, (j / m.w) | 0, show ? spd(STEP_MS * 0.85) : 0);
+  if (show && chance(0.5)) Sfx.play('zstep', { x: z.x, y: z.y });
 }
 async function wander(m, z) {
   const opts = [];
@@ -233,7 +235,8 @@ async function bashDoor(m, z, i) {
   m.doorHP[i] = (m.doorHP[i] ?? 6) - (brute ? rint(4, 6) : rint(1, 3));
   z.ap -= 2;
   const x = i % m.w, y = (i / m.w) | 0, seen = m.vis[i];
-  if (seen) { await lunge(z, x, y); Sfx.play('bash'); R.shake(3); FX.chips(x, y); }
+  if (seen) { await swing(z, x, y, 460); Sfx.play('bash', { x, y }); R.shake(3); FX.chips(x, y); }
+  else Sfx.play('bash', { x, y, vol: 0.5 });
   noise(m, x, y, 5);
   if (m.doorHP[i] <= 0) {
     m.tiles[i] = T.DOOR_BROKEN;
@@ -244,14 +247,16 @@ async function bashDoor(m, z, i) {
 async function zombieAttack(m, z, u) {
   const t = ZT[z.type];
   if (CFG.follow) R.ensureVisible(u.x, u.y);
-  await lunge(z, u.x, u.y);
+  Sfx.play('zswipe', { x: z.x, y: z.y });
+  await swing(z, u.x, u.y, 500);
   if (rnd() < t.acc) {
     const d = rint(t.dmg[0], t.dmg[1]);
     u.hp -= d;
     u.hitT = performance.now(); R.until = Math.max(R.until, u.hitT + 280);
     FX.blood(u.x, u.y);
     FX.text(u.x, u.y, '−' + d, '#ff6a50');
-    Sfx.play('hurt'); vibrate(70); R.shake(5);
+    knock(u, z.x, z.y, 0.16);
+    Sfx.play('hurt', { x: u.x, y: u.y }); vibrate(70); R.shake(5);
     let msg = `${t.name} ранит: ${u.name} −${d}`;
     if (!u.bitten && u.hp > 0 && rnd() < t.bite * (u.trait === 'tough' ? 0.5 : 1)) {
       u.bitten = true;
@@ -261,8 +266,8 @@ async function zombieAttack(m, z, u) {
     }
     HUD.log(msg, 'bad');
     if (u.hp <= 0) killUnit(m, u);
-  } else FX.text(u.x, u.y, 'увернулся', '#cfc6ae');
-  await sleep(spd(180));
+  } else { FX.text(u.x, u.y, 'увернулся', '#cfc6ae'); knock(u, z.x, z.y, 0.1); }
+  await sleep(spd(260));
 }
 function killUnit(m, u) {
   u.dead = true; u.hp = 0; u.ow = null;
@@ -281,7 +286,8 @@ function damageZombie(m, z, d, u) {
   FX.text(z.x, z.y, '−' + d, '#ffd27a');
   if (z.hp <= 0) { killZombie(m, z, u); return true; }
   if (z.state !== 'chase') { z.state = 'chase'; z.target = u.id; z.tx = u.x; z.ty = u.y; }
-  Sfx.play('melee');
+  if (u) knock(z, u.x, u.y, 0.18);
+  Sfx.play('flesh', { x: z.x, y: z.y });
   return false;
 }
 function killZombie(m, z, u) {
@@ -290,7 +296,7 @@ function killZombie(m, z, u) {
   m.decals.push({ x: z.x, y: z.y, k: 'corpse', r: rnd(), zt: z.type, zid: z.id, f: z.f ?? 2, t0: performance.now() });
   R.until = Math.max(R.until, performance.now() + 700);
   if (u) { u.kills++; m.kills++; }
-  Sfx.play('zdie');
+  Sfx.play('zdie', { x: z.x, y: z.y });
 }
 async function overwatchCheck(m, z) {
   let fired = false;
@@ -303,8 +309,10 @@ async function overwatchCheck(m, z) {
     } else if (u.ow === 'melee' && adjOK(m, u.x, u.y, z.x, z.y)) {
       u.ow = null; fired = true;
       FX.text(u.x, u.y, 'ВСТРЕЧНЫЙ', '#e8a62b');
-      await lunge(u, z.x, z.y);
+      Sfx.play('whoosh', { x: u.x, y: u.y });
+      await swing(u, z.x, z.y);
       const w = WEAP[u.melee];
+      Sfx.play(MELEE_SND[u.melee] || 'hit_bat', { x: z.x, y: z.y });
       damageZombie(m, z, rint(w.dmg[0], w.dmg[1]) + u.meleeB, u);
       noise(m, u.x, u.y, w.noise);
       await sleep(spd(120));
@@ -349,7 +357,7 @@ async function zombieAct(m, z) {
 async function scream(m, z) {
   z.screamed = true;
   if (zVisible(m, z)) { R.ensureVisible(z.x, z.y); FX.text(z.x, z.y, 'КРИК!', '#e08fa0'); HUD.log('Крикун поднял тревогу. Сюда идут все, кто слышал.', 'bad'); }
-  Sfx.play('scream');
+  Sfx.play('scream', { x: z.x, y: z.y, fall: 40 });
   noise(m, z.x, z.y, 16);
   m.tp += 3;
   await sleep(spd(380));
@@ -408,7 +416,8 @@ function doMove(u, j) {
       if (z) { HUD.log(`${u.name}: путь преграждает ${ZT[z.type].name.toLowerCase()}!`, 'warn'); computeVis(m); break; }
       const cost = TP[m.tiles[i]].cost;
       if (u.ap < cost) break;
-      if (m.tiles[i] === T.DOOR) { m.tiles[i] = T.DOOR_OPEN; Sfx.play('door'); }
+      if (m.tiles[i] === T.DOOR) { m.tiles[i] = T.DOOR_OPEN; Sfx.play('door', { x, y }); }
+      Sfx.play('step', { x, y, surf: surfAt(m, x, y) });
       await animTo(u, x, y, spd(STEP_MS));
       u.ap -= cost; u.ow = null;
       computeVis(m);
@@ -427,22 +436,25 @@ function doMelee(u, z) {
     if (u.ap < w.ap || !adjOK(m, u.x, u.y, z.x, z.y)) return;
     u.ap -= w.ap; u.ow = null;
     const sneak = z.state === 'idle' || z.state === 'wander';
-    await lunge(u, z.x, z.y);
+    Sfx.play('whoosh', { x: u.x, y: u.y, dur: u.melee === 'knife' ? 0.12 : 0.22 });
+    await swing(u, z.x, z.y);
     if (sneak && w.assassin) {
       FX.text(z.x, z.y, 'тихо', '#ece4cc');
-      Sfx.play('stab');
+      Sfx.play('stab', { x: z.x, y: z.y });
+      FX.blood(z.x, z.y, 8);
       HUD.log(`${u.name} бесшумно снимает: ${ZT[z.type].name.toLowerCase()}.`);
       killZombie(m, z, u);
       noise(m, u.x, u.y, 1);
     } else {
       if (rnd() < (sneak ? 1 : 0.85)) {
+        Sfx.play(MELEE_SND[u.melee] || 'hit_bat', { x: z.x, y: z.y }); R.shake(2);
         let d = rint(w.dmg[0], w.dmg[1]) + u.meleeB;
         if (sneak) { d *= 2; FX.text(u.x, u.y, 'со спины', '#ece4cc'); }
         if (damageZombie(m, z, d, u)) HUD.log(`${u.name} добивает: ${ZT[z.type].name.toLowerCase()}.`);
       } else FX.text(z.x, z.y, 'мимо', '#cfc6ae');
       noise(m, u.x, u.y, w.noise);
     }
-    await sleep(spd(120));
+    await sleep(spd(280));
   });
 }
 function shotChance(m, u, z, reaction) {
@@ -468,7 +480,8 @@ async function shootAt(m, u, z, reaction) {
   await sleep(spd(130));
   FX.flash(u.x, u.y, u.f);
   const p = shotChance(m, u, z, reaction), d0 = edist(u.x, u.y, z.x, z.y);
-  Sfx.play(silenced(u) ? 'silenced' : w.snd);
+  Sfx.play(silenced(u) ? 'silenced' : w.snd, { x: u.x, y: u.y, fall: 40 });
+  knock(u, z.x, z.y, 0.05, 140);
   FX.tracer(u.x, u.y, z.x, z.y);
   R.shake(w.noise > 15 ? 3 : 1);
   noise(m, u.x, u.y, silenced(u) ? 4 : w.noise);
@@ -495,7 +508,7 @@ function doLure(u, x, y) {
     if (u.lures <= 0 || u.ap < 2) return;
     u.ap -= 2; u.lures--; u.ow = null;
     FX.arc(u.x, u.y, x, y);
-    Sfx.play('throw');
+    Sfx.play('throw', { x, y });
     await sleep(spd(380));
     noise(m, x, y, 9);
     HUD.log(`${u.name} бросает бутылку. Зомби пойдут на звон.`);
@@ -509,7 +522,7 @@ function doDoor(u, i) {
     else if (t === T.DOOR_OPEN) { if (unitAt(m, x, y) || zombieAt(m, x, y)) return; m.tiles[i] = T.DOOR; }
     else return;
     u.ap -= 1;
-    Sfx.play('door');
+    Sfx.play('door', { x, y });
     computeVis(m);
   });
 }
@@ -554,7 +567,7 @@ function doSearch(u, i) {
     if (u.ap < 2) { HUD.log('Не хватает ОД: обыск стоит 2.', 'warn'); return; }
     u.ap -= 2; u.ow = null; c.s = 1;
     if (u.trait === 'mechanic' && chance(0.6)) c.loot.parts = (c.loot.parts || 0) + 1;
-    Sfx.play('search');
+    Sfx.play('search', { x, y });
     noise(m, x, y, 1);
     refreshReach();
   }

@@ -8,7 +8,7 @@ const VRES = 2;
 const VX = { W: 32, D: 40, H: 54, O: 16, OD: 20, E: (52 * Math.PI) / 180 };
 VX.sE = Math.sin(VX.E); VX.cE = Math.cos(VX.E);
 VX.GW = VX.W * VRES; VX.GD = VX.D * VRES; VX.GH = VX.H * VRES;
-const VSCALE = 0.05;   // доля клетки на экране на одну базовую единицу
+const VSCALE = 0.042;  // доля клетки на экране на одну базовую единицу
 const VREACH = 25.6;   // радиус модели в плане (с учётом лежащих тел)
 const LIGHT = (() => { const v = [-0.6, 0.1, 0.78], l = Math.hypot(...v); return v.map(x => x / l); })();
 const HALFV = (() => { const v = [LIGHT[0], LIGHT[1] + VX.cE, LIGHT[2] + VX.sE], l = Math.hypot(...v); return v.map(x => x / l); })();
@@ -200,8 +200,19 @@ function humanPose(L, fr) {
     if (long) { p.armR = { p: 58, s: 10, e: 62 }; p.armL = { p: 82, s: -26, e: 16 }; }
     else { p.armR = { p: 86, s: -8, e: 2 }; p.armL = { p: 78, s: -26, e: 16 }; }
   }
-  if (fr === 'a0') { p.hold = 'melee'; p.armR = { p: 165, s: 22, e: 28 }; p.armL = { p: 30, s: 16, e: 30 }; p.lean = -5; p.legL = 14; p.legR = -12; p.mw = 10; }
-  if (fr === 'a1') { p.hold = 'melee'; p.armR = { p: 68, s: 4, e: 6 }; p.armL = { p: -10, s: 18, e: 20 }; p.lean = 16; p.legL = 24; p.legR = -18; p.kneeR = 22; p.mw = 15; }
+  if (fr[0] === 'a') {
+    p.hold = 'melee';
+    const knife = L.melee === 'knife', k = +fr[1];
+    if (knife) {
+      if (k === 0) { p.armR = { p: -18, s: 16, e: 100 }; p.armL = { p: 40, s: 20, e: 50 }; p.lean = -4; p.legL = 16; p.legR = -12; p.kneeL = 12; p.mw = 95; }
+      else if (k === 1) { p.armR = { p: 90, s: -6, e: 0 }; p.armL = { p: 10, s: 22, e: 40 }; p.lean = 16; p.legL = 28; p.legR = -20; p.kneeR = 26; p.mw = 90; }
+      else { p.armR = { p: 70, s: 2, e: 25 }; p.armL = { p: 20, s: 18, e: 35 }; p.lean = 10; p.legL = 20; p.legR = -14; p.kneeR = 18; p.mw = 90; }
+    } else {
+      if (k === 0) { p.armR = { p: 168, s: 24, e: 34 }; p.armL = { p: 120, s: -10, e: 40 }; p.lean = -8; p.head = -6; p.legL = 16; p.legR = -12; p.kneeL = 10; p.mw = 5; }
+      else if (k === 1) { p.armR = { p: 96, s: 4, e: 4 }; p.armL = { p: 84, s: -18, e: 10 }; p.lean = 14; p.legL = 26; p.legR = -20; p.kneeR = 24; p.mw = 0; }
+      else { p.armR = { p: 38, s: -24, e: 12 }; p.armL = { p: 30, s: -10, e: 20 }; p.lean = 22; p.head = 8; p.legL = 26; p.legR = -20; p.kneeR = 28; p.kneeL = 16; p.mw = 0; }
+    }
+  }
   if (fr === 'hit' || fr[0] === 'd') { p.lean = -14; p.head = -16; p.armL = { p: 35, s: 40, e: 30 }; p.armR = { p: 30, s: 38, e: 30 }; p.legL = 10; p.legR = -6; p.kneeL = 18; p.kneeR = 18; p.bob = -0.6; }
   return p;
 }
@@ -227,6 +238,7 @@ function zombiePose(L, fr) {
   }
   if (fr === 'a0') { p.armL = { p: 128, s: 12, e: -8 }; p.armR = { p: 124, s: 14, e: -6 }; p.lean = 2; p.head -= 10; }
   if (fr === 'a1') { p.armL = { p: 86, s: 6, e: 0 }; p.armR = { p: 84, s: 6, e: 0 }; p.lean = 30; p.legL = 26; p.legR = -20; p.kneeR = 24; }
+  if (fr === 'a2') { p.armL = { p: 60, s: 4, e: 20 }; p.armR = { p: 52, s: 8, e: 24 }; p.lean = 26; p.head += 10; p.legL = 20; p.legR = -16; p.kneeR = 20; }
   if (fr === 'hit' || fr[0] === 'd') { p.lean = -12; p.head = -20; p.armL = { p: 40, s: 36, e: 20 }; p.armR = { p: 36, s: 40, e: 24 }; p.kneeL = 20; p.kneeR = 16; p.bob = -0.8; }
   if (fr === 'aim') return zombiePose(L, 'i0');
   return p;
@@ -652,13 +664,14 @@ const Spr = {
     return fy - sp.ay * k;
   },
 };
-const WARM_FRAMES = ['w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'aim', 'a0', 'a1', 'hit'];
+const WARM_FRAMES = ['w0', 'w1', 'w2', 'w3', 'w4', 'w5', 'aim', 'a0', 'a1', 'a2', 'hit'];
 function frameOf(e, now) {
   const a = e.anim;
   if (a) {
     const p = clamp((now - a.t0) / a.d, 0, 0.999);
     if (a.k === 'mv') return 'w' + (((e.step || 0) * 3 + Math.floor(p * 3)) % 6);
     if (a.k === 'lg') return p < 0.45 ? 'a0' : 'a1';
+    if (a.k === 'sw') return p < 0.42 ? 'a0' : p < 0.66 ? 'a1' : 'a2';
   }
   if (e.hitT && now - e.hitT < 260) return 'hit';
   if (e.aimT && now < e.aimT) return 'aim';

@@ -363,3 +363,8 @@ input[type="range"] { width: 9rem; accent-color: var(--amber); }
 @media (prefers-reduced-motion: reduce) {
   *, *::after, *::before { animation: none !important; transition: none !important; }
 }
+@media (max-height: 430px) {
+  .tagline { display: none; }
+  .menu-in { gap: 0.7rem; }
+  .mbtns .btn { min-height: 2.55rem; }
+}

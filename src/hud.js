@@ -311,7 +311,7 @@ const HUD = {
     const keys = k ? [k] : RES_ORDER.filter(x => c.loot[x]);
     let any = false, full = false;
     for (const key of keys) { const got = takeLoot(u, c, key, c.loot[key]); if (got) any = true; if (c.loot[key]) full = true; }
-    if (any) Sfx.play('search');
+    if (any) Sfx.play('pickup');
     if (full) this.log(`${u.name}: больше не унести. Вес — ${carried(u)} из ${u.cap} кг.`, 'warn');
     this.renderLoot();
     this.refresh();
@@ -348,6 +348,7 @@ const HUD = {
       title: 'Вылазка на паузе',
       html: `<p>Ход ${TAC.m.turn}. Если покинуть вылазку сейчас, уедут только те, кто стоит в зелёной зоне у машины. Остальные останутся на карте навсегда.</p>`,
       buttons: [
+        { label: CFG.music ? 'Музыка: выкл' : 'Музыка: вкл', fn: () => Game.toggleMusic() },
         { label: 'Настройки', fn: () => Game.openSettings() },
         { label: 'Покинуть вылазку', cls: 'danger', fn: () => this.confirmAbandon() },
         { label: 'Продолжить', cls: 'primary' },

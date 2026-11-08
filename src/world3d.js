@@ -525,7 +525,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
     }
     for (const list of rows.values()) for (const it of list) {
       P(it.px + 0.5, it.py + 0.5, 0);
-      const big = it.z && it.e.type === 'brute' ? 1.3 : 1, L = k * 0.62 * big;
+      const big = it.z && it.e.type === 'brute' ? 1.3 : 1, L = k * 0.54 * big;
       SCX.beginPath(); SCX.ellipse(PX + L * 0.5, PY + L * 0.22, L * 0.62, k * 0.17 * big, Math.atan2(SHD[1], SHD[0]), 0, Math.PI * 2); SCX.fill();
     }
     MODE = 0;
@@ -648,7 +648,7 @@ function drawIso(c, m, cam, W, H, now, all, shk = [0, 0]) {
 function drawFigureIso(c, m, it, k, now, tgt, lod) {
   P(it.px + 0.5, it.py + 0.5, 0);
   it.cx = PX; it.fy = PY;
-  const big = it.z && it.e.type === 'brute' ? 1.3 : 1, rx = k * 0.42 * big, ry = rx * CB.sE;
+  const big = it.z && it.e.type === 'brute' ? 1.3 : 1, rx = k * 0.36 * big, ry = rx * CB.sE;
   if (!((CFG.gfx ?? 2) >= 1 && lod >= 1)) { c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.ellipse(PX, PY, rx * 0.8, ry * 0.8, 0, 0, Math.PI * 2); c.fill(); }
   if (!it.z) {
     const sel = it.e.id === TAC.sel;
@@ -665,8 +665,13 @@ function drawFigureIso(c, m, it, k, now, tgt, lod) {
     circ(c, PX, PY - k * 0.3, Math.max(2.5, k * 0.3)); c.fill();
     it.top = PY - k * 0.7;
   } else {
-    const L = Spr.look(it.e, it.z ? 'z' : 'h');
-    it.top = Spr.draw(c, L, frameOf(it.e, now), spriteDir(it.e.f ?? 2), PX, PY, k);
+    const L = Spr.look(it.e, it.z ? 'z' : 'h'), fr = frameOf(it.e, now), dir = spriteDir(it.e.f ?? 2);
+    it.top = Spr.draw(c, L, fr, dir, PX, PY, k);
+    if (it.e.hitT && now - it.e.hitT < 110) {
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.5 * (1 - (now - it.e.hitT) / 110);
+      Spr.draw(c, L, fr, dir, PX, PY, k);
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+    }
   }
   R.hits.push({ e: it.e, z: it.z, x0: PX - k * 0.38, x1: PX + k * 0.38, y0: it.top, y1: PY + k * 0.15 });
 }

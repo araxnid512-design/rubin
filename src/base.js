@@ -184,7 +184,7 @@ const Base = {
     S.build[k]++;
     addLog(`${B.name}: уровень ${S.build[k]}. ${B.eff[S.build[k]]}.`, 'good');
     if (k === 'radio' && S.build.radio === 1) addLog('В эфире нашлась больница на юге города. Теперь туда можно съездить.', 'good');
-    Sfx.play('bash');
+    Sfx.play('build');
     Game.toast(`${B.name}: уровень ${S.build[k]}`);
     this.render(); saveGame();
   },
