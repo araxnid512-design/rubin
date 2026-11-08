@@ -1,0 +1,300 @@
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+D/BoundBrokerSvc( 1911): onUnbind: Intent { act=com.google.android.gms.chimera.container.moduleinstall.ModuleInstallService.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsApiService }
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/ActivityManager(  526): Scheduling restart of crashed service com.google.android.settings.intelligence/.modules.routines.impl.PruneDatabaseJobService in 1000ms for connection
+W/ActivityManager(  526): Scheduling restart of crashed service com.google.android.settings.intelligence/.modules.routines.impl.ComputeNewInferencesJobService in 11000ms for connection
+W/ActivityManager(  526): Scheduling restart of crashed service com.google.android.settings.intelligence/.modules.routines.impl.RoutinesJobIntentService in 21000ms for connection
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/gle.android.gms( 1911): Long monitor contention with owner [com.google.android.gms.chimera.container.intentoperation.GmsIntentOperationChimeraService-Executor] processing com.google.android.gms.droidguard.DroidGuardModuleInitIntentOperation for action com.google.android.chimera.IntentOperation.NEW_MODULE (2580) at void hjm.run()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):3) waiters=0 in void hjm.run() for 36.784s
+I/Dtdi    ( 1911): [DtdiModuleInitIntentOperation] Cannot initialize Device Discovery. Flag is disabled. [CONTEXT service_id=312 ]
+I/Dtdi    ( 1911): [DtdiModuleInitIntentOperation] Cannot initialize Spatial Orchestration. Flag is disabled. [CONTEXT service_id=312 ]
+I/Dtdi    ( 1911): [DtdiModuleInitIntentOperation] Cannot initialize Media Transfer. Flag is disabled. [CONTEXT service_id=312 ]
+I/EsimModuleInit( 1911): onHandleIntent action: com.google.android.chimera.IntentOperation.NEW_MODULE [CONTEXT service_id=333 ]
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/LSRModuleInit( 1911): New Geofences: [] [CONTEXT service_id=277 ]
+I/LSRModuleInit( 1911): Attempting to change container components state to enabled: true [CONTEXT service_id=277 ]
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+D/BoundBrokerSvc( 1911): onBind: Intent { act=com.google.android.gms.chimera.container.moduleinstall.ModuleInstallService.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsApiService }
+D/BoundBrokerSvc( 1911): Loading bound service for intent: Intent { act=com.google.android.gms.chimera.container.moduleinstall.ModuleInstallService.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsApiService }
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/PeoplePU( 1911): 	at com.google.android.gms.people.api.init.PeopleModuleInitIntentOperation.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):9)
+W/PeoplePU( 1911): 	at com.google.android.gms.people.api.init.PeopleModuleInitIntentOperation.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):9)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+W/PeoplePU( 1911): 	at com.google.android.gms.people.api.init.PeopleModuleInitIntentOperation.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):9)
+W/PeoplePU( 1911): 	at com.google.android.gms.people.api.init.PeopleModuleInitIntentOperation.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):10)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+V/SmartDevice( 1911): [ModuleInitializer] ModuleInitializer got intent Intent { act=com.google.android.chimera.IntentOperation.NEW_MODULE (has extras) } with flag 12
+D/SmartDevice( 1911): [ModuleInitializer] Module init - scheduling buffered logs cleanup task
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/ThreadNetworkModuleInit( 1911): Initializing runtime states: 12 [CONTEXT service_id=305 ]
+I/ThreadNetworkModuleInit( 1911): Enabled component com.google.android.gms.threadnetwork.ui.ShareCredentialsActivity [CONTEXT service_id=305 ]
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+D/BoundBrokerSvc( 1911): onUnbind: Intent { act=com.google.android.gms.chimera.container.moduleinstall.ModuleInstallService.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsApiService }
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
+W/A       ( 1784): Can't format flag AndroidGsaVelourJars__velour_crashtest_jar__name to integer.
+I/chromium( 3225): [INFO:CONSOLE(0)] "[.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.", source: https://appassets.androidplatform.net/assets/index.html (0)
+E/chromium( 3225): [ERROR:gles2_cmd_decoder.cc(11200)] [.WebGL-0x226200769400]RENDER WARNING: Render count or primcount is 0.
