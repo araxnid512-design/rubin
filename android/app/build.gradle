@@ -1,0 +1,55 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Номер сборки на GitHub Actions становится номером версии: новый APK ставится поверх старого
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'ru.rubezh.game'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'ru.rubezh.game'
+        minSdk 24
+        targetSdk 35
+        versionCode runNo
+        versionName "1.0.${runNo}"
+    }
+
+    // Открытый ключ подписи для домашних сборок: все версии подписаны одним ключом,
+    // поэтому обновление ставится поверх и сохранения не теряются.
+    // Для Google Play нужен свой закрытый ключ.
+    signingConfigs {
+        rubezh {
+            storeFile file('rubezh.keystore')
+            storePassword 'rubezh-public'
+            keyAlias 'rubezh'
+            keyPassword 'rubezh-public'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.rubezh
+        }
+        debug {
+            signingConfig signingConfigs.rubezh
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}

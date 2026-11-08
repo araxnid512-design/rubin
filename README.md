@@ -7,6 +7,7 @@
 - **Один файл:** `dist/index.html` — открыть в любом браузере, ничего ставить не нужно.
 - **Из исходников:** `index.html` в корне подключает файлы из `src/` напрямую.
 - **Сборка:** `node tools/build.mjs` собирает `dist/index.html` (и `dist/artifact.html` — фрагмент для публикации без `<html>/<body>`).
+- **Android (APK):** свежая сборка всегда здесь — [rubezh.apk](https://github.com/araxnid512-design/rubin/releases/latest/download/rubezh.apk), все версии — на странице [Releases](https://github.com/araxnid512-design/rubin/releases). APK собирается автоматически на GitHub Actions (`.github/workflows/android.yml`) из папки `android/`: игра внутри полноэкранного WebView, горизонтальная ориентация, сохранения остаются между запусками и обновлениями. Чтобы установить: скачать файл на телефон, открыть и разрешить установку из этого источника.
 
 Сохранение — в `localStorage` браузера, автоматически в конце каждого хода и после действий в убежище.
 
@@ -119,6 +120,8 @@ src/base.js         убежище на своей карте, ночь и на�
 src/world.js        карта округи, разведка, группировки и дань
 src/main.js         экраны, настройки, сохранения
 tools/build.mjs     сборка в один файл
+android/            Android-приложение: WebView с игрой, иконки, подпись
+.github/workflows/  автосборка APK и выкладка в релизы
 ```
 
 ## Что дальше
