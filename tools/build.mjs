@@ -12,7 +12,8 @@ const lower = (code, file) => esbuild ? esbuild.transformSync(code, { target: 'c
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 let html = readFileSync(join(root, 'index.html'), 'utf8');
-const css = readFileSync(join(root, 'src/style.css'), 'utf8');
+const cssSrc = readFileSync(join(root, 'src/style.css'), 'utf8');
+const css = esbuild ? esbuild.transformSync(cssSrc, { loader: 'css', target: 'chrome58', charset: 'utf8' }).code : cssSrc;
 
 html = html.replace('<link rel="stylesheet" href="src/style.css">', () => `<style>\n${css}</style>`);
 html = html.replace(/<script src="(src\/[^"]+)"><\/script>\n?/g, (_, p) => `<script>\n${lower(readFileSync(join(root, p), 'utf8'), p)}</script>\n`);
