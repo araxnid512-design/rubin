@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- artifact:start -->
+<title>Пришлый</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&family=Forum&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<!-- artifact:head-end -->
+</head>
+<body>
+<!-- artifact:body -->
+<div class="app" id="app">
+  <header class="top">
+    <button class="brand" type="button" id="btn-home" title="На титульную страницу">Пришлый</button>
+    <div class="when" id="when">Книга первая · Серый Брод</div>
+    <nav class="tools" aria-label="Разделы">
+      <button class="tbtn" type="button" id="btn-workshop" hidden>Мастерская</button>
+      <button class="tbtn" type="button" id="btn-chronicle" hidden>Летопись</button>
+      <button class="tbtn" type="button" id="btn-gallery">Галерея <span id="gal-count">0/100</span></button>
+      <button class="tbtn" type="button" id="btn-menu">О книге</button>
+    </nav>
+  </header>
+  <section class="stats" id="stats" aria-label="Положение героя" hidden></section>
+  <main class="spread">
+    <figure class="plate">
+      <div class="frame"><div class="art art-live" id="art"></div></div>
+      <figcaption id="cap"></figcaption>
+    </figure>
+    <article class="page" id="page" aria-live="polite"></article>
+  </main>
+</div>
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-head"><h2 id="sheet-title"></h2><button class="tbtn" type="button" id="sheet-close">Закрыть</button></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="js/rng.js"></script>
+<script src="js/art.js"></script>
+<script src="js/book.js"></script>
+<script src="js/director.js"></script>
+<script src="js/game.js"></script>
+<!-- artifact:end -->
+</body>
+</html>
