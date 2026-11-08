@@ -51,6 +51,8 @@ jobs:
           name: kurier-apk
           path: kurier.apk
 
+      # В репозитории есть другие игры со своими релизами: этот релиз не помечается «последним»,
+      # чтобы не перебивать их ссылки вида releases/latest.
       - name: Выложить в релиз
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,6 +62,6 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$NOTES"
           else
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Курьер миров для Android" --notes "$NOTES"
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Курьер миров для Android" --notes "$NOTES" --latest=false
           fi
           gh release upload "$TAG" kurier.apk --repo "$GITHUB_REPOSITORY" --clobber
