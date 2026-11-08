@@ -1865,7 +1865,12 @@ class Merc extends Actor {
 		this.retarget -= dt;
 		if (this.retarget <= 0 || (this.target && !this.target.alive)) {
 			this.retarget = 0.35;
-			this.target = this.pickTarget(W.range); // та же дальность, что у героя с этим оружием
+			// цель держится, пока жива, видна и в дальности; другая — только если ближе на 40 % (иначе в толпе боец
+			// вертелся всем телом от цели к цели — до 800° за 6 с)
+			const next = this.pickTarget(W.range), cur = this.target; // та же дальность, что у героя с этим оружием
+			const dist = (a) => Math.hypot(a.pos.x - this.pos.x, a.pos.z - this.pos.z);
+			const keep = cur?.alive && (!cur.faction || game.hostile(cur)) && dist(cur) < W.range + 1 && lineOfSight(this.pos, cur.pos);
+			this.target = keep && !(next && next !== cur && dist(next) < dist(cur) * 0.6) ? cur : next;
 		}
 		// заражённый прёт и уже близко — отходим, не прекращая огня: лицом к нему, шагом назад в прицеле, к герою
 		const close = this.threat(C.retreat ?? 3);
@@ -1911,12 +1916,18 @@ class Merc extends Actor {
 
 	/** Заражённый, который прёт на бойца и уже ближе r (на виду): от него отходят, стреляя. Люди (муры) — не в счёт. */
 	threat(r) {
+		// тот же, что прошлый раз, пока он ближе r × 1,3 и новый не ближе вдвое — иначе двое у бойца дёргали корпус туда-сюда
+		const prev = this.lastThreat;
+		const dPrev = prev?.alive && prev.state !== 'idle' ? Math.hypot(prev.pos.x - this.pos.x, prev.pos.z - this.pos.z) : Infinity;
 		let best = null, bd = r;
 		for (const e of game.enemies) {
 			if (!e.alive || e.state === 'idle') continue;
 			const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
 			if (d < bd && lineOfSight(this.pos, e.pos)) { bd = d; best = e; }
 		}
+		if (best && best !== prev && dPrev < r * 1.3 && bd > dPrev * 0.5) best = prev;
+		else if (!best && dPrev < r * 1.3) best = prev;
+		this.lastThreat = best;
 		return best;
 	}
 
@@ -3718,6 +3729,12 @@ const game = {
 		}
 		for (const o of this.bandits) if (o.faction !== b.faction) look(o); // муры и внешники бьют друг друга
 		if (foe && this.loc === 'base') for (const n of this.npcs) if (n.cfg) look(n); // налёт на базу: и по часовым
+		// прежняя цель держится, пока жива, видна и в дальности, а новая не ближе на 40 % — иначе в толпе мур вертелся
+		const cur = b.target;
+		if (cur && cur !== best && cur.alive && (foe || !(isHuman(cur) || cur instanceof Sentry))) {
+			const dc = Math.hypot(cur.pos.x - b.pos.x, cur.pos.z - b.pos.z);
+			if (dc < R + 1 && (!best || bd > dc * 0.6) && lineOfSight(b.pos, cur.pos)) return cur;
+		}
 		return best;
 	},
 
