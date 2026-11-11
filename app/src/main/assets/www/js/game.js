@@ -135,7 +135,7 @@
     const c0 = Math.max(0, ((p.x - R) / GC) | 0), c1 = Math.min(GN - 1, ((p.x + R) / GC) | 0), r0 = Math.max(0, ((p.y - R) / GC) | 0), r1 = Math.min(GN - 1, ((p.y + R) / GC) | 0);
     for (let j = r0; j <= r1; j++) for (let i = c0; i <= c1; i++) {
       const l = G.grid[j * GN + i];
-      for (let k = 0; k < l.length; k++) { const o = G.objs[l[k]]; if (o.a) test(o, 'res', o.x, o.y, o.K.ir, 0); }
+      for (let k = 0; k < l.length; k++) { const o = G.objs[l[k]]; if (o.a && !o.K.deco) test(o, 'res', o.x, o.y, o.K.ir, 0); }
     }
     // станки и сундуки — цель только вблизи и только по новому нажатию (удержание их не «залипает»)
     const stOk = !G.input.act || G.input.actPressed;
@@ -469,7 +469,7 @@
 
   /* ---------- Отрисовка ---------- */
   const list = [];
-  let lightSpr, glowSpr, coneSpr, cloudSpr, lc, lctx;
+  let lightSpr, glowSpr, coneSpr, cloudSpr, mistSpr, caust, wc, wctx, aoV, aoH, lc, lctx;
   function radial(n, stops) {
     const c = document.createElement('canvas'); c.width = c.height = n; const x = c.getContext('2d');
     const g = x.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
@@ -479,6 +479,17 @@
   G.initRender = function () {
     lightSpr = radial(128, [0, 'rgba(0,0,0,1)', 0.45, 'rgba(0,0,0,.75)', 1, 'rgba(0,0,0,0)']);
     glowSpr = radial(128, [0, 'rgba(255,150,50,.55)', 0.5, 'rgba(255,110,30,.18)', 1, 'rgba(255,90,20,0)']);
+    mistSpr = radial(128, [0, 'rgba(176,186,184,.5)', 0.5, 'rgba(176,186,184,.24)', 1, 'rgba(176,186,184,0)']);
+    // бесшовная текстура бликов на воде
+    caust = document.createElement('canvas'); caust.width = caust.height = 128;
+    { const x = caust.getContext('2d'), r = G.rng(7); x.strokeStyle = 'rgba(170,205,210,.55)'; x.lineCap = 'round';
+      for (let i = 0; i < 34; i++) {
+        const px = r() * 128, py = r() * 128, l = 6 + r() * 12, cv = (r() - 0.5) * 5; x.lineWidth = 0.6 + r() * 0.7;
+        for (let ox = -128; ox <= 128; ox += 128) for (let oy = -128; oy <= 128; oy += 128) { x.beginPath(); x.moveTo(px + ox - l, py + oy); x.quadraticCurveTo(px + ox, py + oy + cv, px + ox + l, py + oy); x.stroke(); }
+      } }
+    wc = document.createElement('canvas'); wc.width = wc.height = 128; wctx = wc.getContext('2d');
+    const grad = (w, h, x1, y1) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'), q = x.createLinearGradient(0, 0, x1, y1); q.addColorStop(0, 'rgba(0,0,0,.5)'); q.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = q; x.fillRect(0, 0, w, h); return c; };
+    aoV = grad(2, 16, 0, 16); aoH = grad(16, 2, 16, 0);
     cloudSpr = radial(128, [0, 'rgba(6,10,8,.5)', 0.5, 'rgba(6,10,8,.3)', 1, 'rgba(6,10,8,0)']);
     coneSpr = document.createElement('canvas'); coneSpr.width = coneSpr.height = 128;
     { const x = coneSpr.getContext('2d'), gr = x.createRadialGradient(0, 64, 0, 0, 64, 128);
@@ -504,15 +515,31 @@
     const mc = Math.ceil(W / CH) - 1;
     for (let j = Math.max(0, Math.floor(top / CH)); j <= Math.min(mc, Math.floor(bot / CH)); j++)
       for (let i = Math.max(0, Math.floor(left / CH)); i <= Math.min(mc, Math.floor(right / CH)); i++) {
-        const x0 = SX(i * CH), y0 = SY(j * CH);
-        ctx.drawImage(G.getChunk(i, j, true), x0, y0, SX((i + 1) * CH) - x0, SY((j + 1) * CH) - y0);
+        const x0 = SX(i * CH), y0 = SY(j * CH), ch = G.getChunk(i, j, true), cw = SX((i + 1) * CH) - x0, chh = SY((j + 1) * CH) - y0;
+        ctx.drawImage(ch, x0, y0, cw, chh);
+        if (ch.wm) {  // живая вода: два слоя бликов, обрезанных по маске озера
+          const tmw = G.time, a1 = (tmw * 5) % 128, b1 = (tmw * 2.2) % 128, a2 = 128 - (tmw * 3.4) % 128, b2 = (tmw * 4.1) % 128;
+          wctx.globalCompositeOperation = 'source-over'; wctx.clearRect(0, 0, 128, 128);
+          for (let u = -128; u <= 0; u += 128) for (let v = -128; v <= 0; v += 128) { wctx.drawImage(caust, a1 + u, b1 + v); wctx.drawImage(caust, a2 + u, b2 + v); }
+          wctx.globalCompositeOperation = 'destination-in'; wctx.drawImage(ch.wm, 0, 0);
+          ctx.globalAlpha = 0.55 * (1 - G.night * 0.7); ctx.drawImage(wc, x0, y0, cw, chh); ctx.globalAlpha = 1;
+        }
       }
     // блики на воде
     const tm = G.time;
     // полы и тени стен
     const tx0 = Math.max(0, Math.floor(left / T)), tx1 = Math.min(WT - 1, Math.floor(right / T)), ty0 = Math.max(0, Math.floor(top / T) - 1), ty1 = Math.min(WT - 1, Math.floor(bot / T) + 1);
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
-      if (G.floors[ty * WT + tx]) { const x0 = SX(tx * T), y0 = SY(ty * T); ctx.drawImage(S.floor[(tx + ty) & 1].c, x0, y0, SX(tx * T + T) - x0, SY(ty * T + T) - y0); }
+      if (G.floors[ty * WT + tx]) {
+        const x0 = SX(tx * T), y0 = SY(ty * T), fw = SX(tx * T + T) - x0, fh = SY(ty * T + T) - y0;
+        ctx.drawImage(S.floor[(tx + ty) & 1].c, x0, y0, fw, fh);
+        // затенение пола у стен
+        const up = G.cells[(ty - 1) * WT + tx], lf = G.cells[ty * WT + tx - 1], me = G.cells[ty * WT + tx];
+        if (!(me && (me.k === 'wall' || me.k === 'door'))) {
+          if (up && (up.k === 'wall' || up.k === 'door')) ctx.drawImage(aoV, x0, y0, fw, Math.round(22 * z));
+          if (lf && (lf.k === 'wall' || lf.k === 'door')) ctx.drawImage(aoH, x0, y0, Math.round(16 * z), fh);
+        }
+      }
     }
     ctx.fillStyle = 'rgba(8,14,8,.26)';
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
@@ -595,7 +622,7 @@
           const sp = o.a || o.K.keep ? S[o.k][o.v] : S.bush0;
           let ox = 0;
           if (o.hit > 0) { o.hit -= dt; ox = Math.sin(o.hit * 60) * o.hit * 9; }
-          if (o.k === 'fiber' || o.k === 'bush') { const sw = Math.sin(tm * 1.6 + o.x * 0.02) * 0.03; ctx.setTransform(z, 0, -sw * z, z, sx, sy); }
+          if (o.k === 'fiber' || o.k === 'bush' || o.K.deco) { const sw = Math.sin(tm * 1.6 + o.x * 0.02) * 0.03; ctx.setTransform(z, 0, -sw * z, z, sx, sy); }
           else ctx.setTransform(z, 0, 0, z, sx + ox * z, sy);
           ctx.drawImage(sp.c, -sp.ax, -sp.ay, sp.w, sp.h);
         }
@@ -642,6 +669,16 @@
       for (let i = 0; i < 4; i++) {
         const r = 520 + i * 90, px = ((i * 1370 + tm * 26) % (W + 1600)) - 800, py = (i * 1130 + 300 + Math.sin(tm * 0.03 + i) * 200) % W;
         if (px + r > left && px - r < right && py + r > top && py - r < bot) ctx.drawImage(cloudSpr, px - r, py - r * 0.7, r * 2, r * 1.4);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // стелющийся туман: на рассвете, в сумерках и в дождь
+    const mist = Math.max(G.rain * 0.8, G.phase < 0.16 ? 1 - G.phase / 0.16 : 0, nt > 0 && nt < 1 ? Math.sin(nt * Math.PI) : 0, nt * 0.45);
+    if (mist > 0.04) {
+      ctx.globalAlpha = mist * 0.5;
+      for (let i = 0; i < 6; i++) {
+        const r = 380 + i * 60, sx = W + 1400, px = ((i * 911 + tm * (9 + i * 2)) % sx) - 700, py = (i * 787 + 500 + Math.sin(tm * 0.05 + i * 2) * 260) % W;
+        if (px + r > left && px - r < right && py + r * 0.5 > top && py - r * 0.5 < bot) ctx.drawImage(mistSpr, px - r, py - r * 0.5, r * 2, r);
       }
       ctx.globalAlpha = 1;
     }

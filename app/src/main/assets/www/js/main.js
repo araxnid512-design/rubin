@@ -83,6 +83,11 @@
     G.ctx = cv.getContext('2d', { alpha: false, desynchronized: true });
     try { const c = JSON.parse(localStorage.getItem('rubin_cfg')); if (c) { G.soundOn = c.s; G.qMode = c.q | 0; G.ui.showFps = c.f; qLevel = G.qMode ? G.qMode - 1 : 0; } } catch (e) { }
     G.initArt(); G.initRender();
+    { // лёгкое плёночное зерно поверх кадра (один статичный слой, для GPU бесплатно)
+      const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), im = x.createImageData(128, 128), d = im.data;
+      for (let i = 0; i < d.length; i += 4) { const v = Math.random(); d[i] = d[i + 1] = d[i + 2] = v < 0.5 ? 0 : 255; d[i + 3] = Math.abs(v - 0.5) * 34; }
+      x.putImageData(im, 0, 0); $('grain').style.backgroundImage = 'url(' + c.toDataURL() + ')';
+    }
     const had = load();
     if (!had) G.newGame();
     G.makeMinimap();

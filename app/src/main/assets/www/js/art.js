@@ -33,23 +33,23 @@
 
   /* ---------- Деревья ---------- */
   function tier(x, cx, yb, hw, th, rng, pal) {
-    x.beginPath(); x.moveTo(cx, yb - th);
-    x.quadraticCurveTo(cx + hw * 0.4, yb - th * 0.45, cx + hw, yb - 4 + rng() * 6);
-    const n = 6;
-    for (let i = 1; i <= n; i++) {
-      const px = cx + hw - 2 * hw * (i / n), py = yb - 4 + rng() * 7 + (i === n ? 0 : Math.sin(i / n * Math.PI) * 9);
-      const mx = cx + hw - 2 * hw * ((i - 0.5) / n);
-      x.quadraticCurveTo(mx, py + 11 + rng() * 5, px, py);
+    const pts = [[cx, yb - th]], n = 9;
+    for (let i = 1; i <= 4; i++) { const k = i / 4; pts.push([cx + hw * k * (0.88 + rng() * 0.2) + (i % 2 ? 4 : -3), yb - th + th * k * 0.9 + (i % 2 ? 0 : 4)]); }
+    for (let i = 0; i <= n; i++) { const k = i / n; pts.push([cx + hw - 2 * hw * k, yb + (i % 2 ? 9 + rng() * 6 : -3 + rng() * 3) + Math.sin(k * Math.PI) * 7]); }
+    for (let i = 4; i >= 1; i--) { const k = i / 4; pts.push([cx - hw * k * (0.88 + rng() * 0.2) - (i % 2 ? 4 : -3), yb - th + th * k * 0.9 + (i % 2 ? 0 : 4)]); }
+    poly(x, pts);
+    x.fillStyle = lg(x, cx - hw, 0, cx + hw, 0, [0, pal[1], 0.5, pal[2], 1, '#0b1712']); x.fill();
+    x.save(); x.clip(); x.lineCap = 'round';
+    // хвоя: короткие мазки, расходящиеся от ствола
+    for (let i = 0; i < 230; i++) {
+      const py = yb + 12 - rng() * (th + 10), k = Math.max(0.05, (py - (yb - th)) / th), px = cx + (rng() * 2 - 1) * hw * Math.min(1.05, k + 0.1);
+      const dx = (px - cx) / hw * 0.9, l = 6 + rng() * 7, lit = 0.52 - (px - cx) / hw * 0.5 + (rng() - 0.5) * 0.6 - (py > yb - 4 ? 0.3 : 0);
+      x.strokeStyle = lit > 0.72 ? pal[0] : lit > 0.4 ? pal[1] : lit > 0.12 ? pal[2] : '#0d1a14';
+      x.globalAlpha = 0.9; x.lineWidth = 1.5 + rng() * 1.1; line(x, px, py, px + dx * l, py + l * 0.8);
     }
-    x.quadraticCurveTo(cx - hw * 0.4, yb - th * 0.45, cx, yb - th); x.closePath();
-    x.fillStyle = lg(x, cx - hw, 0, cx + hw, 0, [0, pal[0], 0.5, pal[1], 1, pal[2]]); x.fill();
-    x.save(); x.clip();
-    x.fillStyle = lg(x, 0, yb - th, 0, yb + 14, [0, 'rgba(230,235,200,.07)', 0.5, 'rgba(0,0,0,0)', 1, 'rgba(0,10,6,.62)']);
-    x.fillRect(cx - hw - 6, yb - th - 6, hw * 2 + 12, th + 34);
-    x.strokeStyle = 'rgba(170,190,140,.13)'; x.lineWidth = 1.2;
-    for (let i = 0; i < 16; i++) { const px = cx + (rng() * 2 - 1) * hw * 0.8, py = yb - rng() * th * 0.7; line(x, px, py, px - 3, py + 7); }
-    x.strokeStyle = 'rgba(0,25,12,.22)';
-    for (let i = 0; i < 12; i++) { const px = cx + (rng() * 2 - 1) * hw * 0.8, py = yb - rng() * th * 0.6; line(x, px, py, px + 3, py + 7); }
+    x.globalAlpha = 1;
+    x.fillStyle = lg(x, 0, yb - th, 0, yb + 16, [0, 'rgba(225,235,200,.06)', 0.45, 'rgba(0,0,0,0)', 1, 'rgba(0,8,5,.6)']);
+    x.fillRect(cx - hw - 8, yb - th - 6, hw * 2 + 16, th + 36);
     x.restore();
   }
   function pine(rng, pal) {
@@ -194,6 +194,16 @@
         x.beginPath(); x.moveTo(bx, 50); x.quadraticCurveTo(bx + Math.sin(a) * l * 0.4, 50 - l * 0.6, bx + Math.sin(a) * l, 50 - Math.cos(a) * l); x.stroke();
       }
       x.fillStyle = '#b5a97c'; for (let i = 0; i < 4; i++) { x.beginPath(); x.ellipse(16 + rng() * 24, 12 + rng() * 14, 2, 4.5, rng() - 0.5, 0, PI2); x.fill(); }
+    });
+  }
+  function grassTuft(rng) {
+    return mk(44, 40, 22, 34, x => {
+      x.lineCap = 'round';
+      for (let i = 0; i < 13; i++) {
+        const a = (rng() - 0.5) * 1.7, l = 14 + rng() * 17, bx = 22 + (rng() - 0.5) * 12;
+        x.strokeStyle = ['#2c3a22', '#465430', '#5f6a3a', '#7d7e48', '#232e1c'][(rng() * 5) | 0]; x.lineWidth = 2 - rng() * 0.8;
+        x.beginPath(); x.moveTo(bx, 34); x.quadraticCurveTo(bx + Math.sin(a) * l * 0.35, 34 - l * 0.6, bx + Math.sin(a) * l, 34 - Math.cos(a) * l); x.stroke();
+      }
     });
   }
   function sticks(rng) {
@@ -527,6 +537,7 @@
     S.bush = [bush(r, true), bush(r, true), bush(r, true)];
     S.bush0 = bush(r, false);
     S.fiber = [fiberPlant(r), fiberPlant(r), fiberPlant(r)];
+    S.grass = [grassTuft(r), grassTuft(r), grassTuft(r)];
     S.stick = [sticks(r), sticks(r), sticks(r)];
     S.pebble = [pebbles(r), pebbles(r), pebbles(r)];
     S.crate = [crate(), crate(), crate()];

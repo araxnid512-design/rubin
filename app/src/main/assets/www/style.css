@@ -175,3 +175,5 @@ h1.dead { color: #b3262b; letter-spacing: .2em; }
 #title h2 { color: var(--gold); }
 #title p { color: #a9a492; }
 #btn-play { border-radius: .15rem; background: linear-gradient(#c8902f, #7e5516); border: 1px solid #e6bd6a; color: #140e02; }
+
+#grain { position: fixed; inset: 0; pointer-events: none; background-size: 128px 128px; opacity: .55; }

@@ -37,9 +37,16 @@
   /* ---------- Чанки земли ---------- */
   const CH = 512, CR = 384, PX = 128;
   const chunks = new Map();
-  let tmp, tctx, img;
+  let tmp, tctx, img, grain, wmA;
   function genChunk(cx, cy) {
     if (!tmp) { tmp = document.createElement('canvas'); tmp.width = tmp.height = PX + 2; tctx = tmp.getContext('2d'); img = tctx.createImageData(PX + 2, PX + 2); }
+    if (!grain) {  // зернистая фактура, чтобы земля не выглядела размытой
+      grain = document.createElement('canvas'); grain.width = grain.height = 128;
+      const gx = grain.getContext('2d'), gi = gx.createImageData(128, 128), gd = gi.data, gr = G.rng(99);
+      for (let n = 0; n < gd.length; n += 4) { const v = gr(); gd[n] = gd[n + 1] = gd[n + 2] = v < 0.5 ? 0 : 255; gd[n + 3] = Math.abs(v - 0.5) * 2 * (v < 0.5 ? 46 : 26); }
+      gx.putImageData(gi, 0, 0); wmA = new Uint8ClampedArray(PX * PX * 4);
+    }
+    let hasW = false;
     const d = img.data, step = CH / PX, ox = cx * CH, oy = cy * CH;
     let k = 0;
     for (let j = -1; j <= PX; j++) for (let i = -1; i <= PX; i++) {
@@ -69,6 +76,7 @@
           }
         }
       }
+      if (i >= 0 && j >= 0 && i < PX && j < PX) { const m = (j * PX + i) * 4, wa = w > 0.05 ? sstep(0.05, 0.16, w) * 255 : 0; wmA[m] = wmA[m + 1] = wmA[m + 2] = 255; wmA[m + 3] = wa; if (wa) hasW = true; }
       d[k++] = r; d[k++] = g; d[k++] = b; d[k++] = 255;
     }
     tctx.putImageData(img, 0, 0);
@@ -76,6 +84,8 @@
     const x = c.getContext('2d', { alpha: false });
     x.imageSmoothingQuality = 'high';
     x.drawImage(tmp, 1, 1, PX, PX, 0, 0, CR, CR);
+    x.fillStyle = x.createPattern(grain, 'repeat'); x.fillRect(0, 0, CR, CR);
+    if (hasW) { const m = document.createElement('canvas'); m.width = m.height = PX; m.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(wmA), PX, PX), 0, 0); c.wm = m; }
     // детали
     const s = CR / CH, rng = G.rng(cx * 7919 + cy * 104729 + 5);
     x.setTransform(s, 0, 0, s, -ox * s, -oy * s);
@@ -89,7 +99,13 @@
     }
     const cols = ['#2f3d24', '#5a6638', '#7a7d4a'], paths = [new Path2D(), new Path2D(), new Path2D()];
     const flowers = [];
-    for (let i = 0; i < 300; i++) {
+    // тёмные и выгоревшие пятна травы
+    for (let i = 0; i < 46; i++) {
+      const px = ox + rng() * CH, py = oy + rng() * CH; if (G.terrKind(px, py) !== 0) continue;
+      x.fillStyle = rng() < 0.6 ? 'rgba(18,26,14,.16)' : 'rgba(150,140,84,.10)';
+      x.beginPath(); x.ellipse(px, py, 14 + rng() * 30, 8 + rng() * 16, rng() * 3, 0, 7); x.fill();
+    }
+    for (let i = 0; i < 520; i++) {
       const px = ox + rng() * CH, py = oy + rng() * CH, kind = G.terrKind(px, py), q = rng();
       if (kind === 0) {
         if (q < 0.86) { const p = paths[(rng() * 3) | 0], h = 6 + rng() * 6; p.moveTo(px - 3.5, py - h * 0.75); p.lineTo(px, py); p.lineTo(px, py - h); p.moveTo(px, py); p.lineTo(px + 3.5, py - h * 0.75); }
@@ -106,8 +122,8 @@
         else if (q < 0.34) { x.fillStyle = '#eee7d3'; x.beginPath(); x.ellipse(px, py, 3, 2, rng() * 3, 0, 7); x.fill(); }
       }
     }
-    x.lineWidth = 1.7; x.lineCap = 'round';
-    for (let i = 0; i < 3; i++) { x.strokeStyle = cols[i]; x.globalAlpha = 0.75; x.stroke(paths[i]); }
+    x.lineWidth = 1.4; x.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { x.strokeStyle = cols[i]; x.globalAlpha = 0.8; x.stroke(paths[i]); }
     x.globalAlpha = 1;
     // сухие листья и ветки вместо цветов
     const fc = ['rgba(120,84,40,.8)', 'rgba(92,60,30,.8)', 'rgba(140,116,60,.7)'];
@@ -146,6 +162,7 @@
     stick:  { r: 0, ir: 14, pick: ['stick', 1, 2], re: 200, xp: 1 },
     pebble: { r: 0, ir: 14, pick: ['stone', 1, 2], re: 220, xp: 1 },
     crate:  { r: 18, ir: 22, loot: 1, re: 900, xp: 10 },
+    grass:  { r: 0, ir: 0, deco: 1 },
     car:    { r: 34, ir: 44, loot: 1, re: 1500, xp: 18, keep: 1 }
   };
 
@@ -201,6 +218,7 @@
     scatter(520, (x, y, tk, hd) => { if (tk === 0 && hd > 3.8 * T && freeAt(x, y, 54)) put('fiber', x, y, v3()); });
     scatter(300, (x, y, tk, hd) => { if (tk <= 1 && hd > 3.8 * T && freeAt(x, y, 50)) put('stick', x, y, v3()); });
     scatter(240, (x, y, tk, hd) => { if (tk <= 2 && hd > 3.8 * T && freeAt(x, y, 50)) put('pebble', x, y, v3()); });
+    scatter(3400, (x, y, tk, hd) => { if (tk === 0 && hd > 5.2 * T && noise(x / 150 + 20, y / 150) > 0.36 && freeAt(x, y, 24)) put('grass', x, y, v3()); });
     scatter(60, (x, y, tk, hd) => { if (tk <= 1 && hd > 12 * T && freeAt(x, y, 300)) put('crate', x, y, 0); });
     scatter(70, (x, y, tk, hd) => { if (tk <= 1 && hd > 9 * T && freeAt(x, y, 520)) put('car', x, y, v3()); });
     for (let i = 0; i < 14; i++) { const x = B + 120 + rng() * (W - 2 * B - 240), y = roadY(x) + (rng() - 0.5) * 56; if (!G.isWater(x, y) && G.terrKind(x, y) === 4 && freeAt(x, y, 300)) put('car', x, y, v3()); }
@@ -215,6 +233,9 @@
   /* ---------- Постройки ---------- */
   const SOLID = { wall: 1, door: 1, chest: 1, workbench: 1, bed: 1, campfire: 1 };
   G.addStruct = function (k, tx, ty, extra) {
+    // декоративная трава под постройкой убирается
+    { const cx = (tx + 0.5) * T, cy = (ty + 0.5) * T, gx = (cx / GC) | 0, gy = (cy / GC) | 0;
+      for (let j = gy - 1; j <= gy + 1; j++) for (let i = gx - 1; i <= gx + 1; i++) { if (i < 0 || j < 0 || i >= GN || j >= GN) continue; for (const n of grid[j * GN + i]) { const o = objs[n]; if (o.K.deco && o.a && Math.abs(o.x - cx) < 40 && Math.abs(o.y - cy) < 44) { o.a = false; o.t = 1e12; } } } }
     if (k === 'floor') { G.floors[ty * WT + tx] = 1; return null; }
     const s = { dk: 1, k, tx, ty, x: (tx + 0.5) * T, y: (ty + 0.5) * T, sy: (ty + 1) * T - (k === 'campfire' ? 26 : 0), solid: !!SOLID[k] };
     if (k === 'chest') s.inv = (extra && extra.inv) || new Array(12).fill(null);
@@ -239,7 +260,7 @@
     for (let j = gy - 1; j <= gy + 1; j++) for (let ii = gx - 1; ii <= gx + 1; ii++) {
       if (ii < 0 || j < 0 || ii >= GN || j >= GN) continue;
       const l = grid[j * GN + ii];
-      for (let n = 0; n < l.length; n++) { const o = objs[l[n]]; if ((o.a || o.K.keep) && Math.abs(o.x - cx) < 34 + o.K.r * 0.5 && Math.abs(o.y - cy) < 34 + o.K.r * 0.5) return false; }
+      for (let n = 0; n < l.length; n++) { const o = objs[l[n]]; if ((o.a || o.K.keep) && !o.K.deco && Math.abs(o.x - cx) < 34 + o.K.r * 0.5 && Math.abs(o.y - cy) < 34 + o.K.r * 0.5) return false; }
     }
     return true;
   };
