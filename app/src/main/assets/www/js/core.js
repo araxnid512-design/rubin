@@ -166,5 +166,15 @@ G.Inv = {
     growl() { tone(95, 60, 0.35, 'sawtooth', 0.07); },
     ui() { tone(700, 760, 0.04, 'sine', 0.06); }
   };
+  let rainG = null;
+  G.setRain = function (v) {
+    if (!ac || ac.state !== 'running') return;
+    if (!rainG) {
+      const s = ac.createBufferSource(), f = ac.createBiquadFilter(); rainG = ac.createGain();
+      s.buffer = nbuf; s.loop = true; f.type = 'lowpass'; f.frequency.value = 1700; rainG.gain.value = 0;
+      s.connect(f); f.connect(rainG); rainG.connect(ac.destination); s.start();
+    }
+    rainG.gain.value = G.soundOn ? v * 0.1 : 0;
+  };
   G.sfx = function (n) { if (ac && G.soundOn && ac.state === 'running') { try { S[n](); } catch (e) { } } };
 })();

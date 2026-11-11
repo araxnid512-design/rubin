@@ -9,7 +9,7 @@
   G.tgt = { ref: null, type: '', d: 0, x: 0, y: 0, ir: 0 };
   G.view = { w: 1, h: 1, zoom: 1, css: 1 };
   G.cam = { x: HX, y: HY, left: 0, top: 0 };
-  G.shake = 0; G.night = 0; G.uiDirty = true; G.hitstop = 0; G.decals = [];
+  G.shake = 0; G.night = 0; G.rain = 0; G.uiDirty = true; G.hitstop = 0; G.decals = [];
 
   G.QUESTS = [
     { t: 'Собери 3 палки и 3 камня', c: () => cnt('stick') >= 3 && cnt('stone') >= 3, xp: 15 },
@@ -137,10 +137,12 @@
       const l = G.grid[j * GN + i];
       for (let k = 0; k < l.length; k++) { const o = G.objs[l[k]]; if (o.a) test(o, 'res', o.x, o.y, o.K.ir, 0); }
     }
+    // станки и сундуки — цель только вблизи и только по новому нажатию (удержание их не «залипает»)
+    const stOk = !G.input.act || G.input.actPressed;
     const tx = (p.x / T) | 0, ty = (p.y / T) | 0;
     for (let j = ty - 3; j <= ty + 3; j++) for (let i = tx - 3; i <= tx + 3; i++) {
       const s = G.cells[j * WT + i];
-      if (s && (s.k === 'chest' || s.k === 'workbench' || s.k === 'campfire')) test(s, 'st', s.x, s.y, 26, 0);
+      if (s && stOk && (s.k === 'chest' || s.k === 'workbench' || s.k === 'campfire') && Math.hypot(s.x - p.x, s.y - p.y) < 76) test(s, 'st', s.x, s.y, 26, 0);
     }
   }
   function nearWater() {
@@ -368,7 +370,7 @@
   }
 
   /* ---------- Обновление мира ---------- */
-  let resI = 0, fireT = 0, questT = 0;
+  let rainT = 0, resI = 0, fireT = 0, questT = 0;
   G.nightAt = function (ph) {
     if (ph < 0.56) return 0; if (ph < 0.68) return G.sstep(0.56, 0.68, ph);
     if (ph < 0.92) return 1; return 1 - G.sstep(0.92, 1, ph);
@@ -381,6 +383,10 @@
     if (day !== G.day) { G.day = day; G.floater(G.p.x, G.p.y - 30, 'День ' + day, '#ffe9a8'); }
     if (G.night > 0.5 && !nightAnn) { nightAnn = true; G.floater(G.p.x, G.p.y - 50, 'Наступает ночь. Они идут…', '#ff6a5a'); G.sfx('growl'); }
     else if (G.night < 0.1) nightAnn = false;
+    // погода: время от времени идёт дождь
+    const wr = G.noise(G.time / 75, 9.3) > 0.6 ? 1 : 0;
+    G.rain += (wr - G.rain) * Math.min(1, dt * 0.3); if (G.rain < 0.01 && !wr) G.rain = 0;
+    rainT -= dt; if (rainT <= 0) { rainT = 0.5; G.setRain(G.rain); }
     updPlayer(dt); updMobs(dt);
     // камера
     const p = G.p, k = Math.min(1, dt * 6);
@@ -463,7 +469,7 @@
 
   /* ---------- Отрисовка ---------- */
   const list = [];
-  let lightSpr, glowSpr, lc, lctx;
+  let lightSpr, glowSpr, coneSpr, cloudSpr, lc, lctx;
   function radial(n, stops) {
     const c = document.createElement('canvas'); c.width = c.height = n; const x = c.getContext('2d');
     const g = x.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
@@ -473,6 +479,11 @@
   G.initRender = function () {
     lightSpr = radial(128, [0, 'rgba(0,0,0,1)', 0.45, 'rgba(0,0,0,.75)', 1, 'rgba(0,0,0,0)']);
     glowSpr = radial(128, [0, 'rgba(255,150,50,.55)', 0.5, 'rgba(255,110,30,.18)', 1, 'rgba(255,90,20,0)']);
+    cloudSpr = radial(128, [0, 'rgba(6,10,8,.5)', 0.5, 'rgba(6,10,8,.3)', 1, 'rgba(6,10,8,0)']);
+    coneSpr = document.createElement('canvas'); coneSpr.width = coneSpr.height = 128;
+    { const x = coneSpr.getContext('2d'), gr = x.createRadialGradient(0, 64, 0, 0, 64, 128);
+      gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.6, 'rgba(0,0,0,.7)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = gr; x.filter = 'blur(5px)'; x.beginPath(); x.moveTo(0, 64); x.arc(0, 64, 124, -0.5, 0.5); x.closePath(); x.fill(); }
     lc = document.createElement('canvas'); lctx = lc.getContext('2d');
   };
   function flame(x, w, h, sw, col) {
@@ -548,6 +559,18 @@
     for (const m of G.mobs) if (m.x > left - 40 && m.x < right + 40 && m.y > top - 40 && m.y < bot + 40) list.push(m);
     if (!p.dead) list.push(p);
     list.sort((a, c) => a.sy - c.sy);
+    // длинные тени деревьев, направление зависит от времени суток
+    const nt0 = G.night, sunA = (1 - nt0) * (1 - G.rain * 0.6) * 0.34;
+    if (sunA > 0.03) {
+      const dp = clamp(G.phase / 0.6, 0, 1), sc = (0.95 - dp * 1.9) * z, sd = -(0.26 + Math.abs(dp - 0.5) * 0.36) * z;
+      ctx.globalAlpha = sunA;
+      for (let n = 0; n < list.length; n++) {
+        const o = list[n]; if (o.dk !== 0 || !o.K.tree || !o.a) continue;
+        const sp = S[o.k][o.v];
+        ctx.setTransform(z, 0, sc, sd, SX(o.x), SY(o.y)); ctx.drawImage(sp.sh, -sp.ax, -sp.ay, sp.w, sp.h);
+      }
+      ctx.globalAlpha = 1;
+    }
     for (let n = 0; n < list.length; n++) {
       const o = list[n];
       if (o.dk === 0) {
@@ -612,8 +635,17 @@
       ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(m.x - 17, m.y - 30, 34, 5);
       ctx.fillStyle = '#b01e22'; ctx.fillRect(m.x - 16, m.y - 29, 32 * m.hp / M.hp, 3);
     }
-    // пепел и пыль в воздухе
+    // тени облаков
     const nt = G.night;
+    if (nt < 0.9) {
+      ctx.globalAlpha = (1 - nt) * 0.5;
+      for (let i = 0; i < 4; i++) {
+        const r = 520 + i * 90, px = ((i * 1370 + tm * 26) % (W + 1600)) - 800, py = (i * 1130 + 300 + Math.sin(tm * 0.03 + i) * 200) % W;
+        if (px + r > left && px - r < right && py + r > top && py - r < bot) ctx.drawImage(cloudSpr, px - r, py - r * 0.7, r * 2, r * 1.4);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // пепел и пыль в воздухе
     while (motes.length < 26) motes.push({ x: left + Math.random() * hw * 2, y: top + Math.random() * hh * 2, ph: Math.random() * 6, s: 1.2 + Math.random() * 1.8 });
     ctx.fillStyle = '#cfc8b8';
     for (const m of motes) {
@@ -634,7 +666,11 @@
       lctx.globalCompositeOperation = 'destination-out';
       const q = z / 4;
       const hole = (x, y, r, a) => { lctx.globalAlpha = a; lctx.drawImage(lightSpr, (x - left - r) * q, (y - top - r) * q, r * 2 * q, r * 2 * q); };
-      hole(p.x, p.y, 190, 0.5);
+      hole(p.x, p.y, 150, 0.45);
+      if (!p.dead) {  // луч фонаря
+        lctx.save(); lctx.translate((p.x - left) * q, (p.y - top) * q); lctx.rotate(p.face);
+        lctx.globalAlpha = 0.85; lctx.drawImage(coneSpr, 0, -210 * q, 420 * q, 420 * q); lctx.restore();
+      }
       for (const f of G.fires) { const r = 330 + Math.sin(tm * 11 + f.tx) * 14; if (f.x > left - r && f.x < right + r && f.y > top - r && f.y < bot + r) hole(f.x, f.y, r, 0.95); }
       lctx.globalAlpha = 1;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(lc, 0, 0, V.w, V.h);
@@ -648,6 +684,22 @@
       ctx.drawImage(glowSpr, f.x - r, f.y - r * 0.8, r * 2, r * 1.6);
     }
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    // дождь
+    const rn = G.rain;
+    if (rn > 0.02) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(14,22,30,' + rn * 0.22 + ')'; ctx.fillRect(0, 0, V.w, V.h);
+      ctx.strokeStyle = 'rgba(190,205,220,' + (0.16 + rn * 0.2) + ')'; ctx.lineWidth = Math.max(1, z * 0.9); ctx.beginPath();
+      const nd = Math.round(90 * rn), L = 30 * z;
+      for (let i = 0; i < nd; i++) {
+        const rx = (i * 197.3 + tm * 260 + cx * z * -1) % (V.w + 80), ry = (i * 113.7 + tm * (1500 + (i % 7) * 60) - cy * z) % (V.h + 60);
+        const ax = (rx + V.w + 80) % (V.w + 80) - 40, ay = (ry + V.h + 60) % (V.h + 60) - 30;
+        ctx.moveTo(ax, ay); ctx.lineTo(ax - L * 0.22, ay + L);
+      }
+      ctx.stroke();
+      if (dt > 0 && Math.random() < rn * 0.8) part(left + Math.random() * hw * 2, top + Math.random() * hh * 2, 0, 0, 0.25, 3, 'rgba(200,215,230,.5)', 0);
+      ctx.setTransform(z, 0, 0, z, -left * z, -top * z);
+    }
     // всплывающий текст
     const fl = G.floaters;
     if (fl.length) {

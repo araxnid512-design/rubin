@@ -1,7 +1,7 @@
 'use strict';
 /* Процедурная графика: все спрайты и иконки рисуются один раз при запуске */
 (function () {
-  const SS = 1.5, T = G.TILE, PI2 = 6.2831853;
+  const SS = 2, T = G.TILE, PI2 = 6.2831853;
 
   function mk(w, h, ax, ay, fn) {
     const c = document.createElement('canvas');
@@ -514,6 +514,13 @@
     S.pine = PINE.map(p => pine(r, p));
     S.oak = [leafy(r, OAK[0]), leafy(r, OAK[1]), deadTree(r)];
     S.birch = [leafy(r, BIRCH[0], true), leafy(r, BIRCH[1], true), deadTree(r)];
+    // силуэты для длинных теней от солнца
+    for (const k of ['pine', 'oak', 'birch']) for (const sp of S[k]) {
+      const c = document.createElement('canvas'); c.width = sp.c.width >> 1; c.height = sp.c.height >> 1;
+      const x = c.getContext('2d'); x.drawImage(sp.c, 0, 0, c.width, c.height);
+      x.globalCompositeOperation = 'source-in'; x.fillStyle = '#060a06'; x.fillRect(0, 0, c.width, c.height);
+      sp.sh = c;
+    }
     S.stump = stump();
     S.rock = [rock(r), rock(r), rock(r)];
     S.ore = [rock(r, true), rock(r, true), rock(r, true)];
@@ -547,48 +554,64 @@
   };
   // e: {face, walk, atk(0..1 прогресс, 0 = нет), hurt}, kind: p|z|r, tool: id|null
   G.drawHuman = function (x, e, kind, tool, moving) {
-    const st = STYLE[kind], s = moving ? Math.sin(e.walk) : 0, zomb = kind !== 'p';
-    x.fillStyle = 'rgba(4,8,5,.42)'; x.beginPath(); x.ellipse(4, 7, 20, 16, 0, 0, PI2); x.fill();
+    const st = STYLE[kind], s = moving ? Math.sin(e.walk) : 0, zomb = kind !== 'p', OUT = 'rgba(0,0,0,.6)';
+    x.fillStyle = 'rgba(4,8,5,.45)'; x.beginPath(); x.ellipse(5, 8, 20, 16, 0, 0, PI2); x.fill();
     x.rotate(e.face);
-    // ступни
+    // ботинки
     x.fillStyle = st.boot;
-    x.beginPath(); x.ellipse(s * 10, -7.5, 8, 5.2, 0, 0, PI2); x.fill();
-    x.beginPath(); x.ellipse(-s * 10, 7.5, 8, 5.2, 0, 0, PI2); x.fill();
-    // рюкзак
+    x.beginPath(); x.ellipse(s * 11, -6.5, 8.5, 5, 0, 0, PI2); x.fill();
+    x.beginPath(); x.ellipse(-s * 11, 6.5, 8.5, 5, 0, 0, PI2); x.fill();
+    // рюкзак со скаткой
     if (st.pack) {
-      x.fillStyle = '#4e3920'; rr(x, -21, -11, 13, 22, 5); x.fill();
-      x.fillStyle = st.pack; rr(x, -20, -10, 11, 20, 4); x.fill();
-      x.fillStyle = '#6b6658'; x.fillRect(-18, -6, 7, 2); x.fillRect(-18, 4, 7, 2);
+      x.fillStyle = '#0f0e0c'; rr(x, -23, -12, 15, 24, 4); x.fill();
+      x.fillStyle = st.pack; rr(x, -22, -11, 13, 22, 3.5); x.fill();
+      x.fillStyle = '#4f553f'; rr(x, -27, -12.5, 6, 25, 3); x.fill();
+      x.fillStyle = '#77715f'; x.fillRect(-20, -6.5, 9, 1.8); x.fillRect(-20, 4.7, 9, 1.8);
     }
-    // руки
-    x.lineCap = 'round'; x.lineWidth = 7.5; x.strokeStyle = st.arm;
+    // руки: плечо — локоть — кисть
     let lhx, lhy, rhx, rhy, ra = 0;
     if (zomb) {
-      const w = Math.sin(e.walk * 0.7) * 2.5, lunge = e.atk > 0 ? Math.sin(Math.min(1, e.atk) * Math.PI) * 9 : 0;
-      lhx = 19 + w + lunge; lhy = -8; rhx = 19 - w + lunge; rhy = 8;
+      const w = Math.sin(e.walk * 0.7) * 3, lunge = e.atk > 0 ? Math.sin(Math.min(1, e.atk) * Math.PI) * 10 : 0;
+      lhx = 20 + w + lunge; lhy = -8; rhx = 20 - w + lunge; rhy = 8;
     } else {
-      lhx = 9 - s * 7; lhy = -16; rhx = 9 + s * 7; rhy = 16;
+      lhx = 10 - s * 7; lhy = -17; rhx = 10 + s * 7; rhy = 17;
       if (e.atk > 0) {
         const t = e.atk, k = t < 0.5 ? t * 2 : 1 - (t - 0.5) * 2;
         ra = -1.25 + (t < 0.5 ? t * 2 : 1) * 2.1;
-        rhx = 2 + Math.cos(ra) * 19; rhy = 12 + Math.sin(ra) * 19; lhx = 9 + k * 4;
-      } else if (tool) { rhx = 13; rhy = 14; ra = -0.25 + s * 0.1; }
+        rhx = 2 + Math.cos(ra) * 21; rhy = 12 + Math.sin(ra) * 21; lhx = 10 + k * 5;
+      } else if (tool) { rhx = 14; rhy = 14; ra = -0.25 + s * 0.1; }
     }
-    line(x, 0, -13, lhx, lhy); line(x, 0, 13, rhx, rhy);
-    x.fillStyle = st.skin; circ(x, lhx, lhy, 4.4); circ(x, rhx, rhy, 4.4);
+    const lex = (lhx - 1) / 2 - 1, ley = (lhy - 15) / 2 - 4, rex = (rhx - 1) / 2 - 1, rey = (rhy + 15) / 2 + 4;
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    for (let pass = 0; pass < 2; pass++) {
+      x.strokeStyle = pass ? st.arm : OUT; x.lineWidth = pass ? 7 : 9.4;
+      x.beginPath(); x.moveTo(-1, -15); x.lineTo(lex, ley); x.lineTo(lhx, lhy); x.moveTo(-1, 15); x.lineTo(rex, rey); x.lineTo(rhx, rhy); x.stroke();
+    }
+    x.strokeStyle = OUT; x.lineWidth = 1;
+    x.fillStyle = st.skin; circ(x, lhx, lhy, 4.2); x.stroke(); circ(x, rhx, rhy, 4.2); x.stroke();
     if (tool) { x.save(); x.translate(rhx, rhy); x.rotate(e.atk > 0 ? ra + 0.5 : ra); G.drawTool(x, tool); x.restore(); }
-    // торс
-    x.strokeStyle = 'rgba(0,0,0,.55)'; x.lineWidth = 1.2;
-    x.fillStyle = st.body; x.beginPath(); x.ellipse(-1, 0, 11, 16.5, 0, 0, PI2); x.fill(); x.stroke();
-    x.fillStyle = st.body2; x.beginPath(); x.ellipse(0.5, 0, 7.5, 12.5, 0, 0, PI2); x.fill();
-    if (zomb) { x.fillStyle = 'rgba(92,14,12,.75)'; x.beginPath(); x.ellipse(-2, 6, 4.5, 3.5, 0.5, 0, PI2); x.fill(); x.beginPath(); x.ellipse(3, -8, 3, 2.4, 0, 0, PI2); x.fill(); }
-    else { x.strokeStyle = 'rgba(20,22,16,.7)'; x.lineWidth = 2; line(x, -8, -9, 6, -11); line(x, -8, 9, 6, 11); }
+    // плечи и торс
+    x.strokeStyle = OUT; x.lineWidth = 1.3;
+    x.fillStyle = st.body; rr(x, -9, -18, 16, 36, 8); x.fill(); x.stroke();
+    x.fillStyle = st.body2; rr(x, -5.5, -13, 10, 26, 5); x.fill();
+    x.fillStyle = 'rgba(0,0,0,.28)'; rr(x, -9, -18, 6, 36, 5); x.fill();
+    if (zomb) {
+      x.fillStyle = 'rgba(96,14,12,.8)'; x.beginPath(); x.ellipse(-1, 7, 4.5, 3.8, 0.5, 0, PI2); x.fill(); x.beginPath(); x.ellipse(3, -9, 3, 2.6, 0, 0, PI2); x.fill();
+      x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(-6, -3, 5, 2); x.fillRect(-2, 12, 6, 1.6);
+    } else { x.strokeStyle = 'rgba(12,13,10,.8)'; x.lineWidth = 2.2; line(x, -8, -9.5, 6, -11.5); line(x, -8, 9.5, 6, 11.5); }
     // голова
-    x.strokeStyle = 'rgba(0,0,0,.55)'; x.lineWidth = 1.2;
-    x.fillStyle = st.skin; circ(x, 3, 0, 9.4); x.stroke();
-    x.fillStyle = st.hair; x.beginPath(); x.arc(2, 0, 9.6, zomb ? 1.25 : 0.95, PI2 - (zomb ? 1.25 : 0.95)); x.closePath(); x.fill();
-    if (zomb) { x.fillStyle = '#d9d6b8'; circ(x, 9, -3.4, 1.3); circ(x, 9, 3.4, 1.3); x.fillStyle = 'rgba(92,14,12,.8)'; x.beginPath(); x.ellipse(10.5, 0, 2, 3, 0, 0, PI2); x.fill(); }
-    if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.6; x.fillStyle = '#fff'; x.beginPath(); x.ellipse(0, 0, 13, 17, 0, 0, PI2); x.fill(); x.globalAlpha = 1; }
+    x.strokeStyle = OUT; x.lineWidth = 1.2;
+    x.fillStyle = st.skin; circ(x, 3, 0, 8.2); x.stroke();
+    x.fillStyle = st.hair; x.beginPath(); x.arc(2.2, 0, 8.5, zomb ? 1.3 : 0.85, PI2 - (zomb ? 1.3 : 0.85)); x.closePath(); x.fill();
+    if (zomb) { x.fillStyle = '#d9d6b8'; circ(x, 8.6, -3, 1.2); circ(x, 8.6, 3, 1.2); x.fillStyle = 'rgba(96,14,12,.85)'; x.beginPath(); x.ellipse(10.4, 0, 1.8, 2.8, 0, 0, PI2); x.fill(); }
+    else { x.fillStyle = 'rgba(0,0,0,.25)'; x.beginPath(); x.ellipse(10.6, 0, 1.4, 2, 0, 0, PI2); x.fill(); }
+    if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.55; x.fillStyle = '#fff'; rr(x, -10, -18, 22, 36, 9); x.fill(); x.globalAlpha = 1; }
+    // след удара
+    if (!zomb && tool && e.atk > 0.18 && e.atk < 0.8) {
+      x.globalAlpha = 0.5 * (1 - Math.abs(e.atk - 0.5) * 2.6); if (x.globalAlpha < 0) x.globalAlpha = 0;
+      x.strokeStyle = '#f2ede0'; x.lineWidth = 6; x.beginPath(); x.arc(2, 12, 44, -1.0, ra + 0.35); x.stroke();
+      x.lineWidth = 2; x.beginPath(); x.arc(2, 12, 50, -0.8, ra + 0.25); x.stroke(); x.globalAlpha = 1;
+    }
   };
   G.drawDeer = function (x, e, moving) {
     const s = moving ? Math.sin(e.walk) : 0;
