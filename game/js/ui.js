@@ -446,7 +446,7 @@
       const cards = sum.soldiers.map(function (s) {
         const sc = scarred.indexOf(s.name) >= 0;
         return '<div class="rs' + (s.promo ? ' promo' : '') + '"><img class="ava" src="' + DW.ART.portrait(s.ref) + '" alt=""><div class="sc"><b>' + s.name + (s.promo ? ' <span class="acc">▲ ' + s.promo + '</span>' : '') + '</b>' + hpBar(s.hp, s.maxHp) +
-          '<small>убийств: ' + s.kills + ' · опыт +' + s.xp + (sc ? ' · <span class="bad">новый шрам</span>' : '') + '</small></div></div>';
+          '<small>' + (s.saved ? '<span class="acc">спасён после тяжёлого ранения</span> · ' : '') + 'убийств: ' + s.kills + ' · опыт +' + s.xp + (sc ? ' · <span class="bad">новый шрам</span>' : '') + '</small></div></div>';
       }).concat((sum.deadRefs || []).map(function (r) {
         return '<div class="rs kia"><img class="ava" src="' + DW.ART.portrait(r) + '" alt=""><div class="sc"><b>' + r.name + '</b><span class="bad">Погиб</span></div></div>';
       }));

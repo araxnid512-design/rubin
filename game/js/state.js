@@ -557,6 +557,15 @@
       if (idx < 0) return;
       const s = st.roster[idx];
       kills += u.kills;
+      if (!u.alive && (u.stable || (u.down > 0 && out === 'victory'))) {
+        s.wounds = Math.max(0, G.maxHp(s) - 1);
+        if ((s.look.bscars || 0) < 3) { s.look.bscars = (s.look.bscars || 0) + 1; (sum.scarred = sum.scarred || []).push(s.name); }
+        s.kills += u.kills; s.missions++;
+        s.xp += (u.xpGain || 0) + 1;
+        sum.soldiers.push({ name: s.name, hp: G.hp(s), maxHp: G.maxHp(s), kills: u.kills, xp: (u.xpGain || 0) + 1, evac: false, ref: s, promo: null, saved: true });
+        G.log('«' + s.name + '» выжил после тяжёлого ранения.');
+        return;
+      }
       if (!u.alive) {
         st.roster.splice(idx, 1);
         st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s) });

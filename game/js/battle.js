@@ -101,13 +101,14 @@
     const st = DW.G.state;
     const bonus = Math.max(0, B.diff - 3) + Math.floor(st.day / 15);
     const wid = T.weapons ? U.pick(T.weapons) : T.weapon;
+    const gren = type === 'boss' ? 2 : (type === 'thug' ? (Math.random() < 0.5 ? 1 : 0) : (type === 'raider' ? (Math.random() < 0.3 ? 1 : 0) : 0));
     const W = wid ? D.WEAPONS[wid] : null;
     return {
       id: B.nextId++, side: 'e', kind: 'enemy', type: type, name: T.n, x: x, y: y,
       hp: T.hp + bonus, maxHp: T.hp + bonus, aim: T.aim + bonus * 2, mob: T.mob, def: T.def || 0, armor: T.armor || 0,
       weapon: wid || null, clip: W ? W.clip : 0, ap: 0, sight: Math.max(5, (T.sight || 9) + (B.sightMod || 0)), pod: pod,
       active: false, seen: false, overwatch: false, hunker: false, suppressed: false, alive: true, evac: false,
-      face: Math.PI, cd: {}, kills: 0
+      face: Math.PI, cd: {}, kills: 0, gren: gren
     };
   }
   function mkTurret(x, y) {
@@ -339,16 +340,20 @@
     DW.TR.hitFx(u);
     DW.SFX.play('hit');
     if (u.hp <= 0) {
+      const over = -u.hp;
       u.hp = 0;
-      BT.kill(u, src);
+      BT.kill(u, src, over);
       await U.sleep(420);
       return true;
     }
     await U.sleep(220);
     return false;
   };
-  BT.kill = function (u, src) {
+  BT.kill = function (u, src, over) {
     u.alive = false; u.overwatch = false; u.hunker = false;
+    if (u.kind === 'soldier' && (over || 0) <= 4 && Math.random() < Math.min(0.9, 0.55 + (u.rank || 0) * 0.08)) {
+      u.down = 4; u.stable = false;
+    }
     B.corpses.push({ x: u.x, y: u.y, side: u.side, type: u.type || u.kind, face: u.face, uid: u.id });
     DW.TR.dieFx(u);
     if (u.side === 'e') {
@@ -363,9 +368,56 @@
       if (T.boss) { B.queenDead = true; DW.UI.toast('Матка убита!', 'good'); }
     } else {
       DW.SFX.play('death');
-      DW.UI.toast(u.name + (u.kind === 'turret' ? ' уничтожена' : ' погиб!'), 'bad');
+      if (u.down) DW.UI.toast(u.name + ' тяжело ранен и истекает кровью! Помогите за 3 хода.', 'alert');
+      else DW.UI.toast(u.name + (u.kind === 'turret' ? ' уничтожена' : ' погиб!'), 'bad');
     }
     BT.updateObjective();
+  };
+  /* Раненые, которых можно спасти */
+  BT.downedNear = function (u) {
+    return B.units.filter(function (a) { return a.kind === 'soldier' && !a.alive && a.down > 0 && !a.stable && Math.max(Math.abs(a.x - u.x), Math.abs(a.y - u.y)) <= 1; });
+  };
+  BT.doStabilize = function (u, t) {
+    const st = DW.G.state;
+    if (u.cls === 'medic' && u.charges && u.charges.heal > 0) u.charges.heal -= 1;
+    else st.res.meds -= 1;
+    u.ap -= 1;
+    t.stable = true;
+    u.face = Math.atan2(t.y - u.y, t.x - u.x);
+    DW.TR.anim(u, 'check', 900);
+    DW.TR.float(t.x, t.y, 'Стабилизирован', 'good');
+    DW.SFX.play('pickup');
+    DW.UI.toast(t.name + ' спасён — выживет, если отряд победит или уйдёт.', 'good');
+  };
+  /* Удар прикладом по соседнему врагу */
+  BT.meleeTargets = function (u) {
+    return B.units.filter(function (e) { return e.side === 'e' && e.alive && Math.max(Math.abs(e.x - u.x), Math.abs(e.y - u.y)) <= 1 && Math.abs(BT.hAt(e.x, e.y) - BT.hAt(u.x, u.y)) <= 1; });
+  };
+  BT.doButt = async function (u, t) {
+    u.ap = 0;
+    u.face = Math.atan2(t.y - u.y, t.x - u.x);
+    DW.SFX.play('melee');
+    await DW.TR.lungeFx(u, t);
+    const hit = Math.random() * 100 < U.clamp(85 - (t.def || 0), 30, 95);
+    if (hit) {
+      const crit = Math.random() < 0.15;
+      DW.TR.float(u.x, u.y, 'Приклад!', 'info');
+      await BT.damage(t, BT.rollDamage([3, 5], crit, t.armor, false), u, crit);
+    } else { DW.TR.float(t.x, t.y, 'Промах', 'miss'); await U.sleep(220); }
+    if (t.alive && t.side === 'e' && !t.active) await BT.activatePods([t]);
+  };
+  /* Клетки зоны хода, которые простреливает вражеский дозор */
+  BT.owZone = function (R) {
+    const n = B.w * B.h, z = new Uint8Array(n);
+    const ows = B.units.filter(function (e) { return e.side === 'e' && e.alive && e.overwatch && e.seen; });
+    if (!ows.length || !R) return null;
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      if (R.cost[i] === Infinity) continue;
+      const x = i % B.w, y = (i / B.w) | 0;
+      for (let k = 0; k < ows.length; k++) { if (BT.canSeeFrom(ows[k].x, ows[k].y, x, y, ows[k].sight)) { z[i] = 1; any = true; break; } }
+    }
+    return any ? z : null;
   };
   BT.damageObj = function (x, y, dmg) {
     if (!BT.inb(x, y)) return;
@@ -697,6 +749,12 @@
   /* ---------- Ходы ---------- */
   BT.startPlayerTurn = function () {
     B.phase = 'player';
+    B.units.forEach(function (u) {
+      if (u.kind !== 'soldier' || u.alive || !u.down || u.stable) return;
+      u.down--;
+      if (u.down <= 0) { u.down = 0; DW.UI.toast(u.name + ' умер от потери крови.', 'bad'); DW.TR.float(u.x, u.y, 'Умер', 'bad'); }
+      else DW.TR.float(u.x, u.y, 'Истекает кровью: ' + (u.down - 1 > 0 ? u.down - 1 + ' х.' : 'последний ход!'), 'bad');
+    });
     B.units.forEach(function (u) {
       if (u.side !== 'p' || !u.alive || u.evac) return;
       u.ap = u.kind === 'turret' ? 0 : 2;

@@ -133,7 +133,28 @@
     }
     const ts = BT.players();
     if (!ts.length) { e.ap = 0; return false; }
+    // граната по скоплению или по засевшему в полном укрытии
+    if (e.gren > 0 && e.ap >= 1) {
+      let gb = null;
+      ts.forEach(function (t) {
+        if (U.dist(e.x, e.y, t.x, t.y) > 7.5 || !BT.canSeeFrom(e.x, e.y, t.x, t.y, e.sight)) return;
+        const around = ts.filter(function (o) { return Math.max(Math.abs(o.x - t.x), Math.abs(o.y - t.y)) <= 1; }).length;
+        const full = BT.coverAt(t.x, t.y, e.x, e.y).cover === 2;
+        const v = around * 10 + (full ? 8 : 0) + (t.hp <= 4 ? 5 : 0);
+        if (!gb || v > gb.v) gb = { t: t, v: v };
+      });
+      if (gb && gb.v >= 18) {
+        e.gren--; e.ap = 0;
+        e.face = Math.atan2(gb.t.y - e.y, gb.t.x - e.x);
+        if (e.seen) { DW.TR.float(e.x, e.y, 'Граната!', 'bad'); await DW.TR.focusOn(gb.t.x, gb.t.y, false); }
+        DW.TR.anim(e, 'throw', 560); await U.sleep(330);
+        await DW.TR.projectileFx(e.x, e.y, gb.t.x, gb.t.y, 'grenade');
+        await BT.explode(gb.t.x, gb.t.y, 1.5, [3, 5], 4, e);
+        return true;
+      }
+    }
     const canMove = e.ap >= 2;
+    const hurt = !D.ENEMIES[e.type].beast && e.hp <= e.maxHp * 0.35;
     const R = BT.reach(e, canMove ? e.mob : 0);
     const start = BT.idx(e.x, e.y);
     let best = null;
@@ -158,7 +179,7 @@
         safety += cv === 2 ? 16 : (cv === 1 ? 9 : -10);
       }
       if (n) safety /= n;
-      let score = shot + safety * 1.2 - R.cost[i] * 0.3 + Math.random() * 5;
+      let score = (hurt ? shot * 0.45 + safety * 2.6 : shot + safety * 1.2) - R.cost[i] * 0.3 + Math.random() * 5;
       if (st && e.type === 'marksman') score += Math.min(U.dist(x, y, st.x, st.y), 10);
       if (st && e.type === 'thug') score -= U.dist(x, y, st.x, st.y) * 1.5;
       if (!st) score -= 80;

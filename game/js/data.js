@@ -243,6 +243,7 @@
   I.journal = '<svg viewBox="0 0 24 24"><path d="M5 2h13a2 2 0 0 1 2 2v18H7a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 7h7M9 11h7M9 15h5" stroke="currentColor" stroke-width="2"/></svg>';
   I.wait = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>';
   I.portalbtn = '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7.5" ry="10" fill="none" stroke="currentColor" stroke-width="2.2"/><ellipse cx="12" cy="12" rx="3" ry="5" fill="currentColor" opacity=".6"/></svg>';
+  I.butt = '<svg viewBox="0 0 24 24"><path d="M3 15l9-9 3 3-9 9z" fill="#8a5a2a"/><path d="M12 6l2-2 6 6-2 2z" fill="#5a5c60"/><path d="M15 16l3 3M17 14l3 3M13 18l3 3" stroke="#e3a33b" stroke-width="2" stroke-linecap="round"/></svg>';
   D.ICONS = I;
   D.icon = function (name, cls) {
     return '<span class="ico' + (cls ? ' ' + cls : '') + '">' + (I[name] || '') + '</span>';

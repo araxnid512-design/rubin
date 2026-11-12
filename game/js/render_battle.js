@@ -2078,6 +2078,16 @@
     const sp = unitSprite(u, fi, sc, true);
     castShadow(g, c, sp, sc / 1.13, true);
     g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
+    if (u.kind === 'soldier' && (u.down > 0 || u.stable)) {
+      // раненый: пульсирующий крест над телом
+      const pl = 0.6 + Math.sin(t / 220) * 0.4;
+      const col = u.stable ? '127,208,106' : '255,80,60';
+      g.fillStyle = 'rgba(' + col + ',' + (0.25 * pl) + ')'; ART.ell(g, c[0], c[1] - 4, 22, 10);
+      const Y = c[1] - 30;
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(c[0] - 8, Y - 8, 16, 16);
+      g.fillStyle = 'rgb(' + col + ')'; g.fillRect(c[0] - 2, Y - 6, 4, 12); g.fillRect(c[0] - 6, Y - 2, 12, 4);
+      if (!u.stable) { g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = '#000'; const txt = (u.down - 1) + ' х.'; g.strokeText(txt, c[0], Y - 12); g.fillStyle = '#ffb0a0'; g.fillText(txt, c[0], Y - 12); }
+    }
   }
   function drawItem(g, it, t) {
     const c = isoC(it.x, it.y);
@@ -2804,6 +2814,18 @@
       g.strokeStyle = 'rgba(235,248,255,0.8)'; g.stroke(lb);
       g.strokeStyle = 'rgba(255,245,215,0.7)'; g.stroke(ly);
       g.setLineDash([]); g.lineDashOffset = 0;
+    }
+    // зоны вражеского дозора внутри зоны хода
+    if (ov.owz) {
+      const pz = new Path2D();
+      for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+        if (!ov.owz[y * B.w + x]) continue;
+        const hh = hT(x, y) * LH;
+        const a = iso(x + 0.08, y + 0.08), b = iso(x + 0.92, y + 0.08), c = iso(x + 0.92, y + 0.92), d = iso(x + 0.08, y + 0.92);
+        pz.moveTo(a[0], a[1] - hh); pz.lineTo(b[0], b[1] - hh); pz.lineTo(c[0], c[1] - hh); pz.lineTo(d[0], d[1] - hh); pz.closePath();
+      }
+      g.fillStyle = 'rgba(255,70,50,' + (0.13 + Math.sin(t / 300) * 0.04) + ')'; g.fill(pz);
+      g.strokeStyle = 'rgba(255,110,90,0.35)'; g.lineWidth = 1; g.stroke(pz);
     }
     // путь и предпросмотр
     if (ov.path && ov.sel) {
