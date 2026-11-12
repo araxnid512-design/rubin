@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Чаровник: Девы чудищ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="title">
+<canvas id="cv"></canvas>
+<div id="touch"></div>
+
+<div id="hud">
+  <div id="zone"></div>
+  <div id="moneybox"><i class="coin"></i><span id="money"></span></div>
+  <div id="fps"></div>
+  <button id="btn-menu">Меню</button>
+  <button id="btn-a">A</button>
+  <div id="joy"><div id="knob"></div></div>
+</div>
+
+<div id="bui">
+  <div id="bmsg"></div>
+  <div id="bmenu">
+    <button id="b-atk" class="pink">Умения</button>
+    <button id="b-compl" class="rose">Комплимент ♥</button>
+    <button id="b-seal" class="gold">Печать</button>
+    <button id="b-bag">Сумка</button>
+    <button id="b-team">Отряд</button>
+    <button id="b-run">Бежать</button>
+  </div>
+  <div id="bskills"></div>
+</div>
+
+<div id="dlg"><div id="dlg-pic"></div><div id="dlg-box"><b id="dlg-who"></b><p id="dlg-t"></p><i class="next">▼</i></div></div>
+
+<div id="modal" class="hide">
+  <div id="m-panel">
+    <header><h2 id="m-title"></h2><button class="x" data-x>✕</button></header>
+    <div id="m-body"></div>
+  </div>
+</div>
+<div id="fade"></div>
+
+<div id="title">
+  <div id="t-girls"></div>
+  <div class="t-box">
+    <h1>ЧАРОВНИК</h1>
+    <h2>девы чудищ</h2>
+    <p>Ведьма наслала на долину любовный дурман. Девицы-чудища распоясались.<br>Только ты умеешь их приручать. Комплиментами. И печатями-сердечками.</p>
+    <button id="btn-play">ИГРАТЬ</button>
+    <button id="btn-new" class="ghost hide">Новая игра</button>
+    <small>18+ · флирт и шутки без откровенных сцен</small>
+  </div>
+</div>
+
+<script>window.G = {};</script>
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/art.js"></script>
+<script src="js/world.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
