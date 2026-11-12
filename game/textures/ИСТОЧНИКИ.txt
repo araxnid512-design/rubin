@@ -1,0 +1,19 @@
+Фото-текстуры — Poly Haven (https://polyhaven.com), лицензия CC0 (общественное достояние).
+Обработка: tools/art3d/textures.py (уменьшение, подгонка яркости и тона под палитру игры).
+
+g_grain     gravelly_sand
+g_ash       ground_grey
+g_earth     mud_cracked_dry_03
+g_concrete  concrete_floor_worn_001
+g_metal     metal_plate
+g_cave      rocks_ground_02
+g_rubble    rocky_gravel
+g_wood      weathered_brown_planks
+g_asphalt   asphalt_02
+g_planks    brown_planks_03
+w_brick     red_brick_03
+w_plaster   cracked_concrete_wall
+w_stone     rustic_stone_wall_02
+w_bulkhead  rusty_metal_02
+w_planks    brown_planks_03
+w_rockface  rock_face_03
