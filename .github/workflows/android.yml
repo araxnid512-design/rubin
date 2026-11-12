@@ -1,0 +1,35 @@
+name: Сборка APK
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'game/**'
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Сборка release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Переименовать APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk DeadWorld.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeadWorld-apk
+          path: DeadWorld.apk

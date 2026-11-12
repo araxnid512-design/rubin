@@ -1,0 +1,707 @@
+'use strict';
+/* Пошаговый тактический бой в стиле XCOM: правила и действия */
+(function (DW) {
+  const U = DW.U, D = DW.D;
+  const BT = {};
+  let B = null;
+  let vis = null;
+  BT.visVersion = 0;
+
+  const DIR4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const DIR8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  BT.DIR4 = DIR4; BT.DIR8 = DIR8;
+  BT.LOOT_SHORT = { gems: 'драг.', ammo: 'патр.', food: 'еды', meds: 'апт.', materials: 'мат.', grenades: 'гран.' };
+
+  BT.get = function () { return B; };
+  BT.vis = function () { return vis; };
+  BT.idx = function (x, y) { return y * B.w + x; };
+  BT.inb = function (x, y) { return x >= 0 && y >= 0 && x < B.w && y < B.h; };
+  BT.objAt = function (x, y) { return BT.inb(x, y) ? B.obj[y * B.w + x] : 0; };
+  BT.walkTile = function (x, y) {
+    if (!BT.inb(x, y)) return false;
+    const i = y * B.w + x;
+    return !B.obj[i] && D.GROUND[B.ground[i]].walk;
+  };
+  BT.blocksLos = function (x, y) {
+    if (!BT.inb(x, y)) return false;
+    const o = B.obj[y * B.w + x];
+    return !!(o && D.OBJ[o].los);
+  };
+  BT.unitAt = function (x, y) {
+    for (let i = 0; i < B.units.length; i++) {
+      const u = B.units[i];
+      if (u.alive && !u.evac && u.x === x && u.y === y) return u;
+    }
+    return null;
+  };
+  BT.players = function () { return B.units.filter(function (u) { return u.side === 'p' && u.alive && !u.evac; }); };
+  BT.soldiers = function () { return B.units.filter(function (u) { return u.kind === 'soldier' && u.alive && !u.evac; }); };
+  BT.enemies = function () { return B.units.filter(function (u) { return u.side === 'e' && u.alive; }); };
+  BT.isEvacTile = function (x, y) { return B.evac.some(function (e) { return e[0] === x && e[1] === y; }); };
+
+  /* ---------- Создание боя ---------- */
+  function wavePool(fam) {
+    const day = DW.G.state.day;
+    if (fam === 'beast') return day < 10 ? ['scav', 'scav', 'spitter'] : ['scav', 'spitter', 'brute', 'scav'];
+    return day < 10 ? ['raider', 'raider', 'thug'] : ['raider', 'thug', 'marksman', 'raider'];
+  }
+  BT.composePods = function (o) {
+    const st = DW.G.state;
+    const type = o.type, diff = o.diff;
+    let n = 2 + diff + Math.floor((st.day - 1) / 6);
+    if (o.kind === 'ambush') n = Math.max(2, n - 2);
+    n = U.clamp(n, 2, 12);
+    function poolFor(f) {
+      if (f === 'beast') {
+        if (diff >= 3) return ['scav', 'scav', 'spitter', 'brute', 'spitter'];
+        if (diff >= 2) return ['scav', 'scav', 'scav', 'spitter', 'brute'];
+        return ['scav', 'scav', 'scav', 'spitter'];
+      }
+      if (f === 'raider') return diff >= 2 ? ['raider', 'raider', 'thug', 'marksman'] : ['raider', 'raider', 'thug'];
+      return ['guardian', 'guardian', 'scav'];
+    }
+    const famMap = { landing: 'beast', vein: 'beast', lair: 'beast', nest: 'beast', camp: 'raider', vault: 'guard' };
+    const fam = famMap[type] || null;
+    const pods = [];
+    if (o.kind !== 'ambush') {
+      if (type === 'camp' && diff >= 3) { pods.push({ types: ['boss', 'raider'], anchor: true }); n -= 2; }
+      if (type === 'lair') { pods.push({ types: ['brute', 'scav', 'spitter'], anchor: true }); n -= 3; }
+      if (type === 'nest') { pods.push({ types: ['queen', 'brute', 'spitter'], anchor: true }); n = Math.max(n, 10) - 3; }
+      if (type === 'vault') { pods.push({ types: ['guardian', 'guardian'], anchor: false }); n -= 2; }
+    }
+    while (n > 0) {
+      const size = Math.min(n, U.rand(2, diff >= 3 ? 4 : 3));
+      const f = fam || (Math.random() < 0.5 ? 'beast' : 'raider');
+      const pool = poolFor(f);
+      const types = [];
+      for (let i = 0; i < size; i++) types.push(U.pick(pool));
+      pods.push({ types: types });
+      n -= size;
+    }
+    return pods;
+  };
+
+  function mkSoldier(s, x, y) {
+    const G = DW.G;
+    const W = D.WEAPONS[s.weapon];
+    return {
+      id: B.nextId++, side: 'p', kind: 'soldier', sid: s.id, name: s.name, cls: s.cls, x: x, y: y,
+      hp: Math.max(1, G.hp(s)), maxHp: G.maxHp(s), aim: G.aim(s) - (G.state.hungry ? 10 : 0), mob: G.mob(s),
+      def: 0, armor: D.ARMORS[s.armor].armor, armorId: s.armor, weapon: s.weapon, clip: W.clip, ap: 2,
+      sight: 10 + (W.sight || 0), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
+      alive: true, evac: false, kills: 0, xpGain: 0, face: 0, look: s.look, rank: G.rank(s)
+    };
+  }
+  function mkEnemy(type, x, y, pod) {
+    const T = D.ENEMIES[type];
+    const st = DW.G.state;
+    const bonus = Math.max(0, B.diff - 2) + Math.floor(st.day / 15);
+    const W = T.weapon ? D.WEAPONS[T.weapon] : null;
+    return {
+      id: B.nextId++, side: 'e', kind: 'enemy', type: type, name: T.n, x: x, y: y,
+      hp: T.hp + bonus, maxHp: T.hp + bonus, aim: T.aim + bonus * 2, mob: T.mob, def: T.def || 0, armor: T.armor || 0,
+      weapon: T.weapon || null, clip: W ? W.clip : 0, ap: 0, sight: T.sight || 9, pod: pod,
+      active: false, seen: false, overwatch: false, hunker: false, suppressed: false, alive: true, evac: false,
+      face: Math.PI, cd: {}, kills: 0
+    };
+  }
+  function mkTurret(x, y) {
+    return {
+      id: B.nextId++, side: 'p', kind: 'turret', name: 'Автотурель', x: x, y: y, hp: 10, maxHp: 10, aim: 65, mob: 0,
+      def: 0, armor: 1, weapon: 'turret', clip: 99, ap: 0, sight: 9, cd: {}, charges: {}, overwatch: false, hunker: false,
+      suppressed: false, alive: true, evac: false, kills: 0, xpGain: 0, face: 0
+    };
+  }
+
+  BT.create = function (o) {
+    const st = DW.G.state;
+    const pods = o.kind === 'defense' ? [] : BT.composePods(o);
+    const mapType = o.kind === 'defense' ? 'defense' : D.NODE_TYPES[o.type].map;
+    const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings });
+    B = {
+      v: 1, nodeId: o.nodeId, type: o.type, kind: o.kind, diff: o.diff, raidKind: o.raid ? o.raid.kind : null,
+      w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, decor: m.decor, items: m.items, evac: m.evac,
+      units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
+      loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
+      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: ''
+    };
+    const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
+    squad.forEach(function (s, i) {
+      const d = m.deploy[i];
+      if (d) B.units.push(mkSoldier(s, d[0], d[1]));
+    });
+    (m.turrets || []).forEach(function (t) { B.units.push(mkTurret(t[0], t[1])); });
+    m.pods.forEach(function (p, pi) {
+      p.members.forEach(function (mm) { B.units.push(mkEnemy(mm.type, mm.x, mm.y, pi)); });
+    });
+    if (o.kind === 'defense') {
+      const s = o.raid.strength;
+      const w1 = Math.ceil(s * 0.4), w2 = Math.ceil(s * 0.35), w3 = Math.max(1, s - w1 - w2);
+      B.waves = [
+        { turn: 0, n: w1, fam: o.raid.kind, spawned: false },
+        { turn: 3, n: w2, fam: o.raid.kind, spawned: false },
+        { turn: 5, n: w3, fam: o.raid.kind, spawned: false }
+      ];
+      BT.spawnWaves(true);
+    }
+    BT.updateObjective();
+    BT.updateVision();
+    return B;
+  };
+  BT.restore = function (data) {
+    B = data;
+    BT.updateVision();
+    return B;
+  };
+  BT.clear = function () { B = null; vis = null; };
+
+  BT.updateObjective = function () {
+    if (!B) return;
+    const en = BT.enemies().length;
+    if (B.kind === 'defense') {
+      const left = B.waves.filter(function (w) { return !w.spawned; }).length;
+      B.objective = 'Оборона базы: волна ' + B.waveNo + '/3' + (left ? '' : ' (последняя)') + ' · врагов: ' + en;
+    } else if (B.type === 'nest' && B.kind !== 'ambush') {
+      B.objective = B.queenDead ? 'Матка мертва! Добейте остальных' : 'Убейте Матку';
+    } else if (B.type === 'vein') {
+      B.objective = 'Перебейте тварей и соберите кристаллы (' + B.items.filter(function (i) { return i.kind === 'gems'; }).length + ' осталось)';
+    } else {
+      B.objective = 'Уничтожьте всех врагов';
+    }
+  };
+
+  /* ---------- Обзор ---------- */
+  BT.peek = function (x, y) {
+    const res = [[x, y]];
+    let adj = false;
+    for (let k = 0; k < 4; k++) if (BT.blocksLos(x + DIR4[k][0], y + DIR4[k][1])) { adj = true; break; }
+    if (adj) {
+      for (let k = 0; k < 4; k++) {
+        const nx = x + DIR4[k][0], ny = y + DIR4[k][1];
+        if (BT.walkTile(nx, ny)) res.push([nx, ny]);
+      }
+    }
+    return res;
+  };
+  BT.rayClear = function (ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 3);
+    if (n === 0) return true;
+    let px = ax, py = ay;
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const x = Math.floor(ax + 0.5 + dx * t), y = Math.floor(ay + 0.5 + dy * t);
+      if (x === px && y === py) continue;
+      if (!(x === bx && y === by) && !(x === ax && y === ay) && BT.blocksLos(x, y)) return false;
+      if (x !== px && y !== py && BT.blocksLos(x, py) && BT.blocksLos(px, y)) return false;
+      px = x; py = y;
+    }
+    if (bx !== px && by !== py && BT.blocksLos(bx, py) && BT.blocksLos(px, by)) return false;
+    return true;
+  };
+  BT.canSeeFrom = function (x, y, tx, ty, range) {
+    if (U.dist(x, y, tx, ty) > range + 0.01) return false;
+    const pa = BT.peek(x, y), pb = BT.peek(tx, ty);
+    for (let i = 0; i < pa.length; i++) for (let j = 0; j < pb.length; j++) {
+      if (BT.rayClear(pa[i][0], pa[i][1], pb[j][0], pb[j][1])) return true;
+    }
+    return false;
+  };
+  BT.canSee = function (a, b) { return BT.canSeeFrom(a.x, a.y, b.x, b.y, a.sight); };
+
+  BT.updateVision = function () {
+    if (!B) return [];
+    const w = B.w, h = B.h;
+    vis = new Uint8Array(w * h);
+    const ps = BT.players();
+    ps.forEach(function (u) {
+      const r = u.sight;
+      const pk = BT.peek(u.x, u.y);
+      const x0 = Math.max(0, u.x - r), x1 = Math.min(w - 1, u.x + r);
+      const y0 = Math.max(0, u.y - r), y1 = Math.min(h - 1, u.y + r);
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const i = y * w + x;
+          if (vis[i]) continue;
+          if ((x - u.x) * (x - u.x) + (y - u.y) * (y - u.y) > r * r) continue;
+          for (let k = 0; k < pk.length; k++) {
+            if (BT.rayClear(pk[k][0], pk[k][1], x, y)) { vis[i] = 1; break; }
+          }
+        }
+      }
+    });
+    const newly = [];
+    B.units.forEach(function (e) {
+      if (e.side !== 'e' || !e.alive) return;
+      let seen = !!vis[e.y * w + e.x];
+      if (!seen) for (let k = 0; k < ps.length; k++) if (BT.canSee(ps[k], e)) { seen = true; break; }
+      if (seen) vis[e.y * w + e.x] = 1;
+      if (seen && !e.seen) newly.push(e);
+      e.seen = seen;
+    });
+    for (let i = 0; i < vis.length; i++) if (vis[i]) B.explored[i] = 1;
+    BT.visVersion++;
+    return newly;
+  };
+
+  /* ---------- Укрытия и попадания ---------- */
+  BT.coverAt = function (x, y, fx, fy) {
+    let best = 0, any = 0, tile = null;
+    const dx = fx - x, dy = fy - y;
+    const L = Math.hypot(dx, dy) || 1;
+    for (let k = 0; k < 4; k++) {
+      const d = DIR4[k];
+      const o = BT.objAt(x + d[0], y + d[1]);
+      if (!o) continue;
+      const c = D.OBJ[o].cover;
+      if (!c) continue;
+      if (c > any) any = c;
+      if ((dx * d[0] + dy * d[1]) / L > 0.25 && c > best) { best = c; tile = [x + d[0], y + d[1]]; }
+    }
+    return { cover: best, flanked: any > 0 && best === 0, tile: tile };
+  };
+  BT.shotInfo = function (att, tgt, o) {
+    o = o || {};
+    const ax = o.fromX !== undefined ? o.fromX : att.x, ay = o.fromY !== undefined ? o.fromY : att.y;
+    const W = D.WEAPONS[att.weapon];
+    const d = U.dist(ax, ay, tgt.x, tgt.y);
+    const parts = [];
+    let hit = att.aim;
+    parts.push(['Меткость', att.aim]);
+    if (W.aimMod) { hit += W.aimMod; parts.push(['Оружие', W.aimMod]); }
+    const rm = D.rangeMod(W.range, d);
+    if (rm) { hit += rm; parts.push(['Дистанция', rm]); }
+    const cv = BT.coverAt(tgt.x, tgt.y, ax, ay);
+    if (cv.cover) { const c = cv.cover === 2 ? -40 : -20; hit += c; parts.push([cv.cover === 2 ? 'Полное укрытие' : 'Укрытие', c]); }
+    if (tgt.def) { hit -= tgt.def; parts.push(['Уклонение', -tgt.def]); }
+    if (tgt.hunker) { hit -= 20; parts.push(['Залёг', -20]); }
+    if (BT.inb(ax, ay) && D.GROUND[B.ground[BT.idx(ax, ay)]].high) { hit += 15; parts.push(['Высота', 15]); }
+    if (o.reaction) { hit -= 10; parts.push(['Реакция', -10]); }
+    if (att.suppressed) { hit -= 40; parts.push(['Подавлен', -40]); }
+    if (o.aimBonus) { hit += o.aimBonus; parts.push([o.aimLabel || 'Бонус', o.aimBonus]); }
+    hit = U.clamp(Math.round(hit), 1, 100);
+    let crit = W.crit || 0;
+    if (!cv.cover) crit += cv.flanked ? 40 : 25;
+    if (o.critBonus) crit += o.critBonus;
+    if (tgt.hunker) crit = 0;
+    crit = U.clamp(crit, 0, 100);
+    return { hit: hit, crit: crit, cover: cv.cover, flanked: cv.flanked, coverTile: cv.tile, d: d, parts: parts, dmg: W.dmg };
+  };
+  BT.meleeInfo = function (att, tgt) {
+    let hit = att.aim - (tgt.def || 0) - (tgt.hunker ? 20 : 0);
+    hit = U.clamp(Math.round(hit), 5, 95);
+    return { hit: hit, crit: 10 };
+  };
+  BT.rollDamage = function (dmg, crit, armor, pierce) {
+    let d = U.rand(dmg[0], dmg[1]);
+    if (crit) d += Math.ceil(d * 0.5);
+    if (!pierce) d = Math.max(1, d - (armor || 0));
+    return d;
+  };
+  BT.targetsFor = function (u) {
+    return BT.enemies().filter(function (e) { return e.seen && BT.canSee(u, e); });
+  };
+
+  /* ---------- Урон, смерть, разрушения ---------- */
+  BT.damage = async function (u, dmg, src, crit) {
+    if (!u.alive) return false;
+    u.hp -= dmg;
+    DW.TR.float(u.x, u.y, (crit ? 'КРИТ −' : '−') + dmg, crit ? 'crit' : (u.side === 'p' ? 'hurt' : 'dmg'));
+    DW.TR.blood(u);
+    DW.SFX.play('hit');
+    if (u.hp <= 0) {
+      u.hp = 0;
+      BT.kill(u, src);
+      await U.sleep(420);
+      return true;
+    }
+    await U.sleep(220);
+    return false;
+  };
+  BT.kill = function (u, src) {
+    u.alive = false; u.overwatch = false; u.hunker = false;
+    B.corpses.push({ x: u.x, y: u.y, side: u.side, type: u.type || u.kind, face: u.face });
+    if (u.side === 'e') {
+      const T = D.ENEMIES[u.type];
+      DW.SFX.play(T.beast ? 'growl' : 'death');
+      if (src && src.side === 'p') { src.kills = (src.kills || 0) + 1; src.xpGain = (src.xpGain || 0) + T.xp; }
+      for (const k in T.loot) {
+        const r = T.loot[k];
+        B.field[k] = (B.field[k] || 0) + U.rand(r[0], r[1]);
+      }
+      if (T.drop && Math.random() < 0.5) B.drops.push(T.drop);
+      if (T.boss) { B.queenDead = true; DW.UI.toast('Матка убита!', 'good'); }
+    } else {
+      DW.SFX.play('death');
+      DW.UI.toast(u.name + (u.kind === 'turret' ? ' уничтожена' : ' погиб!'), 'bad');
+    }
+    BT.updateObjective();
+  };
+  BT.damageObj = function (x, y, dmg) {
+    if (!BT.inb(x, y)) return;
+    const i = BT.idx(x, y);
+    const o = B.obj[i];
+    if (!o) return;
+    B.objHp[i] -= dmg;
+    if (B.objHp[i] <= 0) {
+      B.obj[i] = 0; B.objHp[i] = 0;
+      if (D.GROUND[B.ground[i]].walk) B.ground[i] = 8;
+      DW.TR.tileChanged(x, y);
+      DW.TR.debris(x, y, D.OBJ[o].c);
+    }
+  };
+  BT.explode = async function (cx, cy, radius, dmg, objDmg, src) {
+    await DW.TR.focusOn(cx, cy, true);
+    DW.TR.explosionFx(cx, cy, radius);
+    DW.SFX.play('explosion');
+    await U.sleep(260);
+    const r = Math.ceil(radius);
+    for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
+      if (!BT.inb(x, y) || U.dist(x, y, cx, cy) > radius + 0.01) continue;
+      if (B.obj[BT.idx(x, y)]) BT.damageObj(x, y, objDmg);
+    }
+    const hits = B.units.filter(function (u) { return u.alive && !u.evac && U.dist(u.x, u.y, cx, cy) <= radius + 0.01; });
+    for (let k = 0; k < hits.length; k++) {
+      const u = hits[k];
+      const d = U.rand(dmg[0], dmg[1]);
+      await BT.damage(u, Math.max(1, d - Math.floor((u.armor || 0) / 2)), src, false);
+    }
+    BT.updateVision();
+    const near = B.units.filter(function (u) { return u.side === 'e' && u.alive && !u.active && U.dist(u.x, u.y, cx, cy) <= 9; });
+    if (near.length) await BT.activatePods(near);
+    BT.checkEnd();
+    await U.sleep(200);
+  };
+
+  /* ---------- Перемещение ---------- */
+  BT.reach = function (u, maxCost) {
+    const n = B.w * B.h;
+    const cost = new Float32Array(n).fill(Infinity);
+    const prev = new Int32Array(n).fill(-1);
+    const occ = new Int8Array(n);
+    B.units.forEach(function (o) {
+      if (o.alive && !o.evac && o !== u) occ[o.y * B.w + o.x] = o.side === u.side ? 1 : 2;
+    });
+    const s = u.y * B.w + u.x;
+    cost[s] = 0;
+    const heap = new U.Heap();
+    heap.push(0, s);
+    while (heap.size()) {
+      const top = heap.pop();
+      const c = top[0], i = top[1];
+      if (c > cost[i]) continue;
+      const x = i % B.w, y = (i / B.w) | 0;
+      for (let k = 0; k < 8; k++) {
+        const d = DIR8[k];
+        const nx = x + d[0], ny = y + d[1];
+        if (!BT.walkTile(nx, ny)) continue;
+        const ni = ny * B.w + nx;
+        if (occ[ni] === 2) continue;
+        let step = 1;
+        if (d[0] && d[1]) {
+          if (!BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
+          step = 1.5;
+        }
+        const nc = c + step;
+        if (nc > maxCost + 0.01 || nc >= cost[ni]) continue;
+        cost[ni] = nc; prev[ni] = i;
+        heap.push(nc, ni);
+      }
+    }
+    return { cost: cost, prev: prev, occ: occ, sx: u.x, sy: u.y };
+  };
+  BT.canEnd = function (R, x, y) {
+    if (!BT.inb(x, y)) return false;
+    const i = y * B.w + x;
+    return R.cost[i] < Infinity && R.occ[i] === 0 && BT.walkTile(x, y);
+  };
+  BT.pathTo = function (R, x, y) {
+    const path = [];
+    let i = y * B.w + x;
+    while (R.prev[i] >= 0) { path.unshift([i % B.w, (i / B.w) | 0]); i = R.prev[i]; }
+    return path;
+  };
+  /* Поле расстояний до набора точек (без учёта юнитов) */
+  BT.distField = function (points) {
+    const n = B.w * B.h;
+    const f = new Float32Array(n).fill(Infinity);
+    const q = [];
+    points.forEach(function (p) { const i = p[1] * B.w + p[0]; f[i] = 0; q.push(i); });
+    let h = 0;
+    while (h < q.length) {
+      const i = q[h++];
+      const x = i % B.w, y = (i / B.w) | 0;
+      for (let k = 0; k < 8; k++) {
+        const nx = x + DIR8[k][0], ny = y + DIR8[k][1];
+        if (!BT.inb(nx, ny)) continue;
+        const ni = ny * B.w + nx;
+        if (f[ni] !== Infinity) continue;
+        if (!BT.walkTile(nx, ny)) continue;
+        f[ni] = f[i] + 1;
+        q.push(ni);
+      }
+    }
+    return f;
+  };
+
+  BT.pickup = function (u) {
+    for (let i = B.items.length - 1; i >= 0; i--) {
+      const it = B.items[i];
+      if (it.x === u.x && it.y === u.y) {
+        B.loot[it.kind] = (B.loot[it.kind] || 0) + it.amt;
+        B.items.splice(i, 1);
+        DW.TR.float(u.x, u.y, '+' + it.amt + ' ' + BT.LOOT_SHORT[it.kind], it.kind === 'gems' ? 'gem' : 'info');
+        DW.SFX.play('pickup');
+        BT.updateObjective();
+      }
+    }
+  };
+
+  BT.move = async function (u, path, opts) {
+    opts = opts || {};
+    const newly = [];
+    for (let k = 0; k < path.length; k++) {
+      const nx = path[k][0], ny = path[k][1];
+      const show = u.side === 'p' || u.seen || (vis && vis[ny * B.w + nx]);
+      u.face = Math.atan2(ny - u.y, nx - u.x);
+      if (show) await DW.TR.stepFx(u, nx, ny);
+      u.x = nx; u.y = ny;
+      if (u.side === 'p') {
+        BT.pickup(u);
+        BT.updateVision().forEach(function (e) { if (!e.active && newly.indexOf(e) < 0) newly.push(e); });
+      } else {
+        BT.updateVision();
+      }
+      if (!opts.noReact) await BT.reactions(u);
+      if (!u.alive || B.over) break;
+      if (BT.checkEnd()) break;
+    }
+    if (u.side === 'p' && newly.length && !B.over) await BT.activatePods(newly);
+    return newly;
+  };
+  BT.reactions = async function (mover) {
+    const watchers = B.units.slice();
+    for (let k = 0; k < watchers.length; k++) {
+      const w = watchers[k];
+      if (!mover.alive || B.over) return;
+      if (!w.alive || w.evac || !w.overwatch || w.side === mover.side || w.clip <= 0) continue;
+      if (!BT.canSee(w, mover)) continue;
+      w.overwatch = false;
+      DW.TR.float(w.x, w.y, 'Дозор!', 'info');
+      await BT.fire(w, mover, { reaction: true });
+    }
+  };
+
+  BT.activatePods = async function (list) {
+    const pods = [];
+    list.forEach(function (e) { if (!e.active && pods.indexOf(e.pod) < 0) pods.push(e.pod); });
+    for (let p = 0; p < pods.length; p++) {
+      const pid = pods[p];
+      const mem = B.units.filter(function (u) { return u.side === 'e' && u.alive && u.pod === pid && !u.active; });
+      if (!mem.length) continue;
+      mem.forEach(function (m) { m.active = true; });
+      const cnt = {};
+      mem.forEach(function (m) { cnt[m.name] = (cnt[m.name] || 0) + 1; });
+      const names = Object.keys(cnt).map(function (n) { return cnt[n] > 1 ? n + ' ×' + cnt[n] : n; }).join(', ');
+      DW.UI.toast('Контакт! ' + names, 'alert');
+      DW.SFX.play(D.ENEMIES[mem[0].type].beast ? 'growl' : 'alert');
+      await DW.TR.focusOn(mem[0].x, mem[0].y, true);
+      await U.sleep(250);
+      for (let k = 0; k < mem.length; k++) {
+        if (mem[k].alive && !B.over) await DW.AI.scamper(mem[k]);
+      }
+      BT.updateVision();
+    }
+  };
+
+  /* ---------- Стрельба ---------- */
+  BT.fire = async function (att, tgt, o) {
+    o = o || {};
+    const W = D.WEAPONS[att.weapon];
+    const st = DW.G.state;
+    if (att.kind === 'soldier') {
+      if (st.res.ammo <= 0) { DW.TR.float(att.x, att.y, 'Нет патронов!', 'bad'); return null; }
+      st.res.ammo = Math.max(0, st.res.ammo - W.ammo * (o.ammoMult || 1));
+    }
+    if (W.clip < 99) att.clip = Math.max(0, att.clip - 1);
+    const info = BT.shotInfo(att, tgt, o);
+    const hit = Math.random() * 100 < info.hit;
+    const crit = hit && Math.random() * 100 < info.crit;
+    att.face = Math.atan2(tgt.y - att.y, tgt.x - att.x);
+    const show = att.side === 'p' || att.seen || tgt.side === 'p';
+    if (show) await DW.TR.focusOn((att.x + tgt.x) / 2, (att.y + tgt.y) / 2, false);
+    await DW.TR.shotFx(att, tgt, hit, W, show, !!o.suppress);
+    let killed = false;
+    if (o.suppress) {
+      tgt.suppressed = true;
+      DW.TR.float(tgt.x, tgt.y, 'Подавлен', 'info');
+      await U.sleep(250);
+    } else if (hit) {
+      const dmg = BT.rollDamage(W.dmg, crit, tgt.armor, W.pierce);
+      killed = await BT.damage(tgt, dmg, att, crit);
+    } else {
+      DW.TR.float(tgt.x, tgt.y, 'Промах', 'miss');
+      if (info.coverTile && Math.random() < 0.35) BT.damageObj(info.coverTile[0], info.coverTile[1], 1);
+      await U.sleep(240);
+    }
+    if (tgt.alive && tgt.side === 'e' && !tgt.active) await BT.activatePods([tgt]);
+    return { hit: hit, crit: crit, killed: killed };
+  };
+  BT.melee = async function (att, tgt) {
+    const T = D.ENEMIES[att.type];
+    const info = BT.meleeInfo(att, tgt);
+    att.face = Math.atan2(tgt.y - att.y, tgt.x - att.x);
+    if (att.seen || tgt.side === 'p') await DW.TR.focusOn(tgt.x, tgt.y, false);
+    DW.SFX.play('melee');
+    await DW.TR.lungeFx(att, tgt);
+    const hit = Math.random() * 100 < info.hit;
+    if (hit) {
+      const crit = Math.random() * 100 < info.crit;
+      await BT.damage(tgt, BT.rollDamage(T.dmg, crit, tgt.armor, false), att, crit);
+    } else {
+      DW.TR.float(tgt.x, tgt.y, 'Промах', 'miss');
+      await U.sleep(220);
+    }
+  };
+
+  /* ---------- Действия игрока ---------- */
+  BT.doReload = function (u) {
+    u.clip = D.WEAPONS[u.weapon].clip; u.ap -= 1;
+    DW.SFX.play('reload'); DW.TR.float(u.x, u.y, 'Перезарядка', 'info');
+  };
+  BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); };
+  BT.doHunker = function (u) { u.hunker = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Залёг', 'info'); };
+  BT.doEvac = function (u) {
+    u.evac = true; u.ap = 0; u.overwatch = false;
+    DW.TR.float(u.x, u.y, 'Эвакуирован', 'good');
+    DW.SFX.play('portal');
+    BT.updateVision();
+    BT.checkEnd();
+  };
+  BT.heal = function (t, amt) {
+    const v = Math.min(amt, t.maxHp - t.hp);
+    t.hp += v;
+    DW.TR.float(t.x, t.y, '+' + v + ' ОЗ', 'good');
+    DW.SFX.play('pickup');
+  };
+  BT.doMedkit = function (u, t) { DW.G.state.res.meds -= 1; BT.heal(t, 4); u.ap -= 1; };
+  BT.doFieldHeal = function (u, t) { u.charges.heal -= 1; BT.heal(t, 5); u.ap -= 1; };
+  BT.doOrder = function (u, t) {
+    t.ap = Math.min(3, t.ap + 1); u.ap -= 1; u.cd.order = D.ABIL.order.cd;
+    DW.TR.float(t.x, t.y, '+1 ОД', 'good'); DW.SFX.play('alert');
+  };
+  BT.doRush = function (u) { u.ap += 1; u.cd.rush = D.ABIL.rush.cd; DW.TR.float(u.x, u.y, 'Рывок! +1 ОД', 'good'); };
+  BT.doSuppress = async function (u, t) {
+    u.cd.suppress = D.ABIL.suppress.cd;
+    u.ap = 0;
+    await BT.fire(u, t, { suppress: true, ammoMult: 2 });
+  };
+  BT.doThrow = async function (u, x, y, kind) {
+    const st = DW.G.state;
+    u.ap = 0;
+    u.face = Math.atan2(y - u.y, x - u.x);
+    if (kind === 'rocket') {
+      st.res.rockets -= 1;
+      await DW.TR.projectileFx(u.x, u.y, x, y, 'rocket');
+      await BT.explode(x, y, 2.2, [5, 8], 8, u);
+    } else {
+      st.res.grenades -= 1;
+      await DW.TR.projectileFx(u.x, u.y, x, y, 'grenade');
+      await BT.explode(x, y, 1.5, [3, 5], 4, u);
+    }
+  };
+  BT.doShoot = async function (u, t, mode) {
+    const W = D.WEAPONS[u.weapon];
+    u.ap = 0;
+    if (mode === 'aimed') {
+      u.cd.aimed = D.ABIL.aimed.cd;
+      await BT.fire(u, t, { aimBonus: 20, critBonus: 25, aimLabel: 'Прицел' });
+    } else if (mode === 'double') {
+      u.cd.double = D.ABIL.double.cd;
+      await BT.fire(u, t, { aimBonus: -15, aimLabel: 'Двойной' });
+      if (t.alive && u.alive && u.clip > 0 && DW.G.state.res.ammo > 0 && !B.over) {
+        await U.sleep(150);
+        await BT.fire(u, t, { aimBonus: -15, aimLabel: 'Двойной' });
+      }
+    } else {
+      await BT.fire(u, t);
+    }
+    void W;
+  };
+
+  /* ---------- Ходы ---------- */
+  BT.startPlayerTurn = function () {
+    B.phase = 'player';
+    B.units.forEach(function (u) {
+      if (u.side !== 'p' || !u.alive || u.evac) return;
+      u.ap = u.kind === 'turret' ? 0 : 2;
+      u.overwatch = false; u.hunker = false;
+      for (const k in u.cd) if (u.cd[k] > 0) u.cd[k]--;
+    });
+    BT.updateObjective();
+    BT.updateVision();
+  };
+  BT.endPlayerTurn = async function () {
+    B.phase = 'enemy';
+    B.units.forEach(function (u) { if (u.side === 'p') u.ap = 0; });
+    const turrets = B.units.filter(function (t) { return t.kind === 'turret' && t.alive; });
+    for (let k = 0; k < turrets.length; k++) {
+      if (B.over) break;
+      const t = turrets[k];
+      const tg = BT.enemies().filter(function (e) { return e.seen && BT.canSee(t, e); });
+      if (!tg.length) continue;
+      tg.sort(function (a, b) { return BT.shotInfo(t, b).hit - BT.shotInfo(t, a).hit; });
+      await BT.fire(t, tg[0]);
+    }
+    if (!BT.checkEnd()) await DW.AI.enemyTurn();
+    if (B.over) return;
+    B.turn++;
+    BT.startPlayerTurn();
+  };
+  BT.spawnWaves = function (silent) {
+    let cnt = 0;
+    B.waves.forEach(function (w) {
+      if (w.spawned || B.turn < w.turn) return;
+      w.spawned = true;
+      B.waveNo++;
+      const pool = wavePool(w.fam);
+      const freeT = B.spawn.filter(function (s) { return BT.walkTile(s[0], s[1]) && !BT.unitAt(s[0], s[1]); });
+      U.shuffle(freeT);
+      for (let i = 0; i < w.n && i < freeT.length; i++) {
+        const e = mkEnemy(U.pick(pool), freeT[i][0], freeT[i][1], 100 + B.waveNo);
+        e.active = true; e.ap = 2;
+        B.units.push(e);
+        cnt++;
+      }
+    });
+    if (cnt) {
+      BT.updateObjective();
+      if (!silent) { DW.UI.toast('Волна ' + B.waveNo + ' из 3: к базе идут ещё ' + cnt + '!', 'alert'); DW.SFX.play('alert'); }
+    }
+    return cnt;
+  };
+  BT.checkEnd = function () {
+    if (!B) return null;
+    if (B.over) return B.over;
+    const sol = B.units.filter(function (u) { return u.kind === 'soldier'; });
+    const on = sol.filter(function (u) { return u.alive && !u.evac; });
+    const ev = sol.filter(function (u) { return u.alive && u.evac; });
+    if (!on.length) { B.over = ev.length ? 'evac' : 'defeat'; return B.over; }
+    const pending = B.waves.some(function (w) { return !w.spawned; });
+    if (B.type === 'nest' && B.kind !== 'ambush' && B.queenDead && B.kind !== 'defense') { B.over = 'victory'; return B.over; }
+    if (!BT.enemies().length && !pending) { B.over = 'victory'; return B.over; }
+    return null;
+  };
+  BT.retreatAll = function () {
+    BT.soldiers().forEach(function (u) {
+      if (!BT.isEvacTile(u.x, u.y) || B.kind === 'defense') {
+        const d = U.rand(1, 4);
+        u.hp = Math.max(1, u.hp - d);
+      }
+      u.evac = true;
+    });
+    B.over = 'evac';
+  };
+
+  DW.BT = BT;
+})(window.DW);

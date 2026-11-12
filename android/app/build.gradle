@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.deadworld.foothold'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.deadworld.foothold'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        // Ключ для любительской сборки: одинаковая подпись у локальных и CI-сборок,
+        // чтобы обновлять игру поверх без удаления. Для публикации в Google Play замените на свой.
+        game {
+            storeFile file('deadworld.jks')
+            storePassword 'deadworld'
+            keyAlias 'deadworld'
+            keyPassword 'deadworld'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.game
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.game
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Игра (HTML5/Canvas) лежит в корне репозитория в папке game/
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../game']
+        }
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
