@@ -13,7 +13,8 @@ os.makedirs(OUT, exist_ok=True)
 GROUND = {
     'grain': ('#6e5b44', 0.4, 1.05), 'ash': ('#4b4642', 0.45, 1.0), 'earth': ('#5f4d39', 0.45, 1.08),
     'concrete': ('#5b5957', 0.25, 1.12), 'metal': ('#3d4348', 0.3, 1.15), 'cave': ('#3e352d', 0.35, 1.1),
-    'rubble': ('#58524b', 0.55, 1.05), 'wood': ('#7b5a35', 0.3, 1.05), 'asphalt': ('#45443f', 0.3, 1.0)
+    'rubble': ('#58524b', 0.55, 1.05), 'wood': ('#7b5a35', 0.3, 1.05), 'asphalt': ('#45443f', 0.3, 1.0),
+    'planks': ('#6a5038', 0.2, 1.1)
 }
 WALLS = {'brick': 0.86, 'plaster': 0.88, 'stone': 0.86, 'bulkhead': 0.9, 'planks': 0.86, 'rockface': 0.84}
 

@@ -58,8 +58,8 @@ const CREATURES = [
   { id: 'brute', src: DW + 'm_brute_a.glb', more: DW + 'm_brute_b.glb', h: 2.3, box: [1.4, 2.5], anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', 'slash', 5), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6), C('roar', 'angry_01', 4)] },
   { id: 'spitter', src: DW + 'm_spitter_a.glb', more: DW + 'm_spitter_b.glb', h: 1.6, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', 'shoot', 4), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
   { id: 'guardian', src: DW + 'm_guardian_a.glb', h: 1.95, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('atk', 'shoot', 3), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
-  { id: 'scav', src: DW + 'm_scav_a.glb', h: 0.95, quad: true, box: [1.2, 1.2], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
-  { id: 'queen', src: DW + 'm_queen_a.glb', h: 2.6, quad: true, box: [2.0, 2.8], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] }
+  { id: 'scav', src: DW + 'm_scav_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
+  { id: 'queen', src: DW + 'm_queen_a.glb', h: 1.9, quad: true, box: [2.0, 2.8], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] }
 ];
 
 // Реквизит: тип клетки игры → модели (варианты), длина по большей стороне в клетках, предел высоты (м)
@@ -78,6 +78,12 @@ const PROPS = [
   { id: 'obj18', type: 18, variants: [P(DW + 'e_container.glb', 1.15, 1.25, 45), P(S + 'env/e_dumpster.glb', 1.0, 1.0, 45), P(DW + 'e_container.glb', 1.15, 1.25, -45)] },
   { id: 'obj19', type: 19, variants: [P(DW + 'e_log.glb', 1.15, 0.5), P(DW + 'e_log.glb', 1.1, 0.5, 90), P(S + 'env/e_woodpile.glb', 0.9, 0.6, 30)] },
   { id: 'obj20', type: 20, variants: [P(DW + 'e_crystal.glb', 0.8, 1.2), P(DW + 'e_crystal.glb', 0.75, 1.1, 120), P(DW + 'e_crystal.glb', 0.8, 1.15, 240)] },
+  // мебель в домах: низкое укрытие (столы, кровати, диваны, комоды, сундуки, нары) и шкафы — полное
+  { id: 'obj21', type: 21, variants: [P(S + 'env/e_table.glb', 0.85, 0.62, 30), P(S + 'env/e_bed.glb', 0.95, 0.55, -60), P(S + 'env/e_sofa.glb', 0.95, 0.6, 120),
+    P(S + 'env/e_drawers.glb', 0.75, 0.75, 45), P(S + 'env/e_chest.glb', 0.75, 0.55, -45), P(S + 'env/e_bunk.glb', 0.95, 0.85, 30), P(S + 'env/e_bench.glb', 0.9, 0.5, -30),
+    P(S + 'env/e_nightstand.glb', 0.6, 0.6, 45), P(S + 'env/e_tv.glb', 0.6, 0.65, 60), P(S + 'env/e_chair.glb', 0.55, 0.75, 20)] },
+  { id: 'obj22', type: 22, variants: [P(S + 'env/e_wardrobe.glb', 0.8, 1.45, 45), P(S + 'env/e_fridge.glb', 0.7, 1.4, -45), P(S + 'env/e_buffet.glb', 0.85, 1.4, 45),
+    P(S + 'env/e_pech.glb', 0.85, 1.45, -45), P(S + 'env/e_burzhuyka.glb', 0.65, 1.2, 30)] },
   // турель — по направлениям (8 вариантов поворота)
   { id: 'turret', variants: [0, 1, 2, 3, 4, 5, 6, 7].map((d) => P(DW + 'e_turret.glb', 0.8, 1.1, 90 - d * 45)) },
   // украшения карты: машины, покрышки, мусор (тип клетки не занят — рисуются как декор)

@@ -56,12 +56,24 @@ export function makeBody(gltf, h) {
   fix.add(root); holder.add(fix);
   holder.updateMatrixWorld(true);
   const B = findBones(root);
-  // направление «вперёд» по костям: вверх × (правое бедро − левое)
-  const pl = B.LeftUpLeg.getWorldPosition(V()), pr = B.RightUpLeg.getWorldPosition(V());
-  const head = B.Head.getWorldPosition(V()), hip = B.Hips.getWorldPosition(V());
-  const up = head.clone().sub(hip).normalize();
-  const right = pr.clone().sub(pl); right.addScaledVector(up, -right.dot(up)).normalize();
-  const fwd = V().crossVectors(up, right).normalize();
+  let up, fwd;
+  const human = !!(B.LeftUpLeg && B.RightUpLeg && B.Head && B.Hips);
+  if (human) {
+    // человек: «вперёд» по костям — вверх × (правое бедро − левое)
+    const pl = B.LeftUpLeg.getWorldPosition(V()), pr = B.RightUpLeg.getWorldPosition(V());
+    const head = B.Head.getWorldPosition(V()), hip = B.Hips.getWorldPosition(V());
+    up = head.clone().sub(hip).normalize();
+    const right = pr.clone().sub(pl); right.addScaledVector(up, -right.dot(up)).normalize();
+    fwd = V().crossVectors(up, right).normalize();
+  } else {
+    // четвероногие и прочие (скелет Tripo: tripoRoot, tripoHead…): вверх — +Y, вперёд — к голове
+    let head = null, rb = null;
+    root.traverse((o) => { if (o.isBone) { if (!rb) rb = o; if (!head && /head/i.test(o.name)) head = o; } });
+    up = V(0, 1, 0);
+    fwd = head && rb ? head.getWorldPosition(V()).sub(rb.getWorldPosition(V())) : V(0, 0, 1);
+    fwd.y = 0; if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1); fwd.normalize();
+    B.Hips = B.Hips || rb; B.Head = B.Head || head || rb;
+  }
   // поворот: up → +Y, fwd → +Z
   const m = new THREE.Matrix4().makeBasis(V().crossVectors(up, fwd).normalize(), up, fwd);
   const q = new THREE.Quaternion().setFromRotationMatrix(m).invert();
@@ -71,7 +83,8 @@ export function makeBody(gltf, h) {
   const box = new THREE.Box3().setFromObject(fix, true);
   const headTop = B.Head.getWorldPosition(V()).y;
   const tall = (headTop - box.min.y) * 1.1; // макушка выше кости головы
-  const k = h / Math.max(tall, box.max.y - box.min.y > tall * 1.4 ? tall : box.max.y - box.min.y);
+  // у людей рост — до макушки (руки в Т-позе не мешают), у существ — по габаритам модели
+  const k = human ? h / Math.max(tall, box.max.y - box.min.y > tall * 1.4 ? tall : box.max.y - box.min.y) : h / Math.max(0.01, box.max.y - box.min.y);
   fix.scale.setScalar(k);
   holder.updateMatrixWorld(true);
   const box2 = new THREE.Box3().setFromObject(fix, true);

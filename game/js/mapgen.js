@@ -108,11 +108,28 @@
     for (; k < perim.length; k++) {
       if (Math.random() < 0.1) { setO(m, perim[k][0], perim[k][1], 0); setG(m, perim[k][0], perim[k][1], 8); }
     }
+    // обстановка: мебель вдоль стен (не у дверей), шкафы в углах, немного ящиков и обломков
+    const iw = w - 2, ih = h - 2;
+    const wallAt = function (x, y) { return inb(m, x, y) && m.obj[I(m, x, y)] && m.obj[I(m, x, y)] !== 21 && m.obj[I(m, x, y)] !== 22; };
+    const doorNear = function (x, y) {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const X = x + dx, Y = y + dy;
+        const edge = X === x0 || Y === y0 || X === x0 + w - 1 || Y === y0 + h - 1;
+        if (edge && inb(m, X, Y) && !m.obj[I(m, X, Y)]) return true;
+      }
+      return false;
+    };
     for (let y = y0 + 1; y < y0 + h - 1; y++) {
       for (let x = x0 + 1; x < x0 + w - 1; x++) {
         const r = Math.random();
-        if (r < 0.08) setO(m, x, y, 4);
-        else if (r < 0.13) setO(m, x, y, 8);
+        const byWall = wallAt(x - 1, y) || wallAt(x + 1, y) || wallAt(x, y - 1) || wallAt(x, y + 1);
+        const corner = (x === x0 + 1 || x === x0 + w - 2) && (y === y0 + 1 || y === y0 + h - 2);
+        if (iw >= 3 && ih >= 2 && byWall && !doorNear(x, y)) {
+          if (corner && r < 0.4) { setO(m, x, y, 22); continue; }
+          if (r < 0.32) { setO(m, x, y, 21); continue; }
+        }
+        if (r < 0.05) setO(m, x, y, 4);
+        else if (r < 0.08) setO(m, x, y, 8);
       }
     }
   }
@@ -408,7 +425,7 @@
       const x = U.rand(7, m.w - w - 1), y = U.rand(1, m.h - h - 1);
       if (rects.some(function (r) { return x < r.x + r.w + 1 && x + w + 1 > r.x && y < r.y + r.h + 1 && y + h + 1 > r.y; })) continue;
       rects.push({ x: x, y: y, w: w, h: h });
-      building(m, x, y, w, h, 2, 3);
+      building(m, x, y, w, h, 2, Math.random() < 0.55 ? 11 : 3);
     }
     scatter(m, 7, 3, 6); scatter(m, 5, 4, 5); scatter(m, 9, 4, 5); scatter(m, 8, 4, 6); scatter(m, 4, 4, 5);
     lines(m, 1, 4, 6);

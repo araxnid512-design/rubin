@@ -1,0 +1,23 @@
+{
+ "id": "m_queen",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:hexapod:walk"
+  ]
+ ],
+ "pid": "b20719ed-1fe7-4334-889a-2604aa738c09"
+}

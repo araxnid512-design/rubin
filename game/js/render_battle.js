@@ -283,17 +283,17 @@
   }
   /* ---------- Фото-текстуры (Poly Haven, CC0): game/textures — грунты, кладка стен, скалы ---------- */
   const PHOTO = {};
-  const GTEX = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 8: 'rubble', 9: 'wood' };
+  const GTEX = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 8: 'rubble', 9: 'wood', 11: 'planks' };
   const WTEX = { 1: 'brick', 2: 'brick', 14: 'stone', 11: 'bulkhead', 17: 'plaster' };
   (function () {
-    ['g_grain', 'g_ash', 'g_earth', 'g_concrete', 'g_metal', 'g_cave', 'g_rubble', 'g_wood', 'g_asphalt',
+    ['g_grain', 'g_ash', 'g_earth', 'g_concrete', 'g_metal', 'g_cave', 'g_rubble', 'g_wood', 'g_asphalt', 'g_planks',
       'w_brick', 'w_plaster', 'w_stone', 'w_bulkhead', 'w_planks', 'w_rockface'].forEach(function (n) {
       const im = new Image();
       im.onload = function () { PHOTO[n] = im; };
       im.src = 'textures/' + n + '.jpg';
     });
   })();
-  TR.photosReady = function () { return Object.keys(PHOTO).length >= 15; };
+  TR.photosReady = function () { return Object.keys(PHOTO).length >= 16; };
   function photoPat(g, n, sx, sy, ox, oy) {
     const im = PHOTO[n];
     if (!im) return null;
@@ -302,9 +302,9 @@
     p.setTransform(new DOMMatrix([sx, 0, 0, sy === undefined ? sx : sy, ox || 0, oy || 0]));
     return p;
   }
-  const MAT = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood' };
+  const MAT = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood', 11: 'wood' };
   const NATURAL = { 0: 1, 1: 1, 2: 1, 5: 1, 6: 1, 8: 1 };
-  const PRIO = { 10: 0, 4: 1, 9: 2, 3: 3, 7: 4, 1: 5, 5: 6, 2: 7, 0: 8, 6: 9, 8: 10 };
+  const PRIO = { 10: 0, 4: 1, 9: 2, 11: 2, 3: 3, 7: 4, 1: 5, 5: 6, 2: 7, 0: 8, 6: 9, 8: 10 };
   function patFor(g, gid) { const k = MAT[gid]; return k ? g.createPattern(matTex(k), 'repeat') : null; }
   function detailTile(g, x, y, gid) {
     const pat = patFor(g, gid);
@@ -407,7 +407,7 @@
     if (t === 'interior' || t === 'cave') return { dx: 0.95, dy: -0.3, len: 0.3, a: 0.28, ao: 0.62 };
     return { dx: 0.99, dy: -0.12, len: 0.62, a: 0.4, ao: 0.5 };
   }
-  const FOOT = { 3: [0.42, 0.36], 4: [0.33, 0.33], 7: [0.47, 0.3], 8: [0.36, 0.36], 9: [0.2, 0.2], 10: [0.46, 0.42], 12: [0.35, 0.3], 15: [0.48, 0.48], 16: [0.36, 0.36], 18: [0.5, 0.36], 19: [0.48, 0.12], 20: [0.3, 0.3] };
+  const FOOT = { 21: [0.4, 0.3], 22: [0.4, 0.32], 3: [0.42, 0.36], 4: [0.33, 0.33], 7: [0.47, 0.3], 8: [0.36, 0.36], 9: [0.2, 0.2], 10: [0.46, 0.42], 12: [0.35, 0.3], 15: [0.48, 0.48], 16: [0.36, 0.36], 18: [0.5, 0.36], 19: [0.48, 0.12], 20: [0.3, 0.3] };
   const WALLT = { 1: 0.22, 2: 0.27, 6: 0.25, 11: 0.3, 13: 0.15, 14: 0.3 };
   function footprints(B, x, y, o) {
     const cx = x + 0.5, cy = y + 0.5;
@@ -1132,6 +1132,12 @@
         g.fillStyle = 'rgba(230,255,255,0.85)'; for (i = 0; i < 4; i++) ART.circ(g, (rnd() - 0.5) * 26, -rnd() * H, 0.9);
         break;
       }
+      case 21: case 22: { // мебель / шкаф (рисованная замена, пока нет 3D)
+        const c = ['#8a6a46', '#6e5234', '#563e26'];
+        if (type === 21) { box(g, -0.36, -0.26, 0.36, 0.26, H * 0.75, H, c); [[-0.32, -0.22], [0.28, -0.22], [-0.32, 0.18], [0.28, 0.18]].forEach(function (q) { box(g, q[0], q[1], q[0] + 0.05, q[1] + 0.05, 0, H * 0.75, c); }); }
+        else { box(g, -0.36, -0.22, 0.36, 0.22, 0, H, c); }
+        break;
+      }
       default:
         box(g, -0.4, -0.4, 0.4, 0.4, 0, H, ['#888', '#666', '#555']);
     }
@@ -1211,8 +1217,8 @@
     s = sprites[key] = { c: c, w: f.w, h: f.h, ox: f.ox, oy: f.oy, dark: null, d3: true };
     return s;
   }
-  function objSprite(type, mask, variant, dark, damaged) {
-    const s3 = objSprite3d(type, variant, dark, damaged);
+  function objSprite(type, mask, variant, dark, damaged, v12) {
+    const s3 = objSprite3d(type, v12 === undefined ? variant : v12, dark, damaged);
     if (s3) return s3;
     const key = type + '_' + mask + '_' + variant + (damaged ? '_d' : '');
     let s = sprites[key];
@@ -1705,7 +1711,7 @@
     const c = isoC(u.x, u.y);
     parts(c[0], c[1], 24, 14, col, 90, 600, 3, 320, 90);
   };
-  const OMAT = { 7: 'metal', 9: 'metal', 11: 'metal', 12: 'metal', 15: 'metal', 18: 'metal', 4: 'wood', 5: 'wood', 10: 'cloth', 13: 'wood', 19: 'wood', 1: 'stone', 2: 'brick', 3: 'stone', 8: 'stone', 14: 'stone', 17: 'wood', 6: 'sand', 16: 'flesh', 20: 'crystal' };
+  const OMAT = { 21: 'wood', 22: 'wood', 7: 'metal', 9: 'metal', 11: 'metal', 12: 'metal', 15: 'metal', 18: 'metal', 4: 'wood', 5: 'wood', 10: 'cloth', 13: 'wood', 19: 'wood', 1: 'stone', 2: 'brick', 3: 'stone', 8: 'stone', 14: 'stone', 17: 'wood', 6: 'sand', 16: 'flesh', 20: 'crystal' };
   /* Попадание по материалу: искры по металлу, щепа по дереву, крошка по камню, песок из мешков */
   function impact(X, Y, mat, big) {
     const k = big ? 1.8 : 1;
@@ -2985,7 +2991,8 @@
           if (itemsAt[i]) drawItem(g, itemsAt[i], t);
           const o = B.obj[i];
           if (o) {
-            const sp = objSprite(o, maskAt(B, x, y, o), Math.floor(U.hash2(x, y, o) * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5);
+            const vh = U.hash2(x, y, o);
+            const sp = objSprite(o, maskAt(B, x, y, o), Math.floor(vh * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5, Math.floor(vh * 997));
             let cut = false;
             if (D.OBJ[o].lift > 0.45 && o !== 15) {
               const behind = function (xx, yy) { const us2 = xx >= 0 && yy >= 0 ? unitsAt[yy * B.w + xx] : null; return us2 && us2.some(function (uu) { return uu.side === 'p' || uu === ov.target; }); };

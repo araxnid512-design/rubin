@@ -17,7 +17,8 @@
     { n: 'Кислота', c: '#4f7d22', walk: false },
     { n: 'Щебень', c: '#58524b', walk: true },
     { n: 'Вышка', c: '#7b5a35', walk: true, high: true },
-    { n: 'Провал', c: '#121010', walk: false }
+    { n: 'Провал', c: '#121010', walk: false },
+    { n: 'Дощатый пол', c: '#6a5038', walk: true }
   ];
 
   D.OBJ = {
@@ -40,7 +41,9 @@
     17: { n: 'Постройка', cover: 2, los: true, hp: 20, lift: 0.85, c: '#6e5a44' },
     18: { n: 'Контейнер', cover: 2, los: true, hp: 14, lift: 0.62, c: '#7a3a26' },
     19: { n: 'Поваленный ствол', cover: 1, los: false, hp: 4, lift: 0.26, c: '#4a3a2c' },
-    20: { n: 'Кристальный нарост', cover: 1, los: false, hp: 5, lift: 0.7, c: '#5fd4e6' }
+    20: { n: 'Кристальный нарост', cover: 1, los: false, hp: 5, lift: 0.7, c: '#5fd4e6' },
+    21: { n: 'Мебель', cover: 1, los: false, hp: 4, lift: 0.4, c: '#7a5a3a' },
+    22: { n: 'Шкаф', cover: 2, los: true, hp: 7, lift: 0.85, c: '#6a4a2e' }
   };
 
   /* ---------- Оружие ---------- */
