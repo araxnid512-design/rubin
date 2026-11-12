@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.normpath(os.path.join(HERE, '../../charmer/src/main/assets/www/voice'))
-VER = 2  # увеличьте, чтобы переозвучить всё с новыми профилями
+VER = 3  # увеличьте, чтобы переозвучить всё с новыми профилями
 
 # героиня: (базовый голос, тон %, темп %, сдвиг тембра в центах, эффекты sox)
 PROFILES = {
@@ -36,18 +36,19 @@ PROFILES = {
 
 # эмоция реплики: (тон %, темп %, мягкость, вдох перед репликой, доп. эффекты)
 EMO = {
-    'normal':    (0,   0,  False, False, ''),
-    'happy':     (7,   6,  False, False, 'treble 1'),
-    'smug':      (-3, -5,  False, False, ''),
-    'wink':      (-2, -7,  True,  False, ''),
-    'blush':     (3,  -10, True,  True,  ''),
+    'normal':    (0,   -2, False, False, ''),
+    'happy':     (7,   5,  False, False, 'treble 1'),
+    'smug':      (-5,  -9, True,  False, 'bass 2'),            # с ленцой, свысока
+    'wink':      (-4, -11, True,  True,  'bass 2'),            # заигрывает
+    'blush':     (4,  -12, True,  True,  ''),
     'angry':     (3,   10, False, False, 'treble 2 gain 1'),
     'surprised': (12,  5,  False, True,  ''),
     'hurt':      (9,  -6,  True,  True,  ''),
     'sleepy':    (-7, -20, True,  True,  ''),
-    'love':      (-3, -13, True,  True,  'reverb 8'),
-    'kiss':      (-4, -15, True,  True,  'reverb 8'),
+    'love':      (-5, -17, True,  True,  'bass 3 reverb 10'),  # томно, близко
+    'kiss':      (-6, -19, True,  True,  'bass 3 reverb 10'),
 }
+SIGH = {'love', 'kiss', 'wink', 'blush'}   # после таких реплик — тихий выдох
 
 def tts_text(t):
     """Правки текста для синтезатора: звукоподражания."""
@@ -96,7 +97,13 @@ def synth(job):
             br = os.path.join(tmp, 'br.wav')
             subprocess.run(['sox', '-n', '-r', '24000', '-c', '1', '-b', '16', br, 'synth', '0.34', 'pinknoise', 'bandpass', str(1900 + cents), '900',
                             'fade', 'h', '0.14', '0.34', '0.16', 'vol', '0.05' if soft else '0.035', 'pad', '0', '0.06'], check=True, stderr=subprocess.DEVNULL)
-            subprocess.run(['sox', br, wav, '-b', '16', fin, 'pad', '0.02', '0.12'], check=True, stderr=subprocess.DEVNULL)
+            parts = [br, wav]
+            if expr in SIGH:
+                ex = os.path.join(tmp, 'ex.wav')
+                subprocess.run(['sox', '-n', '-r', '24000', '-c', '1', '-b', '16', ex, 'synth', '0.55', 'pinknoise', 'bandpass', str(1300 + cents // 2), '700',
+                                'fade', 'h', '0.06', '0.55', '0.4', 'vol', '0.06', 'pad', '0.05', '0'], check=True, stderr=subprocess.DEVNULL)
+                parts.append(ex)
+            subprocess.run(['sox'] + parts + ['-b', '16', fin, 'pad', '0.02', '0.12'], check=True, stderr=subprocess.DEVNULL)
         else:
             subprocess.run(['sox', wav, '-b', '16', fin, 'pad', '0.03', '0.12'], check=True, stderr=subprocess.DEVNULL)
         subprocess.run(['opusenc', '--quiet', '--bitrate', '14', '--speech', fin, dst], check=True, stderr=subprocess.DEVNULL)

@@ -45,7 +45,8 @@ const ANY = `Хм. Я с тобой не разговариваю.|Иди к с�
       const HX = { head: 'happy', spl: 'blush', hand: 'blush', waist: 'love', whisper: 'wink', kiss: 'kiss', night: 'love' };
       const H = D.TOUCH[id]; if (H) for (const k in H) if (k !== 'sp') [].concat(H[k]).forEach(t => add(id, t, HX[k]));
       const H2 = D.TOUCH2[id]; if (H2) { add(id, H2[0], 'love'); add(id, H2[1], 'kiss'); add(id, H2[2], 'wink'); }
-      for (const tab of [P.CLAIM, P.SEATWIN, P.TEN, P.NIGHT, D.NIGHT2]) ex(id, tab && tab[id]);
+      for (const tab of [P.CLAIM, P.SEATWIN, P.TEN, P.NIGHT, D.NIGHT2, D.MEET]) ex(id, tab && tab[id]);
+      (D.COURT_ANY || []).forEach(t => ex(id, t));
       D.SULK.forEach(t => add(id, t, 'angry')); any.forEach(t => add(id, t));
     }
     add('fox', 'А мне? Ладно, я половину уже откусила, пока ты не смотрел.');

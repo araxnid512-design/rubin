@@ -212,3 +212,11 @@ em.lv { color: #d4204e; font-style: normal; font-size: .7rem; } em.ht { color: #
 .tg-acts button:last-child { grid-column: 1 / -1; text-align: center; }
 .tg-foot { font-size: .66rem; color: #7a5a6a; }
 #fade.pink { opacity: .55 !important; background: #ff8ab0 !important; transition: opacity .15s; }
+
+/* --- открытый мир: кнопка карты и сама карта --- */
+#btn-map { position: absolute; right: calc(.6rem + var(--sr)); top: 3.2rem; padding: .35rem .9rem; background: var(--gold) !important; font-size: .8rem; }
+.wmap { border: 3px solid var(--ink); border-radius: .8rem; overflow: hidden; box-shadow: 0 .22rem 0 var(--ink); }
+.wmap { display: flex; justify-content: center; background: #2e5a2a; }
+.wmap canvas { display: block; max-width: 100%; max-height: 58vh; width: auto; height: auto; cursor: pointer; }
+.toast { white-space: normal !important; max-width: 60vw; text-align: right; }
+#toasts { top: 5.6rem !important; }

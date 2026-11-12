@@ -3,7 +3,7 @@
 (function () {
   const $ = id => document.getElementById(id), cv = $('cv'), G = window.G;
   G.slot = 1;
-  const keyOf = k => 'charmer_v1' + (k > 1 ? '_s' + k : '');
+  const keyOf = k => 'charmer_v2' + (k > 1 ? '_s' + k : '');
   let KEY = keyOf(1);
   G.time = 0; G.mode = 'title'; G.lock = false;
   G.view = { w: 2, h: 2 };
@@ -20,11 +20,13 @@
     const S = G.S, g = G.mkGirl(id, lvl); g.uid = S.uid++; if (hp !== undefined) g.hp = Math.max(1, hp);
     (S.party.length < 6 ? S.party : S.box).push(g); S.caught[id] = true; S.seen[id] = true; return g;
   };
+  // опыт теперь растёт от общения: каждая единица привязанности даёт опыт
+  G.gainXp = function (g, xp) { g.xp += xp; let up = false; while (g.xp >= G.need(g.lvl) && g.lvl < 50) { g.xp -= G.need(g.lvl); const bh = G.stats(g).hp; g.lvl++; g.hp += G.stats(g).hp - bh; up = true; if (g.lvl >= 15 && !g.bloom) { g.bloom = true; UI.toast(D.GIRLS[g.id].name + ' расцвела: ' + D.GIRLS[g.id].bloom + '!', 'up'); } } if (up) UI.toast(D.GIRLS[g.id].name + ': уровень ' + g.lvl, 'up'); };
   G.alive = () => G.S.party.some(g => g.hp > 0);
   G.healAll = () => { for (const g of G.S.party.concat(G.S.box)) g.hp = G.stats(g).hp; };
 
   /* ---------- Сохранение ---------- */
-  function fresh() { return { map: 'village', x: 5, y: 7, face: 'up', money: 120, bag: { seal: 5, potion: 3, pie: 2 }, party: [], box: [], seen: {}, caught: {}, flags: {}, uid: 1, clock: 0.3, wx: 'sun', furn: {}, outfits: {}, album: {}, endings: {}, know: {}, cups: 0 }; }
+  function fresh() { return { map: 'world', x: 11, y: 33, face: 'up', court: {}, loot: {}, money: 120, bag: { seal: 5, potion: 3, pie: 2 }, party: [], box: [], seen: {}, caught: {}, flags: {}, uid: 1, clock: 0.3, wx: 'sun', furn: {}, outfits: {}, album: {}, endings: {}, know: {}, cups: 0 }; }
   G.save = function () {
     if (!G.S || G.mode === 'title') return;
     const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked, dates: g.dates || 0, dated: !!g.dated, outfit: g.outfit, sulk: g.sulk || 0, mgDone: !!g.mgDone, pets: g.pets || 0, nightDone: !!g.nightDone });
@@ -39,7 +41,7 @@
   G.loadFrom = function (k) { G.slot = k; KEY = keyOf(k); G.saveCfg(); const d = load(); if (!d) return; G.S = d; G.mode = 'world'; UI.fade(() => WD.enter(G.S.map, G.S.x, G.S.y, G.S.face)); };
   function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 1 && d.s) return Object.assign(fresh(), d.s); } catch (e) { } return null; }
   G.saveCfg = () => { try { localStorage.setItem('charmer_cfg', JSON.stringify({ s: U.soundOn, ts: UI.textSpeed, slot: G.slot, q: G.lowq, tts: U.ttsOn })); } catch (e) { } };
-  G.reset = function () { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('village', G.S.x, G.S.y, 'up'); setTimeout(intro, 300); };
+  G.reset = function () { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('world', G.S.x, G.S.y, 'up'); setTimeout(intro, 300); };
 
   /* ---------- Действия ---------- */
   G.actionA = function () {
@@ -53,7 +55,7 @@
     if (UI.dialogOpen() || G.mode !== 'world') return;
     UI.openMenu();
   };
-  function intro() { if (!G.S.flags.starter) { G.S.x = 5; G.S.y = 7; G.S.face = 'up'; WD.enter('village', 5, 7, 'up'); WD.interact(); } }
+  function intro() { if (!G.S.flags.starter) { WD.enter('world', 11, 33, 'up'); WD.elder(); } }
 
   /* ---------- Размер кадра ---------- */
   function resize() {
@@ -72,7 +74,7 @@
     UI.tick(dt);
     const x = G.ctx;
     if (G.mode === 'battle') { BT.update(dt); BT.render(x, G.view); }
-    else { const free = G.mode === 'world' && !UI.dialogOpen() && !UI.modalOpen() && !G.lock && !(window.MG && MG.open()); if (free) FX.tick(dt); WD.update(dt, free ? UI.dir() : null); WD.render(x, G.view); }
+    else { const free = G.mode === 'world' && !UI.dialogOpen() && !UI.modalOpen() && !G.lock && !(window.MG && MG.open()); if (free) FX.tick(dt); WD.update(dt, free ? UI.dir() : null, free); WD.render(x, G.view); }
     UI.drawLive(G.time);
     if ((saveT += dt) > 20) { saveT = 0; G.save(); }
   }
@@ -85,9 +87,9 @@
     // героини на заставке
     const tg = $('t-girls'); for (const [id, ex] of [['dryad', 'smug'], ['fox', 'happy'], ['slime', 'blush']]) { const c = document.createElement('canvas'); c.width = 220; c.height = 300; tg.appendChild(c); UI.titlePic(c, id, ex); }
     if (had && had.flags.starter) { $('btn-play').textContent = 'ПРОДОЛЖИТЬ'; $('btn-new').classList.remove('hide'); }
-    const start = () => { U.audioInit(); $('title').classList.add('hide'); document.body.classList.remove('title'); G.mode = 'world'; U.music(FX.mapMusic()); setTimeout(intro, 350); };
+    const start = () => { U.audioInit(); $('title').classList.add('hide'); document.body.classList.remove('title'); G.mode = 'world'; U.music(FX.mapMusic()); setTimeout(intro, 350); setTimeout(() => UI.toast('Нажми на землю — герой пойдёт туда. Нажми на девицу, жителя или дом — подойдёт сам.', ''), 1200); };
     $('btn-play').onclick = start;
-    $('btn-new').onclick = () => { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('village', 5, 7, 'up'); start(); };
+    $('btn-new').onclick = () => { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('world', 11, 33, 'up'); start(); };
     document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(); else last = performance.now(); });
     addEventListener('pagehide', G.save);
     requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });

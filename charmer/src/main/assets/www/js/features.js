@@ -94,7 +94,7 @@
     const key = n.trainer, tr = D.TRAINERS[key], lv = D.REMATCH[key];
     if (S().flags['r_' + key]) return UI.say([{ who: tr.n, t: 'Хватит на сегодня! Приходи после отдыха — устроим ещё.' }]);
     D.TRAINERS['r_' + key] = { n: tr.n, team: tr.team.map((p, i) => [p[0], lv + i]), prize: tr.prize * 2 + 400, before: ['Реванш!'], lose: U.pick(['Опять?! Ну ты силён, Чаровник…', 'Я тренировалась! Ну… почти.', 'В следующий раз точно!'], Math.random), after: tr.after };
-    UI.say([{ who: tr.n, t: 'Чаровник! Я стала сильнее. Реванш? Мои девицы теперь ' + lv + '+ уровня.' }, { ask: [{ t: 'Давай!', a: null, r: [{ fn: () => setTimeout(() => BT.start({ trainer: 'r_' + key, zone: WD.m.id, npc: n }), 30) }] }, { t: 'В другой раз', a: null, r: [{ who: tr.n, t: 'Струсил? Ладно, жду.' }] }] }]);
+    UI.say([{ who: tr.n, t: 'Чаровник! Я стала сильнее. Реванш? Мои девицы теперь ' + lv + '+ уровня.' }, { ask: [{ t: 'Давай!', a: null, r: [{ fn: () => setTimeout(() => BT.start({ trainer: 'r_' + key, zone: WD.zoneId(), npc: n }), 30) }] }, { t: 'В другой раз', a: null, r: [{ who: tr.n, t: 'Струсил? Ладно, жду.' }] }] }]);
   };
   const TN = ['Лиловая Луиза', 'Барыня Брунгильда', 'Чемпионка Чара'];
   FX.tourney = function () {
@@ -167,7 +167,7 @@
     });
   };
 
-  FX.mapMusic = () => !WD.m ? 'world' : ({ village: 'tavern', manor: 'tavern', meadow: 'world', forest: 'forest', swamp: 'forest', mountain: 'snow', beach: 'beach', tower: 'dark', dungeon: 'dark' })[WD.m.id] || 'world';
+  FX.mapMusic = () => !WD.m ? 'world' : ({ village: 'tavern', manor: 'tavern', meadow: 'world', forest: 'forest', swamp: 'forest', mountain: 'snow', beach: 'beach', tower: 'dark', dungeon: 'dark' })[WD.zoneId()] || 'world';
 
   /* ---------- Живность: куры, зайцы, крабы, лягушки, летучие мыши, рыбы, птицы ---------- */
   const T = D.T, OUTC = '#21121c', CR = { m: null, list: [], fish: null, fishT: 2, birds: null, birdT: 6 };
@@ -176,8 +176,9 @@
     CR.m = m; CR.list = []; CR.fish = null; CR.birds = null;
     const free = (tx, ty) => tx > 0 && ty > 0 && tx < m.w - 1 && ty < m.h - 1 && !m.block[ty * m.w + tx] && m.tile[ty * m.w + tx] !== 2 && m.tile[ty * m.w + tx] !== 3;
     CR.free = free;
-    for (const [k, n] of KINDS[m.id] || []) for (let i = 0; i < n; i++) {
-      for (let tr = 0; tr < 40; tr++) { const tx = 1 + (Math.random() * (m.w - 2)) | 0, ty = 1 + (Math.random() * (m.h - 2)) | 0; if (!free(tx, ty)) continue; CR.list.push({ k, x: tx * T + 24, y: ty * T + 30, hx: tx * T + 24, hy: ty * T + 30, vx: 0, vy: 0, t: Math.random() * 3, st: 0, f: 1, ph: Math.random() * 6 }); break; }
+    const zs = m.zone ? ['village', 'meadow', 'forest', 'mountain', 'beach', 'swamp'] : [m.id];
+    for (const zn of zs) for (const [k, n0] of KINDS[zn] || []) for (let i = 0, n = m.zone ? n0 * 2 : n0; i < n; i++) {
+      for (let tr = 0; tr < 80; tr++) { const tx = 1 + (Math.random() * (m.w - 2)) | 0, ty = 1 + (Math.random() * (m.h - 2)) | 0; if (!free(tx, ty) || (m.zone && m.zone[ty * m.w + tx] !== zn)) continue; CR.list.push({ k, x: tx * T + 24, y: ty * T + 30, hx: tx * T + 24, hy: ty * T + 30, vx: 0, vy: 0, t: Math.random() * 3, st: 0, f: 1, ph: Math.random() * 6 }); break; }
     }
     CR.water = []; for (let i = 0; i < m.tile.length; i++) if (m.tile[i] === 2) CR.water.push(i);
   }
@@ -208,7 +209,7 @@
           else if (c.t <= 0) { if (c.k === 'cat') { c.t = 3; } else { const a = Math.random() * 6.283, sp = c.k === 'crab' ? 26 : 34; let tx = c.x + Math.cos(a) * 40, ty = c.y + Math.sin(a) * 40; if (Math.hypot(tx - c.hx, ty - c.hy) > 110) { tx = c.hx; ty = c.hy; } const d = Math.hypot(tx - c.x, ty - c.y) || 1; c.vx = (tx - c.x) / d * sp; c.vy = (ty - c.y) / d * sp; c.st = 1; c.t = d / sp; c.f = c.vx >= 0 ? 1 : -1; } }
         }
       }
-      if (fly === over) crDraw(x, c, tm);
+      if (fly === over && WD.cam && c.x > WD.cam.left - 40 && c.x < WD.cam.left + innerWidth * WD.cam.k + 40 && c.y > WD.cam.top - 40 && c.y < WD.cam.top + innerHeight * WD.cam.k + 60) crDraw(x, c, tm);
     }
     if (!over) {
       // рыбка выпрыгивает из воды
@@ -224,13 +225,14 @@
   /* ---------- Ночные огни: фонари, факелы, окна ---------- */
   let warm = null;
   FX.lights = function (x, m, tm, z, left, top) {
+    if (m.id !== 'world' && !m.lights) return;
     const ph = m.def.indoor ? null : FX.phase(), k = m.def.cave ? 0.85 : ph === 'night' ? 1 : ph === 'eve' ? 0.5 : m.id === 'manor' ? 0.5 : 0;
     if (!k) return;
     if (!warm) warm = U.radial(96, [0, 'rgba(255,214,140,.95)', 0.35, 'rgba(255,170,80,.4)', 1, 'rgba(255,140,60,0)']);
     x.globalCompositeOperation = 'lighter';
-    for (const o of m.objs) {
+    for (const o of m.lights || m.objs) {
       if (o.k === 'prop' && (o.pk === 'lamp' || o.pk === 'torch' || o.pk === 'fireplace')) { const sx = (o.x * T + 24 - left) * z, sy = ((o.y + 1) * T - (o.pk === 'fireplace' ? 16 : 58) - top) * z, r = (84 + Math.sin(tm * 7 + o.x) * 5) * z; x.globalAlpha = 0.75 * k; x.drawImage(warm, sx - r, sy - r, r * 2, r * 2); }
-      else if (o.k === 'house') { const by = (o.y * T + 4 * T - 69 - top) * z; x.globalAlpha = 0.6 * k; for (const wx of [o.x * T + 49, o.x * T + 4 * T - 49]) { const sx = (wx - left) * z, r = 34 * z; x.drawImage(warm, sx - r, by - r, r * 2, r * 2); } }
+      else if (o.k === 'house' && o.hk !== 'cave') { const by = (o.y * T + 4 * T - 69 - top) * z; x.globalAlpha = 0.6 * k; for (const wx of [o.x * T + 49, o.x * T + 4 * T - 49]) { const sx = (wx - left) * z, r = 34 * z; x.drawImage(warm, sx - r, by - r, r * 2, r * 2); } }
     }
     x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
   };

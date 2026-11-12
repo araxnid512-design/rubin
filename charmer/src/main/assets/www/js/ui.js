@@ -69,7 +69,8 @@
   function nextLine() {
     let L = dq.shift();
     U.shutUp && U.shutUp();
-    while (L && (L.fn || L.bg !== undefined || L.music || L.wear !== undefined)) {
+    while (L && (L.fn || L.next || L.bg !== undefined || L.music || L.wear !== undefined)) {
+      if (L.next) { dq = ST.norm(L.next() || []).concat(dq); L = dq.shift(); continue; }
       if (L.fn) { if (!replay) L.fn(); }
       else { if (L.wear !== undefined) vn.wear = L.wear; if (L.bg !== undefined) vnSet(L.bg); if (L.music) U.music(L.music); }
       L = dq && dq.shift();
@@ -114,7 +115,7 @@
   /* ---------- Боевые сообщения ---------- */
   let bfull = '', btyped = 0, bdoneT = 0, btap = false;
   UI.bmsg = function (t) { bfull = t; btyped = 0; bdoneT = 0; btap = false; $('bmsg').textContent = ''; };
-  UI.bmsgDone = function () { if (btyped < bfull.length) return false; return btap || bdoneT > 0.95 + bfull.length * 0.008; };
+  UI.bmsgDone = function () { if (btyped < bfull.length) return false; return btap || bdoneT > 0.55 + bfull.length * 0.006; };
   $('bmsg').addEventListener('click', () => { if (btyped < bfull.length) { btyped = bfull.length; $('bmsg').textContent = bfull; } else btap = true; });
   UI.tick = function (dt) {
     { const sp = !!dq && curGirl && (typed < full.length || (U.voxPlaying && U.voxPlaying())); slots.forEach((s, i) => { if (s.o) s.o.talk = sp && i === last; }); vn.talk = sp; }
@@ -330,22 +331,36 @@
   };
 
   /* ---------- Управление ---------- */
-  const joy = $('joy'), knob = $('knob'); let jid = null, jx = 0, jy = 0, jdir = null;
-  const keys = {};
+  // нажал на землю — герой идёт туда; нажал на девицу, жителя или дом — подойдёт и заговорит;
+  // держишь палец — идёт за пальцем
+  const keys = {}, tch = $('touch');
   UI.dir = function () {
-    if (jdir) return jdir;
     if (keys.ArrowUp || keys.KeyW) return 'up'; if (keys.ArrowDown || keys.KeyS) return 'down'; if (keys.ArrowLeft || keys.KeyA) return 'left'; if (keys.ArrowRight || keys.KeyD) return 'right';
     return null;
   };
-  $('touch').addEventListener('pointerdown', e => { U.audioInit(); if (jid !== null || e.clientX > innerWidth * 0.55) return; jid = e.pointerId; jx = e.clientX; jy = e.clientY; joy.style.left = (jx - joy.offsetWidth / 2) + 'px'; joy.style.top = (jy - joy.offsetHeight / 2) + 'px'; joy.classList.add('on'); try { $('touch').setPointerCapture(jid); } catch (_) { } });
-  $('touch').addEventListener('pointermove', e => {
-    if (e.pointerId !== jid) return; let dx = e.clientX - jx, dy = e.clientY - jy; const R = joy.offsetWidth / 2, l = Math.hypot(dx, dy);
-    if (l > R) { dx *= R / l; dy *= R / l; } knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-    jdir = l < R * 0.3 ? null : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-  });
-  const jup = e => { if (e.pointerId !== jid) return; jid = null; jdir = null; knob.style.transform = ''; joy.classList.remove('on'); };
-  $('touch').addEventListener('pointerup', jup); $('touch').addEventListener('pointercancel', jup);
-  $('btn-a').addEventListener('click', () => { U.audioInit(); G.actionA(); });
+  let pid = null, px0 = 0, py0 = 0, drag = false, holdT = 0;
+  tch.addEventListener('pointerdown', e => { U.audioInit(); if (pid !== null) return; pid = e.pointerId; px0 = e.clientX; py0 = e.clientY; drag = false; try { tch.setPointerCapture(pid); } catch (_) { } clearTimeout(holdT); holdT = setTimeout(() => { if (pid !== null) { drag = true; WD.steer(px0, py0); } }, 280); });
+  tch.addEventListener('pointermove', e => { if (e.pointerId !== pid) return; px0 = drag ? e.clientX : px0; if (!drag && Math.hypot(e.clientX - px0, e.clientY - py0) > 18) drag = true; if (drag) { px0 = e.clientX; py0 = e.clientY; WD.steer(e.clientX, e.clientY); } });
+  const pup = e => { if (e.pointerId !== pid) return; pid = null; clearTimeout(holdT); if (drag) WD.steer(null); else WD.tap(e.clientX, e.clientY); drag = false; };
+  tch.addEventListener('pointerup', pup); tch.addEventListener('pointercancel', e => { if (e.pointerId === pid) { pid = null; clearTimeout(holdT); WD.steer(null); drag = false; } });
+  $('btn-map').addEventListener('click', () => { U.audioInit(); if (G.mode === 'world' && !UI.dialogOpen()) UI.openMap(); });
+  /* ---------- Карта долины ---------- */
+  UI.openMap = function () {
+    const m = WD.m; if (!m.zone) return UI.toast('Здесь карта не нужна — ты внутри.', '');
+    const b = open('Карта долины', '<p class="sub">Нажми на место — герой сам дойдёт туда. ♥ — девы, которых ты уже встречал.</p><div class="wmap"><canvas></canvas></div>');
+    const cv = b.querySelector('canvas'), k = 8; cv.width = m.w * k; cv.height = m.h * k; const x = cv.getContext('2d'), S = G.S;
+    const COL = { village: '#9ad86a', meadow: '#7ccc5a', forest: '#3e8a34', mountain: '#b8b4c4', beach: '#f2dca0', swamp: '#5a7a44' };
+    for (let y = 0; y < m.h; y++) for (let xx = 0; xx < m.w; xx++) { const i = y * m.w + xx, t = m.tile[i]; x.fillStyle = t === 2 ? '#4ab0e8' : t === 1 ? '#e2c48a' : COL[m.zone[i]]; x.fillRect(xx * k, y * k, k, k); if (m.block[i] && t !== 2) { x.fillStyle = 'rgba(0,40,0,.22)'; x.fillRect(xx * k, y * k, k, k); } }
+    x.textAlign = 'center'; x.font = 'italic 900 15px sans-serif'; x.lineWidth = 4; x.strokeStyle = '#fff8f0'; x.fillStyle = '#21121c';
+    for (const [t, tx, ty] of [['Кривые Ложки', 21, 27], ['Медовый луг', 50, 42], ['Шептучий лес', 26, 6], ['Звонкие скалы', 76, 16], ['Солёный пляж', 40, 51], ['Болото', 78, 34]]) { x.strokeText(t, tx * k, ty * k); x.fillText(t, tx * k, ty * k); }
+    for (const h of m.houses) { x.fillStyle = { tower: '#d83a9a', cave: '#5a5468', manor: '#8a5ad8' }[h.k] || '#d4523a'; x.fillRect(h.x * k, h.y * k, 4 * k, 4 * k); x.strokeStyle = '#21121c'; x.lineWidth = 2; x.strokeRect(h.x * k, h.y * k, 4 * k, 4 * k); }
+    for (const g of m.gates) if (!S.flags[g.flag]) { x.fillStyle = '#ff4f7b'; x.fillRect(g.x * k - 2, g.y * k - 2, k + 4, k + 4); }
+    for (const w of WD.wild || []) if (S.seen[w.id]) ART.heart(x, (w.px / 48 + 0.5) * k, (w.py / 48 + 0.5) * k, 7, '#ff4f7b');
+    const q = [[11, 33], [40, 25], [59, 11], [83, 9], [83, 9], [17, 33]][ST.stage()];
+    if (q) { x.fillStyle = '#ffd04a'; x.strokeStyle = '#21121c'; x.lineWidth = 2.5; x.beginPath(); for (let i = 0; i < 10; i++) { const a = i * 0.628 - 1.57, rr = i % 2 ? 6 : 14; x.lineTo(q[0] * k + Math.cos(a) * rr, q[1] * k + Math.sin(a) * rr); } x.closePath(); x.fill(); x.stroke(); }
+    x.fillStyle = '#fff'; x.strokeStyle = '#21121c'; x.lineWidth = 3; x.beginPath(); x.arc((S.x + 0.5) * k, (S.y + 0.5) * k, 8, 0, 6.283); x.fill(); x.stroke(); x.fillStyle = '#3a8ad8'; x.beginPath(); x.arc((S.x + 0.5) * k, (S.y + 0.5) * k, 4.4, 0, 6.283); x.fill();
+    cv.onclick = e => { const r = cv.getBoundingClientRect(), tx = Math.floor((e.clientX - r.left) / r.width * m.w), ty = Math.floor((e.clientY - r.top) / r.height * m.h); UI.close(); WD.goTile(tx, ty); };
+  };
   $('btn-menu').addEventListener('click', () => { U.audioInit(); if (G.mode === 'world' && !UI.dialogOpen()) UI.openMenu(); });
   addEventListener('keydown', e => {
     keys[e.code] = 1; U.audioInit();

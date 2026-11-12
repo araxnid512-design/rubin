@@ -77,6 +77,7 @@
     marfa: { hair: '#8a4a2a', skin: '#f6cca8', shirt: '#4a8a5a', pants: '#4a8a5a', shoes: '#2a2018', apron: '#fff4dc', skirt: true, scarf: '#ffd04a', bun: true },
     smith: { hair: '#2a1e18', skin: '#d8a078', shirt: '#6a5a4a', pants: '#3a342c', shoes: '#1a1410', apron: '#4a3a2a', mustache: true, bald: true },
     milka: { hair: '#f2d24a', skin: '#ffe0c8', shirt: '#ff8ab0', pants: '#ff8ab0', shoes: '#4a2c20', skirt: true, bun: true },
+    guard: { hair: '#6a4a2a', skin: '#e8b890', shirt: '#4a6a9a', pants: '#3a3a4a', shoes: '#1a1410', cap: '#8a8e9a', mustache: true },
     kondrat: { hair: '#e8e4dc', skin: '#f4f0e6', shirt: '#2a2a3a', pants: '#2a2a3a', shoes: '#111', bald: true, tophat: true }
   });
 
@@ -157,6 +158,21 @@
   A.init = function () {
     base();
     A.objs.house.manor = manor();
+    { // башня ведьмы
+      const Wd = 4 * T, H = 4 * T, [c, x] = cv(Wd, H, 1.5); x.fillStyle = 'rgba(30,20,30,.25)'; x.fillRect(30, H - 10, Wd - 56, 10);
+      x.beginPath(); U.rr(x, 44, 46, Wd - 88, H - 54, 4); ink(x, U.lg(x, 44, 0, Wd - 44, 0, ['#8a5ab8', '#c08ae8', '#7a4aa8']), 2.6);
+      x.fillStyle = 'rgba(40,10,60,.25)'; for (let y = 62; y < H - 14; y += 16) for (let i = 0; i < 4; i++) x.fillRect(50 + i * 26 + (y % 32 ? 12 : 0), y, 14, 5);
+      x.beginPath(); x.moveTo(30, 52); x.lineTo(Wd / 2, -4); x.lineTo(Wd - 30, 52); x.closePath(); ink(x, U.lg(x, 0, 0, 0, 52, ['#ff8ac8', '#d83a9a']), 2.8);
+      x.beginPath(); x.arc(Wd / 2, 84, 13, 0, TAU); ink(x, '#ffe88a', 2.2); A.heart(x, Wd / 2, 84, 6, '#ff4f7b');
+      x.beginPath(); U.rr(x, Wd / 2 - 16, H - 52, 32, 46, 14); ink(x, '#4a2a5a', 2.4); x.fillStyle = '#ffd04a'; circ(x, Wd / 2 + 9, H - 28, 2.2);
+      A.objs.house.tower = c; }
+    { // вход в пещеру
+      const Wd = 4 * T, H = 4 * T, [c, x] = cv(Wd, H, 1.5); x.fillStyle = 'rgba(30,20,30,.25)'; ell(x, Wd / 2, H - 6, Wd / 2 - 8, 8);
+      x.beginPath(); x.moveTo(6, H - 6); x.quadraticCurveTo(10, 60, 50, 40); x.quadraticCurveTo(96, 10, 140, 44); x.quadraticCurveTo(186, 64, 186, H - 6); x.closePath(); ink(x, U.lg(x, 0, 30, 0, H, ['#8a8498', '#5a5468']), 2.8);
+      x.fillStyle = '#9a94a8'; ell(x, 60, 70, 22, 10, -0.4); ell(x, 136, 74, 18, 8, 0.3);
+      x.beginPath(); x.moveTo(Wd / 2 - 26, H - 6); x.quadraticCurveTo(Wd / 2 - 28, H - 70, Wd / 2, H - 74); x.quadraticCurveTo(Wd / 2 + 28, H - 70, Wd / 2 + 26, H - 6); x.closePath(); ink(x, '#140c1c', 2.6);
+      x.fillStyle = '#b07aff'; for (const [px, py] of [[Wd / 2 - 10, H - 40], [Wd / 2 + 8, H - 30], [Wd / 2 - 2, H - 54]]) circ(x, px, py, 1.6);
+      A.objs.house.cave = c; }
     for (const k in PROPS) A.objs.prop[k] = spr(PROPS[k]);
     const palmTree = (seed) => { const [c, x] = cv(72, 96, 1.5), r = U.rng(seed), lean = (r() - 0.5) * 16; x.fillStyle = 'rgba(30,20,30,.25)'; ell(x, 36, 90, 20, 5); x.strokeStyle = OUT; x.lineWidth = 9; x.lineCap = 'round'; x.beginPath(); x.moveTo(36, 90); x.quadraticCurveTo(36 + lean, 60, 36 + lean * 0.6, 30); x.stroke(); x.strokeStyle = '#a8784a'; x.lineWidth = 6; x.stroke(); x.strokeStyle = '#8a5a32'; x.lineWidth = 1.4; for (let y = 40; y < 88; y += 8) { const px = 36 + lean * (1 - (y - 30) / 60) * 0.8; x.beginPath(); x.moveTo(px - 3, y); x.lineTo(px + 3, y + 2); x.stroke(); }
       const cx = 36 + lean * 0.6, cy = 30; for (let i = 0; i < 7; i++) { const a = -3.05 + i * 0.52; x.save(); x.translate(cx, cy); x.rotate(a); x.beginPath(); x.moveTo(0, 0); x.quadraticCurveTo(14, -8, 30, 2); x.quadraticCurveTo(14, 5, 0, 0); ink(x, i % 2 ? '#4cb03a' : '#62c84e', 1.8); x.restore(); } x.fillStyle = '#8a5a2a'; circ(x, cx - 3, cy + 4, 3.4); circ(x, cx + 3, cy + 4, 3.4); return c; };

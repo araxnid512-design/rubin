@@ -11,7 +11,7 @@
   BT.start = function (o) {
     const S = G.S;
     b = BT.b = { zone: o.zone, wild: !!o.wild, trainer: o.trainer ? D.TRAINERS[o.trainer] : null, tkey: o.trainer, npc: o.npc, q: [], cur: null, over: false, menu: false, t: 0, pops: [], heart: null, parts: [], bursts: [], amb: [], shake: 0, flashS: 0, introT: 0, hu: {}, duet: false, endured: {},
-      foeTeam: o.wild ? [G.mkGirl(o.wild.id, o.wild.lvl)] : D.TRAINERS[o.trainer].team.map(([id, l]) => G.mkGirl(id, l)), fi: 0, mi: S.party.findIndex(g => g.hp > 0) };
+      foeTeam: o.wild ? [G.mkGirl(o.wild.id, o.wild.lvl)] : D.TRAINERS[o.trainer].team.slice(0, D.TRAINERS[o.trainer].boss ? 3 : 2).map(([id, l]) => G.mkGirl(id, Math.max(3, Math.min(l, Math.max(...S.party.map(g => g.lvl)) + (D.TRAINERS[o.trainer].boss ? 2 : 1))))), fi: 0, mi: S.party.findIndex(g => g.hp > 0) };
     b.foe = b.foeTeam[0];
     for (const g of b.foeTeam.concat(S.party)) { g.stg = { atk: 0, def: 0, spd: 0 }; g.st = null; g.stT = 0; }
     b.A = { me: side(), foe: side() }; b.A.me.slide = -1; b.A.foe.slide = 1;
@@ -225,7 +225,7 @@
     b = BT.b = null; UI.battleOn(false); G.mode = 'world'; if (res === 'win' || res === 'caught') U.fanfare(); U.music(FX.mapMusic());
     if (res === 'lose') {
       S.money = Math.floor(S.money / 2); G.healAll();
-      UI.fade(() => { WD.enter('village', 11, 6, 'down'); UI.say([{ who: 'Тётка Дуня', t: 'Очнулся, горе-Чаровник? Девиц твоих я выходила. А половину монет взяла за пироги. Ешь давай.' }]); });
+      UI.fade(() => { WD.enter('world', 17, 33, 'down'); UI.say([{ who: 'Тётка Дуня', t: 'Очнулся, горе-Чаровник? Девиц твоих я выходила. А половину монет взяла за пироги. Ешь давай.' }]); });
     }
     if (wasT && res === 'win') { WD.trainerBeaten(wasT); const L = ST.after(wasT); if (L.length) UI.say(L, () => G.save()); }
     G.save();

@@ -49,6 +49,7 @@
       talk: ['Я пересчитала золото. Одной монеты не хватает. Ты её взял? Нет? Тогда ты сам — монета. Самая ценная.', 'Можешь погреться у моего хвоста. Только не трогай чешую против роста.', 'Тысячу лет я спала на золоте. Оказывается, на тебе — мягче.', 'Сокровищница пуста. Всё золото я отдала таверне. Мне теперь нужно только одно сокровище.'],
       look: { skin: '#ffe0c8', hair: '#b0202a', hair2: '#ff6a3a', eyes: '#ffd04a', slit: true, style: 'long', top: '#2a1a1e', top2: '#ffd04a', bottom: '#2a1a1e', socks: '#2a1a1e', shoes: '#1a0e10', lower: 'legs', horns: true, batwings: true, wingc: '#b0202a', tail: 'dragon', scale: '#b0202a', belly: '#ffd08a', fangs: true, outfit: 'gothic', tall: 1.06 } })
   });
+  D.MAPS.tower.exits = [{ x: 6, y: 11, to: 'world', tx: 83, ty: 8 }, { x: 7, y: 11, to: 'world', tx: 84, ty: 8 }];
   D.SECRET = ['mermaid', 'frog', 'ghost', 'dragon'];
   D.ALL = D.ORDER.concat(D.SECRET);
 
@@ -126,14 +127,14 @@
       signs: [{ x: 2, y: 7, t: '→ Подземелье. Там темно, сыро и кто-то хихикает.' }],
       wild: { lv: [22, 28], list: [['frog', 1], ['lamia', 3], ['dryad', 2.5], ['slime', 2]] } },
     dungeon: { n: 'Хихикающее подземелье', w: 30, h: 18, ground: 'dungeon', cave: true, tree: 'crystal', seed: 37, trees: 0.08, flowers: 0,
-      exits: [{ x: 0, y: 8, to: 'swamp', tx: 28, ty: 8 }, { x: 0, y: 9, to: 'swamp', tx: 28, ty: 9 }],
+      exits: [{ x: 0, y: 8, to: 'world', tx: 86, ty: 42 }, { x: 0, y: 9, to: 'world', tx: 87, ty: 42 }],
       paths: [[[0, 9], [26, 9]], [[26, 9], [26, 3]]], ponds: [], grass: [[8, 4, 4, 2.4], [16, 14, 5, 2.4], [20, 4, 3, 2]],
       props: [['torch', 5, 7], ['torch', 12, 7], ['torch', 19, 7], ['torch', 24, 11], ['chest', 28, 2]],
       npcs: [{ id: 'kondrat', x: 14, y: 9, face: 'left', look: 'kondrat', trainer: 'kondrat', aside: [14, 11] }, { id: 'dragon', x: 26, y: 2, face: 'down', look: 'girl', girl: 'dragon' }],
       signs: [{ x: 3, y: 10, t: 'Осторожно: дракон. Кормить нельзя. Злить нельзя. Влюблять — на свой страх и риск.' }],
       wild: { lv: [26, 32], list: [['ghost', 1], ['vampire', 3], ['neko', 2], ['valkyrie', 2]] } },
     manor: { n: 'Усадьба Чаровника', w: 14, h: 11, ground: 'wood', wall: 'wallp', seed: 41, trees: 0, flowers: 0, indoor: true,
-      exits: [{ x: 6, y: 10, to: 'village', tx: 20, ty: 13 }, { x: 7, y: 10, to: 'village', tx: 21, ty: 13 }],
+      exits: [{ x: 6, y: 10, to: 'world', tx: 29, ty: 41 }, { x: 7, y: 10, to: 'world', tx: 30, ty: 41 }],
       paths: [], ponds: [], grass: [], npcs: [], signs: [] }
   });
   // деревня: усадьба и дорога на юг
