@@ -100,11 +100,12 @@
     const T = D.ENEMIES[type];
     const st = DW.G.state;
     const bonus = Math.max(0, B.diff - 3) + Math.floor(st.day / 15);
-    const W = T.weapon ? D.WEAPONS[T.weapon] : null;
+    const wid = T.weapons ? U.pick(T.weapons) : T.weapon;
+    const W = wid ? D.WEAPONS[wid] : null;
     return {
       id: B.nextId++, side: 'e', kind: 'enemy', type: type, name: T.n, x: x, y: y,
       hp: T.hp + bonus, maxHp: T.hp + bonus, aim: T.aim + bonus * 2, mob: T.mob, def: T.def || 0, armor: T.armor || 0,
-      weapon: T.weapon || null, clip: W ? W.clip : 0, ap: 0, sight: Math.max(5, (T.sight || 9) + (B.sightMod || 0)), pod: pod,
+      weapon: wid || null, clip: W ? W.clip : 0, ap: 0, sight: Math.max(5, (T.sight || 9) + (B.sightMod || 0)), pod: pod,
       active: false, seen: false, overwatch: false, hunker: false, suppressed: false, alive: true, evac: false,
       face: Math.PI, cd: {}, kills: 0
     };

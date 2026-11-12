@@ -169,7 +169,7 @@
     if (o.rot) g.rotate(o.rot);
     ART.human(g, {
       look: s ? s.look : lookFor(o.seed || 0), body: o.body || '#c8691c', pants: o.pants, armor: s && s.armor !== 'robe' ? s.armor : null,
-      weapon: o.weapon === undefined ? (s ? s.weapon : 'ak') : o.weapon, dir: o.dir || 1, aim: o.aim === undefined ? 0.3 : o.aim,
+      weapon: o.weapon === undefined ? (s ? s.weapon : 'ppsh') : o.weapon, dir: o.dir || 1, aim: o.aim === undefined ? 0.3 : o.aim,
       walk: o.walk === undefined ? null : o.walk, scale: sc, seed: o.seed || 0, cig: o.cig, pose: o.pose,
       helmet: s && (s.armor === 'heavy' || s.armor === 'exo'), rank: s && s.xp !== undefined && DW.G ? DW.G.rank(s) : 0
     }, t);
@@ -287,7 +287,7 @@
       },
       {
         dur: 7500, sfx: 'portal',
-        cap: 'Шестерых вытолкнули в мёртвый мир. С собой — автоматы, сухпаёк и приказ: искать <b class="gem">драгоценные кристаллы</b>.',
+        cap: 'Шестерых вытолкнули в мёртвый мир. С собой — старые ППШ, сухпаёк и приказ: искать <b class="gem">драгоценные кристаллы</b>.',
         draw: function (g, w, h, k, el, now) { arrival(g, w, h, k, el, now, false); }
       },
       {
@@ -326,7 +326,7 @@
               g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(x, y, 20 * sc, 5 * sc, 0, 0, 7); g.fill();
               g.fillStyle = '#4a3c30'; g.beginPath(); g.ellipse(x, y - 1 * sc, 16 * sc, 4.5 * sc, 0, Math.PI, 0); g.fill();
               g.save(); g.translate(x, y - 22 * ws); g.rotate(Math.PI / 2 + tilt);
-              ART.weapon(g, 'ak', ws); g.restore();
+              ART.weapon(g, 'ppsh', ws); g.restore();
               const hx = x - Math.sin(tilt) * 34 * ws, hy = y - 34 * ws;
               g.fillStyle = '#4a5258'; g.beginPath(); g.ellipse(hx, hy, 6.5 * sc, 4 * sc, 0, Math.PI, 0); g.fill();
               g.fillStyle = '#3a4248'; g.fillRect(hx - 7 * sc, hy - 0.5, 14 * sc, 1.5 * sc);
@@ -358,7 +358,7 @@
               const gx = w * (0.3 + i * 0.08), gy = hor + h * 0.12;
               const x = U.lerp(px, gx, q), y = U.lerp(py, gy, q) - Math.sin(Math.PI * q) * h * 0.08;
               g.save(); g.globalAlpha = 0.85;
-              person(g, null, x, y, sc, now, { seed: 50 + i, rot: (1 - q) * 4, body: '#7a4a24', weapon: q >= 1 ? 'ak' : null });
+              person(g, null, x, y, sc, now, { seed: 50 + i, rot: (1 - q) * 4, body: '#7a4a24', weapon: q >= 1 ? 'ppsh' : null });
               g.restore();
             }
           }

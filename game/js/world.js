@@ -465,7 +465,7 @@
       const x = n.x + Math.cos(a) * (22 + (i % 3) * 3), y = n.y + 2 + sa * (9 + (i % 2) * 2);
       const vx = -Math.sin(a) * dir;
       g.save(); g.translate(x, y); g.scale(0.3, 0.3);
-      ART.human(g, { look: lookN(i), body: CLOTH[i % CLOTH.length], weapon: i % 3 === 0 ? 'ak' : null, dir: vx >= 0 ? 1 : -1, aim: 0.6, walk: t / 110 + i * 1.7, seed: i }, t);
+      ART.human(g, { look: lookN(i), body: CLOTH[i % CLOTH.length], weapon: i % 3 === 0 ? 'ppsh' : null, dir: vx >= 0 ? 1 : -1, aim: 0.6, walk: t / 110 + i * 1.7, seed: i }, t);
       g.restore();
     }
   }
@@ -714,7 +714,7 @@
     g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(sx, sy, 16, 6, 0, 0, Math.PI * 2); g.fill();
     for (let i = 0; i < 3; i++) {
       g.save(); g.translate(sx - 9 + i * 9, sy - 2 + (i % 2) * 3); g.scale(0.5, 0.5);
-      ART.human(g, { look: st.roster[i] ? st.roster[i].look : null, body: '#c8691c', weapon: 'ak', dir: 1, aim: -0.2, walk: moving ? t / 90 + i : null, seed: i }, t);
+      ART.human(g, { look: st.roster[i] ? st.roster[i].look : null, body: '#c8691c', weapon: st.roster[i] ? st.roster[i].weapon : 'ppsh', dir: 1, aim: -0.2, walk: moving ? t / 90 + i : null, seed: i }, t);
       g.restore();
     }
     const fx = sx + 14, fy = sy - 4;

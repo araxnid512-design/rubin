@@ -45,7 +45,8 @@
 
   /* ---------- Оружие ---------- */
   D.WEAPONS = {
-    ak: { n: 'Автомат АК', s: 'АК', dmg: [3, 5], clip: 4, ammo: 3, crit: 10, aimMod: 0, range: 'rifle', snd: 'rifle', tier: 0, desc: 'Надёжный автомат Конторы. Хорош на средней дистанции.' },
+    ppsh: { n: 'Пистолет-пулемёт ППШ', s: 'ППШ', dmg: [3, 4], clip: 5, ammo: 4, crit: 10, aimMod: 0, range: 'smg', snd: 'smg', tier: 0, desc: 'Старый ППШ с диском на 71 патрон. Злой вблизи, на дальней дистанции мажет. Тратит много патронов.' },
+    ak: { n: 'Автомат АК', s: 'АК', dmg: [3, 5], clip: 4, ammo: 3, crit: 10, aimMod: 0, range: 'rifle', snd: 'rifle', tier: 0, desc: 'Надёжный автомат Конторы. Точнее и экономнее ППШ, хорош на средней дистанции.' },
     shotgun: { n: 'Дробовик', s: 'Дробовик', dmg: [4, 7], clip: 3, ammo: 2, crit: 20, aimMod: 0, range: 'shotgun', snd: 'shotgun', tier: 1, desc: 'Страшен вблизи, бесполезен издалека.' },
     sniper: { n: 'Снайперская винтовка', s: 'СВД', dmg: [5, 7], clip: 3, ammo: 1, crit: 25, aimMod: 0, range: 'sniper', snd: 'sniper', tier: 1, sight: 2, desc: 'Точна вдали, неудобна вблизи. +2 к обзору.' },
     lmg: { n: 'Пулемёт ПКМ', s: 'ПКМ', dmg: [4, 6], clip: 3, ammo: 6, crit: 5, aimMod: -5, range: 'rifle', snd: 'lmg', tier: 1, desc: 'Высокий урон, но жрёт патроны.' },
@@ -57,11 +58,13 @@
     beam: { n: 'Луч стража', dmg: [4, 6], clip: 3, ammo: 0, crit: 10, aimMod: 0, range: 'rifle', snd: 'beam', enemy: true },
     turret: { n: 'Турель', dmg: [3, 5], clip: 99, ammo: 0, crit: 10, aimMod: 0, range: 'rifle', snd: 'rifle', enemy: true }
   };
-  D.PLAYER_WEAPONS = ['ak', 'shotgun', 'sniper', 'lmg', 'ak2', 'hsniper', 'hlmg'];
+  D.PLAYER_WEAPONS = ['ppsh', 'ak', 'shotgun', 'sniper', 'lmg', 'ak2', 'hsniper', 'hlmg'];
+  for (const k in D.WEAPONS) D.WEAPONS[k].id = k;
 
   D.rangeMod = function (r, d) {
     switch (r) {
       case 'rifle': return d <= 2.5 ? 10 : (d <= 9 ? 0 : -Math.round((d - 9) * 4));
+      case 'smg': return d <= 2.5 ? 20 : (d <= 5.5 ? 10 : (d <= 8 ? 0 : -Math.round((d - 8) * 7)));
       case 'shotgun': return d <= 2.5 ? 30 : (d <= 4.5 ? 15 : (d <= 6.5 ? 0 : -Math.round((d - 6.5) * 10)));
       case 'sniper': return d <= 2.5 ? -30 : (d <= 5.5 ? -10 : 10);
       case 'spit': return d <= 4.5 ? 10 : (d <= 7.5 ? 0 : -Math.round((d - 7.5) * 10));
@@ -124,10 +127,10 @@
     scav: { n: 'Падальщик', hp: 5, aim: 72, mob: 7, def: 10, armor: 0, melee: true, dmg: [2, 4], xp: 1, loot: { gems: [0, 2] }, sight: 9, beast: true },
     brute: { n: 'Костолом', hp: 12, aim: 75, mob: 5, def: 0, armor: 1, melee: true, dmg: [4, 7], xp: 3, loot: { gems: [1, 4] }, sight: 8, beast: true },
     spitter: { n: 'Плевун', hp: 6, aim: 65, mob: 5, def: 10, armor: 0, weapon: 'spit', xp: 2, loot: { gems: [1, 3] }, sight: 9, beast: true },
-    raider: { n: 'Бандит', hp: 6, aim: 60, mob: 5, def: 0, armor: 0, weapon: 'ak', xp: 2, loot: { ammo: [6, 15], gems: [0, 3] }, sight: 9 },
+    raider: { n: 'Бандит', hp: 6, aim: 60, mob: 5, def: 0, armor: 0, weapon: 'ak', weapons: ['ak', 'ak', 'ppsh', 'shotgun'], xp: 2, loot: { ammo: [6, 15], gems: [0, 3] }, sight: 9 },
     thug: { n: 'Головорез', hp: 7, aim: 58, mob: 6, def: 0, armor: 0, weapon: 'shotgun', xp: 2, loot: { ammo: [4, 10], gems: [0, 2], food: [0, 2] }, sight: 9 },
-    marksman: { n: 'Стрелок банды', hp: 5, aim: 72, mob: 5, def: 0, armor: 0, weapon: 'sniper', xp: 3, loot: { ammo: [4, 10], gems: [1, 4] }, sight: 11 },
-    boss: { n: 'Главарь', hp: 14, aim: 68, mob: 5, def: 0, armor: 1, weapon: 'ak2', xp: 6, loot: { gems: [10, 18], ammo: [20, 35] }, sight: 10, drop: 'ak2' },
+    marksman: { n: 'Стрелок банды', hp: 5, aim: 72, mob: 5, def: 0, armor: 0, weapon: 'sniper', weapons: ['sniper', 'sniper', 'lmg'], xp: 3, loot: { ammo: [4, 10], gems: [1, 4] }, sight: 11 },
+    boss: { n: 'Главарь', hp: 14, aim: 68, mob: 5, def: 0, armor: 1, weapon: 'ak2', weapons: ['ak2', 'lmg'], xp: 6, loot: { gems: [10, 18], ammo: [20, 35] }, sight: 10, drop: 'ak2' },
     guardian: { n: 'Страж бункера', hp: 10, aim: 68, mob: 4, def: 0, armor: 2, weapon: 'beam', xp: 4, loot: { gems: [3, 6], materials: [1, 3] }, sight: 10, mech: true },
     queen: { n: 'Матка', hp: 36, aim: 80, mob: 4, def: 0, armor: 2, melee: true, dmg: [6, 9], xp: 15, loot: { gems: [40, 60] }, sight: 10, beast: true, boss: true, spawner: true }
   };
@@ -174,6 +177,7 @@
     { id: 'meds', n: 'Аптечки', q: '×2', give: { meds: 2 }, price: 12, tier: 0, icon: 'meds' },
     { id: 'gren', n: 'Гранаты', q: '×2', give: { grenades: 2 }, price: 15, tier: 0, icon: 'grenade' },
     { id: 'mat', n: 'Стройматериалы', q: '×10', give: { materials: 10 }, price: 15, tier: 0, icon: 'materials' },
+    { id: 'ppsh', n: 'ППШ', q: '', give: { weapon: 'ppsh' }, price: 8, tier: 0, icon: 'gun' },
     { id: 'ak', n: 'Автомат АК', q: '', give: { weapon: 'ak' }, price: 15, tier: 0, icon: 'gun' },
     { id: 'recruit', n: 'Заключённый', q: 'новобранец', give: { recruit: 0 }, price: 35, tier: 0, icon: 'man' },
     { id: 'shotgun', n: 'Дробовик', q: '', give: { weapon: 'shotgun' }, price: 25, tier: 1, icon: 'gun' },

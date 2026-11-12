@@ -12,7 +12,7 @@
       id: U.uid(), name: tpl.name, cls: tpl.cls,
       hpBase: tpl.hp, aimBase: tpl.aim, mobBase: tpl.mob,
       wounds: 0, xp: tpl.xp || 0, kills: 0, missions: 0,
-      weapon: tpl.weapon || 'ak', armor: tpl.armor || 'robe',
+      weapon: tpl.weapon || 'ppsh', armor: tpl.armor || 'robe',
       look: DW.ART.makeLook(U.rand(1, 1e9), tpl.look || null)
     };
   };
@@ -60,7 +60,7 @@
     const ln = G.node(st.squadAt);
     ln.known = true; ln.visited = true;
     G.revealAround(st.squadAt);
-    G.log('Отряд из шести заключённых прошёл через Портал. Контора выдала автоматы и припасы на несколько дней.');
+    G.log('Отряд из шести заключённых прошёл через Портал. Контора выдала старые ППШ и припасы на несколько дней.');
     return st;
   };
   G.save = function () {

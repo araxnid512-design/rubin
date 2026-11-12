@@ -318,7 +318,7 @@
     if (cache[key]) return cache[key];
     const c = ART.canvas(180, 60);
     const g = c.getContext('2d');
-    const len = { ak: 36, ak2: 39, shotgun: 37, sniper: 49, hsniper: 57, lmg: 45, hlmg: 51 }[id] || 36;
+    const len = ART.WLEN[id] || 36;
     const sc = Math.min(3.2, 160 / len);
     g.translate(90 - (len / 2 - 12) * sc, 28);
     g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 6; g.shadowOffsetY = 3;

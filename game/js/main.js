@@ -29,7 +29,7 @@
     const ui = document.getElementById('ui');
     ui.innerHTML = '';
     if (!emblem) emblem = makeEmblem();
-    if (!menuSquad) menuSquad = DW.D.START_SQUAD.map(function (t, i) { return { look: DW.ART.makeLook(i * 97 + 11, t.look), name: t.name, weapon: ['ak', 'lmg', 'sniper', 'ak', 'shotgun', 'ak'][i], armor: ['robe', 'robe', 'vest', 'robe', 'robe', 'robe'][i] }; });
+    if (!menuSquad) menuSquad = DW.D.START_SQUAD.map(function (t, i) { return { look: DW.ART.makeLook(i * 97 + 11, t.look), name: t.name, weapon: 'ppsh', armor: ['robe', 'robe', 'vest', 'robe', 'robe', 'robe'][i] }; });
     const box = el('div', { class: 'title' });
     box.appendChild(el('img', { class: 'temb', src: emblem, alt: '' }));
     box.appendChild(el('div', { class: 't1', text: 'МЁРТВЫЙ МИР' }));
@@ -172,7 +172,7 @@
     Main.toWorld();
     await DW.UI.alert('Мёртвый мир',
       'Приговор — Портал. Вас, шестерых заключённых, вытолкнули в мёртвый мир: серое небо, пустошь, руины чужой цивилизации и твари, что чуют живых издалека.<br><br>' +
-      'Контора выдала автоматы, патроны и сухпаёк на несколько дней. Правила просты: здесь растут <b class="acc">драгоценные кристаллы</b>. Отправляйте их через Портал — и получите всё, что нужно: оружие, патроны, снаряжение, новых людей.<br><br>' +
+      'Контора выдала старые ППШ с дисками, патроны и сухпаёк на несколько дней. Правила просты: здесь растут <b class="acc">драгоценные кристаллы</b>. Отправляйте их через Портал — и получите всё, что нужно: оружие, патроны, снаряжение, новых людей.<br><br>' +
       'Найдите место, закрепитесь, постройте базу. Выживите.<br><br><b class="bad">Но сначала — твари уже идут к точке высадки.</b>');
     const st = DW.G.state;
     await DW.WS.attack(DW.G.node(st.squadAt), 'normal');

@@ -61,6 +61,18 @@
         case 'rifle':
           for (let i = 0; i < 3; i++) { noise(t + i * 0.09, 0.13, 1300, 0.8, 0.55); tone(t + i * 0.09, 0.08, 170, 60, 'square', 0.1); }
           break;
+        case 'smg':
+          for (let i = 0; i < 7; i++) { noise(t + i * 0.046, 0.07, 1700, 0.9, 0.42); tone(t + i * 0.046, 0.045, 210, 80, 'square', 0.07); }
+          break;
+        case 'ak2':
+          for (let i = 0; i < 3; i++) { noise(t + i * 0.08, 0.11, 1800, 0.9, 0.5); tone(t + i * 0.08, 0.06, 240, 70, 'square', 0.09); }
+          break;
+        case 'hsniper':
+          noise(t, 0.8, 900, 0.4, 1); tone(t, 0.35, 140, 30, 'sawtooth', 0.28); noise(t + 0.05, 0.6, 300, 0.5, 0.5);
+          break;
+        case 'hlmg':
+          for (let i = 0; i < 5; i++) { noise(t + i * 0.085, 0.16, 600, 0.6, 0.7); tone(t + i * 0.085, 0.1, 100, 35, 'square', 0.16); }
+          break;
         case 'lmg':
           for (let i = 0; i < 6; i++) { noise(t + i * 0.07, 0.11, 900, 0.8, 0.55); tone(t + i * 0.07, 0.07, 140, 50, 'square', 0.1); }
           break;
