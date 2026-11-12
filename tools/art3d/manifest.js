@@ -85,7 +85,7 @@ const PROPS = [
   { id: 'obj22', type: 22, variants: [P(S + 'env/e_wardrobe.glb', 0.8, 1.45, 45), P(S + 'env/e_fridge.glb', 0.7, 1.4, -45), P(S + 'env/e_buffet.glb', 0.85, 1.4, 45),
     P(S + 'env/e_pech.glb', 0.85, 1.45, -45), P(S + 'env/e_burzhuyka.glb', 0.65, 1.2, 30)] },
   // турель — по направлениям (8 вариантов поворота)
-  { id: 'turret', variants: [0, 1, 2, 3, 4, 5, 6, 7].map((d) => P(DW + 'e_turret.glb', 0.8, 1.1, 90 - d * 45)) },
+  { id: 'turret', variants: [0, 1, 2, 3, 4, 5, 6, 7].map((d) => P(DW + 'e_turret.glb', 0.8, 1.1, -d * 45)) }, // ствол — ось +X модели
   // украшения карты: машины, покрышки, мусор (тип клетки не занят — рисуются как декор)
   { id: 'decor', variants: [P(S + 'env/e_tire.glb', 0.5, 0.3), P(S + 'env/e_trashbags.glb', 0.6, 0.5), P(S + 'env/e_pipes.glb', 0.9, 0.5), P(S + 'env/e_vaz2107.glb', 1.5, 1.0, 30), P(S + 'env/e_uaz.glb', 1.5, 1.2, -30), P(S + 'env/e_ural.glb', 2.2, 1.9, 60), P(S + 'env/e_btr80.glb', 2.3, 1.6, -20), P(S + 'env/e_paz.glb', 2.4, 1.9, 40), P(S + 'env/e_well.glb', 0.9, 1.6), P(S + 'env/e_sandbags.glb', 0.9, 0.6)] }
 ];
