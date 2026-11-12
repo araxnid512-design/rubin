@@ -1,0 +1,57 @@
+# «Мёртвый мир»: модели Tripo за кредиты сайта Studio — официальная программа tripo (@tripo3d/cli) после входа
+# по аккаунту. Устройство то же, что у игры «Стикс» (ветка ccr-f5d34f3a-q7wlgf, tripo-cli.yml):
+# 1) вход (tools/tripo/login.sh): сохранённая зашифрованная сессия из ветки tripo-session, иначе tripo auth login
+#    с кодом из письма (секрет TRIPO_CODE, сборка «Tripo: код (Мёртвый мир)»);
+# 2) задания — tools/tripo/jobs.json в рабочей ветке игры, их выполняет tools/tripo/runner.py;
+# 3) файлы и журнал — в ветке tripo-status. Предел трат — budget кредитов от баланса на старте.
+# Запуск: изменить tools/tripo/start.txt в рабочей ветке (или вручную).
+name: 'Tripo (Мёртвый мир)'
+
+on:
+  push:
+    branches: [ccr-b566ed5d-88smll]
+    paths:
+      - 'tools/tripo/start.txt'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Сколько минут ждать заданий после входа'
+        default: '150'
+      budget:
+        description: 'Предел трат, кредитов'
+        default: '1200'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tripo-cli
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TRIPO_EMAIL: ${{ secrets.TRIPO_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Программа tripo
+        run: |
+          npm i -g @tripo3d/cli@0.8.1 > /dev/null
+          tripo version
+      - name: Вход по аккаунту
+        env:
+          SESSION_PASS: ${{ secrets.TRIPO_API_KEY }}
+        run: bash tools/tripo/login.sh
+      - name: Задания
+        env:
+          TRIPO_MINUTES: ${{ github.event.inputs.minutes || '150' }}
+          TRIPO_BUDGET: ${{ github.event.inputs.budget || '1200' }}
+          TRIPO_JOBS_REF: ccr-b566ed5d-88smll
+          TRIPO_JOBS_PATH: tools/tripo/jobs.json
+        run: python3 tools/tripo/runner.py

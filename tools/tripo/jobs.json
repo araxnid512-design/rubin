@@ -1,0 +1,66 @@
+{
+ "stop": false,
+ "jobs": [
+  {
+   "id": "p1_bal0",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
+  },
+  {
+   "id": "p1_c_krut",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_krut",
+    "--faces",
+    "10000",
+    "--prompt",
+    "Russian male convict leader in his 40s, shaved head, short dark stubble, scar over left eyebrow, stern face, faded orange prison jumpsuit with rolled-up sleeves, canvas belt with ammo pouches, black army boots, athletic build, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:fall",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:shoot,preset:biped:dive,preset:biped:slash,preset:biped:look_around"
+   ]
+  },
+  {
+   "id": "p1_w_ppsh",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "w_ppsh",
+    "--faces",
+    "3000",
+    "--prompt",
+    "Soviet PPSh-41 submachine gun with round 71-round drum magazine, wooden stock, perforated barrel jacket, worn blued steel and scratched wood, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p1_e_crystal",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_crystal",
+    "--faces",
+    "2000",
+    "--prompt",
+    "cluster of glowing cyan-blue gemstone crystals growing out of a dark rock, sharp hexagonal crystal shards of different sizes, realistic style, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p1_bal1",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
+  }
+ ]
+}

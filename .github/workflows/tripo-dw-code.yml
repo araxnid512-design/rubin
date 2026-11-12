@@ -1,0 +1,39 @@
+# Передать код входа Tripo (из письма) ждущей сборке «Tripo (Мёртвый мир)», если сохранённая сессия устарела:
+# код — из секрета TRIPO_CODE, шифруется её открытым ключом (ветка tripo-status) и кладётся в ветку tripo-code.
+# Запуск: изменить tools/tripo/code.txt в рабочей ветке (или вручную).
+name: 'Tripo: код (Мёртвый мир)'
+
+on:
+  push:
+    branches: [ccr-b566ed5d-88smll]
+    paths:
+      - 'tools/tripo/code.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Зашифровать код и передать
+        env:
+          TRIPO_CODE: ${{ secrets.TRIPO_CODE }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if [ -z "$TRIPO_CODE" ]; then echo "нет секрета TRIPO_CODE"; exit 0; fi
+          repo="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git init -q st && cd st
+          if ! git fetch -q "$repo" tripo-status 2>/dev/null; then echo "нет ждущей сборки (ветка tripo-status)"; exit 0; fi
+          git show FETCH_HEAD:pubkey.pem > ../pub.pem 2>/dev/null || { echo "ждущая сборка не выложила ключ"; exit 0; }
+          nonce=$(git show FETCH_HEAD:nonce.txt | tr -d '\r\n ')
+          cd ..
+          code=$(printf '%s' "$TRIPO_CODE" | tr -d '\r\n ')
+          printf '%s:%s' "$nonce" "$code" | openssl pkeyutl -encrypt -pubin -inkey pub.pem | base64 -w0 > code.enc
+          mkdir out && cp code.enc out/ && cd out
+          git init -q && git checkout -q -b tripo-code && git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Tripo: код (зашифрован)"
+          git push -qf "$repo" tripo-code 2>&1 | grep -v x-access-token || true
+          echo "код передан (зашифрован)"
