@@ -564,6 +564,8 @@
     setO(m, x0, cy - 3, 1); setO(m, x0, cy + 2, 1); setO(m, x0 + 2, y0, 1); setO(m, x0 + 6, y0 + h - 1, 1);
     setG(m, x0 + 1, y0 + 1, 9); setG(m, x0 + w - 2, y0 + h - 2, 9);
     setO(m, x0 + 3, cy + 2, 4); setO(m, x0 + 6, cy - 2, 4); setO(m, x0 + 5, cy + 1, 4);
+    // брошенная обстановка: шкаф, нары, стол у стен
+    setO(m, x0 + 1, y0 + 2, 22); setO(m, x0 + w - 2, y0 + 2, 21); setO(m, x0 + 1, y0 + h - 3, 21); setO(m, x0 + w - 2, y0 + h - 3, 22);
     scatter(m, 8, 5, 5, 13); lines(m, 1, 3, 6); scatter(m, 5, 4, 5, 13); scatter(m, 7, 2, 6, 13);
     decor(m, 'crack', 14); decor(m, 'grass', 8);
     m.anchor = { x: x0 + 4, y: cy };
