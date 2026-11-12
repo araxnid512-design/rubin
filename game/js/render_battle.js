@@ -1442,10 +1442,49 @@
     const c = isoC(u.x, u.y);
     parts(c[0], c[1], 24, 14, col, 90, 600, 3, 320, 90);
   };
-  TR.debris = function (x, y, color) {
+  const OMAT = { 7: 'metal', 9: 'metal', 11: 'metal', 12: 'metal', 15: 'metal', 18: 'metal', 4: 'wood', 5: 'wood', 10: 'cloth', 13: 'wood', 19: 'wood', 1: 'stone', 2: 'brick', 3: 'stone', 8: 'stone', 14: 'stone', 17: 'wood', 6: 'sand', 16: 'flesh', 20: 'crystal' };
+  /* Попадание по материалу: искры по металлу, щепа по дереву, крошка по камню, песок из мешков */
+  function impact(X, Y, mat, big) {
+    const k = big ? 1.8 : 1;
+    switch (mat) {
+      case 'metal':
+        parts(X, Y, 16, Math.round(9 * k), '#fff2b0', 150, 260, 1.8, 420, 80);
+        parts(X, Y, 16, Math.round(4 * k), '#ffb040', 90, 420, 2.2, 420, 60);
+        fx.flashes.push({ x: X, y: Y - 16, r: 7 * k, t0: now(), life: 80 });
+        break;
+      case 'wood':
+        parts(X, Y, 16, Math.round(7 * k), '#9a6a3a', 90, 700, 2.6, 380, 90);
+        parts(X, Y, 16, Math.round(4 * k), 'rgba(150,120,90,0.45)', 30, 700, 5, -10, 15);
+        break;
+      case 'sand':
+        parts(X, Y, 14, Math.round(10 * k), 'rgba(200,180,130,0.75)', 60, 650, 2.4, 300, 70);
+        parts(X, Y, 14, Math.round(5 * k), 'rgba(200,180,140,0.45)', 25, 1000, 7, -10, 15);
+        break;
+      case 'crystal':
+        parts(X, Y, 16, Math.round(9 * k), '#9af0ff', 120, 600, 2.2, 340, 90);
+        fx.flashes.push({ x: X, y: Y - 16, r: 9 * k, t0: now(), life: 120 });
+        break;
+      case 'flesh':
+        parts(X, Y, 16, Math.round(8 * k), '#8a3a50', 80, 600, 2.6, 360, 70);
+        break;
+      default:
+        parts(X, Y, 16, Math.round(7 * k), mat === 'brick' ? '#a0583e' : '#9a948a', 100, 600, 2.4, 380, 90);
+        parts(X, Y, 16, Math.round(5 * k), 'rgba(175,165,150,0.5)', 35, 900, 6, -12, 18);
+        parts(X, Y, 16, 3, '#fff2b0', 120, 200, 1.4, 300, 60);
+    }
+  }
+  function groundKick(X, Y) {
+    parts(X, Y, 2, 5, 'rgba(120,96,70,0.85)', 40, 600, 2.2, 260, 70);
+    parts(X, Y, 2, 4, 'rgba(190,170,140,0.5)', 18, 900, 6, -6, 22);
+  }
+  TR.debris = function (x, y, color, o) {
     const c = isoC(x, y);
-    parts(c[0], c[1], 14, 18, color || '#888', 110, 900, 4, 380, 150);
-    parts(c[0], c[1], 10, 10, 'rgba(160,150,140,0.45)', 40, 1300, 12, -15, 20);
+    const mat = OMAT[o] || 'stone';
+    const cols = mat === 'brick' ? ['#a0583e', '#8a7f72', '#6e3e2a'] : (mat === 'metal' ? ['#4a5258', '#7a3a26', '#2a2e32'] : (mat === 'wood' ? ['#8a6539', '#5e4424', '#a07a48'] : [color || '#888', '#7a746c', '#5a554e']));
+    for (let k = 0; k < 3; k++) parts(c[0], c[1], 18, 7, cols[k], 130, 1100, 5.5, 420, 190);
+    parts(c[0], c[1], 10, 14, 'rgba(160,150,140,0.5)', 50, 2200, 14, -10, 22);
+    if (mat === 'metal') { parts(c[0], c[1], 20, 14, '#fff2b0', 170, 380, 1.8, 420, 120); for (let k = 0; k < 5; k++) fx.parts.push({ x: c[0] + (Math.random() - 0.5) * 20, y: c[1], z: 14, vx: (Math.random() - 0.5) * 8, vy: 0, vz: 16 + Math.random() * 10, t0: now(), life: 3200, color: 'rgba(40,36,34,0.45)', size: 12 + Math.random() * 10, grav: -6 }); }
+    TR.shake = Math.max(TR.shake || 0, 5);
   };
   TR.explosionFx = function (x, y, r) {
     const c = isoC(x, y);
@@ -1456,13 +1495,15 @@
     parts(c[0], c[1], 10, 26, '#ff5a1f', 120 * r, 700, 6, 200, 160);
     parts(c[0], c[1], 8, 18, '#3a3028', 140 * r, 1400, 4, 420, 260);
     for (let k = 0; k < 16; k++) fx.parts.push({ x: c[0] + (Math.random() - 0.5) * 30 * r, y: c[1] + (Math.random() - 0.5) * 14 * r, z: 6 + Math.random() * 20, vx: (Math.random() - 0.5) * 16, vy: (Math.random() - 0.5) * 6, vz: 18 + Math.random() * 26, t0: now(), life: 2600 + Math.random() * 1600, color: 'rgba(60,54,48,0.42)', size: 14 + Math.random() * 16, grav: -6 });
+    for (let k = 0; k < 10; k++) fx.parts.push({ x: c[0] + (Math.random() - 0.5) * 50 * r, y: c[1] + (Math.random() - 0.5) * 24 * r, z: 4 + Math.random() * 10, vx: 5 + Math.random() * 8, vy: (Math.random() - 0.5) * 3, vz: 2 + Math.random() * 4, t0: now() + 300, life: 6500 + Math.random() * 3000, color: 'rgba(120,112,104,0.42)', size: 24 + Math.random() * 20, grav: -1 });
     TR.shake = 12;
     flashScr = now();
   };
   let flashScr = -1e9;
-  TR.chips = function (x, y, color) {
+  TR.chips = function (x, y, color, o) {
     const c = isoC(x, y);
-    parts(c[0], c[1], 18, 6, color || '#888', 70, 600, 2.5, 380, 90);
+    if (o) impact(c[0], c[1] - 2, OMAT[o] || 'stone', true);
+    else parts(c[0], c[1], 18, 6, color || '#888', 70, 600, 2.5, 380, 90);
   };
   function muzzle(u) {
     const c = uPos(u);
@@ -1517,8 +1558,9 @@
       if (W.snd === 'shotgun') for (let k = 0; k < 7; k++) fx.tracers.push({ x1: m[0], y1: m[1], x2: ex + (Math.random() - 0.5) * 30, y2: ey + (Math.random() - 0.5) * 20, t0: t0, life: 110, color: col, w: 1.2 });
       if (!hit && !suppress) {
         setTimeout(function () {
-          if (cover) { parts(ex, ey + 18, 18, 7, '#fff2b0', 120, 260, 2, 300, 60); parts(ex, ey + 18, 18, 5, 'rgba(170,160,150,0.8)', 50, 600, 3, 300, 40); }
-          else parts(ex, ey + 20, 6, 5, 'rgba(200,180,150,0.7)', 40, 400, 3, 200, 40);
+          const Bb = DW.BT.get();
+          if (cover && Bb) impact(ex, ey + 18, OMAT[Bb.obj[cover[1] * Bb.w + cover[0]]] || 'stone', false);
+          else groundKick(ex, ey + 20);
         }, rt(pre + i * gap + 100 / s));
       }
     }
@@ -2313,11 +2355,18 @@
           const o = B.obj[i];
           if (o) {
             const sp = objSprite(o, maskAt(B, x, y, o), Math.floor(U.hash2(x, y, o) * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5);
+            let cut = false;
+            if (D.OBJ[o].lift > 0.45 && o !== 15) {
+              const behind = function (xx, yy) { const us2 = xx >= 0 && yy >= 0 ? unitsAt[yy * B.w + xx] : null; return us2 && us2.some(function (uu) { return uu.side === 'p' || uu === ov.target; }); };
+              cut = behind(x - 1, y) || behind(x, y - 1) || behind(x - 1, y - 1);
+            }
+            if (cut) g.globalAlpha = 0.42;
             const sway = o === 5 ? Math.sin(t / 900 + x * 1.3 + y) * 0.035 : 0;
             if (o === 16) { const c0 = isoC(x, y); const k = 1 + Math.sin(t / 420 + x * 2 + y) * 0.05; g.save(); g.translate(c0[0], c0[1]); g.scale(1 + (k - 1) * 0.5, k); g.translate(-c0[0], -c0[1]); }
             if (sway) { const c0 = isoC(x, y); g.save(); g.translate(c0[0], c0[1]); g.transform(1, 0, sway, 1, 0, 0); g.translate(-c0[0], -c0[1]); }
             const c = isoC(x, y);
             g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
+            if (cut) g.globalAlpha = 1;
             if (sway) g.restore();
             if (o === 16) g.restore();
             if (o === 15) {
@@ -2487,6 +2536,11 @@
       const showBar = u.side === 'e' || u.kind === 'turret' || ov.sel === u || u.hp < u.maxHp || (ov.allies && ov.allies.indexOf(u) >= 0);
       if (showBar) hpBar(g, u, c[0], Y);
       statusIcons(g, u, c[0], Y - 10);
+      const cvl = coverLevel(u);
+      if (cvl && !u.hunker) {
+        const bw = showBar ? Math.min(70, u.maxHp * 5.4) / 2 + 12 : 0;
+        shield(g, c[0] - bw - (showBar ? 2 : 0), showBar ? Y + 2 : Y + 2, cvl === 2, u.side === 'p' ? (cvl === 2 ? '#5ab4ff' : '#9fd3ff') : (cvl === 2 ? '#ff7a5a' : '#ffb09a'));
+      }
       if (u.side === 'e' && !u.active) { g.fillStyle = '#cfc7b8'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('?', c[0] + 24, Y + 5); }
     });
 
@@ -2562,10 +2616,14 @@
     fx.floats.forEach(function (f) {
       const kk = (t - f.t0) / f.life;
       g.globalAlpha = kk > 0.7 ? (1 - kk) / 0.3 : 1;
-      g.font = (f.big ? 'bold 18px' : 'bold 14px') + ' sans-serif'; g.textAlign = 'center';
-      const Y = f.y - kk * 34;
-      g.lineWidth = 3.5; g.strokeStyle = 'rgba(0,0,0,0.85)'; g.strokeText(f.text, f.x, Y);
-      g.fillStyle = f.color; g.fillText(f.text, f.x, Y);
+      const pop = kk < 0.1 ? 1.7 - kk / 0.1 * 0.7 : 1;
+      const Y = f.y - (kk < 0.1 ? 0 : (kk - 0.1) * 38);
+      g.save(); g.translate(f.x, Y); g.scale(pop, pop);
+      g.font = (f.big ? '900 19px' : 'bold 14px') + ' sans-serif'; g.textAlign = 'center';
+      g.lineJoin = 'round'; g.lineWidth = f.big ? 5 : 3.8; g.strokeStyle = f.big ? 'rgba(70,10,0,0.95)' : 'rgba(0,0,0,0.85)'; g.strokeText(f.text, 0, 0);
+      g.fillStyle = f.color; g.fillText(f.text, 0, 0);
+      if (f.big) { g.fillStyle = 'rgba(255,255,220,0.55)'; g.fillText(f.text, 0, -1); }
+      g.restore();
     });
     g.globalAlpha = 1;
     // атмосфера: виньетка

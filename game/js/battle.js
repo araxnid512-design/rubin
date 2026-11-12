@@ -373,12 +373,12 @@
     const o = B.obj[i];
     if (!o) return;
     B.objHp[i] -= dmg;
-    DW.TR.chips(x, y, D.OBJ[o].c);
+    DW.TR.chips(x, y, D.OBJ[o].c, o);
     if (B.objHp[i] <= 0) {
       B.obj[i] = 0; B.objHp[i] = 0;
       if (D.GROUND[B.ground[i]].walk) B.ground[i] = 8;
       DW.TR.tileChanged(x, y);
-      DW.TR.debris(x, y, D.OBJ[o].c);
+      DW.TR.debris(x, y, D.OBJ[o].c, o);
       DW.TR.decal(x, y, 'rubble', 1);
       if (o === 9) { (B.blasts = B.blasts || []).push([x, y]); B.decor.push({ x: x + 0.5, y: y + 0.5, t: 'fire', r: 0.5 }); DW.TR.refreshFires(); }
     }
