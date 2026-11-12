@@ -519,6 +519,40 @@
     "-o",
     "out/c_pris2_a.glb"
    ]
+  },
+  {
+   "id": "p4_c_heavy_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "a9c144e2-1eb1-4ef2-9c20-343a00ebe309",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_heavy_a.glb"
+   ]
+  },
+  {
+   "id": "p4_c_vest_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "32aa5246-c42d-4122-9048-0901c07cf957",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_vest_a.glb"
+   ]
   }
  ]
 }
