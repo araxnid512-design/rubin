@@ -23,7 +23,7 @@ const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4 }];
 const W = (id, file, len, grip, fore, gy, fy, my) => ({ id, src: file, len, grip, fore, gy, fy, my });
 // Оружие игры → модель (ствол к −Z), длина, хват (доли от приклада), высоты точек (доли высоты)
 const WEAPONS = [
-  W('ppsh', DW + 'w_ppsh2.glb', 0.84, 0.36, 0.58, 0.55, 0.72, 0.85),
+  W('ppsh', DW + 'w_ppsh2.glb', 0.84, 0.33, 0.58, 0.55, 0.72, 0.85),
   W('ak', S + 'w_ak47.glb', 0.88, 0.36, 0.58, 0.55, 0.72, 0.85),
   W('shotgun', S + 'w_spas12.glb', 1.0, 0.3, 0.6, 0.5, 0.62, 0.85),
   W('sniper', S + 'w_svd.glb', 1.22, 0.32, 0.55, 0.5, 0.7, 0.85),
