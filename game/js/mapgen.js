@@ -392,7 +392,7 @@
       setO(mm, 1, cy + 5, 4); setO(mm, 2, cy + 5, 4);
     };
     m.itemList = [{ kind: 'gems', amt: U.rand(3, 5) }, { kind: 'gems', amt: U.rand(3, 5) }, { kind: 'ammo', amt: U.rand(15, 25) }];
-    props(m, 'tuft', 14); props(m, 'bush', 6); props(m, 'skull', 2); props(m, 'bones', 3, 6);
+    props(m, 'tuft', 14); props(m, 'bush', 6); props(m, 'skull', 2); props(m, 'bones', 3, 6); props(m, 'bricks', 2, 6); decor(m, 'puddle', 2, 4);
     heights(m, 0.11, 0.6, 0.8, 6); if (Math.random() < 0.6) prefab(m, 'convoy', 8);
     return m;
   };
@@ -420,6 +420,7 @@
       { kind: 'food', amt: U.rand(4, 8) }, { kind: 'ammo', amt: U.rand(15, 30) }
     ];
     props(m, 'tuft', 10); props(m, 'pipe', 5); props(m, 'sign', 3); props(m, 'bush', 4);
+    props(m, 'tire', 3); props(m, 'bricks', 5); props(m, 'can', 3); props(m, 'papers', 4); props(m, 'rebar', 2); decor(m, 'puddle', 3);
     heights(m, 0.13, 0.68, 0.9, 6); prefab(m, U.pick(['gas', 'checkpoint', 'pillbox']), 8, 3);
     return m;
   };
@@ -433,7 +434,7 @@
     const d = o.diff || 1;
     const n = U.rand(7, 9);
     for (let i = 0; i < n; i++) m.itemList.push({ kind: 'gems', amt: U.rand(2, 4) + d });
-    props(m, 'shards', 14, 4); props(m, 'bush', 3); props(m, 'skull', 2, 6);
+    props(m, 'shards', 14, 4); props(m, 'bush', 3); props(m, 'skull', 2, 6); props(m, 'stalag', 3, 4);
     heights(m, 0.12, 0.52, 0.74, 5);
     return m;
   };
@@ -470,6 +471,7 @@
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }
     ];
     props(m, 'tuft', 8); props(m, 'bones', 3); props(m, 'sign', 2, 8); props(m, 'pipe', 2);
+    props(m, 'tire', 3); props(m, 'can', 4); props(m, 'papers', 3); props(m, 'bricks', 2);
     heights(m, 0.12, 0.66, 0.9, 6); raise(m, 15, 5, 23, 13, 1); if (Math.random() < 0.6) prefab(m, 'outpost', 7);
     return m;
   };
@@ -518,7 +520,7 @@
       { kind: 'gems', amt: U.rand(6, 10) + d }, { kind: 'gems', amt: U.rand(6, 10) + d }, { kind: 'gems', amt: U.rand(6, 10) + d },
       { kind: 'gems', amt: U.rand(5, 8) + d }, { kind: 'meds', amt: 2 }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'materials', amt: U.rand(4, 7) }
     ];
-    props(m, 'pipe', 7, 7); props(m, 'bones', 2, 7); props(m, 'tuft', 5, 0);
+    props(m, 'pipe', 7, 7); props(m, 'bones', 2, 7); props(m, 'tuft', 5, 0); props(m, 'papers', 4, 5); props(m, 'rebar', 2, 5); props(m, 'can', 2, 5);
     return m;
   };
   GEN.site = function (o) {
@@ -546,7 +548,7 @@
       { kind: 'materials', amt: U.rand(5, 8) }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'food', amt: U.rand(5, 8) },
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }
     ];
-    props(m, 'tuft', 12); props(m, 'bush', 5); props(m, 'sign', 2);
+    props(m, 'tuft', 12); props(m, 'bush', 5); props(m, 'sign', 2); props(m, 'bricks', 3); props(m, 'tire', 2); props(m, 'can', 2);
     heights(m, 0.12, 0.62, 0.9, 6); raise(m, 14, 3, 24, 14, 1); raise(m, 16, 5, 16, 5, 2); raise(m, 22, 12, 22, 12, 2);
     return m;
   };
@@ -615,7 +617,7 @@
     m.turrets = tur;
     for (let y = 0; y < m.h; y++) { m.spawn.push([m.w - 1, y]); m.spawn.push([m.w - 2, y]); }
     for (let x = 20; x < m.w - 2; x++) { m.spawn.push([x, 0]); m.spawn.push([x, m.h - 1]); }
-    props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18);
+    props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18); props(m, 'can', 3); props(m, 'tire', 2); props(m, 'bricks', 3);
     raise(m, 3, 4, 17, 15, 1);
     return m;
   };
@@ -635,7 +637,7 @@
     raise(m, x0 + 1, y0 + 1, x0 + w - 2, y0 + 1, 1); raise(m, x0 + 1, y0 + h - 2, x0 + w - 2, y0 + h - 2, 1);
     scatter(m, 18, 4, 6, x0 - 1); scatter(m, 9, 4, 5); scatter(m, 4, 4, 5); lines(m, 1, 2, 5);
     prefab(m, 'depot', 18);
-    props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0);
+    props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0); props(m, 'tire', 3); props(m, 'can', 4); props(m, 'rebar', 4); props(m, 'papers', 3); decor(m, 'puddle', 4);
     decor(m, 'crack', 12); decor(m, 'scorch', 4, 8);
     const d = o.diff || 1;
     m.itemList = [{ kind: 'materials', amt: U.rand(5, 9) }, { kind: 'materials', amt: U.rand(5, 9) }, { kind: 'ammo', amt: U.rand(20, 35) }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'meds', amt: 1 }];
@@ -646,7 +648,7 @@
     groundNoise(m, [[0.42, 1], [0.7, 2], [1, 0]]);
     heights(m, 0.1, 0.55, 0.78, 5);
     scatter(m, 5, 34, 5); scatter(m, 19, 9, 5); for (let i = 0; i < 4; i++) cluster(m, U.rand(7, m.w - 2), U.rand(1, m.h - 2), U.rand(2, 4), 3);
-    props(m, 'bush', 16); props(m, 'tuft', 14); props(m, 'bones', 4, 6); props(m, 'skull', 2, 8);
+    props(m, 'bush', 16); props(m, 'tuft', 14); props(m, 'bones', 4, 6); props(m, 'skull', 2, 8); props(m, 'stump', 6); decor(m, 'puddle', 3);
     decor(m, 'grass', 16); decor(m, 'crack', 6);
     const d = o.diff || 1;
     m.itemList = [{ kind: 'food', amt: U.rand(6, 10) }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'ammo', amt: U.rand(10, 20) }];
@@ -658,7 +660,7 @@
     groundNoise(m, [[0.55, 5], [0.85, 1], [1, 5]]);
     heights(m, 0.13, 0.6, 0.85, 6);
     scatter(m, 20, 12, 5);
-    props(m, 'shards', 16, 4); props(m, 'bones', 4, 5); props(m, 'shroom', 4, 5);
+    props(m, 'shards', 16, 4); props(m, 'bones', 4, 5); props(m, 'shroom', 4, 5); props(m, 'stalag', 8, 3);
     decor(m, 'crystal', 30, 4);
     const d = o.diff || 1;
     const n = U.rand(8, 10);
@@ -670,7 +672,7 @@
     groundNoise(m, [[0.42, 6], [0.62, 1], [1, 2]]);
     for (let i = 0; i < 11; i++) pool(m, U.rand(6, m.w - 2), U.rand(1, m.h - 2), U.rand(5, 11), 7);
     scatter(m, 5, 10, 5); scatter(m, 16, 6, 6); scatter(m, 19, 4, 5); for (let i = 0; i < 3; i++) cluster(m, U.rand(8, m.w - 2), U.rand(1, m.h - 2), U.rand(2, 4), 3);
-    props(m, 'reeds', 22, 3); props(m, 'bones', 6, 5); props(m, 'shroom', 5, 5);
+    props(m, 'reeds', 22, 3); props(m, 'bones', 6, 5); props(m, 'shroom', 5, 5); props(m, 'stump', 4); decor(m, 'puddle', 6);
     decor(m, 'blood', 4, 8); decor(m, 'veins', 6, 6);
     m.anchor = { x: 22, y: 9 };
     const d = o.diff || 1;
