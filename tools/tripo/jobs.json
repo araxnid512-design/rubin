@@ -468,6 +468,57 @@
     "--prompt",
     "WW2 Soviet PPSh-41 submachine gun: big round flat drum magazine (disc) mounted under the receiver in front of the trigger guard, full wooden rifle-style stock, perforated cylindrical barrel jacket with rows of round holes, short barrel, no pistol grip, side view, single piece, no hands, realistic style, worn, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
    ]
+  },
+  {
+   "id": "p4_c_marlboro_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "98fe2dd1-c670-42fd-a9c6-c1eb955b14d1",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_marlboro_a.glb"
+   ]
+  },
+  {
+   "id": "p4_c_pris1_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "8a086e90-fae8-4ad3-99f2-eaf65cfd495e",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_pris1_a.glb"
+   ]
+  },
+  {
+   "id": "p4_c_pris2_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "dcab548c-447b-4039-b279-432ec86c678d",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_pris2_a.glb"
+   ]
   }
  ]
 }

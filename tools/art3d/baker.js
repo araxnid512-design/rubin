@@ -144,6 +144,7 @@ async function prop(spec) {
   const s = shoot(fr, ss);
   scene.remove(holder);
   let c = outline(s.c, ss, 0.7);
+  if (spec.raw) return { c, ax: s.ax, ay: s.ay };
   const t = trim(c);
   const size = b.getSize(new THREE.Vector3());
   return { png: t.c.toDataURL('image/png'), w: t.w, h: t.h, ax: s.ax - t.x, ay: s.ay - t.y, ss, size: [size.x / TILE_M, size.z / TILE_M, size.y] };
@@ -157,9 +158,10 @@ async function nodes(src) {
 
 window.BK = { prop, nodes, load, C, CAMDIR, THREE, SkeletonUtils, scene, cam, renderer, shoot, frameFor, outline, trim, camSpace, PPM, TILE_M, ready: true };
 
-/* ---------- Люди: кадры анимаций по направлениям ----------
-   spec: { clipSrc, body, height, weapon:{src,grip,fore,len,gy,fy,my}|null,
-           anims:[{key, clip, n, t0, t1, loop}], dirs:[0..7] (направление клетки ×45°), ss, layers:'one'|'split' } */
+/* ---------- Люди и существа: кадры анимаций по 8 направлениям ----------
+   Тела людей двигаются клипами героя «Стикса» (скелет Mixamo, клипы с винтовкой), перенесёнными на их скелет;
+   существа — своими клипами Tripo. Оружие — отдельный слой: та же поза, тело пишет только глубину (прячет
+   ствол за собой), контур оружия не заходит на тело. */
 const bodies = {};
 async function getRig(url, h) {
   const key = url + '|' + h;
@@ -168,89 +170,186 @@ async function getRig(url, h) {
   const b = C.makeBody(gl, h);
   b.gl = gl;
   b.mixer = new THREE.AnimationMixer(b.root);
+  b.meshes = []; b.root.traverse((m) => { if (m.isMesh) b.meshes.push(m); });
   bodies[key] = b;
   return b;
 }
-function poseSrc(src, clipName, t) {
-  const clip = src.gl.animations.find((a) => a.name === clipName);
-  if (!clip) throw new Error('нет клипа ' + clipName);
-  src.mixer.stopAllAction();
-  const act = src.mixer.clipAction(clip);
+function findClip(rig, name) {
+  const lc = name.toLowerCase();
+  return rig.gl.animations.find((a) => a.name === name) || rig.gl.animations.find((a) => a.name.toLowerCase() === lc) ||
+    rig.gl.animations.find((a) => a.name.toLowerCase().indexOf(lc) >= 0);
+}
+function poseRig(rig, clipName, t, keepRoot) {
+  const clip = findClip(rig, clipName);
+  if (!clip) throw new Error('нет клипа ' + clipName + ' (' + rig.gl.animations.map((a) => a.name).join(',') + ')');
+  rig.mixer.stopAllAction();
+  const act = rig.mixer.clipAction(clip);
   act.reset(); act.play();
-  src.mixer.setTime(Math.min(t, clip.duration - 1e-3));
-  // без смещения корня по земле
-  const hp = src.B.Hips; hp.position.x = src.rest.Hips.p.x; hp.position.z = src.rest.Hips.p.z;
-  src.holder.updateMatrixWorld(true);
+  rig.mixer.setTime(Math.min(Math.max(0, t), clip.duration - 1e-3));
+  if (!keepRoot) { const hp = rig.B.Hips; hp.position.x = rig.rest.Hips.p.x; hp.position.z = rig.rest.Hips.p.z; }
+  rig.holder.updateMatrixWorld(true);
   return clip;
 }
-async function bakeChar(spec) {
+/* присед: бёдра ниже на drop метров, стопы остаются на месте (IK ног), колени — вперёд */
+function crouch(rig, drop) {
+  const B = rig.B;
+  const feet = ['Left', 'Right'].map((s) => B[s + 'Foot'].getWorldPosition(new THREE.Vector3()));
+  const hp = B.Hips.getWorldPosition(new THREE.Vector3()); hp.y -= drop;
+  B.Hips.position.copy(B.Hips.parent.worldToLocal(hp));
+  // наклон корпуса вперёд
+  const sp = B.Spine;
+  if (sp) { sp.rotateX(drop * 0.55); }
+  rig.holder.updateMatrixWorld(true);
+  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(rig.holder.getWorldQuaternion(new THREE.Quaternion()));
+  ['Left', 'Right'].forEach((s, i) => {
+    const knee = B[s + 'Leg'].getWorldPosition(new THREE.Vector3()).addScaledVector(fwd, 0.6);
+    C.ik2(B[s + 'UpLeg'], B[s + 'Leg'], B[s + 'Foot'], feet[i], knee);
+  });
+}
+const WCAL = {};
+function weaponOff(dst, src, rt, wpn, calib) {
+  dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+  poseRig(src, calib || 'IdleRifle', 0);
+  if (rt) rt();
+  const R = C.palm(dst.B, 'Right'), L = C.palm(dst.B, 'Left');
+  const zAx = R.clone().sub(L).normalize();
+  const yAx = new THREE.Vector3(0, 1, 0); yAx.addScaledVector(zAx, -yAx.dot(zAx)).normalize();
+  const xAx = new THREE.Vector3().crossVectors(yAx, zAx);
+  const W = new THREE.Matrix4().makeBasis(xAx, yAx, zAx).setPosition(R);
+  const hand = dst.B.RightHand;
+  const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
+  return HM.invert().multiply(W);
+}
+function placeWeapon(dst, wpn, off, an) {
+  const hand = dst.B.RightHand;
+  const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
+  HM.multiply(off).decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
+  wpn.g.updateMatrixWorld(true);
+  if (!an.noIK) {
+    const fore = wpn.fore.clone().applyMatrix4(wpn.g.matrixWorld);
+    const L = C.palm(dst.B, 'Left');
+    if (L.distanceTo(fore) < (an.ikR || 0.3)) {
+      const B = dst.B; const wrist = B.LeftHand.getWorldPosition(new THREE.Vector3()).add(fore.clone().sub(L));
+      const pole = B.LeftForeArm.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.35, 0));
+      C.ik2(B.LeftArm, B.LeftForeArm, B.LeftHand, wrist, pole);
+    }
+  }
+}
+function setColor(rig, on) { rig.meshes.forEach((m) => { (Array.isArray(m.material) ? m.material : [m.material]).forEach((mt) => { mt.colorWrite = on; }); }); }
+
+/* spec: { kind:'human'|'creature', clipSrc, body, height, weapon, layer:'body'|'weapon', anims:[{key,clip,n,t0,t1,loop,crouch,noIK}], ss, box } */
+async function frames(spec) {
   const ss = spec.ss || 2;
-  const src = await getRig(spec.clipSrc, 1.8);
-  const same = spec.body === spec.clipSrc && (spec.height || 1.8) === 1.8;
-  const dst = same ? src : await getRig(spec.body, spec.height || 1.8);
-  const rt = same ? null : C.makeRetarget(src, dst);
+  const H = spec.height || 1.8;
+  const dst = await getRig(spec.body, H);
+  if (spec.more) {
+    // клипы из второго файла того же скелета (движения Tripo приходят двумя файлами)
+    const g2 = await load(spec.more);
+    const have = new Set(dst.gl.animations.map((a) => a.name));
+    g2.animations.forEach((a) => { if (!have.has(a.name)) dst.gl.animations.push(a); });
+  }
+  const src = spec.clipSrc && spec.clipSrc !== spec.body ? await getRig(spec.clipSrc, 1.8) : dst;
+  const rt = src === dst ? null : C.makeRetarget(src, dst);
   let wpn = null, off = null;
   if (spec.weapon) {
-    const wg = await load(spec.weapon.src);
-    wpn = C.makeWeapon(wg, spec.weapon);
-    // калибровка хвата по кадру «стойка с винтовкой»: правая ладонь — рукоять, ствол — к левой ладони
-    dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
-    poseSrc(src, spec.calib || 'IdleRifle', spec.calibT || 0);
-    if (rt) rt();
-    const R = C.palm(dst.B, 'Right'), L = C.palm(dst.B, 'Left');
-    const zAx = R.clone().sub(L).normalize();
-    const yAx = new THREE.Vector3(0, 1, 0); yAx.addScaledVector(zAx, -yAx.dot(zAx)).normalize();
-    const xAx = new THREE.Vector3().crossVectors(yAx, zAx);
-    const W = new THREE.Matrix4().makeBasis(xAx, yAx, zAx).setPosition(R);
-    const hand = dst.B.RightHand;
-    const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
-    off = HM.clone().invert().multiply(W);
-    scene.add(wpn.g);
+    wpn = C.makeWeapon(await load(spec.weapon.src), spec.weapon);
+    off = weaponOff(dst, src, rt, wpn, spec.calib);
   }
-  scene.add(dst.holder);
   const out = [];
-  const box = new THREE.Box3(new THREE.Vector3(-1.1, -0.05, -1.1), new THREE.Vector3(1.1, 2.05, 1.1));
+  const R = spec.box || [1.1, 2.05];
+  const box = new THREE.Box3(new THREE.Vector3(-R[0] * H / 1.8, -0.05, -R[0] * H / 1.8), new THREE.Vector3(R[0] * H / 1.8, R[1] * H / 1.8, R[0] * H / 1.8));
+  scene.add(dst.holder);
+  const showW = wpn && spec.layer !== 'body';
+  if (showW) scene.add(wpn.g);
+  setColor(dst, spec.layer !== 'weapon');
   for (const an of spec.anims) {
+    const clip = findClip(src, an.clip);
+    if (!clip) throw new Error('нет клипа ' + an.clip);
+    const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? Math.min(an.t1, clip.duration) : clip.duration;
     for (let i = 0; i < an.n; i++) {
-      const clip = src.gl.animations.find((a) => a.name === an.clip);
-      const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? an.t1 : clip.duration;
       const t = an.n === 1 ? t0 : t0 + (t1 - t0) * (an.loop ? i / an.n : i / (an.n - 1));
-      for (const d of spec.dirs) {
-        // поза переносится при нулевом повороте тела, затем тело разворачивается целиком
+      for (let d = 0; d < 8; d++) {
         dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
-        poseSrc(src, an.clip, t);
+        poseRig(src, an.clip, t);
         if (rt) rt();
-        const ang = d * Math.PI / 4; // клетка: x → X, y → Z; лицо модели — +Z
+        if (an.crouch) crouch(dst, an.crouch * H / 1.8);
+        const ang = d * Math.PI / 4;
         dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang));
         dst.holder.updateMatrixWorld(true);
-        if (wpn) {
-          const hand = dst.B.RightHand;
-          const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
-          const M = HM.multiply(off);
-          M.decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
-          wpn.g.updateMatrixWorld(true);
-          if (spec.ikLeft !== false && !an.noIK) {
-            const fore = wpn.fore.clone().applyMatrix4(wpn.g.matrixWorld);
-            const L = C.palm(dst.B, 'Left');
-            if (L.distanceTo(fore) < (an.ikR || 0.25)) {
-              const B = dst.B; const shift = fore.clone().sub(L);
-              const wrist = B.LeftHand.getWorldPosition(new THREE.Vector3()).add(shift);
-              const elbowPole = B.LeftForeArm.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.3, 0));
-              C.ik2(B.LeftArm, B.LeftForeArm, B.LeftHand, wrist, elbowPole);
-            }
-          }
-        }
+        if (wpn) placeWeapon(dst, wpn, off, an);
         const fr = frameFor(box, 0.05);
         const s = shoot(fr, ss);
-        const oc = outline(s.c, ss, 0.8);
-        const tr = trim(oc);
-        out.push({ key: an.key, i, d, png: tr.c.toDataURL('image/png'), w: tr.w, h: tr.h, ax: s.ax - tr.x, ay: s.ay - tr.y });
+        let c;
+        if (spec.layer === 'weapon') {
+          // контур оружия — только вне силуэта тела
+          setColor(dst, true); scene.remove(wpn.g);
+          const sb = shoot(fr, ss).c;
+          setColor(dst, false); scene.add(wpn.g);
+          const o = outline(s.c, ss, 0.8);
+          const g = o.getContext('2d');
+          g.globalCompositeOperation = 'destination-out'; g.drawImage(sb, 0, 0);
+          g.globalCompositeOperation = 'source-over'; g.drawImage(s.c, 0, 0);
+          c = o;
+        } else c = outline(s.c, ss, 0.85);
+        let mz = null;
+        if (wpn) {
+          const m = camSpace(wpn.muzzle.clone().applyMatrix4(wpn.g.matrixWorld));
+          const o = camSpace(new THREE.Vector3(0, 0, 0));
+          mz = [Math.round((m.x - o.x) * PPM * ss * 10) / 10, Math.round(-(m.y - o.y) * PPM * ss * 10) / 10];
+        }
+        out.push({ k: an.key, i, d, c, ax: s.ax, ay: s.ay, mz });
       }
     }
   }
+  setColor(dst, true);
   scene.remove(dst.holder);
-  if (wpn) scene.remove(wpn.g);
+  if (showW) scene.remove(wpn.g);
   return out;
 }
-window.BK.bakeChar = bakeChar;
-window.BK.getRig = getRig;
+
+/* Упаковка кадров в страницы атласа (полками), обрезка по непрозрачному */
+function pack(list, page) {
+  page = page || 2048;
+  const items = list.map((f) => { const t = trim(f.c); return Object.assign({}, f, { t }); });
+  const order = items.slice().sort((a, b) => b.t.h - a.t.h);
+  const pages = []; let pg = null, x = 0, y = 0, rowH = 0;
+  function newPage() { pg = document.createElement('canvas'); pg.width = page; pg.height = page; pages.push(pg); x = 0; y = 0; rowH = 0; }
+  newPage();
+  for (const it of order) {
+    const w = it.t.w + 2, h = it.t.h + 2;
+    if (x + w > page) { x = 0; y += rowH; rowH = 0; }
+    if (y + h > page) newPage();
+    pg.getContext('2d').drawImage(it.t.c, x + 1, y + 1);
+    it.rect = [pages.length - 1, x + 1, y + 1, it.t.w, it.t.h, Math.round((it.ax - it.t.x) * 10) / 10, Math.round((it.ay - it.t.y) * 10) / 10];
+    if (it.mz) it.rect.push(it.mz[0], it.mz[1]);
+    x += w; rowH = Math.max(rowH, h);
+  }
+  // последняя страница — по высоте занятого
+  const last = pages[pages.length - 1];
+  const usedH = Math.min(page, y + rowH);
+  if (usedH < page) { const c = document.createElement('canvas'); c.width = page; c.height = Math.max(4, usedH); c.getContext('2d').drawImage(last, 0, 0); pages[pages.length - 1] = c; }
+  return { pages, items };
+}
+
+/* Набор: кадры → атлас (webp) + описание */
+async function bakeSet(spec) {
+  let list;
+  if (spec.kind === 'prop') {
+    list = [];
+    for (let v = 0; v < spec.variants.length; v++) {
+      const r = await propCanvas(spec.variants[v]);
+      list.push({ k: 'v', i: v, d: 0, c: r.c, ax: r.ax, ay: r.ay });
+    }
+  } else list = await frames(spec);
+  const p = pack(list, spec.page || 2048);
+  const anims = {};
+  (spec.anims || [{ key: 'v', n: spec.variants ? spec.variants.length : 1 }]).forEach((a) => { anims[a.key] = { n: a.n, loop: !!a.loop, fps: a.fps || 0 }; });
+  const F = {};
+  p.items.forEach((it) => { (F[it.k] = F[it.k] || []); F[it.k][it.i * (spec.kind === 'prop' ? 1 : 8) + it.d] = it.rect; });
+  return { ss: spec.ss || 2, dirs: spec.kind === 'prop' ? 1 : 8, anims, frames: F, pages: p.pages.map((c) => c.toDataURL('image/webp', spec.q || 0.9)) };
+}
+async function propCanvas(spec) {
+  const r = await prop(Object.assign({ raw: true }, spec));
+  return r;
+}
+window.BK.frames = frames; window.BK.bakeSet = bakeSet; window.BK.getRig = getRig; window.BK.pack = pack;

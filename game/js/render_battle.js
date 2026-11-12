@@ -1125,7 +1125,41 @@
     g.drawImage(ovTmp, 0, 0);
     g.restore();
   }
+  /* 3D-модель предмета (если запечена и загружена): копия кадра, тень мира и повреждения поверх */
+  function objSprite3d(type, variant, dark, damaged) {
+    const S3 = DW.S3, id = 'p_obj' + type;
+    if (!S3 || !S3.ready(id)) return null;
+    const n = S3.count(id, 'v');
+    if (!n) return null;
+    const key = '3d_' + type + '_' + variant + (damaged ? '_d' : '') + (dark ? '_k' : '');
+    let s = sprites[key];
+    if (s) return s;
+    const f = S3.frame([[id, 'v', variant % n, 0]]);
+    if (!f) return null;
+    const c = canvas(f.c.width, f.c.height);
+    const g = c.getContext('2d');
+    g.drawImage(f.c, 0, 0);
+    const kx = f.c.width / f.w;
+    if (damaged) {
+      const r = U.srng(type * 77 + variant * 13);
+      g.globalCompositeOperation = 'source-atop';
+      g.strokeStyle = 'rgba(20,14,10,0.7)'; g.lineWidth = 1.2 * kx;
+      for (let k = 0; k < 5; k++) {
+        let x = r() * c.width, y = r() * c.height * 0.8;
+        g.beginPath(); g.moveTo(x, y);
+        for (let j = 0; j < 4; j++) { x += (r() - 0.5) * 10 * kx; y += r() * 8 * kx; g.lineTo(x, y); }
+        g.stroke();
+      }
+      g.fillStyle = 'rgba(0,0,0,0.14)'; g.fillRect(0, 0, c.width, c.height);
+      g.globalCompositeOperation = 'source-over';
+    }
+    if (dark) { g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(12,10,8,0.58)'; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'source-over'; }
+    s = sprites[key] = { c: c, w: f.w, h: f.h, ox: f.ox, oy: f.oy, dark: null, d3: true };
+    return s;
+  }
   function objSprite(type, mask, variant, dark, damaged) {
+    const s3 = objSprite3d(type, variant, dark, damaged);
+    if (s3) return s3;
     const key = type + '_' + mask + '_' + variant + (damaged ? '_d' : '');
     let s = sprites[key];
     if (!s) {
@@ -1377,6 +1411,7 @@
   TR.quality = function () { return QL; };
   TR.init = function (B) {
     TR.applyQuality(true);
+    if (DW.S3) DW.S3.preload(B);
     frameCache.clear();
     sprites = {};
     unitCache = {};
@@ -1681,6 +1716,13 @@
   };
   function muzzle(u) {
     const c = uPos(u);
+    if (DW.S3) {
+      const S = DW.S3.setsFor(u);
+      if (S && S.weapon && DW.S3.ready(S.body)) {
+        const m = DW.S3.muzzleAt(S.weapon, 'shoot', 0, DW.S3.dir8(u.face));
+        if (m) return [c[0] + m[0], c[1] + m[1]];
+      }
+    }
     const f = u.face || 0;
     const sx = (Math.cos(f) - Math.sin(f)) * HW;
     const dir = sx >= 0 ? 1 : -1;
@@ -2031,6 +2073,53 @@
       g.translate(-fi.dir * b * 2, 0); g.rotate(-fi.dir * b * 1.5);
     }
   }
+  /* 3D-кадр юнита по его состоянию: ходьба/бег, выстрел, перезарядка, попадание, удар, стойка в укрытии */
+  function unit3d(u, an, tw, walk, running, t) {
+    const S3 = DW.S3;
+    if (!S3) return null;
+    const S = S3.setsFor(u);
+    if (!S || !S3.ready(S.body)) return null;
+    const d = S3.dir8(u.face);
+    if (S.kind === 'turret') return S3.frame([[S.body, 'v', d, 0]]);
+    const n = function (a) { return S3.count(S.body, a); };
+    const cre = S.kind === 'creature';
+    let anim = 'idle', i = 0;
+    const idleI = function () { const k = n('idle'); return k > 1 ? Math.floor(t / 520 + (u.id || 0) * 0.7) % k : 0; };
+    if (tw && tw.kind === 'step') {
+      anim = running && n('run') ? 'run' : 'walk';
+      const ph = (((walk || 0) / (Math.PI * 2)) % 1 + 1) % 1;
+      i = Math.floor(ph * n(anim));
+    } else if (an) {
+      const p = U.clamp(an.p, 0, 0.999);
+      switch (an.kind) {
+        case 'shoot': {
+          if (cre) { anim = 'atk'; i = Math.floor(p * n('atk')); break; }
+          const P = poseFor(u, an);
+          if (P.reload > 0 && n('reload')) { anim = 'reload'; i = Math.floor(U.clamp(P.reload, 0, 0.999) * n('reload')); }
+          else if (coverLevel(u) === 1 && n('crouchAim')) { anim = 'crouchAim'; }
+          else { anim = 'shoot'; i = P.recoil > 0.35 ? 1 : 0; }
+          break;
+        }
+        case 'reload': anim = 'reload'; i = Math.floor(p * n('reload')); break;
+        case 'hit': anim = 'hit'; i = p < 0.45 ? 0 : 1; break;
+        case 'throw': case 'atk': anim = cre ? 'atk' : 'melee'; i = Math.floor(p * n(anim)); break;
+        case 'charge': anim = n('run') ? 'run' : 'walk'; i = Math.floor(t / 80) % Math.max(1, n(anim)); break;
+        case 'shake': case 'sniff': anim = n('roar') ? 'roar' : 'idle'; i = n('roar') ? Math.floor(p * n('roar')) : idleI(); break;
+        case 'scan': case 'signal': anim = n('aim') ? 'aim' : 'idle'; break;
+        default: anim = 'idle'; i = idleI(); break;
+      }
+    } else if (!cre) {
+      if (u.hunker && n('hunker')) anim = 'hunker';
+      else if (u.overwatch && n('crouchAim')) anim = 'crouchAim';
+      else if (u.alive && coverLevel(u) === 1 && n('crouch')) anim = 'crouch';
+      else { anim = 'idle'; i = idleI(); }
+    } else { anim = 'idle'; i = idleI(); }
+    if (!n(anim)) { anim = n('idle') ? 'idle' : 'walk'; i = 0; }
+    i = Math.min(i, n(anim) - 1);
+    const L = [[S.body, anim, i, d]];
+    if (S.weapon && S3.ready(S.weapon)) L.push([S.weapon, anim, i, d]);
+    return S3.frame(L);
+  }
   function drawUnit(g, u, t, sel, alpha) {
     const c = uPos(u, true);
     const fi = faceInfo(u);
@@ -2065,8 +2154,9 @@
         for (let k = 0; k < 3; k++) { g.beginPath(); g.ellipse(c[0], c[1], 25, 12.5, 0, a + k * 2.09, a + k * 2.09 + 0.7); g.stroke(); }
       } else baseRing(g, u, c, sc / 1.13, t);
     }
-    let fr;
-    if (!tw && !an) fr = unitSprite(u, fi, sc, false);
+    let fr = unit3d(u, an, tw, walk, running, t);
+    if (fr) { /* 3D-кадр */ }
+    else if (!tw && !an) fr = unitSprite(u, fi, sc, false);
     else {
       const pose = poseFor(u, an);
       if (running) pose.run = 1;
@@ -2082,7 +2172,7 @@
     if (!ts) ts = turnS[u.id] = { dir: fi.dir, t0: -1e9 };
     if (ts.dir !== fi.dir) { ts.dir = fi.dir; ts.t0 = t; }
     const tk = U.clamp((t - ts.t0) / (170 / spd()), 0, 1);
-    const sx = tk < 1 ? 0.18 + 0.82 * U.ease(tk) : 1;
+    const sx = tk < 1 && !fr.d3 ? 0.18 + 0.82 * U.ease(tk) : 1;
     g.drawImage(fr.c, c[0] - fr.ox * sx, c[1] - fr.oy + bob, fr.w * sx, fr.h);
     if (!tw && !an && u.kind === 'soldier' && DW.G.smoker(u)) {
       const k = (t / 1600) % 1;
@@ -2128,6 +2218,18 @@
       ART.ell(g, c[0] - fi.dir * 10 * sc, c[1] + 1, 6 + 14 * pool * sc, 3 + 6 * pool * sc);
     }
     const an = curAnim(u, t);
+    const d3 = corpse3d(u, an);
+    if (d3) {
+      if (d3.rot) {
+        g.save(); g.translate(c[0], c[1]); g.rotate(d3.rot); g.scale(1, 1 - Math.abs(d3.rot) * 0.25);
+        g.drawImage(d3.fr.c, -d3.fr.ox, -d3.fr.oy, d3.fr.w, d3.fr.h); g.restore();
+      } else {
+        castShadow(g, c, d3.fr, sc / 1.13, d3.lying);
+        g.drawImage(d3.fr.c, c[0] - d3.fr.ox, c[1] - d3.fr.oy, d3.fr.w, d3.fr.h);
+      }
+      if (!(an && an.kind === 'die' && an.p < 1)) downedMark(g, u, c, t);
+      return;
+    }
     if (an && an.kind === 'die' && an.p < 1) {
       const fp = Math.round(an.p * 14) / 14;
       const fr = liveSprite(u, fi, null, sc, t, { hit: fp < 0.3 ? fp / 0.3 : 1 }, function (gg) { fallTransform(gg, u, fi, fp); }, 'f' + Math.round(fp * 14));
@@ -2138,6 +2240,30 @@
     const sp = unitSprite(u, fi, sc, true);
     castShadow(g, c, sp, sc / 1.13, true);
     g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
+    downedMark(g, u, c, t);
+  }
+  /* 3D-кадр падения/тела: клип гибели; у существ без него — опрокинутая стойка */
+  function corpse3d(u, an) {
+    const S3 = DW.S3;
+    if (!S3) return null;
+    const S = S3.setsFor(u);
+    if (!S || S.kind === 'turret' || !S3.ready(S.body)) return null;
+    const d = S3.dir8(u.face);
+    const p = an && an.kind === 'die' && an.p < 1 ? U.clamp(an.p, 0, 1) : 1;
+    const nd = S3.count(S.body, 'die');
+    if (nd) {
+      const i = Math.min(nd - 1, Math.floor(p * nd));
+      const L = [[S.body, 'die', i, d]];
+      if (S.weapon && S3.ready(S.weapon)) L.push([S.weapon, 'die', i, d]);
+      const fr = S3.frame(L);
+      return fr ? { fr: fr, lying: p > 0.5 } : null;
+    }
+    const fr = S3.frame([[S.body, S3.count(S.body, 'idle') ? 'idle' : 'walk', 0, d]]);
+    if (!fr) return null;
+    const side = d >= 2 && d <= 5 ? -1 : 1;
+    return { fr: fr, rot: side * 1.35 * U.ease(p), lying: true };
+  }
+  function downedMark(g, u, c, t) {
     if (u.kind === 'soldier' && (u.down > 0 || u.stable)) {
       // раненый: пульсирующий крест над телом
       const pl = 0.6 + Math.sin(t / 220) * 0.4;

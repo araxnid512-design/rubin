@@ -80,6 +80,9 @@ def main():
                            "-o", str(OUT / f"{a.id}_rig.glb")], timeout=1500)
         info["steps"].append(["rig", code])
         if code == 0:
+            # файл rig -o приходит без костей — скелет отдаёт только выгрузка с движением (готовые движения бесплатны)
+            if not a.anims:
+                a.anims = ["preset:biped:idle,preset:biped:walk"] if a.rig == "biped" else []
             for i, an in enumerate(a.anims):
                 suf = "abcdefgh"[i]
                 code, out = tripo(["process", "animate", pid, "--animations", an, "--rig-type", a.rig, "--timeout", "25m",
