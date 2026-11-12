@@ -61,6 +61,400 @@
     "account",
     "balance"
    ]
+  },
+  {
+   "id": "p2_bal0",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
+  },
+  {
+   "id": "p2_c_marlboro",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_marlboro",
+    "--faces",
+    "10000",
+    "--prompt",
+    "Russian male convict in his late 50s, stocky heavy build, short grey hair, thick grey walrus mustache, weathered tired face, faded orange prison jumpsuit, quilted padded vest over it, canvas ammo belt, worn black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_pris1",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_pris1",
+    "--faces",
+    "10000",
+    "--prompt",
+    "young lean male convict in his 20s, black knit beanie hat, narrow unshaven face, faded orange prison jumpsuit, canvas belt with pouches, worn black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_pris2",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_pris2",
+    "--faces",
+    "10000",
+    "--prompt",
+    "bald male convict in his 40s, full dark beard, broad shoulders, faded orange prison jumpsuit with rolled sleeves, canvas belt with pouches, worn black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_vest",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_vest",
+    "--faces",
+    "10000",
+    "--prompt",
+    "male convict soldier, faded orange prison jumpsuit under an olive drab military bulletproof plate carrier vest with magazine pouches, olive steel helmet, knee pads, black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_heavy",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_heavy",
+    "--faces",
+    "10000",
+    "--prompt",
+    "male soldier in heavy dark grey ballistic armor suit with large shoulder plates and armored helmet with visor, orange prison jumpsuit sleeves visible, heavy boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_exo",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_exo",
+    "--faces",
+    "10000",
+    "--prompt",
+    "male soldier wearing a salvaged mechanical exoskeleton frame with hydraulic pistons on legs and arms over dark blue-grey armor plates, orange jumpsuit underneath, combat helmet, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_marksman",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_marksman",
+    "--faces",
+    "10000",
+    "--prompt",
+    "wasteland bandit sniper in a hooded ragged camouflage cloak, face covered with a scarf, old goggles, leather boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_c_boss",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_boss",
+    "--faces",
+    "10000",
+    "--prompt",
+    "bandit warlord, tall muscular man in a long black leather coat with fur collar, steel chest plate, shaved head sides, scarred face, heavy boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p2_m_brute",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "m_brute",
+    "--faces",
+    "10000",
+    "--prompt",
+    "hulking mutant humanoid brute, grey-green leathery skin, massive long arms with huge fists, bony growths on shoulders and back, small head, torn rags, monster, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:slash,preset:biped:fall",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:angry_01,preset:biped:chop,preset:biped:turn"
+   ]
+  },
+  {
+   "id": "p2_m_spitter",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "m_spitter",
+    "--faces",
+    "10000",
+    "--prompt",
+    "emaciated hunched mutant humanoid with long thin limbs, pale grey skin, swollen glowing green acid sacs on its throat and back, wide toothy jaw, monster, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:shoot,preset:biped:fall",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:cast_a_spell,preset:biped:angry_01"
+   ]
+  },
+  {
+   "id": "p2_m_guardian",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "m_guardian",
+    "--faces",
+    "10000",
+    "--prompt",
+    "old Soviet bunker guard combat robot, bipedal humanoid, rusty olive armor plates, single glowing red eye lens, energy cannon instead of right forearm, heavy feet, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:shoot,preset:biped:hit_to_body_01,preset:biped:fall"
+   ]
+  },
+  {
+   "id": "p2_m_scav",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "m_scav",
+    "--faces",
+    "8000",
+    "--prompt",
+    "mutant scavenger dog-like beast on four legs, hairless grey skin with sores, exposed ribs, elongated jaws with sharp teeth, long thin legs, side view, monster, full body, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "quadruped",
+    "--anims",
+    "preset:quadruped:walk"
+   ]
+  },
+  {
+   "id": "p2_m_queen",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "m_queen",
+    "--faces",
+    "12000",
+    "--prompt",
+    "giant mutant insect queen, bloated pale egg sac abdomen, armored dark chitin plates, six thick legs, small head with mandibles, monster, full body, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "hexapod",
+    "--anims",
+    "preset:hexapod:walk"
+   ]
+  },
+  {
+   "id": "p2_w_kord",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "w_kord",
+    "--faces",
+    "3000",
+    "--prompt",
+    "Kord 12.7 mm Russian heavy machine gun with bipod and pistol grip, shoulder stock, worn black metal, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_w_ksvk",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "w_ksvk",
+    "--faces",
+    "3000",
+    "--prompt",
+    "KSVK 12.7 mm Russian anti-materiel bullpup sniper rifle with scope and long barrel with muzzle brake, worn black metal, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_w_rpg",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "w_rpg",
+    "--faces",
+    "3000",
+    "--prompt",
+    "RPG-7 rocket launcher with loaded grenade warhead, wooden heat guards, worn metal, side view, single piece, no hands, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_turret",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_turret",
+    "--faces",
+    "3000",
+    "--prompt",
+    "automatic sentry gun turret on a low tripod with a machine gun and ammo box, armored shield, worn olive metal, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_portal",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_portal",
+    "--faces",
+    "3000",
+    "--prompt",
+    "large ancient upright ring gate portal made of dark metal and stone on a low round platform, glowing cyan energy filling the ring, realistic style, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_tent",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_tent",
+    "--faces",
+    "2500",
+    "--prompt",
+    "small military canvas tent, olive drab, worn and patched, tied ropes and pegs, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_container",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_container",
+    "--faces",
+    "2500",
+    "--prompt",
+    "rusty red steel shipping container, dented, doors closed, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_deadtree",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_deadtree",
+    "--faces",
+    "2500",
+    "--prompt",
+    "dead leafless tree with twisted dry branches and thick gnarled trunk, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_boulder",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_boulder",
+    "--faces",
+    "2500",
+    "--prompt",
+    "large weathered grey granite boulder rock with cracks and lichen, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_rubble",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_rubble",
+    "--faces",
+    "2500",
+    "--prompt",
+    "pile of broken concrete rubble and bricks with bent rebar, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_chitin",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_chitin",
+    "--faces",
+    "2500",
+    "--prompt",
+    "organic mutant chitin growth mound, purple-brown spiky shell plates and fleshy sacs, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_log",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_log",
+    "--faces",
+    "2500",
+    "--prompt",
+    "fallen dead tree trunk log lying on the ground, broken branches, cracked bark, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_e_generator",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "e_generator",
+    "--faces",
+    "2500",
+    "--prompt",
+    "old rusty diesel generator on steel skids with exhaust pipe and fuel tank, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p2_bal1",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ]
 }

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import * as C from './chars.js';
 
 const PPM = 55 / (1.8 * Math.cos(Math.PI / 6)); // точек на метр в плоскости камеры (увеличение 1)
 const TILE_M = 32 / (Math.SQRT1_2 * PPM);        // метров в клетке вдоль оси
@@ -154,4 +155,102 @@ async function nodes(src) {
   return gl.scene.children.map((n) => n.name);
 }
 
-window.BK = { prop, nodes, load, THREE, SkeletonUtils, scene, cam, renderer, shoot, frameFor, outline, trim, camSpace, PPM, TILE_M, ready: true };
+window.BK = { prop, nodes, load, C, CAMDIR, THREE, SkeletonUtils, scene, cam, renderer, shoot, frameFor, outline, trim, camSpace, PPM, TILE_M, ready: true };
+
+/* ---------- Люди: кадры анимаций по направлениям ----------
+   spec: { clipSrc, body, height, weapon:{src,grip,fore,len,gy,fy,my}|null,
+           anims:[{key, clip, n, t0, t1, loop}], dirs:[0..7] (направление клетки ×45°), ss, layers:'one'|'split' } */
+const bodies = {};
+async function getRig(url, h) {
+  const key = url + '|' + h;
+  if (bodies[key]) return bodies[key];
+  const gl = await load(url);
+  const b = C.makeBody(gl, h);
+  b.gl = gl;
+  b.mixer = new THREE.AnimationMixer(b.root);
+  bodies[key] = b;
+  return b;
+}
+function poseSrc(src, clipName, t) {
+  const clip = src.gl.animations.find((a) => a.name === clipName);
+  if (!clip) throw new Error('нет клипа ' + clipName);
+  src.mixer.stopAllAction();
+  const act = src.mixer.clipAction(clip);
+  act.reset(); act.play();
+  src.mixer.setTime(Math.min(t, clip.duration - 1e-3));
+  // без смещения корня по земле
+  const hp = src.B.Hips; hp.position.x = src.rest.Hips.p.x; hp.position.z = src.rest.Hips.p.z;
+  src.holder.updateMatrixWorld(true);
+  return clip;
+}
+async function bakeChar(spec) {
+  const ss = spec.ss || 2;
+  const src = await getRig(spec.clipSrc, 1.8);
+  const same = spec.body === spec.clipSrc && (spec.height || 1.8) === 1.8;
+  const dst = same ? src : await getRig(spec.body, spec.height || 1.8);
+  const rt = same ? null : C.makeRetarget(src, dst);
+  let wpn = null, off = null;
+  if (spec.weapon) {
+    const wg = await load(spec.weapon.src);
+    wpn = C.makeWeapon(wg, spec.weapon);
+    // калибровка хвата по кадру «стойка с винтовкой»: правая ладонь — рукоять, ствол — к левой ладони
+    dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+    poseSrc(src, spec.calib || 'IdleRifle', spec.calibT || 0);
+    if (rt) rt();
+    const R = C.palm(dst.B, 'Right'), L = C.palm(dst.B, 'Left');
+    const zAx = R.clone().sub(L).normalize();
+    const yAx = new THREE.Vector3(0, 1, 0); yAx.addScaledVector(zAx, -yAx.dot(zAx)).normalize();
+    const xAx = new THREE.Vector3().crossVectors(yAx, zAx);
+    const W = new THREE.Matrix4().makeBasis(xAx, yAx, zAx).setPosition(R);
+    const hand = dst.B.RightHand;
+    const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
+    off = HM.clone().invert().multiply(W);
+    scene.add(wpn.g);
+  }
+  scene.add(dst.holder);
+  const out = [];
+  const box = new THREE.Box3(new THREE.Vector3(-1.1, -0.05, -1.1), new THREE.Vector3(1.1, 2.05, 1.1));
+  for (const an of spec.anims) {
+    for (let i = 0; i < an.n; i++) {
+      const clip = src.gl.animations.find((a) => a.name === an.clip);
+      const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? an.t1 : clip.duration;
+      const t = an.n === 1 ? t0 : t0 + (t1 - t0) * (an.loop ? i / an.n : i / (an.n - 1));
+      for (const d of spec.dirs) {
+        // поза переносится при нулевом повороте тела, затем тело разворачивается целиком
+        dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+        poseSrc(src, an.clip, t);
+        if (rt) rt();
+        const ang = d * Math.PI / 4; // клетка: x → X, y → Z; лицо модели — +Z
+        dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang));
+        dst.holder.updateMatrixWorld(true);
+        if (wpn) {
+          const hand = dst.B.RightHand;
+          const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
+          const M = HM.multiply(off);
+          M.decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
+          wpn.g.updateMatrixWorld(true);
+          if (spec.ikLeft !== false && !an.noIK) {
+            const fore = wpn.fore.clone().applyMatrix4(wpn.g.matrixWorld);
+            const L = C.palm(dst.B, 'Left');
+            if (L.distanceTo(fore) < (an.ikR || 0.25)) {
+              const B = dst.B; const shift = fore.clone().sub(L);
+              const wrist = B.LeftHand.getWorldPosition(new THREE.Vector3()).add(shift);
+              const elbowPole = B.LeftForeArm.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.3, 0));
+              C.ik2(B.LeftArm, B.LeftForeArm, B.LeftHand, wrist, elbowPole);
+            }
+          }
+        }
+        const fr = frameFor(box, 0.05);
+        const s = shoot(fr, ss);
+        const oc = outline(s.c, ss, 0.8);
+        const tr = trim(oc);
+        out.push({ key: an.key, i, d, png: tr.c.toDataURL('image/png'), w: tr.w, h: tr.h, ax: s.ax - tr.x, ay: s.ay - tr.y });
+      }
+    }
+  }
+  scene.remove(dst.holder);
+  if (wpn) scene.remove(wpn.g);
+  return out;
+}
+window.BK.bakeChar = bakeChar;
+window.BK.getRig = getRig;
