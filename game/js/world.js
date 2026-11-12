@@ -123,7 +123,8 @@
       return {
         id: i, x: Math.round(p.x), y: Math.round(p.y), type: tp, name: nm, diff: diff, hops: hops[i],
         known: false, visited: false, cleared: false, beacon: tp === 'landing', outpost: false, base: false,
-        cargo: null, searches: tp === 'ruins' ? 3 : 0
+        cargo: null, searches: tp === 'ruins' ? 3 : 0,
+        map: { ruins: U.pick(['ruins', 'ruins', 'factory', 'forest']), vein: U.pick(['vein', 'crystalcave']), lair: U.pick(['lair', 'lair', 'swamp']) }[tp] || D.NODE_TYPES[tp].map
       };
     });
     return { nodes: nodes, edges: edges, landing: 0, seed: U.rand(1, 1e9) };

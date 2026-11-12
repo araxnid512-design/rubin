@@ -120,11 +120,12 @@
   BT.create = function (o) {
     const st = DW.G.state;
     const pods = o.kind === 'defense' ? [] : BT.composePods(o);
-    const mapType = o.kind === 'defense' ? 'defense' : D.NODE_TYPES[o.type].map;
+    const nd = o.nodeId !== null && o.nodeId !== undefined && st.world ? st.world.nodes[o.nodeId] : null;
+    const mapType = o.kind === 'defense' ? 'defense' : ((nd && nd.map) || D.NODE_TYPES[o.type].map);
     const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings });
     B = {
       v: 1, nodeId: o.nodeId, type: o.type, kind: o.kind, diff: o.diff, raidKind: o.raid ? o.raid.kind : null,
-      w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac,
+      w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, hgt: m.hgt, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac, map: mapType,
       units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
       loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
       queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: []
@@ -157,7 +158,7 @@
   BT.rollConditions = function (b, mapType) {
     let tod;
     if (mapType === 'vault') tod = 'interior';
-    else if (mapType === 'lair') tod = 'cave';
+    else if (mapType === 'lair' || mapType === 'crystalcave') tod = 'cave';
     else { const r = Math.random(); tod = r < 0.4 ? 'day' : (r < 0.58 ? 'dawn' : (r < 0.8 ? 'dusk' : 'night')); }
     let weather = 'clear';
     if (tod !== 'interior' && tod !== 'cave') { const r = Math.random(); weather = r < 0.55 ? 'clear' : (r < 0.7 ? 'dust' : (r < 0.85 ? 'ash' : 'rain')); }
@@ -205,16 +206,18 @@
     }
     return res;
   };
+  BT.hAt = function (x, y) { return B.hgt && x >= 0 && y >= 0 && x < B.w && y < B.h ? B.hgt[y * B.w + x] : 0; };
   BT.rayClear = function (ax, ay, bx, by) {
     const dx = bx - ax, dy = by - ay;
     const n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 3);
     if (n === 0) return true;
+    const hm = B.hgt ? Math.max(B.hgt[ay * B.w + ax] || 0, B.hgt[by * B.w + bx] || 0) : 0;
     let px = ax, py = ay;
     for (let i = 1; i < n; i++) {
       const t = i / n;
       const x = Math.floor(ax + 0.5 + dx * t), y = Math.floor(ay + 0.5 + dy * t);
       if (x === px && y === py) continue;
-      if (!(x === bx && y === by) && !(x === ax && y === ay) && BT.blocksLos(x, y)) return false;
+      if (!(x === bx && y === by) && !(x === ax && y === ay) && (BT.blocksLos(x, y) || (B.hgt && B.hgt[y * B.w + x] > hm))) return false;
       if (x !== px && y !== py && BT.blocksLos(x, py) && BT.blocksLos(px, y)) return false;
       px = x; py = y;
     }
@@ -271,11 +274,13 @@
     let best = 0, any = 0, tile = null;
     const dx = fx - x, dy = fy - y;
     const L = Math.hypot(dx, dy) || 1;
+    const h0 = BT.hAt(x, y), hf = BT.inb(fx, fy) ? BT.hAt(fx, fy) : h0;
     for (let k = 0; k < 4; k++) {
       const d = DIR4[k];
       const o = BT.objAt(x + d[0], y + d[1]);
-      if (!o) continue;
-      const c = D.OBJ[o].cover;
+      const cliff = hf <= h0 && BT.hAt(x + d[0], y + d[1]) > h0 && BT.inb(x + d[0], y + d[1]);
+      if (!o && !cliff) continue;
+      const c = Math.max(o ? D.OBJ[o].cover : 0, cliff ? 2 : 0);
       if (!c) continue;
       if (c > any) any = c;
       if ((dx * d[0] + dy * d[1]) / L > 0.25 && c > best) { best = c; tile = [x + d[0], y + d[1]]; }
@@ -297,7 +302,7 @@
     if (cv.cover) { const c = cv.cover === 2 ? -40 : -20; hit += c; parts.push([cv.cover === 2 ? 'Полное укрытие' : 'Укрытие', c]); }
     if (tgt.def) { hit -= tgt.def; parts.push(['Уклонение', -tgt.def]); }
     if (tgt.hunker) { hit -= 20; parts.push(['Залёг', -20]); }
-    if (BT.inb(ax, ay) && D.GROUND[B.ground[BT.idx(ax, ay)]].high) { hit += 15; parts.push(['Высота', 15]); }
+    if (BT.inb(ax, ay) && (D.GROUND[B.ground[BT.idx(ax, ay)]].high || BT.hAt(ax, ay) > BT.hAt(tgt.x, tgt.y))) { hit += 15; parts.push(['Высота', 15]); }
     if (o.reaction) { hit -= 10; parts.push(['Реакция', -10]); }
     if (att.suppressed) { hit -= 40; parts.push(['Подавлен', -40]); }
     if (o.aimBonus) { hit += o.aimBonus; parts.push([o.aimLabel || 'Бонус', o.aimBonus]); }
@@ -436,10 +441,13 @@
         const ni = ny * B.w + nx;
         if (occ[ni] === 2) continue;
         let step = 1;
+        const dh = B.hgt ? B.hgt[ni] - B.hgt[i] : 0;
+        if (dh > 1 || dh < -1) continue;
         if (d[0] && d[1]) {
-          if (!BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
+          if (dh || !BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
           step = 1.5;
         }
+        if (dh) step += 0.5;
         const nc = c + step;
         if (nc > maxCost + 0.01 || nc >= cost[ni]) continue;
         cost[ni] = nc; prev[ni] = i;
@@ -475,6 +483,7 @@
         const ni = ny * B.w + nx;
         if (f[ni] !== Infinity) continue;
         if (!BT.walkTile(nx, ny)) continue;
+        if (B.hgt && Math.abs(B.hgt[ni] - B.hgt[i]) > 1) continue;
         f[ni] = f[i] + 1;
         q.push(ni);
       }

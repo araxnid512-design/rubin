@@ -391,7 +391,7 @@
             lair: ['scav', 'spitter', 'brute'], site: ['raider', 'scav', 'marksman'], vault: ['guardian', 'scav'], nest: ['queen', 'brute', 'spitter']
           }[node.type] || [];
           const shown = types.filter(function (t) { return !(t === 'boss' && node.diff < 3) && !(t === 'brute' && node.diff < 3 && node.type !== 'nest') && !(t === 'marksman' && node.diff < 3); });
-          body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmarkURL(node.type) + '" alt=""><div class="ptext"><b>' + T.n + '</b> · опасность ' + skulls(node.diff) + '<br>' + T.desc +
+          body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmarkURL(node.type) + '" alt=""><div class="ptext"><b>' + T.n + '</b>' + (D.MAP_NAMES[node.map] ? ' — ' + D.MAP_NAMES[node.map].toLowerCase() : '') + ' · опасность ' + skulls(node.diff) + '<br>' + T.desc +
             '<br>Разведка: <b>' + intel + '</b>.' + (kind === 'ambush' ? ' <b class="bad">Засада!</b>' : '') +
             '<div class="intel">' + shown.map(function (t) { return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">'; }).join('') + '</div>' +
             (locked ? '<b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова тварей (' + lairs + '/2).</b>' : '') + '</div>' }));

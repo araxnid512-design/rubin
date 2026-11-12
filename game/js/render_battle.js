@@ -27,8 +27,16 @@
   function now() { return clockT; }
   function spd() { return (DW.settings && DW.settings.speed) || 1; }
   function rt(ms) { return ms / (DW.timeScale || 1); }
+  const LH = 18;             // высота одного уровня террасы
+  let HG = null, HGW = 0, HGH = 0;
+  function hT(x, y) {
+    if (!HG) return 0;
+    x = x < 0 ? 0 : (x >= HGW ? HGW - 1 : x); y = y < 0 ? 0 : (y >= HGH ? HGH - 1 : y);
+    return HG[y * HGW + x];
+  }
   function iso(x, y) { return [(x - y) * HW, (x + y) * HH]; }
-  function isoC(x, y) { return [(x - y) * HW, (x + y + 1) * HH]; }
+  function isoC(x, y) { return [(x - y) * HW, (x + y + 1) * HH - hT(Math.round(x), Math.round(y)) * LH]; }
+  function isoF(x, y) { return [(x - y) * HW, (x + y + 1) * HH]; }
   TR.iso = iso; TR.isoC = isoC;
 
   /* ---------- Земля ---------- */
@@ -238,6 +246,7 @@
     g.setTransform(HW * GS / P, HH * GS / P, -HW * GS / P, HH * GS / P, B.h * HW * GS, 0);
     g.drawImage(ground, x * P, y * P, P, P, x * P, y * P, P, P);
     g.restore();
+    delete elev[y * B.w + x];
   }
 
   /* ---------- Следы на земле (кровь, пули, воронки) ---------- */
@@ -587,6 +596,82 @@
         g.fillStyle = 'rgba(255,90,140,0.5)'; ART.circ(g, 4, -H * 0.5, 2.5);
         break;
       }
+      case 18: {
+        const alongU = variant !== 2;
+        const cc = [['#8a3e2a', '#6e2e1e', '#552216'], ['#2e5a7a', '#22465e', '#1a3648'], ['#5e6a3a', '#4a542c', '#3a4222']][variant];
+        const bb = alongU ? [-0.5, -0.36, 0.5, 0.36] : [-0.36, -0.5, 0.36, 0.5];
+        box(g, bb[0], bb[1], bb[2], bb[3], 0, H, cc);
+        g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 1;
+        const ribs = function (u0, v0, u1, v1, n) {
+          for (let k = 1; k < n; k++) {
+            const a = k / n, u = u0 + (u1 - u0) * a, v = v0 + (v1 - v0) * a;
+            const p1 = Pp(u, v, 2), p2 = Pp(u, v, H - 2);
+            g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke();
+          }
+        };
+        ribs(bb[0], bb[3], bb[2], bb[3], alongU ? 12 : 8);
+        ribs(bb[2], bb[1], bb[2], bb[3], alongU ? 8 : 12);
+        g.strokeStyle = 'rgba(255,255,255,0.12)';
+        const e1 = Pp(bb[0], bb[3], H), e2 = Pp(bb[2], bb[3], H), e3 = Pp(bb[2], bb[1], H);
+        g.beginPath(); g.moveTo(e1[0], e1[1]); g.lineTo(e2[0], e2[1]); g.lineTo(e3[0], e3[1]); g.stroke();
+        // двери на торце
+        if (alongU) {
+          const d1 = Pp(bb[2], bb[1] + 0.06, 3), d2 = Pp(bb[2], bb[3] - 0.06, H - 3);
+          ART.line(g, (d1[0] + d2[0]) / 2, Pp(bb[2], 0, 3)[1], (d1[0] + d2[0]) / 2, Pp(bb[2], 0, H - 3)[1], 1.4, 'rgba(20,10,6,0.6)');
+          for (let k = 0; k < 4; k++) { const q = Pp(bb[2], bb[1] + 0.12 + k * 0.16, H * 0.5); g.fillStyle = '#c9b48a'; g.fillRect(q[0] - 0.6, q[1] - 6, 1.2, 12); }
+        }
+        for (i = 0; i < 7; i++) { g.fillStyle = 'rgba(140,70,25,0.4)'; ART.ell(g, (rnd() - 0.5) * 50, -H * 0.2 - rnd() * H * 0.6, 2 + rnd() * 5, 1.2 + rnd() * 2); }
+        g.save(); ART.faceL(g, bb[0], bb[3], 0);
+        g.fillStyle = 'rgba(230,220,200,0.35)'; g.fillRect(0.12, H * 0.55, 0.22, 4); g.fillRect(0.12, H * 0.55 + 6, 0.14, 2);
+        g.restore();
+        break;
+      }
+      case 19: {
+        const alongU = variant !== 1;
+        const r = H * 0.5;
+        const a = alongU ? Pp(-0.48, -0.08, r) : Pp(-0.08, -0.48, r), b = alongU ? Pp(0.48, 0.1, r) : Pp(0.1, 0.48, r);
+        g.fillStyle = 'rgba(0,0,0,0.3)';
+        g.beginPath(); g.moveTo(a[0] - 4, a[1] + r + 2); g.lineTo(b[0] + 4, b[1] + r + 2); g.lineTo(b[0] + 4, b[1] + r - 3); g.lineTo(a[0] - 4, a[1] + r - 3); g.fill();
+        const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L;
+        const sg = ny < 0 ? -1 : 1;
+        gr = g.createLinearGradient(a[0] - nx * r * sg, a[1] - ny * r * sg, a[0] + nx * r * sg, a[1] + ny * r * sg);
+        gr.addColorStop(0, '#8a6a4a'); gr.addColorStop(0.5, '#5e4630'); gr.addColorStop(1, '#2e2216');
+        g.fillStyle = gr;
+        g.beginPath(); g.moveTo(a[0] + nx * r, a[1] + ny * r); g.lineTo(b[0] + nx * r, b[1] + ny * r); g.lineTo(b[0] - nx * r, b[1] - ny * r); g.lineTo(a[0] - nx * r, a[1] - ny * r); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(25,16,8,0.55)'; g.lineWidth = 1;
+        for (i = 0; i < 9; i++) {
+          const t0 = rnd(), o0 = (rnd() - 0.5) * 1.6 * r;
+          const px = a[0] + dx * t0 + nx * o0, py = a[1] + dy * t0 + ny * o0;
+          g.beginPath(); g.moveTo(px, py); g.lineTo(px + dx / L * (6 + rnd() * 10), py + dy / L * (6 + rnd() * 10)); g.stroke();
+        }
+        for (i = 0; i < 2; i++) { const t0 = 0.25 + i * 0.4; const px = a[0] + dx * t0, py = a[1] + dy * t0 - r * 0.8; ART.line(g, px, py, px + (i ? 6 : -5), py - 7, 2, '#4a3624'); }
+        const cap = function (p) {
+          g.fillStyle = '#a88a62'; g.beginPath(); g.ellipse(p[0], p[1], r * 0.55, r, Math.atan2(dy, dx), 0, Math.PI * 2); g.fill();
+          g.strokeStyle = 'rgba(80,55,30,0.7)'; g.lineWidth = 0.8;
+          g.beginPath(); g.ellipse(p[0], p[1], r * 0.3, r * 0.55, Math.atan2(dy, dx), 0, Math.PI * 2); g.stroke();
+        };
+        cap(b);
+        g.fillStyle = 'rgba(110,130,60,0.45)'; for (i = 0; i < 4; i++) ART.ell(g, a[0] + dx * rnd(), a[1] + dy * rnd() - r * 0.7, 3 + rnd() * 3, 1.5);
+        break;
+      }
+      case 20: {
+        const gl = g.createRadialGradient(0, -H * 0.4, 2, 0, -H * 0.4, 30);
+        gl.addColorStop(0, 'rgba(120,235,255,0.35)'); gl.addColorStop(1, 'rgba(120,235,255,0)');
+        g.fillStyle = gl; ART.ell(g, 0, -H * 0.3, 30, 22);
+        ART.blob(g, 0, 0, 0.3, 6, '#4a5258', 900 + variant);
+        const xs = [];
+        for (i = 0; i < 6; i++) xs.push({ x: (rnd() - 0.5) * 30, y: (rnd() - 0.5) * 8, h: H * (0.45 + rnd() * 0.6), w: 3 + rnd() * 3.5, lean: (rnd() - 0.5) * 0.5 });
+        xs.sort(function (p, q) { return p.y - q.y; });
+        xs.forEach(function (c) {
+          const bx = c.x, by = c.y, tx = bx + c.lean * c.h, ty = by - c.h;
+          ART.poly(g, [[bx - c.w, by], [tx - c.w * 0.6, ty + c.w], [tx, ty], [bx, by + 2]], '#2f9fb4');
+          ART.poly(g, [[bx, by + 2], [tx, ty], [tx + c.w * 0.6, ty + c.w], [bx + c.w, by]], '#1d6878');
+          g.strokeStyle = 'rgba(210,255,255,0.7)'; g.lineWidth = 0.8;
+          g.beginPath(); g.moveTo(bx - c.w * 0.5, by - 1); g.lineTo(tx - c.w * 0.3, ty + c.w * 0.8); g.stroke();
+        });
+        g.fillStyle = 'rgba(230,255,255,0.85)'; for (i = 0; i < 4; i++) ART.circ(g, (rnd() - 0.5) * 26, -rnd() * H, 0.9);
+        break;
+      }
       default:
         box(g, -0.4, -0.4, 0.4, 0.4, 0, H, ['#888', '#666', '#555']);
     }
@@ -680,7 +765,7 @@
     B.units.forEach(function (u) {
       if (!u.alive || u.evac) return;
       if (u.side === 'e' && !u.seen) return;
-      const p = rp(u); const c = isoC(p[0], p[1]);
+      const c = uPos(u);
       if (u.side === 'p') {
         L.push([c[0], c[1] - 18, night ? 46 : 0, '255,236,200', 0.55]);
         if (night && u.kind === 'soldier') {
@@ -698,9 +783,9 @@
     B.items.forEach(function (it) { if (it.kind === 'gems' && B.explored[it.y * B.w + it.x]) { const c = isoC(it.x, it.y); L.push([c[0], c[1] - 8, 40, '120,230,255', 0.7]); } });
     for (let i = 0; i < B.obj.length; i++) {
       const o = B.obj[i];
-      if ((o !== 15 && o !== 12) || !B.explored[i]) continue;
+      if ((o !== 15 && o !== 12 && o !== 20) || !B.explored[i]) continue;
       const c = isoC(i % B.w, (i / B.w) | 0);
-      L.push(o === 15 ? [c[0], c[1] - 40, 150, '140,240,255', 0.9] : [c[0], c[1] - 14, 44, '120,230,210', 0.55]);
+      L.push(o === 15 ? [c[0], c[1] - 40, 150, '140,240,255', 0.9] : (o === 20 ? [c[0], c[1] - 18, 80, '120,230,255', 0.75] : [c[0], c[1] - 14, 44, '120,230,210', 0.55]));
     }
     for (let k = 0; k < acidTiles.length; k++) { const i = acidTiles[k]; if (!B.explored[i]) continue; const c = isoC(i % B.w, (i / B.w) | 0); L.push([c[0], c[1], 34, '150,220,60', 0.35]); }
     (B.props || []).forEach(function (p) { if (p.t === 'shroom' || p.t === 'shards') { const c = isoC(p.x - 0.5, p.y - 0.5); L.push([c[0], c[1] - 6, 32, p.t === 'shroom' ? '140,255,180' : '120,230,255', 0.5]); } });
@@ -827,6 +912,7 @@
     fx = { floats: [], tracers: [], parts: [], projs: [], flashes: [] };
     for (const k in tweens) delete tweens[k];
     camWaiters = [];
+    HG = B.hgt || null; HGW = B.w; HGH = B.h; elev = {};
     buildGround(B);
     (B.decals || []).forEach(function (d) { paintDecal(groundCtx, d); });
     buildIso(B);
@@ -856,7 +942,7 @@
     const z = TR.cam.z;
     const hw = TR.view.w / 2 / z, hh = TR.view.h / 2 / z;
     const x0 = -B.h * HW - 60, x1 = B.w * HW + 60;
-    const y0 = -90, y1 = (B.w + B.h) * HH + EDGE + 70;
+    const y0 = -90 - 2 * LH, y1 = (B.w + B.h) * HH + EDGE + 70;
     TR.cam.x = x1 - x0 < hw * 2 ? (x0 + x1) / 2 : U.clamp(TR.cam.x, x0 + hw, x1 - hw);
     TR.cam.y = y1 - y0 < hh * 2 ? (y0 + y1) / 2 : U.clamp(TR.cam.y, y0 + hh, y1 - hh);
   }
@@ -872,6 +958,11 @@
   function worldToPlane(X, Y) { return [(X / HW + Y / HH) / 2, (Y / HH - X / HW) / 2]; }
   TR.screenToTile = function (sx, sy) {
     const w = TR.screenToWorld(sx, sy);
+    for (let h = 2; h >= 1; h--) {
+      const q = worldToPlane(w[0], w[1] + h * LH);
+      const tx = Math.floor(q[0]), ty = Math.floor(q[1]);
+      if (HG && tx >= 0 && ty >= 0 && tx < HGW && ty < HGH && HG[ty * HGW + tx] === h) return [tx, ty];
+    }
     const p = worldToPlane(w[0], w[1]);
     return [Math.floor(p[0]), Math.floor(p[1])];
   };
@@ -892,8 +983,7 @@
     let best = null, bd = -1;
     B.units.forEach(function (u) {
       if (!u.alive || u.evac || (u.side === 'e' && !u.seen)) return;
-      const p = rp(u);
-      const c = isoC(p[0], p[1]);
+      const c = uPos(u);
       const k = unitScale(u);
       if (w[0] < c[0] - 15 * k || w[0] > c[0] + 15 * k || w[1] < c[1] - 50 * k || w[1] > c[1] + 8) return;
       const d = p[0] + p[1];
@@ -919,6 +1009,16 @@
     return [U.lerp(tw.fx, tw.tx, t), U.lerp(tw.fy, tw.ty, t)];
   }
   TR.renderPos = rp;
+  function uPos(u, lean) {
+    const p = lean ? leanPos(u) : rp(u);
+    const tw = tweens[u.id];
+    let h;
+    if (tw) {
+      const k = U.clamp((now() - tw.t0) / tw.dur, 0, 1);
+      h = tw.kind === 'lunge' ? hT(tw.fx, tw.fy) : U.lerp(hT(tw.fx, tw.fy), hT(tw.tx, tw.ty), k);
+    } else h = hT(u.x, u.y);
+    return [(p[0] - p[1]) * HW, (p[0] + p[1] + 1) * HH - h * LH];
+  }
   function leanPos(u) {
     const p = rp(u);
     if (tweens[u.id]) return p;
@@ -989,8 +1089,7 @@
     parts(c[0], c[1], 18, 6, color || '#888', 70, 600, 2.5, 380, 90);
   };
   function muzzle(u) {
-    const p = rp(u);
-    const c = isoC(p[0], p[1]);
+    const c = uPos(u);
     const f = u.face || 0;
     const sx = (Math.cos(f) - Math.sin(f)) * HW;
     const dir = sx >= 0 ? 1 : -1;
@@ -1173,8 +1272,7 @@
     else { g.translate(-fi.dir * e * 4, 0); g.rotate(-fi.dir * e * 1.42); g.scale(1, 1 - e * 0.2); }
   }
   function drawUnit(g, u, t, sel, alpha) {
-    const p = leanPos(u);
-    const c = isoC(p[0], p[1]);
+    const c = uPos(u, true);
     const fi = faceInfo(u);
     const tw = tweens[u.id];
     const walk = tw && tw.kind === 'step' ? t / 70 : null;
@@ -1351,6 +1449,15 @@
         g.fillStyle = '#2a2420'; ART.ell(g, 12, -2.5, 1.6, 2.6);
         g.restore();
         break;
+      case 'reeds':
+        g.fillStyle = 'rgba(0,0,0,0.2)'; ART.ell(g, x, y, 10, 4);
+        for (i = 0; i < 9; i++) {
+          const ox = (r() - 0.5) * 16, h = 10 + r() * 14, bend = (r() - 0.3) * 6;
+          g.strokeStyle = i % 3 ? '#6a7a3a' : '#8a8a4a'; g.lineWidth = 1.3;
+          g.beginPath(); g.moveTo(x + ox, y + (r() - 0.5) * 3); g.quadraticCurveTo(x + ox + bend * 0.3, y - h * 0.6, x + ox + bend, y - h); g.stroke();
+          if (r() < 0.45) { g.fillStyle = '#5a3a22'; ART.ell(g, x + ox + bend * 0.85, y - h * 0.86, 1.5, 3.4); }
+        }
+        break;
       case 'bones':
         ART.line(g, x - 6, y, x + 4, y - 3, 2.2, '#d8ccb6'); ART.line(g, x - 2, y + 2, x + 7, y + 1, 2, '#cfc2aa');
         g.fillStyle = '#e0d6c2'; ART.circ(g, x + 6, y - 4, 2.6);
@@ -1391,9 +1498,56 @@
     g.restore();
   }
   function diamond(g, x, y, inset) {
-    const k = inset || 0;
+    const k = inset || 0, hh = hT(x, y) * LH;
     const a = iso(x + k, y + k), b = iso(x + 1 - k, y + k), c = iso(x + 1 - k, y + 1 - k), d = iso(x + k, y + 1 - k);
-    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]); g.closePath();
+    g.beginPath(); g.moveTo(a[0], a[1] - hh); g.lineTo(b[0], b[1] - hh); g.lineTo(c[0], c[1] - hh); g.lineTo(d[0], d[1] - hh); g.closePath();
+  }
+  /* Спрайт поднятой клетки: верх из текстуры земли и обрывы */
+  let elev = {};
+  function elevSprite(x, y, h) {
+    const B = DW.BT.get();
+    const key = y * B.w + x;
+    if (elev[key]) return elev[key];
+    const hp = h * LH;
+    const c = canvas(2 * HW * GS, (2 * HH + hp) * GS);
+    const g = c.getContext('2d');
+    g.scale(GS, GS);
+    const W = [0, HH], N = [HW, 0], E = [2 * HW, HH], S = [HW, 2 * HH];
+    let gr = g.createLinearGradient(0, HH, 0, HH + hp + HH);
+    gr.addColorStop(0, '#6a543c'); gr.addColorStop(1, '#2a1e14');
+    g.fillStyle = gr; ART.poly(g, [W, S, [S[0], S[1] + hp], [W[0], W[1] + hp]]);
+    gr = g.createLinearGradient(0, HH, 0, HH + hp + HH);
+    gr.addColorStop(0, '#4a3a2a'); gr.addColorStop(1, '#1a120c');
+    g.fillStyle = gr; ART.poly(g, [S, E, [E[0], E[1] + hp], [S[0], S[1] + hp]]);
+    const r = U.srng(key * 13 + 1);
+    for (let k = 0; k < 10; k++) {
+      const left = r() < 0.5, tt = r(), dy = 3 + r() * (hp - 4);
+      const a0 = left ? W : S, a1 = left ? S : E;
+      g.fillStyle = r() < 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(170,140,100,0.18)';
+      g.fillRect(a0[0] + (a1[0] - a0[0]) * tt, a0[1] + (a1[1] - a0[1]) * tt + dy, 2 + r() * 4, 1.5 + r() * 2);
+    }
+    g.save();
+    g.beginPath(); g.moveTo(N[0], N[1]); g.lineTo(E[0], E[1]); g.lineTo(S[0], S[1]); g.lineTo(W[0], W[1]); g.closePath(); g.clip();
+    g.drawImage(gIso, ((x - y) * HW - HW + B.h * HW) * GS, (x + y) * HH * GS, 2 * HW * GS, 2 * HH * GS, 0, 0, 2 * HW, 2 * HH);
+    g.fillStyle = 'rgba(255,240,210,' + (0.05 * h) + ')'; g.fillRect(0, 0, 2 * HW, 2 * HH);
+    g.restore();
+    g.strokeStyle = 'rgba(255,230,190,0.3)'; g.lineWidth = 1.2;
+    g.beginPath();
+    if (hT(x, y + 1) < h) { g.moveTo(W[0], W[1]); g.lineTo(S[0], S[1]); }
+    if (hT(x + 1, y) < h) { g.moveTo(S[0], S[1]); g.lineTo(E[0], E[1]); }
+    g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    g.beginPath();
+    if (hT(x - 1, y) < h) { g.moveTo(W[0], W[1]); g.lineTo(N[0], N[1]); }
+    if (hT(x, y - 1) < h) { g.moveTo(N[0], N[1]); g.lineTo(E[0], E[1]); }
+    g.stroke();
+    elev[key] = c;
+    return c;
+  }
+  function elevBlockPath(g, x, y, h) {
+    const hp = h * LH;
+    const n = iso(x, y), e = iso(x + 1, y), s2 = iso(x + 1, y + 1), w = iso(x, y + 1);
+    g.beginPath(); g.moveTo(w[0], w[1] - hp); g.lineTo(n[0], n[1] - hp); g.lineTo(e[0], e[1] - hp); g.lineTo(e[0], e[1]); g.lineTo(s2[0], s2[1]); g.lineTo(w[0], w[1]); g.closePath();
   }
 
   /* ---------- Главный рендер ---------- */
@@ -1430,7 +1584,7 @@
     g.beginPath();
     for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
       const o = B.obj[y * B.w + x];
-      if (!o || !B.explored[y * B.w + x] || o === 13 || o === 6) continue;
+      if (!o || !B.explored[y * B.w + x] || o === 13 || o === 6 || hT(x, y) > 0) continue;
       const L = D.OBJ[o].lift;
       g.rect(x + 0.12, y + 0.08, 0.9 + L * 0.9, 0.86);
     }
@@ -1444,7 +1598,7 @@
       const pb = new Path2D(), py = new Path2D();
       for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
         const i = y * B.w + x, c = R.cost[i];
-        if (c === Infinity || c === 0 || R.occ[i]) continue;
+        if (c === Infinity || c === 0 || R.occ[i] || (HG && HG[i] > 0)) continue;
         if (c <= ov.m1 + 0.01) pb.rect(x + 0.05, y + 0.05, 0.9, 0.9);
         else if (c <= ov.m2 + 0.01) py.rect(x + 0.05, y + 0.05, 0.9, 0.9);
       }
@@ -1495,6 +1649,20 @@
         const y = d - x;
         const i = y * B.w + x;
         const ex = B.explored[i];
+        const hh = HG ? HG[i] : 0;
+        if (hh > 0) {
+          const fc = isoF(x, y);
+          g.drawImage(elevSprite(x, y, hh), fc[0] - HW, fc[1] - HH - hh * LH, 2 * HW, 2 * HH + hh * LH);
+          if (ov.reach) {
+            const cst = ov.reach.cost[i];
+            if (cst !== Infinity && cst > 0 && !ov.reach.occ[i] && cst <= ov.m2 + 0.01) {
+              g.fillStyle = cst <= ov.m1 + 0.01 ? 'rgba(80,170,255,0.22)' : 'rgba(255,200,60,0.18)';
+              diamond(g, x, y, 0.05); g.fill();
+            }
+          }
+          const fa = vis && vis[i] ? 0 : (ex ? 0.49 : 0.92);
+          if (fa) { g.fillStyle = 'rgba(9,8,7,' + fa + ')'; elevBlockPath(g, x, y, hh); g.fill(); }
+        }
         if (ex) {
           if (corpsesAt[i]) corpsesAt[i].forEach(function (c) { drawCorpse(g, c, t); });
           if (props[i]) props[i].forEach(function (p) { drawProp(g, p, t); });
@@ -1536,7 +1704,8 @@
           drawUnit(g, u, t, ov.sel === u);
           if (u.side === 'p') {
             const o1 = BT_obj(B, x + 1, y), o2 = BT_obj(B, x, y + 1), o3 = BT_obj(B, x + 1, y + 1);
-            if ((o1 && D.OBJ[o1].lift > 0.45) || (o2 && D.OBJ[o2].lift > 0.45) || (o3 && D.OBJ[o3].lift > 0.55)) ghosts.push(u);
+            const hu = hT(x, y);
+            if ((o1 && D.OBJ[o1].lift > 0.45) || (o2 && D.OBJ[o2].lift > 0.45) || (o3 && D.OBJ[o3].lift > 0.55) || hT(x + 1, y) > hu || hT(x, y + 1) > hu || hT(x + 1, y + 1) > hu + 1) ghosts.push(u);
           }
         });
       }
@@ -1566,9 +1735,9 @@
         for (let k = 0; k < 4; k++) {
           const n = NB[k];
           if (cat(x + n[0], y + n[1]) >= c) continue;
-          const a = iso(x + n[2], y + n[3]), b = iso(x + n[4], y + n[5]);
+          const a = iso(x + n[2], y + n[3]), b = iso(x + n[4], y + n[5]), hh = hT(x, y) * LH;
           const pth = c === 2 ? lb : ly;
-          pth.moveTo(a[0], a[1]); pth.lineTo(b[0], b[1]);
+          pth.moveTo(a[0], a[1] - hh); pth.lineTo(b[0], b[1] - hh);
         }
       }
       g.strokeStyle = 'rgba(120,200,255,0.9)'; g.stroke(lb);
@@ -1592,14 +1761,14 @@
       }
     }
     (ov.seeMarks || []).forEach(function (m) {
-      const p = rp(m.u); const c = isoC(p[0], p[1]);
+      const c = uPos(m.u);
       const Y = c[1] - 62 * unitScale(m.u);
       g.fillStyle = m.flank ? '#ffd25a' : '#ff6b5b';
       ART.poly(g, [[c[0] - 6, Y - 8], [c[0] + 6, Y - 8], [c[0], Y]]);
     });
     if (ov.targets && ov.sel) {
       ov.targets.forEach(function (tg) {
-        const p = rp(tg.u); const c = isoC(p[0], p[1]);
+        const c = uPos(tg.u);
         const k = unitScale(tg.u);
         const cur = ov.target === tg.u;
         const cy = c[1] - 22 * k;
@@ -1622,12 +1791,12 @@
       });
     }
     (ov.allies || []).forEach(function (a) {
-      const p = rp(a); const c = isoC(p[0], p[1]);
+      const c = uPos(a);
       g.strokeStyle = 'rgba(127,208,106,' + (0.6 + Math.sin(t / 180) * 0.3) + ')'; g.lineWidth = 3;
       g.beginPath(); g.ellipse(c[0], c[1], 22, 11, 0, 0, Math.PI * 2); g.stroke();
     });
     if (ov.aoe && ov.sel) {
-      const sp = rp(ov.sel); const c = isoC(sp[0], sp[1]);
+      const c = uPos(ov.sel);
       const k = Math.SQRT2;
       g.strokeStyle = 'rgba(255,200,80,0.4)'; g.lineWidth = 2; g.setLineDash([8, 6]);
       g.beginPath(); g.ellipse(c[0], c[1], ov.aoe.range * HW * k, ov.aoe.range * HH * k, 0, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
@@ -1641,7 +1810,7 @@
     B.units.forEach(function (u) {
       if (!u.alive || u.evac) return;
       if (u.side === 'e' && !u.seen) return;
-      const p = leanPos(u); const c = isoC(p[0], p[1]);
+      const c = uPos(u, true);
       const k = unitScale(u);
       const Y = c[1] - (u.type === 'queen' ? 92 : 62 * k);
       const showBar = u.side === 'e' || u.kind === 'turret' || ov.sel === u || u.hp < u.maxHp || (ov.allies && ov.allies.indexOf(u) >= 0);

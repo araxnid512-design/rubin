@@ -7,7 +7,7 @@
   function M(w, h, g) {
     return {
       w: w, h: h,
-      ground: new Array(w * h).fill(g), obj: new Array(w * h).fill(0), objHp: new Array(w * h).fill(0),
+      ground: new Array(w * h).fill(g), obj: new Array(w * h).fill(0), objHp: new Array(w * h).fill(0), hgt: new Array(w * h).fill(0),
       decor: [], props: [], items: [], itemList: [], deploy: [], evac: [], pods: [], spawn: [], turrets: [],
       anchor: null, post: null, kind: 'normal'
     };
@@ -319,6 +319,65 @@
     });
   }
 
+  /* ---------- Высоты ---------- */
+  function heights(m, sc, t1, t2, minX) {
+    const seed = U.rand(1, 99999);
+    for (let y = 0; y < m.h; y++) for (let x = (minX || 0); x < m.w; x++) {
+      const n = U.fbm(x * sc, y * sc, seed, 3);
+      m.hgt[I(m, x, y)] = n > t2 ? 2 : (n > t1 ? 1 : 0);
+    }
+  }
+  function raise(m, x0, y0, x1, y1, h) {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (inb(m, x, y)) m.hgt[I(m, x, y)] = Math.max(m.hgt[I(m, x, y)], h);
+  }
+  function smoothH(m) {
+    for (let i = 0; i < m.hgt.length; i++) if (!walkG(m, i % m.w, (i / m.w) | 0) && m.ground[i] === 7) m.hgt[i] = 0;
+    for (let it = 0; it < 4; it++) {
+      let changed = false;
+      for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+        const i = I(m, x, y);
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const nx = x + d[0], ny = y + d[1];
+          if (!inb(m, nx, ny)) return;
+          const j = I(m, nx, ny);
+          if (m.hgt[i] - m.hgt[j] > 1) { m.hgt[i] = m.hgt[j] + 1; changed = true; }
+        });
+      }
+      if (!changed) break;
+    }
+  }
+  /* ---------- Шаблоны построек ---------- */
+  const PREFABS = {
+    gas: ['########.', '#k.c.k..#', '#.....o.#', '##.###..#', '....=.k.k', '....=....'],
+    checkpoint: ['.bbb.bbb.', 'b.......b', 'b..C.o..b', 'b..C....b', '.bbb.bbb.'],
+    depot: ['MMMMMMMM', 'M.CC.c.M', 'M......M', 'M.cc.CCM', 'MMM..MMM'],
+    pillbox: ['.SSSS.', 'S....S', '=.c..=', 'S....S', '.SS.S.'],
+    convoy: ['v.v.v', '.....', 'c.o.c'],
+    outpost: ['.c..c.', 'cbbbbc', '.b..b.', '.b..b.', 'cb..bc']
+  };
+  const PF = { '#': 2, 'M': 11, 'S': 14, '=': 1, 'b': 6, 'c': 4, 'o': 9, 'k': 12, 'C': 18, 'T': 5, 'r': 8, 'v': 7 };
+  function prefab(m, name, minX, floor) {
+    const pf = PREFABS[name];
+    const ph = pf.length, pw = pf[0].length;
+    for (let t = 0; t < 30; t++) {
+      const x0 = U.rand(minX, m.w - pw - 1), y0 = U.rand(1, m.h - ph - 1);
+      let busy = 0;
+      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) if (m.obj[I(m, x0 + x, y0 + y)]) busy++;
+      if (busy > pw * ph * 0.15) continue;
+      const hh = m.hgt[I(m, x0, y0)];
+      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+        const ch = pf[y][x], X = x0 + x, Y = y0 + y;
+        m.hgt[I(m, X, Y)] = hh;
+        if (ch === ' ') continue;
+        setO(m, X, Y, PF[ch] || 0);
+        if (!walkG(m, X, Y)) setG(m, X, Y, 0);
+        if (floor !== undefined && ch === '.') setG(m, X, Y, floor);
+      }
+      return true;
+    }
+    return false;
+  }
+
   /* ---------- Генераторы по типам ---------- */
   const GEN = {};
   GEN.landing = function (o) {
@@ -334,6 +393,7 @@
     };
     m.itemList = [{ kind: 'gems', amt: U.rand(3, 5) }, { kind: 'gems', amt: U.rand(3, 5) }, { kind: 'ammo', amt: U.rand(15, 25) }];
     props(m, 'tuft', 14); props(m, 'bush', 6); props(m, 'skull', 2); props(m, 'bones', 3, 6);
+    heights(m, 0.11, 0.6, 0.8, 6); if (Math.random() < 0.6) prefab(m, 'convoy', 8);
     return m;
   };
   GEN.ruins = function (o) {
@@ -360,6 +420,7 @@
       { kind: 'food', amt: U.rand(4, 8) }, { kind: 'ammo', amt: U.rand(15, 30) }
     ];
     props(m, 'tuft', 10); props(m, 'pipe', 5); props(m, 'sign', 3); props(m, 'bush', 4);
+    heights(m, 0.13, 0.68, 0.9, 6); prefab(m, U.pick(['gas', 'checkpoint', 'pillbox']), 8, 3);
     return m;
   };
   GEN.vein = function (o) {
@@ -373,6 +434,7 @@
     const n = U.rand(7, 9);
     for (let i = 0; i < n; i++) m.itemList.push({ kind: 'gems', amt: U.rand(2, 4) + d });
     props(m, 'shards', 14, 4); props(m, 'bush', 3); props(m, 'skull', 2, 6);
+    heights(m, 0.12, 0.52, 0.74, 5);
     return m;
   };
   GEN.camp = function (o) {
@@ -408,6 +470,7 @@
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }
     ];
     props(m, 'tuft', 8); props(m, 'bones', 3); props(m, 'sign', 2, 8); props(m, 'pipe', 2);
+    heights(m, 0.12, 0.66, 0.9, 6); raise(m, 15, 5, 23, 13, 1); if (Math.random() < 0.6) prefab(m, 'outpost', 7);
     return m;
   };
   GEN.lair = function (o) {
@@ -484,6 +547,7 @@
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }
     ];
     props(m, 'tuft', 12); props(m, 'bush', 5); props(m, 'sign', 2);
+    heights(m, 0.12, 0.62, 0.9, 6); raise(m, 14, 3, 24, 14, 1); raise(m, 16, 5, 16, 5, 2); raise(m, 22, 12, 22, 12, 2);
     return m;
   };
   GEN.nest = function (o) {
@@ -500,6 +564,7 @@
     m.anchor = { x: ax, y: ay };
     for (let i = 0; i < 6; i++) m.itemList.push({ kind: 'gems', amt: U.rand(5, 8) + 4 });
     props(m, 'shroom', 12, 4); props(m, 'bones', 8); props(m, 'skull', 5);
+    heights(m, 0.14, 0.58, 0.8, 5);
     return m;
   };
   GEN.defense = function (o) {
@@ -551,6 +616,65 @@
     for (let y = 0; y < m.h; y++) { m.spawn.push([m.w - 1, y]); m.spawn.push([m.w - 2, y]); }
     for (let x = 20; x < m.w - 2; x++) { m.spawn.push([x, 0]); m.spawn.push([x, m.h - 1]); }
     props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18);
+    raise(m, 3, 4, 17, 15, 1);
+    return m;
+  };
+
+  GEN.factory = function (o) {
+    const m = M(28, 18, 3);
+    groundNoise(m, [[0.45, 3], [0.7, 8], [1, 4]]);
+    const x0 = 8, y0 = 2, w = 16, h = 13;
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
+      setG(m, x, y, 4);
+      const edge = x === x0 || y === y0 || x === x0 + w - 1 || y === y0 + h - 1;
+      setO(m, x, y, edge ? 11 : 0);
+    }
+    [[x0, y0 + 5], [x0, y0 + 6], [x0, y0 + 7], [x0 + 6, y0], [x0 + 7, y0], [x0 + 6, y0 + h - 1], [x0 + 7, y0 + h - 1], [x0 + w - 1, y0 + 4], [x0 + w - 1, y0 + 9]].forEach(function (g) { setO(m, g[0], g[1], 0); });
+    for (let i = 0; i < m.obj.length; i++) if (m.obj[i] === 11 && Math.random() < 0.08) { m.obj[i] = 0; m.objHp[i] = 0; m.ground[i] = 8; }
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) if (Math.random() < 0.75) setO(m, x0 + 3 + k * 3, y0 + 3 + r * 3, U.pick([12, 12, 18, 4]));
+    raise(m, x0 + 1, y0 + 1, x0 + w - 2, y0 + 1, 1); raise(m, x0 + 1, y0 + h - 2, x0 + w - 2, y0 + h - 2, 1);
+    scatter(m, 18, 4, 6, x0 - 1); scatter(m, 9, 4, 5); scatter(m, 4, 4, 5); lines(m, 1, 2, 5);
+    prefab(m, 'depot', 18);
+    props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0);
+    decor(m, 'crack', 12); decor(m, 'scorch', 4, 8);
+    const d = o.diff || 1;
+    m.itemList = [{ kind: 'materials', amt: U.rand(5, 9) }, { kind: 'materials', amt: U.rand(5, 9) }, { kind: 'ammo', amt: U.rand(20, 35) }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'meds', amt: 1 }];
+    return m;
+  };
+  GEN.forest = function (o) {
+    const m = M(28, 18, 1);
+    groundNoise(m, [[0.42, 1], [0.7, 2], [1, 0]]);
+    heights(m, 0.1, 0.55, 0.78, 5);
+    scatter(m, 5, 34, 5); scatter(m, 19, 9, 5); for (let i = 0; i < 4; i++) cluster(m, U.rand(7, m.w - 2), U.rand(1, m.h - 2), U.rand(2, 4), 3);
+    props(m, 'bush', 16); props(m, 'tuft', 14); props(m, 'bones', 4, 6); props(m, 'skull', 2, 8);
+    decor(m, 'grass', 16); decor(m, 'crack', 6);
+    const d = o.diff || 1;
+    m.itemList = [{ kind: 'food', amt: U.rand(6, 10) }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'ammo', amt: U.rand(10, 20) }];
+    return m;
+  };
+  GEN.crystalcave = function (o) {
+    const m = M(28, 18, 5);
+    cellular(m, 0.42, 4, 3);
+    groundNoise(m, [[0.55, 5], [0.85, 1], [1, 5]]);
+    heights(m, 0.13, 0.6, 0.85, 6);
+    scatter(m, 20, 12, 5);
+    props(m, 'shards', 16, 4); props(m, 'bones', 4, 5); props(m, 'shroom', 4, 5);
+    decor(m, 'crystal', 30, 4);
+    const d = o.diff || 1;
+    const n = U.rand(8, 10);
+    for (let i = 0; i < n; i++) m.itemList.push({ kind: 'gems', amt: U.rand(3, 5) + d });
+    return m;
+  };
+  GEN.swamp = function (o) {
+    const m = M(28, 18, 6);
+    groundNoise(m, [[0.42, 6], [0.62, 1], [1, 2]]);
+    for (let i = 0; i < 11; i++) pool(m, U.rand(6, m.w - 2), U.rand(1, m.h - 2), U.rand(5, 11), 7);
+    scatter(m, 5, 10, 5); scatter(m, 16, 6, 6); scatter(m, 19, 4, 5); for (let i = 0; i < 3; i++) cluster(m, U.rand(8, m.w - 2), U.rand(1, m.h - 2), U.rand(2, 4), 3);
+    props(m, 'reeds', 22, 3); props(m, 'bones', 6, 5); props(m, 'shroom', 5, 5);
+    decor(m, 'blood', 4, 8); decor(m, 'veins', 6, 6);
+    m.anchor = { x: 22, y: 9 };
+    const d = o.diff || 1;
+    for (let i = 0; i < 5; i++) m.itemList.push({ kind: 'gems', amt: U.rand(3, 5) + d });
     return m;
   };
 
@@ -562,6 +686,8 @@
       m = gen(o);
       if (m.kind !== 'defense') setupDeploy(m);
       if (m.post) m.post(m);
+      if (m.kind !== 'defense') { const cy = m.h >> 1; for (let y = cy - 4; y <= cy + 4; y++) for (let x = 0; x <= 4; x++) if (inb(m, x, y)) m.hgt[I(m, x, y)] = 0; }
+      smoothH(m);
       m.post = null;
       // спавн и туррели должны быть свободны
       const c = m.center;

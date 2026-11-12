@@ -31,7 +31,7 @@
     } else {
       banner('Ваш ход');
     }
-    if (B.turn === 1 && (B.tod !== 'day' || B.weather !== 'clear')) setTimeout(function () { DW.UI.toast(BT().condText(B), B.sightMod ? 'alert' : ''); }, 900);
+    if (B.turn === 1 && (B.tod !== 'day' || B.weather !== 'clear')) setTimeout(function () { DW.UI.toast(BT().condText(B), B.sightMod ? 'alert' : ''); }, 1650);
   };
   BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; };
   BS.update = function (dt) { DW.TR.update(dt); };
