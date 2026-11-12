@@ -609,6 +609,7 @@
   };
 
   BT.activatePods = async function (list) {
+    if (list && list.length && DW.Music) { if (!B.units.some(function (u) { return u.side === 'e' && u.alive && u.active; })) DW.Music.sting('contact'); DW.Music.intensity(1); }
     if (list && list.length) { const sp = BT.soldiers()[0]; const beast = list.some(function (e) { return D.ENEMIES[e.type] && D.ENEMIES[e.type].beast; }); if (sp) DW.TR.bark(sp, beast ? 'contactBeast' : 'contact'); }
     const pods = [];
     list.forEach(function (e) { if (!e.active && pods.indexOf(e.pod) < 0) pods.push(e.pod); });
@@ -781,6 +782,7 @@
     });
     BT.updateObjective();
     BT.updateVision();
+    if (DW.Music) DW.Music.intensity(B.units.some(function (u) { return u.side === 'e' && u.alive && u.active; }) ? 1 : 0.2);
   };
   BT.endPlayerTurn = async function () {
     B.phase = 'enemy';

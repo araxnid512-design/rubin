@@ -11,6 +11,7 @@
   Cine.play = function (name, opt) {
     if (DW.settings.cine === false || !SCENES[name]) return Promise.resolve();
     opt = opt || {};
+    if (DW.Music) DW.Music.set(name === 'end_lose' ? 'cine' : (name.indexOf('end_') === 0 ? 'win' : 'cine'), name === 'intro' ? 'wind' : undefined);
     return new Promise(function (res) {
       const root = U.el('div', { class: 'cine' });
       const cv = U.el('canvas', { class: 'cine-cv' });

@@ -126,7 +126,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (web != null) web.onResume();
+        if (web != null) {
+            web.onResume();
+            web.evaluateJavascript("window.DW && DW.onResume && DW.onResume();", null);
+        }
         hideSystemUi();
     }
 

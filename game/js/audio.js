@@ -2,7 +2,7 @@
 /* Синтезированные звуки (без внешних файлов) */
 (function (DW) {
   const S = {};
-  let ctx = null, master = null, noiseBuf = null;
+  let ctx = null, master = null, noiseBuf = null, out = null;
 
   function init() {
     if (ctx) return true;
@@ -10,21 +10,35 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       ctx = new AC();
+      /* общий выход через мягкий компрессор, чтобы взрывы не хрипели */
+      out = ctx.createDynamicsCompressor();
+      out.threshold.value = -12; out.knee.value = 10; out.ratio.value = 4; out.attack.value = 0.004; out.release.value = 0.25;
+      out.connect(ctx.destination);
       master = ctx.createGain();
       master.gain.value = 0.45;
-      master.connect(ctx.destination);
+      master.connect(out);
       const len = Math.floor(ctx.sampleRate * 1.5);
       noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      if (DW.Music) DW.Music._init();
       return true;
     } catch (e) { ctx = null; return false; }
   }
 
+  let paused = false;
   S.unlock = function () {
+    paused = false;
     if (!init()) return;
     if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* ignore */ } }
   };
+  /* приложение свёрнуто — глушим звук целиком; при возврате — продолжаем */
+  S.suspend = function () { paused = true; if (ctx && ctx.state === 'running') { try { ctx.suspend(); } catch (e) { /* ignore */ } } };
+  S.resume = function () { if (!ctx) return; paused = false; if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* ignore */ } } };
+  S.ctx = function () { return ctx; };
+  S.out = function () { return out; };
+  S.noiseBuf = function () { return noiseBuf; };
+  S.isPaused = function () { return paused; };
 
   function noise(t, dur, freq, q, gain, type) {
     const src = ctx.createBufferSource();

@@ -163,7 +163,21 @@
     if (fd && scene) { fd.style.transition = 'none'; fd.style.opacity = '1'; void fd.offsetWidth; fd.style.transition = 'opacity 0.45s ease-out'; fd.style.opacity = '0'; }
     scene = s;
     if (s.enter) s.enter(arg);
+    sceneMusic(s, arg);
   };
+  /* Музыка и фон под сцену */
+  function sceneMusic(s, arg) {
+    const Mu = DW.Music;
+    if (!Mu) return;
+    if (s === MS) Mu.set('menu', 'wind');
+    else if (s === DW.WS) Mu.set('world', 'wind');
+    else if (s === DW.BaseS) Mu.set('base', 'base');
+    else if (s === DW.BS) {
+      const B = arg || DW.BT.get();
+      Mu.set('battle', Mu.ambFor(B));
+      Mu.intensity(B && B.units && B.units.some(function (u) { return u.side === 'e' && u.alive && u.active; }) ? 1 : 0.2);
+    }
+  }
   Main.scene = function () { return scene; };
   Main.toMenu = function () { DW.BT.clear(); Main.setScene(MS); };
   Main.toWorld = function () { Main.setScene(DW.WS); };
@@ -227,6 +241,7 @@
     };
     const tx = texts[kind] || texts.lose;
     Main.setScene(MS);
+    if (DW.Music) DW.Music.set(kind === 'lose' ? 'cine' : 'win');
     DW.UI.modal({
       title: tx[0], cls: 'small k-' + (kind === 'lose' ? 'bad' : 'good'), closable: false,
       body: '<div class="ptext">' + tx[1] + '<br><br>Дней прожито: <b>' + st.day + '</b> · миссий: <b>' + st.stats.missions + '</b> · врагов убито: <b>' + st.stats.kills + '</b> · сдано драгоценностей: <b>' + st.delivered + '</b></div>',
@@ -358,14 +373,18 @@
   };
   DW.onPause = function () {
     if (DW.G.state && scene !== MS) DW.G.save();
+    DW.SFX.suspend();
   };
-  document.addEventListener('visibilitychange', function () { if (document.hidden) DW.onPause(); });
+  DW.onResume = function () { DW.SFX.resume(); };
+  document.addEventListener('visibilitychange', function () { if (document.hidden) DW.onPause(); else DW.onResume(); });
 
   Main.boot = function () {
     cv = document.getElementById('cv');
     g = cv.getContext('2d');
     resize();
     window.addEventListener('resize', resize);
+    /* звук разблокируется первым касанием где угодно (меню, окна, карта) */
+    document.addEventListener('pointerdown', function () { DW.SFX.unlock(); }, true);
     setupInput();
     Main.setScene(MS);
     requestAnimationFrame(loop);

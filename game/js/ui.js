@@ -523,7 +523,11 @@
     function render() {
       box.innerHTML = '';
       box.appendChild(el('button', { class: 'btn', text: 'Звук: ' + (DW.settings.sound ? 'вкл' : 'выкл'), onclick: function () {
-        DW.settings.sound = !DW.settings.sound; DW.saveSettings(); render();
+        DW.settings.sound = !DW.settings.sound; DW.saveSettings(); if (DW.Music) DW.Music.refresh(); render();
+      } }));
+      box.appendChild(el('button', { class: 'btn', text: 'Музыка: ' + (DW.settings.music !== false ? 'вкл' : 'выкл'), onclick: function () {
+        DW.SFX.unlock();
+        DW.settings.music = DW.settings.music === false; DW.saveSettings(); if (DW.Music) DW.Music.refresh(); render();
       } }));
       box.appendChild(el('button', { class: 'btn', text: 'Скорость боя: ×' + DW.settings.speed, onclick: function () {
         DW.settings.speed = DW.settings.speed >= 3 ? 1 : DW.settings.speed + 1; DW.saveSettings(); render();

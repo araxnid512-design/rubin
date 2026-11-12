@@ -493,6 +493,7 @@
     const res = B.over;
     banner(res === 'victory' ? 'Победа!' : (res === 'evac' ? 'Отход' : 'Отряд погиб'), true);
     DW.SFX.play(res === 'victory' ? 'portal' : 'death');
+    if (DW.Music) { DW.Music.sting(res === 'victory' ? 'victory' : 'defeat'); DW.Music.set(res === 'victory' ? 'world' : 'cine'); }
     await U.sleep(1300);
     const battle = B;
     const sum = DW.G.applyBattle(battle);
