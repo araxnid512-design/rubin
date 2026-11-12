@@ -18,6 +18,8 @@ const HUMAN = [
   { key: 'crouchAim', clip: 'AimRifle', n: 1, t0: 0.5, crouch: 0.4 },
   { key: 'hunker', clip: 'IdleRifle', n: 1, crouch: 0.62 }
 ];
+// Крупная фигура (экран отряда): стойка с оружием
+const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4 }];
 const W = (id, file, len, grip, fore, gy, fy, my) => ({ id, src: file, len, grip, fore, gy, fy, my });
 // Оружие игры → модель (ствол к −Z), длина, хват (доли от приклада), высоты точек (доли высоты)
 const WEAPONS = [
@@ -81,4 +83,4 @@ const PROPS = [
   { id: 'decor', variants: [P(S + 'env/e_tire.glb', 0.5, 0.3), P(S + 'env/e_trashbags.glb', 0.6, 0.5), P(S + 'env/e_pipes.glb', 0.9, 0.5), P(S + 'env/e_vaz2107.glb', 1.5, 1.0, 30), P(S + 'env/e_uaz.glb', 1.5, 1.2, -30), P(S + 'env/e_ural.glb', 2.2, 1.9, 60), P(S + 'env/e_btr80.glb', 2.3, 1.6, -20), P(S + 'env/e_paz.glb', 2.4, 1.9, 40), P(S + 'env/e_well.glb', 0.9, 1.6), P(S + 'env/e_sandbags.glb', 0.9, 0.6)] }
 ];
 
-module.exports = { CLIPS, HUMAN, WEAPONS, WEAPON_FALLBACK, BODIES, BODY_FALLBACK, CREATURES, PROPS };
+module.exports = { CLIPS, HUMAN, FIGURE, WEAPONS, WEAPON_FALLBACK, BODIES, BODY_FALLBACK, CREATURES, PROPS };

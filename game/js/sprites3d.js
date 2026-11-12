@@ -113,6 +113,27 @@
     for (const id in A()) if (id.indexOf('p_') === 0) S3.load(id);
   };
 
+  /* Крупная фигура бойца для экрана отряда: холст или null (пока атласы не загружены) */
+  S3.figure = function (s) {
+    const S = S3.setsFor({ kind: 'soldier', name: s.name, armorId: s.armor, weapon: s.weapon, id: s.id });
+    if (!S) return null;
+    const fb = 'f_' + S.body.slice(2), fw = 'f' + (S.weapon || 'w_ak');
+    S3.load(fb); S3.load(fw);
+    if (!S3.ready(fb)) return null;
+    const L = [[fb, 'pose', 0, 0]];
+    if (S3.ready(fw)) L.push([fw, 'pose', 0, 0]);
+    const f = S3.frame(L);
+    if (!f) return null;
+    const c = document.createElement('canvas'); c.width = f.c.width; c.height = f.c.height;
+    c.getContext('2d').drawImage(f.c, 0, 0);
+    return c;
+  };
+  /* заранее — фигуры отряда (маленькие файлы) */
+  S3.preloadFigures = function (roster) {
+    if (!A()) return;
+    (roster || []).forEach(function (s) { const S = S3.setsFor({ kind: 'soldier', name: s.name, armorId: s.armor, weapon: s.weapon, id: s.id }); if (S) { S3.load('f_' + S.body.slice(2)); if (S.weapon) S3.load('f' + S.weapon); } });
+  };
+
   /* направление клетки (0..7, шаг 45°) по углу взгляда юнита */
   S3.dir8 = function (face) {
     const f = face === undefined ? Math.PI : face;

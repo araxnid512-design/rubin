@@ -275,7 +275,7 @@ async function frames(spec) {
     const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? Math.min(an.t1, clip.duration) : clip.duration;
     for (let i = 0; i < an.n; i++) {
       const t = an.n === 1 ? t0 : t0 + (t1 - t0) * (an.loop ? i / an.n : i / (an.n - 1));
-      for (let d = 0; d < 8; d++) {
+      for (const d of (spec.dirs || [0, 1, 2, 3, 4, 5, 6, 7])) {
         dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
         poseRig(src, an.clip, t);
         if (rt) rt();

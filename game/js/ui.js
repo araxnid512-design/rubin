@@ -148,7 +148,9 @@
       const next = D.RANKS[rk + 1];
       const top = el('div', { class: 'dtop' });
       top.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
-      top.appendChild(el('img', { class: 'fig', src: DW.ART.figureURL(s), alt: '' }));
+      const f3 = DW.S3 ? DW.S3.figure(s) : null;
+      if (f3) { f3.className = 'fig'; top.appendChild(f3); }
+      else top.appendChild(el('img', { class: 'fig', src: DW.ART.figureURL(s), alt: '' }));
       const info = el('div', { class: 'dinfo' });
       const TRt = D.TRAITS[s.trait];
       info.innerHTML = '<div class="dhead">' + s.name + ' <button class="btn sm ren">✎</button></div>' +

@@ -164,6 +164,7 @@
     scene = s;
     if (s.enter) s.enter(arg);
     sceneMusic(s, arg);
+    if (s === DW.WS && DW.S3 && DW.G.state) DW.S3.preloadFigures(DW.G.state.roster);
   };
   /* Музыка и фон под сцену */
   function sceneMusic(s, arg) {
