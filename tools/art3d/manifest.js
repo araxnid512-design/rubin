@@ -71,7 +71,7 @@ const PROPS = [
   { id: 'obj7', type: 7, variants: [P(S + 'env/e_vaz_burned.glb', 1.45, 1.0, 20), P(S + 'env/e_vaz_crashed.glb', 1.45, 1.0, -60), P(S + 'env/e_volga.glb', 1.5, 1.0, 110)] },
   { id: 'obj8', type: 8, variants: [P(DW + 'e_rubble.glb', 1.0, 0.95), P(DW + 'e_rubble.glb', 0.95, 0.9, 120), P(S + 'env/e_block.glb', 0.9, 0.9, 30)] },
   { id: 'obj9', type: 9, variants: [P(S + 'env/e_barrel.glb', 0.45, 0.95), P(S + 'env/e_hazard.glb', 0.45, 0.95), P(S + 'env/e_barrel.glb', 0.45, 0.95, 90)] },
-  { id: 'obj10', type: 10, variants: [P(DW + 'e_tent.glb', 1.0, 1.4), P(DW + 'e_tent.glb', 1.0, 1.4, 90), P(DW + 'e_tent.glb', 0.95, 1.35, 200)] },
+  { id: 'obj10', type: 10, variants: [P(DW + 'e_tent.glb', 1.15, 1.6), P(DW + 'e_tent.glb', 1.15, 1.6, 90), P(DW + 'e_tent.glb', 1.1, 1.6, 200)].map((v) => Object.assign(v, { sy: 1.4 })) },
   { id: 'obj12', type: 12, variants: [P(DW + 'e_generator.glb', 0.85, 1.0), P(S + 'env/e_lathe.glb', 0.85, 0.9, 30), P(DW + 'e_generator.glb', 0.85, 1.0, 120)] },
   { id: 'obj15', type: 15, variants: [P(DW + 'e_portal.glb', 1.35, 3.0, -45)] },
   { id: 'obj16', type: 16, variants: [P(DW + 'e_chitin.glb', 0.85, 1.0), P(DW + 'e_chitin.glb', 0.8, 0.95, 120), P(DW + 'e_chitin.glb', 0.85, 1.0, 240)] },
