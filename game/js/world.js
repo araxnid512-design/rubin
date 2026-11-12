@@ -114,7 +114,7 @@
     for (const k in D.NODE_NAMES) names[k] = U.shuffle(D.NODE_NAMES[k].slice());
     const nodes = pts.map(function (p, i) {
       const tp = type[i];
-      let diff = U.clamp(1 + Math.floor(hops[i] * 0.75), 1, 5);
+      let diff = U.clamp(1 + Math.floor(hops[i] * 0.6), 1, 5);
       if (tp === 'lair') diff = Math.min(5, diff + 1);
       if (tp === 'vault') diff = Math.max(4, diff);
       if (tp === 'nest') diff = 5;

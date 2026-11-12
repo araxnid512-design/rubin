@@ -48,16 +48,20 @@
   BT.composePods = function (o) {
     const st = DW.G.state;
     const type = o.type, diff = o.diff;
-    let n = 2 + diff + Math.floor((st.day - 1) / 6);
+    let n = 2 + diff + Math.floor((st.day - 1) / 7);
     if (o.kind === 'ambush') n = Math.max(2, n - 2);
     n = U.clamp(n, 2, 12);
     function poolFor(f) {
       if (f === 'beast') {
+        if (diff >= 4) return ['scav', 'spitter', 'brute', 'spitter', 'brute'];
         if (diff >= 3) return ['scav', 'scav', 'spitter', 'brute', 'spitter'];
-        if (diff >= 2) return ['scav', 'scav', 'scav', 'spitter', 'brute'];
+        if (diff >= 2) return ['scav', 'scav', 'spitter', 'spitter'];
         return ['scav', 'scav', 'scav', 'spitter'];
       }
-      if (f === 'raider') return diff >= 2 ? ['raider', 'raider', 'thug', 'marksman'] : ['raider', 'raider', 'thug'];
+      if (f === 'raider') {
+        if (diff >= 3) return ['raider', 'raider', 'thug', 'marksman'];
+        return diff >= 2 ? ['raider', 'raider', 'thug', 'thug'] : ['raider', 'raider', 'thug'];
+      }
       return ['guardian', 'guardian', 'scav'];
     }
     const famMap = { landing: 'beast', vein: 'beast', lair: 'beast', nest: 'beast', camp: 'raider', vault: 'guard' };
@@ -65,7 +69,7 @@
     const pods = [];
     if (o.kind !== 'ambush') {
       if (type === 'camp' && diff >= 3) { pods.push({ types: ['boss', 'raider'], anchor: true }); n -= 2; }
-      if (type === 'lair') { pods.push({ types: ['brute', 'scav', 'spitter'], anchor: true }); n -= 3; }
+      if (type === 'lair') { pods.push({ types: diff >= 3 ? ['brute', 'scav', 'spitter'] : ['spitter', 'scav', 'spitter'], anchor: true }); n -= 3; }
       if (type === 'nest') { pods.push({ types: ['queen', 'brute', 'spitter'], anchor: true }); n = Math.max(n, 10) - 3; }
       if (type === 'vault') { pods.push({ types: ['guardian', 'guardian'], anchor: false }); n -= 2; }
     }
@@ -95,7 +99,7 @@
   function mkEnemy(type, x, y, pod) {
     const T = D.ENEMIES[type];
     const st = DW.G.state;
-    const bonus = Math.max(0, B.diff - 2) + Math.floor(st.day / 15);
+    const bonus = Math.max(0, B.diff - 3) + Math.floor(st.day / 15);
     const W = T.weapon ? D.WEAPONS[T.weapon] : null;
     return {
       id: B.nextId++, side: 'e', kind: 'enemy', type: type, name: T.n, x: x, y: y,
