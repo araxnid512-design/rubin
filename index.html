@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Бункер «Рубин» — выживание</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="bars">
+    <div class="bar" title="Здоровье"><span>❤️</span><div><i id="b-hp" style="background:#c0392b"></i></div><b id="t-hp"></b></div>
+    <div class="bar" title="Сытость"><span>🍖</span><div><i id="b-hu" style="background:#c98a2b"></i></div><b id="t-hu"></b></div>
+    <div class="bar" title="Вода"><span>💧</span><div><i id="b-th" style="background:#2e86c1"></i></div><b id="t-th"></b></div>
+    <div class="bar" title="Фильтр противогаза"><span>😷</span><div><i id="b-fi" style="background:#7fae3a"></i></div><b id="t-fi"></b></div>
+  </div>
+  <div id="top"><div id="locname"></div><div id="goal"></div></div>
+  <div id="menu">
+    <button data-m="inv" title="Рюкзак (I)">🎒</button>
+    <button data-m="craft" title="Крафт (C)">🔨</button>
+    <button data-m="build" id="m-build" title="Обустройство бункера (B)">🏗️</button>
+    <button data-m="help" title="Помощь">❓</button>
+  </div>
+  <div id="weapon"></div>
+  <div id="quick">
+    <button data-q="eat" title="Поесть (1)">🍖<b id="q-eat"></b></button>
+    <button data-q="drink" title="Попить (2)">💧<b id="q-drink"></b></button>
+    <button data-q="heal" title="Лечиться (3)">🩹<b id="q-heal"></b></button>
+  </div>
+  <div id="prompt"></div>
+  <div id="toasts"></div>
+  <div id="btns">
+    <button id="bUse" title="Действие (E)">✋</button>
+    <button id="bAtk" title="Атака (Пробел)">⚔️</button>
+  </div>
+</div>
+
+<div id="panel" class="hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
