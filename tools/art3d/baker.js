@@ -355,7 +355,13 @@ async function bakeSet(spec) {
   (spec.anims || [{ key: 'v', n: spec.variants ? spec.variants.length : 1 }]).forEach((a) => { anims[a.key] = { n: a.n, loop: !!a.loop, fps: a.fps || 0 }; });
   const F = {};
   p.items.forEach((it) => { (F[it.k] = F[it.k] || []); F[it.k][it.i * (spec.kind === 'prop' ? 1 : 8) + it.d] = it.rect; });
-  return { ss: spec.ss || 2, dirs: spec.kind === 'prop' ? 1 : 8, anims, frames: F, pages: p.pages.map((c) => c.toDataURL('image/webp', spec.q || 0.9)) };
+  // половинные копии страниц — для низкой графики (вчетверо меньше памяти)
+  const lo = spec.kind === 'prop' || (spec.ss || 2) > 2 ? null : p.pages.map((c) => {
+    const h = document.createElement('canvas'); h.width = Math.ceil(c.width / 2); h.height = Math.ceil(c.height / 2);
+    const g = h.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, h.width, h.height);
+    return h.toDataURL('image/webp', 0.88);
+  });
+  return { ss: spec.ss || 2, dirs: spec.kind === 'prop' ? 1 : 8, anims, frames: F, pages: p.pages.map((c) => c.toDataURL('image/webp', spec.q || 0.9)), lo };
 }
 async function propCanvas(spec) {
   const r = await prop(Object.assign({ raw: true }, spec));

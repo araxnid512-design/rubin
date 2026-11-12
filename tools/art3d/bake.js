@@ -47,9 +47,11 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
       const r = await page.evaluate((spec) => BK.bakeSet(spec), j.spec);
       const files = [];
       r.pages.forEach((url, i) => { const f = j.id + '_' + i + '.webp'; saveDataURL(path.join(OUT, f), url); files.push(f); });
+      const lo = [];
+      (r.lo || []).forEach((url, i) => { const f = j.id + '_' + i + '_lo.webp'; saveDataURL(path.join(OUT, f), url); lo.push(f); });
       // старые лишние страницы
       for (let i = r.pages.length; i < 8; i++) { const f = path.join(OUT, j.id + '_' + i + '.webp'); if (fs.existsSync(f)) fs.unlinkSync(f); }
-      meta.sets[j.id] = { ss: r.ss, dirs: r.dirs, anims: r.anims, frames: r.frames, pages: files, type: j.type };
+      meta.sets[j.id] = { ss: r.ss, dirs: r.dirs, anims: r.anims, frames: r.frames, pages: files, lo: lo.length ? lo : undefined, type: j.type };
       const kb = files.reduce((a, f) => a + fs.statSync(path.join(OUT, f)).size, 0) / 1024;
       console.log(j.id, files.length + ' стр.', Math.round(kb) + ' КБ', (Date.now() - t0) + ' мс');
     } catch (e) { console.log('ОШИБКА', j.id, String(e).slice(0, 300)); }

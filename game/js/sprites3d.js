@@ -12,12 +12,17 @@
 
   S3.has = function (id) { const s = A(); return !!(s && s[id]); };
   S3.ready = function (id) { return state[id] === 'ok'; };
+  const half = {};      // setId → true, если загружены половинные страницы
   S3.load = function (id) {
     const s = A();
     if (!s || !s[id] || state[id]) return;
     state[id] = 'loading';
-    let left = s[id].pages.length;
-    imgs[id] = s[id].pages.map(function (f) {
+    // низкая графика — половинные копии атласов (вчетверо меньше памяти)
+    const useLo = s[id].lo && DW.gfxLevel && DW.gfxLevel() === 0;
+    half[id] = !!useLo;
+    const list = useLo ? s[id].lo : s[id].pages;
+    let left = list.length;
+    imgs[id] = list.map(function (f) {
       const im = new Image();
       im.onload = function () { if (--left === 0 && state[id] === 'loading') state[id] = 'ok'; };
       im.onerror = function () { state[id] = 'err'; };
@@ -52,7 +57,7 @@
       const r = rect(l[0], l[1], l[2], l[3]);
       if (!r) { if (k === 0) return null; continue; }
       ss = sets[l[0]].ss || 2;
-      parts.push({ im: imgs[l[0]][r[0]], r: r });
+      parts.push({ im: imgs[l[0]][r[0]], r: r, h: half[l[0]] ? 0.5 : 1 });
       L = Math.min(L, -r[5]); T = Math.min(T, -r[6]); R = Math.max(R, r[3] - r[5]); Bt = Math.max(Bt, r[4] - r[6]);
     }
     if (!parts.length) return null;
@@ -62,7 +67,7 @@
     const g = c.getContext('2d');
     if (flip) { g.translate(W, 0); g.scale(-1, 1); }
     g.scale(q, q);
-    parts.forEach(function (p) { const r = p.r; g.drawImage(p.im, r[1], r[2], r[3], r[4], -r[5] - L, -r[6] - T, r[3], r[4]); });
+    parts.forEach(function (p) { const r = p.r, h = p.h; g.drawImage(p.im, r[1] * h, r[2] * h, r[3] * h, r[4] * h, -r[5] - L, -r[6] - T, r[3], r[4]); });
     const sh = document.createElement('canvas'); sh.width = W; sh.height = H;
     const sg = sh.getContext('2d'); sg.drawImage(c, 0, 0); sg.globalCompositeOperation = 'source-in'; sg.fillStyle = '#000'; sg.fillRect(0, 0, W, H);
     const k = 1 / ss;

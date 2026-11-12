@@ -2174,7 +2174,9 @@
     if (ts.dir !== fi.dir) { ts.dir = fi.dir; ts.t0 = t; }
     const tk = U.clamp((t - ts.t0) / (170 / spd()), 0, 1);
     const sx = tk < 1 && !fr.d3 ? 0.18 + 0.82 * U.ease(tk) : 1;
-    g.drawImage(fr.c, c[0] - fr.ox * sx, c[1] - fr.oy + bob, fr.w * sx, fr.h);
+    // 3D-кадр: лёгкий отброс при попадании (у рисованных он встроен в кадр)
+    const kb = fr.d3 && an && an.kind === 'hit' ? -fi.dir * Math.sin(an.p * Math.PI) * 3 : 0;
+    g.drawImage(fr.c, c[0] - fr.ox * sx + kb, c[1] - fr.oy + bob, fr.w * sx, fr.h);
     if (!tw && !an && u.kind === 'soldier' && DW.G.smoker(u)) {
       const k = (t / 1600) % 1;
       g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';
