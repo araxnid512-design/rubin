@@ -42,6 +42,8 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(true);
+        // атласы 3D-спрайтов (assets3d/*.webp) — тот же источник, что и страница: холсты не «пачкаются»
+        s.setAllowFileAccessFromFileURLs(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setTextZoom(100);
         s.setSupportZoom(false);

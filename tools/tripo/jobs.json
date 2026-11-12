@@ -553,6 +553,23 @@
     "-o",
     "out/c_vest_a.glb"
    ]
+  },
+  {
+   "id": "p4_c_exo_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "26a70ff1-cb87-4be7-99ea-835ac2a1dd97",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_exo_a.glb"
+   ]
   }
  ]
 }
