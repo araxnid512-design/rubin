@@ -2770,22 +2770,35 @@
     g.fillStyle = gr; g.fillRect(0, Math.max(0, hy), W, H - Math.max(0, hy));
     // силуэты: дальние горы, руины города, ближние холмы
     if (hy > -60) {
-      const layer = function (L, col, k) {
+      const layer = function (L, col, k, rock) {
         const scy = Math.pow(z, 0.4) * k;
         const ox = -TR.cam.x * z * L.par;
         const per = 1800 * scy;
         let start = (ox % per); if (start > 0) start -= per;
-        g.fillStyle = col;
+        const path = new Path2D();
         for (let x0 = start; x0 < W; x0 += L.pts[L.pts.length - 1][0] * scy) {
-          g.beginPath(); g.moveTo(x0, hy + 2);
-          L.pts.forEach(function (p) { g.lineTo(x0 + p[0] * scy, hy - p[1] * scy); });
-          g.lineTo(x0 + L.pts[L.pts.length - 1][0] * scy, hy + 2); g.closePath(); g.fill();
+          path.moveTo(x0, hy + 2);
+          L.pts.forEach(function (p) { path.lineTo(x0 + p[0] * scy, hy - p[1] * scy); });
+          path.lineTo(x0 + L.pts[L.pts.length - 1][0] * scy, hy + 2); path.closePath();
+        }
+        g.fillStyle = col; g.fill(path);
+        // горы: фото породы и свет по склонам (фон кэшируется — стоит один раз)
+        const rp = rock && !indoor ? photoPat(g, 'w_rockface', 0.45 * scy, 0.3 * scy, ox * 0.5, hy) : null;
+        if (rp) {
+          g.save(); g.clip(path);
+          g.globalCompositeOperation = 'overlay'; g.globalAlpha = tod === 'night' ? 0.35 : 0.7; g.fillStyle = rp; g.fillRect(0, hy - 400 * scy, W, 404 * scy);
+          g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+          const sg = g.createLinearGradient(0, hy - 260 * scy, 0, hy);
+          const lt = tod === 'night' ? '120,140,190' : (tod === 'day' ? '255,245,225' : '255,190,150');
+          sg.addColorStop(0, 'rgba(' + lt + ',0.22)'); sg.addColorStop(0.6, 'rgba(' + lt + ',0.04)'); sg.addColorStop(1, 'rgba(0,0,0,0.18)');
+          g.fillStyle = sg; g.fillRect(0, hy - 400 * scy, W, 404 * scy);
+          g.restore();
         }
       };
       const mix = indoor ? ['#080706', '#0c0a09', '#100d0b'] : (tod === 'night' ? ['#141a2a', '#0e121e', '#0a0d16'] : (tod === 'day' ? ['rgba(120,118,112,0.75)', 'rgba(90,84,76,0.85)', '#5a4e40'] : (tod === 'dawn' ? ['rgba(110,80,100,0.8)', 'rgba(70,50,62,0.9)', '#3a2a2e'] : ['rgba(110,60,50,0.8)', 'rgba(70,36,30,0.9)', '#2e1a14'])));
-      layer(silh.far, mix[0], 1);
+      layer(silh.far, mix[0], 1, true);
       layer(silh.city, mix[1], 1);
-      layer(silh.near, mix[2], 1);
+      layer(silh.near, mix[2], 1, true);
       // дымка у горизонта
       gr = g.createLinearGradient(0, hy - H * 0.12, 0, hy + H * 0.1);
       const hz2 = indoor ? '20,16,12' : (tod === 'night' ? '40,50,80' : (tod === 'day' ? '220,205,180' : (tod === 'dawn' ? '230,160,150' : '230,130,80')));
