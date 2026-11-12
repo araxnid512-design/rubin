@@ -59,7 +59,7 @@
   function frame(t) {
     requestAnimationFrame(frame);
     let dt = (t - last) / 1000; last = t; if (!(dt > 0)) return; if (dt > 0.1) dt = 0.1;
-    G.time += dt; fA += dt; fN++; if (fA > 0.5) { $('fps').textContent = Math.round(fN / fA) + ' FPS'; fA = 0; fN = 0; }
+    G.time += dt; G.dt = dt; fA += dt; fN++; if (fA > 0.5) { $('fps').textContent = Math.round(fN / fA) + ' FPS'; fA = 0; fN = 0; }
     UI.tick(dt);
     const x = G.ctx;
     if (G.mode === 'battle') { BT.update(dt); BT.render(x, G.view); }

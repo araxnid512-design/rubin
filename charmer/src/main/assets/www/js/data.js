@@ -156,6 +156,7 @@
       exits: [{ x: 25, y: 8, to: 'meadow', tx: 1, ty: 8 }, { x: 25, y: 7, to: 'meadow', tx: 1, ty: 7 }],
       paths: [[[1, 8], [25, 8]], [[5, 6], [5, 8]], [[12, 5], [12, 8]], [[19, 6], [19, 8]], [[12, 8], [12, 12]]],
       ponds: [[6, 12, 2.2]], grass: [], houses: [{ k: 'elder', x: 3, y: 3 }, { k: 'tavern', x: 10, y: 2 }, { k: 'shop', x: 17, y: 3 }],
+      props: [['well', 15, 11], ['barrel', 9, 5], ['barrel', 15, 4], ['lamp', 8, 6], ['lamp', 16, 6], ['lamp', 22, 9], ['cart', 21, 5], ['flowers', 2, 6], ['flowers', 8, 3], ['fence', 17, 11], ['fence', 18, 11], ['fence', 19, 11], ['flowers', 22, 12]],
       npcs: [{ id: 'pahom', x: 14, y: 11, face: 'down', look: 'old' }, { id: 'kid', x: 8, y: 9, face: 'right', look: 'kid' }],
       signs: [{ x: 23, y: 6, t: '→ Медовый луг. Осторожно: дикие девы! Детям и женатым — не ходить.' }] },
     meadow: { n: 'Медовый луг', w: 30, h: 18, ground: 'grass', seed: 7, trees: 0.07, flowers: 0.1,
