@@ -1038,12 +1038,25 @@ bAtk.addEventListener('pointerdown', e => { atkHeld = true; e.preventDefault(); 
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) bAtk.addEventListener(ev, () => { atkHeld = false; });
 document.addEventListener('visibilitychange', () => { if (document.hidden && G && loc && loc.bunker && !ui.panel) save(); });
 
+// ---------- Android: полный экран и альбомная ориентация ----------
+const coarse = matchMedia('(pointer:coarse)'), portrait = matchMedia('(orientation:portrait)');
+function goLandscape() {
+  if (!coarse.matches) return;
+  try {
+    const el = document.documentElement, fs = el.requestFullscreen || el.webkitRequestFullscreen;
+    const p = document.fullscreenElement || !fs ? Promise.resolve() : fs.call(el, {navigationUI: 'hide'});
+    Promise.resolve(p).then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {});
+  } catch (e) {}
+}
+addEventListener('pointerup', goLandscape);
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+
 // ---------- цикл ----------
 let last = 0;
 function frame(t) {
   const dt = Math.min(.05, (t - last) / 1000 || 0); last = t;
   if (G && loc) {
-    if (!ui.panel) update(dt);
+    if (!ui.panel && !(coarse.matches && portrait.matches)) update(dt);
     render();
     if ((hudT -= dt) <= 0) { hud(); hudT = .12; }
   } else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b0d0a'; ctx.fillRect(0, 0, cv.width, cv.height); }

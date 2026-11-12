@@ -4,7 +4,7 @@ html,body{height:100%;overflow:hidden;background:#0b0d0a;color:#e6e2d3;font-fami
 .hidden{display:none!important}
 button{font:inherit;color:inherit;cursor:pointer;border:none}
 
-#hud{position:fixed;inset:0;pointer-events:none}
+#hud{position:fixed;inset:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);pointer-events:none}
 #hud>*{position:absolute}
 #hud button{pointer-events:auto}
 #bars{left:10px;top:10px;width:190px}
@@ -106,4 +106,24 @@ button{font:inherit;color:inherit;cursor:pointer;border:none}
   #prompt{bottom:64px}
   #top{max-width:44vw}
   #weapon{display:none}
+}
+
+#rotate{display:none;position:fixed;inset:0;z-index:50;background:#0b0d0a;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-size:18px;text-align:center;padding:20px}
+#rotate div{font-size:64px}
+@media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
+@media (max-height:420px){
+  #toasts{max-width:34vw}
+  .toast{font-size:11px}
+  .win{max-height:98vh}
+  .ptitle{padding:5px 12px;font-size:15px}
+  .ptitle button{width:30px;height:30px}
+  .pbody{padding:8px 12px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(42px,1fr))}
+  .title{padding:12px}
+  .title h1{font-size:26px}
+  .title h2{margin-bottom:10px}
+  .keys{margin-top:8px;font-size:11px}
+  #menu button,#quick button{width:40px;height:40px}
+  #bUse{width:58px;height:58px}
+  #bAtk{width:76px;height:76px}
 }
