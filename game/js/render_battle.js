@@ -1276,6 +1276,7 @@
     sprites = {};
     unitCache = {};
     for (const k in live) delete live[k];
+    for (const k in turnS) delete turnS[k];
     for (const k in anims) delete anims[k];
     for (const k in nextFidget) delete nextFidget[k];
     for (const k in deadAt) delete deadAt[k];
@@ -1401,9 +1402,14 @@
   }
   TR.stepFx = function (u, nx, ny) {
     const c0 = isoC(u.x, u.y);
+    const heavy = u.type === 'brute' || u.type === 'queen';
+    if (heavy) {
+      TR.shake = Math.max(TR.shake || 0, u.type === 'queen' ? 4 : 2.6);
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; fx.parts.push({ x: c0[0] + Math.cos(a) * 8, y: c0[1] + Math.sin(a) * 4, z: 1, vx: Math.cos(a) * 30, vy: Math.sin(a) * 10, vz: 10 + Math.random() * 8, t0: now(), life: 700, color: 'rgba(170,150,120,0.4)', size: 5 + Math.random() * 4, grav: 6 }); }
+    }
     if (Math.random() < 0.7) for (let k = 0; k < 3; k++) fx.parts.push({ x: c0[0] + (Math.random() - 0.5) * 10, y: c0[1] + (Math.random() - 0.5) * 4, z: 1, vx: (Math.random() - 0.5) * 18, vy: (Math.random() - 0.5) * 6, vz: 8 + Math.random() * 8, t0: now(), life: 600, color: 'rgba(170,150,120,0.35)', size: 4 + Math.random() * 4, grav: 4 });
     return new Promise(function (res) {
-      tweens[u.id] = { fx: u.x, fy: u.y, tx: nx, ty: ny, t0: now(), dur: 135 / spd(), res: res, kind: 'step' };
+      tweens[u.id] = { fx: u.x, fy: u.y, tx: nx, ty: ny, t0: now(), dur: (u._run ? 112 : 135) / spd(), res: res, kind: 'step', run: !!u._run };
       if (u.side === 'p') {
         const s = TR.tileToScreen(nx, ny);
         if (s[0] < TR.view.w * 0.14 || s[0] > TR.view.w * 0.86 || s[1] < TR.view.h * 0.18 || s[1] > TR.view.h * 0.76) {
@@ -1575,6 +1581,7 @@
   let unitCache = {};
   /* ---------- Анимации юнитов ---------- */
   const anims = {};
+  const turnS = {};
   const nextFidget = {};
   const deadAt = {};
   TR.anim = function (u, kind, dur, data) {
@@ -1590,23 +1597,43 @@
     if (p >= 1) { if (a.kind !== 'die') delete anims[u.id]; return a.kind === 'die' ? { kind: 'die', p: 1, a: a } : null; }
     return { kind: a.kind, p: Math.max(0, p), a: a };
   }
+  const RK = { ppsh: 'drum', ak: 'mag', ak2: 'mag', lmg: 'box', hlmg: 'box', sniper: 'bolt', hsniper: 'bolt', shotgun: 'pump' };
+  const KICK = { ppsh: 0.55, ak: 1, ak2: 0.85, lmg: 0.8, hlmg: 1.1, sniper: 1.7, hsniper: 2.1, shotgun: 1.6 };
+  function coverLevel(u) {
+    if (u.kind === 'turret' || (u.side === 'e' && !ART.ENEMY_LOOKS[u.type])) return 0;
+    let c = 0;
+    DW.BT.DIR4.forEach(function (d) { const o = DW.BT.objAt(u.x + d[0], u.y + d[1]); if (o && D.OBJ[o].cover > c) c = D.OBJ[o].cover; });
+    return c;
+  }
   function poseFor(u, an) {
     const P = {};
+    P.rk = RK[u.weapon] || 'mag'; P.kick = KICK[u.weapon] || 1;
     if (u.hunker) { P.crouch = 1; P.low = 0.5; }
     else if (u.overwatch) { P.raise = 1; P.crouch = 0.3; }
+    else if (u.alive) {
+      const cv = coverLevel(u);
+      if (cv === 1) { P.crouch = 0.62; P.low = 0.15; }
+      else if (cv === 2) { P.crouch = 0.12; P.lean = -0.05; P.low = 0.25; }
+    }
     if (!an) return P;
     const p = an.p;
     switch (an.kind) {
       case 'shoot': {
         const n = an.a.data.cnt || 1;
         const q = (p * n) % 1;
-        P.raise = 1; P.crouch = Math.max(P.crouch || 0, 0.15);
-        P.recoil = q < 0.35 ? q / 0.35 : Math.max(0, 1 - (q - 0.35) / 0.65);
+        P.raise = 1; P.crouch = Math.min(P.crouch || 0, 0.5); P.low = 0;
+        P.recoil = q < 0.3 ? q / 0.3 : Math.max(0, 1 - (q - 0.3) / 0.7);
+        if (P.rk === 'drum' || P.rk === 'box') P.recoil *= 0.75 + Math.random() * 0.35;
         P.atk = Math.sin(Math.min(1, p) * Math.PI);
+        if (P.rk === 'bolt' && p > 0.55) { P.reload = (p - 0.55) / 0.45; P.recoil = 0; }
         break;
       }
       case 'charge': P.charge = p; break;
-      case 'reload': P.reload = p; P.crouch = Math.max(P.crouch || 0, 0.2); break;
+      case 'reload': P.reload = p; P.crouch = Math.max(P.crouch || 0, 0.2); P.low = 0; break;
+      case 'scan': P.raise = Math.sin(p * Math.PI) * 0.8; P.look = p > 0.4 && p < 0.7 ? -1 : 0; break;
+      case 'shift': P.lean = Math.sin(p * Math.PI) * 0.09; P.crouch = (P.crouch || 0) + Math.sin(p * Math.PI) * 0.12; break;
+      case 'smoke': P.smoke = Math.sin(Math.min(1, p * 1.3) * Math.PI); break;
+      case 'shake': P.atk = Math.sin(p * Math.PI * 6) * 0.3; P.hit = Math.sin(p * Math.PI) * 0.2; break;
       case 'throw': P.throwP = p; break;
       case 'hit': P.hit = Math.sin(p * Math.PI); break;
       case 'atk': P.atk = Math.sin(p * Math.PI); break;
@@ -1631,7 +1658,7 @@
       ART.creature(g, u.type, { dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose, noShadow: true }, t);
     }
   }
-  function stanceKey(u) { return u.hunker ? 'h' : (u.overwatch ? 'o' : 'n'); }
+  function stanceKey(u) { return u.hunker ? 'h' : (u.overwatch ? 'o' : 'n' + coverLevel(u)); }
   /* Объём фигуры: тёмный контур, подсветка со стороны света, затенение с теневой, темнее к ногам */
   let volTmp = null;
   function volumize(src, dst, feetY, k) {
@@ -1749,14 +1776,22 @@
   function fallTransform(g, u, fi, f) {
     const beast = u.side === 'e' && D.ENEMIES[u.type] && !ART.ENEMY_LOOKS[u.type];
     const e = U.ease(U.clamp(f, 0, 1));
-    if (beast) { g.rotate(-fi.dir * e * 0.35); g.scale(1, 1 - e * 0.45); }
-    else { g.translate(-fi.dir * e * 4, 0); g.rotate(-fi.dir * e * 1.42); g.scale(1, 1 - e * 0.2); }
+    if (beast) { g.rotate(-fi.dir * e * 0.35); g.scale(1, 1 - e * 0.45); return; }
+    const v = (u.id * 7 + 3) % 3;
+    if (v === 0) { g.translate(-fi.dir * e * 4, 0); g.rotate(-fi.dir * e * 1.42); g.scale(1, 1 - e * 0.2); }
+    else if (v === 1) { g.translate(fi.dir * e * 6, 0); g.rotate(fi.dir * e * 1.48); g.scale(1, 1 - e * 0.15); }
+    else {
+      const a = U.clamp(f / 0.45, 0, 1), b = U.ease(U.clamp((f - 0.4) / 0.6, 0, 1));
+      g.scale(1, 1 - a * 0.28);
+      g.translate(-fi.dir * b * 2, 0); g.rotate(-fi.dir * b * 1.5);
+    }
   }
   function drawUnit(g, u, t, sel, alpha) {
     const c = uPos(u, true);
     const fi = faceInfo(u);
     const tw = tweens[u.id];
-    const walk = tw && tw.kind === 'step' ? t / 70 : null;
+    const running = tw && tw.kind === 'step' && tw.run;
+    const walk = tw && tw.kind === 'step' ? t / (running ? 52 : 70) : null;
     const sc = unitScale(u);
     let an = curAnim(u, t);
     // случайные движения в покое
@@ -1765,7 +1800,11 @@
       else if (t > nextFidget[u.id]) {
         nextFidget[u.id] = t + 6000 + Math.random() * 10000;
         const human = u.kind === 'soldier' || ART.ENEMY_LOOKS[u.type];
-        if (u.kind !== 'turret' && !u.hunker) TR.anim(u, human ? (Math.random() < 0.6 ? 'look' : 'check') : 'sniff', human ? 1500 : 1100);
+        const pool = u.name === 'Мальборо' ? ['smoke', 'smoke', 'look', 'shift'] : ['look', 'look', 'check', 'scan', 'shift'];
+        if (u.kind !== 'turret' && !u.hunker) {
+          const k = human ? pool[Math.floor(Math.random() * pool.length)] : (Math.random() < 0.6 ? 'sniff' : 'shake');
+          TR.anim(u, k, human ? (k === 'smoke' ? 2600 : 1500) : 1100);
+        }
         an = curAnim(u, t);
       }
     }
@@ -1785,13 +1824,21 @@
     if (!tw && !an) fr = unitSprite(u, fi, sc, false);
     else {
       const pose = poseFor(u, an);
+      if (running) pose.run = 1;
+      if (tw && tw.kind === 'step') { pose.crouch = running ? 0.1 : 0; pose.low = 0; pose.lean = 0; }
       const hitDx = an && an.kind === 'hit' ? -fi.dir * Math.sin(an.p * Math.PI) * 3 : 0;
       fr = liveSprite(u, fi, walk, sc, t, pose, hitDx ? function (gg) { gg.translate(hitDx, 0); } : null);
     }
     if (!ghost) castShadow(g, c, fr, sc / 1.13, false);
     else g.globalAlpha = alpha;
     const bob = !tw && !an ? Math.sin(t / 650 + u.id) * 0.25 : 0;
-    g.drawImage(fr.c, c[0] - fr.ox, c[1] - fr.oy + bob, fr.w, fr.h);
+    // плавный разворот: фигура «поворачивается ребром»
+    let ts = turnS[u.id];
+    if (!ts) ts = turnS[u.id] = { dir: fi.dir, t0: -1e9 };
+    if (ts.dir !== fi.dir) { ts.dir = fi.dir; ts.t0 = t; }
+    const tk = U.clamp((t - ts.t0) / (170 / spd()), 0, 1);
+    const sx = tk < 1 ? 0.18 + 0.82 * U.ease(tk) : 1;
+    g.drawImage(fr.c, c[0] - fr.ox * sx, c[1] - fr.oy + bob, fr.w * sx, fr.h);
     if (!tw && !an && u.name === 'Мальборо' && u.kind === 'soldier') {
       const k = (t / 1600) % 1;
       g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';

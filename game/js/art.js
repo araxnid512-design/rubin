@@ -43,8 +43,12 @@
   };
 
   /* ---------- Оружие (вид сбоку, ствол вправо, начало — у рукояти) ---------- */
-  ART.weapon = function (g, id, s) {
+  const MAGPOS = { ppsh: [5, 6], ak: [6.5, 5], ak2: [6, 5], lmg: [5.5, 5], hlmg: [5.5, 6], sniper: [5.5, 3.5], hsniper: [6, 4.5] };
+  ART.weapon = function (g, id, s, opt) {
     g.save(); g.scale(s, s);
+    const MO = (opt && opt.mag) || 0;
+    const magIn = function () { g.save(); g.translate(0, MO * 7); g.globalAlpha *= 1 - U.clamp((MO - 0.7) / 0.3, 0, 1); };
+    const magOut = function () { g.restore(); };
     const M = '#26272a', M2 = '#3d3f43', M3 = '#55585d', W = '#7a4a24', W2 = '#5a3416';
     // металл: вертикальный градиент с бликом сверху
     const met = function (x, y, w, h, c) {
@@ -88,12 +92,14 @@
         // спуск и скоба
         g.strokeStyle = '#1a1a1c'; g.lineWidth = 0.7; g.beginPath(); g.arc(1.6, 2.6, 1.5, 0, Math.PI); g.stroke();
         // дисковый магазин
+        magIn();
         let gr = g.createRadialGradient(4.2, 4.6, 0.6, 5, 6, 5);
         gr.addColorStop(0, '#5a5c60'); gr.addColorStop(0.6, '#2c2d30'); gr.addColorStop(1, '#141416');
         g.fillStyle = gr; circ(g, 5, 6, 4.7);
         g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 0.5; g.beginPath(); g.arc(5, 6, 3.6, Math.PI * 1.05, Math.PI * 1.7); g.stroke();
         g.strokeStyle = 'rgba(0,0,0,0.5)'; g.beginPath(); g.arc(5, 6, 2.2, 0, 7); g.stroke();
         g.fillStyle = '#6a6c70'; circ(g, 5, 6, 0.8);
+        magOut();
         break;
       }
       case 'ak':
@@ -102,8 +108,10 @@
         met(-2, -2.6, 12, 4.2, M); R(g, -1, -3.4, 10, 1, M2);
         wood([[10, -2.1], [16, -2.1], [16, 1.5], [10, 1.5]], W); met(10, -3.5, 6, 1.1, M2);
         met(16, -1.3, 9, 1.6, M); R(g, 23, -3.2, 1.2, 2, M);
+        magIn();
         { const mg = g.createLinearGradient(4, 0, 9.4, 0); mg.addColorStop(0, '#5a3e24'); mg.addColorStop(1, '#2e1e10'); poly(g, [[4, 1.6], [7.6, 1.6], [9.4, 8.6], [6, 9.4]], mg); }
         g.strokeStyle = 'rgba(255,220,180,0.2)'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(4.3, 2); g.lineTo(6.3, 9); g.stroke();
+        magOut();
         grip([[0, 1.6], [2.8, 1.6], [2, 6.4], [-0.8, 6.4]], W2);
         break;
       case 'ak2':
@@ -115,15 +123,18 @@
         met(11, -2.4, 7, 4, '#2f3134');
         g.fillStyle = 'rgba(0,0,0,0.5)'; for (let k = 0; k < 3; k++) g.fillRect(11.8 + k * 2, -1.6, 1.1, 2.4);
         met(18, -1.3, 8, 1.6, M); met(25, -2, 2.4, 3, M2);
+        magIn();
         { const mg = g.createLinearGradient(4, 0, 8.4, 0); mg.addColorStop(0, '#3a3c40'); mg.addColorStop(1, '#141416'); poly(g, [[4, 1.6], [7.6, 1.6], [8.4, 8.4], [5, 8.6]], mg); }
+        magOut();
         grip([[0, 1.6], [2.8, 1.6], [2, 6.4], [-0.8, 6.4]], '#2a2b2e');
         break;
       case 'shotgun':
         wood([[-12, -1.2], [-1, -2.6], [-1, 2], [-12, 4.2]], W);
         met(-1, -2.6, 10, 4, M);
         met(9, -2.6, 16, 2.2, M2); met(9, -0.2, 14, 2, M);
-        wood([[11, -0.6], [18, -0.6], [18, 2.6], [11, 2.6]], W2);
-        g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 0.4; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(12 + k * 1.3, -0.4); g.lineTo(12 + k * 1.3, 2.4); g.stroke(); }
+        { const px = -((opt && opt.pump) || 0) * 3.5;
+          wood([[11 + px, -0.6], [18 + px, -0.6], [18 + px, 2.6], [11 + px, 2.6]], W2);
+          g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 0.4; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(12 + px + k * 1.3, -0.4); g.lineTo(12 + px + k * 1.3, 2.4); g.stroke(); } }
         R(g, 24, -3.4, 1, 1.2, M3);
         grip([[0, 1.4], [2.8, 1.4], [2, 6], [-0.8, 6]], W2);
         break;
@@ -136,7 +147,8 @@
         met(0, -6.6, 12, 2.8, '#1c1d20'); met(-1, -7.2, 3, 4, M2); met(10, -7.4, 3, 4.2, M2);
         g.fillStyle = '#6fd8ff'; g.fillRect(12.6, -6.4, 0.6, 2.2);
         g.fillStyle = 'rgba(180,240,255,0.6)'; g.fillRect(12.7, -6.3, 0.3, 0.8);
-        poly(g, [[4, 1.4], [7, 1.4], [7.5, 5.4], [4.4, 5.6]], M);
+        { const bx = 1.5 - ((opt && opt.bolt) || 0) * 3.5; line(g, bx, -1.8, bx - 0.6, 1.4, 0.8, M3); g.fillStyle = M3; circ(g, bx - 0.6, 1.6, 0.8); }
+        magIn(); poly(g, [[4, 1.4], [7, 1.4], [7.5, 5.4], [4.4, 5.6]], M); magOut();
         grip([[-1, 1.4], [1.6, 1.4], [1, 6], [-1.6, 6]], W2);
         break;
       case 'hsniper':
@@ -149,7 +161,7 @@
         met(0, -8, 13, 3.4, '#1a1b1d'); met(-1, -8.8, 3, 5, M2); met(11, -9, 3.4, 5.2, M2);
         g.fillStyle = '#6fd8ff'; g.fillRect(14.2, -7.6, 0.6, 2.4);
         line(g, 26, 0.8, 22, 9, 1.2, M2); line(g, 26, 0.8, 30, 9, 1.2, M2);
-        poly(g, [[4, 2], [8, 2], [8.4, 7], [4.4, 7.2]], M);
+        magIn(); poly(g, [[4, 2], [8, 2], [8.4, 7], [4.4, 7.2]], M); magOut();
         grip([[-1, 2], [1.8, 2], [1.2, 6.6], [-1.6, 6.6]], '#1a1b1d');
         break;
       case 'lmg':
@@ -159,8 +171,8 @@
         met(12, -1.6, 18, 2, M); met(29, -2.4, 3, 3.4, M2);
         g.fillStyle = 'rgba(0,0,0,0.5)'; for (let k = 0; k < 4; k++) g.fillRect(13 + k * 3.4, -1.2, 1.6, 1.2);
         line(g, 24, 0.6, 21, 5.5, 1.1, M2); line(g, 24, 0.6, 27, 5.5, 1.1, M2);
-        met(2, 1.8, 7, 7, '#3e4a2a'); R(g, 2, 1.8, 7, 1.4, '#55623a');
-        g.fillStyle = '#c9a14a'; for (let k = 0; k < 3; k++) g.fillRect(-0.6 - k * 1.2, 2.6 + k * 1.4, 1, 0.8);
+        magIn(); met(2, 1.8, 7, 7, '#3e4a2a'); R(g, 2, 1.8, 7, 1.4, '#55623a');
+        g.fillStyle = '#c9a14a'; for (let k = 0; k < 3; k++) g.fillRect(-0.6 - k * 1.2, 2.6 + k * 1.4, 1, 0.8); magOut();
         grip([[-1, 1.6], [1.6, 1.6], [1, 6.4], [-1.6, 6.4]], W2);
         break;
       case 'hlmg':
@@ -169,8 +181,8 @@
         met(14, -2.4, 20, 3, M); met(22, -3.4, 2, 5, M2); met(33, -3.2, 4, 4.6, M3);
         g.fillStyle = 'rgba(0,0,0,0.55)'; for (let k = 0; k < 3; k++) g.fillRect(33.6 + k * 1.1, -2.6, 0.5, 3.4);
         line(g, 28, 1, 24, 8, 1.4, M2); line(g, 28, 1, 32, 8, 1.4, M2);
-        met(1, 2.4, 9, 8, '#2e3a22');
-        g.fillStyle = '#d0a848'; for (let k = 0; k < 4; k++) g.fillRect(-1 - k * 1.1, 3.6 + k * 1.3, 1.2, 0.9);
+        magIn(); met(1, 2.4, 9, 8, '#2e3a22');
+        g.fillStyle = '#d0a848'; for (let k = 0; k < 4; k++) g.fillRect(-1 - k * 1.1, 3.6 + k * 1.3, 1.2, 0.9); magOut();
         grip([[-1, 2.4], [2, 2.4], [1.4, 7], [-1.6, 7]], '#1a1b1d');
         break;
       case 'turret':
@@ -282,23 +294,25 @@
     const P = o.pose || {};
     const crouch = P.crouch || 0, hit = P.hit || 0, recoil = P.recoil || 0, raise = P.raise || 0;
     const reload = P.reload || 0, thr = P.throwP || 0, low = P.low || 0;
+    const run = P.run || 0, kick = P.kick || 1, smoke = P.smoke || 0;
+    const rk = P.rk || 'mag';
     g.save();
     g.scale(s * (o.dir || 1), s);
     const walking = o.walk !== null && o.walk !== undefined;
     const ph = walking ? o.walk : 0;
-    const sw = walking ? Math.sin(ph) * 3.4 : 0;
-    const bob = walking ? -Math.abs(Math.cos(ph)) * 1.3 : Math.sin(t / 650 + (o.seed || 0)) * 0.45;
+    const sw = walking ? Math.sin(ph) * (3.4 + run * 1.6) : 0;
+    const bob = walking ? -Math.abs(Math.cos(ph)) * (1.3 + run * 0.9) : Math.sin(t / 650 + (o.seed || 0)) * 0.45;
     const pants = o.pants || '#3a3128';
     const body = o.body || '#c8691c';
     const hipY = -18 + bob + crouch * 6.5;
     const tY = hipY - 1;
-    const lean = (P.lean || 0) + (walking ? 0.12 : 0) + crouch * 0.18 - hit * 0.32 + raise * 0.05;
+    const lean = (P.lean || 0) + (walking ? 0.12 + run * 0.14 : 0) + crouch * 0.18 - hit * 0.32 + raise * 0.05;
     const backStep = -hit * 2.5;
     // тень
     if (!o.noShadow) { g.fillStyle = 'rgba(0,0,0,0.38)'; ell(g, backStep * 0.5, 0, 12 + crouch * 2, 5); }
     // ноги
     const leg = function (x, off, c, front) {
-      const fx = x + off + backStep, lift = walking ? Math.max(0, front ? Math.sin(ph) : -Math.sin(ph)) * 2.6 : 0;
+      const fx = x + off + backStep, lift = walking ? Math.max(0, front ? Math.sin(ph) : -Math.sin(ph)) * (2.6 + run * 1.8) : 0;
       const fy = -2.2 - lift;
       const hx = x + backStep * 0.6, hy = hipY + 1;
       const kx = (hx + fx) / 2 + 1 + crouch * 4.5, ky = (hy + fy) / 2 + crouch * 1.5;
@@ -318,8 +332,17 @@
     // верх тела вращается вокруг таза
     g.save();
     g.translate(backStep * 0.6, hipY); g.rotate(lean); g.translate(0, -hipY);
-    let aim = U.clamp(o.aim || 0, -0.7, 0.7) + low * 0.45 - recoil * 0.22 + Math.sin(reload * Math.PI) * 0.8 + thr * 0.5;
-    const gx = 1.5 - recoil * 2.2 + raise * 0.8 - thr * 1.5, gy = tY - 9.5 - raise * 1.6 + thr * 2;
+    // перезарядка: наклон ствола, смещение магазина, работа затвором или цевьём
+    let rTilt = 0, mag = 0, boltX = 0, pumpX = 0;
+    if (reload > 0) {
+      const sm = function (a, b, x) { const q = U.clamp((x - a) / (b - a), 0, 1); return q * q * (3 - 2 * q); };
+      if (rk === 'bolt') { rTilt = Math.sin(reload * Math.PI) * 0.18; boltX = sm(0.25, 0.45, reload) - sm(0.55, 0.75, reload); }
+      else if (rk === 'pump') { rTilt = Math.sin(reload * Math.PI) * 0.25; pumpX = Math.abs(Math.sin(reload * Math.PI * 3)); }
+      else { rTilt = Math.sin(reload * Math.PI) * (rk === 'box' ? 0.35 : 0.55); mag = reload < 0.5 ? sm(0.12, 0.42, reload) : 1 - sm(0.55, 0.88, reload); }
+    }
+    const swayW = walking ? Math.sin(ph * 2) * 0.7 : 0;
+    let aim = U.clamp(o.aim || 0, -0.7, 0.7) + low * 0.45 - recoil * 0.22 * kick + rTilt + thr * 0.5 + run * 0.32 + smoke * 0.5;
+    const gx = 1.5 - recoil * 2.2 * kick + raise * 0.8 - thr * 1.5 - run * 0.8, gy = tY - 9.5 - raise * 1.6 + thr * 2 + swayW + run * 1.2;
     const ca = Math.cos(aim), sa = Math.sin(aim);
     const sleeve = o.armor && ARMORC[o.armor] && o.armor !== 'vest' ? ARMORC[o.armor] : body;
     const shB = [-3.5, tY - 14], shF = [4, tY - 14];
@@ -329,9 +352,19 @@
       const k = thr < 0.6 ? thr / 0.6 : 1 - (thr - 0.6) / 0.4;
       const ang = thr < 0.6 ? -1.2 - k * 1.2 : -2.4 + (thr - 0.6) / 0.4 * 3.4;
       bh = [shB[0] + Math.cos(ang) * 9, shB[1] + Math.sin(ang) * 9];
+    } else if (smoke > 0) {
+      const k = Math.sin(smoke * Math.PI);
+      const g0 = [gx + ca * 1 - sa * 2, gy + sa * 1 + ca * 2];
+      bh = [U.lerp(g0[0], 4.6, k), U.lerp(g0[1], tY - 20, k)];
     } else if (reload > 0) {
-      const k = Math.sin(reload * Math.PI);
-      bh = [gx + ca * (1 + k * 5) - sa * (2 + k * 6), gy + sa * (1 + k * 5) + ca * (2 + k * 6)];
+      const mp = (MAGPOS[o.weapon] || [6, 5]);
+      const grip = [gx + ca * 1 - sa * 2, gy + sa * 1 + ca * 2];
+      let tx, ty;
+      if (rk === 'bolt') { const lx = 1 - boltX * 3.5, ly = -3.5; tx = gx + ca * lx - sa * ly; ty = gy + sa * lx + ca * ly; }
+      else if (rk === 'pump') { tx = grip[0]; ty = grip[1]; }
+      else { const lx = mp[0], ly = mp[1] + mag * 7 + 1.5; tx = gx + ca * lx - sa * ly; ty = gy + sa * lx + ca * ly; }
+      const hb = U.clamp(Math.min(reload / 0.14, (1 - reload) / 0.12), 0, 1);
+      bh = [U.lerp(grip[0], tx, hb), U.lerp(grip[1], ty, hb)];
     } else bh = [gx + ca * 1 - sa * 2, gy + sa * 1 + ca * 2];
     line(g, shB[0], shB[1], (shB[0] + bh[0]) / 2 - 1, (shB[1] + bh[1]) / 2 + 1.5, 3.6, sh(sleeve, -0.3));
     line(g, (shB[0] + bh[0]) / 2 - 1, (shB[1] + bh[1]) / 2 + 1.5, bh[0], bh[1], 3.3, sh(sleeve, -0.3));
@@ -381,10 +414,11 @@
     if (thr > 0 && thr < 0.75) { g.fillStyle = '#4a5530'; circ(g, bh[0], bh[1] - 1, 2.2); g.fillStyle = '#9a9a9a'; g.fillRect(bh[0] - 0.8, bh[1] - 4, 1.6, 1.4); }
     // оружие
     g.save(); g.translate(gx, gy); g.rotate(aim);
-    if (o.weapon) ART.weapon(g, o.weapon, 0.82);
+    if (o.weapon) ART.weapon(g, o.weapon, 0.82, { mag: mag, bolt: boltX, pump: pumpX });
     g.restore();
     // передняя рука
-    const fx = gx + ca * 10 - sa * 1.6, fy = gy + sa * 10 + ca * 1.6;
+    const fl = 10 - pumpX * 3.5;
+    const fx = gx + ca * fl - sa * 1.6, fy = gy + sa * fl + ca * 1.6;
     line(g, shF[0], shF[1], fx - 1, fy - 0.5, 3.6, sh(sleeve, -0.05));
     limbHL(g, shF[0], shF[1], fx - 1, fy - 0.5, 3.6, 0.2);
     g.fillStyle = sh(L.skin, -0.05); circ(g, fx, fy, 1.8); circ(g, bh[0], bh[1], 1.7);

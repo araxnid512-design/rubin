@@ -377,7 +377,7 @@
     switch (a.id) {
       case 'shoot': startTarget('shoot'); break;
       case 'overwatch': run(async function () { BT().doOverwatch(u); }); break;
-      case 'reload': run(async function () { BT().doReload(u); await U.sleep(600); }); break;
+      case 'reload': run(async function () { BT().doReload(u); await U.sleep(900); }); break;
       case 'hunker': run(async function () { BT().doHunker(u); }); break;
       case 'grenade': startThrow('grenade'); break;
       case 'rocket': startThrow('rocket'); break;

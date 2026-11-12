@@ -508,6 +508,7 @@
   BT.move = async function (u, path, opts) {
     opts = opts || {};
     const newly = [];
+    u._run = path.length > Math.max(3, (u.mob || 5) - 1);
     for (let k = 0; k < path.length; k++) {
       const nx = path[k][0], ny = path[k][1];
       const show = u.side === 'p' || u.seen || (vis && vis[ny * B.w + nx]);
@@ -524,6 +525,7 @@
       if (!u.alive || B.over) break;
       if (BT.checkEnd()) break;
     }
+    u._run = false;
     if (u.side === 'p' && newly.length && !B.over) await BT.activatePods(newly);
     return newly;
   };
@@ -625,7 +627,7 @@
   /* ---------- Действия игрока ---------- */
   BT.doReload = function (u) {
     u.clip = D.WEAPONS[u.weapon].clip; u.ap -= 1;
-    DW.TR.anim(u, 'reload', 700);
+    DW.TR.anim(u, 'reload', { ppsh: 1100, lmg: 1200, hlmg: 1300, shotgun: 1000, sniper: 900, hsniper: 1000 }[u.weapon] || 850);
     DW.SFX.play('reload'); DW.TR.float(u.x, u.y, 'Перезарядка', 'info');
   };
   BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); DW.SFX.play('reload'); };
