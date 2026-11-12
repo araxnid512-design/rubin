@@ -31,7 +31,7 @@
     SH.grid = []; for (let r = 0; r < ROWS; r++) SH.grid.push(new Array(COLS).fill(null));
     SH.room(SHAFT, 0, 'hatch'); SH.room(1, 0, 'garden'); SH.room(2, 0, 'living'); SH.room(4, 0, 'power'); SH.room(5, 0, 'water');
     for (let i = 0; i < 3; i++) { const p = SH.person(2 * CW + 50 + i * 55, D.floorY(0), 0); p.st = 'idle'; p.climb = false; }
-    SH.zs = []; SH.fx = []; SH.fl = []; SH.decals = []; SH.sel = null; SH.raid = false; SH.cam = null;
+    SH.zs = []; SH.fx = []; SH.fl = []; SH.pops = []; SH.decals = []; SH.sel = null; SH.raid = false; SH.cam = null;
   };
 
   /* ---------- Справочные ---------- */
@@ -102,7 +102,7 @@
   /* ---------- Симуляция жильца ---------- */
   function hurtP(p, dmg) {
     dmg *= 1 - D.GEAR.armor.val[SH.s.gear.armor] * 0.6;
-    p.hp -= dmg; p.hurt = 0.3; p.act = 'hurt'; p.at = 0; U.sfx('hurt'); blood(p.x, p.y - 34, 7, p.face);
+    p.hp -= dmg; p.hurt = 0.3; p.act = 'hurt'; p.at = 0; U.sfx('hurt'); ART.mkPop(SH.pops, p.x, p.y - 64, 'hurt'); blood(p.x, p.y - 34, 7, p.face);
     if (p.hp <= 0) { p.hp = 0; p.st = 'down'; p.dt = 40; p.guard = false; SH.float(p.x, p.y - 80, p.name + (p.male ? ' ранен' : ' ранена'), '#ff7a6a'); if (SH.sel === p) SH.sel = null; }
   }
   function blood(x, y, n, dir) {
@@ -177,7 +177,7 @@
   }
   function hurtZ(q, dmg, p) {
     q.hp -= dmg; q.hurt = 0.3; q.kb = Math.sign(q.x - p.x) * (q.t === 'brute' ? 90 : 220); q.act = 'hurt'; q.at = 0;
-    U.sfx(dmg > 25 ? 'crit' : 'hit'); blood(q.x, q.y - 36, 9, Math.sign(q.x - p.x)); SH.float(q.x, q.y - 84, '-' + dmg, '#e8d8d0');
+    U.sfx(dmg > 25 ? 'crit' : 'hit'); blood(q.x, q.y - 36, 9, Math.sign(q.x - p.x)); SH.float(q.x + 14, q.y - 70, '-' + dmg, '#e8d8d0'); if (dmg > 25 || Math.random() < 0.5) ART.mkPop(SH.pops, q.x, q.y - 60, q.hp - 0 <= 0 ? 'kill' : dmg > 25 ? 'crit' : 'hit', dmg > 25);
     if (SH.onHit) SH.onHit(dmg > 25 ? 0.3 : 0.16);
     if (q.hp <= 0) { q.dead = 0.001; q.act = 'dead'; SH.s.kills++; SH.s.res.scrap += 3; SH.float(q.x, q.y - 100, '+3 материалы', '#ffe9a8'); p.xp += q.M.xp; levelUp(p); SH.decals.push({ x: q.x, y: q.y, w: 18 + Math.random() * 10 }); }
   }
@@ -200,7 +200,7 @@
       if (Math.abs(dx) > 4 + (q.seed % 1) * 26) sp = M.sp; else q.st = 'door';
     } else if (q.st === 'door') {
       q.face = -1;
-      if (q.act === 'lunge') { const b = q.at; q.at += dt / (M.wind + 0.3); if (b < 0.5 && q.at >= 0.5) { s.door -= M.dmg * 0.7; U.sfx('door'); SH.doorHit = 0.25; for (let i = 0; i < 4; i++) SH.fx.push({ x: SX + 32, y: -30 - Math.random() * 30, vx: 40 + Math.random() * 80, vy: -60 - Math.random() * 80, life: 0.6, c: '#8a8a7c', s: 2.4, g: 500 }); } if (q.at >= 1) { q.act = null; q.cd = 0.4 + Math.random() * 0.6; } }
+      if (q.act === 'lunge') { const b = q.at; q.at += dt / (M.wind + 0.3); if (b < 0.5 && q.at >= 0.5) { s.door -= M.dmg * 0.7; U.sfx('door'); SH.doorHit = 0.25; if (Math.random() < 0.45) ART.mkPop(SH.pops, SX + 30 + Math.random() * 20, -60 - Math.random() * 20, 'door', true); for (let i = 0; i < 4; i++) SH.fx.push({ x: SX + 32, y: -30 - Math.random() * 30, vx: 40 + Math.random() * 80, vy: -60 - Math.random() * 80, life: 0.6, c: '#8a8a7c', s: 2.4, g: 500 }); } if (q.at >= 1) { q.act = null; q.cd = 0.4 + Math.random() * 0.6; } }
       else if ((q.cd -= dt) <= 0) { q.act = 'lunge'; q.at = 0; }
       if (s.door <= 0) { s.door = 0; if (SH.onEvent) SH.onEvent('breach'); }
       if (s.door <= 0 && !q.act) { q.st = 'climbIn'; q.x = SX; }
@@ -267,6 +267,7 @@
     if (SH.doorHit > 0) SH.doorHit -= dt;
     // частицы и надписи
     for (let i = SH.fx.length - 1; i >= 0; i--) { const q = SH.fx[i]; q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += (q.g || 0) * dt; if (q.life <= 0) { SH.fx[i] = SH.fx[SH.fx.length - 1]; SH.fx.pop(); } }
+    ART.stepPops(SH.pops, dt);
     for (let i = SH.fl.length - 1; i >= 0; i--) { const f = SH.fl[i]; f.life -= dt; f.y -= dt * 18; if (f.life <= 0) SH.fl.splice(i, 1); }
     if (SH.decals.length > 30) SH.decals.shift();
     for (const g of D.GOALS.slice(s.goal, s.goal + 1)) if (g.c(s)) { s.goal++; U.sfx('good'); if (SH.onEvent) SH.onEvent('goal'); }
@@ -294,6 +295,7 @@
       // лампа над входом
       if (sk.dark > 0.3 && s.res.energy > 0) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = sk.dark * 0.6; x.drawImage(ART.lampGlow, SX - 90, -150, 180, 150); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = '#ffe9b0'; x.fillRect(SX - 4, -86, 8, 3); }
       // полоска прочности двери
+      x.globalAlpha = 0.35 + sk.dark * 0.2; for (let i = 0; i < 4; i++) { const mx = ((i * 577 + tm * 6) % (D.WORLD_W + 900)) - 450; x.drawImage(ART.mist, mx - 260, -60, 520, 90); } x.globalAlpha = 1;
       if (SH.raid || s.door < D.GEAR.door.val[s.gear.door]) { const w = 70, k = s.door / D.GEAR.door.val[s.gear.door]; x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(SX - w / 2, -100, w, 7); x.fillStyle = k > 0.35 ? '#d39a3a' : '#c23a30'; x.fillRect(SX - w / 2 + 1, -99, (w - 2) * k, 5); }
     }
     // грунт
@@ -301,6 +303,17 @@
     x.fillStyle = x.createPattern(ART.dirt, 'repeat'); x.fillRect(left - 2, 10, right - left + 4, Math.max(0, bot - 8));
     for (let gx = gx0; gx < right; gx += 256) x.drawImage(ART.ground.home, gx, -10, 257, 140);
     x.fillStyle = lg(x, 0, 60, 0, TOP + ROWS * CH + 100, ['rgba(0,0,0,0)', 'rgba(0,0,0,.55)']); x.fillRect(left - 2, 60, right - left + 4, TOP + ROWS * CH + 100);
+    // пласты грунта
+    for (const [by, bh, bc] of [[TOP + 100, 26, 'rgba(18,12,6,.32)'], [TOP + 300, 44, 'rgba(120,64,30,.14)'], [TOP + 520, 34, 'rgba(120,120,120,.12)'], [TOP + 700, 70, 'rgba(0,0,0,.22)']]) {
+      if (by > bot || by + bh < top) continue; x.fillStyle = bc; x.beginPath(); x.moveTo(left - 2, by + Math.sin(left / 170) * 8);
+      for (let px = Math.floor(left / 40) * 40; px <= right + 40; px += 40) x.lineTo(px, by + Math.sin(px / 170) * 8 + Math.sin(px / 61) * 3);
+      for (let px = Math.ceil((right + 40) / 40) * 40; px >= left - 40; px -= 40) x.lineTo(px, by + bh + Math.sin(px / 140 + 2) * 7);
+      x.closePath(); x.fill();
+    }
+    // старая труба и кабель в земле
+    if (top < 80) { x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(-300, 46, 900, 13); x.fillStyle = lg(x, 0, 46, 0, 58, ['#7a5a3a', '#4a3220', '#2a1c10']); x.fillRect(-300, 47, 900, 10); for (let px = -260; px < 600; px += 120) { x.fillStyle = '#2a1c10'; x.fillRect(px, 45, 6, 15); } x.strokeStyle = '#111'; x.lineWidth = 2.2; x.beginPath(); x.moveTo(D.WORLD_W + 200, 70); x.quadraticCurveTo(1100, 90, SX + 24, 62); x.stroke(); }
+    // бетонная шахта к поверхности
+    if (top < TOP) { x.fillStyle = x.createPattern(ART.conc, 'repeat'); x.fillRect(SX - 34, 0, 68, TOP); x.fillStyle = '#0b0c0c'; x.fillRect(SX - 25, 0, 50, TOP); x.fillStyle = 'rgba(0,0,0,.5)'; x.fillRect(SX - 34, 0, 2, TOP); x.fillRect(SX + 32, 0, 2, TOP); }
     // отсеки
     const bm = SH.buildMode;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
@@ -324,6 +337,18 @@
         x.fillStyle = '#ff9a6a'; x.font = '800 9px sans-serif'; x.textAlign = 'center'; x.fillText('нет работников', x0 + CW / 2, y0 + 47);
       }
     }
+    // бетонная оболочка вокруг отсеков
+    x.fillStyle = x.createPattern(ART.conc, 'repeat');
+    const B = 9, has = (c, r) => r >= 0 && r < ROWS && c >= 0 && c < COLS && !!SH.grid[r][c];
+    for (const rm of s.rooms) {
+      const c = rm.c, r = rm.r, x0 = c * CW, y0 = TOP + r * CH; if (x0 > right + 10 || x0 + CW < left - 10 || y0 > bot + 10 || y0 + CH < top - 10) continue;
+      if (!has(c - 1, r)) x.fillRect(x0 - B, y0 - B, B, CH + 2 * B);
+      if (!has(c + 1, r)) x.fillRect(x0 + CW, y0 - B, B, CH + 2 * B);
+      if (!has(c, r - 1)) { if (c === SHAFT && r === 0) { x.fillRect(x0 - B, y0 - B, CW / 2 - 25 + B, B); x.fillRect(SX + 25, y0 - B, CW / 2 - 25 + B, B); } else x.fillRect(x0 - B, y0 - B, CW + 2 * B, B); }
+      if (!has(c, r + 1)) x.fillRect(x0 - B, y0 + CH, CW + 2 * B, B);
+    }
+    x.fillStyle = 'rgba(0,0,0,.35)';
+    for (const rm of s.rooms) { const x0 = rm.c * CW, y0 = TOP + rm.r * CH; if (!has(rm.c, rm.r + 1)) x.fillRect(x0 - B, y0 + CH + B, CW + 2 * B, 4); }
     // кровь на полу
     for (const d of SH.decals) { x.fillStyle = 'rgba(70,8,6,.75)'; x.beginPath(); x.ellipse(d.x, d.y + 1, d.w, 2.6, 0, 0, 6.283); x.fill(); }
     // люди и мертвецы
@@ -331,6 +356,7 @@
     for (const p of s.ppl) if (p.st !== 'out' && p.x > left - 60 && p.x < right + 60 && p.y > top - 20 && p.y < bot + 100) ents.push(p);
     for (const q of SH.zs) if (q.x > left - 60 && q.x < right + 60) ents.push(q);
     for (const e of ents) {
+      if (e.act !== 'climb' && e.act !== 'sleep' && !(e.climb)) { x.fillStyle = 'rgba(0,0,0,.32)'; x.beginPath(); x.ellipse(e.x, e.y + 0.5, 15 * (e.M ? e.M.scale : 1), 3.2, 0, 0, 6.283); x.fill(); }
       const isZ = !!e.M, P = RIG.pose({ mv: e.mv, ph: e.ph, act: e.act, t: e.at, time: tm, seed: e.seed, zombie: isZ, two: !isZ && SH.weapon().two, alt: e.alt });
       const tool = isZ ? null : e.act === 'swing' || e.st === 'fight' ? SH.weapon().tool : e.act === 'hammer' ? 'hammer' : e.act === 'plant' ? 'can' : null;
       const k = isZ ? e.M.scale : 1, yy = e.act === 'sleep' ? e.y - bunkY(e) : e.y;
@@ -343,7 +369,8 @@
       if (!isZ && (e.hp < 99 || SH.sel === e) && e.st !== 'down') { x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(e.x - 15, yy - 78, 30, 4.6); x.fillStyle = e.hp > 40 ? '#5bd07a' : '#e0453a'; x.fillRect(e.x - 14, yy - 77, 28 * e.hp / 100, 2.6); }
       if (!isZ && SH.sel === e) { x.font = '800 10px sans-serif'; x.textAlign = 'center'; x.fillStyle = '#ffe9a8'; x.fillText(e.name, e.x, yy - 83); }
       if (isZ && !e.dead && e.hp < e.M.hp) { x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - 16, yy - 82 * k, 32, 4.6); x.fillStyle = '#b01e22'; x.fillRect(e.x - 15, yy - 81 * k, 30 * e.hp / e.M.hp, 2.6); }
-      if (isZ && e.act === 'lunge' && e.at < 0.45) { x.fillStyle = '#ff4a3a'; x.font = '900 14px sans-serif'; x.textAlign = 'center'; x.fillText('!', e.x, yy - 74 * k); }
+      if (isZ && e.act === 'lunge' && e.at < 0.45) ART.bubble(x, e.x + 8, yy - 76 * k, '!', 13, Math.sin(tm * 30) > 0 ? '#ffd43a' : '#ff6a4a');
+      if (e.act === 'sleep') { const ph = (tm * 0.4 + e.seed) % 1; x.globalAlpha = Math.min(1, (1 - ph) * 3); ART.bubble(x, e.x + 30 + ph * 8, yy - 18 - ph * 14, 'z' + (ph > 0.4 ? 'z' : ''), 9); x.globalAlpha = 1; }
     }
     // частицы
     for (const q of SH.fx) {
@@ -354,7 +381,8 @@
     // ночь на поверхности
     if (sk.dark > 0.02 && top < 0) { x.fillStyle = 'rgba(6,10,24,' + sk.dark * 0.55 + ')'; x.fillRect(left - 2, top - 2, right - left + 4, -top + 12); }
     // надписи
-    x.font = '800 11px sans-serif'; x.textAlign = 'center'; x.lineWidth = 3; x.lineJoin = 'round'; x.strokeStyle = 'rgba(10,12,8,.85)';
+    ART.drawPops(x, SH.pops);
+    x.font = 'italic 900 11px sans-serif'; x.textAlign = 'center'; x.lineWidth = 4; x.lineJoin = 'round'; x.strokeStyle = '#0a0806';
     for (const f of SH.fl) { x.globalAlpha = Math.min(1, f.life * 2); x.strokeText(f.t, f.x, f.y); x.fillStyle = f.c; x.fillText(f.t, f.x, f.y); }
     x.globalAlpha = 1;
   };
@@ -373,7 +401,12 @@
     x.globalCompositeOperation = 'lighter';
     if (!off) {
       x.globalAlpha = 0.5 * fl; const lx = rm.k === 'hatch' ? 124 : CW / 2;
-      if (rm.k !== 'stairs') x.drawImage(ART.lampGlow, x0 + lx - 120, y0 + 10, 240, 150);
+      if (rm.k !== 'stairs') {
+        x.drawImage(ART.lampGlow, x0 + lx - 120, y0 + 10, 240, 150);
+        x.globalAlpha = 0.85 * fl; x.drawImage(ART.beam, x0 + lx - 110, y0 + 30, 220, CH - 44);
+        x.fillStyle = 'rgba(255,236,190,.55)';
+        for (let i = 0; i < 6; i++) { const ph = (tm * 0.05 + i * 0.167 + rm.c * 0.13) % 1, yy = y0 + 36 + ph * (CH - 56), sp = 8 + ph * 80; x.fillRect(x0 + lx + Math.sin(tm * 0.4 + i * 2.1) * sp, yy, 1.4, 1.4); }
+      }
       if (rm.k === 'garden') { x.globalAlpha = 0.55; x.drawImage(ART.purpleGlow, x0 - 20, y0 + 6, CW + 40, CH); }
       if (rm.k === 'power' && rm.on) { x.globalAlpha = 0.25 + 0.1 * Math.sin(tm * 13); x.drawImage(ART.fireGlow, x0 + 10, y0 + 40, 130, 90); }
     }

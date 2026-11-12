@@ -5,7 +5,7 @@
   const RIG = window.RIG = {};
   const sin = Math.sin, cos = Math.cos, PI = Math.PI, TAU = PI * 2, max = Math.max;
   const L = { th: 15, sh: 15.5, tor: 21, up: 12, fo: 11.5 };
-  const OUT = 'rgba(14,11,8,.9)';
+  const OUT = '#0a0806';
   const eo = t => 1 - (1 - t) * (1 - t), ei = t => t * t, es = t => t * t * (3 - 2 * t);
   const mix = (a, b, t) => a + (b - a) * t;
 
@@ -138,7 +138,7 @@
   /* ---------- Отрисовка ---------- */
   function strokes(x, segs) {
     x.lineCap = 'round'; x.lineJoin = 'round';
-    for (const s of segs) { x.strokeStyle = OUT; x.lineWidth = s[4] + 2.4; x.beginPath(); x.moveTo(s[0], s[1]); x.lineTo(s[2], s[3]); x.stroke(); }
+    for (const s of segs) { x.strokeStyle = OUT; x.lineWidth = s[4] + 3.4; x.beginPath(); x.moveTo(s[0], s[1]); x.lineTo(s[2], s[3]); x.stroke(); }
     for (const s of segs) { x.strokeStyle = s[5]; x.lineWidth = s[4]; x.beginPath(); x.moveTo(s[0], s[1]); x.lineTo(s[2], s[3]); x.stroke(); }
   }
   // st — стиль, P — поза, face ±1, tool — id предмета в руке
@@ -169,7 +169,7 @@
       const p = arm(a), sc = far ? f.sleeve : st.sleeve, fc = st.short ? (far ? f.skin : st.skin) : sc;
       strokes(x, [[p[0], p[1], p[2], p[3], 5.6, sc], [p[2], p[3], p[4], p[5], 4.8, fc]]);
       if (isTool && tool) { x.save(); x.translate(p[4], p[5]); x.rotate(PI / 2 - (p[6] + P.tool)); RIG.tool(x, tool); x.restore(); }
-      x.fillStyle = OUT; x.beginPath(); x.arc(p[4], p[5], 3.4, 0, TAU); x.fill();
+      x.fillStyle = OUT; x.beginPath(); x.arc(p[4], p[5], 3.9, 0, TAU); x.fill();
       x.fillStyle = far ? f.skin : st.skin; x.beginPath(); x.arc(p[4], p[5], 2.5, 0, TAU); x.fill();
       return p;
     };
@@ -191,8 +191,9 @@
     x.save(); x.translate(hx, hy); x.rotate(P.lean);
     x.beginPath(); x.moveTo(-5.6, 1.5); x.lineTo(5, 1.5); x.quadraticCurveTo(7.4, -9, 6.6, -15); x.quadraticCurveTo(6.2, -21.4, 3, -22.8);
     x.lineTo(-4.2, -22.8); x.quadraticCurveTo(-7.8, -20, -7.2, -12); x.quadraticCurveTo(-7, -4, -5.6, 1.5); x.closePath();
-    x.strokeStyle = OUT; x.lineWidth = 2.4; x.stroke();
-    x.fillStyle = W ? st.top : U.lg(x, -7, 0, 7, 0, [f.top, st.top, st.top2]); x.fill();
+    x.strokeStyle = OUT; x.lineWidth = 3.4; x.stroke();
+    x.fillStyle = st.top; x.fill();
+    if (!W) { x.save(); x.clip(); x.fillStyle = f.top; x.fillRect(-9, -26, 5.6, 30); x.fillStyle = st.top2; x.fillRect(2.6, -24, 6, 23); x.fillStyle = 'rgba(255,255,255,.18)'; x.fillRect(4.6, -20, 1.2, 14); x.restore(); }
     if (!W) {
       x.fillStyle = st.pants; x.fillRect(-5.8, -2.4, 11, 3.8);
       x.fillStyle = '#1b1915'; x.fillRect(-6, -3.6, 11.6, 1.6); x.fillStyle = '#8a8270'; x.fillRect(3, -3.7, 2, 1.8);
@@ -212,13 +213,13 @@
     const ha = P.lean * 0.6 + P.head, hcx = shx + sin(P.lean + P.head * 0.6) * 8.6 + 1, hcy = shy - cos(P.lean + P.head * 0.6) * 8.6;
     strokes(x, [[shx + 0.6, shy + 1.5, hcx - 0.8, hcy + 3.5, 4.4, st.skin]]);
     x.save(); x.translate(hcx, hcy); x.rotate(ha);
-    x.fillStyle = OUT; x.beginPath(); x.arc(0, 0, 8.2, 0, TAU); x.fill();
+    x.fillStyle = OUT; x.beginPath(); x.arc(0, 0, 8.7, 0, TAU); x.fill();
     x.beginPath(); x.moveTo(5, 3); x.quadraticCurveTo(6.4, 6.8, 2.6, 8); x.lineTo(0, 6); x.fill();
     x.fillStyle = st.skin; x.beginPath(); x.arc(0, 0, 7, 0, TAU); x.fill();
     x.beginPath(); x.moveTo(4.6, 2.6); x.quadraticCurveTo(5.6, 6, 2.6, 6.8); x.lineTo(0.4, 5); x.fill();
     x.beginPath(); x.moveTo(6.4, -2); x.lineTo(8.7, 1.4); x.lineTo(6.4, 2.4); x.closePath(); x.fill();
     if (!W) {
-      x.fillStyle = 'rgba(0,0,0,.18)'; x.beginPath(); x.arc(-1, 1, 6.4, 1.2, 3.6); x.fill();
+      x.fillStyle = f.skin; x.beginPath(); x.arc(-0.6, 0.6, 7, 1.0, 3.9); x.closePath(); x.fill();
       x.fillStyle = f.skin; x.beginPath(); x.ellipse(-1.4, 0.6, 1.6, 2.3, 0, 0, TAU); x.fill();
       if (st.zombie) {
         x.fillStyle = 'rgba(30,10,10,.75)'; x.beginPath(); x.ellipse(3.8, -1.2, 2.1, 1.7, 0, 0, TAU); x.fill();

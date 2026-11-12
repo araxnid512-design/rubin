@@ -32,7 +32,7 @@
     SH.takeOut(p);
     const e = EX.e = { loc, p, x: 70, hp: p.hp, st: 100, stT: 0, face: 1, mv: 0, ph: 0, act: null, at: 0, hit: true, alt: false, inv: { scrap: 0, food: 0, water: 0, meds: 0 }, cnt: 0,
       cap: D.GEAR.pack.val[s.gear.pack], time: loc.time, props: g.props, back: g.back, mobs: [], fx: [], fl: [], decals: [], cam: 70, shake: 0, hitstop: 0, search: 0, sobj: null,
-      found: 0, hordeT: 3, xp: 0, kills: 0, inv0: 0, hurt: 0, roll: 0, stepI: 0, noise: 0, style: RIG.style(Object.assign({}, p.style, { pack: '#4a3c2a' })), seed: p.seed };
+      found: 0, pops: [], hordeT: 3, xp: 0, kills: 0, inv0: 0, hurt: 0, roll: 0, stepI: 0, noise: 0, style: RIG.style(Object.assign({}, p.style, { pack: '#4a3c2a' })), seed: p.seed, rain: Math.random() < 0.3 };
     if (s.gear.armor > 0) e.style = RIG.style(Object.assign({}, p.style, { pack: '#4a3c2a', top: ['#5a4230', '#4a5038', '#3a4030'][s.gear.armor - 1], top2: ['#7a5a3e', '#5e6648', '#4a5240'][s.gear.armor - 1] }));
     for (let i = 0; i < loc.mobs; i++) {
       const x = 520 + r() * (loc.len - 620), q = r(), t = q < loc.mix[0] ? 'walker' : q < loc.mix[0] + loc.mix[1] ? 'runner' : 'brute';
@@ -68,7 +68,7 @@
     dmg = Math.round(dmg * (1 - D.GEAR.armor.val[SH.s.gear.armor]));
     e.hp -= dmg; e.hurt = 0.35; e.act = 'hurt'; e.at = 0; e.search = 0; e.kbv = Math.sign(e.x - from) * (heavy ? 260 : 140);
     e.shake = heavy ? 0.45 : 0.28; e.hitstop = 0.06; U.sfx('hurt'); parts(e.x, -36, 9, ['#7a1010', '#4a0808'], 150, 600, Math.sign(e.x - from));
-    fl(e.x, -84, '-' + dmg, '#ff7a6a');
+    fl(e.x, -84, '-' + dmg, '#ff7a6a'); ART.mkPop(e.pops, e.x + (Math.random() - 0.5) * 20, -78, 'hurt', heavy);
   }
   function hurtMob(m, dmg, crit, dir) {
     const e = EX.e; m.hp -= dmg; m.hurt = 0.3;
@@ -76,7 +76,8 @@
     m.kb = dir * (m.t === 'brute' ? 80 : crit ? 300 : 220); if (m.st !== 'chase') { m.st = 'chase'; }
     e.shake = Math.max(e.shake, crit ? 0.3 : 0.15); e.hitstop = crit ? 0.08 : 0.045;
     U.sfx(crit ? 'crit' : 'hit'); parts(m.x, -38 * m.M.scale, crit ? 14 : 9, ['#7a1010', '#4a0808', '#961818'], 170, 600, dir);
-    fl(m.x, -88 * m.M.scale, (crit ? 'КРИТ ' : '') + '-' + dmg, crit ? '#ffb347' : '#e8d8d0');
+    fl(m.x + 14, -70 * m.M.scale, '-' + dmg, crit ? '#ffb347' : '#e8d8d0');
+    if (crit || Math.random() < 0.55) ART.mkPop(e.pops, m.x - dir * 6, -62 * m.M.scale, m.hp <= 0 ? 'kill' : crit ? 'crit' : 'hit', crit || m.hp <= 0);
     if (m.hp <= 0) { m.dead = 0.001; m.act = 'dead'; e.kills++; e.xp += m.M.xp; SH.s.kills++; e.decals.push({ x: m.x, w: 20 + Math.random() * 12 }); }
   }
   EX.heal = function () {
@@ -183,7 +184,7 @@
       if (m.act === 'hurt') { m.at += dt / 0.32; if (m.at >= 1) m.act = null; }
       if (m.st === 'idle') {
         const sees = Math.sign(dx) === m.face ? 270 : 110;
-        if (ad < sees * (night ? 1.2 : 1) * (e.act === 'search' ? 1.4 : 1)) { m.st = 'chase'; U.sfx('growl'); fl(m.x, -96 * M.scale, '!', '#ff6a5a'); }
+        if (ad < sees * (night ? 1.2 : 1) * (e.act === 'search' ? 1.4 : 1)) { m.st = 'chase'; U.sfx('growl'); m.alertT = 1.2; }
         m.tt -= dt; if (m.tt <= 0) { m.tt = 2 + Math.random() * 4; m.gx = m.home + (Math.random() - 0.5) * 200; }
         if (Math.abs(m.gx - m.x) > 6) { m.face = Math.sign(m.gx - m.x); sp = M.sp * 0.5; }
       } else {
@@ -212,6 +213,7 @@
       if (q.y > 0 && q.g) { if (q.blood && Math.random() < 0.3 && e.decals.length < 80) e.decals.push({ x: q.x, w: 2 + Math.random() * 4 }); q.y = 0; q.vy = 0; q.vx *= 0.5; q.g = 0; }
       if (q.life <= 0) { e.fx[i] = e.fx[e.fx.length - 1]; e.fx.pop(); }
     }
+    ART.stepPops(e.pops, dt); for (const m of e.mobs) if (m.alertT > 0) m.alertT -= dt;
     for (let i = e.fl.length - 1; i >= 0; i--) { const q = e.fl[i]; q.life -= dt; q.y -= dt * 20; if (q.life <= 0) e.fl.splice(i, 1); }
     if (e.hp <= 0) { e.hp = 0; EX.finish(false); }
   };
@@ -225,6 +227,12 @@
     const sk = ART.sky(SH.ph), kind = e.loc.id;
     x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
     ART.drawSky(x, V.w, gy, cx, sk); ART.drawLayers(x, kind, V.w, gy, cx, z, sk);
+    if (e.rain) { x.fillStyle = 'rgba(40,48,58,.35)'; x.fillRect(0, 0, V.w, gy); }
+    else if (sk.dark < 0.45) {   // солнечные лучи
+      x.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 5; i++) { const rx = ((i * 397 + 120 - cx * 0.15 * z) % (V.w + 400) + V.w + 400) % (V.w + 400) - 200; x.save(); x.translate(rx, -20); x.rotate(-0.38); x.globalAlpha = (0.45 - sk.dark) * (0.12 + 0.06 * Math.sin(tm * 0.3 + i)); x.drawImage(A.ray, -V.w * 0.03, 0, V.w * (0.05 + (i % 3) * 0.03), gy * 1.5); x.restore(); }
+      x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+    }
     x.setTransform(z, 0, 0, z, Math.round(-left * z), gy);
     const gt = A.ground[kind]; for (let g0 = Math.floor(left / 256) * 256; g0 < right; g0 += 256) x.drawImage(gt, g0, -10, 257, 140);
     x.fillStyle = '#1a1612'; x.fillRect(left, 128, right - left, (V.h - gy) / z);
@@ -238,23 +246,31 @@
       if (o.loot && !o.done) marker(x, o.x, -o.im.ay - 12, tm);
       if (o.k === 'fireb') fire(x, o.x, -42, tm);
     }
+    // туман у земли
+    x.globalAlpha = 0.2 + sk.dark * 0.12 + (e.rain ? 0.12 : 0);
+    for (let i = 0; i < 6; i++) { const mx = ((i * 613 + tm * 7) % (e.loc.len + 900)) - 450; if (mx > left - 300 && mx < right + 300) x.drawImage(A.mist, mx - 300, -64, 600, 100); }
+    x.globalAlpha = 1;
     // мертвецы и игрок
     for (const m of e.mobs) {
       if (m.x < left - 60 || m.x > right + 60) continue;
       const P = RIG.pose({ mv: m.mv, ph: m.ph, act: m.act, t: m.at, time: tm, seed: m.seed, zombie: true });
+      if (!m.dead) { x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.ellipse(m.x, 1, 16 * m.M.scale, 3.4, 0, 0, 6.283); x.fill(); }
       x.save(); x.translate(m.x, 0); x.scale(m.M.scale, m.M.scale); if (m.dead) x.globalAlpha = Math.max(0, Math.min(1, (8 - m.dead) / 2));
       RIG.draw(x, m.style, P, m.face, null);
       if (m.hurt > 0) { x.globalAlpha = Math.min(0.7, m.hurt * 2.4); RIG.draw(x, RIG.white, P, m.face, null); }
       x.restore(); x.globalAlpha = 1;
       if (!m.dead && m.hp < m.M.hp) { const by = -82 * m.M.scale; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(m.x - 17, by, 34, 5); x.fillStyle = '#b01e22'; x.fillRect(m.x - 16, by + 1, 32 * m.hp / m.M.hp, 3); }
-      if (m.act === 'lunge' && m.at < 0.45) { x.fillStyle = 'rgba(255,60,40,' + (0.5 + 0.5 * Math.sin(tm * 30)) + ')'; x.font = '900 16px sans-serif'; x.textAlign = 'center'; x.fillText('!', m.x, -84 * m.M.scale); }
-      else if (m.st === 'idle' && !m.dead && Math.abs(m.x - e.x) < 300) { x.fillStyle = 'rgba(200,200,180,.5)'; x.font = '800 10px sans-serif'; x.textAlign = 'center'; x.fillText('z', m.x + 8, -80 * m.M.scale + Math.sin(tm * 2 + m.seed) * 3); }
+      if (m.act === 'lunge' && m.at < 0.45) ART.bubble(x, m.x + 8, -84 * m.M.scale, '!', 15, Math.sin(tm * 30) > 0 ? '#ffd43a' : '#ff6a4a');
+      else if (m.alertT > 0 && !m.dead) ART.bubble(x, m.x + 8, -84 * m.M.scale, '!', 14);
+      else if (m.st === 'idle' && !m.dead && Math.abs(m.x - e.x) < 300) ART.bubble(x, m.x + 10, -82 * m.M.scale + Math.sin(tm * 2 + m.seed) * 2, '…', 10);
     }
     const W = SH.weapon(), P = RIG.pose({ mv: e.mv, ph: e.ph, act: e.act, t: e.act === 'search' ? 0 : e.at, time: tm, seed: e.seed, two: W.two, alt: e.alt });
+    x.fillStyle = 'rgba(0,0,0,.38)'; x.beginPath(); x.ellipse(e.x, 1, e.act === 'roll' ? 20 : 16, 3.4, 0, 0, 6.283); x.fill();
     x.save(); x.translate(e.x, 0);
     RIG.draw(x, e.style, P, e.face, e.act === 'search' ? null : W.tool);
     if (e.hurt > 0) { x.globalAlpha = Math.min(0.6, e.hurt * 2); RIG.draw(x, RIG.white, P, e.face, null); x.globalAlpha = 1; }
     x.restore();
+    if (e.act === 'roll') { x.strokeStyle = 'rgba(10,8,6,.7)'; x.lineWidth = 1.6; for (let i = 0; i < 6; i++) { const yy = -8 - i * 9, l = 26 + ((i * 17) % 30); x.beginPath(); x.moveTo(e.x - e.face * 16, yy); x.lineTo(e.x - e.face * (16 + l), yy); x.stroke(); } }
     // след удара
     if ((e.act === 'swing') && e.at > 0.38 && e.at < 0.62 && W.tool) {
       x.strokeStyle = 'rgba(240,235,220,' + (0.55 * (1 - Math.abs(e.at - 0.48) * 6)) + ')'; x.lineWidth = 5; x.lineCap = 'round'; x.beginPath();
@@ -269,15 +285,24 @@
     }
     x.globalAlpha = 1;
     // передний план (быстрее камеры)
-    x.fillStyle = 'rgba(12,14,10,.92)'; const fo = cx * 1.25;
-    for (let g0 = Math.floor((fo - hw) / 60) * 60; g0 < fo + hw + 60; g0 += 60) { const bx = cx + (g0 - fo), h = 6 + ((g0 * 7919) % 11 + 11) % 11; x.beginPath(); x.moveTo(bx, 40); x.lineTo(bx + 4, 40 - h); x.lineTo(bx + 8, 40); x.lineTo(bx + 12, 40 - h * 0.7); x.lineTo(bx + 16, 40); x.fill(); }
+    { const fg = A.fg[kind], k = 1.3, fw = 800, fo = cx * k; let g0 = Math.floor((fo - hw * k) / fw) * fw;
+      for (; g0 < fo + hw * k + fw; g0 += fw) x.drawImage(fg, cx + (g0 - fo), (V.h - gy) / z - 96, fw, 100); }
     // надписи
-    x.font = '800 12px sans-serif'; x.textAlign = 'center'; x.lineWidth = 3; x.lineJoin = 'round'; x.strokeStyle = 'rgba(10,12,8,.85)';
+    ART.drawPops(x, e.pops);
+    x.font = 'italic 900 12px sans-serif'; x.textAlign = 'center'; x.lineWidth = 4; x.lineJoin = 'round'; x.strokeStyle = '#0a0806';
     for (const q of e.fl) { x.globalAlpha = Math.min(1, q.life * 2); x.strokeText(q.t, q.x, q.y); x.fillStyle = q.c; x.fillText(q.t, q.x, q.y); }
     x.globalAlpha = 1;
     if (atExitHint(e)) { x.fillStyle = '#e8c46a'; x.font = '900 12px sans-serif'; x.fillText('▼ К машине — уйти', 60, -100 + Math.sin(tm * 4) * 3); }
     // освещение: ночь, фонарь, огонь
     x.setTransform(1, 0, 0, 1, 0, 0);
+    x.fillStyle = { forest: 'rgba(40,80,50,.07)', gas: 'rgba(110,80,40,.07)', city: 'rgba(40,55,90,.09)' }[kind]; x.fillRect(0, 0, V.w, V.h);
+    if (e.rain) {
+      x.fillStyle = 'rgba(20,28,38,.18)'; x.fillRect(0, 0, V.w, V.h);
+      x.strokeStyle = 'rgba(190,205,220,.32)'; x.lineWidth = Math.max(1, z * 0.8); x.beginPath();
+      const L = 26 * z; for (let i = 0; i < 110; i++) { const rx = ((i * 197.3 + tm * 240 - cx * z) % (V.w + 80) + V.w + 80) % (V.w + 80) - 40, ry = ((i * 113.7 + tm * (1400 + (i % 7) * 70)) % (V.h + 60)) - 30; x.moveTo(rx, ry); x.lineTo(rx - L * 0.2, ry + L); }
+      x.stroke();
+      x.strokeStyle = 'rgba(200,215,230,.35)'; x.lineWidth = 1; for (let i = 0; i < 14; i++) { const ph = (tm * 1.7 + i * 0.37) % 1, rx = ((i * 271 + Math.floor(tm * 1.7 + i * 0.37) * 131) % V.w), rr2 = ph * 9 * z; x.globalAlpha = 1 - ph; x.beginPath(); x.ellipse(rx, gy + 4 * z, rr2, rr2 * 0.3, 0, 0, 6.283); x.stroke(); } x.globalAlpha = 1;
+    }
     const dark = sk.dark;
     if (dark > 0.05) {
       const q = 3, lw = Math.ceil(V.w / q), lh = Math.ceil(V.h / q);
