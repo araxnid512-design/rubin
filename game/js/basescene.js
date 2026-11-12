@@ -58,11 +58,32 @@
     people = [];
     const atBase = st.squadAt === st.baseNode;
     const list = atBase ? st.roster.slice(0, 8) : [];
-    list.forEach(function (s, i) { people.push(mkPerson(s.look, s.weapon, '#c8691c', i, s.wounds > 0, s.name === 'Мальборо')); });
+    list.forEach(function (s, i) { const p = mkPerson(s.look, s.weapon, '#c8691c', i, s.wounds > 0, s.name === 'Мальборо'); p.s3 = { kind: 'soldier', name: s.name, armorId: s.armor, weapon: s.weapon, id: s.id }; people.push(p); });
     if (!atBase || list.length < 3) {
       const n = atBase ? 1 : 3;
-      for (let i = 0; i < n; i++) people.push(mkPerson(ART.makeLook(900 + i * 37, { glasses: false }), i === 0 ? 'ppsh' : null, ['#6a6a5a', '#5a4a3a', '#7a6a4a'][i], 20 + i, false, false));
+      for (let i = 0; i < n; i++) { const p = mkPerson(ART.makeLook(900 + i * 37, { glasses: false }), i === 0 ? 'ppsh' : null, ['#6a6a5a', '#5a4a3a', '#7a6a4a'][i], 20 + i, false, false); p.s3 = { kind: 'soldier', name: '', armorId: 'robe', weapon: 'ppsh', id: 31 + i }; people.push(p); }
     }
+    // 3D-фигуры жителей (атласы те же, что в бою)
+    if (DW.S3) people.forEach(function (p) { const S = DW.S3.setsFor(p.s3); if (S) { DW.S3.load(S.body); if (S.weapon) DW.S3.load(S.weapon); } });
+  }
+  /* житель 3D-моделью: ходит, сидит у костра (пригнулся), в мастерской «работает» замахом */
+  function person3d(g, p, c, sit, t) {
+    const S3 = DW.S3;
+    if (!S3 || !p.s3) return false;
+    const S = S3.setsFor(p.s3);
+    if (!S || !S3.ready(S.body)) return false;
+    const d = S3.dir8(p.face === undefined ? (p.dir > 0 ? Math.PI / 4 * 7 : Math.PI / 4 * 3) : p.face);
+    let anim = 'idle', i = Math.floor(t / 520 + p.seed) % 4, gun = true;
+    if (p.path.length) { anim = 'walk'; i = Math.floor(t / 125 + p.seed) % 8; }
+    else if (sit) { anim = 'hunker'; i = 0; }
+    else if (p.dest === 'workshop') { anim = 'melee'; i = Math.floor(t / 260) % 4; gun = false; }
+    const L = [[S.body, anim, i, d]];
+    if (gun && S.weapon && S3.ready(S.weapon)) L.push([S.weapon, anim, i, d]);
+    const f = S3.frame(L);
+    if (!f) return false;
+    const k = 0.72;
+    g.drawImage(f.c, c[0] - f.ox * k, c[1] - f.oy * k, f.w * k, f.h * k);
+    return true;
   }
   function mkPerson(look, weapon, body, i, wounded, cig) {
     const w = wpList();
@@ -98,6 +119,7 @@
         else { p.u += dx / d * sp; p.v += dy / d * sp; }
         const sx = (dx - dy);
         if (Math.abs(sx) > 0.02) p.dir = sx > 0 ? 1 : -1;
+        if (d > 0.001) p.face = Math.atan2(dy, dx);
         p.act = 'walk';
         return;
       }
@@ -409,6 +431,7 @@
         const c = P(p.u, p.v, 0);
         g.fillStyle = 'rgba(0,0,0,0.3)'; ART.ell(g, c[0], c[1], 9, 4);
         const sit = !p.path.length && (p.dest === 'fire' || p.dest === 'fire2' || (p.dest === 'infirmary' && p.wounded));
+        if (person3d(g, p, c, sit, t)) return;
         g.save(); g.translate(c[0], c[1]);
         ART.human(g, { look: p.look, body: p.body, weapon: p.weapon, dir: p.dir, aim: sit ? 0.6 : 0.35, walk: p.path.length ? t / 95 + p.seed : null, scale: 0.92, seed: p.seed, cig: p.cig, noShadow: true, pose: sit ? { crouch: 1, low: 0.7 } : (p.dest === 'workshop' && !p.path.length ? { low: Math.abs(Math.sin(t / 300)) * 0.8 } : null) }, t);
         g.restore();
