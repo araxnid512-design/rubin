@@ -60,7 +60,7 @@
     const ln = G.node(st.squadAt);
     ln.known = true; ln.visited = true;
     G.revealAround(st.squadAt);
-    G.log('Отряд из шести заключённых прошёл через Портал. Контора выдала старые ППШ и припасы на несколько дней.');
+    G.log('Отряд из шести заключённых прошёл через Портал. Институт выдал старые ППШ и припасы на несколько дней.');
     return st;
   };
   G.save = function () {
@@ -79,7 +79,10 @@
       const o = JSON.parse(s);
       if (!o || !o.world) return false;
       G.state = o;
-      o.roster.forEach(function (s) { DW.ART.ensureLook(s); });
+      o.roster.forEach(function (s) { DW.ART.ensureLook(s); if (s.name === 'Курт') s.name = 'Крут'; });
+      (o.memorial || []).forEach(function (m) { if (m.name === 'Курт') m.name = 'Крут'; });
+      if (o.battle && o.battle.units) o.battle.units.forEach(function (u) { if (u.name === 'Курт') u.name = 'Крут'; });
+      if (o.baseNode !== null && o.baseNode !== undefined) { const bn = o.world.nodes[o.baseNode]; if (bn && !bn.fort) { bn.oldName = bn.name; bn.name = 'Форт Крут'; bn.fort = true; } }
       return true;
     } catch (e) { return false; }
   };
@@ -215,7 +218,7 @@
     if (n <= 0) return null;
     const t0 = G.tier();
     st.res.gems -= n; st.delivered += n;
-    G.log('Сдано Конторе без заказа: ' + n + ' драгоценностей.');
+    G.log('Сдано Институту без заказа: ' + n + ' драгоценностей.');
     return { total: n, tierUp: G.tier() > t0 };
   };
   G.checkGoal = function () {
@@ -253,7 +256,8 @@
     const n = G.node(id);
     n.base = true;
     if (n.beacon) st.buildings.beacon = 1;
-    G.log('Отряд основал базу в «' + n.name + '». Здесь можно строиться и отдыхать.');
+    n.oldName = n.name; n.name = 'Форт Крут'; n.fort = true;
+    G.log('Отряд основал базу в «' + n.oldName + '» и назвал её «Форт Крут». Здесь можно строиться и отдыхать.');
   };
 
   G.raidChance = function () {
@@ -286,7 +290,7 @@
   G.autoResolveRaid = function (raid) {
     const def = G.defenseScore();
     const atk = raid.strength + U.rand(-1, 2);
-    const who = raid.kind === 'beast' ? 'твари' : 'бандиты';
+    const who = raid.kind === 'beast' ? 'мутанты' : 'бандиты';
     if (def >= atk) {
       G.log('Укрепления базы отбили набег (' + who + ').');
       return { title: 'Набег отбит', text: 'Пока отряд отсутствовал, ' + who + ' напали на базу, но укрепления выдержали.', kind: 'good' };
@@ -330,10 +334,10 @@
       const node = G.node(o.drop);
       if (o.drop === st.squadAt || o.drop === st.baseNode) {
         const txt = G.giveAll(o.items);
-        notes.push({ title: 'Груз Конторы', text: 'Портал открылся на рассвете. ' + (o.drop === st.squadAt ? 'Груз упал прямо рядом с отрядом' : 'Груз доставлен на базу') + ': ' + txt, kind: 'portal' });
+        notes.push({ title: 'Груз Института', text: 'Портал открылся на рассвете. ' + (o.drop === st.squadAt ? 'Груз упал прямо рядом с отрядом' : 'Груз доставлен на базу') + ': ' + txt, kind: 'portal' });
       } else {
         node.cargo = (node.cargo || []).concat(o.items);
-        notes.push({ title: 'Груз Конторы', text: 'Груз доставлен в «' + node.name + '». Заберите его, пока не растащили.', kind: 'portal' });
+        notes.push({ title: 'Груз Института', text: 'Груз доставлен в «' + node.name + '». Заберите его, пока не растащили.', kind: 'portal' });
       }
     });
     // кражи грузов
@@ -350,14 +354,14 @@
       if (n.outpost) {
         if (Math.random() < 0.03) {
           n.outpost = false; n.cleared = false;
-          notes.push({ title: 'Бур потерян', text: 'Твари захватили бур в «' + n.name + '». Отбейте жилу снова.', kind: 'bad' });
+          notes.push({ title: 'Бур потерян', text: 'Мутанты захватили бур в «' + n.name + '». Отбейте жилу снова.', kind: 'bad' });
           G.log('Потерян бур в «' + n.name + '».');
         }
         return;
       }
       if ((n.type === 'vein' || n.type === 'ruins') && Math.random() < 0.025) {
         n.cleared = false;
-        notes.push({ title: 'Угроза', text: 'Разведка докладывает: твари снова заняли «' + n.name + '».', kind: 'bad' });
+        notes.push({ title: 'Угроза', text: 'Разведка докладывает: мутанты снова заняли «' + n.name + '».', kind: 'bad' });
       }
     });
 
@@ -380,11 +384,11 @@
       raidNew = true;
       notes.push({
         title: 'Тревога!',
-        text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю тварей' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') +
+        text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю мутантов' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') +
           '. Если отряд будет на базе — примете бой. Иначе база будет полагаться на укрепления (защита ' + G.defenseScore() + ').',
         kind: 'bad'
       });
-      G.log('Замечен ' + (kind === 'beast' ? 'набег тварей' : 'набег банды') + ' на базу.');
+      G.log('Замечен ' + (kind === 'beast' ? 'набег мутантов' : 'набег банды') + ' на базу.');
     }
 
     let event = null;
@@ -442,7 +446,7 @@
   G.EVENTS = [
     {
       id: 'runaway', title: 'Беглец',
-      text: 'К стоянке вышел измождённый заключённый из другой партии. Говорит, его банду сожрали твари. Просит принять в отряд.',
+      text: 'К стоянке вышел измождённый заключённый из другой партии. Говорит, его банду сожрали мутанты. Просит принять в отряд.',
       choices: [
         { t: 'Принять (−5 провизии)', cond: function (st) { return st.res.food >= 5; }, run: function (st) {
           st.res.food -= 5; const s = G.makeRecruit(0); s.wounds = Math.floor(G.maxHp(s) / 2); st.roster.push(s);
@@ -489,11 +493,11 @@
     },
     {
       id: 'night', title: 'Ночная вылазка',
-      text: 'Ночью к стоянке подобрались твари.',
+      text: 'Ночью к стоянке подобрались мутанты.',
       choices: [{ t: 'Отбиваться', run: function (st) {
-        if (st.squadAt === st.baseNode && G.blv('walls') > 0) { st.res.gems += 3; return 'Частокол сдержал тварей, а дозорные их перестреляли. +3 ' + D.icon('gems'); }
+        if (st.squadAt === st.baseNode && G.blv('walls') > 0) { st.res.gems += 3; return 'Частокол сдержал мутантов, а дозорные их перестреляли. +3 ' + D.icon('gems'); }
         const s = U.pick(st.roster); s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 2); st.res.gems += 2;
-        return 'Тварей отогнали, но «' + s.name + '» ранен (−2 ОЗ). Из туш выковыряли +2 ' + D.icon('gems') + '.';
+        return 'Мутантов отогнали, но «' + s.name + '» ранен (−2 ОЗ). Из туш выковыряли +2 ' + D.icon('gems') + '.';
       } }]
     },
     {
@@ -585,7 +589,7 @@
 
     if (B.kind === 'defense') {
       if (out === 'victory') { sum.text = 'Нападение на базу отбито!'; G.log('Отряд отбил нападение на базу.'); }
-      else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(B.raidKind === 'beast' ? 'твари' : 'бандиты');
+      else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(B.raidKind === 'beast' ? 'мутанты' : 'бандиты');
     } else if (node) {
       if (out === 'victory') {
         if (!node.cleared) {
@@ -599,7 +603,7 @@
         G.log('Зачищено: «' + node.name + '».');
       } else {
         sum.text = out === 'evac' ? 'Отряд отступил.' : 'Отряд разбит.';
-        if (B.kind === 'ambush' && node.cleared) { node.cleared = false; sum.text += ' Твари заняли «' + node.name + '».'; }
+        if (B.kind === 'ambush' && node.cleared) { node.cleared = false; sum.text += ' Мутанты заняли «' + node.name + '».'; }
         if (st.squadAt === B.nodeId && st.prevNode !== null && st.prevNode !== undefined && st.prevNode !== B.nodeId) {
           st.squadAt = st.prevNode;
           sum.text += ' Выжившие вернулись в «' + G.node(st.squadAt).name + '».';

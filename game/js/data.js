@@ -46,12 +46,12 @@
   /* ---------- Оружие ---------- */
   D.WEAPONS = {
     ppsh: { n: 'Пистолет-пулемёт ППШ', s: 'ППШ', dmg: [3, 5], clip: 5, ammo: 4, crit: 10, aimMod: 0, range: 'smg', snd: 'smg', tier: 0, desc: 'Старый ППШ с диском на 71 патрон. Злой вблизи, на дальней дистанции мажет. Тратит много патронов.' },
-    ak: { n: 'Автомат АК', s: 'АК', dmg: [3, 5], clip: 4, ammo: 3, crit: 10, aimMod: 0, range: 'rifle', snd: 'rifle', tier: 0, desc: 'Надёжный автомат Конторы. Точнее и экономнее ППШ, хорош на средней дистанции.' },
+    ak: { n: 'Автомат АК', s: 'АК', dmg: [3, 5], clip: 4, ammo: 3, crit: 10, aimMod: 0, range: 'rifle', snd: 'rifle', tier: 0, desc: 'Надёжный автомат с армейских складов Института. Точнее и экономнее ППШ, хорош на средней дистанции.' },
     shotgun: { n: 'Дробовик', s: 'Дробовик', dmg: [4, 7], clip: 3, ammo: 2, crit: 20, aimMod: 0, range: 'shotgun', snd: 'shotgun', tier: 1, desc: 'Страшен вблизи, бесполезен издалека.' },
     sniper: { n: 'Снайперская винтовка', s: 'СВД', dmg: [5, 7], clip: 3, ammo: 1, crit: 25, aimMod: 0, range: 'sniper', snd: 'sniper', tier: 1, sight: 2, desc: 'Точна вдали, неудобна вблизи. +2 к обзору.' },
     lmg: { n: 'Пулемёт ПКМ', s: 'ПКМ', dmg: [4, 6], clip: 3, ammo: 6, crit: 5, aimMod: -5, range: 'rifle', snd: 'lmg', tier: 1, desc: 'Высокий урон, но жрёт патроны.' },
     ak2: { n: 'Штурмовая винтовка', s: 'Штурм.', dmg: [4, 6], clip: 4, ammo: 3, crit: 15, aimMod: 5, range: 'rifle', snd: 'rifle', tier: 2, desc: 'Улучшенный автомат с коллиматором.' },
-    hsniper: { n: 'Крупнокалиберная винтовка', s: 'КСВК', dmg: [7, 10], clip: 2, ammo: 1, crit: 30, aimMod: 0, range: 'sniper', snd: 'sniper', tier: 3, sight: 3, desc: 'Пробивает любую тварь. +3 к обзору.' },
+    hsniper: { n: 'Крупнокалиберная винтовка', s: 'КСВК', dmg: [7, 10], clip: 2, ammo: 1, crit: 30, aimMod: 0, range: 'sniper', snd: 'sniper', tier: 3, sight: 3, desc: 'Пробивает любого мутанта. +3 к обзору.' },
     hlmg: { n: 'Тяжёлый пулемёт', s: 'Корд', dmg: [6, 8], clip: 3, ammo: 6, crit: 10, aimMod: -5, range: 'rifle', snd: 'lmg', tier: 3, desc: 'Огневая мощь взвода в одних руках.' },
     /* только у врагов/турелей */
     spit: { n: 'Кислотный плевок', dmg: [2, 4], clip: 99, ammo: 0, crit: 5, aimMod: 0, range: 'spit', snd: 'spit', pierce: true, enemy: true },
@@ -107,9 +107,9 @@
     { n: 'Легенда', xp: 36 }
   ];
 
-  /* Стартовый отряд. Курт и Мальборо — из книги; остальные клички можно поменять здесь. */
+  /* Стартовый отряд. Крут и Мальборо — из книги «Мёртвый мир. Форт Крут»; остальные клички можно поменять здесь. */
   D.START_SQUAD = [
-    { name: 'Курт', cls: 'leader', hp: 10, aim: 72, mob: 6, look: { glasses: false, style: 'buzz', hair: '#2b2118', beard: 'stubble', scar: 1, eyes: '#2f4a6a', skin: '#d4a582', brow: -2, jaw: 1.05 } },
+    { name: 'Крут', cls: 'leader', hp: 10, aim: 72, mob: 6, look: { glasses: false, style: 'buzz', hair: '#2b2118', beard: 'stubble', scar: 1, eyes: '#2f4a6a', skin: '#d4a582', brow: -2, jaw: 1.05 } },
     { name: 'Мальборо', cls: 'heavy', hp: 11, aim: 64, mob: 5, look: { glasses: false, style: 'short', hair: '#8a7a6a', beard: 'mustache', scar: 0, skin: '#e0b896', eyes: '#5a6a7a', jaw: 1.1 } },
     { name: 'Сыч', cls: 'sniper', hp: 8, aim: 76, mob: 6, look: { glasses: false, style: 'beanie', cap: '#3a3a3a', hair: '#1a1a1a', beard: 'none', scar: 0, skin: '#c99a74', eyes: '#3a5a3a', brow: 3, jaw: 0.92 } },
     { name: 'Док', cls: 'medic', hp: 9, aim: 62, mob: 6, look: { style: 'bald', glasses: true, beard: 'beard', hair: '#c9c2b5', skin: '#e0b896', scar: 0, jaw: 1 } },
@@ -137,14 +137,14 @@
 
   /* ---------- Глобальная карта ---------- */
   D.NODE_TYPES = {
-    landing: { n: 'Точка высадки', color: '#5fd4e6', map: 'landing', desc: 'Место, куда Портал выбросил отряд. Сюда приходят грузы Конторы, если нет другого маяка.' },
+    landing: { n: 'Точка высадки', color: '#5fd4e6', map: 'landing', desc: 'Место, куда Портал выбросил отряд. Сюда приходят грузы Института, если нет другого маяка.' },
     ruins: { n: 'Руины', color: '#b8a58a', map: 'ruins', desc: 'Развалины прежней цивилизации. Стройматериалы, припасы и немного кристаллов.' },
-    vein: { n: 'Кристальная жила', color: '#5fd4e6', map: 'vein', desc: 'Выход драгоценных кристаллов. Богатая добыча — но твари тоже их чуют.' },
+    vein: { n: 'Кристальная жила', color: '#5fd4e6', map: 'vein', desc: 'Выход драгоценных кристаллов. Богатая добыча — но мутанты тоже их чуют.' },
     camp: { n: 'Лагерь банды', color: '#d9824a', map: 'camp', desc: 'Лагерь другой банды заключённых. Оружие, патроны и драгоценности — если отобрать.' },
-    lair: { n: 'Логово тварей', color: '#c0504d', map: 'lair', desc: 'Логово тварей. Уничтожение снижает угрозу набегов и открывает путь к Гнезду.' },
+    lair: { n: 'Логово мутантов', color: '#c0504d', map: 'lair', desc: 'Логово мутантов. Уничтожение снижает угрозу набегов и открывает путь к Гнезду.' },
     site: { n: 'Укрытие', color: '#7fb069', map: 'site', desc: 'Удобное для обороны место. После зачистки здесь можно основать базу.' },
     vault: { n: 'Древний бункер', color: '#6fa8dc', map: 'vault', desc: 'Запечатанное убежище древних. Охраняется механическими стражами. Внутри — ценности.' },
-    nest: { n: 'Гнездо', color: '#a33a5a', map: 'nest', desc: 'Сердце мёртвого мира, откуда приходят твари. Убейте Матку — и мир станет вашим.' }
+    nest: { n: 'Гнездо', color: '#a33a5a', map: 'nest', desc: 'Сердце мёртвого мира, откуда приходят мутанты. Убейте Матку — и мир станет вашим.' }
   };
   D.MAP_NAMES = { factory: 'Заброшенный завод', forest: 'Мёртвый лес', crystalcave: 'Кристальные пещеры', swamp: 'Кислотное болото' };
   D.NODE_NAMES = {
@@ -166,7 +166,7 @@
     infirmary: { n: 'Лазарет', max: 1, cost: [{ materials: 14, meds: 2 }], desc: 'Бойцы на базе восстанавливают 4 ОЗ в день вместо 2.' },
     workshop: { n: 'Мастерская', max: 1, cost: [{ materials: 15 }], desc: 'Каждый день превращает 1 стройматериал в 15 патронов.' },
     farm: { n: 'Теплица', max: 1, cost: [{ materials: 10, food: 5 }], desc: '+5 провизии каждый день.' },
-    beacon: { n: 'Маяк портала', max: 1, cost: [{ materials: 8, gems: 10 }], desc: 'Грузы Конторы можно заказывать прямо на базу.' },
+    beacon: { n: 'Маяк портала', max: 1, cost: [{ materials: 8, gems: 10 }], desc: 'Грузы Института можно заказывать прямо на базу.' },
     turret: { n: 'Автотурель', max: 2, cost: [{ materials: 14, gems: 25 }, { materials: 14, gems: 25 }], tier: 2, desc: 'Стреляет по врагам при обороне базы и укрепляет её защиту.' }
   };
 

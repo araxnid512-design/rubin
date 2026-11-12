@@ -542,7 +542,7 @@
     p.appendChild(el('div', { class: 'pn-desc', text: b.desc }));
     const acts = el('div', { class: 'pn-acts' });
     if (done) acts.appendChild(el('div', { class: 'pn-note', text: 'Максимальный уровень.' }));
-    else if (locked) acts.appendChild(el('div', { class: 'pn-note bad', text: 'Нужно доверие Конторы: ' + D.TIERS[b.tier].n }));
+    else if (locked) acts.appendChild(el('div', { class: 'pn-note bad', text: 'Нужно доверие Института: ' + D.TIERS[b.tier].n }));
     else {
       const label = (b.levels && lv ? 'Улучшить: ' + b.levels[lv] : 'Построить') + ' · ' + G.costText(cost);
       const bt = el('button', { class: 'btn primary', html: label, onclick: function () {

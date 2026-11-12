@@ -171,7 +171,7 @@
   async function startDefense(raid) {
     const G = DW.G, st = G.state;
     const base = G.node(st.baseNode);
-    const txt = raid.kind === 'beast' ? 'Стая тварей идёт на штурм.' : 'Банда пришла за вашими припасами.';
+    const txt = raid.kind === 'beast' ? 'Стая мутантов идёт на штурм.' : 'Банда пришла за вашими припасами.';
     const ids = await DW.UI.briefing(base, 'defense', txt);
     DW.Main.startBattle({ nodeId: st.baseNode, type: base.type, diff: Math.min(5, 1 + Math.floor(st.day / 8)), kind: 'defense', raid: raid, squad: ids || st.roster.slice(0, 6).map(function (s) { return s.id; }) });
   }
@@ -262,7 +262,7 @@
     busy = false;
     WS.refresh();
     if (Math.random() < 0.22) {
-      await DW.UI.alert('Твари!', 'Звон кирок привлёк тварей.', 'bad');
+      await DW.UI.alert('Мутанты!', 'Звон кирок привлёк мутантов.', 'bad');
       await WS.attack(n, 'ambush');
       return;
     }

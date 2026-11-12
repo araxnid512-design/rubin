@@ -281,9 +281,9 @@
       const nextT = D.TIERS[tier + 1];
       const prog = nextT ? Math.round((st.delivered - D.TIERS[tier].need) / (nextT.need - D.TIERS[tier].need) * 100) : 100;
       body.appendChild(el('div', { class: 'phead', html:
-        '<div>Доверие Конторы: <b class="acc">' + D.TIERS[tier].n + '</b>' + (nextT ? ' · до «' + nextT.n + '»: ' + (nextT.need - st.delivered) + ' ' + ic('gems') : '') + '</div>' +
+        '<div>Доверие Института: <b class="acc">' + D.TIERS[tier].n + '</b>' + (nextT ? ' · до «' + nextT.n + '»: ' + (nextT.need - st.delivered) + ' ' + ic('gems') : '') + '</div>' +
         '<div class="pbar"><i style="width:' + prog + '%"></i></div>' +
-        '<div class="small dim">Сдано всего: ' + st.delivered + ' / ' + D.GOAL + ' — за ' + D.GOAL + ' Контора дарует колонии вольную.</div>' }));
+        '<div class="small dim">Сдано всего: ' + st.delivered + ' / ' + D.GOAL + ' — за ' + D.GOAL + ' Институт обещает колонии вольную.</div>' }));
       const grid = el('div', { class: 'pgrid' });
       D.CATALOG.forEach(function (c) {
         const locked = c.tier > tier;
@@ -321,7 +321,7 @@
       }
     }
     h = UI.modal({
-      title: ic('portal') + ' Портал — заказ у Конторы', cls: 'wide', body: body, onClose: onChange,
+      title: ic('portal') + ' Портал — заказ у Института', cls: 'wide', body: body, onClose: onChange,
       buttons: [
         { text: '', cls: 'ghost have', close: false },
         { text: 'Сдать 10 ' + ic('gems'), cls: 'donate', close: false, onClick: function () {
@@ -351,7 +351,7 @@
     st.world.nodes.forEach(function (n) { if (n.type === 'lair' && n.cleared) lairs++; });
     const b = el('div', { class: 'journal' });
     b.innerHTML =
-      '<div class="jgoals"><div class="jg"><b>Вольная</b>: сдать Конторе ' + D.GOAL + ' ' + ic('gems') + ' — <b>' + st.delivered + '</b>/' + D.GOAL +
+      '<div class="jgoals"><div class="jg"><b>Вольная</b>: сдать Институту ' + D.GOAL + ' ' + ic('gems') + ' — <b>' + st.delivered + '</b>/' + D.GOAL +
       '<div class="pbar"><i style="width:' + Math.min(100, st.delivered / D.GOAL * 100) + '%"></i></div></div>' +
       '<div class="jg"><b>Гнездо</b>: уничтожить Матку. Путь открывается после разгрома двух логов — <b>' + lairs + '</b>/2</div></div>' +
       '<div class="jstats">День ' + st.day + ' · миссий: ' + st.stats.missions + ' (побед ' + st.stats.won + ') · убито врагов: ' + st.stats.kills +
@@ -373,8 +373,8 @@
       sorted.slice(0, 6).forEach(function (s) { chosen[s.id] = 1; });
       const T = D.NODE_TYPES[node.type];
       const intel = {
-        landing: 'твари', ruins: 'твари или бандиты', vein: 'твари', camp: 'бандиты' + (node.diff >= 3 ? ' и главарь' : ''),
-        lair: 'стая тварей и вожак', site: 'твари или бандиты', vault: 'механические стражи', nest: 'Матка и её выводок'
+        landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: 'бандиты' + (node.diff >= 3 ? ' и главарь' : ''),
+        lair: 'стая мутантов и вожак', site: 'мутанты или бандиты', vault: 'механические стражи', nest: 'Матка и её выводок'
       }[node.type];
       let lairs = 0;
       st.world.nodes.forEach(function (n) { if (n.type === 'lair' && n.cleared) lairs++; });
@@ -395,7 +395,7 @@
           body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmarkURL(node.type) + '" alt=""><div class="ptext"><b>' + T.n + '</b>' + (D.MAP_NAMES[node.map] ? ' — ' + D.MAP_NAMES[node.map].toLowerCase() : '') + ' · опасность ' + skulls(node.diff) + '<br>' + T.desc +
             '<br>Разведка: <b>' + intel + '</b>.' + (kind === 'ambush' ? ' <b class="bad">Засада!</b>' : '') +
             '<div class="intel">' + shown.map(function (t) { return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">'; }).join('') + '</div>' +
-            (locked ? '<b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова тварей (' + lairs + '/2).</b>' : '') + '</div>' }));
+            (locked ? '<b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова мутантов (' + lairs + '/2).</b>' : '') + '</div>' }));
         }
         const cnt = Object.keys(chosen).length;
         body.appendChild(el('div', { class: 'blabel', html: 'Бойцы на задание: <b>' + cnt + '</b>/6' }));
@@ -459,11 +459,11 @@
   /* ---------- Справка ---------- */
   UI.help = function () {
     const html =
-      '<h3>Цель</h3><p>Вас, заключённых, выбросили через Портал в мёртвый мир. Контора ждёт драгоценные кристаллы. Сдайте ' + D.GOAL + ' драгоценностей — и колония получит вольную. Или уничтожьте Матку в Гнезде.</p>' +
+      '<h3>Цель</h3><p>Мёртвый мир, переживший войну, стал тюрьмой без решёток. Вас, заключённых, выбросили туда через Портал в один конец. Институт ждёт ценности — драгоценные кристаллы. Сдайте ' + D.GOAL + ' драгоценностей — и колония получит вольную. Или уничтожьте Матку в Гнезде.</p>' +
       '<h3>Карта мира</h3><p>Нажмите на локацию, чтобы увидеть её и выдвинуться. Переход занимает 1 день, каждый день отряд съедает по 1 провизии на бойца. ' +
       'Враждебные локации (красное кольцо) нужно зачистить в бою. Зачищенные руины можно обыскивать, а на жилах — добывать кристаллы.</p>' +
       '<h3>Портал</h3><p>Тратьте драгоценности на заказы: патроны, еду, оружие, броню, новых бойцов. Груз приходит на следующий день в точку высадки или на маяк. ' +
-      'Чем больше сдано, тем выше доверие Конторы и лучше товары.</p>' +
+      'Чем больше сдано, тем выше доверие Института и лучше товары.</p>' +
       '<h3>База</h3><p>Зачистите «Укрытие» и основайте базу. Стройте укрепления, лазарет, мастерскую, теплицу, маяк портала. На базу нападают — будьте рядом или укрепляйтесь.</p>' +
       '<h3>Бой</h3><p>У бойца 2 очка действия (ОД). Синяя зона — перемещение за 1 ОД, жёлтая — за 2. Нажмите клетку, затем ещё раз для подтверждения. ' +
       'Выстрел завершает ход бойца. Щиты у клетки показывают укрытие: половинное (−20 к попаданию по вам) и полное (−40). Обходите врага с фланга — без укрытия он уязвим и получает криты.</p>' +

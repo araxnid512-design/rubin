@@ -68,7 +68,7 @@
       BT.updateVision();
       if (e.seen) {
         await DW.TR.focusOn(e.x, e.y, true);
-        DW.UI.toast('Матка исторгает новых тварей!', 'alert');
+        DW.UI.toast('Матка исторгает новых мутантов!', 'alert');
         DW.SFX.play('growl');
         await U.sleep(400);
       }

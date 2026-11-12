@@ -188,7 +188,7 @@
     } else if (B.type === 'nest' && B.kind !== 'ambush') {
       B.objective = B.queenDead ? 'Матка мертва! Добейте остальных' : 'Убейте Матку';
     } else if (B.type === 'vein') {
-      B.objective = 'Перебейте тварей и соберите кристаллы (' + B.items.filter(function (i) { return i.kind === 'gems'; }).length + ' осталось)';
+      B.objective = 'Перебейте мутантов и соберите кристаллы (' + B.items.filter(function (i) { return i.kind === 'gems'; }).length + ' осталось)';
     } else {
       B.objective = 'Уничтожьте всех врагов';
     }
