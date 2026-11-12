@@ -6,3 +6,4 @@ local.properties
 charmer/keystore.properties
 *.jks
 tools/charmer-voice/lines.json
+__pycache__/
