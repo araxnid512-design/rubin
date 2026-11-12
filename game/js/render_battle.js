@@ -1287,7 +1287,7 @@
     (B.decals || []).forEach(function (d) { paintDecal(groundCtx, d); });
     buildIso(B);
     cineOn = false; cineK = 0; cineZ = null; DW.timeScale = 1; TR.cam.tz = null;
-    fogC = canvas(B.w, B.h);
+    fogC = canvas(B.w * FOGR, B.h * FOGR);
     fogV = -1;
     initAtmos(B);
     props = {};
@@ -2088,6 +2088,59 @@
   }
 
   let reachC = null, reachSrc = null, reachM = '';
+  const FOGR = 4;
+  function buildFog(B, vis) {
+    const W = B.w * FOGR, H = B.h * FOGR;
+    const fg = fogC.getContext('2d');
+    const img = fg.createImageData(W, H), d = img.data;
+    const val = function (x, y) {
+      x = x < 0 ? 0 : (x >= B.w ? B.w - 1 : x); y = y < 0 ? 0 : (y >= B.h ? B.h - 1 : y);
+      const i = y * B.w + x;
+      return vis && vis[i] ? 0 : (B.explored[i] ? 0.5 : 1);
+    };
+    const sd = (B.seed || 1) % 997;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const nx = U.hash2(x, y, sd) - 0.5, ny = U.hash2(x, y, sd + 7) - 0.5;
+      const fx = (x + 0.5) / FOGR - 0.5 + nx * 0.5, fy = (y + 0.5) / FOGR - 0.5 + ny * 0.5;
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+      const v = (val(x0, y0) * (1 - tx) + val(x0 + 1, y0) * tx) * (1 - ty) + (val(x0, y0 + 1) * (1 - tx) + val(x0 + 1, y0 + 1) * tx) * ty;
+      const k = (y * W + x) * 4;
+      const mem = v > 0 && v <= 0.75;
+      d[k] = mem ? 12 : 8; d[k + 1] = mem ? 14 : 7; d[k + 2] = mem ? 22 : 7;
+      d[k + 3] = v <= 0.5 ? v * 2 * 128 : 128 + (v - 0.5) * 2 * 112;
+    }
+    fg.putImageData(img, 0, 0);
+  }
+  /* Атмосфера: цветокоррекция, дымка вдали, лучи света */
+  const GRADE = { day: 'rgba(255,232,196,0.22)', dawn: 'rgba(255,176,150,0.26)', dusk: 'rgba(255,150,80,0.28)', night: 'rgba(70,100,200,0.3)', cave: 'rgba(80,150,160,0.2)', interior: 'rgba(150,165,200,0.18)' };
+  const HAZE = { day: '235,215,185', dawn: '255,190,170', dusk: '255,170,110', night: '30,40,70', cave: '20,30,34', interior: '40,44,56' };
+  function atmosphere(g, W, H, dpr, B, t) {
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const tod = B.tod;
+    if (GRADE[tod]) { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
+    const hz = HAZE[tod];
+    if (hz) {
+      const light = tod === 'day' || tod === 'dawn' || tod === 'dusk';
+      g.globalCompositeOperation = light ? 'screen' : 'source-over';
+      const gr = g.createLinearGradient(0, 0, 0, H * 0.55);
+      gr.addColorStop(0, 'rgba(' + hz + ',' + (light ? 0.2 : 0.35) + ')'); gr.addColorStop(1, 'rgba(' + hz + ',0)');
+      g.fillStyle = gr; g.fillRect(0, 0, W, H * 0.55);
+      if (light && B.weather !== 'rain' && B.weather !== 'dust') {
+        g.globalCompositeOperation = 'lighter';
+        const col = tod === 'day' ? '255,240,210' : (tod === 'dawn' ? '255,200,170' : '255,180,110');
+        for (let k = 0; k < 4; k++) {
+          const ph = t / 9000 + k * 1.7;
+          const x0 = W * (-0.2 + k * 0.32 + Math.sin(ph) * 0.04), wd = W * (0.05 + (k % 2) * 0.05);
+          const a = 0.05 + Math.sin(ph * 1.3) * 0.02;
+          const bg = g.createLinearGradient(x0, 0, x0 + H * 0.6, H);
+          bg.addColorStop(0, 'rgba(' + col + ',' + a + ')'); bg.addColorStop(1, 'rgba(' + col + ',0)');
+          g.fillStyle = bg;
+          g.beginPath(); g.moveTo(x0, 0); g.lineTo(x0 + wd, 0); g.lineTo(x0 + wd + H * 0.7, H); g.lineTo(x0 + H * 0.7, H); g.closePath(); g.fill();
+        }
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
   /* ---------- Главный рендер ---------- */
   TR.render = function (g, W, H, dpr) {
     const B = DW.BT.get();
@@ -2143,13 +2196,7 @@
     }
     if (BT_visVersion() !== fogV) {
       fogV = BT_visVersion();
-      const fg = fogC.getContext('2d');
-      const img = fg.createImageData(B.w, B.h);
-      for (let i = 0; i < B.w * B.h; i++) {
-        const a = vis && vis[i] ? 0 : (B.explored[i] ? 125 : 235);
-        img.data[i * 4] = 9; img.data[i * 4 + 1] = 8; img.data[i * 4 + 2] = 7; img.data[i * 4 + 3] = a;
-      }
-      fg.putImageData(img, 0, 0);
+      buildFog(B, vis);
     }
     g.drawImage(fogC, 0, 0, B.w, B.h);
 
@@ -2249,6 +2296,7 @@
     ghosts.forEach(function (u) { drawUnit(g, u, t, false, 0.32); });
     drawCrows(g, t, false);
     applyLighting(g, W, H, dpr, B, t, vis);
+    atmosphere(g, W, H, dpr, B, t);
     drawWeather(g, W, H, dpr, B, t);
     screenT();
     drawMotes(g, t);
@@ -2276,20 +2324,47 @@
           pth.moveTo(a[0], a[1] - hh); pth.lineTo(b[0], b[1] - hh);
         }
       }
-      g.strokeStyle = 'rgba(120,200,255,0.9)'; g.stroke(lb);
-      g.strokeStyle = 'rgba(255,210,90,0.85)'; g.stroke(ly);
+      // сетка внутри зоны
+      const gb = new Path2D(), gy = new Path2D();
+      for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+        const c = cat(x, y);
+        if (!c) continue;
+        const hh = hT(x, y) * LH;
+        if (cat(x + 1, y) && hT(x + 1, y) === hT(x, y)) { const a = iso(x + 1, y), b = iso(x + 1, y + 1); const pth = c === 2 && cat(x + 1, y) === 2 ? gb : gy; pth.moveTo(a[0], a[1] - hh); pth.lineTo(b[0], b[1] - hh); }
+        if (cat(x, y + 1) && hT(x, y + 1) === hT(x, y)) { const a = iso(x, y + 1), b = iso(x + 1, y + 1); const pth = c === 2 && cat(x, y + 1) === 2 ? gb : gy; pth.moveTo(a[0], a[1] - hh); pth.lineTo(b[0], b[1] - hh); }
+      }
+      g.lineWidth = 1;
+      g.strokeStyle = 'rgba(150,210,255,0.13)'; g.stroke(gb);
+      g.strokeStyle = 'rgba(255,215,120,0.055)'; g.stroke(gy);
+      g.lineCap = 'round';
+      g.lineWidth = 7; g.strokeStyle = 'rgba(90,170,255,0.16)'; g.stroke(lb);
+      g.strokeStyle = 'rgba(255,190,70,0.13)'; g.stroke(ly);
+      g.lineWidth = 2; g.strokeStyle = 'rgba(130,205,255,0.95)'; g.stroke(lb);
+      g.strokeStyle = 'rgba(255,212,95,0.9)'; g.stroke(ly);
+      g.lineWidth = 1.2; g.setLineDash([3, 14]); g.lineDashOffset = -t / 45;
+      g.strokeStyle = 'rgba(235,248,255,0.8)'; g.stroke(lb);
+      g.strokeStyle = 'rgba(255,245,215,0.7)'; g.stroke(ly);
+      g.setLineDash([]); g.lineDashOffset = 0;
     }
     // путь и предпросмотр
     if (ov.path && ov.sel) {
       const pts = [[ov.sel.x, ov.sel.y]].concat(ov.path);
-      g.strokeStyle = ov.pathDash ? 'rgba(255,210,90,0.95)' : 'rgba(150,215,255,0.95)'; g.lineWidth = 3; g.setLineDash([7, 5]);
-      g.beginPath();
-      pts.forEach(function (p, i) { const c = isoC(p[0], p[1]); if (i) g.lineTo(c[0], c[1]); else g.moveTo(c[0], c[1]); });
-      g.stroke(); g.setLineDash([]);
+      const pc = ov.pathDash ? '255,210,90' : '150,215,255';
+      const pathP = function () { g.beginPath(); pts.forEach(function (p, i) { const c = isoC(p[0], p[1]); if (i) g.lineTo(c[0], c[1]); else g.moveTo(c[0], c[1]); }); };
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      pathP(); g.strokeStyle = 'rgba(' + pc + ',0.25)'; g.lineWidth = 8; g.stroke();
+      pathP(); g.strokeStyle = 'rgba(' + pc + ',0.95)'; g.lineWidth = 2.6; g.setLineDash([7, 5]); g.lineDashOffset = -t / 40; g.stroke();
+      g.setLineDash([]); g.lineDashOffset = 0;
       const dd = ov.path[ov.path.length - 1];
       if (dd) {
+        const dc = isoC(dd[0], dd[1]);
+        const pulse = 0.5 + Math.sin(t / 220) * 0.5;
+        const bm = g.createLinearGradient(0, dc[1] - 60, 0, dc[1]);
+        bm.addColorStop(0, 'rgba(' + pc + ',0)'); bm.addColorStop(1, 'rgba(' + pc + ',' + (0.22 + pulse * 0.1) + ')');
+        g.fillStyle = bm; g.beginPath(); g.moveTo(dc[0] - 14, dc[1]); g.lineTo(dc[0] - 9, dc[1] - 60); g.lineTo(dc[0] + 9, dc[1] - 60); g.lineTo(dc[0] + 14, dc[1]); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(' + pc + ',' + (0.35 + pulse * 0.4) + ')'; g.lineWidth = 1.4; diamond(g, dd[0], dd[1], 0.02 - pulse * 0.06); g.stroke();
         g.strokeStyle = '#fff'; g.lineWidth = 2.4; diamond(g, dd[0], dd[1], 0.12); g.stroke();
-        g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.14)'; g.fill();
         (ov.shields || []).forEach(function (s) {
           const c = isoC(dd[0] + s.dx * 0.42, dd[1] + s.dy * 0.42);
           shield(g, c[0], c[1] - 16, s.c === 2, s.c === 2 ? '#5ab4ff' : '#9fd3ff');
