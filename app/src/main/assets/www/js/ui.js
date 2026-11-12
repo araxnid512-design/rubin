@@ -1,290 +1,214 @@
 'use strict';
-/* Интерфейс: управление, HUD, окна */
+/* Интерфейс: панель ресурсов, карточка жильца, окна, управление убежищем и вылазкой */
 (function () {
-  const $ = id => document.getElementById(id), I = G.input, Inv = G.Inv;
-  const ui = G.ui = {};
-  let panel = null, selSlot = -1, chestRef = null, confirmNew = 0;
+  const $ = id => document.getElementById(id), UI = window.UI = {}, I = EX.in;
+  let panel = null, ctxCell = null, ctxRoom = null, prepP = null, hudT = 1, lastGoal = '', banT = 0;
 
-  /* ---------- Управление ---------- */
-  const touch = $('touch'), joy = $('joy'), knob = $('joy-knob');
-  let joyId = null, jx0 = 0, jy0 = 0, joyMoved = false, tap = null, joyHome = null;
-  function joyRect() { joy.style.transform = ''; const r = joy.getBoundingClientRect(); joyHome = { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 }; }
-  ui.layout = joyRect;
-  function joyEnd() { joyId = null; I.mx = I.my = 0; joy.classList.remove('on'); joy.style.transform = ''; knob.style.transform = ''; }
-  touch.addEventListener('pointerdown', e => {
-    G.audioInit();
-    if (G.build) tap = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
-    if (joyId === null && e.clientX < innerWidth * 0.5) {
-      joyId = e.pointerId; jx0 = e.clientX; jy0 = e.clientY; joyMoved = false;
-      if (!joyHome) joyRect();
-      if (!G.build) { joy.classList.add('on'); joy.style.transform = 'translate(' + (jx0 - joyHome.x) + 'px,' + (jy0 - joyHome.y) + 'px)'; }
-      try { touch.setPointerCapture(e.pointerId); } catch (_) { }
-    }
-  });
-  touch.addEventListener('pointermove', e => {
-    if (e.pointerId !== joyId) return;
-    let dx = e.clientX - jx0, dy = e.clientY - jy0; const R = joyHome.r, l = Math.hypot(dx, dy);
-    if (l > 10 && !joyMoved) { joyMoved = true; joy.classList.add('on'); joy.style.transform = 'translate(' + (jx0 - joyHome.x) + 'px,' + (jy0 - joyHome.y) + 'px)'; }
-    if (!joyMoved) return;
-    if (l > R) { dx *= R / l; dy *= R / l; }
-    I.mx = dx / R; I.my = dy / R;
-    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-  });
-  function tUp(e) {
-    if (tap && tap.id === e.pointerId) {
-      if (G.build && e.type === 'pointerup' && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 14 && performance.now() - tap.t < 450) {
-        const V = G.view; G.buildAt(G.cam.left + e.clientX * V.css / V.zoom, G.cam.top + e.clientY * V.css / V.zoom);
-        refreshBuild();
-      }
-      tap = null;
-    }
-    if (e.pointerId === joyId) joyEnd();
-  }
-  touch.addEventListener('pointerup', tUp); touch.addEventListener('pointercancel', tUp);
+  UI.banner = function (t, bad) { const b = $('banner'); b.textContent = t; b.classList.toggle('bad', !!bad); b.classList.add('on'); banT = 3.4; };
+  const ico = k => ART.ICON[k];
+  const cost = (n, ok) => '<span class="cost' + (ok ? '' : ' no') + '"><img src="' + ico('scrap') + '">' + n + '</span>';
+  const stars = n => '<span class="danger">' + ('<img src="' + ico('skull') + '">').repeat(n) + '</span>';
+  const gx = (p, m, f) => p.male ? m : f;
+  const statsH = p => ['S', 'A', 'I'].map(k => '<span class="st"><i>' + D.STAT[k] + '</i>' + p[k] + '</span>').join('');
 
-  const act = $('btn-act');
-  act.addEventListener('pointerdown', e => { G.audioInit(); I.act = true; I.actPressed = true; act.classList.add('on'); try { act.setPointerCapture(e.pointerId); } catch (_) { } e.preventDefault(); });
-  const actUp = () => { I.act = false; act.classList.remove('on'); };
-  act.addEventListener('pointerup', actUp); act.addEventListener('pointercancel', actUp);
-  document.addEventListener('contextmenu', e => e.preventDefault());
-
-  const keys = {};
-  function keyMove() {
-    I.mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-    I.my = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
-  }
-  addEventListener('keydown', e => {
-    if (e.repeat) return; keys[e.code] = 1; keyMove(); G.audioInit();
-    if (e.code === 'Space' || e.code === 'KeyE') { I.act = true; I.actPressed = true; e.preventDefault(); }
-    else if (e.code === 'KeyI' || e.code === 'Tab') { e.preventDefault(); panel ? ui.close() : ui.openInv(); }
-    else if (e.code === 'KeyC') panel ? ui.close() : ui.openCraft();
-    else if (e.code === 'KeyB') ui.toggleBuild();
-    else if (e.code === 'KeyQ') toggleSneak();
-    else if (e.code === 'KeyH') G.quickUse('heal');
-    else if (e.code === 'KeyF') G.quickUse('food');
-    else if (e.code === 'Escape') G.onBack();
-  });
-  addEventListener('keyup', e => { keys[e.code] = 0; keyMove(); if (e.code === 'Space' || e.code === 'KeyE') I.act = false; });
-
-  const sneakBtn = $('btn-sneak');
-  function toggleSneak() { const p = G.p; if (p.dead) return; p.sneak = !p.sneak; sneakBtn.classList.toggle('on', p.sneak); G.sfx('ui'); }
-  sneakBtn.addEventListener('click', toggleSneak);
-  const qHeal = $('q-heal'), qFood = $('q-food');
-  qHeal.addEventListener('click', () => { G.audioInit(); G.quickUse('heal'); });
-  qFood.addEventListener('click', () => { G.audioInit(); G.quickUse('food'); });
-  function refreshQuick() {
-    const inv = G.p.inv; let heal = 0, food = 0, fi = 'canned';
-    for (const s of inv) { if (!s) continue; const it = G.ITEMS[s.id]; if (it.hp > 0 && !it.food) heal += s.n; else if (it.food || it.water) { food += s.n; fi = s.id; } }
-    qHeal.firstChild.src = G.ICON.bandage; qHeal.lastChild.textContent = heal || ''; qHeal.classList.toggle('empty', !heal);
-    qFood.firstChild.src = G.ICON[fi]; qFood.lastChild.textContent = food || ''; qFood.classList.toggle('empty', !food);
-    $('sneak-ico').src = G.ICON.ui_sneak; sneakBtn.classList.toggle('on', !!G.p.sneak);
-  }
-  /* ---------- HUD ---------- */
-  const bHp = $('b-hp'), bFood = $('b-food'), bWater = $('b-water'), tHp = $('t-hp'), lvlN = $('lvl-n'), xpRing = $('xp-ring');
-  const questT = $('quest-t'), clock = $('clock'), actIco = $('act-ico'), fpsEl = $('fps'), hurtEl = $('hurt');
-  const mm = $('minimap').getContext('2d');
-  let acc = 1, lastIco = '', lastHurt = -1, lastClock = '', lastQuest = '';
-  ui.showFps = true;
-  ui.frame = function (dt, fps) {
-    const p = G.p;
-    const h = p.dead ? 0.9 : Math.max(p.hurt > 0 ? p.hurt * 2.4 : 0, p.hp < p.maxhp * 0.3 ? 0.35 + Math.sin(G.time * 5) * 0.12 : 0);
-    const hq = Math.round(h * 20) / 20;
-    if (hq !== lastHurt) { lastHurt = hq; hurtEl.style.opacity = hq; }
-    if (panel === 'inv') {   // вращающаяся модель персонажа в рюкзаке
-      const dc = $('doll'); if (dc) {
-        const x = dc.getContext('2d'), t = performance.now() / 1000, ws = G.bestTool('weapon');
-        x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, dc.width, dc.height); x.setTransform(3, 0, 0, 3, dc.width / 2, dc.height - 22);
-        G.drawHuman(x, { face: Math.PI / 2 + Math.sin(t * 0.6) * 1.3, walk: 0, mv: 0, atk: 0, hurt: 0, x: 0, armor: p.armor }, 'p', ws >= 0 ? p.inv[ws].id : null, false);
-      }
+  /* ---------- Верхняя панель ---------- */
+  const chips = {}; ['energy', 'water', 'food', 'scrap', 'meds', 'ppl'].forEach(k => chips[k] = $('c-' + k));
+  UI.initHud = function () { for (const k in chips) chips[k].querySelector('img').src = ico(k); $('x-medi').src = ico('meds'); };
+  UI.hud = function (dt) {
+    if (banT > 0 && (banT -= dt) <= 0) $('banner').classList.remove('on');
+    hudT += dt; if (hudT < 0.2) return; hudT = 0;
+    const s = SH.s, cap = SH.caps(), e = EX.e;
+    for (const k of ['energy', 'water', 'food']) { const v = s.res[k], el = chips[k]; el.querySelector('b').style.transform = 'scaleX(' + Math.min(1, v / cap.max).toFixed(3) + ')'; el.querySelector('span').textContent = Math.floor(v); el.classList.toggle('low', v < cap.max * 0.12); }
+    chips.scrap.querySelector('span').textContent = Math.floor(s.res.scrap);
+    chips.meds.querySelector('span').textContent = Math.floor(s.res.meds) + '/' + cap.meds;
+    chips.ppl.querySelector('span').textContent = s.ppl.length + '/' + cap.beds;
+    const hr = (6 + SH.ph * 24) % 24; $('clock').textContent = 'День ' + (Math.floor(s.t / D.DAY) + 1) + ' · ' + String(hr | 0).padStart(2, '0') + ':' + String(((hr % 1) * 6 | 0) * 10).padStart(2, '0');
+    $('clock').classList.toggle('night', SH.dark > 0.5);
+    const g = D.GOALS[s.goal], gt = g ? g.t : 'Расширяй убежище, копи запасы и переживай набеги';
+    if (gt !== lastGoal) { lastGoal = gt; $('goal-t').textContent = gt; }
+    $('b-alarm').classList.toggle('on', s.alarm); $('b-alarm').classList.toggle('hot', SH.raid && !s.alarm);
+    if (e) {
+      $('x-name').textContent = e.p.name + ' · ' + e.loc.n;
+      $('x-hp').style.transform = 'scaleX(' + (e.hp / 100).toFixed(3) + ')'; $('x-st').style.transform = 'scaleX(' + (e.st / 100).toFixed(3) + ')';
+      $('x-time').style.transform = 'scaleX(' + Math.max(0, e.time / e.loc.time).toFixed(3) + ')'; $('x-timer').textContent = e.time > 0 ? 'До темноты ' + Math.ceil(e.time) + ' с' : 'ОРДА! Беги к машине';
+      $('x-time').parentNode.classList.toggle('horde', e.time <= 0);
+      $('x-pack').textContent = 'Рюкзак ' + e.cnt + '/' + e.cap; $('x-meds').textContent = Math.floor(s.res.meds);
+      $('x-act').firstChild.textContent = e.hint || 'Удар';
     }
-    acc += dt;
-    if (acc < 0.2) return; acc = 0;
-    bHp.style.transform = 'scaleX(' + (p.hp / p.maxhp).toFixed(3) + ')';
-    bFood.style.transform = 'scaleX(' + (p.food / 100).toFixed(3) + ')';
-    bWater.style.transform = 'scaleX(' + (p.water / 100).toFixed(3) + ')';
-    tHp.textContent = Math.ceil(p.hp) + ' / ' + p.maxhp;
-    const ico = G.build ? 'ui_hand' : G.actIcon();
-    if (ico !== lastIco) { lastIco = ico; actIco.src = G.ICON[ico]; }
-    const hr = (6 + G.phase * 24) % 24, ck = 'День ' + G.day + ' · ' + String(hr | 0).padStart(2, '0') + ':' + String(((hr % 1) * 6 | 0) * 10).padStart(2, '0');
-    if (ck !== lastClock) { lastClock = ck; clock.textContent = ck; }
-    if (ui.showFps) fpsEl.textContent = fps + ' FPS';
-    // мини-карта
-    const s = 144 / G.WORLD;
-    mm.drawImage(G.mapBase, 0, 0);
-    if (G.night > 0.05) { mm.fillStyle = 'rgba(8,12,40,' + G.night * 0.5 + ')'; mm.fillRect(0, 0, 144, 144); }
-    mm.fillStyle = '#e8c46a'; mm.fillRect((G.HOME.tx - 3) * 2, (G.HOME.ty - 3) * 2, 12, 10);
-    mm.fillStyle = '#5a3a1e'; mm.fillRect((G.HOME.tx - 2) * 2, (G.HOME.ty - 2) * 2, 8, 6);
-    mm.fillStyle = '#ff5a3a'; for (const m of G.mobs) if (m.t !== 'd' && !m.dead) mm.fillRect(m.x * s - 1.5, m.y * s - 1.5, 3, 3);
-    mm.fillStyle = '#fff'; mm.beginPath(); mm.arc(p.x * s, p.y * s, 4.5, 0, 7); mm.fill();
-    mm.fillStyle = '#d42a40'; mm.beginPath(); mm.arc(p.x * s, p.y * s, 3, 0, 7); mm.fill();
-    if (G.uiDirty) {
-      G.uiDirty = false; refreshQuick();
-      lvlN.textContent = p.lvl;
-      $('lvl').style.setProperty('--xp', Math.round(100 * p.xp / G.xpNeed(p.lvl)) + '%');
-      const q = G.QUESTS[G.quest], qt = q ? q.t : 'Ты освоился. Исследуй пустошь!';
-      if (qt !== lastQuest) { lastQuest = qt; questT.textContent = qt; }
-      if (G.build) refreshBuild();
-    }
+    selCard();
   };
+  function selCard() {
+    const p = SH.sel, el = $('sel');
+    if (!p || EX.e || p.st === 'out') { el.classList.remove('on'); return; }
+    el.classList.add('on');
+    $('sel-name').textContent = p.name + ' · ур. ' + p.lvl;
+    $('sel-stats').innerHTML = statsH(p) + '<span class="st"><i>Здоровье</i>' + Math.round(p.hp) + '</span>';
+    $('sel-job').textContent = p.st === 'down' ? gx(p, 'ранен', 'ранена') + ', отлёживается' : p.guard ? 'на посту у шлюза' : p.job ? D.ROOMS[p.job.k].n : 'без работы';
+  }
 
   /* ---------- Окна ---------- */
-  const modal = $('modal');
-  function open(name) {
-    if (G.build) ui.toggleBuild();
-    panel = name; modal.classList.remove('hide');
-    for (const el of modal.querySelectorAll('.panel')) el.classList.toggle('show', el.id === 'p-' + name);
-    G.paused = true; I.act = false; joyEnd(); G.sfx('ui');
+  const modal = $('modal'), body = $('m-body');
+  function open(name, title, html, wide) {
+    panel = name; $('m-title').textContent = title; body.innerHTML = html; modal.classList.remove('hide'); $('m-panel').classList.toggle('wide', !!wide);
+    G.paused = true; U.sfx('ui');
   }
-  ui.close = function () {
-    if (panel === 'death') return;
-    panel = null; modal.classList.add('hide'); G.paused = false; chestRef = null; G.uiDirty = true; G.save();
-  };
-  modal.addEventListener('click', e => { if (e.target === modal || e.target.hasAttribute('data-close')) ui.close(); });
+  UI.close = function () { if (!panel) return; panel = null; modal.classList.add('hide'); G.paused = false; G.save(); };
+  UI.isOpen = () => !!panel;
+  modal.addEventListener('click', e => { if ((e.target === modal || e.target.closest('[data-close]')) && panel !== 'result') UI.close(); });
 
-  function slotHTML(s, i, sel, attr) {
-    let h = '<div class="slot' + (sel ? ' sel' : '') + '" ' + attr + '="' + i + '">';
-    if (s) {
-      h += '<img src="' + G.ICON[s.id] + '">';
-      if (s.n > 1) h += '<span>' + s.n + '</span>';
-      if (s.d !== undefined) h += '<u><s style="width:' + Math.round(s.d / G.ITEMS[s.id].dur * 100) + '%"></s></u>';
+  function openBuild(c, r) {
+    ctxCell = [c, r]; const kinds = SH.canBuild(c, r), sc = SH.s.res.scrap; let h = '<div class="list">';
+    for (const k of kinds) { const d = D.ROOMS[k], ok = sc >= d.cost; h += '<div class="row' + (ok ? '' : ' off') + '"><div class="mid"><b>' + d.n + '</b><p>' + d.d + '</p></div>' + cost(d.cost, ok) + '<button data-build="' + k + '">Строить</button></div>'; }
+    open('build', 'Новый отсек', h + '</div>');
+  }
+  function openRoom(rm) {
+    ctxRoom = rm; const d = D.ROOMS[rm.k], s = SH.s, sc = s.res.scrap; let h = '<p class="desc">' + d.d + '</p>';
+    if (d.slots) {
+      h += '<h3>Работники ' + rm.w.length + '/' + d.slots + ' · навык: ' + D.STAT[d.stat] + '</h3><div class="list">';
+      for (const id of rm.w) { const p = SH.byId(id); if (p) h += '<div class="row"><div class="mid"><b>' + p.name + '</b><p>' + statsH(p) + '</p></div><button data-free="' + id + '">Снять</button></div>'; }
+      if (!rm.w.length) h += '<p class="desc dim">Никого. Нажми на жильца, затем на этот отсек.</p>';
+      h += '</div>';
+      if (d.out) { let sk = 0; for (const id of rm.w) { const p = SH.byId(id); if (p) sk += SH.statMul(p[d.stat]); } h += '<p class="desc">Выработка: ' + (d.rate * sk * (1 + (rm.lvl - 1) * 0.6) * 60).toFixed(1) + ' ' + D.RES[d.out].toLowerCase() + ' в минуту</p>'; }
     }
-    return h + '</div>';
+    if (rm.k === 'hatch') h += '<p class="desc">Гермодверь: ' + Math.round(s.door) + ' / ' + D.GEAR.door.val[s.gear.door] + '. Сама чинится между набегами (быстрее с мастерской).</p>';
+    if (rm.k === 'workshop') {
+      h += '<h3>Снаряжение</h3><div class="list">';
+      for (const g in D.GEAR) {
+        const G_ = D.GEAR[g], lv = s.gear[g], max = lv >= G_.max, c = max ? 0 : G_.cost[lv + (g === 'weapon' ? 1 : 0)], ok = !max && sc >= c && rm.w.length > 0;
+        const ic = g === 'weapon' ? (D.WEAPONS[lv].tool || 'fist') : g;
+        h += '<div class="row' + (ok ? '' : ' off') + '"><img class="ri" src="' + ico(ic) + '"><div class="mid"><b>' + G_.n + '</b><p>' + G_.info(lv) + (max ? '' : ' → ' + G_.info(lv + 1)) + '</p></div>' + (max ? '<span class="cost">макс.</span>' : cost(c, sc >= c) + '<button data-gear="' + g + '">Улучшить</button>') + '</div>';
+      }
+      h += '</div>'; if (!rm.w.length) h += '<p class="desc warn">Нужен работник в мастерской.</p>';
+    }
+    if (!d.fixed && rm.k !== 'stairs') { const uc = SH.upCost(rm), ok = sc >= uc; h += '<div class="foot">' + (rm.lvl >= 3 ? '<span class="cost">Максимальный уровень</span>' : cost(uc, ok) + '<button class="' + (ok ? '' : 'off') + '" data-up="1">Улучшить до ур. ' + (rm.lvl + 1) + '</button>') + '</div>'; }
+    open('room', d.n + (d.fixed || rm.k === 'stairs' ? '' : ' · ур. ' + rm.lvl), h);
   }
-  function gridHTML(inv, attr, sel) { let h = ''; for (let i = 0; i < inv.length; i++) h += slotHTML(inv[i], i, i === sel, attr); return h; }
-
-  // --- рюкзак ---
-  function renderInv() {
-    const p = G.p;
-    if (selSlot >= 0 && !p.inv[selSlot]) selSlot = -1;
-    $('inv-grid').innerHTML = gridHTML(p.inv, 'data-i', selSlot);
-    let h = '<div class="info"><canvas id="doll" width="216" height="264"></canvas>';
-    if (selSlot >= 0) {
-      const s = p.inv[selSlot], it = G.ITEMS[s.id], fx = [];
-      if (it.food) fx.push('Сытость +' + it.food); if (it.water) fx.push('Вода +' + it.water);
-      if (it.hp) fx.push('Здоровье ' + (it.hp > 0 ? '+' : '') + it.hp);
-      if (it.dmg) fx.push('Урон ' + it.dmg); if (it.dur) fx.push('Прочность ' + s.d + '/' + it.dur);
-      h += '<img src="' + G.ICON[s.id] + '"><h4>' + it.n + '</h4><p>' + it.d + '</p><p>' + fx.join(' · ') + '</p>';
-    } else h += '<p>Выбери предмет. Инструменты берутся в руки автоматически: топор — для деревьев, кирка — для камня, оружие — для врагов.</p>';
-    h += '</div><div class="eq">Броня: ' + (p.armor ? '<b>' + G.ITEMS[p.armor].n + '</b>' : 'нет') + '</div><div class="acts">';
-    if (selSlot >= 0) {
-      const it = G.ITEMS[p.inv[selSlot].id];
-      if (it.food || it.water || it.hp) h += '<button class="go" data-a="use">Использовать</button>';
-      if (it.armor) h += '<button class="go" data-a="use">Надеть</button>';
-      h += '<button data-a="drop">Выбросить</button>';
-    } else if (p.armor) h += '<button data-a="unarm">Снять броню</button>';
-    $('inv-side').innerHTML = h + '</div>';
+  function openPrep(p) {
+    const s = SH.s;
+    if (SH.raid) { UI.banner('Во время набега выходить нельзя', true); U.sfx('deny'); return; }
+    prepP = p && p.st !== 'out' && p.st !== 'down' && p.hp > 30 ? p : null;
+    let h = '<h3>Кто пойдёт</h3><div class="people">';
+    for (const q of s.ppl) { if (q.st === 'out') continue; const ok = q.st !== 'down' && q.hp > 30; h += '<button class="pc' + (ok ? '' : ' off') + (prepP === q ? ' sel' : '') + '" data-who="' + q.id + '"><b>' + q.name + '</b><small>' + statsH(q) + '</small><small>' + (ok ? 'Здоровье ' + Math.round(q.hp) : 'Ранен') + '</small></button>'; }
+    h += '</div><h3>Куда</h3><div class="locs">';
+    for (const L of D.LOCS) { const lock = L.req && !SH.has(L.req); h += '<button class="loc' + (lock ? ' off' : '') + '" data-loc="' + L.id + '"><b>' + L.n + '</b>' + stars(L.danger) + '<p>' + (lock ? 'Нужна радиоточка' : L.d) + '</p><small>' + L.time + ' с до темноты</small></button>'; }
+    const W = SH.weapon(); h += '</div><p class="desc dim">С собой: ' + W.n + ' · ' + D.GEAR.armor.info(s.gear.armor) + ' · ' + D.GEAR.pack.info(s.gear.pack) + '. Пока жилец наверху, его место в отсеке пустует.</p>';
+    open('prep', 'Вылазка на поверхность', h, true);
   }
-  ui.openInv = function () { selSlot = -1; renderInv(); open('inv'); };
-  $('p-inv').addEventListener('click', e => {
-    const p = G.p, sl = e.target.closest('[data-i]'), b = e.target.closest('[data-a]');
-    if (sl) { const i = +sl.dataset.i; selSlot = p.inv[i] ? i : -1; G.sfx('ui'); }
-    else if (b) {
-      const a = b.dataset.a;
-      if (a === 'use') G.useItem(selSlot);
-      else if (a === 'drop') { p.inv[selSlot] = null; selSlot = -1; G.sfx('ui'); }
-      else if (a === 'unarm') { if (Inv.add(p.inv, p.armor, 1) === 0) p.armor = null; }
-    } else return;
-    renderInv();
-  });
-
-  // --- крафт ---
-  function costHTML(cost) {
-    let h = '';
-    for (const id in cost) { const have = Inv.count(G.p.inv, id); h += '<i class="' + (have < cost[id] ? 'no' : '') + '">' + G.ITEMS[id].n + ' ' + have + '/' + cost[id] + '</i>'; }
-    return h;
-  }
-  function renderCraft() {
-    const p = G.p, near = { campfire: G.stationNear('campfire'), workbench: G.stationNear('workbench') };
-    $('craft-st').textContent = 'Рядом: ' + (near.campfire || near.workbench ? [near.campfire && 'костёр', near.workbench && 'верстак'].filter(Boolean).join(', ') : 'нет станков');
-    let h = '';
-    G.RECIPES.forEach((r, i) => {
-      const it = G.ITEMS[r.out], st = !r.st || near[r.st], ok = st && Inv.has(p.inv, r.cost);
-      h += '<div class="rc' + (ok ? '' : ' off') + '"><img src="' + G.ICON[r.out] + '"><div class="mid"><b>' + it.n + '</b><div class="cost">' + costHTML(r.cost) + '</div>' +
-        (r.st && !st ? '<div class="need">Нужен ' + G.STATION_NAME[r.st] + ' рядом</div>' : '') + '</div><button data-r="' + i + '">Создать</button></div>';
-    });
-    $('craft-list').innerHTML = h;
-  }
-  ui.openCraft = function () { renderCraft(); open('craft'); };
-  $('craft-list').addEventListener('click', e => {
-    const b = e.target.closest('[data-r]'); if (!b) return;
-    const p = G.p, r = G.RECIPES[+b.dataset.r];
-    if ((r.st && !G.stationNear(r.st)) || !Inv.has(p.inv, r.cost)) { G.sfx('deny'); return; }
-    Inv.pay(p.inv, r.cost);
-    if (Inv.add(p.inv, r.out, r.n) > 0) { for (const id in r.cost) Inv.add(p.inv, id, r.cost[id]); G.sfx('deny'); return; }
-    G.sfx('craft'); G.addXp(5); renderCraft();
-  });
-
-  // --- сундук ---
-  function renderChest() { $('chest-grid').innerHTML = gridHTML(chestRef.inv, 'data-c', -1); $('chest-inv').innerHTML = gridHTML(G.p.inv, 'data-i', -1); }
-  function moveStack(from, i, to) {
-    const s = from[i]; if (!s) return;
-    const left = Inv.add(to, s.id, s.n, s.d);
-    if (left <= 0) from[i] = null; else s.n = left;
-    G.sfx(left === s.n ? 'deny' : 'ui');
-  }
-  ui.openChest = function (s) { chestRef = s; renderChest(); open('chest'); };
-  $('p-chest').addEventListener('click', e => {
-    const c = e.target.closest('[data-c]'), i = e.target.closest('[data-i]');
-    if (c) moveStack(chestRef.inv, +c.dataset.c, G.p.inv); else if (i) moveStack(G.p.inv, +i.dataset.i, chestRef.inv); else return;
-    renderChest();
-  });
-
-  // --- меню и смерть ---
-  const QN = ['авто', 'высокая', 'средняя', 'низкая'];
-  function renderMenu() {
-    const m = $('p-menu');
-    m.querySelector('[data-m=sound]').textContent = 'Звук: ' + (G.soundOn ? 'вкл' : 'выкл');
-    m.querySelector('[data-m=quality]').textContent = 'Графика: ' + QN[G.qMode];
-    m.querySelector('[data-m=fps]').textContent = 'Счётчик FPS: ' + (ui.showFps ? 'вкл' : 'выкл');
-    m.querySelector('[data-m=new]').textContent = confirmNew ? 'Точно? Нажми ещё раз' : 'Новая игра';
-  }
-  ui.openMenu = function () { confirmNew = 0; renderMenu(); open('menu'); };
-  modal.addEventListener('click', e => {
-    const b = e.target.closest('[data-m]'); if (!b) return;
-    const m = b.dataset.m;
-    if (m === 'resume') return ui.close();
-    if (m === 'sound') G.soundOn = !G.soundOn;
-    else if (m === 'quality') G.setQuality((G.qMode + 1) % 4);
-    else if (m === 'fps') { ui.showFps = !ui.showFps; fpsEl.textContent = ''; }
-    else if (m === 'new') { if (confirmNew) { G.resetGame(); panel = null; modal.classList.add('hide'); G.paused = false; return; } confirmNew = 1; }
-    else if (m === 'respawn') { G.respawn(); panel = null; modal.classList.add('hide'); G.paused = false; G.save(); return; }
-    G.saveSettings(); renderMenu();
-  });
-  ui.showDeath = function () {
-    $('death-t').textContent = 'Ты продержался ' + G.day + ' ' + (G.day === 1 ? 'день' : G.day < 5 ? 'дня' : 'дней') + '. Вещи останутся при тебе.';
-    open('death');
+  UI.result = function (r) {
+    let h = '<p class="desc">' + (r.ok ? r.p.name + ' ' + gx(r.p, 'вернулся', 'вернулась') + ' в убежище.' : r.p.name + ' ' + gx(r.p, 'потерял', 'потеряла') + ' сознание. ' + gx(r.p, 'Его', 'Её') + ' едва дотащили до люка' + (r.lostAll ? ', добыча осталась наверху.' : '.')) + '</p><div class="lootrow">';
+    let any = false; for (const k of ['scrap', 'food', 'water', 'meds']) if (r.got[k]) { any = true; h += '<span class="cost big"><img src="' + ico(k) + '">+' + r.got[k] + '</span>'; }
+    if (r.who) h += '<span class="cost big"><img src="' + ico('ppl') + '">+' + r.who + '</span>';
+    if (r.ok && !any && !r.who) h += '<span class="cost">Ничего не принёс</span>';
+    h += '</div><p class="desc dim">Убито мертвецов: ' + r.kills + (r.got.lost ? ' · не влезло на склад: ' + r.got.lost : '') + '</p>';
+    open('result', r.ok ? 'Вылазка удалась' : 'Вылазка провалена', h + '<div class="foot"><button data-ok="1">В убежище</button></div>');
+    document.body.classList.remove('exp'); U.sfx(r.ok ? 'good' : 'deny');
   };
-
-  /* ---------- Строительство ---------- */
-  const blist = $('build-list'), bdemo = $('build-demo'), SHORT = { wood: 'дер', stone: 'кам', rope: 'вер', stick: 'пал' };
-  function refreshBuild() {
-    const b = G.build; if (!b) return;
-    let h = '';
-    G.BUILD.forEach((d, i) => {
-      const ok = Inv.has(G.p.inv, d.cost), c = Object.keys(d.cost).map(id => d.cost[id] + ' ' + SHORT[id]).join(' · ');
-      h += '<button class="bpiece' + (!b.demolish && b.def === d ? ' sel' : '') + (ok ? '' : ' no') + '" data-b="' + i + '"><img src="' + G.ICON[d.k] + '"><b>' + d.n + '</b><small>' + c + '</small></button>';
-    });
-    blist.innerHTML = h; bdemo.classList.toggle('sel', !!b.demolish);
-    $('build-hint').textContent = b.demolish ? 'Нажми на постройку, чтобы снести её' : 'Нажми на клетку рядом с собой, чтобы построить';
-  }
-  ui.toggleBuild = function () {
-    if (G.build) { G.build = null; document.body.classList.remove('building'); G.save(); }
-    else { G.build = { def: G.BUILD[0], demolish: false, ht: 0, hx: 0, hy: 0, ok: false }; document.body.classList.add('building'); refreshBuild(); }
-    I.act = false; G.sfx('ui');
+  UI.openMenu = function () {
+    open('menu', 'Пауза', '<div class="menu"><button data-close>Продолжить</button><button data-m="sound">Звук: ' + (U.soundOn ? 'вкл' : 'выкл') + '</button><button data-m="q">Графика: ' + ['высокая', 'средняя', 'низкая'][G.q] + '</button><button data-m="fps">Счётчик FPS: ' + (G.fps ? 'вкл' : 'выкл') + '</button><button data-m="new" class="danger">Новое убежище</button></div>');
   };
-  blist.addEventListener('click', e => { const b = e.target.closest('[data-b]'); if (!b) return; G.build.def = G.BUILD[+b.dataset.b]; G.build.demolish = false; G.sfx('ui'); refreshBuild(); });
-  bdemo.addEventListener('click', () => { G.build.demolish = !G.build.demolish; G.sfx('ui'); refreshBuild(); });
-  $('build-close').addEventListener('click', ui.toggleBuild);
+  function startExp(p, L) {
+    UI.close(); SH.buildMode = false; $('b-build').classList.remove('on'); SH.sel = null;
+    EX.start(p, L); document.body.classList.add('exp'); hudT = 1; UI.banner(L.n + ': обыщи тайники и вернись к машине');
+  }
+  body.addEventListener('click', ev => {
+    const t = ev.target.closest('button'); if (!t) return; const d = t.dataset, s = SH.s;
+    if (d.build) { const R = D.ROOMS[d.build]; if (s.res.scrap < R.cost) return U.sfx('deny'); s.res.scrap -= R.cost; SH.room(ctxCell[0], ctxCell[1], d.build); U.sfx('build'); SH.float(ctxCell[0] * D.CW + D.CW / 2, D.TOP + ctxCell[1] * D.CH + 70, R.n, '#9dff9a'); dustRoom(ctxCell); UI.close(); }
+    else if (d.up) { const c = SH.upCost(ctxRoom); if (ctxRoom.lvl >= 3 || s.res.scrap < c) return U.sfx('deny'); s.res.scrap -= c; ctxRoom.lvl++; U.sfx('build'); openRoom(ctxRoom); }
+    else if (d.gear) { const g = D.GEAR[d.gear], lv = s.gear[d.gear], c = g.cost[lv + (d.gear === 'weapon' ? 1 : 0)]; if (lv >= g.max || s.res.scrap < c || !ctxRoom.w.length) return U.sfx('deny'); s.res.scrap -= c; s.gear[d.gear]++; if (d.gear === 'door') s.door = g.val[s.gear.door]; U.sfx('good'); openRoom(ctxRoom); }
+    else if (d.free) { const p = SH.byId(+d.free); if (p) SH.rest(p); openRoom(ctxRoom); }
+    else if (d.who) { const p = SH.byId(+d.who); if (!p || p.st === 'down' || p.hp <= 30) return U.sfx('deny'); prepP = p; body.querySelectorAll('.pc').forEach(b => b.classList.toggle('sel', b === t)); U.sfx('ui'); }
+    else if (d.loc) { const L = D.LOCS.find(l => l.id === d.loc); if (L.req && !SH.has(L.req)) return U.sfx('deny'); if (!prepP) { UI.banner('Сначала выбери, кто пойдёт', true); return U.sfx('deny'); } startExp(prepP, L); }
+    else if (d.ok) { panel = 'x'; UI.close(); }
+    else if (d.m === 'sound') { U.soundOn = !U.soundOn; G.saveCfg(); UI.openMenu(); }
+    else if (d.m === 'q') { G.setQ((G.q + 1) % 3); G.saveCfg(); UI.openMenu(); }
+    else if (d.m === 'fps') { G.fps = !G.fps; $('fps').textContent = ''; G.saveCfg(); UI.openMenu(); }
+    else if (d.m === 'new') { if (d.sure) { G.reset(); panel = 'x'; UI.close(); } else { t.dataset.sure = 1; t.textContent = 'Точно? Нажми ещё раз'; } }
+  });
+  function dustRoom(c) { for (let i = 0; i < 26; i++) SH.fx.push({ x: c[0] * D.CW + Math.random() * D.CW, y: D.TOP + c[1] * D.CH + 20 + Math.random() * 100, vx: (Math.random() - 0.5) * 40, vy: -20, life: 1.2, max: 1.2, s: 10 + Math.random() * 10, smoke: 1 }); }
 
-  $('btn-bag').addEventListener('click', ui.openInv);
-  $('btn-craft').addEventListener('click', ui.openCraft);
-  $('btn-build').addEventListener('click', ui.toggleBuild);
-  $('btn-menu').addEventListener('click', ui.openMenu);
+  /* ---------- Касания в убежище: выбор, перетаскивание, щипок ---------- */
+  const cv = $('cv'), pts = new Map(); let drag = null, pinch = null;
+  cv.addEventListener('pointerdown', e => {
+    U.audioInit(); if (EX.e || G.paused) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { cv.setPointerCapture(e.pointerId); } catch (_) { }
+    if (pts.size === 1) drag = { x: e.clientX, y: e.clientY, cx: SH.cam.x, cy: SH.cam.y, moved: false };
+    else if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: SH.cam.zt }; drag = null; }
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pts.size >= 2) { const [a, b] = [...pts.values()]; G.zoomTo(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d); return; }
+    if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) > 10) drag.moved = true;
+    if (drag.moved) { const k = G.view.css / SH.cam.z; SH.cam.x = drag.cx - dx * k; SH.cam.y = drag.cy - dy * k; SH.cam.free = 3; }
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (drag && pts.size === 0) { const dd = drag; drag = null; if (!dd.moved && e.type === 'pointerup' && !EX.e && !G.paused) { const w = SH.toWorld(e.clientX * G.view.css, e.clientY * G.view.css, G.view); tap(w[0], w[1]); } }
+  };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { if (!EX.e) G.zoomTo(SH.cam.zt * (e.deltaY < 0 ? 1.12 : 0.89)); e.preventDefault(); }, { passive: false });
+  function tap(wx, wy) {
+    const s = SH.s; let hit = null, hd = 24;
+    for (const p of s.ppl) if (p.st !== 'out' && wy < p.y + 10 && wy > p.y - 70 && Math.abs(wx - p.x) < hd) { hit = p; hd = Math.abs(wx - p.x); }
+    if (hit && !SH.buildMode) { if (hit.st === 'down') { UI.banner(hit.name + ' ' + gx(hit, 'ранен', 'ранена') + ' и отлёживается'); return; } SH.sel = SH.sel === hit ? null : hit; U.sfx('ui'); hudT = 1; return; }
+    if (wy < 8) { if (Math.abs(wx - D.SX) < 110 && wy > -130) openPrep(SH.sel); else SH.sel = null; hudT = 1; return; }
+    const c = Math.floor(wx / D.CW), r = Math.floor((wy - D.TOP) / D.CH);
+    if (c < 0 || r < 0 || c >= D.COLS || r >= D.ROWS) { SH.sel = null; hudT = 1; return; }
+    const rm = SH.grid[r][c];
+    if (rm) {
+      if (SH.sel && !SH.buildMode) {
+        const p = SH.sel;
+        if (SH.assign(p, rm)) { U.sfx('ui'); SH.float(p.x, p.y - 88, D.ROOMS[rm.k].slots ? 'Иду работать' : 'Иду', '#9dff9a'); p.guard = false; }
+        else { U.sfx('deny'); UI.banner('В отсеке «' + D.ROOMS[rm.k].n + '» нет свободных мест', true); }
+        SH.sel = null; hudT = 1;
+      } else openRoom(rm);
+    } else if (SH.canBuild(c, r)) openBuild(c, r);
+    else { SH.sel = null; hudT = 1; if (SH.buildMode) UI.banner(c === D.SHAFT ? 'Лестницу строят сверху вниз' : 'Новый отсек ставится рядом с уже построенным'); }
+  }
+  $('b-build').addEventListener('click', () => { SH.buildMode = !SH.buildMode; $('b-build').classList.toggle('on', SH.buildMode); SH.sel = null; U.sfx('ui'); if (SH.buildMode) { UI.banner('Выбери подсвеченную клетку'); G.zoomTo(SH.cam.zmin * 1.15); } });
+  $('b-exp').addEventListener('click', () => openPrep(SH.sel));
+  $('b-alarm').addEventListener('click', () => { SH.alarm(!SH.s.alarm); hudT = 1; if (SH.s.alarm) { UI.banner('Все к шлюзу!'); SH.cam.ty = 0; } });
+  $('b-zoom').addEventListener('click', () => { G.zoomTo(SH.cam.zt > SH.cam.zmin * 1.3 ? SH.cam.zmin : SH.cam.zdef); U.sfx('ui'); });
+  $('btn-menu').addEventListener('click', UI.openMenu);
+  $('sel-x').addEventListener('click', () => { SH.sel = null; hudT = 1; });
+  $('sel-rest').addEventListener('click', () => { if (SH.sel) SH.rest(SH.sel); SH.sel = null; hudT = 1; U.sfx('ui'); });
+  $('sel-go').addEventListener('click', () => openPrep(SH.sel));
 
-  // кнопка «назад» на Android
-  G.onBack = function () {
+  /* ---------- Управление на вылазке ---------- */
+  const hold = (id, on, off) => {
+    const el = $(id);
+    el.addEventListener('pointerdown', e => { U.audioInit(); on(); el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch (_) { } e.preventDefault(); });
+    const u = () => { off(); el.classList.remove('on'); }; el.addEventListener('pointerup', u); el.addEventListener('pointercancel', u);
+  };
+  hold('x-l', () => I.l = true, () => I.l = false); hold('x-r', () => I.r = true, () => I.r = false);
+  hold('x-act', () => { I.act = true; I.actP = true; }, () => I.act = false);
+  hold('x-roll', () => I.roll = true, () => { });
+  $('x-med').addEventListener('click', () => EX.heal());
+  addEventListener('keydown', e => {
+    if (e.repeat) return; U.audioInit();
+    if (EX.e && !G.paused) {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') I.l = true; else if (e.code === 'KeyD' || e.code === 'ArrowRight') I.r = true;
+      else if (e.code === 'Space' || e.code === 'KeyJ') { I.act = true; I.actP = true; e.preventDefault(); } else if (e.code === 'ShiftLeft' || e.code === 'KeyK') I.roll = true; else if (e.code === 'KeyH') EX.heal();
+    }
+    if (e.code === 'Escape') G.onBack();
+  });
+  addEventListener('keyup', e => { if (e.code === 'KeyA' || e.code === 'ArrowLeft') I.l = false; else if (e.code === 'KeyD' || e.code === 'ArrowRight') I.r = false; else if (e.code === 'Space' || e.code === 'KeyJ') I.act = false; });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  UI.back = function () {
     if (!$('title').classList.contains('hide')) return;
-    if (panel) ui.close(); else if (G.build) ui.toggleBuild(); else ui.openMenu();
+    if (panel) { if (panel !== 'result') UI.close(); }
+    else if (SH.buildMode) $('b-build').click();
+    else if (SH.sel) { SH.sel = null; hudT = 1; }
+    else UI.openMenu();
   };
-  ui.isOpen = () => !!panel;
+  EX.onEnd = r => UI.result(r);
+  SH.onEvent = function (k, p) {
+    if (k === 'raid') UI.banner('НАБЕГ! Мертвецы ломятся в шлюз — жми «Тревога»', true);
+    else if (k === 'breach') { if (!SH._br) { SH._br = 1; UI.banner('Дверь выбита!', true); } }
+    else if (k === 'won') { SH._br = 0; UI.banner('Набег отбит'); }
+    else if (k === 'goal') hudT = 1;
+    else if (k === 'arrive') UI.banner(p.name + ' ' + gx(p, 'пришёл', 'пришла') + ' на сигнал радио');
+  };
 })();

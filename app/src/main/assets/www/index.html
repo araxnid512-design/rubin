@@ -3,85 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Рубин: Выживание</title>
+<title>Рубин: Убежище</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="title">
 <canvas id="cv"></canvas>
 <div id="vignette"></div>
-<div id="grain"></div>
 <div id="hurt"></div>
-<div id="touch"></div>
 
 <div id="hud">
-  <div id="tl">
-    <div id="lvl"><span id="lvl-n">1</span><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" class="xp-bg"/><circle cx="20" cy="20" r="18" id="xp-ring"/></svg></div>
-    <div id="bars">
-      <div class="bar hp"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11a4.6 4.6 0 018-3 4.6 4.6 0 018 3c0 5.8-8 11-8 11z"/></svg><b id="b-hp"></b><span id="t-hp"></span></div>
-      <div class="bar food"><svg viewBox="0 0 24 24"><path d="M14 3c3.6 0 7 3 7 6.6 0 3.4-2.8 5.6-6 5.6-1 0-1.8-.2-2.6-.5L8 19.2a2.3 2.3 0 11-3.2-3.200L9.300 11.600A6 6 0 019 9.600C9 6 10.400 3 14 3z"/></svg><b id="b-food"></b></div>
-      <div class="bar water"><svg viewBox="0 0 24 24"><path d="M12 2.500c3.600 4.600 6.500 8 6.500 11.700a6.500 6.500 0 01-13 0c0-3.700 2.900-7.100 6.500-11.700z"/></svg><b id="b-water"></b></div>
-    </div>
+  <div id="top">
+    <div class="chip bar" id="c-energy"><img alt=""><div class="cb"><b></b></div><span></span></div>
+    <div class="chip bar" id="c-water"><img alt=""><div class="cb"><b></b></div><span></span></div>
+    <div class="chip bar" id="c-food"><img alt=""><div class="cb"><b></b></div><span></span></div>
+    <div class="chip" id="c-scrap"><img alt=""><span></span></div>
+    <div class="chip" id="c-meds"><img alt=""><span></span></div>
+    <div class="chip" id="c-ppl"><img alt=""><span></span></div>
+    <div id="clock"></div>
+    <button id="btn-menu" aria-label="Меню"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </div>
-  <div id="quest"><span class="q-tag">ЗАДАНИЕ</span><span id="quest-t"></span></div>
-  <div id="tr">
-    <button id="btn-menu" class="rbtn sm" aria-label="Меню"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div id="mapbox"><canvas id="minimap" width="144" height="144"></canvas><div id="clock">День 1 · 08:00</div></div>
-  </div>
+  <div id="goal"><span class="tag">ЦЕЛЬ</span><span id="goal-t"></span></div>
+  <div id="banner"></div>
   <div id="fps"></div>
-  <div id="joy"><div id="joy-knob"></div></div>
-  <div id="br">
-    <button id="btn-build" class="rbtn" aria-label="Стройка"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5.5 9.5V20h13V9.5M10 20v-6h4v6"/></svg><em>Стройка</em></button>
-    <button id="btn-craft" class="rbtn" aria-label="Крафт"><svg viewBox="0 0 24 24"><path d="M14 6l4 4M12.5 7.5l-8 8a1.8 1.8 0 000 2.6l1.4 1.4a1.8 1.8 0 002.6 0l8-8M13 4l3-1 5 5-1 3-3 1-5-5z"/></svg><em>Крафт</em></button>
-    <button id="btn-bag" class="rbtn" aria-label="Рюкзак"><svg viewBox="0 0 24 24"><path d="M8 7V5.5A2.5 2.5 0 0110.5 3h3A2.5 2.5 0 0116 5.5V7M6 7h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2zM8 13h8v4H8z"/></svg><em>Рюкзак</em></button>
-    <button id="btn-sneak" class="rbtn" aria-label="Скрытность"><img id="sneak-ico" alt=""><em>Красться</em></button>
-    <button id="btn-act" aria-label="Действие"><img id="act-ico" alt=""></button>
+
+  <div id="sel">
+    <div class="sel-info"><b id="sel-name"></b><div id="sel-stats"></div><small id="sel-job"></small></div>
+    <button id="sel-rest">Отдых</button>
+    <button id="sel-go" class="gold">На вылазку</button>
+    <button id="sel-x" aria-label="Закрыть">✕</button>
   </div>
-  <div id="quick">
-    <button id="q-heal" class="qbtn"><img alt=""><span></span></button>
-    <button id="q-food" class="qbtn"><img alt=""><span></span></button>
+  <div id="bar">
+    <button id="b-zoom" class="sq" aria-label="Обзор"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></button>
+    <button id="b-build"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6"/></svg>Строить</button>
+    <button id="b-alarm"><svg viewBox="0 0 24 24"><path d="M12 3v2M5 19h14M7 19v-6a5 5 0 0110 0v6M3 9l2 1M21 9l-2 1"/></svg>Тревога</button>
+    <button id="b-exp" class="gold"><svg viewBox="0 0 24 24"><path d="M12 20V6M6 11l6-6 6 6M4 21h16"/></svg>Вылазка</button>
   </div>
-  <div id="buildbar">
-    <div id="build-list"></div>
-    <button id="build-demo" class="bb-btn">Снос</button>
-    <button id="build-close" class="bb-btn ok">Готово</button>
-    <div id="build-hint">Нажми на клетку рядом с собой, чтобы построить</div>
+
+  <div id="xh">
+    <div id="x-stat">
+      <b id="x-name"></b>
+      <div class="sb hp"><i id="x-hp"></i></div>
+      <div class="sb st"><i id="x-st"></i></div>
+      <div class="sb tm"><i id="x-time"></i><span id="x-timer"></span></div>
+      <small id="x-pack"></small>
+    </div>
+    <button id="x-l" class="mv" aria-label="Влево"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button id="x-r" class="mv" aria-label="Вправо"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    <button id="x-med" class="rb"><img id="x-medi" alt=""><span id="x-meds"></span></button>
+    <button id="x-roll" class="rb"><svg viewBox="0 0 24 24"><path d="M4 14a8 8 0 0114-5M20 10a8 8 0 01-14 5M18 4v5h-5M6 20v-5h5"/></svg><em>Кувырок</em></button>
+    <button id="x-act"><span>Удар</span></button>
   </div>
 </div>
 
 <div id="modal" class="hide">
-  <div class="panel" id="p-inv">
-    <header><h2>Рюкзак</h2><button class="x" data-close>✕</button></header>
-    <div class="cols">
-      <div class="grid" id="inv-grid"></div>
-      <aside id="inv-side"></aside>
-    </div>
-  </div>
-  <div class="panel" id="p-craft">
-    <header><h2>Крафт</h2><div id="craft-st"></div><button class="x" data-close>✕</button></header>
-    <div id="craft-list" class="scroll"></div>
-  </div>
-  <div class="panel" id="p-chest">
-    <header><h2>Сундук</h2><button class="x" data-close>✕</button></header>
-    <div class="cols">
-      <div><h3>Сундук</h3><div class="grid g4" id="chest-grid"></div></div>
-      <div><h3>Рюкзак</h3><div class="grid" id="chest-inv"></div></div>
-    </div>
-    <p class="hint">Нажми на предмет, чтобы переложить</p>
-  </div>
-  <div class="panel small" id="p-menu">
-    <header><h2>Пауза</h2><button class="x" data-close>✕</button></header>
-    <div class="menu">
-      <button data-m="resume" class="big">Продолжить</button>
-      <button data-m="sound">Звук: вкл</button>
-      <button data-m="quality">Графика: авто</button>
-      <button data-m="fps">Счётчик FPS: вкл</button>
-      <button data-m="new" class="danger">Новая игра</button>
-    </div>
-  </div>
-  <div class="panel small" id="p-death">
-    <h1 class="dead">Ты погиб</h1>
-    <p id="death-t"></p>
-    <div class="menu"><button data-m="respawn" class="big">Очнуться дома</button></div>
+  <div id="m-panel">
+    <header><h2 id="m-title"></h2><button class="x" data-close aria-label="Закрыть">✕</button></header>
+    <div id="m-body"></div>
   </div>
 </div>
 
@@ -89,18 +66,19 @@
   <div class="t-box">
     <div class="gem"></div>
     <h1>РУБИН</h1>
-    <h2>ВЫЖИВАНИЕ</h2>
-    <p>Мир рухнул. Ищи припасы, вооружайся,<br>укрепляй убежище и доживи до рассвета.</p>
+    <h2>УБЕЖИЩЕ</h2>
+    <p>Наверху — мёртвый мир. Копай вглубь, распределяй людей по отсекам,<br>выходи на вылазки за припасами и держи гермодверь закрытой.</p>
     <button id="btn-play">ИГРАТЬ</button>
-    <button id="btn-new" class="ghost hide">Новая игра</button>
-    <small>Джойстик слева — движение · Кнопка справа — действие</small>
+    <button id="btn-new" class="ghost hide">Новое убежище</button>
   </div>
 </div>
 
-<script src="js/core.js"></script>
-<script src="js/art.js"></script>
-<script src="js/world.js"></script>
-<script src="js/game.js"></script>
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/rig.js"></script>
+<script src="js/gfx.js"></script>
+<script src="js/shelter.js"></script>
+<script src="js/expedition.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 </body>
