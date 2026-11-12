@@ -75,7 +75,7 @@ const PROPS = [
   { id: 'obj12', type: 12, variants: [P(DW + 'e_generator.glb', 0.85, 1.0), P(S + 'env/e_lathe.glb', 0.85, 0.9, 30), P(DW + 'e_generator.glb', 0.85, 1.0, 120)] },
   { id: 'obj15', type: 15, variants: [P(DW + 'e_portal.glb', 1.35, 3.0, -45)] },
   { id: 'obj16', type: 16, variants: [P(DW + 'e_chitin.glb', 0.85, 1.0), P(DW + 'e_chitin.glb', 0.8, 0.95, 120), P(DW + 'e_chitin.glb', 0.85, 1.0, 240)] },
-  { id: 'obj18', type: 18, variants: [P(DW + 'e_container.glb', 1.15, 1.25, 45), P(S + 'env/e_dumpster.glb', 1.0, 1.0, 45), P(DW + 'e_container.glb', 1.15, 1.25, -45)] },
+  { id: 'obj18', type: 18, variants: [P(DW + 'e_container.glb', 1.2, 1.25, 0), P(S + 'env/e_dumpster.glb', 1.0, 1.0, 20), P(DW + 'e_container.glb', 1.2, 1.25, 90)].map((v) => v.src.indexOf('container') > 0 ? Object.assign(v, { sy: 1.35 }) : v) },
   { id: 'obj19', type: 19, variants: [P(DW + 'e_log.glb', 1.15, 0.5), P(DW + 'e_log.glb', 1.1, 0.5, 90), P(S + 'env/e_woodpile.glb', 0.9, 0.6, 30)] },
   { id: 'obj20', type: 20, variants: [P(DW + 'e_crystal.glb', 0.8, 1.2), P(DW + 'e_crystal.glb', 0.75, 1.1, 120), P(DW + 'e_crystal.glb', 0.8, 1.15, 240)] },
   // мебель в домах: низкое укрытие (столы, кровати, диваны, комоды, сундуки, нары) и шкафы — полное
