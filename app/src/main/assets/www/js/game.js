@@ -641,12 +641,13 @@
           flame(ctx, 12, h, sw, '#ff6a12'); flame(ctx, 8.5, h * 0.72, sw * 0.7, '#ffb02e'); flame(ctx, 4.5, h * 0.42, sw * 0.4, '#fff2b0');
         }
       } else if (o.dk === 2) {
-        ctx.setTransform(z * 1.3, 0, 0, z * 1.3, SX(o.x), SY(o.y));
+        ctx.setTransform(z * 1.5, 0, 0, z * 1.5, SX(o.x), SY(o.y));
         G.drawHuman(ctx, o, 'p', o.hand, o.moving);
       } else {
         if (o.dead) ctx.globalAlpha = Math.max(0, Math.min(0.85, (6 - o.dead) / 2));
-        const ms = z * (o.t === 'b' ? 1.8 : 1.3);
+        const ms = z * (o.t === 'b' ? 1.6 : o.t === 'd' ? 1.35 : 1.46);
         ctx.setTransform(ms, 0, 0, ms, SX(o.x), SY(o.y));
+        if (o.dead) ctx.rotate(Math.min(1, o.dead * 4) * 1.5 * (Math.cos(o.face) < 0 ? -1 : 1));
         if (o.t === 'd') G.drawDeer(ctx, o, o.moving); else G.drawHuman(ctx, o, o.t, null, o.moving);
         ctx.globalAlpha = 1;
       }
@@ -659,8 +660,9 @@
     ctx.globalAlpha = 1;
     for (const m of G.mobs) {
       const M = MOB[m.t]; if (m.dead || m.hp >= M.hp) continue;
-      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(m.x - 17, m.y - 30, 34, 5);
-      ctx.fillStyle = '#b01e22'; ctx.fillRect(m.x - 16, m.y - 29, 32 * m.hp / M.hp, 3);
+      const by = m.y - (m.t === 'b' ? 132 : m.t === 'd' ? 86 : 98);
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(m.x - 17, by, 34, 5);
+      ctx.fillStyle = '#b01e22'; ctx.fillRect(m.x - 16, by + 1, 32 * m.hp / M.hp, 3);
     }
     // тени облаков
     const nt = G.night;

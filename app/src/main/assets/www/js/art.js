@@ -557,88 +557,129 @@
   };
 
   /* ---------- Персонажи (рисуются вектором каждый кадр) ---------- */
+  /* Модель в рост: скелет из суставов (вперёд, вбок, высота) поворачивается по направлению взгляда
+     и проецируется в тот же ракурс 3/4, что деревья и стены. Конечности — капсулы с обводкой. */
   const STYLE = {
-    p: { skin: '#c79f7c', body: '#3d4433', body2: '#565d45', arm: '#343a2b', pack: '#2b2823', hair: '#231c16', boot: '#17140f' },
-    z: { skin: '#87907f', body: '#35332f', body2: '#4a4741', arm: '#7b8474', pack: null, hair: '#1f211b', boot: '#161512' },
-    r: { skin: '#9a968a', body: '#4a2422', body2: '#63312c', arm: '#8c897d', pack: null, hair: '#1a1714', boot: '#161512' },
-    b: { skin: '#7d8873', body: '#3b352c', body2: '#544b3c', arm: '#727c69', pack: null, hair: '#262a20', boot: '#161512' }
+    p: { skin: '#c9a27f', body: '#4a513b', body2: '#636b4f', arm: '#3f4533', leg: '#2b2e33', pack: '#33302a', hair: '#262019', boot: '#15130f', w: 1 },
+    z: { skin: '#8a9482', body: '#3a3833', body2: '#4f4c45', arm: '#7d8776', leg: '#2a2a27', pack: null, hair: '#20221c', boot: '#171613', w: 1 },
+    r: { skin: '#9c988c', body: '#522624', body2: '#6c3630', arm: '#8e8b7f', leg: '#25272a', pack: null, hair: '#1b1815', boot: '#171613', w: 0.92 },
+    b: { skin: '#7f8a75', body: '#3e372d', body2: '#585040', arm: '#747e6b', leg: '#2a2824', pack: null, hair: '#272b21', boot: '#171613', w: 1.38 }
   };
-  // e: {face, walk, atk(0..1 прогресс, 0 = нет), hurt}, kind: p|z|r, tool: id|null
+  const OUT = 'rgba(0,0,0,.62)', DEPTH = 0.5;
+  let fx = 1, fy = 0, rx = 0, ry = 1;
+  const PX_ = (f, s) => f * fx + s * rx, PY_ = (f, s, z) => (f * fy + s * ry) * DEPTH - z;
+  function limb(x, ax, ay, bx, by, mx, my, w, col, two) {
+    x.strokeStyle = OUT; x.lineWidth = w + 2.2; x.beginPath(); x.moveTo(ax, ay); if (two) x.lineTo(mx, my); x.lineTo(bx, by); x.stroke();
+    x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(ax, ay); if (two) x.lineTo(mx, my); x.lineTo(bx, by); x.stroke();
+  }
   G.drawHuman = function (x, e, kind, tool, moving) {
-    const st = STYLE[kind], s = moving ? Math.sin(e.walk) : 0, zomb = kind !== 'p', OUT = 'rgba(0,0,0,.6)';
-    x.fillStyle = 'rgba(4,8,5,.45)'; x.beginPath(); x.ellipse(5, 8, 20, 16, 0, 0, PI2); x.fill();
-    x.rotate(e.face);
-    // ботинки
-    x.fillStyle = st.boot;
-    x.beginPath(); x.ellipse(s * 11, -6.5, 8.5, 5, 0, 0, PI2); x.fill();
-    x.beginPath(); x.ellipse(-s * 11, 6.5, 8.5, 5, 0, 0, PI2); x.fill();
-    // рюкзак со скаткой
-    if (st.pack) {
-      x.fillStyle = '#0f0e0c'; rr(x, -23, -12, 15, 24, 4); x.fill();
-      x.fillStyle = st.pack; rr(x, -22, -11, 13, 22, 3.5); x.fill();
-      x.fillStyle = '#4f553f'; rr(x, -27, -12.5, 6, 25, 3); x.fill();
-      x.fillStyle = '#77715f'; x.fillRect(-20, -6.5, 9, 1.8); x.fillRect(-20, 4.7, 9, 1.8);
-    }
-    // руки: плечо — локоть — кисть
-    let lhx, lhy, rhx, rhy, ra = 0;
-    if (zomb) {
-      const w = Math.sin(e.walk * 0.7) * 3, lunge = e.atk > 0 ? Math.sin(Math.min(1, e.atk) * Math.PI) * 10 : 0;
-      lhx = 20 + w + lunge; lhy = -8; rhx = 20 - w + lunge; rhy = 8;
-    } else {
-      lhx = 10 - s * 7; lhy = -17; rhx = 10 + s * 7; rhy = 17;
-      if (e.atk > 0) {
-        const t = e.atk, k = t < 0.5 ? t * 2 : 1 - (t - 0.5) * 2;
-        ra = -1.25 + (t < 0.5 ? t * 2 : 1) * 2.1;
-        rhx = 2 + Math.cos(ra) * 21; rhy = 12 + Math.sin(ra) * 21; lhx = 10 + k * 5;
-      } else if (tool) { rhx = 14; rhy = 14; ra = -0.25 + s * 0.1; }
-    }
-    const lex = (lhx - 1) / 2 - 1, ley = (lhy - 15) / 2 - 4, rex = (rhx - 1) / 2 - 1, rey = (rhy + 15) / 2 + 4;
+    const st = STYLE[kind], zomb = kind !== 'p', W = st.w, p = e.walk, s = moving ? Math.sin(p) : 0, c = moving ? Math.cos(p) : 0;
+    fx = Math.cos(e.face); fy = Math.sin(e.face); rx = -fy; ry = fx;
+    const atk = e.atk > 0 ? Math.min(1, e.atk) : 0;
     x.lineCap = 'round'; x.lineJoin = 'round';
-    for (let pass = 0; pass < 2; pass++) {
-      x.strokeStyle = pass ? st.arm : OUT; x.lineWidth = pass ? 7 : 9.4;
-      x.beginPath(); x.moveTo(-1, -15); x.lineTo(lex, ley); x.lineTo(lhx, lhy); x.moveTo(-1, 15); x.lineTo(rex, rey); x.lineTo(rhx, rhy); x.stroke();
+    x.fillStyle = 'rgba(4,8,5,.42)'; x.beginPath(); x.ellipse(2, 1, 15 * W, 7.5 * W, 0, 0, PI2); x.fill();
+    const bob = moving ? Math.abs(c) * 1.3 : Math.sin(G.time * 2.2 + e.x * 0.01) * 0.45;
+    // наклон корпуса: зомби сутулятся, игрок подаётся вперёд при ударе и наклоняется при подборе
+    let lean = zomb ? (kind === 'r' ? 7 : 4) : 0, drop = zomb ? 2 : 0, grab = 0, sw = 0;
+    if (!zomb && atk) { if (tool) { sw = atk < 0.5 ? atk * 2 : 1; lean = sw * 3.5; } else { grab = Math.sin(atk * Math.PI); lean = grab * 7; drop = grab * 6; } }
+    if (zomb && atk) lean += Math.sin(atk * Math.PI) * 5;
+    const hipZ = 27 + bob - drop * 0.4, shZ = 44 + bob - drop, hw = 4.6 * W, sww = 8.6 * W;
+    // --- ноги ---
+    const leg = k => {  // k = -1 левая, 1 правая
+      const ss = s * k, lift = Math.max(0, c * k) * 3.6, hx = PX_(0, k * hw), hy = PY_(0, k * hw, hipZ);
+      const kx = PX_(ss * 4 + 2.2, k * hw), ky = PY_(ss * 4 + 2.2, k * hw, 14 + lift * 0.7), tx = PX_(ss * 8.5, k * hw * 1.05), ty = PY_(ss * 8.5, k * hw * 1.05, lift + 1.6);
+      limb(x, hx, hy, tx, ty, kx, ky, 6 * W, st.leg, true);
+      limb(x, tx, ty, tx + fx * 3.4, ty + fy * 3.4 * DEPTH, 0, 0, 5.4 * W, st.boot, false);
+    };
+    if (ry > 0) { leg(-1); leg(1); } else { leg(1); leg(-1); }
+    // --- руки ---
+    let rhx = 0, rhy = 0, ta = 0;
+    const arm = k => {
+      const sx = PX_(lean, k * sww), sy = PY_(lean, k * sww, shZ);
+      let hf, hz, ef, ez, hs = k * (sww + 1.6);
+      if (zomb) { const wv = Math.sin(p * 0.7 + k) * 2.2, lu = atk ? Math.sin(atk * Math.PI) * 8 : 0; hf = lean + 13 + wv + lu; hz = shZ - 5 + wv * k; ef = lean + 7; ez = shZ - 6; hs = k * sww * 0.8; }
+      else if (k > 0 && sw) { const a = 2.25 - (sw * sw * (3 - 2 * sw)) * 2.7; ta = a; hf = lean + 4 + Math.cos(a) * 10.5; hz = shZ - 2 + Math.sin(a) * 12; ef = lean + 3 + Math.cos(a) * 5; ez = shZ - 3 + Math.sin(a) * 5; }
+      else if (k > 0 && grab) { hf = lean + 4 + grab * 8; hz = shZ - 17 - grab * 12; ef = lean + 2 + grab * 3; ez = shZ - 9 - grab * 3; }
+      else if (k > 0 && tool) { ta = 0.75 + s * 0.08; hf = 6; hz = shZ - 14; ef = 1.5; ez = shZ - 9; }
+      else { hf = -s * k * 7 + 1; hz = shZ - 17 + Math.abs(s) * 1.5; ef = -s * k * 3 - 1; ez = shZ - 9; }
+      const ex = PX_(ef, hs), ey = PY_(ef, hs, ez), hx = PX_(hf, hs), hy = PY_(hf, hs, hz);
+      limb(x, sx, sy, hx, hy, ex, ey, 5.2 * W, st.arm, true);
+      x.fillStyle = st.skin; x.strokeStyle = OUT; x.lineWidth = 1; circ(x, hx, hy, 2.9 * W); x.stroke();
+      if (k > 0) { rhx = hx; rhy = hy; }
+      if (k > 0 && tool) {
+        const dx = fx * Math.cos(ta), dy = fy * DEPTH * Math.cos(ta) - Math.sin(ta);
+        x.save(); x.translate(hx, hy); x.rotate(Math.atan2(dy, dx)); if (fx < -0.15) x.scale(1, -1); x.scale(0.9, 0.9); G.drawTool(x, tool); x.restore();
+        x.lineCap = 'round';
+      }
+    };
+    const torso = () => {
+      const hx = PX_(0, 0), hy = PY_(0, 0, hipZ), nx = PX_(lean, 0), ny = PY_(lean, 0, shZ);
+      limb(x, PX_(0, -hw), PY_(0, -hw, hipZ), PX_(0, hw), PY_(0, hw, hipZ), 0, 0, 8 * W, st.leg, false);
+      limb(x, hx, hy - 4, nx, ny, 0, 0, 13.5 * W, st.body, false);
+      limb(x, PX_(lean, -sww * 0.72), PY_(lean, -sww * 0.72, shZ), PX_(lean, sww * 0.72), PY_(lean, sww * 0.72, shZ), 0, 0, 8.5 * W, st.body, false);
+      x.strokeStyle = st.body; x.lineWidth = 13.5 * W; x.beginPath(); x.moveTo(hx, hy - 4); x.lineTo(nx, ny); x.stroke();
+      if (fy > -0.35) {  // грудь видна
+        x.strokeStyle = st.body2; x.lineWidth = 6.5 * W; x.beginPath(); x.moveTo(hx + fx * 2.4, hy - 6 + fy * 1.2); x.lineTo(nx + fx * 2.4, ny + 2 + fy * 1.2); x.stroke();
+        if (zomb) { x.fillStyle = 'rgba(100,14,12,.85)'; x.beginPath(); x.ellipse(hx + fx * 3 + rx * 2, (hy + ny) / 2 + fy * 1.5, 3.2 * W, 4 * W, 0.4, 0, PI2); x.fill(); }
+        else { x.strokeStyle = 'rgba(14,15,11,.75)'; x.lineWidth = 1.8; line(x, hx + fx * 3 - rx * 3.4, hy - 6 + fy * 1.5 - ry * 1.7, nx + fx * 2 - rx * 4.6, ny + 1 + fy - ry * 2.3); line(x, hx + fx * 3 + rx * 3.4, hy - 6 + fy * 1.5 + ry * 1.7, nx + fx * 2 + rx * 4.6, ny + 1 + fy + ry * 2.3); }
+      } else if (zomb) { x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(hx - 3, (hy + ny) / 2 - 2, 6, 2); }
+      x.strokeStyle = 'rgba(12,12,10,.8)'; x.lineWidth = 2.2; line(x, PX_(0, -hw - 1.5), PY_(0, -hw - 1.5, hipZ + 3.5), PX_(0, hw + 1.5), PY_(0, hw + 1.5, hipZ + 3.5));
+    };
+    const pack = () => {
+      if (!st.pack) return;
+      const bf = lean * 0.6 - 6.5;
+      limb(x, PX_(bf, 0), PY_(bf, 0, hipZ + 5), PX_(bf, 0), PY_(bf, 0, shZ - 2), 0, 0, 11.5, st.pack, false);
+      x.strokeStyle = '#77715f'; x.lineWidth = 1.6; line(x, PX_(bf, -3), PY_(bf, -3, hipZ + 9), PX_(bf, 3), PY_(bf, 3, hipZ + 9));
+      limb(x, PX_(bf, -6), PY_(bf, -6, shZ + 2.5), PX_(bf, 6), PY_(bf, 6, shZ + 2.5), 0, 0, 5, '#565c43', false);
+    };
+    const near = ry > 0 ? 1 : -1;
+    if (fy < 0) { arm(-near); torso(); pack(); arm(near); }
+    else { pack(); arm(-near); torso(); arm(near); }
+    // --- голова ---
+    const hl = lean + (zomb ? 4.5 : 1.2), cxh = PX_(hl, 0), cyh = PY_(hl, 0, shZ + 9.2 - (zomb ? 1.5 : 0)), hr = 6.3 * (W > 1.2 ? 1.12 : 1);
+    limb(x, PX_(lean, 0), PY_(lean, 0, shZ + 1), cxh, cyh, 0, 0, 4.5, st.skin, false);
+    x.strokeStyle = OUT; x.lineWidth = 1.2; x.fillStyle = st.hair; circ(x, cxh, cyh, hr + 0.5); x.stroke();
+    const vis = Math.max(0, Math.min(1, (fy + 0.95) / 0.6));
+    if (vis > 0.05) {
+      const ox = fx * 2.7, oy = fy * 1.5 + 1.3;
+      x.save(); x.beginPath(); x.arc(cxh, cyh, hr + 0.1, 0, PI2); x.clip();
+      x.fillStyle = st.skin; circ(x, cxh + ox, cyh + oy, hr * 0.86 * (0.55 + vis * 0.45));
+      if (fy > -0.25) {
+        x.fillStyle = zomb ? '#e2dfc2' : '#1a1410';
+        circ(x, cxh + ox * 1.25 - rx * 2.3, cyh + oy * 0.9 - ry * 1.1 - 0.6, zomb ? 1.15 : 0.85); circ(x, cxh + ox * 1.25 + rx * 2.3, cyh + oy * 0.9 + ry * 1.1 - 0.6, zomb ? 1.15 : 0.85);
+        if (zomb) { x.fillStyle = 'rgba(100,14,12,.9)'; x.beginPath(); x.ellipse(cxh + ox * 1.3, cyh + oy + 2.8, 2, 1.5, 0, 0, PI2); x.fill(); }
+        else { x.fillStyle = 'rgba(60,40,28,.55)'; x.fillRect(cxh + ox * 1.3 - 1.6, cyh + oy + 2.4, 3.2, 0.9); }
+      }
+      x.restore();
     }
-    x.strokeStyle = OUT; x.lineWidth = 1;
-    x.fillStyle = st.skin; circ(x, lhx, lhy, 4.2); x.stroke(); circ(x, rhx, rhy, 4.2); x.stroke();
-    if (tool) { x.save(); x.translate(rhx, rhy); x.rotate(e.atk > 0 ? ra + 0.5 : ra); G.drawTool(x, tool); x.restore(); }
-    // плечи и торс
-    x.strokeStyle = OUT; x.lineWidth = 1.3;
-    x.fillStyle = st.body; rr(x, -9, -18, 16, 36, 8); x.fill(); x.stroke();
-    x.fillStyle = st.body2; rr(x, -5.5, -13, 10, 26, 5); x.fill();
-    x.fillStyle = 'rgba(0,0,0,.28)'; rr(x, -9, -18, 6, 36, 5); x.fill();
-    if (zomb) {
-      x.fillStyle = 'rgba(96,14,12,.8)'; x.beginPath(); x.ellipse(-1, 7, 4.5, 3.8, 0.5, 0, PI2); x.fill(); x.beginPath(); x.ellipse(3, -9, 3, 2.6, 0, 0, PI2); x.fill();
-      x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(-6, -3, 5, 2); x.fillRect(-2, 12, 6, 1.6);
-    } else { x.strokeStyle = 'rgba(12,13,10,.8)'; x.lineWidth = 2.2; line(x, -8, -9.5, 6, -11.5); line(x, -8, 9.5, 6, 11.5); }
-    // голова
-    x.strokeStyle = OUT; x.lineWidth = 1.2;
-    x.fillStyle = st.skin; circ(x, 3, 0, 8.2); x.stroke();
-    x.fillStyle = st.hair; x.beginPath(); x.arc(2.2, 0, 8.5, zomb ? 1.3 : 0.85, PI2 - (zomb ? 1.3 : 0.85)); x.closePath(); x.fill();
-    if (zomb) { x.fillStyle = '#d9d6b8'; circ(x, 8.6, -3, 1.2); circ(x, 8.6, 3, 1.2); x.fillStyle = 'rgba(96,14,12,.85)'; x.beginPath(); x.ellipse(10.4, 0, 1.8, 2.8, 0, 0, PI2); x.fill(); }
-    else { x.fillStyle = 'rgba(0,0,0,.25)'; x.beginPath(); x.ellipse(10.6, 0, 1.4, 2, 0, 0, PI2); x.fill(); }
-    if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.55; x.fillStyle = '#fff'; rr(x, -10, -18, 22, 36, 9); x.fill(); x.globalAlpha = 1; }
+    if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.5; x.strokeStyle = '#fff'; x.lineWidth = 14 * W; line(x, PX_(0, 0), PY_(0, 0, hipZ), cxh, cyh); x.globalAlpha = 1; }
     // след удара
-    if (!zomb && tool && e.atk > 0.18 && e.atk < 0.8) {
-      x.globalAlpha = 0.5 * (1 - Math.abs(e.atk - 0.5) * 2.6); if (x.globalAlpha < 0) x.globalAlpha = 0;
-      x.strokeStyle = '#f2ede0'; x.lineWidth = 6; x.beginPath(); x.arc(2, 12, 44, -1.0, ra + 0.35); x.stroke();
-      x.lineWidth = 2; x.beginPath(); x.arc(2, 12, 50, -0.8, ra + 0.25); x.stroke(); x.globalAlpha = 1;
+    if (!zomb && tool && e.atk > 0.2 && e.atk < 0.78) {
+      const al = 0.55 * (1 - Math.abs(e.atk - 0.5) * 3); if (al > 0) {
+        const tip = a => [rhx + (fx * Math.cos(a)) * 30, rhy + (fy * DEPTH * Math.cos(a) - Math.sin(a)) * 30];
+        const t0 = tip(ta + 1.5), t1 = tip(ta + 0.75), t2 = tip(ta);
+        x.globalAlpha = al; x.strokeStyle = '#f2ede0'; x.lineWidth = 5; x.beginPath(); x.moveTo(t0[0], t0[1]); x.quadraticCurveTo(t1[0] * 2 - (t0[0] + t2[0]) / 2, t1[1] * 2 - (t0[1] + t2[1]) / 2, t2[0], t2[1]); x.stroke(); x.globalAlpha = 1;
+      }
     }
   };
   G.drawDeer = function (x, e, moving) {
     const s = moving ? Math.sin(e.walk) : 0;
-    x.fillStyle = 'rgba(8,18,10,.26)'; x.beginPath(); x.ellipse(3, 7, 24, 14, 0, 0, PI2); x.fill();
-    x.rotate(e.face);
-    x.fillStyle = '#5a3d24';
-    for (const l of [[12, -8, 1], [12, 8, -1], [-12, -8, -1], [-12, 8, 1]]) { x.beginPath(); x.ellipse(l[0] + s * 7 * l[2], l[1], 6, 3.4, 0, 0, PI2); x.fill(); }
-    x.fillStyle = '#8a5e36'; x.beginPath(); x.ellipse(0, 0, 21, 10.5, 0, 0, PI2); x.fill();
-    x.fillStyle = '#a67646'; x.beginPath(); x.ellipse(1, 0, 16, 6.5, 0, 0, PI2); x.fill();
-    x.fillStyle = '#f1e9d8'; x.beginPath(); x.ellipse(-20, 0, 4, 3.4, 0, 0, PI2); x.fill();
-    x.fillStyle = '#8a5e36'; x.beginPath(); x.ellipse(19, 0, 8, 5.5, 0, 0, PI2); x.fill();
-    x.fillStyle = '#9c6c40'; x.beginPath(); x.ellipse(25, 0, 7.5, 5.4, 0, 0, PI2); x.fill();
-    x.fillStyle = '#2a1c10'; circ(x, 32, 0, 1.8);
-    x.fillStyle = '#6e4826'; x.beginPath(); x.ellipse(21, -6.5, 4, 2, -0.6, 0, PI2); x.fill(); x.beginPath(); x.ellipse(21, 6.5, 4, 2, 0.6, 0, PI2); x.fill();
-    x.strokeStyle = '#e3d5b4'; x.lineWidth = 1.8; x.lineCap = 'round';
-    for (const k of [-1, 1]) { x.beginPath(); x.moveTo(23, 3 * k); x.lineTo(18, 12 * k); x.lineTo(24, 16 * k); x.moveTo(18, 12 * k); x.lineTo(12, 15 * k); x.stroke(); }
-    if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.6; x.fillStyle = '#fff'; x.beginPath(); x.ellipse(0, 0, 22, 11, 0, 0, PI2); x.fill(); x.globalAlpha = 1; }
+    fx = Math.cos(e.face); fy = Math.sin(e.face); rx = -fy; ry = fx;
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    x.fillStyle = 'rgba(4,8,5,.36)'; x.beginPath(); x.ellipse(2, 1, 20, 9, 0, 0, PI2); x.fill();
+    const legd = (f, k, ph) => limb(x, PX_(f, k * 3.6), PY_(f, k * 3.6, 18), PX_(f + s * 6 * ph, k * 3.6), PY_(f + s * 6 * ph, k * 3.6, 0), PX_(f + s * 2 * ph + 1, k * 3.6), PY_(f + s * 2 * ph + 1, k * 3.6, 9), 3, '#4a3320', true);
+    const far = ry > 0 ? -1 : 1;
+    legd(9, far, 1); legd(-9, far, -1);
+    const body = () => { limb(x, PX_(-10, 0), PY_(-10, 0, 21), PX_(10, 0), PY_(10, 0, 23), 0, 0, 13, '#7d5636', false); x.strokeStyle = '#9a7048'; x.lineWidth = 6; line(x, PX_(-8, 0), PY_(-8, 0, 24), PX_(8, 0), PY_(8, 0, 26)); x.fillStyle = '#ece4d0'; circ(x, PX_(-15, 0), PY_(-15, 0, 24), 2.6); };
+    const head = () => {
+      limb(x, PX_(11, 0), PY_(11, 0, 25), PX_(17, 0), PY_(17, 0, 35), 0, 0, 6, '#7d5636', false);
+      limb(x, PX_(17, 0), PY_(17, 0, 36.5), PX_(23, 0), PY_(23, 0, 35), 0, 0, 6.2, '#8b6240', false);
+      x.fillStyle = '#20150c'; circ(x, PX_(25.5, 0), PY_(25.5, 0, 34.6), 1.5);
+      x.strokeStyle = '#ddd0b0'; x.lineWidth = 1.7;
+      for (const k of [-1, 1]) { x.beginPath(); x.moveTo(PX_(17, k * 2), PY_(17, k * 2, 39)); x.lineTo(PX_(15, k * 6), PY_(15, k * 6, 49)); x.lineTo(PX_(19, k * 8), PY_(19, k * 8, 54)); x.moveTo(PX_(15, k * 6), PY_(15, k * 6, 49)); x.lineTo(PX_(11, k * 8), PY_(11, k * 8, 52)); x.stroke(); }
+    };
+    if (fy < 0) { head(); body(); } else { body(); head(); }
+    legd(9, -far, -1); legd(-9, -far, 1);
+    if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.5; x.strokeStyle = '#fff'; x.lineWidth = 13; line(x, PX_(-10, 0), PY_(-10, 0, 21), PX_(10, 0), PY_(10, 0, 23)); x.globalAlpha = 1; }
   };
 })();
