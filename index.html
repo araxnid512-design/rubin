@@ -9,34 +9,59 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <title>Бункер «Рубин» — выживание</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/main.css">
 </head>
 <body>
 <canvas id="cv"></canvas>
 
 <div id="hud" class="hidden">
-  <div id="bars">
-    <div class="bar" title="Здоровье"><span>❤️</span><div><i id="b-hp" style="background:#c0392b"></i></div><b id="t-hp"></b></div>
-    <div class="bar" title="Сытость"><span>🍖</span><div><i id="b-hu" style="background:#c98a2b"></i></div><b id="t-hu"></b></div>
-    <div class="bar" title="Вода"><span>💧</span><div><i id="b-th" style="background:#2e86c1"></i></div><b id="t-th"></b></div>
-    <div class="bar" title="Фильтр противогаза"><span>😷</span><div><i id="b-fi" style="background:#7fae3a"></i></div><b id="t-fi"></b></div>
+  <div id="tl">
+    <button id="ava" data-m="perks" title="Навыки (K)"><span id="lvl">1</span><i id="pts" class="hidden">+</i></button>
+    <div id="vitals">
+      <div class="vbar hp"><i id="b-hp"></i><b id="t-hp"></b></div>
+      <div class="vbar st"><i id="b-st"></i></div>
+      <div id="gauges">
+        <div class="gauge" id="g-hu" title="Сытость"><span>🍖</span></div>
+        <div class="gauge" id="g-th" title="Вода"><span>💧</span></div>
+        <div class="gauge" id="g-fi" title="Фильтр противогаза"><span>😷</span></div>
+        <b id="t-fi"></b>
+        <div id="status"></div>
+      </div>
+    </div>
   </div>
-  <div id="top"><div id="locname"></div><div id="goal"></div></div>
-  <div id="menu">
-    <button data-m="inv" title="Рюкзак (I)">🎒</button>
-    <button data-m="craft" title="Крафт (C)">🔨</button>
-    <button data-m="build" id="m-build" title="Обустройство бункера (B)">🏗️</button>
-    <button data-m="help" title="Помощь">❓</button>
+
+  <div id="tc">
+    <div id="locname"></div>
+    <div id="clock"></div>
+    <div id="noise" class="hidden" title="Шум: на максимуме придёт орда"><span>🔊</span><div><i id="b-no"></i></div></div>
+    <div id="goal"></div>
   </div>
-  <div id="weapon"></div>
-  <div id="quick">
-    <button data-q="eat" title="Поесть (1)">🍖<b id="q-eat"></b></button>
-    <button data-q="drink" title="Попить (2)">💧<b id="q-drink"></b></button>
-    <button data-q="heal" title="Лечиться (3)">🩹<b id="q-heal"></b></button>
+
+  <div id="tr">
+    <div id="menu">
+      <button data-m="inv" title="Рюкзак (I)">🎒</button>
+      <button data-m="craft" title="Крафт (C)">🔨</button>
+      <button data-m="build" id="m-build" title="Бункер (B)">🏗️</button>
+      <button data-m="quests" title="Задания и чертежи (J)">📻</button>
+      <button data-m="help" title="Помощь">❓</button>
+    </div>
+    <canvas id="mini" width="220" height="220"></canvas>
   </div>
-  <div id="prompt"></div>
+
   <div id="toasts"></div>
+  <div id="prompt"></div>
+
+  <div id="hot">
+    <button id="h-wpn" data-m="inv" title="Оружие"><span id="h-wi">👊</span><b id="h-wa"></b><i id="h-wd"></i></button>
+    <button data-q="eat" title="Поесть (1)"><span>🍖</span><b id="q-eat"></b><kbd>1</kbd></button>
+    <button data-q="drink" title="Попить (2)"><span>💧</span><b id="q-drink"></b><kbd>2</kbd></button>
+    <button data-q="heal" title="Лечиться (3)"><span>🩹</span><b id="q-heal"></b><kbd>3</kbd></button>
+    <button data-q="filter" title="Сменить фильтр (4)"><span>🫁</span><b id="q-filter"></b><kbd>4</kbd></button>
+  </div>
+
   <div id="btns">
+    <button id="bSneak" title="Красться (Q)">👣</button>
+    <button id="bDash" title="Рывок (Shift)">💨</button>
     <button id="bUse" title="Действие (E)">✋</button>
     <button id="bAtk" title="Атака (Пробел)">⚔️</button>
   </div>
@@ -46,6 +71,9 @@
 <div id="rotate"><div>📱↻</div>Поверните телефон горизонтально</div>
 
 <script src="js/data.js"></script>
-<script src="js/game.js"></script>
+<script src="js/core.js"></script>
+<script src="js/play.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
 </body>
 </html>
