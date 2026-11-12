@@ -154,7 +154,9 @@
         break;
       case 'road': {
         const Y0 = d.y * P, Wd = (d.w || 40) * P;
+        const ap = photoPat(g, 'g_asphalt', 0.25);
         g.fillStyle = 'rgba(42,40,38,0.88)'; g.fillRect(0, Y0, Wd, P * 2);
+        if (ap) { g.save(); g.globalAlpha = 0.9; g.fillStyle = ap; g.fillRect(0, Y0, Wd, P * 2); g.restore(); }
         g.fillStyle = 'rgba(90,85,80,0.5)'; g.fillRect(0, Y0, Wd, 3); g.fillRect(0, Y0 + P * 2 - 3, Wd, 3);
         for (i = 0; i < Wd / 40; i++) { g.fillStyle = 'rgba(' + (rnd() < 0.5 ? '0,0,0,0.25' : '120,115,105,0.18') + ')'; g.beginPath(); g.arc(rnd() * Wd, Y0 + rnd() * P * 2, 3 + rnd() * 12, 0, 7); g.fill(); }
         for (let x = 10; x < Wd; x += 52) { if (rnd() < 0.8) { g.fillStyle = 'rgba(214,176,74,0.75)'; g.fillRect(x, Y0 + P - 3, 28, 6); } }
