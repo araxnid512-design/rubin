@@ -38,6 +38,8 @@
   function isoC(x, y) { return [(x - y) * HW, (x + y + 1) * HH - hT(Math.round(x), Math.round(y)) * LH]; }
   function isoF(x, y) { return [(x - y) * HW, (x + y + 1) * HH]; }
   TR.iso = iso; TR.isoC = isoC;
+  TR.matTex = function (k) { return matTex(k); };
+  TR.rockFace = function (g, a, b, depth, rnd, tone, grass) { return rockFace(g, a, b, depth, rnd, tone, grass); };
 
   /* ---------- Земля ---------- */
   function drawGroundTile(g, x, y, gid, rnd) {

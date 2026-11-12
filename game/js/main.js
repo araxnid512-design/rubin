@@ -300,6 +300,7 @@
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     DW.TR.resize(W, H);
     DW.WR.view.w = W; DW.WR.view.h = H;
+    if (DW.BaseS && scene === DW.BaseS) DW.BaseS.resize(W, H);
   }
   let frame = 0, lastInput = 0, renderAvg = 0, slowFrames = 0;
   Main.poke = function () { lastInput = performance.now(); };

@@ -37,7 +37,7 @@
       return el('button', { class: 'wbtn ' + (cls || ''), html: '<span class="ico">' + D.ICONS[icon] + '</span><span>' + label + '</span>', onclick: function () { if (busy) return; DW.SFX.play('click'); fn(); } });
     };
     hud.bot.appendChild(btn('squad', 'Отряд', function () { DW.UI.squad(WS.refresh); }));
-    hud.bot.appendChild(btn('base', 'База', function () { DW.UI.base(WS.refresh); }));
+    hud.bot.appendChild(btn('base', 'База', function () { if (DW.G.state.baseNode !== null) DW.Main.setScene(DW.BaseS); else DW.UI.base(WS.refresh); }));
     hud.bot.appendChild(btn('portalbtn', 'Портал', function () { DW.UI.portal(afterPortal); }, 'portal'));
     hud.bot.appendChild(btn('journal', 'Журнал', function () { DW.UI.journal(); }));
     hud.bot.appendChild(btn('wait', 'Ждать день', function () { waitDay(); }));
@@ -294,7 +294,7 @@
     G.foundBase(n.id);
     DW.SFX.play('build');
     G.save(); WS.refresh();
-    DW.UI.base(WS.refresh);
+    DW.Main.setScene(DW.BaseS);
   }
 
   function openMenu() {
