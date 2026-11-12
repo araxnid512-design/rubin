@@ -176,6 +176,7 @@ function aimBone(bone, childNow, want) {
    grip — доля длины от приклада до пистолетной рукояти, fore — до цевья; len — длина в метрах */
 export function makeWeapon(gltf, w) {
   const obj = gltf.scene.clone(true);
+  if (w.flip) { obj.rotation.y = Math.PI; obj.updateMatrixWorld(true); } // модель лежит дулом к +Z
   obj.traverse((m) => { if (m.isMesh) { m.frustumCulled = false; const mats = Array.isArray(m.material) ? m.material : [m.material]; mats.forEach((mt) => { if (mt.map) mt.map.anisotropy = 8; if ('metalness' in mt) mt.metalness = Math.min(mt.metalness, 0.4); }); } });
   const box = new THREE.Box3().setFromObject(obj, true);
   const size = box.getSize(V());

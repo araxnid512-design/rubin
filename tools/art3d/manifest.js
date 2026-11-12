@@ -29,7 +29,7 @@ const WEAPONS = [
   W('sniper', S + 'w_svd.glb', 1.22, 0.32, 0.55, 0.5, 0.7, 0.85),
   W('lmg', S + 'w_rpk.glb', 1.04, 0.33, 0.52, 0.55, 0.72, 0.85),
   W('ak2', S + 'w_ak107.glb', 0.94, 0.36, 0.6, 0.55, 0.72, 0.85),
-  W('hsniper', DW + 'w_ksvk.glb', 1.35, 0.45, 0.62, 0.5, 0.65, 0.8),
+  Object.assign(W('hsniper', DW + 'w_ksvk.glb', 1.35, 0.42, 0.6, 0.45, 0.6, 0.75), { flip: true }),
   W('hlmg', DW + 'w_kord.glb', 1.6, 0.3, 0.5, 0.5, 0.65, 0.8),
   W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6)
 ];
