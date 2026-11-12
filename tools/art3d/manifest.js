@@ -67,7 +67,7 @@ const P = (src, len, hMax, yaw, k) => ({ src, len, hMax, yaw: yaw || 0, k });
 const PROPS = [
   { id: 'obj3', type: 3, variants: [P(DW + 'e_boulder.glb', 0.95, 1.15), P(DW + 'e_boulder.glb', 0.85, 1.0, 120), P(DW + 'e_boulder.glb', 0.9, 1.1, 230)] },
   { id: 'obj4', type: 4, variants: [P(S + 'env/e_crate.glb', 0.8, 0.7), P(S + 'env/e_chest.glb', 0.85, 0.6, 30), P(S + 'env/e_ammo.glb', 0.8, 0.75, 90)] },
-  { id: 'obj5', type: 5, variants: [P(DW + 'e_deadtree.glb', 1.1, 3.2), P(DW + 'e_deadtree.glb', 1.0, 2.9, 140), P(DW + 'e_deadtree.glb', 1.05, 3.0, 250)] },
+  { id: 'obj5', type: 5, variants: [Object.assign(P(DW + 'e_deadtree.glb', 0, 3.2), { h: 2.7 }), Object.assign(P(DW + 'e_deadtree.glb', 0, 3.0, 140), { h: 2.4 }), Object.assign(P(DW + 'e_deadtree.glb', 0, 3.0, 250), { h: 2.9 })] },
   { id: 'obj7', type: 7, variants: [P(S + 'env/e_vaz_burned.glb', 1.45, 1.0, 20), P(S + 'env/e_vaz_crashed.glb', 1.45, 1.0, -60), P(S + 'env/e_volga.glb', 1.5, 1.0, 110)] },
   { id: 'obj8', type: 8, variants: [P(DW + 'e_rubble.glb', 1.0, 0.95), P(DW + 'e_rubble.glb', 0.95, 0.9, 120), P(S + 'env/e_block.glb', 0.9, 0.9, 30)] },
   { id: 'obj9', type: 9, variants: [P(S + 'env/e_barrel.glb', 0.45, 0.95), P(S + 'env/e_hazard.glb', 0.45, 0.95), P(S + 'env/e_barrel.glb', 0.45, 0.95, 90)] },
