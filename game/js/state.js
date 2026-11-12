@@ -12,7 +12,7 @@
       id: U.uid(), name: tpl.name, cls: tpl.cls,
       hpBase: tpl.hp, aimBase: tpl.aim, mobBase: tpl.mob,
       wounds: 0, xp: tpl.xp || 0, kills: 0, missions: 0,
-      weapon: tpl.weapon || 'ppsh', armor: tpl.armor || 'robe',
+      weapon: tpl.weapon || 'ppsh', armor: tpl.armor || 'robe', trait: tpl.trait || U.pick(D.TRAIT_POOL), perks: [],
       look: DW.ART.makeLook(U.rand(1, 1e9), tpl.look || null)
     };
   };
@@ -21,10 +21,21 @@
     for (let i = 0; i < D.RANKS.length; i++) if (s.xp >= D.RANKS[i].xp) r = i;
     return r;
   };
-  G.maxHp = function (s) { return s.hpBase + D.ARMORS[s.armor].hp + G.rank(s); };
+  G.has = function (s, p) { return !!(s.perks && s.perks.indexOf(p) >= 0); };
+  G.maxHp = function (s) { return s.hpBase + D.ARMORS[s.armor].hp + G.rank(s) + (s.trait === 'tough' ? 2 : 0) + (G.has(s, 'hp') ? 2 : 0); };
   G.hp = function (s) { return Math.max(0, G.maxHp(s) - s.wounds); };
-  G.aim = function (s) { return s.aimBase + G.rank(s) * 4; };
-  G.mob = function (s) { return s.mobBase + D.ARMORS[s.armor].mob; };
+  G.aim = function (s) { return s.aimBase + G.rank(s) * 4 + (s.trait === 'sharp' ? 5 : 0) + (G.has(s, 'aim') ? 5 : 0); };
+  G.mob = function (s) { return s.mobBase + D.ARMORS[s.armor].mob + (s.trait === 'quick' ? 1 : 0) + (G.has(s, 'mob') ? 1 : 0); };
+  G.smoker = function (s) { return !!s && (s.trait === 'calm' || s.name === 'Мальборо'); };
+  /* Два навыка на выбор при повышении */
+  G.perkOffer = function (s) {
+    const all = Object.keys(D.PERKS).filter(function (k) { return !G.has(s, k); });
+    const r = U.srng(ART_HASH(s.id) + (s.perks ? s.perks.length : 0) * 101);
+    const a = all.splice(Math.floor(r() * all.length), 1)[0];
+    const b = all.length ? all[Math.floor(r() * all.length)] : null;
+    return [a, b].filter(Boolean);
+  };
+  function ART_HASH(x) { return DW.ART.hashStr(String(x)); }
 
   G.makeRecruit = function (level) {
     const st = G.state;
@@ -79,7 +90,8 @@
       const o = JSON.parse(s);
       if (!o || !o.world) return false;
       G.state = o;
-      o.roster.forEach(function (s) { DW.ART.ensureLook(s); if (s.name === 'Курт') s.name = 'Крут'; });
+      const TR0 = { 'Курт': 'authority', 'Крут': 'authority', 'Мальборо': 'calm', 'Сыч': 'sharp', 'Док': 'lucky', 'Бугай': 'tough', 'Тихий': 'quick' };
+      o.roster.forEach(function (s) { DW.ART.ensureLook(s); if (s.name === 'Курт') s.name = 'Крут'; if (!s.trait) s.trait = TR0[s.name] || D.TRAIT_POOL[DW.ART.hashStr(s.id) % D.TRAIT_POOL.length]; if (!s.perks) s.perks = []; });
       (o.memorial || []).forEach(function (m) { if (m.name === 'Курт') m.name = 'Крут'; });
       if (o.battle && o.battle.units) o.battle.units.forEach(function (u) { if (u.name === 'Курт') u.name = 'Крут'; });
       if (o.baseNode !== null && o.baseNode !== undefined) { const bn = o.world.nodes[o.baseNode]; if (bn && !bn.fort) { bn.oldName = bn.name; bn.name = 'Форт Крут'; bn.fort = true; } }
@@ -592,6 +604,7 @@
       if (r1 > r0) {
         s.wounds = Math.max(0, s.wounds - 1);
         sum.promoted.push(s.name + ' — ' + D.RANKS[r1].n);
+        (sum.perkChoices = sum.perkChoices || []).push({ s: s, opts: G.perkOffer(s) });
       }
       sum.soldiers.push({ name: s.name, hp: G.hp(s), maxHp: G.maxHp(s), kills: u.kills, xp: gain, evac: u.evac, ref: s, promo: r1 > r0 ? D.RANKS[r1].n : null });
     });

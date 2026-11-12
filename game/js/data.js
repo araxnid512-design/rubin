@@ -109,12 +109,12 @@
 
   /* Стартовый отряд. Крут и Мальборо — из книги «Мёртвый мир. Форт Крут»; остальные клички можно поменять здесь. */
   D.START_SQUAD = [
-    { name: 'Крут', cls: 'leader', hp: 10, aim: 72, mob: 6, look: { glasses: false, style: 'buzz', hair: '#2b2118', beard: 'stubble', scar: 1, eyes: '#2f4a6a', skin: '#d4a582', brow: -2, jaw: 1.05 } },
-    { name: 'Мальборо', cls: 'heavy', hp: 11, aim: 64, mob: 5, look: { glasses: false, style: 'short', hair: '#8a7a6a', beard: 'mustache', scar: 0, skin: '#e0b896', eyes: '#5a6a7a', jaw: 1.1 } },
-    { name: 'Сыч', cls: 'sniper', hp: 8, aim: 76, mob: 6, look: { glasses: false, style: 'beanie', cap: '#3a3a3a', hair: '#1a1a1a', beard: 'none', scar: 0, skin: '#c99a74', eyes: '#3a5a3a', brow: 3, jaw: 0.92 } },
-    { name: 'Док', cls: 'medic', hp: 9, aim: 62, mob: 6, look: { style: 'bald', glasses: true, beard: 'beard', hair: '#c9c2b5', skin: '#e0b896', scar: 0, jaw: 1 } },
-    { name: 'Бугай', cls: 'assault', hp: 11, aim: 63, mob: 6, look: { glasses: false, style: 'bald', beard: 'beard', hair: '#5a4030', skin: '#a87754', jaw: 1.15, scar: 2, eyes: '#4a3426' } },
-    { name: 'Тихий', cls: 'rifleman', hp: 9, aim: 68, mob: 6, look: { glasses: false, style: 'long', hair: '#2b2118', beard: 'none', skin: '#d4a582', scar: 0, eyes: '#4a3426', jaw: 0.95 } }
+    { name: 'Крут', trait: 'authority', cls: 'leader', hp: 10, aim: 72, mob: 6, look: { glasses: false, style: 'buzz', hair: '#2b2118', beard: 'stubble', scar: 1, eyes: '#2f4a6a', skin: '#d4a582', brow: -2, jaw: 1.05 } },
+    { name: 'Мальборо', trait: 'calm', cls: 'heavy', hp: 11, aim: 64, mob: 5, look: { glasses: false, style: 'short', hair: '#8a7a6a', beard: 'mustache', scar: 0, skin: '#e0b896', eyes: '#5a6a7a', jaw: 1.1 } },
+    { name: 'Сыч', trait: 'sharp', cls: 'sniper', hp: 8, aim: 76, mob: 6, look: { glasses: false, style: 'beanie', cap: '#3a3a3a', hair: '#1a1a1a', beard: 'none', scar: 0, skin: '#c99a74', eyes: '#3a5a3a', brow: 3, jaw: 0.92 } },
+    { name: 'Док', trait: 'lucky', cls: 'medic', hp: 9, aim: 62, mob: 6, look: { style: 'bald', glasses: true, beard: 'beard', hair: '#c9c2b5', skin: '#e0b896', scar: 0, jaw: 1 } },
+    { name: 'Бугай', trait: 'tough', cls: 'assault', hp: 11, aim: 63, mob: 6, look: { glasses: false, style: 'bald', beard: 'beard', hair: '#5a4030', skin: '#a87754', jaw: 1.15, scar: 2, eyes: '#4a3426' } },
+    { name: 'Тихий', trait: 'quick', cls: 'rifleman', hp: 9, aim: 68, mob: 6, look: { glasses: false, style: 'long', hair: '#2b2118', beard: 'none', skin: '#d4a582', scar: 0, eyes: '#4a3426', jaw: 0.95 } }
   ];
   D.NAMES = ['Гвоздь', 'Кастет', 'Сиплый', 'Ржавый', 'Хмурый', 'Цыган', 'Штырь', 'Монах', 'Борзый', 'Седой',
     'Филин', 'Грек', 'Лом', 'Клык', 'Барон', 'Рябой', 'Валет', 'Кот', 'Шило', 'Пепел', 'Сапёр', 'Жила',
@@ -245,6 +245,29 @@
   I.portalbtn = '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7.5" ry="10" fill="none" stroke="currentColor" stroke-width="2.2"/><ellipse cx="12" cy="12" rx="3" ry="5" fill="currentColor" opacity=".6"/></svg>';
   I.butt = '<svg viewBox="0 0 24 24"><path d="M3 15l9-9 3 3-9 9z" fill="#8a5a2a"/><path d="M12 6l2-2 6 6-2 2z" fill="#5a5c60"/><path d="M15 16l3 3M17 14l3 3M13 18l3 3" stroke="#e3a33b" stroke-width="2" stroke-linecap="round"/></svg>';
   D.ICONS = I;
+
+  /* Черты характера (у каждого бойца одна) */
+  D.TRAITS = {
+    authority: { n: 'Авторитет', d: 'Бойцы в 5 клетках от него стреляют с +5 к меткости.' },
+    calm: { n: 'Курильщик', d: 'Спокоен под огнём: подавление снижает меткость вдвое слабее.' },
+    sharp: { n: 'Меткий', d: '+5 к меткости.' },
+    tough: { n: 'Живучий', d: '+2 ОЗ.' },
+    quick: { n: 'Шустрый', d: '+1 к подвижности.' },
+    cold: { n: 'Хладнокровный', d: '+15 к меткости при стрельбе из дозора.' },
+    lucky: { n: 'Везучий', d: '+10% к шансу крита.' }
+  };
+  D.TRAIT_POOL = ['sharp', 'tough', 'quick', 'cold', 'lucky'];
+  /* Навыки, выбираемые при повышении */
+  D.PERKS = {
+    hp: { n: 'Закалка', d: '+2 ОЗ.' },
+    aim: { n: 'Глаз-алмаз', d: '+5 к меткости.' },
+    mob: { n: 'Длинные ноги', d: '+1 к подвижности.' },
+    crit: { n: 'Слабые места', d: '+12% к шансу крита.' },
+    dig: { n: 'Окопник', d: '+10 к уклонению, когда боец в укрытии.' },
+    clip: { n: 'Запасной диск', d: '+1 выстрел в магазине.' },
+    medic: { n: 'Фельдшер', d: 'Аптечки и помощь лечат на 2 ОЗ больше.' },
+    ow: { n: 'Глаз дозорного', d: '+10 к меткости в дозоре, нет штрафа реакции.' }
+  };
   D.icon = function (name, cls) {
     return '<span class="ico' + (cls ? ' ' + cls : '') + '">' + (I[name] || '') + '</span>';
   };

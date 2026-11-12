@@ -91,7 +91,8 @@
     return {
       id: B.nextId++, side: 'p', kind: 'soldier', sid: s.id, name: s.name, cls: s.cls, x: x, y: y,
       hp: Math.max(1, G.hp(s)), maxHp: G.maxHp(s), aim: G.aim(s) - (G.state.hungry ? 10 : 0), mob: G.mob(s),
-      def: 0, armor: D.ARMORS[s.armor].armor, armorId: s.armor, weapon: s.weapon, clip: W.clip, ap: 2,
+      def: 0, armor: D.ARMORS[s.armor].armor, armorId: s.armor, weapon: s.weapon, clip: W.clip + (G.has(s, 'clip') ? 1 : 0), ap: 2,
+      trait: s.trait, perks: (s.perks || []).slice(),
       sight: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
       alive: true, evac: false, kills: 0, xpGain: 0, face: 0, look: s.look, rank: G.rank(s)
     };
@@ -305,13 +306,20 @@
     if (tgt.def) { hit -= tgt.def; parts.push(['Уклонение', -tgt.def]); }
     if (tgt.hunker) { hit -= 20; parts.push(['Залёг', -20]); }
     if (BT.inb(ax, ay) && (D.GROUND[B.ground[BT.idx(ax, ay)]].high || BT.hAt(ax, ay) > BT.hAt(tgt.x, tgt.y))) { hit += 15; parts.push(['Высота', 15]); }
-    if (o.reaction) { hit -= 10; parts.push(['Реакция', -10]); }
-    if (att.suppressed) { hit -= 40; parts.push(['Подавлен', -40]); }
+    const hasP = function (u, p) { return u.perks && u.perks.indexOf(p) >= 0; };
+    if (o.reaction && !hasP(att, 'ow')) { hit -= 10; parts.push(['Реакция', -10]); }
+    if (o.reaction && att.trait === 'cold') { hit += 15; parts.push(['Хладнокровие', 15]); }
+    if (o.reaction && hasP(att, 'ow')) { hit += 10; parts.push(['Глаз дозорного', 10]); }
+    if (att.suppressed) { const sp = att.trait === 'calm' ? -20 : -40; hit += sp; parts.push(['Подавлен', sp]); }
+    if (att.kind === 'soldier' && att.trait !== 'authority' && B.units.some(function (a) { return a.alive && a.trait === 'authority' && a !== att && U.dist(a.x, a.y, ax, ay) <= 5; })) { hit += 5; parts.push(['Крут рядом', 5]); }
+    if (cv.cover && hasP(tgt, 'dig')) { hit -= 10; parts.push(['Окопник', -10]); }
     if (o.aimBonus) { hit += o.aimBonus; parts.push([o.aimLabel || 'Бонус', o.aimBonus]); }
     hit = U.clamp(Math.round(hit), 1, 100);
     let crit = W.crit || 0;
     if (!cv.cover) crit += cv.flanked ? 40 : 25;
     if (o.critBonus) crit += o.critBonus;
+    if (att.trait === 'lucky') crit += 10;
+    if (hasP(att, 'crit')) crit += 12;
     if (tgt.hunker) crit = 0;
     crit = U.clamp(crit, 0, 100);
     return { hit: hit, crit: crit, cover: cv.cover, flanked: cv.flanked, coverTile: cv.tile, d: d, parts: parts, dmg: W.dmg };
@@ -339,6 +347,8 @@
     DW.TR.blood(u);
     DW.TR.hitFx(u);
     DW.SFX.play('hit');
+    if (u.hp > 0 && u.kind === 'soldier') DW.TR.bark(u, u.hp <= u.maxHp * 0.35 ? 'lowhp' : 'hurt');
+    else if (u.hp > 0 && src && src.side === 'e' && src.seen && Math.random() < 0.35) DW.TR.bark(src, 'enemyhit');
     if (u.hp <= 0) {
       const over = -u.hp;
       u.hp = 0;
@@ -359,7 +369,7 @@
     if (u.side === 'e') {
       const T = D.ENEMIES[u.type];
       DW.SFX.play(T.beast ? 'growl' : 'death');
-      if (src && src.side === 'p') { src.kills = (src.kills || 0) + 1; src.xpGain = (src.xpGain || 0) + T.xp; }
+      if (src && src.side === 'p') { src.kills = (src.kills || 0) + 1; src.xpGain = (src.xpGain || 0) + T.xp; if (src.alive) DW.TR.bark(src, 'kill'); }
       for (const k in T.loot) {
         const r = T.loot[k];
         B.field[k] = (B.field[k] || 0) + U.rand(r[0], r[1]);
@@ -369,6 +379,8 @@
     } else {
       DW.SFX.play('death');
       if (u.down) DW.UI.toast(u.name + ' тяжело ранен и истекает кровью! Помогите за 3 хода.', 'alert');
+      const mate = B.units.find(function (a) { return a.kind === 'soldier' && a.alive && a !== u; });
+      if (mate) DW.TR.bark(mate, u.down ? 'downed' : 'died', u.name);
       else DW.UI.toast(u.name + (u.kind === 'turret' ? ' уничтожена' : ' погиб!'), 'bad');
     }
     BT.updateObjective();
@@ -385,6 +397,7 @@
     t.stable = true;
     u.face = Math.atan2(t.y - u.y, t.x - u.x);
     DW.TR.anim(u, 'check', 900);
+    DW.TR.bark(u, 'save');
     DW.TR.float(t.x, t.y, 'Стабилизирован', 'good');
     DW.SFX.play('pickup');
     DW.UI.toast(t.name + ' спасён — выживет, если отряд победит или уйдёт.', 'good');
@@ -561,6 +574,7 @@
     opts = opts || {};
     const newly = [];
     u._run = path.length > Math.max(3, (u.mob || 5) - 1);
+    if (u.kind === 'soldier' && Math.random() < 0.35) DW.TR.bark(u, u._run ? 'run' : 'move');
     for (let k = 0; k < path.length; k++) {
       const nx = path[k][0], ny = path[k][1];
       const show = u.side === 'p' || u.seen || (vis && vis[ny * B.w + nx]);
@@ -595,6 +609,7 @@
   };
 
   BT.activatePods = async function (list) {
+    if (list && list.length) { const sp = BT.soldiers()[0]; const beast = list.some(function (e) { return D.ENEMIES[e.type] && D.ENEMIES[e.type].beast; }); if (sp) DW.TR.bark(sp, beast ? 'contactBeast' : 'contact'); }
     const pods = [];
     list.forEach(function (e) { if (!e.active && pods.indexOf(e.pod) < 0) pods.push(e.pod); });
     for (let p = 0; p < pods.length; p++) {
@@ -681,9 +696,10 @@
     u.clip = D.WEAPONS[u.weapon].clip; u.ap -= 1;
     DW.TR.anim(u, 'reload', { ppsh: 1100, lmg: 1200, hlmg: 1300, shotgun: 1000, sniper: 900, hsniper: 1000 }[u.weapon] || 850);
     DW.SFX.play('reload'); DW.TR.float(u.x, u.y, 'Перезарядка', 'info');
+    DW.TR.bark(u, 'reload');
   };
-  BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); DW.SFX.play('reload'); };
-  BT.doHunker = function (u) { u.hunker = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Залёг', 'info'); };
+  BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); DW.SFX.play('reload'); DW.TR.bark(u, 'overwatch'); };
+  BT.doHunker = function (u) { u.hunker = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Залёг', 'info'); DW.TR.bark(u, 'hunker'); };
   BT.doEvac = function (u) {
     u.evac = true; u.ap = 0; u.overwatch = false;
     DW.TR.float(u.x, u.y, 'Эвакуирован', 'good');
@@ -697,8 +713,9 @@
     DW.TR.float(t.x, t.y, '+' + v + ' ОЗ', 'good');
     DW.SFX.play('pickup');
   };
-  BT.doMedkit = function (u, t) { DW.G.state.res.meds -= 1; BT.heal(t, 4); u.ap -= 1; DW.TR.anim(u, 'check', 700); };
-  BT.doFieldHeal = function (u, t) { u.charges.heal -= 1; BT.heal(t, 5); u.ap -= 1; DW.TR.anim(u, 'check', 700); };
+  const medBonus = function (u) { return u.perks && u.perks.indexOf('medic') >= 0 ? 2 : 0; };
+  BT.doMedkit = function (u, t) { DW.G.state.res.meds -= 1; BT.heal(t, 4 + medBonus(u)); u.ap -= 1; DW.TR.anim(u, 'check', 700); DW.TR.bark(u, 'heal'); };
+  BT.doFieldHeal = function (u, t) { u.charges.heal -= 1; BT.heal(t, 5 + medBonus(u)); u.ap -= 1; DW.TR.anim(u, 'check', 700); DW.TR.bark(u, 'heal'); };
   BT.doOrder = function (u, t) {
     t.ap = Math.min(3, t.ap + 1); u.ap -= 1; u.cd.order = D.ABIL.order.cd;
     u.face = Math.atan2(t.y - u.y, t.x - u.x);
@@ -715,6 +732,7 @@
     const st = DW.G.state;
     u.ap = 0;
     u.face = Math.atan2(y - u.y, x - u.x);
+    DW.TR.bark(u, kind === 'rocket' ? 'rocket' : 'grenade');
     if (kind !== 'rocket') { DW.TR.anim(u, 'throw', 560); await U.sleep(330); }
     else { DW.TR.anim(u, 'shoot', 300, { cnt: 1 }); }
     if (kind === 'rocket') {

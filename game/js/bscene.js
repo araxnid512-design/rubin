@@ -81,11 +81,11 @@
         class: 'sq' + (u === sel ? ' on' : '') + (!u.alive ? ' dead' : '') + (u.evac ? ' evac' : '') + (u.alive && !u.evac && u.ap <= 0 ? ' spent' : ''),
         onclick: function () { if (!busy && u.alive && !u.evac && B.phase === 'player' && mode === 'idle') { DW.SFX.play('click'); select(u); } }
       });
-      it.appendChild(el('img', { src: s ? DW.ART.portrait(s) : '', alt: '' }));
+      it.appendChild(el('img', { src: s ? DW.ART.portrait(s, u.hp <= u.maxHp * 0.35 ? 2 : (u.hp < u.maxHp * 0.75 ? 1 : 0)) : '', alt: '' }));
       const info = el('div', { class: 'sq-i' });
       const pct = Math.round(u.hp / u.maxHp * 100);
       info.innerHTML = '<div class="sq-hp' + (pct <= 34 ? ' low' : '') + '"><i style="width:' + pct + '%"></i></div>' +
-        '<div class="sq-ap">' + (u.alive && !u.evac ? pips(u.ap, Math.max(2, u.ap), 'ap') : (u.evac ? '<span class="good">эвак.</span>' : '<span class="bad">погиб</span>')) +
+        '<div class="sq-ap">' + (u.alive && !u.evac ? pips(u.ap, Math.max(2, u.ap), 'ap') : (u.evac ? '<span class="good">эвак.</span>' : (u.stable ? '<span class="good">спасён</span>' : (u.down > 0 ? '<span class="bad">кровь ' + (u.down - 1) + ' х.</span>' : '<span class="bad">погиб</span>')))) +
         (u.overwatch ? '<b class="ow">👁</b>' : '') + '</div>';
       it.appendChild(info);
       hud.squad.appendChild(it);

@@ -16,7 +16,7 @@
   let sprites = {};
   let fogC = null, fogV = -1;
   const tweens = {};
-  let fx = { floats: [], tracers: [], parts: [], projs: [], flashes: [] };
+  let fx = { floats: [], tracers: [], parts: [], projs: [], flashes: [], barks: [] };
   let camWaiters = [];
   let props = {};
   let fires = {};
@@ -1385,7 +1385,7 @@
     for (const k in anims) delete anims[k];
     for (const k in nextFidget) delete nextFidget[k];
     for (const k in deadAt) delete deadAt[k];
-    fx = { floats: [], tracers: [], parts: [], projs: [], flashes: [] };
+    fx = { floats: [], tracers: [], parts: [], projs: [], flashes: [], barks: [] };
     for (const k in tweens) delete tweens[k];
     camWaiters = [];
     HG = B.hgt || null; HGW = B.w; HGH = B.h; elev = {};
@@ -1538,6 +1538,66 @@
       tweens[att.id] = { fx: att.x, fy: att.y, tx: tgt.x, ty: tgt.y, t0: now(), dur: 300 / spd(), res: res, kind: 'lunge' };
     });
   };
+  /* Реплики бойцов */
+  const BARKS = {
+    move: ['Иду.', 'Двигаюсь.', 'Есть.', 'Понял.'], run: ['Прикройте!', 'Бегу!', 'Рывок!'],
+    reload: ['Перезаряжаюсь!', 'Меняю магазин!', 'Пустой!'], overwatch: ['Держу сектор.', 'Смотрю.', 'Пусть только высунутся.'],
+    hunker: ['Пригнулся!', 'Головы не поднять!'], grenade: ['Граната!', 'Лови подарок!'], rocket: ['Выстрел!', 'Сзади чисто? Огонь!'],
+    kill: ['Минус один!', 'Готов.', 'Лёг.', 'Есть!'], hurt: ['Зацепило!', 'А-а-а!', 'Ранен!'], lowhp: ['Мне нужна помощь!', 'Долго не протяну…'],
+    contact: ['Контакт!', 'Бандиты!', 'Вижу их!'], contactBeast: ['Мутанты!', 'Твари… то есть мутанты!', 'Вижу мутантов!'],
+    heal: ['Держись.', 'Сейчас перевяжу.'], save: ['Держись, брат!', 'Не умирай мне тут!'],
+    downed: ['{} ранен!', '{} упал!', 'Медика к {}!'], died: ['{}… нет!', 'Потеряли {}.'],
+    enemyhit: ['Вали их!', 'Получи!', 'Ха!']
+  };
+  const BARKS_P = {
+    'Крут': { move: ['За мной.', 'Держимся вместе.'], kill: ['Чисто.', 'Следующий.'], contact: ['Все в укрытия!', 'Гости.'], save: ['Мы своих не бросаем.'] },
+    'Мальборо': { move: ['Иду, иду…', 'Покурить бы.'], reload: ['Диск пуст!', 'Секунду, перекур… шучу.'], kill: ['Отбегался.', 'Затяжка за тебя.'], hurt: ['Сигарету помял, гад!'], overwatch: ['Посижу, покурю.'] }
+  };
+  const barkCd = {};
+  TR.bark = function (u, kind, arg) {
+    if (!u || !BARKS[kind]) return;
+    const t = now();
+    if (barkCd[u.id] && t - barkCd[u.id] < 2600) return;
+    const live = fx.barks ? fx.barks.filter(function (b) { return t - b.t0 < b.life; }).length : 0;
+    if (live >= 2 && kind !== 'downed' && kind !== 'died') return;
+    const own = BARKS_P[u.name] && BARKS_P[u.name][kind];
+    const pool = own && Math.random() < 0.65 ? own : BARKS[kind];
+    const text = pool[Math.floor(Math.random() * pool.length)].replace('{}', arg || '');
+    barkCd[u.id] = t;
+    (fx.barks = fx.barks || []).push({ u: u, text: text, t0: t, life: 1900, bad: u.side === 'e' });
+  };
+  function drawBarks(g, t) {
+    if (!fx.barks || !fx.barks.length) return;
+    fx.barks = fx.barks.filter(function (b) { return t - b.t0 < b.life; });
+    g.font = 'bold 11px sans-serif'; g.textAlign = 'center';
+    const placed = [];
+    fx.barks.forEach(function (b) {
+      const u = b.u;
+      if (u.side === 'e' && !u.seen) return;
+      const c = uPos(u, true), k = (t - b.t0) / b.life;
+      const a = k < 0.1 ? k / 0.1 : (k > 0.85 ? (1 - k) / 0.15 : 1);
+      let Y = c[1] - 78 * unitScale(u) - (k < 0.1 ? (1 - k / 0.1) * 6 : 0);
+      const w = g.measureText(b.text).width + 14;
+      /* пузыри не наползают друг на друга — поднимаем выше */
+      for (let tries = 0; tries < 4; tries++) {
+        let hit = false;
+        for (let i = 0; i < placed.length; i++) {
+          const p = placed[i];
+          if (Math.abs(p.x - c[0]) < (p.w + w) / 2 + 2 && Math.abs(p.y - Y) < 21) { Y = p.y - 22; hit = true; }
+        }
+        if (!hit) break;
+      }
+      placed.push({ x: c[0], y: Y, w: w });
+      g.globalAlpha = a;
+      g.fillStyle = b.bad ? 'rgba(60,14,10,0.9)' : 'rgba(250,244,228,0.95)';
+      const x0 = c[0] - w / 2, y0 = Y - 16;
+      g.beginPath(); g.moveTo(x0 + 6, y0); g.lineTo(x0 + w - 6, y0); g.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + 6); g.lineTo(x0 + w, y0 + 12); g.quadraticCurveTo(x0 + w, y0 + 18, x0 + w - 6, y0 + 18);
+      g.lineTo(c[0] + 5, y0 + 18); g.lineTo(c[0], y0 + 24); g.lineTo(c[0] - 3, y0 + 18); g.lineTo(x0 + 6, y0 + 18); g.quadraticCurveTo(x0, y0 + 18, x0, y0 + 12); g.lineTo(x0, y0 + 6); g.quadraticCurveTo(x0, y0, x0 + 6, y0); g.closePath(); g.fill();
+      g.strokeStyle = b.bad ? 'rgba(255,120,90,0.7)' : 'rgba(60,40,20,0.6)'; g.lineWidth = 1; g.stroke();
+      g.fillStyle = b.bad ? '#ffd0c0' : '#2a1e12'; g.fillText(b.text, c[0], y0 + 13);
+    });
+    g.globalAlpha = 1;
+  }
   TR.float = function (x, y, text, kind) {
     const col = { dmg: '#ffdf6b', crit: '#ff7b3b', hurt: '#ff5a4f', miss: '#cfc7b8', gem: '#7fe6f5', info: '#e8dcc8', good: '#8fd16b', bad: '#ff6b5b' }[kind] || '#fff';
     const off = fx.floats.filter(function (f) { return f.tx === x && f.ty === y && now() - f.t0 < 600; }).length;
@@ -1806,7 +1866,7 @@
   }
   function paintUnit(g, u, fi, walk, sc, t, pose) {
     if (u.kind === 'soldier') {
-      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null, rank: u.rank, noShadow: true }, t);
+      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: DW.G.smoker(u), helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null, rank: u.rank, noShadow: true }, t);
     } else if (u.kind === 'turret') {
       ART.creature(g, 'turret', { dir: fi.dir, aim: fi.aim, seed: u.id, scale: sc, pose: pose, noShadow: true }, t);
     } else if (ART.ENEMY_LOOKS[u.type]) {
@@ -1985,7 +2045,7 @@
       else if (t > nextFidget[u.id]) {
         nextFidget[u.id] = t + 6000 + Math.random() * 10000;
         const human = u.kind === 'soldier' || ART.ENEMY_LOOKS[u.type];
-        const pool = u.name === 'Мальборо' ? ['smoke', 'smoke', 'look', 'shift'] : ['look', 'look', 'check', 'scan', 'shift'];
+        const pool = u.kind === 'soldier' && DW.G.smoker(u) ? ['smoke', 'smoke', 'look', 'shift'] : ['look', 'look', 'check', 'scan', 'shift'];
         if (u.kind !== 'turret' && !u.hunker) {
           const k = human ? pool[Math.floor(Math.random() * pool.length)] : (Math.random() < 0.6 ? 'sniff' : 'shake');
           TR.anim(u, k, human ? (k === 'smoke' ? 2600 : 1500) : 1100);
@@ -2024,7 +2084,7 @@
     const tk = U.clamp((t - ts.t0) / (170 / spd()), 0, 1);
     const sx = tk < 1 ? 0.18 + 0.82 * U.ease(tk) : 1;
     g.drawImage(fr.c, c[0] - fr.ox * sx, c[1] - fr.oy + bob, fr.w * sx, fr.h);
-    if (!tw && !an && u.name === 'Мальборо' && u.kind === 'soldier') {
+    if (!tw && !an && u.kind === 'soldier' && DW.G.smoker(u)) {
       const k = (t / 1600) % 1;
       g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';
       ART.circ(g, c[0] + fi.dir * (11 + k * 4) * sc, c[1] - 42 * sc - k * 14 + (u.hunker ? 7 : 0), 1.2 + k * 2.4);
@@ -2916,6 +2976,7 @@
       if (u.side === 'e' && !u.active) { g.fillStyle = '#cfc7b8'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('?', c[0] + 24, Y + 5); }
     });
 
+    drawBarks(g, t);
     // эффекты
     fx.flashes.forEach(function (f) {
       const kk = (t - f.t0) / f.life;

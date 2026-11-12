@@ -226,10 +226,12 @@
   }
 
   function R2(g, x, y, w, h, c) { g.fillStyle = c; g.fillRect(x, y, w, h); }
-  ART.portrait = function (s) {
+  ART.portrait = function (s, hurtLv) {
     ART.ensureLook(s);
     const rank = s.xp !== undefined && DW.G ? DW.G.rank(s) : (s.rank || 0);
-    const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls + '|' + rank + '|' + (s.look.bscars || 0);
+    if (hurtLv === undefined && s.xp !== undefined && DW.G && s.hpBase) { const mh = DW.G.maxHp(s), hp = DW.G.hp(s); hurtLv = hp <= mh * 0.35 ? 2 : (hp < mh * 0.75 ? 1 : 0); }
+    hurtLv = hurtLv || 0;
+    const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls + '|' + rank + '|' + (s.look.bscars || 0) + '|' + hurtLv;
     if (cache[key]) return cache[key];
     const c = ART.canvas(128, 128);
     const g = c.getContext('2d');
@@ -237,8 +239,24 @@
     bust(g, s.look, {
       cloth: '#c8691c', robe: true, armor: s.armor,
       helmet: s.armor === 'heavy' || s.armor === 'exo', helmetColor: s.armor === 'exo' ? '#2f4552' : '#4a5258',
-      cig: s.name === 'Мальборо', rank: rank
+      cig: DW.G.smoker(s), rank: rank
     });
+    if (hurtLv) {
+      // повязка, кровь и синяки
+      g.save();
+      g.fillStyle = 'rgba(120,20,20,0.55)'; g.beginPath(); g.ellipse(52, 70, 5, 3, 0.4, 0, 7); g.fill();
+      g.fillStyle = 'rgba(90,40,60,0.35)'; g.beginPath(); g.ellipse(76, 58, 7, 4, 0, 0, 7); g.fill();
+      g.strokeStyle = '#e8e0d0'; g.lineWidth = 6; g.lineCap = 'butt';
+      g.beginPath(); g.moveTo(38, 40); g.quadraticCurveTo(64, 30, 92, 42); g.stroke();
+      g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 1; g.beginPath(); g.moveTo(40, 38); g.quadraticCurveTo(64, 28, 90, 40); g.stroke();
+      g.fillStyle = 'rgba(170,20,20,0.75)'; g.beginPath(); g.ellipse(80, 38, 4, 3, 0, 0, 7); g.fill();
+      if (hurtLv >= 2) {
+        g.strokeStyle = 'rgba(140,15,15,0.8)'; g.lineWidth = 2; g.beginPath(); g.moveTo(80, 41); g.quadraticCurveTo(82, 50, 79, 60); g.stroke();
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, 128, 128);
+        g.fillStyle = 'rgba(180,30,20,0.35)'; g.fillRect(0, 116, 128, 12);
+      }
+      g.restore();
+    }
     cache[key] = c.toDataURL('image/png');
     return cache[key];
   };
@@ -339,7 +357,7 @@
     g.fillStyle = gr; g.fillRect(0, 0, 200, 230);
     g.fillStyle = 'rgba(0,0,0,0.45)'; g.beginPath(); g.ellipse(96, 206, 44, 11, 0, 0, 7); g.fill();
     g.save(); g.translate(92, 204);
-    ART.human(g, { look: s.look, body: '#c8691c', armor: s.armor, weapon: s.weapon, dir: 1, aim: 0.05, scale: 3.4, seed: 3, cig: s.name === 'Мальборо', rank: rank, band: rank >= 4 ? '#c0302a' : null, helmet: s.armor === 'heavy' || s.armor === 'exo', helmetColor: s.armor === 'exo' ? '#2f4552' : '#4a5258', noShadow: true }, 0);
+    ART.human(g, { look: s.look, body: '#c8691c', armor: s.armor, weapon: s.weapon, dir: 1, aim: 0.05, scale: 3.4, seed: 3, cig: DW.G.smoker(s), rank: rank, band: rank >= 4 ? '#c0302a' : null, helmet: s.armor === 'heavy' || s.armor === 'exo', helmetColor: s.armor === 'exo' ? '#2f4552' : '#4a5258', noShadow: true }, 0);
     g.restore();
     cache[key] = c.toDataURL('image/png');
     return cache[key];

@@ -436,3 +436,10 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .b-sel .wico { height: 15px; width: auto; margin-right: -2px; filter: drop-shadow(0 1px 1px #000); }
 #fpsc { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 50; background: rgba(0, 0, 0, 0.6); color: #8fd16b; font: 11px monospace; padding: 2px 8px; border-radius: 4px; pointer-events: none; }
 .setrow { flex-wrap: wrap; }
+.dhead .ren { padding: 0 7px; font-size: 13px; min-height: 0; line-height: 1.5; margin-left: 6px; vertical-align: middle; }
+.tag.trait { border-color: #7fb069; color: #9fd08a; }
+.perkc { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(232, 168, 62, 0.06); }
+.perkc .pk-t { margin-bottom: 6px; }
+.perkc .pk-r { display: flex; gap: 8px; flex-wrap: wrap; }
+.perkc .pk-r .btn { flex: 1; min-width: 150px; text-align: left; line-height: 1.25; }
+.reninp { width: 100%; margin-top: 8px; padding: 9px 10px; font: inherit; font-size: 16px; color: var(--text); background: #120e0b; border: 1px solid var(--line); border-radius: 6px; -webkit-user-select: text; user-select: text; }

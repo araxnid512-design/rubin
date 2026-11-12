@@ -394,7 +394,7 @@
               g.beginPath(); g.arc(nx + (r() - 0.5) * nh * 0.5 + q * 40, ny - nh * (0.6 + q * 0.9), 8 + q * 30, 0, 7); g.fill();
             }
             const sc = h / 175;
-            sq.forEach(function (s, i) { person(g, s, w * (0.1 + i * 0.075), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: 1, aim: i % 2 ? 0.1 : 0.45, cig: s && s.name === 'Мальборо' }); });
+            sq.forEach(function (s, i) { person(g, s, w * (0.1 + i * 0.075), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: 1, aim: i % 2 ? 0.1 : 0.45, cig: DW.G.smoker(s) }); });
           }
         },
         {
@@ -403,7 +403,7 @@
           draw: function (g, w, h, k, el, now) {
             const hor = wasteland(g, w, h, now, 'dawn', { sunX: 0.5 });
             const sc = h / 160;
-            sq.forEach(function (s, i) { person(g, s, w * (0.2 + i * 0.12), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: i < 3 ? 1 : -1, aim: 0.5, cig: s && s.name === 'Мальборо' }); });
+            sq.forEach(function (s, i) { person(g, s, w * (0.2 + i * 0.12), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: i < 3 ? 1 : -1, aim: 0.5, cig: DW.G.smoker(s) }); });
           }
         },
         { dur: 4200, cap: '', draw: function (g, w, h, k) { title(g, w, h, k, 'СЕРДЦЕ МИРА', 'Гнездо уничтожено'); } }
@@ -430,7 +430,7 @@
             if (q > 0) crate(g, U.lerp(px, w * (0.66 + i * 0.07), q), U.lerp(py, hor + h * 0.27, q) - Math.sin(Math.PI * q) * h * 0.06, h / 300);
           }
           const sc = h / 175;
-          sq.forEach(function (s, i) { person(g, s, w * (0.12 + i * 0.07), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: 1, aim: 0.4, cig: s && s.name === 'Мальборо' }); });
+          sq.forEach(function (s, i) { person(g, s, w * (0.12 + i * 0.07), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: 1, aim: 0.4, cig: DW.G.smoker(s) }); });
         }
       },
       {
@@ -449,7 +449,7 @@
             person(g, null, x, y, sc * (0.7 + q * 0.3), now, { seed: 70 + i, dir: -1, body: ['#6a6a5a', '#5a4a3a', '#7a6a4a', '#4a5a5a', '#8a5a4a'][i], weapon: null, aim: 0.6, walk: q < 1 ? now / 110 + i : null });
             g.restore();
           }
-          sq.forEach(function (s, i) { person(g, s, w * (0.08 + i * 0.06), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: 1, aim: 0.5, cig: s && s.name === 'Мальборо' }); });
+          sq.forEach(function (s, i) { person(g, s, w * (0.08 + i * 0.06), hor + h * (0.13 + (i % 2) * 0.04), sc, now, { seed: i, dir: 1, aim: 0.5, cig: DW.G.smoker(s) }); });
         }
       },
       { dur: 4200, cap: '', draw: function (g, w, h, k) { title(g, w, h, k, 'ВОЛЬНАЯ', 'Колония свободна'); } }

@@ -129,7 +129,7 @@
       menuSquad.forEach(function (m, i) {
         const x = w * 0.69 + i * 22 * fs + (i % 2) * 5 * fs, y = h * 0.86 + (i % 2) * 6 * fs + Math.sin(x * 0.01) * 4;
         c.save(); c.translate(x, y);
-        ART.human(c, { look: m.look, body: '#c8691c', armor: m.armor, weapon: m.weapon, dir: -1, aim: i % 3 === 0 ? 0.2 : -0.08, scale: fs, cig: m.name === 'Мальборо', seed: i, rank: m.xp !== undefined ? DW.G.rank(m) : 0, band: m.xp !== undefined && DW.G.rank(m) >= 4 ? '#c0302a' : null }, t * 1000);
+        ART.human(c, { look: m.look, body: '#c8691c', armor: m.armor, weapon: m.weapon, dir: -1, aim: i % 3 === 0 ? 0.2 : -0.08, scale: fs, cig: DW.G.smoker(m), seed: i, rank: m.xp !== undefined ? DW.G.rank(m) : 0, band: m.xp !== undefined && DW.G.rank(m) >= 4 ? '#c0302a' : null }, t * 1000);
         c.restore();
       });
       const shade = c.createLinearGradient(0, h * 0.62, 0, h);

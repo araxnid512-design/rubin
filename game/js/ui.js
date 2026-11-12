@@ -150,13 +150,19 @@
       top.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
       top.appendChild(el('img', { class: 'fig', src: DW.ART.figureURL(s), alt: '' }));
       const info = el('div', { class: 'dinfo' });
-      info.innerHTML = '<div class="dhead">' + s.name + '</div>' +
-        '<div><span class="tag" style="border-color:' + c.color + ';color:' + c.color + '">' + c.n + '</span><span class="tag">' + D.RANKS[rk].n + rankBadge(rk) + '</span></div>' +
+      const TRt = D.TRAITS[s.trait];
+      info.innerHTML = '<div class="dhead">' + s.name + ' <button class="btn sm ren">✎</button></div>' +
+        '<div><span class="tag" style="border-color:' + c.color + ';color:' + c.color + '">' + c.n + '</span><span class="tag">' + D.RANKS[rk].n + rankBadge(rk) + '</span>' +
+        (TRt ? '<span class="tag trait" title="' + TRt.d + '">' + TRt.n + '</span>' : '') + '</div>' +
+        (TRt ? '<div class="small dim">' + TRt.n + ': ' + TRt.d + '</div>' : '') +
+        ((s.perks || []).length ? '<div class="small">Навыки: ' + s.perks.map(function (p) { return '<b class="acc">' + D.PERKS[p].n + '</b>'; }).join(', ') + '</div>' : '') +
         '<div class="small dim">Опыт ' + s.xp + (next ? ' / ' + next.xp : '') + ' · убийств ' + s.kills + ' · заданий ' + s.missions + '</div>' +
         (next ? '<div class="pbar"><i style="width:' + Math.round((s.xp - D.RANKS[rk].xp) / (next.xp - D.RANKS[rk].xp) * 100) + '%;background:linear-gradient(90deg,#a8661a,#e8a83e)"></i></div>' : '') +
         hpBar(G.hp(s), G.maxHp(s));
       top.appendChild(info);
       det.appendChild(top);
+      const rb = info.querySelector('.ren');
+      if (rb) rb.onclick = function () { UI.rename(s, function () { render(); if (onChange) onChange(); }); };
       det.appendChild(el('div', { class: 'stats', html:
         statRow('Меткость', G.aim(s), 100) + statRow('Подвижность', G.mob(s), 8) +
         statRow('Здоровье', G.maxHp(s), 20) + statRow('Броня', D.ARMORS[s.armor].armor, 3) }));
@@ -452,8 +458,46 @@
       }));
       if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
       b.innerHTML = html;
-      UI.modal({ title: title, cls: 'wide k-' + (sum.result === 'victory' ? 'good' : 'bad'), body: b, closable: false, buttons: [{ text: 'Продолжить', cls: 'primary' }], onClose: res });
+      (sum.perkChoices || []).forEach(function (pc) {
+        if (!pc.opts.length) return;
+        const box = el('div', { class: 'perkc' });
+        box.appendChild(el('div', { class: 'pk-t', html: '<b class="acc">' + pc.s.name + '</b> повышен — выберите навык:' }));
+        const row = el('div', { class: 'pk-r' });
+        pc.opts.forEach(function (k) {
+          const bt = el('button', { class: 'btn sm', html: '<b>' + D.PERKS[k].n + '</b><br><small>' + D.PERKS[k].d + '</small>', onclick: function () {
+            if (pc.done) return;
+            pc.done = true; pc.s.perks = pc.s.perks || []; pc.s.perks.push(k);
+            row.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+            bt.classList.add('primary');
+            DW.SFX.play('build'); DW.G.save();
+          } });
+          row.appendChild(bt);
+        });
+        box.appendChild(row);
+        b.appendChild(box);
+      });
+      UI.modal({ title: title, cls: 'wide k-' + (sum.result === 'victory' ? 'good' : 'bad'), body: b, closable: false, buttons: [{ text: 'Продолжить', cls: 'primary' }], onClose: function () {
+        (sum.perkChoices || []).forEach(function (pc) { if (!pc.done && pc.opts.length) { pc.done = true; pc.s.perks = pc.s.perks || []; pc.s.perks.push(pc.opts[0]); } });
+        DW.G.save(); res();
+      } });
     });
+  };
+
+  /* ---------- Переименование бойца ---------- */
+  UI.rename = function (s, done) {
+    const body = el('div', { class: 'renbox' });
+    const inp = el('input', { class: 'reninp', type: 'text', maxlength: '16', value: s.name });
+    body.appendChild(el('div', { class: 'small dim', text: 'Кличка бойца (до 16 знаков):' }));
+    body.appendChild(inp);
+    UI.modal({ title: 'Переименовать', cls: 'small', body: body, buttons: [
+      { text: 'Отмена' },
+      { text: 'Сохранить', cls: 'primary', onClick: function () {
+        const v = (inp.value || '').replace(/[<>&"]/g, '').trim().slice(0, 16);
+        if (v) { DW.G.log('«' + s.name + '» теперь зовут «' + v + '».'); s.name = v; DW.G.save(); }
+        if (done) done();
+      } }
+    ] });
+    setTimeout(function () { try { inp.focus(); inp.select(); } catch (e) { /* ignore */ } }, 50);
   };
 
   /* ---------- Справка ---------- */
