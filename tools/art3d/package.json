@@ -1,0 +1,6 @@
+{
+  "name": "deadworld-art3d",
+  "private": true,
+  "description": "Запекание 3D-моделей (GLB) в изометрические спрайты для «Мёртвого мира»",
+  "dependencies": { "three": "0.180.0" }
+}
