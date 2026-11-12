@@ -19,6 +19,8 @@
     { t: 'Построй верстак', c: () => G.stats.workbench > 0, xp: 30 },
     { t: 'Расширь дом: поставь 3 стены или пола', c: () => G.stats.built >= 3, xp: 30 },
     { t: 'Добудь железную руду', c: () => cnt('ore') > 0, xp: 40 },
+    { t: 'Сделай лук и стрелы', c: () => cnt('bow') > 0 && cnt('arrow') > 0, xp: 30 },
+    { t: 'Поставь колья у дома', c: () => G.stats.spikes > 0, xp: 30 },
     { t: 'Переживи первую ночь', c: () => G.day >= 2, xp: 60 }
   ];
   function cnt(id) { return G.Inv.count(G.p.inv, id); }
@@ -29,10 +31,11 @@
     G.genWorld(1337); G.buildHome();
     const s = G.spawnPoint();
     G.p = { dk: 2, x: s.x, y: s.y, sy: s.y, face: Math.PI / 2, walk: 0, atk: 0, atkDur: 0.4, hitDone: true, hurt: 0, moving: false,
-      hp: 100, maxhp: 100, food: 85, water: 85, xp: 0, lvl: 1, inv: new Array(G.INV_SIZE).fill(null), armor: null, hand: null, toolSlot: -1, act: null, dead: false };
+      hp: 100, maxhp: 100, food: 85, water: 85, xp: 0, lvl: 1, inv: new Array(G.INV_SIZE).fill(null), armor: null, hand: null, toolSlot: -1, act: null, dead: false, mv: 0, ak: null, pk: 1, sneak: false, deadT: 0, stepI: 0 };
     G.mobs = []; G.parts = []; G.floaters = []; G.decals = []; nightAnn = false;
     G.time = DAYLEN * 0.1; G.day = 1; G.quest = 0;
-    G.stats = { built: 0, workbench: 0, kills: 0 };
+    G.stats = { built: 0, workbench: 0, kills: 0, spikes: 0, slept: 0 };
+    G.shots = []; G.punch = 0; G.sleepFx = 0;
     G.build = null; G.cam.x = s.x; G.cam.y = s.y;
   };
 
@@ -109,7 +112,7 @@
   function bestTool(kind) {
     const inv = G.p.inv; let b = -1, bv = 0;
     for (let i = 0; i < inv.length; i++) {
-      const s = inv[i]; if (!s) continue; const it = G.ITEMS[s.id]; if (!it.tool) continue;
+      const s = inv[i]; if (!s) continue; const it = G.ITEMS[s.id]; if (!it.tool || it.tool === 'bow') continue;
       const v = kind === 'weapon' ? it.dmg : (it.tool === kind ? it.pow : 0);
       if (v > bv) { bv = v; b = i; }
     }
@@ -131,7 +134,8 @@
       const s = d - Math.cos(Math.atan2(dy, dx) - p.face) * 16 - bonus;
       if (s < bs) { bs = s; t.ref = ref; t.type = type; t.d = d; t.x = x; t.y = y; t.ir = ir; }
     };
-    for (const m of G.mobs) if (!m.dead) test(m, 'mob', m.x, m.y, m.t === 'b' ? 20 : 14, m.t === 'd' ? 0 : 45);
+    const armed = bowSlot() >= 0 && cnt('arrow') > 0;   // с луком враг в зоне выстрела важнее предметов под ногами
+    for (const m of G.mobs) if (!m.dead) test(m, 'mob', m.x, m.y, m.t === 'b' ? 20 : 14, m.t === 'd' ? (armed ? 120 : 0) : (armed ? 330 : 45));
     const c0 = Math.max(0, ((p.x - R) / GC) | 0), c1 = Math.min(GN - 1, ((p.x + R) / GC) | 0), r0 = Math.max(0, ((p.y - R) / GC) | 0), r1 = Math.min(GN - 1, ((p.y + R) / GC) | 0);
     for (let j = r0; j <= r1; j++) for (let i = c0; i <= c1; i++) {
       const l = G.grid[j * GN + i];
@@ -142,18 +146,19 @@
     const tx = (p.x / T) | 0, ty = (p.y / T) | 0;
     for (let j = ty - 3; j <= ty + 3; j++) for (let i = tx - 3; i <= tx + 3; i++) {
       const s = G.cells[j * WT + i];
-      if (s && stOk && (s.k === 'chest' || s.k === 'workbench' || s.k === 'campfire') && Math.hypot(s.x - p.x, s.y - p.y) < 76) test(s, 'st', s.x, s.y, 26, 0);
+      if (s && stOk && (s.k === 'chest' || s.k === 'workbench' || s.k === 'campfire' || s.k === 'bed') && Math.hypot(s.x - p.x, s.y - p.y) < 76) test(s, 'st', s.x, s.y, 26, 0);
     }
   }
   function nearWater() {
     const p = G.p, c = Math.cos(p.face), s = Math.sin(p.face);
     return G.isWater(p.x + c * 34, p.y + s * 34) || G.isWater(p.x + 30, p.y) || G.isWater(p.x - 30, p.y) || G.isWater(p.x, p.y + 30) || G.isWater(p.x, p.y - 30);
   }
+  function bowSlot() { const inv = G.p.inv; for (let i = 0; i < inv.length; i++) if (inv[i] && inv[i].id === 'bow') return i; return -1; }
   // иконка для кнопки действия
   G.actIcon = function () {
     const p = G.p, t = G.tgt;
     if (t.ref && t.d <= 120) {
-      if (t.type === 'mob') { const s = bestTool('weapon'); return s >= 0 ? p.inv[s].id : 'ui_fist'; }
+      if (t.type === 'mob') { if (t.d > 46 && bowSlot() >= 0 && cnt('arrow') > 0) return 'bow'; const s = bestTool('weapon'); return s >= 0 ? p.inv[s].id : 'ui_fist'; }
       if (t.type === 'res' && t.ref.K.tool) { const s = bestTool(t.ref.K.tool); return s >= 0 ? p.inv[s].id : 'ui_fist'; }
       return 'ui_hand';
     }
@@ -166,26 +171,70 @@
     if (t.type === 'st') {
       if (!pressed) return;
       G.input.act = false;
-      if (t.ref.k === 'chest') G.ui.openChest(t.ref); else G.ui.openCraft();
+      if (t.ref.k === 'chest') G.ui.openChest(t.ref); else if (t.ref.k === 'bed') sleep(); else G.ui.openCraft();
       return;
     }
     p.face = Math.atan2(t.y - p.y, t.x - p.x);
     p.act = { type: t.type, ref: t.ref };
-    if (t.type === 'res' && !t.ref.K.tool) { p.atkDur = 0.26; p.toolSlot = -1; }
+    if (t.type === 'res' && !t.ref.K.tool) { p.atkDur = 0.3; p.toolSlot = -1; p.ak = 'grab'; }
     else {
       p.toolSlot = bestTool(t.type === 'mob' ? 'weapon' : t.ref.K.tool);
-      p.hand = p.toolSlot >= 0 ? p.inv[p.toolSlot].id : null;
-      p.atkDur = 0.34;
+      const id = p.hand = p.toolSlot >= 0 ? p.inv[p.toolSlot].id : null;
+      // у каждого оружия свой удар: рубящий сверху, выпад копьём, взмах мачете, удар кулаком
+      p.ak = !id ? 'punch' : id === 'spear' ? 'thrust' : id === 'machete' ? 'slash' : 'chop';
+      p.atkDur = p.ak === 'chop' ? 0.44 : p.ak === 'punch' ? 0.3 : 0.36;
+      if (p.ak === 'punch') p.pk = -p.pk;
     }
     p.atk = 0.001; p.hitDone = false;
   }
+  function startShot() {
+    const p = G.p, t = G.tgt;
+    p.face = Math.atan2(t.y - p.y, t.x - p.x);
+    p.act = { type: 'shot', ref: t.ref }; p.toolSlot = bowSlot(); p.hand = 'bow'; p.ak = 'bow'; p.atkDur = 0.56; p.atk = 0.001; p.hitDone = false;
+  }
+  function sleep() {
+    const p = G.p;
+    if (G.night < 0.4) { G.floater(p.x, p.y, 'Спать можно только ночью', '#ff8a7a'); G.sfx('deny'); return; }
+    for (const m of G.mobs) if (m.t !== 'd' && !m.dead && Math.hypot(m.x - p.x, m.y - p.y) < 520) { G.floater(p.x, p.y, 'Рядом враги — не уснуть', '#ff8a7a'); G.sfx('deny'); return; }
+    G.time = (Math.floor(G.time / DAYLEN) + 1) * DAYLEN + DAYLEN * 0.03;
+    p.hp = Math.min(p.maxhp, p.hp + 50); p.food = Math.max(5, p.food - 18); p.water = Math.max(5, p.water - 18);
+    G.mobs.length = 0; G.stats.slept++; G.sleepFx = 1; G.uiDirty = true;
+    G.floater(p.x, p.y - 20, 'Ты выспался', '#9dff9a'); G.save();
+  }
+  // шум от работы привлекает ближайших мертвецов
+  function noise(r) {
+    const p = G.p; if (p.sneak) r *= 0.45;
+    for (const m of G.mobs) if (m.t !== 'd' && !m.dead && m.st === 'idle' && Math.random() < 0.5 && Math.hypot(m.x - p.x, m.y - p.y) < r) m.st = 'chase';
+  }
+  G.quickUse = function (what) {
+    const p = G.p; if (p.dead || p.atk > 0 || G.paused) return;
+    let best = -1, bv = 0;
+    for (let i = 0; i < p.inv.length; i++) {
+      const s = p.inv[i]; if (!s) continue; const it = G.ITEMS[s.id]; let v = 0;
+      if (what === 'heal') v = it.hp > 0 && !it.food ? it.hp : 0;
+      else { const needW = 100 - p.water, needF = 100 - p.food; v = Math.min(it.water || 0, needW) + Math.min(it.food || 0, needF) + (it.hp < 0 ? it.hp * 3 : 0); }
+      if (v > bv) { bv = v; best = i; }
+    }
+    if (best < 0) { G.floater(p.x, p.y, what === 'heal' ? 'Нет бинтов' : (p.food > 95 && p.water > 95 ? 'Ты сыт' : 'Нет еды и воды'), '#ff8a7a'); G.sfx('deny'); return; }
+    G.floater(p.x, p.y, G.ITEMS[p.inv[best].id].n, '#9dff9a');
+    G.useItem(best); p.atk = 0.001; p.atkDur = 0.6; p.ak = 'eat'; p.hitDone = true; p.act = null;
+  };
   const LOOT = [['canned', 1, 2], ['cloth', 1, 3], ['rope', 1, 2], ['bandage', 1, 2], ['bar', 1, 2], ['plank', 2, 4], ['flask_full', 1, 1]];
   function applyAction() {
     const p = G.p, a = p.act; if (!a) return;
+    if (a.type === 'shot') {
+      if (cnt('arrow') <= 0 || p.toolSlot < 0) return;
+      G.Inv.remove(p.inv, 'arrow', 1);
+      const o = a.ref, an = Math.atan2(o.y - p.y, o.x - p.x);
+      G.shots.push({ x: p.x + Math.cos(an) * 16, y: p.y + Math.sin(an) * 16, vx: Math.cos(an) * 760, vy: Math.sin(an) * 760, life: 0.55, dmg: G.ITEMS.bow.dmg });
+      G.sfx('bow'); useTool(); return;
+    }
     const o = a.ref, tool = p.toolSlot >= 0 && p.inv[p.toolSlot] ? G.ITEMS[p.inv[p.toolSlot].id] : null;
     if (a.type === 'mob') {
       if (o.dead || Math.hypot(o.x - p.x, o.y - p.y) > REACH + 60) return;
-      const crit = Math.random() < 0.15; hurtMob(o, (tool ? tool.dmg : 5) * (crit ? 2 : 1), crit); useTool(); return;
+      const stealth = o.t !== 'd' && o.st !== 'chase', crit = stealth || Math.random() < 0.15;
+      if (stealth) G.floater(o.x, o.y - 26, 'Скрытный удар', '#ffb347');
+      hurtMob(o, (tool ? tool.dmg : 5) * (stealth ? 3 : crit ? 2 : 1), crit); useTool(); return;
     }
     if (!o.a) return;
     const K = o.K;
@@ -207,7 +256,7 @@
         G.sfx('chop'); burst(o.x, o.y - 14, 7, ['#c9a36b', '#8a5e36', '#e8cf9a'], 120, 320);
         for (let i = 0; i < 4; i++) part(o.x + (Math.random() - 0.5) * 70, o.y - 70 - Math.random() * 70, (Math.random() - 0.5) * 30, 40 + Math.random() * 40, 1 + Math.random() * 0.6, 3.5, o.k === 'birch' ? '#d9c653' : '#4d8a3c', 0);
       } else { G.sfx('mine'); burst(o.x, o.y - 20, 8, ['#c9ced4', '#8e959e', K.need ? '#c06a2c' : '#6d747c'], 140, 380); }
-      G.shake = Math.max(G.shake, 0.12);
+      G.shake = Math.max(G.shake, 0.12); noise(430);
       if (o.hp <= 0) { got += K.bonus; o.a = false; o.t = G.time + K.re; o.fall = 0; addXp(K.xp); }
       give(K.drop, got, o.x, o.y); useTool();
     }
@@ -238,9 +287,9 @@
   function hurtPlayer(d) {
     const p = G.p; if (p.dead) return;
     if (p.armor) d *= 1 - G.ITEMS[p.armor].armor;
-    p.hp -= d; p.hurt = 0.4; G.shake = Math.max(G.shake, 0.4); G.hitstop = 0.06; G.sfx('hurt'); G.uiDirty = true;
+    p.hp -= d; p.hurt = 0.4; G.punch = 1; G.shake = Math.max(G.shake, 0.4); G.hitstop = 0.06; G.sfx('hurt'); G.uiDirty = true;
     burst(p.x, p.y, 10, ['#8a1414', '#5a0c0c', '#a01c1c'], 150, 0); decal(p.x + (Math.random() - 0.5) * 20, p.y + (Math.random() - 0.5) * 20, 7 + Math.random() * 6);
-    if (p.hp <= 0) { p.hp = 0; p.dead = true; G.input.act = false; G.ui.showDeath(); }
+    if (p.hp <= 0) { p.hp = 0; p.dead = true; p.deadT = 0; p.sneak = false; G.input.act = false; G.ui.showDeath(); }
   }
   G.respawn = function () {
     const p = G.p, s = G.spawnPoint();
@@ -255,26 +304,30 @@
     const t = G.tgt, ws = bestTool('weapon');
     const reach = REACH + (t.type === 'mob' && ws >= 0 ? (G.ITEMS[p.inv[ws].id].reach || 0) : 0);
     const inReach = t.ref && t.d <= reach;
+    const canShoot = t.ref && t.type === 'mob' && t.d > 46 && t.d <= 350 && bowSlot() >= 0 && cnt('arrow') > 0;
     let mx = I.mx, my = I.my; const ml = Math.hypot(mx, my);
     if (ml < 0.15) {
       mx = my = 0;
-      if (I.act && !G.build && t.ref && !inReach && p.atk <= 0) { const dx = t.x - p.x, dy = t.y - p.y, l = Math.hypot(dx, dy) || 1; mx = dx / l; my = dy / l; }
+      if (I.act && !G.build && t.ref && !inReach && !canShoot && p.atk <= 0) { const dx = t.x - p.x, dy = t.y - p.y, l = Math.hypot(dx, dy) || 1; mx = dx / l; my = dy / l; }
     } else if (ml > 1) { mx /= ml; my /= ml; }
     if (mx || my) {
-      const sp = SPEED * (p.atk > 0 ? 0.3 : 1) * (p.food <= 0 || p.water <= 0 ? 0.75 : 1);
+      const sp = SPEED * (p.atk > 0 ? 0.3 : 1) * (p.food <= 0 || p.water <= 0 ? 0.75 : 1) * (p.sneak ? 0.48 : 1);
       move(p, mx * sp * dt, my * sp * dt, PR, true);
-      p.walk += dt * 12 * Math.hypot(mx, my);
+      p.walk += dt * (p.sneak ? 8 : 12) * Math.hypot(mx, my);
       if (p.atk <= 0) p.face = G.angLerp(p.face, Math.atan2(my, mx), Math.min(1, dt * 14));
       p.moving = true;
-      if (Math.random() < dt * 6) part(p.x, p.y + 8, (Math.random() - 0.5) * 20, -8, 0.4, 3, 'rgba(190,170,130,.5)', 0);
+      const si = Math.floor(p.walk / Math.PI);   // шаг: звук и пыль в момент касания земли
+      if (si !== p.stepI) { p.stepI = si; if (!p.sneak) G.sfx('step'); part(p.x - Math.cos(p.face) * 8, p.y + 2, (Math.random() - 0.5) * 16, -10, 0.45, 3.5, 'rgba(170,155,125,.45)', 0); }
     } else p.moving = false;
+    p.mv += ((p.moving ? 1 : 0) - p.mv) * Math.min(1, dt * 12);
     p.sy = p.y;
     if (p.atk > 0) {
       p.atk += dt / p.atkDur;
       if (!p.hitDone && p.atk >= 0.5) { p.hitDone = true; applyAction(); }
       if (p.atk >= 1) p.atk = 0;
     } else if (I.act && !G.build) {
-      if (inReach) startAction(I.actPressed);
+      if (canShoot) startShot();
+      else if (inReach) startAction(I.actPressed);
       else if ((!t.ref || t.d > 110) && nearWater() && I.actPressed) drink();
     }
     I.actPressed = false;
@@ -288,12 +341,13 @@
   /* ---------- Мобы ---------- */
   const MOB = { z: { hp: 36, sp: 96, dmg: 11, xp: 12 }, r: { hp: 24, sp: 168, dmg: 8, xp: 16 }, b: { hp: 120, sp: 66, dmg: 22, xp: 40 }, d: { hp: 22, sp: 178, dmg: 0, xp: 8 } };
   function newMob(t, x, y) {
-    return { dk: 3, t, x, y, sy: y, face: Math.random() * 6.28, walk: 0, hp: MOB[t].hp, st: 'idle', tt: Math.random() * 3, gx: x, gy: y, atk: 0, cd: 0, hurt: 0, dead: 0, kx: 0, ky: 0, moving: false, hunt: false };
+    return { dk: 3, t, x, y, sy: y, face: Math.random() * 6.28, walk: 0, hp: MOB[t].hp, st: 'idle', tt: Math.random() * 3, gx: x, gy: y, atk: 0, cd: 0, hurt: 0, dead: 0, kx: 0, ky: 0, moving: false, hunt: false, mv: 0, v: (Math.random() * 3) | 0, bl: 0, sg: 0, spT: 0 };
   }
   G.newMob = newMob;
-  function hurtMob(m, d, crit) {
-    const p = G.p; m.hp -= d; m.hurt = 0.25; G.sfx('hit'); G.shake = Math.max(G.shake, crit ? 0.3 : 0.16); G.hitstop = crit ? 0.07 : 0.04;
-    const a = Math.atan2(m.y - p.y, m.x - p.x), kb = m.t === 'b' ? 110 : 280; m.kx = Math.cos(a) * kb; m.ky = Math.sin(a) * kb;
+  function hurtMob(m, d, crit, env) {
+    const p = G.p; m.hp -= d; m.hurt = 0.3; G.sfx('hit');
+    if (!env) { G.shake = Math.max(G.shake, crit ? 0.3 : 0.16); G.hitstop = crit ? 0.07 : 0.04; G.punch = crit ? 1 : 0.6; }
+    const a = Math.atan2(m.y - p.y, m.x - p.x), kb = env ? 0 : m.t === 'b' ? 110 : 280; m.kx = Math.cos(a) * kb; m.ky = Math.sin(a) * kb;
     for (let i = 0; i < 9; i++) { const v = 90 + Math.random() * 170, aa = a + (Math.random() - 0.5) * 1.1; part(m.x, m.y, Math.cos(aa) * v, Math.sin(aa) * v, 0.3 + Math.random() * 0.3, 2 + Math.random() * 2.5, ['#7a1010', '#4a0808', '#961818'][i % 3], 0); }
     if (Math.random() < 0.6) decal(m.x + Math.cos(a) * 18, m.y + Math.sin(a) * 18, 5 + Math.random() * 6);
     G.floater(m.x, m.y, (crit ? 'КРИТ -' : '-') + d, crit ? '#ffb347' : '#e8d8d0');
@@ -335,7 +389,7 @@
         if (m.st !== 'flee' && d < 210 && !p.dead) { m.st = 'flee'; m.tt = 2.2; }
         if (m.st === 'flee') { vx = -dx / d; vy = -dy / d; sp = M.sp; m.tt -= dt; if (m.tt <= 0) { m.st = 'idle'; m.tt = 1; } }
       } else {
-        const ag = night ? 470 : 330;
+        const ag = (night ? 470 : 330) * (p.sneak && !m.hunt ? 0.42 : 1);
         if (!night) m.hunt = false;
         if (m.st !== 'chase' && d < ag && !p.dead) { m.st = 'chase'; if (d < 520) G.sfx('growl'); }
         if (m.st === 'chase') {
@@ -359,10 +413,31 @@
         const gx = m.gx - m.x, gy = m.gy - m.y, gd = Math.hypot(gx, gy);
         if (gd > 6) { vx = gx / gd; vy = gy / gd; sp = m.t === 'd' ? 42 : 30; }
       }
-      m.moving = sp > 1;
+      // колья: ранят и замедляют
+      const cs = G.cells[((m.y / T) | 0) * WT + ((m.x / T) | 0)];
+      if (cs && cs.k === 'spikes') {
+        sp *= 0.45; m.spT -= dt;
+        if (m.spT <= 0) { m.spT = 0.5; hurtMob(m, 8, false, true); cs.hp -= 3; if (cs.hp <= 0) { G.removeStruct(cs.tx, cs.ty); burst(cs.x, cs.y, 10, ['#7a5d3c', '#3a2a18'], 120, 300); } if (m.dead) continue; }
+      }
+      if (m.hurt > 0) sp *= 0.35;
+      m.moving = sp > 1; m.mv += ((m.moving ? 1 : 0) - m.mv) * Math.min(1, dt * 10);
+      const ox0 = m.x, oy0 = m.y;
       if (m.moving || m.st === 'chase') m.face = G.angLerp(m.face, Math.atan2(vy, vx), Math.min(1, dt * 9));
       if (m.moving) m.walk += dt * (sp > 110 ? 16 : 9);
       move(m, (vx * sp + m.kx) * dt, (vy * sp + m.ky) * dt, m.t === 'b' ? 17 : 13, false);
+      // осада: упёршись в стену или дверь на пути к игроку, мертвец ломает её
+      if (m.st === 'chase' && sp > 20 && Math.hypot(m.x - ox0, m.y - oy0) < sp * dt * 0.35) m.bl += dt; else m.bl = Math.max(0, m.bl - dt * 2);
+      if (m.bl > 0.5) {
+        const s = G.cells[(((m.y + vy * 36) / T) | 0) * WT + (((m.x + vx * 36) / T) | 0)];
+        if (s && (s.k === 'wall' || s.k === 'door')) {
+          m.sg -= dt;
+          if (m.sg <= 0) {
+            m.sg = 0.9; if (m.atk <= 0) m.atk = 0.3;
+            s.hp -= M.dmg * 0.8; s.hit = 0.3; G.sfx('chop'); burst(s.x, s.y, 6, ['#7a5a38', '#3a2816', '#c9a36b'], 120, 300);
+            if (s.hp <= 0) { G.removeStruct(s.tx, s.ty); burst(s.x, s.y, 18, ['#7a5a38', '#3a2816', '#c9a36b'], 190, 320); G.floater(s.x, s.y, s.k === 'door' ? 'Дверь выбита!' : 'Стена разрушена!', '#ff6a5a'); G.shake = Math.max(G.shake, 0.3); m.bl = 0; }
+          }
+        }
+      }
       const kd = Math.pow(0.002, dt); m.kx *= kd; m.ky *= kd;
       if (m.hurt > 0) m.hurt -= dt;
       m.sy = m.y;
@@ -393,6 +468,16 @@
     const p = G.p, k = Math.min(1, dt * 6);
     G.cam.x += (p.x + Math.cos(p.face) * 30 * (p.moving ? 1 : 0) - G.cam.x) * k; G.cam.y += (p.y - G.cam.y) * k;
     if (G.shake > 0) G.shake -= dt;
+    if (G.punch > 0) G.punch -= dt * 7;
+    const sh = G.shots;
+    for (let i = sh.length - 1; i >= 0; i--) {
+      const q = sh[i]; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; let hit = q.life <= 0;
+      for (const m of G.mobs) if (!m.dead && Math.abs(m.x - q.x) < 17 && Math.abs(m.y - q.y) < 17) {
+        const st = m.st !== 'chase' && m.st !== 'flee'; if (st) G.floater(m.x, m.y - 26, 'Выстрел из засады', '#ffb347');
+        hurtMob(m, q.dmg * (st ? 2 : 1), st); hit = true; break;
+      }
+      if (hit) sh.splice(i, 1);
+    }
     // возобновление ресурсов (по кусочку за кадр)
     const objs = G.objs;
     for (let i = 0; i < 40; i++) {
@@ -454,11 +539,16 @@
       burst(cx, cy, 12, ['#c9a36b', '#8a5e36'], 140, 300); G.sfx('build'); b.ok = true; return;
     }
     const def = b.def;
+    { const s = G.cells[ty * WT + tx];
+      if (s && s.hp < s.max) {   // ремонт повреждённой постройки
+        if (cnt('wood') < 1) { G.floater(p.x, p.y, 'Нужна древесина', '#ff8a7a'); G.sfx('deny'); return; }
+        G.Inv.remove(p.inv, 'wood', 1); s.hp = s.max; G.floater(cx, cy, 'Отремонтировано', '#9dff9a'); G.sfx('build'); b.ok = true; G.uiDirty = true; return;
+      } }
     if (!G.Inv.has(p.inv, def.cost)) { G.floater(p.x, p.y, 'Не хватает ресурсов', '#ff8a7a'); G.sfx('deny'); return; }
-    if (def.k !== 'floor' && Math.abs(cx - p.x) < 32 + PR && Math.abs(cy - p.y) < 32 + PR) { G.floater(p.x, p.y, 'Отойди с клетки', '#ff8a7a'); G.sfx('deny'); return; }
+    if (def.k !== 'floor' && def.k !== 'spikes' && Math.abs(cx - p.x) < 32 + PR && Math.abs(cy - p.y) < 32 + PR) { G.floater(p.x, p.y, 'Отойди с клетки', '#ff8a7a'); G.sfx('deny'); return; }
     if (!G.canBuild(def.k, tx, ty)) { G.floater(cx, cy, 'Здесь нельзя', '#ff8a7a'); G.sfx('deny'); return; }
     G.Inv.pay(p.inv, def.cost); G.addStruct(def.k, tx, ty);
-    G.stats.built++; if (def.k === 'workbench') G.stats.workbench++;
+    G.stats.built++; if (def.k === 'workbench') G.stats.workbench++; if (def.k === 'spikes') G.stats.spikes = (G.stats.spikes || 0) + 1;
     burst(cx, cy, 12, ['#e8cf9a', '#c9a36b', '#fff'], 120, 260); G.sfx('build'); addXp(4);
     b.ok = true; G.uiDirty = true;
   };
@@ -504,7 +594,7 @@
   }
   const motes = [];
   G.render = function (dt) {
-    const ctx = G.ctx, V = G.view, z = V.zoom, p = G.p, S = G.SPR, CH = G.CH;
+    const ctx = G.ctx, V = G.view, z = V.zoom * (1 + Math.max(0, G.punch) * 0.022), p = G.p, S = G.SPR, CH = G.CH;
     const hw = V.w / 2 / z, hh = V.h / 2 / z;
     let cx = clamp(G.cam.x, hw, W - hw), cy = clamp(G.cam.y, hh, W - hh);
     if (G.shake > 0) { cx += (Math.random() - 0.5) * G.shake * 30; cy += (Math.random() - 0.5) * G.shake * 30; }
@@ -585,7 +675,7 @@
     }
     for (let ty = ty0; ty <= Math.min(WT - 1, ty1 + 1); ty++) for (let tx = tx0; tx <= tx1; tx++) { const s = G.cells[ty * WT + tx]; if (s) list.push(s); }
     for (const m of G.mobs) if (m.x > left - 40 && m.x < right + 40 && m.y > top - 40 && m.y < bot + 40) list.push(m);
-    if (!p.dead) list.push(p);
+    list.push(p);
     list.sort((a, c) => a.sy - c.sy);
     // длинные тени деревьев, направление зависит от времени суток
     const nt0 = G.night, sunA = (1 - nt0) * (1 - G.rain * 0.6) * 0.34;
@@ -634,8 +724,14 @@
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         if (fade) ctx.globalAlpha = 0.5;
         const x0 = SX(o.tx * T), y0 = SY(o.ty * T - sp.ay);
-        ctx.drawImage(sp.c, x0, y0, SX(o.tx * T + sp.w) - x0, SY(o.ty * T - sp.ay + sp.h) - y0);
+        const dw = SX(o.tx * T + sp.w) - x0, dh = SY(o.ty * T - sp.ay + sp.h) - y0;
+        ctx.drawImage(sp.c, x0, y0, dw, dh);
         if (fade) ctx.globalAlpha = 1;
+        if (o.hp < o.max) {   // повреждения: затемнение и полоска прочности
+          ctx.fillStyle = 'rgba(0,0,0,' + 0.5 * (1 - o.hp / o.max) + ')'; ctx.fillRect(x0, y0, dw, dh);
+          ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 + dw * 0.15, y0 + dh * 0.4, dw * 0.7, 5 * z);
+          ctx.fillStyle = '#d39a3a'; ctx.fillRect(x0 + dw * 0.15 + z, y0 + dh * 0.4 + z, (dw * 0.7 - 2 * z) * Math.max(0, o.hp / o.max), 3 * z);
+        }
         if (o.k === 'campfire') {
           const f = tm * 9 + o.tx * 3, h = 30 + Math.sin(f) * 4 + Math.sin(f * 2.3) * 3, sw = Math.sin(f * 0.7) * 3;
           ctx.setTransform(z, 0, 0, z, SX(o.x), SY(o.y + 6));
@@ -643,7 +739,8 @@
         }
       } else if (o.dk === 2) {
         ctx.setTransform(z * 1.5, 0, 0, z * 1.5, SX(o.x), SY(o.y));
-        G.drawHuman(ctx, o, 'p', o.hand, o.moving);
+        if (o.dead) { o.deadT += dt; ctx.rotate(Math.min(1, o.deadT * 3) * 1.5 * (Math.cos(o.face) < 0 ? -1 : 1)); ctx.globalAlpha = Math.max(0.35, 1 - o.deadT * 0.3); }
+        G.drawHuman(ctx, o, 'p', o.hand, o.moving); ctx.globalAlpha = 1;
       } else {
         if (o.dead) ctx.globalAlpha = Math.max(0, Math.min(0.85, (6 - o.dead) / 2));
         const ms = z * (o.t === 'b' ? 1.6 : o.t === 'd' ? 1.35 : 1.46);
@@ -657,6 +754,11 @@
     ctx.setTransform(z, 0, 0, z, -left * z, -top * z);
     const ps = G.parts;
     for (let i = 0; i < ps.length; i++) { const q = ps[i]; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.6); if (q.ring) { const rr = (1 - q.life / q.max) * q.s; ctx.strokeStyle = q.c; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.5, 0, 0, 6.283); ctx.stroke(); } else { ctx.fillStyle = q.c; ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s); } }
+    // стрелы в полёте
+    if (G.shots.length) {
+      ctx.lineCap = 'round';
+      for (const q of G.shots) { const l = 0.026; ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(q.x, q.y - 34); ctx.lineTo(q.x - q.vx * l, q.y - 34 - q.vy * l * 0.5); ctx.stroke(); ctx.strokeStyle = '#d8ccb0'; ctx.lineWidth = 1.2; ctx.stroke(); }
+    }
     // полоски здоровья мобов
     ctx.globalAlpha = 1;
     for (const m of G.mobs) {
@@ -744,6 +846,7 @@
       if (G.flash > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(225,235,255,' + G.flash * 0.34 + ')'; ctx.fillRect(0, 0, V.w, V.h); G.flash -= dt * 2.6 + 0.001; }
       ctx.setTransform(z, 0, 0, z, -left * z, -top * z);
     }
+    if (G.sleepFx > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, G.sleepFx * 1.3) + ')'; ctx.fillRect(0, 0, V.w, V.h); G.sleepFx -= dt * 0.6; ctx.setTransform(z, 0, 0, z, -left * z, -top * z); }
     // всплывающий текст
     const fl = G.floaters;
     if (fl.length) {

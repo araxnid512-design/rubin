@@ -25,7 +25,7 @@
     if (!G.p || G.p.dead) return;
     const p = G.p, res = [], st = [], fl = [];
     for (const o of G.objs) { if (!o.a) res.push(o.i, 0, Math.round(o.t - G.time)); else if (o.hp < (o.K.hp || 1)) res.push(o.i, o.hp, 0); }
-    for (let i = 0; i < G.cells.length; i++) { const s = G.cells[i]; if (s) st.push(s.inv ? [s.k, s.tx, s.ty, s.inv] : [s.k, s.tx, s.ty]); if (G.floors[i]) fl.push(i); }
+    for (let i = 0; i < G.cells.length; i++) { const s = G.cells[i]; if (s) st.push([s.k, s.tx, s.ty, s.inv || 0, Math.round(s.hp)]); if (G.floors[i]) fl.push(i); }
     const d = { v: 1, time: G.time, quest: G.quest, stats: G.stats, res, st, fl,
       p: { x: p.x, y: p.y, hp: p.hp, maxhp: p.maxhp, food: p.food, water: p.water, xp: p.xp, lvl: p.lvl, inv: p.inv, armor: p.armor, hand: p.hand } };
     try { localStorage.setItem(G.SAVE_KEY, JSON.stringify(d)); } catch (e) { }
@@ -38,7 +38,7 @@
       G.newGame();
       G.cells.fill(null); G.floors.fill(0); G.fires.length = 0;
       for (const i of d.fl) G.floors[i] = 1;
-      for (const s of d.st) G.addStruct(s[0], s[1], s[2], s[3] ? { inv: s[3] } : null);
+      for (const s of d.st) G.addStruct(s[0], s[1], s[2], { inv: s[3] || null, hp: s[4] });
       G.time = d.time; G.day = Math.floor(G.time / G.DAYLEN) + 1; G.quest = d.quest; Object.assign(G.stats, d.stats);
       for (let i = 0; i < d.res.length; i += 3) {
         const o = G.objs[d.res[i]]; if (!o) continue;

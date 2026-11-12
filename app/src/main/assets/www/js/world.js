@@ -250,13 +250,15 @@
   };
 
   /* ---------- Постройки ---------- */
+  const SHP = { wall: 90, door: 60, spikes: 45 };
   const SOLID = { wall: 1, door: 1, chest: 1, workbench: 1, bed: 1, campfire: 1 };
   G.addStruct = function (k, tx, ty, extra) {
     // декоративная трава под постройкой убирается
     { const cx = (tx + 0.5) * T, cy = (ty + 0.5) * T, gx = (cx / GC) | 0, gy = (cy / GC) | 0;
       for (let j = gy - 1; j <= gy + 1; j++) for (let i = gx - 1; i <= gx + 1; i++) { if (i < 0 || j < 0 || i >= GN || j >= GN) continue; for (const n of grid[j * GN + i]) { const o = objs[n]; if (o.K.deco && o.a && Math.abs(o.x - cx) < 40 && Math.abs(o.y - cy) < 44) { o.a = false; o.t = 1e12; } } } }
     if (k === 'floor') { G.floors[ty * WT + tx] = 1; return null; }
-    const s = { dk: 1, k, tx, ty, x: (tx + 0.5) * T, y: (ty + 0.5) * T, sy: (ty + 1) * T - (k === 'campfire' ? 26 : 0), solid: !!SOLID[k] };
+    const s = { dk: 1, k, tx, ty, x: (tx + 0.5) * T, y: (ty + 0.5) * T, sy: (ty + 1) * T - (k === 'campfire' ? 26 : k === 'spikes' ? 30 : 0), solid: !!SOLID[k] };
+    s.max = SHP[k] || 50; s.hp = extra && extra.hp ? extra.hp : s.max;
     if (k === 'chest') s.inv = (extra && extra.inv) || new Array(12).fill(null);
     if (k === 'campfire') G.fires.push(s);
     G.cells[ty * WT + tx] = s;

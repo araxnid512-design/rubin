@@ -60,6 +60,8 @@ G.ITEMS = {
   iron_hatchet: { n: 'Железный топор', d: 'Валит дерево за пару ударов.', st: 1, tool: 'axe', pow: 4, dmg: 14, dur: 160 },
   iron_pickaxe: { n: 'Железная кирка', d: 'Крошит любую породу.', st: 1, tool: 'pick', pow: 4, dmg: 12, dur: 160 },
   machete: { n: 'Мачете', d: 'Тяжёлый клинок. Опасное оружие.', st: 1, tool: 'weapon', pow: 1, dmg: 28, dur: 130, reach: 6 },
+  bow:     { n: 'Лук', d: 'Бьёт издалека, пока враг не подошёл. Нужны стрелы.', st: 1, tool: 'bow', dmg: 15, dur: 70 },
+  arrow:   { n: 'Стрела', d: 'Боеприпас для лука.', st: 40 },
   jacket:  { n: 'Куртка из шкур', d: 'Снижает получаемый урон на 30%.', st: 1, armor: 0.3 }
 };
 
@@ -69,6 +71,8 @@ G.RECIPES = [
   { out: 'pickaxe', n: 1, cost: { stick: 2, stone: 4, fiber: 2 } },
   { out: 'spear', n: 1, cost: { stick: 3, stone: 2, fiber: 2 } },
   { out: 'rope', n: 1, cost: { fiber: 3 } },
+  { out: 'bow', n: 1, cost: { stick: 3, rope: 2 } },
+  { out: 'arrow', n: 4, cost: { stick: 1, stone: 1 } },
   { out: 'bandage', n: 1, cost: { fiber: 4 } },
   { out: 'flask_empty', n: 1, cost: { hide: 1, rope: 1 } },
   { out: 'meat_cooked', n: 1, cost: { meat_raw: 1 }, st: 'campfire' },
@@ -85,6 +89,7 @@ G.BUILD = [
   { k: 'floor', n: 'Пол', cost: { wood: 3 } },
   { k: 'wall', n: 'Стена', cost: { wood: 5 } },
   { k: 'door', n: 'Дверь', cost: { wood: 4, rope: 1 } },
+  { k: 'spikes', n: 'Колья', cost: { wood: 3, stick: 3 } },
   { k: 'campfire', n: 'Костёр', cost: { wood: 4, stone: 6 } },
   { k: 'chest', n: 'Сундук', cost: { wood: 10 } },
   { k: 'workbench', n: 'Верстак', cost: { wood: 12, stone: 6 } }

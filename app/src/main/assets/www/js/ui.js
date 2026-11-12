@@ -59,10 +59,26 @@
     else if (e.code === 'KeyI' || e.code === 'Tab') { e.preventDefault(); panel ? ui.close() : ui.openInv(); }
     else if (e.code === 'KeyC') panel ? ui.close() : ui.openCraft();
     else if (e.code === 'KeyB') ui.toggleBuild();
+    else if (e.code === 'KeyQ') toggleSneak();
+    else if (e.code === 'KeyH') G.quickUse('heal');
+    else if (e.code === 'KeyF') G.quickUse('food');
     else if (e.code === 'Escape') G.onBack();
   });
   addEventListener('keyup', e => { keys[e.code] = 0; keyMove(); if (e.code === 'Space' || e.code === 'KeyE') I.act = false; });
 
+  const sneakBtn = $('btn-sneak');
+  function toggleSneak() { const p = G.p; if (p.dead) return; p.sneak = !p.sneak; sneakBtn.classList.toggle('on', p.sneak); G.sfx('ui'); }
+  sneakBtn.addEventListener('click', toggleSneak);
+  const qHeal = $('q-heal'), qFood = $('q-food');
+  qHeal.addEventListener('click', () => { G.audioInit(); G.quickUse('heal'); });
+  qFood.addEventListener('click', () => { G.audioInit(); G.quickUse('food'); });
+  function refreshQuick() {
+    const inv = G.p.inv; let heal = 0, food = 0, fi = 'canned';
+    for (const s of inv) { if (!s) continue; const it = G.ITEMS[s.id]; if (it.hp > 0 && !it.food) heal += s.n; else if (it.food || it.water) { food += s.n; fi = s.id; } }
+    qHeal.firstChild.src = G.ICON.bandage; qHeal.lastChild.textContent = heal || ''; qHeal.classList.toggle('empty', !heal);
+    qFood.firstChild.src = G.ICON[fi]; qFood.lastChild.textContent = food || ''; qFood.classList.toggle('empty', !food);
+    $('sneak-ico').src = G.ICON.ui_sneak; sneakBtn.classList.toggle('on', !!G.p.sneak);
+  }
   /* ---------- HUD ---------- */
   const bHp = $('b-hp'), bFood = $('b-food'), bWater = $('b-water'), tHp = $('t-hp'), lvlN = $('lvl-n'), xpRing = $('xp-ring');
   const questT = $('quest-t'), clock = $('clock'), actIco = $('act-ico'), fpsEl = $('fps'), hurtEl = $('hurt');
@@ -74,6 +90,13 @@
     const h = p.dead ? 0.9 : Math.max(p.hurt > 0 ? p.hurt * 2.4 : 0, p.hp < p.maxhp * 0.3 ? 0.35 + Math.sin(G.time * 5) * 0.12 : 0);
     const hq = Math.round(h * 20) / 20;
     if (hq !== lastHurt) { lastHurt = hq; hurtEl.style.opacity = hq; }
+    if (panel === 'inv') {   // вращающаяся модель персонажа в рюкзаке
+      const dc = $('doll'); if (dc) {
+        const x = dc.getContext('2d'), t = performance.now() / 1000, ws = G.bestTool('weapon');
+        x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, dc.width, dc.height); x.setTransform(3, 0, 0, 3, dc.width / 2, dc.height - 22);
+        G.drawHuman(x, { face: Math.PI / 2 + Math.sin(t * 0.6) * 1.3, walk: 0, mv: 0, atk: 0, hurt: 0, x: 0, armor: p.armor }, 'p', ws >= 0 ? p.inv[ws].id : null, false);
+      }
+    }
     acc += dt;
     if (acc < 0.2) return; acc = 0;
     bHp.style.transform = 'scaleX(' + (p.hp / p.maxhp).toFixed(3) + ')';
@@ -95,7 +118,7 @@
     mm.fillStyle = '#fff'; mm.beginPath(); mm.arc(p.x * s, p.y * s, 4.5, 0, 7); mm.fill();
     mm.fillStyle = '#d42a40'; mm.beginPath(); mm.arc(p.x * s, p.y * s, 3, 0, 7); mm.fill();
     if (G.uiDirty) {
-      G.uiDirty = false;
+      G.uiDirty = false; refreshQuick();
       lvlN.textContent = p.lvl;
       $('lvl').style.setProperty('--xp', Math.round(100 * p.xp / G.xpNeed(p.lvl)) + '%');
       const q = G.QUESTS[G.quest], qt = q ? q.t : 'Ты освоился. Исследуй пустошь!';
@@ -134,7 +157,7 @@
     const p = G.p;
     if (selSlot >= 0 && !p.inv[selSlot]) selSlot = -1;
     $('inv-grid').innerHTML = gridHTML(p.inv, 'data-i', selSlot);
-    let h = '<div class="info">';
+    let h = '<div class="info"><canvas id="doll" width="216" height="264"></canvas>';
     if (selSlot >= 0) {
       const s = p.inv[selSlot], it = G.ITEMS[s.id], fx = [];
       if (it.food) fx.push('Сытость +' + it.food); if (it.water) fx.push('Вода +' + it.water);
@@ -233,7 +256,7 @@
   };
 
   /* ---------- Строительство ---------- */
-  const blist = $('build-list'), bdemo = $('build-demo'), SHORT = { wood: 'дер', stone: 'кам', rope: 'вер' };
+  const blist = $('build-list'), bdemo = $('build-demo'), SHORT = { wood: 'дер', stone: 'кам', rope: 'вер', stick: 'пал' };
   function refreshBuild() {
     const b = G.build; if (!b) return;
     let h = '';

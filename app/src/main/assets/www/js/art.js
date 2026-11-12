@@ -423,8 +423,21 @@
     });
   }
 
+  function spikes() {
+    return mk(T, T + 14, 0, 14, x => {
+      x.fillStyle = 'rgba(20,14,8,.35)'; x.fillRect(4, 22, 56, 50);
+      x.lineCap = 'round';
+      for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) {
+        const px = 10 + i * 15 + (j % 2) * 5, py = 34 + j * 17, t = (i + j) % 2 ? -5 : 5;
+        x.strokeStyle = '#1d140b'; x.lineWidth = 6; line(x, px, py, px + t, py - 20);
+        x.strokeStyle = '#7a5d3c'; x.lineWidth = 3.8; line(x, px, py, px + t, py - 20);
+        x.fillStyle = '#cdbf9e'; poly(x, [[px + t - 2.4, py - 18], [px + t * 1.25, py - 27], [px + t + 2.4, py - 18]]); x.fill();
+      }
+    });
+  }
   /* ---------- Инструмент в руке (локальные координаты, +X — от кисти) ---------- */
   G.drawTool = function (x, id) {
+    if (id === 'bow') { x.save(); x.translate(8, 0); G.drawBow(x, 0); x.restore(); return; }
     const iron = id.indexOf('iron') === 0 || id === 'machete';
     const metal = iron ? '#d3dbe1' : '#9aa0a7', metalD = iron ? '#7f8c96' : '#5f656d';
     x.lineCap = 'round';
@@ -569,6 +582,10 @@
     if (full) { x.fillStyle = '#58c1f2'; x.beginPath(); x.moveTo(32, 26); x.quadraticCurveTo(40, 36, 32, 42); x.quadraticCurveTo(24, 36, 32, 26); x.fill(); }
   }
   for (const id of ['hatchet', 'pickaxe', 'spear', 'iron_hatchet', 'iron_pickaxe', 'machete']) ICON[id] = toolIcon(id);
+  ICON.bow = x => { x.translate(26, 34); x.rotate(-0.6); x.scale(1.5, 1.5); G.drawBow(x, 5); };
+  ICON.arrow = x => { x.lineCap = 'round'; for (const o of [0, 9]) { x.strokeStyle = '#6e4b2a'; x.lineWidth = 3; line(x, 12 + o, 52 - o, 44 + o, 16 - o); x.fillStyle = '#b9c0c6'; poly(x, [[44 + o, 16 - o], [52 + o, 8 - o], [48 + o, 20 - o], [40 + o, 12 - o]]); x.fill(); x.strokeStyle = '#c9c2ac'; x.lineWidth = 2; line(x, 12 + o, 52 - o, 8 + o, 50 - o); line(x, 12 + o, 52 - o, 14 + o, 56 - o); } };
+  ICON.ui_sneak = x => { x.fillStyle = '#e8e0c8'; x.beginPath(); x.ellipse(32, 32, 24, 13, 0, 0, PI2); x.fill(); x.fillStyle = '#23201a'; circ(x, 32, 32, 10); x.fillStyle = '#e8e0c8'; circ(x, 28, 28, 3); };
+  ICON.spikes = x => { x.lineCap = 'round'; for (let i = 0; i < 5; i++) { const px = 10 + i * 11, t = (i % 2 ? -5 : 5); x.strokeStyle = '#2a1c10'; x.lineWidth = 7; line(x, px, 54, px + t, 14); x.strokeStyle = '#8a6a44'; x.lineWidth = 4.4; line(x, px, 54, px + t, 14); x.fillStyle = '#d8ccb0'; poly(x, [[px + t - 3, 18], [px + t, 6], [px + t + 3, 18]]); x.fill(); } };
 
   function iconURL(fn) {
     const c = document.createElement('canvas'); c.width = c.height = 96;
@@ -615,7 +632,7 @@
     S.car = [car(r, ['#7a8388', '#535b60', '#2e3336']), car(r, ['#7a5843', '#583b2b', '#2e1f18']), car(r, ['#5b6950', '#3e4a38', '#20281d'])];
     S.floor = [floor(0), floor(1)];
     S.wall = wall(); S.door = door(false); S.doorOpen = door(true);
-    S.chest = chest(); S.workbench = workbench(); S.bed = bed(); S.campfire = campfire();
+    S.spikes = spikes(); S.chest = chest(); S.workbench = workbench(); S.bed = bed(); S.campfire = campfire();
 
     const I = G.ICON = {};
     for (const id in ICON) I[id] = iconURL(ICON[id]);
@@ -631,113 +648,167 @@
   /* Модель в рост: скелет из суставов (вперёд, вбок, высота) поворачивается по направлению взгляда
      и проецируется в тот же ракурс 3/4, что деревья и стены. Конечности — капсулы с обводкой. */
   const STYLE = {
-    p: { skin: '#c9a27f', body: '#4a513b', body2: '#636b4f', arm: '#3f4533', leg: '#2b2e33', pack: '#33302a', hair: '#262019', boot: '#15130f', w: 1 },
-    z: { skin: '#8a9482', body: '#3a3833', body2: '#4f4c45', arm: '#7d8776', leg: '#2a2a27', pack: null, hair: '#20221c', boot: '#171613', w: 1 },
-    r: { skin: '#9c988c', body: '#522624', body2: '#6c3630', arm: '#8e8b7f', leg: '#25272a', pack: null, hair: '#1b1815', boot: '#171613', w: 0.92 },
-    b: { skin: '#7f8a75', body: '#3e372d', body2: '#585040', arm: '#747e6b', leg: '#2a2824', pack: null, hair: '#272b21', boot: '#171613', w: 1.38 }
+    p:  { skin: '#c9a27f', body: '#4a513b', body2: '#636b4f', arm: '#3f4533', leg: '#2b2e33', pack: '#33302a', hair: '#2d3128', boot: '#15130f', scarf: '#7a2a26', w: 1 },
+    pj: { skin: '#c9a27f', body: '#5a4230', body2: '#7a5a3e', arm: '#4e3927', leg: '#2b2e33', pack: '#33302a', hair: '#2d3128', boot: '#15130f', scarf: '#b3a585', w: 1.04 },
+    z:  { skin: '#8a9482', body: '#3a3833', body2: '#4f4c45', arm: '#7d8776', leg: '#2a2a27', pack: null, hair: '#20221c', boot: '#171613', w: 1 },
+    r:  { skin: '#9c988c', body: '#522624', body2: '#6c3630', arm: '#8e8b7f', leg: '#25272a', pack: null, hair: '#1b1815', boot: '#171613', w: 0.92 },
+    b:  { skin: '#7f8a75', body: '#3e372d', body2: '#585040', arm: '#747e6b', leg: '#2a2824', pack: null, hair: '#272b21', boot: '#171613', w: 1.38 }
   };
+  const ZV = [['#3a3833', '#4f4c45', '#2a2a27'], ['#2c3940', '#41525b', '#33302a'], ['#4b412f', '#655a41', '#23262b']];
   const OUT = 'rgba(0,0,0,.62)', DEPTH = 0.5;
   let fx = 1, fy = 0, rx = 0, ry = 1;
   const PX_ = (f, s) => f * fx + s * rx, PY_ = (f, s, z) => (f * fy + s * ry) * DEPTH - z;
   function limb(x, ax, ay, bx, by, mx, my, w, col, two) {
     x.strokeStyle = OUT; x.lineWidth = w + 2.2; x.beginPath(); x.moveTo(ax, ay); if (two) x.lineTo(mx, my); x.lineTo(bx, by); x.stroke();
     x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(ax, ay); if (two) x.lineTo(mx, my); x.lineTo(bx, by); x.stroke();
+    if (w > 4) { const o = w * 0.2; x.strokeStyle = 'rgba(255,255,255,.11)'; x.lineWidth = w * 0.34; x.beginPath(); x.moveTo(ax - o, ay - o); if (two) x.lineTo(mx - o, my - o); x.lineTo(bx - o, by - o); x.stroke(); }
   }
+  const eo = t => 1 - (1 - t) * (1 - t), ei = t => t * t, sm = t => t * t * (3 - 2 * t);
+  // замах (0–0.3) → удар (0.3–0.5) → возврат (0.6–1): v0 покой, v1 замах, v2 удар
+  const Bl = (a, v0, v1, v2) => a <= 0 ? v0 : a < 0.3 ? v0 + (v1 - v0) * eo(a / 0.3) : a < 0.5 ? v1 + (v2 - v1) * ei((a - 0.3) / 0.2) : a < 0.6 ? v2 : v2 + (v0 - v2) * sm((a - 0.6) / 0.4);
+  // поза правой руки: [вперёд, вбок, высота от плеч, наклон инструмента, разворот инструмента]
+  const POSE = {
+    chop:   [[6, 1, -14, 0.75, 0], [-1, 0.9, 9, 2.35, 0], [11, 0.6, -13, -0.5, 0], 0, -2, 5, 0, 0],
+    slash:  [[6, 1, -14, 0.75, 0], [2, 1.6, -5, 0.45, 1.6], [10, -0.4, -9, 0.05, -1.4], 0, -1, 3, 0.5, -0.5],
+    thrust: [[6, 1, -13, 0.3, 0], [-6, 1, -9, 0.06, 0], [16, 0.7, -9, 0, 0], 0, -3, 7, 0.25, -0.1],
+    punch:  [[1, 1, -17, 0, 0], [-2, 1, -8, 0, 0], [15, 0.5, -5, 0, 0], 0, -1, 4, 0.3, -0.3],
+    bow:    [[6, 1, -14, 0.75, 0], [1, 1, -3, 0, 0], [5, 1, -5, 0, 0], 0, 0, 0, -0.5, -0.5]
+  };
+  // e: {face, walk, mv(0..1), atk(0..1), ak(вид действия), hurt, sneak, armor, v, pk}
   G.drawHuman = function (x, e, kind, tool, moving) {
-    const st = STYLE[kind], zomb = kind !== 'p', W = st.w, p = e.walk, s = moving ? Math.sin(p) : 0, c = moving ? Math.cos(p) : 0;
-    fx = Math.cos(e.face); fy = Math.sin(e.face); rx = -fy; ry = fx;
-    const atk = e.atk > 0 ? Math.min(1, e.atk) : 0;
+    const zomb = kind !== 'p', st = !zomb && e.armor ? STYLE.pj : STYLE[kind], W = st.w, p = e.walk;
+    const mv = e.mv === undefined ? (moving ? 1 : 0) : e.mv, s = Math.sin(p) * mv, c = Math.cos(p) * mv;
+    const atk = e.atk > 0 ? Math.min(1, e.atk) : 0, ak = zomb ? 'z' : (e.ak || (tool ? 'chop' : 'grab')), PS = POSE[ak];
+    let body = st.body, body2 = st.body2, legc = st.leg;
+    if (kind === 'z' && e.v) { const v = ZV[e.v % 3]; body = v[0]; body2 = v[1]; legc = v[2]; }
+    const yaw = PS && atk ? Bl(atk, 0, PS[6], PS[7]) : 0, face = e.face + yaw;
+    fx = Math.cos(face); fy = Math.sin(face); rx = -fy; ry = fx;
     x.lineCap = 'round'; x.lineJoin = 'round';
     x.fillStyle = 'rgba(4,8,5,.42)'; x.beginPath(); x.ellipse(2, 1, 15 * W, 7.5 * W, 0, 0, PI2); x.fill();
-    const bob = moving ? Math.abs(c) * 1.3 : Math.sin(G.time * 2.2 + e.x * 0.01) * 0.45;
-    // наклон корпуса: зомби сутулятся, игрок подаётся вперёд при ударе и наклоняется при подборе
-    let lean = zomb ? (kind === 'r' ? 7 : 4) : 0, drop = zomb ? 2 : 0, grab = 0, sw = 0;
-    if (!zomb && atk) { if (tool) { sw = atk < 0.5 ? atk * 2 : 1; lean = sw * 3.5; } else { grab = Math.sin(atk * Math.PI); lean = grab * 7; drop = grab * 6; } }
-    if (zomb && atk) lean += Math.sin(atk * Math.PI) * 5;
-    const hipZ = 27 + bob - drop * 0.4, shZ = 44 + bob - drop, hw = 4.6 * W, sww = 8.6 * W;
+    const idle = 1 - mv, bob = Math.abs(c) * 1.4 + idle * Math.sin(G.time * 2.2 + e.x * 0.01) * 0.5;
+    const sway = zomb ? Math.sin(p) * 1.7 * mv : idle * Math.sin(G.time * 0.9 + e.x) * 0.5;
+    let lean = zomb ? (kind === 'r' ? 7 : 4) : mv * 1.6, drop = zomb ? 2 : 0, g = 0;
+    if (PS && atk) lean += Bl(atk, PS[3], PS[4], PS[5]);
+    if (!zomb && atk && (ak === 'grab' || ak === 'eat')) { g = Math.sin(atk * Math.PI); if (ak === 'grab') { lean += g * 7; drop += g * 6; } }
+    if (zomb && atk) lean += Bl(atk, 0, -3, 7);
+    if (e.hurt > 0) lean -= Math.min(0.4, e.hurt) * 14;
+    const crouch = e.sneak ? 6.5 : 0; if (crouch) { lean += 5; drop += 3; }
+    const hipZ = 27 + bob - drop * 0.4 - crouch, shZ = 44 + bob - drop - crouch * 1.25, hw = 4.7 * W, sww = 8.7 * W;
     // --- ноги ---
-    const leg = k => {  // k = -1 левая, 1 правая
-      const ss = s * k, lift = Math.max(0, c * k) * 3.6, hx = PX_(0, k * hw), hy = PY_(0, k * hw, hipZ);
-      const kx = PX_(ss * 4 + 2.2, k * hw), ky = PY_(ss * 4 + 2.2, k * hw, 14 + lift * 0.7), tx = PX_(ss * 8.5, k * hw * 1.05), ty = PY_(ss * 8.5, k * hw * 1.05, lift + 1.6);
-      limb(x, hx, hy, tx, ty, kx, ky, 6 * W, st.leg, true);
-      limb(x, tx, ty, tx + fx * 3.4, ty + fy * 3.4 * DEPTH, 0, 0, 5.4 * W, st.boot, false);
+    const amp = kind === 'r' ? 11 : 8.8;
+    const leg = k => {
+      const ss = s * k * (kind === 'z' && k < 0 ? 0.55 : 1), lift = Math.max(0, c * k) * 3.8, hx = PX_(0, k * hw + sway * 0.4), hy = PY_(0, k * hw, hipZ);
+      const kf = ss * amp * 0.48 + 2.4 + crouch * 0.7, kx = PX_(kf, k * hw), ky = PY_(kf, k * hw, 14 - crouch * 0.4 + lift * 0.7), tx = PX_(ss * amp, k * hw * 1.05), ty = PY_(ss * amp, k * hw * 1.05, lift + 1.6);
+      limb(x, hx, hy, tx, ty, kx, ky, 6.6 * W, legc, true);
+      limb(x, tx, ty, tx + fx * 3.6, ty + fy * 3.6 * DEPTH, 0, 0, 5.8 * W, st.boot, false);
     };
     if (ry > 0) { leg(-1); leg(1); } else { leg(1); leg(-1); }
     // --- руки ---
-    let rhx = 0, rhy = 0, ta = 0;
+    const act = !zomb && atk > 0 && PS, rk = ak === 'punch' && e.pk < 0 ? -1 : 1;   // rk — какая рука бьёт
+    const rp = a => [Bl(a, PS[0][0], PS[1][0], PS[2][0]), Bl(a, PS[0][1], PS[1][1], PS[2][1]), Bl(a, PS[0][2], PS[1][2], PS[2][2]), Bl(a, PS[0][3], PS[1][3], PS[2][3]), Bl(a, PS[0][4], PS[1][4], PS[2][4])];
+    const R = act ? rp(atk) : null;
+    let thx = 0, thy = 0;
+    const tdir = (ta, tb) => { const cf = Math.cos(ta) * Math.cos(tb), cs = Math.cos(ta) * Math.sin(tb); return [cf * fx + cs * rx, (cf * fy + cs * ry) * DEPTH - Math.sin(ta)]; };
     const arm = k => {
-      const sx = PX_(lean, k * sww), sy = PY_(lean, k * sww, shZ);
-      let hf, hz, ef, ez, hs = k * (sww + 1.6);
-      if (zomb) { const wv = Math.sin(p * 0.7 + k) * 2.2, lu = atk ? Math.sin(atk * Math.PI) * 8 : 0; hf = lean + 13 + wv + lu; hz = shZ - 5 + wv * k; ef = lean + 7; ez = shZ - 6; hs = k * sww * 0.8; }
-      else if (k > 0 && sw) { const a = 2.25 - (sw * sw * (3 - 2 * sw)) * 2.7; ta = a; hf = lean + 4 + Math.cos(a) * 10.5; hz = shZ - 2 + Math.sin(a) * 12; ef = lean + 3 + Math.cos(a) * 5; ez = shZ - 3 + Math.sin(a) * 5; }
-      else if (k > 0 && grab) { hf = lean + 4 + grab * 8; hz = shZ - 17 - grab * 12; ef = lean + 2 + grab * 3; ez = shZ - 9 - grab * 3; }
-      else if (k > 0 && tool) { ta = 0.75 + s * 0.08; hf = 6; hz = shZ - 14; ef = 1.5; ez = shZ - 9; }
-      else { hf = -s * k * 7 + 1; hz = shZ - 17 + Math.abs(s) * 1.5; ef = -s * k * 3 - 1; ez = shZ - 9; }
-      const ex = PX_(ef, hs), ey = PY_(ef, hs, ez), hx = PX_(hf, hs), hy = PY_(hf, hs, hz);
-      limb(x, sx, sy, hx, hy, ex, ey, 5.2 * W, st.arm, true);
-      x.fillStyle = st.skin; x.strokeStyle = OUT; x.lineWidth = 1; circ(x, hx, hy, 2.9 * W); x.stroke();
-      if (k > 0) { rhx = hx; rhy = hy; }
-      if (k > 0 && tool) {
-        const dx = fx * Math.cos(ta), dy = fy * DEPTH * Math.cos(ta) - Math.sin(ta);
-        x.save(); x.translate(hx, hy); x.rotate(Math.atan2(dy, dx)); if (fx < -0.15) x.scale(1, -1); x.scale(0.9, 0.9); G.drawTool(x, tool); x.restore();
-        x.lineCap = 'round';
+      const sx = PX_(lean, k * sww + sway), sy = PY_(lean, k * sww, shZ);
+      let hf, hz, hs = k * (sww + 1.6), ta = 0, tb = 0, holds = false;
+      if (zomb) { const wv = Math.sin(p * 0.7 + k) * 2.4, low = e.v === 1 && k < 0 ? 7 : 0; hf = lean + 13 + wv + Bl(atk, 0, -5, 9); hz = shZ - 5 - low + wv * k + Bl(atk, 0, 9, -2); hs = k * sww * 0.8 + sway; }
+      else if (act && k === rk) { hf = lean * 0.4 + R[0]; hs = k * sww * R[1]; hz = shZ + R[2]; ta = R[3]; tb = R[4] * k; holds = true; }
+      else if (act && (ak === 'chop' || ak === 'thrust') && k !== rk) { hf = lean * 0.4 + R[0] + (ak === 'thrust' ? 8 : -2.5); hs = sww * 0.25; hz = shZ + R[2] + (ak === 'thrust' ? 0.5 : -2); }
+      else if (act && ak === 'bow' && k !== rk) { hf = lean + 15; hs = -sww * 0.5; hz = shZ - 3; }
+      else if (g && k > 0) { if (ak === 'eat') { hf = lean + 4.5; hs = sww * 0.45; hz = shZ - 17 + g * 24; } else { hf = lean + 4 + g * 8; hz = shZ - 17 - g * 12; } }
+      else if (k > 0 && tool) { ta = 0.75 + s * 0.08; hf = 6; hz = shZ - 14; holds = true; }
+      else { hf = -s * k * 7.5 + 1 + crouch * 0.5; hz = shZ - 17 + Math.abs(s) * 1.6; }
+      const ef = (lean + hf) * 0.5 - 2, es = (k * sww + hs) * 0.5 + k * 2.6, ez = (shZ + hz) * 0.5 - 3.2;
+      const ex = PX_(ef, es), ey = PY_(ef, es, ez), hx = PX_(hf, hs), hy = PY_(hf, hs, hz);
+      limb(x, sx, sy, hx, hy, ex, ey, 5.4 * W, st.arm, true);
+      x.fillStyle = st.skin; x.strokeStyle = OUT; x.lineWidth = 1; circ(x, hx, hy, 3 * W); x.stroke();
+      if (holds && tool && tool !== 'bow') {
+        const d = tdir(ta, tb); thx = hx; thy = hy;
+        x.save(); x.translate(hx, hy); x.rotate(Math.atan2(d[1], d[0])); if (d[0] < -0.12) x.scale(1, -1); x.scale(0.92, 0.92); G.drawTool(x, tool); x.restore(); x.lineCap = 'round';
+      }
+      if (tool === 'bow' && ((act && ak === 'bow' && k !== rk) || (!act && k > 0))) {
+        const d = tdir(act ? 0 : 1.2, 0), pull = act ? Bl(atk, 0, 9, 0) : 0;
+        x.save(); x.translate(hx, hy); x.rotate(Math.atan2(d[1], d[0])); G.drawBow(x, pull); x.restore(); x.lineCap = 'round';
       }
     };
     const torso = () => {
-      const hx = PX_(0, 0), hy = PY_(0, 0, hipZ), nx = PX_(lean, 0), ny = PY_(lean, 0, shZ);
-      limb(x, PX_(0, -hw), PY_(0, -hw, hipZ), PX_(0, hw), PY_(0, hw, hipZ), 0, 0, 8 * W, st.leg, false);
-      limb(x, hx, hy - 4, nx, ny, 0, 0, 13.5 * W, st.body, false);
-      limb(x, PX_(lean, -sww * 0.72), PY_(lean, -sww * 0.72, shZ), PX_(lean, sww * 0.72), PY_(lean, sww * 0.72, shZ), 0, 0, 8.5 * W, st.body, false);
-      x.strokeStyle = st.body; x.lineWidth = 13.5 * W; x.beginPath(); x.moveTo(hx, hy - 4); x.lineTo(nx, ny); x.stroke();
-      if (fy > -0.35) {  // грудь видна
-        x.strokeStyle = st.body2; x.lineWidth = 6.5 * W; x.beginPath(); x.moveTo(hx + fx * 2.4, hy - 6 + fy * 1.2); x.lineTo(nx + fx * 2.4, ny + 2 + fy * 1.2); x.stroke();
-        if (zomb) { x.fillStyle = 'rgba(100,14,12,.85)'; x.beginPath(); x.ellipse(hx + fx * 3 + rx * 2, (hy + ny) / 2 + fy * 1.5, 3.2 * W, 4 * W, 0.4, 0, PI2); x.fill(); }
-        else { x.strokeStyle = 'rgba(14,15,11,.75)'; x.lineWidth = 1.8; line(x, hx + fx * 3 - rx * 3.4, hy - 6 + fy * 1.5 - ry * 1.7, nx + fx * 2 - rx * 4.6, ny + 1 + fy - ry * 2.3); line(x, hx + fx * 3 + rx * 3.4, hy - 6 + fy * 1.5 + ry * 1.7, nx + fx * 2 + rx * 4.6, ny + 1 + fy + ry * 2.3); }
-      } else if (zomb) { x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(hx - 3, (hy + ny) / 2 - 2, 6, 2); }
-      x.strokeStyle = 'rgba(12,12,10,.8)'; x.lineWidth = 2.2; line(x, PX_(0, -hw - 1.5), PY_(0, -hw - 1.5, hipZ + 3.5), PX_(0, hw + 1.5), PY_(0, hw + 1.5, hipZ + 3.5));
+      const hx = PX_(0, sway * 0.4), hy = PY_(0, 0, hipZ) - 4, mx = PX_(lean * 0.5, sway * 0.7), my = PY_(lean * 0.5, 0, (hipZ + shZ) / 2), nx = PX_(lean, sway), ny = PY_(lean, 0, shZ);
+      limb(x, PX_(0, -hw), PY_(0, -hw, hipZ), PX_(0, hw), PY_(0, hw, hipZ), 0, 0, 8.2 * W, legc, false);
+      x.strokeStyle = OUT; x.lineWidth = 16.4 * W; x.beginPath(); x.moveTo(hx, hy); x.lineTo(mx, my); x.lineTo(nx, ny); x.stroke();
+      limb(x, PX_(lean, -sww * 0.74 + sway), PY_(lean, -sww * 0.74, shZ), PX_(lean, sww * 0.74 + sway), PY_(lean, sww * 0.74, shZ), 0, 0, 8.6 * W, body, false);
+      x.strokeStyle = body; x.lineWidth = 11.8 * W; line(x, hx, hy, mx, my); x.lineWidth = 14.2 * W; line(x, mx, my, nx, ny);
+      x.strokeStyle = 'rgba(0,0,0,.22)'; x.lineWidth = 5 * W; line(x, hx + 3.2 * W, hy + 1, nx + 4 * W, ny + 2);   // тень сбоку
+      if (fy > -0.35) {
+        x.strokeStyle = body2; x.lineWidth = 6.6 * W; x.beginPath(); x.moveTo(hx + fx * 2.4, hy - 2 + fy * 1.2); x.lineTo(nx + fx * 2.4, ny + 2 + fy * 1.2); x.stroke();
+        if (zomb) { x.fillStyle = 'rgba(100,14,12,.85)'; x.beginPath(); x.ellipse(mx + fx * 3 + rx * 2, my + fy * 1.5, 3.2 * W, 4.2 * W, 0.4, 0, PI2); x.fill(); x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(mx - rx * 4 - 2, my + 5, 5, 1.6); }
+        else {
+          x.strokeStyle = 'rgba(14,15,11,.8)'; x.lineWidth = 1.8;
+          line(x, hx + fx * 3 - rx * 3.4, hy - 2 + fy * 1.5 - ry * 1.7, nx + fx * 2 - rx * 4.6, ny + 1 + fy - ry * 2.3); line(x, hx + fx * 3 + rx * 3.4, hy - 2 + fy * 1.5 + ry * 1.7, nx + fx * 2 + rx * 4.6, ny + 1 + fy + ry * 2.3);
+          x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 1; line(x, hx + fx * 4, hy - 2 + fy * 2, nx + fx * 4, ny + 3 + fy * 2);
+        }
+      } else if (zomb) { x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(mx - 3, my - 2, 6, 2); }
+      x.strokeStyle = 'rgba(12,12,10,.85)'; x.lineWidth = 2.4; line(x, PX_(0, -hw - 1.6), PY_(0, -hw - 1.6, hipZ + 3.5), PX_(0, hw + 1.6), PY_(0, hw + 1.6, hipZ + 3.5));
+      if (st.scarf) limb(x, PX_(lean + 0.5, -3.4 + sway), PY_(lean + 0.5, -3.4, shZ + 2.6), PX_(lean + 0.5, 3.4 + sway), PY_(lean + 0.5, 3.4, shZ + 2.6), 0, 0, 3.6, st.scarf, false);
     };
     const pack = () => {
       if (!st.pack) return;
-      const bf = lean * 0.6 - 6.5;
-      limb(x, PX_(bf, 0), PY_(bf, 0, hipZ + 5), PX_(bf, 0), PY_(bf, 0, shZ - 2), 0, 0, 11.5, st.pack, false);
+      const bf = lean * 0.6 - 6.8;
+      limb(x, PX_(bf, 0), PY_(bf, 0, hipZ + 5), PX_(bf, 0), PY_(bf, 0, shZ - 2), 0, 0, 12, st.pack, false);
       x.strokeStyle = '#77715f'; x.lineWidth = 1.6; line(x, PX_(bf, -3), PY_(bf, -3, hipZ + 9), PX_(bf, 3), PY_(bf, 3, hipZ + 9));
-      limb(x, PX_(bf, -6), PY_(bf, -6, shZ + 2.5), PX_(bf, 6), PY_(bf, 6, shZ + 2.5), 0, 0, 5, '#565c43', false);
+      x.fillStyle = '#44403a'; x.fillRect(PX_(bf - 1, 0) - 3, PY_(bf - 1, 0, hipZ + 16), 6, 4);
+      limb(x, PX_(bf, -6.2), PY_(bf, -6.2, shZ + 2.5), PX_(bf, 6.2), PY_(bf, 6.2, shZ + 2.5), 0, 0, 5.2, '#565c43', false);
     };
     const near = ry > 0 ? 1 : -1;
     if (fy < 0) { arm(-near); torso(); pack(); arm(near); }
     else { pack(); arm(-near); torso(); arm(near); }
-    // --- голова ---
-    const hl = lean + (zomb ? 4.5 : 1.2), cxh = PX_(hl, 0), cyh = PY_(hl, 0, shZ + 9.2 - (zomb ? 1.5 : 0)), hr = 6.3 * (W > 1.2 ? 1.12 : 1);
-    limb(x, PX_(lean, 0), PY_(lean, 0, shZ + 1), cxh, cyh, 0, 0, 4.5, st.skin, false);
-    x.strokeStyle = OUT; x.lineWidth = 1.2; x.fillStyle = st.hair; circ(x, cxh, cyh, hr + 0.5); x.stroke();
-    const vis = Math.max(0, Math.min(1, (fy + 0.95) / 0.6));
+    // --- голова (может слегка поворачиваться отдельно от корпуса) ---
+    const hyaw = e.face + (zomb ? Math.sin(p * 0.5) * 0.25 : idle * Math.sin(G.time * 0.6 + e.x * 0.7) * 0.55);
+    const hfx = Math.cos(hyaw), hfy = Math.sin(hyaw), hrx = -hfy, hry = hfx;
+    const tilt = ak === 'eat' ? -g * 2.5 : 0, hl = lean + (zomb ? 4.5 : 1.4) + tilt;
+    const cxh = PX_(hl, sway * 1.2), cyh = PY_(hl, 0, shZ + 9.4 - (zomb ? 1.5 : 0)), hr = 6.4 * (W > 1.2 ? 1.12 : 1);
+    limb(x, PX_(lean, sway), PY_(lean, 0, shZ + 1), cxh, cyh, 0, 0, 4.6, st.skin, false);
+    const bald = zomb && e.v === 2;
+    x.strokeStyle = OUT; x.lineWidth = 1.2; x.fillStyle = bald ? st.skin : st.hair; circ(x, cxh, cyh, hr + 0.5); x.stroke();
+    const vis = Math.max(0, Math.min(1, (hfy + 0.95) / 0.6));
     if (vis > 0.05) {
-      const ox = fx * 2.7, oy = fy * 1.5 + 1.3;
+      const ox = hfx * 2.7, oy = hfy * 1.5 + 1.3;
       x.save(); x.beginPath(); x.arc(cxh, cyh, hr + 0.1, 0, PI2); x.clip();
-      x.fillStyle = st.skin; circ(x, cxh + ox, cyh + oy, hr * 0.86 * (0.55 + vis * 0.45));
-      if (fy > -0.25) {
+      x.fillStyle = st.skin; circ(x, cxh + ox, cyh + oy, hr * 0.88 * (0.55 + vis * 0.45));
+      if (hfy > -0.25) {
         x.fillStyle = zomb ? '#e2dfc2' : '#1a1410';
-        circ(x, cxh + ox * 1.25 - rx * 2.3, cyh + oy * 0.9 - ry * 1.1 - 0.6, zomb ? 1.15 : 0.85); circ(x, cxh + ox * 1.25 + rx * 2.3, cyh + oy * 0.9 + ry * 1.1 - 0.6, zomb ? 1.15 : 0.85);
-        if (zomb) { x.fillStyle = 'rgba(100,14,12,.9)'; x.beginPath(); x.ellipse(cxh + ox * 1.3, cyh + oy + 2.8, 2, 1.5, 0, 0, PI2); x.fill(); }
-        else { x.fillStyle = 'rgba(60,40,28,.55)'; x.fillRect(cxh + ox * 1.3 - 1.6, cyh + oy + 2.4, 3.2, 0.9); }
+        circ(x, cxh + ox * 1.25 - hrx * 2.3, cyh + oy * 0.9 - hry * 1.1 - 0.4, zomb ? 1.15 : 0.85); circ(x, cxh + ox * 1.25 + hrx * 2.3, cyh + oy * 0.9 + hry * 1.1 - 0.4, zomb ? 1.15 : 0.85);
+        if (zomb) { x.fillStyle = 'rgba(100,14,12,.9)'; x.beginPath(); x.ellipse(cxh + ox * 1.3, cyh + oy + 2.9, 2.1, 1.6 + (atk ? 1 : 0), 0, 0, PI2); x.fill(); }
+        else { x.fillStyle = 'rgba(70,48,34,.5)'; x.beginPath(); x.ellipse(cxh + ox * 1.2, cyh + oy + 3, 3.6, 2.2, 0, 0, PI2); x.fill(); }   // щетина
       }
       x.restore();
     }
+    if (!zomb && hfy > -0.7) {  // козырёк кепки
+      x.fillStyle = '#1c1f19'; x.strokeStyle = OUT; x.lineWidth = 0.8;
+      x.beginPath(); x.ellipse(cxh + hfx * 5.4, cyh + hfy * 2.2 - 2.6, 4.2 - Math.abs(hfx) * 1.2, 1.7, 0, 0, PI2); x.fill(); x.stroke();
+    }
     if (e.hurt > 0) { x.globalAlpha = Math.min(1, e.hurt * 4) * 0.5; x.strokeStyle = '#fff'; x.lineWidth = 14 * W; line(x, PX_(0, 0), PY_(0, 0, hipZ), cxh, cyh); x.globalAlpha = 1; }
-    // след удара
-    if (!zomb && tool && e.atk > 0.2 && e.atk < 0.78) {
-      const al = 0.55 * (1 - Math.abs(e.atk - 0.5) * 3); if (al > 0) {
-        const tip = a => [rhx + (fx * Math.cos(a)) * 30, rhy + (fy * DEPTH * Math.cos(a) - Math.sin(a)) * 30];
-        const t0 = tip(ta + 1.5), t1 = tip(ta + 0.75), t2 = tip(ta);
+    // след оружия во время удара
+    if (act && tool && tool !== 'bow' && ak !== 'thrust' && atk > 0.3 && atk < 0.62) {
+      const al = 0.6 * (1 - Math.abs(atk - 0.46) * 5.5); if (al > 0) {
+        const tip = a => { const q = rp(a), d = tdir(q[3], q[4]); return [thx + d[0] * 31, thy + d[1] * 31]; };
+        const t0 = tip(atk - 0.13), t1 = tip(atk - 0.065), t2 = tip(atk);
         x.globalAlpha = al; x.strokeStyle = '#f2ede0'; x.lineWidth = 5; x.beginPath(); x.moveTo(t0[0], t0[1]); x.quadraticCurveTo(t1[0] * 2 - (t0[0] + t2[0]) / 2, t1[1] * 2 - (t0[1] + t2[1]) / 2, t2[0], t2[1]); x.stroke(); x.globalAlpha = 1;
       }
     }
+  };
+  G.drawBow = function (x, pull) {   // +X — направление выстрела, кисть на рукояти
+    x.strokeStyle = '#2a1c10'; x.lineWidth = 4; x.beginPath(); x.moveTo(-3, -17); x.quadraticCurveTo(9, 0, -3, 17); x.stroke();
+    x.strokeStyle = '#8a6238'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(-3, -17); x.quadraticCurveTo(9, 0, -3, 17); x.stroke();
+    x.strokeStyle = '#d8d0b8'; x.lineWidth = 0.8; x.beginPath(); x.moveTo(-3, -17); x.lineTo(-3 - pull, 0); x.lineTo(-3, 17); x.stroke();
+    if (pull > 1) { x.strokeStyle = '#6e4b2a'; x.lineWidth = 1.6; line(x, -3 - pull, 0, 16 - pull, 0); x.fillStyle = '#9aa0a7'; poly(x, [[16 - pull, -2], [21 - pull, 0], [16 - pull, 2]]); x.fill(); }
   };
   G.drawDeer = function (x, e, moving) {
     const s = moving ? Math.sin(e.walk) : 0;
     fx = Math.cos(e.face); fy = Math.sin(e.face); rx = -fy; ry = fx;
     x.lineCap = 'round'; x.lineJoin = 'round';
     x.fillStyle = 'rgba(4,8,5,.36)'; x.beginPath(); x.ellipse(2, 1, 20, 9, 0, 0, PI2); x.fill();
+    const bobd = moving ? Math.abs(s) * 2 : 0; x.translate(0, -bobd);
     const legd = (f, k, ph) => limb(x, PX_(f, k * 3.6), PY_(f, k * 3.6, 18), PX_(f + s * 6 * ph, k * 3.6), PY_(f + s * 6 * ph, k * 3.6, 0), PX_(f + s * 2 * ph + 1, k * 3.6), PY_(f + s * 2 * ph + 1, k * 3.6, 9), 3, '#4a3320', true);
     const far = ry > 0 ? -1 : 1;
     legd(9, far, 1); legd(-9, far, -1);
