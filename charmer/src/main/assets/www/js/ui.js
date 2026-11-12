@@ -15,12 +15,12 @@
       const x = L.cv.getContext('2d'), w = L.cv.width, h = L.cv.height;
       x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, w, h);
       const k = L.o.k || h / 262; x.translate(w / 2, L.o.y ? h * L.o.y : h - 6); x.scale(k, k);
-      ART.girl(x, L.id, { t: t + (L.o.ph || 0), expr: L.o.expr || 'normal', pose: L.o.pose, bloom: L.o.bloom, outfit: L.o.outfit, talk: L.o.talk });
+      ART.girl(x, L.id, { t: t + (L.o.ph || 0), expr: L.o.expr || 'normal', pose: L.o.pose, bloom: L.o.bloom, outfit: L.o.outfit, talk: L.o.talk, st: L.o });
     }
     if (vn.bg) {
       const c = $('vn'), w = c.width, h = c.height, x = c.getContext('2d');
       ART.vnBg(x, vn.bg, w, h, t);
-      if (vn.id && vn.bg !== 'black') { x.save(); const k = h / 142; x.translate(w * (vn.x || 0.5), h * 1.56 + Math.sin(t * 1.4) * 2); x.scale(k, k); ART.girl(x, vn.id, { t, expr: vn.expr || 'normal', bloom: vn.bloom, outfit: vn.wear || vn.outfit, talk: vn.talk }); x.restore(); }
+      if (vn.id && vn.bg !== 'black') { x.save(); const k = h / 142; x.translate(w * (vn.x || 0.5), h * 1.56 + Math.sin(t * 1.4) * 2); x.scale(k, k); ART.girl(x, vn.id, { t, expr: vn.expr || 'normal', bloom: vn.bloom, outfit: vn.wear || vn.outfit, talk: vn.talk, st: vn }); x.restore(); }
     }
   };
   const vn = { bg: null, id: null, expr: null, wear: null };

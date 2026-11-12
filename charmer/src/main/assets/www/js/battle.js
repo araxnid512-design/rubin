@@ -301,7 +301,7 @@
       const a = b.A[k]; if (!g || a.alpha <= 0) return;
       x.save(); x.translate(px + a.slide * V.w * 0.6 + (a.shake ? Math.sin(t * 60) * a.shake * 6 : 0) + a.lunge * (flip ? -1 : 1) * 40 * s, py + a.faint * 40 * s); x.scale(sc * a.scale * (flip ? -1 : 1), sc * a.scale); x.globalAlpha = a.alpha;
       const hpk = g.hp / G.stats(g).hp;
-      ART.girl(x, g.id, { t: t + (k === 'me' ? 3 : 0), expr: a.expr || (g.st === 'sleep' ? 'sleepy' : g.st === 'charm' ? 'blush' : hpk < 0.3 ? 'hurt' : k === 'foe' && b.wild ? 'smug' : 'normal'), pose: a.pose || (a.flash > 0.5 ? 'hurt' : 'idle'), bloom: g.bloom, outfit: k === 'me' ? g.outfit : undefined });
+      ART.girl(x, g.id, { t: t + (k === 'me' ? 3 : 0), expr: a.expr || (g.st === 'sleep' ? 'sleepy' : g.st === 'charm' ? 'blush' : hpk < 0.3 ? 'hurt' : k === 'foe' && b.wild ? 'smug' : 'normal'), pose: a.pose || (a.flash > 0.5 ? 'hurt' : 'idle'), bloom: g.bloom, outfit: k === 'me' ? g.outfit : undefined, st: a });
       x.restore(); x.globalAlpha = 1;
     };
     draw('foe', foe(), V.w * 0.72, V.h * 0.47, s * 0.5, true);

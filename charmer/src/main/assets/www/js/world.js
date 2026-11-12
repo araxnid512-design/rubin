@@ -425,6 +425,7 @@
   function wildUpdate(dt) {
     for (const w of W.wild || []) {
       w.t -= dt;
+      if (Math.hypot(w.px - W.hero.px, w.py - W.hero.py) < 120) { w.st = 0; w.t = 0.6; w.walk = 0; w.f = W.hero.px < w.px ? 'left' : 'right'; continue; }
       if (w.st === 1) { const nx = w.px + w.vx * dt, ny = w.py + w.vy * dt; if (!W.solid(Math.floor((nx + 24) / T), Math.floor((ny + 34) / T)) && W.m.tile[Math.floor((ny + 34) / T) * W.m.w + Math.floor((nx + 24) / T)] !== WATER) { w.px = nx; w.py = ny; w.walk += dt * 11; } else w.t = 0; if (w.t <= 0) { w.st = 0; w.t = 1.5 + Math.random() * 4; w.walk = 0; } }
       else if (w.t <= 0) { const a = Math.random() * 6.283; let tx = w.px + Math.cos(a) * 60, ty = w.py + Math.sin(a) * 60; if (Math.hypot(tx - w.hx, ty - w.hy) > 130) { tx = w.hx; ty = w.hy; } const d = Math.hypot(tx - w.px, ty - w.py) || 1; w.vx = (tx - w.px) / d * 34; w.vy = (ty - w.py) / d * 34; w.st = 1; w.t = d / 34; w.f = Math.abs(w.vx) > Math.abs(w.vy) ? (w.vx > 0 ? 'right' : 'left') : 'down'; }
     }
@@ -478,7 +479,7 @@
         if (n.trainer && !S.flags[n.trainer] && Math.abs(n.x - S.x) + Math.abs(n.y - S.y) < 6) bubble(x, n.x * T + T / 2 + 10, n.y * T - 40 + Math.sin(tm * 4) * 2, '!');
       } else if (o.k === 'wild') {
         const w = o.w, it = (S.court && S.court[w.id]) || 0;
-        x.save(); x.translate(w.px + T / 2, w.py + T - 7); if (w.f === 'left') x.scale(-1, 1); x.scale(0.36, 0.36); ART.girl(x, w.id, { t: tm + w.hx, chibi: true, walk: w.walk, expr: it > 50 ? 'love' : it > 0 ? 'happy' : 'smug' }); x.restore();
+        x.save(); x.translate(w.px + T / 2, w.py + T - 7); if (w.f === 'left') x.scale(-1, 1); x.scale(0.36, 0.36); const near = Math.hypot(w.px - h.px, w.py - h.py) < 120; ART.girl(x, w.id, { t: tm + w.hx, chibi: true, walk: near ? 0 : w.walk, pose: near ? 'wave' : undefined, expr: near ? 'happy' : it > 50 ? 'love' : it > 0 ? 'happy' : 'smug' }); x.restore();
         const by = w.py - 34 + Math.sin(tm * 3 + w.hx) * 2; ART.heart(x, w.px + T / 2, by, 6, it > 0 ? '#ff4f7b' : '#ffffff');
         if (!S.seen[w.id]) { x.fillStyle = '#21121c'; x.font = '900 9px sans-serif'; x.textAlign = 'center'; x.fillText('?', w.px + T / 2, by + 2.5); }
       } else if (o.k === 'fol') { x.save(); x.translate(W.fol.px + T / 2, W.fol.py + T - 7); if (W.fol.face === 'left') x.scale(-1, 1); x.scale(0.36, 0.36); ART.girl(x, lead.id, { t: tm, chibi: true, walk: W.fol.walk, bloom: lead.bloom, outfit: lead.outfit, expr: lead.aff >= 75 ? 'happy' : 'normal' }); x.restore(); if (lead.aff >= 50 && Math.sin(tm * 1.3) > 0.97) heartFloat(x, W.fol.px + T / 2, W.fol.py - 30); }
