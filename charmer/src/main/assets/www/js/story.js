@@ -16,12 +16,12 @@
   ST.stage = function () {
     const s = S(), f = s.flags;
     if (!f.starter) return 0; if (!f.gena) return 1; if (!f.agrip) return 2; if (!f.baron) return 3; if (!f.boss) return 4; if (!f.party) return 5;
-    if (D.ORDER.some(id => !s.caught[id])) return 6; if (!f.allten) return 7; return 8;
+    if (D.ORDER.some(id => !s.caught[id])) return 6; if (!f.allten) return 7; if (D.SECRET.some(id => !s.caught[id])) return 9; return 8;
   };
   ST.quest = function () {
     const n = D.ORDER.filter(id => S().caught[id]).length;
     return ['Зайди к Бабе Нюре — дом слева', 'Медовый луг: проучи Хвастуна Гену', 'Шептучий лес: узнай, откуда туман', 'Звонкие скалы: пройди мимо Барона',
-      'Башня за скалами: разберись с ведьмой', 'Таверна «Пьяный гусь»: праздник!', 'Девичник: приручено ' + n + ' из 10', 'Все десять! Загляни в таверну', 'Ты — Великий Чаровник долины ♥'][ST.stage()];
+      'Башня за скалами: разберись с ведьмой', 'Таверна «Пьяный гусь»: праздник!', 'Девичник: приручено ' + n + ' из 10', 'Все десять! Загляни в таверну', 'Ты — Великий Чаровник долины ♥', 'Тайные девы юга: ' + D.SECRET.filter(id => S().caught[id]).length + ' из 4 (пляж, болото, подземелье)'][ST.stage()];
   };
   ST.chapter = function (n) {
     const el = document.getElementById('chap'); if (!el) return;
@@ -63,7 +63,8 @@
     if (!map) return;
     for (const id in map) {
       const g = ST.find(id), d = map[id]; if (!g || !d) continue;
-      const was = g.aff; g.aff = Math.max(0, Math.min(100, g.aff + d)); if (g.aff === was) continue;
+      if (ST.replay) continue;
+      const was = g.aff; g.aff = Math.max(0, Math.min(100, g.aff + d)); if (window.FX) FX.sulkChange(g, d); if (g.aff === was) continue;
       UI.toast((d > 0 ? '♥ +' : '♡ ') + d + ' ' + ST.name(id), d > 0 ? 'up' : 'down');
       if (d > 0 && Math.floor(g.aff / 25) > Math.floor(was / 25)) UI.toast(ST.name(id) + ': стала ближе!', 'up');
     }
@@ -163,7 +164,7 @@
         ['Пообещай больше ничего не варить.', { l: 3 }, ['witch:hurt|Ничего?! Даже суп?! …Ладно, только суп. Туман развею. А в таверне — праздник! Барона я притащу.']]] },
       '#Розовая дымка тает над долиной. Где-то далеко чихнул Дед Пахом.']
   };
-  ST.after = function (key) { const f = AFTER[key]; if (!f) return []; return ST.norm(f(), { l: lead() || 'fox' }); };
+  ST.after = function (key) { const h = window.FX && FX.after(key); if (h) return h; const f = AFTER[key]; if (!f) return []; if (key === 'boss') FX.rec('s_boss'); return ST.norm(f(), { l: lead() || 'fox' }); };
 
   /* ---------- Праздник и финал ---------- */
   const CLAIM = { fox: 'smug|Место рядом с Чаровником — моё. Я его хвостом пометила ещё утром.', slime: 'happy|Я сяду рядом! Или на него! Я мягкая!',
@@ -176,12 +177,12 @@
     vampire: 'smug|Разумеется. Графиня и не сомневалась. *сияет*', valkyrie: 'blush|Есть занять место! …Я очень рада. Это не по уставу, но рада.',
     neko: 'smug|Мрр. Ты понимаешь кошек.', snow: 'blush|Я… рядом с тобой? *за окном начинается снегопад*' };
   ST.party = function () {
-    const ids = S().party.map(g => g.id), L = ['@Тётка Дуня|Гуляем! Ведьма заплатила за всех. Пироги на столе, гусь в духовке, Пахом под столом.'];
+    FX.rec('s_party'); const ids = S().party.map(g => g.id), L = [{ bg: 'tavern', music: 'tavern' }, '@Тётка Дуня|Гуляем! Ведьма заплатила за всех. Пироги на столе, гусь в духовке, Пахом под столом.'];
     if (ids.length >= 2) {
       const pick = ids.slice(0, 4);
       L.push('#Девицы заметили, что рядом с тобой осталось только одно свободное место.');
-      for (const id of pick) L.push(id + ':' + CLAIM[id]);
-      const opts = pick.map(id => { const a = {}; for (const o of pick) a[o] = o === id ? 10 : -3; return ['Садись ко мне, ' + D.GIRLS[id].name + '.', a, [id + ':' + SEATWIN[id], pick.find(o => o !== id) + ':angry|Хм! Ну и пожалуйста. Не очень-то и хотелось.']]; });
+      for (const id of pick) L.push(id + ':' + (CLAIM[id] || 'smug|Это место — моё. Без обсуждений.'));
+      const opts = pick.map(id => { const a = {}; for (const o of pick) a[o] = o === id ? 10 : -3; return ['Садись ко мне, ' + D.GIRLS[id].name + '.', a, [id + ':' + (SEATWIN[id] || 'happy|Ха! Он выбрал меня!'), pick.find(o => o !== id) + ':angry|Хм! Ну и пожалуйста. Не очень-то и хотелось.']]; });
       const all = {}; for (const o of pick) all[o] = 3;
       opts.push(['Сяду на пол — всем поровну.', all, ['#Девицы переглядываются… и садятся на пол рядом с тобой. Тесно, тепло и очень шумно.']]);
       L.push({ t: 'Кого посадить рядом?', ask: opts });
@@ -202,8 +203,9 @@
     valkyrie: 'normal|Отряд укомплектован! Составлен график свиданий. Я в нём… дважды. Опечатка.', neko: 'smug|Мрр. Девять соперниц, одна кошка. Шансы в мою пользу.',
     snow: 'blush|Нас так много… и всё равно тепло. Это, наверное, и есть семья?' };
   ST.allTen = function () {
-    const L = ['@Тётка Дуня|Батюшки, все десять! Чаровник, у меня столов не хватит!'];
+    FX.rec('s_ten'); const L = [{ bg: 'tavern', music: 'tavern' }, '@Тётка Дуня|Батюшки, все десять! Чаровник, у меня столов не хватит!'];
     for (const id of D.ORDER) L.push(id + ':' + TEN[id]);
+    L.push('@Тётка Дуня|А ещё, говорят, на юге — за пляжем, болотом и подземельем — живут тайные девы. Русалка, лягушка, привидение… и драконица!');
     const all = {}; for (const id of D.ORDER) all[id] = 5;
     L.push({ ask: [['Я вас всех люблю!', all, ['lamia:angry|Всех?! Ссс… ладно. Но меня — больше.', 'fox:smug|Всех, но меня первой. Записал?', 'valkyrie:blush|Занесу в протокол. В раздел «Самое хорошее».']],
       ['Поднимем кружки за долину!', all, ['#Таверна гремит от смеха. Барон танцует с ведьмой, Пахом — со шваброй, а ты — по очереди со всеми десятью.']]] },
@@ -290,12 +292,13 @@
     const n = g.dates || 0; if (n >= 3) return { done: true };
     return { n, need: ST.DATE_AFF[n], ok: g.aff >= ST.DATE_AFF[n] && !g.dated };
   };
-  ST.date = function (g) {
-    const n = g.dates || 0, d = DATES[g.id][n];
-    const L = d.p.slice(); L.push({ t: 'Что сделаешь?', ask: d.q });
-    L.push({ fn: () => { g.dates = n + 1; g.dated = true; if (g.dates === 3) UI.toast('♥ ' + ST.name(g.id) + ': все свидания пройдены!', 'up'); G.save(); } });
+  ST.date = function (g, replay) {
+    const n = g.dates || 0, d = (DATES[g.id] || D.DATES2[g.id])[n];
+    const L = [{ bg: (D.DATEBG[g.id] || [])[n] || 'glade', music: 'date' }].concat(d.p); L.push({ t: 'Что сделаешь?', ask: d.q });
+    L.push({ fn: () => { FX.rec('d_' + g.id + '_' + n); g.dates = n + 1; g.dated = true; if (g.dates === 3) UI.toast('♥ ' + ST.name(g.id) + ': все свидания пройдены!', 'up'); G.save(); } });
     // ревнивая соседка узнаёт о свидании
-    const o = pickOther([g.id]);
+    L.push({ bg: null });
+    const o = replay ? null : pickOther([g.id]);
     if (o && Math.random() < 0.6) L.push(o + ':angry|' + U.pick(['Я всё видела. ВСЁ. Ладно, не всё, но мне хватило.', 'Свидание, значит? А меня кто на свидание поведёт? Пушкин?', 'Хм. Хм-хм. Я не ревную. Я просто громко дышу.', 'Следующее свидание — со мной. Это не просьба.'], Math.random));
     return ST.norm(L, { id: g.id });
   };
@@ -381,6 +384,13 @@
         ['Я сам храплю громче всех', { a: 2, b: 3 }, ['#Обе смеются. Кажется, ссора отменяется.']]] }
   ];
   const pairKey = p => p.slice().sort().join('+');
+  ST.PAIRS = BANTER.map(b => b.p);
+  function banterLines(b, ctx) {
+    const key = b.p ? pairKey(b.p) : null;
+    const q = b.q.map((o, i) => [o[0], o[1], o[2].concat(key ? [{ fn: () => { S().flags['ok_' + key] = i === 2; FX.rec('b_' + key); if (i === 2) UI.toast(ST.name(b.p[0]) + ' и ' + ST.name(b.p[1]) + ' — подруги!', 'up'); } }] : [])]);
+    return [{ music: 'quarrel' }].concat(ST.norm(b.l.concat([{ t: 'Что скажешь?', ask: q }]), ctx));
+  }
+  ST.banterByKey = k => { const b = BANTER.find(q => pairKey(q.p) === k); return b ? banterLines(b, {}) : null; };
   ST.banter = function (force) {
     const ids = S().party.map(g => g.id); if (ids.length < 2) return null;
     const avail = BANTER.filter(b => b.p.every(id => ids.includes(id)));
@@ -393,11 +403,13 @@
       const a = U.pick(ids, Math.random), bb = U.pick(ids.filter(x => x !== a), Math.random);
       b = U.pick(GENERIC, Math.random); ctx = { a, b: bb, A: ST.name(a), B: ST.name(bb) };
     }
-    return ST.norm(b.l.concat([{ t: 'Что скажешь?', ask: b.q }]), ctx);
+    return banterLines(b, ctx);
   };
   // Короткая реплика ведущей, когда она одна
   ST.solo = function () {
     const g = S().party[0]; if (!g) return null; const d = D.GIRLS[g.id], tier = Math.min(3, Math.floor(g.aff / 25));
+    const mood = D.MOOD[g.id] || {}, ph = FX.phase(), wx = S().wx, ml = wx === 'rain' && mood.rain ? mood.rain : ph === 'night' ? mood.night : ph === 'morn' ? mood.morn : null;
+    if (ml && Math.random() < 0.6) return [{ girl: g.id, expr: wx === 'rain' ? 'hurt' : ph === 'night' ? 'blush' : 'happy', t: ml }];
     return [{ girl: g.id, expr: ['normal', 'smug', 'happy', 'blush'][tier], t: U.pick(d.talk.slice(0, tier + 1), Math.random) }];
   };
   ST.steps = 0;
@@ -420,7 +432,7 @@
   const NEWREP = ['smug|Посмотрим ещё, кто кому место уступит.', 'happy|Ой, какие вы все милые! Особенно Чаровник.', 'blush|Я… я просто постою рядом. Совсем рядом.', 'angry|А тебя вообще кто спрашивал?'];
   ST.caught = function (id) {
     const l = S().party.find(g => g.id !== id); if (!l) return [];
-    return ST.norm([l.id + ':' + JEAL[l.id], 'n:' + U.pick(NEWREP, Math.random)], { N: D.GIRLS[id].name, n: id });
+    return ST.norm([l.id + ':' + (JEAL[l.id] || D.JEAL2[l.id] || 'smug|Новенькая? Ну-ну.'), 'n:' + U.pick(NEWREP, Math.random)], { N: D.GIRLS[id].name, n: id });
   };
 
   /* ---------- Ночной визит в таверне ---------- */
@@ -433,11 +445,12 @@
     const P = S().party.slice().sort((a, b) => b.aff - a.aff), g = P[0];
     if (!g || g.aff < 50 || Math.random() > 0.5) return null;
     const o = P.length > 1 ? U.pick(P.slice(1), Math.random).id : null;
-    const L = ['#Ночь. В дверь твоей комнаты тихо стучат.', g.id + ':' + NIGHT[g.id],
+    const L = [{ bg: 'bedroom', music: 'date' }, '#Ночь. В дверь твоей комнаты тихо стучат.', g.id + ':' + (NIGHT[g.id] || D.NIGHT2[g.id]),
       { ask: [['Подвинуться и укрыть её одеялом', { [g.id]: 6 }, ['#Вы болтаете о пустяках до самого рассвета и засыпаете рядом. Только болтаете. Честно-честно.']],
         ['Пожелать спокойной ночи у двери', { [g.id]: 1 }, [g.id + ':hurt|Ну и ладно… *уходит, но оставляет дверь приоткрытой*']]] }];
     if (o) L.push('#Утро. В коридоре — подозрительная тишина.', o + ':angry|ТАК. А почему это ' + ST.name(g.id) + ' выходит из твоей комнаты?!',
       g.id + ':smug|Мы обсуждали тактику.', o + ':angry|ВСЮ НОЧЬ?!', '@Тётка Дуня|Девоньки, не шумите, гусь проснётся.');
+    L.push({ bg: null });
     return ST.norm(L);
   };
 })();

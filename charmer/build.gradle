@@ -10,13 +10,29 @@ android {
         applicationId 'com.rubin.charmer'
         minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName '0.3.0'
+        versionCode 4
+        versionName '0.4.0'
+    }
+
+    // Подпись релиза: файл keystore.properties (не в git) с storeFile/storePassword/keyAlias/keyPassword
+    def ksFile = rootProject.file('charmer/keystore.properties')
+    def ks = new Properties()
+    if (ksFile.exists()) ks.load(new FileInputStream(ksFile))
+    signingConfigs {
+        release {
+            if (ksFile.exists()) {
+                storeFile rootProject.file(ks['storeFile'])
+                storePassword ks['storePassword']
+                keyAlias ks['keyAlias']
+                keyPassword ks['keyPassword']
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (ksFile.exists()) signingConfig signingConfigs.release
         }
     }
 

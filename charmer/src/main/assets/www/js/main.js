@@ -2,7 +2,9 @@
 /* Запуск, состояние игрока, сохранение, главный цикл */
 (function () {
   const $ = id => document.getElementById(id), cv = $('cv'), G = window.G;
-  const KEY = 'charmer_v1';
+  G.slot = 1;
+  const keyOf = k => 'charmer_v1' + (k > 1 ? '_s' + k : '');
+  let KEY = keyOf(1);
   G.time = 0; G.mode = 'title'; G.lock = false;
   G.view = { w: 2, h: 2 };
 
@@ -12,7 +14,7 @@
     return { hp: Math.floor((2 * B.hp * L / 100 + L + 10) * k), atk: Math.floor((2 * B.atk * L / 100 + 5) * k), def: Math.floor((2 * B.def * L / 100 + 5) * k), spd: Math.floor((2 * B.spd * L / 100 + 5) * k) };
   };
   G.need = L => 20 + L * L * 6;
-  G.skillsOf = g => D.GIRLS[g.id].skills.filter(s => s[1] <= g.lvl).map(s => s[0]);
+  G.skillsOf = g => { const l = D.GIRLS[g.id].skills.filter(s => s[1] <= g.lvl).map(s => s[0]); if (g.aff >= 75 && D.SK['heart_' + g.id]) l.push('heart_' + g.id); return l; };
   G.mkGirl = function (id, lvl) { const g = { uid: 0, id, lvl, xp: 0, hp: 1, aff: 0, bloom: lvl >= 15, talked: false, dates: 0, dated: false }; g.hp = G.stats(g).hp; return g; };
   G.addGirl = function (id, lvl, hp) {
     const S = G.S, g = G.mkGirl(id, lvl); g.uid = S.uid++; if (hp !== undefined) g.hp = Math.max(1, hp);
@@ -22,16 +24,21 @@
   G.healAll = () => { for (const g of G.S.party.concat(G.S.box)) g.hp = G.stats(g).hp; };
 
   /* ---------- Сохранение ---------- */
-  function fresh() { return { map: 'village', x: 5, y: 7, face: 'up', money: 120, bag: { seal: 5, potion: 3, pie: 2 }, party: [], box: [], seen: {}, caught: {}, flags: {}, uid: 1 }; }
+  function fresh() { return { map: 'village', x: 5, y: 7, face: 'up', money: 120, bag: { seal: 5, potion: 3, pie: 2 }, party: [], box: [], seen: {}, caught: {}, flags: {}, uid: 1, clock: 0.3, wx: 'sun', furn: {}, outfits: {}, album: {}, endings: {}, know: {}, cups: 0 }; }
   G.save = function () {
     if (!G.S || G.mode === 'title') return;
-    const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked, dates: g.dates || 0, dated: !!g.dated });
+    const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked, dates: g.dates || 0, dated: !!g.dated, outfit: g.outfit, sulk: g.sulk || 0, mgDone: !!g.mgDone });
     const o = Object.assign({}, G.S, { party: G.S.party.map(clean), box: G.S.box.map(clean) });
     if (G.mode === 'battle') return;
-    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, s: o })); } catch (e) { }
+    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, s: o, at: Date.now() })); } catch (e) { }
   };
+  G.slotInfo = function (k) {
+    try { const d = JSON.parse(localStorage.getItem(keyOf(k))); if (!d || !d.s) return null; const s = d.s, n = Object.keys(s.caught || {}).length; return (D.MAPS[s.map] ? D.MAPS[s.map].n : '') + ' · героинь: ' + n + ' · ' + s.money + ' ₽' + (d.at ? ' · ' + new Date(d.at).toLocaleDateString('ru') : ''); } catch (e) { return null; }
+  };
+  G.saveTo = function (k) { G.slot = k; KEY = keyOf(k); G.save(); G.saveCfg(); };
+  G.loadFrom = function (k) { G.slot = k; KEY = keyOf(k); G.saveCfg(); const d = load(); if (!d) return; G.S = d; G.mode = 'world'; UI.fade(() => WD.enter(G.S.map, G.S.x, G.S.y, G.S.face)); };
   function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 1 && d.s) return Object.assign(fresh(), d.s); } catch (e) { } return null; }
-  G.saveCfg = () => { try { localStorage.setItem('charmer_cfg', JSON.stringify({ s: U.soundOn })); } catch (e) { } };
+  G.saveCfg = () => { try { localStorage.setItem('charmer_cfg', JSON.stringify({ s: U.soundOn, ts: UI.textSpeed, slot: G.slot, q: G.lowq })); } catch (e) { } };
   G.reset = function () { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('village', G.S.x, G.S.y, 'up'); setTimeout(intro, 300); };
 
   /* ---------- Действия ---------- */
@@ -41,6 +48,7 @@
   };
   G.onBack = function () {
     if ($('title').classList.contains('hide') === false) return;
+    if (window.MG && MG.open()) return;
     if (UI.modalOpen()) { if (!$('modal').classList.contains('noclose')) UI.close(); return; }
     if (UI.dialogOpen() || G.mode !== 'world') return;
     UI.openMenu();
@@ -49,9 +57,10 @@
 
   /* ---------- Размер кадра ---------- */
   function resize() {
-    const w = innerWidth, h = innerHeight, s = Math.min(devicePixelRatio || 1, 760 / h);
+    const w = innerWidth, h = innerHeight, s = Math.min(devicePixelRatio || 1, (G.lowq ? 480 : 760) / h);
     cv.width = Math.max(2, Math.round(w * s)); cv.height = Math.max(2, Math.round(h * s)); G.view.w = cv.width; G.view.h = cv.height;
   }
+  G.resize = resize;
   addEventListener('resize', resize);
 
   /* ---------- Цикл ---------- */
@@ -63,20 +72,20 @@
     UI.tick(dt);
     const x = G.ctx;
     if (G.mode === 'battle') { BT.update(dt); BT.render(x, G.view); }
-    else { const free = G.mode === 'world' && !UI.dialogOpen() && !UI.modalOpen() && !G.lock; WD.update(dt, free ? UI.dir() : null); WD.render(x, G.view); }
+    else { const free = G.mode === 'world' && !UI.dialogOpen() && !UI.modalOpen() && !G.lock && !(window.MG && MG.open()); if (free) FX.tick(dt); WD.update(dt, free ? UI.dir() : null); WD.render(x, G.view); }
     UI.drawLive(G.time);
     if ((saveT += dt) > 20) { saveT = 0; G.save(); }
   }
   function boot() {
     G.ctx = cv.getContext('2d', { alpha: false });
-    try { const c = JSON.parse(localStorage.getItem('charmer_cfg')); if (c) U.soundOn = c.s; } catch (e) { }
+    try { const c = JSON.parse(localStorage.getItem('charmer_cfg')); if (c) { U.soundOn = c.s; if (c.ts) UI.textSpeed = c.ts; G.lowq = !!c.q; if (c.slot) { G.slot = c.slot; KEY = keyOf(c.slot); } } } catch (e) { }
     ART.init(); resize();
     const had = load(); G.S = had || fresh();
     WD.enter(G.S.map, G.S.x, G.S.y, G.S.face);
     // героини на заставке
     const tg = $('t-girls'); for (const [id, ex] of [['dryad', 'smug'], ['fox', 'happy'], ['slime', 'blush']]) { const c = document.createElement('canvas'); c.width = 220; c.height = 300; tg.appendChild(c); UI.titlePic(c, id, ex); }
     if (had && had.flags.starter) { $('btn-play').textContent = 'ПРОДОЛЖИТЬ'; $('btn-new').classList.remove('hide'); }
-    const start = () => { U.audioInit(); $('title').classList.add('hide'); document.body.classList.remove('title'); G.mode = 'world'; U.music(G.S.map === 'village' ? 'tavern' : 'world'); setTimeout(intro, 350); };
+    const start = () => { U.audioInit(); $('title').classList.add('hide'); document.body.classList.remove('title'); G.mode = 'world'; U.music(FX.mapMusic()); setTimeout(intro, 350); };
     $('btn-play').onclick = start;
     $('btn-new').onclick = () => { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('village', 5, 7, 'up'); start(); };
     document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(); else last = performance.now(); });

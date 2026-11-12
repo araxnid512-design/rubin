@@ -107,22 +107,26 @@
   const SONGS = {
     world: { bpm: 120, lead: [72, 76, 79, 76, 77, 74, 72, 0, 74, 77, 81, 77, 79, 76, 72, 0, 72, 76, 79, 84, 83, 79, 76, 74, 72, 74, 76, 77, 76, 74, 72, 0], bass: [48, 48, 55, 55, 53, 53, 55, 55] },
     battle: { bpm: 152, lead: [76, 0, 76, 79, 81, 79, 76, 74, 76, 0, 76, 79, 83, 81, 79, 0, 72, 0, 72, 76, 79, 76, 72, 71, 72, 74, 76, 79, 81, 83, 84, 0], bass: [45, 45, 45, 45, 41, 41, 43, 43] },
-    tavern: { bpm: 96, lead: [67, 71, 74, 71, 72, 69, 66, 0, 67, 71, 74, 79, 78, 74, 71, 0], bass: [43, 43, 38, 38] }
+    tavern: { bpm: 96, lead: [67, 71, 74, 71, 72, 69, 66, 0, 67, 71, 74, 79, 78, 74, 71, 0], bass: [43, 43, 38, 38] },
+    date: { bpm: 78, wave: 'sine', vol: 0.03, lead: [76, 0, 79, 81, 79, 0, 76, 74, 72, 0, 74, 76, 74, 0, 0, 0, 72, 0, 76, 79, 84, 0, 83, 81, 79, 0, 76, 74, 76, 0, 0, 0], bass: [45, 41, 36, 43] },
+    quarrel: { bpm: 150, lead: [72, 72, 0, 75, 0, 72, 70, 0, 72, 72, 0, 77, 0, 75, 72, 0, 67, 0, 70, 72, 70, 67, 65, 0, 67, 0, 70, 0, 72, 0, 0, 0], bass: [36, 36, 39, 41] }
   };
   let song = null, step = 0, nextT = 0, timer = null;
   const mf = n => 440 * Math.pow(2, (n - 69) / 12);
   U.music = function (name) {
+    if (U.song === name && song) return; U.song = name;
     if (!ac) return; song = SONGS[name] || null; step = 0; nextT = ac.currentTime + 0.1;
     if (!timer) timer = setInterval(() => {
       if (!song || !U.soundOn || ac.state !== 'running') return;
       const sp = 60 / song.bpm / 2;
       while (nextT < ac.currentTime + 0.25) {
-        const n = song.lead[step % song.lead.length]; if (n) note(mf(n), sp * 0.9, 'square', 0.022, nextT);
+        const n = song.lead[step % song.lead.length]; if (n) note(mf(n), sp * (song.wave === 'sine' ? 1.6 : 0.9), song.wave || 'square', song.vol || 0.022, nextT);
         if (step % 4 === 0) note(mf(song.bass[(step / 4 | 0) % song.bass.length]), sp * 3.6, 'triangle', 0.05, nextT);
         step++; nextT += sp;
       }
     }, 90);
   };
   function note(f, d, type, v, t) { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0008, t + d); o.connect(g); g.connect(master); o.start(t); o.stop(t + d + 0.02); }
+  U.voice = function (f, type) { if (ac && U.soundOn && ac.state === 'running') tone(f * (0.96 + Math.random() * 0.08), f, 0.035, type || 'square', type === 'sine' ? 0.05 : 0.022); };
   U.sfx = function (n) { if (ac && U.soundOn && ac.state === 'running') { try { SFX[n](); } catch (e) { } } };
 })();

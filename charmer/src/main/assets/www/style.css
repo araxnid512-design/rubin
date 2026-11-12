@@ -139,7 +139,7 @@ h4 { font-size: .68rem; color: #6a4a5a; margin: .5rem 0 .3rem; }
 .dcell .hrt { position: absolute; right: .35rem; top: .35rem; }
 .starters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
 .scard { display: flex; flex-direction: column; align-items: center; padding: .4rem; background: #fff; border: 3px solid var(--ink); border-radius: 1rem; box-shadow: 0 .2rem 0 var(--ink); text-align: center; }
-.scard canvas { width: 100%; max-width: 8rem; aspect-ratio: 200/240; background: radial-gradient(circle at 50% 30%, #fff, #ffd6e4); border-radius: .8rem; }
+.scard canvas { width: 100%; max-width: 8rem; max-height: 38vh; object-fit: contain; aspect-ratio: 200/240; background: radial-gradient(circle at 50% 30%, #fff, #ffd6e4); border-radius: .8rem; }
 .scard b { font-size: .9rem; font-style: italic; } .scard small { font-size: .62rem; } .scard p { font-size: .58rem; color: #6a4a5a; margin: .25rem 0 .4rem; flex: 1; }
 .scard button { padding: .35rem 1rem; font-size: .8rem; background: var(--pink); color: #fff; }
 .menu { display: flex; flex-direction: column; gap: .4rem; }
@@ -160,3 +160,37 @@ h4 { font-size: .68rem; color: #6a4a5a; margin: .5rem 0 .3rem; }
 #btn-play { padding: .7rem 3rem; font-size: 1.15rem; font-weight: 900; font-style: italic; background: var(--pink); color: #fff; border: 3px solid var(--ink); border-radius: 2rem; box-shadow: 0 .3rem 0 var(--ink); }
 .ghost { display: block; margin: .55rem auto 0; font-size: .72rem; font-weight: 800; text-decoration: underline; }
 #title small { display: block; margin-top: .6rem; font-size: .58rem; font-weight: 800; color: #4a2a4a; }
+
+/* --- сцены-свидания во весь экран --- */
+#vn { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; display: none; }
+#vn.on { display: block; }
+#dlg.vn #dlg-pic, #dlg.vn #dlg-pic2 { display: none !important; }
+#dlg.vn #dlg-box { box-shadow: 0 .25rem 0 var(--ink), 0 0 2rem rgba(0,0,0,.35); }
+/* --- мини-игры --- */
+#mg { position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; background: var(--ink); padding: .4rem calc(.4rem + var(--sr)) .4rem calc(.4rem + var(--sl)); }
+#mg header { display: flex; align-items: center; gap: .8rem; padding: .2rem .6rem .5rem; color: #fff; }
+#mg header b { font-style: italic; font-size: 1rem; color: var(--gold); }
+#mg header small { flex: 1; font-size: .72rem; opacity: .85; }
+#mg-x { width: 2rem; height: 2rem; border-radius: 50%; background: var(--cream) !important; border: 3px solid #000; font-weight: 900; }
+#mg-cv { flex: 1; width: 100%; min-height: 0; border: 3px solid #000; border-radius: 1rem; background: #fff; touch-action: none; }
+/* --- карточка героини, альбом, слоты --- */
+.sulk { font-style: normal; color: #d4204e; font-weight: 900; }
+.endb { font-style: normal; color: #c89a10; font-weight: 900; }
+.taste { font-size: .72rem; color: #7a5a6a; margin: .2rem 0 .3rem; }
+.skl span.heart { border-color: var(--pink) !important; background: #ffe0ea; color: #d4204e; }
+#m-body h4 { margin: .6rem 0 .3rem; font-size: .8rem; font-style: italic; }
+.alb { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .3rem; }
+.alb button { display: flex; align-items: center; gap: .35rem; text-align: left; padding: .25rem .45rem; font-size: .7rem; font-weight: 800; border: 2px solid var(--ink); border-radius: .6rem; background: #fff; }
+.alb img { width: 1.8rem; height: 1.8rem; border-radius: 50%; background: #ffe0ea; }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem; }
+.slot { border: 2px solid var(--ink); border-radius: .7rem; padding: .35rem .5rem; background: #fff; font-size: .7rem; display: flex; flex-direction: column; gap: .2rem; }
+.slot.cur { background: #ffe8f0; }
+.slot small { color: #7a5a6a; min-height: 1.6rem; }
+.slot div { display: flex; gap: .25rem; }
+.slot button { flex: 1; border: 2px solid var(--ink); border-radius: .5rem; background: var(--cream); font-weight: 800; font-size: .66rem; padding: .15rem; }
+em.lv { color: #d4204e; font-style: normal; font-size: .7rem; } em.ht { color: #5a4a7a; font-style: normal; font-size: .7rem; }
+.dcell .star { position: absolute; left: .3rem; top: .2rem; color: #e8a810; font-style: normal; font-weight: 900; }
+#bskills button.hs { background: #ffe6ee; }
+#bskills button.off { opacity: .45; }
+#bskills.on { position: absolute; right: calc(.6rem + var(--sr)); bottom: .6rem; width: 52%; max-height: 64vh; overflow-y: auto; grid-auto-rows: minmax(2.5rem, auto); align-content: end; padding: .3rem; background: rgba(33,18,28,.55); border-radius: 1rem; }
+#bskills button.back { grid-column: 1 / -1; }

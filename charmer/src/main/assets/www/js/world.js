@@ -6,6 +6,7 @@
 
   /* ---------- Генерация карты ---------- */
   W.build = function (id) {
+    if (id === 'manor') FX.manorDef(D.MAPS.manor);
     const def = D.MAPS[id], w = def.w, h = def.h, r = U.rng(def.seed * 7919 + 1), N = w * h;
     const m = { id, def, w, h, tile: new Uint8Array(N), block: new Uint8Array(N), objs: [], npcs: [], signs: [], doors: [], exits: def.exits };
     const at = (x, y) => y * w + x, inb = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
@@ -25,7 +26,7 @@
       if (tall) { m.tile[i] = TALL; continue; }
       m.tile[i] = r() < def.flowers ? FLOWER : GRASS;
     }
-    const treeKind = def.ground === 'forest' ? 'dark' : def.ground === 'rock' ? 'snowpine' : 'tree';
+    const treeKind = def.tree || (def.ground === 'forest' ? 'dark' : def.ground === 'rock' ? 'snowpine' : 'tree');
     const addTree = (x, y) => { m.block[at(x, y)] = 1; m.objs.push({ k: 'tree', im: U.pick(ART.objs[treeKind], r), x, y, sy: (y + 1) * T }); };
     // дома
     for (const ho of def.houses || []) {
@@ -33,7 +34,7 @@
       m.objs.push({ k: 'house', im: ART.objs.house[ho.k], x: ho.x, y: ho.y, sy: (ho.y + 4) * T });
       m.doors.push({ k: ho.k, x: ho.x + 1, y: ho.y + 3 }, { k: ho.k, x: ho.x + 2, y: ho.y + 3 });
     }
-    for (const [k, px, py] of def.props || []) { m.block[at(px, py)] = 1; m.objs.push({ k: 'prop', pk: k, im: ART.objs.prop[k], x: px, y: py, sy: (py + 1) * T - 4 }); }
+    for (const [k, px, py] of def.props || []) { if (k !== 'rug') m.block[at(px, py)] = 1; m.objs.push({ k: 'prop', pk: k, im: ART.objs.prop[k], x: px, y: py, sy: (py + 1) * T - 4 }); }
     const reserved = new Uint8Array(N);
     for (const n of def.npcs) for (const [x, y] of [[n.x, n.y], n.aside || [n.x, n.y]]) if (inb(x, y)) reserved[at(x, y)] = 1;
     for (const s of def.signs) reserved[at(s.x, s.y)] = 1;
@@ -49,19 +50,20 @@
     }
     for (const s of def.signs) { m.block[at(s.x, s.y)] = 1; m.tile[at(s.x, s.y)] = m.tile[at(s.x, s.y)] === PATH ? PATH : GRASS; m.signs.push(s); m.objs.push({ k: 'sign', im: ART.objs.sign, x: s.x, y: s.y, sy: (s.y + 1) * T - 2 }); }
     for (const n of def.npcs) {
+      if (n.girl === 'dragon' && G.S.caught.dragon) continue;
       const done = n.trainer && G.S.flags[n.trainer];
       const p = done && n.aside ? n.aside : [n.x, n.y];
-      m.npcs.push({ id: n.id, look: n.look, x: p[0], y: p[1], face: done && n.aside ? 'down' : n.face, trainer: n.trainer, t: Math.random() * 9 });
+      m.npcs.push({ id: n.id, look: n.look, girl: n.girl, x: p[0], y: p[1], face: done && n.aside ? 'down' : n.face, trainer: n.trainer, t: Math.random() * 9 });
     }
     m.ground = renderGround(m);
     return m;
   };
   function renderGround(m) {
-    const [c, x] = U.canvas(m.w * T, m.h * T, 1.5), def = m.def, base = { grass: 'grass', forest: 'forest', rock: 'rock', tower: 'tower' }[def.ground], r = U.rng(def.seed);
+    const [c, x] = U.canvas(m.w * T, m.h * T, 1.5), def = m.def, base = ART.tiles[def.ground] ? def.ground : 'grass', r = U.rng(def.seed);
     const tl = ART.tiles;
     for (let y = 0; y < m.h; y++) for (let x0 = 0; x0 < m.w; x0++) {
       const t = m.tile[y * m.w + x0], v = (x0 * 7 + y * 13) % 3;
-      const im = t === PATH ? (def.indoor ? tl.tower[v] : tl.path[v]) : t === WATER ? tl.water[v] : t === TALL ? tl[base][v] : t === FLOWER ? tl.flower[v] : t === WALL ? tl.wall[v] : tl[base][v];
+      const im = t === PATH ? (def.indoor ? tl.tower[v] : tl.path[v]) : t === WATER ? tl.water[v] : t === TALL ? tl[base][v] : t === FLOWER ? tl.flower[v] : t === WALL ? tl[def.wall || 'wall'][v] : tl[base][v];
       x.drawImage(im, x0 * T, y * T, T, T);
     }
     // высокая трава — мягкими округлыми куртинами вместо квадратов
@@ -72,6 +74,7 @@
       x.fillStyle = '#2f6a24'; blob(T * 0.74); x.fill();
       x.save(); blob(T * 0.69); x.clip();
       for (const [tx, ty] of talls) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) x.drawImage(tl.tall[((tx + dx) * 7 + (ty + dy) * 13 + 99) % 3], (tx + dx) * T, (ty + dy) * T, T, T);
+      const ttint = { sand: 'rgba(235,200,90,.38)', dungeon: 'rgba(80,50,150,.42)', swamp: 'rgba(60,70,20,.25)' }[def.ground]; if (ttint) { x.fillStyle = ttint; x.fillRect(0, 0, m.w * T, m.h * T); }
       x.restore();
     }
     // травинки по краям троп
@@ -90,7 +93,7 @@
       const t = m.tile[y * m.w + x0]; if (t !== WATER) continue;
       for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) { const nx = x0 + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= m.w || ny >= m.h || m.tile[ny * m.w + nx] === WATER) continue; x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(x0 * T + (dx > 0 ? T - 3 : 0), y * T + (dy > 0 ? T - 3 : 0), dx ? 3 : T, dy ? 3 : T); x.fillStyle = '#21121c'; x.fillRect(x0 * T + (dx > 0 ? T - 1 : dx < 0 ? -1 : 0), y * T + (dy > 0 ? T - 1 : dy < 0 ? -1 : 0), dx ? 2 : T, dy ? 2 : T); }
     }
-    if (def.indoor) { x.fillStyle = 'rgba(255,120,200,.12)'; x.fillRect(0, 0, m.w * T, m.h * T); x.fillStyle = '#4a2a5a'; x.fillRect(5 * T, 0, 3 * T, 2 * T); }
+    if (m.id === 'tower') { x.fillStyle = 'rgba(255,120,200,.12)'; x.fillRect(0, 0, m.w * T, m.h * T); x.fillStyle = '#4a2a5a'; x.fillRect(5 * T, 0, 3 * T, 2 * T); }
     return c;
   }
 
@@ -101,9 +104,11 @@
     W.m = W.build(mapId);
     W.hero = { px: x * T, py: y * T, mv: 0, fx: x, fy: y, walk: 0 };
     W.fol = { x, y, px: x * T, py: y * T, walk: 0, path: [] };
-    UI.zone(W.m.def.n);
-    U.music(mapId === 'village' ? 'tavern' : 'world');
+    FX.rollWeather(mapId);
+    UI.zone(W.m.def.n + (W.m.def.indoor || W.m.def.cave ? '' : ' · ' + FX.PH[FX.phase()] + ' ' + FX.WX[G.S.wx]));
+    U.music(FX.mapMusic());
     ST.onEnter(mapId);
+    if (mapId === 'manor') FX.onManor();
   };
   W.walkable = function (x, y) {
     const m = W.m; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return false;
@@ -122,6 +127,7 @@
     } else if (input) {
       S.face = input; const [dx, dy] = DIR[input], nx = S.x + dx, ny = S.y + dy;
       if (W.walkable(nx, ny)) {
+        const gx = m.exits.find(e => e.x === nx && e.y === ny && e.need && !S.flags[e.need]); if (gx) { UI.say([{ who: 'Стражник', t: gx.deny.replace('Стражник: ', '') }]); return; }
         if (S.map === 'village' && !S.flags.starter && m.exits.some(e => e.x === nx && e.y === ny)) { UI.say([{ who: 'Баба Нюра', t: 'Куда без напарницы?! Зайди ко мне, выбери девицу!' }]); return; }
         h.fx = S.x; h.fy = S.y; W.fol.path.push([S.x, S.y]); S.x = nx; S.y = ny; h.mv = 1;
       } else { const n = W.npcAt(nx, ny); if (n && n.trainer && !S.flags[n.trainer]) W.interact(); else if (W.bumpT <= 0 || W.bumpT === undefined) { U.sfx('bump'); W.bumpT = 0.3; } }
@@ -154,8 +160,10 @@
     const n = W.npcAt(tx, ty);
     if (n) {
       n.face = { up: 'down', down: 'up', left: 'right', right: 'left' }[S.face];
+      if (n.girl === 'dragon') return FX.dragon();
+      if (n.girl) return FX.resident(n);
       if (n.trainer) return trainerTalk(n);
-      const lines = D.NPC[n.id]; return UI.say([{ who: n.id === 'pahom' ? 'Дед Пахом' : 'Мальчишка', t: U.pick(lines, Math.random) }]);
+      const lines = D.NPC[n.id] || ['…']; return UI.say([{ who: n.id === 'pahom' ? 'Дед Пахом' : 'Мальчишка', t: U.pick(lines, Math.random) }]);
     }
     const s = m.signs.find(s => s.x === tx && s.y === ty); if (s) return UI.say([{ who: 'Табличка', t: s.t }]);
     const d = m.doors.find(d => d.x === tx && d.y === ty);
@@ -163,6 +171,7 @@
       if (d.k === 'elder') return elder();
       if (d.k === 'shop') return UI.openShop();
       if (d.k === 'tavern') return UI.openTavern();
+      if (d.k === 'manor') return UI.fade(() => W.enter('manor', 6, 9, 'up'));
     }
     const t = m.tile[ty * m.w + tx];
     if (t === WATER) return UI.say([{ who: '', t: 'Вода прозрачная. В отражении — красавец. Ну, почти.' }]);
@@ -179,6 +188,7 @@
   }
   function trainerTalk(n) {
     const S = G.S, tr = D.TRAINERS[n.trainer];
+    if (S.flags[n.trainer] && S.flags.boss && D.REMATCH[n.trainer]) return FX.rematch(n);
     if (S.flags[n.trainer]) return UI.say([{ who: tr.n, t: tr.after }]);
     if (!G.alive()) return UI.say([{ who: tr.n, t: 'Твои девицы без сил. Сначала отдохни в таверне, герой-любовник.' }]);
     UI.say(ST.before(n.trainer), () => BT.start({ trainer: n.trainer, zone: W.m.id, npc: n }));
@@ -216,14 +226,15 @@
       if (o.k === 'tree') x.drawImage(o.im, o.x * T - 12, (o.y + 1) * T - 92, 72, 96);
       else if (o.k === 'house') x.drawImage(o.im, o.x * T, o.y * T, 4 * T, 4 * T);
       else if (o.k === 'rock' || o.k === 'sign') x.drawImage(o.im, o.x * T, o.y * T, T, T);
-      else if (o.k === 'prop') { x.drawImage(o.im, o.x * T, (o.y + 1) * T - T * 1.5, T, T * 1.5); if (o.pk === 'lamp') { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.35 + Math.sin(tm * 3 + o.x) * 0.05; x.drawImage(ART.glow, o.x * T - 16, (o.y + 1) * T - T * 1.5 - 4, 80, 60); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; } }
+      else if (o.k === 'prop') { x.drawImage(o.im, o.x * T, (o.y + 1) * T - T * 1.5, T, T * 1.5); if (o.pk === 'lamp' || o.pk === 'torch' || o.pk === 'fireplace') { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.35 + Math.sin(tm * 3 + o.x) * 0.05; x.drawImage(ART.glow, o.x * T - 16, (o.y + 1) * T - T * 1.5 - 4, 80, 60); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; } }
       else if (o.k === 'tall') { x.save(); x.translate(o.x * T, (o.y + 1) * T); x.transform(1, 0, Math.sin(tm * 2 + o.x * 0.7 + o.y) * 0.06, 1, 0, 0); x.drawImage(ART.tallFront, 0, -T * 0.62, T, T * 0.62); x.restore(); }
       else if (o.k === 'npc') {
         const n = o.n; x.save(); x.translate(n.x * T + T / 2, (n.y + 1) * T - 6);
-        if (n.look === 'witch') { x.scale(0.38, 0.38); ART.girl(x, 'witch', { t: tm, chibi: true, expr: 'smug' }); } else ART.person(x, n.look, n.face, 0, tm + n.t);
+        if (n.look === 'witch') { x.scale(0.38, 0.38); ART.girl(x, 'witch', { t: tm, chibi: true, expr: 'smug' }); }
+        else if (n.girl) { const gg = S.party.concat(S.box).find(q => q.id === n.girl); x.scale(0.36, 0.36); ART.girl(x, n.girl, { t: tm + n.t, chibi: true, expr: gg && FX.sulky(gg) ? 'angry' : 'happy', outfit: gg && gg.outfit, bloom: gg && gg.bloom }); } else ART.person(x, n.look, n.face, 0, tm + n.t);
         x.restore();
         if (n.trainer && !S.flags[n.trainer]) { const d = Math.abs(n.x - S.x) + Math.abs(n.y - S.y); if (d < 5) bubble(x, n.x * T + T / 2 + 10, n.y * T - 40 + Math.sin(tm * 4) * 2, '!'); }
-      } else if (o.k === 'fol') { x.save(); x.translate(W.fol.px + T / 2, W.fol.py + T - 7); x.scale(0.36, 0.36); ART.girl(x, lead.id, { t: tm, chibi: true, walk: W.fol.walk, bloom: lead.bloom, expr: lead.aff >= 75 ? 'happy' : 'normal' }); x.restore(); if (lead.aff >= 50 && Math.sin(tm * 1.3) > 0.97) heartFloat(x, W.fol.px + T / 2, W.fol.py - 30); }
+      } else if (o.k === 'fol') { x.save(); x.translate(W.fol.px + T / 2, W.fol.py + T - 7); x.scale(0.36, 0.36); ART.girl(x, lead.id, { t: tm, chibi: true, walk: W.fol.walk, bloom: lead.bloom, outfit: lead.outfit, expr: lead.aff >= 75 ? 'happy' : 'normal' }); x.restore(); if (lead.aff >= 50 && Math.sin(tm * 1.3) > 0.97) heartFloat(x, W.fol.px + T / 2, W.fol.py - 30); }
       else if (o.k === 'hero') { x.save(); x.translate(h.px + T / 2, h.py + T - 6); ART.person(x, 'hero', S.face, h.mv > 0 ? h.walk : 0, tm); x.restore(); }
     }
     // дым из труб, бабочки, лепестки, снег, светлячки
@@ -232,8 +243,9 @@
     if (!m.def.indoor) { x.globalAlpha = 0.13; for (let i = 0; i < 3; i++) { const cx2 = ((i * 613 + tm * 14) % (mw + 900)) - 450, cy2 = (i * 397 + tm * 4) % (mh + 300) - 150; x.drawImage(ART.soft, cx2 - 220, cy2 - 120, 440, 240); } x.globalAlpha = 1; }
     // цвет локации и виньетка
     x.setTransform(1, 0, 0, 1, 0, 0);
-    const tint = { forest: 'rgba(10,60,40,.14)', mountain: 'rgba(160,200,255,.12)', tower: 'rgba(120,30,140,.16)', meadow: 'rgba(255,220,140,.06)', village: 'rgba(255,200,150,.06)' }[m.id];
+    const tint = { forest: 'rgba(10,60,40,.14)', mountain: 'rgba(160,200,255,.12)', tower: 'rgba(120,30,140,.16)', meadow: 'rgba(255,220,140,.06)', village: 'rgba(255,200,150,.06)', beach: 'rgba(255,230,160,.08)', swamp: 'rgba(40,70,30,.2)', dungeon: 'rgba(40,20,80,.3)', manor: 'rgba(255,200,170,.08)' }[m.id];
     if (tint) { x.fillStyle = tint; x.fillRect(0, 0, V.w, V.h); }
+    FX.screenFx(x, V, m, tm);
     x.drawImage(ART.vign, 0, 0, V.w, V.h);
     x.setTransform(z, 0, 0, z, -left * z, -top * z);
     // табличка у двери
@@ -241,7 +253,7 @@
   };
   const AMB = [];
   function ambient(x, m, left, top, vw, vh, tm, dt) {
-    const kind = { meadow: 'fly', village: 'petal', forest: 'firefly', mountain: 'snow', tower: 'spark' }[m.id];
+    const kind = { meadow: 'fly', village: 'petal', forest: 'firefly', mountain: 'snow', tower: 'spark', beach: 'fly', swamp: 'firefly', dungeon: 'spark', manor: 'petal' }[m.id];
     const want = kind === 'snow' ? 40 : kind === 'fly' ? 10 : 18;
     while (AMB.length < want) AMB.push({ x: left + Math.random() * vw, y: top + Math.random() * vh, ph: Math.random() * 6, c: U.pick(['#ffffff', '#ffd84a', '#ff9ac8', '#9ad8ff'], Math.random), s: 0.7 + Math.random() * 0.6 });
     if (AMB.length > want) AMB.length = want;
@@ -257,7 +269,7 @@
       else if (kind === 'snow') { x.fillStyle = 'rgba(255,255,255,.9)'; x.beginPath(); x.arc(p.x, p.y, 1.6 * p.s + 0.6, 0, 6.283); x.fill(); }
       else { const a = 0.4 + 0.6 * Math.abs(Math.sin(p.ph * 2)); x.globalCompositeOperation = 'lighter'; x.globalAlpha = a; x.drawImage(ART.glow, p.x - 7, p.y - 7, 14, 14); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = kind === 'spark' ? '#ffb0ff' : '#f4ff9a'; x.fillRect(p.x - 1, p.y - 1, 2, 2); }
     }
-    for (const o of m.objs) if (o.k === 'house') { for (let i = 0; i < 4; i++) { const ph = (tm * 0.35 + i * 0.25) % 1, px = (o.x + 4) * T - 54 + Math.sin(tm + i) * 4 + ph * 12, py = o.y * T + 4 * T - 182 - ph * 50; x.globalAlpha = (1 - ph) * 0.5; x.fillStyle = '#e8e4f0'; x.beginPath(); x.arc(px, py, 5 + ph * 9, 0, 6.283); x.fill(); } x.globalAlpha = 1; }
+    for (const o of m.objs) if (o.k === 'house' && o.im !== ART.objs.house.manor) { for (let i = 0; i < 4; i++) { const ph = (tm * 0.35 + i * 0.25) % 1, px = (o.x + 4) * T - 54 + Math.sin(tm + i) * 4 + ph * 12, py = o.y * T + 4 * T - 182 - ph * 50; x.globalAlpha = (1 - ph) * 0.5; x.fillStyle = '#e8e4f0'; x.beginPath(); x.arc(px, py, 5 + ph * 9, 0, 6.283); x.fill(); } x.globalAlpha = 1; }
   }
   function bubble(x, px, py, t) {
     x.fillStyle = '#fff'; x.strokeStyle = '#21121c'; x.lineWidth = 2; x.beginPath(); x.ellipse(px, py, 9, 11, 0, 0, 6.283); x.moveTo(px - 3, py + 9); x.lineTo(px - 7, py + 16); x.lineTo(px + 2, py + 10); x.fill(); x.stroke();

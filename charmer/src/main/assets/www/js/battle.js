@@ -10,7 +10,7 @@
   /* ---------- Старт ---------- */
   BT.start = function (o) {
     const S = G.S;
-    b = BT.b = { zone: o.zone, wild: !!o.wild, trainer: o.trainer ? D.TRAINERS[o.trainer] : null, tkey: o.trainer, npc: o.npc, q: [], cur: null, over: false, menu: false, t: 0, pops: [], heart: null, parts: [], bursts: [], amb: [], shake: 0, flashS: 0, introT: 0,
+    b = BT.b = { zone: o.zone, wild: !!o.wild, trainer: o.trainer ? D.TRAINERS[o.trainer] : null, tkey: o.trainer, npc: o.npc, q: [], cur: null, over: false, menu: false, t: 0, pops: [], heart: null, parts: [], bursts: [], amb: [], shake: 0, flashS: 0, introT: 0, hu: {}, duet: false, endured: {},
       foeTeam: o.wild ? [G.mkGirl(o.wild.id, o.wild.lvl)] : D.TRAINERS[o.trainer].team.map(([id, l]) => G.mkGirl(id, l)), fi: 0, mi: S.party.findIndex(g => g.hp > 0) };
     b.foe = b.foeTeam[0];
     for (const g of b.foeTeam.concat(S.party)) { g.stg = { atk: 0, def: 0, spd: 0 }; g.st = null; g.stT = 0; }
@@ -21,7 +21,10 @@
     push({ t: 'anim', k: 'intro', dur: 0.7 });
     if (b.wild) push(msg('Из травы выскакивает ' + (fg.kind === 'Неко' || fg.kind === 'Кицунэ' ? '' : '') + 'дикая ' + fg.kind.toLowerCase() + ' ' + fg.name + '!'));
     else { push(msg(b.trainer.n + ' вызывает тебя на бой!')); push(msg(b.trainer.n + ': «Вперёд, ' + nm(b.foe) + '!»')); }
-    push(msg('Вперёд, ' + nm(me()) + '!'), { t: 'fn', f: () => { b.A.me.hpd = me().hp; } }, { t: 'fn', f: openMenu });
+    push(msg('Вперёд, ' + nm(me()) + '!'), { t: 'fn', f: () => { b.A.me.hpd = me().hp; } });
+    const ri = FX.battleIntro(me()); if (ri) push(msg(ri));
+    if (FX.sulky(me())) push(msg(nm(me()) + ' дуется и демонстративно смотрит в сторону…'));
+    push({ t: 'fn', f: openMenu });
   };
   function side() { return { slide: 0, lunge: 0, shake: 0, alpha: 1, scale: 1, expr: null, hpd: null, flash: 0, pose: null, faint: 0 }; }
   const me = () => G.S.party[b.mi], foe = () => b.foe;
@@ -39,6 +42,8 @@
     if (!b || !b.menu) return; b.menu = false; UI.battleMenuHide();
     const fa = aiPick(), first = a.k !== 'skill' || stat(me(), 'spd') * (me().st === 'stun' ? 0.5 : 1) >= stat(foe(), 'spd') * (foe().st === 'stun' ? 0.5 : 1);
     const mine = { t: 'fn', f: () => act('me', a) }, theirs = { t: 'fn', f: () => { if (!b.over && foe().hp > 0) doSkill('foe', fa); } };
+    if (a.k === 'skill' && D.SK[a.id].heart) b.hu[me().uid] = true;
+    if (a.k === 'duet') b.duet = true;
     if (a.k === 'run' && !b.wild) { push(msg('От соперника не сбегают! Позор.'), { t: 'fn', f: openMenu }); return; }
     if (first) push(mine, theirs); else push(theirs, mine);
     push({ t: 'fn', f: endTurn });
@@ -54,6 +59,7 @@
   function act(sideK, a) {
     if (b.over) return;
     if (a.k === 'skill') { if (me().hp > 0) doSkill('me', a.id); }
+    else if (a.k === 'duet') duet(a.pid);
     else if (a.k === 'compl') compliment();
     else if (a.k === 'seal') seal();
     else if (a.k === 'item') useItem(a.id, a.target);
@@ -74,16 +80,24 @@
     if (A.hp <= 0) return;
     const items = [];
     if (!canAct(sideK)) return;
+    if (sideK === 'me' && !sk.heart) {
+      if (FX.sulky(A) && R() < 0.25) { ins(msg(n + ': «' + U.pick(D.SULK, R) + '»'), { t: 'expr', side: 'me', e: 'angry', dur: 1.2 }); return; }
+      if (FX.distract(A)) { const rv = FX.rel(A).find(r => !r.friend); ins(msg(nm(rv.g) + ' что-то язвит из-за спины, и ' + n + ' отвлекается на перепалку!'), { t: 'expr', side: 'me', e: 'angry', dur: 1.2 }); return; }
+    }
     const fxx = sk.fx || {}, tgt = sk.pw || !(fxx.heal || fxx.self) ? oth : sideK;
     items.push(msg((sideK === 'foe' && b.wild ? 'Дикая ' : '') + n + ': «' + sk.n + '!»'), { t: 'anim', k: sk.pw ? 'lunge' : 'cast', side: sideK, dur: 0.38 }, { t: 'anim', k: 'fx', elm: sk.el, from: sideK, to: tgt, self: tgt === sideK, dur: sk.el === 'thunder' || sk.el === 'light' ? 0.6 : 0.5 });
     if (R() > sk.acc) { items.push(msg('Мимо! ' + nm(Dd) + ' грациозно уворачивается.')); ins(...items); return; }
     const fx = sk.fx || {};
     if (sk.pw) {
-      const L = A.lvl, eff = D.eff(sk.el, D.GIRLS[Dd.id].el), stab = sk.el === D.GIRLS[A.id].el ? 1.25 : 1, crit = R() < 0.07 ? 1.5 : 1;
+      const L = A.lvl, eff = D.eff(sk.el, D.GIRLS[Dd.id].el), stab = sk.el === D.GIRLS[A.id].el ? 1.25 : 1, crit = R() < (sk.heart ? 0.3 : 0.07) ? 1.5 : 1, bst = sideK === 'me' ? FX.boost(A) : 1;
       let dmg = Math.floor(((2 * L / 5 + 2) * sk.pw * stat(A, 'atk') / Math.max(1, stat(Dd, 'def'))) / 50 + 2);
-      dmg = Math.max(1, Math.floor(dmg * eff * stab * crit * (0.85 + R() * 0.15)));
-      const nh = Math.max(0, Dd.hp - dmg); Dd.hp = nh;
+      dmg = Math.max(1, Math.floor(dmg * eff * stab * crit * bst * (0.85 + R() * 0.15)));
+      let nh = Math.max(0, Dd.hp - dmg);
+      if (nh <= 0 && oth === 'me' && Dd.aff >= 75 && Dd.hp > 1 && !b.endured[Dd.uid]) { b.endured[Dd.uid] = true; nh = 1; items.push({ t: 'fn', f: () => { } }); b.endMsg = nm(Dd) + ' стискивает зубы: «Я не упаду… не при нём!» Держится на 1 HP!'; }
+      Dd.hp = nh;
       items.push({ t: 'anim', k: 'hit', side: oth, dur: 0.4, dmg, eff, crit: crit > 1 }, { t: 'hp', side: oth, to: nh });
+      if (b.endMsg) { items.push({ t: 'expr', side: 'me', e: 'angry', dur: 1.5 }, msg(b.endMsg)); b.endMsg = null; }
+      if (sk.heart) items.push({ t: 'sfx', s: 'kiss' }, msg('Сила любви! ' + n + ' вкладывает в удар всё сердце.'));
       if (crit > 1) items.push(msg('Точно в сердечко! Критический удар!'));
       if (eff > 1) items.push(msg('Очень эффективно! ' + nm(Dd) + ' такого не ожидала.'));
       else if (eff < 1) items.push(msg('Так себе эффект. ' + nm(Dd) + ' даже не обиделась.'));
@@ -98,6 +112,19 @@
       if (fx.foe) items.push(...changeStg(Dd, fx.foe, fx.v));
       if (fx.st) { if (Dd.st) items.push(msg('Не сработало: ' + nm(Dd) + ' и так ' + D.ST[Dd.st].toLowerCase() + '.')); else items.push(...applySt(Dd, fx.st)); }
     }
+    ins(...items);
+  }
+  function duet(pid) {
+    const A = me(), P = G.S.party.find(g => g.uid === pid), Dd = foe();
+    if (!P || P.hp <= 0 || A.hp <= 0 || b.over) return;
+    const el = D.GIRLS[P.id].el, eff = D.eff(el, D.GIRLS[Dd.id].el), atk = (stat(A, 'atk') + G.stats(P).atk) / 2, L = Math.max(A.lvl, P.lvl);
+    let dmg = Math.floor(((2 * L / 5 + 2) * 130 * atk / Math.max(1, stat(Dd, 'def'))) / 50 + 2); dmg = Math.max(1, Math.floor(dmg * eff * (0.9 + R() * 0.1)));
+    const nh = Math.max(0, Dd.hp - dmg); Dd.hp = nh;
+    const items = [msg(nm(A) + ' и ' + nm(P) + ': «Вместе — ради Чаровника!»'), { t: 'sfx', s: 'kiss' }, { t: 'anim', k: 'lunge', side: 'me', dur: 0.38 },
+      { t: 'anim', k: 'fx', elm: D.GIRLS[A.id].el, from: 'me', to: 'foe', self: false, dur: 0.45 }, { t: 'anim', k: 'fx', elm: el, from: 'me', to: 'foe', self: false, dur: 0.45 },
+      { t: 'anim', k: 'hit', side: 'foe', dur: 0.4, dmg, eff, crit: true }, { t: 'hp', side: 'foe', to: nh }, msg('Дуэт сердец! Мощный совместный удар!')];
+    if (eff > 1) items.push(msg('Очень эффективно!'));
+    if (nh <= 0) items.push({ t: 'fn', f: () => fainted('foe') });
     ins(...items);
   }
   function applySt(g, st) {
@@ -195,7 +222,7 @@
     for (const g of S.party) { g.st = null; g.stg = null; }
     if (res === 'win' || res === 'caught') for (const g of S.party) if (g.hp > 0) g.aff = Math.min(100, g.aff + 2);
     const wasT = b.tkey, isBoss = b.trainer && b.trainer.boss;
-    b = BT.b = null; UI.battleOn(false); G.mode = 'world'; U.music(WD.m.id === 'village' ? 'tavern' : 'world');
+    b = BT.b = null; UI.battleOn(false); G.mode = 'world'; U.music(FX.mapMusic());
     if (res === 'lose') {
       S.money = Math.floor(S.money / 2); G.healAll();
       UI.fade(() => { WD.enter('village', 11, 6, 'down'); UI.say([{ who: 'Тётка Дуня', t: 'Очнулся, горе-Чаровник? Девиц твоих я выходила. А половину монет взяла за пироги. Ешь давай.' }]); });
@@ -273,7 +300,7 @@
       const a = b.A[k]; if (!g || a.alpha <= 0) return;
       x.save(); x.translate(px + a.slide * V.w * 0.6 + (a.shake ? Math.sin(t * 60) * a.shake * 6 : 0) + a.lunge * (flip ? -1 : 1) * 40 * s, py + a.faint * 40 * s); x.scale(sc * a.scale * (flip ? -1 : 1), sc * a.scale); x.globalAlpha = a.alpha;
       const hpk = g.hp / G.stats(g).hp;
-      ART.girl(x, g.id, { t: t + (k === 'me' ? 3 : 0), expr: a.expr || (g.st === 'sleep' ? 'sleepy' : g.st === 'charm' ? 'blush' : hpk < 0.3 ? 'hurt' : k === 'foe' && b.wild ? 'smug' : 'normal'), pose: a.pose || (a.flash > 0.5 ? 'hurt' : 'idle'), bloom: g.bloom });
+      ART.girl(x, g.id, { t: t + (k === 'me' ? 3 : 0), expr: a.expr || (g.st === 'sleep' ? 'sleepy' : g.st === 'charm' ? 'blush' : hpk < 0.3 ? 'hurt' : k === 'foe' && b.wild ? 'smug' : 'normal'), pose: a.pose || (a.flash > 0.5 ? 'hurt' : 'idle'), bloom: g.bloom, outfit: k === 'me' ? g.outfit : undefined });
       x.restore(); x.globalAlpha = 1;
     };
     draw('foe', foe(), V.w * 0.72, V.h * 0.47, s * 0.56, true);
@@ -384,7 +411,7 @@
     x.fillStyle = '#21121c'; U.rr(x, 4 * s, 4 * s, w, h, 10 * s); x.fill();
     x.fillStyle = '#fff8f0'; U.rr(x, 0, 0, w, h, 10 * s); x.fill(); x.strokeStyle = '#21121c'; x.lineWidth = 3; x.stroke();
     x.fillStyle = D.EL[d.el].c; U.rr(x, 0, 0, 10 * s, h, 5 * s); x.fill();
-    x.fillStyle = '#21121c'; x.textAlign = 'left'; x.font = 'italic 900 ' + Math.round(14 * s) + 'px sans-serif'; x.fillText(g.bloom ? d.bloom : d.name, 18 * s, 19 * s);
+    x.fillStyle = '#21121c'; x.textAlign = 'left'; { const nmT = g.bloom ? d.bloom : d.name, room = w - 18 * s - (G.S.caught[g.id] && !mine ? 76 : 52) * s; let fs = 14 * s; x.font = 'italic 900 ' + Math.round(fs) + 'px sans-serif'; while (fs > 8 * s && x.measureText(nmT).width > room) { fs -= 0.5 * s; x.font = 'italic 900 ' + Math.round(fs) + 'px sans-serif'; } x.fillText(nmT, 18 * s, 19 * s); }
     x.font = '800 ' + Math.round(11 * s) + 'px sans-serif'; x.fillStyle = '#7a5a6a'; x.fillText(d.kind + ' · ' + D.EL[d.el].n, 18 * s, 33 * s);
     x.textAlign = 'right'; x.fillStyle = '#21121c'; x.font = '900 ' + Math.round(13 * s) + 'px sans-serif'; x.fillText('ур. ' + g.lvl, w - 10 * s, 19 * s);
     if (G.S.caught[g.id] && !mine) { ART.heart(x, w - 62 * s, 14 * s, 5 * s, '#ff4f7b'); }
