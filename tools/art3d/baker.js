@@ -17,12 +17,12 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserv
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.22;
 renderer.setClearColor(0x000000, 0);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const hemi = new THREE.HemisphereLight(0xe4e8f2, 0x5e5040, 1.25);
+const hemi = new THREE.HemisphereLight(0xe4e8f2, 0x6a5a48, 1.5);
 scene.add(hemi);
 // солнце игры: тени ложатся к +x (вправо-вниз) — свет слева-сверху
 const key = new THREE.DirectionalLight(0xfff0dc, 2.6);
@@ -31,7 +31,7 @@ scene.add(key);
 const fill = new THREE.DirectionalLight(0xa8bcdc, 0.55);
 fill.position.set(0.9, 0.5, 0.7).multiplyScalar(10);
 scene.add(fill);
-const rim = new THREE.DirectionalLight(0xffe2c0, 0.9);
+const rim = new THREE.DirectionalLight(0xffe2c0, 1.3);
 rim.position.set(-0.4, 0.8, -1).multiplyScalar(10);
 scene.add(rim);
 

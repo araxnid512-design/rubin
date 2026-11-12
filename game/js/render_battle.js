@@ -2117,7 +2117,8 @@
     if (!n(anim)) { anim = n('idle') ? 'idle' : 'walk'; i = 0; }
     i = Math.min(i, n(anim) - 1);
     const L = [[S.body, anim, i, d]];
-    if (S.weapon && S3.ready(S.weapon)) L.push([S.weapon, anim, i, d]);
+    // бросок гранаты — замах пустой рукой (ствол за спиной не рисуем)
+    if (S.weapon && S3.ready(S.weapon) && !(an && an.kind === 'throw')) L.push([S.weapon, anim, i, d]);
     return S3.frame(L);
   }
   function drawUnit(g, u, t, sel, alpha) {

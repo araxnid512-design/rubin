@@ -587,6 +587,23 @@
     "-o",
     "out/c_marksman_a.glb"
    ]
+  },
+  {
+   "id": "p4_c_boss_a",
+   "timeout": 1700,
+   "args": [
+    "process",
+    "animate",
+    "07fb45db-5e86-44fd-95fa-8de96e6d8d35",
+    "--animations",
+    "preset:biped:idle,preset:biped:walk",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/c_boss_a.glb"
+   ]
   }
  ]
 }
