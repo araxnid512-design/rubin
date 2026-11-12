@@ -44,6 +44,8 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`. Нужны JDK 17+ и Android 
 
 Версия 0.6: взрослые пропорции героинь и новые эмоции, экран «вдвоём» (прикосновения, шёпот, поцелуи), ночь вместе и купальня (всё откровенное остаётся за кадром), пеньюар, озвучка реплик системным синтезатором речи (у каждой героини свой тембр) и синтезированные голосовые эмоции.
 
+Версия 0.7: реплики героинь озвучены заранее — у каждой свой голос (3092 записи в `voice/`). Генератор лежит в `tools/charmer-voice/` (RHVoice + sox + Opus); после правки текстов его нужно запустить заново, см. README там же.
+
 Подписанный релиз: положите `charmer/keystore.properties` (storeFile, storePassword, keyAlias, keyPassword) и ключ рядом — оба в `.gitignore` — и выполните `./gradlew :charmer:assembleRelease`.
 
 Сборка: `./gradlew :charmer:assembleDebug` → `charmer/build/outputs/apk/debug/charmer-debug.apk`. В браузере: стрелки/WASD — ходьба, пробел — действие, M — меню.

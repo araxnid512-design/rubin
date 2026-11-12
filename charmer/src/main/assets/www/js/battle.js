@@ -81,7 +81,7 @@
     const items = [];
     if (!canAct(sideK)) return;
     if (sideK === 'me' && !sk.heart) {
-      if (FX.sulky(A) && R() < 0.25) { ins(msg(n + ': «' + U.pick(D.SULK, R) + '»'), { t: 'expr', side: 'me', e: 'angry', dur: 1.2 }); return; }
+      if (FX.sulky(A) && R() < 0.25) { const ln = U.pick(D.SULK, R); U.say(A.id, ln); ins(msg(n + ': «' + ln + '»'), { t: 'expr', side: 'me', e: 'angry', dur: 1.2 }); return; }
       if (FX.distract(A)) { const rv = FX.rel(A).find(r => !r.friend); ins(msg(nm(rv.g) + ' что-то язвит из-за спины, и ' + n + ' отвлекается на перепалку!'), { t: 'expr', side: 'me', e: 'angry', dur: 1.2 }); return; }
     }
     const fxx = sk.fx || {}, tgt = sk.pw || !(fxx.heal || fxx.self) ? oth : sideK;
@@ -140,9 +140,9 @@
   function compliment() {
     const g = foe(), d = D.GIRLS[g.id], line = U.pick(D.COMPL, R), q = R(), items = [msg('Ты: «' + line + '»'), { t: 'anim', k: 'kiss', side: 'me', dur: 0.4 }];
     if (b.trainer && R() < 0.4) items.push(msg(b.trainer.n + ': «Эй! Не флиртуй с моей девицей!»'));
-    if (q < 0.5) { items.push({ t: 'expr', side: 'foe', e: 'blush', dur: 2 }, msg(nm(g) + ': «' + U.pick(d.ok, R) + '»')); if (!g.st) items.push(...applySt(g, 'charm')); else items.push(msg('Она краснеет ещё сильнее!')); }
+    if (q < 0.5) { const ln = U.pick(d.ok, R); items.push({ t: 'expr', side: 'foe', e: 'blush', dur: 2 }, { t: 'fn', f: () => U.say(g.id, ln) }, msg(nm(g) + ': «' + ln + '»')); if (!g.st) items.push(...applySt(g, 'charm')); else items.push(msg('Она краснеет ещё сильнее!')); }
     else if (q < 0.8) items.push({ t: 'expr', side: 'foe', e: 'smug', dur: 1.5 }, msg(nm(g) + ' ' + U.pick(D.COMPL_MEH, R)));
-    else { items.push({ t: 'expr', side: 'foe', e: 'angry', dur: 1.5 }, msg(nm(g) + ': «' + U.pick(d.bad, R) + '»')); items.push(...changeStg(g, 'atk', 1)); }
+    else { const ln = U.pick(d.bad, R); items.push({ t: 'expr', side: 'foe', e: 'angry', dur: 1.5 }, { t: 'fn', f: () => U.say(g.id, ln) }, msg(nm(g) + ': «' + ln + '»')); items.push(...changeStg(g, 'atk', 1)); }
     ins(...items);
   }
   function seal() {

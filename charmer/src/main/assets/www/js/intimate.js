@@ -118,7 +118,7 @@
     const base = () => FX.sulky(g) ? 'angry' : g.aff >= 75 ? 'love' : g.aff >= 50 ? 'happy' : 'normal';
     let back = null;
     const react = (text, ex, emo, good) => {
-      say.textContent = text; o.expr = ex; U.emote(g.id, emo); U.shutUp(); setTimeout(() => U.speak(g.id, text), 260);
+      say.textContent = text; o.expr = ex; if (U.ttsOn && U.soundOn && U.hasVox(g.id, text)) U.say(g.id, text); else { U.emote(g.id, emo); U.shutUp(); setTimeout(() => U.say(g.id, text), 260); }
       clearTimeout(back); back = setTimeout(() => { o.expr = base(); }, 3200);
       if (good) for (let i = 0; i < 5; i++) { const h = document.createElement('i'); h.textContent = '♥'; h.style.left = (25 + Math.random() * 50) + '%'; h.style.animationDelay = (i * 0.08) + 's'; h.style.fontSize = (0.9 + Math.random() * 0.9) + 'rem'; hearts.appendChild(h); setTimeout(() => h.remove(), 1600); }
     };

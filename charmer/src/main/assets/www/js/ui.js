@@ -91,7 +91,7 @@
     }
     who.style.display = who.textContent ? '' : 'none';
     voice = window.FX ? (L.girl ? FX.VOICE[L.girl] : L.me !== undefined || L.ask ? FX.VOICE.me : L.who ? FX.VOICE.npc : null) : null;
-    if (L.girl && !L.ask && U.emote) { U.emote(L.girl, L.expr || 'normal'); const gi = L.girl, tx = L.t; clearTimeout(spT); spT = setTimeout(() => { if (dq && full === tx && U.speak(gi, tx)) voice = null; }, 280); }
+    if (L.girl && !L.ask && U.emote) { const gi = L.girl, tx = L.t; clearTimeout(spT); if (U.ttsOn && U.soundOn && U.hasVox(gi, tx)) { U.say(gi, tx); voice = null; } else { U.emote(gi, L.expr || 'normal'); spT = setTimeout(() => { if (dq && full === tx && U.say(gi, tx)) voice = null; }, 280); } }
     $('dlg-t').classList.toggle('nar', !L.girl && !L.who && L.me === undefined && !L.ask);
     typed = 0; $('dlg-t').textContent = '';
   }
@@ -240,14 +240,14 @@
   const SPD = [['медленно', 26], ['обычно', 48], ['быстро', 95], ['мгновенно', 9999]];
   function tabOpt(el) {
     const sp = SPD.find(q => q[1] === UI.textSpeed) || SPD[1];
-    let h = '<div class="menu"><button data-o="snd">Звук: ' + (U.soundOn ? 'вкл' : 'выкл') + '</button><button data-o="q">Графика: ' + (G.lowq ? 'экономная (быстрее)' : 'высокая') + '</button><button data-o="tts">Голос героинь: ' + (U.ttsOn ? (U.ttsAvailable() ? 'вкл' : 'вкл (нет русского синтезатора речи)') : 'выкл') + '</button><button data-o="spd">Скорость текста: ' + sp[0] + '</button><button data-o="save">Сохранить игру</button></div><h4>Слоты сохранения</h4><div class="slots">';
+    let h = '<div class="menu"><button data-o="snd">Звук: ' + (U.soundOn ? 'вкл' : 'выкл') + '</button><button data-o="q">Графика: ' + (G.lowq ? 'экономная (быстрее)' : 'высокая') + '</button><button data-o="tts">Голос героинь: ' + (U.ttsOn ? 'вкл' : 'выкл') + '</button><button data-o="spd">Скорость текста: ' + sp[0] + '</button><button data-o="save">Сохранить игру</button></div><h4>Слоты сохранения</h4><div class="slots">';
     for (let k = 1; k <= 3; k++) { const i = G.slotInfo(k); h += '<div class="slot' + (G.slot === k ? ' cur' : '') + '"><b>Слот ' + k + (G.slot === k ? ' · текущий' : '') + '</b><small>' + (i || 'пусто') + '</small><div><button data-sv="' + k + '">Записать</button><button data-ld="' + k + '"' + (i ? '' : ' class="off"') + '>Загрузить</button></div></div>'; }
     h += '</div><div class="menu"><button data-o="new" class="danger">Новая игра</button></div><p class="sub">Игра для взрослых: флирт и шутки, без откровенных сцен. Все героини — совершеннолетние чудища.</p>';
     el.innerHTML = h;
     el.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
       const o = b.dataset.o;
       if (o === 'snd') { U.soundOn = !U.soundOn; G.saveCfg(); UI.openMenu('opt'); }
-      else if (o === 'tts') { U.ttsOn = !U.ttsOn; if (!U.ttsOn) U.shutUp(); else U.speak('fox', 'Привет, Чаровник!'); G.saveCfg(); UI.openMenu('opt'); }
+      else if (o === 'tts') { U.ttsOn = !U.ttsOn; if (!U.ttsOn) U.shutUp(); else { const l0 = G.S.party[0]; if (l0) U.say(l0.id, D.GIRLS[l0.id].tame); } G.saveCfg(); UI.openMenu('opt'); }
       else if (o === 'q') { G.lowq = !G.lowq; G.saveCfg(); G.resize(); UI.openMenu('opt'); }
       else if (o === 'spd') { UI.textSpeed = SPD[(SPD.indexOf(sp) + 1) % SPD.length][1]; G.saveCfg(); UI.openMenu('opt'); }
       else if (o === 'save') { G.save(); b.textContent = 'Сохранено ✓'; U.sfx('select'); }

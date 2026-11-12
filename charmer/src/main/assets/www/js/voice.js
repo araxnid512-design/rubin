@@ -49,8 +49,27 @@
     setTimeout(() => { try { out.disconnect(); } catch (e) { } }, 1500);
   };
 
-  /* ---------- Живая речь ---------- */
+  /* ---------- Записанные голоса ---------- */
+  // Реплики заранее озвучены генератором tools/charmer-voice: у каждой героини свой голос.
+  // Файл ищется по хешу «героиня|очищенный текст»; список хешей — в voice/index.js (U.VOX).
   const clean = t => t.replace(/\*[^*]*\*/g, ' ').replace(/[«»"]/g, '').replace(/…/g, '. ').replace(/\s+/g, ' ').trim();
+  U.voxClean = clean;
+  U.voxHash = function (id, text) { let h = 0x811c9dc5; const s = unescape(encodeURIComponent(id + '|' + text)); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
+  let sets = null, cur = null;
+  U.hasVox = function (id, text) {
+    if (!U.VOX) return null;
+    if (!sets) { sets = {}; for (const k in U.VOX) sets[k] = new Set(U.VOX[k].match(/.{8}/g) || []); }
+    const c = clean(text); if (!c || !sets[id]) return null; const h = U.voxHash(id, c); return sets[id].has(h) ? h : null;
+  };
+  // сказать реплику: запись → системный синтезатор → ничего. Возвращает 'rec', 'tts' или null
+  U.say = function (id, text) {
+    U.shutUp(); if (!U.soundOn || !U.ttsOn) return null;
+    const h = U.hasVox(id, text);
+    if (h) { try { cur = new Audio('voice/' + id + '/' + h + '.ogg'); cur.volume = 1; const p = cur.play(); if (p && p.catch) p.catch(() => { }); return 'rec'; } catch (e) { } }
+    return U.speak(id, text) ? 'tts' : null;
+  };
+
+  /* ---------- Живая речь ---------- */
   U.ttsAvailable = function () {
     try { if (window.AndroidTTS && AndroidTTS.ready()) return true; } catch (e) { }
     return !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
@@ -69,6 +88,7 @@
     return false;
   };
   U.shutUp = function () {
+    if (cur) { try { cur.pause(); } catch (e) { } cur = null; }
     try { if (window.AndroidTTS) AndroidTTS.stop(); } catch (e) { }
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { }
   };

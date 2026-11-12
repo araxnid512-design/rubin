@@ -435,6 +435,8 @@
     return ST.norm([l.id + ':' + (JEAL[l.id] || D.JEAL2[l.id] || 'smug|Новенькая? Ну-ну.'), 'n:' + U.pick(NEWREP, Math.random)], { N: D.GIRLS[id].name, n: id });
   };
 
+  ST._priv = () => ({ ENTER, AFTER, JEAL, CLAIM, SEATWIN, TEN, GENERIC, STARTER, NIGHT: typeof NIGHT === 'undefined' ? {} : NIGHT });
+
   /* ---------- Ночной визит в таверне ---------- */
   const NIGHT = { fox: 'blush|Не спишь? Мне… холодно. У лис три хвоста, но ни одного одеяла. Подвинься.', slime: 'happy|Я пришла быть твоей подушкой! Прохладной! Как обещала!',
     harpy: 'blush|Тсс! Я принесла ночную сплетню… Шучу. Просто соскучилась. Можно посижу тут? На спинке кровати.', lamia: 'smug|Не бойся… я только проверю, хорошо ли ты укрыт. Кольцами. Плотно.',
