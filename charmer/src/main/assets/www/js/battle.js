@@ -16,7 +16,7 @@
     for (const g of b.foeTeam.concat(S.party)) { g.stg = { atk: 0, def: 0, spd: 0 }; g.st = null; g.stT = 0; }
     b.A = { me: side(), foe: side() }; b.A.me.slide = -1; b.A.foe.slide = 1;
     S.seen[b.foe.id] = true;
-    G.mode = 'battle'; UI.battleOn(true); U.music('battle'); U.sfx('encounter');
+    G.mode = 'battle'; UI.battleOn(true); U.music(o.trainer || (o.wild && D.GIRLS[o.wild.id].secret) ? 'boss' : 'battle'); U.sfx('encounter');
     const fg = D.GIRLS[b.foe.id];
     push({ t: 'anim', k: 'intro', dur: 0.7 });
     if (b.wild) push(msg('Из травы выскакивает ' + (fg.kind === 'Неко' || fg.kind === 'Кицунэ' ? '' : '') + 'дикая ' + fg.kind.toLowerCase() + ' ' + fg.name + '!'));
@@ -222,7 +222,7 @@
     for (const g of S.party) { g.st = null; g.stg = null; }
     if (res === 'win' || res === 'caught') for (const g of S.party) if (g.hp > 0) g.aff = Math.min(100, g.aff + 2);
     const wasT = b.tkey, isBoss = b.trainer && b.trainer.boss;
-    b = BT.b = null; UI.battleOn(false); G.mode = 'world'; U.music(FX.mapMusic());
+    b = BT.b = null; UI.battleOn(false); G.mode = 'world'; if (res === 'win' || res === 'caught') U.fanfare(); U.music(FX.mapMusic());
     if (res === 'lose') {
       S.money = Math.floor(S.money / 2); G.healAll();
       UI.fade(() => { WD.enter('village', 11, 6, 'down'); UI.say([{ who: 'Тётка Дуня', t: 'Очнулся, горе-Чаровник? Девиц твоих я выходила. А половину монет взяла за пироги. Ешь давай.' }]); });

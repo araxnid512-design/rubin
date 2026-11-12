@@ -54,6 +54,7 @@
       const o = ac.createOscillator(), og = ac.createGain(); o.frequency.value = 55; og.gain.value = 0.25; o.connect(og); og.connect(hum); o.start();
     } catch (e) { ac = null; }
   };
+  U._audio = () => ac ? { ac, master, nb } : null;
   U.ambience = function (h, w) {
     if (!ac || ac.state !== 'running') return;
     const k = U.soundOn ? 1 : 0, t = ac.currentTime;

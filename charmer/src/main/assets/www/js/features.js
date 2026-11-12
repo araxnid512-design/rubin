@@ -160,12 +160,12 @@
       const line = good ? U.pick(['Это было здорово! Давай ещё как-нибудь!', 'Мы отличная команда! Прямо как парочка… ой.', 'Ты лучший напарник для игр!'], Math.random) : U.pick(['Ничего, в следующий раз получится!', 'Хи-хи, ты старался. Это главное.', 'Я поддавалась! …Нет.'], Math.random);
       const L = [{ girl: g.id, expr: good ? 'happy' : 'smug', t: line }, { t: 'Награда — ' + rew + '.' }];
       if (!g.mgDone) { g.mgDone = true; L.push({ fn: () => ST.aff({ [g.id]: 3 + sc }) }); }
-      U.music(WD.m.id === 'village' || WD.m.id === 'manor' ? 'tavern' : 'world');
+      U.music(FX.mapMusic());
       UI.say(L, () => G.save());
     });
   };
 
-  FX.mapMusic = () => !WD.m ? 'world' : (WD.m.id === 'village' || WD.m.id === 'manor') ? 'tavern' : 'world';
+  FX.mapMusic = () => !WD.m ? 'world' : ({ village: 'tavern', manor: 'tavern', meadow: 'world', forest: 'forest', swamp: 'forest', mountain: 'snow', beach: 'beach', tower: 'dark', dungeon: 'dark' })[WD.m.id] || 'world';
 
   /* ---------- Голоса героинь ---------- */
   FX.VOICE = { fox: [1050, 'square'], slime: [620, 'sine'], harpy: [1400, 'square'], lamia: [700, 'triangle'], dryad: [520, 'sine'], minotaur: [380, 'triangle'], vampire: [860, 'triangle'],
