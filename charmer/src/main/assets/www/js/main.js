@@ -27,7 +27,7 @@
   function fresh() { return { map: 'village', x: 5, y: 7, face: 'up', money: 120, bag: { seal: 5, potion: 3, pie: 2 }, party: [], box: [], seen: {}, caught: {}, flags: {}, uid: 1, clock: 0.3, wx: 'sun', furn: {}, outfits: {}, album: {}, endings: {}, know: {}, cups: 0 }; }
   G.save = function () {
     if (!G.S || G.mode === 'title') return;
-    const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked, dates: g.dates || 0, dated: !!g.dated, outfit: g.outfit, sulk: g.sulk || 0, mgDone: !!g.mgDone });
+    const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked, dates: g.dates || 0, dated: !!g.dated, outfit: g.outfit, sulk: g.sulk || 0, mgDone: !!g.mgDone, pets: g.pets || 0, nightDone: !!g.nightDone });
     const o = Object.assign({}, G.S, { party: G.S.party.map(clean), box: G.S.box.map(clean) });
     if (G.mode === 'battle') return;
     try { localStorage.setItem(KEY, JSON.stringify({ v: 1, s: o, at: Date.now() })); } catch (e) { }
@@ -38,7 +38,7 @@
   G.saveTo = function (k) { G.slot = k; KEY = keyOf(k); G.save(); G.saveCfg(); };
   G.loadFrom = function (k) { G.slot = k; KEY = keyOf(k); G.saveCfg(); const d = load(); if (!d) return; G.S = d; G.mode = 'world'; UI.fade(() => WD.enter(G.S.map, G.S.x, G.S.y, G.S.face)); };
   function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 1 && d.s) return Object.assign(fresh(), d.s); } catch (e) { } return null; }
-  G.saveCfg = () => { try { localStorage.setItem('charmer_cfg', JSON.stringify({ s: U.soundOn, ts: UI.textSpeed, slot: G.slot, q: G.lowq })); } catch (e) { } };
+  G.saveCfg = () => { try { localStorage.setItem('charmer_cfg', JSON.stringify({ s: U.soundOn, ts: UI.textSpeed, slot: G.slot, q: G.lowq, tts: U.ttsOn })); } catch (e) { } };
   G.reset = function () { try { localStorage.removeItem(KEY); } catch (e) { } G.S = fresh(); WD.enter('village', G.S.x, G.S.y, 'up'); setTimeout(intro, 300); };
 
   /* ---------- Действия ---------- */
@@ -78,7 +78,7 @@
   }
   function boot() {
     G.ctx = cv.getContext('2d', { alpha: false });
-    try { const c = JSON.parse(localStorage.getItem('charmer_cfg')); if (c) { U.soundOn = c.s; if (c.ts) UI.textSpeed = c.ts; G.lowq = !!c.q; if (c.slot) { G.slot = c.slot; KEY = keyOf(c.slot); } } } catch (e) { }
+    try { const c = JSON.parse(localStorage.getItem('charmer_cfg')); if (c) { U.soundOn = c.s; if (c.ts) UI.textSpeed = c.ts; G.lowq = !!c.q; if (c.tts === false) U.ttsOn = false; if (c.slot) { G.slot = c.slot; KEY = keyOf(c.slot); } } } catch (e) { }
     ART.init(); resize();
     const had = load(); G.S = had || fresh();
     WD.enter(G.S.map, G.S.x, G.S.y, G.S.face);

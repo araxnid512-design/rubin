@@ -136,11 +136,13 @@
     for (const [k, n] of story) out.push({ k, n, sec: 'Сюжет', open: !!a[k] });
     for (const id of D.ALL) for (let i = 0; i < 3; i++) out.push({ k: 'd_' + id + '_' + i, n: D.GIRLS[id].name + ': свидание ' + (i + 1), sec: 'Свидания', open: !!a['d_' + id + '_' + i], id });
     for (const id of D.ALL) out.push({ k: 'e_' + id, n: D.GIRLS[id].name + ': концовка', sec: 'Концовки', open: !!a['e_' + id], id });
+    for (const id of D.ALL) out.push({ k: 'n_' + id, n: D.GIRLS[id].name + ': ночь вместе', sec: 'Ночи', open: !!a['n_' + id], id });
     for (const p of ST.PAIRS) { const k = 'b_' + p.slice().sort().join('+'); out.push({ k, n: D.GIRLS[p[0]].name + ' vs ' + D.GIRLS[p[1]].name, sec: 'Перепалки', open: !!(a[k] || S().flags[k]) }); }
     return out;
   };
   FX.replay = function (k) {
-    let L = null; const m = /^d_(\w+)_(\d)$/.exec(k), e = /^e_(\w+)$/.exec(k);
+    let L = null; const m = /^d_(\w+)_(\d)$/.exec(k), e = /^e_(\w+)$/.exec(k), nn = /^n_(\w+)$/.exec(k);
+    if (nn) return UI.say(FX.night(G.mkGirl(nn[1], 10), true), null, { replay: true });
     if (m) { const g = G.mkGirl(m[1], 10); g.dates = +m[2]; L = ST.date(g, true); }
     else if (e) L = FX.ending(G.mkGirl(e[1], 10), true);
     else if (k.startsWith('b_')) L = ST.banterByKey(k.slice(2));

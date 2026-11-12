@@ -17,7 +17,9 @@
     base: { n: 'Обычный', price: 0 },
     swim: { n: 'Пляжный', price: 220, d: 'Слитный купальник и сандалии. Для пляжа и брызг.' },
     pajama: { n: 'Пижама', price: 140, d: 'Мягкая пижама в горошек и колпак с помпоном.' },
-    gala: { n: 'Праздничный', price: 320, d: 'Вечернее платье с блёстками — для балов и признаний.' }
+    gala: { n: 'Праздничный', price: 320, d: 'Вечернее платье с блёстками — для балов и признаний.' },
+    night: { n: 'Пеньюар', price: 450, d: 'Шёлковая сорочка с кружевом. Для вечеров вдвоём.' },
+    towel: { n: 'Полотенце', price: 0, hidden: true }
   };
   const cache = {};
   A.dress = function (id, k) {
@@ -37,6 +39,16 @@
       Object.assign(L, { outfit: 'gala', top: gc, top2: '#ffd04a', bottom: gc, flowerpin: '#ffd04a' });
       if (b.lower === 'legs') Object.assign(L, { lower: 'dress' });
       L.helmet = false;
+    }
+    else if (k === 'night') {
+      const nc = ({ fox: '#c8324e', slime: '#3a7ad8', harpy: '#2a8a7a', lamia: '#6a2a8a', dryad: '#2a7a3a', minotaur: '#c84a7a', vampire: '#3a1040', valkyrie: '#3a5ac8', neko: '#2a2a4a', snow: '#7aa8e8', mermaid: '#e85a9a', frog: '#3a8a4a', ghost: '#8a8ae8', dragon: '#a01828' })[id] || '#b03a6a';
+      Object.assign(L, { outfit: 'slip', top: nc, top2: '#fff0f6', bottom: nc });
+      if (legs) Object.assign(L, { lower: 'legs', socks: null, shoes: b.skin });
+      L.helmet = false; L.hat = false; L.tiara = false;
+    } else if (k === 'towel') {
+      Object.assign(L, { outfit: 'towel', top: '#ffffff', top2: '#e4ecf6', bottom: '#ffffff' });
+      if (legs) Object.assign(L, { lower: 'legs', socks: null, shoes: b.skin });
+      L.helmet = false; L.hat = false; L.tiara = false; L.bow = false;
     }
     return (cache[key] = L);
   };
@@ -87,6 +99,7 @@
     plant: x => { SHAD(x); x.beginPath(); x.moveTo(14, 26); x.lineTo(34, 26); x.lineTo(31, 44); x.lineTo(17, 44); x.closePath(); ink(x, '#d8784a', 2.2); for (let i = 0; i < 7; i++) { x.save(); x.translate(24, 26); x.rotate(-1.6 + i * 0.5); x.beginPath(); x.ellipse(0, -12, 5, 13, 0, 0, TAU); ink(x, i % 2 ? '#4cb03a' : '#6cd04a', 1.6); x.restore(); } x.fillStyle = '#ff6a9a'; circ(x, 24, 4, 3.4); },
     bookshelf: x => { SHAD(x); x.beginPath(); U.rr(x, 4, -10, 40, 54, 2); ink(x, '#8a5a32', 2.4); const cs = ['#d84a4a', '#3a8ad8', '#ffd04a', '#4cb03a', '#8a5ad8', '#ff8ab0']; for (let j = 0; j < 3; j++) { x.fillStyle = '#5a3a1a'; x.fillRect(6, 6 + j * 14, 36, 2); for (let i = 0; i < 6; i++) { x.fillStyle = cs[(i + j * 2) % 6]; x.fillRect(8 + i * 5.6, -6 + j * 14, 4.4, 12); } } },
     piano: x => { SHAD(x); x.beginPath(); U.rr(x, 2, 6, 44, 38, 3); ink(x, '#2a1a2a', 2.4); x.fillStyle = '#ffffff'; x.fillRect(5, 24, 38, 8); x.fillStyle = OUT; for (let i = 0; i < 9; i++) x.fillRect(7 + i * 4, 24, 2, 5); x.fillStyle = '#ffd04a'; x.fillRect(10, 12, 28, 2); },
+    bath: x => { SHAD(x); x.beginPath(); x.ellipse(24, 30, 22, 13, 0, 0, TAU); ink(x, '#b8784a', 2.4); x.beginPath(); x.ellipse(24, 27, 18, 9.4, 0, 0, TAU); ink(x, '#7ad0f4', 2); x.fillStyle = 'rgba(255,255,255,.8)'; for (const [px, py, r] of [[16, 25, 3.4], [24, 23, 4], [31, 27, 3], [21, 30, 2.6]]) circ(x, px, py, r); x.fillStyle = 'rgba(255,255,255,.5)'; for (let i = 0; i < 3; i++) ell(x, 14 + i * 10, 8 - i * 3, 5, 3); },
     rug: x => { x.beginPath(); x.ellipse(24, 34, 26, 12, 0, 0, TAU); ink(x, '#ff8ab0', 2); x.beginPath(); x.ellipse(24, 34, 18, 7.4, 0, 0, TAU); ink(x, '#ffd0e0', 1.4); A.heart(x, 24, 34, 4, '#ff4f7b'); }
   };
   D.FURN = {
@@ -97,9 +110,10 @@
     mirror: { n: 'Зеркало в золотой раме', price: 240, love: ['vampire', 'harpy', 'lamia'], d: 'Графиня в нём не отражается, но очень довольна.' },
     plant: { n: 'Цветок в горшке', price: 90, love: ['dryad', 'frog'], d: 'Листвяна разговаривает с ним по утрам.' },
     bookshelf: { n: 'Книжный шкаф', price: 280, love: ['valkyrie', 'ghost', 'witch'], d: 'Уставы, стихи и одна подозрительная книга рецептов.' },
+    bath: { n: 'Купальня', price: 520, love: ['slime', 'mermaid', 'frog'], d: 'Большая бадья с горячей водой и пеной. Говорят, девицы любят тут… поболтать. Подойди и загляни.' },
     piano: { n: 'Пианино', price: 420, love: ['harpy', 'snow', 'vampire'], d: 'Чирика поёт, Клыкс играет. Соседи плачут.' }
   };
-  D.FURN_SPOT = { bed: [2, 2], fireplace: [6, 1], bookshelf: [9, 1], piano: [11, 2], aquarium: [2, 7], mirror: [11, 6], plant: [7, 8], rug: [6, 5] };
+  D.FURN_SPOT = { bed: [2, 2], fireplace: [6, 1], bookshelf: [9, 1], piano: [11, 2], aquarium: [2, 7], mirror: [11, 6], plant: [7, 8], rug: [6, 5], bath: [12, 6] };
 
   /* ---------- Иконки подарков и мебели ---------- */
   const icon = fn => { const [c, x] = cv(64, 64, 1.5); fn(x); return c.toDataURL(); };
@@ -125,7 +139,7 @@
     for (const k in ICONS) A.ICON[k] = icon(ICONS[k]);
     for (const k in D.FURN) A.ICON['f_' + k] = A.objs.prop[k].toDataURL();
     A.thumb = A.thumb || {};
-    for (const id in D.GIRLS) if (!A.thumb[id]) { const [c, x] = cv(96, 96, 1.5); x.translate(48, 176); x.scale(0.85, 0.85); A.girl(x, id, { t: 0.4 }); A.thumb[id] = c.toDataURL(); }
+    for (const id in D.GIRLS) if (!A.thumb[id]) { const [c, x] = cv(96, 96, 1.5); x.translate(48, 226); x.scale(1, 1); A.girl(x, id, { t: 0.4 }); A.thumb[id] = c.toDataURL(); }
   };
 
   /* ---------- Фоны сцен-свиданий ---------- */
@@ -150,8 +164,10 @@
       case 'glade': sky(x, w, h, 'day'); hills(x, w, h, h * 0.5, '#3a8a34', 11, h * 0.15); hills(x, w, h, h * 0.68, '#7ccc5a', 12, h * 0.05); { const r = U.rng(4); for (let i = 0; i < 30; i++) { x.fillStyle = ['#ff6a9a', '#ffe04a', '#ffffff', '#b07aff'][i % 4]; circ(x, r() * w, h * 0.7 + r() * h * 0.3, 3.4); } } glows(x, w, h, t, 12, '#fff4a0', true); break;
       case 'nest': sky(x, w, h, 'sunset'); x.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < 5; i++) ell(x, ((i * 230 + t * 12) % (w + 200)) - 100, h * (0.2 + (i % 3) * 0.1), 60, 18); x.fillStyle = '#8a5a32'; ell(x, w * 0.5, h * 0.92, w * 0.4, h * 0.12); x.strokeStyle = '#5a3a1a'; x.lineWidth = 3; for (let i = 0; i < 20; i++) { x.beginPath(); x.moveTo(w * (0.12 + i * 0.04), h * 0.88); x.lineTo(w * (0.16 + i * 0.04), h * 0.98); x.stroke(); } break;
       case 'tavern': room(x, w, h, '#8a5a3a', '#6a4028'); for (let i = 0; i < 4; i++) { const px = w * (0.15 + i * 0.24); x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.35 + 0.05 * sin(t * 3 + i); x.drawImage(A.glow, px - 60, h * 0.1 - 40, 120, 120); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = '#ffd88a'; circ(x, px, h * 0.12, 6); } break;
-      case 'bedroom': room(x, w, h, '#c87aa8', '#a86a5a'); x.fillStyle = '#1a1440'; x.fillRect(w * 0.62, h * 0.12, w * 0.24, h * 0.32); stars(x, w, h * 0.3, t); x.strokeStyle = OUT; x.lineWidth = 4; x.strokeRect(w * 0.62, h * 0.12, w * 0.24, h * 0.32); x.fillStyle = 'rgba(255,240,200,.15)'; x.fillRect(0, 0, w, h); break;
+      case 'bedroom': room(x, w, h, '#c87aa8', '#a86a5a'); x.fillStyle = '#1a1440'; x.fillRect(w * 0.62, h * 0.12, w * 0.24, h * 0.32); x.save(); x.beginPath(); x.rect(w * 0.62, h * 0.12, w * 0.24, h * 0.32); x.clip(); stars(x, w, h * 0.8, t); x.fillStyle = '#fff6d0'; circ(x, w * 0.8, h * 0.2, h * 0.035); x.restore(); x.strokeStyle = OUT; x.lineWidth = 4; x.strokeRect(w * 0.62, h * 0.12, w * 0.24, h * 0.32); x.fillStyle = 'rgba(255,240,200,.15)'; x.fillRect(0, 0, w, h); break;
       case 'beach': sky(x, w, h, 'day'); x.fillStyle = '#3aa8e8'; x.fillRect(0, h * 0.5, w, h * 0.2); x.strokeStyle = 'rgba(255,255,255,.7)'; x.lineWidth = 2; for (let i = 0; i < 10; i++) { const px = (i * 140 + t * 20) % w; x.beginPath(); x.moveTo(px, h * 0.6); x.lineTo(px + 30, h * 0.6); x.stroke(); } x.fillStyle = '#f2dca0'; P(x, [0, h * 0.68, w, h * 0.64, w, h, 0, h]); x.fill(); x.strokeStyle = OUT; x.lineWidth = 3; x.stroke(); break;
+      case 'bath': room(x, w, h, '#b88a5a', '#8a5a3a'); x.fillStyle = '#6ac8ec'; ell(x, w * 0.5, h * 0.95, w * 0.6, h * 0.2); x.strokeStyle = OUT; x.lineWidth = 3; x.beginPath(); x.ellipse(w * 0.5, h * 0.95, w * 0.6, h * 0.2, 0, Math.PI, 0); x.stroke(); x.globalAlpha = 0.5; for (let i = 0; i < 9; i++) { const px = ((i * 0.13 + t * 0.012 * (1 + i % 3)) % 1.2 - 0.1) * w, py = h * (0.25 + (i % 4) * 0.17) + sin(t * 0.7 + i) * 10; x.drawImage(A.glow, px - h * 0.3, py - h * 0.16, h * 0.6, h * 0.32); } x.globalAlpha = 1; break;
+      case 'black': x.fillStyle = '#16081c'; x.fillRect(0, 0, w, h); for (let i = 0; i < 12; i++) { const r = U.rng(i + 3), px = r() * w, py = h - ((t * 26 * (0.5 + r()) + r() * h) % (h * 1.1)); x.globalAlpha = 0.5 + 0.4 * sin(t * 2 + i); A.heart(x, px, py, 7 + r() * 8, '#ff4f7b'); } x.globalAlpha = 1; break;
       case 'cave': x.fillStyle = '#1a1424'; x.fillRect(0, 0, w, h); for (let i = 0; i < 6; i++) { x.fillStyle = '#2a2238'; P(x, [i * w / 5 - 30, 0, i * w / 5, h * 0.25 + (i % 2) * 30, i * w / 5 + 30, 0]); x.fill(); } glows(x, w, h, t, 18, '#b0a0ff'); x.fillStyle = '#2a2438'; x.fillRect(0, h * 0.7, w, h); break;
       default: sky(x, w, h, 'day'); hills(x, w, h, h * 0.6, '#7ccc5a', 1, h * 0.1);
     }

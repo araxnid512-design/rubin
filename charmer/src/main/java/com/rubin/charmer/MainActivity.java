@@ -4,16 +4,39 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+
+import java.util.Locale;
 
 /** Полноэкранная оболочка: игра работает в WebView из локальных ассетов, без сети. */
 public class MainActivity extends Activity {
     private WebView web;
+    private TextToSpeech tts;
+    private volatile boolean ttsReady;
+
+    /** Мост для озвучки реплик героинь системным синтезатором речи. */
+    private class Voice {
+        @JavascriptInterface
+        public boolean ready() { return ttsReady; }
+
+        @JavascriptInterface
+        public void speak(String text, double pitch, double rate) {
+            if (!ttsReady || tts == null || text == null) return;
+            tts.setPitch((float) pitch);
+            tts.setSpeechRate((float) rate);
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "line");
+        }
+
+        @JavascriptInterface
+        public void stop() { if (tts != null) tts.stop(); }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -42,6 +65,14 @@ public class MainActivity extends Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setTextZoom(100);
+
+        tts = new TextToSpeech(getApplicationContext(), status -> {
+            if (status == TextToSpeech.SUCCESS && tts != null) {
+                int r = tts.setLanguage(new Locale("ru", "RU"));
+                ttsReady = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED;
+            }
+        });
+        web.addJavascriptInterface(new Voice(), "AndroidTTS");
 
         setContentView(web);
         web.loadUrl("file:///android_asset/www/index.html");
@@ -83,6 +114,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         web.evaluateJavascript("window.G&&G.save&&G.save()", null);
+        if (tts != null) tts.stop();
         web.onPause();
         web.pauseTimers();
         super.onPause();
@@ -97,6 +129,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         web.destroy();
         super.onDestroy();
     }

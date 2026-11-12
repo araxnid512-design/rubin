@@ -17,9 +17,9 @@
   // o: { t, expr, pose, chibi, walk, bloom }
   A.girl = function (x, id, o) {
     o = o || {}; const g = D.GIRLS[id], L = o.outfit && o.outfit !== 'base' && A.dress ? A.dress(id, o.outfit) : g.look, t = o.t || 0, sd = id.length * 1.37;
-    const br = sin(t * 2.3 + sd) * 1.2, sw = sin(t * 1.7 + sd), pose = o.pose || 'idle', CH = !!o.chibi, by = CH ? 0.6 : 1, hs = CH ? 1.36 : 1.13;
+    const br = sin(t * 2.3 + sd) * 1.2, sw = sin(t * 1.7 + sd), pose = o.pose || 'idle', CH = !!o.chibi, by = CH ? 0.6 : 1.24, hs = CH ? 1.36 : 0.94;
     let expr = o.expr || 'normal';
-    const blink = ((t * 0.31 + sd) % 1) < 0.035 && expr !== 'hurt' && expr !== 'happy';
+    const blink = ((t * 0.31 + sd) % 1) < 0.035 && expr !== 'hurt' && expr !== 'happy' && expr !== 'kiss';
     x.save();
     if (L.tall) x.scale(L.tall, L.tall);
     if (L.ghost) x.globalAlpha *= 0.82 + sin(t * 2) * 0.06;
@@ -95,7 +95,7 @@
   /* --- низ тела --- */
   function leg(x, s, L, lift, col, sock, shoe, hoof) {
     x.save(); x.translate(0, -lift);
-    x.beginPath(); x.moveTo(s * 15.5, -80); x.quadraticCurveTo(s * 15, -58, s * 11.5, -40); x.quadraticCurveTo(s * 10, -20, s * 9.4, -5); x.lineTo(s * 3.6, -5); x.quadraticCurveTo(s * 3.4, -24, s * 3.8, -40); x.quadraticCurveTo(s * 2, -60, s * 1, -74); x.closePath();
+    x.beginPath(); x.moveTo(s * 19.4, -80); x.quadraticCurveTo(s * 19.6, -58, s * 12.6, -40); x.quadraticCurveTo(s * 13.4, -22, s * 9.6, -5); x.lineTo(s * 4, -5); x.quadraticCurveTo(s * 2.6, -24, s * 4, -40); x.quadraticCurveTo(s * 1.6, -60, s * 0.8, -74); x.closePath();
     ink(x, col, 2.3);
     if (sock) { x.save(); x.clip(); x.fillStyle = sock; x.fillRect(-30, -54, 60, 60); if (L.stripes) { x.fillStyle = shade(sock, 1.7); for (let y = -50; y < -6; y += 7) x.fillRect(-30, y, 60, 3); } x.fillStyle = shade(sock, 0.75); x.fillRect(-30, -54, 60, 2.4); x.restore(); }
     if (hoof) { x.beginPath(); x.moveTo(s * 10.5, -10); x.lineTo(s * 2.6, -10); x.lineTo(s * 2, 0); x.lineTo(s * 11.5, 0); x.closePath(); ink(x, '#3a3236', 2); x.fillStyle = '#5a5054'; x.fillRect(s > 0 ? 3 : -10.5, -9, 7.5, 2); }
@@ -134,13 +134,13 @@
       x.restore();
     } else if (lw === 'fishtail') {
       const sw2 = sin(t * 2.2) * 6;
-      x.beginPath(); x.moveTo(-17, -96); x.bezierCurveTo(-24, -60, -16, -30, -6 + sw2 * 0.4, -14); x.lineTo(6 + sw2 * 0.4, -14); x.bezierCurveTo(16, -30, 24, -60, 17, -96); x.closePath();
+      x.beginPath(); x.moveTo(-19.6, -96); x.bezierCurveTo(-27, -62, -17, -30, -6 + sw2 * 0.4, -14); x.lineTo(6 + sw2 * 0.4, -14); x.bezierCurveTo(17, -30, 27, -62, 19.6, -96); x.closePath();
       ink(x, lg(x, 0, -96, 0, -14, [shade(L.scale, 1.15), L.scale, shade(L.scale, 0.8)]), 2.4);
       x.strokeStyle = shade(L.scale, 0.7); x.lineWidth = 1; for (let y = -88; y < -20; y += 9) for (let k = -2; k <= 2; k++) { x.beginPath(); x.arc(k * 6 + (y % 18 ? 3 : 0), y, 3.2, 0.2, PI - 0.2); x.stroke(); }
       x.save(); x.translate(sw2 * 0.4, -14); x.rotate(sw2 * 0.02); x.beginPath(); x.moveTo(0, 0); x.quadraticCurveTo(-18, 2, -28, 12); x.quadraticCurveTo(-12, 10, 0, 6); x.quadraticCurveTo(12, 10, 28, 12); x.quadraticCurveTo(18, 2, 0, 0); x.closePath(); ink(x, L.fin || shade(L.scale, 1.3), 2.2); x.restore();
-      x.fillStyle = L.top2; for (let i = 0; i < 7; i++) circ(x, -15 + i * 5, -95, 1.8);
+      x.fillStyle = L.top2; for (let i = 0; i < 8; i++) circ(x, -17.5 + i * 5, -95, 1.8);
     } else if (lw === 'dress') {
-      x.beginPath(); x.moveTo(-12, -98); x.quadraticCurveTo(-20, -50, -32, -8); for (let i = 0; i <= 8; i++) x.lineTo(-32 + i * 8, -6 + (i % 2 ? 4 : -1)); x.quadraticCurveTo(20, -50, 12, -98); x.closePath();
+      x.beginPath(); x.moveTo(-12, -98); x.bezierCurveTo(-24, -84, -22, -50, -32, -8); for (let i = 0; i <= 8; i++) x.lineTo(-32 + i * 8, -6 + (i % 2 ? 4 : -1)); x.bezierCurveTo(22, -50, 24, -84, 12, -98); x.closePath();
       ink(x, lg(x, 0, -98, 0, -4, [L.bottom, shade(L.bottom, 0.82)]), 2.4);
       if (L.ghost) { x.fillStyle = 'rgba(200,230,255,.5)'; for (let i = 0; i < 4; i++) ell(x, -20 + i * 13, -4 + sin(t * 3 + i) * 3, 7, 5); }
       x.strokeStyle = shade(L.bottom, 0.65); x.lineWidth = 1.2; for (const px of [-14, -4, 6, 16]) { x.beginPath(); x.moveTo(px * 0.5, -88); x.quadraticCurveTo(px, -40, px * 1.5, -8); x.stroke(); }
@@ -150,22 +150,22 @@
   }
   function bottoms(x, L) {
     const o = L.outfit;
-    if (o === 'kimono' || o === 'leaf' || o === 'armor') {
-      x.beginPath(); x.moveTo(-17, -88); x.lineTo(17, -88); x.lineTo(25, -58);
-      if (o === 'leaf') { for (let i = 0; i <= 6; i++) x.quadraticCurveTo(25 - i * 8.3 - 4, -50, 25 - (i + 1) * 8.3, -58); }
-      else x.quadraticCurveTo(0, -54, -25, -58);
+    if (o === 'kimono' || o === 'leaf' || o === 'armor' || o === 'slip' || o === 'towel') {
+      x.beginPath(); x.moveTo(-19, -88); x.lineTo(19, -88); x.lineTo(28, -58);
+      if (o === 'leaf') { for (let i = 0; i < 7; i++) x.quadraticCurveTo(28 - i * 8 - 4, -50, 28 - (i + 1) * 8, -58); }
+      else x.quadraticCurveTo(0, -54, -28, -58);
       x.closePath(); ink(x, L.bottom, 2.3);
       x.strokeStyle = shade(L.bottom, 0.72); x.lineWidth = 1.2; for (const px of [-12, -4, 4, 12]) { x.beginPath(); x.moveTo(px * 0.8, -86); x.lineTo(px * 1.25, -58); x.stroke(); }
-      if (o === 'armor') { x.fillStyle = '#e8b830'; x.fillRect(-17, -88, 34, 3); }
+      if (o === 'armor') { x.fillStyle = '#e8b830'; x.fillRect(-19, -88, 38, 3); }
     } else {
-      x.beginPath(); x.moveTo(-17, -88); x.lineTo(17, -88); x.lineTo(18, -66); x.lineTo(3, -66); x.lineTo(0, -72); x.lineTo(-3, -66); x.lineTo(-18, -66); x.closePath(); ink(x, L.bottom, 2.3);
+      x.beginPath(); x.moveTo(-19.6, -88); x.lineTo(19.6, -88); x.lineTo(21, -64); x.lineTo(3, -64); x.lineTo(0, -72); x.lineTo(-3, -64); x.lineTo(-21, -64); x.closePath(); ink(x, L.bottom, 2.3);
       if (o === 'overalls') { x.fillStyle = shade(L.bottom, 1.2); x.fillRect(-15, -84, 6, 3); }
     }
   }
   /* --- торс --- */
   function torsoPath(x) {
-    x.beginPath(); x.moveTo(-13, -130); x.quadraticCurveTo(0, -132, 13, -130); x.lineTo(17, -123); x.bezierCurveTo(19.5, -114, 16.5, -105, 11.6, -98);
-    x.quadraticCurveTo(10, -92, 17, -84); x.lineTo(16.5, -72); x.lineTo(-16.5, -72); x.lineTo(-17, -84); x.quadraticCurveTo(-10, -92, -11.6, -98); x.bezierCurveTo(-16.5, -105, -19.5, -114, -17, -123); x.closePath();
+    x.beginPath(); x.moveTo(-14, -130); x.quadraticCurveTo(0, -132, 14, -130); x.lineTo(17.5, -124); x.bezierCurveTo(22.5, -116, 19, -105, 11.4, -99);
+    x.quadraticCurveTo(9.6, -93, 19.6, -83); x.lineTo(19.8, -72); x.lineTo(-19.8, -72); x.lineTo(-19.6, -83); x.quadraticCurveTo(-9.6, -93, -11.4, -99); x.bezierCurveTo(-19, -105, -22.5, -116, -17.5, -124); x.closePath();
   }
   function torso(x, L, br) {
     if (L.lower === 'slime') { x.save(); x.globalAlpha = 0.92; }
@@ -187,12 +187,18 @@
     else if (o === 'swim') { band(-128, -72, T); x.fillStyle = T2; x.fillRect(-25, -110, 50, 4); x.fillStyle = shade(T, 0.8); x.fillRect(-25, -78, 50, 6); }
     else if (o === 'pajama') { band(-132, -72, T); x.fillStyle = T2; for (let i = 0; i < 12; i++) circ(x, -15 + (i % 4) * 10 + ((i / 4 | 0) % 2) * 5, -124 + (i / 4 | 0) * 16, 2.2); x.fillStyle = '#fff'; for (let y = -124; y < -80; y += 10) circ(x, 0, y, 1.4); }
     else if (o === 'gala') { band(-132, -72, T); x.fillStyle = 'rgba(255,255,255,.45)'; for (let i = 0; i < 10; i++) circ(x, -15 + (i * 37 % 30), -126 + (i * 13 % 44), 1.2); x.fillStyle = T2; x.fillRect(-25, -100, 50, 4); }
+    else if (o === 'slip') { band(-125, -72, T); x.fillStyle = T2; for (let i = 0; i < 9; i++) circ(x, -20 + i * 5, -125, 2.6); x.fillStyle = 'rgba(255,255,255,.22)'; x.fillRect(-25, -100, 50, 1.6); }
+    else if (o === 'towel') { band(-123, -72, '#ffffff'); x.fillStyle = '#e4ecf6'; for (let y = -112; y < -74; y += 9) x.fillRect(-25, y, 50, 1.4); }
+    // объём: мягкая тень под грудью и блик
+    x.fillStyle = 'rgba(40,10,40,.13)'; ell(x, -8.5, -105.5, 8.5, 3.2); ell(x, 8.5, -105.5, 8.5, 3.2);
     // мягкая тень по бокам
     x.fillStyle = 'rgba(40,10,40,.14)'; x.fillRect(10, -132, 12, 62); x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(-16, -128, 4, 50);
     x.restore();
     torsoPath(x); ink(x, null, 2.4);
-    if (o !== 'goo' && o !== 'armor') { x.strokeStyle = shade(L.skin, 0.7); x.lineWidth = 1; x.beginPath(); x.moveTo(-9, -110); x.quadraticCurveTo(-4, -106, 0, -110); x.moveTo(9, -110); x.quadraticCurveTo(4, -106, 0, -110); x.stroke(); }
+    if (o !== 'goo' && o !== 'armor') { x.strokeStyle = shade(L.skin, 0.7); x.lineWidth = 1; x.beginPath(); x.moveTo(-16, -108); x.quadraticCurveTo(-8, -102.5, -0.6, -108.5); x.moveTo(16, -108); x.quadraticCurveTo(8, -102.5, 0.6, -108.5); x.stroke(); }
     if (o === 'snowdress') { x.fillStyle = '#ffffff'; for (let i = 0; i < 9; i++) circ(x, -16 + i * 4, -129 + Math.abs(i - 4) * 0.6, 3.6); x.strokeStyle = OUT; x.lineWidth = 1.2; x.beginPath(); x.moveTo(-19, -127); x.quadraticCurveTo(0, -122, 19, -127); x.stroke(); }
+    if (o === 'slip') { x.strokeStyle = L.top; x.lineWidth = 1.8; for (const s2 of [-1, 1]) { x.beginPath(); x.moveTo(s2 * 12, -125); x.lineTo(s2 * 13.4, -131); x.stroke(); } x.strokeStyle = OUT; x.lineWidth = 1.3; x.beginPath(); x.moveTo(-21, -121); x.quadraticCurveTo(0, -127, 21, -121); x.stroke(); }
+    if (o === 'towel') { x.beginPath(); U.rr(x, -22.5, -126, 45, 6, 3); ink(x, '#ffffff', 1.6); }
     if (o === 'swim') { x.strokeStyle = OUT; x.lineWidth = 1.4; x.beginPath(); x.moveTo(-17, -128); x.quadraticCurveTo(0, -122, 17, -128); x.stroke(); }
     if (o === 'gala') { x.fillStyle = '#ffe8a0'; for (let i = 0; i < 7; i++) circ(x, -9 + i * 3, -123 + Math.abs(i - 3) * -0.8 + 3, 1.7); }
     if (o === 'gothic') { x.fillStyle = '#fff2f6'; for (let i = 0; i < 7; i++) circ(x, -12 + i * 4, -131, 2.4); }
@@ -251,12 +257,14 @@
     else if (expr === 'surprised') { x.beginPath(); x.ellipse(0, -9.5, 2.4, 3, 0, 0, TAU); x.fillStyle = '#8a2a34'; x.fill(); x.stroke(); }
     else if (expr === 'angry') { x.beginPath(); x.moveTo(-4, -8.6); x.quadraticCurveTo(0, -11.5, 4, -8.6); x.stroke(); }
     else if (expr === 'hurt' || expr === 'blush') { x.beginPath(); x.moveTo(-4.5, -9.5); for (let i = 1; i <= 4; i++) x.lineTo(-4.5 + i * 2.25, -9.5 + (i % 2 ? -1.4 : 0)); x.stroke(); }
-    else if (expr === 'smug') { x.beginPath(); x.moveTo(-4, -10); x.quadraticCurveTo(1, -8, 5, -12); x.stroke(); }
+    else if (expr === 'smug' || expr === 'wink') { x.beginPath(); x.moveTo(-4, -10); x.quadraticCurveTo(1, -8, 5, -12); x.stroke(); if (expr === 'wink') { x.fillStyle = '#ff7a90'; x.beginPath(); x.ellipse(2.2, -8, 2, 1.6, 0.2, 0, PI); x.fill(); x.stroke(); } }
+    else if (expr === 'kiss') { x.fillStyle = '#e8506a'; x.beginPath(); x.ellipse(0, -9.4, 2, 2.4, 0, 0, TAU); x.fill(); x.stroke(); x.beginPath(); x.moveTo(-1.6, -9.4); x.lineTo(1.6, -9.4); x.stroke(); }
+    else if (expr === 'love') { x.beginPath(); x.moveTo(-4, -11); x.quadraticCurveTo(0, -5.5, 4, -11); x.closePath(); x.fillStyle = '#c83a4e'; x.fill(); x.stroke(); }
     else if (expr === 'sleepy') { x.beginPath(); x.ellipse(0, -9.5, 1.6, 1.2, 0, 0, TAU); x.stroke(); }
     else { x.beginPath(); x.moveTo(-3.4, -10.4); x.quadraticCurveTo(0, -8.4, 3.4, -10.4); x.stroke(); }
-    if (L.fangs && (expr === 'happy' || expr === 'smug' || expr === 'normal' || expr === 'angry')) { x.fillStyle = '#fff'; P(x, [-3, -9.6, -1.6, -9.6, -2.3, -6.4]); x.fill(); x.lineWidth = 0.8; x.stroke(); P(x, [1.6, -9.6, 3, -9.6, 2.3, -6.4]); x.fill(); x.stroke(); }
+    if (L.fangs && (expr === 'happy' || expr === 'smug' || expr === 'normal' || expr === 'angry' || expr === 'love')) { x.fillStyle = '#fff'; P(x, [-3, -9.6, -1.6, -9.6, -2.3, -6.4]); x.fill(); x.lineWidth = 0.8; x.stroke(); P(x, [1.6, -9.6, 3, -9.6, 2.3, -6.4]); x.fill(); x.stroke(); }
     // румянец
-    const bl = expr === 'blush' || expr === 'happy' ? 0.7 : 0.28;
+    const bl = expr === 'blush' || expr === 'happy' ? 0.7 : expr === 'love' || expr === 'kiss' ? 0.85 : expr === 'wink' ? 0.5 : 0.28;
     x.fillStyle = 'rgba(255,110,140,' + bl + ')'; ell(x, -12, -15.5, 4.6, 2.2); ell(x, 12, -15.5, 4.6, 2.2);
     if (expr === 'blush') { x.strokeStyle = 'rgba(220,60,90,.8)'; x.lineWidth = 1; for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { x.beginPath(); x.moveTo(s * (9 + i * 2.4), -14); x.lineTo(s * (10.5 + i * 2.4), -17.5); x.stroke(); } }
     if (expr === 'hurt') { x.fillStyle = '#9ad8ff'; x.beginPath(); x.moveTo(17, -40); x.quadraticCurveTo(21, -33, 17, -31); x.quadraticCurveTo(13, -33, 17, -40); x.fill(); x.lineWidth = 1; x.strokeStyle = OUT; x.stroke(); }
@@ -264,14 +272,16 @@
   function eye(x, cx, cy, s, L, expr, blink) {
     x.save();
     x.strokeStyle = OUT; x.lineCap = 'round';
+    if (expr === 'kiss' || (expr === 'wink' && s < 0)) { x.lineWidth = 2.4; x.beginPath(); x.moveTo(cx - 6, cy - 1); x.quadraticCurveTo(cx, cy + 4, cx + 6, cy - 1); x.stroke(); x.lineWidth = 1.6; for (const k of [-1, 0, 1]) { x.beginPath(); x.moveTo(cx + k * 4, cy + 1.6); x.lineTo(cx + k * 5.2, cy + 4.2); x.stroke(); } x.restore(); return; }
     if (blink || expr === 'happy') { x.lineWidth = 2.4; x.beginPath(); if (expr === 'happy') { x.moveTo(cx - 5.6, cy + 1); x.quadraticCurveTo(cx, cy - 6, cx + 5.6, cy + 1); } else { x.moveTo(cx - 6, cy); x.quadraticCurveTo(cx, cy + 3, cx + 6, cy); } x.stroke(); x.restore(); return; }
     if (expr === 'hurt') { x.lineWidth = 2.4; x.beginPath(); x.moveTo(cx - 5 * s, cy - 4); x.lineTo(cx + 4 * s, cy); x.lineTo(cx - 5 * s, cy + 4); x.stroke(); x.restore(); return; }
-    const half = expr === 'sleepy' || expr === 'smug' ? 0.5 : expr === 'angry' ? 0.3 : 0, rx = 6.9, ry = expr === 'surprised' ? 9.2 : 8.6;
+    const half = expr === 'sleepy' || expr === 'smug' || expr === 'wink' ? 0.5 : expr === 'angry' ? 0.3 : expr === 'love' ? 0.18 : 0, rx = 6.9, ry = expr === 'surprised' ? 9.2 : 8.6;
     x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, TAU); x.fillStyle = '#ffffff'; x.fill();
     x.save(); x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, TAU); x.clip();
     const ir = expr === 'surprised' ? 0.75 : 1;
     x.fillStyle = lg(x, 0, cy - 7, 0, cy + 7, [shade(L.eyes, 0.55), L.eyes, shade(L.eyes, 1.35)]); ell(x, cx + s * 0.4, cy + 0.8, 5.7 * ir, 7.6 * ir);
-    x.fillStyle = '#1a0a14'; if (L.slit) ell(x, cx + s * 0.4, cy + 0.6, 1.2, 4.8 * ir); else ell(x, cx + s * 0.4, cy + 0.8, 2.4 * ir, 3.4 * ir);
+    if (expr === 'love') { x.fillStyle = '#ff3a78'; const hx = cx + s * 0.4, hy = cy + 1.2, q = 3.6; x.beginPath(); x.moveTo(hx, hy + q * 0.95); x.bezierCurveTo(hx - q * 1.6, hy - q * 0.1, hx - q * 0.9, hy - q * 1.3, hx, hy - q * 0.4); x.bezierCurveTo(hx + q * 0.9, hy - q * 1.3, hx + q * 1.6, hy - q * 0.1, hx, hy + q * 0.95); x.fill(); }
+    else { x.fillStyle = '#1a0a14'; if (L.slit) ell(x, cx + s * 0.4, cy + 0.6, 1.2, 4.8 * ir); else ell(x, cx + s * 0.4, cy + 0.8, 2.4 * ir, 3.4 * ir); }
     x.fillStyle = '#fff'; circ(x, cx - 2.1, cy - 3.4, 2.5); circ(x, cx + 2.4, cy + 3.6, 1.2); x.fillStyle = 'rgba(255,255,255,.35)'; ell(x, cx, cy + 4.6, 3.6, 1.6);
     if (half) { x.fillStyle = L.skin; x.fillRect(cx - 8, cy - 9, 16, 16 * half); }
     x.restore();
@@ -497,6 +507,6 @@
     for (const k in D.EL) A.ICON['el_' + k] = icon(x => { x.beginPath(); x.arc(32, 32, 24, 0, TAU); ink(x, D.EL[k].c, 3); x.fillStyle = '#fff'; x.font = '900 22px sans-serif'; x.textAlign = 'center'; x.fillText(D.EL[k].n[0], 32, 40); });
     // портреты-миниатюры героинь для меню
     A.thumb = {};
-    for (const id in D.GIRLS) { const [c, x] = canvas(96, 96, 1.5); x.translate(48, 176); x.scale(0.85, 0.85); A.girl(x, id, { t: 0.4, expr: 'normal' }); A.thumb[id] = c.toDataURL(); }
+    for (const id in D.GIRLS) { const [c, x] = canvas(96, 96, 1.5); x.translate(48, 226); x.scale(1, 1); A.girl(x, id, { t: 0.4, expr: 'normal' }); A.thumb[id] = c.toDataURL(); }
   };
 })();

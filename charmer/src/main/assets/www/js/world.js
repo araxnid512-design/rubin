@@ -173,6 +173,8 @@
       if (d.k === 'tavern') return UI.openTavern();
       if (d.k === 'manor') return UI.fade(() => W.enter('manor', 6, 9, 'up'));
     }
+    const pr = m.objs.find(o => o.k === 'prop' && o.x === tx && o.y === ty);
+    if (pr && pr.pk === 'bath') return FX.bath();
     const t = m.tile[ty * m.w + tx];
     if (t === WATER) return UI.say([{ who: '', t: 'Вода прозрачная. В отражении — красавец. Ну, почти.' }]);
   };

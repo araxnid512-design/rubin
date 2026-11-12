@@ -256,7 +256,8 @@
     else if (c.t === 'anim') {
       const a = c.side ? b.A[c.side] : null;
       if (c.k === 'hit') { a.shake = 1; a.flash = 1; a.expr = 'hurt'; a.exprT = 0.8; b.shake = c.crit || c.eff > 1 ? 0.45 : 0.22; if (c.crit) b.bursts.push({ side: c.side, t: 'КРИТ!', life: 0.9, c: '#ffd43a' }); else if (c.eff > 1) b.bursts.push({ side: c.side, t: 'СУПЕР!', life: 0.9, c: '#ff8a3a' }); else if (c.eff < 1) b.bursts.push({ side: c.side, t: 'пфф…', life: 0.8, c: '#d8d0e0' }); U.sfx(c.eff > 1 ? 'super' : c.eff < 1 ? 'weak' : 'hit'); const g = c.side === 'me' ? me() : foe(); b.pops.push({ side: c.side, t: '-' + c.dmg, life: 1, y: 0, c: c.eff > 1 ? '#ff3a4a' : '#fff' }); }
-      if (c.k === 'lunge') { U.sfx('swing'); a.pose = 'attack'; a.expr = 'angry'; a.exprT = 0.6; }
+      if (c.k === 'hit') U.emote && U.emote((c.side === 'me' ? me() : foe()).id, 'ai');
+      if (c.k === 'lunge') { U.emote && U.emote((c.side === 'me' ? me() : foe()).id, 'ha'); U.sfx('swing'); a.pose = 'attack'; a.expr = 'angry'; a.exprT = 0.6; }
       if (c.k === 'cast' || c.k === 'kiss') { a.pose = c.k === 'kiss' ? null : 'cast'; U.sfx(c.k === 'kiss' ? 'kiss' : 'select'); if (c.k === 'kiss') b.pops.push({ side: 'foe', t: '♥', life: 1, y: 0, c: '#ff4f7b' }); }
       if (c.k === 'heal') { U.sfx('heal'); a.expr = 'happy'; a.exprT = 1; }
       if (c.k === 'faint') U.sfx('faint');
@@ -303,8 +304,8 @@
       ART.girl(x, g.id, { t: t + (k === 'me' ? 3 : 0), expr: a.expr || (g.st === 'sleep' ? 'sleepy' : g.st === 'charm' ? 'blush' : hpk < 0.3 ? 'hurt' : k === 'foe' && b.wild ? 'smug' : 'normal'), pose: a.pose || (a.flash > 0.5 ? 'hurt' : 'idle'), bloom: g.bloom, outfit: k === 'me' ? g.outfit : undefined });
       x.restore(); x.globalAlpha = 1;
     };
-    draw('foe', foe(), V.w * 0.72, V.h * 0.47, s * 0.56, true);
-    draw('me', me(), V.w * 0.27, V.h * 0.66, s * 0.6, false);
+    draw('foe', foe(), V.w * 0.72, V.h * 0.47, s * 0.5, true);
+    draw('me', me(), V.w * 0.27, V.h * 0.66, s * 0.54, false);
     // сердечко-печать
     if (b.heart) {
       const k = b.heart.k, sx = V.w * 0.3, sy = V.h * 0.5, ex = V.w * 0.72, ey = V.h * 0.38, px = sx + (ex - sx) * k, py = sy + (ey - sy) * k - Math.sin(k * Math.PI) * V.h * 0.2;
@@ -325,7 +326,7 @@
   };
   /* ---------- Эффекты стихий ---------- */
   const R2 = Math.random;
-  function ctr(side) { const V = VV, s = V.h / 300; return side === 'foe' ? [V.w * 0.72, V.h * 0.47 - 230 * s * 0.56 * 0.5] : [V.w * 0.27, V.h * 0.66 - 230 * s * 0.6 * 0.5]; }
+  function ctr(side) { const V = VV, s = V.h / 300; return side === 'foe' ? [V.w * 0.72, V.h * 0.47 - 250 * s * 0.5 * 0.5] : [V.w * 0.27, V.h * 0.66 - 250 * s * 0.54 * 0.5]; }
   function part(o) { if (b.parts.length < 260) b.parts.push(o); }
   const PAL = { fire: ['#ff5a1a', '#ffb02e', '#fff2a0'], water: ['#3aa0ff', '#8ad8ff', '#ffffff'], nature: ['#4cb03a', '#8ad860', '#ffd04a'], wind: ['#e8fff8', '#a8f0d8', '#ffffff'], poison: ['#b85ae0', '#e08aff', '#6a2a8a'],
     dark: ['#5a2a8a', '#a86ae8', '#2a1040'], light: ['#fff2a0', '#ffd43a', '#ffffff'], thunder: ['#fff04a', '#ffffff', '#ffd43a'], ice: ['#c8f0ff', '#ffffff', '#7fd2f4'], earth: ['#a8784a', '#7a5432', '#d8c8a8'], norm: ['#ffffff', '#ffe8f0', '#ffd43a'] };
