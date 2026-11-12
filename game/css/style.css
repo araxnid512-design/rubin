@@ -281,8 +281,9 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 /* ---------- Бой ---------- */
 .b-tl { position: absolute; left: calc(8px + var(--sl)); top: 6px; display: flex; flex-direction: column; gap: 6px; max-width: 46%; pointer-events: none !important; }
 .b-tl > * { pointer-events: auto; }
-.b-obj { background: linear-gradient(180deg, rgba(40, 32, 25, 0.94), rgba(20, 16, 12, 0.9)); border: 1px solid rgba(232, 168, 62, 0.4); border-radius: 7px; padding: 4px 10px; font-size: 13px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-obj { background: linear-gradient(180deg, rgba(40, 32, 25, 0.94), rgba(20, 16, 12, 0.9)); border: 1px solid rgba(232, 168, 62, 0.4); border-radius: 7px; padding: 3px 10px; font-size: 13px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
 .b-obj b { color: var(--acc); }
+.b-obj .cond { font-size: 11px; color: var(--dim); margin-top: 1px; }
 .b-squad { display: flex; flex-direction: column; gap: 4px; align-self: flex-start; }
 .sq { display: flex; align-items: center; gap: 5px; padding: 2px 6px 2px 2px; background: linear-gradient(90deg, rgba(36, 29, 22, 0.94), rgba(20, 16, 12, 0.75)); border: 1px solid var(--line2); border-radius: 7px; cursor: pointer; width: 104px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
 .sq img { width: 34px; height: 34px; border-radius: 5px; border: 1px solid #5e4b38; flex: none; }

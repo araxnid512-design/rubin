@@ -58,7 +58,7 @@
       const u = {
         id: B.nextId++, side: 'e', kind: 'enemy', type: 'scav', name: T.n, x: spots[i][0], y: spots[i][1],
         hp: T.hp, maxHp: T.hp, aim: T.aim, mob: T.mob, def: T.def, armor: 0, weapon: null, clip: 0, ap: 0,
-        sight: T.sight, pod: e.pod, active: true, seen: false, overwatch: false, hunker: false, suppressed: false,
+        sight: Math.max(5, T.sight + (B.sightMod || 0)), pod: e.pod, active: true, seen: false, overwatch: false, hunker: false, suppressed: false,
         alive: true, evac: false, face: Math.PI, cd: {}, kills: 0
       };
       B.units.push(u);

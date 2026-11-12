@@ -644,6 +644,179 @@
     return s;
   }
 
+  /* ---------- Атмосфера: освещение, погода, окружение ---------- */
+  const AMB = { dawn: [255, 200, 172], dusk: [236, 152, 108], night: [50, 60, 100], interior: [104, 106, 124], cave: [78, 68, 62] };
+  let lightC = null, lightG = null;
+  let weatherP = [], crows = [], motes = [], acidTiles = [], smokeT = 0;
+  function initAtmos(B) {
+    weatherP = []; crows = []; motes = []; acidTiles = [];
+    for (let i = 0; i < B.w * B.h; i++) if (B.ground[i] === 7) acidTiles.push(i);
+    const n = { rain: 160, dust: 120, ash: 100 }[B.weather] || 0;
+    for (let k = 0; k < n; k++) weatherP.push({ x: Math.random(), y: Math.random(), v: 0.5 + Math.random(), s: Math.random() });
+    const outdoor = B.tod !== 'interior' && B.tod !== 'cave' && B.tod !== 'night';
+    if (outdoor) for (let k = 0; k < 3; k++) { const c = isoC(Math.random() * B.w, Math.random() * B.h); crows.push({ cx: c[0], cy: c[1], r: 80 + Math.random() * 120, a: Math.random() * 6.28, sp: (0.3 + Math.random() * 0.3) * (Math.random() < 0.5 ? 1 : -1), ph: Math.random() * 6 }); }
+    const anchors = [];
+    (B.props || []).forEach(function (p) { if (p.t === 'shroom' || p.t === 'shards') anchors.push(isoC(p.x - 0.5, p.y - 0.5)); });
+    acidTiles.slice(0, 10).forEach(function (i) { anchors.push(isoC(i % B.w, (i / B.w) | 0)); });
+    if (B.type === 'nest') for (let k = 0; k < 8; k++) anchors.push(isoC(Math.random() * B.w, Math.random() * B.h));
+    U.shuffle(anchors).slice(0, 22).forEach(function (a) { motes.push({ ax: a[0], ay: a[1] - 14, ph: Math.random() * 6.28, r: 10 + Math.random() * 16, col: Math.random() < 0.5 ? '170,255,150' : '255,230,140' }); });
+  }
+  function emitAmbient(B, dt) {
+    smokeT += dt;
+    if (smokeT < 0.2) return;
+    smokeT = 0;
+    for (const k in fires) {
+      const i = +k;
+      if (!B.explored[i]) continue;
+      fires[k].forEach(function (d) {
+        const c = isoC(d.x - 0.5, d.y - 0.5);
+        fx.parts.push({ x: c[0] + (Math.random() - 0.5) * 6, y: c[1], z: 14, vx: 4 + Math.random() * 6, vy: (Math.random() - 0.5) * 3, vz: 16 + Math.random() * 8, t0: now(), life: 2400, color: 'rgba(80,74,68,0.28)', size: 7 + Math.random() * 7, grav: -4 });
+      });
+    }
+  }
+  function collectLights(B, t, vis) {
+    const L = [];
+    const night = B.tod === 'night' || B.tod === 'interior' || B.tod === 'cave';
+    B.units.forEach(function (u) {
+      if (!u.alive || u.evac) return;
+      if (u.side === 'e' && !u.seen) return;
+      const p = rp(u); const c = isoC(p[0], p[1]);
+      if (u.side === 'p') {
+        L.push([c[0], c[1] - 18, night ? 46 : 0, '255,236,200', 0.55]);
+        if (night && u.kind === 'soldier') {
+          const f = u.face || 0;
+          const sx = (Math.cos(f) - Math.sin(f)) * HW, sy = (Math.cos(f) + Math.sin(f)) * HH;
+          const L2 = Math.hypot(sx, sy) || 1;
+          L.push([c[0] + sx / L2 * 70, c[1] + sy / L2 * 40, 78, '255,244,214', 0.75]);
+        }
+      } else {
+        const col = u.type === 'spitter' ? '180,255,80' : (u.type === 'guardian' ? '120,220,255' : (u.type === 'queen' ? '255,90,140' : '255,200,160'));
+        L.push([c[0], c[1] - 20, u.type === 'queen' ? 60 : 30, col, 0.4]);
+      }
+    });
+    for (const k in fires) if (B.explored[+k]) fires[k].forEach(function (d) { const c = isoC(d.x - 0.5, d.y - 0.5); L.push([c[0], c[1] - 8, 120 + Math.sin(t / 90) * 8, '255,168,80', 0.95]); });
+    B.items.forEach(function (it) { if (it.kind === 'gems' && B.explored[it.y * B.w + it.x]) { const c = isoC(it.x, it.y); L.push([c[0], c[1] - 8, 40, '120,230,255', 0.7]); } });
+    for (let i = 0; i < B.obj.length; i++) {
+      const o = B.obj[i];
+      if ((o !== 15 && o !== 12) || !B.explored[i]) continue;
+      const c = isoC(i % B.w, (i / B.w) | 0);
+      L.push(o === 15 ? [c[0], c[1] - 40, 150, '140,240,255', 0.9] : [c[0], c[1] - 14, 44, '120,230,210', 0.55]);
+    }
+    for (let k = 0; k < acidTiles.length; k++) { const i = acidTiles[k]; if (!B.explored[i]) continue; const c = isoC(i % B.w, (i / B.w) | 0); L.push([c[0], c[1], 34, '150,220,60', 0.35]); }
+    (B.props || []).forEach(function (p) { if (p.t === 'shroom' || p.t === 'shards') { const c = isoC(p.x - 0.5, p.y - 0.5); L.push([c[0], c[1] - 6, 32, p.t === 'shroom' ? '140,255,180' : '120,230,255', 0.5]); } });
+    fx.flashes.forEach(function (f) {
+      const k = (t - f.t0) / f.life; if (k < 0 || k > 1) return;
+      L.push(f.muzzle ? [f.x, f.y, 80, '255,214,150', 1 - k] : [f.x, f.y - 10, 220, '255,150,60', 1 - k]);
+    });
+    void vis;
+    return L;
+  }
+  function applyLighting(g, W, H, dpr, B, t, vis) {
+    const amb = AMB[B.tod];
+    if (!amb) return;
+    const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
+    if (!lightC || lightC.width !== w || lightC.height !== h) { lightC = canvas(w, h); lightG = lightC.getContext('2d'); }
+    const lg = lightG;
+    lg.globalCompositeOperation = 'source-over';
+    lg.fillStyle = 'rgb(' + amb[0] + ',' + amb[1] + ',' + amb[2] + ')';
+    lg.fillRect(0, 0, w, h);
+    lg.globalCompositeOperation = 'lighter';
+    const z = TR.cam.z;
+    collectLights(B, t, vis).forEach(function (l) {
+      if (!l[2]) return;
+      const s = TR.worldToScreen(l[0], l[1]);
+      const x = s[0] / 2, y = s[1] / 2, r = l[2] * z / 2;
+      if (x < -r || y < -r || x > w + r || y > h + r) return;
+      const gr = lg.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(' + l[3] + ',' + l[4] + ')'); gr.addColorStop(1, 'rgba(' + l[3] + ',0)');
+      lg.fillStyle = gr; lg.fillRect(x - r, y - r * 0.7, r * 2, r * 1.4);
+    });
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.globalCompositeOperation = 'multiply';
+    g.drawImage(lightC, 0, 0, W, H);
+    g.globalCompositeOperation = 'source-over';
+  }
+  function drawWeather(g, W, H, dpr, B, t) {
+    if (!weatherP.length) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const ts = t / 1000;
+    if (B.weather === 'rain') {
+      g.fillStyle = 'rgba(40,60,30,0.12)'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(190,230,140,0.38)'; g.lineWidth = 1.2;
+      g.beginPath();
+      weatherP.forEach(function (p) {
+        const y = ((p.y + ts * 1.1 * p.v) % 1) * (H + 30) - 15;
+        const x = ((p.x + ts * 0.12) % 1) * (W + 30) - 15;
+        g.moveTo(x, y); g.lineTo(x - 4 * p.v, y + 13 * p.v);
+      });
+      g.stroke();
+      g.fillStyle = 'rgba(200,240,150,0.35)';
+      for (let k = 0; k < 12; k++) { const r = U.hash2(k, Math.floor(ts * 6), 3), q = U.hash2(k, Math.floor(ts * 6), 9); g.fillRect(r * W, q * H, 3, 1); }
+    } else if (B.weather === 'dust') {
+      g.fillStyle = 'rgba(150,104,60,0.24)'; g.fillRect(0, 0, W, H);
+      for (let k = 0; k < 3; k++) {
+        const x = ((ts * 0.05 * (1 + k * 0.4) + k * 0.37) % 1.6 - 0.3) * W, y = H * (0.25 + k * 0.25);
+        const gr = g.createRadialGradient(x, y, 10, x, y, W * 0.35);
+        gr.addColorStop(0, 'rgba(170,125,75,0.22)'); gr.addColorStop(1, 'rgba(170,125,75,0)');
+        g.fillStyle = gr; g.fillRect(x - W * 0.35, y - W * 0.35, W * 0.7, W * 0.7);
+      }
+      g.strokeStyle = 'rgba(205,165,115,0.35)'; g.lineWidth = 1;
+      g.beginPath();
+      weatherP.forEach(function (p) {
+        const x = ((p.x + ts * 0.35 * p.v) % 1) * (W + 40) - 20, y = p.y * H + Math.sin(ts * 1.4 + p.s * 10) * 12;
+        g.moveTo(x, y); g.lineTo(x + 16 * p.v, y + 1);
+      });
+      g.stroke();
+    } else if (B.weather === 'ash') {
+      g.fillStyle = 'rgba(80,78,76,0.12)'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(215,210,205,0.6)';
+      weatherP.forEach(function (p) {
+        const y = ((p.y + ts * 0.06 * p.v) % 1) * H;
+        const x = ((p.x + Math.sin(ts * 0.7 + p.s * 6) * 0.02 + ts * 0.015 + 1) % 1) * W;
+        g.fillRect(x, y, 1.6 + p.s * 1.4, 1.6 + p.s * 1.4);
+      });
+    }
+  }
+  function drawCrows(g, t, shadows) {
+    crows.forEach(function (c) {
+      const a = c.a + (t / 1000) * c.sp;
+      const x = c.cx + Math.cos(a) * c.r, y = c.cy + Math.sin(a) * c.r * 0.5;
+      if (shadows) { g.fillStyle = 'rgba(0,0,0,0.2)'; ART.ell(g, x + 30, y + 10, 6, 2.5); return; }
+      const Y = y - 130, f = Math.sin(t / 110 + c.ph) * 6;
+      const d = c.sp > 0 ? 1 : -1;
+      g.strokeStyle = '#141210'; g.lineWidth = 2; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(x - 8, Y - f); g.quadraticCurveTo(x - 3, Y - 2, x, Y); g.quadraticCurveTo(x + 3, Y - 2, x + 8, Y - f); g.stroke();
+      g.fillStyle = '#141210'; ART.ell(g, x + d * 1.5, Y + 0.5, 3, 1.6);
+    });
+  }
+  function drawMotes(g, t) {
+    if (!motes.length) return;
+    g.globalCompositeOperation = 'lighter';
+    motes.forEach(function (m) {
+      const a = t / 1400 + m.ph;
+      const x = m.ax + Math.cos(a * 1.3) * m.r, y = m.ay + Math.sin(a) * m.r * 0.6 - Math.abs(Math.sin(a * 0.7)) * 10;
+      const k = 0.5 + Math.sin(t / 300 + m.ph * 3) * 0.5;
+      const gr = g.createRadialGradient(x, y, 0, x, y, 6);
+      gr.addColorStop(0, 'rgba(' + m.col + ',' + (0.8 * k) + ')'); gr.addColorStop(1, 'rgba(' + m.col + ',0)');
+      g.fillStyle = gr; g.fillRect(x - 6, y - 6, 12, 12);
+    });
+    g.globalCompositeOperation = 'source-over';
+  }
+  function drawAcid(g, B, t, tx0, tx1, ty0, ty1) {
+    g.strokeStyle = 'rgba(220,255,140,0.6)'; g.lineWidth = 1;
+    for (let k = 0; k < acidTiles.length; k++) {
+      const i = acidTiles[k];
+      const x = i % B.w, y = (i / B.w) | 0;
+      if (x < tx0 || x > tx1 || y < ty0 || y > ty1 || !B.explored[i]) continue;
+      const c = isoC(x, y);
+      for (let j = 0; j < 2; j++) {
+        const ph = (t / 1500 + U.hash2(x, y, j)) % 1;
+        const ox = (U.hash2(x, y, j + 5) - 0.5) * 30, oy = (U.hash2(x, y, j + 9) - 0.5) * 12;
+        g.beginPath(); g.arc(c[0] + ox, c[1] + oy, 0.8 + ph * 3.2, 0, 6.28); g.stroke();
+      }
+    }
+  }
+
   /* ---------- Инициализация ---------- */
   TR.init = function (B) {
     sprites = {};
@@ -660,6 +833,7 @@
     cineOn = false; cineK = 0; cineZ = null; DW.timeScale = 1; TR.cam.tz = null;
     fogC = canvas(B.w, B.h);
     fogV = -1;
+    initAtmos(B);
     props = {};
     (B.props || []).forEach(function (p) { const k = Math.floor(p.y) * B.w + Math.floor(p.x); (props[k] = props[k] || []).push(p); });
     fires = {};
@@ -874,6 +1048,8 @@
 
   TR.update = function (dt) {
     clockT += dt * 1000 * (DW.timeScale || 1);
+    const Bq = DW.BT.get();
+    if (Bq) emitAmbient(Bq, dt * (DW.timeScale || 1));
     const c = TR.cam;
     if (c.tz !== null && c.tz !== undefined) {
       const kz = Math.min(1, dt * 4.5);
@@ -1289,6 +1465,8 @@
 
     // объёмный проход по глубине
     screenT();
+    drawAcid(g, B, t, tx0, tx1, ty0, ty1);
+    drawCrows(g, t, true);
     if (B.evac.length) {
       g.strokeStyle = 'rgba(140,240,160,0.75)'; g.lineWidth = 1.6;
       B.evac.forEach(function (e) {
@@ -1325,10 +1503,12 @@
           if (o) {
             const sp = objSprite(o, maskAt(B, x, y, o), Math.floor(U.hash2(x, y, o) * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5);
             const sway = o === 5 ? Math.sin(t / 900 + x * 1.3 + y) * 0.035 : 0;
+            if (o === 16) { const c0 = isoC(x, y); const k = 1 + Math.sin(t / 420 + x * 2 + y) * 0.05; g.save(); g.translate(c0[0], c0[1]); g.scale(1 + (k - 1) * 0.5, k); g.translate(-c0[0], -c0[1]); }
             if (sway) { const c0 = isoC(x, y); g.save(); g.translate(c0[0], c0[1]); g.transform(1, 0, sway, 1, 0, 0); g.translate(-c0[0], -c0[1]); }
             const c = isoC(x, y);
             g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
             if (sway) g.restore();
+            if (o === 16) g.restore();
             if (o === 15) {
               const gl = 0.45 + Math.sin(t / 380) * 0.15;
               const gr = g.createRadialGradient(c[0], c[1] - 40, 2, c[0], c[1] - 40, 30);
@@ -1362,6 +1542,11 @@
       }
     }
     ghosts.forEach(function (u) { drawUnit(g, u, t, false, 0.32); });
+    drawCrows(g, t, false);
+    applyLighting(g, W, H, dpr, B, t, vis);
+    drawWeather(g, W, H, dpr, B, t);
+    screenT();
+    drawMotes(g, t);
 
     // контуры зон перемещения
     if (ov.reach) {
@@ -1569,6 +1754,8 @@
   TR.isAnimating = function () {
     const t = now();
     if (cineK > 0.01 || TR.cam.tz !== null && TR.cam.tz !== undefined) return true;
+    const Bb = DW.BT.get();
+    if (Bb && (Bb.weather === 'rain' || Bb.weather === 'dust')) return true;
     for (const k in anims) if (anims[k].kind !== 'die' && t - anims[k].t0 < anims[k].dur) return true;
     for (const k in deadAt) if (t - deadAt[k] < 3000) return true;
     return Object.keys(tweens).length > 0 || fx.parts.length > 0 || fx.tracers.length > 0 || fx.floats.length > 0 || fx.flashes.length > 0 || fx.projs.length > 0 || TR.cam.tx !== null || TR.shake > 0;

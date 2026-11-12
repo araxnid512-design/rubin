@@ -31,6 +31,7 @@
     } else {
       banner('Ваш ход');
     }
+    if (B.turn === 1 && (B.tod !== 'day' || B.weather !== 'clear')) setTimeout(function () { DW.UI.toast(BT().condText(B), B.sightMod ? 'alert' : ''); }, 900);
   };
   BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; };
   BS.update = function (dt) { DW.TR.update(dt); };
@@ -138,7 +139,7 @@
   BS.refresh = function () {
     if (!hud || !B) return;
     const st = DW.G.state;
-    hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective;
+    hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective + '<div class="cond">' + BT().condText(B) + '</div>';
     hud.res.innerHTML = '<span>' + ic('ammo') + st.res.ammo + '</span><span>' + ic('grenades') + st.res.grenades + '</span><span>' + ic('meds') + st.res.meds + '</span>' +
       (st.res.rockets ? '<span>' + ic('rockets') + st.res.rockets + '</span>' : '') + '<span class="gemc">' + ic('gems') + (B.loot.gems || 0) + '</span>';
     renderSquad();

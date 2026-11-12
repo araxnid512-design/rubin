@@ -92,7 +92,7 @@
       id: B.nextId++, side: 'p', kind: 'soldier', sid: s.id, name: s.name, cls: s.cls, x: x, y: y,
       hp: Math.max(1, G.hp(s)), maxHp: G.maxHp(s), aim: G.aim(s) - (G.state.hungry ? 10 : 0), mob: G.mob(s),
       def: 0, armor: D.ARMORS[s.armor].armor, armorId: s.armor, weapon: s.weapon, clip: W.clip, ap: 2,
-      sight: 10 + (W.sight || 0), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
+      sight: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
       alive: true, evac: false, kills: 0, xpGain: 0, face: 0, look: s.look, rank: G.rank(s)
     };
   }
@@ -104,7 +104,7 @@
     return {
       id: B.nextId++, side: 'e', kind: 'enemy', type: type, name: T.n, x: x, y: y,
       hp: T.hp + bonus, maxHp: T.hp + bonus, aim: T.aim + bonus * 2, mob: T.mob, def: T.def || 0, armor: T.armor || 0,
-      weapon: T.weapon || null, clip: W ? W.clip : 0, ap: 0, sight: T.sight || 9, pod: pod,
+      weapon: T.weapon || null, clip: W ? W.clip : 0, ap: 0, sight: Math.max(5, (T.sight || 9) + (B.sightMod || 0)), pod: pod,
       active: false, seen: false, overwatch: false, hunker: false, suppressed: false, alive: true, evac: false,
       face: Math.PI, cd: {}, kills: 0
     };
@@ -112,7 +112,7 @@
   function mkTurret(x, y) {
     return {
       id: B.nextId++, side: 'p', kind: 'turret', name: 'Автотурель', x: x, y: y, hp: 10, maxHp: 10, aim: 65, mob: 0,
-      def: 0, armor: 1, weapon: 'turret', clip: 99, ap: 0, sight: 9, cd: {}, charges: {}, overwatch: false, hunker: false,
+      def: 0, armor: 1, weapon: 'turret', clip: 99, ap: 0, sight: Math.max(5, 9 + (B.sightMod || 0)), cd: {}, charges: {}, overwatch: false, hunker: false,
       suppressed: false, alive: true, evac: false, kills: 0, xpGain: 0, face: 0
     };
   }
@@ -127,8 +127,9 @@
       w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac,
       units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
       loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
-      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: ''
+      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: []
     };
+    BT.rollConditions(B, mapType);
     const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
     squad.forEach(function (s, i) {
       const d = m.deploy[i];
@@ -151,6 +152,23 @@
     BT.updateObjective();
     BT.updateVision();
     return B;
+  };
+  /* ---------- Время суток и погода ---------- */
+  BT.rollConditions = function (b, mapType) {
+    let tod;
+    if (mapType === 'vault') tod = 'interior';
+    else if (mapType === 'lair') tod = 'cave';
+    else { const r = Math.random(); tod = r < 0.4 ? 'day' : (r < 0.58 ? 'dawn' : (r < 0.8 ? 'dusk' : 'night')); }
+    let weather = 'clear';
+    if (tod !== 'interior' && tod !== 'cave') { const r = Math.random(); weather = r < 0.55 ? 'clear' : (r < 0.7 ? 'dust' : (r < 0.85 ? 'ash' : 'rain')); }
+    b.tod = tod; b.weather = weather;
+    b.sightMod = (tod === 'night' ? -2 : 0) + (tod === 'cave' ? -1 : 0) + (weather === 'dust' ? -3 : 0);
+  };
+  BT.condText = function (b) {
+    const t = { day: 'День', dawn: 'Рассвет', dusk: 'Закат', night: 'Ночь', interior: 'Внутри бункера', cave: 'В пещерах' }[b.tod || 'day'];
+    const w = { clear: '', dust: 'пыльная буря', ash: 'пеплопад', rain: 'кислотный дождь' }[b.weather || 'clear'];
+    const m = b.sightMod ? ' (обзор ' + b.sightMod + ')' : '';
+    return t + (w ? ', ' + w : '') + m;
   };
   BT.restore = function (data) {
     B = data;
