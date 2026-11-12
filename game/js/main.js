@@ -159,6 +159,8 @@
   Main.setScene = function (s, arg) {
     DW.UI.closeAll();
     if (scene && scene.exit) scene.exit();
+    const fd = document.getElementById('fade');
+    if (fd && scene) { fd.style.transition = 'none'; fd.style.opacity = '1'; void fd.offsetWidth; fd.style.transition = 'opacity 0.45s ease-out'; fd.style.opacity = '0'; }
     scene = s;
     if (s.enter) s.enter(arg);
   };

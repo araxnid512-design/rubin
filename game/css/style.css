@@ -429,3 +429,8 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
   background: rgba(0, 0, 0, 0.5); color: var(--dim); border: 1px solid var(--line2); border-radius: 6px;
   font: inherit; font-size: 13px; padding: 6px 14px;
 }
+
+/* ---------- Полировка v4 ---------- */
+#fade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 30; }
+.dtop .fig { height: 118px; width: auto; margin: -14px -10px -6px -14px; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.5)); pointer-events: none; }
+.b-sel .wico { height: 15px; width: auto; margin-right: -2px; filter: drop-shadow(0 1px 1px #000); }

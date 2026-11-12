@@ -149,7 +149,7 @@
       hud.unit.innerHTML = '<b style="color:' + c.color + '">' + sel.name + '</b> <small>' + c.n + ' · ' + D.RANKS[sel.rank || 0].n + '</small>' +
         '<span class="sep"></span>' + DW.UI.hpBar(sel.hp, sel.maxHp) +
         '<span class="sep"></span><span class="dim">ОД</span>' + pips(sel.ap, Math.max(2, sel.ap), 'ap') +
-        '<span class="sep"></span><span class="dim">' + (W.s || W.n) + '</span>' + pips(sel.clip, W.clip, 'clip');
+        '<span class="sep"></span><img class="wico" src="' + DW.ART.weaponIcon(sel.weapon) + '" alt="" title="' + W.n + '"><span class="dim">' + (W.s || W.n) + '</span>' + pips(sel.clip, W.clip, 'clip');
       hud.unit.style.display = '';
     } else hud.unit.style.display = 'none';
     // действия

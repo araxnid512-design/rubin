@@ -326,6 +326,24 @@
     cache[key] = c.toDataURL('image/png');
     return cache[key];
   };
+  /* Фигура бойца в полный рост (оружие, броня, снаряжение по званию) */
+  ART.figureURL = function (s) {
+    ART.ensureLook(s);
+    const rank = s.xp !== undefined && DW.G ? DW.G.rank(s) : 0;
+    const key = 'f|' + s.id + '|' + s.weapon + '|' + s.armor + '|' + rank + '|' + (s.look.bscars || 0);
+    if (cache[key]) return cache[key];
+    const c = ART.canvas(200, 230);
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(100, 200, 4, 100, 200, 90);
+    gr.addColorStop(0, 'rgba(255,200,140,0.18)'); gr.addColorStop(1, 'rgba(255,200,140,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 200, 230);
+    g.fillStyle = 'rgba(0,0,0,0.45)'; g.beginPath(); g.ellipse(96, 206, 44, 11, 0, 0, 7); g.fill();
+    g.save(); g.translate(92, 204);
+    ART.human(g, { look: s.look, body: '#c8691c', armor: s.armor, weapon: s.weapon, dir: 1, aim: 0.05, scale: 3.4, seed: 3, cig: s.name === 'Мальборо', rank: rank, band: rank >= 4 ? '#c0302a' : null, helmet: s.armor === 'heavy' || s.armor === 'exo', helmetColor: s.armor === 'exo' ? '#2f4552' : '#4a5258', noShadow: true }, 0);
+    g.restore();
+    cache[key] = c.toDataURL('image/png');
+    return cache[key];
+  };
   ART.armorIcon = function (id) {
     const key = 'a|' + id;
     if (cache[key]) return cache[key];

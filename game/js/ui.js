@@ -148,6 +148,7 @@
       const next = D.RANKS[rk + 1];
       const top = el('div', { class: 'dtop' });
       top.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
+      top.appendChild(el('img', { class: 'fig', src: DW.ART.figureURL(s), alt: '' }));
       const info = el('div', { class: 'dinfo' });
       info.innerHTML = '<div class="dhead">' + s.name + '</div>' +
         '<div><span class="tag" style="border-color:' + c.color + ';color:' + c.color + '">' + c.n + '</span><span class="tag">' + D.RANKS[rk].n + rankBadge(rk) + '</span></div>' +
