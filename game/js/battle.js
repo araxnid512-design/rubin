@@ -735,7 +735,7 @@
     u.face = Math.atan2(y - u.y, x - u.x);
     DW.TR.bark(u, kind === 'rocket' ? 'rocket' : 'grenade');
     if (kind !== 'rocket') { DW.TR.anim(u, 'throw', 560); await U.sleep(330); }
-    else { DW.TR.anim(u, 'shoot', 300, { cnt: 1 }); }
+    else { DW.TR.anim(u, 'shoot', 650, { cnt: 1, rpg: true }); }
     if (kind === 'rocket') {
       st.res.rockets -= 1;
       await DW.TR.projectileFx(u.x, u.y, x, y, 'rocket');

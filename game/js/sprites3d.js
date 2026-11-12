@@ -116,6 +116,7 @@
     S3.clear();
     B.units.forEach(function (u) { const s = S3.setsFor(u); if (s) { S3.load(s.body); if (s.weapon) S3.load(s.weapon); } });
     for (const id in A()) if (id.indexOf('p_') === 0) S3.load(id);
+    if (B.units.some(function (u) { return u.cls === 'heavy'; })) S3.load('w_rpg');
   };
 
   /* Крупная фигура бойца для экрана отряда: холст или null (пока атласы не загружены) */

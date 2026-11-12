@@ -2118,7 +2118,9 @@
     i = Math.min(i, n(anim) - 1);
     const L = [[S.body, anim, i, d]];
     // бросок гранаты — замах пустой рукой (ствол за спиной не рисуем)
-    if (S.weapon && S3.ready(S.weapon) && !(an && an.kind === 'throw')) L.push([S.weapon, anim, i, d]);
+    // выстрел из РПГ — гранатомёт на плече вместо своего ствола
+    const wset = an && an.kind === 'shoot' && an.a && an.a.data && an.a.data.rpg && S3.ready('w_rpg') ? 'w_rpg' : S.weapon;
+    if (wset && S3.ready(wset) && !(an && an.kind === 'throw')) L.push([wset, anim, i, d]);
     return S3.frame(L);
   }
   function drawUnit(g, u, t, sel, alpha) {
