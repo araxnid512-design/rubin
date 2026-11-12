@@ -455,6 +455,19 @@
     "account",
     "balance"
    ]
+  },
+  {
+   "id": "p3_w_ppsh2",
+   "py": "tools/tripo/chain.py",
+   "timeout": 1800,
+   "args": [
+    "--id",
+    "w_ppsh2",
+    "--faces",
+    "3000",
+    "--prompt",
+    "WW2 Soviet PPSh-41 submachine gun: big round flat drum magazine (disc) mounted under the receiver in front of the trigger guard, full wooden rifle-style stock, perforated cylindrical barrel jacket with rows of round holes, short barrel, no pistol grip, side view, single piece, no hands, realistic style, worn, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
+   ]
   }
  ]
 }
