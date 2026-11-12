@@ -368,3 +368,24 @@ async function propCanvas(spec) {
   return r;
 }
 window.BK.frames = frames; window.BK.bakeSet = bakeSet; window.BK.getRig = getRig; window.BK.pack = pack;
+
+/* Ужать GLB для хранения: текстуры не больше max (цвет — JPEG), кости и движения сохраняются */
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+async function shrink(url, max) {
+  const gl = await new Promise((res, rej) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(url + '?x=' + Math.random(), res, undefined, rej));
+  gl.scene.traverse((m) => {
+    if (!m.isMesh) return;
+    (Array.isArray(m.material) ? m.material : [m.material]).forEach((mt) => {
+      if (mt.map) mt.map.userData.mimeType = 'image/jpeg';
+      if (mt.emissiveMap) mt.emissiveMap.userData.mimeType = 'image/jpeg';
+      // карты нормалей и металл/шероховатость на спрайте в 60–120 точек не видны — не храним
+      mt.normalMap = null; mt.metalnessMap = null; mt.roughnessMap = null; mt.metalness = 0.1; mt.roughness = 0.8;
+    });
+  });
+  const ex = new GLTFExporter();
+  const buf = await ex.parseAsync(gl.scene, { binary: true, maxTextureSize: max || 1024, animations: gl.animations, onlyVisible: false });
+  let s = ''; const u8 = new Uint8Array(buf);
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+window.BK.shrink = shrink;

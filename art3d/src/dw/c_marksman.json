@@ -1,0 +1,18 @@
+{
+ "id": "c_marksman",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ]
+ ],
+ "pid": "b52e2ef3-b16b-4bf7-b705-fb6f6cb2cbee"
+}

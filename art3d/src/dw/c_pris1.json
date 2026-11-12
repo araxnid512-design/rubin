@@ -1,0 +1,18 @@
+{
+ "id": "c_pris1",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ]
+ ],
+ "pid": "8a086e90-fae8-4ad3-99f2-eaf65cfd495e"
+}

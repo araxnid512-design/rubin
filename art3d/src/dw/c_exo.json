@@ -1,0 +1,18 @@
+{
+ "id": "c_exo",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ]
+ ],
+ "pid": "26a70ff1-cb87-4be7-99ea-835ac2a1dd97"
+}

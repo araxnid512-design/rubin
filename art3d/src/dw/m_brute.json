@@ -1,0 +1,28 @@
+{
+ "id": "m_brute",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:slash,preset:biped:fall"
+  ],
+  [
+   "animate_b",
+   0,
+   "preset:biped:hit_to_body_01,preset:biped:angry_01,preset:biped:chop,preset:biped:turn"
+  ]
+ ],
+ "pid": "7d7d77b8-b6ae-4bfd-b64d-b506c3208f51"
+}

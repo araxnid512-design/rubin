@@ -1,0 +1,18 @@
+{
+ "id": "c_boss",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ]
+ ],
+ "pid": "07fb45db-5e86-44fd-95fa-8de96e6d8d35"
+}

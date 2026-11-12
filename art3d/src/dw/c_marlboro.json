@@ -1,0 +1,18 @@
+{
+ "id": "c_marlboro",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ]
+ ],
+ "pid": "98fe2dd1-c670-42fd-a9c6-c1eb955b14d1"
+}

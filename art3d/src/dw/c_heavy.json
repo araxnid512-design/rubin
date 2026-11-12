@@ -1,0 +1,18 @@
+{
+ "id": "c_heavy",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ]
+ ],
+ "pid": "a9c144e2-1eb1-4ef2-9c20-343a00ebe309"
+}

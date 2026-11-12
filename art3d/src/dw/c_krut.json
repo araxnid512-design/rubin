@@ -1,0 +1,28 @@
+{
+ "id": "c_krut",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:fall"
+  ],
+  [
+   "animate_b",
+   0,
+   "preset:biped:hit_to_body_01,preset:biped:shoot,preset:biped:dive,preset:biped:slash,preset:biped:look_around"
+  ]
+ ],
+ "pid": "66e10fd9-0838-44e4-bea8-c889f60b9456"
+}
