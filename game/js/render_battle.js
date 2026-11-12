@@ -1174,8 +1174,15 @@
     if (!lightC || lightC.width !== w || lightC.height !== h) { lightC = canvas(w, h); lightG = lightC.getContext('2d'); }
     const lg = lightG;
     lg.globalCompositeOperation = 'source-over';
-    lg.fillStyle = 'rgb(' + amb[0] + ',' + amb[1] + ',' + amb[2] + ')';
-    lg.fillRect(0, 0, w, h);
+    const ambC = 'rgb(' + amb[0] + ',' + amb[1] + ',' + amb[2] + ')';
+    // фон за диорамой (небо, горизонт) не затемняем — у него свои цвета
+    lg.fillStyle = '#ffffff'; lg.fillRect(0, 0, w, h);
+    const scp = function (pt, dy) { const q = TR.worldToScreen(pt[0], pt[1] + dy); return [q[0] / 2, q[1] / 2]; };
+    const pL = iso(0, B.h), pT = iso(0, 0), pR = iso(B.w, 0), pB = iso(B.w, B.h);
+    lg.save(); lg.shadowColor = ambC; lg.shadowBlur = 18; lg.fillStyle = ambC;
+    lg.beginPath();
+    [scp(pL, -50), scp(pT, -90), scp(pR, -50), scp(pR, EDGE), scp(pB, EDGE + 4), scp(pL, EDGE)].forEach(function (q, i) { if (i) lg.lineTo(q[0], q[1]); else lg.moveTo(q[0], q[1]); });
+    lg.closePath(); lg.fill(); lg.restore();
     lg.globalCompositeOperation = 'lighter';
     const z = TR.cam.z;
     collectLights(B, t, vis).forEach(function (l) {
@@ -1307,6 +1314,15 @@
     } else { const c = isoC(B.w / 2, B.h / 2); TR.cam.x = c[0]; TR.cam.y = c[1]; }
     TR.cam.tx = null; TR.cam.ty = null;
     clampCam();
+    if (DW.settings.cine !== false && !B.flown) {
+      B.flown = true;
+      const ex = TR.cam.x, ey = TR.cam.y, ez = TR.cam.z;
+      const mc = isoC(B.w * 0.62, B.h * 0.5);
+      TR.cam.z = Math.max(0.5, ez * 0.62); TR.cam.x = mc[0]; TR.cam.y = mc[1] - 40;
+      clampCam();
+      TR.cam.fly = 1; TR.cam.flyT0 = performance.now();
+      TR.cam.tx = ex; TR.cam.ty = ey; TR.cam.tz = ez;
+    }
   };
   TR.resize = function (w, h) { TR.view.w = w; TR.view.h = h; clampCam(); };
   function clampCam() {
@@ -1583,19 +1599,20 @@
     const Bq = DW.BT.get();
     if (Bq) emitAmbient(Bq, dt * (DW.timeScale || 1));
     const c = TR.cam;
+    if (c.fly && performance.now() - (c.flyT0 || 0) > 2300) c.fly = 0;
     if (c.tz !== null && c.tz !== undefined) {
-      const kz = Math.min(1, dt * 4.5);
+      const kz = Math.min(1, dt * (c.fly ? 1.4 : 4.5));
       c.z += (c.tz - c.z) * kz;
       if (Math.abs(c.tz - c.z) < 0.004) { c.z = c.tz; c.tz = null; }
       clampCam();
     }
     cineK += ((cineOn ? 1 : 0) - cineK) * Math.min(1, dt * 5);
     if (c.tx !== null) {
-      const k = Math.min(1, dt * 7);
+      const k = Math.min(1, dt * (c.fly ? 1.6 : 7));
       c.x += (c.tx - c.x) * k; c.y += (c.ty - c.y) * k;
       clampCam();
       if (Math.abs(c.tx - c.x) < 3 && Math.abs(c.ty - c.y) < 3) {
-        c.tx = null; c.ty = null;
+        c.tx = null; c.ty = null; c.fly = 0;
         const w = camWaiters; camWaiters = []; w.forEach(function (r) { r(); });
       }
     } else if (camWaiters.length) { const w = camWaiters; camWaiters = []; w.forEach(function (r) { r(); }); }
@@ -2192,6 +2209,119 @@
   }
 
   let reachC = null, reachSrc = null, reachM = '';
+  /* ---------- Мир вокруг поля боя: небо, горизонт, дальние горы и руины ---------- */
+  const SKYC = {
+    day: ['#8a9aa6', '#b8b0a0', '#d8c4a0'], dawn: ['#3a3a5a', '#9a6a7a', '#f0a080'], dusk: ['#2a1a2a', '#8a3a30', '#f08a40'],
+    night: ['#05070f', '#0e1424', '#22283a'], cave: ['#0a0807', '#14100d', '#1e1814'], interior: ['#0c0d10', '#16181c', '#20232a']
+  };
+  const PLAIN = { day: ['#9a8a70', '#4a3e30'], dawn: ['#8a6a60', '#2e2420'], dusk: ['#8a5a3a', '#241812'], night: ['#1e2230', '#07080c'], cave: ['#14100c', '#050403'], interior: ['#16181c', '#060708'] };
+  let silh = null, silhSeed = -1;
+  function buildSilh(seed) {
+    const r = U.srng(seed * 7 + 3);
+    const mk = function (period, n, h0, h1, ruins) {
+      const pts = [];
+      let x = 0;
+      while (x < period) {
+        if (ruins && r() < 0.42) {
+          const bw = 18 + r() * 46, bh = h0 + r() * (h1 - h0) * 1.6;
+          pts.push([x, 0]); pts.push([x, bh]);
+          const k = r();
+          if (k < 0.3) { pts.push([x + bw * 0.3, bh + 6 + r() * 10]); pts.push([x + bw * 0.45, bh - 4]); }
+          else if (k < 0.5) { pts.push([x + bw * 0.5, bh]); pts.push([x + bw * 0.5, bh + 26 + r() * 30]); pts.push([x + bw * 0.55, bh + 26]); pts.push([x + bw * 0.55, bh]); }
+          pts.push([x + bw, bh * (0.55 + r() * 0.4)]); pts.push([x + bw, 0]);
+          x += bw + 4 + r() * 20;
+        } else {
+          pts.push([x, h0 + r() * (h1 - h0)]);
+          x += period / n * (0.5 + r());
+        }
+      }
+      pts.push([period, pts[0][1]]);
+      return pts;
+    };
+    return {
+      far: { pts: mk(1800, 26, 30, 95, false), par: 0.12, sc: 1 },
+      city: { pts: mk(1500, 30, 10, 38, true), par: 0.22, sc: 1 },
+      near: { pts: mk(1300, 22, 6, 26, false), par: 0.34, sc: 1 },
+      stars: (function () { const a = []; for (let i = 0; i < 90; i++) a.push([r(), r(), 0.3 + r() * 0.7, r() * 6]); return a; })()
+    };
+  }
+  function drawBackdrop(g, W, H, B, t) {
+    const tod = B.tod || 'day';
+    if (silhSeed !== B.seed) { silh = buildSilh(B.seed || 1); silhSeed = B.seed; }
+    const z = TR.cam.z;
+    const hy = H / 2 + (-40 - TR.cam.y) * z * 0.35;
+    const sk = SKYC[tod] || SKYC.day, pl = PLAIN[tod] || PLAIN.day;
+    const indoor = tod === 'cave' || tod === 'interior';
+    // небо
+    let gr = g.createLinearGradient(0, Math.min(0, hy - H), 0, Math.max(1, hy));
+    gr.addColorStop(0, sk[0]); gr.addColorStop(0.7, sk[1]); gr.addColorStop(1, sk[2]);
+    g.fillStyle = gr; g.fillRect(0, 0, W, Math.max(0, hy) + 2);
+    if (B.weather === 'dust') { g.fillStyle = 'rgba(150,104,60,0.35)'; g.fillRect(0, 0, W, Math.max(0, hy)); }
+    if (B.weather === 'rain' || B.weather === 'ash') { g.fillStyle = 'rgba(40,44,50,0.35)'; g.fillRect(0, 0, W, Math.max(0, hy)); }
+    if (tod === 'night') silh.stars.forEach(function (s2) { g.fillStyle = 'rgba(230,235,255,' + (s2[2] * (0.6 + 0.4 * Math.sin(t / 700 + s2[3]))) + ')'; g.fillRect(s2[0] * W, s2[1] * Math.max(0, hy) * 0.95, 1.5, 1.5); });
+    // светило
+    if (!indoor && hy > 0) {
+      const sx2 = W * ({ dawn: 0.2, dusk: 0.78, day: 0.62, night: 0.3 }[tod] || 0.6) - TR.cam.x * z * 0.05;
+      const sy2 = hy - ({ dawn: 18, dusk: 22, day: H * 0.35, night: H * 0.28 }[tod] || 30);
+      const sr = Math.min(W, H) * (tod === 'night' ? 0.035 : 0.05);
+      gr = g.createRadialGradient(sx2, sy2, sr * 0.5, sx2, sy2, sr * 9);
+      const gc = tod === 'night' ? '190,205,255' : (tod === 'day' ? '255,245,220' : '255,170,100');
+      gr.addColorStop(0, 'rgba(' + gc + ',0.55)'); gr.addColorStop(1, 'rgba(' + gc + ',0)');
+      g.fillStyle = gr; g.fillRect(sx2 - sr * 9, sy2 - sr * 9, sr * 18, sr * 18);
+      g.fillStyle = tod === 'night' ? '#e8ecf8' : (tod === 'day' ? 'rgba(255,250,235,0.9)' : '#ffd0a0');
+      g.beginPath(); g.arc(sx2, sy2, sr, 0, 7); g.fill();
+      if (tod === 'night') { g.fillStyle = 'rgba(160,170,200,0.4)'; g.beginPath(); g.arc(sx2 - sr * 0.3, sy2 - sr * 0.2, sr * 0.3, 0, 7); g.fill(); }
+    }
+    // облака
+    if (!indoor && hy > 0) {
+      for (let i = 0; i < 5; i++) {
+        const rr = U.srng(i * 17 + (B.seed || 1));
+        const cx = ((rr() * 1.6 * W + t / 1000 * (4 + rr() * 6) - TR.cam.x * z * 0.08) % (W * 1.6)) - W * 0.3, cy = hy * (0.2 + rr() * 0.55);
+        const cw = W * (0.12 + rr() * 0.16);
+        gr = g.createRadialGradient(cx, cy, 2, cx, cy, cw);
+        const cc = tod === 'night' ? '40,46,70' : (tod === 'dusk' ? '120,60,50' : (tod === 'dawn' ? '170,120,130' : '210,205,195'));
+        gr.addColorStop(0, 'rgba(' + cc + ',0.35)'); gr.addColorStop(1, 'rgba(' + cc + ',0)');
+        g.fillStyle = gr; g.save(); g.translate(cx, cy); g.scale(1, 0.32); g.translate(-cx, -cy); g.fillRect(cx - cw, cy - cw, cw * 2, cw * 2); g.restore();
+      }
+    }
+    // равнина под горизонтом
+    gr = g.createLinearGradient(0, hy, 0, H);
+    gr.addColorStop(0, pl[0]); gr.addColorStop(0.35, pl[1]); gr.addColorStop(1, '#050403');
+    g.fillStyle = gr; g.fillRect(0, Math.max(0, hy), W, H - Math.max(0, hy));
+    // силуэты: дальние горы, руины города, ближние холмы
+    if (hy > -60) {
+      const layer = function (L, col, k) {
+        const scy = Math.pow(z, 0.4) * k;
+        const ox = -TR.cam.x * z * L.par;
+        const per = 1800 * scy;
+        let start = (ox % per); if (start > 0) start -= per;
+        g.fillStyle = col;
+        for (let x0 = start; x0 < W; x0 += L.pts[L.pts.length - 1][0] * scy) {
+          g.beginPath(); g.moveTo(x0, hy + 2);
+          L.pts.forEach(function (p) { g.lineTo(x0 + p[0] * scy, hy - p[1] * scy); });
+          g.lineTo(x0 + L.pts[L.pts.length - 1][0] * scy, hy + 2); g.closePath(); g.fill();
+        }
+      };
+      const mix = indoor ? ['#080706', '#0c0a09', '#100d0b'] : (tod === 'night' ? ['#141a2a', '#0e121e', '#0a0d16'] : (tod === 'day' ? ['rgba(120,118,112,0.75)', 'rgba(90,84,76,0.85)', '#5a4e40'] : (tod === 'dawn' ? ['rgba(110,80,100,0.8)', 'rgba(70,50,62,0.9)', '#3a2a2e'] : ['rgba(110,60,50,0.8)', 'rgba(70,36,30,0.9)', '#2e1a14'])));
+      layer(silh.far, mix[0], 1);
+      layer(silh.city, mix[1], 1);
+      layer(silh.near, mix[2], 1);
+      // дымка у горизонта
+      gr = g.createLinearGradient(0, hy - H * 0.12, 0, hy + H * 0.1);
+      const hz2 = indoor ? '20,16,12' : (tod === 'night' ? '40,50,80' : (tod === 'day' ? '220,205,180' : (tod === 'dawn' ? '230,160,150' : '230,130,80')));
+      gr.addColorStop(0, 'rgba(' + hz2 + ',0)'); gr.addColorStop(0.55, 'rgba(' + hz2 + ',' + (indoor ? 0.3 : 0.4) + ')'); gr.addColorStop(1, 'rgba(' + hz2 + ',0)');
+      g.fillStyle = gr; g.fillRect(0, hy - H * 0.12, W, H * 0.22);
+    }
+    // пещера: своды со сталактитами
+    if (indoor && hy > 0) {
+      g.fillStyle = tod === 'cave' ? '#0a0806' : '#0e0f12';
+      const r = U.srng(B.seed || 3);
+      g.beginPath(); g.moveTo(0, 0);
+      for (let x = 0; x <= W + 30; x += 18 + r() * 26) { const d = hy * (0.15 + r() * 0.35); g.lineTo(x, d * 0.5); g.lineTo(x + 6, d); g.lineTo(x + 12, d * 0.4); }
+      g.lineTo(W, 0); g.closePath(); g.fill();
+      if (tod === 'cave') for (let i = 0; i < 14; i++) { const x = r() * W, y = r() * hy * 0.8, a = 0.3 + 0.3 * Math.sin(t / 900 + i); g.fillStyle = 'rgba(110,220,240,' + a + ')'; g.fillRect(x, y, 2, 2); }
+    }
+  }
   const FOGR = 4;
   function buildFog(B, vis) {
     const W = B.w * FOGR, H = B.h * FOGR;
@@ -2252,9 +2382,7 @@
     const t = now();
     const z = TR.cam.z;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const bg = g.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#16110d'); bg.addColorStop(1, '#070605');
-    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    drawBackdrop(g, W, H, B, t);
     let sx = 0, sy = 0;
     if (TR.shake) { sx = (Math.random() - 0.5) * TR.shake; sy = (Math.random() - 0.5) * TR.shake; }
     const ox = dpr * (W / 2 - TR.cam.x * z + sx), oy = dpr * (H / 2 - TR.cam.y * z + sy);
