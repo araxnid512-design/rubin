@@ -1194,6 +1194,7 @@
   TR.init = function (B) {
     sprites = {};
     unitCache = {};
+    for (const k in live) delete live[k];
     for (const k in anims) delete anims[k];
     for (const k in nextFidget) delete nextFidget[k];
     for (const k in deadAt) delete deadAt[k];
@@ -1525,31 +1526,129 @@
   }
   function paintUnit(g, u, fi, walk, sc, t, pose) {
     if (u.kind === 'soldier') {
-      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null, rank: u.rank }, t);
+      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null, rank: u.rank, noShadow: true }, t);
     } else if (u.kind === 'turret') {
-      ART.creature(g, 'turret', { dir: fi.dir, aim: fi.aim, seed: u.id, scale: sc, pose: pose }, t);
+      ART.creature(g, 'turret', { dir: fi.dir, aim: fi.aim, seed: u.id, scale: sc, pose: pose, noShadow: true }, t);
     } else if (ART.ENEMY_LOOKS[u.type]) {
       const E = ART.ENEMY_LOOKS[u.type];
       if (!E._look) E._look = ART.makeLook(ART.hashStr(u.type), E.look);
-      ART.human(g, { look: E._look, body: E.body, pants: E.pants, mask: E.mask, hood: E.hood, coat: E.coat, collar: E.collar, robe: false, weapon: D.ENEMIES[u.type].weapon, dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose }, t);
+      ART.human(g, { look: E._look, body: E.body, pants: E.pants, mask: E.mask, hood: E.hood, coat: E.coat, collar: E.collar, robe: false, weapon: D.ENEMIES[u.type].weapon, dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose, noShadow: true }, t);
     } else {
-      ART.creature(g, u.type, { dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose }, t);
+      ART.creature(g, u.type, { dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose, noShadow: true }, t);
     }
   }
   function stanceKey(u) { return u.hunker ? 'h' : (u.overwatch ? 'o' : 'n'); }
+  /* Объём фигуры: тёмный контур, подсветка со стороны света, затенение с теневой, темнее к ногам */
+  let volTmp = null;
+  function volumize(src, dst, feetY, k) {
+    k = k || 1;
+    const w = src.width, h = src.height;
+    const g = dst.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, w, h);
+    if (!volTmp || volTmp.width < w || volTmp.height < h) volTmp = canvas(Math.max(w, volTmp ? volTmp.width : 0), Math.max(h, volTmp ? volTmp.height : 0));
+    const tg = volTmp.getContext('2d');
+    const r = 2.1 * k, q = r * 0.71;
+    [[r, 0], [-r, 0], [0, r], [0, -r], [q, q], [-q, q], [q, -q], [-q, -q]].forEach(function (o) { g.drawImage(src, o[0], o[1]); });
+    g.globalCompositeOperation = 'source-in'; g.fillStyle = 'rgba(20,13,9,0.8)'; g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = 'source-over'; g.drawImage(src, 0, 0);
+    const rim = function (dx, dy, col, a) {
+      tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, w, h); tg.drawImage(src, 0, 0);
+      tg.globalCompositeOperation = 'destination-out'; tg.drawImage(src, dx, dy);
+      tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, w, h);
+      g.globalAlpha = a; g.globalCompositeOperation = 'source-atop'; g.drawImage(volTmp, 0, 0, w, h, 0, 0, w, h);
+    };
+    rim(2.6 * k, 2.2 * k, 'rgb(255,236,206)', 0.5);
+    rim(-3.4 * k, -2.6 * k, 'rgb(0,0,0)', 0.3);
+    g.globalAlpha = 1;
+    const gr = g.createLinearGradient(0, feetY - 120 * k, 0, feetY);
+    gr.addColorStop(0, 'rgba(255,240,215,0.07)'); gr.addColorStop(0.6, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.3)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = 'source-over';
+    tg.globalCompositeOperation = 'source-over';
+  }
+  function shadowMask(src, dst) {
+    const g = dst.getContext('2d');
+    g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, dst.width, dst.height);
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = 'source-in'; g.fillStyle = '#000'; g.fillRect(0, 0, dst.width, dst.height);
+    g.globalCompositeOperation = 'source-over';
+  }
+  function spriteDims(u) {
+    const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' ? 1.4 : 1);
+    const LW = 130 * big, LH = 100 * big;
+    return { big: big, LW: LW, LH: LH, ox: LW / 2, oy: LH - 16 * big, SS: 2 };
+  }
+  /* Кадр анимации: рисуем во временный холст, затем та же объёмная обработка */
+  const live = {};
+  function liveSprite(u, fi, walk, sc, t, pose, pre) {
+    const D2 = spriteDims(u);
+    D2.SS = 1.5;
+    const cw = Math.ceil(D2.LW * D2.SS), chh = Math.ceil(D2.LH * D2.SS);
+    let L = live[u.id];
+    if (!L || L.raw.width !== cw) {
+      L = live[u.id] = { raw: canvas(cw, chh), c: canvas(cw, chh), sh: canvas(cw, chh) };
+    }
+    const g = L.raw.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, L.raw.width, L.raw.height);
+    g.setTransform(D2.SS, 0, 0, D2.SS, D2.ox * D2.SS, D2.oy * D2.SS);
+    if (pre) pre(g);
+    paintUnit(g, u, fi, walk, sc, t, pose);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    volumize(L.raw, L.c, D2.oy * D2.SS, D2.SS / 2);
+    shadowMask(L.raw, L.sh);
+    return { c: L.c, sh: L.sh, w: D2.LW, h: D2.LH, ox: D2.ox, oy: D2.oy };
+  }
+  let contactSpr = null;
+  function contact() {
+    if (contactSpr) return contactSpr;
+    contactSpr = canvas(64, 32);
+    const g = contactSpr.getContext('2d');
+    const gr = g.createRadialGradient(32, 16, 2, 32, 16, 30);
+    gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.setTransform(1, 0, 0, 0.5, 0, 8); g.fillStyle = gr; g.beginPath(); g.arc(32, 16, 30, 0, 7); g.fill();
+    return contactSpr;
+  }
+  function castShadow(g, c, fr, k, lying) {
+    const sun = TR.sun;
+    const cw = (lying ? 34 : 17) * k, ch = (lying ? 12 : 8) * k;
+    g.drawImage(contact(), c[0] - cw, c[1] - ch, cw * 2, ch * 2);
+    if (!sun || lying || !fr.sh) return;
+    const sx = (sun.dx - sun.dy) * HW, sy = (sun.dx + sun.dy) * HH;
+    const kx = Math.min(0.95, sun.len * sx / ZH), ky = Math.max(0.17, sun.len * sy / ZH);
+    g.save();
+    g.globalAlpha = sun.a * 0.8;
+    g.transform(1, 0, -kx, -ky, c[0], c[1] + 1);
+    g.drawImage(fr.sh, -fr.ox, -fr.oy, fr.w, fr.h);
+    g.restore();
+  }
+  function baseRing(g, u, c, k, t) {
+    const pl = u.side === 'p';
+    const rx = 17 * k, ry = 8.5 * k;
+    g.strokeStyle = pl ? 'rgba(120,190,255,0.42)' : 'rgba(255,96,72,0.42)'; g.lineWidth = 1.3;
+    g.beginPath(); g.ellipse(c[0], c[1], rx, ry, 0, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = pl ? 'rgba(170,220,255,0.55)' : 'rgba(255,150,120,0.55)'; g.lineWidth = 1.6;
+    const a0 = Math.PI * 0.62, a1 = Math.PI * 0.38;
+    g.beginPath(); g.ellipse(c[0], c[1], rx, ry, 0, a1, a0); g.stroke();
+  }
   function unitSprite(u, fi, sc, dead) {
     const aimQ = Math.round(fi.aim * 4) / 4;
     const key = u.id + '|' + fi.dir + '|' + aimQ + '|' + (u.armorId || '') + '|' + (u.weapon || '') + '|' + (u.type || u.kind) + '|' + (dead ? 'X' : stanceKey(u));
     let s = unitCache[key];
     if (!s) {
-      const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' ? 1.4 : 1);
-      const LW = 130 * big, LH = 100 * big, ox = LW / 2, oy = LH - 16 * big, SS = 2;
-      const c = canvas(LW * SS, LH * SS);
-      const g = c.getContext('2d');
+      const D2 = spriteDims(u);
+      const LW = D2.LW, LH = D2.LH, ox = D2.ox, oy = D2.oy, SS = D2.SS;
+      const raw = canvas(LW * SS, LH * SS);
+      const g = raw.getContext('2d');
       g.scale(SS, SS); g.translate(ox, oy);
       if (dead) fallTransform(g, u, fi, 1);
       paintUnit(g, u, { dir: fi.dir, aim: dead ? 0.3 : aimQ }, null, sc, 0, dead ? {} : poseFor(u, null));
-      s = unitCache[key] = { c: c, w: LW, h: LH, ox: ox, oy: oy };
+      const c = canvas(LW * SS, LH * SS);
+      volumize(raw, c, oy * SS);
+      let shc = null;
+      if (!dead) { shc = canvas(LW * SS, LH * SS); shadowMask(raw, shc); }
+      s = unitCache[key] = { c: c, sh: shc, w: LW, h: LH, ox: ox, oy: oy };
     }
     return s;
   }
@@ -1576,32 +1675,34 @@
         an = curAnim(u, t);
       }
     }
-    if (alpha !== undefined) g.globalAlpha = alpha;
-    if (sel && alpha === undefined) {
-      const pulse = 0.55 + Math.sin(t / 200) * 0.3;
-      g.fillStyle = 'rgba(90,170,255,0.18)'; ART.ell(g, c[0], c[1], 21, 10.5);
-      g.strokeStyle = 'rgba(130,200,255,' + pulse + ')'; g.lineWidth = 2.2;
-      g.beginPath(); g.ellipse(c[0], c[1], 21, 10.5, 0, 0, Math.PI * 2); g.stroke();
+    const ghost = alpha !== undefined;
+    if (!ghost && u.alive && (u.side === 'p' || u.seen !== false)) {
+      if (sel) {
+        const pulse = 0.55 + Math.sin(t / 200) * 0.3;
+        g.fillStyle = 'rgba(90,170,255,0.16)'; ART.ell(g, c[0], c[1], 21, 10.5);
+        g.strokeStyle = 'rgba(130,200,255,' + pulse + ')'; g.lineWidth = 2.2;
+        g.beginPath(); g.ellipse(c[0], c[1], 21, 10.5, 0, 0, Math.PI * 2); g.stroke();
+        g.strokeStyle = 'rgba(200,235,255,' + (pulse * 0.8) + ')'; g.lineWidth = 1.4;
+        const a = t / 600;
+        for (let k = 0; k < 3; k++) { g.beginPath(); g.ellipse(c[0], c[1], 25, 12.5, 0, a + k * 2.09, a + k * 2.09 + 0.7); g.stroke(); }
+      } else baseRing(g, u, c, sc / 1.13, t);
     }
-    if (!tw && !an) {
-      const sp = unitSprite(u, fi, sc, false);
-      const bob = Math.sin(t / 650 + u.id) * 0.5;
-      g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy + bob * 0.5, sp.w, sp.h);
-      if (u.name === 'Мальборо' && u.kind === 'soldier') {
-        const k = (t / 1600) % 1;
-        g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';
-        ART.circ(g, c[0] + fi.dir * (11 + k * 4) * sc, c[1] - 42 * sc - k * 14 + (u.hunker ? 7 : 0), 1.2 + k * 2.4);
-      }
-      if (alpha !== undefined) g.globalAlpha = 1;
-      return;
+    let fr;
+    if (!tw && !an) fr = unitSprite(u, fi, sc, false);
+    else {
+      const pose = poseFor(u, an);
+      const hitDx = an && an.kind === 'hit' ? -fi.dir * Math.sin(an.p * Math.PI) * 3 : 0;
+      fr = liveSprite(u, fi, walk, sc, t, pose, hitDx ? function (gg) { gg.translate(hitDx, 0); } : null);
     }
-    const pose = poseFor(u, an);
-    g.save(); g.translate(c[0], c[1]);
-    if (an && an.kind === 'hit') {
-      g.translate(-fi.dir * Math.sin(an.p * Math.PI) * 3, 0);
+    if (!ghost) castShadow(g, c, fr, sc / 1.13, false);
+    else g.globalAlpha = alpha;
+    const bob = !tw && !an ? Math.sin(t / 650 + u.id) * 0.25 : 0;
+    g.drawImage(fr.c, c[0] - fr.ox, c[1] - fr.oy + bob, fr.w, fr.h);
+    if (!tw && !an && u.name === 'Мальборо' && u.kind === 'soldier') {
+      const k = (t / 1600) % 1;
+      g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';
+      ART.circ(g, c[0] + fi.dir * (11 + k * 4) * sc, c[1] - 42 * sc - k * 14 + (u.hunker ? 7 : 0), 1.2 + k * 2.4);
     }
-    paintUnit(g, u, fi, walk, sc, t, pose);
-    g.restore();
     if (an && an.kind === 'hit' && an.p < 0.6) {
       const k = 1 - an.p / 0.6;
       g.globalCompositeOperation = 'lighter';
@@ -1610,7 +1711,7 @@
       g.fillStyle = gr; ART.ell(g, c[0], c[1] - 26 * sc, 22 * sc, 28 * sc);
       g.globalCompositeOperation = 'source-over';
     }
-    if (alpha !== undefined) g.globalAlpha = 1;
+    if (ghost) g.globalAlpha = 1;
   }
   function poolColor(u) {
     const T = u.side === 'e' ? D.ENEMIES[u.type] : null;
@@ -1642,13 +1743,13 @@
     }
     const an = curAnim(u, t);
     if (an && an.kind === 'die' && an.p < 1) {
-      g.save(); g.translate(c[0], c[1]);
-      fallTransform(g, u, fi, an.p);
-      paintUnit(g, u, fi, null, sc, t, { hit: an.p < 0.3 ? an.p / 0.3 : 1 });
-      g.restore();
+      const fr = liveSprite(u, fi, null, sc, t, { hit: an.p < 0.3 ? an.p / 0.3 : 1 }, function (gg) { fallTransform(gg, u, fi, an.p); });
+      castShadow(g, c, fr, sc / 1.13, an.p > 0.5);
+      g.drawImage(fr.c, c[0] - fr.ox, c[1] - fr.oy, fr.w, fr.h);
       return;
     }
     const sp = unitSprite(u, fi, sc, true);
+    castShadow(g, c, sp, sc / 1.13, true);
     g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
   }
   function drawItem(g, it, t) {
@@ -1872,7 +1973,7 @@
         const img = rg.createImageData(B.w, B.h), d = img.data;
         for (let i = 0; i < B.w * B.h; i++) {
           const c = R.cost[i];
-          if (c === Infinity || c === 0 || R.occ[i] || (HG && HG[i] > 0)) continue;
+          if (c === Infinity || R.occ[i] === 2 || (HG && HG[i] > 0)) continue;
           if (c <= ov.m1 + 0.01) { d[i * 4] = 80; d[i * 4 + 1] = 170; d[i * 4 + 2] = 255; d[i * 4 + 3] = 40; }
           else if (c <= ov.m2 + 0.01) { d[i * 4] = 255; d[i * 4 + 1] = 200; d[i * 4 + 2] = 60; d[i * 4 + 3] = 26; }
         }
@@ -1932,7 +2033,7 @@
           g.drawImage(elevSprite(x, y, hh), fc[0] - HW, fc[1] - HH - hh * LH, 2 * HW, 2 * HH + hh * LH);
           if (ov.reach) {
             const cst = ov.reach.cost[i];
-            if (cst !== Infinity && cst > 0 && !ov.reach.occ[i] && cst <= ov.m2 + 0.01) {
+            if (cst !== Infinity && ov.reach.occ[i] !== 2 && cst <= ov.m2 + 0.01) {
               g.fillStyle = cst <= ov.m1 + 0.01 ? 'rgba(80,170,255,0.16)' : 'rgba(255,200,60,0.1)';
               diamond(g, x, y, 0); g.fill();
             }
