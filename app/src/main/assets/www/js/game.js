@@ -77,9 +77,10 @@
   }
 
   /* ---------- Эффекты ---------- */
-  function part(x, y, vx, vy, life, s, c, g) {
+  let dustSpr, smokeSpr;
+  function part(x, y, vx, vy, life, s, c, g, sp) {
     if (G.parts.length > 260) return;
-    G.parts.push({ x, y, vx, vy, life, max: life, s, c, g: g || 0 });
+    G.parts.push({ x, y, vx, vy, life, max: life, s, c, g: g || 0, sp: sp || null });
   }
   function burst(x, y, n, cols, sp, g) {
     for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = sp * (0.4 + Math.random() * 0.6); part(x, y, Math.cos(a) * v, Math.sin(a) * v - sp * 0.4, 0.35 + Math.random() * 0.35, 2 + Math.random() * 2.5, cols[(Math.random() * cols.length) | 0], g); }
@@ -255,7 +256,7 @@
       if (K.tree) {
         G.sfx('chop'); burst(o.x, o.y - 14, 7, ['#c9a36b', '#8a5e36', '#e8cf9a'], 120, 320);
         for (let i = 0; i < 4; i++) part(o.x + (Math.random() - 0.5) * 70, o.y - 70 - Math.random() * 70, (Math.random() - 0.5) * 30, 40 + Math.random() * 40, 1 + Math.random() * 0.6, 3.5, o.k === 'birch' ? '#d9c653' : '#4d8a3c', 0);
-      } else { G.sfx('mine'); burst(o.x, o.y - 20, 8, ['#c9ced4', '#8e959e', K.need ? '#c06a2c' : '#6d747c'], 140, 380); }
+      } else { G.sfx('mine'); burst(o.x, o.y - 24, 5, ['#fff3c4', '#ffc35a'], 230, 260); burst(o.x, o.y - 20, 8, ['#c9ced4', '#8e959e', K.need ? '#c06a2c' : '#6d747c'], 140, 380); }
       G.shake = Math.max(G.shake, 0.12); noise(430);
       if (o.hp <= 0) { got += K.bonus; o.a = false; o.t = G.time + K.re; o.fall = 0; addXp(K.xp); }
       give(K.drop, got, o.x, o.y); useTool();
@@ -317,7 +318,7 @@
       if (p.atk <= 0) p.face = G.angLerp(p.face, Math.atan2(my, mx), Math.min(1, dt * 14));
       p.moving = true;
       const si = Math.floor(p.walk / Math.PI);   // шаг: звук и пыль в момент касания земли
-      if (si !== p.stepI) { p.stepI = si; if (!p.sneak) G.sfx('step'); part(p.x - Math.cos(p.face) * 8, p.y + 2, (Math.random() - 0.5) * 16, -10, 0.45, 3.5, 'rgba(170,155,125,.45)', 0); }
+      if (si !== p.stepI) { p.stepI = si; if (!p.sneak) G.sfx('step'); part(p.x - Math.cos(p.face) * 8, p.y + 2, (Math.random() - 0.5) * 16, -12, 0.55, 7, '', 0, dustSpr); }
     } else p.moving = false;
     p.mv += ((p.moving ? 1 : 0) - p.mv) * Math.min(1, dt * 12);
     p.sy = p.y;
@@ -500,7 +501,7 @@
       for (const f of G.fires) {
         if (Math.abs(f.x - p.x) > 900 || Math.abs(f.y - p.y) > 600) continue;
         if (Math.random() < 0.5) part(f.x + (Math.random() - 0.5) * 12, f.y - 12, (Math.random() - 0.5) * 22, -50 - Math.random() * 50, 0.7 + Math.random() * 0.5, 2, Math.random() < 0.5 ? '#ffd36e' : '#ff8a2a', -20);
-        if (Math.random() < 0.3) part(f.x + (Math.random() - 0.5) * 8, f.y - 26, (Math.random() - 0.5) * 12, -34, 1.6, 7, 'rgba(120,120,120,.22)', -6);
+        if (Math.random() < 0.3) part(f.x + (Math.random() - 0.5) * 8, f.y - 26, (Math.random() - 0.5) * 12, -30, 2.2, 10, '', -5, smokeSpr);
       }
     }
     // анимация ударов по ресурсам / падение деревьев обновляется при отрисовке видимых
@@ -570,6 +571,8 @@
   G.initRender = function () {
     lightSpr = radial(128, [0, 'rgba(0,0,0,1)', 0.45, 'rgba(0,0,0,.75)', 1, 'rgba(0,0,0,0)']);
     glowSpr = radial(128, [0, 'rgba(255,150,50,.55)', 0.5, 'rgba(255,110,30,.18)', 1, 'rgba(255,90,20,0)']);
+    dustSpr = radial(48, [0, 'rgba(178,162,130,.75)', 0.6, 'rgba(178,162,130,.3)', 1, 'rgba(178,162,130,0)']);
+    smokeSpr = radial(48, [0, 'rgba(120,118,112,.6)', 0.6, 'rgba(110,108,104,.25)', 1, 'rgba(110,108,104,0)']);
     mistSpr = radial(128, [0, 'rgba(176,186,184,.5)', 0.5, 'rgba(176,186,184,.24)', 1, 'rgba(176,186,184,0)']);
     // бесшовная текстура бликов на воде
     caust = document.createElement('canvas'); caust.width = caust.height = 128;
@@ -623,7 +626,7 @@
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
       if (G.floors[ty * WT + tx]) {
         const x0 = SX(tx * T), y0 = SY(ty * T), fw = SX(tx * T + T) - x0, fh = SY(ty * T + T) - y0;
-        ctx.drawImage(S.floor[(tx + ty) & 1].c, x0, y0, fw, fh);
+        ctx.drawImage(S.floor[(tx * 7 + ty * 3) & 3].c, x0, y0, fw, fh);
         // затенение пола у стен
         const up = G.cells[(ty - 1) * WT + tx], lf = G.cells[ty * WT + tx - 1], me = G.cells[ty * WT + tx];
         if (!(me && (me.k === 'wall' || me.k === 'door'))) {
@@ -678,7 +681,8 @@
     list.push(p);
     list.sort((a, c) => a.sy - c.sy);
     // длинные тени деревьев, направление зависит от времени суток
-    const nt0 = G.night, sunA = (1 - nt0) * (1 - G.rain * 0.6) * 0.34;
+    const nt0 = G.night, sunA = (1 - nt0) * (1 - G.rain * 0.6) * 0.44;
+    { const dpn = clamp(G.phase / 0.6, 0, 1), sx_ = -(0.95 - dpn * 1.9), sy_ = 0.3 + Math.abs(dpn - 0.5) * 0.3, sl = Math.hypot(sx_, sy_) || 1; G.sun = [sx_ / sl, sy_ / sl * 0.5, sunA * 0.6]; }
     if (sunA > 0.03) {
       const dp = clamp(G.phase / 0.6, 0, 1), sc = (0.95 - dp * 1.9) * z, sd = -(0.26 + Math.abs(dp - 0.5) * 0.36) * z;
       ctx.globalAlpha = sunA;
@@ -713,7 +717,7 @@
           const sp = o.a || o.K.keep ? S[o.k][o.v] : S.bush0;
           let ox = 0;
           if (o.hit > 0) { o.hit -= dt; ox = Math.sin(o.hit * 60) * o.hit * 9; }
-          if (o.k === 'fiber' || o.k === 'bush' || o.K.deco) { const sw = Math.sin(tm * 1.6 + o.x * 0.02) * 0.03; ctx.setTransform(z, 0, -sw * z, z, sx, sy); }
+          if (o.k === 'fiber' || o.k === 'bush' || o.K.sway) { const sw = Math.sin(tm * 1.6 + o.x * 0.02) * 0.03; ctx.setTransform(z, 0, -sw * z, z, sx, sy); }
           else ctx.setTransform(z, 0, 0, z, sx + ox * z, sy);
           ctx.drawImage(sp.c, -sp.ax, -sp.ay, sp.w, sp.h);
         }
@@ -753,7 +757,7 @@
     // частицы и надписи
     ctx.setTransform(z, 0, 0, z, -left * z, -top * z);
     const ps = G.parts;
-    for (let i = 0; i < ps.length; i++) { const q = ps[i]; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.6); if (q.ring) { const rr = (1 - q.life / q.max) * q.s; ctx.strokeStyle = q.c; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.5, 0, 0, 6.283); ctx.stroke(); } else { ctx.fillStyle = q.c; ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s); } }
+    for (let i = 0; i < ps.length; i++) { const q = ps[i]; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.6); if (q.sp) { const k = q.s * (1.9 - q.life / q.max); ctx.globalAlpha = Math.min(1, q.life / q.max * 1.4) * 0.6; ctx.drawImage(q.sp, q.x - k, q.y - k, k * 2, k * 2); } else if (q.ring) { const rr = (1 - q.life / q.max) * q.s; ctx.strokeStyle = q.c; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.5, 0, 0, 6.283); ctx.stroke(); } else { ctx.fillStyle = q.c; ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s); } }
     // стрелы в полёте
     if (G.shots.length) {
       ctx.lineCap = 'round';
@@ -817,6 +821,12 @@
       for (const f of G.fires) { const r = 330 + Math.sin(tm * 11 + f.tx) * 14; if (f.x > left - r && f.x < right + r && f.y > top - r && f.y < bot + r) hole(f.x, f.y, r, 0.95); }
       lctx.globalAlpha = 1;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(lc, 0, 0, V.w, V.h);
+    }
+    // светлячки в темноте
+    if (nt > 0.4) {
+      ctx.setTransform(z, 0, 0, z, -left * z, -top * z); ctx.globalCompositeOperation = 'lighter';
+      for (const m of motes) if (m.lf) { ctx.globalAlpha = (nt - 0.4) * 1.6 * (0.35 + 0.65 * Math.abs(Math.sin(m.ph * 1.7))); ctx.drawImage(glowSpr, m.x - 9, m.y - 9, 18, 18); ctx.fillStyle = '#eaff9a'; ctx.fillRect(m.x - 1, m.y - 1, 2, 2); }
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     }
     // тёплое свечение костров
     ctx.setTransform(z, 0, 0, z, -left * z, -top * z);

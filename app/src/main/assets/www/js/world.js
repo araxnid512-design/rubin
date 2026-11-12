@@ -53,10 +53,10 @@
       const x = ox + (i + 0.5) * step, y = oy + (j + 0.5) * step;
       const n1 = noise(x / 190, y / 190), n2 = noise(x / 13, y / 13), n3 = noise(x / 420 + 31, y / 420 + 17);
       const sh = 0.9 + n2 * 0.2;
-      const pt = 0.8 + noise(x / 58 + 7, y / 58) * 0.36;
+      const pt = 0.92 + noise(x / 58 + 7, y / 58) * 0.4;
       let r = (74 - n1 * 20 + n3 * 30) * sh * pt, g = (86 - n1 * 18 + n3 * 10) * sh * pt, b = (48 - n1 * 10 - n3 * 8) * sh * pt;
       const dv = sstep(0.58, 0.7, dirtV(x, y));
-      if (dv > 0) { const m = 0.88 + n2 * 0.24; r += (88 * m - r) * dv; g += (74 * m - g) * dv; b += (58 * m - b) * dv; }
+      if (dv > 0) { const m = 0.88 + n2 * 0.24; r += (104 * m - r) * dv; g += (86 * m - g) * dv; b += (64 * m - b) * dv; }
       const ra = Math.abs(y - roadY(x));
       if (ra < 74) {
         const s2 = 1 - sstep(48, 72, ra), m = 0.8 + n2 * 0.26 + (noise(x / 44, y / 44) - 0.5) * 0.3;
@@ -99,6 +99,14 @@
     }
     const cols = ['#2f3d24', '#5a6638', '#7a7d4a'], paths = [new Path2D(), new Path2D(), new Path2D()];
     const flowers = [];
+    // лужи на земле и асфальте
+    for (let i = 0; i < 7; i++) {
+      const px = ox + rng() * CH, py = oy + rng() * CH, kd = G.terrKind(px, py); if (kd !== 1 && kd !== 4) continue;
+      const rx = 12 + rng() * 22, ry = 6 + rng() * 9, a = (rng() - 0.5) * 0.6;
+      x.fillStyle = 'rgba(24,34,40,.6)'; x.beginPath(); x.ellipse(px, py, rx, ry, a, 0, 7); x.fill();
+      x.fillStyle = 'rgba(70,96,106,.35)'; x.beginPath(); x.ellipse(px - rx * 0.15, py - ry * 0.2, rx * 0.72, ry * 0.6, a, 0, 7); x.fill();
+      x.strokeStyle = 'rgba(175,195,200,.3)'; x.lineWidth = 1; x.beginPath(); x.ellipse(px, py, rx, ry, a, 3.4, 5.2); x.stroke();
+    }
     // тёмные и выгоревшие пятна травы
     for (let i = 0; i < 46; i++) {
       const px = ox + rng() * CH, py = oy + rng() * CH; if (G.terrKind(px, py) !== 0) continue;
@@ -162,7 +170,12 @@
     stick:  { r: 0, ir: 14, pick: ['stick', 1, 2], re: 200, xp: 1 },
     pebble: { r: 0, ir: 14, pick: ['stone', 1, 2], re: 220, xp: 1 },
     crate:  { r: 18, ir: 22, loot: 1, re: 900, xp: 10 },
-    grass:  { r: 0, ir: 0, deco: 1 },
+    grass:  { r: 0, ir: 0, deco: 1, sway: 1 },
+    fern:   { r: 0, ir: 0, deco: 1, sway: 1 },
+    reed:   { r: 0, ir: 0, deco: 1, sway: 1 },
+    log:    { r: 0, ir: 0, deco: 1 },
+    shroom: { r: 0, ir: 0, deco: 1 },
+    trash:  { r: 0, ir: 0, deco: 1, flat: 1 },
     barrel: { r: 13, ir: 18, loot: 1, small: 1, re: 900, xp: 6, keep: 1 },
     tires:  { r: 15, ir: 0, deco: 1 },
     lamp:   { r: 6, ir: 0, deco: 1 },
@@ -244,6 +257,12 @@
     const near = [['stick', -3.2, 3.4], ['stick', 2.6, 4.2], ['stick', -1.2, 5.3], ['pebble', 3.9, 2.2], ['pebble', -4.4, 1.2], ['pebble', 1.4, 5.6],
       ['fiber', -4.6, 3.6], ['fiber', 4.6, 4.4], ['fiber', 0.2, 6.2], ['bush', -5.4, -1.6], ['bush', 5.6, 0.4], ['pine', -6.2, 4.6], ['oak', 6.4, 4.2], ['birch', -5.6, -4.6], ['rock', 5.4, -3.6], ['pine', 3.6, 6.8]];
     for (const n of near) { const x = HX + n[1] * T, y = HY + n[2] * T; if (freeAt(x, y, 40)) put(n[0], x, y, v3()); }
+    // лесная подстилка, камыш по берегам, мусор на шоссе
+    scatter(110, (x, y, tk, hd) => { if (tk === 0 && hd > 7 * T && freeAt(x, y, 200, 'log')) put('log', x, y, v3()); });
+    scatter(1500, (x, y, tk, hd) => { if (tk === 0 && hd > 5.5 * T && noise(x / 300 + 3, y / 300 + 8) > 0.5 && freeAt(x, y, 34)) put('fern', x, y, v3()); });
+    scatter(260, (x, y, tk, hd) => { if (tk === 0 && hd > 5.5 * T && noise(x / 300 + 3, y / 300 + 8) > 0.55 && freeAt(x, y, 40)) put('shroom', x, y, v3()); });
+    for (let i = 0; i < 9000; i++) { const x = B + rng() * (W - 2 * B), y = B + rng() * (W - 2 * B), wv = G.waterV(x, y); if (wv > -0.07 && wv < 0.07 && noise(x / 120, y / 120 + 40) > 0.42 && freeAt(x, y, 15)) put('reed', x, y, v3()); }
+    for (let i = 0; i < 34; i++) { const x = B + 100 + rng() * (W - 2 * B - 200), y = roadY(x) + (rng() - 0.5) * 96; if (!G.isWater(x, y) && freeAt(x, y, 36)) put('trash', x, y, v3()); }
     // трава — в самом конце, чтобы не мешать расстановке остального
     scatter(3400, (x, y, tk, hd) => { if (tk === 0 && hd > 5.2 * T && noise(x / 150 + 20, y / 150) > 0.36 && freeAt(x, y, 24)) put('grass', x, y, v3()); });
     G.objs = objs;
