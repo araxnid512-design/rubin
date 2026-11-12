@@ -190,6 +190,11 @@
     line(g, hx + 1.8, hy - 2.6, hx + 5, hy - 2.8 + (L.brow || 0) * 0.2, 1.1, sh(L.hair, -0.3), 'butt');
     if (L.glasses) { g.strokeStyle = '#222'; g.lineWidth = 0.8; g.strokeRect(hx + 2, hy - 1.9, 3.2, 2.4); }
     if (L.scar) line(g, hx + 0.5, hy - 3, hx + 2.2, hy + 2.4, 0.7, '#c97a7a');
+    if (L.bscars) {
+      line(g, hx + 2.6, hy + 1.2, hx + 4.8, hy + 3.4, 0.8, '#b86a66');
+      if (L.bscars > 1) line(g, hx + 3.2, hy - 3.4, hx + 4.2, hy - 1.6, 0.8, '#b86a66');
+      if (L.bscars > 2) line(g, hx - 1, hy - 4.6, hx + 2.6, hy - 3.6, 0.7, '#b86a66');
+    }
     hairShapeSmall(g, L, hx, hy, o);
     if (o.cig) {
       line(g, hx + 5, hy + 2.6, hx + 9.4, hy + 3, 1.2, '#eee', 'butt');
@@ -255,6 +260,12 @@
     } else bh = [gx + ca * 1 - sa * 2, gy + sa * 1 + ca * 2];
     line(g, shB[0], shB[1], (shB[0] + bh[0]) / 2 - 1, (shB[1] + bh[1]) / 2 + 1.5, 3.6, sh(sleeve, -0.3));
     line(g, (shB[0] + bh[0]) / 2 - 1, (shB[1] + bh[1]) / 2 + 1.5, bh[0], bh[1], 3.3, sh(sleeve, -0.3));
+    const rank = o.rank || 0;
+    if (rank >= 3) {
+      line(g, -8, tY - 14, -10.5, tY - 30, 0.8, '#2a2a2a');
+      g.fillStyle = '#ff5a3a'; circ(g, -10.5, tY - 30, 0.8);
+      R(g, -10.2, tY - 15.5, 5, 11, '#4e4632'); R(g, -10.2, tY - 15.5, 5, 2, '#5e553e'); R(g, -9.6, tY - 9, 3.8, 3, '#3e3828');
+    }
     // торс
     const tg = g.createLinearGradient(-7, 0, 7, 0);
     tg.addColorStop(0, sh(body, 0.12)); tg.addColorStop(1, sh(body, -0.28));
@@ -279,7 +290,13 @@
       }
     }
     if (o.band) { R(g, -6.2, tY - 13, 3, 3.2, o.band); }
+    if (rank >= 2) {
+      line(g, -5, tY - 15.2, 4.6, tY - 2.4, 1.7, '#4a3620', 'butt');
+      g.fillStyle = '#c9a14a';
+      for (let k = 1; k < 6; k++) { const q = k / 6; g.fillRect(-5 + 9.6 * q - 0.4, tY - 15.2 + 12.8 * q - 1.2, 0.8, 1.4); }
+    }
     R(g, -5.5, tY - 1.6, 10.8, 2.2, '#2e2116'); R(g, -0.6, tY - 1.6, 1.8, 2.2, '#b8913a');
+    if (rank >= 1) { R(g, -5, tY - 3.4, 2.6, 3, '#4a4230'); R(g, 2.4, tY - 3.4, 2.6, 3, '#4a4230'); }
     // граната в руке
     if (thr > 0 && thr < 0.75) { g.fillStyle = '#4a5530'; circ(g, bh[0], bh[1] - 1, 2.2); g.fillStyle = '#9a9a9a'; g.fillRect(bh[0] - 0.8, bh[1] - 4, 1.6, 1.4); }
     // оружие

@@ -130,10 +130,27 @@
 
   /* ---------- Смена дня ---------- */
   async function passDay() {
-    const G = DW.G;
+    const G = DW.G, st = G.state;
     const r = G.advanceDay();
+    DW.WR.nightPass();
     WS.refresh();
+    await U.sleep(900);
+    let moved = false;
+    const drops = (r.drops || []).filter(function (id, i, a) { return a.indexOf(id) === i && G.node(id).known; });
+    for (let i = 0; i < drops.length; i++) {
+      const n = G.node(drops[i]);
+      DW.WR.focus(n.x, n.y); moved = true;
+      DW.WR.dropFx(n.id); DW.SFX.play('portal');
+      await U.sleep(1500);
+    }
+    if (r.raidNew && st.raid) {
+      const src = G.node(st.raid.from);
+      DW.WR.focus(src.x, src.y); moved = true;
+      DW.WR.raidAlarm(); DW.SFX.play('alert');
+      await U.sleep(1700);
+    }
     for (let i = 0; i < r.notes.length; i++) await DW.UI.alert(r.notes[i].title, r.notes[i].text, r.notes[i].kind);
+    if (moved) { const sq = G.node(st.squadAt); DW.WR.focus(sq.x, sq.y); }
     if (r.event) await runEvent(r.event);
     WS.refresh();
     if (G.state.over) { G.save(); DW.Main.ending(G.state.over); return 'over'; }

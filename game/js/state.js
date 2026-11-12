@@ -362,7 +362,7 @@
     });
 
     // набеги
-    let defense = null;
+    let defense = null, raidNew = false;
     if (st.raid && st.raid.day <= st.day) {
       const raid = st.raid;
       st.raid = null;
@@ -376,7 +376,8 @@
         if (n.type === 'camp' && !n.cleared) camps++;
       });
       const kind = (lairs + camps === 0) ? 'beast' : (Math.random() < lairs / (lairs + camps) ? 'beast' : 'raider');
-      st.raid = { day: st.day + warn, kind: kind, strength: 3 + Math.floor(st.day / 5) };
+      st.raid = { day: st.day + warn, kind: kind, strength: 3 + Math.floor(st.day / 5), start: st.day, from: G.raidSource(kind) };
+      raidNew = true;
       notes.push({
         title: 'Тревога!',
         text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю тварей' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') +
@@ -388,7 +389,53 @@
 
     let event = null;
     if (!defense && st.day > 2 && Math.random() < 0.14) event = G.rollEvent();
-    return { notes: notes, event: event, defense: defense };
+    return { notes: notes, event: event, defense: defense, drops: arrived.map(function (o) { return o.drop; }), raidNew: raidNew };
+  };
+  /* Откуда идёт набег: ближайшее логово/лагерь нужного вида, иначе дальний край карты */
+  G.raidSource = function (kind) {
+    const st = G.state;
+    const hops = G.hopsFrom(st.baseNode);
+    let best = null, bd = 1e9;
+    st.world.nodes.forEach(function (n) {
+      if (n.cleared || n.id === st.baseNode) return;
+      const ok = kind === 'beast' ? (n.type === 'lair' || n.type === 'nest') : n.type === 'camp';
+      if (ok && hops[n.id] >= 2 && hops[n.id] < bd) { bd = hops[n.id]; best = n.id; }
+    });
+    if (best === null) {
+      st.world.nodes.forEach(function (n) { if (hops[n.id] >= 2 && hops[n.id] <= 4 && (best === null || hops[n.id] > hops[best])) best = n.id; });
+    }
+    return best === null ? st.baseNode : best;
+  };
+  /* Число переходов по любым дорогам (без учёта зачистки) */
+  G.hopsFrom = function (id) {
+    const st = G.state, n = st.world.nodes.length;
+    const hops = []; for (let i = 0; i < n; i++) hops.push(1e9);
+    hops[id] = 0;
+    const q = [id];
+    while (q.length) {
+      const c = q.shift();
+      st.world.edges.forEach(function (e) {
+        const o = e[0] === c ? e[1] : (e[1] === c ? e[0] : -1);
+        if (o >= 0 && hops[o] > hops[c] + 1) { hops[o] = hops[c] + 1; q.push(o); }
+      });
+    }
+    return hops;
+  };
+  G.roadPath = function (from, to) {
+    const hops = G.hopsFrom(to);
+    if (hops[from] >= 1e9) return [from];
+    const path = [from];
+    let c = from;
+    while (c !== to) {
+      let nx = -1;
+      G.state.world.edges.forEach(function (e) {
+        const o = e[0] === c ? e[1] : (e[1] === c ? e[0] : -1);
+        if (o >= 0 && hops[o] === hops[c] - 1 && nx < 0) nx = o;
+      });
+      if (nx < 0) break;
+      path.push(nx); c = nx;
+    }
+    return path;
   };
 
   /* ---------- Случайные события ---------- */
@@ -508,9 +555,9 @@
       kills += u.kills;
       if (!u.alive) {
         st.roster.splice(idx, 1);
-        st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls, armor: s.armor, look: s.look });
+        st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s) });
         sum.dead.push(s.name);
-        (sum.deadRefs = sum.deadRefs || []).push({ id: s.id, name: s.name, cls: s.cls, armor: s.armor, look: s.look });
+        (sum.deadRefs = sum.deadRefs || []).push({ id: s.id, name: s.name, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s) });
         G.log('Погиб «' + s.name + '».');
         if (out === 'victory') {
           st.stock.weapons[s.weapon] = (st.stock.weapons[s.weapon] || 0) + 1;
@@ -519,6 +566,10 @@
         return;
       }
       const r0 = G.rank(s);
+      if (u.hp <= Math.max(1, Math.floor(u.maxHp * 0.34)) && (s.look.bscars || 0) < 3) {
+        s.look.bscars = (s.look.bscars || 0) + 1;
+        (sum.scarred = sum.scarred || []).push(s.name);
+      }
       s.wounds = Math.max(0, G.maxHp(s) - u.hp);
       s.kills += u.kills;
       s.missions++;

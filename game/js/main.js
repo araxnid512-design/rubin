@@ -129,7 +129,7 @@
       menuSquad.forEach(function (m, i) {
         const x = w * 0.69 + i * 22 * fs + (i % 2) * 5 * fs, y = h * 0.86 + (i % 2) * 6 * fs + Math.sin(x * 0.01) * 4;
         c.save(); c.translate(x, y);
-        ART.human(c, { look: m.look, body: '#c8691c', armor: m.armor, weapon: m.weapon, dir: -1, aim: i % 3 === 0 ? 0.2 : -0.08, scale: fs, cig: m.name === 'Мальборо', seed: i }, t * 1000);
+        ART.human(c, { look: m.look, body: '#c8691c', armor: m.armor, weapon: m.weapon, dir: -1, aim: i % 3 === 0 ? 0.2 : -0.08, scale: fs, cig: m.name === 'Мальборо', seed: i, rank: m.xp !== undefined ? DW.G.rank(m) : 0, band: m.xp !== undefined && DW.G.rank(m) >= 4 ? '#c0302a' : null }, t * 1000);
         c.restore();
       });
       const shade = c.createLinearGradient(0, h * 0.62, 0, h);
@@ -168,6 +168,7 @@
   Main.newGame = async function () {
     DW.G.newGame();
     DW.G.save();
+    await DW.Cine.play('intro', { squad: DW.G.state.roster });
     Main.toWorld();
     await DW.UI.alert('Мёртвый мир',
       'Приговор — Портал. Вас, шестерых заключённых, вытолкнули в мёртвый мир: серое небо, пустошь, руины чужой цивилизации и твари, что чуют живых издалека.<br><br>' +
@@ -179,7 +180,7 @@
   Main.continueGame = function () {
     if (!DW.G.load()) { Main.newGame(); return; }
     const st = DW.G.state;
-    if (st.over) { Main.ending(st.over); return; }
+    if (st.over) { Main.ending(st.over, true); return; }
     if (st.battle) {
       try {
         const B = DW.BT.restore(st.battle);
@@ -209,9 +210,14 @@
       DW.UI.toast('Здесь можно основать базу!', 'good');
     }
   };
-  Main.ending = function (kind) {
+  Main.ending = async function (kind, noCine) {
     const st = DW.G.state;
     DW.G.save();
+    if (!noCine && !st.flags.endSeen) {
+      st.flags.endSeen = true; DW.G.save();
+      DW.UI.closeAll();
+      await DW.Cine.play('end_' + kind, { squad: st.roster, memorial: st.memorial });
+    }
     const texts = {
       win_gems: ['Вольная', 'Контора получила свою тысячу драгоценностей и признала колонию. Теперь это ваш мир — мёртвый, но ваш. Бывшие заключённые стали первыми поселенцами.'],
       win_nest: ['Сердце мёртвого мира', 'Матка мертва, Гнездо горит. Твари рассеялись по пустоши, а у отряда наконец есть время строить, а не только отстреливаться. Мир ваш.'],
@@ -322,6 +328,7 @@
   }
 
   DW.onBack = function () {
+    if (DW.Cine && DW.Cine.active()) { DW.Cine.skip(); return true; }
     if (DW.UI.closeTop()) return true;
     if (scene && scene.back) scene.back();
     return true;

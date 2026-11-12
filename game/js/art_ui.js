@@ -50,6 +50,21 @@
         if (o.armor === 'exo') { g.fillStyle = '#6fd8ff'; g.fillRect(60, 104, 8, 3); g.fillRect(14, 104, 10, 2); g.fillRect(104, 104, 10, 2); }
       }
     }
+    const rank = o.rank || 0;
+    if (rank >= 2) {
+      line(g, 26, 96, 100, 128, 7, '#4a3620', 'butt');
+      g.fillStyle = '#c9a14a';
+      for (let i = 1; i < 9; i++) { const k = i / 9, x = 26 + 74 * k, y = 96 + 32 * k; g.save(); g.translate(x, y); g.rotate(0.41 - 1.57); g.fillRect(-1.6, -4, 3.2, 6); g.restore(); }
+    }
+    if (rank >= 3) {
+      R2(g, 94, 100, 12, 18, '#3a3a34'); R2(g, 96, 103, 8, 4, '#55554c');
+      line(g, 103, 100, 108, 74, 1.6, '#222'); g.fillStyle = '#ff5a3a'; circ(g, 108, 74, 1.6);
+    }
+    if (rank >= 4) { g.fillStyle = '#b02a24'; poly(g, [[6, 116], [26, 108], [29, 116], [9, 125]]); }
+    if (rank >= 1) {
+      g.strokeStyle = '#e3b04a'; g.lineWidth = 2.4; g.lineJoin = 'miter';
+      for (let i = 0; i < Math.min(rank, 4); i++) { const y = 104 + i * 5; g.beginPath(); g.moveTo(10, y + 3 + 2); g.lineTo(18, y - 1 + 2); g.lineTo(26, y + 2 + 2); g.stroke(); }
+    }
     // шея
     gr = g.createLinearGradient(0, 70, 0, 95);
     gr.addColorStop(0, sh(skin, -0.35)); gr.addColorStop(1, sh(skin, -0.12));
@@ -114,6 +129,17 @@
       const x0 = L.scar === 1 ? 72 : 50;
       line(g, x0, 42, x0 + 6, 66, 2, '#c47c78');
       for (let i = 0; i < 4; i++) line(g, x0 + i * 1.5 - 2, 46 + i * 5, x0 + i * 1.5 + 2.5, 47 + i * 5, 1, '#a85a58');
+    }
+    if (L.bscars) {
+      const scar = function (x0, y0, x1, y1) {
+        line(g, x0, y0, x1, y1, 2.6, '#b8706c');
+        line(g, x0 + 0.6, y0 + 0.6, x1 + 0.6, y1 + 0.6, 0.8, 'rgba(255,220,210,0.45)');
+        const n = 3;
+        for (let i = 1; i <= n; i++) { const k = i / (n + 1), x = x0 + (x1 - x0) * k, y = y0 + (y1 - y0) * k; line(g, x - 2.4, y + 1.2, x + 2.4, y - 1.2, 1, '#8e4a46'); }
+      };
+      scar(46, 64, 57, 76);
+      if (L.bscars > 1) { scar(72, 41, 78, 51); g.fillStyle = sh(skin, 0.05); g.fillRect(73, 44, 4, 4); }
+      if (L.bscars > 2) scar(54, 28, 70, 35);
     }
     if (L.glasses) {
       g.strokeStyle = '#1d1d1d'; g.lineWidth = 2;
@@ -199,9 +225,11 @@
     grunge(g, 128, 128, 140, seed);
   }
 
+  function R2(g, x, y, w, h, c) { g.fillStyle = c; g.fillRect(x, y, w, h); }
   ART.portrait = function (s) {
     ART.ensureLook(s);
-    const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls;
+    const rank = s.xp !== undefined && DW.G ? DW.G.rank(s) : (s.rank || 0);
+    const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls + '|' + rank + '|' + (s.look.bscars || 0);
     if (cache[key]) return cache[key];
     const c = ART.canvas(128, 128);
     const g = c.getContext('2d');
@@ -209,7 +237,7 @@
     bust(g, s.look, {
       cloth: '#c8691c', robe: true, armor: s.armor,
       helmet: s.armor === 'heavy' || s.armor === 'exo', helmetColor: s.armor === 'exo' ? '#2f4552' : '#4a5258',
-      cig: s.name === 'Мальборо'
+      cig: s.name === 'Мальборо', rank: rank
     });
     cache[key] = c.toDataURL('image/png');
     return cache[key];

@@ -1237,7 +1237,7 @@
   }
   function paintUnit(g, u, fi, walk, sc, t, pose) {
     if (u.kind === 'soldier') {
-      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null }, t);
+      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null, rank: u.rank }, t);
     } else if (u.kind === 'turret') {
       ART.creature(g, 'turret', { dir: fi.dir, aim: fi.aim, seed: u.id, scale: sc, pose: pose }, t);
     } else if (ART.ENEMY_LOOKS[u.type]) {
