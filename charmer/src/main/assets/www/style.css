@@ -206,7 +206,8 @@ em.lv { color: #d4204e; font-style: normal; font-size: .7rem; } em.ht { color: #
 .tg-say { position: relative; min-height: 4.2rem; padding: .55rem .8rem .5rem; margin-top: .6rem; background: #fff; border: 3px solid var(--ink); border-radius: .9rem; }
 .tg-say b { position: absolute; top: -.95rem; left: .7rem; padding: .05rem .7rem; background: var(--pink); color: #fff; border: 3px solid var(--ink); border-radius: 1rem; font-style: italic; font-size: .74rem; }
 .tg-say p { font-size: .84rem; font-weight: 700; line-height: 1.35; }
-.tg-acts { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
+.tg-acts { display: grid; grid-template-columns: 1fr 1fr; gap: .28rem; }
+.tg-acts button { padding: .26rem .5rem !important; font-size: .7rem !important; }
 .tg-acts button { padding: .32rem .5rem; border: 3px solid var(--ink); border-radius: .7rem; background: var(--cream); box-shadow: 0 .18rem 0 var(--ink); font-weight: 900; font-style: italic; font-size: .74rem; text-align: left; }
 .tg-acts button:last-child { grid-column: 1 / -1; text-align: center; }
 .tg-foot { font-size: .66rem; color: #7a5a6a; }

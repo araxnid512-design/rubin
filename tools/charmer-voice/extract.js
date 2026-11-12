@@ -16,7 +16,8 @@ const ANY = `Хм. Я с тобой не разговариваю.|Иди к с�
 Ой! Чаровник! А мы тут|Раз уж пришёл|Почему тебе первой|Ммм… вот тут… ниже|Я запомнила. Ночью|Вот так… У тебя сильные руки|Ну и пожалуйста. Буду мыться|Чаровник… у тебя золотые руки|В следующий раз — наша очередь
 Ты пришёл… Потрёшь|Ммм… у тебя такие руки|Какой воспитанный|Посмотрим ещё, кто кому|Ой, какие вы все милые|Я… я просто постою|А тебя вообще кто спрашивал
 Я всё видела. ВСЁ.|Свидание, значит?|Хм. Хм-хм.|Следующее свидание — со мной|Мы обсуждали тактику.|ВСЮ НОЧЬ?!|Ну и ладно… *уходит|Хм! Ну и пожалуйста. Не очень|Праздник! И место рядом
-Это место — моё. Без обсуждений|Ха! Он выбрал меня|Новенькая? Ну-ну.|Слушаться? Хи-хи.|Мы знакомы минуту`.split(/[|\n]/).map(s => s.trim()).filter(Boolean);
+Это место — моё. Без обсуждений|Ха! Он выбрал меня|Новенькая? Ну-ну.|Слушаться? Хи-хи.|Мы знакомы минуту|Нравится? Я надела это|Ой… места мало.|А я тогда — с другой стороны
+Массаж? Ишь какой|Спину я доверяю|Так сразу? Нет уж|Ого. Горячий какой`.split(/[|\n]/).map(s => s.trim()).filter(Boolean);
 
 (async () => {
   const src = fs.readdirSync(path.join(WWW, 'js')).map(f => fs.readFileSync(path.join(WWW, 'js', f), 'utf8')).join('\n');
@@ -30,20 +31,22 @@ const ANY = `Хм. Я с тобой не разговариваю.|Иди к с�
   await pg.goto('file://' + WWW + '/index.html'); await pg.waitForTimeout(500);
   const lines = await pg.evaluate((any) => {
     const out = new Map(), S = G.S;
-    const add = (id, t) => { if (!D.GIRLS[id] || !t) return; const c = U.voxClean(t); if (!c || /[{§]/.test(c)) return; out.set(id + '|' + c, { id, text: c, hash: U.voxHash(id, c) }); };
-    const walk = L => { for (const l of L || []) { if (!l) continue; if (l.girl && l.t) add(l.girl, l.t); if (l.ask) for (const o of l.ask) walk(o.r); } };
-    const ex = (id, s) => { if (!s) return; const i = s.indexOf('|'); add(id, i >= 0 && /^[a-z]+$/.test(s.slice(0, i)) ? s.slice(i + 1) : s); };
+    const add = (id, t, e) => { if (!D.GIRLS[id] || !t) return; const c = U.voxClean(t); if (!c || /[{§]/.test(c)) return; const k = id + '|' + c; if (!out.has(k) || (e && out.get(k).expr === 'normal')) out.set(k, { id, text: c, hash: U.voxHash(id, c), expr: e || 'normal' }); };
+    const walk = L => { for (const l of L || []) { if (!l) continue; if (l.girl && l.t) add(l.girl, l.t, l.expr); if (l.ask) for (const o of l.ask) walk(o.r); } };
+    const ex = (id, s) => { if (!s) return; const i = s.indexOf('|'), has = i >= 0 && /^[a-z]+$/.test(s.slice(0, i)); add(id, has ? s.slice(i + 1) : s, has ? s.slice(0, i) : null); };
     const mk = id => { const g = G.mkGirl(id, 20); g.aff = 80; g.dates = 3; return g; };
     const P = ST._priv(), ALL = D.ALL;
     // личные реплики
     for (const id in D.GIRLS) {
       const d = D.GIRLS[id]; if (d.npc) continue;
-      add(id, d.tame); (d.ok || []).forEach(t => add(id, t)); (d.bad || []).forEach(t => add(id, t)); (d.talk || []).forEach(t => add(id, t));
+      add(id, d.tame, 'happy'); (d.ok || []).forEach(t => add(id, t, 'blush')); (d.bad || []).forEach(t => add(id, t, 'angry')); (d.talk || []).forEach((t, i) => add(id, t, ['normal', 'smug', 'happy', 'blush'][i]));
       for (const k in D.MOOD[id] || {}) add(id, D.MOOD[id][k]);
-      const T = D.TASTE[id]; if (T) { add(id, T[2]); add(id, T[3]); }
-      const H = D.TOUCH[id]; if (H) for (const k in H) if (k !== 'sp') [].concat(H[k]).forEach(t => add(id, t));
+      const T = D.TASTE[id]; if (T) { add(id, T[2], 'happy'); add(id, T[3], 'angry'); }
+      const HX = { head: 'happy', spl: 'blush', hand: 'blush', waist: 'love', whisper: 'wink', kiss: 'kiss', night: 'love' };
+      const H = D.TOUCH[id]; if (H) for (const k in H) if (k !== 'sp') [].concat(H[k]).forEach(t => add(id, t, HX[k]));
+      const H2 = D.TOUCH2[id]; if (H2) { add(id, H2[0], 'love'); add(id, H2[1], 'kiss'); add(id, H2[2], 'wink'); }
       for (const tab of [P.CLAIM, P.SEATWIN, P.TEN, P.NIGHT, D.NIGHT2]) ex(id, tab && tab[id]);
-      D.SULK.forEach(t => add(id, t)); any.forEach(t => add(id, t));
+      D.SULK.forEach(t => add(id, t, 'angry')); any.forEach(t => add(id, t));
     }
     add('fox', 'А мне? Ладно, я половину уже откусила, пока ты не смотрел.');
     // свидания, концовки, ночи

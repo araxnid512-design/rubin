@@ -88,6 +88,38 @@
         for (let i = 0; i < 5; i++) { const k = (i + r()) / 5; let bx, by; if (dx) { bx = x0 * T + (dx > 0 ? T : 0); by = y * T + k * T; x.beginPath(); x.moveTo(bx, by); x.lineTo(bx - dx * (4 + r() * 5), by - 2 - r() * 3); x.stroke(); } else { bx = x0 * T + k * T; by = y * T + (dy > 0 ? T : 0); x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + (r() - 0.5) * 3, by - dy * (4 + r() * 5)); x.stroke(); } }
       }
     }
+    // мелкие детали земли: камешки, грибы, клевер, ракушки, кувшинки — запекаются в фон
+    {
+      const dr = U.rng(def.seed * 31 + 7), gk = def.ground, circ = (a, b2, rr) => { x.beginPath(); x.arc(a, b2, rr, 0, 6.283); x.fill(); };
+      for (let y = 0; y < m.h; y++) for (let x0 = 0; x0 < m.w; x0++) {
+        const t = m.tile[y * m.w + x0], px = x0 * T + 8 + dr() * 32, py = y * T + 10 + dr() * 30, q = dr();
+        if (t === WALL || t === TALL || def.indoor) continue;
+        if (t === WATER) { if (q < 0.16) { x.fillStyle = '#3e9a48'; x.beginPath(); x.arc(px, py, 7, 0.5, 5.9); x.lineTo(px, py); x.fill(); x.strokeStyle = '#21121c'; x.lineWidth = 1.4; x.stroke(); if (q < 0.07) { x.fillStyle = '#ffb0d0'; for (let i = 0; i < 5; i++) circ(px + Math.cos(i * 1.257) * 3, py + Math.sin(i * 1.257) * 3, 2.2); x.fillStyle = '#ffe04a'; circ(px, py, 1.6); } } continue; }
+        if (t === PATH) { if (q < 0.2) { x.fillStyle = 'rgba(120,90,60,.5)'; circ(px, py, 1.6 + dr() * 1.6); circ(px + 5, py + 2, 1.2); } continue; }
+        // камыши у воды
+        let shore = false; for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) { const nx = x0 + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < m.w && ny < m.h && m.tile[ny * m.w + nx] === WATER) shore = true; }
+        if (shore && q < 0.7) { x.lineCap = 'round'; for (let i = 0; i < 4; i++) { const bx = px - 8 + i * 5, hh = 9 + dr() * 9; x.strokeStyle = '#21121c'; x.lineWidth = 3; x.beginPath(); x.moveTo(bx, py + 6); x.lineTo(bx + (i % 2 ? 2 : -2), py + 6 - hh); x.stroke(); x.strokeStyle = gk === 'sand' ? '#b8c860' : '#5aa040'; x.lineWidth = 1.6; x.stroke(); } continue; }
+        if (q > 0.34) continue;
+        if (gk === 'grass' || gk === 'forest' || gk === 'swamp') {
+          if (q < 0.1) { x.fillStyle = 'rgba(70,60,50,.55)'; circ(px, py, 2.4); x.fillStyle = '#b8b0a4'; circ(px - 0.6, py - 0.8, 2); circ(px + 4, py + 1, 1.4); }
+          else if (q < 0.2 && gk !== 'grass') { x.fillStyle = '#21121c'; x.fillRect(px - 1.4, py - 1, 2.8, 6); x.fillStyle = '#f4ecdc'; x.fillRect(px - 0.8, py, 1.6, 4.4); x.beginPath(); x.arc(px, py, 4.6, Math.PI, 0); x.closePath(); x.fillStyle = gk === 'swamp' ? '#b07ad8' : '#e8483a'; x.fill(); x.strokeStyle = '#21121c'; x.lineWidth = 1.4; x.stroke(); x.fillStyle = '#fff'; circ(px - 1.6, py - 2, 0.9); circ(px + 1.6, py - 1.6, 0.8); }
+          else if (q < 0.27) { x.fillStyle = gk === 'forest' ? '#3e8a34' : gk === 'swamp' ? '#4a6a34' : '#58b848'; for (let i = 0; i < 3; i++) circ(px + Math.cos(i * 2.1) * 3, py + Math.sin(i * 2.1) * 3, 2.6); }
+          else { x.fillStyle = ['#ff8ab0', '#ffe04a', '#ffffff', '#b07aff'][(q * 97 | 0) % 4]; for (let i = 0; i < 3; i++) circ(px + i * 5 - 5, py + (i % 2) * 3, 1.5); }
+        } else if (gk === 'rock') {
+          if (q < 0.14) { x.fillStyle = '#8a8478'; circ(px, py, 3); x.fillStyle = '#b8b2a8'; circ(px - 0.8, py - 1, 2.2); circ(px + 5, py + 2, 1.6); }
+          else if (q < 0.24) { x.fillStyle = '#f4f8ff'; x.beginPath(); x.ellipse(px, py, 9, 4.4, 0, 0, 6.283); x.fill(); x.fillStyle = 'rgba(150,180,220,.4)'; x.beginPath(); x.ellipse(px + 2, py + 1.6, 6, 2, 0, 0, 6.283); x.fill(); }
+          else { x.fillStyle = '#b8e0ff'; x.strokeStyle = '#21121c'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(px - 3, py + 4); x.lineTo(px, py - 6); x.lineTo(px + 3, py + 4); x.closePath(); x.fill(); x.stroke(); }
+        } else if (gk === 'sand') {
+          if (q < 0.1) { x.fillStyle = '#ff8a6a'; x.strokeStyle = '#21121c'; x.lineWidth = 1.2; x.beginPath(); for (let i = 0; i < 10; i++) { const a = i * 0.628 + q * 9, rr = i % 2 ? 2.2 : 5.4; x.lineTo(px + Math.cos(a) * rr, py + Math.sin(a) * rr); } x.closePath(); x.fill(); x.stroke(); }
+          else if (q < 0.2) { x.fillStyle = '#fff4e8'; x.strokeStyle = '#21121c'; x.lineWidth = 1.2; x.beginPath(); x.arc(px, py, 4, Math.PI, 0); x.closePath(); x.fill(); x.stroke(); }
+          else { x.fillStyle = 'rgba(160,130,80,.5)'; circ(px, py, 1.8); circ(px + 6, py + 3, 1.4); circ(px - 4, py + 4, 1.2); }
+        } else if (gk === 'dungeon') {
+          if (q < 0.1) { x.fillStyle = '#e8e4d8'; x.strokeStyle = '#21121c'; x.lineWidth = 1.2; x.beginPath(); x.arc(px, py, 3.6, 0, 6.283); x.fill(); x.stroke(); x.fillStyle = '#21121c'; circ(px - 1.3, py - 0.4, 0.9); circ(px + 1.3, py - 0.4, 0.9); }
+          else if (q < 0.22) { x.fillStyle = 'rgba(160,120,255,.55)'; for (let i = 0; i < 4; i++) circ(px + Math.cos(i * 1.7) * 5, py + Math.sin(i * 1.7) * 4, 1.4); }
+          else { x.strokeStyle = 'rgba(20,10,30,.5)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(px - 6, py); x.lineTo(px - 1, py + 3); x.lineTo(px + 2, py - 2); x.lineTo(px + 7, py + 1); x.stroke(); }
+        }
+      }
+    }
     // мягкие края воды и троп
     for (let y = 0; y < m.h; y++) for (let x0 = 0; x0 < m.w; x0++) {
       const t = m.tile[y * m.w + x0]; if (t !== WATER) continue;
@@ -163,7 +195,7 @@
       if (n.girl === 'dragon') return FX.dragon();
       if (n.girl) return FX.resident(n);
       if (n.trainer) return trainerTalk(n);
-      const lines = D.NPC[n.id] || ['…']; return UI.say([{ who: n.id === 'pahom' ? 'Дед Пахом' : 'Мальчишка', t: U.pick(lines, Math.random) }]);
+      const lines = D.NPC[n.id] || ['…']; return UI.say([{ who: (D.NPCN && D.NPCN[n.id]) || (n.id === 'pahom' ? 'Дед Пахом' : 'Мальчишка'), t: U.pick(lines, Math.random) }]);
     }
     const s = m.signs.find(s => s.x === tx && s.y === ty); if (s) return UI.say([{ who: 'Табличка', t: s.t }]);
     const d = m.doors.find(d => d.x === tx && d.y === ty);
@@ -215,6 +247,7 @@
     const x0 = Math.max(0, Math.floor(left / T)), x1 = Math.min(m.w - 1, Math.ceil((left + hw * 2) / T)), y0 = Math.max(0, Math.floor(top / T)), y1 = Math.min(m.h - 1, Math.ceil((top + hh * 2) / T));
     for (let y = y0; y <= y1; y++) for (let xx = x0; xx <= x1; xx++) if (m.tile[y * m.w + xx] === WATER && ((xx * 7 + y * 3) % 2 === 0)) { const ph = (tm * 0.6 + xx * 0.3 + y * 0.7) % 1; x.globalAlpha = Math.sin(ph * Math.PI); x.beginPath(); x.moveTo(xx * T + 10 + ph * 10, y * T + 20); x.quadraticCurveTo(xx * T + 16 + ph * 10, y * T + 16, xx * T + 22 + ph * 10, y * T + 20); x.stroke(); }
     x.globalAlpha = 1;
+    FX.critters(x, m, tm, G.dt || 0.016, false);
     // объекты по глубине
     const list = [];
     for (const o of m.objs) if (o.x * T < left + hw * 2 + 3 * T && (o.x + 4) * T > left - T && o.y * T < top + hh * 2 + T && o.sy > top) list.push(o);
@@ -225,7 +258,7 @@
     for (let y = y0; y <= y1; y++) for (let xx = x0; xx <= x1; xx++) if (m.tile[y * m.w + xx] === TALL) list.push({ k: 'tall', x: xx, y, sy: (y + 1) * T - 0.5 });
     list.sort((a, b) => a.sy - b.sy);
     for (const o of list) {
-      if (o.k === 'tree') x.drawImage(o.im, o.x * T - 12, (o.y + 1) * T - 92, 72, 96);
+      if (o.k === 'tree') { x.save(); x.translate(o.x * T + 24, (o.y + 1) * T + 4); x.transform(1, 0, Math.sin(tm * 1.1 + o.x * 0.9 + o.y * 1.7) * 0.03 + Math.sin(tm * 2.7 + o.x) * 0.008, 1, 0, 0); x.drawImage(o.im, -36, -96, 72, 96); x.restore(); }
       else if (o.k === 'house') x.drawImage(o.im, o.x * T, o.y * T, 4 * T, 4 * T);
       else if (o.k === 'rock' || o.k === 'sign') x.drawImage(o.im, o.x * T, o.y * T, T, T);
       else if (o.k === 'prop') { x.drawImage(o.im, o.x * T, (o.y + 1) * T - T * 1.5, T, T * 1.5); if (o.pk === 'lamp' || o.pk === 'torch' || o.pk === 'fireplace') { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.35 + Math.sin(tm * 3 + o.x) * 0.05; x.drawImage(ART.glow, o.x * T - 16, (o.y + 1) * T - T * 1.5 - 4, 80, 60); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; } }
@@ -241,6 +274,7 @@
     }
     // дым из труб, бабочки, лепестки, снег, светлячки
     ambient(x, m, left, top, hw * 2, hh * 2, tm, G.dt || 0.016);
+    FX.critters(x, m, tm, G.dt || 0.016, true);
     // тени облаков
     if (!m.def.indoor) { x.globalAlpha = 0.13; for (let i = 0; i < 3; i++) { const cx2 = ((i * 613 + tm * 14) % (mw + 900)) - 450, cy2 = (i * 397 + tm * 4) % (mh + 300) - 150; x.drawImage(ART.soft, cx2 - 220, cy2 - 120, 440, 240); } x.globalAlpha = 1; }
     // цвет локации и виньетка
@@ -248,6 +282,7 @@
     const tint = { forest: 'rgba(10,60,40,.14)', mountain: 'rgba(160,200,255,.12)', tower: 'rgba(120,30,140,.16)', meadow: 'rgba(255,220,140,.06)', village: 'rgba(255,200,150,.06)', beach: 'rgba(255,230,160,.08)', swamp: 'rgba(40,70,30,.2)', dungeon: 'rgba(40,20,80,.3)', manor: 'rgba(255,200,170,.08)' }[m.id];
     if (tint) { x.fillStyle = tint; x.fillRect(0, 0, V.w, V.h); }
     FX.screenFx(x, V, m, tm);
+    FX.lights(x, m, tm, z, left, top);
     x.drawImage(ART.vign, 0, 0, V.w, V.h);
     x.setTransform(z, 0, 0, z, -left * z, -top * z);
     // табличка у двери

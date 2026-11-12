@@ -87,6 +87,7 @@
     } catch (e) { }
     return false;
   };
+  U.voxPlaying = () => !!(cur && !cur.paused && !cur.ended);
   U.shutUp = function () {
     if (cur) { try { cur.pause(); } catch (e) { } cur = null; }
     try { if (window.AndroidTTS) AndroidTTS.stop(); } catch (e) { }

@@ -15,12 +15,12 @@
       const x = L.cv.getContext('2d'), w = L.cv.width, h = L.cv.height;
       x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, w, h);
       const k = L.o.k || h / 262; x.translate(w / 2, L.o.y ? h * L.o.y : h - 6); x.scale(k, k);
-      ART.girl(x, L.id, { t: t + (L.o.ph || 0), expr: L.o.expr || 'normal', pose: L.o.pose, bloom: L.o.bloom, outfit: L.o.outfit });
+      ART.girl(x, L.id, { t: t + (L.o.ph || 0), expr: L.o.expr || 'normal', pose: L.o.pose, bloom: L.o.bloom, outfit: L.o.outfit, talk: L.o.talk });
     }
     if (vn.bg) {
       const c = $('vn'), w = c.width, h = c.height, x = c.getContext('2d');
       ART.vnBg(x, vn.bg, w, h, t);
-      if (vn.id && vn.bg !== 'black') { x.save(); const k = h / 142; x.translate(w * (vn.x || 0.5), h * 1.56 + Math.sin(t * 1.4) * 2); x.scale(k, k); ART.girl(x, vn.id, { t, expr: vn.expr || 'normal', bloom: vn.bloom, outfit: vn.wear || vn.outfit }); x.restore(); }
+      if (vn.id && vn.bg !== 'black') { x.save(); const k = h / 142; x.translate(w * (vn.x || 0.5), h * 1.56 + Math.sin(t * 1.4) * 2); x.scale(k, k); ART.girl(x, vn.id, { t, expr: vn.expr || 'normal', bloom: vn.bloom, outfit: vn.wear || vn.outfit, talk: vn.talk }); x.restore(); }
     }
   };
   const vn = { bg: null, id: null, expr: null, wear: null };
@@ -44,7 +44,7 @@
   let dq = null, dcb = null, typed = 0, full = '', asking = null, last = -1;
   const slots = [{ el: $('dlg-pic'), id: null, o: null }, { el: $('dlg-pic2'), id: null, o: null }];
   UI.dialogOpen = () => !!dq;
-  let replay = false, voice = null, spT = 0;
+  let replay = false, voice = null, spT = 0, curGirl = false;
   UI.say = function (lines, cb, opt) {
     dq = (window.ST ? ST.norm(lines) : lines.slice()); dcb = cb || null; asking = null; last = -1; replay = !!(opt && opt.replay); if (window.ST) ST.replay = replay;
     for (const s of slots) { s.id = null; s.o = null; s.el.innerHTML = ''; }
@@ -89,7 +89,7 @@
       else { paint(-1); who.textContent = L.who || ''; if (!L.who) who.classList.add('nar'); }
       full = L.me !== undefined ? L.me : L.t;
     }
-    who.style.display = who.textContent ? '' : 'none';
+    who.style.display = who.textContent ? '' : 'none'; curGirl = !!(L.girl && !L.ask);
     voice = window.FX ? (L.girl ? FX.VOICE[L.girl] : L.me !== undefined || L.ask ? FX.VOICE.me : L.who ? FX.VOICE.npc : null) : null;
     if (L.girl && !L.ask && U.emote) { const gi = L.girl, tx = L.t; clearTimeout(spT); if (U.ttsOn && U.soundOn && U.hasVox(gi, tx)) { U.say(gi, tx); voice = null; } else { U.emote(gi, L.expr || 'normal'); spT = setTimeout(() => { if (dq && full === tx && U.say(gi, tx)) voice = null; }, 280); } }
     $('dlg-t').classList.toggle('nar', !L.girl && !L.who && L.me === undefined && !L.ask);
@@ -117,6 +117,7 @@
   UI.bmsgDone = function () { if (btyped < bfull.length) return false; return btap || bdoneT > 0.95 + bfull.length * 0.008; };
   $('bmsg').addEventListener('click', () => { if (btyped < bfull.length) { btyped = bfull.length; $('bmsg').textContent = bfull; } else btap = true; });
   UI.tick = function (dt) {
+    { const sp = !!dq && curGirl && (typed < full.length || (U.voxPlaying && U.voxPlaying())); slots.forEach((s, i) => { if (s.o) s.o.talk = sp && i === last; }); vn.talk = sp; }
     if (dq && typed < full.length) { const p0 = typed | 0; typed = Math.min(full.length, typed + dt * UI.textSpeed); $('dlg-t').textContent = full.slice(0, typed | 0); if ((typed | 0) !== p0 && (typed | 0) % 3 === 0) { if (voice) U.voice(voice[0], voice[1]); else U.sfx('blip'); } }
     if (btyped < bfull.length) { btyped = Math.min(bfull.length, btyped + dt * 60); $('bmsg').textContent = bfull.slice(0, btyped | 0); } else bdoneT += dt;
     if (zoneT > 0 && (zoneT -= dt) <= 0) $('zone').classList.remove('on');

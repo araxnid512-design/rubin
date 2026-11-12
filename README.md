@@ -46,6 +46,8 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`. Нужны JDK 17+ и Android 
 
 Версия 0.7: реплики героинь озвучены заранее — у каждой свой голос (3092 записи в `voice/`). Генератор лежит в `tools/charmer-voice/` (RHVoice + sox + Opus); после правки текстов его нужно запустить заново, см. README там же.
 
+Версия 0.8: перерисованные руки и анимация героинь (губы двигаются при разговоре, живой взгляд, уши, юбки, волосы), детали мира (мелочи на земле, качающиеся деревья, живность, ночные огни, новые постройки и жители), новые наряды и сцены, озвучка с интонациями по эмоциям.
+
 Подписанный релиз: положите `charmer/keystore.properties` (storeFile, storePassword, keyAlias, keyPassword) и ключ рядом — оба в `.gitignore` — и выполните `./gradlew :charmer:assembleRelease`.
 
 Сборка: `./gradlew :charmer:assembleDebug` → `charmer/build/outputs/apk/debug/charmer-debug.apk`. В браузере: стрелки/WASD — ходьба, пробел — действие, M — меню.

@@ -169,6 +169,72 @@
 
   FX.mapMusic = () => !WD.m ? 'world' : ({ village: 'tavern', manor: 'tavern', meadow: 'world', forest: 'forest', swamp: 'forest', mountain: 'snow', beach: 'beach', tower: 'dark', dungeon: 'dark' })[WD.m.id] || 'world';
 
+  /* ---------- Живность: куры, зайцы, крабы, лягушки, летучие мыши, рыбы, птицы ---------- */
+  const T = D.T, OUTC = '#21121c', CR = { m: null, list: [], fish: null, fishT: 2, birds: null, birdT: 6 };
+  const KINDS = { village: [['chicken', 5], ['cat', 1]], meadow: [['bunny', 4]], forest: [['bunny', 3]], mountain: [['hare', 3]], beach: [['crab', 5]], swamp: [['frogc', 5]], dungeon: [['bat', 6]], tower: [['bat', 4]] };
+  function crSpawn(m) {
+    CR.m = m; CR.list = []; CR.fish = null; CR.birds = null;
+    const free = (tx, ty) => tx > 0 && ty > 0 && tx < m.w - 1 && ty < m.h - 1 && !m.block[ty * m.w + tx] && m.tile[ty * m.w + tx] !== 2 && m.tile[ty * m.w + tx] !== 3;
+    CR.free = free;
+    for (const [k, n] of KINDS[m.id] || []) for (let i = 0; i < n; i++) {
+      for (let tr = 0; tr < 40; tr++) { const tx = 1 + (Math.random() * (m.w - 2)) | 0, ty = 1 + (Math.random() * (m.h - 2)) | 0; if (!free(tx, ty)) continue; CR.list.push({ k, x: tx * T + 24, y: ty * T + 30, hx: tx * T + 24, hy: ty * T + 30, vx: 0, vy: 0, t: Math.random() * 3, st: 0, f: 1, ph: Math.random() * 6 }); break; }
+    }
+    CR.water = []; for (let i = 0; i < m.tile.length; i++) if (m.tile[i] === 2) CR.water.push(i);
+  }
+  const E = (x, a, b, rx, ry, col) => { x.beginPath(); x.ellipse(a, b, rx, ry, 0, 0, 6.283); x.fillStyle = col; x.fill(); x.lineWidth = 1.5; x.strokeStyle = OUTC; x.stroke(); };
+  function crDraw(x, c, tm) {
+    const hop = c.st === 1 ? Math.abs(Math.sin(c.ph * 9)) : 0;
+    x.save(); x.translate(c.x, c.y); x.fillStyle = 'rgba(30,20,30,.22)'; x.beginPath(); x.ellipse(0, 1, 7, 2.4, 0, 0, 6.283); x.fill(); x.scale(c.f, 1);
+    if (c.k === 'chicken') { const b = hop * 2; x.strokeStyle = '#e8a030'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(-2, -2); x.lineTo(-2, 1); x.moveTo(2, -2); x.lineTo(2 + hop * 2, 1); x.stroke(); E(x, 0, -7 - b, 7, 5.6, '#fffaf0'); E(x, 5.4, -12 - b + (c.st === 2 ? 5 : 0), 3.6, 3.4, '#fffaf0'); x.fillStyle = '#e83a3a'; x.beginPath(); x.arc(5.4, -15.6 - b + (c.st === 2 ? 5 : 0), 2, Math.PI, 0); x.fill(); x.fillStyle = '#f2a020'; x.beginPath(); x.moveTo(8.6, -12 - b + (c.st === 2 ? 5 : 0)); x.lineTo(12, -11 - b + (c.st === 2 ? 5 : 0)); x.lineTo(8.6, -10 - b + (c.st === 2 ? 5 : 0)); x.fill(); x.fillStyle = OUTC; x.fillRect(6, -13 - b + (c.st === 2 ? 5 : 0), 1.2, 1.2); x.fillStyle = '#e8e0d0'; x.beginPath(); x.moveTo(-6, -8 - b); x.lineTo(-11, -12 - b); x.lineTo(-7, -5 - b); x.fill(); }
+    else if (c.k === 'bunny' || c.k === 'hare') { const col = c.k === 'hare' ? '#ffffff' : '#d8b890', b = hop * 7; E(x, 0, -6 - b, 7, 5.4, col); E(x, 6, -10 - b, 4, 3.6, col); for (const d of [0, 2.4]) { x.beginPath(); x.ellipse(5 + d, -16 - b, 1.5, 4.6, -0.2 + d * 0.1, 0, 6.283); x.fillStyle = col; x.fill(); x.stroke(); } x.fillStyle = OUTC; x.fillRect(7.4, -11 - b, 1.3, 1.3); x.fillStyle = '#fff'; x.beginPath(); x.arc(-7, -6 - b, 2.4, 0, 6.283); x.fill(); }
+    else if (c.k === 'crab') { const w = Math.sin(c.ph * 12) * (c.st === 1 ? 2 : 0.4); x.strokeStyle = '#c83a2a'; x.lineWidth = 1.6; for (const sg of [-1, 1]) for (let i = 0; i < 3; i++) { x.beginPath(); x.moveTo(sg * 4, -4); x.lineTo(sg * (9 + i * 1.2), -2 + i * 1.6 + w * (i % 2 ? 1 : -1)); x.stroke(); } E(x, 0, -5, 7, 4.6, '#e8503a'); for (const sg of [-1, 1]) { E(x, sg * 9, -10, 2.8, 2.4, '#e8503a'); x.fillStyle = '#fff'; x.beginPath(); x.arc(sg * 2.6, -9.6, 1.6, 0, 6.283); x.fill(); x.fillStyle = OUTC; x.fillRect(sg * 2.6 - 0.6, -10.2, 1.2, 1.2); } }
+    else if (c.k === 'frogc') { const b = hop * 8; E(x, 0, -5 - b, 6.4, 4.6, '#5cc04a'); for (const sg of [-1, 1]) { E(x, sg * 3.4, -10 - b, 2.4, 2.4, '#5cc04a'); x.fillStyle = OUTC; x.fillRect(sg * 3.4 - 0.6, -10.6 - b, 1.2, 1.2); } x.strokeStyle = OUTC; x.lineWidth = 1; x.beginPath(); x.moveTo(-3, -4 - b); x.quadraticCurveTo(0, -2.4 - b, 3, -4 - b); x.stroke(); }
+    else if (c.k === 'cat') { E(x, 0, -6, 8, 5.6, '#3a3a44'); E(x, 7, -11, 4.4, 4, '#3a3a44'); x.fillStyle = '#3a3a44'; for (const d of [-2, 2]) { x.beginPath(); x.moveTo(7 + d - 1.6, -14); x.lineTo(7 + d, -18.4); x.lineTo(7 + d + 1.6, -14); x.fill(); } x.fillStyle = '#ffe04a'; x.fillRect(8, -12, 1.4, 1.6); x.strokeStyle = '#3a3a44'; x.lineWidth = 2.4; x.lineCap = 'round'; x.beginPath(); x.moveTo(-7, -6); x.quadraticCurveTo(-14, -8, -12 + Math.sin(tm * 2) * 3, -16); x.stroke(); }
+    else if (c.k === 'bat') { const f = Math.sin(c.ph * 14); x.fillStyle = '#4a3466'; for (const sg of [-1, 1]) { x.beginPath(); x.moveTo(0, -30); x.quadraticCurveTo(sg * 8, -40 - f * 6, sg * 15, -32 + f * 5); x.quadraticCurveTo(sg * 8, -30, 0, -27); x.fill(); x.lineWidth = 1.2; x.strokeStyle = OUTC; x.stroke(); } E(x, 0, -29, 3.4, 4, '#4a3466'); x.fillStyle = '#ff5a7a'; x.fillRect(-1.8, -30, 1.1, 1.1); x.fillRect(0.7, -30, 1.1, 1.1); }
+    x.restore();
+  }
+  FX.critters = function (x, m, tm, dt, over) {
+    if (CR.m !== m) crSpawn(m);
+    const hx = WD.hero.px + 24, hy = WD.hero.py + 30;
+    for (const c of CR.list) {
+      const fly = c.k === 'bat';
+      if (!over) {
+        c.ph += dt; c.t -= dt;
+        if (fly) { c.x = c.hx + Math.cos(c.ph * 0.9) * 60 + Math.sin(c.ph * 2.3) * 14; c.y = c.hy + Math.sin(c.ph * 1.3) * 34; c.f = Math.sin(c.ph * 0.9) > 0 ? -1 : 1; }
+        else {
+          const dh = Math.hypot(c.x - hx, c.y - hy);
+          if (dh < 44 && c.k !== 'cat' && c.st !== 1) { const a = Math.atan2(c.y - hy, c.x - hx) + (Math.random() - 0.5); c.vx = Math.cos(a) * 90; c.vy = Math.sin(a) * 90; c.st = 1; c.t = 0.6; c.f = c.vx >= 0 ? 1 : -1; if (c.k === 'chicken' && Math.random() < 0.5) U.sfx('pop'); }
+          if (c.st === 1) { const nx = c.x + c.vx * dt, ny = c.y + c.vy * dt; if (CR.free((nx / T) | 0, (ny / T) | 0)) { c.x = nx; c.y = ny; } else c.t = 0; if (c.t <= 0) { c.st = c.k === 'chicken' && Math.random() < 0.5 ? 2 : 0; c.t = 0.8 + Math.random() * 2.6; } }
+          else if (c.t <= 0) { if (c.k === 'cat') { c.t = 3; } else { const a = Math.random() * 6.283, sp = c.k === 'crab' ? 26 : 34; let tx = c.x + Math.cos(a) * 40, ty = c.y + Math.sin(a) * 40; if (Math.hypot(tx - c.hx, ty - c.hy) > 110) { tx = c.hx; ty = c.hy; } const d = Math.hypot(tx - c.x, ty - c.y) || 1; c.vx = (tx - c.x) / d * sp; c.vy = (ty - c.y) / d * sp; c.st = 1; c.t = d / sp; c.f = c.vx >= 0 ? 1 : -1; } }
+        }
+      }
+      if (fly === over) crDraw(x, c, tm);
+    }
+    if (!over) {
+      // рыбка выпрыгивает из воды
+      if (CR.water.length && !CR.fish && (CR.fishT -= dt) <= 0) { const i = CR.water[(Math.random() * CR.water.length) | 0]; CR.fish = { x: (i % m.w) * T + 24, y: ((i / m.w) | 0) * T + 28, t: 0, f: Math.random() < 0.5 ? 1 : -1 }; CR.fishT = 2.5 + Math.random() * 5; }
+      if (CR.fish) { const f = CR.fish; f.t += dt; const k = f.t / 0.8; if (k >= 1) CR.fish = null; else { const px = f.x + (k - 0.5) * 30 * f.f, py = f.y - Math.sin(k * Math.PI) * 22; x.save(); x.translate(px, py); x.rotate((k - 0.5) * 2.4 * f.f); x.scale(f.f, 1); E(x, 0, 0, 6, 3, '#ffb03a'); x.fillStyle = '#ff8a2a'; x.beginPath(); x.moveTo(-5, 0); x.lineTo(-10, -4); x.lineTo(-10, 4); x.fill(); x.restore(); x.strokeStyle = 'rgba(255,255,255,.8)'; x.lineWidth = 1.6; for (const ex of [f.x - 15 * f.f, f.x + 15 * f.f]) { x.beginPath(); x.ellipse(ex, f.y + 2, 4 + k * 8, 2 + k * 3, 0, 0, 6.283); x.globalAlpha = 1 - k; x.stroke(); x.globalAlpha = 1; } } }
+    } else if (!m.def.indoor && !m.def.cave && FX.phase() !== 'night') {
+      // стайка птиц пролетает над картой
+      if (!CR.birds && (CR.birdT -= dt) <= 0) { CR.birds = { x: -60, y: 60 + Math.random() * (m.h * T - 160), v: 70 + Math.random() * 40 }; CR.birdT = 14 + Math.random() * 16; }
+      if (CR.birds) { const b = CR.birds; b.x += b.v * dt; if (b.x > m.w * T + 80) CR.birds = null; else for (let i = 0; i < 3; i++) { const px = b.x - i * 22, py = b.y + (i % 2) * 14 - 60, fl = Math.sin(tm * 9 + i) * 5; x.fillStyle = 'rgba(30,20,30,.16)'; x.beginPath(); x.ellipse(px, py + 70, 7, 2.4, 0, 0, 6.283); x.fill(); x.strokeStyle = OUTC; x.lineWidth = 2.4; x.lineCap = 'round'; x.beginPath(); x.moveTo(px - 8, py - fl); x.quadraticCurveTo(px - 3, py - 2, px, py + 1); x.quadraticCurveTo(px + 3, py - 2, px + 8, py - fl); x.stroke(); } }
+    }
+  };
+
+  /* ---------- Ночные огни: фонари, факелы, окна ---------- */
+  let warm = null;
+  FX.lights = function (x, m, tm, z, left, top) {
+    const ph = m.def.indoor ? null : FX.phase(), k = m.def.cave ? 0.85 : ph === 'night' ? 1 : ph === 'eve' ? 0.5 : m.id === 'manor' ? 0.5 : 0;
+    if (!k) return;
+    if (!warm) warm = U.radial(96, [0, 'rgba(255,214,140,.95)', 0.35, 'rgba(255,170,80,.4)', 1, 'rgba(255,140,60,0)']);
+    x.globalCompositeOperation = 'lighter';
+    for (const o of m.objs) {
+      if (o.k === 'prop' && (o.pk === 'lamp' || o.pk === 'torch' || o.pk === 'fireplace')) { const sx = (o.x * T + 24 - left) * z, sy = ((o.y + 1) * T - (o.pk === 'fireplace' ? 16 : 58) - top) * z, r = (84 + Math.sin(tm * 7 + o.x) * 5) * z; x.globalAlpha = 0.75 * k; x.drawImage(warm, sx - r, sy - r, r * 2, r * 2); }
+      else if (o.k === 'house') { const by = (o.y * T + 4 * T - 69 - top) * z; x.globalAlpha = 0.6 * k; for (const wx of [o.x * T + 49, o.x * T + 4 * T - 49]) { const sx = (wx - left) * z, r = 34 * z; x.drawImage(warm, sx - r, by - r, r * 2, r * 2); } }
+    }
+    x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+  };
+
   /* ---------- Голоса героинь ---------- */
   FX.VOICE = { fox: [1050, 'square'], slime: [620, 'sine'], harpy: [1400, 'square'], lamia: [700, 'triangle'], dryad: [520, 'sine'], minotaur: [380, 'triangle'], vampire: [860, 'triangle'],
     valkyrie: [760, 'square'], neko: [1200, 'triangle'], snow: [1320, 'sine'], witch: [950, 'sawtooth'], mermaid: [1100, 'sine'], frog: [300, 'square'], ghost: [1500, 'sine'], dragon: [260, 'sawtooth'], me: [700, 'square'], npc: [880, 'square'] };
