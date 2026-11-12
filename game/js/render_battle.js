@@ -831,7 +831,7 @@
       case 2: case 11: case 14: {
         const t = type === 2 ? 0.27 : 0.3;
         let col = { 2: ['#968b7d', '#7e7163', '#615549'], 11: ['#7d8a92', '#5a656c', '#454f56'], 14: ['#9c968a', '#807a70', '#646058'] }[type];
-        if (PHOTO['w_' + WTEX[type]]) col = col.map(function (c) { return U.shade(c, 0.32); });
+        if (PHOTO['w_' + WTEX[type]]) col = col.map(function (c) { return U.shade(c, type === 2 ? 0.16 : 0.26); });
         spans(mask, t).forEach(function (sp) {
           const h = type === 2 ? H - rnd() * 12 : H;
           wallBox(g, type, sp, h, col, rnd);
@@ -847,7 +847,7 @@
         break;
       }
       case 1: {
-        const c1 = PHOTO.w_brick ? ['#c9bfb2', '#b0a597', '#8c8275'] : ['#a39d94', '#86807a', '#6a655f'];
+        const c1 = PHOTO.w_brick ? ['#b5ab9e', '#9c9184', '#7c7266'] : ['#a39d94', '#86807a', '#6a655f'];
         spans(mask, 0.22).forEach(function (sp) {
           wallBox(g, 1, sp, H * 0.42, c1, rnd);
           const k = 0.08;

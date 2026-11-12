@@ -370,9 +370,13 @@
     depot: ['MMMMMMMM', 'M.CC.c.M', 'M......M', 'M.cc.CCM', 'MMM..MMM'],
     pillbox: ['.SSSS.', 'S....S', '=.c..=', 'S....S', '.SS.S.'],
     convoy: ['v.v.v', '.....', 'c.o.c'],
-    outpost: ['.c..c.', 'cbbbbc', '.b..b.', '.b..b.', 'cb..bc']
+    outpost: ['.c..c.', 'cbbbbc', '.b..b.', '.b..b.', 'cb..bc'],
+    // жилые дома и казарма: двери, окна, мебель внутри (заходить и прятаться за обстановкой)
+    house: ['##=###.', '#f..F#.', '=....#.', '#f.....', '#F.f.f#', '###=###'],
+    house2: ['#=##=##', '#F...f#', '#.....=', '..f.F.#', '#f....#', '##.####'],
+    barracks: ['MMMMMMMMM', 'Mf.f.f.FM', 'M.......=', '....f.f.M', 'MFf.....M', 'MMMM.MMMM']
   };
-  const PF = { '#': 2, 'M': 11, 'S': 14, '=': 1, 'b': 6, 'c': 4, 'o': 9, 'k': 12, 'C': 18, 'T': 5, 'r': 8, 'v': 7 };
+  const PF = { '#': 2, 'M': 11, 'S': 14, '=': 1, 'b': 6, 'c': 4, 'o': 9, 'k': 12, 'C': 18, 'T': 5, 'r': 8, 'v': 7, 'f': 21, 'F': 22 };
   function prefab(m, name, minX, floor) {
     const pf = PREFABS[name];
     const ph = pf.length, pw = pf[0].length;
@@ -411,6 +415,7 @@
     m.itemList = [{ kind: 'gems', amt: U.rand(3, 5) }, { kind: 'gems', amt: U.rand(3, 5) }, { kind: 'ammo', amt: U.rand(15, 25) }];
     props(m, 'tuft', 14); props(m, 'bush', 6); props(m, 'skull', 2); props(m, 'bones', 3, 6); props(m, 'bricks', 2, 6); decor(m, 'puddle', 2, 4);
     heights(m, 0.11, 0.6, 0.8, 6); if (Math.random() < 0.6) prefab(m, 'convoy', 8);
+    if (Math.random() < 0.7) prefab(m, U.pick(['house', 'house2']), 9, 11);
     return m;
   };
   GEN.ruins = function (o) {
@@ -439,6 +444,7 @@
     props(m, 'tuft', 10); props(m, 'pipe', 5); props(m, 'sign', 3); props(m, 'bush', 4);
     props(m, 'tire', 3); props(m, 'bricks', 5); props(m, 'can', 3); props(m, 'papers', 4); props(m, 'rebar', 2); decor(m, 'puddle', 3); props(m, 'lamp', 3);
     heights(m, 0.13, 0.68, 0.9, 6); prefab(m, U.pick(['gas', 'checkpoint', 'pillbox']), 8, 3);
+    if (Math.random() < 0.5) prefab(m, U.pick(['house', 'house2']), 8, 11);
     return m;
   };
   GEN.vein = function (o) {
@@ -490,6 +496,7 @@
     props(m, 'tuft', 8); props(m, 'bones', 3); props(m, 'sign', 2, 8); props(m, 'pipe', 2);
     props(m, 'tire', 3); props(m, 'can', 4); props(m, 'papers', 3); props(m, 'bricks', 2); props(m, 'lamp', 2);
     heights(m, 0.12, 0.66, 0.9, 6); raise(m, 15, 5, 23, 13, 1); if (Math.random() < 0.6) prefab(m, 'outpost', 7);
+    if (Math.random() < 0.5) prefab(m, 'barracks', 6, 11);
     return m;
   };
   GEN.lair = function (o) {
@@ -654,6 +661,7 @@
     raise(m, x0 + 1, y0 + 1, x0 + w - 2, y0 + 1, 1); raise(m, x0 + 1, y0 + h - 2, x0 + w - 2, y0 + h - 2, 1);
     scatter(m, 18, 4, 6, x0 - 1); scatter(m, 9, 4, 5); scatter(m, 4, 4, 5); lines(m, 1, 2, 5);
     prefab(m, 'depot', 18);
+    if (Math.random() < 0.6) prefab(m, 'barracks', 7, 3);
     props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0); props(m, 'tire', 3); props(m, 'can', 4); props(m, 'rebar', 4); props(m, 'papers', 3); decor(m, 'puddle', 4); props(m, 'lamp', 4);
     decor(m, 'crack', 12); decor(m, 'scorch', 4, 8);
     const d = o.diff || 1;
