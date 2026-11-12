@@ -13,7 +13,7 @@
   };
   G.need = L => 20 + L * L * 6;
   G.skillsOf = g => D.GIRLS[g.id].skills.filter(s => s[1] <= g.lvl).map(s => s[0]);
-  G.mkGirl = function (id, lvl) { const g = { uid: 0, id, lvl, xp: 0, hp: 1, aff: 0, bloom: lvl >= 15, talked: false }; g.hp = G.stats(g).hp; return g; };
+  G.mkGirl = function (id, lvl) { const g = { uid: 0, id, lvl, xp: 0, hp: 1, aff: 0, bloom: lvl >= 15, talked: false, dates: 0, dated: false }; g.hp = G.stats(g).hp; return g; };
   G.addGirl = function (id, lvl, hp) {
     const S = G.S, g = G.mkGirl(id, lvl); g.uid = S.uid++; if (hp !== undefined) g.hp = Math.max(1, hp);
     (S.party.length < 6 ? S.party : S.box).push(g); S.caught[id] = true; S.seen[id] = true; return g;
@@ -25,7 +25,7 @@
   function fresh() { return { map: 'village', x: 5, y: 7, face: 'up', money: 120, bag: { seal: 5, potion: 3, pie: 2 }, party: [], box: [], seen: {}, caught: {}, flags: {}, uid: 1 }; }
   G.save = function () {
     if (!G.S || G.mode === 'title') return;
-    const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked });
+    const clean = g => ({ uid: g.uid, id: g.id, lvl: g.lvl, xp: g.xp, hp: g.hp, aff: g.aff, bloom: g.bloom, talked: g.talked, dates: g.dates || 0, dated: !!g.dated });
     const o = Object.assign({}, G.S, { party: G.S.party.map(clean), box: G.S.box.map(clean) });
     if (G.mode === 'battle') return;
     try { localStorage.setItem(KEY, JSON.stringify({ v: 1, s: o })); } catch (e) { }

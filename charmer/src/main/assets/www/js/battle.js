@@ -129,7 +129,7 @@
     const items = [msg('Ты бросаешь печать-сердечко!'), { t: 'anim', k: 'throw', dur: 0.6 }];
     for (let i = 0; i < Math.min(shakes, 3); i++) items.push({ t: 'anim', k: 'shake', dur: 0.55 });
     if (shakes >= 3) {
-      items.push({ t: 'anim', k: 'caught', dur: 0.7 }, msg('Есть! ' + d.name + ' приручена!'), { t: 'fn', f: () => { b.over = true; const ng = G.addGirl(g.id, g.lvl, g.hp); ng.aff = 10; S.caught[g.id] = true; UI.say([{ girl: g.id, expr: 'happy', t: d.tame }], () => end('caught')); } });
+      items.push({ t: 'anim', k: 'caught', dur: 0.7 }, msg('Есть! ' + d.name + ' приручена!'), { t: 'fn', f: () => { b.over = true; const ng = G.addGirl(g.id, g.lvl, g.hp); ng.aff = 10; S.caught[g.id] = true; UI.say([{ girl: g.id, expr: 'happy', t: d.tame }].concat(ST.caught(g.id)), () => end('caught')); } });
     } else {
       items.push({ t: 'anim', k: 'escape', dur: 0.4 }, msg(['Вырвалась! ' + d.name + ': «Ещё чего!»', 'Почти! Она выскочила, фыркнув.', d.name + ' вырывается и показывает язык.'][shakes] || 'Вырвалась!'));
     }
@@ -200,7 +200,7 @@
       S.money = Math.floor(S.money / 2); G.healAll();
       UI.fade(() => { WD.enter('village', 11, 6, 'down'); UI.say([{ who: 'Тётка Дуня', t: 'Очнулся, горе-Чаровник? Девиц твоих я выходила. А половину монет взяла за пироги. Ешь давай.' }]); });
     }
-    if (wasT && res === 'win') { WD.trainerBeaten(wasT); if (isBoss) UI.say([{ girl: 'witch', expr: 'blush', t: D.TRAINERS.boss.after }, { who: '', t: '★ Глава 1 пройдена! Дурман развеян. Теперь собери всех десятерых героинь — твой «Девичник» ждёт.' }]); }
+    if (wasT && res === 'win') { WD.trainerBeaten(wasT); const L = ST.after(wasT); if (L.length) UI.say(L, () => G.save()); }
     G.save();
   }
 

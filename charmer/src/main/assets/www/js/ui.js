@@ -26,19 +26,68 @@
   UI.zone = function (n) { $('zone').textContent = n; $('zone').classList.add('on'); zoneT = 2.6; };
   UI.fade = function (cb) { const f = $('fade'); f.classList.add('on'); G.lock = true; setTimeout(() => { cb(); setTimeout(() => { f.classList.remove('on'); G.lock = false; }, 80); }, 260); };
 
-  /* ---------- Диалоги ---------- */
-  let dq = null, dcb = null, typed = 0, full = '';
+  /* ---------- Диалоги: два портрета, выбор ответа ---------- */
+  let dq = null, dcb = null, typed = 0, full = '', asking = null, last = -1;
+  const slots = [{ el: $('dlg-pic'), id: null, o: null }, { el: $('dlg-pic2'), id: null, o: null }];
   UI.dialogOpen = () => !!dq;
-  UI.say = function (lines, cb) { dq = lines.slice(); dcb = cb || null; nextLine(); $('dlg').classList.add('on'); };
-  function nextLine() {
-    const L = dq.shift(); if (!L) { $('dlg').classList.remove('on'); const c = dcb; dq = null; dcb = null; if (c) c(); return; }
-    const box = $('dlg-pic'); box.innerHTML = '';
-    if (L.girl) { const g = G.S.party.find(q => q.id === L.girl); box.appendChild(pic(mkCanvas(220, 220), L.girl, { expr: L.expr || 'normal', k: 1.9, y: 1.42, bloom: g && g.bloom })); $('dlg').classList.add('pic'); $('dlg-who').textContent = g ? nm(g) : D.GIRLS[L.girl].name; }
-    else { $('dlg').classList.remove('pic'); $('dlg-who').textContent = L.who || ''; }
-    $('dlg-who').style.display = $('dlg-who').textContent ? '' : 'none';
-    full = L.t; typed = 0; $('dlg-t').textContent = '';
+  UI.say = function (lines, cb) {
+    dq = (window.ST ? ST.norm(lines) : lines.slice()); dcb = cb || null; asking = null; last = -1;
+    for (const s of slots) { s.id = null; s.o = null; s.el.innerHTML = ''; }
+    $('dlg').className = 'on'; nextLine();
+  };
+  const gName = id => { const g = G.S.party.concat(G.S.box).find(q => q.id === id); return g ? nm(g) : D.GIRLS[id].name; };
+  function slotFor(id) {
+    let i = slots.findIndex(s => s.id === id);
+    if (i < 0) {
+      i = slots.findIndex(s => !s.id); if (i < 0) i = last === 0 ? 1 : 0;
+      const s = slots[i], g = G.S.party.concat(G.S.box).find(q => q.id === id);
+      s.id = id; s.o = { expr: 'normal', k: 2.45, y: 1.9, bloom: g && g.bloom, ph: i * 1.7 };
+      s.el.innerHTML = ''; s.el.appendChild(pic(mkCanvas(220, 220), id, s.o));
+    }
+    return i;
   }
-  $('dlg').addEventListener('click', () => { U.audioInit(); if (typed < full.length) { typed = full.length; $('dlg-t').textContent = full; } else { U.sfx('blip'); nextLine(); } });
+  function paint(active) {
+    const d = $('dlg'); d.classList.toggle('p1', !!slots[0].id); d.classList.toggle('p2', !!slots[1].id);
+    slots.forEach((s, i) => { s.el.classList.toggle('talk', i === active); s.el.classList.toggle('dim', !!s.id && i !== active); });
+    $('dlg-who').classList.toggle('r', active === 1);
+  }
+  function nextLine() {
+    let L = dq.shift();
+    while (L && L.fn) { L.fn(); L = dq && dq.shift(); }
+    if (!dq) return;
+    if (!L) { $('dlg').className = ''; const c = dcb; dq = null; dcb = null; asking = null; if (c) c(); return; }
+    const who = $('dlg-who'), ch = $('dlg-ch'); ch.innerHTML = ''; asking = null; who.className = '';
+    if (L.ask) {
+      asking = L.ask; paint(-1); who.textContent = 'Ты'; who.classList.add('me');
+      full = L.t || 'Что ответишь?';
+      L.ask.forEach((o, k) => { const e = document.createElement('button'); e.innerHTML = '<i>' + (k + 1) + '</i>' + o.t; e.onclick = ev => { ev.stopPropagation(); choose(k); }; ch.appendChild(e); });
+      $('dlg').classList.add('ask');
+    } else {
+      $('dlg').classList.remove('ask');
+      if (L.girl) { const i = slotFor(L.girl); slots[i].o.expr = L.expr || 'normal'; last = i; paint(i); who.textContent = gName(L.girl); }
+      else if (L.me !== undefined) { paint(-1); who.textContent = 'Ты'; who.classList.add('me'); }
+      else { paint(-1); who.textContent = L.who || ''; if (!L.who) who.classList.add('nar'); }
+      full = L.me !== undefined ? L.me : L.t;
+    }
+    who.style.display = who.textContent ? '' : 'none';
+    $('dlg-t').classList.toggle('nar', !L.girl && !L.who && L.me === undefined && !L.ask);
+    typed = 0; $('dlg-t').textContent = '';
+  }
+  function choose(k) {
+    if (!asking || !asking[k]) return; const o = asking[k]; asking = null;
+    U.sfx(o.a && Object.values(o.a).some(v => v > 0) ? 'kiss' : 'select');
+    if (window.ST) ST.aff(o.a);
+    dq.unshift(...o.r); nextLine();
+  }
+  UI.choose = choose;
+  $('dlg').addEventListener('click', () => { U.audioInit(); if (!dq) return; if (typed < full.length) { typed = full.length; $('dlg-t').textContent = full; } else if (!asking) { U.sfx('blip'); nextLine(); } });
+
+  /* ---------- Всплывашки, главы, задание ---------- */
+  UI.toast = function (t, cls) {
+    const e = document.createElement('div'); e.className = 'toast ' + (cls || ''); e.textContent = t; const box = $('toasts'); box.appendChild(e); while (box.children.length > 3) box.firstChild.remove();
+    setTimeout(() => e.classList.add('out'), 2200); setTimeout(() => e.remove(), 2700);
+  };
+  let questT = 0;
 
   /* ---------- Боевые сообщения ---------- */
   let bfull = '', btyped = 0, bdoneT = 0, btap = false;
@@ -50,6 +99,7 @@
     if (btyped < bfull.length) { btyped = Math.min(bfull.length, btyped + dt * 60); $('bmsg').textContent = bfull.slice(0, btyped | 0); } else bdoneT += dt;
     if (zoneT > 0 && (zoneT -= dt) <= 0) $('zone').classList.remove('on');
     $('money').textContent = G.S ? G.S.money : 0;
+    if ((questT -= dt) <= 0 && G.S && window.ST) { questT = 0.5; $('quest-t').textContent = ST.quest(); }
   };
 
   /* ---------- Окна ---------- */
@@ -108,6 +158,10 @@
     const acts = b.querySelector('.acts'), btn = (t, f, cls) => { const e = document.createElement('button'); e.textContent = t; if (cls) e.className = cls; e.onclick = f; acts.appendChild(e); };
     if (!box) {
       btn('Поговорить', () => talk(g), 'go');
+      const di = ST.dateInfo(g);
+      if (di.done) btn('Свидания: все ♥', () => { }, 'off');
+      else if (di.ok) btn('Свидание ♥ ' + (di.n + 1) + '/3', () => { UI.close(); UI.say(ST.date(g)); }, 'rose');
+      else btn(g.dated ? 'Свидание: отдохни в таверне' : 'Свидание: нужно ♥' + di.need, () => U.sfx('deny'), 'off');
       for (const it of ['pie', 'candy']) if (S.bag[it]) btn('Подарить: ' + D.ITEMS[it].n + ' (' + S.bag[it] + ')', () => gift(g, it));
       if (i > 0) btn('Сделать первой', () => { S.party.splice(i, 1); S.party.unshift(g); WD.fol.path = []; U.sfx('select'); UI.openMenu('party'); });
     }
@@ -170,9 +224,15 @@
     b.querySelectorAll('[data-buy]').forEach(el => el.onclick = () => { const it = D.ITEMS[el.dataset.buy]; if (S.money < it.price) return U.sfx('deny'); S.money -= it.price; S.bag[el.dataset.buy] = (S.bag[el.dataset.buy] || 0) + 1; U.sfx('select'); UI.openShop(); });
   };
   UI.openTavern = function () {
-    const S = G.S, b = open('Таверна «Пьяный гусь»', '<p class="sub">' + D.NPC.tavern + '</p><div class="menu"><button data-t="rest" class="go">Отдохнуть (вылечить всех)</button><button data-t="box">Запас героинь (' + S.box.length + ')</button><button data-x>Уйти</button></div>');
+    const S = G.S, b = open('Таверна «Пьяный гусь»', '<p class="sub">' + D.NPC.tavern + '</p><div class="menu">' + (S.flags.boss && !S.flags.party ? '<button data-t="ev" data-k="party" class="gold">★ Праздник!</button>' : S.flags.party && !S.flags.allten && D.ORDER.every(id => S.caught[id]) ? '<button data-t="ev" data-k="ten" class="gold">★ Все десять в сборе!</button>' : '') + '<button data-t="rest" class="go">Отдохнуть (вылечить всех)</button><button data-t="sit"' + (S.party.length < 2 ? ' class="off"' : '') + '>Посиделки с девицами</button><button data-t="box">Запас героинь (' + S.box.length + ')</button><button data-x>Уйти</button></div>');
     U.music('tavern');
-    b.querySelector('[data-t=rest]').onclick = () => { G.healAll(); for (const g of S.party) g.talked = false; U.sfx('heal'); UI.close(); UI.fade(() => { }); const l = S.party[0]; UI.say([{ who: 'Тётка Дуня', t: 'Спите, голубки. Утро вечера мудренее.' }].concat(l ? [{ girl: l.id, expr: 'sleepy', t: U.pick(['Ммм… ты тёплый. Я тут полежу… на тебе… пять минуточек.', 'Спокойной ночи, Чаровник. Не храпи.', 'Если приснюсь — не просыпайся.'], Math.random) }] : []), () => G.save()); };
+    b.querySelector('[data-t=rest]').onclick = () => {
+      G.healAll(); for (const g of S.party.concat(S.box)) { g.talked = false; g.dated = false; } U.sfx('heal'); UI.close(); UI.fade(() => { });
+      const l = S.party[0], night = ST.night();
+      UI.say([{ who: 'Тётка Дуня', t: 'Спите, голубки. Утро вечера мудренее.' }].concat(night || (l ? [{ girl: l.id, expr: 'sleepy', t: U.pick(['Ммм… ты тёплый. Я тут полежу… на тебе… пять минуточек.', 'Спокойной ночи, Чаровник. Не храпи.', 'Если приснюсь — не просыпайся.'], Math.random) }] : [])), () => G.save());
+    };
+    const ev = b.querySelector('[data-t=ev]'); if (ev) ev.onclick = () => { UI.close(); UI.say(ev.dataset.k === 'party' ? ST.party() : ST.allTen(), () => G.save()); };
+    const sit = b.querySelector('[data-t=sit]'); if (sit) sit.onclick = () => { if (S.party.length < 2) return U.sfx('deny'); UI.close(); UI.say(['#Вы садитесь за длинный стол. Тётка Дуня приносит пироги. Девицы косятся друг на друга…'].concat(ST.banter(true)), () => G.save()); };
     b.querySelector('[data-t=box]').onclick = () => boxView();
   };
   function boxView() {
@@ -234,6 +294,7 @@
     keys[e.code] = 1; U.audioInit();
     if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE') { e.preventDefault(); if (UI.dialogOpen()) $('dlg').click(); else if (G.mode === 'battle') $('bmsg').click(); else G.actionA(); }
     if (e.code === 'KeyM' || e.code === 'Escape') G.onBack();
+    if (UI.dialogOpen() && /^Digit[1-5]$/.test(e.code)) UI.choose(+e.code.slice(5) - 1);
   });
   addEventListener('keyup', e => { keys[e.code] = 0; });
   document.addEventListener('contextmenu', e => e.preventDefault());

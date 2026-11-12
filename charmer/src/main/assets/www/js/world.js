@@ -103,6 +103,7 @@
     W.fol = { x, y, px: x * T, py: y * T, walk: 0, path: [] };
     UI.zone(W.m.def.n);
     U.music(mapId === 'village' ? 'tavern' : 'world');
+    ST.onEnter(mapId);
   };
   W.walkable = function (x, y) {
     const m = W.m; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return false;
@@ -140,6 +141,7 @@
     const S = G.S, m = W.m, ex = m.exits.find(e => e.x === S.x && e.y === S.y);
     if (ex) { UI.fade(() => W.enter(ex.to, ex.tx, ex.ty)); return; }
     if (m.tile[S.y * m.w + S.x] === TALL && m.def.wild && G.alive() && Math.random() < 0.13) startWild();
+    else ST.step();
   }
   function startWild() {
     const wd = W.m.def.wild; let tot = 0; for (const e of wd.list) tot += e[1];
@@ -171,15 +173,15 @@
       UI.say(D.NPC.elderIntro.map(t => ({ who: 'Баба Нюра', t })), () => UI.chooseStarter(id => {
         G.addGirl(id, 5); S.flags.starter = true; W.fol.path = [];
         const g = D.GIRLS[id];
-        UI.say([{ girl: id, expr: 'happy', t: g.tame }, ...D.NPC.elderAfter.map(t => ({ who: 'Баба Нюра', t }))], () => G.save());
+        UI.say([{ girl: id, expr: 'happy', t: g.tame }, ...ST.starter(id)], () => G.save());
       }));
-    } else UI.say((S.flags.boss ? D.NPC.elderWin : D.NPC.elderAfter).map(t => ({ who: 'Баба Нюра', t })));
+    } else UI.say(ST.elder());
   }
   function trainerTalk(n) {
     const S = G.S, tr = D.TRAINERS[n.trainer];
     if (S.flags[n.trainer]) return UI.say([{ who: tr.n, t: tr.after }]);
     if (!G.alive()) return UI.say([{ who: tr.n, t: 'Твои девицы без сил. Сначала отдохни в таверне, герой-любовник.' }]);
-    UI.say(tr.before.map(t => ({ who: tr.n, t })), () => BT.start({ trainer: n.trainer, zone: W.m.id, npc: n }));
+    UI.say(ST.before(n.trainer), () => BT.start({ trainer: n.trainer, zone: W.m.id, npc: n }));
   }
   W.trainerBeaten = function (key) {
     const n = W.m.npcs.find(q => q.trainer === key), def = D.MAPS[W.m.id].npcs.find(q => q.trainer === key);
