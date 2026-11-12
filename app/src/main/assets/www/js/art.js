@@ -196,6 +196,74 @@
       x.fillStyle = '#b5a97c'; for (let i = 0; i < 4; i++) { x.beginPath(); x.ellipse(16 + rng() * 24, 12 + rng() * 14, 2, 4.5, rng() - 0.5, 0, PI2); x.fill(); }
     });
   }
+  /* ---------- Следы цивилизации ---------- */
+  function barrel(rng, col) {
+    return mk(44, 60, 22, 50, x => {
+      shadow(x, 25, 52, 21, 7, 0.5);
+      x.fillStyle = lg(x, 8, 0, 36, 0, [0, col[0], 0.4, col[1], 1, col[2]]); rr(x, 8, 12, 28, 42, 5); x.fill();
+      x.fillStyle = col[2]; x.beginPath(); x.ellipse(22, 14, 14, 5, 0, 0, PI2); x.fill();
+      x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(22, 14.5, 10.5, 3.4, 0, 0, PI2); x.fill();
+      x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 1.6; for (const y of [25, 39]) { x.beginPath(); x.ellipse(22, y, 14, 4, 0, 0.1, Math.PI - 0.1); x.stroke(); }
+      for (let i = 0; i < 14; i++) { x.fillStyle = 'rgba(' + (100 + rng() * 50 | 0) + ',52,22,' + (0.3 + rng() * 0.4) + ')'; x.beginPath(); x.ellipse(10 + rng() * 24, 18 + rng() * 34, 1 + rng() * 4, 1 + rng() * 3, rng() * 3, 0, PI2); x.fill(); }
+      x.fillStyle = 'rgba(255,255,255,.1)'; x.fillRect(12, 18, 3, 32);
+    });
+  }
+  function tires() {
+    return mk(60, 54, 30, 42, x => {
+      shadow(x, 33, 44, 27, 9, 0.5);
+      for (const y of [36, 25]) {
+        x.fillStyle = '#0b0b0b'; x.beginPath(); x.ellipse(30, y + 7, 20, 9.5, 0, 0, PI2); x.fill(); x.fillRect(10, y, 40, 7);
+        x.fillStyle = '#222321'; x.beginPath(); x.ellipse(30, y, 20, 9.5, 0, 0, PI2); x.fill();
+        x.fillStyle = '#060606'; x.beginPath(); x.ellipse(30, y, 10.5, 5, 0, 0, PI2); x.fill();
+        x.strokeStyle = 'rgba(255,255,255,.08)'; x.lineWidth = 1; for (let i = 0; i < 12; i++) { const a = i / 12 * PI2; line(x, 30 + Math.cos(a) * 15, y + Math.sin(a) * 7, 30 + Math.cos(a) * 19, y + Math.sin(a) * 9); }
+      }
+    });
+  }
+  function lamp() {
+    return mk(74, 184, 16, 174, x => {
+      shadow(x, 19, 176, 13, 5, 0.45);
+      x.lineCap = 'round';
+      x.strokeStyle = '#25282a'; x.lineWidth = 6.5; line(x, 16, 174, 16, 28); x.beginPath(); x.moveTo(16, 28); x.quadraticCurveTo(18, 14, 56, 18); x.stroke();
+      x.strokeStyle = '#5b6064'; x.lineWidth = 4; line(x, 16, 174, 16, 28); x.lineWidth = 3; x.beginPath(); x.moveTo(16, 28); x.quadraticCurveTo(18, 14, 56, 18); x.stroke();
+      x.strokeStyle = 'rgba(255,255,255,.18)'; x.lineWidth = 1; line(x, 15, 170, 15, 32);
+      x.fillStyle = '#2f3336'; rr(x, 48, 14, 22, 8, 3); x.fill(); x.fillStyle = '#11181c'; x.fillRect(52, 20, 14, 2.5);
+      x.fillStyle = '#3a3e41'; rr(x, 11, 160, 10, 14, 2); x.fill();
+      x.strokeStyle = '#1a1a1a'; x.lineWidth = 1; x.beginPath(); x.moveTo(34, 17); x.quadraticCurveTo(30, 40, 36, 56); x.stroke();
+      for (let i = 0; i < 8; i++) { x.fillStyle = 'rgba(120,58,24,.5)'; x.fillRect(14 + (i % 2) * 2, 40 + i * 16, 2, 5); }
+    });
+  }
+  function sign(rng) {
+    return mk(44, 100, 22, 92, x => {
+      shadow(x, 24, 94, 10, 4, 0.4);
+      x.save(); x.translate(22, 92); x.rotate(0.09);
+      x.strokeStyle = '#25282a'; x.lineWidth = 5; x.lineCap = 'round'; line(x, 0, 0, 0, -56); x.strokeStyle = '#6a6f72'; x.lineWidth = 3; line(x, 0, 0, 0, -56);
+      x.fillStyle = '#1c1c1a'; poly(x, [[0, -90], [18, -70], [0, -50], [-18, -70]]); x.fill();
+      x.fillStyle = '#8f7a34'; poly(x, [[0, -87], [15, -70], [0, -53], [-15, -70]]); x.fill();
+      x.fillStyle = '#1c1c1a'; x.fillRect(-1.5, -80, 3, 12); x.fillRect(-1.5, -65, 3, 3);
+      for (let i = 0; i < 9; i++) { x.fillStyle = 'rgba(96,46,20,.6)'; x.beginPath(); x.ellipse((rng() - 0.5) * 22, -70 + (rng() - 0.5) * 22, 1 + rng() * 3, 1 + rng() * 2, 0, 0, PI2); x.fill(); }
+      x.fillStyle = '#0c0c0c'; circ(x, 6, -74, 1.3); circ(x, -5, -64, 1.3);
+      x.restore();
+    });
+  }
+  function fence(rng) {
+    return mk(100, 60, 50, 48, x => {
+      shadow(x, 50, 50, 46, 6, 0.3);
+      x.lineCap = 'round';
+      const rail = (y, x1) => { x.strokeStyle = '#1d150d'; x.lineWidth = 5.5; line(x, 8, y, x1, y + 3); x.strokeStyle = '#5b4832'; x.lineWidth = 3.4; line(x, 8, y - 0.5, x1, y + 2.5); };
+      rail(24, 92); rail(36, 56 + rng() * 20);
+      for (const px of [12, 50, 88]) { const t = (rng() - 0.5) * 6; x.strokeStyle = '#1d150d'; x.lineWidth = 7.5; line(x, px, 48, px + t, 12); x.strokeStyle = '#6a553b'; x.lineWidth = 5; line(x, px, 48, px + t, 12); x.strokeStyle = 'rgba(255,240,200,.15)'; x.lineWidth = 1; line(x, px - 1.5, 46, px + t - 1.5, 14); }
+    });
+  }
+  function bones() {
+    return mk(46, 30, 23, 16, x => {
+      x.fillStyle = 'rgba(0,0,0,.25)'; x.beginPath(); x.ellipse(23, 18, 20, 9, 0, 0, PI2); x.fill();
+      x.strokeStyle = '#b9b29c'; x.lineCap = 'round'; x.lineWidth = 2.2;
+      for (let i = 0; i < 4; i++) { x.beginPath(); x.arc(24 + i * 4.5, 18, 6, 3.6, 5.6); x.stroke(); }
+      x.lineWidth = 2.6; line(x, 20, 20, 42, 22);
+      x.fillStyle = '#c9c2ac'; circ(x, 11, 14, 6.5); x.fillRect(7, 17, 8, 5);
+      x.fillStyle = '#1a1712'; circ(x, 8.8, 13.5, 1.7); circ(x, 13.4, 13.5, 1.7); x.fillRect(10.4, 16.5, 1.4, 2);
+    });
+  }
   function grassTuft(rng) {
     return mk(44, 40, 22, 34, x => {
       x.lineCap = 'round';
@@ -524,8 +592,11 @@
     S.pine = PINE.map(p => pine(r, p));
     S.oak = [leafy(r, OAK[0]), leafy(r, OAK[1]), deadTree(r)];
     S.birch = [leafy(r, BIRCH[0], true), leafy(r, BIRCH[1], true), deadTree(r)];
+    S.barrel = [barrel(r, ['#7a4028', '#99522f', '#3e2014']), barrel(r, ['#3f5a56', '#56736c', '#22302e']), barrel(r, ['#6e6a3a', '#8a8548', '#35331c'])];
+    { const t = tires(), l = lamp(), b = bones(); S.tires = [t, t, t]; S.lamp = [l, l, l]; S.bones = [b, b, b]; }
+    S.sign = [sign(r), sign(r), sign(r)]; S.fence = [fence(r), fence(r), fence(r)];
     // силуэты для длинных теней от солнца
-    for (const k of ['pine', 'oak', 'birch']) for (const sp of S[k]) {
+    for (const k of ['pine', 'oak', 'birch', 'lamp', 'sign']) for (const sp of S[k]) {
       const c = document.createElement('canvas'); c.width = sp.c.width >> 1; c.height = sp.c.height >> 1;
       const x = c.getContext('2d'); x.drawImage(sp.c, 0, 0, c.width, c.height);
       x.globalCompositeOperation = 'source-in'; x.fillStyle = '#060a06'; x.fillRect(0, 0, c.width, c.height);

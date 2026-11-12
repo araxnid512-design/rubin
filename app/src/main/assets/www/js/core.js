@@ -164,6 +164,9 @@ G.Inv = {
     deny() { tone(180, 140, 0.12, 'square', 0.06); },
     build() { burst(0.1, 0.45, 600); tone(240, 200, 0.1, 'square', 0.06, 0.04); },
     growl() { tone(95, 60, 0.35, 'sawtooth', 0.07); },
+    thunder() { burst(0.3, 0.7, 180); tone(72, 30, 1.6, 'sawtooth', 0.14, 0.04); tone(48, 28, 2.2, 'sine', 0.2, 0.1); },
+    step() { burst(0.035, 0.1, 240); },
+    bow() { tone(420, 180, 0.12, 'triangle', 0.1); burst(0.05, 0.2, 2400); },
     ui() { tone(700, 760, 0.04, 'sine', 0.06); }
   };
   let rainG = null;

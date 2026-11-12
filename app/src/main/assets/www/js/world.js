@@ -163,23 +163,30 @@
     pebble: { r: 0, ir: 14, pick: ['stone', 1, 2], re: 220, xp: 1 },
     crate:  { r: 18, ir: 22, loot: 1, re: 900, xp: 10 },
     grass:  { r: 0, ir: 0, deco: 1 },
+    barrel: { r: 13, ir: 18, loot: 1, small: 1, re: 900, xp: 6, keep: 1 },
+    tires:  { r: 15, ir: 0, deco: 1 },
+    lamp:   { r: 6, ir: 0, deco: 1 },
+    sign:   { r: 4, ir: 0, deco: 1 },
+    fence:  { r: 0, ir: 0, deco: 1 },
+    bones:  { r: 0, ir: 0, deco: 1, flat: 1 },
     car:    { r: 34, ir: 44, loot: 1, re: 1500, xp: 18, keep: 1 }
   };
 
   let objs, grid;
   function gi(x, y) { return G.clamp((y / GC) | 0, 0, GN - 1) * GN + G.clamp((x / GC) | 0, 0, GN - 1); }
-  function freeAt(x, y, minD) {
-    const cx = (x / GC) | 0, cy = (y / GC) | 0;
-    for (let j = cy - 1; j <= cy + 1; j++) for (let i = cx - 1; i <= cx + 1; i++) {
+  // minD — дистанция до объектов того же вида (kind); до остальных хватает небольшого зазора
+  function freeAt(x, y, minD, kind) {
+    const cx = (x / GC) | 0, cy = (y / GC) | 0, R = kind ? Math.ceil(minD / GC) : 1;
+    for (let j = cy - R; j <= cy + R; j++) for (let i = cx - R; i <= cx + R; i++) {
       if (i < 0 || j < 0 || i >= GN || j >= GN) continue;
       const l = grid[j * GN + i];
-      for (let k = 0; k < l.length; k++) { const o = objs[l[k]], dx = o.x - x, dy = o.y - y; if (dx * dx + dy * dy < minD * minD) return false; }
+      for (let k = 0; k < l.length; k++) { const o = objs[l[k]], dx = o.x - x, dy = o.y - y, dd = kind && o.k !== kind ? 52 : minD; if (dx * dx + dy * dy < dd * dd) return false; }
     }
     return true;
   }
   function put(k, x, y, v) {
     const K = G.KIND[k];
-    const o = { dk: 0, k, K, x, y, sy: y, v, hp: K.hp || 1, a: true, t: 0, hit: 0, fall: 1, i: objs.length };
+    const o = { dk: 0, k, K, x, y, sy: K.flat ? y - 40 : y, v, hp: K.hp || 1, a: true, t: 0, hit: 0, fall: 1, i: objs.length };
     objs.push(o); grid[gi(x, y)].push(o.i);
     return o;
   }
@@ -212,21 +219,33 @@
       const q = rng(), k = f > 0.62 ? (q < 0.7 ? 'pine' : q < 0.9 ? 'oak' : 'birch') : (q < 0.3 ? 'pine' : q < 0.65 ? 'oak' : 'birch');
       put(k, x, y, v3());
     });
-    scatter(260, (x, y, tk, hd) => { if (tk <= 1 && hd > 5.5 * T && freeAt(x, y, 110)) put('rock', x, y, v3()); });
-    scatter(160, (x, y, tk, hd) => { if (tk <= 1 && hd > 13 * T && noise(x / 200 + 50, y / 200) > 0.55 && freeAt(x, y, 100)) put('ore', x, y, v3()); });
+    scatter(260, (x, y, tk, hd) => { if (tk <= 1 && hd > 5.5 * T && freeAt(x, y, 110, 'rock')) put('rock', x, y, v3()); });
+    scatter(160, (x, y, tk, hd) => { if (tk <= 1 && hd > 13 * T && noise(x / 200 + 50, y / 200) > 0.55 && freeAt(x, y, 100, 'ore')) put('ore', x, y, v3()); });
     scatter(240, (x, y, tk, hd) => { if (tk === 0 && hd > 5 * T && freeAt(x, y, 70)) put('bush', x, y, v3()); });
     scatter(520, (x, y, tk, hd) => { if (tk === 0 && hd > 3.8 * T && freeAt(x, y, 54)) put('fiber', x, y, v3()); });
     scatter(300, (x, y, tk, hd) => { if (tk <= 1 && hd > 3.8 * T && freeAt(x, y, 50)) put('stick', x, y, v3()); });
     scatter(240, (x, y, tk, hd) => { if (tk <= 2 && hd > 3.8 * T && freeAt(x, y, 50)) put('pebble', x, y, v3()); });
-    scatter(3400, (x, y, tk, hd) => { if (tk === 0 && hd > 5.2 * T && noise(x / 150 + 20, y / 150) > 0.36 && freeAt(x, y, 24)) put('grass', x, y, v3()); });
-    scatter(60, (x, y, tk, hd) => { if (tk <= 1 && hd > 12 * T && freeAt(x, y, 300)) put('crate', x, y, 0); });
-    scatter(70, (x, y, tk, hd) => { if (tk <= 1 && hd > 9 * T && freeAt(x, y, 520)) put('car', x, y, v3()); });
-    for (let i = 0; i < 14; i++) { const x = B + 120 + rng() * (W - 2 * B - 240), y = roadY(x) + (rng() - 0.5) * 56; if (!G.isWater(x, y) && G.terrKind(x, y) === 4 && freeAt(x, y, 300)) put('car', x, y, v3()); }
-    { const x = HX + 5.2 * T, y = roadY(x) - 8; if (freeAt(x, y, 120)) put('car', x, y, 0); }
+    scatter(60, (x, y, tk, hd) => { if (tk <= 1 && hd > 12 * T && freeAt(x, y, 300, 'crate')) put('crate', x, y, 0); });
+    scatter(70, (x, y, tk, hd) => { if (tk <= 1 && hd > 9 * T && freeAt(x, y, 520, 'car')) put('car', x, y, v3()); });
+    for (let i = 0; i < 14; i++) { const x = B + 120 + rng() * (W - 2 * B - 240), y = roadY(x) + (rng() - 0.5) * 56; if (!G.isWater(x, y) && G.terrKind(x, y) === 4 && freeAt(x, y, 300, 'car')) put('car', x, y, v3()); }
+    { const x = HX + 5.2 * T, y = roadY(x) - 8; if (freeAt(x, y, 60)) put('car', x, y, 0); }
+    // брошенные вещи: бочки и покрышки у машин, фонари и знаки вдоль шоссе, заборы, кости
+    for (let i = 0, n = objs.length; i < n; i++) {
+      const o = objs[i]; if (o.k !== 'car') continue;
+      if (rng() < 0.65) { const x = o.x + 78 + rng() * 20, y = o.y - 14 + rng() * 30; if (!G.isWater(x, y) && freeAt(x, y, 40)) put('barrel', x, y, v3()); }
+      if (rng() < 0.45) { const x = o.x - 86 - rng() * 16, y = o.y + rng() * 24; if (!G.isWater(x, y) && freeAt(x, y, 40)) put('tires', x, y, 0); }
+    }
+    for (let x = B + 160; x < W - B - 160; x += 330 + rng() * 160) { const y = roadY(x) + (rng() < 0.5 ? -68 : 70); if (!G.isWater(x, y) && rng() < 0.85) put('lamp', x, y, 0); }
+    for (let i = 0; i < 12; i++) { const x = B + 200 + rng() * (W - 2 * B - 400), y = roadY(x) + (rng() < 0.5 ? -74 : 76); if (!G.isWater(x, y) && freeAt(x, y, 120, 'sign')) put('sign', x, y, v3()); }
+    scatter(170, (x, y, tk, hd) => { if ((tk <= 1 || tk === 4) && hd > 7 * T && freeAt(x, y, 240, 'barrel')) put('barrel', x, y, v3()); });
+    scatter(150, (x, y, tk, hd) => { if (tk === 0 && hd > 7 * T && freeAt(x, y, 280, 'fence')) put('fence', x, y, v3()); });
+    scatter(200, (x, y, tk, hd) => { if (tk <= 2 && hd > 8 * T && freeAt(x, y, 220, 'bones')) put('bones', x, y, 0); });
     // гарантированный старт возле дома
     const near = [['stick', -3.2, 3.4], ['stick', 2.6, 4.2], ['stick', -1.2, 5.3], ['pebble', 3.9, 2.2], ['pebble', -4.4, 1.2], ['pebble', 1.4, 5.6],
       ['fiber', -4.6, 3.6], ['fiber', 4.6, 4.4], ['fiber', 0.2, 6.2], ['bush', -5.4, -1.6], ['bush', 5.6, 0.4], ['pine', -6.2, 4.6], ['oak', 6.4, 4.2], ['birch', -5.6, -4.6], ['rock', 5.4, -3.6], ['pine', 3.6, 6.8]];
     for (const n of near) { const x = HX + n[1] * T, y = HY + n[2] * T; if (freeAt(x, y, 40)) put(n[0], x, y, v3()); }
+    // трава — в самом конце, чтобы не мешать расстановке остального
+    scatter(3400, (x, y, tk, hd) => { if (tk === 0 && hd > 5.2 * T && noise(x / 150 + 20, y / 150) > 0.36 && freeAt(x, y, 24)) put('grass', x, y, v3()); });
     G.objs = objs;
   };
 

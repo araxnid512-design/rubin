@@ -9,7 +9,7 @@
   G.tgt = { ref: null, type: '', d: 0, x: 0, y: 0, ir: 0 };
   G.view = { w: 1, h: 1, zoom: 1, css: 1 };
   G.cam = { x: HX, y: HY, left: 0, top: 0 };
-  G.shake = 0; G.night = 0; G.rain = 0; G.uiDirty = true; G.hitstop = 0; G.decals = [];
+  G.shake = 0; G.night = 0; G.rain = 0; G.flash = 0; G.uiDirty = true; G.hitstop = 0; G.decals = [];
 
   G.QUESTS = [
     { t: 'Собери 3 палки и 3 камня', c: () => cnt('stick') >= 3 && cnt('stone') >= 3, xp: 15 },
@@ -195,7 +195,7 @@
       o.a = false; o.t = G.time + K.re; G.sfx('pick'); addXp(K.xp);
       burst(o.x, o.y - 8, 6, ['#8cc35a', '#d9c98a'], 70, 0);
     } else if (K.loot) {
-      for (let i = 0; i < 3; i++) { const l = LOOT[(Math.random() * LOOT.length) | 0]; give(l[0], l[1] + ((Math.random() * (l[2] - l[1] + 1)) | 0), o.x, o.y); }
+      for (let i = 0; i < (K.small ? 1 : 3); i++) { const l = LOOT[(Math.random() * LOOT.length) | 0]; give(l[0], l[1] + ((Math.random() * (l[2] - l[1] + 1)) | 0), o.x, o.y); }
       o.a = false; o.t = G.time + K.re; G.sfx('craft'); addXp(K.xp);
       burst(o.x, o.y - 10, 14, ['#7b8a52', '#4c5a32', '#d9c98a'], 130, 300);
     } else {
@@ -387,6 +387,7 @@
     const wr = G.noise(G.time / 75, 9.3) > 0.6 ? 1 : 0;
     G.rain += (wr - G.rain) * Math.min(1, dt * 0.3); if (G.rain < 0.01 && !wr) G.rain = 0;
     rainT -= dt; if (rainT <= 0) { rainT = 0.5; G.setRain(G.rain); }
+    if (G.rain > 0.6 && Math.random() < dt * 0.07) { G.flash = 1; G.sfx('thunder'); }
     updPlayer(dt); updMobs(dt);
     // камера
     const p = G.p, k = Math.min(1, dt * 6);
@@ -592,8 +593,8 @@
       const dp = clamp(G.phase / 0.6, 0, 1), sc = (0.95 - dp * 1.9) * z, sd = -(0.26 + Math.abs(dp - 0.5) * 0.36) * z;
       ctx.globalAlpha = sunA;
       for (let n = 0; n < list.length; n++) {
-        const o = list[n]; if (o.dk !== 0 || !o.K.tree || !o.a) continue;
-        const sp = S[o.k][o.v];
+        const o = list[n]; if (o.dk !== 0 || !o.a) continue;
+        const sp = S[o.k][o.v]; if (!sp.sh) continue;
         ctx.setTransform(z, 0, sc, sd, SX(o.x), SY(o.y)); ctx.drawImage(sp.sh, -sp.ax, -sp.ay, sp.w, sp.h);
       }
       ctx.globalAlpha = 1;
@@ -655,7 +656,7 @@
     // частицы и надписи
     ctx.setTransform(z, 0, 0, z, -left * z, -top * z);
     const ps = G.parts;
-    for (let i = 0; i < ps.length; i++) { const q = ps[i]; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.6); ctx.fillStyle = q.c; ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s); }
+    for (let i = 0; i < ps.length; i++) { const q = ps[i]; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.6); if (q.ring) { const rr = (1 - q.life / q.max) * q.s; ctx.strokeStyle = q.c; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.5, 0, 0, 6.283); ctx.stroke(); } else { ctx.fillStyle = q.c; ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s); } }
     // полоски здоровья мобов
     ctx.globalAlpha = 1;
     for (const m of G.mobs) {
@@ -685,13 +686,14 @@
       ctx.globalAlpha = 1;
     }
     // пепел и пыль в воздухе
-    while (motes.length < 26) motes.push({ x: left + Math.random() * hw * 2, y: top + Math.random() * hh * 2, ph: Math.random() * 6, s: 1.2 + Math.random() * 1.8 });
+    while (motes.length < 26) motes.push({ x: left + Math.random() * hw * 2, y: top + Math.random() * hh * 2, ph: Math.random() * 6, s: 1.2 + Math.random() * 1.8, lf: motes.length % 4 === 0 ? ['#7a5a2c', '#8a4a22', '#6b6a34'][(motes.length >> 2) % 3] : null });
     ctx.fillStyle = '#cfc8b8';
     for (const m of motes) {
       if (m.x < left - 30) m.x += hw * 2 + 50; else if (m.x > right + 30) m.x -= hw * 2 + 50;
       if (m.y < top - 30) m.y += hh * 2 + 50; else if (m.y > bot + 30) m.y -= hh * 2 + 50;
       m.ph += dt; m.x += (16 + Math.sin(m.ph * 0.9) * 10) * dt; m.y += (9 + Math.cos(m.ph * 1.3) * 8) * dt;
-      ctx.globalAlpha = 0.16 + 0.14 * Math.sin(m.ph * 2); ctx.fillRect(m.x, m.y, m.s, m.s);
+      if (m.lf) { m.y += 16 * dt; ctx.globalAlpha = 0.75; ctx.fillStyle = m.lf; ctx.fillRect(m.x, m.y, 1.5 + 4 * Math.abs(Math.sin(m.ph * 4)), 3); ctx.fillStyle = '#cfc8b8'; }
+      else { ctx.globalAlpha = 0.16 + 0.14 * Math.sin(m.ph * 2); ctx.fillRect(m.x, m.y, m.s, m.s); }
     }
     ctx.globalAlpha = 1;
     // свет и ночь
@@ -725,6 +727,8 @@
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     // дождь
     const rn = G.rain;
+    { const warm = Math.max(G.phase < 0.14 ? 1 - G.phase / 0.14 : 0, nt > 0 && nt < 0.6 ? nt / 0.6 : 0) * (1 - rn);
+      if (warm > 0.06) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(255,138,58,' + warm * 0.085 + ')'; ctx.fillRect(0, 0, V.w, V.h); ctx.setTransform(z, 0, 0, z, -left * z, -top * z); } }
     if (rn > 0.02) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = 'rgba(14,22,30,' + rn * 0.22 + ')'; ctx.fillRect(0, 0, V.w, V.h);
@@ -736,7 +740,8 @@
         ctx.moveTo(ax, ay); ctx.lineTo(ax - L * 0.22, ay + L);
       }
       ctx.stroke();
-      if (dt > 0 && Math.random() < rn * 0.8) part(left + Math.random() * hw * 2, top + Math.random() * hh * 2, 0, 0, 0.25, 3, 'rgba(200,215,230,.5)', 0);
+      if (dt > 0) for (let i = 0; i < 2; i++) if (Math.random() < rn && G.parts.length < 240) G.parts.push({ x: left + Math.random() * hw * 2, y: top + Math.random() * hh * 2, vx: 0, vy: 0, life: 0.4, max: 0.4, s: 9, c: 'rgba(200,215,230,.45)', g: 0, ring: 1 });
+      if (G.flash > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'rgba(225,235,255,' + G.flash * 0.34 + ')'; ctx.fillRect(0, 0, V.w, V.h); G.flash -= dt * 2.6 + 0.001; }
       ctx.setTransform(z, 0, 0, z, -left * z, -top * z);
     }
     // всплывающий текст
