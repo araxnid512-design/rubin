@@ -312,6 +312,7 @@
     u.hp -= dmg;
     DW.TR.float(u.x, u.y, (crit ? 'КРИТ −' : '−') + dmg, crit ? 'crit' : (u.side === 'p' ? 'hurt' : 'dmg'));
     DW.TR.blood(u);
+    DW.TR.hitFx(u);
     DW.SFX.play('hit');
     if (u.hp <= 0) {
       u.hp = 0;
@@ -324,7 +325,8 @@
   };
   BT.kill = function (u, src) {
     u.alive = false; u.overwatch = false; u.hunker = false;
-    B.corpses.push({ x: u.x, y: u.y, side: u.side, type: u.type || u.kind, face: u.face });
+    B.corpses.push({ x: u.x, y: u.y, side: u.side, type: u.type || u.kind, face: u.face, uid: u.id });
+    DW.TR.dieFx(u);
     if (u.side === 'e') {
       const T = D.ENEMIES[u.type];
       DW.SFX.play(T.beast ? 'growl' : 'death');
@@ -571,9 +573,10 @@
   /* ---------- Действия игрока ---------- */
   BT.doReload = function (u) {
     u.clip = D.WEAPONS[u.weapon].clip; u.ap -= 1;
+    DW.TR.anim(u, 'reload', 700);
     DW.SFX.play('reload'); DW.TR.float(u.x, u.y, 'Перезарядка', 'info');
   };
-  BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); };
+  BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); DW.SFX.play('reload'); };
   BT.doHunker = function (u) { u.hunker = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Залёг', 'info'); };
   BT.doEvac = function (u) {
     u.evac = true; u.ap = 0; u.overwatch = false;
@@ -588,10 +591,12 @@
     DW.TR.float(t.x, t.y, '+' + v + ' ОЗ', 'good');
     DW.SFX.play('pickup');
   };
-  BT.doMedkit = function (u, t) { DW.G.state.res.meds -= 1; BT.heal(t, 4); u.ap -= 1; };
-  BT.doFieldHeal = function (u, t) { u.charges.heal -= 1; BT.heal(t, 5); u.ap -= 1; };
+  BT.doMedkit = function (u, t) { DW.G.state.res.meds -= 1; BT.heal(t, 4); u.ap -= 1; DW.TR.anim(u, 'check', 700); };
+  BT.doFieldHeal = function (u, t) { u.charges.heal -= 1; BT.heal(t, 5); u.ap -= 1; DW.TR.anim(u, 'check', 700); };
   BT.doOrder = function (u, t) {
     t.ap = Math.min(3, t.ap + 1); u.ap -= 1; u.cd.order = D.ABIL.order.cd;
+    u.face = Math.atan2(t.y - u.y, t.x - u.x);
+    DW.TR.anim(u, 'signal', 700);
     DW.TR.float(t.x, t.y, '+1 ОД', 'good'); DW.SFX.play('alert');
   };
   BT.doRush = function (u) { u.ap += 1; u.cd.rush = D.ABIL.rush.cd; DW.TR.float(u.x, u.y, 'Рывок! +1 ОД', 'good'); };
@@ -604,6 +609,8 @@
     const st = DW.G.state;
     u.ap = 0;
     u.face = Math.atan2(y - u.y, x - u.x);
+    if (kind !== 'rocket') { DW.TR.anim(u, 'throw', 560); await U.sleep(330); }
+    else { DW.TR.anim(u, 'shoot', 300, { cnt: 1 }); }
     if (kind === 'rocket') {
       st.res.rockets -= 1;
       await DW.TR.projectileFx(u.x, u.y, x, y, 'rocket');

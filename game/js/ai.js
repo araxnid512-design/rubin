@@ -128,7 +128,7 @@
     const W = D.WEAPONS[e.weapon];
     if (e.clip <= 0) {
       e.clip = W.clip; e.ap -= 1;
-      if (e.seen) { DW.TR.float(e.x, e.y, 'Перезарядка', 'info'); DW.SFX.play('reload'); await U.sleep(250); }
+      if (e.seen) { DW.TR.anim(e, 'reload', 700); DW.TR.float(e.x, e.y, 'Перезарядка', 'info'); DW.SFX.play('reload'); await U.sleep(450); }
       return true;
     }
     const ts = BT.players();

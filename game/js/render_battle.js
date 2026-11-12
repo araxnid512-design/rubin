@@ -576,6 +576,9 @@
   TR.init = function (B) {
     sprites = {};
     unitCache = {};
+    for (const k in anims) delete anims[k];
+    for (const k in nextFidget) delete nextFidget[k];
+    for (const k in deadAt) delete deadAt[k];
     fx = { floats: [], tracers: [], parts: [], projs: [], flashes: [] };
     for (const k in tweens) delete tweens[k];
     camWaiters = [];
@@ -690,8 +693,9 @@
     });
   };
   TR.lungeFx = function (att, tgt) {
+    TR.anim(att, 'atk', 300);
     return new Promise(function (res) {
-      tweens[att.id] = { fx: att.x, fy: att.y, tx: tgt.x, ty: tgt.y, t0: now(), dur: 280 / spd(), res: res, kind: 'lunge' };
+      tweens[att.id] = { fx: att.x, fy: att.y, tx: tgt.x, ty: tgt.y, t0: now(), dur: 300 / spd(), res: res, kind: 'lunge' };
     });
   };
   TR.float = function (x, y, text, kind) {
@@ -740,7 +744,10 @@
     const ty0 = tc[1] - 24 * unitScale(tgt);
     const cnt = { rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1;
     const gap = (W.snd === 'lmg' ? 70 : 90) / s;
-    const t0 = now();
+    const pre = W.snd === 'spit' ? 300 / s : 120 / s;
+    if (W.snd === 'spit') TR.anim(att, 'charge', 300);
+    const t0 = now() + pre;
+    setTimeout(function () { TR.anim(att, 'shoot', (cnt - 1) * gap * s + 260, { cnt: cnt }); }, pre);
     const col = W.snd === 'spit' ? '#a8e03a' : (W.snd === 'beam' ? '#6fd8ff' : '#ffe08a');
     for (let i = 0; i < cnt; i++) {
       let ex = tc[0], ey = ty0;
@@ -752,9 +759,9 @@
         setTimeout(function () { parts(ex, ey + 20, 6, 5, 'rgba(200,180,150,0.7)', 40, 400, 3, 200, 40); }, i * gap + 100 / s);
       }
     }
-    if (show || att.side === 'p') DW.SFX.play(W.snd);
+    if (show || att.side === 'p') setTimeout(function () { DW.SFX.play(W.snd); }, pre);
     fx.flashes.push({ x: m[0], y: m[1], r: 14, t0: t0, life: 90 + cnt * gap, muzzle: true });
-    const dur = (cnt - 1) * gap + 190 / s;
+    const dur = pre + (cnt - 1) * gap + 190 / s;
     return new Promise(function (res) { setTimeout(res, dur); });
   };
   TR.projectileFx = function (x0, y0, x1, y1, kind) {
@@ -798,41 +805,105 @@
     return { dir: dir, aim: U.clamp(Math.atan2(sy, Math.abs(sx)) * 0.55, -0.5, 0.5) };
   }
   let unitCache = {};
-  function paintUnit(g, u, fi, walk, sc, t) {
+  /* ---------- Анимации юнитов ---------- */
+  const anims = {};
+  const nextFidget = {};
+  const deadAt = {};
+  TR.anim = function (u, kind, dur, data) {
+    if (!u) return;
+    anims[u.id] = { kind: kind, t0: now(), dur: dur / spd(), data: data || {} };
+  };
+  TR.hitFx = function (u) { if (!anims[u.id] || anims[u.id].kind !== 'die') TR.anim(u, 'hit', 340); };
+  TR.dieFx = function (u) { TR.anim(u, 'die', 820); deadAt[u.id] = now(); };
+  function curAnim(u, t) {
+    const a = anims[u.id];
+    if (!a) return null;
+    const p = (t - a.t0) / a.dur;
+    if (p >= 1) { if (a.kind !== 'die') delete anims[u.id]; return a.kind === 'die' ? { kind: 'die', p: 1, a: a } : null; }
+    return { kind: a.kind, p: Math.max(0, p), a: a };
+  }
+  function poseFor(u, an) {
+    const P = {};
+    if (u.hunker) { P.crouch = 1; P.low = 0.5; }
+    else if (u.overwatch) { P.raise = 1; P.crouch = 0.3; }
+    if (!an) return P;
+    const p = an.p;
+    switch (an.kind) {
+      case 'shoot': {
+        const n = an.a.data.cnt || 1;
+        const q = (p * n) % 1;
+        P.raise = 1; P.crouch = Math.max(P.crouch || 0, 0.15);
+        P.recoil = q < 0.35 ? q / 0.35 : Math.max(0, 1 - (q - 0.35) / 0.65);
+        P.atk = Math.sin(Math.min(1, p) * Math.PI);
+        break;
+      }
+      case 'charge': P.charge = p; break;
+      case 'reload': P.reload = p; P.crouch = Math.max(P.crouch || 0, 0.2); break;
+      case 'throw': P.throwP = p; break;
+      case 'hit': P.hit = Math.sin(p * Math.PI); break;
+      case 'atk': P.atk = Math.sin(p * Math.PI); break;
+      case 'look': P.look = p > 0.25 && p < 0.75 ? -1 : 0; break;
+      case 'check': P.low = Math.sin(p * Math.PI) * 0.9; break;
+      case 'sniff': P.atk = Math.sin(p * Math.PI * 3) * 0.25; break;
+      case 'signal': P.raise = 0.4; P.lean = -0.08; break;
+      default: break;
+    }
+    return P;
+  }
+  function paintUnit(g, u, fi, walk, sc, t, pose) {
     if (u.kind === 'soldier') {
-      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc }, t);
+      ART.human(g, { look: u.look, body: '#c8691c', armor: u.armorId || 'robe', weapon: u.weapon, dir: fi.dir, aim: fi.aim, walk: walk, cig: u.name === 'Мальборо', helmet: u.armorId === 'heavy' || u.armorId === 'exo', helmetColor: u.armorId === 'exo' ? '#2f4552' : '#4a5258', seed: u.id, scale: sc, pose: pose, band: u.rank >= 4 ? '#c0302a' : null }, t);
     } else if (u.kind === 'turret') {
-      ART.creature(g, 'turret', { dir: fi.dir, aim: fi.aim, seed: u.id, scale: sc }, t);
+      ART.creature(g, 'turret', { dir: fi.dir, aim: fi.aim, seed: u.id, scale: sc, pose: pose }, t);
     } else if (ART.ENEMY_LOOKS[u.type]) {
       const E = ART.ENEMY_LOOKS[u.type];
       if (!E._look) E._look = ART.makeLook(ART.hashStr(u.type), E.look);
-      ART.human(g, { look: E._look, body: E.body, pants: E.pants, mask: E.mask, hood: E.hood, coat: E.coat, collar: E.collar, robe: false, weapon: D.ENEMIES[u.type].weapon, dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id }, t);
+      ART.human(g, { look: E._look, body: E.body, pants: E.pants, mask: E.mask, hood: E.hood, coat: E.coat, collar: E.collar, robe: false, weapon: D.ENEMIES[u.type].weapon, dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose }, t);
     } else {
-      ART.creature(g, u.type, { dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id }, t);
+      ART.creature(g, u.type, { dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose }, t);
     }
   }
-  function unitSprite(u, fi, sc) {
+  function stanceKey(u) { return u.hunker ? 'h' : (u.overwatch ? 'o' : 'n'); }
+  function unitSprite(u, fi, sc, dead) {
     const aimQ = Math.round(fi.aim * 4) / 4;
-    const key = u.id + '|' + fi.dir + '|' + aimQ + '|' + (u.armorId || '') + '|' + (u.weapon || '') + '|' + (u.type || u.kind);
+    const key = u.id + '|' + fi.dir + '|' + aimQ + '|' + (u.armorId || '') + '|' + (u.weapon || '') + '|' + (u.type || u.kind) + '|' + (dead ? 'X' : stanceKey(u));
     let s = unitCache[key];
     if (!s) {
       const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' ? 1.4 : 1);
-      const LW = 120 * big, LH = 100 * big, ox = LW / 2, oy = LH - 16 * big, SS = 2;
+      const LW = 130 * big, LH = 100 * big, ox = LW / 2, oy = LH - 16 * big, SS = 2;
       const c = canvas(LW * SS, LH * SS);
       const g = c.getContext('2d');
       g.scale(SS, SS); g.translate(ox, oy);
-      paintUnit(g, u, { dir: fi.dir, aim: aimQ }, null, sc, 0);
+      if (dead) fallTransform(g, u, fi, 1);
+      paintUnit(g, u, { dir: fi.dir, aim: dead ? 0.3 : aimQ }, null, sc, 0, dead ? {} : poseFor(u, null));
       s = unitCache[key] = { c: c, w: LW, h: LH, ox: ox, oy: oy };
     }
     return s;
+  }
+  function fallTransform(g, u, fi, f) {
+    const beast = u.side === 'e' && D.ENEMIES[u.type] && !ART.ENEMY_LOOKS[u.type];
+    const e = U.ease(U.clamp(f, 0, 1));
+    if (beast) { g.rotate(-fi.dir * e * 0.35); g.scale(1, 1 - e * 0.45); }
+    else { g.translate(-fi.dir * e * 4, 0); g.rotate(-fi.dir * e * 1.42); g.scale(1, 1 - e * 0.2); }
   }
   function drawUnit(g, u, t, sel, alpha) {
     const p = leanPos(u);
     const c = isoC(p[0], p[1]);
     const fi = faceInfo(u);
     const tw = tweens[u.id];
-    const walk = tw && tw.kind === 'step' ? t / 75 : null;
+    const walk = tw && tw.kind === 'step' ? t / 70 : null;
     const sc = unitScale(u);
+    let an = curAnim(u, t);
+    // случайные движения в покое
+    if (!an && !tw && alpha === undefined && u.alive) {
+      if (!nextFidget[u.id]) nextFidget[u.id] = t + 2000 + Math.random() * 9000;
+      else if (t > nextFidget[u.id]) {
+        nextFidget[u.id] = t + 6000 + Math.random() * 10000;
+        const human = u.kind === 'soldier' || ART.ENEMY_LOOKS[u.type];
+        if (u.kind !== 'turret' && !u.hunker) TR.anim(u, human ? (Math.random() < 0.6 ? 'look' : 'check') : 'sniff', human ? 1500 : 1100);
+        an = curAnim(u, t);
+      }
+    }
     if (alpha !== undefined) g.globalAlpha = alpha;
     if (sel && alpha === undefined) {
       const pulse = 0.55 + Math.sin(t / 200) * 0.3;
@@ -840,30 +911,73 @@
       g.strokeStyle = 'rgba(130,200,255,' + pulse + ')'; g.lineWidth = 2.2;
       g.beginPath(); g.ellipse(c[0], c[1], 21, 10.5, 0, 0, Math.PI * 2); g.stroke();
     }
-    if (!tw) {
-      const sp = unitSprite(u, fi, sc);
+    if (!tw && !an) {
+      const sp = unitSprite(u, fi, sc, false);
       const bob = Math.sin(t / 650 + u.id) * 0.5;
       g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy + bob * 0.5, sp.w, sp.h);
       if (u.name === 'Мальборо' && u.kind === 'soldier') {
         const k = (t / 1600) % 1;
         g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';
-        ART.circ(g, c[0] + fi.dir * (11 + k * 4) * sc, c[1] - 42 * sc - k * 14, 1.2 + k * 2.4);
+        ART.circ(g, c[0] + fi.dir * (11 + k * 4) * sc, c[1] - 42 * sc - k * 14 + (u.hunker ? 7 : 0), 1.2 + k * 2.4);
       }
       if (alpha !== undefined) g.globalAlpha = 1;
       return;
     }
+    const pose = poseFor(u, an);
     g.save(); g.translate(c[0], c[1]);
-    paintUnit(g, u, fi, walk, sc, t);
+    if (an && an.kind === 'hit') {
+      g.translate(-fi.dir * Math.sin(an.p * Math.PI) * 3, 0);
+    }
+    paintUnit(g, u, fi, walk, sc, t, pose);
     g.restore();
+    if (an && an.kind === 'hit' && an.p < 0.6) {
+      const k = 1 - an.p / 0.6;
+      g.globalCompositeOperation = 'lighter';
+      const gr = g.createRadialGradient(c[0], c[1] - 26 * sc, 2, c[0], c[1] - 26 * sc, 22 * sc);
+      gr.addColorStop(0, 'rgba(255,60,40,' + (0.55 * k) + ')'); gr.addColorStop(1, 'rgba(255,60,40,0)');
+      g.fillStyle = gr; ART.ell(g, c[0], c[1] - 26 * sc, 22 * sc, 28 * sc);
+      g.globalCompositeOperation = 'source-over';
+    }
     if (alpha !== undefined) g.globalAlpha = 1;
   }
-  function drawCorpse(g, cp) {
-    const c = isoC(cp.x, cp.y);
-    g.fillStyle = cp.side === 'e' ? 'rgba(70,80,20,0.5)' : 'rgba(100,12,12,0.55)';
-    ART.ell(g, c[0], c[1], 16, 7);
-    g.fillStyle = cp.side === 'p' ? '#7a4a20' : (cp.type === 'guardian' || cp.type === 'turret' ? '#3a4248' : '#3e3430');
-    g.beginPath(); g.ellipse(c[0] - 2, c[1] - 2, 11, 4.5, (cp.face || 0) * 0.15, 0, Math.PI * 2); g.fill();
-    g.fillStyle = 'rgba(0,0,0,0.25)'; ART.ell(g, c[0] + 7, c[1] - 3, 4, 3);
+  function poolColor(u) {
+    const T = u.side === 'e' ? D.ENEMIES[u.type] : null;
+    if ((T && T.mech) || u.kind === 'turret') return [40, 36, 30];
+    if (T && T.beast) return [70, 90, 20];
+    return [110, 14, 12];
+  }
+  function drawCorpse(g, cp, t) {
+    const B = DW.BT.get();
+    const u = cp.uid ? B.units.find(function (x) { return x.id === cp.uid; }) : null;
+    if (!u) {
+      const c = isoC(cp.x, cp.y);
+      g.fillStyle = cp.side === 'e' ? 'rgba(70,80,20,0.5)' : 'rgba(100,12,12,0.55)';
+      ART.ell(g, c[0], c[1], 16, 7);
+      g.fillStyle = cp.side === 'p' ? '#7a4a20' : (cp.type === 'guardian' || cp.type === 'turret' ? '#3a4248' : '#3e3430');
+      g.beginPath(); g.ellipse(c[0] - 2, c[1] - 2, 11, 4.5, (cp.face || 0) * 0.15, 0, Math.PI * 2); g.fill();
+      return;
+    }
+    const c = isoC(u.x, u.y);
+    const fi = faceInfo(u);
+    const sc = unitScale(u);
+    const da = deadAt[u.id];
+    const age = da ? (t - da) / 1000 : 99;
+    const pc = poolColor(u);
+    const pool = U.clamp((age - 0.5) / 2.5, 0, 1);
+    if (pool > 0) {
+      g.fillStyle = 'rgba(' + pc[0] + ',' + pc[1] + ',' + pc[2] + ',' + (0.6 * pool) + ')';
+      ART.ell(g, c[0] - fi.dir * 10 * sc, c[1] + 1, 6 + 14 * pool * sc, 3 + 6 * pool * sc);
+    }
+    const an = curAnim(u, t);
+    if (an && an.kind === 'die' && an.p < 1) {
+      g.save(); g.translate(c[0], c[1]);
+      fallTransform(g, u, fi, an.p);
+      paintUnit(g, u, fi, null, sc, t, { hit: an.p < 0.3 ? an.p / 0.3 : 1 });
+      g.restore();
+      return;
+    }
+    const sp = unitSprite(u, fi, sc, true);
+    g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
   }
   function drawItem(g, it, t) {
     const c = isoC(it.x, it.y);
@@ -1094,7 +1208,7 @@
         const i = y * B.w + x;
         const ex = B.explored[i];
         if (ex) {
-          if (corpsesAt[i]) corpsesAt[i].forEach(function (c) { drawCorpse(g, c); });
+          if (corpsesAt[i]) corpsesAt[i].forEach(function (c) { drawCorpse(g, c, t); });
           if (props[i]) props[i].forEach(function (p) { drawProp(g, p, t); });
           if (itemsAt[i]) drawItem(g, itemsAt[i], t);
           const o = B.obj[i];
@@ -1309,6 +1423,9 @@
     return vigC;
   };
   TR.isAnimating = function () {
+    const t = now();
+    for (const k in anims) if (anims[k].kind !== 'die' && t - anims[k].t0 < anims[k].dur) return true;
+    for (const k in deadAt) if (t - deadAt[k] < 3000) return true;
     return Object.keys(tweens).length > 0 || fx.parts.length > 0 || fx.tracers.length > 0 || fx.floats.length > 0 || fx.flashes.length > 0 || fx.projs.length > 0 || TR.cam.tx !== null || TR.shake > 0;
   };
   function BT_visVersion() { return DW.BT.visVersion; }
