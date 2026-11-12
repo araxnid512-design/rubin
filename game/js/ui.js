@@ -116,6 +116,11 @@
   UI.skulls = skulls;
 
   /* ---------- Отряд ---------- */
+  function rankBadge(r) { let h = '<span class="rankb">'; for (let i = 0; i < r; i++) h += '<i></i>'; return h + '</span>'; }
+  UI.rankBadge = rankBadge;
+  function statRow(label, val, max, suffix) {
+    return '<div class="stat"><span>' + label + '</span><div class="sbar"><i style="width:' + Math.min(100, Math.round(val / max * 100)) + '%"></i></div><b>' + val + (suffix || '') + '</b></div>';
+  }
   UI.squad = function (onChange) {
     const G = DW.G, st = G.state;
     let selId = st.roster.length ? st.roster[0].id : null;
@@ -127,10 +132,12 @@
       list.innerHTML = '';
       st.roster.forEach(function (s) {
         const c = D.CLASSES[s.cls];
-        const card = el('div', { class: 'scard' + (s.id === selId ? ' sel' : ''), onclick: function () { selId = s.id; render(); } });
-        card.innerHTML = '<div class="sname"><i class="cdot" style="background:' + c.color + '"></i>' + s.name +
-          ' <small>' + D.RANKS[G.rank(s)].n + '</small></div>' + hpBar(G.hp(s), G.maxHp(s)) +
-          '<div class="sline">' + c.n + ' · ' + (D.WEAPONS[s.weapon].s || D.WEAPONS[s.weapon].n) + '</div>';
+        const card = el('div', { class: 'scard' + (s.id === selId ? ' sel' : ''), onclick: function () { selId = s.id; DW.SFX.play('click'); render(); } });
+        card.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
+        const sc = el('div', { class: 'sc' });
+        sc.innerHTML = '<div class="sname">' + s.name + rankBadge(G.rank(s)) + '</div>' + hpBar(G.hp(s), G.maxHp(s)) +
+          '<div class="sline">' + c.n + ' · ' + (D.WEAPONS[s.weapon].s || D.WEAPONS[s.weapon].n) + (s.wounds > 0 ? ' · <span class="bad">ранен</span>' : '') + '</div>';
+        card.appendChild(sc);
         list.appendChild(card);
       });
       det.innerHTML = '';
@@ -139,17 +146,21 @@
       const c = D.CLASSES[s.cls], ab = D.ABIL[c.ab];
       const rk = G.rank(s);
       const next = D.RANKS[rk + 1];
-      det.appendChild(el('div', { class: 'dhead', html: '<b>' + s.name + '</b> <span class="tag" style="border-color:' + c.color + ';color:' + c.color + '">' + c.n + '</span> <span class="tag">' + D.RANKS[rk].n + '</span>' }));
+      const top = el('div', { class: 'dtop' });
+      top.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
+      const info = el('div', { class: 'dinfo' });
+      info.innerHTML = '<div class="dhead">' + s.name + '</div>' +
+        '<div><span class="tag" style="border-color:' + c.color + ';color:' + c.color + '">' + c.n + '</span><span class="tag">' + D.RANKS[rk].n + rankBadge(rk) + '</span></div>' +
+        '<div class="small dim">Опыт ' + s.xp + (next ? ' / ' + next.xp : '') + ' · убийств ' + s.kills + ' · заданий ' + s.missions + '</div>' +
+        (next ? '<div class="pbar"><i style="width:' + Math.round((s.xp - D.RANKS[rk].xp) / (next.xp - D.RANKS[rk].xp) * 100) + '%;background:linear-gradient(90deg,#a8661a,#e8a83e)"></i></div>' : '') +
+        hpBar(G.hp(s), G.maxHp(s));
+      top.appendChild(info);
+      det.appendChild(top);
       det.appendChild(el('div', { class: 'stats', html:
-        '<div><span>ОЗ</span><b>' + G.hp(s) + '/' + G.maxHp(s) + '</b></div>' +
-        '<div><span>Меткость</span><b>' + G.aim(s) + '</b></div>' +
-        '<div><span>Подвижность</span><b>' + G.mob(s) + '</b></div>' +
-        '<div><span>Броня</span><b>' + D.ARMORS[s.armor].armor + '</b></div>' +
-        '<div><span>Убийств</span><b>' + s.kills + '</b></div>' +
-        '<div><span>Опыт</span><b>' + s.xp + (next ? '/' + next.xp : '') + '</b></div>' }));
-      det.appendChild(el('div', { class: 'abil', html: '<b>' + ab.n + '.</b> ' + ab.desc }));
+        statRow('Меткость', G.aim(s), 100) + statRow('Подвижность', G.mob(s), 8) +
+        statRow('Здоровье', G.maxHp(s), 20) + statRow('Броня', D.ARMORS[s.armor].armor, 3) }));
+      det.appendChild(el('div', { class: 'abil', html: D.icon(c.ab) + '<div><b>' + ab.n + '.</b> ' + ab.desc + '</div>' }));
       if (s.wounds > 0) det.appendChild(el('div', { class: 'note', html: 'Ранен: восстановится за ~' + Math.ceil(s.wounds / (st.baseNode !== null && st.squadAt === st.baseNode ? (G.blv('infirmary') ? 4 : 2) : 1)) + ' дн.' }));
-      // оружие
       const wl = el('div', { class: 'equip' });
       wl.appendChild(el('div', { class: 'elabel', text: 'Оружие' }));
       const wrow = el('div', { class: 'erow' });
@@ -159,7 +170,7 @@
         const W = D.WEAPONS[w];
         const b = el('button', {
           class: 'chip' + (w === s.weapon ? ' on' : ''),
-          html: W.n + (w !== s.weapon ? ' <small>×' + have + '</small>' : '') + '<em>урон ' + W.dmg[0] + '–' + W.dmg[1] + ' · обойма ' + W.clip + '</em>',
+          html: '<img src="' + DW.ART.weaponIcon(w) + '" alt=""><span class="ct"><span>' + W.n + (w !== s.weapon ? ' <small>×' + have + '</small>' : '') + '</span><em>урон ' + W.dmg[0] + '–' + W.dmg[1] + ' · обойма ' + W.clip + ' · крит ' + W.crit + '%</em></span>',
           onclick: function () {
             if (w === s.weapon) return;
             st.stock.weapons[w]--;
@@ -181,7 +192,7 @@
         const A = D.ARMORS[a];
         const b = el('button', {
           class: 'chip' + (a === s.armor ? ' on' : ''),
-          html: A.n + (a !== s.armor && a !== 'robe' ? ' <small>×' + have + '</small>' : '') + '<em>' + A.desc + '</em>',
+          html: '<img src="' + DW.ART.armorIcon(a) + '" alt=""><span class="ct"><span>' + A.n + (a !== s.armor && a !== 'robe' ? ' <small>×' + have + '</small>' : '') + '</span><em>' + A.desc + '</em></span>',
           onclick: function () {
             if (a === s.armor) return;
             if (a !== 'robe') st.stock.armors[a]--;
@@ -197,7 +208,7 @@
       det.appendChild(al);
     }
     render();
-    UI.modal({ title: 'Отряд — ' + st.roster.length + ' ' + U.plural(st.roster.length, 'боец', 'бойца', 'бойцов'), cls: 'wide', body: wrap, onClose: onChange });
+    UI.modal({ title: D.icon('squad') + ' Отряд — ' + st.roster.length + ' ' + U.plural(st.roster.length, 'боец', 'бойца', 'бойцов'), cls: 'wide', body: wrap, onClose: onChange });
   };
 
   /* ---------- База ---------- */
@@ -218,6 +229,8 @@
       if (G.blv('workshop')) prod.push('+15 ' + ic('ammo') + ' (−1 ' + ic('materials') + ')');
       let og = 0; st.world.nodes.forEach(function (x) { if (x.outpost) og += 3; });
       if (og) prod.push('+' + og + ' ' + ic('gems') + ' (буры)');
+      body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmark('base', { key: JSON.stringify(st.buildings), b: st.buildings }).toDataURL() + '" alt="">' +
+        '<div class="ptext"><div class="pn-title">' + n.name + '</div>Ваш плацдарм в мёртвом мире. Стройте укрепления и производство — и держите оборону.</div>' }));
       body.appendChild(el('div', { class: 'binfo', html:
         '<b>' + n.name + '</b> · защита базы: <b>' + G.defenseScore() + '</b>' +
         (st.raid ? ' · <span class="bad">набег через ' + Math.max(0, st.raid.day - st.day) + ' дн.!</span>' : '') +
@@ -231,7 +244,7 @@
         const cost = b.cost[Math.min(lv, b.cost.length - 1)];
         const title = b.levels ? (lv ? b.levels[lv - 1] : b.n) : b.n;
         const card = el('div', { class: 'bcard' + (lv ? ' built' : '') });
-        card.innerHTML = '<div class="bt">' + title + (b.max > 1 ? ' <small>' + lv + '/' + b.max + '</small>' : '') + '</div><div class="bd">' + b.desc + '</div>';
+        card.innerHTML = '<img src="' + DW.ART.buildingIcon(id) + '" alt=""><div class="bt">' + title + (b.max > 1 ? ' <small>' + lv + '/' + b.max + '</small>' : '') + '</div><div class="bd">' + b.desc + '</div>';
         let btn;
         if (done) btn = el('div', { class: 'bdone', text: 'Построено' });
         else if (locked) btn = el('div', { class: 'block', text: 'Нужно доверие: ' + D.TIERS[b.tier].n });
@@ -275,7 +288,8 @@
         const locked = c.tier > tier;
         const q = cart[c.id] || 0;
         const item = el('div', { class: 'pitem' + (locked ? ' locked' : '') + (q ? ' in' : '') });
-        item.innerHTML = '<div class="pi-ic">' + ic(c.icon) + '</div><div class="pi-t">' + c.n + ' <small>' + c.q + '</small><br><b>' + c.price + '</b> ' + ic('gems') +
+        const pic = c.give.weapon ? '<img src="' + DW.ART.weaponIcon(c.give.weapon) + '" alt="">' : (c.give.armor ? '<img src="' + DW.ART.armorIcon(c.give.armor) + '" alt="">' : ic(c.icon));
+        item.innerHTML = '<div class="pi-ic">' + pic + '</div><div class="pi-t">' + c.n + ' <small>' + c.q + '</small><br><b>' + c.price + '</b> ' + ic('gems') +
           (locked ? ' <span class="lock">' + D.TIERS[c.tier].n + '</span>' : '') + '</div>';
         if (!locked) {
           const ctr = el('div', { class: 'pi-q' });
@@ -341,7 +355,10 @@
       '<div class="jg"><b>Гнездо</b>: уничтожить Матку. Путь открывается после разгрома двух логов — <b>' + lairs + '</b>/2</div></div>' +
       '<div class="jstats">День ' + st.day + ' · миссий: ' + st.stats.missions + ' (побед ' + st.stats.won + ') · убито врагов: ' + st.stats.kills +
       ' · логов: ' + st.stats.lairs + ' · лагерей: ' + st.stats.camps + '</div>' +
-      (st.memorial.length ? '<div class="jmem"><b>Погибшие:</b> ' + st.memorial.map(function (m) { return m.name + ' <small>(д.' + m.day + ', убийств ' + m.kills + ')</small>'; }).join(', ') + '</div>' : '') +
+      (st.memorial.length ? '<div class="jmem"><b>Погибшие:</b> ' + st.memorial.map(function (m) {
+        const fake = { id: m.id || m.name, name: m.name, cls: m.cls || 'rifleman', armor: m.armor || 'robe', look: m.look };
+        return '<span class="m"><img class="ava" src="' + DW.ART.portrait(fake) + '" alt="">' + m.name + ' <small>д.' + m.day + ', убийств ' + m.kills + '</small></span>';
+      }).join('') + '</div>' : '') +
       '<div class="jlog">' + st.log.map(function (l) { return '<div><span>День ' + l.day + '</span> ' + l.text + '</div>'; }).join('') + '</div>';
     UI.modal({ title: 'Журнал', cls: 'wide', body: b });
   };
@@ -369,9 +386,15 @@
         if (kind === 'defense') {
           body.appendChild(el('div', { class: 'ptext', html: '<b class="bad">Нападение на базу!</b> ' + (extra || '') + ' Займите позиции за укреплениями и отбейте три волны. Отступление — потеря части припасов и построек.' }));
         } else {
-          body.appendChild(el('div', { class: 'ptext', html: '<b>' + T.n + '</b> · опасность ' + skulls(node.diff) + '<br>' + T.desc +
+          const types = {
+            landing: ['scav', 'spitter'], ruins: ['scav', 'raider', 'thug'], vein: ['scav', 'spitter', 'brute'], camp: ['raider', 'thug', 'marksman', 'boss'],
+            lair: ['scav', 'spitter', 'brute'], site: ['raider', 'scav', 'marksman'], vault: ['guardian', 'scav'], nest: ['queen', 'brute', 'spitter']
+          }[node.type] || [];
+          const shown = types.filter(function (t) { return !(t === 'boss' && node.diff < 3) && !(t === 'brute' && node.diff < 3 && node.type !== 'nest') && !(t === 'marksman' && node.diff < 3); });
+          body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmarkURL(node.type) + '" alt=""><div class="ptext"><b>' + T.n + '</b> · опасность ' + skulls(node.diff) + '<br>' + T.desc +
             '<br>Разведка: <b>' + intel + '</b>.' + (kind === 'ambush' ? ' <b class="bad">Засада!</b>' : '') +
-            (locked ? '<br><b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова тварей (' + lairs + '/2).</b>' : '') }));
+            '<div class="intel">' + shown.map(function (t) { return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">'; }).join('') + '</div>' +
+            (locked ? '<b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова тварей (' + lairs + '/2).</b>' : '') + '</div>' }));
         }
         const cnt = Object.keys(chosen).length;
         body.appendChild(el('div', { class: 'blabel', html: 'Бойцы на задание: <b>' + cnt + '</b>/6' }));
@@ -384,8 +407,11 @@
             else if (Object.keys(chosen).length < 6) chosen[s.id] = 1;
             render();
           } });
-          card.innerHTML = '<div class="sname"><i class="cdot" style="background:' + c.color + '"></i>' + s.name + '</div>' + hpBar(G.hp(s), G.maxHp(s)) +
+          card.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
+          const sc = el('div', { class: 'sc' });
+          sc.innerHTML = '<div class="sname">' + s.name + rankBadge(G.rank(s)) + '</div>' + hpBar(G.hp(s), G.maxHp(s)) +
             '<div class="sline">' + c.n + ' · ' + (D.WEAPONS[s.weapon].s || '') + '</div>';
+          card.appendChild(sc);
           grid.appendChild(card);
         });
         body.appendChild(grid);
@@ -415,13 +441,13 @@
       sum.items.forEach(function (i) { loot.push(i); });
       let html = '<div class="ptext">' + (sum.text || '') + '</div>';
       html += '<div class="rloot">' + (loot.length ? 'Добыча: ' + loot.join(' · ') : 'Добычи нет.') + '</div>';
-      if (sum.soldiers.length) {
-        html += '<div class="rsol">' + sum.soldiers.map(function (s) {
-          return '<div class="rs"><b>' + s.name + '</b>' + hpBar(s.hp, s.maxHp) + '<small>убийств: ' + s.kills + ' · опыт +' + s.xp + '</small></div>';
-        }).join('') + '</div>';
-      }
-      if (sum.promoted.length) html += '<div class="good">Повышение: ' + sum.promoted.join(', ') + '</div>';
-      if (sum.dead.length) html += '<div class="bad">Погибли: ' + sum.dead.join(', ') + '</div>';
+      const cards = sum.soldiers.map(function (s) {
+        return '<div class="rs' + (s.promo ? ' promo' : '') + '"><img class="ava" src="' + DW.ART.portrait(s.ref) + '" alt=""><div class="sc"><b>' + s.name + (s.promo ? ' <span class="acc">▲ ' + s.promo + '</span>' : '') + '</b>' + hpBar(s.hp, s.maxHp) +
+          '<small>убийств: ' + s.kills + ' · опыт +' + s.xp + '</small></div></div>';
+      }).concat((sum.deadRefs || []).map(function (r) {
+        return '<div class="rs kia"><img class="ava" src="' + DW.ART.portrait(r) + '" alt=""><div class="sc"><b>' + r.name + '</b><span class="bad">Погиб</span></div></div>';
+      }));
+      if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
       b.innerHTML = html;
       UI.modal({ title: title, cls: 'wide k-' + (sum.result === 'victory' ? 'good' : 'bad'), body: b, closable: false, buttons: [{ text: 'Продолжить', cls: 'primary' }], onClose: res });
     });

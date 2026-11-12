@@ -13,7 +13,7 @@
       hpBase: tpl.hp, aimBase: tpl.aim, mobBase: tpl.mob,
       wounds: 0, xp: tpl.xp || 0, kills: 0, missions: 0,
       weapon: tpl.weapon || 'ak', armor: tpl.armor || 'robe',
-      look: { skin: U.pick(D.SKINS), hair: U.pick(D.HAIRS) }
+      look: DW.ART.makeLook(U.rand(1, 1e9), tpl.look || null)
     };
   };
   G.rank = function (s) {
@@ -79,6 +79,7 @@
       const o = JSON.parse(s);
       if (!o || !o.world) return false;
       G.state = o;
+      o.roster.forEach(function (s) { DW.ART.ensureLook(s); });
       return true;
     } catch (e) { return false; }
   };
@@ -507,8 +508,9 @@
       kills += u.kills;
       if (!u.alive) {
         st.roster.splice(idx, 1);
-        st.memorial.push({ name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls });
+        st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls, armor: s.armor, look: s.look });
         sum.dead.push(s.name);
+        (sum.deadRefs = sum.deadRefs || []).push({ id: s.id, name: s.name, cls: s.cls, armor: s.armor, look: s.look });
         G.log('Погиб «' + s.name + '».');
         if (out === 'victory') {
           st.stock.weapons[s.weapon] = (st.stock.weapons[s.weapon] || 0) + 1;
@@ -527,7 +529,7 @@
         s.wounds = Math.max(0, s.wounds - 1);
         sum.promoted.push(s.name + ' — ' + D.RANKS[r1].n);
       }
-      sum.soldiers.push({ name: s.name, hp: G.hp(s), maxHp: G.maxHp(s), kills: u.kills, xp: gain, evac: u.evac });
+      sum.soldiers.push({ name: s.name, hp: G.hp(s), maxHp: G.maxHp(s), kills: u.kills, xp: gain, evac: u.evac, ref: s, promo: r1 > r0 ? D.RANKS[r1].n : null });
     });
 
     if (B.kind === 'defense') {

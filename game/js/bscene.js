@@ -42,6 +42,7 @@
     if (!busy) openMenu();
   };
   BS.isBusy = function () { return busy; };
+  BS.idle = function () { return !DW.TR.isAnimating(); };
 
   /* ---------- Интерфейс ---------- */
   function buildHud() {
@@ -50,8 +51,8 @@
     hud = {};
     hud.tl = el('div', { class: 'b-tl' });
     hud.obj = el('div', { class: 'b-obj' });
-    hud.unit = el('div', { class: 'b-unit' });
-    hud.tl.appendChild(hud.obj); hud.tl.appendChild(hud.unit);
+    hud.squad = el('div', { class: 'b-squad' });
+    hud.tl.appendChild(hud.obj); hud.tl.appendChild(hud.squad);
     hud.tr = el('div', { class: 'b-tr' });
     hud.res = el('div', { class: 'b-res' });
     hud.menuBtn = el('button', { class: 'ibtn', html: D.ICONS.menu, onclick: function () { if (!busy) openMenu(); } });
@@ -63,10 +64,31 @@
     hud.end = el('button', { class: 'abtn endturn', html: '<span class="ico">' + D.ICONS.endturn + '</span><span>Конец хода</span>', onclick: function () { if (!busy) endTurn(); } });
     hud.right.appendChild(hud.next); hud.right.appendChild(hud.end);
     hud.bot.appendChild(hud.actions); hud.bot.appendChild(hud.right);
+    hud.unit = el('div', { class: 'b-sel' });
     hud.panel = el('div', { class: 'b-panel hidden' });
     hud.banner = el('div', { class: 'b-banner' });
     hud.hint = el('div', { class: 'b-hint' });
-    ui.appendChild(hud.tl); ui.appendChild(hud.tr); ui.appendChild(hud.bot); ui.appendChild(hud.panel); ui.appendChild(hud.banner); ui.appendChild(hud.hint);
+    ui.appendChild(hud.tl); ui.appendChild(hud.tr); ui.appendChild(hud.bot); ui.appendChild(hud.unit); ui.appendChild(hud.panel); ui.appendChild(hud.banner); ui.appendChild(hud.hint);
+  }
+  function rosterOf(u) { return DW.G.state.roster.find(function (s) { return s.id === u.sid; }); }
+  function renderSquad() {
+    hud.squad.innerHTML = '';
+    B.units.forEach(function (u) {
+      if (u.kind !== 'soldier') return;
+      const s = rosterOf(u);
+      const it = el('div', {
+        class: 'sq' + (u === sel ? ' on' : '') + (!u.alive ? ' dead' : '') + (u.evac ? ' evac' : '') + (u.alive && !u.evac && u.ap <= 0 ? ' spent' : ''),
+        onclick: function () { if (!busy && u.alive && !u.evac && B.phase === 'player' && mode === 'idle') { DW.SFX.play('click'); select(u); } }
+      });
+      it.appendChild(el('img', { src: s ? DW.ART.portrait(s) : '', alt: '' }));
+      const info = el('div', { class: 'sq-i' });
+      const pct = Math.round(u.hp / u.maxHp * 100);
+      info.innerHTML = '<div class="sq-hp' + (pct <= 34 ? ' low' : '') + '"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="sq-ap">' + (u.alive && !u.evac ? pips(u.ap, Math.max(2, u.ap), 'ap') : (u.evac ? '<span class="good">эвак.</span>' : '<span class="bad">погиб</span>')) +
+        (u.overwatch ? '<b class="ow">👁</b>' : '') + '</div>';
+      it.appendChild(info);
+      hud.squad.appendChild(it);
+    });
   }
   function banner(text, stay) {
     if (!hud) return;
@@ -119,13 +141,14 @@
     hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective;
     hud.res.innerHTML = '<span>' + ic('ammo') + st.res.ammo + '</span><span>' + ic('grenades') + st.res.grenades + '</span><span>' + ic('meds') + st.res.meds + '</span>' +
       (st.res.rockets ? '<span>' + ic('rockets') + st.res.rockets + '</span>' : '') + '<span class="gemc">' + ic('gems') + (B.loot.gems || 0) + '</span>';
-    if (sel && sel.alive && !sel.evac) {
+    renderSquad();
+    if (sel && sel.alive && !sel.evac && B.phase === 'player') {
       const W = D.WEAPONS[sel.weapon];
       const c = D.CLASSES[sel.cls];
-      hud.unit.innerHTML = '<div class="u-name"><i class="cdot" style="background:' + c.color + '"></i>' + sel.name + ' <small>' + c.n + ' · ' + D.RANKS[sel.rank || 0].n + '</small></div>' +
-        '<div class="u-row">' + DW.UI.hpBar(sel.hp, sel.maxHp) + '</div>' +
-        '<div class="u-row"><span class="dim">ОД</span>' + pips(sel.ap, Math.max(2, sel.ap), 'ap') +
-        '<span class="dim">' + (W.s || W.n) + '</span>' + pips(sel.clip, W.clip, 'clip') + '</div>';
+      hud.unit.innerHTML = '<b style="color:' + c.color + '">' + sel.name + '</b> <small>' + c.n + ' · ' + D.RANKS[sel.rank || 0].n + '</small>' +
+        '<span class="sep"></span>' + DW.UI.hpBar(sel.hp, sel.maxHp) +
+        '<span class="sep"></span><span class="dim">ОД</span>' + pips(sel.ap, Math.max(2, sel.ap), 'ap') +
+        '<span class="sep"></span><span class="dim">' + (W.s || W.n) + '</span>' + pips(sel.clip, W.clip, 'clip');
       hud.unit.style.display = '';
     } else hud.unit.style.display = 'none';
     // действия
@@ -195,7 +218,7 @@
       const info = shotInfo(kindA, sel, t.u);
       const W = D.WEAPONS[sel.weapon];
       const lbl = { shoot: 'Огонь', aimed: 'Прицельный', double: 'Двойной ×2', suppress: 'Подавить' }[kindA];
-      p.appendChild(el('div', { class: 't-name', html: t.u.name + ' <small>ОЗ ' + t.u.hp + '/' + t.u.maxHp + (t.u.armor ? ' · броня ' + t.u.armor : '') + '</small>' }));
+      p.appendChild(el('div', { class: 't-head', html: '<img src="' + DW.ART.enemyPortrait(t.u.type) + '" alt=""><div class="t-name">' + t.u.name + '<small>ОЗ ' + t.u.hp + '/' + t.u.maxHp + (t.u.armor ? ' · броня ' + t.u.armor : '') + '</small></div>' }));
       if (kindA === 'suppress') {
         p.appendChild(el('div', { class: 't-hit', html: 'Цель получит <b>−40</b> к меткости в свой ход.' }));
       } else {
@@ -255,7 +278,9 @@
   BS.tap = function (sx, sy) {
     if (busy || !B || B.phase !== 'player' || B.over || DW.UI.hasModal()) return;
     const t = DW.TR.screenToTile(sx, sy);
-    const tx = t[0], ty = t[1];
+    let tx = t[0], ty = t[1];
+    const picked = DW.TR.pickUnit(sx, sy);
+    if (picked && (mode !== 'throw')) { tx = picked.x; ty = picked.y; }
     if (!BT().inb(tx, ty)) return;
     const u = BT().unitAt(tx, ty);
     if (mode === 'target') {

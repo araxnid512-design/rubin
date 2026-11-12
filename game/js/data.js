@@ -103,12 +103,12 @@
 
   /* Стартовый отряд. Курт и Мальборо — из книги; остальные клички можно поменять здесь. */
   D.START_SQUAD = [
-    { name: 'Курт', cls: 'leader', hp: 10, aim: 72, mob: 6 },
-    { name: 'Мальборо', cls: 'heavy', hp: 11, aim: 64, mob: 5 },
-    { name: 'Сыч', cls: 'sniper', hp: 8, aim: 76, mob: 6 },
-    { name: 'Док', cls: 'medic', hp: 9, aim: 62, mob: 6 },
-    { name: 'Бугай', cls: 'assault', hp: 11, aim: 63, mob: 6 },
-    { name: 'Тихий', cls: 'rifleman', hp: 9, aim: 68, mob: 6 }
+    { name: 'Курт', cls: 'leader', hp: 10, aim: 72, mob: 6, look: { glasses: false, style: 'buzz', hair: '#2b2118', beard: 'stubble', scar: 1, eyes: '#2f4a6a', skin: '#d4a582', brow: -2, jaw: 1.05 } },
+    { name: 'Мальборо', cls: 'heavy', hp: 11, aim: 64, mob: 5, look: { glasses: false, style: 'short', hair: '#8a7a6a', beard: 'mustache', scar: 0, skin: '#e0b896', eyes: '#5a6a7a', jaw: 1.1 } },
+    { name: 'Сыч', cls: 'sniper', hp: 8, aim: 76, mob: 6, look: { glasses: false, style: 'beanie', cap: '#3a3a3a', hair: '#1a1a1a', beard: 'none', scar: 0, skin: '#c99a74', eyes: '#3a5a3a', brow: 3, jaw: 0.92 } },
+    { name: 'Док', cls: 'medic', hp: 9, aim: 62, mob: 6, look: { style: 'bald', glasses: true, beard: 'beard', hair: '#c9c2b5', skin: '#e0b896', scar: 0, jaw: 1 } },
+    { name: 'Бугай', cls: 'assault', hp: 11, aim: 63, mob: 6, look: { glasses: false, style: 'bald', beard: 'beard', hair: '#5a4030', skin: '#a87754', jaw: 1.15, scar: 2, eyes: '#4a3426' } },
+    { name: 'Тихий', cls: 'rifleman', hp: 9, aim: 68, mob: 6, look: { glasses: false, style: 'long', hair: '#2b2118', beard: 'none', skin: '#d4a582', scar: 0, eyes: '#4a3426', jaw: 0.95 } }
   ];
   D.NAMES = ['Гвоздь', 'Кастет', 'Сиплый', 'Ржавый', 'Хмурый', 'Цыган', 'Штырь', 'Монах', 'Борзый', 'Седой',
     'Филин', 'Грек', 'Лом', 'Клык', 'Барон', 'Рябой', 'Валет', 'Кот', 'Шило', 'Пепел', 'Сапёр', 'Жила',

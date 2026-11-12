@@ -124,7 +124,7 @@
     const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings });
     B = {
       v: 1, nodeId: o.nodeId, type: o.type, kind: o.kind, diff: o.diff, raidKind: o.raid ? o.raid.kind : null,
-      w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, decor: m.decor, items: m.items, evac: m.evac,
+      w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac,
       units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
       loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
       queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: ''

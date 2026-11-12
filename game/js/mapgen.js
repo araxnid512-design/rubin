@@ -8,7 +8,7 @@
     return {
       w: w, h: h,
       ground: new Array(w * h).fill(g), obj: new Array(w * h).fill(0), objHp: new Array(w * h).fill(0),
-      decor: [], items: [], itemList: [], deploy: [], evac: [], pods: [], spawn: [], turrets: [],
+      decor: [], props: [], items: [], itemList: [], deploy: [], evac: [], pods: [], spawn: [], turrets: [],
       anchor: null, post: null, kind: 'normal'
     };
   }
@@ -73,6 +73,16 @@
   }
   function decor(m, t, count, minX) {
     for (let i = 0; i < count; i++) m.decor.push({ x: U.randf(minX || 0, m.w), y: U.randf(0, m.h), t: t, r: Math.random() });
+  }
+  function props(m, t, count, minX) {
+    for (let i = 0; i < count; i++) {
+      for (let k = 0; k < 20; k++) {
+        const x = U.rand(minX || 0, m.w - 1), y = U.rand(0, m.h - 1);
+        if (!free(m, x, y)) continue;
+        m.props.push({ x: x + 0.25 + Math.random() * 0.5, y: y + 0.25 + Math.random() * 0.5, t: t });
+        break;
+      }
+    }
   }
   function building(m, x0, y0, w, h, wallObj, floorG) {
     const perim = [];
@@ -225,7 +235,7 @@
     }
     const dep = [];
     for (let y = cy - 3; y <= cy + 3; y++) for (let x = 1; x <= 3; x++) dep.push([x, y]);
-    dep.sort(function (a, b) { return U.dist(a[0], a[1], 2, cy) - U.dist(b[0], b[1], 2, cy); });
+    dep.sort(function (a, b) { return ((a[0] + a[1]) % 2) - ((b[0] + b[1]) % 2) || U.dist(a[0], a[1], 2, cy) - U.dist(b[0], b[1], 2, cy); });
     m.deploy = dep;
     m.evac = [];
     for (let y = cy - 2; y <= cy + 2; y++) for (let x = 0; x <= 2; x++) m.evac.push([x, y]);
@@ -323,11 +333,15 @@
       setO(mm, 1, cy + 5, 4); setO(mm, 2, cy + 5, 4);
     };
     m.itemList = [{ kind: 'gems', amt: U.rand(3, 5) }, { kind: 'gems', amt: U.rand(3, 5) }, { kind: 'ammo', amt: U.rand(15, 25) }];
+    props(m, 'tuft', 14); props(m, 'bush', 6); props(m, 'skull', 2); props(m, 'bones', 3, 6);
     return m;
   };
   GEN.ruins = function (o) {
     const m = M(28, 18, 0);
     groundNoise(m, [[0.42, 2], [0.62, 0], [1, 8]]);
+    const ry = U.rand(3, m.h - 5);
+    for (let x = 0; x < m.w; x++) { setG(m, x, ry, 3); setG(m, x, ry + 1, 3); }
+    m.decor.push({ x: 0, y: ry, w: m.w, t: 'road', r: 0 });
     const rects = [];
     for (let t = 0; t < 50 && rects.length < 5; t++) {
       const w = U.rand(4, 7), h = U.rand(4, 6);
@@ -345,6 +359,7 @@
       { kind: 'materials', amt: U.rand(3, 6) }, { kind: 'materials', amt: U.rand(2, 5) },
       { kind: 'food', amt: U.rand(4, 8) }, { kind: 'ammo', amt: U.rand(15, 30) }
     ];
+    props(m, 'tuft', 10); props(m, 'pipe', 5); props(m, 'sign', 3); props(m, 'bush', 4);
     return m;
   };
   GEN.vein = function (o) {
@@ -357,6 +372,7 @@
     const d = o.diff || 1;
     const n = U.rand(7, 9);
     for (let i = 0; i < n; i++) m.itemList.push({ kind: 'gems', amt: U.rand(2, 4) + d });
+    props(m, 'shards', 14, 4); props(m, 'bush', 3); props(m, 'skull', 2, 6);
     return m;
   };
   GEN.camp = function (o) {
@@ -391,6 +407,7 @@
       { kind: 'ammo', amt: U.rand(20, 35) }, { kind: 'ammo', amt: U.rand(15, 30) }, { kind: 'food', amt: U.rand(6, 10) },
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }
     ];
+    props(m, 'tuft', 8); props(m, 'bones', 3); props(m, 'sign', 2, 8); props(m, 'pipe', 2);
     return m;
   };
   GEN.lair = function (o) {
@@ -404,6 +421,7 @@
     decor(m, 'bones', 18, 5); decor(m, 'blood', 6, 8);
     const d = o.diff || 1;
     for (let i = 0; i < 5; i++) m.itemList.push({ kind: 'gems', amt: U.rand(3, 5) + d });
+    props(m, 'bones', 10); props(m, 'skull', 6, 5); props(m, 'shroom', 9, 4);
     return m;
   };
   GEN.vault = function (o) {
@@ -437,6 +455,7 @@
       { kind: 'gems', amt: U.rand(6, 10) + d }, { kind: 'gems', amt: U.rand(6, 10) + d }, { kind: 'gems', amt: U.rand(6, 10) + d },
       { kind: 'gems', amt: U.rand(5, 8) + d }, { kind: 'meds', amt: 2 }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'materials', amt: U.rand(4, 7) }
     ];
+    props(m, 'pipe', 7, 7); props(m, 'bones', 2, 7); props(m, 'tuft', 5, 0);
     return m;
   };
   GEN.site = function (o) {
@@ -464,6 +483,7 @@
       { kind: 'materials', amt: U.rand(5, 8) }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'food', amt: U.rand(5, 8) },
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }
     ];
+    props(m, 'tuft', 12); props(m, 'bush', 5); props(m, 'sign', 2);
     return m;
   };
   GEN.nest = function (o) {
@@ -479,6 +499,7 @@
     decor(m, 'bones', 22, 5); decor(m, 'blood', 10, 6); decor(m, 'veins', 16, 4);
     m.anchor = { x: ax, y: ay };
     for (let i = 0; i < 6; i++) m.itemList.push({ kind: 'gems', amt: U.rand(5, 8) + 4 });
+    props(m, 'shroom', 12, 4); props(m, 'bones', 8); props(m, 'skull', 5);
     return m;
   };
   GEN.defense = function (o) {
@@ -517,7 +538,7 @@
     m.center = [10, 9];
     const dep = [];
     for (let y = 7; y <= 12; y++) for (let x = 7; x <= 14; x++) if (free(m, x, y)) dep.push([x, y]);
-    dep.sort(function (a, c) { return U.dist(a[0], a[1], 11, 9.5) - U.dist(c[0], c[1], 11, 9.5); });
+    dep.sort(function (a, c) { return ((a[0] + a[1]) % 2) - ((c[0] + c[1]) % 2) || U.dist(a[0], a[1], 11, 9.5) - U.dist(c[0], c[1], 11, 9.5); });
     m.deploy = dep;
     m.evac = [];
     const tur = [];
@@ -529,6 +550,7 @@
     m.turrets = tur;
     for (let y = 0; y < m.h; y++) { m.spawn.push([m.w - 1, y]); m.spawn.push([m.w - 2, y]); }
     for (let x = 20; x < m.w - 2; x++) { m.spawn.push([x, 0]); m.spawn.push([x, m.h - 1]); }
+    props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18);
     return m;
   };
 

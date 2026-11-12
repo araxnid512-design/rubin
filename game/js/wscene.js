@@ -24,6 +24,7 @@
     if (n) { DW.WR.sel = n.id; DW.SFX.play('click'); WS.refresh(); }
   };
   WS.back = function () { if (!busy) openMenu(); };
+  WS.idle = function () { return DW.WR.idle(); };
 
   function buildHud() {
     const ui = document.getElementById('ui');
@@ -89,6 +90,8 @@
     if (n.outpost) extra.push('Бур: +3 ' + ic('gems') + ' в день');
     if (n.cargo && n.cargo.length) extra.push('<span class="acc">Здесь лежит груз (' + n.cargo.length + ' поз.)</span>');
     if (n.type === 'ruins' && n.cleared) extra.push('Осталось обысков: ' + n.searches);
+    const artType = n.id === st.baseNode ? null : n.type;
+    p.appendChild(el('div', { class: 'pn-art', html: '<img src="' + (artType ? DW.ART.landmarkURL(artType) : DW.ART.landmark('base', { key: JSON.stringify(st.buildings), b: st.buildings }).toDataURL()) + '" alt="">' }));
     p.appendChild(el('div', { class: 'pn-title', html: n.name }));
     p.appendChild(el('div', { class: 'pn-sub', html: '<span style="color:' + T.color + '">' + T.n + '</span> · ' + status }));
     p.appendChild(el('div', { class: 'pn-desc', html: T.desc }));
