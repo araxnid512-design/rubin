@@ -50,7 +50,7 @@ const BODIES = [
   B('boss', DW + 'c_boss_a.glb', { h: 1.9 })
 ];
 // у файлов без «_a» (модели без движений Tripo) — скелет в основном файле
-const BODY_FALLBACK = { marlboro: DW + 'c_marlboro.glb' };
+const BODY_FALLBACK = {};
 
 const C = (key, clip, n, o) => Object.assign({ key, clip, n }, o || {});
 const CREATURES = [
