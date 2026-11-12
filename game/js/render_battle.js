@@ -2275,8 +2275,28 @@
       if (!u.stable) { g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = '#000'; const txt = (u.down - 1) + ' х.'; g.strokeText(txt, c[0], Y - 12); g.fillStyle = '#ffb0a0'; g.fillText(txt, c[0], Y - 12); }
     }
   }
+  function drawItem3d(g, it, t, c) {
+    const S3 = DW.S3, gem = it.kind === 'gems', id = gem ? 'p_obj20' : 'p_obj4';
+    if (!S3 || !S3.ready(id)) return false;
+    const f = S3.frame([[id, 'v', gem ? (it.x + it.y) % 3 : 2, 0]]);
+    if (!f) return false;
+    const k = gem ? 0.55 : 0.6;
+    if (gem) {
+      const glow = 0.35 + Math.sin(t / 300 + it.x) * 0.15;
+      const gr = g.createRadialGradient(c[0], c[1] - 8, 2, c[0], c[1] - 8, 26);
+      gr.addColorStop(0, 'rgba(110,225,245,' + glow + ')'); gr.addColorStop(1, 'rgba(95,212,230,0)');
+      g.fillStyle = gr; ART.ell(g, c[0], c[1] - 6, 26, 19);
+    }
+    g.drawImage(f.c, c[0] - f.ox * k, c[1] - f.oy * k, f.w * k, f.h * k);
+    if (gem && Math.sin(t / 150 + it.y * 3) > 0.9) { g.fillStyle = '#fff'; ART.circ(g, c[0] + 3, c[1] - 14, 1.6); }
+    const pulse = 0.3 + Math.sin(t / 350 + it.x) * 0.25;
+    g.strokeStyle = gem ? 'rgba(150,235,255,' + pulse + ')' : 'rgba(255,230,160,' + pulse + ')'; g.lineWidth = 1.5;
+    g.beginPath(); g.ellipse(c[0], c[1], 18, 9, 0, 0, Math.PI * 2); g.stroke();
+    return true;
+  }
   function drawItem(g, it, t) {
     const c = isoC(it.x, it.y);
+    if (drawItem3d(g, it, t, c)) return;
     if (it.kind === 'gems') {
       const glow = 0.35 + Math.sin(t / 300 + it.x) * 0.15;
       const gr = g.createRadialGradient(c[0], c[1] - 8, 2, c[0], c[1] - 8, 24);
@@ -2304,7 +2324,22 @@
     }
   }
   let propCache = {};
+  /* 3D-декор: покрышки, мусорные мешки, трубы (модели «Стикса») вместо рисованных */
+  const PROP3D = { tire: [0, 0.75], can: [1, 0.5], papers: [1, 0.45], pipe: [2, 0.6] };
+  function drawProp3d(g0, pr) {
+    const m = PROP3D[pr.t], S3 = DW.S3;
+    if (!m || !S3 || !S3.ready('p_decor')) return false;
+    const f = S3.frame([['p_decor', 'v', m[0], 0]]);
+    if (!f) return false;
+    const c0 = isoC(pr.x - 0.5, pr.y - 0.5), k = m[1];
+    const fl = ((pr.x * 1000) | 0) % 2 ? -1 : 1;
+    g0.save(); g0.translate(c0[0], c0[1]); g0.scale(fl * k, k);
+    g0.drawImage(f.c, -f.ox, -f.oy, f.w, f.h);
+    g0.restore();
+    return true;
+  }
   function drawProp(g0, pr, t) {
+    if (drawProp3d(g0, pr)) return;
     const c0 = isoC(pr.x - 0.5, pr.y - 0.5);
     const v = ((pr.x * 1000) | 0) % 3;
     const key = pr.t + v;

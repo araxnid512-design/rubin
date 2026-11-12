@@ -171,6 +171,7 @@ async function getRig(url, h) {
   b.gl = gl;
   b.mixer = new THREE.AnimationMixer(b.root);
   b.meshes = []; b.root.traverse((m) => { if (m.isMesh) b.meshes.push(m); });
+  b.restPos = new Map(); b.root.traverse((o) => { if (o.isBone) b.restPos.set(o, o.position.clone()); });
   bodies[key] = b;
   return b;
 }
@@ -186,7 +187,13 @@ function poseRig(rig, clipName, t, keepRoot) {
   const act = rig.mixer.clipAction(clip);
   act.reset(); act.play();
   rig.mixer.setTime(Math.min(Math.max(0, t), clip.duration - 1e-3));
-  if (!keepRoot) { const hp = rig.B.Hips; hp.position.x = rig.rest.Hips.p.x; hp.position.z = rig.rest.Hips.p.z; }
+  if (!keepRoot) {
+    // без хода корня по земле: бёдра и все кости-предки (у Tripo — BoneRoot) остаются над точкой стоп
+    for (let b = rig.B.Hips; b && b.isBone; b = b.parent) {
+      const r = rig.restPos.get(b);
+      if (r) { b.position.x = r.x; b.position.z = r.z; }
+    }
+  }
   rig.holder.updateMatrixWorld(true);
   return clip;
 }
@@ -277,7 +284,9 @@ async function frames(spec) {
         dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang));
         dst.holder.updateMatrixWorld(true);
         if (wpn) placeWeapon(dst, wpn, off, an);
-        const fr = frameFor(box, 0.05);
+        let fb = box;
+        if (an.key === 'die' || an.wide) { const k = H / 1.8 * 2.1; fb = new THREE.Box3(new THREE.Vector3(-k, -0.05, -k), new THREE.Vector3(k, box.max.y, k)); }
+        const fr = frameFor(fb, 0.05);
         const s = shoot(fr, ss);
         let c;
         if (spec.layer === 'weapon') {
