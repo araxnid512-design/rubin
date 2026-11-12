@@ -6,7 +6,7 @@
   const HW = 32, HH = 16;   // половина ширины/высоты клетки-ромба
   const ZH = 52;            // высота объекта при lift = 1
   const P = 64;             // пикселей на клетку в плоской текстуре земли
-  const GS = 1.5;           // масштаб изометрического слоя земли
+  const GS = 2;             // масштаб изометрического слоя земли
   const EDGE = 40;          // толщина «среза» диорамы
 
   let ground = null, groundCtx = null;   // плоская текстура
@@ -1046,12 +1046,13 @@
       tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, w, h);
       g.globalAlpha = a; g.globalCompositeOperation = 'source-atop'; g.drawImage(ovTmp, 0, 0);
     };
-    rim(2.4, 2, 'rgb(255,238,210)', 0.32);
-    rim(-2.8, -2.2, 'rgb(0,0,0)', 0.26);
+    const kk = SS / 2;
+    rim(2.4 * kk, 2 * kk, 'rgb(255,238,210)', 0.32);
+    rim(-2.8 * kk, -2.2 * kk, 'rgb(0,0,0)', 0.26);
     // мягкий контур
     g.globalAlpha = 0.5; g.globalCompositeOperation = 'destination-over';
     tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, w, h);
-    const r = 1.6, q = r * 0.71;
+    const r = 1.6 * kk, q = r * 0.71;
     [[r, 0], [-r, 0], [0, r], [0, -r], [q, q], [-q, q], [q, -q], [-q, -q]].forEach(function (o) { tg.drawImage(ovTmp2, o[0], o[1]); });
     tg.globalCompositeOperation = 'source-in'; tg.fillStyle = 'rgb(20,13,9)'; tg.fillRect(0, 0, w, h);
     g.drawImage(ovTmp, 0, 0);
@@ -1061,7 +1062,7 @@
     const key = type + '_' + mask + '_' + variant + (damaged ? '_d' : '');
     let s = sprites[key];
     if (!s) {
-      const SS = 2, MX = 16;
+      const SS = 2.5, MX = 16;
       const H = D.OBJ[type].lift * ZH;
       const top = Math.ceil(H) + (type === 5 ? 34 : (type === 15 ? 40 : 20));
       const w = 2 * HW + 2 * MX, h = top + 2 * HH + 8;
@@ -1213,8 +1214,16 @@
         g.moveTo(x, y); g.lineTo(x - 4 * p.v, y + 13 * p.v);
       });
       g.stroke();
-      g.fillStyle = 'rgba(200,240,150,0.35)';
-      for (let k = 0; k < 12; k++) { const r = U.hash2(k, Math.floor(ts * 6), 3), q = U.hash2(k, Math.floor(ts * 6), 9); g.fillRect(r * W, q * H, 3, 1); }
+      g.strokeStyle = 'rgba(200,235,170,0.4)'; g.lineWidth = 1;
+      for (let k = 0; k < 26; k++) {
+        const sl = Math.floor(ts * 5 + k * 0.37), ph = (ts * 5 + k * 0.37) - sl;
+        const r = U.hash2(k, sl, 3), q = U.hash2(k, sl, 9);
+        const x = r * W, y = H * 0.15 + q * H * 0.85, rr = 1 + ph * 6;
+        g.globalAlpha = 1 - ph;
+        g.beginPath(); g.ellipse(x, y, rr, rr * 0.4, 0, 0, Math.PI * 2); g.stroke();
+        if (ph < 0.3) { g.fillStyle = 'rgba(210,240,180,0.6)'; g.fillRect(x - 1, y - 2 - ph * 10, 1, 2); g.fillRect(x + 1.5, y - 1.5 - ph * 8, 1, 2); }
+      }
+      g.globalAlpha = 1;
     } else if (B.weather === 'dust') {
       g.fillStyle = 'rgba(150,104,60,0.24)'; g.fillRect(0, 0, W, H);
       for (let k = 0; k < 3; k++) {
@@ -1760,13 +1769,13 @@
   function spriteDims(u) {
     const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' ? 1.4 : 1);
     const LW = 130 * big, LH = 100 * big;
-    return { big: big, LW: LW, LH: LH, ox: LW / 2, oy: LH - 16 * big, SS: 2 };
+    return { big: big, LW: LW, LH: LH, ox: LW / 2, oy: LH - 16 * big, SS: 2.5 };
   }
   /* Кадр анимации: рисуем во временный холст, затем та же объёмная обработка */
   const live = {};
   function liveSprite(u, fi, walk, sc, t, pose, pre) {
     const D2 = spriteDims(u);
-    D2.SS = 1.5;
+    D2.SS = 1.75;
     const cw = Math.ceil(D2.LW * D2.SS), chh = Math.ceil(D2.LH * D2.SS);
     let L = live[u.id];
     if (!L || L.raw.width !== cw) {
@@ -1827,7 +1836,7 @@
       if (dead) fallTransform(g, u, fi, 1);
       paintUnit(g, u, { dir: fi.dir, aim: dead ? 0.3 : aimQ }, null, sc, 0, dead ? {} : poseFor(u, null));
       const c = canvas(LW * SS, LH * SS);
-      volumize(raw, c, oy * SS);
+      volumize(raw, c, oy * SS, SS / 2);
       let shc = null;
       if (!dead) { shc = canvas(LW * SS, LH * SS); shadowMask(raw, shc); }
       s = unitCache[key] = { c: c, sh: shc, w: LW, h: LH, ox: ox, oy: oy };
@@ -2209,6 +2218,25 @@
   }
 
   let reachC = null, reachSrc = null, reachM = '';
+  /* Мягкая круглая частица заданного цвета (кэш) */
+  const softCache = {}; let softN = 0;
+  function softSpr(col) {
+    let c = softCache[col];
+    if (c) return c;
+    if (softN > 220) { for (const k in softCache) delete softCache[k]; softN = 0; }
+    c = canvas(32, 32);
+    const g = c.getContext('2d');
+    const m = /rgba?\(([^)]+)\)/.exec(col);
+    let base = col, a = 1;
+    if (m) { const pp = m[1].split(','); base = 'rgb(' + pp[0] + ',' + pp[1] + ',' + pp[2] + ')'; a = pp.length > 3 ? parseFloat(pp[3]) : 1; }
+    const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.globalAlpha = a;
+    gr.addColorStop(0, base); gr.addColorStop(0.45, base); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+    if (!m) { g.globalCompositeOperation = 'destination-in'; const g2 = g.createRadialGradient(16, 16, 0, 16, 16, 16); g2.addColorStop(0, 'rgba(0,0,0,1)'); g2.addColorStop(0.5, 'rgba(0,0,0,0.9)'); g2.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = g2; g.fillRect(0, 0, 32, 32); }
+    softCache[col] = c; softN++;
+    return c;
+  }
   /* ---------- Мир вокруг поля боя: небо, горизонт, дальние горы и руины ---------- */
   const SKYC = {
     day: ['#8a9aa6', '#b8b0a0', '#d8c4a0'], dawn: ['#3a3a5a', '#9a6a7a', '#f0a080'], dusk: ['#2a1a2a', '#8a3a30', '#f08a40'],
@@ -2244,6 +2272,20 @@
       near: { pts: mk(1300, 22, 6, 26, false), par: 0.34, sc: 1 },
       stars: (function () { const a = []; for (let i = 0; i < 90; i++) a.push([r(), r(), 0.3 + r() * 0.7, r() * 6]); return a; })()
     };
+  }
+  let backC = null, backKey = '', backT = -1e9;
+  function backdropCached(g, W, H, B, t) {
+    const sc = 0.5, bw = Math.ceil(W * sc), bh = Math.ceil(H * sc);
+    const key = Math.round(TR.cam.x) + '|' + Math.round(TR.cam.y) + '|' + TR.cam.z.toFixed(3) + '|' + W + 'x' + H + '|' + B.tod + B.weather + B.seed;
+    if (!backC || backC.width !== bw || backC.height !== bh) { backC = canvas(bw, bh); backKey = ''; }
+    if (key !== backKey || t - backT > 450 || t < backT) {
+      const bg = backC.getContext('2d');
+      bg.setTransform(sc, 0, 0, sc, 0, 0);
+      drawBackdrop(bg, W, H, B, t);
+      backKey = key; backT = t;
+    }
+    g.imageSmoothingEnabled = true;
+    g.drawImage(backC, 0, 0, W, H);
   }
   function drawBackdrop(g, W, H, B, t) {
     const tod = B.tod || 'day';
@@ -2351,14 +2393,14 @@
   function atmosphere(g, W, H, dpr, B, t) {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const tod = B.tod;
-    if (GRADE[tod]) { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
+    if (GRADE[tod] && (tod === 'day' || tod === 'dawn' || tod === 'dusk')) { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
     const hz = HAZE[tod];
     if (hz) {
       const light = tod === 'day' || tod === 'dawn' || tod === 'dusk';
       g.globalCompositeOperation = light ? 'screen' : 'source-over';
-      const gr = g.createLinearGradient(0, 0, 0, H * 0.55);
+      const gr = g.createLinearGradient(0, 0, 0, H * 0.4);
       gr.addColorStop(0, 'rgba(' + hz + ',' + (light ? 0.2 : 0.35) + ')'); gr.addColorStop(1, 'rgba(' + hz + ',0)');
-      g.fillStyle = gr; g.fillRect(0, 0, W, H * 0.55);
+      g.fillStyle = gr; g.fillRect(0, 0, W, H * 0.4);
       if (light && B.weather !== 'rain' && B.weather !== 'dust') {
         g.globalCompositeOperation = 'lighter';
         const col = tod === 'day' ? '255,240,210' : (tod === 'dawn' ? '255,200,170' : '255,180,110');
@@ -2382,7 +2424,7 @@
     const t = now();
     const z = TR.cam.z;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawBackdrop(g, W, H, B, t);
+    if (!(TR.dbg && TR.dbg.noBack)) backdropCached(g, W, H, B, t);
     let sx = 0, sy = 0;
     if (TR.shake) { sx = (Math.random() - 0.5) * TR.shake; sy = (Math.random() - 0.5) * TR.shake; }
     const ox = dpr * (W / 2 - TR.cam.x * z + sx), oy = dpr * (H / 2 - TR.cam.y * z + sy);
@@ -2510,15 +2552,24 @@
           }
           if (fires[i]) fires[i].forEach(function (dc) {
             const c = isoC(dc.x - 0.5, dc.y - 0.5);
-            const gr = g.createRadialGradient(c[0], c[1] - 6, 1, c[0], c[1] - 6, 30);
-            gr.addColorStop(0, 'rgba(255,170,60,0.35)'); gr.addColorStop(1, 'rgba(255,120,30,0)');
-            g.fillStyle = gr; ART.ell(g, c[0], c[1] - 4, 30, 18);
-            for (let k = 0; k < 3; k++) {
-              const h = 12 + Math.sin(t / 90 + k * 2) * 4;
-              g.fillStyle = k === 0 ? 'rgba(255,120,30,0.9)' : (k === 1 ? 'rgba(255,190,60,0.85)' : 'rgba(255,240,150,0.75)');
-              g.beginPath(); g.moveTo(c[0] - 6 + k * 3, c[1]); g.quadraticCurveTo(c[0] - 3 + k * 2, c[1] - h, c[0] + Math.sin(t / 120 + k) * 2, c[1] - h - 6 + k * 3);
-              g.quadraticCurveTo(c[0] + 5 - k, c[1] - h * 0.5, c[0] + 6 - k * 3, c[1]); g.closePath(); g.fill();
+            const fl = 0.85 + Math.sin(t / 70) * 0.08 + Math.sin(t / 37) * 0.07;
+            g.globalCompositeOperation = 'lighter';
+            g.globalAlpha = 0.55 * fl; g.drawImage(softSpr('rgb(255,140,50)'), c[0] - 34, c[1] - 30, 68, 40);
+            g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+            const tongues = [[-7, 0.75, 0], [-3.5, 1, 1.3], [0, 1.25, 2.1], [3.5, 0.95, 3.4], [6.5, 0.7, 4.6]];
+            for (let pass = 0; pass < 3; pass++) {
+              g.fillStyle = ['rgba(230,80,20,0.92)', 'rgba(255,170,50,0.9)', 'rgba(255,240,170,0.85)'][pass];
+              const shrink = 1 - pass * 0.3;
+              tongues.forEach(function (tg) {
+                const h = (14 + Math.sin(t / 85 + tg[2]) * 4 + Math.sin(t / 53 + tg[2] * 2) * 2) * tg[1] * shrink;
+                const x0 = c[0] + tg[0] * shrink, w = 3.6 * shrink;
+                const sway = Math.sin(t / 110 + tg[2]) * 2.2;
+                g.beginPath(); g.moveTo(x0 - w, c[1]); g.quadraticCurveTo(x0 - w * 0.6 + sway * 0.4, c[1] - h * 0.6, x0 + sway, c[1] - h);
+                g.quadraticCurveTo(x0 + w * 0.6 + sway * 0.4, c[1] - h * 0.5, x0 + w, c[1]); g.closePath(); g.fill();
+              });
             }
+            if (Math.random() < 0.25) fx.parts.push({ x: c[0] + (Math.random() - 0.5) * 10, y: c[1], z: 8, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 4, vz: 30 + Math.random() * 30, t0: t, life: 1100 + Math.random() * 700, color: Math.random() < 0.5 ? '#ffc060' : '#ff8a30', size: 1.6, grav: -6 });
+            if (Math.random() < 0.08) fx.parts.push({ x: c[0] + (Math.random() - 0.5) * 6, y: c[1], z: 22, vx: 6 + Math.random() * 6, vy: 0, vz: 12 + Math.random() * 8, t0: t, life: 2600, color: 'rgba(70,64,58,0.35)', size: 10 + Math.random() * 8, grav: -3 });
           });
         }
         const us = unitsAt[i];
@@ -2535,7 +2586,7 @@
     ghosts.forEach(function (u) { drawUnit(g, u, t, false, 0.32); });
     drawCrows(g, t, false);
     applyLighting(g, W, H, dpr, B, t, vis);
-    atmosphere(g, W, H, dpr, B, t);
+    if (!(TR.dbg && TR.dbg.noAtm)) atmosphere(g, W, H, dpr, B, t);
     drawWeather(g, W, H, dpr, B, t);
     screenT();
     drawMotes(g, t);
@@ -2732,8 +2783,11 @@
       if (kk < 0) return;
       g.globalAlpha = p.late ? (kk < 0.75 ? 1 : Math.max(0, (1 - kk) / 0.25)) : Math.max(0, 1 - kk);
       g.fillStyle = p.color;
-      if (p.cas) g.fillRect(p.x - 1.5, p.y - p.z - 0.6, 3, 1.3);
-      else if (p.size >= 4.5) { g.beginPath(); g.arc(p.x, p.y - p.z, p.size / 2, 0, 6.2832); g.fill(); }
+      if (p.cas) { g.fillRect(p.x - 1.5, p.y - p.z - 0.6, 3, 1.3); g.fillStyle = 'rgba(255,250,220,0.6)'; g.fillRect(p.x - 1.2, p.y - p.z - 0.6, 1.4, 0.5); }
+      else if (p.size >= 4.5) {
+        const sz = p.size * (p.grav <= 0 ? 1.4 + kk * 1.1 : 1.25);
+        g.drawImage(softSpr(p.color), p.x - sz / 2, p.y - p.z - sz / 2, sz, sz);
+      }
       else g.fillRect(p.x - p.size / 2, p.y - p.z - p.size / 2, p.size, p.size);
     });
     (fx.rings || []).forEach(function (r) {
