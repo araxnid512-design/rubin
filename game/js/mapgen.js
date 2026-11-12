@@ -420,7 +420,7 @@
       { kind: 'food', amt: U.rand(4, 8) }, { kind: 'ammo', amt: U.rand(15, 30) }
     ];
     props(m, 'tuft', 10); props(m, 'pipe', 5); props(m, 'sign', 3); props(m, 'bush', 4);
-    props(m, 'tire', 3); props(m, 'bricks', 5); props(m, 'can', 3); props(m, 'papers', 4); props(m, 'rebar', 2); decor(m, 'puddle', 3);
+    props(m, 'tire', 3); props(m, 'bricks', 5); props(m, 'can', 3); props(m, 'papers', 4); props(m, 'rebar', 2); decor(m, 'puddle', 3); props(m, 'lamp', 3);
     heights(m, 0.13, 0.68, 0.9, 6); prefab(m, U.pick(['gas', 'checkpoint', 'pillbox']), 8, 3);
     return m;
   };
@@ -471,7 +471,7 @@
       { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }
     ];
     props(m, 'tuft', 8); props(m, 'bones', 3); props(m, 'sign', 2, 8); props(m, 'pipe', 2);
-    props(m, 'tire', 3); props(m, 'can', 4); props(m, 'papers', 3); props(m, 'bricks', 2);
+    props(m, 'tire', 3); props(m, 'can', 4); props(m, 'papers', 3); props(m, 'bricks', 2); props(m, 'lamp', 2);
     heights(m, 0.12, 0.66, 0.9, 6); raise(m, 15, 5, 23, 13, 1); if (Math.random() < 0.6) prefab(m, 'outpost', 7);
     return m;
   };
@@ -520,7 +520,7 @@
       { kind: 'gems', amt: U.rand(6, 10) + d }, { kind: 'gems', amt: U.rand(6, 10) + d }, { kind: 'gems', amt: U.rand(6, 10) + d },
       { kind: 'gems', amt: U.rand(5, 8) + d }, { kind: 'meds', amt: 2 }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'materials', amt: U.rand(4, 7) }
     ];
-    props(m, 'pipe', 7, 7); props(m, 'bones', 2, 7); props(m, 'tuft', 5, 0); props(m, 'papers', 4, 5); props(m, 'rebar', 2, 5); props(m, 'can', 2, 5);
+    props(m, 'pipe', 7, 7); props(m, 'bones', 2, 7); props(m, 'tuft', 5, 0); props(m, 'papers', 4, 5); props(m, 'rebar', 2, 5); props(m, 'can', 2, 5); props(m, 'lamp', 3, 4);
     return m;
   };
   GEN.site = function (o) {
@@ -617,7 +617,7 @@
     m.turrets = tur;
     for (let y = 0; y < m.h; y++) { m.spawn.push([m.w - 1, y]); m.spawn.push([m.w - 2, y]); }
     for (let x = 20; x < m.w - 2; x++) { m.spawn.push([x, 0]); m.spawn.push([x, m.h - 1]); }
-    props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18); props(m, 'can', 3); props(m, 'tire', 2); props(m, 'bricks', 3);
+    props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18); props(m, 'can', 3); props(m, 'tire', 2); props(m, 'bricks', 3); props(m, 'lamp', 3);
     raise(m, 3, 4, 17, 15, 1);
     return m;
   };
@@ -637,7 +637,7 @@
     raise(m, x0 + 1, y0 + 1, x0 + w - 2, y0 + 1, 1); raise(m, x0 + 1, y0 + h - 2, x0 + w - 2, y0 + h - 2, 1);
     scatter(m, 18, 4, 6, x0 - 1); scatter(m, 9, 4, 5); scatter(m, 4, 4, 5); lines(m, 1, 2, 5);
     prefab(m, 'depot', 18);
-    props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0); props(m, 'tire', 3); props(m, 'can', 4); props(m, 'rebar', 4); props(m, 'papers', 3); decor(m, 'puddle', 4);
+    props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0); props(m, 'tire', 3); props(m, 'can', 4); props(m, 'rebar', 4); props(m, 'papers', 3); decor(m, 'puddle', 4); props(m, 'lamp', 4);
     decor(m, 'crack', 12); decor(m, 'scorch', 4, 8);
     const d = o.diff || 1;
     m.itemList = [{ kind: 'materials', amt: U.rand(5, 9) }, { kind: 'materials', amt: U.rand(5, 9) }, { kind: 'ammo', amt: U.rand(20, 35) }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'meds', amt: 1 }];

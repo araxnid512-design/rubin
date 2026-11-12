@@ -187,7 +187,7 @@
     return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   }
   const TEXCFG = {
-    grain: { oct: [[16, 0.5], [32, 0.3], [96, 0.22]], amp: 1.5, peb: 46, pebR: [1, 2.6], pebA: 1.1 },
+    grain: { oct: [[16, 0.5], [32, 0.3], [96, 0.22]], amp: 1.5, peb: 30, pebR: [1, 2.4], pebA: 0.75 },
     ash: { oct: [[12, 0.6], [48, 0.3], [128, 0.2]], amp: 1.2, peb: 14, pebR: [0.8, 2], pebA: 0.8 },
     earth: { oct: [[16, 0.5], [64, 0.25]], amp: 1.4, peb: 24, pebR: [1, 2.2], pebA: 1, cracks: 15 },
     concrete: { oct: [[32, 0.3], [128, 0.28]], amp: 0.7, pits: 520, ccracks: 7 },
@@ -681,10 +681,75 @@
       g.fillStyle = 'rgba(227,163,59,0.55)'; g.fillRect(0, h * 0.62, len, 1.6);
     }
   }
+  /* Детали на гранях стен: окна, граффити, плакаты, следы пуль, знаки, трубы */
+  const GRAF = ['ЖИВЫ', 'ВЫХОДА НЕТ', 'КРУТ', 'НЕ ВХОДИ', 'МУТАНТЫ!', 'Р-6', 'ФОРТ', '←ВОДА'];
+  function wallDecor(g, type, len, h, rnd, right) {
+    if (len < 0.3 || h < 10) return;
+    const textAt = function (str, s0, y0, px, col) {
+      g.save();
+      g.font = 'bold ' + px + 'px sans-serif';
+      const tw = g.measureText(str).width / HW;
+      if (tw > len - 0.05) { g.restore(); return; }
+      s0 = Math.min(s0, len - tw - 0.03);
+      if (right) { g.translate(s0 + tw, y0); g.scale(-1 / HW, -1); } else { g.translate(s0, y0); g.scale(1 / HW, -1); }
+      g.fillStyle = col; g.fillText(str, 0, 0);
+      g.restore();
+    };
+    const holes = function (n) {
+      for (let i = 0; i < n; i++) {
+        const s0 = 0.05 + rnd() * (len - 0.1), y0 = 4 + rnd() * (h - 8);
+        g.fillStyle = 'rgba(230,220,200,0.35)'; g.fillRect(s0 - 0.012, y0 - 0.9, 0.05, 2.2);
+        g.fillStyle = '#16110d'; g.fillRect(s0, y0 - 0.5, 0.024, 1.2);
+      }
+    };
+    const k = rnd();
+    if (type === 2 || type === 1 || type === 14) {
+      if (type === 2 && k < 0.28 && len > 0.6) {
+        // пролом-окно с битым стеклом
+        const s0 = 0.18 + rnd() * (len - 0.55), y0 = h * 0.38, ww = 0.26, wh = h * 0.36;
+        g.fillStyle = '#0e0b09'; g.fillRect(s0, y0, ww, wh);
+        g.fillStyle = 'rgba(80,60,40,0.9)'; g.fillRect(s0 - 0.02, y0 - 1.5, ww + 0.04, 1.6);
+        g.fillStyle = 'rgba(255,230,190,0.18)'; g.fillRect(s0, y0 + wh - 1, ww, 1);
+        g.fillStyle = 'rgba(170,200,215,0.55)';
+        g.beginPath(); g.moveTo(s0, y0 + wh); g.lineTo(s0 + 0.07, y0 + wh); g.lineTo(s0, y0 + wh * 0.55); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(s0 + ww, y0); g.lineTo(s0 + ww - 0.06, y0); g.lineTo(s0 + ww, y0 + wh * 0.4); g.closePath(); g.fill();
+        g.strokeStyle = '#3a2a1c'; g.lineWidth = 0.025; g.beginPath(); g.moveTo(s0 + ww / 2, y0); g.lineTo(s0 + ww / 2, y0 + wh); g.stroke();
+      } else if (k < 0.52) {
+        const str = GRAF[Math.floor(rnd() * GRAF.length)];
+        const col = ['rgba(170,40,30,0.85)', 'rgba(220,214,200,0.8)', 'rgba(230,180,60,0.8)'][Math.floor(rnd() * 3)];
+        textAt(str, 0.06 + rnd() * Math.max(0.01, len - 0.5), h * (0.25 + rnd() * 0.35), Math.max(5, Math.min(9, h * 0.22)), col);
+        if (rnd() < 0.5) { g.strokeStyle = col; g.lineWidth = 0.02; g.beginPath(); const s0 = rnd() * len * 0.6, y0 = h * 0.7; g.moveTo(s0, y0); for (let i = 0; i < 4; i++) g.lineTo(s0 + (i + 1) * 0.05, y0 + (i % 2 ? 3 : -3)); g.stroke(); }
+      } else if (k < 0.68 && type !== 1) {
+        // плакат
+        const s0 = 0.1 + rnd() * Math.max(0.01, len - 0.4), y0 = h * 0.35, pw = 0.2, ph = h * 0.32;
+        g.fillStyle = '#c8bea4'; g.fillRect(s0, y0, pw, ph);
+        g.fillStyle = 'rgba(120,40,30,0.75)'; g.fillRect(s0 + 0.02, y0 + ph * 0.55, pw - 0.04, ph * 0.3);
+        g.fillStyle = 'rgba(40,30,20,0.55)'; for (let i = 0; i < 3; i++) g.fillRect(s0 + 0.025, y0 + ph * (0.12 + i * 0.13), pw - 0.05, 0.8);
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.moveTo(s0 + pw, y0); g.lineTo(s0 + pw - 0.06, y0); g.lineTo(s0 + pw, y0 + ph * 0.25); g.closePath(); g.fill();
+      }
+      holes(type === 1 ? 2 : 4 + Math.floor(rnd() * 4));
+      if (type === 14) { g.fillStyle = 'rgba(70,90,40,0.45)'; for (let i = 0; i < 4; i++) g.fillRect(rnd() * len, 0, 0.08 + rnd() * 0.12, 2 + rnd() * 6); }
+    } else if (type === 11) {
+      // переборка: трубы, решётка вентиляции, знак опасности, ржавые потёки
+      const py = h * 0.72;
+      g.fillStyle = '#3a4248'; g.fillRect(0, py, len, 3.2); g.fillStyle = 'rgba(200,215,225,0.3)'; g.fillRect(0, py + 2.4, len, 0.7);
+      for (let s0 = 0.12; s0 < len; s0 += 0.35) { g.fillStyle = '#2a3036'; g.fillRect(s0, py - 0.6, 0.05, 4.4); }
+      if (k < 0.5) {
+        const s0 = 0.15 + rnd() * Math.max(0.01, len - 0.4), y0 = h * 0.3;
+        g.fillStyle = '#e3b23b'; g.beginPath(); g.moveTo(s0, y0); g.lineTo(s0 + 0.18, y0); g.lineTo(s0 + 0.09, y0 + 8); g.closePath(); g.fill();
+        g.fillStyle = '#1a1a1a'; g.fillRect(s0 + 0.085, y0 + 2.6, 0.012, 3); g.fillRect(s0 + 0.085, y0 + 1.2, 0.012, 0.8);
+      } else {
+        const s0 = 0.15 + rnd() * Math.max(0.01, len - 0.4), y0 = h * 0.28;
+        g.fillStyle = '#1a1e22'; g.fillRect(s0, y0, 0.22, 7);
+        g.fillStyle = 'rgba(160,175,185,0.4)'; for (let i = 0; i < 4; i++) g.fillRect(s0 + 0.01, y0 + 1 + i * 1.6, 0.2, 0.5);
+      }
+      g.fillStyle = 'rgba(130,60,25,0.4)'; for (let i = 0; i < 3; i++) { const s0 = rnd() * len; g.fillRect(s0, h * 0.2, 0.02, h * (0.2 + rnd() * 0.4)); }
+    }
+  }
   function wallBox(g, type, sp, h, col, rnd) {
     box(g, sp[0], sp[1], sp[2], sp[3], 0, h, col);
-    g.save(); ART.faceL(g, sp[0], sp[3], 0); texWall(g, type, sp[2] - sp[0], h, rnd); g.restore();
-    g.save(); ART.faceR(g, sp[2], sp[1], 0); texWall(g, type, sp[3] - sp[1], h, rnd); g.restore();
+    g.save(); ART.faceL(g, sp[0], sp[3], 0); texWall(g, type, sp[2] - sp[0], h, rnd); wallDecor(g, type, sp[2] - sp[0], h, rnd, false); g.restore();
+    g.save(); ART.faceR(g, sp[2], sp[1], 0); texWall(g, type, sp[3] - sp[1], h, rnd); wallDecor(g, type, sp[3] - sp[1], h, rnd, true); g.restore();
     // грязь и сырость у основания
     g.save(); ART.faceL(g, sp[0], sp[3], 0); g.fillStyle = 'rgba(40,30,20,0.25)'; for (let s2 = 0; s2 < sp[2] - sp[0]; s2 += 0.06) g.fillRect(s2, 0, 0.06, 2 + rnd() * 5); g.restore();
     g.save(); ART.faceR(g, sp[2], sp[1], 0); g.fillStyle = 'rgba(30,22,15,0.28)'; for (let s2 = 0; s2 < sp[3] - sp[1]; s2 += 0.06) g.fillRect(s2, 0, 0.06, 2 + rnd() * 5); g.restore();
@@ -1160,7 +1225,10 @@
       L.push(o === 15 ? [c[0], c[1] - 40, 150, '140,240,255', 0.9] : (o === 20 ? [c[0], c[1] - 18, 80, '120,230,255', 0.75] : [c[0], c[1] - 14, 44, '120,230,210', 0.55]));
     }
     for (let k = 0; k < acidTiles.length; k++) { const i = acidTiles[k]; if (!B.explored[i]) continue; const c = isoC(i % B.w, (i / B.w) | 0); L.push([c[0], c[1], 34, '150,220,60', 0.35]); }
-    (B.props || []).forEach(function (p) { if (p.t === 'shroom' || p.t === 'shards') { const c = isoC(p.x - 0.5, p.y - 0.5); L.push([c[0], c[1] - 6, 32, p.t === 'shroom' ? '140,255,180' : '120,230,255', 0.5]); } });
+    (B.props || []).forEach(function (p) {
+      if (p.t === 'shroom' || p.t === 'shards') { const c = isoC(p.x - 0.5, p.y - 0.5); L.push([c[0], c[1] - 6, 32, p.t === 'shroom' ? '140,255,180' : '120,230,255', 0.5]); }
+      else if (p.t === 'lamp' && B.explored[Math.floor(p.y) * B.w + Math.floor(p.x)]) { const c = isoC(p.x - 0.5, p.y - 0.5); L.push([c[0] + 6, c[1] - 20, 120, '255,205,140', 0.85 * lampFlicker(p, t)]); }
+    });
     fx.flashes.forEach(function (f) {
       const k = (t - f.t0) / f.life; if (k < 0 || k > 1) return;
       L.push(f.muzzle ? [f.x, f.y, 40 + f.r * 4, '255,214,150', 1 - k] : [f.x, f.y - 10, 220, '255,150,60', 1 - k]);
@@ -2004,9 +2072,24 @@
       paintProp(gg, { t: pr.t, x: v + 0.5, y: 0.5 }, 32, 52);
       sp = propCache[key] = cc;
     }
-    g0.drawImage(sp, c0[0] - 32, c0[1] - 52, 64, 64);
-    void t;
+    const B = DW.BT.get();
+    if (SWAY[pr.t]) {
+      const wind = B && (B.weather === 'rain' || B.weather === 'dust') ? 1.8 : 1;
+      const sw = (Math.sin(t / 900 + pr.x * 2.1 + pr.y) * 0.06 + Math.sin(t / 370 + pr.x * 5) * 0.025) * wind * SWAY[pr.t];
+      g0.save(); g0.translate(c0[0], c0[1]); g0.transform(1, 0, sw, 1, 0, 0); g0.translate(-c0[0], -c0[1]);
+      g0.drawImage(sp, c0[0] - 32, c0[1] - 52, 64, 64);
+      g0.restore();
+    } else g0.drawImage(sp, c0[0] - 32, c0[1] - 52, 64, 64);
+    if (pr.t === 'lamp' && B && B.tod !== 'day') {
+      const fl = lampFlicker(pr, t);
+      g0.globalCompositeOperation = 'lighter'; g0.globalAlpha = 0.7 * fl;
+      g0.drawImage(softSpr('rgb(255,200,120)'), c0[0] + 2, c0[1] - 52, 22, 18);
+      g0.globalAlpha = 0.25 * fl; g0.drawImage(softSpr('rgb(255,190,110)'), c0[0] - 22, c0[1] - 14, 60, 30);
+      g0.globalAlpha = 1; g0.globalCompositeOperation = 'source-over';
+    }
   }
+  const SWAY = { tuft: 1, reeds: 1.3, bush: 0.6, shroom: 0.3 };
+  function lampFlicker(pr, t) { const h = U.hash2(Math.floor(t / 90), (pr.x * 100) | 0, 5); return h < 0.06 ? 0.25 : 0.85 + Math.sin(t / 130 + pr.x) * 0.15; }
   function paintProp(g, pr, x, y) {
     const t = 0;
     const r = U.srng(((pr.x * 1000) | 0) + ((pr.y * 77) | 0));
@@ -2133,6 +2216,17 @@
           const cg = g.createLinearGradient(x + ox - 5, 0, x + ox + 5, 0); cg.addColorStop(0, '#8a8074'); cg.addColorStop(1, '#3a342e');
           g.fillStyle = cg; g.beginPath(); g.moveTo(x + ox - 5, y + (k ? 1 : 0)); g.quadraticCurveTo(x + ox - 2, y - h2 * 0.5, x + ox, y - h2); g.quadraticCurveTo(x + ox + 2, y - h2 * 0.5, x + ox + 5, y + (k ? 1 : 0)); g.closePath(); g.fill();
         }
+        break;
+      }
+      case 'lamp': {
+        g.fillStyle = 'rgba(0,0,0,0.3)'; ART.ell(g, x + 2, y + 1, 7, 3);
+        g.fillStyle = '#3a3a3c'; g.fillRect(x - 3, y - 3, 6, 3);
+        const lg = g.createLinearGradient(x - 1.5, 0, x + 1.5, 0); lg.addColorStop(0, '#6a6c70'); lg.addColorStop(1, '#2a2b2e');
+        g.fillStyle = lg; g.fillRect(x - 1.3, y - 46, 2.6, 44);
+        ART.line(g, x, y - 45, x + 9, y - 47, 1.6, '#4a4b4e');
+        g.fillStyle = '#2a2b2e'; g.beginPath(); g.moveTo(x + 5, y - 47); g.lineTo(x + 15, y - 47); g.lineTo(x + 13, y - 43); g.lineTo(x + 7, y - 43); g.closePath(); g.fill();
+        g.fillStyle = '#ffe0a0'; g.fillRect(x + 8, y - 43, 4, 1.2);
+        ART.line(g, x - 0.6, y - 40, x - 0.6, y - 6, 0.5, 'rgba(255,255,255,0.25)');
         break;
       }
       case 'bones':
