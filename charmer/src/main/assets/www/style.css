@@ -41,7 +41,7 @@ body.battle #hud, body.title #hud { display: none; }
 #dlg-pic2 canvas { transform: scaleX(-1); }
 #dlg.p1 #dlg-pic, #dlg.p2 #dlg-pic2 { display: block; }
 #dlg-pic.talk, #dlg-pic2.talk { transform: scale(1.06) translateY(-.2rem); }
-#dlg-pic.dim, #dlg-pic2.dim { filter: brightness(.62) saturate(.6); transform: scale(.94); }
+#dlg-pic.dim, #dlg-pic2.dim { filter: brightness(.8) saturate(.85); transform: scale(.94); }
 #dlg-box { position: relative; flex: 1; min-height: 5.4rem; padding: .6rem 1rem 1.1rem; background: var(--cream); border: 3px solid var(--ink); border-radius: 1rem; box-shadow: 0 .25rem 0 var(--ink); }
 #dlg-who { position: absolute; top: -1.05rem; left: .9rem; padding: .1rem .8rem; background: var(--pink); color: #fff; border: 3px solid var(--ink); border-radius: 1rem; font-style: italic; font-size: .82rem; }
 #dlg-t { font-size: .92rem; font-weight: 700; line-height: 1.38; margin-top: .25rem; }

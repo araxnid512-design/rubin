@@ -44,25 +44,90 @@
   // позы по эмоции (перекрывают позу покоя)
   const EPOSE = { angry: { R: HIP, L: HIP }, blush: { R: CHEST, L: CHEST }, love: { R: CHEST, L: CHEST }, kiss: { R: CHEST, L: CHEST }, surprised: { R: [0.7, 2.2], L: [0.7, 2.2], upR: 1, upL: 1 } };
   let ARM = null;   // текущие углы рук: { R: [a, b, up], L: [a, b, up], back }
+  // Жесты: у каждой героини свой набор. Раз в несколько секунд проигрывается один — так они ведут себя по-разному.
+  const GEST = { fox: ['tailfan', 'wink', 'earflick'], slime: ['jiggle', 'drip'], harpy: ['flap', 'peck'], lamia: ['tongue', 'sway', 'tongue'], dryad: ['doze', 'yawn'], minotaur: ['fidget', 'shy'],
+    vampire: ['flourish', 'bat'], valkyrie: ['salute', 'flutter'], neko: ['lick', 'stretch', 'earflick'], snow: ['breath', 'shiver'], mermaid: ['hairflip', 'finsplash'], frog: ['croak', 'jumpy'],
+    ghost: ['fade', 'peek'], dragon: ['smoke', 'wingspread'], witch: ['cackle', 'wink'] };
+  const GAIT = { slime: 'bounce', ghost: 'float', lamia: 'slither', frog: 'leap', harpy: 'flutter', mermaid: 'bounce' };
+  let GS = null;
+  function gest(id, t, sd, on) {
+    const g = { k: null, e: 0, p: 0, tail: 0, wing: 0, spread: 0, yawn: 0, tongue: 0, cheeks: 0, alpha: 1, jig: 0, shiver: 0, hop: 0, head: 0, eye: 0, closed: false, wink: false, fx: null, R: null, L: null, tilt: 0, hair: 0, stretch: 0 };
+    const list = GEST[id]; if (!list || !on) return g;
+    const per = 4.4 + (sd * 0.73) % 2.4, tt = t + sd * 3.1, n = Math.floor(tt / per), ph = tt - n * per, dur = 1.8;
+    if (ph > dur) return g;
+    const p = ph / dur, e = Math.sin(p * PI), k = list[(n * 5 + (n >> 2)) % list.length]; g.k = k; g.e = e; g.p = p;
+    switch (k) {
+      case 'tailfan': g.tail = e; break;
+      case 'wink': g.wink = p > 0.2 && p < 0.8; g.head = -0.06 * e; break;
+      case 'earflick': g.ear = Math.sin(p * 44) * 0.5 * e; break;
+      case 'jiggle': g.jig = Math.sin(p * 30) * 0.07 * e; break;
+      case 'drip': g.fx = 'drop'; g.jig = Math.sin(p * 14) * 0.03 * e; break;
+      case 'flap': g.wing = e; g.hop = -Math.abs(Math.sin(p * PI * 3)) * 4 * e; break;
+      case 'peck': g.head = Math.sin(p * 22) * 0.13 * e; break;
+      case 'tongue': g.tongue = p > 0.15 && p < 0.85 ? 0.5 + 0.5 * Math.sin(p * 40) : 0; break;
+      case 'sway': g.tilt = Math.sin(p * TAU) * 0.07; break;
+      case 'doze': g.closed = p < 0.82; g.head = 0.16 * Math.min(1, p * 2.4) * (p < 0.82 ? 1 : 0); g.fx = p < 0.82 ? 'zzz' : null; g.hop = p > 0.82 ? -Math.sin((p - 0.82) / 0.18 * PI) * 5 : 0; break;
+      case 'yawn': g.yawn = e; g.closed = e > 0.4; g.R = [0.5, 2.9, 1]; break;
+      case 'fidget': g.fid = Math.sin(p * 34) * 0.1 * e; g.eye = -1.2 * e; break;
+      case 'shy': g.head = 0.12 * e; g.eye = 1.6 * e; g.fx = 'blush'; break;
+      case 'flourish': g.R = [1.5, 0.5, 0]; g.cape = e; g.head = -0.07 * e; break;
+      case 'bat': g.fx = 'bat'; g.eye = Math.sin(p * TAU) * 1.4; break;
+      case 'salute': g.R = [0.95, 2.25, 1]; g.stretch = 0.012 * e; break;
+      case 'flutter': g.wing = e; break;
+      case 'lick': g.L = [0.4, 2.95, 1]; g.closed = true; g.tongue = 0.6 * e; g.head = 0.08 * e; break;
+      case 'stretch': g.R = [2.7, 0.25, 1]; g.L = [2.7, 0.25, 1]; g.closed = true; g.stretch = 0.035 * e; g.yawn = e * 0.5; break;
+      case 'breath': g.fx = 'breath'; break;
+      case 'shiver': g.shiver = Math.sin(p * 70) * 0.9 * e; g.R = CHEST.concat(0); g.L = CHEST.concat(0); break;
+      case 'hairflip': g.hair = e * 2.2; g.L = [1.2, 2.3, 1]; g.head = -0.08 * e; break;
+      case 'finsplash': g.tail = e; g.fx = 'drops'; break;
+      case 'croak': g.cheeks = e; g.fx = 'note'; break;
+      case 'jumpy': g.hop = -Math.abs(Math.sin(p * PI * 2)) * 11; break;
+      case 'fade': g.alpha = 1 - 0.65 * e; break;
+      case 'peek': g.R = [0.5, 2.9, 1]; g.L = [0.5, 2.9, 1]; g.eye = Math.sin(p * 9) * 1.2; break;
+      case 'smoke': g.fx = 'smoke'; g.head = -0.05 * e; break;
+      case 'wingspread': g.spread = e; g.stretch = 0.015 * e; break;
+      case 'cackle': g.head = -0.1 * e; g.yawn = 0.6 * Math.abs(Math.sin(p * 20)) * e; break;
+    }
+    return g;
+  }
+  // то, что жест добавляет поверх головы: дым, пар дыхания, летучая мышь, капли, нота
+  function gestFx(x, g, t) {
+    if (!g.fx) return; const p = g.p, e = g.e; x.save(); x.lineJoin = 'round'; x.lineCap = 'round';
+    if (g.fx === 'smoke') { for (let i = 0; i < 4; i++) { const k = (p * 1.4 + i * 0.22) % 1; x.globalAlpha = (1 - k) * 0.75 * Math.min(1, e * 3); x.fillStyle = '#8a8490'; circ(x, 3 + i * 2 + k * 10, -18 - k * 26, 2 + k * 5); } }
+    else if (g.fx === 'breath') { x.globalAlpha = e * 0.85; x.fillStyle = '#ffffff'; for (let i = 0; i < 3; i++) circ(x, 8 + p * 18 + i * 5, -9 - p * 6 - (i % 2) * 3, 3 + p * 4); x.globalAlpha = e; x.fillStyle = '#d8f0ff'; for (let i = 0; i < 3; i++) { const a = t * 3 + i * 2.1; x.fillRect(14 + p * 20 + Math.cos(a) * 6, -12 + Math.sin(a) * 6, 1.6, 1.6); } }
+    else if (g.fx === 'bat') { const a = p * TAU * 1.5, bx = Math.cos(a) * 34, by = -44 + Math.sin(a) * 12, f = Math.sin(t * 26) * 5; x.globalAlpha = Math.min(1, e * 4); x.fillStyle = '#3a2050'; x.strokeStyle = OUT; x.lineWidth = 1; for (const sg of [-1, 1]) { x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(bx + sg * 6, by - 6 - f, bx + sg * 11, by + f * 0.6); x.quadraticCurveTo(bx + sg * 5, by + 1, bx, by + 2.4); x.fill(); x.stroke(); } circ(x, bx, by, 2.4); }
+    else if (g.fx === 'drop') { const k = Math.max(0, p - 0.2) / 0.8; x.globalAlpha = 1 - k * 0.6; x.fillStyle = '#9adcff'; x.strokeStyle = OUT; x.lineWidth = 1; x.beginPath(); x.moveTo(-16, -6 + k * 40); x.quadraticCurveTo(-12.4, 1 + k * 40, -16, 3 + k * 40); x.quadraticCurveTo(-19.6, 1 + k * 40, -16, -6 + k * 40); x.fill(); x.stroke(); }
+    else if (g.fx === 'drops') { x.fillStyle = '#9adcff'; for (let i = 0; i < 6; i++) { const a = -PI / 2 + (i - 2.5) * 0.4, d = p * 46; x.globalAlpha = 1 - p; circ(x, Math.cos(a) * d * 1.3, -20 + Math.sin(a) * d + p * p * 30, 2.2); } }
+    else if (g.fx === 'note') { const k = p; x.globalAlpha = Math.min(1, e * 3); x.fillStyle = '#5cc04a'; x.strokeStyle = OUT; x.lineWidth = 2.6; x.font = '900 13px sans-serif'; x.strokeText('♪', 22 + k * 8, -40 - k * 16); x.fillText('♪', 22 + k * 8, -40 - k * 16); }
+    else if (g.fx === 'zzz') { x.fillStyle = '#8ab0ff'; x.strokeStyle = OUT; x.lineWidth = 2.4; x.font = 'italic 900 9px sans-serif'; for (let i = 0; i < 3; i++) { const k = (t * 0.45 + i / 3) % 1; x.globalAlpha = (1 - k) * Math.min(1, p * 6); x.save(); x.translate(20 + k * 10, -50 - k * 20); x.scale(0.7 + k * 0.7, 0.7 + k * 0.7); x.strokeText('z', 0, 0); x.fillText('z', 0, 0); x.restore(); } }
+    else if (g.fx === 'blush') { x.globalAlpha = e * 0.8; x.fillStyle = 'rgba(255,90,130,.9)'; ell(x, -12, -15.5, 5.4, 2.8); ell(x, 12, -15.5, 5.4, 2.8); }
+    x.restore();
+  }
   // o: { t, expr, pose, chibi, walk, bloom, outfit, talk, st } — st хранит состояние между кадрами (плавность, «подпрыгивание»)
   A.girl = function (x, id, o) {
-    o = o || {}; const g = D.GIRLS[id], L = o.outfit && o.outfit !== 'base' && A.dress ? A.dress(id, o.outfit) : g.look, t = o.t || 0, sd = id.length * 1.37;
+    o = o || {}; const gd = D.GIRLS[id], L = o.outfit && o.outfit !== 'base' && A.dress ? A.dress(id, o.outfit) : gd.look, t = o.t || 0, sd = id.length * 1.37;
     const gust = 0.55 + 0.45 * sin(t * 0.37 + sd * 2), br = sin(t * 2.3 + sd) * 1.2, sw = sin(t * 1.7 + sd) * gust + sin(t * 3.1 + sd) * 0.25 * gust, pose = o.pose || 'idle', CH = !!o.chibi, by = CH ? 0.6 : 1.24, hs = CH ? 1.36 : 0.94;
-    const expr = o.expr || 'normal', st = o.st, P = POSES[id] || {}, E = !CH && pose === 'idle' ? EPOSE[expr] || {} : {};
-    WKv = o.walk ? sin(o.walk) : 0; SWv = sw; TKv = o.talk ? Math.abs(sin(t * 17)) * (0.45 + 0.55 * Math.abs(sin(t * 5.3))) : 0; EYv = CH ? 0 : sin(t * 0.53 + sd) * 1.1 + (sin(t * 0.21 + sd) > 0.93 ? 1 : 0); TWv = Math.pow(Math.max(0, sin(t * 0.83 + sd)), 30) * 0.4 * sin(t * 28);
-    const blink = ((t * 0.31 + sd) % 1) < 0.035 && expr !== 'hurt' && expr !== 'happy' && expr !== 'kiss';
+    let expr = o.expr || 'normal'; const st = o.st, P = POSES[id] || {}, E = !CH && pose === 'idle' ? EPOSE[expr] || {} : {};
+    const calm = expr === 'normal' || expr === 'smug' || expr === 'happy';
+    const g = GS = gest(id, t, sd, pose === 'idle' && calm && !o.talk && !o.walk && !o.still);
+    if (g.wink && expr !== 'happy') expr = 'wink';
+    WKv = o.walk ? sin(o.walk) : 0; SWv = sw + g.hair; TKv = g.yawn > 0.05 ? g.yawn : o.talk ? Math.abs(sin(t * 17)) * (0.45 + 0.55 * Math.abs(sin(t * 5.3))) : 0; EYv = CH ? 0 : o.listen ? (o.listen === 2 ? 0 : 1.5) : g.eye ? g.eye : sin(t * 0.53 + sd) * 1.1 + (sin(t * 0.21 + sd) > 0.93 ? 1 : 0); TWv = g.ear || Math.pow(Math.max(0, sin(t * 0.83 + sd)), 30) * 0.4 * sin(t * 28);
+    const blink = g.closed || ((t * 0.31 + sd) % 1) < 0.035 && expr !== 'hurt' && expr !== 'happy' && expr !== 'kiss';
     // руки: цель по позе и эмоции, плавный переход
     const tg = { R: (E.R || P.R || REST).concat(E.R ? (E.upR || 0) : (P.upR || 0)), L: (E.L || P.L || REST).concat(E.L ? (E.upL || 0) : (P.upL || 0)) };
     if (CH) { tg.R = REST.concat(0); tg.L = REST.concat(0); }
+    if (g.R) tg.R = g.R; if (g.L) tg.L = g.L;
+    // говорит — помогает себе свободной рукой
+    if (o.talk && !CH) for (const k of ['R', 'L']) if (tg[k][0] === REST[0] && tg[k][1] === REST[1]) { tg[k] = [0.5 + sin(t * 5.2 + (k === 'R' ? 0 : 2)) * 0.14, -1.25 - Math.abs(sin(t * 2.6 + (k === 'R' ? 0 : 1))) * 0.7, 0]; break; }
     if (st) { if (!st._arm) st._arm = { R: tg.R.slice(), L: tg.L.slice() }; for (const k of ['R', 'L']) { const c = st._arm[k]; if (c[2] !== tg[k][2]) { c[0] = tg[k][0]; c[1] = tg[k][1]; c[2] = tg[k][2]; } else { c[0] += (tg[k][0] - c[0]) * 0.2; c[1] += (tg[k][1] - c[1]) * 0.2; } } ARM = st._arm; } else ARM = tg;
     ARM.back = !CH && !E.R && P.back;
     // движение по эмоции: подпрыгивание, дрожь, наклон, «подскок» при смене выражения
     let hop = 0; if (st) { if (st._e !== expr) { st._e = expr; st._pt = t; } const k = (t - st._pt) / 0.32; if (k >= 0 && k < 1) hop = -sin(k * PI) * 5; }
-    const walkBob = o.walk ? -Math.abs(sin(o.walk)) * 3 : 0;
-    const jump = (pose === 'happy' ? -Math.abs(sin(t * 7)) * 6 : expr === 'happy' && pose === 'idle' && !CH ? -Math.pow(Math.abs(sin(t * 2.6 + sd)), 6) * 5 : 0) + hop + walkBob;
+    const gait = GAIT[id], walkBob = !o.walk ? (gait === 'float' ? sin(t * 2 + sd) * 3 - 5 : 0) : gait === 'leap' ? -Math.abs(sin(o.walk * 0.5)) * 12 : gait === 'bounce' ? -Math.abs(sin(o.walk * 0.7)) * 6 : gait === 'float' ? sin(t * 2 + sd) * 3 - 5 : gait === 'slither' ? 0 : -Math.abs(sin(o.walk)) * 3;
+    const jump = (pose === 'happy' ? -Math.abs(sin(t * 7)) * 6 : expr === 'happy' && pose === 'idle' && !CH ? -Math.pow(Math.abs(sin(t * 2.6 + sd)), 6) * 5 : 0) + hop + walkBob + g.hop;
     const lean = (pose === 'attack' ? 0.1 : pose === 'hurt' ? -0.09 : 0) + (expr === 'angry' && !CH ? sin(t * 31) * 0.006 : 0);
-    const tilt = CH ? 0 : (P.tilt || 0) + sin(t * 0.6 + sd) * 0.012 + (expr === 'smug' || expr === 'wink' ? sin(t * 1.4) * 0.02 : expr === 'blush' ? sin(t * 2.4) * 0.014 : 0);
-    const headRot = sin(t * 1.1 + sd) * 0.034 + sin(t * 0.43 + sd) * 0.02 + (pose === 'hurt' ? -0.12 : 0) - tilt * 1.5 + (expr === 'blush' ? 0.07 : expr === 'sleepy' ? 0.06 + sin(t * 1.2) * 0.05 : expr === 'wink' ? -0.06 : 0) + TKv * 0.025;
+    const tilt = (CH ? (gait === 'slither' && o.walk ? sin(o.walk) * 0.08 : 0) : (P.tilt || 0) + sin(t * 0.6 + sd) * 0.012) + g.tilt + (expr === 'smug' || expr === 'wink' ? sin(t * 1.4) * 0.02 : expr === 'blush' ? sin(t * 2.4) * 0.014 : 0);
+    const headRot = sin(t * 1.1 + sd) * 0.034 + sin(t * 0.43 + sd) * 0.02 + (pose === 'hurt' ? -0.12 : 0) - tilt * 1.5 + (expr === 'blush' ? 0.07 : expr === 'sleepy' ? 0.06 + sin(t * 1.2) * 0.05 : expr === 'wink' ? -0.06 : 0) + TKv * 0.025 + g.head + (o.listen ? Math.pow(Math.max(0, sin(t * 1.9 + sd * 2)), 10) * 0.1 + (o.listen === 2 ? 0 : 0.035) : 0);
     const W = o.walk ? sin(o.walk) : 0;
     const head = fn => { x.save(); x.translate(0, (-128 + br) * by); x.scale(hs, hs); x.rotate(headRot); fn(); x.restore(); };
     const body = fn => { x.save(); x.scale(1, by); fn(); x.restore(); };
@@ -82,12 +147,15 @@
     x.save();
     if (L.tall) x.scale(L.tall, L.tall);
     if (L.ghost) x.globalAlpha *= 0.82 + sin(t * 2) * 0.06;
+    x.globalAlpha *= g.alpha;
     x.fillStyle = 'rgba(30,14,30,.25)'; ell(x, 0, 0, L.lower === 'slime' ? 44 : L.lower === 'snake' ? 46 : L.lower === 'fishtail' ? 34 : 26, 6);
-    x.translate(CH ? 0 : sin(t * 0.8 + sd) * 1.1, jump); x.rotate(lean + sin(t * 0.9 + sd) * 0.014);
+    x.translate((CH ? 0 : sin(t * 0.8 + sd) * 1.1) + g.shiver, jump); x.rotate(lean + sin(t * 0.9 + sd) * 0.014);
+    { // сжатие и растяжение: в прыжке вытягивается, слизь и русалка пружинят на ходу
+      const up = Math.min(1, Math.max(0, -jump) / 9), bq = o.walk && gait === 'bounce' ? sin(o.walk * 1.4) * 0.09 : 0, sq = up * 0.05 + g.stretch - bq + g.jig; x.scale(1 - sq * 0.8 + g.jig * 0.2, 1 + sq); }
     if (expr === 'love' || expr === 'kiss') { if (!CH) x.scale(1.02, 1.02); }
     if (CH || L.slime || L.ghost || o.flat) { PASS = 0; draw(); }
     else { PASS = 1; draw(); PASS = 2; draw(); PASS = 0; }
-    upper(() => head(() => { if (o.bloom) sparkles(x, t); marks(x, expr, t, sd); }));
+    upper(() => head(() => { if (o.bloom) sparkles(x, t); marks(x, expr, t, sd); gestFx(x, g, t); }));
     x.restore();
   };
   // манга-значки над головой
@@ -104,8 +172,8 @@
   }
 
   function backWings(x, L, t, sd) {
-    if (L.cape) { const sw2 = SWv * 3; x.beginPath(); x.moveTo(-17, -129); x.quadraticCurveTo(-34, -90, -36 + sw2, -34); for (let i = 0; i <= 6; i++) x.lineTo(-36 + i * 12 + sw2, -30 + (i % 2 ? 7 : 0)); x.quadraticCurveTo(34, -90, 17, -129); x.closePath(); ink(x, L.cape, 2.4); x.save(); x.clip(); x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(-10, -130, 20, 110); x.fillStyle = shade(L.cape, 0.6); x.fillRect(-40, -40, 80, 6); x.restore(); }
-    const f = sin(t * 3 + sd) * 0.08;
+    if (L.cape) { const sw2 = SWv * 3 + (GS.cape || 0) * 16; x.beginPath(); x.moveTo(-17, -129); x.quadraticCurveTo(-34, -90, -36 + sw2, -34); for (let i = 0; i <= 6; i++) x.lineTo(-36 + i * 12 + sw2, -30 + (i % 2 ? 7 : 0)); x.quadraticCurveTo(34, -90, 17, -129); x.closePath(); ink(x, L.cape, 2.4); x.save(); x.clip(); x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(-10, -130, 20, 110); x.fillStyle = shade(L.cape, 0.6); x.fillRect(-40, -40, 80, 6); x.restore(); }
+    const f = sin(t * 3 + sd) * 0.08 + GS.wing * (0.25 + sin(t * 20) * 0.3) + GS.spread * 0.55;
     if (L.batwings) for (const s of [-1, 1]) {
       x.save(); x.translate(s * 10, -116); x.rotate(s * (0.35 + f)); x.scale(s, 1);
       x.beginPath(); x.moveTo(0, 0); x.lineTo(40, -26); x.lineTo(54, -10); x.quadraticCurveTo(46, -4, 46, 4); x.quadraticCurveTo(38, 0, 34, 8); x.quadraticCurveTo(26, 4, 20, 12); x.quadraticCurveTo(10, 6, 0, 10); x.closePath();
@@ -122,7 +190,7 @@
     if (L.tails) {
       const n = bloom ? 9 : L.tails;
       for (let i = 0; i < n; i++) {
-        const k = n === 1 ? 0 : i / (n - 1) - 0.5, a = k * 2.2 + sin(t * 1.8 + i + sd) * 0.12;
+        const k = n === 1 ? 0 : i / (n - 1) - 0.5, a = k * (2.2 + GS.tail * 0.9) + sin(t * 1.8 + i + sd) * 0.12 + sin(t * 13 + i) * 0.16 * GS.tail;
         x.save(); x.translate(0, -82); x.rotate(a);
         x.beginPath(); x.moveTo(-5, 0); x.bezierCurveTo(-16, -20, -22, -50, -6, -72); x.bezierCurveTo(4, -80, 20, -60, 12, -36); x.bezierCurveTo(8, -18, 6, -8, 5, 0); x.closePath();
         ink(x, L.hair, 2.2);
@@ -292,10 +360,10 @@
       else if (pose === 'cast') { a = s * 0.9; b = s * -1.2; }
       else if (pose === 'hurt') { a = s * 0.45; b = s * -1.9; }
       else if (pose === 'wave') { if (s > 0) { a = 2.5 + sin(t * 9) * 0.28; b = 0.5; } }
-      else { a += sin(t * 2 + sd + s) * 0.03 + WKv * 0.55; b += sin(t * 1.3 + sd * s) * 0.05; }
+      else { a += sin(t * 2 + sd + s) * 0.03 + WKv * 0.55; b += sin(t * 1.3 + sd * s) * 0.05 + (GS.fid || 0) * s; }
       const sx = s * 17.5, sy = -124 + br * 0.4;
       if (L.wings === 'arms') {
-        x.save(); x.translate(sx, sy); x.rotate(a * 0.8); x.scale(s, 1);
+        x.save(); x.translate(sx, sy); x.rotate(a * 0.8 + s * GS.wing * (0.9 + sin(t * 20) * 0.5)); x.scale(s, 1);
         x.beginPath(); x.moveTo(0, -4); x.quadraticCurveTo(26, 6, 22, 50); for (let i = 0; i < 5; i++) x.lineTo(22 - i * 5.2 - 2.6, 46 + (i % 2 ? 10 : 0)); x.quadraticCurveTo(-4, 30, -4, 4); x.closePath();
         ink(x, L.hair, 2.3); x.save(); x.clip(); x.fillStyle = shade(L.hair, 0.65); x.fillRect(-10, 34, 40, 30); x.fillStyle = L.hair2; for (let i = 0; i < 4; i++) ell(x, 6 + i * 4, 8 + i * 8, 2, 8, -0.4); x.restore();
         x.restore(); continue;
@@ -340,6 +408,8 @@
     else if (expr === 'sleepy') { x.beginPath(); x.ellipse(0, -9.5, 1.6, 1.2, 0, 0, TAU); x.stroke(); }
     else if (L.mouth === 'cat') { x.beginPath(); x.moveTo(-4.4, -10.6); x.quadraticCurveTo(-2.2, -7.6, 0, -10.2); x.quadraticCurveTo(2.2, -7.6, 4.4, -10.6); x.stroke(); }
     else { x.beginPath(); x.moveTo(-3.4, -10.4); x.quadraticCurveTo(0, -8.4, 3.4, -10.4); x.stroke(); }
+    if (GS.tongue > 0.02) { const tl = 4 + GS.tongue * (L.slit ? 9 : 3.4); x.strokeStyle = OUT; x.lineWidth = 3; x.beginPath(); x.moveTo(0, -8.6); x.lineTo(0.6, -8.6 + tl); x.stroke(); x.strokeStyle = '#ff5a7a'; x.lineWidth = 1.6; x.stroke(); if (L.slit) { x.beginPath(); x.moveTo(0.6, -8.6 + tl); x.lineTo(-1.6, -5.6 + tl); x.moveTo(0.6, -8.6 + tl); x.lineTo(2.8, -5.6 + tl); x.strokeStyle = '#ff5a7a'; x.lineWidth = 1.2; x.stroke(); } x.strokeStyle = OUT; }
+    if (GS.cheeks > 0.02) for (const s2 of [-1, 1]) { x.beginPath(); x.arc(s2 * 15, -12.5, 3 + GS.cheeks * 5.4, 0, TAU); x.fillStyle = L.skin; x.fill(); x.lineWidth = 1.4; x.strokeStyle = shade(L.skin, 0.5); x.stroke(); x.fillStyle = 'rgba(255,110,140,.55)'; ell(x, s2 * 15, -12.5, 2.4 + GS.cheeks * 2.4, 1.6 + GS.cheeks * 1.4); x.strokeStyle = OUT; }
     if (L.whisk) { x.strokeStyle = shade(L.skin, 0.62); x.lineWidth = 0.9; for (const s2 of [-1, 1]) { x.beginPath(); x.moveTo(s2 * 13, -13.4); x.lineTo(s2 * 17.4, -14.2); x.moveTo(s2 * 13, -11.6); x.lineTo(s2 * 17.4, -11); x.stroke(); } x.strokeStyle = OUT; }
     if (TKv <= 0.16 && L.mouth !== 'cat' && (expr === 'normal' || expr === 'smug' || expr === 'wink' || expr === 'sleepy' || expr === 'blush')) { x.fillStyle = 'rgba(232,84,112,.5)'; ell(x, 0.4, -8.1, 2.5, 1); }
     if (L.fangs && (expr === 'happy' || expr === 'smug' || expr === 'normal' || expr === 'angry' || expr === 'love')) { x.fillStyle = '#fff'; P(x, [-3, -9.6, -1.6, -9.6, -2.3, -6.4]); x.fill(); x.lineWidth = 0.8; x.stroke(); P(x, [1.6, -9.6, 3, -9.6, 2.3, -6.4]); x.fill(); x.stroke(); }

@@ -37,11 +37,11 @@
   };
   const BY_EXPR = { happy: 'giggle', blush: 'sigh', angry: 'hmph', surprised: 'oh', smug: 'hehe', sleepy: 'yawn', love: 'mm', kiss: 'mm', wink: 'hehe', hurt: 'ai', normal: 'hi' };
   let lastEmo = 0;
-  U.emote = function (id, kind) {
+  U.emote = function (id, kind, vol) {
     const au = U._audio(); if (!au || !U.soundOn || au.ac.state !== 'running') return;
     const now = au.ac.currentTime; if (now - lastEmo < 0.12) return; lastEmo = now;
     const seq = EMO[kind] || EMO[BY_EXPR[kind]] || EMO.hi, f0 = (F0[id] || 230) * (0.97 + Math.random() * 0.06);
-    const out = au.ac.createGain(); out.gain.value = 0.34; out.connect(au.master);
+    const out = au.ac.createGain(); out.gain.value = vol || 0.34; out.connect(au.master);
     for (const s of seq) syl(au.ac, out, au.nb, now + 0.02 + s[1], f0, s[0], s[2], s[3], s[4], s[5], s[6]);
     // особые звуки
     if (id === 'neko' && (kind === 'love' || kind === 'mm' || kind === 'blush')) for (let i = 0; i < 9; i++) syl(au.ac, out, au.nb, now + 0.05 + i * 0.045, 60, 'm', 0.04, 1, 1, 0.5, 0.2);

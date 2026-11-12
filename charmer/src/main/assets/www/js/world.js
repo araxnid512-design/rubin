@@ -236,7 +236,8 @@
     S.map = mapId; S.x = x; S.y = y; if (face) S.face = face;
     W.m = W.build(mapId);
     W.hero = { px: x * T, py: y * T, walk: 0, mv: 0 };
-    W.fol = { px: x * T - 18, py: y * T + 22, walk: 0, face: 'down', path: [] }; W.trail = [];
+    W.fols = []; W.fsig = null; W.trail = []; W.convs = []; W.chatT = 2.5;
+    W.res = W.m.npcs.filter(n => !n.trainer && n.id !== 'guard' && n.look !== 'witch'); for (const n of W.res) { n.hx = n.x; n.hy = n.y; n.ox = 0; n.oy = 0; n.walk = 0; n.f = 'right'; }
     W.goal = null; W.drag = null; W.path = null; W.mark = null; W.zcur = null;
     spawnWild(); zoneCheck(true);
     if (mapId === 'manor') FX.onManor();
@@ -341,10 +342,8 @@
       }
     } else h.walk = 0;
     const [nx, ny] = feet(); S.x = Math.floor(nx / T); S.y = Math.floor(ny / T); S.px = h.px; S.py = h.py;
-    // напарница идёт по следу
-    const tr = W.trail; if (!tr.length || Math.hypot(tr[tr.length - 1][0] - h.px, tr[tr.length - 1][1] - h.py) > 6) { tr.push([h.px, h.py]); if (tr.length > 9) tr.shift(); }
-    const f = W.fol, tg = tr[0] || [h.px, h.py], dx = tg[0] - f.px, dy = tg[1] - f.py, d = Math.hypot(dx, dy);
-    if (d > 3 && tr.length >= 8) { const sp = Math.min(d, SPEED * 1.05 * dt); f.px += dx / d * sp; f.py += dy / d * sp; f.walk += dt * 13; f.face = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); } else f.walk = 0;
+    // свита идёт по следу, болтает и переглядывается
+    folUpdate(dt, free); resUpdate(dt, free); convUpdate(dt, free); actTick(dt);
     if (!free) return;
     // переходы, зоны, клады, случайные сценки
     const ex = m.exits.find(e => e.x === S.x && e.y === S.y);
@@ -422,13 +421,139 @@
   W.spawnWild = spawnWild;
   W.relocate = function (w) { const p = spot(W.HOME[w.id], true); if (p) { w.px = w.hx = p[0] * T; w.py = w.hy = p[1] * T; } };
   W.removeWild = id => { W.wild = (W.wild || []).filter(q => q.id !== id); };
+  // у каждой свой нрав: [скорость, отдых от, отдых до]
+  const WB = { slime: [26, 1.5, 4], harpy: [62, 0.6, 2], neko: [84, 0.5, 1.8], fox: [46, 1.2, 3.5], lamia: [22, 3, 7], dryad: [15, 5, 10], minotaur: [30, 2, 5], vampire: [26, 3, 7], valkyrie: [52, 0.8, 1.6], snow: [24, 2, 5], mermaid: [22, 2.5, 6], frog: [74, 0.4, 1.4], ghost: [30, 1, 3] };
+  // как встречает героя: [поза, лицо, значок]
+  const GREET = { minotaur: ['idle', 'blush', 'Ой…'], vampire: ['idle', 'smug', 'Хм?'], dryad: ['idle', 'sleepy', 'zzz'], valkyrie: ['idle', 'normal', '!'], fox: ['wave', 'wink', 'heart'], lamia: ['idle', 'love', 'heart'], snow: ['idle', 'normal', 'dots'], ghost: ['idle', 'surprised', '!'], frog: ['happy', 'happy', 'Ква!'], neko: ['happy', 'happy', 'Мяу!'], slime: ['happy', 'happy', 'heart'], harpy: ['wave', 'happy', 'note'], mermaid: ['wave', 'happy', 'note'] };
+  const wfree = (px, py) => { const tx = Math.floor((px + 24) / T), ty = Math.floor((py + 34) / T); return !W.solid(tx, ty) && W.m.tile[ty * W.m.w + tx] !== WATER; };
   function wildUpdate(dt) {
+    const hx = W.hero.px, hy = W.hero.py;
     for (const w of W.wild || []) {
+      const b = WB[w.id] || [34, 1.5, 4], near = Math.hypot(w.px - hx, w.py - hy) < 120;
+      if (near && !w.near && !w.cv && GREET[w.id]) emo(w, GREET[w.id][2]);
+      w.near = near;
+      if (w.cv) { w.walk = 0; w.st = 0; w.t = 0.8; w.meet = null; continue; }
       w.t -= dt;
-      if (Math.hypot(w.px - W.hero.px, w.py - W.hero.py) < 120) { w.st = 0; w.t = 0.6; w.walk = 0; w.f = W.hero.px < w.px ? 'left' : 'right'; continue; }
-      if (w.st === 1) { const nx = w.px + w.vx * dt, ny = w.py + w.vy * dt; if (!W.solid(Math.floor((nx + 24) / T), Math.floor((ny + 34) / T)) && W.m.tile[Math.floor((ny + 34) / T) * W.m.w + Math.floor((nx + 24) / T)] !== WATER) { w.px = nx; w.py = ny; w.walk += dt * 11; } else w.t = 0; if (w.t <= 0) { w.st = 0; w.t = 1.5 + Math.random() * 4; w.walk = 0; } }
-      else if (w.t <= 0) { const a = Math.random() * 6.283; let tx = w.px + Math.cos(a) * 60, ty = w.py + Math.sin(a) * 60; if (Math.hypot(tx - w.hx, ty - w.hy) > 130) { tx = w.hx; ty = w.hy; } const d = Math.hypot(tx - w.px, ty - w.py) || 1; w.vx = (tx - w.px) / d * 34; w.vy = (ty - w.py) / d * 34; w.st = 1; w.t = d / 34; w.f = Math.abs(w.vx) > Math.abs(w.vy) ? (w.vx > 0 ? 'right' : 'left') : 'down'; }
+      if (near) { w.st = 0; w.t = 0.6; w.walk = 0; w.meet = null; w.f = hx < w.px ? 'left' : 'right'; continue; }
+      if (w.st === 1) {
+        if (w.meet) {   // идёт поболтать с соседкой
+          const o = w.meet, dx = o.px - w.px, dy = o.py - w.py, d = Math.hypot(dx, dy);
+          if (o.cv || o.near || d > 520 || !W.wild.includes(o)) { w.meet = null; w.t = 0; }
+          else if (d < 46) { w.meet = null; w.st = 0; w.t = 1; w.walk = 0; o.st = 0; o.t = 1; o.walk = 0; o.meet = null; startConv(w, o); continue; }
+          else { w.vx = dx / d * b[0]; w.vy = dy / d * b[0]; w.t = 1; w.f = dx > 0 ? 'right' : 'left'; }
+        }
+        const nx = w.px + w.vx * dt, ny = w.py + w.vy * dt;
+        if (wfree(nx, ny)) { w.px = nx; w.py = ny; w.walk += dt * (7 + b[0] * 0.1); } else { w.t = 0; w.meet = null; }
+        if (w.t <= 0) { w.st = 0; w.t = b[1] + Math.random() * (b[2] - b[1]); w.walk = 0; if (w.id === 'dryad') emo(w, 'zzz', 2.6); else if (Math.random() < 0.3) emo(w, Math.random() < 0.5 ? 'note' : word(w.id)); }
+      } else if (w.t <= 0) {
+        const o = Math.random() < 0.34 && W.wild.find(q => q !== w && !q.cv && !q.near && W.HOME[q.id] === W.HOME[w.id] && Math.hypot(q.px - w.px, q.py - w.py) < 460);
+        if (o) { w.meet = o; w.st = 1; w.t = 1; w.vx = w.vy = 0; continue; }
+        let tx, ty;
+        if (w.id === 'valkyrie') { w.pd = -(w.pd || 1); tx = w.hx + w.pd * 84; ty = w.hy; }   // дозор: туда-обратно
+        else { const a = Math.random() * 6.283, r = w.id === 'neko' || w.id === 'frog' || w.id === 'harpy' ? 90 : 60; tx = w.px + Math.cos(a) * r; ty = w.py + Math.sin(a) * r; if (Math.hypot(tx - w.hx, ty - w.hy) > 130) { tx = w.hx; ty = w.hy; } }
+        const d = Math.hypot(tx - w.px, ty - w.py) || 1; w.vx = (tx - w.px) / d * b[0]; w.vy = (ty - w.py) / d * b[0]; w.st = 1; w.t = d / b[0]; w.f = w.vx > 0 ? 'right' : 'left';
+      }
     }
+  }
+
+  /* ---------- Живое поведение: свита, болтовня, значки над головой ---------- */
+  const WORDS = { fox: ['Фыр!', 'Хи-хи', 'Мой!'], slime: ['Буль!', 'Плюх~'], harpy: ['Чирик!', 'Кья!'], lamia: ['Сссс…', 'Ммм~'], dryad: ['Хр-р…', 'А-ах…'], minotaur: ['Му?', 'Ой…'], vampire: ['Хмф.', 'Фи.'], valkyrie: ['Смирно!', 'Так!'], neko: ['Мяу!', 'Ня~'], snow: ['Бррр', 'Тише.'], mermaid: ['Ла-ла~', 'Буль!'], frog: ['Ква!', 'Ква-ква'], ghost: ['У-у-у', 'Бу!'], dragon: ['Грр', 'Пф-ф'] };
+  const BASEX = { vampire: 'smug', fox: 'smug', lamia: 'smug', dragon: 'smug', minotaur: 'normal', snow: 'normal', valkyrie: 'normal', ghost: 'normal', dryad: 'normal' };
+  const GAP = { minotaur: 10, ghost: 10, snow: 6, dryad: 16, slime: -6, neko: -8, lamia: -4, frog: -4 }, ZIG = { neko: 7, ghost: 5, harpy: 5, frog: 4, fox: 3, slime: 2 };
+  const VW = ['Слыхал?', 'Ну и ну!', 'Ох…', 'Да ну!', 'Хе-хе', 'Эх…'];
+  const gid = e => e.girl || e.id, word = id => U.pick(WORDS[id] || VW, Math.random);
+  const apx = e => e.px !== undefined ? e.px : e.x * T + (e.ox || 0), apy = e => e.py !== undefined ? e.py : e.y * T + (e.oy || 0);
+  const relOf = (a, b) => !(ST.PAIRS || []).some(p => p.includes(a) && p.includes(b)) ? 'n' : G.S.flags['ok_' + [a, b].sort().join('+')] ? 'f' : 'r';
+  W.relOf = relOf;
+  function emo(e, k, d) { e.emo = { k, t: 0, d: d || 1.5 }; e.tk = 0.7; e.hp = G.time; }
+  // сценки: соперницы шипят, подруги хихикают, остальные просто болтают
+  const SCR = {
+    r: [[0, 'anger', 'angry'], [1, 'w', 'smug'], [0, '!', 'angry'], [1, 'anger', 'angry'], [0, 'w', 'angry'], [1, 'dots', 'smug'], [0, 'anger', 'angry']],
+    f: [[0, 'note', 'happy'], [1, 'w', 'happy'], [0, 'heart', 'happy'], [1, 'note', 'happy'], [0, 'w', 'wink'], [1, 'heart', 'happy'], [0, 'note', 'happy']],
+    n: [[0, 'w', 'normal'], [1, '?', 'surprised'], [0, 'dots', 'smug'], [1, 'w', 'happy'], [0, 'note', 'happy'], [1, 'sweat', 'normal'], [0, 'w', 'happy']]
+  };
+  function startConv(a, b) {
+    if (!a || !b || a === b || a.cv || b.cv) return false;
+    const all = SCR[relOf(gid(a), gid(b))], s0 = (Math.random() * 4) | 0, c = { a, b, steps: all.slice(s0, s0 + 3 + ((Math.random() * 2) | 0)), i: 0, t: 0.25 };
+    a.cv = b.cv = c; W.convs.push(c); return true;
+  }
+  function convUpdate(dt, free) {
+    for (let i = W.convs.length - 1; i >= 0; i--) {
+      const c = W.convs[i]; c.t -= dt; if (c.t > 0 && !c.end) continue;
+      if (c.end || c.i >= c.steps.length) { c.a.cv = c.b.cv = null; c.a.ex = c.b.ex = null; W.convs.splice(i, 1); continue; }
+      const s = c.steps[c.i++], who = s[0] ^ c.steps[0][0], e = who ? c.b : c.a, o = who ? c.a : c.b;
+      emo(e, s[1] === 'w' ? word(gid(e)) : s[1]); e.ex = s[2]; c.t = 1.3;
+      const r = apx(o) >= apx(e); e.f = r ? 'right' : 'left'; o.f = r ? 'left' : 'right';
+      if (free && U.emote && WORDS[gid(e)] && Math.random() < 0.45 && W.cam && Math.abs(apx(e) - W.cam.left - W.cam.w / 2) < W.cam.w / 2) U.emote(gid(e), s[2], 0.09);
+    }
+  }
+  function actTick(dt) {
+    for (const l of [W.fols, W.wild || [], W.res]) for (const e of l) { if (e.emo && (e.emo.t += dt) > e.emo.d) e.emo = null; if (e.tk > 0) e.tk -= dt; if (e.exT > 0 && (e.exT -= dt) <= 0 && !e.cv) e.ex = null; }
+  }
+  function syncFols() {
+    const S = G.S, n = !S.flags.starter ? 0 : W.m.def.indoor ? 1 : 3, want = S.party.slice(0, n), sig = want.map(g => g.id).join(), h = W.hero;
+    if (sig === W.fsig) return; W.fsig = sig; for (const c of W.convs) if (W.fols.includes(c.a) || W.fols.includes(c.b)) c.end = true;
+    W.fols = want.map((g, i) => W.fols.find(f => f.g === g) || { g, id: g.id, px: h.px - 26 * (i + 1), py: h.py + 5 + (i % 2) * 9, walk: 0, f: 'right', idle: 0 });
+  }
+  function folUpdate(dt, free) {
+    syncFols(); const h = W.hero, tr = W.trail, F = W.fols;
+    if (!tr.length || Math.hypot(tr[tr.length - 1][0] - h.px, tr[tr.length - 1][1] - h.py) > 6) { tr.push([h.px, h.py]); if (tr.length > 36) tr.shift(); }
+    F.forEach((f, i) => {
+      const back = Math.round(((i + 1) * 44 + (GAP[f.id] || 0) + (FX.sulky(f.g) ? 12 : 0)) / 6), tg = tr[tr.length - 1 - back]; let mv = false;
+      if (tg) { const dx = tg[0] - f.px, dy = tg[1] - f.py, d = Math.hypot(dx, dy); if (d > 3) { const sp = Math.min(d, SPEED * (d > 80 ? 1.6 : 1.05) * dt); f.px += dx / d * sp; f.py += dy / d * sp; f.walk += dt * 13; mv = true; if (Math.abs(dx) > 1.5) f.f = dx > 0 ? 'right' : 'left'; } }
+      if (mv) { f.idle = 0; if (f.cv) f.cv.end = true; } else { f.walk = 0; f.idle += dt; if (!f.cv && f.idle > 0.4) f.f = h.px + 4 >= f.px ? 'right' : 'left'; }
+    });
+    if (!free || !F.length) return;
+    W.chatT -= dt; if (W.chatT > 0) return; W.chatT = 3 + Math.random() * 4;
+    const still = F.filter(f => !f.walk && !f.cv && f.idle > 0.8);
+    if (still.length >= 2 && Math.random() < 0.72) { const a = U.pick(still, Math.random); startConv(a, U.pick(still.filter(q => q !== a), Math.random)); return; }
+    const f = U.pick(F, Math.random); if (f.cv) return; f.exT = 1.6;
+    if (FX.sulky(f.g)) { emo(f, U.pick(['anger', 'Хмф!', 'dots'], Math.random)); f.ex = 'angry'; }
+    else if (f.walk) {
+      const nb = F[F.indexOf(f) + 1] || F[F.indexOf(f) - 1], rl = nb && !nb.cv ? relOf(f.id, nb.id) : 'n';
+      if (rl === 'r' && Math.random() < 0.6) { emo(f, 'anger'); emo(nb, U.pick(['anger', word(nb.id)], Math.random)); f.ex = nb.ex = 'angry'; nb.exT = 1.6; }
+      else if (rl === 'f' && Math.random() < 0.6) { emo(f, 'note'); emo(nb, 'note'); f.ex = nb.ex = 'happy'; nb.exT = 1.6; }
+      else { emo(f, Math.random() < 0.5 ? 'note' : word(f.id)); f.ex = 'happy'; }
+    } else { const lv = f.g.aff >= 50; emo(f, lv && Math.random() < 0.55 ? 'heart' : word(f.id)); f.ex = lv ? 'love' : 'happy'; }
+  }
+  // жилицы усадьбы и деревенские: прохаживаются, поворачиваются друг к другу и болтают
+  const nearDoor = (m, tx, ty) => (m.houses || []).some(h => tx >= h.x && tx <= h.x + 3 && ty >= h.y + 3 && ty <= h.y + 5) || m.doors.some(d => Math.abs(d.x - tx) <= 1 && Math.abs(d.y - ty) <= 2) || m.signs.some(q => q.x === tx && Math.abs(q.y - ty) <= 1);
+  function resUpdate(dt, free) {
+    const S = G.S, m = W.m;
+    for (const n of W.res) {
+      if (n.ox || n.oy) { const d = Math.hypot(n.ox, n.oy), sp = Math.min(d, 46 * dt); n.ox -= n.ox / d * sp; n.oy -= n.oy / d * sp; n.walk += dt * 11; if (d - sp < 0.5) { n.ox = n.oy = 0; n.walk = 0; if (!n.girl) n.face = 'down'; } continue; }
+      if (n.cv || !free) continue;
+      n.bt = (n.bt === undefined ? 0.5 + Math.random() * 4 : n.bt) - dt; if (n.bt > 0) continue;
+      n.bt = 2.5 + Math.random() * 5; const r = Math.random();
+      if (r < 0.45) { const o = W.res.find(q => q !== n && !q.cv && !q.ox && !q.oy && Math.abs(q.x - n.x) + Math.abs(q.y - n.y) <= 3 && Math.random() < 0.7); if (o && startConv(n, o)) continue; }
+      if (r < 0.8) {
+        const [dx, dy] = U.pick([[1, 0], [-1, 0], [0, 1], [0, -1]], Math.random), tx = n.x + dx, ty = n.y + dy;
+        if (!W.solid(tx, ty) && Math.abs(tx - n.hx) + Math.abs(ty - n.hy) <= (n.girl ? 2 : 1) && m.tile[ty * m.w + tx] !== PATH && m.tile[ty * m.w + tx] !== WATER && !nearDoor(m, tx, ty) && Math.max(Math.abs(tx - S.x), Math.abs(ty - S.y)) > 1 && !m.exits.some(e => Math.abs(e.x - tx) + Math.abs(e.y - ty) <= 2) && !(W.goal && W.goal.act && W.goal.act.n === n)) { n.ox = -dx * T; n.oy = -dy * T; n.x = tx; n.y = ty; if (dx) n.f = dx > 0 ? 'right' : 'left'; if (!n.girl) n.face = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up'; }
+      } else if (n.girl || Math.random() < 0.5) emo(n, Math.random() < 0.4 ? 'note' : word(n.girl));
+    }
+  }
+  // значок или словечко над головой
+  function emoDraw(x, e, px, py) {
+    const m = e.emo; if (!m) return; const k = m.t < 0.16 ? m.t / 0.16 * 1.15 : m.t < 0.24 ? 1.15 - (m.t - 0.16) / 0.08 * 0.15 : 1, a = Math.min(1, (m.d - m.t) / 0.25);
+    x.save(); x.translate(px, py - m.t * 3); x.scale(k, k); x.globalAlpha = Math.max(0, a); x.lineJoin = 'round'; x.lineCap = 'round';
+    const icon = { heart: 1, anger: 1, note: 1, dots: 1, '!': 1, '?': 1, zzz: 1, sweat: 1 }[m.k];
+    x.font = '900 ' + (icon ? 13 : 9.5) + 'px sans-serif'; x.textAlign = 'center';
+    const w = icon ? 11 : Math.max(11, x.measureText(m.k).width / 2 + 6), hh = icon ? 10 : 8;
+    x.fillStyle = '#fff'; x.strokeStyle = '#21121c'; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(-w + hh, -hh); x.lineTo(w - hh, -hh); x.arc(w - hh, 0, hh, -Math.PI / 2, Math.PI / 2); x.lineTo(1, hh); x.lineTo(-3, hh + 6); x.lineTo(-5, hh); x.lineTo(-w + hh, hh); x.arc(-w + hh, 0, hh, Math.PI / 2, Math.PI * 1.5); x.closePath(); x.fill(); x.stroke();
+    if (m.k === 'heart') ART.heart(x, 0, 0.5, 5.5, '#ff4f7b');
+    else if (m.k === 'anger') { x.strokeStyle = '#e8243a'; x.lineWidth = 2.2; for (let i = 0; i < 4; i++) { const sx = i % 2 ? 1 : -1, sy = i < 2 ? 1 : -1; x.beginPath(); x.arc(sx * 5.4, sy * 5.4, 3.6, sx > 0 ? (sy > 0 ? Math.PI : Math.PI / 2) : (sy > 0 ? -Math.PI / 2 : 0), sx > 0 ? (sy > 0 ? Math.PI * 1.5 : Math.PI) : (sy > 0 ? 0 : Math.PI / 2)); x.stroke(); } }
+    else if (m.k === 'dots') { x.fillStyle = '#21121c'; for (let i = -1; i <= 1; i++) { x.beginPath(); x.arc(i * 4.6, 0.5 + (Math.floor(m.t * 5) % 3 === i + 1 ? -1.6 : 0), 1.7, 0, 6.283); x.fill(); } }
+    else if (m.k === 'sweat') { x.fillStyle = '#6ac4ff'; x.strokeStyle = '#21121c'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -6); x.quadraticCurveTo(5, 1.5, 0, 5.5); x.quadraticCurveTo(-5, 1.5, 0, -6); x.fill(); x.stroke(); }
+    else { x.fillStyle = m.k === '!' ? '#e8243a' : m.k === '?' ? '#3a7bd8' : m.k === 'note' ? '#d83a8a' : m.k === 'zzz' ? '#5a7ad8' : '#21121c'; x.fillText(m.k === 'note' ? '♪' : m.k === 'zzz' ? 'Zz' : m.k, 0, icon ? 4.6 : 3.4); }
+    x.restore();
+  }
+  // девица на карте: поворот, подскок на реплике, свой шаг
+  function girlAt(x, e, id, px, py, o, tm) {
+    const hk = e.hp !== undefined ? (G.time - e.hp) / 0.3 : 2, hop = hk >= 0 && hk < 1 ? -Math.sin(hk * Math.PI) * 5 : 0, zig = e.walk && ZIG[id] ? Math.sin(e.walk * 0.33 + id.length) * ZIG[id] : 0;
+    x.save(); x.translate(px, py + hop + zig * 0.6); if (e.f === 'left') x.scale(-1, 1); x.scale(0.36, 0.36);
+    o.t = tm; o.chibi = true; o.walk = e.walk; o.talk = e.tk > 0; if (e.ex) o.expr = e.ex; if (!e._st) e._st = {}; o.st = e._st;
+    ART.girl(x, id, o); x.restore();
   }
 
   /* ---------- Отрисовка ---------- */
@@ -440,7 +565,7 @@
     W.camx += (cx - W.camx) * Math.min(1, (G.dt || 0.016) * 7); W.camy += (cy - W.camy) * Math.min(1, (G.dt || 0.016) * 7);
     cx = mw < hw * 2 ? mw / 2 : U.clamp(W.camx, hw, mw - hw); cy = mh < hh * 2 ? mh / 2 : U.clamp(W.camy, hh, mh - hh);
     const left = cx - hw, top = cy - hh;
-    W.cam = { left, top, k: hw * 2 / innerWidth };
+    W.cam = { left, top, k: hw * 2 / innerWidth, w: hw * 2, h: hh * 2 };
     x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = m.def.indoor ? '#1a0e22' : '#2e5a2a'; x.fillRect(0, 0, V.w, V.h);
     x.setTransform(z, 0, 0, z, -left * z, -top * z);
     const c0 = Math.max(0, Math.floor(left / (CH * T))), c1 = Math.min(Math.ceil(m.w / CH) - 1, Math.floor((left + hw * 2) / (CH * T))), r0 = Math.max(0, Math.floor(top / (CH * T))), r1 = Math.min(Math.ceil(m.h / CH) - 1, Math.floor((top + hh * 2) / (CH * T)));
@@ -457,10 +582,9 @@
     // объекты по глубине
     const list = [];
     for (let ry = Math.max(0, y0 - 1); ry <= Math.min(m.rows.length - 1, y1 + 4); ry++) for (const o of m.rows[ry]) if (o.x <= x1 + 1 && o.x + (o.k === 'house' ? 4 : 1) >= x0 - 1) list.push(o);
-    for (const n of m.npcs) if (n.x >= x0 - 1 && n.x <= x1 + 1 && n.y >= y0 - 1 && n.y <= y1 + 2) list.push({ k: 'npc', n, sy: (n.y + 1) * T - 6 });
+    for (const n of m.npcs) if (n.x >= x0 - 2 && n.x <= x1 + 2 && n.y >= y0 - 2 && n.y <= y1 + 2) list.push({ k: 'npc', n, sy: (n.y + 1) * T - 6 + (n.oy || 0) });
     for (const w of W.wild || []) if (w.px > left - 60 && w.px < left + hw * 2 + 20 && w.py > top - 80 && w.py < top + hh * 2 + 40) list.push({ k: 'wild', w, sy: w.py + T - 7 });
-    const lead = S.party[0];
-    if (lead && S.flags.starter) list.push({ k: 'fol', sy: W.fol.py + T - 7 });
+    for (const f of W.fols) list.push({ k: 'fol', f, sy: f.py + T - 7 });
     list.push({ k: 'hero', sy: h.py + T - 6 });
     for (let y = y0; y <= y1; y++) for (let xx = x0; xx <= x1; xx++) if (m.tile[y * m.w + xx] === TALL) list.push({ k: 'tall', x: xx, y, sy: (y + 1) * T - 0.5 });
     list.sort((a, b) => a.sy - b.sy);
@@ -471,21 +595,23 @@
       else if (o.k === 'prop') { x.drawImage(o.im, o.x * T, (o.y + 1) * T - T * 1.5, T, T * 1.5); if (o.pk === 'lamp' || o.pk === 'torch' || o.pk === 'fireplace') { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.35 + Math.sin(tm * 3 + o.x) * 0.05; x.drawImage(ART.glow, o.x * T - 16, (o.y + 1) * T - T * 1.5 - 4, 80, 60); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; } }
       else if (o.k === 'tall') { x.save(); x.translate(o.x * T, (o.y + 1) * T); x.transform(1, 0, Math.sin(tm * 2 + o.x * 0.7 + o.y) * 0.06, 1, 0, 0); x.drawImage(ART.tallFront, 0, -T * 0.62, T, T * 0.62); x.restore(); }
       else if (o.k === 'npc') {
-        const n = o.n; x.save(); x.translate(n.x * T + T / 2, (n.y + 1) * T - 6);
+        const n = o.n, hk = n.hp !== undefined ? (G.time - n.hp) / 0.3 : 2; x.save(); x.translate(n.x * T + T / 2 + (n.ox || 0), (n.y + 1) * T - 6 + (n.oy || 0) + (hk >= 0 && hk < 1 && !n.girl ? -Math.sin(hk * Math.PI) * 4 : 0));
         if (n.look === 'witch') { x.scale(0.38, 0.38); ART.girl(x, 'witch', { t: tm, chibi: true, expr: 'smug' }); }
-        else if (n.girl) { const gg = S.party.concat(S.box).find(q => q.id === n.girl); x.scale(0.36, 0.36); ART.girl(x, n.girl, { t: tm + n.t, chibi: true, expr: gg && FX.sulky(gg) ? 'angry' : 'happy', outfit: gg && gg.outfit, bloom: gg && gg.bloom }); }
-        else ART.person(x, n.look, n.face, 0, tm + n.t);
+        else if (n.girl) { const gg = S.party.concat(S.box).find(q => q.id === n.girl); x.restore(); x.save(); girlAt(x, n, n.girl, n.x * T + T / 2 + n.ox, (n.y + 1) * T - 6 + n.oy, { expr: gg && FX.sulky(gg) ? 'angry' : BASEX[n.girl] || 'happy', outfit: gg && gg.outfit, bloom: gg && gg.bloom }, tm + n.hx * 1.3 + n.hy * 2.1); }
+        else ART.person(x, n.look, n.cv && n.f ? n.f : n.face, n.walk || 0, tm + n.t);
         x.restore();
         if (n.trainer && !S.flags[n.trainer] && Math.abs(n.x - S.x) + Math.abs(n.y - S.y) < 6) bubble(x, n.x * T + T / 2 + 10, n.y * T - 40 + Math.sin(tm * 4) * 2, '!');
       } else if (o.k === 'wild') {
         const w = o.w, it = (S.court && S.court[w.id]) || 0;
-        x.save(); x.translate(w.px + T / 2, w.py + T - 7); if (w.f === 'left') x.scale(-1, 1); x.scale(0.36, 0.36); const near = Math.hypot(w.px - h.px, w.py - h.py) < 120; ART.girl(x, w.id, { t: tm + w.hx, chibi: true, walk: near ? 0 : w.walk, pose: near ? 'wave' : undefined, expr: near ? 'happy' : it > 50 ? 'love' : it > 0 ? 'happy' : 'smug' }); x.restore();
+        const near = w.near && !w.cv, gr = GREET[w.id] || ['wave', 'happy'];
+        girlAt(x, w, w.id, w.px + T / 2, w.py + T - 7, { walk: w.walk, pose: near && gr[0] !== 'idle' ? gr[0] : undefined, expr: near ? gr[1] : it > 50 ? 'love' : it > 0 ? 'happy' : BASEX[w.id] || 'happy' }, tm + w.hx);
         const by = w.py - 34 + Math.sin(tm * 3 + w.hx) * 2; ART.heart(x, w.px + T / 2, by, 6, it > 0 ? '#ff4f7b' : '#ffffff');
         if (!S.seen[w.id]) { x.fillStyle = '#21121c'; x.font = '900 9px sans-serif'; x.textAlign = 'center'; x.fillText('?', w.px + T / 2, by + 2.5); }
-      } else if (o.k === 'fol') { x.save(); x.translate(W.fol.px + T / 2, W.fol.py + T - 7); if (W.fol.face === 'left') x.scale(-1, 1); x.scale(0.36, 0.36); ART.girl(x, lead.id, { t: tm, chibi: true, walk: W.fol.walk, bloom: lead.bloom, outfit: lead.outfit, expr: lead.aff >= 75 ? 'happy' : 'normal' }); x.restore(); if (lead.aff >= 50 && Math.sin(tm * 1.3) > 0.97) heartFloat(x, W.fol.px + T / 2, W.fol.py - 30); }
+      } else if (o.k === 'fol') { const f = o.f, g = f.g; girlAt(x, f, g.id, f.px + T / 2, f.py + T - 7, { bloom: g.bloom, outfit: g.outfit, expr: FX.sulky(g) ? 'angry' : g.aff >= 75 ? 'happy' : BASEX[g.id] || 'normal' }, tm + f.id.length * 0.7); }
       else if (o.k === 'hero') { x.save(); x.translate(h.px + T / 2, h.py + T - 6); ART.person(x, 'hero', S.face, h.mv ? h.walk : 0, tm); x.restore(); }
     }
     for (const g of m.gates || []) if (!S.flags[g.flag] && g.x >= x0 - 1 && g.x <= x1 + 1 && g.y >= y0 - 1 && g.y <= y1 + 1) { x.fillStyle = 'rgba(255,79,123,' + (0.25 + 0.12 * Math.sin(tm * 4)) + ')'; x.fillRect(g.x * T + 2, g.y * T + 2, T - 4, T - 4); x.strokeStyle = '#21121c'; x.lineWidth = 3; x.beginPath(); x.moveTo(g.x * T + 8, g.y * T + 8); x.lineTo(g.x * T + T - 8, g.y * T + T - 8); x.moveTo(g.x * T + T - 8, g.y * T + 8); x.lineTo(g.x * T + 8, g.y * T + T - 8); x.stroke(); }
+    for (const f of W.fols) emoDraw(x, f, f.px + T / 2, f.py - 16); for (const w of W.wild || []) emoDraw(x, w, w.px + T / 2 + 16, w.py - 20); for (const n of W.res) emoDraw(x, n, n.x * T + T / 2 + n.ox, n.y * T - (n.girl ? 16 : 24) + n.oy);
     ambient(x, m, left, top, hw * 2, hh * 2, tm, G.dt || 0.016);
     FX.critters(x, m, tm, G.dt || 0.016, true);
     if (!m.def.indoor) { x.globalAlpha = 0.13; for (let i = 0; i < 3; i++) { const cx2 = left + ((i * 613 + tm * 14) % (hw * 2 + 900)) - 450, cy2 = top + ((i * 397 + tm * 4) % (hh * 2 + 300)) - 150; x.drawImage(ART.soft, cx2 - 220, cy2 - 120, 440, 240); } x.globalAlpha = 1; }

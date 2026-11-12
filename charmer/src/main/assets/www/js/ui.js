@@ -15,7 +15,8 @@
       const x = L.cv.getContext('2d'), w = L.cv.width, h = L.cv.height;
       x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, w, h);
       const k = L.o.k || h / 262; x.translate(w / 2, L.o.y ? h * L.o.y : h - 6); x.scale(k, k);
-      ART.girl(x, L.id, { t: t + (L.o.ph || 0), expr: L.o.expr || 'normal', pose: L.o.pose, bloom: L.o.bloom, outfit: L.o.outfit, talk: L.o.talk, st: L.o });
+      const rx = L.o.rx;
+      ART.girl(x, L.id, { t: t + (L.o.ph || 0), expr: rx && t >= rx.a && t < rx.b ? rx.e : L.o.expr || 'normal', pose: L.o.pose, bloom: L.o.bloom, outfit: L.o.outfit, talk: L.o.talk, listen: L.o.listen, st: L.o });
     }
     if (vn.bg) {
       const c = $('vn'), w = c.width, h = c.height, x = c.getContext('2d');
@@ -61,6 +62,17 @@
     }
     return i;
   }
+  // слушающая реагирует на говорящую — у каждой свой нрав
+  const TEMP = { minotaur: { angry: 'blush', surprised: 'blush' }, vampire: { surprised: 'smug', happy: 'smug' }, dryad: { angry: 'sleepy', surprised: 'sleepy' }, ghost: { angry: 'hurt' }, slime: { smug: 'happy' }, snow: { happy: 'normal', angry: 'smug' }, frog: { surprised: 'happy' }, dragon: { surprised: 'smug' }, neko: { smug: 'wink' }, fox: { happy: 'smug', surprised: 'wink' }, harpy: { angry: 'surprised' }, valkyrie: { smug: 'angry' }, lamia: { surprised: 'smug', happy: 'wink' }, mermaid: { smug: 'happy' } };
+  function react(lis, spk, ex) {
+    const rv = window.WD && WD.relOf && WD.relOf(lis, spk) === 'r';
+    const r = { angry: rv ? 'smug' : 'surprised', smug: rv ? 'angry' : 'normal', happy: rv ? 'smug' : 'happy', love: rv ? 'angry' : 'surprised', kiss: rv ? 'angry' : 'surprised', blush: rv ? 'smug' : 'happy', wink: rv ? 'angry' : 'normal', surprised: 'surprised', hurt: rv ? 'smug' : 'surprised' }[ex] || 'normal';
+    return (TEMP[lis] && TEMP[lis][r]) || r;
+  }
+  function listenAll(spk, girl, ex) {
+    const now = G.time;
+    slots.forEach((s, k) => { if (!s.o) return; if (k === spk) { s.o.listen = 0; s.o.rx = null; } else { s.o.listen = girl ? 1 : 2; s.o.rx = girl && ex && ex !== 'normal' ? { e: react(s.id, girl, ex), a: now + 0.35, b: now + 2.8 } : null; } });
+  }
   function paint(active) {
     const d = $('dlg'); d.classList.toggle('p1', !!slots[0].id); d.classList.toggle('p2', !!slots[1].id);
     slots.forEach((s, i) => { s.el.classList.toggle('talk', i === active); s.el.classList.toggle('dim', !!s.id && i !== active); });
@@ -79,15 +91,15 @@
     if (!L) { $('dlg').className = ''; vnSet(null); if (G.mode === 'world' && window.FX) U.music(FX.mapMusic()); const c = dcb; dq = null; dcb = null; asking = null; replay = false; if (window.ST) ST.replay = false; if (c) c(); return; }
     const who = $('dlg-who'), ch = $('dlg-ch'); ch.innerHTML = ''; asking = null; who.className = '';
     if (L.ask) {
-      asking = L.ask; paint(-1); who.textContent = 'Ты'; who.classList.add('me');
+      asking = L.ask; listenAll(-1); paint(-1); who.textContent = 'Ты'; who.classList.add('me');
       full = L.t || 'Что ответишь?';
       L.ask.forEach((o, k) => { const e = document.createElement('button'); e.innerHTML = '<i>' + (k + 1) + '</i>' + o.t; e.onclick = ev => { ev.stopPropagation(); choose(k); }; ch.appendChild(e); });
       $('dlg').classList.add('ask');
     } else {
       $('dlg').classList.remove('ask');
-      if (L.girl) { const i = slotFor(L.girl); slots[i].o.expr = L.expr || 'normal'; last = i; paint(i); who.textContent = gName(L.girl); if (vn.bg) { vn.id = L.girl; vn.expr = L.expr; const gg = G.S.party.concat(G.S.box).find(q => q.id === L.girl); vn.bloom = gg && gg.bloom; vn.outfit = gg && gg.outfit; } }
-      else if (L.me !== undefined) { paint(-1); who.textContent = 'Ты'; who.classList.add('me'); }
-      else { paint(-1); who.textContent = L.who || ''; if (!L.who) who.classList.add('nar'); }
+      if (L.girl) { const i = slotFor(L.girl); slots[i].o.expr = L.expr || 'normal'; last = i; paint(i); listenAll(i, L.girl, L.expr); who.textContent = gName(L.girl); if (vn.bg) { vn.id = L.girl; vn.expr = L.expr; const gg = G.S.party.concat(G.S.box).find(q => q.id === L.girl); vn.bloom = gg && gg.bloom; vn.outfit = gg && gg.outfit; } }
+      else if (L.me !== undefined) { listenAll(-1); paint(-1); who.textContent = 'Ты'; who.classList.add('me'); }
+      else { listenAll(-1); paint(-1); who.textContent = L.who || ''; if (!L.who) who.classList.add('nar'); }
       full = L.me !== undefined ? L.me : L.t;
     }
     who.style.display = who.textContent ? '' : 'none'; curGirl = !!(L.girl && !L.ask);
