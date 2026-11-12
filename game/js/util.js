@@ -180,11 +180,26 @@ window.DW = window.DW || {};
     }
   };
 
-  DW.settings = { speed: 1, sound: true, cine: true };
+  DW.settings = { speed: 1, sound: true, cine: true, gfx: 'auto', fps: false, music: true, autoLevel: -1 };
   DW.timeScale = 1;
   try {
     const s = DW.store.get('deadworld_settings');
-    if (s) { const o = JSON.parse(s); if (o) { DW.settings.speed = o.speed || 1; DW.settings.sound = o.sound !== false; DW.settings.cine = o.cine !== false; } }
+    if (s) { const o = JSON.parse(s); if (o) { DW.settings.speed = o.speed || 1; DW.settings.sound = o.sound !== false; DW.settings.cine = o.cine !== false; DW.settings.gfx = o.gfx || 'auto'; DW.settings.fps = !!o.fps; DW.settings.music = o.music !== false; DW.settings.autoLevel = o.autoLevel === undefined ? -1 : o.autoLevel; } }
   } catch (e) { /* ignore */ }
   DW.saveSettings = function () { DW.store.set('deadworld_settings', JSON.stringify(DW.settings)); };
+  /* Уровень графики: 0 — низкий, 1 — средний, 2 — высокий */
+  DW.gfxGuess = function () {
+    const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 4;
+    if (cores <= 4 || mem <= 2) return 0;
+    if (cores >= 8 && mem >= 4) return 2;
+    return 1;
+  };
+  DW.gfxLevel = function () {
+    const m = DW.settings.gfx;
+    if (m === 'low') return 0;
+    if (m === 'mid') return 1;
+    if (m === 'high') return 2;
+    if (DW.settings.autoLevel < 0) DW.settings.autoLevel = DW.gfxGuess();
+    return DW.settings.autoLevel;
+  };
 })(window.DW);

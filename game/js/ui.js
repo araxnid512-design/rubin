@@ -487,6 +487,18 @@
       box.appendChild(el('button', { class: 'btn', text: 'Кинокамера: ' + (DW.settings.cine !== false ? 'вкл' : 'выкл'), onclick: function () {
         DW.settings.cine = DW.settings.cine === false; DW.saveSettings(); render();
       } }));
+      const GN = { auto: 'авто', low: 'низкая', mid: 'средняя', high: 'высокая' };
+      const cur = DW.settings.gfx || 'auto';
+      box.appendChild(el('button', { class: 'btn', text: 'Графика: ' + GN[cur] + (cur === 'auto' ? ' (' + ['низк.', 'средн.', 'выс.'][DW.gfxLevel()] + ')' : ''), onclick: function () {
+        const order = ['auto', 'low', 'mid', 'high'];
+        DW.settings.gfx = order[(order.indexOf(cur) + 1) % order.length]; DW.saveSettings();
+        if (DW.TR.applyQuality) DW.TR.applyQuality();
+        if (DW.Main.applyGfx) DW.Main.applyGfx();
+        render();
+      } }));
+      box.appendChild(el('button', { class: 'btn', text: 'Счётчик FPS: ' + (DW.settings.fps ? 'вкл' : 'выкл'), onclick: function () {
+        DW.settings.fps = !DW.settings.fps; DW.saveSettings(); render();
+      } }));
     }
     render();
     return box;

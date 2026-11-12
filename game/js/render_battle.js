@@ -6,7 +6,9 @@
   const HW = 32, HH = 16;   // половина ширины/высоты клетки-ромба
   const ZH = 52;            // высота объекта при lift = 1
   const P = 64;             // пикселей на клетку в плоской текстуре земли
-  const GS = 2;             // масштаб изометрического слоя земли
+  let GS = 2;               // масштаб изометрического слоя земли (зависит от качества)
+  let QL = 2;               // уровень качества графики
+  let OSS = 2.5, USS = 2.5;   // разрешение спрайтов объектов и бойцов
   const EDGE = 40;          // толщина «среза» диорамы
 
   let ground = null, groundCtx = null;   // плоская текстура
@@ -1127,7 +1129,7 @@
     const key = type + '_' + mask + '_' + variant + (damaged ? '_d' : '');
     let s = sprites[key];
     if (!s) {
-      const SS = 2.5, MX = 16;
+      const SS = OSS, MX = 16;
       const H = D.OBJ[type].lift * ZH;
       const top = Math.ceil(H) + (type === 5 ? 34 : (type === 15 ? 40 : 20));
       const w = 2 * HW + 2 * MX, h = top + 2 * HH + 8;
@@ -1173,7 +1175,7 @@
   function initAtmos(B) {
     weatherP = []; crows = []; motes = []; acidTiles = [];
     for (let i = 0; i < B.w * B.h; i++) if (B.ground[i] === 7) acidTiles.push(i);
-    const n = { rain: 160, dust: 120, ash: 100 }[B.weather] || 0;
+    const n = Math.round(({ rain: 160, dust: 120, ash: 100 }[B.weather] || 0) * [0.45, 0.75, 1][DW.gfxLevel ? DW.gfxLevel() : 2]);
     for (let k = 0; k < n; k++) weatherP.push({ x: Math.random(), y: Math.random(), v: 0.5 + Math.random(), s: Math.random() });
     const outdoor = B.tod !== 'interior' && B.tod !== 'cave' && B.tod !== 'night';
     if (outdoor) for (let k = 0; k < 3; k++) { const c = isoC(Math.random() * B.w, Math.random() * B.h); crows.push({ cx: c[0], cy: c[1], r: 80 + Math.random() * 120, a: Math.random() * 6.28, sp: (0.3 + Math.random() * 0.3) * (Math.random() < 0.5 ? 1 : -1), ph: Math.random() * 6 }); }
@@ -1236,17 +1238,22 @@
     void vis;
     return L;
   }
+  let lightFrame = 0;
   function applyLighting(g, W, H, dpr, B, t, vis) {
     const amb = AMB[B.tod];
     if (!amb) return;
-    const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
-    if (!lightC || lightC.width !== w || lightC.height !== h) { lightC = canvas(w, h); lightG = lightC.getContext('2d'); }
+    const ls = QL === 0 ? 4 : 2;
+    const w = Math.ceil(W / ls), h = Math.ceil(H / ls);
+    let fresh = false;
+    if (!lightC || lightC.width !== w || lightC.height !== h) { lightC = canvas(w, h); lightG = lightC.getContext('2d'); fresh = true; }
+    lightFrame++;
+    if (QL < 2 && !fresh && lightFrame % 2 === 1) { g.setTransform(dpr, 0, 0, dpr, 0, 0); g.globalCompositeOperation = 'multiply'; g.drawImage(lightC, 0, 0, W, H); g.globalCompositeOperation = 'source-over'; return; }
     const lg = lightG;
     lg.globalCompositeOperation = 'source-over';
     const ambC = 'rgb(' + amb[0] + ',' + amb[1] + ',' + amb[2] + ')';
     // фон за диорамой (небо, горизонт) не затемняем — у него свои цвета
     lg.fillStyle = '#ffffff'; lg.fillRect(0, 0, w, h);
-    const scp = function (pt, dy) { const q = TR.worldToScreen(pt[0], pt[1] + dy); return [q[0] / 2, q[1] / 2]; };
+    const scp = function (pt, dy) { const q2 = TR.worldToScreen(pt[0], pt[1] + dy); return [q2[0] / ls, q2[1] / ls]; };
     const pL = iso(0, B.h), pT = iso(0, 0), pR = iso(B.w, 0), pB = iso(B.w, B.h);
     lg.save(); lg.shadowColor = ambC; lg.shadowBlur = 18; lg.fillStyle = ambC;
     lg.beginPath();
@@ -1257,17 +1264,21 @@
     collectLights(B, t, vis).forEach(function (l) {
       if (!l[2]) return;
       const s = TR.worldToScreen(l[0], l[1]);
-      const x = s[0] / 2, y = s[1] / 2, r = l[2] * z / 2;
+      const x = s[0] / ls, y = s[1] / ls, r = l[2] * z / ls;
       if (x < -r || y < -r || x > w + r || y > h + r) return;
       const gr = lg.createRadialGradient(x, y, 0, x, y, r);
       gr.addColorStop(0, 'rgba(' + l[3] + ',' + l[4] + ')'); gr.addColorStop(1, 'rgba(' + l[3] + ',0)');
       lg.fillStyle = gr; lg.fillRect(x - r, y - r * 0.7, r * 2, r * 1.4);
     });
+    lg.globalCompositeOperation = 'source-over';
+    lg.drawImage(TR.vignette(w, h, 0.5), 0, 0, w, h);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.globalCompositeOperation = 'multiply';
     g.drawImage(lightC, 0, 0, W, H);
     g.globalCompositeOperation = 'source-over';
+    litVign = true;
   }
+  let litVign = false;
   function drawWeather(g, W, H, dpr, B, t) {
     if (!weatherP.length) return;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1358,7 +1369,15 @@
   }
 
   /* ---------- Инициализация ---------- */
+  TR.applyQuality = function (atInit) {
+    QL = DW.gfxLevel ? DW.gfxLevel() : 2;
+    OSS = QL === 0 ? 2 : 2.5; USS = QL === 0 ? 2 : 2.5;
+    if (atInit) GS = [1.25, 1.75, 2][QL];   // разрешение земли меняется только при новом бое
+  };
+  TR.quality = function () { return QL; };
   TR.init = function (B) {
+    TR.applyQuality(true);
+    frameCache.clear();
     sprites = {};
     unitCache = {};
     for (const k in live) delete live[k];
@@ -1702,6 +1721,8 @@
       p.vx *= 0.97; p.vy *= 0.97;
     });
     fx.parts = fx.parts.filter(function (p) { return t - p.t0 < p.life; });
+    const pcap = [140, 260, 420][QL];
+    if (fx.parts.length > pcap) fx.parts.splice(0, fx.parts.length - pcap);
     fx.floats = fx.floats.filter(function (f) { return t - f.t0 < f.life; });
     fx.tracers = fx.tracers.filter(function (f) { return t - f.t0 < f.life; });
     fx.flashes = fx.flashes.filter(function (f) { return t - f.t0 < f.life; });
@@ -1837,13 +1858,39 @@
   function spriteDims(u) {
     const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' ? 1.4 : 1);
     const LW = 130 * big, LH = 100 * big;
-    return { big: big, LW: LW, LH: LH, ox: LW / 2, oy: LH - 16 * big, SS: 2.5 };
+    return { big: big, LW: LW, LH: LH, ox: LW / 2, oy: LH - 16 * big, SS: USS };
   }
-  /* Кадр анимации: рисуем во временный холст, затем та же объёмная обработка */
+  /* Кадр анимации: рисуем во временный холст, затем та же объёмная обработка.
+     Готовые кадры кэшируются по квантованной позе — повторные циклы ходьбы, стрельбы и перезарядки
+     берутся из кэша, а не рисуются заново. */
   const live = {};
-  function liveSprite(u, fi, walk, sc, t, pose, pre) {
+  const frameCache = new Map();
+  const framePool = [];
+  const FCAP = 90;
+  function q(v, st) { return v ? Math.round(v / st) : 0; }
+  function poseKey(P) {
+    return [q(P.crouch, 0.1), q(P.hit, 0.1), q(P.recoil, 0.15), q(P.raise, 0.1), q(P.reload, 0.07), q(P.throwP, 0.08), q(P.low, 0.1), q(P.lean, 0.02),
+      P.look ? (P.look < 0 ? 1 : 2) : 0, q(P.smoke, 0.1), q(P.atk, 0.1), q(P.charge, 0.1), P.run ? 1 : 0, P.rk || ''].join(',');
+  }
+  function liveSprite(u, fi, walk, sc, t, pose, pre, preKey) {
+    let wq = null;
+    if (walk !== null && walk !== undefined) { const st = Math.PI * 2 / 12; wq = Math.round(walk / st) % 12; if (wq < 0) wq += 12; walk = wq * st; }
+    const key = u.id + '|' + fi.dir + '|' + Math.round(fi.aim * 8) + '|' + (u.weapon || '') + '|' + (u.armorId || '') + '|' + (wq === null ? '-' : wq) + '|' + poseKey(pose) + '|' + (preKey || '');
+    const hit = frameCache.get(key);
+    if (hit) { frameCache.delete(key); frameCache.set(key, hit); return hit; }
+    const fr = liveSpriteRaw(u, fi, walk, sc, t, pose, pre);
+    let ent = framePool.pop();
+    if (!ent || ent.c.width !== fr.c.width || ent.c.height !== fr.c.height) ent = { c: canvas(fr.c.width, fr.c.height), sh: canvas(fr.sh.width, fr.sh.height) };
+    const cg = ent.c.getContext('2d'); cg.clearRect(0, 0, ent.c.width, ent.c.height); cg.drawImage(fr.c, 0, 0);
+    const sg = ent.sh.getContext('2d'); sg.clearRect(0, 0, ent.sh.width, ent.sh.height); sg.drawImage(fr.sh, 0, 0);
+    const out = { c: ent.c, sh: ent.sh, w: fr.w, h: fr.h, ox: fr.ox, oy: fr.oy };
+    frameCache.set(key, out);
+    if (frameCache.size > FCAP) { const k0 = frameCache.keys().next().value; const old = frameCache.get(k0); frameCache.delete(k0); if (old && framePool.length < 12) framePool.push({ c: old.c, sh: old.sh }); }
+    return out;
+  }
+  function liveSpriteRaw(u, fi, walk, sc, t, pose, pre) {
     const D2 = spriteDims(u);
-    D2.SS = 1.75;
+    D2.SS = QL === 0 ? 1.5 : 1.75;
     const cw = Math.ceil(D2.LW * D2.SS), chh = Math.ceil(D2.LH * D2.SS);
     let L = live[u.id];
     if (!L || L.raw.width !== cw) {
@@ -1873,7 +1920,7 @@
     const sun = TR.sun;
     const cw = (lying ? 34 : 17) * k, ch = (lying ? 12 : 8) * k;
     g.drawImage(contact(), c[0] - cw, c[1] - ch, cw * 2, ch * 2);
-    if (!sun || lying || !fr.sh) return;
+    if (!sun || lying || !fr.sh || QL === 0) return;
     const sx = (sun.dx - sun.dy) * HW, sy = (sun.dx + sun.dy) * HH;
     const kx = Math.min(0.95, sun.len * sx / ZH), ky = Math.max(0.17, sun.len * sy / ZH);
     g.save();
@@ -1965,7 +2012,7 @@
       if (running) pose.run = 1;
       if (tw && tw.kind === 'step') { pose.crouch = running ? 0.1 : 0; pose.low = 0; pose.lean = 0; }
       const hitDx = an && an.kind === 'hit' ? -fi.dir * Math.sin(an.p * Math.PI) * 3 : 0;
-      fr = liveSprite(u, fi, walk, sc, t, pose, hitDx ? function (gg) { gg.translate(hitDx, 0); } : null);
+      fr = liveSprite(u, fi, walk, sc, t, pose, hitDx ? function (gg) { gg.translate(hitDx, 0); } : null, hitDx ? 'h' + Math.round(hitDx * 2) : '');
     }
     if (!ghost) castShadow(g, c, fr, sc / 1.13, false);
     else g.globalAlpha = alpha;
@@ -2022,7 +2069,8 @@
     }
     const an = curAnim(u, t);
     if (an && an.kind === 'die' && an.p < 1) {
-      const fr = liveSprite(u, fi, null, sc, t, { hit: an.p < 0.3 ? an.p / 0.3 : 1 }, function (gg) { fallTransform(gg, u, fi, an.p); });
+      const fp = Math.round(an.p * 14) / 14;
+      const fr = liveSprite(u, fi, null, sc, t, { hit: fp < 0.3 ? fp / 0.3 : 1 }, function (gg) { fallTransform(gg, u, fi, fp); }, 'f' + Math.round(fp * 14));
       castShadow(g, c, fr, sc / 1.13, an.p > 0.5);
       g.drawImage(fr.c, c[0] - fr.ox, c[1] - fr.oy, fr.w, fr.h);
       return;
@@ -2073,7 +2121,7 @@
       sp = propCache[key] = cc;
     }
     const B = DW.BT.get();
-    if (SWAY[pr.t]) {
+    if (SWAY[pr.t] && QL > 0) {
       const wind = B && (B.weather === 'rain' || B.weather === 'dust') ? 1.8 : 1;
       const sw = (Math.sin(t / 900 + pr.x * 2.1 + pr.y) * 0.06 + Math.sin(t / 370 + pr.x * 5) * 0.025) * wind * SWAY[pr.t];
       g0.save(); g0.translate(c0[0], c0[1]); g0.transform(1, 0, sw, 1, 0, 0); g0.translate(-c0[0], -c0[1]);
@@ -2372,7 +2420,7 @@
     const sc = 0.5, bw = Math.ceil(W * sc), bh = Math.ceil(H * sc);
     const key = Math.round(TR.cam.x) + '|' + Math.round(TR.cam.y) + '|' + TR.cam.z.toFixed(3) + '|' + W + 'x' + H + '|' + B.tod + B.weather + B.seed;
     if (!backC || backC.width !== bw || backC.height !== bh) { backC = canvas(bw, bh); backKey = ''; }
-    if (key !== backKey || t - backT > 450 || t < backT) {
+    if (key !== backKey || t - backT > (QL === 0 ? 1500 : 450) || t < backT) {
       const bg = backC.getContext('2d');
       bg.setTransform(sc, 0, 0, sc, 0, 0);
       drawBackdrop(bg, W, H, B, t);
@@ -2409,7 +2457,7 @@
       if (tod === 'night') { g.fillStyle = 'rgba(160,170,200,0.4)'; g.beginPath(); g.arc(sx2 - sr * 0.3, sy2 - sr * 0.2, sr * 0.3, 0, 7); g.fill(); }
     }
     // облака
-    if (!indoor && hy > 0) {
+    if (!indoor && hy > 0 && QL > 0) {
       for (let i = 0; i < 5; i++) {
         const rr = U.srng(i * 17 + (B.seed || 1));
         const cx = ((rr() * 1.6 * W + t / 1000 * (4 + rr() * 6) - TR.cam.x * z * 0.08) % (W * 1.6)) - W * 0.3, cy = hy * (0.2 + rr() * 0.55);
@@ -2459,6 +2507,28 @@
     }
   }
   const FOGR = 4;
+  let fogIso = null, reachIso = null, reachIsoSrc = null, reachIsoM = '';
+  function isoLayer(c, B, sc) {
+    const w = Math.ceil((B.w + B.h) * HW * sc), h = Math.ceil((B.w + B.h) * HH * sc);
+    if (!c || c.width !== w || c.height !== h) c = canvas(w, h);
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h);
+    g.setTransform(HW * sc, HH * sc, -HW * sc, HH * sc, B.h * HW * sc, 0);
+    return c;
+  }
+  function projectFog(B) {
+    fogIso = isoLayer(fogIso, B, 0.5);
+    const g = fogIso.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(fogC, 0, 0, B.w, B.h);
+  }
+  function projectReach(B) {
+    reachIso = isoLayer(reachIso, B, 1);
+    const g = reachIso.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(reachC, 0, 0, B.w, B.h);
+    reachIsoSrc = reachC; reachIsoM = reachM;
+  }
   function buildFog(B, vis) {
     const W = B.w * FOGR, H = B.h * FOGR;
     const fg = fogC.getContext('2d');
@@ -2487,7 +2557,7 @@
   function atmosphere(g, W, H, dpr, B, t) {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const tod = B.tod;
-    if (GRADE[tod] && (tod === 'day' || tod === 'dawn' || tod === 'dusk')) { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
+    if (GRADE[tod] && tod === 'day') { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
     const hz = HAZE[tod];
     if (hz) {
       const light = tod === 'day' || tod === 'dawn' || tod === 'dusk';
@@ -2495,7 +2565,7 @@
       const gr = g.createLinearGradient(0, 0, 0, H * 0.4);
       gr.addColorStop(0, 'rgba(' + hz + ',' + (light ? 0.2 : 0.35) + ')'); gr.addColorStop(1, 'rgba(' + hz + ',0)');
       g.fillStyle = gr; g.fillRect(0, 0, W, H * 0.4);
-      if (light && B.weather !== 'rain' && B.weather !== 'dust') {
+      if (light && QL >= 2 && B.weather !== 'rain' && B.weather !== 'dust') {
         g.globalCompositeOperation = 'lighter';
         const col = tod === 'day' ? '255,240,210' : (tod === 'dawn' ? '255,200,170' : '255,180,110');
         for (let k = 0; k < 4; k++) {
@@ -2518,7 +2588,8 @@
     const t = now();
     const z = TR.cam.z;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (!(TR.dbg && TR.dbg.noBack)) backdropCached(g, W, H, B, t);
+    if (QL === 0) { g.fillStyle = B.tod === 'night' || B.tod === 'cave' || B.tod === 'interior' ? '#0a0b10' : '#2a221c'; g.fillRect(0, 0, W, H); }
+    else backdropCached(g, W, H, B, t);
     let sx = 0, sy = 0;
     if (TR.shake) { sx = (Math.random() - 0.5) * TR.shake; sy = (Math.random() - 0.5) * TR.shake; }
     const ox = dpr * (W / 2 - TR.cam.x * z + sx), oy = dpr * (H / 2 - TR.cam.y * z + sy);
@@ -2557,16 +2628,20 @@
           else if (c <= ov.m2 + 0.01) { d[i * 4] = 255; d[i * 4 + 1] = 200; d[i * 4 + 2] = 60; d[i * 4 + 3] = 26; }
         }
         rg.putImageData(img, 0, 0);
+        reachIsoSrc = null;
       }
-      g.imageSmoothingEnabled = false;
-      g.drawImage(reachC, 0, 0, B.w, B.h);
-      g.imageSmoothingEnabled = true;
+      if (reachIsoSrc !== reachC || reachIsoM !== reachM) projectReach(B);
+      screenT();
+      g.drawImage(reachIso, -B.h * HW, 0, (B.w + B.h) * HW, (B.w + B.h) * HH);
+      planeT();
     }
     if (BT_visVersion() !== fogV) {
       fogV = BT_visVersion();
       buildFog(B, vis);
+      projectFog(B);
     }
-    g.drawImage(fogC, 0, 0, B.w, B.h);
+    screenT();
+    g.drawImage(fogIso, -B.h * HW, 0, (B.w + B.h) * HW, (B.w + B.h) * HH);
 
     // объёмный проход по глубине
     screenT();
@@ -2680,10 +2755,10 @@
     ghosts.forEach(function (u) { drawUnit(g, u, t, false, 0.32); });
     drawCrows(g, t, false);
     applyLighting(g, W, H, dpr, B, t, vis);
-    if (!(TR.dbg && TR.dbg.noAtm)) atmosphere(g, W, H, dpr, B, t);
+    if (QL > 0 && !(TR.dbg && TR.dbg.noAtm)) atmosphere(g, W, H, dpr, B, t);
     drawWeather(g, W, H, dpr, B, t);
     screenT();
-    drawMotes(g, t);
+    if (QL > 0) drawMotes(g, t);
 
     // контуры зон перемещения
     if (ov.reach) {
@@ -2906,7 +2981,8 @@
     g.globalAlpha = 1;
     // атмосфера: виньетка
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.drawImage(TR.vignette(W, H, 0.5), 0, 0, W, H);
+    if (!litVign && QL > 0) g.drawImage(TR.vignette(W, H, 0.5), 0, 0, W, H);
+    litVign = false;
     const fk = (t - flashScr) / 260;
     if (fk >= 0 && fk < 1) { g.fillStyle = 'rgba(255,190,110,' + (0.32 * (1 - fk)) + ')'; g.fillRect(0, 0, W, H); }
     if ((DW.timeScale || 1) < 1) { g.fillStyle = 'rgba(30,10,5,0.18)'; g.fillRect(0, 0, W, H); }
