@@ -7,7 +7,7 @@
   const ZH = 52;            // высота объекта при lift = 1
   const P = 64;             // пикселей на клетку в плоской текстуре земли
   const GS = 1.5;           // масштаб изометрического слоя земли
-  const EDGE = 30;          // толщина «среза» диорамы
+  const EDGE = 40;          // толщина «среза» диорамы
 
   let ground = null, groundCtx = null;   // плоская текстура
   let gIso = null, gIsoCtx = null;        // изометрическая проекция
@@ -44,13 +44,17 @@
     const base = D.GROUND[gid].c;
     const hv = U.hash2(x, y, 7);
     const X = x * P, Y = y * P;
-    g.fillStyle = U.shade(base, (hv - 0.5) * 0.14);
-    g.fillRect(X, Y, P, P);
+    if (!NATURAL[gid]) { g.fillStyle = U.shade(base, (hv - 0.5) * 0.07); g.fillRect(X, Y, P, P); }
     let i;
     switch (gid) {
-      case 3: // бетон
-        g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 2;
-        g.strokeRect(X + 1, Y + 1, P - 2, P - 2);
+      case 3: // бетон: плиты 2×2, швы с фаской
+        g.fillStyle = 'rgba(0,0,0,0.3)';
+        if (x % 2 === 0) g.fillRect(X, Y, 1.5, P);
+        if (y % 2 === 0) g.fillRect(X, Y, P, 1.5);
+        g.fillStyle = 'rgba(255,245,225,0.08)';
+        if (x % 2 === 0) g.fillRect(X + 1.5, Y, 1.2, P);
+        if (y % 2 === 0) g.fillRect(X, Y + 1.5, P, 1.2);
+        if (rnd() < 0.3) { g.fillStyle = 'rgba(0,0,0,0.25)'; const cx2 = X + (x % 2 ? P : 0), cy2 = Y + (y % 2 ? P : 0); g.beginPath(); g.moveTo(cx2, cy2); g.lineTo(cx2 + (x % 2 ? -1 : 1) * (4 + rnd() * 6), cy2); g.lineTo(cx2, cy2 + (y % 2 ? -1 : 1) * (4 + rnd() * 6)); g.fill(); }
         for (i = 0; i < 3; i++) { g.fillStyle = 'rgba(30,25,20,' + (0.08 + rnd() * 0.1) + ')'; g.beginPath(); g.arc(X + rnd() * P, Y + rnd() * P, 3 + rnd() * 9, 0, 7); g.fill(); }
         if (rnd() < 0.4) { g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 1.2; g.beginPath(); let cx = X + rnd() * P, cy = Y + rnd() * P; g.moveTo(cx, cy); for (let k = 0; k < 4; k++) { cx += (rnd() - 0.5) * 20; cy += (rnd() - 0.5) * 20; g.lineTo(cx, cy); } g.stroke(); }
         break;
@@ -81,7 +85,7 @@
         g.fillStyle = '#0a0808'; g.fillRect(X, Y, P, P);
         break;
       default:
-        for (i = 0; i < 12; i++) {
+        for (i = 0; i < 4; i++) {
           g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,' + (0.08 + rnd() * 0.12) + ')' : 'rgba(255,240,210,' + (0.04 + rnd() * 0.07) + ')';
           const s = 1 + rnd() * 3;
           g.fillRect(X + rnd() * P, Y + rnd() * P, s, s);
@@ -158,45 +162,291 @@
       default: break;
     }
   }
+  /* ---------- Рельефные фактуры (тайлящиеся, с освещением сверху-слева) ---------- */
+  const LIGHT = (function () { const v = [-0.7, -0.12, 0.7], n = Math.hypot(v[0], v[1], v[2]); return [v[0] / n, v[1] / n, v[2] / n]; })();
+  const texCache = {};
+  function pnoise(x, y, per, seed) {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const x0 = ((xi % per) + per) % per, y0 = ((yi % per) + per) % per, x1 = (x0 + 1) % per, y1 = (y0 + 1) % per;
+    const a = U.hash2(x0, y0, seed), b = U.hash2(x1, y0, seed), c = U.hash2(x0, y1, seed), d = U.hash2(x1, y1, seed);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  const TEXCFG = {
+    grain: { oct: [[16, 0.5], [32, 0.3], [96, 0.22]], amp: 1.5, peb: 46, pebR: [1, 2.6], pebA: 1.1 },
+    ash: { oct: [[12, 0.6], [48, 0.3], [128, 0.2]], amp: 1.2, peb: 14, pebR: [0.8, 2], pebA: 0.8 },
+    earth: { oct: [[16, 0.5], [64, 0.25]], amp: 1.4, peb: 24, pebR: [1, 2.2], pebA: 1, cracks: 15 },
+    concrete: { oct: [[32, 0.3], [128, 0.28]], amp: 0.7, pits: 520, ccracks: 7 },
+    rubble: { oct: [[16, 0.6], [32, 0.4]], amp: 1.8, peb: 230, pebR: [1.8, 5.5], pebA: 2, angular: true },
+    cave: { oct: [[8, 0.8], [16, 0.5], [32, 0.32], [64, 0.2]], amp: 3.6, peb: 80, pebR: [2, 5.5], pebA: 2 },
+    flesh: { oct: [[8, 0.7], [16, 0.5], [64, 0.2]], amp: 3, veins: 20 },
+    metal: { oct: [[128, 0.1]], amp: 0.4, brushed: true },
+    wood: { oct: [[128, 0.1]], amp: 0.5, woodgrain: true }
+  };
+  function matTex(kind) {
+    if (texCache[kind]) return texCache[kind];
+    const N = 256, cfg = TEXCFG[kind];
+    const h = new Float32Array(N * N), alb = new Float32Array(N * N);
+    const r = U.srng(ART.hashStr(kind) + 11);
+    let x, y, i, k;
+    const oct = cfg.oct;
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      let v = 0;
+      for (k = 0; k < oct.length; k++) v += (pnoise(x / N * oct[k][0], y / N * oct[k][0], oct[k][0], 91 + k * 17) - 0.5) * oct[k][1];
+      i = y * N + x;
+      h[i] = v * cfg.amp * 2;
+      alb[i] = (pnoise(x / N * 16, y / N * 16, 16, 501) - 0.5) * 0.2;
+      if (cfg.brushed) alb[i] += (pnoise(x / N * 4, y / N * 192, 192, 77) - 0.5) * 0.3;
+      if (cfg.woodgrain) alb[i] += Math.sin(y * 0.55 + pnoise(x / N * 8, y / N * 32, 32, 9) * 9) * 0.07;
+    }
+    const wrap = function (v) { return ((Math.floor(v) % N) + N) % N; };
+    // камешки
+    for (let n = 0; n < (cfg.peb || 0); n++) {
+      const cx = r() * N, cy = r() * N, R = cfg.pebR[0] + r() * (cfg.pebR[1] - cfg.pebR[0]);
+      const el = 0.65 + r() * 0.5, rot = r() * 3.14, co = Math.cos(rot), si = Math.sin(rot), ab = (r() - 0.45) * 0.5;
+      const RR = Math.ceil(R / Math.min(1, el)) + 1;
+      for (let dy = -RR; dy <= RR; dy++) for (let dx = -RR; dx <= RR; dx++) {
+        const ux = (dx * co + dy * si) / el, uy = -dx * si + dy * co;
+        let d = Math.hypot(ux, uy) / R;
+        if (cfg.angular) d = Math.max(Math.abs(ux) * 0.9 + Math.abs(uy) * 0.35, Math.abs(uy) * 0.9 + Math.abs(ux) * 0.35) / R;
+        if (d >= 1) continue;
+        i = wrap(cy + dy) * N + wrap(cx + dx);
+        h[i] += Math.sqrt(1 - d * d) * cfg.pebA * (0.6 + R / 6);
+        alb[i] += ab;
+      }
+    }
+    // трещины сухой земли (ячейки Вороного)
+    if (cfg.cracks) {
+      const pts = [];
+      for (let n = 0; n < cfg.cracks; n++) pts.push([r() * N, r() * N]);
+      for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+        let f1 = 1e9, f2 = 1e9;
+        for (k = 0; k < pts.length; k++) {
+          let dx = Math.abs(x - pts[k][0]), dy = Math.abs(y - pts[k][1]);
+          dx = Math.min(dx, N - dx); dy = Math.min(dy, N - dy);
+          const d = Math.hypot(dx, dy);
+          if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+        }
+        const e = f2 - f1;
+        if (e < 1.8) { i = y * N + x; const q = 1 - e / 1.8; h[i] -= q * 2; alb[i] -= q * 0.26; }
+      }
+    }
+    // поры и трещины бетона
+    for (let n = 0; n < (cfg.pits || 0); n++) { i = wrap(r() * N) * N + wrap(r() * N); h[i] -= 1.4; alb[i] -= 0.22; }
+    for (let n = 0; n < (cfg.ccracks || 0); n++) {
+      let cx = r() * N, cy = r() * N, a = r() * 6.28;
+      for (let st = 0; st < 60; st++) { a += (r() - 0.5) * 0.9; cx += Math.cos(a); cy += Math.sin(a); i = wrap(cy) * N + wrap(cx); h[i] -= 1.8; alb[i] -= 0.3; }
+    }
+    // прожилки плоти
+    for (let n = 0; n < (cfg.veins || 0); n++) {
+      let cx = r() * N, cy = r() * N, a = r() * 6.28;
+      for (let st = 0; st < 90; st++) {
+        a += (r() - 0.5) * 0.5; cx += Math.cos(a); cy += Math.sin(a);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { i = wrap(cy + dy) * N + wrap(cx + dx); h[i] += dx === 0 && dy === 0 ? 1.2 : 0.6; alb[i] += 0.05; }
+      }
+    }
+    const c = canvas(N, N), g = c.getContext('2d');
+    const img = g.createImageData(N, N), d = img.data;
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      i = y * N + x;
+      const hx = h[y * N + (x + 1) % N] - h[y * N + (x + N - 1) % N];
+      const hy = h[((y + 1) % N) * N + x] - h[((y + N - 1) % N) * N + x];
+      const nx = -hx * 0.5, ny = -hy * 0.5, nl = Math.sqrt(nx * nx + ny * ny + 1);
+      const dot = (nx * LIGHT[0] + ny * LIGHT[1] + LIGHT[2]) / nl;
+      let v = 128 + (dot - LIGHT[2]) * 120 + alb[i] * 110 + h[i] * 1.6;
+      v = v < 50 ? 50 : (v > 210 ? 210 : v);
+      d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    texCache[kind] = c;
+    return c;
+  }
+  const MAT = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood' };
+  const NATURAL = { 0: 1, 1: 1, 2: 1, 5: 1, 6: 1, 8: 1 };
+  const PRIO = { 10: 0, 4: 1, 9: 2, 3: 3, 7: 4, 1: 5, 5: 6, 2: 7, 0: 8, 6: 9, 8: 10 };
+  function patFor(g, gid) { const k = MAT[gid]; return k ? g.createPattern(matTex(k), 'repeat') : null; }
+  function detailTile(g, x, y, gid) {
+    const pat = patFor(g, gid);
+    if (!pat) return;
+    g.save(); g.globalCompositeOperation = 'overlay'; g.fillStyle = pat; g.fillRect(x * P, y * P, P, P); g.restore();
+  }
+  function stone3d(g, x, y, R, base, rnd) {
+    const sun = TR.sun || { dx: 1, dy: -0.1 };
+    g.fillStyle = 'rgba(0,0,0,0.32)';
+    g.beginPath(); g.ellipse(x + sun.dx * R * 0.55, y + sun.dy * R * 0.55 + R * 0.15, R * 1.05, R * 0.8, 0, 0, 7); g.fill();
+    const gr = g.createRadialGradient(x - R * 0.4, y - R * 0.35, R * 0.1, x, y, R * 1.1);
+    gr.addColorStop(0, U.shade(base, 0.32)); gr.addColorStop(0.6, U.shade(base, -0.05)); gr.addColorStop(1, U.shade(base, -0.45));
+    g.fillStyle = gr;
+    g.beginPath(); g.ellipse(x, y, R, R * (0.7 + rnd() * 0.25), rnd() * 3, 0, 7); g.fill();
+  }
   function buildGround(B) {
     ground = canvas(B.w * P, B.h * P);
     groundCtx = ground.getContext('2d');
     const g = groundCtx;
     const rnd = U.srng(B.seed);
-    for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) drawGroundTile(g, x, y, B.ground[y * B.w + x], rnd);
+    TR.sun = sunFor(B);
+    // области материалов + природные «наплывы» через границы клеток
+    const paths = {};
+    const pth = function (gid) { return paths[gid] || (paths[gid] = new Path2D()); };
+    for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) pth(B.ground[y * B.w + x]).rect(x * P, y * P, P, P);
+    const er = U.srng(B.seed + 3);
+    for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
+      const a = B.ground[y * B.w + x];
+      if (!NATURAL[a]) continue;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (dd) {
+        const nx = x + dd[0], ny = y + dd[1];
+        if (nx < 0 || ny < 0 || nx >= B.w || ny >= B.h) return;
+        const b = B.ground[ny * B.w + nx];
+        if (b === a) return;
+        if (NATURAL[b] ? PRIO[a] <= PRIO[b] : !(b === 3 && (a === 0 || a === 2 || a === 8))) return;
+        const p2 = pth(a);
+        const n = 3 + Math.floor(er() * 3);
+        for (let k = 0; k < n; k++) {
+          const t = er() - 0.5;
+          const ex = (x + 0.5 + dd[0] * 0.5 + (dd[0] === 0 ? t : 0)) * P, ey = (y + 0.5 + dd[1] * 0.5 + (dd[1] === 0 ? t : 0)) * P;
+          const rr = P * (0.08 + er() * 0.16), rot = er() * 3;
+          const cx = ex + dd[0] * rr * 0.3, cy = ey + dd[1] * rr * 0.3;
+          p2.moveTo(cx + rr * Math.cos(rot), cy + rr * Math.sin(rot));
+          p2.ellipse(cx, cy, rr, rr * (0.5 + er() * 0.4), rot, 0, Math.PI * 2);
+        }
+      });
+    }
+    const order = Object.keys(paths).map(Number).sort(function (a, b) { return (PRIO[a] || 0) - (PRIO[b] || 0); });
+    order.forEach(function (gid) {
+      g.fillStyle = D.GROUND[gid].c; g.fill(paths[gid]);
+      if (!NATURAL[gid]) for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) if (B.ground[y * B.w + x] === gid) drawGroundTile(g, x, y, gid, rnd);
+      const pat = patFor(g, gid);
+      if (pat) { g.save(); g.globalCompositeOperation = 'overlay'; g.fillStyle = pat; g.fill(paths[gid]); g.restore(); }
+    });
+    // крупные пятна света и тени
     const nw = B.w * 4, nh = B.h * 4;
     const nc = canvas(nw, nh);
     const ng = nc.getContext('2d');
     const img = ng.createImageData(nw, nh);
     const sd = B.seed % 9973;
     for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) {
-      const v = U.fbm(x * 0.09, y * 0.09, sd, 3);
+      const v = U.fbm(x * 0.07, y * 0.07, sd, 3);
       const k = (y * nw + x) * 4;
       const c = v > 0.5 ? 255 : 0;
       img.data[k] = c; img.data[k + 1] = c * 0.92; img.data[k + 2] = c * 0.8;
-      img.data[k + 3] = Math.min(255, Math.abs(v - 0.5) * 2 * 90);
+      img.data[k + 3] = Math.min(255, Math.abs(v - 0.5) * 2 * 80);
     }
     ng.putImageData(img, 0, 0);
     g.imageSmoothingEnabled = true;
     g.drawImage(nc, 0, 0, ground.width, ground.height);
+    // объёмные камни на природном грунте
+    for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
+      const gid = B.ground[y * B.w + x];
+      if (!NATURAL[gid] || gid === 6) continue;
+      const n = gid === 8 ? 4 : (rnd() < 0.55 ? 1 : 0) + (rnd() < 0.25 ? 1 : 0);
+      for (let k = 0; k < n; k++) stone3d(g, (x + 0.1 + rnd() * 0.8) * P, (y + 0.1 + rnd() * 0.8) * P, 2 + rnd() * (gid === 8 ? 5 : 3.5), gid === 5 ? '#5a5048' : ['#7a7068', '#6e665c', '#857a6c'][Math.floor(rnd() * 3)], rnd);
+    }
     B.decor.forEach(function (d) { drawDecor(g, d, rnd); });
-    // сетка
-    g.strokeStyle = 'rgba(255,240,200,0.045)'; g.lineWidth = 1;
+    // едва заметная сетка
+    g.strokeStyle = 'rgba(255,240,200,0.03)'; g.lineWidth = 1;
     for (let x = 0; x <= B.w; x++) { g.beginPath(); g.moveTo(x * P, 0); g.lineTo(x * P, B.h * P); g.stroke(); }
     for (let y = 0; y <= B.h; y++) { g.beginPath(); g.moveTo(0, y * P); g.lineTo(B.w * P, y * P); g.stroke(); }
+    buildShade(B);
+  }
+
+  /* ---------- Тени от солнца и затенение у основания (низкое разрешение, мягкие края) ---------- */
+  const SR = 16, AR = 8;
+  let shadeC = null, aoC = null;
+  function sunFor(B) {
+    const t = B.tod;
+    if (t === 'dawn' || t === 'dusk') return { dx: 0.82, dy: -0.57, len: 1.45, a: 0.44, ao: 0.5 };
+    if (t === 'night') return { dx: 0.92, dy: -0.38, len: 0.8, a: 0.24, ao: 0.45 };
+    if (t === 'interior' || t === 'cave') return { dx: 0.95, dy: -0.3, len: 0.3, a: 0.28, ao: 0.62 };
+    return { dx: 0.99, dy: -0.12, len: 0.62, a: 0.4, ao: 0.5 };
+  }
+  const FOOT = { 3: [0.42, 0.36], 4: [0.33, 0.33], 7: [0.47, 0.3], 8: [0.36, 0.36], 9: [0.2, 0.2], 10: [0.46, 0.42], 12: [0.35, 0.3], 15: [0.48, 0.48], 16: [0.36, 0.36], 18: [0.5, 0.36], 19: [0.48, 0.12], 20: [0.3, 0.3] };
+  const WALLT = { 1: 0.22, 2: 0.27, 6: 0.25, 11: 0.3, 13: 0.15, 14: 0.3 };
+  function footprints(B, x, y, o) {
+    const cx = x + 0.5, cy = y + 0.5;
+    if (o === 17) return [[x, y, x + 1, y + 1]];
+    if (WALLT[o]) return spans(maskAt(B, x, y, o), WALLT[o]).map(function (sp) { return [cx + sp[0], cy + sp[1], cx + sp[2], cy + sp[3]]; });
+    const f = FOOT[o] || [0.35, 0.35];
+    const variant = Math.floor(U.hash2(x, y, o) * 3);
+    let fx = f[0], fy = f[1];
+    if ((o === 18 && variant === 2) || (o === 19 && variant === 1) || (o === 7 && variant === 2)) { fx = f[1]; fy = f[0]; }
+    return [[cx - fx, cy - fy, cx + fx, cy + fy]];
+  }
+  function buildShade(B) {
+    const sun = TR.sun || sunFor(B);
+    const W = B.w, H = B.h;
+    const ac = canvas(W * AR, H * AR), ag = ac.getContext('2d');
+    shadeC = canvas(W * SR, H * SR);
+    const sg = shadeC.getContext('2d');
+    ag.fillStyle = '#000'; sg.fillStyle = '#000';
+    const sweep = function (r, len) {
+      const steps = Math.max(1, Math.ceil(len * SR / 1.5));
+      for (let k = 0; k <= steps; k++) {
+        const f = k / steps * len;
+        sg.fillRect((r[0] + sun.dx * f) * SR, (r[1] + sun.dy * f) * SR, (r[2] - r[0]) * SR, (r[3] - r[1]) * SR);
+      }
+    };
+    // террасы: тень с уступа и тёмная полоса у подножия
+    if (HG) {
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const hh = HG[y * W + x]; if (hh > 0) sweep([x, y, x + 1, y + 1], hh * LH / ZH * sun.len * 1.4); }
+      sg.globalCompositeOperation = 'destination-out';
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (HG[y * W + x] > 0) sg.fillRect(x * SR, y * SR, SR, SR);
+      sg.globalCompositeOperation = 'source-over';
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const hh = HG[y * W + x];
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const nx = x + d[0], ny = y + d[1];
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H || HG[ny * W + nx] <= hh) return;
+          const t = 0.22;
+          if (d[0] === 1) ag.fillRect((x + 1 - t) * AR, y * AR, t * AR, AR);
+          if (d[0] === -1) ag.fillRect(x * AR, y * AR, t * AR, AR);
+          if (d[1] === 1) ag.fillRect(x * AR, (y + 1 - t) * AR, AR, t * AR);
+          if (d[1] === -1) ag.fillRect(x * AR, y * AR, AR, t * AR);
+        });
+      }
+    }
+    // объекты
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const o = B.obj[y * W + x];
+      if (!o) continue;
+      const L = D.OBJ[o].lift;
+      footprints(B, x, y, o).forEach(function (r) {
+        ag.fillRect((r[0] - 0.08) * AR, (r[1] - 0.08) * AR, (r[2] - r[0] + 0.16) * AR, (r[3] - r[1] + 0.16) * AR);
+        if (o === 5) {
+          sweep([x + 0.45, y + 0.45, x + 0.55, y + 0.55], L * sun.len);
+          const rr = U.srng(x * 7 + y * 131);
+          for (let k = 0; k < 7; k++) {
+            const f = L * sun.len * (0.45 + rr() * 0.55);
+            const bx = x + 0.5 + sun.dx * f + (rr() - 0.5) * 0.5, by = y + 0.5 + sun.dy * f + (rr() - 0.5) * 0.5;
+            sg.beginPath(); sg.ellipse(bx * SR, by * SR, (0.05 + rr() * 0.1) * SR, (0.03 + rr() * 0.05) * SR, rr() * 3, 0, 7); sg.fill();
+          }
+        } else if (o !== 13 || true) sweep(r, L * sun.len);
+      });
+    }
+    aoC = canvas(W * AR, H * AR);
+    const a2 = aoC.getContext('2d');
+    try { a2.filter = 'blur(1.5px)'; } catch (e) { /* ignore */ }
+    a2.drawImage(ac, 0, 0);
+    try { a2.filter = 'none'; } catch (e) { /* ignore */ }
+  }
+  function shadeRegion(g, x0, y0, x1, y1) {
+    const sun = TR.sun;
+    if (!aoC || !sun) return;
+    g.globalAlpha = sun.ao; g.drawImage(aoC, x0 * AR, y0 * AR, (x1 - x0) * AR, (y1 - y0) * AR, x0 * P, y0 * P, (x1 - x0) * P, (y1 - y0) * P);
+    g.globalAlpha = sun.a; g.drawImage(shadeC, x0 * SR, y0 * SR, (x1 - x0) * SR, (y1 - y0) * SR, x0 * P, y0 * P, (x1 - x0) * P, (y1 - y0) * P);
+    g.globalAlpha = 1;
   }
   TR.tileChanged = function (x, y) {
     const B = DW.BT.get();
     if (!B || !groundCtx) return;
     const rnd = U.srng(x * 31 + y * 17);
-    drawGroundTile(groundCtx, x, y, B.ground[y * B.w + x], rnd);
-    for (let i = 0; i < 5; i++) {
-      groundCtx.fillStyle = U.shade('#7a746c', (rnd() - 0.5) * 0.5);
-      groundCtx.beginPath();
-      const cx = x * P + rnd() * P, cy = y * P + rnd() * P, r = 3 + rnd() * 6;
-      groundCtx.moveTo(cx - r, cy); groundCtx.lineTo(cx, cy - r); groundCtx.lineTo(cx + r, cy + r * 0.4); groundCtx.closePath(); groundCtx.fill();
-    }
-    projectTile(x, y);
+    const gid = B.ground[y * B.w + x];
+    groundCtx.fillStyle = D.GROUND[gid].c; groundCtx.fillRect(x * P, y * P, P, P);
+    drawGroundTile(groundCtx, x, y, gid, rnd);
+    detailTile(groundCtx, x, y, gid);
+    for (let i = 0; i < 6; i++) stone3d(groundCtx, (x + 0.1 + rnd() * 0.8) * P, (y + 0.1 + rnd() * 0.8) * P, 2 + rnd() * 4, ['#7a746c', '#6a645c', '#8a8478'][Math.floor(rnd() * 3)], rnd);
+    buildShade(B);
+    const L = Math.ceil((TR.sun ? TR.sun.len : 1) + 1);
+    for (let yy = y - L - 1; yy <= y + 1; yy++) for (let xx = x - 1; xx <= x + L + 1; xx++) if (xx >= 0 && yy >= 0 && xx < B.w && yy < B.h) projectTile(xx, yy);
   };
 
   /* ---------- Изометрическая проекция земли и срез диорамы ---------- */
@@ -208,32 +458,69 @@
     g.imageSmoothingEnabled = true;
     g.setTransform(HW * GS / P, HH * GS / P, -HW * GS / P, HH * GS / P, B.h * HW * GS, 0);
     g.drawImage(ground, 0, 0);
+    shadeRegion(g, 0, 0, B.w, B.h);
     g.setTransform(GS, 0, 0, GS, B.h * HW * GS, 0);
     const a = iso(0, B.h), b = iso(B.w, B.h), c = iso(B.w, 0);
-    let gr = g.createLinearGradient(0, a[1], 0, b[1] + EDGE);
-    gr.addColorStop(0, '#5a4632'); gr.addColorStop(1, '#1c140e');
-    g.fillStyle = gr;
-    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(b[0], b[1] + EDGE); g.lineTo(a[0], a[1] + EDGE); g.closePath(); g.fill();
-    gr = g.createLinearGradient(0, c[1], 0, b[1] + EDGE);
-    gr.addColorStop(0, '#3e3022'); gr.addColorStop(1, '#120c08');
-    g.fillStyle = gr;
-    g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(b[0], b[1]); g.lineTo(b[0], b[1] + EDGE); g.lineTo(c[0], c[1] + EDGE); g.closePath(); g.fill();
-    // пласты породы
     const rnd = U.srng(B.seed + 5);
-    for (let k = 1; k < 4; k++) {
-      const dy = k * EDGE / 4 + (rnd() - 0.5) * 3;
-      g.strokeStyle = 'rgba(0,0,0,' + (0.18 + k * 0.05) + ')'; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(a[0], a[1] + dy); g.lineTo(b[0], b[1] + dy); g.lineTo(c[0], c[1] + dy); g.stroke();
-    }
-    for (let i = 0; i < 70; i++) {
-      const t = rnd(), dy = 4 + rnd() * (EDGE - 6);
-      const onLeft = rnd() < 0.5;
-      const p0 = onLeft ? a : c;
-      g.fillStyle = 'rgba(' + (rnd() < 0.5 ? '0,0,0,0.25' : '160,130,100,0.18') + ')';
-      g.fillRect(p0[0] + (b[0] - p0[0]) * t, p0[1] + (b[1] - p0[1]) * t + dy, 2 + rnd() * 4, 1.5 + rnd() * 2);
-    }
-    g.strokeStyle = 'rgba(255,230,190,0.25)'; g.lineWidth = 1.2;
+    const cave = B.tod === 'cave' || B.tod === 'interior';
+    rockFace(g, a, b, EDGE, rnd, 1, !cave);
+    rockFace(g, b, c, EDGE, rnd, 0.62, !cave);
+    g.strokeStyle = 'rgba(255,230,190,0.28)'; g.lineWidth = 1.2;
     g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.stroke();
+  }
+  /* Срез породы: пласты, камни, корни; a→b — верхняя кромка, depth — высота среза */
+  const STRATA = [[0, 0.16, '#3e2e20'], [0.16, 0.42, '#7a5e42'], [0.42, 0.7, '#64503e'], [0.7, 1.01, '#463c34']];
+  function rockFace(g, a, b, depth, rnd, tone, grass) {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(4, Math.ceil(len / 7));
+    const at = function (t, dy) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + dy]; };
+    const ph = rnd() * 10;
+    const wav = function (t, k) { return Math.sin(t * len * 0.05 + ph + k * 2.1) * depth * 0.035 + Math.sin(t * len * 0.13 + k) * depth * 0.02; };
+    STRATA.forEach(function (L, k) {
+      g.fillStyle = U.shade(L[2], (tone - 1) * 0.9 + (rnd() - 0.5) * 0.06);
+      g.beginPath();
+      for (let i = 0; i <= n; i++) { const t = i / n, p = at(t, depth * L[0] + (k ? wav(t, k) : 0)); if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); }
+      for (let i = n; i >= 0; i--) { const t = i / n, p = at(t, Math.min(depth, depth * L[1] + (k < 3 ? wav(t, k + 1) : 0))); g.lineTo(p[0], p[1]); }
+      g.closePath(); g.fill();
+      if (k) { g.strokeStyle = 'rgba(255,235,200,' + (0.1 * tone) + ')'; g.lineWidth = 0.8; g.beginPath(); for (let i = 0; i <= n; i++) { const t = i / n, p = at(t, depth * L[0] + wav(t, k) + 0.6); if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); } g.stroke(); }
+    });
+    // камни в породе
+    const ns = Math.ceil(len / 11);
+    for (let i = 0; i < ns; i++) {
+      const t = rnd(), dy = depth * (0.22 + rnd() * 0.72), R = 1.2 + rnd() * Math.min(4.5, depth * 0.12);
+      const p = at(t, dy);
+      const base = ['#8a8076', '#6e655c', '#9a8a74'][i % 3], tv = (tone - 1) * 0.8;
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(p[0] + R * 0.3, p[1] + R * 0.35, R * 1.1, R * 0.8, 0, 0, 7); g.fill();
+      const gr = g.createRadialGradient(p[0] - R * 0.4, p[1] - R * 0.4, R * 0.1, p[0], p[1], R * 1.1);
+      gr.addColorStop(0, U.shade(base, U.clamp(0.3 + tv, -0.9, 0.9))); gr.addColorStop(1, U.shade(base, U.clamp(-0.4 + tv, -0.9, 0.9)));
+      g.fillStyle = gr; g.beginPath(); g.ellipse(p[0], p[1], R * 1.15, R * 0.85, rnd(), 0, 7); g.fill();
+    }
+    // трещины и корни
+    g.strokeStyle = 'rgba(15,10,6,0.45)'; g.lineWidth = 0.9;
+    for (let i = 0; i < Math.ceil(len / 40); i++) {
+      let p = at(rnd(), depth * (0.1 + rnd() * 0.3));
+      g.beginPath(); g.moveTo(p[0], p[1]);
+      for (let k = 0; k < 4; k++) { p = [p[0] + (rnd() - 0.5) * 5, p[1] + 2 + rnd() * depth * 0.15]; g.lineTo(p[0], p[1]); }
+      g.stroke();
+    }
+    if (grass) {
+      g.strokeStyle = 'rgba(40,26,14,0.7)'; g.lineWidth = 0.8;
+      for (let i = 0; i < Math.ceil(len / 18); i++) {
+        const p = at(rnd(), 0.5);
+        g.beginPath(); g.moveTo(p[0], p[1]); g.quadraticCurveTo(p[0] + (rnd() - 0.5) * 4, p[1] + depth * 0.2, p[0] + (rnd() - 0.5) * 6, p[1] + depth * (0.15 + rnd() * 0.25)); g.stroke();
+      }
+      g.strokeStyle = 'rgba(150,130,70,0.55)'; g.lineWidth = 1;
+      for (let i = 0; i < Math.ceil(len / 14); i++) {
+        const p = at(rnd(), 0);
+        g.beginPath(); g.moveTo(p[0], p[1] + 0.5); g.lineTo(p[0] + (rnd() - 0.5) * 3, p[1] - 2 - rnd() * 3); g.stroke();
+      }
+    }
+    // затенение книзу
+    const top = Math.min(a[1], b[1]), bot = Math.max(a[1], b[1]) + depth;
+    const gr = g.createLinearGradient(0, top, 0, bot);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,' + (0.25 + (1 - tone) * 0.3) + ')');
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(b[0], b[1] + depth); g.lineTo(a[0], a[1] + depth); g.closePath(); g.fill();
   }
   function projectTile(x, y) {
     const B = DW.BT.get();
@@ -245,6 +532,7 @@
     g.beginPath(); g.moveTo(n[0], n[1]); g.lineTo(e[0], e[1]); g.lineTo(s[0], s[1]); g.lineTo(w[0], w[1]); g.closePath(); g.clip();
     g.setTransform(HW * GS / P, HH * GS / P, -HW * GS / P, HH * GS / P, B.h * HW * GS, 0);
     g.drawImage(ground, x * P, y * P, P, P, x * P, y * P, P, P);
+    shadeRegion(g, Math.max(0, x - 1), Math.max(0, y - 1), Math.min(B.w, x + 2), Math.min(B.h, y + 2));
     g.restore();
     delete elev[y * B.w + x];
   }
@@ -1513,19 +1801,9 @@
     const g = c.getContext('2d');
     g.scale(GS, GS);
     const W = [0, HH], N = [HW, 0], E = [2 * HW, HH], S = [HW, 2 * HH];
-    let gr = g.createLinearGradient(0, HH, 0, HH + hp + HH);
-    gr.addColorStop(0, '#6a543c'); gr.addColorStop(1, '#2a1e14');
-    g.fillStyle = gr; ART.poly(g, [W, S, [S[0], S[1] + hp], [W[0], W[1] + hp]]);
-    gr = g.createLinearGradient(0, HH, 0, HH + hp + HH);
-    gr.addColorStop(0, '#4a3a2a'); gr.addColorStop(1, '#1a120c');
-    g.fillStyle = gr; ART.poly(g, [S, E, [E[0], E[1] + hp], [S[0], S[1] + hp]]);
     const r = U.srng(key * 13 + 1);
-    for (let k = 0; k < 10; k++) {
-      const left = r() < 0.5, tt = r(), dy = 3 + r() * (hp - 4);
-      const a0 = left ? W : S, a1 = left ? S : E;
-      g.fillStyle = r() < 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(170,140,100,0.18)';
-      g.fillRect(a0[0] + (a1[0] - a0[0]) * tt, a0[1] + (a1[1] - a0[1]) * tt + dy, 2 + r() * 4, 1.5 + r() * 2);
-    }
+    rockFace(g, W, S, hp, r, 1, true);
+    rockFace(g, S, E, hp, r, 0.62, true);
     g.save();
     g.beginPath(); g.moveTo(N[0], N[1]); g.lineTo(E[0], E[1]); g.lineTo(S[0], S[1]); g.lineTo(W[0], W[1]); g.closePath(); g.clip();
     g.drawImage(gIso, ((x - y) * HW - HW + B.h * HW) * GS, (x + y) * HH * GS, 2 * HW * GS, 2 * HH * GS, 0, 0, 2 * HW, 2 * HH);
@@ -1550,6 +1828,7 @@
     g.beginPath(); g.moveTo(w[0], w[1] - hp); g.lineTo(n[0], n[1] - hp); g.lineTo(e[0], e[1] - hp); g.lineTo(e[0], e[1]); g.lineTo(s2[0], s2[1]); g.lineTo(w[0], w[1]); g.closePath();
   }
 
+  let reachC = null, reachSrc = null, reachM = '';
   /* ---------- Главный рендер ---------- */
   TR.render = function (g, W, H, dpr) {
     const B = DW.BT.get();
@@ -1580,30 +1859,28 @@
 
     // плоские слои
     planeT();
-    g.fillStyle = 'rgba(0,0,0,0.24)';
-    g.beginPath();
-    for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
-      const o = B.obj[y * B.w + x];
-      if (!o || !B.explored[y * B.w + x] || o === 13 || o === 6 || hT(x, y) > 0) continue;
-      const L = D.OBJ[o].lift;
-      g.rect(x + 0.12, y + 0.08, 0.9 + L * 0.9, 0.86);
-    }
-    g.fill();
     if (B.evac.length) {
       g.fillStyle = 'rgba(90,210,120,' + (0.16 + Math.sin(t / 500) * 0.05) + ')';
       B.evac.forEach(function (e) { g.fillRect(e[0] + 0.05, e[1] + 0.05, 0.9, 0.9); });
     }
     if (ov.reach) {
       const R = ov.reach;
-      const pb = new Path2D(), py = new Path2D();
-      for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
-        const i = y * B.w + x, c = R.cost[i];
-        if (c === Infinity || c === 0 || R.occ[i] || (HG && HG[i] > 0)) continue;
-        if (c <= ov.m1 + 0.01) pb.rect(x + 0.05, y + 0.05, 0.9, 0.9);
-        else if (c <= ov.m2 + 0.01) py.rect(x + 0.05, y + 0.05, 0.9, 0.9);
+      if (reachSrc !== R || reachM !== ov.m1 + '_' + ov.m2) {
+        reachSrc = R; reachM = ov.m1 + '_' + ov.m2;
+        reachC = reachC && reachC.width === B.w && reachC.height === B.h ? reachC : canvas(B.w, B.h);
+        const rg = reachC.getContext('2d');
+        const img = rg.createImageData(B.w, B.h), d = img.data;
+        for (let i = 0; i < B.w * B.h; i++) {
+          const c = R.cost[i];
+          if (c === Infinity || c === 0 || R.occ[i] || (HG && HG[i] > 0)) continue;
+          if (c <= ov.m1 + 0.01) { d[i * 4] = 80; d[i * 4 + 1] = 170; d[i * 4 + 2] = 255; d[i * 4 + 3] = 40; }
+          else if (c <= ov.m2 + 0.01) { d[i * 4] = 255; d[i * 4 + 1] = 200; d[i * 4 + 2] = 60; d[i * 4 + 3] = 26; }
+        }
+        rg.putImageData(img, 0, 0);
       }
-      g.fillStyle = 'rgba(80,170,255,0.2)'; g.fill(pb);
-      g.fillStyle = 'rgba(255,200,60,0.16)'; g.fill(py);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(reachC, 0, 0, B.w, B.h);
+      g.imageSmoothingEnabled = true;
     }
     if (BT_visVersion() !== fogV) {
       fogV = BT_visVersion();
@@ -1656,8 +1933,8 @@
           if (ov.reach) {
             const cst = ov.reach.cost[i];
             if (cst !== Infinity && cst > 0 && !ov.reach.occ[i] && cst <= ov.m2 + 0.01) {
-              g.fillStyle = cst <= ov.m1 + 0.01 ? 'rgba(80,170,255,0.22)' : 'rgba(255,200,60,0.18)';
-              diamond(g, x, y, 0.05); g.fill();
+              g.fillStyle = cst <= ov.m1 + 0.01 ? 'rgba(80,170,255,0.16)' : 'rgba(255,200,60,0.1)';
+              diamond(g, x, y, 0); g.fill();
             }
           }
           const fa = vis && vis[i] ? 0 : (ex ? 0.49 : 0.92);
