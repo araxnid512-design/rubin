@@ -143,15 +143,18 @@
 
   function canvas(w, h) { return ART.canvas(w, h); }
   function lerpC(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  const BGS = 1.5;
+  let lakePts = [];
   function buildBg(world) {
-    const c = canvas(W, H);
+    const c = canvas(W * BGS, H * BGS);
     const g = c.getContext('2d');
+    g.scale(BGS, BGS);
     const seed = world.seed % 100000;
-    const lw = 320, lh = 200;
+    const lw = 400, lh = 250;
     const hf = new Float32Array(lw * lh);
     for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
-      const n = U.fbm(x * 0.018, y * 0.018, seed, 5);
-      const r = 1 - Math.abs(U.noise(x * 0.012 + 50, y * 0.012, seed + 3) * 2 - 1);
+      const n = U.fbm(x * 0.0144, y * 0.0144, seed, 5);
+      const r = 1 - Math.abs(U.noise(x * 0.0096 + 50, y * 0.0096, seed + 3) * 2 - 1);
       hf[y * lw + x] = n * 0.72 + r * r * 0.34;
     }
     const lc = canvas(lw, lh);
@@ -163,7 +166,7 @@
       const h = hf[i];
       const dx = hf[y * lw + Math.min(lw - 1, x + 1)] - hf[y * lw + Math.max(0, x - 1)];
       const dy = hf[Math.min(lh - 1, y + 1) * lw + x] - hf[Math.max(0, y - 1) * lw + x];
-      const shade = U.clamp(1 + (-dx - dy) * 9, 0.5, 1.45);
+      const shade = U.clamp(1 + (-dx * 1.1 - dy) * 11, 0.45, 1.55);
       let col = pal[pal.length - 1][1];
       for (let k = 0; k < pal.length - 1; k++) {
         if (h < pal[k + 1][0]) { col = lerpC(pal[k][1], pal[k + 1][1], (h - pal[k][0]) / (pal[k + 1][0] - pal[k][0])); break; }
@@ -171,11 +174,43 @@
       const rust = U.fbm(x * 0.04 + 300, y * 0.04, seed + 9, 3);
       if (rust > 0.6) col = lerpC(col, [col[0] * 1.15, col[1] * 0.86, col[2] * 0.7], (rust - 0.6) * 2.5);
       const k = i * 4;
-      img.data[k] = U.clamp(col[0] * shade, 0, 255); img.data[k + 1] = U.clamp(col[1] * shade, 0, 255); img.data[k + 2] = U.clamp(col[2] * shade, 0, 255); img.data[k + 3] = 255;
+      const warm = shade > 1 ? (shade - 1) * 0.35 : 0, cool = shade < 1 ? (1 - shade) * 0.5 : 0;
+      img.data[k] = U.clamp(col[0] * shade * (1 + warm * 0.3) * (1 - cool * 0.25), 0, 255);
+      img.data[k + 1] = U.clamp(col[1] * shade * (1 + warm * 0.12) * (1 - cool * 0.1), 0, 255);
+      img.data[k + 2] = U.clamp(col[2] * shade * (1 - warm * 0.15) * (1 + cool * 0.25), 0, 255);
+      img.data[k + 3] = 255;
     }
     lg.putImageData(img, 0, 0);
     g.imageSmoothingEnabled = true;
     g.drawImage(lc, 0, 0, W, H);
+    // мелкая фактура трещин и камней поверх рельефа
+    try {
+      const pat = g.createPattern(DW.TR.matTex('earth'), 'repeat');
+      g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = 0.22; g.scale(0.32, 0.32); g.fillStyle = pat; g.fillRect(0, 0, W * 3.2, H * 3.2); g.restore();
+      const pat2 = g.createPattern(DW.TR.matTex('grain'), 'repeat');
+      g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = 0.45; g.scale(0.25, 0.25); g.fillStyle = pat2; g.fillRect(0, 0, W * 4, H * 4); g.restore();
+    } catch (e) { /* ignore */ }
+    // кислотные озёра в низинах
+    {
+      const mc = canvas(lw, lh), mg = mc.getContext('2d');
+      const mi = mg.createImageData(lw, lh);
+      const shore = canvas(lw, lh), sg2 = shore.getContext('2d');
+      const si = sg2.createImageData(lw, lh);
+      lakePts = [];
+      for (let i = 0; i < lw * lh; i++) {
+        const h = hf[i];
+        if (h < 0.27) {
+          const a = U.clamp((0.27 - h) * 14, 0, 1);
+          mi.data[i * 4] = 70; mi.data[i * 4 + 1] = 110; mi.data[i * 4 + 2] = 30; mi.data[i * 4 + 3] = a * 230;
+          if (a > 0.6 && (i % 37) === 0 && lakePts.length < 60) lakePts.push([(i % lw) * W / lw, ((i / lw) | 0) * H / lh]);
+        }
+        if (h < 0.3) { const a2 = U.clamp((0.3 - h) * 10, 0, 1); si.data[i * 4] = 150; si.data[i * 4 + 1] = 140; si.data[i * 4 + 2] = 100; si.data[i * 4 + 3] = a2 * 120; }
+      }
+      sg2.putImageData(si, 0, 0); mg.putImageData(mi, 0, 0);
+      g.drawImage(shore, 0, 0, W, H);
+      g.drawImage(mc, 0, 0, W, H);
+      g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.25; g.drawImage(mc, -2, -2, W, H); g.restore();
+    }
     const rnd = U.srng(world.seed);
     const sx = W / lw, sy = H / lh;
     const hAt = function (x, y) { const ix = U.clamp(Math.floor(x / sx), 0, lw - 1), iy = U.clamp(Math.floor(y / sy), 0, lh - 1); return hf[iy * lw + ix]; };
@@ -320,11 +355,62 @@
       if (!n.known) return;
       const r = (n.visited ? 240 : 160) / 4;
       const x = n.x / 4, y = n.y / 4;
-      const gr = g.createRadialGradient(x, y, r * 0.3, x, y, r);
-      gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+      const rr = U.srng(n.id * 31 + 7);
+      for (let k = 0; k < 7; k++) {
+        const a = k / 7 * Math.PI * 2 + rr(), d = k ? r * (0.25 + rr() * 0.35) : 0, rk = k ? r * (0.55 + rr() * 0.35) : r;
+        const cx = x + Math.cos(a) * d, cy = y + Math.sin(a) * d * 0.8;
+        const gr = g.createRadialGradient(cx, cy, rk * 0.3, cx, cy, rk);
+        gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, rk, 0, 7); g.fill();
+      }
     });
     g.globalCompositeOperation = 'source-over';
+  }
+  /* Блики на кислотных озёрах */
+  function lakeGlints(g, t) {
+    lakePts.forEach(function (p, i) {
+      const a = Math.max(0, Math.sin(t / 700 + i * 1.7)) * 0.6;
+      if (a < 0.05) return;
+      g.fillStyle = 'rgba(200,255,140,' + a + ')';
+      g.fillRect(p[0] + Math.sin(t / 1300 + i) * 3, p[1], 3, 1);
+    });
+  }
+  /* Дрейфующая дымка над неразведанным */
+  let mistC = null, mistTex = null, mistT = 0;
+  function mistLayer(g, t) {
+    if (!fogC) return;
+    if (!mistTex) {
+      mistTex = canvas(128, 128);
+      const mg = mistTex.getContext('2d'), img = mg.createImageData(128, 128);
+      for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
+        let v = 0, amp = 0.5, f = 4;
+        for (let o = 0; o < 3; o++) { const per = f; const xi = x / 128 * per, yi = y / 128 * per; v += pnoiseW(xi, yi, per, 11 + o) * amp; amp *= 0.5; f *= 2; }
+        const k = (y * 128 + x) * 4;
+        img.data[k] = 120; img.data[k + 1] = 112; img.data[k + 2] = 102; img.data[k + 3] = U.clamp((v - 0.38) * 2.4, 0, 1) * 130;
+      }
+      mg.putImageData(img, 0, 0);
+    }
+    if (!mistC) mistC = canvas(fogC.width, fogC.height);
+    if (t - mistT > 60) {
+      mistT = t;
+      const m = mistC.getContext('2d');
+      m.globalCompositeOperation = 'source-over';
+      m.clearRect(0, 0, mistC.width, mistC.height);
+      m.drawImage(fogC, 0, 0);
+      m.globalCompositeOperation = 'source-in';
+      const pat = m.createPattern(mistTex, 'repeat');
+      const ox = (t / 260) % 128, oy = (t / 900) % 128;
+      m.save(); m.translate(-ox, -oy); m.fillStyle = pat; m.fillRect(0, 0, mistC.width + 256, mistC.height + 256); m.restore();
+      m.globalCompositeOperation = 'source-over';
+    }
+    g.globalAlpha = 0.4; g.drawImage(mistC, 0, 0, W, H); g.globalAlpha = 1;
+  }
+  function pnoiseW(x, y, per, seed) {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const x0 = ((xi % per) + per) % per, y0 = ((yi % per) + per) % per, x1 = (x0 + 1) % per, y1 = (y0 + 1) % per;
+    const a = U.hash2(x0, y0, seed), b = U.hash2(x1, y0, seed), c = U.hash2(x0, y1, seed), d = U.hash2(x1, y1, seed);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   }
 
   WR.init = function () {
@@ -658,10 +744,12 @@
     g.fillStyle = '#0d0b09'; g.fillRect(0, 0, Wd, Hd);
     g.setTransform(dpr * z, 0, 0, dpr * z, dpr * (Wd / 2 - WR.cam.x * z), dpr * (Hd / 2 - WR.cam.y * z));
     g.drawImage(bg, 0, 0, W, H);
+    lakeGlints(g, performance.now());
     const key = st.world.nodes.map(function (n) { return (n.known ? 1 : 0) + (n.visited ? 2 : 0); }).join('');
     if (key !== fogKey) { buildFog(st.world); fogKey = key; }
     g.imageSmoothingEnabled = true;
     g.drawImage(fogC, 0, 0, W, H);
+    mistLayer(g, performance.now());
     g.strokeStyle = 'rgba(200,160,110,0.35)'; g.lineWidth = 3;
     g.strokeRect(0, 0, W, H);
 
