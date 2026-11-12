@@ -22,7 +22,8 @@ window.DW = window.DW || {};
   U.uid = function () { return Math.random().toString(36).slice(2, 10); };
   U.sleep = function (ms) {
     const sp = (DW.settings && DW.settings.speed) || 1;
-    return new Promise(function (r) { setTimeout(r, ms / sp); });
+    const ts = DW.timeScale || 1;
+    return new Promise(function (r) { setTimeout(r, ms / sp / ts); });
   };
   U.plural = function (n, f1, f2, f5) {
     n = Math.abs(n) % 100;
@@ -179,10 +180,11 @@ window.DW = window.DW || {};
     }
   };
 
-  DW.settings = { speed: 1, sound: true };
+  DW.settings = { speed: 1, sound: true, cine: true };
+  DW.timeScale = 1;
   try {
     const s = DW.store.get('deadworld_settings');
-    if (s) { const o = JSON.parse(s); if (o) { DW.settings.speed = o.speed || 1; DW.settings.sound = o.sound !== false; } }
+    if (s) { const o = JSON.parse(s); if (o) { DW.settings.speed = o.speed || 1; DW.settings.sound = o.sound !== false; DW.settings.cine = o.cine !== false; } }
   } catch (e) { /* ignore */ }
   DW.saveSettings = function () { DW.store.set('deadworld_settings', JSON.stringify(DW.settings)); };
 })(window.DW);

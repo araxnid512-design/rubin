@@ -481,6 +481,9 @@
       box.appendChild(el('button', { class: 'btn', text: 'Скорость боя: ×' + DW.settings.speed, onclick: function () {
         DW.settings.speed = DW.settings.speed >= 3 ? 1 : DW.settings.speed + 1; DW.saveSettings(); render();
       } }));
+      box.appendChild(el('button', { class: 'btn', text: 'Кинокамера: ' + (DW.settings.cine !== false ? 'вкл' : 'выкл'), onclick: function () {
+        DW.settings.cine = DW.settings.cine === false; DW.saveSettings(); render();
+      } }));
     }
     render();
     return box;

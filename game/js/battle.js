@@ -349,16 +349,29 @@
     const o = B.obj[i];
     if (!o) return;
     B.objHp[i] -= dmg;
+    DW.TR.chips(x, y, D.OBJ[o].c);
     if (B.objHp[i] <= 0) {
       B.obj[i] = 0; B.objHp[i] = 0;
       if (D.GROUND[B.ground[i]].walk) B.ground[i] = 8;
       DW.TR.tileChanged(x, y);
       DW.TR.debris(x, y, D.OBJ[o].c);
+      DW.TR.decal(x, y, 'rubble', 1);
+      if (o === 9) { (B.blasts = B.blasts || []).push([x, y]); B.decor.push({ x: x + 0.5, y: y + 0.5, t: 'fire', r: 0.5 }); DW.TR.refreshFires(); }
     }
   };
-  BT.explode = async function (cx, cy, radius, dmg, objDmg, src) {
+  /* Взрывы бочек (цепная реакция) */
+  BT.processBlasts = async function (src) {
+    let guard = 0;
+    while (B && B.blasts && B.blasts.length && guard++ < 12) {
+      const b = B.blasts.shift();
+      DW.UI.toast('Бочка взорвалась!', 'alert');
+      await BT.explode(b[0], b[1], 1.5, [2, 4], 4, src, true);
+    }
+  };
+  BT.explode = async function (cx, cy, radius, dmg, objDmg, src, nested) {
     await DW.TR.focusOn(cx, cy, true);
     DW.TR.explosionFx(cx, cy, radius);
+    DW.TR.decal(cx, cy, 'scorch', radius);
     DW.SFX.play('explosion');
     await U.sleep(260);
     const r = Math.ceil(radius);
@@ -373,6 +386,7 @@
       await BT.damage(u, Math.max(1, d - Math.floor((u.armor || 0) / 2)), src, false);
     }
     BT.updateVision();
+    if (!nested) await BT.processBlasts(src);
     const near = B.units.filter(function (u) { return u.side === 'e' && u.alive && !u.active && U.dist(u.x, u.y, cx, cy) <= 9; });
     if (near.length) await BT.activatePods(near);
     BT.checkEnd();
@@ -533,23 +547,33 @@
     const info = BT.shotInfo(att, tgt, o);
     const hit = Math.random() * 100 < info.hit;
     const crit = hit && Math.random() * 100 < info.crit;
+    const dmg = hit && !o.suppress ? BT.rollDamage(W.dmg, crit, tgt.armor, W.pierce) : 0;
+    const lethal = dmg >= tgt.hp && dmg > 0;
     att.face = Math.atan2(tgt.y - att.y, tgt.x - att.x);
     const show = att.side === 'p' || att.seen || tgt.side === 'p';
-    if (show) await DW.TR.focusOn((att.x + tgt.x) / 2, (att.y + tgt.y) / 2, false);
-    await DW.TR.shotFx(att, tgt, hit, W, show, !!o.suppress);
+    const cine = show && DW.settings.cine !== false && !o.reaction && (att.side === 'p' || tgt.side === 'p');
+    if (cine) await DW.TR.actionCam(att, tgt);
+    else if (show) await DW.TR.focusOn((att.x + tgt.x) / 2, (att.y + tgt.y) / 2, false);
+    if (cine && lethal) DW.TR.slowmo(true);
+    await DW.TR.shotFx(att, tgt, hit, W, show, !!o.suppress, { coverTile: !hit ? info.coverTile : null });
     let killed = false;
     if (o.suppress) {
       tgt.suppressed = true;
       DW.TR.float(tgt.x, tgt.y, 'Подавлен', 'info');
       await U.sleep(250);
     } else if (hit) {
-      const dmg = BT.rollDamage(W.dmg, crit, tgt.armor, W.pierce);
+      DW.TR.decal(tgt.x, tgt.y, DW.TR.bloodKind(tgt), 0.6);
       killed = await BT.damage(tgt, dmg, att, crit);
+      if (killed) DW.TR.decal(tgt.x, tgt.y, DW.TR.bloodKind(tgt), 1.3);
     } else {
       DW.TR.float(tgt.x, tgt.y, 'Промах', 'miss');
       if (info.coverTile && Math.random() < 0.35) BT.damageObj(info.coverTile[0], info.coverTile[1], 1);
+      else if (!info.coverTile) DW.TR.decal(tgt.x, tgt.y, 'hole', 0.5);
       await U.sleep(240);
     }
+    if (cine && lethal) { await U.sleep(380); DW.TR.slowmo(false); }
+    if (cine) DW.TR.actionCamEnd();
+    await BT.processBlasts(att);
     if (tgt.alive && tgt.side === 'e' && !tgt.active) await BT.activatePods([tgt]);
     return { hit: hit, crit: crit, killed: killed };
   };
