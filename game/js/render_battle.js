@@ -44,11 +44,15 @@
   TR.rockFace = function (g, a, b, depth, rnd, tone, grass) { return rockFace(g, a, b, depth, rnd, tone, grass); };
 
   /* ---------- Земля ---------- */
-  function drawGroundTile(g, x, y, gid, rnd) {
+  function drawGroundTile(g, x, y, gid, rnd, photo) {
     const base = D.GROUND[gid].c;
     const hv = U.hash2(x, y, 7);
     const X = x * P, Y = y * P;
-    if (!NATURAL[gid]) { g.fillStyle = U.shade(base, (hv - 0.5) * 0.07); g.fillRect(X, Y, P, P); }
+    if (!NATURAL[gid]) {
+      if (!photo) { g.fillStyle = U.shade(base, (hv - 0.5) * 0.07); g.fillRect(X, Y, P, P); }
+      else { g.fillStyle = hv < 0.5 ? 'rgba(0,0,0,' + (0.5 - hv) * 0.12 + ')' : 'rgba(255,240,220,' + (hv - 0.5) * 0.08 + ')'; g.fillRect(X, Y, P, P); }
+    }
+    if (photo && gid === 9) { g.strokeStyle = 'rgba(40,26,12,0.7)'; g.lineWidth = 4; g.strokeRect(X + 2, Y + 2, P - 4, P - 4); return; }
     let i;
     switch (gid) {
       case 3: // бетон: плиты 2×2, швы с фаской
@@ -277,6 +281,27 @@
     texCache[kind] = c;
     return c;
   }
+  /* ---------- Фото-текстуры (Poly Haven, CC0): game/textures — грунты, кладка стен, скалы ---------- */
+  const PHOTO = {};
+  const GTEX = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 8: 'rubble', 9: 'wood' };
+  const WTEX = { 1: 'brick', 2: 'brick', 14: 'stone', 11: 'bulkhead', 17: 'plaster' };
+  (function () {
+    ['g_grain', 'g_ash', 'g_earth', 'g_concrete', 'g_metal', 'g_cave', 'g_rubble', 'g_wood', 'g_asphalt',
+      'w_brick', 'w_plaster', 'w_stone', 'w_bulkhead', 'w_planks', 'w_rockface'].forEach(function (n) {
+      const im = new Image();
+      im.onload = function () { PHOTO[n] = im; };
+      im.src = 'textures/' + n + '.jpg';
+    });
+  })();
+  TR.photosReady = function () { return Object.keys(PHOTO).length >= 15; };
+  function photoPat(g, n, sx, sy, ox, oy) {
+    const im = PHOTO[n];
+    if (!im) return null;
+    const p = g.createPattern(im, 'repeat');
+    if (!p || !p.setTransform || typeof DOMMatrix === 'undefined') return null;
+    p.setTransform(new DOMMatrix([sx, 0, 0, sy === undefined ? sx : sy, ox || 0, oy || 0]));
+    return p;
+  }
   const MAT = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood' };
   const NATURAL = { 0: 1, 1: 1, 2: 1, 5: 1, 6: 1, 8: 1 };
   const PRIO = { 10: 0, 4: 1, 9: 2, 3: 3, 7: 4, 1: 5, 5: 6, 2: 7, 0: 8, 6: 9, 8: 10 };
@@ -329,6 +354,13 @@
     }
     const order = Object.keys(paths).map(Number).sort(function (a, b) { return (PRIO[a] || 0) - (PRIO[b] || 0); });
     order.forEach(function (gid) {
+      const ph = GTEX[gid] ? photoPat(g, 'g_' + GTEX[gid], 0.25) : null;
+      if (ph) {
+        // фото грунта (512 точек на 2 клетки), швы и плиты искусственных покрытий — поверх
+        g.fillStyle = ph; g.fill(paths[gid]);
+        if (!NATURAL[gid]) for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) if (B.ground[y * B.w + x] === gid) drawGroundTile(g, x, y, gid, rnd, true);
+        return;
+      }
       g.fillStyle = D.GROUND[gid].c; g.fill(paths[gid]);
       if (!NATURAL[gid]) for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) if (B.ground[y * B.w + x] === gid) drawGroundTile(g, x, y, gid, rnd);
       const pat = patFor(g, gid);
@@ -500,6 +532,13 @@
       g.closePath(); g.fill();
       if (k) { g.strokeStyle = 'rgba(255,235,200,' + (0.1 * tone) + ')'; g.lineWidth = 0.8; g.beginPath(); for (let i = 0; i <= n; i++) { const t = i / n, p = at(t, depth * L[0] + wav(t, k) + 0.6); if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); } g.stroke(); }
     });
+    // фото породы (умножение) поверх слоёв
+    const rp = photoPat(g, 'w_rockface', 0.32, 0.32, a[0], a[1]);
+    if (rp) {
+      g.save(); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(b[0], b[1] + depth); g.lineTo(a[0], a[1] + depth); g.closePath(); g.clip();
+      g.globalCompositeOperation = 'multiply'; g.fillStyle = rp; g.fillRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]) + 1, Math.abs(b[1] - a[1]) + depth + 1);
+      g.restore();
+    }
     // камни в породе
     const ns = Math.ceil(len / 11);
     for (let i = 0; i < ns; i++) {
@@ -635,6 +674,20 @@
     return r;
   }
   function texWall(g, type, len, h, rnd) {
+    const wk = WTEX[type];
+    const wp = wk ? photoPat(g, 'w_' + wk, (type === 14 ? 0.85 : 1) / 256, (type === 11 ? 52 : (type === 17 ? 56 : 40)) / 256) : null;
+    if (wp) {
+      g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = wp; g.fillRect(0, 0, len, h); g.restore();
+    }
+    if (type === 2 && wp) {
+      // поверх фото — пятна штукатурки, сколы и грязь (без рисованных кирпичей)
+      for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(205,190,170,' + (0.18 + rnd() * 0.15) + ')'; g.fillRect(rnd() * len * 0.7, h * (0.2 + rnd() * 0.5), 0.15 + rnd() * 0.25, 6 + rnd() * 10); }
+      for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(20,14,10,0.5)'; g.fillRect(rnd() * len, 6 + rnd() * (h - 10), 0.035, 1.6); }
+      const gr0 = g.createLinearGradient(0, 0, 0, 12); gr0.addColorStop(0, 'rgba(20,15,10,0.4)'); gr0.addColorStop(1, 'rgba(20,15,10,0)');
+      g.fillStyle = gr0; g.fillRect(0, 0, len, 12);
+      return;
+    }
+    if (type === 14 && wp) { const gr0 = g.createLinearGradient(0, 0, 0, 10); gr0.addColorStop(0, 'rgba(20,15,10,0.35)'); gr0.addColorStop(1, 'rgba(20,15,10,0)'); g.fillStyle = gr0; g.fillRect(0, 0, len, 10); return; }
     if (type === 2) {
       for (let y = 3; y < h; y += 5) {
         g.fillStyle = 'rgba(30,22,16,0.35)'; g.fillRect(0, y, len, 0.7);
@@ -777,7 +830,8 @@
     switch (type) {
       case 2: case 11: case 14: {
         const t = type === 2 ? 0.27 : 0.3;
-        const col = { 2: ['#968b7d', '#7e7163', '#615549'], 11: ['#7d8a92', '#5a656c', '#454f56'], 14: ['#9c968a', '#807a70', '#646058'] }[type];
+        let col = { 2: ['#968b7d', '#7e7163', '#615549'], 11: ['#7d8a92', '#5a656c', '#454f56'], 14: ['#9c968a', '#807a70', '#646058'] }[type];
+        if (PHOTO['w_' + WTEX[type]]) col = col.map(function (c) { return U.shade(c, 0.32); });
         spans(mask, t).forEach(function (sp) {
           const h = type === 2 ? H - rnd() * 12 : H;
           wallBox(g, type, sp, h, col, rnd);
@@ -793,7 +847,7 @@
         break;
       }
       case 1: {
-        const c1 = ['#a39d94', '#86807a', '#6a655f'];
+        const c1 = PHOTO.w_brick ? ['#c9bfb2', '#b0a597', '#8c8275'] : ['#a39d94', '#86807a', '#6a655f'];
         spans(mask, 0.22).forEach(function (sp) {
           wallBox(g, 1, sp, H * 0.42, c1, rnd);
           const k = 0.08;
@@ -864,7 +918,7 @@
         break;
       }
       case 17: {
-        const c = ['#7a6a55', '#6a5642', '#544332'];
+        const c = PHOTO.w_plaster ? ['#a8957c', '#968068', '#7a6650'] : ['#7a6a55', '#6a5642', '#544332'];
         box(g, -0.5, -0.5, 0.5, 0.5, 0, H, c);
         g.save(); ART.faceL(g, -0.5, 0.5, 0); texWall(g, 17, 1, H, rnd);
         if (!(mask & 4)) {

@@ -1,0 +1,23 @@
+{
+ "id": "m_guardian",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk,preset:biped:shoot,preset:biped:hit_to_body_01,preset:biped:fall"
+  ]
+ ],
+ "pid": "38713507-9607-4646-bff9-26b3d78f9ebb"
+}

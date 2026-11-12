@@ -1,0 +1,15 @@
+grain gravelly_sand
+ash ground_grey
+earth mud_cracked_dry_03
+concrete concrete_floor_worn_001
+metal metal_plate
+cave rocks_ground_02
+rubble rocky_gravel
+wood weathered_brown_planks
+asphalt asphalt_02
+brick red_brick_03
+plaster cracked_concrete_wall
+stone rustic_stone_wall_02
+bulkhead rusty_metal_02
+rockface rock_face_03
+planks brown_planks_03
