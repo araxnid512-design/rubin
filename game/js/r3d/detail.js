@@ -93,16 +93,16 @@
     const tuftGeo = THREE.BufferGeometryUtils.mergeGeometries([gq, g2]);
     set('tuft', tuftGeo, grassMat, false);
     set('reeds', tuftGeo, fm(new THREE.MeshStandardMaterial({ map: grass(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, color: 0x9a9a70 })), false);
-    set('stone', new THREE.IcosahedronGeometry(0.09, 0), R3.fogify(R3.pbr('rock').clone()));
-    set('brick', new THREE.BoxGeometry(0.22, 0.07, 0.11), R3.fogify(R3.pbr('brick').clone()));
-    set('bone', new THREE.CylinderGeometry(0.018, 0.022, 0.32, 5), fm(new THREE.MeshStandardMaterial({ color: 0xd8cfb8, roughness: 0.8 })));
+    set('stone', new THREE.IcosahedronGeometry(0.09, 0), R3.fogify(R3.pbr('rock').clone()), false);
+    set('brick', new THREE.BoxGeometry(0.22, 0.07, 0.11), R3.fogify(R3.pbr('brick').clone()), false);
+    set('bone', new THREE.CylinderGeometry(0.018, 0.022, 0.32, 5), fm(new THREE.MeshStandardMaterial({ color: 0xd8cfb8, roughness: 0.8 })), false);
     set('skull', new THREE.SphereGeometry(0.09, 8, 6), fm(new THREE.MeshStandardMaterial({ color: 0xd8cfb8, roughness: 0.75 })));
     set('tire', new THREE.TorusGeometry(0.24, 0.09, 6, 14), fm(new THREE.MeshStandardMaterial({ color: 0x1c1b1a, roughness: 0.9 })));
-    set('can', new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), fm(new THREE.MeshStandardMaterial({ color: 0x8a5a3a, metalness: 0.6, roughness: 0.5 })));
+    set('can', new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), fm(new THREE.MeshStandardMaterial({ color: 0x8a5a3a, metalness: 0.6, roughness: 0.5 })), false);
     set('paper', new THREE.PlaneGeometry(0.2, 0.28), fm(new THREE.MeshStandardMaterial({ color: 0xcfc6b0, roughness: 1, side: THREE.DoubleSide })), false);
     set('pipe', new THREE.CylinderGeometry(0.06, 0.06, 1.0, 8), R3.fogify(R3.pbr('bulkhead', { metal: true }).clone()));
-    set('rebar', new THREE.CylinderGeometry(0.012, 0.012, 0.7, 4), fm(new THREE.MeshStandardMaterial({ color: 0x6a3a22, metalness: 0.7, roughness: 0.6 })));
-    set('wire', new THREE.TorusGeometry(0.2, 0.012, 4, 18), fm(new THREE.MeshStandardMaterial({ color: 0x55504a, metalness: 0.8, roughness: 0.4 })));
+    set('rebar', new THREE.CylinderGeometry(0.012, 0.012, 0.7, 4), fm(new THREE.MeshStandardMaterial({ color: 0x6a3a22, metalness: 0.7, roughness: 0.6 })), false);
+    set('wire', new THREE.TorusGeometry(0.2, 0.012, 4, 18), fm(new THREE.MeshStandardMaterial({ color: 0x55504a, metalness: 0.8, roughness: 0.4 })), false);
     set('stump', new THREE.CylinderGeometry(0.16, 0.2, 0.32, 9), R3.fogify(R3.pbr('wood').clone()));
     set('stalag', new THREE.ConeGeometry(0.22, 1.1, 7), R3.fogify(R3.pbr('rock').clone()));
     set('shroom', new THREE.SphereGeometry(0.07, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), fm(new THREE.MeshStandardMaterial({ color: 0x9effc0, emissive: 0x4fe090, emissiveIntensity: 1.2, roughness: 0.6 })), false);
@@ -211,6 +211,8 @@
       for (let k = 0; k < n; k++) if (r() < 0.75) put('stone', (x + r()) * T, Y + 0.02, (y + r()) * T, 0.35 + r() * 0.6, r() * 6.28, r() * 3, r() * 3);
       if ((gid === 0 || gid === 2) && r() < 0.08) for (let k = 0; k < 3; k++) put('tuft', (x + r()) * T, Y, (y + r()) * T, 0.6 + r() * 0.6, r() * 6.28);
     }
+    // мир вокруг поля: за краем карты — руины, сухие деревья, валуны, обломки, остовы машин (уходят в дымку)
+    backdrop(B, r);
     flush();
     // источники света
     const q = R3.q();
@@ -220,6 +222,41 @@
     for (let i = 0; i < n; i++) { const l = new THREE.PointLight(0xffffff, 0, 6, 1.6); l.castShadow = false; R3.scene.add(l); lights.push(l); }
     DT.B = B;
   };
+  /* фон за краем поля: по кольцу шириной ~12 м вокруг карты; набор — по виду карты */
+  const BACK = {
+    city: [['e_rubble', 1.3, 1.6], ['e_container', 1.6, 1.6], ['e_vaz_burned', 1.5, 1.1], ['e_deadtree', 0, 3.4, 3.2], ['e_boulder', 1.2, 1.4], ['e_btr80', 2.3, 1.7], ['e_paz', 2.4, 2.0]],
+    wild: [['e_deadtree', 0, 3.6, 3.4], ['e_deadtree', 0, 3.0, 2.8], ['e_boulder', 1.5, 1.6], ['e_boulder', 1.1, 1.2], ['e_log', 1.4, 0.8], ['e_rubble', 1.2, 1.3]],
+    cave: [['e_boulder', 1.8, 2.6], ['e_boulder', 1.4, 2.0], ['e_crystal', 0.9, 1.4], ['e_chitin', 1.0, 1.2]]
+  };
+  const BTYPE = { ruins: 'city', landing: 'city', factory: 'city', camp: 'city', site: 'city', vault: 'city', defense: 'city', forest: 'wild', swamp: 'wild', lair: 'wild', nest: 'cave', vein: 'cave', crystalcave: 'cave' };
+  function backdrop(B, r) {
+    const kind = BTYPE[B.map] || 'wild';
+    if (B.tod === 'interior') return;      // в помещении — стены, а не горизонт
+    const list = BACK[kind];
+    const W = B.w * T, Hh = B.h * T;
+    const n = Math.round((W + Hh) * 0.42);
+    for (let i = 0; i < n; i++) {
+      // точка на кольце за краем: 1,5–12 м от края, гуще ближе к краю
+      const side = Math.floor(r() * 4), d = 1.6 + Math.pow(r(), 1.6) * 11, t = r();
+      let x, z;
+      if (side === 0) { x = -d; z = t * (Hh + 2 * d) - d; }
+      else if (side === 1) { x = W + d; z = t * (Hh + 2 * d) - d; }
+      else if (side === 2) { z = -d; x = t * (W + 2 * d) - d; }
+      else { z = Hh + d; x = t * (W + 2 * d) - d; }
+      const e = list[Math.floor(r() * list.length)];
+      const v = { len: e[1], h: e[3] || 0, hMax: e[2] };
+      const pos = V(x, -0.6, z), yaw = r() * 360;
+      R3.loadGLB('models/' + e[0] + '.glb').then(function (gl) {
+        if (!gl || !group || DT.B !== B) return;
+        const m = R3.world.placeModel(gl, v, pos, yaw);
+        m.traverse(function (o) { if (o.isMesh) o.castShadow = false; });
+        group.add(m);
+      });
+      // россыпь камней и травы рядом
+      for (let k = 0; k < 3; k++) put('stone', x + (r() - 0.5) * 2, -0.58, z + (r() - 0.5) * 2, 0.5 + r() * 1.2, r() * 6.28, r() * 3, r() * 3);
+      if (kind === 'wild' && r() < 0.6) for (let k = 0; k < 4; k++) put('tuft', x + (r() - 0.5) * 2.5, -0.6, z + (r() - 0.5) * 2.5, 0.8 + r() * 0.8, r() * 6.28);
+    }
+  }
   /* огни: светят ближайшие к точке взгляда; мерцание костров и фонарей */
   DT.update = function (t) {
     if (!lights.length) return;

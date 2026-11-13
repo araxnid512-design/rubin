@@ -265,7 +265,7 @@
       if (ids.length === 1) { moved = false; downAt = p; }
       if (ids.length === 2) {
         const a = pts[ids[0]], b = pts[ids[1]];
-        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), a: Math.atan2(b.y - a.y, b.x - a.x), turn: 0 };
         moved = true;
       }
     });
@@ -284,6 +284,13 @@
         const d = Math.hypot(a.x - b.x, a.y - b.y);
         if (pinch.d > 0 && scene && scene.zoomAt) scene.zoomAt(d / pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2);
         pinch.d = d;
+        // 3D-бой: поворот двумя пальцами — на 90° после поворота жеста на ~35°
+        if (scene === DW.BS && DW.TR.is3d) {
+          const an = Math.atan2(b.y - a.y, b.x - a.x);
+          let da = an - pinch.a; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+          pinch.a = an; pinch.turn += da;
+          if (Math.abs(pinch.turn) > 0.6) { DW.TR.rotate(pinch.turn > 0 ? -1 : 1); pinch.turn = 0; }
+        }
         return;
       }
       pts[e.pointerId] = { x: p[0], y: p[1] };
@@ -308,6 +315,9 @@
     document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     window.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') DW.onBack();
+      // 3D-бой: Q / E — повернуть поле на 90°
+      if (scene === DW.BS && DW.TR.is3d && (e.key === 'q' || e.key === 'й')) DW.TR.rotate(-1);
+      if (scene === DW.BS && DW.TR.is3d && (e.key === 'e' || e.key === 'у')) DW.TR.rotate(1);
     });
   }
 

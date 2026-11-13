@@ -66,6 +66,7 @@
     }
     FOG.dirty = true;
   };
+  W3.tick = function (dt) { if (W3.acidN) { W3.acidN.offset.x += dt * 0.012; W3.acidN.offset.y += dt * 0.007; } };
   W3.fogTick = function () {
     if (!FOG.tex || !FOG.dirty) return;
     let ch = false;
@@ -298,7 +299,11 @@
       m.receiveShadow = true; m.castShadow = true; group.add(m);
     }
     if (gAcid.i.length) {
-      const am = R3.fogify(new THREE.MeshStandardMaterial({ color: 0x4f9a22, emissive: 0x2f7a10, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.88 }));
+      // кислота: мутная жидкость с бликами и медленной рябью (нормали сдвигаются во времени)
+      const nm = R3.tex('tex3d/cliff_n.jpg').clone(); nm.needsUpdate = true; nm.repeat.set(0.6, 0.6);
+      const am = R3.fogify(new THREE.MeshStandardMaterial({ color: 0x2c4214, emissive: 0x1c4a08, emissiveIntensity: 0.55, roughness: 0.06, metalness: 0.1, normalMap: nm, transparent: true, opacity: 0.93 }));
+      am.normalScale.set(0.35, 0.35);
+      W3.acidN = nm;
       const a = new THREE.Mesh(gAcid.build(), am); group.add(a); R3.pickables.push(a);
     }
     if (gPit.i.length) group.add(new THREE.Mesh(gPit.build(), new THREE.MeshBasicMaterial({ color: 0x050403 })));

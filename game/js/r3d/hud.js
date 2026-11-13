@@ -130,9 +130,20 @@
       if (i) g.lineTo(s[0], s[1]); else g.moveTo(s[0], s[1]);
     }
   }
+  let vig = null, vigK = '';
   HUD.draw2d = function (g, W, H) {
     const B = DW.BT.get(), ov = DW.TR.overlay || {};
     if (!B) return;
+    // виньетка — края кадра чуть темнее (как в кино)
+    if (vigK !== W + 'x' + H) {
+      vigK = W + 'x' + H;
+      vig = document.createElement('canvas'); vig.width = Math.ceil(W / 4); vig.height = Math.ceil(H / 4);
+      const vg = vig.getContext('2d'), w = vig.width, h = vig.height;
+      const gr = vg.createRadialGradient(w / 2, h * 0.48, Math.min(w, h) * 0.42, w / 2, h / 2, Math.max(w, h) * 0.72);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(8,6,4,0.42)');
+      vg.fillStyle = gr; vg.fillRect(0, 0, w, h);
+    }
+    g.drawImage(vig, 0, 0, W, H);
     const tr = DW.TR2, t = tr.now();
     // путь
     if (ov.path && ov.sel) {
