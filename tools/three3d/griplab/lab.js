@@ -225,6 +225,8 @@
   function deepSet(dst, src) { for (const k in src) { if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && dst[k] && typeof dst[k] === 'object') deepSet(dst[k], src[k]); else dst[k] = src[k]; } }
   // ?P={…} — поправки параметров поверх grip.js (подбор без правки файла)
   if (qs.get('P')) { deepSet(GP.P, JSON.parse(qs.get('P'))); GP.touch(); }
+  // ?G={…} — проба поправок units.js GRIP (положение оружия от корпуса) только на стенде
+  if (qs.get('G')) deepSet(UL.GRIP, JSON.parse(qs.get('G')));
   async function sheet() {
     const bodies = (qs.get('bodies') || 'krut').split(','), wpns = (qs.get('weapons') || 'ak').split(',');
     const poses = (qs.get('poses') || 'idle,aim').split(','), views = (qs.get('views') || 'game,front,rclose,lclose').split(',');
@@ -268,7 +270,7 @@
       const ck = gripOn && GP.check ? GP.check(S.body, S.W) : null;
       if (ck) { const f2 = function (x) { return x === undefined ? '  -  ' : x.toFixed(2).padStart(5); };
         (window.__checks = window.__checks || []).push((R.b + ' ' + R.w + ' ' + R.p).padEnd(34) + ' rN ' + f2(ck.rN) + ' rF ' + f2(ck.rF) + ' rD ' + (ck.rD * 100).toFixed(1).padStart(4) + 'см (кулак ' + (ck.rH * 100).toFixed(1) + ') | lN ' + f2(ck.lN) + ' lD ' + (ck.lD * 100).toFixed(1).padStart(4) + 'см (кулак ' + (ck.lH * 100).toFixed(1) + ') ' + (ck.lMode || '') + (ck.lS ? ' сдв ' + ck.lS.toFixed(2) : '') +
-          ((ck.rN > 0.6 && ck.rF > 0.7 && ck.rD < 0.03 && (ck.lN === undefined || ck.lN > 0.5)) ? '  ОК' : '  ПЛОХО')); }
+          ((ck.rN > 0.6 && ck.rF > 0.7 && ck.rD < 0.03 && (ck.lN === undefined || (ck.lN > 0.5 && ck.lD < 0.04))) ? '  ОК' : '  ПЛОХО')); }
       const di = function (d) { return 'изгиб ' + d.rawBend.toFixed(0) + '° скр ' + d.twist.toFixed(0) + '/' + d.roll.toFixed(0) + (d.rollG || d.devN ? ' пов ' + d.rollG.toFixed(0) + '/' + d.devN.toFixed(0) : '') + (d.slide ? ' сдв ' + d.slide.toFixed(2) : ''); };
       R.info = dg && gripOn ? 'R ' + di(dg.R.dbg) + ' | L ' + di(dg.L.dbg) : '';
     }

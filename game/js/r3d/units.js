@@ -115,8 +115,10 @@
 
   /* ---------- Хват от корпуса (как в tools/art3d/baker.js) ---------- */
   const GRIP = {
-    aim: { butt: [-0.06, -0.01, -0.03], pitch: 2, yaw: 4, roll: 0, level: true },
-    carry: { butt: [-0.04, -0.13, 0.03], pitch: -30, yaw: 20, roll: -6, minEl: -32, ground: true },
+    // приклад — в плечевую впадину (раньше был за плечевым суставом: правый локоть уходил за спину);
+    // в переноске — у подмышки, чтобы локоть не заходил в корпус
+    aim: { butt: [-0.05, -0.015, 0.06], pitch: 2, yaw: 4, roll: 0, level: true },
+    carry: { butt: [-0.03, -0.135, 0.12], pitch: -30, yaw: 20, roll: -6, minEl: -32, ground: true },
     hip: { butt: [0.0, -0.34, 0.0], pitch: 0, yaw: 6, roll: 0, level: true },
     sling: { butt: [-0.14, -0.5, -0.17], pitch: 38, yaw: 42, roll: 0, back: true }
   };
