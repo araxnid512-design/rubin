@@ -22,6 +22,8 @@ const ROOT = path.resolve(__dirname, '../../..');
   const r = await page.evaluate(() => window.__sheetErr || window.__sheet);
   if (!/^data:image\/png/.test(r)) { console.error(r); process.exitCode = 1; }
   else fs.writeFileSync(out, Buffer.from(r.split(',')[1], 'base64'));
+  const jt = await page.evaluate(() => window.__joints || null);
+  if (jt) console.log(jt.join('\n'));
   const ck = await page.evaluate(() => window.__checks || null);
   if (ck) console.log(ck.join('\n'));
   const tr = await page.evaluate(() => window.__trace || null);

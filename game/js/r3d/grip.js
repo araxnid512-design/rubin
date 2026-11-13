@@ -115,7 +115,7 @@
     if (side === 'Right') N.crossVectors(T, F); else N.crossVectors(F, T);
     N.normalize();
     const T2 = new THREE.Vector3().crossVectors(F, N).normalize();
-    S.F = F; S.N = N;
+    S.F = F; S.N = N; S.Tth = T.clone();      // Tth — к большому пальцу
     // базис кисти (столбцы F, N, F×N) → для перевода «оси кисти» в «оси оружия»
     S.Hl = new THREE.Matrix4().makeBasis(F, N, T2);
     // ладонь в кости кисти (как palm() в units.js: 0,75 пути до основания среднего пальца)
@@ -631,7 +631,96 @@
     return r;
   }
 
-  R3.grip = { apply: apply, relax: relax, check: check, P: P, ver: 0, rig: rig, wkey: wkey,
+  /* ---------- Суставы: проверка анатомии (стенд, тесты; не в кадре) ----------
+     оси корпуса: X — вправо (от левого плеча к правому), Y — вверх (таз → шея), Z = Y×X — вперёд. Для каждой руки:
+     ключица (подъём, вынос вперёд от покоя), плечо (подъём от опущенной руки, горизонтальное приведение: 0 — в сторону,
+     90 — вперёд, >90 — поперёк груди; локоть за срединной линией; локоть за спиной; скрутка плеча от покоя), локоть
+     (сгиб, боковой изгиб, переразгиб), предплечье (пронация/супинация от «большой палец вверх», скрутка на кость),
+     запястье (сгиб+/разгиб−, лучевое+/локтевое− отклонение), столкновения (локоть/предплечье/запястье в корпусе,
+     оружие сквозь предплечье). Пределы — LIM; нарушения — в списке bad. */
+  const LIM = { clavElev: 15, clavProt: 20, shElev: 100, shBack: 20, shTwist: 70, elFlex: 145, elHyper: 5, elSide: 5, pron: 80, boneTw: 45, wrFlex: 50, wrRad: 20, wrUln: 30 };
+  function jv(o) { return new THREE.Vector3().setFromMatrixPosition(o.matrixWorld); }
+  function jq(o) { const q = new THREE.Quaternion(); o.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3()); return q; }
+  function torsoFrame(pR, pL, top, hip) {
+    const X = pR.clone().sub(pL).normalize(), Y = top.clone().sub(hip); Y.addScaledVector(X, -Y.dot(X)).normalize();
+    return { X: X, Y: Y, Z: new THREE.Vector3().crossVectors(Y, X).normalize(), mid: pR.clone().add(pL).multiplyScalar(0.5), w: pR.distanceTo(pL) };
+  }
+  function sgnAngle(a, b, axis) { return Math.atan2(new THREE.Vector3().crossVectors(a, b).dot(axis), a.dot(b)) / DEG; }
+  function segSeg(p1, q1, p2, q2) {
+    const d1 = q1.clone().sub(p1), d2 = q2.clone().sub(p2), r = p1.clone().sub(p2);
+    const a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r), c = d1.dot(r), b = d1.dot(d2), den = a * e - b * b;
+    let s = den > 1e-12 ? clamp((b * f - c * e) / den, 0, 1) : 0, t = (b * s + f) / e;
+    if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); } else if (t > 1) { t = 1; s = clamp((b - c) / a, 0, 1); }
+    return p1.clone().addScaledVector(d1, s).distanceTo(p2.clone().addScaledVector(d2, t));
+  }
+  function joints(body, W) {
+    const G = body && body.B ? rig(body) : null, B = body.B, rs = body.rest;
+    if (!G || !G.R || !G.L || !rs) return null;
+    const top = B.Neck || B.Head, ttop = rs.Neck || rs.Head;
+    const T = torsoFrame(jv(B.RightArm), jv(B.LeftArm), jv(top), jv(B.Hips));
+    const T0 = torsoFrame(rs.RightArm.wp, rs.LeftArm.wp, ttop.wp, rs.Hips.wp);
+    const tc = function (v, F) { return new THREE.Vector3(v.dot(F.X), v.dot(F.Y), v.dot(F.Z)); };   // в осях корпуса
+    const out = {};
+    ['R', 'L'].forEach(function (sd) {
+      const S = G[sd], side = sd === 'R' ? 'Right' : 'Left', sg = sd === 'R' ? 1 : -1, j = {}, bad = [];
+      const C = B[side + 'Shoulder'], pS = jv(S.arm), pE = jv(S.fore), pW = jv(S.hand);
+      // ключица
+      if (C && rs[side + 'Shoulder']) {
+        const c = tc(pS.clone().sub(jv(C)).normalize(), T), c0 = tc(rs[side + 'Arm'].wp.clone().sub(rs[side + 'Shoulder'].wp).normalize(), T0);
+        j.clElev = (Math.asin(clamp(c.y, -1, 1)) - Math.asin(clamp(c0.y, -1, 1))) / DEG;
+        j.clProt = (Math.atan2(c.z, sg * c.x) - Math.atan2(c0.z, sg * c0.x)) / DEG;
+        if (j.clElev > LIM.clavElev) bad.push('ключица вверх'); if (j.clProt > LIM.clavProt) bad.push('ключица вперёд');
+      }
+      // плечо
+      const u = tc(pE.clone().sub(pS).normalize(), T);
+      j.shElev = Math.acos(clamp(-u.y, -1, 1)) / DEG;
+      j.shHoriz = Math.atan2(u.z, sg * u.x) / DEG;
+      j.elbowMid = pE.clone().sub(T.mid).dot(T.X) * sg;                        // м, < 0 — локоть за срединной линией
+      j.shBack = Math.max(0, Math.asin(clamp(-u.z, -1, 1)) / DEG);
+      // скрутка плеча от покоя: ось сгиба локтя после кратчайшего поворота покоя → сейчас, против нынешней
+      const qA = jq(S.arm), qA0 = rs[side + 'Arm'].wq;
+      const u0 = tc(rs[side + 'ForeArm'].wp.clone().sub(rs[side + 'Arm'].wp).normalize(), T0);
+      const h0 = tc(S.hL.clone().applyQuaternion(qA0), T0), h = tc(S.hL.clone().applyQuaternion(qA), T);
+      const hs = h0.clone().applyQuaternion(new THREE.Quaternion().setFromUnitVectors(u0, u));
+      j.shTwist = sgnAngle(hs.addScaledVector(u, -hs.dot(u)).normalize(), h.clone().addScaledVector(u, -h.dot(u)).normalize(), u);
+      if (j.shElev > LIM.shElev) bad.push('плечо выше 100°'); if (j.elbowMid < 0) bad.push('локоть за срединной линией');
+      if (j.shBack > LIM.shBack) bad.push('локоть за спиной'); if (Math.abs(j.shTwist) > LIM.shTwist) bad.push('скрутка плеча');
+      // локоть
+      const fW = pW.clone().sub(pE).normalize(), uW = pE.clone().sub(pS).normalize(), hW = S.hL.clone().applyQuaternion(qA);
+      j.elFlex = Math.acos(clamp(uW.dot(fW), -1, 1)) / DEG;
+      j.elSide = Math.asin(clamp(fW.dot(hW), -1, 1)) / DEG;
+      const hyper = new THREE.Vector3().crossVectors(uW, fW).dot(hW) < 0 && j.elFlex > LIM.elHyper;
+      if (j.elFlex > LIM.elFlex) bad.push('локоть > 145°'); if (Math.abs(j.elSide) > LIM.elSide) bad.push('локоть вбок'); if (hyper) bad.push('переразгиб');
+      // предплечье: ладонь от «к середине тела» (большой палец вверх) вокруг оси предплечья
+      const qH = jq(S.hand), nW = S.N.clone().applyQuaternion(qH);
+      const m = T.X.clone().multiplyScalar(-sg); m.addScaledVector(fW, -m.dot(fW)).normalize();
+      const np = nW.clone().addScaledVector(fW, -nW.dot(fW)).normalize();
+      j.pron = sgnAngle(m, np, fW) * sg;                                       // знак: + пронация (ладонью вниз), − супинация
+      j.boneFore = S.dbg.roll; j.boneWrist = S.dbg.twist;
+      if (Math.abs(j.pron) > LIM.pron) bad.push('про/супинация');
+      if (Math.abs(j.boneFore) > LIM.boneTw || Math.abs(j.boneWrist) > LIM.boneTw) bad.push('скрутка кости > 45°');
+      // запястье: направление предплечья в осях кисти против покоя
+      const iq = qH.clone().invert(), a = fW.clone().applyQuaternion(iq), a0 = S.faL, Tt = S.Tth;
+      const flex = Math.atan2(-a.dot(S.N), a.dot(S.F)) - Math.atan2(-a0.dot(S.N), a0.dot(S.F));
+      const dev = Math.atan2(-a.dot(Tt), a.dot(S.F)) - Math.atan2(-a0.dot(Tt), a0.dot(S.F));
+      j.wrFlex = flex / DEG; j.wrDev = dev / DEG;
+      if (Math.abs(j.wrFlex) > LIM.wrFlex) bad.push('запястье сгиб'); if (j.wrDev > LIM.wrRad) bad.push('запястье к большому'); if (j.wrDev < -LIM.wrUln) bad.push('запястье к мизинцу');
+      // столкновения: эллипс корпуса вдоль позвоночника (полуоси 0,3 и 0,28 ширины плеч)
+      const hit = function (p) { const d = p.clone().sub(T.mid), y = d.dot(T.Y); if (y > 0.05 * T.w || y < -1.6 * T.w) return false; const x = d.dot(T.X) / (0.30 * T.w), z = d.dot(T.Z) / (0.28 * T.w); return x * x + z * z < 1; };
+      const pM = pE.clone().lerp(pW, 0.5);
+      j.hit = (hit(pE) ? 'локоть ' : '') + (hit(pM) ? 'предплечье ' : '') + (hit(pW) ? 'запястье' : '');
+      if (W && W.g) {
+        const Mw = W.g.matrixWorld, b0 = new THREE.Vector3(0, W.buttY || 0, W.buttZ || 0.3).applyMatrix4(Mw), b1 = W.muzzle.clone().applyMatrix4(Mw);
+        j.gunFore = segSeg(pE, pE.clone().lerp(pW, 0.7), b0, b1);
+        if (j.gunFore < 0.025) j.hit += ' оружие сквозь предплечье';
+      }
+      if (j.hit) bad.push('столкновение: ' + j.hit.trim());
+      j.bad = bad; out[sd] = j;
+    });
+    return out;
+  }
+
+  R3.grip = { apply: apply, relax: relax, check: check, joints: joints, LIM: LIM, P: P, ver: 0, rig: rig, wkey: wkey,
     /* сброс кэша (стенд: после смены параметров) */
     touch: function () { R3.grip.ver++; } };
 })(window.DW);

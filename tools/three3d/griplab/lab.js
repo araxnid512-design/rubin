@@ -258,6 +258,13 @@
         renderer.render(scene, camera);
       }
       const dg = GP.rig(S.body);
+      const jt = GP.joints ? GP.joints(S.body, S.W) : null;
+      if (jt) { const n = function (x) { return x === undefined ? '  -' : (x >= 0 ? ' ' : '') + x.toFixed(0); };
+        ['R', 'L'].forEach(function (sd) { const j = jt[sd];
+          (window.__joints = window.__joints || []).push((R.b + ' ' + R.w + ' ' + R.p).padEnd(26) + sd +
+            ' | кл ' + n(j.clElev) + '/' + n(j.clProt) + ' | пл подъём ' + n(j.shElev) + ' гор ' + n(j.shHoriz) + ' скр ' + n(j.shTwist) + ' за спиной ' + n(j.shBack) + ' до середины ' + (j.elbowMid * 100).toFixed(0) + 'см' +
+            ' | лок ' + n(j.elFlex) + ' вбок ' + n(j.elSide) + ' | пред ' + n(j.pron) + ' (кости ' + n(j.boneFore) + '/' + n(j.boneWrist) + ')' +
+            ' | зап сгиб ' + n(j.wrFlex) + ' откл ' + n(j.wrDev) + ' | ' + (j.bad.length ? 'НАРУШЕНО: ' + j.bad.join(', ') : 'ОК')); }); }
       const ck = gripOn && GP.check ? GP.check(S.body, S.W) : null;
       if (ck) { const f2 = function (x) { return x === undefined ? '  -  ' : x.toFixed(2).padStart(5); };
         (window.__checks = window.__checks || []).push((R.b + ' ' + R.w + ' ' + R.p).padEnd(34) + ' rN ' + f2(ck.rN) + ' rF ' + f2(ck.rF) + ' rD ' + (ck.rD * 100).toFixed(1).padStart(4) + 'см (кулак ' + (ck.rH * 100).toFixed(1) + ') | lN ' + f2(ck.lN) + ' lD ' + (ck.lD * 100).toFixed(1).padStart(4) + 'см (кулак ' + (ck.lH * 100).toFixed(1) + ') ' + (ck.lMode || '') + (ck.lS ? ' сдв ' + ck.lS.toFixed(2) : '') +
