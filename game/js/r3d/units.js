@@ -404,6 +404,20 @@
     if (!refAK && M3 && M3.weapons.ak) R3.loadGLB('models/' + M3.weapons.ak.f + '.glb').then(function (gl) { if (gl) refAK = makeWeapon(gl, M3.weapons.ak); });
     B.units.forEach(function (u) { ensure(u); });
   };
+  /* мягкое пятно тени под ногами (на слабой графике теней нет — без него фигуры «висят») */
+  let blobTex = null;
+  function blob(size) {
+    if (!blobTex) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+      gr.addColorStop(0, 'rgba(0,0,0,0.75)'); gr.addColorStop(0.6, 'rgba(0,0,0,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      blobTex = new THREE.CanvasTexture(c);
+    }
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: R3.q() === 0 ? 0.9 : 0.45, polygonOffset: true, polygonOffsetFactor: -3 }));
+    m.rotation.x = -Math.PI / 2; m.position.y = 0.015; m.renderOrder = 3;
+    return m;
+  }
   function bodyIdOf(u) {
     const S = DW.S3 && DW.S3.setsFor(u);
     if (!S) return null;
@@ -426,6 +440,7 @@
         retargetSetup(body);
         e.body = body;
         group.add(body.holder);
+        e.blob = blob(0.95); group.add(e.blob);
         if (r[1]) { e.wpn = makeWeapon(r[1], M3.weapons[k.weapon]); group.add(e.wpn.g); }
         if (r[2] && u.cls === 'heavy') { e.rpg = makeWeapon(r[2], M3.weapons.rpg); e.rpg.g.visible = false; group.add(e.rpg.g); }
         e.pose = { q: new Float32Array(DW.ANIM3.bones.length * 4), hp: V() };
@@ -439,6 +454,7 @@
         const body = makeBody(r[0], ci.h, false, ci.yaw || 0);
         e.body = body; e.ci = ci;
         group.add(body.holder);
+        e.blob = blob(ci.quad ? ci.h * 1.2 : Math.max(1.0, ci.h * 0.6)); group.add(e.blob);
         // клипы: из основного файла и дополнительных (тот же скелет)
         const clips = {};
         r.forEach(function (g, i) { if (g) g.animations.forEach(function (a) { clips[(i ? ci.more[i - 1] : ci.f) + '|' + a.name] = a; clips[a.name] = clips[a.name] || a; }); });
@@ -521,11 +537,13 @@
       const vis = visibleUnit(u);
       e.body.holder.visible = vis;
       if (e.wpn) e.wpn.g.visible = vis;
+      if (e.blob && !vis) e.blob.visible = false;
       if (!vis) return;
       // положение: как в 2D (ход по сглаженному пути, прижаться к укрытию), высота по уровню
       const p = u.alive ? tr.leanPos(u) : [u.x, u.y];
       const lvl = tr.uLevel(u);
       e.body.holder.position.set((p[0] + 0.5) * T, lvl * LV, (p[1] + 0.5) * T);
+      if (e.blob) { e.blob.visible = u.alive; e.blob.position.set(e.body.holder.position.x, lvl * LV + 0.015, e.body.holder.position.z); }
       let face = tr.dispFace(u);
       if (e.kind === 'turret') { e.body.holder.rotation.y = -face; return; }
       if (e.kind === 'human') updHuman(e, u, t, dt, face);
