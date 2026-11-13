@@ -133,6 +133,9 @@
     const modSum = function (k) { return mods.reduce(function (a, m) { return a + (D.MODS[m][k] || 0); }, 0); };
     const u = mkSoldierBase(s, x, y, G, W);
     u.mods = mods; u.aim += modSum('aim'); u.clip += modSum('clip'); u.owMod = modSum('ow');
+    // черта после тяжёлого ранения
+    if (s.trait2 === 'wary') u.def = (u.def || 0) + 5;
+    if (s.trait2 === 'grim') u.aim += 5;
     if (u.perks.indexOf('medic2') >= 0) u.charges.heal += 2;
     return u;
   }

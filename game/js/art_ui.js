@@ -258,6 +258,22 @@
         g.fillStyle = bg; g.fillRect(0, 104, 128, 24);
       }
     }
+    // шрамы после тяжёлых ранений (look.bscars): тонкие рубцы на лице, место — по бойцу
+    const sc = (s.look && s.look.bscars) || 0;
+    if (sc) {
+      let h = ART.hashStr(String(s.id || s.name));
+      const SPOTS = [[40, 58, 50, 78], [84, 46, 94, 66], [56, 30, 70, 38], [78, 78, 90, 90], [46, 84, 56, 92]];
+      for (let k = 0; k < sc; k++) {
+        const sp = SPOTS[(h + k * 2) % SPOTS.length]; h = (h * 31 + 7) >>> 0;
+        g.save(); g.lineCap = 'round';
+        g.strokeStyle = 'rgba(70,20,18,0.5)'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(sp[0], sp[1]); g.quadraticCurveTo((sp[0] + sp[2]) / 2 + 2, (sp[1] + sp[3]) / 2 - 2, sp[2], sp[3]); g.stroke();
+        g.strokeStyle = 'rgba(200,150,138,0.6)'; g.lineWidth = 1.1; g.stroke();
+        // стежки
+        g.strokeStyle = 'rgba(90,40,36,0.55)'; g.lineWidth = 0.8;
+        for (let q = 1; q < 4; q++) { const t = q / 4, x = sp[0] + (sp[2] - sp[0]) * t, y = sp[1] + (sp[3] - sp[1]) * t; g.beginPath(); g.moveTo(x - 2, y + 1.5); g.lineTo(x + 2, y - 1.5); g.stroke(); }
+        g.restore();
+      }
+    }
     rankMarks(g, rank);
     return c;
   }
@@ -269,7 +285,7 @@
     // фото-лицо бойца — главный портрет
     const F = faceImg(s);
     if (F) {
-      const pk = 'f|' + F.i + '|' + rank + '|' + hurtLv;
+      const pk = 'f|' + F.i + '|' + rank + '|' + hurtLv + '|' + ((s.look && s.look.bscars) || 0) + '|' + (s.id || s.name);
       if (cache[pk]) return cache[pk];
       try { cache[pk] = photoPortrait(s, F, rank, hurtLv).toDataURL('image/jpeg', 0.88); return cache[pk]; } catch (e) { /* дальше — запасной портрет */ }
     }

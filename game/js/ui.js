@@ -157,7 +157,10 @@
       const TRt = D.TRAITS[s.trait];
       info.innerHTML = '<div class="dhead">' + s.name + ' <button class="btn sm ren">✎</button></div>' +
         '<div><span class="tag" style="border-color:' + c.color + ';color:' + c.color + '">' + c.n + '</span><span class="tag">' + D.RANKS[rk].n + rankBadge(rk) + '</span>' +
-        (TRt ? '<span class="tag trait" title="' + TRt.d + '">' + TRt.n + '</span>' : '') + '</div>' +
+        (TRt ? '<span class="tag trait" title="' + TRt.d + '">' + TRt.n + '</span>' : '') +
+        (s.trait2 && D.TRAITS[s.trait2] ? '<span class="tag trait" title="' + D.TRAITS[s.trait2].d + '">' + D.TRAITS[s.trait2].n + '</span>' : '') +
+        (s.injury ? '<span class="tag" style="border-color:#c0504a;color:#e88a7a">ранен: ' + s.injury + ' дн.</span>' : '') + '</div>' +
+        (s.trait2 && D.TRAITS[s.trait2] ? '<div class="small dim">' + D.TRAITS[s.trait2].n + ': ' + D.TRAITS[s.trait2].d + '</div>' : '') +
         (TRt ? '<div class="small dim">' + TRt.n + ': ' + TRt.d + '</div>' : '') +
         ((s.perks || []).length ? '<div class="small">Навыки: ' + s.perks.map(function (p) { return '<b class="acc">' + D.PERKS[p].n + '</b>'; }).join(', ') + '</div>' : '') +
         '<div class="small dim">Опыт ' + s.xp + (next ? ' / ' + next.xp : '') + ' · убийств ' + s.kills + ' · заданий ' + s.missions + '</div>' +
@@ -455,8 +458,9 @@
     const G = DW.G, st = G.state;
     return new Promise(function (res) {
       const chosen = {};
+      const hurt = function (s) { return kind !== 'defense' && (s.injury || 0) > 0; };
       const sorted = st.roster.slice().sort(function (a, b) { return G.hp(b) / G.maxHp(b) - G.hp(a) / G.maxHp(a); });
-      sorted.slice(0, 6).forEach(function (s) { chosen[s.id] = 1; });
+      sorted.filter(function (s) { return !hurt(s); }).slice(0, 6).forEach(function (s) { chosen[s.id] = 1; });
       const T = D.NODE_TYPES[node.type];
       const intel = {
         landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: 'бандиты' + (node.diff >= 3 ? ' и главарь' : ''),
@@ -501,7 +505,8 @@
         st.roster.forEach(function (s) {
           const on = !!chosen[s.id];
           const c = D.CLASSES[s.cls];
-          const card = el('div', { class: 'bpick' + (on ? ' on' : ''), onclick: function () {
+          const card = el('div', { class: 'bpick' + (on ? ' on' : '') + (hurt(s) ? ' hurt' : ''), onclick: function () {
+            if (hurt(s)) { UI.toast('«' + s.name + '» ранен: ещё ' + s.injury + ' дн. вне строя', 'bad'); return; }
             if (chosen[s.id]) delete chosen[s.id];
             else if (Object.keys(chosen).length < 6) chosen[s.id] = 1;
             render();
@@ -509,7 +514,7 @@
           card.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
           const sc = el('div', { class: 'sc' });
           sc.innerHTML = '<div class="sname">' + s.name + rankBadge(G.rank(s)) + '</div>' + hpBar(G.hp(s), G.maxHp(s)) +
-            '<div class="sline">' + c.n + ' · ' + (D.WEAPONS[s.weapon].s || '') + '</div>';
+            '<div class="sline">' + c.n + ' · ' + (D.WEAPONS[s.weapon].s || '') + (hurt(s) ? ' · <span class="bad">ранен, ' + s.injury + ' дн.</span>' : '') + '</div>';
           card.appendChild(sc);
           grid.appendChild(card);
         });
@@ -550,6 +555,8 @@
       }));
       if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
       if (sum.bonds) html += '<div class="rloot">Стали боевыми товарищами: <b class="acc">' + sum.bonds.join('; ') + '</b> — рядом друг с другом +5 к меткости.</div>';
+      if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';
+      if (sum.traits) html += '<div class="rloot">Ранение изменило характер: <b class="acc">' + sum.traits.join('; ') + '</b>.</div>';
       b.innerHTML = html;
       (sum.perkChoices || []).forEach(function (pc) {
         if (!pc.opts.length) return;

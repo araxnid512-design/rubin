@@ -356,6 +356,12 @@
       const heal = atBase ? (G.blv('infirmary') ? 4 : 2) : 1;
       st.roster.forEach(function (s) { s.wounds = Math.max(0, s.wounds - heal); });
     }
+    // тяжёлые ранения: −1 день (в лазарете на базе — −2)
+    st.roster.forEach(function (s) {
+      if (!s.injury) return;
+      s.injury = Math.max(0, s.injury - (atBase && G.blv('infirmary') ? 2 : 1));
+      if (!s.injury) notes.push({ title: 'Снова в строю', text: '«' + s.name + '» оправился от ранения и может идти на задание.', kind: 'good' });
+    });
     // производство
     if (hasBase) {
       if (G.blv('farm')) res.food += 5;
@@ -615,6 +621,10 @@
       kills += u.kills;
       if (!u.alive && (u.stable || (u.down > 0 && out === 'victory'))) {
         s.wounds = Math.max(0, G.maxHp(s) - 1);
+        // тяжёлое ранение: 3 дня вне строя (в лазарете на базе — быстрее), после — черта характера
+        s.injury = Math.max(s.injury || 0, 3);
+        if (!s.trait2 && Math.random() < 0.6) { s.trait2 = Math.random() < 0.5 ? 'wary' : 'grim'; (sum.traits = sum.traits || []).push(s.name + ' — ' + D.TRAITS[s.trait2].n); }
+        (sum.injured = sum.injured || []).push(s.name + ' (3 дн.)');
         if ((s.look.bscars || 0) < 3) { s.look.bscars = (s.look.bscars || 0) + 1; (sum.scarred = sum.scarred || []).push(s.name); }
         s.kills += u.kills; s.missions++;
         s.xp += (u.xpGain || 0) + 1;
@@ -639,6 +649,8 @@
         s.look.bscars = (s.look.bscars || 0) + 1;
         (sum.scarred = sum.scarred || []).push(s.name);
       }
+      // тяжело ранен (треть здоровья и меньше) — 2 дня вне строя
+      if (u.hp <= Math.max(1, Math.floor(u.maxHp * 0.34))) { s.injury = Math.max(s.injury || 0, 2); (sum.injured = sum.injured || []).push(s.name + ' (2 дн.)'); }
       s.wounds = Math.max(0, G.maxHp(s) - u.hp);
       s.kills += u.kills;
       s.missions++;

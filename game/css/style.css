@@ -509,3 +509,5 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .bestiary .bcard .bt { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .bestiary .bcard.unk { opacity: 0.7; }
 .bestiary .good { color: #8fd07a; } .bestiary .bad { color: #e88a7a; }
+
+.bpick.hurt { opacity: 0.55; filter: grayscale(0.5); }
