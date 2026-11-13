@@ -478,3 +478,10 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .sp-t2 { font-size: clamp(14px, 5vh, 28px); letter-spacing: 0.6em; color: var(--acc); margin-top: 4px; text-shadow: 0 2px 8px #000; }
 .b-obj .lightbtn { margin-top: 4px; font-size: 11px; padding: 3px 8px; pointer-events: auto; }
 .b-obj .lightbtn.on { border-color: #ffd27a; color: #ffd27a; }
+.tree-row { display: flex; gap: 4px; align-items: stretch; margin: 2px 0; }
+.tree-lv { flex: none; width: 64px; font-size: 11px; color: var(--dim); align-self: center; }
+.tree-p { flex: 1; border: 1px solid var(--line2); border-radius: 6px; padding: 3px 6px; display: flex; flex-direction: column; font-size: 12px; background: rgba(0, 0, 0, 0.2); }
+.tree-p small { font-size: 10px; color: var(--dim); }
+.tree-p.got { border-color: var(--acc); background: linear-gradient(#4a3826, #2e2418); }
+.tree-p.got b { color: var(--acc); }
+.tree-p.off { opacity: 0.4; }

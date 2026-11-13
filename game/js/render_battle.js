@@ -1966,7 +1966,8 @@
         // каждый выстрел очереди — свой звук, ровно со вспышкой; дальние выстрелы тише и глуше
         const Bq = DW.BT.get(), env = Bq && (Bq.tod === 'interior' || Bq.tod === 'cave') ? 'in' : 'out';
         const far = att.side === 'p' ? 0 : 0.35;
-        setTimeout(function () { for (let i = 0; i < cnt; i++) DW.SFX.shot(FW.wid, { when: i * gap / 1000, far: far, env: env }); }, rt(pre));
+        const quiet = att.mods && att.mods.indexOf('supp') >= 0;
+        setTimeout(function () { for (let i = 0; i < cnt; i++) DW.SFX.shot(FW.wid, { when: i * gap / 1000, far: far, env: env, quiet: quiet }); }, rt(pre));
       } else setTimeout(function () { DW.SFX.play(FW.snd || W.snd); }, rt(pre));
     }
     for (let i = 0; i < cnt; i++) fx.flashes.push({ x: m[0], y: m[1], r: (FW.flash || 14) * (0.85 + Math.random() * 0.3), t0: t0 + i * gap, life: FW.flife || 70, muzzle: true, dir: fdir, kind: FW.fk || 'std' });

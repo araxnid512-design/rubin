@@ -20,6 +20,9 @@
     farm: { u: 6.9, v: 6.8, w: 2.1, d: 1.9 },
     beacon: { u: 2.6, v: 3.8, w: 0.9, d: 0.9 },
     turret: { u: 8.5, v: 4.4, w: 0.8, d: 0.8 },
+    radio: { u: 1.05, v: 4.1, w: 1.0, d: 1.0 },
+    garage: { u: 7.95, v: 3.0, w: 1.45, d: 1.2 },
+    ammo: { u: 1.3, v: 2.55, w: 1.1, d: 1.0 },
     walls: { u: 0.25, v: 0.25, w: 9.5, d: 9.5 }
   };
   const TURRET2 = { u: 4.4, v: 8.5, w: 0.8, d: 0.8 };
@@ -357,7 +360,7 @@
     g.fillStyle = '#ffd08a'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText('+', m[0], m[1] - 18.5);
   }
   /* 3D-постройки (модели Tripo, набор p_base): номер варианта по постройке */
-  const BLD3D = { hq: 0, tower: 1, infirmary: 2, workshop: 3, farm: 4, beacon: 5, gate: 6, fire: 7, tank: 8, store: 9 };
+  const BLD3D = { hq: 0, tower: 1, infirmary: 2, workshop: 3, farm: 4, beacon: 5, gate: 6, fire: 7, tank: 8, store: 9, radio: 10, garage: 11, ammo: 12 };
   function base3d(g, key, u, v) {
     const S3 = DW.S3;
     if (!S3 || !S3.has('p_base')) return null;
@@ -405,7 +408,7 @@
       case 'farm': drawFarm(g, t); break;
       case 'beacon': drawBeacon(g, t); break;
       case 'turret': drawTurret(g, t, SLOT.turret); if (lv >= 2) drawTurret(g, t, TURRET2); break;
-      default: break;
+      default: { const s2 = SLOT[k]; box(g, s2.u, s2.v, s2.u + s2.w, s2.v + s2.d, 0, 16, ['#7a6a52', '#5e5040', '#4a3e30']); break; }
     }
     if (prog < 1) {
       g.restore();
@@ -589,6 +592,7 @@
     const prod = [];
     if (G.blv('farm')) prod.push('+5 ' + ic('food'));
     if (G.blv('workshop')) prod.push('+15 ' + ic('ammo'));
+    if (G.blv('ammo')) prod.push('+20 ' + ic('ammo'));
     hud.top.innerHTML = '<div class="wday">' + ic('base') + '<b>' + n.name + '</b></div>' +
       '<div class="wres"><span class="r">Защита <b>' + G.defenseScore() + '</b></span>' +
       '<span class="r">' + ic('materials') + '<b>' + st.res.materials + '</b></span>' +

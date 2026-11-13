@@ -29,6 +29,12 @@
   G.smoker = function (s) { return !!s && (s.trait === 'calm' || s.name === 'Мальборо'); };
   /* Два навыка на выбор при повышении */
   G.perkOffer = function (s) {
+    // ветка класса: пара навыков уровня, равного числу уже взятых
+    const tr = D.TREE && D.TREE[s.cls];
+    if (tr) {
+      const lvl = (s.perks || []).length;
+      if (lvl < tr.length) { const pair = tr[lvl].filter(function (k) { return !G.has(s, k); }); if (pair.length) return pair; }
+    }
     const all = Object.keys(D.PERKS).filter(function (k) { return !G.has(s, k); });
     const r = U.srng(ART_HASH(s.id) + (s.perks ? s.perks.length : 0) * 101);
     const a = all.splice(Math.floor(r() * all.length), 1)[0];
@@ -193,6 +199,7 @@
       const g = c.give;
       for (const k in g) {
         if (k === 'weapon') { st.stock.weapons[g.weapon] = (st.stock.weapons[g.weapon] || 0) + 1; extra.push(D.WEAPONS[g.weapon].n); }
+        else if (k === 'mod') { st.stock.mods = st.stock.mods || {}; st.stock.mods[g.mod] = (st.stock.mods[g.mod] || 0) + 1; extra.push('модуль «' + D.MODS[g.mod].n + '»'); }
         else if (k === 'armor') { st.stock.armors[g.armor] = (st.stock.armors[g.armor] || 0) + 1; extra.push(D.ARMORS[g.armor].n); }
         else if (k === 'recruit') {
           const s = G.makeRecruit(g.recruit);
@@ -334,6 +341,8 @@
     if (hasBase) {
       if (G.blv('farm')) res.food += 5;
       if (G.blv('workshop') && res.materials >= 1) { res.materials -= 1; res.ammo += 15; }
+      if (G.blv('ammo')) { res.ammo += 20; if (st.day % 3 === 0) res.grenades = (res.grenades || 0) + 1; }
+      if (G.blv('radio')) G.revealAround(st.baseNode, 3);
     }
     let og = 0;
     st.world.nodes.forEach(function (n) { if (n.outpost) og += 3; });

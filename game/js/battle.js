@@ -97,6 +97,14 @@
   function mkSoldier(s, x, y) {
     const G = DW.G;
     const W = D.WEAPONS[s.weapon];
+    const mods = (s.mods || []).filter(function (m) { return D.MODS && D.MODS[m]; });
+    const modSum = function (k) { return mods.reduce(function (a, m) { return a + (D.MODS[m][k] || 0); }, 0); };
+    const u = mkSoldierBase(s, x, y, G, W);
+    u.mods = mods; u.aim += modSum('aim'); u.clip += modSum('clip'); u.owMod = modSum('ow');
+    if (u.perks.indexOf('medic2') >= 0) u.charges.heal += 2;
+    return u;
+  }
+  function mkSoldierBase(s, x, y, G, W) {
     return {
       id: B.nextId++, side: 'p', kind: 'soldier', sid: s.id, name: s.name, cls: s.cls, x: x, y: y,
       hp: Math.max(1, G.hp(s)), maxHp: G.maxHp(s), aim: G.aim(s) - (G.state.hungry ? 10 : 0), mob: G.mob(s),
@@ -240,7 +248,7 @@
   };
   BT.cargoDrop = function () {
     if (B.kind !== 'normal' || B.dropDone || B.turn < 3 || B.items.some(function (it) { return it.kind === 'cargo'; })) return;
-    if (Math.random() > 0.3) return;
+    if (Math.random() > (DW.G.blv('radio') ? 0.5 : 0.3)) return;   // радиовышка ловит сигнал сброса
     const ps = BT.soldiers(); if (!ps.length) return;
     const cx = Math.round(ps.reduce(function (a, u) { return a + u.x; }, 0) / ps.length) + U.rand(3, 6), cy = Math.round(ps.reduce(function (a, u) { return a + u.y; }, 0) / ps.length) + U.rand(-3, 3);
     const t = freeTileNear(U.clamp(cx, 2, B.w - 3), U.clamp(cy, 2, B.h - 3), 5, false);
@@ -421,6 +429,10 @@
     if (B.concealed && att.side === 'p' && !o.reaction) { hit += 15; parts.push(['Из засады', 15]); }
     if (att.kind === 'soldier' && att.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== att && (att.bonds[a.sid] || 0) >= 3 && U.dist(a.x, a.y, ax, ay) <= 1.5; })) { hit += 5; parts.push(['Товарищ рядом', 5]); }
     if (o.aimBonus) { hit += o.aimBonus; parts.push([o.aimLabel || 'Бонус', o.aimBonus]); }
+    if (hasP(att, 'steady') && !att.moved && !o.reaction) { hit += 10; parts.push(['Твёрдая рука', 10]); }
+    if (hasP(att, 'close') && d <= 4) { hit += 15; parts.push(['В упор', 15]); }
+    if (hasP(att, 'sharp') && d >= 8) { hit += 10; parts.push(['Дальнобой', 10]); }
+    if (o.reaction && att.owMod) { hit += att.owMod; parts.push(['Приклад', att.owMod]); }
     hit = U.clamp(Math.round(hit), 1, 100);
     let crit = W.crit || 0;
     if (!cv.cover) crit += cv.flanked ? 40 : 25;
@@ -428,6 +440,7 @@
     if (att.trait === 'lucky') crit += 10;
     if (B.concealed && att.side === 'p') crit += 10;
     if (hasP(att, 'crit')) crit += 12;
+    if (hasP(att, 'flank') && (!cv.cover || cv.flanked)) crit += 20;
     if (tgt.hunker) crit = 0;
     crit = U.clamp(crit, 0, 100);
     return { hit: hit, crit: crit, cover: cv.cover, flanked: cv.flanked, coverTile: cv.tile, d: d, parts: parts, dmg: W.dmg };
@@ -450,6 +463,8 @@
   /* ---------- Урон, смерть, разрушения ---------- */
   BT.damage = async function (u, dmg, src, crit) {
     if (!u.alive) return false;
+    if (u.perks && u.perks.indexOf('tough') >= 0 && dmg > 1) dmg -= 1;
+    if (src && src.perks && src.perks.indexOf('shred') >= 0 && u.armor > 0) { u.armor -= 1; DW.TR.float(u.x, u.y, 'Броня −1', 'info'); }
     u.hp -= dmg;
     DW.TR.float(u.x, u.y, (crit ? 'КРИТ −' : '−') + dmg, crit ? 'crit' : (u.side === 'p' ? 'hurt' : 'dmg'));
     DW.TR.blood(u);
@@ -471,7 +486,7 @@
      близкие товарищи павшего — чаще) */
   BT.panicNear = function (fallen) {
     B.units.forEach(function (a) {
-      if (!a.alive || a.kind !== 'soldier' || a === fallen || a.panic) return;
+      if (!a.alive || a.kind !== 'soldier' || a === fallen || a.panic || (a.perks && a.perks.indexOf('cool') >= 0)) return;
       if (U.dist(a.x, a.y, fallen.x, fallen.y) > 6) return;
       let ch = 0.22 - (a.rank || 0) * 0.03 - (a.trait === 'calm' ? 0.12 : 0) - (a.trait === 'authority' ? 0.1 : 0);
       if (a.bonds && (a.bonds[fallen.sid] || 0) >= 3) ch += 0.1;
@@ -767,6 +782,12 @@
         const got = [['ammo', U.rand(30, 60)], ['meds', U.rand(1, 2)], ['grenades', 1], ['gems', U.rand(4, 8)]].filter(function () { return Math.random() < 0.8; });
         if (!got.length) got.push(['ammo', 40]);
         got.forEach(function (gk) { B.loot[gk[0]] = (B.loot[gk[0]] || 0) + gk[1]; });
+        // иногда в контейнере — модуль на оружие
+        if (Math.random() < 0.35 && D.MODS) {
+          const st = DW.G.state, mk = U.pick(Object.keys(D.MODS));
+          st.stock.mods = st.stock.mods || {}; st.stock.mods[mk] = (st.stock.mods[mk] || 0) + 1;
+          DW.UI.toast('В грузе — модуль «' + D.MODS[mk].n + '»! Поставить можно в экране отряда.', 'good');
+        }
         DW.TR.float(u.x, u.y, 'Груз Института!', 'gem');
         DW.UI.toast('Груз Института: ' + got.map(function (gk) { return '+' + gk[1] + ' ' + BT.LOOT_SHORT[gk[0]]; }).join(', '), 'good');
         DW.SFX.play('pickup');
@@ -788,6 +809,7 @@
     opts = opts || {};
     const newly = [];
     u._run = path.length > Math.max(3, (u.mob || 5) - 1);
+    if (path.length) u.moved = true;
     if (u.kind === 'soldier' && Math.random() < 0.35) DW.TR.bark(u, u._run ? 'run' : 'move');
     for (let k = 0; k < path.length; k++) {
       const nx = path[k][0], ny = path[k][1];
@@ -865,8 +887,9 @@
     }
     if (W.clip < 99) att.clip = Math.max(0, att.clip - 1);
     const info = BT.shotInfo(att, tgt, o);
-    const amb = att.side === 'p' && B.concealed;
-    if (amb) BT.reveal('Засада! Отряд открыл огонь.');
+    let amb = att.side === 'p' && B.concealed;
+    const quiet = amb && att.mods && att.mods.indexOf('supp') >= 0;
+    if (amb && !quiet) BT.reveal('Засада! Отряд открыл огонь.');
     const hit = Math.random() * 100 < info.hit;
     const crit = hit && Math.random() * 100 < info.crit;
     const dmg = hit && !o.suppress ? BT.rollDamage(W.dmg, crit, tgt.armor, W.pierce) : 0;
@@ -896,7 +919,12 @@
     if (cine && lethal) { await U.sleep(380); DW.TR.slowmo(false); }
     if (cine) DW.TR.actionCamEnd();
     await BT.processBlasts(att);
-    if (tgt.alive && tgt.side === 'e' && !tgt.active) await BT.activatePods([tgt]);
+    if (quiet) {
+      // глушитель: если цель убита и стрелка никто не видел — отряд остаётся скрытым
+      const witness = tgt.alive || B.units.some(function (e) { return e.alive && e.side === 'e' && BT.canSee(e, att); });
+      if (witness) BT.reveal('Отряд обнаружен!'); else { DW.TR.float(att.x, att.y, 'Тихо…', 'info'); amb = false; }
+    }
+    if (tgt.alive && tgt.side === 'e' && !tgt.active && !B.concealed) await BT.activatePods([tgt]);
     if (amb && !B.over) await BT.wakeSeen();
     return { hit: hit, crit: crit, killed: killed };
   };
@@ -943,7 +971,7 @@
   BT.doMedkit = function (u, t) { DW.G.state.res.meds -= 1; BT.heal(t, 4 + medBonus(u)); u.ap -= 1; DW.TR.anim(u, 'heal', 700); DW.TR.bark(u, 'heal'); };
   BT.doFieldHeal = function (u, t) { u.charges.heal -= 1; BT.heal(t, 5 + medBonus(u)); u.ap -= 1; DW.TR.anim(u, 'heal', 700); DW.TR.bark(u, 'heal'); };
   BT.doOrder = function (u, t) {
-    t.ap = Math.min(3, t.ap + 1); u.ap -= 1; u.cd.order = D.ABIL.order.cd;
+    t.ap = Math.min(3, t.ap + 1); u.ap -= 1; u.cd.order = D.ABIL.order.cd - (u.perks && u.perks.indexOf('leader2') >= 0 ? 1 : 0);
     u.face = Math.atan2(t.y - u.y, t.x - u.x);
     DW.TR.anim(u, 'signal', 700);
     DW.TR.float(t.x, t.y, '+1 ОД', 'good'); DW.SFX.play('alert');
@@ -969,7 +997,8 @@
     } else {
       st.res.grenades -= 1;
       await DW.TR.projectileFx(u.x, u.y, x, y, 'grenade');
-      await BT.explode(x, y, 1.5, [3, 5], 4, u);
+      const gr = u.perks && u.perks.indexOf('grenadier') >= 0;
+      await BT.explode(x, y, gr ? 2 : 1.5, gr ? [4, 6] : [3, 5], 4, u);
     }
     if (!B.over) await BT.wakeSeen();
   };
@@ -1010,7 +1039,7 @@
       if (u.side !== 'p' || !u.alive || u.evac) return;
       u.ap = u.kind === 'turret' ? 0 : 2;
       u.overwatch = false; u.hunker = false;
-      u.panicked = false;
+      u.panicked = false; u.moved = false;
       if (u.panicNow) { u.panicNow = false; u.ap = 1; u.hunker = true; u.panicked = true; DW.TR.float(u.x, u.y, 'Паника: 1 ОД', 'bad'); }
       for (const k in u.cd) if (u.cd[k] > 0) u.cd[k]--;
     });

@@ -223,6 +223,46 @@
       });
       al.appendChild(arow);
       det.appendChild(al);
+      // модули на оружие: два слота
+      st.stock.mods = st.stock.mods || {};
+      s.mods = s.mods || [];
+      const ml = el('div', { class: 'equip' });
+      ml.appendChild(el('div', { class: 'elabel', text: 'Модули оружия' }));
+      const mrow = el('div', { class: 'erow' });
+      for (let k = 0; k < 2; k++) {
+        const cur = s.mods[k];
+        mrow.appendChild(el('button', { class: 'chip' + (cur ? ' on' : ''), html: '<span class="ct"><span>' + (cur ? D.MODS[cur].n : 'Пустой слот') + '</span><em>' + (cur ? D.MODS[cur].d : 'Модули — в грузах Института и тайниках') + '</em></span>', onclick: function () {
+          const opts = Object.keys(D.MODS).filter(function (m) { return (st.stock.mods[m] || 0) > 0 && s.mods.indexOf(m) < 0; });
+          const box = el('div', { class: 'erow' });
+          const h = UI.modal({ title: 'Модуль — слот ' + (k + 1), body: box, buttons: [{ text: 'Закрыть' }] });
+          if (cur) box.appendChild(el('button', { class: 'btn', text: 'Снять «' + D.MODS[cur].n + '»', onclick: function () { st.stock.mods[cur] = (st.stock.mods[cur] || 0) + 1; s.mods.splice(k, 1); h.close(); render(); } }));
+          opts.forEach(function (m) {
+            box.appendChild(el('button', { class: 'chip', html: '<span class="ct"><span>' + D.MODS[m].n + ' <small>×' + st.stock.mods[m] + '</small></span><em>' + D.MODS[m].d + '</em></span>', onclick: function () {
+              st.stock.mods[m]--; if (cur) st.stock.mods[cur] = (st.stock.mods[cur] || 0) + 1;
+              s.mods[k] = m; s.mods = s.mods.filter(Boolean); DW.SFX.play('reload'); h.close(); render();
+            } }));
+          });
+          if (!opts.length && !cur) box.appendChild(el('div', { class: 'small dim', text: 'На складе нет модулей. Их можно заказать через Портал или найти в грузе Института.' }));
+        } }));
+      }
+      ml.appendChild(mrow);
+      det.appendChild(ml);
+      // ветка навыков класса
+      const tr = D.TREE && D.TREE[s.cls];
+      if (tr) {
+        const tl = el('div', { class: 'equip' });
+        tl.appendChild(el('div', { class: 'elabel', text: 'Ветка навыков: ' + c.n.toLowerCase() }));
+        tr.forEach(function (pair, lv) {
+          const r = el('div', { class: 'tree-row' });
+          r.appendChild(el('span', { class: 'tree-lv', text: D.RANKS[lv + 1] ? D.RANKS[lv + 1].n : String(lv + 2) }));
+          pair.forEach(function (p) {
+            const got = G.has(s, p), open = (s.perks || []).length > lv;
+            r.appendChild(el('span', { class: 'tree-p' + (got ? ' got' : (open ? ' off' : '')), title: D.PERKS[p].d, html: '<b>' + D.PERKS[p].n + '</b><small>' + D.PERKS[p].d + '</small>' }));
+          });
+          tl.appendChild(r);
+        });
+        det.appendChild(tl);
+      }
     }
     render();
     UI.modal({ title: D.icon('squad') + ' Отряд — ' + st.roster.length + ' ' + U.plural(st.roster.length, 'боец', 'бойца', 'бойцов'), cls: 'wide', body: wrap, onClose: onChange });

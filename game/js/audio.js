@@ -109,13 +109,14 @@
   S.shot = function (id, o) {
     if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
     o = o || {};
-    const P = o.p || (DW.WT ? DW.WT.get(id).snd : null);
+    let P = o.p || (DW.WT ? DW.WT.get(id).snd : null);
     if (!P) { S.play('rifle'); return; }
     try {
       const t = ctx.currentTime + 0.01 + (o.when || 0);
       const far = o.far || 0, ph = DW.WT ? DW.WT.phys() : { echoOut: 0.25, echoIn: 0.9 };
       const pt = P.pitch * (1 + (Math.random() - 0.5) * 2 * (P.jit || 0));
-      const out = ctx.createGain(); out.gain.value = P.vol * (1 - far * 0.6);
+      const out = ctx.createGain(); out.gain.value = P.vol * (1 - far * 0.6) * (o.quiet ? 0.35 : 1);
+      if (o.quiet) P = Object.assign({}, P, { crack: P.crack * 0.15, tail: P.tail * 0.3, echo: P.echo * 0.3, thump: P.thump * 0.6, bodyF: P.bodyF * 0.7 });
       // перегруз — общий на выстрел
       let dst = out;
       if (P.dist > 0.02) {

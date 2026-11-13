@@ -1,5 +1,5 @@
 {
- "stop": false,
+ "stop": true,
  "jobs": [
   {
    "id": "p7_mot_die2",

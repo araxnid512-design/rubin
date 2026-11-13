@@ -137,7 +137,9 @@ const PROPS = [
   // На базе люди в масштабе 0,72 — высоты построек тоже уменьшены
   { id: 'base', variants: [P(DW + 'b_barracks.glb', 2.55, 2.6), P(DW + 'b_tower.glb', 1.2, 4.2), P(DW + 'b_infirmary.glb', 2.0, 2.0), P(DW + 'b_workshop.glb', 1.9, 2.0),
     P(DW + 'b_greenhouse.glb', 2.1, 1.7), P(DW + 'b_beacon.glb', 0.9, 3.2), P(DW + 'b_gate.glb', 1.7, 2.3, 90), P(DW + 'b_campfire.glb', 0.75, 0.6),
-    P(DW + 'b_watertank.glb', 0.8, 1.8), P(DW + 'b_storage.glb', 1.3, 1.4)] }
+    P(DW + 'b_watertank.glb', 0.8, 1.8), P(DW + 'b_storage.glb', 1.3, 1.4),
+    // этап 3: радиовышка, гараж, склад боеприпасов
+    P(DW + 'b_radio.glb', 1.0, 3.0), P(DW + 'b_garage.glb', 1.45, 1.5), P(DW + 'b_ammo.glb', 1.1, 1.1)] }
 ];
 
 module.exports = { CLIPS, HUMAN, FIGURE, WEAPONS, WEAPON_FALLBACK, BODIES, BODY_FALLBACK, CREATURES, PROPS };

@@ -199,8 +199,11 @@
       if (st.baseNode !== null && G.blv('tower')) G.revealAround(st.baseNode, 2);
       DW.WR.sel = nid;
       WS.refresh();
-      const r = await passDay();
-      if (r !== 'ok') { busy = false; return; }
+      // гараж: на длинном пути каждый второй переход — без ночёвки
+      if (!(G.blv('garage') && k % 2 === 0 && k < path.length - 1)) {
+        const r = await passDay();
+        if (r !== 'ok') { busy = false; return; }
+      }
       const cg = G.collectCargo(nid);
       if (cg) { WS.refresh(); await DW.UI.alert(cg.title, cg.text, 'portal'); }
       if (!node.cleared) {
@@ -243,7 +246,7 @@
     await DW.UI.alert('Обыск: ' + n.name, 'Найдено: +' + m + ' ' + ic('materials') + (f ? ', +' + f + ' ' + ic('food') : '') + (g ? ', +' + g + ' ' + ic('gems') : '') + '.' + (n.searches ? '' : ' Больше здесь искать нечего.'));
     busy = false;
     WS.refresh();
-    if (Math.random() < 0.18) {
+    if (Math.random() < (G.blv('radio') ? 0.09 : 0.18)) {
       await DW.UI.alert('Засада!', 'Пока отряд копался в развалинах, его окружили.', 'bad');
       await WS.attack(n, 'ambush');
       return;
@@ -261,7 +264,7 @@
     await DW.UI.alert('Добыча', 'Отряд весь день долбил кристаллы: +' + g + ' ' + ic('gems') + '.');
     busy = false;
     WS.refresh();
-    if (Math.random() < 0.22) {
+    if (Math.random() < (DW.G.blv('radio') ? 0.11 : 0.22)) {
       await DW.UI.alert('Мутанты!', 'Звон кирок привлёк мутантов.', 'bad');
       await WS.attack(n, 'ambush');
       return;
