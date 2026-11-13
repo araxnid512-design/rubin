@@ -66,7 +66,9 @@
     if (ladderGroup) group.remove(ladderGroup);
     ladderGroup = new THREE.Group(); group.add(ladderGroup);
     const mat = R3.fogify(R3.pbr('wood', { color: 0xb8a088 }).clone());
+    stairsAll(B);
     (B.ladders || []).forEach(function (l) {
+      if (l.st) return;
       const h0 = B.hgt[l.y * B.w + l.x] * LV, h1 = B.hgt[l.ry * B.w + l.rx] * LV;
       // общая грань клетки лестницы и крыши
       const top = l.d === 0 ? V(l.x * T, h1 + 0.25, (l.y + 0.5) * T) : V((l.x + 0.5) * T, h1 + 0.25, l.y * T);
@@ -90,6 +92,37 @@
       }
       ladderGroup.add(g);
     });
+  }
+  /* ступени между уровнями рельефа: каменные (на земле), бетонные (бетон, металл, щебень), деревянные (пол);
+     три ступени в нижней клетке до края верхней, одним мешем на материал */
+  const NATURAL = { 0: 1, 1: 1, 2: 1, 5: 1, 6: 1 };
+  function stairsAll(B) {
+    const geos = { stone: [], concrete: [], planks: [] };
+    (B.ladders || []).forEach(function (l) {
+      if (!l.st) return;
+      const lo = l.y * B.w + l.x, hi = l.ry * B.w + l.rx;
+      const h0 = B.hgt[lo] * LV, h1 = B.hgt[hi] * LV;
+      const gx = l.rx - l.x, gy = l.ry - l.y;             // к верхней клетке
+      const ex = (l.x + l.rx + 1) / 2 * T, ez = (l.y + l.ry + 1) / 2 * T;   // середина общей грани
+      const g = B.ground[lo];
+      const kind = g === 11 ? 'planks' : (NATURAL[g] ? 'stone' : 'concrete');
+      const n = 3, run = 0.66, rise = (h1 - h0) / n, wide = 0.92;
+      for (let k = 0; k < n; k++) {
+        const len = run * (n - k) / n, top = h0 + rise * (k + 1);
+        const bx = new THREE.BoxGeometry(gx ? len : wide, top - h0 + 0.02, gx ? wide : len);
+        bx.translate(ex - gx * len / 2, h0 - 0.02 + (top - h0 + 0.02) / 2, ez - gy * len / 2);
+        geos[kind].push(bx);
+      }
+    });
+    for (const k in geos) {
+      if (!geos[k].length) continue;
+      const geo = THREE.BufferGeometryUtils.mergeGeometries(geos[k]);
+      geos[k].forEach(function (q) { q.dispose(); });
+      const mt = R3.fogify(R3.pbr(k === 'stone' ? 'stone' : (k === 'planks' ? 'planks' : 'concrete'), { color: k === 'stone' ? 0xc8beb0 : 0xd0ccc4 }).clone());
+      const m = new THREE.Mesh(geo, mt);
+      m.castShadow = true; m.receiveShadow = true;
+      ladderGroup.add(m);
+    }
   }
   /* зона эвакуации: зелёные клетки с контуром (показываются, если эвакуация доступна) */
   let evacMesh = null;

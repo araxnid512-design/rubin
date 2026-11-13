@@ -2475,9 +2475,9 @@
       if (!cre && u.side === 'p' && Bq && Bq.concealed && av('sneak')) anim = 'sneak';
       const ph = (((walk || 0) / (Math.PI * 2)) % 1 + 1) % 1;
       i = Math.floor(ph * n(anim));
-      // шаг на уступ — залезть, с уступа — перелезть вниз
+      // по ступеням — обычный шаг; по лестнице на крышу — лезет (вниз — те же кадры в обратном порядке)
       const dh = !cre && tw.tx !== undefined ? hT(tw.tx, tw.ty) - hT(tw.fx, tw.fy) : 0;
-      if (dh !== 0 && n(dh > 0 ? 'climb' : 'vault')) { anim = dh > 0 ? 'climb' : 'vault'; i = Math.floor(U.clamp((t - tw.t0) / tw.dur, 0, 0.999) * n(anim)); }
+      if (Math.abs(dh) > 1 && n('climb')) { anim = 'climb'; const pc = U.clamp((t - tw.t0) / tw.dur, 0, 0.999); i = Math.floor((dh > 0 ? pc : 0.999 - pc) * n(anim)); }
     } else if (an) {
       const p = U.clamp(an.p, 0, 0.999);
       switch (an.kind) {

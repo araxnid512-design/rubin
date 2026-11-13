@@ -323,7 +323,8 @@
       const ph = (tw.dist0 + (tw.len || 1) * tr.stepKOf(tw)) / per;
       const fx = tw.fx, fy = tw.fy;
       const dh = tw.tx !== undefined ? (Bq.hgt[tw.ty * Bq.w + tw.tx] - Bq.hgt[fy * Bq.w + fx]) : 0;
-      if (dh !== 0 && has(dh > 0 ? 'climb' : 'vault')) { key = dh > 0 ? 'climb' : 'vault'; return { key: key, t: U.clamp((tr.now() - tw.t0) / tw.dur, 0, 1) * dur(key) }; }
+      // ступени (перепад в уровень) — обычный шаг; лестница на крышу — лезет вверх, вниз — тот же клип в обратную сторону
+      if (Math.abs(dh) > 1 && has('climb')) { const p = U.clamp((tr.now() - tw.t0) / tw.dur, 0, 1); return { key: 'climb', t: (dh > 0 ? p : 1 - p) * dur('climb') }; }
       return { key: key, t: (ph % 1 + 1) % 1 * dur(key) };
     }
     if (an) {
