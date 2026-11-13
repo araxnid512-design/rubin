@@ -13,8 +13,8 @@ const HUMAN = [
   { key: 'aim', clip: 'AimRifle', n: 1, t0: 0.5, mode: 'aim' },
   { key: 'shoot', clip: 'ShootRifle', n: 2, t0: 0, t1: 0.1, mode: 'aim', recoilFirst: [0.05, 5] },
   { key: 'reload', clip: 'ReloadRifle', n: 5, mode: 'carry', freeL: true },
-  { key: 'hit', clip: 'HitRifle', n: 2, t0: 0.05, t1: 0.3, mode: 'carry' },
-  { key: 'die', clip: 'Death', n: 5, mode: 'hand' },
+  { key: 'hit', clip: 'HitRifle', n: 2, t0: 0.01, t1: 0.09, mode: 'carry' },
+  { key: 'die', clip: 'Death', n: 5, mode: 'hand', drop: [0.15, 0.7] },   // ствол выпадает из руки на землю
   { key: 'melee', clip: 'Melee', n: 3, mode: 'hand' },
   { key: 'crouch', clip: 'IdleRifle', n: 1, crouch: 0.4, mode: 'carry' },
   { key: 'crouchAim', clip: 'AimRifle', n: 1, t0: 0.5, crouch: 0.4, mode: 'aim' },
@@ -32,16 +32,16 @@ const HUMAN = [
   // этап 3: попадание, скольжение в укрытие, спиной к стене, крадущийся шаг, бросок с колена (основной атлас)
   { key: 'hit2', clip: '*', src: MK('hit2'), n: 2, t0: 0.15, t1: 0.9, mode: 'carry' },
   { key: 'slide', clip: '*', src: MK('slide'), n: 3, t0: 0.7, mode: 'carry' },
-  { key: 'wall', clip: '*', src: MK('wall'), n: 2, loop: true, mode: 'carry' },
+  { key: 'wall', clip: '*', src: MK('wall'), n: 2, loop: true, t0: 2.2, t1: 2.96, yaw: 117, mode: 'carry' },   // конечная поза (в начале клипа боец разворачивается)
   { key: 'sneak', clip: '*', src: MK('sneak'), n: 6, loop: true, mode: 'carry' },
   { key: 'throwk', clip: '*', src: MK('throwk'), n: 3, mode: 'left' },
   // редкие — в отдельном атласе (bx_ / wx_), грузится по надобности: две гибели, ликование, паника, осмотр оружия, удар бандита
-  { key: 'die2', clip: '*', src: MK('die2'), n: 4, mode: 'hand', wide: true, x: true },
-  { key: 'die3', clip: '*', src: MK('die3'), n: 4, mode: 'hand', wide: true, x: true },
+  { key: 'die2', clip: '*', src: MK('die2'), n: 6, t0: 0.5, t1: 2.3, mode: 'hand', drop: [0.15, 0.7], wide: true, x: true },
+  { key: 'die3', clip: '*', src: MK('die3'), n: 4, mode: 'hand', drop: [0.15, 0.7], wide: true, x: true },
   { key: 'cheer', clip: '*', src: MK('cheer'), n: 2, loop: true, mode: 'hand', x: true },
   { key: 'panic', clip: '*', src: MK('panic'), n: 2, loop: true, mode: 'sling', x: true },
   { key: 'idle2', clip: '*', src: MK('idle2'), n: 3, mode: 'carry', x: true },
-  { key: 'punch', clip: '*', src: MK('punch'), n: 3, mode: 'sling', x: true }
+  { key: 'punch', clip: '*', src: MK('punch'), n: 3, t0: 0.15, t1: 0.85, mode: 'sling', x: true }   // стойка → удар (0,5 с) → назад
 ];
 // Крупная фигура (экран отряда): стойка с оружием
 const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4, mode: 'carry' }];
@@ -87,14 +87,18 @@ const BODIES = [
 const BODY_FALLBACK = {};
 
 const C = (key, clip, n, o) => Object.assign({ key, clip, n }, o || {});
+// четвероногие Tripo: в файле только ход — атака, попадание, гибель, рык и дыхание собираются из позы хода (fx)
+const QUAD = [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 3, { loop: true, t0: 0.1, t1: 0.1, fx: 'breathe' }),
+  C('atk', 'walk', 4, { t0: 0.3, t1: 1.1, fx: 'lunge' }), C('hit', 'walk', 2, { t0: 0.2, t1: 0.25, fx: 'recoil' }),
+  C('die', 'walk', 5, { t0: 0.1, t1: 0.1, fx: 'fall' }), C('roar', 'walk', 2, { t0: 0.6, t1: 0.65, fx: 'roar' })];
 const CREATURES = [
   { id: 'brute', src: DW + 'm_brute_a.glb', more: DW + 'm_brute_b.glb', h: 2.3, box: [1.4, 2.5], anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', '*', 5, { src: DW + 'm_brute_smash.glb' }), C('slash', 'slash', 4), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6), C('roar', 'angry_01', 4)] },
   { id: 'spitter', src: DW + 'm_spitter_a.glb', more: DW + 'm_spitter_b.glb', h: 1.6, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', '*', 4, { src: DW + 'm_spitter_spit.glb' }), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
   { id: 'guardian', src: DW + 'm_guardian_a.glb', h: 1.95, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('atk', 'shoot', 3), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
-  { id: 'scav', src: DW + 'm_scav_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
-  { id: 'scav2', src: DW + 'm_scav2_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
-  { id: 'alpha', src: DW + 'm_alpha_a.glb', h: 1.6, quad: true, box: [1.6, 1.8], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
-  { id: 'queen', src: DW + 'm_queen_a.glb', h: 1.9, quad: true, box: [2.0, 2.8], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] }
+  { id: 'scav', src: DW + 'm_scav_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: QUAD },
+  { id: 'scav2', src: DW + 'm_scav2_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: QUAD },
+  { id: 'alpha', src: DW + 'm_alpha_a.glb', h: 1.6, quad: true, box: [1.6, 1.8], anims: QUAD },
+  { id: 'queen', src: DW + 'm_queen_a.glb', h: 1.9, quad: true, yaw: -90, box: [2.0, 2.8], anims: QUAD }
 ];
 
 // Реквизит: тип клетки игры → модели (варианты), длина по большей стороне в клетках, предел высоты (м)

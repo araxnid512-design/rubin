@@ -1800,6 +1800,7 @@
   // плавные смены кадра: в медленных позах (стойка, дозор, у стены…) — и между кадрами одной позы
   const xfade = {};
   const SLOWX = { idle: 1, watch: 1, wall: 1, duck: 1, panic: 1, cheer: 1, heal: 1, idle2: 1, kneel: 1, crouch: 1, hunker: 1 };
+  const LOWP = { kneel: 1, crouch: 1, crouchAim: 1, peek: 1, watch: 1, duck: 1, hunker: 1, sneak: 1, slide: 1, throwk: 1, heal: 1 };
   function leanPos(u) {
     const p = rp(u);
     let ox = 0, oy = 0;
@@ -2019,20 +2020,36 @@
     if (o) impact(c[0], c[1] - 2, OMAT[o] || 'stone', true);
     else parts(c[0], c[1], 18, 6, color || '#888', 70, 600, 2.5, 380, 90);
   };
-  function muzzle(u) {
+  /* поза, в которой боец будет стрелять (как в unit3d): из-за стены — выглянув, за низким укрытием и в дозоре — с колена,
+     иначе стоя; q — доля очереди (0…1) для кадра выглядывания. Дуло считается по ней, а не по стойке до выстрела
+     (у стены боец стоит в рост, а стреляет присев — вспышка висела в воздухе). */
+  function shotPose(u, q, rpg) {
+    const S3 = DW.S3, S = S3.setsFor(u);
+    const n = function (a) { return S3.count(S.body, a); };
+    const cv = rpg ? 0 : coverLevel(u);
+    if (cv === 2 && n('peek')) return ['peek', Math.min(n('peek') - 1, Math.floor(U.clamp(q, 0, 0.999) * n('peek')))];
+    if ((cv === 1 || u.overwatch) && n('kneel')) return ['kneel', Math.min(n('kneel') - 1, Math.floor(U.clamp(q, 0, 0.999) * n('kneel')))];
+    return ['shoot', 0];
+  }
+  function muzzle(u, q, rpg) {
     const c = uPos(u);
     if (DW.S3) {
       const S = DW.S3.setsFor(u);
-      if (S && S.weapon && DW.S3.ready(S.body)) {
-        // дуло в текущем кадре (из-за укрытия, с колена) или в обычной стойке стрельбы
-        const cur = u._a3 && /^(peek|kneel|shoot|watch|crouchAim|aim)$/.test(u._a3[0]) ? u._a3 : ['shoot', 0];
+      const wset = rpg && DW.S3.ready('w_rpg') ? 'w_rpg' : (S && S.weapon);
+      if (S && wset && DW.S3.ready(S.body) && DW.S3.ready(wset)) {
+        const cur = shotPose(u, q || 0, rpg);
         const fd = DW.S3.dir8(dispFace(u));
-        const m = DW.S3.muzzleAt(S.weapon, cur[0], cur[1], fd, S.body) || DW.S3.muzzleAt(S.weapon, 'shoot', 0, fd, S.body);
+        const m = DW.S3.muzzleAt(wset, cur[0], cur[1], fd, S.body) || DW.S3.muzzleAt(wset, 'shoot', 0, fd, S.body);
         if (m) return [c[0] + m[0], c[1] + m[1]];
       }
     }
     const f = u.face || 0;
     const sx = (Math.cos(f) - Math.sin(f)) * HW;
+    if (u.kind === 'turret') {
+      // турель: конец ствола — полклетки по направлению ствола, на высоте ствола
+      const sy = (Math.cos(f) + Math.sin(f)) * HH;
+      return [c[0] + sx * 0.42, c[1] + sy * 0.42 - 21];
+    }
     const dir = sx >= 0 ? 1 : -1;
     return [c[0] + dir * 20 * unitScale(u), c[1] - 27 * unitScale(u)];
   }
@@ -2045,12 +2062,16 @@
   TR.FXof = FXof;
   TR.shotFx = function (att, tgt, hit, W, show, suppress) {
     const s = spd();
-    const m = muzzle(att);
     const tc = isoC(tgt.x, tgt.y);
     const ty0 = tc[1] - 24 * unitScale(tgt);
     const FW = FXof(W);
     const cnt = FW.n || ({ rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1);
     const gap = (FW.gap || (W.snd === 'lmg' ? 70 : 90)) / s;
+    // дуло для каждого выстрела очереди — по кадру позы в этот момент
+    const totS = (cnt - 1) * gap * s + 260;
+    const ms = [];
+    for (let i = 0; i < cnt; i++) ms.push(muzzle(att, i * gap * s / totS));
+    const m = ms[0];
     const pre = W.snd === 'spit' ? 300 / s : 220 / s;
     if (W.snd === 'spit') TR.anim(att, 'charge', 300);
     else TR.anim(att, 'aimup', 230);
@@ -2064,6 +2085,7 @@
         for (let i = 0; i < cnt; i++) {
           setTimeout(function () {
             const ej = FW.eject === undefined ? 1 : FW.eject, PH = DW.WT ? DW.WT.phys() : { casGrav: 420 };
+            const m = ms[i];
             fx.parts.push({ x: m[0] - fdir * 12, y: m[1] + 22, z: 26, vx: -fdir * (30 + Math.random() * 40) * ej, vy: (Math.random() - 0.3) * 30 * ej, vz: (70 + Math.random() * 50) * ej, t0: now(), life: 2600, color: FW.cas || (W.snd === 'shotgun' ? '#b8302a' : '#e0b848'), size: FW.casS || 2.4, grav: PH.casGrav, cas: true, late: true });
             if (FW.shake && show) TR.shake = Math.max(TR.shake || 0, FW.shake);
           }, rt(i * gap));
@@ -2078,8 +2100,9 @@
       if (cover && !suppress) { const cc = isoC(cover[0], cover[1]); ex = cc[0] + (Math.random() - 0.5) * 14; ey = cc[1] - 16 - Math.random() * 14; }
       else if (!hit || suppress) { const a = Math.random() * Math.PI * 2, d = (22 + Math.random() * 26) * (FW.spread || 1); ex += Math.cos(a) * d; ey += Math.sin(a) * d * 0.6; }
       else { ex += (Math.random() - 0.5) * 8; ey += (Math.random() - 0.5) * 8; }
-      fx.tracers.push({ x1: m[0], y1: m[1], x2: ex, y2: ey, t0: t0 + i * gap, life: W.snd === 'spit' ? 280 : (FW.life || 115), color: col, w: FW.w || (W.snd === 'sniper' || W.snd === 'beam' ? 3 : (W.snd === 'spit' ? 6 : 2)), spit: W.snd === 'spit' });
-      if (W.snd === 'shotgun') for (let k = 0; k < 7; k++) fx.tracers.push({ x1: m[0], y1: m[1], x2: ex + (Math.random() - 0.5) * 30, y2: ey + (Math.random() - 0.5) * 20, t0: t0, life: 110, color: col, w: 1.2 });
+      const mi = ms[i];
+      fx.tracers.push({ x1: mi[0], y1: mi[1], x2: ex, y2: ey, t0: t0 + i * gap, life: W.snd === 'spit' ? 280 : (FW.life || 115), color: col, w: FW.w || (W.snd === 'sniper' || W.snd === 'beam' ? 3 : (W.snd === 'spit' ? 6 : 2)), spit: W.snd === 'spit' });
+      if (W.snd === 'shotgun') for (let k = 0; k < 7; k++) fx.tracers.push({ x1: mi[0], y1: mi[1], x2: ex + (Math.random() - 0.5) * 30, y2: ey + (Math.random() - 0.5) * 20, t0: t0, life: 110, color: col, w: 1.2 });
       if (!hit && !suppress) {
         setTimeout(function () {
           const Bb = DW.BT.get();
@@ -2097,14 +2120,17 @@
         setTimeout(function () { for (let i = 0; i < cnt; i++) DW.SFX.shot(FW.wid, { when: i * gap / 1000, far: far, env: env, quiet: quiet }); }, rt(pre));
       } else setTimeout(function () { DW.SFX.play(FW.snd || W.snd); }, rt(pre));
     }
-    for (let i = 0; i < cnt; i++) fx.flashes.push({ x: m[0], y: m[1], r: (FW.flash || 14) * (0.85 + Math.random() * 0.3), t0: t0 + i * gap, life: FW.flife || 70, muzzle: true, dir: fdir, kind: FW.fk || 'std' });
+    for (let i = 0; i < cnt; i++) fx.flashes.push({ x: ms[i][0], y: ms[i][1], r: (FW.flash || 14) * (0.85 + Math.random() * 0.3), t0: t0 + i * gap, life: FW.flife || 70, muzzle: true, dir: fdir, kind: FW.fk || 'std' });
     const dur = pre + (cnt - 1) * gap + 190 / s;
     return new Promise(function (res) { setTimeout(res, rt(dur)); });
   };
-  TR.projectileFx = function (x0, y0, x1, y1, kind) {
+  TR.projectileFx = function (x0, y0, x1, y1, kind, from) {
     return new Promise(function (res) {
       const a = isoC(x0, y0), b = isoC(x1, y1);
-      fx.projs.push({ x0: a[0], y0: a[1] - 30, x1: b[0], y1: b[1] - 4, t0: now(), dur: (kind === 'rocket' ? 400 : 560) / spd(), kind: kind, res: res });
+      // ракета — из трубы РПГ (дуло по кадру выстрела), граната — из руки
+      let sx = a[0], sy = a[1] - 30;
+      if (from && kind === 'rocket') { const m = muzzle(from, 0, true); sx = m[0]; sy = m[1]; }
+      fx.projs.push({ x0: sx, y0: sy, x1: b[0], y1: b[1] - 4, t0: now(), dur: (kind === 'rocket' ? 400 : 560) / spd(), kind: kind, res: res });
     });
   };
 
@@ -2429,7 +2455,8 @@
           if (cre) { anim = 'atk'; i = Math.floor(p * n('atk')); break; }
           const P = poseFor(u, an);
           const cv = an.a && an.a.data && an.a.data.rpg ? 0 : coverLevel(u);
-          if (P.reload > 0 && n('reload')) { anim = 'reload'; i = Math.floor(U.clamp(P.reload, 0, 0.999) * n('reload')); }
+          // затвор после выстрела (СВД, КСВК): стоя — перезарядка, в укрытии и в дозоре боец не встаёт
+          if (P.reload > 0 && n('reload') && !(cv >= 1 || u.overwatch)) { anim = 'reload'; i = Math.floor(U.clamp(P.reload, 0, 0.999) * n('reload')); }
           else if (cv === 2 && n('peek')) { anim = 'peek'; i = Math.floor(p * n('peek')); }       // выглянуть из-за стены
           else if ((cv === 1 || u.overwatch) && n('kneel')) { anim = 'kneel'; i = Math.floor(p * n('kneel')); } // с колена
           else if (cv === 1 && n('crouchAim')) { anim = 'crouchAim'; }
@@ -2442,7 +2469,8 @@
         case 'atk': anim = cre ? 'atk' : (u.side === 'e' && av('punch') ? 'punch' : 'melee'); i = Math.floor(p * n(anim)); break;
         case 'slide': anim = av('slide') ? 'slide' : 'crouch'; i = Math.floor(p * n(anim)); break;
         case 'heal': anim = n('heal') ? 'heal' : 'idle'; i = Math.floor(t / 300) % Math.max(1, n(anim)); break;
-        case 'charge': anim = n('run') ? 'run' : 'walk'; i = Math.floor(t / 80) % Math.max(1, n(anim)); break;
+        // замах перед плевком — первый кадр атаки (а не бег на месте)
+        case 'charge': if (cre && n('atk')) { anim = 'atk'; i = 0; } else { anim = n('run') ? 'run' : 'walk'; i = Math.floor(t / 80) % Math.max(1, n(anim)); } break;
         case 'shake': case 'sniff': anim = n('roar') ? 'roar' : 'idle'; i = n('roar') ? Math.floor(p * n('roar')) : idleI(); break;
         case 'scan': case 'signal': case 'look': case 'check':
           if (!cre && u.side === 'p' && av('idle2')) { anim = 'idle2'; i = Math.floor(p * n('idle2')); } else { anim = 'idle'; i = idleI(); }
@@ -2484,10 +2512,9 @@
     u._a3 = [anim, i];
     const dd = wallDir !== null ? wallDir : d;
     const L = [[S.body, anim, i, dd]];
-    // бросок гранаты — замах пустой рукой (ствол за спиной не рисуем)
-    // выстрел из РПГ — гранатомёт на плече вместо своего ствола
+    // бросок гранаты — ствол в левой руке (как запечено); выстрел из РПГ — гранатомёт на плече вместо своего ствола
     const wset = an && an.kind === 'shoot' && an.a && an.a.data && an.a.data.rpg && S3.ready('w_rpg') ? 'w_rpg' : S.weapon;
-    if (wset && S3.ready(wset) && !(an && an.kind === 'throw')) L.push([wset, anim, i, dd]);
+    if (wset && S3.ready(wset) && S3.avail(wset, anim)) L.push([wset, anim, i, dd]);
     return S3.frame(L);
   }
   function drawUnit(g, u, t, sel, alpha) {
@@ -2506,7 +2533,9 @@
         nextFidget[u.id] = t + 6000 + Math.random() * 10000;
         const human = u.kind === 'soldier' || ART.ENEMY_LOOKS[u.type];
         const pool = u.kind === 'soldier' && DW.G.smoker(u) ? ['smoke', 'smoke', 'look', 'shift'] : ['look', 'look', 'check', 'scan', 'shift'];
-        if (u.kind !== 'turret' && !u.hunker) {
+        // в стойке (укрытие, дозор, у стены, пригнулся) человек не встаёт ради «осмотреться»
+        const stance = human && (u.overwatch || coverLevel(u) >= 1);
+        if (u.kind !== 'turret' && !u.hunker && !stance) {
           const k = human ? pool[Math.floor(Math.random() * pool.length)] : (Math.random() < 0.6 ? 'sniff' : 'shake');
           TR.anim(u, k, human ? (k === 'smoke' ? 2600 : 1500) : 1100);
         }
@@ -2564,7 +2593,12 @@
       const ak = u._a3 ? u._a3[0] + ':' + (SLOWX[u._a3[0]] ? u._a3[1] : '') : '';
       let X = xfade[u.id];
       if (!X) X = xfade[u.id] = { a: ak, fr: fr, t: -1e9 };
-      if (X.a !== ak) { X.prev = X.fr; X.t = t; X.a = ak; X.dur = SLOWX[u._a3 && u._a3[0]] ? 260 : 150; }
+      if (X.a !== ak) {
+        // смена «осанки» (стоя ↔ присев, к стене ↔ выглянуть) — короткий переход, иначе в клетке видно двоих
+        const pa = X.a.split(':')[0], na = u._a3 ? u._a3[0] : '';
+        const jump = !!LOWP[pa] !== !!LOWP[na] || pa === 'wall' || na === 'wall' || pa === 'idle2' || na === 'idle2';
+        X.prev = X.fr; X.t = t; X.a = ak; X.dur = jump ? 80 : (SLOWX[na] ? 260 : 150);
+      }
       X.fr = fr;
       const xk = (t - X.t) / X.dur;
       if (X.prev && xk < 1 && X.prev !== fr) {
@@ -2621,6 +2655,7 @@
     if (d3) {
       if (d3.rot) {
         g.save(); g.translate(c[0], c[1]); g.rotate(d3.rot); g.scale(1, 1 - Math.abs(d3.rot) * 0.25);
+        if (d3.dark) g.filter = 'brightness(0.42) saturate(0.5)';
         g.drawImage(d3.fr.c, -d3.fr.ox, -d3.fr.oy, d3.fr.w, d3.fr.h); g.restore();
       } else {
         castShadow(g, c, d3.fr, sc / 1.13, d3.lying);
@@ -2646,9 +2681,14 @@
     const S3 = DW.S3;
     if (!S3) return null;
     const S = S3.setsFor(u);
-    if (!S || S.kind === 'turret' || !S3.ready(S.body)) return null;
+    if (!S || !S3.ready(S.body)) return null;
     const d = S3.dir8(u.face);
     const p = an && an.kind === 'die' && an.p < 1 ? U.clamp(an.p, 0, 1) : 1;
+    if (S.kind === 'turret') {
+      // разбитая турель — та же 3D-модель, закопчённая и завалившаяся набок
+      const ft = S3.frame([[S.body, 'v', d, 0]]);
+      return ft ? { fr: ft, rot: (d >= 2 && d <= 5 ? -1 : 1) * 0.3 * U.ease(p), dark: true, lying: true } : null;
+    }
     // вариант гибели выбирается один раз (из загруженных)
     if (!u._die) { const v = ['die', 'die2', 'die3'][(u.id || 0) % 3]; u._die = v !== 'die' && S.kind === 'human' && S3.avail(S.body, v) && (!S.weapon || S3.avail(S.weapon, v)) ? v : 'die'; }
     const da = u._die;

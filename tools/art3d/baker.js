@@ -235,10 +235,13 @@ function weaponOff(dst, src, rt, wpn, calib) {
 const GRIP = {
   // butt: смещение приклада от правого плеча в осях корпуса (м: x — вправо, y — вверх, z — вперёд);
   // pitch: ствол вверх(+)/вниз(−), yaw: к середине тела(+), roll: завал (°)
-  aim: { butt: [-0.06, -0.01, -0.03], pitch: 0, yaw: 4, roll: 0 },
-  carry: { butt: [-0.04, -0.13, 0.03], pitch: -30, yaw: 20, roll: -10 },
-  hip: { butt: [0.0, -0.34, 0.0], pitch: 0, yaw: 6, roll: 0 },
-  sling: { butt: [-0.05, -0.55, -0.16], pitch: 62, yaw: -18, roll: 0, back: true }
+  // level — ствол по горизонту (pitch от горизонта, а не от наклона корпуса): из-за угла, с колена, пригнувшись
+  // боец целится вперёд, а не в землю; minEl — ниже этого угла ствол не опускается; ground — дуло не уходит в землю
+  aim: { butt: [-0.06, -0.01, -0.03], pitch: 2, yaw: 4, roll: 0, level: true },
+  carry: { butt: [-0.04, -0.13, 0.03], pitch: -30, yaw: 20, roll: -10, minEl: -32, ground: true },
+  hip: { butt: [0.0, -0.34, 0.0], pitch: 0, yaw: 6, roll: 0, level: true },
+  // за спиной: приклад у правого бедра сзади, ствол вверх над левым плечом
+  sling: { butt: [-0.12, -0.6, -0.17], pitch: 60, yaw: 30, roll: 0, back: true }
 };
 function torso(dst) {
   const B = dst.B;
@@ -256,10 +259,30 @@ function gunMatrix(dst, wpn, g, adj) {
   const bx = g.butt[0] + p[0], by = g.butt[1] + p[1], bz = g.butt[2] + p[2];
   const butt = T.R.clone().addScaledVector(T.X, bx).addScaledVector(T.Y, by).addScaledVector(T.Z, bz);
   const pitch = (g.pitch + r[0]) * Math.PI / 180, yaw = (g.yaw + r[1]) * Math.PI / 180, roll = (g.roll + r[2]) * Math.PI / 180;
-  // направление ствола: вперёд, поворот к середине (к −X корпуса) и вверх/вниз
-  const dir = T.Z.clone().multiplyScalar(Math.cos(pitch) * Math.cos(yaw)).addScaledVector(T.X, -Math.cos(pitch) * Math.sin(yaw)).addScaledVector(T.Y, Math.sin(pitch)).normalize();
+  // направление ствола: вперёд (за спиной — назад), поворот к середине (к −X корпуса) и вверх/вниз
+  const UP = new THREE.Vector3(0, 1, 0);
+  let dir;
+  if (g.level) {
+    // по горизонту: курс — от корпуса, наклон — от горизонта
+    const zh = T.Z.clone(); zh.y = 0; zh.normalize();
+    const xh = T.X.clone(); xh.y = 0; xh.normalize();
+    dir = zh.multiplyScalar(Math.cos(pitch) * Math.cos(yaw)).addScaledVector(xh, -Math.cos(pitch) * Math.sin(yaw)).addScaledVector(UP, Math.sin(pitch)).normalize();
+  } else {
+    dir = T.Z.clone().multiplyScalar((g.back ? -1 : 1) * Math.cos(pitch) * Math.cos(yaw)).addScaledVector(T.X, -Math.cos(pitch) * Math.sin(yaw)).addScaledVector(T.Y, Math.sin(pitch)).normalize();
+  }
+  let el = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+  let elMin = g.minEl !== undefined ? g.minEl * Math.PI / 180 : -Math.PI / 2;
+  // дуло не в землю: точка в 1,45 м от приклада по стволу не ниже 8 см (одинаково для всех стволов — руки тел совпадают)
+  if (g.ground) elMin = Math.max(elMin, Math.asin(Math.max(-1, Math.min(1, (0.08 - butt.y) / 1.45))));
+  if (el < elMin) {
+    const h = dir.clone(); h.y = 0;
+    if (h.lengthSq() < 1e-6) h.copy(T.Z).setY(0);
+    h.normalize();
+    dir = h.multiplyScalar(Math.cos(elMin)).addScaledVector(UP, Math.sin(elMin)).normalize();
+  }
   const zW = dir.clone().negate();                       // ось +Z оружия смотрит к прикладу
-  let yW = T.Y.clone().addScaledVector(zW, -T.Y.dot(zW)).normalize();
+  const upRef = g.level ? UP : T.Y;
+  let yW = upRef.clone().addScaledVector(zW, -upRef.dot(zW)).normalize();
   yW.applyAxisAngle(dir, roll);
   const xW = new THREE.Vector3().crossVectors(yW, zW).normalize();
   yW = new THREE.Vector3().crossVectors(zW, xW).normalize();
@@ -286,32 +309,73 @@ function handsToGun(dst, wpn, freeL, pts) {
     dst.holder.updateMatrixWorld(true);
   }
 }
-/* хват для движения: режим из описания движения (carry / aim / hip / sling / hand / left) */
+/* хват для движения: режим из описания движения (carry / aim / hip / sling / hand / left).
+   wpn.anchor — точка привязки слоя оружия к телу (рукоять АК в этой позе): по ней игра подгоняет ствол под руку
+   любого тела. У длинных стволов приклад длиннее, чем у АК, — ствол сдвигается вперёд, чтобы затыльник был у плеча,
+   а не торчал за спиной; привязка остаётся на рукояти АК. */
+function rearShift(wpn, cal) {
+  return cal && cal.ref && cal.ref !== wpn && !wpn.free ? Math.max(0, (wpn.buttZ || 0) - (cal.ref.buttZ || 0)) : 0;
+}
+function handMatrix(dst, wpn, mode, cal) {
+  const hand = mode === 'left' ? dst.B.LeftHand : dst.B.RightHand;
+  const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
+  return HM.multiply(mode === 'left' ? cal.offL : cal.offR);
+}
+/* куда ложится выпавший ствол: на землю у кисти, на бок, ствол по горизонтали (в осях держателя) */
+function dropTarget(dst, wpn, an, cal) {
+  const Mh = handMatrix(dst, wpn, an.mode, cal);
+  const pos = new THREE.Vector3().setFromMatrixPosition(Mh);
+  const dir = new THREE.Vector3(0, 0, -1).transformDirection(Mh); dir.y = 0;
+  if (dir.lengthSq() < 0.04) { const T = torso(dst); dir.copy(T.X).setY(0); }
+  dir.normalize();
+  const zW = dir.clone().negate(), xW = new THREE.Vector3(0, 1, 0), yW = new THREE.Vector3().crossVectors(zW, xW).normalize();
+  const M = new THREE.Matrix4().makeBasis(xW, yW, zW);
+  M.setPosition(pos.x, 0, pos.z);
+  return dst.holder.matrixWorld.clone().invert().multiply(M);
+}
 function holdWeapon(dst, wpn, an, cal, adjAll) {
   const mode = an.mode || 'carry';
   if (mode === 'hand' || mode === 'left') {
-    const hand = mode === 'left' ? dst.B.LeftHand : dst.B.RightHand;
-    const HM = new THREE.Matrix4().compose(hand.getWorldPosition(new THREE.Vector3()), hand.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1));
-    HM.multiply(mode === 'left' ? cal.offL : cal.offR).decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
+    const Mh = handMatrix(dst, wpn, mode, cal);
+    if (an._drop && an._drop.w > 0) {
+      // гибель: ствол выпадает из руки и ложится на землю
+      const T = dst.holder.matrixWorld.clone().multiply(an._drop.T);
+      const p1 = new THREE.Vector3().setFromMatrixPosition(T); p1.y = 0.035;
+      const q1 = new THREE.Quaternion().setFromRotationMatrix(T);
+      const p0 = new THREE.Vector3().setFromMatrixPosition(Mh), q0 = new THREE.Quaternion().setFromRotationMatrix(Mh);
+      const w = an._drop.w;
+      p0.lerp(p1, w); q0.slerp(q1, w);
+      Mh.compose(p0, q0, new THREE.Vector3(1, 1, 1));
+    }
+    Mh.decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
     wpn.g.updateMatrixWorld(true);
+    wpn.anchor = cal.aLocal ? cal.aLocal.clone().applyMatrix4(wpn.g.matrixWorld) : null;
     return;
   }
   const grp = (wpn.hipAim && mode === 'aim') ? 'hip' : mode;
+  const G = GRIP[grp] || GRIP.carry;
   const adj = adjAll && adjAll[mode === 'hip' ? 'aim' : mode];
-  const M = gunMatrix(dst, wpn, GRIP[grp] || GRIP.carry, adj);
+  const M = gunMatrix(dst, wpn, G, adj);
   // хват по автомату: рукоять — где правая рука держит АК, левая — где цевьё АК; направление ствола своё
   let pts = null;
-  if (cal && cal.ref && !wpn.free && mode !== 'sling') {
-    const MA = gunMatrix(dst, cal.ref, GRIP[grp] || GRIP.carry, null);
+  wpn.anchor = null;
+  if (cal && cal.ref) {
+    const MA = gunMatrix(dst, cal.ref, G, null);
     const g0 = new THREE.Vector3().setFromMatrixPosition(MA);
-    pts = { grip: g0, fore: cal.ref.fore.clone().applyMatrix4(MA) };
-    M.setPosition(g0);
+    wpn.anchor = g0.clone();
+    if (!wpn.free) {
+      pts = mode === 'sling' ? null : { grip: g0, fore: cal.ref.fore.clone().applyMatrix4(MA) };
+      const sh = mode === 'sling' ? 0 : rearShift(wpn, cal);
+      const fwd = new THREE.Vector3(0, 0, -1).transformDirection(M);
+      M.setPosition(g0.clone().addScaledVector(fwd, sh));
+    }
   }
   if (an.recoil) {
     // отдача на первом кадре выстрела: назад по стволу и стволом вверх
     const back = new THREE.Vector3(0, 0, an.recoil[0]).applyMatrix4(new THREE.Matrix4().extractRotation(M));
     M.multiply(new THREE.Matrix4().makeRotationX(an.recoil[1] * Math.PI / 180));
     M.setPosition(new THREE.Vector3().setFromMatrixPosition(M).add(back));
+    if (wpn.anchor) wpn.anchor.add(back);
   }
   M.decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
   wpn.g.updateMatrixWorld(true);
@@ -325,7 +389,9 @@ function calibrate(dst, src, rt, wpn, adjAll, ref) {
   dst.holder.updateMatrixWorld(true);
   holdWeapon(dst, wpn, { mode: 'carry' }, { ref }, adjAll);
   const rel = (bone) => new THREE.Matrix4().compose(bone.getWorldPosition(new THREE.Vector3()), bone.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1)).invert().multiply(wpn.g.matrixWorld);
-  return { offR: rel(dst.B.RightHand), offL: rel(dst.B.LeftHand), ref };
+  // привязка (рукоять АК) в осях оружия — для движений «в кисти»
+  const aLocal = wpn.anchor ? wpn.anchor.clone().applyMatrix4(wpn.g.matrixWorld.clone().invert()) : null;
+  return { offR: rel(dst.B.RightHand), offL: rel(dst.B.LeftHand), ref, aLocal };
 }
 /* поправка хвата в осях оружия: p — сдвиг (м: x вправо, y вверх, z к прикладу), r — повороты (°: x — ствол вверх/вниз,
    y — влево/вправо, z — завал), вокруг точки хвата */
@@ -357,6 +423,23 @@ function placeWeapon(dst, wpn, off, an, adj) {
 function setColor(rig, on) { rig.meshes.forEach((m) => { (Array.isArray(m.material) ? m.material : [m.material]).forEach((mt) => { mt.colorWrite = on; }); }); }
 
 /* spec: { kind:'human'|'creature', clipSrc, body, height, weapon, layer:'body'|'weapon', anims:[{key,clip,n,t0,t1,loop,crouch,noIK}], ss, box } */
+/* Движения из позы ходьбы (у четвероногих Tripo нет клипов атаки, попадания, гибели): p — доля движения 0…1.
+   rx — наклон вперёд (+ носом вниз), rz — крен на бок, fw — сдвиг вперёд (м), sy — вдох (растяжение по высоте) */
+function fxAt(fx, p, h) {
+  const e = (x) => x * x * (3 - 2 * x);
+  const D = Math.PI / 180;
+  if (fx === 'lunge') {
+    // присел назад → бросок вперёд с укусом → назад
+    const k = [[-6, -0.08], [10, 0.12], [16, 0.22], [4, 0.06]];
+    const a = k[Math.min(k.length - 1, Math.round(p * (k.length - 1)))];
+    return { rx: a[0] * D, rz: 0, fw: a[1] * h / 0.42, sy: 1 };
+  }
+  if (fx === 'recoil') return { rx: (p < 0.5 ? -12 : -5) * D, rz: (p < 0.5 ? 6 : 2) * D, fw: (p < 0.5 ? -0.08 : -0.03) * h / 0.42, sy: 1 };
+  if (fx === 'fall') { const q = e(Math.min(1, p * 1.15)); return { rx: 6 * q * D, rz: 86 * q * D, fw: 0, sy: 1 }; }
+  if (fx === 'roar') return { rx: (p < 0.5 ? -14 : -8) * D, rz: 0, fw: -0.04, sy: 1.03 };
+  if (fx === 'breathe') return { rx: 0, rz: 0, fw: 0, sy: 1 + 0.02 * Math.sin(p * Math.PI * 2) };
+  return null;
+}
 async function frames(spec) {
   const ss = spec.ss || 2;
   const H = spec.height || 1.8;
@@ -390,6 +473,7 @@ async function frames(spec) {
   const showW = wpn && spec.layer !== 'body';
   if (showW) scene.add(wpn.g);
   setColor(dst, spec.layer !== 'weapon');
+  const fxH = H * 0.42;   // середина тела — ось наклонов в движениях fx
   for (const an of spec.anims) {
     const SR = await srcFor(an.src);
     const clip = findClip(SR.s, an.clip);
@@ -404,22 +488,29 @@ async function frames(spec) {
       let sx = 0, sz = 0, cnt = 0;
       // у существ кость хода не та, что у людей: центр тела считаем в каждом кадре (cOffs), без «качелей» в беге
       cOffs = [];
+      let cBone = null;
+      dst.root.traverse((o) => { if (!cBone && o.isBone && /^(hips?|pelvis)$/i.test(o.name)) cBone = o; });
+      cBone = cBone || dst.B.Hips || null;
       for (let k = 0; k < an.n; k++) {
         dst.holder.position.set(0, 0, 0); dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
         poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(k));
         if (SR.rt) SR.rt();
         dst.holder.updateMatrixWorld(true);
-        // по тазу: махи лап не двигают тело (по коробке тело дрожало)
-        const hp = dst.B.Hips ? dst.B.Hips.getWorldPosition(new THREE.Vector3()) : null;
+        // по тазу (кость Hips / Hip / Pelvis — в ней движение «вперёд» у клипов с ходом): махи лап не двигают тело
+        const hp = cBone ? cBone.getWorldPosition(new THREE.Vector3()) : null;
         if (hp) cOffs.push([hp.x, hp.z]);
         else { const bb = new THREE.Box3(); dst.meshes.forEach((mesh) => bb.expandByObject(mesh, true)); const cc = bb.getCenter(new THREE.Vector3()); cOffs.push([cc.x, cc.z]); }
       }
-      if (an.key === 'die') cOffs = cOffs.map(() => cOffs[0]);   // падает с того места, где стоял
-      else if (an.loop && cOffs.length > 1) {
-        // цикл: среднее положение таза + 30% его собственного покачивания (живо, но без «качелей»)
+      if (an.key === 'die' && !an.fx) {
+        // падает почти на месте: сдвиг тела к последнему кадру — не больше 0,25 м (клип уводил тело на 1,5–2 клетки)
+        const c0 = cOffs[0], cl = cOffs[cOffs.length - 1], dl = Math.hypot(cl[0] - c0[0], cl[1] - c0[1]);
+        const kk = dl > 0.25 ? 1 - 0.25 / dl : 0;
+        cOffs = cOffs.map((c) => [c0[0] + (c[0] - c0[0]) * kk, c0[1] + (c[1] - c0[1]) * kk]);
+      } else if (an.loop && cOffs.length > 1) {
+        // цикл: таз пригвождён к клетке (оставляем 15% покачивания) — без «качелей» вперёд-назад
         const mx = cOffs.reduce((a2, c) => a2 + c[0], 0) / cOffs.length, mz = cOffs.reduce((a2, c) => a2 + c[1], 0) / cOffs.length;
-        cOffs = cOffs.map((c) => [mx + (c[0] - mx) * 0.7, mz + (c[1] - mz) * 0.7]);
-      }
+        cOffs = cOffs.map((c) => [c[0] - (c[0] - mx) * 0.15, c[1] - (c[1] - mz) * 0.15]);
+      } else if (an.fx) cOffs = cOffs.map(() => cOffs[0]);
       const idx = [];
       for (const k of idx) {
         const b = new THREE.Box3();
@@ -440,8 +531,22 @@ async function frames(spec) {
       }
       cOff = [sx / cnt, sz / cnt];
     }
+    // гибель: куда ляжет выпавший ствол (по последнему кадру), в осях держателя
+    let dropT = null;
+    if (wpn && an.drop) {
+      dst.holder.position.set(0, 0, 0); dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+      poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(an.n - 1));
+      if (SR.rt) SR.rt();
+      dst.holder.updateMatrixWorld(true);
+      dropT = dropTarget(dst, wpn, an, cal);
+    }
     for (let i = 0; i < an.n; i++) {
       const t = tAt(i);
+      let anI = i === 0 && an.recoilFirst ? Object.assign({}, an, { recoil: an.recoilFirst }) : an;
+      if (dropT) {
+        const pr = an.n > 1 ? i / (an.n - 1) : 1, x = Math.max(0, Math.min(1, (pr - an.drop[0]) / (an.drop[1] - an.drop[0])));
+        anI = Object.assign({}, an, { _drop: { T: dropT, w: x * x * (3 - 2 * x) } });
+      }
       for (const d of (spec.dirs || [0, 1, 2, 3, 4, 5, 6, 7])) {
         // держатель — в начале координат: перенос движения ставит таз в мировую точку
         dst.holder.position.set(0, 0, 0); dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
@@ -450,20 +555,33 @@ async function frames(spec) {
         if (an.crouch) crouch(dst, an.crouch * H / 1.8);
         // ноги на земле: нижняя точка тела в этом кадре — ровно на уровне земли (поворот вокруг вертикали её не меняет,
         // поэтому считается один раз на кадр). Движения по тексту Tripo «висели» над землёй на 0,2–0,6 м.
+        // движения, которых нет в клипах (у четвероногих Tripo — только ход): наклон/крен/сдвиг всего тела
+        const FX = an.fx ? fxAt(an.fx, an.n > 1 ? i / (an.n - 1) : 0, fxH) : null;
+        dst.holder.rotation.order = 'YXZ';
+        dst.holder.rotation.x = FX ? FX.rx : 0; dst.holder.rotation.z = FX ? FX.rz : 0;
+        dst.holder.scale.set(1, FX ? FX.sy : 1, 1);
         const sk = an.key + ':' + i;
         if (snap[sk] === undefined) { dst.holder.position.y = 0; dst.holder.updateMatrixWorld(true); snap[sk] = an.air ? 0 : lowestY(dst); }
         dst.holder.position.y = -snap[sk];
         const ang = d * Math.PI / 4;
-        dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang));
+        dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang)) + ((an.yaw || 0) + (spec.yaw || 0)) * Math.PI / 180;
         const co = cOffs ? cOffs[i] : cOff;
+        const yr = dst.holder.rotation.y, cr = Math.cos(yr), sr = Math.sin(yr);
         if (co) {
-          const r = dst.holder.rotation.y, c = Math.cos(r), sn = Math.sin(r);
-          dst.holder.position.x = -(co[0] * c + co[1] * sn); dst.holder.position.z = -(-co[0] * sn + co[1] * c);
+          dst.holder.position.x = -(co[0] * cr + co[1] * sr); dst.holder.position.z = -(-co[0] * sr + co[1] * cr);
         } else { dst.holder.position.x = 0; dst.holder.position.z = 0; }
+        if (FX) {
+          // сдвиг вперёд (по взгляду) и поворот вокруг середины тела, а не вокруг точки на земле
+          const P = new THREE.Vector3(0, fxH, 0), Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(FX.rx, 0, FX.rz, 'YXZ'));
+          const piv = P.clone().sub(P.clone().applyQuaternion(Q));
+          const lx = piv.x, lz = piv.z + FX.fw;
+          dst.holder.position.x += lx * cr + lz * sr; dst.holder.position.z += -lx * sr + lz * cr;
+        }
         dst.holder.updateMatrixWorld(true);
-        if (wpn) holdWeapon(dst, wpn, i === 0 && an.recoilFirst ? Object.assign({}, an, { recoil: an.recoilFirst }) : an, cal, spec.weapon.adj);
+        if (wpn) holdWeapon(dst, wpn, anI, cal, spec.weapon.adj);
         let fb = box;
         if (an.key === 'die' || an.wide) { const k = H / 1.8 * 2.1; fb = new THREE.Box3(new THREE.Vector3(-k, -0.05, -k), new THREE.Vector3(k, box.max.y, k)); }
+        else if (an.mode === 'sling' && spec.kind === 'human') fb = new THREE.Box3(box.min.clone(), new THREE.Vector3(box.max.x, 2.45 * H / 1.8, box.max.z));   // ствол за спиной выше головы
         const fr = frameFor(fb, 0.05);
         const s = shoot(fr, ss);
         let c;
@@ -484,7 +602,7 @@ async function frames(spec) {
           const o = camSpace(new THREE.Vector3(0, 0, 0));
           mz = [Math.round((m.x - o.x) * PPM * ss * 10) / 10, Math.round(-(m.y - o.y) * PPM * ss * 10) / 10];
           // точка хвата (рукоять) — центр поворота при правке в игре
-          const gq = camSpace(new THREE.Vector3().setFromMatrixPosition(wpn.g.matrixWorld));
+          const gq = camSpace(wpn.anchor ? wpn.anchor.clone() : new THREE.Vector3().setFromMatrixPosition(wpn.g.matrixWorld));
           mz.push(Math.round((gq.x - o.x) * PPM * ss * 10) / 10, Math.round(-(gq.y - o.y) * PPM * ss * 10) / 10);
         }
         out.push({ k: an.key, i, d, c, ax: s.ax, ay: s.ay, mz });
@@ -492,7 +610,7 @@ async function frames(spec) {
     }
   }
   setColor(dst, true);
-  dst.holder.position.set(0, 0, 0); dst.holder.updateMatrixWorld(true);
+  dst.holder.position.set(0, 0, 0); dst.holder.rotation.set(0, 0, 0); dst.holder.scale.set(1, 1, 1); dst.holder.updateMatrixWorld(true);
   scene.remove(dst.holder);
   if (showW) scene.remove(wpn.g);
   return out;

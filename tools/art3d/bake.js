@@ -41,7 +41,7 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
   }
   for (const c of M.CREATURES) {
     if (!has(c.src)) { console.log('нет существа', c.id); continue; }
-    jobs.push({ id: 'c_' + c.id, spec: { kind: 'creature', body: c.src, more: c.more && has(c.more) ? c.more : null, height: c.h, layer: 'body', anims: c.anims, box: c.box } });
+    jobs.push({ id: 'c_' + c.id, spec: { kind: 'creature', body: c.src, more: c.more && has(c.more) ? c.more : null, height: c.h, layer: 'body', anims: c.anims, box: c.box, yaw: c.yaw || 0 } });
   }
   for (const p of M.PROPS) {
     const vs = p.variants.filter((v) => has(v.src));

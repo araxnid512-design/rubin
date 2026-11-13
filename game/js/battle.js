@@ -995,7 +995,7 @@
     else { DW.TR.anim(u, 'shoot', 650, { cnt: 1, rpg: true }); }
     if (kind === 'rocket') {
       st.res.rockets -= 1;
-      await DW.TR.projectileFx(u.x, u.y, x, y, 'rocket');
+      await DW.TR.projectileFx(u.x, u.y, x, y, 'rocket', u);
       await BT.explode(x, y, 2.2, [5, 8], 8, u);
     } else {
       st.res.grenades -= 1;
