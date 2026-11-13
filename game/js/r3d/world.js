@@ -20,13 +20,28 @@
     m.onBeforeCompile = function (sh, r) {
       sh.uniforms.tFog = fogU.tFog; sh.uniforms.uFogSize = fogU.uFogSize; sh.uniforms.uTime = fogU.uTime;
       if (!/varying vec3 vWP;/.test(sh.vertexShader)) {
-        sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-        // worldpos_vertex есть не всегда (без теней) — запасной путь
-        if (!/vWP = /.test(sh.vertexShader)) sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        // мировая позиция фрагмента (с учётом instanced-копий — трава, камешки, гильзы)
+        sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <project_vertex>', [
+          '#include <project_vertex>',
+          '  { vec4 wpF = vec4(transformed, 1.0);',
+          '  #ifdef USE_INSTANCING',
+          '    wpF = instanceMatrix * wpF;',
+          '  #endif',
+          '    vWP = (modelMatrix * wpF).xyz; }'
+        ].join('\n'));
         sh.fragmentShader = 'varying vec3 vWP;\n' + sh.fragmentShader;
       }
-      sh.fragmentShader = 'uniform sampler2D tFog; uniform vec2 uFogSize; uniform float uTime;\n' + sh.fragmentShader.replace('#include <dithering_fragment>',
-        '#include <dithering_fragment>\n  { vec2 fu = vWP.xz / uFogSize; float fv = texture2D(tFog, fu).r; float outside = max(max(-fu.x, fu.x - 1.0), max(-fu.y, fu.y - 1.0)); if (outside > 0.0) fv = mix(fv, 0.5, smoothstep(0.0, 0.08, outside)); gl_FragColor.rgb *= mix(0.06, 1.0, smoothstep(0.0, 1.0, fv)); }');
+      // туман войны: видно — как есть; разведано — приглушено; не разведано — тёмная дымка с еле заметным рельефом
+      sh.fragmentShader = 'uniform sampler2D tFog; uniform vec2 uFogSize; uniform float uTime;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', [
+        '#include <dithering_fragment>',
+        '  { vec2 fu = vWP.xz / uFogSize; float fv = texture2D(tFog, fu).r;',
+        '    float outside = max(max(-fu.x, fu.x - 1.0), max(-fu.y, fu.y - 1.0)); if (outside > 0.0) fv = mix(fv, 0.5, smoothstep(0.0, 0.08, outside));',
+        '    float lum = dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11));',
+        '    vec3 dim = mix(vec3(lum), gl_FragColor.rgb, 0.55) * 0.55;',
+        '    vec3 dark = vec3(0.035, 0.04, 0.05) + vec3(lum) * 0.16;',
+        '    vec3 c = fv > 0.62 ? mix(dim, gl_FragColor.rgb, smoothstep(0.62, 1.0, fv)) : mix(dark, dim, smoothstep(0.0, 0.62, fv));',
+        '    gl_FragColor.rgb = c; }'
+      ].join('\n'));
       if (prev) prev(sh, r);
       if (extra) extra(sh, r);
     };

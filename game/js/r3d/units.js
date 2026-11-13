@@ -152,6 +152,53 @@
     return M;
   }
 
+  /* ---------- Руки на оружие: двухзвенная IK (как tools/art3d/chars.js) ---------- */
+  function aimBone(bone, childNow, want) {
+    const p = bone.getWorldPosition(V());
+    const from = childNow.clone().sub(p).normalize(), to = want.clone().sub(p).normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(from, to);
+    const nq = q.multiply(bone.getWorldQuaternion(new THREE.Quaternion()));
+    bone.quaternion.copy(bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(nq));
+    bone.updateMatrixWorld(true);
+  }
+  function ik2(a, b, c, target, pole) {
+    const pa = a.getWorldPosition(V()), pb = b.getWorldPosition(V()), pc = c.getWorldPosition(V());
+    const la = pa.distanceTo(pb), lb = pb.distanceTo(pc);
+    const d = Math.min(target.distanceTo(pa), la + lb - 1e-4);
+    const dir = target.clone().sub(pa).normalize();
+    const ang = Math.acos(THREE.MathUtils.clamp((la * la + d * d - lb * lb) / (2 * la * d), -1, 1));
+    const pl = pole.clone().sub(pa); pl.addScaledVector(dir, -pl.dot(dir)); if (pl.lengthSq() < 1e-8) pl.set(0, -1, 0); pl.normalize();
+    const elbow = pa.clone().addScaledVector(dir, Math.cos(ang) * la).addScaledVector(pl, Math.sin(ang) * la);
+    aimBone(a, pb, elbow);
+    aimBone(b, c.getWorldPosition(V()), pa.clone().addScaledVector(dir, d));
+  }
+  function palm(body, side) {
+    const hand = body.B[side + 'Hand'];
+    if (body.mid === undefined) {
+      body.mid = {};
+      ['Left', 'Right'].forEach(function (sd) { let m = null; body.B[sd + 'Hand'].traverse(function (o) { if (!m && o !== body.B[sd + 'Hand'] && o.isBone && /Mid|Middle/.test(o.name)) m = o; }); body.mid[sd] = m; });
+    }
+    const p = hand.getWorldPosition(V()), mid = body.mid[side];
+    if (mid) return p.lerp(mid.getWorldPosition(V()), 0.75);
+    const fa = body.B[side + 'ForeArm'].getWorldPosition(V());
+    return p.clone().add(p.clone().sub(fa).multiplyScalar(0.3));
+  }
+  function reach(body, side, target, pole) {
+    const B = body.B, P = palm(body, side);
+    const wrist = B[side + 'Hand'].getWorldPosition(V()).add(target.clone().sub(P));
+    ik2(B[side + 'Arm'], B[side + 'ForeArm'], B[side + 'Hand'], wrist, pole);
+  }
+  /* правая — к рукояти, левая — к цевью (у перезарядки левая свободна) */
+  function handsTo(body, grip, fore, freeL) {
+    const B = body.B;
+    if (!B.RightArm || !B.RightForeArm || !B.RightHand) return;
+    for (let k = 0; k < 2; k++) {
+      const Tq = torso(B);
+      reach(body, 'Right', grip, B.RightForeArm.getWorldPosition(V()).addScaledVector(Tq.Y, -0.4).addScaledVector(Tq.X, 0.25));
+      if (!freeL && B.LeftArm && B.LeftForeArm && B.LeftHand) reach(body, 'Left', fore, B.LeftForeArm.getWorldPosition(V()).addScaledVector(Tq.Y, -0.4).addScaledVector(Tq.X, -0.12));
+    }
+  }
+
   /* ---------- Библиотека движений: перенос на тело ---------- */
   const LIBQ = new THREE.Quaternion(), LIBQ2 = new THREE.Quaternion();
   function libClip(key) { const L = DW.ANIM3; return L && L.clips[key] && !L.clips[key].err ? L.clips[key] : null; }
@@ -511,12 +558,29 @@
       const grp = (W.hipAim && mode === 'aim') ? 'hip' : mode;
       const G = GRIP[grp] || GRIP.carry;
       M = gunMatrix(Tq, W, G, groundY);
+      let grip = null, fore = null;
       if (!W.free) {
         const MA = gunMatrix(Tq, refAK, G, groundY);
         const g0 = V().setFromMatrixPosition(MA);
+        grip = g0.clone(); fore = refAK.fore.clone().applyMatrix4(MA);
         const sh = mode === 'sling' ? 0 : Math.max(0, W.buttZ - refAK.buttZ);
         M.setPosition(g0.addScaledVector(V(0, 0, -1).transformDirection(M), sh));
-      }
+      } else { grip = V().setFromMatrixPosition(M); fore = W.fore.clone().applyMatrix4(M); }
+      // руки на оружие (кроме «за спиной»); перезарядка — левая рука: магазин → подсумок на поясе → магазин → цевьё
+      if (c.freeL && P.key === 'reload') {
+        const pr = c.dur > 0 ? U.clamp(P.t / c.dur, 0, 1) : 0;
+        const up = V(0, 1, 0).transformDirection(M), fw = V(0, 0, -1).transformDirection(M);
+        const mag = grip.clone().lerp(fore, 0.42).addScaledVector(up, -0.09);
+        const Tq = torso(e.body.B);
+        const pouch = e.body.B.Hips.getWorldPosition(V()).addScaledVector(Tq.Z, 0.16).addScaledVector(Tq.X, -0.12).addScaledVector(Tq.Y, 0.05);
+        const sm = function (a0, a1, x) { const k = U.clamp((x - a0) / (a1 - a0), 0, 1); return k * k * (3 - 2 * k); };
+        // 0–0,2 к магазину, 0,25–0,45 вниз к поясу, 0,55–0,75 обратно, 0,82–1 на цевьё
+        let L = fore.clone().lerp(mag, sm(0, 0.18, pr));
+        L.lerp(pouch, sm(0.25, 0.45, pr) * (1 - sm(0.55, 0.75, pr)));
+        L.lerp(fore, sm(0.82, 1, pr));
+        void fw;
+        handsTo(e.body, grip, L, false);
+      } else if (mode !== 'sling') handsTo(e.body, grip, fore, c.freeL);
       // отдача: толчок назад по стволу и стволом вверх
       if (P.recoil > 0) {
         const kick = P.recoil * 0.05;
@@ -541,6 +605,7 @@
     if (!W.free && refAK) {
       const MA = gunMatrix(Tq, refAK, GRIP.carry, e.body.holder.position.y);
       M.setPosition(V().setFromMatrixPosition(MA).addScaledVector(V(0, 0, -1).transformDirection(M), Math.max(0, W.buttZ - refAK.buttZ)));
+      handsTo(e.body, V().setFromMatrixPosition(MA), refAK.fore.clone().applyMatrix4(MA), false);
     }
     const rel = function (bone) { return new THREE.Matrix4().compose(bone.getWorldPosition(V()), bone.getWorldQuaternion(new THREE.Quaternion()), V(1, 1, 1)).invert().multiply(M); };
     e.cal = { w: W, offR: rel(e.body.B.RightHand), offL: rel(e.body.B.LeftHand) };

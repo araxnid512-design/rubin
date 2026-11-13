@@ -114,4 +114,16 @@ for (const c of M.CREATURES) {
   out.creatures[c.id] = { f, more, h: c.h, quad: !!c.quad, yaw: isNew ? (c.yawNew || 0) : (c.yaw || 0), anims: c.anims.map((a) => ({ key: a.key, clip: a.clip, src: a.src ? nameOf(a.src) : null, n: a.n, t0: a.t0, t1: a.t1, loop: !!a.loop, fx: a.fx || null })) };
 }
 fs.writeFileSync(path.join(OUT, 'models.js'), '/* Сгенерировано tools/three3d/models.mjs — модели 3D-боя */\nwindow.DW = window.DW || {};\nDW.M3 = ' + JSON.stringify(out) + ';\n');
+// лишние файлы (заменённые модели) — убрать, чтобы не раздувать APK (только при полной сборке)
+if (!ONLY) {
+  const used = new Set();
+  const add = (f) => { if (f) used.add(f + '.glb'); };
+  for (const k in out.props) out.props[k].forEach((v) => add(v.f));
+  out.veh.forEach((v) => add(v.f)); add(out.turret && out.turret.f);
+  ['open', 'street', 'decor'].forEach((k) => (out[k] || []).forEach((v) => add(v.f)));
+  for (const k in out.weapons) add(out.weapons[k].f);
+  for (const k in out.bodies) { add(out.bodies[k].f); add(out.bodies[k].lo); }
+  for (const k in out.creatures) { add(out.creatures[k].f); out.creatures[k].more.forEach(add); }
+  for (const f of fs.readdirSync(OUT)) if (f.endsWith('.glb') && !used.has(f)) { fs.unlinkSync(path.join(OUT, f)); console.log('удалён лишний', f); }
+}
 console.log('готово:', Object.keys(done).length, 'файлов');

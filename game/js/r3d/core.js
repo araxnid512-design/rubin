@@ -119,8 +119,9 @@
     let ox = 0, oz = 0, oy = 0;
     if (cam.shake > 0.01) { ox = (Math.random() - 0.5) * cam.shake * 0.04; oz = (Math.random() - 0.5) * cam.shake * 0.04; oy = (Math.random() - 0.5) * cam.shake * 0.03; cam.shake *= Math.exp(-dt * 8); }
     const c = R3.camera;
-    c.position.set(cam.tx + Math.sin(cam.yaw) * cp * cam.dist + ox, cam.ty + sp * cam.dist + oy, cam.tz + Math.cos(cam.yaw) * cp * cam.dist + oz);
-    c.lookAt(cam.tx + ox, cam.ty + oy, cam.tz + oz);
+    const ly = cam.ty + (cam.lift || 0);   // lift — подъём точки взгляда (крупный план, проверки)
+    c.position.set(cam.tx + Math.sin(cam.yaw) * cp * cam.dist + ox, ly + sp * cam.dist + oy, cam.tz + Math.cos(cam.yaw) * cp * cam.dist + oz);
+    c.lookAt(cam.tx + ox, ly + oy, cam.tz + oz);
     c.updateMatrixWorld();
   }
   R3.camUpdate = camUpdate;
