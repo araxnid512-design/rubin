@@ -148,7 +148,7 @@
       w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, hgt: m.hgt, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac, map: mapType,
       units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
       loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
-      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: [], vehicles: m.vehicles || [], ladders: m.ladders || []
+      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: [], vehicles: m.vehicles || [], ladders: m.ladders || [], rooms: m.rooms || []
     };
     BT.indexLadders();
     BT.rollConditions(B, mapType);

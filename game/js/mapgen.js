@@ -85,6 +85,7 @@
     }
   }
   function building(m, x0, y0, w, h, wallObj, floorG) {
+    (m.rooms = m.rooms || []).push([x0, y0, x0 + w - 1, y0 + h - 1]);
     const perim = [];
     for (let y = y0; y < y0 + h; y++) {
       for (let x = x0; x < x0 + w; x++) {
@@ -100,13 +101,31 @@
       }
     }
     U.shuffle(perim);
+    // двери: снаружи должна быть проходимая клетка, двери не рядом друг с другом
     const doors = U.rand(2, 3);
+    const outOf = function (x, y) { return x === x0 ? [x - 1, y] : (x === x0 + w - 1 ? [x + 1, y] : (y === y0 ? [x, y - 1] : [x, y + 1])); };
+    const used = [];
+    perim.sort(function (a, b) { const oa = outOf(a[0], a[1]), ob = outOf(b[0], b[1]); return (inb(m, ob[0], ob[1]) && walkG(m, ob[0], ob[1]) ? 1 : 0) - (inb(m, oa[0], oa[1]) && walkG(m, oa[0], oa[1]) ? 1 : 0); });
     let k = 0;
-    for (let i = 0; i < doors && k < perim.length; i++, k++) setO(m, perim[k][0], perim[k][1], 0);
+    for (let n = 0; n < doors && k < perim.length; k++) {
+      const d = perim[k], o = outOf(d[0], d[1]);
+      if (!inb(m, o[0], o[1]) || !walkG(m, o[0], o[1])) continue;
+      if (used.some(function (u) { return Math.abs(u[0] - d[0]) + Math.abs(u[1] - d[1]) < 3; })) continue;
+      setO(m, d[0], d[1], 0); setO(m, o[0], o[1], 0); used.push(d); n++;
+    }
+    perim.splice(0, k);
+    // окна: не рядом с дверями и другими окнами (иначе получается дыра без рамы и перемычки)
+    const near = function (p) { return used.some(function (u) { return Math.abs(u[0] - p[0]) + Math.abs(u[1] - p[1]) < 2; }); };
     const wins = U.rand(1, 3);
-    for (let i = 0; i < wins && k < perim.length; i++, k++) setO(m, perim[k][0], perim[k][1], 1);
-    for (; k < perim.length; k++) {
-      if (Math.random() < 0.1) { setO(m, perim[k][0], perim[k][1], 0); setG(m, perim[k][0], perim[k][1], 8); }
+    for (let n = 0, j = 0; n < wins && j < perim.length; j++) {
+      const p = perim[j];
+      if (!p || near(p)) continue;
+      setO(m, p[0], p[1], 1); used.push(p); perim[j] = null; n++;
+    }
+    // редкие проломы — в руинах
+    for (let j = 0; j < perim.length; j++) {
+      const p = perim[j];
+      if (p && !near(p) && Math.random() < 0.06) { setO(m, p[0], p[1], 0); setG(m, p[0], p[1], 8); used.push(p); }
     }
     // обстановка: мебель вдоль стен (не у дверей), шкафы в углах, немного ящиков и обломков
     const iw = w - 2, ih = h - 2;
@@ -377,6 +396,27 @@
     barracks: ['MMMMMMMMM', 'Mf.f.f.FM', 'M.......=', '....f.f.M', 'MFf.....M', 'MMMM.MMMM']
   };
   const PF = { '#': 2, 'M': 11, 'S': 14, '=': 1, 'b': 6, 'c': 4, 'o': 9, 'k': 12, 'C': 18, 'T': 5, 'r': 8, 'v': 7, 'f': 21, 'F': 22 };
+  const ROOMS = { house: 1, house2: 1, barracks: 1, depot: 1 };
+  /* Проходимость дверей: у каждого проёма в стене (пустая клетка между двумя стенами) по обе стороны —
+     свободные клетки на той же высоте ±1, иначе в дом не войти */
+  function fixDoors(m) {
+    const wall = function (x, y) { if (!inb(m, x, y)) return false; const o = m.obj[I(m, x, y)]; return o === 2 || o === 11 || o === 14; };
+    for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) {
+      const i = I(m, x, y);
+      if (m.obj[i] || !walkG(m, x, y)) continue;
+      let sides = null;
+      if (wall(x - 1, y) && wall(x + 1, y)) sides = [[x, y - 1], [x, y + 1]];
+      else if (wall(x, y - 1) && wall(x, y + 1)) sides = [[x - 1, y], [x + 1, y]];
+      if (!sides) continue;
+      sides.forEach(function (sd) {
+        if (!inb(m, sd[0], sd[1])) return;
+        const j = I(m, sd[0], sd[1]);
+        if (m.obj[j] && !wall(sd[0], sd[1])) { m.obj[j] = 0; m.objHp[j] = 0; }
+        if (!walkG(m, sd[0], sd[1])) setG(m, sd[0], sd[1], m.ground[i]);
+        if (Math.abs(m.hgt[j] - m.hgt[i]) > 1) m.hgt[j] = m.hgt[i];
+      });
+    }
+  }
   function prefab(m, name, minX, floor) {
     const pf = PREFABS[name];
     const ph = pf.length, pw = pf[0].length;
@@ -386,6 +426,7 @@
       for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) if (m.obj[I(m, x0 + x, y0 + y)]) busy++;
       if (busy > pw * ph * 0.15) continue;
       const hh = m.hgt[I(m, x0, y0)];
+      if (ROOMS[name]) (m.rooms = m.rooms || []).push([x0, y0, x0 + pw - 1, y0 + ph - 1]);
       for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
         const ch = pf[y][x], X = x0 + x, Y = y0 + y;
         m.hgt[I(m, X, Y)] = hh;
@@ -752,7 +793,7 @@
       }
       if (!ok || busy > 4) continue;
       for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) m.obj[I(m, x, y)] = 0;
-      for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = I(m, x, y); m.hgt[i] = base + 3; m.ground[i] = 12; }
+      for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = I(m, x, y); m.hgt[i] = base + 4; m.ground[i] = 12; }
       // мешки на краю крыши
       for (let q = 0; q < 2; q++) { const x = x0 + U.rand(0, w - 1), y = q ? y0 + h - 1 : y0 + U.rand(0, h - 1); if (!m.obj[I(m, x, y)]) setO(m, q ? x : x0 + w - 1, y, 6); }
       // лестница: клетка у стены снаружи (на востоке или юге)
@@ -777,6 +818,7 @@
       smoothH(m);
       m.ladders = [];
       if (ROOFY[type] && m.kind !== 'defense') roofHouses(m, U.rand(1, 2));
+      fixDoors(m);
       m.post = null;
       // спавн и туррели должны быть свободны
       const c = m.center;

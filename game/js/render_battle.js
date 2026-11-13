@@ -1317,17 +1317,66 @@
       for (let y = 0; y < B.h; y++) for (let x = 0; x < W; x++) {
         const j = y * W + x, o = B.obj[j];
         if (o !== 0 && o !== 1) continue;
+        if (o === 0 && B.ground[j] === 8) continue;   // пролом со щебнем — не дверь
         let ax = -1;
         if (wall(x - 1, y) && wall(x + 1, y) && !wall(x, y - 1) && !wall(x, y + 1) && (floor(x, y - 1) || floor(x, y + 1))) ax = 0;
         else if (wall(x, y - 1) && wall(x, y + 1) && !wall(x - 1, y) && !wall(x + 1, y) && (floor(x - 1, y) || floor(x + 1, y))) ax = 1;
-        if (ax >= 0) openMap[j] = (o === 1 ? 0 : 2) + ax;
+        if (ax >= 0) { openMap[j] = (o === 1 ? 0 : 2) + ax; continue; }
+        // широкий проём (ворота) в 2–3 клетки: стены на концах ряда, рядом пол дома — перемычка без рамы
+        if (o !== 0) continue;
+        const gap = function (dx, dy) {
+          let a = 0, b = 0;
+          while (a < 3 && !wall(x - dx * (a + 1), y - dy * (a + 1)) && B.obj[(y - dy * (a + 1)) * W + x - dx * (a + 1)] === 0) a++;
+          while (b < 3 && !wall(x + dx * (b + 1), y + dy * (b + 1)) && B.obj[(y + dy * (b + 1)) * W + x + dx * (b + 1)] === 0) b++;
+          return wall(x - dx * (a + 1), y - dy * (a + 1)) && wall(x + dx * (b + 1), y + dy * (b + 1)) && a + b + 1 <= 3;
+        };
+        if (gap(1, 0) && !wall(x, y - 1) && !wall(x, y + 1) && (floor(x, y - 1) || floor(x, y + 1))) openMap[j] = 4;
+        else if (gap(0, 1) && !wall(x - 1, y) && !wall(x + 1, y) && (floor(x - 1, y) || floor(x + 1, y))) openMap[j] = 5;
       }
     }
     return openMap[i];
   }
+  /* Какие стены срезать: впереди (ближе к камере) каждого бойца на 1–4 клетки и всю переднюю (южную и
+     восточную) стену дома, внутри которого кто-то стоит, — как в XCOM, чтобы бойцы не терялись за стенами */
+  let cutSet = null, cutKey = '';
+  function buildCut(B) {
+    let k = '';
+    B.units.forEach(function (u) { if (u.alive && !u.evac && (u.side === 'p' || u.seen)) k += u.x + ',' + u.y + ';'; });
+    if (k === cutKey && cutSet && cutSet.length === B.w * B.h) return cutSet;
+    cutKey = k; cutSet = new Uint8Array(B.w * B.h);
+    const W = B.w;
+    B.units.forEach(function (u) {
+      if (!u.alive || u.evac || !(u.side === 'p' || u.seen)) return;
+      for (let dy = 0; dy <= 3; dy++) for (let dx = 0; dx <= 3; dx++) {
+        const s = dx + dy; if (s < 1 || s > 4) continue;
+        const x = u.x + dx, y = u.y + dy; if (x < W && y < B.h) cutSet[y * W + x] = 1;
+      }
+      (B.rooms || []).forEach(function (r) {
+        if (u.x < r[0] || u.x > r[2] || u.y < r[1] || u.y > r[3]) return;
+        for (let y = r[1]; y <= r[3]; y++) for (let x = r[0]; x <= r[2]; x++) if (x === r[2] || y === r[3] || x >= u.x || y >= u.y) cutSet[y * W + x] = 1;
+      });
+    });
+    return cutSet;
+  }
+  /* перемычка над проёмом (дверь или окно) в высокой стене */
+  function drawLintel(g, B, x, y, i, v, vis) {
+    const W = B.w;
+    const st = v % 2 === 0 ? 1 : W;
+    let wt = 2;
+    for (let d = 1; d <= 3; d++) { const a = B.obj[i - st * d], b = B.obj[i + st * d]; if (TALL[a]) { wt = a; break; } if (TALL[b]) { wt = b; break; } }
+    const H = D.OBJ[wt].lift * ZH, low = v < 2 ? WIN_TOP : DOOR_H;
+    if (H <= low + 4) return;
+    const mask = v % 2 === 0 ? 2 | 8 : 1 | 4;
+    const sp = objSprite(wt, mask, 0, !(vis && vis[i]), false, undefined, H, low);
+    const c = isoC(x, y);
+    g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
+  }
   function drawOpening(g, B, x, y, i, vis) {
     const v = openAt(B, i);
     if (v === undefined) return;
+    if (cutSet && cutSet[i]) return;           // стена срезана — рамы и перемычки не видно
+    drawLintel(g, B, x, y, i, v, vis);
+    if (v >= 4) return;                        // ворота — только перемычка
     const S3 = DW.S3;
     if (!S3 || !S3.ready('p_open')) return;
     if (v < 2 && B.obj[i] !== 1) return;   // окно разбито вместе со стенкой
@@ -1338,20 +1387,25 @@
     g.drawImage(f.c, c[0] - f.ox, c[1] - lift - f.oy, f.w, f.h);
     g.globalAlpha = 1;
   }
-  function objSprite(type, mask, variant, dark, damaged, v12) {
-    const s3 = objSprite3d(type, v12 === undefined ? variant : v12, dark, damaged);
+  /* высокие стены (в рост и выше), их срез у бойцов и перемычки над проёмами */
+  const TALL = { 2: 1, 11: 1, 14: 1, 17: 1 };
+  const CUT_LIFT = 0.42;                  // высота среза стены (как низкая стенка)
+  const DOOR_H = 63, WIN_TOP = 50;        // верх дверного проёма и окна, точки (≈2,05 м и 1,65 м)
+  function objSprite(type, mask, variant, dark, damaged, v12, hOver, lift0) {
+    const s3 = hOver === undefined ? objSprite3d(type, v12 === undefined ? variant : v12, dark, damaged) : null;
     if (s3) return s3;
-    const key = type + '_' + mask + '_' + variant + (damaged ? '_d' : '');
+    const key = type + '_' + mask + '_' + variant + (damaged ? '_d' : '') + (hOver !== undefined ? '_h' + hOver + '_' + (lift0 || 0) : '');
     let s = sprites[key];
     if (!s) {
       const SS = OSS, MX = 16;
-      const H = D.OBJ[type].lift * ZH;
+      const H = hOver !== undefined ? hOver : D.OBJ[type].lift * ZH;
       const top = Math.ceil(H) + (type === 5 ? 34 : (type === 15 ? 40 : 20));
       const w = 2 * HW + 2 * MX, h = top + 2 * HH + 8;
       const c = canvas(w * SS, h * SS);
       const g = c.getContext('2d');
       g.scale(SS, SS); g.translate(HW + MX, top + HH);
-      drawObj(g, type, mask, variant, H, U.srng(type * 1013 + mask * 37 + variant * 7 + 3));
+      if (lift0) g.translate(0, -lift0);
+      drawObj(g, type, mask, variant, lift0 ? H - lift0 : H, U.srng(type * 1013 + mask * 37 + variant * 7 + 3));
       if (damaged) {
         const r = U.srng(type * 77 + variant * 13 + mask);
         g.globalCompositeOperation = 'source-atop';
@@ -3211,6 +3265,7 @@
         g.globalAlpha = 1;
       });
     }
+    buildCut(B);
     const unitsAt = {};
     B.units.forEach(function (u) {
       if (!u.alive || u.evac) return;
@@ -3255,9 +3310,10 @@
           if (o === 23 && drawVehicleTile(g, B, x, y, i, vis, unitsAt, ov)) { /* техника — своя полоса спрайта */ }
           else if (o) {
             const vh = U.hash2(x, y, o);
-            const sp = objSprite(o === 23 ? 7 : o, maskAt(B, x, y, o), Math.floor(vh * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5, Math.floor(vh * 997));
+            const low = TALL[o] && cutSet && cutSet[i];
+            const sp = objSprite(o === 23 ? 7 : o, maskAt(B, x, y, o), Math.floor(vh * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5, Math.floor(vh * 997), low ? CUT_LIFT * ZH : undefined);
             let cut = false;
-            if (D.OBJ[o].lift > 0.45 && o !== 15) {
+            if (!low && D.OBJ[o].lift > 0.45 && o !== 15) {
               const behind = function (xx, yy) { const us2 = xx >= 0 && yy >= 0 ? unitsAt[yy * B.w + xx] : null; return us2 && us2.some(function (uu) { return uu.side === 'p' || uu === ov.target; }); };
               cut = behind(x - 1, y) || behind(x, y - 1) || behind(x - 1, y - 1);
             }

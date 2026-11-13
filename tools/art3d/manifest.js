@@ -128,7 +128,7 @@ const PROPS = [
   { id: 'decor', variants: [P(S + 'env/e_tire.glb', 0.5, 0.3), P(S + 'env/e_trashbags.glb', 0.6, 0.5), P(S + 'env/e_pipes.glb', 0.9, 0.5), P(S + 'env/e_vaz2107.glb', 1.5, 1.0, 30), P(S + 'env/e_uaz.glb', 1.5, 1.2, -30), P(S + 'env/e_ural.glb', 2.2, 1.9, 60), P(S + 'env/e_btr80.glb', 2.3, 1.6, -20), P(S + 'env/e_paz.glb', 2.4, 1.9, 40), P(S + 'env/e_well.glb', 0.9, 1.6), P(S + 'env/e_sandbags.glb', 0.9, 0.6)] }
   ,
   // рамы окон и дверей в проёмах домов: окно вдоль x / вдоль y, дверь вдоль x / вдоль y (render_battle: openAt)
-  { id: 'open', variants: [P(DW + 'd_window.glb', 0.95, 0.9, 0), P(DW + 'd_window.glb', 0.95, 0.9, 90), P(DW + 'd_door.glb', 0.95, 1.5, 0), P(DW + 'd_door.glb', 0.95, 1.5, 90)] },
+  { id: 'open', variants: [P(DW + 'd_window.glb', 0.95, 1.05, 0), P(DW + 'd_window.glb', 0.95, 1.05, 90), P(DW + 'd_door.glb', 0.95, 2.05, 0), P(DW + 'd_door.glb', 0.95, 2.05, 90)] },
   // уличные детали: фонарь, сетчатый забор, бетонный блок (render_battle: PROP3D / p_obj6)
   { id: 'street', variants: [P(DW + 'e_lamp.glb', 0.6, 2.4), P(DW + 'e_wirefence.glb', 1.0, 1.25, 0), P(DW + 'e_wirefence.glb', 1.0, 1.25, 90), P(DW + 'e_barrier.glb', 0.95, 0.6, 0), P(DW + 'e_barrier.glb', 0.95, 0.6, 90)] },
   { id: 'obj6', type: 6, variants: [P(S + 'env/e_sandbags.glb', 0.95, 0.55), P(S + 'env/e_sandbags.glb', 0.95, 0.55, 90), P(DW + 'e_barrier.glb', 0.95, 0.6, 45), P(S + 'env/e_sandbags.glb', 0.95, 0.55, 45)] }
