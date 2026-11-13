@@ -1,7 +1,10 @@
 'use strict';
 /* Стенд хвата оружия (tools/three3d/griplab): тот же код, что в игре (game/js/r3d/units.js → R3.units._lib,
    game/js/r3d/grip.js → R3.grip), поза бойца собирается как в units.js updHuman/calibrate. Ползунки меняют
-   R3.grip.P на лету, «JSON» — параметры для вставки в grip.js. Режим ?sheet=1 — лист снимков без окна. */
+   R3.grip.P на лету, «JSON» — параметры для вставки в grip.js. Режим ?sheet=1 — лист снимков без окна
+   (sheet.js): bodies, weapons, poses (движение[@доля][:режим][~поворот°]), views, cell, grip=0 (без grip.js),
+   hook=1 (grip.apply и «в кисти» — предлагаемая правка units.js), dbg=1 (оси, точки, сетка оружия 2 см),
+   wa=0.5 (оружие полупрозрачно), nobody=1 (виды оружия без тела), trace=1 (проходы решателя), P={…} (поправки P). */
 (function () {
   const DW = window.DW, R3 = DW.R3, THREE = R3.THREE, UL = R3.units._lib, M3 = DW.M3, GP = R3.grip;
   const BASE = '../../../game/';
@@ -121,7 +124,7 @@
       } else if (mode !== 'sling') {
         UL.handsTo(body, grip, fore, c.freeL);
         if (gripOn) GP.apply({ body: body, W: W, M: M, mode: mode, grip: grip, fore: fore, key: o.key, freeL: c.freeL, reload: false });
-      }
+      } else if (gripOn && handHook) GP.relax(body);      // предлагаемая правка units.js: за спиной — пальцы разжаты
     }
     W.g.matrix.copy(M); W.g.matrixWorldNeedsUpdate = true; W.g.updateMatrixWorld(true);
     body.holder.updateMatrixWorld(true);
@@ -422,6 +425,7 @@
       camera.position.set(orb.tgt.x + Math.sin(orb.yaw) * cp * orb.dist, orb.tgt.y + Math.sin(orb.pitch) * orb.dist, orb.tgt.z + Math.cos(orb.yaw) * cp * orb.dist);
       camera.lookAt(orb.tgt); camera.updateProjectionMatrix();
     } else setCam(camera, S, st.main, w / mh);
+    S.W.grid.visible = st.dbg && /^w/.test(st.main);
     renderer.setViewport(0, h - mh, w, mh); renderer.setScissor(0, h - mh, w, mh);
     renderer.render(scene, camera);
     label(0, st.main === 'orbit' ? 'вращать: левая кнопка — поворот, правая/Shift — сдвиг, колесо — ближе; двойной щелчок по малому виду — крупно' : (VIEWS[st.main] || {}).n, 6, 4);
@@ -429,6 +433,7 @@
     const n = st.small.length, sw = w / n, sh = h - mh;
     st.small.forEach(function (v, i) {
       setCam(camera, S, v, sw / sh);
+      S.W.grid.visible = st.dbg && /^w/.test(v);
       renderer.setViewport(Math.round(i * sw), 0, Math.round(sw), sh); renderer.setScissor(Math.round(i * sw), 0, Math.round(sw), sh);
       renderer.render(scene, camera);
       label(i + 1, VIEWS[v].n, Math.round(i * sw) + 4, mh + 4);
