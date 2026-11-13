@@ -132,9 +132,12 @@
     return { R: R, L: L, X: X, Y: Y, Z: Z };
   }
   const UP = V(0, 1, 0);
-  function gunMatrix(Tq, wpn, g, groundY) {
+  /* aim (необязательно): { p: точка в мире, k: 0–1 доля наведения } — ствол от приклада в эту точку, с пределами по
+     сторонам (±50° от корпуса) и по высоте (−45°…+40°) */
+  const _aD = V(), _aH = V(), _aZ = V();
+  function gunMatrix(Tq, wpn, g, groundY, aim) {
     const butt = Tq.R.clone().addScaledVector(Tq.X, g.butt[0]).addScaledVector(Tq.Y, g.butt[1]).addScaledVector(Tq.Z, g.butt[2]);
-    const pitch = g.pitch * Math.PI / 180, yaw = g.yaw * Math.PI / 180, roll = g.roll * Math.PI / 180;
+    const pitch = g.pitch * Math.PI / 180, yaw = g.yaw * Math.PI / 180, roll = (aim && aim.k > 0 ? g.roll * (1 - aim.k) : g.roll) * Math.PI / 180;
     let dir;
     if (g.level) {
       const zh = Tq.Z.clone(); zh.y = 0; zh.normalize();
@@ -142,6 +145,24 @@
       dir = zh.multiplyScalar(Math.cos(pitch) * Math.cos(yaw)).addScaledVector(xh, -Math.cos(pitch) * Math.sin(yaw)).addScaledVector(UP, Math.sin(pitch)).normalize();
     } else {
       dir = Tq.Z.clone().multiplyScalar((g.back ? -1 : 1) * Math.cos(pitch) * Math.cos(yaw)).addScaledVector(Tq.X, -Math.cos(pitch) * Math.sin(yaw)).addScaledVector(Tq.Y, Math.sin(pitch)).normalize();
+    }
+    if (aim && aim.k > 0) {
+      _aD.subVectors(aim.p, butt);
+      if (_aD.lengthSq() > 0.04) {
+        _aD.normalize();
+        // по сторонам — не дальше 50° от груди
+        _aZ.copy(Tq.Z).setY(0).normalize(); _aH.copy(_aD).setY(0);
+        const hl = _aH.length();
+        if (hl > 1e-4) {
+          _aH.multiplyScalar(1 / hl);
+          const ang = Math.acos(Math.max(-1, Math.min(1, _aH.dot(_aZ)))), lim = 50 * Math.PI / 180;
+          if (ang > lim) { const sgn = Math.sign(_aZ.x * _aH.z - _aZ.z * _aH.x) || 1; _aH.copy(_aZ).applyAxisAngle(UP, -sgn * lim); }
+        } else _aH.copy(_aZ);
+        // по высоте: −45°…+40°
+        const elA = Math.max(-45 * Math.PI / 180, Math.min(40 * Math.PI / 180, Math.asin(Math.max(-1, Math.min(1, _aD.y)))));
+        _aD.copy(_aH).multiplyScalar(Math.cos(elA)).setY(Math.sin(elA)).normalize();
+        dir.lerp(_aD, aim.k).normalize();
+      }
     }
     const el = Math.asin(Math.max(-1, Math.min(1, dir.y)));
     let elMin = g.minEl !== undefined ? g.minEl * Math.PI / 180 : -Math.PI / 2;
@@ -353,7 +374,7 @@
           return { key: 'idle', t: ts + (u.id || 0) };
         case 'aimup': case 'aimhold':
           if (cv === 2) return { key: has('aim') ? 'aim' : 'shoot', t: 0, stepOut: true };
-          if ((cv === 1 || u.overwatch) && has('kneel')) return { key: 'kneel', t: 0 };
+          if ((cv === 1 || u.overwatch || u.crouch) && has('kneel')) return { key: 'kneel', t: 0 };
           return { key: has('aim') ? 'aim' : 'shoot', t: 0 };
         default: return { key: 'idle', t: ts + (u.id || 0) };
       }
@@ -371,6 +392,11 @@
     if (cv === 2) {
       const wd = walls4(u);
       return { key: 'idle', t: ts + (u.id || 0) * 3.1, facing: wd ? Math.atan2(wd[1], wd[0]) + Math.PI / 2 : null };
+    }
+    // в покое бойцы отряда изредка осматриваются и проверяют оружие (раз в ~20 с, у каждого в своё время)
+    if (u.side === 'p' && has('idle2') && !(Bv && Bv.over)) {
+      const per = 19 + (u.id || 0) % 5 * 2.3, ph = (ts + (u.id || 0) * 7.7) % per;
+      if (ph < dur('idle2')) return { key: 'idle2', t: ph };
     }
     return { key: 'idle', t: ts + (u.id || 0) * 3.1 };
   }
@@ -564,6 +590,79 @@
       else updCreature(e, u, t, dt, face);
     });
   };
+  /* ---------- Живость: корпус доворачивается к цели при прицеливании, голова смотрит на ближайшего врага ---------- */
+  const _lq = new THREE.Quaternion(), _lq2 = new THREE.Quaternion(), _lw = new THREE.Quaternion(), _lp = new THREE.Quaternion();
+  const _lv = V(), _lv2 = V(), _lv3 = V(), _lI = new THREE.Quaternion();
+  const NOLOOK = { climb: 1, vault: 1, reload: 1, throw: 1, throwk: 1, heal: 1, melee: 1, punch: 1, panic: 1, cheer: 1, hit: 1, hit2: 1, die: 1, die2: 1, die3: 1, idle2: 1, slide: 1, wall: 1, duck: 1 };
+  function rotWorld(bone, q) {
+    // поворот кости в мире на q (вокруг её сустава); дети идут за ней
+    bone.getWorldQuaternion(_lw);
+    _lw.premultiply(q);
+    bone.parent.getWorldQuaternion(_lp).invert();
+    bone.quaternion.copy(_lp.multiply(_lw));
+    bone.updateMatrixWorld(true);
+  }
+  function lookTarget(e, u, t) {
+    // раз в полсекунды: ближайший видимый противник в 14 клетках
+    if (e.lookT && t - e.lookT < 500) return e.lookU;
+    e.lookT = t; e.lookU = null;
+    const B = DW.BT.get(); if (!B) return null;
+    let best = 14 * 14;
+    B.units.forEach(function (o) {
+      if (!o.alive || o.evac || o.side === u.side) return;
+      if (u.side === 'p' ? !o.seen : !(u.active)) return;
+      const d = (o.x - u.x) * (o.x - u.x) + (o.y - u.y) * (o.y - u.y);
+      if (d < best) { best = d; e.lookU = o; }
+    });
+    return e.lookU;
+  }
+  function liveliness(e, u, P, t, dt) {
+    const B = e.body.B;
+    if (!B.Spine || !B.Head || !u.alive) { e.lookW = 0; return; }
+    const tr = TR2();
+    const aiming = u._aimAt && tr.now() < (u._aimUntil || 0) && (P.key === 'aim' || P.key === 'kneel' || P.key === 'shoot');
+    const tgtU = aiming ? u._aimAt : (NOLOOK[P.key] ? null : lookTarget(e, u, t));
+    // плавные веса
+    e.twW = (e.twW || 0) + ((aiming ? 1 : 0) - (e.twW || 0)) * Math.min(1, dt * 8);
+    e.lookW = (e.lookW || 0) + ((tgtU ? 1 : 0) - (e.lookW || 0)) * Math.min(1, dt * 4);
+    if (tgtU) { e.lookP = UN.anchor(tgtU, false); e.lookP.y += 1.3 * (tr.unitScale(tgtU) / 1.13); }
+    if (!e.lookP || (e.twW < 0.01 && e.lookW < 0.01)) return;
+    const Tq = torso(B);
+    // корпус: доворот по горизонтали до 60°, тремя позвонками
+    if (e.twW > 0.01) {
+      _lv.copy(Tq.Z).setY(0).normalize();
+      _lv2.copy(e.lookP).sub(B.Spine.getWorldPosition(_lv3)).setY(0);
+      if (_lv2.lengthSq() > 0.01) {
+        _lv2.normalize();
+        let ang = Math.atan2(_lv.z * _lv2.x - _lv.x * _lv2.z, _lv.dot(_lv2));
+        ang = Math.max(-1.05, Math.min(1.05, ang)) * e.twW;
+        _lq.setFromAxisAngle(UP, ang / 3);
+        [B.Spine, B.Spine1, B.Spine2].forEach(function (b) { if (b) rotWorld(b, _lq); });
+      }
+    }
+    // голова: на цель, до 55° в сторону и 30° вверх-вниз, пополам шея и голова
+    if (e.lookW > 0.01 && B.Neck) {
+      const T2 = torso(B);
+      const hp = B.Head.getWorldPosition(_lv3);
+      _lv2.copy(e.lookP).sub(hp);
+      if (_lv2.lengthSq() > 0.04) {
+        _lv2.normalize();
+        _lv.copy(T2.Z).normalize();
+        // ограничить отклонение от груди
+        const fh = _lv.clone().setY(0).normalize(), th = _lv2.clone().setY(0);
+        if (th.lengthSq() > 1e-4) {
+          th.normalize();
+          let yaw = Math.atan2(fh.z * th.x - fh.x * th.z, fh.dot(th));
+          yaw = Math.max(-0.96, Math.min(0.96, yaw));
+          const pit = Math.max(-0.52, Math.min(0.52, Math.asin(Math.max(-1, Math.min(1, _lv2.y)))));
+          _lv2.copy(fh).applyAxisAngle(UP, yaw).multiplyScalar(Math.cos(pit)).setY(Math.sin(pit)).normalize();
+          _lq.setFromUnitVectors(_lv, _lv2);
+          _lq2.copy(_lI).slerp(_lq, 0.5 * e.lookW);
+          rotWorld(B.Neck, _lq2); rotWorld(B.Head, _lq2);
+        }
+      }
+    }
+  }
   function updHuman(e, u, t, dt, face) {
     const P = humanPose(e, u, t);
     const c = libClip(P.key) || libClip('idle');
@@ -593,6 +692,7 @@
       else blendPose(e.from, e.pose, k * k * (3 - 2 * k), e.pose);
     }
     applyPose(e.body, e.pose);
+    liveliness(e, u, P, t, dt);
     // оружие
     const rpg = e.rpg && TR2().curAnimOf(u) && TR2().curAnimOf(u).kind === 'shoot' && TR2().curAnimOf(u).a.data && TR2().curAnimOf(u).a.data.rpg;
     if (e.rpg) e.rpg.g.visible = !!rpg;
@@ -614,10 +714,19 @@
       const Tq = torso(e.body.B);
       const grp = (W.hipAim && mode === 'aim') ? 'hip' : mode;
       const G = GRIP[grp] || GRIP.carry;
-      M = gunMatrix(Tq, W, G, groundY);
+      // наведение в цель на время выстрела (TR3.shotFx): грудь цели — та же точка, куда летят пули
+      const aiming = mode === 'aim' && u._aimAt && TR2().now() < (u._aimUntil || 0);
+      e.aimK = Math.max(0, Math.min(1, (e.aimK || 0) + (aiming ? dt : -dt) / 0.15));
+      let AIM = null;
+      if (e.aimK > 0 && u._aimAt) {
+        const tg = u._aimAt;
+        if (aiming || !e.aimP) e.aimP = UN.anchor(tg, false).add(V(0, (tg.type === 'queen' ? 1.4 : 1.05) * (TR2().unitScale(tg) / 1.13), 0));
+        AIM = { p: e.aimP, k: e.aimK * e.aimK * (3 - 2 * e.aimK) };
+      }
+      M = gunMatrix(Tq, W, G, groundY, AIM);
       let grip = null, fore = null;
       if (!W.free) {
-        const MA = gunMatrix(Tq, refAK, G, groundY);
+        const MA = gunMatrix(Tq, refAK, G, groundY, AIM);
         const g0 = V().setFromMatrixPosition(MA);
         grip = g0.clone(); fore = refAK.fore.clone().applyMatrix4(MA);
         const sh = mode === 'sling' ? 0 : Math.max(0, W.buttZ - refAK.buttZ);

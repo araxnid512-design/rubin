@@ -140,6 +140,13 @@
 
   /* ---------- Эффекты: логика и звук — 2D, картинка — 3D ---------- */
   TR3.shotFx = function (att, tgt, hit, W, show, suppress, opt) {
+    // на время выстрела ствол наводится в цель (куда целится — туда и летят пули)
+    if (att && tgt && W) {
+      const sp = (DW.settings && DW.settings.speed) || 1, FW = TR2.FXof ? TR2.FXof(W) : {};
+      const cnt = FW.n || ({ rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1);
+      const gap = (FW.gap || (W.snd === 'lmg' ? 70 : 90)) / sp;
+      att._aimAt = tgt; att._aimUntil = TR2.now() + 220 / sp + cnt * gap + 650;
+    }
     const r = TR2.shotFx.apply(TR2, arguments);
     if (R3.ok) R3.fx.shot(att, tgt, hit, W, show, suppress, opt);
     return r;
