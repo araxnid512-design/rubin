@@ -285,7 +285,7 @@
   }
   /* ---------- Фото-текстуры (Poly Haven, CC0): game/textures — грунты, кладка стен, скалы ---------- */
   const PHOTO = {};
-  const GTEX = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 8: 'rubble', 9: 'wood', 11: 'planks' };
+  const GTEX = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 8: 'rubble', 9: 'wood', 11: 'planks', 12: 'asphalt' };
   const WTEX = { 1: 'brick', 2: 'brick', 14: 'stone', 11: 'bulkhead', 17: 'plaster' };
   (function () {
     ['g_grain', 'g_ash', 'g_earth', 'g_concrete', 'g_metal', 'g_cave', 'g_rubble', 'g_wood', 'g_asphalt', 'g_planks',
@@ -304,9 +304,9 @@
     p.setTransform(new DOMMatrix([sx, 0, 0, sy === undefined ? sx : sy, ox || 0, oy || 0]));
     return p;
   }
-  const MAT = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood', 11: 'wood' };
+  const MAT = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood', 11: 'wood', 12: 'concrete' };
   const NATURAL = { 0: 1, 1: 1, 2: 1, 5: 1, 6: 1, 8: 1 };
-  const PRIO = { 10: 0, 4: 1, 9: 2, 11: 2, 3: 3, 7: 4, 1: 5, 5: 6, 2: 7, 0: 8, 6: 9, 8: 10 };
+  const PRIO = { 10: 0, 4: 1, 9: 2, 11: 2, 12: 2, 3: 3, 7: 4, 1: 5, 5: 6, 2: 7, 0: 8, 6: 9, 8: 10 };
   function patFor(g, gid) { const k = MAT[gid]; return k ? g.createPattern(matTex(k), 'repeat') : null; }
   function detailTile(g, x, y, gid) {
     const pat = patFor(g, gid);
@@ -520,6 +520,46 @@
   }
   /* Срез породы: пласты, камни, корни; a→b — верхняя кромка, depth — высота среза */
   const STRATA = [[0, 0.16, '#3e2e20'], [0.16, 0.42, '#7a5e42'], [0.42, 0.7, '#64503e'], [0.7, 1.01, '#463c34']];
+  /* стена дома с плоской крышей: кирпич, карниз, окна (часть — тёмные проёмы с разбитым стеклом) */
+  function brickFace(g, a, b, depth, rnd, tone) {
+    const poly = function () { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(b[0], b[1] + depth); g.lineTo(a[0], a[1] + depth); g.closePath(); };
+    poly(); g.fillStyle = U.shade('#8a6a52', (tone - 1) * 0.9); g.fill();
+    const bp = photoPat(g, 'w_brick', 0.28, 0.28, a[0], a[1]);
+    if (bp) { g.save(); poly(); g.clip(); g.globalCompositeOperation = 'multiply'; g.fillStyle = bp; g.fillRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]) + 1, Math.abs(b[1] - a[1]) + depth + 1); g.restore(); }
+    // карниз
+    g.fillStyle = 'rgba(200,190,175,' + (0.55 * tone) + ')';
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(b[0], b[1] + 3); g.lineTo(a[0], a[1] + 3); g.closePath(); g.fill();
+    // окно
+    const t0 = 0.3, t1 = 0.7, y0 = depth * 0.3, y1 = depth * 0.62;
+    const P = function (t, y) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + y]; };
+    const q = [P(t0, y0), P(t1, y0), P(t1, y1), P(t0, y1)];
+    g.fillStyle = '#120d0a'; g.beginPath(); q.forEach(function (p, i) { if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); }); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(70,52,38,0.9)'; g.lineWidth = 1.4; g.stroke();
+    if (rnd() < 0.6) { g.fillStyle = 'rgba(160,190,205,0.35)'; const m = P((t0 + t1) / 2, y0); g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(m[0], m[1]); g.lineTo(q[3][0], q[3][1] - 4); g.closePath(); g.fill(); }
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(Math.min(a[0], b[0]), Math.max(a[1], b[1]) + depth - 2, Math.abs(b[0] - a[0]), 2);
+  }
+  /* лестница на крышу: два рельса и ступени вдоль стены, от земли до карниза */
+  function drawLadder(g, B, l) {
+    const h0 = hT(l.x, l.y) * LH, h1 = hT(l.rx, l.ry) * LH;
+    // середина общей грани и направление вдоль неё
+    const p0 = l.d === 0 ? iso(l.x, l.y + 0.5) : iso(l.x + 0.5, l.y);
+    const along = l.d === 0 ? [iso(l.x, l.y + 0.7)[0] - iso(l.x, l.y + 0.3)[0], iso(l.x, l.y + 0.7)[1] - iso(l.x, l.y + 0.3)[1]] : [iso(l.x + 0.7, l.y)[0] - iso(l.x + 0.3, l.y)[0], iso(l.x + 0.7, l.y)[1] - iso(l.x + 0.3, l.y)[1]];
+    const out = l.d === 0 ? [HW * 0.22, HH * 0.22] : [-HW * 0.22, HH * 0.22];   // низ лестницы отставлен от стены
+    const hw = [along[0] * 0.5, along[1] * 0.5];
+    const bot = [p0[0] + out[0], p0[1] + out[1] - h0], top = [p0[0], p0[1] - h1 + 2];
+    const rails = [[bot[0] - hw[0], bot[1] - hw[1], top[0] - hw[0], top[1] - hw[1]], [bot[0] + hw[0], bot[1] + hw[1], top[0] + hw[0], top[1] + hw[1]]];
+    g.lineCap = 'round';
+    rails.forEach(function (r) { g.strokeStyle = '#2a2420'; g.lineWidth = 3.2; g.beginPath(); g.moveTo(r[0], r[1]); g.lineTo(r[2], r[3] - 6); g.stroke(); g.strokeStyle = '#7a6a58'; g.lineWidth = 1.8; g.beginPath(); g.moveTo(r[0], r[1]); g.lineTo(r[2], r[3] - 6); g.stroke(); });
+    const n = Math.max(3, Math.round((h1 - h0) / 9));
+    for (let k = 1; k <= n; k++) {
+      const t = k / (n + 1);
+      const ax = rails[0][0] + (rails[0][2] - rails[0][0]) * t, ay = rails[0][1] + (rails[0][3] - rails[0][1]) * t;
+      const bx = rails[1][0] + (rails[1][2] - rails[1][0]) * t, by = rails[1][1] + (rails[1][3] - rails[1][1]) * t;
+      g.strokeStyle = '#3a322a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+      g.strokeStyle = '#8a7a66'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(ax, ay - 0.6); g.lineTo(bx, by - 0.6); g.stroke();
+    }
+    g.lineCap = 'butt';
+  }
   function rockFace(g, a, b, depth, rnd, tone, grass) {
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     const n = Math.max(4, Math.ceil(len / 7));
@@ -1382,7 +1422,7 @@
       const c = uPos(u);
       if (u.side === 'p') {
         L.push([c[0], c[1] - 18, night ? 46 : 0, '255,236,200', 0.55]);
-        if (night && u.kind === 'soldier') {
+        if (night && u.kind === 'soldier' && B.lights !== false) {
           const f = u.face || 0;
           const sx = (Math.cos(f) - Math.sin(f)) * HW, sy = (Math.cos(f) + Math.sin(f)) * HH;
           const L2 = Math.hypot(sx, sy) || 1;
@@ -2235,10 +2275,14 @@
     if (S.kind === 'turret') return S3.frame([[S.body, 'v', d, 0]]);
     const n = function (a) { return S3.count(S.body, a); };
     const cre = S.kind === 'creature';
-    let anim = 'idle', i = 0;
+    let anim = 'idle', i = 0, wallDir = null;
     const idleI = function () { const k = n('idle'); return k > 1 ? Math.floor(t / 520 + (u.id || 0) * 0.7) % k : 0; };
+    const av = function (a) { return S3.avail(S.body, a); };
     if (tw && tw.kind === 'step') {
       anim = running && n('run') ? 'run' : 'walk';
+      // скрытно — крадущимся шагом
+      const Bq = DW.BT.get();
+      if (!cre && u.side === 'p' && Bq && Bq.concealed && av('sneak')) anim = 'sneak';
       const ph = (((walk || 0) / (Math.PI * 2)) % 1 + 1) % 1;
       i = Math.floor(ph * n(anim));
       // шаг на уступ — залезть, с уступа — перелезть вниз
@@ -2259,9 +2303,10 @@
           break;
         }
         case 'reload': anim = 'reload'; i = Math.floor(p * n('reload')); break;
-        case 'hit': anim = 'hit'; i = p < 0.45 ? 0 : 1; break;
-        case 'throw': anim = cre ? 'atk' : (n('throw') ? 'throw' : 'melee'); i = Math.floor(p * n(anim)); break;
-        case 'atk': anim = cre ? 'atk' : 'melee'; i = Math.floor(p * n(anim)); break;
+        case 'hit': anim = !cre && (u.id + Math.floor(an.a.t0 / 1000)) % 2 && av('hit2') ? 'hit2' : 'hit'; i = p < 0.45 ? 0 : 1; break;
+        case 'throw': anim = cre ? 'atk' : (coverLevel(u) >= 1 && av('throwk') ? 'throwk' : (n('throw') ? 'throw' : 'melee')); i = Math.floor(p * n(anim)); break;
+        case 'atk': anim = cre ? 'atk' : (u.side === 'e' && av('punch') ? 'punch' : 'melee'); i = Math.floor(p * n(anim)); break;
+        case 'slide': anim = av('slide') ? 'slide' : 'crouch'; i = Math.floor(p * n(anim)); break;
         case 'heal': anim = n('heal') ? 'heal' : 'idle'; i = Math.floor(t / 300) % Math.max(1, n(anim)); break;
         case 'charge': anim = n('run') ? 'run' : 'walk'; i = Math.floor(t / 80) % Math.max(1, n(anim)); break;
         case 'shake': case 'sniff': anim = n('roar') ? 'roar' : 'idle'; i = n('roar') ? Math.floor(p * n('roar')) : idleI(); break;
@@ -2270,22 +2315,34 @@
       }
     } else if (!cre) {
       // стойки: пригнулся под огнём, дозор с колена (ведёт стволом), на колене за низким укрытием
-      if (u.hunker && n('duck')) { anim = 'duck'; i = Math.floor(t / 700 + (u.id || 0)) % n('duck'); }
+      const Bv = DW.BT.get();
+      if (Bv && Bv.over === 'victory' && u.side === 'p' && u.alive && av('cheer')) { anim = 'cheer'; i = Math.floor(t / 380 + (u.id || 0)) % n('cheer'); }
+      else if (u.panicked && av('panic')) { anim = 'panic'; i = Math.floor(t / 260 + (u.id || 0)) % n('panic'); }
+      else if (u.hunker && n('duck')) { anim = 'duck'; i = Math.floor(t / 700 + (u.id || 0)) % n('duck'); }
       else if (u.hunker && n('hunker')) anim = 'hunker';
       else if (u.overwatch && n('watch')) { anim = 'watch'; i = Math.floor(t / 900 + (u.id || 0)) % n('watch'); }
       else if (u.overwatch && n('crouchAim')) anim = 'crouchAim';
       else if (u.alive && coverLevel(u) === 1 && n('kneel')) anim = 'kneel';
       else if (u.alive && coverLevel(u) === 1 && n('crouch')) anim = 'crouch';
-      else { anim = 'idle'; i = idleI(); }
+      else if (u.alive && coverLevel(u) === 2 && av('wall')) {
+        // за полным укрытием — спиной к стене (лицом от неё)
+        anim = 'wall'; i = Math.floor(t / 1400 + (u.id || 0)) % n('wall');
+        const wd = DW.BT.DIR4.find(function (q) { const o = DW.BT.objAt(u.x + q[0], u.y + q[1]); return o && D.OBJ[o].cover === 2; });
+        if (wd) wallDir = S3.dir8(Math.atan2(-wd[1], -wd[0]));
+      } else if (u.alive && u.side === 'p' && ((t / 1000 + (u.id || 0) * 3.7) % 14) < 3 && av('idle2')) {
+        // иногда боец осматривает оружие
+        anim = 'idle2'; i = Math.min(n('idle2') - 1, Math.floor(((t / 1000 + (u.id || 0) * 3.7) % 14) / 3 * n('idle2')));
+      } else { anim = 'idle'; i = idleI(); }
     } else { anim = 'idle'; i = idleI(); }
     if (!n(anim)) { anim = n('idle') ? 'idle' : 'walk'; i = 0; }
     i = Math.min(i, n(anim) - 1);
     u._a3 = [anim, i];
-    const L = [[S.body, anim, i, d]];
+    const dd = wallDir !== null ? wallDir : d;
+    const L = [[S.body, anim, i, dd]];
     // бросок гранаты — замах пустой рукой (ствол за спиной не рисуем)
     // выстрел из РПГ — гранатомёт на плече вместо своего ствола
     const wset = an && an.kind === 'shoot' && an.a && an.a.data && an.a.data.rpg && S3.ready('w_rpg') ? 'w_rpg' : S.weapon;
-    if (wset && S3.ready(wset) && !(an && an.kind === 'throw')) L.push([wset, anim, i, d]);
+    if (wset && S3.ready(wset) && !(an && an.kind === 'throw')) L.push([wset, anim, i, dd]);
     return S3.frame(L);
   }
   function drawUnit(g, u, t, sel, alpha) {
@@ -2321,6 +2378,13 @@
         const a = t / 600;
         for (let k = 0; k < 3; k++) { g.beginPath(); g.ellipse(c[0], c[1], 25, 12.5, 0, a + k * 2.09, a + k * 2.09 + 0.7); g.stroke(); }
       } else baseRing(g, u, c, sc / 1.13, t);
+      // силовой щит стража бункера над союзником
+      if (u.side === 'e' && DW.BT.shielded && DW.BT.shielded(u)) {
+        const pl = 0.5 + Math.sin(t / 340 + u.id) * 0.2;
+        g.strokeStyle = 'rgba(111,216,255,' + (0.55 * pl) + ')'; g.lineWidth = 1.6;
+        g.beginPath(); g.ellipse(c[0], c[1] - 24 * sc, 17 * sc, 30 * sc, 0, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+        g.fillStyle = 'rgba(111,216,255,' + (0.08 * pl) + ')'; g.beginPath(); g.ellipse(c[0], c[1] - 24 * sc, 17 * sc, 30 * sc, 0, 0, 7); g.fill();
+      }
     }
     let fr = unit3d(u, an, tw, walk, running, t);
     if (fr) { /* 3D-кадр */ }
@@ -2426,11 +2490,14 @@
     if (!S || S.kind === 'turret' || !S3.ready(S.body)) return null;
     const d = S3.dir8(u.face);
     const p = an && an.kind === 'die' && an.p < 1 ? U.clamp(an.p, 0, 1) : 1;
-    const nd = S3.count(S.body, 'die');
+    // вариант гибели выбирается один раз (из загруженных)
+    if (!u._die) { const v = ['die', 'die2', 'die3'][(u.id || 0) % 3]; u._die = v !== 'die' && S.kind === 'human' && S3.avail(S.body, v) && (!S.weapon || S3.avail(S.weapon, v)) ? v : 'die'; }
+    const da = u._die;
+    const nd = S3.count(S.body, da);
     if (nd) {
       const i = Math.min(nd - 1, Math.floor(p * nd));
-      const L = [[S.body, 'die', i, d]];
-      if (S.weapon && S3.ready(S.weapon)) L.push([S.weapon, 'die', i, d]);
+      const L = [[S.body, da, i, d]];
+      if (S.weapon && S3.ready(S.weapon)) L.push([S.weapon, da, i, d]);
       const fr = S3.frame(L);
       return fr ? { fr: fr, lying: p > 0.5 } : null;
     }
@@ -2800,8 +2867,8 @@
     g.scale(GS, GS);
     const W = [0, HH], N = [HW, 0], E = [2 * HW, HH], S = [HW, 2 * HH];
     const r = U.srng(key * 13 + 1);
-    rockFace(g, W, S, hp, r, 1, true);
-    rockFace(g, S, E, hp, r, 0.62, true);
+    if (B.ground[key] === 12) { brickFace(g, W, S, hp, r, 1); brickFace(g, S, E, hp, r, 0.62); }
+    else { rockFace(g, W, S, hp, r, 1, true); rockFace(g, S, E, hp, r, 0.62, true); }
     g.save();
     g.beginPath(); g.moveTo(N[0], N[1]); g.lineTo(E[0], E[1]); g.lineTo(S[0], S[1]); g.lineTo(W[0], W[1]); g.closePath(); g.clip();
     g.drawImage(gIso, ((x - y) * HW - HW + B.h * HW) * GS, (x + y) * HH * GS, 2 * HW * GS, 2 * HH * GS, 0, 0, 2 * HW, 2 * HH);
@@ -3177,6 +3244,7 @@
           if (B.goal && B.goal.kind === 'rescue' && !B.goal.done && B.goal.y * B.w + B.goal.x === i) drawCaptive(g, B.goal, t, vis && vis[i]);
           const o = B.obj[i];
           if (!o && openAt(B, i) !== undefined) drawOpening(g, B, x, y, i, vis);
+          if (B.ladders && B.ladders.length) for (let li = 0; li < B.ladders.length; li++) if (B.ladders[li].y * B.w + B.ladders[li].x === i) drawLadder(g, B, B.ladders[li]);
           if (o === 23 && drawVehicleTile(g, B, x, y, i, vis, unitsAt, ov)) { /* техника — своя полоса спрайта */ }
           else if (o) {
             const vh = U.hash2(x, y, o);

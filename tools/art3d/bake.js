@@ -16,11 +16,15 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
   const { browser, page } = await open();
   const jobs = [];
   const canon = M.BODIES[0];
+  // движения: основные и редкие (отдельный атлас); без исходника — пропуск
+  const okAn = (a) => !a.src || has(a.src);
+  const CORE = M.HUMAN.filter((a) => !a.x && okAn(a)), EXTRA = M.HUMAN.filter((a) => a.x && okAn(a));
   for (const b of M.BODIES) {
     let src = b.src;
     if (!has(src) && M.BODY_FALLBACK[b.id] && has(M.BODY_FALLBACK[b.id])) src = M.BODY_FALLBACK[b.id];
     if (!has(src)) { console.log('нет тела', b.id); continue; }
-    jobs.push({ id: 'b_' + b.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, layer: 'body', anims: M.HUMAN, weapon: Object.assign({}, M.WEAPONS[1]) } });
+    jobs.push({ id: 'b_' + b.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, layer: 'body', anims: CORE, weapon: Object.assign({}, M.WEAPONS[1]) } });
+    if (EXTRA.length) jobs.push({ id: 'bx_' + b.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, layer: 'body', anims: EXTRA, weapon: Object.assign({}, M.WEAPONS[1]) } });
     // портрет: голова и плечи вполоборота
     jobs.push({ id: 'h_' + b.id, spec: { kind: 'head', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, clip: 'Idle', t: 0.4 } });
     // крупная фигура для экрана отряда (один кадр, ×4)
@@ -31,7 +35,8 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
     if (!has(src) && M.WEAPON_FALLBACK[w.id] && has(M.WEAPON_FALLBACK[w.id])) src = M.WEAPON_FALLBACK[w.id];
     if (!has(src)) { console.log('нет оружия', w.id); continue; }
     // ref — автомат: руки тел запечены на нём, рукоять любого ствола ставится туда же
-    jobs.push({ id: 'w_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: M.HUMAN, weapon: Object.assign({}, w, { src }), ref: M.WEAPONS[1] } });
+    jobs.push({ id: 'w_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: CORE, weapon: Object.assign({}, w, { src }), ref: M.WEAPONS[1] } });
+    if (EXTRA.length) jobs.push({ id: 'wx_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: EXTRA, weapon: Object.assign({}, w, { src }), ref: M.WEAPONS[1] } });
     jobs.push({ id: 'fw_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: M.FIGURE, dirs: [0], ss: 4, weapon: Object.assign({}, w, { src }), ref: M.WEAPONS[1] } });
   }
   for (const c of M.CREATURES) {

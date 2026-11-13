@@ -11,6 +11,7 @@
     return true;
   }
 
+  const FLANKERS = { raider: 1, thug: 1, boss: 1 };   // бандиты обходят с флангов
   AI.enemyTurn = async function () {
     const BT = DW.BT, B = BT.get();
     B.units.forEach(function (e) {
@@ -89,7 +90,9 @@
       e.ap = 0;
       return true;
     }
-    const R = BT.reach(e, e.mob * e.ap);
+    // стая: рядом ещё двое зверей — бегут быстрее
+    const pack = B.units.filter(function (o) { return o !== e && o.alive && o.side === 'e' && D.ENEMIES[o.type] && D.ENEMIES[o.type].beast && U.dist(o.x, o.y, e.x, e.y) <= 3; }).length >= 2;
+    const R = BT.reach(e, (e.mob + (pack ? 1 : 0)) * e.ap);
     let best = null;
     ts.forEach(function (t) {
       BT.DIR8.forEach(function (d) {
@@ -170,7 +173,7 @@
         const t = ts[k];
         if (!BT.canSeeFrom(x, y, t.x, t.y, e.sight)) continue;
         const info = BT.shotInfo(e, t, { fromX: x, fromY: y });
-        const v = info.hit + (t.hp <= W.dmg[1] ? 15 : 0) - (t.kind === 'turret' ? 10 : 0);
+        const v = info.hit + (t.hp <= W.dmg[1] ? 15 : 0) - (t.kind === 'turret' ? 10 : 0) + (info.flanked && FLANKERS[e.type] ? 14 : 0);
         if (v > shot) { shot = v; st = t; }
       }
       let safety = 0, n = 0;

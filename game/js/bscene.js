@@ -148,6 +148,14 @@
     hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective + '<div class="cond">' + BT().condText(B) + '</div>' +
       (B.concealed ? '<div class="cond conceal">Отряд скрыт · засада: +15 к меткости</div>' : '') +
       (B.reinf ? '<div class="cond reinf">Подкрепление врага на подходе!</div>' : '');
+    if (B.dark) {
+      // фонари: видно дальше, но и вас видно издалека
+      const lb = document.createElement('button');
+      lb.className = 'btn sm lightbtn' + (B.lights ? ' on' : '');
+      lb.textContent = 'Фонари: ' + (B.lights ? 'вкл (обзор +2, заметны)' : 'выкл (скрытно)');
+      lb.onclick = function (e) { e.stopPropagation(); if (B.phase !== 'player' || busy) return; BT().toggleLights(); dzKey = ''; BS.refresh(); };
+      hud.obj.appendChild(lb);
+    }
     hud.res.innerHTML = '<span>' + ic('ammo') + st.res.ammo + '</span><span>' + ic('grenades') + st.res.grenades + '</span><span>' + ic('meds') + st.res.meds + '</span>' +
       (st.res.rockets ? '<span>' + ic('rockets') + st.res.rockets + '</span>' : '') + '<span class="gemc">' + ic('gems') + (B.loot.gems || 0) + '</span>';
     renderSquad();

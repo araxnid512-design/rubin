@@ -17,6 +17,13 @@
   BT.idx = function (x, y) { return y * B.w + x; };
   BT.inb = function (x, y) { return x >= 0 && y >= 0 && x < B.w && y < B.h; };
   BT.objAt = function (x, y) { return BT.inb(x, y) ? B.obj[y * B.w + x] : 0; };
+  /* лестницы на крыши: переход между клеткой у стены и краем крыши разрешён при любом перепаде */
+  let ladderSet = {};
+  BT.indexLadders = function () {
+    ladderSet = {};
+    (B.ladders || []).forEach(function (l) { const a = l.y * B.w + l.x, b = l.ry * B.w + l.rx; ladderSet[a + '>' + b] = 1; ladderSet[b + '>' + a] = 1; });
+  };
+  BT.ladderEdge = function (i, j) { return !!ladderSet[i + '>' + j]; };
   BT.walkTile = function (x, y) {
     if (!BT.inb(x, y)) return false;
     const i = y * B.w + x;
@@ -95,7 +102,7 @@
       hp: Math.max(1, G.hp(s)), maxHp: G.maxHp(s), aim: G.aim(s) - (G.state.hungry ? 10 : 0), mob: G.mob(s),
       def: 0, armor: D.ARMORS[s.armor].armor, armorId: s.armor, weapon: s.weapon, clip: W.clip + (G.has(s, 'clip') ? 1 : 0), ap: 2,
       trait: s.trait, perks: (s.perks || []).slice(), bonds: s.bonds || null,
-      sight: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
+      sight0: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)), sight: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)) + (B.dark && B.lights ? 2 : 0), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
       alive: true, evac: false, kills: 0, xpGain: 0, face: 0, look: s.look, rank: G.rank(s)
     };
   }
@@ -133,9 +140,12 @@
       w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, hgt: m.hgt, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac, map: mapType,
       units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
       loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
-      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: [], vehicles: m.vehicles || []
+      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: [], vehicles: m.vehicles || [], ladders: m.ladders || []
     };
+    BT.indexLadders();
     BT.rollConditions(B, mapType);
+    // ночью и в пещерах — фонари: бойцы видят дальше, но их замечают издалека
+    B.dark = B.tod === 'night' || B.tod === 'cave'; B.lights = B.dark;
     // скрытное начало (как в XCOM 2): враги не знают об отряде, пока не заметят его вблизи
     B.concealed = o.kind !== 'defense' && o.kind !== 'ambush';
     const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
@@ -260,6 +270,7 @@
   };
   BT.restore = function (data) {
     B = data;
+    BT.indexLadders();
     BT.updateVision();
     return B;
   };
@@ -322,6 +333,10 @@
       if (BT.rayClear(pa[i][0], pa[i][1], pb[j][0], pb[j][1])) return true;
     }
     return false;
+  };
+  /* страж бункера прикрывает силовым щитом себя и союзников в 2 клетках */
+  BT.shielded = function (u) {
+    return u.side === 'e' && B.units.some(function (g) { return g.alive && g.type === 'guardian' && g.active && U.dist(g.x, g.y, u.x, u.y) <= 2; });
   };
   BT.canSee = function (a, b) { return BT.canSeeFrom(a.x, a.y, b.x, b.y, a.sight); };
 
@@ -401,6 +416,7 @@
     if (att.suppressed) { const sp = att.trait === 'calm' ? -20 : -40; hit += sp; parts.push(['Подавлен', sp]); }
     if (att.kind === 'soldier' && att.trait !== 'authority' && B.units.some(function (a) { return a.alive && a.trait === 'authority' && a !== att && U.dist(a.x, a.y, ax, ay) <= 5; })) { hit += 5; parts.push(['Крут рядом', 5]); }
     if (cv.cover && hasP(tgt, 'dig')) { hit -= 10; parts.push(['Окопник', -10]); }
+    if (tgt.side === 'e' && BT.shielded(tgt)) { hit -= 15; parts.push(['Щит стража', -15]); }
     if (att.side === 'e' && att.type !== 'alpha' && D.ENEMIES[att.type] && D.ENEMIES[att.type].beast && B.units.some(function (a) { return a.alive && a.type === 'alpha' && U.dist(a.x, a.y, att.x, att.y) <= 4; })) { hit += 10; parts.push(['Вожак рядом', 10]); }
     if (B.concealed && att.side === 'p' && !o.reaction) { hit += 15; parts.push(['Из засады', 15]); }
     if (att.kind === 'soldier' && att.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== att && (att.bonds[a.sid] || 0) >= 3 && U.dist(a.x, a.y, ax, ay) <= 1.5; })) { hit += 5; parts.push(['Товарищ рядом', 5]); }
@@ -464,9 +480,21 @@
   };
   /* Скрытность: зона обнаружения врага и раскрытие отряда */
   BT.DETECT = 4;
+  BT.detectR = function () {
+    if (B.dark) return BT.DETECT + (B.lights ? 2 : -1);
+    return B.weather === 'dust' ? BT.DETECT - 1 : BT.DETECT;
+  };
+  BT.toggleLights = function () {
+    if (!B.dark) return;
+    B.lights = !B.lights;
+    B.units.forEach(function (u) { if (u.kind === 'soldier' && u.sight0) u.sight = u.sight0 + (B.lights ? 2 : 0); });
+    BT.updateVision();
+    DW.TR.float(BT.soldiers()[0] ? BT.soldiers()[0].x : 0, BT.soldiers()[0] ? BT.soldiers()[0].y : 0, B.lights ? 'Фонари включены' : 'Фонари выключены', 'info');
+    DW.SFX.play('click');
+  };
   BT.detects = function (e) {
     if (!e.alive || e.side !== 'e' || e.active) return false;
-    const R = B.tod === 'night' || B.weather === 'dust' ? BT.DETECT - 1 : BT.DETECT;
+    const R = BT.detectR();
     return B.units.some(function (s) { return s.alive && s.side === 'p' && s.kind === 'soldier' && U.dist(s.x, s.y, e.x, e.y) <= R + 0.01 && BT.canSee(e, s); });
   };
   BT.detectZone = function () {
@@ -474,7 +502,7 @@
     const z = new Uint8Array(B.w * B.h); let any = false;
     B.units.forEach(function (e) {
       if (!e.alive || e.side !== 'e' || e.active || !e.seen) return;
-      const R = B.tod === 'night' || B.weather === 'dust' ? BT.DETECT - 1 : BT.DETECT;
+      const R = BT.detectR();
       for (let y = Math.max(0, e.y - R); y <= Math.min(B.h - 1, e.y + R); y++) for (let x = Math.max(0, e.x - R); x <= Math.min(B.w - 1, e.x + R); x++) {
         if (U.dist(x, y, e.x, e.y) > R + 0.01) continue;
         if (BT.canSeeFrom(e.x, e.y, x, y, e.sight || 9)) { z[y * B.w + x] = 1; any = true; }
@@ -631,7 +659,13 @@
     const r = Math.ceil(radius);
     for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
       if (!BT.inb(x, y) || U.dist(x, y, cx, cy) > radius + 0.01) continue;
-      if (B.obj[BT.idx(x, y)]) BT.damageObj(x, y, objDmg);
+      const ob = B.obj[BT.idx(x, y)];
+      if (ob) {
+        // взрыв проламывает кладку: кирпичная стена — с одной гранаты, каменная — с двух
+        const wall = ob === 1 || ob === 2 || ob === 13 || ob === 14;
+        BT.damageObj(x, y, wall ? objDmg * 2 : objDmg);
+        if (wall && !B.obj[BT.idx(x, y)]) DW.TR.float(x, y, 'Пролом!', 'info');
+      }
     }
     const hits = B.units.filter(function (u) { return u.alive && !u.evac && U.dist(u.x, u.y, cx, cy) <= radius + 0.01; });
     for (let k = 0; k < hits.length; k++) {
@@ -673,12 +707,13 @@
         if (occ[ni] === 2) continue;
         let step = 1;
         const dh = B.hgt ? B.hgt[ni] - B.hgt[i] : 0;
-        if (dh > 1 || dh < -1) continue;
+        const lad = (dh > 1 || dh < -1) && BT.ladderEdge(i, ni);
+        if ((dh > 1 || dh < -1) && !lad) continue;
         if (d[0] && d[1]) {
           if (dh || !BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
           step = 1.5;
         }
-        if (dh) step += 0.5;
+        if (dh) step += lad ? 1 : 0.5;
         const nc = c + step;
         if (nc > maxCost + 0.01 || nc >= cost[ni]) continue;
         cost[ni] = nc; prev[ni] = i;
@@ -714,7 +749,7 @@
         const ni = ny * B.w + nx;
         if (f[ni] !== Infinity) continue;
         if (!BT.walkTile(nx, ny)) continue;
-        if (B.hgt && Math.abs(B.hgt[ni] - B.hgt[i]) > 1) continue;
+        if (B.hgt && Math.abs(B.hgt[ni] - B.hgt[i]) > 1 && !BT.ladderEdge(i, ni)) continue;
         f[ni] = f[i] + 1;
         q.push(ni);
       }
@@ -771,6 +806,9 @@
       if (BT.checkEnd()) break;
     }
     u._run = false;
+    if (u.kind === 'soldier' && u.alive && path.length >= 2 && BT.DIR4.some(function (q) { const o = BT.objAt(u.x + q[0], u.y + q[1]); return o && D.OBJ[o].cover > 0; })) {
+      DW.TR.anim(u, 'slide', 420); await U.sleep(160);
+    }
     if (u.side === 'p' && B.concealed && !B.over) {
       const det = B.units.find(function (e) { return BT.detects(e); });
       if (det) { BT.reveal('Отряд обнаружен!'); await BT.activatePods([det]); await BT.wakeSeen(); }
@@ -972,7 +1010,8 @@
       if (u.side !== 'p' || !u.alive || u.evac) return;
       u.ap = u.kind === 'turret' ? 0 : 2;
       u.overwatch = false; u.hunker = false;
-      if (u.panicNow) { u.panicNow = false; u.ap = 1; u.hunker = true; DW.TR.float(u.x, u.y, 'Паника: 1 ОД', 'bad'); }
+      u.panicked = false;
+      if (u.panicNow) { u.panicNow = false; u.ap = 1; u.hunker = true; u.panicked = true; DW.TR.float(u.x, u.y, 'Паника: 1 ОД', 'bad'); }
       for (const k in u.cd) if (u.cd[k] > 0) u.cd[k]--;
     });
     BT.updateObjective();

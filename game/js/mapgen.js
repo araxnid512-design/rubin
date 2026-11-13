@@ -736,6 +736,35 @@
     return m;
   };
 
+  /* Дом с плоской крышей: глухой кирпичный блок на 3 уровня выше земли, наверх — по лестнице с восточной
+     или южной стороны (видны камере). На крыше мешки с песком: стрелку сверху +15 к меткости. */
+  const ROOFY = { ruins: 1, landing: 1, factory: 1, camp: 1, site: 1 };
+  function roofHouses(m, n) {
+    m.ladders = m.ladders || [];
+    for (let k = 0, tries = 0; k < n && tries < 120; tries++) {
+      const w = U.rand(3, 4), h = U.rand(3, 4);
+      const x0 = U.rand(9, m.w - w - 3), y0 = U.rand(2, m.h - h - 3);
+      // место: ровное, без воды и стен; мелкие предметы убираются
+      let ok = true, busy = 0; const base = m.hgt[I(m, x0, y0)];
+      for (let y = y0 - 1; y <= y0 + h && ok; y++) for (let x = x0 - 1; x <= x0 + w && ok; x++) {
+        if (!inb(m, x, y) || !walkG(m, x, y) || m.hgt[I(m, x, y)] !== base || m.ground[I(m, x, y)] === 9) ok = false;
+        else if (m.obj[I(m, x, y)]) { const o = m.obj[I(m, x, y)]; if (o === 2 || o === 11 || o === 14 || o === 15 || o === 23) ok = false; else busy++; }
+      }
+      if (!ok || busy > 4) continue;
+      for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) m.obj[I(m, x, y)] = 0;
+      for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = I(m, x, y); m.hgt[i] = base + 3; m.ground[i] = 12; }
+      // мешки на краю крыши
+      for (let q = 0; q < 2; q++) { const x = x0 + U.rand(0, w - 1), y = q ? y0 + h - 1 : y0 + U.rand(0, h - 1); if (!m.obj[I(m, x, y)]) setO(m, q ? x : x0 + w - 1, y, 6); }
+      // лестница: клетка у стены снаружи (на востоке или юге)
+      const east = Math.random() < 0.5;
+      const lx = east ? x0 + w : x0 + U.rand(0, w - 1), ly = east ? y0 + U.rand(0, h - 1) : y0 + h;
+      const rx = east ? lx - 1 : lx, ry = east ? ly : ly - 1;
+      if (m.obj[I(m, rx, ry)]) m.obj[I(m, rx, ry)] = 0;
+      m.ladders.push({ x: lx, y: ly, rx: rx, ry: ry, d: east ? 0 : 1 });
+      k++;
+    }
+  }
+
   MG.generate = function (type, o) {
     o = o || {};
     const gen = GEN[type] || GEN.ruins;
@@ -746,6 +775,8 @@
       if (m.post) m.post(m);
       if (m.kind !== 'defense') { const cy = m.h >> 1; for (let y = cy - 4; y <= cy + 4; y++) for (let x = 0; x <= 4; x++) if (inb(m, x, y)) m.hgt[I(m, x, y)] = 0; }
       smoothH(m);
+      m.ladders = [];
+      if (ROOFY[type] && m.kind !== 'defense') roofHouses(m, U.rand(1, 2));
       m.post = null;
       // спавн и туррели должны быть свободны
       const c = m.center;

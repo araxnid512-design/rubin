@@ -476,3 +476,5 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .sp-title.show { opacity: 1; transform: none; }
 .sp-t1 { font-size: clamp(30px, 12vh, 72px); font-weight: 800; letter-spacing: 0.12em; color: #f3e2c2; text-shadow: 0 0 24px rgba(255, 150, 60, 0.55), 0 4px 10px #000; }
 .sp-t2 { font-size: clamp(14px, 5vh, 28px); letter-spacing: 0.6em; color: var(--acc); margin-top: 4px; text-shadow: 0 2px 8px #000; }
+.b-obj .lightbtn { margin-top: 4px; font-size: 11px; padding: 3px 8px; pointer-events: auto; }
+.b-obj .lightbtn.on { border-color: #ffd27a; color: #ffd27a; }

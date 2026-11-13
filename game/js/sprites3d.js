@@ -34,6 +34,23 @@
   function keep() { const L = DW.gfxLevel ? DW.gfxLevel() : 2; return L === 0 ? 0.6 : (L === 1 ? 0.8 : 1); }
   S3.clear = function () { cache.clear(); CAP = [220, 300, 380][DW.gfxLevel ? DW.gfxLevel() : 2]; };
 
+  /* редкие движения лежат в дополнительном атласе: b_krut → bx_krut, w_ak → wx_ak */
+  function xid(id) { return id.charAt(0) + 'x' + id.slice(1); }
+  S3.setOf = function (id, anim) {
+    const s = A();
+    if (!s || !s[id] || s[id].frames[anim]) return id;
+    const x = xid(id);
+    return s[x] && s[x].frames[anim] ? x : id;
+  };
+  /* движение есть и уже загружено (иначе — начать загрузку и вернуть false) */
+  S3.avail = function (id, anim) {
+    const s = A();
+    if (!s || !s[id]) return false;
+    const set = S3.setOf(id, anim);
+    if (!s[set].frames[anim]) return false;
+    if (!state[set]) S3.load(set);
+    return state[set] === 'ok';
+  };
   function rect(id, anim, i, d) {
     const s = A()[id];
     const fr = s.frames[anim];
@@ -41,7 +58,11 @@
     const dirs = s.dirs || 8;
     return fr[i * dirs + (dirs === 1 ? 0 : d)] || null;
   }
-  S3.count = function (id, anim) { const s = A(); const a = s && s[id] && s[id].anims[anim]; return a ? a.n : 0; };
+  S3.count = function (id, anim) {
+    const s = A(); if (!s || !s[id]) return 0;
+    const a = s[id].anims[anim] || (s[xid(id)] && s[xid(id)].anims[anim]);
+    return a ? a.n : 0;
+  };
 
   /* Кадр в формате отрисовки: { c, sh, w, h, ox, oy } в точках мира. layers — [[setId, anim, i, d], …] */
   /* поправка положения ствола из «Мастерской оружия» для слоя оружия (w_… / fw_…) */
@@ -59,7 +80,9 @@
     const parts = [];
     let bg = null;   // рукоять автомата в кадре тела — сюда ставится рукоять любого ствола
     for (let k = 0; k < layers.length; k++) {
-      const l = layers[k];
+      let l = layers[k];
+      const sid = S3.setOf(l[0], l[1]);
+      if (sid !== l[0]) l = [sid, l[1], l[2], l[3]];
       if (!S3.ready(l[0])) { if (k === 0) return null; continue; }
       let r = rect(l[0], l[1], l[2], l[3]);
       if (!r) { if (k === 0) return null; continue; }
@@ -113,6 +136,7 @@
   }
   /* Дуло оружия в кадре (точки мира от стоп), [dx, dy] или null; body — набор тела (для подгонки под руку) */
   S3.muzzleAt = function (wset, anim, i, d, body) {
+    wset = S3.setOf(wset, anim); if (body) body = S3.setOf(body, anim);
     if (!S3.ready(wset)) return null;
     let r = rect(wset, anim, i, d);
     if (r && body && S3.ready(body) && r.length >= 11) { const b = rect(body, anim, i, d); if (b && b.length >= 11) r = alignTo(r, [b[9], b[10]]); }
@@ -165,6 +189,11 @@
     B.units.forEach(function (u) { const s = S3.setsFor(u); if (s) { S3.load(s.body); if (s.weapon) S3.load(s.weapon); if (u.kind === 'soldier') S3.load('h_' + s.body.slice(2)); } });
     for (const id in A()) if (id.indexOf('p_') === 0 && id !== 'p_base') S3.load(id);
     if (B.units.some(function (u) { return u.cls === 'heavy'; })) S3.load('w_rpg');
+    // редкие движения (гибель, ликование, паника) — через несколько секунд, чтобы не тормозить начало боя
+    if (!DW.gfxLevel || DW.gfxLevel() > 0) setTimeout(function () {
+      if (DW.BT.get() !== B) return;
+      B.units.forEach(function (u) { const s = S3.setsFor(u); if (s && s.kind === 'human') { const x = xid(s.body); if (A()[x]) S3.load(x); if (s.weapon && A()[xid(s.weapon)]) S3.load(xid(s.weapon)); } });
+    }, 4000);
   };
 
   /* Крупная фигура бойца для экрана отряда: холст или null (пока атласы не загружены) */

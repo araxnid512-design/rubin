@@ -28,7 +28,20 @@ const HUMAN = [
   { key: 'vault', clip: '*', src: MK('vault'), n: 3, mode: 'hand' },
   { key: 'climb', clip: '*', src: MK('climb'), n: 3, mode: 'hand' },
   { key: 'throw', clip: '*', src: MK('throw'), n: 3, mode: 'left' },
-  { key: 'heal', clip: '*', src: MK('heal'), n: 2, loop: true, mode: 'sling' }
+  { key: 'heal', clip: '*', src: MK('heal'), n: 2, loop: true, mode: 'sling' },
+  // этап 3: попадание, скольжение в укрытие, спиной к стене, крадущийся шаг, бросок с колена (основной атлас)
+  { key: 'hit2', clip: '*', src: MK('hit2'), n: 2, t0: 0.15, t1: 0.9, mode: 'carry' },
+  { key: 'slide', clip: '*', src: MK('slide'), n: 3, t0: 0.7, mode: 'carry' },
+  { key: 'wall', clip: '*', src: MK('wall'), n: 2, loop: true, mode: 'carry' },
+  { key: 'sneak', clip: '*', src: MK('sneak'), n: 6, loop: true, mode: 'carry' },
+  { key: 'throwk', clip: '*', src: MK('throwk'), n: 3, mode: 'left' },
+  // редкие — в отдельном атласе (bx_ / wx_), грузится по надобности: две гибели, ликование, паника, осмотр оружия, удар бандита
+  { key: 'die2', clip: '*', src: MK('die2'), n: 4, mode: 'hand', wide: true, x: true },
+  { key: 'die3', clip: '*', src: MK('die3'), n: 4, mode: 'hand', wide: true, x: true },
+  { key: 'cheer', clip: '*', src: MK('cheer'), n: 2, loop: true, mode: 'hand', x: true },
+  { key: 'panic', clip: '*', src: MK('panic'), n: 2, loop: true, mode: 'sling', x: true },
+  { key: 'idle2', clip: '*', src: MK('idle2'), n: 3, mode: 'carry', x: true },
+  { key: 'punch', clip: '*', src: MK('punch'), n: 3, mode: 'sling', x: true }
 ];
 // Крупная фигура (экран отряда): стойка с оружием
 const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4, mode: 'carry' }];

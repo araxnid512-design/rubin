@@ -18,7 +18,8 @@
     { n: 'Щебень', c: '#58524b', walk: true },
     { n: 'Вышка', c: '#7b5a35', walk: true, high: true },
     { n: 'Провал', c: '#121010', walk: false },
-    { n: 'Дощатый пол', c: '#6a5038', walk: true }
+    { n: 'Дощатый пол', c: '#6a5038', walk: true },
+    { n: 'Крыша', c: '#4a4642', walk: true }
   ];
 
   D.OBJ = {
