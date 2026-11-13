@@ -469,3 +469,10 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .wed-note { font-size: 12px; color: var(--dim); }
 .wed-foot { border-top: 1px solid var(--line2); padding-top: 4px; }
 .wed-ta { width: 100%; min-height: 140px; background: #120e0b; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: 11px monospace; padding: 6px; user-select: text; -webkit-user-select: text; touch-action: pan-y; }
+
+/* ---------- Заставка ---------- */
+.splash { z-index: 45; }
+.sp-title { position: absolute; left: 0; right: 0; top: 14%; text-align: center; opacity: 0; transform: scale(1.12); transition: opacity 1.4s ease-out, transform 2.6s ease-out; pointer-events: none; }
+.sp-title.show { opacity: 1; transform: none; }
+.sp-t1 { font-size: clamp(30px, 12vh, 72px); font-weight: 800; letter-spacing: 0.12em; color: #f3e2c2; text-shadow: 0 0 24px rgba(255, 150, 60, 0.55), 0 4px 10px #000; }
+.sp-t2 { font-size: clamp(14px, 5vh, 28px); letter-spacing: 0.6em; color: var(--acc); margin-top: 4px; text-shadow: 0 2px 8px #000; }

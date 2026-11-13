@@ -393,6 +393,8 @@
     setupInput();
     Main.setScene(MS);
     requestAnimationFrame(loop);
+    // начальная заставка (можно отключить в настройках)
+    if (DW.Splash && DW.settings.splash !== false && !/nosplash/.test(location.search)) DW.Splash.play();
   };
   DW.Main = Main;
   DW.MS = MS;

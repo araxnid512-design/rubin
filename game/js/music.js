@@ -241,6 +241,25 @@
       if (first) { pad(layer, T, B * 8, CH[c], 650, 0.06); bass(layer, T, CH[c][0] - 12, B * 7.5, 0.12); }
       THEME[b % 8].forEach(function (nt, i) { if (i === 0 || nt[2] >= 2) bell(layer, T + nt[1] * B, nt[0], 0.1, 3.6); });
     } },
+    /* заставка: стук сердца в пустоте, затем тема на колоколе и щипке, нарастание к названию (такт 3) */
+    intro: { bpm: 54, per: 1, prog: ['Dm', 'Bb', 'Gm', 'A', 'Dm', 'Bb', 'Gm', 'A'], fn: function (T, b, B, c) {
+      const ch = CH[c];
+      pad(layer, T, B * 4, b < 1 ? [ch[0], ch[0] + 7] : ch, b < 2 ? 420 : 750, b < 3 ? 0.05 : 0.065);
+      bass(layer, T, ch[0] - 12, B * 3.8, b < 3 ? 0.13 : 0.16);
+      if (b < 3) for (let i = 0; i < 4; i += 2) { kick(layer, T + i * B, 0.32); kick(layer, T + i * B + B * 0.28, 0.2); }
+      if (b === 1) THEME[0].forEach(function (nt) { bell(layer, T + nt[1] * B, nt[0], 0.06, 3); });
+      if (b === 2) {
+        THEME[2].forEach(function (nt) { pluck(layer, T + nt[1] * B, nt[0], 0.12, 1.4 + nt[2] * B); });
+        [0, 0.5, 1, 1.5, 2, 2.25, 2.5, 2.75, 3, 3.125, 3.25, 3.375, 3.5, 3.625, 3.75, 3.875].forEach(function (x, i) { tom(layer, T + x * B, 38 + (i % 3) * 3, 0.1 + i * 0.016); });
+      }
+      if (b === 3) {
+        // название: удар и колокольный аккорд
+        kick(layer, T, 0.8); tom(layer, T, 33, 0.55); noiseTo(layer, T, 2.5, 300, 0.6, 0.25, 'lowpass');
+        [62, 65, 69, 74].forEach(function (n, i) { bell(layer, T + i * 0.05, n, 0.1, 4.5); });
+        THEME[0].forEach(function (nt) { pluck(layer, T + B + nt[1] * B * 0.75, nt[0], 0.1, 1.6); });
+      }
+      if (b >= 4) THEME[(b - 4) % 8].forEach(function (nt) { bell(layer, T + nt[1] * B, nt[0] + 12, 0.04, 2.6); });
+    } },
     win: { bpm: 66, per: 2, prog: ['D', 'G', 'D', 'A'], fn: function (T, b, B, c, first) {
       if (first) { pad(layer, T, B * 8, CH[c].slice(1), 1100, 0.04); bass(layer, T, CH[c][0] - 12, B * 7.5, 0.14); }
       for (let i = 0; i < 8; i++) pluck(layer, T + i * B / 2, CH[c][ARP[i]] + 12, 0.07, 1.3, 3000);
