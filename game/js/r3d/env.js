@@ -63,6 +63,45 @@
     R3.renderer.toneMappingExposure = t.exp;
     R3.renderer.setClearColor(fogCol);
     E.B = B;
+    weather(B);
+  };
+  /* погода: дождь — косые струи, пыльная буря — летящая пыль, пепел — медленные хлопья; облако частиц вокруг камеры */
+  let wx = null;
+  function weather(B) {
+    if (wx) { E.group.remove(wx.obj); wx = null; }
+    const kind = B.weather;
+    if (kind !== 'rain' && kind !== 'dust' && kind !== 'ash') return;
+    if (B.tod === 'interior' || B.tod === 'cave') return;
+    const q = R3.q(), N = kind === 'rain' ? [400, 800, 1300][q] : [250, 450, 700][q];
+    const R = 18, Hh = 9;
+    const pos = new Float32Array(N * (kind === 'rain' ? 6 : 3)), seed = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) { seed[i * 3] = (Math.random() - 0.5) * 2 * R; seed[i * 3 + 1] = Math.random() * Hh; seed[i * 3 + 2] = (Math.random() - 0.5) * 2 * R; }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    let obj;
+    if (kind === 'rain') obj = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x9fb4c8, transparent: true, opacity: 0.38, depthWrite: false, fog: true }));
+    else obj = new THREE.Points(g, new THREE.PointsMaterial({ color: kind === 'dust' ? 0xc8a070 : 0xa8a4a0, size: kind === 'dust' ? 0.07 : 0.06, transparent: true, opacity: kind === 'dust' ? 0.55 : 0.7, depthWrite: false, sizeAttenuation: true }));
+    obj.frustumCulled = false; obj.renderOrder = 25;
+    E.group.add(obj);
+    wx = { kind: kind, obj: obj, pos: pos, seed: seed, N: N, R: R, Hh: Hh, t: 0 };
+  }
+  E.tick = function (dt) {
+    if (!wx) return;
+    wx.t += dt;
+    const c = R3.cam, p = wx.pos, s = wx.seed, R = wx.R, Hh = wx.Hh;
+    const fall = wx.kind === 'rain' ? 11 : (wx.kind === 'ash' ? 0.7 : 0.25), wind = wx.kind === 'dust' ? 3.5 : (wx.kind === 'rain' ? 1.6 : 0.5);
+    for (let i = 0; i < wx.N; i++) {
+      let y = s[i * 3 + 1] - fall * dt;
+      s[i * 3] += wind * dt + (wx.kind === 'ash' ? Math.sin(wx.t + i) * 0.2 * dt : 0);
+      if (wx.kind === 'dust') y += Math.sin(wx.t * 1.3 + i * 0.7) * 0.4 * dt;
+      if (y < 0) y += Hh;
+      if (s[i * 3] > R) s[i * 3] -= 2 * R;
+      s[i * 3 + 1] = y;
+      const X = c.tx + s[i * 3], Y = c.ty + y, Z = c.tz + s[i * 3 + 2];
+      if (wx.kind === 'rain') { p[i * 6] = X; p[i * 6 + 1] = Y; p[i * 6 + 2] = Z; p[i * 6 + 3] = X - wind * 0.035; p[i * 6 + 4] = Y + 0.4; p[i * 6 + 5] = Z; }
+      else { p[i * 3] = X; p[i * 3 + 1] = Y; p[i * 3 + 2] = Z; }
+    }
+    wx.obj.geometry.attributes.position.needsUpdate = true;
   };
   /* тень следует за точкой взгляда камеры: охват — сколько видно на экране */
   E.update = function () {

@@ -55,6 +55,7 @@
     R3.detail.update(t);
     R3.items.update(t);
     R3.world.tick(dt);
+    R3.env.tick(dt);
     R3.world.fogTick();
     R3.fogU.uTime.value += dt;
     // тряска 2D-камеры (взрывы, отдача) → 3D
