@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стенд хвата оружия</title>
+<!--
+  Стенд хвата: боец с оружием, движение и время, виды спереди/сбоку/сверху/с камеры игры и крупно каждая кисть;
+  ползунки — R3.grip.P (game/js/r3d/grip.js), кнопка «JSON» — параметры для вставки в grip.js.
+  Запуск: node tools/three3d/griplab/serve.js → http://localhost:8765/tools/three3d/griplab/
+  (страница грузит игровые скрипты по относительным путям ../../../game/…; из file:// браузер модели не отдаст).
+  Без окна (лист снимков): ?sheet=1&bodies=krut,heavy&weapons=ak,ppsh&poses=idle,aim,reload@0.9&views=game,front,rclose,lclose&grip=1
+  — после отрисовки window.__sheet = dataURL (PNG); см. sheet.js.
+-->
+<style>
+  :root { --bg: #1d2024; --panel: #262a30; --line: #3a4048; --text: #d8dde3; --mute: #8b949e; --acc: #e0a040; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 12px/1.35 system-ui, sans-serif; overflow: hidden; }
+  #side { position: absolute; left: 0; top: 0; bottom: 0; width: 300px; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 8px 10px; box-sizing: border-box; }
+  #view { position: absolute; left: 300px; right: 0; top: 0; bottom: 0; }
+  #cv { display: block; width: 100%; height: 100%; }
+  h3 { margin: 10px 0 4px; font-size: 12px; color: var(--acc); text-transform: uppercase; letter-spacing: .04em; }
+  h4 { margin: 8px 0 2px; font-size: 11px; color: var(--mute); }
+  .row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .row label { flex: 0 0 92px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row input[type=range] { flex: 1; min-width: 0; }
+  .row .val { flex: 0 0 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  select, button, textarea { background: #1b1e22; color: var(--text); border: 1px solid var(--line); border-radius: 3px; font: inherit; }
+  select { flex: 1; min-width: 0; }
+  button { padding: 3px 7px; cursor: pointer; }
+  button:hover { border-color: var(--acc); }
+  .btns { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  textarea { width: 100%; height: 120px; box-sizing: border-box; font: 11px/1.3 ui-monospace, monospace; }
+  #dbg { font: 11px/1.4 ui-monospace, monospace; color: var(--mute); white-space: pre; }
+  .lbl { position: absolute; color: #fff; font: 11px system-ui, sans-serif; background: rgba(0,0,0,.45); padding: 1px 5px; pointer-events: none; }
+  details > summary { cursor: pointer; color: var(--acc); margin: 6px 0 2px; }
+  @media (max-width: 700px) { #side { width: 100%; height: 45%; bottom: auto; } #view { left: 0; top: 45%; } }
+</style>
+</head>
+<body>
+<div id="side"></div>
+<div id="view"><canvas id="cv"></canvas></div>
+<script>window.DW = window.DW || {};</script>
+<script src="../../../game/js/lib/three.min.js"></script>
+<script src="../../../game/models/models.js"></script>
+<script src="../../../game/models/anim_human.js"></script>
+<script src="../../../game/js/r3d/core.js"></script>
+<!-- без world.js: туман войны стенду не нужен -->
+<script>DW.R3.world = { fogMat: function (m) { return m; } }; DW.R3.fogify = function (m) { return m; };</script>
+<script src="../../../game/js/r3d/units.js"></script>
+<script src="../../../game/js/r3d/grip.js"></script>
+<script src="lab.js"></script>
+</body>
+</html>
