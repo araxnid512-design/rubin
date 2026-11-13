@@ -445,3 +445,27 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .perkc .pk-r { display: flex; gap: 8px; flex-wrap: wrap; }
 .perkc .pk-r .btn { flex: 1; min-width: 150px; text-align: left; line-height: 1.25; }
 .reninp { width: 100%; margin-top: 8px; padding: 9px 10px; font: inherit; font-size: 16px; color: var(--text); background: #120e0b; border: 1px solid var(--line); border-radius: 6px; -webkit-user-select: text; user-select: text; }
+
+/* ---------- Мастерская оружия ---------- */
+.wed { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; padding: 6px calc(8px + var(--sr)) 6px calc(8px + var(--sl)); gap: 6px; touch-action: manipulation; }
+.wed-top { display: flex; align-items: center; gap: 8px; }
+.wed-title { font-weight: 700; color: var(--acc); font-size: 16px; white-space: nowrap; }
+.wed-guns { display: flex; gap: 2px; flex: 1; overflow-x: auto; touch-action: pan-x; }
+.wed-guns .chip { white-space: nowrap; }
+.wed-x { padding: 6px 10px; }
+.wed-x svg { width: 18px; height: 18px; }
+.wed-main { flex: 1; min-height: 0; display: flex; gap: 8px; }
+.wed-view { flex: 1.1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.wed-cv { flex: 1; min-height: 0; width: 100%; border: 1px solid var(--line2); border-radius: 8px; background: #1a1511; }
+.wed-ctr { display: flex; flex-direction: column; gap: 3px; }
+.wed-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.wed-row .btn.on { border-color: var(--acc); color: var(--acc); }
+.wed-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; background: var(--plate); border: 1px solid var(--line2); border-radius: 8px; padding: 6px; }
+.wed-tabs { display: flex; gap: 2px; }
+.wed-list { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+.wed-sl .wl { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); }
+.wed-sl .wl b { color: var(--text); font-weight: 600; }
+.wed-sl input[type=range] { width: 100%; accent-color: var(--acc); height: 22px; margin: 0; touch-action: none; }
+.wed-note { font-size: 12px; color: var(--dim); }
+.wed-foot { border-top: 1px solid var(--line2); padding-top: 4px; }
+.wed-ta { width: 100%; min-height: 140px; background: #120e0b; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: 11px monospace; padding: 6px; user-select: text; -webkit-user-select: text; touch-action: pan-y; }

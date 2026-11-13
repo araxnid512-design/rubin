@@ -1871,23 +1871,19 @@
     const dir = sx >= 0 ? 1 : -1;
     return [c[0] + dir * 20 * unitScale(u), c[1] - 27 * unitScale(u)];
   }
-  /* Особенности стрельбы каждого ствола */
-  const FXW = {
-    ppsh: { n: 7, gap: 46, w: 1.5, life: 90, flash: 11, flife: 45, tr: '#ffd27a', cas: '#c89a40', casS: 2, snd: 'smg', fk: 'smg', smoke: 3 },
-    ak: { n: 3, gap: 95, w: 2, flash: 15, flife: 65, snd: 'rifle' },
-    ak2: { n: 3, gap: 80, w: 2, flash: 14, flife: 60, tr: '#fff0b0', snd: 'ak2' },
-    shotgun: { n: 1, w: 1.6, flash: 22, flife: 110, fk: 'wide', smoke: 6, snd: 'shotgun' },
-    sniper: { n: 1, w: 3, life: 160, flash: 22, flife: 110, tr: '#fff6d8', smoke: 5, ring: true, fk: 'long', snd: 'sniper' },
-    hsniper: { n: 1, w: 4, life: 190, flash: 30, flife: 130, tr: '#fffbe8', smoke: 7, ring: true, fk: 'long', casS: 3.2, snd: 'hsniper' },
-    lmg: { n: 6, gap: 68, w: 2.2, flash: 17, flife: 60, tr: '#ffcf6a', snd: 'lmg', fk: 'smg' },
-    hlmg: { n: 5, gap: 85, w: 3, flash: 24, flife: 80, tr: '#ffc050', casS: 3, snd: 'hlmg', smoke: 6 }
-  };
+  /* Особенности стрельбы каждого ствола — DW.WT (weapontune.js, правятся в «Мастерской оружия») */
+  function FXof(W) {
+    if (!DW.WT || !DW.WT.has(W.id)) return { snd: W.snd };
+    const F = DW.WT.get(W.id).fire;
+    return { n: F.n, gap: F.gap, w: F.tw, life: F.tlife, flash: F.flash, flife: F.flife, tr: F.tr, cas: F.cas, casS: F.casS, eject: F.eject, smoke: F.smoke, ring: F.ring, fk: F.fk, kick: F.kick, shake: F.shake, spread: F.spread, wid: W.id };
+  }
+  TR.FXof = FXof;
   TR.shotFx = function (att, tgt, hit, W, show, suppress) {
     const s = spd();
     const m = muzzle(att);
     const tc = isoC(tgt.x, tgt.y);
     const ty0 = tc[1] - 24 * unitScale(tgt);
-    const FW = FXW[W.id] || {};
+    const FW = FXof(W);
     const cnt = FW.n || ({ rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1);
     const gap = (FW.gap || (W.snd === 'lmg' ? 70 : 90)) / s;
     const pre = W.snd === 'spit' ? 300 / s : 120 / s;
@@ -1900,7 +1896,9 @@
       if (W.snd !== 'spit' && W.snd !== 'beam') {
         for (let i = 0; i < cnt; i++) {
           setTimeout(function () {
-            fx.parts.push({ x: m[0] - fdir * 12, y: m[1] + 22, z: 26, vx: -fdir * (30 + Math.random() * 40), vy: (Math.random() - 0.3) * 30, vz: 70 + Math.random() * 50, t0: now(), life: 2600, color: FW.cas || (W.snd === 'shotgun' ? '#b8302a' : '#e0b848'), size: FW.casS || 2.4, grav: 420, cas: true, late: true });
+            const ej = FW.eject === undefined ? 1 : FW.eject, PH = DW.WT ? DW.WT.phys() : { casGrav: 420 };
+            fx.parts.push({ x: m[0] - fdir * 12, y: m[1] + 22, z: 26, vx: -fdir * (30 + Math.random() * 40) * ej, vy: (Math.random() - 0.3) * 30 * ej, vz: (70 + Math.random() * 50) * ej, t0: now(), life: 2600, color: FW.cas || (W.snd === 'shotgun' ? '#b8302a' : '#e0b848'), size: FW.casS || 2.4, grav: PH.casGrav, cas: true, late: true });
+            if (FW.shake && show) TR.shake = Math.max(TR.shake || 0, FW.shake);
           }, rt(i * gap));
         }
         for (let k = 0; k < (FW.smoke || 4); k++) fx.parts.push({ x: m[0] + fdir * 4, y: m[1] + 22, z: 22, vx: fdir * (8 + Math.random() * 14), vy: (Math.random() - 0.5) * 6, vz: 14 + Math.random() * 10, t0: now() + (cnt - 1) * gap, life: 1300, color: 'rgba(200,196,188,0.32)', size: 6 + Math.random() * 6, grav: -8 });
@@ -1911,7 +1909,7 @@
     for (let i = 0; i < cnt; i++) {
       let ex = tc[0], ey = ty0;
       if (cover && !suppress) { const cc = isoC(cover[0], cover[1]); ex = cc[0] + (Math.random() - 0.5) * 14; ey = cc[1] - 16 - Math.random() * 14; }
-      else if (!hit || suppress) { const a = Math.random() * Math.PI * 2, d = 22 + Math.random() * 26; ex += Math.cos(a) * d; ey += Math.sin(a) * d * 0.6; }
+      else if (!hit || suppress) { const a = Math.random() * Math.PI * 2, d = (22 + Math.random() * 26) * (FW.spread || 1); ex += Math.cos(a) * d; ey += Math.sin(a) * d * 0.6; }
       else { ex += (Math.random() - 0.5) * 8; ey += (Math.random() - 0.5) * 8; }
       fx.tracers.push({ x1: m[0], y1: m[1], x2: ex, y2: ey, t0: t0 + i * gap, life: W.snd === 'spit' ? 280 : (FW.life || 115), color: col, w: FW.w || (W.snd === 'sniper' || W.snd === 'beam' ? 3 : (W.snd === 'spit' ? 6 : 2)), spit: W.snd === 'spit' });
       if (W.snd === 'shotgun') for (let k = 0; k < 7; k++) fx.tracers.push({ x1: m[0], y1: m[1], x2: ex + (Math.random() - 0.5) * 30, y2: ey + (Math.random() - 0.5) * 20, t0: t0, life: 110, color: col, w: 1.2 });
@@ -1923,7 +1921,14 @@
         }, rt(pre + i * gap + 100 / s));
       }
     }
-    if (show || att.side === 'p') setTimeout(function () { DW.SFX.play(FW.snd || W.snd); }, rt(pre));
+    if (show || att.side === 'p') {
+      if (FW.wid && DW.SFX.shot) {
+        // каждый выстрел очереди — свой звук, ровно со вспышкой; дальние выстрелы тише и глуше
+        const Bq = DW.BT.get(), env = Bq && (Bq.tod === 'interior' || Bq.tod === 'cave') ? 'in' : 'out';
+        const far = att.side === 'p' ? 0 : 0.35;
+        setTimeout(function () { for (let i = 0; i < cnt; i++) DW.SFX.shot(FW.wid, { when: i * gap / 1000, far: far, env: env }); }, rt(pre));
+      } else setTimeout(function () { DW.SFX.play(FW.snd || W.snd); }, rt(pre));
+    }
     for (let i = 0; i < cnt; i++) fx.flashes.push({ x: m[0], y: m[1], r: (FW.flash || 14) * (0.85 + Math.random() * 0.3), t0: t0 + i * gap, life: FW.flife || 70, muzzle: true, dir: fdir, kind: FW.fk || 'std' });
     const dur = pre + (cnt - 1) * gap + 190 / s;
     return new Promise(function (res) { setTimeout(res, rt(dur)); });
@@ -1962,7 +1967,11 @@
     for (let i = fx.projs.length - 1; i >= 0; i--) { const p = fx.projs[i]; if (t - p.t0 >= p.dur) { fx.projs.splice(i, 1); p.res(); } }
     fx.parts.forEach(function (p) {
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz -= p.grav * dt;
-      if (p.z < 0 && p.grav > 0) { p.z = 0; p.vz = -p.vz * 0.3; p.vx *= 0.5; p.vy *= 0.5; }
+      if (p.z < 0 && p.grav > 0) {
+        const PH = p.cas && DW.WT ? DW.WT.phys() : null;
+        if (p.cas && !p.tk && p.vz < -40) { p.tk = 1; if (DW.SFX.tink) DW.SFX.tink(p.size > 2.7); }
+        p.z = 0; p.vz = -p.vz * (PH ? PH.casBounce : 0.3); const fr2 = PH ? PH.casFric : 0.5; p.vx *= fr2; p.vy *= fr2;
+      }
       p.vx *= 0.97; p.vy *= 0.97;
     });
     fx.parts = fx.parts.filter(function (p) { return t - p.t0 < p.life; });
@@ -2333,8 +2342,14 @@
     const tk = U.clamp((t - ts.t0) / (170 / spd()), 0, 1);
     const sx = tk < 1 && !fr.d3 ? 0.18 + 0.82 * U.ease(tk) : 1;
     // 3D-кадр: лёгкий отброс при попадании (у рисованных он встроен в кадр)
-    const kb = fr.d3 && an && an.kind === 'hit' ? -fi.dir * Math.sin(an.p * Math.PI) * 3 : 0;
-    g.drawImage(fr.c, c[0] - fr.ox * sx + kb, c[1] - fr.oy + bob, fr.w * sx, fr.h);
+    let kb = fr.d3 && an && an.kind === 'hit' ? -fi.dir * Math.sin(an.p * Math.PI) * (DW.WT ? DW.WT.phys().knock : 3) : 0, ky = 0;
+    if (fr.d3 && an && an.kind === 'shoot' && u.weapon && DW.WT && DW.WT.has(u.weapon) && an.a && an.a.data) {
+      // отдача: короткий толчок назад на каждом выстреле очереди
+      const nn = an.a.data.cnt || 1, q = (an.p * nn) % 1, rc = q < 0.25 ? q / 0.25 : Math.max(0, 1 - (q - 0.25) / 0.5);
+      const kk = DW.WT.get(u.weapon).fire.kick * rc * (an.p < 0.98 ? 1 : 0);
+      kb -= fi.dir * kk; ky = kk * 0.25;
+    }
+    g.drawImage(fr.c, c[0] - fr.ox * sx + kb, c[1] - fr.oy + bob + ky, fr.w * sx, fr.h);
     if (!tw && !an && u.kind === 'soldier' && DW.G.smoker(u)) {
       const k = (t / 1600) % 1;
       g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';

@@ -775,7 +775,7 @@
   BT.doReload = function (u) {
     u.clip = D.WEAPONS[u.weapon].clip; u.ap -= 1;
     DW.TR.anim(u, 'reload', { ppsh: 1100, lmg: 1200, hlmg: 1300, shotgun: 1000, sniper: 900, hsniper: 1000 }[u.weapon] || 850);
-    DW.SFX.play('reload'); DW.TR.float(u.x, u.y, 'Перезарядка', 'info');
+    if (DW.SFX.reload && DW.WT) DW.SFX.reload(DW.WT.RK[u.weapon]); else DW.SFX.play('reload'); DW.TR.float(u.x, u.y, 'Перезарядка', 'info');
     DW.TR.bark(u, 'reload');
   };
   BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); DW.SFX.play('reload'); DW.TR.bark(u, 'overwatch'); };

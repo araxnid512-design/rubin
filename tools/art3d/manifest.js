@@ -6,31 +6,32 @@ const CLIPS = S + 'player.glb'; // клипы с винтовкой (герой 
 // Набор движений человека с оружием (кадров на направление; направлений 8)
 const MK = (m) => S + 'dw/m_krut_' + m + '.glb'; // движения по тексту Tripo (на скелете Крута)
 const HUMAN = [
-  { key: 'idle', clip: 'IdleRifle', n: 3, loop: true, fps: 2 },
-  { key: 'walk', clip: 'WalkRifle', n: 8, loop: true },
-  { key: 'run', clip: 'RunRifle', n: 6, loop: true },
-  { key: 'aim', clip: 'AimRifle', n: 1, t0: 0.5 },
-  { key: 'shoot', clip: 'ShootRifle', n: 2, t0: 0, t1: 0.1 },
-  { key: 'reload', clip: 'ReloadRifle', n: 5, noIK: true },
-  { key: 'hit', clip: 'HitRifle', n: 2, t0: 0.05, t1: 0.3 },
-  { key: 'die', clip: 'Death', n: 5, noIK: true },
-  { key: 'melee', clip: 'Melee', n: 3, noIK: true },
-  { key: 'crouch', clip: 'IdleRifle', n: 1, crouch: 0.4 },
-  { key: 'crouchAim', clip: 'AimRifle', n: 1, t0: 0.5, crouch: 0.4 },
-  { key: 'hunker', clip: 'IdleRifle', n: 1, crouch: 0.62 },
+  // mode — хват: carry (переноска, ствол вперёд-вниз), aim (приклад в плече), hand / left (в кисти), sling (за спиной)
+  { key: 'idle', clip: 'IdleRifle', n: 3, loop: true, fps: 2, mode: 'carry' },
+  { key: 'walk', clip: 'WalkRifle', n: 8, loop: true, mode: 'carry' },
+  { key: 'run', clip: 'RunRifle', n: 6, loop: true, mode: 'carry' },
+  { key: 'aim', clip: 'AimRifle', n: 1, t0: 0.5, mode: 'aim' },
+  { key: 'shoot', clip: 'ShootRifle', n: 2, t0: 0, t1: 0.1, mode: 'aim', recoilFirst: [0.05, 5] },
+  { key: 'reload', clip: 'ReloadRifle', n: 5, mode: 'carry', freeL: true },
+  { key: 'hit', clip: 'HitRifle', n: 2, t0: 0.05, t1: 0.3, mode: 'carry' },
+  { key: 'die', clip: 'Death', n: 5, mode: 'hand' },
+  { key: 'melee', clip: 'Melee', n: 3, mode: 'hand' },
+  { key: 'crouch', clip: 'IdleRifle', n: 1, crouch: 0.4, mode: 'carry' },
+  { key: 'crouchAim', clip: 'AimRifle', n: 1, t0: 0.5, crouch: 0.4, mode: 'aim' },
+  { key: 'hunker', clip: 'IdleRifle', n: 1, crouch: 0.62, mode: 'carry' },
   // из-за полного укрытия: выглянуть, очередь, назад; с колена за низким; дозор с колена; пригнуться под огнём
-  { key: 'peek', clip: '*', src: MK('peek'), n: 4, noIK: true },
-  { key: 'kneel', clip: '*', src: MK('kneel'), n: 3, noIK: true },
-  { key: 'watch', clip: '*', src: MK('watch'), n: 2, loop: true, noIK: true },
-  { key: 'duck', clip: '*', src: MK('duck'), n: 2, loop: true, noIK: true },
-  // перелезть через низкое и залезть на уступ, бросок гранаты, перевязка
-  { key: 'vault', clip: '*', src: MK('vault'), n: 3, noIK: true },
-  { key: 'climb', clip: '*', src: MK('climb'), n: 3, noIK: true },
-  { key: 'throw', clip: '*', src: MK('throw'), n: 3, noIK: true },
-  { key: 'heal', clip: '*', src: MK('heal'), n: 2, loop: true, noIK: true }
+  { key: 'peek', clip: '*', src: MK('peek'), n: 4, mode: 'aim' },
+  { key: 'kneel', clip: '*', src: MK('kneel'), n: 3, mode: 'aim' },
+  { key: 'watch', clip: '*', src: MK('watch'), n: 2, loop: true, mode: 'aim' },
+  { key: 'duck', clip: '*', src: MK('duck'), n: 2, loop: true, mode: 'carry' },
+  // перелезть через низкое и залезть на уступ (оружие в правой руке), бросок гранаты (в левой), перевязка (за спиной)
+  { key: 'vault', clip: '*', src: MK('vault'), n: 3, mode: 'hand' },
+  { key: 'climb', clip: '*', src: MK('climb'), n: 3, mode: 'hand' },
+  { key: 'throw', clip: '*', src: MK('throw'), n: 3, mode: 'left' },
+  { key: 'heal', clip: '*', src: MK('heal'), n: 2, loop: true, mode: 'sling' }
 ];
 // Крупная фигура (экран отряда): стойка с оружием
-const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4 }];
+const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4, mode: 'carry' }];
 const W = (id, file, len, grip, fore, gy, fy, my) => ({ id, src: file, len, grip, fore, gy, fy, my });
 // Оружие игры → модель (ствол к −Z), длина, хват (доли от приклада), высоты точек (доли высоты)
 const WEAPONS = [
@@ -41,8 +42,8 @@ const WEAPONS = [
   W('lmg', S + 'w_rpk.glb', 1.04, 0.33, 0.52, 0.55, 0.72, 0.85),
   W('ak2', S + 'w_ak107.glb', 0.94, 0.36, 0.6, 0.55, 0.72, 0.85),
   Object.assign(W('hsniper', DW + 'w_ksvk.glb', 1.35, 0.42, 0.6, 0.45, 0.6, 0.75), { flip: true }),
-  W('hlmg', DW + 'w_kord.glb', 1.6, 0.3, 0.5, 0.5, 0.65, 0.8),
-  W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6)
+  Object.assign(W('hlmg', DW + 'w_kord.glb', 1.6, 0.3, 0.5, 0.5, 0.65, 0.8), { hip: true }), // Корд — от бедра
+  Object.assign(W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6), { adj: { aim: { p: [0.04, 0.12, -0.38], r: [0, 0, 0] } } }) // труба на плече
 ];
 // запасные модели, пока новых нет
 const WEAPON_FALLBACK = { ppsh: DW + 'w_ppsh.glb', hsniper: S + 'w_awm.glb', hlmg: S + 'w_pkt.glb' };

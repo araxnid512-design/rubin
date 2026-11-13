@@ -194,7 +194,9 @@ export function makeWeapon(gltf, w) {
   const g = new THREE.Group(); g.add(inner);
   const fore = V(0, (box.min.y + (w.fy !== undefined ? w.fy : 0.55) * size.y - yg) * k, -(w.fore - w.grip) * L * k);
   const muzzle = V(0, (box.min.y + (w.my !== undefined ? w.my : 0.75) * size.y - yg) * k, -(1 - w.grip) * L * k);
-  return { g, fore, muzzle, len: w.len };
+  // приклад: от точки хвата назад по оси (+Z) и чуть выше (середина затыльника)
+  const buttZ = w.grip * L * k, buttY = (box.min.y + (w.by !== undefined ? w.by : 0.62) * size.y - yg) * k;
+  return { g, fore, muzzle, len: w.len, buttZ, buttY, hipAim: !!w.hip };
 }
 
 /* Ладонь: середина между запястьем и основанием среднего пальца (или чуть дальше кости кисти) */

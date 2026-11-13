@@ -66,6 +66,105 @@
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  /* ---------- Выстрел по слоям ----------
+     щелчок (короткий высокий треск), корпус (полосовой шум), удар (низкий тон с падением), хвост (глухой гул),
+     эхо (свёртка со сгенерированным откликом: на улице коротко, в помещении и пещере — гулко), хрип (перегруз),
+     затвор (механика после выстрела). Параметры — DW.WT (правятся в «Мастерской оружия»). */
+  let verb = null, verbIn = null, shaper = null, lastTink = 0;
+  function reverb() {
+    if (verb) return verbIn;
+    const len = Math.floor(ctx.sampleRate * 1.6);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) { const t = i / ctx.sampleRate; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2) * (t < 0.012 ? t / 0.012 : 1); }
+    }
+    verb = ctx.createConvolver(); verb.buffer = buf;
+    verbIn = ctx.createGain(); verbIn.gain.value = 1;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+    verbIn.connect(verb); verb.connect(lp); lp.connect(master);
+    return verbIn;
+  }
+  function distCurve(k) {
+    const n = 1024, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; c[i] = (1 + k) * x / (1 + k * Math.abs(x)); }
+    return c;
+  }
+  function nz(t, dur, type, freq, q, gain, dst, a) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + (a || 0.002)); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    src.connect(f); f.connect(g); g.connect(dst);
+    src.start(t, Math.random() * 1.2); src.stop(t + dur + 0.05);
+    return g;
+  }
+  function tn(t, dur, f0, f1, type, gain, dst) {
+    const o = ctx.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g); g.connect(dst); o.start(t); o.stop(t + dur + 0.05);
+  }
+  /* один выстрел ствола id; o: { when (с от сейчас), far (0..1 — дальше тише и глуше), env ('out'|'in'), p (свои параметры) } */
+  S.shot = function (id, o) {
+    if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
+    o = o || {};
+    const P = o.p || (DW.WT ? DW.WT.get(id).snd : null);
+    if (!P) { S.play('rifle'); return; }
+    try {
+      const t = ctx.currentTime + 0.01 + (o.when || 0);
+      const far = o.far || 0, ph = DW.WT ? DW.WT.phys() : { echoOut: 0.25, echoIn: 0.9 };
+      const pt = P.pitch * (1 + (Math.random() - 0.5) * 2 * (P.jit || 0));
+      const out = ctx.createGain(); out.gain.value = P.vol * (1 - far * 0.6);
+      // перегруз — общий на выстрел
+      let dst = out;
+      if (P.dist > 0.02) {
+        const ws = ctx.createWaveShaper(); ws.curve = distCurve(P.dist * 8); ws.oversample = 'none';
+        ws.connect(out); dst = ws;
+      }
+      if (far > 0.05) { const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 9000 - far * 6500; lp.connect(dst); dst = lp; }
+      out.connect(master);
+      // эхо
+      const env = o.env === 'in' ? ph.echoIn : ph.echoOut;
+      if (P.echo > 0.01 && env > 0.01) { const sg = ctx.createGain(); sg.gain.value = P.echo * env * (0.6 + far * 0.8); out.connect(sg); sg.connect(reverb()); }
+      if (P.crack > 0.01) nz(t, 0.018, 'highpass', 3200 * pt, 0.7, 0.9 * P.crack, dst, 0.0008);
+      if (P.body > 0.01) nz(t, P.bodyD, 'bandpass', P.bodyF * pt, 0.9, 0.85 * P.body, dst, 0.0015);
+      if (P.thump > 0.01) tn(t, P.thumpD, P.thumpF * 1.9 * pt, P.thumpF * 0.45 * pt, 'triangle', 0.55 * P.thump, dst);
+      if (P.tail > 0.01) nz(t + 0.008, P.tailD, 'lowpass', 520 * pt, 0.6, 0.45 * P.tail, dst, 0.02);
+      if (P.mech > 0.01 && P.mechD > 0) {
+        const tm = t + P.mechD / 1000;
+        nz(tm, 0.05, 'bandpass', 2600, 4, 0.35 * P.mech, out); tn(tm, 0.03, 900, 500, 'square', 0.05 * P.mech, out);
+        nz(tm + 0.12, 0.06, 'bandpass', 2100, 4, 0.4 * P.mech, out); tn(tm + 0.12, 0.035, 700, 380, 'square', 0.06 * P.mech, out);
+      }
+    } catch (e) { /* ignore */ }
+  };
+  /* звон гильзы о землю (не чаще 12 раз в секунду) */
+  S.tink = function (big) {
+    if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
+    const now = ctx.currentTime;
+    if (now - lastTink < 0.08) return;
+    lastTink = now;
+    const k = DW.WT ? DW.WT.phys().tink : 0.5;
+    if (k <= 0.01) return;
+    const f = (big ? 2600 : 3800) * (0.85 + Math.random() * 0.3);
+    tone(now + 0.005, 0.09, f, f * 0.97, 'sine', 0.035 * k); tone(now + 0.005, 0.05, f * 1.51, f * 1.48, 'sine', 0.02 * k);
+  };
+  /* перезарядка по устройству ствола: диск, магазин, короб, затвор, помпа */
+  S.reload = function (kind) {
+    if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
+    const t = ctx.currentTime + 0.01;
+    const clk = function (dt, f, g) { noise(t + dt, 0.045, f, 4, g); tone(t + dt, 0.03, f / 3, f / 5, 'square', g * 0.15); };
+    try {
+      switch (kind) {
+        case 'drum': clk(0, 1800, 0.3); clk(0.22, 1500, 0.35); noise(t + 0.3, 0.25, 2800, 6, 0.08); clk(0.6, 2000, 0.4); clk(0.8, 2600, 0.35); break;
+        case 'box': clk(0, 1600, 0.35); noise(t + 0.15, 0.35, 3500, 3, 0.12); clk(0.55, 1400, 0.4); clk(0.8, 2400, 0.4); break;
+        case 'bolt': clk(0, 2400, 0.35); noise(t + 0.06, 0.08, 3000, 3, 0.25); clk(0.18, 2000, 0.4); break;
+        case 'pump': clk(0, 1700, 0.3); clk(0.25, 1700, 0.3); noise(t + 0.45, 0.07, 1400, 2, 0.4); clk(0.58, 1200, 0.5); break;
+        default: clk(0, 1700, 0.35); clk(0.32, 1500, 0.4); clk(0.55, 2400, 0.4); noise(t + 0.6, 0.06, 3000, 3, 0.25); break;
+      }
+    } catch (e) { /* ignore */ }
+  };
+
   S.play = function (name) {
     if (!DW.settings.sound || !ctx) return;
     if (ctx.state === 'suspended') return;

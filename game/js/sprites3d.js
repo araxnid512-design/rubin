@@ -44,8 +44,14 @@
   S3.count = function (id, anim) { const s = A(); const a = s && s[id] && s[id].anims[anim]; return a ? a.n : 0; };
 
   /* Кадр в формате отрисовки: { c, sh, w, h, ox, oy } в точках мира. layers — [[setId, anim, i, d], …] */
+  /* поправка положения ствола из «Мастерской оружия» для слоя оружия (w_… / fw_…) */
+  function holdOf(set, anim) {
+    if (!DW.WT) return null;
+    const wid = set.indexOf('fw_') === 0 ? set.slice(3) : (set.indexOf('w_') === 0 ? set.slice(2) : null);
+    return wid ? DW.WT.hold(wid, anim) : null;
+  }
   S3.frame = function (layers, flip) {
-    const key = layers.map(function (l) { return l.join(':'); }).join('|') + (flip ? 'F' : '');
+    const key = layers.map(function (l) { return l.join(':'); }).join('|') + (flip ? 'F' : '') + (DW.WT && layers.length > 1 ? '#' + DW.WT.ver : '');
     const hit = cache.get(key);
     if (hit) { cache.delete(key); cache.set(key, hit); return hit; }
     const sets = A();
@@ -57,8 +63,15 @@
       const r = rect(l[0], l[1], l[2], l[3]);
       if (!r) { if (k === 0) return null; continue; }
       ss = sets[l[0]].ss || 2;
-      parts.push({ im: imgs[l[0]][r[0]], r: r, h: half[l[0]] ? 0.5 : 1 });
-      L = Math.min(L, -r[5]); T = Math.min(T, -r[6]); R = Math.max(R, r[3] - r[5]); Bt = Math.max(Bt, r[4] - r[6]);
+      const ho = k > 0 && r.length >= 11 ? holdOf(l[0], l[1]) : null;
+      parts.push({ im: imgs[l[0]][r[0]], r: r, h: half[l[0]] ? 0.5 : 1, ho: ho, ss: ss });
+      if (ho) {
+        const sg = r[7] >= r[9] ? 1 : -1;
+        [[-r[5], -r[6]], [r[3] - r[5], -r[6]], [-r[5], r[4] - r[6]], [r[3] - r[5], r[4] - r[6]]].forEach(function (c) {
+          const p = DW.WT.apply(ho, c[0], c[1], r[9], r[10], sg, ss);
+          L = Math.min(L, p[0]); T = Math.min(T, p[1]); R = Math.max(R, p[0]); Bt = Math.max(Bt, p[1]);
+        });
+      } else { L = Math.min(L, -r[5]); T = Math.min(T, -r[6]); R = Math.max(R, r[3] - r[5]); Bt = Math.max(Bt, r[4] - r[6]); }
     }
     if (!parts.length) return null;
     const q = keep();
@@ -67,7 +80,17 @@
     const g = c.getContext('2d');
     if (flip) { g.translate(W, 0); g.scale(-1, 1); }
     g.scale(q, q);
-    parts.forEach(function (p) { const r = p.r, h = p.h; g.drawImage(p.im, r[1] * h, r[2] * h, r[3] * h, r[4] * h, -r[5] - L, -r[6] - T, r[3], r[4]); });
+    parts.forEach(function (p) {
+      const r = p.r, h = p.h, ho = p.ho;
+      if (!ho) { g.drawImage(p.im, r[1] * h, r[2] * h, r[3] * h, r[4] * h, -r[5] - L, -r[6] - T, r[3], r[4]); return; }
+      // ствол с поправкой: поворот и масштаб вокруг рукояти, сдвиг вперёд/вверх
+      const sg = r[7] >= r[9] ? 1 : -1;
+      g.save();
+      g.translate(-L + r[9] + ho.x * sg * p.ss, -T + r[10] - ho.y * p.ss);
+      g.rotate(-ho.r * sg * Math.PI / 180); g.scale(ho.s || 1, ho.s || 1);
+      g.drawImage(p.im, r[1] * h, r[2] * h, r[3] * h, r[4] * h, -r[5] - r[9], -r[6] - r[10], r[3], r[4]);
+      g.restore();
+    });
     const sh = document.createElement('canvas'); sh.width = W; sh.height = H;
     const sg = sh.getContext('2d'); sg.drawImage(c, 0, 0); sg.globalCompositeOperation = 'source-in'; sg.fillStyle = '#000'; sg.fillRect(0, 0, W, H);
     const k = 1 / ss;
@@ -82,7 +105,9 @@
     if (!S3.ready(wset)) return null;
     const r = rect(wset, anim, i, d);
     if (!r || r.length < 9) return null;
-    const k = 1 / (A()[wset].ss || 2);
+    const ss = A()[wset].ss || 2, k = 1 / ss;
+    const ho = r.length >= 11 ? holdOf(wset, anim) : null;
+    if (ho) { const p = DW.WT.apply(ho, r[7], r[8], r[9], r[10], r[7] >= r[9] ? 1 : -1, ss); return [p[0] * k, p[1] * k]; }
     return [r[7] * k, r[8] * k];
   };
 

@@ -558,6 +558,7 @@
       box.appendChild(el('button', { class: 'btn', text: 'Счётчик FPS: ' + (DW.settings.fps ? 'вкл' : 'выкл'), onclick: function () {
         DW.settings.fps = !DW.settings.fps; DW.saveSettings(); render();
       } }));
+      if (DW.WEd) box.appendChild(el('button', { class: 'btn', text: 'Мастерская оружия', onclick: function () { DW.SFX.unlock(); DW.WEd.open(); } }));
     }
     render();
     return box;
