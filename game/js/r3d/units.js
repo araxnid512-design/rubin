@@ -721,6 +721,19 @@
     });
     return best;
   };
+  /* неподвижная фигура в позе (пленник и т. п.): тело id, движение key в момент t; cb(holder) */
+  UN.staticFigure = function (id, key, t, cb) {
+    const M3 = DW.M3, bi = M3 && (M3.bodies[id] || M3.bodies.krut);
+    if (!bi) return;
+    R3.loadGLB('models/' + (R3.q() === 0 && bi.lo ? bi.lo : bi.f) + '.glb').then(function (gl) {
+      if (!gl) return;
+      const body = makeBody(gl, bi.h || 1.8, true);
+      retargetSetup(body);
+      const pose = samplePose(libClip(key) ? key : 'idle', t, null);
+      if (pose) applyPose(body, pose);
+      cb(body.holder);
+    });
+  };
   UN.ent = function (u) { return ents[u.id]; };
   UN.group = function () { return group; };
 })(window.DW);

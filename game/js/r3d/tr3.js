@@ -26,6 +26,7 @@
     R3.units.init(b);
     R3.fx.init(b);
     R3.detail.build(b);
+    R3.items.init(b);
     R3.hud.init(b);
     fogV = -1;
     // камера: на отряд, вид с угла
@@ -52,6 +53,7 @@
     R3.units.update(dt, t);
     R3.fx.update(dt);
     R3.detail.update(t);
+    R3.items.update(t);
     R3.world.tick(dt);
     R3.world.fogTick();
     R3.fogU.uTime.value += dt;
