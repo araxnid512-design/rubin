@@ -485,7 +485,7 @@
     g.globalAlpha = sun.a; g.drawImage(shadeC, x0 * SR, y0 * SR, (x1 - x0) * SR, (y1 - y0) * SR, x0 * P, y0 * P, (x1 - x0) * P, (y1 - y0) * P);
     g.globalAlpha = 1;
   }
-  TR.tileChanged = function (x, y) {
+  TR.tileChanged = function (x, y) { openB = null;
     const B = DW.BT.get();
     if (!B || !groundCtx) return;
     const rnd = U.srng(x * 31 + y * 17);
@@ -1263,6 +1263,40 @@
     g.drawImage(f.c, sx0 * kx, 0, (sx1 - sx0) * kx, f.c.height, dx0 + sx0, cy - f.oy, sx1 - sx0, f.h);
     if (cut) g.globalAlpha = 1;
     return true;
+  }
+  /* ---------- Окна и двери домов (3D-рамы, набор p_open) ----------
+     Проём — клетка между двумя стенами дома в одну линию, рядом пол дома. Окно — низкая стенка в проёме,
+     дверь — пустая клетка. Варианты: 0/1 — окно вдоль x / y, 2/3 — дверь вдоль x / y. */
+  const WALLS = { 2: 1, 11: 1, 14: 1 };
+  let openMap = null, openB = null;
+  function openAt(B, i) {
+    if (openB !== B) {
+      openB = B; openMap = {};
+      const W = B.w, wall = function (x, y) { return x >= 0 && y >= 0 && x < W && y < B.h && WALLS[B.obj[y * W + x]]; };
+      const floor = function (x, y) { if (x < 0 || y < 0 || x >= W || y >= B.h) return false; const gi = B.ground[y * W + x]; return gi === 11 || gi === 3 || gi === 4; };
+      for (let y = 0; y < B.h; y++) for (let x = 0; x < W; x++) {
+        const j = y * W + x, o = B.obj[j];
+        if (o !== 0 && o !== 1) continue;
+        let ax = -1;
+        if (wall(x - 1, y) && wall(x + 1, y) && !wall(x, y - 1) && !wall(x, y + 1) && (floor(x, y - 1) || floor(x, y + 1))) ax = 0;
+        else if (wall(x, y - 1) && wall(x, y + 1) && !wall(x - 1, y) && !wall(x + 1, y) && (floor(x - 1, y) || floor(x + 1, y))) ax = 1;
+        if (ax >= 0) openMap[j] = (o === 1 ? 0 : 2) + ax;
+      }
+    }
+    return openMap[i];
+  }
+  function drawOpening(g, B, x, y, i, vis) {
+    const v = openAt(B, i);
+    if (v === undefined) return;
+    const S3 = DW.S3;
+    if (!S3 || !S3.ready('p_open')) return;
+    if (v < 2 && B.obj[i] !== 1) return;   // окно разбито вместе со стенкой
+    const f = S3.frame([['p_open', 'v', v, 0]]);
+    if (!f) return;
+    const c = isoC(x, y), lift = v < 2 ? D.OBJ[1].lift * ZH : 0;
+    if (!(vis && vis[i])) g.globalAlpha = 0.55;
+    g.drawImage(f.c, c[0] - f.ox, c[1] - lift - f.oy, f.w, f.h);
+    g.globalAlpha = 1;
   }
   function objSprite(type, mask, variant, dark, damaged, v12) {
     const s3 = objSprite3d(type, v12 === undefined ? variant : v12, dark, damaged);
@@ -2452,21 +2486,34 @@
   }
   let propCache = {};
   /* 3D-декор: покрышки, мусорные мешки, трубы (модели «Стикса») вместо рисованных */
-  const PROP3D = { tire: [0, 0.75], can: [1, 0.5], papers: [1, 0.45], pipe: [2, 0.6] };
-  function drawProp3d(g0, pr) {
+  // мелочь на карте из 3D-наборов: [набор, вариант, масштаб, число вариантов подряд, без зеркала]
+  const PROP3D = { tire: ['p_decor', 0, 0.75], can: ['p_decor', 1, 0.5], papers: ['p_decor', 1, 0.45], pipe: ['p_decor', 2, 0.6],
+    lamp: ['p_street', 0, 1, 1, true], wire: ['p_street', 1, 1, 2, true] };
+  function drawProp3d(g0, pr, t) {
     const m = PROP3D[pr.t], S3 = DW.S3;
-    if (!m || !S3 || !S3.ready('p_decor')) return false;
-    const f = S3.frame([['p_decor', 'v', m[0], 0]]);
+    if (!m || !S3 || !S3.ready(m[0])) return false;
+    const vi = m[1] + (m[3] ? ((pr.x * 7919) | 0) % m[3] : 0);
+    const f = S3.frame([[m[0], 'v', vi, 0]]);
     if (!f) return false;
-    const c0 = isoC(pr.x - 0.5, pr.y - 0.5), k = m[1];
-    const fl = ((pr.x * 1000) | 0) % 2 ? -1 : 1;
+    const c0 = isoC(pr.x - 0.5, pr.y - 0.5), k = m[2];
+    const fl = !m[4] && ((pr.x * 1000) | 0) % 2 ? -1 : 1;
     g0.save(); g0.translate(c0[0], c0[1]); g0.scale(fl * k, k);
     g0.drawImage(f.c, -f.ox, -f.oy, f.w, f.h);
     g0.restore();
+    const B = DW.BT.get();
+    if (pr.t === 'lamp' && B && B.tod !== 'day') {
+      // свет лампы — у верхушки модели
+      const fl2 = lampFlicker(pr, t), lx = c0[0] + LAMP3D[0], ly = c0[1] - f.oy + LAMP3D[1];
+      g0.globalCompositeOperation = 'lighter'; g0.globalAlpha = 0.7 * fl2;
+      g0.drawImage(softSpr('rgb(255,200,120)'), lx - 11, ly - 7, 22, 18);
+      g0.globalAlpha = 0.25 * fl2; g0.drawImage(softSpr('rgb(255,190,110)'), c0[0] - 30, c0[1] - 14, 60, 30);
+      g0.globalAlpha = 1; g0.globalCompositeOperation = 'source-over';
+    }
     return true;
   }
+  const LAMP3D = [0, 6];   // смещение плафона от центра основания и от верха спрайта
   function drawProp(g0, pr, t) {
-    if (drawProp3d(g0, pr)) return;
+    if (drawProp3d(g0, pr, t)) return;
     const c0 = isoC(pr.x - 0.5, pr.y - 0.5);
     const v = ((pr.x * 1000) | 0) % 3;
     const key = pr.t + v;
@@ -2524,6 +2571,14 @@
         const gr = g.createRadialGradient(x, y - 5, 1, x, y - 5, 14); gr.addColorStop(0, 'rgba(150,255,190,' + gl + ')'); gr.addColorStop(1, 'rgba(150,255,190,0)');
         g.fillStyle = gr; ART.circ(g, x, y - 5, 14);
         for (i = 0; i < 3; i++) { const ox = (r() - 0.5) * 10, h = 3 + r() * 5; ART.line(g, x + ox, y, x + ox, y - h, 1.2, '#c8d8c0'); g.fillStyle = '#7affb0'; ART.ell(g, x + ox, y - h, 3, 1.6); }
+        break;
+      }
+      case 'wire': {
+        // секция сетчатого забора (если 3D-атлас не загружен)
+        ART.line(g, x - 12, y + 4, x - 12, y - 26, 1.6, '#5a5c60'); ART.line(g, x + 12, y - 4, x + 12, y - 34, 1.6, '#5a5c60');
+        g.strokeStyle = 'rgba(150,155,160,0.45)'; g.lineWidth = 0.6;
+        for (let k = 0; k <= 6; k++) { g.beginPath(); g.moveTo(x - 12 + k * 4, y + 4 - k * 1.33); g.lineTo(x - 12 + k * 4, y - 26 - k * 1.33); g.stroke(); }
+        for (let k = 0; k <= 5; k++) { g.beginPath(); g.moveTo(x - 12, y + 4 - k * 6); g.lineTo(x + 12, y - 4 - k * 6); g.stroke(); }
         break;
       }
       case 'sign':
@@ -3066,6 +3121,7 @@
           if (props[i]) props[i].forEach(function (p) { drawProp(g, p, t); });
           if (itemsAt[i]) drawItem(g, itemsAt[i], t);
           const o = B.obj[i];
+          if (!o && openAt(B, i) !== undefined) drawOpening(g, B, x, y, i, vis);
           if (o === 23 && drawVehicleTile(g, B, x, y, i, vis, unitsAt, ov)) { /* техника — своя полоса спрайта */ }
           else if (o) {
             const vh = U.hash2(x, y, o);
@@ -3082,6 +3138,7 @@
             const c = isoC(x, y);
             g.drawImage(sp.c, c[0] - sp.ox, c[1] - sp.oy, sp.w, sp.h);
             if (cut) g.globalAlpha = 1;
+            if (o === 1) drawOpening(g, B, x, y, i, vis);
             if (sway) g.restore();
             if (o === 16) g.restore();
             if (o === 15) {

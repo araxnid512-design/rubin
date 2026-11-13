@@ -62,7 +62,12 @@ const BODIES = [
   B('boss', DW + 'c_boss_a.glb', { h: 1.9 }),
   B('bandit3', DW + 'c_bandit3_a.glb'),
   B('bandit4', DW + 'c_bandit4_a.glb'),
-  B('bandit5', DW + 'c_bandit5_a.glb', { h: 1.88 })
+  B('bandit5', DW + 'c_bandit5_a.glb', { h: 1.88 }),
+  // новобранцы-заключённые (разные внешности)
+  B('pris3', DW + 'c_pris3_a.glb', { h: 1.76 }),
+  B('pris4', DW + 'c_pris4_a.glb', { h: 1.8 }),
+  B('pris5', DW + 'c_pris5_a.glb', { h: 1.82 }),
+  B('pris6', DW + 'c_pris6_a.glb', { h: 1.79 })
 ];
 // у файлов без «_a» (модели без движений Tripo) — скелет в основном файле
 const BODY_FALLBACK = {};
@@ -107,6 +112,18 @@ const PROPS = [
   { id: 'turret', variants: [0, 1, 2, 3, 4, 5, 6, 7].map((d) => P(DW + 'e_turret.glb', 0.8, 1.1, -d * 45)) }, // ствол — ось +X модели
   // украшения карты: машины, покрышки, мусор (тип клетки не занят — рисуются как декор)
   { id: 'decor', variants: [P(S + 'env/e_tire.glb', 0.5, 0.3), P(S + 'env/e_trashbags.glb', 0.6, 0.5), P(S + 'env/e_pipes.glb', 0.9, 0.5), P(S + 'env/e_vaz2107.glb', 1.5, 1.0, 30), P(S + 'env/e_uaz.glb', 1.5, 1.2, -30), P(S + 'env/e_ural.glb', 2.2, 1.9, 60), P(S + 'env/e_btr80.glb', 2.3, 1.6, -20), P(S + 'env/e_paz.glb', 2.4, 1.9, 40), P(S + 'env/e_well.glb', 0.9, 1.6), P(S + 'env/e_sandbags.glb', 0.9, 0.6)] }
+  ,
+  // рамы окон и дверей в проёмах домов: окно вдоль x / вдоль y, дверь вдоль x / вдоль y (render_battle: openAt)
+  { id: 'open', variants: [P(DW + 'd_window.glb', 0.95, 0.9, 0), P(DW + 'd_window.glb', 0.95, 0.9, 90), P(DW + 'd_door.glb', 0.95, 1.5, 0), P(DW + 'd_door.glb', 0.95, 1.5, 90)] },
+  // уличные детали: фонарь, сетчатый забор, бетонный блок (render_battle: PROP3D / p_obj6)
+  { id: 'street', variants: [P(DW + 'e_lamp.glb', 0.6, 2.4), P(DW + 'e_wirefence.glb', 1.0, 1.25, 0), P(DW + 'e_wirefence.glb', 1.0, 1.25, 90), P(DW + 'e_barrier.glb', 0.95, 0.6, 0), P(DW + 'e_barrier.glb', 0.95, 0.6, 90)] },
+  { id: 'obj6', type: 6, variants: [P(S + 'env/e_sandbags.glb', 0.95, 0.55), P(S + 'env/e_sandbags.glb', 0.95, 0.55, 90), P(DW + 'e_barrier.glb', 0.95, 0.6, 45), P(S + 'env/e_sandbags.glb', 0.95, 0.55, 45)] }
+  ,
+  // база-диорама: постройки по номерам (basescene BLD3D): штаб, вышка, лазарет, мастерская, теплица, маяк, ворота, костёр, бак, склад.
+  // На базе люди в масштабе 0,72 — высоты построек тоже уменьшены
+  { id: 'base', variants: [P(DW + 'b_barracks.glb', 2.55, 2.6), P(DW + 'b_tower.glb', 1.2, 4.2), P(DW + 'b_infirmary.glb', 2.0, 2.0), P(DW + 'b_workshop.glb', 1.9, 2.0),
+    P(DW + 'b_greenhouse.glb', 2.1, 1.7), P(DW + 'b_beacon.glb', 0.9, 3.2), P(DW + 'b_gate.glb', 1.7, 2.3, 90), P(DW + 'b_campfire.glb', 0.75, 0.6),
+    P(DW + 'b_watertank.glb', 0.8, 1.8), P(DW + 'b_storage.glb', 1.3, 1.4)] }
 ];
 
 module.exports = { CLIPS, HUMAN, FIGURE, WEAPONS, WEAPON_FALLBACK, BODIES, BODY_FALLBACK, CREATURES, PROPS };

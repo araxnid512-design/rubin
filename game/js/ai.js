@@ -14,7 +14,7 @@
   AI.enemyTurn = async function () {
     const BT = DW.BT, B = BT.get();
     B.units.forEach(function (e) {
-      if (e.side === 'e' && e.alive) { e.overwatch = false; e.hunker = false; e.ap = e.active ? 2 : 0; }
+      if (e.side === 'e' && e.alive) { e.overwatch = false; e.hunker = false; e.ap = e.active ? (e.fresh ? 1 : 2) : 0; e.fresh = false; }
     });
     BT.spawnWaves(false);
     BT.updateVision();

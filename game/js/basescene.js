@@ -299,6 +299,13 @@
   }
   function drawTurret(g, t, s) {
     const cu = s.u + s.w / 2, cv = s.v + s.d / 2;
+    const S3 = DW.S3;
+    if (S3 && S3.has('p_turret')) {
+      S3.load('p_turret');
+      // турель медленно поворачивается, осматривая подступы
+      const f = S3.ready('p_turret') ? S3.frame([['p_turret', 'v', Math.floor(t / 1800 + s.u * 3) % 8, 0]]) : null;
+      if (f) { const c = P(cu, cv, 0); g.drawImage(f.c, c[0] - f.ox, c[1] - f.oy, f.w, f.h); return; }
+    }
     box(g, s.u, s.v, s.u + s.w, s.v + s.d, 0, 10, ['#5e6c74', '#46525a', '#38424a']);
     const p = P(cu, cv, 14), a = Math.sin(t / 2200 + s.u) * 0.9 + 0.3;
     g.fillStyle = '#3a4248'; ART.ell(g, p[0], p[1], 7, 4);
@@ -329,6 +336,7 @@
         }
       }
     });
+    if (front && base3d(g, 'gate', hi, 5.1)) return;
     if (front) {
       const a = P(hi, 4.4, 0), b = P(hi, 5.8, 0);
       ART.line(g, a[0], a[1], a[0], a[1] - 32, 3, '#4a321a'); ART.line(g, b[0], b[1], b[0], b[1] - 32, 3, '#4a321a');
@@ -348,6 +356,38 @@
     g.fillStyle = '#7a5a38'; g.fillRect(m[0] - 7, m[1] - 26, 14, 9);
     g.fillStyle = '#ffd08a'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText('+', m[0], m[1] - 18.5);
   }
+  /* 3D-постройки (модели Tripo, набор p_base): номер варианта по постройке */
+  const BLD3D = { hq: 0, tower: 1, infirmary: 2, workshop: 3, farm: 4, beacon: 5, gate: 6, fire: 7, tank: 8, store: 9 };
+  function base3d(g, key, u, v) {
+    const S3 = DW.S3;
+    if (!S3 || !S3.has('p_base')) return null;
+    S3.load('p_base');
+    if (!S3.ready('p_base')) return null;
+    const f = S3.frame([['p_base', 'v', BLD3D[key], 0]]);
+    if (!f) return null;
+    const c = P(u, v, 0);
+    g.drawImage(f.c, c[0] - f.ox, c[1] - f.oy, f.w, f.h);
+    return [c[0], c[1] - f.oy];   // верх модели — для огней
+  }
+  function drawBuilding3d(g, k, t, st) {
+    if (BLD3D[k] === undefined) return false;
+    const s = SLOT[k];
+    const top = base3d(g, k, s.u + s.w / 2, s.v + s.d / 2);
+    if (!top) return false;
+    if (k === 'tower' && st.raid && Math.sin(t / 160) > 0) { g.fillStyle = '#ff3a2a'; ART.circ(g, top[0], top[1] + 4, 2.6); }
+    if (k === 'beacon') { const gl = 0.5 + Math.sin(t / 300) * 0.4; g.fillStyle = 'rgba(111,216,255,' + gl + ')'; ART.circ(g, top[0], top[1] + 3, 2.6); }
+    if (k === 'workshop' && Math.random() < 0.2) parts.push({ u: s.u + 0.4, v: s.v + 0.4, h: 40, vu: 0.08 + Math.random() * 0.05, vv: -0.02, vh: 12 + Math.random() * 6, t0: t, life: 3500, size: 3, grow: 9, col: '150,140,130', a: 0.3 });
+    if (k === 'hq') {
+      // флаг Плацдарма над штабом
+      const fp = P(s.u + s.w - 0.25, s.v + s.d - 0.25, 0), fy = top[1] + 6;
+      ART.line(g, fp[0], fp[1] - 6, fp[0], fy - 18, 1.6, '#3a2a1a');
+      g.fillStyle = '#e3a33b'; g.beginPath(); g.moveTo(fp[0], fy - 18);
+      for (let i = 0; i <= 6; i++) g.lineTo(fp[0] + i * 3.2, fy - 18 + Math.sin(t / 170 + i * 0.9) * 1.5);
+      for (let i = 6; i >= 0; i--) g.lineTo(fp[0] + i * 3.2, fy - 8 + Math.sin(t / 170 + i * 0.9) * 1.5);
+      g.closePath(); g.fill();
+    }
+    return true;
+  }
   function drawBuilding(g, k, t, st) {
     const lv = DW.G.blv(k);
     if (k !== 'hq' && !lv) { drawSlot(g, k, t); return; }
@@ -357,7 +397,7 @@
     const s = SLOT[k];
     const base = P(s.u + s.w / 2, s.v + s.d, 0);
     if (prog < 1) { g.save(); g.translate(base[0], base[1]); g.scale(1, Math.max(0.05, U.ease(prog))); g.translate(-base[0], -base[1]); }
-    switch (k) {
+    if (!drawBuilding3d(g, k, t, st)) switch (k) {
       case 'hq': drawHQ(g, t); break;
       case 'tower': drawTower(g, t, st); break;
       case 'infirmary': drawInfirmary(g, t); break;
@@ -381,6 +421,16 @@
   function drawCamp(g, t, st) {
     // костёр
     const f = P(5.2, 7.4, 0);
+    const fire3 = base3d(g, 'fire', 5.2, 7.4);
+    if (fire3) {
+      for (let k = 0; k < 3; k++) {
+        const h = 9 + Math.sin(t / 90 + k * 2) * 3;
+        g.fillStyle = ['rgba(255,120,30,0.85)', 'rgba(255,190,60,0.85)', 'rgba(255,240,160,0.8)'][k];
+        g.beginPath(); g.moveTo(f[0] - 4 + k * 2, f[1] - 3); g.quadraticCurveTo(f[0] - 2 + k * 2, f[1] - 3 - h, f[0] + Math.sin(t / 120 + k) * 1.6, f[1] - 6 - h + k * 2);
+        g.quadraticCurveTo(f[0] + 3 - k, f[1] - 3 - h * 0.5, f[0] + 4 - k * 2, f[1] - 3); g.closePath(); g.fill();
+      }
+    }
+    if (!fire3) {
     g.fillStyle = 'rgba(0,0,0,0.35)'; ART.ell(g, f[0], f[1] + 1, 12, 5);
     for (let k = 0; k < 7; k++) { const a = k / 7 * 6.28; g.fillStyle = '#6a625a'; ART.circ(g, f[0] + Math.cos(a) * 9, f[1] + Math.sin(a) * 4.5, 2.4); }
     ART.line(g, f[0] - 6, f[1] + 1, f[0] + 6, f[1] - 1, 2.6, '#4a3220'); ART.line(g, f[0] - 6, f[1] - 1, f[0] + 6, f[1] + 1, 2.6, '#3a2616');
@@ -389,6 +439,7 @@
       g.fillStyle = ['rgba(255,120,30,0.9)', 'rgba(255,190,60,0.9)', 'rgba(255,240,160,0.85)'][k];
       g.beginPath(); g.moveTo(f[0] - 5 + k * 2.4, f[1]); g.quadraticCurveTo(f[0] - 2 + k * 2, f[1] - h, f[0] + Math.sin(t / 120 + k) * 1.6, f[1] - h - 4 + k * 2);
       g.quadraticCurveTo(f[0] + 4 - k, f[1] - h * 0.5, f[0] + 5 - k * 2.4, f[1]); g.closePath(); g.fill();
+    }
     }
     if (Math.random() < 0.2) parts.push({ u: 5.2, v: 7.4, h: 16, vu: 0.05, vv: -0.03, vh: 14, t0: t, life: 2600, size: 2.5, grow: 7, col: '150,140,130', a: 0.3 });
     if (Math.random() < 0.15) parts.push({ u: 5.2, v: 7.4, h: 10, vu: (Math.random() - 0.5) * 0.3, vv: (Math.random() - 0.5) * 0.3, vh: 30, t0: t, life: 900, size: 1.1, col: '255,190,90', a: 1, spark: true });
@@ -399,7 +450,8 @@
     for (let i = 0; i < nc; i++) { const u = 3.0 + (i % 3) * 0.32, v = 5.0 + Math.floor(i / 3) * 0.34, h0 = i >= 6 ? 12 : 0; box(g, u, v, u + 0.28, v + 0.28, h0, h0 + 12, ['#a07a48', '#86643a', '#5e4424']); }
     const na = Math.min(4, 1 + Math.floor(st.res.ammo / 120));
     for (let i = 0; i < na; i++) { const u = 3.1 + i * 0.3, v = 6.05; box(g, u, v, u + 0.26, v + 0.18, 0, 7, ['#5a6a3a', '#46542c', '#36421e']); }
-    // бочка с водой и бельё
+    // бочка с водой (если нет 3D-бака — он рисуется отдельно, по глубине)
+    if (DW.S3 && DW.S3.ready('p_base')) return;
     const bp = P(6.6, 3.7, 0); g.fillStyle = '#3e5a6a'; g.fillRect(bp[0] - 5, bp[1] - 13, 10, 13); ART.ell(g, bp[0], bp[1], 5, 2.2); g.fillStyle = '#5a7a8a'; ART.ell(g, bp[0], bp[1] - 13, 5, 2.2);
   }
 
@@ -426,6 +478,9 @@
     const items = [];
     Object.keys(SLOT).forEach(function (k) { if (k === 'walls') return; const s = SLOT[k]; items.push({ d: s.u + s.w + s.v + s.d - 0.4, f: function () { drawBuilding(g, k, t, st); } }); });
     items.push({ d: 5.2 + 7.4, f: function () { drawCamp(g, t, st); } });
+    // 3D: склад-навес и бак с водой
+    items.push({ d: 4.7 + 1.9, f: function () { base3d(g, 'store', 4.7, 1.9); } });
+    items.push({ d: 6.6 + 3.7, f: function () { base3d(g, 'tank', 6.6, 3.7); } });
     people.forEach(function (p) {
       items.push({ d: p.u + p.v + 0.05, f: function () {
         const c = P(p.u, p.v, 0);

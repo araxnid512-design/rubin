@@ -899,9 +899,10 @@
       for (let rr = 0; rr < 3 && k < types.length; rr++) for (let dy = -rr; dy <= rr && k < types.length; dy++) for (let dx = -rr; dx <= rr && k < types.length; dx++) {
         const x = r.x + dx, y = r.y + dy;
         if (!BT.inb(x, y) || B.obj[BT.idx(x, y)] || !D.GROUND[B.ground[BT.idx(x, y)]].walk || BT.unitAt(x, y)) continue;
-        const e = mkEnemy(types[k++], x, y, pod); e.active = true; B.units.push(e);
+        const e = mkEnemy(types[k++], x, y, pod); e.active = true; e.fresh = true; B.units.push(e);
       }
       BT.updateVision();
+      if (k) { await DW.TR.focusOn(r.x, r.y, true); await U.sleep(350); }
       DW.UI.toast('Подкрепление врага: ' + k + '!', 'alert'); DW.SFX.play('alert');
       return;
     }

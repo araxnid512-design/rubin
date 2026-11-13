@@ -92,14 +92,21 @@
   const NAME_BODY = { 'Крут': 'b_krut', 'Мальборо': 'b_marlboro', 'Сыч': 'b_pris1', 'Тихий': 'b_pris1', 'Док': 'b_pris2', 'Бугай': 'b_pris2' };
   const ARMOR_BODY = { vest: 'b_vest', heavy: 'b_heavy', exo: 'b_exo' };
   function first(list) { for (let i = 0; i < list.length; i++) if (list[i] && S3.has(list[i])) return list[i]; return null; }
+  // новобранцы: своя внешность по номеру бойца (из тех моделей, что есть в сборке)
+  const RECRUIT = ['b_pris1', 'b_pris2', 'b_pris3', 'b_pris4', 'b_pris5', 'b_pris6'];
+  function recruitBody(id) {
+    const L = RECRUIT.filter(function (b) { return S3.has(b); });
+    return L.length ? L[(id || 0) % L.length] : null;
+  }
   /* набор тела и оружия для бойца/врага: { body, weapon, kind: 'human'|'creature'|'turret' } */
   S3.setsFor = function (u) {
     if (!A()) return null;
     if (u.kind === 'turret') return S3.has('p_turret') ? { body: 'p_turret', kind: 'turret' } : null;
     if (u.kind === 'soldier') {
       const nm = u.name || '';
-      const base = (u.armorId && ARMOR_BODY[u.armorId]) || NAME_BODY[nm.split(' ')[0]] || ((u.id || 0) % 2 ? 'b_pris1' : 'b_pris2');
-      const body = first([base, NAME_BODY[nm.split(' ')[0]], (u.id || 0) % 2 ? 'b_pris1' : 'b_pris2', 'b_krut']);
+      const rb = recruitBody(u.sid !== undefined ? u.sid : u.id);
+      const base = (u.armorId && ARMOR_BODY[u.armorId]) || NAME_BODY[nm.split(' ')[0]] || rb;
+      const body = first([base, NAME_BODY[nm.split(' ')[0]], rb, 'b_krut']);
       if (!body) return null;
       return { body: body, weapon: first(['w_' + (u.weapon || 'ppsh'), 'w_ak']), kind: 'human' };
     }
@@ -119,7 +126,7 @@
     if (!A() || !B) return;
     S3.clear();
     B.units.forEach(function (u) { const s = S3.setsFor(u); if (s) { S3.load(s.body); if (s.weapon) S3.load(s.weapon); if (u.kind === 'soldier') S3.load('h_' + s.body.slice(2)); } });
-    for (const id in A()) if (id.indexOf('p_') === 0) S3.load(id);
+    for (const id in A()) if (id.indexOf('p_') === 0 && id !== 'p_base') S3.load(id);
     if (B.units.some(function (u) { return u.cls === 'heavy'; })) S3.load('w_rpg');
   };
 
