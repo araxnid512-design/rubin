@@ -197,6 +197,21 @@
     return parts.join(' ');
   };
   G.blv = function (id) { return G.state.buildings[id] || 0; };
+  /* УАЗ: чинится в гараже; исправный — быстрее по карте и укрытие у высадки в бою */
+  G.uazOk = function () {
+    const st = G.state;
+    // старые сохранения: гараж уже построен — машина на ходу
+    if (st.uaz === undefined && G.blv('garage')) st.uaz = { ok: true };
+    return !!(st.uaz && st.uaz.ok);
+  };
+  G.repairUaz = function () {
+    const st = G.state;
+    if (!G.blv('garage') || G.uazOk() || !G.canAfford(D.UAZ_REPAIR)) return false;
+    for (const k in D.UAZ_REPAIR) st.res[k] -= D.UAZ_REPAIR[k];
+    st.uaz = { ok: true };
+    G.log('УАЗ на ходу.');
+    return true;
+  };
   G.tier = function () {
     let t = 0;
     // доверие Института — сданные драгоценности плюс поступки отряда (события), в счёт «вольной» не идёт
@@ -285,6 +300,7 @@
     const cost = b.cost[Math.min(lv, b.cost.length - 1)];
     if (!G.pay(cost)) return false;
     st.buildings[id] = lv + 1;
+    if (id === 'garage' && !st.uaz) st.uaz = { ok: false };   // найденный УАЗ ещё надо починить
     if (id === 'beacon') G.node(st.baseNode).beacon = true;
     if (id === 'tower') G.revealAround(st.baseNode, 2);
     G.log('На базе построено: ' + (b.levels ? b.levels[lv] : b.n) + '.');
@@ -797,6 +813,7 @@
     }
     st.stats.missions++;
     st.stats.kills += kills;
+    if ((B.vehicles || []).some(function (v) { return v.own && v.dead; })) { st.uaz = { ok: false }; sum.uazLost = true; G.log('УАЗ подбит — нужен ремонт в гараже.'); }
     // справочник врагов: сколько каждого вида убито
     st.killsByType = st.killsByType || {};
     B.units.forEach(function (e) { if (e.side === 'e' && !e.alive && e.type) { st.killsByType[e.type] = (st.killsByType[e.type] || 0) + 1; st.metEnemies = st.metEnemies || {}; st.metEnemies[e.type] = 1; } });

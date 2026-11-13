@@ -29,6 +29,27 @@
     });
   };
   BT.ladderEdge = function (i, j) { return !!ladderSet[i + '>' + j]; };
+  function placeOwnUaz() {
+    const mi = D.VEHICLES.findIndex(function (v) { return v[0] === 'УАЗ'; });
+    if (mi < 0) return;
+    const len = D.VEHICLES[mi][1];
+    // не на клетках высадки, эвакуации и предметов; по бокам — проход
+    const occ = {};
+    B.units.forEach(function (u) { occ[u.y * B.w + u.x] = 1; });
+    (B.deploy || []).concat(B.evac || []).forEach(function (p) { occ[p[1] * B.w + p[0]] = 1; });
+    (B.items || []).forEach(function (it) { occ[it.y * B.w + it.x] = 1; });
+    const free = function (x, y) { const i = y * B.w + x; return BT.inb(x, y) && !B.obj[i] && D.GROUND[B.ground[i]].walk && !occ[i] && !BT.stairAt(i); };
+    const open = function (x, y) { const i = y * B.w + x; return BT.inb(x, y) && !B.obj[i] && D.GROUND[B.ground[i]].walk; };
+    for (let x = 4; x <= 8; x++) for (let y = 1; y < B.h - len - 1; y++) {
+      let ok = open(x, y - 1) && open(x, y + len); const h0 = B.hgt[y * B.w + x];
+      for (let j = 0; j < len && ok; j++) if (!free(x, y + j) || B.hgt[(y + j) * B.w + x] !== h0 || !open(x - 1, y + j) || !open(x + 1, y + j)) ok = false;
+      if (!ok) continue;
+      const v = { x: x, y: y, len: len, wd: 1, d: 1, m: mi, o: 0, own: true };
+      for (let j = 0; j < len; j++) { const i = (y + j) * B.w + x; B.obj[i] = 23; B.objHp[i] = D.OBJ[23].hp; }
+      B.vehicles = B.vehicles || []; B.vehicles.push(v);
+      return;
+    }
+  }
   BT.stairAt = function (i) { return stairSet[i] || null; };
   /* можно ли шагнуть i → j по правилам лестниц (высоты — отдельно) */
   BT.stairOk = function (i, j) {
@@ -191,6 +212,9 @@
       queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: [], vehicles: m.vehicles || [], ladders: m.ladders || [], rooms: m.rooms || []
     };
     BT.indexLadders();
+    // свой УАЗ (починен в гараже) — у зоны высадки, полное укрытие; подобьют — в ремонт
+    B.deploy = m.deploy || [];
+    if (o.kind !== 'defense' && DW.G.uazOk && DW.G.uazOk()) placeOwnUaz();
     BT.rollConditions(B, mapType);
     // ночью и в пещерах — фонари: бойцы видят дальше, но их замечают издалека
     B.dark = B.tod === 'night' || B.tod === 'cave'; B.lights = B.dark;

@@ -203,8 +203,8 @@
       if (st.baseNode !== null && G.blv('tower')) G.revealAround(st.baseNode, 2);
       DW.WR.sel = nid;
       WS.refresh();
-      // гараж: на длинном пути каждый второй переход — без ночёвки
-      if (!(G.blv('garage') && k % 2 === 0 && k < path.length - 1)) {
+      // УАЗ на ходу: на длинном пути каждый второй переход — без ночёвки
+      if (!(G.uazOk() && k % 2 === 0 && k < path.length - 1)) {
         const r = await passDay();
         if (r !== 'ok') { busy = false; return; }
       }

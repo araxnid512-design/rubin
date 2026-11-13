@@ -297,6 +297,16 @@
         '<b>' + n.name + '</b> · защита базы: <b>' + G.defenseScore() + '</b>' +
         (st.raid ? ' · <span class="bad">набег через ' + Math.max(0, st.raid.day - st.day) + ' дн.!</span>' : '') +
         '<br>В день: ' + (prod.length ? prod.join(', ') : 'ничего') + ' · расход еды: −' + st.roster.length + ' ' + ic('food') }));
+      if (G.blv('garage')) {
+        const ok = G.uazOk();
+        const ub = el('div', { class: 'binfo', html: '<b>УАЗ</b> · ' + (ok ? '<span class="good" style="color:#8fd07a">на ходу</span> — каждый второй переход по карте не тратит день, в бою стоит у высадки как укрытие.' : '<span class="bad">нужен ремонт</span> (' + G.costText(D.UAZ_REPAIR) + ').') });
+        if (!ok) {
+          const rb = el('button', { class: 'btn sm', html: 'Починить · ' + G.costText(D.UAZ_REPAIR), onclick: function () { if (G.repairUaz()) { DW.SFX.play('build'); UI.toast('УАЗ на ходу', 'good'); G.save(); render(); if (onChange) onChange(); } } });
+          if (!G.canAfford(D.UAZ_REPAIR)) rb.disabled = true;
+          ub.appendChild(document.createTextNode(' ')); ub.appendChild(rb);
+        }
+        body.appendChild(ub);
+      }
       const grid = el('div', { class: 'bgrid' });
       Object.keys(D.BUILDINGS).forEach(function (id) {
         const b = D.BUILDINGS[id];
@@ -555,6 +565,7 @@
       }));
       if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
       if (sum.bonds) html += '<div class="rloot">Стали боевыми товарищами: <b class="acc">' + sum.bonds.join('; ') + '</b> — рядом друг с другом +5 к меткости.</div>';
+      if (sum.uazLost) html += '<div class="rloot"><span class="bad">УАЗ подбит</span> — нужен ремонт в гараже (' + DW.G.costText(D.UAZ_REPAIR) + ').</div>';
       if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';
       if (sum.traits) html += '<div class="rloot">Ранение изменило характер: <b class="acc">' + sum.traits.join('; ') + '</b>.</div>';
       b.innerHTML = html;
