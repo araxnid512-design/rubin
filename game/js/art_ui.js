@@ -314,7 +314,21 @@
   };
 
   /* ---------- Портреты врагов ---------- */
+  // снимки голов 3D-моделей (game/js/efaces.js, tools/efaces) — главный портрет врага
+  const EFACE_OF = { scav: 'scav', alpha: 'alpha', queen: 'queen', brute: 'brute', spitter: 'spitter', guardian: 'guardian', raider: 'mur1', thug: 'mur2', marksman: 'marksman', boss: 'boss' };
+  const efaceImgs = {};
+  for (const k in (DW.EFACE_IMG || {})) { const im = new Image(); im.src = DW.EFACE_IMG[k]; efaceImgs[k] = im; }
   ART.enemyPortrait = function (type) {
+    const fi = efaceImgs[EFACE_OF[type]];
+    if (fi && fi.complete && fi.naturalWidth) {
+      const pk = 'ef|' + type;
+      if (cache[pk]) return cache[pk];
+      const c = ART.canvas(192, 192), g = c.getContext('2d');
+      g.drawImage(fi, 0, 0, 192, 192);
+      const vg = g.createRadialGradient(96, 88, 60, 96, 96, 144); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.42)');
+      g.fillStyle = vg; g.fillRect(0, 0, 192, 192);
+      try { cache[pk] = c.toDataURL('image/jpeg', 0.88); return cache[pk]; } catch (e) { /* дальше — запасной портрет */ }
+    }
     // 3D-кадр врага (стойка лицом к камере), если его атлас уже загружен (в бою)
     const f3 = DW.S3 && !DW.S3.noHeads && DW.S3.enemyShot ? DW.S3.enemyShot(type) : null;
     const key = 'e|' + type + (f3 ? '|3d' : '');
