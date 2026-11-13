@@ -196,7 +196,7 @@
       // хват по оружию: рукоять слева (кончики пальцев и большой палец), цевьё сверху/справа/слева/снизу
       case 'gl': case 'gr': case 'gd': case 'gb': case 'fu': case 'fr': case 'fl': case 'fd': {
         const w = GP.P.wpn[S.wid] || { g: [0, 0], f: [0, 0] };
-        tgt = /^g/.test(v) ? V(0, w.g[0], w.g[1]).applyMatrix4(M) : V(0, S.W.fore.y + w.f[0], S.W.fore.z + w.f[1]).applyMatrix4(M);
+        tgt = /^g/.test(v) ? V(w.g[2] || 0, w.g[0], w.g[1]).applyMatrix4(M) : V(w.f[2] || 0, S.W.fore.y + w.f[0], S.W.fore.z + w.f[1]).applyMatrix4(M);
         const d = { gl: [-1, 0.05, -0.15], gr: [1, 0.05, -0.15], gd: [0.05, -1, 0.35], gb: [0.25, 0.3, 1], fu: [0.25, 1, -0.1], fr: [1, 0.15, -0.1], fl: [-1, 0.1, -0.1], fd: [0.1, -1, -0.15] }[v];
         pos = tgt.clone().add(ax(d[0], d[1], d[2]).normalize().multiplyScalar(0.4)); cam.fov = 32; cam.near = 0.3; break;
       }
@@ -364,6 +364,8 @@
     if (!GP.P.wpn[st.wpn]) GP.P.wpn[st.wpn] = { g: [0, 0], f: [0, 0] };
     const w = GP.P.wpn[st.wpn];
     if (w.rk === undefined) w.rk = GP.P.R.rake;
+    while (w.g.length < 3) w.g.push(0);
+    while (w.f.length < 3) w.f.push(0);
     buildParams(wd, w, 'w');
   }
   el('h3', { text: 'JSON' }, side);
@@ -371,7 +373,7 @@
   const ta = el('textarea', { spellcheck: 'false' }, side);
   const prune = function () {
     const P = JSON.parse(JSON.stringify(GP.P));
-    for (const k in P.wpn) { const w = P.wpn[k]; if (w.rk === P.R.rake) delete w.rk; }
+    for (const k in P.wpn) { const w = P.wpn[k]; if (w.rk === P.R.rake) delete w.rk; ['g', 'f'].forEach(function (a) { if (w[a].length > 2 && !w[a][2]) w[a].length = 2; }); }
     return P;
   };
   el('button', { text: 'JSON → поле и буфер' }, jb).onclick = function () { ta.value = JSON.stringify(prune(), null, 1).replace(/\[\s+([^\]{}]*?)\s+\]/g, function (m, a) { return '[' + a.replace(/\s+/g, ' ') + ']'; }); ta.select(); try { navigator.clipboard.writeText(ta.value); } catch (e) { /* без буфера */ } };

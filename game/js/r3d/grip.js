@@ -35,8 +35,8 @@
      depth — ладонь (кость) от оси рукояти/цевья против нормали ладони, fwd — вдоль оси кисти, up — к большому
      пальцу, м (для кисти длиной 9 см, у крупных кистей — больше); off — добавка в осях оружия, м.
      curl: [осн., средн., ногтевая] фаланги, °; thumb: [разворот к ладони, осн., средн., ногтевая], °.
-     wpn: g — центр пистолетной рукояти [y, z] от начала оружия, f — ось цевья [y, z] от W.fore, rk — наклон
-     рукояти (вместо R.rake), м/°. */
+     wpn: g — центр пистолетной рукояти [y, z, x] от начала оружия, f — ось цевья [y, z, x] от W.fore (x — если
+     модель не по центру), rk — наклон рукояти (вместо R.rake; у приклада без рукояти — круто, ~60°), м/°. */
   const P = {
     R: { rake: 18, rot: [0, 0, 0], depth: 0.026, fwd: -0.025, up: 0, off: [0, 0, 0],
       curl: { index: [25, 45, 20], mid: [65, 85, 45], ring: [70, 85, 45], pinky: [75, 85, 45] }, thumb: [30, 20, 25, 20] },
@@ -59,7 +59,8 @@
     wpn: {
       ak: { g: [-0.035, 0.06], f: [0.015, -0.06] },
       ak2: { g: [-0.05, 0.07], f: [0.03, -0.04] },
-      ppsh: { g: [-0.02, 0.015], f: [0.04, -0.05] },
+      // ППШ-41 (w_ppsh41_fix): без пистолетной рукояти — правая на шейке приклада за спуском, левая — под диском
+      ppsh: { g: [-0.02, 0.105, -0.008], f: [-0.11, 0.02, -0.018], rk: 60 },
       shotgun: { g: [-0.06, 0.035], f: [0.01, -0.03], rk: 25 },
       sniper: { g: [-0.085, 0.125], f: [-0.012, 0.06], rk: 28 },
       lmg: { g: [-0.025, 0.095], f: [0.03, -0.01] },
@@ -433,9 +434,9 @@
   }
   /* ладонь: центр рукояти/цевья (в осях оружия: y, z) → против нормали ладони на depth, вдоль оси кисти на fwd,
      к большому пальцу на up (× размер кисти), плюс off; всё в мир по M */
-  function palmAt(S, ph, cy, cz, out) {
+  function palmAt(S, ph, cy, cz, cx, out) {
     const k = S.hs, o = ph.off;
-    const x = -S.Nw.x * ph.depth * k + S.Fw.x * ph.fwd * k + S.Tw.x * ph.up * k + o[0];
+    const x = cx - S.Nw.x * ph.depth * k + S.Fw.x * ph.fwd * k + S.Tw.x * ph.up * k + o[0];
     const y = cy - S.Nw.y * ph.depth * k + S.Fw.y * ph.fwd * k + S.Tw.y * ph.up * k + o[1];
     const z = cz - S.Nw.z * ph.depth * k + S.Fw.z * ph.fwd * k + S.Tw.z * ph.up * k + o[2];
     return out.copy(_org).addScaledVector(_xW, x).addScaledVector(_yW, y).addScaledVector(_zW, z);
@@ -472,13 +473,14 @@
     // правая — на пистолетной рукояти
     if (R.ver !== ver || R.style !== wk) { handInWeapon(R, 'pistol', P.R, wp.rk); R.ver = ver; R.style = wk; }
     _qB.copy(_qM).multiply(R.qHw);
-    if (P.weaponPts || !o.grip) palmAt(R, P.R, wp.g[0], wp.g[1], _palmT);
-    else { palmAt(R, P.R, 0, 0, _palmT); _palmT.sub(_org).add(o.grip); }
+    const gx = wp.g[2] || 0;
+    if (P.weaponPts || !o.grip) palmAt(R, P.R, wp.g[0], wp.g[1], gx, _palmT);
+    else { palmAt(R, P.R, 0, 0, 0, _palmT); _palmT.sub(_org).add(o.grip); }
     reachClamp(R, _palmT, _qB);
     // ось рукояти: вверх с наклоном rk назад-вниз; точка — центр рукояти (со сдвигом досягаемости)
     const rk = (wp.rk !== undefined ? wp.rk : P.R.rake) * DEG;
     _gD.set(0, Math.cos(rk), -Math.sin(rk)).applyQuaternion(_qM);
-    _gP.copy(_org).addScaledVector(_yW, wp.g[0]).addScaledVector(_zW, wp.g[1] + R.dbg.slide);
+    _gP.copy(_org).addScaledVector(_xW, gx).addScaledVector(_yW, wp.g[0]).addScaledVector(_zW, wp.g[1] + R.dbg.slide);
     curlFingers(R, P.R, 1, false);
     solveHand(R, _qB, _palmT, _gP, _gD, 3);
 
@@ -487,8 +489,9 @@
     if (o.freeL) { curlFingers(L, P.relax, 1, true); return; }
     if (L.ver !== ver || L.style !== wk) { handInWeapon(L, 'guard', P.L); L.ver = ver; L.style = wk; }
     _qC.copy(_qM).multiply(L.qHw);
-    if (P.weaponPts && W && W.fore) palmAt(L, P.L, W.fore.y + wp.f[0], W.fore.z + wp.f[1], _palmT);
-    else if (o.fore) { palmAt(L, P.L, 0, 0, _palmT); _palmT.sub(_org).add(o.fore); }
+    const fx = wp.f[2] || 0;
+    if (P.weaponPts && W && W.fore) palmAt(L, P.L, W.fore.y + wp.f[0], W.fore.z + wp.f[1], fx, _palmT);
+    else if (o.fore) { palmAt(L, P.L, 0, 0, 0, _palmT); _palmT.sub(_org).add(o.fore); }
     else return;
     if (o.reload) {
       // кисть идёт по пути перезарядки (o.fore); у цевья — хват цевья, дальше — прямое запястье (как в покое)
@@ -503,7 +506,7 @@
     }
     reachClamp(L, _palmT, _qC);
     // ось цевья — ствол
-    _gP.copy(_org).addScaledVector(_yW, (W && W.fore ? W.fore.y : 0) + wp.f[0]).addScaledVector(_zW, (W && W.fore ? W.fore.z : 0) + wp.f[1]);
+    _gP.copy(_org).addScaledVector(_xW, fx).addScaledVector(_yW, (W && W.fore ? W.fore.y : 0) + wp.f[0]).addScaledVector(_zW, (W && W.fore ? W.fore.z : 0) + wp.f[1]);
     curlFingers(L, P.L, 1, false);
     solveHand(L, _qC, _palmT, _gP, _zW, 3);
   }
