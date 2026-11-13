@@ -166,6 +166,71 @@
     } catch (e) { /* ignore */ }
   };
 
+  /* шаги по разной земле: мягкий грунт, бетон, металл, доски, щебень, пещера, плоть */
+  let lastStep = 0, lastImp = 0, lastRadio = 0;
+  S.step = function (mat, heavy) {
+    if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
+    const now = ctx.currentTime;
+    if (now - lastStep < 0.11) return;
+    lastStep = now;
+    const t = now + 0.005, k = heavy ? 1.8 : 1, v = (0.85 + Math.random() * 0.3) * k;
+    try {
+      switch (mat) {
+        case 'concrete': noise(t, 0.05, 1800, 1.4, 0.12 * v); tone(t, 0.04, 140, 90, 'triangle', 0.05 * v); break;
+        case 'metal': noise(t, 0.06, 2600, 3, 0.1 * v); tone(t, 0.12, 420 + Math.random() * 60, 380, 'triangle', 0.04 * v); break;
+        case 'wood': tone(t, 0.07, 180, 120, 'triangle', 0.09 * v); noise(t, 0.05, 900, 1.5, 0.07 * v); break;
+        case 'rubble': for (let i = 0; i < 3; i++) noise(t + i * 0.018, 0.035, 2200 + i * 500, 2, 0.06 * v); break;
+        case 'cave': noise(t, 0.08, 700, 1.2, 0.1 * v); noise(t + 0.09, 0.12, 600, 1.5, 0.03 * v); break;
+        case 'flesh': noise(t, 0.09, 500, 2, 0.1 * v); tone(t, 0.08, 90, 60, 'sine', 0.05 * v); break;
+        default: noise(t, 0.07, 600, 0.9, 0.1 * v); tone(t, 0.05, 110, 70, 'sine', 0.05 * v); break;
+      }
+    } catch (e) { /* ignore */ }
+  };
+  /* попадание по укрытию: камень и кирпич — крошка, металл — звон и рикошет, дерево — глухой стук, мешки — шлепок */
+  S.impact = function (mat) {
+    if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
+    const now = ctx.currentTime;
+    if (now - lastImp < 0.05) return;
+    lastImp = now;
+    const t = now + 0.005;
+    try {
+      if (mat === 'metal') { tone(t, 0.18, 1900 + Math.random() * 600, 1500, 'sine', 0.06); noise(t, 0.04, 4000, 2, 0.12); if (Math.random() < 0.4) tone(t + 0.02, 0.25, 2600, 900, 'sine', 0.04); }
+      else if (mat === 'wood') { tone(t, 0.07, 220, 140, 'triangle', 0.1); noise(t, 0.06, 1200, 1.5, 0.1); }
+      else if (mat === 'sand' || mat === 'dirt') { noise(t, 0.09, 500, 0.8, 0.14); }
+      else if (mat === 'glass') { for (let i = 0; i < 4; i++) tone(t + i * 0.02, 0.12, 3000 + Math.random() * 2500, 2800, 'sine', 0.025); }
+      else { noise(t, 0.05, 2400, 1.2, 0.16); noise(t + 0.03, 0.1, 1200, 1, 0.06); }
+    } catch (e) { /* ignore */ }
+  };
+  /* «голос по рации»: щелчок, неразборчивая речь (гласные-форманты), щелчок. seed — свой тембр у каждого */
+  S.radio = function (seed, enemy, len) {
+    if (!DW.settings.sound || !ctx || ctx.state === 'suspended') return;
+    const now = ctx.currentTime;
+    if (now - lastRadio < 1.1) return;
+    lastRadio = now;
+    try {
+      const t0 = now + 0.01;
+      const bus = ctx.createGain(); bus.gain.value = enemy ? 0.5 : 0.42;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = enemy ? 900 : 1500; bp.Q.value = enemy ? 0.5 : 0.9;
+      bus.connect(bp); bp.connect(master);
+      if (!enemy) { noise(t0, 0.05, 3000, 2, 0.1); }
+      const f0 = (enemy ? 85 : 100) + ((seed * 37) % 50);
+      const n = len || (3 + Math.floor(Math.random() * 4));
+      let t = t0 + 0.06;
+      const V = [[730, 1090], [530, 1840], [400, 1600], [570, 840], [300, 870], [660, 1700]];
+      for (let i = 0; i < n; i++) {
+        const d = 0.07 + Math.random() * 0.08, vw = V[Math.floor(Math.random() * V.length)];
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f0 * (1 + (Math.random() - 0.5) * 0.12), t); o.frequency.linearRampToValueAtTime(f0 * (0.9 + Math.random() * 0.2), t + d);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.22, t + 0.015); g.gain.setValueAtTime(0.2, t + d * 0.7); g.gain.linearRampToValueAtTime(0.0001, t + d);
+        o.connect(g);
+        vw.forEach(function (fq, j) { const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = fq; f.Q.value = 6; const fg = ctx.createGain(); fg.gain.value = j ? 0.6 : 1; g.connect(f); f.connect(fg); fg.connect(bus); });
+        o.start(t); o.stop(t + d + 0.02);
+        t += d + (Math.random() < 0.25 ? 0.06 : 0.015);
+      }
+      if (!enemy) { noise(t + 0.02, 0.06, 2600, 2, 0.08); tone(t + 0.02, 0.03, 1200, 1000, 'square', 0.02); }
+    } catch (e) { /* ignore */ }
+  };
+
   S.play = function (name) {
     if (!DW.settings.sound || !ctx) return;
     if (ctx.state === 'suspended') return;

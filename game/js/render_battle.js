@@ -1730,9 +1730,12 @@
     });
     return [p[0] + U.clamp(ox, -0.22, 0.22), p[1] + U.clamp(oy, -0.22, 0.22)];
   }
+  const STEPMAT = { 0: 'dirt', 1: 'dirt', 2: 'dirt', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood', 11: 'wood', 12: 'concrete' };
   TR.stepFx = function (u, nx, ny) {
     const c0 = isoC(u.x, u.y);
     const heavy = u.type === 'brute' || u.type === 'queen';
+    const Bs = DW.BT.get();
+    if (Bs && DW.SFX.step && (u.side === 'p' || u.seen)) DW.SFX.step(STEPMAT[Bs.ground[ny * Bs.w + nx]] || 'dirt', heavy || u.type === 'alpha');
     if (heavy) {
       TR.shake = Math.max(TR.shake || 0, u.type === 'queen' ? 4 : 2.6);
       for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; fx.parts.push({ x: c0[0] + Math.cos(a) * 8, y: c0[1] + Math.sin(a) * 4, z: 1, vx: Math.cos(a) * 30, vy: Math.sin(a) * 10, vz: 10 + Math.random() * 8, t0: now(), life: 700, color: 'rgba(170,150,120,0.4)', size: 5 + Math.random() * 4, grav: 6 }); }
@@ -1781,6 +1784,8 @@
     const text = pool[Math.floor(Math.random() * pool.length)].replace('{}', arg || '');
     barkCd[u.id] = t;
     (fx.barks = fx.barks || []).push({ u: u, text: text, t0: t, life: 1900, bad: u.side === 'e' });
+    // голос: свои — по рации, враги — выкрик
+    if (DW.SFX.radio && (u.side === 'p' || u.seen)) DW.SFX.radio(u.id || 0, u.side === 'e', Math.min(7, 2 + Math.round(text.length / 6)));
   };
   function drawBarks(g, t) {
     if (!fx.barks || !fx.barks.length) return;
@@ -1836,6 +1841,7 @@
   /* Попадание по материалу: искры по металлу, щепа по дереву, крошка по камню, песок из мешков */
   function impact(X, Y, mat, big) {
     const k = big ? 1.8 : 1;
+    if (DW.SFX.impact) DW.SFX.impact(mat === 'crystal' ? 'glass' : (mat === 'cloth' ? 'sand' : mat));
     switch (mat) {
       case 'metal':
         parts(X, Y, 16, Math.round(9 * k), '#fff2b0', 150, 260, 1.8, 420, 80);

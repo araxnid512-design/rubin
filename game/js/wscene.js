@@ -12,6 +12,8 @@
     DW.WR.sel = DW.G.state.squadAt;
     buildHud();
     WS.refresh();
+    // новые главы хроники — когда на карте нет окон
+    if (DW.Story) setTimeout(function () { if (DW.Main.scene() === WS && !DW.UI.hasModal() && !busy && !(DW.Cine && DW.Cine.active())) DW.Story.run(); }, 900);
   };
   WS.exit = function () { document.getElementById('ui').innerHTML = ''; hud = null; };
   WS.update = function (dt) { DW.WR.update(dt); };
@@ -49,8 +51,10 @@
     if (DW.G.state.over) DW.Main.ending(DW.G.state.over);
   }
 
+  let storyT = 0;
   WS.refresh = function () {
     if (!hud) return;
+    if (DW.Story && performance.now() - storyT > 1500) { storyT = performance.now(); setTimeout(function () { if (hud && !busy && !DW.UI.hasModal() && !(DW.Cine && DW.Cine.active())) DW.Story.run(); }, 400); }
     const G = DW.G, st = G.state, r = st.res;
     const warn = [];
     if (st.raid) warn.push('<span class="bad">Набег через ' + Math.max(0, st.raid.day - st.day) + ' дн.</span>');

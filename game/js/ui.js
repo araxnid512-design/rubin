@@ -417,6 +417,7 @@
         return '<span class="m"><img class="ava" src="' + DW.ART.portrait(fake) + '" alt="">' + m.name + ' <small>д.' + m.day + ', убийств ' + m.kills + '</small></span>';
       }).join('') + '</div>' : '') +
       '<div class="jlog">' + st.log.map(function (l) { return '<div><span>День ' + l.day + '</span> ' + l.text + '</div>'; }).join('') + '</div>';
+    if (DW.Story) b.insertBefore(el('button', { class: 'btn sm', text: 'Хроника (сюжет)', onclick: function () { DW.Story.open(); } }), b.firstChild);
     UI.modal({ title: 'Журнал', cls: 'wide', body: b });
   };
 

@@ -485,3 +485,10 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 .tree-p.got { border-color: var(--acc); background: linear-gradient(#4a3826, #2e2418); }
 .tree-p.got b { color: var(--acc); }
 .tree-p.off { opacity: 0.4; }
+.story { display: flex; gap: 12px; align-items: flex-start; }
+.story .ava { width: 64px; height: 64px; border-radius: 8px; border: 1px solid var(--acc); flex: none; }
+.story .stxt { font-size: 14px; line-height: 1.45; }
+.chron { display: flex; flex-direction: column; gap: 8px; }
+.chap { border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; background: rgba(0, 0, 0, 0.2); }
+.chap b { color: var(--acc); }
+.chap.locked { opacity: 0.45; }
