@@ -1,25 +1,4 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "p10_ppsh41",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "w_ppsh41",
-    "--image",
-    "tools/tripo/refs/ppsh41.jpg",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Soviet PPSh-41 submachine gun, one-piece wooden stock without pistol grip, perforated round barrel jacket with holes, slanted muzzle compensator, 71-round drum magazine mounted transversely in front of the trigger guard, worn blued steel and old wood, realistic, game-ready, single object"
-   ]
-  }
- ]
+ "stop": true,
+ "jobs": []
 }
