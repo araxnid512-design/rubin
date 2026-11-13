@@ -532,7 +532,8 @@
       if (!u || i >= n) { s.intensity = 0; return; }
       const e = ents[u.id];
       const W = e.wpn && e.wpn.g.visible ? e.wpn : null;
-      const p = W ? V(0, 0.05, -0.2).applyMatrix4(W.g.matrixWorld) : e.body.B.Head.getWorldPosition(V());
+      // фонарь — у дульного среза и чуть впереди: светит вперёд, а не по самому стволу (раньше ствол засвечивало добела)
+      const p = W ? V(W.muzzle.x, W.muzzle.y + 0.03, W.muzzle.z - 0.12).applyMatrix4(W.g.matrixWorld) : e.body.B.Head.getWorldPosition(V());
       const dir = W ? V(0, 0, -1).transformDirection(W.g.matrixWorld) : V(Math.cos(u.face || 0), -0.25, Math.sin(u.face || 0));
       dir.y = Math.min(dir.y, -0.12); dir.normalize();
       s.position.copy(p); s.target.position.copy(p).addScaledVector(dir, 6); s.target.updateMatrixWorld();
