@@ -1876,7 +1876,9 @@
       const mv = moves[u.id];
       const len = Math.hypot(nx - u.x, ny - u.y);
       const dh = Math.abs(hT(nx, ny) - hT(u.x, u.y));
-      const speed = (u._run ? 3.6 : 2.3) * (u.kind !== 'soldier' && !ART.ENEMY_LOOKS[u.type] ? 1.15 : 1);   // клеток в секунду
+      // клеток в секунду: трусцой 2,3, рывок 3,6; скрытно (засада) — крадучись 1,4
+      const sneaking = u.side === 'p' && Bs && Bs.concealed && !u._run;
+      const speed = (u._run ? 3.6 : (sneaking ? 1.4 : 2.3)) * (u.kind !== 'soldier' && !ART.ENEMY_LOOKS[u.type] ? 1.15 : 1);
       let dur = len / speed * 1000;
       if (dh > 1) dur = 950; else if (dh === 1) dur *= 1.35;
       const tn = now();

@@ -115,7 +115,7 @@
     aim: { butt: [-0.06, -0.01, -0.03], pitch: 2, yaw: 4, roll: 0, level: true },
     carry: { butt: [-0.04, -0.13, 0.03], pitch: -30, yaw: 20, roll: -10, minEl: -32, ground: true },
     hip: { butt: [0.0, -0.34, 0.0], pitch: 0, yaw: 6, roll: 0, level: true },
-    sling: { butt: [-0.12, -0.6, -0.17], pitch: 60, yaw: 30, roll: 0, back: true }
+    sling: { butt: [-0.14, -0.5, -0.17], pitch: 38, yaw: 42, roll: 0, back: true }
   };
   const _a = V(), _b = V(), _c = V(), _d = V();
   function torso(B) {
@@ -306,14 +306,18 @@
     const ts = t / 1000;
     if (!u.alive) {
       if (!e.die) { const v = ['die', 'die2', 'die3'][(u.id || 0) % 3]; e.die = has(v) ? v : 'die'; }
-      const p = an && an.kind === 'die' ? U.clamp(an.p, 0, 1) : 1;
-      return { key: e.die, t: p * dur(e.die) };
+      // падение в естественном темпе: от момента гибели (тела с начала боя — сразу лежат)
+      if (e.dieT0 === undefined) e.dieT0 = an && an.kind === 'die' && an.p < 1 ? tr.now() - an.p * 820 : -1e9;
+      return { key: e.die, t: Math.min(dur(e.die), (tr.now() - e.dieT0) / 1000 * 1.1) };
     }
     if (tw && tw.kind === 'step') {
-      let key = tw.run && has('run') ? 'run' : 'walk';
+      // перемещение идёт со скоростью бега трусцой (2,3 клетки/с, рывок — 3,6): шаг «ходьба» семенил бы;
+      // берём боевой бег с оружием (как в XCOM), цикл — 1,9 клетки; скрытно — крадущийся шаг, цикл — 1 клетка
       const Bq = DW.BT.get();
+      let key = has('run') ? 'run' : 'walk';
       if (u.side === 'p' && Bq && Bq.concealed && has('sneak')) key = 'sneak';
-      const ph = (tr.walkPhase(u) || 0) / (Math.PI * 2);
+      const per = key === 'sneak' ? 1.0 : (key === 'run' ? 1.9 : 1.3);
+      const ph = (tw.dist0 + (tw.len || 1) * tr.stepKOf(tw)) / per;
       const fx = tw.fx, fy = tw.fy;
       const dh = tw.tx !== undefined ? (Bq.hgt[tw.ty * Bq.w + tw.tx] - Bq.hgt[fy * Bq.w + fx]) : 0;
       if (dh !== 0 && has(dh > 0 ? 'climb' : 'vault')) { key = dh > 0 ? 'climb' : 'vault'; return { key: key, t: U.clamp((tr.now() - tw.t0) / tw.dur, 0, 1) * dur(key) }; }
@@ -328,12 +332,12 @@
           const rpg = an.a && an.a.data && an.a.data.rpg;
           const c2 = rpg ? 0 : cv;
           if (P.reload > 0 && has('reload') && !(c2 >= 1 || u.overwatch)) return { key: 'reload', t: P.reload * dur('reload'), recoil: 0 };
-          if (c2 === 2 && has('peek')) return { key: 'peek', t: p * dur('peek'), recoil: P.recoil };
+          if (c2 === 2) return { key: has('aim') ? 'aim' : 'shoot', t: 0, recoil: P.recoil, stepOut: true };
           if ((c2 === 1 || u.overwatch) && has('kneel')) return { key: 'kneel', t: p * dur('kneel'), recoil: P.recoil };
           return { key: has('aim') ? 'aim' : 'shoot', t: 0, recoil: P.recoil };
         }
         case 'reload': return { key: 'reload', t: p * dur('reload') };
-        case 'hit': { const k = (u.id + Math.floor(an.a.t0 / 1000)) % 2 && has('hit2') ? 'hit2' : 'hit'; return { key: k, t: p * dur(k) }; }
+        case 'hit': { const k = has('hit2') ? 'hit2' : 'hit'; return { key: k, t: p * dur(k) }; }
         case 'throw': { const k = cv >= 1 && has('throwk') ? 'throwk' : (has('throw') ? 'throw' : 'melee'); return { key: k, t: p * dur(k) }; }
         case 'atk': { const k = u.side === 'e' && has('punch') ? 'punch' : 'melee'; return { key: k, t: p * dur(k) }; }
         case 'slide': { const k = has('slide') ? 'slide' : 'crouch'; return { key: k, t: p * dur(k) }; }
@@ -342,7 +346,7 @@
           if (u.side === 'p' && has('idle2')) return { key: 'idle2', t: p * dur('idle2') };
           return { key: 'idle', t: ts + (u.id || 0) };
         case 'aimup': case 'aimhold':
-          if (cv === 2 && has('peek')) return { key: 'peek', t: an.kind === 'aimup' ? 0 : dur('peek') * 0.99 };
+          if (cv === 2) return { key: has('aim') ? 'aim' : 'shoot', t: 0, stepOut: true };
           if ((cv === 1 || u.overwatch) && has('kneel')) return { key: 'kneel', t: 0 };
           return { key: has('aim') ? 'aim' : 'shoot', t: 0 };
         default: return { key: 'idle', t: ts + (u.id || 0) };
@@ -356,9 +360,9 @@
     if (u.overwatch && has('watch')) return { key: 'watch', t: ts + (u.id || 0) };
     const cv = tr.coverLevel(u);
     if (cv === 1 && has('kneel')) return { key: 'kneel', t: 0 };
-    if (cv === 2 && has('wall')) {
+    if (cv === 2) {
       const wd = walls4(u);
-      return { key: 'wall', t: ts + (u.id || 0), facing: wd ? Math.atan2(-wd[1], -wd[0]) : null };
+      return { key: 'idle', t: ts + (u.id || 0) * 3.1, facing: wd ? Math.atan2(wd[1], wd[0]) + Math.PI / 2 : null };
     }
     return { key: 'idle', t: ts + (u.id || 0) * 3.1 };
   }
@@ -436,7 +440,7 @@
       Promise.all([R3.loadGLB('models/' + (R3.q() < 2 && bi.lo ? bi.lo : bi.f) + '.glb'), k.weapon && M3.weapons[k.weapon] ? R3.loadGLB('models/' + M3.weapons[k.weapon].f + '.glb') : null,
         M3.weapons.rpg ? R3.loadGLB('models/' + M3.weapons.rpg.f + '.glb') : null]).then(function (r) {
         if (!r[0] || !group || ents[u.id] !== e) return;
-        const body = makeBody(r[0], (bi.h || 1.8) * (u.type === 'boss' ? 1.04 : 1), true);
+        const body = makeBody(r[0], bi.h || 1.8, true);
         retargetSetup(body);
         e.body = body;
         group.add(body.holder);
@@ -555,12 +559,21 @@
     const c = libClip(P.key) || libClip('idle');
     if (!c) return;
     if (P.facing !== undefined && P.facing !== null) face = P.facing;
+    // из-за стены: шаг вбок из-за угла (в свободную сторону) на время выстрела, потом обратно
+    if (P.stepOut && !e.soDir) {
+      const B = DW.BT.get(), f = u.face || 0;
+      const sides = [[-Math.sin(f), Math.cos(f)], [Math.sin(f), -Math.cos(f)]];
+      const free = function (d) { const x = Math.round(u.x + d[0]), y = Math.round(u.y + d[1]); const o = DW.BT.objAt(x, y); return x >= 0 && y >= 0 && x < B.w && y < B.h && !(o && D.OBJ[o].cover === 2); };
+      e.soDir = free(sides[0]) ? sides[0] : sides[1];
+    }
+    e.so = (e.so || 0) + ((P.stepOut ? 1 : 0) - (e.so || 0)) * Math.min(1, dt * 9);
+    if (!P.stepOut && e.so < 0.02) { e.so = 0; e.soDir = null; }
+    if (e.so > 0 && e.soDir) { e.body.holder.position.x += e.soDir[0] * e.so * 0.55 * T; e.body.holder.position.z += e.soDir[1] * e.so * 0.55 * T; if (e.blob) { e.blob.position.x = e.body.holder.position.x; e.blob.position.z = e.body.holder.position.z; } }
     e.body.holder.rotation.y = Math.PI / 2 - face + (c.yaw || 0) * Math.PI / 180;
-    const sc = TR2().unitScale(u) / 1.13;
-    e.body.holder.scale.setScalar(sc);
+    e.body.holder.scale.setScalar(1);
     // смена движения — плавно: старая поза растворяется за 0,12–0,25 с
     if (e.key !== P.key) {
-      if (e.key) { e.from = { q: Float32Array.from(e.pose.q), hp: e.pose.hp.clone() }; e.fromT = t; e.fromD = (P.key === 'walk' || P.key === 'run' || e.key === 'walk' || e.key === 'run') ? 150 : 230; }
+      if (e.key) { e.from = { q: Float32Array.from(e.pose.q), hp: e.pose.hp.clone() }; e.fromT = t; e.fromD = (P.key === 'aim' || P.key === 'kneel' || P.key === 'shoot') ? 110 : ((P.key === 'walk' || P.key === 'run' || e.key === 'walk' || e.key === 'run' || P.key === 'sneak') ? 150 : 230); }
       e.key = P.key;
     }
     samplePose(P.key, P.t, e.pose);
@@ -577,7 +590,8 @@
     if (e.wpn) e.wpn.g.visible = !rpg;
     if (!W || !refAK) return;
     if (!e.cal || e.cal.w !== W) calibrate(e, W);
-    const mode = c.mode || 'carry';
+    let mode = c.mode || 'carry';
+    if (mode === 'left') mode = 'sling';
     const groundY = e.body.holder.position.y;
     let M;
     if (mode === 'hand' || mode === 'left') {
