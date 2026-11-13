@@ -138,6 +138,7 @@
     marksman: { n: 'Стрелок банды', hp: 5, aim: 72, mob: 5, def: 0, armor: 0, weapon: 'sniper', weapons: ['sniper', 'sniper', 'lmg'], xp: 3, loot: { ammo: [4, 10], gems: [1, 4] }, sight: 11 },
     boss: { n: 'Главарь', hp: 14, aim: 68, mob: 5, def: 0, armor: 1, weapon: 'ak2', weapons: ['ak2', 'lmg'], xp: 6, loot: { gems: [10, 18], ammo: [20, 35] }, sight: 10, drop: 'ak2' },
     guardian: { n: 'Страж бункера', hp: 10, aim: 68, mob: 4, def: 0, armor: 2, weapon: 'beam', xp: 4, loot: { gems: [3, 6], materials: [1, 3] }, sight: 10, mech: true },
+    alpha: { n: 'Вожак', hp: 18, aim: 78, mob: 7, def: 5, armor: 1, melee: true, dmg: [5, 8], xp: 6, loot: { gems: [6, 12] }, sight: 10, beast: true },
     queen: { n: 'Матка', hp: 36, aim: 80, mob: 4, def: 0, armor: 2, melee: true, dmg: [6, 9], xp: 15, loot: { gems: [40, 60] }, sight: 10, beast: true, boss: true, spawner: true }
   };
 

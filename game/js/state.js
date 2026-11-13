@@ -563,6 +563,21 @@
       });
     }
     let kills = 0;
+    // боевые товарищи: кто прошёл бой вместе, сближается (3 совместных боя — «товарищи», +5 к меткости рядом)
+    const mates = B.units.filter(function (u) { return u.kind === 'soldier' && (u.alive || u.stable || u.down > 0); }).map(function (u) { return u.sid; });
+    const newBonds = [];
+    mates.forEach(function (a) {
+      const s = st.roster.find(function (x) { return x.id === a; });
+      if (!s) return;
+      s.bonds = s.bonds || {};
+      mates.forEach(function (b) {
+        if (a === b) return;
+        const v0 = s.bonds[b] || 0;
+        s.bonds[b] = Math.min(5, v0 + 1);
+        if (v0 < 3 && s.bonds[b] >= 3 && a < b) { const o = st.roster.find(function (x) { return x.id === b; }); if (o) newBonds.push(s.name + ' и ' + o.name); }
+      });
+    });
+    if (newBonds.length) sum.bonds = newBonds;
     B.units.forEach(function (u) {
       if (u.kind !== 'soldier') return;
       const idx = st.roster.findIndex(function (x) { return x.id === u.sid; });

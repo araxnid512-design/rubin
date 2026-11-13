@@ -4,19 +4,30 @@ const DW = S + 'dw/';
 const CLIPS = S + 'player.glb'; // клипы с винтовкой (герой «Стикса», скелет Mixamo)
 
 // Набор движений человека с оружием (кадров на направление; направлений 8)
+const MK = (m) => S + 'dw/m_krut_' + m + '.glb'; // движения по тексту Tripo (на скелете Крута)
 const HUMAN = [
-  { key: 'idle', clip: 'IdleRifle', n: 4, loop: true, fps: 2 },
+  { key: 'idle', clip: 'IdleRifle', n: 3, loop: true, fps: 2 },
   { key: 'walk', clip: 'WalkRifle', n: 8, loop: true },
   { key: 'run', clip: 'RunRifle', n: 6, loop: true },
   { key: 'aim', clip: 'AimRifle', n: 1, t0: 0.5 },
   { key: 'shoot', clip: 'ShootRifle', n: 2, t0: 0, t1: 0.1 },
-  { key: 'reload', clip: 'ReloadRifle', n: 6, noIK: true },
+  { key: 'reload', clip: 'ReloadRifle', n: 5, noIK: true },
   { key: 'hit', clip: 'HitRifle', n: 2, t0: 0.05, t1: 0.3 },
-  { key: 'die', clip: 'Death', n: 6, noIK: true },
-  { key: 'melee', clip: 'Melee', n: 4, noIK: true },
+  { key: 'die', clip: 'Death', n: 5, noIK: true },
+  { key: 'melee', clip: 'Melee', n: 3, noIK: true },
   { key: 'crouch', clip: 'IdleRifle', n: 1, crouch: 0.4 },
   { key: 'crouchAim', clip: 'AimRifle', n: 1, t0: 0.5, crouch: 0.4 },
-  { key: 'hunker', clip: 'IdleRifle', n: 1, crouch: 0.62 }
+  { key: 'hunker', clip: 'IdleRifle', n: 1, crouch: 0.62 },
+  // из-за полного укрытия: выглянуть, очередь, назад; с колена за низким; дозор с колена; пригнуться под огнём
+  { key: 'peek', clip: '*', src: MK('peek'), n: 4, noIK: true },
+  { key: 'kneel', clip: '*', src: MK('kneel'), n: 3, noIK: true },
+  { key: 'watch', clip: '*', src: MK('watch'), n: 2, loop: true, noIK: true },
+  { key: 'duck', clip: '*', src: MK('duck'), n: 2, loop: true, noIK: true },
+  // перелезть через низкое и залезть на уступ, бросок гранаты, перевязка
+  { key: 'vault', clip: '*', src: MK('vault'), n: 3, noIK: true },
+  { key: 'climb', clip: '*', src: MK('climb'), n: 3, noIK: true },
+  { key: 'throw', clip: '*', src: MK('throw'), n: 3, noIK: true },
+  { key: 'heal', clip: '*', src: MK('heal'), n: 2, loop: true, noIK: true }
 ];
 // Крупная фигура (экран отряда): стойка с оружием
 const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4 }];
@@ -48,17 +59,22 @@ const BODIES = [
   B('mur1', S + 'mur_1.glb'),
   B('mur2', S + 'mur_2.glb'),
   B('marksman', DW + 'c_marksman_a.glb'),
-  B('boss', DW + 'c_boss_a.glb', { h: 1.9 })
+  B('boss', DW + 'c_boss_a.glb', { h: 1.9 }),
+  B('bandit3', DW + 'c_bandit3_a.glb'),
+  B('bandit4', DW + 'c_bandit4_a.glb'),
+  B('bandit5', DW + 'c_bandit5_a.glb', { h: 1.88 })
 ];
 // у файлов без «_a» (модели без движений Tripo) — скелет в основном файле
 const BODY_FALLBACK = {};
 
 const C = (key, clip, n, o) => Object.assign({ key, clip, n }, o || {});
 const CREATURES = [
-  { id: 'brute', src: DW + 'm_brute_a.glb', more: DW + 'm_brute_b.glb', h: 2.3, box: [1.4, 2.5], anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', 'slash', 5), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6), C('roar', 'angry_01', 4)] },
-  { id: 'spitter', src: DW + 'm_spitter_a.glb', more: DW + 'm_spitter_b.glb', h: 1.6, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', 'shoot', 4), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
+  { id: 'brute', src: DW + 'm_brute_a.glb', more: DW + 'm_brute_b.glb', h: 2.3, box: [1.4, 2.5], anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', '*', 5, { src: DW + 'm_brute_smash.glb' }), C('slash', 'slash', 4), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6), C('roar', 'angry_01', 4)] },
+  { id: 'spitter', src: DW + 'm_spitter_a.glb', more: DW + 'm_spitter_b.glb', h: 1.6, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('run', 'run', 6, { loop: true }), C('atk', '*', 4, { src: DW + 'm_spitter_spit.glb' }), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
   { id: 'guardian', src: DW + 'm_guardian_a.glb', h: 1.95, anims: [C('idle', 'idle', 4, { loop: true, fps: 2 }), C('walk', 'walk', 8, { loop: true }), C('atk', 'shoot', 3), C('hit', 'hit_to_body_01', 2, { t1: 0.4 }), C('die', 'fall', 6)] },
   { id: 'scav', src: DW + 'm_scav_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
+  { id: 'scav2', src: DW + 'm_scav2_a.glb', h: 1.0, quad: true, box: [1.2, 1.2], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
+  { id: 'alpha', src: DW + 'm_alpha_a.glb', h: 1.6, quad: true, box: [1.6, 1.8], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] },
   { id: 'queen', src: DW + 'm_queen_a.glb', h: 1.9, quad: true, box: [2.0, 2.8], anims: [C('walk', 'walk', 8, { loop: true }), C('idle', 'walk', 1)] }
 ];
 

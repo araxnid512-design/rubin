@@ -315,9 +315,13 @@
           if (!best || d < best.d) best = { x: x, y: y, d: d };
         }
         if (best) await BT.move(m, BT.pathTo(R, best.x, best.y), { noReact: true });
-        const spotted = m.seen || ps.some(function (s) { return s.alive && BT.canSee(m, s); });
+        // при скрытности отряд замечают только вблизи (зона обнаружения)
+        const spotted = B.concealed ? BT.detects(m) : (m.seen || ps.some(function (s) { return s.alive && BT.canSee(m, s); }));
         if (spotted && !m.active) {
+          const rv = B.concealed;
+          if (rv) BT.reveal('Патруль заметил отряд!');
           await BT.activatePods([m]);
+          if (rv) await BT.wakeSeen();
           break;
         }
       }

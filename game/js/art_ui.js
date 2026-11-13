@@ -231,12 +231,20 @@
     const rank = s.xp !== undefined && DW.G ? DW.G.rank(s) : (s.rank || 0);
     if (hurtLv === undefined && s.xp !== undefined && DW.G && s.hpBase) { const mh = DW.G.maxHp(s), hp = DW.G.hp(s); hurtLv = hp <= mh * 0.35 ? 2 : (hp < mh * 0.75 ? 1 : 0); }
     hurtLv = hurtLv || 0;
-    const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls + '|' + rank + '|' + (s.look.bscars || 0) + '|' + hurtLv;
+    // 3D-портрет (снимок головы модели бойца), если его атлас загружен
+    const head = DW.S3 && DW.S3.head ? DW.S3.head(s) : null;
+    const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls + '|' + rank + '|' + (s.look.bscars || 0) + '|' + hurtLv + (head ? '|3d' : '');
     if (cache[key]) return cache[key];
     const c = ART.canvas(128, 128);
     const g = c.getContext('2d');
     frameBg(g, D.CLASSES[s.cls] ? D.CLASSES[s.cls].color : '#888', ART.hashStr(s.id));
-    bust(g, s.look, {
+    if (head) {
+      g.drawImage(head, 0, 0, 128, 128);
+      const vg = g.createRadialGradient(64, 60, 30, 64, 64, 92); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+      g.fillStyle = vg; g.fillRect(0, 0, 128, 128);
+      if (DW.G.smoker(s)) { g.fillStyle = 'rgba(220,220,220,0.35)'; g.beginPath(); g.ellipse(92, 40, 10, 6, -0.4, 0, 7); g.fill(); }
+      for (let r = 0; r < rank; r++) { g.fillStyle = '#e3a33b'; g.beginPath(); g.moveTo(8, 112 - r * 7); g.lineTo(14, 108 - r * 7); g.lineTo(20, 112 - r * 7); g.lineTo(20, 115 - r * 7); g.lineTo(14, 111 - r * 7); g.lineTo(8, 115 - r * 7); g.closePath(); g.fill(); }
+    } else bust(g, s.look, {
       cloth: '#c8691c', robe: true, armor: s.armor,
       helmet: s.armor === 'heavy' || s.armor === 'exo', helmetColor: s.armor === 'exo' ? '#2f4552' : '#4a5258',
       cig: DW.G.smoker(s), rank: rank
@@ -257,17 +265,31 @@
       }
       g.restore();
     }
-    cache[key] = c.toDataURL('image/png');
+    // холст с 3D-снимком может быть «чужим» для браузера на file:// — тогда остаётся рисованный портрет
+    try { cache[key] = c.toDataURL('image/png'); }
+    catch (e) { if (head) { DW.S3.noHeads = true; return ART.portrait(s, hurtLv); } throw e; }
     return cache[key];
   };
 
   /* ---------- Портреты врагов ---------- */
   ART.enemyPortrait = function (type) {
-    const key = 'e|' + type;
+    // 3D-кадр врага (стойка лицом к камере), если его атлас уже загружен (в бою)
+    const f3 = DW.S3 && !DW.S3.noHeads && DW.S3.enemyShot ? DW.S3.enemyShot(type) : null;
+    const key = 'e|' + type + (f3 ? '|3d' : '');
     if (cache[key]) return cache[key];
     const c = ART.canvas(128, 128);
     const g = c.getContext('2d');
     const T = D.ENEMIES[type];
+    if (f3) {
+      frameBg(g, T && T.beast ? '#7a3a2a' : (T && T.mech ? '#3a6a8a' : '#6a2a2a'), ART.hashStr(type));
+      // голова и корпус крупно: верх фигуры у края рамки, 60 % роста — на всю высоту портрета
+      const k = 128 / (f3.h * 0.6);
+      g.drawImage(f3.c, 64 - f3.ox * k, 8, f3.w * k, f3.h * k);
+      const vg = g.createRadialGradient(64, 60, 30, 64, 64, 92); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+      g.fillStyle = vg; g.fillRect(0, 0, 128, 128);
+      try { cache[key] = c.toDataURL('image/png'); return cache[key]; } catch (e) { DW.S3.noHeads = true; return ART.enemyPortrait(type); }
+    }
+    if (type === 'alpha') return ART.enemyPortrait('scav');
     const human = ART.ENEMY_LOOKS[type];
     frameBg(g, T && T.beast ? '#7a3a2a' : (T && T.mech ? '#3a6a8a' : '#6a2a2a'), ART.hashStr(type));
     let gr;

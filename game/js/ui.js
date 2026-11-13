@@ -159,6 +159,14 @@
         (TRt ? '<div class="small dim">' + TRt.n + ': ' + TRt.d + '</div>' : '') +
         ((s.perks || []).length ? '<div class="small">Навыки: ' + s.perks.map(function (p) { return '<b class="acc">' + D.PERKS[p].n + '</b>'; }).join(', ') + '</div>' : '') +
         '<div class="small dim">Опыт ' + s.xp + (next ? ' / ' + next.xp : '') + ' · убийств ' + s.kills + ' · заданий ' + s.missions + '</div>' +
+        (function () {
+          const bl = [];
+          for (const id in (s.bonds || {})) {
+            const o = st.roster.find(function (x) { return String(x.id) === id; });
+            if (o && s.bonds[id] >= 3) bl.push(o.name);
+          }
+          return bl.length ? '<div class="small">Боевые товарищи: <b class="acc">' + bl.join(', ') + '</b> <span class="dim">(+5 к меткости рядом)</span></div>' : '';
+        })() +
         (next ? '<div class="pbar"><i style="width:' + Math.round((s.xp - D.RANKS[rk].xp) / (next.xp - D.RANKS[rk].xp) * 100) + '%;background:linear-gradient(90deg,#a8661a,#e8a83e)"></i></div>' : '') +
         hpBar(G.hp(s), G.maxHp(s));
       top.appendChild(info);
@@ -459,6 +467,7 @@
         return '<div class="rs kia"><img class="ava" src="' + DW.ART.portrait(r) + '" alt=""><div class="sc"><b>' + r.name + '</b><span class="bad">Погиб</span></div></div>';
       }));
       if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
+      if (sum.bonds) html += '<div class="rloot">Стали боевыми товарищами: <b class="acc">' + sum.bonds.join('; ') + '</b> — рядом друг с другом +5 к меткости.</div>';
       b.innerHTML = html;
       (sum.perkChoices || []).forEach(function (pc) {
         if (!pc.opts.length) return;

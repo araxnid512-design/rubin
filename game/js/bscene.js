@@ -32,6 +32,7 @@
       banner('Ваш ход');
     }
     if (B.turn === 1 && (B.tod !== 'day' || B.weather !== 'clear')) setTimeout(function () { DW.UI.toast(BT().condText(B), B.sightMod ? 'alert' : ''); }, 1650);
+    if (B.turn === 1 && B.concealed) setTimeout(function () { DW.UI.toast('Отряд скрыт. Оранжевые клетки — зона, где враг заметит бойца. Первый выстрел — из засады.', ''); }, 3200);
   };
   BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; };
   BS.update = function (dt) { DW.TR.update(dt); };
@@ -143,7 +144,9 @@
   BS.refresh = function () {
     if (!hud || !B) return;
     const st = DW.G.state;
-    hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective + '<div class="cond">' + BT().condText(B) + '</div>';
+    hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective + '<div class="cond">' + BT().condText(B) + '</div>' +
+      (B.concealed ? '<div class="cond conceal">Отряд скрыт · засада: +15 к меткости</div>' : '') +
+      (B.reinf ? '<div class="cond reinf">Подкрепление врага на подходе!</div>' : '');
     hud.res.innerHTML = '<span>' + ic('ammo') + st.res.ammo + '</span><span>' + ic('grenades') + st.res.grenades + '</span><span>' + ic('meds') + st.res.meds + '</span>' +
       (st.res.rockets ? '<span>' + ic('rockets') + st.res.rockets + '</span>' : '') + '<span class="gemc">' + ic('gems') + (B.loot.gems || 0) + '</span>';
     renderSquad();
@@ -199,7 +202,15 @@
     if (msg) DW.UI.toast(msg);
   }
 
-  let owzSrc = null, owzC = null;
+  let owzSrc = null, owzC = null, dzKey = '', dzC = null;
+  // зона обнаружения при скрытности (пересчёт, только когда враги сдвинулись)
+  function detectZone() {
+    if (!B.concealed) return null;
+    let k = '';
+    B.units.forEach(function (e) { if (e.side === 'e' && e.alive && !e.active && e.seen) k += e.id + ':' + e.x + ',' + e.y + ';'; });
+    if (k !== dzKey) { dzKey = k; dzC = BT().detectZone(); }
+    return dzC;
+  }
   function refreshOverlay() {
     if (!B) return;
     const st = sel && sel.alive ? sel : null;
@@ -211,7 +222,8 @@
       shields: preview ? preview.shields : null, seeMarks: preview ? preview.marks : null,
       targets: mode === 'target' ? targets : null, target: mode === 'target' && targets[tIdx] ? targets[tIdx].u : null,
       aoe: mode === 'throw' ? aoe : null, allies: mode === 'ally' ? allies : null,
-      owz: mode === 'idle' && !busy && st && st.ap > 0 && reachC ? (owzSrc === reachC ? owzC : (owzSrc = reachC, owzC = BT().owZone(reachC))) : null
+      owz: mode === 'idle' && !busy && st && st.ap > 0 && reachC ? (owzSrc === reachC ? owzC : (owzSrc = reachC, owzC = BT().owZone(reachC))) : null,
+      dz: detectZone()
     };
   }
   function refreshPanel() {

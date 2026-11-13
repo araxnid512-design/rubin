@@ -1622,7 +1622,7 @@
   /* ---------- Анимации и эффекты ---------- */
   function unitScale(u) {
     if (u.type === 'queen') return 1.6;
-    if (u.type === 'brute' || u.type === 'boss') return 1.3;
+    if (u.type === 'brute' || u.type === 'boss' || u.type === 'alpha') return 1.3;
     return 1.13;
   }
   function rp(u) {
@@ -1826,7 +1826,9 @@
     if (DW.S3) {
       const S = DW.S3.setsFor(u);
       if (S && S.weapon && DW.S3.ready(S.body)) {
-        const m = DW.S3.muzzleAt(S.weapon, 'shoot', 0, DW.S3.dir8(u.face));
+        // дуло в текущем кадре (из-за укрытия, с колена) или в обычной стойке стрельбы
+        const cur = u._a3 && /^(peek|kneel|shoot|watch|crouchAim|aim)$/.test(u._a3[0]) ? u._a3 : ['shoot', 0];
+        const m = DW.S3.muzzleAt(S.weapon, cur[0], cur[1], DW.S3.dir8(u.face)) || DW.S3.muzzleAt(S.weapon, 'shoot', 0, DW.S3.dir8(u.face));
         if (m) return [c[0] + m[0], c[1] + m[1]];
       }
     }
@@ -2006,7 +2008,7 @@
       case 'hit': P.hit = Math.sin(p * Math.PI); break;
       case 'atk': P.atk = Math.sin(p * Math.PI); break;
       case 'look': P.look = p > 0.25 && p < 0.75 ? -1 : 0; break;
-      case 'check': P.low = Math.sin(p * Math.PI) * 0.9; break;
+      case 'check': case 'heal': P.low = Math.sin(p * Math.PI) * 0.9; break;
       case 'sniff': P.atk = Math.sin(p * Math.PI * 3) * 0.25; break;
       case 'signal': P.raise = 0.4; P.lean = -0.08; break;
       default: break;
@@ -2065,7 +2067,7 @@
     g.globalCompositeOperation = 'source-over';
   }
   function spriteDims(u) {
-    const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' ? 1.4 : 1);
+    const big = u.type === 'queen' ? 2.2 : (u.type === 'brute' || u.type === 'alpha' ? 1.4 : 1);
     const LW = 130 * big, LH = 100 * big;
     return { big: big, LW: LW, LH: LH, ox: LW / 2, oy: LH - 16 * big, SS: USS };
   }
@@ -2196,33 +2198,46 @@
       anim = running && n('run') ? 'run' : 'walk';
       const ph = (((walk || 0) / (Math.PI * 2)) % 1 + 1) % 1;
       i = Math.floor(ph * n(anim));
+      // шаг на уступ — залезть, с уступа — перелезть вниз
+      const dh = !cre && tw.tx !== undefined ? hT(tw.tx, tw.ty) - hT(tw.fx, tw.fy) : 0;
+      if (dh !== 0 && n(dh > 0 ? 'climb' : 'vault')) { anim = dh > 0 ? 'climb' : 'vault'; i = Math.floor(U.clamp((t - tw.t0) / tw.dur, 0, 0.999) * n(anim)); }
     } else if (an) {
       const p = U.clamp(an.p, 0, 0.999);
       switch (an.kind) {
         case 'shoot': {
           if (cre) { anim = 'atk'; i = Math.floor(p * n('atk')); break; }
           const P = poseFor(u, an);
+          const cv = an.a && an.a.data && an.a.data.rpg ? 0 : coverLevel(u);
           if (P.reload > 0 && n('reload')) { anim = 'reload'; i = Math.floor(U.clamp(P.reload, 0, 0.999) * n('reload')); }
-          else if (coverLevel(u) === 1 && n('crouchAim')) { anim = 'crouchAim'; }
+          else if (cv === 2 && n('peek')) { anim = 'peek'; i = Math.floor(p * n('peek')); }       // выглянуть из-за стены
+          else if ((cv === 1 || u.overwatch) && n('kneel')) { anim = 'kneel'; i = Math.floor(p * n('kneel')); } // с колена
+          else if (cv === 1 && n('crouchAim')) { anim = 'crouchAim'; }
           else { anim = 'shoot'; i = P.recoil > 0.35 ? 1 : 0; }
           break;
         }
         case 'reload': anim = 'reload'; i = Math.floor(p * n('reload')); break;
         case 'hit': anim = 'hit'; i = p < 0.45 ? 0 : 1; break;
-        case 'throw': case 'atk': anim = cre ? 'atk' : 'melee'; i = Math.floor(p * n(anim)); break;
+        case 'throw': anim = cre ? 'atk' : (n('throw') ? 'throw' : 'melee'); i = Math.floor(p * n(anim)); break;
+        case 'atk': anim = cre ? 'atk' : 'melee'; i = Math.floor(p * n(anim)); break;
+        case 'heal': anim = n('heal') ? 'heal' : 'idle'; i = Math.floor(t / 300) % Math.max(1, n(anim)); break;
         case 'charge': anim = n('run') ? 'run' : 'walk'; i = Math.floor(t / 80) % Math.max(1, n(anim)); break;
         case 'shake': case 'sniff': anim = n('roar') ? 'roar' : 'idle'; i = n('roar') ? Math.floor(p * n('roar')) : idleI(); break;
         case 'scan': case 'signal': anim = n('aim') ? 'aim' : 'idle'; break;
         default: anim = 'idle'; i = idleI(); break;
       }
     } else if (!cre) {
-      if (u.hunker && n('hunker')) anim = 'hunker';
+      // стойки: пригнулся под огнём, дозор с колена (ведёт стволом), на колене за низким укрытием
+      if (u.hunker && n('duck')) { anim = 'duck'; i = Math.floor(t / 700 + (u.id || 0)) % n('duck'); }
+      else if (u.hunker && n('hunker')) anim = 'hunker';
+      else if (u.overwatch && n('watch')) { anim = 'watch'; i = Math.floor(t / 900 + (u.id || 0)) % n('watch'); }
       else if (u.overwatch && n('crouchAim')) anim = 'crouchAim';
+      else if (u.alive && coverLevel(u) === 1 && n('kneel')) anim = 'kneel';
       else if (u.alive && coverLevel(u) === 1 && n('crouch')) anim = 'crouch';
       else { anim = 'idle'; i = idleI(); }
     } else { anim = 'idle'; i = idleI(); }
     if (!n(anim)) { anim = n('idle') ? 'idle' : 'walk'; i = 0; }
     i = Math.min(i, n(anim) - 1);
+    u._a3 = [anim, i];
     const L = [[S.body, anim, i, d]];
     // бросок гранаты — замах пустой рукой (ствол за спиной не рисуем)
     // выстрел из РПГ — гранатомёт на плече вместо своего ствола
@@ -3163,6 +3178,27 @@
       g.strokeStyle = 'rgba(235,248,255,0.8)'; g.stroke(lb);
       g.strokeStyle = 'rgba(255,245,215,0.7)'; g.stroke(ly);
       g.setLineDash([]); g.lineDashOffset = 0;
+    }
+    // зона обнаружения (отряд скрыт)
+    if (ov.dz && B.concealed) {
+      const pz = new Path2D();
+      for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+        if (!ov.dz[y * B.w + x]) continue;
+        const hh = hT(x, y) * LH;
+        const a = iso(x + 0.04, y + 0.04), b = iso(x + 0.96, y + 0.04), c = iso(x + 0.96, y + 0.96), d = iso(x + 0.04, y + 0.96);
+        pz.moveTo(a[0], a[1] - hh); pz.lineTo(b[0], b[1] - hh); pz.lineTo(c[0], c[1] - hh); pz.lineTo(d[0], d[1] - hh); pz.closePath();
+      }
+      g.fillStyle = 'rgba(255,150,40,0.12)'; g.fill(pz);
+      g.strokeStyle = 'rgba(255,170,60,0.32)'; g.lineWidth = 1; g.stroke(pz);
+    }
+    // сигнальная ракета: место подхода вражеского подкрепления
+    if (B.reinf && B.explored[B.reinf.y * B.w + B.reinf.x] !== undefined) {
+      const c = isoC(B.reinf.x, B.reinf.y), pr = 0.5 + Math.sin(t / 220) * 0.5;
+      g.beginPath(); g.ellipse(c[0], c[1], 44 + pr * 10, 22 + pr * 5, 0, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255,60,40,' + (0.08 + pr * 0.08) + ')'; g.fill();
+      g.strokeStyle = 'rgba(255,90,60,0.75)'; g.lineWidth = 2; g.setLineDash([6, 6]); g.stroke(); g.setLineDash([]);
+      g.fillStyle = 'rgba(255,120,80,0.95)'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+      g.fillText('ПОДКРЕПЛЕНИЕ', c[0], c[1] - 30 - pr * 4);
     }
     // зоны вражеского дозора внутри зоны хода
     if (ov.owz) {

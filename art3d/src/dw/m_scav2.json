@@ -1,0 +1,23 @@
+{
+ "id": "m_scav2",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:quadruped:walk"
+  ]
+ ],
+ "pid": "48859624-b672-40f9-8e2c-3631c75afbec"
+}

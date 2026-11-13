@@ -435,6 +435,8 @@
 
   /* ---------- Твари и машины (смотрят вправо; лапы в 0,0) ---------- */
   ART.creature = function (g, type, o, t) {
+    // Вожак без 3D-атласа рисуется крупным Падальщиком
+    if (type === 'alpha') { type = 'scav'; o = Object.assign({}, o, { scale: (o.scale || 1) * 1.45 }); }
     const s = o.scale || 1;
     const walking = o.walk !== null && o.walk !== undefined;
     const ph = walking ? o.walk : t / 400;

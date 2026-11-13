@@ -176,6 +176,7 @@ async function getRig(url, h) {
   return b;
 }
 function findClip(rig, name) {
+  if (name === '*') return rig.gl.animations[0];
   const lc = name.toLowerCase();
   return rig.gl.animations.find((a) => a.name === name) || rig.gl.animations.find((a) => a.name.toLowerCase() === lc) ||
     rig.gl.animations.find((a) => a.name.toLowerCase().indexOf(lc) >= 0);
@@ -257,6 +258,13 @@ async function frames(spec) {
   }
   const src = spec.clipSrc && spec.clipSrc !== spec.body ? await getRig(spec.clipSrc, 1.8) : dst;
   const rt = src === dst ? null : C.makeRetarget(src, dst);
+  // у отдельных движений — свой источник клипа (движения по тексту Tripo на скелете Крута)
+  const srcs = {};
+  const srcFor = async (url) => {
+    if (!url) return { s: src, rt };
+    if (!srcs[url]) { const r = await getRig(url, 1.8); srcs[url] = { s: r, rt: r === dst ? null : C.makeRetarget(r, dst) }; }
+    return srcs[url];
+  };
   let wpn = null, off = null;
   if (spec.weapon) {
     wpn = C.makeWeapon(await load(spec.weapon.src), spec.weapon);
@@ -270,15 +278,16 @@ async function frames(spec) {
   if (showW) scene.add(wpn.g);
   setColor(dst, spec.layer !== 'weapon');
   for (const an of spec.anims) {
-    const clip = findClip(src, an.clip);
+    const SR = await srcFor(an.src);
+    const clip = findClip(SR.s, an.clip);
     if (!clip) throw new Error('нет клипа ' + an.clip);
     const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? Math.min(an.t1, clip.duration) : clip.duration;
     for (let i = 0; i < an.n; i++) {
       const t = an.n === 1 ? t0 : t0 + (t1 - t0) * (an.loop ? i / an.n : i / (an.n - 1));
       for (const d of (spec.dirs || [0, 1, 2, 3, 4, 5, 6, 7])) {
         dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
-        poseRig(src, an.clip, t);
-        if (rt) rt();
+        poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, t);
+        if (SR.rt) SR.rt();
         if (an.crouch) crouch(dst, an.crouch * H / 1.8);
         const ang = d * Math.PI / 4;
         dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang));
@@ -340,10 +349,39 @@ function pack(list, page) {
   return { pages, items };
 }
 
+/* Портрет: голова и плечи модели вполоборота, перспективная камера (для рамки портрета в игре) */
+async function headShot(spec) {
+  const H = spec.height || 1.8;
+  const dst = await getRig(spec.body, H);
+  const src = spec.clipSrc && spec.clipSrc !== spec.body ? await getRig(spec.clipSrc, 1.8) : dst;
+  const rt = src === dst ? null : C.makeRetarget(src, dst);
+  dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+  if (spec.clip) { poseRig(src, spec.clip, spec.t || 0.4); if (rt) rt(); }
+  dst.holder.rotation.y = spec.turn !== undefined ? spec.turn : -0.42;
+  dst.holder.updateMatrixWorld(true);
+  setColor(dst, true);
+  scene.add(dst.holder);
+  const head = dst.B.Head.getWorldPosition(new THREE.Vector3());
+  const lift = spec.lift !== undefined ? spec.lift : 0.07;
+  const pc = new THREE.PerspectiveCamera(spec.fov || 21, 1, 0.05, 30);
+  pc.position.set(head.x + 0.18, head.y + lift + 0.06, head.z + 1.7);
+  pc.lookAt(head.x, head.y + lift - 0.05, head.z);
+  const N = spec.size || 256;
+  renderer.setSize(N, N, false);
+  renderer.render(scene, pc);
+  const c = document.createElement('canvas'); c.width = N; c.height = N;
+  c.getContext('2d').drawImage(renderer.domElement, 0, 0);
+  scene.remove(dst.holder);
+  return c;
+}
+
 /* Набор: кадры → атлас (webp) + описание */
 async function bakeSet(spec) {
   let list;
-  if (spec.kind === 'prop') {
+  if (spec.kind === 'head') {
+    const c = await headShot(spec);
+    list = [{ k: 'v', i: 0, d: 0, c, ax: 0, ay: 0 }];
+  } else if (spec.kind === 'prop') {
     list = [];
     for (let v = 0; v < spec.variants.length; v++) {
       const r = await propCanvas(spec.variants[v]);
@@ -352,16 +390,16 @@ async function bakeSet(spec) {
   } else list = await frames(spec);
   const p = pack(list, spec.page || 2048);
   const anims = {};
-  (spec.anims || [{ key: 'v', n: spec.variants ? spec.variants.length : 1 }]).forEach((a) => { anims[a.key] = { n: a.n, loop: !!a.loop, fps: a.fps || 0 }; });
+  (spec.kind === 'head' ? [{ key: 'v', n: 1 }] : (spec.anims || [{ key: 'v', n: spec.variants ? spec.variants.length : 1 }])).forEach((a) => { anims[a.key] = { n: a.n, loop: !!a.loop, fps: a.fps || 0 }; });
   const F = {};
-  p.items.forEach((it) => { (F[it.k] = F[it.k] || []); F[it.k][it.i * (spec.kind === 'prop' ? 1 : 8) + it.d] = it.rect; });
+  p.items.forEach((it) => { (F[it.k] = F[it.k] || []); F[it.k][it.i * (spec.kind === 'prop' || spec.kind === 'head' ? 1 : 8) + it.d] = it.rect; });
   // половинные копии страниц — для низкой графики (вчетверо меньше памяти)
-  const lo = spec.kind === 'prop' || (spec.ss || 2) > 2 ? null : p.pages.map((c) => {
+  const lo = spec.kind === 'prop' || spec.kind === 'head' || (spec.ss || 2) > 2 ? null : p.pages.map((c) => {
     const h = document.createElement('canvas'); h.width = Math.ceil(c.width / 2); h.height = Math.ceil(c.height / 2);
     const g = h.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, h.width, h.height);
     return h.toDataURL('image/webp', 0.88);
   });
-  return { ss: spec.ss || 2, dirs: spec.kind === 'prop' ? 1 : 8, anims, frames: F, pages: p.pages.map((c) => c.toDataURL('image/webp', spec.q || 0.9)), lo };
+  return { ss: spec.ss || 2, dirs: spec.kind === 'prop' || spec.kind === 'head' ? 1 : 8, anims, frames: F, pages: p.pages.map((c) => c.toDataURL('image/webp', spec.q || 0.9)), lo };
 }
 async function propCanvas(spec) {
   const r = await prop(Object.assign({ raw: true }, spec));

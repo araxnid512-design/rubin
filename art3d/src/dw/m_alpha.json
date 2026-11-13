@@ -1,0 +1,23 @@
+{
+ "id": "m_alpha",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:quadruped:walk"
+  ]
+ ],
+ "pid": "903a0dbb-86bd-40fc-a0b8-6066aab0bd8f"
+}

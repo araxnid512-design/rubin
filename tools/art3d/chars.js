@@ -55,6 +55,10 @@ export function makeBody(gltf, h) {
   const holder = new THREE.Group(); const fix = new THREE.Group();
   fix.add(root); holder.add(fix);
   holder.updateMatrixWorld(true);
+  // покой — поза привязки скелета (у файлов с движениями Tripo сцена сохранена в первом кадре движения)
+  const seen = new Set();
+  root.traverse((m) => { if (m.isSkinnedMesh && m.skeleton && !seen.has(m.skeleton)) { seen.add(m.skeleton); m.skeleton.pose(); } });
+  holder.updateMatrixWorld(true);
   const B = findBones(root);
   let up, fwd;
   const human = !!(B.LeftUpLeg && B.RightUpLeg && B.Head && B.Hips);

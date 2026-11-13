@@ -87,7 +87,8 @@
   };
 
   /* ---------- Кто чем нарисован ---------- */
-  const ENEMY_BODY = { raider: 'b_mur1', thug: 'b_mur2', marksman: 'b_marksman', boss: 'b_boss' };
+  // у бандитов несколько моделей — каждому своя по номеру
+  const ENEMY_BODY = { raider: ['b_mur1', 'b_bandit3', 'b_bandit4'], thug: ['b_mur2', 'b_bandit5'], marksman: ['b_marksman'], boss: ['b_boss'] };
   const NAME_BODY = { 'Крут': 'b_krut', 'Мальборо': 'b_marlboro', 'Сыч': 'b_pris1', 'Тихий': 'b_pris1', 'Док': 'b_pris2', 'Бугай': 'b_pris2' };
   const ARMOR_BODY = { vest: 'b_vest', heavy: 'b_heavy', exo: 'b_exo' };
   function first(list) { for (let i = 0; i < list.length; i++) if (list[i] && S3.has(list[i])) return list[i]; return null; }
@@ -103,10 +104,13 @@
       return { body: body, weapon: first(['w_' + (u.weapon || 'ppsh'), 'w_ak']), kind: 'human' };
     }
     if (ENEMY_BODY[u.type]) {
-      const body = first([ENEMY_BODY[u.type], 'b_mur1']);
+      const L = ENEMY_BODY[u.type];
+      const body = first([L[(u.id || 0) % L.length], L[0], 'b_mur1']);
       const T = DW.D.ENEMIES[u.type];
       return body ? { body: body, weapon: first(['w_' + (u.weapon || (T && T.weapon) || 'ak'), 'w_ak']), kind: 'human' } : null;
     }
+    // вторая порода Падальщиков — через одного
+    if (u.type === 'scav' && (u.id || 0) % 2 && S3.has('c_scav2')) return { body: 'c_scav2', kind: 'creature' };
     if (S3.has('c_' + u.type)) return { body: 'c_' + u.type, kind: 'creature' };
     return null;
   };
@@ -114,7 +118,7 @@
   S3.preload = function (B) {
     if (!A() || !B) return;
     S3.clear();
-    B.units.forEach(function (u) { const s = S3.setsFor(u); if (s) { S3.load(s.body); if (s.weapon) S3.load(s.weapon); } });
+    B.units.forEach(function (u) { const s = S3.setsFor(u); if (s) { S3.load(s.body); if (s.weapon) S3.load(s.weapon); if (u.kind === 'soldier') S3.load('h_' + s.body.slice(2)); } });
     for (const id in A()) if (id.indexOf('p_') === 0) S3.load(id);
     if (B.units.some(function (u) { return u.cls === 'heavy'; })) S3.load('w_rpg');
   };
@@ -134,10 +138,31 @@
     c.getContext('2d').drawImage(f.c, 0, 0);
     return c;
   };
-  /* заранее — фигуры отряда (маленькие файлы) */
+  /* 3D-портрет бойца: холст снимка головы или null */
+  S3.head = function (s) {
+    if (S3.noHeads) return null;
+    const S = S3.setsFor({ kind: 'soldier', name: s.name, armorId: s.armor, weapon: s.weapon, id: s.id });
+    if (!S) return null;
+    const id = 'h_' + S.body.slice(2);
+    if (!S3.has(id)) return null;
+    S3.load(id);
+    if (!S3.ready(id)) return null;
+    const f = S3.frame([[id, 'v', 0, 0]]);
+    return f ? f.c : null;
+  };
+  /* Кадр врага для портрета: стойка лицом к камере (направление 1) */
+  S3.enemyShot = function (type) {
+    const S = S3.setsFor({ side: 'e', kind: 'enemy', type: type, id: 0 });
+    if (!S || !S3.ready(S.body)) return null;
+    const anim = S3.count(S.body, 'idle') ? 'idle' : 'walk';
+    const L = [[S.body, anim, 0, 1]];
+    if (S.weapon && S3.ready(S.weapon) && S3.count(S.weapon, anim)) L.push([S.weapon, anim, 0, 1]);
+    return S3.frame(L);
+  };
+  /* заранее — фигуры и портреты отряда (маленькие файлы) */
   S3.preloadFigures = function (roster) {
     if (!A()) return;
-    (roster || []).forEach(function (s) { const S = S3.setsFor({ kind: 'soldier', name: s.name, armorId: s.armor, weapon: s.weapon, id: s.id }); if (S) { S3.load('f_' + S.body.slice(2)); if (S.weapon) S3.load('f' + S.weapon); } });
+    (roster || []).forEach(function (s) { const S = S3.setsFor({ kind: 'soldier', name: s.name, armorId: s.armor, weapon: s.weapon, id: s.id }); if (S) { S3.load('f_' + S.body.slice(2)); S3.load('h_' + S.body.slice(2)); if (S.weapon) S3.load('f' + S.weapon); } });
   };
 
   /* направление клетки (0..7, шаг 45°) по углу взгляда юнита */

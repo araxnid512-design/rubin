@@ -21,6 +21,8 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
     if (!has(src) && M.BODY_FALLBACK[b.id] && has(M.BODY_FALLBACK[b.id])) src = M.BODY_FALLBACK[b.id];
     if (!has(src)) { console.log('нет тела', b.id); continue; }
     jobs.push({ id: 'b_' + b.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, layer: 'body', anims: M.HUMAN, weapon: Object.assign({}, M.WEAPONS[1]) } });
+    // портрет: голова и плечи вполоборота
+    jobs.push({ id: 'h_' + b.id, spec: { kind: 'head', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, clip: 'Idle', t: 0.4 } });
     // крупная фигура для экрана отряда (один кадр, ×4)
     jobs.push({ id: 'f_' + b.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, layer: 'body', anims: M.FIGURE, dirs: [0], ss: 4, weapon: Object.assign({}, M.WEAPONS[1]) } });
   }

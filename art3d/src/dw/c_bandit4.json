@@ -1,0 +1,23 @@
+{
+ "id": "c_bandit4",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk"
+  ]
+ ],
+ "pid": "a46d0353-d0f5-4512-b303-1043d85608f4"
+}
