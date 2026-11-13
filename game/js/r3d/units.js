@@ -603,6 +603,8 @@
       const hand = mode === 'left' ? e.body.B.LeftHand : e.body.B.RightHand;
       M = new THREE.Matrix4().compose(hand.getWorldPosition(V()), hand.getWorldQuaternion(new THREE.Quaternion()), V(1, 1, 1)).multiply(mode === 'left' ? e.cal.offL : e.cal.offR);
       if (c.drop && !u.alive) M = dropLerp(e, u, M, c, P);
+      // кисть смыкается на рукояти (ствол по-прежнему идёт за кистью движения)
+      else if (mode === 'hand' && R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: 'hand', grip: V().setFromMatrixPosition(M), fore: null, key: P.key, freeL: true, reload: false });
     } else {
       const Tq = torso(e.body.B);
       const grp = (W.hipAim && mode === 'aim') ? 'hip' : mode;
@@ -635,7 +637,7 @@
         handsTo(e.body, grip, fore, c.freeL);
         // поворот кистей (ладонь на рукояти, левая — под цевьём) и сгиб пальцев — модуль r3d/grip.js
         if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: fore, key: P.key, freeL: c.freeL, reload: false });
-      }
+      } else if (R3.grip && R3.grip.relax) R3.grip.relax(e.body);   // ствол за спиной — пальцы разжаты
       // отдача: толчок назад по стволу и стволом вверх
       if (P.recoil > 0) {
         const kick = P.recoil * 0.05;
