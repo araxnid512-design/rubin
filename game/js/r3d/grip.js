@@ -562,11 +562,42 @@
      оружия (под цевьём), lD — от середины левой ладони до оси цевья, м; lS — сдвиг левой к прикладу, м */
   const _cx = new THREE.Vector3(), _cy = new THREE.Vector3(), _cz = new THREE.Vector3(), _co = new THREE.Vector3();
   const _ca = new THREE.Vector3(), _cp = new THREE.Vector3(), _cn = new THREE.Vector3(), _cq = new THREE.Quaternion();
-  function palmSurf(S, out, nOut) {
+  /* кожа ладони: по сетке (вершины кисти в осях кости при привязке) — насколько ладонь выступает по нормали у основания
+     пальцев (0,6–0,95 длины кисти, середина ширины); один раз на тело */
+  function skinPalm(S, body) {
+    if (S.tP !== undefined) return S.tP;
+    S.tP = 0.1 * S.hl;
+    const T2 = _t1.crossVectors(S.F, S.N);
+    let best = -1e9, n = 0;
+    (body.meshes || []).forEach(function (m) {
+      if (!m.isSkinnedMesh || !m.skeleton) return;
+      const bi = m.skeleton.bones.indexOf(S.hand);
+      const g = m.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+      if (bi < 0 || !pos || !si || !sw) return;
+      _m4.multiplyMatrices(m.skeleton.boneInverses[bi], m.bindMatrix);
+      for (let i = 0; i < pos.count; i++) {
+        let w = 0;
+        for (let c = 0; c < 4; c++) if (si.getComponent(i, c) === bi) w += sw.getComponent(i, c);
+        if (w < 0.5) continue;
+        _v1.fromBufferAttribute(pos, i).applyMatrix4(_m4);
+        const f = _v1.dot(S.F) / S.hl, t = _v1.dot(T2) / S.hl;
+        if (f < 0.6 || f > 0.95 || Math.abs(t) > 0.3) continue;
+        const nn = _v1.dot(S.N);
+        if (nn > best) best = nn;
+        n++;
+      }
+    });
+    if (n) S.tP = best;
+    return S.tP;
+  }
+  /* середина ладони (кожа) у основания пальцев — в мире */
+  function palmSurf(S, body, out, nOut) {
     wquat(S.hand, _cq);
     nOut.copy(S.N).applyQuaternion(_cq);
-    return wpos(S.hand, out).add(_ca.copy(S.palmL).multiplyScalar(S.s).applyQuaternion(_cq)).addScaledVector(nOut, 0.012 * S.hs);
+    _ca.copy(S.F).multiplyScalar(0.8 * S.hl).addScaledVector(S.N, skinPalm(S, body)).multiplyScalar(S.s).applyQuaternion(_cq);
+    return wpos(S.hand, out).add(_ca);
   }
+  function holdW(S, out) { wquat(S.hand, _cq); return wpos(S.hand, out).add(_ca.copy(S.hold).multiplyScalar(S.s).applyQuaternion(_cq)); }
   function segDist(p, c, d, h) {
     const t = clamp(_ca.copy(p).sub(c).dot(d), -h, h);
     return _ca.copy(c).addScaledVector(d, t).distanceTo(p);
@@ -579,20 +610,22 @@
     _co.setFromMatrixPosition(M);
     const wp = P.wpn[wkey(W)] || NOW, rk = (wp.rk !== undefined ? wp.rk : P.R.rake) * DEG, R = G.R, L = G.L;
     const r = {};
-    palmSurf(R, _cp, _cn);
+    palmSurf(R, body, _cp, _cn);
     r.rN = -_cn.dot(_cx);
     wquat(R.hand, _cq); _ca.copy(R.F).applyQuaternion(_cq);
     r.rF = _ca.dot(_v1.set(0, 0, 0).addScaledVector(_cy, -Math.sin(rk)).addScaledVector(_cz, -Math.cos(rk)));
     _v2.copy(_co).addScaledVector(_cx, wp.g[2] || 0).addScaledVector(_cy, wp.g[0]).addScaledVector(_cz, wp.g[1]);
     _v3.set(0, 0, 0).addScaledVector(_cy, Math.cos(rk)).addScaledVector(_cz, -Math.sin(rk));
     r.rD = segDist(_cp, _v2, _v3, 0.05);
+    r.rH = segDist(holdW(R, _cp), _v2, _v3, 0.05);                     // центр кулака — на оси рукояти
     if (L) {
-      palmSurf(L, _cp, _cn);
+      palmSurf(L, body, _cp, _cn);
       r.lN = _cn.dot(_cy);
       r.lMode = L.mode || 'guard';
       if (L.mode === 'mag') { r.lN = -_cn.dot(_cz); }               // магазинная: ладонь к передней стенке приёмника
       _v2.copy(L.axP);
       r.lD = segDist(_cp, _v2, L.mode === 'mag' ? _v4.copy(L.axD) : _cz, L.mode === 'mag' ? 0.04 : 0.3);
+      r.lH = segDist(holdW(L, _cp), _v2, L.mode === 'mag' ? _v4.copy(L.axD) : _cz, L.mode === 'mag' ? 0.04 : 0.3);
       r.lS = L.dbg.slide;
     }
     return r;
