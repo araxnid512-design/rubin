@@ -84,6 +84,32 @@ for (const p of M.PROPS) {
   else if (p.id === 'turret') out.turret = list[0];
   else out[p.id] = list;
 }
+// модели окружения этапа «3D-бой» (Tripo p9, art3d/src/h/<id>.glb) — только для 3D: доп. варианты укрытий и фон за краем
+const H3 = '/art3d/src/h/';
+const EXTRA = {
+  6: [['p_barricade', 0.95, 0.95]], 9: [['p_drums', 0.85, 0.95]], 4: [['p_pallets', 0.9, 0.8]], 8: [['p_scrap', 1.0, 0.95]], 16: [['p_eggs', 0.9, 0.85]]
+};
+for (const t in EXTRA) for (const e of EXTRA[t]) {
+  if (!fs.existsSync(abs(H3 + e[0] + '.glb'))) continue;
+  const f = await one(H3 + e[0] + '.glb', { tex: 512, maxTris: 4000 });
+  if (f) (out.props[t] = out.props[t] || []).push({ f, len: e[1], hMax: e[2], yaw: 0 });
+}
+// фон: [файл, длина по большей стороне (м), высота (м), дальность от края мин/макс (м)]
+const BACK = {
+  city: [['bg_khrush', 13, 15, 9, 16], ['bg_factory', 11, 12, 8, 15], ['bg_watertower', 4, 9, 5, 12], ['bg_pylon', 4, 14, 6, 14], ['p_heli', 6.5, 3, 3, 9],
+    ['p_tank', 4.6, 2.4, 2.5, 9], ['p_bmp', 4.2, 2.2, 2.5, 9], ['p_busstop', 3.2, 2.6, 2, 7], ['p_hedgehog', 1.6, 1.3, 1.5, 6], ['p_tires', 1.6, 1.0, 1.5, 6]],
+  wild: [['bg_pines', 5, 7.5, 3, 12], ['bg_cliff', 7, 5, 5, 14], ['p_ribcage', 3.5, 2.2, 2, 8], ['p_tank', 4.6, 2.4, 3, 10]],
+  cave: [['bg_cliff', 7, 6, 3, 12], ['p_ribcage', 3.5, 2.2, 2, 8], ['p_eggs', 1.6, 1.2, 1.5, 6]]
+};
+out.back = {};
+for (const k in BACK) {
+  out.back[k] = [];
+  for (const e of BACK[k]) {
+    if (!fs.existsSync(abs(H3 + e[0] + '.glb'))) continue;
+    const f = await one(H3 + e[0] + '.glb', { tex: e[2] > 6 ? 1024 : 512, maxTris: e[2] > 6 ? 12000 : 5000 });
+    if (f) out.back[k].push({ f, len: e[1], hMax: e[2], d0: e[3], d1: e[4] });
+  }
+}
 // оружие (в руке персонажа): привязка к кисти считается в игре по точке хвата
 out.weapons = {};
 for (const w of M.WEAPONS) {
@@ -129,6 +155,7 @@ if (!ONLY) {
   for (const k in out.props) out.props[k].forEach((v) => add(v.f));
   out.veh.forEach((v) => add(v.f)); add(out.turret && out.turret.f);
   ['open', 'street', 'decor'].forEach((k) => (out[k] || []).forEach((v) => add(v.f)));
+  for (const k in out.back) out.back[k].forEach((v) => add(v.f));
   for (const k in out.weapons) add(out.weapons[k].f);
   for (const k in out.bodies) { add(out.bodies[k].f); add(out.bodies[k].lo); }
   for (const k in out.creatures) { add(out.creatures[k].f); out.creatures[k].more.forEach(add); }

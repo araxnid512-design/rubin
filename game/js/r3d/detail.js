@@ -234,6 +234,31 @@
     const kind = BTYPE[B.map] || 'wild';
     if (B.tod === 'interior') return;      // в помещении — стены, а не горизонт
     const list = BACK[kind];
+    // крупный фон из моделей Tripo (пятиэтажки, цеха, башни, ЛЭП, остовы, скалы): реже и дальше, не друг на друге
+    const big = (DW.M3 && DW.M3.back && DW.M3.back[kind]) || [];
+    const placed = [];
+    if (big.length) {
+      const nb = Math.round((B.w + B.h) * T / 9);
+      for (let i = 0, tries = 0; i < nb && tries < nb * 6; tries++) {
+        const e = big[Math.floor(r() * big.length)];
+        const side = Math.floor(r() * 4), d = e.d0 + r() * (e.d1 - e.d0), t = r();
+        const W0 = B.w * T, H0 = B.h * T;
+        let x, z;
+        if (side === 0) { x = -d; z = t * H0; } else if (side === 1) { x = W0 + d; z = t * H0; } else if (side === 2) { z = -d; x = t * W0; } else { z = H0 + d; x = t * W0; }
+        const rad = e.len * 0.55;
+        if (placed.some(function (p) { return Math.hypot(p[0] - x, p[1] - z) < p[2] + rad; })) continue;
+        placed.push([x, z, rad]); i++;
+        // фасадом к полю
+        const yaw = (side === 0 ? 90 : side === 1 ? -90 : side === 2 ? 0 : 180) + (r() - 0.5) * 40;
+        const bg = group, pos = V(x, -0.6, z);
+        R3.loadGLB('models/' + e.f + '.glb').then(function (gl) {
+          if (!gl || bg !== group || DT.B !== B) return;
+          const m = R3.world.placeModel(gl, { len: e.len, hMax: e.hMax }, pos, yaw);
+          m.traverse(function (o) { if (o.isMesh) o.castShadow = false; });
+          group.add(m);
+        });
+      }
+    }
     const W = B.w * T, Hh = B.h * T;
     const n = Math.round((W + Hh) * 0.42);
     for (let i = 0; i < n; i++) {
