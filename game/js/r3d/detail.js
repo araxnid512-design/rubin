@@ -265,7 +265,7 @@
         const bg = group, pos = V(x, -0.6, z);
         R3.loadGLB('models/' + e.f + '.glb').then(function (gl) {
           if (!gl || bg !== group || DT.B !== B) return;
-          const m = R3.world.placeModel(gl, { len: e.len, hMax: e.hMax }, pos, yaw);
+          const m = R3.world.placeModel(gl, { f: e.f, len: e.len, hMax: e.hMax }, pos, yaw);
           m.traverse(function (o) { if (o.isMesh) o.castShadow = false; });
           group.add(m);
         });

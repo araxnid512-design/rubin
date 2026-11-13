@@ -1268,7 +1268,8 @@
     const n = list.reduce(function (a, v) { return a + (v.dead ? 1 : 0); }, list.length * 10);
     if (vehMapB !== B || vehMapN !== n) {
       vehMap = {}; vehMapB = B; vehMapN = n;
-      list.forEach(function (v) { if (v.dead) return; for (let j = 0; j < v.len; j++) vehMap[(v.d === 0 ? v.y : v.y + j) * B.w + (v.d === 0 ? v.x + j : v.x)] = { v: v, k: j }; });
+      // полосы рисуются по первому ряду клеток; второй ряд широкой машины — без отдельной полосы
+      list.forEach(function (v) { if (v.dead) return; const wd = v.wd || 1; for (let j = 0; j < v.len; j++) for (let q = 0; q < wd; q++) vehMap[(v.d === 0 ? v.y + q : v.y + j) * B.w + (v.d === 0 ? v.x + j : v.x + q)] = { v: v, k: j, s: q !== (v.d === 0 ? wd - 1 : 0) }; });
     }
     return vehMap[i] || null;
   }
@@ -1277,6 +1278,7 @@
     const S3 = DW.S3;
     const e = vehAt(B, i);
     if (!e || !S3 || !S3.ready('p_veh')) return false;
+    if (e.s) return true;
     const v = e.v, n = S3.count('p_veh', 'v');
     const vi = (v.m * 4 + v.d * 2 + (v.o || 0)) % Math.max(1, n);
     let f = S3.frame([['p_veh', 'v', vi, 0]]);
@@ -1288,19 +1290,23 @@
       f = dk;
     }
     // центр машины на экране и смещение клетки k от центра
-    const a = isoC(v.x, v.y), b = isoC(v.d === 0 ? v.x + v.len - 1 : v.x, v.d === 0 ? v.y : v.y + v.len - 1);
+    // центр машины (широкая — между рядами); спрайт запечён на 2–3 клетки — растягиваем до новой длины
+    const wd = v.wd || 1, sw = (wd - 1) / 2;
+    const a = isoC(v.x + (v.d === 1 ? sw : 0), v.y + (v.d === 0 ? sw : 0)), b = isoC(v.d === 0 ? v.x + v.len - 1 : v.x + sw, v.d === 0 ? v.y + sw : v.y + v.len - 1);
     const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+    const kS = v.len / (v.len >= 5 ? 3 : 2) * (v.len >= 5 ? 1.1 : 1);
     const off = (e.k - (v.len - 1) / 2) * HW * (v.d === 0 ? 1 : -1);
     const left = (v.d === 0 ? e.k === 0 : e.k === v.len - 1) ? -1e4 : off - HW / 2;
     const right = (v.d === 0 ? e.k === v.len - 1 : e.k === 0) ? 1e4 : off + HW / 2;
-    const dx0 = cx - f.ox, kx = f.c.width / f.w;
-    const sx0 = Math.max(0, (cx + left - dx0)), sx1 = Math.min(f.w, (cx + right - dx0));
+    const kx = f.c.width / f.w;
+    const sx0 = Math.max(0, f.ox + left / kS), sx1 = Math.min(f.w, f.ox + right / kS);
     if (sx1 <= sx0) return true;
+    const dx0 = cx - f.ox * kS;
     // полупрозрачно, если за машиной свой боец
     const behind = function (xx, yy) { const us2 = xx >= 0 && yy >= 0 ? unitsAt[yy * B.w + xx] : null; return us2 && us2.some(function (uu) { return uu.side === 'p' || uu === ov.target; }); };
     const cut = behind(x - 1, y) || behind(x, y - 1) || behind(x - 1, y - 1);
     if (cut) g.globalAlpha = 0.45;
-    g.drawImage(f.c, sx0 * kx, 0, (sx1 - sx0) * kx, f.c.height, dx0 + sx0, cy - f.oy, sx1 - sx0, f.h);
+    g.drawImage(f.c, sx0 * kx, 0, (sx1 - sx0) * kx, f.c.height, dx0 + sx0 * kS, cy - f.oy * kS, (sx1 - sx0) * kS, f.h * kS);
     if (cut) g.globalAlpha = 1;
     return true;
   }

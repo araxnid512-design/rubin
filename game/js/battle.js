@@ -24,6 +24,12 @@
     (B.ladders || []).forEach(function (l) { const a = l.y * B.w + l.x, b = l.ry * B.w + l.rx; ladderSet[a + '>' + b] = 1; ladderSet[b + '>' + a] = 1; });
   };
   BT.ladderEdge = function (i, j) { return !!ladderSet[i + '>' + j]; };
+  /* клетки машины: длина вдоль d, ширина (1–2) поперёк */
+  BT.vehTiles = function (v) {
+    const out = [], wd = v.wd || 1;
+    for (let j = 0; j < v.len; j++) for (let s = 0; s < wd; s++) out.push(v.d === 0 ? [v.x + j, v.y + s] : [v.x + s, v.y + j]);
+    return out;
+  };
   BT.walkTile = function (x, y) {
     if (!BT.inb(x, y)) return false;
     const i = y * B.w + x;
@@ -633,16 +639,16 @@
     DW.TR.chips(x, y, D.OBJ[o].c, o);
     if (o === 23 && B.objHp[i] <= 0) {
       // подбитая машина горит целиком: все её клетки — обломки, пожар
-      const v = (B.vehicles || []).find(function (vv) { return !vv.dead && (vv.d === 0 ? (y === vv.y && x >= vv.x && x < vv.x + vv.len) : (x === vv.x && y >= vv.y && y < vv.y + vv.len)); });
+      const v = (B.vehicles || []).find(function (vv) { return !vv.dead && BT.vehTiles(vv).some(function (q) { return q[0] === x && q[1] === y; }); });
       if (v) {
         v.dead = true;
-        for (let j = 0; j < v.len; j++) {
-          const X = v.d === 0 ? v.x + j : v.x, Y = v.d === 0 ? v.y : v.y + j, k = BT.idx(X, Y);
+        BT.vehTiles(v).forEach(function (q) {
+          const X = q[0], Y = q[1], k = BT.idx(X, Y);
           B.obj[k] = 0; B.objHp[k] = 0;
           if (D.GROUND[B.ground[k]].walk) B.ground[k] = 8;
           DW.TR.tileChanged(X, Y); DW.TR.debris(X, Y, D.OBJ[23].c, 23); DW.TR.decal(X, Y, 'scorch', 1);
           B.decor.push({ x: X + 0.5, y: Y + 0.5, t: 'fire', r: 0.6 });
-        }
+        });
         DW.TR.refreshFires();
         return;
       }

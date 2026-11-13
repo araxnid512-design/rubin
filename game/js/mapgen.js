@@ -448,21 +448,21 @@
     m.vehicles = m.vehicles || [];
     for (let k = 0; k < n; k++) {
       for (let t = 0; t < 40; t++) {
-        const mi = U.pick(models), len = D.VEHICLES[mi][1], d = U.rand(0, 1);
-        const x = U.rand(minX || 0, m.w - 1 - (d === 0 ? len : 0)), y = U.rand(1, m.h - 2 - (d === 1 ? len : 0));
+        const mi = U.pick(models), len = D.VEHICLES[mi][1], wd = D.VEHICLES[mi][2] || 1, d = U.rand(0, 1);
+        const x = U.rand(minX || 0, m.w - 1 - (d === 0 ? len : wd)), y = U.rand(1, m.h - 2 - (d === 1 ? len : wd));
         let ok = true;
         const h0 = m.hgt[I(m, x, y)];
-        // клетка и соседи вокруг: проход вокруг машины
-        for (let j = -1; j <= len && ok; j++) for (let s = -1; s <= 1 && ok; s++) {
+        // клетки машины и кольцо вокруг: проход вокруг машины
+        for (let j = -1; j <= len && ok; j++) for (let s = -1; s <= wd && ok; s++) {
           const X = d === 0 ? x + j : x + s, Y = d === 0 ? y + s : y + j;
-          if (!inb(m, X, Y)) { if (j >= 0 && j < len && s === 0) ok = false; continue; }
-          const inside = j >= 0 && j < len && s === 0;
+          const inside = j >= 0 && j < len && s >= 0 && s < wd;
+          if (!inb(m, X, Y)) { if (inside) ok = false; continue; }
           if (inside && (!free(m, X, Y) || m.hgt[I(m, X, Y)] !== h0 || m.ground[I(m, X, Y)] === 9)) ok = false;
           if (!inside && m.obj[I(m, X, Y)] === 23) ok = false;
         }
         if (!ok) continue;
-        for (let j = 0; j < len; j++) setO(m, d === 0 ? x + j : x, d === 0 ? y : y + j, 23);
-        m.vehicles.push({ x: x, y: y, len: len, d: d, m: mi, o: U.rand(0, 1) });
+        for (let j = 0; j < len; j++) for (let s = 0; s < wd; s++) setO(m, d === 0 ? x + j : x + s, d === 0 ? y + s : y + j, 23);
+        m.vehicles.push({ x: x, y: y, len: len, wd: wd, d: d, m: mi, o: U.rand(0, 1) });
         break;
       }
     }
@@ -817,7 +817,7 @@
       const comp = new Int32Array(m.w * m.h).fill(-1);
       let changed = false;
       for (let i0 = 0; i0 < comp.length; i0++) {
-        if (comp[i0] >= 0 || !walkG(m, i0 % m.w, (i0 / m.w) | 0) || m.ground[i0] === 12) continue;
+        if (comp[i0] >= 0 || !walkG(m, i0 % m.w, (i0 / m.w) | 0) || m.ground[i0] === 12 || m.obj[i0] === 23) continue;
         const h = m.hgt[i0], tiles = [i0], nbH = {};
         comp[i0] = i0;
         for (let q = 0; q < tiles.length; q++) {
@@ -826,7 +826,7 @@
             const nx = cx + d[0], ny = cy + d[1];
             if (!inb(m, nx, ny)) return;
             const j = I(m, nx, ny);
-            if (!walkG(m, nx, ny) || m.ground[j] === 12) return;
+            if (!walkG(m, nx, ny) || m.ground[j] === 12 || m.obj[j] === 23) return;
             if (m.hgt[j] !== h) { nbH[m.hgt[j]] = (nbH[m.hgt[j]] || 0) + 1; return; }
             if (comp[j] < 0) { comp[j] = i0; tiles.push(j); }
           });
@@ -841,13 +841,13 @@
       if (!changed) break;
       // перепад между соседями — не больше уровня (крыши не трогаем)
       for (let it = 0; it < 4; it++) for (let i = 0; i < m.hgt.length; i++) {
-        if (m.ground[i] === 12) continue;
+        if (m.ground[i] === 12 || m.obj[i] === 23) continue;
         const x = i % m.w, y = (i / m.w) | 0;
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
           const nx = x + d[0], ny = y + d[1];
           if (!inb(m, nx, ny)) return;
           const j = I(m, nx, ny);
-          if (m.ground[j] !== 12 && m.hgt[i] - m.hgt[j] > 1) m.hgt[i] = m.hgt[j] + 1;
+          if (m.ground[j] !== 12 && m.obj[j] !== 23 && m.hgt[i] - m.hgt[j] > 1) m.hgt[i] = m.hgt[j] + 1;
         });
       }
     }

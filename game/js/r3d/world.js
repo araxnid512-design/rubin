@@ -421,6 +421,20 @@
   const propMeshes = {};   // клетка → объект
   function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return (h ^ (h >>> 16)) >>> 0; }
   /* поставить модель, вписав в размеры (как в запекании): len — клеток по большей стороне, h / hMax — высота */
+  /* настоящие размеры (м): [длина по большей стороне, высота] — техника и крупные предметы как в жизни рядом с бойцом 1,8 м */
+  const REAL = {
+    e_vaz_burned: [4.1, 1.42], e_vaz_crashed: [4.1, 1.42], e_vaz2107: [4.1, 1.44], e_volga: [4.8, 1.48], e_niva: [3.7, 1.64],
+    e_uaz: [4.0, 2.0], e_paz: [7.0, 2.95], e_ural: [7.4, 2.9], e_btr80: [7.65, 2.45],
+    p_tank: [9.5, 2.3], p_bmp: [6.7, 2.15], p_heli: [12.5, 3.8], p_busstop: [4.0, 2.6], p_hedgehog: [1.8, 1.4], p_tires: [1.9, 1.0]
+  };
+  W3.REAL = REAL;
+  /* мебель и укрытия: высота как в жизни (низкие укрытия — по пояс, ~1 м) */
+  const HFIX = {
+    e_table: 0.76, e_sofa: 0.85, e_bunk: 1.6, e_chair: 0.92, e_drawers: 0.95, e_wardrobe: 1.95, e_fridge: 1.75, e_buffet: 1.85,
+    e_pech: 1.7, e_bench: 0.46, e_nightstand: 0.6, e_bed: 0.6, e_tv: 0.62
+  };
+  // невысокие укрытия кладутся в два ряда (мешки, ящики), если одной модели ниже пояса
+  const STACK = { e_sandbags: 0.98, e_crate: 1.0, e_ammo: 0.9, e_chest: 0.8, p_pallets: 1.0 };
   function placeModel(gl, v, pos, yawExtra) {
     const src = gl.scene;
     const o = src.clone(true);
@@ -430,12 +444,35 @@
     const b = new THREE.Box3().setFromObject(o, true);
     const sz = b.getSize(new THREE.Vector3()), ctr = b.getCenter(new THREE.Vector3());
     let k = 1;
-    if (v.len) k = v.len * T / Math.max(sz.x, sz.z);
-    if (v.h) k = v.h / sz.y;
-    if (v.hMax && sz.y * k > v.hMax) k = v.hMax / sz.y;
+    const R = v.f && REAL[v.f] && v.real !== false ? REAL[v.f] : null;
+    if (R) {
+      // по настоящей длине, но не выше настоящей высоты; v.maxLen (клетки) — не вылезать за свои клетки сильно
+      k = R[0] / Math.max(sz.x, sz.z);
+      if (sz.y * k > R[1] * 1.08) k = R[1] * 1.08 / sz.y;
+      if (v.maxLen && Math.max(sz.x, sz.z) * k > v.maxLen * T) k = v.maxLen * T / Math.max(sz.x, sz.z);
+    } else {
+      if (v.len) k = v.len * T / Math.max(sz.x, sz.z);
+      if (v.h) k = v.h / sz.y;
+      const hf = v.f && HFIX[v.f];
+      if (hf) k = Math.min(hf / sz.y, (v.len || 1.2) * 1.25 * T / Math.max(sz.x, sz.z));
+      else if (v.hMax && sz.y * k > v.hMax) k = v.hMax / sz.y;
+    }
     if (v.k) k *= v.k;
     o.scale.setScalar(k);
     o.position.set(-ctr.x * k, -b.min.y * k, -ctr.z * k);
+    // второй ряд: мешки и ящики по пояс
+    const st = v.f && STACK[v.f];
+    if (st && sz.y * k < st * 0.8) {
+      const hh = sz.y * k, n = Math.min(3, Math.ceil(st / hh));
+      for (let q = 1; q < n; q++) {
+        const c = o.clone(true);
+        const kq = k * (1 - 0.04 * q);
+        c.scale.setScalar(kq);
+        c.rotation.y = (q % 2 ? 1 : -1) * 0.07;
+        c.position.set(-ctr.x * kq + (q % 2 ? 0.03 : -0.02), -b.min.y * kq + hh * q * 0.9, -ctr.z * kq);
+        holder.add(c);
+      }
+    }
     holder.rotation.y = ((v.yaw || 0) + (yawExtra || 0)) * Math.PI / 180;
     if (v.sx || v.sy || v.sz) holder.scale.set(v.sx || 1, v.sy || 1, v.sz || 1);
     holder.position.copy(pos);
@@ -469,7 +506,7 @@
     for (const k in propMeshes) delete propMeshes[k];
     const M3 = DW.M3 || { props: {} };
     const vehTiles = {};
-    (B.vehicles || []).forEach(function (v) { for (let j = 0; j < v.len; j++) vehTiles[(v.d === 0 ? v.y : v.y + j) * B.w + (v.d === 0 ? v.x + j : v.x)] = v; });
+    (B.vehicles || []).forEach(function (v) { DW.BT.vehTiles(v).forEach(function (q) { vehTiles[q[1] * B.w + q[0]] = v; }); });
     for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
       const i = y * B.w + x, o = B.obj[i];
       if (!o || WALLS[o] || o === 1 || o === 13 || vehTiles[i]) continue;
@@ -478,8 +515,12 @@
       let v = list[hash(x, y) % list.length];
       // в пещерах валуны — стены пещеры: выше человека и шире клетки
       if (o === 3 && CAVE[B.map]) v = Object.assign({}, v, { len: 1.45, hMax: 2.6 });
-      // остов машины-укрытия — длиннее клетки (иначе игрушечный)
-      if (o === 7) v = Object.assign({}, v, { len: 1.85, hMax: 1.25 });
+      // груда металлолома (раньше — машина в одну клетку, игрушечная рядом с бойцом)
+      if (o === 7) { const sc = (M3.props[8] || []).find(function (q) { return q.f === 'p_scrap'; }); v = sc ? Object.assign({}, sc, { len: 1.05, hMax: 1.55, sy: 1.45 }) : Object.assign({}, v, { len: 1.85, hMax: 1.25 }); }
+      // обломки и валуны — полное укрытие: выше пригнувшегося человека
+      if ((o === 3 && !CAVE[B.map]) || (o === 8 && v.f === 'p_scrap')) v = Object.assign({}, v, { hMax: Math.max(v.hMax || 0, o === 3 ? 1.6 : 1.5) });
+      // контейнер в клетку — мусорный бак в настоящий размер (морской на клетку — игрушка)
+      if (o === 18) { const dm = (M3.props[18] || []).find(function (q) { return q.f === 'e_dumpster'; }); if (dm) v = Object.assign({}, dm, { len: 1.4, hMax: 1.35, yaw: hash(x, y) % 2 ? 90 : 0 }); }
       const pos = new THREE.Vector3((x + 0.5) * T, B.hgt[i] * LV, (y + 0.5) * T);
       const jitter = o === 3 || o === 8 || o === 16 || o === 20 || o === 19 ? (hash(y, x) % 360) : 0;
       const pg = propGroup;
@@ -497,12 +538,13 @@
       if (v.dead) return;
       const e = M3.veh && M3.veh.length ? M3.veh[(v.m * 4 + v.d * 2 + (v.o || 0)) % M3.veh.length] : null;
       if (!e) return;
-      const x1 = v.d === 0 ? v.x + v.len - 1 : v.x, y1 = v.d === 0 ? v.y : v.y + v.len - 1;
+      const wd = v.wd || 1;
+      const x1 = v.d === 0 ? v.x + v.len - 1 : v.x + wd - 1, y1 = v.d === 0 ? v.y + wd - 1 : v.y + v.len - 1;
       const pos = new THREE.Vector3(((v.x + x1) / 2 + 0.5) * T, B.hgt[v.y * B.w + v.x] * LV, ((v.y + y1) / 2 + 0.5) * T);
       const pg2 = propGroup;
       R3.loadGLB('models/' + e.f + '.glb').then(function (gl) {
         if (!gl || pg2 !== propGroup || B !== DW.BT.get()) return;
-        const m = placeModel(gl, { len: e.len * 1.32, hMax: (e.hMax || 2.4) * 1.3, yaw: e.yaw }, pos, 0);
+        const m = placeModel(gl, REAL[e.f] ? { f: e.f, maxLen: v.len + 0.45, yaw: e.yaw } : { len: e.len * 1.32, hMax: (e.hMax || 2.4) * 1.3, yaw: e.yaw }, pos, 0);
         m.userData.veh = v;
         propGroup.add(m);
         v._m3 = m;
