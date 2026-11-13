@@ -29,9 +29,14 @@
   }
   function pillar(color) {
     // столб света — видно издалека, куда идти
-    pillarMat = pillarMat || new THREE.MeshBasicMaterial({ color: color || 0x78dcff, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
-    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.3, 4.2, 12, 1, true), pillarMat);
-    p.position.y = 2.1; p.renderOrder = 21;
+    pillarMat = pillarMat || new THREE.MeshBasicMaterial({ color: color || 0x78dcff, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+    const geo = new THREE.CylinderGeometry(0.1, 0.22, 3.2, 12, 4, true);
+    // снизу ярче, кверху гаснет
+    const pos = geo.attributes.position, col = new Float32Array(pos.count * 4);
+    for (let i = 0; i < pos.count; i++) { const k = 1 - (pos.getY(i) + 1.6) / 3.2; col.set([1, 1, 1, 0.16 * k * k], i * 4); }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
+    const p = new THREE.Mesh(geo, pillarMat);
+    p.position.y = 1.6; p.renderOrder = 21;
     return p;
   }
   function crate(kind, x, y, cb) {
