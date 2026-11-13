@@ -1,0 +1,23 @@
+{
+ "id": "c_pris4",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk"
+  ]
+ ],
+ "pid": "3dc397de-d226-4b9d-8fee-8bd2b6706935"
+}
