@@ -2470,8 +2470,47 @@
     g.beginPath(); g.ellipse(c[0], c[1], 18, 9, 0, 0, Math.PI * 2); g.stroke();
     return true;
   }
+  /* контейнер Института: металлический ящик с голубыми полосами и лучом света */
+  function drawCargo(g, it, t, c) {
+    const pulse = 0.5 + Math.sin(t / 300 + it.x) * 0.3;
+    const gr = g.createRadialGradient(c[0], c[1], 2, c[0], c[1], 30);
+    gr.addColorStop(0, 'rgba(110,225,255,' + (0.35 * pulse) + ')'); gr.addColorStop(1, 'rgba(110,225,255,0)');
+    g.fillStyle = gr; ART.ell(g, c[0], c[1], 30, 15);
+    g.save(); g.translate(c[0], c[1]);
+    ART.box(g, -0.3, -0.22, 0.3, 0.22, 0, 15, '#7a8790', '#5c6870', '#47525a');
+    ART.box(g, -0.31, -0.23, 0.31, 0.23, 15, 17, '#8e9ba4', '#6c7880', '#566068');
+    g.restore();
+    const a = Pp(-0.3, 0.22, 8), b = Pp(0.3, 0.22, 8);
+    g.strokeStyle = 'rgba(111,216,255,' + (0.6 + pulse * 0.4) + ')'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(c[0] + a[0], c[1] + a[1]); g.lineTo(c[0] + b[0], c[1] + b[1]); g.stroke();
+    // световой столб — видно издалека
+    const bg = g.createLinearGradient(0, c[1] - 140, 0, c[1]);
+    bg.addColorStop(0, 'rgba(120,220,255,0)'); bg.addColorStop(1, 'rgba(120,220,255,' + (0.22 * pulse) + ')');
+    g.fillStyle = bg; g.fillRect(c[0] - 5, c[1] - 140, 10, 140);
+  }
+  /* пленник: стоит на коленях, руки связаны (3D-фигура заключённого без оружия) */
+  function drawCaptive(g, gl, t, lit) {
+    const c = isoC(gl.x, gl.y), S3 = DW.S3;
+    g.fillStyle = 'rgba(0,0,0,0.3)'; ART.ell(g, c[0], c[1], 12, 5);
+    let f = null;
+    if (S3) { S3.load('b_pris4'); if (S3.ready('b_pris4')) f = S3.frame([['b_pris4', S3.count('b_pris4', 'hunker') ? 'hunker' : 'idle', 0, 1]]); }
+    if (!lit) g.globalAlpha = 0.5;
+    if (f) g.drawImage(f.c, c[0] - f.ox, c[1] - f.oy + 4, f.w, f.h);
+    else { g.fillStyle = '#c8691c'; g.fillRect(c[0] - 6, c[1] - 26, 12, 22); g.fillStyle = '#d8b08a'; ART.circ(g, c[0], c[1] - 30, 5); }
+    g.globalAlpha = 1;
+    // верёвка на запястьях
+    g.strokeStyle = '#a08050'; g.lineWidth = 1.6; g.beginPath(); g.ellipse(c[0], c[1] - 18, 6, 2.5, 0.3, 0, 7); g.stroke();
+  }
+  TR.cargoFx = function (x, y) {
+    const c = isoC(x, y);
+    fx.flashes.push({ x: c[0], y: c[1], r: 1.4, t0: now(), life: 500, ground: true });
+    fx.rings = fx.rings || []; fx.rings.push({ x: c[0], y: c[1], r: 2, t0: now(), life: 600 });
+    parts(c[0], c[1], 6, 18, '#bfefff', 120, 600, 3, 180, 90);
+    TR.shake = Math.max(TR.shake || 0, 5);
+  };
   function drawItem(g, it, t) {
     const c = isoC(it.x, it.y);
+    if (it.kind === 'cargo') { drawCargo(g, it, t, c); return; }
     if (drawItem3d(g, it, t, c)) return;
     if (it.kind === 'gems') {
       const glow = 0.35 + Math.sin(t / 300 + it.x) * 0.15;
@@ -3135,6 +3174,7 @@
           if (corpsesAt[i]) corpsesAt[i].forEach(function (c) { drawCorpse(g, c, t); });
           if (props[i]) props[i].forEach(function (p) { drawProp(g, p, t); });
           if (itemsAt[i]) drawItem(g, itemsAt[i], t);
+          if (B.goal && B.goal.kind === 'rescue' && !B.goal.done && B.goal.y * B.w + B.goal.x === i) drawCaptive(g, B.goal, t, vis && vis[i]);
           const o = B.obj[i];
           if (!o && openAt(B, i) !== undefined) drawOpening(g, B, x, y, i, vis);
           if (o === 23 && drawVehicleTile(g, B, x, y, i, vis, unitsAt, ov)) { /* техника — своя полоса спрайта */ }
@@ -3268,6 +3308,14 @@
       }
       g.fillStyle = 'rgba(255,150,40,0.08)'; g.fill(pz);
       g.strokeStyle = 'rgba(255,165,60,0.7)'; g.lineWidth = 1.6; g.setLineDash([5, 4]); g.stroke(ed); g.setLineDash([]);
+    }
+    // метка цели задания (видна и в тумане)
+    if (B.goal && !B.goal.done && (B.goal.kind === 'rescue' || B.goal.kind === 'cargo')) {
+      const c = isoC(B.goal.x, B.goal.y), pr = 0.5 + Math.sin(t / 260) * 0.5, y0 = c[1] - 62 - pr * 5;
+      g.fillStyle = B.goal.kind === 'rescue' ? 'rgba(255,200,90,0.95)' : 'rgba(120,220,255,0.95)';
+      g.beginPath(); g.moveTo(c[0], y0 + 12); g.lineTo(c[0] - 8, y0); g.lineTo(c[0], y0 - 12); g.lineTo(c[0] + 8, y0); g.closePath(); g.fill();
+      g.fillStyle = '#1a120c'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('!', c[0], y0 + 4);
+      g.fillStyle = 'rgba(255,240,215,0.9)'; g.font = 'bold 10px sans-serif'; g.fillText(B.goal.kind === 'rescue' ? 'ПЛЕННИК' : 'ГРУЗ', c[0], y0 - 16);
     }
     // сигнальная ракета: место подхода вражеского подкрепления
     if (B.reinf && B.explored[B.reinf.y * B.w + B.reinf.x] !== undefined) {

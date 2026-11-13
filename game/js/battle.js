@@ -20,6 +20,7 @@
   BT.walkTile = function (x, y) {
     if (!BT.inb(x, y)) return false;
     const i = y * B.w + x;
+    if (B.goal && B.goal.kind === 'rescue' && !B.goal.done && B.goal.x === x && B.goal.y === y) return false;
     return !B.obj[i] && D.GROUND[B.ground[i]].walk;
   };
   BT.blocksLos = function (x, y) {
@@ -156,9 +157,89 @@
       ];
       BT.spawnWaves(true);
     }
+    // задание боя: освободить пленника, убить вожака стаи или забрать груз Института
+    B.goal = null;
+    if (o.kind === 'normal' && B.type !== 'nest' && B.type !== 'vein') {
+      const en = B.units.filter(function (e) { return e.side === 'e'; });
+      const raid = en.some(function (e) { return e.type === 'raider' || e.type === 'thug' || e.type === 'boss' || e.type === 'marksman'; });
+      const beast = en.some(function (e) { return D.ENEMIES[e.type] && D.ENEMIES[e.type].beast; });
+      const r = Math.random();
+      if (raid && r < 0.4) BT.setupRescue();
+      else if (beast && o.diff >= 2 && r < 0.65) BT.setupHunt();
+      else if (r < 0.85) BT.setupCargo();
+    }
     BT.updateObjective();
     BT.updateVision();
     return B;
+  };
+  /* ---------- Задания боя ---------- */
+  function freeTileNear(cx, cy, rmax, avoidDeploy) {
+    for (let r = 1; r <= rmax; r++) {
+      const c = [];
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !BT.walkTile(x, y) || BT.unitAt(x, y)) continue;
+        if (B.items.some(function (it) { return it.x === x && it.y === y; })) continue;
+        if (avoidDeploy && x < 6) continue;
+        c.push([x, y]);
+      }
+      if (c.length) return U.pick(c);
+    }
+    return null;
+  }
+  // пленник у бандитов: рядом с самой дальней группой бандитов
+  BT.setupRescue = function () {
+    const en = B.units.filter(function (e) { return e.side === 'e' && (e.type === 'raider' || e.type === 'thug' || e.type === 'boss' || e.type === 'marksman'); });
+    en.sort(function (a, b) { return b.x - a.x; });
+    const t = en.length ? freeTileNear(en[0].x, en[0].y, 4, true) : null;
+    if (!t) return;
+    B.goal = { kind: 'rescue', x: t[0], y: t[1], done: false };
+  };
+  BT.freeCaptive = function (u) {
+    const g = B.goal; if (!g || g.done) return;
+    g.done = true;
+    const st = DW.G.state;
+    const s = DW.G.makeRecruit(0);
+    s.wounds = Math.floor(DW.G.maxHp(s) / 3);
+    st.roster.push(s);
+    const nu = mkSoldier(s, g.x, g.y); nu.ap = 0; nu.face = Math.atan2(u.y - g.y, u.x - g.x);
+    B.units.push(nu);
+    DW.TR.float(g.x, g.y, 'Свободен!', 'good');
+    DW.UI.toast('Пленник освобождён: «' + s.name + '» (' + D.CLASSES[s.cls].n.toLowerCase() + ') вступает в отряд!', 'good');
+    DW.SFX.play('pickup');
+    BT.updateObjective(); BT.updateVision();
+    if (DW.BS && DW.BS.refresh) DW.BS.refresh();
+  };
+  // вожак стаи: убить — стая в смятении, с вожака — кристаллы
+  BT.setupHunt = function () {
+    const pods = {};
+    B.units.forEach(function (e) { if (e.side === 'e' && D.ENEMIES[e.type] && D.ENEMIES[e.type].beast && e.type !== 'queen') (pods[e.pod] = pods[e.pod] || []).push(e); });
+    const ids = Object.keys(pods).sort(function (a, b) { return pods[b].length - pods[a].length; });
+    if (!ids.length) return;
+    const lead = pods[ids[0]][0];
+    const a = mkEnemy('alpha', lead.x, lead.y, lead.pod);
+    B.units[B.units.indexOf(lead)] = a;
+    B.goal = { kind: 'hunt', id: a.id, done: false };
+  };
+  // груз Института: контейнер посреди карты (и сброс груза по ходу боя)
+  BT.setupCargo = function () {
+    const t = freeTileNear(Math.floor(B.w * 0.55), Math.floor(B.h / 2), 6, true);
+    if (!t) return;
+    B.items.push({ x: t[0], y: t[1], kind: 'cargo', amt: 1 });
+    B.goal = { kind: 'cargo', x: t[0], y: t[1], done: false };
+  };
+  BT.cargoDrop = function () {
+    if (B.kind !== 'normal' || B.dropDone || B.turn < 3 || B.items.some(function (it) { return it.kind === 'cargo'; })) return;
+    if (Math.random() > 0.3) return;
+    const ps = BT.soldiers(); if (!ps.length) return;
+    const cx = Math.round(ps.reduce(function (a, u) { return a + u.x; }, 0) / ps.length) + U.rand(3, 6), cy = Math.round(ps.reduce(function (a, u) { return a + u.y; }, 0) / ps.length) + U.rand(-3, 3);
+    const t = freeTileNear(U.clamp(cx, 2, B.w - 3), U.clamp(cy, 2, B.h - 3), 5, false);
+    if (!t) return;
+    B.dropDone = true;
+    B.items.push({ x: t[0], y: t[1], kind: 'cargo', amt: 1, drop: true });
+    DW.TR.cargoFx(t[0], t[1]);
+    DW.SFX.play('portal');
+    DW.UI.toast('Институт сбросил груз! Заберите контейнер, пока его не растащили.', 'good');
   };
   /* ---------- Время суток и погода ---------- */
   BT.rollConditions = function (b, mapType) {
@@ -195,7 +276,11 @@
     } else if (B.type === 'vein') {
       B.objective = 'Перебейте мутантов и соберите кристаллы (' + B.items.filter(function (i) { return i.kind === 'gems'; }).length + ' осталось)';
     } else {
-      B.objective = 'Уничтожьте всех врагов';
+      const g = B.goal;
+      if (g && !g.done && g.kind === 'rescue') B.objective = 'Освободите пленника и уничтожьте врагов';
+      else if (g && !g.done && g.kind === 'hunt') B.objective = 'Убейте вожака стаи и уничтожьте врагов';
+      else if (g && !g.done && g.kind === 'cargo') B.objective = 'Заберите груз Института и уничтожьте врагов';
+      else B.objective = 'Уничтожьте всех врагов';
     }
   };
 
@@ -316,6 +401,7 @@
     if (att.suppressed) { const sp = att.trait === 'calm' ? -20 : -40; hit += sp; parts.push(['Подавлен', sp]); }
     if (att.kind === 'soldier' && att.trait !== 'authority' && B.units.some(function (a) { return a.alive && a.trait === 'authority' && a !== att && U.dist(a.x, a.y, ax, ay) <= 5; })) { hit += 5; parts.push(['Крут рядом', 5]); }
     if (cv.cover && hasP(tgt, 'dig')) { hit -= 10; parts.push(['Окопник', -10]); }
+    if (att.side === 'e' && att.type !== 'alpha' && D.ENEMIES[att.type] && D.ENEMIES[att.type].beast && B.units.some(function (a) { return a.alive && a.type === 'alpha' && U.dist(a.x, a.y, att.x, att.y) <= 4; })) { hit += 10; parts.push(['Вожак рядом', 10]); }
     if (B.concealed && att.side === 'p' && !o.reaction) { hit += 15; parts.push(['Из засады', 15]); }
     if (att.kind === 'soldier' && att.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== att && (att.bonds[a.sid] || 0) >= 3 && U.dist(a.x, a.y, ax, ay) <= 1.5; })) { hit += 5; parts.push(['Товарищ рядом', 5]); }
     if (o.aimBonus) { hit += o.aimBonus; parts.push([o.aimLabel || 'Бонус', o.aimBonus]); }
@@ -410,7 +496,15 @@
     if (DW.Music) { DW.Music.sting('contact'); DW.Music.intensity(1); }
     if (DW.BS && DW.BS.refresh) DW.BS.refresh();
   };
+  function alphaDown(u) {
+    if (u.type !== 'alpha') return;
+    if (B.goal && B.goal.kind === 'hunt' && B.goal.id === u.id) { B.goal.done = true; B.loot.gems = (B.loot.gems || 0) + 6; }
+    let n = 0;
+    B.units.forEach(function (e) { if (e.alive && e.side === 'e' && e.pod === u.pod && e !== u) { e.stun = 1; n++; } });
+    DW.UI.toast('Вожак убит!' + (n ? ' Стая в смятении — ход пропустят.' : '') + (B.goal && B.goal.kind === 'hunt' ? ' +6 драг.' : ''), 'good');
+  }
   BT.kill = function (u, src, over) {
+    if (u.side === 'e') alphaDown(u);
     u.alive = false; u.overwatch = false; u.hunker = false;
     if (u.kind === 'soldier' && (over || 0) <= 4 && Math.random() < Math.min(0.9, 0.55 + (u.rank || 0) * 0.08)) {
       u.down = 4; u.stable = false;
@@ -629,8 +723,22 @@
   };
 
   BT.pickup = function (u) {
+    if (B.goal && B.goal.kind === 'rescue' && !B.goal.done && U.dist(u.x, u.y, B.goal.x, B.goal.y) <= 1.5) BT.freeCaptive(u);
     for (let i = B.items.length - 1; i >= 0; i--) {
       const it = B.items[i];
+      if (it.x === u.x && it.y === u.y && it.kind === 'cargo') {
+        // контейнер Института: несколько видов припасов сразу
+        B.items.splice(i, 1);
+        const got = [['ammo', U.rand(30, 60)], ['meds', U.rand(1, 2)], ['grenades', 1], ['gems', U.rand(4, 8)]].filter(function () { return Math.random() < 0.8; });
+        if (!got.length) got.push(['ammo', 40]);
+        got.forEach(function (gk) { B.loot[gk[0]] = (B.loot[gk[0]] || 0) + gk[1]; });
+        DW.TR.float(u.x, u.y, 'Груз Института!', 'gem');
+        DW.UI.toast('Груз Института: ' + got.map(function (gk) { return '+' + gk[1] + ' ' + BT.LOOT_SHORT[gk[0]]; }).join(', '), 'good');
+        DW.SFX.play('pickup');
+        if (B.goal && B.goal.kind === 'cargo' && B.goal.x === it.x && B.goal.y === it.y) B.goal.done = true;
+        BT.updateObjective();
+        continue;
+      }
       if (it.x === u.x && it.y === u.y) {
         B.loot[it.kind] = (B.loot[it.kind] || 0) + it.amt;
         B.items.splice(i, 1);
@@ -849,6 +957,7 @@
   /* ---------- Ходы ---------- */
   BT.startPlayerTurn = function () {
     B.phase = 'player';
+    if (!B.concealed) BT.cargoDrop();
     // паника: один ход боец прячется (1 ОД, залёг)
     B.units.forEach(function (u) {
       if (u.kind === 'soldier' && u.alive && u.panic) { u.panic = false; u.panicNow = true; }

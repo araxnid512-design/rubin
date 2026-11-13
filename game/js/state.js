@@ -556,7 +556,8 @@
     if (out === 'victory' || out === 'evac') for (k in B.loot) add(k, B.loot[k]);
     if (out === 'victory') {
       for (k in B.field) add(k, B.field[k]);
-      B.items.forEach(function (it) { add(it.kind, it.amt); });
+      // всё, что осталось на карте, собрано после боя (контейнер Института — набором припасов)
+      B.items.forEach(function (it) { if (it.kind === 'cargo') { add('ammo', 40); add('meds', 1); add('gems', 5); } else add(it.kind, it.amt); });
       (B.drops || []).forEach(function (w) {
         st.stock.weapons[w] = (st.stock.weapons[w] || 0) + 1;
         sum.items.push(D.WEAPONS[w].n);
