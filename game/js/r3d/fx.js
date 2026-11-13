@@ -202,7 +202,13 @@
   };
   /* граната / ракета / плевок по дуге */
   FX.projectile = function (x0, y0, x1, y1, kind, from, dur) {
-    const a = from && kind === 'rocket' && R3.units.muzzle(from) ? R3.units.muzzle(from) : V((x0 + 0.5) * T, R3.hAt(x0, y0) + 1.4, (y0 + 0.5) * T);
+    // ракета — из трубы, граната — из руки бросающего (кто стоит в клетке x0, y0)
+    const B = DW.BT.get();
+    const thrower = from || (B && B.units.find(function (q) { return q.alive && q.x === x0 && q.y === y0; }));
+    let a = null;
+    if (thrower && kind === 'rocket') a = R3.units.muzzle(thrower);
+    else if (thrower) a = R3.units.hand(thrower);
+    if (!a) a = V((x0 + 0.5) * T, R3.hAt(x0, y0) + 1.4, (y0 + 0.5) * T);
     const b = V((x1 + 0.5) * T, R3.hAt(x1, y1) + 0.15, (y1 + 0.5) * T);
     projs.push({ a: a, b: b, t0: now(), dur: dur, arc: kind === 'rocket' ? 0.35 : 2.4, kind: kind });
   };

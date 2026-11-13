@@ -694,6 +694,13 @@
     if (e.body && e.body.B && e.body.B.Head) return e.body.B.Head.getWorldPosition(V());
     return null;
   };
+  /* кисть (откуда летит граната) */
+  UN.hand = function (u, left) {
+    const e = ents[u.id];
+    if (!e || !e.ready || !e.body.B) return null;
+    const h = e.body.B[left ? 'LeftHand' : 'RightHand'];
+    return h ? h.getWorldPosition(V()) : null;
+  };
   /* точки над головой и у ног (для полосок здоровья, реплик, выбора касанием) */
   UN.anchor = function (u, top) {
     const e = ents[u.id];
