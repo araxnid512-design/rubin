@@ -34,8 +34,8 @@
   const TURRET2 = { u: 4.4, v: 8.5, w: 0.8, d: 0.8 };
   /* Точки, куда ходят жители */
   const WP = {
-    hq: [5.6, 6.5], fire: [5.0, 7.6], fire2: [5.7, 7.9], workshop: [3.5, 7.7], farm: [7.0, 6.4], infirmary: [7.6, 3.3],
-    tower: [2.6, 2.3], gate: [8.9, 5.0], crates: [3.6, 5.4], beacon: [3.0, 3.2]
+    hq: [5.6, 6.5], fire: [5.0, 7.6], fire2: [5.7, 7.9], workshop: [3.8, 7.25], farm: [7.0, 6.4], infirmary: [7.6, 3.3],
+    tower: [2.6, 2.3], gate: [8.9, 5.0], crates: [3.55, 2.15], beacon: [3.0, 3.2]
   };
   const RING = [[3.4, 3.4], [6.9, 3.6], [6.9, 6.7], [3.4, 6.7]];
 
@@ -44,21 +44,21 @@
   const SEATS = [[4.1, 7.29], [4.5, 7.31], [5.89, 7.7], [5.91, 8.1], [4.95, 6.75], [5.65, 6.85], [4.6, 7.95]];
   const SPOT = {
     smith: [3.12, 7.62], anvil: [3.4, 7.9],
-    medic: [6.85, 2.2], cots: [[6.3, 2.45], [6.55, 2.9]], kit: [6.95, 2.75],
+    medic: [6.85, 2.2], cots: [[6.28, 2.42], [6.45, 3.02]], kit: [6.95, 2.75],
     bed: { u0: 6.35, u1: 6.85, v0: 7.6, v1: 8.6 }, farm: [[7.02, 7.8], [7.02, 8.25], [6.6, 8.78]],
-    pad: { u0: 3.0, v0: 5.0, u1: 3.9, v1: 5.75 },
+    pad: { u0: 2.7, v0: 5.0, u1: 3.55, v1: 5.75 },
     dog: [5.5, 8.35],
-    line: { u0: 1.45, u1: 3.0, v: 5.75, h: 22 }
+    line: { u0: 7.35, u1: 8.6, v: 5.62, h: 22 }
   };
   // помост за дальними стенами: высота настила и концы обхода дозорных
   const CW = { h: 12, a: 0.27, b: 0.58 };
   const CWR = [[2.8, 0.42], [9.2, 0.42]], CWL = [[0.42, 2.8], [0.42, 9.2]];
-  // часовой на вышке поворачивается: наружу, вдоль стен, изредка — внутрь лагеря
+  // часовой на нижней площадке вышки поворачивается: наружу, вдоль стен, изредка — внутрь лагеря
   const SENTRY_FACES = [-Math.PI * 0.75, -Math.PI / 2, -Math.PI * 0.75, Math.PI, -Math.PI * 0.75, Math.PI / 4];
   const TOWER_C = [1.65, 1.65];
   /* Точки на 3D-моделях (смещение от точки привязки модели в экранных точках мира) */
   const M3 = {
-    tower: { fx: -1, fy: -93, rail: -101, lx: 14, ly: -104 },
+    tower: { fx: -15, fy: -44, fx2: 12, fy2: -42, lx: 0, ly: -99 },
     hq: { win: [[-38, -7.2, 6, 9, 0.5], [-5.2, -3.8, 6, 7, -0.5], [38.6, -22.2, 6, 8, -0.5]], door: [17, -9.7], pipe: [28, -36] },
     infirmary: { pipe: [22, -22], glow: [0, -18] },
     workshop: { pipe: [-19, -33], forge: [14, -6] },
@@ -133,7 +133,11 @@
     if (G.blv('farm')) want.push('farmer');
     const old = people.map(function (p) { return p.role; });
     people.forEach(function (p) { p.role = p.wounded ? 'rest' : 'free'; });
-    want.forEach(function (r) {
+    // при новой постройке занятые остаются при своих делах, новые дела достаются свободным
+    const kept = want.map(function () { return false; });
+    if (!place) people.forEach(function (p, i) { const k = want.indexOf(old[i]); if (!p.wounded && k >= 0 && !kept[k]) { p.role = old[i]; kept[k] = true; } });
+    want.forEach(function (r, wi) {
+      if (kept[wi]) return;
       const pref = ROLE_PREF[r];
       let p = pref ? people.find(function (q) { return q.role === 'free' && q.cls === pref; }) : null;
       if (!p) p = people.find(function (q) { return q.role === 'free'; });
@@ -160,7 +164,7 @@
     p.path = []; p.h = 0; p.onTower = false; p.act = 'idle'; p.wait = Math.random() * 2;
     const at = function (a) { p.u = a[0]; p.v = a[1]; };
     switch (p.role) {
-      case 'sentry': at(TOWER_C); p.onTower = true; p.fi = p.seed % SENTRY_FACES.length; p.face = SENTRY_FACES[p.fi]; break;
+      case 'sentry': at(TOWER_C); p.onTower = true; p.fi = p.seed % SENTRY_FACES.length; p.face = SENTRY_FACES[p.fi]; p.dk = 0; p.dkT = 0; break;
       case 'patrol': p.u = U.lerp(CWR[0][0], CWR[1][0], Math.random()); p.v = CWR[0][1]; p.h = CW.h; p.speed = 0.55; break;
       case 'patrol2': p.u = CWL[0][0]; p.v = U.lerp(CWL[0][1], CWL[1][1], Math.random()); p.h = CW.h; p.speed = 0.55; break;
       case 'medic': at(SPOT.medic); faceTo(p, SPOT.cots[0]); break;
@@ -229,6 +233,8 @@
     for (let i = 0; i < people.length; i++) {
       const p = people[i];
       if (p.path.length) { walk(p, dt); continue; }
+      // часовой переходит на другую сторону площадки вышки
+      if (p.onTower && p.dk !== p.dkT) { const st = dt * 0.45; p.dk = Math.abs(p.dkT - p.dk) <= st ? p.dkT : p.dk + (p.dkT > p.dk ? st : -st); p.mv = p.dk !== p.dkT; continue; }
       p.wait -= dt;
       if (p.wait > 0) continue;
       think(p);
@@ -249,7 +255,7 @@
     p.act = 'idle'; p.wait = 3 + Math.random() * 6;
     if (p.dest === 'seat') { p.act = 'sit'; p.wait = 4; faceTo(p, FIRE); return; }
     switch (p.role) {
-      case 'sentry': if (p.dest === 'climb') { p.onTower = true; p.u = TOWER_C[0]; p.v = TOWER_C[1]; p.wait = 1; } break;
+      case 'sentry': if (p.dest === 'climb') { p.onTower = true; p.u = TOWER_C[0]; p.v = TOWER_C[1]; p.dk = 0; p.dkT = 0; p.wait = 1; } break;
       case 'patrol': case 'patrol2':
         if (p.dest === 'wall') { p.act = 'scan'; p.wait = 2.5 + Math.random() * 3; p.face = p.role === 'patrol' ? -Math.PI / 2 : Math.PI; }
         else { p.h = CW.h; p.wait = 0.5; }
@@ -270,6 +276,8 @@
     switch (p.role) {
       case 'sentry':
         if (!p.onTower) { go(p, WP.tower, 'climb'); return; }
+        p.mv = false;
+        if (towerG.fx2 !== towerG.fx && Math.random() < 0.25) { p.dkT = p.dkT ? 0 : 1; p.face = p.dkT ? -Math.PI / 4 : Math.PI * 0.75; p.wait = 0.5; return; }
         p.fi = (p.fi + 1) % SENTRY_FACES.length; p.face = SENTRY_FACES[p.fi];
         p.act = Math.random() < 0.35 ? 'scan' : 'idle'; p.wait = 3 + Math.random() * 4;
         return;
@@ -329,7 +337,7 @@
     const d = S3.dir8(p.face === undefined ? (p.dir > 0 ? Math.PI / 4 * 7 : Math.PI / 4 * 3) : p.face);
     const b = Sx.body;
     let anim = 'idle', i = 0, gun = !p.noGun;
-    const act = p.path.length ? 'walk' : p.act;
+    const act = p.path.length || p.mv ? 'walk' : p.act;
     if (act === 'walk') { anim = 'walk'; i = Math.floor(t / (p.speed < 0.7 ? 110 : 85) + p.seed * 3) % S3.count(b, 'walk'); }
     else if (act === 'sit') anim = 'hunker';
     else if (act === 'work') { anim = 'melee'; i = Math.floor(t / 260) % S3.count(b, 'melee'); gun = false; }
@@ -372,17 +380,19 @@
       spawn(PK.DROP, p.u + du + (Math.random() - 0.5) * 0.1, p.v + dv + (Math.random() - 0.5) * 0.1, 14, du * 0.4, dv * 0.4, 4, 520, 1, 0, 0.9, 70);
     }
   }
-  /* часовой на вышке: виден по пояс из-за ограждения площадки */
+  /* часовой на вышке: на 3D-вышке — на открытой нижней площадке, на 2D — по пояс за ограждением */
   function drawSentry(g, p, t) {
     const T = towerG;
     if (!T.ok) return;
-    g.save();
-    g.beginPath(); g.rect(T.fx - 30, T.fy - 70, 60, 70 + T.rail - T.fy); g.clip();
-    if (!person3d(g, p, T.fx, T.fy, t, 0.6)) {
-      g.translate(T.fx, T.fy);
+    const k = p.dk || 0, x = T.fx + (T.fx2 - T.fx) * k, y = T.fy + (T.fy2 - T.fy) * k;
+    if (T.clip) { g.save(); g.beginPath(); g.rect(x - 30, y - 70, 60, 70 + T.rail - y); g.clip(); }
+    else { g.fillStyle = 'rgba(0,0,0,0.25)'; ART.ell(g, x, y, 7, 3); }
+    if (!person3d(g, p, x, y, t, 0.6)) {
+      g.save(); g.translate(x, y);
       ART.human(g, { look: p.look, body: p.body, weapon: p.weapon, dir: p.dir, aim: 0.35, scale: 0.7, seed: p.seed, noShadow: true }, t);
+      g.restore();
     }
-    g.restore();
+    if (T.clip) g.restore();
   }
 
   /* ---------- Плита-диорама с землёй ---------- */
@@ -466,13 +476,13 @@
     acc[key] = acc[key] > 2 ? 0 : acc[key] - 1;
     return true;
   }
-  function smokeAt(u, v, h, a) { spawn(PK.SMOKE, u, v, h, 0.07 + Math.random() * 0.05, -0.03 + Math.random() * 0.02, 13 + Math.random() * 5, 3000 + Math.random() * 900, 2.4, 8, a || 0.32, 0); }
-  function smokeXY(x, y, uv, a) { spawnXY(PK.SMOKE, x, y, uv, 0.07 + Math.random() * 0.05, -0.03 + Math.random() * 0.02, 13 + Math.random() * 5, 3000 + Math.random() * 900, 2, 7, a || 0.3); }
+  function smokeAt(u, v, h, a) { spawn(PK.SMOKE, u, v, h, 0.07 + Math.random() * 0.05, -0.03 + Math.random() * 0.02, 13 + Math.random() * 5, 3000 + Math.random() * 900, 3.5, 13, a || 0.5, 0); }
+  function smokeXY(x, y, uv, a) { spawnXY(PK.SMOKE, x, y, uv, 0.07 + Math.random() * 0.05, -0.03 + Math.random() * 0.02, 13 + Math.random() * 5, 3000 + Math.random() * 900, 3.2, 13, a || 0.5); }
   function sparks(u, v, h, n) {
     n = Math.max(2, Math.round(n * qMul));
     for (let k = 0; k < n; k++) spawn(PK.SPARK, u, v, h, (Math.random() - 0.5) * 1.3, (Math.random() - 0.5) * 1.3, 30 + Math.random() * 35, 380 + Math.random() * 260, 1.4, 0, 1, 140);
   }
-  const SMOKE_C = '150,140,130', DUST_C = '180,160,130';
+  const SMOKE_C = '186,180,172', DUST_C = '180,160,130';
   function drawParts(g, t, glowPass) {
     for (let i = 0; i < PMAX; i++) {
       const p = pool[i];
@@ -487,7 +497,7 @@
       if (p.k === PK.SMOKE || p.k === PK.DUST) {
         // мягкий клуб: быстро проявляется, растёт, тает
         const r = p.s + p.gr * k;
-        g.globalAlpha = p.a * Math.min(1, k * 5) * (1 - k);
+        g.globalAlpha = p.a * (k < 0.12 ? k / 0.12 : 1 - (k - 0.12) / 0.88);
         g.drawImage(puffSpr(p.k === PK.SMOKE ? SMOKE_C : DUST_C), x - r + Math.sin(age / 500 + i) * k * 3, y - r, r * 2, r * 2);
       } else if (p.k === PK.DROP) {
         g.globalAlpha = p.a * (1 - k); g.fillStyle = '#9fd0ff'; g.fillRect(x - 0.5, y - 1, 1, 2);
@@ -517,7 +527,7 @@
     if (c) return c;
     c = ART.canvas(32, 32); const x = c.getContext('2d');
     const gr = x.createRadialGradient(13, 13, 1, 16, 16, 16);
-    gr.addColorStop(0, 'rgba(' + col + ',0.95)'); gr.addColorStop(0.55, 'rgba(' + col + ',0.5)'); gr.addColorStop(1, 'rgba(' + col + ',0)');
+    gr.addColorStop(0, 'rgba(' + col + ',1)'); gr.addColorStop(0.45, 'rgba(' + col + ',0.7)'); gr.addColorStop(1, 'rgba(' + col + ',0)');
     x.fillStyle = gr; x.fillRect(0, 0, 32, 32);
     PUFF[col] = c; return c;
   }
@@ -624,7 +634,7 @@
     // тревога
     if (st.raid && Math.sin(t / 160) > 0) { const p = P(cu, cv, H + 31); g.fillStyle = '#ff3a2a'; ART.circ(g, p[0], p[1], 2.6); }
     // площадка часового и прожектор (для 2D-вышки)
-    towerG.ok = true; towerG.fx = PX(cu, cv); towerG.fy = PY(cu, cv, H + 5); towerG.rail = PY(cu, s.v + s.d + 0.1, H + 13) - 2;
+    towerG.ok = true; towerG.clip = true; towerG.fx = towerG.fx2 = PX(cu, cv); towerG.fy = towerG.fy2 = PY(cu, cv, H + 5); towerG.rail = PY(cu, s.v + s.d + 0.1, H + 13) - 2;
     towerG.lx = PX(s.u + s.w, s.v + s.d); towerG.ly = PY(s.u + s.w, s.v + s.d, H + 16);
   }
   function drawInfirmary(g, t) {
@@ -712,6 +722,7 @@
     const segs = front ? WSEG_F : WSEG_B;
     // общий градиент кольев частокола (в своих координатах, переиспользуется)
     if (lv < 2 && !palGr) { palGr = g.createLinearGradient(-3, 0, 3, 0); palGr.addColorStop(0, '#a07c52'); palGr.addColorStop(1, '#4e341c'); }
+    const lampCol = nightK > 0.2 ? 'rgba(255,190,90,' + nightK.toFixed(3) + ')' : '';
     for (let si = 0; si < segs.length; si++) {
       const sg = segs[si];
       const len = Math.hypot(sg[2] - sg[0], sg[3] - sg[1]);
@@ -727,7 +738,7 @@
           box(g, Math.min(u0, u1) - (sg[4] === 'R' ? 0.12 : 0), Math.min(v0, v1) - (sg[4] === 'L' ? 0.12 : 0), Math.max(u0, u1) + (sg[4] === 'R' ? 0.12 : 0), Math.max(v0, v1) + (sg[4] === 'L' ? 0.12 : 0), 0, h, ['#9c968a', '#807a70', '#646058']);
           if (nightK > 0.2 && i % 6 === 3) {
             const x = PX(um, vm), y = PY(um, vm, h + 2);
-            g.fillStyle = 'rgba(255,190,90,' + nightK.toFixed(3) + ')'; ART.circ(g, x, y, 1.8);
+            g.fillStyle = lampCol; ART.circ(g, x, y, 1.8);
             if (lampN < 48) { lampXY[lampN * 2] = x; lampXY[lampN * 2 + 1] = y; lampN++; }
           }
         } else {
@@ -786,7 +797,7 @@
     if (k === 'tower') {
       if (st.raid && Math.sin(t / 160) > 0) { g.fillStyle = '#ff3a2a'; ART.circ(g, top[0], top[1] + 4, 2.6); }
       const M = M3.tower;
-      towerG.ok = true; towerG.fx = ax + M.fx; towerG.fy = ay + M.fy; towerG.rail = ay + M.rail; towerG.lx = ax + M.lx; towerG.ly = ay + M.ly;
+      towerG.ok = true; towerG.clip = false; towerG.fx = ax + M.fx; towerG.fy = ay + M.fy; towerG.fx2 = ax + M.fx2; towerG.fy2 = ay + M.fy2; towerG.lx = ax + M.lx; towerG.ly = ay + M.ly;
       // прожектор на углу площадки
       g.fillStyle = '#2a2c2e'; ART.circ(g, towerG.lx, towerG.ly, 2.4);
       g.fillStyle = nightK > 0.05 ? '#fff6d8' : '#8a9096'; ART.circ(g, towerG.lx + 0.8, towerG.ly + 0.4, 1.3);
@@ -799,12 +810,12 @@
       glowAt(g, ax + M.forge[0], ay + M.forge[1], 12, 0.7, '255,120,40', 0.35 + Math.sin(t / 90) * 0.1);
       g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
       pipe(g, ax + M.pipe[0], ay + M.pipe[1], 12);
-      if (every('ws', 2.2)) smokeXY(ax + M.pipe[0], ay + M.pipe[1] - 13, uv, 0.34);
+      if (every('ws', 2.4)) smokeXY(ax + M.pipe[0], ay + M.pipe[1] - 13, uv, 0.6);
     }
     if (k === 'infirmary') {
       const M = M3.infirmary;
       pipe(g, ax + M.pipe[0], ay + M.pipe[1], 10);
-      if (every('inf', 1.2 + nightK)) smokeXY(ax + M.pipe[0], ay + M.pipe[1] - 11, uv, 0.26);
+      if (every('inf', 1.4 + nightK)) smokeXY(ax + M.pipe[0], ay + M.pipe[1] - 11, uv, 0.5);
     }
     if (k === 'hq') {
       const M = M3.hq;
@@ -815,7 +826,7 @@
         g.globalAlpha = 1;
       }
       pipe(g, ax + M.pipe[0], ay + M.pipe[1], 11);
-      if (every('hq', 1.6 + nightK)) smokeXY(ax + M.pipe[0], ay + M.pipe[1] - 12, uv, 0.3);
+      if (every('hq', 1.8 + nightK)) smokeXY(ax + M.pipe[0], ay + M.pipe[1] - 12, uv, 0.6);
       // флаг Плацдарма над штабом
       const fp = P(s.u + s.w - 0.25, s.v + s.d - 0.25, 0), fy = top[1] + 6;
       ART.line(g, fp[0], fp[1] - 6, fp[0], fy - 18, 1.6, '#3a2a1a');
@@ -837,7 +848,7 @@
     g.fillStyle = '#4a4440'; g.fillRect(x - 1.8, y - h, 1.2, h);
     g.fillStyle = '#1a1816'; ART.ell(g, x, y - h, 2.4, 1.1);
   }
-  const towerG = { ok: false, fx: 0, fy: 0, rail: 0, lx: 0, ly: 0 };
+  const towerG = { ok: false, clip: false, fx: 0, fy: 0, fx2: 0, fy2: 0, rail: 0, lx: 0, ly: 0 };
   function drawBuilding(g, k, t, st) {
     const lv = DW.G.blv(k);
     if (k !== 'hq' && !lv) { drawSlot(g, k, t); return; }
@@ -896,7 +907,7 @@
     }
     }
     // дым и угольки
-    if (every('fire', 3 + nightK * 2)) spawn(PK.SMOKE, FIRE[0] + (Math.random() - 0.5) * 0.1, FIRE[1], 16, 0.05 + Math.random() * 0.04, -0.03, 14 + Math.random() * 4, 2600 + Math.random() * 600, 2.5, 8, 0.3, 0);
+    if (every('fire', 3 + nightK * 2)) spawn(PK.SMOKE, FIRE[0] + (Math.random() - 0.5) * 0.1, FIRE[1], 16, 0.05 + Math.random() * 0.04, -0.03, 14 + Math.random() * 4, 2600 + Math.random() * 600, 3.5, 14, 0.55, 0);
     if (every('ember', 2.5 + nightK * 4)) spawn(PK.EMBER, FIRE[0] + (Math.random() - 0.5) * 0.12, FIRE[1] + (Math.random() - 0.5) * 0.12, 10, (Math.random() - 0.5) * 0.3 + 0.05, (Math.random() - 0.5) * 0.3, 26 + Math.random() * 16, 900 + Math.random() * 700, 1.3, 0, 1, 6);
     // брёвна-скамейки (градиент общий, в координатах бревна)
     if (!logGr) { logGr = g.createLinearGradient(0, -4, 0, 4); logGr.addColorStop(0, '#8a6a4a'); logGr.addColorStop(1, '#3a2a1a'); }
@@ -927,7 +938,7 @@
     } else if (grp === 1) {
       // патроны: зелёные цинки, штабелем
       const na = Math.min(6, Math.ceil((r.ammo || 0) / 100));
-      for (let i = 0; i < na; i++) { const u = SUP_AMMO[0] + (i % 3) * 0.3, v = SUP_AMMO[1], h0 = i >= 3 ? 7 : 0; box(g, u, v, u + 0.26, v + 0.18, h0, h0 + 7, C_AMMO); g.fillStyle = '#c9b04a'; const p = P(u + 0.13, v + 0.18, h0 + 4); g.fillRect(p[0] - 2, p[1] - 1, 4, 1.4); }
+      for (let i = 0; i < na; i++) { const u = SUP_AMMO[0] + (i % 3) * 0.3, v = SUP_AMMO[1], h0 = i >= 3 ? 7 : 0; box(g, u, v, u + 0.26, v + 0.18, h0, h0 + 7, C_AMMO); g.fillStyle = '#c9b04a'; g.fillRect(PX(u + 0.13, v + 0.18) - 2, PY(u + 0.13, v + 0.18, h0 + 4) - 1, 4, 1.4); }
     } else {
       // провизия: мешки и банки
       const nf = Math.min(7, Math.ceil((r.food || 0) / 10));
@@ -955,7 +966,7 @@
     const n = DW.G.node(st.baseNode);
     if (n && n.cargo) cargoHere = n.cargo.length;
   }
-  const PAD_SPOTS = [[3.2, 5.18], [3.64, 5.22], [3.22, 5.56], [3.66, 5.56], [3.2, 5.18]];
+  const PAD_SPOTS = [[2.95, 5.2], [3.3, 5.22], [2.97, 5.53], [3.32, 5.55], [2.95, 5.2]];
   function drawCargoPad(g, t) {
     const B = SPOT.pad, cu = (B.u0 + B.u1) / 2, cv = (B.v0 + B.v1) / 2;
     // бетонная плита с жёлтой разметкой
@@ -974,13 +985,15 @@
         g.strokeStyle = 'rgba(111,216,255,' + (0.7 + Math.sin(t / 300 + i) * 0.3).toFixed(3) + ')'; g.lineWidth = 1.6;
         g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
       }
+      // столб света — груз видно издалека
+      g.globalAlpha = 0.35 + Math.sin(t / 300) * 0.12;
+      g.drawImage(pillarSpr(), cx - 6, cy - 130, 12, 128);
+      g.globalAlpha = 1;
     } else if (cargoPend) {
       // груз в пути: портал наводится — мерцают очертания контейнеров, по ним бежит луч
       const n = Math.min(4, Math.ceil(cargoPend / 2));
-      const fl = 0.28 + Math.sin(t / 130) * 0.08 + (Math.sin(t / 47) > 0.85 ? 0.15 : 0);
-      g.globalAlpha = fl;
-      for (let i = 0; i < n; i++) { const p = PAD_SPOTS[i]; box(g, p[0] - 0.14, p[1] - 0.11, p[0] + 0.14, p[1] + 0.11, 0, 12, C_HOLO); }
-      g.globalAlpha = 1;
+      const fl = 0.34 + Math.sin(t / 130) * 0.08 + (Math.sin(t / 47) > 0.85 ? 0.15 : 0);
+      for (let i = 0; i < n; i++) { const p = PAD_SPOTS[i]; holoBox(g, p[0] - 0.14, p[1] - 0.11, p[0] + 0.14, p[1] + 0.11, 12, fl); }
       const sh = (t / 14) % 16, a = P(B.u0 + 0.05, B.v1 - 0.05, sh), b = P(B.u1 - 0.05, B.v1 - 0.05, sh), c = P(B.u1 - 0.05, B.v0 + 0.05, sh);
       g.strokeStyle = 'rgba(160,235,255,0.7)'; g.lineWidth = 1;
       g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.stroke();
@@ -990,18 +1003,31 @@
     }
   }
 
+  /* контур контейнера из света: полупрозрачные грани и яркие рёбра */
+  function holoBox(g, u0, v0, u1, v1, h, a) {
+    g.globalAlpha = a; box(g, u0, v0, u1, v1, 0, h, C_HOLO); g.globalAlpha = 1;
+    g.strokeStyle = 'rgba(170,240,255,' + Math.min(1, a * 2.4).toFixed(3) + ')'; g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(PX(u0, v1), PY(u0, v1, 0)); g.lineTo(PX(u1, v1), PY(u1, v1, 0)); g.lineTo(PX(u1, v0), PY(u1, v0, 0));
+    g.lineTo(PX(u1, v0), PY(u1, v0, h)); g.lineTo(PX(u0, v0), PY(u0, v0, h)); g.lineTo(PX(u0, v1), PY(u0, v1, h)); g.closePath();
+    g.moveTo(PX(u0, v1), PY(u0, v1, h)); g.lineTo(PX(u1, v1), PY(u1, v1, h)); g.lineTo(PX(u1, v0), PY(u1, v0, h));
+    g.moveTo(PX(u1, v1), PY(u1, v1, h)); g.lineTo(PX(u1, v1), PY(u1, v1, 0));
+    g.stroke();
+  }
+
   /* ---------- Бытовые мелочи: койки, наковальня, грядка, бельё, собака ---------- */
   function drawCot(g, c) {
     const u = c[0], v = c[1];
     // носилки на ножках: рама, брезент, скатка-подушка
-    for (let i = 0; i < 4; i++) { const p = P(u + (i % 2 ? 0.12 : -0.12), v + (i < 2 ? -0.3 : 0.3), 0); ART.line(g, p[0], p[1], p[0], p[1] - 3, 1, '#3a3226'); }
+    g.fillStyle = '#3a3226';
+    for (let i = 0; i < 4; i++) { const lu = u + (i % 2 ? 0.12 : -0.12), lv = v + (i < 2 ? -0.3 : 0.3); g.fillRect(PX(lu, lv) - 0.5, PY(lu, lv, 3), 1, 3); }
     box(g, u - 0.13, v - 0.32, u + 0.13, v + 0.32, 3, 4.5, C_COT);
-    const pl = P(u, v - 0.22, 5); g.fillStyle = '#c8c0a8'; ART.ell(g, pl[0], pl[1], 3.6, 1.8);
+    g.fillStyle = '#c8c0a8'; ART.ell(g, PX(u, v - 0.22), PY(u, v - 0.22, 5), 3.6, 1.8);
   }
   function drawKit(g) {
     const u = SPOT.kit[0], v = SPOT.kit[1];
     box(g, u - 0.09, v - 0.07, u + 0.09, v + 0.07, 0, 5, C_KIT);
-    const p = P(u + 0.09, v, 2.5); g.fillStyle = '#c0302a'; g.fillRect(p[0] - 0.8, p[1] - 2, 1.6, 4); g.fillRect(p[0] - 2, p[1] - 0.8, 4, 1.6);
+    const x = PX(u + 0.09, v), y = PY(u + 0.09, v, 2.5); g.fillStyle = '#c0302a'; g.fillRect(x - 0.8, y - 2, 1.6, 4); g.fillRect(x - 2, y - 0.8, 4, 1.6);
   }
   function drawAnvil(g, t) {
     const x = PX(SPOT.anvil[0], SPOT.anvil[1]), y = PY(SPOT.anvil[0], SPOT.anvil[1], 0);
@@ -1076,7 +1102,7 @@
     }
   }
 
-  /* ---------- Помост и вороны на стенах ---------- */
+  /* ---------- Помост на дальних стенах и вороны на ближних ---------- */
   function drawCatwalks(g) {
     const h = CW.h;
     box(g, 2.5, CW.a, 9.5, CW.b, h - 2, h, C_PLANK);
@@ -1090,24 +1116,33 @@
     const lv = DW.G.blv('walls');
     if (!lv) return;
     const n = QCROW[Q];
-    for (let i = 0; i < n; i++) { const c = { u: 0, v: 0, h: 0, st: 0, t0: 0, side: i % 2, dir: 1, seed: i * 1.7, fu: 0, fv: 0, fh: 0, wait: 0 }; perch(c, lv); crows.push(c); }
+    for (let i = 0; i < n; i++) { const c = { u: 0, v: 0, h: 0, st: 0, t0: 0, side: i % 3 === 2 ? 1 : 0, dir: 1, seed: i * 1.7, fu: 0, fv: 0, fh: 0, wait: 0 }; perch(c, lv); crows.push(c); }
   }
+  /* сесть на зубец каменной стены или на остриё кола ближней стены (side 0 — левая, 1 — правая, без ворот) */
   function perch(c, lv) {
-    const k = 3 + Math.random() * 6;
-    if (c.side === 0) { c.u = k; c.v = 0.19; } else { c.u = 0.19; c.v = k; }
-    c.h = lv >= 2 ? 22 : 24; c.dir = Math.random() < 0.5 ? 1 : -1; c.st = 0;
+    const n = lv >= 2 ? 19 : 40, w = (N - 0.5) / n;
+    let i = 0;
+    for (let k = 0; k < 8; k++) {
+      i = 2 + Math.floor(Math.random() * (n - 4));
+      if (lv >= 2 && i % 2 === 0) i++;
+      const m = 0.25 + (i + 0.5) * w;
+      if (c.side === 0 || m < 4.2 || m > 6.0) break;
+    }
+    const m = 0.25 + (i + 0.5) * w;
+    if (c.side === 0) { c.u = m; c.v = N - 0.25; } else { c.u = N - 0.25; c.v = m; }
+    c.h = lv >= 2 ? 22 : 24 + ((i * 7) % 5);
+    c.dir = Math.random() < 0.5 ? 1 : -1; c.st = 0;
   }
   function stepCrows(dt, t) {
     if (!crows.length) return;
     for (let i = 0; i < crows.length; i++) {
       const c = crows[i];
       if (c.st === 0) {
-        // взлетают, когда рядом проходит дозорный, или просто так
-        let scare = Math.random() < dt * 0.02;
+        // взлетают, когда рядом кто-то проходит, или просто так
+        let scare = Math.random() < dt * 0.035;
         for (let j = 0; j < people.length && !scare; j++) {
           const p = people[j];
-          if (p.role === 'patrol' && c.side === 0 && Math.abs(p.u - c.u) < 1.1 && p.h === CW.h) scare = true;
-          if (p.role === 'patrol2' && c.side === 1 && Math.abs(p.v - c.v) < 1.1 && p.h === CW.h) scare = true;
+          if (Math.abs(p.u - c.u) + Math.abs(p.v - c.v) < 1.2 && p.path.length) scare = true;
         }
         if (scare) { c.st = 1; c.t0 = t; c.fu = c.u; c.fv = c.v; c.fh = c.h; }
       } else if (c.st === 1 && t - c.t0 > 3200) { c.st = 2; c.wait = 6 + Math.random() * 8; }
@@ -1142,7 +1177,7 @@
         let k = (t - c.t0) / (c.st === 1 ? 3200 : 2400); k = k > 1 ? 1 : k;
         const out = c.st === 1 ? k : 1 - (1 - k) * (1 - k);
         const f = c.st === 1 ? out : 1 - out;
-        const du = c.side === 0 ? f * 1.5 * c.dir : -f * 3.5, dv = c.side === 0 ? -f * 3.5 : f * 1.5 * c.dir;
+        const du = c.side === 0 ? f * 1.5 * c.dir : f * 3.5, dv = c.side === 0 ? f * 3.5 : f * 1.5 * c.dir;
         const bu = c.st === 1 ? c.fu : c.u, bv = c.st === 1 ? c.fv : c.v, bh = c.st === 1 ? c.fh : c.h;
         g.globalAlpha = 1 - f * 0.6;
         drawCrow(g, c, t, PX(bu + du, bv + dv), PY(bu + du, bv + dv, bh + f * 90), true);
@@ -1180,7 +1215,7 @@
     }
     if (G.blv('infirmary')) {
       const s = SLOT.infirmary;
-      if (d3) { const ax = PX(s.u + s.w / 2, s.v + s.d / 2), ay = PY(s.u + s.w / 2, s.v + s.d / 2, 0); glowAt(g, ax + M3.infirmary.glow[0], ay + M3.infirmary.glow[1], 46, 0.75, '255,215,150', 0.32 * nk * flick(4, t)); }
+      if (d3) { const ax = PX(s.u + s.w / 2, s.v + s.d / 2), ay = PY(s.u + s.w / 2, s.v + s.d / 2, 0); glowAt(g, ax + M3.infirmary.glow[0], ay + M3.infirmary.glow[1], 50, 0.75, '255,215,150', 0.5 * nk * flick(4, t)); }
       else glowAt(g, PX(8.9, 2.3), PY(8.9, 2.3, 8), 40, 1, '255,220,150', 0.35 * nk);
       glowAt(g, PX(SPOT.medic[0], SPOT.medic[1]), PY(SPOT.medic[0], SPOT.medic[1], 0), 34, 0.5, '255,210,140', 0.3 * nk * flick(5, t));
     }
@@ -1306,12 +1341,12 @@
     g.drawImage(plate, -N * HW, 0, 2 * N * HW, 2 * N * HH + EDGE + 4);
     const wl = DW.G.blv('walls');
     lampN = 0; towerG.ok = false;
-    if (wl) { drawWalls(g, t, wl, false); drawCatwalks(g); drawCrows(g, t, false); }
+    if (wl) { drawWalls(g, t, wl, false); drawCatwalks(g); }
     // по глубине: постройки, лагерь, запасы, люди
     collectItems(st);
     sortItems();
     for (let i = 0; i < itemN; i++) drawItem(g, order[i], t, st);
-    if (wl) drawWalls(g, t, wl, true);
+    if (wl) { drawWalls(g, t, wl, true); drawCrows(g, t, false); }
     // дым, пыль, капли; летящие вороны
     drawParts(g, t, false);
     drawCrows(g, t, true);
