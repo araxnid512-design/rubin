@@ -116,7 +116,7 @@
   /* ---------- Хват от корпуса (как в tools/art3d/baker.js) ---------- */
   const GRIP = {
     aim: { butt: [-0.06, -0.01, -0.03], pitch: 2, yaw: 4, roll: 0, level: true },
-    carry: { butt: [-0.04, -0.13, 0.03], pitch: -30, yaw: 20, roll: -10, minEl: -32, ground: true },
+    carry: { butt: [-0.04, -0.13, 0.03], pitch: -30, yaw: 20, roll: -6, minEl: -32, ground: true },
     hip: { butt: [0.0, -0.34, 0.0], pitch: 0, yaw: 6, roll: 0, level: true },
     sling: { butt: [-0.14, -0.5, -0.17], pitch: 38, yaw: 42, roll: 0, back: true }
   };
@@ -146,7 +146,9 @@
     if (g.ground) elMin = Math.max(elMin, Math.asin(Math.max(-1, Math.min(1, (0.08 - (butt.y - groundY)) / 1.45))));
     if (el < elMin) { const h = dir.clone(); h.y = 0; if (h.lengthSq() < 1e-6) h.copy(Tq.Z).setY(0); h.normalize(); dir = h.multiplyScalar(Math.cos(elMin)).addScaledVector(UP, Math.sin(elMin)).normalize(); }
     const zW = dir.clone().negate();
-    const upRef = g.level ? UP : Tq.Y;
+    // оружие стоит ровно (магазином вниз) по вертикали мира, а не по корпусу: в движениях корпус бывает повёрнут
+    // и ствол заваливался набок (СВД у тяжёлого бойца); за спиной — по корпусу
+    const upRef = g.back ? Tq.Y : UP;
     let yW = upRef.clone().addScaledVector(zW, -upRef.dot(zW)).normalize();
     yW.applyAxisAngle(dir, roll);
     const xW = V().crossVectors(yW, zW).normalize();
