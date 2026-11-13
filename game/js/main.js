@@ -358,11 +358,16 @@
             if (++slowFrames > 30) {
               slowFrames = 0; renderAvg = 0; frameAvg = 16.7;
               if (DW.settings.gfx === 'auto' && DW.gfxLevel() > 0) { DW.settings.autoLevel = DW.gfxLevel() - 1; DW.saveSettings(); if (DW.TR.applyQuality) DW.TR.applyQuality(); resize(); }
-              else if (dpr > 1) { maxDpr = Math.max(1, dpr - 0.5); resize(); }
+              else if (dpr > 1) { maxDpr = Math.max(1, dpr - 0.25); resize(); }   // мельче шаг — почти незаметно глазу
             }
           } else slowFrames = 0;
-          if (renderAvg < 9 && frameAvg < 18 && DW.settings.gfx === 'auto' && DW.gfxLevel() < 2 && scene === DW.BS) {
-            if (++fastFrames > 600) { fastFrames = 0; DW.settings.autoLevel = DW.gfxLevel() + 1; DW.saveSettings(); }
+          if (renderAvg < 9 && frameAvg < 18 && scene === DW.BS && (maxDpr < 2 || (DW.settings.gfx === 'auto' && DW.gfxLevel() < 2))) {
+            // телефон справляется: сначала возвращаем чёткость, потом уровень графики
+            if (++fastFrames > 600) {
+              fastFrames = 0;
+              if (maxDpr < 2) { maxDpr = Math.min(2, maxDpr + 0.25); resize(); }
+              else { DW.settings.autoLevel = DW.gfxLevel() + 1; DW.saveSettings(); }
+            }
           } else fastFrames = 0;
         }
       } catch (e) { console.error(e); }
