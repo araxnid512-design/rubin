@@ -400,6 +400,18 @@
     "--prompt",
     "improvised barricade of sandbags, wooden planks and a rusty sheet of metal, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
    ]
+  },
+  {
+   "id": "p9_list",
+   "timeout": 300,
+   "args": [
+    "project",
+    "list",
+    "--size",
+    "8",
+    "--output-format",
+    "json"
+   ]
   }
  ]
 }
