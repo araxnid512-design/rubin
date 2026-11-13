@@ -412,6 +412,30 @@
     "--output-format",
     "json"
    ]
+  },
+  {
+   "id": "p9_exp_tires",
+   "timeout": 900,
+   "args": [
+    "export",
+    "3f7b7ab0-4309-42f5-937b-8a1714d88e0b",
+    "--export-timeout",
+    "10m",
+    "-o",
+    "out/p_tires.glb"
+   ]
+  },
+  {
+   "id": "p9_exp_scrap",
+   "timeout": 900,
+   "args": [
+    "export",
+    "be7f4441-ce7a-4f2f-9f0b-568fbd47d30d",
+    "--export-timeout",
+    "10m",
+    "-o",
+    "out/p_scrap.glb"
+   ]
   }
  ]
 }
