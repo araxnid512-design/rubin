@@ -402,6 +402,32 @@
     return h;
   };
 
+  /* ---------- Справочник врагов ---------- */
+  UI.bestiary = function () {
+    const st = DW.G.state, met = st.metEnemies || {}, kb = st.killsByType || {};
+    const order = ['scav', 'spitter', 'brute', 'alpha', 'queen', 'raider', 'thug', 'marksman', 'boss', 'guardian'];
+    const wrap = el('div', { class: 'bestiary' });
+    const known = order.filter(function (t) { return met[t]; }).length;
+    wrap.appendChild(el('div', { class: 'small dim', html: 'Встречено: <b>' + known + '</b> из ' + order.length + ' · сведения появляются, когда отряд впервые видит врага.' }));
+    order.forEach(function (t) {
+      const E = D.ENEMIES[t], X = D.BESTIARY[t] || {};
+      const card = el('div', { class: 'bcard' + (met[t] ? '' : ' unk') });
+      if (!met[t]) {
+        card.innerHTML = '<span class="ava unk">?</span><div class="bt"><b>Неизвестный враг</b><div class="small dim">Ещё не встречен.</div></div>';
+      } else {
+        const W = E.weapon && D.WEAPONS[E.weapon] ? D.WEAPONS[E.weapon].n : (E.melee ? 'когти и зубы' : '—');
+        card.innerHTML = '<img class="ava" src="' + DW.ART.enemyPortrait(t) + '" alt=""><div class="bt"><b>' + E.n + '</b> <small class="dim">убито: ' + (kb[t] || 0) + '</small>' +
+          '<div class="small">' + (X.d || '') + '</div>' +
+          '<div class="bstats small">Здоровье <b>' + E.hp + '</b> · меткость <b>' + E.aim + '</b> · ход <b>' + E.mob + '</b> · броня <b>' + (E.armor || 0) + '</b> · оружие: ' + W + '</div>' +
+          '<div class="small"><span class="good">＋ ' + (X.plus || []).join('; ') + '</span></div>' +
+          '<div class="small"><span class="bad">− ' + (X.minus || []).join('; ') + '</span></div>' +
+          (X.tip ? '<div class="small acc">Совет: ' + X.tip + '</div>' : '') + '</div>';
+      }
+      wrap.appendChild(card);
+    });
+    UI.modal({ title: 'Справочник врагов', cls: 'wide', body: wrap });
+  };
+
   /* ---------- Журнал ---------- */
   UI.journal = function () {
     const G = DW.G, st = G.state;
@@ -419,6 +445,7 @@
         return '<span class="m"><img class="ava" src="' + DW.ART.portrait(fake) + '" alt="">' + m.name + ' <small>д.' + m.day + ', убийств ' + m.kills + '</small></span>';
       }).join('') + '</div>' : '') +
       '<div class="jlog">' + st.log.map(function (l) { return '<div><span>День ' + l.day + '</span> ' + l.text + '</div>'; }).join('') + '</div>';
+    b.insertBefore(el('button', { class: 'btn sm', text: 'Справочник врагов', onclick: function () { UI.bestiary(); } }), b.firstChild);
     if (DW.Story) b.insertBefore(el('button', { class: 'btn sm', text: 'Хроника (сюжет)', onclick: function () { DW.Story.open(); } }), b.firstChild);
     UI.modal({ title: 'Журнал', cls: 'wide', body: b });
   };

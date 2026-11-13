@@ -679,6 +679,9 @@
     }
     st.stats.missions++;
     st.stats.kills += kills;
+    // справочник врагов: сколько каждого вида убито
+    st.killsByType = st.killsByType || {};
+    B.units.forEach(function (e) { if (e.side === 'e' && !e.alive && e.type) { st.killsByType[e.type] = (st.killsByType[e.type] || 0) + 1; st.metEnemies = st.metEnemies || {}; st.metEnemies[e.type] = 1; } });
     if (out === 'victory') st.stats.won++;
     st.battle = null;
     if (st.roster.length === 0) st.over = 'lose';
