@@ -144,6 +144,7 @@
     if (mt.length) list.push({ id: 'butt', icon: 'butt', label: 'Приклад', on: u.ap >= 1 });
     const dn = BT().downedNear(u);
     if (dn.length) list.push({ id: 'stabilize', icon: 'medkit', label: 'Спасти', on: u.ap >= 1 && (st.res.meds > 0 || (u.cls === 'medic' && u.charges && u.charges.heal > 0)), note: st.res.meds > 0 || (u.cls === 'medic' && u.charges && u.charges.heal > 0) ? '' : 'нет аптечек' });
+    list.push({ id: 'crouch', icon: u.crouch ? 'stand' : 'crouch', label: u.crouch ? 'Встать' : 'Присесть', on: true });
     list.push({ id: 'hunker', icon: 'hunker', label: 'Залечь', on: u.ap >= 1 });
     if (B.evac.length) list.push({ id: 'evac', icon: 'evac', label: 'Эвакуация', on: u.ap >= 1 && BT().isEvacTile(u.x, u.y) });
     return list;
@@ -413,6 +414,7 @@
       case 'overwatch': run(async function () { BT().doOverwatch(u); }); break;
       case 'reload': run(async function () { BT().doReload(u); await U.sleep(900); }); break;
       case 'hunker': run(async function () { BT().doHunker(u); }); break;
+      case 'crouch': run(async function () { BT().doCrouch(u); await U.sleep(250); }); break;
       case 'butt': run(async function () { const ts = BT().meleeTargets(u).sort(function (a, b) { return a.hp - b.hp; }); if (ts.length) await BT().doButt(u, ts[0]); }); break;
       case 'stabilize': run(async function () { const ds = BT().downedNear(u); if (ds.length) { BT().doStabilize(u, ds[0]); await U.sleep(700); } }); break;
       case 'grenade': startThrow('grenade'); break;

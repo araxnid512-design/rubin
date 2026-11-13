@@ -442,6 +442,7 @@
     if (cv.cover) { const c = cv.cover === 2 ? -40 : -20; hit += c; parts.push([cv.cover === 2 ? 'Полное укрытие' : 'Укрытие', c]); }
     if (tgt.def) { hit -= tgt.def; parts.push(['Уклонение', -tgt.def]); }
     if (tgt.hunker) { hit -= 20; parts.push(['Залёг', -20]); }
+    else if (tgt.crouch) { hit -= 10; parts.push(['Присел', -10]); }
     if (BT.inb(ax, ay) && (D.GROUND[B.ground[BT.idx(ax, ay)]].high || BT.hAt(ax, ay) > BT.hAt(tgt.x, tgt.y))) { hit += 15; parts.push(['Высота', 15]); }
     const hasP = function (u, p) { return u.perks && u.perks.indexOf(p) >= 0; };
     if (o.reaction && !hasP(att, 'ow')) { hit -= 10; parts.push(['Реакция', -10]); }
@@ -536,7 +537,7 @@
   BT.detects = function (e) {
     if (!e.alive || e.side !== 'e' || e.active) return false;
     const R = BT.detectR();
-    return B.units.some(function (s) { return s.alive && s.side === 'p' && s.kind === 'soldier' && U.dist(s.x, s.y, e.x, e.y) <= R + 0.01 && BT.canSee(e, s); });
+    return B.units.some(function (s) { return s.alive && s.side === 'p' && s.kind === 'soldier' && U.dist(s.x, s.y, e.x, e.y) <= (s.crouch ? R - 2 : R) + 0.01 && BT.canSee(e, s); });
   };
   BT.detectZone = function () {
     if (!B.concealed) return null;
@@ -574,7 +575,7 @@
   }
   BT.kill = function (u, src, over) {
     if (u.side === 'e') alphaDown(u);
-    u.alive = false; u.overwatch = false; u.hunker = false;
+    u.alive = false; u.overwatch = false; u.hunker = false; u.crouch = false;
     if (u.kind === 'soldier' && (over || 0) <= 4 && Math.random() < Math.min(0.9, 0.55 + (u.rank || 0) * 0.08)) {
       u.down = 4; u.stable = false;
     }
@@ -838,7 +839,7 @@
     opts = opts || {};
     const newly = [];
     u._run = path.length > Math.max(3, (u.mob || 5) - 1);
-    if (path.length) u.moved = true;
+    if (path.length) { u.moved = true; u.crouch = false; }
     if (u.kind === 'soldier' && Math.random() < 0.35) DW.TR.bark(u, u._run ? 'run' : 'move');
     DW.TR.pathBegin(u, path);
     for (let k = 0; k < path.length; k++) {
@@ -985,6 +986,14 @@
     DW.TR.bark(u, 'reload');
   };
   BT.doOverwatch = function (u) { u.overwatch = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Дозор', 'info'); DW.SFX.play('reload'); DW.TR.bark(u, 'overwatch'); };
+  /* присесть / встать: без затрат ОД; присевшего хуже видно (замечают на 2 клетки ближе) и в него труднее попасть (−10);
+     если присевшего отправить в путь — встаёт и идёт обычным шагом (крадучись не ходят) */
+  BT.doCrouch = function (u) {
+    if (!u || !u.alive || u.kind !== 'soldier') return;
+    u.crouch = !u.crouch;
+    DW.TR.float(u.x, u.y, u.crouch ? 'Присел' : 'Встал', 'info');
+    DW.SFX.play('click');
+  };
   BT.doHunker = function (u) { u.hunker = true; u.ap = 0; DW.TR.float(u.x, u.y, 'Залёг', 'info'); DW.TR.bark(u, 'hunker'); };
   BT.doEvac = function (u) {
     u.evac = true; u.ap = 0; u.overwatch = false;

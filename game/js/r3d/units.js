@@ -318,12 +318,10 @@
       return { key: e.die, t: Math.min(dur(e.die), (tr.now() - e.dieT0) / 1000 * 1.1) };
     }
     if (tw && tw.kind === 'step') {
-      // перемещение идёт со скоростью бега трусцой (2,3 клетки/с, рывок — 3,6): шаг «ходьба» семенил бы;
-      // берём боевой бег с оружием (как в XCOM), цикл — 1,9 клетки; скрытно — крадущийся шаг, цикл — 1 клетка
+      // обычный ход — шагом (1,7 клетки/с, цикл шага 1,3 клетки), рывок — бегом с оружием (3,4 клетки/с, цикл 1,9)
       const Bq = DW.BT.get();
-      let key = has('run') ? 'run' : 'walk';
-      if (u.side === 'p' && Bq && Bq.concealed && has('sneak')) key = 'sneak';
-      const per = key === 'sneak' ? 1.0 : (key === 'run' ? 1.9 : 1.3);
+      const key = tw.run && has('run') ? 'run' : 'walk';
+      const per = key === 'run' ? 1.9 : 1.3;
       const ph = (tw.dist0 + (tw.len || 1) * tr.stepKOf(tw)) / per;
       const fx = tw.fx, fy = tw.fy;
       const dh = tw.tx !== undefined ? (Bq.hgt[tw.ty * Bq.w + tw.tx] - Bq.hgt[fy * Bq.w + fx]) : 0;
@@ -339,9 +337,9 @@
           const P = tr.poseFor(u, an);
           const rpg = an.a && an.a.data && an.a.data.rpg;
           const c2 = rpg ? 0 : cv;
-          if (P.reload > 0 && has('reload') && !(c2 >= 1 || u.overwatch)) return { key: 'reload', t: P.reload * dur('reload'), recoil: 0 };
+          if (P.reload > 0 && has('reload') && !(c2 >= 1 || u.overwatch || u.crouch)) return { key: 'reload', t: P.reload * dur('reload'), recoil: 0 };
           if (c2 === 2) return { key: has('aim') ? 'aim' : 'shoot', t: 0, recoil: P.recoil, stepOut: true };
-          if ((c2 === 1 || u.overwatch) && has('kneel')) return { key: 'kneel', t: p * dur('kneel'), recoil: P.recoil };
+          if ((c2 === 1 || u.overwatch || u.crouch) && has('kneel')) return { key: 'kneel', t: p * dur('kneel'), recoil: P.recoil };
           return { key: has('aim') ? 'aim' : 'shoot', t: 0, recoil: P.recoil };
         }
         case 'reload': return { key: 'reload', t: p * dur('reload') };
@@ -366,6 +364,8 @@
     if (u.hunker && has('duck')) return { key: 'duck', t: ts + (u.id || 0) };
     if (u.hunker && has('hunker')) return { key: 'hunker', t: 0 };
     if (u.overwatch && has('watch')) return { key: 'watch', t: ts + (u.id || 0) };
+    // присел (кнопка «Присесть»): на корточках с оружием
+    if (u.crouch && has('crouch')) return { key: 'crouch', t: (ts + (u.id || 0)) % dur('crouch') };
     const cv = tr.coverLevel(u);
     if (cv === 1 && has('kneel')) return { key: 'kneel', t: 0 };
     if (cv === 2) {

@@ -1888,9 +1888,8 @@
       const mv = moves[u.id];
       const len = Math.hypot(nx - u.x, ny - u.y);
       const dh = Math.abs(hT(nx, ny) - hT(u.x, u.y));
-      // клеток в секунду: трусцой 2,3, рывок 3,6; скрытно (засада) — крадучись 1,4
-      const sneaking = u.side === 'p' && Bs && Bs.concealed && !u._run;
-      const speed = (u._run ? 3.6 : (sneaking ? 1.4 : 2.3)) * (u.kind !== 'soldier' && !ART.ENEMY_LOOKS[u.type] ? 1.15 : 1);
+      // клеток в секунду: обычный ход — шагом 1,7, рывок — бегом 3,4 (мутанты чуть быстрее)
+      const speed = (u._run ? 3.4 : 1.7) * (u.kind !== 'soldier' && !ART.ENEMY_LOOKS[u.type] ? 1.25 : 1);
       let dur = len / speed * 1000;
       if (dh > 1) dur = 950; else if (dh === 1) dur *= 1.35;
       const tn = now();
@@ -2070,7 +2069,7 @@
     const n = function (a) { return S3.count(S.body, a); };
     const cv = rpg ? 0 : coverLevel(u);
     if (cv === 2 && n('peek')) return ['peek', Math.min(n('peek') - 1, Math.floor(U.clamp(q, 0, 0.999) * n('peek')))];
-    if ((cv === 1 || u.overwatch) && n('kneel')) return ['kneel', Math.min(n('kneel') - 1, Math.floor(U.clamp(q, 0, 0.999) * n('kneel')))];
+    if ((cv === 1 || u.overwatch || u.crouch) && n('kneel')) return ['kneel', Math.min(n('kneel') - 1, Math.floor(U.clamp(q, 0, 0.999) * n('kneel')))];
     return ['shoot', 0];
   }
   function muzzle(u, q, rpg) {
@@ -2267,7 +2266,7 @@
     else if (u.overwatch) { P.raise = 1; P.crouch = 0.3; }
     else if (u.alive) {
       const cv = coverLevel(u);
-      if (cv === 1) { P.crouch = 0.62; P.low = 0.15; }
+      if (cv === 1 || u.crouch) { P.crouch = 0.62; P.low = 0.15; }
       else if (cv === 2) { P.crouch = 0.12; P.lean = -0.05; P.low = 0.25; }
     }
     if (!an) return P;
@@ -2313,7 +2312,7 @@
       ART.creature(g, u.type, { dir: fi.dir, aim: fi.aim, walk: walk, scale: sc, seed: u.id, pose: pose, noShadow: true }, t);
     }
   }
-  function stanceKey(u) { return u.hunker ? 'h' : (u.overwatch ? 'o' : 'n' + coverLevel(u)); }
+  function stanceKey(u) { return u.hunker ? 'h' : (u.overwatch ? 'o' : (u.crouch ? 'c' : 'n' + coverLevel(u))); }
   /* Объём фигуры: тёмный контур, подсветка со стороны света, затенение с теневой, темнее к ногам */
   let volTmp = null;
   function volumize(src, dst, feetY, k) {
@@ -2483,8 +2482,6 @@
     if (tw && tw.kind === 'step') {
       anim = running && n('run') ? 'run' : 'walk';
       // скрытно — крадущимся шагом
-      const Bq = DW.BT.get();
-      if (!cre && u.side === 'p' && Bq && Bq.concealed && av('sneak')) anim = 'sneak';
       const ph = (((walk || 0) / (Math.PI * 2)) % 1 + 1) % 1;
       i = Math.floor(ph * n(anim));
       // по ступеням — обычный шаг; по лестнице на крышу — лезет (вниз — те же кадры в обратном порядке)
@@ -2498,9 +2495,9 @@
           const P = poseFor(u, an);
           const cv = an.a && an.a.data && an.a.data.rpg ? 0 : coverLevel(u);
           // затвор после выстрела (СВД, КСВК): стоя — перезарядка, в укрытии и в дозоре боец не встаёт
-          if (P.reload > 0 && n('reload') && !(cv >= 1 || u.overwatch)) { anim = 'reload'; i = Math.floor(U.clamp(P.reload, 0, 0.999) * n('reload')); }
+          if (P.reload > 0 && n('reload') && !(cv >= 1 || u.overwatch || u.crouch)) { anim = 'reload'; i = Math.floor(U.clamp(P.reload, 0, 0.999) * n('reload')); }
           else if (cv === 2 && n('peek')) { anim = 'peek'; i = Math.floor(p * n('peek')); }       // выглянуть из-за стены
-          else if ((cv === 1 || u.overwatch) && n('kneel')) { anim = 'kneel'; i = Math.floor(p * n('kneel')); } // с колена
+          else if ((cv === 1 || u.overwatch || u.crouch) && n('kneel')) { anim = 'kneel'; i = Math.floor(p * n('kneel')); } // с колена
           else if (cv === 1 && n('crouchAim')) { anim = 'crouchAim'; }
           else { anim = 'shoot'; i = P.recoil > 0.35 ? 1 : 0; }
           break;
@@ -2522,7 +2519,7 @@
           if (cre) { anim = 'idle'; i = idleI(); break; }
           const cv = coverLevel(u);
           if (cv === 2 && n('peek')) { anim = 'peek'; i = an.kind === 'aimup' ? 0 : n('peek') - 1; }
-          else if ((cv === 1 || u.overwatch) && n('kneel')) { anim = 'kneel'; i = 0; }
+          else if ((cv === 1 || u.overwatch || u.crouch) && n('kneel')) { anim = 'kneel'; i = 0; }
           else { anim = n('aim') ? 'aim' : 'shoot'; i = 0; }
           break;
         }
@@ -2537,6 +2534,7 @@
       else if (u.hunker && n('hunker')) anim = 'hunker';
       else if (u.overwatch && n('watch')) { anim = 'watch'; i = Math.floor(t / 900 + (u.id || 0)) % n('watch'); }
       else if (u.overwatch && n('crouchAim')) anim = 'crouchAim';
+      else if (u.crouch && u.alive && n('crouch')) anim = 'crouch';
       else if (u.alive && coverLevel(u) === 1 && n('kneel')) anim = 'kneel';
       else if (u.alive && coverLevel(u) === 1 && n('crouch')) anim = 'crouch';
       else if (u.alive && coverLevel(u) === 2 && av('wall')) {
