@@ -38,9 +38,9 @@
      wpn: g — центр пистолетной рукояти [y, z, x] от начала оружия, f — ось цевья [y, z, x] от W.fore (x — если
      модель не по центру), rk — наклон рукояти (вместо R.rake), м/°. */
   const P = {
-    R: { rake: 18, rot: [0, 0, 0], depth: 0.026, fwd: -0.025, up: 0, off: [0, 0, 0],
-      curl: { index: [25, 45, 20], mid: [65, 85, 45], ring: [70, 85, 45], pinky: [75, 85, 45] }, thumb: [30, 20, 25, 20] },
-    L: { fan: 40, tilt: 20, rot: [0, 0, 0], depth: 0.03, fwd: -0.01, up: 0, off: [0, 0, 0],
+    R: { rake: 18, rot: [0, 0, 0], depth: 0, fwd: 0, up: 0, off: [0, 0, 0],
+      curl: { index: [30, 50, 25], mid: [80, 95, 55], ring: [85, 95, 55], pinky: [90, 95, 55] }, thumb: [30, 20, 25, 20] },
+    L: { fan: 40, tilt: 20, rot: [0, 0, 0], depth: 0, fwd: 0, up: 0, off: [0, 0, 0],
       curl: { index: [35, 55, 30], mid: [40, 60, 30], ring: [45, 60, 30], pinky: [50, 60, 30] }, thumb: [15, 15, 20, 15] },
     // свободная кисть (перезарядка): пальцы полусогнуты
     relax: { curl: { index: [15, 25, 10], mid: [20, 30, 15], ring: [25, 35, 15], pinky: [30, 35, 15] }, thumb: [10, 10, 10, 5] },
@@ -120,6 +120,8 @@
     S.Hl = new THREE.Matrix4().makeBasis(F, N, T2);
     // ладонь в кости кисти (как palm() в units.js: 0,75 пути до основания среднего пальца)
     S.palmL = mid ? mid.position.clone().multiplyScalar(0.75) : F.clone().multiplyScalar(0.3 * hand.position.length());
+    S.hl = mid ? mid.position.length() : 0.3 * hand.position.length();      // кисть: запястье → основание среднего (ед. кости)
+    S.hold = S.palmL.clone(); S.holdR = 0; S.holdK = '';                    // центр кулака (см. fistCentre)
     // покой (body.rest из makeBody): повороты кисти и предплечья относительно родителя
     const rs = body.rest || {}, rA = rs[side + 'Arm'], rF = rs[side + 'ForeArm'], rH = rs[side + 'Hand'];
     S.q0h = (rH ? rH.q : hand.quaternion).clone();
@@ -179,13 +181,41 @@
     S.Fw = new THREE.Vector3(); S.Nw = new THREE.Vector3(); S.Tw = new THREE.Vector3();
     S.hs = (mid ? mid.position.length() * S.s : HAND0) / HAND0;      // размер кисти против эталона
     S.dbg = { bend: 0, rawBend: 0, twist: 0, roll: 0, slide: 0, rollG: 0, devN: 0, swivel: 0 };
-    S.sw = 0;
+    S.sw = 0; S.axP = new THREE.Vector3(); S.axD = new THREE.Vector3(); S.mode = '';
     return S;
   }
   function rig(body) {
     if (body._grip !== undefined) return body._grip;
     body._grip = (body.B && body.B.RightHand) ? { R: sideRig(body, 'Right'), L: sideRig(body, 'Left') } : null;
     return body._grip;
+  }
+
+  /* ---------- Центр кулака: куда должна лечь ось рукояти / цевья ----------
+     суставы среднего пальца при заданном сгибе (в осях кисти): основание, ногтевая фаланга, кончик — окружность через
+     них; её центр — «дыра» кулака. У моделей Tripo ладонь длинная, пальцы короткие: центр ≈ 0,85–0,9 длины кисти. */
+  const _j1 = new THREE.Vector3(), _j2 = new THREE.Vector3(), _j3 = new THREE.Vector3(), _jt = new THREE.Vector3();
+  const _jq = new THREE.Quaternion(), _jr = new THREE.Quaternion();
+  function fistCentre(S, c) {
+    const key = c.join(',');
+    if (S.holdK === key) return;
+    S.holdK = key;
+    const ch = S.fing.mid, rest = S.rest.mid, ax = S.axes.mid;
+    if (ch.length < 3) { S.hold.copy(S.palmL); return; }
+    _j1.copy(ch[0].position);
+    _jq.setFromAxisAngle(ax[0], c[0] * DEG).multiply(rest[0]);
+    _j2.copy(_j1).add(_v1.copy(ch[1].position).applyQuaternion(_jq));
+    _jq.multiply(_jr.setFromAxisAngle(ax[1], c[1] * DEG).multiply(rest[1]));
+    _j3.copy(_j2).add(_v1.copy(ch[2].position).applyQuaternion(_jq));
+    _jq.multiply(_jr.setFromAxisAngle(ax[2], c[2] * DEG).multiply(rest[2]));
+    _jt.copy(_j3).add(_v1.copy(ch[2].position).multiplyScalar(0.85).applyQuaternion(_jq));
+    // центр окружности через _j1, _j3, _jt: c = j1 + (|b|²·(a×b)×a + |a|²·b×(a×b)) / (2|a×b|²), a = j3 − j1, b = jt − j1
+    _v1.copy(_j3).sub(_j1); _v2.copy(_jt).sub(_j1); _v3.crossVectors(_v1, _v2);
+    const d = 2 * _v3.lengthSq();
+    if (d < 1e-14) { S.hold.copy(S.palmL); return; }
+    _v4.crossVectors(_v3, _v1).multiplyScalar(_v2.lengthSq());
+    _dp.crossVectors(_v2, _v3).multiplyScalar(_v1.lengthSq());
+    S.hold.copy(_j1).add(_v4.add(_dp).multiplyScalar(1 / d));
+    S.holdR = S.hold.distanceTo(_j1);
   }
 
   /* ---------- Поза кисти в осях оружия ---------- */
@@ -337,7 +367,7 @@
     let accG = 0, accN = 0;
     for (let it = 0; it < iters; it++) {
       // запястье: ладонь в _pT при повороте _qT
-      _v4.copy(S.palmL).multiplyScalar(S.s).applyQuaternion(_qT);
+      _v4.copy(S.hold).multiplyScalar(S.s).applyQuaternion(_qT);
       _wrist.copy(_pT).sub(_v4);
       // локоть: лучший по цене (прямое запястье, умеренная скрутка), от локтя движения
       bestPole(S, _sh, _wrist, _qT, _pole.copy(_pD), it ? S.sw : undefined);
@@ -399,6 +429,10 @@
       if (bend <= bmax) break;                                         // цель достигнута — следующий проход дал бы то же
     }
     S.arm.updateMatrixWorld(true);
+    if (R3.grip.trace) {
+      wquat(S.hand, _q1); _v1.copy(S.hold).multiplyScalar(S.s).applyQuaternion(_q1).add(wpos(S.hand, _v2));
+      R3.grip.trace.push(S.side[0] + ' miss ' + (_v1.distanceTo(_pT) * 100).toFixed(1) + 'см, цель от плеча ' + (_pT.distanceTo(_sh) * 100).toFixed(1) + ' рука ' + ((S.la + S.lb) * 100).toFixed(1) + ' кисть ' + (S.hl * S.s * 100).toFixed(1) + ' центр кулака ' + (S.hold.dot(S.F) / S.hl).toFixed(2) + '/' + (S.hold.dot(S.N) / S.hl).toFixed(2) + ' r ' + (S.holdR * S.s * 100).toFixed(1));
+    }
   }
 
   /* ---------- Пальцы ---------- */
@@ -419,7 +453,7 @@
 
   /* ---------- Досягаемость: если не дотянуться — ладонь вдоль ствола к прикладу ---------- */
   function reachClamp(S, palmT, qHand) {
-    _v4.copy(S.palmL).multiplyScalar(S.s).applyQuaternion(qHand);
+    _v4.copy(S.hold).multiplyScalar(S.s).applyQuaternion(qHand);
     wpos(S.arm, _pa);
     _v1.copy(palmT).sub(_v4).sub(_pa);                             // плечо → запястье
     const R = (S.la + S.lb) * P.reach;
@@ -433,10 +467,10 @@
     palmT.addScaledVector(_zW, t);
     S.dbg.slide = t;
   }
-  /* ладонь: центр рукояти/цевья (в осях оружия: y, z) → против нормали ладони на depth, вдоль оси кисти на fwd,
-     к большому пальцу на up (× размер кисти), плюс off; всё в мир по M */
+  /* точка, куда ставится центр кулака: ось рукояти/цевья (в осях оружия: y, z, x) плюс поправки depth (против нормали
+     ладони), fwd (вдоль оси кисти), up (к большому пальцу), м, и off (в осях оружия); всё в мир по M */
   function palmAt(S, ph, cy, cz, cx, out) {
-    const k = S.hs, o = ph.off;
+    const k = 1, o = ph.off;
     const x = cx - S.Nw.x * ph.depth * k + S.Fw.x * ph.fwd * k + S.Tw.x * ph.up * k + o[0];
     const y = cy - S.Nw.y * ph.depth * k + S.Fw.y * ph.fwd * k + S.Tw.y * ph.up * k + o[1];
     const z = cz - S.Nw.z * ph.depth * k + S.Fw.z * ph.fwd * k + S.Tw.z * ph.up * k + o[2];
@@ -472,7 +506,7 @@
     const ver = R3.grip.ver;
 
     // правая — на пистолетной рукояти
-    if (R.ver !== ver || R.style !== wk) { handInWeapon(R, 'pistol', P.R, wp.rk); R.ver = ver; R.style = wk; }
+    if (R.ver !== ver || R.style !== wk) { handInWeapon(R, 'pistol', P.R, wp.rk); fistCentre(R, P.R.curl.mid); R.ver = ver; R.style = wk; }
     _qB.copy(_qM).multiply(R.qHw);
     const gx = wp.g[2] || 0;
     if (P.weaponPts || !o.grip) palmAt(R, P.R, wp.g[0], wp.g[1], gx, _palmT);
@@ -488,7 +522,7 @@
     // левая — под цевьём; при свободной кисти — пальцы полусогнуты, поворот как в движении
     if (!L) return;
     if (o.freeL) { curlFingers(L, P.relax, 1, true); return; }
-    if (L.ver !== ver || L.style !== wk) { handInWeapon(L, 'guard', P.L); L.ver = ver; L.style = wk; }
+    if (L.ver !== ver || L.style !== wk) { handInWeapon(L, 'guard', P.L); fistCentre(L, P.L.curl.mid); L.ver = ver; L.style = wk; }
     _qC.copy(_qM).multiply(L.qHw);
     const fx = wp.f[2] || 0;
     if (P.weaponPts && W && W.fore) palmAt(L, P.L, W.fore.y + wp.f[0], W.fore.z + wp.f[1], fx, _palmT);
@@ -506,9 +540,11 @@
       return;
     }
     reachClamp(L, _palmT, _qC);
+    L.mode = 'guard';
     // ось цевья — ствол
     _gP.copy(_org).addScaledVector(_xW, fx).addScaledVector(_yW, (W && W.fore ? W.fore.y : 0) + wp.f[0]).addScaledVector(_zW, (W && W.fore ? W.fore.z : 0) + wp.f[1]);
     curlFingers(L, P.L, 1, false);
+    L.axP.copy(_gP).addScaledVector(_zW, L.dbg.slide); L.axD.copy(_zW);
     solveHand(L, _qC, _palmT, _gP, _zW, 3);
   }
 
@@ -520,7 +556,49 @@
     if (G.L) curlFingers(G.L, P.relax, 1, true);
   }
 
-  R3.grip = { apply: apply, relax: relax, P: P, ver: 0, rig: rig, wkey: wkey,
+  /* проверка хвата (стенд, тесты в игре): по костям после apply и матрице оружия W.g.matrixWorld.
+     rN — нормаль правой ладони к −X оружия (ладонь к рукояти справа), rF — ось кисти к «вниз-вперёд по наклону
+     рукояти», rD — от середины ладони (поверхность) до оси рукояти (отрезок ±5 см), м; lN — нормаль левой ладони к +Y
+     оружия (под цевьём), lD — от середины левой ладони до оси цевья, м; lS — сдвиг левой к прикладу, м */
+  const _cx = new THREE.Vector3(), _cy = new THREE.Vector3(), _cz = new THREE.Vector3(), _co = new THREE.Vector3();
+  const _ca = new THREE.Vector3(), _cp = new THREE.Vector3(), _cn = new THREE.Vector3(), _cq = new THREE.Quaternion();
+  function palmSurf(S, out, nOut) {
+    wquat(S.hand, _cq);
+    nOut.copy(S.N).applyQuaternion(_cq);
+    return wpos(S.hand, out).add(_ca.copy(S.palmL).multiplyScalar(S.s).applyQuaternion(_cq)).addScaledVector(nOut, 0.012 * S.hs);
+  }
+  function segDist(p, c, d, h) {
+    const t = clamp(_ca.copy(p).sub(c).dot(d), -h, h);
+    return _ca.copy(c).addScaledVector(d, t).distanceTo(p);
+  }
+  function check(body, W) {
+    const G = body && body.B ? rig(body) : null;
+    if (!G || !G.R || !W) return null;
+    const M = W.g.matrixWorld;
+    _cx.setFromMatrixColumn(M, 0).normalize(); _cy.setFromMatrixColumn(M, 1).normalize(); _cz.setFromMatrixColumn(M, 2).normalize();
+    _co.setFromMatrixPosition(M);
+    const wp = P.wpn[wkey(W)] || NOW, rk = (wp.rk !== undefined ? wp.rk : P.R.rake) * DEG, R = G.R, L = G.L;
+    const r = {};
+    palmSurf(R, _cp, _cn);
+    r.rN = -_cn.dot(_cx);
+    wquat(R.hand, _cq); _ca.copy(R.F).applyQuaternion(_cq);
+    r.rF = _ca.dot(_v1.set(0, 0, 0).addScaledVector(_cy, -Math.sin(rk)).addScaledVector(_cz, -Math.cos(rk)));
+    _v2.copy(_co).addScaledVector(_cx, wp.g[2] || 0).addScaledVector(_cy, wp.g[0]).addScaledVector(_cz, wp.g[1]);
+    _v3.set(0, 0, 0).addScaledVector(_cy, Math.cos(rk)).addScaledVector(_cz, -Math.sin(rk));
+    r.rD = segDist(_cp, _v2, _v3, 0.05);
+    if (L) {
+      palmSurf(L, _cp, _cn);
+      r.lN = _cn.dot(_cy);
+      r.lMode = L.mode || 'guard';
+      if (L.mode === 'mag') { r.lN = -_cn.dot(_cz); }               // магазинная: ладонь к передней стенке приёмника
+      _v2.copy(L.axP);
+      r.lD = segDist(_cp, _v2, L.mode === 'mag' ? _v4.copy(L.axD) : _cz, L.mode === 'mag' ? 0.04 : 0.3);
+      r.lS = L.dbg.slide;
+    }
+    return r;
+  }
+
+  R3.grip = { apply: apply, relax: relax, check: check, P: P, ver: 0, rig: rig, wkey: wkey,
     /* сброс кэша (стенд: после смены параметров) */
     touch: function () { R3.grip.ver++; } };
 })(window.DW);
