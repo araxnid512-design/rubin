@@ -443,9 +443,20 @@
         const clips = {};
         r.forEach(function (g, i) { if (g) g.animations.forEach(function (a) { clips[(i ? ci.more[i - 1] : ci.f) + '|' + a.name] = a; clips[a.name] = clips[a.name] || a; }); });
         e.mixer = new THREE.AnimationMixer(body.root);
+        // поиск клипа по имени как в запекании: точно, без регистра, по части имени («walk» → «preset:quadruped:walk»)
+        const all = [];
+        r.forEach(function (g, i) { if (g) g.animations.forEach(function (an) { all.push({ f: i ? ci.more[i - 1] : ci.f, c: an }); }); });
+        const find = function (name, file) {
+          const L = file ? all.filter(function (q) { return q.f === file; }) : all;
+          if (!L.length) return null;
+          if (name === '*') return L[0].c;
+          const lc = name.toLowerCase();
+          const hit = L.find(function (q) { return q.c.name === name; }) || L.find(function (q) { return q.c.name.toLowerCase() === lc; }) ||
+            L.find(function (q) { return q.c.name.toLowerCase().split(':').pop() === lc; }) || L.find(function (q) { return q.c.name.toLowerCase().indexOf(lc) >= 0; });
+          return hit ? hit.c : null;
+        };
         ci.anims.forEach(function (a) {
-          let c = a.src ? (Object.keys(clips).filter(function (n) { return n.indexOf(a.src + '|') === 0; }).map(function (n) { return clips[n]; })[0]) : clips[a.clip];
-          if (!c && a.clip !== '*') c = clips[a.clip];
+          const c = a.src ? find(a.clip, a.src) : find(a.clip);
           if (!c) return;
           const act = e.mixer.clipAction(c);
           act.play(); act.weight = 0; act.paused = true;
