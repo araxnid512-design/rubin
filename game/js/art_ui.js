@@ -226,11 +226,53 @@
   }
 
   function R2(g, x, y, w, h, c) { g.fillStyle = c; g.fillRect(x, y, w, h); }
+  /* фото-лица бойцов (DW.FACE_IMG из faces.js) — грузятся сразу, к первому показу уже готовы */
+  const faceImgs = (DW.FACE_IMG || []).map(function (src) { const im = new Image(); im.src = src; return im; });
+  function faceImg(s) {
+    const i = DW.G && DW.G.faceOf ? DW.G.faceOf(s) : -1;
+    const im = i >= 0 ? faceImgs[i] : null;
+    return im && im.complete && im.naturalWidth ? { im: im, i: i } : null;
+  }
+  function rankMarks(g, rank) {
+    for (let r = 0; r < rank; r++) {
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.moveTo(6, 113 - r * 7); g.lineTo(14, 107 - r * 7); g.lineTo(22, 113 - r * 7); g.lineTo(22, 117 - r * 7); g.lineTo(14, 112 - r * 7); g.lineTo(6, 117 - r * 7); g.closePath(); g.fill();
+      g.fillStyle = '#e3a33b'; g.beginPath(); g.moveTo(8, 112 - r * 7); g.lineTo(14, 108 - r * 7); g.lineTo(20, 112 - r * 7); g.lineTo(20, 115 - r * 7); g.lineTo(14, 111 - r * 7); g.lineTo(8, 115 - r * 7); g.closePath(); g.fill();
+    }
+  }
+  function photoPortrait(s, F, rank, hurtLv) {
+    // холст 192×192 (чётче на телефоне), рисуем в координатах 128
+    const c = ART.canvas(192, 192);
+    const g = c.getContext('2d');
+    g.scale(1.5, 1.5);
+    g.drawImage(F.im, 0, 0, 128, 128);
+    const vg = g.createRadialGradient(64, 58, 40, 64, 64, 96); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.42)');
+    g.fillStyle = vg; g.fillRect(0, 0, 128, 128);
+    if (hurtLv) {
+      // ранен: красный край, при тяжёлом — темнее и кровь снизу
+      const rg = g.createRadialGradient(64, 64, 44, 64, 64, 92);
+      rg.addColorStop(0, 'rgba(150,0,0,0)'); rg.addColorStop(1, hurtLv >= 2 ? 'rgba(150,10,10,0.6)' : 'rgba(150,10,10,0.35)');
+      g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+      if (hurtLv >= 2) {
+        g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(0, 0, 128, 128);
+        const bg = g.createLinearGradient(0, 104, 0, 128); bg.addColorStop(0, 'rgba(160,20,15,0)'); bg.addColorStop(1, 'rgba(160,20,15,0.55)');
+        g.fillStyle = bg; g.fillRect(0, 104, 128, 24);
+      }
+    }
+    rankMarks(g, rank);
+    return c;
+  }
   ART.portrait = function (s, hurtLv) {
     ART.ensureLook(s);
     const rank = s.xp !== undefined && DW.G ? DW.G.rank(s) : (s.rank || 0);
     if (hurtLv === undefined && s.xp !== undefined && DW.G && s.hpBase) { const mh = DW.G.maxHp(s), hp = DW.G.hp(s); hurtLv = hp <= mh * 0.35 ? 2 : (hp < mh * 0.75 ? 1 : 0); }
     hurtLv = hurtLv || 0;
+    // фото-лицо бойца — главный портрет
+    const F = faceImg(s);
+    if (F) {
+      const pk = 'f|' + F.i + '|' + rank + '|' + hurtLv;
+      if (cache[pk]) return cache[pk];
+      try { cache[pk] = photoPortrait(s, F, rank, hurtLv).toDataURL('image/jpeg', 0.88); return cache[pk]; } catch (e) { /* дальше — запасной портрет */ }
+    }
     // 3D-портрет (снимок головы модели бойца), если его атлас загружен
     const head = DW.S3 && DW.S3.head ? DW.S3.head(s) : null;
     const key = 'p|' + s.id + '|' + s.armor + '|' + s.look.style + '|' + s.cls + '|' + rank + '|' + (s.look.bscars || 0) + '|' + hurtLv + (head ? '|3d' : '');

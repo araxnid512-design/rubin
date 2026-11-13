@@ -413,7 +413,7 @@
       '<div class="jstats">День ' + st.day + ' · миссий: ' + st.stats.missions + ' (побед ' + st.stats.won + ') · убито врагов: ' + st.stats.kills +
       ' · логов: ' + st.stats.lairs + ' · лагерей: ' + st.stats.camps + '</div>' +
       (st.memorial.length ? '<div class="jmem"><b>Погибшие:</b> ' + st.memorial.map(function (m) {
-        const fake = { id: m.id || m.name, name: m.name, cls: m.cls || 'rifleman', armor: m.armor || 'robe', look: m.look };
+        const fake = { id: m.id || m.name, name: m.name, cls: m.cls || 'rifleman', armor: m.armor || 'robe', look: m.look, face: m.face, rank: m.rank };
         return '<span class="m"><img class="ava" src="' + DW.ART.portrait(fake) + '" alt="">' + m.name + ' <small>д.' + m.day + ', убийств ' + m.kills + '</small></span>';
       }).join('') + '</div>' : '') +
       '<div class="jlog">' + st.log.map(function (l) { return '<div><span>День ' + l.day + '</span> ' + l.text + '</div>'; }).join('') + '</div>';

@@ -13,8 +13,23 @@
       hpBase: tpl.hp, aimBase: tpl.aim, mobBase: tpl.mob,
       wounds: 0, xp: tpl.xp || 0, kills: 0, missions: 0,
       weapon: tpl.weapon || 'ppsh', armor: tpl.armor || 'robe', trait: tpl.trait || U.pick(D.TRAIT_POOL), perks: [],
-      look: DW.ART.makeLook(U.rand(1, 1e9), tpl.look || null)
+      look: DW.ART.makeLook(U.rand(1, 1e9), tpl.look || null),
+      face: tpl.face !== undefined ? tpl.face : D.FACE_NAMES.indexOf(tpl.name)
     };
+  };
+  /* лицо бойца (номер фото): своё по имени, иначе — наименее занятое среди лиц новобранцев (сохраняется в бойце) */
+  G.faceOf = function (s) {
+    if (!s) return -1;
+    if (s.face !== undefined && s.face >= 0) return s.face;
+    const byName = D.FACE_NAMES.indexOf((s.name || '').split(' ')[0]);
+    if (byName >= 0) { s.face = byName; return byName; }
+    const st = G.state, cnt = {};
+    if (st) st.roster.concat(st.memorial || []).forEach(function (o) { if (o !== s && o.face !== undefined && o.face >= 0) cnt[o.face] = (cnt[o.face] || 0) + 1; });
+    let best = 6, bc = 1e9;
+    const h = DW.ART && DW.ART.hashStr ? DW.ART.hashStr(String(s.id || s.name)) : 0;
+    for (let k = 0; k < D.FACE_NAMES.length - 6; k++) { const f = 6 + (k + h) % (D.FACE_NAMES.length - 6); if ((cnt[f] || 0) < bc) { bc = cnt[f] || 0; best = f; } }
+    s.face = best;
+    return best;
   };
   G.rank = function (s) {
     let r = 0;
@@ -48,14 +63,18 @@
     const used = {};
     st.roster.forEach(function (s) { used[s.name] = 1; });
     st.memorial.forEach(function (s) { used[s.name] = 1; });
+    // сначала — лица-персонажи (имя и лицо вместе), пока есть свободные
+    const persons = D.FACE_NAMES.slice(6).filter(function (n) { return !used[n]; });
     let pool = D.NAMES.filter(function (n) { return !used[n]; });
     if (!pool.length) pool = D.NAMES;
-    const name = U.pick(pool);
+    const name = persons.length ? U.pick(persons) : U.pick(pool);
     const cls = U.pick(['assault', 'rifleman', 'sniper', 'medic', 'heavy', 'assault', 'rifleman']);
     const s = G.newSoldier({
       name: name, cls: cls, hp: U.rand(8, 10), aim: U.rand(58, 68) + (level ? 3 : 0),
       mob: cls === 'heavy' ? 5 : 6, xp: level ? D.RANKS[Math.min(level, D.RANKS.length - 1)].xp : 0
     });
+    s.face = D.FACE_NAMES.indexOf(name);
+    if (s.face < 0) { delete s.face; G.faceOf(s); }
     return s;
   };
 
@@ -605,9 +624,9 @@
       }
       if (!u.alive) {
         st.roster.splice(idx, 1);
-        st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s) });
+        st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills + u.kills, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s), face: G.faceOf(s) });
         sum.dead.push(s.name);
-        (sum.deadRefs = sum.deadRefs || []).push({ id: s.id, name: s.name, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s) });
+        (sum.deadRefs = sum.deadRefs || []).push({ id: s.id, name: s.name, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s), face: G.faceOf(s) });
         G.log('Погиб «' + s.name + '».');
         if (out === 'victory') {
           st.stock.weapons[s.weapon] = (st.stock.weapons[s.weapon] || 0) + 1;
