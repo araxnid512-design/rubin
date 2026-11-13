@@ -413,6 +413,74 @@
     "account",
     "balance"
    ]
+  },
+  {
+   "id": "p6_c_pris3",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_pris3",
+    "--faces",
+    "10000",
+    "--prompt",
+    "young male prisoner with shaved head, orange prison jumpsuit with sleeves tied around the waist, dirty white tank top, tattooed arms, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p6_c_pris4",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_pris4",
+    "--faces",
+    "10000",
+    "--prompt",
+    "older male prisoner with grey stubble and short grey hair, faded orange prison jumpsuit, improvised leather shoulder pad and belt with pouches, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p6_c_pris5",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_pris5",
+    "--faces",
+    "10000",
+    "--prompt",
+    "stocky male prisoner in an orange prison jumpsuit under a padded quilted khaki work vest, black knit cap, fingerless gloves, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p6_c_pris6",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2700,
+   "args": [
+    "--id",
+    "c_pris6",
+    "--faces",
+    "10000",
+    "--prompt",
+    "lean male prisoner in an orange prison jumpsuit, dark bandana over the lower face, goggles on the forehead, makeshift knee pads, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background",
+    "--rig",
+    "biped"
+   ]
+  },
+  {
+   "id": "p6_bal",
+   "timeout": 120,
+   "args": [
+    "account",
+    "balance"
+   ]
   }
  ]
 }
