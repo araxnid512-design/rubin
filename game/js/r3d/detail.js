@@ -196,6 +196,7 @@
           break;
         }
         case 'fire': {
+          d._3d = true;
           for (let i = 0; i < 5; i++) put('log', X + Math.cos(i * 1.26) * 0.12, Y + 0.05, Z + Math.sin(i * 1.26) * 0.12, 1, -i * 1.26, 0, Math.PI / 2 - 0.3);
           for (let i = 0; i < 8; i++) put('stone', X + Math.cos(i * 0.785) * 0.38, Y + 0.04, Z + Math.sin(i * 0.785) * 0.38, 1.2, r() * 6.28);
           sources.push({ p: V(X, Y + 0.45, Z), c: 0xff9a40, i: 4, d: 8, flick: 2, fire: true });
@@ -284,6 +285,16 @@
       if (kind === 'wild' && r() < 0.6) for (let k = 0; k < 4; k++) put('tuft', x + (r() - 0.5) * 2.5, -0.6, z + (r() - 0.5) * 2.5, 0.8 + r() * 0.8, r() * 6.28);
     }
   }
+  /* новый огонь в бою (взорвалась бочка): костёр из decor, которого ещё нет */
+  DT.refreshFires = function (B) {
+    if (!group || DT.B !== B) return;
+    (B.decor || []).forEach(function (d) {
+      if (d.t !== 'fire' || d._3d) return;
+      d._3d = true;
+      const X = d.x * T, Z = d.y * T, Y = B.hgt[Math.max(0, Math.min(B.h - 1, Math.floor(d.y))) * B.w + Math.max(0, Math.min(B.w - 1, Math.floor(d.x)))] * LV;
+      if (!sources.some(function (q) { return q.fire && Math.abs(q.p.x - X) < 0.3 && Math.abs(q.p.z - Z) < 0.3; })) sources.push({ p: V(X, Y + 0.45, Z), c: 0xff9a40, i: 4, d: 8, flick: 2, fire: true });
+    });
+  };
   /* огни: светят ближайшие к точке взгляда; мерцание костров и фонарей */
   DT.update = function (t) {
     if (!lights.length) return;

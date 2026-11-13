@@ -157,5 +157,6 @@
   TR3.blood = function (u) { const r = TR2.blood(u); if (R3.ok) R3.fx.decal(u.x, u.y, TR2.bloodKind ? TR2.bloodKind(u) : 'red', 0.8); return r; };
   TR3.cargoFx = function (x, y) { const r = TR2.cargoFx(x, y); if (R3.ok) R3.fx.cargo(x, y); return r; };
   TR3.stepFx = function (u, nx, ny) { const r = TR2.stepFx(u, nx, ny); if (R3.ok && (u.side === 'p' || u.seen)) R3.fx.step(u); return r; };
+  TR3.refreshFires = function () { const r = TR2.refreshFires(); if (R3.ok && B) R3.detail.refreshFires(B); return r; };
   TR3.tileChanged = function (x, y) { const r = TR2.tileChanged(x, y); if (R3.ok && B) R3.world.tileChanged(B, x, y); return r; };
 })(window.DW);
