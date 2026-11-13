@@ -347,6 +347,7 @@
   let group = null, refAK = null;
   UN.init = function (B) {
     if (group) { R3.scene.remove(group); }
+    spots = [];
     for (const k in ents) delete ents[k];
     group = new THREE.Group(); group.name = 'units';
     R3.scene.add(group);
@@ -425,10 +426,35 @@
     if (u.side === 'p') return true;
     return !!u.seen || !u.alive && DW.BT.get().explored[u.y * DW.BT.get().w + u.x];
   }
+  /* фонари отряда ночью: светят ближайшие к камере бойцы (по уровню графики 1–3 фонаря) */
+  let spots = [];
+  function flashlights(B) {
+    const night = B.tod === 'night' || B.tod === 'cave' || B.tod === 'interior' || (B.dark && B.lights);
+    const n = night ? [1, 2, 3][R3.q()] : 0;
+    while (spots.length < n) {
+      const s = new THREE.SpotLight(0xfff0d8, 0, 13, 0.42, 0.55, 1.4);
+      s.castShadow = false; group.add(s); group.add(s.target); spots.push(s);
+    }
+    const cx = R3.cam.tx, cz = R3.cam.tz;
+    const list = night ? B.units.filter(function (u) { return u.side === 'p' && u.alive && !u.evac && ents[u.id] && ents[u.id].ready && ents[u.id].body.B; })
+      .sort(function (a, b) { const pa = ents[a.id].body.holder.position, pb = ents[b.id].body.holder.position; return Math.hypot(pa.x - cx, pa.z - cz) - Math.hypot(pb.x - cx, pb.z - cz); }) : [];
+    spots.forEach(function (s, i) {
+      const u = list[i];
+      if (!u || i >= n) { s.intensity = 0; return; }
+      const e = ents[u.id];
+      const W = e.wpn && e.wpn.g.visible ? e.wpn : null;
+      const p = W ? V(0, 0.05, -0.2).applyMatrix4(W.g.matrixWorld) : e.body.B.Head.getWorldPosition(V());
+      const dir = W ? V(0, 0, -1).transformDirection(W.g.matrixWorld) : V(Math.cos(u.face || 0), -0.25, Math.sin(u.face || 0));
+      dir.y = Math.min(dir.y, -0.12); dir.normalize();
+      s.position.copy(p); s.target.position.copy(p).addScaledVector(dir, 6); s.target.updateMatrixWorld();
+      s.intensity = 26;
+    });
+  }
   UN.update = function (dt, t) {
     const B = DW.BT.get();
     if (!B || !group) return;
     const tr = TR2();
+    flashlights(B);
     B.units.forEach(function (u) {
       const e = ensure(u);
       if (!e.ready) return;

@@ -151,7 +151,7 @@
         // гильза: вбок от ствола, отскок
         const side = V().crossVectors(dirv, V(0, 1, 0)).normalize();
         const ej = FW.eject === undefined ? 1 : FW.eject;
-        casL.push({ p: m.clone().addScaledVector(dirv, -0.35), v: side.multiplyScalar((1.2 + Math.random()) * ej).add(V(0, 1.8 + Math.random(), 0)), r: V(Math.random() * 6, Math.random() * 6, Math.random() * 6), t0: now(), life: 2600, floor: R3.hAt(att.x, att.y) + 0.01, tk: false });
+        casL.push({ p: m.clone().addScaledVector(dirv, -0.35), v: side.multiplyScalar((1.2 + Math.random()) * ej).add(V(0, 1.8 + Math.random(), 0)), r: V(Math.random() * 12, Math.random() * 12, Math.random() * 12), e: new THREE.Euler(), t0: now(), life: 2600, floor: R3.hAt(att.x, att.y) + 0.01, tk: false });
         if (casL.length > 80) casL.shift();
         // попадание мимо: фонтанчик земли / крошка укрытия
         if (!hit && !suppress) setTimeout(function () { impactAt(e, cover ? 'stone' : 'dirt'); }, 60);
@@ -267,7 +267,7 @@
     casL.forEach(function (c) {
       c.p.addScaledVector(c.v, dt); c.v.y -= 9.8 * dt;
       if (c.p.y < c.floor) { c.p.y = c.floor; if (!c.tk && c.v.y < -1.2) { c.tk = true; if (DW.SFX.tink) DW.SFX.tink(false); } c.v.y = -c.v.y * 0.3; c.v.x *= 0.5; c.v.z *= 0.5; c.r.multiplyScalar(0.5); }
-      dummy.position.copy(c.p); dummy.rotation.x += c.r.x * dt; dummy.rotation.y += c.r.y * dt; dummy.rotation.z += c.r.z * dt;
+      c.e.x += c.r.x * dt; c.e.y += c.r.y * dt; c.e.z += c.r.z * dt; dummy.position.copy(c.p); dummy.rotation.copy(c.e);
       dummy.updateMatrix(); cas.setMatrixAt(n++, dummy.matrix);
     });
     cas.count = n; cas.instanceMatrix.needsUpdate = true;

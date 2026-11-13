@@ -10,9 +10,9 @@
   // время суток: цвет и сила солнца, неба, земли; направление солнца (азимут, высота); дымка
   const TOD = {
     day: { sun: 0xfff1d8, si: 2.6, sky: 0xbfcfe0, gnd: 0x6a5a48, hi: 1.05, az: 0.6, el: 0.95, fog: 0xb7b1a6, fd: 0.0105, top: 0x7f97b4, bot: 0xd6cbb6, exp: 1.0 },
-    dawn: { sun: 0xffb27a, si: 2.1, sky: 0xc9a58e, gnd: 0x5a4636, hi: 0.8, az: 2.3, el: 0.32, fog: 0xc79a80, fd: 0.012, top: 0x5a6888, bot: 0xf0a878, exp: 1.05 },
-    dusk: { sun: 0xff9a5a, si: 2.0, sky: 0xb88a78, gnd: 0x4a3a2e, hi: 0.72, az: -0.8, el: 0.28, fog: 0xa77a64, fd: 0.013, top: 0x3e4468, bot: 0xe08a5a, exp: 1.05 },
-    night: { sun: 0x8fa8d8, si: 0.55, sky: 0x405070, gnd: 0x1a1a22, hi: 0.42, az: 1.2, el: 0.85, fog: 0x1a2030, fd: 0.02, top: 0x070b16, bot: 0x1e2638, exp: 1.25 },
+    dawn: { sun: 0xffc49a, si: 1.8, sky: 0xb8a698, gnd: 0x5a4636, hi: 0.8, az: 2.3, el: 0.32, fog: 0xc79a80, fd: 0.012, top: 0x5a6888, bot: 0xf0a878, exp: 1.05 },
+    dusk: { sun: 0xffb486, si: 1.6, sky: 0xa89488, gnd: 0x4a3a2e, hi: 0.8, az: -0.8, el: 0.28, fog: 0xa77a64, fd: 0.013, top: 0x3e4468, bot: 0xe08a5a, exp: 1.05 },
+    night: { sun: 0x9fb4e0, si: 0.95, sky: 0x4a5a7a, gnd: 0x202028, hi: 0.62, az: 1.2, el: 0.85, fog: 0x1a2030, fd: 0.02, top: 0x070b16, bot: 0x1e2638, exp: 1.4 },
     interior: { sun: 0xffe2b8, si: 0.9, sky: 0x8a7a68, gnd: 0x3a3028, hi: 0.55, az: 0.9, el: 1.1, fog: 0x2a241e, fd: 0.02, top: 0x1a1612, bot: 0x2a241e, exp: 1.15 },
     cave: { sun: 0xbfd8e8, si: 0.5, sky: 0x506070, gnd: 0x2a221c, hi: 0.4, az: 0.9, el: 1.2, fog: 0x12100e, fd: 0.03, top: 0x0a0908, bot: 0x161210, exp: 1.25 }
   };

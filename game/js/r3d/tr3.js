@@ -25,6 +25,7 @@
     R3.world.build(b);
     R3.units.init(b);
     R3.fx.init(b);
+    R3.detail.build(b);
     R3.hud.init(b);
     fogV = -1;
     // камера: на отряд, вид с угла
@@ -50,6 +51,7 @@
     const t = TR2.now();
     R3.units.update(dt, t);
     R3.fx.update(dt);
+    R3.detail.update(t);
     R3.world.fogTick();
     R3.fogU.uTime.value += dt;
     // тряска 2D-камеры (взрывы, отдача) → 3D

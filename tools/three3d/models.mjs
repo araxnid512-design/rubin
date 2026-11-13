@@ -86,9 +86,13 @@ for (const w of M.WEAPONS) {
 }
 // тела людей (скелет сохраняется, движения — общая библиотека anim_human.js)
 out.bodies = {};
+// новые модели этапа «3D-бой» (Tripo p8, art3d/src/h — из ветки tripo-status): если есть — вместо старых
+const HNEW = { mur1: 'raider', mur2: 'thug' };
 for (const b of M.BODIES) {
   let src = b.src;
-  if (!fs.existsSync(abs(src)) && M.BODY_FALLBACK[b.id]) src = M.BODY_FALLBACK[b.id];
+  const hn = '/art3d/src/h/h_' + (HNEW[b.id] || b.id) + '_a.glb';
+  if (fs.existsSync(abs(hn))) src = hn;
+  else if (!fs.existsSync(abs(src)) && M.BODY_FALLBACK[b.id]) src = M.BODY_FALLBACK[b.id];
   const f = await one(src, { tex: 1024, maxTris: 0, skin: true, suffix: '' });
   if (f) out.bodies[b.id] = { f, h: b.h || 1.8 };
 }

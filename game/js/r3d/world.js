@@ -26,7 +26,7 @@
         sh.fragmentShader = 'varying vec3 vWP;\n' + sh.fragmentShader;
       }
       sh.fragmentShader = 'uniform sampler2D tFog; uniform vec2 uFogSize; uniform float uTime;\n' + sh.fragmentShader.replace('#include <dithering_fragment>',
-        '#include <dithering_fragment>\n  { float fv = texture2D(tFog, vWP.xz / uFogSize).r; gl_FragColor.rgb *= mix(0.06, 1.0, smoothstep(0.0, 1.0, fv)); }');
+        '#include <dithering_fragment>\n  { vec2 fu = vWP.xz / uFogSize; float fv = texture2D(tFog, fu).r; float outside = max(max(-fu.x, fu.x - 1.0), max(-fu.y, fu.y - 1.0)); if (outside > 0.0) fv = mix(fv, 0.5, smoothstep(0.0, 0.08, outside)); gl_FragColor.rgb *= mix(0.06, 1.0, smoothstep(0.0, 1.0, fv)); }');
       if (prev) prev(sh, r);
       if (extra) extra(sh, r);
     };
