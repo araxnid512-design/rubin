@@ -722,13 +722,14 @@
         if (occ[ni] === 2) continue;
         let step = 1;
         const dh = B.hgt ? B.hgt[ni] - B.hgt[i] : 0;
-        const lad = (dh > 1 || dh < -1) && BT.ladderEdge(i, ni);
-        if ((dh > 1 || dh < -1) && !lad) continue;
+        // на другой уровень — только по ступеням или лестнице
+        const lad = dh !== 0 && BT.ladderEdge(i, ni);
+        if (dh !== 0 && !lad) continue;
         if (d[0] && d[1]) {
           if (dh || !BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
           step = 1.5;
         }
-        if (dh) step += lad ? 1 : 0.5;
+        if (dh) step += Math.abs(dh) > 1 ? 1 : 0.3;
         const nc = c + step;
         if (nc > maxCost + 0.01 || nc >= cost[ni]) continue;
         cost[ni] = nc; prev[ni] = i;
@@ -764,7 +765,7 @@
         const ni = ny * B.w + nx;
         if (f[ni] !== Infinity) continue;
         if (!BT.walkTile(nx, ny)) continue;
-        if (B.hgt && Math.abs(B.hgt[ni] - B.hgt[i]) > 1 && !BT.ladderEdge(i, ni)) continue;
+        if (B.hgt && B.hgt[ni] !== B.hgt[i] && !BT.ladderEdge(i, ni)) continue;
         f[ni] = f[i] + 1;
         q.push(ni);
       }

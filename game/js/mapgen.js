@@ -244,6 +244,8 @@
   function flood(m, sx, sy) {
     const r = new Uint8Array(m.w * m.h);
     if (!free(m, sx, sy)) return r;
+    const LE = {};
+    (m.ladders || []).forEach(function (l) { const a = I(m, l.x, l.y), b = I(m, l.rx, l.ry); LE[a + '>' + b] = 1; LE[b + '>' + a] = 1; });
     const st = [I(m, sx, sy)]; r[st[0]] = 1;
     while (st.length) {
       const c = st.pop();
@@ -254,6 +256,7 @@
         if (!free(m, nx, ny)) continue;
         const ni = I(m, nx, ny);
         if (r[ni]) continue;
+        if (m.hgt[ni] !== m.hgt[c] && !LE[c + '>' + ni]) continue;
         r[ni] = 1; st.push(ni);
       }
     }
@@ -413,7 +416,7 @@
         const j = I(m, sd[0], sd[1]);
         if (m.obj[j] && !wall(sd[0], sd[1])) { m.obj[j] = 0; m.objHp[j] = 0; }
         if (!walkG(m, sd[0], sd[1])) setG(m, sd[0], sd[1], m.ground[i]);
-        if (Math.abs(m.hgt[j] - m.hgt[i]) > 1) m.hgt[j] = m.hgt[i];
+        if (m.hgt[j] !== m.hgt[i] && m.ground[j] !== 12) m.hgt[j] = m.hgt[i];
       });
     }
   }
@@ -806,6 +809,162 @@
     }
   }
 
+  /* Подъём на высоту — только по лестнице: ступени между уровнями рельефа (перепад 1) и приставные лестницы
+     на крыши. Мелкие бугры и ямы сглаживаются; ступени ставятся так, чтобы любая площадка была достижима,
+     на длинных перепадах — несколько, вразброс. Ступень: { x, y — нижняя клетка, rx, ry — верхняя, st: 1 } */
+  function flattenSmall(m) {
+    for (let pass = 0; pass < 3; pass++) {
+      const comp = new Int32Array(m.w * m.h).fill(-1);
+      let changed = false;
+      for (let i0 = 0; i0 < comp.length; i0++) {
+        if (comp[i0] >= 0 || !walkG(m, i0 % m.w, (i0 / m.w) | 0) || m.ground[i0] === 12) continue;
+        const h = m.hgt[i0], tiles = [i0], nbH = {};
+        comp[i0] = i0;
+        for (let q = 0; q < tiles.length; q++) {
+          const c = tiles[q], cx = c % m.w, cy = (c / m.w) | 0;
+          [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+            const nx = cx + d[0], ny = cy + d[1];
+            if (!inb(m, nx, ny)) return;
+            const j = I(m, nx, ny);
+            if (!walkG(m, nx, ny) || m.ground[j] === 12) return;
+            if (m.hgt[j] !== h) { nbH[m.hgt[j]] = (nbH[m.hgt[j]] || 0) + 1; return; }
+            if (comp[j] < 0) { comp[j] = i0; tiles.push(j); }
+          });
+        }
+        if (tiles.length >= 6) continue;
+        let best = null, bc = 0;
+        for (const k in nbH) if (nbH[k] > bc) { bc = nbH[k]; best = +k; }
+        if (best === null) continue;
+        tiles.forEach(function (t) { m.hgt[t] = best; });
+        changed = true;
+      }
+      if (!changed) break;
+      // перепад между соседями — не больше уровня (крыши не трогаем)
+      for (let it = 0; it < 4; it++) for (let i = 0; i < m.hgt.length; i++) {
+        if (m.ground[i] === 12) continue;
+        const x = i % m.w, y = (i / m.w) | 0;
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const nx = x + d[0], ny = y + d[1];
+          if (!inb(m, nx, ny)) return;
+          const j = I(m, nx, ny);
+          if (m.ground[j] !== 12 && m.hgt[i] - m.hgt[j] > 1) m.hgt[i] = m.hgt[j] + 1;
+        });
+      }
+    }
+  }
+  /* крыши: обе клетки лестницы свободны, мешки на крыше не отрезают её часть от лестницы */
+  function roofClear(m) {
+    (m.ladders || []).forEach(function (l) {
+      [[l.x, l.y], [l.rx, l.ry]].forEach(function (p) { const i = I(m, p[0], p[1]); if (m.obj[i] && m.obj[i] !== 2 && m.obj[i] !== 11) { m.obj[i] = 0; if (m.objHp) m.objHp[i] = 0; } });
+      // от верхней клетки — по крыше: всё, что не достать в обход мешков, освобождаем
+      const top = I(m, l.rx, l.ry), h = m.hgt[top];
+      const seen = {}, q = [top]; seen[top] = 1;
+      const roof = [];
+      for (let k = 0; k < q.length; k++) {
+        const c = q[k], x = c % m.w, y = (c / m.w) | 0; roof.push(c);
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const nx = x + d[0], ny = y + d[1]; if (!inb(m, nx, ny)) return;
+          const j = I(m, nx, ny); if (seen[j] || m.hgt[j] !== h || m.ground[j] !== 12) return;
+          seen[j] = 1; q.push(j);
+        });
+      }
+      const reach = {}, q2 = [top]; reach[top] = 1;
+      for (let k = 0; k < q2.length; k++) {
+        const c = q2[k], x = c % m.w, y = (c / m.w) | 0;
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const j = I(m, x + d[0], y + d[1]); if (!seen[j] || reach[j] || m.obj[j]) return;
+          reach[j] = 1; q2.push(j);
+        });
+      }
+      roof.forEach(function (i) { if (!reach[i] && m.obj[i] === 6) { m.obj[i] = 0; if (m.objHp) m.objHp[i] = 0; } });
+    });
+  }
+  function stairs(m, cx, cy) {
+    m.ladders = m.ladders || [];
+    const n = m.w * m.h;
+    // площадки: свободные клетки одной высоты (4 соседа)
+    const comp = new Int32Array(n).fill(-1), list = [];
+    for (let i0 = 0; i0 < n; i0++) {
+      if (comp[i0] >= 0 || !free(m, i0 % m.w, (i0 / m.w) | 0)) continue;
+      const id = list.length, tiles = [i0];
+      comp[i0] = id;
+      for (let q = 0; q < tiles.length; q++) {
+        const c = tiles[q], x = c % m.w, y = (c / m.w) | 0;
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const nx = x + d[0], ny = y + d[1];
+          if (!free(m, nx, ny)) return;
+          const j = I(m, nx, ny);
+          if (comp[j] < 0 && m.hgt[j] === m.hgt[c]) { comp[j] = id; tiles.push(j); }
+        });
+      }
+      list.push(tiles);
+    }
+    if (!list.length) return;
+    // рёбра между площадками с перепадом в уровень — места для ступеней
+    const edges = {};
+    for (let i = 0; i < n; i++) {
+      if (comp[i] < 0) continue;
+      const x = i % m.w, y = (i / m.w) | 0;
+      [[1, 0], [0, 1]].forEach(function (d) {
+        const nx = x + d[0], ny = y + d[1];
+        if (!inb(m, nx, ny)) return;
+        const j = I(m, nx, ny);
+        if (comp[j] < 0 || comp[j] === comp[i] || Math.abs(m.hgt[j] - m.hgt[i]) !== 1) return;
+        const a = Math.min(comp[i], comp[j]), b = Math.max(comp[i], comp[j]);
+        (edges[a + ',' + b] = edges[a + ',' + b] || []).push(m.hgt[i] < m.hgt[j] ? [i, j] : [j, i]);
+      });
+    }
+    // уже есть: лестницы на крыши
+    const linked = {};
+    m.ladders.forEach(function (l) {
+      const a = comp[I(m, l.x, l.y)], b = comp[I(m, l.rx, l.ry)];
+      if (a >= 0 && b >= 0) { (linked[a] = linked[a] || []).push(b); (linked[b] = linked[b] || []).push(a); }
+    });
+    const start = comp[I(m, cx, cy)] >= 0 ? comp[I(m, cx, cy)] : 0;
+    const got = new Uint8Array(list.length); got[start] = 1;
+    const queue = [start];
+    const addStairs = function (cand) {
+      // 1 ступень на каждые ~9 клеток перепада, подальше друг от друга
+      const k = Math.min(cand.length, 1 + Math.floor(cand.length / 9));
+      const pick = [];
+      const pos = function (e) { return [(e[0] % m.w + e[1] % m.w) / 2, (((e[0] / m.w) | 0) + ((e[1] / m.w) | 0)) / 2]; };
+      pick.push(cand[Math.floor(Math.random() * cand.length)]);
+      while (pick.length < k) {
+        let best = null, bd = -1;
+        cand.forEach(function (e) {
+          if (pick.indexOf(e) >= 0) return;
+          const p = pos(e);
+          const d = Math.min.apply(null, pick.map(function (q) { const r = pos(q); return Math.abs(r[0] - p[0]) + Math.abs(r[1] - p[1]); }));
+          if (d > bd) { bd = d; best = e; }
+        });
+        if (!best || bd < 3) break;
+        pick.push(best);
+      }
+      pick.forEach(function (e) {
+        const lo = e[0], hi = e[1];
+        m.ladders.push({ x: lo % m.w, y: (lo / m.w) | 0, rx: hi % m.w, ry: (hi / m.w) | 0, d: (lo % m.w) !== (hi % m.w) ? 0 : 1, st: 1 });
+      });
+    };
+    while (queue.length) {
+      const a = queue.shift();
+      (linked[a] || []).forEach(function (b) { if (!got[b]) { got[b] = 1; queue.push(b); } });
+      for (const key in edges) {
+        const ab = key.split(','), p = +ab[0], q = +ab[1];
+        const other = p === a ? q : (q === a ? p : -1);
+        if (other < 0 || got[other]) continue;
+        got[other] = 1; queue.push(other);
+        addStairs(edges[key]);
+      }
+    }
+    // длинные перепады между уже связанными площадками — ещё по ступени (не обходить полкарты)
+    for (const key in edges) {
+      const L = edges[key];
+      if (L.length < 14) continue;
+      const has = m.ladders.some(function (l) { return l.st && L.some(function (e) { return e[0] === I(m, l.x, l.y) && e[1] === I(m, l.rx, l.ry); }); });
+      if (!has) addStairs(L);
+    }
+  }
+
   MG.generate = function (type, o) {
     o = o || {};
     const gen = GEN[type] || GEN.ruins;
@@ -818,12 +977,15 @@
       smoothH(m);
       m.ladders = [];
       if (ROOFY[type] && m.kind !== 'defense') roofHouses(m, U.rand(1, 2));
+      flattenSmall(m);
       fixDoors(m);
       m.post = null;
       // спавн и туррели должны быть свободны
       const c = m.center;
       if (!free(m, c[0], c[1])) carve(m, c[0], c[1]);
       connect(m, c[0], c[1]);
+      roofClear(m);
+      stairs(m, c[0], c[1]);
       const reach = flood(m, c[0], c[1]);
       if (m.kind === 'defense') {
         m.deploy = m.deploy.filter(function (d) { return reach[I(m, d[0], d[1])]; });

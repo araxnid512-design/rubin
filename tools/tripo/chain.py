@@ -62,15 +62,21 @@ def main():
     ap.add_argument("--tex", default="")
     ap.add_argument("--geo", default="")
     ap.add_argument("--pbr", action="store_true")
+    # модель по фото (картинка в репозитории, путь от корня); --prompt — уточнение к фото
+    ap.add_argument("--image", default="")
     a = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     info = {"id": a.id, "steps": []}
     pid = a.pid
     if not pid:
-        if not a.prompt:
-            print("нет --prompt и --pid"); return 2
+        if not a.prompt and not a.image:
+            print("нет --prompt, --image и --pid"); return 2
         extra = (["--texture-quality", a.tex] if a.tex else []) + (["--geometry-quality", a.geo] if a.geo else []) + (["--pbr"] if a.pbr else [])
-        code, out = tripo(["generate", "text", a.prompt, "--face-limit", a.faces, "--visibility", "private", *extra,
+        if a.image:
+            src = ["generate", "image", a.image] + (["--prompt", a.prompt] if a.prompt else [])
+        else:
+            src = ["generate", "text", a.prompt]
+        code, out = tripo([*src, "--face-limit", a.faces, "--visibility", "private", *extra,
                            "--timeout", "25m", "--output-format", "json", "-o", str(OUT / f"{a.id}.glb")], timeout=1700)
         info["steps"].append(["generate", code])
         if code != 0:
