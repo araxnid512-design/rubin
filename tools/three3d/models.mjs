@@ -27,9 +27,17 @@ function tris(doc) {
   return n;
 }
 /* оптимизировать файл: tex — предел текстур, maxTris — предел треугольников (0 — не упрощать), keepAnim — оставить движения */
-async function opt(src, dst, { tex = 512, maxTris = 4000, keepAnim = false, skin = false } = {}) {
+async function opt(src, dst, { tex = 512, maxTris = 4000, keepAnim = false, skin = false, animOnly = false } = {}) {
   const doc = await io.read(src);
   if (!keepAnim) for (const a of doc.getRoot().listAnimations()) a.dispose();
+  // только движения (дополнительные файлы мутантов): сетки, скины и текстуры не нужны — кости остаются узлами
+  if (animOnly) {
+    for (const n of doc.getRoot().listNodes()) { if (n.getMesh()) n.setMesh(null); if (n.getSkin()) n.setSkin(null); }
+    for (const m of doc.getRoot().listMeshes()) m.dispose();
+    for (const k of doc.getRoot().listSkins()) k.dispose();
+    for (const t of doc.getRoot().listTextures()) t.dispose();
+    for (const m of doc.getRoot().listMaterials()) m.dispose();
+  }
   const t0 = tris(doc);
   const ops = [dedup(), prune(), unpartition()];
   if (!skin) ops.push(weld());
@@ -108,9 +116,9 @@ for (const c of M.CREATURES) {
   const f = await one(isNew ? hA : c.src, { tex: 1024, maxTris: 0, skin: true, keepAnim: true });
   if (!f) continue;
   const more = [];
-  if (isNew && fs.existsSync(abs(hB))) { const m = await one(hB, { tex: 64, maxTris: 0, skin: true, keepAnim: true }); if (m) more.push(m); }
+  if (isNew && fs.existsSync(abs(hB))) { const m = await one(hB, { tex: 64, maxTris: 0, skin: true, keepAnim: true, animOnly: true }); if (m) more.push(m); }
   else if (!isNew && c.more) { const m = await one(c.more, { tex: 256, maxTris: 0, skin: true, keepAnim: true }); if (m) more.push(m); }
-  for (const a of c.anims) if (a.src) { const m = await one(a.src, { tex: 256, maxTris: 0, skin: true, keepAnim: true }); if (m && more.indexOf(m) < 0) more.push(m); }
+  for (const a of c.anims) if (a.src) { const m = await one(a.src, { tex: 64, maxTris: 0, skin: true, keepAnim: true, animOnly: true }); if (m && more.indexOf(m) < 0) more.push(m); }
   out.creatures[c.id] = { f, more, h: c.h, quad: !!c.quad, yaw: isNew ? (c.yawNew || 0) : (c.yaw || 0), anims: c.anims.map((a) => ({ key: a.key, clip: a.clip, src: a.src ? nameOf(a.src) : null, n: a.n, t0: a.t0, t1: a.t1, loop: !!a.loop, fx: a.fx || null })) };
 }
 fs.writeFileSync(path.join(OUT, 'models.js'), '/* Сгенерировано tools/three3d/models.mjs — модели 3D-боя */\nwindow.DW = window.DW || {};\nDW.M3 = ' + JSON.stringify(out) + ';\n');
