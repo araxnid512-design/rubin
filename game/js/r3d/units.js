@@ -629,7 +629,12 @@
         L.lerp(fore, sm(0.82, 1, pr));
         void fw;
         handsTo(e.body, grip, L, false);
-      } else if (mode !== 'sling') handsTo(e.body, grip, fore, c.freeL);
+        if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: L, key: P.key, freeL: false, reload: true });
+      } else if (mode !== 'sling') {
+        handsTo(e.body, grip, fore, c.freeL);
+        // поворот кистей (ладонь на рукояти, левая — под цевьём) и сгиб пальцев — модуль r3d/grip.js
+        if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: fore, key: P.key, freeL: c.freeL, reload: false });
+      }
       // отдача: толчок назад по стволу и стволом вверх
       if (P.recoil > 0) {
         const kick = P.recoil * 0.05;
@@ -655,6 +660,7 @@
       const MA = gunMatrix(Tq, refAK, GRIP.carry, e.body.holder.position.y);
       M.setPosition(V().setFromMatrixPosition(MA).addScaledVector(V(0, 0, -1).transformDirection(M), Math.max(0, W.buttZ - refAK.buttZ)));
       handsTo(e.body, V().setFromMatrixPosition(MA), refAK.fore.clone().applyMatrix4(MA), false);
+      if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: 'carry', grip: V().setFromMatrixPosition(MA), fore: refAK.fore.clone().applyMatrix4(MA), key: 'idle', freeL: false, reload: false, calib: true });
     }
     const rel = function (bone) { return new THREE.Matrix4().compose(bone.getWorldPosition(V()), bone.getWorldQuaternion(new THREE.Quaternion()), V(1, 1, 1)).invert().multiply(M); };
     e.cal = { w: W, offR: rel(e.body.B.RightHand), offL: rel(e.body.B.LeftHand) };
@@ -789,5 +795,7 @@
     });
   };
   UN.ent = function (u) { return ents[u.id]; };
+  // для модуля хвата (r3d/grip.js) и стенда настройки хвата (tools/three3d/griplab)
+  UN._lib = { makeBody: makeBody, makeWeapon: makeWeapon, retargetSetup: retargetSetup, samplePose: samplePose, applyPose: applyPose, gunMatrix: gunMatrix, torso: torso, handsTo: handsTo, GRIP: GRIP, libClip: libClip };
   UN.group = function () { return group; };
 })(window.DW);
