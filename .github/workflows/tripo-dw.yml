@@ -19,7 +19,7 @@ on:
         default: '150'
       budget:
         description: 'Предел трат, кредитов'
-        default: '1500'
+        default: '2000'
 
 permissions:
   contents: write
@@ -51,7 +51,7 @@ jobs:
       - name: Задания
         env:
           TRIPO_MINUTES: ${{ github.event.inputs.minutes || '150' }}
-          TRIPO_BUDGET: ${{ github.event.inputs.budget || '1500' }}
+          TRIPO_BUDGET: ${{ github.event.inputs.budget || '2000' }}
           TRIPO_JOBS_REF: ccr-b566ed5d-88smll
           TRIPO_JOBS_PATH: tools/tripo/jobs.json
         run: python3 tools/tripo/runner.py
