@@ -419,7 +419,7 @@
     if (!k || !M3) return e;
     if (k.kind === 'human') {
       const bi = M3.bodies[k.id] || M3.bodies.krut;
-      Promise.all([R3.loadGLB('models/' + (R3.q() === 0 && bi.lo ? bi.lo : bi.f) + '.glb'), k.weapon && M3.weapons[k.weapon] ? R3.loadGLB('models/' + M3.weapons[k.weapon].f + '.glb') : null,
+      Promise.all([R3.loadGLB('models/' + (R3.q() < 2 && bi.lo ? bi.lo : bi.f) + '.glb'), k.weapon && M3.weapons[k.weapon] ? R3.loadGLB('models/' + M3.weapons[k.weapon].f + '.glb') : null,
         M3.weapons.rpg ? R3.loadGLB('models/' + M3.weapons.rpg.f + '.glb') : null]).then(function (r) {
         if (!r[0] || !group || ents[u.id] !== e) return;
         const body = makeBody(r[0], (bi.h || 1.8) * (u.type === 'boss' ? 1.04 : 1), true);
@@ -743,7 +743,7 @@
   UN.staticFigure = function (id, key, t, cb) {
     const M3 = DW.M3, bi = M3 && (M3.bodies[id] || M3.bodies.krut);
     if (!bi) return;
-    R3.loadGLB('models/' + (R3.q() === 0 && bi.lo ? bi.lo : bi.f) + '.glb').then(function (gl) {
+    R3.loadGLB('models/' + (R3.q() < 2 && bi.lo ? bi.lo : bi.f) + '.glb').then(function (gl) {
       if (!gl) return;
       const body = makeBody(gl, bi.h || 1.8, true);
       retargetSetup(body);
