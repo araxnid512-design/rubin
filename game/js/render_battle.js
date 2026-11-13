@@ -2511,7 +2511,7 @@
     }
     return true;
   }
-  const LAMP3D = [0, 6];   // смещение плафона от центра основания и от верха спрайта
+  const LAMP3D = [8, 11];   // смещение плафона от центра основания и от верха спрайта
   function drawProp(g0, pr, t) {
     if (drawProp3d(g0, pr, t)) return;
     const c0 = isoC(pr.x - 0.5, pr.y - 0.5);
@@ -3238,15 +3238,21 @@
     }
     // зона обнаружения (отряд скрыт)
     if (ov.dz && B.concealed) {
-      const pz = new Path2D();
+      // светлая заливка и контур только по краю зоны
+      const pz = new Path2D(), ed = new Path2D(), z = ov.dz, W = B.w;
+      const inZ = function (x, y) { return x >= 0 && y >= 0 && x < W && y < B.h && z[y * W + x]; };
       for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
-        if (!ov.dz[y * B.w + x]) continue;
+        if (!z[y * W + x]) continue;
         const hh = hT(x, y) * LH;
-        const a = iso(x + 0.04, y + 0.04), b = iso(x + 0.96, y + 0.04), c = iso(x + 0.96, y + 0.96), d = iso(x + 0.04, y + 0.96);
+        const a = iso(x, y), b = iso(x + 1, y), c = iso(x + 1, y + 1), d = iso(x, y + 1);
         pz.moveTo(a[0], a[1] - hh); pz.lineTo(b[0], b[1] - hh); pz.lineTo(c[0], c[1] - hh); pz.lineTo(d[0], d[1] - hh); pz.closePath();
+        if (!inZ(x, y - 1)) { ed.moveTo(a[0], a[1] - hh); ed.lineTo(b[0], b[1] - hh); }
+        if (!inZ(x + 1, y)) { ed.moveTo(b[0], b[1] - hh); ed.lineTo(c[0], c[1] - hh); }
+        if (!inZ(x, y + 1)) { ed.moveTo(c[0], c[1] - hh); ed.lineTo(d[0], d[1] - hh); }
+        if (!inZ(x - 1, y)) { ed.moveTo(d[0], d[1] - hh); ed.lineTo(a[0], a[1] - hh); }
       }
-      g.fillStyle = 'rgba(255,150,40,0.12)'; g.fill(pz);
-      g.strokeStyle = 'rgba(255,170,60,0.32)'; g.lineWidth = 1; g.stroke(pz);
+      g.fillStyle = 'rgba(255,150,40,0.08)'; g.fill(pz);
+      g.strokeStyle = 'rgba(255,165,60,0.7)'; g.lineWidth = 1.6; g.setLineDash([5, 4]); g.stroke(ed); g.setLineDash([]);
     }
     // сигнальная ракета: место подхода вражеского подкрепления
     if (B.reinf && B.explored[B.reinf.y * B.w + B.reinf.x] !== undefined) {
