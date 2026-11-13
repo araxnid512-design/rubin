@@ -396,6 +396,8 @@
 
   /* ---------- Иконки снаряжения ---------- */
   ART.weaponIcon = function (id) {
+    // снимок 3D-модели (game/js/wicons.js), иначе — рисованная
+    if (DW.WICON && DW.WICON['w_' + id]) return DW.WICON['w_' + id];
     const key = 'w|' + id;
     if (cache[key]) return cache[key];
     const c = ART.canvas(180, 60);
@@ -427,6 +429,7 @@
     return cache[key];
   };
   ART.armorIcon = function (id) {
+    if (DW.WICON && DW.WICON['a_' + id]) return DW.WICON['a_' + id];
     const key = 'a|' + id;
     if (cache[key]) return cache[key];
     const c = ART.canvas(96, 96);

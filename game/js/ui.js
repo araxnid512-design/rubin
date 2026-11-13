@@ -148,8 +148,10 @@
       const next = D.RANKS[rk + 1];
       const top = el('div', { class: 'dtop' });
       top.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
-      const f3 = DW.S3 ? DW.S3.figure(s) : null;
-      if (f3) { f3.className = 'fig'; top.appendChild(f3); }
+      const p3 = DW.R3 && DW.R3.preview ? DW.R3.preview.figure(s) : null;
+      const f3 = p3 ? null : (DW.S3 ? DW.S3.figure(s) : null);
+      if (p3) top.appendChild(p3);
+      else if (f3) { f3.className = 'fig'; top.appendChild(f3); }
       else top.appendChild(el('img', { class: 'fig', src: DW.ART.figureURL(s), alt: '' }));
       const info = el('div', { class: 'dinfo' });
       const TRt = D.TRAITS[s.trait];

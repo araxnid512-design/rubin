@@ -437,6 +437,7 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 /* ---------- Полировка v4 ---------- */
 #fade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 30; }
 .dtop .fig { height: 118px; width: auto; margin: -14px -10px -6px -14px; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.5)); pointer-events: none; }
+.dtop .fig.fig3d { height: 190px; width: 150px; margin: -22px -14px -50px -12px; filter: none; pointer-events: auto; touch-action: none; cursor: grab; flex: none; }
 .b-sel .wico { height: 15px; width: auto; margin-right: -2px; filter: drop-shadow(0 1px 1px #000); }
 #fpsc { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 50; background: rgba(0, 0, 0, 0.6); color: #8fd16b; font: 11px monospace; padding: 2px 8px; border-radius: 4px; pointer-events: none; }
 .setrow { flex-wrap: wrap; }
