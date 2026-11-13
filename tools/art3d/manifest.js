@@ -45,6 +45,7 @@ const HUMAN = [
 ];
 // Крупная фигура (экран отряда): стойка с оружием
 const FIGURE = [{ key: 'pose', clip: 'IdleRifle', n: 1, t0: 0.4, mode: 'carry' }];
+const H = '/art3d/src/h/';
 const W = (id, file, len, grip, fore, gy, fy, my) => ({ id, src: file, len, grip, fore, gy, fy, my });
 // Оружие игры → модель (ствол к −Z), длина, хват (доли от приклада), высоты точек (доли высоты)
 const WEAPONS = [
@@ -58,7 +59,19 @@ const WEAPONS = [
   W('ak2', S + 'w_ak107.glb', 0.94, 0.36, 0.6, 0.55, 0.72, 0.85),
   Object.assign(W('hsniper', DW + 'w_ksvk.glb', 1.35, 0.42, 0.6, 0.45, 0.6, 0.75), { flip: true }),
   W('hlmg', DW + 'w_kord.glb', 1.6, 0.3, 0.5, 0.5, 0.65, 0.8),
-  Object.assign(W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6), { free: true, adj: { aim: { p: [0.04, 0.12, -0.38], r: [0, 0, 0] } } }) // труба на плече (свой хват)
+  Object.assign(W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6), { free: true, adj: { aim: { p: [0.04, 0.12, -0.38], r: [0, 0, 0] } } }), // труба на плече (свой хват)
+  // оружие СОБР и клана (Tripo p11): хват по профилям моделей (tools/three3d — «силуэт сбоку»)
+  W('ak74m', H + 'w_ak74m.glb', 0.94, 0.32, 0.62, 0.6, 0.72, 0.8),
+  Object.assign(W('val', H + 'w_val.glb', 0.88, 0.25, 0.6, 0.5, 0.75, 0.8), { flip: true }),
+  W('vss', H + 'w_vss.glb', 0.9, 0.22, 0.55, 0.45, 0.55, 0.62),
+  Object.assign(W('pkp', H + 'w_pkp.glb', 1.12, 0.24, 0.55, 0.55, 0.68, 0.8), { flip: true }),
+  Object.assign(W('vityaz', H + 'w_vityaz.glb', 0.7, 0.42, 0.68, 0.6, 0.72, 0.8), { flip: true }),
+  W('obrez', H + 'w_obrez.glb', 0.65, 0.22, 0.5, 0.6, 0.7, 0.9),
+  Object.assign(W('gsh18', H + 'w_gsh18.glb', 0.24, 0.37, 0.6, 0.55, 0.7, 0.85), { pistol: true }),
+  Object.assign(W('tt', H + 'w_tt.glb', 0.2, 0.2, 0.6, 0.68, 0.85, 0.92), { pistol: true }),
+  // тесак (выпрямлен tools/three3d/fixmachete.mjs) и баллистический щит — только в 3D-бою
+  Object.assign(W('machete', H + 'w_machete_fix.glb', 0.6, 0.1, 0.5, 0.5, 0.5, 0.5), { melee: true, no2d: true }),
+  Object.assign(W('shield', H + 'w_shield.glb', 0.6, 0.5, 0.5, 0.5, 0.5, 0.5), { shield: true, no2d: true })
 ];
 // запасные модели, пока новых нет
 const WEAPON_FALLBACK = { ppsh: DW + 'w_ppsh.glb', hsniper: S + 'w_awm.glb', hlmg: S + 'w_pkt.glb' };
@@ -87,7 +100,19 @@ const BODIES = [
   B('pris3', DW + 'c_pris3_a.glb', { h: 1.76 }),
   B('pris4', DW + 'c_pris4_a.glb', { h: 1.8 }),
   B('pris5', DW + 'c_pris5_a.glb', { h: 1.82 }),
-  B('pris6', DW + 'c_pris6_a.glb', { h: 1.79 })
+  B('pris6', DW + 'c_pris6_a.glb', { h: 1.79 }),
+  // СОБР и клан (Tripo p11)
+  B('sobr1', '/art3d/src/h/h_sobr1_a.glb', { h: 1.84 }),
+  B('sobr2', '/art3d/src/h/h_sobr2_a.glb', { h: 1.88 }),
+  B('sobr3', '/art3d/src/h/h_sobr3_a.glb', { h: 1.8 }),
+  B('sobr4', '/art3d/src/h/h_sobr4_a.glb', { h: 1.84 }),
+  B('sobr5', '/art3d/src/h/h_sobr5_a.glb', { h: 1.9 }),
+  B('clan1', '/art3d/src/h/h_clan1_a.glb', { h: 1.8 }),
+  B('clan2', '/art3d/src/h/h_clan2_a.glb', { h: 1.78 }),
+  B('clan3', '/art3d/src/h/h_clan3_a.glb', { h: 1.76 }),
+  B('clan4', '/art3d/src/h/h_clan4_a.glb', { h: 1.86 }),
+  B('clan5', '/art3d/src/h/h_clan5_a.glb', { h: 1.8 }),
+  B('clan6', '/art3d/src/h/h_clan6_a.glb', { h: 1.84 })
 ];
 // у файлов без «_a» (модели без движений Tripo) — скелет в основном файле
 const BODY_FALLBACK = {};
@@ -152,4 +177,13 @@ const PROPS = [
     P(DW + 'b_radio.glb', 1.0, 3.0), P(DW + 'b_garage.glb', 1.45, 1.5), P(DW + 'b_ammo.glb', 1.1, 1.1)] }
 ];
 
-module.exports = { CLIPS, HUMAN, FIGURE, WEAPONS, WEAPON_FALLBACK, BODIES, BODY_FALLBACK, CREATURES, PROPS };
+// движения только для 3D-боя (в 2D-атласы не запекаются): СОБР со щитом и светошумовой, клан с тесаком, клич Старшего
+const HUMAN3D = [
+  { key: 'shieldwalk', clip: '*', src: MK('shieldwalk'), n: 6, loop: true, mode: 'hand' },
+  { key: 'shieldshoot', clip: '*', src: MK('shieldshoot'), n: 6, mode: 'hand' },
+  { key: 'flash', clip: '*', src: MK('flash'), n: 4, mode: 'left' },
+  { key: 'macherun', clip: '*', src: MK('macherun'), n: 6, loop: true, mode: 'hand' },
+  { key: 'machehit', clip: '*', src: MK('machehit'), n: 5, mode: 'hand' },
+  { key: 'warcry', clip: '*', src: MK('warcry'), n: 5, mode: 'hand' }
+];
+module.exports = { CLIPS, HUMAN, HUMAN3D, FIGURE, WEAPONS, WEAPON_FALLBACK, BODIES, BODY_FALLBACK, CREATURES, PROPS };

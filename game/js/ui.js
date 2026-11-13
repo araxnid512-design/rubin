@@ -428,7 +428,7 @@
       if (!met[t]) {
         card.innerHTML = '<span class="ava unk">?</span><div class="bt"><b>Неизвестный враг</b><div class="small dim">Ещё не встречен.</div></div>';
       } else {
-        const W = E.weapon && D.WEAPONS[E.weapon] ? D.WEAPONS[E.weapon].n : (E.melee ? 'когти и зубы' : '—');
+        const W = E.weapon && D.WEAPONS[E.weapon] ? D.WEAPONS[E.weapon].n : (E.melee ? (E.blade ? 'тесак' : 'когти и зубы') : '—');
         card.innerHTML = '<img class="ava" src="' + DW.ART.enemyPortrait(t) + '" alt=""><div class="bt"><b>' + E.n + '</b> <small class="dim">убито: ' + (kb[t] || 0) + '</small>' +
           '<div class="small">' + (X.d || '') + '</div>' +
           '<div class="bstats small">Здоровье <b>' + E.hp + '</b> · меткость <b>' + E.aim + '</b> · ход <b>' + E.mob + '</b> · броня <b>' + (E.armor || 0) + '</b> · оружие: ' + W + '</div>' +

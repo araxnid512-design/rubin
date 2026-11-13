@@ -179,7 +179,9 @@
     if (ENEMY_BODY[u.type]) {
       const L = ENEMY_BODY[u.type];
       // новые модели первыми; нет — по кругу из имеющихся
-      const have = L.filter(function (b) { return S3.has(b); });
+      let have = L.filter(function (b) { return S3.has(b); });
+      const fresh = have.filter(function (b) { return /^b_(sobr|clan)/.test(b); });
+      if (fresh.length) have = fresh;
       const body = have.length ? have[(u.id || 0) % have.length] : first([L[0], 'b_mur1']);
       const T = DW.D.ENEMIES[u.type];
       if (T && T.melee) return body ? { body: body, weapon: null, kind: 'human' } : null;

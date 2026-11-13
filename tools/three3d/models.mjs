@@ -116,7 +116,7 @@ for (const w of M.WEAPONS) {
   let src = w.src;
   if (!fs.existsSync(abs(src)) && M.WEAPON_FALLBACK[w.id]) src = M.WEAPON_FALLBACK[w.id];
   const f = await one(src, { tex: 512, maxTris: 3000 });
-  if (f) out.weapons[w.id] = { f, len: w.len, grip: w.grip, fore: w.fore, gy: w.gy, fy: w.fy, my: w.my, flip: !!w.flip, free: !!w.free };
+  if (f) out.weapons[w.id] = Object.assign({ f, len: w.len, grip: w.grip, fore: w.fore, gy: w.gy, fy: w.fy, my: w.my, flip: !!w.flip, free: !!w.free }, w.pistol ? { pistol: true } : {}, w.melee ? { melee: true } : {}, w.shield ? { shield: true } : {});
 }
 // тела людей (скелет сохраняется, движения — общая библиотека anim_human.js)
 out.bodies = {};

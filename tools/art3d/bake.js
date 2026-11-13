@@ -31,6 +31,7 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
     jobs.push({ id: 'f_' + b.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: src, height: b.h || 1.8, layer: 'body', anims: M.FIGURE, dirs: [0], ss: 4, weapon: Object.assign({}, M.WEAPONS[1]) } });
   }
   for (const w of M.WEAPONS) {
+    if (w.no2d) continue;   // тесак и щит — только в 3D
     let src = w.src;
     if (!has(src) && M.WEAPON_FALLBACK[w.id] && has(M.WEAPON_FALLBACK[w.id])) src = M.WEAPON_FALLBACK[w.id];
     if (!has(src)) { console.log('нет оружия', w.id); continue; }

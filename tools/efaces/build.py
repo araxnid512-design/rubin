@@ -6,7 +6,8 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 SRC = os.path.join(ROOT, 'tools/efaces/src')
 # тип врага → портрет (варианты тел — свои портреты, тип берёт первый)
-NAMES = ['scav', 'scav2', 'alpha', 'queen', 'brute', 'spitter', 'guardian', 'mur1', 'bandit3', 'bandit4', 'mur2', 'bandit5', 'marksman', 'boss']
+NAMES = ['scav', 'scav2', 'alpha', 'queen', 'brute', 'spitter', 'guardian', 'mur1', 'bandit3', 'bandit4', 'mur2', 'bandit5', 'marksman', 'boss',
+         'sobr1', 'sobr2', 'sobr3', 'sobr4', 'sobr5', 'clan1', 'clan2', 'clan3', 'clan4', 'clan5', 'clan6']
 out = {}
 for n in NAMES:
     p = os.path.join(SRC, n + '.jpg')

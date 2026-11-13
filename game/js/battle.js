@@ -984,6 +984,8 @@
       const mem = B.units.filter(function (u) { return u.side === 'e' && u.alive && u.pod === pid && !u.active; });
       if (!mem.length) continue;
       mem.forEach(function (m) { m.active = true; });
+      // Старший клана / командир СОБР — клич при вступлении в бой
+      mem.forEach(function (m) { const T = D.ENEMIES[m.type]; if (T && T.leader && m.alive) { DW.TR.anim(m, 'signal', 1500); if (m.seen) DW.TR.float(m.x, m.y, T.fac === 'clan' ? 'Вперёд, братья!' : 'Группа, работаем!', 'bad'); } });
       const cnt = {};
       mem.forEach(function (m) { cnt[m.name] = (cnt[m.name] || 0) + 1; });
       const names = Object.keys(cnt).map(function (n) { return cnt[n] > 1 ? n + ' ×' + cnt[n] : n; }).join(', ');

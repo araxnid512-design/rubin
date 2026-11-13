@@ -106,7 +106,7 @@
     const g = new THREE.Group(); g.add(inner);
     g.matrixAutoUpdate = false;
     return {
-      g: g, len: w.len, free: !!w.free, hipAim: !!w.hip,
+      g: g, len: w.len, free: !!w.free, hipAim: !!w.hip, pistol: !!w.pistol, melee: !!w.melee,
       fore: V(0, (box.min.y + (w.fy !== undefined ? w.fy : 0.55) * size.y - yg) * k, -(w.fore - w.grip) * L * k),
       muzzle: V(0, (box.min.y + (w.my !== undefined ? w.my : 0.75) * size.y - yg) * k, -(1 - w.grip) * L * k),
       buttZ: w.grip * L * k, buttY: (box.min.y + (w.by !== undefined ? w.by : 0.62) * size.y - yg) * k
@@ -120,7 +120,10 @@
     aim: { butt: [-0.05, -0.015, 0.06], pitch: 2, yaw: 4, roll: 0, level: true },
     carry: { butt: [-0.03, -0.135, 0.12], pitch: -30, yaw: 20, roll: -6, minEl: -32, ground: true },
     hip: { butt: [0.0, -0.34, 0.0], pitch: 0, yaw: 6, roll: 0, level: true },
-    sling: { butt: [-0.14, -0.5, -0.17], pitch: 38, yaw: 42, roll: 0, back: true }
+    sling: { butt: [-0.14, -0.5, -0.17], pitch: 38, yaw: 42, roll: 0, back: true },
+    // пистолет: в прицеливании — на вытянутых руках у груди, в покое — опущен вперёд-вниз
+    pistol: { butt: [-0.1, -0.1, 0.36], pitch: 0, yaw: 3, roll: 0, level: true },
+    pistolLow: { butt: [-0.03, -0.36, 0.2], pitch: -38, yaw: 8, roll: 0, minEl: -45, level: true }
   };
   const _a = V(), _b = V(), _c = V(), _d = V();
   function torso(B) {
@@ -338,6 +341,20 @@
       if (e.dieT0 === undefined) e.dieT0 = an && an.kind === 'die' && an.p < 1 ? tr.now() - an.p * 820 : -1e9;
       return { key: e.die, t: Math.min(dur(e.die), (tr.now() - e.dieT0) / 1000 * 1.1) };
     }
+    const TE = u.type && D.ENEMIES[u.type];
+    if (TE && TE.shield && has('shieldwalk')) {
+      // щитовик: идёт за щитом, стоит за щитом, стреляет из-за края щита
+      if (u.alive && tw && tw.kind === 'step') return { key: 'shieldwalk', t: ((tr.walkPhase(u) || 0) / (Math.PI * 2) % 1 + 1) % 1 * dur('shieldwalk') };
+      if (u.alive && an && an.kind === 'shoot') return { key: 'shieldshoot', t: (0.3 + U.clamp(an.p, 0, 1) * 0.45) * dur('shieldshoot') };
+      if (u.alive && an && (an.kind === 'aimup' || an.kind === 'aimhold')) return { key: 'shieldshoot', t: 0.32 * dur('shieldshoot') };
+      if (u.alive && (!an || an.kind === 'idle')) return { key: 'shieldshoot', t: 0.08 * dur('shieldshoot') };
+    }
+    if (TE && TE.blade && u.alive) {
+      if (tw && tw.kind === 'step' && has('macherun')) return { key: 'macherun', t: ((tr.walkPhase(u) || 0) / (Math.PI * 2) % 1 + 1) % 1 * dur('macherun') };
+      if (an && an.kind === 'atk' && has('machehit')) return { key: 'machehit', t: U.clamp(an.p, 0, 1) * dur('machehit') };
+    }
+    if (TE && TE.flash && an && an.kind === 'throw' && has('flash')) return { key: 'flash', t: U.clamp(an.p, 0, 1) * dur('flash') };
+    if (TE && TE.leader && an && an.kind === 'signal' && has('warcry')) return { key: 'warcry', t: U.clamp(an.p, 0, 1) * dur('warcry') };
     if (tw && tw.kind === 'step') {
       // обычный ход — шагом (1,7 клетки/с, цикл шага 1,3 клетки), рывок — бегом с оружием (3,4 клетки/с, цикл 1,9)
       const Bq = DW.BT.get();
@@ -461,7 +478,10 @@
     if (!S) return null;
     if (S.kind === 'turret') return { kind: 'turret' };
     if (S.kind === 'creature') { let id = S.body.slice(2); return { kind: 'creature', id: id }; }
-    return { kind: 'human', id: S.body.slice(2), weapon: S.weapon ? S.weapon.slice(2) : null };
+    const T = u.type && D.ENEMIES[u.type];
+    // рубака клана — с тесаком (только 3D), щитовик — щит на левой руке
+    const wid = T && T.blade && DW.M3 && DW.M3.weapons.machete ? 'machete' : (S.weapon ? S.weapon.slice(2) : null);
+    return { kind: 'human', id: S.body.slice(2), weapon: wid, shield: !!(T && T.shield) };
   }
   function ensure(u) {
     if (ents[u.id]) return ents[u.id];
@@ -472,7 +492,8 @@
     if (k.kind === 'human') {
       const bi = M3.bodies[k.id] || M3.bodies.krut;
       Promise.all([R3.loadGLB('models/' + (R3.q() < 2 && bi.lo ? bi.lo : bi.f) + '.glb'), k.weapon && M3.weapons[k.weapon] ? R3.loadGLB('models/' + M3.weapons[k.weapon].f + '.glb') : null,
-        M3.weapons.rpg ? R3.loadGLB('models/' + M3.weapons.rpg.f + '.glb') : null]).then(function (r) {
+        M3.weapons.rpg ? R3.loadGLB('models/' + M3.weapons.rpg.f + '.glb') : null,
+        k.shield && M3.weapons.shield ? R3.loadGLB('models/' + M3.weapons.shield.f + '.glb') : null]).then(function (r) {
         if (!r[0] || !group || ents[u.id] !== e) return;
         const body = makeBody(r[0], bi.h || 1.8, true);
         retargetSetup(body);
@@ -481,6 +502,7 @@
         e.blob = blob(0.95); group.add(e.blob);
         if (r[1]) { e.wpn = makeWeapon(r[1], M3.weapons[k.weapon]); group.add(e.wpn.g); if (R3.wmods && R3.wmods.attach && u.mods && u.mods.length) R3.wmods.attach(e.wpn, u.mods, k.weapon); }
         if (r[2] && u.cls === 'heavy') { e.rpg = makeWeapon(r[2], M3.weapons.rpg); e.rpg.g.visible = false; group.add(e.rpg.g); }
+        if (r[3]) { e.shield = makeWeapon(r[3], M3.weapons.shield); group.add(e.shield.g); }
         e.pose = { q: new Float32Array(DW.ANIM3.bones.length * 4), hp: V() };
         e.ready = true;
       });
@@ -702,6 +724,7 @@
     if (!e.cal || e.cal.w !== W) calibrate(e, W);
     let mode = c.mode || 'carry';
     if (mode === 'left') mode = 'sling';
+    if (W.melee && mode !== 'sling') mode = 'hand';   // тесак — всегда в кисти
     const groundY = e.body.holder.position.y;
     let M;
     if (mode === 'hand' || mode === 'left') {
@@ -712,7 +735,7 @@
       else if (mode === 'hand' && R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: 'hand', grip: V().setFromMatrixPosition(M), fore: null, key: P.key, freeL: true, reload: false });
     } else {
       const Tq = torso(e.body.B);
-      const grp = (W.hipAim && mode === 'aim') ? 'hip' : mode;
+      const grp = W.pistol ? (mode === 'aim' ? 'pistol' : (mode === 'carry' ? 'pistolLow' : mode)) : ((W.hipAim && mode === 'aim') ? 'hip' : mode);
       const G = GRIP[grp] || GRIP.carry;
       // наведение в цель на время выстрела (TR3.shotFx): грудь цели — та же точка, куда летят пули
       const aiming = mode === 'aim' && u._aimAt && TR2().now() < (u._aimUntil || 0);
@@ -725,7 +748,7 @@
       }
       M = gunMatrix(Tq, W, G, groundY, AIM);
       let grip = null, fore = null;
-      if (!W.free) {
+      if (!W.free && !W.pistol) {
         const MA = gunMatrix(Tq, refAK, G, groundY, AIM);
         const g0 = V().setFromMatrixPosition(MA);
         grip = g0.clone(); fore = refAK.fore.clone().applyMatrix4(MA);
@@ -748,9 +771,9 @@
         handsTo(e.body, grip, L, false);
         if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: L, key: P.key, freeL: false, reload: true });
       } else if (mode !== 'sling') {
-        handsTo(e.body, grip, fore, c.freeL);
+        handsTo(e.body, grip, fore, c.freeL || !!e.shield);
         // поворот кистей (ладонь на рукояти, левая — под цевьём) и сгиб пальцев — модуль r3d/grip.js
-        if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: fore, key: P.key, freeL: c.freeL, reload: false });
+        if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: fore, key: P.key, freeL: c.freeL || !!e.shield, reload: false });
       } else if (R3.grip && R3.grip.relax) R3.grip.relax(e.body);   // ствол за спиной — пальцы разжаты
       // отдача: толчок назад по стволу и стволом вверх
       if (P.recoil > 0) {
@@ -763,6 +786,28 @@
     W.g.matrix.copy(M);
     W.g.matrixWorldNeedsUpdate = true;
     W.g.updateMatrixWorld(true);
+    if (e.shield) placeShield(e, u);
+  }
+  /* баллистический щит: лицом вперёд (по груди), у левого предплечья; убит — щит лежит на земле */
+  const _sf = V(), _sr = V(), _sp = V();
+  function placeShield(e, u) {
+    const S = e.shield, B = e.body.B;
+    const Tq = torso(B);
+    _sf.copy(Tq.Z).setY(0).normalize();
+    const m = S.g.matrix;
+    if (u.alive && B.LeftForeArm && B.LeftHand) {
+      _sp.copy(B.LeftForeArm.getWorldPosition(V())).lerp(B.LeftHand.getWorldPosition(V()), 0.55).addScaledVector(_sf, 0.16);
+      _sp.y = Math.max(_sp.y, e.body.holder.position.y + 0.95);
+      _sr.crossVectors(_sf, UP).normalize();
+      m.makeBasis(_sf, UP, _sr);
+    } else {
+      _sp.copy(e.body.holder.position).addScaledVector(_sf, 0.7); _sp.y += 0.04;
+      _sr.crossVectors(UP, _sf).normalize();
+      m.makeBasis(UP, _sf.clone().negate(), _sr.clone().negate());
+    }
+    m.setPosition(_sp);
+    S.g.matrixWorldNeedsUpdate = true;
+    S.g.visible = e.body.holder.visible;
   }
   /* калибровка «в кисти»: переноска, затем запомнить положение ствола относительно кистей */
   function calibrate(e, W) {

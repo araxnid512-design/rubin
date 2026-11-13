@@ -161,7 +161,7 @@
     sobr_mg: { n: 'Пулемётчик СОБР', hp: 10, aim: 62, mob: 4, def: 0, armor: 2, weapon: 'pkp', xp: 5, loot: { ammo: [20, 35], gems: [1, 4] }, sight: 10, fac: 'sobr', dropCh: 0.3 },
     sobr_cmd: { n: 'Командир СОБР', hp: 12, aim: 74, mob: 5, def: 5, armor: 2, weapon: 'val', xp: 8, loot: { ammo: [15, 25], gems: [8, 14], meds: [1, 2] }, sight: 11, fac: 'sobr', flash: 2, leader: true, drop: 'val' },
     // Клан — многочисленная банда: давит числом, рубит тесаками, держится на Старшем
-    clan_blade: { n: 'Рубака', hp: 6, aim: 64, mob: 7, def: 5, armor: 0, melee: true, dmg: [3, 6], xp: 2, loot: { gems: [0, 2], food: [0, 2] }, sight: 9, fac: 'clan' },
+    clan_blade: { n: 'Рубака', hp: 6, aim: 64, mob: 7, def: 5, armor: 0, melee: true, blade: true, dmg: [3, 6], xp: 2, loot: { gems: [0, 2], food: [0, 2] }, sight: 9, fac: 'clan' },
     clan_obrez: { n: 'Обрезчик', hp: 6, aim: 56, mob: 6, def: 0, armor: 0, weapon: 'obrez', xp: 2, loot: { ammo: [4, 10], gems: [0, 2] }, sight: 9, fac: 'clan', dropCh: 0.15 },
     clan_gun: { n: 'Стрелок клана', hp: 6, aim: 58, mob: 5, def: 0, armor: 0, weapon: 'ak', weapons: ['ak', 'ak', 'tt'], xp: 2, loot: { ammo: [6, 14], gems: [0, 2] }, sight: 9, fac: 'clan' },
     clan_elder: { n: 'Старший клана', hp: 13, aim: 64, mob: 5, def: 0, armor: 1, weapon: 'tt', xp: 7, loot: { gems: [10, 16], ammo: [10, 20], food: [2, 5] }, sight: 10, fac: 'clan', leader: true },

@@ -331,7 +331,8 @@
 
   /* ---------- Портреты врагов ---------- */
   // снимки голов 3D-моделей (game/js/efaces.js, tools/efaces) — главный портрет врага
-  const EFACE_OF = { scav: 'scav', alpha: 'alpha', queen: 'queen', brute: 'brute', spitter: 'spitter', guardian: 'guardian', raider: 'mur1', thug: 'mur2', marksman: 'marksman', boss: 'boss' };
+  const EFACE_OF = { scav: 'scav', alpha: 'alpha', queen: 'queen', brute: 'brute', spitter: 'spitter', guardian: 'guardian', raider: 'mur1', thug: 'mur2', marksman: 'marksman', boss: 'boss',
+    sobr: 'sobr1', sobr_shield: 'sobr2', sobr_sniper: 'sobr3', sobr_cmd: 'sobr4', sobr_mg: 'sobr5', clan_blade: 'clan1', clan_obrez: 'clan2', clan_gun: 'clan3', clan_elder: 'clan5' };
   const efaceImgs = {};
   for (const k in (DW.EFACE_IMG || {})) { const im = new Image(); im.src = DW.EFACE_IMG[k]; efaceImgs[k] = im; }
   // вариант врага (бандит 1–3, головорез 1–2, падальщик двух пород) — по телу, которым он нарисован в бою
