@@ -599,6 +599,9 @@
       box.appendChild(el('button', { class: 'btn', text: 'Счётчик FPS: ' + (DW.settings.fps ? 'вкл' : 'выкл'), onclick: function () {
         DW.settings.fps = !DW.settings.fps; DW.saveSettings(); render();
       } }));
+      if (DW.R3 && DW.R3.supported && DW.R3.supported()) box.appendChild(el('button', { class: 'btn', text: 'Бой: ' + (DW.settings.r3d !== false ? '3D' : '2D'), onclick: function () {
+        DW.settings.r3d = DW.settings.r3d === false; DW.saveSettings(); render(); DW.UI.toast('Вступит в силу со следующего боя', '');
+      } }));
       box.appendChild(el('button', { class: 'btn', text: 'Заставка: ' + (DW.settings.splash !== false ? 'вкл' : 'выкл'), onclick: function () {
         DW.settings.splash = DW.settings.splash === false; DW.saveSettings(); render();
       } }));

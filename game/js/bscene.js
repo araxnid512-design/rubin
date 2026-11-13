@@ -12,6 +12,7 @@
 
   BS.enter = function (battle) {
     B = battle; busy = false; mode = 'idle'; sel = null; preview = null; finishing = false;
+    if (DW.pickRenderer) DW.pickRenderer();
     DW.TR.init(B);
     buildHud();
     selectNext(true);
@@ -35,7 +36,7 @@
     const B0 = B;
     if (B.turn === 1 && B.concealed) setTimeout(function () { if (B !== B0 || !B.concealed) return; DW.UI.toast('Отряд скрыт. Оранжевые клетки — зона, где враг заметит бойца. Первый выстрел — из засады.', ''); }, 3200);
   };
-  BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; };
+  BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; if (DW.R3 && DW.R3.show) DW.R3.show(false); };
   BS.update = function (dt) { DW.TR.update(dt); };
   BS.render = function (g, w, h, dpr) { DW.TR.render(g, w, h, dpr); };
   BS.pan = function (dx, dy) { DW.TR.pan(dx, dy); };
@@ -59,7 +60,13 @@
     hud.tr = el('div', { class: 'b-tr' });
     hud.res = el('div', { class: 'b-res' });
     hud.menuBtn = el('button', { class: 'ibtn', html: D.ICONS.menu, onclick: function () { if (!busy) openMenu(); } });
-    hud.tr.appendChild(hud.res); hud.tr.appendChild(hud.menuBtn);
+    hud.tr.appendChild(hud.res);
+    // 3D: поворот поля на 90°
+    if (DW.TR.is3d) {
+      hud.tr.appendChild(el('button', { class: 'ibtn rot', title: 'Повернуть', text: '⟲', onclick: function () { DW.SFX.play('click'); DW.TR.rotate(-1); } }));
+      hud.tr.appendChild(el('button', { class: 'ibtn rot', title: 'Повернуть', text: '⟳', onclick: function () { DW.SFX.play('click'); DW.TR.rotate(1); } }));
+    }
+    hud.tr.appendChild(hud.menuBtn);
     hud.bot = el('div', { class: 'b-bot' });
     hud.actions = el('div', { class: 'b-actions' });
     hud.right = el('div', { class: 'b-right' });

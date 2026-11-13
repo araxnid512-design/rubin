@@ -1832,6 +1832,34 @@
   }
   TR.dispFace = dispFace;
   TR.uPosDbg = function (u) { return uPos(u, true); };   // для автотестов движения
+  /* для 3D-боя (r3d/*): та же логика положения, позы и времени, что и в 2D */
+  TR.leanPos = leanPos;
+  TR.tweenOf = function (id) { return tweens[id]; };
+  TR.curAnimOf = function (u) { return curAnim(u, now()); };
+  TR.coverLevel = function (u) { return coverLevel(u); };
+  TR.poseFor = function (u, an) { return poseFor(u, an); };
+  TR.stepKOf = function (tw) { return stepK(tw); };
+  TR.unitScale = function (u) { return unitScale(u); };
+  TR.now = function () { return now(); };
+  TR.deadAtOf = function (id) { return deadAt[id]; };
+  /* высота бойца в уровнях террасы (на ходу — плавно между клетками) */
+  TR.uLevel = function (u) {
+    const tw = tweens[u.id];
+    if (!tw) return hT(u.x, u.y);
+    const k = U.clamp((now() - tw.t0) / tw.dur, 0, 1);
+    const ke = tw.kind === 'step' ? stepK(tw) : k;
+    return tw.kind === 'lunge' ? hT(tw.fx, tw.fy) : U.lerp(hT(tw.fx, tw.fy), hT(tw.tx, tw.ty), ke * ke * (3 - 2 * ke));
+  };
+  /* фаза шага (радианы): цикл ходьбы ≈1,3 клетки, бега ≈2 */
+  TR.walkPhase = function (u) {
+    const tw = tweens[u.id];
+    if (!tw || tw.kind !== 'step') return null;
+    return (tw.dist0 + (tw.len || 1) * stepK(tw)) / (tw.run ? 2.0 : 1.3) * Math.PI * 2;
+  };
+  TR.fxState = function () { return fx; };
+  TR.drawHp = function (g, u, x, y) { hpBar(g, u, x, y); };
+  TR.drawStatus = function (g, u, x, y) { statusIcons(g, u, x, y); };
+  TR.drawShield = function (g, x, y, full, color) { shield(g, x, y, full, color); };
   const STEPMAT = { 0: 'dirt', 1: 'dirt', 2: 'dirt', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood', 11: 'wood', 12: 'concrete' };
   TR.stepFx = function (u, nx, ny) {
     const c0 = isoC(u.x, u.y);

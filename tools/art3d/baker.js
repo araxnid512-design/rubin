@@ -615,6 +615,85 @@ async function frames(spec) {
   if (showW) scene.remove(wpn.g);
   return out;
 }
+/* Библиотека движений для 3D-боя: те же движения, что и в спрайтах (перенос на скелет Крута, приседание,
+   ноги на земле, центровка, руки на автомате), но вместо картинок — повороты костей относительно позы покоя
+   в осях персонажа (d = Qw · Qw_rest⁻¹) и смещение таза. В игре это переносится на любое тело (r3d/units.js). */
+const LIB_BONES = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase'];
+const LIB_CHILD = { Hips: 'Spine', Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head', LeftShoulder: 'LeftArm', LeftArm: 'LeftForeArm', LeftForeArm: 'LeftHand', RightShoulder: 'RightArm', RightArm: 'RightForeArm', RightForeArm: 'RightHand', LeftUpLeg: 'LeftLeg', LeftLeg: 'LeftFoot', LeftFoot: 'LeftToeBase', RightUpLeg: 'RightLeg', RightLeg: 'RightFoot', RightFoot: 'RightToeBase' };
+async function animLib(spec) {
+  const H = spec.height || 1.8;
+  const dst = await getRig(spec.body, H);
+  const src = spec.clipSrc && spec.clipSrc !== spec.body ? await getRig(spec.clipSrc, 1.8) : dst;
+  const rt = src === dst ? null : C.makeRetarget(src, dst);
+  const srcs = {};
+  const srcFor = async (url) => {
+    if (!url) return { s: src, rt };
+    if (!srcs[url]) { const r = await getRig(url, 1.8); srcs[url] = { s: r, rt: r === dst ? null : C.makeRetarget(r, dst) }; }
+    return srcs[url];
+  };
+  const wpn = C.makeWeapon(await load(spec.weapon.src), spec.weapon);
+  const ref = spec.ref ? C.makeWeapon(await load(spec.ref.src), spec.ref) : wpn;
+  const cal = calibrate(dst, src, rt, wpn, spec.weapon.adj, ref);
+  const bones = LIB_BONES.filter((k) => dst.B[k]);
+  // покой (T-поза файла тела): повороты и направления костей в осях персонажа
+  dst.holder.position.set(0, 0, 0); dst.holder.rotation.set(0, 0, 0); dst.holder.updateMatrixWorld(true);
+  const restQ = {}, restDir = {};
+  for (const k of bones) {
+    restQ[k] = dst.rest[k].wq.clone();
+    const ch = LIB_CHILD[k];
+    if (ch && dst.B[ch]) restDir[k] = dst.rest[ch].wp.clone().sub(dst.rest[k].wp).normalize().toArray().map((v) => +v.toFixed(4));
+  }
+  const hipRest = dst.rest.Hips.wp.clone();
+  const out = { bones, H, hip: hipRest.toArray().map((v) => +v.toFixed(4)), dirs: restDir, clips: {} };
+  const fps = spec.fps || 20;
+  for (const an of spec.anims) {
+    const SR = await srcFor(an.src);
+    const clip = findClip(SR.s, an.clip);
+    if (!clip) { out.clips[an.key] = { err: 'нет клипа' }; continue; }
+    const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? Math.min(an.t1, clip.duration) : clip.duration;
+    const dur = an.n === 1 ? 0 : Math.max(0.05, t1 - t0);
+    const nf = an.n === 1 ? 1 : Math.max(2, Math.round(dur * fps) + (an.loop ? 0 : 1));
+    const tAt = (i) => an.n === 1 ? t0 : (an.loop ? t0 + dur * i / nf : t0 + dur * i / (nf - 1));
+    // центровка над клеткой — как в frames(): по стопам (для движений по тексту)
+    let cOff = null;
+    if (an.src && !an.noCenter) {
+      let sx = 0, sz = 0, cnt = 0;
+      const idx = an.loop ? Array.from({ length: Math.min(nf, 12) }, (_, k) => Math.floor(k * nf / Math.min(nf, 12))) : [0];
+      for (const k of idx) {
+        dst.holder.position.set(0, 0, 0); dst.holder.rotation.set(0, 0, 0); dst.holder.updateMatrixWorld(true);
+        poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(k));
+        if (SR.rt) SR.rt();
+        dst.holder.updateMatrixWorld(true);
+        const L = dst.B.LeftFoot.getWorldPosition(new THREE.Vector3()), R = dst.B.RightFoot.getWorldPosition(new THREE.Vector3());
+        sx += (L.x + R.x) / 2; sz += (L.z + R.z) / 2; cnt++;
+      }
+      cOff = [sx / cnt, sz / cnt];
+    }
+    const Q = [], HP = [];
+    for (let i = 0; i < nf; i++) {
+      dst.holder.position.set(0, 0, 0); dst.holder.rotation.set(0, 0, 0); dst.holder.updateMatrixWorld(true);
+      poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(i));
+      if (SR.rt) SR.rt();
+      if (an.crouch) crouch(dst, an.crouch * H / 1.8);
+      dst.holder.updateMatrixWorld(true);
+      const sn = an.air ? 0 : lowestY(dst);
+      // руки на автомате (как у спрайтов): держатель на месте, сдвиг тела — потом через таз
+      if (an.mode !== 'hand' && an.mode !== 'left') holdWeapon(dst, wpn, i === 0 && an.recoilFirst ? Object.assign({}, an, { recoil: an.recoilFirst }) : an, cal, spec.weapon.adj);
+      dst.holder.updateMatrixWorld(true);
+      for (const k of bones) {
+        const d = dst.B[k].getWorldQuaternion(new THREE.Quaternion()).multiply(restQ[k].clone().invert());
+        Q.push(+d.x.toFixed(4), +d.y.toFixed(4), +d.z.toFixed(4), +d.w.toFixed(4));
+      }
+      const hp = dst.B.Hips.getWorldPosition(new THREE.Vector3());
+      HP.push(+(hp.x - (cOff ? cOff[0] : 0) - hipRest.x).toFixed(4), +(hp.y - sn - hipRest.y).toFixed(4), +(hp.z - (cOff ? cOff[1] : 0) - hipRest.z).toFixed(4));
+    }
+    out.clips[an.key] = { n: nf, dur: +dur.toFixed(3), loop: !!an.loop, mode: an.mode || 'carry', freeL: !!an.freeL, yaw: an.yaw || 0, drop: an.drop || null, q: Q, hp: HP };
+  }
+  dst.holder.position.set(0, 0, 0); dst.holder.rotation.set(0, 0, 0); dst.holder.updateMatrixWorld(true);
+  return out;
+}
+window.BK.animLib = animLib;
+
 /* самая нижняя точка тела в текущей позе (с учётом скиннинга), метры */
 function lowestY(dst) {
   let m = Infinity;
