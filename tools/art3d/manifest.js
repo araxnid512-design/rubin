@@ -61,7 +61,11 @@ const WEAPONS = [
 // запасные модели, пока новых нет
 const WEAPON_FALLBACK = { ppsh: DW + 'w_ppsh.glb', hsniper: S + 'w_awm.glb', hlmg: S + 'w_pkt.glb' };
 
-const B = (id, src, opt) => Object.assign({ id, src }, opt || {});
+// новые модели этапа «3D-бой» (Tripo p8, art3d/src/h — из ветки tripo-status): если файл есть — вместо старого
+const fsM = require('fs'), pathM = require('path');
+const HNEW = { mur1: 'raider', mur2: 'thug' };
+const newOf = (id) => { const f = '/art3d/src/h/h_' + (HNEW[id] || id) + '_a.glb'; return fsM.existsSync(pathM.join(__dirname, '..', '..', f)) ? f : null; };
+const B = (id, src, opt) => Object.assign({ id, src: newOf(id) || src }, opt || {});
 const BODIES = [
   B('krut', DW + 'c_krut_a.glb'),
   B('marlboro', DW + 'c_marlboro_a.glb', { h: 1.76 }),
