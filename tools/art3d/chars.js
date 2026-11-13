@@ -196,7 +196,7 @@ export function makeWeapon(gltf, w) {
   const muzzle = V(0, (box.min.y + (w.my !== undefined ? w.my : 0.75) * size.y - yg) * k, -(1 - w.grip) * L * k);
   // приклад: от точки хвата назад по оси (+Z) и чуть выше (середина затыльника)
   const buttZ = w.grip * L * k, buttY = (box.min.y + (w.by !== undefined ? w.by : 0.62) * size.y - yg) * k;
-  return { g, fore, muzzle, len: w.len, buttZ, buttY, hipAim: !!w.hip };
+  return { g, fore, muzzle, len: w.len, buttZ, buttY, hipAim: !!w.hip, free: !!w.free };
 }
 
 /* Ладонь: середина между запястьем и основанием среднего пальца (или чуть дальше кости кисти) */

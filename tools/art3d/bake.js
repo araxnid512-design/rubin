@@ -30,8 +30,9 @@ const has = (u) => fs.existsSync(path.join(ROOT, u));
     let src = w.src;
     if (!has(src) && M.WEAPON_FALLBACK[w.id] && has(M.WEAPON_FALLBACK[w.id])) src = M.WEAPON_FALLBACK[w.id];
     if (!has(src)) { console.log('нет оружия', w.id); continue; }
-    jobs.push({ id: 'w_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: M.HUMAN, weapon: Object.assign({}, w, { src }) } });
-    jobs.push({ id: 'fw_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: M.FIGURE, dirs: [0], ss: 4, weapon: Object.assign({}, w, { src }) } });
+    // ref — автомат: руки тел запечены на нём, рукоять любого ствола ставится туда же
+    jobs.push({ id: 'w_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: M.HUMAN, weapon: Object.assign({}, w, { src }), ref: M.WEAPONS[1] } });
+    jobs.push({ id: 'fw_' + w.id, spec: { kind: 'human', clipSrc: M.CLIPS, body: canon.src, height: 1.8, layer: 'weapon', anims: M.FIGURE, dirs: [0], ss: 4, weapon: Object.assign({}, w, { src }), ref: M.WEAPONS[1] } });
   }
   for (const c of M.CREATURES) {
     if (!has(c.src)) { console.log('нет существа', c.id); continue; }

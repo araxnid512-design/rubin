@@ -42,8 +42,8 @@ const WEAPONS = [
   W('lmg', S + 'w_rpk.glb', 1.04, 0.33, 0.52, 0.55, 0.72, 0.85),
   W('ak2', S + 'w_ak107.glb', 0.94, 0.36, 0.6, 0.55, 0.72, 0.85),
   Object.assign(W('hsniper', DW + 'w_ksvk.glb', 1.35, 0.42, 0.6, 0.45, 0.6, 0.75), { flip: true }),
-  Object.assign(W('hlmg', DW + 'w_kord.glb', 1.6, 0.3, 0.5, 0.5, 0.65, 0.8), { hip: true }), // Корд — от бедра
-  Object.assign(W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6), { adj: { aim: { p: [0.04, 0.12, -0.38], r: [0, 0, 0] } } }) // труба на плече
+  W('hlmg', DW + 'w_kord.glb', 1.6, 0.3, 0.5, 0.5, 0.65, 0.8),
+  Object.assign(W('rpg', DW + 'w_rpg.glb', 1.0, 0.42, 0.62, 0.35, 0.55, 0.6), { free: true, adj: { aim: { p: [0.04, 0.12, -0.38], r: [0, 0, 0] } } }) // труба на плече (свой хват)
 ];
 // запасные модели, пока новых нет
 const WEAPON_FALLBACK = { ppsh: DW + 'w_ppsh.glb', hsniper: S + 'w_awm.glb', hlmg: S + 'w_pkt.glb' };

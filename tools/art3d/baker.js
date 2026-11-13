@@ -275,10 +275,11 @@ function reach(dst, side, target, pole) {
   const wrist = B[side + 'Hand'].getWorldPosition(new THREE.Vector3()).add(target.clone().sub(P));
   C.ik2(B[side + 'Arm'], B[side + 'ForeArm'], B[side + 'Hand'], wrist, pole);
 }
-function handsToGun(dst, wpn, freeL) {
+function handsToGun(dst, wpn, freeL, pts) {
   const T = torso(dst), B = dst.B;
-  const grip = new THREE.Vector3().applyMatrix4(wpn.g.matrixWorld);
-  const fore = wpn.fore.clone().applyMatrix4(wpn.g.matrixWorld);
+  // точки для рук: свои у оружия или общие «как у автомата» (тогда руки тел и слой оружия совпадают)
+  const grip = pts ? pts.grip : new THREE.Vector3().applyMatrix4(wpn.g.matrixWorld);
+  const fore = pts ? pts.fore : wpn.fore.clone().applyMatrix4(wpn.g.matrixWorld);
   for (let k = 0; k < 2; k++) {
     reach(dst, 'Right', grip, B.RightForeArm.getWorldPosition(new THREE.Vector3()).addScaledVector(T.Y, -0.4).addScaledVector(T.X, 0.25));
     if (!freeL) reach(dst, 'Left', fore, B.LeftForeArm.getWorldPosition(new THREE.Vector3()).addScaledVector(T.Y, -0.4).addScaledVector(T.X, -0.12));
@@ -298,6 +299,14 @@ function holdWeapon(dst, wpn, an, cal, adjAll) {
   const grp = (wpn.hipAim && mode === 'aim') ? 'hip' : mode;
   const adj = adjAll && adjAll[mode === 'hip' ? 'aim' : mode];
   const M = gunMatrix(dst, wpn, GRIP[grp] || GRIP.carry, adj);
+  // хват по автомату: рукоять — где правая рука держит АК, левая — где цевьё АК; направление ствола своё
+  let pts = null;
+  if (cal && cal.ref && !wpn.free && mode !== 'sling') {
+    const MA = gunMatrix(dst, cal.ref, GRIP[grp] || GRIP.carry, null);
+    const g0 = new THREE.Vector3().setFromMatrixPosition(MA);
+    pts = { grip: g0, fore: cal.ref.fore.clone().applyMatrix4(MA) };
+    M.setPosition(g0);
+  }
   if (an.recoil) {
     // отдача на первом кадре выстрела: назад по стволу и стволом вверх
     const back = new THREE.Vector3(0, 0, an.recoil[0]).applyMatrix4(new THREE.Matrix4().extractRotation(M));
@@ -306,17 +315,17 @@ function holdWeapon(dst, wpn, an, cal, adjAll) {
   }
   M.decompose(wpn.g.position, wpn.g.quaternion, wpn.g.scale);
   wpn.g.updateMatrixWorld(true);
-  if (mode !== 'sling') handsToGun(dst, wpn, an.freeL);
+  if (mode !== 'sling') handsToGun(dst, wpn, an.freeL, pts);
 }
 /* калибровка для движений «в кисти»: оружие в переноске, руки на нём — запомнить положение относительно кистей */
-function calibrate(dst, src, rt, wpn, adjAll) {
+function calibrate(dst, src, rt, wpn, adjAll, ref) {
   dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
   poseRig(src, 'IdleRifle', 0.3);
   if (rt) rt();
   dst.holder.updateMatrixWorld(true);
-  holdWeapon(dst, wpn, { mode: 'carry' }, null, adjAll);
+  holdWeapon(dst, wpn, { mode: 'carry' }, { ref }, adjAll);
   const rel = (bone) => new THREE.Matrix4().compose(bone.getWorldPosition(new THREE.Vector3()), bone.getWorldQuaternion(new THREE.Quaternion()), new THREE.Vector3(1, 1, 1)).invert().multiply(wpn.g.matrixWorld);
-  return { offR: rel(dst.B.RightHand), offL: rel(dst.B.LeftHand) };
+  return { offR: rel(dst.B.RightHand), offL: rel(dst.B.LeftHand), ref };
 }
 /* поправка хвата в осях оружия: p — сдвиг (м: x вправо, y вверх, z к прикладу), r — повороты (°: x — ствол вверх/вниз,
    y — влево/вправо, z — завал), вокруг точки хвата */
@@ -370,7 +379,8 @@ async function frames(spec) {
   let wpn = null, cal = null;
   if (spec.weapon) {
     wpn = C.makeWeapon(await load(spec.weapon.src), spec.weapon);
-    cal = calibrate(dst, src, rt, wpn, spec.weapon.adj);
+    const ref = spec.ref ? C.makeWeapon(await load(spec.ref.src), spec.ref) : wpn;
+    cal = calibrate(dst, src, rt, wpn, spec.weapon.adj, ref);
   }
   const out = [];
   const R = spec.box || [1.1, 2.05];
@@ -520,7 +530,8 @@ async function poseView(spec) {
   if (spec.an.src) { const r = await getRig(spec.an.src, 1.8); SR = { s: r, rt: r === dst ? null : C.makeRetarget(r, dst) }; }
   const wpn = C.makeWeapon(await load(spec.weapon.src), spec.weapon);
   const adjAll = spec.adj || spec.weapon.adj;
-  const cal = calibrate(dst, src, rt, wpn, adjAll);
+  const ref = spec.ref ? C.makeWeapon(await load(spec.ref.src), spec.ref) : wpn;
+  const cal = calibrate(dst, src, rt, wpn, adjAll, ref);
   dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
   const clip = findClip(SR.s, spec.an.clip);
   poseRig(SR.s, spec.an.clip === '*' ? clip.name : spec.an.clip, spec.t || 0);

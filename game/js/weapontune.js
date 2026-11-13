@@ -46,6 +46,9 @@
   WT.RK = { ppsh: 'drum', ak: 'mag', ak2: 'mag', lmg: 'box', hlmg: 'box', sniper: 'bolt', hsniper: 'bolt', shotgun: 'pump' };
   WT.ORDER = ['ppsh', 'ak', 'ak2', 'shotgun', 'sniper', 'hsniper', 'lmg', 'hlmg'];
 
+  /* Пресет по умолчанию: сюда вставляется текст, выгруженный из «Мастерской оружия» («Выгрузить»), —
+     тогда эти правки становятся стандартными для всех (личные правки игрока ложатся поверх). */
+  WT.PRESET = {};
   let user = {};
   try { user = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { user = {}; }
 
@@ -59,9 +62,9 @@
   WT.get = function (id) {
     if (cache[id]) return cache[id];
     const d = WT.DEF[id] || WT.DEF.ak;
-    return (cache[id] = merge(d, user[id]));
+    return (cache[id] = merge(merge(d, WT.PRESET[id]), user[id]));
   };
-  WT.phys = function () { return cache._phys || (cache._phys = merge(WT.PHYS0, user._phys)); };
+  WT.phys = function () { return cache._phys || (cache._phys = merge(merge(WT.PHYS0, WT.PRESET._phys), user._phys)); };
   WT.has = function (id) { return !!WT.DEF[id]; };
   /* поправка положения ствола для движения: { x, y, r, s } или null, если нулевая */
   WT.hold = function (id, anim) {

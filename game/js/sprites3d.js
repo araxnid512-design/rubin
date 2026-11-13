@@ -57,11 +57,14 @@
     const sets = A();
     let ss = 2, L = Infinity, T = Infinity, R = -Infinity, Bt = -Infinity;
     const parts = [];
+    let bg = null;   // рукоять автомата в кадре тела — сюда ставится рукоять любого ствола
     for (let k = 0; k < layers.length; k++) {
       const l = layers[k];
       if (!S3.ready(l[0])) { if (k === 0) return null; continue; }
-      const r = rect(l[0], l[1], l[2], l[3]);
+      let r = rect(l[0], l[1], l[2], l[3]);
       if (!r) { if (k === 0) return null; continue; }
+      if (k === 0 && r.length >= 11) bg = [r[9], r[10]];
+      else if (k > 0 && bg && r.length >= 11) r = alignTo(r, bg);
       ss = sets[l[0]].ss || 2;
       const ho = k > 0 && r.length >= 11 ? holdOf(l[0], l[1]) : null;
       parts.push({ im: imgs[l[0]][r[0]], r: r, h: half[l[0]] ? 0.5 : 1, ho: ho, ss: ss });
@@ -100,10 +103,19 @@
     return out;
   }
 
-  /* Дуло оружия в кадре (точки мира от стоп), [dx, dy] или null */
-  S3.muzzleAt = function (wset, anim, i, d) {
+  /* слой оружия запечён на фигуре Крута: сдвинуть его так, чтобы рукоять легла в руку этого тела */
+  function alignTo(r, bg) {
+    const ox = bg[0] - r[9], oy = bg[1] - r[10];
+    if (!ox && !oy) return r;
+    const q = r.slice();
+    q[5] -= ox; q[6] -= oy; q[7] += ox; q[8] += oy; q[9] += ox; q[10] += oy;
+    return q;
+  }
+  /* Дуло оружия в кадре (точки мира от стоп), [dx, dy] или null; body — набор тела (для подгонки под руку) */
+  S3.muzzleAt = function (wset, anim, i, d, body) {
     if (!S3.ready(wset)) return null;
-    const r = rect(wset, anim, i, d);
+    let r = rect(wset, anim, i, d);
+    if (r && body && S3.ready(body) && r.length >= 11) { const b = rect(body, anim, i, d); if (b && b.length >= 11) r = alignTo(r, [b[9], b[10]]); }
     if (!r || r.length < 9) return null;
     const ss = A()[wset].ss || 2, k = 1 / ss;
     const ho = r.length >= 11 ? holdOf(wset, anim) : null;

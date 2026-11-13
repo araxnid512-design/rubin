@@ -1862,7 +1862,7 @@
       if (S && S.weapon && DW.S3.ready(S.body)) {
         // дуло в текущем кадре (из-за укрытия, с колена) или в обычной стойке стрельбы
         const cur = u._a3 && /^(peek|kneel|shoot|watch|crouchAim|aim)$/.test(u._a3[0]) ? u._a3 : ['shoot', 0];
-        const m = DW.S3.muzzleAt(S.weapon, cur[0], cur[1], DW.S3.dir8(u.face)) || DW.S3.muzzleAt(S.weapon, 'shoot', 0, DW.S3.dir8(u.face));
+        const m = DW.S3.muzzleAt(S.weapon, cur[0], cur[1], DW.S3.dir8(u.face), S.body) || DW.S3.muzzleAt(S.weapon, 'shoot', 0, DW.S3.dir8(u.face), S.body);
         if (m) return [c[0] + m[0], c[1] + m[1]];
       }
     }

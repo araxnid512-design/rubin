@@ -216,7 +216,7 @@
     const fdir = vx >= 0 ? 1 : -1;
     if (f) g.drawImage(f.c, -f.ox - fdir * kick, -f.oy + kick * 0.25, f.w, f.h);
     // точки: рукоять (голубая) и дуло (пурпурная)
-    const mz = S3.ready(wset) ? S3.muzzleAt(wset, anim, i, st.dir) : null;
+    const mz = S3.ready(wset) ? S3.muzzleAt(wset, anim, i, st.dir, st.body) : null;
     if (st.marks && mz) {
       g.fillStyle = '#ff4fd8'; g.beginPath(); g.arc(mz[0] - fdir * kick, mz[1], 1.4, 0, 7); g.fill();
     }
