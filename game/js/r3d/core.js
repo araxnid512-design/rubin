@@ -202,9 +202,26 @@
   const loader = new THREE.GLTFLoader();
   loader.setMeshoptDecoder(THREE.MeshoptDecoder);
   const glbCache = {};
+  /* В APK игра открыта из файлов (file:///android_asset): fetch там не работает, а XMLHttpRequest — работает
+     (WebView: setAllowFileAccessFromFileURLs). Поэтому файл читается через XHR и разбирается GLTFLoader.parse. */
+  function xhrBuffer(url) {
+    return new Promise(function (res, rej) {
+      const x = new XMLHttpRequest();
+      x.open('GET', url, true);
+      x.responseType = 'arraybuffer';
+      x.onload = function () { if ((x.status === 200 || x.status === 0) && x.response && x.response.byteLength) res(x.response); else rej(new Error('XHR ' + x.status)); };
+      x.onerror = function () { rej(new Error('XHR ошибка')); };
+      x.send();
+    });
+  }
   R3.loadGLB = function (url) {
     if (!glbCache[url]) glbCache[url] = new Promise(function (res) {
-      loader.load(url, function (g) { res(g); }, undefined, function (e) { console.warn('3D: нет модели', url, e && e.message); res(null); });
+      const fail = function (e) { console.warn('3D: нет модели', url, e && e.message); res(null); };
+      if (location.protocol === 'file:') {
+        xhrBuffer(url).then(function (buf) {
+          loader.parse(buf, url.replace(/[^/]*$/, ''), function (g) { res(g); }, fail);
+        }, fail);
+      } else loader.load(url, function (g) { res(g); }, undefined, fail);
     });
     return glbCache[url];
   };
