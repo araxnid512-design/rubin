@@ -722,7 +722,6 @@
     }
     // наклоны (четвероногие без клипов атаки, попадания, гибели)
     const fx = cl.a.fx ? fxAt(cl.a.fx, P.p !== undefined ? P.p : ((P.ts || 0) % 1)) : null;
-    e.body.fix.rotation.x = 0;
     if (fx) {
       const piv = e.body.H * 0.42;
       e.body.holder.rotation.x = fx.rx; e.body.holder.rotation.z = fx.rz;
