@@ -320,7 +320,7 @@
     DW.WR.view.w = W; DW.WR.view.h = H;
     if (DW.BaseS && scene === DW.BaseS) DW.BaseS.resize(W, H);
   }
-  let frame = 0, lastInput = 0, renderAvg = 0, slowFrames = 0, fastFrames = 0;
+  let frame = 0, lastInput = 0, renderAvg = 0, slowFrames = 0, fastFrames = 0, frameAvg = 16.7, lastRendered = 0;
   let fpsN = 0, fpsT = 0, fpsEl = null;
   function fpsTick(t) {
     if (!DW.settings.fps) { if (fpsEl) { fpsEl.remove(); fpsEl = null; } return; }
@@ -348,16 +348,20 @@
           scene.render(g, W, H, dpr);
           const rt = performance.now() - r0;
           renderAvg = renderAvg * 0.9 + rt * 0.1;
+          // реальный интервал между кадрами (учитывает и работу видеокарты, а не только JS) — только при
+          // непрерывной отрисовке, без простоя и без долгих пауз (смена сцены, сворачивание)
+          const iv = t - lastRendered; lastRendered = t;
+          if (!idle && iv > 0 && iv < 200) frameAvg = frameAvg * 0.95 + iv * 0.05;
           fpsTick(performance.now());
           // авто-качество: сначала снижаем уровень графики, потом плотность пикселей
-          if (renderAvg > 24) {
+          if (renderAvg > 24 || (!idle && frameAvg > 29)) {
             if (++slowFrames > 30) {
-              slowFrames = 0; renderAvg = 0;
+              slowFrames = 0; renderAvg = 0; frameAvg = 16.7;
               if (DW.settings.gfx === 'auto' && DW.gfxLevel() > 0) { DW.settings.autoLevel = DW.gfxLevel() - 1; DW.saveSettings(); if (DW.TR.applyQuality) DW.TR.applyQuality(); resize(); }
               else if (dpr > 1) { maxDpr = Math.max(1, dpr - 0.5); resize(); }
             }
           } else slowFrames = 0;
-          if (renderAvg < 9 && DW.settings.gfx === 'auto' && DW.gfxLevel() < 2 && scene === DW.BS) {
+          if (renderAvg < 9 && frameAvg < 18 && DW.settings.gfx === 'auto' && DW.gfxLevel() < 2 && scene === DW.BS) {
             if (++fastFrames > 600) { fastFrames = 0; DW.settings.autoLevel = DW.gfxLevel() + 1; DW.saveSettings(); }
           } else fastFrames = 0;
         }

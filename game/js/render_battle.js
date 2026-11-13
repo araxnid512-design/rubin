@@ -2868,7 +2868,8 @@
   function atmosphere(g, W, H, dpr, B, t) {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const tod = B.tod;
-    if (GRADE[tod] && tod === 'day') { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
+    // цветокоррекция мягким светом — дорогое смешивание на весь экран, только на высоком качестве
+    if (GRADE[tod] && tod === 'day' && QL >= 2) { g.globalCompositeOperation = 'soft-light'; g.fillStyle = GRADE[tod]; g.fillRect(0, 0, W, H); }
     const hz = HAZE[tod];
     if (hz) {
       const light = tod === 'day' || tod === 'dawn' || tod === 'dusk';
