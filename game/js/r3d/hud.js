@@ -22,9 +22,15 @@
   /* клетки поля: quads + контур, цвет на клетку (rgba) */
   function tileMesh(B, colorOf, edge) {
     const P = [], C = [], I = [];
+    let slope = null;   // марш лестницы: вершины поднимаются к уступу
+    const sy = function (p) {
+      if (!slope) return p[1];
+      const t = slope.gx > 0 ? (p[0] - slope.x0) / T : slope.gx < 0 ? (slope.x0 + T - p[0]) / T : slope.gy > 0 ? (p[2] - slope.z0) / T : (slope.z0 + T - p[2]) / T;
+      return p[1] + slope.dh * Math.max(0, Math.min(1, t)) + 0.08;
+    };
     const quad = function (a, b, c, d, col) {
       const o = P.length / 3;
-      P.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2]);
+      P.push(a[0], sy(a), a[2], b[0], sy(b), b[2], c[0], sy(c), c[2], d[0], sy(d), d[2]);
       for (let k = 0; k < 4; k++) C.push(col[0], col[1], col[2], col[3]);
       I.push(o, o + 1, o + 2, o, o + 2, o + 3);
     };
@@ -33,6 +39,8 @@
       const c = colorOf(x, y);
       if (!c) continue;
       const h = B.hgt[y * B.w + x] * LV + 0.035;
+      const st = DW.BT.stairAt ? DW.BT.stairAt(y * B.w + x) : null;
+      slope = st ? { gx: st.hi % B.w - x, gy: ((st.hi / B.w) | 0) - y, x0: x * T, z0: y * T, dh: (B.hgt[st.hi] - B.hgt[y * B.w + x]) * LV } : null;
       const x0 = x * T + inset, x1 = (x + 1) * T - inset, z0 = y * T + inset, z1 = (y + 1) * T - inset;
       quad([x0, h, z1], [x1, h, z1], [x1, h, z0], [x0, h, z0], c);
       if (edge) {

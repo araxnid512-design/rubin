@@ -93,8 +93,8 @@
       ladderGroup.add(g);
     });
   }
-  /* ступени между уровнями рельефа: каменные (на земле), бетонные (бетон, металл, щебень), деревянные (пол);
-     три ступени в нижней клетке до края верхней, одним мешем на материал */
+  /* лестница между уровнями рельефа: марш на всю клетку перед уступом — 8 ступеней от земли до верха,
+     с боковыми щёчками; камень (на земле), бетон (бетон, металл, щебень), доски (пол) — одним мешем на материал */
   const NATURAL = { 0: 1, 1: 1, 2: 1, 5: 1, 6: 1 };
   function stairsAll(B) {
     const geos = { stone: [], concrete: [], planks: [] };
@@ -102,23 +102,38 @@
       if (!l.st) return;
       const lo = l.y * B.w + l.x, hi = l.ry * B.w + l.rx;
       const h0 = B.hgt[lo] * LV, h1 = B.hgt[hi] * LV;
-      const gx = l.rx - l.x, gy = l.ry - l.y;             // к верхней клетке
-      const ex = (l.x + l.rx + 1) / 2 * T, ez = (l.y + l.ry + 1) / 2 * T;   // середина общей грани
+      const gx = l.rx - l.x, gy = l.ry - l.y;                       // к верхней клетке
+      const cx = (l.x + 0.5) * T, cz = (l.y + 0.5) * T;               // центр клетки марша
       const g = B.ground[lo];
       const kind = g === 11 ? 'planks' : (NATURAL[g] ? 'stone' : 'concrete');
-      const n = 3, run = 0.66, rise = (h1 - h0) / n, wide = 0.92;
+      const n = 8, run = T / n, rise = (h1 - h0) / n, wide = 1.02;
       for (let k = 0; k < n; k++) {
-        const len = run * (n - k) / n, top = h0 + rise * (k + 1);
-        const bx = new THREE.BoxGeometry(gx ? len : wide, top - h0 + 0.02, gx ? wide : len);
-        bx.translate(ex - gx * len / 2, h0 - 0.02 + (top - h0 + 0.02) / 2, ez - gy * len / 2);
+        // ступень k: от наружного края клетки +k·run, высотой до h0 + (k+1)·rise, сплошная до уступа
+        const len = T - k * run, top = h0 + rise * (k + 1), mid = -T / 2 + k * run + len / 2;
+        const bx = new THREE.BoxGeometry(gx ? len : wide, top - h0, gx ? wide : len);
+        bx.translate(cx + gx * mid, h0 + (top - h0) / 2, cz + gy * mid);
         geos[kind].push(bx);
       }
+      // щёчки по бокам марша (скошенный брус)
+      [-1, 1].forEach(function (sd) {
+        const L = Math.hypot(T, h1 - h0), ang = Math.atan2(h1 - h0, T);
+        const sb = new THREE.BoxGeometry(L + 0.04, 0.16, 0.08);
+        sb.rotateZ(ang);
+        if (!gx) sb.rotateY(-Math.PI / 2 * gy);
+        else if (gx < 0) sb.rotateY(Math.PI);
+        const ox = gx ? 0 : sd * (wide / 2 + 0.03), oz = gx ? sd * (wide / 2 + 0.03) : 0;
+        sb.translate(cx + ox, (h0 + h1) / 2 + 0.06, cz + oz);
+        geos[kind].push(sb);
+      });
     });
     for (const k in geos) {
       if (!geos[k].length) continue;
       const geo = THREE.BufferGeometryUtils.mergeGeometries(geos[k]);
       geos[k].forEach(function (q) { q.dispose(); });
-      const mt = R3.fogify(R3.pbr(k === 'stone' ? 'stone' : (k === 'planks' ? 'planks' : 'concrete'), { color: k === 'stone' ? 0xc8beb0 : 0xd0ccc4 }).clone());
+      // без карты нормалей: на мелких гранях ступеней с туманом войны она давала почти чёрный марш
+      const base = R3.pbr(k === 'stone' ? 'stone' : (k === 'planks' ? 'planks' : 'concrete'), { color: k === 'stone' ? 0xd8cec0 : 0xe4e0d8 }).clone();
+      base.normalMap = null;
+      const mt = R3.fogify(base);
       const m = new THREE.Mesh(geo, mt);
       m.castShadow = true; m.receiveShadow = true;
       ladderGroup.add(m);
@@ -162,7 +177,7 @@
       const k = key(it);
       live[k] = 1;
       if (meshes[k]) return;
-      const base = V((it.x + 0.5) * T, B.hgt[it.y * B.w + it.x] * LV, (it.y + 0.5) * T);
+      const base = V((it.x + 0.5) * T, (DW.BT.visLevel ? DW.BT.visLevel(it.x, it.y) : B.hgt[it.y * B.w + it.x]) * LV, (it.y + 0.5) * T);
       const holder = new THREE.Group(); holder.position.copy(base);
       meshes[k] = holder; group.add(holder);
       if (it.kind === 'gems') holder.add(gems());

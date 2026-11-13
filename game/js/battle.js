@@ -18,12 +18,32 @@
   BT.inb = function (x, y) { return x >= 0 && y >= 0 && x < B.w && y < B.h; };
   BT.objAt = function (x, y) { return BT.inb(x, y) ? B.obj[y * B.w + x] : 0; };
   /* лестницы на крыши: переход между клеткой у стены и краем крыши разрешён при любом перепаде */
-  let ladderSet = {};
+  let ladderSet = {}, stairSet = {};
   BT.indexLadders = function () {
-    ladderSet = {};
-    (B.ladders || []).forEach(function (l) { const a = l.y * B.w + l.x, b = l.ry * B.w + l.rx; ladderSet[a + '>' + b] = 1; ladderSet[b + '>' + a] = 1; });
+    ladderSet = {}; stairSet = {};
+    (B.ladders || []).forEach(function (l) {
+      const a = l.y * B.w + l.x, b = l.ry * B.w + l.rx;
+      ladderSet[a + '>' + b] = 1; ladderSet[b + '>' + a] = 1;
+      // лестница-ступени: клетка a — сам марш (заход только спереди и сверху, по прямой)
+      if (l.st) stairSet[a] = { hi: b, front: (2 * l.y - l.ry) * B.w + (2 * l.x - l.rx), lo: a };
+    });
   };
   BT.ladderEdge = function (i, j) { return !!ladderSet[i + '>' + j]; };
+  BT.stairAt = function (i) { return stairSet[i] || null; };
+  /* можно ли шагнуть i → j по правилам лестниц (высоты — отдельно) */
+  BT.stairOk = function (i, j) {
+    const a = stairSet[i], b = stairSet[j];
+    if (a && j !== a.hi && j !== a.front) return false;
+    if (b && i !== b.hi && i !== b.front) return false;
+    return true;
+  };
+  /* видимая высота клетки (в уровнях): на марше лестницы — середина подъёма */
+  BT.visLevel = function (x, y) {
+    if (!B || !B.hgt) return 0;
+    x = Math.max(0, Math.min(B.w - 1, x)); y = Math.max(0, Math.min(B.h - 1, y));
+    const i = y * B.w + x, st = stairSet[i];
+    return B.hgt[i] + (st ? (B.hgt[st.hi] - B.hgt[i]) * 0.5 : 0);
+  };
   /* клетки машины: длина вдоль d, ширина (1–2) поперёк */
   BT.vehTiles = function (v) {
     const out = [], wd = v.wd || 1;
@@ -728,11 +748,12 @@
         if (occ[ni] === 2) continue;
         let step = 1;
         const dh = B.hgt ? B.hgt[ni] - B.hgt[i] : 0;
-        // на другой уровень — только по ступеням или лестнице
+        // на другой уровень — только по лестнице; на марш лестницы — только спереди или сверху, по прямой
         const lad = dh !== 0 && BT.ladderEdge(i, ni);
         if (dh !== 0 && !lad) continue;
+        if (!BT.stairOk(i, ni)) continue;
         if (d[0] && d[1]) {
-          if (dh || !BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
+          if (dh || stairSet[i] || stairSet[ni] || !BT.walkTile(x + d[0], y) || !BT.walkTile(x, y + d[1])) continue;
           step = 1.5;
         }
         if (dh) step += Math.abs(dh) > 1 ? 1 : 0.3;
@@ -772,6 +793,7 @@
         if (f[ni] !== Infinity) continue;
         if (!BT.walkTile(nx, ny)) continue;
         if (B.hgt && B.hgt[ni] !== B.hgt[i] && !BT.ladderEdge(i, ni)) continue;
+        if (!BT.stairOk(i, ni)) continue;
         f[ni] = f[i] + 1;
         q.push(ni);
       }

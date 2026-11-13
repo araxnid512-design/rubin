@@ -1849,12 +1849,18 @@
   TR.now = function () { return now(); };
   TR.deadAtOf = function (id) { return deadAt[id]; };
   /* высота бойца в уровнях террасы (на ходу — плавно между клетками) */
+  // видимая высота клетки: на марше лестницы — середина подъёма (боец стоит на ступенях)
+  function vT(x, y) { return DW.BT.visLevel ? DW.BT.visLevel(x, y) : hT(x, y); }
   TR.uLevel = function (u) {
     const tw = tweens[u.id];
-    if (!tw) return hT(u.x, u.y);
+    if (!tw) return vT(u.x, u.y);
     const k = U.clamp((now() - tw.t0) / tw.dur, 0, 1);
     const ke = tw.kind === 'step' ? stepK(tw) : k;
-    return tw.kind === 'lunge' ? hT(tw.fx, tw.fy) : U.lerp(hT(tw.fx, tw.fy), hT(tw.tx, tw.ty), ke * ke * (3 - 2 * ke));
+    if (tw.kind === 'lunge') return vT(tw.fx, tw.fy);
+    // по лестнице — ровно по ступеням (линейно), иначе — плавно
+    const a = vT(tw.fx, tw.fy), b = vT(tw.tx, tw.ty);
+    const onStair = DW.BT.stairAt && (DW.BT.stairAt(tw.fy * HGW + tw.fx) || DW.BT.stairAt(tw.ty * HGW + tw.tx));
+    return U.lerp(a, b, onStair ? ke : ke * ke * (3 - 2 * ke));
   };
   /* фаза шага (радианы): цикл ходьбы ≈1,3 клетки, бега ≈2 */
   TR.walkPhase = function (u) {

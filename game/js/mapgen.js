@@ -244,7 +244,7 @@
   function flood(m, sx, sy) {
     const r = new Uint8Array(m.w * m.h);
     if (!free(m, sx, sy)) return r;
-    const LE = {};
+    const LE = {}, ST = stairIndex(m);
     (m.ladders || []).forEach(function (l) { const a = I(m, l.x, l.y), b = I(m, l.rx, l.ry); LE[a + '>' + b] = 1; LE[b + '>' + a] = 1; });
     const st = [I(m, sx, sy)]; r[st[0]] = 1;
     while (st.length) {
@@ -257,6 +257,7 @@
         const ni = I(m, nx, ny);
         if (r[ni]) continue;
         if (m.hgt[ni] !== m.hgt[c] && !LE[c + '>' + ni]) continue;
+        if (!stairStep(ST, c, ni)) continue;
         r[ni] = 1; st.push(ni);
       }
     }
@@ -780,7 +781,7 @@
     return m;
   };
 
-  /* Дом с плоской крышей: глухой кирпичный блок на 3 уровня выше земли, наверх — по лестнице с восточной
+  /* Дом с плоской крышей: глухой кирпичный блок на 2 уровня (3 м) выше земли, наверх — по лестнице с восточной
      или южной стороны (видны камере). На крыше мешки с песком: стрелку сверху +15 к меткости. */
   const ROOFY = { ruins: 1, landing: 1, factory: 1, camp: 1, site: 1 };
   function roofHouses(m, n) {
@@ -796,7 +797,7 @@
       }
       if (!ok || busy > 4) continue;
       for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) m.obj[I(m, x, y)] = 0;
-      for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = I(m, x, y); m.hgt[i] = base + 4; m.ground[i] = 12; }
+      for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = I(m, x, y); m.hgt[i] = base + 2; m.ground[i] = 12; }
       // мешки на краю крыши
       for (let q = 0; q < 2; q++) { const x = x0 + U.rand(0, w - 1), y = q ? y0 + h - 1 : y0 + U.rand(0, h - 1); if (!m.obj[I(m, x, y)]) setO(m, q ? x : x0 + w - 1, y, 6); }
       // лестница: клетка у стены снаружи (на востоке или юге)
@@ -879,89 +880,105 @@
       roof.forEach(function (i) { if (!reach[i] && m.obj[i] === 6) { m.obj[i] = 0; if (m.objHp) m.objHp[i] = 0; } });
     });
   }
+  /* лестница-марш: клетка lo перед уступом (8 ступеней на всю клетку), наверх — клетка hi; заход только спереди
+     (клетка front той же высоты) и сверху, по прямой; ход в бою — те же правила (BT.stairOk) */
+  function stairIndex(m) {
+    const ST = {};
+    (m.ladders || []).forEach(function (l) { if (l.st) ST[I(m, l.x, l.y)] = { hi: I(m, l.rx, l.ry), front: I(m, 2 * l.x - l.rx, 2 * l.y - l.ry) }; });
+    return ST;
+  }
+  function stairStep(ST, a, b) {
+    const p = ST[a], q = ST[b];
+    if (p && b !== p.hi && b !== p.front) return false;
+    if (q && a !== q.hi && a !== q.front) return false;
+    return true;
+  }
+  function reachCount(m, cx, cy) { const r = flood(m, cx, cy); let n = 0; for (let i = 0; i < r.length; i++) n += r[i]; return { r: r, n: n }; }
   function stairs(m, cx, cy) {
     m.ladders = m.ladders || [];
     const n = m.w * m.h;
-    // площадки: свободные клетки одной высоты (4 соседа)
-    const comp = new Int32Array(n).fill(-1), list = [];
-    for (let i0 = 0; i0 < n; i0++) {
-      if (comp[i0] >= 0 || !free(m, i0 % m.w, (i0 / m.w) | 0)) continue;
-      const id = list.length, tiles = [i0];
-      comp[i0] = id;
-      for (let q = 0; q < tiles.length; q++) {
-        const c = tiles[q], x = c % m.w, y = (c / m.w) | 0;
-        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
-          const nx = x + d[0], ny = y + d[1];
-          if (!free(m, nx, ny)) return;
-          const j = I(m, nx, ny);
-          if (comp[j] < 0 && m.hgt[j] === m.hgt[c]) { comp[j] = id; tiles.push(j); }
-        });
-      }
-      list.push(tiles);
-    }
-    if (!list.length) return;
-    // рёбра между площадками с перепадом в уровень — места для ступеней
-    const edges = {};
+    const isStair = function (i) { return m.ladders.some(function (l) { return l.st && (I(m, l.x, l.y) === i || I(m, 2 * l.x - l.rx, 2 * l.y - l.ry) === i); }); };
+    const ladTile = {};
+    m.ladders.forEach(function (l) { ladTile[I(m, l.x, l.y)] = 1; ladTile[I(m, l.rx, l.ry)] = 1; });
+    // кандидаты: lo — свободна, hi на уровень выше, front — свободна и на уровне lo
+    const cand = [];
     for (let i = 0; i < n; i++) {
-      if (comp[i] < 0) continue;
       const x = i % m.w, y = (i / m.w) | 0;
-      [[1, 0], [0, 1]].forEach(function (d) {
-        const nx = x + d[0], ny = y + d[1];
-        if (!inb(m, nx, ny)) return;
-        const j = I(m, nx, ny);
-        if (comp[j] < 0 || comp[j] === comp[i] || Math.abs(m.hgt[j] - m.hgt[i]) !== 1) return;
-        const a = Math.min(comp[i], comp[j]), b = Math.max(comp[i], comp[j]);
-        (edges[a + ',' + b] = edges[a + ',' + b] || []).push(m.hgt[i] < m.hgt[j] ? [i, j] : [j, i]);
+      if (!free(m, x, y) || ladTile[i]) continue;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        const hx = x + d[0], hy = y + d[1], fx = x - d[0], fy = y - d[1];
+        if (!free(m, hx, hy) || !free(m, fx, fy)) return;
+        const hi = I(m, hx, hy), fr = I(m, fx, fy);
+        if (m.hgt[hi] !== m.hgt[i] + 1 || m.hgt[fr] !== m.hgt[i] || ladTile[hi] || ladTile[fr]) return;
+        cand.push({ lo: i, hi: hi, fr: fr, x: x, y: y, hx: hx, hy: hy, d: d });
       });
     }
-    // уже есть: лестницы на крыши
-    const linked = {};
-    m.ladders.forEach(function (l) {
-      const a = comp[I(m, l.x, l.y)], b = comp[I(m, l.rx, l.ry)];
-      if (a >= 0 && b >= 0) { (linked[a] = linked[a] || []).push(b); (linked[b] = linked[b] || []).push(a); }
-    });
-    const start = comp[I(m, cx, cy)] >= 0 ? comp[I(m, cx, cy)] : 0;
-    const got = new Uint8Array(list.length); got[start] = 1;
-    const queue = [start];
-    const addStairs = function (cand) {
-      // 1 ступень на каждые ~9 клеток перепада, подальше друг от друга
-      const k = Math.min(cand.length, 1 + Math.floor(cand.length / 9));
-      const pick = [];
-      const pos = function (e) { return [(e[0] % m.w + e[1] % m.w) / 2, (((e[0] / m.w) | 0) + ((e[1] / m.w) | 0)) / 2]; };
-      pick.push(cand[Math.floor(Math.random() * cand.length)]);
-      while (pick.length < k) {
-        let best = null, bd = -1;
-        cand.forEach(function (e) {
-          if (pick.indexOf(e) >= 0) return;
-          const p = pos(e);
-          const d = Math.min.apply(null, pick.map(function (q) { const r = pos(q); return Math.abs(r[0] - p[0]) + Math.abs(r[1] - p[1]); }));
-          if (d > bd) { bd = d; best = e; }
-        });
-        if (!best || bd < 3) break;
-        pick.push(best);
-      }
-      pick.forEach(function (e) {
-        const lo = e[0], hi = e[1];
-        m.ladders.push({ x: lo % m.w, y: (lo / m.w) | 0, rx: hi % m.w, ry: (hi / m.w) | 0, d: (lo % m.w) !== (hi % m.w) ? 0 : 1, st: 1 });
-      });
+    U.shuffle(cand);
+    const all = function () { let k = 0; for (let i = 0; i < n; i++) if (free(m, i % m.w, (i / m.w) | 0)) k++; return k; };
+    const total = all();
+    let cur = reachCount(m, cx, cy);
+    const placed = [];
+    const tooClose = function (c) { return placed.some(function (p) { return Math.abs(p.x - c.x) + Math.abs(p.y - c.y) < 4; }); };
+    const tryAdd = function (c) {
+      if (isStair(c.lo) || isStair(c.hi) || isStair(c.fr)) return false;
+      const l = { x: c.x, y: c.y, rx: c.hx, ry: c.hy, d: c.d[0] ? 0 : 1, st: 1 };
+      m.ladders.push(l);
+      const nx = reachCount(m, cx, cy);
+      // ступень полезна, если открыла новое, и не отрезала уже доступное
+      let lost = false;
+      for (let i = 0; i < n && !lost; i++) if (cur.r[i] && !nx.r[i] && i !== c.lo) lost = true;
+      if (lost || nx.n <= cur.n) { m.ladders.pop(); return false; }
+      cur = nx; placed.push(c);
+      return true;
     };
-    while (queue.length) {
-      const a = queue.shift();
-      (linked[a] || []).forEach(function (b) { if (!got[b]) { got[b] = 1; queue.push(b); } });
-      for (const key in edges) {
-        const ab = key.split(','), p = +ab[0], q = +ab[1];
-        const other = p === a ? q : (q === a ? p : -1);
-        if (other < 0 || got[other]) continue;
-        got[other] = 1; queue.push(other);
-        addStairs(edges[key]);
+    // 1) связать все площадки: пока что-то недоступно — ставить ступень, открывающую новое
+    for (let guard = 0; guard < 60 && cur.n < total; guard++) {
+      let ok = false;
+      for (let k = 0; k < cand.length && !ok; k++) {
+        const c = cand[k];
+        if (!cur.r[c.fr] || cur.r[c.hi] || tooClose(c)) continue;
+        ok = tryAdd(c);
       }
+      if (!ok) for (let k = 0; k < cand.length && !ok; k++) {
+        const c = cand[k];
+        if (!(cur.r[c.fr] ^ cur.r[c.hi])) continue;
+        // сверху вниз: верх доступен, низ нет — та же ступень
+        ok = tryAdd(c);
+      }
+      if (!ok) break;
     }
-    // длинные перепады между уже связанными площадками — ещё по ступени (не обходить полкарты)
-    for (const key in edges) {
-      const L = edges[key];
-      if (L.length < 14) continue;
-      const has = m.ladders.some(function (l) { return l.st && L.some(function (e) { return e[0] === I(m, l.x, l.y) && e[1] === I(m, l.rx, l.ry); }); });
-      if (!has) addStairs(L);
+    // 2) лишние площадки, до которых не добраться, — опустить до соседнего уровня (без лестницы туда не попасть)
+    for (let pass = 0; pass < 30 && cur.n < total; pass++) {
+      for (let i = 0; i < n; i++) {
+        const x = i % m.w, y = (i / m.w) | 0;
+        if (!free(m, x, y) || cur.r[i] || m.ground[i] === 12) continue;
+        let best = null;
+        // сосед, на которого можно шагнуть сбоку (не марш лестницы)
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) { const nx2 = x + d[0], ny2 = y + d[1]; if (free(m, nx2, ny2) && cur.r[I(m, nx2, ny2)] && !isStair(I(m, nx2, ny2))) best = m.hgt[I(m, nx2, ny2)]; });
+        if (best !== null && !isStair(i)) m.hgt[i] = best;
+      }
+      cur = reachCount(m, cx, cy);
+    }
+    // 2б) тупики сбоку от марша (одна-две клетки, куда не зайти) — занять ящиком, бочкой, валуном
+    if (cur.n < total) {
+      for (let i = 0; i < n; i++) {
+        const x = i % m.w, y = (i / m.w) | 0;
+        if (!free(m, x, y) || cur.r[i] || m.ground[i] === 12) continue;
+        const g = m.ground[i];
+        setO(m, x, y, g === 5 ? 3 : (g === 6 ? 16 : U.pick([4, 9, 4])));
+      }
+      cur = reachCount(m, cx, cy);
+    }
+    // 3) ещё по ступени на длинные перепады (не обходить полкарты)
+    let extra = 0;
+    for (let k = 0; k < cand.length && extra < Math.round(total / 60); k++) {
+      const c = cand[k];
+      if (tooClose(c) || placed.some(function (p) { return Math.abs(p.x - c.x) + Math.abs(p.y - c.y) < 7; })) continue;
+      if (isStair(c.lo) || isStair(c.hi) || isStair(c.fr)) continue;
+      m.ladders.push({ x: c.x, y: c.y, rx: c.hx, ry: c.hy, d: c.d[0] ? 0 : 1, st: 1 });
+      const nx = reachCount(m, cx, cy);
+      if (nx.n < cur.n) { m.ladders.pop(); continue; }
+      cur = nx; placed.push(c); extra++;
     }
   }
 

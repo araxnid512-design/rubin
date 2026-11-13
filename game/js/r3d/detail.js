@@ -218,7 +218,7 @@
     // россыпь по грунту: камешки на щебне, земле и в пещере, трава на пыли и земле
     for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
       const i = y * B.w + x, gid = B.ground[i];
-      if (B.obj[i]) continue;
+      if (B.obj[i] || (DW.BT.stairAt && DW.BT.stairAt(i))) continue;
       const Y = B.hgt[i] * LV;
       const n = gid === 8 ? 4 : (gid === 5 ? 3 : (gid === 2 || gid === 0 ? 1 : 0));
       for (let k = 0; k < n; k++) if (r() < 0.75) put('stone', (x + r()) * T, Y + 0.02, (y + r()) * T, 0.35 + r() * 0.6, r() * 6.28, r() * 3, r() * 3);
