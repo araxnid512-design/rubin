@@ -35,15 +35,20 @@
   const P = {
     R: { rake: 18, rot: [0, 0, 0], depth: 0.026, fwd: -0.025, up: 0, off: [0, 0, 0],
       curl: { index: [25, 45, 20], mid: [65, 85, 45], ring: [70, 85, 45], pinky: [75, 85, 45] }, thumb: [30, 20, 25, 20] },
-    L: { fan: 40, rot: [0, 0, 0], depth: 0.03, fwd: -0.01, up: 0, off: [0, 0, 0],
+    L: { fan: 40, tilt: 20, rot: [0, 0, 0], depth: 0.03, fwd: -0.01, up: 0, off: [0, 0, 0],
       curl: { index: [35, 55, 30], mid: [40, 60, 30], ring: [45, 60, 30], pinky: [50, 60, 30] }, thumb: [10, 10, 10, 10] },
     // свободная кисть (перезарядка): пальцы полусогнуты
     relax: { curl: { index: [15, 25, 10], mid: [20, 30, 15], ring: [25, 35, 15], pinky: [30, 35, 15] }, thumb: [10, 10, 10, 5] },
-    foreTwist: 0.5,      // доля скрутки кисти, которую берёт предплечье
-    twistMax: 50,        // скрутка в запястье, не больше, °
+    foreTwist: 0.35,     // доля скрутки кисти, которую берёт предплечье (больше — мнётся локоть)
+    twistMax: 80,        // скрутка в запястье, не больше, °
     bendMax: 35,         // изгиб запястья относительно предплечья, не больше, °
-    align: 0.5,          // локоть: 0 — где был, 1 — где запястье прямое
-    poleDown: 0.15,      // локоть: тянуть вниз, м
+    rollMax: 40,         // кисть может провернуться вокруг рукояти/цевья, чтобы не ломать запястье, °
+    devMax: 15,          // и отклониться вокруг нормали ладони (рукоять ляжет в ладонь наискось), °
+    kTwist: 0.3,         // локоть: цена скрутки запястья против изгиба
+    kElbow: 0.15,        // локоть: цена ухода от локтя движения (рад²)
+    kUp: 4,              // локоть: цена подъёма выше плеча
+    elbowUp: -0.1,       // локоть: выше этого (доля плеча над плечевым суставом) — штраф
+    poleDown: 0.05,      // локоть движения: чуть ниже, м
     reach: 0.985,        // доля длины руки, дальше — ладонь сдвигается по стволу к прикладу
     weaponPts: 1,        // 1 — ладони на рукоять/цевьё настоящего оружия, 0 — в точки из units.js (o.grip/o.fore)
     wpn: {
@@ -108,10 +113,24 @@
     S.Hl = new THREE.Matrix4().makeBasis(F, N, T2);
     // ладонь в кости кисти (как palm() в units.js: 0,75 пути до основания среднего пальца)
     S.palmL = mid ? mid.position.clone().multiplyScalar(0.75) : F.clone().multiplyScalar(0.3 * hand.position.length());
+    // покой (body.rest из makeBody): повороты кисти и предплечья относительно родителя
+    const rs = body.rest || {}, rA = rs[side + 'Arm'], rF = rs[side + 'ForeArm'], rH = rs[side + 'Hand'];
+    S.q0h = (rH ? rH.q : hand.quaternion).clone();
+    S.q0f = (rF ? rF.q : fore.quaternion).clone();
     // направление предплечья (локоть → запястье) в осях кисти при покое (запястье прямое)
-    S.q0h = hand.quaternion.clone();
     S.axF = hand.position.clone().normalize();                                   // ось предплечья в его кости
     S.faL = S.axF.clone().applyQuaternion(_q1.copy(S.q0h).invert());             // она же в осях кисти при покое
+    // локоть — шарнир: ось сгиба в кости плеча. В позе покоя (тело лицом к +Z) сгиб ведёт предплечье вперёд:
+    // ось = (плечо → локоть) × вперёд
+    S.dU = fore.position.clone().normalize();
+    S.hL = new THREE.Vector3(0, 0, 1);
+    if (rA && rF) {
+      const u0 = rF.wp.clone().sub(rA.wp).normalize();
+      const h = new THREE.Vector3().crossVectors(u0, new THREE.Vector3(0, 0, 1));
+      if (h.lengthSq() < 1e-6) h.set(0, side === 'Right' ? 1 : -1, 0);
+      S.hL.copy(h.normalize()).applyQuaternion(_q1.copy(rA.wq).invert());
+    }
+    S.hL.addScaledVector(S.dU, -S.hL.dot(S.dU)).normalize();
     // масштаб и длины звеньев в мире
     hand.matrixWorld.decompose(_v1, _q1, _sc);
     S.s = _sc.x;
@@ -147,7 +166,7 @@
     S.qHw = new THREE.Quaternion(); S.ver = -1; S.style = '';
     S.Fw = new THREE.Vector3(); S.Nw = new THREE.Vector3(); S.Tw = new THREE.Vector3();
     S.hs = (mid ? mid.position.length() * S.s : HAND0) / HAND0;      // размер кисти против эталона
-    S.dbg = { bend: 0, rawBend: 0, twist: 0, roll: 0, slide: 0 };
+    S.dbg = { bend: 0, rawBend: 0, twist: 0, roll: 0, slide: 0, rollG: 0, devN: 0, swivel: 0 };
     return S;
   }
   function rig(body) {
@@ -163,9 +182,10 @@
      'guard' — левая под цевьём ладонью вверх, пальцы обхватывают правый бок. Результат: S.qHw — кисть → оружие. */
   function handInWeapon(S, style, ph, rake) {
     if (style === 'guard') {
-      // пальцы вправо и вперёд (fan°), ладонь вверх
-      const a = (ph.fan || 0) * DEG;
-      _F0.set(Math.cos(a), 0, -Math.sin(a)); _N0.set(0, 1, 0);
+      // пальцы вправо и вперёд (fan°), ладонь вверх и чуть вправо, к оружию (tilt°)
+      const a = (ph.fan || 0) * DEG, tl = (ph.tilt || 0) * DEG;
+      _F0.set(Math.cos(a), 0, -Math.sin(a)); _N0.set(Math.sin(tl), Math.cos(tl), 0);
+      _N0.addScaledVector(_F0, -_N0.dot(_F0)).normalize();
     } else {
       const r = (rake !== undefined ? rake : (ph.rake || 0)) * DEG;
       _F0.set(0, -Math.sin(r), -Math.cos(r));
@@ -186,49 +206,121 @@
     S.qHw.setFromRotationMatrix(_m1);
   }
 
-  /* ---------- Двухзвенная IK без выделения памяти ---------- */
-  function aimBone(bone, childNow, want) {
-    wpos(bone, _pt);
-    _v1.copy(childNow).sub(_pt).normalize(); _v2.copy(want).sub(_pt).normalize();
-    _q1.setFromUnitVectors(_v1, _v2);
-    wquat(bone, _q2);
-    _q1.multiply(_q2);
-    wquat(bone.parent, _q3).invert();
-    bone.quaternion.copy(_q3.multiply(_q1));
-    bone.updateMatrixWorld(true);
+  /* ---------- Двухзвенная IK с шарниром в локте, без выделения памяти ----------
+     локоть — по полюсу на окружности; плечо поворачивается так, чтобы его ось сгиба (S.hL) легла поперёк
+     плоскости руки, предплечье — от своего покоя относительно плеча сгибается вокруг этой оси: в локте нет
+     скрутки (иначе кожа локтя рвётся), вся скрутка кисти — в запястье (и долей — в предплечье). */
+  const _u = new THREE.Vector3(), _f = new THREE.Vector3(), _n = new THREE.Vector3();
+  const _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3(), _t3 = new THREE.Vector3(), _t4 = new THREE.Vector3();
+  const _m3 = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _qU = new THREE.Quaternion();
+  /* поворот, переводящий aL → aW и bL → bW (b — после ортогонализации) */
+  function fromAxes(aL, bL, aW, bW, out) {
+    _t1.copy(bL).addScaledVector(aL, -bL.dot(aL)).normalize(); _t2.crossVectors(aL, _t1);
+    _m3.makeBasis(aL, _t1, _t2).transpose();
+    _t3.copy(bW).addScaledVector(aW, -bW.dot(aW)).normalize(); _t4.crossVectors(aW, _t3);
+    _m4.makeBasis(aW, _t3, _t4).multiply(_m3);
+    return out.setFromRotationMatrix(_m4);
   }
   function ik2(S, target, pole) {
-    wpos(S.arm, _pa); wpos(S.fore, _pb); wpos(S.hand, _pc);
+    wpos(S.arm, _pa);
     const la = S.la, lb = S.lb;
-    const d = Math.min(target.distanceTo(_pa), la + lb - 1e-4);
+    const d = Math.max(1e-4, Math.min(target.distanceTo(_pa), la + lb - 1e-4));
     _dir.copy(target).sub(_pa).normalize();
-    const ang = Math.acos(clamp((la * la + d * d - lb * lb) / (2 * la * Math.max(d, 1e-5)), -1, 1));
+    const ang = Math.acos(clamp((la * la + d * d - lb * lb) / (2 * la * d), -1, 1));
     _pl.copy(pole).sub(_pa); _pl.addScaledVector(_dir, -_pl.dot(_dir));
-    if (_pl.lengthSq() < 1e-10) _pl.set(0, -1, 0);
+    if (_pl.lengthSq() < 1e-10) _pl.set(0, -1, 0).addScaledVector(_dir, _dir.y);
     _pl.normalize();
     _el.copy(_pa).addScaledVector(_dir, Math.cos(ang) * la).addScaledVector(_pl, Math.sin(ang) * la);
-    aimBone(S.arm, _pb, _el);
-    wpos(S.hand, _pc);
+    _u.copy(_el).sub(_pa).normalize();
     _v3.copy(_pa).addScaledVector(_dir, d);
-    aimBone(S.fore, _pc, _v3);
+    _f.copy(_v3).sub(_el).normalize();
+    _n.crossVectors(_u, _f);
+    if (_n.lengthSq() < 1e-6) _n.crossVectors(_u, _pl);
+    _n.normalize();
+    // плечо: направление к локтю и ось сгиба поперёк плоскости руки
+    fromAxes(S.dU, S.hL, _u, _n, _qU);
+    wquat(S.arm.parent, _q2).invert();
+    S.arm.quaternion.copy(_q2).multiply(_qU);
+    // предплечье: покой относительно плеча, затем доворот к запястью (вокруг оси сгиба)
+    _q2.copy(_qU).multiply(S.q0f);
+    _v1.copy(S.axF).applyQuaternion(_q2);
+    _q3.setFromUnitVectors(_v1, _f);
+    _q2.premultiply(_q3);
+    S.fore.quaternion.copy(_qU.invert()).multiply(_q2);
+    S.arm.updateMatrixWorld(true);
   }
 
   /* ---------- Кисть: поворот qT (мир), ладонь в palmT ---------- */
   const _q0a = new THREE.Quaternion(), _q0f = new THREE.Quaternion();
-  function solveHand(S, qWant, palmT, iters) {
+  /* ---------- Где быть локтю: перебор по окружности возможных локтей ----------
+     цена = изгиб запястья² + P.kTwist·скрутка² + P.kElbow·(уход от локтя движения)² + P.kUp·(локоть выше плеча)²;
+     16 проб и 4 уточнения, только арифметика (без обновления костей). Возвращает точку-полюс для ik2. */
+  const _cP = new THREE.Vector3(), _cD = new THREE.Vector3(), _cE1 = new THREE.Vector3(), _cE2 = new THREE.Vector3(), _cW = new THREE.Vector3();
+  const _cE = new THREE.Vector3(), _cU = new THREE.Vector3(), _cF = new THREE.Vector3(), _cN = new THREE.Vector3(), _cV = new THREE.Vector3();
+  const _cQu = new THREE.Quaternion(), _cQf = new THREE.Quaternion(), _cQ = new THREE.Quaternion(), _cQi = new THREE.Quaternion();
+  let _cR = 0, _cC = 0, _cY = 0;
+  function elbowCost(S, qT, phi) {
+    const c = Math.cos(phi), sn = Math.sin(phi);
+    _cE.copy(_cP).addScaledVector(_cD, _cC).addScaledVector(_cE1, c * _cR).addScaledVector(_cE2, sn * _cR);
+    _cU.copy(_cE).sub(_cP).normalize();
+    _cF.copy(_cW).sub(_cE).normalize();
+    _cN.crossVectors(_cU, _cF);
+    if (_cN.lengthSq() < 1e-8) { _cV.copy(_cE1).multiplyScalar(c).addScaledVector(_cE2, sn); _cN.crossVectors(_cU, _cV); }
+    _cN.normalize();
+    fromAxes(S.dU, S.hL, _cU, _cN, _cQu);
+    _cQf.copy(_cQu).multiply(S.q0f);
+    _cV.copy(S.axF).applyQuaternion(_cQf);
+    _cQ.setFromUnitVectors(_cV, _cF);
+    _cQf.premultiply(_cQ);
+    _cQ.copy(_cQf).invert().multiply(qT);                            // кисть в осях предплечья
+    _cV.copy(S.faL).applyQuaternion(_cQ);
+    const bend = Math.acos(clamp(_cV.dot(S.axF), -1, 1));
+    _cQ.multiply(_cQi);                                              // отклонение от покоя
+    const ax = S.axF, dt = _cQ.x * ax.x + _cQ.y * ax.y + _cQ.z * ax.z;
+    const tw = 2 * Math.atan2(Math.abs(dt), Math.abs(_cQ.w));
+    const up = Math.max(0, (_cE.y - _cY) / S.la - P.elbowUp);
+    return bend * bend + P.kTwist * tw * tw + P.kElbow * phi * phi + P.kUp * up * up;
+  }
+  function bestPole(S, wrist, qT, pole) {
+    wpos(S.arm, _cP); _cY = _cP.y;
+    const la = S.la, lb = S.lb;
+    const d = Math.max(1e-4, Math.min(wrist.distanceTo(_cP), la + lb - 1e-4));
+    _cD.copy(wrist).sub(_cP).normalize();
+    const ang = Math.acos(clamp((la * la + d * d - lb * lb) / (2 * la * d), -1, 1));
+    _cC = Math.cos(ang) * la; _cR = Math.sin(ang) * la;
+    _cW.copy(_cP).addScaledVector(_cD, d);
+    _cE1.copy(pole).sub(_cP); _cE1.addScaledVector(_cD, -_cE1.dot(_cD));
+    if (_cE1.lengthSq() < 1e-10) _cE1.set(0, -1, 0).addScaledVector(_cD, _cD.y);
+    _cE1.normalize(); _cE2.crossVectors(_cD, _cE1);
+    _cQi.copy(S.q0h).invert();
+    let best = 0, bc = elbowCost(S, qT, 0);
+    for (let k = 1; k < 16; k++) { const ph = -Math.PI + k * Math.PI / 8, c = elbowCost(S, qT, ph); if (c < bc) { bc = c; best = ph; } }
+    for (let st = Math.PI / 16; st > Math.PI / 200; st *= 0.5) {
+      const c1 = elbowCost(S, qT, best - st), c2 = elbowCost(S, qT, best + st);
+      if (c1 < bc && c1 <= c2) { bc = c1; best -= st; } else if (c2 < bc) { bc = c2; best += st; }
+    }
+    S.dbg.swivel = best / DEG;
+    pole.copy(_cP).addScaledVector(_cD, _cC).addScaledVector(_cE1, Math.cos(best) * _cR).addScaledVector(_cE2, Math.sin(best) * _cR);
+  }
+
+  /* axP/axD — ось того, что держит кисть (рукоять, цевьё): если запястье гнётся сильнее P.bendMax, кисть сперва
+     проворачивается вокруг этой оси (пальцы так и остаются на ней, до P.rollMax) и чуть отклоняется вокруг нормали
+     ладони (до P.devMax), остаток — ограничение изгиба. */
+  const _pT = new THREE.Vector3(), _aW = new THREE.Vector3(), _nW = new THREE.Vector3();
+  function solveHand(S, qWant, palmT, axP, axD, iters) {
     _q0a.copy(S.arm.quaternion); _q0f.copy(S.fore.quaternion);
-    _qT.copy(qWant);
+    _qT.copy(qWant); _pT.copy(palmT);
+    const bmax = P.bendMax * DEG, rmax = P.rollMax * DEG, dmax = P.devMax * DEG;
+    let accG = 0, accN = 0;
     for (let it = 0; it < iters; it++) {
       // каждый проход — от позы, оставленной units.js (иначе скрутка предплечья накапливалась бы)
       S.arm.quaternion.copy(_q0a); S.fore.quaternion.copy(_q0f); S.arm.updateMatrixWorld(true);
-      // запястье: ладонь в palmT при повороте qT
+      // запястье: ладонь в _pT при повороте _qT
       _v4.copy(S.palmL).multiplyScalar(S.s).applyQuaternion(_qT);
-      _wrist.copy(palmT).sub(_v4);
-      // полюс локтя: между нынешним локтем и тем, при котором запястье прямое, и чуть вниз
-      wpos(S.fore, _pole);
-      _ax.copy(S.faL).applyQuaternion(_qT);                       // предплечье при прямом запястье
-      _v4.copy(_wrist).addScaledVector(_ax, -S.lb);
-      _pole.lerp(_v4, P.align); _pole.y -= P.poleDown;
+      _wrist.copy(_pT).sub(_v4);
+      // локоть: от локтя движения (после units.js) — лучший по цене (прямое запястье, умеренная скрутка)
+      wpos(S.fore, _pole); _pole.y -= P.poleDown;
+      bestPole(S, _wrist, _qT, _pole);
       ik2(S, _wrist, _pole);
       // скрутка: часть — предплечью (вокруг своей оси, запястье не сдвигается)
       wquat(S.fore, _qF);
@@ -236,7 +328,7 @@
       _qA.copy(_qRel).multiply(_q1.copy(S.q0h).invert());            // отклонение от покоя
       // скрутка вокруг оси предплечья (swing-twist)
       const ax = S.axF;
-      let dt = _qA.x * ax.x + _qA.y * ax.y + _qA.z * ax.z;
+      const dt = _qA.x * ax.x + _qA.y * ax.y + _qA.z * ax.z;
       _qTw.set(ax.x * dt, ax.y * dt, ax.z * dt, _qA.w);
       if (_qTw.lengthSq() < 1e-12) _qTw.identity(); else _qTw.normalize();
       let tw = 2 * Math.atan2(Math.sqrt(_qTw.x * _qTw.x + _qTw.y * _qTw.y + _qTw.z * _qTw.z), _qTw.w);
@@ -255,7 +347,26 @@
       // изгиб запястья: направление предплечья «по кисти» против оси предплечья
       _v1.copy(S.faL).applyQuaternion(_qRel);
       const bend = Math.acos(clamp(_v1.dot(ax), -1, 1));
-      const bmax = P.bendMax * DEG;
+      S.dbg.rawBend = bend / DEG;
+      if (R3.grip.trace) R3.grip.trace.push(S.side[0] + it + ' bend ' + (bend / DEG).toFixed(1) + ' tw ' + (tw / DEG).toFixed(0) + ' sw ' + S.dbg.swivel.toFixed(0) + ' g ' + (accG / DEG).toFixed(1) + ' n ' + (accN / DEG).toFixed(1));
+      if (bend > bmax && axD && it < iters - 1) {
+        // поправка цели: поворот, сводящий «предплечье по кисти» к настоящему, раскладывается на ось хвата и нормаль ладони
+        _v2.copy(S.faL).applyQuaternion(_qT); _aW.copy(ax).applyQuaternion(_qF);
+        _v3.crossVectors(_v2, _aW);
+        if (_v3.lengthSq() > 1e-10) {
+          _v3.normalize();
+          const th = bend - bmax;
+          const g1 = clamp(accG + th * _v3.dot(axD), -rmax, rmax), dg = g1 - accG; accG = g1;
+          _nW.copy(S.N).applyQuaternion(_qT);
+          const n1 = clamp(accN + th * _v3.dot(_nW), -dmax, dmax), dn = n1 - accN; accN = n1;
+          _q1.setFromAxisAngle(axD, dg);
+          _qT.premultiply(_q1);
+          _pT.sub(axP).applyQuaternion(_q1).add(axP);
+          _q1.setFromAxisAngle(_nW, dn);
+          _qT.premultiply(_q1);
+          continue;
+        }
+      }
       if (bend > bmax) {
         _v2.crossVectors(_v1, ax);
         if (_v2.lengthSq() > 1e-12) { _v2.normalize(); _q1.setFromAxisAngle(_v2, bend - bmax); _qRel.premultiply(_q1); }
@@ -263,7 +374,8 @@
       S.hand.quaternion.copy(_qRel);
       S.hand.updateMatrixWorld(true);
       _qT.copy(_qF).multiply(_qRel);                                  // что получилось — для следующего прохода
-      S.dbg.bend = Math.min(bend, bmax) / DEG; S.dbg.twist = (tw - roll) / DEG; S.dbg.roll = roll / DEG; S.dbg.rawBend = bend / DEG;
+      S.dbg.bend = Math.min(bend, bmax) / DEG; S.dbg.twist = (tw - roll) / DEG; S.dbg.roll = roll / DEG;
+      S.dbg.rollG = accG / DEG; S.dbg.devN = accN / DEG;
     }
   }
 
@@ -329,6 +441,7 @@
   }
 
   const NOW = { g: [0, 0], f: [0, 0] };
+  const _gP = new THREE.Vector3(), _gD = new THREE.Vector3();
   function apply(o) {
     const body = o.body;
     if (!body || !body.B) return;
@@ -352,7 +465,11 @@
     if (P.weaponPts || !o.grip) palmAt(R, P.R, wp.g[0], wp.g[1], _palmT);
     else { palmAt(R, P.R, 0, 0, _palmT); _palmT.sub(_org).add(o.grip); }
     reachClamp(R, _palmT, _qB);
-    solveHand(R, _qB, _palmT, 2);
+    // ось рукояти: вверх с наклоном rk назад-вниз; точка — центр рукояти (со сдвигом досягаемости)
+    const rk = (wp.rk !== undefined ? wp.rk : P.R.rake) * DEG;
+    _gD.set(0, Math.cos(rk), -Math.sin(rk)).applyQuaternion(_qM);
+    _gP.copy(_org).addScaledVector(_yW, wp.g[0]).addScaledVector(_zW, wp.g[1] + R.dbg.slide);
+    solveHand(R, _qB, _palmT, _gP, _gD, 3);
     curlFingers(R, P.R, 1);
 
     // левая — под цевьём; при свободной кисти — пальцы полусогнуты, поворот как в движении
@@ -370,12 +487,14 @@
       wquat(L.fore, _q3).multiply(L.q0h);
       _qC.slerp(_q3, 1 - ks);
       _palmT.lerp(o.fore, 1 - ks);
-      solveHand(L, _qC, _palmT, 2);
+      solveHand(L, _qC, _palmT, null, null, 2);
       curlFingers(L, ks > 0.5 ? P.L : P.relax, 1);
       return;
     }
     reachClamp(L, _palmT, _qC);
-    solveHand(L, _qC, _palmT, 2);
+    // ось цевья — ствол
+    _gP.copy(_org).addScaledVector(_yW, (W && W.fore ? W.fore.y : 0) + wp.f[0]).addScaledVector(_zW, (W && W.fore ? W.fore.z : 0) + wp.f[1]);
+    solveHand(L, _qC, _palmT, _gP, _zW, 3);
     curlFingers(L, P.L, 1);
   }
 

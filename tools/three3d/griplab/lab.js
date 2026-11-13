@@ -144,6 +144,7 @@
     rclose: { n: 'правая кисть снаружи' }, rin: { n: 'правая кисть изнутри' }, rbelow: { n: 'правая кисть снизу' },
     lclose: { n: 'левая кисть снизу' }, lup: { n: 'левая кисть сверху' }, lside: { n: 'левая кисть слева' },
     nearr: { n: 'кисти: спереди-справа' }, nearl: { n: 'кисти: спереди-слева' }, neart: { n: 'кисти: сверху (как игра)' }, nearb: { n: 'кисти: снизу-справа' },
+    rarm: { n: 'правое предплечье' }, larm: { n: 'левое предплечье' },
     wpn: { n: 'оружие справа' }, wgrip: { n: 'рукоять справа' }, wfore: { n: 'цевьё справа' },
     gl: { n: 'рукоять слева (пальцы)' }, gr: { n: 'рукоять справа (кисть)' }, gd: { n: 'рукоять снизу' }, gb: { n: 'рукоять сзади' }, fu: { n: 'цевьё сверху' }, fr: { n: 'цевьё справа (пальцы)' }, fl: { n: 'цевьё слева (большой)' }, fd: { n: 'цевьё снизу (ладонь)' }
   };
@@ -177,6 +178,13 @@
         tgt = palmOf(S, 'Right', V()).lerp(palmOf(S, 'Left', V()), 0.5);
         const d = v === 'nearr' ? rot(-0.75, 0.45, 0.6) : v === 'nearl' ? rot(0.8, 0.3, 0.55) : v === 'neart' ? rot(-0.45, Math.tan(0.84) * 0.75, 0.45) : rot(-0.55, -0.35, 0.75);
         pos = tgt.clone().addScaledVector(d.normalize(), 1.15); cam.fov = 34; break;
+      }
+      // предплечье: от локтя до кисти, снаружи-снизу (скрутка, излом запястья)
+      case 'rarm': case 'larm': {
+        const sd = v === 'rarm' ? 'Right' : 'Left', B = S.body.B;
+        tgt = B[sd + 'ForeArm'].getWorldPosition(V()).lerp(B[sd + 'Hand'].getWorldPosition(V()), 0.5);
+        const out = B[sd + 'ForeArm'].getWorldPosition(V()).sub(B[sd + 'Arm'].getWorldPosition(V())).normalize();
+        pos = tgt.clone().add(rot(v === 'rarm' ? -0.6 : 0.6, -0.3, 0.5).normalize().multiplyScalar(0.55)).addScaledVector(out, 0.0); cam.fov = 34; cam.near = 0.2; break;
       }
       // оружие сбоку (справа, по оси X оружия) — целиком; и крупно рукоять
       case 'wpn': { const L = S.W.len; tgt = V(0, 0, -L * 0.2).applyMatrix4(M); pos = tgt.clone().add(ax(L * 1.9, 0, 0)); cam.fov = 30; cam.near = L * 1.9 - 0.12; break; }
@@ -233,7 +241,9 @@
       const m = /^([^@:~]+)(?:@([\d.]+))?(?::([a-z]+))?(?:~(-?\d+))?$/.exec(R.p) || [0, 'idle'];
       const c = UL.libClip(m[1]);
       const t = (c ? c.dur : 1) * (m[2] !== undefined ? +m[2] : 0.3);
+      if (qs.get('trace') === '1') { GP.trace = []; }
       poseSet(S, { key: m[1], t: t, mode: m[3] || 'auto', yaw: m[4] ? +m[4] : 0 });
+      if (GP.trace) { (window.__trace = window.__trace || []).push('== ' + R.b + ' ' + R.w + ' ' + R.p, ...GP.trace); GP.trace = null; }
       updDebug(S, qs.get('dbg') === '1');
       const y0 = r * (cell + lab);
       for (let i = 0; i < views.length; i++) {
@@ -245,8 +255,8 @@
         renderer.render(scene, camera);
       }
       const dg = GP.rig(S.body);
-      R.info = dg && gripOn ? ('R изгиб ' + dg.R.dbg.rawBend.toFixed(0) + '° скр ' + dg.R.dbg.twist.toFixed(0) + '/' + dg.R.dbg.roll.toFixed(0) + (dg.R.dbg.slide ? ' сдв ' + dg.R.dbg.slide.toFixed(2) : '') +
-        ' | L изгиб ' + dg.L.dbg.rawBend.toFixed(0) + '° скр ' + dg.L.dbg.twist.toFixed(0) + '/' + dg.L.dbg.roll.toFixed(0) + (dg.L.dbg.slide ? ' сдв ' + dg.L.dbg.slide.toFixed(2) : '')) : '';
+      const di = function (d) { return 'изгиб ' + d.rawBend.toFixed(0) + '° скр ' + d.twist.toFixed(0) + '/' + d.roll.toFixed(0) + (d.rollG || d.devN ? ' пов ' + d.rollG.toFixed(0) + '/' + d.devN.toFixed(0) : '') + (d.slide ? ' сдв ' + d.slide.toFixed(2) : ''); };
+      R.info = dg && gripOn ? 'R ' + di(dg.R.dbg) + ' | L ' + di(dg.L.dbg) : '';
     }
     g.drawImage(renderer.domElement, 0, 0);
     g.font = '11px sans-serif';
@@ -312,8 +322,11 @@
     if (/depth|fwd|\.up$/.test(path)) return [-0.08, 0.08, 0.001];
     if (/\.rot\./.test(path)) return [-180, 180, 1];
     if (/curl|thumb/.test(path)) return [-40, 130, 1];
-    if (/rake|fan/.test(path)) return [-90, 90, 1];
-    if (/foreTwist|align/.test(path)) return [0, 1, 0.01];
+    if (/rake|fan|tilt/.test(path)) return [-90, 90, 1];
+    if (/foreTwist|align|kTwist|kElbow/.test(path)) return [0, 1, 0.01];
+    if (/kUp/.test(path)) return [0, 20, 0.1];
+    if (/elbowUp/.test(path)) return [-1, 1, 0.01];
+    if (/rollMax|devMax/.test(path)) return [0, 90, 1];
     if (/twistMax|bendMax/.test(path)) return [0, 180, 1];
     if (/poleDown/.test(path)) return [-0.5, 0.5, 0.01];
     if (/reach/.test(path)) return [0.8, 1.0, 0.005];
@@ -421,7 +434,7 @@
       label(i + 1, VIEWS[v].n, Math.round(i * sw) + 4, mh + 4);
     });
     const G = gripOn ? GP.rig(S.body) : null;
-    const f = function (d) { return 'изгиб ' + d.rawBend.toFixed(0) + '° (огр. ' + d.bend.toFixed(0) + '°), скрутка запястья ' + d.twist.toFixed(0) + '°, предплечья ' + d.roll.toFixed(0) + '°' + (d.slide ? ', сдвиг ' + d.slide.toFixed(3) + ' м' : ''); };
+    const f = function (d) { return 'изгиб ' + d.rawBend.toFixed(0) + '° (огр. ' + d.bend.toFixed(0) + '°), скрутка запястья ' + d.twist.toFixed(0) + '°, предплечья ' + d.roll.toFixed(0) + '°' + (d.rollG || d.devN ? ', проворот ' + d.rollG.toFixed(0) + '°/' + d.devN.toFixed(0) + '°' : '') + (d.slide ? ', сдвиг ' + d.slide.toFixed(3) + ' м' : ''); };
     dbgBox.textContent = 'режим: ' + S.mode + (G ? '\nкисть ×' + G.R.hs.toFixed(2) + '\nR: ' + f(G.R.dbg) + '\nL: ' + f(G.L.dbg) : '\n(хват выключен)');
   }
   async function rebuild() {
