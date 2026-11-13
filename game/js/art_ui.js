@@ -334,10 +334,17 @@
   const EFACE_OF = { scav: 'scav', alpha: 'alpha', queen: 'queen', brute: 'brute', spitter: 'spitter', guardian: 'guardian', raider: 'mur1', thug: 'mur2', marksman: 'marksman', boss: 'boss' };
   const efaceImgs = {};
   for (const k in (DW.EFACE_IMG || {})) { const im = new Image(); im.src = DW.EFACE_IMG[k]; efaceImgs[k] = im; }
-  ART.enemyPortrait = function (type) {
-    const fi = efaceImgs[EFACE_OF[type]];
+  // вариант врага (бандит 1–3, головорез 1–2, падальщик двух пород) — по телу, которым он нарисован в бою
+  function efaceKey(type, u) {
+    if (u && DW.S3 && DW.S3.setsFor) { try { const S = DW.S3.setsFor(u); if (S && S.body && efaceImgs[S.body.slice(2)]) return S.body.slice(2); } catch (e) { /* без атласов — по типу */ } }
+    if (u && type === 'scav' && (u.id || 0) % 2 && efaceImgs.scav2) return 'scav2';
+    return EFACE_OF[type];
+  }
+  ART.enemyPortrait = function (type, u) {
+    const ek = efaceKey(type, u);
+    const fi = efaceImgs[ek];
     if (fi && fi.complete && fi.naturalWidth) {
-      const pk = 'ef|' + type;
+      const pk = 'ef|' + ek;
       if (cache[pk]) return cache[pk];
       const c = ART.canvas(192, 192), g = c.getContext('2d');
       g.drawImage(fi, 0, 0, 192, 192);

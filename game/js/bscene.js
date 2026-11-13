@@ -254,7 +254,7 @@
       const info = shotInfo(kindA, sel, t.u);
       const W = D.WEAPONS[sel.weapon];
       const lbl = { shoot: 'Огонь', aimed: 'Прицельный', double: 'Двойной ×2', suppress: 'Подавить' }[kindA];
-      p.appendChild(el('div', { class: 't-head', html: '<img src="' + DW.ART.enemyPortrait(t.u.type) + '" alt=""><div class="t-name">' + t.u.name + '<small>ОЗ ' + t.u.hp + '/' + t.u.maxHp + (t.u.armor ? ' · броня ' + t.u.armor : '') + '</small></div>' }));
+      p.appendChild(el('div', { class: 't-head', html: '<img src="' + DW.ART.enemyPortrait(t.u.type, t.u) + '" alt=""><div class="t-name">' + t.u.name + '<small>ОЗ ' + t.u.hp + '/' + t.u.maxHp + (t.u.armor ? ' · броня ' + t.u.armor : '') + '</small></div>' }));
       if (kindA === 'suppress') {
         p.appendChild(el('div', { class: 't-hit', html: 'Цель получит <b>−40</b> к меткости в свой ход.' }));
       } else {
