@@ -1753,6 +1753,26 @@
     if (u.type === 'brute' || u.type === 'boss' || u.type === 'alpha') return 1.3;
     return 1.13;
   }
+  /* Движение по пути: точки пути сглаживаются (Катмулл-Ром), шаг идёт без остановок между клетками,
+     первая клетка — разгон, последняя — торможение; кадр ходьбы зависит от пройденного расстояния */
+  const moves = {};       // id → { pts, k, dist, lastEnd }
+  TR.pathBegin = function (u, path) { moves[u.id] = { pts: [[u.x, u.y]].concat(path.map(function (p) { return [p[0], p[1]]; })), k: 0, dist: 0, lastEnd: 0 }; };
+  TR.pathEnd = function (u) { delete moves[u.id]; const tw = tweens[u.id]; if (tw && tw.done) delete tweens[u.id]; };
+  TR.pathSkip = function (u, nx, ny) { const mv = moves[u.id]; if (mv) { mv.k++; mv.dist += Math.hypot(nx - u.x, ny - u.y); mv.lastEnd = 0; } };
+  function crPt(p0, p1, p2, p3, t) {
+    const t2 = t * t, t3 = t2 * t;
+    return [0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+      0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)];
+  }
+  const EASE = 0.6;
+  function stepK(tw) {
+    const t = U.clamp((now() - tw.t0) / tw.dur, 0, 1);
+    // разгон на первой клетке, торможение на последней; на стыках скорость совпадает
+    if (tw.first && tw.last) return t * t * (3 - 2 * t);
+    if (tw.first) return (1 - EASE) * t + EASE * t * t;
+    if (tw.last) { const r = 1 - t; return 1 - ((1 - EASE) * r + EASE * r * r); }
+    return t;
+  }
   function rp(u) {
     const tw = tweens[u.id];
     if (!tw) return [u.x, u.y];
@@ -1761,6 +1781,7 @@
       const k = Math.sin(t * Math.PI) * 0.45;
       return [tw.fx + (tw.tx - tw.fx) * k, tw.fy + (tw.ty - tw.fy) * k];
     }
+    if (tw.spl) return crPt(tw.spl[0], tw.spl[1], tw.spl[2], tw.spl[3], stepK(tw));
     return [U.lerp(tw.fx, tw.tx, t), U.lerp(tw.fy, tw.ty, t)];
   }
   TR.renderPos = rp;
@@ -1770,20 +1791,46 @@
     let h;
     if (tw) {
       const k = U.clamp((now() - tw.t0) / tw.dur, 0, 1);
-      h = tw.kind === 'lunge' ? hT(tw.fx, tw.fy) : U.lerp(hT(tw.fx, tw.fy), hT(tw.tx, tw.ty), k);
+      const ke = tw.kind === 'step' ? stepK(tw) : k;
+      h = tw.kind === 'lunge' ? hT(tw.fx, tw.fy) : U.lerp(hT(tw.fx, tw.fy), hT(tw.tx, tw.ty), ke * ke * (3 - 2 * ke));
     } else h = hT(u.x, u.y);
     return [(p[0] - p[1]) * HW, (p[0] + p[1] + 1) * HH - h * LH];
   }
+  const leanCur = {};
+  // плавные смены кадра: в медленных позах (стойка, дозор, у стены…) — и между кадрами одной позы
+  const xfade = {};
+  const SLOWX = { idle: 1, watch: 1, wall: 1, duck: 1, panic: 1, cheer: 1, heal: 1, idle2: 1, kneel: 1, crouch: 1, hunker: 1 };
   function leanPos(u) {
     const p = rp(u);
-    if (tweens[u.id]) return p;
     let ox = 0, oy = 0;
-    DW.BT.DIR4.forEach(function (d) {
-      const o = DW.BT.objAt(u.x + d[0], u.y + d[1]);
-      if (o && D.OBJ[o].cover) { ox += d[0] * 0.2; oy += d[1] * 0.2; }
-    });
-    return [p[0] + U.clamp(ox, -0.22, 0.22), p[1] + U.clamp(oy, -0.22, 0.22)];
+    if (!tweens[u.id]) {
+      DW.BT.DIR4.forEach(function (d) {
+        const o = DW.BT.objAt(u.x + d[0], u.y + d[1]);
+        if (o && D.OBJ[o].cover) { ox += d[0] * 0.2; oy += d[1] * 0.2; }
+      });
+      ox = U.clamp(ox, -0.22, 0.22); oy = U.clamp(oy, -0.22, 0.22);
+    }
+    // прижаться к укрытию и отойти от него — плавно, без скачка
+    const t = now(); let L = leanCur[u.id];
+    if (!L) L = leanCur[u.id] = { x: ox, y: oy, t: t };
+    const k = Math.min(1, (t - L.t) / 1000 * 6); L.t = t;
+    L.x += (ox - L.x) * k; L.y += (oy - L.y) * k;
+    return [p[0] + L.x, p[1] + L.y];
   }
+  /* плавный разворот: направление на экране догоняет цель со скоростью ~2 оборота в секунду */
+  const faceD = {};
+  function dispFace(u) {
+    const target = u.face === undefined ? Math.PI : u.face;
+    const t = now(); let f = faceD[u.id];
+    if (!f || !u.alive) { faceD[u.id] = { a: target, t: t }; return target; }
+    const dt = Math.min(0.1, (t - f.t) / 1000); f.t = t;
+    let da = target - f.a; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+    const mx = 12 * dt * spd();
+    f.a += Math.abs(da) <= mx ? da : Math.sign(da) * mx;
+    return f.a;
+  }
+  TR.dispFace = dispFace;
+  TR.uPosDbg = function (u) { return uPos(u, true); };   // для автотестов движения
   const STEPMAT = { 0: 'dirt', 1: 'dirt', 2: 'dirt', 3: 'concrete', 4: 'metal', 5: 'cave', 6: 'flesh', 8: 'rubble', 9: 'wood', 11: 'wood', 12: 'concrete' };
   TR.stepFx = function (u, nx, ny) {
     const c0 = isoC(u.x, u.y);
@@ -1796,7 +1843,24 @@
     }
     if (Math.random() < 0.7) for (let k = 0; k < 3; k++) fx.parts.push({ x: c0[0] + (Math.random() - 0.5) * 10, y: c0[1] + (Math.random() - 0.5) * 4, z: 1, vx: (Math.random() - 0.5) * 18, vy: (Math.random() - 0.5) * 6, vz: 8 + Math.random() * 8, t0: now(), life: 600, color: 'rgba(170,150,120,0.35)', size: 4 + Math.random() * 4, grav: 4 });
     return new Promise(function (res) {
-      tweens[u.id] = { fx: u.x, fy: u.y, tx: nx, ty: ny, t0: now(), dur: (u._run ? 112 : 135) / spd(), res: res, kind: 'step', run: !!u._run };
+      // шаг: скорость как у человека (быстрее — рывком), по диагонали длиннее, по лестнице — медленно
+      const mv = moves[u.id];
+      const len = Math.hypot(nx - u.x, ny - u.y);
+      const dh = Math.abs(hT(nx, ny) - hT(u.x, u.y));
+      const speed = (u._run ? 3.6 : 2.3) * (u.kind !== 'soldier' && !ART.ENEMY_LOOKS[u.type] ? 1.15 : 1);   // клеток в секунду
+      let dur = len / speed * 1000;
+      if (dh > 1) dur = 950; else if (dh === 1) dur *= 1.35;
+      const tn = now();
+      const t0 = mv && mv.lastEnd && tn - mv.lastEnd < 80 ? mv.lastEnd : tn;   // без пауз между клетками
+      const tw = { fx: u.x, fy: u.y, tx: nx, ty: ny, t0: t0, dur: dur / spd(), res: res, kind: 'step', run: !!u._run, len: len, dist0: mv ? mv.dist : 0, ladder: dh > 1 };
+      if (mv) {
+        const P = mv.pts, k = mv.k;
+        tw.first = k === 0; tw.last = k >= P.length - 2;
+        if (!tw.ladder) tw.dur *= tw.first && tw.last ? 1.5 : (tw.first || tw.last ? 1 + EASE : 1);
+        tw.spl = [P[Math.max(0, k - 1)], P[k], P[k + 1] || P[k], P[Math.min(P.length - 1, k + 2)]];
+        mv.k++; mv.dist += len; mv.lastEnd = t0 + tw.dur;
+      } else { tw.first = tw.last = true; }
+      tweens[u.id] = tw;
       if (u.side === 'p') {
         const s = TR.tileToScreen(nx, ny);
         if (s[0] < TR.view.w * 0.14 || s[0] > TR.view.w * 0.86 || s[1] < TR.view.h * 0.18 || s[1] > TR.view.h * 0.76) {
@@ -1962,7 +2026,8 @@
       if (S && S.weapon && DW.S3.ready(S.body)) {
         // дуло в текущем кадре (из-за укрытия, с колена) или в обычной стойке стрельбы
         const cur = u._a3 && /^(peek|kneel|shoot|watch|crouchAim|aim)$/.test(u._a3[0]) ? u._a3 : ['shoot', 0];
-        const m = DW.S3.muzzleAt(S.weapon, cur[0], cur[1], DW.S3.dir8(u.face), S.body) || DW.S3.muzzleAt(S.weapon, 'shoot', 0, DW.S3.dir8(u.face), S.body);
+        const fd = DW.S3.dir8(dispFace(u));
+        const m = DW.S3.muzzleAt(S.weapon, cur[0], cur[1], fd, S.body) || DW.S3.muzzleAt(S.weapon, 'shoot', 0, fd, S.body);
         if (m) return [c[0] + m[0], c[1] + m[1]];
       }
     }
@@ -1986,13 +2051,15 @@
     const FW = FXof(W);
     const cnt = FW.n || ({ rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1);
     const gap = (FW.gap || (W.snd === 'lmg' ? 70 : 90)) / s;
-    const pre = W.snd === 'spit' ? 300 / s : 120 / s;
+    const pre = W.snd === 'spit' ? 300 / s : 220 / s;
     if (W.snd === 'spit') TR.anim(att, 'charge', 300);
+    else TR.anim(att, 'aimup', 230);
     const t0 = now() + pre;
     const fdir = (Math.cos(att.face || 0) - Math.sin(att.face || 0)) >= 0 ? 1 : -1;
     const cover = arguments[6] && arguments[6].coverTile;
     setTimeout(function () {
       TR.anim(att, 'shoot', (cnt - 1) * gap * s + 260, { cnt: cnt });
+      setTimeout(function () { const a = anims[att.id]; if (a && a.kind === 'shoot') TR.anim(att, 'aimhold', 340); }, rt((cnt - 1) * gap + 250 / s));
       if (W.snd !== 'spit' && W.snd !== 'beam') {
         for (let i = 0; i < cnt; i++) {
           setTimeout(function () {
@@ -2064,7 +2131,13 @@
       }
     } else if (camWaiters.length) { const w = camWaiters; camWaiters = []; w.forEach(function (r) { r(); }); }
     const t = now();
-    for (const id in tweens) { const tw = tweens[id]; if (t - tw.t0 >= tw.dur) { delete tweens[id]; tw.res(); } }
+    for (const id in tweens) {
+      const tw = tweens[id];
+      if (t - tw.t0 < tw.dur) continue;
+      // шаг посреди пути: держим его до следующей клетки (без «стоп-кадра» между клетками)
+      if (tw.kind === 'step' && moves[id]) { if (!tw.done) { tw.done = true; tw.res(); } }
+      else { delete tweens[id]; if (!tw.done) tw.res(); }
+    }
     for (let i = fx.projs.length - 1; i >= 0; i--) { const p = fx.projs[i]; if (t - p.t0 >= p.dur) { fx.projs.splice(i, 1); p.res(); } }
     fx.parts.forEach(function (p) {
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz -= p.grav * dt;
@@ -2332,7 +2405,7 @@
     if (!S3) return null;
     const S = S3.setsFor(u);
     if (!S || !S3.ready(S.body)) return null;
-    const d = S3.dir8(u.face);
+    const d = S3.dir8(dispFace(u));
     if (S.kind === 'turret') return S3.frame([[S.body, 'v', d, 0]]);
     const n = function (a) { return S3.count(S.body, a); };
     const cre = S.kind === 'creature';
@@ -2371,7 +2444,18 @@
         case 'heal': anim = n('heal') ? 'heal' : 'idle'; i = Math.floor(t / 300) % Math.max(1, n(anim)); break;
         case 'charge': anim = n('run') ? 'run' : 'walk'; i = Math.floor(t / 80) % Math.max(1, n(anim)); break;
         case 'shake': case 'sniff': anim = n('roar') ? 'roar' : 'idle'; i = n('roar') ? Math.floor(p * n('roar')) : idleI(); break;
-        case 'scan': case 'signal': anim = n('aim') ? 'aim' : 'idle'; break;
+        case 'scan': case 'signal': case 'look': case 'check':
+          if (!cre && u.side === 'p' && av('idle2')) { anim = 'idle2'; i = Math.floor(p * n('idle2')); } else { anim = 'idle'; i = idleI(); }
+          break;
+        case 'aimup': case 'aimhold': {
+          // вскинул оружие перед очередью / задержался в прицеле после неё — та же поза, что и при выстреле
+          if (cre) { anim = 'idle'; i = idleI(); break; }
+          const cv = coverLevel(u);
+          if (cv === 2 && n('peek')) { anim = 'peek'; i = an.kind === 'aimup' ? 0 : n('peek') - 1; }
+          else if ((cv === 1 || u.overwatch) && n('kneel')) { anim = 'kneel'; i = 0; }
+          else { anim = n('aim') ? 'aim' : 'shoot'; i = 0; }
+          break;
+        }
         default: anim = 'idle'; i = idleI(); break;
       }
     } else if (!cre) {
@@ -2411,7 +2495,8 @@
     const fi = faceInfo(u);
     const tw = tweens[u.id];
     const running = tw && tw.kind === 'step' && tw.run;
-    const walk = tw && tw.kind === 'step' ? t / (running ? 52 : 70) : null;
+    // фаза шага — по пройденному расстоянию: цикл ходьбы ≈1,3 клетки, бега ≈2 клетки (ноги не скользят)
+    const walk = tw && tw.kind === 'step' ? (tw.dist0 + (tw.len || 1) * stepK(tw)) / (running ? 2.0 : 1.3) * Math.PI * 2 : null;
     const sc = unitScale(u);
     let an = curAnim(u, t);
     // случайные движения в покое
@@ -2471,10 +2556,23 @@
     if (fr.d3 && an && an.kind === 'shoot' && u.weapon && DW.WT && DW.WT.has(u.weapon) && an.a && an.a.data) {
       // отдача: короткий толчок назад на каждом выстреле очереди
       const nn = an.a.data.cnt || 1, q = (an.p * nn) % 1, rc = q < 0.25 ? q / 0.25 : Math.max(0, 1 - (q - 0.25) / 0.5);
-      const kk = DW.WT.get(u.weapon).fire.kick * rc * (an.p < 0.98 ? 1 : 0);
+      const kk = DW.WT.get(u.weapon).fire.kick * 0.5 * rc * (an.p < 0.98 ? 1 : 0);
       kb -= fi.dir * kk; ky = kk * 0.25;
     }
     g.drawImage(fr.c, c[0] - fr.ox * sx + kb, c[1] - fr.oy + bob + ky, fr.w * sx, fr.h);
+    if (fr.d3 && !ghost) {
+      const ak = u._a3 ? u._a3[0] + ':' + (SLOWX[u._a3[0]] ? u._a3[1] : '') : '';
+      let X = xfade[u.id];
+      if (!X) X = xfade[u.id] = { a: ak, fr: fr, t: -1e9 };
+      if (X.a !== ak) { X.prev = X.fr; X.t = t; X.a = ak; X.dur = SLOWX[u._a3 && u._a3[0]] ? 260 : 150; }
+      X.fr = fr;
+      const xk = (t - X.t) / X.dur;
+      if (X.prev && xk < 1 && X.prev !== fr) {
+        g.globalAlpha = (alpha === undefined ? 1 : alpha) * (1 - xk);
+        g.drawImage(X.prev.c, c[0] - X.prev.ox + kb, c[1] - X.prev.oy + bob + ky, X.prev.w, X.prev.h);
+        g.globalAlpha = alpha === undefined ? 1 : alpha;
+      }
+    }
     if (!tw && !an && u.kind === 'soldier' && DW.G.smoker(u)) {
       const k = (t / 1600) % 1;
       g.fillStyle = 'rgba(210,210,210,' + (0.45 * (1 - k)) + ')';
@@ -3364,7 +3462,8 @@
           if (u.side === 'p') {
             const o1 = BT_obj(B, x + 1, y), o2 = BT_obj(B, x, y + 1), o3 = BT_obj(B, x + 1, y + 1);
             const hu = hT(x, y);
-            if ((o1 && D.OBJ[o1].lift > 0.45) || (o2 && D.OBJ[o2].lift > 0.45) || (o3 && D.OBJ[o3].lift > 0.55) || hT(x + 1, y) > hu || hT(x, y + 1) > hu || hT(x + 1, y + 1) > hu + 1) ghosts.push(u);
+            const occ = function (o, xx, yy, lim) { return o && D.OBJ[o].lift > lim && !(TALL[o] && cutSet && cutSet[yy * B.w + xx]); };
+            if (occ(o1, x + 1, y, 0.45) || occ(o2, x, y + 1, 0.45) || occ(o3, x + 1, y + 1, 0.55) || hT(x + 1, y) > hu || hT(x, y + 1) > hu || hT(x + 1, y + 1) > hu + 1) ghosts.push(u);
           }
         });
       }

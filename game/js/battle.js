@@ -811,11 +811,12 @@
     u._run = path.length > Math.max(3, (u.mob || 5) - 1);
     if (path.length) u.moved = true;
     if (u.kind === 'soldier' && Math.random() < 0.35) DW.TR.bark(u, u._run ? 'run' : 'move');
+    DW.TR.pathBegin(u, path);
     for (let k = 0; k < path.length; k++) {
       const nx = path[k][0], ny = path[k][1];
       const show = u.side === 'p' || u.seen || (vis && vis[ny * B.w + nx]);
       u.face = Math.atan2(ny - u.y, nx - u.x);
-      if (show) await DW.TR.stepFx(u, nx, ny);
+      if (show) await DW.TR.stepFx(u, nx, ny); else DW.TR.pathSkip(u, nx, ny);
       u.x = nx; u.y = ny;
       if (u.side === 'p') {
         BT.pickup(u);
@@ -827,10 +828,12 @@
       if (!u.alive || B.over) break;
       if (BT.checkEnd()) break;
     }
-    u._run = false;
-    if (u.kind === 'soldier' && u.alive && path.length >= 2 && BT.DIR4.some(function (q) { const o = BT.objAt(u.x + q[0], u.y + q[1]); return o && D.OBJ[o].cover > 0; })) {
-      DW.TR.anim(u, 'slide', 420); await U.sleep(160);
+    DW.TR.pathEnd(u);
+    // скольжение в укрытие — только с разбега
+    if (u.kind === 'soldier' && u.alive && u._run && path.length >= 3 && BT.DIR4.some(function (q) { const o = BT.objAt(u.x + q[0], u.y + q[1]); return o && D.OBJ[o].cover > 0; })) {
+      DW.TR.anim(u, 'slide', 480); await U.sleep(200);
     }
+    u._run = false;
     if (u.side === 'p' && B.concealed && !B.over) {
       const det = B.units.find(function (e) { return BT.detects(e); });
       if (det) { BT.reveal('Отряд обнаружен!'); await BT.activatePods([det]); await BT.wakeSeen(); }

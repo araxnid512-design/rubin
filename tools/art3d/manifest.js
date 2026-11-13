@@ -8,8 +8,8 @@ const MK = (m) => S + 'dw/m_krut_' + m + '.glb'; // движения по тек
 const HUMAN = [
   // mode — хват: carry (переноска, ствол вперёд-вниз), aim (приклад в плече), hand / left (в кисти), sling (за спиной)
   { key: 'idle', clip: 'IdleRifle', n: 3, loop: true, fps: 2, mode: 'carry' },
-  { key: 'walk', clip: 'WalkRifle', n: 8, loop: true, mode: 'carry' },
-  { key: 'run', clip: 'RunRifle', n: 6, loop: true, mode: 'carry' },
+  { key: 'walk', clip: 'WalkRifle', n: 12, loop: true, mode: 'carry' },
+  { key: 'run', clip: 'RunRifle', n: 10, loop: true, mode: 'carry' },
   { key: 'aim', clip: 'AimRifle', n: 1, t0: 0.5, mode: 'aim' },
   { key: 'shoot', clip: 'ShootRifle', n: 2, t0: 0, t1: 0.1, mode: 'aim', recoilFirst: [0.05, 5] },
   { key: 'reload', clip: 'ReloadRifle', n: 5, mode: 'carry', freeL: true },

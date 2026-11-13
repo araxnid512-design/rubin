@@ -383,6 +383,7 @@ async function frames(spec) {
     cal = calibrate(dst, src, rt, wpn, spec.weapon.adj, ref);
   }
   const out = [];
+  const snap = {};
   const R = spec.box || [1.1, 2.05];
   const box = new THREE.Box3(new THREE.Vector3(-R[0] * H / 1.8, -0.05, -R[0] * H / 1.8), new THREE.Vector3(R[0] * H / 1.8, R[1] * H / 1.8, R[0] * H / 1.8));
   scene.add(dst.holder);
@@ -394,15 +395,65 @@ async function frames(spec) {
     const clip = findClip(SR.s, an.clip);
     if (!clip) throw new Error('нет клипа ' + an.clip);
     const t0 = an.t0 || 0, t1 = an.t1 !== undefined ? Math.min(an.t1, clip.duration) : clip.duration;
+    const tAt = (i) => an.n === 1 ? t0 : t0 + (t1 - t0) * (an.loop ? i / an.n : i / (an.n - 1));
+    // центровка над клеткой: у движений по тексту Tripo тело уезжает от точки стояния — ставим середину между
+    // стопами в центр клетки (для циклов — среднее по кадрам, иначе — по первому кадру, откуда боец начинает)
+    let cOff = null, cOffs = null;
+    if (spec.kind === 'creature' && !an.noCenter) {
+      // существа: середина тела (по коробке с учётом скиннинга), для циклов — среднее по кадрам
+      let sx = 0, sz = 0, cnt = 0;
+      // у существ кость хода не та, что у людей: центр тела считаем в каждом кадре (cOffs), без «качелей» в беге
+      cOffs = [];
+      for (let k = 0; k < an.n; k++) {
+        dst.holder.position.set(0, 0, 0); dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+        poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(k));
+        if (SR.rt) SR.rt();
+        dst.holder.updateMatrixWorld(true);
+        const bb = new THREE.Box3(); dst.meshes.forEach((mesh) => bb.expandByObject(mesh, true));
+        const cc = bb.getCenter(new THREE.Vector3());
+        cOffs.push([cc.x, cc.z]);
+      }
+      if (an.key === 'die') cOffs = cOffs.map(() => cOffs[0]);   // падает с того места, где стоял
+      const idx = [];
+      for (const k of idx) {
+        const b = new THREE.Box3();
+        const c = b.getCenter(new THREE.Vector3());
+        sx += c.x; sz += c.z; cnt++;
+      }
+      cOff = cnt ? [sx / cnt, sz / cnt] : null;
+    } else if (an.src && !an.noCenter) {
+      let sx = 0, sz = 0, cnt = 0;
+      const idx = an.loop ? Array.from({ length: an.n }, (_, k) => k) : [0];
+      for (const k of idx) {
+        dst.holder.position.set(0, 0, 0); dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+        poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(k));
+        if (SR.rt) SR.rt();
+        dst.holder.updateMatrixWorld(true);
+        const L = dst.B.LeftFoot.getWorldPosition(new THREE.Vector3()), R = dst.B.RightFoot.getWorldPosition(new THREE.Vector3());
+        sx += (L.x + R.x) / 2; sz += (L.z + R.z) / 2; cnt++;
+      }
+      cOff = [sx / cnt, sz / cnt];
+    }
     for (let i = 0; i < an.n; i++) {
-      const t = an.n === 1 ? t0 : t0 + (t1 - t0) * (an.loop ? i / an.n : i / (an.n - 1));
+      const t = tAt(i);
       for (const d of (spec.dirs || [0, 1, 2, 3, 4, 5, 6, 7])) {
-        dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
+        // держатель — в начале координат: перенос движения ставит таз в мировую точку
+        dst.holder.position.set(0, 0, 0); dst.holder.rotation.y = 0; dst.holder.updateMatrixWorld(true);
         poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, t);
         if (SR.rt) SR.rt();
         if (an.crouch) crouch(dst, an.crouch * H / 1.8);
+        // ноги на земле: нижняя точка тела в этом кадре — ровно на уровне земли (поворот вокруг вертикали её не меняет,
+        // поэтому считается один раз на кадр). Движения по тексту Tripo «висели» над землёй на 0,2–0,6 м.
+        const sk = an.key + ':' + i;
+        if (snap[sk] === undefined) { dst.holder.position.y = 0; dst.holder.updateMatrixWorld(true); snap[sk] = an.air ? 0 : lowestY(dst); }
+        dst.holder.position.y = -snap[sk];
         const ang = d * Math.PI / 4;
         dst.holder.rotation.y = Math.atan2(Math.cos(ang), Math.sin(ang));
+        const co = cOffs ? cOffs[i] : cOff;
+        if (co) {
+          const r = dst.holder.rotation.y, c = Math.cos(r), sn = Math.sin(r);
+          dst.holder.position.x = -(co[0] * c + co[1] * sn); dst.holder.position.z = -(-co[0] * sn + co[1] * c);
+        } else { dst.holder.position.x = 0; dst.holder.position.z = 0; }
         dst.holder.updateMatrixWorld(true);
         if (wpn) holdWeapon(dst, wpn, i === 0 && an.recoilFirst ? Object.assign({}, an, { recoil: an.recoilFirst }) : an, cal, spec.weapon.adj);
         let fb = box;
@@ -435,9 +486,17 @@ async function frames(spec) {
     }
   }
   setColor(dst, true);
+  dst.holder.position.set(0, 0, 0); dst.holder.updateMatrixWorld(true);
   scene.remove(dst.holder);
   if (showW) scene.remove(wpn.g);
   return out;
+}
+/* самая нижняя точка тела в текущей позе (с учётом скиннинга), метры */
+function lowestY(dst) {
+  let m = Infinity;
+  const b = new THREE.Box3();
+  dst.meshes.forEach((mesh) => { if (!mesh.visible) return; b.makeEmpty(); b.expandByObject(mesh, true); if (b.min.y < m) m = b.min.y; });
+  return m === Infinity ? 0 : m;
 }
 
 /* Упаковка кадров в страницы атласа (полками), обрезка по непрозрачному */
