@@ -32,7 +32,8 @@
       banner('Ваш ход');
     }
     if (B.turn === 1 && (B.tod !== 'day' || B.weather !== 'clear')) setTimeout(function () { DW.UI.toast(BT().condText(B), B.sightMod ? 'alert' : ''); }, 1650);
-    if (B.turn === 1 && B.concealed) setTimeout(function () { DW.UI.toast('Отряд скрыт. Оранжевые клетки — зона, где враг заметит бойца. Первый выстрел — из засады.', ''); }, 3200);
+    const B0 = B;
+    if (B.turn === 1 && B.concealed) setTimeout(function () { if (B !== B0 || !B.concealed) return; DW.UI.toast('Отряд скрыт. Оранжевые клетки — зона, где враг заметит бойца. Первый выстрел — из засады.', ''); }, 3200);
   };
   BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; };
   BS.update = function (dt) { DW.TR.update(dt); };
