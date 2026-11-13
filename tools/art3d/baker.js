@@ -409,11 +409,17 @@ async function frames(spec) {
         poseRig(SR.s, an.clip === '*' ? clip.name : an.clip, tAt(k));
         if (SR.rt) SR.rt();
         dst.holder.updateMatrixWorld(true);
-        const bb = new THREE.Box3(); dst.meshes.forEach((mesh) => bb.expandByObject(mesh, true));
-        const cc = bb.getCenter(new THREE.Vector3());
-        cOffs.push([cc.x, cc.z]);
+        // по тазу: махи лап не двигают тело (по коробке тело дрожало)
+        const hp = dst.B.Hips ? dst.B.Hips.getWorldPosition(new THREE.Vector3()) : null;
+        if (hp) cOffs.push([hp.x, hp.z]);
+        else { const bb = new THREE.Box3(); dst.meshes.forEach((mesh) => bb.expandByObject(mesh, true)); const cc = bb.getCenter(new THREE.Vector3()); cOffs.push([cc.x, cc.z]); }
       }
       if (an.key === 'die') cOffs = cOffs.map(() => cOffs[0]);   // падает с того места, где стоял
+      else if (an.loop && cOffs.length > 1) {
+        // цикл: среднее положение таза + 30% его собственного покачивания (живо, но без «качелей»)
+        const mx = cOffs.reduce((a2, c) => a2 + c[0], 0) / cOffs.length, mz = cOffs.reduce((a2, c) => a2 + c[1], 0) / cOffs.length;
+        cOffs = cOffs.map((c) => [mx + (c[0] - mx) * 0.7, mz + (c[1] - mz) * 0.7]);
+      }
       const idx = [];
       for (const k of idx) {
         const b = new THREE.Box3();
