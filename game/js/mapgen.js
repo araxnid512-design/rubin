@@ -399,6 +399,31 @@
     return false;
   }
 
+  /* Техника на 2–3 клетки в ряд: все клетки свободны, проходимы и на одной высоте; models — индексы D.VEHICLES */
+  function vehicles(m, n, minX, models) {
+    m.vehicles = m.vehicles || [];
+    for (let k = 0; k < n; k++) {
+      for (let t = 0; t < 40; t++) {
+        const mi = U.pick(models), len = D.VEHICLES[mi][1], d = U.rand(0, 1);
+        const x = U.rand(minX || 0, m.w - 1 - (d === 0 ? len : 0)), y = U.rand(1, m.h - 2 - (d === 1 ? len : 0));
+        let ok = true;
+        const h0 = m.hgt[I(m, x, y)];
+        // клетка и соседи вокруг: проход вокруг машины
+        for (let j = -1; j <= len && ok; j++) for (let s = -1; s <= 1 && ok; s++) {
+          const X = d === 0 ? x + j : x + s, Y = d === 0 ? y + s : y + j;
+          if (!inb(m, X, Y)) { if (j >= 0 && j < len && s === 0) ok = false; continue; }
+          const inside = j >= 0 && j < len && s === 0;
+          if (inside && (!free(m, X, Y) || m.hgt[I(m, X, Y)] !== h0 || m.ground[I(m, X, Y)] === 9)) ok = false;
+          if (!inside && m.obj[I(m, X, Y)] === 23) ok = false;
+        }
+        if (!ok) continue;
+        for (let j = 0; j < len; j++) setO(m, d === 0 ? x + j : x, d === 0 ? y : y + j, 23);
+        m.vehicles.push({ x: x, y: y, len: len, d: d, m: mi, o: U.rand(0, 1) });
+        break;
+      }
+    }
+  }
+
   /* ---------- Генераторы по типам ---------- */
   const GEN = {};
   GEN.landing = function (o) {
@@ -415,6 +440,7 @@
     m.itemList = [{ kind: 'gems', amt: U.rand(3, 5) }, { kind: 'gems', amt: U.rand(3, 5) }, { kind: 'ammo', amt: U.rand(15, 25) }];
     props(m, 'tuft', 14); props(m, 'bush', 6); props(m, 'skull', 2); props(m, 'bones', 3, 6); props(m, 'bricks', 2, 6); decor(m, 'puddle', 2, 4);
     heights(m, 0.11, 0.6, 0.8, 6); if (Math.random() < 0.6) prefab(m, 'convoy', 8);
+    vehicles(m, U.rand(1, 2), 8, [0, 1, 2, 3, 4]);
     if (Math.random() < 0.7) prefab(m, U.pick(['house', 'house2']), 9, 11);
     return m;
   };
@@ -444,6 +470,7 @@
     props(m, 'tuft', 10); props(m, 'pipe', 5); props(m, 'sign', 3); props(m, 'bush', 4);
     props(m, 'tire', 3); props(m, 'bricks', 5); props(m, 'can', 3); props(m, 'papers', 4); props(m, 'rebar', 2); decor(m, 'puddle', 3); props(m, 'lamp', 3);
     heights(m, 0.13, 0.68, 0.9, 6); prefab(m, U.pick(['gas', 'checkpoint', 'pillbox']), 8, 3);
+    vehicles(m, U.rand(1, 2), 8, [0, 0, 1, 2, 4]);
     if (Math.random() < 0.5) prefab(m, U.pick(['house', 'house2']), 8, 11);
     return m;
   };
@@ -496,6 +523,7 @@
     props(m, 'tuft', 8); props(m, 'bones', 3); props(m, 'sign', 2, 8); props(m, 'pipe', 2);
     props(m, 'tire', 3); props(m, 'can', 4); props(m, 'papers', 3); props(m, 'bricks', 2); props(m, 'lamp', 2);
     heights(m, 0.12, 0.66, 0.9, 6); raise(m, 15, 5, 23, 13, 1); if (Math.random() < 0.6) prefab(m, 'outpost', 7);
+    vehicles(m, 1, 6, [3, 5]);
     if (Math.random() < 0.5) prefab(m, 'barracks', 6, 11);
     return m;
   };
@@ -663,6 +691,7 @@
     raise(m, x0 + 1, y0 + 1, x0 + w - 2, y0 + 1, 1); raise(m, x0 + 1, y0 + h - 2, x0 + w - 2, y0 + h - 2, 1);
     scatter(m, 18, 4, 6, x0 - 1); scatter(m, 9, 4, 5); scatter(m, 4, 4, 5); lines(m, 1, 2, 5);
     prefab(m, 'depot', 18);
+    vehicles(m, U.rand(1, 2), 6, [5, 5, 6, 3]);
     if (Math.random() < 0.6) prefab(m, 'barracks', 7, 3);
     props(m, 'pipe', 9, 5); props(m, 'sign', 3, 5); props(m, 'tuft', 6, 0); props(m, 'tire', 3); props(m, 'can', 4); props(m, 'rebar', 4); props(m, 'papers', 3); decor(m, 'puddle', 4); props(m, 'lamp', 4);
     decor(m, 'crack', 12); decor(m, 'scorch', 4, 8);

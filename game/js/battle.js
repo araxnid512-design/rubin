@@ -131,7 +131,7 @@
       w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, hgt: m.hgt, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac, map: mapType,
       units: [], turn: 1, phase: 'player', explored: new Array(m.w * m.h).fill(0),
       loot: {}, field: {}, drops: [], corpses: [], waves: [], spawn: m.spawn || [], nextId: 1, over: null,
-      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: []
+      queenDead: false, seed: U.rand(1, 1e9), waveNo: 0, objective: '', decals: [], vehicles: m.vehicles || []
     };
     BT.rollConditions(B, mapType);
     const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
@@ -439,6 +439,22 @@
     if (!o) return;
     B.objHp[i] -= dmg;
     DW.TR.chips(x, y, D.OBJ[o].c, o);
+    if (o === 23 && B.objHp[i] <= 0) {
+      // подбитая машина горит целиком: все её клетки — обломки, пожар
+      const v = (B.vehicles || []).find(function (vv) { return !vv.dead && (vv.d === 0 ? (y === vv.y && x >= vv.x && x < vv.x + vv.len) : (x === vv.x && y >= vv.y && y < vv.y + vv.len)); });
+      if (v) {
+        v.dead = true;
+        for (let j = 0; j < v.len; j++) {
+          const X = v.d === 0 ? v.x + j : v.x, Y = v.d === 0 ? v.y : v.y + j, k = BT.idx(X, Y);
+          B.obj[k] = 0; B.objHp[k] = 0;
+          if (D.GROUND[B.ground[k]].walk) B.ground[k] = 8;
+          DW.TR.tileChanged(X, Y); DW.TR.debris(X, Y, D.OBJ[23].c, 23); DW.TR.decal(X, Y, 'scorch', 1);
+          B.decor.push({ x: X + 0.5, y: Y + 0.5, t: 'fire', r: 0.6 });
+        }
+        DW.TR.refreshFires();
+        return;
+      }
+    }
     if (B.objHp[i] <= 0) {
       B.obj[i] = 0; B.objHp[i] = 0;
       if (D.GROUND[B.ground[i]].walk) B.ground[i] = 8;

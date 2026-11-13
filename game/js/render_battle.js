@@ -409,7 +409,7 @@
     if (t === 'interior' || t === 'cave') return { dx: 0.95, dy: -0.3, len: 0.3, a: 0.28, ao: 0.62 };
     return { dx: 0.99, dy: -0.12, len: 0.62, a: 0.4, ao: 0.5 };
   }
-  const FOOT = { 21: [0.4, 0.3], 22: [0.4, 0.32], 3: [0.42, 0.36], 4: [0.33, 0.33], 7: [0.47, 0.3], 8: [0.36, 0.36], 9: [0.2, 0.2], 10: [0.46, 0.42], 12: [0.35, 0.3], 15: [0.48, 0.48], 16: [0.36, 0.36], 18: [0.5, 0.36], 19: [0.48, 0.12], 20: [0.3, 0.3] };
+  const FOOT = { 23: [0.5, 0.42], 21: [0.4, 0.3], 22: [0.4, 0.32], 3: [0.42, 0.36], 4: [0.33, 0.33], 7: [0.47, 0.3], 8: [0.36, 0.36], 9: [0.2, 0.2], 10: [0.46, 0.42], 12: [0.35, 0.3], 15: [0.48, 0.48], 16: [0.36, 0.36], 18: [0.5, 0.36], 19: [0.48, 0.12], 20: [0.3, 0.3] };
   const WALLT = { 1: 0.22, 2: 0.27, 6: 0.25, 11: 0.3, 13: 0.15, 14: 0.3 };
   function footprints(B, x, y, o) {
     const cx = x + 0.5, cy = y + 0.5;
@@ -1219,6 +1219,51 @@
     s = sprites[key] = { c: c, w: f.w, h: f.h, ox: f.ox, oy: f.oy, dark: null, d3: true };
     return s;
   }
+  /* ---------- Техника на 2–3 клетки ----------
+     Один спрайт на всю машину, нарезанный по вертикали на полосы клеток: каждая полоса рисуется вместе со своей
+     клеткой по глубине, поэтому бойцы перед машиной и за ней перекрываются правильно. */
+  let vehMap = null, vehMapB = null, vehMapN = -1;
+  function vehAt(B, i) {
+    const list = B.vehicles || [];
+    const n = list.reduce(function (a, v) { return a + (v.dead ? 1 : 0); }, list.length * 10);
+    if (vehMapB !== B || vehMapN !== n) {
+      vehMap = {}; vehMapB = B; vehMapN = n;
+      list.forEach(function (v) { if (v.dead) return; for (let j = 0; j < v.len; j++) vehMap[(v.d === 0 ? v.y : v.y + j) * B.w + (v.d === 0 ? v.x + j : v.x)] = { v: v, k: j }; });
+    }
+    return vehMap[i] || null;
+  }
+  const vehDark = {};
+  function drawVehicleTile(g, B, x, y, i, vis, unitsAt, ov) {
+    const S3 = DW.S3;
+    const e = vehAt(B, i);
+    if (!e || !S3 || !S3.ready('p_veh')) return false;
+    const v = e.v, n = S3.count('p_veh', 'v');
+    const vi = (v.m * 4 + v.d * 2 + (v.o || 0)) % Math.max(1, n);
+    let f = S3.frame([['p_veh', 'v', vi, 0]]);
+    if (!f) return false;
+    if (!(vis && vis[i])) {
+      // в тумане войны — затемнённая копия (кэш на вариант)
+      let dk = vehDark[vi];
+      if (!dk) { const c = canvas(f.c.width, f.c.height), cg = c.getContext('2d'); cg.drawImage(f.c, 0, 0); cg.globalCompositeOperation = 'source-atop'; cg.fillStyle = 'rgba(12,10,8,0.55)'; cg.fillRect(0, 0, c.width, c.height); dk = vehDark[vi] = { c: c, w: f.w, h: f.h, ox: f.ox, oy: f.oy }; }
+      f = dk;
+    }
+    // центр машины на экране и смещение клетки k от центра
+    const a = isoC(v.x, v.y), b = isoC(v.d === 0 ? v.x + v.len - 1 : v.x, v.d === 0 ? v.y : v.y + v.len - 1);
+    const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+    const off = (e.k - (v.len - 1) / 2) * HW * (v.d === 0 ? 1 : -1);
+    const left = (v.d === 0 ? e.k === 0 : e.k === v.len - 1) ? -1e4 : off - HW / 2;
+    const right = (v.d === 0 ? e.k === v.len - 1 : e.k === 0) ? 1e4 : off + HW / 2;
+    const dx0 = cx - f.ox, kx = f.c.width / f.w;
+    const sx0 = Math.max(0, (cx + left - dx0)), sx1 = Math.min(f.w, (cx + right - dx0));
+    if (sx1 <= sx0) return true;
+    // полупрозрачно, если за машиной свой боец
+    const behind = function (xx, yy) { const us2 = xx >= 0 && yy >= 0 ? unitsAt[yy * B.w + xx] : null; return us2 && us2.some(function (uu) { return uu.side === 'p' || uu === ov.target; }); };
+    const cut = behind(x - 1, y) || behind(x, y - 1) || behind(x - 1, y - 1);
+    if (cut) g.globalAlpha = 0.45;
+    g.drawImage(f.c, sx0 * kx, 0, (sx1 - sx0) * kx, f.c.height, dx0 + sx0, cy - f.oy, sx1 - sx0, f.h);
+    if (cut) g.globalAlpha = 1;
+    return true;
+  }
   function objSprite(type, mask, variant, dark, damaged, v12) {
     const s3 = objSprite3d(type, v12 === undefined ? variant : v12, dark, damaged);
     if (s3) return s3;
@@ -1713,7 +1758,7 @@
     const c = isoC(u.x, u.y);
     parts(c[0], c[1], 24, 14, col, 90, 600, 3, 320, 90);
   };
-  const OMAT = { 21: 'wood', 22: 'wood', 7: 'metal', 9: 'metal', 11: 'metal', 12: 'metal', 15: 'metal', 18: 'metal', 4: 'wood', 5: 'wood', 10: 'cloth', 13: 'wood', 19: 'wood', 1: 'stone', 2: 'brick', 3: 'stone', 8: 'stone', 14: 'stone', 17: 'wood', 6: 'sand', 16: 'flesh', 20: 'crystal' };
+  const OMAT = { 23: 'metal', 21: 'wood', 22: 'wood', 7: 'metal', 9: 'metal', 11: 'metal', 12: 'metal', 15: 'metal', 18: 'metal', 4: 'wood', 5: 'wood', 10: 'cloth', 13: 'wood', 19: 'wood', 1: 'stone', 2: 'brick', 3: 'stone', 8: 'stone', 14: 'stone', 17: 'wood', 6: 'sand', 16: 'flesh', 20: 'crystal' };
   /* Попадание по материалу: искры по металлу, щепа по дереву, крошка по камню, песок из мешков */
   function impact(X, Y, mat, big) {
     const k = big ? 1.8 : 1;
@@ -3006,9 +3051,10 @@
           if (props[i]) props[i].forEach(function (p) { drawProp(g, p, t); });
           if (itemsAt[i]) drawItem(g, itemsAt[i], t);
           const o = B.obj[i];
-          if (o) {
+          if (o === 23 && drawVehicleTile(g, B, x, y, i, vis, unitsAt, ov)) { /* техника — своя полоса спрайта */ }
+          else if (o) {
             const vh = U.hash2(x, y, o);
-            const sp = objSprite(o, maskAt(B, x, y, o), Math.floor(vh * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5, Math.floor(vh * 997));
+            const sp = objSprite(o === 23 ? 7 : o, maskAt(B, x, y, o), Math.floor(vh * 3), !(vis && vis[i]), B.objHp[i] < D.OBJ[o].hp * 0.5, Math.floor(vh * 997));
             let cut = false;
             if (D.OBJ[o].lift > 0.45 && o !== 15) {
               const behind = function (xx, yy) { const us2 = xx >= 0 && yy >= 0 ? unitsAt[yy * B.w + xx] : null; return us2 && us2.some(function (uu) { return uu.side === 'p' || uu === ov.target; }); };
