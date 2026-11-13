@@ -199,7 +199,9 @@
   G.blv = function (id) { return G.state.buildings[id] || 0; };
   G.tier = function () {
     let t = 0;
-    for (let i = 0; i < D.TIERS.length; i++) if (G.state.delivered >= D.TIERS[i].need) t = i;
+    // доверие Института — сданные драгоценности плюс поступки отряда (события), в счёт «вольной» не идёт
+    const v = G.state.delivered + (G.state.trust || 0);
+    for (let i = 0; i < D.TIERS.length; i++) if (v >= D.TIERS[i].need) t = i;
     return t;
   };
 
@@ -566,6 +568,110 @@
           return 'Лагеря банд отмечены на карте, а их охрана ослаблена (−1 к сложности).';
         } },
         { t: 'Прогнать', run: function () { return 'Перебежчик сплюнул и ушёл.'; } }
+      ]
+    },
+    {
+      id: 'tribute', title: 'Дань',
+      text: 'Дорогу перегородили люди из чужой банды. Старший требует «плату за проход»: патроны или драгоценности.',
+      choices: [
+        { t: 'Отдать 25 патронов', cond: function (st) { return st.res.ammo >= 25; }, run: function (st) { st.res.ammo -= 25; return 'Банда расступилась. Отряд прошёл без выстрелов.'; } },
+        { t: 'Отдать 8 💎', cond: function (st) { return st.res.gems >= 8; }, run: function (st) { st.res.gems -= 8; return 'Банда забрала камни и ушла.'; } },
+        { t: 'Отказать', run: function (st) {
+          // короткая перестрелка: кого-то зацепит, зато у бандитов кое-что было
+          const s = U.pick(st.roster); s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 3);
+          const a = U.rand(10, 25); st.res.ammo += a;
+          return 'Перестрелка вышла короткой. «' + s.name + '» ранен (−3 ОЗ), но с бандитов сняли ' + a + ' ' + D.icon('ammo') + '.';
+        } }
+      ]
+    },
+    {
+      id: 'stranger', title: 'Раненый старатель',
+      text: 'У дороги — вольный старатель с разорванной ногой. Просит о помощи и обещает показать, где прячет добычу.',
+      choices: [
+        { t: 'Перевязать (−1 аптечка)', cond: function (st) { return st.res.meds >= 1; }, run: function (st) {
+          st.res.meds -= 1; const g = U.rand(6, 12), m = U.rand(1, 3); st.res.gems += g; st.res.materials += m;
+          G.log('Отряд помог раненому старателю.');
+          return 'Старатель сдержал слово: +' + g + ' ' + D.icon('gems') + ', +' + m + ' ' + D.icon('materials') + '.';
+        } },
+        { t: 'Пройти мимо', run: function () { return 'Его крики ещё долго было слышно позади.'; } }
+      ]
+    },
+    {
+      id: 'brood', title: 'Следы выводка',
+      text: 'Свежие следы мутантов и обглоданные кости. Рядом — их тропа и, похоже, запас камней в старой норе.',
+      choices: [
+        { t: 'Обойти (−1 провизии на бойца)', cond: function (st) { return st.res.food >= st.roster.length; }, run: function (st) { st.res.food -= st.roster.length; return 'Крюк вышел долгим, но обошлось без стычки.'; } },
+        { t: 'Обыскать нору', run: function (st) {
+          const g = U.rand(8, 16); st.res.gems += g;
+          if (Math.random() < 0.5) { const s = U.pick(st.roster); s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 3); return 'Из норы выскочила тварь — «' + s.name + '» ранен (−3 ОЗ). Но камни ваши: +' + g + ' ' + D.icon('gems') + '.'; }
+          return 'Нора пуста, если не считать камней: +' + g + ' ' + D.icon('gems') + '.';
+        } }
+      ]
+    },
+    {
+      id: 'radio', title: 'Сигнал',
+      text: 'В развалинах — старая радиостанция, ещё ловит какой-то сигнал. Если починить, можно передать Институту координаты жил.',
+      choices: [
+        { t: 'Починить (−2 стройматериала)', cond: function (st) { return st.res.materials >= 2; }, run: function (st) {
+          st.res.materials -= 2; st.trust = (st.trust || 0) + 25;
+          G.log('Отряд передал Институту координаты жил — доверие растёт.');
+          return 'Связь есть. Институт благодарит за координаты: доверие +25 (лучше товары через Портал).';
+        } },
+        { t: 'Разобрать на детали', run: function (st) { const m = U.rand(1, 3); st.res.materials += m; return 'Из радиостанции вышло +' + m + ' ' + D.icon('materials') + '.'; } }
+      ]
+    },
+    {
+      id: 'quarrel', title: 'Ссора',
+      text: null,
+      make: function (st) {
+        const l = U.shuffle(st.roster.slice()).slice(0, 2);
+        if (l.length < 2) return { text: 'В отряде ворчат из-за пайка, но до драки не дошло.', a: null, b: null };
+        return { a: l[0].id, b: l[1].id, text: '«' + l[0].name + '» и «' + l[1].name + '» сцепились из-за пайка. Остальные ждут, что скажет командир.' };
+      },
+      choices: [
+        { t: 'Помирить (−4 провизии на общий ужин)', cond: function (st) { return st.res.food >= 4; }, run: function (st, ctx) {
+          st.res.food -= 4;
+          const a = st.roster.find(function (x) { return x.id === ctx.a; }), b = st.roster.find(function (x) { return x.id === ctx.b; });
+          if (a && b) { a.bonds = a.bonds || {}; b.bonds = b.bonds || {}; a.bonds[b.id] = (a.bonds[b.id] || 0) + 1; b.bonds[a.id] = (b.bonds[a.id] || 0) + 1; }
+          return 'За общим котлом помирились. Они стали ближе друг к другу.';
+        } },
+        { t: 'Наказать обоих', run: function (st, ctx) {
+          [ctx.a, ctx.b].forEach(function (id) { const x = st.roster.find(function (q) { return q.id === id; }); if (x) x.xp = Math.max(0, x.xp - 1); });
+          return 'Порядок наведён жёстко. Обиду затаили (−1 опыта каждому).';
+        } }
+      ]
+    },
+    {
+      id: 'sample', title: 'Запрос Института',
+      text: 'С грузом пришла записка: Институту нужны образцы — камни с жилы, не сданные, а «для исследований». Платят доверием.',
+      choices: [
+        { t: 'Отправить 10 💎', cond: function (st) { return st.res.gems >= 10; }, run: function (st) { st.res.gems -= 10; st.trust = (st.trust || 0) + 30; return 'Образцы ушли через Портал. Доверие Института +30.'; } },
+        { t: 'Отказать', run: function (st) { st.trust = Math.max(-30, (st.trust || 0) - 10); return 'Институт недоволен: доверие −10.'; } }
+      ]
+    },
+    {
+      id: 'gunsmith', title: 'Оружейник',
+      text: 'Одиночка-оружейник из старых зеков меняет самодельные детали к стволам на камни.',
+      choices: [
+        { t: '15 💎 → модуль оружия', cond: function (st) { return st.res.gems >= 15; }, run: function (st) {
+          st.res.gems -= 15; const m = U.pick(Object.keys(D.MODS)); st.stock.mods = st.stock.mods || {}; st.stock.mods[m] = (st.stock.mods[m] || 0) + 1;
+          return 'Получено: «' + D.MODS[m].n + '» — поставить можно в окне отряда.';
+        } },
+        { t: '8 💎 → 2 гранаты', cond: function (st) { return st.res.gems >= 8; }, run: function (st) { st.res.gems -= 8; st.res.grenades += 2; return 'Две самодельные гранаты — грубо, но взрываются.'; } },
+        { t: 'Отказаться', run: function () { return 'Оружейник пожал плечами и ушёл.'; } }
+      ]
+    },
+    {
+      id: 'veteran', title: 'Старый вояка',
+      text: 'К костру подсел бывалый зек из первых партий. За еду готов поучить молодых, как выживать в бою.',
+      choices: [
+        { t: 'Накормить (−6 провизии)', cond: function (st) { return st.res.food >= 6; }, run: function (st) {
+          st.res.food -= 6;
+          const l = st.roster.slice().sort(function (a, b) { return a.xp - b.xp; }).slice(0, 2);
+          l.forEach(function (x) { x.xp += 2; });
+          return 'До утра он учил новичков: ' + l.map(function (x) { return '«' + x.name + '»'; }).join(' и ') + ' — +2 опыта.';
+        } },
+        { t: 'Прогнать', run: function () { return 'Старик ушёл, бормоча, что молодые сами всё узнают — если доживут.'; } }
       ]
     }
   ];
