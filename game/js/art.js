@@ -587,7 +587,16 @@
     raider: { body: '#4a3b2e', pants: '#2a2520', mask: '#8a2222', coat: '#3a2e24', look: { skin: '#c99a74', hair: '#1a1a1a', style: 'buzz', beard: 'none', glasses: false } },
     thug: { body: '#6a4228', pants: '#2a2520', look: { skin: '#b8865e', hair: '#2b2118', style: 'bald', beard: 'beard', scar: 1, glasses: false } },
     marksman: { body: '#3a4530', pants: '#262a20', hood: '#2f3a2a', look: { skin: '#c99a74', hair: '#3a2a20', style: 'short', beard: 'stubble', glasses: false } },
-    boss: { body: '#1f1b18', pants: '#151210', collar: '#6a5a48', look: { skin: '#c99a74', hair: '#5a4a40', style: 'short', beard: 'beard', scar: 2, glasses: false } }
+    boss: { body: '#1f1b18', pants: '#151210', collar: '#6a5a48', look: { skin: '#c99a74', hair: '#5a4a40', style: 'short', beard: 'beard', scar: 2, glasses: false } },
+    sobr: { body: '#1e2226', pants: '#15181a', mask: '#111111', look: { skin: '#c99a74', hair: '#1a1a1a', style: 'buzz', beard: 'none', glasses: false } },
+    sobr_shield: { body: '#1e2226', pants: '#15181a', mask: '#111111', look: { skin: '#c99a74', hair: '#1a1a1a', style: 'buzz', beard: 'none', glasses: false } },
+    sobr_sniper: { body: '#3a4530', pants: '#2a3224', hood: '#3a4530', look: { skin: '#c99a74', hair: '#1a1a1a', style: 'short', beard: 'none', glasses: false } },
+    sobr_mg: { body: '#1e2226', pants: '#15181a', mask: '#111111', look: { skin: '#c99a74', hair: '#1a1a1a', style: 'buzz', beard: 'none', glasses: false } },
+    sobr_cmd: { body: '#1e2226', pants: '#15181a', collar: '#3a4a3a', look: { skin: '#d4a582', hair: '#8a7a6a', style: 'short', beard: 'stubble', glasses: false } },
+    clan_blade: { body: '#2a2622', pants: '#1c1a18', look: { skin: '#c99a74', hair: '#1a1a1a', style: 'bald', beard: 'stubble', glasses: false } },
+    clan_obrez: { body: '#3a3028', pants: '#22201c', look: { skin: '#b8865e', hair: '#2b2118', style: 'short', beard: 'beard', glasses: false } },
+    clan_gun: { body: '#4a4440', pants: '#242220', look: { skin: '#c99a74', hair: '#2b2118', style: 'buzz', beard: 'none', glasses: false } },
+    clan_elder: { body: '#5a4a38', pants: '#22201c', collar: '#8a7a60', look: { skin: '#c99a74', hair: '#9a9a9a', style: 'short', beard: 'beard', glasses: false } }
   };
 
   DW.ART = ART;

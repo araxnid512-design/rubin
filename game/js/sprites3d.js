@@ -149,7 +149,12 @@
 
   /* ---------- Кто чем нарисован ---------- */
   // у бандитов несколько моделей — каждому своя по номеру
-  const ENEMY_BODY = { raider: ['b_mur1', 'b_bandit3', 'b_bandit4'], thug: ['b_mur2', 'b_bandit5'], marksman: ['b_marksman'], boss: ['b_boss'] };
+  // СОБР и клан: свои модели (h_sobr*, h_clan*), пока их нет — близкие по виду тела
+  const ENEMY_BODY = { raider: ['b_mur1', 'b_bandit3', 'b_bandit4'], thug: ['b_mur2', 'b_bandit5'], marksman: ['b_marksman'], boss: ['b_boss'],
+    sobr: ['b_sobr1', 'b_sobr4', 'b_heavy', 'b_exo'], sobr_shield: ['b_sobr2', 'b_exo'], sobr_sniper: ['b_sobr3', 'b_marksman'], sobr_mg: ['b_sobr5', 'b_heavy'], sobr_cmd: ['b_sobr4', 'b_exo'],
+    clan_blade: ['b_clan1', 'b_clan3', 'b_clan6', 'b_bandit3', 'b_mur2'], clan_obrez: ['b_clan2', 'b_clan4', 'b_bandit5'], clan_gun: ['b_clan3', 'b_clan1', 'b_clan2', 'b_mur1'], clan_elder: ['b_clan5', 'b_boss'] };
+  // запасное оружие на теле, пока нет моделей новых стволов
+  const WFALL = { ak74m: 'ak2', vityaz: 'ppsh', val: 'ak2', vss: 'sniper', pkp: 'lmg', obrez: 'shotgun', gsh18: 'ppsh', tt: 'ppsh' };
   const NAME_BODY = { 'Крут': 'b_krut', 'Мальборо': 'b_marlboro', 'Сыч': 'b_pris1', 'Тихий': 'b_pris1', 'Док': 'b_pris2', 'Бугай': 'b_pris2' };
   const ARMOR_BODY = { vest: 'b_vest', heavy: 'b_heavy', exo: 'b_exo' };
   function first(list) { for (let i = 0; i < list.length; i++) if (list[i] && S3.has(list[i])) return list[i]; return null; }
@@ -173,9 +178,13 @@
     }
     if (ENEMY_BODY[u.type]) {
       const L = ENEMY_BODY[u.type];
-      const body = first([L[(u.id || 0) % L.length], L[0], 'b_mur1']);
+      // новые модели первыми; нет — по кругу из имеющихся
+      const have = L.filter(function (b) { return S3.has(b); });
+      const body = have.length ? have[(u.id || 0) % have.length] : first([L[0], 'b_mur1']);
       const T = DW.D.ENEMIES[u.type];
-      return body ? { body: body, weapon: first(['w_' + (u.weapon || (T && T.weapon) || 'ak'), 'w_ak']), kind: 'human' } : null;
+      if (T && T.melee) return body ? { body: body, weapon: null, kind: 'human' } : null;
+      const wid = u.weapon || (T && T.weapon) || 'ak';
+      return body ? { body: body, weapon: first(['w_' + wid, 'w_' + (WFALL[wid] || 'ak'), 'w_ak']), kind: 'human' } : null;
     }
     // вторая порода Падальщиков — через одного
     if (u.type === 'scav' && (u.id || 0) % 2 && S3.has('c_scav2')) return { body: 'c_scav2', kind: 'creature' };

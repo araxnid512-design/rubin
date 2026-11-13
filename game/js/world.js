@@ -104,7 +104,7 @@
       }
     }
     spread('lair', 3, 2);
-    spread('camp', 3, 2);
+    spread('camp', 5, 2);   // лагеря банд, станы клана, блокпосты СОБР
     // жилы
     let vn = U.shuffle(free().filter(function (i) { return hops[i] >= 1; }));
     for (let k = 0; k < 5 && k < vn.length; k++) type[vn[k]] = 'vein';
@@ -126,6 +126,14 @@
         cargo: null, searches: tp === 'ruins' ? 3 : 0,
         map: { ruins: U.pick(['ruins', 'ruins', 'factory', 'forest']), vein: U.pick(['vein', 'crystalcave']), lair: U.pick(['lair', 'lair', 'swamp']) }[tp] || D.NODE_TYPES[tp].map
       };
+    });
+    // хозяева лагерей: дальний — СОБР, двое — клан, остальные — банды
+    const camps = nodes.filter(function (n) { return n.type === 'camp'; }).sort(function (a, b) { return b.hops - a.hops; });
+    camps.forEach(function (n, k) {
+      n.fac = k === 0 ? 'sobr' : (k <= 2 ? 'clan' : 'raider');
+      if (n.fac === 'sobr') n.diff = Math.max(3, n.diff);
+      const pool = D.NODE_NAMES[n.fac] && (names['_' + n.fac] = names['_' + n.fac] || U.shuffle(D.NODE_NAMES[n.fac].slice()));
+      if (pool && pool.length) n.name = pool.shift();
     });
     return { nodes: nodes, edges: edges, landing: 0, seed: U.rand(1, 1e9) };
   }
@@ -601,10 +609,12 @@
     st.world.nodes.forEach(function (n) {
       if (!n.known || n.cleared || n.id === st.baseNode) return;
       if (n.type === 'camp') {
-        for (let i = 0; i < 2; i++) {
-          const a = t / 2600 + n.id + i * 3.1, x = n.x + Math.sin(a) * 30, y = n.y + 16 + i * 5;
+        // патруль лагеря: банда — 2, клан — 3 (их много), СОБР — 2 в чёрном с касками
+        const F = n.fac === 'sobr' ? { body: '#1e2226', pants: '#15181a', mask: '#111', helmet: true, hc: '#2c3a30', w: 'ak2', k: 2 } : (n.fac === 'clan' ? { body: '#2a2622', pants: '#1c1a18', mask: null, w: 'ak', k: 3 } : { body: BANDIT.body, pants: BANDIT.pants, mask: BANDIT.mask, w: 'ak', k: 2 });
+        for (let i = 0; i < F.k; i++) {
+          const a = t / 2600 + n.id + i * 2.1, x = n.x + Math.sin(a) * 30, y = n.y + 16 + i * 5;
           g.save(); g.translate(x, y); g.scale(0.3, 0.3);
-          ART.human(g, { look: lookN(10 + i), body: BANDIT.body, pants: BANDIT.pants, mask: BANDIT.mask, robe: false, weapon: 'ak', dir: Math.cos(a) >= 0 ? 1 : -1, aim: 0.2, walk: t / 110 + i, seed: 20 + i }, t);
+          ART.human(g, { look: lookN(10 + i + (n.fac === 'clan' ? 5 : 0)), body: F.body, pants: F.pants, mask: F.mask, robe: false, weapon: F.w, helmet: !!F.helmet, helmetColor: F.hc, armor: n.fac === 'sobr' ? 'vest' : null, dir: Math.cos(a) >= 0 ? 1 : -1, aim: 0.2, walk: t / 110 + i, seed: 20 + i }, t);
           g.restore();
         }
       } else if (n.type === 'lair' || n.type === 'nest') {
@@ -730,7 +740,7 @@
       if (!n.known) return;
       if (n.type === 'landing') glow(n.x, n.y - 22, 44, '120,230,255', 0.5 * k);
       if (n.outpost) glow(n.x + 30, n.y - 22, 18, '255,190,90', 0.6 * k);
-      if (!n.cleared && n.type === 'camp') glow(n.x, n.y, 30, '255,140,60', 0.35 * k);
+      if (!n.cleared && n.type === 'camp') glow(n.x, n.y, 30, n.fac === 'sobr' ? '120,160,230' : (n.fac === 'clan' ? '230,190,80' : '255,140,60'), 0.35 * k);
       if (!n.cleared && (n.type === 'lair' || n.type === 'nest')) glow(n.x, n.y - 10, 30, '255,80,140', 0.3 * k);
     });
     glow(sq[0], sq[1], 30, '255,160,70', 0.5 * k);

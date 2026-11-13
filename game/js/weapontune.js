@@ -39,11 +39,24 @@
     hlmg: { fire: { n: 5, gap: 85, flash: 24, flife: 80, tw: 3, tlife: 115, tr: '#ffc050', cas: '#d8a840', casS: 3, eject: 1.1, smoke: 6, ring: 0, kick: 2.2, shake: 2.6, spread: 1.1, fk: 'std' },
       snd: { vol: 1.05, pitch: 0.7, crack: 0.7, body: 1, bodyF: 650, bodyD: 0.14, thump: 0.9, thumpF: 75, thumpD: 0.14, tail: 0.7, tailD: 0.7, echo: 0.6, dist: 0.5, mech: 0, mechD: 0, jit: 0.04 } }
   };
+  // оружие группировок (СОБР, клан) — от близких по классу стволов, со своими очередями, вспышками и звуком
+  (function () {
+    const cp = function (src, fire, snd) { const d = JSON.parse(JSON.stringify(WT.DEF[src])); Object.assign(d.fire, fire || {}); Object.assign(d.snd, snd || {}); return d; };
+    WT.DEF.ak74m = cp('ak2', { n: 3, gap: 85, tr: '#fff0b0' }, { pitch: 1.08, bodyF: 1900 });
+    WT.DEF.vityaz = cp('ppsh', { n: 5, gap: 60, flash: 10, tr: '#ffe6a0' }, { pitch: 1.25, bodyF: 2100 });
+    // бесшумные: маленькая вспышка, почти без дыма, тихий глухой хлопок
+    WT.DEF.val = cp('ak2', { n: 3, gap: 90, flash: 5, flife: 30, smoke: 1, tr: '#d8d0b8', kick: 1.3, shake: 0.8 }, { vol: 0.35, crack: 0.1, body: 0.35, bodyF: 700, tail: 0.08, echo: 0.1, mech: 0.6, mechD: 0.05 });
+    WT.DEF.vss = cp('sniper', { flash: 6, flife: 35, smoke: 1, ring: 0, tr: '#e8e0c8', kick: 1.8, shake: 1 }, { vol: 0.4, crack: 0.12, body: 0.4, bodyF: 650, tail: 0.1, echo: 0.12, mech: 0.7, mechD: 0.06 });
+    WT.DEF.pkp = cp('lmg', { n: 6, gap: 64, flash: 18 }, { pitch: 0.95 });
+    WT.DEF.obrez = cp('shotgun', { n: 2, gap: 260, flash: 26, spread: 1.4 }, { pitch: 0.9, vol: 1.1 });
+    WT.DEF.gsh18 = cp('ak', { n: 2, gap: 170, flash: 9, flife: 40, smoke: 2, kick: 1, shake: 0.6, tw: 1.4 }, { vol: 0.7, pitch: 1.35, body: 0.6, bodyF: 2200, tail: 0.2 });
+    WT.DEF.tt = cp('ak', { n: 2, gap: 190, flash: 10, flife: 40, smoke: 2, kick: 1.1, shake: 0.6, tw: 1.4 }, { vol: 0.75, pitch: 1.3, body: 0.65, bodyF: 2000, tail: 0.22 });
+  })();
   // общая физика боя
   WT.PHYS0 = { casBounce: 0.32, casFric: 0.5, casGrav: 420, knock: 3, tink: 0.5, echoOut: 0.25, echoIn: 0.9 };
   for (const k in WT.DEF) WT.DEF[k].hold = H0();
   // устройство перезарядки
-  WT.RK = { ppsh: 'drum', ak: 'mag', ak2: 'mag', lmg: 'box', hlmg: 'box', sniper: 'bolt', hsniper: 'bolt', shotgun: 'pump' };
+  WT.RK = { ppsh: 'drum', ak: 'mag', ak2: 'mag', lmg: 'box', hlmg: 'box', sniper: 'bolt', hsniper: 'bolt', shotgun: 'pump', ak74m: 'mag', vityaz: 'mag', val: 'mag', vss: 'mag', pkp: 'box', obrez: 'pump', gsh18: 'mag', tt: 'mag' };
   WT.ORDER = ['ppsh', 'ak', 'ak2', 'shotgun', 'sniper', 'hsniper', 'lmg', 'hlmg'];
 
   /* Пресет по умолчанию: сюда вставляется текст, выгруженный из «Мастерской оружия» («Выгрузить»), —

@@ -240,6 +240,13 @@
         case 'rifle':
           for (let i = 0; i < 3; i++) { noise(t + i * 0.09, 0.13, 1300, 0.8, 0.55); tone(t + i * 0.09, 0.08, 170, 60, 'square', 0.1); }
           break;
+        case 'pistol':
+          for (let i = 0; i < 2; i++) { noise(t + i * 0.16, 0.09, 2100, 1.1, 0.45); tone(t + i * 0.16, 0.05, 260, 90, 'square', 0.08); }
+          break;
+        case 'supp':
+          // бесшумное оружие: глухие хлопки и лязг затвора
+          for (let i = 0; i < 3; i++) { noise(t + i * 0.1, 0.05, 700, 1.4, 0.22); noise(t + i * 0.1 + 0.02, 0.03, 3800, 4, 0.12); }
+          break;
         case 'smg':
           for (let i = 0; i < 7; i++) { noise(t + i * 0.046, 0.07, 1700, 0.9, 0.42); tone(t + i * 0.046, 0.045, 210, 80, 'square', 0.07); }
           break;

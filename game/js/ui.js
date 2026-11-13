@@ -418,7 +418,7 @@
   /* ---------- Справочник врагов ---------- */
   UI.bestiary = function () {
     const st = DW.G.state, met = st.metEnemies || {}, kb = st.killsByType || {};
-    const order = ['scav', 'spitter', 'brute', 'alpha', 'queen', 'raider', 'thug', 'marksman', 'boss', 'guardian'];
+    const order = ['scav', 'spitter', 'brute', 'alpha', 'queen', 'raider', 'thug', 'marksman', 'boss', 'clan_blade', 'clan_obrez', 'clan_gun', 'clan_elder', 'sobr', 'sobr_shield', 'sobr_sniper', 'sobr_mg', 'sobr_cmd', 'guardian'];
     const wrap = el('div', { class: 'bestiary' });
     const known = order.filter(function (t) { return met[t]; }).length;
     wrap.appendChild(el('div', { class: 'small dim', html: 'Встречено: <b>' + known + '</b> из ' + order.length + ' · сведения появляются, когда отряд впервые видит врага.' }));
@@ -476,9 +476,9 @@
       const hurt = function (s) { return kind !== 'defense' && (s.injury || 0) > 0; };
       const sorted = st.roster.slice().sort(function (a, b) { return G.hp(b) / G.maxHp(b) - G.hp(a) / G.maxHp(a); });
       sorted.filter(function (s) { return !hurt(s); }).slice(0, 6).forEach(function (s) { chosen[s.id] = 1; });
-      const T = D.NODE_TYPES[node.type];
+      const T = D.nodeInfo(node);
       const intel = {
-        landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: 'бандиты' + (node.diff >= 3 ? ' и главарь' : ''),
+        landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: node.fac === 'clan' ? 'клан — много бойцов и Старший' : (node.fac === 'sobr' ? 'группа СОБР: щиты, бронежилеты, светошумовые' : 'бандиты' + (node.diff >= 3 ? ' и главарь' : '')),
         lair: 'стая мутантов и вожак', site: 'мутанты или бандиты', vault: 'механические стражи', nest: 'Матка и её выводок'
       }[node.type];
       let lairs = 0;
@@ -496,6 +496,8 @@
             landing: ['scav', 'spitter'], ruins: ['scav', 'raider', 'thug'], vein: ['scav', 'spitter', 'brute'], camp: ['raider', 'thug', 'marksman', 'boss'],
             lair: ['scav', 'spitter', 'brute'], site: ['raider', 'scav', 'marksman'], vault: ['guardian', 'scav'], nest: ['queen', 'brute', 'spitter']
           }[node.type] || [];
+          if (node.type === 'camp' && node.fac === 'clan') types.splice(0, types.length, 'clan_elder', 'clan_blade', 'clan_obrez', 'clan_gun');
+          if (node.type === 'camp' && node.fac === 'sobr') types.splice(0, types.length, 'sobr_cmd', 'sobr_shield', 'sobr', 'sobr_sniper');
           const shown = types.filter(function (t) { return !(t === 'boss' && node.diff < 3) && !(t === 'brute' && node.diff < 3 && node.type !== 'nest') && !(t === 'marksman' && node.diff < 3); });
           body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmarkURL(node.type) + '" alt=""><div class="ptext"><b>' + T.n + '</b>' + (D.MAP_NAMES[node.map] ? ' — ' + D.MAP_NAMES[node.map].toLowerCase() : '') + ' · опасность ' + skulls(node.diff) + '<br>' + T.desc +
             '<br>Разведка: <b>' + intel + '</b>.' + (kind === 'ambush' ? ' <b class="bad">Засада!</b>' : '') +

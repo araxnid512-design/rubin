@@ -2157,7 +2157,7 @@
         // каждый выстрел очереди — свой звук, ровно со вспышкой; дальние выстрелы тише и глуше
         const Bq = DW.BT.get(), env = Bq && (Bq.tod === 'interior' || Bq.tod === 'cave') ? 'in' : 'out';
         const far = att.side === 'p' ? 0 : 0.35;
-        const quiet = att.mods && att.mods.indexOf('supp') >= 0;
+        const quiet = (att.mods && att.mods.indexOf('supp') >= 0) || !!W.quiet;
         setTimeout(function () { for (let i = 0; i < cnt; i++) DW.SFX.shot(FW.wid, { when: i * gap / 1000, far: far, env: env, quiet: quiet }); }, rt(pre));
       } else setTimeout(function () { DW.SFX.play(FW.snd || W.snd); }, rt(pre));
     }

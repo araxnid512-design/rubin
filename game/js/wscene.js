@@ -89,7 +89,7 @@
     if (id === null || id === undefined) { p.classList.add('hidden'); return; }
     p.classList.remove('hidden');
     const n = G.node(id);
-    const T = D.NODE_TYPES[n.type];
+    const T = D.nodeInfo(n);
     const here = n.id === st.squadAt;
     let status;
     if (n.id === st.baseNode) status = '<span class="good">Ваша база</span>';
@@ -181,7 +181,7 @@
   async function startDefense(raid) {
     const G = DW.G, st = G.state;
     const base = G.node(st.baseNode);
-    const txt = raid.kind === 'beast' ? 'Стая мутантов идёт на штурм.' : 'Банда пришла за вашими припасами.';
+    const txt = { beast: 'Стая мутантов идёт на штурм.', clan: 'Клан пришёл толпой — их много, и они идут в лоб.', sobr: 'Группа СОБР штурмует базу: щиты, светошумовые, слаженный огонь.' }[raid.kind] || 'Банда пришла за вашими припасами.';
     const ids = await DW.UI.briefing(base, 'defense', txt);
     DW.Main.startBattle({ nodeId: st.baseNode, type: base.type, diff: Math.min(5, 1 + Math.floor(st.day / 8)), kind: 'defense', raid: raid, squad: ids || st.roster.slice(0, 6).map(function (s) { return s.id; }) });
   }

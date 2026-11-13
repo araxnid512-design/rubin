@@ -139,6 +139,27 @@
     }
     const ts = BT.players();
     if (!ts.length) { e.ap = 0; return false; }
+    // светошумовая (СОБР): по двум и больше бойцам рядом — оглушает (−1 ОД в их ход), без урона
+    if (e.flash > 0 && e.ap >= 1) {
+      let fb = null;
+      ts.forEach(function (t) {
+        if (U.dist(e.x, e.y, t.x, t.y) > 7.5 || !BT.canSeeFrom(e.x, e.y, t.x, t.y, e.sight)) return;
+        const around = ts.filter(function (o) { return Math.max(Math.abs(o.x - t.x), Math.abs(o.y - t.y)) <= 1; }).length;
+        if (around >= 2 && (!fb || around > fb.n)) fb = { t: t, n: around };
+      });
+      if (fb) {
+        e.flash--; e.ap = 0;
+        e.face = Math.atan2(fb.t.y - e.y, fb.t.x - e.x);
+        if (e.seen) { DW.TR.float(e.x, e.y, 'Светошумовая!', 'bad'); await DW.TR.focusOn(fb.t.x, fb.t.y, false); }
+        DW.TR.anim(e, 'throw', 560); await U.sleep(330);
+        await DW.TR.projectileFx(e.x, e.y, fb.t.x, fb.t.y, 'grenade');
+        DW.TR.explosionFx(fb.t.x, fb.t.y, 0.8); DW.SFX.play('explosion');
+        ts.forEach(function (o) {
+          if (Math.max(Math.abs(o.x - fb.t.x), Math.abs(o.y - fb.t.y)) <= 1) { o.dazed = true; o.overwatch = false; DW.TR.float(o.x, o.y, 'Оглушён', 'bad'); }
+        });
+        return true;
+      }
+    }
     // граната по скоплению или по засевшему в полном укрытии
     if (e.gren > 0 && e.ap >= 1) {
       let gb = null;

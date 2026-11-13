@@ -375,10 +375,11 @@
     G.log('База разграблена (' + who + ').');
     return 'Потери: ' + (lost.join(', ') || 'нет') + '.' + bt;
   };
+  G.raidWho = function (kind) { return { beast: 'мутанты', clan: 'клан', sobr: 'СОБР' }[kind] || 'бандиты'; };
   G.autoResolveRaid = function (raid) {
     const def = G.defenseScore();
     const atk = raid.strength + U.rand(-1, 2);
-    const who = raid.kind === 'beast' ? 'мутанты' : 'бандиты';
+    const who = G.raidWho(raid.kind);
     if (def >= atk) {
       G.log('Укрепления базы отбили набег (' + who + ').');
       return { title: 'Набег отбит', text: 'Пока отряд отсутствовал, ' + who + ' напали на базу, но укрепления выдержали.', kind: 'good' };
@@ -470,12 +471,13 @@
       else notes.push(G.autoResolveRaid(raid));
     } else if (!st.raid && hasBase && st.day - st.baseDay >= 3 && Math.random() < G.raidChance()) {
       const warn = G.blv('tower') ? 2 : 1;
-      let lairs = 0, camps = 0;
+      let lairs = 0, camps = 0; const facs = [];
       st.world.nodes.forEach(function (n) {
         if (n.type === 'lair' && !n.cleared) lairs++;
-        if (n.type === 'camp' && !n.cleared) camps++;
+        if (n.type === 'camp' && !n.cleared) { camps++; facs.push(n.fac || 'raider'); }
       });
-      const kind = (lairs + camps === 0) ? 'beast' : (Math.random() < lairs / (lairs + camps) ? 'beast' : 'raider');
+      // набег идёт от того, кто рядом: мутанты из логов или люди из лагерей (банда, клан, СОБР)
+      const kind = (lairs + camps === 0) ? 'beast' : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
       st.raid = { day: st.day + warn, kind: kind, strength: 3 + Math.floor(st.day / 5), start: st.day, from: G.raidSource(kind) };
       raidNew = true;
       notes.push({
@@ -498,7 +500,7 @@
     let best = null, bd = 1e9;
     st.world.nodes.forEach(function (n) {
       if (n.cleared || n.id === st.baseNode) return;
-      const ok = kind === 'beast' ? (n.type === 'lair' || n.type === 'nest') : n.type === 'camp';
+      const ok = kind === 'beast' ? (n.type === 'lair' || n.type === 'nest') : (n.type === 'camp' && (n.fac || 'raider') === kind);
       if (ok && hops[n.id] >= 2 && hops[n.id] < bd) { bd = hops[n.id]; best = n.id; }
     });
     if (best === null) {
@@ -821,7 +823,7 @@
 
     if (B.kind === 'defense') {
       if (out === 'victory') { sum.text = 'Нападение на базу отбито!'; G.log('Отряд отбил нападение на базу.'); }
-      else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(B.raidKind === 'beast' ? 'мутанты' : 'бандиты');
+      else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(G.raidWho(B.raidKind));
     } else if (node) {
       if (out === 'victory') {
         if (!node.cleared) {

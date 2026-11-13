@@ -97,15 +97,19 @@
   /* ---------- Создание боя ---------- */
   function wavePool(fam) {
     const day = DW.G.state.day;
+    if (fam === 'clan') return ['clan_blade', 'clan_blade', 'clan_obrez', 'clan_gun'];
+    if (fam === 'sobr') return day < 15 ? ['sobr', 'sobr', 'sobr_shield'] : ['sobr', 'sobr_shield', 'sobr_sniper', 'sobr_mg'];
     if (fam === 'beast') return day < 10 ? ['scav', 'scav', 'spitter'] : ['scav', 'spitter', 'brute', 'scav'];
     return day < 10 ? ['raider', 'raider', 'thug'] : ['raider', 'thug', 'marksman', 'raider'];
   }
   /* план врагов для разведки перед боем: составляется один раз на локацию и ту же сложность */
   BT.planFor = function (node, kind, diff) {
     if (kind === 'defense') return null;
-    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: node.type, diff: diff, kind: kind, boss: node.quest === 'q_talk' }) };
+    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: node.type, diff: diff, kind: kind, boss: node.quest === 'q_talk', fac: node.fac }) };
     return node.plan;
   };
+  // враг — человек (банда, клан, СОБР): не мутант и не механизм
+  BT.isHumanFoe = function (e) { const T = D.ENEMIES[e.type]; return !!T && !T.beast && !T.mech; };
   BT.composePods = function (o) {
     const st = DW.G.state;
     const type = o.type, diff = o.diff;
@@ -123,20 +127,35 @@
         if (diff >= 3) return ['raider', 'raider', 'thug', 'marksman'];
         return diff >= 2 ? ['raider', 'raider', 'thug', 'thug'] : ['raider', 'raider', 'thug'];
       }
+      if (f === 'sobr') {
+        if (diff >= 4) return ['sobr', 'sobr', 'sobr_shield', 'sobr_sniper', 'sobr_mg'];
+        if (diff >= 3) return ['sobr', 'sobr', 'sobr_shield', 'sobr_sniper'];
+        return ['sobr', 'sobr', 'sobr_shield'];
+      }
+      if (f === 'clan') {
+        if (diff >= 3) return ['clan_blade', 'clan_blade', 'clan_obrez', 'clan_gun', 'clan_gun'];
+        return ['clan_blade', 'clan_blade', 'clan_obrez', 'clan_gun'];
+      }
       return ['guardian', 'guardian', 'scav'];
     }
     const famMap = { landing: 'beast', vein: 'beast', lair: 'beast', nest: 'beast', camp: 'raider', vault: 'guard' };
-    const fam = famMap[type] || null;
+    // лагерь может принадлежать СОБР или клану (node.fac)
+    const fam = (type === 'camp' && (o.fac === 'sobr' || o.fac === 'clan')) ? o.fac : (famMap[type] || null);
+    // клан многочисленный: на треть больше бойцов
+    if (fam === 'clan') n = Math.min(14, Math.round(n * 1.4) + 1);
+    if (fam === 'sobr') n = Math.max(3, n - 1);
     const pods = [];
     if (o.kind !== 'ambush') {
-      if (type === 'camp' && (diff >= 3 || o.boss)) { pods.push({ types: ['boss', 'raider'], anchor: true }); n -= 2; }
+      if (type === 'camp' && fam === 'sobr') { pods.push({ types: diff >= 3 ? ['sobr_cmd', 'sobr_shield', 'sobr'] : ['sobr_shield', 'sobr'], anchor: true }); n -= diff >= 3 ? 3 : 2; }
+      else if (type === 'camp' && fam === 'clan') { pods.push({ types: ['clan_elder', 'clan_blade', 'clan_gun'], anchor: true }); n -= 3; }
+      else if (type === 'camp' && (diff >= 3 || o.boss)) { pods.push({ types: ['boss', 'raider'], anchor: true }); n -= 2; }
       // в логове — Вожак со стаей (с третьей сложности)
       if (type === 'lair') { pods.push({ types: diff >= 3 ? ['alpha', 'scav', 'scav'] : ['spitter', 'scav', 'spitter'], anchor: true }); n -= 3; }
       if (type === 'nest') { pods.push({ types: ['queen', 'brute', 'spitter'], anchor: true }); n = Math.max(n, 10) - 3; }
       if (type === 'vault') { pods.push({ types: ['guardian', 'guardian'], anchor: false }); n -= 2; }
     }
     while (n > 0) {
-      const size = Math.min(n, U.rand(2, diff >= 3 ? 4 : 3));
+      const size = Math.min(n, fam === 'clan' ? U.rand(3, 5) : U.rand(2, diff >= 3 ? 4 : 3));
       const f = fam || (Math.random() < 0.5 ? 'beast' : 'raider');
       const pool = poolFor(f);
       const types = [];
@@ -182,7 +201,7 @@
       hp: T.hp + bonus, maxHp: T.hp + bonus, aim: T.aim + bonus * 2, mob: T.mob, def: T.def || 0, armor: T.armor || 0,
       weapon: wid || null, clip: W ? W.clip : 0, ap: 0, sight: Math.max(5, (T.sight || 9) + (B.sightMod || 0)), pod: pod,
       active: false, seen: false, overwatch: false, hunker: false, suppressed: false, alive: true, evac: false,
-      face: Math.PI, cd: {}, kills: 0, gren: gren
+      face: Math.PI, cd: {}, kills: 0, gren: gren, flash: T.flash || 0
     };
   }
   function mkTurret(x, y) {
@@ -200,7 +219,7 @@
     let pods;
     if (o.kind === 'defense') pods = [];
     else if (nd && nd.plan && nd.plan.kind === o.kind && nd.plan.diff === o.diff) pods = nd.plan.pods;
-    else pods = BT.composePods(o);
+    else pods = BT.composePods(Object.assign({}, o, { fac: nd && nd.fac }));
     if (nd) delete nd.plan;
     const mapType = o.kind === 'defense' ? 'defense' : ((nd && nd.map) || D.NODE_TYPES[o.type].map);
     const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings });
@@ -249,7 +268,7 @@
       B.quest = qq.id;
     } else if (o.kind === 'normal' && B.type !== 'nest' && B.type !== 'vein') {
       const en = B.units.filter(function (e) { return e.side === 'e'; });
-      const raid = en.some(function (e) { return e.type === 'raider' || e.type === 'thug' || e.type === 'boss' || e.type === 'marksman'; });
+      const raid = en.some(function (e) { return BT.isHumanFoe(e); });
       const beast = en.some(function (e) { return D.ENEMIES[e.type] && D.ENEMIES[e.type].beast; });
       const r = Math.random();
       if (raid && r < 0.4) BT.setupRescue();
@@ -277,7 +296,7 @@
   }
   // пленник у бандитов: рядом с самой дальней группой бандитов
   BT.setupRescue = function () {
-    const en = B.units.filter(function (e) { return e.side === 'e' && (e.type === 'raider' || e.type === 'thug' || e.type === 'boss' || e.type === 'marksman'); });
+    const en = B.units.filter(function (e) { return e.side === 'e' && BT.isHumanFoe(e); });
     en.sort(function (a, b) { return b.x - a.x; });
     const t = en.length ? freeTileNear(en[0].x, en[0].y, 4, true) : null;
     if (!t) return;
@@ -498,6 +517,18 @@
     if (att.kind === 'soldier' && att.trait !== 'authority' && B.units.some(function (a) { return a.alive && a.trait === 'authority' && a !== att && U.dist(a.x, a.y, ax, ay) <= 5; })) { hit += 5; parts.push(['Крут рядом', 5]); }
     if (cv.cover && hasP(tgt, 'dig')) { hit -= 10; parts.push(['Окопник', -10]); }
     if (tgt.side === 'e' && BT.shielded(tgt)) { hit -= 15; parts.push(['Щит стража', -15]); }
+    // баллистический щит: стрелок спереди (в 60° от взгляда щитовика) — −30, граната и фланг щит не держат
+    if (tgt.side === 'e' && D.ENEMIES[tgt.type] && D.ENEMIES[tgt.type].shield && tgt.alive) {
+      const fa = Math.atan2(ay - tgt.y, ax - tgt.x), df = Math.abs(((fa - (tgt.face || 0)) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+      if (df < Math.PI / 3) { hit -= 30; parts.push(['Баллистический щит', -30]); }
+    }
+    // командир СОБР / Старший клана рядом — свои стреляют точнее
+    if (att.side === 'e' && D.ENEMIES[att.type] && D.ENEMIES[att.type].fac) {
+      const fac = D.ENEMIES[att.type].fac, R = fac === 'clan' ? 6 : 5;
+      if (!D.ENEMIES[att.type].leader && B.units.some(function (l) { return l.alive && l.side === 'e' && D.ENEMIES[l.type] && D.ENEMIES[l.type].leader && D.ENEMIES[l.type].fac === fac && U.dist(l.x, l.y, att.x, att.y) <= R; })) {
+        hit += 10; parts.push([fac === 'clan' ? 'Старший рядом' : 'Командир рядом', 10]);
+      }
+    }
     if (att.side === 'e' && att.type !== 'alpha' && D.ENEMIES[att.type] && D.ENEMIES[att.type].beast && B.units.some(function (a) { return a.alive && a.type === 'alpha' && U.dist(a.x, a.y, att.x, att.y) <= 4; })) { hit += 10; parts.push(['Вожак рядом', 10]); }
     if (B.concealed && att.side === 'p' && !o.reaction) { hit += 15; parts.push(['Из засады', 15]); }
     if (att.kind === 'soldier' && att.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== att && (att.bonds[a.sid] || 0) >= 3 && U.dist(a.x, a.y, ax, ay) <= 1.5; })) { hit += 5; parts.push(['Товарищ рядом', 5]); }
@@ -619,8 +650,19 @@
     B.units.forEach(function (e) { if (e.alive && e.side === 'e' && e.pod === u.pod && e !== u) { e.stun = 1; n++; } });
     DW.UI.toast('Вожак убит!' + (n ? ' Стая в смятении — ход пропустят.' : '') + (B.goal && B.goal.kind === 'hunt' ? ' +6 драг.' : ''), 'good');
   }
+  function leaderDown(u) {
+    const T = D.ENEMIES[u.type];
+    if (!T || !T.leader) return;
+    let n = 0;
+    B.units.forEach(function (e) {
+      if (!e.alive || e.side !== 'e' || !D.ENEMIES[e.type] || D.ENEMIES[e.type].fac !== T.fac) return;
+      // клан без Старшего бежит в смятении (каждый второй), СОБР теряет слаженность (ближние к командиру)
+      if (T.fac === 'clan' ? Math.random() < 0.55 : U.dist(e.x, e.y, u.x, u.y) <= 5) { e.stun = 1; n++; }
+    });
+    DW.UI.toast((T.fac === 'clan' ? 'Старший клана убит!' : 'Командир СОБР убит!') + (n ? ' ' + n + ' в смятении — пропустят ход.' : ''), 'good');
+  }
   BT.kill = function (u, src, over) {
-    if (u.side === 'e') alphaDown(u);
+    if (u.side === 'e') { alphaDown(u); leaderDown(u); }
     u.alive = false; u.overwatch = false; u.hunker = false; u.crouch = false;
     if (u.kind === 'soldier' && (over || 0) <= 4 && Math.random() < Math.min(0.9, 0.55 + (u.rank || 0) * 0.08)) {
       u.down = 4; u.stable = false;
@@ -636,6 +678,7 @@
         B.field[k] = (B.field[k] || 0) + U.rand(r[0], r[1]);
       }
       if (T.drop && Math.random() < 0.5) B.drops.push(T.drop);
+      else if (T.dropCh && u.weapon && D.WEAPONS[u.weapon] && !D.WEAPONS[u.weapon].enemy && Math.random() < T.dropCh) B.drops.push(u.weapon);
       if (T.boss) { B.queenDead = true; DW.UI.toast('Матка убита!', 'good'); }
     } else {
       DW.SFX.play('death');
@@ -967,7 +1010,7 @@
     if (W.clip < 99) att.clip = Math.max(0, att.clip - 1);
     const info = BT.shotInfo(att, tgt, o);
     let amb = att.side === 'p' && B.concealed;
-    const quiet = amb && att.mods && att.mods.indexOf('supp') >= 0;
+    const quiet = amb && ((att.mods && att.mods.indexOf('supp') >= 0) || !!W.quiet);
     if (amb && !quiet) BT.reveal('Засада! Отряд открыл огонь.');
     const hit = Math.random() * 100 < info.hit;
     const crit = hit && Math.random() * 100 < info.crit;
@@ -1128,6 +1171,7 @@
       u.overwatch = false; u.hunker = false;
       u.panicked = false; u.moved = false;
       if (u.panicNow) { u.panicNow = false; u.ap = 1; u.hunker = true; u.panicked = true; DW.TR.float(u.x, u.y, 'Паника: 1 ОД', 'bad'); }
+      if (u.dazed) { u.dazed = false; u.ap = Math.min(u.ap, 1); DW.TR.float(u.x, u.y, 'Оглушён: 1 ОД', 'bad'); }
       for (const k in u.cd) if (u.cd[k] > 0) u.cd[k]--;
     });
     BT.updateObjective();
@@ -1157,7 +1201,7 @@
     if (B.kind !== 'normal' || B.concealed) return;
     if (B.reinf && B.turn >= B.reinf.turn) {
       const r = B.reinf; B.reinf = null; B.reinfDone = true;
-      const types = r.fam === 'raider' ? ['raider', 'raider', 'thug'] : ['scav', 'scav', 'spitter'];
+      const types = { raider: ['raider', 'raider', 'thug'], clan: ['clan_blade', 'clan_blade', 'clan_obrez', 'clan_gun'], sobr: ['sobr', 'sobr_shield'] }[r.fam] || ['scav', 'scav', 'spitter'];
       const pod = 900 + B.turn;
       let k = 0;
       for (let rr = 0; rr < 3 && k < types.length; rr++) for (let dy = -rr; dy <= rr && k < types.length; dy++) for (let dx = -rr; dx <= rr && k < types.length; dx++) {
@@ -1180,7 +1224,8 @@
         if (d >= 7 && (!best || d > best.d)) best = { x: x, y: y, d: d };
       }
       if (best) {
-        const fam = B.map === 'camp' || B.units.some(function (e) { return e.side === 'e' && (e.type === 'raider' || e.type === 'thug'); }) ? 'raider' : 'beast';
+        const ff = B.units.find(function (e) { return e.side === 'e' && D.ENEMIES[e.type] && D.ENEMIES[e.type].fac; });
+        const fam = ff ? D.ENEMIES[ff.type].fac : (B.map === 'camp' || B.units.some(function (e) { return e.side === 'e' && (e.type === 'raider' || e.type === 'thug'); }) ? 'raider' : 'beast');
         B.reinf = { x: best.x, y: best.y, turn: B.turn + 1, fam: fam };
         DW.UI.toast('Враг пустил сигнальную ракету — через ход подойдёт подкрепление!', 'alert');
       }
