@@ -453,7 +453,7 @@
         e.body = body;
         group.add(body.holder);
         e.blob = blob(0.95); group.add(e.blob);
-        if (r[1]) { e.wpn = makeWeapon(r[1], M3.weapons[k.weapon]); group.add(e.wpn.g); }
+        if (r[1]) { e.wpn = makeWeapon(r[1], M3.weapons[k.weapon]); group.add(e.wpn.g); if (R3.wmods && R3.wmods.attach && u.mods && u.mods.length) R3.wmods.attach(e.wpn, u.mods, k.weapon); }
         if (r[2] && u.cls === 'heavy') { e.rpg = makeWeapon(r[2], M3.weapons.rpg); e.rpg.g.visible = false; group.add(e.rpg.g); }
         e.pose = { q: new Float32Array(DW.ANIM3.bones.length * 4), hp: V() };
         e.ready = true;

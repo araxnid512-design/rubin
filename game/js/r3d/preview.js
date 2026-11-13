@@ -73,7 +73,8 @@
     if (S && S.body) bid = S.body.slice(2);
     if (!M3.bodies[bid]) bid = 'krut';
     if (!M3.weapons[wid]) wid = 'ak';
-    return { body: bid, weapon: wid, key: bid + '|' + wid };
+    const mods = (s.mods || []).filter(function (m) { return DW.D.MODS && DW.D.MODS[m]; }).sort();
+    return { body: bid, weapon: wid, mods: mods, key: bid + '|' + wid + '|' + mods.join(',') };
   }
   function build(L) {
     const M3 = DW.M3, bi = M3.bodies[L.body], wi = M3.weapons[L.weapon];
@@ -85,6 +86,8 @@
       lib.retargetSetup(body);
       body.holder.traverse(function (o) { if (o.isMesh) plain(o); });
       const W = lib.makeWeapon(r[1], wi);
+      // модули оружия бойца (прицел, глушитель, магазин, приклад) — на 3D-модели (r3d/wmods.js)
+      if (R3.wmods && R3.wmods.attach && L.mods && L.mods.length) R3.wmods.attach(W, L.mods, L.weapon);
       W.g.traverse(function (o) { if (o.isMesh) plain(o); });
       if (!ak && r[2]) ak = lib.makeWeapon(r[2], M3.weapons.ak);
       return { L: L, body: body, W: W, H: bi.h || 1.8, pose: null };
