@@ -56,6 +56,17 @@
     R3.fogU.uTime.value += dt;
     // тряска 2D-камеры (взрывы, отдача) → 3D
     if (TR2.shake > 0.3) { R3.cam.shake = Math.max(R3.cam.shake, TR2.shake); }
+    // камера следует за идущим (своим или замеченным врагом), если он уходит к краю экрана
+    const mover = B.units.find(function (u) { const tw = TR2.tweenOf(u.id); return tw && tw.kind === 'step' && u.alive && (u.side === 'p' || u.seen); });
+    if (mover) {
+      const s = R3.toScreen(R3.units.anchor(mover, false));
+      const mx = R3.view.w * 0.22, my = R3.view.h * 0.22;
+      if (s && (s[0] < mx || s[0] > R3.view.w - mx || s[1] < my || s[1] > R3.view.h - my)) {
+        const a = R3.units.anchor(mover, false);
+        const k = 1 - Math.exp(-dt * 2.2);
+        R3.cam.tx += (a.x - R3.cam.tx) * k; R3.cam.tz += (a.z - R3.cam.tz) * k;
+      }
+    }
   };
 
   /* какие стены срезать: рядом с бойцами отряда (и целью) со стороны камеры, и весь дом, где кто-то стоит */

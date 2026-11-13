@@ -94,17 +94,24 @@ for (const b of M.BODIES) {
   if (fs.existsSync(abs(hn))) src = hn;
   else if (!fs.existsSync(abs(src)) && M.BODY_FALLBACK[b.id]) src = M.BODY_FALLBACK[b.id];
   const f = await one(src, { tex: 1024, maxTris: 0, skin: true, suffix: '' });
-  if (f) out.bodies[b.id] = { f, h: b.h || 1.8 };
+  // облегчённая копия для слабых телефонов: ~7 тыс. треугольников, текстуры 512
+  const lo = await one(src, { tex: 512, maxTris: 7000, skin: true, suffix: '_lo' });
+  if (f) out.bodies[b.id] = { f, lo: lo || f, h: b.h || 1.8 };
 }
 // мутанты: свои движения из файлов Tripo
 out.creatures = {};
 for (const c of M.CREATURES) {
-  const f = await one(c.src, { tex: 1024, maxTris: 0, skin: true, keepAnim: true });
+  // новые модели этапа «3D-бой» (hm_<id>_a / _b) — вместо старых; движения по тексту прежних файлов подходят
+  // (тот же скелет Tripo — кости по именам)
+  const hA = '/art3d/src/h/hm_' + c.id + '_a.glb', hB = '/art3d/src/h/hm_' + c.id + '_b.glb';
+  const isNew = fs.existsSync(abs(hA));
+  const f = await one(isNew ? hA : c.src, { tex: 1024, maxTris: 0, skin: true, keepAnim: true });
   if (!f) continue;
   const more = [];
-  if (c.more) { const m = await one(c.more, { tex: 256, maxTris: 0, skin: true, keepAnim: true }); if (m) more.push(m); }
+  if (isNew && fs.existsSync(abs(hB))) { const m = await one(hB, { tex: 64, maxTris: 0, skin: true, keepAnim: true }); if (m) more.push(m); }
+  else if (!isNew && c.more) { const m = await one(c.more, { tex: 256, maxTris: 0, skin: true, keepAnim: true }); if (m) more.push(m); }
   for (const a of c.anims) if (a.src) { const m = await one(a.src, { tex: 256, maxTris: 0, skin: true, keepAnim: true }); if (m && more.indexOf(m) < 0) more.push(m); }
-  out.creatures[c.id] = { f, more, h: c.h, quad: !!c.quad, yaw: c.yaw || 0, anims: c.anims.map((a) => ({ key: a.key, clip: a.clip, src: a.src ? nameOf(a.src) : null, n: a.n, t0: a.t0, t1: a.t1, loop: !!a.loop, fx: a.fx || null })) };
+  out.creatures[c.id] = { f, more, h: c.h, quad: !!c.quad, yaw: isNew ? (c.yawNew || 0) : (c.yaw || 0), anims: c.anims.map((a) => ({ key: a.key, clip: a.clip, src: a.src ? nameOf(a.src) : null, n: a.n, t0: a.t0, t1: a.t1, loop: !!a.loop, fx: a.fx || null })) };
 }
 fs.writeFileSync(path.join(OUT, 'models.js'), '/* Сгенерировано tools/three3d/models.mjs — модели 3D-боя */\nwindow.DW = window.DW || {};\nDW.M3 = ' + JSON.stringify(out) + ';\n');
 console.log('готово:', Object.keys(done).length, 'файлов');
