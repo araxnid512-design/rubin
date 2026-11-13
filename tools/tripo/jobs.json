@@ -1,172 +1,26 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "p7_mot_die2",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "die2",
-    "3",
-    "soldier is shot in the chest, staggers backwards two steps and falls flat on his back, then lies still"
-   ]
-  },
-  {
-   "id": "p7_mot_die3",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "die3",
-    "3",
-    "soldier is hit, twists to the side, drops to his knees and collapses face down on the ground, lies still"
-   ]
-  },
-  {
-   "id": "p7_mot_hit2",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "hit2",
-    "2",
-    "soldier holding a rifle flinches from a hit to the left shoulder, steps back half a step and recovers his stance"
-   ]
-  },
-  {
-   "id": "p7_mot_slide",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "slide",
-    "2",
-    "soldier holding a rifle runs two steps and slides down into a low crouch behind cover, rifle ready in both hands"
-   ]
-  },
-  {
-   "id": "p7_mot_panic",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "panic",
-    "3",
-    "terrified soldier crouches down low covering his head with both hands, trembling and looking around in fear"
-   ]
-  },
-  {
-   "id": "p7_mot_wall",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "wall",
-    "3",
-    "soldier stands with his back pressed against a wall, holding a rifle close to his chest with both hands, glances to the right side"
-   ]
-  },
-  {
-   "id": "p7_mot_sneak",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "sneak",
-    "2",
-    "soldier walks forward slowly in a low crouch holding an assault rifle at the ready with both hands, sneaking quietly"
-   ]
-  },
-  {
-   "id": "p7_mot_idle2",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "idle2",
-    "4",
-    "soldier standing relaxed holding a rifle with both hands looks down at his weapon, checks it, then looks around"
-   ]
-  },
-  {
-   "id": "p7_mot_cheer",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "cheer",
-    "3",
-    "soldier raises a rifle high above his head with his right hand and shakes it, celebrating a victory"
-   ]
-  },
-  {
-   "id": "p7_mot_punch",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "punch",
-    "2",
-    "bandit steps forward and punches hard with his right fist, then pushes with both hands"
-   ]
-  },
-  {
-   "id": "p7_mot_throwk",
-   "py": "tools/tripo/motion.py",
-   "timeout": 1500,
-   "args": [
-    "krut:66e10fd9-0838-44e4-bea8-c889f60b9456",
-    "throwk",
-    "3",
-    "soldier kneeling on one knee behind low cover throws a grenade overhand with his right arm, then ducks back down"
-   ]
-  },
-  {
-   "id": "p7_b_radio",
+   "id": "p8_krut",
    "py": "tools/tripo/chain.py",
-   "timeout": 1800,
+   "timeout": 3600,
    "args": [
     "--id",
-    "b_radio",
+    "h_krut",
     "--faces",
-    "4000",
+    "20000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run",
     "--prompt",
-    "improvised radio station: small plywood shack with a tall lattice radio antenna mast, cables, a satellite dish and battery boxes, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p7_b_garage",
-   "py": "tools/tripo/chain.py",
-   "timeout": 1800,
-   "args": [
-    "--id",
-    "b_garage",
-    "--faces",
-    "4000",
-    "--prompt",
-    "open-sided scrap metal garage shed with corrugated roof sheltering an old soviet off-road car, tools and tires around, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p7_b_ammo",
-   "py": "tools/tripo/chain.py",
-   "timeout": 1800,
-   "args": [
-    "--id",
-    "b_ammo",
-    "--faces",
-    "4000",
-    "--prompt",
-    "ammunition depot: sandbagged dugout bunker with stacked green ammo crates and wooden boxes under a camouflage net, realistic post-apocalyptic style, worn, dirty, muted colors, game asset, low poly optimized, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p7_bal",
-   "timeout": 120,
-   "args": [
-    "account",
-    "balance"
+    "Russian male convict leader in his 40s, shaved head, short dark stubble, scar over left eyebrow, stern face, faded orange prison jumpsuit with rolled-up sleeves, canvas belt with ammo pouches, black army boots, athletic build, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic human proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
    ]
   }
  ]

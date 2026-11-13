@@ -58,6 +58,10 @@ def main():
     ap.add_argument("--rig", default="")
     ap.add_argument("--anims", action="append", default=[])
     ap.add_argument("--texture-size", default="1024")
+    # качество (этап «3D-бой»): текстуры standard/detailed/extreme, геометрия original/detailed, PBR
+    ap.add_argument("--tex", default="")
+    ap.add_argument("--geo", default="")
+    ap.add_argument("--pbr", action="store_true")
     a = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     info = {"id": a.id, "steps": []}
@@ -65,7 +69,8 @@ def main():
     if not pid:
         if not a.prompt:
             print("нет --prompt и --pid"); return 2
-        code, out = tripo(["generate", "text", a.prompt, "--face-limit", a.faces, "--visibility", "private",
+        extra = (["--texture-quality", a.tex] if a.tex else []) + (["--geometry-quality", a.geo] if a.geo else []) + (["--pbr"] if a.pbr else [])
+        code, out = tripo(["generate", "text", a.prompt, "--face-limit", a.faces, "--visibility", "private", *extra,
                            "--timeout", "25m", "--output-format", "json", "-o", str(OUT / f"{a.id}.glb")], timeout=1700)
         info["steps"].append(["generate", code])
         if code != 0:
