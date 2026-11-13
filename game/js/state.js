@@ -212,6 +212,38 @@
     G.log('УАЗ на ходу.');
     return true;
   };
+  /* сюжетные задания: открываются по условиям, привязываются к ближайшей незачищенной локации нужного вида */
+  G.checkQuests = function () {
+    const st = G.state, out = [];
+    st.quests = st.quests || {};
+    (D.QUESTS || []).forEach(function (q) {
+      if (st.quests[q.id]) return;
+      let ok = false; try { ok = q.when(st); } catch (e) { ok = false; }
+      if (!ok) return;
+      // локация: нужного вида, не зачищена, без другого задания — ближайшая к отряду
+      const here = G.node(st.squadAt);
+      const cand = st.world.nodes.filter(function (n) { return n.type === q.node && !n.cleared && !n.quest; });
+      if (!cand.length) return;
+      cand.sort(function (a, b) { return Math.hypot(a.x - here.x, a.y - here.y) - Math.hypot(b.x - here.x, b.y - here.y); });
+      const n = cand[0];
+      n.quest = q.id; n.known = true;
+      if (q.goal === 'boss') n.diff = Math.max(n.diff, 3);
+      st.quests[q.id] = { node: n.id, done: false };
+      G.log('Задание: «' + q.t + '» — ' + n.name + '.');
+      out.push({ q: q, node: n });
+    });
+    return out;
+  };
+  G.questOf = function (node) { return node && node.quest ? (D.QUESTS || []).find(function (q) { return q.id === node.quest; }) : null; };
+  G.questReward = function (q, sum) {
+    const st = G.state, r = q.reward || {}, got = [];
+    ['gems', 'materials', 'ammo', 'food', 'meds'].forEach(function (k) { if (r[k]) { st.res[k] += r[k]; got.push('+' + r[k] + ' ' + D.icon(k)); } });
+    if (r.weapon) { st.stock.weapons[r.weapon] = (st.stock.weapons[r.weapon] || 0) + 1; got.push(D.WEAPONS[r.weapon].n); }
+    if (r.trust) { st.trust = (st.trust || 0) + r.trust; got.push('доверие Института +' + r.trust); }
+    st.quests[q.id].done = true;
+    G.log('Задание «' + q.t + '» выполнено.');
+    if (sum) sum.quest = { t: q.t, text: q.done, got: got };
+  };
   G.tier = function () {
     let t = 0;
     // доверие Института — сданные драгоценности плюс поступки отряда (события), в счёт «вольной» не идёт
@@ -813,6 +845,13 @@
     }
     st.stats.missions++;
     st.stats.kills += kills;
+    // сюжетное задание: победа и цель выполнена
+    if (node && node.quest && out === 'victory') {
+      const q = G.questOf(node);
+      const okGoal = !B.goal || B.goal.done || q.goal === 'boss';
+      if (q && st.quests && st.quests[q.id] && !st.quests[q.id].done && okGoal) G.questReward(q, sum);
+      if (q && st.quests[q.id] && st.quests[q.id].done) node.quest = null;
+    }
     if ((B.vehicles || []).some(function (v) { return v.own && v.dead; })) { st.uaz = { ok: false }; sum.uazLost = true; G.log('УАЗ подбит — нужен ремонт в гараже.'); }
     // справочник врагов: сколько каждого вида убито
     st.killsByType = st.killsByType || {};

@@ -451,6 +451,11 @@
       '<div class="jgoals"><div class="jg"><b>Вольная</b>: сдать Институту ' + D.GOAL + ' ' + ic('gems') + ' — <b>' + st.delivered + '</b>/' + D.GOAL +
       '<div class="pbar"><i style="width:' + Math.min(100, st.delivered / D.GOAL * 100) + '%"></i></div></div>' +
       '<div class="jg"><b>Гнездо</b>: уничтожить Матку. Путь открывается после разгрома двух логов — <b>' + lairs + '</b>/2</div></div>' +
+      (function () {
+        const qs = (D.QUESTS || []).filter(function (q) { return st.quests && st.quests[q.id]; });
+        if (!qs.length) return '';
+        return '<div class="jg"><b>Задания</b>: ' + qs.map(function (q) { const it = st.quests[q.id]; return (it.done ? '<span class="dim">✔ ' + q.t + '</span>' : '<span class="acc">★ ' + q.t + '</span> — ' + G.node(it.node).name); }).join(' · ') + '</div>';
+      })() +
       '<div class="jstats">День ' + st.day + ' · миссий: ' + st.stats.missions + ' (побед ' + st.stats.won + ') · убито врагов: ' + st.stats.kills +
       ' · логов: ' + st.stats.lairs + ' · лагерей: ' + st.stats.camps + '</div>' +
       (st.memorial.length ? '<div class="jmem"><b>Погибшие:</b> ' + st.memorial.map(function (m) {
@@ -507,7 +512,24 @@
               return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">';
             }).join('') + '<span class="icnt">× ' + list.length + '</span></div>';
           })() +
+            (function () {
+              const q = DW.G.questOf ? DW.G.questOf(node) : null;
+              return q && kind === 'normal' ? '<div class="quest"><b>★ Задание: ' + q.t + '</b><div class="small">' + q.text + '</div></div>' : '';
+            })() +
             (locked ? '<b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова мутантов (' + lairs + '/2).</b>' : '') + '</div>' }));
+        }
+        // переговоры с главарём: откупиться — банда уходит, локация ваша (без боя и без добычи)
+        const qt = DW.G.questOf ? DW.G.questOf(node) : null;
+        if (qt && qt.talk && kind === 'normal') {
+          const pay = el('button', { class: 'btn sm', html: 'Заплатить главарю 30 ' + ic('gems') + ' — банда уйдёт', onclick: function () {
+            if (st.res.gems < 30) { UI.toast('Не хватает драгоценностей', 'bad'); return; }
+            st.res.gems -= 30; node.cleared = true; node.quest = null; st.quests[qt.id].done = true; st.trust = (st.trust || 0) + 10;
+            DW.G.log('Банда главаря ушла за плату.'); DW.G.save();
+            UI.toast('Банда ушла. Лагерь ваш без боя (доверие +10).', 'good');
+            if (h) h.close(); res(null);
+          } });
+          if (st.res.gems < 30) pay.disabled = true;
+          body.appendChild(pay);
         }
         const cnt = Object.keys(chosen).length;
         body.appendChild(el('div', { class: 'blabel', html: 'Бойцы на задание: <b>' + cnt + '</b>/6' }));
@@ -565,6 +587,7 @@
       }));
       if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
       if (sum.bonds) html += '<div class="rloot">Стали боевыми товарищами: <b class="acc">' + sum.bonds.join('; ') + '</b> — рядом друг с другом +5 к меткости.</div>';
+      if (sum.quest) html += '<div class="rloot quest"><b>★ Задание «' + sum.quest.t + '» выполнено.</b> ' + sum.quest.text + '<br>Награда: ' + sum.quest.got.join(' · ') + '</div>';
       if (sum.uazLost) html += '<div class="rloot"><span class="bad">УАЗ подбит</span> — нужен ремонт в гараже (' + DW.G.costText(D.UAZ_REPAIR) + ').</div>';
       if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';
       if (sum.traits) html += '<div class="rloot">Ранение изменило характер: <b class="acc">' + sum.traits.join('; ') + '</b>.</div>';

@@ -103,7 +103,7 @@
   /* план врагов для разведки перед боем: составляется один раз на локацию и ту же сложность */
   BT.planFor = function (node, kind, diff) {
     if (kind === 'defense') return null;
-    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: node.type, diff: diff, kind: kind }) };
+    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: node.type, diff: diff, kind: kind, boss: node.quest === 'q_talk' }) };
     return node.plan;
   };
   BT.composePods = function (o) {
@@ -129,7 +129,7 @@
     const fam = famMap[type] || null;
     const pods = [];
     if (o.kind !== 'ambush') {
-      if (type === 'camp' && diff >= 3) { pods.push({ types: ['boss', 'raider'], anchor: true }); n -= 2; }
+      if (type === 'camp' && (diff >= 3 || o.boss)) { pods.push({ types: ['boss', 'raider'], anchor: true }); n -= 2; }
       // в логове — Вожак со стаей (с третьей сложности)
       if (type === 'lair') { pods.push({ types: diff >= 3 ? ['alpha', 'scav', 'scav'] : ['spitter', 'scav', 'spitter'], anchor: true }); n -= 3; }
       if (type === 'nest') { pods.push({ types: ['queen', 'brute', 'spitter'], anchor: true }); n = Math.max(n, 10) - 3; }
@@ -241,7 +241,13 @@
     }
     // задание боя: освободить пленника, убить вожака стаи или забрать груз Института
     B.goal = null;
-    if (o.kind === 'normal' && B.type !== 'nest' && B.type !== 'vein') {
+    const qq = nd && nd.quest && DW.G.questOf ? DW.G.questOf(nd) : null;
+    if (qq && o.kind === 'normal') {
+      if (qq.goal === 'rescue') BT.setupRescue();
+      else if (qq.goal === 'cargo') BT.setupCargo();
+      else if (qq.goal === 'hunt') BT.setupHunt();
+      B.quest = qq.id;
+    } else if (o.kind === 'normal' && B.type !== 'nest' && B.type !== 'vein') {
       const en = B.units.filter(function (e) { return e.side === 'e'; });
       const raid = en.some(function (e) { return e.type === 'raider' || e.type === 'thug' || e.type === 'boss' || e.type === 'marksman'; });
       const beast = en.some(function (e) { return D.ENEMIES[e.type] && D.ENEMIES[e.type].beast; });

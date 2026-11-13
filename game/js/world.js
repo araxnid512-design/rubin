@@ -525,6 +525,16 @@
       g.fillStyle = '#e3a33b'; g.beginPath(); g.arc(0, -22 + Math.sin(t / 150) * 1.5, 2, 0, 7); g.fill();
       g.restore();
     }
+    if (n.quest && !n.cleared) {
+      // сюжетное задание — золотая звезда
+      g.save(); g.translate(n.x, n.y - 58 + Math.sin(t / 260) * 2.5);
+      g.shadowColor = 'rgba(255,200,80,0.9)'; g.shadowBlur = 10;
+      g.fillStyle = '#ffcf5a'; g.strokeStyle = '#7a4a10'; g.lineWidth = 1.5;
+      g.beginPath();
+      for (let k = 0; k < 10; k++) { const r = k % 2 ? 4.5 : 10, a = -Math.PI / 2 + k * Math.PI / 5; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      g.closePath(); g.fill(); g.shadowBlur = 0; g.stroke();
+      g.restore();
+    }
     if (n.cargo && n.cargo.length) {
       g.save(); g.translate(n.x + 32, n.y - 34 + Math.sin(t / 300) * 2);
       ART.box(g, -0.5, -0.5, 0.5, 0.5, 0, 9, '#b08850', '#8a6539', '#6a4c2a', { hw: 8, hh: 4 });

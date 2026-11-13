@@ -54,7 +54,13 @@
   let storyT = 0;
   WS.refresh = function () {
     if (!hud) return;
-    if (DW.Story && performance.now() - storyT > 1500) { storyT = performance.now(); setTimeout(function () { if (hud && !busy && !DW.UI.hasModal() && !(DW.Cine && DW.Cine.active())) DW.Story.run(); }, 400); }
+    if (DW.Story && performance.now() - storyT > 1500) { storyT = performance.now(); setTimeout(async function () {
+      if (!hud || busy || DW.UI.hasModal() || (DW.Cine && DW.Cine.active())) return;
+      await DW.Story.run();
+      // сюжетные задания: открылось новое — показать, где
+      const nq = DW.G.checkQuests ? DW.G.checkQuests() : [];
+      for (let i = 0; i < nq.length; i++) { DW.G.save(); WS.refresh(); await DW.UI.alert('Задание: ' + nq[i].q.t, '<div class="ptext">' + nq[i].q.text + '<br><br>Где: <b>' + nq[i].node.name + '</b> — отмечено на карте ★.</div>', 'portal'); }
+    }, 400); }
     const G = DW.G, st = G.state, r = st.res;
     const warn = [];
     if (st.raid) warn.push('<span class="bad">Набег через ' + Math.max(0, st.raid.day - st.day) + ' дн.</span>');
@@ -224,6 +230,7 @@
   WS.attack = async function (node, kind) {
     const G = DW.G, st = G.state;
     const ids = await DW.UI.briefing(node, kind);
+    if (!ids && node.cleared) { G.save(); WS.refresh(); return; }   // откупились — локация ваша
     if (!ids) {
       if (kind === 'normal' && st.squadAt === node.id && st.prevNode !== null && st.prevNode !== node.id && G.node(st.prevNode).cleared) {
         busy = true;
