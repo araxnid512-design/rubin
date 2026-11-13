@@ -50,7 +50,9 @@
     holder.updateMatrixWorld(true);
     const B = findBones(root);
     let up, fwd;
-    if (human && B.LeftUpLeg && B.RightUpLeg && B.Head && B.Hips) {
+    // ориентация — по костям, если скелет двуногий (люди и мутанты-двуногие), иначе по модели (+Y вверх, к голове)
+    const biped = !!(B.LeftUpLeg && B.RightUpLeg && B.Head && B.Hips);
+    if (biped) {
       const pl = B.LeftUpLeg.getWorldPosition(V()), pr = B.RightUpLeg.getWorldPosition(V());
       const head = B.Head.getWorldPosition(V()), hip = B.Hips.getWorldPosition(V());
       up = head.clone().sub(hip).normalize();
@@ -70,7 +72,7 @@
     holder.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(fix, true);
     let k;
-    if (human) {
+    if (biped) {
       const tall = (B.Head.getWorldPosition(V()).y - box.min.y) * 1.1;
       k = H / Math.max(tall, box.max.y - box.min.y > tall * 1.4 ? tall : box.max.y - box.min.y);
     } else k = H / Math.max(0.01, box.max.y - box.min.y);
