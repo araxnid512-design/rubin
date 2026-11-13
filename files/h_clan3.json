@@ -1,0 +1,23 @@
+{
+ "id": "h_clan3",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk,preset:biped:run"
+  ]
+ ],
+ "pid": "f936a7d7-d77c-4b25-b12a-0c5110ec17be"
+}

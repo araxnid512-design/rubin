@@ -1,0 +1,23 @@
+{
+ "id": "h_sobr1",
+ "steps": [
+  [
+   "generate",
+   0
+  ],
+  [
+   "rigcheck",
+   0
+  ],
+  [
+   "rig",
+   0
+  ],
+  [
+   "animate_a",
+   0,
+   "preset:biped:idle,preset:biped:walk,preset:biped:run"
+  ]
+ ],
+ "pid": "33c80956-46c5-4fa1-918c-5254553e979c"
+}
