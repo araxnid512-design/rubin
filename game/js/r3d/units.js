@@ -419,7 +419,7 @@
       const bi = M3.bodies[k.id] || M3.bodies.krut;
       Promise.all([R3.loadGLB('models/' + (R3.q() === 0 && bi.lo ? bi.lo : bi.f) + '.glb'), k.weapon && M3.weapons[k.weapon] ? R3.loadGLB('models/' + M3.weapons[k.weapon].f + '.glb') : null,
         M3.weapons.rpg ? R3.loadGLB('models/' + M3.weapons.rpg.f + '.glb') : null]).then(function (r) {
-        if (!r[0] || !group) return;
+        if (!r[0] || !group || ents[u.id] !== e) return;
         const body = makeBody(r[0], (bi.h || 1.8) * (u.type === 'boss' ? 1.04 : 1), true);
         retargetSetup(body);
         e.body = body;
@@ -433,7 +433,7 @@
       const ci = M3.creatures[k.id];
       if (!ci) return e;
       Promise.all([R3.loadGLB('models/' + ci.f + '.glb')].concat(ci.more.map(function (m) { return R3.loadGLB('models/' + m + '.glb'); }))).then(function (r) {
-        if (!r[0] || !group) return;
+        if (!r[0] || !group || ents[u.id] !== e) return;
         const body = makeBody(r[0], ci.h, false, ci.yaw || 0);
         e.body = body; e.ci = ci;
         group.add(body.holder);
@@ -457,7 +457,7 @@
       });
     } else if (k.kind === 'turret' && M3.turret) {
       R3.loadGLB('models/' + M3.turret.f + '.glb').then(function (gl) {
-        if (!gl || !group) return;
+        if (!gl || !group || ents[u.id] !== e) return;
         const m = R3.world.placeModel(gl, { len: M3.turret.len, hMax: M3.turret.hMax }, V(), 0);
         e.body = { holder: m }; group.add(m); e.ready = true;
       });

@@ -164,7 +164,8 @@
           sources.push({ p: V(X, Y + 0.35, Z), c: 0x78e6ff, i: 1.4, d: 3.5, flick: 0 });
           break;
         case 'lamp':
-          R3.loadGLB('models/' + ((DW.M3.street && DW.M3.street[0] && DW.M3.street[0].f) || 'e_lamp') + '.glb').then(function (gl) { if (gl && group) group.add(R3.world.placeModel(gl, { len: 0.6, hMax: 2.4 }, V(X, Y, Z), ry * 57)); });
+          const lg = group;
+          R3.loadGLB('models/' + ((DW.M3.street && DW.M3.street[0] && DW.M3.street[0].f) || 'e_lamp') + '.glb').then(function (gl) { if (gl && group === lg) group.add(R3.world.placeModel(gl, { len: 0.6, hMax: 2.4 }, V(X, Y, Z), ry * 57)); });
           sources.push({ p: V(X, Y + 2.2, Z), c: 0xffcd8c, i: 3.2, d: 9, flick: 1, night: true });
           break;
       }
@@ -246,8 +247,9 @@
       const e = list[Math.floor(r() * list.length)];
       const v = { len: e[1], h: e[3] || 0, hMax: e[2] };
       const pos = V(x, -0.6, z), yaw = r() * 360;
+      const bg = group;
       R3.loadGLB('models/' + e[0] + '.glb').then(function (gl) {
-        if (!gl || !group || DT.B !== B) return;
+        if (!gl || bg !== group || DT.B !== B) return;
         const m = R3.world.placeModel(gl, v, pos, yaw);
         m.traverse(function (o) { if (o.isMesh) o.castShadow = false; });
         group.add(m);

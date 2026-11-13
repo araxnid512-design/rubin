@@ -456,8 +456,9 @@
       const v = list[hash(x, y) % list.length];
       const pos = new THREE.Vector3((x + 0.5) * T, B.hgt[i] * LV, (y + 0.5) * T);
       const jitter = o === 3 || o === 8 || o === 16 || o === 20 || o === 19 ? (hash(y, x) % 360) : 0;
+      const pg = propGroup;
       R3.loadGLB('models/' + v.f + '.glb').then(function (gl) {
-        if (!gl || !propGroup || B !== DW.BT.get()) return;
+        if (!gl || pg !== propGroup || B !== DW.BT.get()) return;   // поле перестроили — опоздавшую модель не ставим
         const m = placeModel(gl, v, pos, jitter);
         if (o === 15) m.traverse(function (q) { if (q.isMesh && q.material.emissive) { q.material.emissive.set(0x3fb8d8); q.material.emissiveIntensity = 0.6; } });
         m.userData.tile = i;
@@ -472,8 +473,9 @@
       if (!e) return;
       const x1 = v.d === 0 ? v.x + v.len - 1 : v.x, y1 = v.d === 0 ? v.y : v.y + v.len - 1;
       const pos = new THREE.Vector3(((v.x + x1) / 2 + 0.5) * T, B.hgt[v.y * B.w + v.x] * LV, ((v.y + y1) / 2 + 0.5) * T);
+      const pg2 = propGroup;
       R3.loadGLB('models/' + e.f + '.glb').then(function (gl) {
-        if (!gl || !propGroup || B !== DW.BT.get()) return;
+        if (!gl || pg2 !== propGroup || B !== DW.BT.get()) return;
         const m = placeModel(gl, e, pos, 0);
         m.userData.veh = v;
         propGroup.add(m);

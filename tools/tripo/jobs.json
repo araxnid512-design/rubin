@@ -1,428 +1,6 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
-  {
-   "id": "p8_marlboro",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_marlboro",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "Russian male convict in his late 50s, stocky heavy build, short grey hair, thick grey walrus mustache, weathered tired face, faded orange prison jumpsuit, quilted padded vest over it, canvas ammo belt, worn black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_pris1",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_pris1",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "young lean male convict in his 20s, black knit beanie hat, narrow unshaven face, faded orange prison jumpsuit, canvas belt with pouches, worn black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_pris2",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_pris2",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "bald male convict in his 40s, full dark beard, broad shoulders, faded orange prison jumpsuit with rolled sleeves, canvas belt with pouches, worn black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_vest",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_vest",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "male convict soldier, faded orange prison jumpsuit under an olive drab military bulletproof plate carrier vest with magazine pouches, olive steel helmet, knee pads, black boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_heavy",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_heavy",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "male soldier in heavy dark grey ballistic armor suit with large shoulder plates and armored helmet with visor, orange prison jumpsuit sleeves visible, heavy boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_exo",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_exo",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "male soldier wearing a salvaged mechanical exoskeleton frame with hydraulic pistons on legs and arms over dark blue-grey armor plates, orange jumpsuit underneath, combat helmet, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_pris3",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_pris3",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "young male prisoner with shaved head, orange prison jumpsuit with sleeves tied around the waist, dirty white tank top, tattooed arms, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_pris4",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_pris4",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "older male prisoner with grey stubble and short grey hair, faded orange prison jumpsuit, improvised leather shoulder pad and belt with pouches, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_pris5",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_pris5",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "stocky male prisoner in an orange prison jumpsuit under a padded quilted khaki work vest, black knit cap, fingerless gloves, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_pris6",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_pris6",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "lean male prisoner in an orange prison jumpsuit, dark bandana over the lower face, goggles on the forehead, makeshift knee pads, worn boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_raider",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_raider",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "post-apocalyptic bandit raider in a worn black leather jacket over a striped sailor undershirt, cargo trousers, army boots, unshaven scarred face, short messy hair, canvas chest rig with magazine pouches, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_thug",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_thug",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "big bald post-apocalyptic thug with a thick neck and broken nose, sleeveless padded quilted vest, tattooed muscular arms, camouflage trousers, heavy boots, leather wrist guards, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_bandit3",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_bandit3",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "post-apocalyptic bandit in a faded dark tracksuit with white stripes, flat cap, scarred unshaven face, worn sneakers, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_bandit4",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_bandit4",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "wasteland raider wearing an old soviet gas mask with a hose, padded quilted jacket, cargo trousers, army boots, ammo belt across the chest, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_bandit5",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_bandit5",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "heavy armored bandit enforcer wearing a welded steel plate vest and a welding mask, thick arms, leather apron, heavy boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_marksman",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_marksman",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "wasteland bandit sniper in a hooded ragged camouflage cloak, face covered with a scarf, old goggles, leather boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_boss",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "h_boss",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run",
-    "--prompt",
-    "bandit warlord, tall muscular man in a long black leather coat with fur collar, steel chest plate, shaved head sides, scarred face, heavy boots, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready character, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_brute",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "hm_brute",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:slash,preset:biped:fall",
-    "--anims",
-    "preset:biped:hit_to_body_01,preset:biped:angry_01,preset:biped:chop,preset:biped:shoot",
-    "--prompt",
-    "hulking mutant humanoid brute, grey-green leathery skin, massive long arms with huge fists, bony growths on shoulders and back, small head, torn rags, monster, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready creature, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
-  {
-   "id": "p8_spitter",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3600,
-   "args": [
-    "--id",
-    "hm_spitter",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:slash,preset:biped:fall",
-    "--anims",
-    "preset:biped:hit_to_body_01,preset:biped:angry_01,preset:biped:chop,preset:biped:shoot",
-    "--prompt",
-    "emaciated hunched mutant humanoid with long thin limbs, pale grey skin, swollen glowing green acid sacs on its throat and back, wide toothy jaw, monster, full body, T-pose, arms straight out to the sides, legs slightly apart, empty hands, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready creature, clean topology, single object, centered, full object visible, neutral background"
-   ]
-  },
   {
    "id": "p8_guardian",
    "py": "tools/tripo/chain.py",
@@ -533,6 +111,294 @@
     "preset:hexapod:walk",
     "--prompt",
     "giant mutant insect queen, bloated pale egg sac abdomen, armored dark chitin plates, six thick legs, small head with mandibles, monster, full body, symmetrical, realistic gritty post-apocalyptic style, highly detailed PBR textures, worn and dirty, muted colors, realistic proportions, game-ready creature, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_bg_khrush",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "bg_khrush",
+    "--faces",
+    "15000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "ruined abandoned Soviet five-story concrete panel apartment building (khrushchyovka), one corner collapsed into rubble, broken windows, exposed rebar, balconies, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_bg_factory",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "bg_factory",
+    "--faces",
+    "15000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "ruined Soviet brick factory workshop building with a tall brick chimney, collapsed roof trusses, broken windows, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_bg_watertower",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "bg_watertower",
+    "--faces",
+    "15000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "rusted Soviet steel water tower on a concrete base, partly damaged, ladder on the side, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_bg_pylon",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "bg_pylon",
+    "--faces",
+    "15000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "tall steel lattice power line pylon with broken hanging wires, rusty, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_bg_pines",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "bg_pines",
+    "--faces",
+    "15000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "cluster of three dead burnt pine trees with bare twisted branches and charred trunks, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_bg_cliff",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "bg_cliff",
+    "--faces",
+    "15000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "large rocky cliff outcrop formation, layered grey-brown stone with cracks, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_heli",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_heli",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "crashed Soviet Mi-8 military transport helicopter wreck lying on its side, broken rotor blades, burnt, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_tank",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_tank",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "destroyed rusted Soviet T-72 tank wreck, turret slightly turned, broken track, burnt paint, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_bmp",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_bmp",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "destroyed rusty Soviet BMP-1 infantry fighting vehicle wreck, open hatches, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_hedgehog",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_hedgehog",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "rusty steel anti-tank hedgehog obstacle made of welded I-beams, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_drums",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_drums",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "stack of rusty oil drums barrels, some dented, some lying on their side, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_tires",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_tires",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "pile of old worn car and truck tires, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_pallets",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_pallets",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "stack of old wooden pallets with a few wooden crates on top, tied with rope, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_scrap",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_scrap",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "heap of scrap metal: rusty sheets, pipes, a car door and metal junk, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_busstop",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_busstop",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "abandoned Soviet concrete bus stop shelter with a mosaic wall, cracked and dirty, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_eggs",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_eggs",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "cluster of large slimy mutant eggs in an organic fleshy nest with veins, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_ribcage",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_ribcage",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "giant monster ribcage skeleton bones half buried in the ground, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
+   ]
+  },
+  {
+   "id": "p9_p_barricade",
+   "py": "tools/tripo/chain.py",
+   "timeout": 3000,
+   "args": [
+    "--id",
+    "p_barricade",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "improvised barricade of sandbags, wooden planks and a rusty sheet of metal, realistic gritty post-apocalyptic style, highly detailed PBR textures, weathered, dirty, muted colors, game-ready asset, clean topology, single object, centered, full object visible, neutral background"
    ]
   }
  ]
