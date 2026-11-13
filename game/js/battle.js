@@ -79,6 +79,12 @@
     if (fam === 'beast') return day < 10 ? ['scav', 'scav', 'spitter'] : ['scav', 'spitter', 'brute', 'scav'];
     return day < 10 ? ['raider', 'raider', 'thug'] : ['raider', 'thug', 'marksman', 'raider'];
   }
+  /* план врагов для разведки перед боем: составляется один раз на локацию и ту же сложность */
+  BT.planFor = function (node, kind, diff) {
+    if (kind === 'defense') return null;
+    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: node.type, diff: diff, kind: kind }) };
+    return node.plan;
+  };
   BT.composePods = function (o) {
     const st = DW.G.state;
     const type = o.type, diff = o.diff;
@@ -165,8 +171,13 @@
 
   BT.create = function (o) {
     const st = DW.G.state;
-    const pods = o.kind === 'defense' ? [] : BT.composePods(o);
     const nd = o.nodeId !== null && o.nodeId !== undefined && st.world ? st.world.nodes[o.nodeId] : null;
+    // состав врагов — тот, что разведка показала перед боем (план на локации), иначе — новый
+    let pods;
+    if (o.kind === 'defense') pods = [];
+    else if (nd && nd.plan && nd.plan.kind === o.kind && nd.plan.diff === o.diff) pods = nd.plan.pods;
+    else pods = BT.composePods(o);
+    if (nd) delete nd.plan;
     const mapType = o.kind === 'defense' ? 'defense' : ((nd && nd.map) || D.NODE_TYPES[o.type].map);
     const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings });
     B = {
@@ -403,6 +414,8 @@
       if (seen) vis[e.y * w + e.x] = 1;
       if (seen && !e.seen) newly.push(e);
       e.seen = seen;
+      // встреченные виды врагов (в разведке перед боем — портрет вместо «?»)
+      if (seen) { const st0 = DW.G.state; if (st0) { st0.metEnemies = st0.metEnemies || {}; st0.metEnemies[e.type] = 1; } }
     });
     for (let i = 0; i < vis.length; i++) if (vis[i]) B.explored[i] = 1;
     BT.visVersion++;

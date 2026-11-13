@@ -453,7 +453,19 @@
           const shown = types.filter(function (t) { return !(t === 'boss' && node.diff < 3) && !(t === 'brute' && node.diff < 3 && node.type !== 'nest') && !(t === 'marksman' && node.diff < 3); });
           body.appendChild(el('div', { class: 'bhead', html: '<img src="' + DW.ART.landmarkURL(node.type) + '" alt=""><div class="ptext"><b>' + T.n + '</b>' + (D.MAP_NAMES[node.map] ? ' — ' + D.MAP_NAMES[node.map].toLowerCase() : '') + ' · опасность ' + skulls(node.diff) + '<br>' + T.desc +
             '<br>Разведка: <b>' + intel + '</b>.' + (kind === 'ambush' ? ' <b class="bad">Засада!</b>' : '') +
-            '<div class="intel">' + shown.map(function (t) { return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">'; }).join('') + '</div>' +
+            (function () {
+            // по окошку на каждого врага (план боя), невиданный вид — «?»
+            const dif = kind === 'ambush' ? Math.max(1, node.diff - 1) : node.diff;
+            const plan = DW.BT.planFor ? DW.BT.planFor(node, kind, dif) : null;
+            let list = plan ? [].concat.apply([], plan.pods.map(function (p) { return p.types; })) : shown;
+            const ord = {}; list.forEach(function (t, i) { if (ord[t] === undefined) ord[t] = i; });
+            list = list.slice().sort(function (a, b) { return ord[a] - ord[b]; });
+            const met = st.metEnemies || {};
+            return '<div class="intel">' + list.map(function (t) {
+              if (!met[t]) return '<span class="ava unk" title="Неизвестный враг">?</span>';
+              return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">';
+            }).join('') + '<span class="icnt">× ' + list.length + '</span></div>';
+          })() +
             (locked ? '<b class="bad">Гнездо слишком сильно. Сначала уничтожьте два логова мутантов (' + lairs + '/2).</b>' : '') + '</div>' }));
         }
         const cnt = Object.keys(chosen).length;
