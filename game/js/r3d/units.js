@@ -33,7 +33,7 @@
   }
 
   /* ---------- Тело: копия модели, поворот лицом к +Z, рост H, стопы на земле (как makeBody) ---------- */
-  function makeBody(gl, H, human, yawFix) {
+  function makeBody(gl, H, human, yawFix, preClip) {
     const root = THREE.SkeletonUtils.clone(gl.scene);
     const meshes = [];
     root.traverse(function (m) {
@@ -47,6 +47,9 @@
     });
     const holder = new THREE.Group(), fix = new THREE.Group();
     fix.add(root); holder.add(fix);
+    // мутанты: верх и перёд — по позе их собственного движения (у новых моделей поза привязки повёрнута иначе,
+    // чем корень в клипах, — Костолом висел вверх ногами); позу не сбрасываем — дальше её ведёт свой mixer
+    if (preClip) { const mx = new THREE.AnimationMixer(root); mx.clipAction(preClip).play(); mx.update(0.01); }
     holder.updateMatrixWorld(true);
     const B = findBones(root);
     let up, fwd;
@@ -455,7 +458,8 @@
       if (!ci) return e;
       Promise.all([R3.loadGLB('models/' + ci.f + '.glb')].concat(ci.more.map(function (m) { return R3.loadGLB('models/' + m + '.glb'); }))).then(function (r) {
         if (!r[0] || !group || ents[u.id] !== e) return;
-        const body = makeBody(r[0], ci.h, false, ci.yaw || 0);
+        const pre = r[0].animations.find(function (an) { return /idle/i.test(an.name); }) || r[0].animations[0] || null;
+        const body = makeBody(r[0], ci.h, false, ci.yaw || 0, pre);
         e.body = body; e.ci = ci;
         group.add(body.holder);
         e.blob = blob(ci.quad ? ci.h * 1.2 : Math.max(1.0, ci.h * 0.6)); group.add(e.blob);

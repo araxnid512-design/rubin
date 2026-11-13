@@ -51,7 +51,7 @@
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(C, 4));
     g.setIndex(I);
-    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }));
     m.renderOrder = 4;
     return m;
   }
@@ -71,8 +71,8 @@
           if (x < 0 || y < 0 || x >= B.w || y >= B.h) return null;
           const i = y * B.w + x, c = R.cost[i];
           if (c === Infinity || R.occ[i] === 2) return null;
-          if (c <= ov.m1 + 0.01) return [0.32, 0.67, 1, 0.075, 1];
-          if (c <= ov.m2 + 0.01) return [1, 0.78, 0.24, 0.06, 2];
+          if (c <= ov.m1 + 0.01) return [0.25, 0.6, 1, 0.1, 1];
+          if (c <= ov.m2 + 0.01) return [1, 0.72, 0.12, 0.08, 2];
           return null;
         }, true);
         if (reachMesh) group.add(reachMesh);

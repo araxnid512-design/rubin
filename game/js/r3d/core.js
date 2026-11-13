@@ -236,6 +236,14 @@
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return (texCache[k] = t);
   };
+  /* отдельный экземпляр текстуры (свой repeat/offset), а не клон ещё не загруженной */
+  R3.texNew = function (url, srgb) {
+    const t = texLoader.load(url);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = R3.maxAniso || 4;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
   /* PBR-материал из game/tex3d: <вид>_c (цвет), _n (нормали), _a (AO/шероховатость/металл) */
   const matCache = {};
   R3.pbr = function (kind, o) {

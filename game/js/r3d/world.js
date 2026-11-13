@@ -116,7 +116,7 @@
 
   /* ---------- Земля: смешение 4 видов грунта ---------- */
   const GKIND = { 0: 'grain', 1: 'ash', 2: 'earth', 3: 'concrete', 5: 'cave', 6: 'flesh', 8: 'rubble' };   // природный грунт
-  const HARD = { 4: 'metal', 9: 'wood', 11: 'planks', 12: 'roof' };                                     // полы, настилы, крыши
+  const HARD = { 4: 'metal', 9: 'wood', 11: 'planks', 12: 'roof' };   // ('planks' — и для пола комнат)                                     // полы, настилы, крыши
   const ROUGH = { grain: 0.95, ash: 0.98, earth: 0.95, concrete: 0.88, cave: 0.9, flesh: 0.6, rubble: 0.95 };
   function splatMaterial(B, kinds) {
     const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
@@ -215,11 +215,27 @@
       sh.vertexShader = 'attribute vec3 aTile; uniform sampler2D tCut; uniform vec2 uCutSize; uniform float uCutH;\n' + sh.vertexShader.replace('#include <begin_vertex>', [
         '#include <begin_vertex>',
         'float cutOn = texture2D(tCut, (aTile.xy + 0.5) / uCutSize).r;',
-        'if (cutOn > 0.5 && transformed.y > aTile.z + uCutH) transformed.y = aTile.z + uCutH;'
+        'float cutDy = transformed.y - (aTile.z + uCutH);',
+        'if (cutOn > 0.5 && cutDy > 0.0) {',
+        '  transformed.y -= cutDy;',
+        // кладка не сжимается: верх среза — обрезанный край, а не «пила»
+        '  #ifdef USE_MAP', '  vMapUv.y -= cutDy / 2.0;', '  #endif',
+        '  #ifdef USE_NORMALMAP', '  vNormalMapUv.y -= cutDy / 2.0;', '  #endif',
+        '  #ifdef USE_ROUGHNESSMAP', '  vRoughnessMapUv.y -= cutDy / 2.0;', '  #endif',
+        '}'
       ].join('\n'));
     });
     return m;
   }
+  const cutDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  cutDepth.onBeforeCompile = function (sh) {
+    sh.uniforms.tCut = cutU.tCut; sh.uniforms.uCutSize = cutU.uCutSize; sh.uniforms.uCutH = cutU.uCutH;
+    sh.vertexShader = 'attribute vec3 aTile; uniform sampler2D tCut; uniform vec2 uCutSize; uniform float uCutH;\n' + sh.vertexShader.replace('#include <begin_vertex>', [
+      '#include <begin_vertex>',
+      'float cutOn = texture2D(tCut, (aTile.xy + 0.5) / uCutSize).r;',
+      'if (cutOn > 0.5 && transformed.y > aTile.z + uCutH) transformed.y = aTile.z + uCutH;'
+    ].join('\n'));
+  };
   W3.setCut = function (B, set) {
     if (!CUT.tex || CUT.w !== B.w || CUT.h !== B.h) {
       CUT.w = B.w; CUT.h = B.h; CUT.data = new Uint8Array(B.w * B.h * 4);
@@ -235,6 +251,7 @@
   /* ---------- Сборка мира ---------- */
   let group = null;
   const WMAT = { 2: 'brick', 11: 'bulkhead', 14: 'stone', 17: 'plaster' };
+  const CAVE = { crystalcave: 1, nest: 1, lair: 1, vein: 1 };
   W3.build = function (B) {
     if (group) { R3.scene.remove(group); dispose(group); }
     group = new THREE.Group();
@@ -253,6 +270,9 @@
     while (kinds.length < 4) { const f = fill.find(function (k) { return kinds.indexOf(k) < 0; }); kinds.push(f); }
     const sm = splatMaterial(B, kinds);
     sm.userData.U.tSplat.value = buildSplat(B, kinds);
+    // комнаты домов: пол — доски (на клетках с мебелью в карте остаётся уличный грунт)
+    const inRoom = new Uint8Array(B.w * B.h);
+    (B.rooms || []).forEach(function (r) { for (let y = r[1]; y <= r[3]; y++) for (let x = r[0]; x <= r[2]; x++) if (x >= 0 && y >= 0 && x < B.w && y < B.h) inRoom[y * B.w + x] = 1; });
     // верх клеток
     const gTop = new Geo(), gHard = {}, gSide = {}, gAcid = new Geo(), gPit = new Geo();
     const side = function (k) { return gSide[k] || (gSide[k] = new Geo()); };
@@ -271,7 +291,7 @@
       const top = [[x0, h, z1], [x1, h, z1], [x1, h, z0], [x0, h, z0]];
       const uvT = [[x0 / 2, z1 / 2], [x1 / 2, z1 / 2], [x1 / 2, z0 / 2], [x0 / 2, z0 / 2]];
       if (gid === 7) { const ta = top.map(function (p) { return [p[0], p[1] - 0.12, p[2]]; }); gAcid.quad(ta[0], ta[1], ta[2], ta[3], [0, 1, 0], uvT); }
-      else if (HARD[gid]) (gHard[HARD[gid]] = gHard[HARD[gid]] || new Geo()).quad(top[0], top[1], top[2], top[3], [0, 1, 0], uvT);
+      else if (HARD[gid] || (inRoom[i] && GKIND[gid] && !WALLS[B.obj[i]])) { const hk = HARD[gid] || 'planks'; (gHard[hk] = gHard[hk] || new Geo()).quad(top[0], top[1], top[2], top[3], [0, 1, 0], uvT); }
       else gTop.quad(top[0], top[1], top[2], top[3], [0, 1, 0], uvT);
       // стенки уступов: где сосед ниже
       const sk = gid === 12 ? 'plaster' : (gid === 9 ? 'wood' : 'cliff');
@@ -281,7 +301,8 @@
         const hn = out ? -0.6 : hgt[ny * B.w + nx] * LV;
         if (hn >= h - 0.01) return;
         const a = e[2], b = e[3], u0 = (e[4][0] ? a[1] : a[0]) / 2, u1 = (e[4][0] ? b[1] : b[0]) / 2;
-        side(sk).quad([a[0], h, a[1]], [b[0], h, b[1]], [b[0], hn, b[1]], [a[0], hn, a[1]], e[4], [[u0, h / 2], [u1, h / 2], [u1, hn / 2], [u0, hn / 2]]);
+        // лицом наружу (против часовой, если смотреть снаружи)
+        side(sk).quad([b[0], h, b[1]], [a[0], h, a[1]], [a[0], hn, a[1]], [b[0], hn, b[1]], e[4], [[u1, h / 2], [u0, h / 2], [u0, hn / 2], [u1, hn / 2]]);
       });
     }
     // земля вокруг поля (до горизонта, в тумане)
@@ -300,13 +321,13 @@
     }
     if (gAcid.i.length) {
       // кислота: мутная жидкость с бликами и медленной рябью (нормали сдвигаются во времени)
-      const nm = R3.tex('tex3d/cliff_n.jpg').clone(); nm.needsUpdate = true; nm.repeat.set(0.6, 0.6);
+      const nm = R3.texNew('tex3d/cliff_n.jpg'); nm.repeat.set(0.6, 0.6);
       const am = R3.fogify(new THREE.MeshStandardMaterial({ color: 0x2c4214, emissive: 0x1c4a08, emissiveIntensity: 0.55, roughness: 0.06, metalness: 0.1, normalMap: nm, transparent: true, opacity: 0.93 }));
       am.normalScale.set(0.35, 0.35);
       W3.acidN = nm;
       const a = new THREE.Mesh(gAcid.build(), am); group.add(a); R3.pickables.push(a);
     }
-    if (gPit.i.length) group.add(new THREE.Mesh(gPit.build(), new THREE.MeshBasicMaterial({ color: 0x050403 })));
+    if (gPit.i.length) group.add(new THREE.Mesh(gPit.build(), new THREE.MeshBasicMaterial({ color: 0x050403, side: THREE.DoubleSide })));
     buildWalls(B);
     W3.buildProps(B);
     W3.updateFog(B, DW.BT.visible ? DW.BT.visible() : null);
@@ -389,6 +410,7 @@
       const mat = k === 'frame' ? cutMaterial('wood', { color: 0x9a8a78 }) : cutMaterial(k, k === 'bulkhead' ? { metal: true } : {});
       const m = new THREE.Mesh(G[k].build(), mat);
       m.castShadow = true; m.receiveShadow = true;
+      m.customDepthMaterial = cutDepth;   // тень срезанной стены — тоже срезанная
       wallGroup.add(m);
     }
   }
@@ -453,7 +475,11 @@
       if (!o || WALLS[o] || o === 1 || o === 13 || vehTiles[i]) continue;
       const list = M3.props[o];
       if (!list || !list.length) continue;
-      const v = list[hash(x, y) % list.length];
+      let v = list[hash(x, y) % list.length];
+      // в пещерах валуны — стены пещеры: выше человека и шире клетки
+      if (o === 3 && CAVE[B.map]) v = Object.assign({}, v, { len: 1.45, hMax: 2.6 });
+      // остов машины-укрытия — длиннее клетки (иначе игрушечный)
+      if (o === 7) v = Object.assign({}, v, { len: 1.85, hMax: 1.25 });
       const pos = new THREE.Vector3((x + 0.5) * T, B.hgt[i] * LV, (y + 0.5) * T);
       const jitter = o === 3 || o === 8 || o === 16 || o === 20 || o === 19 ? (hash(y, x) % 360) : 0;
       const pg = propGroup;
@@ -476,7 +502,7 @@
       const pg2 = propGroup;
       R3.loadGLB('models/' + e.f + '.glb').then(function (gl) {
         if (!gl || pg2 !== propGroup || B !== DW.BT.get()) return;
-        const m = placeModel(gl, e, pos, 0);
+        const m = placeModel(gl, { len: e.len * 1.32, hMax: (e.hMax || 2.4) * 1.3, yaw: e.yaw }, pos, 0);
         m.userData.veh = v;
         propGroup.add(m);
         v._m3 = m;

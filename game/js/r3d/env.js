@@ -16,7 +16,7 @@
     interior: { sun: 0xffe2b8, si: 0.9, sky: 0x8a7a68, gnd: 0x3a3028, hi: 0.55, az: 0.9, el: 1.1, fog: 0x2a241e, fd: 0.02, top: 0x1a1612, bot: 0x2a241e, exp: 1.15 },
     cave: { sun: 0xbfd8e8, si: 0.5, sky: 0x506070, gnd: 0x2a221c, hi: 0.4, az: 0.9, el: 1.2, fog: 0x12100e, fd: 0.03, top: 0x0a0908, bot: 0x161210, exp: 1.25 }
   };
-  const WEATHER = { rain: { fd: 1.35, dim: 0.72, fog: 0x7d828a }, dust: { fd: 1.8, dim: 0.85, fog: 0xb08a5e }, ash: { fd: 1.6, dim: 0.75, fog: 0x8a8580 } };
+  const WEATHER = { rain: { fd: 1.35, dim: 0.72, fog: 0x7d828a }, dust: { fd: 2.6, dim: 0.82, fog: 0xc09060 }, ash: { fd: 1.8, dim: 0.75, fog: 0x8a8580 } };
   let sky = null;
   E.build = function (B) {
     const S = R3.scene;
@@ -80,7 +80,17 @@
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
     let obj;
     if (kind === 'rain') obj = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x9fb4c8, transparent: true, opacity: 0.38, depthWrite: false, fog: true }));
-    else obj = new THREE.Points(g, new THREE.PointsMaterial({ color: kind === 'dust' ? 0xc8a070 : 0xa8a4a0, size: kind === 'dust' ? 0.07 : 0.06, transparent: true, opacity: kind === 'dust' ? 0.55 : 0.7, depthWrite: false, sizeAttenuation: true }));
+    else {
+      if (!E.softTex) {
+        const c = document.createElement('canvas'); c.width = c.height = 32;
+        const cg = c.getContext('2d'), gr = cg.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        cg.fillStyle = gr; cg.fillRect(0, 0, 32, 32);
+        E.softTex = new THREE.CanvasTexture(c);
+      }
+      // пыль — крупные полупрозрачные клубы песка, пепел — серые хлопья
+      obj = new THREE.Points(g, new THREE.PointsMaterial({ map: E.softTex, color: kind === 'dust' ? 0xd2a46c : 0xb8b4ae, size: kind === 'dust' ? 0.55 : 0.16, transparent: true, opacity: kind === 'dust' ? 0.32 : 0.85, depthWrite: false, sizeAttenuation: true }));
+    }
     obj.frustumCulled = false; obj.renderOrder = 25;
     E.group.add(obj);
     wx = { kind: kind, obj: obj, pos: pos, seed: seed, N: N, R: R, Hh: Hh, t: 0 };

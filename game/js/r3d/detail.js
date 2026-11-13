@@ -35,6 +35,18 @@
       }
     }));
   }
+  let puddleTex = null;
+  function puddleMask() {
+    return puddleTex || (puddleTex = canvasTex(128, 128, function (g) {
+      const r = rng(17);
+      g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+      for (let i = 0; i < 7; i++) {
+        const x = 64 + (r() - 0.5) * 44, y = 64 + (r() - 0.5) * 30, rr = 14 + r() * 22;
+        const gr = g.createRadialGradient(x, y, 1, x, y, rr); gr.addColorStop(0, '#fff'); gr.addColorStop(0.7, '#ccc'); gr.addColorStop(1, '#000');
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+      }
+    }, false));
+  }
   function crack() {
     return crackTex || (crackTex = canvasTex(256, 256, function (g, w, h) {
       const r = rng(11);
@@ -75,7 +87,7 @@
       if (!S.list.length) continue;
       const m = new THREE.InstancedMesh(S.geo, S.mat, S.list.length);
       S.list.forEach(function (p, i) {
-        d.position.set(p[0], p[1], p[2]); d.rotation.set(p[5], p[4], p[6]); d.scale.set(p[3], p[3] * p[7], p[3]); d.updateMatrix();
+        d.position.set(p[0], p[1], p[2]); d.rotation.set(p[5], p[4], p[6], 'YXZ'); d.scale.set(p[3], p[3] * p[7], p[3]); d.updateMatrix();
         m.setMatrixAt(i, d.matrix);
         if (p[8]) m.setColorAt(i, p[8]);
       });
@@ -179,8 +191,7 @@
         case 'scorch': if (R3.fx && R3.fx.decal) R3.fx.decal(d.x - 0.5, d.y - 0.5, 'scorch', 0.8 + d.r); break;
         case 'blood': if (R3.fx && R3.fx.decal) R3.fx.decal(d.x - 0.5, d.y - 0.5, 'red', 0.6 + d.r * 0.5); break;
         case 'puddle': {
-          const m = groundDecal(X, Z, Y, 1.0 + d.r * 1.4, R3.fogify(new THREE.MeshStandardMaterial({ color: 0x2a2e30, roughness: 0.06, metalness: 0.2, transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })), d.r * 6.28);
-          m.scale.set(1, 0.6 + d.r * 0.4, 1);
+          groundDecal(X, Z, Y, 1.0 + d.r * 1.4, R3.fogify(new THREE.MeshStandardMaterial({ color: 0x343a3e, alphaMap: puddleMask(), roughness: 0.05, metalness: 0.15, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })), d.r * 6.28);
           break;
         }
         case 'grass': for (let i = 0; i < 6; i++) put('tuft', X + (r() - 0.5) * 0.9, Y, Z + (r() - 0.5) * 0.9, 0.6 + r() * 0.7, r() * 6.28); break;
@@ -188,9 +199,9 @@
         case 'crystal': for (let i = 0; i < 3; i++) put('shard', X + (r() - 0.5) * 0.3, Y + 0.08, Z + (r() - 0.5) * 0.3, 0.8 + r() * 0.7, r() * 6.28, (r() - 0.5) * 0.5, 0, 1.8); break;
         case 'road': {
           const w = (d.w || B.w) * T;
-          const m = new THREE.Mesh(new THREE.PlaneGeometry(w, T * 1.8), R3.fogify(new THREE.MeshStandardMaterial({ map: R3.tex('tex3d/asphalt_c.jpg', true), normalMap: R3.tex('tex3d/asphalt_n.jpg'), roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1 })));
-          m.material.map = m.material.map.clone(); m.material.map.repeat.set(w / 2, T * 0.9); m.material.map.needsUpdate = true;
-          m.material.normalMap = m.material.normalMap.clone(); m.material.normalMap.repeat.set(w / 2, T * 0.9); m.material.normalMap.needsUpdate = true;
+          const ta = R3.texNew('tex3d/asphalt_c.jpg', true), tn = R3.texNew('tex3d/asphalt_n.jpg');
+          ta.repeat.set(w / 2, T * 0.9); tn.repeat.set(w / 2, T * 0.9);
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(w, T * 1.8), R3.fogify(new THREE.MeshStandardMaterial({ map: ta, normalMap: tn, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1 })));
           m.rotation.x = -Math.PI / 2; m.position.set(w / 2 + d.x * T, 0.006, (d.y + 0.5) * T); m.receiveShadow = true;
           group.add(m);
           break;
