@@ -66,7 +66,8 @@
         m.setMatrixAt(i, d.matrix);
         if (p[8]) m.setColorAt(i, p[8]);
       });
-      m.castShadow = S.cast; m.receiveShadow = true;
+      // мелочь у земли настоящую тень не принимает (статика — запечена, тень бойца на траве не нужна)
+      m.castShadow = S.cast; m.receiveShadow = !R3.bake;
       m.frustumCulled = false;
       group.add(m);
     }
@@ -398,7 +399,7 @@
         R3.loadGLB('models/' + e.f + '.glb').then(function (gl) {
           if (!gl || bg !== group || DT.B !== B) return;
           const m = R3.world.placeModel(gl, { f: e.f, len: e.len, hMax: e.hMax }, pos, yaw);
-          m.traverse(function (o) { if (o.isMesh) o.castShadow = false; });
+          m.traverse(function (o) { if (o.isMesh) o.castShadow = o.receiveShadow = false; });
           group.add(m);
         });
       }
@@ -420,7 +421,7 @@
       R3.loadGLB('models/' + e[0] + '.glb').then(function (gl) {
         if (!gl || bg !== group || DT.B !== B) return;
         const m = R3.world.placeModel(gl, v, pos, yaw);
-        m.traverse(function (o) { if (o.isMesh) o.castShadow = false; });
+        m.traverse(function (o) { if (o.isMesh) o.castShadow = o.receiveShadow = false; });
         group.add(m);
       });
       // россыпь камней и травы рядом

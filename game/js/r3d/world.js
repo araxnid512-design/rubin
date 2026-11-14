@@ -438,16 +438,18 @@
       const m = new THREE.Mesh(gHard[k].build(), R3.fogify(R3.pbr(k, k === 'roof' ? { metal: true, rough: 1 } : {}).clone()));
       m.receiveShadow = true; group.add(m); R3.pickables.push(m);
     }
-    // тени статики запекаются (bake.js) — в карту теней каждый кадр идут только бойцы и «ажурное» (деревья)
+    // тени статики запекаются (bake.js) — в карту теней каждый кадр идут только бойцы и «ажурное» (деревья);
+    // настоящую тень (от бойцов) принимают только земля и полы: отвесные грани, предметы и мелочь её не
+    // считают (выборки карты теней на каждой их точке — самая дорогая часть освещения)
     const live = !R3.bake;
     for (const k in gSide) {
       const m = new THREE.Mesh(gSide[k].build(), R3.fogify(R3.pbr(k).clone()));
-      m.receiveShadow = true; m.castShadow = live; group.add(m);
+      m.receiveShadow = live; m.castShadow = live; group.add(m);
     }
     W3.roughEdges = rough;
     if (rough.length) {
       const m = new THREE.Mesh(roughCliffs(rough), R3.fogify(R3.pbr('cliff').clone()));
-      m.receiveShadow = true; m.castShadow = live; group.add(m);
+      m.receiveShadow = live; m.castShadow = live; group.add(m);
     }
     if (gAcid.i.length) {
       // кислота: мутная жидкость с бликами и медленной рябью (нормали сдвигаются во времени); текстура — одна на все бои
@@ -460,7 +462,7 @@
     if (gPit.i.length) {
       const pf = new THREE.Mesh(gPit.build(), R3.fogify(R3.pbr('rock', { color: 0x8a7e72 }).clone())); pf.receiveShadow = true; group.add(pf);
       const pwm = R3.fogify(R3.pbr('cliff', { color: 0xc8bcb0 }).clone()); pwm.side = THREE.DoubleSide;
-      const pw = new THREE.Mesh(gPitW.build(), pwm); pw.receiveShadow = true; pw.castShadow = live; group.add(pw);
+      const pw = new THREE.Mesh(gPitW.build(), pwm); pw.receiveShadow = live; pw.castShadow = live; group.add(pw);
     }
     buildWalls(B);
     W3.buildProps(B);
@@ -544,7 +546,7 @@
       if (!G[k].i.length) continue;
       const mat = k === 'frame' ? cutMaterial('wood', { color: 0x9a8a78 }) : cutMaterial(k, k === 'bulkhead' ? { metal: true } : {});
       const m = new THREE.Mesh(G[k].build(), mat);
-      m.castShadow = !R3.bake; m.receiveShadow = true;
+      m.castShadow = !R3.bake; m.receiveShadow = !R3.bake;
       m.customDepthMaterial = cutDepth;   // тень срезанной стены — тоже срезанная
       wallGroup.add(m);
     }
@@ -677,7 +679,7 @@
         propMeshes[i] = m;
         // сплошные предметы — в запечённую тень (сетка высот по их треугольникам); сухие деревья и Портал —
         // ажурные, их тень остаётся настоящей
-        if (R3.bake && !AIRY[o]) { m.traverse(function (q) { if (q.isMesh) q.castShadow = false; }); R3.bake.addModel(m); }
+        if (R3.bake && !AIRY[o]) { m.traverse(function (q) { if (q.isMesh) q.castShadow = q.receiveShadow = false; }); R3.bake.addModel(m); }
       });
     }
     // техника на 2–3 клетки
@@ -695,7 +697,7 @@
         m.userData.veh = v;
         propGroup.add(m);
         v._m3 = m;
-        if (R3.bake) { m.traverse(function (q) { if (q.isMesh) q.castShadow = false; }); R3.bake.addModel(m); }
+        if (R3.bake) { m.traverse(function (q) { if (q.isMesh) q.castShadow = q.receiveShadow = false; }); R3.bake.addModel(m); }
       });
     });
   };
