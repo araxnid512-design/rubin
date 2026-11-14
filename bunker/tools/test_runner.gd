@@ -91,6 +91,36 @@ func _run() -> void:
 					var o := c.get_collider() as Node
 					_log("упёрся в %s (%s) у %s" % [o.get_path() if o else "?", o.get_parent().name if o else "", pl.global_position])
 					break
+	if mode == "save1":
+		# первый запуск: изменить мир и сохранить
+		var pl: BCPlayer = Core.player
+		await _place(Vector3(12.0, 0.2, 8.0), 1.0)
+		Core.world.objects["d_gen"].set_open(true)
+		Core.world.objects["l_store"].set_on(false)
+		pl.inventory_add("canned")
+		pl.dose = 77.0
+		pl.hp = 64.0
+		pl.toggle_suit()
+		await _frames(10)
+		_log("сохранено: %s, место %s, костюм %s" % [Core.save.save_game(), pl.global_position.snapped(Vector3(0.01, 0.01, 0.01)), pl.suit_on])
+	if mode == "save2":
+		# второй запуск (новый процесс): загрузить и сверить
+		var pl: BCPlayer = Core.player
+		var ok: bool = Core.save.load_game()
+		await _frames(30)
+		var res := {
+			"загрузка": ok,
+			"место": pl.global_position.distance_to(Vector3(12.0, 0.2, 8.0)) < 0.3,
+			"доза": absf(pl.dose - 77.0) < 1.0,
+			"здоровье": absf(pl.hp - 64.0) < 1.0,
+			"костюм": pl.suit_on,
+			"инвентарь": pl.inventory.has("canned"),
+			"дверь электростанции открыта": Core.world.objects["d_gen"].is_open,
+			"свет склада выключен": not Core.world.objects["l_store"].on,
+			"зона": Core.world.current.name,
+		}
+		_log("после перезапуска: " + str(res))
+		await _shot("save_reload")
 	if mode == "surface":
 		var cam := get_viewport().get_camera_3d()
 		await _place(Vector3(10.0, 0.1, 3.0), PI)
