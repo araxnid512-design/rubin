@@ -77,6 +77,39 @@
     "a man lying on his back on the floor, rolling onto his side, pushing up with his hands onto his knees and then standing up upright with feet flat on the ground"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "bsm_melee_light",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "melee_light",
+    "1",
+    "a man holding a short steel pipe in his right hand, stepping forward and making a quick one-handed horizontal swing from right to left at chest height, then returning to a guard stance"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_melee_heavy",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "melee_heavy",
+    "2",
+    "a man gripping a steel pipe with both hands, raising it over his head and striking straight down hard in front of him, then returning to a guard stance with the pipe held in front"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_dodge_back",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "dodge_back",
+    "1",
+    "a man in a fighting stance quickly hopping backward to dodge an attack, keeping his hands up in guard, landing balanced on both feet"
+   ],
+   "timeout": 2400
   }
  ],
  "archived": [
