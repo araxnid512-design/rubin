@@ -7,6 +7,88 @@
   /* ---------- Генерация ---------- */
   const World = {};
   World.W = W; World.H = H;
+  // карта растёт на восток районами: первый — 1600 точек в ширину, каждый следующий — ещё 900
+  const REG_W = 900;
+  const REG_NAMES = ['Ржавый перевал', 'Пепельная долина', 'Мёртвые карьеры', 'Гнилые топи', 'Стеклянная пустошь', 'Северный кордон', 'Сухое море', 'Солёные холмы', 'Костяные поля', 'Чёрный лес'];
+  World.regions = function (world) { return world.regions || [{ x0: 0, w: W, seed: world.seed }]; };
+  World.totalW = function (world) { const R = World.regions(world), l = R[R.length - 1]; return l.x0 + l.w; };
+  /* новый район за восточным краем: 8–10 локаций, свои дороги и 2–3 дороги в старую часть, враги сильнее */
+  World.addRegion = function (world) {
+    const R = world.regions || (world.regions = [{ x0: 0, w: W, seed: world.seed }]);
+    const last = R[R.length - 1], idx = R.length;
+    const reg = { x0: last.x0 + last.w, w: REG_W, seed: U.rand(1, 1e9), idx: idx, name: REG_NAMES[(idx - 1) % REG_NAMES.length] + (idx > REG_NAMES.length ? ' ' + (1 + Math.floor((idx - 1) / REG_NAMES.length)) : '') };
+    const nodes = world.nodes, edges = world.edges, base = nodes.length;
+    const near = nodes.filter(function (n) { return n.x > reg.x0 - 520; });
+    const pts = [];
+    for (let t = 0; pts.length < 10 && t < 6000; t++) {
+      const x = U.randf(reg.x0 + 60, reg.x0 + reg.w - 80), y = U.randf(90, H - 90);
+      const ok = pts.every(function (p) { return Math.hypot(p.x - x, p.y - y) > 165; }) && near.every(function (n) { return Math.hypot(n.x - x, n.y - y) > 165; });
+      if (ok) pts.push({ x: x, y: y });
+    }
+    if (pts.length < 5) return null;
+    const all = function (i) { return i < base ? nodes[i] : pts[i - base]; };
+    const crosses = function (a, b) {
+      const A = all(a), Bp = all(b);
+      return edges.some(function (e) { return e[0] !== a && e[1] !== a && e[0] !== b && e[1] !== b && U.segIntersect(A, Bp, all(e[0]), all(e[1])); });
+    };
+    // дороги внутри района: остовное дерево по близости + немного лишних
+    const n = pts.length, ids = pts.map(function (p, i) { return base + i; });
+    const pairs = [];
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y), ids[i], ids[j]]);
+    pairs.sort(function (a, b) { return a[0] - b[0]; });
+    const par = {}; ids.forEach(function (i) { par[i] = i; });
+    const find = function (a) { while (par[a] !== a) a = par[a] = par[par[a]]; return a; };
+    const newE = [];
+    pairs.forEach(function (p) { if (p[0] < 430 && find(p[1]) !== find(p[2]) && !crosses(p[1], p[2])) { edges.push([p[1], p[2]]); newE.push(p); par[find(p[1])] = find(p[2]); } });
+    // кто остался без дороги — к ближайшему
+    ids.forEach(function (i) {
+      if (edges.some(function (e) { return e[0] === i || e[1] === i; })) return;
+      const j = ids.filter(function (k) { return k !== i; }).sort(function (a, b) { return Math.hypot(all(a).x - all(i).x, all(a).y - all(i).y) - Math.hypot(all(b).x - all(i).x, all(b).y - all(i).y); })[0];
+      edges.push([i, j]); par[find(i)] = find(j);
+    });
+    pairs.forEach(function (p) { if (p[0] < 320 && Math.random() < 0.35 && !edges.some(function (e) { return (e[0] === p[1] && e[1] === p[2]) || (e[0] === p[2] && e[1] === p[1]); }) && !crosses(p[1], p[2])) edges.push([p[1], p[2]]); });
+    // связь со старой частью: 2–3 дороги от западных точек района к восточным локациям
+    const west = ids.slice().sort(function (a, b) { return all(a).x - all(b).x; });
+    let links = 0;
+    for (let k = 0; k < west.length && links < 3; k++) {
+      const i = west[k];
+      const cand = near.map(function (m) { return m.id; }).sort(function (a, b) { return Math.hypot(all(a).x - all(i).x, all(a).y - all(i).y) - Math.hypot(all(b).x - all(i).x, all(b).y - all(i).y); });
+      const j = cand.find(function (c) { return Math.hypot(all(c).x - all(i).x, all(c).y - all(i).y) < 520 && !crosses(i, c); });
+      if (j !== undefined) { edges.push([j, i]); links++; }
+    }
+    if (!links) { const i = west[0], j = near.sort(function (a, b) { return Math.hypot(a.x - all(i).x, a.y - all(i).y) - Math.hypot(b.x - all(i).x, b.y - all(i).y); })[0]; edges.push([j.id, i]); }
+    // типы: логова, лагеря, жилы, остальное — руины
+    const types = ['lair', 'lair', 'camp', 'camp', 'vein', 'vein', 'vein'];
+    while (types.length < n) types.push('ruins');
+    U.shuffle(types);
+    const used = {}; nodes.forEach(function (m) { used[m.name] = 1; });
+    const pickName = function (tp) { const pool = (D.NODE_NAMES[tp] || []).filter(function (x) { return !used[x]; }); const nm = pool.length ? U.pick(pool) : (D.NODE_TYPES[tp] || D.NODE_TYPES.camp).n + ' (' + reg.name + ')'; used[nm] = 1; return nm; };
+    const add = [];
+    pts.forEach(function (p, i) {
+      const tp = types[i];
+      let fac = null;
+      if (tp === 'camp') fac = idx >= 2 && Math.random() < 0.35 ? 'sobr' : U.pick(['raider', 'clan']);
+      const nm = fac === 'sobr' || fac === 'clan' ? pickName(fac) : pickName(tp);
+      const diff = Math.min(5, 2 + idx + (tp === 'lair' || fac === 'sobr' ? 1 : 0));
+      const node = {
+        id: base + i, x: Math.round(p.x), y: Math.round(p.y), type: tp, name: nm, diff: diff, hops: 0,
+        known: false, visited: false, cleared: false, beacon: false, outpost: false, base: false,
+        cargo: null, searches: tp === 'ruins' ? 3 : 0, region: idx,
+        map: fac ? D.mapFor('camp', fac, nm) : D.mapFor(tp, null, nm)
+      };
+      if (fac) node.fac = fac;
+      nodes.push(node); add.push(node);
+    });
+    // переходы от точки высадки — заново для всех
+    const adj = nodes.map(function () { return []; });
+    edges.forEach(function (e) { adj[e[0]].push(e[1]); adj[e[1]].push(e[0]); });
+    const hops = new Array(nodes.length).fill(-1); hops[world.landing || 0] = 0;
+    const q = [world.landing || 0];
+    while (q.length) { const c = q.shift(); adj[c].forEach(function (m) { if (hops[m] < 0) { hops[m] = hops[c] + 1; q.push(m); } }); }
+    nodes.forEach(function (m, i) { m.hops = Math.max(0, hops[i]); });
+    R.push(reg);
+    return { reg: reg, nodes: add };
+  };
   World.generate = function () {
     for (let attempt = 0; attempt < 30; attempt++) {
       const w = tryGen();
@@ -142,6 +224,8 @@
   const WR = {};
   const ART = DW.ART;
   let bg = null, bgSeed = null, fogC = null, fogKey = '';
+  let WT = W;   // полная ширина карты (с новыми районами)
+  WR.syncSize = function (world) { WT = World.totalW(world); };
   let baseKey = '', baseArt = null;
   WR.cam = { x: W / 2, y: H / 2, z: 1, tx: null, ty: null };
   WR.view = { w: 800, h: 400 };
@@ -347,13 +431,103 @@
     g.strokeStyle = 'rgba(255,230,190,0.045)'; g.lineWidth = 1;
     for (let x = 0; x <= W; x += 100) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
     for (let y = 0; y <= H; y += 100) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
-    const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
-    g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    if (!(world.regions && world.regions.length > 1)) {
+      const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.72);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    }
+    return c;
+  }
+  /* лист нового района: тот же рельеф (шум по общим координатам — без шва), озёра, хребты, кратеры, мёртвый лес,
+     развалины у локаций; строится, когда попадает в кадр; держим в памяти не больше трёх */
+  const regBg = {}, regUse = [];
+  function regionBg(world, reg) {
+    const key = reg.seed;
+    if (regBg[key]) { const i = regUse.indexOf(key); if (i >= 0) regUse.splice(i, 1); regUse.push(key); return regBg[key]; }
+    const RW = reg.w, c = canvas(RW * BGS, H * BGS), g = c.getContext('2d');
+    g.scale(BGS, BGS);
+    const seed = world.seed % 100000, lw = Math.round(RW / 4), lh = 250, ox = reg.x0 / 4;
+    const hf = new Float32Array(lw * lh);
+    for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+      const n = U.fbm((ox + x) * 0.0144, y * 0.0144, seed, 5);
+      const r = 1 - Math.abs(U.noise((ox + x) * 0.0096 + 50, y * 0.0096, seed + 3) * 2 - 1);
+      hf[y * lw + x] = n * 0.72 + r * r * 0.34;
+    }
+    const lc = canvas(lw, lh), lg = lc.getContext('2d'), img = lg.createImageData(lw, lh);
+    const pal = [[0, [44, 34, 26]], [0.36, [70, 54, 38]], [0.48, [116, 94, 66]], [0.6, [134, 112, 80]], [0.72, [118, 106, 94]], [0.86, [158, 150, 138]], [1.2, [176, 170, 160]]];
+    for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+      const i = y * lw + x, h = hf[i];
+      const dx = hf[y * lw + Math.min(lw - 1, x + 1)] - hf[y * lw + Math.max(0, x - 1)];
+      const dy = hf[Math.min(lh - 1, y + 1) * lw + x] - hf[Math.max(0, y - 1) * lw + x];
+      const shade = U.clamp(1 + (-dx * 1.1 - dy) * 11, 0.45, 1.55);
+      let col = pal[pal.length - 1][1];
+      for (let k = 0; k < pal.length - 1; k++) if (h < pal[k + 1][0]) { col = lerpC(pal[k][1], pal[k + 1][1], (h - pal[k][0]) / (pal[k + 1][0] - pal[k][0])); break; }
+      const rust = U.fbm((ox + x) * 0.04 + 300, y * 0.04, seed + 9, 3);
+      if (rust > 0.6) col = lerpC(col, [col[0] * 1.15, col[1] * 0.86, col[2] * 0.7], (rust - 0.6) * 2.5);
+      const k = i * 4, warm = shade > 1 ? (shade - 1) * 0.35 : 0, cool = shade < 1 ? (1 - shade) * 0.5 : 0;
+      img.data[k] = U.clamp(col[0] * shade * (1 + warm * 0.3) * (1 - cool * 0.25), 0, 255);
+      img.data[k + 1] = U.clamp(col[1] * shade * (1 + warm * 0.12) * (1 - cool * 0.1), 0, 255);
+      img.data[k + 2] = U.clamp(col[2] * shade * (1 - warm * 0.15) * (1 + cool * 0.25), 0, 255);
+      img.data[k + 3] = 255;
+      if (h < 0.27) { const a = U.clamp((0.27 - h) * 14, 0, 1); img.data[k] = img.data[k] * (1 - a * 0.8) + 70 * a * 0.8; img.data[k + 1] = img.data[k + 1] * (1 - a * 0.8) + 110 * a * 0.8; img.data[k + 2] = img.data[k + 2] * (1 - a * 0.8) + 30 * a * 0.8; }
+    }
+    lg.putImageData(img, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(lc, 0, 0, RW, H);
+    try {
+      const pat = g.createPattern(DW.TR.matTex('earth'), 'repeat');
+      g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = 0.22; g.scale(0.32, 0.32); g.fillStyle = pat; g.fillRect(0, 0, RW * 3.2, H * 3.2); g.restore();
+    } catch (e) { /* ignore */ }
+    const rnd = U.srng(reg.seed), sx = RW / lw, sy = H / lh;
+    const hAt = function (x, y) { return hf[U.clamp(Math.floor(y / sy), 0, lh - 1) * lw + U.clamp(Math.floor(x / sx), 0, lw - 1)]; };
+    for (let i = 0; i < 5000; i++) { g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,0.08)' : 'rgba(255,240,210,0.05)'; g.fillRect(rnd() * RW, rnd() * H, 1.5, 1.5); }
+    for (let i = 0; i < 150; i++) {
+      const x = rnd() * RW, y = rnd() * H, h = hAt(x, y);
+      if (h < 0.7) continue;
+      const ph = 10 + (h - 0.7) * 120 + rnd() * 8, pw = ph * (0.9 + rnd() * 0.5);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.moveTo(x - pw, y); g.lineTo(x + pw * 0.4, y - ph * 0.2); g.lineTo(x + pw * 1.4, y + 3); g.closePath(); g.fill();
+      g.fillStyle = 'rgb(' + (150 + h * 40) + ',' + (138 + h * 40) + ',' + (120 + h * 40) + ')'; g.beginPath(); g.moveTo(x - pw, y); g.lineTo(x, y - ph); g.lineTo(x + 2, y); g.closePath(); g.fill();
+      g.fillStyle = 'rgb(' + (82 + h * 30) + ',' + (72 + h * 30) + ',' + (64 + h * 30) + ')'; g.beginPath(); g.moveTo(x, y - ph); g.lineTo(x + pw, y); g.lineTo(x + 2, y); g.closePath(); g.fill();
+    }
+    for (let k = 0; k < 18; k++) {
+      const x = rnd() * RW, y = rnd() * H, r = 8 + rnd() * 28;
+      g.fillStyle = 'rgba(15,10,6,0.32)'; g.beginPath(); g.ellipse(x + 2, y + 2, r, r * 0.62, 0, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(230,210,180,0.18)'; g.lineWidth = 2.5; g.beginPath(); g.ellipse(x, y, r, r * 0.62, 0, 0.3, 2.8); g.stroke();
+    }
+    for (let k = 0; k < 9; k++) {
+      const cx = rnd() * RW, cy = rnd() * H;
+      if (hAt(cx, cy) > 0.68) continue;
+      for (let q = 0; q < 34; q++) {
+        const x = cx + (rnd() - 0.5) * 130, y = cy + (rnd() - 0.5) * 80, h = 6 + rnd() * 6;
+        g.strokeStyle = 'rgba(38,28,20,0.75)'; g.lineWidth = 1.3;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - h); g.moveTo(x, y - h * 0.6); g.lineTo(x - 3, y - h * 0.9); g.moveTo(x, y - h * 0.7); g.lineTo(x + 3, y - h); g.stroke();
+      }
+    }
+    world.nodes.forEach(function (n) {
+      if (n.x < reg.x0 - 80 || n.x > reg.x0 + RW + 80) return;
+      const nx = n.x - reg.x0;
+      if (n.type === 'ruins') for (let q = 0; q < 14; q++) {
+        const x = nx + (rnd() - 0.5) * 150, y = n.y + (rnd() - 0.5) * 100;
+        if (Math.hypot(x - nx, y - n.y) < 40) continue;
+        g.save(); g.translate(x, y); ART.box(g, -0.5, -0.5, 0.5, 0.5, 0, 4 + rnd() * 12, '#8a7f72', '#6a5e52', '#4e443a', { hw: 4 + rnd() * 3, hh: 2 + rnd() * 1.5, edge: false }); g.restore();
+      } else if (n.type === 'vein') for (let q = 0; q < 22; q++) {
+        const x = nx + (rnd() - 0.5) * 140, y = n.y + (rnd() - 0.5) * 100, sz = 2 + rnd() * 4;
+        g.fillStyle = 'rgba(95,212,230,' + (0.3 + rnd() * 0.4) + ')'; g.beginPath(); g.moveTo(x, y - sz * 1.8); g.lineTo(x + sz * 0.6, y); g.lineTo(x, y + sz * 0.4); g.lineTo(x - sz * 0.6, y); g.closePath(); g.fill();
+      } else if (n.type === 'lair') for (let q = 0; q < 6; q++) {
+        const x = nx + (rnd() - 0.5) * 140, y = n.y + (rnd() - 0.5) * 100, r = 12 + rnd() * 20;
+        const gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, 'rgba(120,160,30,0.45)'); gr.addColorStop(1, 'rgba(120,160,30,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+      }
+    });
+    g.strokeStyle = 'rgba(255,230,190,0.045)'; g.lineWidth = 1;
+    for (let x = (100 - reg.x0 % 100) % 100; x <= RW; x += 100) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+    for (let y = 0; y <= H; y += 100) { g.beginPath(); g.moveTo(0, y); g.lineTo(RW, y); g.stroke(); }
+    regBg[key] = c; regUse.push(key);
+    while (regUse.length > 3) delete regBg[regUse.shift()];
     return c;
   }
   function buildFog(world) {
-    if (!fogC) fogC = canvas(W / 4, H / 4);
+    if (!fogC || fogC.width !== Math.ceil(WT / 4)) { fogC = canvas(Math.ceil(WT / 4), H / 4); mistC = null; }
     const g = fogC.getContext('2d');
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, fogC.width, fogC.height);
@@ -411,7 +585,7 @@
       m.save(); m.translate(-ox, -oy); m.fillStyle = pat; m.fillRect(0, 0, mistC.width + 256, mistC.height + 256); m.restore();
       m.globalCompositeOperation = 'source-over';
     }
-    g.globalAlpha = 0.4; g.drawImage(mistC, 0, 0, W, H); g.globalAlpha = 1;
+    g.globalAlpha = 0.4; g.drawImage(mistC, 0, 0, fogC.width * 4, H); g.globalAlpha = 1;
   }
   function pnoiseW(x, y, per, seed) {
     const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
@@ -423,7 +597,9 @@
 
   WR.init = function () {
     const st = DW.G.state;
-    if (!bg || bgSeed !== st.world.seed) { bg = buildBg(st.world); bgSeed = st.world.seed; }
+    WR.syncSize(st.world);
+    const bk = st.world.seed + ':' + (World.regions(st.world).length > 1 ? 'm' : 's');
+    if (!bg || bgSeed !== bk) { bg = buildBg(st.world); bgSeed = bk; }
     fogKey = '';
     const n = DW.G.node(st.squadAt);
     WR.cam.z = U.clamp(Math.min(WR.view.h / 470, WR.view.w / 780), 0.55, 1.4);
@@ -435,7 +611,7 @@
     const z = WR.cam.z;
     const hw = WR.view.w / 2 / z, hh = WR.view.h / 2 / z;
     const m = 130;
-    WR.cam.x = W + 2 * m < hw * 2 ? W / 2 : U.clamp(WR.cam.x, hw - m, W - hw + m);
+    WR.cam.x = WT + 2 * m < hw * 2 ? WT / 2 : U.clamp(WR.cam.x, hw - m, WT - hw + m);
     WR.cam.y = H + 2 * m < hh * 2 ? H / 2 : U.clamp(WR.cam.y, hh - m, H - hh + m);
   }
   WR.pan = function (dx, dy) { WR.cam.x -= dx / WR.cam.z; WR.cam.y -= dy / WR.cam.z; WR.cam.tx = null; clampCam(); };
@@ -815,14 +991,20 @@
     g.fillStyle = '#0d0b09'; g.fillRect(0, 0, Wd, Hd);
     g.setTransform(dpr * z, 0, 0, dpr * z, dpr * (Wd / 2 - WR.cam.x * z), dpr * (Hd / 2 - WR.cam.y * z));
     g.drawImage(bg, 0, 0, W, H);
+    // листы новых районов — только те, что в кадре
+    if (st.world.regions && st.world.regions.length > 1) {
+      if (WT !== World.totalW(st.world)) { WR.syncSize(st.world); const bk = st.world.seed + ':m'; if (bgSeed !== bk) { bg = buildBg(st.world); bgSeed = bk; } }
+      const vx0 = WR.cam.x - Wd / 2 / z, vx1 = WR.cam.x + Wd / 2 / z;
+      st.world.regions.forEach(function (reg, i) { if (i && reg.x0 < vx1 && reg.x0 + reg.w > vx0) g.drawImage(regionBg(st.world, reg), reg.x0, 0, reg.w, H); });
+    }
     lakeGlints(g, performance.now());
     const key = st.world.nodes.map(function (n) { return (n.known ? 1 : 0) + (n.visited ? 2 : 0); }).join('');
     if (key !== fogKey) { buildFog(st.world); fogKey = key; }
     g.imageSmoothingEnabled = true;
-    g.drawImage(fogC, 0, 0, W, H);
+    g.drawImage(fogC, 0, 0, fogC.width * 4, H);
     mistLayer(g, performance.now());
     g.strokeStyle = 'rgba(200,160,110,0.35)'; g.lineWidth = 3;
-    g.strokeRect(0, 0, W, H);
+    g.strokeRect(0, 0, WT, H);
 
     const nodes = st.world.nodes;
     let pathSet = {};
@@ -890,7 +1072,7 @@
     const ct = t / 1000;
     if (!clouds) clouds = makeClouds();
     clouds.forEach(function (cl) {
-      const span = W + 700;
+      const span = WT + 700;
       const cx = ((cl.x0 + ct * cl.v) % span) - 350;
       g.drawImage(cl.sh, cx - cl.sz + 40, cl.y - cl.sz * 0.6 + 70, cl.sz * 2, cl.sz * 1.2);
       g.drawImage(cl.c, cx - cl.sz, cl.y - cl.sz * 0.6, cl.sz * 2, cl.sz * 1.2);

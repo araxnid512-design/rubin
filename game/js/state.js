@@ -664,6 +664,8 @@
       }
     });
     if (st.truce) for (const f in st.truce) if (st.truce[f] === st.day) notes.push({ title: 'Перемирие кончилось', text: 'Срок перемирия с ' + G.FAC_GEN[f] + ' вышел. Можно договориться снова.', kind: 'info' });
+    // карта растёт: отряд дошёл до восточного края — за ним открывается новый район
+    G.checkFrontier(notes);
     // в Гнезде заводится новая Матка
     if (st.nestBack && st.day >= st.nestBack) {
       st.nestBack = null;
@@ -719,6 +721,24 @@
     let event = null;
     if (!defense && st.day > 2 && Math.random() < 0.14) event = G.rollEvent();
     return { notes: notes, event: event, defense: defense, drops: arrived.map(function (o) { return o.drop; }), raidNew: raidNew };
+  };
+  /* ---------- Растущая карта: новый район на востоке ----------
+     когда отряд побывал у восточного края (и не чаще раза в 8 дней), разведка находит дорогу дальше */
+  G.checkFrontier = function (notes) {
+    const st = G.state, w = st.world;
+    if (!DW.World || !DW.World.addRegion || st.day < 8 || (w.regionDay || 0) + 8 > st.day) return null;
+    const tw = DW.World.totalW(w);
+    const front = w.nodes.filter(function (n) { return n.visited && n.x > tw - 560; });
+    if (!front.length) return null;
+    const r = DW.World.addRegion(w);
+    if (!r) return null;
+    w.regionDay = st.day;
+    front.forEach(function (n) { G.revealAround(n.id); });
+    if (DW.WR && DW.WR.syncSize) DW.WR.syncSize(w);
+    const cnt = {}; r.nodes.forEach(function (n) { cnt[n.type] = (cnt[n.type] || 0) + 1; });
+    notes.push({ title: 'Новый район: ' + r.reg.name, text: 'Разведка нашла дорогу на восток. За перевалом — ' + r.nodes.length + ' локаций: логова (' + (cnt.lair || 0) + '), лагеря (' + (cnt.camp || 0) + '), жилы (' + (cnt.vein || 0) + '), руины. Враги там сильнее, но и кристаллов больше.', kind: 'info' });
+    G.log('Открыт новый район: «' + r.reg.name + '».');
+    return r;
   };
   /* ---------- Кочующие стаи и банды на карте мира ----------
      набег идёт к базе по дорогам (виден на карте) — если отряд стоит у него на пути, бой в поле: победа срывает набег.
