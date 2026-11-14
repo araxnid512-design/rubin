@@ -373,7 +373,7 @@ func interact_anim(_p) -> String:
 func interact(_p) -> void:
 	var to: Vector3 = Core.player.global_position - global_position
 	# повернуться к герою плавно, не рывком
-	var tw := create_tween()
+	var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)   # поворот — в такт физики (интерполяция)
 	tw.tween_property(self, "rotation:y", rotation.y + angle_difference(rotation.y, atan2(to.x, to.z)), 0.35)
 	state = "idle"
 	_t = 6.0
@@ -404,7 +404,7 @@ func _resident_emotes(delta: float, walking: bool) -> void:
 			if not rig.busy():
 				if rig.has_clip("wave"):
 					var to := p.global_position - global_position
-					var tw := create_tween()
+					var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)   # поворот — в такт физики (интерполяция)
 					tw.tween_property(self, "rotation:y", rotation.y + angle_difference(rotation.y, atan2(to.x, to.z)), 0.3)
 					rig.play("wave")
 				_talk_t = 60.0
