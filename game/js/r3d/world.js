@@ -12,6 +12,26 @@
   const FOG = { tex: null, size: new THREE.Vector2(1, 1), data: null };
   const fogU = { tFog: { value: null }, uFogSize: { value: FOG.size }, uTime: { value: 0 } };
   R3.fogU = fogU;
+  /* запечённый свет статики (bake.js): r — высота, ниже которой точка в тени солнца, g — затенение у оснований,
+     b — высота земли; пока не запечено — нейтральная текстура 1×1 (тени нет, затенения нет) */
+  const giNeutral = new THREE.DataTexture(new Uint8Array([0, 255, 0, 255]), 1, 1, THREE.RGBAFormat);
+  giNeutral.needsUpdate = true;
+  const giU = R3.giU = { tGI: { value: giNeutral }, uGIRange: { value: new THREE.Vector2(-3.5, 16) } };
+  R3.giNeutral = giNeutral;
+  /* цветокоррекция по времени суток и месту (env.js): насыщенность, контраст, усиление каналов, подъём теней */
+  const gradeU = R3.gradeU = { uGradeSC: { value: new THREE.Vector2(1, 1) }, uGradeGain: { value: new THREE.Vector3(1, 1, 1) }, uGradeLift: { value: new THREE.Vector3(0, 0, 0) } };
+  // в освещение: тень от статики гасит только солнце, затенение у оснований — в основном рассеянный свет
+  const GI_LIGHT = [
+    'float giSun = 1.0, giAO = 1.0;',
+    '{ vec3 giN = inverseTransformDirection( normal, viewMatrix );',
+    '  vec2 giUV = ( vWP.xz + giN.xz * 0.22 ) / uFogSize;',
+    '  vec4 gi = texture2D( tGI, giUV );',
+    '  float giIn = max( max( -giUV.x, giUV.x - 1.0 ), max( -giUV.y, giUV.y - 1.0 ) ) < 0.0 ? 1.0 : 0.0;',
+    '  float hS = uGIRange.x + gi.r * uGIRange.y, hG = uGIRange.x + gi.b * uGIRange.y;',
+    '  giSun = mix( 1.0, smoothstep( -0.16, 0.16, vWP.y + 0.08 - hS ), giIn );',
+    '  giAO = mix( 1.0, mix( gi.g, 1.0, smoothstep( 0.0, 0.9, vWP.y - hG ) ), giIn ); }'
+  ].join('\n');
+  const GI_AO = 'reflectedLight.indirectDiffuse *= giAO; reflectedLight.indirectSpecular *= giAO; reflectedLight.directDiffuse *= mix( 1.0, giAO, 0.6 );\n#include <aomap_fragment>';
   /* добавить к материалу туман войны (и мировую позицию vWP) */
   R3.fogify = function (m, extra) {
     if (m.userData.fogged) return m;
@@ -19,6 +39,8 @@
     const prev = m.onBeforeCompile;
     m.onBeforeCompile = function (sh, r) {
       sh.uniforms.tFog = fogU.tFog; sh.uniforms.uFogSize = fogU.uFogSize; sh.uniforms.uTime = fogU.uTime;
+      sh.uniforms.tGI = giU.tGI; sh.uniforms.uGIRange = giU.uGIRange;
+      sh.uniforms.uGradeSC = gradeU.uGradeSC; sh.uniforms.uGradeGain = gradeU.uGradeGain; sh.uniforms.uGradeLift = gradeU.uGradeLift;
       if (!/varying vec3 vWP;/.test(sh.vertexShader)) {
         // мировая позиция фрагмента (с учётом instanced-копий — трава, камешки, гильзы)
         sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <project_vertex>', [
@@ -31,9 +53,19 @@
         ].join('\n'));
         sh.fragmentShader = 'varying vec3 vWP;\n' + sh.fragmentShader;
       }
+      // запечённый свет: только в освещаемых материалах (у MeshBasic нет нормали и освещения)
+      if (sh.fragmentShader.indexOf('#include <lights_fragment_begin>') >= 0) {
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <lights_fragment_begin>', GI_LIGHT + '\n' + THREE.ShaderChunk.lights_fragment_begin.replace('getDirectionalLightInfo( directionalLight, directLight );', 'getDirectionalLightInfo( directionalLight, directLight );\n\t\tdirectLight.color *= giSun;'))
+          .replace('#include <aomap_fragment>', GI_AO);
+      }
       // туман войны: видно — как есть; разведано — приглушено; не разведано — тёмная дымка с еле заметным рельефом
-      sh.fragmentShader = 'uniform sampler2D tFog; uniform vec2 uFogSize; uniform float uTime;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', [
+      sh.fragmentShader = 'uniform sampler2D tFog, tGI; uniform vec2 uFogSize, uGIRange, uGradeSC; uniform float uTime; uniform vec3 uGradeGain, uGradeLift;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', [
         '#include <dithering_fragment>',
+        // цветокоррекция (после тонального сжатия): насыщенность, контраст, оттенок светов и теней
+        '  { vec3 gc = gl_FragColor.rgb; float gL = dot(gc, vec3(0.299, 0.587, 0.114));',
+        '    gc = (mix(vec3(gL), gc, uGradeSC.x) - 0.5) * uGradeSC.y + 0.5;',
+        '    gl_FragColor.rgb = max(gc * uGradeGain + uGradeLift, 0.0); }',
         '  { vec2 fu = vWP.xz / uFogSize; float fv = texture2D(tFog, fu).r;',
         '    float outside = max(max(-fu.x, fu.x - 1.0), max(-fu.y, fu.y - 1.0)); if (outside > 0.0) fv = mix(fv, 0.5, smoothstep(0.0, 0.08, outside));',
         '    float lum = dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11));',
@@ -248,6 +280,84 @@
     if (ch) CUT.tex.needsUpdate = true;
   };
 
+  /* ---------- Неровные скальные уступы ----------
+     Грань уступа делится на сетку (≈0,43 × 0,5 м), вершины выдвигаются наружу по шуму от мировой позиции.
+     Верхний край — ровно по краю клетки (верх ровный и проходимый, клетки совпадают), ниже — бугры до 0,2 м и
+     только наружу (иначе у подножия была бы щель между гранью и землёй). Одинаковая точка → одинаковый сдвиг,
+     нормаль — сумма граней в точке: на углах и стыках клеток швов нет. Грани у лестниц и маршей не трогаются. */
+  function hash3(x, y, z) { let h = (x * 374761393 + y * 668265263 + z * 1440662683) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+  function vnoise(x, y, z) {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    let fx = x - xi, fy = y - yi, fz = z - zi;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+    const L = function (a, b, t) { return a + (b - a) * t; };
+    const c = function (dx, dy, dz) { return hash3(xi + dx, yi + dy, zi + dz); };
+    return L(L(L(c(0, 0, 0), c(1, 0, 0), fx), L(c(0, 1, 0), c(1, 1, 0), fx), fy), L(L(c(0, 0, 1), c(1, 0, 1), fx), L(c(0, 1, 1), c(1, 1, 1), fx), fy), fz);
+  }
+  function roughCliffs(list) {
+    const AMP = 0.2, NH = 3;
+    const key = function (x, y, z) { return Math.round(x * 64) + ',' + Math.round(y * 64) + ',' + Math.round(z * 64); };
+    const acc = {}, fixed = {}, bottom = {};
+    const faces = list.map(function (f) {
+      const nv = Math.max(2, Math.round((f.h - f.hn) / 0.5)), v = [];
+      for (let r = 0; r <= nv; r++) for (let c = 0; c <= NH; c++) {
+        // от b к a, сверху вниз — тот же обход, что у прежнего четырёхугольника (лицом наружу)
+        const t = c / NH, y = f.h - (f.h - f.hn) * r / nv;
+        const x = f.b[0] + (f.a[0] - f.b[0]) * t, z = f.b[1] + (f.a[1] - f.b[1]) * t;
+        const k = key(x, y, z);
+        v.push({ x: x, y: y, z: z, k: k });
+        const q = acc[k] || (acc[k] = [0, 0]); q[0] += f.n[0]; q[1] += f.n[2];
+        if (r === 0 || f.fz) fixed[k] = 1;
+        if (r === nv) bottom[k] = 1;
+      }
+      return { f: f, nv: nv, v: v };
+    });
+    // сдвиг каждой точки — один раз
+    const off = {};
+    for (const k in acc) {
+      if (fixed[k]) { off[k] = [0, 0, 0]; continue; }
+      const p = k.split(',').map(function (s) { return +s / 64; });
+      const n = acc[k], l = Math.hypot(n[0], n[1]) || 1;
+      const nz = vnoise(p[0] * 1.7, p[1] * 1.9, p[2] * 1.7) * 0.75 + vnoise(p[0] * 4.3 + 7, p[1] * 4.1, p[2] * 4.3) * 0.25;
+      const d = AMP * (0.12 + 0.88 * nz);
+      // по высоте — чуть вразброс, подножие — только вниз (в землю), чтобы не было щели
+      off[k] = [n[0] / l * d, bottom[k] ? -0.04 : (vnoise(p[0] * 3, p[1] * 3 + 5, p[2] * 3) - 0.5) * 0.14, n[1] / l * d];
+    }
+    const P = [], UV = [], I = [];
+    faces.forEach(function (F) {
+      const o = P.length / 3, f = F.f;
+      F.v.forEach(function (q) {
+        const d = off[q.k];
+        P.push(q.x + d[0], q.y + d[1], q.z + d[2]);
+        UV.push((f.n[0] ? q.z : q.x) / 2, q.y / 2);
+      });
+      for (let r = 0; r < F.nv; r++) for (let c = 0; c < NH; c++) {
+        const a = o + r * (NH + 1) + c, b = a + 1, cc = a + NH + 2, d = a + NH + 1;
+        I.push(a, b, cc, a, cc, d);
+      }
+    });
+    // нормали — по всем граням в точке (гладко через стыки клеток)
+    const nacc = {}, keys = [];
+    faces.forEach(function (F) { F.v.forEach(function (q) { keys.push(q.k); }); });
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
+      const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      [I[t], I[t + 1], I[t + 2]].forEach(function (vi) { const q = nacc[keys[vi]] || (nacc[keys[vi]] = [0, 0, 0]); q[0] += nx; q[1] += ny; q[2] += nz; });
+    }
+    const N = [];
+    keys.forEach(function (k) { const q = nacc[k], l = Math.hypot(q[0], q[1], q[2]) || 1; N.push(q[0] / l, q[1] / l, q[2] / l); });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+    g.setIndex(I);
+    g.computeBoundingSphere();
+    try { g.computeTangents(); } catch (e) { /* без касательных — нормали по производным */ }
+    return g;
+  }
+  W3.roughEdges = [];
+
   /* ---------- Сборка мира ---------- */
   let group = null;
   const WMAT = { 2: 'brick', 11: 'bulkhead', 14: 'stone', 17: 'plaster' };
@@ -276,6 +386,10 @@
     // верх клеток
     const gTop = new Geo(), gHard = {}, gSide = {}, gAcid = new Geo(), gPit = new Geo(), gPitW = new Geo();
     const side = function (k) { return gSide[k] || (gSide[k] = new Geo()); };
+    // скальные уступы — неровные (cliffs), кроме граней, к которым приставлены лестница или марш
+    const rough = [], frozen = {};
+    (B.ladders || []).forEach(function (l) { frozen[l.y * B.w + l.x] = 1; });
+    if (DW.BT.stairAt) for (let i = 0; i < B.w * B.h; i++) if (DW.BT.stairAt(i)) frozen[i] = 1;
     for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
       const i = y * B.w + x, gid = B.ground[i], h = hgt[i] * LV;
       const x0 = x * T, x1 = (x + 1) * T, z0 = y * T, z1 = (y + 1) * T;
@@ -305,6 +419,7 @@
         const hn = out ? -0.6 : hgt[ny * B.w + nx] * LV;
         if (hn >= h - 0.01) return;
         const a = e[2], b = e[3], u0 = (e[4][0] ? a[1] : a[0]) / 2, u1 = (e[4][0] ? b[1] : b[0]) / 2;
+        if (sk === 'cliff') { rough.push({ a: a, b: b, h: h, hn: hn, n: e[4], fz: !out && !!frozen[ny * B.w + nx] }); return; }
         // лицом наружу (против часовой, если смотреть снаружи)
         side(sk).quad([b[0], h, b[1]], [a[0], h, a[1]], [a[0], hn, a[1]], [b[0], hn, b[1]], e[4], [[u1, h / 2], [u0, h / 2], [u0, hn / 2], [u1, hn / 2]]);
       });
@@ -321,13 +436,20 @@
       const m = new THREE.Mesh(gHard[k].build(), R3.fogify(R3.pbr(k, k === 'roof' ? { metal: true, rough: 1 } : {}).clone()));
       m.receiveShadow = true; group.add(m); R3.pickables.push(m);
     }
+    // тени статики запекаются (bake.js) — в карту теней каждый кадр идут только бойцы и «ажурное» (деревья)
+    const live = !R3.bake;
     for (const k in gSide) {
       const m = new THREE.Mesh(gSide[k].build(), R3.fogify(R3.pbr(k).clone()));
-      m.receiveShadow = true; m.castShadow = true; group.add(m);
+      m.receiveShadow = true; m.castShadow = live; group.add(m);
+    }
+    W3.roughEdges = rough;
+    if (rough.length) {
+      const m = new THREE.Mesh(roughCliffs(rough), R3.fogify(R3.pbr('cliff').clone()));
+      m.receiveShadow = true; m.castShadow = live; group.add(m);
     }
     if (gAcid.i.length) {
-      // кислота: мутная жидкость с бликами и медленной рябью (нормали сдвигаются во времени)
-      const nm = R3.texNew('tex3d/cliff_n.jpg'); nm.repeat.set(0.6, 0.6);
+      // кислота: мутная жидкость с бликами и медленной рябью (нормали сдвигаются во времени); текстура — одна на все бои
+      const nm = W3.acidN || R3.texNew('tex3d/cliff_n.jpg'); nm.repeat.set(0.6, 0.6);
       const am = R3.fogify(new THREE.MeshStandardMaterial({ color: 0x2c4214, emissive: 0x1c4a08, emissiveIntensity: 0.55, roughness: 0.06, metalness: 0.1, normalMap: nm, transparent: true, opacity: 0.93 }));
       am.normalScale.set(0.35, 0.35);
       W3.acidN = nm;
@@ -336,12 +458,13 @@
     if (gPit.i.length) {
       const pf = new THREE.Mesh(gPit.build(), R3.fogify(R3.pbr('rock', { color: 0x8a7e72 }).clone())); pf.receiveShadow = true; group.add(pf);
       const pwm = R3.fogify(R3.pbr('cliff', { color: 0xc8bcb0 }).clone()); pwm.side = THREE.DoubleSide;
-      const pw = new THREE.Mesh(gPitW.build(), pwm); pw.receiveShadow = true; pw.castShadow = true; group.add(pw);
+      const pw = new THREE.Mesh(gPitW.build(), pwm); pw.receiveShadow = true; pw.castShadow = live; group.add(pw);
     }
     buildWalls(B);
     W3.buildProps(B);
     W3.updateFog(B, DW.BT.visible ? DW.BT.visible() : null);
     W3.setCut(B, null);
+    if (R3.bake) R3.bake.build(B);
     return group;
   };
   function dispose(o) {
@@ -419,12 +542,12 @@
       if (!G[k].i.length) continue;
       const mat = k === 'frame' ? cutMaterial('wood', { color: 0x9a8a78 }) : cutMaterial(k, k === 'bulkhead' ? { metal: true } : {});
       const m = new THREE.Mesh(G[k].build(), mat);
-      m.castShadow = true; m.receiveShadow = true;
+      m.castShadow = !R3.bake; m.receiveShadow = true;
       m.customDepthMaterial = cutDepth;   // тень срезанной стены — тоже срезанная
       wallGroup.add(m);
     }
   }
-  W3.rebuildWalls = function (B) { W3.open = openings(B); buildWalls(B); };
+  W3.rebuildWalls = function (B) { W3.open = openings(B); buildWalls(B); if (R3.bake) R3.bake.request(); };
 
   /* ---------- Предметы (модели), техника ---------- */
   let propGroup = null;
@@ -491,13 +614,22 @@
         m.castShadow = true; m.receiveShadow = true;
         m.geometry.userData.shared = true; m.userData.shared = true;
         const mats = Array.isArray(m.material) ? m.material : [m.material];
-        m.material = mats.map(function (mt) { return fogMat(mt); });
+        m.material = mats.map(function (mt) { return capMat(fogMat(mt)); });
         if (m.material.length === 1) m.material = m.material[0];
       }
     });
     return holder;
   }
   const fogMats = new Map();
+  const TEXK = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'];
+  /* предметы, техника и фон: текстуры не больше 256 на слабой графике и 512 на средней (бойцы — свои _lo-модели) */
+  function capMat(c) {
+    const q = R3.q();
+    if (q >= 2 || c.userData.capped === q) return c;
+    c.userData.capped = q;
+    TEXK.forEach(function (k) { if (c[k]) R3.capTex(c[k], q === 0 ? 256 : 512); });
+    return c;
+  }
   function fogMat(mt) {
     if (fogMats.has(mt)) return fogMats.get(mt);
     const c = mt.clone();
@@ -541,6 +673,9 @@
         m.userData.tile = i;
         propGroup.add(m);
         propMeshes[i] = m;
+        // сплошные предметы — в запечённую тень (сетка высот по их треугольникам); сухие деревья и Портал —
+        // ажурные, их тень остаётся настоящей
+        if (R3.bake && !AIRY[o]) { m.traverse(function (q) { if (q.isMesh) q.castShadow = false; }); R3.bake.addModel(m); }
       });
     }
     // техника на 2–3 клетки
@@ -558,10 +693,12 @@
         m.userData.veh = v;
         propGroup.add(m);
         v._m3 = m;
+        if (R3.bake) { m.traverse(function (q) { if (q.isMesh) q.castShadow = false; }); R3.bake.addModel(m); }
       });
     });
   };
   /* клетка изменилась (стену пробили, предмет разбит) */
+  const AIRY = { 5: 1, 15: 1 };
   W3.tileChanged = function (B, x, y) {
     const i = y * B.w + x;
     if (propMeshes[i] && !B.obj[i]) { propGroup.remove(propMeshes[i]); delete propMeshes[i]; }

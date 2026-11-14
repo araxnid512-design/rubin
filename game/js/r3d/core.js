@@ -227,21 +227,53 @@
   };
   const texLoader = new THREE.TextureLoader();
   const texCache = {};
+  /* Память текстур: на слабой графике картинки уменьшаются перед загрузкой в видеокарту (вчетверо меньше памяти
+     и быстрее выборка). Сжатые форматы (KTX2/Basis) не используются: декодеру нужны Worker и WASM через fetch,
+     а из file:// в WebView fetch не работает. Одна и та же картинка уменьшается один раз (общая для всех копий). */
+  const capped = new WeakMap();
+  R3.texCap = function () { return [256, 512, 1024][R3.q()]; };
+  R3.capTex = function (t, max) {
+    const img = t && t.image;
+    if (!img || !max) return t;
+    const w = img.width || 0, h = img.height || 0;
+    if (!w || !h || Math.max(w, h) <= max) return t;
+    let c = capped.get(img);
+    if (!c) {
+      const k = max / Math.max(w, h);
+      c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      try {
+        const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+        g.drawImage(img, 0, 0, c.width, c.height);
+      } catch (e) { return t; }
+      capped.set(img, c);
+    }
+    t.image = c; t.needsUpdate = true;
+    return t;
+  };
+  // текстуры земли и стен (game/tex3d, 512): на слабой графике — 256
+  const pend = new Map();   // копии ещё не загруженной текстуры: обновить, когда придёт картинка
+  const texLoad = function (url) {
+    return texLoader.load(url, function (t) {
+      if (R3.q() === 0) R3.capTex(t, 256);
+      const L = pend.get(t);
+      if (L) { L.forEach(function (c) { c.needsUpdate = true; }); pend.delete(t); }
+    });
+  };
   R3.tex = function (url, srgb, rep) {
     const k = url + (srgb ? '|s' : '');
     if (texCache[k]) return texCache[k];
-    const t = texLoader.load(url);
+    const t = texLoad(url);
     t.wrapS = t.wrapT = rep === false ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
     t.anisotropy = R3.maxAniso || 4;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return (texCache[k] = t);
   };
-  /* отдельный экземпляр текстуры (свой repeat/offset), а не клон ещё не загруженной */
+  /* отдельный экземпляр текстуры (свой repeat/offset): копия общей — картинка и память видеокарты одни на все копии
+     (раньше каждая дорога в каждом бою грузила свою картинку заново и не освобождала) */
   R3.texNew = function (url, srgb) {
-    const t = texLoader.load(url);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = R3.maxAniso || 4;
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    const base = R3.tex(url, srgb), t = base.clone();
+    if (base.image && base.image.width) t.needsUpdate = true;
+    else { t.version = 0; const L = pend.get(base) || []; L.push(t); pend.set(base, L); }   // до загрузки — не выгружать пустую
     return t;
   };
   /* PBR-материал из game/tex3d: <вид>_c (цвет), _n (нормали), _a (AO/шероховатость/металл) */
