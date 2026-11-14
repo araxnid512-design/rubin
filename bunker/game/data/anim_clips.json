@@ -1,505 +1,515 @@
 {
-	"root_bone": "Hip",
-	"clips": {
-		"idle": {
-			"src": [
-				"{set}/idle.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.3,
-			"rate": 1.0
-		},
-		"breathe": {
-			"src": [
-				"{set}/standing_relax.res",
-				"{set}/wait.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.3,
-			"rate": 1.0
-		},
-		"walk": {
-			"src": [
-				"{set}/walk.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0,
-			"speed": 1.17
-		},
-		"walk_back": {
-			"src": [
-				"{set}/m_walk_back.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"strafe_left": {
-			"src": [
-				"{set}/m_strafe_left.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"strafe_right": {
-			"src": [
-				"{set}/m_strafe_right.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"run": {
-			"src": [
-				"{set}/run.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0,
-			"speed": 3.01
-		},
-		"sprint": {
-			"src": [
-				"{set}/flee_01.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0,
-			"speed": 2.08
-		},
-		"start": {
-			"src": [
-				"{set}/m_start.res"
-			],
-			"loop": false,
-			"inplace": true,
-			"blend": 0.15,
-			"rate": 1.0
-		},
-		"stop": {
-			"src": [
-				"{set}/m_stop.res"
-			],
-			"loop": false,
-			"inplace": true,
-			"blend": 0.2,
-			"rate": 1.0
-		},
-		"turn_left": {
-			"src": [
-				"{set}/turn.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.15,
-			"rate": 1.0
-		},
-		"turn_right": {
-			"src": [
-				"{set}/turn.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.15,
-			"rate": 1.0,
-			"mirror": true
-		},
-		"crouch_idle": {
-			"src": [
-				"{set}/m_crouch_idle.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.3,
-			"rate": 1.0
-		},
-		"crouch_walk": {
-			"src": [
-				"{set}/m_crouch_walk.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"sneak": {
-			"src": [
-				"{set}/m_sneak.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"stairs_up": {
-			"src": [
-				"{set}/run_upstairs.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0,
-			"speed": 0.54
-		},
-		"stairs_down": {
-			"src": [
-				"{set}/m_stairs_down.res",
-				"{set}/jump_down.res"
-			],
-			"loop": true,
-			"inplace": true,
-			"blend": 0.25,
-			"rate": 1.0,
-			"speed": 0.57
-		},
-		"ladder_up": {
-			"src": [
-				"{set}/climb.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.2,
-			"rate": 1.0
-		},
-		"door_open": {
-			"src": [
-				"{set}/m_door_open.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"door_close": {
-			"src": [
-				"{set}/m_door_close.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"terminal": {
-			"src": [
-				"{set}/m_terminal.res",
-				"{set}/look_around.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"pickup": {
-			"src": [
-				"{set}/m_pickup.res",
-				"{set}/lift_heavy.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"suit_on": {
-			"src": [
-				"{set}/m_suit_on.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"suit_off": {
-			"src": [
-				"{set}/m_suit_off.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"sit_down": {
-			"src": [
-				"{set}/m_sit_down.res",
-				"{set}/sit.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"stand_up": {
-			"src": [
-				"{set}/m_stand_up.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"bed_lie": {
-			"src": [
-				"{set}/m_bed_lie.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"bed_up": {
-			"src": [
-				"{set}/m_bed_up.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"sit_idle": {
-			"src": [
-				"{set}/m_sit_down.res",
-				"{set}/sit.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.3,
-			"rate": 1.0,
-			"hold": true
-		},
-		"lie_idle": {
-			"src": [
-				"{set}/m_bed_lie.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.3,
-			"rate": 1.0,
-			"hold": true
-		},
-		"inspect": {
-			"src": [
-				"{set}/look_around.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.25,
-			"rate": 1.0
-		},
-		"combat_idle": {
-			"src": [
-				"{set}/m_combat_idle.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.2,
-			"rate": 1.0
-		},
-		"punch_light": {
-			"src": [
-				"{set}/box_01.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"punch_heavy": {
-			"src": [
-				"{set}/box_02.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"block": {
-			"src": [
-				"{set}/m_block.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"dodge_left": {
-			"src": [
-				"{set}/m_dodge_left.res",
-				"{set}/dive.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"dodge_right": {
-			"src": [
-				"{set}/m_dodge_right.res",
-				"{set}/dive.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"pistol_draw": {
-			"src": [
-				"{set}/m_pistol_draw.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"pistol_aim": {
-			"src": [
-				"{set}/m_pistol_aim.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.15,
-			"rate": 1.0
-		},
-		"pistol_fire": {
-			"src": [
-				"{set}/m_pistol_fire.res",
-				"{set}/fire.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.08,
-			"rate": 1.0
-		},
-		"pistol_reload": {
-			"src": [
-				"{set}/m_pistol_reload.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.15,
-			"rate": 1.0
-		},
-		"rifle_aim": {
-			"src": [
-				"{set}/m_rifle_aim.res",
-				"{set}/shoot.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.15,
-			"rate": 1.0
-		},
-		"rifle_fire": {
-			"src": [
-				"{set}/shoot.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.08,
-			"rate": 1.0
-		},
-		"kick": {
-			"src": [
-				"{set}/front_kick_01.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.12,
-			"rate": 1.0
-		},
-		"hit_front": {
-			"src": [
-				"{set}/hit_to_body_01.res",
-				"{set}/hit_to_stomach.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.08,
-			"rate": 1.0
-		},
-		"hit_back": {
-			"src": [
-				"{set}/hit_to_body_02.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.08,
-			"rate": 1.0
-		},
-		"hit_left": {
-			"src": [
-				"{set}/hit_to_side.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.08,
-			"rate": 1.0
-		},
-		"hit_right": {
-			"src": [
-				"{set}/hit_to_side.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.08,
-			"rate": 1.0,
-			"mirror": true
-		},
-		"stagger": {
-			"src": [
-				"{set}/m_stagger.res",
-				"{set}/hurt.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.1,
-			"rate": 1.0
-		},
-		"fall": {
-			"src": [
-				"{set}/fall.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.1,
-			"rate": 1.0
-		},
-		"get_up": {
-			"src": [
-				"{set}/m_get_up.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.15,
-			"rate": 1.0
-		},
-		"death": {
-			"src": [
-				"{set}/defeat_02.res",
-				"{set}/defeat_03.res"
-			],
-			"loop": false,
-			"inplace": false,
-			"blend": 0.1,
-			"rate": 1.0
-		},
-		"dead": {
-			"src": [
-				"{set}/defeat_02.res"
-			],
-			"loop": true,
-			"inplace": false,
-			"blend": 0.2,
-			"rate": 1.0,
-			"hold": true
-		}
-	}
+ "root_bone": "Hip",
+ "clips": {
+  "idle": {
+   "src": [
+    "{set}/idle.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "breathe": {
+   "src": [
+    "{set}/standing_relax.res",
+    "{set}/wait.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "walk": {
+   "src": [
+    "{set}/walk.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "speed": 1.17
+  },
+  "walk_back": {
+   "src": [
+    "{set}/m_walk_back.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "strafe_left": {
+   "src": [
+    "{set}/m_strafe_left.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "from": 0.1,
+   "to": 1.6,
+   "speed": 1.77
+  },
+  "strafe_right": {
+   "src": [
+    "{set}/m_strafe_right.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "from": 0.1,
+   "to": 1.6,
+   "speed": 1.53
+  },
+  "run": {
+   "src": [
+    "{set}/run.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "speed": 3.01
+  },
+  "sprint": {
+   "src": [
+    "{set}/flee_01.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "speed": 2.08
+  },
+  "start": {
+   "src": [
+    "{set}/m_start.res"
+   ],
+   "loop": false,
+   "inplace": true,
+   "blend": 0.15,
+   "rate": 1.0,
+   "speed": 0.27,
+   "root_lock": true
+  },
+  "stop": {
+   "src": [
+    "{set}/m_stop2.res"
+   ],
+   "loop": false,
+   "inplace": true,
+   "blend": 0.2,
+   "rate": 1.0,
+   "root_lock": true,
+   "speed": 0.0
+  },
+  "turn_left": {
+   "src": [
+    "{set}/turn.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "turn_right": {
+   "src": [
+    "{set}/turn.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0,
+   "mirror": true
+  },
+  "crouch_idle": {
+   "src": [
+    "{set}/m_crouch_idle.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "crouch_walk": {
+   "src": [
+    "{set}/m_crouch_walk.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sneak": {
+   "src": [
+    "{set}/m_sneak.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "stairs_up": {
+   "src": [
+    "{set}/run_upstairs.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "speed": 0.54
+  },
+  "stairs_down": {
+   "src": [
+    "{set}/m_stairs_down.res",
+    "{set}/jump_down.res"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0,
+   "speed": 0.39
+  },
+  "ladder_up": {
+   "src": [
+    "{set}/climb.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.2,
+   "rate": 1.0
+  },
+  "door_open": {
+   "src": [
+    "{set}/m_door_open.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "door_close": {
+   "src": [
+    "{set}/m_door_close.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "terminal": {
+   "src": [
+    "{set}/m_terminal.res",
+    "{set}/look_around.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "pickup": {
+   "src": [
+    "{set}/m_pickup.res",
+    "{set}/lift_heavy.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "suit_on": {
+   "src": [
+    "{set}/m_suit_on.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "suit_off": {
+   "src": [
+    "{set}/m_suit_off.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sit_down": {
+   "src": [
+    "{set}/m_sit_down.res",
+    "{set}/sit.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "stand_up": {
+   "src": [
+    "{set}/m_stand_up.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "bed_lie": {
+   "src": [
+    "{set}/m_bed_lie.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "bed_up": {
+   "src": [
+    "{set}/m_bed_up.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sit_idle": {
+   "src": [
+    "{set}/m_sit_down.res",
+    "{set}/sit.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "hold": true
+  },
+  "lie_idle": {
+   "src": [
+    "{set}/m_bed_lie.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "hold": true
+  },
+  "inspect": {
+   "src": [
+    "{set}/look_around.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "combat_idle": {
+   "src": [
+    "{set}/m_combat_idle.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.2,
+   "rate": 1.0
+  },
+  "punch_light": {
+   "src": [
+    "{set}/box_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "punch_heavy": {
+   "src": [
+    "{set}/box_02.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "block": {
+   "src": [
+    "{set}/m_block.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "dodge_left": {
+   "src": [
+    "{set}/m_dodge_left.res",
+    "{set}/dive.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "dodge_right": {
+   "src": [
+    "{set}/m_dodge_right.res",
+    "{set}/dive.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "pistol_draw": {
+   "src": [
+    "{set}/m_pistol_draw.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "pistol_aim": {
+   "src": [
+    "{set}/m_pistol_aim.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "pistol_fire": {
+   "src": [
+    "{set}/m_pistol_fire.res",
+    "{set}/fire.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.08,
+   "rate": 1.0
+  },
+  "pistol_reload": {
+   "src": [
+    "{set}/m_pistol_reload.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "rifle_aim": {
+   "src": [
+    "{set}/m_rifle_aim.res",
+    "{set}/shoot.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "rifle_fire": {
+   "src": [
+    "{set}/shoot.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.08,
+   "rate": 1.0
+  },
+  "kick": {
+   "src": [
+    "{set}/front_kick_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "hit_front": {
+   "src": [
+    "{set}/hit_to_body_01.res",
+    "{set}/hit_to_stomach.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.08,
+   "rate": 1.0
+  },
+  "hit_back": {
+   "src": [
+    "{set}/hit_to_body_02.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.08,
+   "rate": 1.0
+  },
+  "hit_left": {
+   "src": [
+    "{set}/hit_to_side.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.08,
+   "rate": 1.0
+  },
+  "hit_right": {
+   "src": [
+    "{set}/hit_to_side.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.08,
+   "rate": 1.0,
+   "mirror": true
+  },
+  "stagger": {
+   "src": [
+    "{set}/m_stagger.res",
+    "{set}/hurt.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "fall": {
+   "src": [
+    "{set}/fall.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "get_up": {
+   "src": [
+    "{set}/m_get_up.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "death": {
+   "src": [
+    "{set}/defeat_02.res",
+    "{set}/defeat_03.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "dead": {
+   "src": [
+    "{set}/defeat_02.res"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.2,
+   "rate": 1.0,
+   "hold": true
+  }
+ }
 }

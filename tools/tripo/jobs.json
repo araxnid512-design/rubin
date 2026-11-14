@@ -654,6 +654,17 @@
     "Group of three rusty leaking metal barrels, two standing and one lying, with yellow radiation warning signs. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
    ],
    "timeout": 3000
+  },
+  {
+   "id": "bsm_stop2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stop2",
+    "2",
+    "a man walking forward briskly, then slowing down with two short steps and stopping, standing upright with relaxed arms, feet stay on the ground"
+   ],
+   "timeout": 2400
   }
  ]
 }

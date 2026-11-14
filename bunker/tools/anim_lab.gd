@@ -115,6 +115,9 @@ func _check() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var names: Array = rig.info.keys()
 	names.sort()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--bc-clips="):
+			names = Array(a.substr(11).split(","))
 	_log("Набор %s: клипов %d (из конфигурации %d)" % [set_name, names.size(), BCAnimSet.load_config().clips.size()])
 	var missing: Array = []
 	for n in BCAnimSet.load_config().clips:
@@ -127,7 +130,7 @@ func _check() -> void:
 		_metrics(n)
 	# передвижение — с 8 сторон
 	for n in ["idle", "walk", "run", "sprint"]:
-		if rig.info.has(n):
+		if rig.info.has(n) and names.has(n):
 			await _eight(n)
 	# калибровка: скорость клипов передвижения — по опорной стопе (тогда стопы не скользят)
 	if set_name == "hero" and not calib.is_empty():

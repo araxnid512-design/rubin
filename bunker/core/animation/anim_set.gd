@@ -77,7 +77,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		var speed := 0.0
 		var dir := Vector3.ZERO
 		if c.get("inplace", false):
-			var rr := _strip_root(a, skel, root_bone)
+			var rr := _strip_root(a, skel, root_bone, c.get("root_lock", false))
 			speed = rr[0] * scale
 			dir = rr[1]
 		if c.get("mirror", false):
@@ -150,7 +150,7 @@ static func _hold_last(a: Animation) -> Animation:
 
 
 ## «на месте»: вычесть горизонтальный дрейф кости-корня; вернуть родную скорость (единиц модели/с)
-static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String) -> Array:
+static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock := false) -> Array:
 	var bi := skel.find_bone(root_bone)
 	if bi < 0:
 		return [0.0, Vector3.ZERO]
@@ -175,7 +175,12 @@ static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String) -> Ar
 	for k in n:
 		var t := a.track_get_key_time(track, k)
 		var v: Vector3 = a.track_get_key_value(track, k)
-		a.track_set_key_value(track, k, v - hdrift * (t / T))
+		if lock:
+			# переходные клипы (старт, остановка): движение неравномерное — таз держим на месте по горизонтали
+			var dv := v - v0
+			a.track_set_key_value(track, k, v - (dv - up * dv.dot(up)))
+		else:
+			a.track_set_key_value(track, k, v - hdrift * (t / T))
 	# скорость — длина дрейфа в мировых единицах модели (масштаб родителя учитывается позже)
 	var w := pb * hdrift
 	return [w.length() / T, Vector3(w.x, 0, w.z).normalized()]
