@@ -357,7 +357,8 @@
         '<div class="small dim">Сдано всего: ' + st.delivered + ' / ' + D.GOAL + ' — за ' + D.GOAL + ' Институт обещает колонии вольную.</div>' }));
       const grid = el('div', { class: 'pgrid' });
       D.CATALOG.forEach(function (c) {
-        const locked = c.tier > tier;
+        const have = c.once && st.gear && st.gear[c.once];
+        const locked = c.tier > tier || have;
         const q = cart[c.id] || 0;
         const item = el('div', { class: 'pitem' + (locked ? ' locked' : '') + (q ? ' in' : '') });
         // картинки: оружие и броня — снимки моделей, предметы и модули — объёмные (DW.WICON i_*), люди — фото-лица
@@ -366,12 +367,12 @@
         const pic = c.give.weapon ? '<img src="' + DW.ART.weaponIcon(c.give.weapon) + '" alt="">' : (c.give.armor ? '<img src="' + DW.ART.armorIcon(c.give.armor) + '" alt="">' :
           (faceI ? '<img class="face" src="' + faceI + '" alt="">' : (WI['i_' + c.id] ? '<img src="' + WI['i_' + c.id] + '" alt="">' : ic(c.icon))));
         item.innerHTML = '<div class="pi-ic">' + pic + '</div><div class="pi-t">' + c.n + ' <small>' + c.q + '</small><br><b>' + c.price + '</b> ' + ic('gems') +
-          (locked ? ' <span class="lock">' + D.TIERS[c.tier].n + '</span>' : '') + '</div>';
+          (locked ? ' <span class="lock">' + (have ? 'уже есть' : D.TIERS[c.tier].n) + '</span>' : '') + '</div>';
         if (!locked) {
           const ctr = el('div', { class: 'pi-q' });
           ctr.appendChild(el('button', { class: 'qb', text: '−', onclick: function () { if (cart[c.id]) { cart[c.id]--; if (!cart[c.id]) delete cart[c.id]; render(); } } }));
           ctr.appendChild(el('span', { text: String(q) }));
-          ctr.appendChild(el('button', { class: 'qb', text: '+', onclick: function () { cart[c.id] = (cart[c.id] || 0) + 1; render(); } }));
+          ctr.appendChild(el('button', { class: 'qb', text: '+', onclick: function () { if (c.once && cart[c.id]) return; cart[c.id] = (cart[c.id] || 0) + 1; render(); } }));
           item.appendChild(ctr);
         }
         grid.appendChild(item);

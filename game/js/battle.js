@@ -185,7 +185,7 @@
       hp: Math.max(1, G.hp(s)), maxHp: G.maxHp(s), aim: G.aim(s) - (G.state.hungry ? 10 : 0), mob: G.mob(s),
       def: 0, armor: D.ARMORS[s.armor].armor, armorId: s.armor, weapon: s.weapon, clip: W.clip + (G.has(s, 'clip') ? 1 : 0), ap: 2,
       trait: s.trait, perks: (s.perks || []).slice(), bonds: s.bonds || null,
-      sight0: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)), sight: Math.max(5, 10 + (W.sight || 0) + (B.sightMod || 0)) + (B.dark && B.lights ? 2 : 0), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
+      sight0: Math.max(5, 10 + (W.sight || 0) + BT.soldierSightMod()), sight: Math.max(5, 10 + (W.sight || 0) + BT.soldierSightMod()) + (B.dark && B.lights ? 2 : 0), cd: {}, charges: { heal: 3 }, overwatch: false, hunker: false, suppressed: false,
       alive: true, evac: false, kills: 0, xpGain: 0, face: 0, look: s.look, rank: G.rank(s)
     };
   }
@@ -363,7 +363,8 @@
     const t = { day: 'День', dawn: 'Рассвет', dusk: 'Закат', night: 'Ночь', interior: 'Внутри бункера', cave: 'В пещерах' }[b.tod || 'day'];
     const w = { clear: '', dust: 'пыльная буря', ash: 'пеплопад', rain: 'кислотный дождь' }[b.weather || 'clear'];
     const m = b.sightMod ? ' (обзор ' + b.sightMod + ')' : '';
-    return t + (w ? ', ' + w : '') + m;
+    const th = b.sightMod < 0 && DW.G.state && DW.G.state.gear && DW.G.state.gear.thermal ? ' · тепловизор: отряд видит как днём' : '';
+    return t + (w ? ', ' + w : '') + m + th;
   };
   BT.restore = function (data) {
     B = data;
@@ -475,6 +476,15 @@
   };
 
   /* ---------- Укрытия и попадания ---------- */
+  /* укрытие клетки с учётом повреждений: полное (не стена и не машина), разбитое больше чем наполовину, — половинное */
+  const SOLID = { 1: 1, 2: 1, 11: 1, 13: 1, 14: 1, 15: 1, 17: 1, 23: 1 };
+  BT.coverOf = function (x, y) {
+    if (!BT.inb(x, y)) return 0;
+    const i = BT.idx(x, y), o = B.obj[i];
+    if (!o) return 0;
+    const c = D.OBJ[o].cover;
+    return c === 2 && !SOLID[o] && B.objHp[i] <= D.OBJ[o].hp * 0.5 ? 1 : c;
+  };
   BT.coverAt = function (x, y, fx, fy) {
     let best = 0, any = 0, tile = null;
     const dx = fx - x, dy = fy - y;
@@ -485,7 +495,7 @@
       const o = BT.objAt(x + d[0], y + d[1]);
       const cliff = hf <= h0 && BT.hAt(x + d[0], y + d[1]) > h0 && BT.inb(x + d[0], y + d[1]);
       if (!o && !cliff) continue;
-      const c = Math.max(o ? D.OBJ[o].cover : 0, cliff ? 2 : 0);
+      const c = Math.max(o ? BT.coverOf(x + d[0], y + d[1]) : 0, cliff ? 2 : 0);
       if (!c) continue;
       if (c > any) any = c;
       if ((dx * d[0] + dy * d[1]) / L > 0.25 && c > best) { best = c; tile = [x + d[0], y + d[1]]; }
@@ -514,6 +524,8 @@
     if (o.reaction && att.trait === 'cold') { hit += 15; parts.push(['Хладнокровие', 15]); }
     if (o.reaction && hasP(att, 'ow')) { hit += 10; parts.push(['Глаз дозорного', 10]); }
     if (att.suppressed) { const sp = att.trait === 'calm' ? -20 : -40; hit += sp; parts.push(['Подавлен', sp]); }
+    else if (att.pinned) { const pn = att.trait === 'calm' ? -8 : -15; hit += pn; parts.push(['Прижат огнём', pn]); }
+    if (att.blind) { hit -= 25; parts.push(['Кислота в глазах', -25]); }
     if (att.kind === 'soldier' && att.trait !== 'authority' && B.units.some(function (a) { return a.alive && a.trait === 'authority' && a !== att && U.dist(a.x, a.y, ax, ay) <= 5; })) { hit += 5; parts.push(['Крут рядом', 5]); }
     if (cv.cover && hasP(tgt, 'dig')) { hit -= 10; parts.push(['Окопник', -10]); }
     if (tgt.side === 'e' && BT.shielded(tgt)) { hit -= 15; parts.push(['Щит стража', -15]); }
@@ -678,6 +690,8 @@
         B.field[k] = (B.field[k] || 0) + U.rand(r[0], r[1]);
       }
       if (T.drop && Math.random() < 0.5) B.drops.push(T.drop);
+      // командир СОБР носит тепловизор
+      if (u.type === 'sobr_cmd' && !(DW.G.state.gear && DW.G.state.gear.thermal) && B.drops.indexOf('thermal') < 0) B.drops.push('thermal');
       else if (T.dropCh && u.weapon && D.WEAPONS[u.weapon] && !D.WEAPONS[u.weapon].enemy && Math.random() < T.dropCh) B.drops.push(u.weapon);
       if (T.boss) { B.queenDead = true; DW.UI.toast('Матка убита!', 'good'); }
     } else {
@@ -747,11 +761,20 @@
     if (!o) return;
     B.objHp[i] -= dmg;
     DW.TR.chips(x, y, D.OBJ[o].c, o);
+    // разбито больше чем наполовину: полное укрытие становится половинным, мешки и ящики — рваные
+    const half = D.OBJ[o].hp * 0.5;
+    if (!SOLID[o] && B.objHp[i] > 0 && B.objHp[i] <= half && B.objHp[i] + dmg > half) {
+      DW.TR.float(x, y, D.OBJ[o].cover === 2 ? 'Укрытие разбито' : 'Укрытие треснуло', 'info');
+      DW.TR.debris(x, y, D.OBJ[o].c, o);
+      if (DW.TR.objDamaged) DW.TR.objDamaged(x, y);
+    }
     if (o === 23 && B.objHp[i] <= 0) {
       // подбитая машина горит целиком: все её клетки — обломки, пожар
       const v = (B.vehicles || []).find(function (vv) { return !vv.dead && BT.vehTiles(vv).some(function (q) { return q[0] === x && q[1] === y; }); });
       if (v) {
         v.dead = true;
+        // бак машины взрывается (контейнер — нет); взрыв от центра машины
+        if (D.VEHICLES[v.m] && D.VEHICLES[v.m][0] !== 'Морской контейнер') { const vt = BT.vehTiles(v), c = vt[Math.floor(vt.length / 2)]; (B.blasts = B.blasts || []).push([c[0], c[1], 'car']); }
         BT.vehTiles(v).forEach(function (q) {
           const X = q[0], Y = q[1], k = BT.idx(X, Y);
           B.obj[k] = 0; B.objHp[k] = 0;
@@ -777,8 +800,8 @@
     let guard = 0;
     while (B && B.blasts && B.blasts.length && guard++ < 12) {
       const b = B.blasts.shift();
-      DW.UI.toast('Бочка взорвалась!', 'alert');
-      await BT.explode(b[0], b[1], 1.5, [2, 4], 4, src, true);
+      DW.UI.toast(b[2] === 'car' ? 'Взорвался бак машины!' : 'Бочка взорвалась!', 'alert');
+      await BT.explode(b[0], b[1], b[2] === 'car' ? 2 : 1.5, b[2] === 'car' ? [3, 5] : [2, 4], 4, src, true);
     }
   };
   BT.explode = async function (cx, cy, radius, dmg, objDmg, src, nested) {
@@ -786,6 +809,10 @@
     DW.TR.explosionFx(cx, cy, radius);
     DW.TR.decal(cx, cy, 'scorch', radius);
     DW.SFX.play('explosion');
+    // сухая трава вокруг занимается
+    let lit = 0;
+    for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) if (Math.random() < 0.45 && BT.ignite(x, y)) lit++;
+    if (lit) DW.TR.refreshFires();
     await U.sleep(260);
     const r = Math.ceil(radius);
     for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
@@ -1009,6 +1036,15 @@
       if (st.res.ammo <= 0) { DW.TR.float(att.x, att.y, 'Нет патронов!', 'bad'); return null; }
       st.res.ammo = Math.max(0, st.res.ammo - W.ammo * (o.ammoMult || 1));
     }
+    if (att.side === 'e' && tgt.side === 'p' && !o.reaction) {
+      const gs = B.units.filter(function (g) { return g.alive && !g.evac && g.guarding === tgt.sid && g !== tgt && g.clip > 0 && BT.canSee(g, att); });
+      for (let k = 0; k < gs.length && att.alive && !B.over; k++) {
+        gs[k].guarding = null;
+        DW.TR.float(gs[k].x, gs[k].y, 'Прикрываю!', 'info');
+        await BT.fire(gs[k], att, { reaction: true, aimBonus: 15, aimLabel: 'Прикрытие' });
+      }
+      if (!att.alive || B.over) return null;
+    }
     if (W.clip < 99) att.clip = Math.max(0, att.clip - 1);
     const info = BT.shotInfo(att, tgt, o);
     let amb = att.side === 'p' && B.concealed;
@@ -1021,7 +1057,8 @@
     att.face = Math.atan2(tgt.y - att.y, tgt.x - att.x);
     const show = att.side === 'p' || att.seen || tgt.side === 'p';
     const cine = show && DW.settings.cine !== false && !o.reaction && (att.side === 'p' || tgt.side === 'p');
-    if (cine) await DW.TR.actionCam(att, tgt);
+    if (cine && lethal && DW.TR.killCam) await DW.TR.killCam(att, tgt);
+    else if (cine) await DW.TR.actionCam(att, tgt);
     else if (show) await DW.TR.focusOn((att.x + tgt.x) / 2, (att.y + tgt.y) / 2, false);
     if (cine && lethal) DW.TR.slowmo(true);
     await DW.TR.shotFx(att, tgt, hit, W, show, !!o.suppress, { coverTile: !hit ? info.coverTile : null });
@@ -1033,10 +1070,18 @@
     } else if (hit) {
       DW.TR.decal(tgt.x, tgt.y, DW.TR.bloodKind(tgt), 0.6);
       killed = await BT.damage(tgt, dmg, att, crit);
+      if (!killed && tgt.alive && att.type === 'spitter' && tgt.kind === 'soldier' && !tgt.blind) {
+        tgt.blind = 1; DW.TR.float(tgt.x, tgt.y, 'Кислота в глаза!', 'bad');
+        if (DW.R3 && DW.R3.mfx && DW.R3.mfx.acidSplash) DW.R3.mfx.acidSplash(tgt.x, tgt.y);
+      }
       if (killed) DW.TR.decal(tgt.x, tgt.y, DW.TR.bloodKind(tgt), 1.3);
     } else {
       DW.TR.float(tgt.x, tgt.y, 'Промах', 'miss');
-      if (info.coverTile && Math.random() < 0.35) BT.damageObj(info.coverTile[0], info.coverTile[1], 1);
+      // промах бьёт по укрытию: крупный калибр — сильнее
+      if (info.coverTile && Math.random() < 0.6) BT.damageObj(info.coverTile[0], info.coverTile[1], W.dmg[1] >= 6 ? 2 : 1);
+      // очередь рядом прижимает к земле: в следующий ход −15 к меткости, враг не перебегает
+      const burst = (W.snd === 'lmg' || W.snd === 'smg' || W.snd === 'rifle' || W.snd === 'ak2') && !o.reaction;
+      if (burst && tgt.alive && !tgt.pinned && !(D.ENEMIES[tgt.type] && D.ENEMIES[tgt.type].beast) && Math.random() < (W.snd === 'lmg' ? 0.85 : 0.45)) { tgt.pinned = true; DW.TR.float(tgt.x, tgt.y, 'Прижат огнём', 'info'); }
       else if (!info.coverTile) DW.TR.decal(tgt.x, tgt.y, 'hole', 0.5);
       await U.sleep(240);
     }
@@ -1062,7 +1107,8 @@
     const hit = Math.random() * 100 < info.hit;
     if (hit) {
       const crit = Math.random() * 100 < info.crit;
-      await BT.damage(tgt, BT.rollDamage(T.dmg, crit, tgt.armor, false), att, crit);
+      const dead = await BT.damage(tgt, BT.rollDamage(T.dmg, crit, tgt.armor, false), att, crit);
+      if (!dead && tgt.alive && att.type === 'brute') await BT.knockback(att, tgt);
     } else {
       DW.TR.float(tgt.x, tgt.y, 'Промах', 'miss');
       await U.sleep(220);
@@ -1170,8 +1216,9 @@
     B.units.forEach(function (u) {
       if (u.side !== 'p' || !u.alive || u.evac) return;
       u.ap = u.kind === 'turret' ? 0 : 2;
-      u.overwatch = false; u.hunker = false;
+      u.overwatch = false; u.hunker = false; u.guarding = null;
       u.panicked = false; u.moved = false;
+      if (u.blind) { u.blind++; if (u.blind > 2) { u.blind = 0; DW.TR.float(u.x, u.y, 'Протёр глаза', 'info'); } }
       if (u.panicNow) { u.panicNow = false; u.ap = 1; u.hunker = true; u.panicked = true; DW.TR.float(u.x, u.y, 'Паника: 1 ОД', 'bad'); }
       if (u.dazed) { u.dazed = false; u.ap = Math.min(u.ap, 1); DW.TR.float(u.x, u.y, 'Оглушён: 1 ОД', 'bad'); }
       for (const k in u.cd) if (u.cd[k] > 0) u.cd[k]--;
@@ -1182,7 +1229,8 @@
   };
   BT.endPlayerTurn = async function () {
     B.phase = 'enemy';
-    B.units.forEach(function (u) { if (u.side === 'p') u.ap = 0; });
+    B.units.forEach(function (u) { if (u.side === 'p') { u.ap = 0; u.pinned = false; } });
+    await BT.burnTick();
     const turrets = B.units.filter(function (t) { return t.kind === 'turret' && t.alive; });
     for (let k = 0; k < turrets.length; k++) {
       if (B.over) break;
@@ -1276,6 +1324,81 @@
       u.evac = true;
     });
     B.over = 'evac';
+  };
+
+  /* ---------- 5.1: тепловизор, отброс, совместные действия, пожар ---------- */
+  // тепловизор (трофей СОБР или заказ у Института): темнота и пыль не мешают обзору отряда
+  BT.soldierSightMod = function () {
+    const st = DW.G.state, m = B.sightMod || 0;
+    return m < 0 && st && st.gear && st.gear.thermal ? 0 : m;
+  };
+  // Костолом отбрасывает бойца на клетку назад (с уступа — падение, −1 ОЗ)
+  BT.knockback = async function (att, tgt) {
+    const dx = Math.sign(tgt.x - att.x), dy = Math.sign(tgt.y - att.y);
+    const nx = tgt.x + dx, ny = tgt.y + dy;
+    DW.TR.anim(tgt, 'hit', 500);
+    if (!BT.walkTile(nx, ny) || BT.unitAt(nx, ny) || BT.stairAt(BT.idx(nx, ny)) || BT.hAt(nx, ny) > BT.hAt(tgt.x, tgt.y)) { DW.TR.float(tgt.x, tgt.y, 'Сбит с ног', 'bad'); tgt.dazed = true; return; }
+    const drop = BT.hAt(tgt.x, tgt.y) - BT.hAt(nx, ny);
+    DW.TR.float(tgt.x, tgt.y, 'Отброшен!', 'bad');
+    DW.TR.pathBegin(tgt, [[nx, ny]]);
+    await DW.TR.stepFx(tgt, nx, ny);
+    tgt.x = nx; tgt.y = ny;
+    DW.TR.pathEnd(tgt);
+    if (DW.R3 && DW.R3.mfx && DW.R3.mfx.dustWave) DW.R3.mfx.dustWave(nx, ny, 0.8);
+    if (drop > 0) await BT.damage(tgt, drop, att, false);
+    BT.updateVision();
+  };
+  // напарник для совместного залпа: соседний боец с ОД и патронами
+  BT.volleyPartner = function (u) {
+    return BT.soldiers().filter(function (a) { return a !== u && a.ap >= 1 && a.clip > 0 && !a.panicked && Math.max(Math.abs(a.x - u.x), Math.abs(a.y - u.y)) <= 1; })[0] || null;
+  };
+  BT.volleyTargets = function (u, p) {
+    if (!p) return [];
+    const pt = BT.targetsFor(p);
+    return BT.targetsFor(u).filter(function (t) { return pt.indexOf(t) >= 0; });
+  };
+  // залп: оба стреляют по одной цели, +10 к меткости каждому; оба тратят ход
+  BT.doVolley = async function (u, p, t) {
+    u.ap = 0; p.ap = 0;
+    DW.TR.bark(u, 'shoot');
+    await BT.fire(u, t, { aimBonus: 10, aimLabel: 'Совместный залп' });
+    if (t.alive && p.alive && !B.over && DW.G.state.res.ammo > 0) { await U.sleep(120); await BT.fire(p, t, { aimBonus: 10, aimLabel: 'Совместный залп' }); }
+  };
+  // прикрытие: кто стреляет по прикрытому товарищу, сначала получает ответную очередь
+  BT.guardTargets = function (u) { return BT.soldiers().filter(function (a) { return a !== u && U.dist(a.x, a.y, u.x, u.y) <= 3.5; }); };
+  BT.doGuard = function (u, a) {
+    u.guarding = a.sid; u.ap = 0;
+    DW.TR.float(u.x, u.y, 'Прикрываю ' + a.name, 'info'); DW.TR.bark(u, 'overwatch');
+  };
+  /* пожар: взрыв на сухой траве поджигает клетки; огонь три хода расползается по траве и жжёт стоящих в нём */
+  const DRY = { 0: 1, 2: 1 };
+  BT.ignite = function (x, y, force) {
+    if (!BT.inb(x, y)) return false;
+    const i = BT.idx(x, y);
+    B.burning = B.burning || {};
+    if (B.burning[i] !== undefined || (!force && !DRY[B.ground[i]]) || B.obj[i] === 2 || B.obj[i] === 11 || B.obj[i] === 14) return false;
+    B.burning[i] = 3;
+    B.decor.push({ x: x + 0.5, y: y + 0.5, t: 'fire', r: 0.35 + Math.random() * 0.2 });
+    DW.TR.decal(x, y, 'scorch', 0.8);
+    return true;
+  };
+  BT.burnTick = async function () {
+    if (!B.burning) return;
+    let any = false, spread = 0;
+    const keys = Object.keys(B.burning);
+    for (const k of keys) {
+      const i = +k, t = B.burning[i];
+      if (t <= 0) continue;
+      any = true;
+      B.burning[i] = t - 1;
+      const x = i % B.w, y = (i / B.w) | 0;
+      if (t > 1) BT.DIR4.forEach(function (d) { if (spread < 6 && Math.random() < 0.3 && BT.ignite(x + d[0], y + d[1])) spread++; });
+      const u = BT.unitAt(x, y);
+      if (u && u.alive && !u.evac) { DW.TR.float(x, y, 'Огонь!', 'bad'); await BT.damage(u, U.rand(1, 2), null, false); }
+      if (B.obj[i] === 4 || B.obj[i] === 10 || B.obj[i] === 13 || B.obj[i] === 19 || B.obj[i] === 21) BT.damageObj(x, y, 3);
+    }
+    if (spread) { DW.TR.refreshFires(); DW.UI.toast('Огонь расползается по сухой траве!', 'alert'); }
+    if (any) await BT.processBlasts(null);
   };
 
   DW.BT = BT;

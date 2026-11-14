@@ -125,6 +125,10 @@
     const list = [];
     const canFire = u.ap >= 1 && u.clip > 0 && st.res.ammo > 0;
     list.push({ id: 'shoot', icon: 'shoot', label: 'Огонь', on: canFire && tg.length > 0, note: !u.clip ? 'пусто' : (st.res.ammo <= 0 ? 'нет патр.' : '') });
+    // совместные действия: залп с соседом по одной цели, прикрытие товарища
+    const vp = BT().volleyPartner(u);
+    if (vp && tg.length) list.push({ id: 'volley', icon: 'volley', label: 'Залп', on: canFire && BT().volleyTargets(u, vp).length > 0 });
+    if (BT().guardTargets(u).length) list.push({ id: 'guard', icon: 'guard', label: 'Прикрыть', on: u.ap >= 1 && u.clip > 0 });
     const ab = D.CLASSES[u.cls].ab, A = D.ABIL[ab], cd = u.cd[ab] || 0;
     let on = false;
     if (u.ap >= 1 && !cd) {
@@ -288,7 +292,7 @@
     }
   }
   function shotInfo(kind, u, t) {
-    const o = kind === 'aimed' ? { aimBonus: 20, critBonus: 25, aimLabel: 'Прицел' } : (kind === 'double' ? { aimBonus: -15, aimLabel: 'Двойной' } : {});
+    const o = kind === 'aimed' ? { aimBonus: 20, critBonus: 25, aimLabel: 'Прицел' } : (kind === 'double' ? { aimBonus: -15, aimLabel: 'Двойной' } : (kind === 'volley' ? { aimBonus: 10, aimLabel: 'Совместный залп' } : {}));
     return BT().shotInfo(u, t, o);
   }
 
@@ -411,6 +415,8 @@
     const u = sel;
     switch (a.id) {
       case 'shoot': startTarget('shoot'); break;
+      case 'volley': startTarget('volley'); break;
+      case 'guard': startAlly('guard'); break;
       case 'overwatch': run(async function () { BT().doOverwatch(u); }); break;
       case 'reload': run(async function () { BT().doReload(u); await U.sleep(900); }); break;
       case 'hunker': run(async function () { BT().doHunker(u); }); break;
@@ -436,7 +442,7 @@
     }
   }
   function startTarget(kind, pre) {
-    const tg = BT().targetsFor(sel);
+    const tg = kind === 'volley' ? BT().volleyTargets(sel, BT().volleyPartner(sel)) : BT().targetsFor(sel);
     if (!tg.length) { DW.UI.toast('Нет целей в поле зрения'); return; }
     mode = 'target'; kindA = kind; preview = null;
     targets = tg.map(function (u) { return { u: u, hit: shotInfo(kind, sel, u).hit }; }).sort(function (a, b) { return b.hit - a.hit; });
@@ -456,6 +462,7 @@
     const u = sel, k = kindA;
     run(async function () {
       if (k === 'suppress') await BT().doSuppress(u, t.u);
+      else if (k === 'volley') { const p = BT().volleyPartner(u); if (p) await BT().doVolley(u, p, t.u); else await BT().doShoot(u, t.u, 'shoot'); }
       else await BT().doShoot(u, t.u, k);
     });
   }
@@ -473,6 +480,7 @@
   function startAlly(kind) {
     let list;
     if (kind === 'order') list = BT().soldiers().filter(function (a) { return a !== sel && a.ap < 3 && BT().canSee(sel, a); });
+    else if (kind === 'guard') list = BT().guardTargets(sel);
     else list = healTargets(sel);
     if (!list.length) { DW.UI.toast(kind === 'order' ? 'Нет бойцов в поле зрения' : 'Рядом нет раненых'); return; }
     if (list.length === 1 && kind !== 'order') { kindA = kind; applyAlly(list[0]); return; }
@@ -484,6 +492,7 @@
     const u = sel, k = kindA;
     run(async function () {
       if (k === 'order') BT().doOrder(u, a);
+      else if (k === 'guard') BT().doGuard(u, a);
       else if (k === 'heal') BT().doFieldHeal(u, a);
       else BT().doMedkit(u, a);
       await U.sleep(250);
@@ -497,7 +506,14 @@
     DW.TR.overlay = null;
     BS.refresh();
     banner('Ход противника', true);
+    // ход противника короче по умолчанию; «Быстрее» — ещё втрое
+    DW.turbo = 1.35;
+    const fast = el('button', { class: 'btn sm skipturn', html: '⏩ Быстрее' });
+    fast.onclick = function (e) { e.stopPropagation(); DW.turbo = 4; fast.innerHTML = '⏩ Ускорено'; fast.disabled = true; };
+    if (hud && hud.banner && hud.banner.parentNode) hud.banner.parentNode.appendChild(fast);
     try { await BT().endPlayerTurn(); } catch (e) { console.error(e); }
+    DW.turbo = 1;
+    if (fast.parentNode) fast.parentNode.removeChild(fast);
     hideBanner();
     busy = false;
     if (!B) return;

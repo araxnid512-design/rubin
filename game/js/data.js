@@ -256,7 +256,8 @@
     { id: 'veteran', n: 'Опытный боец', q: 'бывалый', give: { recruit: 2 }, price: 90, tier: 2, icon: 'man' },
     { id: 'hsniper', n: 'Крупнокалиберная винтовка', q: '', give: { weapon: 'hsniper' }, price: 90, tier: 3, icon: 'gun' },
     { id: 'hlmg', n: 'Тяжёлый пулемёт', q: '', give: { weapon: 'hlmg' }, price: 95, tier: 3, icon: 'gun' },
-    { id: 'exo', n: 'Экзоскелет', q: '', give: { armor: 'exo' }, price: 120, tier: 3, icon: 'armor' }
+    { id: 'exo', n: 'Экзоскелет', q: '', give: { armor: 'exo' }, price: 120, tier: 3, icon: 'armor' },
+    { id: 'thermal', n: 'Тепловизор', q: 'один на отряд', give: { gear: 'thermal' }, price: 70, tier: 2, icon: 'overwatch', once: 'thermal' }
   ];
   D.TIERS = [
     { need: 0, n: 'Испытательный срок' },
@@ -291,6 +292,8 @@
   I.reload = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 3.5v5h-5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>';
   I.crouch = '<svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3" fill="currentColor"/><path d="M12 8v6l-4 2v5M12 14l4 2 1 5M8 11h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 22h14" stroke="currentColor" stroke-width="1.6"/></svg>';
   I.stand = '<svg viewBox="0 0 24 24"><circle cx="12" cy="3.8" r="2.2" fill="currentColor"/><path d="M12 7v8M12 15l-3 7M12 15l3 7M7 10h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  I.volley = '<svg viewBox="0 0 24 24"><path d="M2 8h12M2 16h12" stroke="currentColor" stroke-width="2.4"/><path d="M14 5l6 3-6 3zM14 13l6 3-6 3z" fill="currentColor"/></svg>';
+  I.guard = '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="11" r="3" fill="currentColor"/></svg>';
   I.hunker = '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 12l3 3 5-6" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
   I.medkit = '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8.5v8M8 12.5h8" stroke="currentColor" stroke-width="2.6"/></svg>';
   I.throwg = '<svg viewBox="0 0 24 24"><circle cx="10" cy="14" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 7.5V4h4v3.5M12 5h6l2 3" fill="none" stroke="currentColor" stroke-width="2"/></svg>';

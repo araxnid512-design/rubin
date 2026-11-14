@@ -515,3 +515,6 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 
 .quest { margin-top: 6px; padding: 6px 8px; border: 1px solid rgba(255, 207, 90, 0.45); border-radius: 6px; background: rgba(255, 190, 70, 0.08); }
 .quest b { color: #ffcf5a; }
+
+/* кнопка ускорения хода противника */
+.skipturn { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); z-index: 30; pointer-events: auto; opacity: 0.92; }

@@ -132,8 +132,34 @@
   };
   TR3.actionCamEnd = function () {
     const b = TR3._camBack; TR3._camBack = null;
-    if (b) R3.cam.goal = [R3.cam.tx, R3.cam.tz, b.d];
+    if (b && b.kill) {
+      // после кинокамеры — прежний угол, наклон и место
+      let y = b.yaw; while (y - R3.cam.yaw > Math.PI) y -= Math.PI * 2; while (y - R3.cam.yaw < -Math.PI) y += Math.PI * 2;
+      R3.cam.yawTo = y; tweenPitch(b.pitch, 420);
+      R3.cam.goal = [b.tx, b.tz, b.d];
+    } else if (b) R3.cam.goal = [R3.cam.tx, R3.cam.tz, b.d];
     if (TR2.actionCamEnd) TR2.actionCamEnd();
+  };
+  function tweenPitch(to, ms) {
+    const from = R3.cam.pitch, t0 = performance.now();
+    (function step() { const k = Math.min(1, (performance.now() - t0) / ms); R3.cam.pitch = from + (to - from) * k * k * (3 - 2 * k); if (k < 1) requestAnimationFrame(step); })();
+  }
+  /* смертельный выстрел: камера из-за плеча стрелка, ниже и ближе, вместе с замедлением */
+  TR3.killCam = function (att, tgt) {
+    if (!R3.ok) return TR3.actionCam(att, tgt);
+    TR3._camBack = { kill: true, tx: R3.cam.tx, tz: R3.cam.tz, d: R3.cam.dist, yaw: R3.cam.yawTo, pitch: R3.cam.pitch };
+    let y = Math.atan2(att.x - tgt.x, att.y - tgt.y) + 0.38;
+    while (y - R3.cam.yaw > Math.PI) y -= Math.PI * 2; while (y - R3.cam.yaw < -Math.PI) y += Math.PI * 2;
+    R3.cam.yawTo = y; tweenPitch(0.5, 420);
+    const X = ((tgt.x * 0.55 + att.x * 0.45) + 0.5) * T, Z = ((tgt.y * 0.55 + att.y * 0.45) + 0.5) * T;
+    R3.cam.goal = [X, Z, R3.camLimits.dMin + 0.5];
+    return new Promise(function (res) { R3.cam.waiters.push(res); setTimeout(res, 620 / ((DW.settings && DW.settings.speed) || 1)); });
+  };
+  /* укрытие разбито больше чем наполовину — модель ниже и с креном */
+  TR3.objDamaged = function (x, y) {
+    if (!R3.ok) return;
+    const B = DW.BT.get(), i = y * B.w + x;
+    R3.scene.traverse(function (o) { if (o.userData && o.userData.tile === i && !o.userData.dmg) { o.userData.dmg = 1; o.scale.y *= 0.62; o.rotation.z += (Math.random() - 0.5) * 0.14; } });
   };
   TR3.isAnimating = function () { return TR2.isAnimating() || (R3.fx.busy && R3.fx.busy()) || !!R3.cam.goal || Math.abs(R3.cam.yawTo - R3.cam.yaw) > 0.01 || R3.cam.shake > 0.05; };
   TR3.applyQuality = function (atInit) { TR2.applyQuality(atInit); R3.applyQuality(); };

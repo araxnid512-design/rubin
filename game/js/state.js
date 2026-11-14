@@ -270,6 +270,7 @@
       const g = c.give;
       for (const k in g) {
         if (k === 'weapon') { st.stock.weapons[g.weapon] = (st.stock.weapons[g.weapon] || 0) + 1; extra.push(D.WEAPONS[g.weapon].n); }
+        else if (k === 'gear') { st.gear = st.gear || {}; st.gear[g.gear] = true; extra.push(c.n.toLowerCase()); }
         else if (k === 'mod') { st.stock.mods = st.stock.mods || {}; st.stock.mods[g.mod] = (st.stock.mods[g.mod] || 0) + 1; extra.push('модуль «' + D.MODS[g.mod].n + '»'); }
         else if (k === 'armor') { st.stock.armors[g.armor] = (st.stock.armors[g.armor] || 0) + 1; extra.push(D.ARMORS[g.armor].n); }
         else if (k === 'recruit') {
@@ -752,6 +753,7 @@
       // всё, что осталось на карте, собрано после боя (контейнер Института — набором припасов)
       B.items.forEach(function (it) { if (it.kind === 'cargo') { add('ammo', 40); add('meds', 1); add('gems', 5); } else add(it.kind, it.amt); });
       (B.drops || []).forEach(function (w) {
+        if (w === 'thermal') { st.gear = st.gear || {}; if (!st.gear.thermal) { st.gear.thermal = true; sum.items.push('тепловизор (ночь и пыль не мешают обзору)'); } return; }
         st.stock.weapons[w] = (st.stock.weapons[w] || 0) + 1;
         sum.items.push(D.WEAPONS[w].n);
       });

@@ -30,7 +30,7 @@
       if (BT.checkEnd()) return;
     }
     await AI.patrol();
-    B.units.forEach(function (e) { if (e.side === 'e') e.suppressed = false; });
+    B.units.forEach(function (e) { if (e.side === 'e') { e.suppressed = false; e.pinned = false; } });
     BT.updateObjective();
     BT.checkEnd();
   };
@@ -180,7 +180,7 @@
         return true;
       }
     }
-    const canMove = e.ap >= 2;
+    const canMove = e.ap >= 2 && !e.pinned;   // прижатый огнём не перебегает
     const hurt = !D.ENEMIES[e.type].beast && e.hp <= e.maxHp * 0.35;
     const R = BT.reach(e, canMove ? e.mob : 0);
     const start = BT.idx(e.x, e.y);

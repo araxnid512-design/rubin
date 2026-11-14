@@ -23,7 +23,8 @@ window.DW = window.DW || {};
   U.sleep = function (ms) {
     const sp = (DW.settings && DW.settings.speed) || 1;
     const ts = DW.timeScale || 1;
-    return new Promise(function (r) { setTimeout(r, ms / sp / ts); });
+    // DW.turbo — ускорение хода противника (кнопка «Быстрее»)
+    return new Promise(function (r) { setTimeout(r, ms / sp / ts / (DW.turbo || 1)); });
   };
   U.plural = function (n, f1, f2, f5) {
     n = Math.abs(n) % 100;
