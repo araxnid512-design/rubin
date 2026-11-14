@@ -3703,6 +3703,13 @@
         });
       }
     }
+    // мины: свои — зелёные, найденные вражеские — красные
+    (ov.mines || []).forEach(function (m) {
+      const c = isoC(m[0], m[1]);
+      g.beginPath(); g.ellipse(c[0], c[1], 7, 3.6, 0, 0, 7);
+      g.fillStyle = m[2] ? 'rgba(90,200,110,0.7)' : 'rgba(255,70,50,0.75)'; g.fill();
+      g.strokeStyle = m[2] ? '#bff5c0' : '#ffd0c0'; g.lineWidth = 1.3; g.stroke();
+    });
     (ov.seeMarks || []).forEach(function (m) {
       const c = uPos(m.u);
       const Y = c[1] - 62 * unitScale(m.u);

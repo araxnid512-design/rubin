@@ -143,7 +143,16 @@
       else if (ab === 'aimed' || ab === 'double') on = u.ap >= 2 && canFire && tg.length > 0;
     }
     if (ab === 'heal') on = u.ap >= 1 && u.charges.heal > 0 && healTargets(u).length > 0;
-    list.push({ id: 'ability', icon: ab, label: A.n, on: on, cd: cd, count: ab === 'heal' ? u.charges.heal : null, ab: ab });
+    if (ab === 'mine') {
+      // сапёр: мины, потом — растяжки из гранат
+      const trip = !(u.charges.mine > 0);
+      on = u.ap >= 1 && BT().canMine(u) && BT().mineSpots(u).length > 0;
+      list.push({ id: 'ability', icon: 'mine', label: trip ? 'Растяжка' : A.n, on: on, count: trip ? st.res.grenades : u.charges.mine, ab: ab });
+    } else list.push({ id: 'ability', icon: ab, label: A.n, on: on, cd: cd, count: ab === 'heal' ? u.charges.heal : null, ab: ab });
+    if (BT().defuseSpots(u).length) list.push({ id: 'defuse', icon: 'defuse', label: 'Разминир.', on: u.ap >= 1 });
+    if (BT().breachSpots(u).length) list.push({ id: 'breach', icon: 'tnt', label: 'Подрыв', on: u.ap >= 1, count: u.charges.tnt });
+    // пулемёт на крыше УАЗа — боец рядом с машиной
+    if (BT().uazGunner(u) && tg.length) list.push({ id: 'uazmg', icon: 'uazmg', label: 'Турель', on: u.ap >= 1 && st.res.ammo > 0, count: B.uazBelt });
     list.push({ id: 'overwatch', icon: 'overwatch', label: 'Дозор', on: canFire });
     list.push({ id: 'reload', icon: 'reload', label: 'Перезар.', on: u.ap >= 1 && u.clip < W.clip });
     // расходники, которых нет, — без кнопки: меньше кнопок в ряду на телефоне
@@ -271,6 +280,13 @@
     if (k !== dzKey) { dzKey = k; dzC = BT().detectZone(); }
     return dzC;
   }
+  // метки мин: свои (зелёные) и замеченные вражеские (красные)
+  function minesMarks() {
+    const out = [];
+    for (const k in (B.mines || {})) out.push([+k % B.w, (+k / B.w) | 0, 1]);
+    for (const k in (B.eminesSeen || {})) if (B.emines && B.emines[k]) out.push([+k % B.w, (+k / B.w) | 0, 0]);
+    return out.length ? out : null;
+  }
   function refreshOverlay() {
     if (!B) return;
     const st = sel && sel.alive ? sel : null;
@@ -283,7 +299,8 @@
       targets: mode === 'target' ? targets : null, target: mode === 'target' && targets[tIdx] ? targets[tIdx].u : null,
       aoe: mode === 'throw' ? aoe : null, allies: mode === 'ally' ? allies : null,
       owz: mode === 'idle' && !busy && st && st.ap > 0 && reachC ? (owzSrc === reachC ? owzC : (owzSrc = reachC, owzC = BT().owZone(reachC))) : null,
-      dz: detectZone()
+      dz: detectZone(),
+      mines: minesMarks()
     };
   }
   function refreshPanel() {
@@ -295,8 +312,8 @@
       const t = targets[tIdx];
       if (!t) { cancelMode(); return; }
       const info = shotInfo(kindA, sel, t.u);
-      const W = D.WEAPONS[sel.weapon];
-      const lbl = { shoot: 'Огонь', aimed: 'Прицельный', double: 'Двойной ×2', suppress: 'Подавить' }[kindA];
+      const W = D.WEAPONS[kindA === 'uazmg' ? 'lmg' : sel.weapon];
+      const lbl = { shoot: 'Огонь', aimed: 'Прицельный', double: 'Двойной ×2', suppress: 'Подавить', uazmg: 'Очередь', volley: 'Залп' }[kindA];
       p.appendChild(el('div', { class: 't-head', html: '<img src="' + DW.ART.enemyPortrait(t.u.type, t.u) + '" alt=""><div class="t-name">' + t.u.name + '<small>ОЗ ' + t.u.hp + '/' + t.u.maxHp + (t.u.armor ? ' · броня ' + t.u.armor : '') + '</small></div>' }));
       if (kindA === 'suppress') {
         p.appendChild(el('div', { class: 't-hit', html: 'Цель получит <b>−40</b> к меткости в свой ход.' }));
@@ -312,11 +329,13 @@
       row.appendChild(el('button', { class: 'btn sm', html: D.ICONS.close, onclick: cancelMode }));
       p.appendChild(row);
     } else if (mode === 'throw') {
-      const rk = kindA === 'rocket';
-      p.appendChild(el('div', { class: 't-name', text: rk ? 'Выстрел из РПГ' : 'Граната' }));
-      p.appendChild(el('div', { class: 't-hit', html: (rk ? 'Урон 5–8, радиус 2, разрушает укрытия.' : 'Урон 3–5, радиус 1.5, разрушает лёгкие укрытия.') + '<br>Выберите клетку (дальность ' + aoe.range + ').' }));
+      const rk = kindA === 'rocket', sap = kindA === 'mine' || kindA === 'breach';
+      const trip = kindA === 'mine' && !(sel.charges.mine > 0);
+      p.appendChild(el('div', { class: 't-name', text: sap ? (kindA === 'mine' ? (trip ? 'Растяжка (тратит гранату)' : 'Мина') : 'Подрыв стены') : (rk ? 'Выстрел из РПГ' : 'Граната') }));
+      p.appendChild(el('div', { class: 't-hit', html: sap ? (kindA === 'mine' ? 'Враг, наступивший на клетку, подорвётся: урон 3–5 вокруг. Враг о ней не знает. 1 ОД.' : 'Заряд пробивает стену или укрытие насквозь — новый проход. Завершает ход.') + '<br>Выберите клетку рядом с бойцом.' :
+        (rk ? 'Урон 5–8, радиус 2, разрушает укрытия.' : 'Урон 3–5, радиус 1.5, разрушает лёгкие укрытия.') + '<br>Выберите клетку (дальность ' + aoe.range + ').' }));
       const row = el('div', { class: 't-btns' });
-      const go = el('button', { class: 'btn primary fire', text: rk ? 'Пуск!' : 'Бросить', onclick: confirmThrow });
+      const go = el('button', { class: 'btn primary fire', text: sap ? (kindA === 'mine' ? 'Поставить' : 'Взорвать') : (rk ? 'Пуск!' : 'Бросить'), onclick: confirmThrow });
       if (aoe.x === undefined) go.disabled = true;
       row.appendChild(go);
       row.appendChild(el('button', { class: 'btn sm', html: D.ICONS.close, onclick: cancelMode }));
@@ -331,6 +350,7 @@
     }
   }
   function shotInfo(kind, u, t) {
+    if (kind === 'uazmg') return BT().uazShotInfo(u, t);
     const o = kind === 'aimed' ? { aimBonus: 20, critBonus: 25, aimLabel: 'Прицел' } : (kind === 'double' ? { aimBonus: -15, aimLabel: 'Двойной' } : (kind === 'volley' ? { aimBonus: 10, aimLabel: 'Совместный залп' } : {}));
     return BT().shotInfo(u, t, o);
   }
@@ -403,6 +423,7 @@
       return;
     }
     if (mode === 'throw') {
+      if (aoe.spots && !aoe.spots.some(function (q) { return q[0] === tx && q[1] === ty; })) { DW.UI.toast(kindA === 'mine' ? 'Сюда мину не поставить' : 'Нужна стена или укрытие рядом'); return; }
       if (U.dist(sel.x, sel.y, tx, ty) <= aoe.range + 0.01) {
         if (aoe.x === tx && aoe.y === ty) confirmThrow();
         else { aoe.x = tx; aoe.y = ty; DW.SFX.play('click'); refreshOverlay(); refreshPanel(); }
@@ -499,6 +520,9 @@
       case 'rocket': startThrow('rocket'); break;
       case 'medkit': startAlly('medkit'); break;
       case 'evac': run(async function () { BT().doEvac(u); await U.sleep(300); }); break;
+      case 'defuse': run(async function () { BT().doDefuse(u); await U.sleep(800); }); break;
+      case 'breach': startThrow('breach'); break;
+      case 'uazmg': startTarget('uazmg'); break;
       case 'ability':
         switch (a.ab) {
           case 'order': startAlly('order'); break;
@@ -507,6 +531,7 @@
           case 'aimed': startTarget('aimed'); break;
           case 'double': startTarget('double'); break;
           case 'heal': startAlly('heal'); break;
+          case 'mine': startThrow('mine'); break;
           default: break;
         }
         break;
@@ -536,18 +561,29 @@
       tut('shoot');
       if (k === 'suppress') await BT().doSuppress(u, t.u);
       else if (k === 'volley') { const p = BT().volleyPartner(u); if (p) await BT().doVolley(u, p, t.u); else await BT().doShoot(u, t.u, 'shoot'); }
+      else if (k === 'uazmg') await BT().doUazMg(u, t.u);
       else await BT().doShoot(u, t.u, k);
     });
   }
   function startThrow(kind) {
     mode = 'throw'; kindA = kind; preview = null;
-    aoe = { range: kind === 'rocket' ? 10 : 7, r: kind === 'rocket' ? 2.2 : 1.5 };
-    hint('Выберите клетку для ' + (kind === 'rocket' ? 'выстрела' : 'броска'));
+    if (kind === 'mine' || kind === 'breach') {
+      // сапёр: только соседние клетки из списка
+      const sp = kind === 'mine' ? BT().mineSpots(sel) : BT().breachSpots(sel);
+      aoe = { range: 1.5, r: 0.45, spots: sp };
+      if (sp.length === 1) { aoe.x = sp[0][0]; aoe.y = sp[0][1]; }
+      hint(kind === 'mine' ? 'Выберите соседнюю клетку для мины' : 'Выберите стену или укрытие рядом');
+    } else {
+      aoe = { range: kind === 'rocket' ? 10 : 7, r: kind === 'rocket' ? 2.2 : 1.5 };
+      hint('Выберите клетку для ' + (kind === 'rocket' ? 'выстрела' : 'броска'));
+    }
     refreshOverlay(); refreshPanel();
   }
   function confirmThrow() {
     if (!aoe || aoe.x === undefined) return;
     const u = sel, x = aoe.x, y = aoe.y, k = kindA;
+    if (k === 'mine') { run(async function () { BT().doMine(u, x, y); await U.sleep(600); }); return; }
+    if (k === 'breach') { run(async function () { await BT().doBreach(u, x, y); }); return; }
     run(async function () { await BT().doThrow(u, x, y, k); });
   }
   function startAlly(kind) {

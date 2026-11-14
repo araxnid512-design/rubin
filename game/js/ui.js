@@ -314,6 +314,20 @@
           ub.appendChild(document.createTextNode(' ')); ub.appendChild(rb);
         }
         body.appendChild(ub);
+        // улучшения УАЗа
+        const upw = el('div', { class: 'uazup' });
+        Object.keys(D.UAZ_UP).forEach(function (k) {
+          const u2 = D.UAZ_UP[k], have = !!(st.uaz && st.uaz.up && st.uaz.up[k]);
+          const row = el('div', { class: 'uzrow' + (have ? ' have' : ''), html: '<b>' + u2.n + '</b> — ' + u2.d });
+          if (have) row.appendChild(el('span', { class: 'good', text: ' ✔ есть' }));
+          else {
+            const bb = el('button', { class: 'btn sm', html: 'Поставить · ' + G.costText(u2.cost), onclick: function () { if (G.buyUazUp(k)) { DW.SFX.play('build'); UI.toast('УАЗ: ' + u2.n.toLowerCase(), 'good'); G.save(); render(); if (onChange) onChange(); } } });
+            if (!G.canAfford(u2.cost)) bb.disabled = true;
+            row.appendChild(bb);
+          }
+          upw.appendChild(row);
+        });
+        body.appendChild(upw);
       }
       const grid = el('div', { class: 'bgrid' });
       Object.keys(D.BUILDINGS).forEach(function (id) {
@@ -579,7 +593,7 @@
       const chosen = {};
       const hurt = function (s) { return kind !== 'defense' && (s.injury || 0) > 0; };
       const sorted = st.roster.slice().sort(function (a, b) { return G.hp(b) / G.maxHp(b) - G.hp(a) / G.maxHp(a); });
-      sorted.filter(function (s) { return !hurt(s); }).slice(0, 6).forEach(function (s) { chosen[s.id] = 1; });
+      sorted.filter(function (s) { return !hurt(s); }).slice(0, G.squadMax()).forEach(function (s) { chosen[s.id] = 1; });
       const T = D.nodeInfo(node);
       const intel = kind === 'caravan' ? 'охрана каравана — бандиты с автоматами' : {
         landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: node.fac === 'clan' ? 'клан — много бойцов и Старший' : (node.fac === 'sobr' ? 'группа СОБР: щиты, бронежилеты, светошумовые' : 'бандиты' + (node.diff >= 3 ? ' и главарь' : '')),
@@ -639,7 +653,7 @@
           body.appendChild(pay);
         }
         const cnt = Object.keys(chosen).length;
-        body.appendChild(el('div', { class: 'blabel', html: 'Бойцы на задание: <b>' + cnt + '</b>/6' }));
+        body.appendChild(el('div', { class: 'blabel', html: 'Бойцы на задание: <b>' + cnt + '</b>/' + G.squadMax() }));
         const grid = el('div', { class: 'bsel' });
         st.roster.forEach(function (s) {
           const on = !!chosen[s.id];
@@ -647,7 +661,7 @@
           const card = el('div', { class: 'bpick' + (on ? ' on' : '') + (hurt(s) ? ' hurt' : ''), onclick: function () {
             if (hurt(s)) { UI.toast('«' + s.name + '» ранен: ещё ' + s.injury + ' дн. вне строя', 'bad'); return; }
             if (chosen[s.id]) delete chosen[s.id];
-            else if (Object.keys(chosen).length < 6) chosen[s.id] = 1;
+            else if (Object.keys(chosen).length < G.squadMax()) chosen[s.id] = 1;
             render();
           } });
           card.appendChild(el('img', { class: 'ava', src: DW.ART.portrait(s), style: 'border-color:' + c.color }));
@@ -697,6 +711,7 @@
       if (sum.medals) html += '<div class="rloot">Медали: <b class="acc">' + sum.medals.join('; ') + '</b>.</div>';
       if (sum.ach && sum.ach.length) html += '<div class="rloot">Достижение: <b class="acc">' + sum.ach.map(function (a) { return '«' + a.n + '»'; }).join(', ') + '</b>.</div>';
       if (sum.quest) html += '<div class="rloot quest"><b>★ Задание «' + sum.quest.t + '» выполнено.</b> ' + sum.quest.text + '<br>Награда: ' + sum.quest.got.join(' · ') + '</div>';
+      if (sum.trunk) html += '<div class="rloot">Багажник УАЗа: увезли больше трофеев (+30%).</div>';
       if (sum.uazLost) html += '<div class="rloot"><span class="bad">УАЗ подбит</span> — нужен ремонт в гараже (' + DW.G.costText(D.UAZ_REPAIR) + ').</div>';
       if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';
       if (sum.traits) html += '<div class="rloot">Ранение изменило характер: <b class="acc">' + sum.traits.join('; ') + '</b>.</div>';

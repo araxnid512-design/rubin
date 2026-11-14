@@ -68,7 +68,7 @@
     let pool = D.NAMES.filter(function (n) { return !used[n]; });
     if (!pool.length) pool = D.NAMES;
     const name = persons.length ? U.pick(persons) : U.pick(pool);
-    const cls = U.pick(['assault', 'rifleman', 'sniper', 'medic', 'heavy', 'assault', 'rifleman']);
+    const cls = U.pick(['assault', 'rifleman', 'sniper', 'medic', 'heavy', 'assault', 'rifleman', 'sapper']);
     const s = G.newSoldier({
       name: name, cls: cls, hp: U.rand(8, 10), aim: U.rand(58, 68) + (level ? 3 : 0),
       mob: cls === 'heavy' ? 5 : 6, xp: level ? D.RANKS[Math.min(level, D.RANKS.length - 1)].xp : 0
@@ -262,10 +262,22 @@
     const st = G.state;
     if (!G.blv('garage') || G.uazOk() || !G.canAfford(D.UAZ_REPAIR)) return false;
     for (const k in D.UAZ_REPAIR) st.res[k] -= D.UAZ_REPAIR[k];
-    st.uaz = { ok: true };
+    st.uaz = Object.assign(st.uaz || {}, { ok: true });   // улучшения остаются
     G.log('УАЗ на ходу.');
     return true;
   };
+  // улучшение УАЗа: есть и машина на ходу
+  G.uazHas = function (k) { const st = G.state; return G.uazOk() && !!(st.uaz.up && st.uaz.up[k]); };
+  G.buyUazUp = function (k) {
+    const st = G.state, U2 = D.UAZ_UP[k];
+    if (!U2 || !G.blv('garage') || !st.uaz || (st.uaz.up && st.uaz.up[k]) || !G.canAfford(U2.cost)) return false;
+    G.pay(U2.cost);
+    st.uaz.up = st.uaz.up || {}; st.uaz.up[k] = 1;
+    G.log('УАЗ: ' + U2.n.toLowerCase() + '.');
+    return true;
+  };
+  // сколько бойцов берут на задание
+  G.squadMax = function () { return 6 + (G.uazHas('seats') ? 1 : 0); };
   /* сюжетные задания: открываются по условиям, привязываются к ближайшей незачищенной локации нужного вида */
   G.checkQuests = function () {
     const st = G.state, out = [];
@@ -901,6 +913,7 @@
     }
     let k;
     if (out === 'victory' || out === 'evac') for (k in B.loot) add(k, B.loot[k]);
+    const trunk = G.uazHas('trunk') && out === 'victory';
     if (out === 'victory') {
       for (k in B.field) add(k, B.field[k]);
       // всё, что осталось на карте, собрано после боя (контейнер Института — набором припасов)
@@ -910,6 +923,8 @@
         st.stock.weapons[w] = (st.stock.weapons[w] || 0) + 1;
         sum.items.push(D.WEAPONS[w].n);
       });
+      // багажник УАЗа: увезли больше
+      if (trunk) ['ammo', 'materials', 'food'].forEach(function (r) { const v = Math.round((sum.loot[r] || 0) * 0.3); if (v > 0) { add(r, v); sum.trunk = true; } });
     }
     let kills = 0;
     // боевые товарищи: кто прошёл бой вместе, сближается (3 совместных боя — «товарищи», +5 к меткости рядом)
@@ -1039,7 +1054,7 @@
       if (q && st.quests && st.quests[q.id] && !st.quests[q.id].done && okGoal) G.questReward(q, sum);
       if (q && st.quests[q.id] && st.quests[q.id].done) node.quest = null;
     }
-    if ((B.vehicles || []).some(function (v) { return v.own && v.dead; })) { st.uaz = { ok: false }; sum.uazLost = true; G.log('УАЗ подбит — нужен ремонт в гараже.'); }
+    if ((B.vehicles || []).some(function (v) { return v.own && v.dead; })) { st.uaz = Object.assign(st.uaz || {}, { ok: false }); sum.uazLost = true; G.log('УАЗ подбит — нужен ремонт в гараже.'); }
     // справочник врагов: сколько каждого вида убито
     st.killsByType = st.killsByType || {};
     B.units.forEach(function (e) { if (e.side === 'e' && !e.alive && e.type) { st.killsByType[e.type] = (st.killsByType[e.type] || 0) + 1; st.metEnemies = st.metEnemies || {}; st.metEnemies[e.type] = 1; } });

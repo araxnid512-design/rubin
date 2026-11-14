@@ -203,7 +203,7 @@
     }
     const txt = { beast: 'Стая мутантов идёт на штурм.', clan: 'Клан пришёл толпой — их много, и они идут в лоб.', sobr: 'Группа СОБР штурмует базу: щиты, светошумовые, слаженный огонь.' }[raid.kind] || 'Банда пришла за вашими припасами.';
     const ids = await DW.UI.briefing(base, 'defense', txt);
-    DW.Main.startBattle({ nodeId: st.baseNode, type: base.type, diff: Math.min(5, 1 + Math.floor(st.day / 8)), kind: 'defense', raid: raid, squad: ids || st.roster.slice(0, 6).map(function (s) { return s.id; }) });
+    DW.Main.startBattle({ nodeId: st.baseNode, type: base.type, diff: Math.min(5, 1 + Math.floor(st.day / 8)), kind: 'defense', raid: raid, squad: ids || st.roster.slice(0, G.squadMax()).map(function (s) { return s.id; }) });
   }
 
   async function waitDay(msg) {
@@ -276,7 +276,8 @@
     n.searches--;
     const r = await passDay();
     if (r !== 'ok') { busy = false; return; }
-    const m = U.rand(2, 5), f = U.rand(0, 5), g = U.rand(0, 3) + (n.diff > 2 ? 2 : 0);
+    const tk = G.uazHas('trunk') ? 1.3 : 1;   // багажник УАЗа
+    const m = Math.round(U.rand(2, 5) * tk), f = Math.round(U.rand(0, 5) * tk), g = U.rand(0, 3) + (n.diff > 2 ? 2 : 0);
     st.res.materials += m; st.res.food += f; st.res.gems += g;
     G.log('Обыск в «' + n.name + '»: +' + m + ' мат., +' + f + ' еды, +' + g + ' драг.');
     await DW.UI.alert('Обыск: ' + n.name, 'Найдено: +' + m + ' ' + ic('materials') + (f ? ', +' + f + ' ' + ic('food') : '') + (g ? ', +' + g + ' ' + ic('gems') : '') + '.' + (n.searches ? '' : ' Больше здесь искать нечего.'));

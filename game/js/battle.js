@@ -45,7 +45,8 @@
       for (let j = 0; j < len && ok; j++) if (!free(x, y + j) || B.hgt[(y + j) * B.w + x] !== h0 || !open(x - 1, y + j) || !open(x + 1, y + j)) ok = false;
       if (!ok) continue;
       const v = { x: x, y: y, len: len, wd: 1, d: 1, m: mi, o: 0, own: true };
-      for (let j = 0; j < len; j++) { const i = (y + j) * B.w + x; B.obj[i] = 23; B.objHp[i] = D.OBJ[23].hp; }
+      const arm = DW.G.uazHas && DW.G.uazHas('armor') ? 2 : 1;   // бронированный УАЗ держит вдвое больше
+      for (let j = 0; j < len; j++) { const i = (y + j) * B.w + x; B.obj[i] = 23; B.objHp[i] = D.OBJ[23].hp * arm; }
       B.vehicles = B.vehicles || []; B.vehicles.push(v);
       return;
     }
@@ -181,6 +182,7 @@
     if (s.trait2 === 'grim') u.aim += 5;
     u.trait2 = s.trait2 || null;
     if (u.perks.indexOf('medic2') >= 0) u.charges.heal += 2;
+    if (s.cls === 'sapper') { u.charges.mine = 2 + (u.perks.indexOf('grenadier') >= 0 ? 1 : 0); u.charges.tnt = 1; }
     return u;
   }
   function mkSoldierBase(s, x, y, G, W) {
@@ -241,6 +243,8 @@
     // свой УАЗ (починен в гараже) — у зоны высадки, полное укрытие; подобьют — в ремонт
     B.deploy = m.deploy || [];
     if (o.kind !== 'defense' && DW.G.uazOk && DW.G.uazOk()) placeOwnUaz();
+    // пулемёт на крыше УАЗа: лента на бой
+    B.uazBelt = (B.vehicles || []).some(function (v) { return v.own; }) && DW.G.uazHas && DW.G.uazHas('mg') ? 6 : 0;
     BT.rollConditions(B, mapType);
     // ночной набег: темно, прожектор вышки светит в сторону удара
     // ночью и в пещерах — фонари: бойцы видят дальше, но их замечают издалека
@@ -308,6 +312,8 @@
       else if (beast && o.diff >= 2 && r < 0.65) BT.setupHunt();
       else if (r < 0.85) BT.setupCargo();
     }
+    // лагерь людей: на подходах вражеские мины (сапёр их видит и снимает)
+    if (o.kind === 'normal' && nd && nd.type === 'camp') BT.layEnemyMines(2 + Math.floor((o.diff || 1) / 2));
     BT.updateObjective();
     BT.updateVision();
     return B;
@@ -928,6 +934,7 @@
         if (!BT.walkTile(nx, ny)) continue;
         const ni = ny * B.w + nx;
         if (occ[ni] === 2) continue;
+        if (B.emines && B.emines[ni] && (u.side === 'e' || (B.eminesSeen && B.eminesSeen[ni]))) continue;
         let step = 1;
         const dh = B.hgt ? B.hgt[ni] - B.hgt[i] : 0;
         // на другой уровень — только по лестнице; на марш лестницы — только спереди или сверху, по прямой
@@ -1035,6 +1042,16 @@
         DW.UI.toast('Мина сработала!', 'alert');
         await BT.explode(nx, ny, 1.2, [3, 5], 2, null, true);
         if (!u.alive || B.over) break;
+      }
+      // вражеская мина под ногой бойца; сапёр замечает мины вокруг, остальные — иногда, вплотную
+      if (u.side === 'p' && B.emines) {
+        if (B.emines[ny * B.w + nx]) {
+          delete B.emines[ny * B.w + nx]; if (B.eminesSeen) delete B.eminesSeen[ny * B.w + nx];
+          DW.UI.toast('Мина под ногой!', 'alert');
+          await BT.explode(nx, ny, 1.2, [3, 5], 2, null, true);
+          if (!u.alive || B.over) break;
+        }
+        BT.spotMines(u);
       }
       if (u.side === 'e' && B.wire && B.wire[ny * B.w + nx] && k < path.length - 1) {
         DW.TR.float(nx, ny, 'Колючка!', 'info');
@@ -1512,6 +1529,123 @@
     }
     if (spread) { DW.TR.refreshFires(); DW.UI.toast('Огонь расползается по сухой траве!', 'alert'); }
     if (any) await BT.processBlasts(null);
+  };
+
+  /* ---------- Сапёр: мины и растяжки, разминирование, подрыв стены ---------- */
+  BT.layEnemyMines = function (n) {
+    const occ = {};
+    B.units.forEach(function (u) { occ[u.y * B.w + u.x] = 1; });
+    (B.deploy || []).concat(B.evac || []).forEach(function (p) { occ[p[1] * B.w + p[0]] = 1; });
+    (B.items || []).forEach(function (it) { occ[it.y * B.w + it.x] = 1; });
+    const c = [];
+    for (let y = 1; y < B.h - 1; y++) for (let x = Math.floor(B.w * 0.28); x < Math.floor(B.w * 0.62); x++) {
+      const i = y * B.w + x;
+      if (BT.walkTile(x, y) && !occ[i] && !BT.stairAt(i)) c.push(i);
+    }
+    U.shuffle(c);
+    B.emines = {}; B.eminesSeen = {};
+    for (let k = 0; k < n && k < c.length; k++) B.emines[c[k]] = 1;
+  };
+  // сапёр видит вражеские мины в 3 клетках, остальные бойцы — иногда, вплотную
+  BT.spotMines = function (u) {
+    if (!B.emines) return;
+    const r = u.cls === 'sapper' ? 3 : 1;
+    let found = 0;
+    for (const k in B.emines) {
+      const i = +k, x = i % B.w, y = (i / B.w) | 0;
+      if (B.eminesSeen[i] || Math.max(Math.abs(x - u.x), Math.abs(y - u.y)) > r) continue;
+      if (u.cls !== 'sapper' && Math.random() > 0.4) continue;
+      B.eminesSeen[i] = 1; found++;
+    }
+    if (found) DW.TR.float(u.x, u.y, found > 1 ? 'Мины! (' + found + ')' : 'Мина!', 'bad');
+  };
+  // клетки рядом, куда можно поставить мину
+  BT.mineSpots = function (u) {
+    const res = [];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = u.x + dx, y = u.y + dy, i = y * B.w + x;
+      if ((dx || dy) && BT.walkTile(x, y) && !BT.unitAt(x, y) && !(B.mines && B.mines[i]) && !(B.emines && B.emines[i]) && !BT.stairAt(i)) res.push([x, y]);
+    }
+    return res;
+  };
+  BT.canMine = function (u) { return u.cls === 'sapper' && ((u.charges.mine || 0) > 0 || DW.G.state.res.grenades > 0); };
+  BT.doMine = function (u, x, y) {
+    const i = y * B.w + x;
+    if (!BT.mineSpots(u).some(function (p) { return p[0] === x && p[1] === y; })) return false;
+    let trip = false;
+    if ((u.charges.mine || 0) > 0) u.charges.mine--;
+    else { DW.G.state.res.grenades--; trip = true; }
+    B.mines = B.mines || {}; B.mines[i] = 1;
+    u.ap = Math.max(0, u.ap - 1);
+    u.face = Math.atan2(y - u.y, x - u.x);
+    DW.TR.anim(u, 'reload', 700);
+    DW.TR.float(x, y, trip ? 'Растяжка' : 'Мина', 'info');
+    DW.SFX.play('click');
+    return true;
+  };
+  BT.defuseSpots = function (u) {
+    if (u.cls !== 'sapper' || !B.emines) return [];
+    const res = [];
+    for (const k in B.emines) { const i = +k, x = i % B.w, y = (i / B.w) | 0; if (B.eminesSeen[i] && Math.max(Math.abs(x - u.x), Math.abs(y - u.y)) <= 1) res.push([x, y]); }
+    return res;
+  };
+  BT.doDefuse = function (u) {
+    const sp = BT.defuseSpots(u);
+    if (!sp.length) return false;
+    const i = sp[0][1] * B.w + sp[0][0];
+    delete B.emines[i]; delete B.eminesSeen[i];
+    u.ap = Math.max(0, u.ap - 1);
+    DW.TR.anim(u, 'reload', 900);
+    const salv = Math.random() < 0.5;
+    if (salv) DW.G.state.res.grenades++;
+    DW.TR.float(sp[0][0], sp[0][1], 'Разминировано' + (salv ? ' · +1 граната' : ''), 'good');
+    return true;
+  };
+  // подрыв: заряд к соседней стене или укрытию — пролом
+  BT.breachSpots = function (u) {
+    if (u.cls !== 'sapper' || !(u.charges.tnt > 0)) return [];
+    const res = [];
+    BT.DIR4.forEach(function (d) {
+      const x = u.x + d[0], y = u.y + d[1], i = y * B.w + x;
+      if (BT.inb(x, y) && B.obj[i] && B.obj[i] !== 23 && B.objHp[i] > 0 && D.OBJ[B.obj[i]] && D.OBJ[B.obj[i]].hp < 900) res.push([x, y]);
+    });
+    return res;
+  };
+  BT.doBreach = async function (u, x, y) {
+    if (!BT.breachSpots(u).some(function (p) { return p[0] === x && p[1] === y; })) return false;
+    u.charges.tnt--; u.ap = 0;
+    u.face = Math.atan2(y - u.y, x - u.x);
+    DW.TR.anim(u, 'reload', 600);
+    DW.TR.float(u.x, u.y, 'Заряд заложен!', 'info');
+    await U.sleep(650);
+    BT.damageObj(x, y, 999);
+    await BT.explode(x, y, 0.6, [3, 5], 3, u, true);
+    BT.updateVision();
+    return true;
+  };
+
+  /* ---------- Пулемёт на крыше УАЗа ---------- */
+  BT.ownUaz = function () { return (B.vehicles || []).find(function (v) { return v.own && !v.dead; }) || null; };
+  BT.uazGunner = function (u) {
+    const v = B.uazBelt > 0 && u.kind === 'soldier' ? BT.ownUaz() : null;
+    if (!v) return false;
+    return BT.vehTiles(v).some(function (q) { return Math.max(Math.abs(q[0] - u.x), Math.abs(q[1] - u.y)) <= 1; });
+  };
+  // стрельба из ПКМ на турели: оружие на время меняется, обойма бойца не тратится
+  function withMg(u, fn) {
+    const w0 = u.weapon, c0 = u.clip;
+    u.weapon = 'lmg'; u.clip = 9;
+    try { return fn(); } finally { u.weapon = w0; u.clip = c0; }
+  }
+  BT.uazShotInfo = function (u, t) { return withMg(u, function () { return BT.shotInfo(u, t, { aimBonus: 10, aimLabel: 'Турель УАЗа' }); }); };
+  BT.doUazMg = async function (u, t) {
+    if (!BT.uazGunner(u)) return;
+    u.ap = 0; B.uazBelt--;
+    const w0 = u.weapon, c0 = u.clip;
+    u.weapon = 'lmg'; u.clip = 9;
+    try { await BT.fire(u, t, { aimBonus: 10, aimLabel: 'Турель УАЗа' }); }
+    finally { u.weapon = w0; u.clip = c0; }
+    if (B.uazBelt <= 0) DW.TR.float(u.x, u.y, 'Лента кончилась', 'info');
   };
 
   DW.BT = BT;

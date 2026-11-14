@@ -105,7 +105,8 @@
     assault: { n: 'Штурмовик', ab: 'rush', color: '#d9824a' },
     sniper: { n: 'Снайпер', ab: 'aimed', color: '#6fa8dc' },
     medic: { n: 'Медик', ab: 'heal', color: '#7fb069' },
-    rifleman: { n: 'Стрелок', ab: 'double', color: '#b4a7d6' }
+    rifleman: { n: 'Стрелок', ab: 'double', color: '#b4a7d6' },
+    sapper: { n: 'Сапёр', ab: 'mine', color: '#b89a6a' }
   };
   D.ABIL = {
     order: { n: 'Приказ', desc: 'Боец в поле зрения получает +1 ОД. Стоит 1 ОД. Перезарядка 3 хода.', cd: 3, ap: 1 },
@@ -113,7 +114,8 @@
     rush: { n: 'Рывок', desc: '+1 ОД в этом ходу (можно пробежать и выстрелить). Перезарядка 3.', cd: 3, ap: 0 },
     aimed: { n: 'Прицельный выстрел', desc: '+20 к меткости и +25 к шансу крита. Нужны 2 ОД. Перезарядка 2.', cd: 2, ap: 2 },
     heal: { n: 'Полевая медицина', desc: 'Лечит себя или соседнего бойца на 5 ОЗ без аптечки. 3 заряда за бой.', charges: 3, ap: 1 },
-    double: { n: 'Двойной выстрел', desc: 'Два выстрела по цели с −15 к меткости. Нужны 2 ОД. Перезарядка 3.', cd: 3, ap: 2 }
+    double: { n: 'Двойной выстрел', desc: 'Два выстрела по цели с −15 к меткости. Нужны 2 ОД. Перезарядка 3.', cd: 3, ap: 2 },
+    mine: { n: 'Мина', desc: 'Ставит мину на соседнюю клетку: враг, наступивший на неё, подорвётся. 2 мины за бой, дальше — растяжки из гранат. Ещё сапёр видит вражеские мины в 3 клетках и снимает их, а зарядом пробивает стену. 1 ОД.', ap: 1 }
   };
 
   /* Медали: за что даются (проверка — в G.awardMedals после боя) */
@@ -348,6 +350,10 @@
   I.wait = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>';
   I.portalbtn = '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7.5" ry="10" fill="none" stroke="currentColor" stroke-width="2.2"/><ellipse cx="12" cy="12" rx="3" ry="5" fill="currentColor" opacity=".6"/></svg>';
   I.butt = '<svg viewBox="0 0 24 24"><path d="M3 15l9-9 3 3-9 9z" fill="#8a5a2a"/><path d="M12 6l2-2 6 6-2 2z" fill="#5a5c60"/><path d="M15 16l3 3M17 14l3 3M13 18l3 3" stroke="#e3a33b" stroke-width="2" stroke-linecap="round"/></svg>';
+  I.mine = '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="16" rx="8" ry="4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 12V6M8.5 7h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  I.defuse = '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="17" rx="7" ry="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 3l12 12M18 3L6 15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  I.tnt = '<svg viewBox="0 0 24 24"><rect x="4" y="9" width="5" height="12" rx="1" fill="currentColor"/><rect x="10" y="9" width="5" height="12" rx="1" fill="currentColor"/><path d="M12 9c0-4 4-5 7-6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="19.5" cy="3" r="1.7" fill="currentColor"/></svg>';
+  I.uazmg = '<svg viewBox="0 0 24 24"><path d="M3 9h13l4-2v4l-4-1H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 10l-2 6h8l-2-6M4 20h16" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
   D.ICONS = I;
 
   /* Черты характера (у каждого бойца одна) */
@@ -392,7 +398,8 @@
     assault: [['mob', 'close'], ['flank', 'hp'], ['grenadier', 'tough'], ['crit', 'clip']],
     sniper: [['aim', 'sharp'], ['steady', 'crit'], ['ow', 'dig'], ['flank', 'cool']],
     medic: [['medic', 'hp'], ['medic2', 'cool'], ['dig', 'mob'], ['steady', 'aim']],
-    rifleman: [['aim', 'clip'], ['flank', 'steady'], ['ow', 'tough'], ['crit', 'close']]
+    rifleman: [['aim', 'clip'], ['flank', 'steady'], ['ow', 'tough'], ['crit', 'close']],
+    sapper: [['grenadier', 'tough'], ['dig', 'hp'], ['clip', 'mob'], ['ow', 'cool']]
   };
   /* Модули на оружие (у бойца до двух) */
   /* справочник врагов: описание, сильные и слабые стороны, совет (по свойствам из D.ENEMIES и правилам боя) */
@@ -469,6 +476,13 @@
       done: 'Лагерь главаря взят. Банды в округе поняли, с кем имеют дело.', reward: { gems: 20, trust: 25 } }
   ];
   D.UAZ_REPAIR = { materials: 8 };   // починка УАЗа в гараже (и после того, как его подбили)
+  /* улучшения УАЗа (в гараже): действуют, пока машина на ходу */
+  D.UAZ_UP = {
+    armor: { n: 'Бронелисты', d: 'Борта обшиты листами: в бою УАЗ держит вдвое больше, подбить его труднее.', cost: { materials: 14, gems: 20 } },
+    mg: { n: 'Пулемёт на крыше', d: 'ПКМ на турели: боец рядом с машиной стреляет очередью (+10 к меткости), лента — 6 очередей за бой.', cost: { materials: 10, gems: 35 } },
+    trunk: { n: 'Багажник и прицеп', d: 'Больше груза: +30% патронов, материалов и еды с боя и обыска.', cost: { materials: 8, gems: 15 } },
+    seats: { n: 'Третий ряд сидений', d: 'В кузов влезает ещё один: на задание можно взять 7 бойцов.', cost: { materials: 10, gems: 25 } }
+  };
   D.MODS = {
     scope: { n: 'Прицел', d: '+10 к меткости.', aim: 10 },
     mag: { n: 'Расширенный магазин', d: '+1 выстрел в магазине.', clip: 1 },
