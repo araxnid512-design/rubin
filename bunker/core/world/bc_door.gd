@@ -29,6 +29,7 @@ var _snd: AudioStreamPlayer3D
 
 
 func _ready() -> void:
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_build()
 	if Engine.is_editor_hint():
 		return

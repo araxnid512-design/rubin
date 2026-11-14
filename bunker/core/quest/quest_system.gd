@@ -19,7 +19,7 @@ const RES_MAX := {"fuel": 100.0, "filters": 100.0}
 
 var data := {}
 var quests := {}          ## id → {state, step, n}
-var res := {}             ## fuel (%), food (сут.), water (л), filters (%)
+var res := {}             ## fuel (%), filters (%)
 var tracked := ""
 var power := true
 var _marker: Node3D
@@ -57,6 +57,7 @@ func attach(root: Node3D) -> void:
 	_marker.mesh = cm
 	_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_marker.visible = false
+	_marker.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	root.add_child(_marker)
 
 

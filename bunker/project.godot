@@ -9,7 +9,7 @@ config/name="Bunker Survival"
 config/description="Постапокалиптическое выживание: подземный бункер и поверхность"
 run/main_scene="res://game/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 boot_splash/bg_color=Color(0.06, 0.06, 0.055, 1)
 boot_splash/show_image=false
 run/max_fps=60
@@ -63,7 +63,8 @@ pointing/emulate_touch_from_mouse=true
 [physics]
 
 3d/physics_engine="Jolt Physics"
-common/physics_ticks_per_second=60
+common/physics_ticks_per_second=30
+common/physics_interpolation=true
 
 [shader_globals]
 

@@ -19,6 +19,8 @@ var dev_lbl: Label
 var clock_lbl: Label
 var quest_lbl: Label
 var _fade: ColorRect
+var _ui_t := 0.0
+var _dosi_lvl := -1
 var minimap: Control
 var modal: Control = null
 var player: BCPlayer
@@ -89,8 +91,7 @@ func _build() -> void:
 	stats.add_theme_constant_override("separation", 6)
 	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(stats)
-	for k in [["hp", "Здоровье", Color(0.75, 0.2, 0.17), 16], ["st", "Выносливость", Color(0.78, 0.66, 0.25), 16],
-			["food", "Сытость", Color(0.72, 0.47, 0.24), 10], ["water", "Вода", Color(0.3, 0.6, 0.9), 10]]:
+	for k in [["hp", "Здоровье", Color(0.75, 0.2, 0.17), 16], ["st", "Выносливость", Color(0.78, 0.66, 0.25), 16]]:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var pb := ProgressBar.new()
@@ -237,8 +238,11 @@ func _process(_d: float) -> void:
 	ab.self_modulate = Color(0.75, 0.9, 1.3) if player.blocking else Color.WHITE
 	bars.hp.value = player.hp / player.max_hp * 100.0
 	bars.st.value = player.stamina
-	bars.food.value = player.food
-	bars.water.value = player.water
+	# тексты — 10 раз в секунду (смена текста и цвета пересчитывает вёрстку — на телефоне заметно)
+	_ui_t -= _d
+	if _ui_t > 0.0:
+		return
+	_ui_t = 0.1
 	var h := player.hour()
 	clock_lbl.text = "День %d · %02d:%02d%s" % [player.day(), int(h), int(fmod(h, 1.0) * 60.0), "  · ночь" if player.is_night() else ""]
 	var qt: String = Core.quest.tracker_text() if Core.quest else ""
@@ -250,7 +254,9 @@ func _process(_d: float) -> void:
 	var names := ["безопасно", "повышенный фон", "опасно", "смертельно"]
 	var rs := ("%.2f мкЗв/ч" % (rate * 1000.0)) if rate < 0.1 else ("%.1f мЗв/ч" % rate)
 	dosi.text = "☢ %s · %s\nДоза: %.0f мЗв%s" % [rs, names[lvl], player.dose, "  · костюм" if player.suit_on else ""]
-	dosi.add_theme_color_override("font_color", cols[lvl])
+	if lvl != _dosi_lvl:
+		_dosi_lvl = lvl
+		dosi.add_theme_color_override("font_color", cols[lvl])
 	if Core.mobile.settings.dev:
 		var st: Dictionary = Core.mobile.stats()
 		dev_lbl.text = "FPS %d (ср. %.0f) · кадр %.1f мс\nвызовов %d · объектов %d · треуг. %dк\nОЗУ %.0f МБ · видео %.0f МБ\n%s\n%s\nтемпература: %s" % [st.fps, st.fps_avg, st.ms, st.draw, st.objects, st.prims / 1000, st.mem_mb, st.vram_mb, st.res, st.gpu, st.thermal]
@@ -465,7 +471,7 @@ const ITEMS := {
 	"flashlight": ["Фонарь", "Старый армейский фонарь."],
 	"suit": ["Защитный костюм", "Снижает облучение в 6–7 раз. Хранится в шкафу у шлюза."],
 	"filter": ["Фильтр ФВУ", "Запасной фильтр фильтровентиляционной установки бункера."],
-	"canned": ["Тушёнка", "Банка тушёнки из довоенных запасов."],
+	"canned": ["Тушёнка", "Банка тушёнки из довоенных запасов. Подкрепиться: +15 здоровья."],
 	"tape": ["Изолента", "Пригодится в мастерской."],
 	"medkit": ["Аптечка", "Бинты, йод, обезболивающее."],
 	"keycard": ["Ключ-карта", "Карта доступа к пульту управления."],
@@ -479,7 +485,7 @@ const ITEMS := {
 
 func show_inventory() -> void:
 	var v := _open("Вещи", 640, 470)
-	v.add_child(_label("Сытость %d · вода %d · здоровье %d" % [player.food, player.water, player.hp], 16, Color(0.85, 0.8, 0.68)))
+	v.add_child(_label("Здоровье %d · выносливость %d" % [player.hp, player.stamina], 16, Color(0.85, 0.8, 0.68)))
 	var g := GridContainer.new()
 	g.columns = 2
 	g.add_theme_constant_override("h_separation", 14)
@@ -543,7 +549,7 @@ func show_terminal(kind: String) -> void:
 	var fuel: float = r.get("fuel", 0.0)
 	var filt: float = r.get("filters", 0.0)
 	var gen := ("РАБОТАЕТ · топливо %d%% (~%d ч)" % [roundi(fuel), int(fuel / 0.5)]) if Core.quest.power else "ОСТАНОВЛЕН — НЕТ ТОПЛИВА"
-	var t := "> СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ «УБЕЖИЩЕ-7»\n> День %d · время %02d:%02d\n> Генератор: %s\n> Вентиляция: фильтры ФВУ — %d%%%s\n> Гермодвери: %d из %d открыты\n> Освещение: %d светильников включено\n> Радиация снаружи: %.1f мЗв/ч\n> Радиация внутри: 0.20 мкЗв/ч — норма\n> Вода: %d л · продовольствие: %.1f сут.\n> Связь: нет сигнала" % [p.day(), hours, mins, gen, roundi(filt), " — ЗАМЕНИТЬ" if filt < 40.0 else "", open, doors, lights, Core.env.surface_rate if Core.env else 0.0, roundi(r.get("water", 0.0)), r.get("food", 0.0)]
+	var t := "> СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ «УБЕЖИЩЕ-7»\n> День %d · время %02d:%02d\n> Генератор: %s\n> Вентиляция: фильтры ФВУ — %d%%%s\n> Гермодвери: %d из %d открыты\n> Освещение: %d светильников включено\n> Радиация снаружи: %.1f мЗв/ч\n> Радиация внутри: 0.20 мкЗв/ч — норма\n> Вода: 1 870 л · продовольствие: 41 сут.\n> Связь: нет сигнала" % [p.day(), hours, mins, gen, roundi(filt), " — ЗАМЕНИТЬ" if filt < 40.0 else "", open, doors, lights, Core.env.surface_rate if Core.env else 0.0]
 	Core.play_ui("terminal_beep", -8.0)
 	var l := _label(t, 18, Color(0.45, 0.95, 0.55))
 	l.add_theme_font_override("font", SystemFont.new())
@@ -586,7 +592,7 @@ func show_journal() -> void:
 	v.add_child(sc)
 	var q = Core.quest
 	var r: Dictionary = q.res
-	box.add_child(_label("Убежище: топливо %d%% · фильтры ФВУ %d%% · вода %d л · еда %.1f сут.%s" % [roundi(r.get("fuel", 0)), roundi(r.get("filters", 0)), roundi(r.get("water", 0)), r.get("food", 0.0), "" if q.power else " · НЕТ ПИТАНИЯ"], 16, Color(0.85, 0.8, 0.68)))
+	box.add_child(_label("Убежище: топливо %d%% · фильтры ФВУ %d%%%s" % [roundi(r.get("fuel", 0)), roundi(r.get("filters", 0)), "" if q.power else " · НЕТ ПИТАНИЯ"], 16, Color(0.85, 0.8, 0.68)))
 	for st in [["active", "Текущие"], ["available", "Ждут разговора"], ["done", "Выполнены"]]:
 		var ids := []
 		for id in q.quests:
@@ -609,17 +615,7 @@ func show_journal() -> void:
 			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			l.custom_minimum_size = Vector2(650, 0)
 			box.add_child(l)
-	box.add_child(_label("Еда — на складе, вода — бак в теплице. Спать можно ночью (с 20:00), на кровати в жилом отсеке.", 15, Color(0.7, 0.68, 0.6)))
-
-
-## на кровати ночью: поспать до утра или просто полежать
-func ask_sleep() -> void:
-	show_dialog("Ночь", "Уже %02d:%02d. Поспать до утра? Сытость и вода за ночь уменьшатся, здоровье и силы восстановятся, игра сохранится." % [int(player.hour()), int(fmod(player.hour(), 1.0) * 60.0)],
-		[["Спать до 6:00", func():
-			close_modal()
-			fade(func():
-				player.sleep_until_morning()
-				Core.save.save_game())], ["Полежать", close_modal]])
+	box.add_child(_label("Топливо генератора расходуется — следите за баком. Без топлива гаснет свет и не работает медпункт.", 15, Color(0.7, 0.68, 0.6)))
 
 
 ## затемнение экрана: темно → действие → светло

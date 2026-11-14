@@ -16,10 +16,12 @@ var _dist := 12.5
 var _focus := Vector3.ZERO
 var _target: Node3D
 var _shake := 0.0        ## сила тряски (затухает)
+var _vel := Vector3.ZERO ## сглаженная скорость цели (упреждение без дёрганья у стен)
 var _drag := {}         ## касания, которые крутят камеру
 
 
 func _ready() -> void:
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	fov = 42.0
 	near = 0.2
 	far = 400.0
@@ -51,7 +53,10 @@ func _update(delta: float) -> void:
 	if _target is CharacterBody3D:
 		v = (_target as CharacterBody3D).velocity
 		v.y = 0
-	var goal := _target.global_position + v * lookahead + Vector3(0, 1.0, 0)
+	_vel = _vel.lerp(v, clampf(delta * 3.0, 0.0, 1.0))
+	# положение цели — сглаженное между тактами физики (плавно при любом FPS)
+	var tp: Vector3 = _target.get_global_transform_interpolated().origin
+	var goal := tp + _vel * lookahead + Vector3(0, 1.0, 0)
 	_focus = _focus.lerp(goal, clampf(delta * follow, 0.0, 1.0))
 	var p := deg_to_rad(pitch_deg)
 	var off := Vector3(sin(yaw) * cos(p), sin(p), cos(yaw) * cos(p)) * _dist
@@ -67,7 +72,7 @@ func _update(delta: float) -> void:
 		v_offset = 0.0
 	if _target.has_method("set") and "cam_yaw" in _target:
 		_target.cam_yaw = yaw
-	RenderingServer.global_shader_parameter_set("bc_player_pos", _target.global_position)
+	RenderingServer.global_shader_parameter_set("bc_player_pos", tp)
 	RenderingServer.global_shader_parameter_set("bc_cut_on", 1.0)
 
 

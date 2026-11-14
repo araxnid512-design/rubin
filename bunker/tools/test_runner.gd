@@ -38,6 +38,7 @@ func _place(p: Vector3, rot := 0.0, yaw := 0.0) -> void:
 	pl.global_position = p
 	pl.rotation.y = rot
 	pl.velocity = Vector3.ZERO
+	pl.reset_physics_interpolation()
 	var cam := get_viewport().get_camera_3d()
 	cam.yaw = yaw
 	await get_tree().physics_frame
@@ -199,6 +200,8 @@ func _run() -> void:
 			if e.variant == "mutant" and is_instance_valid(e) and not e.is_queued_for_deletion():
 				left += 1
 		_log("утро: мутантов осталось %d (рядом с героем не исчезают)" % left)
+	if mode == "jerk":
+		await _jerk_test()
 	if mode == "perf":
 		await _perf_test()
 	if mode == "interact" or mode == "all" or mode == "sitlie":
@@ -389,8 +392,8 @@ func _qlog(tag: String) -> void:
 	for id in q.quests:
 		parts.append("%s:%s/%d" % [id, q.quests[id].state, q.quests[id].step])
 	var pl: BCPlayer = Core.player
-	_log("%s | %s | топливо %.1f, фильтры %.0f, еда %.2f, вода %.0f, питание %s | сытость %.0f, вода %.0f, hp %.0f, доза %.0f | вещи %s" % [tag, ", ".join(parts),
-		q.res.fuel, q.res.filters, q.res.food, q.res.water, q.power, pl.food, pl.water, pl.hp, pl.dose, pl.inventory])
+	_log("%s | %s | топливо %.1f, фильтры %.0f, питание %s | hp %.0f, доза %.0f | вещи %s" % [tag, ", ".join(parts),
+		q.res.fuel, q.res.filters, q.power, pl.hp, pl.dose, pl.inventory])
 
 
 ## подойти к объекту мира и нажать «Действие» (как игрок)
@@ -471,14 +474,10 @@ func _quest_test() -> void:
 	await _act_at("eng", "q8_all_done")
 	Core.hud.close_modal()
 	_qlog("всё")
-	# 8. еда, вода, таблетки
-	pl.food = 20.0
-	pl.water = 15.0
-	await _act_at("ration")
-	await _act_at("water_tank")
+	# 8. таблетки
 	pl.dose = 150.0
 	pl.consume("rad_pills")
-	_qlog("поел, попил, таблетка")
+	_qlog("таблетка")
 	Core.hud.show_journal()
 	await _shot("q9_journal")
 	Core.hud.close_modal()
@@ -493,13 +492,10 @@ func _quest_test() -> void:
 	pl.game_time = 19.6 * 3600.0
 	await get_tree().create_timer(2.0).timeout
 	await _shot("q12_dusk_surface")
-	# 10. сон на кровати
+	# 10. лечь на кровать — без сна до утра
 	pl.game_time = 22.5 * 3600.0
-	await _act_at("bed2", "q13_sleep_ask", Vector3(-6.6, -5.95, -27.4))
-	var d0 := pl.day()
-	Core.hud.close_modal()
-	pl.sleep_until_morning()
-	_log("сон: день %d → %d, час %.1f" % [d0, pl.day(), pl.hour()])
+	await _act_at("bed2", "q13_lie", Vector3(-6.6, -5.95, -27.4))
+	_log("кровать: состояние %s, окно %s" % [pl.state, Core.hud.modal != null])
 	pl.stand_up()
 	await get_tree().create_timer(4.0).timeout
 	# 11. топливо кончилось — свет гаснет, фонарь
@@ -743,3 +739,56 @@ func _emotes_test() -> void:
 	_log("  кисть: вес %.2f, до панели %.1f см" % [mx2, err2 * 100.0])
 	Core.hud.close_modal()
 	get_viewport().get_camera_3d().zoom = 1.0
+
+
+# ---------------- рывки: тело относительно капсулы, скачки позиции, стены ----------------
+
+## где видимое тело (кость таза) относительно капсулы героя, по горизонтали
+func _hip_off() -> float:
+	var pl: BCPlayer = Core.player
+	var sk: Skeleton3D = pl.rig.skel
+	var hb := sk.find_bone("Hip")
+	if hb < 0:
+		return 0.0
+	var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(hb).origin
+	return Vector2(hp.x - pl.global_position.x, hp.z - pl.global_position.z).length()
+
+
+func _jerk_run(tag: String, inp: Vector2, secs: float) -> void:
+	var pl: BCPlayer = Core.player
+	var last := pl.global_position
+	var max_step := 0.0
+	var max_off := 0.0
+	var back := 0
+	var t := 0.0
+	var prev_off := _hip_off()
+	var max_off_jump := 0.0
+	while t < secs:
+		pl.move_input = inp
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		var step := Vector2(pl.global_position.x - last.x, pl.global_position.z - last.z).length()
+		max_step = maxf(max_step, step)
+		last = pl.global_position
+		var off := _hip_off()
+		max_off = maxf(max_off, off)
+		max_off_jump = maxf(max_off_jump, absf(off - prev_off))
+		prev_off = off
+	pl.move_input = Vector2.ZERO
+	_log("%s: макс. шаг за кадр физики %.3f м, тело от капсулы до %.2f м, скачок тела за кадр до %.3f м" % [tag, max_step, max_off, max_off_jump])
+
+
+func _jerk_test() -> void:
+	var pl: BCPlayer = Core.player
+	# бег по коридору и остановка
+	await _place(Vector3(-15.0, -5.95, -20.8), -PI * 0.5, PI * 0.5)
+	await _jerk_run("разгон и бег", Vector2(0, 1), 2.5)
+	await _jerk_run("остановка", Vector2.ZERO, 1.5)
+	# вдоль стены по диагонали в стену (коридор, северная стена)
+	await _place(Vector3(-15.0, -5.95, -20.4), -PI * 0.5, PI * 0.5)
+	await _jerk_run("вдоль стены, в стену", Vector2(0.6, 0.8), 2.5)
+	await _jerk_run("в стену прямо", Vector2(1, 0), 1.5)
+	# поверхность: бег по неровной земле
+	await _place(Vector3(0.0, 0.2, 10.0), PI, 0.0)
+	await _jerk_run("бег по земле", Vector2(0, 1), 3.0)
+	await _jerk_run("остановка на земле", Vector2.ZERO, 1.5)

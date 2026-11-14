@@ -95,6 +95,7 @@ func play_at(n: String, pos: Vector3, vol_db := 0.0, pitch_rand := 0.08) -> void
 	p.max_distance = 40.0
 	get_tree().current_scene.add_child(p)
 	p.global_position = pos
+	p.reset_physics_interpolation()
 	p.finished.connect(p.queue_free)
 	p.play()
 

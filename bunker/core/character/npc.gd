@@ -32,7 +32,8 @@ var _bar: Label3D                       ## полоса здоровья
 var _bar_t := 0.0
 var _orbit := 0.0
 var _fled := false
-var respawn := false                    ## появляться снова (только для врага-образца без управляющего)
+var respawn := false
+var _shown := true                    ## появляться снова (только для врага-образца без управляющего)
 
 var rig: BCCharacter
 var hp := 60.0
@@ -101,6 +102,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# скрытый персонаж не считается и не анимируется (экономия на телефоне)
+	var shown := is_visible_in_tree()
+	if shown != _shown:
+		_shown = shown
+		rig.process_mode = Node.PROCESS_MODE_INHERIT if shown else Node.PROCESS_MODE_DISABLED
+	if not shown:
+		return
 	if state == "dead":
 		return
 	_t -= delta
@@ -313,6 +321,7 @@ func _die() -> void:
 	if respawn:
 		get_tree().create_timer(60.0).timeout.connect(func():
 			global_position = _home
+			reset_physics_interpolation()
 			hp = max_hp
 			_fled = false
 			state = "idle"
@@ -335,6 +344,7 @@ func _drop_loot() -> void:
 		holder.set_meta("pickup_mesh", true)
 		get_parent().add_child(holder)
 		holder.global_position = global_position + Vector3(randf_range(-0.6, 0.6), 0.0, randf_range(-0.6, 0.6))
+		holder.reset_physics_interpolation()
 		var pr := BCProp.new()
 		pr.prefab = {"canned": "can_food", "medkit": "medkit_box", "fuel_can": "jerrycan"}.get(l[0], "cardboard")
 		pr.params = {"collide": false}

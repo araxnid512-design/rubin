@@ -46,6 +46,7 @@ func attach(root: Node3D) -> void:
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.2
 	sun.light_cull_mask = 0xFFFFF & ~2     # бункер (слой 2) солнцем не освещается
+	sun.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	root.add_child(sun)
 	var sky := Sky.new()
 	var sm := ProceduralSkyMaterial.new()
@@ -136,6 +137,7 @@ func _make_dust(root: Node3D) -> void:
 	qm.material = mat
 	_dust.draw_pass_1 = qm
 	_dust.add_to_group("surface_only")
+	_dust.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	root.add_child(_dust)
 	# в бункере — редкие тёплые пылинки в свете ламп
 	_bdust = _dust.duplicate()

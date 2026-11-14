@@ -296,7 +296,6 @@ static func _greenhouse(B: Node3D, y: float) -> void:
 	prop(B, "barrel", Vector3(6.3, y, -23.0), 0, {"mat": "paint_blue"})
 	light(B, "l_grow", Vector3(9.0, y + H - 0.05, -26.4), "grow", "grow", Color(1.0, 0.5, 0.85), 2.0, 8.5)
 	spot(B, "sw_grow", Vector3(8.2, y, -22.6), "switch", "фитолампы", "", "grow", 0, Vector3(0.8, 2, 0.8))
-	spot(B, "water_tank", Vector3(12.2, y, -23.4), "use", "", "", "water_tank", 0, Vector3(2.0, 2, 2.0))
 	spot(B, "plants", Vector3(9.0, y, -27.6), "inspect", "Грядки", "Салат, лук, картофель в ящиках. Фитолампы дают нужный спектр, вода — из бака. Урожай будет недели через три.", "", 0, Vector3(6, 2, 1.6))
 
 
@@ -314,7 +313,7 @@ static func _storage(B: Node3D, y: float) -> void:
 	prop(B, "cardboard", Vector3(-15.1, y + 0.4, -13.05), 10)
 	light(B, "l_store", Vector3(-14.1, y + H - 0.05, -15.8), "cage", "store", Color(1.0, 0.82, 0.6), 1.3, 7.0, true)
 	spot(B, "canned", Vector3(-11.4, y, -13.4), "pickup", "Подобрать: тушёнка", "", "canned", 0, Vector3(1.2, 2, 1.2))
-	spot(B, "ration", Vector3(-14.1, y, -18.4), "use", "", "", "ration", 180, Vector3(7, 2, 1.4))
+	spot(B, "shelves", Vector3(-14.1, y, -18.4), "inspect", "Стеллажи с припасами", "Консервы, крупа в мешках, свечи, патроны 5.45, батарейки. Если экономить — хватит на месяц с небольшим.", "", 180, Vector3(7, 2, 1.4))
 
 
 static func _workshop(B: Node3D, y: float) -> void:
@@ -395,7 +394,7 @@ static func build_surface(root: Node3D) -> Node3D:
 	_node(ter, S, Vector3.ZERO)
 	ter.set_meta("no_batch", true)
 	# сухая трава пучками (не на дорогах, не у входа и не в постройке)
-	var gcount: int = [1500, 3000, 6000][Core.mobile.settings.quality] if not Engine.is_editor_hint() else 3000
+	var gcount: int = [700, 1600, 3200][Core.mobile.settings.quality] if not Engine.is_editor_hint() else 3000
 	var grass := BCGrass.make(ter, gcount, 3, [Rect2(6.5, -8.0, 7.0, 14.0), Rect2(16.5, -23.0, 7.0, 6.0)])
 	S.add_child(grass)
 	# --- вход в бункер ---

@@ -55,6 +55,7 @@ func spawn(variant: String, pos: Vector3, id: String, name: String) -> BCNpc:
 	e.add_to_group("surface_only")
 	get_parent().add_child(e)
 	e.global_position = ground(pos)
+	e.reset_physics_interpolation()
 	if variant == "leader" and m == RAIDER:
 		e.scale = Vector3.ONE * 1.08   # пока нет своей модели — крупнее обычного мародёра
 	return e

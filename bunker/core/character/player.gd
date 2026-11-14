@@ -24,8 +24,6 @@ var crouching := false
 var hp := 100.0
 var max_hp := 100.0
 var stamina := 100.0
-var food := 70.0                      ## сытость 0..100: за игровые сутки уходит ~65
-var water := 60.0                     ## вода 0..100: за игровые сутки уходит ~100
 var dose := 0.0                       ## накопленная доза, мЗв
 var rad_rate := 0.0                   ## текущая мощность дозы, мЗв/ч
 var suit_on := false
@@ -59,11 +57,9 @@ var _heart: AudioStreamPlayer
 const DODGE_T := 0.42
 var _can_chain := false               ## во второй половине удара можно бить снова (связка)
 var _atk_id := 0
-const FOOD_H := 2.7                   ## расход сытости за игровой час
-const WATER_H := 4.2                  ## расход воды за игровой час
 ## что можно использовать из «Вещей»: действие и слова
 const CONSUME := {
-	"canned": [{"stat": "food", "add": 40}, "Вы съели тушёнку.", "eat"],
+	"canned": [{"stat": "hp", "add": 15}, "Вы съели тушёнку: +15 здоровья.", "eat"],
 	"medkit": [{"stat": "hp", "add": 45}, "Перевязка и обезболивающее: здоровье восстановлено.", "pickup"],
 	"rad_pills": [{"stat": "dose", "add": -80}, "Радиопротектор принят: доза снижена.", "drink"],
 }
@@ -218,7 +214,7 @@ func _physics_process(delta: float) -> void:
 	elif blocking:
 		pass
 	else:
-		stamina = minf(100.0, stamina + (9.0 if speed < 0.2 else 5.0) * delta * (0.5 if food <= 0.0 or water <= 0.0 else 1.0))
+		stamina = minf(100.0, stamina + (9.0 if speed < 0.2 else 5.0) * delta)
 	if rig:
 		rig.set_motion(speed, 1.0 if crouching else 0.0, delta)
 	# старт/остановка — короткие клипы поверх, только из покоя в бег и из бега в покой
@@ -279,25 +275,8 @@ func _radiation(delta: float) -> void:
 	stats_changed.emit()
 
 
-## голод и жажда; фонарь по времени суток и питанию
+## сердцебиение при малом здоровье; фонарь по времени суток и питанию бункера
 func _needs(delta: float) -> void:
-	var gh := delta * 30.0 / 3600.0
-	var k := 0.5 if state == "lie" else 1.0
-	food = maxf(0.0, food - FOOD_H * gh * k)
-	water = maxf(0.0, water - WATER_H * gh * k)
-	if food <= 0.0 or water <= 0.0:
-		hp -= 0.12 * delta
-	for n in [["food", food, "Хочется есть. Паёк — на складе.", "Голод! Здоровье уходит."], ["water", water, "Хочется пить. Бак с водой — в теплице.", "Жажда! Здоровье уходит."]]:
-		var v: float = n[1]
-		if v < 25.0 and not _warn.has(n[0] + "1"):
-			_warn[n[0] + "1"] = true
-			Core.say(n[2], "warn")
-		elif v <= 0.0 and not _warn.has(n[0] + "0"):
-			_warn[n[0] + "0"] = true
-			Core.say(n[3], "bad")
-		elif v > 40.0:
-			_warn.erase(n[0] + "1")
-			_warn.erase(n[0] + "0")
 	if _heart and _heart.stream:
 		var low := hp < 30.0 and state != "dead"
 		_heart.volume_db = move_toward(_heart.volume_db, -6.0 if low else -60.0, delta * 30.0)
@@ -323,22 +302,6 @@ func is_night() -> bool:
 	return h >= 21.0 or h < 5.0
 
 
-## поспать до 6 утра: время, сытость, вода, ресурсы убежища идут как обычно (их считает QuestSystem по времени)
-func sleep_until_morning() -> void:
-	var h := hour()
-	var hours := (24.0 - h + 6.0) if h >= 6.0 else (6.0 - h)
-	game_time += hours * 3600.0
-	food = maxf(0.0, food - FOOD_H * hours * 0.5)
-	water = maxf(0.0, water - WATER_H * hours * 0.5)
-	hp = minf(max_hp, hp + 40.0)
-	stamina = 100.0
-	if dose < 250.0:
-		dose = maxf(0.0, dose - hours * 2.0)
-	Core.say("День %d. 06:00. Вы выспались." % day(), "good")
-	stats_changed.emit()
-
-
-## урон герою; from_dir — направление на того, кто бьёт; attacker — враг (для идеального блока)
 func damage(amount: float, from_dir := Vector3.ZERO, attacker: Node = null) -> void:
 	if state == "dead":
 		return
@@ -620,10 +583,7 @@ func sit() -> void:
 func rest() -> void:
 	state = "lie"
 	rig.set_pose("lie_idle" if rig.has_clip("lie_idle") else "bed_lie")
-	if hour() >= 20.0 or hour() < 5.0:
-		Core.hud.ask_sleep()
-	else:
-		Core.say("Отдых… Выносливость и здоровье восстанавливаются. Спать можно с 20:00.", "info")
+	Core.say("Отдых… Выносливость и здоровье восстанавливаются.", "info")
 
 
 func stand_up() -> void:
@@ -894,6 +854,7 @@ func _blood(at: Vector3) -> void:
 	p.mesh = qm
 	get_tree().current_scene.add_child(p)
 	p.global_position = at
+	p.reset_physics_interpolation()
 	p.emitting = true
 	get_tree().create_timer(1.0).timeout.connect(p.queue_free)
 
@@ -906,13 +867,14 @@ func toggle_crouch() -> void:
 
 func get_state() -> Dictionary:
 	return {"pos": [global_position.x, global_position.y, global_position.z], "rot": rotation.y, "hp": hp, "stamina": stamina,
-		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time, "food": food, "water": water,
+		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time,
 		"weapon": weapon}
 
 
 func set_state(s: Dictionary) -> void:
 	var p: Array = s.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(p[0], p[1], p[2])
+	reset_physics_interpolation()
 	rotation.y = s.get("rot", 0.0)
 	hp = s.get("hp", 100.0)
 	stamina = s.get("stamina", 100.0)
@@ -920,8 +882,6 @@ func set_state(s: Dictionary) -> void:
 	inventory = s.get("inv", inventory)
 	crouching = s.get("crouch", false)
 	game_time = s.get("time", game_time)
-	food = s.get("food", 70.0)
-	water = s.get("water", 60.0)
 	var wp: String = s.get("weapon", "")
 	if wp != weapon or (wp != "" and _weapon_node == null):
 		equip(wp)

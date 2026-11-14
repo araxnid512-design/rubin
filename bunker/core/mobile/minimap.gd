@@ -18,7 +18,12 @@ func _process(delta: float) -> void:
 	if _scan <= 0.0:
 		_scan = 2.0
 		_items = get_tree().get_nodes_in_group("minimap")
-	queue_redraw()
+	_draw_t -= delta
+	if _draw_t <= 0.0:
+		_draw_t = 1.0 / 15.0
+		queue_redraw()
+
+var _draw_t := 0.0
 
 
 func _draw() -> void:

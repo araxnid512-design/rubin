@@ -47,6 +47,7 @@ func _ready() -> void:
 	add_child(player)
 	# начало — в жилом отсеке
 	player.global_position = Vector3(-5.2, Locations.FLOOR + 0.05, -24.8)
+	player.reset_physics_interpolation()
 	player.rotation.y = PI
 	_spawn_npcs()
 	Core.quest.attach(self)
@@ -58,6 +59,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.bind_player(player)
 	Core.mobile.apply()
+	await _warm_shaders()
 	# зона по месту старта (тела в зонах определяются физикой на следующем кадре)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -86,8 +88,10 @@ func _spawn_npcs() -> void:
 		"Наверх без костюма не лезь. Фон у грузовика — как у реактора без крышки.",
 		"Гермодверь шлюза закрывай за собой. Пыль с поверхности — хуже любой твари."])
 	eng.points = [Vector3(3.6, y, -16.6), Vector3(-6.0, y, -17.6), Vector3(0.0, y, -20.8)]
+	eng.add_to_group("bunker_only")
 	add_child(eng)
 	eng.global_position = Vector3(2.0, y, -16.8)
+	eng.reset_physics_interpolation()
 	var med := BCNpc.new()
 	med.name = "Medic"
 	med.model_path = "res://assets/models/npc_med.glb"
@@ -100,8 +104,10 @@ func _spawn_npcs() -> void:
 		"Спать надо. Без сна и доза переносится хуже, честно.",
 		"Аптечку со стены возьми, если ещё не взял. Пригодится."])
 	med.points = [Vector3(-14.0, y, -25.0), Vector3(-12.6, y, -26.2), Vector3(-16.4, y, -25.6)]
+	med.add_to_group("bunker_only")
 	add_child(med)
 	med.global_position = Vector3(-13.0, y, -24.8)
+	med.reset_physics_interpolation()
 	# враги наверху — управляющий встречами (game/encounters.gd)
 	var enc: Node = load("res://game/encounters.gd").new()
 	enc.name = "Encounters"
@@ -129,3 +135,50 @@ func _menu() -> void:
 		Core.say(START_MSG, "info")))
 	v.add_child(hud._button("Настройки", hud.show_settings))
 
+
+
+## прогрев шейдеров за экраном загрузки: на телефоне шейдер собирается при первом показе материала — отсюда
+## подвисания при выходе наверх, первой драке, первом мутанте. Здесь на несколько кадров видно всё сразу:
+## поверхность и бункер сверху, враги всех видов, фонарь, свечение, частицы.
+func _warm_shaders() -> void:
+	var hidden := []
+	for g in ["surface_only", "bunker_only", "roof"]:
+		for n in get_tree().get_nodes_in_group(g):
+			if n is Node3D and not n.visible:
+				hidden.append(n)
+				n.visible = true
+	var wc := Camera3D.new()
+	wc.fov = 100.0
+	wc.far = 400.0
+	add_child(wc)
+	wc.global_position = Vector3(0, 70, -8)
+	wc.rotation_degrees = Vector3(-90, 0, 0)
+	wc.current = true
+	# враги и эффекты, которые появятся позже
+	var temp := []
+	var enc: Node = get_node_or_null("Encounters")
+	if enc:
+		for v in ["leader", "mutant", "raider"]:
+			var e: Node = enc.spawn(v, Vector3(randf_range(-6, 6), 0.3, randf_range(-14, -2)), "", "")
+			if e:
+				e.role = "resident"
+				e.remove_from_group("enemy")
+				temp.append(e)
+	player._torch.visible = true
+	player._blood(Vector3(0, 1, -8))
+	Core.play_at("swoosh", Vector3.ZERO, -80.0)
+	for i in 4:
+		await RenderingServer.frame_post_draw
+	# бункер крупно: свет комнат, лучи, грязь
+	wc.global_position = Vector3(-2.5, 6.0, -20.0)
+	for i in 3:
+		await RenderingServer.frame_post_draw
+	player._torch.visible = false
+	for e in temp:
+		e.queue_free()
+	wc.queue_free()
+	for n in hidden:
+		if is_instance_valid(n):
+			n.visible = false
+	if cam:
+		cam.current = true

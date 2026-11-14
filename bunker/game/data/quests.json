@@ -4,14 +4,10 @@
  ],
  "resources": {
   "fuel": 18.0,
-  "food": 41.0,
-  "water": 1870.0,
   "filters": 32.0
  },
  "rates": {
   "fuel": 0.5,
-  "food": 0.042,
-  "water": 2.5,
   "filters": 0.15
  },
  "quests": {
@@ -202,62 +198,6 @@
     }
    ],
    "say": "Фильтр заменён. Фильтры ФВУ: {filters}."
-  },
-  "ration": {
-   "label": "Склад: поесть",
-   "verb": "Поесть",
-   "show": "food",
-   "anim": "pickup",
-   "sound": "eat",
-   "skip_if": {
-    "stat": "food",
-    "above": 90,
-    "say": "Вы не голодны."
-   },
-   "res_min": {
-    "res": "food",
-    "value": 0.2,
-    "say": "Склад пуст."
-   },
-   "effects": [
-    {
-     "stat": "food",
-     "add": 45
-    },
-    {
-     "res": "food",
-     "add": -0.15
-    }
-   ],
-   "say": "Вы поели. Запас продовольствия: {food} сут."
-  },
-  "water_tank": {
-   "label": "Бак с водой: попить",
-   "verb": "Попить",
-   "show": "water",
-   "anim": "inspect",
-   "sound": "drink",
-   "skip_if": {
-    "stat": "water",
-    "above": 92,
-    "say": "Пить не хочется."
-   },
-   "res_min": {
-    "res": "water",
-    "value": 2,
-    "say": "Бак пуст."
-   },
-   "effects": [
-    {
-     "stat": "water",
-     "add": 55
-    },
-    {
-     "res": "water",
-     "add": -2
-    }
-   ],
-   "say": "Вы напились. В баке {water} л."
   }
  }
 }

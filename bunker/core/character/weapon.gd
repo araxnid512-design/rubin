@@ -38,7 +38,9 @@ static func attach(rig: BCCharacter, id: String) -> Node3D:
 	holder.name = "Weapon_" + id
 	holder.add_child(_mesh(id))
 	holder.transform = Transform3D(Basis(side, axis, fingers).scaled(Vector3.ONE / k), grip)
-	rig.attach("R_Hand", holder)
+	var ba := rig.attach("R_Hand", holder)
+	if ba:
+		ba.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	return holder
 
 

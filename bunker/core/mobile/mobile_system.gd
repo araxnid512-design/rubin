@@ -1,13 +1,15 @@
 extends Node
 ## MobileSystem BunkerCore: качество графики, внутреннее разрешение (масштаб 3D), ограничение FPS, замер FPS и
 ## времени кадра, память, сведения об устройстве, безопасная область экрана (вырезы, скругления).
-## Качество: 0 — низкое (масштаб 0.7, без теней, мало частиц), 1 — среднее (0.85, тени 1024), 2 — высокое (1.0,
-## тени 2048). Авто-режим понижает масштаб, если средний FPS ниже цели.
+## Качество: 0 — низкое (масштаб 0.7, без теней, свечения и лучей, мало травы и частиц), 1 — среднее (0.85, тени
+## 1024 на 28 м, свечение, лучи), 2 — высокое (1.0, тени 2048 на 45 м). По умолчанию для телефона — низкое и 30 FPS:
+## ровные 30 кадров лучше прыгающих 40–60. Авто-режим понижает масштаб, если средний FPS ниже цели.
 
 signal settings_changed
 
-var settings := {"quality": 1, "fps": 60, "scale": 0.85, "auto": true, "shadows": true, "joy_size": 1.0,
-	"joy_opacity": 0.55, "sens": 1.0, "dev": false, "sound": 1.0}
+const SETTINGS_V := 2                  ## при смене значений по умолчанию — старые графические настройки сбрасываются
+var settings := {"quality": 0, "fps": 30, "scale": 0.7, "auto": true, "shadows": true, "joy_size": 1.0,
+	"joy_opacity": 0.55, "sens": 1.0, "dev": false, "sound": 1.0, "v": SETTINGS_V}
 var fps_now := 0.0
 var fps_avg := 0.0
 var frame_ms := 0.0
@@ -38,14 +40,14 @@ func _process(delta: float) -> void:
 			_auto_t = 0.0
 			var target: float = settings.fps
 			var sc: float = settings.scale
-			if fps_avg < target * 0.85 and sc > 0.6:
+			if fps_avg < target * 0.85 and sc > 0.55:
 				set_value("scale", snappedf(sc - 0.05, 0.05), false)
 			elif fps_avg > target * 0.98 and sc < _max_scale():
 				set_value("scale", snappedf(sc + 0.05, 0.05), false)
 
 
 func _max_scale() -> float:
-	return [0.75, 0.9, 1.0][settings.quality]
+	return [0.7, 0.85, 1.0][settings.quality]
 
 
 func set_value(k: String, v, save := true) -> void:
@@ -68,12 +70,15 @@ func apply() -> void:
 	vp.msaa_3d = Viewport.MSAA_DISABLED if q < 2 else Viewport.MSAA_2X
 	Engine.max_fps = int(settings.fps)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
-	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 2048][q], true)
+	RenderingServer.directional_shadow_atlas_set_size([1024, 1024, 2048][q], true)
 	if Core.env and Core.env.sun:
 		Core.env.sun.shadow_enabled = settings.shadows and q > 0
-		Core.env.sun.directional_shadow_max_distance = [25.0, 38.0, 50.0][q]
+		Core.env.sun.directional_shadow_max_distance = [20.0, 28.0, 45.0][q]
+		Core.env.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if q < 2 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	if Core.env and Core.env._dust:
-		Core.env._dust.amount = [60, 160, 260][q]
+		Core.env._dust.amount = [30, 120, 220][q]
+	if Core.env and Core.env._bdust:
+		Core.env._bdust.emitting = q > 0
 	# свечение и лучи света — со среднего качества
 	if Core.env and Core.env.env:
 		Core.env.env.glow_enabled = q > 0
@@ -125,10 +130,17 @@ func _save() -> void:
 
 func _load() -> void:
 	if not FileAccess.file_exists(FILE):
-		# по умолчанию для телефона — среднее качество
+		# по умолчанию для телефона — низкое качество, 30 FPS
 		return
 	var f := FileAccess.open(FILE, FileAccess.READ)
 	var d = JSON.parse_string(f.get_as_text()) if f else null
 	if d is Dictionary:
+		var old := int(d.get("v", 1)) < SETTINGS_V
 		for k in d:
+			# из старой версии берём только управление и звук: прежние графические значения были тяжелы для телефона
+			if old and k in ["quality", "fps", "scale", "shadows", "auto"]:
+				continue
 			settings[k] = d[k]
+		settings.v = SETTINGS_V
+		if old:
+			_save()
