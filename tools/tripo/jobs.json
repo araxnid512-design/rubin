@@ -126,6 +126,336 @@
     "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
    ],
    "timeout": 7000
+  },
+  {
+   "id": "bsm_walk_back",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "walk_back",
+    "3",
+    "a man walking backward slowly in a straight line, looking forward, relaxed arms"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_strafe_left",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "strafe_left",
+    "3",
+    "a man side-stepping to his left continuously while facing forward, relaxed arms"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_strafe_right",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "strafe_right",
+    "3",
+    "a man side-stepping to his right continuously while facing forward, relaxed arms"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_start",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "start",
+    "2",
+    "a man standing still, then starting to jog forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_stop",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stop",
+    "2",
+    "a man jogging forward, then stopping and standing still"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_crouch_idle",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "crouch_idle",
+    "4",
+    "a man crouching low on bent knees, looking around carefully, staying in place"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_crouch_walk",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "crouch_walk",
+    "3",
+    "a man walking forward in a low crouched position"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_sneak",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "sneak",
+    "3",
+    "a man sneaking forward slowly with careful quiet steps, body leaning forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_stairs_down",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stairs_down",
+    "3",
+    "a man walking down a staircase step by step, looking down at the steps"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_door_open",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "door_open",
+    "2",
+    "a man reaching forward with his right hand, grabbing a door handle and pulling a heavy door open"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_door_close",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "door_close",
+    "2",
+    "a man pushing a door closed with his right hand while standing in place"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_terminal",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "terminal",
+    "4",
+    "a man standing at a control panel, typing on a keyboard and pressing buttons with both hands"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_pickup",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "pickup",
+    "3",
+    "a man bending down to pick up a small object from the floor with his right hand, then standing up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_suit_on",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "suit_on",
+    "5",
+    "a man putting on a protective overall suit: stepping into the legs, pulling it up and putting his arms into the sleeves"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_suit_off",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "suit_off",
+    "5",
+    "a man taking off a protective overall suit: pulling his arms out of the sleeves and stepping out of the legs"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_sit_down",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "sit_down",
+    "2",
+    "a man sitting down onto a chair from standing and staying seated"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_stand_up",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stand_up",
+    "2",
+    "a man standing up from sitting on a chair"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_bed_lie",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "bed_lie",
+    "4",
+    "a man lying down onto a bed from standing and resting on his back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_bed_up",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "bed_up",
+    "4",
+    "a man getting up from lying on his back on a bed to standing"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_combat_idle",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "combat_idle",
+    "3",
+    "a man in a fighting stance with raised fists, boxing guard, shifting weight slightly"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_block",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "block",
+    "2",
+    "a man blocking a punch by raising both forearms to protect his head"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_dodge_left",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "dodge_left",
+    "1",
+    "a man quickly dodging to his left, leaning his body away"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_dodge_right",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "dodge_right",
+    "1",
+    "a man quickly dodging to his right, leaning his body away"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_pistol_draw",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "pistol_draw",
+    "2",
+    "a man drawing a pistol from a hip holster with his right hand and aiming forward with both hands"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_pistol_aim",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "pistol_aim",
+    "3",
+    "a man aiming a pistol forward with both hands, standing still"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_pistol_fire",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "pistol_fire",
+    "1",
+    "a man firing a pistol held with both hands, small recoil"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_pistol_reload",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "pistol_reload",
+    "3",
+    "a man reloading a pistol: ejecting the magazine and inserting a new one"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_rifle_aim",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "rifle_aim",
+    "3",
+    "a man aiming a rifle held at his shoulder with both hands, standing still"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_stagger",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stagger",
+    "2",
+    "a man losing his balance, stumbling backward and then regaining balance"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_get_up",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "get_up",
+    "3",
+    "a man getting up from lying on his back on the ground to standing"
+   ],
+   "timeout": 2400
   }
  ]
 }
