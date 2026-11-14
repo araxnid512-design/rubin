@@ -45,6 +45,7 @@ var _rel_off: Array = [Vector3.ZERO, Vector3.ZERO]   ## при отпускан�
 var _prev: Array = [null, null]          ## точки подошвы из клипа в прошлом кадре (мир)
 var _h_prev := [1.0, 1.0]               ## высота подошвы в прошлом кадре
 var _skim := [0.0, 0.0]                 ## подъём стопы над полом, пока клип «тащит» её вперёд по полу
+var _knee_fwd: Array = [Vector3.FORWARD, Vector3.FORWARD]   ## «колено вперёд» в системе бедра (из позы покоя)
 var _sole: Array = [[], []]              ## точки подошвы: [[кость, точка в системе кости], ...] — пятка, подушечка, носок
 var last_debug := {}
 
@@ -65,6 +66,11 @@ func _skel_ready() -> void:
 	for li in _bones.size():
 		var b: Array = _bones[li]
 		_sole[li] = []
+		if b[0] >= 0 and b[1] >= 0:
+			var Th := s.get_bone_global_rest(b[0])
+			var dth := (s.get_bone_global_rest(b[1]).origin - Th.origin).normalized()
+			var kf := (Fv - dth * Fv.dot(dth)).normalized()
+			_knee_fwd[li] = Th.basis.orthonormalized().inverse() * kf
 		if b[2] >= 0:
 			_ankle_h[li] = maxf(0.02, s.get_bone_global_rest(b[2]).origin.y - fl)
 		if b[3] >= 0:
@@ -167,7 +173,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		var P: Vector3 = pts[j]
 		# «скольжение при приземлении»: у бега Tripo стопа касается пола ещё в переносе (летит вперёд быстрее
 		# тела) и едет по полу 0.1 с — пока так, стопа приподнимается над полом и ставится, когда клип её остановит
-		var skim := body_speed > 1.0 and h < contact_h + 0.02 and v > body_speed + 0.1
+		var skim := body_speed > 0.6 and h < contact_h + 0.02 and v > body_speed + 0.1
 		_skim[li] = lerpf(_skim[li], maxf(contact_h + 0.012 - h, 0.0) if skim else 0.0, clampf(delta * 40.0, 0.0, 1.0))
 		h += float(_skim[li])
 		var planted := h < contact_h and v < maxf(0.4, 0.6 * body_speed) and not spinning
@@ -206,6 +212,9 @@ func _process_modification_with_delta(delta: float) -> void:
 		if _lock[li] == null:
 			_rel_off[li] = (_rel_off[li] as Vector3).move_toward(Vector3.ZERO, maxf((_rel_off[li] as Vector3).length(), 0.02) * delta / release_time)
 			lock_d[li] = _rel_off[li]
+			# стопа догоняет клип — не волоком по полу, а коротким шагом (подъём до 4 см)
+			var step_up := clampf((_rel_off[li] as Vector3).length() * 0.4, 0.0, 0.04)
+			_skim[li] = maxf(float(_skim[li]), step_up) if step_up > 0.005 else float(_skim[li])
 	last_debug = {"off": _off.duplicate(), "pelvis": _pelvis, "lock": [_lock[0] != null, _lock[1] != null], "lock_d": lock_d.duplicate()}
 	var idle := absf(_pelvis) < 0.001 and absf(_off[0]) < 0.001 and absf(_off[1]) < 0.001 and float(_skim[0]) < 0.001 and float(_skim[1]) < 0.001 \
 		and (lock_d[0] as Vector3).length() < 0.0005 and (lock_d[1] as Vector3).length() < 0.0005
@@ -222,7 +231,7 @@ func _process_modification_with_delta(delta: float) -> void:
 			continue
 		var foot := s.get_bone_global_pose(b[2])
 		var target: Vector3 = foot.origin + Vector3.UP * ((float(_off[li]) + float(_skim[li]) - _pelvis) / sc) + inv * (lock_d[li] as Vector3)
-		_solve(s, b[0], b[1], b[2], target)
+		_solve(s, b[0], b[1], b[2], target, s.get_bone_global_pose(b[0]).basis.orthonormalized() * (_knee_fwd[li] as Vector3))
 		if align_feet:
 			var n: Vector3 = (inv * (_nrm[li] as Vector3)).normalized()
 			var f := s.get_bone_global_pose(b[2])
@@ -263,7 +272,7 @@ func reset_locks() -> void:
 
 
 ## двухзвенная цепь: бедро a, голень b, стопа c → стопа в target (пространство скелета)
-func _solve(s: Skeleton3D, a: int, b: int, c: int, target: Vector3) -> void:
+func _solve(s: Skeleton3D, a: int, b: int, c: int, target: Vector3, knee_fwd := Vector3.ZERO) -> void:
 	var A := s.get_bone_global_pose(a)
 	var B := s.get_bone_global_pose(b)
 	var C := s.get_bone_global_pose(c)
@@ -276,6 +285,14 @@ func _solve(s: Skeleton3D, a: int, b: int, c: int, target: Vector3) -> void:
 	var ac := (C.origin - A.origin)
 	var knee := B.origin - A.origin
 	var pole := (knee - ac.normalized() * knee.dot(ac.normalized()))
+	# колено — всегда вперёд: у почти прямой ноги текущий вынос колена мал и может смотреть назад,
+	# тогда IK сгибал колено в обратную сторону (переразгиб до 17°); анатомическое «вперёд» бедра важнее
+	if knee_fwd != Vector3.ZERO:
+		var kf := knee_fwd.normalized()
+		if pole.length() < 0.02 * (A.origin.distance_to(B.origin)) or pole.dot(kf) <= 0.0:
+			pole = kf
+		else:
+			pole = pole.normalized() + kf
 	if pole.length() < 0.0001:
 		pole = A.basis * Vector3.FORWARD
 	pole = (pole - dir * pole.dot(dir)).normalized()

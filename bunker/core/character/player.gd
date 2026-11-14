@@ -1016,8 +1016,6 @@ func _idle_pick() -> String:
 			pool = ["check_dosimeter", "look_around", "look_around"]
 	else:
 		pool = ["stretch", "scratch", "look_around", "check_dosimeter"]
-	if hp < 35.0:
-		pool.append("depressed")
 	pool = pool.filter(func(n): return rig.has_clip(n) and n != _last_emote)
 	return pool[randi() % pool.size()] if not pool.is_empty() else ""
 

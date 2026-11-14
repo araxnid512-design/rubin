@@ -183,7 +183,7 @@ func _tick() -> void:
 	var s: Dictionary = qa._cap if not qa._cap.is_empty() else body.snap()
 	if qa.debug_clip == "sim":
 		var so: Dictionary = body.soles(s)
-		print("[sim] %.3f v%.2f mw%.2f lock %s d %s R %s" % [t, speed, rig._move_w, rig.ik.last_debug.get("lock"), str(rig.ik.last_debug.get("lock_d")), (so.R as Array).map(func(p): return (p as Vector3).snapped(Vector3(0.01, 0.01, 0.01)))])
+		print("[sim] %.3f v%.2f lock %s d %s R %s" % [t, speed, rig.ik.last_debug.get("lock"), str(rig.ik.last_debug.get("lock_d")), (so.R as Array).map(func(p): return (p as Vector3).snapped(Vector3(0.01, 0.01, 0.01)))])
 	frames.append({"t": t, "s": s, "pos": qa.holder.position, "yaw": yaw, "speed": speed})
 	t += dt
 

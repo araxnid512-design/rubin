@@ -48,7 +48,7 @@ const CAT := {
 	"fall": "fall", "death": "fall", "dead": "fall", "get_up": "fall",
 }
 const NO_SLIDE := ["lie", "climb", "stairs", "fall", "dodge"]
-const GROUNDED := ["stand", "action", "trans", "turn", "react", "emote", "sit"]
+const GROUNDED := ["stand", "action", "turn", "react", "emote", "sit"]
 const NO_FLOOR := ["stairs", "climb"]
 
 var rig: BCCharacter
@@ -205,6 +205,9 @@ func _run(mode: String) -> void:
 			_write_calib()
 	if mode in ["all", "clips", "pairs"]:
 		_pairs()
+	if mode == "phases":
+		var Ph: GDScript = load("res://tools/anim_lab_phases.gd")
+		await Ph.new().run(self)
 	if mode in ["all", "eight"] and shots:
 		for n in ["idle", "walk", "run", "sprint", "crouch_walk"]:
 			if rig.info.has(n) and (names.has(n) or mode == "eight"):
@@ -260,8 +263,11 @@ func _analyze(n: String) -> Dictionary:
 		rig._action = n
 		rig._action_t = 1e9
 	rig.ik.enabled_ik = game_mode
-	rig.ik.body_speed = float(inf.speed) if body_offset(n, 1.0) != Vector3.ZERO else 0.0
-	rig.ik.reset_locks()
+	# совместимость с прежним кодом (проверка «до»): у старого BCFootIK нет фиксации стоп
+	if "body_speed" in rig.ik:
+		rig.ik.set("body_speed", float(inf.speed) if body_offset(n, 1.0) != Vector3.ZERO else 0.0)
+	if rig.ik.has_method("reset_locks"):
+		rig.ik.call("reset_locks")
 	var raw: Array = []
 	for i in steps + 1:
 		var t := minf(i * dt, L)
