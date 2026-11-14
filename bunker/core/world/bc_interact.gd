@@ -11,11 +11,13 @@ extends Node3D
 ##   suit     — надеть или снять защитный костюм;
 ##   switch   — выключатель света группы `target`;
 ##   pickup   — подобрать предмет (`target` — id предмета в инвентаре);
-##   use      — точка использования из заданий (`target` — id в quests.json: бак генератора, склад, вода …).
+##   use      — точка использования из заданий (`target` — id в quests.json: бак генератора, рация …);
+##   search   — обыскать (`target` — таблица добычи в crafting.json: car, house, scrap …), снова полно через время;
+##   craft    — верстак (окно рецептов); repair — ремонт помещения (`target` — id комнаты в crafting.json).
 ## `anchor` — где встаёт герой и куда смотрит (локально): x,z и угол в градусах.
 
 @export var point_id := ""
-@export_enum("inspect", "terminal", "bed", "chair", "medbay", "suit", "switch", "pickup", "use") var action := "inspect"
+@export_enum("inspect", "terminal", "bed", "chair", "medbay", "suit", "switch", "pickup", "use", "search", "craft", "repair") var action := "inspect"
 @export var label := "Осмотреть"
 @export_multiline var text := ""
 @export var target := ""
@@ -47,14 +49,21 @@ func interact_label() -> String:
 		return ("Выключить свет" if any_on else "Включить свет") + (": " + label if label != "" else "")
 	if action == "use":
 		return Core.quest.use_label(target)
-	if action == "medbay" and Core.quest and not Core.quest.power:
+	if action == "medbay" and Core.craft and not Core.craft.room_ok("med"):
 		return label + " — нет питания"
+	if action == "search" and Core.craft and not Core.craft.search_ready(self):
+		return label + " (пусто)"
+	if action == "repair" and Core.craft:
+		var ri: Dictionary = Core.craft.repair_info(target)
+		return "Отремонтировать: " + String(ri.get("n", target)).to_lower()
 	if action == "suit" and Core.player:
 		return "Снять защитный костюм" if Core.player.suit_on else "Надеть защитный костюм"
 	return label
 
 
 func can_interact(_p) -> bool:
+	if action == "repair":
+		return Core.craft != null and Core.craft.room_broken(target)
 	return not (action == "pickup" and used)
 
 
@@ -69,6 +78,8 @@ func interact_anim(p) -> String:
 		"switch": return "terminal"
 		"pickup": return "pickup"
 		"use": return Core.quest.use_anim(target)
+		"search": return "pickup"
+		"craft", "repair": return "terminal"
 	return "inspect"
 
 
@@ -87,8 +98,14 @@ func interact(p) -> void:
 			p.rest()
 		"chair":
 			p.sit()
+		"search":
+			Core.craft.search(self)
+		"craft":
+			Core.hud.show_craft()
+		"repair":
+			Core.hud.show_repair(target)
 		"medbay":
-			if Core.quest and not Core.quest.power:
+			if Core.craft and not Core.craft.room_ok("med"):
 				Core.say("Медоборудование без питания: генератор остановлен.", "bad")
 			else:
 				p.treat()
@@ -123,7 +140,7 @@ func _hide_pickup() -> void:
 
 
 func get_state() -> Dictionary:
-	return {"used": used}
+	return {"used": used}   # время обыска хранит CraftSystem
 
 
 func set_state(s: Dictionary) -> void:

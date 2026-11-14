@@ -200,6 +200,8 @@ func _run() -> void:
 			if e.variant == "mutant" and is_instance_valid(e) and not e.is_queued_for_deletion():
 				left += 1
 		_log("утро: мутантов осталось %d (рядом с героем не исчезают)" % left)
+	if mode == "craft":
+		await _craft_test()
 	if mode == "jerk":
 		await _jerk_test()
 	if mode == "perf":
@@ -405,7 +407,7 @@ func _act_at(id: String, shot := "", stand := Vector3.INF) -> void:
 		return
 	var p := n.global_position
 	var off := Vector3(0.0, 0.0, 1.0)
-	if n is BCInteract and n.action == "use":
+	if n is BCInteract and n.action != "pickup":
 		off = (n.global_transform.basis * Vector3(0, 0, 1.3))
 	var at := p + Vector3(off.x, 0.0, off.z).normalized() * 0.95
 	if stand != Vector3.INF:
@@ -792,3 +794,114 @@ func _jerk_test() -> void:
 	await _place(Vector3(0.0, 0.2, 10.0), PI, 0.0)
 	await _jerk_run("бег по земле", Vector2(0, 1), 3.0)
 	await _jerk_run("остановка на земле", Vector2.ZERO, 1.5)
+
+
+# ---------------- добыча, верстак, ремонт, питание, оружие ----------------
+
+func _inv(tag: String) -> void:
+	var pl: BCPlayer = Core.player
+	var c := {}
+	for id in pl.inventory:
+		c[id] = c.get(id, 0) + 1
+	_log("%s: вещи %s, в руке «%s» (%s), магазин %d" % [tag, c, pl.weapon, pl.weapon_label(), pl.mag])
+
+
+func _craft_test() -> void:
+	var pl: BCPlayer = Core.player
+	var cr = Core.craft
+	Core.quest.new_game()
+	cr.new_game()
+	var lc: BCLight = Core.world.objects.get("l_ctrl")
+	_log("пункт управления сломан: %s, свет %s" % [cr.room_broken("ctrl"), lc.powered if lc else "?"])
+	# обыск: ящик с хламом, трансформатор, машина, куча лома, дерево
+	await _act_at("junk_box")
+	await _act_at("s_trafo")
+	await _act_at("s_scrap1")
+	await _act_at("s_tree0")
+	await _act_at("junk_box")
+	_inv("после обыска")
+	await _shot("k0_search")
+	# верстак: лом
+	for i in 4:
+		pl.inventory_add("scrap")
+	await _act_at("bench", "k1_workbench")
+	var crow: Dictionary = {}
+	for r in cr.recipes():
+		if r.id == "crowbar":
+			crow = r
+	_log("лом: %s" % ("сделан" if cr.craft(crow) else "НЕТ"))
+	Core.hud.close_modal()
+	pl.equip("crowbar")
+	_inv("лом в руке")
+	# щиток: мастерская без тока — верстак недоступен
+	cr.toggle_power("work")
+	_log("без тока в мастерской: %s" % cr.craft_block(crow))
+	cr.toggle_power("work")
+	Core.hud.show_power()
+	await _shot("k2_power")
+	Core.hud.close_modal()
+	_log("расход топлива: %.2f%% в час при %d помещениях" % [cr.fuel_rate(), cr.powered_count()])
+	# ремонт пункта управления и рация
+	Core.quest.accept("q_radio")
+	for k in ["electronics", "electronics", "electronics", "scrap", "scrap"]:
+		pl.inventory_add(k)
+	await _act_at("fix_ctrl", "k3_repair")
+	Core.hud.close_modal()
+	cr.repair("ctrl")
+	await _frames(5)
+	_log("после ремонта: сломан %s, свет %s, завал %d" % [cr.room_broken("ctrl"), lc.powered if lc else "?", get_tree().get_nodes_in_group("repair:ctrl").size()])
+	await _act_at("radio", "k4_radio")
+	Core.hud.close_modal()
+	_log("задание рации: %s" % [Core.quest.quests.get("q_radio")])
+	# оружие: смена и износ
+	pl.inventory_add("knife")
+	pl.inventory_add("pistol")
+	for i in 10:
+		pl.inventory_add("ammo")
+	var seq := []
+	var wt := 0.0
+	while pl.state != "move" and wt < 6.0:
+		await get_tree().create_timer(0.25).timeout
+		wt += 0.25
+	for i in 5:
+		pl.cycle_weapon()
+		seq.append(pl.weapon_label())
+	_log("смена оружия: %s" % [seq])
+	# пистолет по мародёру
+	pl.equip("pistol")
+	var r: BCNpc = Core.world.objects.get("raider")
+	r.global_position = Vector3(20.0, 0.3, -14.0)
+	r.reset_physics_interpolation()
+	await _place(Vector3(20.0, 0.3, -6.0), PI)
+	var hp0: float = r.hp
+	var shots := 0
+	var t := 0.0
+	while r.state != "dead" and t < 10.0:
+		var to := r.global_position - pl.global_position
+		pl.rotation.y = atan2(to.x, to.z)
+		if pl.state == "move" and pl._gun_cd <= 0.0:
+			pl.attack()
+			shots += 1
+			if shots == 1:
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(out.path_join("k5_shot.png"))
+		await get_tree().physics_frame
+		t += 1.0 / 30.0
+	_log("пистолет: выстрелов %d, мародёр %.0f → %.0f (%s)" % [shots, hp0, r.hp, r.state])
+	_inv("после стрельбы")
+	await get_tree().create_timer(2.0).timeout
+	_inv("после перезарядки")
+	Core.hud.show_inventory()
+	await _shot("k6_inventory")
+	Core.hud.close_modal()
+	Core.hud.show_trade("Семён, торговец")
+	await _shot("k7_trade")
+	Core.hud.close_modal()
+	# сохранение
+	Core.save.save_game()
+	var before: String = JSON.stringify([cr.get_state().repaired, pl.weapon_dur, pl.mag])
+	cr.new_game()
+	Core.save.load_game()
+	await _frames(5)
+	var after: String = JSON.stringify([cr.get_state().repaired, pl.weapon_dur, pl.mag])
+	_log("сохранение мастерской и оружия: %s" % ("совпадает" if before == after else "НЕ совпадает: %s / %s" % [before, after]))

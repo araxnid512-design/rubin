@@ -155,6 +155,7 @@ func _build() -> void:
 	_btn("attack", "Удар", Vector2(124, 124), 22)
 	_btn("crouch", "Присед", Vector2(96, 96), 18)
 	_btn("dodge", "Уклон", Vector2(100, 100), 19)
+	_btn("weapon", "⇄", Vector2(84, 84), 30)
 	prompt_lbl = _label("", 17)
 	prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(prompt_lbl)
@@ -204,6 +205,7 @@ func _layout() -> void:
 	act.position = Vector2(R - 176, B - 176)
 	b.attack.position = act.position + Vector2(-150, 52)
 	b.dodge.position = act.position + Vector2(-172, -88)
+	b.weapon.position = act.position + Vector2(-252, 78)
 	b.crouch.position = act.position + Vector2(-30, -124)
 	prompt_lbl.position = Vector2(R - 620, act.position.y - 176)
 	prompt_lbl.size = Vector2(600, 30)
@@ -234,7 +236,7 @@ func _process(_d: float) -> void:
 	var cb: Control = touch.buttons.crouch
 	cb.self_modulate = Color(1.3, 1.15, 0.7) if player.crouching else Color.WHITE
 	var ab: Control = touch.buttons.attack
-	(ab.get_child(0) as Label).text = "Блок" if player.blocking else ("Труба" if player.weapon == "pipe" else "Удар")
+	(ab.get_child(0) as Label).text = player.weapon_label()
 	ab.self_modulate = Color(0.75, 0.9, 1.3) if player.blocking else Color.WHITE
 	bars.hp.value = player.hp / player.max_hp * 100.0
 	bars.st.value = player.stamina
@@ -248,12 +250,12 @@ func _process(_d: float) -> void:
 	var qt: String = Core.quest.tracker_text() if Core.quest else ""
 	quest_lbl.text = qt
 	(touch.buttons.journal as Control).visible = qt != "" and modal == null
-	var rate: float = player.rad_rate * (0.15 if player.suit_on else 1.0)
+	var rate: float = player.rad_rate * player.suit_factor()
 	var lvl: int = Core.env.danger(rate) if Core.env else 0
 	var cols := [Color(0.55, 0.85, 0.5), Color(0.95, 0.85, 0.3), Color(1.0, 0.5, 0.2), Color(1.0, 0.2, 0.15)]
 	var names := ["безопасно", "повышенный фон", "опасно", "смертельно"]
 	var rs := ("%.2f мкЗв/ч" % (rate * 1000.0)) if rate < 0.1 else ("%.1f мЗв/ч" % rate)
-	dosi.text = "☢ %s · %s\nДоза: %.0f мЗв%s" % [rs, names[lvl], player.dose, "  · костюм" if player.suit_on else ""]
+	dosi.text = "☢ %s · %s\nДоза: %.0f мЗв%s" % [rs, names[lvl], player.dose, ("  · костюм, фильтр %d%%" % roundi(player.suit_filter)) if player.suit_on else ""]
 	if lvl != _dosi_lvl:
 		_dosi_lvl = lvl
 		dosi.add_theme_color_override("font_color", cols[lvl])
@@ -274,6 +276,9 @@ func _on_button(n: String, pressed: bool) -> void:
 		"dodge":
 			if pressed:
 				player.dodge()
+		"weapon":
+			if pressed:
+				player.cycle_weapon()
 		"crouch":
 			if pressed:
 				player.toggle_crouch()
@@ -293,6 +298,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		match e.keycode:
 			KEY_F: player.do_interact()
 			KEY_X: player.dodge()
+			KEY_TAB: player.cycle_weapon()
+			KEY_R: player.reload()
 			KEY_C: player.toggle_crouch()
 			KEY_I: show_inventory()
 			KEY_J: show_journal()
@@ -484,39 +491,139 @@ const ITEMS := {
 
 
 func show_inventory() -> void:
-	var v := _open("Вещи", 640, 470)
-	v.add_child(_label("Здоровье %d · выносливость %d" % [player.hp, player.stamina], 16, Color(0.85, 0.8, 0.68)))
+	var v := _open("Вещи", 700, 470)
+	v.add_child(_label("Здоровье %d · выносливость %d%s" % [player.hp, player.stamina, (" · фильтр костюма %d%%" % roundi(player.suit_filter))], 16, Color(0.85, 0.8, 0.68)))
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(660, 360)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
 	var g := GridContainer.new()
 	g.columns = 2
 	g.add_theme_constant_override("h_separation", 14)
 	g.add_theme_constant_override("v_separation", 10)
-	v.add_child(g)
+	sc.add_child(g)
 	var seen := []
 	for id in player.inventory:
 		if id in seen:
 			continue
 		seen.append(id)
-		var it: Array = ITEMS.get(id, [id, ""])
+		var it: Array = ITEMS.get(id, [Core.craft.item_name(id), Core.craft.item_desc(id)])
 		var cnt: int = player.count_item(id)
 		var box := PanelContainer.new()
 		box.add_theme_stylebox_override("panel", _style(Color(0.13, 0.12, 0.1, 0.9), 10, 1))
-		box.custom_minimum_size = Vector2(290, 72)
+		box.custom_minimum_size = Vector2(318, 72)
 		var hb := HBoxContainer.new()
 		box.add_child(hb)
-		var l := _label("%s%s\n%s" % [it[0], (" ×%d" % cnt) if cnt > 1 else "", it[1]], 15)
+		var extra := ""
+		if player.weapon_dur.has(id):
+			extra = " · %d%%" % roundi(player.weapon_dur[id] / BCWeapon.stats(id).get("dur", 100.0) * 100.0)
+		if id == "pistol":
+			extra = " · %d в магазине" % player.mag
+		var l := _label("%s%s%s\n%s" % [it[0], (" ×%d" % cnt) if cnt > 1 else "", extra, it[1]], 15)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(170 if player.can_consume(id) else 270, 0)
+		var usable: bool = player.can_consume(id) or (BCWeapon.STATS.has(id) and id != player.weapon)
+		l.custom_minimum_size = Vector2(200 if usable else 300, 0)
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hb.add_child(l)
 		if player.can_consume(id):
 			var ub := _button("Исп.", func():
 				player.consume(id)
 				show_inventory())
-			ub.custom_minimum_size = Vector2(84, 56)
+			ub.custom_minimum_size = Vector2(90, 56)
 			hb.add_child(ub)
+		elif BCWeapon.STATS.has(id) and id != player.weapon:
+			var eb := _button("В руку", func():
+				player.equip(id)
+				show_inventory())
+			eb.custom_minimum_size = Vector2(90, 56)
+			hb.add_child(eb)
 		g.add_child(box)
 	if player.suit_on:
 		v.add_child(_label("Надет защитный костюм.", 17, Color(0.95, 0.85, 0.3)))
+
+
+## список строк [подпись, кнопка, действие, можно?] в окне с прокруткой
+func _rows(title: String, header: String, rows: Array, w := 760.0) -> void:
+	var v := _open(title, w, 480)
+	if header != "":
+		var hl := _label(header, 16, Color(0.85, 0.8, 0.68))
+		hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hl.custom_minimum_size = Vector2(w - 40, 0)
+		v.add_child(hl)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(w - 40, 360)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	sc.add_child(box)
+	for r in rows:
+		var hb := HBoxContainer.new()
+		var l := _label(r[0], 16, C_TEXT if r[3] else Color(0.6, 0.58, 0.52))
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.custom_minimum_size = Vector2(w - 220, 0)
+		hb.add_child(l)
+		var b := _button(r[1], r[2])
+		b.custom_minimum_size = Vector2(150, 56)
+		b.disabled = not r[3]
+		hb.add_child(b)
+		box.add_child(hb)
+
+
+## верстак: рецепты; без питания мастерской — недоступно
+func show_craft() -> void:
+	var rows := []
+	for r in Core.craft.recipes():
+		var why: String = Core.craft.craft_block(r)
+		rows.append(["%s\n   нужно: %s%s" % [r.n, Core.craft.recipe_needs_text(r), ("\n   " + why) if why != "" else ""], "Сделать",
+			func():
+				Core.craft.craft(r)
+				show_craft(), why == ""])
+	var res := []
+	for k in ["scrap", "wood", "electronics", "cloth", "powder"]:
+		res.append("%s %d" % [Core.craft.item_name(k), player.count_item(k)])
+	_rows("Верстак", "Есть: " + ", ".join(res) + ("" if Core.craft.room_ok("work") else "\nВ мастерской нет питания — включите на щитке в электростанции."), rows)
+
+
+func show_repair(room: String) -> void:
+	var info: Dictionary = Core.craft.repair_info(room)
+	var ok: bool = Core.craft.has_all(info.get("needs", {}))
+	show_dialog("Ремонт: " + String(info.get("n", room)), "%s\n\nНужно: %s" % [info.get("text", ""), Core.craft._need_text(info.get("needs", {}))],
+		[["Починить" if ok else "Не хватает", func():
+			if Core.craft.repair(room):
+				close_modal()], ["Позже", close_modal]])
+
+
+## щиток: питание по помещениям; чем больше включено, тем быстрее уходит топливо
+func show_power() -> void:
+	var rows := []
+	var rooms: Dictionary = Core.craft.data.get("power", {}).get("rooms", {})
+	for r in rooms:
+		var broken: bool = Core.craft.room_broken(r)
+		var on: bool = Core.craft.powered.get(r, true)
+		rows.append(["%s — %s" % [rooms[r], "сломано, нужен ремонт" if broken else ("включено" if on else "выключено")], "Выключить" if on else "Включить",
+			func():
+				Core.craft.toggle_power(r)
+				show_power(), not broken])
+	var q = Core.quest
+	var fuel: float = q.res.get("fuel", 0.0)
+	var rate: float = Core.craft.fuel_rate()
+	_rows("Электрощит", "Генератор: %s · топливо %d%% · расход %.2f%% в час (≈ %d ч)\nЧем больше помещений под током, тем быстрее уходит топливо. Медпункту, мастерской, рации и теплице нужен ток." % ["работает" if q.power else "ОСТАНОВЛЕН", roundi(fuel), rate, int(fuel / maxf(rate, 0.01))], rows)
+
+
+## обмен у торговца
+func show_trade(who: String) -> void:
+	var rows := []
+	for t in Core.craft.trades():
+		var ok: bool = Core.craft.has_all(t.pay)
+		rows.append([Core.craft.trade_text(t), "Обменять", func():
+			Core.craft.trade(t)
+			show_trade(who), ok])
+	var res := []
+	for k in ["scrap", "wood", "electronics", "cloth", "powder"]:
+		res.append("%s %d" % [Core.craft.item_name(k), player.count_item(k)])
+	_rows(who + " · обмен", "У вас: " + ", ".join(res), rows)
 
 
 func show_text(title: String, text: String) -> void:
@@ -528,6 +635,9 @@ func show_text(title: String, text: String) -> void:
 
 
 func show_terminal(kind: String) -> void:
+	if kind == "power":
+		show_power()
+		return
 	var v := _open("Терминал бункера", 720, 470)
 	var p := player
 	var hours := int(p.game_time / 3600.0) % 24

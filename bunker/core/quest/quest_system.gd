@@ -234,6 +234,9 @@ func use(use_id: String, p: Node) -> void:
 	if not skip.is_empty() and float(p.get(skip.stat)) >= float(skip.above):
 		Core.say(skip.get("say", "Сейчас не нужно."), "info")
 		return
+	if u.has("room") and Core.craft and not Core.craft.room_ok(u.room):
+		Core.say(u.get("no_room", "Не работает: нет питания или нужен ремонт."), "warn")
+		return
 	if u.has("res_min"):
 		var rm: Dictionary = u.res_min
 		if float(res.get(rm.res, 0.0)) < float(rm.value):
@@ -247,6 +250,13 @@ func use(use_id: String, p: Node) -> void:
 		Core.say(String(u.say).format(_res_view()), "good")
 	if u.has("sound") and p is Node3D:
 		Core.play_at(u.sound, p.global_position + Vector3.UP, -4.0)
+	if u.has("dialog"):
+		Core.hud.show_dialog(u.get("label", use_id), String(u.dialog), [])
+	count_use(use_id)
+
+
+## шаг «использовать / сделать / починить» засчитывается (вызывают точки, верстак, ремонт)
+func count_use(use_id: String) -> void:
 	for id in active():
 		var s := step_of(id)
 		if s.get("type") == "use" and s.get("use") == use_id:
@@ -304,7 +314,11 @@ func _process(delta: float) -> void:
 		var r: Dictionary = data.get("rates", {})
 		for k in r:
 			if res.has(k):
-				res[k] = maxf(0.0, float(res[k]) - float(r[k]) * dh)
+				var rate := float(r[k])
+				# топливо — по нагрузке: сколько помещений запитано на щитке
+				if k == "fuel" and Core.craft:
+					rate = Core.craft.fuel_rate()
+				res[k] = maxf(0.0, float(res[k]) - rate * dh)
 		if res.get("fuel", 1.0) <= 0.0 and power:
 			_set_power(false)
 			Core.say("Генератор заглох: кончилось топливо. Свет и медоборудование не работают.", "bad")
@@ -320,6 +334,9 @@ func _process(delta: float) -> void:
 
 func _set_power(v: bool) -> void:
 	power = v
+	if Core.craft:
+		Core.craft.apply_power()
+		return
 	for l in get_tree().get_nodes_in_group("bc_light"):
 		if l is Node3D and l.global_position.y < -2.0 and l.has_method("set_powered"):
 			l.set_powered(v)

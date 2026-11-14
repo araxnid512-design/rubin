@@ -1,0 +1,502 @@
+{
+ "items": {
+  "scrap": [
+   "Металлолом",
+   "Ржавое железо: трубы, листы, болты. Для мастерской и ремонта."
+  ],
+  "wood": [
+   "Дерево",
+   "Доски и сухие ветки."
+  ],
+  "electronics": [
+   "Электроника",
+   "Платы, провода, реле — из машин, щитков и приборов."
+  ],
+  "cloth": [
+   "Ткань",
+   "Обрывки одежды, мешковина, вата."
+  ],
+  "powder": [
+   "Порох",
+   "Порох из старых патронов и сигнальных ракет. Редкость."
+  ],
+  "knife": [
+   "Нож",
+   "Самодельный нож: быстрые удары, слабее трубы."
+  ],
+  "crowbar": [
+   "Лом",
+   "Тяжёлый лом: медленные, но сильные удары. Вскрывает запертые ящики."
+  ],
+  "pistol": [
+   "Пистолет ПМ",
+   "Макаров, 8 патронов в магазине. Патроны 9×18 — редкость."
+  ],
+  "ammo": [
+   "Патроны 9×18",
+   "Для пистолета ПМ."
+  ],
+  "bandage": [
+   "Бинты",
+   "Перевязка: +25 здоровья."
+  ],
+  "suit_filter": [
+   "Фильтр для костюма",
+   "Новый фильтр: защита костюма снова полная."
+  ]
+ },
+ "loot": {
+  "house": {
+   "refill_h": 48,
+   "rolls": 2,
+   "table": [
+    [
+     "cloth",
+     0.6,
+     1,
+     2
+    ],
+    [
+     "wood",
+     0.5,
+     1,
+     2
+    ],
+    [
+     "canned",
+     0.25,
+     1,
+     1
+    ],
+    [
+     "electronics",
+     0.2,
+     1,
+     1
+    ],
+    [
+     "bandage",
+     0.15,
+     1,
+     1
+    ]
+   ]
+  },
+  "car": {
+   "refill_h": 72,
+   "rolls": 2,
+   "table": [
+    [
+     "scrap",
+     0.85,
+     1,
+     3
+    ],
+    [
+     "electronics",
+     0.45,
+     1,
+     1
+    ],
+    [
+     "cloth",
+     0.3,
+     1,
+     1
+    ],
+    [
+     "fuel_can",
+     0.07,
+     1,
+     1
+    ]
+   ]
+  },
+  "scrap": {
+   "refill_h": 48,
+   "rolls": 2,
+   "table": [
+    [
+     "scrap",
+     0.9,
+     2,
+     3
+    ],
+    [
+     "wood",
+     0.3,
+     1,
+     1
+    ],
+    [
+     "electronics",
+     0.15,
+     1,
+     1
+    ]
+   ]
+  },
+  "trash": {
+   "refill_h": 36,
+   "rolls": 2,
+   "table": [
+    [
+     "cloth",
+     0.6,
+     1,
+     2
+    ],
+    [
+     "scrap",
+     0.4,
+     1,
+     1
+    ],
+    [
+     "wood",
+     0.3,
+     1,
+     1
+    ],
+    [
+     "canned",
+     0.1,
+     1,
+     1
+    ]
+   ]
+  },
+  "electric": {
+   "refill_h": 96,
+   "rolls": 1,
+   "table": [
+    [
+     "electronics",
+     0.9,
+     1,
+     2
+    ],
+    [
+     "scrap",
+     0.5,
+     1,
+     1
+    ]
+   ]
+  },
+  "military": {
+   "refill_h": 120,
+   "rolls": 2,
+   "table": [
+    [
+     "ammo",
+     0.4,
+     2,
+     4
+    ],
+    [
+     "powder",
+     0.45,
+     1,
+     2
+    ],
+    [
+     "scrap",
+     0.5,
+     1,
+     2
+    ],
+    [
+     "cloth",
+     0.4,
+     1,
+     1
+    ],
+    [
+     "bandage",
+     0.25,
+     1,
+     1
+    ]
+   ]
+  },
+  "barn": {
+   "refill_h": 72,
+   "rolls": 2,
+   "table": [
+    [
+     "wood",
+     0.8,
+     1,
+     3
+    ],
+    [
+     "cloth",
+     0.4,
+     1,
+     2
+    ],
+    [
+     "scrap",
+     0.4,
+     1,
+     1
+    ]
+   ]
+  },
+  "shop": {
+   "refill_h": 72,
+   "rolls": 2,
+   "table": [
+    [
+     "canned",
+     0.4,
+     1,
+     1
+    ],
+    [
+     "cloth",
+     0.5,
+     1,
+     2
+    ],
+    [
+     "electronics",
+     0.3,
+     1,
+     1
+    ],
+    [
+     "bandage",
+     0.2,
+     1,
+     1
+    ]
+   ]
+  },
+  "tree": {
+   "refill_h": 9999,
+   "rolls": 1,
+   "table": [
+    [
+     "wood",
+     1.0,
+     2,
+     3
+    ]
+   ]
+  },
+  "greenhouse": {
+   "refill_h": 24,
+   "rolls": 2,
+   "room": "grow",
+   "table": [
+    [
+     "bandage",
+     0.9,
+     1,
+     1
+    ],
+    [
+     "rad_pills",
+     0.35,
+     1,
+     1
+    ]
+   ]
+  },
+  "mil_box": {
+   "refill_h": 9999,
+   "rolls": 3,
+   "need": "crowbar",
+   "table": [
+    [
+     "ammo",
+     1.0,
+     6,
+     8
+    ],
+    [
+     "powder",
+     1.0,
+     2,
+     3
+    ],
+    [
+     "bandage",
+     0.8,
+     1,
+     2
+    ]
+   ]
+  }
+ },
+ "recipes": [
+  {
+   "id": "repair",
+   "n": "Починить оружие в руке",
+   "needs": {
+    "scrap": 2
+   },
+   "repair": true,
+   "sound": "repair"
+  },
+  {
+   "id": "knife",
+   "n": "Нож",
+   "needs": {
+    "scrap": 1,
+    "cloth": 1
+   },
+   "gives": {
+    "knife": 1
+   },
+   "sound": "craft_metal"
+  },
+  {
+   "id": "crowbar",
+   "n": "Лом",
+   "needs": {
+    "scrap": 3
+   },
+   "gives": {
+    "crowbar": 1
+   },
+   "sound": "craft_metal"
+  },
+  {
+   "id": "bandage",
+   "n": "Бинты (+25 здоровья)",
+   "needs": {
+    "cloth": 2
+   },
+   "gives": {
+    "bandage": 1
+   },
+   "sound": "craft_cloth"
+  },
+  {
+   "id": "suit_filter",
+   "n": "Фильтр для костюма",
+   "needs": {
+    "cloth": 2,
+    "wood": 1
+   },
+   "gives": {
+    "suit_filter": 1
+   },
+   "sound": "craft_cloth"
+  },
+  {
+   "id": "fvu_filter",
+   "n": "Фильтр ФВУ для вентиляции",
+   "needs": {
+    "cloth": 3,
+    "wood": 2,
+    "electronics": 1
+   },
+   "gives": {
+    "filter": 1
+   },
+   "sound": "craft_wood"
+  },
+  {
+   "id": "ammo",
+   "n": "Патроны 9×18 ×4",
+   "needs": {
+    "scrap": 1,
+    "powder": 1
+   },
+   "gives": {
+    "ammo": 4
+   },
+   "sound": "craft_metal",
+   "shown_if": "pistol"
+  }
+ ],
+ "repairs": {
+  "ctrl": {
+   "n": "Пункт управления",
+   "needs": {
+    "electronics": 3,
+    "scrap": 2
+   },
+   "text": "Пульт и рация разбиты, проводка оборвана. Нужны электроника и металлолом."
+  },
+  "grow": {
+   "n": "Теплица",
+   "needs": {
+    "wood": 3,
+    "scrap": 1,
+    "electronics": 1
+   },
+   "text": "Стеллажи повалены, фитолампы разбиты. Нужны доски, металлолом и электроника."
+  }
+ },
+ "power": {
+  "base": 0.15,
+  "per_room": 0.07,
+  "rooms": {
+   "live": "Жилой отсек",
+   "med": "Медпункт",
+   "ctrl": "Пункт управления",
+   "grow": "Теплица",
+   "work": "Мастерская",
+   "store": "Склад"
+  }
+ },
+ "trade": [
+  {
+   "pay": {
+    "scrap": 3
+   },
+   "receive": {
+    "canned": 1
+   }
+  },
+  {
+   "pay": {
+    "cloth": 2,
+    "wood": 2
+   },
+   "receive": {
+    "bandage": 2
+   }
+  },
+  {
+   "pay": {
+    "electronics": 1,
+    "cloth": 1
+   },
+   "receive": {
+    "rad_pills": 1
+   }
+  },
+  {
+   "pay": {
+    "scrap": 4,
+    "wood": 2
+   },
+   "receive": {
+    "fuel_can": 1
+   }
+  },
+  {
+   "pay": {
+    "electronics": 2,
+    "scrap": 1
+   },
+   "receive": {
+    "ammo": 4
+   }
+  },
+  {
+   "pay": {
+    "wood": 3
+   },
+   "receive": {
+    "powder": 1
+   }
+  }
+ ]
+}

@@ -9,6 +9,7 @@ extends Node
 ##   mobile  (MobileSystem)      — разрешение, качество графики, FPS, память, безопасные области экрана
 ##   save    (SaveSystem)        — сохранение и загрузка (user://save.json)
 ##   quest   (QuestSystem)       — задания, журнал, ресурсы убежища, точки использования, метка цели
+##   craft   (CraftSystem)       — добыча, мастерская, ремонт помещений, питание по помещениям, обмен
 ## Персонаж, анимации и интерфейс создаются сценой игры и регистрируются здесь (Core.player, Core.hud).
 
 const VERSION := "0.1.0"
@@ -22,6 +23,7 @@ var env: Node
 var mobile: Node
 var save: Node
 var quest: Node
+var craft: Node
 var player: Node = null
 var hud: Node = null
 var debug := false
@@ -40,6 +42,7 @@ func _ready() -> void:
 	mobile = _add("MobileSystem", preload("res://core/mobile/mobile_system.gd"))
 	save = _add("SaveSystem", preload("res://core/save/save_system.gd"))
 	quest = _add("QuestSystem", preload("res://core/quest/quest_system.gd"))
+	craft = _add("CraftSystem", preload("res://core/craft/craft_system.gd"))
 
 
 func _add(n: String, scr: Script) -> Node:

@@ -44,7 +44,11 @@ var _tired := false                  ## выдохся — рывка нет, п
 var _warn := {}
 var _torch: SpotLight3D
 # --- бой ---
-var weapon := ""                      ## в руке: "" — кулаки, "pipe" — труба (BCWeapon)
+var weapon := ""                      ## в руке: "" — кулаки, иначе id из BCWeapon.STATS
+var weapon_dur := {}                  ## прочность оружия ближнего боя (id → единицы)
+var mag := 0                          ## патронов в магазине пистолета
+var suit_filter := 100.0              ## ресурс фильтра костюма, %: на нуле костюм защищает хуже
+var _gun_cd := 0.0
 var _weapon_node: Node3D
 var blocking := false
 var _block_t := 0.0                   ## сколько держит блок (идеальный блок — в первые 0.3 с)
@@ -59,6 +63,8 @@ var _can_chain := false               ## во второй половине уд
 var _atk_id := 0
 ## что можно использовать из «Вещей»: действие и слова
 const CONSUME := {
+	"bandage": [{"stat": "hp", "add": 25}, "Перевязка: +25 здоровья.", "pickup"],
+	"suit_filter": [{"stat": "suit_filter", "add": 100}, "Новый фильтр в костюме: защита полная.", "suit_zip"],
 	"canned": [{"stat": "hp", "add": 15}, "Вы съели тушёнку: +15 здоровья.", "eat"],
 	"medkit": [{"stat": "hp", "add": 45}, "Перевязка и обезболивающее: здоровье восстановлено.", "pickup"],
 	"rad_pills": [{"stat": "dose", "add": -80}, "Радиопротектор принят: доза снижена.", "drink"],
@@ -160,6 +166,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			want = lerpf(WALK, JOG, clampf((mag - 0.45) / 0.3, 0.0, 1.0))
 	invuln = maxf(0.0, invuln - delta)
+	_gun_cd = maxf(0.0, _gun_cd - delta)
 	# «Удар» удерживается дольше 0.3 с — блок, пока палец на кнопке
 	if attack_held:
 		_hold_t += delta
@@ -259,7 +266,14 @@ func _footsteps(speed: float, delta: float) -> void:
 func _radiation(delta: float) -> void:
 	rad_rate = Core.env.rad_rate_at(global_position) if Core.env else 0.0
 	_needs(delta)
-	var eff := rad_rate * (0.15 if suit_on else 1.0)
+	if suit_on and not Core.world.underground and rad_rate > 0.5:
+		var f0 := suit_filter
+		suit_filter = maxf(0.0, suit_filter - 4.0 * delta * 30.0 / 3600.0)
+		if f0 >= 20.0 and suit_filter < 20.0:
+			Core.say("Фильтр костюма почти отработал. Новый — на верстаке.", "warn")
+		elif f0 > 0.0 and suit_filter <= 0.0:
+			Core.say("Фильтр костюма отработал: защита слабее.", "bad")
+	var eff := rad_rate * suit_factor()
 	# игровое время идёт быстрее: 1 с реального = 30 с игры
 	dose += eff * delta * 30.0 / 3600.0
 	# выше 250 мЗв — лучевая болезнь: здоровье понемногу уходит
@@ -605,6 +619,13 @@ func stand_up() -> void:
 		_calm_t = 0.0)
 
 
+## во сколько раз костюм снижает облучение (с отработанным фильтром — хуже)
+func suit_factor() -> float:
+	if not suit_on:
+		return 1.0
+	return 0.15 if suit_filter > 0.0 else 0.6
+
+
 func treat() -> void:
 	var healed := minf(max_hp - hp, 40.0)
 	hp += healed
@@ -631,8 +652,11 @@ func toggle_suit() -> void:
 func inventory_add(id: String) -> void:
 	inventory.append(id)
 	stats_changed.emit()
-	if BCWeapon.STATS.has(id) and id != "" and weapon == "":
-		equip(id)
+	if BCWeapon.STATS.has(id) and id != "":
+		if BCWeapon.stats(id).has("dur") and not weapon_dur.has(id):
+			weapon_dur[id] = BCWeapon.stats(id).dur
+		if weapon == "":
+			equip(id)
 	if Core.quest:
 		Core.quest.on_inventory()
 
@@ -644,6 +668,8 @@ func count_item(id: String) -> int:
 func inventory_remove(id: String, n := 1) -> void:
 	for i in n:
 		inventory.erase(id)
+	if id == weapon and count_item(id) < 1:
+		equip("")
 	stats_changed.emit()
 	if Core.quest:
 		Core.quest.on_inventory()
@@ -694,6 +720,9 @@ func nearest_enemy(radius: float, min_dot := 0.0) -> Node3D:
 
 
 func attack() -> void:
+	if BCWeapon.stats(weapon).get("gun", false):
+		shoot()
+		return
 	if rig == null or (state != "move" and state != "busy") or (state == "busy" and not _can_chain):
 		return
 	var ws := BCWeapon.stats(weapon)
@@ -757,9 +786,157 @@ func _punch_hit(heavy: bool) -> void:
 			_blood((n as Node3D).global_position + Vector3.UP * 1.35 - to.normalized() * 0.25)
 			hit = true
 	if hit:
-		Core.play_at(("pipe_hit" if weapon == "pipe" else "punch"), global_position + fwd * 0.7 + Vector3.UP * 1.3, -1.0)
+		Core.play_at({"pipe": "pipe_hit", "crowbar": "pipe_hit", "knife": "knife_hit"}.get(weapon, "punch"), global_position + fwd * 0.7 + Vector3.UP * 1.3, -1.0)
 		_shake(0.12 if heavy else 0.06)
 		_hit_stop(0.07 if heavy else 0.04)
+		_wear(2.0 if heavy else 1.0)
+
+
+## износ оружия ближнего боя: на нуле ломается
+func _wear(n: float) -> void:
+	if not weapon_dur.has(weapon):
+		return
+	weapon_dur[weapon] = weapon_dur[weapon] - n
+	var mx: float = BCWeapon.stats(weapon).get("dur", 100.0)
+	if weapon_dur[weapon] <= 0.0:
+		var w := weapon
+		Core.say(BCWeapon.stats(w).n + " сломалась!" if w != "knife" and w != "crowbar" else BCWeapon.stats(w).n + " сломался!", "bad")
+		Core.play_at("metal_clang", global_position + Vector3.UP, -2.0)
+		weapon_dur.erase(w)
+		inventory_remove(w, 1)
+	elif weapon_dur[weapon] < mx * 0.2 and weapon_dur[weapon] + n >= mx * 0.2:
+		Core.say("%s скоро сломается — почините на верстаке." % BCWeapon.stats(weapon).n, "warn")
+
+
+## сменить оружие в руке: кулаки → нож → труба → лом → пистолет (только то, что есть в вещах)
+func cycle_weapon() -> void:
+	if state != "move":
+		return
+	var have := []
+	for w in BCWeapon.ORDER:
+		if w == "" or count_item(w) > 0:
+			have.append(w)
+	var i := have.find(weapon)
+	equip(have[(i + 1) % have.size()])
+	Core.play_ui("ui_click", -10.0)
+
+
+## подпись кнопки удара: оружие и прочность / патроны
+func weapon_label() -> String:
+	var ws := BCWeapon.stats(weapon)
+	if blocking:
+		return "Блок"
+	if ws.get("gun", false):
+		return "%s %d/%d" % [ws.short, mag, count_item("ammo")]
+	if weapon_dur.has(weapon):
+		return "%s %d%%" % [ws.short, roundi(weapon_dur[weapon] / ws.get("dur", 100.0) * 100.0)]
+	return ws.short
+
+
+# ---------------- огнестрел ----------------
+
+func shoot() -> void:
+	if rig == null or state != "move" or _gun_cd > 0.0:
+		return
+	var ws := BCWeapon.stats(weapon)
+	if mag <= 0:
+		if count_item("ammo") > 0:
+			reload()
+		else:
+			Core.play_at("pistol_empty", global_position + Vector3.UP * 1.3, -6.0)
+			Core.say("Нет патронов.", "warn")
+		return
+	set_block(false)
+	var foe := nearest_enemy(ws.range, 0.25)
+	if foe == null:
+		foe = nearest_enemy(6.0, -1.0)
+	if foe:
+		var tf: Vector3 = foe.global_position - global_position
+		rotation.y = atan2(tf.x, tf.z)
+	mag -= 1
+	_gun_cd = ws.cool
+	if rig.has_clip("pistol_fire"):
+		rig.play("pistol_fire", 1.6)
+	var muzzle: Vector3 = _muzzle()
+	var end: Vector3 = muzzle + global_transform.basis.z * float(ws.range)
+	Core.play_at("pistol_shot", muzzle, 0.0, 0.05)
+	_flash(muzzle)
+	_shake(0.08)
+	if foe:
+		var to: Vector3 = foe.global_position - global_position
+		to.y = 0
+		var d := to.length()
+		var chance: float = lerpf(0.95, 0.5, clampf(d / float(ws.range), 0.0, 1.0)) + (0.08 if crouching else 0.0)
+		if randf() < chance:
+			var hp_at: Vector3 = foe.global_position + Vector3.UP * 1.3
+			end = hp_at
+			foe.damage(ws.dmg, -to, d < 4.0)
+			_blood(hp_at)
+			Core.play_at("bullet_hit", hp_at, -3.0)
+		else:
+			end = foe.global_position + Vector3.UP * 1.3 + Vector3(randf_range(-0.8, 0.8), randf_range(-0.3, 0.6), randf_range(-0.8, 0.8)) + to.normalized() * 3.0
+			Core.play_at("ricochet", end, -6.0)
+	_tracer(muzzle, end)
+	# выстрел слышно далеко: враги поблизости бегут на звук
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if e is Node3D and e.has_method("alert") and (e as Node3D).global_position.distance_to(global_position) < 25.0:
+			e.alert()
+	if mag == 0 and count_item("ammo") > 0:
+		get_tree().create_timer(0.35).timeout.connect(reload)
+
+
+func reload() -> void:
+	if rig == null or mag >= int(BCWeapon.stats("pistol").mag) or count_item("ammo") < 1:
+		return
+	if state != "move" and state != "busy":
+		return
+	var d: float = rig.play("pistol_reload") if rig.has_clip("pistol_reload") else 1.2
+	d = clampf(d, 0.8, 2.0)
+	state = "busy"
+	Core.play_at("pistol_reload", global_position + Vector3.UP * 1.3, -6.0)
+	get_tree().create_timer(d).timeout.connect(func():
+		var n := mini(int(BCWeapon.stats("pistol").mag) - mag, count_item("ammo"))
+		inventory_remove("ammo", n)
+		mag += n
+		if state == "busy":
+			state = "move")
+
+
+func _muzzle() -> Vector3:
+	if _weapon_node and is_instance_valid(_weapon_node) and weapon == "pistol":
+		return _weapon_node.global_transform * Vector3(0, 0.07, 0.13)
+	return global_position + Vector3.UP * 1.35 + global_transform.basis.z * 0.5
+
+
+func _flash(at: Vector3) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = Color(1.0, 0.8, 0.45)
+	l.light_energy = 2.5
+	l.omni_range = 4.0
+	get_tree().current_scene.add_child(l)
+	l.global_position = at
+	l.reset_physics_interpolation()
+	get_tree().create_timer(0.05).timeout.connect(l.queue_free)
+
+
+func _tracer(a: Vector3, b: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	var len := a.distance_to(b)
+	bm.size = Vector3(0.012, 0.012, len)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.85, 0.5, 0.7)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bm.material = m
+	mi.mesh = bm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_tree().current_scene.add_child(mi)
+	mi.global_position = (a + b) * 0.5
+	if len > 0.01:
+		mi.look_at(b, Vector3.UP if absf((b - a).normalized().y) < 0.99 else Vector3.RIGHT)
+	mi.reset_physics_interpolation()
+	get_tree().create_timer(0.06).timeout.connect(mi.queue_free)
 
 
 func set_block(v: bool) -> void:
@@ -868,7 +1045,7 @@ func toggle_crouch() -> void:
 func get_state() -> Dictionary:
 	return {"pos": [global_position.x, global_position.y, global_position.z], "rot": rotation.y, "hp": hp, "stamina": stamina,
 		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time,
-		"weapon": weapon}
+		"weapon": weapon, "dur": weapon_dur, "mag": mag, "filter": suit_filter}
 
 
 func set_state(s: Dictionary) -> void:
@@ -882,6 +1059,9 @@ func set_state(s: Dictionary) -> void:
 	inventory = s.get("inv", inventory)
 	crouching = s.get("crouch", false)
 	game_time = s.get("time", game_time)
+	weapon_dur = s.get("dur", {})
+	mag = int(s.get("mag", 0))
+	suit_filter = float(s.get("filter", 100.0))
 	var wp: String = s.get("weapon", "")
 	if wp != weapon or (wp != "" and _weapon_node == null):
 		equip(wp)
@@ -907,6 +1087,10 @@ func action_verb() -> String:
 		return "Говорить"
 	if t is BCInteract and t.action == "use":
 		return Core.quest.use_verb(t.target)
+	if t is BCInteract and t.action == "search":
+		return "Обыскать" if Core.craft.search_ready(t) else "Пусто"
+	if t is BCInteract and t.action in ["craft", "repair", "trade"]:
+		return {"craft": "Верстак", "repair": "Ремонт", "trade": "Обмен"}[t.action]
 	if t is BCInteract:
 		return {"terminal": "Терминал", "bed": "Лечь", "chair": "Сесть", "medbay": "Лечиться", "suit": "Снять" if suit_on else "Надеть",
 			"switch": "Свет", "pickup": "Взять", "inspect": "Осмотр"}.get(t.action, "Действие")

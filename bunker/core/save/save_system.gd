@@ -24,7 +24,8 @@ func save_game() -> bool:
 	if Core.player == null:
 		return false
 	var d := {"v": VERSION, "time": Time.get_datetime_string_from_system(), "player": Core.player.get_state(),
-		"world": Core.world.collect_state(), "quest": Core.quest.get_state() if Core.quest else {}}
+		"world": Core.world.collect_state(), "quest": Core.quest.get_state() if Core.quest else {},
+		"craft": Core.craft.get_state() if Core.craft else {}}
 	var f := FileAccess.open(FILE, FileAccess.WRITE)
 	if f == null:
 		push_error("SaveSystem: не удалось записать " + FILE)
@@ -45,6 +46,8 @@ func load_game() -> bool:
 	Core.player.set_state(d.get("player", {}))
 	if Core.quest:
 		Core.quest.set_state(d.get("quest", {}))
+	if Core.craft:
+		Core.craft.set_state(d.get("craft", {}))
 	return true
 
 

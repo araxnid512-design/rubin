@@ -18,6 +18,7 @@ extends CharacterBody3D
 @export var lines: PackedStringArray = []
 @export var points: Array = []          ## точки, между которыми ходит (мировые)
 @export var variant := "raider"          ## для врага: raider / leader / mutant
+@export var trader := false              ## житель-торговец: разговор без задания открывает обмен
 
 const VARIANTS := {
 	"raider": {"hp": 70.0, "dmg": 9.0, "speed": 3.2, "reach": 1.35, "windup": 0.55, "cool": 1.5, "see": 12.0, "flee": 0.25, "poise": false, "weapon": "", "loot": [["canned", 0.4], ["medkit", 0.15]]},
@@ -217,6 +218,13 @@ func _release() -> void:
 	attackers.erase(self)
 
 
+## услышал выстрел: бежит на героя
+func alert() -> void:
+	if role == "enemy" and state in ["idle", "walk"] and is_visible_in_tree():
+		Core.play_at("mutant_growl" if variant == "mutant" else "enemy_alert", global_position + Vector3.UP * 1.6, -3.0)
+		state = "chase"
+
+
 ## замах с меткой «!», затем удар; скорость клипа подобрана так, чтобы удар пришёлся на конец замаха
 func _attack() -> void:
 	state = "windup"
@@ -400,6 +408,9 @@ func interact(_p) -> void:
 		_p._play_emote("talk")
 	# сначала задания (сдать шаг, взять новое), иначе — обычная реплика
 	if Core.quest and npc_id != "" and Core.quest.talk(npc_id):
+		return
+	if trader:
+		Core.hud.show_trade(display_name)
 		return
 	if lines.is_empty():
 		return

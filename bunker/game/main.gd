@@ -108,6 +108,12 @@ func _spawn_npcs() -> void:
 	add_child(med)
 	med.global_position = Vector3(-13.0, y, -24.8)
 	med.reset_physics_interpolation()
+	# посёлок: военный ящик на блокпосту — обыск, вскрывается ломом
+	var mb = Core.world.objects.get("v_mil_box")
+	if mb is BCInteract:
+		mb.action = "search"
+		mb.target = "mil_box"
+		mb.label = "Вскрыть: военный ящик"
 	# враги наверху — управляющий встречами (game/encounters.gd)
 	var enc: Node = load("res://game/encounters.gd").new()
 	enc.name = "Encounters"

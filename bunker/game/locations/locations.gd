@@ -281,8 +281,11 @@ static func _control(B: Node3D, y: float) -> void:
 	prop(B, "elec_cabinet", Vector3(-1.2, y, -28.9), 0)
 	light(B, "l_ctrl", Vector3(1.4, y + H - 0.05, -26.0), "tube", "ctrl", Color(0.92, 0.95, 1.0), 1.2, 7.0)
 	spot(B, "terminal", Vector3(1.4, y, -28.7), "terminal", "Терминал: состояние бункера", "", "status", 0, Vector3(2.0, 2, 1.6))
-	spot(B, "radio", Vector3(4.0, y, -24.0), "inspect", "Радиостанция", "Р-159: на всех частотах — шум. Иногда сквозь треск слышны обрывки цифр. Кто-то ещё жив.", "", -90, Vector3(1.2, 2, 1.4))
-	spot(B, "map", Vector3(-1.5, y, -25.8), "inspect", "Карта района", "Карта района с пометками: «склад ГО — разграблен», «НПС — опасно, фон 40+», «мост — цел». Красным обведён посёлок в 12 км к северу.", "", 90, Vector3(1.0, 2, 1.8))
+	spot(B, "radio", Vector3(4.0, y, -24.0), "use", "", "", "radio", -90, Vector3(1.2, 2, 1.4))
+	spot(B, "map", Vector3(-1.5, y, -25.8), "inspect", "Карта района", "Карта района с пометками: «склад ГО — разграблен», «НПС — опасно, фон 40+», «мост — цел». Красным обведён посёлок Северный — сразу за северными воротами, по старой дороге.", "", 90, Vector3(1.0, 2, 1.8))
+	# разбито: пока не отремонтировано — завал, света нет, рация не работает
+	spot(B, "fix_ctrl", Vector3(0.2, y, -26.4), "repair", "", "", "ctrl", 90, Vector3(3.2, 2, 3.6))
+	_debris(B, "ctrl", [[0.6, -25.6, 0.7], [3.2, -27.4, 0.55]], y)
 	spot(B, "keycard", Vector3(4.05, y, -24.6), "pickup", "Подобрать: ключ-карта", "", "keycard", -90, Vector3(1.0, 2, 1.0))
 
 
@@ -296,7 +299,11 @@ static func _greenhouse(B: Node3D, y: float) -> void:
 	prop(B, "barrel", Vector3(6.3, y, -23.0), 0, {"mat": "paint_blue"})
 	light(B, "l_grow", Vector3(9.0, y + H - 0.05, -26.4), "grow", "grow", Color(1.0, 0.5, 0.85), 2.0, 8.5)
 	spot(B, "sw_grow", Vector3(8.2, y, -22.6), "switch", "фитолампы", "", "grow", 0, Vector3(0.8, 2, 0.8))
-	spot(B, "plants", Vector3(9.0, y, -27.6), "inspect", "Грядки", "Салат, лук, картофель в ящиках. Фитолампы дают нужный спектр, вода — из бака. Урожай будет недели через три.", "", 0, Vector3(6, 2, 1.6))
+	spot(B, "plants", Vector3(9.0, y, -27.6), "inspect", "Грядки", "Подорожник, ромашка, календула, лук. Аня сушит травы на бинты и отвары.", "", 0, Vector3(6, 2, 1.6))
+	spot(B, "fix_grow", Vector3(9.0, y, -24.2), "repair", "", "", "grow", 0, Vector3(5.0, 2, 2.6))
+	_debris(B, "grow", [[7.0, -24.0, 0.6], [11.2, -26.8, 0.5]], y)
+	var gb := spot(B, "grow_box", Vector3(5.7, y, -27.0), "search", "Ящик теплицы: бинты и травы", "", "greenhouse", 90, Vector3(1.4, 2, 1.4))
+	prop(B, "crate_wood", Vector3(5.6, y, -27.0), 90)
 
 
 static func _storage(B: Node3D, y: float) -> void:
@@ -326,7 +333,8 @@ static func _workshop(B: Node3D, y: float) -> void:
 	prop(B, "shelf_rack", Vector3(-9.2, y, -14.4), 90, {"seed": 11, "blue": true, "fill": 0.6})
 	prop(B, "crate_wood", Vector3(-3.0, y, -12.9), 0)
 	light(B, "l_work1", Vector3(-5.0, y + H - 0.05, -15.8), "tube", "work", Color(0.95, 0.95, 1.0), 1.9, 9.0)
-	spot(B, "bench", Vector3(-7.0, y, -18.75), "inspect", "Верстак", "Тиски, ножовка, набор ключей, паяльник. Здесь можно будет чинить снаряжение.", "", 180, Vector3(2.2, 2, 1.4))
+	spot(B, "bench", Vector3(-7.0, y, -18.75), "craft", "Верстак: сделать и починить", "", "", 180, Vector3(2.2, 2, 1.4))
+	spot(B, "junk_box", Vector3(-3.0, y, -12.9), "search", "Обыскать: ящик с хламом", "", "scrap", 180, Vector3(1.6, 2, 1.6))
 	spot(B, "tape", Vector3(-5.0, y, -14.2), "pickup", "Подобрать: изолента", "", "tape", 0, Vector3(1.6, 2, 1.2))
 	spot(B, "sw_work", Vector3(-4.2, y, -19.0), "switch", "мастерская", "", "work", 0, Vector3(0.8, 2, 0.8))
 
@@ -477,6 +485,7 @@ static func build_surface(root: Node3D) -> Node3D:
 	for r in [[-25, -2, 1.2], [12, 18, 0.9], [28, 4, 1.4], [-16, -28, 1.1], [30, 22, 1.0], [-28, 28, 1.3]]:
 		prop(S, "rock", Vector3(r[0], 0.0, r[1]), r[0] * 13.0, {"seed": r[0] + 50, "scale": r[2]})
 	_dress_surface(S, ter)
+	_scavenge_surface(S, ter)
 	# знаки радиационной опасности
 	for s in [[-1.0, 0.0, 30.4, 0], [24.0, 0.0, -3.6, 200], [-12.0, 0.0, 10.2, 160], [-37.6, 0.0, -10.0, 90], [37.6, 0.0, 6.0, -90], [7.2, 0.0, 1.2, 0]]:
 		prop(S, "warning_sign", Vector3(s[0], s[1], s[2]), s[3])
@@ -594,3 +603,31 @@ static func _dress_surface(S: Node3D, ter: BCTerrain) -> void:
 	items.append({"tile": BCDecor.DEBRIS, "pos": at.call(9.0, 4.0) + Vector3(0, 0.04, 0), "size": Vector2(2.0, 2.0), "rot": 10.0})
 	items.append({"tile": BCDecor.DEBRIS, "pos": Vector3(20.5, 0.17, -19.5), "size": Vector2(2.4, 2.4), "rot": 70.0})
 	BCDecor.decals(S, items, "GroundGrime")
+
+
+## завал в повреждённом помещении: виден и мешает, пока комната не отремонтирована (CraftSystem убирает группу)
+static func _debris(B: Node3D, room: String, spots: Array, y: float) -> void:
+	for d in spots:
+		for k in 2:
+			var pr := prop(B, "rubble" if k == 0 else "bricks", Vector3(d[0] + k * 0.4, y, d[1] - k * 0.3), d[0] * 40.0 + k * 70.0, {"seed": int(d[0] * 10) + k, "scale": d[2]})
+			pr.add_to_group("repair:" + room)
+			pr.set_meta("no_batch", true)
+
+
+## точки обыска на поверхности: у крупных обломков, машин, мусора, трансформатора; сухие деревья — на дрова
+static func _scavenge_surface(S: Node3D, ter: BCTerrain) -> void:
+	var at := func(x: float, z: float) -> Vector3: return Vector3(x, ter.height_at(x, z), z)
+	var pts := [["s_car1", "car", "Обыскать: сгоревшая легковушка", -3.5, 19.6], ["s_car2", "car", "Обыскать: сгоревшая легковушка", 26.6, 2.2],
+		["s_truck", "car", "Обыскать: кабина грузовика", -9.6, 4.2], ["s_scrap1", "scrap", "Разобрать: куча металлолома", 15.5, 10.9],
+		["s_scrap2", "scrap", "Разобрать: куча металлолома", -21.6, 14.0], ["s_trash1", "trash", "Порыться в мусоре", 4.0, 5.8],
+		["s_trash2", "trash", "Порыться в мусоре", 24.8, -8.0], ["s_trash3", "trash", "Порыться в мусоре", -13.4, -10.4],
+		["s_trafo", "electric", "Снять детали: трансформатор", -18.6, -7.0], ["s_shed", "house", "Обыскать: полки в постройке", 21.6, -21.0],
+		["s_ruin1", "scrap", "Обыскать: руины", -27.4, -23.6], ["s_ruin2", "scrap", "Обыскать: руины", 28.6, -34.4]]
+	for p in pts:
+		if p[0].begins_with("s_car") and not ResourceLoader.exists("res://assets/models/car_wreck.glb"):
+			continue
+		var sp := spot(S, p[0], at.call(p[3], p[4]), "search", p[2], "", p[1], 0, Vector3(2.0, 2.4, 2.0))
+	# сухие деревья — наломать веток (один раз)
+	var trees := [[-30, -20], [-24, 12], [-33, 18], [26, 12], [30, -34], [-8, -38], [16, -36], [33, -8], [-34, -38], [24, 24], [-18, 24], [6, 20]]
+	for i in trees.size():
+		spot(S, "s_tree%d" % i, at.call(trees[i][0] + 0.9, trees[i][1]), "search", "Наломать веток: сухое дерево", "", "tree", 0, Vector3(1.8, 2.4, 1.8))

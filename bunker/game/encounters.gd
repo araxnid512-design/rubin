@@ -3,7 +3,9 @@ extends Node
 ##   * мародёр у разрушенной постройки — с самого начала (один);
 ##   * задание «Мародёр у ворот» взято — у постройки лагерь: главарь с трубой и двое мародёров;
 ##   * патруль: каждые ~4 игровых часа, если наверху меньше двух живых мародёров, от северных ворот приходят 1–2;
-##   * ночью (21:00–5:00) бродят мутанты (если есть модель мутанта); на рассвете уходят.
+##   * ночью (21:00–5:00) бродят мутанты (если есть модель мутанта); на рассвете уходят;
+##   * посёлок Северный (метки spawn_point): торговец Семён, гнездо мутантов в амбаре (пока не выбиты по заданию),
+##     патруль мародёров на улицах.
 ## Враги видны и действуют только снаружи (группа surface_only).
 
 const RAIDER := ["res://assets/models/raider.glb", "res://assets/anim/raider"]
@@ -23,7 +25,45 @@ func _ready() -> void:
 
 func start() -> void:
 	spawn("raider", Vector3(24.0, 0.3, -12.0), "raider", "Мародёр")
+	_village()
 	_on_quest()
+
+
+const TRADER := ["res://assets/models/trader.glb", "res://assets/anim/trader"]
+
+## посёлок: торговец, гнездо в амбаре, патруль
+func _village() -> void:
+	var nest := []
+	for m in get_tree().get_nodes_in_group("spawn_point"):
+		if not (m is Node3D):
+			continue
+		match String(m.get_meta("kind", "")):
+			"trader":
+				var t := BCNpc.new()
+				var has_model := ResourceLoader.exists(TRADER[0]) and DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(TRADER[1]))
+				t.model_path = TRADER[0] if has_model else "res://assets/models/npc_eng.glb"
+				t.anim_set = TRADER[1] if has_model else "res://assets/anim/eng"
+				t.display_name = "Семён, торговец"
+				t.npc_id = "trader"
+				t.trader = true
+				t.lines = PackedStringArray(["Чего надо? Меняю что угодно на что угодно. Почти.", "Патроны? Последние отдал. Порох — бывает."])
+				t.add_to_group("surface_only")
+				get_parent().add_child(t)
+				t.global_position = ground((m as Node3D).global_position)
+				t.reset_physics_interpolation()
+			"mutant_nest":
+				nest.append(m)
+			"raider_patrol":
+				if randf() < 0.6:
+					spawn("raider", (m as Node3D).global_position, "", "Мародёр")
+	if not nest.is_empty():
+		Core.world.register("v_nest", nest[0])
+		var done: bool = Core.quest and Core.quest.quests.get("q_nest", {}).get("state", "") == "done"
+		if not done:
+			for i in mini(3, nest.size()):
+				var e := spawn("mutant", (nest[i] as Node3D).global_position, "", "Мутант")
+				if e:
+					e.set_meta("nest", true)
 
 
 func _on_quest() -> void:
@@ -88,7 +128,10 @@ func _process(_d: float) -> void:
 				Core.say("Снаружи голоса — к убежищу идут мародёры.", "warn")
 	# мутанты ночью
 	var night: bool = p.is_night()
-	var muts := _alive("mutant")
+	var muts := []
+	for m in _alive("mutant"):
+		if not m.has_meta("nest"):
+			muts.append(m)
 	if night and muts.size() < 2 and ResourceLoader.exists(MUTANT[0]):
 		var spots := [Vector3(-30.0, 0.2, -36.0), Vector3(30.0, 0.2, 18.0), Vector3(-28.0, 0.2, 22.0)]
 		spawn("mutant", spots[randi() % spots.size()], "", "Мутант")
