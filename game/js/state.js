@@ -426,6 +426,15 @@
     G.log('База разграблена (' + who + ').');
     return 'Потери: ' + (lost.join(', ') || 'нет') + '.' + bt;
   };
+  G.DIRN = { e: 'с востока', n: 'с севера', s: 'с юга', w: 'с запада' };
+  /* Подготовка к набегу: мины (4 мат.), колючка (2), мешки (2), посты */
+  G.prepCost = { mines: 4, wire: 2, bags: 2 };
+  G.prepMax = { mines: 6, wire: 8, bags: 6 };
+  G.prepAdd = function (k) {
+    const st = G.state; st.defPrep = st.defPrep || { mines: 0, wire: 0, bags: 0, posts: false };
+    if ((st.defPrep[k] || 0) >= G.prepMax[k] || st.res.materials < G.prepCost[k]) return false;
+    st.res.materials -= G.prepCost[k]; st.defPrep[k] = (st.defPrep[k] || 0) + 1; return true;
+  };
   G.raidWho = function (kind) { return { beast: 'мутанты', clan: 'клан', sobr: 'СОБР' }[kind] || 'бандиты'; };
   G.autoResolveRaid = function (raid) {
     const def = G.defenseScore();
@@ -502,6 +511,12 @@
         notes.push({ title: 'Нападение на бур', text: 'Охрана бура в «' + n.name + '» шлёт сигнал: идут мутанты! Придите за два дня и отбейте — иначе бур потерян.', kind: 'bad' });
       }
     });
+    // ополчение: поселенцы базы, растёт раз в 5 дней (больше построек — больше людей)
+    if (hasBase) {
+      const cap = Math.min(6, 2 + Math.floor(Object.keys(st.buildings).filter(function (k) { return st.buildings[k] > 0; }).length / 2));
+      if (st.militia === undefined) st.militia = 2;
+      if (st.day % 5 === 0 && st.militia < cap) { st.militia++; notes.push({ title: 'Поселенцы', text: 'К базе прибились ещё люди. Ополчение: ' + st.militia + ' — встанут на защиту при набеге.', kind: 'good' }); }
+    }
     // тир: дни на базе — тренировки
     if (atBase && G.blv('range') && res.ammo >= 10) {
       res.ammo -= 10;
@@ -562,6 +577,8 @@
       const raid = st.raid;
       st.raid = null;
       if (atBase) defense = raid;
+      // УАЗ на ходу и база недалеко — можно примчаться на подмогу (отряд будет с 3-го хода)
+      else if (G.uazOk() && (G.hopsFrom(st.squadAt)[st.baseNode] || 99) <= 3) defense = Object.assign({}, raid, { relief: true });
       else notes.push(G.autoResolveRaid(raid));
     } else if (!st.raid && hasBase && st.day - st.baseDay >= 3 && Math.random() < G.raidChance()) {
       const warn = G.blv('tower') ? 2 : 1;
@@ -572,12 +589,13 @@
       });
       // набег идёт от того, кто рядом: мутанты из логов или люди из лагерей (банда, клан, СОБР)
       const kind = (lairs + camps === 0) ? 'beast' : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
-      st.raid = { day: st.day + warn, kind: kind, strength: 3 + Math.floor(st.day / 5), start: st.day, from: G.raidSource(kind) };
+      st.raid = { day: st.day + warn, kind: kind, strength: 3 + Math.floor(st.day / 5), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: Math.random() < 0.35 };
       raidNew = true;
       notes.push({
         title: 'Тревога!',
-        text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю мутантов' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') +
-          '. Если отряд будет на базе — примете бой. Иначе база будет полагаться на укрепления (защита ' + G.defenseScore() + ').',
+        text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю мутантов' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') + (st.raid.night ? ', ночью' : '') +
+          (G.blv('radio') ? '. Радиовышка перехватила: удар будет ' + G.DIRN[st.raid.dir] : '') +
+          '. Если отряд будет на базе — примете бой (на базе можно подготовиться: мины, колючка, посты). На УАЗе отряд успеет издалека. Иначе база будет полагаться на укрепления (защита ' + G.defenseScore() + ').',
         kind: 'bad'
       });
       G.log('Замечен ' + (kind === 'beast' ? 'набег мутантов' : 'набег банды') + ' на базу.');
@@ -853,7 +871,7 @@
     }
     let kills = 0;
     // боевые товарищи: кто прошёл бой вместе, сближается (3 совместных боя — «товарищи», +5 к меткости рядом)
-    const mates = B.units.filter(function (u) { return u.kind === 'soldier' && (u.alive || u.stable || u.down > 0); }).map(function (u) { return u.sid; });
+    const mates = B.units.filter(function (u) { return u.kind === 'soldier' && !u.militia && (u.alive || u.stable || u.down > 0); }).map(function (u) { return u.sid; });
     const newBonds = [];
     mates.forEach(function (a) {
       const s = st.roster.find(function (x) { return x.id === a; });
@@ -923,7 +941,20 @@
 
     if (B.kind === 'defense') {
       if (out === 'victory') { sum.text = 'Нападение на базу отбито!'; G.log('Отряд отбил нападение на базу.'); st.stats.raids = (st.stats.raids || 0) + 1; }
-      else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(G.raidWho(B.raidKind));
+      else {
+        sum.text = 'Базу не удалось удержать. ' + G.raidLoss(G.raidWho(B.raidKind));
+        // люди уводят поселенцев — их держат в лагере, откуда пришёл набег; отбить отдельным боем
+        const src = B.raidFrom !== undefined && B.raidFrom !== null ? G.node(B.raidFrom) : null;
+        if (B.raidKind && B.raidKind !== 'beast' && src && src.id !== st.baseNode && (st.militia || 0) > 0) {
+          const k = Math.min(st.militia, U.rand(1, 2));
+          st.militia -= k; src.captives = (src.captives || 0) + k; src.cleared = false; src.known = true;
+          sum.text += ' Уведены поселенцы: ' + k + '. Их держат в «' + src.name + '» — можно отбить.';
+          G.log('Поселенцы уведены в «' + src.name + '».');
+        }
+      }
+      const mDead = B.units.filter(function (u) { return u.militia && !u.alive; }).length;
+      if (mDead) { st.militia = Math.max(0, (st.militia || 0) - mDead); sum.text += ' Погибло ополченцев: ' + mDead + '.'; }
+      if (B.relief) st.squadAt = st.baseNode;
     } else if (B.kind === 'caravan') {
       if (out === 'victory') { const lt = { food: 20, ammo: 60, gems: 12 + (B.diff || 1) * 3, meds: 2 }; for (const k in lt) add(k, lt[k]); sum.text = 'Караван разграблен. Охрана перебита — Институт об этом не узнает… наверное.'; st.trustHit = (st.trustHit || 0) + 1; G.log('Отряд ограбил караван.'); }
       else sum.text = 'Охрана каравана отбилась.';
@@ -939,6 +970,7 @@
         }
         node.visited = true;
         sum.text = '«' + node.name + '» зачищено.';
+        if (node.captives) { st.militia = (st.militia || 0) + node.captives; sum.text += ' Пленные поселенцы освобождены (' + node.captives + ') и вернулись на базу.'; node.captives = 0; }
         G.log('Зачищено: «' + node.name + '».');
       } else {
         sum.text = out === 'evac' ? 'Отряд отступил.' : 'Отряд разбит.';

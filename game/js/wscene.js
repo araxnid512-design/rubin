@@ -194,6 +194,11 @@
   async function startDefense(raid) {
     const G = DW.G, st = G.state;
     const base = G.node(st.baseNode);
+    if (raid.relief) {
+      // отряд далеко: примчаться на УАЗе (бой с 3-го хода, до того держат ополченцы) или довериться стенам
+      const i = await DW.UI.choice('Набег на базу!', 'По рации: ' + G.raidWho(raid.kind) + ' штурмуют «' + base.name + '». Отряд на УАЗе успеет к третьему ходу боя — до того базу держат ополченцы.', [{ text: 'Мчать на УАЗе' }, { text: 'Положиться на укрепления' }]);
+      if (i !== 0) { const n = G.autoResolveRaid(raid); await DW.UI.alert(n.title, n.text, n.kind); G.save(); WS.refresh(); return; }
+    }
     const txt = { beast: 'Стая мутантов идёт на штурм.', clan: 'Клан пришёл толпой — их много, и они идут в лоб.', sobr: 'Группа СОБР штурмует базу: щиты, светошумовые, слаженный огонь.' }[raid.kind] || 'Банда пришла за вашими припасами.';
     const ids = await DW.UI.briefing(base, 'defense', txt);
     DW.Main.startBattle({ nodeId: st.baseNode, type: base.type, diff: Math.min(5, 1 + Math.floor(st.day / 8)), kind: 'defense', raid: raid, squad: ids || st.roster.slice(0, 6).map(function (s) { return s.id; }) });

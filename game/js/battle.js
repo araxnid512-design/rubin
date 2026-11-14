@@ -226,7 +226,9 @@
     else pods = BT.composePods(Object.assign({}, o, { fac: nd && nd.fac }));
     if (nd) delete nd.plan;
     const mapType = o.kind === 'defense' ? 'defense' : ((nd && nd.map) || D.NODE_TYPES[o.type].map);
-    const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings });
+    const prep = o.kind === 'defense' ? (st.defPrep || {}) : null;
+    const m = DW.MapGen.generate(mapType, { diff: o.diff, kind: o.kind, pods: pods, buildings: st.buildings, raid: o.raid, prep: prep });
+    if (o.kind === 'defense') st.defPrep = null;   // подготовка израсходована
     B = {
       v: 1, nodeId: o.nodeId, type: o.type, kind: o.kind, diff: o.diff, raidKind: o.raid ? o.raid.kind : null,
       w: m.w, h: m.h, ground: m.ground, obj: m.obj, objHp: m.objHp, hgt: m.hgt, decor: m.decor, props: m.props || [], items: m.items, evac: m.evac, map: mapType,
@@ -239,15 +241,39 @@
     B.deploy = m.deploy || [];
     if (o.kind !== 'defense' && DW.G.uazOk && DW.G.uazOk()) placeOwnUaz();
     BT.rollConditions(B, mapType);
+    // ночной набег: темно, прожектор вышки светит в сторону удара
+    if (o.kind === 'defense' && o.raid && o.raid.night) { B.tod = 'night'; B.sightMod = -2 + (B.weather === 'dust' ? -3 : 0); }
     // ночью и в пещерах — фонари: бойцы видят дальше, но их замечают издалека
     B.dark = B.tod === 'night' || B.tod === 'cave'; B.lights = B.dark;
     // скрытное начало (как в XCOM 2): враги не знают об отряде, пока не заметят его вблизи
     B.concealed = o.kind !== 'defense' && o.kind !== 'ambush';
     const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
-    squad.forEach(function (s, i) {
-      const d = m.deploy[i];
+    // оборона: бойцы на постах у стены со стороны удара (если заняли заранее)
+    const spots = (o.kind === 'defense' && prep && prep.posts && m.posts && m.posts.length ? m.posts.concat(m.deploy) : m.deploy).slice();
+    if (o.kind === 'defense' && o.raid && o.raid.relief) B.relief = { turn: 3, ids: squad.map(function (s) { return s.id; }) };
+    else squad.forEach(function (s) {
+      const d = spots.shift();
       if (d) B.units.push(mkSoldier(s, d[0], d[1]));
     });
+    if (o.kind === 'defense') {
+      B.raidFrom = o.raid ? o.raid.from : null; B.dir = m.dir || 'e';
+      B.wallTiles = m.wallTiles && m.wallTiles.length ? m.wallTiles : null;
+      B.mines = {}; (m.mines || []).forEach(function (p) { B.mines[p[1] * m.w + p[0]] = 1; });
+      B.wire = {}; (m.wire || []).forEach(function (p) { B.wire[p[1] * m.w + p[0]] = 1; });
+      // ополчение: поселенцы с обрезами и ППШ, под вашим управлением (без отряда — хотя бы двое)
+      const nm = Math.min(4, Math.max(B.relief ? 2 : 0, st.militia === undefined ? 2 : st.militia));
+      const used = {};
+      for (let k = 0; k < nm; k++) {
+        const d = spots.shift(); if (!d) break;
+        const nmPool = D.NAMES.filter(function (x) { return !used[x] && !st.roster.some(function (r) { return r.name === x; }); });
+        const name = U.pick(nmPool.length ? nmPool : D.NAMES); used[name] = 1;
+        const ms = DW.G.newSoldier({ name: name, cls: 'rifleman', hp: 5, aim: U.rand(44, 52), mob: 5, weapon: U.pick(['obrez', 'ppsh', 'obrez']) });
+        const mu = mkSoldier(ms, d[0], d[1]); mu.militia = true; mu.name = name + ' (ополч.)';
+        B.units.push(mu);
+      }
+      // прожектор вышки ночью — сектор в сторону удара
+      if (B.tod === 'night' && st.buildings && st.buildings.tower) B.searchlight = { x: 15, y: 6, dir: B.dir };
+    }
     (m.turrets || []).forEach(function (t) { B.units.push(mkTurret(t[0], t[1])); });
     m.pods.forEach(function (p, pi) {
       p.members.forEach(function (mm) { B.units.push(mkEnemy(mm.type, mm.x, mm.y, pi)); });
@@ -270,6 +296,8 @@
       else if (qq.goal === 'cargo') BT.setupCargo();
       else if (qq.goal === 'hunt') BT.setupHunt();
       B.quest = qq.id;
+    } else if (o.kind === 'normal' && nd && nd.captives) {
+      BT.setupRescue();   // здесь держат уведённых с базы поселенцев
     } else if (o.kind === 'normal' && B.type !== 'nest' && B.type !== 'vein') {
       const en = B.units.filter(function (e) { return e.side === 'e'; });
       const raid = en.some(function (e) { return BT.isHumanFoe(e); });
@@ -466,6 +494,16 @@
         }
       }
     });
+    if (B.searchlight) {
+      // прожектор: клетки в секторе 70° на 13 клеток видны, если луч не перекрыт
+      const L = B.searchlight, a0 = { e: 0, s: Math.PI / 2, n: -Math.PI / 2, w: Math.PI }[L.dir] || 0;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const dx = x - L.x, dy = y - L.y, d = Math.hypot(dx, dy);
+        if (d > 13 || d < 1) continue;
+        let da = Math.abs(Math.atan2(dy, dx) - a0); if (da > Math.PI) da = Math.PI * 2 - da;
+        if (da < 0.61 && BT.rayClear(L.x, L.y, x, y)) vis[y * w + x] = 1;
+      }
+    }
     const newly = [];
     B.units.forEach(function (e) {
       if (e.side !== 'e' || !e.alive) return;
@@ -986,6 +1024,18 @@
       u.face = Math.atan2(ny - u.y, nx - u.x);
       if (show) await DW.TR.stepFx(u, nx, ny); else DW.TR.pathSkip(u, nx, ny);
       u.x = nx; u.y = ny;
+      // оборона: мина под ногой врага, колючка останавливает и ранит
+      if (u.side === 'e' && B.mines && B.mines[ny * B.w + nx]) {
+        delete B.mines[ny * B.w + nx];
+        DW.UI.toast('Мина сработала!', 'alert');
+        await BT.explode(nx, ny, 1.2, [3, 5], 2, null, true);
+        if (!u.alive || B.over) break;
+      }
+      if (u.side === 'e' && B.wire && B.wire[ny * B.w + nx] && k < path.length - 1) {
+        DW.TR.float(nx, ny, 'Колючка!', 'info');
+        await BT.damage(u, 1, null, false);
+        break;
+      }
       if (u.side === 'p') {
         BT.pickup(u);
         BT.updateVision().forEach(function (e) { if (!e.active && newly.indexOf(e) < 0) newly.push(e); });
@@ -1225,6 +1275,7 @@
   /* ---------- Ходы ---------- */
   BT.startPlayerTurn = function () {
     B.phase = 'player';
+    if (B.relief) BT.arriveRelief();
     if (!B.concealed) BT.cargoDrop();
     // паника: один ход боец прячется (1 ОД, залёг)
     B.units.forEach(function (u) {
@@ -1347,6 +1398,41 @@
       u.evac = true;
     });
     B.over = 'evac';
+  };
+
+  /* ---------- 5.1: оборона базы ---------- */
+  // отряд примчался на УАЗе: появляется у западного края
+  BT.arriveRelief = function () {
+    const st = DW.G.state, r = B.relief;
+    if (!r || B.turn < r.turn) return false;
+    B.relief = null;
+    const cy = B.h >> 1, spots = [];
+    for (let dx = 0; dx <= 2; dx++) for (let dy = 0; dy <= 6; dy++) [cy + dy, cy - dy].forEach(function (y) { if (BT.walkTile(dx, y) && !BT.unitAt(dx, y) && !spots.some(function (q) { return q[0] === dx && q[1] === y; })) spots.push([dx, y]); });
+    r.ids.forEach(function (id) { const s = st.roster.find(function (q) { return q.id === id; }); const d = spots.shift(); if (s && d) { const u = mkSoldier(s, d[0], d[1]); u.ap = 2; B.units.push(u); } });
+    BT.updateVision();
+    DW.UI.toast('Отряд примчался на УАЗе!', 'good');
+    return true;
+  };
+  // ремонт стены или ворот рядом (2 стройматериала, 1 ОД)
+  BT.repairSpot = function (u) {
+    if (!B.wallTiles) return null;
+    let best = null;
+    B.wallTiles.forEach(function (t) {
+      if (Math.abs(t[0] - u.x) + Math.abs(t[1] - u.y) !== 1) return;
+      const i = BT.idx(t[0], t[1]), o = B.obj[i];
+      if ((o && B.objHp[i] < D.OBJ[o].hp) || (!o && !BT.unitAt(t[0], t[1]))) best = t;
+    });
+    return best;
+  };
+  BT.doRepair = function (u) {
+    const t = BT.repairSpot(u), st = DW.G.state;
+    if (!t || st.res.materials < 2) return;
+    st.res.materials -= 2; u.ap -= 1;
+    const i = BT.idx(t[0], t[1]);
+    B.obj[i] = t[2]; B.objHp[i] = D.OBJ[t[2]].hp;
+    DW.TR.tileChanged(t[0], t[1]); DW.TR.anim(u, 'reload', 600);
+    DW.TR.float(t[0], t[1], 'Заделано', 'good'); DW.SFX.play('build');
+    BT.updateVision();
   };
 
   /* ---------- 5.1: тепловизор, отброс, совместные действия, пожар ---------- */

@@ -1438,6 +1438,7 @@
     hud.bot.appendChild(btn('base', 'Постройки', function () { DW.UI.base(function () { S.refresh(); }); }));
     hud.bot.appendChild(btn('squad', 'Отряд', function () { DW.UI.squad(function () { leaveAllSeats(); initPeople(DW.G.state); S.refresh(); }); }));
     hud.bot.appendChild(btn('portalbtn', 'Портал', function () { DW.UI.portal(function () { S.refresh(); }); }));
+    hud.bot.appendChild(btn('guard', 'Оборона', function () { DW.UI.defensePrep(function () { S.refresh(); }); }));
     ui.appendChild(hud.top); ui.appendChild(hud.panel); ui.appendChild(hud.bot);
   }
   function leaveAllSeats() { seatBy.fill(null); evening = false; }

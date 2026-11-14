@@ -677,14 +677,17 @@
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { setG(m, x, y, (x + y) % 7 === 0 ? 8 : 0); setO(m, x, y, 0); }
     const wl = b.walls || 0;
     const wallObj = wl >= 2 ? 14 : (wl === 1 ? 13 : 0);
+    const raid = o.raid || {}, dir = raid.dir || 'e', prep = o.prep || {};
+    m.wallTiles = [];
     const gates = {};
     [[x1, 9], [x1, 10], [10, y0], [11, y0], [10, y1], [11, y1], [x0, 9], [x0, 10]].forEach(function (g) { gates[g[0] + ',' + g[1]] = 1; });
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const edge = x === x0 || y === y0 || x === x1 || y === y1;
-        if (!edge || gates[x + ',' + y]) continue;
-        if (wallObj) setO(m, x, y, wallObj);
-        else if (Math.random() < 0.3) setO(m, x, y, U.pick([4, 6, 6]));
+        if (!edge) continue;
+        // ворота при набеге закрыты: та же стена, ломать придётся
+        if (wallObj) { if (!gates[x + ',' + y]) setO(m, x, y, wallObj); m.wallTiles.push([x, y, wallObj, gates[x + ',' + y] ? 1 : 0]); }
+        else if (!gates[x + ',' + y] && Math.random() < 0.3) setO(m, x, y, U.pick([4, 6, 6]));
       }
     }
     // штаб
@@ -714,8 +717,25 @@
       tur.push(t);
     }
     m.turrets = tur;
-    for (let y = 0; y < m.h; y++) { m.spawn.push([m.w - 1, y]); m.spawn.push([m.w - 2, y]); }
-    for (let x = 20; x < m.w - 2; x++) { m.spawn.push([x, 0]); m.spawn.push([x, m.h - 1]); }
+    // откуда удар: восток — правый край, север/юг — верхний/нижний край за стенами
+    if (dir === 'n') for (let x = 6; x < m.w; x++) { m.spawn.push([x, 0]); m.spawn.push([x, 1]); }
+    else if (dir === 's') for (let x = 6; x < m.w; x++) { m.spawn.push([x, m.h - 1]); m.spawn.push([x, m.h - 2]); }
+    else for (let y = 0; y < m.h; y++) { m.spawn.push([m.w - 1, y]); m.spawn.push([m.w - 2, y]); }
+    m.dir = dir;
+    // подготовка: мешки у стены со стороны удара, колючка и мины снаружи, посты у стены
+    const inner = [], wireT = [], mineT = [];
+    if (dir === 'e') { for (let y = y0 + 1; y < y1; y++) { inner.push([x1 - 1, y]); wireT.push([x1 + 2, y]); for (let x = x1 + 4; x <= x1 + 8; x++) mineT.push([x, y]); } }
+    else if (dir === 'n') { for (let x = x0 + 1; x < x1; x++) { inner.push([x, y0 + 1]); if (y0 - 2 >= 0) wireT.push([x, y0 - 2]); mineT.push([x, 0]); mineT.push([x, 1]); } }
+    else { for (let x = x0 + 1; x < x1; x++) { inner.push([x, y1 - 1]); if (y1 + 2 < m.h) wireT.push([x, y1 + 2]); mineT.push([x, m.h - 2]); mineT.push([x, m.h - 3]); } }
+    m.posts = inner.filter(function (p) { return free(m, p[0], p[1]); });
+    U.shuffle(inner);
+    let nb = prep.bags || 0;
+    for (let k = 0; k < inner.length && nb > 0; k++) { const p = inner[k]; if (free(m, p[0], p[1]) && (p[0] + p[1]) % 2) { setO(m, p[0], p[1], 6); nb--; } }
+    m.posts = m.posts.filter(function (p) { return free(m, p[0], p[1]); });
+    m.wire = []; U.shuffle(wireT);
+    for (let k = 0, n = (prep.wire || 0) * 2; k < wireT.length && n > 0; k++) { const p = wireT[k]; if (free(m, p[0], p[1])) { m.wire.push(p); m.props.push({ x: p[0] + 0.5, y: p[1] + 0.5, t: 'wire' }); n--; } }
+    m.mines = []; U.shuffle(mineT);
+    for (let k = 0, n = prep.mines || 0; k < mineT.length && n > 0; k++) { const p = mineT[k]; if (free(m, p[0], p[1])) { m.mines.push(p); n--; } }
     props(m, 'tuft', 10); props(m, 'bush', 4, 18); props(m, 'sign', 2, 18); props(m, 'can', 3); props(m, 'tire', 2); props(m, 'bricks', 3); props(m, 'lamp', 3); props(m, 'wire', 3);
     raise(m, 3, 4, 17, 15, 1);
     return m;
@@ -1359,7 +1379,13 @@
       if (m.kind === 'defense') {
         m.deploy = m.deploy.filter(function (d) { return reach[I(m, d[0], d[1])]; });
         m.spawn = m.spawn.filter(function (s) { return reach[I(m, s[0], s[1])] && free(m, s[0], s[1]); });
-        if (m.deploy.length >= 8 && m.spawn.length >= 6) { m._occupied = {}; return m; }
+        if (m.deploy.length >= 8 && m.spawn.length >= 6) {
+          // ворота закрываются уже после проверки проходов: снаружи к бойцам — только через пролом
+          (m.wallTiles || []).forEach(function (t) { if (t[3] && free(m, t[0], t[1])) setO(m, t[0], t[1], t[2]); });
+          m.wire = (m.wire || []).filter(function (p) { return reach[I(m, p[0], p[1])]; });
+          m.mines = (m.mines || []).filter(function (p) { return free(m, p[0], p[1]); });
+          m._occupied = {}; return m;
+        }
         continue;
       }
       m.deploy = m.deploy.filter(function (d) { return reach[I(m, d[0], d[1])]; });

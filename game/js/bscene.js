@@ -151,6 +151,7 @@
     if (mt.length) list.push({ id: 'butt', icon: 'butt', label: 'Приклад', on: u.ap >= 1 });
     const dn = BT().downedNear(u);
     if (dn.length) list.push({ id: 'stabilize', icon: 'medkit', label: 'Спасти', on: u.ap >= 1 && (st.res.meds > 0 || (u.cls === 'medic' && u.charges && u.charges.heal > 0)), note: st.res.meds > 0 || (u.cls === 'medic' && u.charges && u.charges.heal > 0) ? '' : 'нет аптечек' });
+    if (B.kind === 'defense' && BT().repairSpot && BT().repairSpot(u)) list.push({ id: 'repair', icon: 'materials', label: 'Чинить', on: u.ap >= 1 && st.res.materials >= 2, note: st.res.materials >= 2 ? '' : 'нет мат.' });
     list.push({ id: 'crouch', icon: u.crouch ? 'stand' : 'crouch', label: u.crouch ? 'Встать' : 'Присесть', on: true });
     list.push({ id: 'hunker', icon: 'hunker', label: 'Залечь', on: u.ap >= 1 });
     if (B.evac.length) list.push({ id: 'evac', icon: 'evac', label: 'Эвакуация', on: u.ap >= 1 && BT().isEvacTile(u.x, u.y) });
@@ -162,7 +163,9 @@
     const st = DW.G.state;
     hud.obj.innerHTML = '<b>Ход ' + B.turn + '</b> · ' + B.objective + '<div class="cond">' + BT().condText(B) + '</div>' +
       (B.concealed ? '<div class="cond conceal">Отряд скрыт · засада: +15 к меткости</div>' : '') +
-      (B.reinf ? '<div class="cond reinf">Подкрепление врага на подходе!</div>' : '');
+      (B.reinf ? '<div class="cond reinf">Подкрепление врага на подходе!</div>' : '') +
+      (B.kind === 'defense' ? '<div class="cond">Удар ' + (DW.G.DIRN[B.dir] || 'с востока') + (B.searchlight ? ' · прожектор вышки светит туда' : '') + (B.relief ? ' · отряд на УАЗе будет на ' + B.relief.turn + '-м ходу' : '') +
+        (B.mines && Object.keys(B.mines).length ? ' · мин: ' + Object.keys(B.mines).length : '') + '</div>' : '');
     if (B.dark) {
       // фонари: видно дальше, но и вас видно издалека
       const lb = document.createElement('button');
@@ -452,6 +455,7 @@
     switch (a.id) {
       case 'shoot': startTarget('shoot'); break;
       case 'volley': startTarget('volley'); break;
+      case 'repair': run(async function () { BT().doRepair(u); await U.sleep(400); }); break;
       case 'guard': startAlly('guard'); break;
       case 'overwatch': run(async function () { BT().doOverwatch(u); tut('ow'); }); break;
       case 'reload': run(async function () { BT().doReload(u); await U.sleep(900); }); break;

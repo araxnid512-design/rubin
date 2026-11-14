@@ -482,6 +482,37 @@
     UI.modal({ title: 'Журнал', cls: 'wide', body: b });
   };
 
+  /* ---------- Оборона базы: подготовка к набегу ---------- */
+  UI.defensePrep = function (onChange) {
+    const G = DW.G, st = G.state;
+    const body = el('div', { class: 'portal prep' });
+    function render() {
+      const r = st.raid, P = st.defPrep || { mines: 0, wire: 0, bags: 0, posts: false };
+      body.innerHTML = '';
+      const info = r ? 'Набег через <b>' + Math.max(0, r.day - st.day) + ' дн.</b>: ' + G.raidWho(r.kind) + (r.night ? ', <b>ночью</b>' : '') +
+        (G.blv('radio') ? '. Радиовышка: удар будет <b>' + G.DIRN[r.dir] + '</b>.' : '. Откуда ударят — неизвестно (нужна радиовышка).') +
+        (r.night && G.blv('tower') ? ' Прожектор вышки осветит сектор удара.' : '')
+        : 'Набега пока не ждут. Подготовиться можно заранее — всё, что поставите, пригодится в следующей обороне.';
+      body.appendChild(el('div', { class: 'ptext', html: info + '<br>Ополчение базы: <b>' + (st.militia === undefined ? 2 : st.militia) + '</b> (в бою под вашим управлением, до 4). Закрытые ворота врагу придётся ломать; стены можно чинить в бою (2 ' + D.icon('materials') + ').' }));
+      const grid = el('div', { class: 'pgrid' });
+      [['mines', 'Мины', 'на подступах со стороны удара: взрываются под врагом'], ['wire', 'Колючка', 'останавливает врага и ранит'], ['bags', 'Мешки с песком', 'укрытия у стены со стороны удара']].forEach(function (q) {
+        const it = el('div', { class: 'pitem' });
+        it.innerHTML = '<div class="pi-t">' + q[1] + ' <small>' + (P[q[0]] || 0) + '/' + G.prepMax[q[0]] + '</small><br><b>' + G.prepCost[q[0]] + '</b> ' + D.icon('materials') + ' <small class="dim">' + q[2] + '</small></div>';
+        const bt = el('button', { class: 'btn sm', text: '+', onclick: function () { if (G.prepAdd(q[0])) { DW.SFX.play('build'); G.save(); render(); if (onChange) onChange(); } } });
+        bt.disabled = (P[q[0]] || 0) >= G.prepMax[q[0]] || st.res.materials < G.prepCost[q[0]];
+        it.appendChild(bt); grid.appendChild(it);
+      });
+      const pt = el('div', { class: 'pitem' + (P.posts ? ' in' : '') });
+      pt.innerHTML = '<div class="pi-t">Посты <br><small class="dim">бойцы заранее у стены со стороны удара</small></div>';
+      pt.appendChild(el('button', { class: 'btn sm', text: P.posts ? 'Заняты' : 'Занять', onclick: function () { st.defPrep = st.defPrep || { mines: 0, wire: 0, bags: 0 }; st.defPrep.posts = !st.defPrep.posts; G.save(); render(); } }));
+      grid.appendChild(pt);
+      body.appendChild(grid);
+      body.appendChild(el('div', { class: 'small dim', html: 'Стройматериалы: ' + D.icon('materials') + st.res.materials }));
+    }
+    render();
+    UI.modal({ title: 'Оборона базы', cls: 'wide', body: body, onClose: onChange });
+  };
+
   /* ---------- Караван: торговля ---------- */
   UI.trade = function (car) {
     const G = DW.G, st = G.state;

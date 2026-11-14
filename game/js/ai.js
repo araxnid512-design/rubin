@@ -39,6 +39,14 @@
     const BT = DW.BT, B = BT.get();
     const T = D.ENEMIES[e.type];
     if (T.spawner) await AI.brood(e);
+    // оборона базы: до бойцов не дойти (ворота закрыты, стены целы) — ломать стену, если некого обстрелять
+    if (B.kind === 'defense' && B.wallTiles) {
+      const ps = BT.players();
+      if (ps.length) {
+        const F = BT.distField(ps.map(function (t) { return [t.x, t.y]; }));
+        if (F[BT.idx(e.x, e.y)] === Infinity && (T.melee || !ps.some(function (t) { return BT.canSee(e, t); }))) { await AI.breach(e); e.ap = 0; return; }
+      }
+    }
     let guard = 0;
     while (e.alive && e.ap > 0 && !B.over && guard++ < 4) {
       const ok = T.melee ? await AI.melee(e) : await AI.ranged(e);
@@ -47,6 +55,60 @@
     e.ap = 0;
   };
 
+  /* пролом: подойти к ближайшему к бойцам куску стены или ворот и бить его */
+  AI.breach = async function (e) {
+    const BT = DW.BT, B = BT.get();
+    const ts = BT.players();
+    if (!ts.length || !B.wallTiles) return false;
+    const R = BT.reach(e, e.mob * Math.max(1, e.ap));
+    let best = null;
+    B.wallTiles.forEach(function (wt) {
+      const i = BT.idx(wt[0], wt[1]);
+      if (!B.obj[i]) return;
+      let dT = 99; ts.forEach(function (t) { dT = Math.min(dT, U.dist(t.x, t.y, wt[0], wt[1])); });
+      BT.DIR4.forEach(function (d) {
+        const x = wt[0] + d[0], y = wt[1] + d[1];
+        if (!BT.inb(x, y)) return;
+        const k = BT.idx(x, y), here = x === e.x && y === e.y;
+        if (!here && (R.cost[k] === Infinity || !BT.canEnd(R, x, y))) return;
+        const c = here ? 0 : R.cost[k];
+        const sc = c * 0.5 + dT + B.objHp[i] * 0.2 + (wt[3] ? -2 : 0);
+        if (!best || sc < best.sc) best = { x: x, y: y, wx: wt[0], wy: wt[1], c: c, sc: sc };
+      });
+    });
+    if (!best) {
+      // к стене не подойти за ход — идти к ближайшей
+      const pts = [];
+      B.wallTiles.forEach(function (wt) { if (!B.obj[BT.idx(wt[0], wt[1])]) return; BT.DIR4.forEach(function (d) { const x = wt[0] + d[0], y = wt[1] + d[1]; if (BT.walkTile(x, y)) pts.push([x, y]); }); });
+      if (!pts.length) return false;
+      const F = BT.distField(pts);
+      let bt = null;
+      for (let i = 0; i < R.cost.length; i++) {
+        if (R.cost[i] === Infinity || F[i] === Infinity) continue;
+        const x = i % B.w, y = (i / B.w) | 0;
+        if (!BT.canEnd(R, x, y)) continue;
+        if (!bt || F[i] < bt.f) bt = { x: x, y: y, f: F[i] };
+      }
+      if (bt && (bt.x !== e.x || bt.y !== e.y)) await BT.move(e, BT.pathTo(R, bt.x, bt.y));
+      e.ap = 0;
+      return true;
+    }
+    if (best.x !== e.x || best.y !== e.y) {
+      await BT.move(e, BT.pathTo(R, best.x, best.y));
+      e.ap -= best.c <= e.mob + 0.01 ? 1 : 2;
+      if (!e.alive || B.over) return false;
+    }
+    if (e.ap >= 1) {
+      const T = D.ENEMIES[e.type], W = D.WEAPONS[e.weapon];
+      const dmg = T.melee ? U.rand(T.dmg[0], T.dmg[1]) : (W ? W.dmg[1] : 3);
+      e.face = Math.atan2(best.wy - e.y, best.wx - e.x);
+      if (e.seen || (BT.vis() && BT.vis()[BT.idx(best.wx, best.wy)])) { DW.TR.anim(e, T.melee ? 'atk' : 'shoot', 520); DW.TR.float(best.wx, best.wy, 'Ломают стену!', 'bad'); DW.SFX.play('melee'); await U.sleep(320); }
+      BT.damageObj(best.wx, best.wy, dmg + 1);
+      if (!B.obj[BT.idx(best.wx, best.wy)]) { DW.UI.toast('Пролом в стене!', 'alert'); BT.updateVision(); }
+      e.ap = 0;
+    }
+    return true;
+  };
   AI.brood = async function (e) {
     const BT = DW.BT, B = BT.get();
     if (B.turn % 2 !== 0 || BT.enemies().length >= 12) return;
