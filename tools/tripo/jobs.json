@@ -162,6 +162,78 @@
     "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
    ],
    "timeout": 7000
+  },
+  {
+   "id": "bsp_car_wreck",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_car_wreck",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Burnt-out wrecked Soviet sedan car from the 1980s, rusted body without paint, no wheels resting on the ground on its axles, shattered windows, crumpled hood, scorched interior. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_ruin_wall",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_ruin_wall",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Ruined corner of a red brick building, two broken brick walls meeting at a right angle, 3 meters high at the corner and crumbling down to knee height at the ends, empty window opening, exposed rusty rebar and fallen bricks at the base. Realistic post-apocalyptic game asset, PBR materials, single object, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_scrap_heap",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_scrap_heap",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Heap of scrap metal: rusty corrugated metal sheets, bent pipes, an old car door, a broken radiator and wire, piled about 1.2 meters high and 3 meters wide. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_trash_pile",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_trash_pile",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Pile of old black garbage bags, torn cardboard boxes, plastic bottles and an old rubber tire against each other, about 1 meter high and 2 meters wide, dirty and weathered. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
+   ],
+   "timeout": 3000
   }
  ],
  "archived": [
