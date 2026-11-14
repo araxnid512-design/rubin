@@ -74,6 +74,12 @@ func apply() -> void:
 		Core.env.sun.directional_shadow_max_distance = [25.0, 38.0, 50.0][q]
 	if Core.env and Core.env._dust:
 		Core.env._dust.amount = [60, 160, 260][q]
+	# свечение и лучи света — со среднего качества
+	if Core.env and Core.env.env:
+		Core.env.env.glow_enabled = q > 0
+	BCLight.shafts_on = q > 0
+	if get_tree():
+		get_tree().call_group("bc_light", "_apply")
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(settings.sound, 0.0001)))
 
 

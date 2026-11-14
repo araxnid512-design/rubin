@@ -1,9 +1,10 @@
 class_name BCHud
 extends CanvasLayer
-## Интерфейс BunkerCore для телефона (горизонтально): полосы здоровья и выносливости, дозиметр (мощность дозы,
-## накопленная доза, цвет опасности), костюм, мини-карта, пауза; справа — кнопки «Бег», «Присед», «Действие»,
-## «Атака», «Инвентарь»; подпись к «Действию» — что произойдёт; сообщения; окна паузы, настроек, инвентаря,
-## терминала и осмотра; панель разработчика (FPS, время кадра, память, вызовы отрисовки, объекты, разрешение).
+## Интерфейс BunkerCore для телефона (горизонтально): полосы здоровья, выносливости, сытости и воды, дозиметр
+## (мощность дозы, накопленная доза, цвет опасности), строка текущего задания (нажатие — журнал), день и время,
+## мини-карта, «Вещи», пауза; справа под большим пальцем — «Действие» (подписано тем, что произойдёт), «Удар»,
+## «Присед»; сообщения; окна паузы, настроек, вещей, журнала, разговора, терминала и осмотра; панель
+## разработчика (FPS, время кадра, память, вызовы отрисовки, объекты, разрешение).
 ## Всё рисуется кодом, без сцен — легко менять. Учитывается безопасная область экрана (вырезы, скругления).
 
 var root: Control
@@ -15,6 +16,9 @@ var zone_lbl: Label
 var msg_box: VBoxContainer
 var prompt_lbl: Label
 var dev_lbl: Label
+var clock_lbl: Label
+var quest_lbl: Label
+var _fade: ColorRect
 var minimap: Control
 var modal: Control = null
 var player: BCPlayer
@@ -85,11 +89,12 @@ func _build() -> void:
 	stats.add_theme_constant_override("separation", 6)
 	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(stats)
-	for k in [["hp", "Здоровье", Color(0.75, 0.2, 0.17)], ["st", "Выносливость", Color(0.78, 0.66, 0.25)]]:
+	for k in [["hp", "Здоровье", Color(0.75, 0.2, 0.17), 16], ["st", "Выносливость", Color(0.78, 0.66, 0.25), 16],
+			["food", "Сытость", Color(0.72, 0.47, 0.24), 10], ["water", "Вода", Color(0.3, 0.6, 0.9), 10]]:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var pb := ProgressBar.new()
-		pb.custom_minimum_size = Vector2(230, 16)
+		pb.custom_minimum_size = Vector2(230, k[3])
 		pb.show_percentage = false
 		pb.max_value = 100
 		var fg := _style(k[2], 6)
@@ -98,7 +103,7 @@ func _build() -> void:
 		pb.add_theme_stylebox_override("background", bg)
 		pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(pb)
-		row.add_child(_label(" " + k[1], 15))
+		row.add_child(_label(" " + k[1], 15 if k[3] > 12 else 13))
 		stats.add_child(row)
 		bars[k[0]] = pb
 	dosi_box = PanelContainer.new()
@@ -107,6 +112,17 @@ func _build() -> void:
 	dosi = _label("", 17)
 	dosi_box.add_child(dosi)
 	stats.add_child(dosi_box)
+	# строка задания: что делать сейчас; нажатие — журнал
+	var qb := PanelContainer.new()
+	qb.name = "Quest"
+	qb.add_theme_stylebox_override("panel", _style(Color(0.1, 0.085, 0.05, 0.72), 10, 1))
+	qb.custom_minimum_size = Vector2(330, 0)
+	quest_lbl = _label("", 16, Color(0.98, 0.85, 0.5))
+	quest_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quest_lbl.custom_minimum_size = Vector2(310, 0)
+	qb.add_child(quest_lbl)
+	stats.add_child(qb)
+	touch.buttons["journal"] = qb
 	dev_lbl = _label("", 14, Color(0.7, 1.0, 0.7))
 	dev_lbl.visible = false
 	stats.add_child(dev_lbl)
@@ -115,6 +131,14 @@ func _build() -> void:
 	zone_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	zone_lbl.modulate.a = 0.0
 	root.add_child(zone_lbl)
+	clock_lbl = _label("", 16, Color(0.85, 0.8, 0.68))
+	clock_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(clock_lbl)
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.visible = false
 	# --- сообщения ---
 	msg_box = VBoxContainer.new()
 	msg_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -128,7 +152,8 @@ func _build() -> void:
 	# --- кнопки справа: под большой палец, «Действие» — самая крупная, в углу ---
 	_btn("action", "", Vector2(176, 176), 26)
 	_btn("attack", "Удар", Vector2(124, 124), 22)
-	_btn("crouch", "Присед", Vector2(104, 104), 19)
+	_btn("crouch", "Присед", Vector2(96, 96), 18)
+	_btn("dodge", "Уклон", Vector2(100, 100), 19)
 	prompt_lbl = _label("", 17)
 	prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(prompt_lbl)
@@ -163,6 +188,8 @@ func _layout() -> void:
 	root.get_node("Stats").position = Vector2(L, T)
 	zone_lbl.position = Vector2(vs.x * 0.5 - 250, T)
 	zone_lbl.size = Vector2(500, 34)
+	clock_lbl.position = Vector2(vs.x * 0.5 - 150, T + 34)
+	clock_lbl.size = Vector2(300, 24)
 	msg_box.position = Vector2(vs.x * 0.5 - 300, B - 250)
 	msg_box.size = Vector2(600, 120)
 	var mm := 150.0
@@ -175,7 +202,8 @@ func _layout() -> void:
 	var act: Control = b.action
 	act.position = Vector2(R - 176, B - 176)
 	b.attack.position = act.position + Vector2(-150, 52)
-	b.crouch.position = act.position + Vector2(-36, -132)
+	b.dodge.position = act.position + Vector2(-172, -88)
+	b.crouch.position = act.position + Vector2(-30, -124)
 	prompt_lbl.position = Vector2(R - 620, act.position.y - 176)
 	prompt_lbl.size = Vector2(600, 30)
 	if modal:
@@ -204,8 +232,18 @@ func _process(_d: float) -> void:
 	_refresh_action()
 	var cb: Control = touch.buttons.crouch
 	cb.self_modulate = Color(1.3, 1.15, 0.7) if player.crouching else Color.WHITE
+	var ab: Control = touch.buttons.attack
+	(ab.get_child(0) as Label).text = "Блок" if player.blocking else ("Труба" if player.weapon == "pipe" else "Удар")
+	ab.self_modulate = Color(0.75, 0.9, 1.3) if player.blocking else Color.WHITE
 	bars.hp.value = player.hp / player.max_hp * 100.0
 	bars.st.value = player.stamina
+	bars.food.value = player.food
+	bars.water.value = player.water
+	var h := player.hour()
+	clock_lbl.text = "День %d · %02d:%02d%s" % [player.day(), int(h), int(fmod(h, 1.0) * 60.0), "  · ночь" if player.is_night() else ""]
+	var qt: String = Core.quest.tracker_text() if Core.quest else ""
+	quest_lbl.text = qt
+	(touch.buttons.journal as Control).visible = qt != "" and modal == null
 	var rate: float = player.rad_rate * (0.15 if player.suit_on else 1.0)
 	var lvl: int = Core.env.danger(rate) if Core.env else 0
 	var cols := [Color(0.55, 0.85, 0.5), Color(0.95, 0.85, 0.3), Color(1.0, 0.5, 0.2), Color(1.0, 0.2, 0.15)]
@@ -226,14 +264,19 @@ func _on_button(n: String, pressed: bool) -> void:
 			if pressed:
 				player.do_interact()
 		"attack":
+			player.attack_input(pressed)
+		"dodge":
 			if pressed:
-				player.attack()
+				player.dodge()
 		"crouch":
 			if pressed:
 				player.toggle_crouch()
 		"inv":
 			if pressed:
 				show_inventory()
+		"journal":
+			if pressed:
+				show_journal()
 		"pause":
 			if pressed:
 				show_pause()
@@ -243,13 +286,16 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and player:
 		match e.keycode:
 			KEY_F: player.do_interact()
-			KEY_SPACE: player.attack()
+			KEY_X: player.dodge()
 			KEY_C: player.toggle_crouch()
 			KEY_I: show_inventory()
+			KEY_J: show_journal()
 			KEY_ESCAPE: show_pause()
 			KEY_F3: Core.mobile.set_value("dev", not Core.mobile.settings.dev)
 	if e is InputEventKey and e.keycode == KEY_SHIFT and player:
 		player.sprint_held = e.pressed
+	if e is InputEventKey and e.keycode == KEY_SPACE and not e.echo and player:
+		player.attack_input(e.pressed)
 
 
 func _on_target(t) -> void:
@@ -283,9 +329,13 @@ func _on_message(text: String, kind: String) -> void:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	msg_box.add_child(l)
+	# не больше трёх сообщений: старые убрать сразу (queue_free не уменьшает число детей до конца кадра —
+	# цикл по нему зависал, когда за кадр приходило больше трёх сообщений)
 	while msg_box.get_child_count() > 3:
-		msg_box.get_child(0).queue_free()
-	var tw := create_tween()
+		var old := msg_box.get_child(0)
+		msg_box.remove_child(old)
+		old.queue_free()
+	var tw := l.create_tween()
 	tw.tween_interval(3.5)
 	tw.tween_property(l, "modulate:a", 0.0, 0.8)
 	tw.tween_callback(l.queue_free)
@@ -344,7 +394,7 @@ func _button(text: String, cb: Callable) -> Button:
 
 
 func show_pause() -> void:
-	var v := _open("Пауза", 520, 470)
+	var v := _open("Пауза", 520, 540)
 	v.add_child(_button("Продолжить", close_modal))
 	v.add_child(_button("Сохранить игру", func():
 		Core.say("Игра сохранена." if Core.save.save_game() else "Не удалось сохранить.", "good")
@@ -354,6 +404,7 @@ func show_pause() -> void:
 		if not Core.save.load_game():
 			Core.say("Сохранения нет.", "warn")))
 	v.add_child(_button("Настройки графики и управления", show_settings))
+	v.add_child(_button("Авторы и лицензии", show_credits))
 	v.add_child(_button("Выйти из игры", func():
 		Core.save.save_game()
 		get_tree().quit()))
@@ -413,30 +464,50 @@ const ITEMS := {
 	"dosimeter": ["Дозиметр", "Показывает мощность дозы и накопленную дозу. Щёлкает чаще, когда фон растёт."],
 	"flashlight": ["Фонарь", "Старый армейский фонарь."],
 	"suit": ["Защитный костюм", "Снижает облучение в 6–7 раз. Хранится в шкафу у шлюза."],
-	"filter": ["Фильтр противогаза", "Запасной фильтр."],
+	"filter": ["Фильтр ФВУ", "Запасной фильтр фильтровентиляционной установки бункера."],
 	"canned": ["Тушёнка", "Банка тушёнки из довоенных запасов."],
 	"tape": ["Изолента", "Пригодится в мастерской."],
 	"medkit": ["Аптечка", "Бинты, йод, обезболивающее."],
 	"keycard": ["Ключ-карта", "Карта доступа к пульту управления."],
+	"fuel_can": ["Канистра с топливом", "20 литров дизельного топлива. Залить в бак генератора."],
+	"iodine": ["Йодид калия", "Упаковка таблеток из армейского медицинского ящика. Для Ани."],
+	"rad_pills": ["Радиопротектор", "Снижает накопленную дозу на 80 мЗв."],
+	"pipe": ["Стальная труба", "Полметра стали. Удар сильнее, чем кулаком."],
+	"map_north": ["Карта района", "Пометки мародёра: посёлок на севере, «люди», «вода», «не ходить ночью»."],
 }
 
 
 func show_inventory() -> void:
-	var v := _open("Вещи", 640, 440)
+	var v := _open("Вещи", 640, 470)
+	v.add_child(_label("Сытость %d · вода %d · здоровье %d" % [player.food, player.water, player.hp], 16, Color(0.85, 0.8, 0.68)))
 	var g := GridContainer.new()
 	g.columns = 2
 	g.add_theme_constant_override("h_separation", 14)
 	g.add_theme_constant_override("v_separation", 10)
 	v.add_child(g)
+	var seen := []
 	for id in player.inventory:
+		if id in seen:
+			continue
+		seen.append(id)
 		var it: Array = ITEMS.get(id, [id, ""])
+		var cnt: int = player.count_item(id)
 		var box := PanelContainer.new()
 		box.add_theme_stylebox_override("panel", _style(Color(0.13, 0.12, 0.1, 0.9), 10, 1))
 		box.custom_minimum_size = Vector2(290, 72)
-		var l := _label("%s\n%s" % [it[0], it[1]], 15)
+		var hb := HBoxContainer.new()
+		box.add_child(hb)
+		var l := _label("%s%s\n%s" % [it[0], (" ×%d" % cnt) if cnt > 1 else "", it[1]], 15)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(270, 0)
-		box.add_child(l)
+		l.custom_minimum_size = Vector2(170 if player.can_consume(id) else 270, 0)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(l)
+		if player.can_consume(id):
+			var ub := _button("Исп.", func():
+				player.consume(id)
+				show_inventory())
+			ub.custom_minimum_size = Vector2(84, 56)
+			hb.add_child(ub)
 		g.add_child(box)
 	if player.suit_on:
 		v.add_child(_label("Надет защитный костюм.", 17, Color(0.95, 0.85, 0.3)))
@@ -468,7 +539,145 @@ func show_terminal(kind: String) -> void:
 		var o2 = Core.world.objects[id]
 		if o2 is BCLight and o2.on:
 			lights += 1
-	var t := "> СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ «УБЕЖИЩЕ-7»\n> Время: %02d:%02d\n> Генератор: РАБОТАЕТ · топливо 63%%\n> Вентиляция: фильтры ФВУ — норма\n> Гермодвери: %d из %d открыты\n> Освещение: %d светильников включено\n> Радиация снаружи: %.1f мЗв/ч\n> Радиация внутри: 0.20 мкЗв/ч — норма\n> Запас воды: 1 870 л · продовольствие: 41 сут.\n> Связь: нет сигнала" % [hours, mins, open, doors, lights, Core.env.surface_rate if Core.env else 0.0]
+	var r: Dictionary = Core.quest.res if Core.quest else {}
+	var fuel: float = r.get("fuel", 0.0)
+	var filt: float = r.get("filters", 0.0)
+	var gen := ("РАБОТАЕТ · топливо %d%% (~%d ч)" % [roundi(fuel), int(fuel / 0.5)]) if Core.quest.power else "ОСТАНОВЛЕН — НЕТ ТОПЛИВА"
+	var t := "> СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ «УБЕЖИЩЕ-7»\n> День %d · время %02d:%02d\n> Генератор: %s\n> Вентиляция: фильтры ФВУ — %d%%%s\n> Гермодвери: %d из %d открыты\n> Освещение: %d светильников включено\n> Радиация снаружи: %.1f мЗв/ч\n> Радиация внутри: 0.20 мкЗв/ч — норма\n> Вода: %d л · продовольствие: %.1f сут.\n> Связь: нет сигнала" % [p.day(), hours, mins, gen, roundi(filt), " — ЗАМЕНИТЬ" if filt < 40.0 else "", open, doors, lights, Core.env.surface_rate if Core.env else 0.0, roundi(r.get("water", 0.0)), r.get("food", 0.0)]
+	Core.play_ui("terminal_beep", -8.0)
 	var l := _label(t, 18, Color(0.45, 0.95, 0.55))
 	l.add_theme_font_override("font", SystemFont.new())
 	v.add_child(l)
+
+
+# ---------------- разговор, журнал, сон ----------------
+
+## окно разговора: текст и кнопки ответа [[подпись, действие], …]; без кнопок — «Понятно»
+func show_dialog(title: String, text: String, options: Array) -> void:
+	var v := _open(title, 700, 400)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(660, 230)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var l := _label(text, 19)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(640, 0)
+	sc.add_child(l)
+	v.add_child(sc)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	if options.is_empty():
+		options = [["Понятно", close_modal]]
+	for o in options:
+		var b := _button(o[0], o[1])
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(b)
+	v.add_child(hb)
+
+
+## журнал: текущие задания с шагом, предложенные, выполненные; ресурсы убежища
+func show_journal() -> void:
+	var v := _open("Журнал", 720, 470)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(680, 380)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	sc.add_child(box)
+	v.add_child(sc)
+	var q = Core.quest
+	var r: Dictionary = q.res
+	box.add_child(_label("Убежище: топливо %d%% · фильтры ФВУ %d%% · вода %d л · еда %.1f сут.%s" % [roundi(r.get("fuel", 0)), roundi(r.get("filters", 0)), roundi(r.get("water", 0)), r.get("food", 0.0), "" if q.power else " · НЕТ ПИТАНИЯ"], 16, Color(0.85, 0.8, 0.68)))
+	for st in [["active", "Текущие"], ["available", "Ждут разговора"], ["done", "Выполнены"]]:
+		var ids := []
+		for id in q.quests:
+			if q.quests[id].state == st[0]:
+				ids.append(id)
+		if ids.is_empty():
+			continue
+		box.add_child(_label(st[1], 20, Color(0.95, 0.82, 0.45)))
+		for id in ids:
+			var d: Dictionary = q.qdef(id)
+			var t: String = d.get("title", id)
+			if st[0] == "active":
+				t += "\n   ▸ " + q.step_of(id).get("text", "")
+				var rm: String = d.get("remind", "")
+				if rm != "":
+					t += "\n   " + rm
+			elif st[0] == "available":
+				t += " — поговорить: " + q._npc_name(d.get("giver", ""))
+			var l := _label(t, 17 if st[0] == "active" else 16, C_TEXT if st[0] != "done" else Color(0.6, 0.6, 0.55))
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size = Vector2(650, 0)
+			box.add_child(l)
+	box.add_child(_label("Еда — на складе, вода — бак в теплице. Спать можно ночью (с 20:00), на кровати в жилом отсеке.", 15, Color(0.7, 0.68, 0.6)))
+
+
+## на кровати ночью: поспать до утра или просто полежать
+func ask_sleep() -> void:
+	show_dialog("Ночь", "Уже %02d:%02d. Поспать до утра? Сытость и вода за ночь уменьшатся, здоровье и силы восстановятся, игра сохранится." % [int(player.hour()), int(fmod(player.hour(), 1.0) * 60.0)],
+		[["Спать до 6:00", func():
+			close_modal()
+			fade(func():
+				player.sleep_until_morning()
+				Core.save.save_game())], ["Полежать", close_modal]])
+
+
+## затемнение экрана: темно → действие → светло
+func fade(cb: Callable) -> void:
+	if _fade.get_parent() == null:
+		root.add_child(_fade)
+	_fade.visible = true
+	_fade.color.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, 0.8)
+	tw.tween_callback(cb)
+	tw.tween_interval(0.6)
+	tw.tween_property(_fade, "color:a", 0.0, 0.9)
+	tw.tween_callback(func(): _fade.visible = false)
+
+
+## красная вспышка по краям экрана при ранении
+func flash_damage() -> void:
+	if _dmg == null:
+		_dmg = ColorRect.new()
+		_dmg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_dmg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		var sh := Shader.new()
+		sh.code = "shader_type canvas_item;\nuniform float a = 0.0;\nvoid fragment(){ vec2 d = UV - 0.5; float v = smoothstep(0.42, 0.85, length(d * vec2(1.25, 1.0))); COLOR = vec4(0.6, 0.0, 0.0, v * a); }"
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		_dmg.material = m
+		root.add_child(_dmg)
+		root.move_child(_dmg, 0)
+	var mat: ShaderMaterial = _dmg.material
+	var tw := _dmg.create_tween()
+	tw.tween_method(func(v): mat.set_shader_parameter("a", v), 0.6, 0.0, 0.5)
+
+var _dmg: ColorRect
+
+
+## авторы: движок, ассеты; звуки под CC-BY требуют указания авторов
+func show_credits() -> void:
+	var v := _open("Авторы и лицензии", 760, 470)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(720, 380)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var l := _label(CREDITS, 15)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(700, 0)
+	sc.add_child(l)
+	v.add_child(sc)
+
+
+const CREDITS := """BUNKER SURVIVAL — движок Godot Engine 4.6 (MIT, godotengine.org), игровая платформа BunkerCore — код проекта.
+
+Модели персонажей и предметов — Tripo AI (аккаунт владельца проекта). Текстуры — Poly Haven, CC0.
+
+Звуки — открытые записи CC0 (Kenney, авторы OpenGameArt) и CC-BY:
+• swuing (freesound.org/people/swuing), обработка congusbongus — «Footsteps on different surfaces», opengameart.org, CC-BY 3.0 — шаги по бетону.
+• Ali_6868 (CC0), обработка congusbongus — «Footsteps on different surfaces», opengameart.org, CC-BY 3.0 — шаги по гравию.
+• Eelke (freesound.org/people/Eelke), обработка congusbongus — «Footsteps on different surfaces», opengameart.org, CC-BY 3.0 — шаги по металлу.
+• Jonathan Shaw (InspectorJ), цикл — AntumDeluge — «Wind Loop», opengameart.org, CC-BY 3.0 — ветер.
+• Tsorthan Grove — «Storm Arwen 2022», opengameart.org, CC-BY 4.0 — ночной ветер.
+
+Полный список источников — docs/AUDIO_SOURCES.md и docs/LICENSES.md."""

@@ -22,6 +22,8 @@ extends Node3D
 	set(v): ceiling = v; _queue()
 @export var stripe := true:            ## тёмная полоса понизу стен и жёлтая разметка у проёмов
 	set(v): stripe = v; _queue()
+@export var ao := true:                ## мягкая тень у основания стен (полоса на полу и низ стены)
+	set(v): ao = v; _queue()
 @export var room_name := "":
 	set(v): room_name = v
 
@@ -60,6 +62,8 @@ func _build() -> void:
 	var cutw := "cut:" + wall_mat
 	var I := Transform3D.IDENTITY
 	var cols := []
+	var aost := SurfaceTool.new()
+	aost.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# пол
 	mk.box(floor_mat, I, Vector3(w, 0.2, d), Vector3(0, -0.1, 0))
 	cols.append([Vector3(w + 2 * t, 0.2, d + 2 * t), Vector3(0, -0.1, 0)])
@@ -97,6 +101,13 @@ func _build() -> void:
 			var cen := c + (Vector3(mid, (y0 + y1) * 0.5, 0) if along_x else Vector3(0, (y0 + y1) * 0.5, mid))
 			mk.box(cutw, I, sz, cen)
 			cols.append([sz, cen])
+			if y0 == 0.0 and ao:
+				# мягкая тень у пола с обеих сторон стены (соседняя комната тоже получит свою)
+				for sd in [-1.0, 1.0]:
+					var face := Vector3(0, 0, sd * (t * 0.5 + 0.006)) if along_x else Vector3(sd * (t * 0.5 + 0.006), 0, 0)
+					var nrm := Vector3(0, 0, sd) if along_x else Vector3(sd, 0, 0)
+					var ax := Vector3(1, 0, 0) if along_x else Vector3(0, 0, 1)
+					_ao_strip(aost, cen * Vector3(1, 0, 1) + face, ax, nrm, b - a)
 			# тёмный цоколь изнутри
 			if stripe and y0 == 0.0:
 				var inward := -sgn
@@ -111,6 +122,15 @@ func _build() -> void:
 				var fsz := Vector3(o[1] + 0.2, 0.004, 0.18) if along_x else Vector3(0.18, 0.004, o[1] + 0.2)
 				mk.box("hazard", I, fsz, fp)
 	BCKit.mark(BCKit.add_mesh(self, mk, "Shell"))
+	if ao:
+		var aom := aost.commit()
+		if aom and aom.get_surface_count() > 0:
+			aom.surface_set_material(0, BCMat.get_mat("ao"))
+			var ami := MeshInstance3D.new()
+			ami.name = "AO"
+			ami.mesh = aom
+			ami.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(BCKit.mark(ami))
 	# потолок отдельно: скрывается, когда камера должна видеть внутрь
 	if ceiling:
 		var ck := BCMesh.new()
@@ -120,3 +140,22 @@ func _build() -> void:
 		ci.add_to_group("roof")
 		cols.append([Vector3(w + 2 * t, 0.3, d + 2 * t), Vector3(0, h + 0.15, 0)])
 	BCKit.mark(BCKit.static_boxes(self, cols))
+
+
+## полоса тени: на полу от стены внутрь 0.6 м и на стене от пола вверх 0.45 м; прозрачность — в цвете вершин
+func _ao_strip(st: SurfaceTool, base: Vector3, ax: Vector3, nrm: Vector3, length: float) -> void:
+	var half := ax * (length * 0.5)
+	var dark := Color(0, 0, 0, 0.6)
+	var clear := Color(0, 0, 0, 0.0)
+	var y := Vector3(0, 0.004, 0)
+	# пол: у стены тёмно, дальше прозрачно
+	_quad(st, base - half + y, base + half + y, base + half + y + nrm * 0.75, base - half + y + nrm * 0.75, dark, dark, clear, clear)
+	# стена: внизу тёмно, выше прозрачно
+	var up := Vector3(0, 0.45, 0)
+	_quad(st, base - half + y, base + half + y, base + half + up, base - half + up, dark, dark, clear, clear)
+
+
+func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, ca: Color, cb: Color, cc: Color, cd: Color) -> void:
+	for v in [[a, ca], [b, cb], [c, cc], [a, ca], [c, cc], [d, cd]]:
+		st.set_color(v[1])
+		st.add_vertex(v[0])

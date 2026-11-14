@@ -1,7 +1,7 @@
 extends Node
 ## SaveSystem BunkerCore: одно сохранение user://save.json — герой (место, здоровье, доза, костюм, инвентарь,
-## время) и состояние объектов мира (двери, свет, подобранные предметы). Автосохранение — при паузе,
-## сворачивании и каждые 60 секунд.
+## сытость, вода, время), задания, ресурсы убежища и состояние объектов мира (двери, свет, подобранные
+## предметы). Автосохранение — при паузе, сворачивании и каждые 60 секунд.
 
 const FILE := "user://save.json"
 const VERSION := 1
@@ -24,7 +24,7 @@ func save_game() -> bool:
 	if Core.player == null:
 		return false
 	var d := {"v": VERSION, "time": Time.get_datetime_string_from_system(), "player": Core.player.get_state(),
-		"world": Core.world.collect_state()}
+		"world": Core.world.collect_state(), "quest": Core.quest.get_state() if Core.quest else {}}
 	var f := FileAccess.open(FILE, FileAccess.WRITE)
 	if f == null:
 		push_error("SaveSystem: не удалось записать " + FILE)
@@ -43,6 +43,8 @@ func load_game() -> bool:
 		return false
 	Core.world.apply_state(d.get("world", {}))
 	Core.player.set_state(d.get("player", {}))
+	if Core.quest:
+		Core.quest.set_state(d.get("quest", {}))
 	return true
 
 

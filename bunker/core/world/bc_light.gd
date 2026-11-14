@@ -19,9 +19,12 @@ extends Node3D
 @export var on := true
 @export var flicker := false           ## старая лампа слегка мерцает
 @export var shadows := false
+var powered := true                     ## есть ли питание (генератор работает); выключатель — `on`
 
 var _light: OmniLight3D
 var _glow: MeshInstance3D
+var _shaft: MeshInstance3D
+static var shafts_on := true            ## лучи света (выключаются на низком качестве)
 var _dirty := false
 var _ph := 0.0
 
@@ -34,6 +37,7 @@ func _ready() -> void:
 	if light_id == "":
 		light_id = str(get_path())
 	Core.world.register(light_id, self)
+	add_to_group("bc_light")
 	if group != "":
 		add_to_group("bc_light:" + group)
 
@@ -94,18 +98,49 @@ func _build() -> void:
 	_light.light_specular = 0.35
 	_light.position = Vector3(0, -0.25, 0) if fixture != "bulkhead" else Vector3(0, 0, 0.3)
 	add_child(BCKit.mark(_light))
+	if fixture != "bulkhead" and not Engine.is_editor_hint():
+		# луч сквозь пыль: от лампы до пола
+		_shaft = MeshInstance3D.new()
+		_shaft.name = "Shaft"
+		var cm := CylinderMesh.new()
+		var hh := 2.75
+		cm.top_radius = 0.35 if fixture != "cage" else 0.15
+		cm.bottom_radius = minf(light_range * 0.22, 1.7)
+		cm.height = hh
+		cm.radial_segments = 14
+		cm.rings = 1
+		cm.cap_top = false
+		cm.cap_bottom = false
+		var sm := ShaderMaterial.new()
+		sm.shader = preload("res://core/shaders/light_shaft.gdshader")
+		sm.set_shader_parameter("col", color)
+		sm.set_shader_parameter("strength", 0.2 * clampf(energy / 1.5, 0.6, 1.4))
+		cm.material = sm
+		_shaft.mesh = cm
+		_shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_shaft.position = Vector3(0, -hh * 0.5 - 0.05, 0)
+		if fixture == "tube" or fixture == "grow":
+			_shaft.scale = Vector3(1.6, 1.0, 0.8)
+		add_child(BCKit.mark(_shaft))
 	_apply()
 
 
 func _apply() -> void:
 	if _light:
-		_light.visible = on
+		_light.visible = on and powered
 	if _glow and fixture == "bulkhead":
-		_glow.visible = on
+		_glow.visible = on and powered
+	if _shaft:
+		_shaft.visible = on and powered and shafts_on
+
+
+func set_powered(v: bool) -> void:
+	powered = v
+	_apply()
 
 
 func _process(_d: float) -> void:
-	if Engine.is_editor_hint() or not flicker or not on or _light == null:
+	if Engine.is_editor_hint() or not flicker or not on or not powered or _light == null:
 		return
 	_ph += _d
 	var f := 1.0

@@ -10,11 +10,12 @@ extends Node3D
 ##   medbay   — медоборудование: лечение и выведение радиации;
 ##   suit     — надеть или снять защитный костюм;
 ##   switch   — выключатель света группы `target`;
-##   pickup   — подобрать предмет (`target` — id предмета в инвентаре).
+##   pickup   — подобрать предмет (`target` — id предмета в инвентаре);
+##   use      — точка использования из заданий (`target` — id в quests.json: бак генератора, склад, вода …).
 ## `anchor` — где встаёт герой и куда смотрит (локально): x,z и угол в градусах.
 
 @export var point_id := ""
-@export_enum("inspect", "terminal", "bed", "chair", "medbay", "suit", "switch", "pickup") var action := "inspect"
+@export_enum("inspect", "terminal", "bed", "chair", "medbay", "suit", "switch", "pickup", "use") var action := "inspect"
 @export var label := "Осмотреть"
 @export_multiline var text := ""
 @export var target := ""
@@ -44,6 +45,10 @@ func interact_label() -> String:
 		for l in get_tree().get_nodes_in_group("bc_light:" + target):
 			any_on = any_on or l.on
 		return ("Выключить свет" if any_on else "Включить свет") + (": " + label if label != "" else "")
+	if action == "use":
+		return Core.quest.use_label(target)
+	if action == "medbay" and Core.quest and not Core.quest.power:
+		return label + " — нет питания"
 	if action == "suit" and Core.player:
 		return "Снять защитный костюм" if Core.player.suit_on else "Надеть защитный костюм"
 	return label
@@ -63,6 +68,7 @@ func interact_anim(p) -> String:
 		"suit": return "suit_off" if p.suit_on else "suit_on"
 		"switch": return "terminal"
 		"pickup": return "pickup"
+		"use": return Core.quest.use_anim(target)
 	return "inspect"
 
 
@@ -82,9 +88,14 @@ func interact(p) -> void:
 		"chair":
 			p.sit()
 		"medbay":
-			p.treat()
+			if Core.quest and not Core.quest.power:
+				Core.say("Медоборудование без питания: генератор остановлен.", "bad")
+			else:
+				p.treat()
+				Core.play_at("medbay", global_position + Vector3.UP, -6.0)
 		"suit":
 			p.toggle_suit()
+			Core.play_at("suit_zip", global_position + Vector3.UP, -6.0)
 		"switch":
 			var lights := get_tree().get_nodes_in_group("bc_light:" + target)
 			var any_on := false
@@ -92,8 +103,12 @@ func interact(p) -> void:
 				any_on = any_on or l.on
 			for l in lights:
 				l.set_on(not any_on)
+			Core.play_at("switch_click", global_position + Vector3.UP * 1.3, -6.0)
+		"use":
+			Core.quest.use(target, p)
 		"pickup":
 			used = true
+			Core.play_at("pickup", global_position + Vector3.UP * 0.6, -6.0)
 			p.inventory_add(target)
 			Core.say("Подобрано: " + label.replace("Подобрать: ", ""), "good")
 			_hide_pickup()

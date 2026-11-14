@@ -2,11 +2,121 @@
  "stop": false,
  "jobs": [
   {
-   "id": "bs_hero",
+   "id": "bsm_stop3",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stop3",
+    "2",
+    "a man walking forward at a normal pace, then slowing down over two short steps and standing still, finishing upright with straight legs, both feet flat on the ground side by side, arms relaxed at his sides"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_start2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "start2",
+    "2",
+    "a man standing upright and still, then starting to walk forward and smoothly speeding up into a light jog, upright back, looking straight ahead"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_crouch_walk2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "crouch_walk2",
+    "3",
+    "a man walking forward slowly in a low crouch, knees bent, back straight and upright, head up looking forward, both arms bent in front of the body, short careful steps, feet close to the ground"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_walk_back2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "walk_back2",
+    "3",
+    "a man walking backward slowly and steadily in a straight line, upright posture, looking forward, arms swinging slightly, each foot placed toe first then heel"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_strafe_left2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "strafe_left2",
+    "3",
+    "a man side-stepping to his left continuously with small steps, feet never crossing, upright body facing forward, knees slightly bent, arms relaxed"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_strafe_right2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "strafe_right2",
+    "3",
+    "a man side-stepping to his right continuously with small steps, feet never crossing, upright body facing forward, knees slightly bent, arms relaxed"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_get_up2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "get_up2",
+    "3",
+    "a man lying on his back on the floor, rolling onto his side, pushing up with his hands onto his knees and then standing up upright with feet flat on the ground"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_melee_light",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "melee_light",
+    "1",
+    "a man holding a short steel pipe in his right hand, stepping forward and making a quick one-handed horizontal swing from right to left at chest height, then returning to a guard stance"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_melee_heavy",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "melee_heavy",
+    "2",
+    "a man gripping a steel pipe with both hands, raising it over his head and striking straight down hard in front of him, then returning to a guard stance with the pipe held in front"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_dodge_back",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "dodge_back",
+    "1",
+    "a man in a fighting stance quickly hopping backward to dodge an attack, keeping his hands up in guard, landing balanced on both feet"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bs_mutant",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bs_hero",
+    "bs_mutant",
     "--faces",
     "16000",
     "--rig",
@@ -17,11 +127,9 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Post-apocalyptic survivor man about 35 years old, short dark hair and short beard, tired face, worn olive-green field jacket with patches, grey hoodie under it, dark cargo trousers, worn leather tactical boots, small backpack, fingerless gloves, dosimeter clipped to the chest. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "Irradiated humanoid mutant, gaunt adult man body with grey-green blotchy skin, open sores and pale scars, hairless swollen head, cloudy white eyes, torn remains of a work overall and rags, bare feet, long sinewy arms with dirty long fingernails. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.85 m tall, photorealistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
     "--anims",
     "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
-    "--anims",
-    "preset:biped:climb,preset:biped:run_upstairs,preset:biped:jump_down,preset:biped:sit,preset:biped:look_around,preset:biped:lift_heavy,preset:biped:dig",
     "--anims",
     "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
     "--anims",
@@ -30,11 +138,11 @@
    "timeout": 7000
   },
   {
-   "id": "bs_hero_suit",
+   "id": "bs_leader",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bs_hero_suit",
+    "bs_leader",
     "--faces",
     "16000",
     "--rig",
@@ -45,79 +153,7 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "The same survivor man wearing a bulky yellow radiation hazmat protective suit with a hood and a full-face rubber gas mask with round filter, black rubber gloves and black rubber boots, dirty and worn fabric. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
-    "--anims",
-    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
-    "--anims",
-    "preset:biped:climb,preset:biped:run_upstairs,preset:biped:jump_down,preset:biped:sit,preset:biped:look_around,preset:biped:lift_heavy,preset:biped:dig",
-    "--anims",
-    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
-    "--anims",
-    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
-   ],
-   "timeout": 7000
-  },
-  {
-   "id": "bs_npc_eng",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bs_npc_eng",
-    "--faces",
-    "16000",
-    "--rig",
-    "biped",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Older male bunker engineer about 60 years old, grey hair and grey moustache, glasses, faded blue work overalls with tool belt, rolled sleeves, old work boots. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
-    "--anims",
-    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait"
-   ],
-   "timeout": 7000
-  },
-  {
-   "id": "bs_npc_med",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bs_npc_med",
-    "--faces",
-    "16000",
-    "--rig",
-    "biped",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Woman field medic about 30 years old, dark hair in a ponytail, light blue medical scrubs under a padded olive vest with red cross patch, practical boots. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
-    "--anims",
-    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait"
-   ],
-   "timeout": 7000
-  },
-  {
-   "id": "bs_raider",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bs_raider",
-    "--faces",
-    "16000",
-    "--rig",
-    "biped",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Hostile wasteland raider man in a scratched black gas mask, patched leather jacket with improvised metal shoulder plates, dirty camouflage trousers, combat boots, rags. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "Wasteland raider gang leader, big broad-shouldered man in a dented welding mask pushed up over a scarred bald head, heavy scrap-metal chest plate over a dark hooded coat, leather bracers, belt with pouches, cargo trousers, heavy boots, red rag tied on the left arm. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.9 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
     "--anims",
     "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
     "--anims",
@@ -128,341 +164,11 @@
    "timeout": 7000
   },
   {
-   "id": "bsm_walk_back",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "walk_back",
-    "3",
-    "a man walking backward slowly in a straight line, looking forward, relaxed arms"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_strafe_left",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "strafe_left",
-    "3",
-    "a man side-stepping to his left continuously while facing forward, relaxed arms"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_strafe_right",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "strafe_right",
-    "3",
-    "a man side-stepping to his right continuously while facing forward, relaxed arms"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_start",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "start",
-    "2",
-    "a man standing still, then starting to jog forward"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_stop",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stop",
-    "2",
-    "a man jogging forward, then stopping and standing still"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_crouch_idle",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "crouch_idle",
-    "4",
-    "a man crouching low on bent knees, looking around carefully, staying in place"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_crouch_walk",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "crouch_walk",
-    "3",
-    "a man walking forward in a low crouched position"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_sneak",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "sneak",
-    "3",
-    "a man sneaking forward slowly with careful quiet steps, body leaning forward"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_stairs_down",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stairs_down",
-    "3",
-    "a man walking down a staircase step by step, looking down at the steps"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_door_open",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "door_open",
-    "2",
-    "a man reaching forward with his right hand, grabbing a door handle and pulling a heavy door open"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_door_close",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "door_close",
-    "2",
-    "a man pushing a door closed with his right hand while standing in place"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_terminal",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "terminal",
-    "4",
-    "a man standing at a control panel, typing on a keyboard and pressing buttons with both hands"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_pickup",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "pickup",
-    "3",
-    "a man bending down to pick up a small object from the floor with his right hand, then standing up"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_suit_on",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "suit_on",
-    "5",
-    "a man putting on a protective overall suit: stepping into the legs, pulling it up and putting his arms into the sleeves"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_suit_off",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "suit_off",
-    "5",
-    "a man taking off a protective overall suit: pulling his arms out of the sleeves and stepping out of the legs"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_sit_down",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "sit_down",
-    "2",
-    "a man sitting down onto a chair from standing and staying seated"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_stand_up",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stand_up",
-    "2",
-    "a man standing up from sitting on a chair"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_bed_lie",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "bed_lie",
-    "4",
-    "a man lying down onto a bed from standing and resting on his back"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_bed_up",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "bed_up",
-    "4",
-    "a man getting up from lying on his back on a bed to standing"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_combat_idle",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "combat_idle",
-    "3",
-    "a man in a fighting stance with raised fists, boxing guard, shifting weight slightly"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_block",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "block",
-    "2",
-    "a man blocking a punch by raising both forearms to protect his head"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_dodge_left",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "dodge_left",
-    "1",
-    "a man quickly dodging to his left, leaning his body away"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_dodge_right",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "dodge_right",
-    "1",
-    "a man quickly dodging to his right, leaning his body away"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_pistol_draw",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "pistol_draw",
-    "2",
-    "a man drawing a pistol from a hip holster with his right hand and aiming forward with both hands"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_pistol_aim",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "pistol_aim",
-    "3",
-    "a man aiming a pistol forward with both hands, standing still"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_pistol_fire",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "pistol_fire",
-    "1",
-    "a man firing a pistol held with both hands, small recoil"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_pistol_reload",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "pistol_reload",
-    "3",
-    "a man reloading a pistol: ejecting the magazine and inserting a new one"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_rifle_aim",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "rifle_aim",
-    "3",
-    "a man aiming a rifle held at his shoulder with both hands, standing still"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_stagger",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stagger",
-    "2",
-    "a man losing his balance, stumbling backward and then regaining balance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_get_up",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "get_up",
-    "3",
-    "a man getting up from lying on his back on the ground to standing"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsp_generator",
+   "id": "bsp_car_wreck",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bsp_generator",
+    "bsp_car_wreck",
     "--faces",
     "8000",
     "--tex",
@@ -471,16 +177,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Industrial yellow diesel generator set: engine block with cylinder heads, radiator, exhaust pipe, small control panel with gauges, mounted on a steel skid frame, oil stains. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+    "Burnt-out wrecked Soviet sedan car from the 1980s, rusted body without paint, no wheels resting on the ground on its axles, shattered windows, crumpled hood, scorched interior. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no ground plane, no background."
    ],
    "timeout": 3000
   },
   {
-   "id": "bsp_elec_cabinet",
+   "id": "bsp_ruin_wall",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bsp_elec_cabinet",
+    "bsp_ruin_wall",
     "--faces",
     "8000",
     "--tex",
@@ -489,16 +195,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Old grey Soviet-style electrical switchboard cabinet with analog gauges, rotary switches, indicator lamps, warning stickers, chipped paint. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+    "Ruined corner of a red brick building, two broken brick walls meeting at a right angle, 3 meters high at the corner and crumbling down to knee height at the ends, empty window opening, exposed rusty rebar and fallen bricks at the base. Realistic post-apocalyptic game asset, PBR materials, single object, no ground plane, no background."
    ],
    "timeout": 3000
   },
   {
-   "id": "bsp_console",
+   "id": "bsp_scrap_heap",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bsp_console",
+    "bsp_scrap_heap",
     "--faces",
     "8000",
     "--tex",
@@ -507,16 +213,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Bunker control console desk with three old CRT monitors, many toggle switches, buttons and analog gauges, worn green-grey painted metal. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+    "Heap of scrap metal: rusty corrugated metal sheets, bent pipes, an old car door, a broken radiator and wire, piled about 1.2 meters high and 3 meters wide. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
    ],
    "timeout": 3000
   },
   {
-   "id": "bsp_scanner",
+   "id": "bsp_trash_pile",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bsp_scanner",
+    "bsp_trash_pile",
     "--faces",
     "8000",
     "--tex",
@@ -525,393 +231,75 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Old Soviet hospital radiation dosimetry booth: white painted metal frame with detector panels on both sides and a small display, worn. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+    "Pile of old black garbage bags, torn cardboard boxes, plastic bottles and an old rubber tire against each other, about 1 meter high and 2 meters wide, dirty and weathered. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
    ],
    "timeout": 3000
-  },
-  {
-   "id": "bsp_fan_unit",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_fan_unit",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Industrial bunker air filtration and ventilation unit: large round fan housing, rectangular filter boxes, ducts, grey painted metal. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_workbench",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_workbench",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Cluttered steel workbench with a bench vise, hand tools, a toolbox, drawers and a worn wooden top. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_truck",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_truck",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Abandoned rusty Soviet military cargo truck with a torn canvas cover over the cargo bed, flat tires, broken windows, faded green paint. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_transformer",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_transformer",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Old rusty electrical distribution transformer with ceramic insulators and cooling fins standing on a small concrete pad. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_water_tower",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_water_tower",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Rusty steel water tower: cylindrical tank on four lattice legs with a ladder. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_vent_mushroom",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_vent_mushroom",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Concrete bunker ventilation shaft sticking out of the ground with a mushroom-shaped steel cap and a protective grille. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_barrels_rad",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_barrels_rad",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Group of three rusty leaking metal barrels, two standing and one lying, with yellow radiation warning signs. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsm_stop2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stop2",
-    "2",
-    "a man walking forward briskly, then slowing down with two short steps and stopping, standing upright with relaxed arms, feet stay on the ground"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_hit_right",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "hit_right",
-    "1",
-    "a man standing, getting hit hard on his right side, recoiling and leaning to his left, then recovering balance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_turn_right",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "turn_right",
-    "2",
-    "a man standing still, then turning ninety degrees to his right in place with small steps"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bse_hero_a",
-   "args": [
-    "process",
-    "animate",
-    "2418e279-0925-4a99-b6f7-89ae89882319",
-    "--animations",
-    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree,preset:biped:clap",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_hero_a.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_hero_b",
-   "args": [
-    "process",
-    "animate",
-    "2418e279-0925-4a99-b6f7-89ae89882319",
-    "--animations",
-    "preset:biped:afraid,preset:biped:scared_01,preset:biped:angry_01,preset:biped:frustrated_01",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_hero_b.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_hero_c",
-   "args": [
-    "process",
-    "animate",
-    "2418e279-0925-4a99-b6f7-89ae89882319",
-    "--animations",
-    "preset:biped:laugh_01,preset:biped:cry,preset:biped:depressed,preset:biped:scratch,preset:biped:cheer",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_hero_c.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_suit_a",
-   "args": [
-    "process",
-    "animate",
-    "65901c56-0485-4966-9a0a-debb76be40bd",
-    "--animations",
-    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree,preset:biped:clap",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_suit_a.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_suit_b",
-   "args": [
-    "process",
-    "animate",
-    "65901c56-0485-4966-9a0a-debb76be40bd",
-    "--animations",
-    "preset:biped:afraid,preset:biped:scared_01,preset:biped:angry_01,preset:biped:frustrated_01",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_suit_b.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_suit_c",
-   "args": [
-    "process",
-    "animate",
-    "65901c56-0485-4966-9a0a-debb76be40bd",
-    "--animations",
-    "preset:biped:laugh_01,preset:biped:cry,preset:biped:depressed,preset:biped:scratch,preset:biped:cheer",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_suit_c.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_eng_a",
-   "args": [
-    "process",
-    "animate",
-    "0e26bfa0-0075-4279-a862-943a12e241a9",
-    "--animations",
-    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_eng_a.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_eng_b",
-   "args": [
-    "process",
-    "animate",
-    "0e26bfa0-0075-4279-a862-943a12e241a9",
-    "--animations",
-    "preset:biped:scratch,preset:biped:laugh_01,preset:biped:afraid,preset:biped:look_around",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_eng_b.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_med_a",
-   "args": [
-    "process",
-    "animate",
-    "db5b21c7-dace-4669-8696-265f29c1525b",
-    "--animations",
-    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_med_a.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bse_med_b",
-   "args": [
-    "process",
-    "animate",
-    "db5b21c7-dace-4669-8696-265f29c1525b",
-    "--animations",
-    "preset:biped:scratch,preset:biped:laugh_01,preset:biped:afraid,preset:biped:look_around",
-    "--rig-type",
-    "biped",
-    "--timeout",
-    "25m",
-    "-o",
-    "out/bse_med_b.glb"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "bsm_cough",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "cough",
-    "3",
-    "a man standing in place, coughing hard into his fist two times, bending forward a little, then straightening up; feet stay planted on the ground"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_stretch",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stretch",
-    "3",
-    "a man standing in place, stretching his arms up and rolling his shoulders and neck to warm up, then returning to a relaxed standing pose; feet stay planted"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_nod",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd,eng:0e26bfa0-0075-4279-a862-943a12e241a9,med:db5b21c7-dace-4669-8696-265f29c1525b",
-    "nod",
-    "2",
-    "a person standing in place listening, nodding the head in agreement two times, arms relaxed at the sides, feet stay planted"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_talk",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd,eng:0e26bfa0-0075-4279-a862-943a12e241a9,med:db5b21c7-dace-4669-8696-265f29c1525b",
-    "talk",
-    "3",
-    "a person standing in place talking calmly, explaining something with small gestures of the right hand, feet stay planted on the ground"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_check_dosimeter",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "check_dosimeter",
-    "3",
-    "a man standing in place, raising his left forearm to look at a small device on his wrist, then lowering the arm; feet stay planted"
-   ],
-   "timeout": 2400
   }
+ ],
+ "archived": [
+  "bs_hero",
+  "bs_hero_suit",
+  "bs_npc_eng",
+  "bs_npc_med",
+  "bs_raider",
+  "bsm_walk_back",
+  "bsm_strafe_left",
+  "bsm_strafe_right",
+  "bsm_start",
+  "bsm_stop",
+  "bsm_crouch_idle",
+  "bsm_crouch_walk",
+  "bsm_sneak",
+  "bsm_stairs_down",
+  "bsm_door_open",
+  "bsm_door_close",
+  "bsm_terminal",
+  "bsm_pickup",
+  "bsm_suit_on",
+  "bsm_suit_off",
+  "bsm_sit_down",
+  "bsm_stand_up",
+  "bsm_bed_lie",
+  "bsm_bed_up",
+  "bsm_combat_idle",
+  "bsm_block",
+  "bsm_dodge_left",
+  "bsm_dodge_right",
+  "bsm_pistol_draw",
+  "bsm_pistol_aim",
+  "bsm_pistol_fire",
+  "bsm_pistol_reload",
+  "bsm_rifle_aim",
+  "bsm_stagger",
+  "bsm_get_up",
+  "bsp_generator",
+  "bsp_elec_cabinet",
+  "bsp_console",
+  "bsp_scanner",
+  "bsp_fan_unit",
+  "bsp_workbench",
+  "bsp_truck",
+  "bsp_transformer",
+  "bsp_water_tower",
+  "bsp_vent_mushroom",
+  "bsp_barrels_rad",
+  "bsm_stop2",
+  "bsm_hit_right",
+  "bsm_turn_right",
+  "bse_hero_a",
+  "bse_hero_b",
+  "bse_hero_c",
+  "bse_suit_a",
+  "bse_suit_b",
+  "bse_suit_c",
+  "bse_eng_a",
+  "bse_eng_b",
+  "bse_med_a",
+  "bse_med_b",
+  "bsm_cough",
+  "bsm_stretch",
+  "bsm_nod",
+  "bsm_talk",
+  "bsm_check_dosimeter"
  ]
 }

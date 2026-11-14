@@ -12,7 +12,11 @@ for f in glob.glob(os.path.join(root, 'assets', '**', '*.import'), recursive=Tru
     t = re.sub(r'compress/mode=\d', 'compress/mode=2', s)
     # нормали и карты AO/шероховатости окружения — 512: с камеры сверху разница не видна, а весят они больше
     # половины пакета; цветные карты и текстуры персонажей — 1024
-    lim = 512 if ('/assets/textures/' in f.replace(os.sep, '/') and re.search(r'_(n|a)\.(jpg|png)\.import$', f)) else 1024
+    fp = f.replace(os.sep, '/')
+    lim = 512 if ('/assets/textures/' in fp and re.search(r'_(n|a)\.(jpg|png)\.import$', f)) else 1024
+    # модели Tripo: нормали и карты шероховатости/металла — 512 (с камеры сверху модели мелкие), цвет — 1024
+    if '/assets/models/' in fp and re.search(r'_glb_(normal|rm)\.(jpg|png)\.import$', f):
+        lim = 512
     if 'process/size_limit=' in t:
         t = re.sub(r'process/size_limit=\d+', 'process/size_limit=%d' % lim, t)
     else:
