@@ -653,6 +653,30 @@
       }
     });
   }
+  /* кочующие стаи и банды: фигурки у локации, где они сейчас (видно, если локация известна) */
+  const ROAMC = { beast: '170,210,70', raider: '255,140,60', clan: '230,190,80', sobr: '120,160,230' };
+  function drawRoamers(g, st, t) {
+    (st.roamers || []).forEach(function (r, ri) {
+      const n = st.world.nodes[r.at], p = st.world.nodes[r.prev];
+      if (!n || !n.known) return;
+      // идут от прошлой локации: в первые секунды — ещё на дороге
+      const x = n.x + 30, y = n.y - 16;
+      const dir = p && p.x > n.x ? -1 : 1;
+      const pk = (t % 1400) / 1400, C = ROAMC[r.kind] || ROAMC.raider;
+      g.strokeStyle = 'rgba(' + C + ',' + (0.8 * (1 - pk)) + ')'; g.lineWidth = 2;
+      g.beginPath(); g.ellipse(x, y + 4, 12 + pk * 12, 5 + pk * 5, 0, 0, 7); g.stroke();
+      g.fillStyle = 'rgba(' + C + ',0.22)'; g.beginPath(); g.ellipse(x, y + 4, 14, 6, 0, 0, 7); g.fill();
+      for (let i = 0; i < 2; i++) {
+        const wx = x - dir * i * 9 + Math.sin(t / 700 + i + ri) * 2, wy = y + i * 3;
+        g.save(); g.translate(wx, wy); g.scale(0.32, 0.32);
+        if (r.kind === 'beast') ART.creature(g, i ? 'spitter' : 'scav', { dir: dir, walk: t / 110 + i, seed: ri * 3 + i }, t);
+        else ART.human(g, { look: lookN(18 + i + ri), body: r.kind === 'sobr' ? '#1e2226' : BANDIT.body, pants: r.kind === 'sobr' ? '#15181a' : BANDIT.pants, mask: r.kind === 'clan' ? null : BANDIT.mask, robe: false, weapon: 'ak', helmet: r.kind === 'sobr', dir: dir, aim: 0.15, walk: t / 110 + i, seed: 50 + i + ri }, t);
+        g.restore();
+      }
+      g.fillStyle = 'rgba(' + C + ',0.95)'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center';
+      g.fillText(r.kind === 'beast' ? 'Стая' : ({ clan: 'Клан', sobr: 'СОБР' }[r.kind] || 'Банда'), x, y - 22);
+    });
+  }
   function edgeOf(a, b) {
     return DW.G.state.world.edges.find(function (e) { return (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a); });
   }
@@ -824,6 +848,7 @@
     nodes.filter(function (n) { return n.known; }).sort(function (a, b) { return a.y - b.y; }).forEach(function (n) { drawNode(g, n, t, st); });
     patrols(g, st, t);
     drawRaid(g, st, t);
+    drawRoamers(g, st, t);
 
     if (st.raid && st.baseNode !== null) {
       const b = nodes[st.baseNode];

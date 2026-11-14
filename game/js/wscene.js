@@ -106,6 +106,8 @@
     if (n.drillThreat) extra.push('<span class="bad">На бур идут мутанты! Осталось ' + Math.max(0, n.drillThreat - st.day) + ' дн.</span>');
     if (n.scouted && !n.cleared) extra.push('<span class="acc">Разведано: враги известны</span>');
     if (st.caravan && st.caravan.at === n.id) extra.push('<span class="acc">Здесь караван торговцев</span>');
+    G.roamersAt(n.id).forEach(function (r) { extra.push('<span class="bad">Здесь ' + G.roamWho(r) + '</span> (бродит по округе)'); });
+    if (G.raidOnPath(n.id)) extra.push('<span class="bad">Через эту локацию идёт набег на базу</span> — можно встретить его здесь.');
     if (n.type === 'camp' && !n.cleared && G.FACS[n.fac || 'raider']) {
       const f = n.fac || 'raider', fs = G.facStatus(f);
       extra.push(G.FACS[f] + ': <b class="' + (fs === 'вражда' ? 'bad' : (fs === 'перемирие' ? 'good' : 'acc')) + '">' + fs + '</b> (' + G.rep(f) + ')' + (G.truce(f) ? ' · ещё ' + (st.truce[f] - st.day) + ' дн. · можно пройти через лагерь' : ''));
@@ -128,6 +130,8 @@
     if (here) {
       p.appendChild(el('div', { class: 'pn-here', text: 'Отряд здесь' }));
       if (canTalk) add('Переговоры', function () { talks(n); }, G.truceNode(n) ? 'primary' : '');
+      G.roamersAt(n.id).forEach(function (r) { add('Атаковать: ' + G.roamWho(r), function () { roamFight({ id: r.id, kind: r.kind, str: r.str, at: n.id }); }, 'primary'); });
+      if (G.raidOnPath(n.id)) add('Ждать набег здесь (1 день)', function () { waitDay('Отряд встал на пути набега.'); }, 'primary');
       if (!n.cleared) add('Атаковать', function () { WS.attack(n, 'normal'); }, G.truceNode(n) ? '' : 'primary');
       else {
         if (n.id === st.baseNode) add('Отдых (1 день)', function () { waitDay('Отряд отдыхает на базе.'); }, 'primary');
@@ -185,6 +189,8 @@
     // караван пришёл туда, где стоит отряд
     if (st.caravan && st.caravan.at === st.squadAt && !st.caravan.met) { await caravanMeet(); if (DW.Main.scene() !== DW.WS) return 'battle'; }
     WS.refresh();
+    // стая или набег вышли на отряд
+    if (r.roam) { G.save(); if (await roamFight(r.roam)) return 'battle'; }
     if (G.state.over) { G.save(); DW.Main.ending(G.state.over); return 'over'; }
     if (G.state.milestone) await DW.Main.milestone();
     if (r.defense) { G.save(); await startDefense(r.defense); return 'battle'; }
@@ -249,6 +255,14 @@
       if (wk === 'storm' && Math.random() < 0.3) { const s = U.pick(st.roster); s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 2); await DW.UI.alert('Пыльная буря', '«' + s.name + '» в буре сорвался с осыпи и поранился (−2 ОЗ).', 'bad'); }
       if (wk === 'acid') { st.roster.forEach(function (s) { s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 1); }); DW.UI.toast('Кислотный дождь: −1 ОЗ всем в пути', 'alert'); }
       if (st.caravan && st.caravan.at === nid && !st.caravan.met) { busy = false; WS.refresh(); await caravanMeet(); if (DW.Main.scene() !== DW.WS) return; busy = true; }
+      // на дороге — кочующая стая или банда: можно напасть первыми
+      const rm = G.roamersAt(nid).find(function (x) { return !(x.kind !== 'beast' && G.truce(x.kind)); });
+      if (rm) {
+        busy = false; WS.refresh();
+        const i = await DW.UI.choice('На дороге', 'В «' + node.name + '» — ' + G.roamWho(rm) + '. Они вас пока не заметили.', [{ text: 'Напасть первыми' }, { text: 'Обойти стороной' }]);
+        if (i === 0 && await roamFight({ id: rm.id, kind: rm.kind, str: rm.str, at: nid })) return;
+        busy = true;
+      }
       if (!node.cleared && !G.truceNode(node)) {
         busy = false; WS.refresh();
         await WS.attack(node, 'normal');
@@ -347,6 +361,24 @@
     }
   }
   WS.caravanMeet = caravanMeet;
+  /* бой на дороге: кочующая стая/банда (R.id) или набег на марше (R.raid) */
+  async function roamFight(R) {
+    const G = DW.G, st = G.state, node = G.node(st.squadAt);
+    st.roamFight = { id: R.id || null, kind: R.kind, str: R.str, raid: !!R.raid, ambush: !!R.ambush, diff: U.clamp(1 + Math.floor((R.str || 3) / 3), 1, 5) };
+    if (R.ambush) await DW.UI.alert('Стая вышла на отряд!', 'В «' + node.name + '» на отряд наткнулась ' + G.roamWho(R) + '. Отходить поздно.', 'bad');
+    else if (R.raid) await DW.UI.alert('Набег на марше', G.raidWho(R.kind) + ' идут к базе и выходят прямо на отряд в «' + node.name + '». Разбейте их здесь — и набега не будет.', 'bad');
+    const ids = await DW.UI.briefing(node, 'roam');
+    if (!ids) {
+      st.roamFight = null;
+      // уйти от стаи, что сама вышла на отряд, — с потерей части груза
+      if (R.ambush) { const lost = Math.min(st.res.food, U.rand(3, 8)); st.res.food -= lost; DW.UI.toast('Отряд ушёл, бросив часть провизии (−' + lost + ')', 'alert'); }
+      G.save(); WS.refresh();
+      return false;
+    }
+    DW.Main.startBattle({ nodeId: node.id, type: node.type, diff: st.roamFight.diff, kind: 'roam', squad: ids });
+    return true;
+  }
+  WS.roamFight = roamFight;
   /* переговоры с группировкой: перемирие, подарки, торговля и наёмники (при перемирии) */
   async function talks(n) {
     const G = DW.G, st = G.state, f = n.fac || 'raider';

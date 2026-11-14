@@ -597,7 +597,8 @@
       const sorted = st.roster.slice().sort(function (a, b) { return G.hp(b) / G.maxHp(b) - G.hp(a) / G.maxHp(a); });
       sorted.filter(function (s) { return !hurt(s); }).slice(0, G.squadMax()).forEach(function (s) { chosen[s.id] = 1; });
       const T = D.nodeInfo(node);
-      const intel = kind === 'caravan' ? 'охрана каравана — бандиты с автоматами' : {
+      const RF = kind === 'roam' ? st.roamFight : null;
+      const intel = kind === 'caravan' ? 'охрана каравана — бандиты с автоматами' : RF ? (RF.raid ? 'набег на марше: ' : 'на дороге: ') + G.roamWho(RF) : {
         landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: node.fac === 'clan' ? 'клан — много бойцов и Старший' : (node.fac === 'sobr' ? 'группа СОБР: щиты, бронежилеты, светошумовые' : 'бандиты' + (node.diff >= 3 ? ' и главарь' : '')),
         lair: 'стая мутантов и вожак', site: 'мутанты или бандиты', vault: 'механические стражи', nest: 'Матка и её выводок'
       }[node.type];
@@ -623,7 +624,7 @@
             '<br>Разведка: <b>' + intel + '</b>.' + (kind === 'ambush' ? ' <b class="bad">Засада!</b>' : '') +
             (function () {
             // по окошку на каждого врага (план боя), невиданный вид — «?»
-            const dif = kind === 'ambush' ? Math.max(1, node.diff - 1) : node.diff;
+            const dif = kind === 'ambush' ? Math.max(1, node.diff - 1) : (RF ? RF.diff : node.diff);
             const plan = DW.BT.planFor ? DW.BT.planFor(node, kind, dif) : null;
             let list = plan ? [].concat.apply([], plan.pods.map(function (p) { return p.types; })) : shown;
             const ord = {}; list.forEach(function (t, i) { if (ord[t] === undefined) ord[t] = i; });

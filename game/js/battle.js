@@ -106,6 +106,13 @@
   /* план врагов для разведки перед боем: составляется один раз на локацию и ту же сложность */
   BT.planFor = function (node, kind, diff) {
     if (kind === 'defense') return null;
+    // бой на дороге: состав — по кочующей стае/банде или набегу
+    if (kind === 'roam') {
+      const R = DW.G.state.roamFight;
+      if (!R) return null;
+      if (!node.plan || node.plan.kind !== 'roam' || node.plan.rid !== R.id || node.plan.diff !== diff) node.plan = { kind: 'roam', diff: diff, rid: R.id, pods: BT.composePods({ type: R.kind === 'beast' ? 'lair' : 'camp', fac: R.kind === 'beast' ? null : R.kind, diff: diff, kind: 'normal' }) };
+      return node.plan;
+    }
     // охрана каравана — люди (банда), где бы его ни встретили
     const cv = kind === 'caravan';
     if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: cv ? 'camp' : node.type, diff: diff, kind: cv ? 'normal' : kind, boss: !cv && node.quest === 'q_talk', fac: cv ? 'raider' : node.fac }) };
@@ -226,6 +233,7 @@
     if (o.kind === 'defense') pods = [];
     else if (nd && nd.plan && nd.plan.kind === o.kind && nd.plan.diff === o.diff) pods = nd.plan.pods;
     else if (o.kind === 'caravan') pods = BT.composePods(Object.assign({}, o, { type: 'camp', kind: 'normal', fac: 'raider' }));
+    else if (o.kind === 'roam') { const R = st.roamFight || { kind: 'beast' }; pods = BT.composePods({ type: R.kind === 'beast' ? 'lair' : 'camp', fac: R.kind === 'beast' ? null : R.kind, diff: o.diff, kind: 'normal' }); }
     else pods = BT.composePods(Object.assign({}, o, { fac: nd && nd.fac }));
     if (nd) delete nd.plan;
     const mapType = o.kind === 'defense' ? 'defense' : ((nd && nd.map) || D.NODE_TYPES[o.type].map);
@@ -251,7 +259,7 @@
     // темноты нет: ни ночи, ни тёмных пещер (фонари не нужны)
     B.dark = false; B.lights = false;
     // скрытное начало (как в XCOM 2): враги не знают об отряде, пока не заметят его вблизи
-    B.concealed = o.kind !== 'defense' && o.kind !== 'ambush';
+    B.concealed = o.kind !== 'defense' && o.kind !== 'ambush' && !(o.kind === 'roam' && st.roamFight && st.roamFight.ambush);
     const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
     // оборона: бойцы на постах у стены со стороны удара (если заняли заранее)
     const spots = (o.kind === 'defense' && prep && prep.posts && m.posts && m.posts.length ? m.posts.concat(m.deploy) : m.deploy).slice();

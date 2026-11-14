@@ -677,6 +677,9 @@
 
     // набеги
     let defense = null, raidNew = false;
+    // кочующие стаи и банды; набег, вышедший на отряд в пути
+    const roam = G.roamDay(notes);
+    if (roam) return { notes: notes, event: null, defense: null, drops: arrived.map(function (o) { return o.drop; }), raidNew: false, roam: roam };
     if (st.raid && st.raid.day <= st.day) {
       const raid = st.raid;
       st.raid = null;
@@ -685,7 +688,7 @@
       else if (G.uazOk() && (G.hopsFrom(st.squadAt)[st.baseNode] || 99) <= 3) defense = Object.assign({}, raid, { relief: true });
       else notes.push(G.autoResolveRaid(raid));
     } else if (!st.raid && hasBase && st.day - st.baseDay >= 3 && Math.random() < G.raidChance()) {
-      const warn = G.blv('tower') ? 2 : 1;
+      let warn = G.blv('tower') ? 2 : 1;
       let lairs = 0, camps = 0; const facs = [];
       st.world.nodes.forEach(function (n) {
         if (n.type === 'lair' && !n.cleared) lairs++;
@@ -697,7 +700,9 @@
       if (st.calmUntil > st.day) lairs = 0;
       const kind = (lairs + camps === 0) ? (st.calmUntil > st.day ? null : 'beast') : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
       if (kind) {
-      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5) + (kind !== 'beast' && G.rep(kind) <= -3 ? 2 : 0)), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: false };
+      const from = G.raidSource(kind), hops = Math.max(0, G.roadPath(from, st.baseNode).length - 1);
+      warn = U.clamp(hops - 1, 1, 3) + (G.blv('tower') ? 1 : 0);   // марш по дорогам: день на переход, его видно на карте
+      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5) + (kind !== 'beast' && G.rep(kind) <= -3 ? 2 : 0)), start: st.day, from: from, dir: U.pick(['e', 'e', 'n', 's']), night: false };
       raidNew = true;
       notes.push({
         title: 'Тревога!',
@@ -714,6 +719,72 @@
     let event = null;
     if (!defense && st.day > 2 && Math.random() < 0.14) event = G.rollEvent();
     return { notes: notes, event: event, defense: defense, drops: arrived.map(function (o) { return o.drop; }), raidNew: raidNew };
+  };
+  /* ---------- Кочующие стаи и банды на карте мира ----------
+     набег идёт к базе по дорогам (виден на карте) — если отряд стоит у него на пути, бой в поле: победа срывает набег.
+     ещё по карте бродят стаи и банды: занимают зачищенное, идут на буры, выходят на отряд */
+  G.raidNodeIdx = function () {
+    const st = G.state, r = st.raid;
+    if (!r || st.baseNode === null || r.from === undefined || r.from === null) return null;
+    const path = G.roadPath(r.from, st.baseNode), tot = Math.max(1, r.day - r.start);
+    const k = Math.min(path.length - 1, Math.floor(U.clamp((st.day - r.start) / tot, 0, 1) * (path.length - 1)));
+    return { path: path, k: k };
+  };
+  // набег пройдёт через эту локацию (ещё впереди, не база)
+  G.raidOnPath = function (id) {
+    const ri = G.raidNodeIdx();
+    if (!ri || id === G.state.baseNode) return false;
+    const i = ri.path.indexOf(id);
+    return i >= ri.k && i < ri.path.length - 1;
+  };
+  G.roamersAt = function (id) { return (G.state.roamers || []).filter(function (r) { return r.at === id; }); };
+  G.roamWho = function (r) { return r.kind === 'beast' ? 'стая мутантов' : ({ clan: 'отряд клана', sobr: 'группа СОБР' }[r.kind] || 'банда'); };
+  G.roamDay = function (notes) {
+    const st = G.state;
+    st.roamers = st.roamers || [];
+    const thr = G.threat();
+    // набег на марше: отряд на его дороге — встреча в поле (не в день прихода к базе)
+    if (st.raid) {
+      const ri = G.raidNodeIdx(), last = st.raid.lastK === undefined ? 0 : st.raid.lastK;
+      if (ri) {
+        st.raid.lastK = ri.k;
+        const i = ri.path.indexOf(st.squadAt);
+        // набег прошёл через локацию отряда за этот день
+        if (st.squadAt !== st.baseNode && i > last && i <= ri.k && i < ri.path.length - 1) return { raid: true, kind: st.raid.kind, str: st.raid.strength, at: st.squadAt };
+      }
+    }
+    // бродячие: ход на соседнюю локацию
+    let hit = null;
+    st.roamers.slice().forEach(function (r) {
+      r.days--;
+      const nb = G.neighbors(r.at).filter(function (id) { const n = G.node(id); return id !== st.baseNode && n.type !== 'nest' && n.type !== 'landing' && !(n.type === 'camp' && !n.cleared); });
+      if (r.days <= 0 || !nb.length) { st.roamers.splice(st.roamers.indexOf(r), 1); return; }
+      r.prev = r.at; r.at = U.pick(nb);
+      const n = G.node(r.at);
+      if (r.at === st.squadAt) { if (!hit && !(r.kind !== 'beast' && G.truce(r.kind))) hit = r; return; }
+      if (r.kind === 'beast' && n.outpost && !n.drillThreat) {
+        n.drillThreat = st.day + 2; st.roamers.splice(st.roamers.indexOf(r), 1);
+        if (n.known) notes.push({ title: 'Угроза буру', text: 'Кочующая стая вышла к буру «' + n.name + '». Через 2 дня его разнесут, если не отбить.', kind: 'bad' });
+        return;
+      }
+      if (n.cleared && !n.beacon && !n.outpost && (n.type === 'ruins' || n.type === 'vein' || n.type === 'site') && Math.random() < 0.35) {
+        n.cleared = false; n.plan = null; st.roamers.splice(st.roamers.indexOf(r), 1);
+        if (n.known) notes.push({ title: 'Угроза', text: (r.kind === 'beast' ? 'Кочующая стая мутантов' : 'Бродячая ' + G.roamWho(r)) + ' заняла «' + n.name + '».', kind: 'bad' });
+      }
+    });
+    if (hit) return { id: hit.id, kind: hit.kind, str: hit.str, at: hit.at, ambush: true };
+    // новые выходят из логов и лагерей
+    const cap = 1 + Math.floor(thr / 2);
+    if (st.day > 4 && st.roamers.length < cap && Math.random() < Math.min(0.2, 0.06 + thr * 0.02)) {
+      const src = st.world.nodes.filter(function (n) { return !n.cleared && (n.type === 'lair' || (n.type === 'camp' && !G.truce(n.fac || 'raider'))); });
+      if (src.length) {
+        const n = U.pick(src), kind = n.type === 'lair' ? 'beast' : (n.fac || 'raider');
+        const r = { id: U.uid(), kind: kind, at: n.id, prev: n.id, str: 3 + thr + U.rand(0, 2), days: U.rand(4, 7) };
+        st.roamers.push(r);
+        if (n.known) notes.push({ title: 'Движение на карте', text: 'Из «' + n.name + '» вышла ' + G.roamWho(r) + '. Бродит по округе — может занять зачищенное или выйти на отряд.', kind: 'info' });
+      }
+    }
+    return null;
   };
   /* Откуда идёт набег: ближайшее логово/лагерь нужного вида, иначе дальний край карты */
   G.raidSource = function (kind) {
@@ -1068,6 +1139,17 @@
       if (mDead) { st.militia = Math.max(0, (st.militia || 0) - mDead); sum.text += ' Погибло ополченцев: ' + mDead + '.'; }
       if (B.relief) st.squadAt = st.baseNode;
       if (out === 'victory' && B.raidKind && G.FACS[B.raidKind]) G.repAdd(B.raidKind, -1);
+    } else if (B.kind === 'roam') {
+      // бой на дороге: кочующая стая/банда или набег на марше
+      const R = st.roamFight || {}; st.roamFight = null;
+      const idx = (st.roamers || []).findIndex(function (x) { return x.id === R.id; });
+      if (out === 'victory') {
+        if (idx >= 0) st.roamers.splice(idx, 1);
+        if (R.raid && st.raid) { st.raid = null; st.stats.raids = (st.stats.raids || 0) + 1; sum.text = 'Набег перехвачен в пути — до базы они не дошли.'; G.log('Набег перехвачен в поле.'); }
+        else sum.text = (R.kind === 'beast' ? 'Кочующая стая перебита.' : 'Бродячий отряд разбит.');
+        add('ammo', U.rand(10, 25)); if (R.kind !== 'beast') add('gems', U.rand(3, 8)); else add('gems', U.rand(0, 4));
+        if (R.kind && R.kind !== 'beast') G.repAdd(R.kind, -1, 'бой на дороге');
+      } else sum.text = out === 'evac' ? 'Отряд ушёл с дороги.' : 'Отряд разбит на дороге.';
     } else if (B.kind === 'caravan') {
       G.repAdd('raider', -1, 'ограблен караван');
       if (out === 'victory') { const lt = { food: 20, ammo: 60, gems: 12 + (B.diff || 1) * 3, meds: 2 }; for (const k in lt) add(k, lt[k]); sum.text = 'Караван разграблен. Охрана перебита — Институт об этом не узнает… наверное.'; st.trustHit = (st.trustHit || 0) + 1; G.log('Отряд ограбил караван.'); }
