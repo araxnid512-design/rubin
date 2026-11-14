@@ -28,7 +28,9 @@
     '  vec4 gi = texture2D( tGI, giUV );',
     '  float giIn = max( max( -giUV.x, giUV.x - 1.0 ), max( -giUV.y, giUV.y - 1.0 ) ) < 0.0 ? 1.0 : 0.0;',
     '  float hS = uGIRange.x + gi.r * uGIRange.y, hG = uGIRange.x + gi.b * uGIRange.y;',
-    '  giSun = mix( 1.0, smoothstep( -0.16, 0.16, vWP.y + 0.08 - hS ), giIn );',
+    // на отвесных гранях край тени мягче (сетка запекания 0,26 м иначе даёт на них «лесенку»)
+    '  float giSoft = mix( 0.45, 0.16, abs( giN.y ) );',
+    '  giSun = mix( 1.0, smoothstep( -giSoft, giSoft, vWP.y + 0.08 - hS ), giIn );',
     '  giAO = mix( 1.0, mix( gi.g, 1.0, smoothstep( 0.0, 0.9, vWP.y - hG ) ), giIn ); }'
   ].join('\n');
   const GI_AO = 'reflectedLight.indirectDiffuse *= giAO; reflectedLight.indirectSpecular *= giAO; reflectedLight.directDiffuse *= mix( 1.0, giAO, 0.6 );\n#include <aomap_fragment>';
