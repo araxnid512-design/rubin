@@ -123,6 +123,8 @@
     set('sign', new THREE.BoxGeometry(0.5, 0.35, 0.03), fm(new THREE.MeshStandardMaterial({ color: 0x8a7a50, metalness: 0.5, roughness: 0.7 })));
     set('pole', new THREE.CylinderGeometry(0.025, 0.025, 1.2, 6), fm(new THREE.MeshStandardMaterial({ color: 0x55504a, metalness: 0.6, roughness: 0.6 })));
     set('log', new THREE.CylinderGeometry(0.07, 0.08, 0.6, 7), R3.fogify(R3.pbr('wood').clone()));
+    set('sleeper', new THREE.BoxGeometry(0.24, 0.12, 2.6), R3.fogify(R3.pbr('wood', { color: 0x6a5a48 }).clone()));
+    set('railbar', new THREE.BoxGeometry(T + 0.01, 0.14, 0.08), fm(new THREE.MeshStandardMaterial({ color: 0x5c534a, metalness: 0.75, roughness: 0.45 })));
   }
 
   /* ---------- Следы на земле ---------- */
@@ -148,7 +150,10 @@
     const free = function (x, y) { const xi = Math.floor(x), yi = Math.floor(y); return xi >= 0 && yi >= 0 && xi < B.w && yi < B.h && !B.obj[yi * B.w + xi]; };
     const decalMat = function (tex, opts) { return R3.fogify(new THREE.MeshStandardMaterial(Object.assign({ map: tex, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1 }, opts || {}))); };
     // предметы-мелочи из карты
+    // над провалом (овраг) мелочи нет
+    const pit = function (x, y) { const xi = Math.floor(x), yi = Math.floor(y); return xi >= 0 && yi >= 0 && xi < B.w && yi < B.h && B.ground[yi * B.w + xi] === 10; };
     (B.props || []).forEach(function (p) {
+      if (pit(p.x, p.y)) return;
       const X = p.x * T, Z = p.y * T, Y = hAt(p.x, p.y);
       const s = 0.8 + r() * 0.4, ry = r() * 6.28;
       switch (p.t) {
@@ -184,6 +189,7 @@
     });
     // следы на земле и прочее из decor
     (B.decor || []).forEach(function (d) {
+      if (d.t !== 'road' && d.t !== 'rail' && pit(d.x, d.y)) return;
       const X = d.x * T, Z = d.y * T, Y = hAt(d.x, d.y);
       switch (d.t) {
         case 'crack': groundDecal(X, Z, Y, 1.4 + d.r * 1.2, decalMat(crack()), d.r * 6.28); break;
@@ -202,8 +208,19 @@
           const ta = R3.texNew('tex3d/asphalt_c.jpg', true), tn = R3.texNew('tex3d/asphalt_n.jpg');
           ta.repeat.set(w / 2, T * 0.9); tn.repeat.set(w / 2, T * 0.9);
           const m = new THREE.Mesh(new THREE.PlaneGeometry(w, T * 1.8), R3.fogify(new THREE.MeshStandardMaterial({ map: ta, normalMap: tn, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1 })));
-          m.rotation.x = -Math.PI / 2; m.position.set(w / 2 + d.x * T, 0.006, (d.y + 0.5) * T); m.receiveShadow = true;
+          // полотно на двух рядах (d.y и d.y+1); d.v — поперёк, вдоль столбцов d.x и d.x+1
+          m.rotation.x = -Math.PI / 2;
+          if (d.v) { m.rotation.z = Math.PI / 2; m.position.set((d.x + 1) * T, hAt(d.x + 1, d.y + 1) + 0.006, w / 2 + d.y * T); }
+          else m.position.set(w / 2 + d.x * T, hAt(d.x + 1, d.y + 1) + 0.006, (d.y + 1) * T);
+          m.receiveShadow = true;
           group.add(m);
+          break;
+        }
+        case 'rail': {
+          // путь колеи 1520 мм вдоль x: шпалы через 0,6 м, два рельса; d.y — ось пути (граница рядов)
+          const len = (d.w || B.w) * T, zc = d.y * T;
+          for (let xx = 0.3; xx < len; xx += 0.62) put('sleeper', d.x * T + xx, hAt(d.x + xx / T, d.y) + 0.05, zc, 1, 0);
+          for (let k = 0; k < (d.w || B.w); k++) { const X = (d.x + k + 0.5) * T, Y = hAt(d.x + k + 0.5, d.y); put('railbar', X, Y + 0.16, zc - 0.76, 1, 0); put('railbar', X, Y + 0.16, zc + 0.76, 1, 0); }
           break;
         }
         case 'fire': {
@@ -241,7 +258,8 @@
     wild: [['e_deadtree', 0, 3.6, 3.4], ['e_deadtree', 0, 3.0, 2.8], ['e_boulder', 1.5, 1.6], ['e_boulder', 1.1, 1.2], ['e_log', 1.4, 0.8], ['e_rubble', 1.2, 1.3]],
     cave: [['e_boulder', 1.8, 2.6], ['e_boulder', 1.4, 2.0], ['e_crystal', 0.9, 1.4], ['e_chitin', 1.0, 1.2]]
   };
-  const BTYPE = { ruins: 'city', landing: 'city', factory: 'city', camp: 'city', site: 'city', vault: 'city', defense: 'city', forest: 'wild', swamp: 'wild', lair: 'wild', nest: 'cave', vein: 'cave', crystalcave: 'cave' };
+  const BTYPE = { ruins: 'city', landing: 'city', factory: 'city', camp: 'city', site: 'city', vault: 'city', defense: 'city', forest: 'wild', swamp: 'wild', lair: 'wild', nest: 'cave', vein: 'cave', crystalcave: 'cave',
+    district: 'city', powerplant: 'city', railyard: 'city', bridge: 'wild', quarry: 'wild' };
   function backdrop(B, r) {
     const kind = BTYPE[B.map] || 'wild';
     if (B.tod === 'interior') return;      // в помещении — стены, а не горизонт

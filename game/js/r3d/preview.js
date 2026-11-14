@@ -161,12 +161,26 @@
       return R3.loadGLB('models/' + wi.f + '.glb').then(function (gl) {
         clear();
         const W = lib.makeWeapon(gl, wi);
-        W.g.traverse(function (q) { if (q.isMesh) plain(q); });
+        // модули на оружии (картинки магазина): o.mods; o.dim — оружие темнее, модуль виден сразу
+        if (o.mods && R3.wmods) R3.wmods.attach(W, o.mods, o.weapon);
+        W.g.traverse(function (q) {
+          if (!q.isMesh) return;
+          plain(q);
+          const ms = Array.isArray(q.material) ? q.material : [q.material];
+          if (q.userData.wmod) { if (o.ghost) ms.forEach(function (mt) { if (mt.emissive) mt.emissive.setHex(0x3a3a34); }); return; }
+          ms.forEach(function (mt) {
+            if (o.dim && mt.color) mt.color.multiplyScalar(o.dim);
+            // o.ghost — оружие полупрозрачное, модуль на нём виден целиком
+            if (o.ghost) { mt.transparent = true; mt.opacity = o.ghost; mt.depthWrite = false; }
+          });
+        });
         W.g.matrixAutoUpdate = true;
         // ствол вправо, вид сбоку, по размеру картинки
         W.g.rotation.set(0, -Math.PI / 2, 0); root.rotation.set(0, 0, 0);
         root.add(W.g); root.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(W.g, true), c = box.getCenter(V()), sz = box.getSize(V());
+        // o.focus — крупно модуль и кусок оружия вокруг него
+        if (o.focus && W._wm) { const fb = new THREE.Box3().setFromObject(W._wm, true); fb.getCenter(c); const fs = fb.getSize(V()); sz.set(fs.x * 1.45 + 0.1, fs.y * 1.45 + 0.07, sz.z); }
         const oc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 20);
         const asp = (o.w || 256) / (o.h || 256), pad = 1.06;
         let hw = sz.x / 2 * pad, hh = sz.y / 2 * pad;
@@ -180,6 +194,24 @@
         root.remove(W.g);
         return done(url);
       });
+    }
+    if (o.view === 'obj') {
+      // произвольный предмет (магазин Портала): вид 3/4 сверху, по размеру картинки
+      clear();
+      const obj = o.obj;
+      obj.traverse(function (q) { if (q.isMesh) plain(q); });
+      root.rotation.set(0, 0, 0); root.add(obj); root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(obj, true), c = box.getCenter(V()), R = box.getSize(V()).length() / 2;
+      const fov = o.fov || 22, yw = o.yaw === undefined ? 0.6 : o.yaw, pt = o.pitch === undefined ? 0.55 : o.pitch;
+      const pc = new THREE.PerspectiveCamera(fov, (o.w || 256) / (o.h || 256), 0.005, 50);
+      pc.position.set(c.x + Math.sin(yw) * Math.cos(pt), c.y + Math.sin(pt), c.z + Math.cos(yw) * Math.cos(pt)).sub(c).multiplyScalar(R / Math.sin(fov * Math.PI / 360) * 1.05).add(c);
+      pc.lookAt(c);
+      disc.visible = false;
+      rd.render(scene, pc);
+      const url = canvas.toDataURL('image/png');
+      disc.visible = true;
+      root.remove(obj);
+      return Promise.resolve(done(url));
     }
     return build({ body: o.body, weapon: o.weapon || 'ak', key: 'snap' }).then(function (F) {
       if (!F) return done(null);

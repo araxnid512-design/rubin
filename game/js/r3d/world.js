@@ -274,17 +274,21 @@
     const inRoom = new Uint8Array(B.w * B.h);
     (B.rooms || []).forEach(function (r) { for (let y = r[1]; y <= r[3]; y++) for (let x = r[0]; x <= r[2]; x++) if (x >= 0 && y >= 0 && x < B.w && y < B.h) inRoom[y * B.w + x] = 1; });
     // верх клеток
-    const gTop = new Geo(), gHard = {}, gSide = {}, gAcid = new Geo(), gPit = new Geo();
+    const gTop = new Geo(), gHard = {}, gSide = {}, gAcid = new Geo(), gPit = new Geo(), gPitW = new Geo();
     const side = function (k) { return gSide[k] || (gSide[k] = new Geo()); };
     for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
       const i = y * B.w + x, gid = B.ground[i], h = hgt[i] * LV;
       const x0 = x * T, x1 = (x + 1) * T, z0 = y * T, z1 = (y + 1) * T;
       if (gid === 10) {
-        // провал: тёмная яма
-        const d = h - 3;
-        gPit.quad([x0, d, z1], [x1, d, z1], [x1, d, z0], [x0, d, z0], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
-        [[x0, z0, x1, z0], [x1, z0, x1, z1], [x1, z1, x0, z1], [x0, z1, x0, z0]].forEach(function (e) {
-          gPit.quad([e[0], h, e[1]], [e[2], h, e[3]], [e[2], d, e[3]], [e[0], d, e[1]], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+        // провал (овраг): скальные стенки там, где сосед — не провал, дно на 2,5 м ниже
+        const d = h - 2.5;
+        gPit.quad([x0, d, z1], [x1, d, z1], [x1, d, z0], [x0, d, z0], [0, 1, 0], [[x0 / 2, z1 / 2], [x1 / 2, z1 / 2], [x1 / 2, z0 / 2], [x0 / 2, z0 / 2]]);
+        [[0, -1, x0, z0, x1, z0], [1, 0, x1, z0, x1, z1], [0, 1, x1, z1, x0, z1], [-1, 0, x0, z1, x0, z0]].forEach(function (e) {
+          const nx = x + e[0], ny = y + e[1];
+          if (nx >= 0 && ny >= 0 && nx < B.w && ny < B.h && B.ground[ny * B.w + nx] === 10) return;
+          const top = (nx < 0 || ny < 0 || nx >= B.w || ny >= B.h) ? h : Math.max(h, hgt[ny * B.w + nx] * LV);
+          const u0 = (e[2] + e[3]) / 2, u1 = (e[4] + e[5]) / 2;
+          gPitW.quad([e[2], top, e[3]], [e[4], top, e[5]], [e[4], d, e[5]], [e[2], d, e[3]], [-e[0], 0, -e[1]], [[u0, top / 2], [u1, top / 2], [u1, d / 2], [u0, d / 2]]);
         });
         continue;
       }
@@ -294,7 +298,7 @@
       else if (HARD[gid] || (inRoom[i] && GKIND[gid] && !WALLS[B.obj[i]])) { const hk = HARD[gid] || 'planks'; (gHard[hk] = gHard[hk] || new Geo()).quad(top[0], top[1], top[2], top[3], [0, 1, 0], uvT); }
       else gTop.quad(top[0], top[1], top[2], top[3], [0, 1, 0], uvT);
       // стенки уступов: где сосед ниже
-      const sk = gid === 12 ? 'plaster' : (gid === 9 ? 'wood' : 'cliff');
+      const sk = gid === 12 ? 'plaster' : (gid === 9 ? 'wood' : (gid === 3 || gid === 4 ? 'concrete' : 'cliff'));
       [[0, -1, [x1, z0], [x0, z0], [0, 0, -1]], [1, 0, [x1, z1], [x1, z0], [1, 0, 0]], [0, 1, [x0, z1], [x1, z1], [0, 0, 1]], [-1, 0, [x0, z0], [x0, z1], [-1, 0, 0]]].forEach(function (e) {
         const nx = x + e[0], ny = y + e[1];
         const out = nx < 0 || ny < 0 || nx >= B.w || ny >= B.h;
@@ -307,7 +311,9 @@
     }
     // земля вокруг поля (до горизонта, в тумане)
     const E = 40;
-    gTop.quad([-E, -0.6, (B.h + 0) * T + E], [B.w * T + E, -0.6, B.h * T + E], [B.w * T + E, -0.6, -E], [-E, -0.6, -E], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+    // кольцом вокруг поля (под самим полем пусто — иначе закрыло бы дно оврагов)
+    const W0 = B.w * T, H0 = B.h * T, ring = function (ax, az, bx, bz) { gTop.quad([ax, -0.6, bz], [bx, -0.6, bz], [bx, -0.6, az], [ax, -0.6, az], [0, 1, 0], [[ax / 2, bz / 2], [bx / 2, bz / 2], [bx / 2, az / 2], [ax / 2, az / 2]]); };
+    ring(-E, -E, 0, H0 + E); ring(W0, -E, W0 + E, H0 + E); ring(0, -E, W0, 0); ring(0, H0, W0, H0 + E);
     const top = new THREE.Mesh(gTop.build(), sm);
     top.receiveShadow = true;
     group.add(top); R3.pickables.push(top);
@@ -327,7 +333,11 @@
       W3.acidN = nm;
       const a = new THREE.Mesh(gAcid.build(), am); group.add(a); R3.pickables.push(a);
     }
-    if (gPit.i.length) group.add(new THREE.Mesh(gPit.build(), new THREE.MeshBasicMaterial({ color: 0x050403, side: THREE.DoubleSide })));
+    if (gPit.i.length) {
+      const pf = new THREE.Mesh(gPit.build(), R3.fogify(R3.pbr('rock', { color: 0x8a7e72 }).clone())); pf.receiveShadow = true; group.add(pf);
+      const pwm = R3.fogify(R3.pbr('cliff', { color: 0xc8bcb0 }).clone()); pwm.side = THREE.DoubleSide;
+      const pw = new THREE.Mesh(gPitW.build(), pwm); pw.receiveShadow = true; pw.castShadow = true; group.add(pw);
+    }
     buildWalls(B);
     W3.buildProps(B);
     W3.updateFog(B, DW.BT.visible ? DW.BT.visible() : null);
@@ -424,7 +434,7 @@
   /* настоящие размеры (м): [длина по большей стороне, высота] — техника и крупные предметы как в жизни рядом с бойцом 1,8 м */
   const REAL = {
     e_vaz_burned: [4.1, 1.42], e_vaz_crashed: [4.1, 1.42], e_vaz2107: [4.1, 1.44], e_volga: [4.8, 1.48], e_niva: [3.7, 1.64],
-    e_uaz: [4.0, 2.0], e_paz: [7.0, 2.95], e_ural: [7.4, 2.9], e_btr80: [7.65, 2.45],
+    e_uaz: [4.0, 2.0], e_paz: [7.0, 2.95], e_ural: [7.4, 2.9], e_btr80: [7.65, 2.45], e_container: [6.06, 2.59],
     p_tank: [9.5, 2.3], p_bmp: [6.7, 2.15], p_heli: [12.5, 3.8], p_busstop: [4.0, 2.6], p_hedgehog: [1.8, 1.4], p_tires: [1.9, 1.0]
   };
   W3.REAL = REAL;

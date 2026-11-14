@@ -155,8 +155,8 @@ const PROPS = [
   { id: 'obj22', type: 22, variants: [P(S + 'env/e_wardrobe.glb', 0.8, 1.45, 45), P(S + 'env/e_fridge.glb', 0.7, 1.4, -45), P(S + 'env/e_buffet.glb', 0.85, 1.4, 45),
     P(S + 'env/e_pech.glb', 0.85, 1.45, -45), P(S + 'env/e_burzhuyka.glb', 0.65, 1.2, 30)] },
   // техника на 2–3 клетки: модель × 4 поворота (вдоль x передом к +x / −x, вдоль y к +y / −y); вариант = модель·4 + поворот
-  { id: 'veh', variants: [['e_vaz_burned', 2], ['e_volga', 2], ['e_niva', 2], ['e_uaz', 2], ['e_paz', 3], ['e_ural', 3], ['e_btr80', 3]]
-    .reduce((a, m) => a.concat([0, 180, -90, 90].map((yaw) => P(S + 'env/' + m[0] + '.glb', m[1] * 0.95, 2.4, yaw))), []) },
+  { id: 'veh', variants: [['e_vaz_burned', 2], ['e_volga', 2], ['e_niva', 2], ['e_uaz', 2], ['e_paz', 3], ['e_ural', 3], ['e_btr80', 3], ['e_container', 3, DW]]
+    .reduce((a, m) => a.concat([0, 180, -90, 90].map((yaw) => P((m[2] || S + 'env/') + m[0] + '.glb', m[1] * 0.95, 2.4, yaw))), []) },
   // турель — по направлениям (8 вариантов поворота)
   { id: 'turret', variants: [0, 1, 2, 3, 4, 5, 6, 7].map((d) => P(DW + 'e_turret.glb', 0.8, 1.1, -d * 45)) }, // ствол — ось +X модели
   // украшения карты: машины, покрышки, мусор (тип клетки не занят — рисуются как декор)

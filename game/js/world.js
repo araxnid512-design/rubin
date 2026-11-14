@@ -124,14 +124,14 @@
         id: i, x: Math.round(p.x), y: Math.round(p.y), type: tp, name: nm, diff: diff, hops: hops[i],
         known: false, visited: false, cleared: false, beacon: tp === 'landing', outpost: false, base: false,
         cargo: null, searches: tp === 'ruins' ? 3 : 0,
-        map: { ruins: U.pick(['ruins', 'ruins', 'factory', 'forest']), vein: U.pick(['vein', 'crystalcave']), lair: U.pick(['lair', 'lair', 'swamp']) }[tp] || D.NODE_TYPES[tp].map
+        map: D.mapFor(tp, null, nm)
       };
     });
     // хозяева лагерей: дальний — СОБР, двое — клан, остальные — банды
     const camps = nodes.filter(function (n) { return n.type === 'camp'; }).sort(function (a, b) { return b.hops - a.hops; });
     camps.forEach(function (n, k) {
       n.fac = k === 0 ? 'sobr' : (k <= 2 ? 'clan' : 'raider');
-      if (n.fac === 'sobr') n.diff = Math.max(3, n.diff);
+      if (n.fac === 'sobr') { n.diff = Math.max(3, n.diff); n.map = D.mapFor('camp', 'sobr'); }
       const pool = D.NODE_NAMES[n.fac] && (names['_' + n.fac] = names['_' + n.fac] || U.shuffle(D.NODE_NAMES[n.fac].slice()));
       if (pool && pool.length) n.name = pool.shift();
     });

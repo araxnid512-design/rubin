@@ -781,6 +781,357 @@
     return m;
   };
 
+  /* ---------- Сложные карты: панельный квартал, ТЭЦ, товарная станция, карьер, мост через овраг ----------
+     Многокомнатные дома (двери между комнатами), галереи и платформы на уровень выше, высокие крыши с лестницами,
+     техника и вагоны-контейнеры на заданных местах, рельсы, овраг с переправами. Крыши и техника ставятся в m.late —
+     после сглаживания высот, когда список лестниц уже пуст. */
+  function box(m, x0, y0, x1, y1, fn) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (inb(m, x, y)) fn(x, y, I(m, x, y)); }
+  const SOFT = { 4: 1, 6: 1, 7: 1, 8: 1, 9: 1, 12: 1, 18: 1, 21: 1, 22: 1 };
+  /* в доме все свободные клетки достижимы от наружных дверей: мешающую мебель убрать */
+  function unblock(m, x0, y0, x1, y1) {
+    for (let guard = 0; guard < 40; guard++) {
+      const seen = {}, q = [];
+      box(m, x0, y0, x1, y1, function (x, y, i) { if ((x === x0 || y === y0 || x === x1 || y === y1) && free(m, x, y)) { seen[i] = 1; q.push(i); } });
+      for (let k = 0; k < q.length; k++) {
+        const c = q[k], cx = c % m.w, cy = (c / m.w) | 0;
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const nx = cx + d[0], ny = cy + d[1];
+          if (nx < x0 || ny < y0 || nx > x1 || ny > y1 || !free(m, nx, ny)) return;
+          const j = I(m, nx, ny); if (!seen[j]) { seen[j] = 1; q.push(j); }
+        });
+      }
+      let lost = false, fixed = false;
+      box(m, x0 + 1, y0 + 1, x1 - 1, y1 - 1, function (x, y, i) {
+        if (fixed || !free(m, x, y) || seen[i]) return;
+        lost = true;
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) { if (!fixed && inb(m, x + d[0], y + d[1]) && SOFT[m.obj[I(m, x + d[0], y + d[1])]]) { setO(m, x + d[0], y + d[1], 0); fixed = true; } });
+      });
+      if (!lost || !fixed) return;
+    }
+  }
+  /* Дом из нескольких комнат: внешние стены, перегородки, двери между соседними комнатами (все связаны), наружные
+     двери (o.doors — стороны 'n','s','w','e', можно повторять), окна, мебель у стен. cw / rh — внутренние размеры. */
+  function roomGrid(m, x0, y0, cw, rh, o) {
+    o = o || {};
+    const wallObj = o.wall || 2, floorG = o.floor === undefined ? 11 : o.floor;
+    const xs = [x0]; cw.forEach(function (c) { xs.push(xs[xs.length - 1] + c + 1); });
+    const ys = [y0]; rh.forEach(function (r) { ys.push(ys[ys.length - 1] + r + 1); });
+    const x1 = xs[xs.length - 1], y1 = ys[ys.length - 1];
+    (m.rooms = m.rooms || []).push([x0, y0, x1, y1]);
+    box(m, x0, y0, x1, y1, function (x, y, i) { m.ground[i] = floorG; m.obj[i] = 0; m.objHp[i] = 0; });
+    xs.forEach(function (x) { for (let y = y0; y <= y1; y++) setO(m, x, y, wallObj); });
+    ys.forEach(function (y) { for (let x = x0; x <= x1; x++) setO(m, x, y, wallObj); });
+    const doors = [], wins = [];
+    for (let k = 1; k < xs.length - 1; k++) for (let j = 0; j < rh.length; j++) { const y = U.rand(ys[j] + 1, ys[j + 1] - 1); setO(m, xs[k], y, 0); doors.push([xs[k], y]); }
+    for (let k = 1; k < ys.length - 1; k++) for (let j = 0; j < cw.length; j++) { const x = U.rand(xs[j] + 1, xs[j + 1] - 1); setO(m, x, ys[k], 0); doors.push([x, ys[k]]); }
+    const outer = [];
+    (o.doors || ['s']).forEach(function (sd) {
+      const cand = [];
+      if (sd === 'n' || sd === 's') { const y = sd === 'n' ? y0 : y1, oy = sd === 'n' ? y0 - 1 : y1 + 1; for (let x = x0 + 1; x < x1; x++) if (xs.indexOf(x) < 0) cand.push([x, y, x, oy]); }
+      else { const x = sd === 'w' ? x0 : x1, ox = sd === 'w' ? x0 - 1 : x1 + 1; for (let y = y0 + 1; y < y1; y++) if (ys.indexOf(y) < 0) cand.push([x, y, ox, y]); }
+      const ok = cand.filter(function (c) { return inb(m, c[2], c[3]) && !outer.some(function (d) { return Math.abs(d[0] - c[0]) + Math.abs(d[1] - c[1]) < 3; }); });
+      if (!ok.length) return;
+      const c = U.pick(ok);
+      setO(m, c[0], c[1], 0); doors.push([c[0], c[1]]); outer.push([c[0], c[1], c[2], c[3]]);
+      if (m.obj[I(m, c[2], c[3])] !== 23) setO(m, c[2], c[3], 0);
+      if (!walkG(m, c[2], c[3])) setG(m, c[2], c[3], 8);
+    });
+    const per = [];
+    for (let x = x0 + 1; x < x1; x++) if (xs.indexOf(x) < 0) { per.push([x, y0]); per.push([x, y1]); }
+    for (let y = y0 + 1; y < y1; y++) if (ys.indexOf(y) < 0) { per.push([x0, y]); per.push([x1, y]); }
+    U.shuffle(per);
+    let nw = o.windows === undefined ? Math.max(2, cw.length * rh.length) : o.windows;
+    for (let k = 0; k < per.length && nw > 0; k++) {
+      const p = per[k];
+      if (doors.concat(wins).some(function (d) { return Math.abs(d[0] - p[0]) + Math.abs(d[1] - p[1]) < 2; })) continue;
+      setO(m, p[0], p[1], 1); wins.push(p); nw--;
+    }
+    // обстановка: у стен, не у дверей; в углах — шкафы
+    for (let j = 0; j < rh.length; j++) for (let k = 0; k < cw.length; k++) {
+      const rx0 = xs[k] + 1, rx1 = xs[k + 1] - 1, ry0 = ys[j] + 1, ry1 = ys[j + 1] - 1;
+      const tiles = [];
+      box(m, rx0, ry0, rx1, ry1, function (x, y) { tiles.push([x, y]); });
+      U.shuffle(tiles);
+      let n = Math.max(1, Math.round(tiles.length * (o.furn === undefined ? 0.3 : o.furn)));
+      tiles.forEach(function (t) {
+        const x = t[0], y = t[1];
+        if (n <= 0 || !(x === rx0 || x === rx1 || y === ry0 || y === ry1)) return;
+        if (doors.some(function (d) { return Math.abs(d[0] - x) <= 1 && Math.abs(d[1] - y) <= 1; })) return;
+        const corner = (x === rx0 || x === rx1) && (y === ry0 || y === ry1);
+        setO(m, x, y, o.items ? U.pick(o.items) : (corner && Math.random() < 0.45 ? 22 : 21)); n--;
+      });
+    }
+    unblock(m, x0, y0, x1, y1);
+    return { x0: x0, y0: y0, x1: x1, y1: y1, doors: doors, outer: outer };
+  }
+  /* Высокий глухой дом: крыша на up уровней выше земли, мешки на западном краю, приставная лестница с востока
+     или юга (видна камере). Вокруг — ровная полоса на высоте основания. Только в m.late. */
+  function roofBlock(m, x0, y0, w, h, up, east) {
+    const base = m.hgt[I(m, x0, y0)];
+    box(m, x0 - 1, y0 - 1, x0 + w, y0 + h, function (x, y, i) { if (m.obj[i] === 23) return; m.hgt[i] = base; m.obj[i] = 0; m.objHp[i] = 0; if (!walkG(m, x, y)) m.ground[i] = 8; });
+    box(m, x0, y0, x0 + w - 1, y0 + h - 1, function (x, y, i) { m.hgt[i] = base + up; m.ground[i] = 12; });
+    const lx = east ? x0 + w : x0 + U.rand(0, w - 1), ly = east ? y0 + U.rand(0, h - 1) : y0 + h;
+    const rx = east ? lx - 1 : lx, ry = east ? ly : ly - 1;
+    const sb = U.shuffle([0, 1, 2, 3].slice(0, h)).slice(0, Math.min(2, h));
+    sb.forEach(function (k) { if (!(rx === x0 && ry === y0 + k)) setO(m, x0, y0 + k, 6); });
+    if (w >= 3) setO(m, x0 + 1 + U.rand(0, w - 3), y0, 6);
+    m.ladders.push({ x: lx, y: ly, rx: rx, ry: ry, d: east ? 0 : 1 });
+  }
+  /* машина / вагон на заданном месте: все клетки свободны и на одной высоте */
+  function vehicleAt(m, x, y, d, mi) {
+    const len = D.VEHICLES[mi][1], wd = D.VEHICLES[mi][2] || 1;
+    if (!inb(m, x, y)) return false;
+    const h0 = m.hgt[I(m, x, y)];
+    for (let j = 0; j < len; j++) for (let s = 0; s < wd; s++) {
+      const X = d === 0 ? x + j : x + s, Y = d === 0 ? y + s : y + j;
+      if (!free(m, X, Y) || m.hgt[I(m, X, Y)] !== h0 || m.ground[I(m, X, Y)] === 9) return false;
+    }
+    for (let j = 0; j < len; j++) for (let s = 0; s < wd; s++) setO(m, d === 0 ? x + j : x + s, d === 0 ? y + s : y + j, 23);
+    (m.vehicles = m.vehicles || []).push({ x: x, y: y, len: len, wd: wd, d: d, m: mi, o: U.rand(0, 1) });
+    return true;
+  }
+  function vehicleTry(m, d, mi, x0, x1, y0, y1, tries) {
+    for (let t = 0; t < (tries || 25); t++) if (vehicleAt(m, U.rand(x0, x1), U.rand(y0, y1), d, mi)) return true;
+    return false;
+  }
+  function scatterIn(m, obj, n, x0, y0, x1, y1) { for (let k = 0; k < n; k++) for (let t = 0; t < 30; t++) { const x = U.rand(x0, x1), y = U.rand(y0, y1); if (free(m, x, y)) { setO(m, x, y, obj); break; } } }
+  function lamp(m, x, y) { if (free(m, x, y)) m.props.push({ x: x + 0.5, y: y + 0.5, t: 'lamp' }); }
+  const CONTAINER = 7;   // индекс D.VEHICLES: морской контейнер 5×2
+
+  /* Панельный квартал: перекрёсток, гаражи, панельный дом из шести квартир, ларёк, высокий дом с крышей (снайпер),
+     двор на возвышении, баррикада и разбитые машины на дорогах */
+  GEN.district = function (o) {
+    const m = M(30, 20, 3);
+    groundNoise(m, [[0.3, 8], [0.62, 3], [0.82, 0], [1, 2]]);
+    const cy = m.h >> 1;
+    box(m, 0, cy - 1, m.w - 1, cy, function (x, y, i) { m.ground[i] = 3; });
+    box(m, 15, 0, 16, m.h - 1, function (x, y, i) { m.ground[i] = 3; });
+    m.decor.push({ x: 0, y: cy - 1, w: m.w, t: 'road', r: 0 });
+    m.decor.push({ x: 15, y: 0, w: m.h, t: 'road', r: 0, v: 1 });
+    scatter(m, 8, 4, 6); scatter(m, 4, 3, 6); scatter(m, 9, 2, 8);
+    box(m, 0, cy - 1, m.w - 1, cy, function (x, y, i) { m.obj[i] = 0; m.objHp[i] = 0; });
+    // гаражи: три бокса, ворота на улицу
+    const gx = 5, gy = 2;
+    box(m, gx, gy, gx + 9, gy + 4, function (x, y, i) { m.ground[i] = 3; m.obj[i] = 0; m.objHp[i] = 0; });
+    for (let k = 0; k < 3; k++) (m.rooms = m.rooms || []).push([gx + k * 3, gy, gx + k * 3 + 3, gy + 4]);
+    for (let x = gx; x <= gx + 9; x++) setO(m, x, gy, 2);
+    for (let k = 0; k <= 3; k++) for (let y = gy; y <= gy + 4; y++) setO(m, gx + k * 3, y, 2);
+    for (let k = 0; k < 3; k++) { const x = gx + k * 3 + 1 + U.rand(0, 1); setO(m, x, gy + 1, U.pick([7, 9, 4, 12])); if (Math.random() < 0.5) setO(m, gx + k * 3 + 1 + U.rand(0, 1), gy + 2, U.pick([4, 9])); }
+    // панельный дом: 3×2 квартиры, подъезды на улицу и к перекрёстку
+    const apt = roomGrid(m, 18, 1, [3, 2, 3], [3, 2], { wall: 2, floor: 11, doors: ['s', 's', 'w'] });
+    // ларёк у высокого дома
+    roomGrid(m, 18, 13, [2], [2], { wall: 2, floor: 11, doors: ['w'], windows: 1, items: [4, 21] });
+    // двор на возвышении: деревья, клумбы, мусорные баки, баррикада из мешков
+    box(m, 6, 13, 13, 18, function (x, y, i) { m.hgt[i] = 1; if (m.ground[i] === 3) m.ground[i] = U.pick([0, 2, 2]); });
+    scatterIn(m, 5, 4, 7, 13, 12, 18); scatterIn(m, 18, 2, 6, 13, 13, 18); scatterIn(m, 6, 2, 7, 13, 13, 14);
+    for (let k = 0; k < 2; k++) { const x = U.rand(7, 10), y = U.rand(15, 17); if (free(m, x, y) && free(m, x + 1, y)) { setO(m, x, y, 1); setO(m, x + 1, y, 1); } }
+    for (let k = 0; k < 4; k++) m.props.push({ x: U.randf(7, 13), y: U.randf(13.5, 18.5), t: U.pick(['tire', 'bush', 'tuft', 'sign']) });
+    // баррикада на улице: ряды мешков вразбежку, проход змейкой
+    setO(m, 24, cy - 1, 6); setO(m, 25, cy - 1, 6); setO(m, 26, cy, 6); setO(m, 27, cy, 6); setO(m, 22, cy + 1, 6);
+    [[6, cy - 2], [12, cy - 2], [19, cy + 1], [27, cy - 2], [14, 3], [17, 15], [14, 17]].forEach(function (p) { lamp(m, p[0], p[1]); });
+    m.anchor = { x: Math.round((apt.x0 + apt.x1) / 2), y: Math.round((apt.y0 + apt.y1) / 2) };
+    m.late = function (mm) {
+      roofBlock(mm, 23, 13, 5, 4, 3, Math.random() < 0.5);
+      vehicleTry(mm, 0, 4, 7, 11, cy - 1, cy - 1);                  // автобус поперёк улицы
+      vehicleTry(mm, 1, U.rand(0, 3), 15, 16, 1, 4);                 // машина на поперечной улице
+      vehicleTry(mm, 1, U.rand(0, 3), 15, 16, 13, 16);
+      vehicleTry(mm, 0, U.rand(0, 2), 18, 26, cy, cy);
+    };
+    decor(m, 'crack', 16); decor(m, 'puddle', 4, 6); decor(m, 'scorch', 3, 8); decor(m, 'grass', 6, 6);
+    props(m, 'tuft', 10); props(m, 'papers', 6, 5); props(m, 'can', 4); props(m, 'tire', 3, 5); props(m, 'bricks', 4); props(m, 'wire', 3); props(m, 'sign', 2, 6); props(m, 'rebar', 3);
+    const d = o.diff || 1;
+    m.itemList = [{ kind: 'materials', amt: U.rand(4, 7) }, { kind: 'materials', amt: U.rand(3, 6) }, { kind: 'food', amt: U.rand(5, 9) },
+      { kind: 'ammo', amt: U.rand(15, 30) }, { kind: 'meds', amt: 1 }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }];
+    return m;
+  };
+
+  /* Мёртвая ТЭЦ: машинный зал с турбинами и галереей на уровень выше, пультовая, разрушенная градирня, отвалы
+     золы, трансформаторный двор за оградой, трубопровод */
+  GEN.powerplant = function (o) {
+    const m = M(30, 20, 3);
+    groundNoise(m, [[0.35, 8], [0.62, 3], [0.82, 1], [1, 0]]);
+    const hx0 = 12, hy0 = 1, hx1 = 27, hy1 = 11;
+    box(m, hx0, hy0, hx1, hy1, function (x, y, i) { m.ground[i] = 3; m.obj[i] = 0; m.objHp[i] = 0; });
+    for (let x = hx0; x <= hx1; x++) { setO(m, x, hy0, 2); setO(m, x, hy1, 2); }
+    for (let y = hy0; y <= hy1; y++) { setO(m, hx0, y, 2); setO(m, hx1, y, 2); }
+    (m.rooms = m.rooms || []).push([hx0, hy0, hx1, hy1]);
+    // галерея вдоль северной стены (на уровень выше), ящики у края
+    box(m, hx0 + 1, hy0 + 1, hx1 - 1, hy0 + 2, function (x, y, i) { m.hgt[i] = 1; m.ground[i] = 4; });
+    for (let k = 0; k < 3; k++) setO(m, U.rand(hx0 + 2, hx1 - 2), hy0 + 2, U.pick([4, 4, 9]));
+    // ворота с запада, двери с юга и востока
+    setO(m, hx0, 5, 0); setO(m, hx0, 6, 0); setO(m, 16, hy1, 0); setO(m, 21, hy1, 0); setO(m, hx1, 4, 0);
+    // турбины и насосы
+    [[15, 5], [20, 5]].forEach(function (t) { box(m, t[0], t[1], t[0] + 2, t[1] + 1, function (x, y) { setO(m, x, y, 12); }); });
+    setO(m, 18, 8, 12); setO(m, 14, 9, 4); setO(m, 19, 9, 1); setO(m, 19, 8, 1);
+    // пультовая в углу зала: металлические переборки
+    roomGrid(m, 23, 7, [3], [3], { wall: 11, floor: 4, doors: ['w'], windows: 1, items: [21, 21, 22, 12] });
+    // градирня: скруглённое кольцо стен с двумя проломами, внутри зола и лужа кислоты
+    const tx = 5, ty = 13;
+    const ring = ['.#####.', '##...##', '#.....#', '#.....#', '#.....#', '##...##', '.#####.'];
+    for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+      const X = tx + x, Y = ty + y; if (!inb(m, X, Y)) continue;
+      if (ring[y][x] === '#') setO(m, X, Y, 14); else if (ring[y][x] === '.' && (x > 0 && x < 6 && y > 0 && y < 6)) { setO(m, X, Y, 0); setG(m, X, Y, 1); }
+    }
+    setO(m, tx + 6, ty + 3, 0); setO(m, tx + 3, ty, 0); setG(m, tx + 3, ty + 3, 7); setO(m, tx + 2, ty + 4, 8);
+    // отвалы золы на северо-западе: холм в два уровня
+    box(m, 5, 0, 11, 5, function (x, y, i) { const dd = U.dist(x, y, 8, 1.5); m.ground[i] = 1; m.hgt[i] = dd < 1.7 ? 2 : (dd < 3.4 ? 1 : 0); m.obj[i] = 0; m.objHp[i] = 0; });
+    // трансформаторный двор: низкая ограда с проходами, трансформаторы рядами
+    const yx0 = 17, yy0 = 13, yx1 = 28, yy1 = 19;
+    for (let x = yx0; x <= yx1; x++) if (x !== 20 && x !== 25) setO(m, x, yy0, 1);
+    for (let y = yy0; y <= yy1; y++) if (y !== 16) setO(m, yx0, y, 1);
+    for (let r = 0; r < 2; r++) for (let k = 0; k < 3; k++) if (Math.random() < 0.85) setO(m, yx0 + 3 + k * 3, yy0 + 2 + r * 3, 12);
+    scatter(m, 9, 3, yx0 + 1);
+    // трубопровод между залом и двором
+    for (let x = 6; x <= 27; x += 1) if (Math.random() < 0.45) m.props.push({ x: x + 0.5, y: 12.5, t: 'pipe' });
+    setO(m, 13, 12, 12); setO(m, 22, 12, 12);
+    scatter(m, 8, 5, 6, 11); scatter(m, 4, 3, 6, 11); scatter(m, 9, 2, 6);
+    m.anchor = { x: 19, y: 7 };
+    m.late = function (mm) {
+      vehicleTry(mm, 0, 5, 18, 23, 16, 16, 40) || vehicleTry(mm, 0, U.rand(0, 3), 18, 25, 14, 19, 40);
+      vehicleTry(mm, 1, U.rand(0, 3), 2, 3, 0, 3);
+    };
+    decor(m, 'crack', 14); decor(m, 'scorch', 5, 6); decor(m, 'puddle', 4, 8);
+    props(m, 'pipe', 6, 6); props(m, 'rebar', 4); props(m, 'wire', 4); props(m, 'papers', 3, 12); props(m, 'can', 3); props(m, 'tuft', 8); props(m, 'lamp', 3, 6); props(m, 'sign', 2, 12);
+    const d = o.diff || 1;
+    m.itemList = [{ kind: 'materials', amt: U.rand(5, 9) }, { kind: 'materials', amt: U.rand(5, 9) }, { kind: 'materials', amt: U.rand(4, 7) },
+      { kind: 'ammo', amt: U.rand(15, 30) }, { kind: 'meds', amt: 1 }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }];
+    return m;
+  };
+
+  /* Товарная станция: три пути с составами контейнеров (проходы между вагонами), перрон на уровень выше с вокзалом,
+     пакгауз, будка стрелочника с крышей */
+  GEN.railyard = function (o) {
+    const m = M(30, 20, 8);
+    groundNoise(m, [[0.5, 8], [0.78, 0], [1, 2]]);
+    const tracks = [4, 12, 15];   // верхний ряд пути (путь — два ряда)
+    tracks.forEach(function (r) { box(m, 0, r, m.w - 1, r + 1, function (x, y, i) { m.ground[i] = 8; }); m.decor.push({ x: 0, y: r + 1, w: m.w, t: 'rail', r: 0 }); });
+    // пакгауз (склад) у северного края
+    const store = roomGrid(m, 17, 0, [5, 5], [2], { wall: 11, floor: 4, doors: ['s', 's', 'w'], windows: 0, items: [4, 4, 9, 18], furn: 0.35 });
+    // перрон: ряды 7–10, на уровень выше; вокзал посередине
+    box(m, 7, 7, 28, 10, function (x, y, i) { m.hgt[i] = 1; m.ground[i] = 3; m.obj[i] = 0; m.objHp[i] = 0; });
+    const st = roomGrid(m, 14, 7, [3, 3], [2], { wall: 2, floor: 11, doors: ['w', 'e'], windows: 3 });
+    for (let k = 0; k < 4; k++) { const x = U.pick([U.rand(8, 12), U.rand(24, 27)]), y = U.rand(8, 9); if (free(m, x, y)) setO(m, x, y, U.pick([4, 6, 9, 21])); }
+    [[9, 8], [26, 9], [11, 9]].forEach(function (p) { lamp(m, p[0], p[1]); });
+    // между путями и на юге — щебень, ящики, бочки
+    scatter(m, 4, 4, 7); scatter(m, 9, 3, 7); scatter(m, 8, 3, 7);
+    m.anchor = { x: Math.round((st.x0 + st.x1) / 2), y: 8 };
+    const avoid = {};
+    store.outer.forEach(function (d) { avoid[d[2]] = 1; avoid[d[2] - 1] = 1; avoid[d[2] + 1] = 1; });
+    m.late = function (mm) {
+      roofBlock(mm, 24, 17, 3, 2, 2, true);
+      tracks.forEach(function (r) {
+        let x = U.rand(6, 9);
+        while (x + 5 <= mm.w - 1) {
+          const blocked = r === tracks[0] && [0, 1, 2, 3, 4].some(function (k) { return avoid[x + k]; });
+          if (!blocked && Math.random() < 0.8) vehicleAt(mm, x, r, 0, CONTAINER);
+          x += 5 + U.rand(2, 4);
+        }
+      });
+      vehicleTry(mm, 0, U.rand(0, 3), 7, 20, 17, 19);
+    };
+    decor(m, 'crack', 8); decor(m, 'puddle', 3, 6); decor(m, 'grass', 8, 5);
+    props(m, 'tuft', 12); props(m, 'rebar', 3); props(m, 'tire', 2); props(m, 'papers', 3, 7); props(m, 'can', 3); props(m, 'wire', 3); props(m, 'sign', 2, 7);
+    const d = o.diff || 1;
+    m.itemList = [{ kind: 'food', amt: U.rand(6, 10) }, { kind: 'food', amt: U.rand(4, 8) }, { kind: 'materials', amt: U.rand(4, 7) }, { kind: 'materials', amt: U.rand(4, 7) },
+      { kind: 'ammo', amt: U.rand(15, 30) }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }];
+    return m;
+  };
+
+  /* Старый карьер: террасы до трёх уровней вокруг дна, съезд с запада (простреливается сверху), кристаллы на дне,
+     валуны на краях уступов, грузовики, бытовка на верхнем уступе */
+  GEN.quarry = function (o) {
+    const m = M(30, 20, 2);
+    groundNoise(m, [[0.38, 8], [0.68, 2], [1, 5]]);
+    const bx = 18, by = 10, seed = U.rand(1, 99999);
+    box(m, 0, 0, m.w - 1, m.h - 1, function (x, y, i) {
+      const dd = Math.hypot((x - bx) / 1.45, y - by) + U.fbm(x * 0.22, y * 0.22, seed, 2) * 1.6 - 0.8;
+      m.hgt[i] = dd < 3.4 ? 0 : (dd < 5.4 ? 1 : (dd < 7.4 ? 2 : 3));
+      if (m.hgt[i] === 0) m.ground[i] = U.chance(0.6) ? 5 : 8;
+    });
+    box(m, 0, 8, bx - 4, 12, function (x, y, i) { m.hgt[i] = 0; m.ground[i] = 8; });
+    // бытовка на верхнем уступе (северо-восток)
+    const hb = 3;
+    box(m, 23, 0, 29, 5, function (x, y, i) { m.hgt[i] = hb; m.obj[i] = 0; m.objHp[i] = 0; });
+    roomGrid(m, 24, 1, [3], [2], { wall: 2, floor: 11, doors: ['s', 'w'], windows: 2, items: [21, 22, 4] });
+    // кристаллы на дне и нижнем уступе, лужа кислоты
+    pool(m, bx + 1, by, 4, 7);
+    for (let i = 0; i < 7; i++) { const x = U.rand(bx - 4, bx + 5), y = U.rand(by - 3, by + 3); if (free(m, x, y) && m.hgt[I(m, x, y)] <= 1) setO(m, x, y, 20); }
+    // валуны на краях уступов — укрытия наверху
+    for (let k = 0, t = 0; k < 14 && t < 400; t++) {
+      const x = U.rand(6, m.w - 1), y = U.rand(0, m.h - 1), i = I(m, x, y);
+      if (!free(m, x, y)) continue;
+      const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(function (d) { return inb(m, x + d[0], y + d[1]) && m.hgt[I(m, x + d[0], y + d[1])] < m.hgt[i]; });
+      if (edge) { setO(m, x, y, U.pick([3, 3, 8])); k++; }
+    }
+    scatter(m, 12, 3, 9); scatter(m, 4, 3, 7); scatter(m, 9, 2, 7);
+    m.anchor = { x: bx, y: by };
+    m.late = function (mm) {
+      vehicleTry(mm, 0, 5, 6, bx + 3, by - 2, by + 1, 60) || vehicleTry(mm, 1, 5, bx - 4, bx + 4, by - 3, by - 1, 40);
+      vehicleTry(mm, 1, 5, 6, 26, 0, 14);
+    };
+    decor(m, 'crystal', 26, 8); decor(m, 'crack', 10); decor(m, 'scorch', 2, 10);
+    props(m, 'shards', 12, 8); props(m, 'tuft', 8); props(m, 'rebar', 2); props(m, 'tire', 2, 8); props(m, 'bones', 3, 8); props(m, 'stalag', 3, 10);
+    const d = o.diff || 1;
+    const n = U.rand(7, 9);
+    for (let i = 0; i < n; i++) m.itemList.push({ kind: 'gems', amt: U.rand(2, 4) + d });
+    m.itemList.push({ kind: 'ammo', amt: U.rand(10, 20) });
+    return m;
+  };
+
+  /* Мост через овраг: провал поперёк карты, три переправы — автомобильный мост с парапетами (разбитая машина
+     на полосе), мостки на севере, завал на юге; на том берегу — блокпост: бетонные стены, мешки змейкой,
+     казарма, вышка, БТР */
+  GEN.bridge = function (o) {
+    const m = M(30, 20, 0);
+    groundNoise(m, [[0.45, 0], [0.72, 2], [1, 8]]);
+    heights(m, 0.16, 0.6, 2, 17);
+    const cy = m.h >> 1, ph = U.randf(0, 6.28);
+    const rc = [];
+    for (let y = 0; y < m.h; y++) {
+      const c = 13 + Math.round(Math.sin(y * 0.42 + ph) * 1.4); rc.push(c);
+      for (let x = c - 2; x <= c + 2; x++) { m.hgt[I(m, x, y)] = 0; if (x >= c - 1 && x <= c + 1) { setG(m, x, y, 10); setO(m, x, y, 0); } }
+    }
+    // дорога и мост с парапетами
+    box(m, 0, cy - 1, m.w - 1, cy, function (x, y, i) { m.hgt[i] = 0; if (m.ground[i] !== 10) m.ground[i] = 3; m.obj[i] = 0; m.objHp[i] = 0; });
+    m.decor.push({ x: 0, y: cy - 1, w: m.w, t: 'road', r: 0 });
+    let b0 = 99, b1 = -1;
+    for (let y = cy - 2; y <= cy + 1; y++) { b0 = Math.min(b0, rc[y] - 1); b1 = Math.max(b1, rc[y] + 1); }
+    for (let y = cy - 2; y <= cy + 1; y++) for (let x = b0 - 1; x <= b1 + 1; x++) {
+      const i = I(m, x, y); m.hgt[i] = 0;
+      if (y === cy - 2 || y === cy + 1) { if (m.ground[i] === 10) { m.ground[i] = 3; setO(m, x, y, 1); } else if (x === b0 - 1 || x === b1 + 1) setO(m, x, y, 1); }
+      else m.ground[i] = 3;
+    }
+    // мостки на севере и завал на юге
+    const ny = U.rand(2, 4), sy = U.rand(15, 16);
+    for (let x = rc[ny] - 1; x <= rc[ny] + 1; x++) setG(m, x, ny, 11);
+    for (let y = sy; y <= sy + 1; y++) for (let x = rc[y] - 1; x <= rc[y] + 1; x++) setG(m, x, y, 8);
+    for (let x = rc[sy] - 1; x <= rc[sy] + 1; x++) if (Math.random() < 0.6) setO(m, x, sy, U.pick([3, 8]));
+    // блокпост: бетонный забор с проходами, мешки по фронту и змейкой на дороге
+    const fx0 = 19, fy0 = 3, fx1 = 28, fy1 = 16;
+    box(m, fx0, fy0, fx1, fy1, function (x, y, i) { m.hgt[i] = 0; m.obj[i] = 0; m.objHp[i] = 0; if (m.ground[i] === 2) m.ground[i] = 8; });
+    for (let x = fx0; x <= fx1; x++) { if (x !== 22) setO(m, x, fy0, 14); if (x !== 22) setO(m, x, fy1, 14); }
+    for (let y = fy0 + 1; y < fy1; y++) if (y < cy - 2 || y > cy + 1) setO(m, fx0, y, (y === fy0 + 3 || y === fy1 - 3) ? 0 : 6);
+    setO(m, fx0 + 2, cy - 1, 6); setO(m, fx0 + 4, cy, 6); setO(m, fx0 + 2, cy - 2, 6); setO(m, fx0 + 4, cy + 1, 6);
+    roomGrid(m, 24, fy0 + 1, [3], [3], { wall: 2, floor: 11, doors: ['s', 'w'], windows: 2 });
+    setO(m, 26, cy + 4, 12); setO(m, 21, cy + 5, 9); setO(m, 20, cy + 3, 4); setO(m, 22, fy0 + 2, 18);
+    // западный берег: развалины дома, деревья, камни
+    building(m, 4, 1, 5, 5, 2, 11);
+    scatter(m, 5, 4, 5, 10); scatter(m, 3, 4, 5, 10); scatter(m, 8, 3, 5, 10); scatter(m, 7, 1, 5, 10);
+    m.anchor = { x: 23, y: cy - 3 };
+    m.late = function (mm) {
+      roofBlock(mm, 21, cy + 3, 2, 2, 2, false);
+      vehicleAt(mm, b0, cy, 0, U.rand(0, 2)) || vehicleAt(mm, b0 + 1, cy, 0, U.rand(0, 2));
+      vehicleTry(mm, 0, 6, 23, 23, cy + 1, cy + 2) || vehicleTry(mm, 0, 3, 23, 25, cy + 1, cy + 2);
+      vehicleTry(mm, 0, U.rand(0, 3), 6, 8, cy - 1, cy - 1);
+    };
+    decor(m, 'crack', 12); decor(m, 'scorch', 4, 6); decor(m, 'grass', 10); decor(m, 'bones', 3, 6);
+    props(m, 'tuft', 12); props(m, 'bush', 5); props(m, 'can', 3, 17); props(m, 'wire', 4, 17); props(m, 'tire', 2); props(m, 'sign', 2, 17); props(m, 'lamp', 2, 19); props(m, 'bricks', 3);
+    const d = o.diff || 1;
+    m.itemList = [{ kind: 'ammo', amt: U.rand(20, 35) }, { kind: 'ammo', amt: U.rand(15, 30) }, { kind: 'meds', amt: 1 }, { kind: 'food', amt: U.rand(4, 8) },
+      { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(3, 5) + d }, { kind: 'gems', amt: U.rand(2, 4) + d }];
+    return m;
+  };
+
   /* Дом с плоской крышей: глухой кирпичный блок на 2 уровня (3 м) выше земли, наверх — по лестнице с восточной
      или южной стороны (видны камере). На крыше мешки с песком: стрелку сверху +15 к меткости. */
   const ROOFY = { ruins: 1, landing: 1, factory: 1, camp: 1, site: 1 };
@@ -994,6 +1345,7 @@
       smoothH(m);
       m.ladders = [];
       if (ROOFY[type] && m.kind !== 'defense') roofHouses(m, U.rand(1, 2));
+      if (m.late) { m.late(m); m.late = null; }
       flattenSmall(m);
       fixDoors(m);
       m.post = null;

@@ -49,7 +49,7 @@
   };
   /* Техника на 2–3 клетки (модели — tools/art3d/manifest.js, набор p_veh): [имя, длина в клетках] */
   // техника в настоящую величину (клетка 1,28 м): [название, длина, ширина] в клетках — легковые 3×1, автобус, «Урал», БТР 5×2
-  D.VEHICLES = [['Сгоревший ВАЗ', 3, 1], ['«Волга»', 3, 1], ['«Нива»', 3, 1], ['УАЗ', 3, 1], ['Автобус ПАЗ', 5, 2], ['«Урал»', 5, 2], ['БТР-80', 5, 2]];
+  D.VEHICLES = [['Сгоревший ВАЗ', 3, 1], ['«Волга»', 3, 1], ['«Нива»', 3, 1], ['УАЗ', 3, 1], ['Автобус ПАЗ', 5, 2], ['«Урал»', 5, 2], ['БТР-80', 5, 2], ['Морской контейнер', 5, 2]];
 
   /* ---------- Оружие ---------- */
   D.WEAPONS = {
@@ -189,7 +189,21 @@
     const F = node.type === 'camp' && node.fac && D.FAC_CAMP[node.fac];
     return F ? Object.assign({}, T, F) : T;
   };
-  D.MAP_NAMES = { factory: 'Заброшенный завод', forest: 'Мёртвый лес', crystalcave: 'Кристальные пещеры', swamp: 'Кислотное болото' };
+  D.MAP_NAMES = { factory: 'Заброшенный завод', forest: 'Мёртвый лес', crystalcave: 'Кристальные пещеры', swamp: 'Кислотное болото',
+    district: 'Панельный квартал', powerplant: 'Мёртвая ТЭЦ', railyard: 'Товарная станция', quarry: 'Старый карьер', bridge: 'Мост через овраг' };
+  /* вид карты боя для локации: по названию (мост, станция, квартал…), иначе случайный из вариантов типа;
+     блокпост СОБР — всегда мост через овраг */
+  const MAP_BY_NAME = [[/мост/i, 'bridge'], [/станци|склад/i, 'railyard'], [/квартал|город/i, 'district'], [/насосн/i, 'powerplant'],
+    [/завод/i, ['powerplant', 'factory']], [/шахт|копи/i, 'quarry'], [/лабиринт|кладбище машин/i, 'ruins']];
+  D.MAP_VARIANTS = { ruins: ['ruins', 'factory', 'forest', 'district', 'powerplant', 'railyard', 'bridge'], vein: ['vein', 'crystalcave', 'quarry'], lair: ['lair', 'lair', 'swamp'] };
+  D.mapFor = function (type, fac, name) {
+    const U = DW.U;
+    if (type === 'camp' && fac === 'sobr') return 'bridge';
+    const V = D.MAP_VARIANTS[type];
+    if (!V) return D.NODE_TYPES[type].map;
+    for (let k = 0; name && k < MAP_BY_NAME.length; k++) if (MAP_BY_NAME[k][0].test(name)) { const r = MAP_BY_NAME[k][1]; const mp = Array.isArray(r) ? U.pick(r) : r; if (V.indexOf(mp) >= 0 || type === 'ruins') return mp; }
+    return U.pick(V);
+  };
   D.NODE_NAMES = {
     ruins: ['Мёртвый город', 'Ржавый мост', 'Руины станции', 'Обвалившийся завод', 'Пустой квартал', 'Старая насосная',
       'Разбитая трасса', 'Сгоревший посёлок', 'Каменный лабиринт', 'Заброшенная шахта', 'Серые склады', 'Кладбище машин'],

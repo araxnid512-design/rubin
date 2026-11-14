@@ -360,7 +360,11 @@
         const locked = c.tier > tier;
         const q = cart[c.id] || 0;
         const item = el('div', { class: 'pitem' + (locked ? ' locked' : '') + (q ? ' in' : '') });
-        const pic = c.give.weapon ? '<img src="' + DW.ART.weaponIcon(c.give.weapon) + '" alt="">' : (c.give.armor ? '<img src="' + DW.ART.armorIcon(c.give.armor) + '" alt="">' : ic(c.icon));
+        // картинки: оружие и броня — снимки моделей, предметы и модули — объёмные (DW.WICON i_*), люди — фото-лица
+        const WI = DW.WICON || {};
+        const faceI = c.give.recruit !== undefined && DW.FACE_IMG ? DW.FACE_IMG[D.FACE_NAMES.indexOf(c.give.recruit ? 'Батя' : 'Малой')] : null;
+        const pic = c.give.weapon ? '<img src="' + DW.ART.weaponIcon(c.give.weapon) + '" alt="">' : (c.give.armor ? '<img src="' + DW.ART.armorIcon(c.give.armor) + '" alt="">' :
+          (faceI ? '<img class="face" src="' + faceI + '" alt="">' : (WI['i_' + c.id] ? '<img src="' + WI['i_' + c.id] + '" alt="">' : ic(c.icon))));
         item.innerHTML = '<div class="pi-ic">' + pic + '</div><div class="pi-t">' + c.n + ' <small>' + c.q + '</small><br><b>' + c.price + '</b> ' + ic('gems') +
           (locked ? ' <span class="lock">' + D.TIERS[c.tier].n + '</span>' : '') + '</div>';
         if (!locked) {

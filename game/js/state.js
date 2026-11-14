@@ -119,6 +119,9 @@
       o.roster.forEach(function (s) { DW.ART.ensureLook(s); if (s.name === 'Курт') s.name = 'Крут'; if (!s.trait) s.trait = TR0[s.name] || D.TRAIT_POOL[DW.ART.hashStr(s.id) % D.TRAIT_POOL.length]; if (!s.perks) s.perks = []; });
       (o.memorial || []).forEach(function (m) { if (m.name === 'Курт') m.name = 'Крут'; });
       if (o.battle && o.battle.units) o.battle.units.forEach(function (u) { if (u.name === 'Курт') u.name = 'Крут'; });
+      // 5.0.7: новые карты боя — для ещё не посещённых локаций
+      o.flags = o.flags || {};
+      if (!o.flags.maps507) { o.flags.maps507 = 1; o.world.nodes.forEach(function (n) { if (!n.visited && !n.cleared && !n.base && !n.outpost && D.MAP_VARIANTS[n.type] || (n.type === 'camp' && n.fac === 'sobr' && !n.cleared)) n.map = D.mapFor(n.type, n.fac, n.name); }); }
       if (o.baseNode !== null && o.baseNode !== undefined) { const bn = o.world.nodes[o.baseNode]; if (bn && !bn.fort) { bn.oldName = bn.name; bn.name = 'Форт Крут'; bn.fort = true; } }
       return true;
     } catch (e) { return false; }

@@ -152,7 +152,18 @@
         g.bezierCurveTo(X + (rnd() - 0.5) * 80, Y + (rnd() - 0.5) * 80, X + (rnd() - 0.5) * 80, Y + (rnd() - 0.5) * 80, X + (rnd() - 0.5) * 120, Y + (rnd() - 0.5) * 120);
         g.stroke();
         break;
+      case 'rail': {
+        // путь вдоль x: шпалы и два рельса, ось — d.y (граница рядов)
+        const Yc = d.y * P, Wd = (d.w || 40) * P, half = P * 0.59;
+        g.fillStyle = 'rgba(82,66,50,0.9)';
+        for (let x = 4; x < Wd; x += P * 0.48) g.fillRect(x, Yc - P * 1.0, P * 0.18, P * 2.0);
+        g.fillStyle = 'rgba(70,64,58,1)'; g.fillRect(0, Yc - half - 3, Wd, 6); g.fillRect(0, Yc + half - 3, Wd, 6);
+        g.fillStyle = 'rgba(170,160,150,0.7)'; g.fillRect(0, Yc - half - 3, Wd, 2); g.fillRect(0, Yc + half - 3, Wd, 2);
+        break;
+      }
       case 'road': {
+        const d0 = d;
+        if (d0.v) { g.save(); g.translate(d0.x * P + 2 * P, d0.y * P); g.rotate(Math.PI / 2); d = { x: 0, y: 0, w: d0.w, t: 'road' }; }
         const Y0 = d.y * P, Wd = (d.w || 40) * P;
         const ap = photoPat(g, 'g_asphalt', 0.25);
         g.fillStyle = 'rgba(42,40,38,0.88)'; g.fillRect(0, Y0, Wd, P * 2);
@@ -162,6 +173,7 @@
         for (let x = 10; x < Wd; x += 52) { if (rnd() < 0.8) { g.fillStyle = 'rgba(214,176,74,0.75)'; g.fillRect(x, Y0 + P - 3, 28, 6); } }
         g.strokeStyle = 'rgba(15,12,10,0.6)'; g.lineWidth = 1.5;
         for (i = 0; i < Wd / 90; i++) { let cx = rnd() * Wd, cy = Y0 + rnd() * P * 2; g.beginPath(); g.moveTo(cx, cy); for (let k = 0; k < 4; k++) { cx += (rnd() - 0.5) * 30; cy += (rnd() - 0.5) * 20; g.lineTo(cx, cy); } g.stroke(); }
+        if (d0.v) g.restore();
         break;
       }
       case 'puddle': {
