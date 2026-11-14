@@ -142,7 +142,11 @@
     { id: 'thermal', n: 'Ночное зрение', d: 'Добыть тепловизор', ok: function (st) { return !!(st.gear && st.gear.thermal); } },
     { id: 'raids3', n: 'Стены держат', d: 'Отбить три набега на базу', ok: function (st) { return (st.stats.raids || 0) >= 3; } },
     { id: 'nolose5', n: 'Все живы', d: 'Пять боёв подряд без потерь', ok: function (st) { return (st.stats.cleanRun || 0) >= 5; } },
-    { id: 'queen', n: 'Сердце мёртвого мира', d: 'Убить Матку', ok: function (st) { return !!st.queenDead; } }
+    { id: 'queen', n: 'Сердце мёртвого мира', d: 'Убить Матку', ok: function (st) { return !!st.queenDead; } },
+    { id: 'free', n: 'Вольная', d: 'Сдать Институту 1000 кристаллов', ok: function (st) { return !!st.freeDay; } },
+    { id: 'days100', n: 'Сто дней', d: 'Прожить 100 дней', ok: function (st) { return st.day >= 100; } },
+    { id: 'queen2', n: 'Снова и снова', d: 'Убить две Матки', ok: function (st) { return (st.queens || 0) >= 2; } },
+    { id: 'kills500', n: 'Гроза пустоши', d: 'Убить 500 врагов', ok: function (st) { return st.stats.kills >= 500; } }
   ];
   D.RANKS = [
     { n: 'Новичок', xp: 0 },
@@ -294,7 +298,7 @@
     { need: 200, n: 'Доверие' },
     { need: 450, n: 'Особый статус' }
   ];
-  D.GOAL = 1000; // драгоценностей сдать для «вольной»
+  D.GOAL = 1000; // драгоценностей сдать для «вольной» (веха; игра бесконечная)
 
   D.RES_NAMES = { gems: 'Драгоценности', food: 'Провизия', ammo: 'Патроны', meds: 'Аптечки', grenades: 'Гранаты', rockets: 'Ракеты', materials: 'Стройматериалы' };
 

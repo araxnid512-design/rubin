@@ -114,7 +114,8 @@
   BT.isHumanFoe = function (e) { const T = D.ENEMIES[e.type]; return !!T && !T.beast && !T.mech; };
   BT.composePods = function (o) {
     const st = DW.G.state;
-    const type = o.type, diff = o.diff;
+    // угроза растёт со временем: каждые 20 дней состав врагов как на ступень сложнее (до предела)
+    const type = o.type, diff = Math.min(5, o.diff + Math.floor(((DW.G.threat && DW.G.threat()) || 0) / 2));
     let n = 2 + diff + Math.floor((st.day - 1) / 7);
     if (o.kind === 'ambush') n = Math.max(2, n - 2);
     n = U.clamp(n, 2, 12);
@@ -195,7 +196,7 @@
   function mkEnemy(type, x, y, pod) {
     const T = D.ENEMIES[type];
     const st = DW.G.state;
-    const bonus = Math.max(0, B.diff - 3) + Math.floor(st.day / 15);
+    const bonus = Math.max(0, B.diff - 3) + Math.min(8, Math.floor(st.day / 15));
     const wid = T.weapons ? U.pick(T.weapons) : T.weapon;
     const gren = type === 'boss' ? 2 : (type === 'thug' ? (Math.random() < 0.5 ? 1 : 0) : (type === 'raider' ? (Math.random() < 0.3 ? 1 : 0) : 0));
     const W = wid ? D.WEAPONS[wid] : null;

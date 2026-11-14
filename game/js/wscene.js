@@ -49,6 +49,7 @@
   function afterPortal() {
     WS.refresh();
     if (DW.G.state.over) DW.Main.ending(DW.G.state.over);
+    else if (DW.G.state.milestone) DW.Main.milestone();
   }
 
   let storyT = 0;
@@ -177,6 +178,7 @@
     if (st.caravan && st.caravan.at === st.squadAt && !st.caravan.met) { await caravanMeet(); if (DW.Main.scene() !== DW.WS) return 'battle'; }
     WS.refresh();
     if (G.state.over) { G.save(); DW.Main.ending(G.state.over); return 'over'; }
+    if (G.state.milestone) await DW.Main.milestone();
     if (r.defense) { G.save(); await startDefense(r.defense); return 'battle'; }
     G.save();
     return 'ok';

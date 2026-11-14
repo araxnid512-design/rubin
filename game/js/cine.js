@@ -456,8 +456,13 @@
       { dur: 4200, cap: '', draw: function (g, w, h, k) { title(g, w, h, k, 'ВОЛЬНАЯ', 'Колония свободна'); } }
     ];
   }
-  SCENES.end_win_gems = function (opt) { return ending('win_gems', opt); };
-  SCENES.end_win_nest = function (opt) { return ending('win_nest', opt); };
+  // веха, а не конец: игра продолжается
+  function goOn(list, opt) {
+    if (opt && opt.goOn) list.push({ dur: 3800, cap: '', draw: function (g, w, h, k) { title(g, w, h, k, 'ЭТО НЕ КОНЕЦ', 'Мёртвый мир не отпускает. Выживайте.', '#d8c090'); } });
+    return list;
+  }
+  SCENES.end_win_gems = function (opt) { return goOn(ending('win_gems', opt), opt); };
+  SCENES.end_win_nest = function (opt) { return goOn(ending('win_nest', opt), opt); };
   SCENES.end_lose = function (opt) { return ending('lose', opt); };
 
   DW.Cine = Cine;

@@ -106,7 +106,7 @@
   G.hasSave = function () {
     const s = DW.store.get(SAVE_KEY);
     if (!s) return false;
-    try { const o = JSON.parse(s); return !!(o && o.roster && !o.over); } catch (e) { return false; }
+    try { const o = JSON.parse(s); return !!(o && o.roster && o.over !== 'lose'); } catch (e) { return false; }
   };
   G.load = function () {
     const s = DW.store.get(SAVE_KEY);
@@ -122,6 +122,9 @@
       // 5.0.7: новые карты боя — для ещё не посещённых локаций
       o.flags = o.flags || {};
       if (!o.flags.maps507) { o.flags.maps507 = 1; o.world.nodes.forEach(function (n) { if (!n.visited && !n.cleared && !n.base && !n.outpost && D.MAP_VARIANTS[n.type] || (n.type === 'camp' && n.fac === 'sobr' && !n.cleared)) n.map = D.mapFor(n.type, n.fac, n.name); }); }
+      // 5.1: игра бесконечная — прежние «победные» концы становятся вехами
+      if (o.over === 'win_gems') { o.over = null; o.freeDay = o.freeDay || o.day; }
+      if (o.over === 'win_nest') { o.over = null; o.queens = o.queens || 1; o.nestBack = o.nestBack || o.day + 10; }
       if (o.baseNode !== null && o.baseNode !== undefined) { const bn = o.world.nodes[o.baseNode]; if (bn && !bn.fort) { bn.oldName = bn.name; bn.name = 'Форт Крут'; bn.fort = true; } }
       return true;
     } catch (e) { return false; }
@@ -359,10 +362,25 @@
     G.log('Сдано Институту без заказа: ' + n + ' драгоценностей.');
     return { total: n, tierUp: G.tier() > t0 };
   };
+  // Вольная — веха, а не конец игры: Институт признаёт колонию, из Портала выходят первые поселенцы (ополчение базы)
   G.checkGoal = function () {
     const st = G.state;
-    if (!st.over && st.delivered >= D.GOAL) st.over = 'win_gems';
-    return st.over;
+    if (!st.freeDay && st.delivered >= D.GOAL) {
+      st.freeDay = st.day; st.milestone = 'win_gems';
+      st.militia = (st.militia || 0) + 3;
+      G.log('Институт дал колонии вольную. Из Портала вышли первые поселенцы.');
+    }
+    return st.milestone || null;
+  };
+  // Угроза растёт со временем: каждые 10 дней мир злее — зачищенное занимают быстрее, враги сильнее
+  G.threat = function () { return Math.max(0, Math.floor((((G.state && G.state.day) || 1) - 1) / 10)); };
+  // рекорд выживания (между прохождениями)
+  G.best = function () { try { return JSON.parse(DW.store.get('dw_best') || 'null') || { days: 0, kills: 0 }; } catch (e) { return { days: 0, kills: 0 }; } };
+  G.saveBest = function () {
+    const st = G.state, b = G.best();
+    const nb = { days: Math.max(b.days || 0, st.day), kills: Math.max(b.kills || 0, st.stats.kills || 0) };
+    try { DW.store.set('dw_best', JSON.stringify(nb)); } catch (e) { /* ignore */ }
+    return { best: nb, newDays: st.day > (b.days || 0) };
   };
 
   G.collectCargo = function (id) {
@@ -402,7 +420,7 @@
   G.raidChance = function () {
     const st = G.state;
     const cl = st.stats.lairs + st.stats.camps;
-    return U.clamp(0.05 + st.day * 0.004 - cl * 0.03, 0.03, 0.3);
+    return U.clamp(0.05 + st.day * 0.004 - Math.min(cl, 5) * 0.03, 0.03, 0.3);
   };
   G.defenseScore = function () { return G.blv('walls') * 3 + G.blv('turret') * 3 + G.blv('tower'); };
 
@@ -561,15 +579,34 @@
         G.log('Груз в «' + n.name + '» украден.');
       }
     });
-    // твари возвращаются
+    // мир не кончается: зачищенное снова занимают — твари в руинах и у жил, стаи в логовах, банды в лагерях;
+    // чем дольше живёт колония, тем чаще и тем сильнее (угроза растёт каждые 10 дней)
+    const thr = G.threat();
     st.world.nodes.forEach(function (n) {
       if (!n.cleared || n.id === st.squadAt || n.id === st.baseNode || n.beacon) return;
       if (n.outpost) return;
-      if ((n.type === 'vein' || n.type === 'ruins') && Math.random() < 0.025) {
-        n.cleared = false;
-        notes.push({ title: 'Угроза', text: 'Разведка докладывает: мутанты снова заняли «' + n.name + '».', kind: 'bad' });
-      }
+      let p = 0;
+      if (n.type === 'vein' || n.type === 'ruins') p = 0.025 + thr * 0.004;
+      else if (n.type === 'lair') p = st.day > 8 ? 0.02 + thr * 0.006 : 0;
+      else if (n.type === 'camp') p = st.day > 10 ? 0.015 + thr * 0.005 : 0;
+      if (n.type === 'lair' && st.calmUntil > st.day) p = 0;
+      if (!p || Math.random() >= Math.min(0.08, p)) return;
+      n.cleared = false; n.plan = null;
+      if (n.type === 'lair' || n.type === 'camp') n.diff = Math.min(5, (n.diff || 1) + 1);
+      const who = n.type === 'camp' ? ({ clan: 'клан', sobr: 'СОБР' }[n.fac] || 'новая банда') : (n.type === 'lair' ? 'новая стая' : 'мутанты');
+      notes.push({ title: 'Угроза', text: 'Разведка докладывает: ' + who + (n.type === 'camp' && n.fac === 'sobr' ? ' снова занял' : ' снова заняли') + ' «' + n.name + '».' + (n.type === 'lair' || n.type === 'camp' ? ' Теперь их там больше.' : ''), kind: 'bad' });
+      G.log('Враги снова заняли «' + n.name + '».');
     });
+    // в Гнезде заводится новая Матка
+    if (st.nestBack && st.day >= st.nestBack) {
+      st.nestBack = null;
+      const ns = st.world.nodes.find(function (n) { return n.type === 'nest'; });
+      if (ns && ns.cleared) {
+        ns.cleared = false; ns.plan = null;
+        notes.push({ title: 'Новая Матка', text: 'Разведка: в Гнезде снова шевелится выводок — там завелась новая Матка. Мутантов в округе станет больше.', kind: 'bad' });
+        G.log('В Гнезде завелась новая Матка.');
+      }
+    }
 
     // набеги
     let defense = null, raidNew = false;
@@ -588,8 +625,11 @@
         if (n.type === 'camp' && !n.cleared) { camps++; facs.push(n.fac || 'raider'); }
       });
       // набег идёт от того, кто рядом: мутанты из логов или люди из лагерей (банда, клан, СОБР)
-      const kind = (lairs + camps === 0) ? 'beast' : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
-      st.raid = { day: st.day + warn, kind: kind, strength: 3 + Math.floor(st.day / 5), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: Math.random() < 0.35 };
+      // после гибели Матки мутанты несколько дней не нападают
+      if (st.calmUntil > st.day) lairs = 0;
+      const kind = (lairs + camps === 0) ? (st.calmUntil > st.day ? null : 'beast') : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
+      if (kind) {
+      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5)), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: Math.random() < 0.35 };
       raidNew = true;
       notes.push({
         title: 'Тревога!',
@@ -599,6 +639,7 @@
         kind: 'bad'
       });
       G.log('Замечен ' + (kind === 'beast' ? 'набег мутантов' : 'набег банды') + ' на базу.');
+      }
     }
 
     G.checkAch().forEach(function (a) { notes.push({ title: 'Достижение', text: '«' + a.n + '» — ' + a.d.toLowerCase() + '.', kind: 'good' }); });
@@ -966,10 +1007,16 @@
           node.cleared = true;
           if (node.type === 'lair') st.stats.lairs++;
           if (node.type === 'camp') st.stats.camps++;
-          if (node.type === 'nest') { st.over = 'win_nest'; st.queenDead = true; }
+          // Матка убита — веха: мутанты на время притихнут, но Гнездо со временем родит новую
+          if (node.type === 'nest') {
+            st.queenDead = true; st.queens = (st.queens || 0) + 1;
+            if (st.queens === 1) st.milestone = 'win_nest';
+            st.nestBack = st.day + U.rand(12, 18); st.calmUntil = st.day + 6;
+          }
         }
         node.visited = true;
         sum.text = '«' + node.name + '» зачищено.';
+        if (node.type === 'nest') sum.text += ' Матка мертва — мутанты притихнут на несколько дней. Но мёртвый мир родит новую.';
         if (node.captives) { st.militia = (st.militia || 0) + node.captives; sum.text += ' Пленные поселенцы освобождены (' + node.captives + ') и вернулись на базу.'; node.captives = 0; }
         G.log('Зачищено: «' + node.name + '».');
       } else {

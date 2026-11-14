@@ -34,7 +34,9 @@
     box.appendChild(el('img', { class: 'temb', src: emblem, alt: '' }));
     box.appendChild(el('div', { class: 't1', text: 'МЁРТВЫЙ МИР' }));
     box.appendChild(el('div', { class: 't2', text: 'Плацдарм' }));
-    box.appendChild(el('div', { class: 't3', text: 'Выживи. Закрепись. Отправь драгоценности через Портал.' }));
+    box.appendChild(el('div', { class: 't3', text: 'Выживи. Закрепись. Бей врагов — мёртвый мир не кончается.' }));
+    const best = DW.G.best ? DW.G.best() : null;
+    if (best && best.days) box.appendChild(el('div', { class: 't3 trec', text: 'Рекорд выживания: ' + best.days + ' ' + U.plural(best.days, 'день', 'дня', 'дней') + ' · врагов убито: ' + best.kills }));
     const btns = el('div', { class: 'tbtns' });
     const hasSave = DW.G.hasSave();
     if (hasSave) btns.appendChild(el('button', { class: 'btn primary big', text: 'Продолжить', onclick: function () { DW.SFX.unlock(); Main.continueGame(); } }));
@@ -198,6 +200,7 @@
     if (!DW.G.load()) { Main.newGame(); return; }
     const st = DW.G.state;
     if (st.over) { Main.ending(st.over, true); return; }
+    if (st.milestone && !st.battle) { Main.toWorld(); Main.milestone(); return; }
     if (st.battle) {
       try {
         const B = DW.BT.restore(st.battle);
@@ -218,6 +221,7 @@
     const st = DW.G.state;
     if (st.over) { Main.ending(st.over); return; }
     Main.toWorld();
+    if (st.milestone) { Main.milestone(); return; }
     const node = DW.G.node(st.squadAt);
     if (!st.flags.tipPortal && sum.result === 'victory') {
       st.flags.tipPortal = true;
@@ -227,8 +231,30 @@
       DW.UI.toast('Здесь можно основать базу!', 'good');
     }
   };
+  // Веха (вольная, убитая Матка): ролик, потом игра продолжается — мир не кончается
+  let msBusy = false;
+  Main.milestone = async function () {
+    const st = DW.G.state;
+    const kind = st && st.milestone;
+    if (!kind || msBusy) return;
+    msBusy = true;
+    st.milestone = null; DW.G.save();
+    try {
+      DW.UI.closeAll();
+      await DW.Cine.play('end_' + kind, { squad: st.roster, memorial: st.memorial, goOn: true });
+      Main.toWorld();
+      if (DW.Music) DW.Music.set('world');
+      const tx = {
+        win_gems: ['Вольная', 'Институт получил свою тысячу драгоценностей и признал колонию. Из Портала вышли первые поселенцы — <b class="acc">+3 ополченца</b> на базе.'],
+        win_nest: ['Сердце мёртвого мира', 'Матка мертва, Гнездо горит. Мутанты притихнут на несколько дней — набегов тварей не будет.']
+      }[kind];
+      await DW.UI.alert(tx[0], tx[1] + '<br><br><b>Но это не конец.</b> Мёртвый мир не отпускает: зачищенные места снова занимают твари и банды, ' +
+        'враги с каждым днём сильнее' + (kind === 'win_nest' ? ', а в Гнезде со временем заведётся новая Матка' : '') + '. Главное — выжить и побеждать.', 'good');
+    } finally { msBusy = false; }
+  };
   Main.ending = async function (kind, noCine) {
     const st = DW.G.state;
+    const rec = DW.G.saveBest ? DW.G.saveBest() : null;
     DW.G.save();
     if (!noCine && !st.flags.endSeen) {
       st.flags.endSeen = true; DW.G.save();
@@ -245,7 +271,7 @@
     if (DW.Music) DW.Music.set(kind === 'lose' ? 'cine' : 'win');
     DW.UI.modal({
       title: tx[0], cls: 'small k-' + (kind === 'lose' ? 'bad' : 'good'), closable: false,
-      body: '<div class="ptext">' + tx[1] + '<br><br>Дней прожито: <b>' + st.day + '</b> · миссий: <b>' + st.stats.missions + '</b> · врагов убито: <b>' + st.stats.kills + '</b> · сдано драгоценностей: <b>' + st.delivered + '</b></div>',
+      body: '<div class="ptext">' + tx[1] + '<br><br>Дней прожито: <b>' + st.day + '</b>' + (rec ? (rec.newDays ? ' — <b class="acc">новый рекорд!</b>' : ' (рекорд: ' + rec.best.days + ')') : '') + ' · миссий: <b>' + st.stats.missions + '</b> · врагов убито: <b>' + st.stats.kills + '</b> · сдано драгоценностей: <b>' + st.delivered + '</b></div>',
       buttons: [{ text: 'В главное меню', cls: 'primary', onClick: function () { Main.toMenu(); } }]
     });
   };

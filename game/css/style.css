@@ -377,6 +377,7 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 }
 .t2 { font-size: 17px; letter-spacing: 12px; text-transform: uppercase; color: var(--acc); margin: 4px 0 4px; text-shadow: 0 0 12px rgba(232, 168, 62, 0.5); }
 .t3 { font-size: 13px; color: rgba(240, 228, 204, 0.7); letter-spacing: 1px; margin-bottom: 12px; text-shadow: 0 1px 2px #000; }
+.t3.trec { font-size: 12px; color: #e0b060; margin-top: -6px; letter-spacing: 0.5px; }
 .tbtns { display: flex; flex-direction: column; gap: 9px; margin-bottom: 10px; }
 .tfoot { position: absolute; bottom: 8px; font-size: 11px; color: rgba(236, 224, 200, 0.45); }
 
