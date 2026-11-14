@@ -1456,7 +1456,7 @@
   }
 
   /* ---------- Атмосфера: освещение, погода, окружение ---------- */
-  const AMB = { dawn: [255, 200, 172], dusk: [236, 152, 108], night: [50, 60, 100], interior: [104, 106, 124], cave: [78, 68, 62] };
+  const AMB = { dawn: [255, 200, 172], dusk: [236, 152, 108], night: [50, 60, 100], interior: [178, 176, 184], cave: [176, 166, 152] };
   let lightC = null, lightG = null;
   let weatherP = [], crows = [], motes = [], acidTiles = [], smokeT = 0;
   function initAtmos(B) {

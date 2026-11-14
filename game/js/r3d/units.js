@@ -836,7 +836,8 @@
   /* фонари отряда ночью: светят ближайшие к камере бойцы (по уровню графики 1–3 фонаря) */
   let spots = [];
   function flashlights(B) {
-    const night = B.tod === 'night' || B.tod === 'cave' || B.tod === 'interior' || (B.dark && B.lights);
+    // фонари только в темноте — а темноты в боях больше нет (дорогие прожекторы не создаются)
+    const night = !!(B.dark && B.lights);
     const n = night ? [1, 2, 3][R3.q()] : 0;
     while (spots.length < n) {
       const s = new THREE.SpotLight(0xfff0d8, 0, 13, 0.42, 0.55, 1.4);

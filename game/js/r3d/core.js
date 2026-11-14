@@ -61,7 +61,8 @@
   };
   R3.resize = function (w, h, dpr) {
     if (!renderer) return;
-    const px = Math.min(dpr || 1, [1.25, 1.6, 2][R3.q()]);
+    // чёткость 3D: потолок по уровню графики и масштаб, который снижает авто-FPS на слабом телефоне (до 0.6)
+    const px = Math.max(0.5, Math.min(dpr || 1, [1.0, 1.35, 1.75][R3.q()]) * (R3.scale || 1));
     if (R3._sz !== w + 'x' + h + '@' + px) {
       R3._sz = w + 'x' + h + '@' + px;
       renderer.setPixelRatio(px);

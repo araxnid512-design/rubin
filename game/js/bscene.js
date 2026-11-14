@@ -15,6 +15,7 @@
     if (DW.pickRenderer) DW.pickRenderer();
     DW.TR.init(B);
     buildHud();
+    window.removeEventListener('resize', onResize); window.addEventListener('resize', onResize);
     selectNext(true);
     BS.refresh();
     const st = DW.G.state;
@@ -39,7 +40,7 @@
     const B0 = B;
     if (B.turn === 1 && B.concealed) setTimeout(function () { if (B !== B0 || !B.concealed) return; DW.UI.toast('Отряд скрыт. Оранжевые клетки — зона, где враг заметит бойца. Первый выстрел — из засады.', ''); }, 3200);
   };
-  BS.exit = function () { document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; if (DW.R3 && DW.R3.show) DW.R3.show(false); };
+  BS.exit = function () { window.removeEventListener('resize', onResize); document.getElementById('ui').innerHTML = ''; DW.TR.overlay = null; hud = null; if (DW.R3 && DW.R3.show) DW.R3.show(false); };
   BS.update = function (dt) { DW.TR.update(dt); };
   BS.render = function (g, w, h, dpr) { DW.TR.render(g, w, h, dpr); };
   BS.pan = function (dx, dy) { DW.TR.pan(dx, dy); };
@@ -121,6 +122,7 @@
   function healTargets(u) {
     return BT().soldiers().filter(function (a) { return a.hp < a.maxHp && Math.max(Math.abs(a.x - u.x), Math.abs(a.y - u.y)) <= 1; });
   }
+  const SHORT = { 'Подавление': 'Подавить', 'Прицельный выстрел': 'Прицел', 'Полевая медицина': 'Лечить', 'Двойной выстрел': 'Дуплет', 'Эвакуация': 'Эвак.', 'За отвагу': 'Отвага' };
   function actionList(u) {
     const st = DW.G.state;
     const W = D.WEAPONS[u.weapon];
@@ -144,9 +146,10 @@
     list.push({ id: 'ability', icon: ab, label: A.n, on: on, cd: cd, count: ab === 'heal' ? u.charges.heal : null, ab: ab });
     list.push({ id: 'overwatch', icon: 'overwatch', label: 'Дозор', on: canFire });
     list.push({ id: 'reload', icon: 'reload', label: 'Перезар.', on: u.ap >= 1 && u.clip < W.clip });
-    list.push({ id: 'grenade', icon: 'throwg', label: 'Граната', on: u.ap >= 1 && st.res.grenades > 0, count: st.res.grenades });
-    if (u.cls === 'heavy') list.push({ id: 'rocket', icon: 'rpg', label: 'РПГ', on: u.ap >= 1 && st.res.rockets > 0, count: st.res.rockets });
-    list.push({ id: 'medkit', icon: 'medkit', label: 'Аптечка', on: u.ap >= 1 && st.res.meds > 0 && healTargets(u).length > 0, count: st.res.meds });
+    // расходники, которых нет, — без кнопки: меньше кнопок в ряду на телефоне
+    if (st.res.grenades > 0) list.push({ id: 'grenade', icon: 'throwg', label: 'Граната', on: u.ap >= 1, count: st.res.grenades });
+    if (u.cls === 'heavy' && st.res.rockets > 0) list.push({ id: 'rocket', icon: 'rpg', label: 'РПГ', on: u.ap >= 1, count: st.res.rockets });
+    if (st.res.meds > 0) list.push({ id: 'medkit', icon: 'medkit', label: 'Аптечка', on: u.ap >= 1 && healTargets(u).length > 0, count: st.res.meds });
     const mt = BT().meleeTargets(u);
     if (mt.length) list.push({ id: 'butt', icon: 'butt', label: 'Приклад', on: u.ap >= 1 });
     const dn = BT().downedNear(u);
@@ -190,10 +193,11 @@
     // действия
     hud.actions.innerHTML = '';
     if (sel && sel.alive && !sel.evac && B.phase === 'player') {
+      const short = window.innerHeight <= 430;   // телефон: короткие подписи, чтобы влезали в узкие кнопки
       actionList(sel).forEach(function (a) {
         const b = el('button', {
-          class: 'abtn' + (a.on ? '' : ' off') + (a.id === 'ability' ? ' abil' : ''),
-          html: '<span class="ico">' + (D.ICONS[a.icon] || '') + '</span><span>' + a.label + '</span>' +
+          class: 'abtn' + (a.on ? '' : ' off') + (a.id === 'ability' ? ' abil' : ''), title: a.label,
+          html: '<span class="ico">' + (D.ICONS[a.icon] || '') + '</span><span>' + (short && SHORT[a.label] || a.label) + '</span>' +
             (a.cd ? '<em class="cd">' + a.cd + '</em>' : '') + (a.count !== null && a.count !== undefined ? '<em class="cnt">' + a.count + '</em>' : '') +
             (a.note ? '<em class="note">' + a.note + '</em>' : ''),
           onclick: function () { if (!busy && a.on) { DW.SFX.play('click'); doAction(a); } else if (!busy) explainOff(a); }
@@ -201,6 +205,7 @@
         hud.actions.appendChild(b);
       });
     }
+    layoutBottom();
     hud.end.disabled = busy || B.phase !== 'player';
     hud.next.disabled = busy || B.phase !== 'player';
     hud.menuBtn.disabled = busy;
@@ -215,6 +220,33 @@
       else hint('');
     }
   };
+  /* нижняя панель на телефоне: кнопки в одну строку правее портретов отряда (не налезают на них), ширина кнопок —
+     по месту; полоска выбранного бойца и подсказка — над кнопками, по центру ряда */
+  function layoutBottom() {
+    if (!hud || !hud.actions) return;
+    const vh = window.innerHeight;
+    const sr = hud.squad.getBoundingClientRect();
+    const btnH = vh <= 430 ? 50 : 54;
+    const padL = sr.height > 0 && sr.bottom > vh - btnH - 12 ? Math.ceil(sr.right) + 6 : 0;
+    hud.bot.style.paddingLeft = padL ? padL + 'px' : '';
+    const kids = hud.actions.children, n = kids.length;
+    const base = vh <= 430 ? 52 : 58;
+    if (n) {
+      const avail = hud.actions.clientWidth;
+      const w = Math.max(36, Math.min(base, Math.floor((avail - (n - 1) * 4) / n)));
+      hud.actions.classList.toggle('tight', w < base - 5);
+      for (let i = 0; i < n; i++) kids[i].style.width = w + 'px';
+    }
+    const ar = hud.actions.getBoundingClientRect();
+    if (ar.width > 0) {
+      hud.unit.style.left = Math.round(ar.left + ar.width / 2) + 'px';
+      hud.unit.style.maxWidth = Math.round(ar.width) + 'px';
+      hud.unit.style.bottom = Math.round(vh - ar.top + 6) + 'px';
+      hud.hint.style.left = hud.unit.style.left;
+      hud.hint.style.bottom = Math.round(vh - ar.top + 38) + 'px';
+    }
+  }
+  function onResize() { if (hud) setTimeout(layoutBottom, 60); }
   function explainOff(a) {
     const msg = {
       shoot: 'Нет целей в поле зрения, пустая обойма или кончились патроны.',

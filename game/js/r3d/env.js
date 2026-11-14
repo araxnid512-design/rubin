@@ -13,8 +13,8 @@
     dawn: { sun: 0xffc49a, si: 1.8, sky: 0xb8a698, gnd: 0x5a4636, hi: 0.8, az: 2.3, el: 0.32, fog: 0xc79a80, fd: 0.012, top: 0x5a6888, bot: 0xf0a878, exp: 1.05 },
     dusk: { sun: 0xffb486, si: 1.6, sky: 0xa89488, gnd: 0x4a3a2e, hi: 0.8, az: -0.8, el: 0.28, fog: 0xa77a64, fd: 0.013, top: 0x3e4468, bot: 0xe08a5a, exp: 1.05 },
     night: { sun: 0x9fb4e0, si: 0.95, sky: 0x4a5a7a, gnd: 0x202028, hi: 0.62, az: 1.2, el: 0.85, fog: 0x1a2030, fd: 0.02, top: 0x070b16, bot: 0x1e2638, exp: 1.4 },
-    interior: { sun: 0xffe2b8, si: 0.9, sky: 0x8a7a68, gnd: 0x3a3028, hi: 0.55, az: 0.9, el: 1.1, fog: 0x2a241e, fd: 0.02, top: 0x1a1612, bot: 0x2a241e, exp: 1.15 },
-    cave: { sun: 0xbfd8e8, si: 0.5, sky: 0x506070, gnd: 0x2a221c, hi: 0.4, az: 0.9, el: 1.2, fog: 0x12100e, fd: 0.03, top: 0x0a0908, bot: 0x161210, exp: 1.25 }
+    interior: { sun: 0xffe2b8, si: 1.6, sky: 0xa89884, gnd: 0x4a3e32, hi: 0.85, az: 0.9, el: 1.1, fog: 0x3a3229, fd: 0.016, top: 0x2a241e, bot: 0x3e352b, exp: 1.2 },
+    cave: { sun: 0xd8e6f0, si: 1.7, sky: 0x8e9aa6, gnd: 0x4e4236, hi: 0.95, az: 0.9, el: 1.2, fog: 0x2c2824, fd: 0.016, top: 0x1c1a18, bot: 0x3a332b, exp: 1.25 }
   };
   const WEATHER = { rain: { fd: 1.35, dim: 0.72, fog: 0x7d828a }, dust: { fd: 2.6, dim: 0.82, fog: 0xc09060 }, ash: { fd: 1.8, dim: 0.75, fog: 0x8a8580 } };
   /* цветокоррекция (в общем шейдере мира, после тонального сжатия — несколько умножений на точку, без отдельного
@@ -26,7 +26,7 @@
     dusk: { s: 1.12, c: 1.07, g: [1.1, 0.95, 0.82], l: [0.016, 0.002, 0.006] },
     night: { s: 0.72, c: 1.06, g: [0.84, 0.95, 1.14], l: [0, 0.006, 0.022] },
     interior: { s: 0.95, c: 1.04, g: [1.04, 0.99, 0.92], l: [0.008, 0.004, 0] },
-    cave: { s: 0.86, c: 1.06, g: [0.9, 1.03, 0.98], l: [0, 0.014, 0.01] }
+    cave: { s: 0.94, c: 1.04, g: [0.96, 1.02, 0.99], l: [0.01, 0.016, 0.012] }
   };
   const GRADE_MAP = {
     swamp: { s: 0.94, g: [0.93, 1.04, 0.86], l: [0, 0.01, 0] }, nest: { s: 0.92, g: [0.9, 1.06, 0.88], l: [0, 0.016, 0.004] },

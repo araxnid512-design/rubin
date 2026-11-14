@@ -360,8 +360,11 @@
     flush();
     halos(B);
     // источники света
+    // точечный свет дорог для телефона: заводим ровно столько, сколько есть горящих источников рядом (днём фонари не светят)
     const q = R3.q();
-    const n = [2, 4, 6][q];
+    const dim = B.tod === 'dusk' || B.tod === 'dawn' || B.tod === 'cave' || B.tod === 'interior';
+    const need = sources.filter(function (s) { return s.fire || dim; }).length;
+    const n = Math.min([0, 2, 4][q], need);
     lights.forEach(function (l) { R3.scene.remove(l); });
     lights = [];
     for (let i = 0; i < n; i++) { const l = new THREE.PointLight(0xffffff, 0, 6, 1.6); l.castShadow = false; R3.scene.add(l); lights.push(l); }
@@ -603,7 +606,7 @@
   DT.update = function (t) {
     if (!lights.length) return;
     const B = DT.B;
-    const night = B && (B.tod === 'night' || B.tod === 'dusk' || B.tod === 'dawn' || B.tod === 'cave' || B.tod === 'interior');
+    const night = B && (B.tod === 'dusk' || B.tod === 'dawn' || B.tod === 'cave' || B.tod === 'interior');
     const cx = R3.cam.tx, cz = R3.cam.tz;
     const list = sources.filter(function (s) { return night || s.fire; }).sort(function (a, b) { return (a.p.x - cx) * (a.p.x - cx) + (a.p.z - cz) * (a.p.z - cz) - ((b.p.x - cx) * (b.p.x - cx) + (b.p.z - cz) * (b.p.z - cz)); });
     // огонь костра: частицы

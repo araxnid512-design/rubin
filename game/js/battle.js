@@ -243,9 +243,9 @@
     if (o.kind !== 'defense' && DW.G.uazOk && DW.G.uazOk()) placeOwnUaz();
     BT.rollConditions(B, mapType);
     // ночной набег: темно, прожектор вышки светит в сторону удара
-    if (o.kind === 'defense' && o.raid && o.raid.night) { B.tod = 'night'; B.sightMod = -2 + (B.weather === 'dust' ? -3 : 0); }
     // ночью и в пещерах — фонари: бойцы видят дальше, но их замечают издалека
-    B.dark = B.tod === 'night' || B.tod === 'cave'; B.lights = B.dark;
+    // темноты нет: ни ночи, ни тёмных пещер (фонари не нужны)
+    B.dark = false; B.lights = false;
     // скрытное начало (как в XCOM 2): враги не знают об отряде, пока не заметят его вблизи
     B.concealed = o.kind !== 'defense' && o.kind !== 'ambush';
     const squad = o.squad.map(function (id) { return st.roster.find(function (s) { return s.id === id; }); }).filter(Boolean);
@@ -386,7 +386,8 @@
     let tod;
     if (mapType === 'vault') tod = 'interior';
     else if (mapType === 'lair' || mapType === 'crystalcave') tod = 'cave';
-    else { const r = Math.random(); tod = r < 0.4 ? 'day' : (r < 0.58 ? 'dawn' : (r < 0.8 ? 'dusk' : 'night')); }
+    // ночных боёв нет: день, рассвет или закат
+    else { const r = Math.random(); tod = r < 0.5 ? 'day' : (r < 0.75 ? 'dawn' : 'dusk'); }
     let weather = 'clear';
     if (tod !== 'interior' && tod !== 'cave') { const r = Math.random(); weather = r < 0.55 ? 'clear' : (r < 0.7 ? 'dust' : (r < 0.85 ? 'ash' : 'rain')); }
     // на карте мира непогода — она и в бою
@@ -404,6 +405,9 @@
   };
   BT.restore = function (data) {
     B = data;
+    // старый бой ночью — теперь закат, без темноты
+    if (B.tod === 'night') { B.tod = 'dusk'; B.sightMod = (B.sightMod || 0) + 2; }
+    if (B.dark) { B.dark = false; if (B.lights) B.units.forEach(function (u) { if (u.side === 'p' && u.sight0) u.sight = u.sight0; }); B.lights = false; }
     BT.indexLadders();
     BT.updateVision();
     return B;

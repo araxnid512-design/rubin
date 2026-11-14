@@ -123,6 +123,7 @@
       o.flags = o.flags || {};
       if (!o.flags.maps507) { o.flags.maps507 = 1; o.world.nodes.forEach(function (n) { if (!n.visited && !n.cleared && !n.base && !n.outpost && D.MAP_VARIANTS[n.type] || (n.type === 'camp' && n.fac === 'sobr' && !n.cleared)) n.map = D.mapFor(n.type, n.fac, n.name); }); }
       // 5.1: игра бесконечная — прежние «победные» концы становятся вехами
+      if (o.raid) o.raid.night = false;   // ночных набегов больше нет
       if (o.over === 'win_gems') { o.over = null; o.freeDay = o.freeDay || o.day; }
       if (o.over === 'win_nest') { o.over = null; o.queens = o.queens || 1; o.nestBack = o.nestBack || o.day + 10; }
       if (o.baseNode !== null && o.baseNode !== undefined) { const bn = o.world.nodes[o.baseNode]; if (bn && !bn.fort) { bn.oldName = bn.name; bn.name = 'Форт Крут'; bn.fort = true; } }
@@ -629,11 +630,11 @@
       if (st.calmUntil > st.day) lairs = 0;
       const kind = (lairs + camps === 0) ? (st.calmUntil > st.day ? null : 'beast') : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
       if (kind) {
-      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5)), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: Math.random() < 0.35 };
+      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5)), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: false };
       raidNew = true;
       notes.push({
         title: 'Тревога!',
-        text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю мутантов' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') + (st.raid.night ? ', ночью' : '') +
+        text: 'Дозорные заметили ' + (kind === 'beast' ? 'стаю мутантов' : 'банду') + ', идущую к базе. Нападение через ' + warn + ' ' + U.plural(warn, 'день', 'дня', 'дней') +
           (G.blv('radio') ? '. Радиовышка перехватила: удар будет ' + G.DIRN[st.raid.dir] : '') +
           '. Если отряд будет на базе — примете бой (на базе можно подготовиться: мины, колючка, посты). На УАЗе отряд успеет издалека. Иначе база будет полагаться на укрепления (защита ' + G.defenseScore() + ').',
         kind: 'bad'

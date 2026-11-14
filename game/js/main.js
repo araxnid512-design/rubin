@@ -364,7 +364,7 @@
     fpsN++;
     if (t - fpsT >= 1000) {
       const lv = ['низк.', 'средн.', 'выс.'][DW.gfxLevel()];
-      fpsEl.textContent = Math.round(fpsN * 1000 / (t - fpsT)) + ' FPS · ' + renderAvg.toFixed(1) + ' мс · ' + lv + ' · ×' + dpr.toFixed(2);
+      fpsEl.textContent = Math.round(fpsN * 1000 / (t - fpsT)) + ' FPS · ' + renderAvg.toFixed(1) + ' мс · ' + lv + ' · ×' + dpr.toFixed(2) + (DW.TR.is3d && DW.R3 && DW.R3.scale < 1 ? ' · 3D ' + Math.round(DW.R3.scale * 100) + '%' : '');
       fpsN = 0; fpsT = t;
     }
   }
@@ -395,13 +395,15 @@
               slowFrames = 0; renderAvg = 0; frameAvg = 16.7;
               if (DW.settings.gfx === 'auto' && DW.gfxLevel() > 0) { DW.settings.autoLevel = DW.gfxLevel() - 1; DW.saveSettings(); if (DW.TR.applyQuality) DW.TR.applyQuality(); resize(); }
               else if (dpr > 1) { maxDpr = Math.max(1, dpr - 0.25); resize(); }   // мельче шаг — почти незаметно глазу
+              else if (DW.TR.is3d && DW.R3 && (DW.R3.scale || 1) > 0.6) DW.R3.scale = Math.max(0.6, Math.round(((DW.R3.scale || 1) - 0.1) * 10) / 10);   // 3D — ещё мельче
             }
           } else slowFrames = 0;
-          if (renderAvg < 9 && frameAvg < 18 && scene === DW.BS && (maxDpr < 2 || (DW.settings.gfx === 'auto' && DW.gfxLevel() < 2))) {
+          if (renderAvg < 9 && frameAvg < 18 && scene === DW.BS && ((DW.R3 && (DW.R3.scale || 1) < 1) || maxDpr < 2 || (DW.settings.gfx === 'auto' && DW.gfxLevel() < 2))) {
             // телефон справляется: сначала возвращаем чёткость, потом уровень графики
             if (++fastFrames > 600) {
               fastFrames = 0;
-              if (maxDpr < 2) { maxDpr = Math.min(2, maxDpr + 0.25); resize(); }
+              if (DW.R3 && (DW.R3.scale || 1) < 1) DW.R3.scale = Math.min(1, Math.round(((DW.R3.scale || 1) + 0.1) * 10) / 10);
+              else if (maxDpr < 2) { maxDpr = Math.min(2, maxDpr + 0.25); resize(); }
               else { DW.settings.autoLevel = DW.gfxLevel() + 1; DW.saveSettings(); }
             }
           } else fastFrames = 0;
