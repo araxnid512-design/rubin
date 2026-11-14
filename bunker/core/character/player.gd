@@ -39,6 +39,8 @@ var _was_moving := false
 var _idle_t := 0.0
 var game_time := 8.0 * 3600.0         ## время суток в игре, секунды
 var _return_pos := Vector3.INF
+var _full_t := 0.0                   ## сколько бежит в полный наклон джойстика
+var _tired := false                  ## выдохся — рывка нет, пока выносливость не восстановится
 
 
 func _ready() -> void:
@@ -92,15 +94,26 @@ func _physics_process(delta: float) -> void:
 		var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
 		dir = (right * inp.x + fwd * inp.y).normalized()
 	var want := 0.0
+	# по умолчанию герой бежит: полный наклон джойстика — бег, лёгкий — шаг; через 2 с бега в полный наклон —
+	# сам переходит на рывок, пока есть выносливость (кнопки «Бег» нет; на ПК — Shift)
+	if dir != Vector3.ZERO and mag > 0.85 and not crouching:
+		_full_t += delta
+	else:
+		_full_t = 0.0
+	if stamina < 2.0:
+		_tired = true
+	elif stamina > 30.0:
+		_tired = false
+	var sprint := (sprint_held or _full_t > 2.0) and not _tired
 	if dir != Vector3.ZERO:
 		if crouching:
 			want = CROUCH * mag
-		elif sprint_held and stamina > 1.0 and mag > 0.7:
+		elif sprint and mag > 0.7:
 			want = SPRINT
+		elif mag < 0.45:
+			want = lerpf(0.5, WALK, mag / 0.45)
 		else:
-			want = lerpf(WALK * 0.6, JOG, clampf((mag - 0.1) / 0.8, 0.0, 1.0))
-			if mag < 0.55:
-				want = lerpf(0.5, WALK, mag / 0.55)
+			want = lerpf(WALK, JOG, clampf((mag - 0.45) / 0.3, 0.0, 1.0))
 	if state == "sit" or state == "lie" or (state == "busy" and collision_mask == 0):
 		velocity = Vector3.ZERO
 		if rig:
@@ -383,3 +396,21 @@ func set_state(s: Dictionary) -> void:
 	if rig:
 		rig.set_pose("")
 	stats_changed.emit()
+
+
+## короткая подпись для кнопки «Действие» — что произойдёт при нажатии
+func action_verb() -> String:
+	if state == "sit" or state == "lie":
+		return "Встать"
+	var t = target
+	if t == null:
+		return ""
+	if t is BCDoor:
+		return "Закрыть" if t.is_open else "Открыть"
+	if t is BCNpc:
+		return "Говорить"
+	if t is BCInteract:
+		return {"terminal": "Терминал", "bed": "Лечь", "chair": "Сесть", "medbay": "Лечиться", "suit": "Снять" if suit_on else "Надеть",
+			"switch": "Свет", "pickup": "Взять", "inspect": "Осмотр"}.get(t.action, "Действие")
+	return "Действие"
+

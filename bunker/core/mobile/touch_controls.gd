@@ -91,7 +91,7 @@ func _input(e: InputEvent) -> void:
 func _button_at(p: Vector2) -> String:
 	for n in buttons:
 		var b: Control = buttons[n]
-		if b.is_visible_in_tree() and b.get_global_rect().grow(6).has_point(p):
+		if b.is_visible_in_tree() and b.get_global_rect().grow(14).has_point(p):
 			return n
 	return ""
 

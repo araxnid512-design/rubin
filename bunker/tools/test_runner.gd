@@ -219,8 +219,11 @@ func _interact_test(only_sit := false) -> void:
 		if pl.state == "sit" or pl.state == "lie":
 			await _shot(c[3] + "_hold")
 			pl.do_interact()
-			await get_tree().create_timer(2.5).timeout
-			_log("  встал: состояние %s" % pl.state)
+			var up_t := 0.0
+			while pl.state != "move" and up_t < 8.0:
+				await get_tree().create_timer(0.25).timeout
+				up_t += 0.25
+			_log("  встал: состояние %s за %.1f с" % [pl.state, up_t])
 		Core.hud.close_modal()
 	if only_sit:
 		return
