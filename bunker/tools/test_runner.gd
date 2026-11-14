@@ -174,6 +174,31 @@ func _run() -> void:
 				_log("  враг не создан")
 		await _shot("l8_enemies")
 		cam.zoom = 1.0
+	if mode == "night":
+		var pl: BCPlayer = Core.player
+		pl.game_time = 22.0 * 3600.0
+		await _place(Vector3(-24.0, 0.2, -30.0), PI, 0.5)
+		await get_tree().create_timer(3.0).timeout
+		var vs := {}
+		for e in get_tree().get_nodes_in_group("enemy"):
+			vs[e.variant] = vs.get(e.variant, 0) + 1
+		_log("ночь: враги %s" % [vs])
+		var mu: Node3D = null
+		for e in get_tree().get_nodes_in_group("enemy"):
+			if e.variant == "mutant":
+				mu = e
+		if mu:
+			await _place(mu.global_position + Vector3(0, 0.2, 4.0), PI, 0.0)
+			await get_tree().create_timer(1.5).timeout
+			await _shot("n1_mutant_night")
+			_log("мутант: %s, до героя %.1f" % [mu.state, mu.global_position.distance_to(pl.global_position)])
+		pl.game_time = 30.0 * 3600.0
+		await get_tree().create_timer(2.0).timeout
+		var left := 0
+		for e in get_tree().get_nodes_in_group("enemy"):
+			if e.variant == "mutant" and is_instance_valid(e) and not e.is_queued_for_deletion():
+				left += 1
+		_log("утро: мутантов осталось %d (рядом с героем не исчезают)" % left)
 	if mode == "perf":
 		await _perf_test()
 	if mode == "interact" or mode == "all" or mode == "sitlie":
