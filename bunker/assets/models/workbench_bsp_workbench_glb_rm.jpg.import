@@ -2,21 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b58s4q2vfgcnt"
-path.s3tc="res://.godot/imported/truck_e_ural_glb_basecolor.jpg-e28891a17e91ba4dd0e83844da5ac031.s3tc.ctex"
-path.etc2="res://.godot/imported/truck_e_ural_glb_basecolor.jpg-e28891a17e91ba4dd0e83844da5ac031.etc2.ctex"
+uid="uid://bfberapviy3f3"
+path.s3tc="res://.godot/imported/workbench_bsp_workbench_glb_rm.jpg-94e4e9c05b99baeda4f0f647db259620.s3tc.ctex"
+path.etc2="res://.godot/imported/workbench_bsp_workbench_glb_rm.jpg-94e4e9c05b99baeda4f0f647db259620.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "d83b3aa1b8d182e6b4cfe36c5a1de02a"
+"md5": "78693b7753c58b1c65bc6c99695e26e5"
 }
 
 [deps]
 
-source_file="res://assets/models/truck_e_ural_glb_basecolor.jpg"
-dest_files=["res://.godot/imported/truck_e_ural_glb_basecolor.jpg-e28891a17e91ba4dd0e83844da5ac031.s3tc.ctex", "res://.godot/imported/truck_e_ural_glb_basecolor.jpg-e28891a17e91ba4dd0e83844da5ac031.etc2.ctex"]
+source_file="res://assets/models/workbench_bsp_workbench_glb_rm.jpg"
+dest_files=["res://.godot/imported/workbench_bsp_workbench_glb_rm.jpg-94e4e9c05b99baeda4f0f647db259620.s3tc.ctex", "res://.godot/imported/workbench_bsp_workbench_glb_rm.jpg-94e4e9c05b99baeda4f0f647db259620.etc2.ctex"]
 
 [params]
 

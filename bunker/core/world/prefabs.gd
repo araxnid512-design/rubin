@@ -58,7 +58,7 @@ const CATALOG := {
 	"power_pole": {"n": "Опора ЛЭП", "cat": "Поверхность", "size": Vector3(1.8, 8.0, 0.3)},
 	"transformer": {"n": "Трансформатор", "cat": "Поверхность", "size": Vector3(1.8, 2.6, 1.4)},
 	"dead_tree": {"n": "Мёртвое дерево", "cat": "Поверхность", "size": Vector3(0.6, 7.0, 0.6)},
-	"truck": {"n": "Брошенный грузовик", "cat": "Поверхность", "size": Vector3(2.5, 2.9, 7.2)},
+	"truck": {"n": "Брошенный грузовик", "cat": "Поверхность", "size": Vector3(2.5, 3.1, 6.6)},
 	"shed": {"n": "Разрушенная постройка", "cat": "Поверхность", "size": Vector3(6.4, 3.2, 4.6)},
 	"concrete_block": {"n": "Бетонный блок", "cat": "Поверхность", "size": Vector3(1.6, 0.6, 0.6)},
 	"pipe_pile": {"n": "Трубы", "cat": "Поверхность", "size": Vector3(3.2, 0.7, 1.2)},
@@ -821,7 +821,7 @@ static func _dead_tree(mk: BCMesh, col: Array, p: Dictionary) -> void:
 
 
 static func _branch(mk: BCMesh, r: RandomNumberGenerator, a: Vector3, dir: Vector3, length: float, rad: float, depth: int) -> void:
-	var segs := 3
+	var segs := 2
 	var p := a
 	var d := dir
 	for s in segs:
@@ -829,12 +829,12 @@ static func _branch(mk: BCMesh, r: RandomNumberGenerator, a: Vector3, dir: Vecto
 		var r0 := rad * (1.0 - 0.25 * s / segs)
 		var r1 := rad * (1.0 - 0.25 * (s + 1) / segs)
 		var t := Transform3D(_basis_y(q - p), p)
-		mk.cyl("bark", t, r0, (q - p).length(), Vector3.ZERO, 7 if depth == 0 else 5, false, r1)
+		mk.cyl("bark", t, r0, (q - p).length(), Vector3.ZERO, 6 if depth == 0 else 4, false, r1)
 		# изгиб
 		d = (d + Vector3(r.randf_range(-0.25, 0.25), r.randf_range(-0.05, 0.12), r.randf_range(-0.25, 0.25))).normalized()
 		p = q
 		if depth < 3 and s >= 1:
-			var nb := 2 if depth < 2 else 1
+			var nb := 2 if depth < 1 else 1
 			for k in nb:
 				if r.randf() < 0.75:
 					var side := Vector3(r.randf_range(-1, 1), r.randf_range(0.2, 0.9), r.randf_range(-1, 1)).normalized()

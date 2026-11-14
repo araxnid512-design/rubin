@@ -59,6 +59,18 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 	var skel_path := String(ap_root.get_path_to(skel))
 	var clips: Dictionary = cfg.get("clips", {})
 	var root_bone: String = cfg.get("root_bone", "Hip")
+	# «вперёд» модели — по клипу ходьбы (нужно для зеркалирования)
+	var mirror_fwd := Vector3.RIGHT
+	if clips.has("walk"):
+		for spec in clips.walk.get("src", []):
+			var wa := _source(String(spec).replace("{set}", set_dir))
+			if wa:
+				var tmp: Animation = wa.duplicate(true)
+				_retarget(tmp, skel, skel_path)
+				var rr := _strip_root(tmp, skel, root_bone)
+				if rr[1] != Vector3.ZERO:
+					mirror_fwd = rr[1]
+				break
 	for clip_name in clips:
 		var c: Dictionary = clips[clip_name]
 		var src: Animation = null
@@ -81,7 +93,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			speed = rr[0] * scale
 			dir = rr[1]
 		if c.get("mirror", false):
-			_mirror(a, skel)
+			a = _mirror(a, skel, mirror_fwd)
 		if c.get("hold", false):
 			a = _hold_last(a)
 		a.loop_mode = Animation.LOOP_LINEAR if c.get("loop", false) else Animation.LOOP_NONE
@@ -186,32 +198,77 @@ static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock 
 	return [w.length() / T, Vector3(w.x, 0, w.z).normalized()]
 
 
-## зеркальный клип (налево ↔ направо): кости L_ ↔ R_, отражение по X модели
-static func _mirror(a: Animation, skel: Skeleton3D) -> void:
-	var paths := {}
-	for i in a.get_track_count():
-		paths[String(a.track_get_path(i))] = i
+## зеркальный клип (налево ↔ направо) через позы в пространстве скелета: на каждом кадре собирается поза всего
+## скелета, отражается относительно плоскости симметрии модели (боковая ось = вверх × вперёд), кости L_ ↔ R_
+## меняются местами, затем позы снова переводятся в локальные. fwd — «вперёд» модели в пространстве скелета.
+static func _mirror(a: Animation, skel: Skeleton3D, fwd := Vector3.RIGHT) -> Animation:
+	var lat := Vector3.UP.cross(fwd).normalized()
+	var M := Basis(Vector3.RIGHT - 2.0 * lat * lat.x, Vector3.UP - 2.0 * lat * lat.y, Vector3.BACK - 2.0 * lat * lat.z)
+	var nb := skel.get_bone_count()
+	var rot_t := {}
+	var pos_t := {}
 	for i in a.get_track_count():
 		var p := String(a.track_get_path(i))
-		var np := p
-		if p.contains(":L_"):
-			np = p.replace(":L_", ":R_")
-		elif p.contains(":R_"):
-			np = p.replace(":R_", ":L_")
-		a.track_set_path(i, NodePath(np))
-		var bone := np.substr(np.find(":") + 1)
-		var bi := skel.find_bone(bone)
+		var bi := skel.find_bone(p.substr(p.find(":") + 1))
 		if bi < 0:
 			continue
-		# отражение в пространстве модели: x → −x
-		var parent := skel.get_bone_parent(bi)
-		var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
-		var M := Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1))
-		var cnv := pb.inverse() * M * pb
-		for k in a.track_get_key_count(i):
-			var v = a.track_get_key_value(i, k)
-			if v is Vector3:
-				a.track_set_key_value(i, k, cnv * v)
-			elif v is Quaternion:
-				var b := Basis(v)
-				a.track_set_key_value(i, k, Quaternion((cnv * b * cnv).orthonormalized()))
+		if a.track_get_type(i) == Animation.TYPE_ROTATION_3D:
+			rot_t[bi] = i
+		elif a.track_get_type(i) == Animation.TYPE_POSITION_3D:
+			pos_t[bi] = i
+	var pair := []
+	for b in nb:
+		var n := skel.get_bone_name(b)
+		var o := n
+		if n.begins_with("L_"):
+			o = "R_" + n.substr(2)
+		elif n.begins_with("R_"):
+			o = "L_" + n.substr(2)
+		var oi := skel.find_bone(o)
+		pair.append(oi if oi >= 0 else b)
+	var skel_path := ""
+	for i in a.get_track_count():
+		var p := String(a.track_get_path(i))
+		skel_path = p.substr(0, p.find(":"))
+		break
+	var out := Animation.new()
+	out.length = a.length
+	var new_rot := {}
+	var new_pos := {}
+	for b in nb:
+		if rot_t.has(b) or rot_t.has(pair[b]):
+			var ti := out.add_track(Animation.TYPE_ROTATION_3D)
+			out.track_set_path(ti, NodePath(skel_path + ":" + skel.get_bone_name(b)))
+			new_rot[b] = ti
+		if pos_t.has(b) or pos_t.has(pair[b]):
+			var tp := out.add_track(Animation.TYPE_POSITION_3D)
+			out.track_set_path(tp, NodePath(skel_path + ":" + skel.get_bone_name(b)))
+			new_pos[b] = tp
+	var t := 0.0
+	var step := 1.0 / 30.0
+	while t <= a.length + 0.0001:
+		# поза в пространстве скелета
+		var G := []
+		G.resize(nb)
+		for b in nb:
+			var rest := skel.get_bone_rest(b)
+			var q: Quaternion = a.rotation_track_interpolate(rot_t[b], t) if rot_t.has(b) else rest.basis.get_rotation_quaternion()
+			var pv: Vector3 = a.position_track_interpolate(pos_t[b], t) if pos_t.has(b) else rest.origin
+			var L := Transform3D(Basis(q), pv)
+			var par := skel.get_bone_parent(b)
+			G[b] = (G[par] * L) if par >= 0 else L
+		# отражение и обмен сторон
+		var GM := []
+		GM.resize(nb)
+		for b in nb:
+			var src: Transform3D = G[pair[b]]
+			GM[b] = Transform3D(M * src.basis * M, M * src.origin)
+		for b in nb:
+			var par := skel.get_bone_parent(b)
+			var Lm: Transform3D = ((GM[par] as Transform3D).affine_inverse() * GM[b]) if par >= 0 else GM[b]
+			if new_rot.has(b):
+				out.rotation_track_insert_key(new_rot[b], t, Lm.basis.orthonormalized().get_rotation_quaternion())
+			if new_pos.has(b):
+				out.position_track_insert_key(new_pos[b], t, Lm.origin)
+		t += step
+	return out

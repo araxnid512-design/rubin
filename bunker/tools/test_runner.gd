@@ -91,6 +91,8 @@ func _run() -> void:
 					var o := c.get_collider() as Node
 					_log("упёрся в %s (%s) у %s" % [o.get_path() if o else "?", o.get_parent().name if o else "", pl.global_position])
 					break
+	if mode == "perf":
+		await _perf_test()
 	if mode == "interact" or mode == "all" or mode == "sitlie":
 		await _interact_test(mode == "sitlie")
 	if mode == "walk" or mode == "all":
@@ -198,4 +200,60 @@ func _interact_test(only_sit := false) -> void:
 			await get_tree().create_timer(1.2).timeout
 		_log("мародёр: здоровье %.0f, состояние %s; герой: здоровье %.0f" % [raider.hp, raider.state, pl.hp])
 		await _shot("i8_fight")
+
+
+## замер производительности: маршрут по бункеру и поверхности бегом, каждые 0.5 с — FPS, время кадра,
+## вызовы отрисовки, объекты, треугольники, память; итог — среднее, 1% худших кадров, максимум
+func _perf_test() -> void:
+	var pl: BCPlayer = Core.player
+	var route := [
+		["бункер", Vector3(-6.0, -5.95, -25.0), [Vector3(-6.0, 0, -21.0), Vector3(9.6, 0, -20.8), Vector3(10.0, 0, -18.0), Vector3(10.0, 0, -13.4)]],
+		["лестница и выход", Vector3(10.0, -5.95, -13.6), [Vector3(10.0, 0, -1.6), Vector3(10.0, 0, 4.0)]],
+		["поверхность", Vector3(10.0, 0.1, 4.0), [Vector3(-8.0, 0, 10.0), Vector3(-20.0, 0, -6.0), Vector3(16.0, 0, -18.0), Vector3(10.0, 0, 4.0)]],
+	]
+	var all_ms: Array = []
+	for leg in route:
+		await _place(leg[1], 0.0)
+		var samples: Array = []
+		var t := 0.0
+		for p in leg[2]:
+			var start := Time.get_ticks_msec()
+			pl.sprint_held = true
+			while Time.get_ticks_msec() - start < 20000:
+				var d: Vector3 = p - pl.global_position
+				d.y = 0
+				if d.length() < 0.6:
+					break
+				var cam := get_viewport().get_camera_3d()
+				var yaw: float = cam.yaw
+				var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
+				var right := Vector3(cos(yaw), 0, -sin(yaw))
+				pl.move_input = Vector2(d.normalized().dot(right), d.normalized().dot(fwd))
+				if pl.target and pl.target is BCDoor and not pl.target.is_open:
+					pl.do_interact()
+				await get_tree().process_frame
+				var ms := get_process_delta_time() * 1000.0
+				all_ms.append(ms)
+				t += ms
+				if t > 500.0:
+					t = 0.0
+					samples.append(Core.mobile.stats())
+		pl.move_input = Vector2.ZERO
+		pl.sprint_held = false
+		var dc := 0.0
+		var ob := 0.0
+		var tr := 0.0
+		for s in samples:
+			dc += s.draw
+			ob += s.objects
+			tr += s.prims
+		var n: float = maxf(samples.size(), 1)
+		_log("%s: вызовов отрисовки %.0f, объектов %.0f, треугольников %.0fк (среднее по %d замерам)" % [leg[0], dc / n, ob / n, tr / n / 1000.0, samples.size()])
+	all_ms.sort()
+	var sum := 0.0
+	for m in all_ms:
+		sum += m
+	var avg: float = sum / maxf(all_ms.size(), 1)
+	var p99: float = all_ms[int(all_ms.size() * 0.99)] if all_ms.size() > 0 else 0.0
+	_log("Итог: кадров %d, среднее %.1f мс (%.0f FPS), 1%% худших — %.1f мс, максимум %.1f мс, ОЗУ %.0f МБ, видео %.0f МБ" % [all_ms.size(), avg, 1000.0 / maxf(avg, 0.001), p99, all_ms[-1] if all_ms.size() > 0 else 0.0, Core.mobile.stats().mem_mb, Core.mobile.stats().vram_mb])
 

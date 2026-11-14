@@ -2,21 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ibq0ep3k6fg"
-path.s3tc="res://.godot/imported/truck_e_ural_glb_rm.jpg-cbcd7ece4363f8e4d76f3cd5d8912551.s3tc.ctex"
-path.etc2="res://.godot/imported/truck_e_ural_glb_rm.jpg-cbcd7ece4363f8e4d76f3cd5d8912551.etc2.ctex"
+uid="uid://c23yd6prmbs1s"
+path.s3tc="res://.godot/imported/truck_bsp_truck_glb_rm.jpg-c39c9292215d255c3fd3d1e793d0ea43.s3tc.ctex"
+path.etc2="res://.godot/imported/truck_bsp_truck_glb_rm.jpg-c39c9292215d255c3fd3d1e793d0ea43.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "b3dc93537b45b7424764eda11db32d02"
+"md5": "907e15a11a986e10830659604e063e33"
 }
 
 [deps]
 
-source_file="res://assets/models/truck_e_ural_glb_rm.jpg"
-dest_files=["res://.godot/imported/truck_e_ural_glb_rm.jpg-cbcd7ece4363f8e4d76f3cd5d8912551.s3tc.ctex", "res://.godot/imported/truck_e_ural_glb_rm.jpg-cbcd7ece4363f8e4d76f3cd5d8912551.etc2.ctex"]
+source_file="res://assets/models/truck_bsp_truck_glb_rm.jpg"
+dest_files=["res://.godot/imported/truck_bsp_truck_glb_rm.jpg-c39c9292215d255c3fd3d1e793d0ea43.s3tc.ctex", "res://.godot/imported/truck_bsp_truck_glb_rm.jpg-c39c9292215d255c3fd3d1e793d0ea43.etc2.ctex"]
 
 [params]
 

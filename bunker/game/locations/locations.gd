@@ -367,7 +367,7 @@ static func build_surface(root: Node3D) -> Node3D:
 	_node(ter, S, Vector3.ZERO)
 	ter.set_meta("no_batch", true)
 	# сухая трава пучками (не на дорогах, не у входа и не в постройке)
-	var gcount: int = [1800, 4200, 7000][Core.mobile.settings.quality] if not Engine.is_editor_hint() else 3000
+	var gcount: int = [1500, 3000, 6000][Core.mobile.settings.quality] if not Engine.is_editor_hint() else 3000
 	var grass := BCGrass.make(ter, gcount, 3, [Rect2(6.5, -8.0, 7.0, 14.0), Rect2(16.5, -23.0, 7.0, 6.0)])
 	S.add_child(grass)
 	# --- вход в бункер ---

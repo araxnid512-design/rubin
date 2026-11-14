@@ -665,6 +665,28 @@
     "a man walking forward briskly, then slowing down with two short steps and stopping, standing upright with relaxed arms, feet stay on the ground"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "bsm_hit_right",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "hit_right",
+    "1",
+    "a man standing, getting hit hard on his right side, recoiling and leaning to his left, then recovering balance"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_turn_right",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "turn_right",
+    "2",
+    "a man standing still, then turning ninety degrees to his right in place with small steps"
+   ],
+   "timeout": 2400
   }
  ]
 }

@@ -116,13 +116,13 @@
   },
   "turn_right": {
    "src": [
+    "{set}/m_turn_right.res",
     "{set}/turn.res"
    ],
    "loop": false,
    "inplace": false,
    "blend": 0.15,
-   "rate": 1.0,
-   "mirror": true
+   "rate": 1.0
   },
   "crouch_idle": {
    "src": [
@@ -455,13 +455,13 @@
   },
   "hit_right": {
    "src": [
-    "{set}/hit_to_side.res"
+    "{set}/m_hit_right.res",
+    "{set}/hit_to_head.res"
    ],
    "loop": false,
    "inplace": false,
    "blend": 0.08,
-   "rate": 1.0,
-   "mirror": true
+   "rate": 1.0
   },
   "stagger": {
    "src": [
