@@ -234,6 +234,120 @@
     "Pile of old black garbage bags, torn cardboard boxes, plastic bottles and an old rubber tire against each other, about 1 meter high and 2 meters wide, dirty and weathered. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
    ],
    "timeout": 3000
+  },
+  {
+   "id": "bsp_pistol",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_pistol",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Soviet Makarov PM pistol, dark worn blued steel with brown grip panels, realistic proportions, single object, game asset, PBR materials, no base, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_house_wood_a",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_house_wood_a",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Abandoned ruined one-story wooden village house in Russia, dark weathered log walls, collapsed part of the rusty corrugated roof, broken windows with carved wooden frames, sagging porch with steps. Realistic post-apocalyptic game asset, PBR materials, single building, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_house_wood_b",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_house_wood_b",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Abandoned small wooden village house with a steep roof covered in old grey slate with holes, faded blue painted wooden walls, boarded up windows, brick chimney, small fenced front garden overgrown with dry weeds. Realistic post-apocalyptic game asset, PBR materials, single building, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_house_brick",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_house_brick",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Ruined two-story red brick house from a Soviet village, roof burned away, black soot around empty windows, one wall partly collapsed showing rooms inside, rubble at the base. Realistic post-apocalyptic game asset, PBR materials, single building, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_well",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_well",
+    "--faces",
+    "5000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old village water well with a wooden roof, wooden crank with chain and a dented metal bucket, round log frame, weathered and dusty. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bs_trader",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_trader",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old village survivor trader, grey beard, weathered face, fur hat with ear flaps, long patched quilted coat with many pockets, scarf, felt boots, a bag over the shoulder. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.75 m tall elderly man, photorealistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hurt,preset:biped:fall"
+   ],
+   "timeout": 7000
   }
  ],
  "archived": [
