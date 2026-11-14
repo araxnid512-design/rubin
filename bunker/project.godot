@@ -1,0 +1,83 @@
+; Engine configuration file.
+; BUNKER SURVIVAL — Godot 4.6 (рендер Compatibility: быстрее на Mali/PowerVR телефонах и работает под Xvfb для проверок)
+
+config_version=5
+
+[application]
+
+config/name="Bunker Survival"
+config/description="Постапокалиптическое выживание: подземный бункер и поверхность"
+run/main_scene="res://game/main.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.06, 0.06, 0.055, 1)
+boot_splash/show_image=false
+run/max_fps=60
+
+[autoload]
+
+Core="*res://core/bunker_core.gd"
+
+[debug]
+
+gdscript/warnings/inference_on_variant=1
+gdscript/warnings/untyped_declaration=0
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+window/vsync/vsync_mode=1
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://core/editor/plugin.cfg")
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[layer_names]
+
+3d_physics/layer_1="world"
+3d_physics/layer_2="player"
+3d_physics/layer_3="interact"
+3d_physics/layer_4="zones"
+3d_physics/layer_5="npc"
+3d_render/layer_1="surface"
+3d_render/layer_2="bunker"
+3d_render/layer_3="actors"
+3d_render/layer_4="roofs"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=60
+
+[shader_globals]
+
+bc_player_pos={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+bc_cut_on={
+"type": "float",
+"value": 0.0
+}
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+textures/default_filters/anisotropic_filtering_level=2
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/size.mobile=2048
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
+lights_and_shadows/positional_shadow/atlas_size=1024
+anti_aliasing/quality/msaa_3d=0
+environment/defaults/default_clear_color=Color(0.07, 0.07, 0.065, 1)
+gl_compatibility/item_buffer_size=16384

@@ -1,0 +1,477 @@
+{
+ "root_bone": "Hip",
+ "clips": {
+  "idle": {
+   "src": [
+    "res://assets/anim/hero_idle.glb",
+    "res://assets/anim/temp_hero_a.glb#idle"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "breathe": {
+   "src": [
+    "res://assets/anim/hero_breathe.glb",
+    "res://assets/anim/temp_hero_a.glb#idle"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "walk": {
+   "src": [
+    "res://assets/anim/hero_walk.glb",
+    "res://assets/anim/temp_hero_a.glb#walk"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "walk_back": {
+   "src": [
+    "res://assets/anim/hero_walk_back.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "strafe_left": {
+   "src": [
+    "res://assets/anim/hero_strafe_left.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "strafe_right": {
+   "src": [
+    "res://assets/anim/hero_strafe_right.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "run": {
+   "src": [
+    "res://assets/anim/hero_run.glb",
+    "res://assets/anim/temp_hero_a.glb#run"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sprint": {
+   "src": [
+    "res://assets/anim/hero_sprint.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "start": {
+   "src": [
+    "res://assets/anim/hero_start.glb"
+   ],
+   "loop": false,
+   "inplace": true,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "stop": {
+   "src": [
+    "res://assets/anim/hero_stop.glb"
+   ],
+   "loop": false,
+   "inplace": true,
+   "blend": 0.2,
+   "rate": 1.0
+  },
+  "turn_left": {
+   "src": [
+    "res://assets/anim/hero_turn_left.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "turn_right": {
+   "src": [
+    "res://assets/anim/hero_turn_right.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "crouch_idle": {
+   "src": [
+    "res://assets/anim/hero_crouch_idle.glb"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "crouch_walk": {
+   "src": [
+    "res://assets/anim/hero_crouch_walk.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sneak": {
+   "src": [
+    "res://assets/anim/hero_sneak.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "stairs_up": {
+   "src": [
+    "res://assets/anim/hero_stairs_up.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "stairs_down": {
+   "src": [
+    "res://assets/anim/hero_stairs_down.glb"
+   ],
+   "loop": true,
+   "inplace": true,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "ladder_up": {
+   "src": [
+    "res://assets/anim/hero_ladder_up.glb"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.2,
+   "rate": 1.0
+  },
+  "door_open": {
+   "src": [
+    "res://assets/anim/hero_door_open.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "door_close": {
+   "src": [
+    "res://assets/anim/hero_door_close.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "terminal": {
+   "src": [
+    "res://assets/anim/hero_terminal.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "pickup": {
+   "src": [
+    "res://assets/anim/hero_pickup.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "suit_on": {
+   "src": [
+    "res://assets/anim/hero_suit_on.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "suit_off": {
+   "src": [
+    "res://assets/anim/hero_suit_off.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sit_down": {
+   "src": [
+    "res://assets/anim/hero_sit_down.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "stand_up": {
+   "src": [
+    "res://assets/anim/hero_stand_up.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "bed_lie": {
+   "src": [
+    "res://assets/anim/hero_bed_lie.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "bed_up": {
+   "src": [
+    "res://assets/anim/hero_bed_up.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "sit_idle": {
+   "src": [
+    "res://assets/anim/hero_sit_idle.glb"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "lie_idle": {
+   "src": [
+    "res://assets/anim/hero_lie_idle.glb"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0
+  },
+  "inspect": {
+   "src": [
+    "res://assets/anim/hero_inspect.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.25,
+   "rate": 1.0
+  },
+  "combat_idle": {
+   "src": [
+    "res://assets/anim/hero_combat_idle.glb"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.2,
+   "rate": 1.0
+  },
+  "punch_light": {
+   "src": [
+    "res://assets/anim/hero_punch_light.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "punch_heavy": {
+   "src": [
+    "res://assets/anim/hero_punch_heavy.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "block": {
+   "src": [
+    "res://assets/anim/hero_block.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "dodge_left": {
+   "src": [
+    "res://assets/anim/hero_dodge_left.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "dodge_right": {
+   "src": [
+    "res://assets/anim/hero_dodge_right.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "pistol_draw": {
+   "src": [
+    "res://assets/anim/hero_pistol_draw.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "pistol_aim": {
+   "src": [
+    "res://assets/anim/hero_pistol_aim.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "pistol_fire": {
+   "src": [
+    "res://assets/anim/hero_pistol_fire.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "pistol_reload": {
+   "src": [
+    "res://assets/anim/hero_pistol_reload.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "rifle_aim": {
+   "src": [
+    "res://assets/anim/hero_rifle_aim.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "rifle_fire": {
+   "src": [
+    "res://assets/anim/hero_rifle_fire.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "hit_front": {
+   "src": [
+    "res://assets/anim/hero_hit_front.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "hit_back": {
+   "src": [
+    "res://assets/anim/hero_hit_back.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "hit_left": {
+   "src": [
+    "res://assets/anim/hero_hit_left.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "hit_right": {
+   "src": [
+    "res://assets/anim/hero_hit_right.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "stagger": {
+   "src": [
+    "res://assets/anim/hero_stagger.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "fall": {
+   "src": [
+    "res://assets/anim/hero_fall.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "get_up": {
+   "src": [
+    "res://assets/anim/hero_get_up.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "death": {
+   "src": [
+    "res://assets/anim/hero_death.glb"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.1,
+   "rate": 1.0
+  },
+  "dead": {
+   "src": [
+    "res://assets/anim/hero_dead.glb"
+   ],
+   "loop": true,
+   "inplace": false,
+   "blend": 0.2,
+   "rate": 1.0
+  }
+ }
+}
