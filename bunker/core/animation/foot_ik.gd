@@ -1,11 +1,16 @@
 class_name BCFootIK
 extends SkeletonModifier3D
-## Постановка стоп BunkerCore (IK для ног). Клипы рассчитаны на ровный пол; на ступенях, склонах и камнях
-## каждая стопа ищет землю лучом вниз (слои «мир» и «детали»), таз опускается к нижней стопе, колени
-## сгибаются аналитическим решением двухзвенной цепи (бедро → голень → стопа) в плоскости колена, стопа
-## наклоняется по нормали поверхности. Смещения сглаживаются, чтобы не дёргалось.
+## Постановка стоп BunkerCore (IK для ног).
+##  * Земля под стопой: луч вниз (слои «мир» и «детали»); на ступенях, склонах и камнях таз опускается к нижней
+##    стопе, колени сгибаются аналитическим решением двухзвенной цепи (бедро → голень → стопа) в плоскости колена,
+##    стопа наклоняется по нормали поверхности. Смещения сглаживаются, чтобы не дёргалось.
+##  * Пол не проходит сквозь подошву: если клип опускает стопу ниже земли, стопа поднимается до земли.
+##  * Фиксация опорной стопы (foot locking): стопа на земле и почти не едет → её место в мире запоминается, и пока
+##    она в опоре, IK держит её там (клип и скорость тела могут расходиться — скольжение убирается). Стопа
+##    отпускается, когда клип её поднимает, когда она уехала от точки дальше max_lock_dist (тело ушло) или когда
+##    тело повернулось больше чем на max_lock_yaw; отпускание плавное (release_time).
 
-@export var legs := [["L_Thigh", "L_Calf", "L_Foot"], ["R_Thigh", "R_Calf", "R_Foot"]]
+@export var legs := [["L_Thigh", "L_Calf", "L_Foot", "L_ToeBase"], ["R_Thigh", "R_Calf", "R_Foot", "R_ToeBase"]]
 @export var hip_bone := "Hip"
 @export var ray_up := 0.6
 @export var ray_down := 0.9
@@ -13,14 +18,28 @@ extends SkeletonModifier3D
 @export var smooth := 14.0
 @export var enabled_ik := true
 @export var align_feet := true
+@export var lock_feet := true
+@export var contact_h := 0.03               ## подошва ниже — стопа на земле, м
+@export var release_h := 0.05               ## подошва выше — стопа оторвалась
+@export var max_lock_dist := 0.22           ## м
+@export var max_lock_yaw := deg_to_rad(40.0)
+@export var lock_in_time := 0.06
+@export var release_time := 0.14
 @export_flags_3d_physics var mask := 1 | 32
 
-var _bones := []          ## [[thigh, calf, foot], ...] индексы
+var body_speed := 0.0                       ## скорость тела, м/с (задаёт BCCharacter)
+var _bones := []          ## [[thigh, calf, foot, toe], ...] индексы
 var _hip := -1
 var _off := [0.0, 0.0]    ## сглаженные смещения стоп по высоте
 var _nrm := [Vector3.UP, Vector3.UP]
 var _pelvis := 0.0
-var _ankle := 0.08        ## высота голеностопа над подошвой в позе покоя
+var _ankle_h := [0.08, 0.08]   ## высота голеностопа над подошвой в позе покоя (ед. скелета)
+var _toe_h := [0.02, 0.02]     ## высота кости пальцев над подошвой
+var _lock: Array = [null, null]         ## точка фиксации голеностопа в мире (только x, z)
+var _lock_yaw := [0.0, 0.0]
+var _lock_w := [0.0, 0.0]
+var _rel_off: Array = [Vector3.ZERO, Vector3.ZERO]   ## при отпускании: поправка, которая плавно уходит в ноль
+var _prev: Array = [null, null]          ## положение голеностопа из клипа в прошлом кадре (мир)
 var last_debug := {}
 
 
@@ -30,14 +49,15 @@ func _skel_ready() -> void:
 		return
 	_bones.clear()
 	for L in legs:
-		_bones.append([s.find_bone(L[0]), s.find_bone(L[1]), s.find_bone(L[2])])
+		_bones.append([s.find_bone(L[0]), s.find_bone(L[1]), s.find_bone(L[2]), s.find_bone(L[3])])
 	_hip = s.find_bone(hip_bone)
-	# высота голеностопа: самая низкая точка стоп в покое ≈ подошва
-	var lo := INF
-	for b in _bones:
+	var fl := _rest_floor(s)
+	for li in _bones.size():
+		var b: Array = _bones[li]
 		if b[2] >= 0:
-			lo = minf(lo, s.get_bone_global_rest(b[2]).origin.y)
-	_ankle = maxf(0.02, lo - _rest_floor(s))
+			_ankle_h[li] = maxf(0.02, s.get_bone_global_rest(b[2]).origin.y - fl)
+		if b[3] >= 0:
+			_toe_h[li] = maxf(0.0, s.get_bone_global_rest(b[3]).origin.y - fl)
 
 
 func _rest_floor(s: Skeleton3D) -> float:
@@ -60,11 +80,14 @@ func _process_modification_with_delta(delta: float) -> void:
 	if space == null:
 		return
 	var xf := s.global_transform
-	var root_y := s.get_parent_node_3d().global_position.y if s.get_parent_node_3d() else xf.origin.y
+	var root := s.get_parent_node_3d()
+	var root_y := root.global_position.y if root else xf.origin.y
 	var sc := xf.basis.get_scale().y
 	var k := clampf(delta * smooth, 0.0, 1.0) if delta > 0.0 else 1.0
+	var yaw := _yaw_of(xf)
 	var want := [0.0, 0.0]
 	var nrm := [Vector3.UP, Vector3.UP]
+	var ground := [root_y, root_y]
 	for li in _bones.size():
 		var b: Array = _bones[li]
 		if b[2] < 0:
@@ -73,36 +96,99 @@ func _process_modification_with_delta(delta: float) -> void:
 		var q := PhysicsRayQueryParameters3D.create(foot_w + Vector3.UP * ray_up, foot_w + Vector3.DOWN * ray_down, mask)
 		q.exclude = _exclude()
 		var hit := space.intersect_ray(q)
-		if hit.is_empty():
-			continue
+		var g := root_y
+		if not hit.is_empty():
+			g = hit.position.y
+			nrm[li] = hit.normal
+		ground[li] = g
 		# насколько земля под стопой выше/ниже уровня, на который рассчитан клип
-		want[li] = clampf(hit.position.y - root_y, -max_drop, max_drop)
-		nrm[li] = hit.normal
+		var w := clampf(g - root_y, -max_drop, max_drop)
+		# подошва из клипа не должна уходить под свой пол: голеностоп/пальцы ниже высоты покоя — поднять
+		var sole := _sole_h(s, xf, b, li) - root_y
+		if sole < 0.0:
+			w += -sole
+		want[li] = w
 	for li in 2:
 		_off[li] = lerpf(_off[li], want[li], k)
 		_nrm[li] = _nrm[li].lerp(nrm[li], k).normalized()
 	var pel := minf(minf(_off[0], _off[1]), 0.0)
 	_pelvis = lerpf(_pelvis, pel, k)
-	last_debug = {"off": _off.duplicate(), "pelvis": _pelvis}
-	if absf(_pelvis) < 0.001 and absf(_off[0]) < 0.001 and absf(_off[1]) < 0.001:
+	# --- фиксация опорной стопы ---
+	var lock_d := [Vector3.ZERO, Vector3.ZERO]    # горизонтальная поправка голеностопа в мире
+	for li in _bones.size():
+		var b: Array = _bones[li]
+		if b[2] < 0:
+			continue
+		var A := xf * s.get_bone_global_pose(b[2]).origin
+		# высота пятки над землёй после поправки по высоте (по голеностопу: фиксируем, пока стоит пятка;
+		# при перекате на носок пятка поднимается — стопа отпускается, перекат не ломается)
+		var sole := A.y - float(_ankle_h[li]) * sc + float(_off[li]) - float(ground[li])
+		var v := 0.0
+		if _prev[li] != null and delta > 0.0:
+			var pv: Vector3 = _prev[li]
+			v = Vector2(A.x - pv.x, A.z - pv.z).length() / delta
+		_prev[li] = A
+		if not lock_feet or delta <= 0.0:
+			_lock[li] = null
+			continue
+		var planted := sole < contact_h and v < maxf(0.4, 0.6 * body_speed)
+		if _lock[li] == null:
+			if planted:
+				_lock[li] = Vector3(A.x, 0.0, A.z) + Vector3(_rel_off[li].x, 0.0, _rel_off[li].z)
+				_lock_yaw[li] = yaw
+				_lock_w[li] = 0.0 if (_rel_off[li] as Vector3).length() < 0.001 else 1.0
+				_rel_off[li] = Vector3.ZERO
+		else:
+			var L: Vector3 = _lock[li]
+			var dd := Vector2(L.x - A.x, L.z - A.z)
+			var turned := absf(angle_difference(_lock_yaw[li], yaw)) > max_lock_yaw
+			if sole > release_h or dd.length() > max_lock_dist or turned:
+				# отпустить: поправка плавно уходит, стопа догоняет клип
+				_rel_off[li] = Vector3(dd.x, 0.0, dd.y) * _lock_w[li]
+				_lock[li] = null
+			else:
+				_lock_w[li] = move_toward(_lock_w[li], 1.0, delta / lock_in_time)
+				lock_d[li] = Vector3(dd.x, 0.0, dd.y) * _lock_w[li]
+		if _lock[li] == null:
+			_rel_off[li] = (_rel_off[li] as Vector3).move_toward(Vector3.ZERO, maxf((_rel_off[li] as Vector3).length(), 0.02) * delta / release_time)
+			lock_d[li] = _rel_off[li]
+	last_debug = {"off": _off.duplicate(), "pelvis": _pelvis, "lock": [_lock[0] != null, _lock[1] != null], "lock_d": lock_d.duplicate()}
+	var idle := absf(_pelvis) < 0.001 and absf(_off[0]) < 0.001 and absf(_off[1]) < 0.001 \
+		and (lock_d[0] as Vector3).length() < 0.0005 and (lock_d[1] as Vector3).length() < 0.0005
+	if idle:
 		return
 	# опустить таз (в пространстве скелета)
 	var hp := s.get_bone_global_pose(_hip)
 	hp.origin.y += _pelvis / sc
 	s.set_bone_global_pose(_hip, hp)
+	var inv := xf.basis.inverse()
 	for li in _bones.size():
 		var b: Array = _bones[li]
 		if b[0] < 0 or b[1] < 0 or b[2] < 0:
 			continue
 		var foot := s.get_bone_global_pose(b[2])
-		var target: Vector3 = foot.origin + Vector3.UP * ((float(_off[li]) - _pelvis) / sc)
+		var target: Vector3 = foot.origin + Vector3.UP * ((float(_off[li]) - _pelvis) / sc) + inv * (lock_d[li] as Vector3)
 		_solve(s, b[0], b[1], b[2], target)
 		if align_feet:
-			var n: Vector3 = (xf.basis.inverse() * (_nrm[li] as Vector3)).normalized()
+			var n: Vector3 = (inv * (_nrm[li] as Vector3)).normalized()
 			var f := s.get_bone_global_pose(b[2])
 			var tilt := Quaternion(Vector3.UP, n)
 			f.basis = Basis(tilt) * f.basis
 			s.set_bone_global_pose(b[2], f)
+
+
+## высота подошвы (мир): ниже из «голеностоп − его высота в покое» и «пальцы − их высота в покое»
+func _sole_h(s: Skeleton3D, xf: Transform3D, b: Array, li: int) -> float:
+	var sc := xf.basis.get_scale().y
+	var a := (xf * s.get_bone_global_pose(b[2]).origin).y - float(_ankle_h[li]) * sc
+	if b[3] >= 0:
+		a = minf(a, (xf * s.get_bone_global_pose(b[3]).origin).y - float(_toe_h[li]) * sc)
+	return a
+
+
+func _yaw_of(xf: Transform3D) -> float:
+	var z := xf.basis.z
+	return atan2(z.x, z.z)
 
 
 func _exclude() -> Array:
@@ -110,6 +196,14 @@ func _exclude() -> Array:
 	while p and not (p is CharacterBody3D):
 		p = p.get_parent()
 	return [p.get_rid()] if p else []
+
+
+## сбросить фиксацию (телепорт, смена модели, посадка)
+func reset_locks() -> void:
+	_lock = [null, null]
+	_lock_w = [0.0, 0.0]
+	_rel_off = [Vector3.ZERO, Vector3.ZERO]
+	_prev = [null, null]
 
 
 ## двухзвенная цепь: бедро a, голень b, стопа c → стопа в target (пространство скелета)
