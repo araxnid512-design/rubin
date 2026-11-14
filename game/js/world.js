@@ -675,6 +675,14 @@
       g.strokeStyle = '#3a3028'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(n.x + 26, n.y - 6); g.lineTo(n.x + 26, n.y - 30); g.stroke();
       g.fillStyle = '#f2ede0'; g.beginPath(); g.moveTo(n.x + 26, n.y - 30); g.lineTo(n.x + 40, n.y - 26 + Math.sin(t / 300) * 1.5); g.lineTo(n.x + 26, n.y - 21); g.closePath(); g.fill();
     }
+    if (n.pows && n.pows.length) {
+      // здесь держат нашего бойца: красная плашка с решёткой
+      const bx = n.x - 40, by = n.y - 34, a = 0.75 + Math.sin(t / 250) * 0.25;
+      g.fillStyle = 'rgba(150,30,24,' + a + ')'; g.fillRect(bx - 9, by - 9, 18, 18);
+      g.strokeStyle = '#f2d8c0'; g.lineWidth = 1.5; g.strokeRect(bx - 9, by - 9, 18, 18);
+      g.beginPath(); for (let i = -1; i <= 1; i++) { g.moveTo(bx + i * 5, by - 7); g.lineTo(bx + i * 5, by + 7); } g.stroke();
+      if (n.pows.length > 1) { g.fillStyle = '#f2d8c0'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText(n.pows.length, bx + 13, by - 8); }
+    }
     if (sel) {
       g.strokeStyle = 'rgba(255,245,220,' + (0.6 + Math.sin(t / 200) * 0.3) + ')'; g.lineWidth = 2;
       g.setLineDash([6, 5]); g.lineDashOffset = -t / 60;

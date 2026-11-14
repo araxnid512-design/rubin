@@ -485,6 +485,12 @@
       '<div class="jg"><b>Гнездо</b>: ' + (st.queens ? '<span class="acc">✔ Маток убито: ' + st.queens + '</span>' + (st.nestBack ? ' · в Гнезде зреет новая' : '') + '. ' : '') +
         'уничтожить Матку. Путь открывается после разгрома двух логов — <b>' + lairs + '</b>/2</div></div>' +
       (function () {
+        const ps = G.powsAll ? G.powsAll() : [];
+        if (!ps.length) return '';
+        return '<div class="jg"><b class="bad">Пленные</b>: ' + ps.map(function (o) { return '«' + o.p.s.name + '» в «' + o.n.name + '» — осталось <b>' + Math.max(0, o.p.until - st.day) + '</b> дн.'; }).join(' · ') +
+          '<div class="small dim">Отбить — боем в этом лагере, выкупить — на переговорах (не при вражде).</div></div>';
+      })() +
+      (function () {
         const qs = (D.QUESTS || []).filter(function (q) { return st.quests && st.quests[q.id]; });
         if (!qs.length) return '';
         return '<div class="jg"><b>Задания</b>: ' + qs.map(function (q) { const it = st.quests[q.id]; return (it.done ? '<span class="dim">✔ ' + q.t + '</span>' : '<span class="acc">★ ' + q.t + '</span> — ' + G.node(it.node).name); }).join(' · ') + '</div>';
@@ -718,6 +724,8 @@
       if (sum.facHit) html += '<div class="rloot">Отношения: ' + DW.G.FACS[sum.facHit] + ' — <b>' + DW.G.facStatus(sum.facHit) + '</b> (' + DW.G.rep(sum.facHit) + ')' + (DW.G.rep(sum.facHit) <= -3 ? ' · <span class="bad">будут мстить набегами</span>' : '') + '</div>';
       if (sum.uazLost) html += '<div class="rloot"><span class="bad">УАЗ подбит</span> — нужен ремонт в гараже (' + DW.G.costText(D.UAZ_REPAIR) + ').</div>';
       if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';
+      if (sum.captured) html += '<div class="rloot"><span class="bad">Утащили в плен:</span> ' + sum.captured.map(function (c) { return '<b>' + c.name + '</b> — держат в «' + c.camp + '» до ' + c.until + '-го дня'; }).join('; ') + '. Отбейте лагерь или выкупите на переговорах.</div>';
+      if (sum.powBack) html += '<div class="rloot"><span class="good">Вернулись из плена:</span> ' + sum.powBack.join(', ') + '.</div>';
       if (sum.traits) html += '<div class="rloot">Ранение изменило характер: <b class="acc">' + sum.traits.join('; ') + '</b>.</div>';
       b.innerHTML = html;
       (sum.perkChoices || []).forEach(function (pc) {

@@ -112,6 +112,7 @@
       const f = n.fac || 'raider', fs = G.facStatus(f);
       extra.push(G.FACS[f] + ': <b class="' + (fs === 'вражда' ? 'bad' : (fs === 'перемирие' ? 'good' : 'acc')) + '">' + fs + '</b> (' + G.rep(f) + ')' + (G.truce(f) ? ' · ещё ' + (st.truce[f] - st.day) + ' дн. · можно пройти через лагерь' : ''));
     }
+    (n.pows || []).forEach(function (pw) { extra.push('<span class="bad">Здесь держат в плену «' + pw.s.name + '»</span> — осталось ' + Math.max(0, pw.until - st.day) + ' дн.'); });
     if (n.cargo && n.cargo.length) extra.push('<span class="acc">Здесь лежит груз (' + n.cargo.length + ' поз.)</span>');
     if (n.type === 'ruins' && n.cleared) extra.push('Осталось обысков: ' + n.searches);
     const artType = n.id === st.baseNode ? null : n.type;
@@ -390,6 +391,8 @@
         (tr ? ' Перемирие ещё ' + (st.truce[f] - st.day) + ' дн.' : (r < -2 ? ' <span class="bad">С вами не станут говорить о мире, пока не задобрите.</span>' : ''));
       const opts = [], acts = [];
       if (!tr) { opts.push({ text: 'Перемирие на 15 дней · ' + c + ' кристаллов', disabled: r < -2 || st.res.gems < c }); acts.push('truce'); }
+      const rc = G.ransomCost(f), hostile = G.facStatus(f) === 'вражда';
+      (n.pows || []).forEach(function (pw, k) { opts.push({ text: 'Выкупить «' + pw.s.name + '» · ' + rc + ' кристаллов' + (hostile ? ' (при вражде не отдают)' : ''), disabled: hostile || st.res.gems < rc }); acts.push('pow' + k); });
       opts.push({ text: 'Подарок: 8 провизии (отношения +1)', disabled: gifted || st.res.food < 8 }); acts.push('food');
       opts.push({ text: 'Подарок: 40 патронов (отношения +1)', disabled: gifted || st.res.ammo < 40 }); acts.push('ammo');
       if (tr) {
@@ -401,6 +404,7 @@
       const a = acts[i];
       if (i < 0 || !a || a === 'leave') break;
       if (a === 'truce' && G.makeTruce(f)) { DW.SFX.play('portal'); await DW.UI.alert('Перемирие', 'Ударили по рукам: 15 дней ' + G.FACS[f].toLowerCase() + ' не нападают на колонию. Через их лагерь можно ходить, у них можно торговать и нанимать бойцов.', 'good'); }
+      if (a.indexOf('pow') === 0) { const pw = n.pows[+a.slice(3)]; const s = pw && G.ransom(n, pw); if (s) { DW.SFX.play('portal'); await DW.UI.alert('Выкуп', '«' + s.name + '» отпустили. Он избит и измотан — пару дней отлежится, но жив.', 'good'); } }
       if (a === 'food' && G.gift(f, 'food', 8)) DW.UI.toast('Подарок принят: отношения +1', 'good');
       if (a === 'ammo' && G.gift(f, 'ammo', 40)) DW.UI.toast('Подарок принят: отношения +1', 'good');
       if (a === 'trade') {

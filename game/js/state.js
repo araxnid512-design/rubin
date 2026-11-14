@@ -259,6 +259,44 @@
     G.log('Нанят боец ' + G.FAC_GEN[f] + ': «' + s.name + '» (до ' + s.merc.until + '-го дня).');
     return s;
   };
+  /* ---------- Плен: бойца утащили с поля боя ---------- */
+  // держат в ближайшем лагере той группировки, что утащила; срок — 12 дней, потом казнят
+  G.POW_DAYS = 12;
+  G.powCamp = function (fac, exclude, from) {
+    const ns = G.state.world.nodes;
+    const camp = function (n) { return n.type === 'camp' && n !== exclude && !n.base; };
+    let c = ns.filter(function (n) { return camp(n) && (n.fac || 'raider') === fac && !n.cleared; });
+    if (!c.length) c = ns.filter(function (n) { return camp(n) && (n.fac || 'raider') === fac; });
+    if (!c.length) c = ns.filter(function (n) { return camp(n) && !n.cleared; });
+    if (!c.length) c = ns.filter(camp);
+    if (!c.length) return null;
+    const o = from || c[0];
+    c.sort(function (a, b) { return Math.hypot(a.x - o.x, a.y - o.y) - Math.hypot(b.x - o.x, b.y - o.y); });
+    return c[0];
+  };
+  G.powsAll = function () {
+    const out = [];
+    G.state.world.nodes.forEach(function (n) { (n.pows || []).forEach(function (p) { out.push({ n: n, p: p }); }); });
+    return out;
+  };
+  // вернуть пленного в отряд (живым, но потрёпанным)
+  G.powFree = function (n, p) {
+    const st = G.state, s = p.s;
+    n.pows.splice(n.pows.indexOf(p), 1);
+    s.wounds = Math.floor(G.maxHp(s) / 2);   // в плену не добили, но и не лечили
+    s.injury = Math.max(s.injury || 0, 2);
+    st.roster.push(s);
+    G.log('«' + s.name + '» вернулся из плена.');
+    return s;
+  };
+  // выкуп: дешевле при хороших отношениях, при вражде не отдают
+  G.ransomCost = function (f) { return Math.max(20, 45 - G.rep(f) * 5); };
+  G.ransom = function (n, p) {
+    const f = n.fac || 'raider', c = G.ransomCost(f);
+    if (G.facStatus(f) === 'вражда' || G.state.res.gems < c) return null;
+    G.state.res.gems -= c;
+    return G.powFree(n, p);
+  };
   G.findPath = function (from, to) {
     if (from === to) return [];
     const prev = {}; prev[from] = -1;
@@ -655,6 +693,16 @@
       const who = n.type === 'camp' ? ({ clan: 'клан', sobr: 'СОБР' }[n.fac] || 'новая банда') : (n.type === 'lair' ? 'новая стая' : 'мутанты');
       notes.push({ title: 'Угроза', text: 'Разведка докладывает: ' + who + (n.type === 'camp' && n.fac === 'sobr' ? ' снова занял' : ' снова заняли') + ' «' + n.name + '».' + (n.type === 'lair' || n.type === 'camp' ? ' Теперь их там больше.' : ''), kind: 'bad' });
       G.log('Враги снова заняли «' + n.name + '».');
+    });
+    // пленные: кого не отбили и не выкупили в срок — казнят; за день до срока — предупреждение
+    G.powsAll().forEach(function (o) {
+      const p = o.p, n = o.n, s = p.s;
+      if (st.day >= p.until) {
+        n.pows.splice(n.pows.indexOf(p), 1);
+        st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s), face: G.faceOf(s) });
+        notes.push({ title: 'Не дождался', text: '«' + s.name + '» погиб в плену в «' + n.name + '». Его имя — на памятнике.', kind: 'bad' });
+        G.log('«' + s.name + '» погиб в плену.');
+      } else if (st.day === p.until - 2) notes.push({ title: 'Пленный', text: '«' + s.name + '» в плену в «' + n.name + '». Осталось 2 дня — отбейте лагерь или выкупите на переговорах.', kind: 'bad' });
     });
     // наёмники уходят по сроку; перемирие кончается
     st.roster.slice().forEach(function (s) {
@@ -1096,6 +1144,27 @@
       kills += u.kills;
       G.awardMedals(s, u, out, sum);
       if (u.bondUp) for (const k in u.bondUp) { s.bonds = s.bonds || {}; s.bonds[k] = Math.min(5, (s.bonds[k] || 0) + u.bondUp[k]); const o = st.roster.find(function (x) { return x.id === k; }); if (o) { o.bonds = o.bonds || {}; o.bonds[s.id] = Math.min(5, (o.bonds[s.id] || 0) + u.bondUp[k]); } }
+      // утащили с поля: в плен, в лагерь той группировки (отбить боем или выкупить)
+      if (u.captured) {
+        st.roster.splice(idx, 1);
+        s.kills += u.kills; s.missions++;
+        const f = u.capFac || 'raider';
+        const src = B.kind === 'defense' && B.raidFrom !== undefined && B.raidFrom !== null ? G.node(B.raidFrom) : null;
+        const here = node && node.type === 'camp' && (node.fac || 'raider') === f && out !== 'victory' ? node : (src && src.type === 'camp' && (src.fac || 'raider') === f ? src : null);
+        const camp = here || G.powCamp(f, out === 'victory' ? node : null, node || G.node(st.squadAt));
+        if (!camp) {
+          st.memorial.push({ id: s.id, name: s.name, day: st.day, kills: s.kills, cls: s.cls, armor: s.armor, look: s.look, rank: G.rank(s), face: G.faceOf(s) });
+          sum.dead.push(s.name); G.log('«' + s.name + '» пропал без вести.');
+          return;
+        }
+        s.wounds = Math.max(0, G.maxHp(s) - 1);
+        camp.pows = camp.pows || [];
+        camp.pows.push({ s: s, until: st.day + G.POW_DAYS, fac: f });
+        camp.known = true; if (camp.cleared) { camp.cleared = false; camp.plan = null; camp.diff = Math.min(5, (camp.diff || 1) + 1); }
+        (sum.captured = sum.captured || []).push({ name: s.name, camp: camp.name, until: st.day + G.POW_DAYS });
+        G.log('«' + s.name + '» в плену: его держат в «' + camp.name + '».');
+        return;
+      }
       if (!u.alive && (u.stable || (u.down > 0 && out === 'victory'))) {
         s.wounds = Math.max(0, G.maxHp(s) - 1);
         // тяжёлое ранение: 3 дня вне строя (в лазарете на базе — быстрее), после — черта характера
@@ -1199,6 +1268,7 @@
         sum.text = '«' + node.name + '» зачищено.';
         if (node.type === 'nest') sum.text += ' Матка мертва — мутанты притихнут на несколько дней. Но мёртвый мир родит новую.';
         if (node.captives) { st.militia = (st.militia || 0) + node.captives; sum.text += ' Пленные поселенцы освобождены (' + node.captives + ') и вернулись на базу.'; node.captives = 0; }
+        if (node.pows && node.pows.length) { const back = node.pows.slice().map(function (p) { return G.powFree(node, p).name; }); sum.text += ' Из плена освобождены: ' + back.join(', ') + '.'; (sum.powBack = sum.powBack || []).push.apply(sum.powBack, back); }
         G.log('Зачищено: «' + node.name + '».');
       } else {
         sum.text = out === 'evac' ? 'Отряд отступил.' : 'Отряд разбит.';

@@ -387,6 +387,7 @@
     const BT = DW.BT, B = BT.get();
     const seen = e.seen || seenAt(BT, h.x, h.y);
     h.captured = true; h.alive = false; h.evac = false;
+    h.capFac = (DW.D.ENEMIES[e.type] && DW.D.ENEMIES[e.type].fac) || 'raider';   // чей лагерь (кампания: плен и спасение)
     // кто утащен — не «спасён» и не истекает кровью на поле (итоги боя — по u.captured)
     h.down = 0; h.stable = false;
     delete h.hostageOf;

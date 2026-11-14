@@ -309,7 +309,7 @@
       else if (qq.goal === 'cargo') BT.setupCargo();
       else if (qq.goal === 'hunt') BT.setupHunt();
       B.quest = qq.id;
-    } else if (o.kind === 'normal' && nd && nd.captives) {
+    } else if (o.kind === 'normal' && nd && (nd.captives || (nd.pows && nd.pows.length))) {
       BT.setupRescue();   // здесь держат уведённых с базы поселенцев
     } else if (o.kind === 'normal' && B.type !== 'nest' && B.type !== 'vein') {
       const en = B.units.filter(function (e) { return e.side === 'e'; });
@@ -353,13 +353,15 @@
     const g = B.goal; if (!g || g.done) return;
     g.done = true;
     const st = DW.G.state;
-    const s = DW.G.makeRecruit(0);
-    s.wounds = Math.floor(DW.G.maxHp(s) / 3);
-    st.roster.push(s);
+    // в лагере держат нашего бойца, утащенного в прошлом бою, — освобождаем его
+    const nd = B.nodeId !== null && B.nodeId !== undefined ? DW.G.node(B.nodeId) : null;
+    const pow = nd && nd.pows && nd.pows.length ? nd.pows[0] : null;
+    const s = pow ? DW.G.powFree(nd, pow) : DW.G.makeRecruit(0);
+    if (!pow) { s.wounds = Math.floor(DW.G.maxHp(s) / 3); st.roster.push(s); }
     const nu = mkSoldier(s, g.x, g.y); nu.ap = 0; nu.face = Math.atan2(u.y - g.y, u.x - g.x);
     B.units.push(nu);
     DW.TR.float(g.x, g.y, 'Свободен!', 'good');
-    DW.UI.toast('Пленник освобождён: «' + s.name + '» (' + D.CLASSES[s.cls].n.toLowerCase() + ') вступает в отряд!', 'good');
+    DW.UI.toast(pow ? '«' + s.name + '» освобождён из плена и снова в строю!' : 'Пленник освобождён: «' + s.name + '» (' + D.CLASSES[s.cls].n.toLowerCase() + ') вступает в отряд!', 'good');
     DW.SFX.play('pickup');
     BT.updateObjective(); BT.updateVision();
     if (DW.BS && DW.BS.refresh) DW.BS.refresh();
