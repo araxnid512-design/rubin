@@ -696,7 +696,8 @@
         const m = placeModel(gl, REAL[e.f] ? { f: e.f, maxLen: v.len + 0.45, yaw: e.yaw } : { len: e.len * 1.32, hMax: (e.hMax || 2.4) * 1.3, yaw: e.yaw }, pos, 0);
         m.userData.veh = v;
         propGroup.add(m);
-        v._m3 = m;
+        // ссылка на модель — не для сохранения боя (иначе JSON.stringify(B) упирается в кольцо v → модель → v)
+        Object.defineProperty(v, '_m3', { value: m, writable: true, configurable: true, enumerable: false });
         if (R3.bake) { m.traverse(function (q) { if (q.isMesh) q.castShadow = q.receiveShadow = false; }); R3.bake.addModel(m); }
       });
     });

@@ -11,9 +11,10 @@
     return true;
   }
 
-  const FLANKERS = { raider: 1, thug: 1, boss: 1 };   // бандиты обходят с флангов
+  const FLANKERS = { raider: 1, thug: 1, boss: 1, spitter: 1 };   // бандиты и плевуны обходят с флангов
   AI.enemyTurn = async function () {
     const BT = DW.BT, B = BT.get();
+    if (DW.TAC) await DW.TAC.turnStart();   // дым рассеивается, засада мутантов срабатывает (tactics.js)
     B.units.forEach(function (e) {
       if (e.side === 'e' && e.alive) {
         e.overwatch = false; e.hunker = false; e.ap = e.active ? (e.fresh ? 1 : 2) : 0; e.fresh = false;
@@ -47,6 +48,8 @@
         if (F[BT.idx(e.x, e.y)] === Infinity && (T.melee || !ps.some(function (t) { return BT.canSee(e, t); }))) { await AI.breach(e); e.ap = 0; return; }
       }
     }
+    // тактика (tactics.js): заложник, дым и перевязка СОБР, фланг и засада мутантов; true — ход сделан
+    if (DW.TAC && await DW.TAC.act(e)) { e.ap = 0; return; }
     let guard = 0;
     while (e.alive && e.ap > 0 && !B.over && guard++ < 4) {
       const ok = T.melee ? await AI.melee(e) : await AI.ranged(e);
@@ -388,6 +391,7 @@
       if (B.over) return;
       if (Math.random() < 0.5) continue;
       const mem = pods[ids[p]];
+      if (DW.TAC && DW.TAC.holdPod(mem)) continue;   // стая в засаде сидит тихо (tactics.js)
       const lead = mem[0];
       let tx, ty;
       if (Math.random() < 0.55) { tx = cx; ty = cy; } else { tx = lead.x + U.rand(-5, 5); ty = lead.y + U.rand(-4, 4); }

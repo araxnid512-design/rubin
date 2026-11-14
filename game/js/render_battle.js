@@ -3579,6 +3579,7 @@
       }
     }
     ghosts.forEach(function (u) { drawUnit(g, u, t, false, 0.32); });
+    if (DW.TAC) DW.TAC.draw2d(g, B, t, isoC, rp);   // дымовая завеса и заложник (tactics.js)
     drawCrows(g, t, false);
     applyLighting(g, W, H, dpr, B, t, vis);
     if (QL > 0 && !(TR.dbg && TR.dbg.noAtm)) atmosphere(g, W, H, dpr, B, t);

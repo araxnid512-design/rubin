@@ -52,6 +52,7 @@
     const t = TR2.now();
     R3.units.update(dt, t);
     R3.fx.update(dt);
+    if (DW.TAC) DW.TAC.tick3d(dt);   // клубы дымовой завесы (tactics.js)
     R3.detail.update(t);
     R3.items.update(t);
     R3.world.tick(dt);
@@ -114,6 +115,7 @@
     g.clearRect(0, 0, g.canvas.width, g.canvas.height);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     R3.hud.draw2d(g, W, H);
+    if (DW.TAC) DW.TAC.hud3d(g);   // метка «Заложник» (tactics.js)
   };
 
   /* ---------- Камера и ввод ---------- */
