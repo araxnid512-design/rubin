@@ -456,6 +456,204 @@
     "a man getting up from lying on his back on the ground to standing"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "bsp_generator",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_generator",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Industrial yellow diesel generator set: engine block with cylinder heads, radiator, exhaust pipe, small control panel with gauges, mounted on a steel skid frame, oil stains. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_elec_cabinet",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_elec_cabinet",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old grey Soviet-style electrical switchboard cabinet with analog gauges, rotary switches, indicator lamps, warning stickers, chipped paint. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_console",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_console",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Bunker control console desk with three old CRT monitors, many toggle switches, buttons and analog gauges, worn green-grey painted metal. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_scanner",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_scanner",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old Soviet hospital radiation dosimetry booth: white painted metal frame with detector panels on both sides and a small display, worn. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_fan_unit",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_fan_unit",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Industrial bunker air filtration and ventilation unit: large round fan housing, rectangular filter boxes, ducts, grey painted metal. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_workbench",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_workbench",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Cluttered steel workbench with a bench vise, hand tools, a toolbox, drawers and a worn wooden top. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_truck",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_truck",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Abandoned rusty Soviet military cargo truck with a torn canvas cover over the cargo bed, flat tires, broken windows, faded green paint. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_transformer",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_transformer",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old rusty electrical distribution transformer with ceramic insulators and cooling fins standing on a small concrete pad. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_water_tower",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_water_tower",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Rusty steel water tower: cylindrical tank on four lattice legs with a ladder. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_vent_mushroom",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_vent_mushroom",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Concrete bunker ventilation shaft sticking out of the ground with a mushroom-shaped steel cap and a protective grille. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "bsp_barrels_rad",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bsp_barrels_rad",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Group of three rusty leaking metal barrels, two standing and one lying, with yellow radiation warning signs. Realistic post-apocalyptic game asset, PBR materials, worn and dirty, single object, no base, no ground plane, no background."
+   ],
+   "timeout": 3000
   }
  ]
 }
