@@ -11,6 +11,8 @@ extends CharacterBody3D
 @export var anim_set := "res://assets/anim/eng"
 @export_enum("resident", "enemy") var role := "resident"
 @export var display_name := "Житель"
+@export var npc_id := ""                 ## id для заданий (Core.world.objects): eng, med, raider …
+@export var kind := ""                   ## вид врага для заданий «победить»
 @export var lines: PackedStringArray = []
 @export var points: Array = []          ## точки, между которыми ходит (мировые)
 
@@ -42,6 +44,8 @@ func _ready() -> void:
 	rig.setup(model_path, anim_set)
 	_home = global_position
 	_goal = _home
+	if npc_id != "":
+		Core.world.register(npc_id, self)
 	if role == "enemy":
 		add_to_group("enemy")
 		hp = 70.0
@@ -59,6 +63,15 @@ func _physics_process(delta: float) -> void:
 	var speed := 0.0
 	if role == "enemy":
 		_enemy_ai(delta)
+	elif Core.player and Core.player.state != "dead":
+		# житель ждёт, когда герой подошёл, и поворачивается к нему — чтобы можно было заговорить
+		var tp: Vector3 = Core.player.global_position - global_position
+		tp.y = 0
+		if tp.length() < 2.6 and absf(Core.player.global_position.y - global_position.y) < 1.5:
+			if state == "walk":
+				state = "idle"
+			_t = maxf(_t, 2.5)
+			rotation.y = lerp_angle(rotation.y, atan2(tp.x, tp.z), clampf(4.0 * delta, 0.0, 1.0))
 	match state:
 		"walk", "chase":
 			var to := _goal - global_position
@@ -95,6 +108,8 @@ func _enemy_ai(_d: float) -> void:
 	to.y = 0
 	var d := to.length()
 	if d < 12.0 and state != "attack" and state != "hit":
+		if state != "chase":
+			Core.play_at("enemy_alert", global_position + Vector3.UP * 1.6, -3.0)
 		state = "chase"
 		_goal = p.global_position
 	elif d > 18.0 and state == "chase":
@@ -132,6 +147,7 @@ func damage(amount: float, from_dir := Vector3.ZERO) -> void:
 	if hp <= 0.0:
 		_die()
 		return
+	Core.play_at("hurt_enemy", global_position + Vector3.UP * 1.5, -5.0)
 	state = "hit"
 	var local := global_transform.basis.inverse() * from_dir
 	var clip := "hit_front" if local.z >= 0 else "hit_back"
@@ -149,7 +165,10 @@ func _die() -> void:
 	collision_layer = 0
 	rig.play("death")
 	rig.set_pose("dead")
+	Core.play_at("death_enemy", global_position + Vector3.UP * 1.4, -2.0)
 	Core.say(display_name + " повержен.", "good")
+	if Core.quest and kind != "":
+		Core.quest.on_kill(kind)
 	# появляется снова через минуту — для проверки боя
 	get_tree().create_timer(60.0).timeout.connect(func():
 		global_position = _home
@@ -169,16 +188,20 @@ func can_interact(_p) -> bool:
 	return role == "resident" and state != "dead"
 
 
+## разговор начинается сразу — без клипа (длинный «осмотр» задерживал героя на несколько секунд)
 func interact_anim(_p) -> String:
-	return "inspect"
+	return ""
 
 
 func interact(_p) -> void:
-	if lines.is_empty():
-		return
 	var to: Vector3 = Core.player.global_position - global_position
 	rotation.y = atan2(to.x, to.z)
 	state = "idle"
 	_t = 6.0
+	# сначала задания (сдать шаг, взять новое), иначе — обычная реплика
+	if Core.quest and npc_id != "" and Core.quest.talk(npc_id):
+		return
+	if lines.is_empty():
+		return
 	Core.hud.show_text(display_name, lines[_line % lines.size()])
 	_line += 1

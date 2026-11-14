@@ -19,6 +19,7 @@ extends Node3D
 @export var on := true
 @export var flicker := false           ## старая лампа слегка мерцает
 @export var shadows := false
+var powered := true                     ## есть ли питание (генератор работает); выключатель — `on`
 
 var _light: OmniLight3D
 var _glow: MeshInstance3D
@@ -34,6 +35,7 @@ func _ready() -> void:
 	if light_id == "":
 		light_id = str(get_path())
 	Core.world.register(light_id, self)
+	add_to_group("bc_light")
 	if group != "":
 		add_to_group("bc_light:" + group)
 
@@ -99,13 +101,18 @@ func _build() -> void:
 
 func _apply() -> void:
 	if _light:
-		_light.visible = on
+		_light.visible = on and powered
 	if _glow and fixture == "bulkhead":
-		_glow.visible = on
+		_glow.visible = on and powered
+
+
+func set_powered(v: bool) -> void:
+	powered = v
+	_apply()
 
 
 func _process(_d: float) -> void:
-	if Engine.is_editor_hint() or not flicker or not on or _light == null:
+	if Engine.is_editor_hint() or not flicker or not on or not powered or _light == null:
 		return
 	_ph += _d
 	var f := 1.0

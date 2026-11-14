@@ -8,6 +8,7 @@ var hud: BCHud
 
 
 var _loading: CanvasLayer
+const START_MSG := "Убежище-7, утро. Генератор кашляет — Михалыч хотел поговорить. Метка над ним."
 
 
 func _ready() -> void:
@@ -48,6 +49,8 @@ func _ready() -> void:
 	player.global_position = Vector3(-5.2, Locations.FLOOR + 0.05, -24.8)
 	player.rotation.y = PI
 	_spawn_npcs()
+	Core.quest.attach(self)
+	Core.quest.new_game()
 	cam = BCCamera.new()
 	add_child(cam)
 	cam.set_target(player)
@@ -62,7 +65,7 @@ func _ready() -> void:
 	if Core.test_mode == "":
 		_menu()
 	else:
-		Core.say("Убежище. Генератор работает. Снаружи — фон в тысячу раз выше нормы.", "info")
+		Core.say(START_MSG, "info")
 	if Core.test_mode != "":
 		var tr: Node = load("res://tools/test_runner.gd").new()
 		tr.name = "TestRunner"
@@ -76,6 +79,7 @@ func _spawn_npcs() -> void:
 	eng.model_path = "res://assets/models/npc_eng.glb"
 	eng.anim_set = "res://assets/anim/eng"
 	eng.display_name = "Михалыч, инженер"
+	eng.npc_id = "eng"
 	eng.lines = PackedStringArray([
 		"Генератор тянет, но масло пора менять. Если найдёшь наверху канистру — тащи сюда.",
 		"Фильтры ФВУ я проверил. Пока держат. Без них нам тут неделю, не больше.",
@@ -89,6 +93,7 @@ func _spawn_npcs() -> void:
 	med.model_path = "res://assets/models/npc_med.glb"
 	med.anim_set = "res://assets/anim/med"
 	med.display_name = "Аня, медик"
+	med.npc_id = "med"
 	med.lines = PackedStringArray([
 		"Если доза за двести пятьдесят — сразу ко мне. Выведем, сколько получится.",
 		"Йодид калия кончается. Наверху был медпункт при котельной — проверь, если будешь рядом.",
@@ -103,6 +108,8 @@ func _spawn_npcs() -> void:
 	raider.model_path = "res://assets/models/raider.glb"
 	raider.anim_set = "res://assets/anim/raider"
 	raider.display_name = "Мародёр"
+	raider.npc_id = "raider"
+	raider.kind = "raider"
 	add_child(raider)
 	raider.global_position = Vector3(24.0, 0.3, -12.0)
 	raider.add_to_group("surface_only")
@@ -124,6 +131,7 @@ func _menu() -> void:
 	v.add_child(hud._button("Новая игра", func():
 		hud.close_modal()
 		Core.save.delete_save()
-		Core.say("Убежище. Генератор работает. Снаружи — фон в тысячу раз выше нормы.", "info")))
+		Core.quest.new_game()
+		Core.say(START_MSG, "info")))
 	v.add_child(hud._button("Настройки", hud.show_settings))
 

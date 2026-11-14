@@ -40,6 +40,9 @@ const CATALOG := {
 	"barrel": {"n": "Бочка", "cat": "Склад", "size": Vector3(0.6, 0.9, 0.6)},
 	"pallet": {"n": "Поддон", "cat": "Склад", "size": Vector3(1.2, 0.15, 0.8)},
 	"water_tank": {"n": "Бак с водой", "cat": "Склад", "size": Vector3(1.2, 2.2, 1.2)},
+	"jerrycan": {"n": "Канистра", "cat": "Склад", "size": Vector3(0.18, 0.48, 0.36)},
+	"med_crate": {"n": "Армейский медицинский ящик", "cat": "Склад", "size": Vector3(0.7, 0.42, 0.45)},
+	"filter_box": {"n": "Фильтр ФВУ в упаковке", "cat": "Склад", "size": Vector3(0.5, 0.42, 0.5)},
 	# --- теплица ---
 	"grow_rack": {"n": "Стеллаж с растениями", "cat": "Теплица", "size": Vector3(1.8, 1.9, 0.6)},
 	# --- управление ---
@@ -1077,3 +1080,39 @@ static func _cooling_tower(mk: BCMesh, col: Array, p: Dictionary) -> void:
 
 static func _hyper(f: float) -> float:
 	return 0.62 + 0.38 * pow(absf(f - 0.72) / 0.72, 1.6)
+
+
+# ======================= ПРЕДМЕТЫ ЗАДАНИЙ =======================
+
+static func _jerrycan(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	var mat: String = p.get("mat", "paint_red")
+	mk.box(mat, I, Vector3(0.17, 0.4, 0.34), Vector3(0, 0.2, 0))
+	# выштамповка по бокам и ручка сверху
+	for x in [-0.088, 0.088]:
+		mk.box(mat, I, Vector3(0.006, 0.26, 0.22), Vector3(x, 0.2, 0.0))
+	mk.box(mat, I, Vector3(0.05, 0.035, 0.2), Vector3(0, 0.43, -0.03))
+	for z in [-0.11, 0.05]:
+		mk.box(mat, I, Vector3(0.05, 0.05, 0.03), Vector3(0, 0.41, z))
+	mk.cyl("steel_dark", I, 0.025, 0.06, Vector3(0, 0.42, 0.13), 8)
+	col.append([Vector3(0.18, 0.44, 0.36), Vector3(0, 0.22, 0)])
+
+
+static func _med_crate(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.box("paint_green", I, Vector3(0.7, 0.36, 0.45), Vector3(0, 0.18, 0))
+	mk.box("paint_green", I, Vector3(0.72, 0.05, 0.47), Vector3(0, 0.385, 0))
+	mk.box("paint_white", I, Vector3(0.24, 0.24, 0.006), Vector3(0, 0.2, 0.228))
+	mk.box("paint_red", I, Vector3(0.16, 0.05, 0.004), Vector3(0, 0.2, 0.232))
+	mk.box("paint_red", I, Vector3(0.05, 0.16, 0.004), Vector3(0, 0.2, 0.232))
+	mk.box("paint_white", I, Vector3(0.006, 0.18, 0.18), Vector3(0.353, 0.2, 0))
+	mk.box("paint_red", I, Vector3(0.004, 0.12, 0.04), Vector3(0.357, 0.2, 0))
+	mk.box("paint_red", I, Vector3(0.004, 0.04, 0.12), Vector3(0.357, 0.2, 0))
+	for x in [-0.25, 0.25]:
+		mk.box("steel_dark", I, Vector3(0.08, 0.03, 0.02), Vector3(x, 0.33, 0.235))
+	col.append([Vector3(0.7, 0.42, 0.45), Vector3(0, 0.21, 0)])
+
+
+static func _filter_box(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.box("cardboard", I, Vector3(0.5, 0.42, 0.5), Vector3(0, 0.21, 0))
+	mk.box("paint_white", I, Vector3(0.3, 0.12, 0.006), Vector3(0, 0.26, 0.253))
+	mk.cyl("steel", I, 0.18, 0.05, Vector3(0, 0.445, 0), 14)
+	col.append([Vector3(0.5, 0.42, 0.5), Vector3(0, 0.21, 0)])

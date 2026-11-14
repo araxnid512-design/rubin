@@ -24,6 +24,8 @@ var crouching := false
 var hp := 100.0
 var max_hp := 100.0
 var stamina := 100.0
+var food := 70.0                      ## сытость 0..100: за игровые сутки уходит ~65
+var water := 60.0                     ## вода 0..100: за игровые сутки уходит ~100
 var dose := 0.0                       ## накопленная доза, мЗв
 var rad_rate := 0.0                   ## текущая мощность дозы, мЗв/ч
 var suit_on := false
@@ -41,6 +43,16 @@ var game_time := 8.0 * 3600.0         ## время суток в игре, се
 var _return_pos := Vector3.INF
 var _full_t := 0.0                   ## сколько бежит в полный наклон джойстика
 var _tired := false                  ## выдохся — рывка нет, пока выносливость не восстановится
+var _warn := {}
+var _torch: SpotLight3D
+const FOOD_H := 2.7                   ## расход сытости за игровой час
+const WATER_H := 4.2                  ## расход воды за игровой час
+## что можно использовать из «Вещей»: действие и слова
+const CONSUME := {
+	"canned": [{"stat": "food", "add": 40}, "Вы съели тушёнку.", "eat"],
+	"medkit": [{"stat": "hp", "add": 45}, "Перевязка и обезболивающее: здоровье восстановлено.", "pickup"],
+	"rad_pills": [{"stat": "dose", "add": -80}, "Радиопротектор принят: доза снижена.", "drink"],
+}
 
 
 func _ready() -> void:
@@ -76,6 +88,19 @@ func _ready() -> void:
 	_snd_step.max_distance = 15.0
 	_snd_step.volume_db = -8.0
 	add_child(_snd_step)
+	# фонарь на груди: ночью наверху и в бункере без питания
+	_torch = SpotLight3D.new()
+	_torch.name = "Torch"
+	# над плечом и чуть сзади: луч захватывает и самого героя (камера сверху видит его в темноте)
+	_torch.position = Vector3(0.15, 2.15, -0.45)
+	_torch.rotation_degrees = Vector3(-32, 180, 0)
+	_torch.spot_range = 17.0
+	_torch.spot_angle = 40.0
+	_torch.light_energy = 2.2
+	_torch.light_color = Color(1.0, 0.93, 0.8)
+	_torch.shadow_enabled = false
+	_torch.visible = false
+	add_child(_torch)
 	Core.register_player(self)
 
 
@@ -100,6 +125,8 @@ func _physics_process(delta: float) -> void:
 		_full_t += delta
 	else:
 		_full_t = 0.0
+	if stamina < 2.0 and not _tired:
+		Core.play_at("breath_run", global_position + Vector3.UP * 1.6, -6.0, 0.0)
 	if stamina < 2.0:
 		_tired = true
 	elif stamina > 30.0:
@@ -142,7 +169,7 @@ func _physics_process(delta: float) -> void:
 	if speed > JOG + 0.3:
 		stamina = maxf(0.0, stamina - 14.0 * delta)
 	else:
-		stamina = minf(100.0, stamina + (9.0 if speed < 0.2 else 5.0) * delta)
+		stamina = minf(100.0, stamina + (9.0 if speed < 0.2 else 5.0) * delta * (0.5 if food <= 0.0 or water <= 0.0 else 1.0))
 	if rig:
 		rig.set_motion(speed, 1.0 if crouching else 0.0, delta)
 	# старт/остановка — короткие клипы поверх, только из покоя в бег и из бега в покой
@@ -183,6 +210,7 @@ func _footsteps(speed: float, delta: float) -> void:
 
 func _radiation(delta: float) -> void:
 	rad_rate = Core.env.rad_rate_at(global_position) if Core.env else 0.0
+	_needs(delta)
 	var eff := rad_rate * (0.15 if suit_on else 1.0)
 	# игровое время идёт быстрее: 1 с реального = 30 с игры
 	dose += eff * delta * 30.0 / 3600.0
@@ -199,10 +227,63 @@ func _radiation(delta: float) -> void:
 	stats_changed.emit()
 
 
+## голод и жажда; фонарь по времени суток и питанию
+func _needs(delta: float) -> void:
+	var gh := delta * 30.0 / 3600.0
+	var k := 0.5 if state == "lie" else 1.0
+	food = maxf(0.0, food - FOOD_H * gh * k)
+	water = maxf(0.0, water - WATER_H * gh * k)
+	if food <= 0.0 or water <= 0.0:
+		hp -= 0.12 * delta
+	for n in [["food", food, "Хочется есть. Паёк — на складе.", "Голод! Здоровье уходит."], ["water", water, "Хочется пить. Бак с водой — в теплице.", "Жажда! Здоровье уходит."]]:
+		var v: float = n[1]
+		if v < 25.0 and not _warn.has(n[0] + "1"):
+			_warn[n[0] + "1"] = true
+			Core.say(n[2], "warn")
+		elif v <= 0.0 and not _warn.has(n[0] + "0"):
+			_warn[n[0] + "0"] = true
+			Core.say(n[3], "bad")
+		elif v > 40.0:
+			_warn.erase(n[0] + "1")
+			_warn.erase(n[0] + "0")
+	if _torch:
+		var dark: bool = (not Core.world.underground and is_night()) or (Core.world.underground and Core.quest and not Core.quest.power)
+		_torch.visible = dark and "flashlight" in inventory
+
+
+func hour() -> float:
+	return fmod(game_time / 3600.0, 24.0)
+
+
+func day() -> int:
+	return int(game_time / 86400.0) + 1
+
+
+func is_night() -> bool:
+	var h := hour()
+	return h >= 21.0 or h < 5.0
+
+
+## поспать до 6 утра: время, сытость, вода, ресурсы убежища идут как обычно (их считает QuestSystem по времени)
+func sleep_until_morning() -> void:
+	var h := hour()
+	var hours := (24.0 - h + 6.0) if h >= 6.0 else (6.0 - h)
+	game_time += hours * 3600.0
+	food = maxf(0.0, food - FOOD_H * hours * 0.5)
+	water = maxf(0.0, water - WATER_H * hours * 0.5)
+	hp = minf(max_hp, hp + 40.0)
+	stamina = 100.0
+	if dose < 250.0:
+		dose = maxf(0.0, dose - hours * 2.0)
+	Core.say("День %d. 06:00. Вы выспались." % day(), "good")
+	stats_changed.emit()
+
+
 func damage(amount: float, from_dir := Vector3.ZERO) -> void:
 	if state == "dead":
 		return
 	hp -= amount
+	Core.play_at("hurt_hero", global_position + Vector3.UP * 1.6, -4.0)
 	if hp <= 0.0:
 		die()
 		return
@@ -300,7 +381,10 @@ func sit() -> void:
 func rest() -> void:
 	state = "lie"
 	rig.set_pose("lie_idle" if rig.has_clip("lie_idle") else "bed_lie")
-	Core.say("Отдых… Выносливость и здоровье восстанавливаются.", "info")
+	if hour() >= 20.0 or hour() < 5.0:
+		Core.hud.ask_sleep()
+	else:
+		Core.say("Отдых… Выносливость и здоровье восстанавливаются. Спать можно с 20:00.", "info")
 
 
 func stand_up() -> void:
@@ -342,6 +426,35 @@ func toggle_suit() -> void:
 func inventory_add(id: String) -> void:
 	inventory.append(id)
 	stats_changed.emit()
+	if Core.quest:
+		Core.quest.on_inventory()
+
+
+func count_item(id: String) -> int:
+	return inventory.count(id)
+
+
+func inventory_remove(id: String, n := 1) -> void:
+	for i in n:
+		inventory.erase(id)
+	stats_changed.emit()
+	if Core.quest:
+		Core.quest.on_inventory()
+
+
+func can_consume(id: String) -> bool:
+	return CONSUME.has(id)
+
+
+## использовать вещь из инвентаря (еда, аптечка, таблетки)
+func consume(id: String) -> void:
+	if not CONSUME.has(id) or count_item(id) < 1:
+		return
+	var c: Array = CONSUME[id]
+	inventory_remove(id, 1)
+	Core.quest.apply_effect(c[0])
+	Core.say(c[1], "good")
+	Core.play_ui(c[2], -4.0)
 
 
 # ---------------- бой ----------------
@@ -379,7 +492,7 @@ func toggle_crouch() -> void:
 
 func get_state() -> Dictionary:
 	return {"pos": [global_position.x, global_position.y, global_position.z], "rot": rotation.y, "hp": hp, "stamina": stamina,
-		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time}
+		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time, "food": food, "water": water}
 
 
 func set_state(s: Dictionary) -> void:
@@ -392,6 +505,8 @@ func set_state(s: Dictionary) -> void:
 	inventory = s.get("inv", inventory)
 	crouching = s.get("crouch", false)
 	game_time = s.get("time", game_time)
+	food = s.get("food", 70.0)
+	water = s.get("water", 60.0)
 	if s.get("suit", false) != suit_on:
 		toggle_suit()
 	state = "move"
@@ -412,6 +527,8 @@ func action_verb() -> String:
 		return "Закрыть" if t.is_open else "Открыть"
 	if t is BCNpc:
 		return "Говорить"
+	if t is BCInteract and t.action == "use":
+		return Core.quest.use_verb(t.target)
 	if t is BCInteract:
 		return {"terminal": "Терминал", "bed": "Лечь", "chair": "Сесть", "medbay": "Лечиться", "suit": "Снять" if suit_on else "Надеть",
 			"switch": "Свет", "pickup": "Взять", "inspect": "Осмотр"}.get(t.action, "Действие")

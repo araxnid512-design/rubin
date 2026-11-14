@@ -55,6 +55,16 @@ func _draw() -> void:
 			draw_polyline(pts, col, 1.5)
 		else:
 			draw_colored_polygon(pts, col)
+	# цель задания: точка на карте, за краем — у края
+	if Core.quest:
+		var mp: Vector3 = Core.quest.marker_pos()
+		if mp != Vector3.INF and (mp.y < -2.0) == under:
+			var q: Vector2 = to_map.call(mp)
+			var off := q - c
+			if off.length() > r - 9.0:
+				q = c + off.normalized() * (r - 9.0)
+			draw_circle(q, 6.0, Color(0.1, 0.08, 0.04, 0.9))
+			draw_circle(q, 4.5, Color(1.0, 0.78, 0.25))
 	# герой
 	var f := Vector2(0, -1).rotated(-(p.rotation.y - yaw) + PI)
 	f = Vector2(sin(p.rotation.y - yaw), cos(p.rotation.y - yaw))

@@ -140,6 +140,13 @@ func _run() -> void:
 		await _interact_test(mode == "sitlie")
 	if mode == "walk" or mode == "all":
 		await _walk_test()
+	if mode == "qdbg":
+		Core.quest.new_game()
+		Core.quest.accept("q_fuel")
+		await _act_at("can_truck")
+		await _act_at("filter")
+	if mode == "quest" or mode == "all":
+		await _quest_test()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
 	if f:
 		f.store_string("\n".join(log_lines))
@@ -303,3 +310,137 @@ func _perf_test() -> void:
 	var p99: float = all_ms[int(all_ms.size() * 0.99)] if all_ms.size() > 0 else 0.0
 	_log("Итог: кадров %d, среднее %.1f мс (%.0f FPS), 1%% худших — %.1f мс, максимум %.1f мс, ОЗУ %.0f МБ, видео %.0f МБ" % [all_ms.size(), avg, 1000.0 / maxf(avg, 0.001), p99, all_ms[-1] if all_ms.size() > 0 else 0.0, Core.mobile.stats().mem_mb, Core.mobile.stats().vram_mb])
 
+
+
+# ---------------- задания, нужды, день и ночь ----------------
+
+func _qlog(tag: String) -> void:
+	var q = Core.quest
+	var parts := []
+	for id in q.quests:
+		parts.append("%s:%s/%d" % [id, q.quests[id].state, q.quests[id].step])
+	var pl: BCPlayer = Core.player
+	_log("%s | %s | топливо %.1f, фильтры %.0f, еда %.2f, вода %.0f, питание %s | сытость %.0f, вода %.0f, hp %.0f, доза %.0f | вещи %s" % [tag, ", ".join(parts),
+		q.res.fuel, q.res.filters, q.res.food, q.res.water, q.power, pl.food, pl.water, pl.hp, pl.dose, pl.inventory])
+
+
+## подойти к объекту мира и нажать «Действие» (как игрок)
+func _act_at(id: String, shot := "", stand := Vector3.INF) -> void:
+	var pl: BCPlayer = Core.player
+	var n: Node3D = Core.world.objects.get(id)
+	if n == null:
+		_log("НЕТ объекта " + id)
+		return
+	var p := n.global_position
+	var off := Vector3(0.0, 0.0, 1.0)
+	if n is BCInteract and n.action == "use":
+		off = (n.global_transform.basis * Vector3(0, 0, 1.3))
+	var at := p + Vector3(off.x, 0.0, off.z).normalized() * 0.95
+	if stand != Vector3.INF:
+		at = stand
+	await _place(Vector3(at.x, p.y + 0.1, at.z), atan2(p.x - at.x, p.z - at.z))
+	await _frames(8)
+	var t = pl.target
+	if Core.test_mode == "qdbg" or t == null:
+		var ov := []
+		for a in pl._reach.get_overlapping_areas():
+			var tg = a.get_meta("bc_target", null)
+			ov.append("%s→%s(%s)" % [a.get_path(), tg, tg.can_interact(pl) if tg else "-"])
+		_log("    герой %s, объект %s, видим %s, состояние %s, пересечения: %s" % [pl.global_position, p, n.is_visible_in_tree(), pl.state, ov])
+	_log("  у %s: цель %s, кнопка «%s»" % [id, (t.point_id if t is BCInteract else (t.npc_id if t is BCNpc else str(t))) if t else "нет", pl.action_verb()])
+	pl.do_interact()
+	await get_tree().create_timer(1.6).timeout
+	if shot != "":
+		await _shot(shot)
+	await get_tree().create_timer(1.0).timeout
+
+
+func _quest_test() -> void:
+	var pl: BCPlayer = Core.player
+	var q = Core.quest
+	q.new_game()
+	_qlog("старт")
+	await _place(Vector3(-5.2, -5.95, -24.8), PI)
+	await _frames(30)
+	await _shot("q0_start")
+	# 1. Михалыч предлагает задание про топливо
+	await _act_at("eng", "q1_offer")
+	q._accept_dialog("q_fuel")
+	_qlog("взял топливо")
+	# 2. канистры наверху
+	await _act_at("can_truck", "q2_can_truck")
+	await _act_at("can_trafo")
+	_qlog("канистры")
+	# 3. залить в бак
+	await _act_at("fuel_tank", "q3_fuel_tank")
+	await _act_at("fuel_tank")
+	_qlog("залил")
+	# 4. сдать Михалычу; сразу предлагает фильтр
+	await _act_at("eng", "q4_done_fuel")
+	q._accept_dialog("q_filter")
+	await _act_at("med")
+	q._accept_dialog("q_meds")
+	_qlog("взял фильтр и йод")
+	# 5. йод
+	await _act_at("med_crate")
+	await _act_at("med", "q5_meds_done")
+	Core.hud.close_modal()
+	# 6. фильтр
+	await _act_at("filter")
+	await _act_at("fvu", "q6_fvu")
+	await _act_at("eng")
+	q._accept_dialog("q_raider")
+	_qlog("фильтр, мародёр взят")
+	# 7. мародёр
+	var r: Node3D = Core.world.objects.get("raider")
+	await _place(r.global_position + Vector3(0, 0.1, 1.2), PI)
+	await _shot("q7_raider")
+	r.damage(500.0, Vector3(0, 0, -1))
+	await get_tree().create_timer(1.0).timeout
+	await _act_at("eng", "q8_all_done")
+	Core.hud.close_modal()
+	_qlog("всё")
+	# 8. еда, вода, таблетки
+	pl.food = 20.0
+	pl.water = 15.0
+	await _act_at("ration")
+	await _act_at("water_tank")
+	pl.dose = 150.0
+	pl.consume("rad_pills")
+	_qlog("поел, попил, таблетка")
+	Core.hud.show_journal()
+	await _shot("q9_journal")
+	Core.hud.close_modal()
+	Core.hud.show_inventory()
+	await _shot("q10_inventory")
+	Core.hud.close_modal()
+	# 9. ночь наверху
+	pl.game_time = 22.5 * 3600.0
+	await _place(Vector3(12.0, 0.1, 6.0), PI, 0.4)
+	await get_tree().create_timer(2.5).timeout
+	await _shot("q11_night_surface")
+	pl.game_time = 19.6 * 3600.0
+	await get_tree().create_timer(2.0).timeout
+	await _shot("q12_dusk_surface")
+	# 10. сон на кровати
+	pl.game_time = 22.5 * 3600.0
+	await _act_at("bed2", "q13_sleep_ask", Vector3(-6.6, -5.95, -27.4))
+	var d0 := pl.day()
+	Core.hud.close_modal()
+	pl.sleep_until_morning()
+	_log("сон: день %d → %d, час %.1f" % [d0, pl.day(), pl.hour()])
+	pl.stand_up()
+	await get_tree().create_timer(4.0).timeout
+	# 11. топливо кончилось — свет гаснет, фонарь
+	q.res.fuel = 0.001
+	await get_tree().create_timer(1.0).timeout
+	await _place(Vector3(3.4, -5.95, -16.5), 0)
+	await _shot("q14_blackout")
+	_qlog("без топлива")
+	# 12. сохранение заданий
+	Core.save.save_game()
+	var before: String = JSON.stringify(q.get_state().q)
+	q.new_game()
+	Core.save.load_game()
+	_log("сохранение заданий: %s" % ("совпадает" if JSON.stringify(q.get_state().q) == before else "НЕ совпадает"))
+	_qlog("после загрузки")

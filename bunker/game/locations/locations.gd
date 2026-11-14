@@ -102,6 +102,28 @@ static func spot(parent: Node3D, id: String, pos: Vector3, action: String, label
 	return s
 
 
+## предмет, который можно подобрать: видимая модель из каталога + точка «pickup»; после подбора скрывается
+static func item(parent: Node3D, id: String, prefab: String, pos: Vector3, rot: float, label: String, item_id: String, params := {}) -> BCInteract:
+	var holder := Node3D.new()
+	holder.name = "Item_" + id
+	holder.set_meta("pickup_mesh", true)
+	_node(holder, parent, pos, rot)
+	var pr := BCProp.new()
+	pr.prefab = prefab
+	params = params.duplicate()
+	params["collide"] = false
+	pr.params = params
+	holder.add_child(pr)
+	var s := BCInteract.new()
+	s.point_id = id
+	s.action = "pickup"
+	s.label = label
+	s.target = item_id
+	s.sensor_size = Vector3(1.3, 2.0, 1.3)
+	holder.add_child(s)
+	return s
+
+
 static func zone(parent: Node3D, kind: String, name: String, center: Vector3, size: Vector3, hide := false, env := "surface", rad := -1.0, roof := "", prio := 0) -> BCZone:
 	var z := BCZone.new()
 	z.kind = kind
@@ -273,6 +295,7 @@ static func _greenhouse(B: Node3D, y: float) -> void:
 	prop(B, "barrel", Vector3(6.3, y, -23.0), 0, {"mat": "paint_blue"})
 	light(B, "l_grow", Vector3(9.0, y + H - 0.05, -26.4), "grow", "grow", Color(1.0, 0.5, 0.85), 2.0, 8.5)
 	spot(B, "sw_grow", Vector3(8.2, y, -22.6), "switch", "фитолампы", "", "grow", 0, Vector3(0.8, 2, 0.8))
+	spot(B, "water_tank", Vector3(12.2, y, -23.4), "use", "", "", "water_tank", 0, Vector3(2.0, 2, 2.0))
 	spot(B, "plants", Vector3(9.0, y, -27.6), "inspect", "Грядки", "Салат, лук, картофель в ящиках. Фитолампы дают нужный спектр, вода — из бака. Урожай будет недели через три.", "", 0, Vector3(6, 2, 1.6))
 
 
@@ -290,7 +313,7 @@ static func _storage(B: Node3D, y: float) -> void:
 	prop(B, "cardboard", Vector3(-15.1, y + 0.4, -13.05), 10)
 	light(B, "l_store", Vector3(-14.1, y + H - 0.05, -15.8), "cage", "store", Color(1.0, 0.82, 0.6), 1.3, 7.0, true)
 	spot(B, "canned", Vector3(-11.4, y, -13.4), "pickup", "Подобрать: тушёнка", "", "canned", 0, Vector3(1.2, 2, 1.2))
-	spot(B, "shelves", Vector3(-14.1, y, -18.4), "inspect", "Стеллажи с припасами", "Консервы, крупа в мешках, свечи, патроны 5.45, батарейки. Если экономить — хватит на месяц с небольшим.", "", 180, Vector3(7, 2, 1.4))
+	spot(B, "ration", Vector3(-14.1, y, -18.4), "use", "", "", "ration", 180, Vector3(7, 2, 1.4))
 
 
 static func _workshop(B: Node3D, y: float) -> void:
@@ -317,7 +340,9 @@ static func _generator(B: Node3D, y: float) -> void:
 	prop(B, "pipes_wall", Vector3(3.4, y + 1.9, -12.55), 180, {"length": 6.0})
 	light(B, "l_gen", Vector3(3.4, y + H - 0.05, -16.4), "cage", "gen", Color(1.0, 0.8, 0.55), 1.5, 7.5)
 	light(B, "l_gen_warn", Vector3(6.4, y + 2.2, -14.4), "bulkhead", "", Color(1.0, 0.6, 0.25), 0.0, 0.1, false, -90)
-	spot(B, "genset", Vector3(3.6, y, -14.4), "inspect", "Дизельный генератор", "Дизель-генератор АД-30: 30 кВт. Работает, топлива — на шесть недель. Масло стоит сменить.", "", 0, Vector3(3.4, 2, 2.2))
+	spot(B, "genset", Vector3(3.6, y, -14.4), "inspect", "Дизельный генератор", "Дизель-генератор АД-30: 30 кВт. Топливо — из бака у стены, расход около половины процента в час. Масло стоит сменить.", "", 0, Vector3(3.4, 2, 2.2))
+	spot(B, "fuel_tank", Vector3(5.4, y, -18.3), "use", "", "", "fuel_tank", -90, Vector3(2.6, 2, 2.6))
+	spot(B, "fvu", Vector3(0.95, y, -13.4), "use", "", "", "fvu", 90, Vector3(2.4, 2, 2.4))
 	spot(B, "panel", Vector3(1.5, y, -18.95), "terminal", "Электрощит: нагрузка сети", "", "power", 0, Vector3(2.0, 2, 1.2))
 
 
@@ -407,7 +432,12 @@ static func build_surface(root: Node3D) -> Node3D:
 	shed.set_meta("map_kind", "building")
 	shed.set_meta("map_rect", Rect2(-3.2, -2.3, 6.4, 4.6))
 	zone(S, "building", "Разрушенная постройка", Vector3(20.0, 0.0, -20.0), Vector3(6.0, 3.0, 4.2), false, "building", -1.0, "shed", 5)
-	spot(S, "filter", Vector3(18.4, 0.15, -20.8), "pickup", "Подобрать: фильтр противогаза", "", "filter", 0, Vector3(1.2, 2, 1.2))
+	item(S, "filter", "filter_box", Vector3(18.4, 0.15, -20.8), 20, "Подобрать: фильтр ФВУ", "filter")
+	# канистры с топливом и медицинский ящик — для заданий жителей
+	for it in [["can_truck", "jerrycan", -8.8, 3.9, 35.0, "Подобрать: канистра с топливом", "fuel_can", {}],
+			["can_trafo", "jerrycan", -17.7, -6.4, -20.0, "Подобрать: канистра с топливом", "fuel_can", {"mat": "paint_green"}],
+			["med_crate", "med_crate", -23.6, -30.2, 30.0, "Открыть: армейский медицинский ящик", "iodine", {}]]:
+		item(S, it[0], it[1], Vector3(it[2], ter.height_at(it[2], it[3]), it[3]), it[4], it[5], it[6], it[7])
 	prop(S, "transformer", Vector3(-20.0, 0.1, -8.0), 15)
 	prop(S, "water_tower", Vector3(-27.0, 0.0, -33.0), 10)
 	# опоры ЛЭП вдоль дороги и провода
