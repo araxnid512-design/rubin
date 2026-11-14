@@ -105,7 +105,9 @@
   /* план врагов для разведки перед боем: составляется один раз на локацию и ту же сложность */
   BT.planFor = function (node, kind, diff) {
     if (kind === 'defense') return null;
-    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: node.type, diff: diff, kind: kind, boss: node.quest === 'q_talk', fac: node.fac }) };
+    // охрана каравана — люди (банда), где бы его ни встретили
+    const cv = kind === 'caravan';
+    if (!node.plan || node.plan.kind !== kind || node.plan.diff !== diff) node.plan = { kind: kind, diff: diff, pods: BT.composePods({ type: cv ? 'camp' : node.type, diff: diff, kind: cv ? 'normal' : kind, boss: !cv && node.quest === 'q_talk', fac: cv ? 'raider' : node.fac }) };
     return node.plan;
   };
   // враг — человек (банда, клан, СОБР): не мутант и не механизм
@@ -220,6 +222,7 @@
     let pods;
     if (o.kind === 'defense') pods = [];
     else if (nd && nd.plan && nd.plan.kind === o.kind && nd.plan.diff === o.diff) pods = nd.plan.pods;
+    else if (o.kind === 'caravan') pods = BT.composePods(Object.assign({}, o, { type: 'camp', kind: 'normal', fac: 'raider' }));
     else pods = BT.composePods(Object.assign({}, o, { fac: nd && nd.fac }));
     if (nd) delete nd.plan;
     const mapType = o.kind === 'defense' ? 'defense' : ((nd && nd.map) || D.NODE_TYPES[o.type].map);
@@ -357,6 +360,9 @@
     else { const r = Math.random(); tod = r < 0.4 ? 'day' : (r < 0.58 ? 'dawn' : (r < 0.8 ? 'dusk' : 'night')); }
     let weather = 'clear';
     if (tod !== 'interior' && tod !== 'cave') { const r = Math.random(); weather = r < 0.55 ? 'clear' : (r < 0.7 ? 'dust' : (r < 0.85 ? 'ash' : 'rain')); }
+    // на карте мира непогода — она и в бою
+    const ww = DW.G.weather ? DW.G.weather() : 'clear';
+    if (tod !== 'interior' && tod !== 'cave' && ww !== 'clear') weather = { storm: 'dust', acid: 'rain', ash: 'ash' }[ww];
     b.tod = tod; b.weather = weather;
     b.sightMod = (tod === 'night' ? -2 : 0) + (tod === 'cave' ? -1 : 0) + (weather === 'dust' ? -3 : 0);
   };

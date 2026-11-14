@@ -482,6 +482,39 @@
     UI.modal({ title: 'Журнал', cls: 'wide', body: b });
   };
 
+  /* ---------- Караван: торговля ---------- */
+  UI.trade = function (car) {
+    const G = DW.G, st = G.state;
+    return new Promise(function (resolve) {
+      const body = el('div', { class: 'portal trade' });
+      let h = null;
+      function render() {
+        body.innerHTML = '<div class="ptext">Торговцы с охраной. Берут драгоценности и стройматериалы, у них — провизия, патроны, аптечки и гранаты. Запасы каравана ограничены.</div>';
+        const grid = el('div', { class: 'pgrid' });
+        car.goods.forEach(function (g) {
+          const it = el('div', { class: 'pitem' + (g.left ? '' : ' locked') });
+          const WI = DW.WICON || {};
+          const pic = WI['i_' + g.pic] ? '<img src="' + WI['i_' + g.pic] + '" alt="">' : D.icon(g.res);
+          it.innerHTML = '<div class="pi-ic">' + pic + '</div><div class="pi-t">' + g.n + ' <small>×' + g.amt + '</small><br><b>' + g.price + '</b> ' + D.icon(g.pay) + ' <small class="dim">осталось ' + g.left + '</small></div>';
+          const bt = el('button', { class: 'btn sm', text: g.sell ? 'Продать' : 'Купить', onclick: function () {
+            if (!g.left) return;
+            if (g.sell) { if ((st.res[g.res] || 0) < g.amt) return; st.res[g.res] -= g.amt; st.res[g.pay] += g.price; }
+            else { if ((st.res[g.pay] || 0) < g.price) return; st.res[g.pay] -= g.price; st.res[g.res] = (st.res[g.res] || 0) + g.amt; }
+            g.left--; DW.SFX.play('pickup'); render();
+          } });
+          bt.disabled = !g.left || (g.sell ? (st.res[g.res] || 0) < g.amt : (st.res[g.pay] || 0) < g.price);
+          it.appendChild(bt);
+          grid.appendChild(it);
+        });
+        body.appendChild(grid);
+        body.appendChild(el('div', { class: 'small dim', html: 'У вас: ' + ['gems', 'materials', 'food', 'ammo', 'meds', 'grenades'].map(function (k) { return D.icon(k) + (st.res[k] || 0); }).join(' · ') }));
+      }
+      render();
+      h = UI.modal({ title: 'Караван торговцев', cls: 'wide', body: body, onClose: function () { G.save(); resolve(); } });
+      void h;
+    });
+  };
+
   /* ---------- Достижения и статистика ---------- */
   UI.achievements = function () {
     const G = DW.G, st = G.state, S = st.stats;
@@ -513,7 +546,7 @@
       const sorted = st.roster.slice().sort(function (a, b) { return G.hp(b) / G.maxHp(b) - G.hp(a) / G.maxHp(a); });
       sorted.filter(function (s) { return !hurt(s); }).slice(0, 6).forEach(function (s) { chosen[s.id] = 1; });
       const T = D.nodeInfo(node);
-      const intel = {
+      const intel = kind === 'caravan' ? 'охрана каравана — бандиты с автоматами' : {
         landing: 'мутанты', ruins: 'мутанты или бандиты', vein: 'мутанты', camp: node.fac === 'clan' ? 'клан — много бойцов и Старший' : (node.fac === 'sobr' ? 'группа СОБР: щиты, бронежилеты, светошумовые' : 'бандиты' + (node.diff >= 3 ? ' и главарь' : '')),
         lair: 'стая мутантов и вожак', site: 'мутанты или бандиты', vault: 'механические стражи', nest: 'Матка и её выводок'
       }[node.type];
@@ -545,8 +578,9 @@
             const ord = {}; list.forEach(function (t, i) { if (ord[t] === undefined) ord[t] = i; });
             list = list.slice().sort(function (a, b) { return ord[a] - ord[b]; });
             const met = st.metEnemies || {};
-            return '<div class="intel">' + list.map(function (t) {
-              if (!met[t]) return '<span class="ava unk" title="Неизвестный враг">?</span>';
+            // разведчик побывал на месте — враги известны в лицо
+            return (node.scouted ? '<div class="small acc">Разведчик видел их своими глазами.</div>' : '') + '<div class="intel">' + list.map(function (t) {
+              if (!met[t] && !node.scouted) return '<span class="ava unk" title="Неизвестный враг">?</span>';
               return '<img class="ava" title="' + D.ENEMIES[t].n + '" src="' + DW.ART.enemyPortrait(t) + '" alt="">';
             }).join('') + '<span class="icnt">× ' + list.length + '</span></div>';
           })() +

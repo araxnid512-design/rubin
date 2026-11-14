@@ -33,6 +33,9 @@
       banner('Ваш ход');
     }
     if (B.turn === 1 && (B.tod !== 'day' || B.weather !== 'clear')) setTimeout(function () { DW.UI.toast(BT().condText(B), B.sightMod ? 'alert' : ''); }, 1650);
+    // обучение: первый бой за Порталом — подсказки по шагам
+    if (!st.flags.tut51 && st.stats.missions === 0 && B.kind === 'normal' && B.turn === 1) { B.tut = 0; setTimeout(function () { tut('start'); }, 900); }
+    else if (B.tut !== undefined && B.tut !== null) setTimeout(function () { tutShow(B.tut); }, 900);
     const B0 = B;
     if (B.turn === 1 && B.concealed) setTimeout(function () { if (B !== B0 || !B.concealed) return; DW.UI.toast('Отряд скрыт. Оранжевые клетки — зона, где враг заметит бойца. Первый выстрел — из засады.', ''); }, 3200);
   };
@@ -171,6 +174,7 @@
     hud.res.innerHTML = '<span>' + ic('ammo') + st.res.ammo + '</span><span>' + ic('grenades') + st.res.grenades + '</span><span>' + ic('meds') + st.res.meds + '</span>' +
       (st.res.rockets ? '<span>' + ic('rockets') + st.res.rockets + '</span>' : '') + '<span class="gemc">' + ic('gems') + (B.loot.gems || 0) + '</span>';
     renderSquad();
+    if (B.tut !== undefined && B.tut !== null && B.tut < 3 && B.units.some(function (e) { return e.side === 'e' && e.alive && e.seen; })) tut('contact');
     if (sel && sel.alive && !sel.evac && B.phase === 'player') {
       const W = D.WEAPONS[sel.weapon];
       const c = D.CLASSES[sel.cls];
@@ -297,8 +301,39 @@
   }
 
   /* ---------- Выбор ---------- */
+  /* ---------- Обучение (первый бой) ---------- */
+  const TUT = [
+    'Первый день за Порталом. Крут: «Не толпимся. По одному». <b>Нажмите на бойца</b> — на поле или на портрет слева.',
+    'Синие клетки — шаг (1 ОД), жёлтые — бросок (2 ОД). Значок щита у клетки — укрытие. <b>Нажмите клетку у укрытия</b>, затем ещё раз — идти.',
+    'Так. «<b>Присесть</b>» — по вам труднее попасть, «<b>Залечь</b>» — ещё труднее, но ход кончен. Подведите остальных к укрытиям и ищите врага.',
+    'Контакт! Выберите бойца и нажмите «<b>Огонь</b>» — увидите шанс попадания. Враг без укрытия с вашей стороны — шанс крита больше.',
+    'Кто не стрелял — в «<b>Дозор</b>»: выстрелит по первому, кто шевельнётся. Двое рядом могут дать «<b>Залп</b>», а «<b>Прикрыть</b>» защитит товарища.',
+    'Все сходили — «<b>Конец хода</b>». Противник ходит после вас; кнопка «Быстрее» ускорит его ход.',
+    'Дальше — сами. Берегите людей: погибшие не возвращаются. Раненого можно спасти аптечкой за три хода.'
+  ];
+  const TUT_AT = { start: 0, select: 1, move: 2, contact: 3, shoot: 4, ow: 5, end: 6 };
+  function tut(key) {
+    if (!B || B.tut === undefined || B.tut === null) return;
+    const i = TUT_AT[key];
+    if (i === undefined || (i <= B.tut && key !== 'start')) return;
+    B.tut = i; tutShow(i);
+    if (i === TUT.length - 1) { DW.G.state.flags.tut51 = true; setTimeout(function () { if (B && B.tut === i) { B.tut = null; tutShow(null); } }, 9000); }
+  }
+  function tutShow(i) {
+    if (!hud) return;
+    if (!hud.tut) {
+      hud.tut = el('div', { class: 'b-tut' });
+      document.getElementById('ui').appendChild(hud.tut);
+    }
+    if (i === null || i === undefined) { hud.tut.style.display = 'none'; return; }
+    hud.tut.style.display = '';
+    hud.tut.innerHTML = '<div class="tt">' + TUT[i] + '</div>';
+    const sk = el('button', { class: 'btn sm ghost', text: i === TUT.length - 1 ? 'Понятно' : 'Пропустить обучение', onclick: function (e) { e.stopPropagation(); DW.G.state.flags.tut51 = true; B.tut = null; tutShow(null); } });
+    hud.tut.appendChild(sk);
+  }
   function select(u, noFocus) {
     sel = u; mode = 'idle'; preview = null;
+    if (u && u.kind === 'soldier') tut('select');
     if (!noFocus) DW.TR.focusOn(u.x, u.y, false);
     BS.refresh();
   }
@@ -409,6 +444,7 @@
     run(async function () {
       u.ap -= cost;
       await BT().move(u, path);
+      tut('move');
     });
   }
   function doAction(a) {
@@ -417,7 +453,7 @@
       case 'shoot': startTarget('shoot'); break;
       case 'volley': startTarget('volley'); break;
       case 'guard': startAlly('guard'); break;
-      case 'overwatch': run(async function () { BT().doOverwatch(u); }); break;
+      case 'overwatch': run(async function () { BT().doOverwatch(u); tut('ow'); }); break;
       case 'reload': run(async function () { BT().doReload(u); await U.sleep(900); }); break;
       case 'hunker': run(async function () { BT().doHunker(u); }); break;
       case 'crouch': run(async function () { BT().doCrouch(u); await U.sleep(250); }); break;
@@ -461,6 +497,7 @@
     if (!t) return;
     const u = sel, k = kindA;
     run(async function () {
+      tut('shoot');
       if (k === 'suppress') await BT().doSuppress(u, t.u);
       else if (k === 'volley') { const p = BT().volleyPartner(u); if (p) await BT().doVolley(u, p, t.u); else await BT().doShoot(u, t.u, 'shoot'); }
       else await BT().doShoot(u, t.u, k);
@@ -505,6 +542,7 @@
     hint('');
     DW.TR.overlay = null;
     BS.refresh();
+    tut('end');
     banner('Ход противника', true);
     // ход противника короче по умолчанию; «Быстрее» — ещё втрое
     DW.turbo = 1.35;

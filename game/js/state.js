@@ -128,6 +128,38 @@
   };
   G.deleteSave = function () { DW.store.del(SAVE_KEY); };
 
+  /* Погода на карте мира и её действие */
+  G.WEATHER = {
+    clear: { n: 'Ясно', d: '' },
+    storm: { n: 'Пыльная буря', d: 'Поднялась пыльная буря. В пути можно пораниться, в бою обзор −3 у всех (тепловизору не помеха).' },
+    acid: { n: 'Кислотный дождь', d: 'Пошёл кислотный дождь. В пути бойцы теряют по 1 ОЗ, в бою — кислотный дождь.' },
+    ash: { n: 'Пеплопад', d: 'С неба сыплется пепел. Видно хуже, но идти можно.' }
+  };
+  G.weather = function () { const w = G.state.weather; return w && G.WEATHER[w.kind] ? w.kind : 'clear'; };
+  /* Товары каравана: купить за драгоценности, продать стройматериалы */
+  G.caravanGoods = function () {
+    return [
+      { n: 'Провизия', res: 'food', pic: 'food', amt: 10, price: 6, pay: 'gems', left: U.rand(2, 4) },
+      { n: 'Патроны', res: 'ammo', pic: 'ammo', amt: 40, price: 7, pay: 'gems', left: U.rand(2, 4) },
+      { n: 'Аптечки', res: 'meds', pic: 'meds', amt: 2, price: 11, pay: 'gems', left: U.rand(1, 2) },
+      { n: 'Гранаты', res: 'grenades', pic: 'gren', amt: 2, price: 13, pay: 'gems', left: U.rand(0, 2) },
+      { n: 'Стройматериалы', res: 'materials', pic: 'mat', amt: 5, price: 4, pay: 'gems', left: U.rand(1, 3), sell: true }
+    ];
+  };
+  /* Разведка соседней локации: один боец уходит на день, враги становятся известны в лицо */
+  G.scout = function (n) {
+    const st = G.state;
+    const ok = st.roster.filter(function (s) { return !s.injury; }).sort(function (a, b) { return (b.cls === 'sniper' ? 2 : 0) + (b.trait === 'quick' ? 1 : 0) - ((a.cls === 'sniper' ? 2 : 0) + (a.trait === 'quick' ? 1 : 0)); });
+    const s = ok[0];
+    if (!s) return null;
+    n.scouted = true; n.known = true;
+    if (DW.BT.planFor && !n.cleared) DW.BT.planFor(n, 'normal', n.diff);
+    let hurt = false;
+    if (Math.random() < 0.15) { s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 2); hurt = true; }
+    s.xp += 1;
+    G.log('«' + s.name + '» разведал «' + n.name + '».');
+    return { s: s, hurt: hurt };
+  };
   /* Медали за бой: подвиги из боя (u.feats) и итог (убийства, остался в строю раненым) */
   G.awardMedals = function (s, u, out, sum) {
     const got = [];
@@ -432,6 +464,44 @@
       s.injury = Math.max(0, s.injury - (atBase && G.blv('infirmary') ? 2 : 1));
       if (!s.injury) notes.push({ title: 'Снова в строю', text: '«' + s.name + '» оправился от ранения и может идти на задание.', kind: 'good' });
     });
+    // погода на карте мира: буря, кислотный дождь, пеплопад — день-два
+    const W0 = st.weather || { kind: 'clear', left: 0 };
+    if (W0.left > 1) W0.left--;
+    else {
+      const r = Math.random();
+      const k = st.day < 3 ? 'clear' : (r < 0.68 ? 'clear' : (r < 0.8 ? 'storm' : (r < 0.91 ? 'acid' : 'ash')));
+      st.weather = { kind: k, left: k === 'clear' ? U.rand(2, 4) : U.rand(1, 2) };
+      if (k !== 'clear' && W0.kind !== k) notes.push({ title: G.WEATHER[k].n, text: G.WEATHER[k].d, kind: 'bad' });
+    }
+    // караван торговцев идёт по дорогам
+    if (st.caravan) {
+      const c = st.caravan;
+      if (c.path.length) { c.at = c.path.shift(); c.met = false; }
+      else { st.caravan = null; }
+    } else if (st.day >= 4 && Math.random() < 0.2) {
+      const ks = st.world.nodes.filter(function (n) { return n.known && n.id !== st.squadAt; });
+      if (ks.length >= 2) {
+        const a = U.pick(ks); let b = U.pick(ks), t = 0;
+        while ((b === a || G.roadPath(a.id, b.id).length < 4) && t++ < 20) b = U.pick(ks);
+        const path = G.roadPath(a.id, b.id);
+        if (path.length >= 3) {
+          st.caravan = { at: a.id, path: path.slice(1), goods: G.caravanGoods(), met: false, rich: U.rand(0, 1) };
+          notes.push({ title: 'Караван', text: 'По дорогам идёт караван торговцев — сейчас у «' + a.name + '». Его видно на карте; встретите — можно поторговать (или ограбить).', kind: 'portal' });
+        }
+      }
+    }
+    // буры на жилах: вагонетка — больше добычи; мутанты нападают — отбить за два дня, иначе бур потерян
+    st.world.nodes.forEach(function (n) {
+      if (!n.outpost) return;
+      if (n.drillThreat && st.day >= n.drillThreat) {
+        n.drillThreat = null; n.outpost = false; n.cart = false; n.cleared = false;
+        notes.push({ title: 'Бур потерян', text: 'Не успели: мутанты разнесли бур в «' + n.name + '». Отбейте жилу снова.', kind: 'bad' });
+        G.log('Потерян бур в «' + n.name + '».');
+      } else if (!n.drillThreat && n.id !== st.squadAt && Math.random() < 0.05) {
+        n.drillThreat = st.day + 2;
+        notes.push({ title: 'Нападение на бур', text: 'Охрана бура в «' + n.name + '» шлёт сигнал: идут мутанты! Придите за два дня и отбейте — иначе бур потерян.', kind: 'bad' });
+      }
+    });
     // тир: дни на базе — тренировки
     if (atBase && G.blv('range') && res.ammo >= 10) {
       res.ammo -= 10;
@@ -452,7 +522,7 @@
       if (G.blv('radio')) G.revealAround(st.baseNode, 3);
     }
     let og = 0;
-    st.world.nodes.forEach(function (n) { if (n.outpost) og += 3; });
+    st.world.nodes.forEach(function (n) { if (n.outpost && !n.drillThreat) og += 3 + (n.cart ? 2 : 0); });
     if (og) res.gems += og;
 
     // доставка заказов
@@ -479,14 +549,7 @@
     // твари возвращаются
     st.world.nodes.forEach(function (n) {
       if (!n.cleared || n.id === st.squadAt || n.id === st.baseNode || n.beacon) return;
-      if (n.outpost) {
-        if (Math.random() < 0.03) {
-          n.outpost = false; n.cleared = false;
-          notes.push({ title: 'Бур потерян', text: 'Мутанты захватили бур в «' + n.name + '». Отбейте жилу снова.', kind: 'bad' });
-          G.log('Потерян бур в «' + n.name + '».');
-        }
-        return;
-      }
+      if (n.outpost) return;
       if ((n.type === 'vein' || n.type === 'ruins') && Math.random() < 0.025) {
         n.cleared = false;
         notes.push({ title: 'Угроза', text: 'Разведка докладывает: мутанты снова заняли «' + n.name + '».', kind: 'bad' });
@@ -861,7 +924,12 @@
     if (B.kind === 'defense') {
       if (out === 'victory') { sum.text = 'Нападение на базу отбито!'; G.log('Отряд отбил нападение на базу.'); st.stats.raids = (st.stats.raids || 0) + 1; }
       else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(G.raidWho(B.raidKind));
+    } else if (B.kind === 'caravan') {
+      if (out === 'victory') { const lt = { food: 20, ammo: 60, gems: 12 + (B.diff || 1) * 3, meds: 2 }; for (const k in lt) add(k, lt[k]); sum.text = 'Караван разграблен. Охрана перебита — Институт об этом не узнает… наверное.'; st.trustHit = (st.trustHit || 0) + 1; G.log('Отряд ограбил караван.'); }
+      else sum.text = 'Охрана каравана отбилась.';
+      st.caravan = null;
     } else if (node) {
+      if (B.kind === 'ambush' && out === 'victory' && node.drillThreat) { node.drillThreat = null; sum.text = 'Бур отбит.'; }
       if (out === 'victory') {
         if (!node.cleared) {
           node.cleared = true;

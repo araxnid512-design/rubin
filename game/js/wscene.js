@@ -66,6 +66,9 @@
     if (st.raid) warn.push('<span class="bad">Набег через ' + Math.max(0, st.raid.day - st.day) + ' дн.</span>');
     if (st.hungry) warn.push('<span class="bad">Голод!</span>');
     if (st.orders.length) warn.push('<span class="acc">Груз в пути</span>');
+    const wk = G.weather ? G.weather() : 'clear';
+    if (wk !== 'clear') warn.push('<span class="bad">' + G.WEATHER[wk].n + '</span>');
+    st.world.nodes.forEach(function (x) { if (x.drillThreat) warn.push('<span class="bad">Бур в «' + x.name + '» под ударом!</span>'); });
     hud.top.innerHTML =
       '<div class="wday">' + ic('day') + '<b>День ' + st.day + '</b></div>' +
       '<div class="wres">' +
@@ -97,7 +100,10 @@
     else status = '<span class="bad">Враги</span> ' + DW.UI.skulls(n.diff);
     const extra = [];
     if (n.beacon) extra.push(n.type === 'landing' ? 'Портал: сюда приходят грузы' : 'Маяк: сюда можно заказывать грузы');
-    if (n.outpost) extra.push('Бур: +3 ' + ic('gems') + ' в день');
+    if (n.outpost) extra.push('Бур: +' + (3 + (n.cart ? 2 : 0)) + ' ' + ic('gems') + ' в день' + (n.cart ? ' (с вагонеткой)' : ''));
+    if (n.drillThreat) extra.push('<span class="bad">На бур идут мутанты! Осталось ' + Math.max(0, n.drillThreat - st.day) + ' дн.</span>');
+    if (n.scouted && !n.cleared) extra.push('<span class="acc">Разведано: враги известны</span>');
+    if (st.caravan && st.caravan.at === n.id) extra.push('<span class="acc">Здесь караван торговцев</span>');
     if (n.cargo && n.cargo.length) extra.push('<span class="acc">Здесь лежит груз (' + n.cargo.length + ' поз.)</span>');
     if (n.type === 'ruins' && n.cleared) extra.push('Осталось обысков: ' + n.searches);
     const artType = n.id === st.baseNode ? null : n.type;
@@ -120,6 +126,9 @@
         if (n.type === 'ruins') add('Обыскать (1 день)', function () { search(n); }, '', n.searches <= 0);
         if (n.type === 'vein') add('Добывать кристаллы (1 день)', function () { mine(n); }, 'primary');
         if (n.type === 'vein' && !n.outpost) add('Поставить бур · 12 ' + ic('materials'), function () { outpost(n); }, '', st.baseNode === null || st.res.materials < 12);
+        if (n.outpost && !n.cart) add('Вагонетка (+2 ' + ic('gems') + ') · 8 ' + ic('materials'), function () { if (!G.pay({ materials: 8 })) return; n.cart = true; DW.SFX.play('build'); DW.UI.toast('Вагонетка пущена: бур даёт больше', 'good'); G.save(); WS.refresh(); }, '', st.res.materials < 8);
+        if (n.drillThreat) add('Защитить бур (бой)', function () { WS.attack(n, 'ambush'); }, 'primary');
+        if (st.caravan && st.caravan.at === n.id) add('Караван', function () { caravanMeet(true); }, 'primary');
         if (n.type === 'site' && st.baseNode === null) add('Основать базу', function () { foundBase(n); }, 'primary');
         if (!n.beacon) add('Поставить маяк · 8 ' + ic('materials') + ' 10 ' + ic('gems'), function () { beacon(n); }, '', !G.canAfford({ materials: 8, gems: 10 }));
         if (n.type === 'vein' && n.outpost && st.baseNode === null) void 0;
@@ -127,6 +136,8 @@
       if (n.type === 'vein' && !n.outpost && st.baseNode === null && n.cleared) p.appendChild(el('div', { class: 'pn-note', text: 'Бур можно поставить после основания базы.' }));
     } else {
       const path = G.findPath(st.squadAt, n.id);
+      // разведка: соседняя (или через одну зачищенную) неразведанная локация — один боец уходит на день
+      if (!n.cleared && !n.scouted && path && path.length <= 2) add('Разведать (1 день)', function () { scout(n); }, '', st.roster.filter(function (s) { return !s.injury; }).length < 2);
       if (path && path.length) {
         add('Выдвинуться · ' + path.length + ' ' + U.plural(path.length, 'день', 'дня', 'дней'), function () { travel(n.id); }, 'primary');
         const need = path.length * st.roster.length;
@@ -162,6 +173,8 @@
     for (let i = 0; i < r.notes.length; i++) await DW.UI.alert(r.notes[i].title, r.notes[i].text, r.notes[i].kind);
     if (moved) { const sq = G.node(st.squadAt); DW.WR.focus(sq.x, sq.y); }
     if (r.event) await runEvent(r.event);
+    // караван пришёл туда, где стоит отряд
+    if (st.caravan && st.caravan.at === st.squadAt && !st.caravan.met) { await caravanMeet(); if (DW.Main.scene() !== DW.WS) return 'battle'; }
     WS.refresh();
     if (G.state.over) { G.save(); DW.Main.ending(G.state.over); return 'over'; }
     if (r.defense) { G.save(); await startDefense(r.defense); return 'battle'; }
@@ -216,6 +229,11 @@
       }
       const cg = G.collectCargo(nid);
       if (cg) { WS.refresh(); await DW.UI.alert(cg.title, cg.text, 'portal'); }
+      // непогода в пути
+      const wk = G.weather();
+      if (wk === 'storm' && Math.random() < 0.3) { const s = U.pick(st.roster); s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 2); await DW.UI.alert('Пыльная буря', '«' + s.name + '» в буре сорвался с осыпи и поранился (−2 ОЗ).', 'bad'); }
+      if (wk === 'acid') { st.roster.forEach(function (s) { s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 1); }); DW.UI.toast('Кислотный дождь: −1 ОЗ всем в пути', 'alert'); }
+      if (st.caravan && st.caravan.at === nid && !st.caravan.met) { busy = false; WS.refresh(); await caravanMeet(); if (DW.Main.scene() !== DW.WS) return; busy = true; }
       if (!node.cleared) {
         busy = false; WS.refresh();
         await WS.attack(node, 'normal');
@@ -282,6 +300,31 @@
     }
     G.save();
   }
+  async function scout(n) {
+    const G = DW.G;
+    busy = true; WS.refresh();
+    const r = G.scout(n);
+    if (!r) { busy = false; WS.refresh(); return; }
+    const d = await passDay();
+    if (d !== 'ok') { busy = false; return; }
+    busy = false;
+    await DW.UI.alert('Разведка: ' + n.name, '«' + r.s.name + '» вернулся к ночи' + (r.hurt ? ', слегка поранившись' : '') + '. Враги в «' + n.name + '» теперь известны — состав виден перед боем.');
+    G.save(); WS.refresh();
+  }
+  /* встреча с караваном: торговать, ограбить или пропустить */
+  async function caravanMeet(force) {
+    const G = DW.G, st = G.state, c = st.caravan;
+    if (!c || c.at !== st.squadAt || (c.met && !force)) return;
+    c.met = true;
+    const i = await DW.UI.choice('Караван торговцев', 'На дороге — караван: телеги, навьюченные мутанты-тяжеловозы, охрана с автоматами. Старший машет: торговать будем?', [{ text: 'Торговать' }, { text: 'Ограбить (бой с охраной)' }, { text: 'Пропустить' }]);
+    if (i === 0) { await DW.UI.trade(c); WS.refresh(); }
+    else if (i === 1) {
+      const node = G.node(st.squadAt);
+      const ids = await DW.UI.briefing(node, 'caravan');
+      if (ids) DW.Main.startBattle({ nodeId: node.id, type: 'camp', diff: node.diff, kind: 'caravan', squad: ids });
+    }
+  }
+  WS.caravanMeet = caravanMeet;
   function outpost(n) {
     const G = DW.G;
     if (!G.pay({ materials: 12 })) return;

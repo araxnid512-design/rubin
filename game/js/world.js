@@ -605,7 +605,28 @@
     }
   }
   const BANDIT = { body: '#4a3a2e', pants: '#2a2520', mask: '#2a2a2a', robe: false };
+  /* караван торговцев: телега и двое охранников у локации, где он сейчас */
+  function caravan(g, st, t) {
+    const c = st.caravan;
+    if (!c) return;
+    const n = st.world.nodes[c.at];
+    if (!n || !n.known) return;
+    const x = n.x - 26, y = n.y + 20;
+    g.save(); g.translate(x, y);
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(0, 6, 18, 5, 0, 0, 7); g.fill();
+    g.fillStyle = '#6a4e30'; g.fillRect(-13, -9, 24, 11); g.fillStyle = '#c8b48a'; g.beginPath(); g.moveTo(-13, -9); g.quadraticCurveTo(-1, -24, 11, -9); g.fill();
+    g.strokeStyle = '#3a2a1a'; g.lineWidth = 2; [-8, 6].forEach(function (wx) { g.beginPath(); g.arc(wx, 3, 4, 0, 7); g.stroke(); });
+    g.restore();
+    for (let i = 0; i < 2; i++) {
+      const a = t / 2100 + i * 3, gx = x + 16 + i * 9, gy = y + 4 + Math.sin(a) * 2;
+      g.save(); g.translate(gx, gy); g.scale(0.28, 0.28);
+      ART.human(g, { look: lookN(30 + i), body: '#5a4a32', pants: '#2e2820', mask: null, robe: false, weapon: 'ak', dir: -1, aim: 0.1, walk: t / 160 + i, seed: 40 + i }, t);
+      g.restore();
+    }
+    g.fillStyle = 'rgba(232,168,62,0.9)'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText('Караван', x, y - 26);
+  }
   function patrols(g, st, t) {
+    caravan(g, st, t);
     st.world.nodes.forEach(function (n) {
       if (!n.known || n.cleared || n.id === st.baseNode) return;
       if (n.type === 'camp') {
