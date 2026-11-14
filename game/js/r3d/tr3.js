@@ -52,6 +52,7 @@
     const t = TR2.now();
     R3.units.update(dt, t);
     R3.fx.update(dt);
+    if (DW.TAC) DW.TAC.tick3d(dt);   // клубы дымовой завесы (tactics.js)
     R3.detail.update(t);
     R3.items.update(t);
     R3.world.tick(dt);
@@ -114,6 +115,7 @@
     g.clearRect(0, 0, g.canvas.width, g.canvas.height);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     R3.hud.draw2d(g, W, H);
+    if (DW.TAC) DW.TAC.hud3d(g);   // метка «Заложник» (tactics.js)
   };
 
   /* ---------- Камера и ввод ---------- */
@@ -171,7 +173,9 @@
       const sp = (DW.settings && DW.settings.speed) || 1, FW = TR2.FXof ? TR2.FXof(W) : {};
       const cnt = FW.n || ({ rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1);
       const gap = (FW.gap || (W.snd === 'lmg' ? 70 : 90)) / sp;
-      att._aimAt = tgt; att._aimUntil = TR2.now() + 220 / sp + cnt * gap + 650;
+      // ссылка на цель — не для сохранения боя (два стрелка друг на друга — кольцо, JSON.stringify(B) падал)
+      Object.defineProperty(att, '_aimAt', { value: tgt, writable: true, configurable: true, enumerable: false });
+      att._aimUntil = TR2.now() + 220 / sp + cnt * gap + 650;
     }
     const r = TR2.shotFx.apply(TR2, arguments);
     if (R3.ok) R3.fx.shot(att, tgt, hit, W, show, suppress, opt);

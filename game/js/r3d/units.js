@@ -830,6 +830,7 @@
   const tmpM = new THREE.Matrix4();
   function visibleUnit(u) {
     if (u.evac) return false;
+    if (u.captured) return false;   // бойца утащили с поля (tactics.js)
     if (u.side === 'p') return true;
     return !!u.seen || !u.alive && DW.BT.get().explored[u.y * DW.BT.get().w + u.x];
   }

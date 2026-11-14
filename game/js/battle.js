@@ -466,12 +466,14 @@
     const n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 3);
     if (n === 0) return true;
     const hm = B.hgt ? Math.max(B.hgt[ay * B.w + ax] || 0, B.hgt[by * B.w + bx] || 0) : 0;
+    const sm = B.smoke && DW.TAC ? DW.TAC.smokeMask() : null;   // дымовая завеса (tactics.js)
     let px = ax, py = ay;
     for (let i = 1; i < n; i++) {
       const t = i / n;
       const x = Math.floor(ax + 0.5 + dx * t), y = Math.floor(ay + 0.5 + dy * t);
       if (x === px && y === py) continue;
       if (!(x === bx && y === by) && !(x === ax && y === ay) && (BT.blocksLos(x, y) || (B.hgt && B.hgt[y * B.w + x] > hm))) return false;
+      if (sm && sm[y * B.w + x] && !(x === bx && y === by) && !(x === ax && y === ay)) return false;   // сквозь дым не видно (tactics.js)
       if (x !== px && y !== py && BT.blocksLos(x, py) && BT.blocksLos(px, y)) return false;
       px = x; py = y;
     }
@@ -616,6 +618,7 @@
     if (hasP(att, 'close') && d <= 4) { hit += 15; parts.push(['В упор', 15]); }
     if (hasP(att, 'sharp') && d >= 8) { hit += 10; parts.push(['Дальнобой', 10]); }
     if (o.reaction && att.owMod) { hit += att.owMod; parts.push(['Приклад', att.owMod]); }
+    if (DW.TAC) hit += DW.TAC.hitMod(att, tgt, parts);   // цель в дыму, захватчик прикрыт заложником (tactics.js)
     hit = U.clamp(Math.round(hit), 1, 100);
     let crit = W.crit || 0;
     if (!cv.cover) crit += cv.flanked ? 40 : 25;
@@ -741,6 +744,7 @@
     DW.UI.toast((T.fac === 'clan' ? 'Старший клана убит!' : 'Командир СОБР убит!') + (n ? ' ' + n + ' в смятении — пропустят ход.' : ''), 'good');
   }
   BT.kill = function (u, src, over) {
+    if (DW.TAC) DW.TAC.onKill(u);   // убит захватчик — заложник свободен (tactics.js)
     if (u.side === 'e') { alphaDown(u); leaderDown(u); }
     u.alive = false; u.overwatch = false; u.hunker = false; u.crouch = false;
     if (u.kind === 'soldier' && (over || 0) <= 4 && Math.random() < Math.min(0.9, 0.55 + (u.rank || 0) * 0.08)) {
@@ -782,7 +786,8 @@
   };
   /* Раненые, которых можно спасти */
   BT.downedNear = function (u) {
-    return B.units.filter(function (a) { return a.kind === 'soldier' && !a.alive && a.down > 0 && !a.stable && Math.max(Math.abs(a.x - u.x), Math.abs(a.y - u.y)) <= 1; });
+    // заложника (a.hostageOf, tactics.js) не перевязать, пока его держат
+    return B.units.filter(function (a) { return a.kind === 'soldier' && !a.alive && a.down > 0 && !a.stable && !a.hostageOf && Math.max(Math.abs(a.x - u.x), Math.abs(a.y - u.y)) <= 1; });
   };
   BT.doStabilize = function (u, t) {
     const st = DW.G.state;
@@ -1187,6 +1192,7 @@
       else if (!info.coverTile) DW.TR.decal(tgt.x, tgt.y, 'hole', 0.5);
       await U.sleep(240);
     }
+    if (DW.TAC) await DW.TAC.afterShot(att, tgt, hit, o);   // «под огнём»; промах может задеть заложника (tactics.js)
     if (cine && lethal) { await U.sleep(380); DW.TR.slowmo(false); }
     if (cine) DW.TR.actionCamEnd();
     await BT.processBlasts(att);
@@ -1472,6 +1478,7 @@
   };
   // Костолом отбрасывает бойца на клетку назад (с уступа — падение, −1 ОЗ)
   BT.knockback = async function (att, tgt) {
+    if (DW.TAC) DW.TAC.onKnock(tgt);   // отброшенный захватчик выпускает заложника (tactics.js)
     const dx = Math.sign(tgt.x - att.x), dy = Math.sign(tgt.y - att.y);
     const nx = tgt.x + dx, ny = tgt.y + dy;
     DW.TR.anim(tgt, 'hit', 500);
