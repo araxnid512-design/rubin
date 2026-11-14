@@ -1145,7 +1145,6 @@
       killed = await BT.damage(tgt, dmg, att, crit);
       if (!killed && tgt.alive && att.type === 'spitter' && tgt.kind === 'soldier' && !tgt.blind) {
         tgt.blind = 1; DW.TR.float(tgt.x, tgt.y, 'Кислота в глаза!', 'bad');
-        if (DW.R3 && DW.R3.mfx && DW.R3.mfx.acidSplash) DW.R3.mfx.acidSplash(tgt.x, tgt.y);
       }
       if (killed) DW.TR.decal(tgt.x, tgt.y, DW.TR.bloodKind(tgt), 1.3);
     } else {
@@ -1453,7 +1452,7 @@
     await DW.TR.stepFx(tgt, nx, ny);
     tgt.x = nx; tgt.y = ny;
     DW.TR.pathEnd(tgt);
-    if (DW.R3 && DW.R3.mfx && DW.R3.mfx.dustWave) DW.R3.mfx.dustWave(nx, ny, 0.8);
+    if (DW.TR.is3d && DW.R3.mfx && DW.R3.mfx.thud) DW.R3.mfx.thud(tgt, { x: (nx + 0.5) * DW.R3.T, z: (ny + 0.5) * DW.R3.T }, 1.6);
     if (drop > 0) await BT.damage(tgt, drop, att, false);
     BT.updateVision();
   };

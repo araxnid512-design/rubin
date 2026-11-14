@@ -1,7 +1,7 @@
 'use strict';
 /* 3D-бой: снаряжение на бойце — подсумки с магазинами на поясе, граната Ф-1 (если в отряде есть гранаты),
    оранжевая аптечка (медик или есть аптечки), рация за спиной у командира. Детали — простая геометрия,
-   сливаются в две сетки на бойца (пояс — к кости таза, спина — к груди) с цветом в вершинах: две отрисовки,
+   сливаются в две сетки на бойца (пояс — к кости таза, спина — к груди), считаются в осях бойца, с цветом в вершинах: две отрисовки,
    на «низком» качестве не ставится. R3.gear.attach(e, u) — после создания тела (units.js ensure). */
 (function (DW) {
   const R3 = DW.R3, THREE = R3 && R3.THREE;
@@ -28,14 +28,14 @@
     list.push(g);
   }
   // слить детали и привязать к кости: вершины — в координатах тела, матрица сетки — обратная к кости
-  function bind(list, bone) {
+  function bind(list, bone, Mh) {
     if (!list.length || !bone) return null;
     const geo = THREE.BufferGeometryUtils.mergeGeometries(list);
     list.forEach(function (g) { g.dispose(); });
     const mesh = new THREE.Mesh(geo, material());
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
     mesh.matrixAutoUpdate = false;
-    mesh.matrix.copy(bone.matrixWorld).invert();
+    mesh.matrix.copy(bone.matrixWorld).invert().multiply(Mh);
     bone.add(mesh);
     return mesh;
   }
@@ -43,10 +43,15 @@
     if (!e || !e.body || !u || u.side !== 'p' || u.kind !== 'soldier' || R3.q() < 1) return;
     const B = e.body.B;
     if (!B.Hips || !B.Spine2 || !B.LeftUpLeg || !B.RightUpLeg) return;
-    e.body.holder.updateMatrixWorld(true);
+    const H = e.body.holder;
+    H.updateMatrixWorld(true);
+    // оси тела: место и поворот держателя без масштаба (+Z — куда смотрит боец), не зависят от того, куда он повёрнут сейчас
+    const Mh = new THREE.Matrix4().compose(H.getWorldPosition(V()), H.getWorldQuaternion(new THREE.Quaternion()), V(1, 1, 1));
+    const inv = Mh.clone().invert();
+    const loc = function (b) { return b.getWorldPosition(V()).applyMatrix4(inv); };
     const st = DW.G.state || { res: {} };
-    const hip = B.Hips.getWorldPosition(V()), chest = B.Spine2.getWorldPosition(V());
-    const lx = B.LeftUpLeg.getWorldPosition(V()).x - B.RightUpLeg.getWorldPosition(V()).x;
+    const hip = loc(B.Hips), chest = loc(B.Spine2);
+    const lx = loc(B.LeftUpLeg).x - loc(B.RightUpLeg).x;
     const L = lx >= 0 ? 1 : -1;                 // сторона левой руки по X
     const k = (e.body.H || 1.8) / 1.8;
     const by = hip.y + 0.05 * k, olive = 0x4a5236, strap = 0x2e2a22;
@@ -69,6 +74,6 @@
       part(back, new THREE.BoxGeometry(0.13 * k, 0.19 * k, 0.065 * k), 0x2e3228, V(chest.x, chest.y - 0.06 * k, chest.z - 0.16 * k));
       part(back, new THREE.CylinderGeometry(0.004 * k, 0.004 * k, 0.4 * k, 5), 0x1c1c1a, V(chest.x + L * 0.045 * k, chest.y + 0.24 * k, chest.z - 0.17 * k), [0.12, 0, 0]);
     }
-    e.gear = [bind(belt, B.Hips), bind(back, B.Spine2)];
+    e.gear = [bind(belt, B.Hips, Mh), bind(back, B.Spine2, Mh)];
   };
 })(window.DW);
