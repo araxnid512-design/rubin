@@ -20,9 +20,11 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 uv = UV / 4.0;
+	vec2 uv = UV / 7.0;
 	vec2 uv2 = UV / 2.6;
 	vec3 d = texture(dirt_c, uv).rgb;
+	float dl = dot(d, vec3(0.3, 0.59, 0.11));
+	d = mix(vec3(dl), d, 0.6) * 0.92;   // трещины спокойнее, цвет приглушённее
 	vec3 g = texture(grass_c, uv * 0.8).rgb * vec3(1.0, 0.93, 0.72);
 	float lum = dot(g, vec3(0.3, 0.59, 0.11));
 	g = mix(vec3(lum), g, 0.55) * vec3(1.08, 1.0, 0.82);
@@ -30,7 +32,7 @@ void fragment() {
 	vec3 a = texture(asphalt_c, UV / 5.0).rgb;
 	float wg = wcol.r, wr = wcol.g, wa = wcol.b;
 	// жёсткий переход по высоте текстуры — выглядит как пятна, а не мыльное смешение
-	float hg = smoothstep(0.35, 0.65, wg + (g.g - 0.4) * 0.6);
+	float hg = smoothstep(0.25, 0.55, wg + (g.g - 0.4) * 0.6);
 	float hr = smoothstep(0.4, 0.6, wr + (r.r - 0.5) * 0.5);
 	vec3 col = mix(d, g, hg);
 	col = mix(col, r, hr * (1.0 - hg));

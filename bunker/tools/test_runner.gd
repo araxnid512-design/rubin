@@ -91,6 +91,19 @@ func _run() -> void:
 					var o := c.get_collider() as Node
 					_log("упёрся в %s (%s) у %s" % [o.get_path() if o else "?", o.get_parent().name if o else "", pl.global_position])
 					break
+	if mode == "surface":
+		var cam := get_viewport().get_camera_3d()
+		await _place(Vector3(10.0, 0.1, 3.0), PI)
+		await _shot("s1_portal")
+		await _place(Vector3(-9.0, 0.1, 9.0), PI * 0.3)
+		await _shot("s2_truck")
+		await _place(Vector3(-18.0, 0.1, -4.0), PI * 0.5)
+		await _shot("s3_transformer")
+		cam.zoom = 1.5
+		await _place(Vector3(2.0, 0.1, 6.0), PI, 0.5)
+		await _shot("s4_overview")
+		await _place(Vector3(-22.0, 0.1, -26.0), PI, -0.6)
+		await _shot("s5_tower")
 	if mode == "perf":
 		await _perf_test()
 	if mode == "interact" or mode == "all" or mode == "sitlie":
