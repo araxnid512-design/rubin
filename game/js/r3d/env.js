@@ -17,6 +17,35 @@
     cave: { sun: 0xbfd8e8, si: 0.5, sky: 0x506070, gnd: 0x2a221c, hi: 0.4, az: 0.9, el: 1.2, fog: 0x12100e, fd: 0.03, top: 0x0a0908, bot: 0x161210, exp: 1.25 }
   };
   const WEATHER = { rain: { fd: 1.35, dim: 0.72, fog: 0x7d828a }, dust: { fd: 2.6, dim: 0.82, fog: 0xc09060 }, ash: { fd: 1.8, dim: 0.75, fog: 0x8a8580 } };
+  /* цветокоррекция (в общем шейдере мира, после тонального сжатия — несколько умножений на точку, без отдельного
+     прохода): s — насыщенность, c — контраст, g — усиление каналов, l — подъём теней. Закат — тёплый, ночь —
+     холодная синяя, подземелья, болото и гнёзда — зеленоватые; погода приглушает цвет */
+  const GRADE = {
+    day: { s: 1.06, c: 1.04, g: [1.0, 0.995, 0.97], l: [0, 0, 0] },
+    dawn: { s: 1.1, c: 1.06, g: [1.07, 0.98, 0.86], l: [0.012, 0.004, 0] },
+    dusk: { s: 1.12, c: 1.07, g: [1.1, 0.95, 0.82], l: [0.016, 0.002, 0.006] },
+    night: { s: 0.72, c: 1.06, g: [0.84, 0.95, 1.14], l: [0, 0.006, 0.022] },
+    interior: { s: 0.95, c: 1.04, g: [1.04, 0.99, 0.92], l: [0.008, 0.004, 0] },
+    cave: { s: 0.86, c: 1.06, g: [0.9, 1.03, 0.98], l: [0, 0.014, 0.01] }
+  };
+  const GRADE_MAP = {
+    swamp: { s: 0.94, g: [0.93, 1.04, 0.86], l: [0, 0.01, 0] }, nest: { s: 0.92, g: [0.9, 1.06, 0.88], l: [0, 0.016, 0.004] },
+    lair: { s: 0.95, g: [0.95, 1.03, 0.9], l: [0, 0.008, 0] }, vein: { s: 0.95, g: [0.94, 1.04, 0.92], l: [0.004, 0.012, 0] },
+    crystalcave: { s: 1.0, g: [0.9, 1.0, 1.08], l: [0, 0.008, 0.016] }
+  };
+  const GRADE_WX = { rain: { s: 0.86, g: [0.97, 0.99, 1.04] }, dust: { s: 0.88, g: [1.06, 0.98, 0.86] }, ash: { s: 0.78, g: [0.98, 0.98, 0.98] } };
+  function grade(B) {
+    const a = GRADE[B.tod] || GRADE.day, m = GRADE_MAP[B.map] || {}, w = GRADE_WX[B.weather] || {};
+    const sat = a.s * (m.s || 1) * (w.s || 1), con = a.c;
+    const gain = [0, 1, 2].map(function (i) { return a.g[i] * (m.g ? m.g[i] : 1) * (w.g ? w.g[i] : 1); });
+    const lift = [0, 1, 2].map(function (i) { return a.l[i] + (m.l ? m.l[i] : 0); });
+    const U = R3.gradeU;
+    if (U) { U.uGradeSC.value.set(sat, con); U.uGradeGain.value.set(gain[0], gain[1], gain[2]); U.uGradeLift.value.set(lift[0], lift[1], lift[2]); }
+    return { s: sat, c: con, g: gain, l: lift };
+  }
+  /* ветер для травы (detail.js): тише в подземелье, сильнее в дождь и бурю */
+  const windU = R3.windU = { uWind: { value: 0.35 } };
+  const WIND = { rain: 0.85, dust: 1.1, ash: 0.5 };
   let sky = null;
   E.build = function (B) {
     const S = R3.scene;
@@ -49,9 +78,11 @@
     if (!sky) {
       sky = new THREE.Mesh(new THREE.SphereGeometry(150, 24, 12), new THREE.ShaderMaterial({
         side: THREE.BackSide, depthWrite: false, fog: false,
-        uniforms: { cTop: { value: new THREE.Color() }, cBot: { value: new THREE.Color() }, cSun: { value: new THREE.Color() }, dSun: { value: new THREE.Vector3() } },
+        uniforms: { cTop: { value: new THREE.Color() }, cBot: { value: new THREE.Color() }, cSun: { value: new THREE.Color() }, dSun: { value: new THREE.Vector3() },
+          uSC: { value: new THREE.Vector2(1, 1) }, uGain: { value: new THREE.Vector3(1, 1, 1) }, uLift: { value: new THREE.Vector3() } },
         vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; }',
-        fragmentShader: 'uniform vec3 cTop, cBot, cSun, dSun; varying vec3 vD; void main(){ float h = clamp(vD.y * 1.6 + 0.15, 0.0, 1.0); vec3 c = mix(cBot, cTop, h); float s = pow(max(0.0, dot(normalize(vD), dSun)), 24.0); c += cSun * s * 0.6; gl_FragColor = vec4(c, 1.0); }'
+        fragmentShader: 'uniform vec3 cTop, cBot, cSun, dSun, uGain, uLift; uniform vec2 uSC; varying vec3 vD; void main(){ float h = clamp(vD.y * 1.6 + 0.15, 0.0, 1.0); vec3 c = mix(cBot, cTop, h); float s = pow(max(0.0, dot(normalize(vD), dSun)), 24.0); c += cSun * s * 0.6;' +
+          ' float l = dot(c, vec3(0.299, 0.587, 0.114)); c = (mix(vec3(l), c, uSC.x) - 0.5) * uSC.y + 0.5; gl_FragColor = vec4(max(c * uGain + uLift, 0.0), 1.0); }'
       }));
       sky.renderOrder = -10;
     }
@@ -59,6 +90,10 @@
     sky.material.uniforms.cBot.value.copy(fogCol);
     sky.material.uniforms.cSun.value.set(t.sun);
     sky.material.uniforms.dSun.value.copy(E.sunDir);
+    // небо — с той же цветокоррекцией, что и мир (иначе горизонт не сходится с дымкой)
+    const gr = grade(B), su = sky.material.uniforms;
+    su.uSC.value.set(gr.s, gr.c); su.uGain.value.set(gr.g[0], gr.g[1], gr.g[2]); su.uLift.value.set(gr.l[0], gr.l[1], gr.l[2]);
+    windU.uWind.value = (B.tod === 'cave' || B.tod === 'interior') ? 0.12 : (WIND[B.weather] || 0.35);
     g.add(sky);
     R3.renderer.toneMappingExposure = t.exp;
     R3.renderer.setClearColor(fogCol);
@@ -113,16 +148,61 @@
     }
     wx.obj.geometry.attributes.position.needsUpdate = true;
   };
-  /* тень следует за точкой взгляда камеры: охват — сколько видно на экране */
+  /* тень следует за точкой взгляда камеры: охват — сколько видно на экране. Статика в карту теней не рисуется
+     (запечена, bake.js), бойцы — да; карта теней перерисовывается, когда сдвинулась камера или идёт действие,
+     а в покое — каждый третий кадр (дыхание и осмотр бойцов) */
+  let frame = 0, camKey = '';
+  const fr = { ray: null, lx: null, ly: null, v: null, p: null };
+  function frustumFit(c) {
+    if (!fr.ray) { fr.ray = new THREE.Raycaster(); fr.lx = new THREE.Vector3(); fr.ly = new THREE.Vector3(); fr.v = new THREE.Vector2(); fr.p = new THREE.Vector3(); }
+    // оси света (как у камеры тени, смотрящей из солнца на точку взгляда)
+    const z = E.sunDir, lx = fr.lx.set(0, 1, 0).cross(z).normalize(), ly = fr.ly.copy(z).cross(lx);
+    const cosE = Math.sqrt(Math.max(0, 1 - z.y * z.y));
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (let k = 0; k < 4; k++) {
+      fr.v.set(k & 1 ? 1.08 : -1.08, k & 2 ? 1.08 : -1.08);
+      fr.ray.setFromCamera(fr.v, R3.camera);
+      const o = fr.ray.ray.origin, d = fr.ray.ray.direction;
+      let t = d.y < -0.02 ? (c.ty - o.y) / d.y : c.dist * 3;
+      t = Math.min(t, c.dist * 3);
+      const p = fr.p.copy(o).addScaledVector(d, t).sub(R3.sun.target.position);
+      const a = p.dot(lx), bb = p.dot(ly);
+      x0 = Math.min(x0, a); x1 = Math.max(x1, a); y0 = Math.min(y0, bb); y1 = Math.max(y1, bb);
+    }
+    // запас на высоту (бойцы, крыши, уступы над точкой взгляда сдвинуты в осях света вверх)
+    const m = 1.5, up = 3.5 * cosE;
+    return [Math.floor((x0 - m) * 2) / 2, Math.ceil((x1 + m) * 2) / 2, Math.floor((y0 - m - 1.5 * cosE) * 2) / 2, Math.ceil((y1 + m + up) * 2) / 2];
+  }
   E.update = function () {
     const sun = R3.sun;
     if (!sun) return;
     const c = R3.cam;
-    const r = Math.max(10, c.dist * 0.75);
     sun.target.position.set(c.tx, c.ty, c.tz);
     sun.position.set(c.tx + E.sunDir.x * 40, c.ty + E.sunDir.y * 40, c.tz + E.sunDir.z * 40);
     const sc = sun.shadow.camera;
-    if (Math.abs(sc.right - r) > 0.5) { sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r; sc.updateProjectionMatrix(); }
+    // охват тени — по тому, что видно: углы экрана на земле в осях света (тень и то, что её отбрасывает, в этих
+    // осях совпадают — дальше видимого кадра карта теней не нужна); раньше — квадрат 0,75 расстояния камеры
+    const b = R3.bake ? frustumFit(c) : null;
+    if (b) {
+      if (Math.abs(sc.left - b[0]) > 0.25 || Math.abs(sc.right - b[1]) > 0.25 || Math.abs(sc.bottom - b[2]) > 0.25 || Math.abs(sc.top - b[3]) > 0.25) {
+        sc.left = b[0]; sc.right = b[1]; sc.bottom = b[2]; sc.top = b[3]; sc.updateProjectionMatrix();
+      }
+    } else {
+      const r0 = Math.max(10, c.dist * 0.75);
+      if (Math.abs(sc.right - r0) > 0.5 || sc.left !== -sc.right) { sc.left = -r0; sc.right = r0; sc.top = r0; sc.bottom = -r0; sc.updateProjectionMatrix(); }
+    }
     if (sky) sky.position.set(c.tx, 0, c.tz);
+    if (R3.bake) R3.bake.tick();
+    const sm = R3.renderer.shadowMap;
+    if (sm.enabled && R3.bake) {
+      sm.autoUpdate = false;
+      frame++;
+      const k = c.tx.toFixed(2) + ',' + c.tz.toFixed(2) + ',' + c.ty.toFixed(2) + ',' + sc.left + ',' + sc.right + ',' + sc.bottom + ',' + sc.top;
+      // кто-то идёт (частицы огня, дыма и дождя в тень не попадают — по ним не перерисовываем)
+      const Bb = E.B, tw = DW.TR2 && DW.TR2.tweenOf;
+      const busy = frame % 3 === 0 || !!(Bb && tw && Bb.units.some(function (u) { return u.alive && tw(u.id); }));
+      if (k !== camKey || busy) sm.needsUpdate = true;
+      camKey = k;
+    }
   };
 })(window.DW);

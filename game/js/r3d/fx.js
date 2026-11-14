@@ -85,8 +85,14 @@
     this.geo.attributes.position.needsUpdate = true; this.geo.attributes.color.needsUpdate = true;
   };
   let TEX = null, smoke = null, glow = null, light = null, lightT = 0, cas = null, casL = [], projs = [], decals = null, group = null;
+  let spent = null, spentN = 0;   // стреляные гильзы, оставшиеся на земле (до конца боя, по кругу)
+  const SPENT_MAX = 160;
   FX.init = function (B) {
-    if (group) R3.scene.remove(group);
+    if (group) {
+      R3.scene.remove(group);
+      // прошлый бой: буферы частиц и гильз — освободить (геометрия пятен общая)
+      group.traverse(function (o) { if (o.isInstancedMesh) o.dispose(); else if (o.isMesh && o.geometry !== decalGeo) o.geometry.dispose(); });
+    }
     group = new THREE.Group(); R3.scene.add(group);
     if (!TEX) TEX = softTex();
     smoke = new Cloud(420, false); glow = new Cloud(320, true);
@@ -96,6 +102,8 @@
     // гильзы
     cas = new THREE.InstancedMesh(new THREE.BoxGeometry(0.018, 0.018, 0.05), new THREE.MeshStandardMaterial({ color: 0xd8a840, metalness: 0.9, roughness: 0.3 }), 80);
     cas.count = 0; cas.frustumCulled = false; group.add(cas);
+    spent = new THREE.InstancedMesh(cas.geometry, R3.fogify(new THREE.MeshStandardMaterial({ color: 0xc89a40, metalness: 0.85, roughness: 0.4 })), SPENT_MAX);
+    spent.count = 0; spentN = 0; spent.frustumCulled = false; group.add(spent);
     casL = []; projs = [];
     decals = new THREE.Group(); group.add(decals);
     (B.decals || []).forEach(function (d) { FX.decal(d.x, d.y, d.k, d.s, true); });
@@ -112,6 +120,8 @@
   /* вспышка с освещением округи */
   function flashAt(p, r, life, c) {
     glow.add({ p: p.clone(), t0: now(), life: life, s0: r, s1: r * 1.4, a: 1, c: col(c || '#ffd890') });
+    // высокая графика: широкий мягкий ореол вокруг вспышки (та же сетка частиц — без лишних проходов)
+    if (R3.q() >= 2) glow.add({ p: p.clone(), t0: now(), life: life * 1.6, s0: r * 3.2, s1: r * 4, a: 0.22, c: col(c || '#ffd890') });
     light.position.copy(p); light.intensity = Math.max(light.intensity, 6 * r); light.distance = 6 + r * 8; lightT = now() + life;
   }
   FX.flash = flashAt;
@@ -218,8 +228,9 @@
     flashAt(p, 1.2, 500, '#bfefff');
     puff(p, 18, { add: true, sp: 2, up: 1.5, upr: 1.5, drag: 1.5, life: 700, s0: 0.06, s1: 0.02, a: 1, c: '#bfefff' });
   };
-  /* пятна на земле: кровь, копоть */
-  const decTex = {};
+  /* пятна на земле: кровь, копоть (материал — один на вид, плоскость — одна на все) */
+  const decTex = {}, decMat = {};
+  const decalGeo = new THREE.PlaneGeometry(1, 1);
   function decalTex(kind) {
     if (decTex[kind]) return decTex[kind];
     const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -242,12 +253,15 @@
   FX.decal = function (x, y, kind, size) {
     if (!decals) return;
     const s = (size || 1) * (kind === 'scorch' ? 1.6 : 0.9) * T;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), R3.fogify(new THREE.MeshStandardMaterial({ map: decalTex(kind === 'scorch' ? 'scorch' : kind), transparent: true, depthWrite: false, roughness: kind === 'scorch' ? 1 : 0.35, polygonOffset: true, polygonOffsetFactor: -2 })));
+    const k = kind === 'scorch' ? 'scorch' : kind;
+    const mt = decMat[k] || (decMat[k] = R3.fogify(new THREE.MeshStandardMaterial({ map: decalTex(k), transparent: true, depthWrite: false, roughness: kind === 'scorch' ? 1 : 0.35, polygonOffset: true, polygonOffsetFactor: -2 })));
+    const m = new THREE.Mesh(decalGeo, mt);
+    m.scale.set(s, s, 1);
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28;
     m.position.set((x + 0.5) * T, R3.hAt(Math.round(x), Math.round(y)) + 0.012, (y + 0.5) * T);
     m.receiveShadow = true; m.renderOrder = 2;
     decals.add(m);
-    if (decals.children.length > 120) { const o = decals.children[0]; decals.remove(o); o.geometry.dispose(); }
+    if (decals.children.length > 120) decals.remove(decals.children[0]);
   };
 
   /* ---------- Кадр ---------- */
@@ -269,7 +283,7 @@
     }
     // гильзы
     let n = 0;
-    for (let i = casL.length - 1; i >= 0; i--) { if (t - casL[i].t0 > casL[i].life) casL.splice(i, 1); }
+    for (let i = casL.length - 1; i >= 0; i--) { if (t - casL[i].t0 > casL[i].life) { lay(casL[i]); casL.splice(i, 1); } }
     casL.forEach(function (c) {
       c.p.addScaledVector(c.v, dt); c.v.y -= 9.8 * dt;
       if (c.p.y < c.floor) { c.p.y = c.floor; if (!c.tk && c.v.y < -1.2) { c.tk = true; if (DW.SFX.tink) DW.SFX.tink(false); } c.v.y = -c.v.y * 0.3; c.v.x *= 0.5; c.v.z *= 0.5; c.r.multiplyScalar(0.5); }
@@ -279,5 +293,13 @@
     cas.count = n; cas.instanceMatrix.needsUpdate = true;
     smoke.draw(t, dt); glow.draw(t, dt);
   };
+  /* гильза отлетала — остаётся лежать на земле до конца боя (последние 160) */
+  function lay(c) {
+    if (!spent) return;
+    dummy.position.set(c.p.x, c.floor + 0.008, c.p.z); dummy.rotation.set(0, c.e.y, 0); dummy.updateMatrix();
+    spent.setMatrixAt(spentN % SPENT_MAX, dummy.matrix);
+    spentN++; spent.count = Math.min(SPENT_MAX, spentN);
+    spent.instanceMatrix.needsUpdate = true;
+  }
   FX.busy = function () { return projs.length > 0 || (glow && glow.list.length > 0) || light.intensity > 0.05; };
 })(window.DW);
