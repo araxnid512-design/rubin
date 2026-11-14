@@ -7,6 +7,12 @@ set -e
 cd "$(dirname "$0")/.."
 GODOT=${GODOT:-/home/user/godotengine/godot4}
 mkdir -p export
+# библиотека Godot для Android (официальная, Maven Central) — не хранится в репозитории
+AAR=android/app/libs/godot-4.6.3.stable.aar
+if [ ! -f "$AAR" ]; then
+  mkdir -p android/app/libs
+  curl -sfL -o "$AAR" https://repo1.maven.org/maven2/org/godotengine/godot/4.6.3.stable/godot-4.6.3.stable.aar
+fi
 "$GODOT" --headless --path . --import > export/import.log 2>&1 || true
 rm -f export/bunker.zip
 "$GODOT" --headless --path . --export-pack "Android" export/bunker.zip > export/pack.log 2>&1
