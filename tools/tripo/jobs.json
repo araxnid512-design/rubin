@@ -687,6 +687,231 @@
     "a man standing still, then turning ninety degrees to his right in place with small steps"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "bse_hero_a",
+   "args": [
+    "process",
+    "animate",
+    "2418e279-0925-4a99-b6f7-89ae89882319",
+    "--animations",
+    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree,preset:biped:clap",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_hero_a.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_hero_b",
+   "args": [
+    "process",
+    "animate",
+    "2418e279-0925-4a99-b6f7-89ae89882319",
+    "--animations",
+    "preset:biped:afraid,preset:biped:scared_01,preset:biped:angry_01,preset:biped:frustrated_01",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_hero_b.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_hero_c",
+   "args": [
+    "process",
+    "animate",
+    "2418e279-0925-4a99-b6f7-89ae89882319",
+    "--animations",
+    "preset:biped:laugh_01,preset:biped:cry,preset:biped:depressed,preset:biped:scratch,preset:biped:cheer",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_hero_c.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_suit_a",
+   "args": [
+    "process",
+    "animate",
+    "65901c56-0485-4966-9a0a-debb76be40bd",
+    "--animations",
+    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree,preset:biped:clap",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_suit_a.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_suit_b",
+   "args": [
+    "process",
+    "animate",
+    "65901c56-0485-4966-9a0a-debb76be40bd",
+    "--animations",
+    "preset:biped:afraid,preset:biped:scared_01,preset:biped:angry_01,preset:biped:frustrated_01",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_suit_b.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_suit_c",
+   "args": [
+    "process",
+    "animate",
+    "65901c56-0485-4966-9a0a-debb76be40bd",
+    "--animations",
+    "preset:biped:laugh_01,preset:biped:cry,preset:biped:depressed,preset:biped:scratch,preset:biped:cheer",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_suit_c.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_eng_a",
+   "args": [
+    "process",
+    "animate",
+    "0e26bfa0-0075-4279-a862-943a12e241a9",
+    "--animations",
+    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_eng_a.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_eng_b",
+   "args": [
+    "process",
+    "animate",
+    "0e26bfa0-0075-4279-a862-943a12e241a9",
+    "--animations",
+    "preset:biped:scratch,preset:biped:laugh_01,preset:biped:afraid,preset:biped:look_around",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_eng_b.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_med_a",
+   "args": [
+    "process",
+    "animate",
+    "db5b21c7-dace-4669-8696-265f29c1525b",
+    "--animations",
+    "preset:biped:greet_01,preset:biped:wave_goodbye_01,preset:biped:agree",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_med_a.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bse_med_b",
+   "args": [
+    "process",
+    "animate",
+    "db5b21c7-dace-4669-8696-265f29c1525b",
+    "--animations",
+    "preset:biped:scratch,preset:biped:laugh_01,preset:biped:afraid,preset:biped:look_around",
+    "--rig-type",
+    "biped",
+    "--timeout",
+    "25m",
+    "-o",
+    "out/bse_med_b.glb"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "bsm_cough",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "cough",
+    "3",
+    "a man standing in place, coughing hard into his fist two times, bending forward a little, then straightening up; feet stay planted on the ground"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_stretch",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "stretch",
+    "3",
+    "a man standing in place, stretching his arms up and rolling his shoulders and neck to warm up, then returning to a relaxed standing pose; feet stay planted"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_nod",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd,eng:0e26bfa0-0075-4279-a862-943a12e241a9,med:db5b21c7-dace-4669-8696-265f29c1525b",
+    "nod",
+    "2",
+    "a person standing in place listening, nodding the head in agreement two times, arms relaxed at the sides, feet stay planted"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_talk",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd,eng:0e26bfa0-0075-4279-a862-943a12e241a9,med:db5b21c7-dace-4669-8696-265f29c1525b",
+    "talk",
+    "3",
+    "a person standing in place talking calmly, explaining something with small gestures of the right hand, feet stay planted on the ground"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "bsm_check_dosimeter",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
+    "check_dosimeter",
+    "3",
+    "a man standing in place, raising his left forearm to look at a small device on his wrist, then lowering the arm; feet stay planted"
+   ],
+   "timeout": 2400
   }
  ]
 }
