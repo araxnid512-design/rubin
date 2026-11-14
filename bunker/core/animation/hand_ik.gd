@@ -18,6 +18,8 @@ var _t_out := 0.3
 var _delay := 0.0
 var weight := 0.0
 var last_err := 0.0                     ## расстояние кисть — цель после IK, м (для проверки)
+var _bones_side := ""
+var _bi := [-1, -1, -1, -1]
 
 
 ## тянуться рукой ("L"/"R") к точке world (или к узлу node со смещением в его системе)
@@ -62,14 +64,18 @@ func _process_modification_with_delta(delta: float) -> void:
 	weight = w * w * (3.0 - 2.0 * w)
 	if weight < 0.001:
 		return
-	var a := s.find_bone(_side + "_Upperarm")
-	var b := s.find_bone(_side + "_Forearm")
-	var c := s.find_bone(_side + "_Hand")
-	var m := s.find_bone(_side + "_Mid1")
+	if _bones_side != _side:
+		_bones_side = _side
+		_bi = [s.find_bone(_side + "_Upperarm"), s.find_bone(_side + "_Forearm"), s.find_bone(_side + "_Hand"), s.find_bone(_side + "_Mid1")]
+	var a: int = _bi[0]
+	var b: int = _bi[1]
+	var c: int = _bi[2]
+	var m: int = _bi[3]
 	if a < 0 or b < 0 or c < 0:
 		return
 	var goal := _node.global_transform * _node_off if is_instance_valid(_node) else _target
-	var inv := s.global_transform.affine_inverse()
+	var sx := s.get_global_transform_interpolated() if s.is_physics_interpolated_and_enabled() else s.global_transform
+	var inv := sx.affine_inverse()
 	var tg := inv * goal
 	# ладонь на цели: запястье — на длину «запястье → середина ладони» назад по направлению кисти
 	var C := s.get_bone_global_pose(c)
@@ -79,7 +85,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	var cur := C.origin
 	var want := cur.lerp(tg, weight)
 	_solve(s, a, b, c, want)
-	last_err = (s.global_transform * s.get_bone_global_pose(c).origin).distance_to(s.global_transform * tg) * weight
+	last_err = (sx * s.get_bone_global_pose(c).origin).distance_to(sx * tg) * weight
 
 
 func _solve(s: Skeleton3D, a: int, b: int, c: int, target: Vector3) -> void:

@@ -39,6 +39,12 @@ var _crouch_move_w := 0.0
 var _loco_pts: Array = []       ## точки смешения передвижения: [клип, скорость м/с, время двойного шага, длина двойного шага]
 var arms: BCArmClear
 var limbs: BCLimbAlign
+var lite := false               ## упрощённый персонаж (житель, враг): без разворота колен/локтей и рук вне тела
+var _active := true
+var _near := true               ## житель/враг ближе 12 м к герою — стопы ставятся
+var _near_t := 0.0
+var _ik_act := false            ## текущее разовое действие разрешает IK стоп ("ik" в конфигурации)
+var _ik_pose := true            ## текущая поза разрешает IK стоп
 var hands: BCHandIK
 
 
@@ -80,21 +86,30 @@ func setup(path := "", set_dir := "") -> void:
 	yaw_offset = atan2(fwd.x, fwd.z)
 	model.rotation.y = -yaw_offset
 	_build_tree()
-	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели
+	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели.
+	# Житель и враг (родитель — BCNpc) — упрощённо: только стопы, и те — рядом с героем (ближе 12 м)
+	lite = get_parent() is BCNpc
+	limbs = null
+	arms = null
+	hands = null
 	ik = BCFootIK.new()
 	ik.name = "FootIK"
 	skel.add_child(ik)
-	limbs = BCLimbAlign.new()
-	limbs.name = "LimbAlign"
-	skel.add_child(limbs)
-	# руки не уходят в туловище и бёдра (объёмная куртка); кисть — к ручке / пульту при взаимодействии
-	arms = BCArmClear.new()
-	arms.name = "ArmClear"
-	skel.add_child(arms)
-	arms.setup_model(model_path, model)
-	hands = BCHandIK.new()
-	hands.name = "HandIK"
-	skel.add_child(hands)
+	if not lite:
+		limbs = BCLimbAlign.new()
+		limbs.name = "LimbAlign"
+		skel.add_child(limbs)
+		# руки не уходят в туловище и бёдра (объёмная куртка); кисть — к ручке / пульту при взаимодействии
+		arms = BCArmClear.new()
+		arms.name = "ArmClear"
+		skel.add_child(arms)
+		arms.setup_model(model_path, model)     # разбор сетки — один раз на модель (кеш по пути)
+		hands = BCHandIK.new()
+		hands.name = "HandIK"
+		skel.add_child(hands)
+	_ik_act = false
+	_ik_pose = true
+	set_active(_active)
 
 
 func _mesh_aabb(n: Node) -> AABB:
@@ -288,6 +303,7 @@ func _loco_solve(v: float) -> Array:
 ## иначе поза уходит раньше, чем клип её закрывает, и на мгновение видна стойка (рывок).
 func set_pose(n: String, delay := 0.0) -> void:
 	_pose = n
+	_ik_pose = n == "" or (info.has(n) and bool(info[n].get("ik", false)))
 	if tree == null:
 		return
 	if n != "" and info.has(n):
@@ -323,6 +339,7 @@ func play(n: String, rate := 1.0) -> float:
 	tree.set("parameters/act_ts_%s/scale" % _slot, r)
 	tree.set("parameters/action_%s/request" % _slot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	_action = n
+	_ik_act = bool(info[n].get("ik", false))
 	_action_t = info[n].len / r
 	return _action_t
 
@@ -346,6 +363,8 @@ func busy() -> bool:
 
 
 func _process(delta: float) -> void:
+	if not _active:
+		return
 	if _action != "":
 		_action_t -= delta
 		if _action_t <= 0.0:
@@ -353,10 +372,31 @@ func _process(delta: float) -> void:
 			_action = ""
 			action_finished.emit(n)
 	if ik:
+		if lite:
+			# житель/враг: стопы — только рядом с героем (проверка 4 раза в секунду)
+			_near_t -= delta
+			if _near_t <= 0.0:
+				_near_t = 0.25
+				var p: Node3D = Core.player if Core and "player" in Core else null
+				_near = p == null or global_position.distance_squared_to(p.global_position) < 144.0
+				ik.active = _near
 		# стопы ставим (и фиксируем опорную), когда стоит, идёт, сидит на корточках или играет клип «на ногах»
 		# (старт, остановка, разворот, эмоции стоя — в конфигурации "ik": true); в остальных действиях и позах — нет
-		var on := (_action == "" or bool(info.get(_action, {}).get("ik", false))) and (_pose == "" or bool(info.get(_pose, {}).get("ik", false)))
+		var on := (_action == "" or _ik_act) and _ik_pose
 		ik.influence = move_toward(ik.influence, 1.0 if on else 0.0, delta * 5.0)
+
+
+## пауза / продолжение: дерево анимаций и все модификаторы скелета (житель, которого не видно, и т. п.)
+func set_active(on: bool) -> void:
+	_active = on
+	if tree:
+		tree.active = on
+	if ik:
+		ik.active = on and (not lite or _near)
+	for m in [limbs, arms, hands]:
+		if m:
+			m.active = on
+	set_process(on)
 
 
 ## кость для крепления (оружие в руку, фонарь …)

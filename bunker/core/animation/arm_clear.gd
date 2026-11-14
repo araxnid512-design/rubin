@@ -16,6 +16,8 @@ static var _models := {}                    ## путь модели → объ�
 
 var _m := {}
 var _rv: Array = [Vector3.ZERO, Vector3.ZERO]   ## сглаженная поправка плеча: ось × угол (без скачков оси)
+var _to_rest: Array = []
+var _to_now: Array = []
 var last_depth := [0.0, 0.0]                ## для проверки: глубина до поправки, м
 
 
@@ -166,6 +168,21 @@ static func _build(sk: Skeleton3D, model: Node) -> Dictionary:
 			[hb, (rest[hb] as Transform3D).affine_inverse() * ph, rf * 0.8],
 			[hb, (rest[hb] as Transform3D).affine_inverse() * ph.lerp(pm, 0.5), rh]]
 	out["rest"] = rest
+	var vb := {}
+	for bin in out.bins:
+		vb[bin.bone] = true
+	for cap in out.caps:
+		vb[cap.bone] = true
+	if out.has("head"):
+		vb[out.head.bone] = true
+	out["vol_bones"] = vb.keys()
+	# индекс кости объёма в буфере кадра
+	for bin in out.bins:
+		bin["vi"] = out.vol_bones.find(bin.bone)
+	for cap in out.caps:
+		cap["vi"] = out.vol_bones.find(cap.bone)
+	if out.has("head"):
+		out.head["vi"] = out.vol_bones.find(out.head.bone)
 	return out
 
 
@@ -184,6 +201,18 @@ func _process_modification_with_delta(delta: float) -> void:
 	var sc := s.global_transform.basis.get_scale().y
 	var mg := margin / maxf(sc, 0.001)
 	var rest: Array = _m.rest
+	# переходы «текущая поза → поза покоя» для костей объёмов — один раз за кадр (буферы без выделения памяти)
+	var vb: Array = _m.vol_bones
+	if _to_rest.size() != vb.size():
+		_to_rest.resize(vb.size())
+		_to_now.resize(vb.size())
+	for i in vb.size():
+		var bone: int = vb[i]
+		var G := s.get_bone_global_pose(bone)
+		_to_rest[i] = (rest[bone] as Transform3D) * G.affine_inverse()
+		_to_now[i] = G.basis.orthonormalized() * (rest[bone] as Transform3D).basis.orthonormalized().inverse()
+	var to_rest: Array = _to_rest
+	var to_now: Array = _to_now
 	for si in 2:
 		var up_b: int = _m.upper[si]
 		if up_b < 0:
@@ -196,9 +225,7 @@ func _process_modification_with_delta(delta: float) -> void:
 			var p: Vector3 = s.get_bone_global_pose(pt[0]) * (pt[1] as Vector3)
 			var r: float = pt[2]
 			for bin in _m.bins:
-				var G := s.get_bone_global_pose(bin.bone)
-				var Rt: Transform3D = rest[bin.bone]
-				var q: Vector3 = Rt * (G.affine_inverse() * p)
+				var q: Vector3 = (to_rest[bin.vi] as Transform3D) * p
 				if q.y < float(bin.lo) or q.y > float(bin.hi):
 					continue
 				var c: Vector3 = bin.c
@@ -216,22 +243,18 @@ func _process_modification_with_delta(delta: float) -> void:
 					best = d
 					# наружу по нормали эллипса, обратно в текущую позу
 					var nl: Vector3 = (_m.F as Vector3) * (df / (a * a)) + (_m.R as Vector3) * (dr / (bb * bb))
-					push = (G.basis.orthonormalized() * Rt.basis.orthonormalized().inverse() * nl).normalized()
+					push = ((to_now[bin.vi] as Basis) * nl).normalized()
 					bp = p
 			if _m.has("head"):
 				var hd: Dictionary = _m.head
-				var Gh := s.get_bone_global_pose(hd.bone)
-				var Rh: Transform3D = rest[hd.bone]
-				var qh: Vector3 = Rh * (Gh.affine_inverse() * p)
+				var qh: Vector3 = (to_rest[hd.vi] as Transform3D) * p
 				var dh := float(hd.r) + r + mg * 0.5 - qh.distance_to(hd.c)
 				if dh > best and qh.distance_to(hd.c) > 1e-5:
 					best = dh
-					push = (Gh.basis.orthonormalized() * Rh.basis.orthonormalized().inverse() * (qh - (hd.c as Vector3))).normalized()
+					push = ((to_now[hd.vi] as Basis) * (qh - (hd.c as Vector3))).normalized()
 					bp = p
 			for cap in _m.caps:
-				var G := s.get_bone_global_pose(cap.bone)
-				var Rt: Transform3D = rest[cap.bone]
-				var q: Vector3 = Rt * (G.affine_inverse() * p)
+				var q: Vector3 = (to_rest[cap.vi] as Transform3D) * p
 				var A: Vector3 = cap.a
 				var ab: Vector3 = (cap.b as Vector3) - A
 				var t := clampf((q - A).dot(ab) / ab.length_squared(), 0.0, 1.0)
@@ -240,7 +263,7 @@ func _process_modification_with_delta(delta: float) -> void:
 				var d := lerpf(cap.ra, cap.rb, t) + r + mg - dist
 				if d > best and dist > 1e-5:
 					best = d
-					push = (G.basis.orthonormalized() * Rt.basis.orthonormalized().inverse() * (q - ax)).normalized()
+					push = ((to_now[cap.vi] as Basis) * (q - ax)).normalized()
 					bp = p
 		last_depth[si] = maxf(0.0, best - mg) * sc
 		var want := Vector3.ZERO

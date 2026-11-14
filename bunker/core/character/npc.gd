@@ -32,8 +32,8 @@ var _bar: Label3D                       ## полоса здоровья
 var _bar_t := 0.0
 var _orbit := 0.0
 var _fled := false
-var respawn := false
-var _shown := true                    ## появляться снова (только для врага-образца без управляющего)
+var respawn := false                    ## появляться снова (только для врага-образца без управляющего)
+var _shown := true                      ## виден ли (скрытый — не думает и не анимируется)
 
 var rig: BCCharacter
 var hp := 60.0
@@ -106,7 +106,10 @@ func _physics_process(delta: float) -> void:
 	var shown := is_visible_in_tree()
 	if shown != _shown:
 		_shown = shown
-		rig.process_mode = Node.PROCESS_MODE_INHERIT if shown else Node.PROCESS_MODE_DISABLED
+		if rig.has_method("set_active"):
+			rig.set_active(shown)
+		else:
+			rig.process_mode = Node.PROCESS_MODE_INHERIT if shown else Node.PROCESS_MODE_DISABLED
 	if not shown:
 		return
 	if state == "dead":
@@ -383,7 +386,7 @@ func interact_anim(_p) -> String:
 func interact(_p) -> void:
 	var to: Vector3 = Core.player.global_position - global_position
 	# повернуться к герою плавно, не рывком
-	var tw := create_tween()
+	var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)   # поворот — в такт физики (интерполяция)
 	tw.tween_property(self, "rotation:y", rotation.y + angle_difference(rotation.y, atan2(to.x, to.z)), 0.35)
 	state = "idle"
 	_t = 6.0
@@ -414,7 +417,7 @@ func _resident_emotes(delta: float, walking: bool) -> void:
 			if not rig.busy():
 				if rig.has_clip("wave"):
 					var to := p.global_position - global_position
-					var tw := create_tween()
+					var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)   # поворот — в такт физики (интерполяция)
 					tw.tween_property(self, "rotation:y", rotation.y + angle_difference(rotation.y, atan2(to.x, to.z)), 0.3)
 					rig.play("wave")
 				_talk_t = 60.0

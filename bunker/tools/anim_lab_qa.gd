@@ -168,6 +168,8 @@ func _run(mode: String) -> void:
 	body = Body.new()
 	body.setup(rig)
 	rig.skel.skeleton_updated.connect(func(): _cap = body.snap())
+	if debug_clip != "" and "debug" in rig.ik:
+		rig.ik.set("debug", true)
 	result.set = set_name
 	result["game_mode"] = game_mode
 	result.body = body.info
