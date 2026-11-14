@@ -480,6 +480,8 @@
       '<div class="jg"><b>Вольная</b>: ' + (st.freeDay ? '<span class="acc">✔ получена на ' + st.freeDay + '-й день</span> · сдано ' + st.delivered + ' ' + ic('gems') :
         'сдать Институту ' + D.GOAL + ' ' + ic('gems') + ' — <b>' + st.delivered + '</b>/' + D.GOAL +
         '<div class="pbar"><i style="width:' + Math.min(100, st.delivered / D.GOAL * 100) + '%"></i></div>') + '</div>' +
+      '<div class="jg"><b>Группировки</b>: ' + Object.keys(G.FACS).map(function (f) { const fs = G.facStatus(f); return G.FACS[f] + ' — <span class="' + (fs === 'вражда' ? 'bad' : (fs === 'перемирие' ? 'good' : 'acc')) + '">' + fs + '</span> (' + G.rep(f) + (G.truce(f) ? ', ' + (st.truce[f] - st.day) + ' дн.' : '') + ')'; }).join(' · ') +
+        '<div class="small dim">Переговоры — у лагеря (кнопка в его карточке). Бои с группировкой портят отношения, вражда — это набеги.</div></div>' +
       '<div class="jg"><b>Гнездо</b>: ' + (st.queens ? '<span class="acc">✔ Маток убито: ' + st.queens + '</span>' + (st.nestBack ? ' · в Гнезде зреет новая' : '') + '. ' : '') +
         'уничтожить Матку. Путь открывается после разгрома двух логов — <b>' + lairs + '</b>/2</div></div>' +
       (function () {
@@ -538,7 +540,7 @@
       const body = el('div', { class: 'portal trade' });
       let h = null;
       function render() {
-        body.innerHTML = '<div class="ptext">Торговцы с охраной. Берут драгоценности и стройматериалы, у них — провизия, патроны, аптечки и гранаты. Запасы каравана ограничены.</div>';
+        body.innerHTML = '<div class="ptext">' + (car.intro || 'Торговцы с охраной. Берут драгоценности и стройматериалы, у них — провизия, патроны, аптечки и гранаты. Запасы каравана ограничены.') + '</div>';
         const grid = el('div', { class: 'pgrid' });
         car.goods.forEach(function (g) {
           const it = el('div', { class: 'pitem' + (g.left ? '' : ' locked') });
@@ -712,6 +714,7 @@
       if (sum.ach && sum.ach.length) html += '<div class="rloot">Достижение: <b class="acc">' + sum.ach.map(function (a) { return '«' + a.n + '»'; }).join(', ') + '</b>.</div>';
       if (sum.quest) html += '<div class="rloot quest"><b>★ Задание «' + sum.quest.t + '» выполнено.</b> ' + sum.quest.text + '<br>Награда: ' + sum.quest.got.join(' · ') + '</div>';
       if (sum.trunk) html += '<div class="rloot">Багажник УАЗа: увезли больше трофеев (+30%).</div>';
+      if (sum.facHit) html += '<div class="rloot">Отношения: ' + DW.G.FACS[sum.facHit] + ' — <b>' + DW.G.facStatus(sum.facHit) + '</b> (' + DW.G.rep(sum.facHit) + ')' + (DW.G.rep(sum.facHit) <= -3 ? ' · <span class="bad">будут мстить набегами</span>' : '') + '</div>';
       if (sum.uazLost) html += '<div class="rloot"><span class="bad">УАЗ подбит</span> — нужен ремонт в гараже (' + DW.G.costText(D.UAZ_REPAIR) + ').</div>';
       if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';
       if (sum.traits) html += '<div class="rloot">Ранение изменило характер: <b class="acc">' + sum.traits.join('; ') + '</b>.</div>';

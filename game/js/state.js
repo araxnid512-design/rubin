@@ -213,6 +213,52 @@
     }
   };
   /* Путь по известным локациям; промежуточные узлы должны быть зачищены */
+  /* ---------- Отношения с группировками: банды, клан, СОБР ----------
+     репутация −5…+5: −3 и ниже — вражда (набегают чаще и злее), перемирие (за кристаллы) — не нападают, через их
+     лагерь можно ходить, у них — торговля и наёмники; напасть на них — сорвать перемирие */
+  G.FACS = { raider: 'Банды', clan: 'Клан', sobr: 'СОБР' };
+  G.FAC_GEN = { raider: 'банд', clan: 'клана', sobr: 'СОБР' };
+  G.rep = function (f) { const st = G.state; st.rep = st.rep || { raider: 0, clan: -1, sobr: -1 }; return st.rep[f] || 0; };
+  G.truce = function (f) { const st = G.state; return !!(st.truce && st.truce[f] > st.day); };
+  G.repAdd = function (f, d, why) {
+    if (!G.FACS[f] || !d) return;
+    const st = G.state, v0 = G.rep(f);
+    st.rep[f] = U.clamp(v0 + d, -5, 5);
+    if (d < 0 && G.truce(f)) { st.truce[f] = 0; G.log('Перемирие с ' + G.FAC_GEN[f] + ' сорвано' + (why ? ': ' + why : '') + '.'); }
+    if (v0 > -3 && st.rep[f] <= -3) G.log('Вражда: ' + G.FACS[f].toLowerCase() + ' мстят колонии.');
+  };
+  G.facStatus = function (f) { return G.truce(f) ? 'перемирие' : (G.rep(f) <= -3 ? 'вражда' : (G.rep(f) >= 3 ? 'уважение' : 'нейтралитет')); };
+  G.truceCost = function (f) { return ({ raider: 25, clan: 35, sobr: 50 }[f] || 30) + Math.max(0, -G.rep(f)) * 10 + G.threat() * 5; };
+  G.truceNode = function (n) { return !!(n && n.type === 'camp' && !n.cleared && G.truce(n.fac || 'raider')); };
+  G.makeTruce = function (f) {
+    const st = G.state, c = G.truceCost(f);
+    if (G.rep(f) < -2 || st.res.gems < c) return false;
+    st.res.gems -= c; st.truce = st.truce || {}; st.truce[f] = st.day + 15;
+    G.repAdd(f, 1);
+    G.log('Перемирие с ' + G.FAC_GEN[f] + ' на 15 дней.');
+    return true;
+  };
+  G.gift = function (f, res, amt) {
+    const st = G.state;
+    st.giftDay = st.giftDay || {};
+    if (st.giftDay[f] === st.day || (st.res[res] || 0) < amt) return false;
+    st.res[res] -= amt; st.giftDay[f] = st.day;
+    G.repAdd(f, 1);
+    return true;
+  };
+  // наёмник на 10 дней: боец группировки с её оружием
+  G.MERC = { raider: { cost: 25, cls: 'rifleman', w: 'ak' }, clan: { cost: 30, cls: 'assault', w: 'obrez' }, sobr: { cost: 45, cls: 'heavy', w: 'pkp' } };
+  G.hireMerc = function (f) {
+    const st = G.state, M = G.MERC[f];
+    if (!G.truce(f) || st.res.gems < M.cost) return null;
+    st.res.gems -= M.cost;
+    const s = G.makeRecruit(1);
+    s.cls = M.cls; if (D.WEAPONS[M.w]) s.weapon = M.w;
+    s.merc = { fac: f, until: st.day + 10 };
+    st.roster.push(s);
+    G.log('Нанят боец ' + G.FAC_GEN[f] + ': «' + s.name + '» (до ' + s.merc.until + '-го дня).');
+    return s;
+  };
   G.findPath = function (from, to) {
     if (from === to) return [];
     const prev = {}; prev[from] = -1;
@@ -220,7 +266,7 @@
     while (q.length) {
       const c = q.shift();
       if (c === to) break;
-      if (c !== from && !G.node(c).cleared) continue;
+      if (c !== from && !G.node(c).cleared && !G.truceNode(G.node(c))) continue;
       G.neighbors(c).forEach(function (n) {
         if (prev[n] !== undefined) return;
         if (!G.node(n).known) return;
@@ -610,6 +656,14 @@
       notes.push({ title: 'Угроза', text: 'Разведка докладывает: ' + who + (n.type === 'camp' && n.fac === 'sobr' ? ' снова занял' : ' снова заняли') + ' «' + n.name + '».' + (n.type === 'lair' || n.type === 'camp' ? ' Теперь их там больше.' : ''), kind: 'bad' });
       G.log('Враги снова заняли «' + n.name + '».');
     });
+    // наёмники уходят по сроку; перемирие кончается
+    st.roster.slice().forEach(function (s) {
+      if (s.merc && s.merc.until <= st.day && st.roster.length > 1) {
+        st.roster.splice(st.roster.indexOf(s), 1);
+        notes.push({ title: 'Наёмник ушёл', text: '«' + s.name + '» отслужил срок и вернулся к своим (' + G.FACS[s.merc.fac].toLowerCase() + ').', kind: 'info' });
+      }
+    });
+    if (st.truce) for (const f in st.truce) if (st.truce[f] === st.day) notes.push({ title: 'Перемирие кончилось', text: 'Срок перемирия с ' + G.FAC_GEN[f] + ' вышел. Можно договориться снова.', kind: 'info' });
     // в Гнезде заводится новая Матка
     if (st.nestBack && st.day >= st.nestBack) {
       st.nestBack = null;
@@ -635,14 +689,15 @@
       let lairs = 0, camps = 0; const facs = [];
       st.world.nodes.forEach(function (n) {
         if (n.type === 'lair' && !n.cleared) lairs++;
-        if (n.type === 'camp' && !n.cleared) { camps++; facs.push(n.fac || 'raider'); }
+        // с перемирием не нападают; во вражде — чаще
+        if (n.type === 'camp' && !n.cleared && !G.truce(n.fac || 'raider')) { camps++; facs.push(n.fac || 'raider'); if (G.rep(n.fac || 'raider') <= -3) { camps++; facs.push(n.fac || 'raider'); } }
       });
       // набег идёт от того, кто рядом: мутанты из логов или люди из лагерей (банда, клан, СОБР)
       // после гибели Матки мутанты несколько дней не нападают
       if (st.calmUntil > st.day) lairs = 0;
       const kind = (lairs + camps === 0) ? (st.calmUntil > st.day ? null : 'beast') : (Math.random() < lairs / (lairs + camps) ? 'beast' : U.pick(facs));
       if (kind) {
-      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5)), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: false };
+      st.raid = { day: st.day + warn, kind: kind, strength: Math.min(14, 3 + Math.floor(st.day / 5) + (kind !== 'beast' && G.rep(kind) <= -3 ? 2 : 0)), start: st.day, from: G.raidSource(kind), dir: U.pick(['e', 'e', 'n', 's']), night: false };
       raidNew = true;
       notes.push({
         title: 'Тревога!',
@@ -1012,11 +1067,19 @@
       const mDead = B.units.filter(function (u) { return u.militia && !u.alive; }).length;
       if (mDead) { st.militia = Math.max(0, (st.militia || 0) - mDead); sum.text += ' Погибло ополченцев: ' + mDead + '.'; }
       if (B.relief) st.squadAt = st.baseNode;
+      if (out === 'victory' && B.raidKind && G.FACS[B.raidKind]) G.repAdd(B.raidKind, -1);
     } else if (B.kind === 'caravan') {
+      G.repAdd('raider', -1, 'ограблен караван');
       if (out === 'victory') { const lt = { food: 20, ammo: 60, gems: 12 + (B.diff || 1) * 3, meds: 2 }; for (const k in lt) add(k, lt[k]); sum.text = 'Караван разграблен. Охрана перебита — Институт об этом не узнает… наверное.'; st.trustHit = (st.trustHit || 0) + 1; G.log('Отряд ограбил караван.'); }
       else sum.text = 'Охрана каравана отбилась.';
       st.caravan = null;
     } else if (node) {
+      // бой с группировкой портит отношения, разгром лагеря — тем более
+      if (node.type === 'camp' && G.FACS[node.fac || 'raider']) {
+        const f = node.fac || 'raider';
+        G.repAdd(f, out === 'victory' ? -2 : -1, 'бой в «' + node.name + '»');
+        sum.facHit = f;
+      }
       if (B.kind === 'ambush' && out === 'victory' && node.drillThreat) { node.drillThreat = null; sum.text = 'Бур отбит.'; }
       if (out === 'victory') {
         if (!node.cleared) {

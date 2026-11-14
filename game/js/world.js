@@ -482,9 +482,10 @@
   }
   function drawNode(g, n, t, st) {
     const sel = WR.sel === n.id;
-    const hostile = !n.cleared;
+    const truce = DW.G.truceNode && DW.G.truceNode(n);   // лагерь с перемирием — не враг
+    const hostile = !n.cleared && !truce;
     const isBase = n.id === st.baseNode;
-    const ringC = n.type === 'landing' ? '95,212,230' : (isBase ? '232,168,62' : (hostile ? '224,71,63' : '127,200,105'));
+    const ringC = n.type === 'landing' ? '95,212,230' : (isBase ? '232,168,62' : (truce ? '200,220,160' : (hostile ? '224,71,63' : '127,200,105')));
     g.globalAlpha = n.visited ? 1 : 0.8;
     // кольцо статуса
     const pulse = hostile ? 0.55 + Math.sin(t / 400 + n.id) * 0.2 : 0.7;
@@ -493,6 +494,11 @@
     g.fillStyle = gr; g.beginPath(); g.ellipse(n.x, n.y + 2, 46, 25, 0, 0, Math.PI * 2); g.fill();
     g.strokeStyle = 'rgba(' + ringC + ',' + pulse + ')'; g.lineWidth = 2.5;
     g.beginPath(); g.ellipse(n.x, n.y + 2, 40, 21, 0, 0, Math.PI * 2); g.stroke();
+    if (truce) {
+      // белый флаг перемирия
+      g.strokeStyle = '#3a3028'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(n.x + 26, n.y - 6); g.lineTo(n.x + 26, n.y - 30); g.stroke();
+      g.fillStyle = '#f2ede0'; g.beginPath(); g.moveTo(n.x + 26, n.y - 30); g.lineTo(n.x + 40, n.y - 26 + Math.sin(t / 300) * 1.5); g.lineTo(n.x + 26, n.y - 21); g.closePath(); g.fill();
+    }
     if (sel) {
       g.strokeStyle = 'rgba(255,245,220,' + (0.6 + Math.sin(t / 200) * 0.3) + ')'; g.lineWidth = 2;
       g.setLineDash([6, 5]); g.lineDashOffset = -t / 60;

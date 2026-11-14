@@ -98,6 +98,7 @@
     let status;
     if (n.id === st.baseNode) status = '<span class="good">Ваша база</span>';
     else if (n.cleared) status = '<span class="good">Зачищено</span>';
+    else if (G.truceNode(n)) status = '<span class="good">Перемирие</span> ' + DW.UI.skulls(n.diff);
     else status = '<span class="bad">Враги</span> ' + DW.UI.skulls(n.diff);
     const extra = [];
     if (n.beacon) extra.push(n.type === 'landing' ? 'Портал: сюда приходят грузы' : 'Маяк: сюда можно заказывать грузы');
@@ -105,6 +106,10 @@
     if (n.drillThreat) extra.push('<span class="bad">На бур идут мутанты! Осталось ' + Math.max(0, n.drillThreat - st.day) + ' дн.</span>');
     if (n.scouted && !n.cleared) extra.push('<span class="acc">Разведано: враги известны</span>');
     if (st.caravan && st.caravan.at === n.id) extra.push('<span class="acc">Здесь караван торговцев</span>');
+    if (n.type === 'camp' && !n.cleared && G.FACS[n.fac || 'raider']) {
+      const f = n.fac || 'raider', fs = G.facStatus(f);
+      extra.push(G.FACS[f] + ': <b class="' + (fs === 'вражда' ? 'bad' : (fs === 'перемирие' ? 'good' : 'acc')) + '">' + fs + '</b> (' + G.rep(f) + ')' + (G.truce(f) ? ' · ещё ' + (st.truce[f] - st.day) + ' дн. · можно пройти через лагерь' : ''));
+    }
     if (n.cargo && n.cargo.length) extra.push('<span class="acc">Здесь лежит груз (' + n.cargo.length + ' поз.)</span>');
     if (n.type === 'ruins' && n.cleared) extra.push('Осталось обысков: ' + n.searches);
     const artType = n.id === st.baseNode ? null : n.type;
@@ -119,9 +124,11 @@
       if (dis || busy) b.disabled = true;
       acts.appendChild(b);
     };
+    const canTalk = n.type === 'camp' && !n.cleared && n.known && G.FACS[n.fac || 'raider'];
     if (here) {
       p.appendChild(el('div', { class: 'pn-here', text: 'Отряд здесь' }));
-      if (!n.cleared) add('Атаковать', function () { WS.attack(n, 'normal'); }, 'primary');
+      if (canTalk) add('Переговоры', function () { talks(n); }, G.truceNode(n) ? 'primary' : '');
+      if (!n.cleared) add('Атаковать', function () { WS.attack(n, 'normal'); }, G.truceNode(n) ? '' : 'primary');
       else {
         if (n.id === st.baseNode) add('Отдых (1 день)', function () { waitDay('Отряд отдыхает на базе.'); }, 'primary');
         if (n.type === 'ruins') add('Обыскать (1 день)', function () { search(n); }, '', n.searches <= 0);
@@ -137,6 +144,7 @@
       if (n.type === 'vein' && !n.outpost && st.baseNode === null && n.cleared) p.appendChild(el('div', { class: 'pn-note', text: 'Бур можно поставить после основания базы.' }));
     } else {
       const path = G.findPath(st.squadAt, n.id);
+      if (canTalk && path && path.length === 1) add('Переговоры (гонец)', function () { talks(n); });
       // разведка: соседняя (или через одну зачищенную) неразведанная локация — один боец уходит на день
       if (!n.cleared && !n.scouted && path && path.length <= 2) add('Разведать (1 день)', function () { scout(n); }, '', st.roster.filter(function (s) { return !s.injury; }).length < 2);
       if (path && path.length) {
@@ -241,7 +249,7 @@
       if (wk === 'storm' && Math.random() < 0.3) { const s = U.pick(st.roster); s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 2); await DW.UI.alert('Пыльная буря', '«' + s.name + '» в буре сорвался с осыпи и поранился (−2 ОЗ).', 'bad'); }
       if (wk === 'acid') { st.roster.forEach(function (s) { s.wounds = Math.min(G.maxHp(s) - 1, s.wounds + 1); }); DW.UI.toast('Кислотный дождь: −1 ОЗ всем в пути', 'alert'); }
       if (st.caravan && st.caravan.at === nid && !st.caravan.met) { busy = false; WS.refresh(); await caravanMeet(); if (DW.Main.scene() !== DW.WS) return; busy = true; }
-      if (!node.cleared) {
+      if (!node.cleared && !G.truceNode(node)) {
         busy = false; WS.refresh();
         await WS.attack(node, 'normal');
         return;
@@ -254,6 +262,12 @@
 
   WS.attack = async function (node, kind) {
     const G = DW.G, st = G.state;
+    // напасть на лагерь, с которым перемирие, — сорвать его
+    if (kind === 'normal' && G.truceNode(node)) {
+      const ok = await DW.UI.confirm('Сорвать перемирие?', 'С ' + G.FAC_GEN[node.fac || 'raider'] + ' перемирие. Нападение его сорвёт, отношения испортятся надолго.', 'Напасть');
+      if (!ok) return;
+      G.repAdd(node.fac || 'raider', -3, 'нападение на «' + node.name + '»');
+    }
     const ids = await DW.UI.briefing(node, kind);
     if (!ids && node.cleared) { G.save(); WS.refresh(); return; }   // откупились — локация ваша
     if (!ids) {
@@ -333,6 +347,41 @@
     }
   }
   WS.caravanMeet = caravanMeet;
+  /* переговоры с группировкой: перемирие, подарки, торговля и наёмники (при перемирии) */
+  async function talks(n) {
+    const G = DW.G, st = G.state, f = n.fac || 'raider';
+    const who = { raider: 'Главарь банды', clan: 'Старший клана', sobr: 'Командир блокпоста' }[f];
+    for (let guard = 0; guard < 20; guard++) {
+      const tr = G.truce(f), r = G.rep(f), c = G.truceCost(f), M = G.MERC[f];
+      const gifted = (st.giftDay || {})[f] === st.day;
+      const head = who + ' «' + n.name + '». Отношения: <b>' + G.facStatus(f) + '</b> (' + r + ').' +
+        (tr ? ' Перемирие ещё ' + (st.truce[f] - st.day) + ' дн.' : (r < -2 ? ' <span class="bad">С вами не станут говорить о мире, пока не задобрите.</span>' : ''));
+      const opts = [], acts = [];
+      if (!tr) { opts.push({ text: 'Перемирие на 15 дней · ' + c + ' кристаллов', disabled: r < -2 || st.res.gems < c }); acts.push('truce'); }
+      opts.push({ text: 'Подарок: 8 провизии (отношения +1)', disabled: gifted || st.res.food < 8 }); acts.push('food');
+      opts.push({ text: 'Подарок: 40 патронов (отношения +1)', disabled: gifted || st.res.ammo < 40 }); acts.push('ammo');
+      if (tr) {
+        opts.push({ text: 'Торговать' }); acts.push('trade');
+        opts.push({ text: 'Нанять бойца на 10 дней · ' + M.cost + ' кристаллов (' + D.CLASSES[M.cls].n.toLowerCase() + ', ' + (D.WEAPONS[M.w].s || D.WEAPONS[M.w].n) + ')', disabled: st.res.gems < M.cost }); acts.push('merc');
+      }
+      opts.push({ text: 'Уйти' }); acts.push('leave');
+      const i = await DW.UI.choice('Переговоры', head, opts);
+      const a = acts[i];
+      if (i < 0 || !a || a === 'leave') break;
+      if (a === 'truce' && G.makeTruce(f)) { DW.SFX.play('portal'); await DW.UI.alert('Перемирие', 'Ударили по рукам: 15 дней ' + G.FACS[f].toLowerCase() + ' не нападают на колонию. Через их лагерь можно ходить, у них можно торговать и нанимать бойцов.', 'good'); }
+      if (a === 'food' && G.gift(f, 'food', 8)) DW.UI.toast('Подарок принят: отношения +1', 'good');
+      if (a === 'ammo' && G.gift(f, 'ammo', 40)) DW.UI.toast('Подарок принят: отношения +1', 'good');
+      if (a === 'trade') {
+        const goods = G.caravanGoods();
+        // у каждой группировки — своё подешевле
+        goods.forEach(function (g) { if ((f === 'raider' && g.res === 'ammo') || (f === 'clan' && g.res === 'food') || (f === 'sobr' && (g.res === 'meds' || g.res === 'grenades'))) g.price = Math.max(2, g.price - 3); });
+        await DW.UI.trade({ goods: goods, intro: who + ' показывает, что есть на обмен. Берут драгоценности и стройматериалы.' });
+      }
+      if (a === 'merc') { const s = G.hireMerc(f); if (s) { DW.SFX.play('portal'); await DW.UI.alert('Наёмник', '«' + s.name + '» (' + D.CLASSES[s.cls].n.toLowerCase() + ') с вами до ' + s.merc.until + '-го дня.', 'good'); } }
+      G.save(); WS.refresh();
+    }
+    G.save(); WS.refresh();
+  }
   function outpost(n) {
     const G = DW.G;
     if (!G.pay({ materials: 12 })) return;
