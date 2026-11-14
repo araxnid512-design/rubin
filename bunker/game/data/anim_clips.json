@@ -8,7 +8,8 @@
    "loop": true,
    "inplace": false,
    "blend": 0.3,
-   "rate": 1.0
+   "rate": 1.0,
+   "center": true
   },
   "breathe": {
    "src": [
@@ -18,7 +19,8 @@
    "loop": true,
    "inplace": false,
    "blend": 0.3,
-   "rate": 1.0
+   "rate": 1.0,
+   "center": true
   },
   "walk": {
    "src": [
@@ -28,7 +30,10 @@
    "inplace": true,
    "blend": 0.25,
    "rate": 1.0,
-   "speed": 1.17
+   "speed": 1.16,
+   "phase": 0.867,
+   "strides": 2.0,
+   "root_smooth": 1.167
   },
   "walk_back": {
    "src": [
@@ -37,7 +42,8 @@
    "loop": true,
    "inplace": true,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "speed": 1.48
   },
   "strafe_left": {
    "src": [
@@ -49,7 +55,7 @@
    "rate": 1.0,
    "from": 0.1,
    "to": 1.6,
-   "speed": 1.77
+   "speed": 1.68
   },
   "strafe_right": {
    "src": [
@@ -61,7 +67,7 @@
    "rate": 1.0,
    "from": 0.1,
    "to": 1.6,
-   "speed": 1.53
+   "speed": 1.32
   },
   "run": {
    "src": [
@@ -71,7 +77,10 @@
    "inplace": true,
    "blend": 0.25,
    "rate": 1.0,
-   "speed": 3.01
+   "speed": 4.22,
+   "phase": 0.233,
+   "strides": 2.0,
+   "root_smooth": 0.625
   },
   "sprint": {
    "src": [
@@ -81,7 +90,7 @@
    "inplace": true,
    "blend": 0.25,
    "rate": 1.0,
-   "speed": 2.08
+   "speed": 2.43
   },
   "start": {
    "src": [
@@ -92,7 +101,9 @@
    "blend": 0.15,
    "rate": 1.0,
    "speed": 0.27,
-   "root_lock": true
+   "root_lock": true,
+   "ik": true,
+   "off": true
   },
   "stop": {
    "src": [
@@ -103,7 +114,9 @@
    "blend": 0.2,
    "rate": 1.0,
    "root_lock": true,
-   "speed": 0.0
+   "speed": 0.0,
+   "ik": true,
+   "off": true
   },
   "turn_left": {
    "src": [
@@ -112,7 +125,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.15,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "turn_right": {
    "src": [
@@ -122,7 +136,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.15,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "crouch_idle": {
    "src": [
@@ -131,7 +146,9 @@
    "loop": true,
    "inplace": false,
    "blend": 0.3,
-   "rate": 1.0
+   "rate": 1.0,
+   "center": true,
+   "loop_fix": 0.4
   },
   "crouch_walk": {
    "src": [
@@ -149,7 +166,8 @@
    "loop": true,
    "inplace": true,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "speed": 1.2
   },
   "stairs_up": {
    "src": [
@@ -188,7 +206,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "door_close": {
    "src": [
@@ -197,7 +216,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "terminal": {
    "src": [
@@ -207,7 +227,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "pickup": {
    "src": [
@@ -245,7 +266,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "stand_up": {
    "src": [
@@ -254,7 +276,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "bed_lie": {
    "src": [
@@ -283,7 +306,8 @@
    "inplace": false,
    "blend": 0.3,
    "rate": 1.0,
-   "hold": true
+   "hold": true,
+   "ik": true
   },
   "lie_idle": {
    "src": [
@@ -302,7 +326,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "combat_idle": {
    "src": [
@@ -311,7 +336,8 @@
    "loop": true,
    "inplace": false,
    "blend": 0.2,
-   "rate": 1.0
+   "rate": 1.0,
+   "center": true
   },
   "punch_light": {
    "src": [
@@ -319,7 +345,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.12,
+   "blend": 0.15,
    "rate": 1.0
   },
   "punch_heavy": {
@@ -328,7 +354,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.12,
+   "blend": 0.15,
    "rate": 1.0
   },
   "block": {
@@ -432,7 +458,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.08,
+   "blend": 0.18,
    "rate": 1.0
   },
   "hit_back": {
@@ -441,7 +467,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.08,
+   "blend": 0.18,
    "rate": 1.0
   },
   "hit_left": {
@@ -450,7 +476,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.08,
+   "blend": 0.18,
    "rate": 1.0
   },
   "hit_right": {
@@ -460,7 +486,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.08,
+   "blend": 0.18,
    "rate": 1.0
   },
   "stagger": {
@@ -470,7 +496,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.1,
+   "blend": 0.25,
    "rate": 1.0
   },
   "fall": {
@@ -497,7 +523,7 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.1,
+   "blend": 0.15,
    "rate": 1.0
   },
   "dead": {
@@ -509,6 +535,223 @@
    "blend": 0.2,
    "rate": 1.0,
    "hold": true
+  },
+  "melee_light": {
+   "src": [
+    "{set}/m_melee_light.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "melee_heavy": {
+   "src": [
+    "{set}/m_melee_heavy.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.15,
+   "rate": 1.0
+  },
+  "dodge_back": {
+   "src": [
+    "{set}/m_dodge_back.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.12,
+   "rate": 1.0
+  },
+  "greet": {
+   "src": [
+    "{set}/greet_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "wave": {
+   "src": [
+    "{set}/wave_goodbye_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "agree": {
+   "src": [
+    "{set}/agree.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "clap": {
+   "src": [
+    "{set}/clap.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "cheer": {
+   "src": [
+    "{set}/cheer.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "afraid": {
+   "src": [
+    "{set}/afraid.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "scared": {
+   "src": [
+    "{set}/scared_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "angry": {
+   "src": [
+    "{set}/angry_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "frustrated": {
+   "src": [
+    "{set}/frustrated_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "laugh": {
+   "src": [
+    "{set}/laugh_01.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "cry": {
+   "src": [
+    "{set}/cry.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "depressed": {
+   "src": [
+    "{set}/depressed.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "scratch": {
+   "src": [
+    "{set}/scratch.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "look_around": {
+   "src": [
+    "{set}/look_around.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "cough": {
+   "src": [
+    "{set}/m_cough.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "stretch": {
+   "src": [
+    "{set}/m_stretch.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "nod": {
+   "src": [
+    "{set}/m_nod.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "talk": {
+   "src": [
+    "{set}/m_talk.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
+  },
+  "check_dosimeter": {
+   "src": [
+    "{set}/m_check_dosimeter.res"
+   ],
+   "loop": false,
+   "inplace": false,
+   "blend": 0.3,
+   "rate": 1.0,
+   "ik": true
   }
  }
 }

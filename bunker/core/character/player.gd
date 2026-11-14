@@ -386,8 +386,9 @@ func die() -> void:
 	hp = 0.0
 	velocity = Vector3.ZERO
 	if rig:
-		rig.play("death")
-		rig.set_pose("dead")
+		# поза «мёртв» входит к концу клипа падения (последний кадр клипа = поза), не поверх его начала
+		var d := rig.play("death")
+		rig.set_pose("dead", maxf(d - 0.45, 0.0))
 	Core.say("Вы погибли. Загрузка последнего сохранения…", "bad")
 	get_tree().create_timer(4.0).timeout.connect(func(): Core.save.load_game())
 
@@ -422,6 +423,10 @@ func do_interact() -> void:
 	if state != "move" or target == null:
 		return
 	var t = target
+	state = "busy"
+	velocity = Vector3.ZERO
+	_stop_emote()
+	var hand := {}
 	if t is BCInteract and t.snap:
 		# сесть/лечь точно на предмет: встать в его точку, физику — на время позы выключить
 		var sp: Transform3D = t.stand_point()
@@ -430,16 +435,28 @@ func do_interact() -> void:
 		collision_mask = 0
 		global_position = sp.origin
 		rotation.y = sp.basis.get_euler().y
+		if rig:
+			rig.ik.reset_locks()
 	else:
-		# развернуться к объекту
-		var p: Vector3 = (t.global_position if t is Node3D else global_position)
-		var to := p - global_position
-		to.y = 0
-		if to.length() > 0.05:
-			rotation.y = atan2(to.x, to.z)
+		# куда ляжет кисть (ручка двери, панель пульта, выключатель) и откуда до неё достать:
+		# подойти шагом, развернуться плавно (раньше — мгновенный поворот на месте)
+		hand = _hand_spot(t)
+		if hand.has("stand"):
+			await _approach(hand.stand, hand.face)
+		else:
+			var p: Vector3 = (t.global_position if t is Node3D else global_position)
+			var to := p - global_position
+			to.y = 0
+			if to.length() > 0.05:
+				await _turn_to(atan2(to.x, to.z))
+		if state != "busy" or not is_instance_valid(t):
+			return
 	var clip: String = t.interact_anim(self) if t.has_method("interact_anim") else "inspect"
 	var dur := rig.play(clip) if rig else 0.0
-	state = "busy"
+	# кисть к цели в окне клипа, где рука вытянута (доли длительности: задержка, подвод, удержание, отвод)
+	if rig and hand.has("pos") and rig.hands:
+		var win: Array = HAND_WIN.get(clip, [0.2, 0.15, 0.3, 0.2])
+		rig.hands.reach(hand.side, hand.pos, dur * win[0], dur * win[1], dur * win[2], dur * win[3], hand.get("node"))
 	velocity = Vector3.ZERO
 	# действие срабатывает в середине клипа (рука на ручке двери / кнопке)
 	var at := clampf(dur * 0.45, 0.0, 0.9)
@@ -450,6 +467,144 @@ func do_interact() -> void:
 			get_tree().create_timer(maxf(dur - at - 0.15, 0.05)).timeout.connect(func():
 				if state == "busy":
 					state = "move"))
+
+
+## окно, где кисть на цели (доли длительности клипа): задержка, подвод, удержание, отвод — по листам кадров
+const HAND_WIN := {
+	"door_open": [0.18, 0.17, 0.30, 0.20],
+	"door_close": [0.15, 0.17, 0.28, 0.22],
+	"terminal": [0.12, 0.13, 0.55, 0.15],
+}
+const REACH := 0.62                       ## длина руки героя (плечо → середина ладони), м
+
+
+## куда ляжет кисть: {pos — точка в мире, side — "L"/"R", stand/face — где встать и куда смотреть, node — подвижная цель}
+func _hand_spot(t) -> Dictionary:
+	if t is BCDoor:
+		return _door_spot(t)
+	if t is BCInteract and t.action in ["terminal", "switch", "medbay"]:
+		return _panel_spot(t, t.action == "switch")
+	return {}
+
+
+func _door_spot(d: BCDoor) -> Dictionary:
+	if d._leaves.is_empty():
+		return {}
+	# створка, ближняя к герою (у двустворчатой гермодвери — две)
+	var leaf: Array = d._leaves[0]
+	var lw: float = d.width * (0.5 if d.kind == "blast_double" else 1.0)
+	var bd := INF
+	for L in d._leaves:
+		var hn: Node3D = L[0]
+		var c: Vector3 = hn.global_transform * Vector3(float(L[1]) * lw * 0.5, 1.0, 0.0)
+		var dd := c.distance_to(global_position)
+		if dd < bd:
+			bd = dd
+			leaf = L
+	var hinge: Node3D = leaf[0]
+	var side: float = leaf[1]
+	var lp := hinge.global_transform.affine_inverse() * global_position
+	var zs := 1.0 if lp.z >= 0.0 else -1.0
+	var local: Vector3
+	if d.kind == "interior":
+		local = Vector3(side * (lw - 0.1), 1.0, zs * 0.075)            # рукоятка ручки
+	else:
+		var h := d.height - 0.02
+		local = Vector3(side * (lw * 0.5 + 0.17), h * 0.55, zs * 0.17)  # обод штурвала со стороны проёма
+	var pos: Vector3 = hinge.global_transform * local
+	var n: Vector3 = hinge.global_transform.basis.z * zs
+	n.y = 0.0
+	n = n.normalized()
+	var out := {"pos": pos, "side": "R", "node": hinge}
+	if not d.is_open:
+		# встать перед ручкой: ручка — напротив правого плеча, 0.48 м от полотна
+		var fwd := -n
+		var right := fwd.cross(Vector3.UP).normalized()
+		var stand := Vector3(pos.x, global_position.y, pos.z) + n * 0.48 - right * 0.2
+		out["stand"] = stand
+		out["face"] = atan2(fwd.x, fwd.z)
+	elif _shoulder("R").distance_to(pos) > REACH + 0.25:
+		# открытая створка далеко — только повернуться к ней
+		out.erase("pos")
+	return out
+
+
+func _panel_spot(t: BCInteract, is_switch: bool) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var p: Vector3 = t.global_position
+	var dirh := p - global_position
+	dirh.y = 0.0
+	if dirh.length() < 0.05:
+		return {}
+	dirh = dirh.normalized()
+	var hit := {}
+	for h in ([1.25, 1.05] if is_switch else [0.95, 1.15, 0.8]):
+		var a := Vector3(global_position.x, global_position.y + h, global_position.z)
+		var q := PhysicsRayQueryParameters3D.create(a, a + dirh * 2.5, BCKit.LAYER_WORLD | BCKit.LAYER_DETAIL)
+		q.exclude = [get_rid()]
+		hit = space.intersect_ray(q)
+		if not hit.is_empty():
+			break
+	if hit.is_empty():
+		return {}
+	var n: Vector3 = hit.normal
+	n.y = 0.0
+	if n.length() < 0.3:
+		return {}
+	n = n.normalized()
+	var front: Vector3 = hit.position
+	var pos := front + n * 0.03
+	if not is_switch:
+		# пульт: верх столешницы в 12 см за передним краем
+		var top := front - n * 0.12
+		var q2 := PhysicsRayQueryParameters3D.create(top + Vector3.UP * 0.7, top + Vector3.DOWN * 0.7, BCKit.LAYER_WORLD | BCKit.LAYER_DETAIL)
+		q2.exclude = [get_rid()]
+		var h2 := space.intersect_ray(q2)
+		if not h2.is_empty() and h2.position.y < global_position.y + 1.3:
+			pos = Vector3(top.x, h2.position.y + 0.04, top.z)
+	var fwd := -n
+	var right := fwd.cross(Vector3.UP).normalized()
+	var stand := Vector3(front.x, global_position.y, front.z) + n * 0.45 - right * 0.15
+	return {"pos": pos, "side": "R", "stand": stand, "face": atan2(fwd.x, fwd.z)}
+
+
+func _shoulder(side: String) -> Vector3:
+	var right := global_transform.basis.z.cross(Vector3.UP).normalized()
+	return global_position + Vector3.UP * 1.42 + right * (0.19 if side == "R" else -0.19)
+
+
+## подойти шагом к точке и встать лицом в face (тело ведёт обычная физика героя, шаг — дерево анимаций)
+func _approach(to: Vector3, face: float) -> void:
+	var tm := 0.0
+	var dt := 1.0 / Engine.physics_ticks_per_second
+	# в _physics_process скорость в состоянии busy гасится (ACCEL × 1.6 за секунду) — добавляем это
+	var comp := ACCEL * 1.6 * dt
+	while tm < 1.6 and state == "busy":
+		var d := to - global_position
+		d.y = 0.0
+		if d.length() < 0.05:
+			break
+		var v := clampf(d.length() / 0.35, 0.35, 1.2)
+		var dv := d.normalized()
+		velocity.x = dv.x * (v + comp)
+		velocity.z = dv.z * (v + comp)
+		var face_now := atan2(dv.x, dv.z) if d.length() > 0.2 else face
+		rotation.y = lerp_angle(rotation.y, face_now, clampf(TURN * dt, 0.0, 1.0))
+		await get_tree().physics_frame
+		tm += dt
+	velocity = Vector3.ZERO
+	await _turn_to(face)
+
+
+## плавный поворот на месте (≈0.25 с на 90°); стопы держит фиксация опоры в BCFootIK
+func _turn_to(yaw: float) -> void:
+	var dt := 1.0 / Engine.physics_ticks_per_second
+	var tm := 0.0
+	while absf(angle_difference(rotation.y, yaw)) > 0.04 and tm < 0.6 and state == "busy":
+		rotation.y = rotate_toward(rotation.y, yaw, 6.5 * dt)
+		await get_tree().physics_frame
+		tm += dt
+	rotation.y = yaw
 
 
 func _on_action_done(_n: String) -> void:
@@ -474,16 +629,20 @@ func rest() -> void:
 func stand_up() -> void:
 	var clip := "stand_up" if state == "sit" else "bed_up"
 	state = "busy"
-	rig.set_pose("")
+	# сначала клип вставания полностью входит поверх позы, потом поза снимается (без мелькания стойки)
 	var d := rig.play(clip)
+	rig.set_pose("", rig.info[clip].blend if rig.has_clip(clip) else 0.0)
 	get_tree().create_timer(maxf(d - 0.1, 0.1)).timeout.connect(func():
 		# вернуться на пол рядом с предметом и включить физику
 		if _return_pos != Vector3.INF:
 			global_position = _return_pos
 			_return_pos = Vector3.INF
+		if rig:
+			rig.ik.reset_locks()
 		collision_layer = BCKit.LAYER_PLAYER
 		collision_mask = BCKit.LAYER_WORLD
-		state = "move")
+		state = "move"
+		_calm_t = 0.0)
 
 
 func treat() -> void:
@@ -793,3 +952,83 @@ func action_verb() -> String:
 			"switch": "Свет", "pickup": "Взять", "inspect": "Осмотр"}.get(t.action, "Действие")
 	return "Действие"
 
+
+# ---------------- эмоции ----------------
+# «Паузы» героя: ~8 с без движения — оглядывается, разминается, чешется, смотрит на дозиметр; на поверхности при
+# фоне без костюма — кашляет. Испуг — при опасной накопленной дозе (250 мЗв) и при резком скачке фона.
+# Любое движение или действие прерывает эмоцию (плавно, по времени смешивания клипа).
+
+var _calm_t := 0.0            ## сколько герой спокойно стоит, с
+var _calm_next := 8.0         ## через сколько секунд покоя — следующая «пауза»
+var _emote := ""
+var _last_emote := ""
+var _fear_cd := 0.0
+var _dose_warned := false
+
+
+func _process(delta: float) -> void:
+	_emotions(delta)
+
+
+func _emotions(delta: float) -> void:
+	if rig == null or state == "dead":
+		return
+	var spd := Vector3(velocity.x, 0, velocity.z).length()
+	if _emote != "":
+		if rig._action != _emote:
+			_emote = ""
+		elif spd > 0.3 or move_input.length() > 0.1 or state in ["sit", "lie"]:
+			_stop_emote()
+	if state == "move" and spd < 0.1 and not rig.busy():
+		_calm_t += delta
+	else:
+		_calm_t = 0.0
+	_fear_cd -= delta
+	var eff := rad_rate * (0.15 if suit_on else 1.0)
+	var scare := ""
+	if dose > 250.0 and not _dose_warned:
+		scare = "scared"
+	elif eff > 20.0 and _fear_cd <= 0.0:
+		scare = "afraid"
+	if dose < 200.0:
+		_dose_warned = false
+	# испуг важнее «паузы»: прерывает её
+	if scare != "" and state == "move" and spd < 1.0 and (not rig.busy() or _emote != "") and rig.has_clip(scare):
+		_play_emote(scare)
+		_fear_cd = 30.0
+		if scare == "scared":
+			_dose_warned = true
+		return
+	if _calm_t > _calm_next and state == "move" and not rig.busy():
+		var pick := _idle_pick()
+		if pick != "":
+			_play_emote(pick)
+		_calm_t = 0.0
+		_calm_next = randf_range(9.0, 15.0)
+
+
+func _idle_pick() -> String:
+	var pool: Array
+	if not Core.world.underground:
+		if not suit_on and rad_rate > 1.0:
+			pool = ["cough", "cough", "check_dosimeter", "look_around"]
+		else:
+			pool = ["check_dosimeter", "look_around", "look_around"]
+	else:
+		pool = ["stretch", "scratch", "look_around", "check_dosimeter"]
+	if hp < 35.0:
+		pool.append("depressed")
+	pool = pool.filter(func(n): return rig.has_clip(n) and n != _last_emote)
+	return pool[randi() % pool.size()] if not pool.is_empty() else ""
+
+
+func _play_emote(n: String) -> void:
+	if rig.play(n) > 0.0:
+		_emote = n
+		_last_emote = n
+
+
+func _stop_emote() -> void:
+	if _emote != "" and rig and rig._action == _emote:
+		rig.stop_action()
+	_emote = ""
