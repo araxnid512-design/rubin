@@ -47,6 +47,7 @@ const FLAT := {
 	"fabric_grey": [Color(0.35, 0.35, 0.34), 0.95, 0.0],
 	"mattress": [Color(0.5, 0.48, 0.4), 0.95, 0.0],
 	"cardboard": [Color(0.55, 0.42, 0.27), 0.9, 0.0],
+	"dry_wood": [Color(0.5, 0.42, 0.32), 0.95, 0.0],
 	"crate_green": [Color(0.24, 0.29, 0.2), 0.75, 0.1],
 	"leaf": [Color(0.2, 0.42, 0.14), 0.7, 0.0],
 	"soil": [Color(0.17, 0.12, 0.08), 1.0, 0.0],
@@ -113,6 +114,23 @@ static func get_mat(name: String) -> Material:
 		m = _hazard()
 	elif name == "chainlink":
 		m = _chainlink()
+	elif name == "grime":
+		# атлас грязи 2×2 (tools/gen_decals.py): пятна, трещины, ржавые потёки, мусор
+		var gr := StandardMaterial3D.new()
+		gr.albedo_texture = _load_tex("res://assets/textures/decals/grime_atlas.png")
+		gr.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gr.roughness = 1.0
+		gr.render_priority = 1
+		m = gr
+	elif name == "ao":
+		# мягкая тень у основания стен: чёрный, прозрачность из цвета вершин
+		var ao := StandardMaterial3D.new()
+		ao.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ao.vertex_color_use_as_albedo = true
+		ao.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ao.albedo_color = Color(1, 1, 1, 1)
+		ao.render_priority = 2
+		m = ao
 	elif name == "puddle":
 		var ps := ShaderMaterial.new()
 		ps.shader = preload("res://core/shaders/puddle.gdshader")

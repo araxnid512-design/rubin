@@ -19,6 +19,7 @@ var bunker_rate := 0.0002
 var _amb := {}                   ## имя → AudioStreamPlayer
 var _amb_target := {}
 var _dust: GPUParticles3D
+var _bdust: GPUParticles3D
 var quality := 1
 var _sky: ProceduralSkyMaterial
 var _sun_k := 1.0          ## доля солнца по набору (поверхность 1, вход ~0.6, бункер 0)
@@ -68,6 +69,15 @@ func attach(root: Node3D) -> void:
 	env.fog_depth_end = 220.0
 	env.fog_depth_curve = 1.2
 	env.adjustment_enabled = true
+	# мягкое свечение ламп, экранов и светодиодов (на низком качестве выключается)
+	env.glow_enabled = true
+	env.glow_intensity = 0.55
+	env.glow_strength = 0.95
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = 1.05
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	for i in 7:
+		env.set_glow_level(i, 1.0 if i in [1, 2, 3] else 0.0)
 	_ambient_players(root)
 	_make_dust(root)
 	set_preset("surface")
@@ -127,6 +137,29 @@ func _make_dust(root: Node3D) -> void:
 	_dust.draw_pass_1 = qm
 	_dust.add_to_group("surface_only")
 	root.add_child(_dust)
+	# в бункере — редкие тёплые пылинки в свете ламп
+	_bdust = _dust.duplicate()
+	_bdust.name = "BunkerDust"
+	_bdust.amount = 70
+	_bdust.lifetime = 9.0
+	_bdust.visibility_aabb = AABB(Vector3(-8, -2, -8), Vector3(16, 6, 16))
+	var bpm: ParticleProcessMaterial = pm.duplicate()
+	bpm.emission_box_extents = Vector3(6, 1.3, 6)
+	bpm.direction = Vector3(0, 1, 0)
+	bpm.spread = 180.0
+	bpm.initial_velocity_min = 0.02
+	bpm.initial_velocity_max = 0.12
+	bpm.gravity = Vector3(0, -0.01, 0)
+	_bdust.process_material = bpm
+	var bq: QuadMesh = qm.duplicate()
+	bq.size = Vector2(0.025, 0.025)
+	var bmat: StandardMaterial3D = mat.duplicate()
+	bmat.albedo_color = Color(1.0, 0.9, 0.7, 0.55)
+	bq.material = bmat
+	_bdust.draw_pass_1 = bq
+	_bdust.remove_from_group("surface_only")
+	_bdust.add_to_group("bunker_only")
+	root.add_child(_bdust)
 
 
 func set_preset(p: String) -> void:
@@ -219,6 +252,8 @@ func _process(delta: float) -> void:
 		gp.pitch_scale = lerpf(0.7, 2.2, clampf(r / 40.0, 0.0, 1.0))
 	if _dust and Core.player:
 		_dust.global_position = Core.player.global_position + Vector3(0, 2, 0)
+	if _bdust and Core.player:
+		_bdust.global_position = Core.player.global_position + Vector3(0, 1.3, 0)
 
 
 # ---------------- радиация ----------------

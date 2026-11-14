@@ -44,6 +44,16 @@ const CATALOG := {
 	"med_crate": {"n": "Армейский медицинский ящик", "cat": "Склад", "size": Vector3(0.7, 0.42, 0.45)},
 	"filter_box": {"n": "Фильтр ФВУ в упаковке", "cat": "Склад", "size": Vector3(0.5, 0.42, 0.5)},
 	"can_food": {"n": "Банка тушёнки", "cat": "Склад", "size": Vector3(0.1, 0.12, 0.1)},
+	"cable_run": {"n": "Кабели вдоль стены", "cat": "Детали стен", "size": Vector3(4.0, 0.1, 0.08)},
+	"extinguisher": {"n": "Огнетушитель на стене", "cat": "Детали стен", "size": Vector3(0.22, 0.6, 0.2)},
+	"vent_grille": {"n": "Решётка вентиляции", "cat": "Детали стен", "size": Vector3(0.6, 0.35, 0.06)},
+	"junction_box": {"n": "Распределительная коробка", "cat": "Детали стен", "size": Vector3(0.32, 0.42, 0.12)},
+	"dead_bush": {"n": "Сухой куст", "cat": "Поверхность", "size": Vector3(1.2, 0.9, 1.2)},
+	"car_wreck": {"n": "Сгоревшая легковушка", "cat": "Поверхность", "size": Vector3(1.8, 1.4, 4.4)},
+	"ruin_wall": {"n": "Руины кирпичного угла", "cat": "Поверхность", "size": Vector3(4.2, 3.0, 4.2)},
+	"scrap_heap": {"n": "Куча металлолома", "cat": "Поверхность", "size": Vector3(3.0, 1.2, 2.6)},
+	"trash_pile": {"n": "Мусорная куча", "cat": "Поверхность", "size": Vector3(2.2, 1.0, 1.8)},
+	"bricks": {"n": "Битый кирпич", "cat": "Поверхность", "size": Vector3(1.4, 0.3, 1.0)},
 	"medkit_box": {"n": "Аптечка", "cat": "Медпункт", "size": Vector3(0.3, 0.12, 0.22)},
 	# --- теплица ---
 	"grow_rack": {"n": "Стеллаж с растениями", "cat": "Теплица", "size": Vector3(1.8, 1.9, 0.6)},
@@ -1129,3 +1139,67 @@ static func _medkit_box(mk: BCMesh, col: Array, p: Dictionary) -> void:
 	mk.box("paint_white", I, Vector3(0.3, 0.11, 0.22), Vector3(0, 0.055, 0))
 	mk.box("paint_red", I, Vector3(0.12, 0.004, 0.035), Vector3(0, 0.112, 0))
 	mk.box("paint_red", I, Vector3(0.035, 0.004, 0.12), Vector3(0, 0.112, 0))
+
+
+# ======================= ДЕТАЛИ СТЕН (крепятся к стене задней стороной, «вперёд» — +Z) =======================
+
+static func _cable_run(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	var L: float = p.get("length", 4.0)
+	for k in 3:
+		var y := -0.025 + k * 0.025
+		var z := 0.025 + (k % 2) * 0.012
+		mk.pipe("rubber" if k != 1 else "paint_grey", I, Vector3(-L * 0.5, y, z), Vector3(L * 0.5, y, z), 0.011, 6, false)
+	var n := int(L / 0.8)
+	for i in n + 1:
+		var x := -L * 0.5 + i * (L / maxf(n, 1))
+		mk.box("steel_dark", I, Vector3(0.025, 0.09, 0.05), Vector3(x, 0.0, 0.025))
+
+
+static func _extinguisher(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.box("steel_dark", I, Vector3(0.14, 0.05, 0.03), Vector3(0, 0.3, 0.015))
+	mk.cyl("paint_red", I, 0.075, 0.46, Vector3(0, 0.0, 0.1), 12)
+	mk.sphere("paint_red", I, 0.075, Vector3(0, 0.46, 0.1), 12, 5, Vector3(1, 0.5, 1))
+	mk.cyl("steel_dark", I, 0.022, 0.07, Vector3(0, 0.49, 0.1), 8)
+	mk.box("steel_dark", I, Vector3(0.1, 0.02, 0.03), Vector3(0.04, 0.55, 0.1))
+	mk.pipe("rubber", I, Vector3(0.02, 0.53, 0.12), Vector3(0.09, 0.2, 0.16), 0.01, 6, false)
+	mk.box("paint_white", I, Vector3(0.09, 0.12, 0.004), Vector3(0, 0.22, 0.176))
+
+
+static func _vent_grille(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.box("steel_dark", I, Vector3(0.6, 0.35, 0.02), Vector3(0, 0, 0.01))
+	mk.box("black", I, Vector3(0.52, 0.27, 0.005), Vector3(0, 0, 0.022))
+	for k in 6:
+		mk.box("steel", I, Vector3(0.54, 0.018, 0.04), Vector3(0, -0.11 + k * 0.045, 0.035))
+
+
+static func _junction_box(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.box("paint_grey", I, Vector3(0.3, 0.38, 0.1), Vector3(0, 0, 0.05))
+	mk.box("steel_dark", I, Vector3(0.26, 0.34, 0.006), Vector3(0, 0, 0.103))
+	mk.box("paint_yellow", I, Vector3(0.1, 0.09, 0.004), Vector3(0, 0.08, 0.108))
+	mk.pipe("steel_dark", I, Vector3(0.08, 0.19, 0.05), Vector3(0.08, 1.0, 0.05), 0.016, 6, false)
+	mk.box("led_red", I, Vector3(0.018, 0.018, 0.01), Vector3(0.09, -0.12, 0.11))
+
+
+static func _dead_bush(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	var rng := _rng(p)
+	var sc: float = p.get("scale", 1.0)
+	for i in 9:
+		var a := rng.randf() * TAU
+		var tilt := rng.randf_range(0.35, 0.9)
+		var ln := rng.randf_range(0.45, 0.9) * sc
+		var tip := Vector3(cos(a) * sin(tilt), cos(tilt), sin(a) * sin(tilt)) * ln
+		mk.pipe("dry_wood", I, Vector3(0, 0, 0), tip, 0.024 * sc, 4, false)
+		for j in 3:
+			var b := a + rng.randf_range(-0.9, 0.9)
+			var mid := tip * rng.randf_range(0.4, 0.85)
+			mk.pipe("dry_wood", I, mid, mid + Vector3(cos(b) * 0.3, rng.randf_range(0.05, 0.3), sin(b) * 0.3) * sc, 0.012 * sc, 3, false)
+
+
+static func _bricks(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	var rng := _rng(p)
+	for i in 14:
+		var x := rng.randf_range(-0.6, 0.6)
+		var z := rng.randf_range(-0.4, 0.4)
+		var b := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.4, 0.4))
+		var sz := Vector3(0.25, 0.065, 0.12) * (1.0 if rng.randf() < 0.6 else 0.6)
+		mk.box("brick", Transform3D(b, Vector3(x, 0.035 + (0.06 if i > 10 else 0.0), z)), sz, Vector3.ZERO)

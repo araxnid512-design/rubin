@@ -134,6 +134,46 @@ func _run() -> void:
 		await _shot("s4_overview")
 		await _place(Vector3(-22.0, 0.1, -26.0), PI, -0.6)
 		await _shot("s5_tower")
+	if mode == "look":
+		await _place(Vector3(-5.2, -5.95, -24.8), PI)
+		await _shot("l1_living")
+		await _place(Vector3(3.4, -5.95, -16.5), 0)
+		await _shot("l2_generator")
+		await _place(Vector3(-14.0, -5.95, -25.0), PI)
+		await _shot("l3_medbay")
+		await _place(Vector3(20.0, 0.2, -12.0), PI, 0.3)
+		await _shot("l4_shed")
+		await _place(Vector3(-20.0, 0.2, 2.0), PI, -0.5)
+		await _shot("l5_west")
+		await _place(Vector3(-27.0, 0.2, -19.0), PI, 0.4)
+		await _shot("l6_ruin")
+		await _place(Vector3(14.0, 0.2, 9.5), PI, 0.0)
+		await _shot("l9_scrap")
+		await _place(Vector3(-3.0, 0.2, 16.0), PI, 0.0)
+		await _shot("l7_car")
+		# враги крупно: главарь и мутант рядом с героем (не нападают — стоят)
+		var enc: Node = get_tree().current_scene.get_node("Encounters")
+		var ld: BCNpc = enc.spawn("leader", Vector3(10.0, 0.2, 12.0), "", "Главарь")
+		var mu: BCNpc = enc.spawn("mutant", Vector3(12.0, 0.2, 12.0), "", "Мутант")
+		await _frames(5)
+		for e in [ld, mu]:
+			if e:
+				e.role = "resident"
+				e.state = "idle"
+				e._t = 99.0
+				e.remove_from_group("enemy")
+				e.global_position = enc.ground(Vector3(10.0 + (2.0 if e == mu else 0.0), 0, 12.0))
+		var cam := get_viewport().get_camera_3d()
+		cam.zoom = 0.6
+		await _place(Vector3(11.0, 0.2, 14.5), PI, 0.0)
+		await get_tree().create_timer(1.5).timeout
+		for e in [ld, mu]:
+			if e:
+				_log("  враг %s: %s, видим %s, в дереве %s, модель %s" % [e.variant, e.global_position, e.is_visible_in_tree(), e.is_inside_tree(), e.model_path])
+			else:
+				_log("  враг не создан")
+		await _shot("l8_enemies")
+		cam.zoom = 1.0
 	if mode == "perf":
 		await _perf_test()
 	if mode == "interact" or mode == "all" or mode == "sitlie":

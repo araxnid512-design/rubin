@@ -54,7 +54,7 @@ func spawn(variant: String, pos: Vector3, id: String, name: String) -> BCNpc:
 		e.npc_id = id
 	e.add_to_group("surface_only")
 	get_parent().add_child(e)
-	e.global_position = pos
+	e.global_position = ground(pos)
 	if variant == "leader" and m == RAIDER:
 		e.scale = Vector3.ONE * 1.08   # пока нет своей модели — крупнее обычного мародёра
 	return e
@@ -95,3 +95,11 @@ func _process(_d: float) -> void:
 		for m in muts:
 			if m.global_position.distance_to(p.global_position) > 25.0:
 				m.queue_free()
+
+
+## точка на земле под pos (луч сверху вниз по миру): рельеф неровный, иначе враг мог появиться под землёй
+func ground(pos: Vector3) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = (get_parent() as Node3D).get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(Vector3(pos.x, 30.0, pos.z), Vector3(pos.x, -3.0, pos.z), BCKit.LAYER_WORLD)
+	var hit: Dictionary = space.intersect_ray(q)
+	return (hit.position + Vector3(0, 0.05, 0)) if hit else pos

@@ -191,6 +191,7 @@ static func build_bunker(root: Node3D) -> Node3D:
 	BCKit.static_boxes(B, [[Vector3(2.8, 0.3, 1.4), Vector3(10.0, -0.15, -1.7)]], "LandingCol")
 	# --- земля вокруг бункера (срез грунта, виден, когда поверхность скрыта) ---
 	_soil(B)
+	_dress(B, y)
 	# --- обстановка ---
 	_living(B, y)
 	_medbay(B, y)
@@ -385,7 +386,9 @@ static func build_surface(root: Node3D) -> Node3D:
 	# ровные места: подъезд к порталу, дорога, площадки под постройку и трансформатор
 	ter.flats = [[10.0, 4.5, 4.0, 8.0, 0.0], [20.0, -20.0, 9.0, 7.0, 0.15], [-20.0, -8.0, 4.0, 4.0, 0.1], [-12.0, 6.0, 4.0, 9.0, 0.05]]
 	# насыпь над входом и бункером
-	ter.mounds = [[10.0, -5.5, 8.5, 3.0], [5.6, 0.2, 3.8, 1.9], [14.4, 0.2, 3.8, 1.9], [3.0, -6.0, 6.0, 1.0], [-6.0, -24.0, 10.0, 0.7]]
+	ter.mounds = [[10.0, -5.5, 8.5, 3.0], [5.6, 0.2, 3.8, 1.9], [14.4, 0.2, 3.8, 1.9], [3.0, -6.0, 6.0, 1.0], [-6.0, -24.0, 10.0, 0.7],
+		# воронки
+		[-26.0, 6.0, 3.2, -0.9], [27.0, -27.0, 2.8, -0.8], [-4.0, 18.0, 2.4, -0.6], [30.0, 10.0, 2.2, -0.55]]
 	ter.roads = [[[0.0, 52.0], [0.0, 30.0], [5.0, 15.0], [10.0, 3.0]], [[0.0, 30.0], [-10.0, 18.0], [-14.0, 8.0]]]
 	ter.road_width = 3.2
 	ter.holes = [[10.0, -4.6, 3.1, 7.4]]
@@ -474,6 +477,7 @@ static func build_surface(root: Node3D) -> Node3D:
 	prop(S, "tire", Vector3(-8.6, 0.3, 10.3), 20)
 	for r in [[-25, -2, 1.2], [12, 18, 0.9], [28, 4, 1.4], [-16, -28, 1.1], [30, 22, 1.0], [-28, 28, 1.3]]:
 		prop(S, "rock", Vector3(r[0], 0.0, r[1]), r[0] * 13.0, {"seed": r[0] + 50, "scale": r[2]})
+	_dress_surface(S, ter)
 	# знаки радиационной опасности
 	for s in [[-1.0, 0.0, 30.4, 0], [24.0, 0.0, -3.6, 200], [-12.0, 0.0, 10.2, 160], [-37.6, 0.0, -10.0, 90], [37.6, 0.0, 6.0, -90], [7.2, 0.0, 1.2, 0]]:
 		prop(S, "warning_sign", Vector3(s[0], s[1], s[2]), s[3])
@@ -514,3 +518,80 @@ static func _wires(S: Node3D, poles: Array) -> void:
 				mk.pipe("black", Transform3D.IDENTITY, prev, p, 0.012, 3, false)
 				prev = p
 	BCKit.add_mesh(S, mk, "Wires", false)
+
+
+## обжитость помещений: кабели по стенам, огнетушители, вентрешётки, щитки, грязь на полу и потёки на стенах
+static func _dress(B: Node3D, y: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	# [x0, x1, z0, z1, дверь: сторона, x двери]
+	var rooms := [[-18.0, -10.2, -29.6, -22.4, "s", -14.0], [-9.8, -2.2, -29.6, -22.4, "s", -6.0], [-1.8, 4.6, -29.6, -22.4, "s", 1.4],
+		[5.0, 13.0, -29.6, -22.4, "s", 9.0], [-18.0, -10.2, -19.2, -12.4, "n", -14.0], [-9.8, -0.2, -19.2, -12.4, "n", -5.0],
+		[0.2, 6.6, -19.2, -12.4, "n", 3.4]]
+	for r in rooms:
+		var x0: float = r[0]
+		var x1: float = r[1]
+		var z0: float = r[2]
+		var z1: float = r[3]
+		var door_z: float = z1 if r[4] == "s" else z0
+		var back_z: float = z0 if r[4] == "s" else z1
+		var back_rot := 0.0 if r[4] == "s" else 180.0
+		var door_rot := 180.0 if r[4] == "s" else 0.0
+		var dx: float = r[5]
+		prop(B, "cable_run", Vector3((x0 + x1) * 0.5, y + 2.55, back_z), back_rot, {"length": (x1 - x0) - 0.6})
+		prop(B, "extinguisher", Vector3(clampf(dx + 0.95, x0 + 0.4, x1 - 0.4), y + 0.95, door_z), door_rot)
+		prop(B, "junction_box", Vector3(clampf(dx - 1.1, x0 + 0.4, x1 - 0.4), y + 1.35, door_z), door_rot)
+		prop(B, "vent_grille", Vector3(x0, y + 2.45, (z0 + z1) * 0.5), 90.0)
+		BCDecor.room_grime(B, x0, z0, x1, z1, y, rng, 0.35 if x0 == -18.0 and z0 == -29.6 else 1.0)
+	# коридор: кабели вдоль, грязь и потёки
+	prop(B, "cable_run", Vector3(-2.5, y + 2.6, -22.0), 0.0, {"length": 30.0})
+	prop(B, "cable_run", Vector3(-2.5, y + 2.45, -22.0), 0.0, {"length": 30.0})
+	BCDecor.room_grime(B, -18.0, -22.0, 13.0, -19.6, y, rng, 1.4)
+	# шлюз — грязнее: пыль с поверхности
+	BCDecor.room_grime(B, 7.0, -19.2, 13.0, -12.4, y, rng, 1.6)
+
+
+## поверхность: сухие кусты, битый кирпич, завалы у построек, кольца выброса у воронок, пятна и мусор на земле
+static func _dress_surface(S: Node3D, ter: BCTerrain) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	var at := func(x: float, z: float) -> Vector3: return Vector3(x, ter.height_at(x, z), z)
+	# кусты — там, где нет дорог и построек
+	var keep := [Rect2(6.0, -9.0, 9.0, 16.0), Rect2(15.0, -24.0, 10.0, 8.0), Rect2(-16.0, 2.0, 8.0, 8.0)]
+	var n := 0
+	while n < 34:
+		var x := rng.randf_range(-36.0, 36.0)
+		var z := rng.randf_range(-42.0, 28.0)
+		var ok := true
+		for r in keep:
+			if (r as Rect2).has_point(Vector2(x, z)):
+				ok = false
+		if absf(x) < 3.5 and z > 8.0:
+			ok = false
+		if not ok:
+			continue
+		prop(S, "dead_bush", at.call(x, z), rng.randf() * 360.0, {"seed": 300 + n, "scale": rng.randf_range(0.7, 1.4), "collide": false})
+		n += 1
+	# битый кирпич и завалы у разрушенной постройки и по участку
+	for b in [[17.0, -17.0], [23.5, -22.5], [21.5, -16.5], [-21.0, -5.0], [5.5, 7.0], [-9.0, -14.0], [26.0, -12.0], [-30.0, -18.0]]:
+		prop(S, "bricks", at.call(b[0], b[1]), rng.randf() * 360.0, {"seed": int(b[0] * 7 + b[1]), "collide": false})
+	for r in [[24.5, -24.0, 0.8], [-24.0, -10.0, 0.9], [8.0, 16.0, 0.7], [-33.0, 4.0, 1.0], [33.0, -20.0, 0.8]]:
+		prop(S, "rubble", at.call(r[0], r[1]), rng.randf() * 360.0, {"seed": int(r[0] * 3), "scale": r[2]})
+	# крупные обломки (модели Tripo; без модели — не ставятся)
+	for o in [["car_wreck", -3.5, 21.5, 24.0], ["car_wreck", 28.5, 1.0, -62.0], ["ruin_wall", -29.0, -25.0, 30.0], ["ruin_wall", 30.0, -36.0, 205.0],
+			["scrap_heap", 15.5, 12.5, 10.0], ["scrap_heap", -23.0, 15.0, -40.0], ["trash_pile", 4.0, 7.0, 40.0], ["trash_pile", 25.8, -8.8, -15.0],
+			["trash_pile", -14.0, -11.5, 70.0]]:
+		if ResourceLoader.exists("res://assets/models/%s.glb" % o[0]):
+			prop(S, o[0], at.call(o[1], o[2]) - Vector3(0, 0.05, 0), o[3])
+	# пятна, трещины и мусор на земле
+	var items := []
+	for i in 26:
+		var x := rng.randf_range(-34.0, 34.0)
+		var z := rng.randf_range(-40.0, 26.0)
+		items.append({"tile": [BCDecor.STAIN, BCDecor.CRACKS, BCDecor.DEBRIS][rng.randi() % 3], "pos": at.call(x, z) + Vector3(0, 0.1, 0),
+			"size": Vector2.ONE * rng.randf_range(1.0, 1.8), "rot": rng.randf() * 360.0})
+	# масляное пятно под грузовиком, мусор у входа и в постройке
+	items.append({"tile": BCDecor.STAIN, "pos": at.call(-12.0, 6.0) + Vector3(0, 0.04, 0), "size": Vector2(3.0, 2.4), "rot": 30.0})
+	items.append({"tile": BCDecor.DEBRIS, "pos": at.call(9.0, 4.0) + Vector3(0, 0.04, 0), "size": Vector2(2.0, 2.0), "rot": 10.0})
+	items.append({"tile": BCDecor.DEBRIS, "pos": Vector3(20.5, 0.17, -19.5), "size": Vector2(2.4, 2.4), "rot": 70.0})
+	BCDecor.decals(S, items, "GroundGrime")
