@@ -1,4 +1,131 @@
 {
- "stop": true,
- "jobs": []
+ "stop": false,
+ "jobs": [
+  {
+   "id": "bs_hero",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_hero",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Post-apocalyptic survivor man about 35 years old, short dark hair and short beard, tired face, worn olive-green field jacket with patches, grey hoodie under it, dark cargo trousers, worn leather tactical boots, small backpack, fingerless gloves, dosimeter clipped to the chest. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:climb,preset:biped:run_upstairs,preset:biped:jump_down,preset:biped:sit,preset:biped:look_around,preset:biped:lift_heavy,preset:biped:dig",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "bs_hero_suit",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_hero_suit",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "The same survivor man wearing a bulky yellow radiation hazmat protective suit with a hood and a full-face rubber gas mask with round filter, black rubber gloves and black rubber boots, dirty and worn fabric. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:climb,preset:biped:run_upstairs,preset:biped:jump_down,preset:biped:sit,preset:biped:look_around,preset:biped:lift_heavy,preset:biped:dig",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "bs_npc_eng",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_npc_eng",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Older male bunker engineer about 60 years old, grey hair and grey moustache, glasses, faded blue work overalls with tool belt, rolled sleeves, old work boots. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "bs_npc_med",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_npc_med",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Woman field medic about 30 years old, dark hair in a ponytail, light blue medical scrubs under a padded olive vest with red cross patch, practical boots. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "bs_raider",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_raider",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Hostile wasteland raider man in a scratched black gas mask, patched leather jacket with improvised metal shoulder plates, dirty camouflage trousers, combat boots, rags. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.8 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+   ],
+   "timeout": 7000
+  }
+ ]
 }
