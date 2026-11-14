@@ -48,6 +48,13 @@ android {
         ignoreAssetsPattern '!.svn:!.git:!.gitignore:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
 
+    // библиотека движка в APK — сжатой (70 → ~25 МБ), распаковывается при установке
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
     sourceSets {
         main {
             assets.srcDirs = ['build/godot_assets']

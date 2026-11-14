@@ -37,6 +37,9 @@ jobs:
         run: |
           mkdir -p export
           ../godot4 --headless --path . --import > export/import.log 2>&1 || true
+          # текстуры, извлечённые из GLB, — сжатие для телефона и не больше 1024 (иначе пакет втрое больше)
+          python3 tools/fix_imports.py
+          ../godot4 --headless --path . --import >> export/import.log 2>&1 || true
           ../godot4 --headless --path . --export-pack "Android" export/bunker.zip 2>&1 | tail -20
           ls -la export/bunker.zip
           mkdir -p android/app/build/godot_assets

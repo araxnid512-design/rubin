@@ -11,9 +11,15 @@ func _ready() -> void:
 	Core.env.attach(self)
 	Core.world.world_root = self
 	var t0 := Time.get_ticks_msec()
-	Locations.build_surface(self)
-	Locations.build_bunker(self)
+	var surf := Locations.build_surface(self)
+	var bunk := Locations.build_bunker(self)
 	print("BunkerCore: мир построен за %d мс" % (Time.get_ticks_msec() - t0))
+	# неподвижную геометрию — в общие сетки по участкам (меньше вызовов отрисовки на телефоне)
+	await get_tree().process_frame
+	var t1 := Time.get_ticks_msec()
+	var b1 := BCBatcher.batch(bunk, 9.0)
+	var b2 := BCBatcher.batch(surf, 20.0)
+	print("BunkerCore: объединено %d сеток в %d (бункер), %d в %d (поверхность) за %d мс" % [b1.removed, b1.made, b2.removed, b2.made, Time.get_ticks_msec() - t1])
 	player = BCPlayer.new()
 	player.name = "Player"
 	add_child(player)

@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bqatsl2vy1e00"
-path="res://.godot/imported/raider_bs_raider_a_glb_rm.jpg-f4a2d5d360eb116272c7c3e2b88087b7.ctex"
+path.s3tc="res://.godot/imported/raider_bs_raider_a_glb_rm.jpg-f4a2d5d360eb116272c7c3e2b88087b7.s3tc.ctex"
+path.etc2="res://.godot/imported/raider_bs_raider_a_glb_rm.jpg-f4a2d5d360eb116272c7c3e2b88087b7.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "16c45375fe5b8c1696e391e9b393a5f0"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/raider_bs_raider_a_glb_rm.jpg"
-dest_files=["res://.godot/imported/raider_bs_raider_a_glb_rm.jpg-f4a2d5d360eb116272c7c3e2b88087b7.ctex"]
+dest_files=["res://.godot/imported/raider_bs_raider_a_glb_rm.jpg-f4a2d5d360eb116272c7c3e2b88087b7.s3tc.ctex", "res://.godot/imported/raider_bs_raider_a_glb_rm.jpg-f4a2d5d360eb116272c7c3e2b88087b7.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +41,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

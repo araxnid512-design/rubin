@@ -36,6 +36,14 @@ window/vsync/vsync_mode=1
 
 enabled=PackedStringArray("res://core/editor/plugin.cfg")
 
+[importer_defaults]
+
+texture={
+"compress/mode": 2,
+"mipmaps/generate": true,
+"process/size_limit": 1024
+}
+
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true

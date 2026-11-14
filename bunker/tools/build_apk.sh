@@ -14,6 +14,8 @@ if [ ! -f "$AAR" ]; then
   curl -sfL -o "$AAR" https://repo1.maven.org/maven2/org/godotengine/godot/4.6.3.stable/godot-4.6.3.stable.aar
 fi
 "$GODOT" --headless --path . --import > export/import.log 2>&1 || true
+python3 tools/fix_imports.py
+"$GODOT" --headless --path . --import >> export/import.log 2>&1 || true
 rm -f export/bunker.zip
 "$GODOT" --headless --path . --export-pack "Android" export/bunker.zip > export/pack.log 2>&1
 A=android/app/build/godot_assets
