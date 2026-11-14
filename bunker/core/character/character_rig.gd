@@ -11,6 +11,7 @@ extends Node3D
 signal action_finished(name: String)
 
 @export var model_path := "res://assets/models/hero.glb"
+@export var anim_set := "res://assets/anim/hero"
 @export var height := 1.8
 
 var model: Node3D
@@ -20,6 +21,7 @@ var tree: AnimationTree
 var ik: BCFootIK
 var info := {}          ## клип → {len, speed, loop, blend, rate, lock}
 var scale_k := 1.0
+var yaw_offset := 0.0           ## поворот модели, чтобы её «вперёд» совпало с +Z узла
 var _action := ""
 var _action_t := 0.0
 var _pose := ""
@@ -29,9 +31,11 @@ var _crouch := 0.0
 var _crouch_t := 0.0
 
 
-func setup(path := "") -> void:
+func setup(path := "", set_dir := "") -> void:
 	if path != "":
 		model_path = path
+	if set_dir != "":
+		anim_set = set_dir
 	for c in get_children():
 		c.queue_free()
 	var sc: PackedScene = load(model_path)
@@ -57,9 +61,13 @@ func setup(path := "") -> void:
 	model.add_child(ap)
 	ap.root_node = ap.get_path_to(model)
 	var cfg := BCAnimSet.load_config()
-	var built := BCAnimSet.build(skel, model, cfg, scale_k)
+	var built := BCAnimSet.build(skel, model, cfg, scale_k, anim_set)
 	info = built.info
 	ap.add_animation_library("bc", built.lib)
+	# «вперёд» модели — по направлению шага в клипе ходьбы: поворачиваем модель так, чтобы шаг шёл по +Z узла
+	var fwd: Vector3 = info.walk.dir if info.has("walk") and info.walk.dir != Vector3.ZERO else Vector3.BACK
+	yaw_offset = atan2(fwd.x, fwd.z)
+	model.rotation.y = -yaw_offset
 	_build_tree()
 	ik = BCFootIK.new()
 	ik.name = "FootIK"
@@ -106,9 +114,14 @@ func _build_tree() -> void:
 	loco.sync = true
 	_speeds = {"idle": 0.0}
 	loco.add_blend_point(_anim("idle"), 0.0)
+	var last := 0.0
 	for k in ["walk", "run", "sprint"]:
 		if info.has(k):
 			var sp: float = info[k].speed if info[k].speed > 0.1 else {"walk": 1.3, "run": 3.6, "sprint": 5.6}[k]
+			# точки только по возрастанию скорости: клип, который медленнее предыдущего, не годится как «быстрее»
+			if sp <= last + 0.3:
+				continue
+			last = sp
 			_speeds[k] = sp
 			loco.add_blend_point(_anim(k), sp)
 	bt.add_node("loco", loco, Vector2(0, 0))

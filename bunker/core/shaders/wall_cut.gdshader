@@ -24,7 +24,7 @@ void fragment() {
 			d.x *= 0.85;
 			float r = length(d);
 			// мягкий край: шахматный дизер на границе круга
-			float edge = smoothstep(cut_radius, cut_radius * 0.82, r);
+			float edge = 1.0 - smoothstep(cut_radius * 0.82, cut_radius, r);
 			float dith = fract(dot(floor(FRAGCOORD.xy), vec2(0.5, 0.25)) * 2.0);
 			if (edge > dith * 0.98 + 0.01) discard;
 		}

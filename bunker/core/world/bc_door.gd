@@ -146,7 +146,7 @@ func _leaf(hinge_x: float, lw: float, side: float) -> void:
 	var body := AnimatableBody3D.new()
 	body.name = "Body"
 	body.collision_layer = BCKit.LAYER_WORLD
-	body.sync_to_physics = true
+	body.sync_to_physics = false   # коллизия сразу следует за поворотом петли
 	var cs := CollisionShape3D.new()
 	var sh := BoxShape3D.new()
 	sh.size = Vector3(lw, h, maxf(th, 0.08))

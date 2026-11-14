@@ -18,6 +18,7 @@ var dev_lbl: Label
 var minimap: Control
 var modal: Control = null
 var player: BCPlayer
+var _joy_was := false
 var _font_big := 22
 var _ui_scale := 1.0
 
@@ -195,8 +196,13 @@ func _apply_settings() -> void:
 func _process(_d: float) -> void:
 	if player == null:
 		return
-	if touch.joy_index >= 0 or player.move_input != Vector2.ZERO:
+	# джойстик: пока палец на экране — вектор от джойстика; отпустили — один раз обнулить
+	if touch.joy_index >= 0:
 		player.move_input = touch.move_vector()
+		_joy_was = true
+	elif _joy_was:
+		player.move_input = Vector2.ZERO
+		_joy_was = false
 	bars.hp.value = player.hp / player.max_hp * 100.0
 	bars.st.value = player.stamina
 	var rate: float = player.rad_rate * (0.15 if player.suit_on else 1.0)

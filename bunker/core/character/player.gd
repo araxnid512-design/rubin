@@ -8,8 +8,8 @@ signal stats_changed
 signal interact_target_changed(target)
 
 const WALK := 1.35
-const JOG := 3.4
-const SPRINT := 5.4
+const JOG := 3.1
+const SPRINT := 4.5
 const CROUCH := 1.15
 const ACCEL := 9.0
 const TURN := 9.0
@@ -55,7 +55,7 @@ func _ready() -> void:
 	rig = BCCharacter.new()
 	rig.name = "Rig"
 	add_child(rig)
-	rig.setup(hero_model if not suit_on else suit_model)
+	rig.setup(hero_model if not suit_on else suit_model, "res://assets/anim/" + ("suit" if suit_on else "hero"))
 	rig.action_finished.connect(_on_action_done)
 	_reach = Area3D.new()
 	_reach.name = "Reach"
@@ -292,7 +292,7 @@ func toggle_suit() -> void:
 	# модель меняется в момент, когда клип закрыт костюмом (середина)
 	if rig and ResourceLoader.exists(suit_model if suit_on else hero_model):
 		var keep_pose := rig._pose
-		rig.setup(suit_model if suit_on else hero_model)
+		rig.setup(suit_model if suit_on else hero_model, "res://assets/anim/" + ("suit" if suit_on else "hero"))
 		if keep_pose != "":
 			rig.set_pose(keep_pose)
 	Core.say("Защитный костюм надет: облучение снижено в 6–7 раз." if suit_on else "Костюм снят.", "info")

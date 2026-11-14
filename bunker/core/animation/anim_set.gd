@@ -53,7 +53,7 @@ static func _source(spec: String) -> Animation:
 
 ## построить библиотеку для скелета skel; ap_root — узел, от которого AnimationPlayer считает пути
 ## scale — во сколько раз модель героя больше исходной (для скорости клипов в метрах)
-static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float) -> Dictionary:
+static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float, set_dir := "res://assets/anim/hero") -> Dictionary:
 	var lib := AnimationLibrary.new()
 	var info := {}
 	var skel_path := String(ap_root.get_path_to(skel))
@@ -63,7 +63,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		var c: Dictionary = clips[clip_name]
 		var src: Animation = null
 		for spec in c.get("src", []):
-			src = _source(spec)
+			src = _source(String(spec).replace("{set}", set_dir))
 			if src:
 				break
 		if src == null:
@@ -75,14 +75,19 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		if t0 > 0.0 or t1 > 0.0:
 			a = _trim(a, t0, t1 if t1 > 0.0 else a.length)
 		var speed := 0.0
+		var dir := Vector3.ZERO
 		if c.get("inplace", false):
-			speed = _strip_root(a, skel, root_bone) * scale
+			var rr := _strip_root(a, skel, root_bone)
+			speed = rr[0] * scale
+			dir = rr[1]
 		if c.get("mirror", false):
 			_mirror(a, skel)
+		if c.get("hold", false):
+			a = _hold_last(a)
 		a.loop_mode = Animation.LOOP_LINEAR if c.get("loop", false) else Animation.LOOP_NONE
 		lib.add_animation(clip_name, a)
 		info[clip_name] = {"len": a.length, "speed": c.get("speed", speed), "loop": c.get("loop", false),
-			"blend": c.get("blend", 0.2), "rate": c.get("rate", 1.0), "lock": c.get("lock", true), "native": speed}
+			"blend": c.get("blend", 0.2), "rate": c.get("rate", 1.0), "lock": c.get("lock", true), "native": speed, "dir": dir}
 	return {"lib": lib, "info": info}
 
 
@@ -131,17 +136,30 @@ static func _sample(a: Animation, i: int, t: float):
 	return null
 
 
+## поза из последнего кадра (держится, пока не снимут)
+static func _hold_last(a: Animation) -> Animation:
+	var b := Animation.new()
+	b.length = 1.0
+	for i in a.get_track_count():
+		var ti := b.add_track(a.track_get_type(i))
+		b.track_set_path(ti, a.track_get_path(i))
+		var v = _sample(a, i, a.length)
+		if v != null:
+			b.track_insert_key(ti, 0.0, v)
+	return b
+
+
 ## «на месте»: вычесть горизонтальный дрейф кости-корня; вернуть родную скорость (единиц модели/с)
-static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String) -> float:
+static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String) -> Array:
 	var bi := skel.find_bone(root_bone)
 	if bi < 0:
-		return 0.0
+		return [0.0, Vector3.ZERO]
 	var track := -1
 	for i in a.get_track_count():
 		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
 			track = i
 	if track < 0 or a.track_get_key_count(track) < 2:
-		return 0.0
+		return [0.0, Vector3.ZERO]
 	# «вверх» модели в системе родителя кости
 	var parent := skel.get_bone_parent(bi)
 	var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
@@ -153,14 +171,14 @@ static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String) -> fl
 	var drift := v1 - v0
 	var hdrift := drift - up * drift.dot(up)
 	if T <= 0.0:
-		return 0.0
+		return [0.0, Vector3.ZERO]
 	for k in n:
 		var t := a.track_get_key_time(track, k)
 		var v: Vector3 = a.track_get_key_value(track, k)
 		a.track_set_key_value(track, k, v - hdrift * (t / T))
 	# скорость — длина дрейфа в мировых единицах модели (масштаб родителя учитывается позже)
-	var world_len := (pb * hdrift).length()
-	return world_len / T
+	var w := pb * hdrift
+	return [w.length() / T, Vector3(w.x, 0, w.z).normalized()]
 
 
 ## зеркальный клип (налево ↔ направо): кости L_ ↔ R_, отражение по X модели

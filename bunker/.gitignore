@@ -3,8 +3,4 @@
 android/build/
 android/.gradle/
 export/
-# текстуры, которые Godot сам извлекает из GLB при импорте
-*_glb_*.jpg
-*_glb_*.png
-*_glb_*.jpg.import
-*_glb_*.png.import
+assets/anim/src/

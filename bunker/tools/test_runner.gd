@@ -81,6 +81,16 @@ func _run() -> void:
 		await _shot("13_control")
 		await _place(Vector3(-14.1, -5.95, -16.0), 0)
 		await _shot("14_storage")
+	if mode == "probe":
+		var pl: BCPlayer = Core.player
+		for spot in [[Vector3(-6.0, -5.95, -23.2), Vector3(0, 0, 1)], [Vector3(10.0, -5.95, -13.2), Vector3(0, 0, 1)], [Vector3(-3.5, -5.95, -21.0), Vector3(1, 0, 0)]]:
+			await _place(spot[0], 0.0)
+			for k in 30:
+				var c := pl.move_and_collide(spot[1] * 0.1)
+				if c:
+					var o := c.get_collider() as Node
+					_log("упёрся в %s (%s) у %s" % [o.get_path() if o else "?", o.get_parent().name if o else "", pl.global_position])
+					break
 	if mode == "walk" or mode == "all":
 		await _walk_test()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
@@ -121,8 +131,11 @@ func _go(p: Vector3, timeout: float, run := false) -> void:
 		pl.move_input = Vector2(dn.dot(right), dn.dot(fwd))
 		# дверь на пути — открыть
 		if pl.target and pl.target is BCDoor and not pl.target.is_open:
+			_log("открываю: %s" % pl.target.label)
 			pl.do_interact()
-			await get_tree().create_timer(2.5).timeout
+			await get_tree().create_timer(2.8).timeout
+		if int(t * 60) % 120 == 0:
+			_log("  идёт: %s → %s, цель %s, состояние %s" % [pl.global_position.snapped(Vector3(0.01, 0.01, 0.01)), p, pl.target.label if pl.target and "label" in pl.target else str(pl.target), pl.state])
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
 	pl.move_input = Vector2.ZERO
