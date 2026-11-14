@@ -916,7 +916,7 @@
   const _lq = new THREE.Quaternion(), _lq2 = new THREE.Quaternion(), _lw = new THREE.Quaternion(), _lp = new THREE.Quaternion();
   const _lv = V(), _lv2 = V(), _lv3 = V(), _lI = new THREE.Quaternion();
   const NOLOOK = { climb: 1, vault: 1, reload: 1, throw: 1, throwk: 1, heal: 1, melee: 1, punch: 1, panic: 1, cheer: 1, hit: 1, hit2: 1, die: 1, die2: 1, die3: 1, idle2: 1, slide: 1, wall: 1, duck: 1 };
-  const _lv4 = V(), _lv5 = V();
+  const _lv4 = V(), _lv5 = V(), _lv6 = V(), _lv7 = V();
   function rotWorld(bone, q) {
     // поворот кости в мире на q (вокруг её сустава); дети идут за ней. Мировые матрицы к этому моменту свежие (после
     // позы, IK и прежних поворотов) — родителей не пересчитываем, берём готовые (дешевле на телефоне)
@@ -951,36 +951,37 @@
     e.lookW = (e.lookW || 0) + ((tgtU ? 1 : 0) - (e.lookW || 0)) * Math.min(1, dt * 4);
     if (tgtU) { e.lookP = UN.anchor(tgtU, false); e.lookP.y += 1.3 * (tr.unitScale(tgtU) / 1.13); }
     if (!e.lookP || (e.twW < 0.01 && e.lookW < 0.01)) return;
-    const Tq = torso(B);
-    // корпус: доворот по горизонтали до 60°, тремя позвонками
+    const Tq = torso(B, e.tq || (e.tq = mkTorso()));
+    // корпус: доворот по горизонтали до 60°, тремя позвонками; цель выше или ниже — верх корпуса наклоняется к ней
+    // (часть угла, остальное — руки и ствол); доворот и наклон — одним поворотом на позвонок
     if (e.twW > 0.01) {
       _lv.copy(Tq.Z).setY(0).normalize();
-      _lv2.copy(e.lookP).sub(B.Spine.getWorldPosition(_lv3)).setY(0);
+      _lv3.setFromMatrixPosition(B.Spine.matrixWorld);
+      _lv2.copy(e.lookP).sub(_lv3).setY(0);
       if (_lv2.lengthSq() > 0.01) {
-        _lv2.normalize();
+        const hl = _lv2.length();
+        _lv2.multiplyScalar(1 / hl);
         let ang = Math.atan2(_lv.z * _lv2.x - _lv.x * _lv2.z, _lv.dot(_lv2));
         ang = Math.max(-1.05, Math.min(1.05, ang)) * e.twW;
         _lq.setFromAxisAngle(UP, ang / 3);
-        if (B.Spine) rotWorld(B.Spine, _lq); if (B.Spine1) rotWorld(B.Spine1, _lq); if (B.Spine2) rotWorld(B.Spine2, _lq);
-      }
-      // цель выше или ниже: корпус наклоняется к ней (часть угла), остальное — руки и ствол
-      _lv2.copy(e.lookP).sub(B.Spine2 ? B.Spine2.getWorldPosition(_lv3) : _lv3.copy(Tq.R));
-      const hl = Math.hypot(_lv2.x, _lv2.z);
-      if (hl > 0.3 && B.Spine1 && B.Spine2) {
-        const el = Math.max(-0.6, Math.min(0.6, Math.atan2(_lv2.y, hl))) * 0.4 * e.twW;
-        if (Math.abs(el) > 0.01) { const T3 = torso(B, e.tq || (e.tq = mkTorso())); _lq.setFromAxisAngle(T3.X, el / 2); rotWorld(B.Spine1, _lq); rotWorld(B.Spine2, _lq); }
+        rotWorld(B.Spine, _lq);
+        const el = hl > 0.3 ? Math.max(-0.6, Math.min(0.6, Math.atan2(e.lookP.y - _lv3.y - 0.45, hl))) * 0.4 * e.twW : 0;
+        _lv4.set(_lv2.z, 0, -_lv2.x);   // ось: верх — к цели по горизонтали (+) / от неё (−)
+        _lq2.setFromAxisAngle(_lv4, -el / 2).multiply(_lq);
+        if (B.Spine1) rotWorld(B.Spine1, _lq2); if (B.Spine2) rotWorld(B.Spine2, _lq2);
       }
     }
-    // голова: на цель, до 55° в сторону и 30° вверх-вниз, пополам шея и голова
-    if (e.lookW > 0.01 && B.Neck) {
-      const T2 = torso(B);
+    // голова: на цель, до 55° в сторону и 30° вверх-вниз, пополам шея и голова (оружие у плеча — голова к прицелу,
+    // это sightHead после хвата)
+    if (e.lookW > 0.01 && B.Neck && !(e.sightW > 0.97)) {
+      const T2 = torso(B, Tq);
       const hp = B.Head.getWorldPosition(_lv3);
       _lv2.copy(e.lookP).sub(hp);
       if (_lv2.lengthSq() > 0.04) {
         _lv2.normalize();
         _lv.copy(T2.Z).normalize();
         // ограничить отклонение от груди
-        const fh = _lv.clone().setY(0).normalize(), th = _lv2.clone().setY(0);
+        const fh = _lv6.copy(_lv).setY(0).normalize(), th = _lv7.copy(_lv2).setY(0);
         if (th.lengthSq() > 1e-4) {
           th.normalize();
           let yaw = Math.atan2(fh.z * th.x - fh.x * th.z, fh.dot(th));
@@ -1074,7 +1075,7 @@
       // щитовик стреляет из-за щита одной рукой: отдача — кисть с пистолетом вверх-назад, кисть идёт за рукоятью
       if (R.on) applyRecoil(M, null, null, W, R);
       if (mode === 'hand' && R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: 'hand', grip: _huV.setFromMatrixPosition(M), fore: null, key: P.key, freeL: true, reload: false });
-      e.gk = null;
+      e.gk = null; e.sightW = 0;
     } else {
       // отдача корпусом: плечи назад, пулемётчика раскачивает (до хвата — оружие идёт от плеча)
       if (R.on) bodyRecoil(e, R);
@@ -1127,7 +1128,8 @@
         if (R3.grip && R3.grip.apply) R3.grip.apply({ body: e.body, W: W, M: M, mode: mode, grip: grip, fore: fore, key: P.key, freeL: freeL, reload: false, foreSlide: R.pump * 0.1 });
       } else if (R3.grip && R3.grip.relax) R3.grip.relax(e.body);   // ствол за спиной — пальцы разжаты
       // голова к прицелу: щекой к прикладу, взгляд вдоль ствола (у пистолета — над руками, у РПГ — к прицелу слева)
-      if (aimW > 0.01) sightHead(e, M, W, aimW, grp, R);
+      if (aimW > 0.01 && !(UN._dbg && UN._dbg.noSight)) sightHead(e, M, W, aimW, grp, R);
+      e.sightW = grp === 'hip' ? 0 : aimW;
     }
     W.g.matrix.copy(M);
     W.g.matrixWorldNeedsUpdate = true;
@@ -1170,7 +1172,7 @@
      Сила — ещё и по «отдаче» ствола из Мастерской оружия (WT fire.kick). */
   const RECOIL = {
     smg: { kick: 0.022, rise: 1.6, climb: 1.1, yaw: 0.9, body: 1.0, sway: 0, tk: 45, tc: 200, head: 1 },
-    rifle: { kick: 0.035, rise: 3.2, climb: 1.8, yaw: 0.8, body: 1.8, sway: 0, tk: 60, tc: 260, head: 2 },
+    rifle: { kick: 0.035, rise: 2.6, climb: 1.4, yaw: 0.8, body: 1.8, sway: 0, tk: 60, tc: 260, head: 2 },
     lmg: { kick: 0.03, rise: 2.2, climb: 0.9, yaw: 1.4, body: 2.4, sway: 2.2, tk: 70, tc: 320, head: 1.5 },
     sniper: { kick: 0.065, rise: 8, climb: 0, yaw: 0.6, body: 5.5, sway: 0, tk: 115, tc: 450, head: 7 },
     shotgun: { kick: 0.09, rise: 13, climb: 0, yaw: 1.5, body: 8.5, sway: 0, tk: 125, tc: 480, head: 6 },
@@ -1258,7 +1260,7 @@
   /* ---------- Голова к прицелу ----------
      глаз (правый, прицельный) — в осях кости головы по позе покоя; цель — линия прицела над стволом: шея ведёт глаз к ней,
      голова смотрит вдоль ствола. Пистолет — на вытянутых руках (глаз далеко за рукоятью), РПГ — прицел слева от трубы */
-  const SIGHT = { aim: [0, 0.072, -0.17], hip: [0, 0.2, -0.05], pistol: [0, 0.05, 0.5], pistol1: [0, 0.07, 0.62], rpg: [-0.085, 0.06, 0.06] };
+  const SIGHT = { aim: [0, 0.085, -0.17], hip: [0, 0.2, -0.05], pistol: [0, 0.05, 0.5], pistol1: [0, 0.07, 0.62], rpg: [-0.085, 0.06, 0.06] };
   const _shE = V(), _shT = V(), _shN = V(), _shF = V(), _shD = V(), _shQ = new THREE.Quaternion(), _shQ2 = new THREE.Quaternion(), _shI = new THREE.Quaternion();
   function eyeSetup(body) {
     const r = body.rest.Head, s = body.H / 1.8;
@@ -1273,11 +1275,11 @@
     if (ang > max) q.slerp(_shI.identity(), 1 - max / ang);
     return q;
   }
-  // шея: глаз — к точке P (не больше max), с весом w
+  // шея: глаз — к точке P (не больше max), с весом w (матрицы свежие — без пересчёта родителей)
   function neckTo(body, P, w, max) {
-    const B = body.B, pN = B.Neck.getWorldPosition(_shN);
-    B.Head.getWorldQuaternion(_shQ2);
-    const eye = _shE.copy(body.eyeL).applyQuaternion(_shQ2).add(B.Head.getWorldPosition(_shD));
+    const B = body.B, pN = _shN.setFromMatrixPosition(B.Neck.matrixWorld);
+    B.Head.matrixWorld.decompose(_shD, _shQ2, _shE);
+    const eye = _shE.copy(body.eyeL).applyQuaternion(_shQ2).add(_shD);
     _shD.subVectors(eye, pN); _shF.subVectors(P, pN);
     if (_shD.lengthSq() < 1e-6 || _shF.lengthSq() < 1e-6) return;
     _shD.normalize(); _shF.normalize();
@@ -1294,35 +1296,32 @@
     if (grp === 'aim') _shT.set(0, W.muzzle.y + S[1], (W.buttZ || 0.3) + S[2]);
     else _shT.set(S[0], W.muzzle.y + S[1], S[2]);
     _shT.applyMatrix4(M);
-    // 1) шея: голову — вперёд-вниз, щекой к прикладу
-    neckTo(body, _shT, w * 0.95, 36 * DG);
-    // 2) голова: взгляд вдоль ствола, но чуть опущена (глаз смотрит через прицел исподлобья) и наклонена к прикладу
-    headAim(body, M, w, grp, R);
-    // 3) шея ещё раз — остаток (голова повернулась, глаз сместился), и снова взгляд вдоль ствола
-    neckTo(body, _shT, w * 0.8, 15 * DG);
+    // шея: голову — вперёд-вниз, щекой к прикладу (умеренно: сильный изгиб шеи рвёт воротник у моделей)
+    neckTo(body, _shT, w * 0.92, 30 * DG);
+    // голова: взгляд вдоль ствола, но чуть опущена (глаз смотрит через прицел исподлобья) и наклонена к прикладу
     headAim(body, M, w, grp, R);
   }
-  // голова: взгляд — вдоль ствола на 12° ниже, наклон к прикладу; на выстреле снайперки/дробовика голову подбрасывает
+  // голова: взгляд — вдоль ствола на 12° ниже, наклон к прикладу; на выстреле снайперки/дробовика голову подбрасывает.
+  // Поворот взгляда и наклон — одним поворотом кости
+  const _haQ = new THREE.Quaternion(), _haU = V();
   function headAim(body, M, w, grp, R) {
     const B = body.B;
     _shN.setFromMatrixColumn(M, 0).normalize();
     _shF.set(0, 0, -1).transformDirection(M).applyAxisAngle(_shN, -12 * DG + (R ? R.head : 0));
-    B.Head.getWorldQuaternion(_shQ2);
+    B.Head.matrixWorld.decompose(_shE, _shQ2, _shD);
     _shD.copy(body.fwdL).applyQuaternion(_shQ2);
     _shQ.setFromUnitVectors(_shD, _shF); limitQ(_shQ, 50 * DG);
+    // «верх» головы после поворота взгляда → к вертикали, наклонённой на cant вокруг взгляда
+    _shD.copy(body.upL).applyQuaternion(_shQ2).applyQuaternion(_shQ);
+    _haU.copy(UP).applyAxisAngle(_shF, (grp === 'rpg' ? -5 : 8) * DG);
+    _shD.addScaledVector(_shF, -_shD.dot(_shF)); _haU.addScaledVector(_shF, -_haU.dot(_shF));
+    if (_shD.lengthSq() > 1e-6 && _haU.lengthSq() > 1e-6) {
+      _shD.normalize(); _haU.normalize();
+      _haQ.setFromUnitVectors(_shD, _haU); limitQ(_haQ, 25 * DG);
+      _shQ.premultiply(_haQ);
+    }
     _shQ2.identity().slerp(_shQ, w);
     rotWorld(B.Head, _shQ2);
-    // наклон к прикладу: поворот вокруг взгляда, пока «верх» головы не наклонится на cant от вертикали
-    B.Head.getWorldQuaternion(_shQ2);
-    _shD.copy(body.upL).applyQuaternion(_shQ2);
-    _shE.copy(UP).applyAxisAngle(_shF, (grp === 'rpg' ? -5 : 8) * DG);
-    _shD.addScaledVector(_shF, -_shD.dot(_shF)); _shE.addScaledVector(_shF, -_shE.dot(_shF));
-    if (_shD.lengthSq() > 1e-6 && _shE.lengthSq() > 1e-6) {
-      _shD.normalize(); _shE.normalize();
-      _shQ.setFromUnitVectors(_shD, _shE); limitQ(_shQ, 25 * DG);
-      _shQ2.identity().slerp(_shQ, w);
-      rotWorld(B.Head, _shQ2);
-    }
   }
 
   /* ---------- Попадание: вздрагивание от выстрела ----------
@@ -1380,7 +1379,7 @@
     const B = e.body.B;
     // ось: перпендикуляр к направлению удара — верх корпуса уходит от стрелка; сбоку — ещё и разворот
     _flA.set(F.z, 0, -F.x);
-    const a = 20 * DG * F.k, tw = 12 * DG * F.k * F.tw;
+    const a = 24 * DG * F.k, tw = -12 * DG * F.k * F.tw;   // грудь отворачивается от стрелка
     for (let i = 0; i < FLB.length; i++) {
       const b = B[FLB[i]];
       if (!b) continue;
@@ -1555,34 +1554,45 @@
     P0.y = groundY(P0.x, P0.z);
     let L = 0;
     if (V0.launch) L = cause.blast >= 0 ? U.clamp(1.5 - cause.blast * 0.35, 0.6, 1.5) : 0.75;
-    // куда лечь: от удара, в свободную сторону (16 направлений, отклонение — дороже)
-    const a0 = Math.atan2(cause.z, cause.x);
-    let best = a0, bestS = 1e9, bestL = L;
+    // куда лечь: от удара, в свободную сторону (16 направлений, отклонение — дороже); лучшие — проверить конечной
+    // позой: ни одна кость не в стене/предмете, не на террасе выше, не над обрывом, тело не поднято над грунтом
+    const a0 = Math.atan2(cause.z, cause.x), cands = [];
     for (let k = 0; k < 16; k++) {
       const off = (k % 2 ? -1 : 1) * Math.ceil(k / 2) * Math.PI / 8;
       const a = a0 + off, cx = Math.cos(a), cz = Math.sin(a);
       for (let li = 0; li < (L > 0 ? 3 : 1); li++) {
         const l = L * [1, 0.5, 0][li];
-        let s = Math.abs(off) * 1.3 + (L - l) * 1.5;
-        s += lieCost(B, P0.x + cx * (0.6 + l), P0.z + cz * (0.6 + l), lvl, u.id);
-        s += lieCost(B, P0.x + cx * (1.25 + l), P0.z + cz * (1.25 + l), lvl, u.id);
-        s += lieCost(B, P0.x - cx * (0.7 - l * 0.5), P0.z - cz * (0.7 - l * 0.5), lvl, u.id) * 0.6;
-        s += (lieCost(B, P0.x - cz * 0.55 + cx * 0.4, P0.z + cx * 0.55 + cz * 0.4, lvl, u.id) + lieCost(B, P0.x + cz * 0.55 + cx * 0.4, P0.z - cx * 0.55 + cz * 0.4, lvl, u.id)) * 0.25;
-        if (s < bestS - 1e-6) { bestS = s; best = a; bestL = l; }
+        let sc = Math.abs(off) * 1.3 + (L - l) * 1.5;
+        sc += lieCost(B, P0.x + cx * (0.6 + l), P0.z + cz * (0.6 + l), lvl, u.id);
+        sc += lieCost(B, P0.x + cx * (1.25 + l), P0.z + cz * (1.25 + l), lvl, u.id);
+        sc += lieCost(B, P0.x - cx * (0.7 - l * 0.5), P0.z - cz * (0.7 - l * 0.5), lvl, u.id) * 0.6;
+        sc += (lieCost(B, P0.x - cz * 0.55 + cx * 0.4, P0.z + cx * 0.55 + cz * 0.4, lvl, u.id) + lieCost(B, P0.x + cz * 0.55 + cx * 0.4, P0.z - cx * 0.55 + cz * 0.4, lvl, u.id)) * 0.25;
+        cands.push({ a: a, l: l, s: sc });
       }
     }
-    L = bestL;
-    const dx = Math.cos(best), dz = Math.sin(best);
-    // разворот: направление падения движения (оси бойца) → выбранное направление
-    let ry1 = Math.atan2(dx, dz) - Math.atan2(lf.x, lf.z);
-    ry1 = ry0 + wrapA(ry1 - ry0);
+    cands.sort(function (p, q2) { return p.s - q2.s; });
     const D0 = e.dth = {
-      vk: vk, segs: segs, dur: dur, t0: live ? an.a.t0 : t - 1e7, sp: sp, cause: cause,
-      p0: e.lp && e.key ? e.lp.clone() : P0.clone(), pT: P0, ry0: ry0, ry1: ry1, dx: dx, dz: dz, L: L, lvl: lvl,
+      vk: vk, segs: segs, dur: dur, t0: live ? an.a.t0 : t - 1e7, sp: sp, cause: cause, uid: u.id, ix0: u.y * B.w + u.x,
+      p0: e.lp && e.key ? e.lp.clone() : P0.clone(), pT: P0, ry0: ry0, ry1: ry0, dx: 1, dz: 0, L: 0, lvl: lvl,
       spinD: (V0.spin ? 0.55 : 0.4) * dur, launchD: Math.min(420, dur * 0.35),
       rel: V0.rel, imp: dur * 0.5, fromQ: null, wd: null, sd: null, events: 0,
       down: u.kind === 'soldier' && u.down > 0
     };
+    let pick = null, pickS = 1e9;
+    for (let k = 0; k < Math.min(6, cands.length); k++) {
+      const C = cands[k];
+      D0.dx = Math.cos(C.a); D0.dz = Math.sin(C.a); D0.L = C.l;
+      // разворот: направление падения движения (оси бойца) → выбранное направление
+      D0.ry1 = ry0 + wrapA(Math.atan2(D0.dx, D0.dz) - Math.atan2(lf.x, lf.z) - ry0);
+      deathSettle(e, D0);
+      const ok = D0.bad < 0.5 && D0.dy < 0.25 && D0.dy > -0.35;
+      const sc = C.s * 0.25 + D0.bad * 2 + Math.max(0, D0.dy - 0.1) * 6 + Math.max(0, -0.3 - D0.dy) * 3;
+      if (sc < pickS) { pickS = sc; pick = { a: C.a, l: C.l, ry1: D0.ry1 }; }
+      if (ok) break;
+    }
+    D0.dx = Math.cos(pick.a); D0.dz = Math.sin(pick.a); D0.L = pick.l; D0.ry1 = pick.ry1;
+    deathSettle(e, D0);
+    const dx = D0.dx, dz = D0.dz;
     // откуда начинается падение: текущая поза (плавный переход), тело с начала боя — сразу лежит
     if (live && e.key) { D0.fromQ = { q: Float32Array.from(e.pose.q), hp: e.pose.hp.clone() }; }
     // когда тело касается земли: таз ниже 0,35 м в последнем сегменте
@@ -1594,8 +1604,6 @@
         if (lc.hp[f * 3 + 1] * body.hipK + body.rest.Hips.wp.y < 0.38) { D0.imp = last.t0 + (tf - last.a) / last.v * 1000; break; }
       }
     }
-    // конечное место: бросок, лёжка по грунту (наклон по маршу лестницы, подъём, чтобы ни одна кость не ушла в землю)
-    deathSettle(e, D0);
     // занятые телом клетки
     const ix = function (X, Z) { return Math.floor(Z / T) * B.w + Math.floor(X / T); };
     D0.occ = [ix(D0.p1.x, D0.p1.z), ix(D0.p1.x + dx * 1.0, D0.p1.z + dz * 1.0), ix(D0.p1.x - dx * 0.6, D0.p1.z - dz * 0.6)];
@@ -1627,10 +1635,23 @@
           continue;
         }
       }
-      // подъём: каждая кость — не ниже грунта на свою толщину (опускаем, если тело висит в воздухе)
-      let dy = -1e9;
-      for (const k in BRAD) { const b = B[k]; if (!b) continue; b.getWorldPosition(_dv); dy = Math.max(dy, groundY(_dv.x, _dv.z) + BRAD[k] * s - _dv.y); }
+      // подъём: каждая кость — не ниже грунта на свою толщину (опускаем, если тело висит в воздухе);
+      // плохие кости: в предмете или стене, над террасой выше или над обрывом (марш лестницы — можно)
+      let dy = -1e9, bad = 0;
+      const Bt = DW.BT.get(), lv = D0.lvl * LV, own = D0.ix0;
+      for (const k in BRAD) {
+        const b = B[k]; if (!b) continue;
+        b.getWorldPosition(_dv);
+        const g = groundY(_dv.x, _dv.z);
+        dy = Math.max(dy, g + BRAD[k] * s - _dv.y);
+        const x = Math.floor(_dv.x / T), y = Math.floor(_dv.z / T), i = y * Bt.w + x;
+        if (x < 0 || y < 0 || x >= Bt.w || y >= Bt.h) { bad += 2; continue; }
+        if (i !== own && Bt.obj[i]) bad += D.OBJ[Bt.obj[i]] && D.OBJ[Bt.obj[i]].cover === 2 ? 2 : 1;
+        if (!(DW.BT.stairAt && DW.BT.stairAt(i)) && Math.abs(g - lv) > 0.4) bad += g > lv ? 2 : 1;
+        if (lieOcc[i] !== undefined && lieOcc[i] !== D0.uid) bad += 0.25;
+      }
       D0.dy = dy > -1e8 ? U.clamp(dy, -0.4, 1.6) : 0;
+      D0.bad = bad;
       break;
     }
     // грудь на земле — сюда лужа крови

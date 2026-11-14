@@ -456,15 +456,15 @@
     if (!pools || q() === 0 && poolL.length >= 12) return;
     const i = poolL.length < POOL_MAX ? poolL.length : poolL.findIndex(function (p) { return p.done; });
     if (i < 0) return;
-    const P = { i: i, x: x, y: y + 0.014 + i * 0.0004, z: z, s: (size || 0.7) * (slow ? 1.35 : 1), rot: Math.random() * 6.28, t0: now(), dur: slow ? 14000 : 5500, done: false, inst: !!instant };
+    const P = { i: i, x: x, y: y + 0.014 + i * 0.0004, z: z, s: (size || 0.7) * (slow ? 1.5 : 1.25), rot: Math.random() * 6.28, t0: now(), dur: slow ? 10000 : 4000, done: false, inst: !!instant };
     poolL[i] = P;
     pools.setColorAt(i, col(POOLC[kind] || POOLC.blood)); pools.instanceColor.needsUpdate = true;
     pools.count = Math.max(pools.count, i + 1);
     poolDraw(P, now());
   };
   function poolDraw(P, t) {
-    const k = P.inst ? 1 : Math.min(1, (t - P.t0) / P.dur), e = 1 - Math.pow(1 - k, 2.2);
-    const s = P.s * (0.18 + 0.82 * e);
+    const k = P.inst ? 1 : Math.min(1, (t - P.t0) / P.dur), e = 1 - Math.pow(1 - k, 2.6);
+    const s = P.s * (0.3 + 0.7 * e);
     dummy.position.set(P.x, P.y, P.z); dummy.rotation.set(-Math.PI / 2, 0, P.rot); dummy.scale.set(s, s * 0.85, 1); dummy.updateMatrix();
     pools.setMatrixAt(P.i, dummy.matrix); pools.instanceMatrix.needsUpdate = true;
     dummy.scale.set(1, 1, 1);
@@ -557,5 +557,7 @@
   }
   // гильза так и не вылетела (бой закончился раньше) — не класть
   function t0ok(c) { return now() < c.t0; }
+  // для тестов: сколько луж, гильз в полёте и на земле, следов
+  FX.stats = function () { return { pools: poolL.length, poolDone: poolL.filter(function (p) { return p && p.done; }).length, casFly: casL.length, casLie: spentN, marks: markN, rounds: rounds.length }; };
   FX.busy = function () { return rounds.length > 0 || hits.length > 0 || projs.length > 0 || (glow && glow.list.length > 0) || light.intensity > 0.05; };
 })(window.DW);
