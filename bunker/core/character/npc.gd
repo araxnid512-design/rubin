@@ -116,7 +116,9 @@ func _attack() -> void:
 			return
 		var p: Node3D = Core.player
 		var dd := p.global_position - global_position
-		if dd.length() < 1.6 and global_transform.basis.z.dot(dd.normalized()) > 0.4:
+		var landed := dd.length() < 1.6 and global_transform.basis.z.dot(dd.normalized()) > 0.4
+		Core.play_at("punch" if landed else "swoosh", global_position + Vector3.UP * 1.3, -3.0 if landed else -9.0)
+		if landed:
 			p.damage(9.0, -dd))
 	get_tree().create_timer(dur).timeout.connect(func():
 		if state == "attack":

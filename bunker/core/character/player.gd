@@ -171,9 +171,9 @@ func _footsteps(speed: float, delta: float) -> void:
 		var surf := "step_concrete" if Core.world.underground else "step_dirt"
 		if suit_on:
 			surf = "step_suit"
-		var path := "res://assets/audio/%s.wav" % surf
-		if ResourceLoader.exists(path):
-			_snd_step.stream = load(path)
+		var st := Core.sfx(surf)
+		if st:
+			_snd_step.stream = st
 			_snd_step.pitch_scale = randf_range(0.9, 1.1)
 			_snd_step.volume_db = -14.0 if crouching else (-8.0 if speed < 4.0 else -4.0)
 			_snd_step.play()
@@ -362,10 +362,13 @@ func attack() -> void:
 
 func _punch_hit(clip: String) -> void:
 	var fwd := global_transform.basis.z
+	var hit := false
 	for n in get_tree().get_nodes_in_group("enemy"):
 		var to: Vector3 = n.global_position - global_position
 		if to.length() < 1.4 and fwd.dot(to.normalized()) > 0.5 and n.has_method("damage"):
 			n.damage(25.0 if clip == "punch_heavy" else 12.0, -to)
+			hit = true
+	Core.play_at("punch" if hit else "swoosh", global_position + fwd * 0.6 + Vector3.UP * 1.3, -2.0 if hit else -8.0)
 
 
 func toggle_crouch() -> void:

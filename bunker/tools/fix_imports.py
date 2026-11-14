@@ -10,10 +10,13 @@ for f in glob.glob(os.path.join(root, 'assets', '**', '*.import'), recursive=Tru
         continue
     s = open(f, encoding='utf-8').read()
     t = re.sub(r'compress/mode=\d', 'compress/mode=2', s)
+    # нормали и карты AO/шероховатости окружения — 512: с камеры сверху разница не видна, а весят они больше
+    # половины пакета; цветные карты и текстуры персонажей — 1024
+    lim = 512 if ('/assets/textures/' in f.replace(os.sep, '/') and re.search(r'_(n|a)\.(jpg|png)\.import$', f)) else 1024
     if 'process/size_limit=' in t:
-        t = re.sub(r'process/size_limit=\d+', 'process/size_limit=1024', t)
+        t = re.sub(r'process/size_limit=\d+', 'process/size_limit=%d' % lim, t)
     else:
-        t = t.replace('[params]\n', '[params]\n\nprocess/size_limit=1024\n', 1)
+        t = t.replace('[params]\n', '[params]\n\nprocess/size_limit=%d\n' % lim, 1)
     if re.search(r'(_n|_normal)\.(jpg|png)\.import$', f):
         t = re.sub(r'compress/normal_map=\d', 'compress/normal_map=1', t)
     t = t.replace('"vram_texture": false', '"vram_texture": true')

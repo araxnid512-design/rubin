@@ -204,8 +204,9 @@ func interact(_p) -> void:
 func set_open(v: bool) -> void:
 	is_open = v
 	if _snd:
-		_snd.stream = load("res://assets/audio/%s.wav" % ("blast_door" if kind != "interior" else ("door_open" if v else "door_close")))
-		_snd.play()
+		_snd.stream = Core.sfx("blast_door" if kind != "interior" else ("door_open" if v else "door_close"))
+		if _snd.stream:
+			_snd.play()
 	Core.world.notify_state(door_id)
 
 
