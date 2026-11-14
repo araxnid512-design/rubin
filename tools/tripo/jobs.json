@@ -110,6 +110,58 @@
     "a man in a fighting stance quickly hopping backward to dodge an attack, keeping his hands up in guard, landing balanced on both feet"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "bs_mutant",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_mutant",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Irradiated humanoid mutant, gaunt adult man body with grey-green blotchy skin, open sores and pale scars, hairless swollen head, cloudy white eyes, torn remains of a work overall and rags, bare feet, long sinewy arms with dirty long fingernails. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.85 m tall, photorealistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "bs_leader",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bs_leader",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Wasteland raider gang leader, big broad-shouldered man in a dented welding mask pushed up over a scarred bald head, heavy scrap-metal chest plate over a dark hooded coat, leather bracers, belt with pouches, cargo trousers, heavy boots, red rag tied on the left arm. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.9 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+   ],
+   "timeout": 7000
   }
  ],
  "archived": [
