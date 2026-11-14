@@ -68,11 +68,13 @@ func _ambient_players(root: Node) -> void:
 	for n in ["wind", "hum", "drip", "geiger"]:
 		var p := AudioStreamPlayer.new()
 		p.name = "Amb_" + n
-		var path := "res://assets/audio/amb_%s.wav" % n
-		if ResourceLoader.exists(path):
-			var w: AudioStream = load(path)
+		var w: AudioStream = Core.sfx("amb_" + n)
+		if w:
 			# зацикливание звука среды
-			if w is AudioStreamWAV:
+			if w is AudioStreamOggVorbis:
+				w = w.duplicate()
+				w.loop = true
+			elif w is AudioStreamWAV:
 				w = w.duplicate()
 				w.loop_mode = AudioStreamWAV.LOOP_FORWARD
 				w.loop_begin = 0

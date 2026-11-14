@@ -25,7 +25,7 @@ NAMES = {'bs_hero': 'Главный герой', 'bs_hero_suit': 'Герой в 
 print('# Журнал Tripo — BUNKER SURVIVAL\n')
 print('Кошелёк: Tripo Studio (аккаунт пользователя, тариф Premium), программа `tripo` 0.8.1 в GitHub Actions')
 print('(`.github/workflows/tripo-dw.yml`, задания — `tools/tripo/jobs.json`). Кошелёк API (openapi.tripo3d.ai) — 0 кредитов,')
-print('не использовался. Предел проекта — 3000 кредитов. Файлы результатов — ветка `tripo-status`, `status/files/`.\n')
+print('не использовался. Предел проекта — 4000 кредитов (поднят пользователем с 3000). Файлы результатов — ветка `tripo-status`, `status/files/`.\n')
 print(f'Баланс на старте: **{start:g}**\n' if start else '')
 print('| № | Операция | Что | Стоимость | Итог | Файлы | Остаток |')
 print('|---|---|---|---|---|---|---|')
@@ -38,4 +38,4 @@ for i, r in enumerate(rows, 1):
     files = {'bs_': f"{r['id']}.glb, {r['id']}_a…d.glb", 'bsm': f"m_hero_{r['id'][4:]}.glb, m_suit_{r['id'][4:]}.glb", 'bsp': f"{r['id']}.glb"}[r['id'][:3]]
     ok = 'готово' if r['code'] == 0 else f"ошибка (код {r['code']})"
     print(f"| {i} | {kind} | {name} | {r['cost']:g} | {ok} | {files} | {bal:g} |")
-print(f'\n**Итого потрачено: {total:g} кредитов** из разрешённых 3000 (остаток предела: {3000 - total:g}).')
+print(f'\n**Итого потрачено: {total:g} кредитов** из разрешённых 4000 (остаток предела: {4000 - total:g}).')

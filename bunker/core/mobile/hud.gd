@@ -124,24 +124,23 @@ func _build() -> void:
 	minimap = preload("res://core/mobile/minimap.gd").new()
 	root.add_child(minimap)
 	_btn("pause", "II", Vector2(64, 64), 26)
-	# --- кнопки справа ---
-	_btn("action", "Действие", Vector2(150, 150), 20)
-	_btn("attack", "Удар", Vector2(108, 108), 18)
-	_btn("run", "Бег", Vector2(108, 108), 18)
-	_btn("crouch", "Присед", Vector2(96, 96), 16)
-	_btn("inv", "Вещи", Vector2(84, 84), 15)
+	_btn("inv", "Вещи", Vector2(96, 64), 18, 18)
+	# --- кнопки справа: под большой палец, «Действие» — самая крупная, в углу ---
+	_btn("action", "", Vector2(176, 176), 26)
+	_btn("attack", "Удар", Vector2(124, 124), 22)
+	_btn("crouch", "Присед", Vector2(104, 104), 19)
 	prompt_lbl = _label("", 17)
 	prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(prompt_lbl)
 
 
-func _btn(id: String, text: String, size: Vector2, fs: int) -> void:
+func _btn(id: String, text: String, size: Vector2, fs: int, radius := -1) -> void:
 	var p := Panel.new()
 	p.name = "Btn_" + id
 	p.custom_minimum_size = size
 	p.size = size
 	p.pivot_offset = size * 0.5
-	var st := _style(Color(0.08, 0.08, 0.07, 0.62), int(size.x * 0.5), 2)
+	var st := _style(Color(0.08, 0.08, 0.07, 0.62), int(size.x * 0.5) if radius < 0 else radius, 3 if id == "action" else 2)
 	p.add_theme_stylebox_override("panel", st)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var l := _label(text, fs)
@@ -167,19 +166,18 @@ func _layout() -> void:
 	msg_box.position = Vector2(vs.x * 0.5 - 300, B - 250)
 	msg_box.size = Vector2(600, 120)
 	var mm := 150.0
-	minimap.position = Vector2(R - mm - 74, T)
 	minimap.size = Vector2(mm, mm)
 	var b: Dictionary = touch.buttons
 	b.pause.position = Vector2(R - 64, T)
-	# дуга кнопок у правого большого пальца
+	b.inv.position = Vector2(R - 64 - 12 - 96, T)
+	minimap.position = Vector2(R - 64 - 12 - 96 - 12 - mm, T)
+	# дуга кнопок под правым большим пальцем: «Действие» в углу, «Удар» левее, «Присед» выше
 	var act: Control = b.action
-	act.position = Vector2(R - 150, B - 150)
-	b.attack.position = act.position + Vector2(-128, 34)
-	b.run.position = act.position + Vector2(10, -128)
-	b.crouch.position = act.position + Vector2(-112, -92)
-	b.inv.position = act.position + Vector2(-230, 62)
-	prompt_lbl.position = Vector2(R - 520, act.position.y - 160)
-	prompt_lbl.size = Vector2(500, 30)
+	act.position = Vector2(R - 176, B - 176)
+	b.attack.position = act.position + Vector2(-150, 52)
+	b.crouch.position = act.position + Vector2(-36, -132)
+	prompt_lbl.position = Vector2(R - 620, act.position.y - 176)
+	prompt_lbl.size = Vector2(600, 30)
 	if modal:
 		modal.position = (vs - modal.size) * 0.5
 
@@ -203,6 +201,9 @@ func _process(_d: float) -> void:
 	elif _joy_was:
 		player.move_input = Vector2.ZERO
 		_joy_was = false
+	_refresh_action()
+	var cb: Control = touch.buttons.crouch
+	cb.self_modulate = Color(1.3, 1.15, 0.7) if player.crouching else Color.WHITE
 	bars.hp.value = player.hp / player.max_hp * 100.0
 	bars.st.value = player.stamina
 	var rate: float = player.rad_rate * (0.15 if player.suit_on else 1.0)
@@ -221,8 +222,6 @@ func _on_button(n: String, pressed: bool) -> void:
 	if player == null:
 		return
 	match n:
-		"run":
-			player.sprint_held = pressed
 		"action":
 			if pressed:
 				player.do_interact()
@@ -254,15 +253,20 @@ func _unhandled_input(e: InputEvent) -> void:
 
 
 func _on_target(t) -> void:
+	_refresh_action()
+
+
+## кнопка «Действие» подписана тем, что произойдёт («Открыть», «Сесть», «Взять», «Встать» …); без цели — тусклая
+func _refresh_action() -> void:
+	if player == null:
+		return
 	var a: Control = touch.buttons.action
-	if t == null:
-		prompt_lbl.text = ""
-		a.get_child(0).text = "Действие"
-		a.modulate.a = 0.6
-	else:
-		prompt_lbl.text = t.interact_label()
-		a.get_child(0).text = "Действие"
-		a.modulate.a = 1.0
+	var verb := player.action_verb()
+	var lbl: Label = a.get_child(0)
+	lbl.text = verb if verb != "" else "Действие"
+	a.modulate.a = 1.0 if verb != "" else 0.4
+	var t = player.target
+	prompt_lbl.text = t.interact_label() if t and verb != "Встать" else ""
 
 
 func _on_zone(info: Dictionary) -> void:

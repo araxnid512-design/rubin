@@ -437,8 +437,9 @@ static func build_surface(root: Node3D) -> Node3D:
 	prop(S, "crate_military", Vector3(5.0, 0.15, 2.6), 5)
 	prop(S, "crate_wood", Vector3(4.6, 0.0, 4.0), -20)
 	prop(S, "ibc_tank", Vector3(3.0, 0.0, 3.4), 0)
-	for b in [[22.0, -6.0, true], [22.8, -5.4, true], [23.4, -6.5, false], [21.6, -4.9, true], [16.0, -11.0, false]]:
-		prop(S, "barrel", Vector3(b[0], 0.0, b[1]), randf() * 360.0, {"mat": "rust" if not b[2] else "paint_yellow", "rad": b[2]})
+	prop(S, "barrels_rad", Vector3(22.4, 0.0, -5.8), 25)
+	for b in [[20.6, -4.6, true], [16.0, -11.0, false]]:
+		prop(S, "barrel", Vector3(b[0], 0.0, b[1]), 40.0, {"mat": "rust" if not b[2] else "paint_yellow", "rad": b[2]})
 	prop(S, "tire", Vector3(-9.0, 0.0, 10.5), 0)
 	prop(S, "tire", Vector3(-8.6, 0.3, 10.3), 20)
 	for r in [[-25, -2, 1.2], [12, 18, 0.9], [28, 4, 1.4], [-16, -28, 1.1], [30, 22, 1.0], [-28, 28, 1.3]]:
