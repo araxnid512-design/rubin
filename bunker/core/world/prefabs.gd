@@ -86,9 +86,13 @@ static func build(id: String, p := {}) -> Node3D:
 	if ResourceLoader.exists(glb) and not p.get("procedural", false):
 		var sc: PackedScene = load(glb)
 		var inst: Node3D = sc.instantiate()
-		root.add_child(inst)
+		# модели Tripo смотрят «вперёд» по +X, в BunkerCore «вперёд» — +Z
+		var holder := Node3D.new()
+		holder.rotation.y = deg_to_rad(info.get("yaw", -90.0))
+		holder.add_child(inst)
+		root.add_child(holder)
 		var sz: Vector3 = info.size
-		_fit(inst, sz)
+		_fit(holder, sz)
 		col.append([sz, Vector3(0, sz.y * 0.5, 0)])
 	else:
 		var fn := "_" + id
@@ -109,6 +113,7 @@ static func build(id: String, p := {}) -> Node3D:
 static func _fit(inst: Node3D, sz: Vector3) -> void:
 	var box := AABB()
 	var first := true
+	var rot := Transform3D(inst.transform.basis, Vector3.ZERO)
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var xf := Transform3D.IDENTITY
 		var n: Node = mi
@@ -116,6 +121,7 @@ static func _fit(inst: Node3D, sz: Vector3) -> void:
 			if n is Node3D:
 				xf = (n as Node3D).transform * xf
 			n = n.get_parent()
+		xf = rot * xf
 		var a: AABB = xf * (mi as MeshInstance3D).get_aabb()
 		box = a if first else box.merge(a)
 		first = false
@@ -126,8 +132,9 @@ static func _fit(inst: Node3D, sz: Vector3) -> void:
 	var kx := sz.x / maxf(box.size.x, 0.001)
 	var kz := sz.z / maxf(box.size.z, 0.001)
 	k = minf(k, maxf(kx, kz) * 1.15)
-	inst.scale = Vector3.ONE * k
 	var c := box.get_center()
+	# поворот держателя сохраняется, масштаб — общий
+	inst.transform.basis = Basis(rot.basis.get_rotation_quaternion()).scaled(Vector3.ONE * k)
 	inst.position = Vector3(-c.x * k, -box.position.y * k, -c.z * k)
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON

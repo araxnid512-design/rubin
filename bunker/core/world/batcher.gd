@@ -4,7 +4,16 @@ class_name BCBatcher
 ## вызовов отрисовки десятки. Отсечение по видимости работает по участкам. Не трогаются: двери (движутся),
 ## потолки и крыши (скрываются), светильники, подбираемые предметы, костюм на вешалке, персонажи, трава.
 
-static func batch(root: Node3D, chunk := 12.0) -> Dictionary:
+static func batch(root: Node3D, chunk := 12.0, by_rooms := false) -> Dictionary:
+	# участки по помещениям: тогда каждую часть освещают только лампы своей комнаты (в Compatibility каждая
+	# лампа — отдельный проход отрисовки по объекту)
+	var rects: Array = []
+	if by_rooms:
+		for n in root.find_children("*", "", true, false):
+			if n.is_in_group("minimap") and n is Node3D and String(n.get_meta("map_kind", "")) in ["room", "corridor"]:
+				var r: Rect2 = n.get_meta("map_rect")
+				var p: Vector3 = root.global_transform.affine_inverse() * (n as Node3D).global_position
+				rects.append(Rect2(r.position + Vector2(p.x, p.z), r.size).grow(0.45))
 	var groups := {}          # ключ участка → {материал → [[сетка, поверхность, xf]]}
 	var shadow := {}          # ключ участка → отбрасывает ли тень
 	var removed := 0
@@ -16,6 +25,10 @@ static func batch(root: Node3D, chunk := 12.0) -> Dictionary:
 		var xf: Transform3D = inv * mi.global_transform
 		var c := xf * m.get_aabb().get_center()
 		var key := Vector2i(floori(c.x / chunk), floori(c.z / chunk))
+		for ri in rects.size():
+			if (rects[ri] as Rect2).has_point(Vector2(c.x, c.z)):
+				key = Vector2i(1000 + ri, 0)
+				break
 		if not groups.has(key):
 			groups[key] = {}
 			shadow[key] = false

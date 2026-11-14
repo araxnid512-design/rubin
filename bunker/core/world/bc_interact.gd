@@ -21,6 +21,8 @@ extends Node3D
 @export var sensor_size := Vector3(1.4, 2.0, 1.4)
 @export var anchor := Vector3(0, 0, 0.8)   ## x, z — точка героя; y — угол поворота (градусы)
 @export var used := false                  ## для pickup: уже подобран
+@export var snap := false                  ## поставить героя точно в anchor (стул, кровать)
+@export var snap_height := 0.0             ## высота опоры (сиденье, матрас) над полом
 
 signal used_by(player)
 
@@ -66,7 +68,7 @@ func interact_anim(p) -> String:
 
 func stand_point() -> Transform3D:
 	var b := Basis(Vector3.UP, deg_to_rad(anchor.y))
-	return global_transform * Transform3D(b, Vector3(anchor.x, 0, anchor.z))
+	return global_transform * Transform3D(b, Vector3(anchor.x, snap_height, anchor.z))
 
 
 func interact(p) -> void:

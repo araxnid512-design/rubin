@@ -493,8 +493,7 @@
   },
   "death": {
    "src": [
-    "{set}/defeat_02.res",
-    "{set}/defeat_03.res"
+    "{set}/fall.res"
    ],
    "loop": false,
    "inplace": false,
@@ -503,7 +502,7 @@
   },
   "dead": {
    "src": [
-    "{set}/defeat_02.res"
+    "{set}/fall.res"
    ],
    "loop": true,
    "inplace": false,

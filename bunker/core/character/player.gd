@@ -38,6 +38,7 @@ var _punch_combo := 0
 var _was_moving := false
 var _idle_t := 0.0
 var game_time := 8.0 * 3600.0         ## время суток в игре, секунды
+var _return_pos := Vector3.INF
 
 
 func _ready() -> void:
@@ -100,6 +101,15 @@ func _physics_process(delta: float) -> void:
 			want = lerpf(WALK * 0.6, JOG, clampf((mag - 0.1) / 0.8, 0.0, 1.0))
 			if mag < 0.55:
 				want = lerpf(0.5, WALK, mag / 0.55)
+	if state == "sit" or state == "lie" or (state == "busy" and collision_mask == 0):
+		velocity = Vector3.ZERO
+		if rig:
+			rig.set_motion(0.0, 0.0, delta)
+		_radiation(delta)
+		if state == "lie":
+			stamina = minf(100.0, stamina + 12.0 * delta)
+			hp = minf(max_hp, hp + 0.15 * delta)
+		return
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var target_v := dir * want
 	hv = hv.move_toward(target_v, ACCEL * delta * (1.6 if target_v.length() < hv.length() else 1.0))
@@ -234,12 +244,21 @@ func do_interact() -> void:
 	if state != "move" or target == null:
 		return
 	var t = target
-	# развернуться к объекту
-	var p: Vector3 = (t.global_position if t is Node3D else global_position)
-	var to := p - global_position
-	to.y = 0
-	if to.length() > 0.05:
-		rotation.y = atan2(to.x, to.z)
+	if t is BCInteract and t.snap:
+		# сесть/лечь точно на предмет: встать в его точку, физику — на время позы выключить
+		var sp: Transform3D = t.stand_point()
+		_return_pos = global_position
+		# столкновения с предметами выключить (слой героя остаётся — по нему зоны знают, где он)
+		collision_mask = 0
+		global_position = sp.origin
+		rotation.y = sp.basis.get_euler().y
+	else:
+		# развернуться к объекту
+		var p: Vector3 = (t.global_position if t is Node3D else global_position)
+		var to := p - global_position
+		to.y = 0
+		if to.length() > 0.05:
+			rotation.y = atan2(to.x, to.z)
 	var clip: String = t.interact_anim(self) if t.has_method("interact_anim") else "inspect"
 	var dur := rig.play(clip) if rig else 0.0
 	state = "busy"
@@ -276,7 +295,14 @@ func stand_up() -> void:
 	state = "busy"
 	rig.set_pose("")
 	var d := rig.play(clip)
-	get_tree().create_timer(maxf(d - 0.1, 0.1)).timeout.connect(func(): state = "move")
+	get_tree().create_timer(maxf(d - 0.1, 0.1)).timeout.connect(func():
+		# вернуться на пол рядом с предметом и включить физику
+		if _return_pos != Vector3.INF:
+			global_position = _return_pos
+			_return_pos = Vector3.INF
+		collision_layer = BCKit.LAYER_PLAYER
+		collision_mask = BCKit.LAYER_WORLD
+		state = "move")
 
 
 func treat() -> void:

@@ -7,7 +7,28 @@ var cam: BCCamera
 var hud: BCHud
 
 
+var _loading: CanvasLayer
+
+
 func _ready() -> void:
+	# экран загрузки — сразу, мир строится следующим кадром
+	_loading = CanvasLayer.new()
+	_loading.layer = 50
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.05, 0.045)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_loading.add_child(bg)
+	var lbl := Label.new()
+	lbl.text = "BUNKER SURVIVAL\n\nзагрузка убежища…"
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lbl.add_theme_font_size_override("font_size", 30)
+	lbl.add_theme_color_override("font_color", Color(0.9, 0.78, 0.45))
+	_loading.add_child(lbl)
+	add_child(_loading)
+	await get_tree().process_frame
+	await get_tree().process_frame
 	Core.env.attach(self)
 	Core.world.world_root = self
 	var t0 := Time.get_ticks_msec()
@@ -17,7 +38,7 @@ func _ready() -> void:
 	# неподвижную геометрию — в общие сетки по участкам (меньше вызовов отрисовки на телефоне)
 	await get_tree().process_frame
 	var t1 := Time.get_ticks_msec()
-	var b1 := BCBatcher.batch(bunk, 9.0)
+	var b1 := BCBatcher.batch(bunk, 9.0, true)
 	var b2 := BCBatcher.batch(surf, 20.0)
 	print("BunkerCore: объединено %d сеток в %d (бункер), %d в %d (поверхность) за %d мс" % [b1.removed, b1.made, b2.removed, b2.made, Time.get_ticks_msec() - t1])
 	player = BCPlayer.new()
@@ -37,9 +58,9 @@ func _ready() -> void:
 	# зона по месту старта (тела в зонах определяются физикой на следующем кадре)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	if Core.save.has_save() and Core.test_mode == "":
-		Core.save.load_game()
-		Core.say("Сохранение загружено.", "info")
+	_loading.queue_free()
+	if Core.test_mode == "":
+		_menu()
 	else:
 		Core.say("Убежище. Генератор работает. Снаружи — фон в тысячу раз выше нормы.", "info")
 	if Core.test_mode != "":
@@ -85,4 +106,24 @@ func _spawn_npcs() -> void:
 	add_child(raider)
 	raider.global_position = Vector3(24.0, 0.3, -12.0)
 	raider.add_to_group("surface_only")
+
+
+## стартовое меню: продолжить сохранённую игру или начать заново
+func _menu() -> void:
+	var has: bool = Core.save.has_save()
+	var v := hud._open("BUNKER SURVIVAL", 560, 400 if has else 330)
+	var t := hud._label("Подземное убежище «Убежище-7». Годы после катастрофы.\nНаверху — радиация. Внизу — дом, который нужно сохранить.", 17)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.custom_minimum_size = Vector2(500, 0)
+	v.add_child(t)
+	if has:
+		v.add_child(hud._button("Продолжить", func():
+			hud.close_modal()
+			Core.save.load_game()
+			Core.say("Сохранение загружено.", "info")))
+	v.add_child(hud._button("Новая игра", func():
+		hud.close_modal()
+		Core.save.delete_save()
+		Core.say("Убежище. Генератор работает. Снаружи — фон в тысячу раз выше нормы.", "info")))
+	v.add_child(hud._button("Настройки", hud.show_settings))
 

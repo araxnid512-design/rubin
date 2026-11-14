@@ -79,6 +79,11 @@ func _build() -> void:
 		# потолочный светильник виден, только когда виден потолок
 		body.add_to_group("roof")
 		_glow.add_to_group("roof")
+	if energy <= 0.0:
+		# только светящийся плафон, без источника света (дёшево)
+		_light = null
+		_apply()
+		return
 	_light = OmniLight3D.new()
 	_light.name = "Light"
 	_light.light_color = color

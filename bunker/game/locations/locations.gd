@@ -86,7 +86,7 @@ static func light(parent: Node3D, id: String, pos: Vector3, fixture := "tube", g
 	return l
 
 
-static func spot(parent: Node3D, id: String, pos: Vector3, action: String, label: String, text := "", target := "", rot := 0.0, sensor := Vector3(1.4, 2.0, 1.4), anchor := Vector3(0, 0, 0.8)) -> BCInteract:
+static func spot(parent: Node3D, id: String, pos: Vector3, action: String, label: String, text := "", target := "", rot := 0.0, sensor := Vector3(1.4, 2.0, 1.4), anchor := Vector3(0, 0, 0.8), snap_h := -1.0) -> BCInteract:
 	var s := BCInteract.new()
 	s.point_id = id
 	s.action = action
@@ -95,6 +95,9 @@ static func spot(parent: Node3D, id: String, pos: Vector3, action: String, label
 	s.target = target
 	s.sensor_size = sensor
 	s.anchor = anchor
+	if snap_h >= 0.0:
+		s.snap = true
+		s.snap_height = snap_h
 	_node(s, parent, pos, rot)
 	return s
 
@@ -221,10 +224,11 @@ static func _living(B: Node3D, y: float) -> void:
 	prop(B, "cardboard", Vector3(-9.3, y, -29.2), 10)
 	prop(B, "crate_military", Vector3(-4.8, y, -29.3), 0)
 	light(B, "l_live1", Vector3(-6.0, y + H - 0.05, -26.8), "tube", "live")
-	light(B, "l_live2", Vector3(-6.0, y + H - 0.05, -23.6), "tube", "live", Color(1.0, 0.86, 0.66), 1.2, 6.0, true)
-	spot(B, "bed1", Vector3(-8.9, y, -27.4), "bed", "Лечь отдохнуть", "", "", 0, Vector3(1.2, 2, 2.2), Vector3(0.9, 0, 0.0))
-	spot(B, "bed2", Vector3(-7.5, y, -27.4), "bed", "Лечь отдохнуть", "", "", 0, Vector3(1.2, 2, 2.2), Vector3(-0.9, 0, 0.0))
-	spot(B, "chair_live", Vector3(-3.9, y, -24.5), "chair", "Сесть за стол", "", "", 90, Vector3(1.0, 2, 1.0))
+	light(B, "l_live2", Vector3(-6.0, y + H - 0.05, -23.6), "tube", "live", Color(1.0, 0.86, 0.66), 0.0, 0.1, true)
+	# клип «лечь» кладёт тело на высоту 0.45 м, вдоль «назад» и на 0.6 м вбок от точки старта (замер в лаборатории)
+	spot(B, "bed1", Vector3(-8.9, y, -27.4), "bed", "Лечь отдохнуть", "", "", 0, Vector3(1.2, 2, 2.2), Vector3(0.6, 180, -0.4), 0.03)
+	spot(B, "bed2", Vector3(-7.5, y, -27.4), "bed", "Лечь отдохнуть", "", "", 0, Vector3(1.2, 2, 2.2), Vector3(0.6, 180, -0.4), 0.03)
+	spot(B, "chair_live", Vector3(-3.9, y, -24.5), "chair", "Сесть за стол", "", "", 90, Vector3(1.0, 2, 1.0), Vector3(0.0, 0, 0.22), 0.0)
 	spot(B, "sw_live", Vector3(-6.9, y, -22.6), "switch", "жилой отсек", "", "live", 0, Vector3(0.8, 2, 0.8))
 	spot(B, "photo", Vector3(-6.3, y, -28.95), "inspect", "Фотография на тумбочке", "Выцветший снимок: семья на даче, лето. На обороте карандашом: «Вернусь. Обещаю»." , "", 0, Vector3(1.0, 2, 1.2))
 	spot(B, "lockers", Vector3(-3.4, y, -29.3), "inspect", "Шкафчики", "Три шкафчика. В одном — запасная одежда и бритва, в другом — пустые консервные банки, третий заперт.", "", 0, Vector3(1.6, 2, 1.2))
@@ -238,8 +242,7 @@ static func _medbay(B: Node3D, y: float) -> void:
 	prop(B, "med_cart", Vector3(-11.0, y, -25.2), -90)
 	prop(B, "scanner", Vector3(-17.2, y, -23.8), 90)
 	prop(B, "first_aid", Vector3(-10.4, y + 1.3, -26.0), -90)
-	light(B, "l_med1", Vector3(-14.1, y + H - 0.05, -27.0), "tube", "med", Color(0.88, 0.94, 1.0), 1.7, 7.5)
-	light(B, "l_med2", Vector3(-14.1, y + H - 0.05, -24.0), "tube", "med", Color(0.88, 0.94, 1.0), 1.3, 6.5)
+	light(B, "l_med1", Vector3(-14.1, y + H - 0.05, -25.8), "tube", "med", Color(0.88, 0.94, 1.0), 1.9, 8.5)
 	spot(B, "medbay", Vector3(-12.2, y, -27.6), "medbay", "Медоборудование: лечение и выведение радионуклидов", "", "", 0, Vector3(1.6, 2, 2.4), Vector3(-0.9, 0, 0))
 	spot(B, "scanner", Vector3(-17.2, y, -23.8), "inspect", "Дозиметрическая установка", "Установка ДКС-02: замеряет накопленную дозу. Нормальная доза за год — до 1 мЗв; 250 мЗв и больше — первые признаки лучевой болезни.", "", 90, Vector3(1.4, 2, 1.4))
 	spot(B, "aidkit", Vector3(-10.6, y, -26.0), "pickup", "Подобрать: аптечка", "", "medkit", -90, Vector3(1.0, 2, 1.2))
@@ -248,7 +251,6 @@ static func _medbay(B: Node3D, y: float) -> void:
 
 static func _control(B: Node3D, y: float) -> void:
 	prop(B, "console", Vector3(1.4, y, -28.7), 0)
-	prop(B, "monitor_bank", Vector3(1.4, y + 1.3, -29.45), 0)
 	prop(B, "radio_set", Vector3(4.0, y + 0.76, -24.0), -90)
 	prop(B, "desk", Vector3(4.05, y, -24.0), -90)
 	prop(B, "map_board", Vector3(-1.75, y + 1.1, -25.8), 90)
@@ -269,8 +271,7 @@ static func _greenhouse(B: Node3D, y: float) -> void:
 	prop(B, "water_tank", Vector3(12.2, y, -23.4), 0)
 	prop(B, "barrel", Vector3(5.6, y, -23.0), 0, {"mat": "paint_blue"})
 	prop(B, "barrel", Vector3(6.3, y, -23.0), 0, {"mat": "paint_blue"})
-	for x in [6.4, 9.0, 11.6]:
-		light(B, "l_grow%d" % int(x), Vector3(x, y + H - 0.05, -27.2), "grow", "grow", Color(1.0, 0.45, 0.85), 1.4, 6.0)
+	light(B, "l_grow", Vector3(9.0, y + H - 0.05, -26.4), "grow", "grow", Color(1.0, 0.5, 0.85), 2.0, 8.5)
 	spot(B, "sw_grow", Vector3(8.2, y, -22.6), "switch", "фитолампы", "", "grow", 0, Vector3(0.8, 2, 0.8))
 	spot(B, "plants", Vector3(9.0, y, -27.6), "inspect", "Грядки", "Салат, лук, картофель в ящиках. Фитолампы дают нужный спектр, вода — из бака. Урожай будет недели через три.", "", 0, Vector3(6, 2, 1.6))
 
@@ -301,8 +302,7 @@ static func _workshop(B: Node3D, y: float) -> void:
 	prop(B, "table_metal", Vector3(-5.0, y, -14.2), 0)
 	prop(B, "shelf_rack", Vector3(-9.2, y, -14.4), 90, {"seed": 11, "blue": true, "fill": 0.6})
 	prop(B, "crate_wood", Vector3(-3.0, y, -12.9), 0)
-	light(B, "l_work1", Vector3(-7.0, y + H - 0.05, -17.0), "tube", "work", Color(0.95, 0.95, 1.0), 1.6, 7.5)
-	light(B, "l_work2", Vector3(-2.6, y + H - 0.05, -14.6), "tube", "work", Color(0.95, 0.95, 1.0), 1.2, 6.5)
+	light(B, "l_work1", Vector3(-5.0, y + H - 0.05, -15.8), "tube", "work", Color(0.95, 0.95, 1.0), 1.9, 9.0)
 	spot(B, "bench", Vector3(-7.0, y, -18.75), "inspect", "Верстак", "Тиски, ножовка, набор ключей, паяльник. Здесь можно будет чинить снаряжение.", "", 180, Vector3(2.2, 2, 1.4))
 	spot(B, "tape", Vector3(-5.0, y, -14.2), "pickup", "Подобрать: изолента", "", "tape", 0, Vector3(1.6, 2, 1.2))
 	spot(B, "sw_work", Vector3(-4.2, y, -19.0), "switch", "мастерская", "", "work", 0, Vector3(0.8, 2, 0.8))
@@ -316,7 +316,7 @@ static func _generator(B: Node3D, y: float) -> void:
 	prop(B, "fan_unit", Vector3(0.95, y, -13.4), 90)
 	prop(B, "pipes_wall", Vector3(3.4, y + 1.9, -12.55), 180, {"length": 6.0})
 	light(B, "l_gen", Vector3(3.4, y + H - 0.05, -16.4), "cage", "gen", Color(1.0, 0.8, 0.55), 1.5, 7.5)
-	light(B, "l_gen_warn", Vector3(6.4, y + 2.2, -14.4), "bulkhead", "", Color(1.0, 0.6, 0.25), 0.5, 3.0, false, -90)
+	light(B, "l_gen_warn", Vector3(6.4, y + 2.2, -14.4), "bulkhead", "", Color(1.0, 0.6, 0.25), 0.0, 0.1, false, -90)
 	spot(B, "genset", Vector3(3.6, y, -14.4), "inspect", "Дизельный генератор", "Дизель-генератор АД-30: 30 кВт. Работает, топлива — на шесть недель. Масло стоит сменить.", "", 0, Vector3(3.4, 2, 2.2))
 	spot(B, "panel", Vector3(1.5, y, -18.95), "terminal", "Электрощит: нагрузка сети", "", "power", 0, Vector3(2.0, 2, 1.2))
 
@@ -332,14 +332,14 @@ static func _airlock(B: Node3D, y: float) -> void:
 	prop(B, "floor_grate", Vector3(10.0, y, -15.8), 0)
 	prop(B, "first_aid", Vector3(12.95, y + 1.3, -14.0), -90)
 	light(B, "l_lock1", Vector3(10.0, y + H - 0.05, -16.8), "cage", "lock", Color(0.9, 0.95, 1.0), 1.4, 7.0)
-	light(B, "l_lock_w1", Vector3(7.2, y + 2.3, -13.4), "bulkhead", "", Color(1.0, 0.55, 0.2), 0.6, 3.5, false, 90)
+	light(B, "l_lock_w1", Vector3(7.2, y + 2.3, -13.4), "bulkhead", "", Color(1.0, 0.55, 0.2), 0.0, 0.1, false, 90)
 	spot(B, "suit", Vector3(7.75, y, -16.3), "suit", "Защитный костюм", "", "", 90, Vector3(1.4, 2, 1.6), Vector3(0, 0, 0.9))
 	spot(B, "decon", Vector3(11.9, y, -17.0), "inspect", "Дезактивационная камера", "После выхода на поверхность — смыть радиоактивную пыль с костюма. Вода собирается в отстойник под решёткой.", "", -90, Vector3(1.8, 2, 1.8))
 
 
 static func _corridor(B: Node3D, y: float) -> void:
-	for x in [-14.0, -8.0, -2.0, 4.0, 10.0]:
-		light(B, "l_cor%d" % int(x), Vector3(x, y + H - 0.05, -20.8), "tube", "cor", Color(1.0, 0.85, 0.62), 1.1, 6.0, x == -8.0)
+	for x in [-12.0, -2.0, 8.0]:
+		light(B, "l_cor%d" % int(x), Vector3(x, y + H - 0.05, -20.8), "tube", "cor", Color(1.0, 0.85, 0.62), 1.3, 7.5, x == -2.0)
 	prop(B, "pipes_wall", Vector3(-2.5, y + 2.15, -21.85), 0, {"length": 28.0})
 	prop(B, "barrel", Vector3(12.5, y, -21.5), 0, {"mat": "paint_red"})
 	spot(B, "sw_cor", Vector3(12.4, y, -20.8), "switch", "коридор", "", "cor", 0, Vector3(0.8, 2, 0.8))

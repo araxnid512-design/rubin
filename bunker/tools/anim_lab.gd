@@ -28,6 +28,9 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--bc-lab="):
 			mode = a.substr(9)
+	if mode == "measure":
+		_measure.call_deferred()
+		return
 	if mode == "check":
 		rig.ik.enabled_ik = false
 		_check.call_deferred()
@@ -329,3 +332,25 @@ func _slider(a: float, b: float, val: float) -> HSlider:
 	s.step = 0.01
 	s.value = val
 	return s
+
+
+## где оказываются голова, таз и стопы в конечной позе (в системе героя: +Z — вперёд, +X — влево)
+func _measure() -> void:
+	await get_tree().process_frame
+	rig.ik.enabled_ik = false
+	for n in ["lie_idle", "sit_idle", "dead", "fall", "death", "stagger", "hit_front"]:
+		if not rig.info.has(n):
+			continue
+		_pose(n, rig.info[n].len * 0.999)
+		await get_tree().process_frame
+		var sk := rig.skel
+		var inv := rig.global_transform.affine_inverse()
+		var out := []
+		for b in ["Head", "Hip", "L_Foot", "R_Foot"]:
+			var bi := sk.find_bone(b)
+			if bi >= 0:
+				var p: Vector3 = inv * (sk.global_transform * sk.get_bone_global_pose(bi).origin)
+				out.append("%s (%.2f, %.2f, %.2f)" % [b, p.x, p.y, p.z])
+		_log(n + ": " + ", ".join(out))
+	get_tree().quit()
+

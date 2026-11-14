@@ -91,6 +91,8 @@ func _run() -> void:
 					var o := c.get_collider() as Node
 					_log("упёрся в %s (%s) у %s" % [o.get_path() if o else "?", o.get_parent().name if o else "", pl.global_position])
 					break
+	if mode == "interact" or mode == "all" or mode == "sitlie":
+		await _interact_test(mode == "sitlie")
 	if mode == "walk" or mode == "all":
 		await _walk_test()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
@@ -140,3 +142,60 @@ func _go(p: Vector3, timeout: float, run := false) -> void:
 		t += 1.0 / 60.0
 	pl.move_input = Vector2.ZERO
 	pl.sprint_held = false
+
+
+## взаимодействия: подойти, нажать «Действие», снимок посреди клипа, проверка результата
+func _interact_test(only_sit := false) -> void:
+	var pl: BCPlayer = Core.player
+	var cases := [
+		["terminal", Vector3(1.4, -5.95, -27.6), PI, "i1_terminal"],
+		["chair_live", Vector3(-3.3, -5.95, -24.5), -PI * 0.5, "i2_chair"],
+		["bed2", Vector3(-6.6, -5.95, -27.4), -PI * 0.5, "i3_bed"],
+		["aidkit", Vector3(-11.2, -5.95, -26.0), PI * 0.5, "i4_pickup"],
+		["suit", Vector3(8.6, -5.95, -16.3), -PI * 0.5, "i5_suit"],
+		["medbay", Vector3(-13.1, -5.95, -27.6), PI * 0.5, "i6_medbay"],
+	]
+	for c in cases:
+		if only_sit and not (c[0] in ["chair_live", "bed2"]):
+			continue
+		await _place(c[1], c[2])
+		await _frames(10)
+		var t = pl.target
+		var tid: String = (t.point_id if t is BCInteract else str(t)) if t else "нет"
+		_log("%s: цель «%s» (%s)" % [c[0], t.interact_label() if t else "—", tid])
+		var dose0 := pl.dose
+		pl.dose = 180.0 if c[0] == "medbay" else pl.dose
+		pl.hp = 60.0 if c[0] == "medbay" else pl.hp
+		pl.do_interact()
+		await get_tree().create_timer(1.0).timeout
+		await _shot(c[3])
+		await get_tree().create_timer(3.5).timeout
+		_log("  после: состояние %s, костюм %s, инвентарь %s, доза %.0f, здоровье %.0f" % [pl.state, pl.suit_on, pl.inventory, pl.dose, pl.hp])
+		if pl.state == "sit" or pl.state == "lie":
+			await _shot(c[3] + "_hold")
+			pl.do_interact()
+			await get_tree().create_timer(2.5).timeout
+			_log("  встал: состояние %s" % pl.state)
+		Core.hud.close_modal()
+	if only_sit:
+		return
+	# костюм обратно и удар по мародёру на поверхности
+	if pl.suit_on:
+		pl.toggle_suit()
+	await _place(Vector3(22.4, 0.3, -11.0), PI)
+	var raider: Node = get_tree().get_first_node_in_group("enemy")
+	if raider:
+		raider.global_position = Vector3(22.4, 0.3, -12.3)
+		raider.rotation.y = 0.0
+		raider.state = "idle"
+		await _frames(5)
+		for k in 3:
+			pl.rotation.y = PI
+			pl.attack()
+			await get_tree().create_timer(0.7).timeout
+			if k == 0:
+				await _shot("i7_punch")
+			await get_tree().create_timer(1.2).timeout
+		_log("мародёр: здоровье %.0f, состояние %s; герой: здоровье %.0f" % [raider.hp, raider.state, pl.hp])
+		await _shot("i8_fight")
+
