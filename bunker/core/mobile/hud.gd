@@ -152,7 +152,8 @@ func _build() -> void:
 	# --- кнопки справа: под большой палец, «Действие» — самая крупная, в углу ---
 	_btn("action", "", Vector2(176, 176), 26)
 	_btn("attack", "Удар", Vector2(124, 124), 22)
-	_btn("crouch", "Присед", Vector2(104, 104), 19)
+	_btn("crouch", "Присед", Vector2(96, 96), 18)
+	_btn("dodge", "Уклон", Vector2(100, 100), 19)
 	prompt_lbl = _label("", 17)
 	prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(prompt_lbl)
@@ -201,7 +202,8 @@ func _layout() -> void:
 	var act: Control = b.action
 	act.position = Vector2(R - 176, B - 176)
 	b.attack.position = act.position + Vector2(-150, 52)
-	b.crouch.position = act.position + Vector2(-36, -132)
+	b.dodge.position = act.position + Vector2(-172, -88)
+	b.crouch.position = act.position + Vector2(-30, -124)
 	prompt_lbl.position = Vector2(R - 620, act.position.y - 176)
 	prompt_lbl.size = Vector2(600, 30)
 	if modal:
@@ -230,6 +232,9 @@ func _process(_d: float) -> void:
 	_refresh_action()
 	var cb: Control = touch.buttons.crouch
 	cb.self_modulate = Color(1.3, 1.15, 0.7) if player.crouching else Color.WHITE
+	var ab: Control = touch.buttons.attack
+	(ab.get_child(0) as Label).text = "Блок" if player.blocking else ("Труба" if player.weapon == "pipe" else "Удар")
+	ab.self_modulate = Color(0.75, 0.9, 1.3) if player.blocking else Color.WHITE
 	bars.hp.value = player.hp / player.max_hp * 100.0
 	bars.st.value = player.stamina
 	bars.food.value = player.food
@@ -259,8 +264,10 @@ func _on_button(n: String, pressed: bool) -> void:
 			if pressed:
 				player.do_interact()
 		"attack":
+			player.attack_input(pressed)
+		"dodge":
 			if pressed:
-				player.attack()
+				player.dodge()
 		"crouch":
 			if pressed:
 				player.toggle_crouch()
@@ -279,7 +286,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and player:
 		match e.keycode:
 			KEY_F: player.do_interact()
-			KEY_SPACE: player.attack()
+			KEY_X: player.dodge()
 			KEY_C: player.toggle_crouch()
 			KEY_I: show_inventory()
 			KEY_J: show_journal()
@@ -287,6 +294,8 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_F3: Core.mobile.set_value("dev", not Core.mobile.settings.dev)
 	if e is InputEventKey and e.keycode == KEY_SHIFT and player:
 		player.sprint_held = e.pressed
+	if e is InputEventKey and e.keycode == KEY_SPACE and not e.echo and player:
+		player.attack_input(e.pressed)
 
 
 func _on_target(t) -> void:
@@ -385,7 +394,7 @@ func _button(text: String, cb: Callable) -> Button:
 
 
 func show_pause() -> void:
-	var v := _open("Пауза", 520, 470)
+	var v := _open("Пауза", 520, 540)
 	v.add_child(_button("Продолжить", close_modal))
 	v.add_child(_button("Сохранить игру", func():
 		Core.say("Игра сохранена." if Core.save.save_game() else "Не удалось сохранить.", "good")
@@ -395,6 +404,7 @@ func show_pause() -> void:
 		if not Core.save.load_game():
 			Core.say("Сохранения нет.", "warn")))
 	v.add_child(_button("Настройки графики и управления", show_settings))
+	v.add_child(_button("Авторы и лицензии", show_credits))
 	v.add_child(_button("Выйти из игры", func():
 		Core.save.save_game()
 		get_tree().quit()))
@@ -624,3 +634,50 @@ func fade(cb: Callable) -> void:
 	tw.tween_interval(0.6)
 	tw.tween_property(_fade, "color:a", 0.0, 0.9)
 	tw.tween_callback(func(): _fade.visible = false)
+
+
+## красная вспышка по краям экрана при ранении
+func flash_damage() -> void:
+	if _dmg == null:
+		_dmg = ColorRect.new()
+		_dmg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_dmg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		var sh := Shader.new()
+		sh.code = "shader_type canvas_item;\nuniform float a = 0.0;\nvoid fragment(){ vec2 d = UV - 0.5; float v = smoothstep(0.42, 0.85, length(d * vec2(1.25, 1.0))); COLOR = vec4(0.6, 0.0, 0.0, v * a); }"
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		_dmg.material = m
+		root.add_child(_dmg)
+		root.move_child(_dmg, 0)
+	var mat: ShaderMaterial = _dmg.material
+	var tw := _dmg.create_tween()
+	tw.tween_method(func(v): mat.set_shader_parameter("a", v), 0.6, 0.0, 0.5)
+
+var _dmg: ColorRect
+
+
+## авторы: движок, ассеты; звуки под CC-BY требуют указания авторов
+func show_credits() -> void:
+	var v := _open("Авторы и лицензии", 760, 470)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(720, 380)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var l := _label(CREDITS, 15)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(700, 0)
+	sc.add_child(l)
+	v.add_child(sc)
+
+
+const CREDITS := """BUNKER SURVIVAL — движок Godot Engine 4.6 (MIT, godotengine.org), игровая платформа BunkerCore — код проекта.
+
+Модели персонажей и предметов — Tripo AI (аккаунт владельца проекта). Текстуры — Poly Haven, CC0.
+
+Звуки — открытые записи CC0 (Kenney, авторы OpenGameArt) и CC-BY:
+• swuing (freesound.org/people/swuing), обработка congusbongus — «Footsteps on different surfaces», opengameart.org, CC-BY 3.0 — шаги по бетону.
+• Ali_6868 (CC0), обработка congusbongus — «Footsteps on different surfaces», opengameart.org, CC-BY 3.0 — шаги по гравию.
+• Eelke (freesound.org/people/Eelke), обработка congusbongus — «Footsteps on different surfaces», opengameart.org, CC-BY 3.0 — шаги по металлу.
+• Jonathan Shaw (InspectorJ), цикл — AntumDeluge — «Wind Loop», opengameart.org, CC-BY 3.0 — ветер.
+• Tsorthan Grove — «Storm Arwen 2022», opengameart.org, CC-BY 4.0 — ночной ветер.
+
+Полный список источников — docs/AUDIO_SOURCES.md и docs/LICENSES.md."""

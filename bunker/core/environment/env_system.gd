@@ -252,3 +252,12 @@ static func danger(rate: float) -> int:
 	if rate < 30.0:
 		return 2
 	return 3
+
+
+## при выходе остановить звуки среды (иначе потоки остаются занятыми — ошибка «resources still in use»)
+func _exit_tree() -> void:
+	for n in _amb:
+		var pl: AudioStreamPlayer = _amb[n]
+		if is_instance_valid(pl):
+			pl.stop()
+			pl.stream = null

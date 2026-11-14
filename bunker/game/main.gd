@@ -102,17 +102,11 @@ func _spawn_npcs() -> void:
 	med.points = [Vector3(-14.0, y, -25.0), Vector3(-12.6, y, -26.2), Vector3(-16.4, y, -25.6)]
 	add_child(med)
 	med.global_position = Vector3(-13.0, y, -24.8)
-	var raider := BCNpc.new()
-	raider.name = "Raider"
-	raider.role = "enemy"
-	raider.model_path = "res://assets/models/raider.glb"
-	raider.anim_set = "res://assets/anim/raider"
-	raider.display_name = "Мародёр"
-	raider.npc_id = "raider"
-	raider.kind = "raider"
-	add_child(raider)
-	raider.global_position = Vector3(24.0, 0.3, -12.0)
-	raider.add_to_group("surface_only")
+	# враги наверху — управляющий встречами (game/encounters.gd)
+	var enc: Node = load("res://game/encounters.gd").new()
+	enc.name = "Encounters"
+	add_child(enc)
+	enc.call_deferred("start")
 
 
 ## стартовое меню: продолжить сохранённую игру или начать заново

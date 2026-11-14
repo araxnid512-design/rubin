@@ -43,6 +43,8 @@ const CATALOG := {
 	"jerrycan": {"n": "Канистра", "cat": "Склад", "size": Vector3(0.18, 0.48, 0.36)},
 	"med_crate": {"n": "Армейский медицинский ящик", "cat": "Склад", "size": Vector3(0.7, 0.42, 0.45)},
 	"filter_box": {"n": "Фильтр ФВУ в упаковке", "cat": "Склад", "size": Vector3(0.5, 0.42, 0.5)},
+	"can_food": {"n": "Банка тушёнки", "cat": "Склад", "size": Vector3(0.1, 0.12, 0.1)},
+	"medkit_box": {"n": "Аптечка", "cat": "Медпункт", "size": Vector3(0.3, 0.12, 0.22)},
 	# --- теплица ---
 	"grow_rack": {"n": "Стеллаж с растениями", "cat": "Теплица", "size": Vector3(1.8, 1.9, 0.6)},
 	# --- управление ---
@@ -1116,3 +1118,14 @@ static func _filter_box(mk: BCMesh, col: Array, p: Dictionary) -> void:
 	mk.box("paint_white", I, Vector3(0.3, 0.12, 0.006), Vector3(0, 0.26, 0.253))
 	mk.cyl("steel", I, 0.18, 0.05, Vector3(0, 0.445, 0), 14)
 	col.append([Vector3(0.5, 0.42, 0.5), Vector3(0, 0.21, 0)])
+
+
+static func _can_food(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.cyl("steel", I, 0.05, 0.11, Vector3.ZERO, 12)
+	mk.cyl("paint_red", I, 0.051, 0.07, Vector3(0, 0.02, 0), 12, false)
+
+
+static func _medkit_box(mk: BCMesh, col: Array, p: Dictionary) -> void:
+	mk.box("paint_white", I, Vector3(0.3, 0.11, 0.22), Vector3(0, 0.055, 0))
+	mk.box("paint_red", I, Vector3(0.12, 0.004, 0.035), Vector3(0, 0.112, 0))
+	mk.box("paint_red", I, Vector3(0.035, 0.004, 0.12), Vector3(0, 0.112, 0))

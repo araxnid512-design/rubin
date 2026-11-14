@@ -145,6 +145,8 @@ func _run() -> void:
 		Core.quest.accept("q_fuel")
 		await _act_at("can_truck")
 		await _act_at("filter")
+	if mode == "combat" or mode == "all":
+		await _combat_test()
 	if mode == "quest" or mode == "all":
 		await _quest_test()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
@@ -391,9 +393,11 @@ func _quest_test() -> void:
 	await _act_at("eng")
 	q._accept_dialog("q_raider")
 	_qlog("фильтр, мародёр взят")
-	# 7. мародёр
-	var r: Node3D = Core.world.objects.get("raider")
-	await _place(r.global_position + Vector3(0, 0.1, 1.2), PI)
+	# 7. главарь мародёров (появляется, когда задание взято)
+	await _frames(5)
+	var r: Node3D = Core.world.objects.get("leader")
+	_log("главарь: %s" % (r.global_position if r else "НЕТ"))
+	await _place(r.global_position + Vector3(0, 0.1, 2.2), PI)
 	await _shot("q7_raider")
 	r.damage(500.0, Vector3(0, 0, -1))
 	await get_tree().create_timer(1.0).timeout
@@ -444,3 +448,122 @@ func _quest_test() -> void:
 	Core.save.load_game()
 	_log("сохранение заданий: %s" % ("совпадает" if JSON.stringify(q.get_state().q) == before else "НЕ совпадает"))
 	_qlog("после загрузки")
+
+
+# ---------------- бой ----------------
+
+func _enemy_state(e: Node) -> String:
+	return "%s hp %.0f состояние %s" % [e.display_name, e.hp, e.state]
+
+
+## ждать, пока враг начнёт замах (метка «!»); вернуть true, если дождался
+func _wait_windup(e: Node, limit := 8.0) -> bool:
+	var t := 0.0
+	while t < limit:
+		if e.state == "windup":
+			return true
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+	return false
+
+
+func _combat_test() -> void:
+	var pl: BCPlayer = Core.player
+	Core.quest.new_game()
+	pl.inventory_add("pipe")
+	_log("в руке: %s, узел оружия %s" % [pl.weapon, pl._weapon_node != null])
+	var r: BCNpc = Core.world.objects.get("raider")
+	# крупно: труба в руке
+	var cam := get_viewport().get_camera_3d()
+	cam.zoom = 0.6
+	await _place(Vector3(8.0, 0.2, 10.0), 0.6, 0.6)
+	await get_tree().create_timer(2.0).timeout
+	await _shot("c0_pipe_closeup")
+	cam.zoom = 1.0
+	# 1. замах врага и уклон
+	r.global_position = Vector3(20.0, 0.3, -9.0)
+	await _place(Vector3(20.0, 0.3, -7.6), PI)
+	var hp0 := pl.hp
+	if await _wait_windup(r):
+		hp0 = pl.hp
+		var p0 := pl.global_position
+		pl.dodge()
+		_log("уклон: состояние %s, неуязвимость %.2f, до врага %.2f" % [pl.state, pl.invuln, pl.global_position.distance_to(r.global_position)])
+		var tt := 0.0
+		var last := ""
+		while tt < 1.0:
+			await get_tree().physics_frame
+			tt += 1.0 / 60.0
+			var cur := "%s/%s" % [pl.state, r.state]
+			if cur != last:
+				_log("   %.2f с: герой %s (сдвиг %.2f, до врага %.2f, неуязв. %.2f), враг %s, hp %.0f" % [tt, pl.state, pl.global_position.distance_to(p0), pl.global_position.distance_to(r.global_position), pl.invuln, r.state, pl.hp])
+				last = cur
+		_log("после уклона: здоровье %.0f → %.0f (%s)" % [hp0, pl.hp, "увернулся" if pl.hp >= hp0 else "попали"])
+	if await _wait_windup(r):
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(out.path_join("c1_windup.png"))
+		_log("снимок замаха: враг %s" % r.state)
+	else:
+		_log("замаха не было: " + _enemy_state(r))
+	# 2. блок удержанием «Удара»
+	await _place(Vector3(20.0, 0.3, -7.6), PI)
+	r.global_position = Vector3(20.0, 0.3, -9.0)
+	r._cool = 0.0
+	pl.attack_input(true)
+	await get_tree().create_timer(1.2).timeout
+	_log("блок: %s (удержание %.1f с), выносливость %.0f" % [pl.blocking, pl._hold_t, pl.stamina])
+	hp0 = pl.hp
+	if await _wait_windup(r):
+		await _shot("c2_block")
+		await get_tree().create_timer(1.0).timeout
+		_log("удар в блок: здоровье %.0f → %.0f, враг %s" % [hp0, pl.hp, r.state])
+	pl.attack_input(false)
+	# 3. идеальный блок: поднять блок прямо перед ударом
+	await get_tree().create_timer(1.5).timeout
+	r._cool = 0.0
+	if await _wait_windup(r):
+		await get_tree().create_timer(0.5).timeout
+		pl.set_block(true)
+		await get_tree().create_timer(0.4).timeout
+		_log("идеальный блок: враг %s" % r.state)
+		pl.set_block(false)
+	# 4. бой до победы
+	var hits := 0
+	var t := 0.0
+	while r.state != "dead" and t < 25.0:
+		var to := r.global_position - pl.global_position
+		pl.rotation.y = atan2(to.x, to.z)
+		if to.length() > 1.6:
+			pl.global_position = r.global_position - to.normalized() * 1.3
+		if pl.state == "move" or pl._can_chain:
+			pl.attack()
+			hits += 1
+		await get_tree().create_timer(0.35).timeout
+		t += 0.35
+		if hits == 3:
+			await _shot("c3_hit")
+	_log("бой: %d ударов трубой, %s, герой hp %.0f" % [hits, _enemy_state(r), pl.hp])
+	await get_tree().create_timer(1.0).timeout
+	var loot := []
+	for id in Core.world.objects:
+		if String(id).begins_with("loot_"):
+			loot.append(Core.world.objects[id].target)
+	_log("добыча: %s" % [loot])
+	await _shot("c4_dead")
+	# 5. лагерь главаря: очередь на атаку
+	pl.hp = 100.0
+	Core.quest.accept("q_raider")
+	await _frames(5)
+	var ld: BCNpc = Core.world.objects.get("leader")
+	_log("главарь: %s" % (_enemy_state(ld) if ld else "НЕТ"))
+	await _place(ld.global_position + Vector3(0, 0.1, 3.5), PI)
+	await get_tree().create_timer(5.0).timeout
+	var st := []
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if e.state != "dead":
+			st.append("%s:%s" % [e.variant, e.state])
+	_log("группа: %s, бьют сейчас %d" % [st, BCNpc.attackers.size()])
+	await _shot("c5_group")
+	ld.damage(500.0, Vector3(0, 0, -1))
+	await _frames(5)
+	_log("задание главаря: %s" % [Core.quest.quests.get("q_raider")])

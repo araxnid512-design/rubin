@@ -45,6 +45,20 @@ var _full_t := 0.0                   ## сколько бежит в полны�
 var _tired := false                  ## выдохся — рывка нет, пока выносливость не восстановится
 var _warn := {}
 var _torch: SpotLight3D
+# --- бой ---
+var weapon := ""                      ## в руке: "" — кулаки, "pipe" — труба (BCWeapon)
+var _weapon_node: Node3D
+var blocking := false
+var _block_t := 0.0                   ## сколько держит блок (идеальный блок — в первые 0.3 с)
+var attack_held := false              ## «Удар» удерживается: после удара — блок
+var _hold_t := 0.0
+var _dodge_t := 0.0
+var _dodge_dir := Vector3.ZERO
+var invuln := 0.0                     ## неуязвимость во время уклона
+var _heart: AudioStreamPlayer
+const DODGE_T := 0.42
+var _can_chain := false               ## во второй половине удара можно бить снова (связка)
+var _atk_id := 0
 const FOOD_H := 2.7                   ## расход сытости за игровой час
 const WATER_H := 4.2                  ## расход воды за игровой час
 ## что можно использовать из «Вещей»: действие и слова
@@ -101,6 +115,14 @@ func _ready() -> void:
 	_torch.shadow_enabled = false
 	_torch.visible = false
 	add_child(_torch)
+	_heart = AudioStreamPlayer.new()
+	var hs: AudioStream = Core.sfx("heartbeat")
+	if hs is AudioStreamOggVorbis:
+		hs = hs.duplicate()
+		hs.loop = true
+	_heart.stream = hs
+	_heart.volume_db = -60.0
+	add_child(_heart)
 	Core.register_player(self)
 
 
@@ -141,6 +163,27 @@ func _physics_process(delta: float) -> void:
 			want = lerpf(0.5, WALK, mag / 0.45)
 		else:
 			want = lerpf(WALK, JOG, clampf((mag - 0.45) / 0.3, 0.0, 1.0))
+	invuln = maxf(0.0, invuln - delta)
+	# «Удар» удерживается дольше 0.3 с — блок, пока палец на кнопке
+	if attack_held:
+		_hold_t += delta
+		if _hold_t > 0.3 and not blocking and state == "move":
+			set_block(true)
+	if blocking:
+		_block_t += delta
+		want = minf(want, WALK * 0.8)
+	if state == "dodge":
+		_dodge_t -= delta
+		var kd := clampf(_dodge_t / DODGE_T, 0.0, 1.0)
+		var dv := _dodge_dir * lerpf(1.5, 6.5, kd)
+		velocity = Vector3(dv.x, -0.5 if is_on_floor() else velocity.y - 9.8 * delta, dv.z)
+		move_and_slide()
+		if rig:
+			rig.set_motion(0.0, 0.0, delta)
+		_radiation(delta)
+		if _dodge_t <= 0.0:
+			state = "move"
+		return
 	if state == "sit" or state == "lie" or (state == "busy" and collision_mask == 0):
 		velocity = Vector3.ZERO
 		if rig:
@@ -162,12 +205,18 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	var speed := Vector3(velocity.x, 0, velocity.z).length()
 	# поворот к направлению движения (без хождения боком)
-	if dir != Vector3.ZERO and state == "move":
+	var foe := nearest_enemy(4.0, -1.0)
+	if blocking and foe:
+		var tf: Vector3 = foe.global_position - global_position
+		rotation.y = lerp_angle(rotation.y, atan2(tf.x, tf.z), clampf(TURN * delta, 0.0, 1.0))
+	elif dir != Vector3.ZERO and state == "move":
 		var tgt := atan2(dir.x, dir.z)
 		rotation.y = lerp_angle(rotation.y, tgt, clampf(TURN * delta, 0.0, 1.0))
 	# выносливость
 	if speed > JOG + 0.3:
 		stamina = maxf(0.0, stamina - 14.0 * delta)
+	elif blocking:
+		pass
 	else:
 		stamina = minf(100.0, stamina + (9.0 if speed < 0.2 else 5.0) * delta * (0.5 if food <= 0.0 or water <= 0.0 else 1.0))
 	if rig:
@@ -195,7 +244,10 @@ func _footsteps(speed: float, delta: float) -> void:
 	_step_t += speed * delta
 	if _step_t >= stride:
 		_step_t = 0.0
+		var zn: Dictionary = Core.world.current
 		var surf := "step_concrete" if Core.world.underground else "step_dirt"
+		if zn.get("name", "") in ["Коридор", "Шлюз"] or zn.get("kind", "") == "entrance":
+			surf = "step_metal"
 		if suit_on:
 			surf = "step_suit"
 		var st := Core.sfx(surf)
@@ -246,6 +298,13 @@ func _needs(delta: float) -> void:
 		elif v > 40.0:
 			_warn.erase(n[0] + "1")
 			_warn.erase(n[0] + "0")
+	if _heart and _heart.stream:
+		var low := hp < 30.0 and state != "dead"
+		_heart.volume_db = move_toward(_heart.volume_db, -6.0 if low else -60.0, delta * 30.0)
+		if low and not _heart.playing:
+			_heart.play()
+		elif not low and _heart.playing and _heart.volume_db <= -59.0:
+			_heart.stop()
 	if _torch:
 		var dark: bool = (not Core.world.underground and is_night()) or (Core.world.underground and Core.quest and not Core.quest.power)
 		_torch.visible = dark and "flashlight" in inventory
@@ -279,10 +338,35 @@ func sleep_until_morning() -> void:
 	stats_changed.emit()
 
 
-func damage(amount: float, from_dir := Vector3.ZERO) -> void:
+## урон герою; from_dir — направление на того, кто бьёт; attacker — враг (для идеального блока)
+func damage(amount: float, from_dir := Vector3.ZERO, attacker: Node = null) -> void:
 	if state == "dead":
 		return
+	if invuln > 0.0:
+		return                     # увернулся
+	var front := from_dir == Vector3.ZERO or global_transform.basis.z.dot(from_dir.normalized()) > 0.25
+	if blocking and front:
+		if _block_t < 0.3 and attacker and attacker.has_method("stagger"):
+			attacker.stagger()     # идеальный блок: враг теряет равновесие
+			Core.play_at("block", global_position + Vector3.UP * 1.4, -1.0)
+			Core.say("Идеальный блок!", "good")
+			stamina = maxf(0.0, stamina - 4.0)
+			return
+		Core.play_at("block", global_position + Vector3.UP * 1.4, -3.0)
+		stamina = maxf(0.0, stamina - 14.0)
+		hp -= amount * 0.15
+		_shake(0.06)
+		if stamina <= 0.0:
+			set_block(false)       # пробил блок
+			if rig:
+				rig.play("stagger")
+			Core.say("Блок пробит — нет сил.", "warn")
+		stats_changed.emit()
+		return
 	hp -= amount
+	_shake(0.16)
+	if Core.hud and Core.hud.has_method("flash_damage"):
+		Core.hud.flash_damage()
 	Core.play_at("hurt_hero", global_position + Vector3.UP * 1.6, -4.0)
 	if hp <= 0.0:
 		die()
@@ -418,6 +502,8 @@ func toggle_suit() -> void:
 		rig.setup(suit_model if suit_on else hero_model, "res://assets/anim/" + ("suit" if suit_on else "hero"))
 		if keep_pose != "":
 			rig.set_pose(keep_pose)
+		_weapon_node = null
+		equip(weapon)
 	Core.say("Защитный костюм надет: облучение снижено в 6–7 раз." if suit_on else "Костюм снят.", "info")
 	Core.world.notify_state("player")
 	get_tree().call_group("suit_hanger", "set_visible", not suit_on)
@@ -426,6 +512,8 @@ func toggle_suit() -> void:
 func inventory_add(id: String) -> void:
 	inventory.append(id)
 	stats_changed.emit()
+	if BCWeapon.STATS.has(id) and id != "" and weapon == "":
+		equip(id)
 	if Core.quest:
 		Core.quest.on_inventory()
 
@@ -459,29 +547,196 @@ func consume(id: String) -> void:
 
 # ---------------- бой ----------------
 
+## кнопка «Удар»: нажатие — удар сразу, удержание — блок после удара (отпустил — блок снят)
+func attack_input(pressed: bool) -> void:
+	attack_held = pressed
+	_hold_t = 0.0
+	if pressed:
+		attack()
+	else:
+		set_block(false)
+
+
+## ближайший живой враг в радиусе; min_dot — насколько впереди (−1 — в любую сторону)
+func nearest_enemy(radius: float, min_dot := 0.0) -> Node3D:
+	var best: Node3D = null
+	var bd := radius
+	var fwd := global_transform.basis.z
+	for n in get_tree().get_nodes_in_group("enemy"):
+		if not (n is Node3D) or n.get("state") == "dead" or not (n as Node3D).is_visible_in_tree():
+			continue
+		var to: Vector3 = (n as Node3D).global_position - global_position
+		to.y = 0
+		var d := to.length()
+		if d < bd and (min_dot <= -1.0 or fwd.dot(to.normalized()) > min_dot):
+			bd = d
+			best = n
+	return best
+
+
 func attack() -> void:
-	if state != "move" or rig == null:
+	if rig == null or (state != "move" and state != "busy") or (state == "busy" and not _can_chain):
 		return
+	var ws := BCWeapon.stats(weapon)
+	if stamina < ws.st * 0.5:
+		Core.say("Нет сил на удар.", "warn")
+		return
+	set_block(false)
+	# мягкое наведение: развернуться к ближайшему врагу впереди
+	var foe := nearest_enemy(ws.reach + 1.4, -0.2)
+	if foe:
+		var tf: Vector3 = foe.global_position - global_position
+		rotation.y = atan2(tf.x, tf.z)
 	_punch_combo = (_punch_combo + 1) % 3
-	var clip := "punch_heavy" if _punch_combo == 0 else "punch_light"
-	var d := rig.play(clip)
+	var heavy := _punch_combo == 0
+	var clip := "punch_heavy" if heavy else "punch_light"
+	if weapon != "":
+		var mc := "melee_heavy" if heavy else "melee_light"
+		if rig.has_clip(mc):
+			clip = mc
+	var d := rig.play(clip, ws.rate)
 	if d <= 0.0:
 		return
+	stamina = maxf(0.0, stamina - ws.st * (1.5 if heavy else 1.0))
 	state = "busy"
-	velocity = Vector3.ZERO
-	get_tree().create_timer(d * 0.4).timeout.connect(_punch_hit.bind(clip))
-	get_tree().create_timer(maxf(d - 0.1, 0.1)).timeout.connect(func(): if state == "busy": state = "move")
+	_can_chain = false
+	_atk_id += 1
+	var my := _atk_id
+	# короткий шаг вперёд в удар
+	var fwd := global_transform.basis.z
+	velocity = Vector3(fwd.x, velocity.y, fwd.z) * (2.2 if foe else 1.2)
+	Core.play_at("pipe_swing" if weapon == "pipe" else "swoosh", global_position + Vector3.UP * 1.3, -10.0)
+	get_tree().create_timer(d * 0.4).timeout.connect(func():
+		if my == _atk_id:
+			_punch_hit(heavy))
+	# вторая половина клипа — можно бить снова (связка)
+	get_tree().create_timer(d * 0.62).timeout.connect(func():
+		if my == _atk_id:
+			_can_chain = true)
+	get_tree().create_timer(maxf(d - 0.1, 0.1)).timeout.connect(func():
+		if my != _atk_id:
+			return
+		_can_chain = false
+		if state == "busy":
+			state = "move")
 
 
-func _punch_hit(clip: String) -> void:
+
+func _punch_hit(heavy: bool) -> void:
+	if state == "dead":
+		return
+	var ws := BCWeapon.stats(weapon)
 	var fwd := global_transform.basis.z
 	var hit := false
 	for n in get_tree().get_nodes_in_group("enemy"):
-		var to: Vector3 = n.global_position - global_position
-		if to.length() < 1.4 and fwd.dot(to.normalized()) > 0.5 and n.has_method("damage"):
-			n.damage(25.0 if clip == "punch_heavy" else 12.0, -to)
+		if not (n is Node3D) or n.get("state") == "dead":
+			continue
+		var to: Vector3 = (n as Node3D).global_position - global_position
+		to.y = 0
+		if to.length() < ws.reach and fwd.dot(to.normalized()) > 0.35 and n.has_method("damage"):
+			n.damage(ws.heavy if heavy else ws.light, -to, heavy)
+			_blood((n as Node3D).global_position + Vector3.UP * 1.35 - to.normalized() * 0.25)
 			hit = true
-	Core.play_at("punch" if hit else "swoosh", global_position + fwd * 0.6 + Vector3.UP * 1.3, -2.0 if hit else -8.0)
+	if hit:
+		Core.play_at(("pipe_hit" if weapon == "pipe" else "punch"), global_position + fwd * 0.7 + Vector3.UP * 1.3, -1.0)
+		_shake(0.12 if heavy else 0.06)
+		_hit_stop(0.07 if heavy else 0.04)
+
+
+func set_block(v: bool) -> void:
+	if v == blocking:
+		return
+	if v and (state != "move" or rig == null or stamina < 5.0):
+		return
+	blocking = v
+	_block_t = 0.0
+	if rig:
+		rig.set_pose("block" if v else "")
+
+
+## уклон: в сторону джойстика, без джойстика — назад; неуязвим 0.38 с
+func dodge() -> void:
+	if state != "move" or rig == null:
+		return
+	if stamina < 15.0:
+		Core.say("Нет сил увернуться.", "warn")
+		return
+	set_block(false)
+	var d := Vector3.ZERO
+	if move_input.length() > 0.2:
+		var fwd := Vector3(sin(cam_yaw), 0, cos(cam_yaw)) * -1.0
+		var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
+		d = (right * move_input.x + fwd * move_input.y).normalized()
+	else:
+		d = -global_transform.basis.z
+	var local := global_transform.basis.inverse() * d
+	var clip := "dodge_back" if rig.has_clip("dodge_back") else "dodge_left"
+	if absf(local.x) > absf(local.z):
+		clip = "dodge_left" if local.x > 0.0 else "dodge_right"
+	elif local.z > 0.0:
+		clip = "dodge_right"
+	rig.play(clip, 1.3)
+	stamina -= 18.0
+	_dodge_dir = d
+	_dodge_t = DODGE_T
+	invuln = 0.38
+	state = "dodge"
+	Core.play_at("swoosh", global_position + Vector3.UP, -8.0)
+
+
+func equip(id: String) -> void:
+	if _weapon_node and is_instance_valid(_weapon_node):
+		var par := _weapon_node.get_parent()
+		if par is BoneAttachment3D:
+			par.queue_free()
+		else:
+			_weapon_node.queue_free()
+	_weapon_node = null
+	weapon = id
+	if id != "":
+		_weapon_node = BCWeapon.attach(rig, id)
+		Core.say("В руке: " + BCWeapon.stats(id).n.to_lower() + ".", "info")
+	stats_changed.emit()
+
+
+func _shake(a: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam and cam.has_method("shake"):
+		cam.shake(a)
+
+
+## стоп-кадр попадания: мир на мгновение замирает — удар ощущается весомее
+func _hit_stop(t: float) -> void:
+	Engine.time_scale = 0.08
+	get_tree().create_timer(t, true, false, true).timeout.connect(func(): Engine.time_scale = 1.0)
+
+
+func _blood(at: Vector3) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.emitting = false
+	p.amount = 14
+	p.lifetime = 0.5
+	p.explosiveness = 0.95
+	p.direction = Vector3.UP
+	p.spread = 70.0
+	p.initial_velocity_min = 1.2
+	p.initial_velocity_max = 2.6
+	p.gravity = Vector3(0, -9.8, 0)
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.0
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.05, 0.05)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.albedo_color = Color(0.45, 0.03, 0.02)
+	qm.material = m
+	p.mesh = qm
+	get_tree().current_scene.add_child(p)
+	p.global_position = at
+	p.emitting = true
+	get_tree().create_timer(1.0).timeout.connect(p.queue_free)
 
 
 func toggle_crouch() -> void:
@@ -492,7 +747,8 @@ func toggle_crouch() -> void:
 
 func get_state() -> Dictionary:
 	return {"pos": [global_position.x, global_position.y, global_position.z], "rot": rotation.y, "hp": hp, "stamina": stamina,
-		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time, "food": food, "water": water}
+		"dose": dose, "suit": suit_on, "inv": inventory, "crouch": crouching, "time": game_time, "food": food, "water": water,
+		"weapon": weapon}
 
 
 func set_state(s: Dictionary) -> void:
@@ -507,6 +763,9 @@ func set_state(s: Dictionary) -> void:
 	game_time = s.get("time", game_time)
 	food = s.get("food", 70.0)
 	water = s.get("water", 60.0)
+	var wp: String = s.get("weapon", "")
+	if wp != weapon or (wp != "" and _weapon_node == null):
+		equip(wp)
 	if s.get("suit", false) != suit_on:
 		toggle_suit()
 	state = "move"

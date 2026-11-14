@@ -15,6 +15,7 @@ var zoom := 1.0
 var _dist := 12.5
 var _focus := Vector3.ZERO
 var _target: Node3D
+var _shake := 0.0        ## сила тряски (затухает)
 var _drag := {}         ## касания, которые крутят камеру
 
 
@@ -56,6 +57,14 @@ func _update(delta: float) -> void:
 	var off := Vector3(sin(yaw) * cos(p), sin(p), cos(yaw) * cos(p)) * _dist
 	global_position = _focus + off
 	look_at(_focus, Vector3.UP)
+	if _shake > 0.001:
+		var t := Time.get_ticks_msec() * 0.001
+		h_offset = sin(t * 61.0) * _shake
+		v_offset = cos(t * 53.0) * _shake * 0.7
+		_shake = move_toward(_shake, 0.0, delta * 0.9)
+	elif h_offset != 0.0 or v_offset != 0.0:
+		h_offset = 0.0
+		v_offset = 0.0
 	if _target.has_method("set") and "cam_yaw" in _target:
 		_target.cam_yaw = yaw
 	RenderingServer.global_shader_parameter_set("bc_player_pos", _target.global_position)
@@ -78,3 +87,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			zoom = clampf(zoom * 0.92, 0.6, 1.5)
 		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom = clampf(zoom * 1.08, 0.6, 1.5)
+
+
+## тряска при ударе (сила в метрах смещения кадра)
+func shake(a: float) -> void:
+	if Core.mobile and Core.mobile.settings.get("shake", true) == false:
+		return
+	_shake = maxf(_shake, a)
