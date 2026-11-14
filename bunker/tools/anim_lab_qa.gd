@@ -66,6 +66,7 @@ var vp: SubViewport
 var game_mode := true           ## модификаторы скелета включены (как в игре); --bc-raw — сырые клипы
 var _cap := {}
 var frames_cache := {}
+var debug_clip := ""
 
 
 func _ready() -> void:
@@ -85,6 +86,8 @@ func _ready() -> void:
 			calib = true
 		elif a == "--bc-raw":
 			game_mode = false
+		elif a.begins_with("--bc-debug="):
+			debug_clip = a.substr(11)
 	DirAccess.make_dir_recursive_absolute(out)
 	_stage()
 	_run.call_deferred(mode)
@@ -200,6 +203,8 @@ func _run(mode: String) -> void:
 		rig.skel.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
 		if calib:
 			_write_calib()
+	if mode in ["all", "clips", "pairs"]:
+		_pairs()
 	if mode in ["all", "eight"] and shots:
 		for n in ["idle", "walk", "run", "sprint", "crouch_walk"]:
 			if rig.info.has(n) and (names.has(n) or mode == "eight"):
@@ -255,11 +260,16 @@ func _analyze(n: String) -> Dictionary:
 		rig._action = n
 		rig._action_t = 1e9
 	rig.ik.enabled_ik = game_mode
+	rig.ik.body_speed = float(inf.speed) if body_offset(n, 1.0) != Vector3.ZERO else 0.0
+	rig.ik.reset_locks()
+	var raw: Array = []
 	for i in steps + 1:
 		var t := minf(i * dt, L)
 		var off := body_offset(n, t)
 		holder.position = off
 		pose_clip(n, t)
+		if i == 0 or i == steps or cat == "loco":
+			raw.append(body.snap())
 		var s: Dictionary
 		if game_mode:
 			_cap = {}
@@ -269,6 +279,10 @@ func _analyze(n: String) -> Dictionary:
 		else:
 			s = body.snap()
 		var so := body.soles(s)
+		if debug_clip == n:
+			var dbg: Dictionary = rig.ik.last_debug
+			print("[dbg] %.3f lock %s d %s infl %.2f L %s R %s" % [t, dbg.get("lock"), str(dbg.get("lock_d")), rig.ik.influence,
+				(so.L as Array).map(func(p): return (p as Vector3).snapped(Vector3(0.001, 0.001, 0.001))), body.pos(s, "Hip").snapped(Vector3(0.001, 0.001, 0.001))])
 		# проникновения — каждый второй кадр (30 к/с): точный замер по сетке дорогой
 		frames.append({"t": t, "s": s, "so": so, "off": off, "ang": body.angles(s), "pen": body.penetrations(s, 0.01) if i % 2 == 0 else [],
 			"bp": body.body_points(s)})
@@ -310,6 +324,11 @@ func _analyze(n: String) -> Dictionary:
 			floor_min = minf(floor_min, lo.y)
 			var i0 := i - 1 if i > 0 else 0
 			var i1 := i if i > 0 else 1
+			# скорость точки опоры — по кадрам, где она уже на полу: в кадре касания берётся разность вперёд
+			# (иначе в «скольжение» попадает скорость самого приземления из воздуха)
+			if i > 0 and i + 1 < frames.size() and (frames[i - 1].so[sd][lo_i] as Vector3).y >= contact_h and (frames[i + 1].so[sd][lo_i] as Vector3).y < contact_h:
+				i0 = i
+				i1 = i + 1
 			var cv: Vector3 = ((frames[i1].so[sd][lo_i] as Vector3) - (frames[i0].so[sd][lo_i] as Vector3)) / dt
 			var wv: Vector3 = cv + ((frames[i1].off as Vector3) - (frames[i0].off as Vector3)) / dt
 			var v := Vector2(wv.x, wv.z).length()
@@ -319,6 +338,8 @@ func _analyze(n: String) -> Dictionary:
 			else:
 				on = on and v < 0.35
 			contact_frames[sd].append(on)
+			if debug_clip == n and lo.y < 0.05:
+				print("[slide] %d %s t%.3f lo%d h%.3f v%.2f cv%s on%s" % [i, sd, fr.t, lo_i, lo.y, v, Vector2(cv.x, cv.z).snapped(Vector2(0.01, 0.01)), on])
 			if on:
 				slides.append(v * 100.0)
 				native_seg[sd].append(-Vector2(cv.x, cv.z).dot(Vector2(dir3.x, dir3.z)))
@@ -438,10 +459,20 @@ func _analyze(n: String) -> Dictionary:
 		if lv > 0:
 			_grade(r, "проникновение: " + key, lv, "%.1f см" % d)
 	r.m["проникновения_см"] = psum
+	# --- тело над капсулой: среднее горизонтальное смещение таза от точки персонажа (клипы стоя и передвижения) ---
+	if cat in ["loco", "stand", "trans"]:
+		var mh := Vector3.ZERO
+		for fr in frames:
+			var hp := body.pos(fr.s, "Hip")
+			mh += Vector3(hp.x, 0.0, hp.z)
+		mh /= frames.size()
+		r.m["таз_от_капсулы_см"] = snappedf(mh.length() * 100.0, 0.1)
+		_grade(r, "тело смещено от капсулы", 2 if mh.length() > 0.15 else (1 if mh.length() > 0.08 else 0), "%.0f см" % (mh.length() * 100.0))
 	# --- стык цикла ---
 	if inf.loop and L > 1.05:
-		var a: Dictionary = frames[0].s
-		var z: Dictionary = frames[-1].s
+		# стык — свойство самого клипа: сравниваются сырые позы первого и последнего кадра (без модификаторов)
+		var a: Dictionary = raw[0]
+		var z: Dictionary = raw[raw.size() - 1]
 		var jump := 0.0
 		var steps_d: Array = []
 		var keyb := ["Hip", "Head", "L_Hand", "R_Hand", "L_Foot", "R_Foot", "L_Calf", "R_Calf", "L_Forearm", "R_Forearm"]
@@ -461,7 +492,11 @@ func _analyze(n: String) -> Dictionary:
 		_grade(r, "стык цикла", lv, "скачок %.1f см (обычный шаг кадра %.1f см)" % [jump * 100.0, p95s * 100.0])
 	# --- ритм и симметрия шага ---
 	if cat == "loco":
-		_gait(r, n, frames, contact_frames, dt)
+		# ритм шага — свойство клипа: по сырым позам (фиксация стоп в игре меняет моменты касания)
+		var rf: Array = []
+		for i in raw.size():
+			rf.append({"t": frames[i].t, "so": body.soles(raw[i]), "off": frames[i].off})
+		_gait(r, n, rf, _contacts(rf, n, dt), dt)
 	# --- ряды для графиков (30 к/с) ---
 	var ser := {"t": [], "колено_L": [], "колено_R": [], "бедро_сгиб_L": [], "бедро_сгиб_R": [], "стопа_сгиб_L": [], "стопа_сгиб_R": [],
 		"опора_L": [], "опора_R": [], "таз_наклон": [], "позвоночник_сгиб": [], "локоть_L": [], "локоть_R": []}
@@ -520,12 +555,48 @@ func _joint_checks(A: Dictionary) -> Array:
 	return c
 
 
+## флаги опоры по кадрам (тот же детектор, что и для скольжения)
+func _contacts(fr: Array, n: String, dt: float) -> Dictionary:
+	var dir3 := body_offset(n, 1.0).normalized()
+	var v_body := float(rig.info[n].speed) if dir3 != Vector3.ZERO else 0.0
+	var out := {"L": [], "R": []}
+	for i in fr.size():
+		for sd in ["L", "R"]:
+			var pts: Array = fr[i].so[sd]
+			var lo_i := 0
+			for j in pts.size():
+				if (pts[j] as Vector3).y < (pts[lo_i] as Vector3).y:
+					lo_i = j
+			var i0 := i - 1 if i > 0 else 0
+			var i1 := i if i > 0 else 1
+			var cv: Vector3 = ((fr[i1].so[sd][lo_i] as Vector3) - (fr[i0].so[sd][lo_i] as Vector3)) / dt
+			var wv: Vector3 = cv + ((fr[i1].off as Vector3) - (fr[i0].off as Vector3)) / dt
+			var on := (pts[lo_i] as Vector3).y < 0.03
+			if v_body > 0.05:
+				on = on and Vector2(cv.x, cv.z).dot(Vector2(dir3.x, dir3.z)) < 0.0 and Vector2(wv.x, wv.z).length() < v_body + 0.35
+			else:
+				on = on and Vector2(wv.x, wv.z).length() < 0.35
+			out[sd].append(on)
+	return out
+
+
 ## ритм шага: моменты постановки стоп, длина шага, каденс, симметрия, доля опоры, фаза полёта
 func _gait(r: Dictionary, n: String, frames: Array, cf: Dictionary, dt: float) -> void:
 	var strikes := {"L": [], "R": []}
 	var stance := {"L": 0, "R": 0}
 	for sd in ["L", "R"]:
-		var a: Array = cf[sd]
+		var a: Array = cf[sd].duplicate()
+		# короткие (< 5 кадров) отрезки опоры и разрывы — дребезг детектора, не шаги
+		for rep in 2:
+			var i := 0
+			while i < a.size():
+				var j := i
+				while j < a.size() and a[j] == a[i]:
+					j += 1
+				if j - i < 5 and i > 0 and j < a.size():
+					for k in range(i, j):
+						a[k] = not a[k]
+				i = j
 		for i in a.size():
 			if a[i]:
 				stance[sd] += 1
@@ -622,6 +693,31 @@ func _write_calib() -> void:
 			out_c[n] = r.m["скорость_по_подошве"]
 	result["calib"] = out_c
 	print("[qa] скорость по подошве: ", out_c)
+
+
+## стыковка клипов, которые идут друг за другом: конец A против начала B (суставы в системе героя), см
+func _pairs() -> void:
+	var pairs := [["sit_down", "stand_up"], ["bed_lie", "bed_up"], ["sit_down", "sit_idle"], ["bed_lie", "lie_idle"],
+		["fall", "get_up"], ["death", "dead"], ["idle", "walk"], ["walk", "idle"], ["crouch_idle", "crouch_walk"]]
+	var out := {}
+	rig.tree.active = false
+	for pr in pairs:
+		if not (rig.info.has(pr[0]) and rig.info.has(pr[1])):
+			continue
+		pose_clip(pr[0], rig.info[pr[0]].len)
+		var a := body.snap()
+		pose_clip(pr[1], 0.0)
+		var b := body.snap()
+		var mx := 0.0
+		var worst := ""
+		for bn in ["Hip", "Head", "L_Hand", "R_Hand", "L_Foot", "R_Foot", "L_Calf", "R_Calf"]:
+			var d := body.pos(a, bn).distance_to(body.pos(b, bn))
+			if d > mx:
+				mx = d
+				worst = bn
+		out["%s → %s" % pr] = {"max_cm": snappedf(mx * 100.0, 0.1), "joint": worst, "blend": rig.info[pr[1]].blend}
+	result["pairs"] = out
+	print("[qa] стыковка: ", out)
 
 
 # ---------------- снимки ----------------

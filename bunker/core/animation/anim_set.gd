@@ -82,6 +82,8 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			continue
 		var a: Animation = src.duplicate(true)
 		_retarget(a, skel, skel_path)
+		if c.get("reverse", false):
+			a = _reverse(a)
 		var t0: float = c.get("from", 0.0)
 		var t1: float = c.get("to", -1.0)
 		if t0 > 0.0 or t1 > 0.0:
@@ -92,6 +94,11 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			var rr := _strip_root(a, skel, root_bone, c.get("root_lock", false))
 			speed = rr[0] * scale
 			dir = rr[1]
+			if c.get("root_smooth", 0.0) > 0.0:
+				_flatten_root(a, skel, root_bone, c.root_smooth)
+		elif c.get("center", false):
+			# стойка: тело над капсулой (у готового «idle» таз в среднем в 12 см от точки персонажа)
+			_flatten_root(a, skel, root_bone, a.length * 2.0)
 		if c.get("mirror", false):
 			a = _mirror(a, skel, mirror_fwd)
 		if c.get("loop", false) and c.get("loop_fix", 0.0) > 0.0:
@@ -105,7 +112,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		lib.add_animation(clip_name, a)
 		info[clip_name] = {"len": a.length, "speed": c.get("speed", speed), "loop": c.get("loop", false),
 			"blend": c.get("blend", 0.2), "rate": c.get("rate", 1.0), "lock": c.get("lock", true), "native": speed, "dir": dir,
-			"phase": c.get("phase", 0.0), "strides": c.get("strides", 0.0), "ik": c.get("ik", false)}
+			"phase": c.get("phase", 0.0), "strides": c.get("strides", 0.0), "ik": c.get("ik", false), "off": c.get("off", false)}
 	return {"lib": lib, "info": info}
 
 
@@ -140,6 +147,25 @@ static func _trim(a: Animation, t0: float, t1: float) -> Animation:
 			if v != null:
 				b.track_insert_key(ti, t - t0, v)
 			t += step
+	return b
+
+
+## клип задом наперёд (встать = «сесть» наоборот: начинается ровно в позе, которой кончается посадка)
+static func _reverse(a: Animation) -> Animation:
+	var L := a.length
+	var b := Animation.new()
+	b.length = L
+	var step := 1.0 / 30.0
+	var n := maxi(1, int(round(L / step)))
+	for i in a.get_track_count():
+		var ti := b.add_track(a.track_get_type(i))
+		b.track_set_path(ti, a.track_get_path(i))
+		b.track_set_interpolation_type(ti, a.track_get_interpolation_type(i))
+		for k in n + 1:
+			var t := L * k / n
+			var v = _sample(a, i, L - t)
+			if v != null:
+				b.track_insert_key(ti, t, v)
 	return b
 
 
@@ -219,6 +245,15 @@ static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock 
 			a.track_set_key_value(track, k, v - (dv - up * dv.dot(up)))
 		else:
 			a.track_set_key_value(track, k, v - hdrift * (t / T))
+	# тело — над капсулой: среднее горизонтальное положение таза в ноль (у готового «run» Tripo таз в начале
+	# клипа уже сдвинут на 0.9 м — бегущий герой оказывался впереди своей капсулы)
+	var mean := Vector3.ZERO
+	for k in n:
+		mean += a.track_get_key_value(track, k)
+	mean /= n
+	var mh := mean - up * mean.dot(up)
+	for k in n:
+		a.track_set_key_value(track, k, (a.track_get_key_value(track, k) as Vector3) - mh)
 	# скорость — длина дрейфа в мировых единицах модели (масштаб родителя учитывается позже)
 	var w := pb * hdrift
 	return [w.length() / T, Vector3(w.x, 0, w.z).normalized()]
@@ -248,6 +283,39 @@ static func _loop_fix(a: Animation, w: float) -> void:
 				a.track_set_key_value(i, k, (Quaternion.IDENTITY.slerp(corr, x) * (v as Quaternion)).normalized())
 			else:
 				a.track_set_key_value(i, k, (v as Vector3) + ((v0 as Vector3) - (v1 as Vector3)) * x)
+
+
+## убрать медленное «блуждание» таза по горизонтали у клипа «на месте»: скользящее среднее за двойной шаг
+## (циклически) вычитается; покачивание с частотой шага остаётся. У готового «walk» Tripo таз уходит вбок на
+## ±16 см за цикл, а опорная стопа едет вместе с ним — после вычета скольжение вбок втрое меньше.
+static func _flatten_root(a: Animation, skel: Skeleton3D, root_bone: String, window: float) -> void:
+	var bi := skel.find_bone(root_bone)
+	var track := -1
+	for i in a.get_track_count():
+		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
+			track = i
+	if bi < 0 or track < 0:
+		return
+	var parent := skel.get_bone_parent(bi)
+	var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
+	var up := (pb.inverse() * Vector3.UP).normalized()
+	var L := a.length
+	var n := a.track_get_key_count(track)
+	var base: Array = []
+	for k in n:
+		base.append(a.track_get_key_value(track, k))
+	var m := 24
+	for k in n:
+		var t := a.track_get_key_time(track, k)
+		var avg := Vector3.ZERO
+		for j in m:
+			var tt := fposmod(t - window * 0.5 + window * (j + 0.5) / m, L)
+			avg += a.position_track_interpolate(track, tt)
+		avg /= m
+		var h := avg - up * avg.dot(up)
+		base[k] = (base[k] as Vector3) - h
+	for k in n:
+		a.track_set_key_value(track, k, base[k])
 
 
 ## зеркальный клип (налево ↔ направо) через позы в пространстве скелета. На каждом кадре собирается поза всего

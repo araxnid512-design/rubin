@@ -22,6 +22,9 @@ var _goal := Vector3.ZERO
 var _line := 0
 var _home := Vector3.ZERO
 var _cool := 0.0
+var _fidget := 0.0          ## житель: через сколько секунд «пауза» (почесаться, оглядеться)
+var _talk_t := -1.0         ## житель: сколько секунд назад говорил с героем (−1 — давно)
+var _talks := 0
 const WALK := 1.2
 const RUN := 3.2
 
@@ -48,6 +51,7 @@ func _ready() -> void:
 	else:
 		BCKit.sensor(self, self, Vector3(1.6, 2.0, 1.6), Vector3(0, 1.0, 0))
 	_t = randf() * 4.0
+	_fidget = randf_range(8.0, 16.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -83,6 +87,8 @@ func _physics_process(delta: float) -> void:
 	if want != Vector3.ZERO:
 		rotation.y = lerp_angle(rotation.y, atan2(want.x, want.z), clampf(8.0 * delta, 0.0, 1.0))
 	rig.set_motion(Vector3(velocity.x, 0, velocity.z).length(), 0.0, delta)
+	if role == "resident":
+		_resident_emotes(delta, want != Vector3.ZERO)
 
 
 func _enemy_ai(_d: float) -> void:
@@ -147,8 +153,8 @@ func _die() -> void:
 	state = "dead"
 	velocity = Vector3.ZERO
 	collision_layer = 0
-	rig.play("death")
-	rig.set_pose("dead")
+	var d := rig.play("death")
+	rig.set_pose("dead", maxf(d - 0.45, 0.0))
 	Core.say(display_name + " повержен.", "good")
 	# появляется снова через минуту — для проверки боя
 	get_tree().create_timer(60.0).timeout.connect(func():
@@ -170,15 +176,51 @@ func can_interact(_p) -> bool:
 
 
 func interact_anim(_p) -> String:
-	return "inspect"
+	# разговор открывается сразу: герой не занят клипом (жест «разговор» — эмоция, её прерывает движение)
+	return ""
 
 
 func interact(_p) -> void:
 	if lines.is_empty():
 		return
 	var to: Vector3 = Core.player.global_position - global_position
-	rotation.y = atan2(to.x, to.z)
+	# повернуться к герою плавно, не рывком
+	var tw := create_tween()
+	tw.tween_property(self, "rotation:y", rotation.y + angle_difference(rotation.y, atan2(to.x, to.z)), 0.35)
 	state = "idle"
 	_t = 6.0
+	# первый раз — приветствие, дальше — кивает, объясняет, соглашается по очереди
+	var clip: String = "greet" if (_talk_t < 0.0 or _talk_t > 60.0) else ["nod", "talk", "agree"][_talks % 3]
+	if rig.has_clip(clip):
+		get_tree().create_timer(0.3).timeout.connect(func(): if state == "idle": rig.play(clip))
+	_talk_t = 0.0
+	_talks += 1
+	if _p and _p.has_method("_play_emote") and _p.rig and _p.rig.has_clip("talk") and not _p.rig.busy():
+		_p._play_emote("talk")
 	Core.hud.show_text(display_name, lines[_line % lines.size()])
 	_line += 1
+
+
+## житель: машет вслед, когда герой отошёл после разговора; иногда чешется или оглядывается
+func _resident_emotes(delta: float, walking: bool) -> void:
+	if _talk_t >= 0.0 and _talk_t < 60.0:
+		_talk_t += delta
+		var p: Node3D = Core.player
+		if p and _talk_t > 1.5 and p.global_position.distance_to(global_position) > 3.2 and not walking:
+			# дождаться конца приветствия/жеста, затем помахать вслед (один раз)
+			if not rig.busy():
+				if rig.has_clip("wave"):
+					var to := p.global_position - global_position
+					var tw := create_tween()
+					tw.tween_property(self, "rotation:y", rotation.y + angle_difference(rotation.y, atan2(to.x, to.z)), 0.3)
+					rig.play("wave")
+				_talk_t = 60.0
+	elif _talk_t >= 60.0:
+		_talk_t += delta
+	_fidget -= delta
+	if _fidget <= 0.0:
+		_fidget = randf_range(12.0, 22.0)
+		if state == "idle" and not walking and not rig.busy():
+			var pool := ["scratch", "look_around", "nod"].filter(func(n): return rig.has_clip(n))
+			if not pool.is_empty():
+				rig.play(pool[randi() % pool.size()])

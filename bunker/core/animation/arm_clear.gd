@@ -7,7 +7,7 @@ extends SkeletonModifier3D
 ## точка внутри, отводит плечо ровно настолько, чтобы она вышла на поверхность (+ запас). Угол сглаживается.
 ## Намеренные касания (ладонь на груди, кулак у лица) не трогаются: они на поверхности, а не внутри.
 
-@export var margin := 0.01                  ## запас над поверхностью, м
+@export var margin := 0.035                 ## запас над поверхностью, м (объёмы — упрощённые, сетка куртки шире)
 @export var max_angle := deg_to_rad(28.0)
 @export var rate_in := 30.0                 ## 1/с: как быстро отводится
 @export var rate_out := 10.0                ## 1/с: как быстро возвращается
@@ -15,8 +15,7 @@ extends SkeletonModifier3D
 static var _models := {}                    ## путь модели → объёмы и точки (считаются один раз)
 
 var _m := {}
-var _ang := [0.0, 0.0]
-var _axis: Array = [Vector3.FORWARD, Vector3.FORWARD]
+var _rv: Array = [Vector3.ZERO, Vector3.ZERO]   ## сглаженная поправка плеча: ось × угол (без скачков оси)
 var last_depth := [0.0, 0.0]                ## для проверки: глубина до поправки, м
 
 
@@ -224,16 +223,18 @@ func _process_modification_with_delta(delta: float) -> void:
 					push = (G.basis.orthonormalized() * Rt.basis.orthonormalized().inverse() * (q - ax)).normalized()
 					bp = p
 		last_depth[si] = maxf(0.0, best - mg) * sc
-		var want := 0.0
+		var want := Vector3.ZERO
 		if best > 0.0:
 			var arm := bp - S
 			var ax := arm.cross(push)
 			if ax.length() > 1e-5:
-				_axis[si] = ax.normalized()
-				want = clampf(atan2(best, arm.length()), 0.0, max_angle)
-		var rate := rate_in if want > _ang[si] else rate_out
-		_ang[si] = lerpf(_ang[si], want, clampf(rate * delta, 0.0, 1.0)) if delta > 0.0 else want
-		if _ang[si] > 0.0005:
+				want = ax.normalized() * clampf(atan2(best, arm.length()), 0.0, max_angle)
+		# сглаживается вектор поворота целиком (ось и угол): смена точки или объёма не дёргает руку
+		var cur: Vector3 = _rv[si]
+		var rate := rate_in if want.length() > cur.length() else rate_out
+		cur = cur.lerp(want, clampf(rate * delta, 0.0, 1.0)) if delta > 0.0 else want
+		_rv[si] = cur
+		if cur.length() > 0.0005:
 			var G := s.get_bone_global_pose(up_b)
-			G.basis = Basis(_axis[si], _ang[si]) * G.basis
+			G.basis = Basis(cur.normalized(), cur.length()) * G.basis
 			s.set_bone_global_pose(up_b, G)

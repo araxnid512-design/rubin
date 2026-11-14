@@ -32,9 +32,13 @@ var _speed := 0.0
 var _crouch := 0.0
 var _crouch_t := 0.0
 var _move_w := 0.0              ## вес «движение» против «стойка» (сглаженный)
+var _slot := "a"                ## слот разового действия (два — для плавной смены действий)
+var _pose_tw: Tween
+var _pose_w := 0.0
 var _crouch_move_w := 0.0
 var _loco_pts: Array = []       ## точки смешения передвижения: [клип, скорость м/с, время двойного шага, длина двойного шага]
 var arms: BCArmClear
+var limbs: BCLimbAlign
 var hands: BCHandIK
 
 
@@ -76,9 +80,13 @@ func setup(path := "", set_dir := "") -> void:
 	yaw_offset = atan2(fwd.x, fwd.z)
 	model.rotation.y = -yaw_offset
 	_build_tree()
+	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели
 	ik = BCFootIK.new()
 	ik.name = "FootIK"
 	skel.add_child(ik)
+	limbs = BCLimbAlign.new()
+	limbs.name = "LimbAlign"
+	skel.add_child(limbs)
 	# руки не уходят в туловище и бёдра (объёмная куртка); кисть — к ручке / пульту при взаимодействии
 	arms = BCArmClear.new()
 	arms.name = "ArmClear"
@@ -102,7 +110,8 @@ func _mesh_aabb(n: Node) -> AABB:
 
 
 func has_clip(n: String) -> bool:
-	return info.has(n)
+	# "off": клип есть в библиотеке (лаборатория его проверяет), но игра его сама не запускает
+	return info.has(n) and not info[n].get("off", false)
 
 
 func clip_len(n: String) -> float:
@@ -193,20 +202,26 @@ func _build_tree() -> void:
 	bt.add_node("pose_blend", pb, Vector2(600, 150))
 	bt.connect_node("pose_blend", 0, "crouch_blend")
 	bt.connect_node("pose_blend", 1, "pose_anim")
-	# разовое действие
-	var act := AnimationNodeAnimation.new()
-	act.animation = "bc/idle"
-	bt.add_node("act_anim", act, Vector2(600, 350))
-	var act_ts := AnimationNodeTimeScale.new()
-	bt.add_node("act_ts", act_ts, Vector2(750, 350))
-	bt.connect_node("act_ts", 0, "act_anim")
-	var os := AnimationNodeOneShot.new()
-	os.fadein_time = 0.18
-	os.fadeout_time = 0.22
-	bt.add_node("action", os, Vector2(900, 150))
-	bt.connect_node("action", 0, "pose_blend")
-	bt.connect_node("action", 1, "act_ts")
-	bt.connect_node("output", 0, "action")
+	# разовое действие — два слота поверх позы: новое действие во время старого запускается в свободном слоте,
+	# старое плавно уходит (иначе повторный запуск OneShot обрывал клип и начинал новый с кадра 0 — рывок)
+	var below := "pose_blend"
+	for sl in ["a", "b"]:
+		var act := AnimationNodeAnimation.new()
+		act.animation = "bc/idle"
+		bt.add_node("act_anim_" + sl, act, Vector2(600, 350 if sl == "a" else 500))
+		var act_ts := AnimationNodeTimeScale.new()
+		bt.add_node("act_ts_" + sl, act_ts, Vector2(750, 350 if sl == "a" else 500))
+		bt.connect_node("act_ts_" + sl, 0, "act_anim_" + sl)
+		var os := AnimationNodeOneShot.new()
+		os.fadein_time = 0.18
+		os.fadeout_time = 0.22
+		os.fadein_curve = _ease_curve()
+		os.fadeout_curve = _ease_curve()
+		bt.add_node("action_" + sl, os, Vector2(900, 150 if sl == "a" else 300))
+		bt.connect_node("action_" + sl, 0, below)
+		bt.connect_node("action_" + sl, 1, "act_ts_" + sl)
+		below = "action_" + sl
+	bt.connect_node("output", 0, below)
 	tree.tree_root = bt
 	tree.active = true
 
@@ -214,7 +229,7 @@ func _build_tree() -> void:
 ## скорость тела (м/с) и присед (0..1); клипы подстраиваются под скорость
 func set_motion(speed: float, crouch: float, delta: float) -> void:
 	_speed = speed
-	_crouch = move_toward(_crouch, crouch, delta * 4.0)
+	_crouch = move_toward(_crouch, crouch, delta / 0.45)
 	if tree == null:
 		return
 	# стойка ↔ движение: вес за ~0.2 с (как время смешения стойки и шага в жанре — 0.15–0.25 с)
@@ -233,7 +248,7 @@ func set_motion(speed: float, crouch: float, delta: float) -> void:
 	tree.set("parameters/crouch/blend_position", csp)
 	tree.set("parameters/crouch_ts/scale", cts)
 	tree.set("parameters/crouch_move/blend_amount", _crouch_move_w * _crouch_move_w * (3.0 - 2.0 * _crouch_move_w))
-	tree.set("parameters/crouch_blend/blend_amount", _crouch)
+	tree.set("parameters/crouch_blend/blend_amount", _crouch * _crouch * (3.0 - 2.0 * _crouch))
 
 
 ## точка смешения и темп передвижения для скорости v. Между соседними клипами (скорость v_i, двойной шаг
@@ -268,30 +283,45 @@ func _loco_solve(v: float) -> Array:
 	return [v, 1.0]
 
 
-## удерживаемая поза (sit_idle, lie_idle, combat_idle, dead …); "" — снять
-func set_pose(n: String) -> void:
+## удерживаемая поза (sit_idle, lie_idle, combat_idle, dead …); "" — снять.
+## delay — через сколько секунд начать смену (например, после того как разовый клип полностью вошёл):
+## иначе поза уходит раньше, чем клип её закрывает, и на мгновение видна стойка (рывок).
+func set_pose(n: String, delay := 0.0) -> void:
 	_pose = n
 	if tree == null:
 		return
 	if n != "" and info.has(n):
 		var pa: AnimationNodeAnimation = tree.tree_root.get_node("pose_anim")
 		pa.animation = "bc/" + n
-	var tw := create_tween()
-	tw.tween_method(func(v): tree.set("parameters/pose_blend/blend_amount", v), tree.get("parameters/pose_blend/blend_amount"), 1.0 if n != "" else 0.0, 0.3)
+	if _pose_tw and _pose_tw.is_valid():
+		_pose_tw.kill()
+	_pose_tw = create_tween()
+	if delay > 0.0:
+		_pose_tw.tween_interval(delay)
+	_pose_tw.tween_method(func(v):
+		_pose_w = v
+		tree.set("parameters/pose_blend/blend_amount", v * v * (3.0 - 2.0 * v)), _pose_w, 1.0 if n != "" else 0.0, 0.3)
 
 
 ## разовый клип; возвращает длительность (0 — клипа нет)
 func play(n: String, rate := 1.0) -> float:
 	if tree == null or not info.has(n):
 		return 0.0
-	var aa: AnimationNodeAnimation = tree.tree_root.get_node("act_anim")
+	var other := _slot
+	if _action != "":
+		_slot = "b" if _slot == "a" else "a"
+		# прежнее действие уходит за время смешивания нового
+		var o: AnimationNodeOneShot = tree.tree_root.get_node("action_" + other)
+		o.fadeout_time = info[n].blend
+		tree.set("parameters/action_%s/request" % other, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
+	var aa: AnimationNodeAnimation = tree.tree_root.get_node("act_anim_" + _slot)
 	aa.animation = "bc/" + n
-	var os: AnimationNodeOneShot = tree.tree_root.get_node("action")
+	var os: AnimationNodeOneShot = tree.tree_root.get_node("action_" + _slot)
 	os.fadein_time = info[n].blend
 	os.fadeout_time = info[n].blend
 	var r: float = info[n].rate * rate
-	tree.set("parameters/act_ts/scale", r)
-	tree.set("parameters/action/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	tree.set("parameters/act_ts_%s/scale" % _slot, r)
+	tree.set("parameters/action_%s/request" % _slot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	_action = n
 	_action_t = info[n].len / r
 	return _action_t
@@ -299,8 +329,16 @@ func play(n: String, rate := 1.0) -> float:
 
 func stop_action() -> void:
 	if tree:
-		tree.set("parameters/action/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
+		for sl in ["a", "b"]:
+			tree.set("parameters/action_%s/request" % sl, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
 	_action = ""
+
+
+static func _ease_curve() -> Curve:
+	var c := Curve.new()
+	c.add_point(Vector2(0, 0), 0, 0)
+	c.add_point(Vector2(1, 1), 0, 0)
+	return c
 
 
 func busy() -> bool:

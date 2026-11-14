@@ -369,7 +369,8 @@ func angles(s: Dictionary) -> Dictionary:
 		# тазобедренный: бедро в осях таза
 		var d := Dh.inverse() * (kn - th).normalized()
 		out["бедро_сгиб_" + sd] = rad_to_deg(atan2(d.dot(F), -d.dot(U)))
-		out["бедро_отвед_" + sd] = rad_to_deg(atan2(sg * d.dot(R), -d.dot(U)))
+		# отведение — угол бедра к сагиттальной плоскости таза (не зависит от сгиба)
+		out["бедро_отвед_" + sd] = rad_to_deg(asin(clampf(sg * d.dot(R), -1.0, 1.0)))
 		# колено: сгиб со знаком (минус — переразгиб) и уход из плоскости сгиба («выворот»)
 		var kk := _hinge(s, sd + "_Thigh", th, kn, an, hinge["knee_" + sd])
 		out["колено_" + sd] = kk[0]

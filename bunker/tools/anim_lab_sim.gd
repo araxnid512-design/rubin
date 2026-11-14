@@ -128,14 +128,16 @@ func _play(name: String, steps: Array) -> void:
 				await _run_for(maxf(d - at, 0.1))
 				_ev(st[1] + " → поза", rig.info[st[1]].blend)
 			"stand":
-				rig.set_pose("")
+				# как player.stand_up: клип поверх позы, поза снимается после его входа
 				var d := rig.play(st[1])
+				rig.set_pose("", rig.info[st[1]].blend)
 				_ev("поза → " + st[1], rig.info[st[1]].blend)
 				await _run_for(maxf(d - 0.1, 0.1))
 				_ev(st[1] + " →", rig.info[st[1]].blend)
 			"death":
-				rig.play("death")
-				rig.set_pose("dead")
+				# как player.die
+				var d := rig.play("death")
+				rig.set_pose("dead", maxf(d - 0.45, 0.0))
 				_ev("→ death", rig.info["death"].blend if rig.info.has("death") else 0.1)
 	RenderingServer.render_loop_enabled = true
 	qa.vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -179,6 +181,9 @@ func _tick() -> void:
 	qa._cap = {}
 	await qa.get_tree().process_frame
 	var s: Dictionary = qa._cap if not qa._cap.is_empty() else body.snap()
+	if qa.debug_clip == "sim":
+		var so: Dictionary = body.soles(s)
+		print("[sim] %.3f v%.2f mw%.2f lock %s d %s R %s" % [t, speed, rig._move_w, rig.ik.last_debug.get("lock"), str(rig.ik.last_debug.get("lock_d")), (so.R as Array).map(func(p): return (p as Vector3).snapped(Vector3(0.01, 0.01, 0.01)))])
 	frames.append({"t": t, "s": s, "pos": qa.holder.position, "yaw": yaw, "speed": speed})
 	t += dt
 
@@ -188,15 +193,22 @@ func _measure(name: String) -> Dictionary:
 	# скорость суставов в системе тела (м/с) и смещение за кадр
 	var jv: Array = []
 	var jd: Array = []
+	var jw: Array = []
 	for i in n:
 		if i == 0:
 			jv.append(0.0)
 			jd.append(0.0)
+			jw.append("")
 			continue
 		var mx := 0.0
+		var wj := ""
 		for j in JOINTS:
-			mx = maxf(mx, body.pos(frames[i].s, j).distance_to(body.pos(frames[i - 1].s, j)))
+			var dd: float = body.pos(frames[i].s, j).distance_to(body.pos(frames[i - 1].s, j))
+			if dd > mx:
+				mx = dd
+				wj = j
 		jd.append(mx)
+		jw.append(wj)
 		jv.append(mx / dt)
 	# скольжение стоп в мире
 	var slide: Array = []
@@ -216,6 +228,12 @@ func _measure(name: String) -> Dictionary:
 			if prev.has(sd) and (pts[lo_i] as Vector3).y < 0.03:
 				var a: Vector3 = prev[sd][lo_i]
 				var bb: Vector3 = w[lo_i]
+				# кадр касания (в прошлом кадре точка была в воздухе): скорость — по следующему кадру, уже на полу
+				if a.y >= 0.03 and i + 1 < n:
+					var so2: Dictionary = body.soles(frames[i + 1].s)
+					var xf2 := Transform3D(Basis(Vector3.UP, frames[i + 1].yaw), frames[i + 1].pos)
+					a = bb
+					bb = xf2 * (so2[sd][lo_i] as Vector3)
 				var v := Vector2(bb.x - a.x, bb.z - a.z).length() / dt
 				if v < maxf(0.35, 0.5 * float(frames[i].speed)):
 					slide.append(v * 100.0)
@@ -233,27 +251,34 @@ func _measure(name: String) -> Dictionary:
 		var a1 := clampi(int((t0 + bl + 1.0) / dt), 0, n - 1)
 		var peak := 0.0
 		var pop := 0.0
+		var pj := ""
 		for i in range(i0, i1 + 1):
-			peak = maxf(peak, jv[i])
+			if jv[i] > peak:
+				peak = jv[i]
+				pj = jw[i]
 			if i > 1 and i < n - 1:
 				var nb := maxf(jd[i - 1], jd[i + 1])
 				if jd[i] > 0.05 and jd[i] > 3.0 * maxf(nb, 0.005):
 					pop = maxf(pop, jd[i])
+					pj = jw[i]
 		var ref := 0.0
 		for i in range(b0, i0):
 			ref = maxf(ref, jv[i])
 		for i in range(i1 + 1, a1 + 1):
 			ref = maxf(ref, jv[i])
-		var ratio := peak / maxf(ref, 0.3)
+		var r0 := maxf(ref, 0.3)
+		var ratio := peak / r0
+		# рывок: скачок за кадр — всегда FAIL; пик скорости суставов выше спокойных участков
+		# FAIL — больше max(2×, +1.5 м/с), WARN — больше max(1.4×, +0.8 м/с)
 		var lv := 0
-		if pop > 0.0 or (ratio > 1.6 and peak > 1.5):
+		if pop > 0.0 or peak > maxf(2.0 * r0, r0 + 1.5):
 			lv = 2
-		elif ratio > 1.3 and peak > 1.0:
+		elif peak > maxf(1.4 * r0, r0 + 0.8):
 			lv = 1
 		worst = maxi(worst, lv)
 		trs.append({"name": ev[1], "t": snappedf(t0, 0.01), "blend": bl, "peak": snappedf(peak, 0.01), "ref": snappedf(ref, 0.01),
 			"ratio": snappedf(ratio, 0.01), "pop_cm": snappedf(pop * 100.0, 0.1), "verdict": ["PASS", "WARN", "FAIL"][lv],
-			"msg": "пик %.2f м/с при %.2f в спокойных участках (×%.2f)%s" % [peak, ref, ratio, (", скачок %.1f см за кадр" % (pop * 100.0)) if pop > 0.0 else ""]})
+			"joint": pj, "msg": "пик %.2f м/с (%s) при %.2f в спокойных участках (×%.2f)%s" % [peak, pj, ref, ratio, (", скачок %.1f см за кадр" % (pop * 100.0)) if pop > 0.0 else ""]})
 	var sm: float = qa._mean(slide)
 	var s95: float = qa._pct(slide, 0.95)
 	var slv: int = maxi(qa._lvl(sm, qa.LIM.slide_mean), qa._lvl(s95, qa.LIM.slide_p95))

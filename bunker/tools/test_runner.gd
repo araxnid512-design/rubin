@@ -138,6 +138,8 @@ func _run() -> void:
 		await _perf_test()
 	if mode == "interact" or mode == "all" or mode == "sitlie":
 		await _interact_test(mode == "sitlie")
+	if mode == "emotes":
+		await _emotes_test()
 	if mode == "walk" or mode == "all":
 		await _walk_test()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
@@ -303,3 +305,112 @@ func _perf_test() -> void:
 	var p99: float = all_ms[int(all_ms.size() * 0.99)] if all_ms.size() > 0 else 0.0
 	_log("Итог: кадров %d, среднее %.1f мс (%.0f FPS), 1%% худших — %.1f мс, максимум %.1f мс, ОЗУ %.0f МБ, видео %.0f МБ" % [all_ms.size(), avg, 1000.0 / maxf(avg, 0.001), p99, all_ms[-1] if all_ms.size() > 0 else 0.0, Core.mobile.stats().mem_mb, Core.mobile.stats().vram_mb])
 
+
+## эмоции и руки в игре: «пауза» после покоя (бункер и поверхность), испуг от дозы, разговор с жителем
+## (приветствие, жест героя, взмах вслед), дверь и пульт — кисть на ручке/панели (IK); снимки посреди клипов
+func _emotes_test() -> void:
+	var pl: BCPlayer = Core.player
+	# 1) пауза в бункере
+	await _place(Vector3(-5.2, -5.95, -24.8), PI)
+	pl._calm_t = 0.0
+	pl._calm_next = 2.0
+	pl._last_emote = ""
+	await get_tree().create_timer(2.5).timeout
+	var c1: String = pl.rig._action
+	await get_tree().create_timer(1.0).timeout
+	_log("пауза в бункере: клип «%s», занят %s, состояние %s" % [c1, pl.rig.busy(), pl.state])
+	await _shot("e1_idle_break")
+	# 2) поверхность без костюма у грузовика (фон выше 1 мЗв/ч): кашель или взгляд на дозиметр
+	await _place(Vector3(-9.0, 0.1, 9.0), PI * 0.3)
+	pl._calm_t = 0.0
+	pl._calm_next = 2.0
+	pl._last_emote = ""
+	await get_tree().create_timer(2.5).timeout
+	var c2: String = pl.rig._action
+	await get_tree().create_timer(0.9).timeout
+	_log("пауза на поверхности (фон %.1f мЗв/ч): клип «%s»" % [pl.rad_rate, c2])
+	await _shot("e2_surface_break")
+	# 2б) движение прерывает паузу
+	pl.move_input = Vector2(0, 1)
+	await get_tree().create_timer(0.5).timeout
+	_log("  после начала движения: клип «%s», эмоция «%s», скорость %.2f" % [pl.rig._action, pl._emote, Vector3(pl.velocity.x, 0, pl.velocity.z).length()])
+	pl.move_input = Vector2.ZERO
+	await get_tree().create_timer(1.0).timeout
+	# 3) испуг: опасная доза
+	await _place(Vector3(-5.2, -5.95, -24.8), PI)
+	pl.dose = 260.0
+	pl._dose_warned = false
+	await get_tree().create_timer(0.6).timeout
+	_log("доза 260 мЗв: клип «%s»" % pl.rig._action)
+	await get_tree().create_timer(0.6).timeout
+	await _shot("e3_scared")
+	pl.dose = 0.0
+	await get_tree().create_timer(2.5).timeout
+	# 4) разговор с инженером и взмах вслед
+	var eng: Node = get_tree().root.find_child("Engineer", true, false)
+	if eng:
+		eng.global_position = Vector3(0.0, -5.95, -20.8)
+		eng.velocity = Vector3.ZERO
+		eng.state = "idle"
+		eng._t = 30.0
+		await _place(Vector3(0.0, -5.95, -19.6), PI)
+		await _frames(10)
+		_log("разговор: цель «%s»" % (pl.target.interact_label() if pl.target else "—"))
+		pl.do_interact()
+		await get_tree().create_timer(0.8).timeout
+		_log("  житель: клип «%s»; герой: клип «%s», состояние %s" % [eng.rig._action, pl.rig._action, pl.state])
+		Core.hud.close_modal()
+		var cam0: Node = get_viewport().get_camera_3d()
+		cam0.zoom = 0.6
+		await _shot("e4_talk")
+		cam0.zoom = 1.0
+		await get_tree().create_timer(2.0).timeout
+		await _place(Vector3(4.5, -5.95, -20.6), PI * 0.5)
+		await get_tree().create_timer(1.2).timeout
+		_log("  герой отошёл: житель — клип «%s»" % eng.rig._action)
+		await _shot("e5_wave")
+	# 5) дверь: подойти к ручке, кисть на ручке
+	var door: BCDoor = Core.world.objects.get("d_gen")
+	if door:
+		door.set_open(false)
+		await get_tree().create_timer(1.0).timeout
+		await _place(Vector3(3.1, -5.95, -20.9), 0.4, PI)
+		get_viewport().get_camera_3d().zoom = 0.6
+		await _frames(10)
+		_log("дверь: цель «%s»" % (pl.target.interact_label() if pl.target else "—"))
+		var p0 := pl.global_position
+		pl.do_interact()
+		var mx := 0.0
+		var err := 0.0
+		var shot := false
+		for k in 360:
+			await get_tree().physics_frame
+			if pl.rig.hands.weight > mx:
+				mx = pl.rig.hands.weight
+				err = pl.rig.hands.last_err
+			if not shot and pl.rig.hands.weight > 0.95:
+				shot = true
+				await _shot("e6_door_hand")
+		_log("  подошёл на %.2f м, кисть: вес %.2f, до ручки %.1f см; дверь открыта: %s" % [p0.distance_to(pl.global_position), mx, err * 100.0, door.is_open])
+		get_viewport().get_camera_3d().zoom = 1.0
+	# 6) пульт
+	await _place(Vector3(1.4, -5.95, -27.6), PI, 0.0)
+	get_viewport().get_camera_3d().zoom = 0.6
+	await _frames(10)
+	_log("пульт: цель «%s»" % (pl.target.interact_label() if pl.target else "—"))
+	pl.do_interact()
+	var mx2 := 0.0
+	var err2 := 0.0
+	var shot2 := false
+	for k in 420:
+		await get_tree().physics_frame
+		if pl.rig.hands.weight > mx2:
+			mx2 = pl.rig.hands.weight
+			err2 = pl.rig.hands.last_err
+		if not shot2 and pl.rig.hands.weight > 0.85:
+			shot2 = true
+			Core.hud.close_modal()
+			await _shot("e7_terminal_hand")
+	_log("  кисть: вес %.2f, до панели %.1f см" % [mx2, err2 * 100.0])
+	Core.hud.close_modal()
+	get_viewport().get_camera_3d().zoom = 1.0
