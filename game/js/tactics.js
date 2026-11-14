@@ -351,8 +351,7 @@
     const s0 = BT.idx(e.x, e.y);
     if (!fresh && F[s0] === 0) { capture(e, h); return true; }
     const budget = e.mob * e.ap / 2;
-    e.ap = 0;
-    if (budget < 1 || F[s0] === Infinity) return true;
+    if (budget < 1 || F[s0] === Infinity) return holdFire(e, fresh);   // к краю не пройти — держит и отстреливается
     const R = BT.reach(e, budget);
     const sol = BT.soldiers();
     let best = null;
@@ -364,7 +363,8 @@
       for (let k = 0; k < sol.length; k++) { const d = Math.max(Math.abs(sol[k].x - x), Math.abs(sol[k].y - y)); if (d <= 1) v += 3; else if (d <= 3) v += 0.6; }
       if (!best || v < best.v) best = { x: x, y: y, v: v };
     }
-    if (!best) return true;
+    if (!best) return holdFire(e, fresh);
+    e.ap = 0;
     const path = BT.pathTo(R, best.x, best.y);
     if (e.seen) DW.TR.float(e.x, e.y, 'Тащит заложника', 'bad');
     for (let k = 0; k < path.length; k++) {
@@ -374,6 +374,13 @@
       moveBody(B, h, px, py);
     }
     if (!fresh && F[BT.idx(e.x, e.y)] === 0) capture(e, h);
+    return true;
+  }
+  /* тащить некуда (стены, отряд на пути): стоит, прикрываясь заложником, и стреляет с места */
+  async function holdFire(e, fresh) {
+    const T = D.ENEMIES[e.type];
+    if (!fresh && e.ap > 0 && !T.melee && e.weapon && D.WEAPONS[e.weapon]) { e.ap = 1; await DW.AI.ranged(e); }
+    e.ap = 0;
     return true;
   }
   function capture(e, h) {
