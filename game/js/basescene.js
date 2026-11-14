@@ -28,6 +28,8 @@
     radio: { u: 1.05, v: 4.1, w: 1.0, d: 1.0 },
     garage: { u: 7.95, v: 3.0, w: 1.45, d: 1.2 },
     ammo: { u: 1.3, v: 2.55, w: 1.1, d: 1.0 },
+    range: { u: 4.3, v: 0.75, w: 2.2, d: 0.7 },
+    memorial: { u: 3.55, v: 8.75, w: 0.6, d: 0.45, n: 'Памятный камень', desc: 'Камень с именами павших бойцов.' },
     walls: { u: 0.25, v: 0.25, w: 9.5, d: 9.5 }
   };
   const SLOT_KEYS = Object.keys(SLOT).filter(function (k) { return k !== 'walls'; });
@@ -849,7 +851,30 @@
     g.fillStyle = '#1a1816'; ART.ell(g, x, y - h, 2.4, 1.1);
   }
   const towerG = { ok: false, clip: false, fx: 0, fy: 0, fx2: 0, fy2: 0, rail: 0, lx: 0, ly: 0 };
+  /* тир: мешки огневого рубежа и три мишени на столбах */
+  function drawRange(g, t) {
+    const s = SLOT.range;
+    box(g, s.u, s.v + s.d - 0.2, s.u + s.w, s.v + s.d, 0, 6, ['#a08b62', '#857250', '#6e5e42']);
+    for (let k = 0; k < 3; k++) {
+      const u = s.u + 0.35 + k * 0.75, v = s.v + 0.12;
+      const a = P(u, v, 0), b = P(u, v, 20);
+      ART.line(g, a[0], a[1], b[0], b[1], 2, '#6a5038');
+      const sw = Math.sin(t / 700 + k) * 0.6;
+      g.fillStyle = '#e8e0cc'; g.beginPath(); g.ellipse(b[0], b[1] - 4, 5.5, 6, sw * 0.05, 0, 7); g.fill();
+      g.strokeStyle = '#b02a20'; g.lineWidth = 1.5; g.beginPath(); g.arc(b[0], b[1] - 4, 3.6, 0, 7); g.stroke();
+      g.fillStyle = '#b02a20'; g.beginPath(); g.arc(b[0], b[1] - 4, 1.3, 0, 7); g.fill();
+    }
+  }
+  /* памятный камень с именами павших; огонёк, если есть погибшие */
+  function drawMemorial(g, t) {
+    const s = SLOT.memorial, st = DW.G.state, n = (st.memorial || []).length;
+    box(g, s.u, s.v, s.u + s.w, s.v + s.d, 0, 14 + Math.min(10, n * 2), ['#8a8780', '#6e6b65', '#57544f']);
+    if (n) { const c = P(s.u + s.w / 2, s.v + s.d + 0.12, 0); g.fillStyle = 'rgba(255,190,90,' + (0.6 + Math.sin(t / 180) * 0.2) + ')'; g.beginPath(); g.arc(c[0], c[1] - 2, 1.8, 0, 7); g.fill(); }
+    if (sel === 'memorial') drawSlot(g, 'memorial', t);
+  }
   function drawBuilding(g, k, t, st) {
+    if (k === 'memorial') { drawMemorial(g, t); return; }
+    if (k === 'range' && DW.G.blv('range')) { drawRange(g, t); return; }
     const lv = DW.G.blv(k);
     if (k !== 'hq' && !lv) { drawSlot(g, k, t); return; }
     const ba = buildAnim[k];
@@ -1438,6 +1463,12 @@
     if (!sel) { p.classList.add('hidden'); return; }
     p.classList.remove('hidden');
     const G = DW.G;
+    if (sel === 'memorial') {
+      const ms = DW.G.state.memorial || [];
+      p.appendChild(el('div', { class: 'pn-title', text: SLOT.memorial.n }));
+      p.appendChild(el('div', { class: 'pn-desc', html: ms.length ? 'Здесь выбиты имена павших:<br>' + ms.map(function (m) { return '<b>' + m.name + '</b> <small class="dim">— день ' + m.day + ', убитых ' + m.kills + '</small>'; }).join('<br>') : 'Камень пока чист. Пусть так и останется.' }));
+      return;
+    }
     if (sel === 'hq') {
       p.appendChild(el('div', { class: 'pn-title', text: SLOT.hq.n }));
       p.appendChild(el('div', { class: 'pn-desc', html: SLOT.hq.desc + '<br><br>Построек: <b>' + countBuilt() + '</b>. Чем больше построек, тем солиднее штаб: с четырёх построек он становится двухэтажным, бетонным.' }));

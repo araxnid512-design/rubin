@@ -128,6 +128,21 @@
   };
   G.deleteSave = function () { DW.store.del(SAVE_KEY); };
 
+  /* Медали за бой: подвиги из боя (u.feats) и итог (убийства, остался в строю раненым) */
+  G.awardMedals = function (s, u, out, sum) {
+    const got = [];
+    const f = Object.assign({}, u.feats || {});
+    if ((u.kills || 0) >= 5) f.brave = 1;
+    if (u.alive && u.hp <= 2 && out !== 'defeat') f.iron = 1;
+    for (const k in f) { if (!D.MEDALS[k]) continue; s.medals = s.medals || {}; s.medals[k] = (s.medals[k] || 0) + 1; got.push(D.MEDALS[k].n); }
+    if (got.length) (sum.medals = sum.medals || []).push(s.name + ': ' + got.join(', '));
+  };
+  G.checkAch = function () {
+    const st = G.state, out = [];
+    st.ach = st.ach || {};
+    (D.ACHIEVE || []).forEach(function (a) { try { if (!st.ach[a.id] && a.ok(st)) { st.ach[a.id] = st.day; out.push(a); G.log('Достижение: «' + a.n + '».'); } } catch (e) { /* нет данных */ } });
+    return out;
+  };
   G.log = function (text) {
     const st = G.state;
     st.log.unshift({ day: st.day, text: text });
@@ -417,6 +432,18 @@
       s.injury = Math.max(0, s.injury - (atBase && G.blv('infirmary') ? 2 : 1));
       if (!s.injury) notes.push({ title: 'Снова в строю', text: '«' + s.name + '» оправился от ранения и может идти на задание.', kind: 'good' });
     });
+    // тир: дни на базе — тренировки
+    if (atBase && G.blv('range') && res.ammo >= 10) {
+      res.ammo -= 10;
+      const up = [];
+      st.roster.forEach(function (s) {
+        if (s.injury) return;
+        s.xp += 1; s.drill = (s.drill || 0) + 1;
+        if (s.drill % 4 === 0 && (s.drillAim || 0) < 6) { s.drillAim = (s.drillAim || 0) + 1; s.aimBase += 1; up.push(s.name + ' +1 к меткости'); }
+        if (s.drill % 8 === 0 && (s.drillHp || 0) < 2) { s.drillHp = (s.drillHp || 0) + 1; s.hpBase += 1; up.push(s.name + ' +1 ОЗ'); }
+      });
+      if (up.length) notes.push({ title: 'Тир', text: 'Тренировки дают плоды: ' + up.join(', ') + '.', kind: 'good' });
+    }
     // производство
     if (hasBase) {
       if (G.blv('farm')) res.food += 5;
@@ -493,6 +520,7 @@
       G.log('Замечен ' + (kind === 'beast' ? 'набег мутантов' : 'набег банды') + ' на базу.');
     }
 
+    G.checkAch().forEach(function (a) { notes.push({ title: 'Достижение', text: '«' + a.n + '» — ' + a.d.toLowerCase() + '.', kind: 'good' }); });
     let event = null;
     if (!defense && st.day > 2 && Math.random() < 0.14) event = G.rollEvent();
     return { notes: notes, event: event, defense: defense, drops: arrived.map(function (o) { return o.drop; }), raidNew: raidNew };
@@ -691,7 +719,9 @@
         } },
         { t: 'Наказать обоих', run: function (st, ctx) {
           [ctx.a, ctx.b].forEach(function (id) { const x = st.roster.find(function (q) { return q.id === id; }); if (x) x.xp = Math.max(0, x.xp - 1); });
-          return 'Порядок наведён жёстко. Обиду затаили (−1 опыта каждому).';
+          const a = st.roster.find(function (x) { return x.id === ctx.a; }), b = st.roster.find(function (x) { return x.id === ctx.b; });
+          if (a && b) { a.bonds = a.bonds || {}; b.bonds = b.bonds || {}; a.bonds[b.id] = Math.min(-2, (a.bonds[b.id] || 0) - 3); b.bonds[a.id] = Math.min(-2, (b.bonds[a.id] || 0) - 3); }
+          return 'Порядок наведён жёстко. Обиду затаили (−1 опыта каждому). Рядом друг с другом теперь стреляют хуже, пока не помирятся в бою.';
         } }
       ]
     },
@@ -780,6 +810,8 @@
       if (idx < 0) return;
       const s = st.roster[idx];
       kills += u.kills;
+      G.awardMedals(s, u, out, sum);
+      if (u.bondUp) for (const k in u.bondUp) { s.bonds = s.bonds || {}; s.bonds[k] = Math.min(5, (s.bonds[k] || 0) + u.bondUp[k]); const o = st.roster.find(function (x) { return x.id === k; }); if (o) { o.bonds = o.bonds || {}; o.bonds[s.id] = Math.min(5, (o.bonds[s.id] || 0) + u.bondUp[k]); } }
       if (!u.alive && (u.stable || (u.down > 0 && out === 'victory'))) {
         s.wounds = Math.max(0, G.maxHp(s) - 1);
         // тяжёлое ранение: 3 дня вне строя (в лазарете на базе — быстрее), после — черта характера
@@ -827,7 +859,7 @@
     });
 
     if (B.kind === 'defense') {
-      if (out === 'victory') { sum.text = 'Нападение на базу отбито!'; G.log('Отряд отбил нападение на базу.'); }
+      if (out === 'victory') { sum.text = 'Нападение на базу отбито!'; G.log('Отряд отбил нападение на базу.'); st.stats.raids = (st.stats.raids || 0) + 1; }
       else sum.text = 'Базу не удалось удержать. ' + G.raidLoss(G.raidWho(B.raidKind));
     } else if (node) {
       if (out === 'victory') {
@@ -835,7 +867,7 @@
           node.cleared = true;
           if (node.type === 'lair') st.stats.lairs++;
           if (node.type === 'camp') st.stats.camps++;
-          if (node.type === 'nest') st.over = 'win_nest';
+          if (node.type === 'nest') { st.over = 'win_nest'; st.queenDead = true; }
         }
         node.visited = true;
         sum.text = '«' + node.name + '» зачищено.';
@@ -864,6 +896,11 @@
     st.killsByType = st.killsByType || {};
     B.units.forEach(function (e) { if (e.side === 'e' && !e.alive && e.type) { st.killsByType[e.type] = (st.killsByType[e.type] || 0) + 1; st.metEnemies = st.metEnemies || {}; st.metEnemies[e.type] = 1; } });
     if (out === 'victory') st.stats.won++;
+    // серия боёв без потерь, самый дальний смертельный выстрел
+    st.stats.cleanRun = sum.dead.length ? 0 : (st.stats.cleanRun || 0) + 1;
+    st.stats.deaths = (st.stats.deaths || 0) + sum.dead.length;
+    if (B.stat && B.stat.longest > (st.stats.longest || 0)) st.stats.longest = B.stat.longest;
+    sum.ach = G.checkAch();
     st.battle = null;
     if (st.roster.length === 0) st.over = 'lose';
     G.save();

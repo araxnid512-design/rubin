@@ -1942,7 +1942,23 @@
   };
   const BARKS_P = {
     'Крут': { move: ['За мной.', 'Держимся вместе.'], kill: ['Чисто.', 'Следующий.'], contact: ['Все в укрытия!', 'Гости.'], save: ['Мы своих не бросаем.'] },
-    'Мальборо': { move: ['Иду, иду…', 'Покурить бы.'], reload: ['Диск пуст!', 'Секунду, перекур… шучу.'], kill: ['Отбегался.', 'Затяжка за тебя.'], hurt: ['Сигарету помял, гад!'], overwatch: ['Посижу, покурю.'] }
+    'Мальборо': { move: ['Иду, иду…', 'Покурить бы.', 'Не торопимся.'], reload: ['Диск пуст!', 'Секунду, перекур… шучу.'], kill: ['Отбегался.', 'Затяжка за тебя.'], hurt: ['Сигарету помял, гад!', 'Терпимо.'], overwatch: ['Посижу, покурю.'], contact: ['Спокойно, мужики. Работаем.'], lowhp: ['Ничего… докурю и встану.'] },
+    'Бугай': { move: ['Ну, пошли!', 'Дорогу!'], kill: ['Получил, гнида!', 'Следующий!', 'Ещё хочешь?!'], hurt: ['Ах ты ж…!', 'Убью, гад!'], contact: ['Ну давайте, твари!', 'Сюда идите!'], contactBeast: ['Мясо пришло!'], reload: ['Патроны давай!'], enemyhit: ['Мало!'] },
+    'Сыч': { move: ['Позицию меняю.', 'Тихо.'], kill: ['Есть.', 'Чистый.'], overwatch: ['Вижу всё.', 'Сектор мой.'], contact: ['Цели вижу.'], hurt: ['Задело…'] },
+    'Док': { heal: ['Не дёргайся, шью.', 'Бывало хуже.', 'Жить будешь.'], save: ['Держись, я рядом!', 'Не смей умирать, слышишь?!'], hurt: ['Врач, исцелися сам…'], kill: ['Клятву Гиппократа я давал не вам.'] },
+    'Тихий': { move: ['…', 'Иду.'], kill: ['…', 'Минус.'], contact: ['Там.'], hurt: ['Тс-с…'] }
+  };
+  // по характеру (если нет своих слов): злой, осторожный, хладнокровный
+  const BARKS_T = {
+    grim: { kill: ['Так тебе!', 'За наших!'], contact: ['Сейчас поквитаемся.'], hurt: ['Злее буду.'] },
+    wary: { move: ['Осторожно…', 'Смотрите в оба.'], contact: ['Не высовываться!'], hurt: ['Говорил же — осторожно!'] },
+    cold: { kill: ['Цель снята.'], overwatch: ['Жду.'], contact: ['Без паники.'] },
+    quick: { move: ['Я быстро!'], run: ['Не догонят!'] }
+  };
+  // новобранцы нервничают
+  const BARKS_NEW = {
+    move: ['Иду… иду же!', 'А там точно никого?'], contact: ['Их много! Их много!', 'Мамочки…', 'Что делать?!'], contactBeast: ['Это что ещё такое?!', 'Не подходи!'],
+    hurt: ['Я ранен! Я ранен!', 'Больно-о!'], kill: ['Я попал?! Я попал!', 'Готов… вроде.'], reload: ['Руки трясутся…'], lowhp: ['Не хочу умирать!']
   };
   const barkCd = {};
   TR.bark = function (u, kind, arg) {
@@ -1952,7 +1968,9 @@
     const live = fx.barks ? fx.barks.filter(function (b) { return t - b.t0 < b.life; }).length : 0;
     if (live >= 2 && kind !== 'downed' && kind !== 'died') return;
     const own = BARKS_P[u.name] && BARKS_P[u.name][kind];
-    const pool = own && Math.random() < 0.65 ? own : BARKS[kind];
+    const tr = (BARKS_T[u.trait2] && BARKS_T[u.trait2][kind]) || (BARKS_T[u.trait] && BARKS_T[u.trait][kind]);
+    const nov = u.side === 'p' && u.kind === 'soldier' && !(u.rank > 0) && !BARKS_P[u.name] && BARKS_NEW[kind];
+    const pool = own && Math.random() < 0.65 ? own : (tr && Math.random() < 0.45 ? tr : (nov && Math.random() < 0.6 ? nov : BARKS[kind]));
     const text = pool[Math.floor(Math.random() * pool.length)].replace('{}', arg || '');
     barkCd[u.id] = t;
     (fx.barks = fx.barks || []).push({ u: u, text: text, t0: t, life: 1900, bad: u.side === 'e' });

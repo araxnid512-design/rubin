@@ -170,8 +170,16 @@
             const o = st.roster.find(function (x) { return String(x.id) === id; });
             if (o && s.bonds[id] >= 3) bl.push(o.name);
           }
-          return bl.length ? '<div class="small">Боевые товарищи: <b class="acc">' + bl.join(', ') + '</b> <span class="dim">(+5 к меткости рядом)</span></div>' : '';
+          const rv = [];
+          for (const id in (s.bonds || {})) { const o = st.roster.find(function (x) { return String(x.id) === id; }); if (o && s.bonds[id] <= -2) rv.push(o.name); }
+          return (bl.length ? '<div class="small">Боевые товарищи: <b class="acc">' + bl.join(', ') + '</b> <span class="dim">(рядом +5 к меткости и −5 к попаданию по ним)</span></div>' : '') +
+            (rv.length ? '<div class="small">Не ладит: <b style="color:#e88a7a">' + rv.join(', ') + '</b> <span class="dim">(рядом −5 к меткости)</span></div>' : '');
         })() +
+        (function () {
+          const md = s.medals || {}, ks = Object.keys(md).filter(function (k) { return D.MEDALS[k]; });
+          return ks.length ? '<div class="small medals">' + ks.map(function (k) { const M = D.MEDALS[k]; return '<span class="medal" style="--mc:' + M.c + '" title="' + M.d + '">★ ' + M.n + (md[k] > 1 ? ' ×' + md[k] : '') + '</span>'; }).join(' ') + '</div>' : '';
+        })() +
+        ((s.drillAim || s.drillHp) ? '<div class="small dim">Тир: +' + (s.drillAim || 0) + ' к меткости, +' + (s.drillHp || 0) + ' ОЗ</div>' : '') +
         (next ? '<div class="pbar"><i style="width:' + Math.round((s.xp - D.RANKS[rk].xp) / (next.xp - D.RANKS[rk].xp) * 100) + '%;background:linear-gradient(90deg,#a8661a,#e8a83e)"></i></div>' : '') +
         hpBar(G.hp(s), G.maxHp(s));
       top.appendChild(info);
@@ -468,9 +476,32 @@
         return '<span class="m"><img class="ava" src="' + DW.ART.portrait(fake) + '" alt="">' + m.name + ' <small>д.' + m.day + ', убийств ' + m.kills + '</small></span>';
       }).join('') + '</div>' : '') +
       '<div class="jlog">' + st.log.map(function (l) { return '<div><span>День ' + l.day + '</span> ' + l.text + '</div>'; }).join('') + '</div>';
+    b.insertBefore(el('button', { class: 'btn sm', text: 'Достижения и статистика', onclick: function () { UI.achievements(); } }), b.firstChild);
     b.insertBefore(el('button', { class: 'btn sm', text: 'Справочник врагов', onclick: function () { UI.bestiary(); } }), b.firstChild);
     if (DW.Story) b.insertBefore(el('button', { class: 'btn sm', text: 'Хроника (сюжет)', onclick: function () { DW.Story.open(); } }), b.firstChild);
     UI.modal({ title: 'Журнал', cls: 'wide', body: b });
+  };
+
+  /* ---------- Достижения и статистика ---------- */
+  UI.achievements = function () {
+    const G = DW.G, st = G.state, S = st.stats;
+    const all = st.roster.map(function (s) { return { name: s.name, kills: s.kills, missions: s.missions, medals: Object.keys(s.medals || {}).reduce(function (a, k) { return a + s.medals[k]; }, 0), scars: (s.look && s.look.bscars) || 0, alive: true }; })
+      .concat(st.memorial.map(function (m) { return { name: m.name, kills: m.kills, missions: 0, medals: 0, scars: 0, alive: false }; }));
+    const top = function (key) { const l = all.slice().sort(function (a, b) { return b[key] - a[key]; }); return l.length && l[0][key] > 0 ? l[0] : null; };
+    const shooter = top('kills'), tough = all.filter(function (a) { return a.alive; }).sort(function (a, b) { return (b.missions + b.scars * 2) - (a.missions + a.scars * 2); })[0], hero = top('medals');
+    const b = el('div', { class: 'journal ach' });
+    b.innerHTML = '<div class="jstats">' +
+      '<div>Дней за Порталом: <b>' + st.day + '</b> · кристаллов сдано: <b>' + st.delivered + '</b> · боёв: <b>' + S.missions + '</b> (побед ' + S.won + ')</div>' +
+      '<div>Убито врагов: <b>' + S.kills + '</b> · погибло своих: <b>' + (S.deaths || st.memorial.length) + '</b> · набегов отбито: <b>' + (S.raids || 0) + '</b> · боёв подряд без потерь: <b>' + (S.cleanRun || 0) + '</b></div>' +
+      (S.longest ? '<div>Самый дальний смертельный выстрел: <b>' + S.longest + ' м</b></div>' : '') +
+      (shooter ? '<div>Лучший стрелок: <b class="acc">' + shooter.name + '</b> — ' + shooter.kills + ' убитых' + (shooter.alive ? '' : ' (погиб)') + '</div>' : '') +
+      (tough ? '<div>Самый живучий: <b class="acc">' + tough.name + '</b> — ' + tough.missions + ' заданий, шрамов ' + tough.scars + '</div>' : '') +
+      (hero ? '<div>Больше всех медалей: <b class="acc">' + hero.name + '</b> — ' + hero.medals + '</div>' : '') +
+      '</div><div class="achlist">' + (D.ACHIEVE || []).map(function (a) {
+        const got = st.ach && st.ach[a.id];
+        return '<div class="achi' + (got ? ' on' : '') + '"><b>' + (got ? '★ ' : '☆ ') + a.n + '</b><small>' + a.d + (got ? ' · день ' + got : '') + '</small></div>';
+      }).join('') + '</div>';
+    UI.modal({ title: 'Достижения и статистика', cls: 'wide', body: b });
   };
 
   /* ---------- Брифинг ---------- */
@@ -594,6 +625,8 @@
       }));
       if (cards.length) html += '<div class="rsol">' + cards.join('') + '</div>';
       if (sum.bonds) html += '<div class="rloot">Стали боевыми товарищами: <b class="acc">' + sum.bonds.join('; ') + '</b> — рядом друг с другом +5 к меткости.</div>';
+      if (sum.medals) html += '<div class="rloot">Медали: <b class="acc">' + sum.medals.join('; ') + '</b>.</div>';
+      if (sum.ach && sum.ach.length) html += '<div class="rloot">Достижение: <b class="acc">' + sum.ach.map(function (a) { return '«' + a.n + '»'; }).join(', ') + '</b>.</div>';
       if (sum.quest) html += '<div class="rloot quest"><b>★ Задание «' + sum.quest.t + '» выполнено.</b> ' + sum.quest.text + '<br>Награда: ' + sum.quest.got.join(' · ') + '</div>';
       if (sum.uazLost) html += '<div class="rloot"><span class="bad">УАЗ подбит</span> — нужен ремонт в гараже (' + DW.G.costText(D.UAZ_REPAIR) + ').</div>';
       if (sum.injured) html += '<div class="rloot"><span class="bad">Вне строя после ранений:</span> ' + sum.injured.join(', ') + ' — на задания не идут, оборонять базу могут. В лазарете на базе заживает вдвое быстрее.</div>';

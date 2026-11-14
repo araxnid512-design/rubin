@@ -176,6 +176,7 @@
     // черта после тяжёлого ранения
     if (s.trait2 === 'wary') u.def = (u.def || 0) + 5;
     if (s.trait2 === 'grim') u.aim += 5;
+    u.trait2 = s.trait2 || null;
     if (u.perks.indexOf('medic2') >= 0) u.charges.heal += 2;
     return u;
   }
@@ -544,6 +545,9 @@
     if (att.side === 'e' && att.type !== 'alpha' && D.ENEMIES[att.type] && D.ENEMIES[att.type].beast && B.units.some(function (a) { return a.alive && a.type === 'alpha' && U.dist(a.x, a.y, att.x, att.y) <= 4; })) { hit += 10; parts.push(['Вожак рядом', 10]); }
     if (B.concealed && att.side === 'p' && !o.reaction) { hit += 15; parts.push(['Из засады', 15]); }
     if (att.kind === 'soldier' && att.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== att && (att.bonds[a.sid] || 0) >= 3 && U.dist(a.x, a.y, ax, ay) <= 1.5; })) { hit += 5; parts.push(['Товарищ рядом', 5]); }
+    if (att.kind === 'soldier' && att.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== att && (att.bonds[a.sid] || 0) <= -2 && U.dist(a.x, a.y, ax, ay) <= 1.5; })) { hit -= 5; parts.push(['Не ладят', -5]); }
+    // товарищ рядом прикрывает: по бойцу труднее попасть
+    if (tgt.kind === 'soldier' && tgt.bonds && B.units.some(function (a) { return a.alive && a.kind === 'soldier' && a !== tgt && (tgt.bonds[a.sid] || 0) >= 3 && U.dist(a.x, a.y, tgt.x, tgt.y) <= 1.5; })) { hit -= 5; parts.push(['Товарищ прикрывает', -5]); }
     if (o.aimBonus) { hit += o.aimBonus; parts.push([o.aimLabel || 'Бонус', o.aimBonus]); }
     if (hasP(att, 'steady') && !att.moved && !o.reaction) { hit += 10; parts.push(['Твёрдая рука', 10]); }
     if (hasP(att, 'close') && d <= 4) { hit += 15; parts.push(['В упор', 15]); }
@@ -684,7 +688,16 @@
     if (u.side === 'e') {
       const T = D.ENEMIES[u.type];
       DW.SFX.play(T.beast ? 'growl' : 'death');
-      if (src && src.side === 'p') { src.kills = (src.kills || 0) + 1; src.xpGain = (src.xpGain || 0) + T.xp; if (src.alive) DW.TR.bark(src, 'kill'); }
+      if (src && src.side === 'p') {
+        src.kills = (src.kills || 0) + 1; src.xpGain = (src.xpGain || 0) + T.xp; if (src.alive) DW.TR.bark(src, 'kill');
+        // подвиги для медалей: серия за ход, дальний выстрел, вожак/главарь
+        src.feats = src.feats || {};
+        src._tk = src._tkTurn === B.turn ? (src._tk || 0) + 1 : 1; src._tkTurn = B.turn;
+        if (src._tk >= 3) src.feats.storm = 1;
+        if (U.dist(src.x, src.y, u.x, u.y) >= 12) src.feats.eagle = 1;
+        if (T.boss || T.leader || u.type === 'alpha' || u.type === 'boss') src.feats.hunter = 1;
+        const dd = U.dist(src.x, src.y, u.x, u.y); B.stat = B.stat || {}; if (dd > (B.stat.longest || 0)) B.stat.longest = Math.round(dd * 1.28);
+      }
       for (const k in T.loot) {
         const r = T.loot[k];
         B.field[k] = (B.field[k] || 0) + U.rand(r[0], r[1]);
@@ -714,6 +727,9 @@
     else st.res.meds -= 1;
     u.ap -= 1;
     t.stable = true;
+    (u.feats = u.feats || {}).rescue = 1;
+    // спас жизнь — сближает
+    u.bondUp = u.bondUp || {}; u.bondUp[t.sid] = 2;
     u.face = Math.atan2(t.y - u.y, t.x - u.x);
     DW.TR.anim(u, 'heal', 900);
     DW.TR.bark(u, 'save');
@@ -1040,6 +1056,7 @@
       const gs = B.units.filter(function (g) { return g.alive && !g.evac && g.guarding === tgt.sid && g !== tgt && g.clip > 0 && BT.canSee(g, att); });
       for (let k = 0; k < gs.length && att.alive && !B.over; k++) {
         gs[k].guarding = null;
+        (gs[k].feats = gs[k].feats || {}).guard = 1;
         DW.TR.float(gs[k].x, gs[k].y, 'Прикрываю!', 'info');
         await BT.fire(gs[k], att, { reaction: true, aimBonus: 15, aimLabel: 'Прикрытие' });
       }

@@ -518,3 +518,12 @@ small { font-size: 0.8em; color: var(--dim); font-weight: 400; }
 
 /* кнопка ускорения хода противника */
 .skipturn { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); z-index: 30; pointer-events: auto; opacity: 0.92; }
+
+/* медали и достижения */
+.medals .medal { display: inline-block; padding: 1px 6px; margin: 1px 2px 1px 0; border-radius: 9px; border: 1px solid var(--mc); color: var(--mc); font-size: 11px; white-space: nowrap; }
+.achlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin-top: 8px; }
+.achi { padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); opacity: 0.55; }
+.achi.on { opacity: 1; border-color: rgba(232,168,62,0.5); }
+.achi b { display: block; color: #e8a83e; font-size: 13px; }
+.achi small { color: #a89a86; }
+.ach .jstats div { margin: 2px 0; }

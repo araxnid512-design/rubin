@@ -116,6 +116,34 @@
     double: { n: 'Двойной выстрел', desc: 'Два выстрела по цели с −15 к меткости. Нужны 2 ОД. Перезарядка 3.', cd: 3, ap: 2 }
   };
 
+  /* Медали: за что даются (проверка — в G.awardMedals после боя) */
+  D.MEDALS = {
+    brave: { n: 'За отвагу', d: '5 и больше убитых за один бой', c: '#d9a441' },
+    storm: { n: 'Ураган', d: '3 убитых за один ход', c: '#e07040' },
+    eagle: { n: 'Меткий глаз', d: 'убил врага с 12 клеток и дальше', c: '#6fa8dc' },
+    rescue: { n: 'За спасение', d: 'спас истекающего кровью товарища', c: '#7fb069' },
+    hunter: { n: 'Охотник на вожаков', d: 'убил вожака, Матку или главаря', c: '#c0504d' },
+    iron: { n: 'Железный', d: 'остался в строю с 1–2 ОЗ', c: '#9aa0a6' },
+    guard: { n: 'Щит товарища', d: 'прикрыл товарища ответным огнём', c: '#8fbcbb' }
+  };
+  /* Достижения: проверяются после боя и в конце дня */
+  D.ACHIEVE = [
+    { id: 'blood', n: 'Первая кровь', d: 'Убить первого врага', ok: function (st) { return st.stats.kills >= 1; } },
+    { id: 'kills100', n: 'Сотня', d: 'Убить 100 врагов', ok: function (st) { return st.stats.kills >= 100; } },
+    { id: 'won10', n: 'Десять побед', d: 'Выиграть 10 боёв', ok: function (st) { return st.stats.won >= 10; } },
+    { id: 'days30', n: 'Месяц за Порталом', d: 'Прожить 30 дней', ok: function (st) { return st.day >= 30; } },
+    { id: 'gems300', n: 'Поставщик', d: 'Сдать Институту 300 кристаллов', ok: function (st) { return st.delivered >= 300; } },
+    { id: 'base', n: 'Форт Крут', d: 'Основать базу', ok: function (st) { return st.baseNode !== null && st.baseNode !== undefined; } },
+    { id: 'lairs2', n: 'Чистильщики', d: 'Разгромить два логова', ok: function (st) { return st.stats.lairs >= 2; } },
+    { id: 'sobr', n: 'Через мост', d: 'Взять блокпост СОБР', ok: function (st) { return st.world.nodes.some(function (n) { return n.fac === 'sobr' && n.cleared; }); } },
+    { id: 'clan', n: 'Без Старшего', d: 'Взять стан клана', ok: function (st) { return st.world.nodes.some(function (n) { return n.fac === 'clan' && n.cleared; }); } },
+    { id: 'vet', n: 'Ветеран', d: 'Боец дослужился до ветерана', ok: function (st) { return st.roster.some(function (s) { return DW.G.rank(s) >= 3; }); } },
+    { id: 'medals', n: 'Иконостас', d: 'Собрать отряду 10 медалей', ok: function (st) { let n = 0; st.roster.forEach(function (s) { for (const k in (s.medals || {})) n += s.medals[k]; }); return n >= 10; } },
+    { id: 'thermal', n: 'Ночное зрение', d: 'Добыть тепловизор', ok: function (st) { return !!(st.gear && st.gear.thermal); } },
+    { id: 'raids3', n: 'Стены держат', d: 'Отбить три набега на базу', ok: function (st) { return (st.stats.raids || 0) >= 3; } },
+    { id: 'nolose5', n: 'Все живы', d: 'Пять боёв подряд без потерь', ok: function (st) { return (st.stats.cleanRun || 0) >= 5; } },
+    { id: 'queen', n: 'Сердце мёртвого мира', d: 'Убить Матку', ok: function (st) { return !!st.queenDead; } }
+  ];
   D.RANKS = [
     { n: 'Новичок', xp: 0 },
     { n: 'Боец', xp: 5 },
@@ -229,7 +257,8 @@
     turret: { n: 'Автотурель', max: 2, cost: [{ materials: 14, gems: 25 }, { materials: 14, gems: 25 }], tier: 2, desc: 'Стреляет по врагам при обороне базы и укрепляет её защиту.' },
     radio: { n: 'Радиовышка', max: 1, cost: [{ materials: 14, gems: 10 }], desc: 'Слушает эфир: засады при обыске и добыче вдвое реже, разведка вокруг базы шире, груз Института в бою падает чаще.' },
     garage: { n: 'Гараж', max: 1, cost: [{ materials: 18, gems: 8 }], desc: 'Здесь можно починить найденный УАЗ: на нём каждый второй переход не тратит день, в бою он — укрытие у высадки.' },
-    ammo: { n: 'Склад боеприпасов', max: 1, cost: [{ materials: 12 }], desc: '+20 патронов каждый день, раз в три дня — граната.' }
+    ammo: { n: 'Склад боеприпасов', max: 1, cost: [{ materials: 12 }], desc: '+20 патронов каждый день, раз в три дня — граната.' },
+    range: { n: 'Тир', max: 1, cost: [{ materials: 12, ammo: 40 }], desc: 'Дни на базе — тренировка: каждому здоровому бойцу +1 опыта в день, раз в 4 дня +1 к меткости (до +6), раз в 8 дней +1 ОЗ (до +2). Тратит 10 патронов в день.' }
   };
 
   /* ---------- Каталог портала ---------- */
