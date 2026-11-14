@@ -190,7 +190,7 @@ func interact(_p) -> void:
 	state = "idle"
 	_t = 6.0
 	# первый раз — приветствие, дальше — кивает, объясняет, соглашается по очереди
-	var clip: String = "greet" if (_talk_t < 0.0 or _talk_t > 60.0) else ["nod", "talk", "agree"][_talks % 3]
+	var clip: String = "wave" if (_talk_t < 0.0 or _talk_t > 60.0) else ["nod", "talk", "agree"][_talks % 3]
 	if rig.has_clip(clip):
 		get_tree().create_timer(0.3).timeout.connect(func(): if state == "idle": rig.play(clip))
 	_talk_t = 0.0

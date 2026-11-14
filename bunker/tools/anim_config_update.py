@@ -20,9 +20,6 @@ def clip(name, src, loop=False, blend=0.3, **kw):
 c["walk"].update({"speed": 1.16, "phase": 0.867, "strides": 2.0, "root_smooth": 1.167})
 c["run"].update({"speed": 4.22, "phase": 0.233, "strides": 2.0, "root_smooth": 0.625})
 c["sprint"]["speed"] = 2.43
-c["walk_back"]["speed"] = 1.48
-c["strafe_left"]["speed"] = 1.68
-c["strafe_right"]["speed"] = 1.32
 c["sneak"]["speed"] = 1.2
 # стойки: тело над капсулой (среднее смещение таза — в ноль)
 for n in ["idle", "breathe", "crouch_idle", "combat_idle"]:
@@ -30,7 +27,9 @@ for n in ["idle", "breathe", "crouch_idle", "combat_idle"]:
 # стык цикла присяда на месте (скачок 5.7 см) — сглаживание последних 0.4 с к первому кадру
 c["crouch_idle"]["loop_fix"] = 0.4
 # клипы «на ногах»: стопы ставятся и фиксируются IK и во время разового клипа
-for n in ["start", "stop", "turn_left", "turn_right", "inspect", "terminal", "door_open", "door_close"]:
+for n in ["start", "stop", "turn_left", "turn_right", "inspect", "terminal", "door_open", "door_close", "pickup",
+          "suit_on", "suit_off", "punch_light", "punch_heavy", "kick", "block", "hit_front", "hit_back", "hit_left",
+          "hit_right", "stagger", "combat_idle", "pistol_draw", "pistol_aim", "pistol_fire", "pistol_reload", "rifle_aim"]:
     c[n]["ik"] = True
 # переходы: попадания и потеря равновесия кончаются не в стойке — смешивание дольше
 for n in ["hit_front", "hit_back", "hit_left", "hit_right"]:
@@ -63,6 +62,31 @@ c["bed_up"]["reverse"] = True
 c["punch_light"]["blend"] = 0.2
 c["punch_heavy"]["blend"] = 0.2
 
+# замены из Tripo (запуск 10): новые версии впереди, прежние — запасные
+c["stop"]["src"] = ["{set}/m_stop3.res", "{set}/m_stop2.res"]
+c["start"]["src"] = ["{set}/m_start2.res", "{set}/m_start.res"]
+c["crouch_walk"]["src"] = ["{set}/m_crouch_walk2.res", "{set}/m_crouch_walk.res"]
+c["walk_back"]["src"] = ["{set}/m_walk_back2.res", "{set}/m_walk_back.res"]
+# шаги вбок: новые версии хуже прежних (колено 174°, стопа под полом 16 см) — остаются прежние, обрезанные
+c["get_up"]["src"] = ["{set}/m_get_up2.res", "{set}/m_get_up.res"]
+for n in ["walk_back", "crouch_walk"]:
+    for k in ["from", "to", "speed"]:
+        c[n].pop(k, None)
+c["walk_back"]["speed"] = 1.7
+c["crouch_walk"]["speed"] = 0.86
+c["strafe_left"]["speed"] = 1.68
+c["strafe_right"]["speed"] = 1.32
+
+# ДРЕЙФ ТЕЛА: разовые клипы с перемещением таза уводят модель от капсулы, а в конце клипа модель «прыгает»
+# обратно (замер: отскоки 0.4–0.75 м, удар ногой 0.3 м в конце / 0.94 м в середине, потеря равновесия 1.4 м,
+# надевание костюма 0.3 м, поворот 0.5 м). Для них таз по горизонтали держится на месте (root_lock);
+# перемещение тела, если нужно, делает код (сместить капсулу на величину из отчёта).
+for n in ["dodge_left", "dodge_right", "dodge_back", "kick", "stagger", "suit_on", "suit_off", "get_up", "turn_left", "turn_right"]:
+    if n in c:
+        c[n]["inplace"] = True
+        c[n]["root_lock"] = True
+# «приветствие» Tripo (greet_01) уходит на 4 м — клип в библиотеке, игра его не запускает
+
 # --- эмоции (готовые движения Tripo — бесплатно; движения по тексту — 20 кредитов каждое) ---
 E = dict(blend=0.3, ik=True)
 clip("greet", ["{set}/greet_01.res"], **E)
@@ -85,5 +109,7 @@ clip("nod", ["{set}/m_nod.res"], **E)
 clip("talk", ["{set}/m_talk.res"], **E)
 clip("check_dosimeter", ["{set}/m_check_dosimeter.res"], **E)
 
+c["greet"]["off"] = True
+c["depressed"]["off"] = True   # уходит на 1.9 м
 P.write_text(json.dumps(d, ensure_ascii=False, indent=1))
 print("клипов:", len(c))

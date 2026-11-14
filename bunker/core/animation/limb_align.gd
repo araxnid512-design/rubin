@@ -57,12 +57,19 @@ func _process_modification_with_delta(_delta: float) -> void:
 		var d1 := (GB.origin - GA.origin).normalized()
 		var d2 := (C - GB.origin).normalized()
 		var flex := d1.angle_to(d2)
-		if flex < min_flex:
+		if flex < deg_to_rad(2.0):
 			continue
 		var fd: Vector3 = GA.basis.orthonormalized() * (ch[3] as Vector3)
 		var h := d1.cross(fd).normalized()
 		var n := d1.cross(d2).normalized()
 		var phi := h.signed_angle_to(n, d1)
+		# переразгиб (сустав согнут «не в ту сторону»): та же длина бедро—стопа, но колено (локоть) — на своей стороне
+		if absf(phi) > deg_to_rad(120.0):
+			# вес растёт с углом (2° → 8°): у почти прямой ноги перестановка незаметна, без скачка
+			_flip(s, ch, -fd, clampf((flex - deg_to_rad(2.0)) / deg_to_rad(6.0), 0.0, 1.0))
+			continue
+		if flex < min_flex:
+			continue
 		if absf(phi) < tolerance or absf(phi) > deg_to_rad(85.0):
 			continue
 		var w := clampf((flex - min_flex) / (full_flex - min_flex), 0.0, 1.0)
@@ -76,3 +83,28 @@ func _process_modification_with_delta(_delta: float) -> void:
 		var GB2 := s.get_bone_global_pose(ch[1])
 		GB2.basis = Basis(d1, -fix) * GB2.basis
 		s.set_bone_global_pose(ch[1], GB2)
+
+
+## переставить средний сустав на сторону pole, сохранив положение конца цепи (двухзвенное решение)
+func _flip(s: Skeleton3D, ch: Array, pole_dir: Vector3, w := 1.0) -> void:
+	var A := s.get_bone_global_pose(ch[0])
+	var B := s.get_bone_global_pose(ch[1])
+	var C := s.get_bone_global_pose(ch[2])
+	var la := A.origin.distance_to(B.origin)
+	var lb := B.origin.distance_to(C.origin)
+	var at := C.origin - A.origin
+	var d := clampf(at.length(), absf(la - lb) + 0.001, la + lb - 0.001)
+	var dir := at.normalized()
+	var pole := (pole_dir - dir * pole_dir.dot(dir)).normalized()
+	var cos_a := clampf((la * la + d * d - lb * lb) / (2.0 * la * d), -1.0, 1.0)
+	var new_b := A.origin + dir * (la * cos_a) + pole * (la * sqrt(1.0 - cos_a * cos_a))
+	new_b = A.origin + ((B.origin - A.origin).slerp(new_b - A.origin, w)).normalized() * la
+	A.basis = Basis(Quaternion((B.origin - A.origin).normalized(), (new_b - A.origin).normalized())) * A.basis
+	s.set_bone_global_pose(ch[0], A)
+	var B2 := s.get_bone_global_pose(ch[1])
+	var C2 := s.get_bone_global_pose(ch[2])
+	B2.basis = Basis(Quaternion((C2.origin - B2.origin).normalized(), (A.origin + dir * d - B2.origin).normalized())) * B2.basis
+	s.set_bone_global_pose(ch[1], B2)
+	var C3 := s.get_bone_global_pose(ch[2])
+	C3.basis = C.basis
+	s.set_bone_global_pose(ch[2], C3)

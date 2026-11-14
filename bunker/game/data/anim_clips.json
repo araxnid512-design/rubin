@@ -37,13 +37,14 @@
   },
   "walk_back": {
    "src": [
+    "{set}/m_walk_back2.res",
     "{set}/m_walk_back.res"
    ],
    "loop": true,
    "inplace": true,
    "blend": 0.25,
    "rate": 1.0,
-   "speed": 1.48
+   "speed": 1.7
   },
   "strafe_left": {
    "src": [
@@ -94,6 +95,7 @@
   },
   "start": {
    "src": [
+    "{set}/m_start2.res",
     "{set}/m_start.res"
    ],
    "loop": false,
@@ -107,6 +109,7 @@
   },
   "stop": {
    "src": [
+    "{set}/m_stop3.res",
     "{set}/m_stop2.res"
    ],
    "loop": false,
@@ -123,10 +126,11 @@
     "{set}/turn.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.15,
    "rate": 1.0,
-   "ik": true
+   "ik": true,
+   "root_lock": true
   },
   "turn_right": {
    "src": [
@@ -134,10 +138,11 @@
     "{set}/turn.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.15,
    "rate": 1.0,
-   "ik": true
+   "ik": true,
+   "root_lock": true
   },
   "crouch_idle": {
    "src": [
@@ -152,12 +157,14 @@
   },
   "crouch_walk": {
    "src": [
+    "{set}/m_crouch_walk2.res",
     "{set}/m_crouch_walk.res"
    ],
    "loop": true,
    "inplace": true,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "speed": 0.86
   },
   "sneak": {
    "src": [
@@ -238,25 +245,30 @@
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "suit_on": {
    "src": [
     "{set}/m_suit_on.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true,
+   "root_lock": true
   },
   "suit_off": {
    "src": [
     "{set}/m_suit_off.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true,
+   "root_lock": true
   },
   "sit_down": {
    "src": [
@@ -271,13 +283,15 @@
   },
   "stand_up": {
    "src": [
+    "{set}/m_sit_down.res",
     "{set}/m_stand_up.res"
    ],
    "loop": false,
    "inplace": false,
    "blend": 0.25,
    "rate": 1.0,
-   "ik": true
+   "ik": true,
+   "reverse": true
   },
   "bed_lie": {
    "src": [
@@ -290,12 +304,14 @@
   },
   "bed_up": {
    "src": [
+    "{set}/m_bed_lie.res",
     "{set}/m_bed_up.res"
    ],
    "loop": false,
    "inplace": false,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "reverse": true
   },
   "sit_idle": {
    "src": [
@@ -337,7 +353,8 @@
    "inplace": false,
    "blend": 0.2,
    "rate": 1.0,
-   "center": true
+   "center": true,
+   "ik": true
   },
   "punch_light": {
    "src": [
@@ -345,8 +362,9 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.15,
-   "rate": 1.0
+   "blend": 0.2,
+   "rate": 1.0,
+   "ik": true
   },
   "punch_heavy": {
    "src": [
@@ -354,8 +372,9 @@
    ],
    "loop": false,
    "inplace": false,
-   "blend": 0.15,
-   "rate": 1.0
+   "blend": 0.2,
+   "rate": 1.0,
+   "ik": true
   },
   "block": {
    "src": [
@@ -364,7 +383,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.12,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "dodge_left": {
    "src": [
@@ -372,9 +392,10 @@
     "{set}/dive.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.12,
-   "rate": 1.0
+   "rate": 1.0,
+   "root_lock": true
   },
   "dodge_right": {
    "src": [
@@ -382,9 +403,10 @@
     "{set}/dive.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.12,
-   "rate": 1.0
+   "rate": 1.0,
+   "root_lock": true
   },
   "pistol_draw": {
    "src": [
@@ -393,7 +415,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.12,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "pistol_aim": {
    "src": [
@@ -402,7 +425,8 @@
    "loop": true,
    "inplace": false,
    "blend": 0.15,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "pistol_fire": {
    "src": [
@@ -412,7 +436,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.08,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "pistol_reload": {
    "src": [
@@ -421,7 +446,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.15,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "rifle_aim": {
    "src": [
@@ -431,7 +457,8 @@
    "loop": true,
    "inplace": false,
    "blend": 0.15,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "rifle_fire": {
    "src": [
@@ -447,9 +474,11 @@
     "{set}/front_kick_01.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.12,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true,
+   "root_lock": true
   },
   "hit_front": {
    "src": [
@@ -459,7 +488,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.18,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "hit_back": {
    "src": [
@@ -468,7 +498,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.18,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "hit_left": {
    "src": [
@@ -477,7 +508,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.18,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "hit_right": {
    "src": [
@@ -487,7 +519,8 @@
    "loop": false,
    "inplace": false,
    "blend": 0.18,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true
   },
   "stagger": {
    "src": [
@@ -495,9 +528,11 @@
     "{set}/hurt.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.25,
-   "rate": 1.0
+   "rate": 1.0,
+   "ik": true,
+   "root_lock": true
   },
   "fall": {
    "src": [
@@ -510,12 +545,14 @@
   },
   "get_up": {
    "src": [
+    "{set}/m_get_up2.res",
     "{set}/m_get_up.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.15,
-   "rate": 1.0
+   "rate": 1.0,
+   "root_lock": true
   },
   "death": {
    "src": [
@@ -559,9 +596,10 @@
     "{set}/m_dodge_back.res"
    ],
    "loop": false,
-   "inplace": false,
+   "inplace": true,
    "blend": 0.12,
-   "rate": 1.0
+   "rate": 1.0,
+   "root_lock": true
   },
   "greet": {
    "src": [
@@ -571,7 +609,8 @@
    "inplace": false,
    "blend": 0.3,
    "rate": 1.0,
-   "ik": true
+   "ik": true,
+   "off": true
   },
   "wave": {
    "src": [
@@ -681,7 +720,8 @@
    "inplace": false,
    "blend": 0.3,
    "rate": 1.0,
-   "ik": true
+   "ik": true,
+   "off": true
   },
   "scratch": {
    "src": [

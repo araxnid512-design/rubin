@@ -7,7 +7,7 @@ extends SkeletonModifier3D
 ## точка внутри, отводит плечо ровно настолько, чтобы она вышла на поверхность (+ запас). Угол сглаживается.
 ## Намеренные касания (ладонь на груди, кулак у лица) не трогаются: они на поверхности, а не внутри.
 
-@export var margin := 0.035                 ## запас над поверхностью, м (объёмы — упрощённые, сетка куртки шире)
+@export var margin := 0.045                 ## запас над поверхностью, м (объёмы — упрощённые, сетка куртки шире)
 @export var max_angle := deg_to_rad(28.0)
 @export var rate_in := 30.0                 ## 1/с: как быстро отводится
 @export var rate_out := 10.0                ## 1/с: как быстро возвращается
@@ -117,7 +117,7 @@ static func _build(sk: Skeleton3D, model: Node) -> Dictionary:
 			if cnt[k] > bc:
 				bc = cnt[k]
 				bone = k
-		var ext := [_pct(fp, 0.85), _pct(fn, 0.85), _pct(rp, 0.85), _pct(rn, 0.85)]
+		var ext := [_pct(fp, 0.95), _pct(fn, 0.95), _pct(rp, 0.95), _pct(rn, 0.95)]
 		if ext.min() < 0.015:
 			continue
 		out.bins.append({"bone": bone, "c": c, "lo": lo, "hi": hi, "e": ext})
@@ -136,6 +136,15 @@ static func _build(sk: Skeleton3D, model: Node) -> Dictionary:
 				elif t > 0.6:
 					d1.append(dd)
 		out.caps.append({"bone": b.call(s + "_Thigh"), "a": pa, "b": pb, "ra": _pct(d0, 0.5), "rb": _pct(d1, 0.5)})
+	# голова — шар (кулак у лица — касание, кисть внутри головы — нет)
+	var hv: Array = by_bone.get(b.call("Head"), [])
+	if hv.size() > 10:
+		var c := Vector3.ZERO
+		for p in hv:
+			c += p
+		c /= hv.size()
+		var ds: Array = hv.map(func(p): return (p as Vector3).distance_to(c))
+		out["head"] = {"bone": b.call("Head"), "c": c, "r": _pct(ds, 0.6)}
 	# точки рук: локоть, середина предплечья, запястье, кисть
 	for si in 2:
 		var s: String = ["L", "R"][si]
@@ -147,11 +156,12 @@ static func _build(sk: Skeleton3D, model: Node) -> Dictionary:
 			for p in by_bone.get(b.call(n), []):
 				var t := clampf(((p as Vector3) - pf).dot(ph - pf) / (ph - pf).length_squared(), 0.0, 1.0)
 				fa.append((p as Vector3).distance_to(pf.lerp(ph, t)))
-		var rf := _pct(fa, 0.4) if fa.size() > 10 else 0.03
+		var rf := _pct(fa, 0.7) if fa.size() > 10 else 0.04
 		var rh := clampf(rf * 0.55, 0.008, 0.03)
 		var fb: int = b.call(s + "_Forearm")
 		var hb: int = b.call(s + "_Hand")
-		out.pts[si] = [[fb, (rest[fb] as Transform3D).affine_inverse() * pf, rf * 0.9],
+		# локоть: рукав у сгиба шире всего (глубже всех в куртку уходит внутренняя сторона локтя)
+		out.pts[si] = [[fb, (rest[fb] as Transform3D).affine_inverse() * pf, rf * 1.25],
 			[fb, (rest[fb] as Transform3D).affine_inverse() * pf.lerp(ph, 0.5), rf],
 			[hb, (rest[hb] as Transform3D).affine_inverse() * ph, rf * 0.8],
 			[hb, (rest[hb] as Transform3D).affine_inverse() * ph.lerp(pm, 0.5), rh]]
@@ -207,6 +217,16 @@ func _process_modification_with_delta(delta: float) -> void:
 					# наружу по нормали эллипса, обратно в текущую позу
 					var nl: Vector3 = (_m.F as Vector3) * (df / (a * a)) + (_m.R as Vector3) * (dr / (bb * bb))
 					push = (G.basis.orthonormalized() * Rt.basis.orthonormalized().inverse() * nl).normalized()
+					bp = p
+			if _m.has("head"):
+				var hd: Dictionary = _m.head
+				var Gh := s.get_bone_global_pose(hd.bone)
+				var Rh: Transform3D = rest[hd.bone]
+				var qh: Vector3 = Rh * (Gh.affine_inverse() * p)
+				var dh := float(hd.r) + r + mg * 0.5 - qh.distance_to(hd.c)
+				if dh > best and qh.distance_to(hd.c) > 1e-5:
+					best = dh
+					push = (Gh.basis.orthonormalized() * Rh.basis.orthonormalized().inverse() * (qh - (hd.c as Vector3))).normalized()
 					bp = p
 			for cap in _m.caps:
 				var G := s.get_bone_global_pose(cap.bone)
