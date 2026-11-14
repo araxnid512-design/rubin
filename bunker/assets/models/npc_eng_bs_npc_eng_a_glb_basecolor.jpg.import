@@ -2,16 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c8jqtocyuk4sx"
-path="res://.godot/imported/icon.png-5018cd716465f58934f51206abb7c01e.ctex"
+uid="uid://crpxlo254hh5j"
+path="res://.godot/imported/npc_eng_bs_npc_eng_a_glb_basecolor.jpg-3c29b49fcce3ede9e233831b22ec112e.ctex"
 metadata={
 "vram_texture": false
+}
+generator_parameters={
+"md5": "926bb680b20f1c8f75accff43b2acddb"
 }
 
 [deps]
 
-source_file="res://android/app/src/main/res/mipmap/icon.png"
-dest_files=["res://.godot/imported/icon.png-5018cd716465f58934f51206abb7c01e.ctex"]
+source_file="res://assets/models/npc_eng_bs_npc_eng_a_glb_basecolor.jpg"
+dest_files=["res://.godot/imported/npc_eng_bs_npc_eng_a_glb_basecolor.jpg-3c29b49fcce3ede9e233831b22ec112e.ctex"]
 
 [params]
 
@@ -23,7 +26,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
