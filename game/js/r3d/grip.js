@@ -2,7 +2,8 @@
 /* 3D-бой: хват оружия кистями — поворот кистей (правая ладонь обхватывает рукоять, левая поддерживает цевьё
    снизу) и сгиб пальцев. Вызывается из units.js после того, как руки дотянулись до оружия (IK).
    R3.grip.apply(o): o = { body (тело: B — кости, holder), W (оружие: g, fore, muzzle), M (матрица оружия в мире),
-   mode (aim/carry/hip), grip, fore (точки в мире), key (движение), freeL, reload, calib }.
+   mode (aim/carry/hip), grip, fore (точки в мире), key (движение), freeL, reload, calib, foreSlide (помпа: левая
+   кисть назад по цевью, м) }.
 
    Как устроено:
    • поворот кисти задаётся в осях оружия (M): ось кисти F (запястье → основание среднего пальца), нормаль ладони N;
@@ -695,7 +696,9 @@
     if (L.ver !== ver || L.style !== wk) { if (wp.m) handInWeapon(L, 'pistol', P.L, wp.m[2], L.qHm); handInWeapon(L, 'guard', P.L); fistCentre(L, P.L.curl.mid); L.ver = ver; L.style = wk; }
     _qC.copy(_qM).multiply(L.qHw);
     const fx = wp.f[2] || 0;
-    if (P.weaponPts && W && W.fore) palmAt(L, P.L, W.fore.y + wp.f[0], W.fore.z + wp.f[1], fx, _palmT);
+    // помпа (units.js, отдача дробовика): цевьё с кистью — назад по стволу и обратно, м
+    const fs = o.foreSlide || 0;
+    if (P.weaponPts && W && W.fore) palmAt(L, P.L, W.fore.y + wp.f[0], W.fore.z + wp.f[1] + fs, fx, _palmT);
     else if (o.fore) { palmAt(L, P.L, 0, 0, 0, _palmT); _palmT.sub(_org).add(o.fore); }
     else return;
     if (o.reload) {
@@ -714,7 +717,7 @@
     if (L.dbg.slide > 0.005) { _palmT.addScaledVector(_zW, -L.dbg.slide); if (clavReach(L, L.dbg.slide)) { reachClamp(L, _palmT, _qC); } else reachClamp(L, _palmT, _qC); }
     L.mode = 'guard';
     // ось цевья — ствол
-    _gP.copy(_org).addScaledVector(_xW, fx).addScaledVector(_yW, (W && W.fore ? W.fore.y : 0) + wp.f[0]).addScaledVector(_zW, (W && W.fore ? W.fore.z : 0) + wp.f[1]);
+    _gP.copy(_org).addScaledVector(_xW, fx).addScaledVector(_yW, (W && W.fore ? W.fore.y : 0) + wp.f[0]).addScaledVector(_zW, (W && W.fore ? W.fore.z : 0) + wp.f[1] + fs);
     curlFingers(L, P.L, 1, false);
     L.axP.copy(_gP).addScaledVector(_zW, L.dbg.slide); L.axD.copy(_zW);
     // цевьё не достать — кисть уехала бы на магазин: хват магазина (ладонь на левой стенке, пальцы вокруг передней
