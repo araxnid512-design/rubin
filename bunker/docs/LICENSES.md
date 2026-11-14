@@ -50,9 +50,21 @@
 
 ## Звук
 
+Папка `assets/audio/` — 88 файлов Ogg Vorbis (≈2.3 МБ), настоящие записи из открытых наборов. Полная таблица по
+каждому файлу (страница-источник, исходный файл, автор, лицензия, что изменено) — в `AUDIO_SOURCES.md`.
+
 | Что | Источник | Лицензия |
 |---|---|---|
-| Ветер, гул генератора, капель, дозиметр, шаги, двери, гермодверь, удары (`assets/audio/*.wav`) | синтез `tools/gen_audio.py` | собственный код проекта |
+| Большинство звуков: шаги по бетону, удары, колокол заданий, щелчки интерфейса, нож, предметы (Impact Sounds, RPG Audio, UI Audio, Interface Sounds) | Kenney, kenney.nl | CC0 |
+| Двери, металл, вентиляция, генератор, вода, монстры, сигналы терминала (наборы «100 CC0 SFX», «30 CC0 SFX loops», «80 CC0 creature SFX #2» и др.) | rubberduck, opengameart.org | CC0 |
+| Удары, полотенце (падение тела), голос боли героя, сердцебиение, глотки, капель, лязг запора | qubodup, opengameart.org | CC0 |
+| Голоса противника, стоны, рычание мутанта, взмахи, шаги в костюме, молния, двигатель, хруст, замок, ворона и др. | HaelDB, thebardofblasphemy, pauliuw, artisticdude, Fantozzi, AntumDeluge, looneybits, YCbCr, sinny, bart, mikeask, StarNinjas, Cough-E, zeroisnotnull — opengameart.org | CC0 |
+| Шаги по бетону (`step_concrete_6`), по металлу (`step_metal_*`), по гравию (`step_dirt_*`) | swuing, Eelke, Ali_6868 (freesound), обработка congusbongus — «Footsteps on different surfaces», opengameart.org | CC-BY 3.0 (гравий — CC0 в исходнике) |
+| Ветер поверхности (`amb_wind`) | Jonathan Shaw (InspectorJ), цикл AntumDeluge — «Wind Loop», opengameart.org | CC-BY 3.0 |
+| Ночной ветер (`amb_night`) | Tsorthan Grove — «Storm Arwen 2022», opengameart.org | CC-BY 4.0 |
+
+Для CC-BY нужно указать авторов в титрах или на странице игры — готовые строки в `AUDIO_SOURCES.md`, раздел
+«Указание авторов». Прежние синтезированные звуки (`tools/gen_audio.py`) удалены, скрипт больше не используется.
 
 ## Код
 
