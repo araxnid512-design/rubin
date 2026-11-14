@@ -233,8 +233,9 @@
   }
   const atlasUV = function (n) { const x0 = (n % 4) * 128, y0 = Math.floor(n / 4) * 128; return [(x0 + 4) / 512, 1 - (y0 + 4) / 512, (x0 + 124) / 512, 1 - (y0 + 124) / 512]; };
   const unitUV = function () { return [0, 1, 1, 0]; };
+  // следы матовые — освещение по Ламберту (дешевле PBR на каждой точке поверх земли)
   function decalMat() {
-    return decalMatC || (decalMatC = R3.fogify(new THREE.MeshStandardMaterial({ map: atlas(), vertexColors: true, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
+    return decalMatC || (decalMatC = R3.fogify(new THREE.MeshLambertMaterial({ map: atlas(), vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
   }
   function puddleMat() {
     return puddleMatC || (puddleMatC = R3.fogify(new THREE.MeshStandardMaterial({ color: 0x343a3e, alphaMap: puddleMask(), vertexColors: true, roughness: 0.05, metalness: 0.15, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));

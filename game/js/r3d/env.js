@@ -168,7 +168,9 @@
       sm.autoUpdate = false;
       frame++;
       const k = c.tx.toFixed(2) + ',' + c.tz.toFixed(2) + ',' + c.ty.toFixed(2) + ',' + r.toFixed(1);
-      const busy = (DW.TR && DW.TR.isAnimating && DW.TR.isAnimating()) || frame % 3 === 0;
+      // кто-то идёт (частицы огня, дыма и дождя в тень не попадают — по ним не перерисовываем)
+      const Bb = E.B, tw = DW.TR2 && DW.TR2.tweenOf;
+      const busy = frame % 3 === 0 || !!(Bb && tw && Bb.units.some(function (u) { return u.alive && tw(u.id); }));
       if (k !== camKey || busy) sm.needsUpdate = true;
       camKey = k;
     }

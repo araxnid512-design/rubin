@@ -34,7 +34,8 @@
   };
   /* перезапечь чуть позже (модели встают одна за другой — запекается один раз, когда все встали) */
   BK.request = function (delay) { dirty = true; reqT = performance.now() + (delay === undefined ? 300 : delay); };
-  BK.addModel = function (obj) { models.push({ o: obj, r: null }); BK.request(); };
+  // сетку высот модели считаем сразу, когда она встала (модели приходят по одной — нагрузка размазана по кадрам)
+  BK.addModel = function (obj) { if (!B) return; models.push({ o: obj, r: raster(obj) }); BK.request(); };
   /* конус (сталагмит) из мелких деталей: центр, радиус и верх, м */
   BK.addCone = function (x, z, r, top) { cones.push([x, z, r, top]); };
   /* каждый кадр (env.update): запечь, если пора */
@@ -205,9 +206,9 @@
       }
     }
     const t3 = performance.now();
-    // затенение у оснований: 8 направлений, 3 расстояния; закрытость = тангенс угла горизонта. Сначала — максимум
-    // высоты в окне ±4 точки (два прохода): на открытом месте затенения нет, считать нечего
-    const RD = 4, D = scratch(), D2 = S;
+    // затенение у оснований: 8 направлений, 2 расстояния (0,26 и 0,66 м); закрытость = тангенс угла горизонта. Сначала — максимум
+    // высоты в окне ±3 точки (два прохода): на открытом месте затенения нет, считать нечего
+    const RD = 3, D = scratch(), D2 = S;
     // верх тени — сразу в текстуру; дальше слой S свободен и идёт под окно максимумов
     for (let k = 0; k < W * Hh; k++) data[k * 4] = enc(Math.max(S[k], G[k] - 0.35));
     for (let j = 0; j < Hh; j++) for (let i = 0; i < W; i++) {
@@ -221,8 +222,8 @@
       D[j * W + i] = m;
     }
     const OFF = [];
-    const R = [1, 2, 3.5], DX = [1, 0.7071, 0, -0.7071, -1, -0.7071, 0, 0.7071], DZ = [0, 0.7071, 1, 0.7071, 0, -0.7071, -1, -0.7071];
-    for (let d = 0; d < 8; d++) for (let r = 0; r < 3; r++) { const di = Math.round(DX[d] * R[r]), dj = Math.round(DZ[d] * R[r]); OFF.push(di, dj, 1 / (Math.hypot(di, dj) * ts)); }
+    const R = [1, 2.6], NR = R.length, DX = [1, 0.7071, 0, -0.7071, -1, -0.7071, 0, 0.7071], DZ = [0, 0.7071, 1, 0.7071, 0, -0.7071, -1, -0.7071];
+    for (let d = 0; d < 8; d++) for (let r = 0; r < NR; r++) { const di = Math.round(DX[d] * R[r]), dj = Math.round(DZ[d] * R[r]); OFF.push(di, dj, 1 / (Math.hypot(di, dj) * ts)); }
     for (let j = 0; j < Hh; j++) for (let i = 0; i < W; i++) {
       const k = j * W + i, g = G[k];
       let ao = 1;
@@ -231,8 +232,8 @@
         const inner = i >= RD && j >= RD && i < W - RD && j < Hh - RD;
         for (let d = 0; d < 8; d++) {
           let m = 0;
-          for (let r = 0; r < 3; r++) {
-            const o = (d * 3 + r) * 3, ii = i + OFF[o], jj = j + OFF[o + 1];
+          for (let r = 0; r < NR; r++) {
+            const o = (d * NR + r) * 3, ii = i + OFF[o], jj = j + OFF[o + 1];
             if (!inner && (ii < 0 || jj < 0 || ii >= W || jj >= Hh)) continue;
             const tn = (O[jj * W + ii] - g) * OFF[o + 2];
             if (tn > m) m = tn;
