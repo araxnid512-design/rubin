@@ -172,6 +172,16 @@
       const cnt = FW.n || ({ rifle: 3, lmg: 5, shotgun: 1, sniper: 1, spit: 1, beam: 1 }[W.snd] || 1);
       const gap = (FW.gap || (W.snd === 'lmg' ? 70 : 90)) / sp;
       att._aimAt = tgt; att._aimUntil = TR2.now() + 220 / sp + cnt * gap + 650;
+      // расписание очереди — то же, что у звука и 2D-вспышек (TR2.shotFx: через pre, каждые gap мс): по нему в 3D
+      // отдача каждого выстрела (units.js), вспышки, гильзы, трассеры и попадания (fx.js), вздрагивание цели
+      const t0 = TR2.now() + (W.snd === 'spit' ? 300 : 220) / sp;
+      const hits = [];
+      // при попадании в цель идут почти все пули очереди (средняя — точно), остальные — рядом
+      for (let i = 0; i < cnt; i++) hits.push(!!hit && !suppress && (i === (cnt >> 1) || Math.random() < 0.72));
+      const dist = Math.hypot(att.x - tgt.x, att.y - tgt.y) * T;
+      const fly = (R3.fx && R3.fx.flyMs ? R3.fx.flyMs(dist) : 40) / sp;
+      att._burst = { t0: t0, n: cnt, gap: gap, wid: W.id, hits: hits, fly: fly, tgt: tgt };
+      tgt._shotBy = { att: att, W: W, t0: t0, n: cnt, gap: gap, hit: !!hit, sup: !!suppress, hits: hits, fly: fly, hp0: tgt.hp };
     }
     const r = TR2.shotFx.apply(TR2, arguments);
     if (R3.ok) R3.fx.shot(att, tgt, hit, W, show, suppress, opt);
@@ -179,10 +189,23 @@
   };
   TR3.projectileFx = function (x0, y0, x1, y1, kind, from) {
     const r = TR2.projectileFx(x0, y0, x1, y1, kind, from);
-    if (R3.ok) R3.fx.projectile(x0, y0, x1, y1, kind, from, (kind === 'rocket' ? 400 : 560) / ((DW.settings && DW.settings.speed) || 1));
+    const sp = (DW.settings && DW.settings.speed) || 1, dur = (kind === 'rocket' ? 400 : 560) / sp;
+    if (R3.ok && kind === 'rocket' && from) {
+      // РПГ: вскинул трубу на плечо — выстрел с реактивной струёй назад и толчком; 3D-ракета стартует на 0,14 с позже
+      // и летит быстрее — взрыв в тот же миг, что и в логике боя
+      const lag = 140 / sp;
+      from._burst = { t0: TR2.now() + lag, n: 1, gap: 0, wid: 'rpg', rpg: true, hits: [], fly: 0 };
+      R3.fx.projectile(x0, y0, x1, y1, kind, from, dur - lag, lag);
+    } else if (R3.ok) R3.fx.projectile(x0, y0, x1, y1, kind, from, dur);
     return r;
   };
-  TR3.explosionFx = function (x, y, r) { const o = TR2.explosionFx(x, y, r); if (R3.ok) R3.fx.explosion(x, y, r); return o; };
+  // взрыв: где и когда (units.js — отбросить погибших от центра)
+  TR3.explosionFx = function (x, y, r) { const o = TR2.explosionFx(x, y, r); R3.lastBlast = { x: x, y: y, r: r || 1.5, t: TR2.now() }; if (R3.ok) R3.fx.explosion(x, y, r); return o; };
+  // рукопашная: откуда удар (вздрагивание и падение — от нападавшего)
+  TR3.lungeFx = function (att, tgt) {
+    if (att && tgt) tgt._shotBy = { att: att, W: null, melee: true, t0: TR2.now(), n: 0, gap: 0, hit: true, sup: false, hits: null, fly: 0, hp0: tgt.hp };
+    return TR2.lungeFx.apply(TR2, arguments);
+  };
   TR3.hitFx = function (u) { const o = TR2.hitFx(u); if (R3.ok) R3.fx.hit(u); return o; };
   TR3.debris = function (x, y, color, o) { const r = TR2.debris(x, y, color, o); if (R3.ok) R3.fx.debris(x, y, color); return r; };
   TR3.chips = function (x, y, color, o) { const r = TR2.chips(x, y, color, o); if (R3.ok) R3.fx.chips(x, y, color); return r; };
