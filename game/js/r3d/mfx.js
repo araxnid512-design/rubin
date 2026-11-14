@@ -249,8 +249,20 @@
       const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x86d82a, emissive: 0x4c9c12, emissiveIntensity: 0.9, roughness: 0.12, metalness: 0.05 }));
       m.visible = false; grp.add(m); blobs.push({ m: m, on: false });
     }
+    // мешок с яйцами: полупрозрачная желтоватая плёнка в тёмных прожилках
+    if (!DTEX.sac) DTEX.sac = canvasTex(128, function (g, n) {
+      g.fillStyle = '#d6bf86'; g.fillRect(0, 0, n, n);
+      for (let i = 0; i < 18; i++) { const gr = g.createRadialGradient(Math.random() * n, Math.random() * n, 1, Math.random() * n, Math.random() * n, 18); gr.addColorStop(0, 'rgba(150,120,60,0.35)'); gr.addColorStop(1, 'rgba(150,120,60,0)'); g.fillStyle = gr; g.fillRect(0, 0, n, n); }
+      g.lineCap = 'round';
+      for (let i = 0; i < 9; i++) {
+        let x = Math.random() * n, y = Math.random() * n, a = Math.random() * 6.28, w = 2.2;
+        g.strokeStyle = 'rgba(110,30,24,0.75)'; g.beginPath(); g.moveTo(x, y);
+        for (let k = 0; k < 14; k++) { a += (Math.random() - 0.5) * 0.9; x += Math.cos(a) * 6; y += Math.sin(a) * 6; g.lineWidth = w; g.lineTo(x, y); w = Math.max(0.6, w * 0.9); }
+        g.stroke();
+      }
+    });
     sacs = []; for (let i = 0; i < 3; i++) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ color: 0xcdb27a, emissive: 0x3a2808, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0 }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ map: DTEX.sac, color: 0xffffff, emissive: 0x3a2808, emissiveIntensity: 0.5, roughness: 0.18, metalness: 0 }));
       m.visible = false; m.castShadow = Q >= 1; grp.add(m); sacs.push({ m: m, on: false });
     }
     Qt = []; MF.lastBlast = null; broodT = {};
@@ -464,11 +476,11 @@
     _bd.y = Math.max(-0.3, Math.min(0.22, _bd.y));
     if (_bd.lengthSq() < 1e-4) _bd.set(0, 0, 1);
     _bd.normalize(); dir = _bd;
-    const dk = darkK(), c = dk > 0.6 ? '#d0d8de' : '#857560';
+    const dk = darkK(), c = dk > 0.6 ? '#a9b2b8' : '#857560';
     while (breathAcc >= 1) {
       breathAcc -= 1;
       const v = dir.clone().multiplyScalar(rnd(2.2, 3.8) * (big ? 1 : 0.7)).add(V((Math.random() - 0.5) * 1.3, (Math.random() - 0.3) * 0.8, (Math.random() - 0.5) * 1.3));
-      smoke.add({ p: mouth.clone(), v: v, drag: 2.4, t0: now(), life: rnd(650, 1000), s0: 0.09, s1: rnd(0.45, 0.8) * (big ? 1.25 : 0.8), a: (dk > 0.6 ? 0.4 : 0.42), c: col(c), fadeIn: 0.1 });
+      smoke.add({ p: mouth.clone(), v: v, drag: 2.4, t0: now(), life: rnd(650, 1000), s0: 0.09, s1: rnd(0.4, 0.7) * (big ? 1.15 : 0.8), a: (dk > 0.6 ? 0.2 : 0.4), c: col(c), fadeIn: 0.1 });
       if (Math.random() < 0.25 && q() >= 1) spray(mouth, 1, { dir: dir, s0: 1.5, s1: 3, cone: 0.5, up0: 0, up1: 0.4, g: 8, floor: groundAt(mouth.x, mouth.z) + 0.02, life: 600, sz: 0.012, c: '#d8d0b8', a: 0.7, streak: 0.04 });
     }
   };
@@ -508,7 +520,7 @@
     if (k < 1) {
       // набухает и пульсирует
       const g = Math.min(1, k * 1.6), pul = 1 + Math.sin(k * 26) * 0.06 * k;
-      S.m.scale.set(0.34 * g * pul, 0.42 * g / pul, 0.34 * g * pul); S.m.position.y = S.Y + 0.36 * g * 0.6;
+      S.m.scale.set(0.27 * g * pul, 0.33 * g / pul, 0.27 * g * pul); S.m.position.y = S.Y + 0.2 * g;
       return;
     }
     if (!S.pop) {
