@@ -32,6 +32,16 @@ func _ready() -> void:
 	add_child(cs)
 	add_to_group("hittable")
 	add_to_group("turret")
+	var it := STInteract.new()
+	it.action = "use"
+	it.verb = "Переставить"
+	it.label = KINDS[kind].n + ": переставить"
+	it.radius = 1.3
+	it.position = Vector2(0, 14)
+	add_child(it)
+	it.used.connect(func(_by):
+		if Core.has_meta("begin_place"):
+			Core.get_meta("begin_place").call(kind, {}, self))
 	if sprite_dir != "":
 		_base = _part("base")
 		_head = _part("head")
@@ -129,8 +139,29 @@ func damage(amount: float, _from := Vector2.ZERO, _who: Node = null) -> void:
 		queue_free()
 
 
+var _near := false
+
+
+func _process(_d: float) -> void:
+	var p = Core.player
+	var n: bool = p != null and (SP.dist_m(p.global_position, global_position) < 2.5 or Core.has_meta("place_mode"))
+	if n != _near:
+		_near = n
+		queue_redraw()
+
+
 func _draw() -> void:
 	var k: Dictionary = KINDS[kind]
+	# тень, круг дальности (когда герой рядом), полоска здоровья
+	draw_set_transform(Vector2(0, 2), 0.0, Vector2(1.0, SP.K))
+	draw_circle(Vector2.ZERO, 24.0, Color(0, 0, 0, 0.35))
+	if _near:
+		draw_arc(Vector2.ZERO, float(k.range) * SP.PPM, 0, TAU, 64, Color(k.col, 0.3), 2.0, true)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if hp < float(k.hp):
+		var f := clampf(hp / float(k.hp), 0.0, 1.0)
+		draw_rect(Rect2(-22, -78, 44, 6), Color(0, 0, 0, 0.6))
+		draw_rect(Rect2(-21, -77, 42 * f, 4), Color(0.3, 1.0, 0.45) if f > 0.5 else (Color(1.0, 0.8, 0.3) if f > 0.25 else Color(1.0, 0.3, 0.25)))
 	if _head:
 		# спрайт: без энергии — темнее; вспышка у ствола
 		var c := Color.WHITE if powered() else Color(0.5, 0.5, 0.55)

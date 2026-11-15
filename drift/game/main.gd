@@ -52,6 +52,7 @@ func _ready() -> void:
 	Core.set_meta("spawn_enemy", spawn_enemy)
 	Core.set_meta("spawn_crew", spawn_crew)
 	Core.set_meta("add_prop", add_prop)
+	Core.set_meta("begin_place", begin_place)
 	Core.set_meta("ship_lost", _ship_lost)
 	hero = STHero.new()
 	hero.name = "Hero"
@@ -103,7 +104,7 @@ func _ambient() -> void:
 
 func _exit_tree() -> void:
 	# ссылки на эту сцену в автозагрузке — убрать (перезапуск сцены, выход)
-	for m in ["spawn_drone", "place_turret", "spawn_enemy", "spawn_crew", "add_prop", "ship_lost", "starfield", "shipst", "events"]:
+	for m in ["spawn_drone", "place_turret", "spawn_enemy", "spawn_crew", "add_prop", "begin_place", "place_mode", "ship_lost", "starfield", "shipst", "events"]:
 		if Core.has_meta(m):
 			Core.remove_meta(m)
 
@@ -222,19 +223,43 @@ func place_turret(kind: String, pos: Vector2, silent := false) -> bool:
 	ship.block(cell, true)
 	t.tree_exiting.connect(func():
 		if is_instance_valid(ship) and ship.is_inside_tree():
-			ship.block(cell, false))
+			ship.block(SP.px_to_cell(t.position), false))
 	return true
 
 
-func _turret_cell(pos: Vector2) -> Vector2i:
+## установка турели с предпросмотром (move — переставить стоящую турель)
+func begin_place(kind: String, refund: Dictionary, move: STTurret = null) -> void:
+	if Core.has_meta("place_mode"):
+		Core.get_meta("place_mode").cancel()
+	hud.close_modal()
+	var p: Node2D = load("res://game/placer.gd").new()
+	p.kind = kind
+	p.refund = refund
+	p.move = move
+	add_child(p)
+
+
+func move_turret(t: STTurret, cell: Vector2i) -> void:
+	ship.block(SP.px_to_cell(t.position), false)
+	t.position = SP.cell_to_px(cell) + Vector2(0, 10)
+	t.reset_physics_interpolation()
+	ship.block(cell, true)
+
+
+func _turret_cell(pos: Vector2, ignore: Node = null) -> Vector2i:
 	var front := pos + hero.facing.normalized() * 60.0 if hero.facing != Vector2.ZERO else pos + Vector2(0, 50)
 	var here := SP.px_to_cell(pos)
 	var best := Vector2i(-9999, -9999)
 	var bd := 1e9
+	var own := Vector2i(-9999, -9999)
+	if ignore and is_instance_valid(ignore):
+		own = SP.px_to_cell(ignore.position)
 	for dx in range(-2, 3):
 		for dy in range(-2, 3):
 			var c := here + Vector2i(dx, dy)
-			if c == here or not ship.own_floor(c):
+			if c == here:
+				continue
+			if not ship.own_floor(c) and not (c == own and ship.cells.get(c, "") == "floor"):
 				continue
 			var d := SP.cell_to_px(c).distance_to(front)
 			if d < bd:

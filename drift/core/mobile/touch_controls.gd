@@ -110,13 +110,21 @@ func move_vector() -> Vector2:
 
 func _draw() -> void:
 	var a := opacity
+	var neon := Color(0.4, 0.85, 1.0)
 	if joy_index >= 0:
-		draw_circle(joy_center, joy_radius, Color(0.08, 0.08, 0.07, 0.35 * a + 0.1))
-		draw_arc(joy_center, joy_radius, 0, TAU, 48, Color(0.9, 0.85, 0.7, 0.6 * a), 3.0, true)
-		draw_circle(joy_center + joy_vec * joy_radius, joy_radius * 0.42, Color(0.85, 0.75, 0.45, 0.75 * a + 0.1))
+		draw_circle(joy_center, joy_radius, Color(0.02, 0.06, 0.1, 0.35 * a + 0.1))
+		draw_arc(joy_center, joy_radius, 0, TAU, 48, Color(neon, 0.7 * a), 3.0, true)
+		draw_arc(joy_center, joy_radius + 6.0, 0, TAU, 48, Color(neon, 0.18 * a), 6.0, true)
+		for i in 8:
+			var d := Vector2.from_angle(i * PI / 4.0)
+			draw_line(joy_center + d * (joy_radius - 10.0), joy_center + d * (joy_radius - 2.0), Color(neon, 0.6 * a), 2.0, true)
+		var k := joy_center + joy_vec * joy_radius
+		draw_circle(k, joy_radius * 0.42, Color(0.03, 0.12, 0.2, 0.75 * a + 0.1))
+		draw_arc(k, joy_radius * 0.42, 0, TAU, 32, Color(neon, 0.9 * a), 3.0, true)
+		draw_circle(k, joy_radius * 0.12, Color(neon, 0.8 * a))
 	else:
 		# подсказка, где джойстик
 		var vs := get_viewport_rect().size
 		var c := Vector2(vs.x * 0.14, vs.y * 0.72)
-		draw_arc(c, joy_radius * 0.8, 0, TAU, 48, Color(0.9, 0.85, 0.7, 0.22 * a), 2.0, true)
-		draw_circle(c, joy_radius * 0.3, Color(0.85, 0.75, 0.45, 0.18 * a))
+		draw_arc(c, joy_radius * 0.8, 0, TAU, 48, Color(neon, 0.25 * a), 2.0, true)
+		draw_circle(c, joy_radius * 0.3, Color(neon, 0.14 * a))

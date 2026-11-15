@@ -10,7 +10,7 @@
     4,
     5
    ],
-   "kind": "reactor",
+   "kind": "engines",
    "light": [
     1.0,
     0.6,
@@ -122,7 +122,7 @@
     4,
     5
    ],
-   "kind": "airlock",
+   "kind": "airlock_plain",
    "light": [
     1.0,
     0.55,

@@ -160,7 +160,13 @@ func _combat() -> void:
 			b_laser = b
 	_log("сборка боевого дрона: %s" % ss.build(b_drone))
 	await _place(SP.cell_to_px(Vector2i(17, 8)))
-	_log("лазерная турель у шлюза: %s, турелей %d" % [ss.build(b_laser), ss.turrets.size()])
+	var built: bool = ss.build(b_laser)
+	await _frames(3)
+	await _shot("c_place")
+	if Core.has_meta("place_mode"):
+		Core.get_meta("place_mode").confirm()
+	await _frames(2)
+	_log("лазерная турель у шлюза (предпросмотр → поставить): %s, турелей %d" % [built, ss.turrets.size()])
 	Core.hud.close_modal()
 	await _place(SP.cell_to_px(Vector2i(14, 8)))
 	var h: STHero = Core.player

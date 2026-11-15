@@ -5,8 +5,9 @@ extends CanvasLayer
 ## снизу под большим пальцем — «Действие» (подписано тем, что произойдёт), «Удар», «Уклон», «⇄»; слева —
 ## плавающий джойстик. Окна: пауза, сообщения, разговор, текст. Всё рисуется кодом.
 
-const C_BG := Color(0.04, 0.06, 0.09, 0.78)
-const C_LINE := Color(0.35, 0.75, 0.95, 0.55)
+const C_BG := Color(0.02, 0.05, 0.09, 0.8)
+const C_LINE := Color(0.35, 0.8, 1.0, 0.75)
+const C_GLOW := Color(0.2, 0.65, 1.0, 0.28)
 const C_TEXT := Color(0.86, 0.92, 0.97)
 const C_ACC := Color(0.45, 0.85, 1.0)
 
@@ -23,6 +24,8 @@ var modal: Control = null
 var player: STHero
 var _joy_was := false
 var _ui_t := 0.0
+var btn_labels := {}          ## кнопка → подпись
+var btn_icons := {}           ## кнопка → значок
 
 
 func _ready() -> void:
@@ -42,14 +45,20 @@ func _ready() -> void:
 	_layout.call_deferred()
 
 
-func _style(bg := C_BG, radius := 12, border := 0) -> StyleBoxFlat:
+## панель в стиле корабельного интерфейса: срезанные углы (radius — размер среза), неоновая рамка, свечение
+func _style(bg := C_BG, radius := 12, border := 0, glow := false) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = bg
 	s.set_corner_radius_all(radius)
+	s.corner_detail = 1                  # прямой срез угла вместо скругления
+	s.anti_aliasing = true
 	s.set_content_margin_all(10)
 	if border > 0:
 		s.set_border_width_all(border)
 		s.border_color = C_LINE
+	if glow:
+		s.shadow_color = C_GLOW
+		s.shadow_size = 8
 	return s
 
 
@@ -71,8 +80,10 @@ func _bar(id: String, title: String, col: Color, parent: Control) -> void:
 	pb.custom_minimum_size = Vector2(220, 14)
 	pb.show_percentage = false
 	pb.max_value = 100
-	pb.add_theme_stylebox_override("fill", _style(col, 5))
-	pb.add_theme_stylebox_override("background", _style(Color(0, 0, 0, 0.55), 5))
+	pb.add_theme_stylebox_override("fill", _style(col, 4))
+	var bg := _style(Color(0.02, 0.04, 0.07, 0.75), 4, 1)
+	bg.border_color = Color(C_LINE, 0.45)
+	pb.add_theme_stylebox_override("background", bg)
 	pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(pb)
 	row.add_child(_label(" " + title, 14))
@@ -89,13 +100,18 @@ func _build() -> void:
 	_bar("hp", "Здоровье", Color(0.85, 0.25, 0.22), stats)
 	_bar("st", "Выносливость", Color(0.95, 0.75, 0.25), stats)
 	var sb := PanelContainer.new()
-	sb.add_theme_stylebox_override("panel", _style(C_BG, 10, 1))
+	sb.add_theme_stylebox_override("panel", _style(C_BG, 10, 1, true))
 	sb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ship_lbl = _label("", 15, C_ACC)
 	sb.add_child(ship_lbl)
 	stats.add_child(sb)
 	dev_lbl = _label("", 13, Color(0.7, 1.0, 0.7))
 	stats.add_child(dev_lbl)
+	var tp := Panel.new()
+	tp.name = "TopPanel"
+	tp.add_theme_stylebox_override("panel", _style(C_BG, 14, 1, true))
+	tp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(tp)
 	phase_lbl = _label("", 16, C_ACC)
 	phase_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(phase_lbl)
@@ -106,32 +122,57 @@ func _build() -> void:
 	msg_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	msg_box.alignment = BoxContainer.ALIGNMENT_END
 	root.add_child(msg_box)
-	_btn("pause", "II", Vector2(64, 64), 26)
-	_btn("ship", "Корабль", Vector2(124, 64), 18, 16)
-	_btn("action", "", Vector2(176, 176), 26)
-	_btn("attack", "Огонь", Vector2(124, 124), 22)
-	_btn("dodge", "Уклон", Vector2(100, 100), 19)
-	_btn("drones", "Экипаж", Vector2(96, 96), 16)
+	_btn("pause", "", Vector2(64, 64), 26, 16, "pause")
+	_btn("ship", "Корабль", Vector2(150, 64), 18, 16, "ship")
+	_btn("action", "", Vector2(176, 176), 24, -1, "action")
+	_btn("attack", "Огонь", Vector2(124, 124), 19, -1, "fire")
+	_btn("dodge", "Уклон", Vector2(100, 100), 16, -1, "dodge")
+	_btn("drones", "Экипаж", Vector2(96, 96), 15, -1, "crew")
 	prompt_lbl = _label("", 17)
 	prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(prompt_lbl)
 
 
-func _btn(id: String, text: String, size: Vector2, fs: int, radius := -1) -> void:
+## кнопка: восьмиугольник (срез — 30% стороны) с неоновой рамкой, значок и подпись
+func _btn(id: String, text: String, size: Vector2, fs: int, radius := -1, icon := "") -> void:
 	var p := Panel.new()
 	p.name = "Btn_" + id
 	p.custom_minimum_size = size
 	p.size = size
 	p.pivot_offset = size * 0.5
-	p.add_theme_stylebox_override("panel", _style(Color(0.04, 0.07, 0.1, 0.62), int(size.x * 0.5) if radius < 0 else radius, 3 if id == "action" else 2))
-	var l := _label(text, fs)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.set_anchors_preset(Control.PRESET_FULL_RECT)
-	p.add_child(l)
+	var st := _style(Color(0.02, 0.06, 0.1, 0.66), int(minf(size.x, size.y) * 0.3) if radius < 0 else radius, 3 if id == "action" else 2, id == "action" or id == "attack")
+	p.add_theme_stylebox_override("panel", st)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(p)
 	touch.buttons[id] = p
+	var wide := size.x > size.y * 1.6
+	var ic: STIcon = null
+	if icon != "":
+		ic = STIcon.new()
+		ic.kind = icon
+		var isz := minf(size.x, size.y) * (0.62 if text == "" and id != "action" else (0.36 if wide else 0.4))
+		ic.size = Vector2(isz, isz)
+		if wide:
+			ic.position = Vector2(14, (size.y - isz) * 0.5)
+		elif text == "" and id != "action":
+			ic.position = (size - ic.size) * 0.5
+		else:
+			ic.position = Vector2((size.x - isz) * 0.5, size.y * 0.16)
+		p.add_child(ic)
+		btn_icons[id] = ic
+	var l := _label(text, fs)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if wide and ic:
+		l.position = Vector2(ic.position.x + ic.size.x + 4, 0)
+		l.size = Vector2(size.x - l.position.x - 8, size.y)
+	elif ic:
+		l.position = Vector2(4, size.y * 0.56)
+		l.size = Vector2(size.x - 8, size.y * 0.34)
+	else:
+		l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	p.add_child(l)
+	btn_labels[id] = l
 
 
 func _layout() -> void:
@@ -143,6 +184,9 @@ func _layout() -> void:
 	var R := safe.end.x - m
 	var B := safe.end.y - m
 	root.get_node("Stats").position = Vector2(L, T)
+	var tp: Control = root.get_node("TopPanel")
+	tp.position = Vector2(vs.x * 0.5 - 130, T - 8)
+	tp.size = Vector2(260, 70)
 	phase_lbl.position = Vector2(vs.x * 0.5 - 200, T - 4)
 	phase_lbl.size = Vector2(400, 24)
 	timer_lbl.position = Vector2(vs.x * 0.5 - 200, T + 16)
@@ -151,7 +195,7 @@ func _layout() -> void:
 	msg_box.size = Vector2(600, 120)
 	var b: Dictionary = touch.buttons
 	b.pause.position = Vector2(R - 64, T)
-	b.ship.position = Vector2(R - 64 - 12 - 124, T)
+	b.ship.position = Vector2(R - 64 - 12 - 150, T)
 	var act: Control = b.action
 	act.position = Vector2(R - 176, B - 176)
 	b.attack.position = act.position + Vector2(-150, 52)
@@ -184,8 +228,14 @@ func _process(d: float) -> void:
 	_ui_t = 0.1
 	var verb := player.action_verb()
 	var a: Control = touch.buttons.action
-	(a.get_child(0) as Label).text = verb if verb != "" else "Действие"
-	a.modulate.a = 1.0 if verb != "" else 0.4
+	(btn_labels.action as Label).text = verb if verb != "" else "Действие"
+	var placing := Core.has_meta("place_mode")
+	(btn_labels.attack as Label).text = "Отмена" if placing else "Огонь"
+	var fi: STIcon = btn_icons.attack
+	if fi.kind != ("cancel" if placing else "fire"):
+		fi.kind = "cancel" if placing else "fire"
+		fi.queue_redraw()
+	a.modulate.a = 1.0 if verb != "" else 0.45
 	prompt_lbl.text = player.target.label if player.target else ""
 	var ss = Core.get_meta("shipst", null)
 	if ss:
@@ -229,10 +279,19 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _on_message(text: String, kind: String) -> void:
 	var col: Color = {"info": C_TEXT, "good": Color(0.6, 0.95, 0.6), "warn": Color(1.0, 0.82, 0.35), "bad": Color(1.0, 0.45, 0.4)}.get(kind, C_TEXT)
-	var l := _label(text, 18, col)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	msg_box.add_child(l)
+	var chip := PanelContainer.new()
+	var cs := _style(Color(0.02, 0.05, 0.09, 0.62), 8, 0)
+	cs.set_content_margin_all(6)
+	cs.border_width_left = 3
+	cs.border_color = col
+	chip.add_theme_stylebox_override("panel", cs)
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lt := _label(text, 17, col)
+	lt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	chip.add_child(lt)
+	msg_box.add_child(chip)
+	var l: Control = chip
 	while msg_box.get_child_count() > 3:
 		var old := msg_box.get_child(0)
 		msg_box.remove_child(old)
@@ -248,20 +307,37 @@ func _on_message(text: String, kind: String) -> void:
 func _open(title: String, w := 620.0, h := 420.0) -> VBoxContainer:
 	close_modal()
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", _style(Color(0.03, 0.05, 0.08, 0.95), 14, 2))
+	var ps := _style(Color(0.015, 0.035, 0.065, 0.96), 22, 2, true)
+	ps.set_content_margin_all(16)
+	p.add_theme_stylebox_override("panel", ps)
 	p.custom_minimum_size = Vector2(w, h)
 	p.size = Vector2(w, h)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	p.add_child(v)
 	var top := HBoxContainer.new()
-	var tl := _label(title, 24, C_ACC)
+	var mark := ColorRect.new()
+	mark.color = C_ACC
+	mark.custom_minimum_size = Vector2(5, 30)
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(mark)
+	var tl := _label("  " + title.to_upper(), 22, C_ACC)
 	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(tl)
-	var x := _button("✕", close_modal)
+	var x := _button("", close_modal)
 	x.custom_minimum_size = Vector2(56, 48)
+	var xi := STIcon.new()
+	xi.kind = "close"
+	xi.size = Vector2(26, 26)
+	xi.position = Vector2(15, 11)
+	x.add_child(xi)
 	top.add_child(x)
 	v.add_child(top)
+	var line := ColorRect.new()
+	line.color = Color(C_LINE, 0.5)
+	line.custom_minimum_size = Vector2(0, 2)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(line)
 	root.add_child(p)
 	modal = p
 	touch.visible = false
@@ -287,10 +363,16 @@ func _button(text: String, cb: Callable) -> Button:
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 56)
 	b.add_theme_font_size_override("font_size", 20)
-	b.add_theme_stylebox_override("normal", _style(Color(0.08, 0.12, 0.17, 0.95), 10, 1))
-	b.add_theme_stylebox_override("hover", _style(Color(0.12, 0.2, 0.28, 0.95), 10, 1))
-	b.add_theme_stylebox_override("pressed", _style(Color(0.16, 0.3, 0.42, 0.95), 10, 1))
-	b.add_theme_stylebox_override("disabled", _style(Color(0.06, 0.07, 0.09, 0.9), 10, 1))
+	b.add_theme_stylebox_override("normal", _style(Color(0.04, 0.1, 0.16, 0.95), 12, 2))
+	b.add_theme_stylebox_override("hover", _style(Color(0.07, 0.17, 0.26, 0.95), 12, 2, true))
+	b.add_theme_stylebox_override("pressed", _style(Color(0.1, 0.3, 0.45, 0.95), 12, 2, true))
+	b.add_theme_stylebox_override("focus", _style(Color(0, 0, 0, 0), 12, 0))
+	var dis := _style(Color(0.03, 0.05, 0.07, 0.9), 12, 1)
+	dis.border_color = Color(0.3, 0.4, 0.48, 0.4)
+	b.add_theme_stylebox_override("disabled", dis)
+	b.add_theme_color_override("font_color", C_TEXT)
+	b.add_theme_color_override("font_pressed_color", Color(1, 1, 1))
+	b.add_theme_color_override("font_disabled_color", Color(0.45, 0.5, 0.55))
 	b.process_mode = Node.PROCESS_MODE_ALWAYS
 	b.pressed.connect(cb)
 	return b

@@ -196,7 +196,7 @@ func show_workshop() -> void:
 		if String(b.id).begins_with("drone_") and drones.size() >= drones_max():
 			ok = false
 		rows.append(["%s — %s\n   нужно: %s" % [b.n, b.d, needs_text(b.needs)], "Собрать", func():
-			if build(b):
+			if build(b) and not String(b.id).begins_with("turret_"):
 				show_workshop(), ok])
 	Core.hud.rows("Мастерская: сборка", "Есть: металл %d, электроника %d, ячейки %d" % [res.metal, res.electronics, res.cells], rows)
 
@@ -214,11 +214,7 @@ func build(b: Dictionary) -> bool:
 			Core.get_meta("spawn_drone").call(b.id)
 			Core.say("Собран: %s." % b.n, "good")
 		"turret_gun", "turret_laser":
-			if not Core.get_meta("place_turret").call(b.id, Core.player.global_position):
-				for k in b.needs:
-					add(k, int(b.needs[k]))
-				return false
-			Core.say("Установлена: %s." % b.n, "good")
+			Core.get_meta("begin_place").call(b.id, b.needs)
 		"medkit":
 			Core.player.inventory_add("medkit")
 			Core.say("Аптечка — в вещах.", "good")

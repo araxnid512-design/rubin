@@ -65,10 +65,15 @@ func _pick_target() -> void:
 
 
 func action_verb() -> String:
+	if Core.has_meta("place_mode"):
+		return "Поставить"
 	return target.verb if target else ""
 
 
 func do_interact() -> void:
+	if Core.has_meta("place_mode") and state == "move":
+		Core.get_meta("place_mode").confirm()
+		return
 	if state != "move" or target == null:
 		return
 	face(target.global_position)
@@ -77,6 +82,9 @@ func do_interact() -> void:
 
 ## «Огонь»: враг вплотную — удар, дальше (до 9 м, в поле зрения) — выстрел бластера с автоприцелом
 func attack() -> void:
+	if Core.has_meta("place_mode"):
+		Core.get_meta("place_mode").cancel()
+		return
 	if state != "move" or _cool > 0.0:
 		return
 	var foe: STActor = nearest_enemy(1.6)

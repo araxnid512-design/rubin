@@ -14,7 +14,8 @@ const TILE_FOR := {
 	"floor_med": "floor_plate_b", "floor_airlock": "floor_airlock", "floor_derelict": "floor_grating",
 	"floor_pirate": "floor_plate_b", "floor_rock": "rock_floor", "floor_station": "floor_plate_c",
 	"floor_door": "floor_hazard_s", "floor_cargo": "floor_plate_b", "floor_quarters": "floor_plate_c",
-	"wall_cap": "hull", "wall_cap_rock": "rock_wall_top",
+	"floor_engines": "floor_grating", "floor_airlock_plain": "floor_plate_b",
+	"wall_cap_rock": "rock_wall_top",
 	"wall_face": "wall_plain", "wall_face_rock": "rock_wall", "wall_face_tall_rock": "rock_wall",
 }
 ## высокая внешняя стена — набор панелей по клеткам: [файл, вес]
@@ -110,6 +111,9 @@ func room_rect_px(id: String) -> Rect2:
 func tex(kind: String) -> Texture2D:
 	if _tex.has(kind):
 		return _tex[kind]
+	if kind == "wall_cap":
+		_tex[kind] = _cap_tex()
+		return _tex[kind]
 	var p := "res://assets/tiles/%s.png" % TILE_FOR.get(kind, kind)
 	var t: Texture2D
 	if ResourceLoader.exists(p):
@@ -124,6 +128,38 @@ func tex(kind: String) -> Texture2D:
 		t = _placeholder(kind)
 	_tex[kind] = t
 	return t
+
+
+## верх стены: тёмный металл, светлая кромка сверху, тонкая голубая полоса, болты; карта нормалей — «смотрит вверх»
+func _cap_tex() -> Texture2D:
+	var w := 64
+	var h := int(SP.TILE.y)
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var base := Color(0.14, 0.16, 0.19)
+	img.fill(base)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for i in 260:
+		img.set_pixel(rng.randi_range(0, w - 1), rng.randi_range(0, h - 1), base.lightened(rng.randf_range(-0.04, 0.04)))
+	for x in w:
+		img.set_pixel(x, 0, Color(0.46, 0.54, 0.62))
+		img.set_pixel(x, 1, Color(0.3, 0.35, 0.4))
+		img.set_pixel(x, h / 2, Color(0.16, 0.3, 0.38))
+		img.set_pixel(x, h - 2, Color(0.1, 0.11, 0.13))
+		img.set_pixel(x, h - 1, Color(0.06, 0.07, 0.08))
+	for y in h:
+		img.set_pixel(0, y, Color(0.09, 0.1, 0.12))
+		img.set_pixel(1, y, Color(0.2, 0.23, 0.27))
+	for p in [Vector2i(6, 7), Vector2i(57, 7), Vector2i(6, h - 8), Vector2i(57, h - 8)]:
+		img.set_pixel(p.x, p.y, Color(0.4, 0.45, 0.5))
+		img.set_pixel(p.x + 1, p.y + 1, Color(0.07, 0.08, 0.09))
+	var nrm := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	nrm.fill(Color8(128, 218, 218))
+	var ct := CanvasTexture.new()
+	ct.diffuse_texture = ImageTexture.create_from_image(img)
+	ct.normal_texture = ImageTexture.create_from_image(nrm)
+	ct.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	return ct
 
 
 func _placeholder(kind: String) -> Texture2D:
