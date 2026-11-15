@@ -49,6 +49,7 @@ var hands: BCHandIK
 var hold: BCWeaponHold          ## хват оружия: обе руки к оружию, пальцы на рукояти
 var ground: BCGroundClamp       ## лежащее тело — на полу (клипы с пометкой "ground")
 var probe: BCProbe              ## итоговая поза для проверок
+var pose_report := []           ## замеры кисти в построенных ударах
 var built_poses := true         ## стойки и удары — построенные (false — клипы Tripo как есть)
 
 
@@ -95,7 +96,9 @@ func setup(path := "", set_dir := "") -> void:
 	hold.setup(1.0 / scale_k, Basis(Vector3.UP, yaw_offset) * Vector3.BACK)
 	if built_poses:
 		# стойки и удары по анатомическим правилам — вместо клипов Tripo (те остаются как «имя_tripo»)
-		BCPoseBuilder.new(self).install(built.lib, info)
+		var pb := BCPoseBuilder.new(self)
+		pb.install(built.lib, info)
+		pose_report = pb.report
 	_build_tree()
 	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели.
 	# Житель и враг (родитель — BCNpc) — упрощённо: только стопы, и те — рядом с героем (ближе 12 м)

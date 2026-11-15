@@ -82,6 +82,7 @@ const TARGET_DIST := 10.0
 const TARGET_H := 1.36
 var ui: Control
 var test := ""
+var cam_free := false                 ## камерой управляет проверка
 var out := "user://sheets"
 
 
@@ -320,7 +321,8 @@ func select(i: int) -> void:
 
 
 func _process(delta: float) -> void:
-	_camera()
+	if not cam_free:
+		_camera()
 	if paused:
 		return
 	var sp := float(cur.get("speed", 0.0))
@@ -639,6 +641,8 @@ func _info() -> void:
 	var h := rig.hold
 	if h.wid != "" and h.ik_on and h.w.mode != "melee":
 		parts.append("ладонь до рукояти: правая %.1f см, левая %.1f см" % [h.err_r * 100.0, h.err_l * 100.0])
+		if h.finger == "trigger" or h.finger == "index":
+			parts.append("палец на спуске" if h.finger == "trigger" else "палец вдоль рамки")
 	if last_hit != "" and h.wid != "" and h.w.mode != "melee":
 		parts.append(last_hit)
 	parts.append("%d кадров/с" % Engine.get_frames_per_second())
@@ -734,6 +738,14 @@ func _run_test() -> void:
 		await _wobble()
 		get_tree().quit()
 		return
+	if test == "hands":
+		await _hands_test()
+		get_tree().quit()
+		return
+	if test == "grips":
+		await _grips_test()
+		get_tree().quit()
+		return
 	ui.visible = false
 	cam.h_offset = 0.0
 	if OS.get_cmdline_user_args().has("--as-ik=off"):
@@ -759,7 +771,9 @@ func _run_test() -> void:
 			times = [0.5 + 0.33 * float(rig.hold.w.moves[String(en.proc).substr(6)].len), 0.2 * float(rig.hold.w.moves[String(en.proc).substr(6)].len)]
 		if en.has("action"):
 			var al: float = rig.info[en.action].len if rig.info.has(en.action) else 1.0
-			times = [0.5 + (1.3 if en.has("pre_pose") else 0.0) + (al * 0.42 if rig.info.get(en.action, {}).get("built", false) else 0.45), (al * 0.25 if rig.info.get(en.action, {}).get("built", false) else 0.5)]
+			# построенные удары снимаются в момент касания ("hit" — доля длины клипа)
+			var hit := float(rig.info.get(en.action, {}).get("hit", 0.42))
+			times = [0.5 + (1.3 if en.has("pre_pose") else 0.0) + (al * hit if rig.info.get(en.action, {}).get("built", false) else 0.45), (al * 0.25 if rig.info.get(en.action, {}).get("built", false) else 0.5)]
 		for m in times.size():
 			var t := 0.0
 			while t < float(times[m]):
@@ -862,22 +876,31 @@ func _draw_test() -> void:
 		if ENTRIES[i].id == "idle":
 			select(i)
 	await get_tree().create_timer(0.6).timeout
+	for ln in rig.pose_report:
+		print("[stand] " + String(ln))
+	var only := []
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			only = Array(a.substr(10).split(","))
 	for wpn in ["pistol", "rifle", "melee"]:
+		if not only.is_empty() and not only.has(wpn):
+			continue
 		rig.hold.equip(wpn, false)
 		_body_pose()
 		await get_tree().create_timer(0.5).timeout
-		var marks_at := [0.0, 0.3, 0.6, 1.0]
+		# счёт доставания: убрано → кисть на рукояти → вынул → у груди → встреча рук → стойка
+		var dk: Dictionary = rig.hold.w.get("draw", {})
+		var g := float(dk.get("grab", 0.3))
+		var marks_at := [0.0, g, float(dk.get("clear_t", g + 0.14)), 0.56, 0.76, 1.0] if wpn != "melee" else [0.0, g, float(dk.get("clear_t", g + 0.14)), 0.72, 0.87, 1.0]
 		for mi in marks_at.size():
-			if mi == 1:
-				rig.hold.draw()
-				_body_pose()
-			while rig.hold.drawn < float(marks_at[mi]):
-				await get_tree().process_frame
-			if mi == 3:
-				await get_tree().create_timer(0.5).timeout
+			# кадр ставится точно на счёт (при программной отрисовке кадры редкие) и успевает «устояться»
+			rig.hold._draw_dir = 0.0
+			rig.hold.drawn = float(marks_at[mi])
+			_body_pose()
+			await get_tree().create_timer(0.7).timeout
 			var was := Engine.time_scale
 			Engine.time_scale = 0.0
-			for v in [["a", 0.6, 0.15, 2.9, 1.0], ["c", -1.0, 0.3, 0.8, -1.0]]:
+			for v in [["a", -0.75, 0.12, 2.3, 1.15], ["b", -PI * 0.5, 0.1, 2.3, 1.15], ["c", 0.0, 0.1, 2.0, 1.2], ["d", -1.0, 0.3, 0.8, -1.0]]:
 				yaw = v[1]
 				pitch = v[2]
 				dist = v[3]
@@ -888,6 +911,10 @@ func _draw_test() -> void:
 				await get_tree().process_frame
 				await _snap("%s/draw_%s_%d%s.png" % [out, wpn, mi, v[0]])
 			Engine.time_scale = was
+			var jr: Array = rig.hold.joints.R
+			print("[stand] %s, счёт %d (%.2f): палец — %s, ладонь—рукоять %.1f см, кисть: сгиб %.0f°, вбок %.0f°, предплечье %.0f°" % [wpn, mi, rig.hold.drawn, rig.hold.finger, rig.hold.err_r * 100.0, jr[0], jr[1], jr[2]])
+			if mi == marks_at.size() - 1:
+				print("[stand] %s, стойка %s: сдвиг оружия при подгонке %s см" % [wpn, rig.hold.stance, str(((rig.hold.last_plan.t as Vector3) / rig.hold.k * 100.0).snapped(Vector3.ONE * 0.1))])
 		var j: Dictionary = rig.hold.joints
 		print("[stand] достал %s: правая кисть сгиб %.0f°, вбок %.0f°, предплечье %.0f°" % [wpn, j.R[0], j.R[1], j.R[2]])
 		if wpn != "melee":
@@ -910,3 +937,108 @@ func _draw_test() -> void:
 					Engine.time_scale = 1.0
 				await get_tree().create_timer(0.5).timeout
 			rig.hold.set_stance("ready")
+
+
+## кисть крупным планом: каждая поза пальцев с пяти сторон (тыл, ладонь, костяшки, со стороны большого, мизинца)
+func _hands_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	ui.visible = false
+	cam.h_offset = 0.0
+	cam_free = true
+	rig.set_process(false)
+	rig.tree.active = false
+	var sk := rig.skel
+	for c in sk.get_children():
+		if c is SkeletonModifier3D:
+			(c as SkeletonModifier3D).active = false
+	var h := rig.hold
+	var poses := ["relax", "fist", "trigger", "index", "wrap", "support"]
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			poses = Array(a.substr(10).split(","))
+	cam.near = 0.01
+	cam.fov = 24.0
+	var fill := OmniLight3D.new()                 # подсветка со стороны камеры: ладонь не в тени
+	fill.light_energy = 1.4
+	fill.omni_range = 3.0
+	cam.add_child(fill)
+	if OS.get_cmdline_user_args().has("--as-dump"):
+		for side in ["R", "L"]:
+			var hf0: Dictionary = h._hf[side]
+			var G0: Transform3D = sk.get_bone_global_rest(hf0.hand)
+			var ax0: Basis = (hf0.local_inv as Basis).inverse()
+			var B0 := G0.basis.orthonormalized() * ax0
+			print("[hand] %s psign %.0f" % [side, hf0.psign])
+			for f in ["Thumb", "Index", "Mid", "Ring", "Pinky"]:
+				var line := "  %s:" % f
+				var prev := Vector3.ZERO
+				for j in 3:
+					var b: int = hf0.fingers[f][j]
+					var o: Vector3 = B0.inverse() * (sk.get_bone_global_rest(b).origin - G0.origin) / h.k * 100.0
+					line += " j%d(F %.1f A %.1f P %.1f)" % [j + 1, o.x, o.y, o.z]
+					var ch := sk.get_bone_children(b)
+					if j == 2:
+						for c2 in ch:
+							var o2: Vector3 = B0.inverse() * (sk.get_bone_global_rest(c2).origin - G0.origin) / h.k * 100.0
+							line += " %s(F %.1f A %.1f P %.1f)" % [sk.get_bone_name(c2), o2.x, o2.y, o2.z]
+				print(line)
+	for pose in poses:
+		if not BCWeaponHold.CURL.has(pose):
+			continue
+		for side in ["R", "L"]:
+			sk.reset_bone_poses()
+			h._curl(sk, side, pose)
+			await get_tree().process_frame
+			var hf: Dictionary = h._hf[side]
+			var G: Transform3D = sk.global_transform * sk.get_bone_global_pose(hf.hand)
+			var ax: Basis = (hf.local_inv as Basis).inverse()
+			var Gb := G.basis.orthonormalized()
+			var F := (Gb * ax.x).normalized()
+			var A := (Gb * ax.y).normalized()
+			var P := (Gb * ax.z).normalized()
+			var c := G * ((hf.palm_l as Vector3) * 1.25)
+			var views := [["a", -P, F], ["b", P, F], ["c", F, -P], ["d", A, -P], ["e", -A, -P], ["f", (F + A - P * 0.8).normalized(), -P]]
+			for v in views:
+				cam.global_position = c + (v[1] as Vector3) * 0.62
+				cam.look_at(c, v[2])
+				await get_tree().process_frame
+				await _snap("%s/hand_%s_%s%s.png" % [out, pose, side, v[0]])
+
+
+## кисти на оружии крупным планом: справа, слева, сверху, снизу-спереди
+func _grips_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	ui.visible = false
+	cam.h_offset = 0.0
+	var ids := ["p_walk", "p_aim", "r_ready", "r_aim", "m_idle"]
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			ids = Array(a.substr(10).split(","))
+	var fill := OmniLight3D.new()
+	fill.light_energy = 1.2
+	fill.omni_range = 3.0
+	cam.add_child(fill)
+	for id in ids:
+		for i in ENTRIES.size():
+			if ENTRIES[i].id == id:
+				select(i)
+		await get_tree().create_timer(1.6).timeout
+		Engine.time_scale = 0.0
+		cam_free = true
+		cam.near = 0.02
+		cam.fov = 26.0
+		var W: Transform3D = rig.skel.global_transform * rig.hold.node.transform
+		var B := W.basis.orthonormalized()
+		var c: Vector3 = W * Vector3(rig.hold.w.grip[0], rig.hold.w.grip[1], rig.hold.w.grip[2]) + B.y * 0.03
+		if rig.hold.two_hands and rig.hold.w.mode == "rifle":
+			c = rig.skel.global_transform * rig.hold.hand_r.lerp(rig.hold.hand_l, 0.5)
+		var dd := 0.55 if rig.hold.w.mode != "rifle" else 0.95
+		for v in [["a", B.x, B.y], ["b", -B.x, B.y], ["c", B.y + B.z * 0.15, -B.z], ["d", (-B.y * 0.55 - B.z * 0.75 + B.x * 0.3).normalized(), B.y]]:
+			cam.global_position = c + (v[1] as Vector3).normalized() * dd
+			cam.look_at(c, v[2])
+			await get_tree().process_frame
+			await _snap("%s/grip_%s_%s.png" % [out, id, v[0]])
+		print("[stand] хват %s: палец — %s" % [id, rig.hold.finger])
+		cam_free = false
+		cam.fov = 38.0
+		Engine.time_scale = 1.0

@@ -25,6 +25,8 @@ var upv := Vector3.UP
 var rgt := Vector3.BACK
 var skel_path := ""
 var _b := {}
+var wrist := {}                   ## углы кистей последней поставленной позы (для проверки)
+var report := []                  ## замеры кисти в ударах: строки для журнала
 
 
 func _init(character: BCCharacter) -> void:
@@ -118,12 +120,21 @@ static func mix(a, b, u: float):
 	return lerpf(float(a), float(b), u)
 
 
-## поза по ключам [[доля времени, поза], …]; между ключами — плавно
+## поза по ключам [[доля времени, поза, ход], …]; ход — как идём К этому ключу: по умолчанию плавно (разгон и
+## торможение), "in" — с разгоном до самого ключа (удар: кулак приходит в цель на полной скорости),
+## "out" — быстро в начале и с торможением (возврат руки, отдёргивание)
 static func at_keys(keys: Array, x: float) -> Dictionary:
 	for i in range(keys.size() - 1):
 		if x <= float(keys[i + 1][0]) or i == keys.size() - 2:
 			var u := clampf((x - float(keys[i][0])) / maxf(float(keys[i + 1][0]) - float(keys[i][0]), 0.0001), 0.0, 1.0)
-			return mix(keys[i][1], keys[i + 1][1], u * u * (3.0 - 2.0 * u))
+			var ease := String(keys[i + 1][2]) if (keys[i + 1] as Array).size() > 2 else ""
+			if ease == "in":
+				u = u * u * (1.6 - 0.6 * u)
+			elif ease == "out":
+				u = 1.0 - (1.0 - u) * (1.0 - u)
+			else:
+				u = u * u * (3.0 - 2.0 * u)
+			return mix(keys[i][1], keys[i + 1][1], u)
 	return keys[0][1]
 
 
@@ -237,15 +248,31 @@ func _hand(side: String, a: Dictionary, Tb: Basis) -> void:
 		palm = palm.lerp(S + dr * ((reach * 0.975 + 0.094) * k), ext)
 		F = F.slerp(dr, ext)
 	P = (P - F * P.dot(F)).normalized()
-	var A := F.cross(P) * float(h._hf[side].psign)
+	var ps := float(h._hf[side].psign)
+	var A := F.cross(P) * ps
 	var t := h._target(side, palm, A, P)
 	var pole: Vector3
 	if hang > 0.5:
 		pole = -fwd + rgt * (0.25 * sg)
 	else:
 		var best := h._best_psi(side, S, t[0], t[1], bo, bf, bu, br)
+		# Кулак: запястье прямое — кисть продолжает предплечье, костяшки указательного и среднего пальцев лежат
+		# на оси предплечья (иначе при ударе кисть подламывается). Подбирается за несколько проходов: поворот
+		# кисти сдвигает запястье, запястье меняет направление предплечья.
+		var lockw := float(a.get("wrist", 1.0 if String(a.get("curl", "relax")) == "fist" else 0.0)) * (1.0 - hang)
+		if lockw > 0.01:
+			for it in 5:
+				var ev := h._eval(side, S, t[0], t[1], bo, bf, bu, br, float(best[0]))
+				var f := ((t[0] as Vector3) - (ev[2] as Vector3)).normalized()
+				var Fn := (f - A * 0.1).normalized()
+				F = F.slerp(Fn, lockw).normalized()
+				P = (P - F * P.dot(F)).normalized()
+				A = F.cross(P) * ps
+				t = h._target(side, palm, A, P)
+				best = h._best_psi(side, S, t[0], t[1], bo, bf, bu, br, float(best[0]))
 		pole = h._pole(side, ((t[0] as Vector3) - S).normalized(), bu, br, float(best[0]))
 	h._arm(s, side, t[0], t[1], pole)
+	wrist[side] = h.joints[side]
 	h._curl(s, side, String(a.get("curl", "relax")))
 
 
@@ -284,7 +311,7 @@ func clip(length: float, loop: bool, fn: Callable, fps := 20.0) -> Animation:
 	return a
 
 
-func _add(name: String, a: Animation, lib: AnimationLibrary, info: Dictionary, blend := 0.25, ik := true) -> void:
+func _add(name: String, a: Animation, lib: AnimationLibrary, info: Dictionary, blend := 0.25, ik := true, hit := 0.42) -> void:
 	if lib.has_animation(name):
 		# клип Tripo остаётся для сравнения
 		if not lib.has_animation(name + "_tripo"):
@@ -293,7 +320,7 @@ func _add(name: String, a: Animation, lib: AnimationLibrary, info: Dictionary, b
 		lib.remove_animation(name)
 	lib.add_animation(name, a)
 	info[name] = {"len": a.length, "speed": 0.0, "loop": a.loop_mode != Animation.LOOP_NONE, "blend": blend, "rate": 1.0, "lock": true,
-		"native": 0.0, "dir": Vector3.ZERO, "phase": 0.0, "strides": 0.0, "ik": ik, "off": false, "ground": false, "built": true}
+		"native": 0.0, "dir": Vector3.ZERO, "phase": 0.0, "strides": 0.0, "ik": ik, "off": false, "ground": false, "built": true, "hit": hit}
 
 
 ## стойка с дыханием: грудь поднимается и опускается (4 с), вес чуть переходит с ноги на ногу (8 с) — сантиметр,
@@ -314,23 +341,41 @@ func install(lib: AnimationLibrary, info: Dictionary) -> void:
 	_add("idle", clip(8.0, true, _breath(NEUTRAL), 4.0), lib, info, 0.3)
 	_add("combat_idle", clip(8.0, true, _breath(COMBAT), 4.0), lib, info, 0.25)
 	_add("armed_idle", clip(8.0, true, _breath(ARMED), 4.0), lib, info, 0.25)
-	# джеб: передняя (левая) рука по прямой в цель на уровне подбородка, плечо закрывает челюсть, кулак ладонью вниз
-	var jab := over(COMBAT, {"hip": {"off": [0.04, -0.075, 0.0], "yaw": 32.0}, "chest": {"yaw": 22.0, "lean": 8.0},
-		"handL": {"ext": 1.0, "dir": [1.0, 0.1, 0.16], "P": [0.0, -1.0, 0.15]}})
-	_add("punch_light", clip(0.5, false, func(t): return at_keys([[0.0, COMBAT], [0.34, jab], [0.44, jab], [1.0, COMBAT]], t / 0.5), 30.0), lib, info, 0.1)
-	# кросс: задняя (правая) рука, таз и плечи разворачиваются в удар, задняя пятка отрывается
-	var cross := over(COMBAT, {"hip": {"off": [0.07, -0.085, -0.02], "yaw": -16.0, "lean": 7.0}, "chest": {"yaw": -16.0, "lean": 9.0},
-		"footR": {"yaw": 12.0, "heel": 0.075},
+	# Джеб: передняя (левая) рука по прямой в цель на уровне подбородка, без замаха. Плечо поднимается и
+	# закрывает челюсть, кулак в конце разворачивается ладонью вниз, правая остаётся у подбородка. Рука
+	# выбрасывается с разгоном (кулак приходит в цель на полной скорости) и сразу отдёргивается обратно.
+	var jab := over(COMBAT, {"hip": {"off": [0.045, -0.078, 0.0], "yaw": 33.0}, "chest": {"yaw": 22.0, "lean": 8.0},
+		"footL": {"pos": [0.23, 0.02]},
+		"handL": {"ext": 1.0, "dir": [1.0, 0.1, 0.16], "P": [0.0, -1.0, 0.15]},
+		"handR": {"pos": [0.16, 0.085, 0.09]}})
+	var jab_k := [[0.0, COMBAT], [0.3, jab, "in"], [0.38, jab], [0.66, COMBAT, "out"], [1.0, COMBAT]]
+	_add("punch_light", clip(0.5, false, func(t): return at_keys(jab_k, t / 0.5), 40.0), lib, info, 0.1, true, 0.34)
+	# Кросс: задняя (правая) рука. Удар идёт от ног: сначала доворачивается таз и отрывается задняя пятка,
+	# потом плечи, и только потом выбрасывается рука — кулак приходит последним и самым быстрым. Левая рука
+	# возвращается к щеке. После удара — быстрый возврат в стойку.
+	var drive := over(COMBAT, {"hip": {"off": [0.035, -0.082, -0.01], "yaw": 6.0, "lean": 6.0}, "chest": {"yaw": 2.0, "lean": 8.0},
+		"footR": {"yaw": 26.0, "heel": 0.05},
+		"handR": {"ext": 0.1, "dir": [1.0, 0.1, -0.2]},
+		"handL": {"pos": [0.22, 0.085, -0.09]}})
+	var cross := over(COMBAT, {"hip": {"off": [0.075, -0.088, -0.02], "yaw": -16.0, "lean": 7.0}, "chest": {"yaw": -17.0, "lean": 9.0},
+		"footR": {"yaw": 12.0, "heel": 0.08},
 		"handR": {"ext": 1.0, "dir": [1.0, 0.1, -0.2], "P": [0.0, -1.0, -0.15]},
-		"handL": {"pos": [0.2, 0.08, -0.1]}})
-	_add("punch_heavy", clip(0.7, false, func(t): return at_keys([[0.0, COMBAT], [0.38, cross], [0.5, cross], [1.0, COMBAT]], t / 0.7), 30.0), lib, info, 0.1)
+		"handL": {"pos": [0.19, 0.085, -0.1]}})
+	var cross_k := [[0.0, COMBAT], [0.2, drive], [0.38, cross, "in"], [0.46, cross], [0.72, COMBAT, "out"], [1.0, COMBAT]]
+	_add("punch_heavy", clip(0.7, false, func(t): return at_keys(cross_k, t / 0.7), 40.0), lib, info, 0.1, true, 0.42)
+	# замер: в момент удара кисть должна быть продолжением предплечья
+	for it in [["джеб", jab, "L"], ["кросс", cross, "R"], ["боевая стойка, правая", COMBAT, "R"], ["боевая стойка, левая", COMBAT, "L"]]:
+		apply(it[1])
+		var j: Array = wrist[it[2]]
+		report.append("%s: кисть — сгиб %.0f°, вбок %.0f°, локоть %.0f°" % [it[0], j[0], j[1], j[3]])
+	s.reset_bone_poses()
 	# прямой удар ногой (задней, правой): вес на левую ногу, колено вверх, выпрямление в живот, возврат
 	var k1 := over(COMBAT, {"hip": {"off": [0.03, -0.05, -0.07], "yaw": 6.0, "lean": -4.0}, "chest": {"yaw": 4.0, "lean": 10.0},
 		"footR": {"free": 1.0, "air": [0.16, 0.46, -0.05], "yaw": 0.0, "heel": 0.0}})
 	var k2 := over(k1, {"hip": {"off": [0.06, -0.04, -0.08], "lean": -14.0}, "chest": {"lean": 16.0},
 		"footR": {"air": [0.74, 0.74, -0.08]}})
 	var k0 := over(COMBAT, {"footR": {"free": 0.0, "air": [-0.2, 0.03, 0.02]}})
-	_add("kick", clip(1.0, false, func(t): return at_keys([[0.0, k0], [0.3, k1], [0.46, k2], [0.56, k2], [0.74, k1], [1.0, k0]], t), 30.0), lib, info, 0.12, false)
+	_add("kick", clip(1.0, false, func(t): return at_keys([[0.0, k0], [0.3, k1], [0.46, k2, "in"], [0.56, k2], [0.74, k1, "out"], [1.0, k0]], t), 30.0), lib, info, 0.12, false, 0.51)
 	# попадание спереди: корпус и голова отброшены назад, шаг назад правой, возврат
 	var hit := over(NEUTRAL, {"hip": {"off": [-0.07, -0.04, 0.0], "lean": -7.0}, "chest": {"lean": -13.0, "yaw": 6.0}, "head": {"pitch": -12.0, "yaw": 8.0},
 		"footR": {"pos": [-0.16, -0.01], "yaw": 14.0},
