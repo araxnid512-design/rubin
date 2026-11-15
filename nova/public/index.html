@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Nova 2.5D — демо</title>
+<style>
+  :root { --neon: #5fd4ff; --neon-dim: rgba(95, 212, 255, .55); --panel: rgba(4, 12, 22, .78); --text: #dcecf7; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, "Segoe UI", Roboto, sans-serif; color: var(--text); }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; inset: 0; pointer-events: none; }
+  /* панели со срезанными углами */
+  .cut { clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px); }
+  .frame { position: absolute; filter: drop-shadow(0 0 6px rgba(60, 170, 255, .45)); }
+  .frame > .in { background: var(--neon-dim); padding: 2px; }
+  .frame > .in > .c { background: var(--panel); }
+  .stats { left: 16px; top: 16px; width: 330px; }
+  .bar { height: 12px; margin: 2px 0 6px; background: rgba(0,0,0,.6); position: relative; clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+  .bar > i { position: absolute; inset: 0; display: block; }
+  .lbl { font-size: 13px; opacity: .85; letter-spacing: .04em; }
+  .ship { padding: 8px 12px; font-size: 14px; color: #8fe0ff; line-height: 1.45; }
+  .top { left: 50%; top: 10px; transform: translateX(-50%); width: 270px; text-align: center; }
+  .top .c { padding: 6px 0 4px; }
+  .phase { font-size: 14px; letter-spacing: .14em; color: var(--neon); }
+  .timer { font-size: 32px; font-weight: 600; letter-spacing: .06em; text-shadow: 0 0 10px rgba(95, 212, 255, .5); }
+  .btn { position: absolute; display: grid; place-items: center; text-align: center; font-size: 15px; }
+  .oct { clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+  .btn .in { width: 100%; height: 100%; background: var(--neon); padding: 2px; box-sizing: border-box; }
+  .btn .c { width: 100%; height: 100%; background: rgba(3, 14, 26, .82); display: grid; place-items: center; align-content: center; gap: 4px; }
+  .btn svg { stroke: var(--neon); fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .act { right: 18px; bottom: 18px; width: 172px; height: 172px; font-size: 22px; }
+  .act .in { background: linear-gradient(135deg, #8ff0ff, #2a8fd0); }
+  .fire { right: 196px; bottom: 34px; width: 120px; height: 120px; font-size: 18px; }
+  .dodge { right: 214px; bottom: 170px; width: 98px; height: 98px; }
+  .crew { right: 54px; bottom: 206px; width: 94px; height: 94px; font-size: 14px; }
+  .shipb { right: 92px; top: 16px; width: 150px; height: 60px; }
+  .shipb .c { grid-auto-flow: column; gap: 8px; }
+  .pause { right: 18px; top: 16px; width: 60px; height: 60px; }
+  .joy { position: absolute; left: 110px; bottom: 70px; width: 170px; height: 170px; border-radius: 50%;
+    border: 3px solid rgba(95, 212, 255, .6); box-shadow: 0 0 14px rgba(95, 212, 255, .35), inset 0 0 18px rgba(95, 212, 255, .15); }
+  .joy::after { content: ""; position: absolute; left: 50%; top: 50%; width: 66px; height: 66px; margin: -33px 0 0 -33px; border-radius: 50%;
+    border: 3px solid var(--neon); background: rgba(3, 20, 34, .7); box-shadow: 0 0 10px rgba(95, 212, 255, .6); }
+  .msg { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); }
+  .msg .c { padding: 7px 16px; font-size: 16px; color: #ffd27a; border-left: 3px solid #ffb84a; }
+  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,4,12,.55) 100%); }
+  .prompt { position: absolute; right: 24px; bottom: 318px; font-size: 16px; color: #cfe8f5; text-shadow: 0 0 6px #000; }
+  #stats { position: absolute; left: 16px; bottom: 12px; font-size: 12px; color: rgba(150, 230, 255, .65); }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div class="vignette"></div>
+<div class="hud">
+  <div class="frame stats"><div class="in cut"><div class="c cut" style="padding:10px 12px">
+    <div class="lbl">ЗДОРОВЬЕ</div><div class="bar"><i style="right:22%;background:linear-gradient(90deg,#c9302a,#ff6a4d)"></i></div>
+    <div class="lbl">ЩИТ</div><div class="bar"><i style="right:40%;background:linear-gradient(90deg,#2a7fd0,#7fe0ff)"></i></div>
+    <div class="ship">Корпус 88/125 · O₂ 100% · Энергия 9/10<br>Металл 14 · Электр. 7 · Ячейки 4 · Топливо 3</div>
+  </div></div></div>
+
+  <div class="frame top"><div class="in cut"><div class="c cut">
+    <div class="phase">АБОРДАЖ · ВОЛНА 2/3</div><div class="timer">00:21</div>
+  </div></div></div>
+
+  <div class="btn shipb frame"><div class="in cut"><div class="c cut">
+    <svg width="26" height="26" viewBox="0 0 26 26"><path d="M13 2 L21 21 L13 16 L5 21 Z"/><path d="M13 17 V24" stroke="#ff9a45"/></svg><span>Корабль</span>
+  </div></div></div>
+  <div class="btn pause frame"><div class="in cut"><div class="c cut">
+    <svg width="24" height="24" viewBox="0 0 24 24"><path d="M8 5 V19 M16 5 V19" stroke-width="4"/></svg>
+  </div></div></div>
+
+  <div class="btn crew frame"><div class="in oct"><div class="c oct">
+    <svg width="34" height="28" viewBox="0 0 34 28"><circle cx="10" cy="8" r="4"/><circle cx="24" cy="8" r="4"/><path d="M3 24 a7 7 0 0 1 14 0 M17 24 a7 7 0 0 1 14 0"/></svg><span>Экипаж</span>
+  </div></div></div>
+  <div class="btn dodge frame"><div class="in oct"><div class="c oct">
+    <svg width="34" height="30" viewBox="0 0 34 30"><path d="M6 5 L16 15 L6 25 M18 5 L28 15 L18 25"/></svg><span>Уклон</span>
+  </div></div></div>
+  <div class="btn fire frame"><div class="in oct"><div class="c oct">
+    <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="12"/><path d="M22 2 V12 M22 32 V42 M2 22 H12 M32 22 H42"/><circle cx="22" cy="22" r="2" fill="#5fd4ff"/></svg><span>Огонь</span>
+  </div></div></div>
+  <div class="btn act frame"><div class="in oct"><div class="c oct">
+    <svg width="58" height="58" viewBox="0 0 58 58"><path d="M29 6 L49 17.5 V40.5 L29 52 L9 40.5 V17.5 Z"/><circle cx="29" cy="29" r="7" fill="#5fd4ff"/></svg><span>Турель</span>
+  </div></div></div>
+
+  <div class="joy"></div>
+  <div class="prompt">Турель-пулемёт: переставить</div>
+  <div class="frame msg"><div class="in cut"><div class="c cut">Волна 2 из 3: пиратов 3, робот</div></div></div>
+  <div id="stats"></div>
+</div>
+<script type="module" src="game.js"></script>
+</body>
+</html>
