@@ -5,7 +5,7 @@ extends Node3D
 func _ready() -> void:
 	var out := "/tmp/wv"
 	var dir := "res://assets/weapons"
-	var list := ["w_tt", "w_ak74m", "w_machete_fix", "w_spas12", "w_fnfal", "w_vss", "w_mp5", "w_pkp"]
+	var list := ["w_tt", "w_ak74m", "w_machete_fix", "w_spas12", "g_mp5", "g_beretta", "g_fnfal", "g_svd", "g_vss", "g_pkp"]
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			out = a.substr(6)
