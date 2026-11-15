@@ -1124,6 +1124,16 @@ func _reload_plan(s: Skeleton3D, W: Transform3D, base_palm: Vector3) -> Array:
 		keys.append([1.0, base_palm, false, "цевьё"])
 		return keys
 	var bolt := W * _pt(w.get("bolt", w.mag)) if w.has("bolt") else mag + wu * (0.1 * k)
+	if kind == "box":
+		# ручной пулемёт: открыть крышку, снять короб (падает), новый короб с пояса, уложить ленту, закрыть
+		# крышку, взвести затвор
+		var cover := bolt + wu * (0.05 * k)
+		var cover_up := cover + wu * (0.09 * k) + W.basis.z * (0.05 * k)
+		var back := bolt + W.basis.z * (0.07 * k)
+		return [[0.0, base_palm, false, ""], [0.08, cover, false, "крышка"], [0.14, cover_up, false, "крышка открыта"], [0.22, mag, false, "к коробу"],
+			[0.28, mag_low, false, "короб снят"], [0.42, belt, false, "к подсумку"], [0.5, belt, true, "новый короб"], [0.62, mag_low, true, "новый короб"],
+			[0.68, mag, false, "короб пристёгнут"], [0.74, cover, false, "лента уложена"], [0.79, cover_up, false, "крышка"], [0.84, cover, false, "крышка закрыта"],
+			[0.9, bolt, false, "затвор"], [0.95, back, false, "затвор"], [0.97, bolt, false, "затвор"], [1.0, base_palm, false, ""]]
 	var bolt_back := bolt + W.basis.z * ((0.03 if w.mode == "pistol" else 0.06) * k)
 	return [[0.0, base_palm, false, ""], [0.13, mag, false, "к магазину"], [0.21, mag_low, false, "магазин вынут"], [0.4, belt, false, "к подсумку"],
 		[0.5, belt, true, "новый магазин"], [0.66, mag_low, true, "новый магазин"], [0.74, mag, false, "магазин вставлен"], [0.79, mag, false, "магазин вставлен"],
@@ -1154,7 +1164,8 @@ func _props_update(W: Transform3D, rl: float, palm: Vector3, P: Vector3, delta: 
 	if kind == "shells":
 		_prop_old.visible = false
 		return
-	if rl >= 0.21 and rl < 0.3 and _drop_t > 2.0:
+	var t_out := 0.28 if kind == "box" else 0.21
+	if rl >= t_out and rl < t_out + 0.09 and _drop_t > 2.0:
 		_drop_t = 0.0
 		_drop_p = Transform3D(B, W * _pt(w.mag) - B.y * (0.12 * k))
 	if rl < 0.0 and _drop_t > 0.9:

@@ -1273,7 +1273,7 @@
   }
  },
  "pkp": {
-  "n": "Пулемёт «Печенег»",
+  "n": "Ручной пулемёт ПКП «Печенег»",
   "model": "res://assets/weapons/w_pkp.glb",
   "len_m": 1.05,
   "model_len": 0.947,
@@ -1312,10 +1312,10 @@
    0.045
   ],
   "recoil": {
-   "back": 0.02,
-   "pitch": 3.0,
+   "back": 0.022,
+   "pitch": 2.6,
    "time": 0.1,
-   "body": 1.6
+   "body": 2.2
   },
   "stances": {
    "aim": {
@@ -1410,15 +1410,15 @@
   ],
   "reload": {
    "kind": "box",
-   "len": 3.8,
+   "len": 4.6,
    "mag_size": [
-    0.07,
+    0.08,
     0.15,
-    0.12
+    0.13
    ]
   },
   "fire": {
-   "burst": 6
+   "burst": 8
   },
   "flip": true
  }

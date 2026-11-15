@@ -50,11 +50,11 @@ const ENTRIES := [
 	{"id": "h_walk", "g": "MP5", "n": "Ходьба наготове", "weapon": "mp5", "stance": "ready", "speed": 1.3},
 	{"id": "h_fire", "g": "MP5", "n": "Очередь", "weapon": "mp5", "stance": "aim", "proc": "burst"},
 	{"id": "h_reload", "g": "MP5", "n": "Перезарядка", "weapon": "mp5", "stance": "ready", "proc": "reload"},
-	{"id": "k_draw", "g": "Пулемёт «Печенег»", "n": "Взять и убрать", "weapon": "pkp", "stance": "ready", "proc": "draw"},
-	{"id": "k_aim", "g": "Пулемёт «Печенег»", "n": "Прицел стоя", "weapon": "pkp", "stance": "aim"},
-	{"id": "k_walk", "g": "Пулемёт «Печенег»", "n": "Ходьба наготове", "weapon": "pkp", "stance": "ready", "speed": 1.3},
-	{"id": "k_fire", "g": "Пулемёт «Печенег»", "n": "Очередь", "weapon": "pkp", "stance": "aim", "proc": "burst"},
-	{"id": "k_reload", "g": "Пулемёт «Печенег»", "n": "Перезарядка", "weapon": "pkp", "stance": "ready", "proc": "reload"},
+	{"id": "k_draw", "g": "Ручной пулемёт «Печенег»", "n": "Взять и убрать", "weapon": "pkp", "stance": "ready", "proc": "draw"},
+	{"id": "k_aim", "g": "Ручной пулемёт «Печенег»", "n": "Прицел стоя", "weapon": "pkp", "stance": "aim"},
+	{"id": "k_walk", "g": "Ручной пулемёт «Печенег»", "n": "Ходьба наготове", "weapon": "pkp", "stance": "ready", "speed": 1.3},
+	{"id": "k_fire", "g": "Ручной пулемёт «Печенег»", "n": "Очередь", "weapon": "pkp", "stance": "aim", "proc": "burst"},
+	{"id": "k_reload", "g": "Ручной пулемёт «Печенег»", "n": "Перезарядка", "weapon": "pkp", "stance": "ready", "proc": "reload"},
 	{"id": "m_draw", "g": "Холодное", "n": "Достать и убрать", "weapon": "melee", "stance": "guard", "proc": "draw"},
 	{"id": "m_idle", "g": "Холодное", "n": "Боевая стойка", "weapon": "melee", "stance": "guard"},
 	{"id": "m_walk", "g": "Холодное", "n": "Ходьба", "weapon": "melee", "stance": "guard", "speed": 1.3},
@@ -101,6 +101,9 @@ var flash: OmniLight3D
 var hits: Array = []
 var last_hit := ""                    ## «отклонение от центра мишени»
 var w_btns := {}
+var p_btns := {}
+var pack := ""                         ## надетый рюкзак
+var pack_node: Node3D = null
 var aim_btn: Button
 var _seq := 0                         ## номер смены оружия (отложенные шаги старой смены не срабатывают)
 const TARGET_DIST := 10.0
@@ -299,6 +302,78 @@ func _mark_hit(at: Vector3, r: float) -> void:
 	hits.append(hm)
 	if hits.size() > 30:
 		(hits.pop_front() as Node).queue_free()
+
+
+## Рюкзаки героя: размер [ширина, высота, толщина] в метрах и число ячеек. Надевается — появляется на спине
+## (идёт за грудью), снимается — исчезает.
+const PACKS := {
+	"small": {"n": "Малый рюкзак", "slots": 8, "size": [0.36, 0.44, 0.25], "col": Color(0.2, 0.23, 0.16), "pockets": 1, "roll": false},
+	"medium": {"n": "Средний рюкзак", "slots": 12, "size": [0.4, 0.54, 0.29], "col": Color(0.33, 0.29, 0.2), "pockets": 2, "roll": false},
+	"large": {"n": "Большой рюкзак", "slots": 20, "size": [0.46, 0.7, 0.34], "col": Color(0.16, 0.19, 0.22), "pockets": 3, "roll": true},
+}
+
+
+func wear_pack(id: String) -> void:
+	if pack_node:
+		pack_node.queue_free()
+		pack_node = null
+	pack = id
+	for kk in p_btns:
+		(p_btns[kk] as Button).add_theme_color_override("font_color", Color(0.45, 0.95, 1.0) if kk == id else C_TEXT)
+	if id == "":
+		return
+	var pk: Dictionary = PACKS[id]
+	var sk := rig.skel
+	var h := rig.hold
+	var bone := sk.find_bone("Spine02")
+	var att := BoneAttachment3D.new()
+	att.bone_name = "Spine02"
+	sk.add_child(att)
+	pack_node = att
+	var root := Node3D.new()
+	att.add_child(root)
+	var sz := Vector3(pk.size[0], pk.size[1], pk.size[2])
+	# оси рюкзака: X — вправо, Y — вверх, Z — назад от спины; единицы — метры
+	var B := Basis(h.rgt, h.upv, -h.fwd).scaled(Vector3.ONE * h.k)
+	var top := 0.06                                  # верх рюкзака над линией плеч
+	var o: Vector3 = h._sc + (-h.fwd * (0.07 + sz.z * 0.5) + h.upv * (top - sz.y * 0.5)) * h.k
+	root.transform = sk.get_bone_global_rest(bone).affine_inverse() * Transform3D(B, o)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = pk.col
+	mat.roughness = 0.9
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = (pk.col as Color).darkened(0.35)
+	dark.roughness = 0.85
+	var box := func(size: Vector3, pos: Vector3, m: Material) -> void:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = size
+		mi.mesh = bm
+		mi.material_override = m
+		mi.position = pos
+		root.add_child(mi)
+	box.call(sz, Vector3.ZERO, mat)
+	box.call(Vector3(sz.x * 1.04, sz.y * 0.2, sz.z * 1.04), Vector3(0, sz.y * 0.36, 0), dark)          # клапан
+	for i in int(pk.pockets):
+		# карманы: спереди (сзади от героя), у больших — ещё по бокам
+		if i == 0:
+			box.call(Vector3(sz.x * 0.7, sz.y * 0.36, 0.06), Vector3(0, -sz.y * 0.2, sz.z * 0.5 + 0.03), dark)
+		else:
+			var sx := 1.0 if i == 1 else -1.0
+			box.call(Vector3(0.07, sz.y * 0.4, sz.z * 0.7), Vector3(sx * (sz.x * 0.5 + 0.035), -sz.y * 0.2, 0), dark)
+	if pk.roll:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.085
+		cm.bottom_radius = 0.085
+		cm.height = sz.x * 1.1
+		mi.mesh = cm
+		mi.material_override = dark
+		mi.rotation.z = PI * 0.5
+		mi.position = Vector3(0, sz.y * 0.5 + 0.07, 0.02)
+		root.add_child(mi)
+	for sx in [-1.0, 1.0]:
+		box.call(Vector3(0.05, 0.36, 0.03), Vector3(sx * 0.11, sz.y * 0.5 - top - 0.14, -sz.z * 0.5 - 0.2), dark)    # лямки на груди
 
 
 ## стойка тела под оружие: с пистолетом и автоматом — стойка стрелка, с холодным — боевая
@@ -614,8 +689,16 @@ func _build_ui() -> void:
 	abar.offset_top = -200
 	abar.offset_bottom = -146
 	abar.add_theme_constant_override("separation", 8)
-	abar.alignment = BoxContainer.ALIGNMENT_END
 	ui.add_child(abar)
+	abar.add_child(_lbl("Рюкзак:", 15, Color(0.45, 0.85, 1.0)))
+	for pv in [["", "Нет"], ["small", "Малый 8"], ["medium", "Средний 12"], ["large", "Большой 20"]]:
+		var pb := _btn(pv[1], wear_pack.bind(pv[0]), 104, 50, 14)
+		abar.add_child(pb)
+		p_btns[pv[0]] = pb
+	var psp := Control.new()
+	psp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	psp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	abar.add_child(psp)
 	aim_btn = _btn("Прицел", func():
 		rig.hold.set_stance("ready" if rig.hold.stance == "aim" else "aim")
 		_refresh_weapon(), 110, 50, 16)
@@ -697,6 +780,8 @@ func _info() -> void:
 			parts.append("палец на спуске" if h.finger == "trigger" else "палец вдоль рамки")
 	if last_hit != "" and h.wid != "" and h.w.mode != "melee":
 		parts.append(last_hit)
+	if pack != "":
+		parts.append("%s, ячеек: %d" % [PACKS[pack].n, PACKS[pack].slots])
 	parts.append("%d кадров/с" % Engine.get_frames_per_second())
 	info_lbl.text = " · ".join(parts)
 
@@ -796,6 +881,23 @@ func _run_test() -> void:
 		return
 	if test == "strip":
 		await _strip_test()
+		get_tree().quit()
+		return
+	if test == "packs":
+		ui.visible = false
+		cam.h_offset = 0.0
+		DirAccess.make_dir_recursive_absolute(out)
+		for id in ["", "small", "medium", "large"]:
+			wear_pack(id)
+			await get_tree().create_timer(0.4).timeout
+			for v in [["a", PI * 0.5, 0.1, 2.6], ["b", PI - 0.6, 0.15, 2.6], ["c", 0.5, 0.1, 2.6]]:
+				yaw = v[1]
+				pitch = v[2]
+				dist = v[3]
+				look_h = 1.1
+				_camera()
+				await get_tree().process_frame
+				await _snap("%s/draw_pack_%d%s.png" % [out, ["", "small", "medium", "large"].find(id), v[0]])
 		get_tree().quit()
 		return
 	if test == "grips":
