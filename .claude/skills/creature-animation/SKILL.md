@@ -146,7 +146,7 @@ rig.clip("tail_slam", tail_slam, duration=1.4, loop=False)
 
 | call | meaning |
 |---|---|
-| `P.rot(bone, up=, left=, fwd=, out=, twist=)` | swing a bone so its **tip** moves that way, degrees from rest. `out` mirrors for .L/.R. Children inherit. Accepts a list. |
+| `P.rot(bone, up=, left=, fwd=, out=, twist=)` | swing a bone so its **tip** moves that way, degrees from rest. `out` mirrors for .L/.R. Children inherit. Accepts a list. A direction the bone already points along does nothing (`up` on a vertical neck or spine) - use `fwd`/`left` there, or `P.turn`. |
 | `P.turn(bone, pitch=, yaw=, roll=)` | rigid rotation (nose up / turn left / lean left) - heads, whole-body attitude |
 | `P.body(up=, fwd=, left=, pitch=, yaw=, roll=)` | move/tilt the whole body via the hips; planted feet stay put |
 | `P.foot(leg, fwd=, up=, left=, pitch=)` | place a foot relative to its rest spot (metres); `leg` = index into `rig.legs`, name, or chain |
@@ -156,6 +156,9 @@ rig.clip("tail_slam", tail_slam, duration=1.4, loop=False)
 Helpers: `osc(t, cycles, phase)` loop-safe sine; `pulse(t, start, peak, end)` one-shot bump;
 `ease(x)`. Handles: `rig.spine`, `rig.hips`, `rig.head`, `rig.legs`, `rig.by_role("wing")`,
 `rig.chain("tail").bones`, `rig.tagged("jaw")`, `rig.leg_len`, `rig.height`.
+With several of something (three necks, two tails, four wings) address each chain by its plan
+name - `rig.chain("neck_left").bones` - or loop over `rig.by_role("neck")`; `rig.head` is only
+the first neck's head. Give each jaw its own `"tag"` (`"jaw_left"`) to open them separately.
 
 Things that make clips work:
 - **Size amplitudes from the rig** (`rig.leg_len`, `rig.height`), never raw metres, so the
@@ -169,6 +172,10 @@ Things that make clips work:
   pose (all windows 0 at t=0) so the engine can blend in. Attacks should also end there.
 - **Lying down / falling**: pass `keep_above_ground=True` to `rig.clip` - limbs drape on the
   floor instead of sinking through it.
+- **Feet that cannot reach hover.** If `rig.clip` prints `WARNING ... planted feet out of
+  reach`, the body is too high or too far from where the feet are planted (common on rigs with
+  nearly straight legs, and in rearing/howling poses). Lower the hips or move the feet until
+  the warning is gone - hovering feet are hard to spot on the contact sheet.
 - **Locomotion is in place** (treadmill). Pass `speed=ca.gait_speed(stride, duration)` so
   `clips.json` tells the game how fast to move the actor without foot sliding.
 - Copy a maker from `scripts/creature_clips.py` when you need a variant (limp, sneak, charge,
@@ -186,6 +193,8 @@ the floor; grey is the mesh; colours are chains (blue legs, pink wings, green ta
 - Columns look identical → nothing is moving; amplitude too small or wrong bone list.
 - Feet under the red line, or hovering during stance → stride/lift too big for the leg, or the
   rest pose has feet off the floor.
+- A stock clip that does not suit this anatomy (wing fold poking out, slither on a reared
+  body) → do not ship it and apologise in the report; copy its maker and adjust the numbers.
 - Knees/elbows bending the wrong way → rest pose needs a slight bend in the right direction.
 - Limb shoots off at a strange angle → wrong sign or wrong `toward` (`up` vs `fwd`); for
   vertical bones `up` does nothing, use `fwd`/`left`.
@@ -201,5 +210,6 @@ Use `rig.preview(path, clips=["walk"], cols=8, views=("side", "front"))` to zoom
 `rig.export(base, engine=...)` writes `base.fbx` and/or `base.glb` plus `base.clips.json`
 (clip names, frames, fps, loop flag, speed). Unity/Unreal get FBX (+GLB), Godot/web get GLB.
 All clips live in one file as named takes. Clip names are lower_snake_case and are what the
-engine shows - keep them stable (`idle`, `walk`, `run`, `attack_bite`, `death`).
+engine shows - keep them stable (`idle`, `walk`, `run`, `attack_bite`, `death`). Godot is the
+one exception worth knowing: a `-loop` suffix (`walk-loop`) makes it loop the clip on import.
 Save the generating script next to the outputs so the set can be regenerated or tweaked.

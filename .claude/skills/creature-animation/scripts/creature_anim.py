@@ -163,6 +163,7 @@ class Rig:
         self.clips = []
         self.meshes = []
         self._ik = None
+        self._short = {}
         for pb in arm.pose.bones:
             pb.rotation_mode = "QUATERNION"
         self._rest = {b.name: b.matrix_local.copy() for b in arm.data.bones}
@@ -303,7 +304,7 @@ class Rig:
         import bmesh
         bm = bmesh.new()
         groups = {}
-        base = {"spine": .16, "neck": .09, "tail": .09, "leg": .06, "arm": .05, "wing": .025,
+        base = {"spine": .16, "neck": .09, "tail": .15, "leg": .06, "arm": .05, "wing": .025,
                 "tentacle": .05, "extra": .04}
         B = self.arm.data.bones
         role_of, pos_in = {}, {}
@@ -320,7 +321,7 @@ class Rig:
                 continue
             role = c.role if c else "extra"
             f = pos_in.get(b.name, 0)
-            taper = {"tail": 1 - .8 * f, "tentacle": 1 - .75 * f, "leg": 1 - .45 * f, "arm": 1 - .4 * f,
+            taper = {"tail": 1 - .88 * f, "tentacle": 1 - .75 * f, "leg": 1 - .45 * f, "arm": 1 - .4 * f,
                      "neck": 1 - .2 * f, "wing": 1 - .5 * f}.get(role, 1.0)
             r0 = base[role] * unit * taper
             r1 = r0 * (.8 if role in ("tail", "tentacle", "leg", "arm") else 1.0)
@@ -431,8 +432,12 @@ class Rig:
                 hip = l.rest_hip + body
                 reach = self.chain_len(l) * .985
                 d = tgt - hip
-                if d.length > reach:  # never ask for more than the leg can reach -> no floating feet
+                if d.length > reach:  # out of reach: the foot stops short of where the clip put it
+                    want = tgt
                     tgt = hip + d.normalized() * reach
+                    hover = (tgt - want).dot(self.up)  # how far above its intended spot the foot ends up
+                    if want.dot(self.up) <= self.ground + self.height * .02:
+                        self._short[l.name] = max(self._short.get(l.name, 0.0), hover)
                 self._ik[l.name][0].location = tgt
             bpy.context.view_layer.update()
             for l in self.legs:
@@ -467,6 +472,18 @@ class Rig:
                     r = max((low - base).length, 1e-6)
                     P.rot(c.bones[0], up=min(25.0, math.degrees(math.asin(min(1.0, sink / r))) * 1.05 + .2))
                     changed = True
+            for l in self.legs:  # a knee under the floor: slide that foot away from the hip
+                if len(l.bones) < 2:
+                    continue
+                knee = min((pbs[b].tail for b in l.bones[:-1]), key=lambda p: p.dot(up))
+                sink = floor - knee.dot(up)
+                if sink > 1e-4:
+                    away = l.rest_foot + P.feet.get(l.name, Vector()) - pbs[l.bones[0]].head
+                    away -= up * away.dot(up)
+                    if away.length < 1e-6:
+                        away = self.left * (1 if l.side >= 0 else -1)
+                    P.feet[l.name] = P.feet.get(l.name, Vector()) + away.normalized() * sink * 1.5
+                    changed = True
             core = [pbs[b] for b in self.spine] + [pbs[c.bones[0]] for c in loose]
             sink = floor - min(min(pb.head.dot(up) for pb in core), min(pbs[b].tail.dot(up) for b in self.spine) if self.spine else 1e9)
             if sink > 1e-4:
@@ -500,6 +517,7 @@ class Rig:
             pb.matrix_basis = Matrix.Identity(4)
         self._ik_on()
         bpy.context.view_layer.update()
+        self._short = {}
         samples = []
         try:
             for f in frames:
@@ -543,6 +561,12 @@ class Rig:
         act.frame_start, act.frame_end = 0, n
         act.use_cyclic = loop
         info = dict(name=name, frames=n, fps=fps, duration=round(n / fps, 4), loop=loop)
+        bad = {k: v for k, v in self._short.items() if v > self.leg_len * .03}
+        if bad:  # a planted foot that cannot reach the ground floats - the preview makes this hard to see
+            print("[creature_anim] WARNING clip %r: planted feet out of reach (they will hover): %s. "
+                  "Lower the hips (P.body(up=-...)), shorten the stride/offset, or pitch the body less."
+                  % (name, ", ".join("%s %.2f m above the floor" % kv for kv in sorted(bad.items()))))
+            info["feet_out_of_reach_m"] = {k: round(v, 3) for k, v in bad.items()}
         if speed is not None:
             info["speed_m_s"] = round(speed, 4)
         self.clips.append(info)
@@ -862,13 +886,15 @@ def import_model(path):
     else:
         raise ValueError("unsupported model format: " + ext)
     new = [o for o in bpy.data.objects if o not in before]
+    shapes = {pb.custom_shape for o in new if o.type == "ARMATURE" for pb in o.pose.bones if pb.custom_shape}
+    new = [o for o in new if o not in shapes]  # the glTF importer adds an "Icosphere" bone-shape helper
     return [o for o in new if o.type == "ARMATURE"], [o for o in new if o.type == "MESH"]
 
 
 _ROLE_WORDS = [
-    ("jaw", ("jaw",)), ("wing", ("wing",)), ("tentacle", ("tentacle", "tendril")), ("tail", ("tail",)),
+    ("jaw", ("jaw", "mouth", "beak")), ("wing", ("wing",)), ("tentacle", ("tentacle", "tendril")), ("tail", ("tail",)),
     ("neck", ("neck", "head")),
-    ("leg", ("thigh", "upleg", "upperleg", "shin", "calf", "lowerleg", "leg", "foot", "ankle", "hock", "paw")),
+    ("leg", ("thigh", "upleg", "upperleg", "shin", "calf", "lowerleg", "leg", "foot", "ankle", "hock", "paw", "limb")),
     ("arm", ("clavicle", "shoulder", "upperarm", "forearm", "lowerarm", "arm", "hand", "wrist")),
     ("spine", ("hips", "pelvis", "spine", "chest", "torso", "body", "waist", "abdomen", "thorax")),
 ]

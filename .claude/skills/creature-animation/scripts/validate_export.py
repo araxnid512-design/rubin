@@ -29,10 +29,11 @@ def main():
         report(problems)
     arm = arms[0]
     fps = bpy.context.scene.render.fps
-    print("%s: %d bones, %d mesh(es), %d clip(s), %.1f KB" % (os.path.basename(path), len(arm.data.bones), len(meshes),
-                                                             len(bpy.data.actions), os.path.getsize(path) / 1024))
     shapes = {pb.custom_shape for pb in arm.pose.bones if pb.custom_shape}  # importer helper objects
     meshes = [m for m in meshes if m not in shapes and (m.vertex_groups or m.parent == arm)]
+    print("%s: %d bones, %d mesh(es), %d clip(s), %.1f KB" % (os.path.basename(path), len(arm.data.bones), len(meshes),
+                                                             len(bpy.data.actions), os.path.getsize(path) / 1024))
+    notes = []
     for m in meshes:
         deform = {b.name for b in arm.data.bones}
         none = many = 0
@@ -76,7 +77,14 @@ def main():
             problems.append("clip %r lasts %.2fs, clips.json says %.2fs" % (n, dur, want[n]["duration"]))
         if loop is not None:
             flag = "loop" if loop else "once"
-        print("   %-14s %5.2fs  %-4s  loop-gap %.4f m%s" % (n, dur, flag, gap, "" if moved else "   (frame 0 = rest pose)"))
+        if loop is False and size * .005 < gap < size * .12:
+            notes.append("one-shot %r ends %.3f m away from its start pose - blending back to idle may pop "
+                         "(fine if intended, e.g. a death)" % (n, gap))
+        if want.get(n, {}).get("feet_out_of_reach_m"):
+            notes.append("clip %r: planted feet could not reach the ground: %s" % (n, want[n]["feet_out_of_reach_m"]))
+        print("   %-18s %5.2fs  %-4s  start-vs-end pose gap %.4f m%s" % (n, dur, flag, gap, "" if moved else "   (frame 0 = rest pose)"))
+    for x in notes:
+        print("NOTE: " + x)
     report(problems)
 
 

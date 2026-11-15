@@ -49,10 +49,14 @@ def _secondary(P, a, amp=1.0, cycles=1):
 
 
 def _fold_wings(P, a, amount=1.0, breathe=0.0):
+    """Z-fold like a bird or bat: upper arm swept back along the body, forearm doubled forward,
+    hand doubled back again. amount 0 = spread (rest pose), 1 = tucked."""
     for w in a.wings:
-        P.rot(w[0], up=18 * amount + breathe, fwd=-25 * amount)
+        P.rot(w[0], up=14 * amount + breathe, fwd=-62 * amount)
+        sign = 1
         for b in w[1:]:
-            P.rot(b, fwd=-38 * amount, up=-8 * amount)
+            P.rot(b, fwd=sign * 128 * amount, up=-5 * amount)
+            sign = -sign
 
 
 def base_pose(P, rig, wings_folded=1.0):
@@ -162,7 +166,7 @@ def make_fly(rig, duration=.9, hover=False):
             n = len(w)
             for i, b in enumerate(w):
                 lagged = osc(t, 1, -i * .09)  # tips lag behind the shoulder -> whip-like flex
-                P.rot(b, up=(34 if i == 0 else 16) * lagged + (6 if i == 0 else 0),
+                P.rot(b, up=(26 if i == 0 else 9) * lagged + (8 if i == 0 else 0),
                       fwd=(-14 * max(0, lagged)) if i else 6 * flap)  # fold slightly on the upstroke
         lift = a.H * (.06 if hover else .035)
         P.body(up=lift * osc(t, 1, -.3), pitch=(38 if hover else 6) + 3 * osc(t, 1, -.2))
@@ -331,10 +335,10 @@ def make_roar(rig, duration=2.2):
             P.rot(nk[-1], up=-8 * wind + 12 * roar + 1.5 * shake, left=2 * shake)
         if a.jaw:
             P.rot(a.jaw, up=-45 * roar + 3 * shake)
-        for w in a.wings:  # wings flare open
-            P.rot(w[0], up=18 + 25 * roar, fwd=-25 * (1 - roar))
-            for b in w[1:]:
-                P.rot(b, fwd=-38 * (1 - roar), up=-8 * (1 - roar) + 2 * shake)
+        _fold_wings(P, a, 1 - roar)  # wings flare open
+        for w in a.wings:
+            P.rot(w[0], up=25 * roar)
+            P.rot(w[-1], up=2 * shake)
         for c in a.arms:
             b = c.bones
             ua = b[1] if len(b) >= 3 else b[0]
