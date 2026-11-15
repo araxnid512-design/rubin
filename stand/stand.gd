@@ -6,26 +6,31 @@ extends Node3D
 
 const ENTRIES := [
 	{"id": "idle", "g": "Без оружия", "n": "Стойка"},
+	{"id": "combat", "g": "Без оружия", "n": "Боевая стойка", "pose": "combat_idle"},
 	{"id": "walk", "g": "Без оружия", "n": "Ходьба", "speed": 1.3},
 	{"id": "run", "g": "Без оружия", "n": "Бег", "speed": 3.6},
 	{"id": "sneak", "g": "Без оружия", "n": "Крадучись", "speed": 0.9, "crouch": 1.0},
-	{"id": "punch", "g": "Без оружия", "n": "Удар рукой", "action": "punch_light"},
-	{"id": "kick", "g": "Без оружия", "n": "Удар ногой", "action": "kick"},
-	{"id": "dodge", "g": "Без оружия", "n": "Уклон назад", "action": "dodge_back"},
+	{"id": "punch", "g": "Без оружия", "n": "Джеб (левой)", "action": "punch_light", "pose": "combat_idle"},
+	{"id": "cross", "g": "Без оружия", "n": "Кросс (правой)", "action": "punch_heavy", "pose": "combat_idle"},
+	{"id": "kick", "g": "Без оружия", "n": "Удар ногой", "action": "kick", "pose": "combat_idle"},
+	{"id": "dodge", "g": "Без оружия", "n": "Отскок назад", "action": "dodge_back", "pose": "combat_idle"},
 	{"id": "hit", "g": "Без оружия", "n": "Попадание", "action": "hit_front"},
 	{"id": "fall", "g": "Без оружия", "n": "Падение", "action": "death", "post_pose": "dead"},
 	{"id": "getup", "g": "Без оружия", "n": "Подъём", "action": "get_up", "pre_pose": "dead"},
+	{"id": "p_draw", "g": "Пистолет", "n": "Достать и убрать", "weapon": "pistol", "stance": "ready", "proc": "draw"},
 	{"id": "p_aim", "g": "Пистолет", "n": "Прицел стоя", "weapon": "pistol", "stance": "aim"},
 	{"id": "p_walk", "g": "Пистолет", "n": "Ходьба наготове", "weapon": "pistol", "stance": "ready", "speed": 1.3},
 	{"id": "p_run", "g": "Пистолет", "n": "Бег", "weapon": "pistol", "stance": "run", "speed": 3.6},
 	{"id": "p_fire", "g": "Пистолет", "n": "Выстрел", "weapon": "pistol", "stance": "aim", "proc": "fire"},
 	{"id": "p_reload", "g": "Пистолет", "n": "Перезарядка", "weapon": "pistol", "stance": "aim", "proc": "reload"},
+	{"id": "r_draw", "g": "Автомат", "n": "Взять и убрать", "weapon": "rifle", "stance": "ready", "proc": "draw"},
 	{"id": "r_ready", "g": "Автомат", "n": "Стойка наготове", "weapon": "rifle", "stance": "ready"},
 	{"id": "r_aim", "g": "Автомат", "n": "Прицел стоя", "weapon": "rifle", "stance": "aim"},
 	{"id": "r_walk", "g": "Автомат", "n": "Ходьба наготове", "weapon": "rifle", "stance": "ready", "speed": 1.3},
 	{"id": "r_run", "g": "Автомат", "n": "Бег", "weapon": "rifle", "stance": "run", "speed": 3.6},
 	{"id": "r_fire", "g": "Автомат", "n": "Очередь", "weapon": "rifle", "stance": "aim", "proc": "burst"},
 	{"id": "r_reload", "g": "Автомат", "n": "Перезарядка", "weapon": "rifle", "stance": "ready", "proc": "reload"},
+	{"id": "m_draw", "g": "Холодное", "n": "Достать и убрать", "weapon": "melee", "stance": "guard", "proc": "draw"},
 	{"id": "m_idle", "g": "Холодное", "n": "Боевая стойка", "weapon": "melee", "stance": "guard"},
 	{"id": "m_walk", "g": "Холодное", "n": "Ходьба", "weapon": "melee", "stance": "guard", "speed": 1.3},
 	{"id": "m_light", "g": "Холодное", "n": "Удар", "weapon": "melee", "stance": "guard", "proc": "swing:light"},
@@ -65,6 +70,16 @@ var spd_btn: Button
 var pause_btn: Button
 var modal: Control
 var list_sc: ScrollContainer
+var target: MeshInstance3D            ## мишень в 10 м перед персонажем
+var tracer: MeshInstance3D
+var flash: OmniLight3D
+var hits: Array = []
+var last_hit := ""                    ## «отклонение от центра мишени»
+var w_btns := {}
+var aim_btn: Button
+var _seq := 0                         ## номер смены оружия (отложенные шаги старой смены не срабатывают)
+const TARGET_DIST := 10.0
+const TARGET_H := 1.36
 var ui: Control
 var test := ""
 var out := "user://sheets"
@@ -138,6 +153,7 @@ void fragment() {
 	rig = BCCharacter.new()
 	holder.add_child(rig)
 	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	_range()
 	cam = Camera3D.new()
 	cam.fov = 38
 	cam.near = 0.05
@@ -146,18 +162,157 @@ void fragment() {
 	cam.current = true
 
 
+## мишень, трассер и вспышка — проверка, куда на самом деле смотрит ствол
+func _range() -> void:
+	target = MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(1.6, 1.6)
+	target.mesh = q
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode unshaded, cull_disabled;
+void fragment() {
+	float r = length(UV - vec2(0.5)) * 1.6;
+	float ring = step(0.5, fract(r * 10.0));
+	vec3 c = mix(vec3(0.92), vec3(0.15), ring);
+	if (r < 0.1) c = vec3(0.85, 0.15, 0.1);
+	if (r > 0.8) c = vec3(0.3, 0.32, 0.35);
+	ALBEDO = c;
+}"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	target.material_override = m
+	target.position = Vector3(0, TARGET_H, TARGET_DIST)
+	target.rotation.y = PI
+	holder.add_child(target)
+	var post := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.08, TARGET_H, 0.08)
+	post.mesh = bm
+	post.position = Vector3(0, TARGET_H * 0.5 - 0.4, TARGET_DIST + 0.06)
+	holder.add_child(post)
+	tracer = MeshInstance3D.new()
+	var tb := BoxMesh.new()
+	tb.size = Vector3(0.012, 0.012, 1.0)
+	tracer.mesh = tb
+	var tm := StandardMaterial3D.new()
+	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tm.albedo_color = Color(1.0, 0.85, 0.4)
+	tracer.material_override = tm
+	tracer.visible = false
+	add_child(tracer)
+	flash = OmniLight3D.new()
+	flash.light_color = Color(1.0, 0.8, 0.5)
+	flash.omni_range = 3.0
+	flash.light_energy = 0.0
+	add_child(flash)
+
+
+## выстрел: отдача, вспышка, трассер по стволу, отметка на мишени и отклонение от её центра
+func _fire() -> void:
+	var h := rig.hold
+	if h.wid == "" or h.drawn < 1.0:
+		return
+	if h.w.mode == "melee":
+		h.swing("light")
+		return
+	var mz := h.muzzle_world()
+	h.fire()
+	if mz.is_empty():
+		return
+	var from: Vector3 = mz[0]
+	var dir: Vector3 = mz[1]
+	# плоскость мишени
+	var tz := target.global_position.z
+	var end := from + dir * 30.0
+	if absf(dir.z) > 0.01 and (tz - from.z) / dir.z > 0.0:
+		end = from + dir * ((tz - from.z) / dir.z)
+		var off := end - target.global_position
+		var cm := Vector2(off.x, off.y).length() * 100.0
+		last_hit = "выстрел: %.0f см от центра мишени (10 м), ствол: вбок %+.1f°, вверх %+.1f°" % [cm,
+			rad_to_deg(atan2(dir.x, dir.z)), rad_to_deg(asin(clampf(dir.y, -1.0, 1.0)))]
+		if cm < 80.0:
+			var hm := MeshInstance3D.new()
+			var sp := SphereMesh.new()
+			sp.radius = 0.025
+			sp.height = 0.05
+			hm.mesh = sp
+			var mm := StandardMaterial3D.new()
+			mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			mm.albedo_color = Color(0.1, 0.9, 1.0)
+			hm.material_override = mm
+			add_child(hm)
+			hm.global_position = end - Vector3(0, 0, 0.02)
+			hm.reparent(target)
+			hits.append(hm)
+			if hits.size() > 14:
+				(hits.pop_front() as Node).queue_free()
+	else:
+		last_hit = "выстрел: мимо плоскости мишени (ствол смотрит не вперёд)"
+	tracer.visible = true
+	tracer.global_position = (from + end) * 0.5
+	tracer.look_at(end, Vector3.UP)
+	tracer.scale = Vector3(1, 1, from.distance_to(end))
+	flash.global_position = from + dir * 0.1
+	flash.light_energy = 3.0
+	var tw := create_tween()
+	tw.tween_property(flash, "light_energy", 0.0, 0.08)
+	tw.parallel().tween_interval(0.07)
+	tw.tween_callback(func(): tracer.visible = false)
+
+
+## стойка тела под оружие: с пистолетом и автоматом — стойка стрелка, с холодным — боевая
+func _body_pose() -> void:
+	var pose := String(cur.get("pose", ""))
+	var wpn := rig.hold.wid if rig.hold.drawn > 0.0 or rig.hold._draw_dir > 0.0 else ""
+	if pose == "" and not cur.has("speed") and not cur.has("action"):
+		pose = "armed_idle" if wpn in ["pistol", "rifle"] else ("combat_idle" if wpn == "melee" else "")
+	rig.set_pose(pose if rig.info.has(pose) else "")
+
+
+## взять оружие кнопкой (в любом движении): прежнее убирается, новое достаётся правильным хватом
+func take(wpn: String) -> void:
+	_seq += 1
+	var my := _seq
+	var h := rig.hold
+	if h.wid == wpn and h.drawn >= 1.0:
+		return
+	if h.wid != "" and h.wid != wpn and h.drawn > 0.0:
+		var t := h.put_away()
+		await get_tree().create_timer(t + 0.15).timeout
+		if my != _seq:
+			return
+	if h.wid != wpn:
+		h.equip(wpn, false)
+	if wpn != "":
+		h.draw()
+	_body_pose()
+	_refresh_weapon()
+
+
+func _refresh_weapon() -> void:
+	for k in w_btns:
+		(w_btns[k] as Button).add_theme_color_override("font_color", Color(0.45, 0.95, 1.0) if k == rig.hold.wid else C_TEXT)
+	if aim_btn:
+		aim_btn.text = "Прицел" if rig.hold.stance != "aim" else "Наготове"
+
+
 # ---------------- выбор движения ----------------
 
 func select(i: int) -> void:
 	cur_i = clampi(i, 0, ENTRIES.size() - 1)
 	cur = ENTRIES[cur_i]
 	rig.stop_action()
-	rig.set_pose(String(cur.get("pose", "")))
 	var wpn := String(cur.get("weapon", ""))
+	_seq += 1
 	if rig.hold.wid != wpn:
+		rig.hold.equip(wpn)
+	elif rig.hold.drawn < 1.0:
 		rig.hold.equip(wpn)
 	if cur.has("stance"):
 		rig.hold.set_stance(cur.stance)
+	_body_pose()
+	_refresh_weapon()
 	_timer = 0.5
 	_phase = 0
 	_burst = 0
@@ -187,11 +342,23 @@ func _step() -> void:
 			_timer = rig.hold.swing(String(cur.proc).substr(6)) + 0.7
 			return
 		match String(cur.proc):
+			"draw":
+				# достал — постоял — убрал — постоял
+				if rig.hold.drawn >= 1.0 and _phase == 0:
+					_phase = 1
+					_timer = 1.2
+				elif rig.hold.drawn >= 1.0:
+					_timer = rig.hold.put_away() + 0.9
+					get_tree().create_timer(_timer - 0.85).timeout.connect(_body_pose)
+				else:
+					_phase = 0
+					_timer = rig.hold.draw() + 0.2
+					_body_pose()
 			"fire":
-				rig.hold.fire()
+				_fire()
 				_timer = 0.9
 			"burst":
-				rig.hold.fire()
+				_fire()
 				_burst += 1
 				_timer = 0.1 if _burst % 3 != 0 else 1.1
 			"reload":
@@ -346,6 +513,9 @@ func _build_ui() -> void:
 	ui.add_child(title_lbl)
 	info_lbl = _lbl("", 15)
 	info_lbl.position = Vector2(340, 50)
+	info_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_lbl.custom_minimum_size = Vector2(760, 0)
+	info_lbl.size = Vector2(760, 60)
 	ui.add_child(info_lbl)
 	# справа — виды
 	var views := VBoxContainer.new()
@@ -356,7 +526,7 @@ func _build_ui() -> void:
 	views.offset_top = 10
 	views.add_theme_constant_override("separation", 6)
 	ui.add_child(views)
-	for v in [["Спереди", 0.0, 0.12, 3.4, 1.0], ["Сбоку", PI * 0.5, 0.12, 3.4, 1.0], ["Сзади", PI, 0.2, 3.4, 1.0], ["Сверху", 0.3, 1.2, 4.2, 0.9], ["Руки", -0.9, 0.25, 0.9, -1.0], ["Ноги", 0.9, 0.3, 2.2, 0.4]]:
+	for v in [["Спереди", 0.0, 0.12, 3.4, 1.0], ["Сбоку", PI * 0.5, 0.12, 3.4, 1.0], ["Сзади", PI, 0.2, 3.4, 1.0], ["Сверху", 0.3, 1.2, 4.2, 0.9], ["Руки", -0.9, 0.25, 0.9, -1.0], ["Ноги", 0.9, 0.3, 2.2, 0.4], ["Мишень", PI + 0.5, 0.16, 3.2, 1.35]]:
 		views.add_child(_btn(v[0], func():
 			yaw = v[1]
 			pitch = v[2]
@@ -375,6 +545,31 @@ func _build_ui() -> void:
 	bar.offset_bottom = -10
 	bar.add_theme_constant_override("separation", 8)
 	ui.add_child(bar)
+	var wbar := HBoxContainer.new()
+	wbar.anchor_top = 1.0
+	wbar.anchor_bottom = 1.0
+	wbar.anchor_right = 1.0
+	wbar.offset_left = 330
+	wbar.offset_right = -10
+	wbar.offset_top = -140
+	wbar.offset_bottom = -82
+	wbar.add_theme_constant_override("separation", 8)
+	ui.add_child(wbar)
+	wbar.add_child(_lbl("В руки:", 16, Color(0.45, 0.85, 1.0)))
+	for wv in [["", "Ничего"], ["pistol", "Пистолет"], ["rifle", "Автомат"], ["melee", "Мачете"]]:
+		var wb := _btn(wv[1], take.bind(wv[0]), 112, 52, 16)
+		wbar.add_child(wb)
+		w_btns[wv[0]] = wb
+	var wsp := Control.new()
+	wsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wsp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wbar.add_child(wsp)
+	aim_btn = _btn("Прицел", func():
+		rig.hold.set_stance("ready" if rig.hold.stance == "aim" else "aim")
+		_refresh_weapon(), 110, 52, 16)
+	wbar.add_child(aim_btn)
+	wbar.add_child(_btn("Огонь", _fire, 100, 52, 16))
+	wbar.add_child(_btn("Перезарядка", func(): rig.hold.reload(), 140, 52, 16))
 	bar.add_child(_btn("◀", func(): select((cur_i - 1 + ENTRIES.size()) % ENTRIES.size()), 60))
 	bar.add_child(_btn("▶", func(): select((cur_i + 1) % ENTRIES.size()), 60))
 	pause_btn = _btn("Пауза", _toggle_pause, 110)
@@ -444,6 +639,8 @@ func _info() -> void:
 	var h := rig.hold
 	if h.wid != "" and h.ik_on and h.w.mode != "melee":
 		parts.append("ладонь до рукояти: правая %.1f см, левая %.1f см" % [h.err_r * 100.0, h.err_l * 100.0])
+	if last_hit != "" and h.wid != "" and h.w.mode != "melee":
+		parts.append(last_hit)
 	parts.append("%d кадров/с" % Engine.get_frames_per_second())
 	info_lbl.text = " · ".join(parts)
 
@@ -529,6 +726,14 @@ func _run_test() -> void:
 		await _snap("%s/ui_summary.png" % out)
 		get_tree().quit()
 		return
+	if test == "draw":
+		await _draw_test()
+		get_tree().quit()
+		return
+	if test == "wobble":
+		await _wobble()
+		get_tree().quit()
+		return
 	ui.visible = false
 	cam.h_offset = 0.0
 	if OS.get_cmdline_user_args().has("--as-ik=off"):
@@ -553,7 +758,8 @@ func _run_test() -> void:
 		if en.has("proc") and String(en.proc).begins_with("swing:"):
 			times = [0.5 + 0.33 * float(rig.hold.w.moves[String(en.proc).substr(6)].len), 0.2 * float(rig.hold.w.moves[String(en.proc).substr(6)].len)]
 		if en.has("action"):
-			times = [0.5 + (1.3 if en.has("pre_pose") else 0.0) + 0.45, 0.5]
+			var al: float = rig.info[en.action].len if rig.info.has(en.action) else 1.0
+			times = [0.5 + (1.3 if en.has("pre_pose") else 0.0) + (al * 0.42 if rig.info.get(en.action, {}).get("built", false) else 0.45), (al * 0.25 if rig.info.get(en.action, {}).get("built", false) else 0.5)]
 		for m in times.size():
 			var t := 0.0
 			while t < float(times[m]):
@@ -606,3 +812,101 @@ func _run_test() -> void:
 	if f:
 		f.store_string("\n".join(lines))
 	get_tree().quit()
+
+
+## насколько «гуляют» части тела в покое: размах (см) и средняя скорость (см/с) за 8 секунд
+func _wobble() -> void:
+	var ids := []
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			ids = Array(a.substr(10).split(","))
+	for i in ENTRIES.size():
+		var en: Dictionary = ENTRIES[i]
+		if not ids.has(en.id):
+			continue
+		select(i)
+		await get_tree().create_timer(1.5).timeout
+		var mn := {}
+		var mx := {}
+		var path := {}
+		var last := {}
+		var t := 0.0
+		while t < 8.0:
+			await get_tree().process_frame
+			t += get_process_delta_time()
+			for b in rig.probe.pos:
+				var p: Vector3 = (rig.probe.pos[b] as Vector3) * rig.scale_k * 100.0
+				if not mn.has(b):
+					mn[b] = p
+					mx[b] = p
+					path[b] = 0.0
+				else:
+					mn[b] = (mn[b] as Vector3).min(p)
+					mx[b] = (mx[b] as Vector3).max(p)
+					path[b] += p.distance_to(last[b])
+				last[b] = p
+		var parts := []
+		for b in ["Hip", "Head", "L_Hand", "R_Hand", "L_Forearm", "L_Calf", "R_Calf", "L_Foot", "R_Foot"]:
+			if mn.has(b):
+				var r: Vector3 = (mx[b] as Vector3) - (mn[b] as Vector3)
+				parts.append("%s размах %.1f см, %.1f см/с" % [b, maxf(r.x, maxf(r.y, r.z)), float(path[b]) / t])
+		print("[stand] покой «%s»: %s" % [en.n, "; ".join(parts)])
+
+
+## достать оружие по шагам и выстрелить: снимки (общий вид и кисти) и отклонение на мишени
+func _draw_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	ui.visible = false
+	cam.h_offset = 0.0
+	for i in ENTRIES.size():
+		if ENTRIES[i].id == "idle":
+			select(i)
+	await get_tree().create_timer(0.6).timeout
+	for wpn in ["pistol", "rifle", "melee"]:
+		rig.hold.equip(wpn, false)
+		_body_pose()
+		await get_tree().create_timer(0.5).timeout
+		var marks_at := [0.0, 0.3, 0.6, 1.0]
+		for mi in marks_at.size():
+			if mi == 1:
+				rig.hold.draw()
+				_body_pose()
+			while rig.hold.drawn < float(marks_at[mi]):
+				await get_tree().process_frame
+			if mi == 3:
+				await get_tree().create_timer(0.5).timeout
+			var was := Engine.time_scale
+			Engine.time_scale = 0.0
+			for v in [["a", 0.6, 0.15, 2.9, 1.0], ["c", -1.0, 0.3, 0.8, -1.0]]:
+				yaw = v[1]
+				pitch = v[2]
+				dist = v[3]
+				look_hands = float(v[4]) < 0.0
+				if not look_hands:
+					look_h = v[4]
+				_camera()
+				await get_tree().process_frame
+				await _snap("%s/draw_%s_%d%s.png" % [out, wpn, mi, v[0]])
+			Engine.time_scale = was
+		var j: Dictionary = rig.hold.joints
+		print("[stand] достал %s: правая кисть сгиб %.0f°, вбок %.0f°, предплечье %.0f°" % [wpn, j.R[0], j.R[1], j.R[2]])
+		if wpn != "melee":
+			rig.hold.set_stance("aim")
+			await get_tree().create_timer(0.9).timeout
+			for n in 3:
+				_fire()
+				print("[stand] %s, выстрел %d — %s" % [wpn, n + 1, last_hit])
+				if n == 0:
+					await get_tree().process_frame
+					Engine.time_scale = 0.0
+					yaw = PI + 0.5
+					pitch = 0.16
+					dist = 3.2
+					look_hands = false
+					look_h = 1.35
+					_camera()
+					await get_tree().process_frame
+					await _snap("%s/fire_%s.png" % [out, wpn])
+					Engine.time_scale = 1.0
+				await get_tree().create_timer(0.5).timeout
+			rig.hold.set_stance("ready")

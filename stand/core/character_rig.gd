@@ -48,6 +48,8 @@ var _ik_pose := true            ## текущая поза разрешает IK
 var hands: BCHandIK
 var hold: BCWeaponHold          ## хват оружия: обе руки к оружию, пальцы на рукояти
 var ground: BCGroundClamp       ## лежащее тело — на полу (клипы с пометкой "ground")
+var probe: BCProbe              ## итоговая поза для проверок
+var built_poses := true         ## стойки и удары — построенные (false — клипы Tripo как есть)
 
 
 func setup(path := "", set_dir := "") -> void:
@@ -86,6 +88,14 @@ func setup(path := "", set_dir := "") -> void:
 	var fwd: Vector3 = info.walk.dir if info.has("walk") and info.walk.dir != Vector3.ZERO else Vector3.BACK
 	yaw_offset = atan2(fwd.x, fwd.z)
 	model.rotation.y = -yaw_offset
+	# хват оружия создаётся раньше: его расчёт рук нужен построителю поз
+	hold = BCWeaponHold.new()
+	hold.name = "WeaponHold"
+	skel.add_child(hold)
+	hold.setup(1.0 / scale_k, Basis(Vector3.UP, yaw_offset) * Vector3.BACK)
+	if built_poses:
+		# стойки и удары по анатомическим правилам — вместо клипов Tripo (те остаются как «имя_tripo»)
+		BCPoseBuilder.new(self).install(built.lib, info)
 	_build_tree()
 	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели.
 	# Житель и враг (родитель — BCNpc) — упрощённо: только стопы, и те — рядом с героем (ближе 12 м)
@@ -112,10 +122,10 @@ func setup(path := "", set_dir := "") -> void:
 		hands = BCHandIK.new()
 		hands.name = "HandIK"
 		skel.add_child(hands)
-	hold = BCWeaponHold.new()
-	hold.name = "WeaponHold"
-	skel.add_child(hold)
-	hold.setup(1.0 / scale_k, Basis(Vector3.UP, yaw_offset) * Vector3.BACK)
+	skel.move_child(hold, -1)                 # хват — после остальных поправок
+	probe = BCProbe.new()
+	probe.name = "Probe"
+	skel.add_child(probe)
 	_ik_act = false
 	_ik_pose = true
 	set_active(_active)
@@ -380,6 +390,13 @@ func _process(delta: float) -> void:
 			var n := _action
 			_action = ""
 			action_finished.emit(n)
+	# поправки для клипов Tripo (разворот локтей и колен, руки вне тела) построенным позам не нужны:
+	# там суставы уже стоят по анатомии, а поправка только портит (кисть в ударе «свисала»)
+	var cur_clip := _action if _action != "" else (_pose if _pose != "" else ("idle" if _move_w < 0.5 else "walk"))
+	var built_now: bool = info.has(cur_clip) and bool(info[cur_clip].get("built", false))
+	for m in [limbs, arms]:
+		if m and m.active == built_now:
+			m.active = not built_now
 	if ground:
 		var g := (_action != "" and bool(info[_action].get("ground", false))) or (_pose != "" and info.has(_pose) and bool(info[_pose].get("ground", false)))
 		ground.weight = move_toward(ground.weight, 1.0 if g else 0.0, delta * 6.0)

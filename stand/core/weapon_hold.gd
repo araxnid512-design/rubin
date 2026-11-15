@@ -35,6 +35,10 @@ var _twist := 0.0
 var _follow := 1.0
 var _recoil_t := 99.0
 var _reload_t := -1.0
+var drawn := 1.0                  ## 0 — оружие убрано (кобура, ремень), 1 — в руках
+var _draw_dir := 0.0
+var _hip := -1
+var _lock := 0.0
 var _move := ""                   ## идущий удар холодным оружием
 var _move_t := 0.0
 var _sc := Vector3.ZERO           ## середина плеч в позе покоя
@@ -113,7 +117,10 @@ func _hand_frame(s: Skeleton3D, side: String) -> Dictionary:
 
 
 ## взять оружие ("" — убрать)
-func equip(id: String) -> void:
+## взять оружие ("" — убрать совсем); in_hands = false — оружие появляется убранным (в кобуре, на ремне)
+func equip(id: String, in_hands := true) -> void:
+	drawn = 1.0 if in_hands else 0.0
+	_draw_dir = 0.0
 	if node:
 		node.queue_free()
 		node = null
@@ -139,6 +146,30 @@ func equip(id: String) -> void:
 	_move = ""
 	if not w.stances.has(stance):
 		stance = w.stances.keys()[0]
+
+
+## достать оружие: правая рука тянется к рукояти, берёт, поднимает в стойку, левая подхватывает
+func draw() -> float:
+	if wid == "":
+		return 0.0
+	_draw_dir = 1.0
+	return float(w.get("holster", {}).get("time", 0.9)) * (1.0 - drawn)
+
+
+## убрать оружие в кобуру / на ремень
+func put_away() -> float:
+	if wid == "":
+		return 0.0
+	_draw_dir = -1.0
+	return float(w.get("holster", {}).get("time", 0.9)) * drawn
+
+
+## дульный срез и направление ствола в мире (для выстрела)
+func muzzle_world() -> Array:
+	if node == null or not w.has("muzzle"):
+		return []
+	var g := node.global_transform
+	return [g * Vector3(w.muzzle[0], w.muzzle[1], w.muzzle[2]), -g.basis.z.normalized()]
 
 
 func set_stance(st: String) -> void:
@@ -222,6 +253,32 @@ func _process_modification_with_delta(delta: float) -> void:
 	if not ik_on:
 		_hand_driven(s)
 		return
+	# достать / убрать
+	if _draw_dir != 0.0:
+		drawn = clampf(drawn + _draw_dir * delta / float(w.get("holster", {}).get("time", 0.9)), 0.0, 1.0)
+		if drawn <= 0.0 or drawn >= 1.0:
+			_draw_dir = 0.0
+	if _hip < 0:
+		_hip = s.find_bone("Hip")
+	var Wh := Transform3D.IDENTITY
+	if drawn < 1.0:
+		var ho: Dictionary = w.get("holster", {"pos": [0.0, -0.05, 0.2], "dir": [0.1, -1.0, 0.0]})
+		var f0 := _v(ho.dir).normalized()
+		var u0 := (fwd - f0 * fwd.dot(f0)).normalized().rotated(f0, deg_to_rad(float(ho.get("roll", 0.0))))
+		var B0 := Basis(f0.cross(u0), u0, -f0)
+		var hip_rest := s.get_bone_global_rest(_hip)
+		var rest_pose := Transform3D(B0, hip_rest.origin + _v(ho.pos) * k - B0 * _pt(w.grip))
+		Wh = (s.get_bone_global_pose(_hip) * hip_rest.affine_inverse()).orthonormalized() * rest_pose
+		if drawn <= 0.0:
+			node.transform = Transform3D(Wh.basis.scaled(Vector3.ONE * _wscale), Wh.origin)
+			two_hands = false
+			hand_r = s.get_bone_global_pose(_hf.R.hand).origin
+			_has_cur = false
+			_hs.clear()
+			return
+	var lift := smoothstep(0.42, 1.0, drawn)
+	var w_r := smoothstep(0.0, 0.36, drawn)
+	var w_l := smoothstep(0.62, 1.0, drawn)
 	var st: Dictionary = w.stances[stance]
 	var tgt := _stance_pose(st)
 	var tw_t := float(st.get("twist", 0.0))
@@ -271,11 +328,18 @@ func _process_modification_with_delta(delta: float) -> void:
 	var T1 := Gc * Gr.affine_inverse()
 	var T0 := Transform3D(Basis.IDENTITY, Gc.origin - Gr.origin)
 	var W := T0.interpolate_with(T1.orthonormalized(), _follow) * pose
+	# прицел: ствол смотрит в цель, как бы ни наклонился корпус (точка опоры — приклад или рукоять — остаётся)
+	_lock = lerpf(_lock, 1.0 if st.get("lock", false) and _move == "" else 0.0, a)
+	if _lock > 0.001:
+		var ap := _pt(w[st.anchor])
+		var keep := W * ap
+		W.basis = W.basis.orthonormalized().slerp(pose.basis.orthonormalized(), _lock)
+		W.origin = keep - W.basis * ap
 	# разворот корпуса (левое плечо вперёд), чтобы левая рука доставала до цевья
-	if absf(_twist) > 0.5:
+	if absf(_twist * lift) > 0.5:
 		for b in _sp:
 			var G := s.get_bone_global_pose(b)
-			G.basis = Basis(upv, -deg_to_rad(_twist) * 0.5) * G.basis
+			G.basis = Basis(upv, -deg_to_rad(_twist * lift) * 0.5) * G.basis
 			s.set_bone_global_pose(b, G)
 	var wf := -W.basis.z
 	var wu := W.basis.y
@@ -291,18 +355,20 @@ func _process_modification_with_delta(delta: float) -> void:
 	var SR := s.get_bone_global_pose(_hf.R.arm).origin
 	var SL := s.get_bone_global_pose(_hf.L.arm).origin
 	var bo := (SR + SL) * 0.5
+	if drawn < 1.0:
+		W = Wh.interpolate_with(W, lift)          # оружие идёт из кобуры в стойку
 	# в движении (удар, перезарядка) кисть сама выбирает допустимый поворот на рукояти — каждый кадр
-	var dyn := _move != "" or rl >= 0.0
+	var dyn := _move != "" or rl >= 0.0 or drawn < 1.0
 	var gr := _dyn_goal("R", SR, W, plan.R, bo, bf, bu, br) if dyn else _goal("R", W, plan.R)
 	var tr := _target_s("R", gr, delta)
 	var lack := _lack(s, "R", tr[0])
-	if lack > 0.0 and not dyn:
+	if lack > 0.0 and not dyn and drawn >= 1.0:
 		# не достаёт — оружие ближе к плечу
 		W.origin += (SR - tr[0]).normalized() * lack
 		gr = _goal("R", W, plan.R)
 		tr = _target_s("R", gr, 0.0)
 	var tl := []
-	if not st.get("one", false):
+	if not st.get("one", false) and w_l > 0.0:
 		var gl := _goal("L", W, plan.L)
 		if rl >= 0.0:
 			gl = _dyn_goal("L", SL, W, plan.L, bo, bf, bu, br, _reload_palm(s, W, rl, gl[0]))
@@ -315,18 +381,21 @@ func _process_modification_with_delta(delta: float) -> void:
 		# клинок поворачивается вместе с ней
 		var ev := _eval("R", SR, tr[0], tr[1], bo, bf, bu, br, float(_psi.R))
 		var R := _wrist_fix("R", SR, ev[2], tr[0], tr[1], ev[1])
+		if lift < 1.0:
+			R = Basis.IDENTITY.slerp(R.orthonormalized(), lift)     # в ножнах клинок не поворачивается за кистью
 		tr[1] = (R * (tr[1] as Basis)).orthonormalized()
 		_hs["R"] = tr[1]
 		W = Transform3D(R * W.basis, (tr[0] as Vector3) + R * (W.origin - (tr[0] as Vector3)))
-	err_r = _arm(s, "R", tr[0], tr[1], pole_r) / k
+	err_r = _arm(s, "R", tr[0], tr[1], pole_r, w_r) / k
 	err_l = 0.0
 	hand_r = tr[0]
 	two_hands = not tl.is_empty()
 	if two_hands:
 		hand_l = tl[0]
-		err_l = _arm(s, "L", tl[0], tl[1], _swivel("L", SL, tl[0], tl[1], bo, bf, bu, br, delta)) / k
-		_curl(s, "L", "wrap" if w.mode == "rifle" else "support")
-	_curl(s, "R", "fist" if w.mode == "melee" else "trigger")
+		err_l = _arm(s, "L", tl[0], tl[1], _swivel("L", SL, tl[0], tl[1], bo, bf, bu, br, delta), w_l) / k
+		_curl(s, "L", "wrap" if w.mode == "rifle" else "support", w_l)
+	# пальцы смыкаются на рукояти, когда кисть уже на ней
+	_curl(s, "R", "fist" if w.mode == "melee" else "trigger", smoothstep(0.25, 0.42, drawn))
 	aim_dev = rad_to_deg((-W.basis.z).angle_to(fwd)) if stance == "aim" else 0.0
 	node.transform = Transform3D(W.basis.scaled(Vector3.ONE * _wscale), W.origin)
 
@@ -655,7 +724,7 @@ func _lack(s: Skeleton3D, side: String, wrist: Vector3) -> float:
 
 
 ## двухзвенный IK руки: запястье в точку, локоть — в сторону pole, кисть — в ориентацию H; возвращает промах ладони
-func _arm(s: Skeleton3D, side: String, wrist: Vector3, H: Basis, pole: Vector3) -> float:
+func _arm(s: Skeleton3D, side: String, wrist: Vector3, H: Basis, pole: Vector3, wgt := 1.0) -> float:
 	var hf: Dictionary = _hf[side]
 	var a: int = hf.arm
 	var b: int = hf.fore
@@ -663,6 +732,17 @@ func _arm(s: Skeleton3D, side: String, wrist: Vector3, H: Basis, pole: Vector3) 
 	var A := s.get_bone_global_pose(a)
 	var B := s.get_bone_global_pose(b)
 	var C := s.get_bone_global_pose(c)
+	if wgt < 0.999:
+		# частичный вес (рука тянется к оружию): между позой клипа и целью
+		if wgt <= 0.001:
+			return 0.0
+		wrist = C.origin.lerp(wrist, wgt)
+		H = C.basis.orthonormalized().slerp(H.orthonormalized(), wgt)
+		var el := B.origin - A.origin
+		var dd := (wrist - A.origin).normalized()
+		var pc := el - dd * el.dot(dd)
+		if pc.length() > 0.001:
+			pole = pc.normalized().slerp(pole.normalized(), wgt) if pc.normalized().dot(pole.normalized()) > -0.99 else pole
 	var la := A.origin.distance_to(B.origin)
 	var lb := B.origin.distance_to(C.origin)
 	var at := wrist - A.origin
@@ -730,6 +810,8 @@ func _joint_angles(side: String, sh: Vector3, el: Vector3, wr: Vector3, H: Basis
 ## позы пальцев: trigger — рукоять, указательный у спуска; wrap — обхват цевья; support — поверх пальцев правой;
 ## fist — кулак на рукояти
 const CURL := {
+	"relax": {"Index": [12, 22, 14], "Mid": [16, 26, 16], "Ring": [20, 30, 18], "Pinky": [24, 32, 18], "Thumb": [14, 10, 8]},
+	"open": {"Index": [2, 4, 3], "Mid": [2, 4, 3], "Ring": [3, 5, 3], "Pinky": [4, 6, 3], "Thumb": [4, 0, 0]},
 	"trigger": {"Index": [18, 42, 22], "Mid": [62, 78, 38], "Ring": [66, 80, 40], "Pinky": [70, 82, 40], "Thumb": [58, 30, 12]},
 	"wrap": {"Index": [50, 62, 34], "Mid": [54, 66, 36], "Ring": [56, 68, 36], "Pinky": [58, 70, 36], "Thumb": [20, 30, 12]},
 	"support": {"Index": [50, 62, 30], "Mid": [54, 66, 32], "Ring": [56, 68, 32], "Pinky": [58, 70, 32], "Thumb": [55, 14, 8]},
@@ -737,9 +819,22 @@ const CURL := {
 }
 
 
-func _curl(s: Skeleton3D, side: String, pose: String) -> void:
+func _curl(s: Skeleton3D, side: String, pose: String, wgt := 1.0) -> void:
+	if wgt <= 0.001:
+		return
 	var hf: Dictionary = _hf[side]
 	var c: Dictionary = CURL[pose]
+	if wgt < 0.999:
+		# частично: от позы клипа к хвату
+		var keep := {}
+		for f in hf.fingers:
+			for b in hf.fingers[f]:
+				if int(b) >= 0:
+					keep[b] = s.get_bone_pose_rotation(b)
+		_curl(s, side, pose, 1.0)
+		for b in keep:
+			s.set_bone_pose_rotation(b, (keep[b] as Quaternion).slerp(s.get_bone_pose_rotation(b), wgt))
+		return
 	for f in ["Index", "Mid", "Ring", "Pinky"]:
 		for j in 3:
 			var b: int = hf.fingers[f][j]
