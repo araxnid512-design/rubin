@@ -321,7 +321,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		tgt = mp[0]
 		tw_t = mp[1]
 		a = 1.0 - exp(-delta * 40.0)
-		om = 38.0
+		om = 60.0
 		zt = 1.0
 		if _move_t >= float(w.moves[_move].len):
 			_move = ""
@@ -938,7 +938,7 @@ const CURL := {
 	"open": {"Index": [2, 4, 3], "Mid": [2, 4, 3], "Ring": [3, 5, 3], "Pinky": [4, 6, 3], "gather": 0.3, "conv": 0.0,
 		"thumb_j": [10.4, 7.9, 4.0], "thumb_tip": [12.6, 9.4, 4.8], "thumb_roll": 0.0},
 	"fist": {"Index": [88, 108, 76], "Mid": [90, 110, 76], "Ring": [92, 110, 76], "Pinky": [94, 108, 72], "gather": 1.0, "conv": 3.0,
-		"thumb_j": [10.7, 4.2, 3.7], "thumb_tip": [11.5, 1.2, 4.0], "thumb_roll": 30.0},
+		"thumb_j": [10.2, 4.4, 3.4], "thumb_tip": [10.9, 1.4, 3.6], "thumb_roll": 30.0},
 	"trigger": {"Index": [22, 46, 24], "Mid": [70, 84, 44], "Ring": [72, 86, 44], "Pinky": [74, 86, 44], "gather": 1.0, "conv": 0.0,
 		"thumb_j": [10.4, 6.2, 4.2], "thumb_tip": [13.2, 5.8, 5.0], "thumb_roll": 15.0},
 	"index": {"Index": [4, 8, 6], "Mid": [70, 84, 44], "Ring": [72, 86, 44], "Pinky": [74, 86, 44], "gather": 1.0, "conv": 0.0,

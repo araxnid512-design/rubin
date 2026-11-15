@@ -26,7 +26,7 @@ func _ready() -> void:
 	cam.current = true
 	get_window().size = Vector2i(900, 600)
 	await get_tree().create_timer(0.3).timeout
-	for w in ["w_tt", "w_ak74m", "w_machete_fix"]:
+	for w in ["w_tt", "w_ak74m", "w_machete_fix", "w_spas12", "w_fnfal", "w_vss", "w_mp5", "w_pkp"]:
 		var n: Node3D = (load("res://assets/weapons/%s.glb" % w) as PackedScene).instantiate()
 		add_child(n)
 		var bb := AABB()

@@ -742,6 +742,10 @@ func _run_test() -> void:
 		await _hands_test()
 		get_tree().quit()
 		return
+	if test == "strip":
+		await _strip_test()
+		get_tree().quit()
+		return
 	if test == "grips":
 		await _grips_test()
 		get_tree().quit()
@@ -1042,3 +1046,59 @@ func _grips_test() -> void:
 		cam_free = false
 		cam.fov = 38.0
 		Engine.time_scale = 1.0
+
+
+## полоса кадров одного движения: время замедляется, кадры снимаются точно на заданных долях движения
+func _strip_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	ui.visible = false
+	cam.h_offset = 0.0
+	var ids := ["kick"]
+	var fr := [0.1, 0.3, 0.42, 0.52, 0.65, 0.85]
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			ids = Array(a.substr(10).split(","))
+		if a.begins_with("--as-at="):
+			fr = []
+			for x in a.substr(8).split(","):
+				fr.append(float(x))
+	for id in ids:
+		for i in ENTRIES.size():
+			if ENTRIES[i].id == id:
+				select(i)
+		var en: Dictionary = cur
+		_timer = 1e9                              # движение запускает проверка
+		await get_tree().create_timer(1.0).timeout
+		Engine.time_scale = 0.12
+		var total := 1.0
+		var t0 := 0.0
+		var clock := func() -> float: return 0.0
+		if en.has("action"):
+			total = rig.play(String(en.action))
+		elif String(en.get("proc", "")).begins_with("swing:"):
+			total = rig.hold.swing(String(en.proc).substr(6))
+		elif String(en.get("proc", "")) == "reload":
+			total = rig.hold.reload()
+		elif String(en.get("proc", "")) in ["fire", "burst"]:
+			_fire()
+			total = float(en.get("strip_len", 1.0))
+		var el := 0.0
+		for k in fr.size():
+			while el < float(fr[k]) * total:
+				await get_tree().process_frame
+				el += get_process_delta_time()
+			var was := Engine.time_scale
+			Engine.time_scale = 0.0
+			for v in [["a", -0.75, 0.12, 2.6, 1.1], ["b", -PI * 0.5, 0.08, 2.6, 1.1], ["c", -1.0, 0.3, 0.8, -1.0]]:
+				yaw = v[1]
+				pitch = v[2]
+				dist = v[3]
+				look_hands = float(v[4]) < 0.0
+				if not look_hands:
+					look_h = v[4]
+				_camera()
+				await get_tree().process_frame
+				await _snap("%s/draw_%s_%d%s.png" % [out, id, k, v[0]])
+			Engine.time_scale = was
+		Engine.time_scale = 1.0
+		await get_tree().create_timer(0.6).timeout
