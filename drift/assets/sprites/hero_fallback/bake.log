@@ -1,0 +1,15 @@
+калибровка: центр (0.212 0.212 1.000 1.000) → рендер пишет как есть (sRGB — в шейдере)
+калибровка цвета: серый 0.5 → 0.498 (ожидается 0.5)
+модель: hero.glb
+клипы: afraid, agree, angry_01, box_01, box_02, box_03, cheer, clap, climb, cry, defeat_02, defeat_03, depressed, dig, dive, fall, fire, flee_01, front_kick_01, frustrated_01, greet_01, hit_to_body_01, hit_to_body_02, hit_to_head, hit_to_side, hit_to_stomach, hurt, idle, jump_down, laugh_01, lift_heavy, look_around, m_bed_lie, m_bed_up, m_block, m_check_dosimeter, m_combat_idle, m_cough, m_crouch_idle, m_crouch_walk, m_crouch_walk2, m_dodge_back, m_dodge_left, m_dodge_right, m_door_close, m_door_open, m_get_up, m_get_up2, m_hit_right, m_melee_heavy, m_melee_light, m_nod, m_pickup, m_pistol_aim, m_pistol_draw, m_pistol_fire, m_pistol_reload, m_rifle_aim, m_sit_down, m_sneak, m_stagger, m_stairs_down, m_stand_up, m_start, m_start2, m_stop, m_stop2, m_stop3, m_strafe_left, m_strafe_right, m_stretch, m_suit_off, m_suit_on, m_talk, m_terminal, m_turn_right, m_walk_back, m_walk_back2, run, run_upstairs, scared_01, scratch, shoot, sit, standing_relax, turn, wait, walk, wave_goodbye_01
+габарит 0.980 м → масштаб 1.837; «перёд» модели (1.0, 0.0, 0.0)
+idle ← idle: отрезок 1.07–2.67 с из 15.33, кадров 8
+walk ← walk: отрезок 0.30–1.47 с из 2.33, кадров 8, скорость 1.23 м/с
+run ← run: отрезок 0.40–1.03 с из 1.25, кадров 8, скорость 4.43 м/с
+attack ← box_01: отрезок 0.00–2.20 с из 2.21, кадров 6
+  ! кадров, касающихся края: 2
+shoot ← fire: отрезок 0.00–1.47 с из 1.50, кадров 4
+hit ← hit_to_body_01: отрезок 0.00–1.27 с из 1.29, кадров 4
+death ← fall: отрезок 1.03–3.00 с из 3.00, кадров 8
+  ! кадров, касающихся края: 42
+→ res://assets/sprites/hero_fallback/hero_fallback.json

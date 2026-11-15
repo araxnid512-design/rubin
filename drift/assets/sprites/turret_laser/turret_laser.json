@@ -1,0 +1,29 @@
+{
+	"name": "turret_laser",
+	"kind": "turret",
+	"frame_w": 128,
+	"frame_h": 128,
+	"anchor": [
+		64,
+		100
+	],
+	"fps": 12,
+	"dirs": 16,
+	"ppm": 64.0,
+	"dir_order": "0=S(к зрителю), далее по часовой на экране, шаг 360/dirs",
+	"clips": {
+		"base": {
+			"frames": 1,
+			"dirs": 1,
+			"loop": true
+		},
+		"head": {
+			"frames": 1,
+			"dirs": 16,
+			"loop": true
+		}
+	},
+	"height_m": 1.1,
+	"split": true,
+	"split_m": 0.23
+}

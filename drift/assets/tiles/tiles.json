@@ -1,0 +1,367 @@
+{
+ "ppm": 64.0,
+ "floor_px": [
+  64,
+  45
+ ],
+ "wall_px": [
+  64,
+  113
+ ],
+ "wall_top_px": [
+  64,
+  18
+ ],
+ "normal_space": "камера: RGB = n*0.5+0.5, X вправо, Y вверх по экрану, Z на зрителя",
+ "flat_normal": {
+  "floor": [
+   128,
+   218,
+   218
+  ],
+  "wall": [
+   128,
+   37,
+   218
+  ]
+ },
+ "tiles": {
+  "floor_plate_a": {
+   "file": "floor_plate_a.png",
+   "normal": "floor_plate_a_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "палуба: 4 плиты 0.5×0.5 м с болтами",
+   "alpha": false
+  },
+  "floor_plate_b": {
+   "file": "floor_plate_b.png",
+   "normal": "floor_plate_b_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "палуба: рифлёный лист",
+   "alpha": false
+  },
+  "floor_plate_c": {
+   "file": "floor_plate_c.png",
+   "normal": "floor_plate_c_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "палуба: 2 плиты 1×0.5 м, сервисный люк",
+   "alpha": false
+  },
+  "floor_grating": {
+   "file": "floor_grating.png",
+   "normal": "floor_grating_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "решётка (под ней темнота и трубы)",
+   "alpha": false
+  },
+  "floor_hazard_n": {
+   "file": "floor_hazard_n.png",
+   "normal": "floor_hazard_n_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "плиты + жёлто-чёрная полоса у северного (верхнего) края",
+   "alpha": false
+  },
+  "floor_hazard_s": {
+   "file": "floor_hazard_s.png",
+   "normal": "floor_hazard_s_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "плиты + жёлто-чёрная полоса у южного (нижнего) края",
+   "alpha": false
+  },
+  "floor_airlock": {
+   "file": "floor_airlock.png",
+   "normal": "floor_airlock_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "шлюз: круглый люк-диафрагма, шевроны",
+   "alpha": false
+  },
+  "floor_reactor": {
+   "file": "floor_reactor.png",
+   "normal": "floor_reactor_n.png",
+   "emission": "floor_reactor_e.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "реакторный отсек: тёмные плиты, голубые светящиеся линии",
+   "alpha": false
+  },
+  "hull": {
+   "file": "hull.png",
+   "normal": "hull_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "внешняя обшивка корабля (вид сверху)",
+   "alpha": false
+  },
+  "rock_floor": {
+   "file": "rock_floor.png",
+   "normal": "rock_floor_n.png",
+   "size": [
+    64,
+    45
+   ],
+   "kind": "floor",
+   "metres": [
+    1.0,
+    1.0
+   ],
+   "desc": "астероид: каменный пол с кратерами",
+   "alpha": false
+  },
+  "wall_plain": {
+   "file": "wall_plain.png",
+   "normal": "wall_plain_n.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "wall",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "стена: панель",
+   "alpha": false
+  },
+  "wall_pipes": {
+   "file": "wall_pipes.png",
+   "normal": "wall_pipes_n.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "wall",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "стена: панель с трубами",
+   "alpha": false
+  },
+  "wall_console": {
+   "file": "wall_console.png",
+   "normal": "wall_console_n.png",
+   "emission": "wall_console_e.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "wall",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "стена: пульт с экраном",
+   "alpha": false
+  },
+  "wall_vent": {
+   "file": "wall_vent.png",
+   "normal": "wall_vent_n.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "wall",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "стена: вентиляционная решётка",
+   "alpha": false
+  },
+  "wall_window": {
+   "file": "wall_window.png",
+   "normal": "wall_window_n.png",
+   "emission": "wall_window_e.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "wall",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "стена: иллюминатор в космос (звёзды)",
+   "alpha": false
+  },
+  "wall_top": {
+   "file": "wall_top.png",
+   "normal": "wall_top_n.png",
+   "size": [
+    64,
+    18
+   ],
+   "kind": "wall_top",
+   "metres": [
+    1.0,
+    0.4
+   ],
+   "desc": "верх стены (толщина 0.4 м)",
+   "alpha": false
+  },
+  "door_closed": {
+   "file": "door_closed.png",
+   "normal": "door_closed_n.png",
+   "emission": "door_closed_e.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "door",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "дверь 1 м: закрыта (огонёк янтарный)",
+   "alpha": false
+  },
+  "door_open": {
+   "file": "door_open.png",
+   "normal": "door_open_n.png",
+   "emission": "door_open_e.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "door",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "дверь 1 м: открыта, проём прозрачный (огонёк зелёный)",
+   "alpha": true
+  },
+  "door2_closed": {
+   "file": "door2_closed.png",
+   "normal": "door2_closed_n.png",
+   "emission": "door2_closed_e.png",
+   "size": [
+    128,
+    113
+   ],
+   "kind": "door",
+   "metres": [
+    2.0,
+    2.5
+   ],
+   "desc": "дверь 2 м (2 тайла): закрыта",
+   "alpha": false
+  },
+  "door2_open": {
+   "file": "door2_open.png",
+   "normal": "door2_open_n.png",
+   "emission": "door2_open_e.png",
+   "size": [
+    128,
+    113
+   ],
+   "kind": "door",
+   "metres": [
+    2.0,
+    2.5
+   ],
+   "desc": "дверь 2 м (2 тайла): открыта",
+   "alpha": true
+  },
+  "rock_wall": {
+   "file": "rock_wall.png",
+   "normal": "rock_wall_n.png",
+   "size": [
+    64,
+    113
+   ],
+   "kind": "wall",
+   "metres": [
+    1.0,
+    2.5
+   ],
+   "desc": "астероид: каменная стена (верхний край неровный, альфа)",
+   "alpha": true
+  },
+  "rock_wall_top": {
+   "file": "rock_wall_top.png",
+   "normal": "rock_wall_top_n.png",
+   "size": [
+    64,
+    18
+   ],
+   "kind": "wall_top",
+   "metres": [
+    1.0,
+    0.4
+   ],
+   "desc": "астероид: верх каменной стены",
+   "alpha": false
+  }
+ }
+}

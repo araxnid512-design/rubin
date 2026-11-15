@@ -1,0 +1,23 @@
+{
+	"name": "drone_combat",
+	"kind": "drone",
+	"frame_w": 128,
+	"frame_h": 128,
+	"anchor": [
+		64,
+		100
+	],
+	"fps": 12,
+	"dirs": 8,
+	"ppm": 64.0,
+	"dir_order": "0=S(к зрителю), далее по часовой на экране, шаг 360/dirs",
+	"clips": {
+		"idle": {
+			"frames": 1,
+			"dirs": 8,
+			"loop": true
+		}
+	},
+	"hover_m": 1.0,
+	"height_m": 0.4
+}
