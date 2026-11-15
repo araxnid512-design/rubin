@@ -31,8 +31,13 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 	var acc := {}           # часть → [[меш-узел, xf, поверхность → индексы]]
 	var mins := {}
 	var maxs := {}
+	var top_y := {}
 	for n in names:
 		acc[n] = []
+		var ty := -1e9
+		for q in parts[n].poly:
+			ty = maxf(ty, float(q[1]))
+		top_y[n] = ty
 	for mi in root.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m.mesh == null:
@@ -51,13 +56,23 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 			for n in names:
 				out[n] = PackedInt32Array()
 			for t in range(0, idx.size() - 2, 3):
-				var c: Vector3 = xf * ((verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0)
+				var p0: Vector3 = xf * verts[idx[t]]
+				var p1: Vector3 = xf * verts[idx[t + 1]]
+				var p2: Vector3 = xf * verts[idx[t + 2]]
+				var c := (p0 + p1 + p2) / 3.0
 				var who := ""
 				for n in names:
 					var pc: Dictionary = parts[n]
 					if pc.has("x") and (c.x < float(pc.x[0]) or c.x > float(pc.x[1])):
 						continue
-					if _inside(Vector2(c.z, c.y), pc.poly):
+					# в часть — если внутри середина или хотя бы две вершины (длинные треугольники по краю детали
+					# иначе оставались бы висеть на оружии)
+					var cnt := 0
+					for q in [p0, p1, p2]:
+						if _inside(Vector2(q.z, q.y), pc.poly):
+							cnt += 1
+					# длинный треугольник «коробка — дно магазина»: одна вершина в магазине, середина ниже горловины
+					if cnt >= 2 or _inside(Vector2(c.z, c.y), pc.poly) or (cnt == 1 and c.y < float(top_y[n]) - 0.012):
 						who = n
 						break
 				var o: PackedInt32Array = out[who]

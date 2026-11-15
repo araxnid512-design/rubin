@@ -881,6 +881,39 @@ func _run_test() -> void:
 				await _snap("%s/draw_pack_%d%s.png" % [out, ["", "small", "medium", "large"].find(id), v[0]])
 		get_tree().quit()
 		return
+	if test == "parts":
+		# оружие отдельно от героя: целиком, без магазина (и без затвора), только части; справа и слева
+		ui.visible = false
+		DirAccess.make_dir_recursive_absolute(out)
+		var ids := ["rifle"]
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				ids = Array(a.substr(10).split(","))
+		cam_free = true
+		for wid in ids:
+			var w: Dictionary = BCWeaponHold.config()[wid]
+			var holder := Node3D.new()
+			add_child(holder)
+			holder.global_position = Vector3(6, 1.2, 0)
+			var m: Node3D = (load(w.model) as PackedScene).instantiate()
+			if w.get("flip", false):
+				m.rotation.y = PI
+			holder.add_child(m)
+			var wp := BCWeaponParts.build(holder, m, w.get("parts", {}))
+			var L := float(w.model_len)
+			cam.fov = 30.0
+			for st in ["all", "body", "parts"]:
+				m.visible = st != "parts"
+				for pn in wp.pivots:
+					(wp.pivots[pn] as Node3D).visible = st != "body"
+				for sd in [["r", 1.0], ["l", -1.0]]:
+					cam.global_position = holder.global_position + Vector3(float(sd[1]) * L * 2.0, 0.05, 0)
+					cam.look_at(holder.global_position + Vector3(0, L * 0.15, 0), Vector3.UP)
+					await get_tree().process_frame
+					await _snap("%s/parts_%s_%s_%s.png" % [out, wid, st, sd[0]])
+			holder.queue_free()
+		get_tree().quit()
+		return
 	if test == "grips":
 		await _grips_test()
 		get_tree().quit()
@@ -1224,7 +1257,7 @@ func _strip_test() -> void:
 				el += get_process_delta_time()
 			var was := Engine.time_scale
 			Engine.time_scale = 0.0
-			for v in [["a", -0.75, 0.12, 2.6, 1.1], ["b", -PI * 0.5, 0.08, 2.6, 1.1], ["c", -1.0, 0.3, 0.8, -1.0], ["d", 0.35, 0.12, 1.5, 1.15]]:
+			for v in [["a", -0.75, 0.12, 2.6, 1.1], ["b", -PI * 0.5, 0.08, 2.6, 1.1], ["c", -1.0, 0.3, 0.8, -1.0], ["d", 0.35, 0.12, 1.5, 1.15], ["e", -PI * 0.5, 0.12, 0.85, -1.0]]:
 				yaw = v[1]
 				pitch = v[2]
 				dist = v[3]
@@ -1232,10 +1265,19 @@ func _strip_test() -> void:
 				if not look_hands:
 					look_h = v[4]
 				_camera()
+				if v[0] == "e" and rig.hold.node and rig.hold.parts and rig.hold.parts.has("mag"):
+					# крупно справа на магазин
+					var g := rig.hold.node.global_transform
+					var tg: Vector3 = g * (rig.hold.parts.center.mag as Vector3)
+					var rx := g.basis.x.normalized()
+					cam.global_position = tg + rx * 0.7 + Vector3.UP * 0.12
+					cam.look_at(tg, Vector3.UP)
+					cam_free = true
 				await get_tree().process_frame
 				await _snap("%s/draw_%s_%d%s.png" % [out, id, k, v[0]])
+				cam_free = false
 			Engine.time_scale = was
 			if rig.hold.wid != "":
-				print("[stand] %s %.2f: шаг «%s», магазин в руке: %s, старый падает: %s" % [id, fr[k], rig.hold.reload_step, str(rig.hold._prop != null and rig.hold._prop.visible), str(rig.hold._prop_old != null and rig.hold._prop_old.visible)])
+				print("[stand] %s %.2f: шаг «%s», магазин: %s, в руке: %s, выброшен: %s" % [id, fr[k], rig.hold.reload_step, rig.hold.mag_state, str(rig.hold._prop != null and rig.hold._prop.visible), str(rig.hold._drop_node != null)])
 		Engine.time_scale = 1.0
 		await get_tree().create_timer(0.6).timeout
