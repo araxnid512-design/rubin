@@ -109,7 +109,7 @@ func _build() -> void:
 	_btn("pause", "II", Vector2(64, 64), 26)
 	_btn("ship", "Корабль", Vector2(124, 64), 18, 16)
 	_btn("action", "", Vector2(176, 176), 26)
-	_btn("attack", "Удар", Vector2(124, 124), 22)
+	_btn("attack", "Огонь", Vector2(124, 124), 22)
 	_btn("dodge", "Уклон", Vector2(100, 100), 19)
 	_btn("drones", "Дроны", Vector2(96, 96), 17)
 	prompt_lbl = _label("", 17)
@@ -187,8 +187,9 @@ func _process(d: float) -> void:
 	(a.get_child(0) as Label).text = verb if verb != "" else "Действие"
 	a.modulate.a = 1.0 if verb != "" else 0.4
 	prompt_lbl.text = player.target.label if player.target else ""
-	if Core.ship and Core.ship.has_method("status_text"):
-		ship_lbl.text = Core.ship.status_text()
+	var ss = Core.get_meta("shipst", null)
+	if ss:
+		ship_lbl.text = ss.status_text()
 	if Core.loop:
 		phase_lbl.text = Core.loop.phase_title()
 		timer_lbl.text = Core.loop.timer_text()
@@ -208,8 +209,9 @@ func _on_button(n: String, pressed: bool) -> void:
 		"dodge": player.dodge()
 		"pause": show_pause()
 		"ship":
-			if Core.ship and Core.ship.has_method("show_panel"):
-				Core.ship.show_panel()
+			var ss = Core.get_meta("shipst", null)
+			if ss:
+				ss.show_panel()
 		"drones":
 			if Core.loop and Core.loop.has_method("drone_orders"):
 				Core.loop.drone_orders()
@@ -329,6 +331,51 @@ func show_pause() -> void:
 	v.add_child(_button("Панель разработчика: " + ("вкл" if Core.mobile.settings.dev else "выкл"), func():
 		Core.mobile.set_value("dev", not Core.mobile.settings.dev)
 		show_pause()))
+	v.add_child(_button("Начать заново", func():
+		show_dialog("Начать заново?", "Сохранение будет удалено, корабль и сектор — с начала.", [["Да, заново", func():
+			Core.save.delete_save()
+			close_modal()
+			get_tree().paused = false
+			get_tree().reload_current_scene()], ["Нет", close_modal]])))
 	v.add_child(_button("Выйти из игры", func():
 		Core.save.save_game()
 		get_tree().quit()))
+
+
+## окно со строками: [подпись, кнопка, действие, можно?]
+func rows(title: String, header: String, list: Array, w := 780.0) -> void:
+	rows2(title, header, list, w)
+
+
+## окно со строками: [подпись, кнопка1, действие1, можно1, (кнопка2, действие2, можно2)] — прокрутка
+func rows2(title: String, header: String, list: Array, w := 780.0) -> void:
+	var v := _open(title, w, 500)
+	if header != "":
+		var hl := _label(header, 16, C_ACC)
+		hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hl.custom_minimum_size = Vector2(w - 40, 0)
+		v.add_child(hl)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(w - 40, 370)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	sc.add_child(box)
+	for r in list:
+		var hb := HBoxContainer.new()
+		var l := _label(r[0], 16, C_TEXT if r[3] or r.size() > 4 else Color(0.55, 0.6, 0.65))
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.custom_minimum_size = Vector2(w - (300 if r.size() > 4 else 220), 0)
+		hb.add_child(l)
+		var b := _button(r[1], r[2])
+		b.custom_minimum_size = Vector2(70 if r.size() > 4 else 150, 56)
+		b.disabled = not r[3]
+		hb.add_child(b)
+		if r.size() > 4:
+			var b2 := _button(r[4], r[5])
+			b2.custom_minimum_size = Vector2(70, 56)
+			b2.disabled = not r[6]
+			hb.add_child(b2)
+		box.add_child(hb)

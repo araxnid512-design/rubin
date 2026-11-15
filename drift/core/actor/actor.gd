@@ -20,7 +20,7 @@ var speed_now := 0.0                  ## м/с
 func _ready() -> void:
 	hp = max_hp
 	collision_layer = 2 if faction == "crew" else 4
-	collision_mask = 1 | 8
+	collision_mask = 1 | 8          # стены и предметы
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var cs := CollisionShape2D.new()
 	var cap := CapsuleShape2D.new()
@@ -35,6 +35,7 @@ func _ready() -> void:
 	if sprite_dir != "":
 		spr.setup(sprite_dir)
 	add_to_group("actor")
+	add_to_group("hittable")
 	add_to_group("faction_" + faction)
 
 

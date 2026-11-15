@@ -32,7 +32,7 @@ func setup(folder: String) -> void:
 	info = d
 	_sprite = Sprite2D.new()
 	_sprite.centered = false
-	var a: Array = info.get("anchor", [64, 116])
+	var a: Array = info.get("anchor", [64, 100])
 	_sprite.offset = -Vector2(a[0], a[1])
 	_sprite.vframes = 8
 	add_child(_sprite)

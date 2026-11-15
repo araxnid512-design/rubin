@@ -6,6 +6,7 @@ extends Node2D
 var cell := Vector2i.ZERO
 var horizontal := true          ## дверь в горизонтальной стене (проход вверх-вниз)
 var locked := false
+var hatch := false              ## стыковочный люк (жёлто-чёрные полосы)
 var is_open := false
 var _t := 0.0                   ## 0 — закрыта, 1 — открыта
 var _body: StaticBody2D
@@ -64,10 +65,17 @@ func _draw() -> void:
 	var h := 40.0
 	var top := -SP.TILE.y - h + 6.0
 	var col := Color(0.55, 0.58, 0.62) if not locked else Color(0.6, 0.3, 0.25)
+	if hatch:
+		col = Color(0.75, 0.62, 0.2)
 	var gap := _t * w * 0.5
 	# створки: левая и правая половины уезжают в стороны
 	draw_rect(Rect2(-w * 0.5, top, w * 0.5 - gap, h), col)
 	draw_rect(Rect2(gap, top, w * 0.5 - gap, h), col)
 	draw_rect(Rect2(-w * 0.5, top, w, 4), Color(0.25, 0.27, 0.3))
+	if hatch:
+		for i in 4:
+			var x := -w * 0.5 + i * w * 0.25 + 4.0
+			if x + 8.0 < -gap or x > gap:
+				draw_rect(Rect2(x, top + 10, 8, h - 14), Color(0.12, 0.12, 0.12))
 	var led := Color(0.3, 1.0, 0.4) if is_open else (Color(1.0, 0.25, 0.2) if locked else Color(1.0, 0.75, 0.25))
 	draw_rect(Rect2(-3, top - 6, 6, 4), led)

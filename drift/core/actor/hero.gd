@@ -5,6 +5,8 @@ extends STActor
 
 const WALK := 1.4
 const RUN := 3.4
+const BLASTER_RANGE := 9.0
+const BLASTER_DMG := 12.0
 var move_input := Vector2.ZERO        ## от джойстика: x вправо, y вперёд (вверх по экрану)
 var target: STInteract = null
 var inventory: Array = []
@@ -73,12 +75,17 @@ func do_interact() -> void:
 	target.interact(self)
 
 
-## удар по ближайшему врагу впереди (рукой, позже — оружием)
+## «Огонь»: враг вплотную — удар, дальше (до 9 м, в поле зрения) — выстрел бластера с автоприцелом
 func attack() -> void:
 	if state != "move" or _cool > 0.0:
 		return
-	_cool = 0.45
 	var foe: STActor = nearest_enemy(1.6)
+	if foe == null:
+		var far := nearest_enemy(BLASTER_RANGE, true)
+		if far:
+			_shoot(far)
+			return
+	_cool = 0.45
 	if foe:
 		face(foe.global_position)
 	var d := spr.play("attack", true) if spr.has_clip("attack") else 0.35
@@ -91,6 +98,44 @@ func attack() -> void:
 	get_tree().create_timer(maxf(d - 0.05, 0.2)).timeout.connect(func():
 		if state == "busy":
 			state = "move")
+
+
+func _shoot(foe: STActor) -> void:
+	_cool = 0.32
+	face(foe.global_position)
+	if spr.has_clip("shoot"):
+		spr.play("shoot", true)
+	var aim := foe.global_position + Vector2(randf_range(-6, 6), randf_range(-4, 4))
+	STBolt.fire(get_parent(), global_position, aim, 18.0, BLASTER_DMG, "crew", Color(0.45, 1.0, 0.6), self)
+	Core.play_at("blaster", global_position, -6.0)
+
+
+## работа на месте (заварить, добыть): герой занят sec секунд, потом done
+func work(sec: float, done: Callable) -> void:
+	if state != "move":
+		return
+	state = "busy"
+	velocity = Vector2.ZERO
+	if spr.has_clip("attack"):
+		spr.play("attack", true)
+	Core.play_at("tool", global_position, -8.0)
+	get_tree().create_timer(sec).timeout.connect(func():
+		if state == "busy":
+			state = "move"
+			done.call())
+
+
+## снова в строю (после гибели — в медотсеке)
+func revive(at: Vector2, hp_v: float) -> void:
+	state = "move"
+	hp = hp_v
+	collision_layer = 2
+	global_position = at
+	velocity = Vector2.ZERO
+	reset_physics_interpolation()
+	invuln = 2.0
+	if spr:
+		spr.play("idle", true)
 
 
 func dodge() -> void:
@@ -108,24 +153,36 @@ func dodge() -> void:
 	Core.play_at("swoosh", global_position, -10.0)
 
 
-func nearest_enemy(radius_m: float) -> STActor:
+func nearest_enemy(radius_m: float, need_los := false) -> STActor:
 	var best: STActor = null
 	var bd := radius_m
+	var space := get_world_2d().direct_space_state
 	for a in get_tree().get_nodes_in_group("actor"):
 		var e := a as STActor
 		if e == null or e == self or not e.alive() or e.faction == "crew":
 			continue
 		var d := SP.dist_m(global_position, e.global_position)
+		if d < bd and need_los:
+			var q := PhysicsRayQueryParameters2D.create(global_position + Vector2(0, -10), e.global_position + Vector2(0, -10), 1)
+			if not space.intersect_ray(q).is_empty():
+				continue
 		if d < bd:
 			bd = d
 			best = e
 	return best
 
 
+var _hurt_t := 0.0
+
+
 func damage(amount: float, from := Vector2.ZERO, attacker: Node = null) -> void:
-	if invuln > 0.0:
+	if invuln > 0.0 or state == "dead":
 		return
 	super.damage(amount, from, attacker)
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _hurt_t > 0.5:
+		_hurt_t = now
+		Core.play_at("hurt_hero", global_position, -8.0)
 
 
 func inventory_add(id: String) -> void:

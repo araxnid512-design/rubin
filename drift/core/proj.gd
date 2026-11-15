@@ -41,3 +41,16 @@ static func dir8(v: Vector2) -> int:
 	# угол от «вниз по экрану», по часовой стрелке (как видит зритель): вниз=0, влево=2, вверх=4, вправо=6
 	var a := atan2(-g.x, g.y)
 	return posmod(roundi(a / (PI / 4.0)), 8)
+
+
+## клетки, середину которых (центральные 40%) накрывает прямоугольник экрана
+static func cells_under(r: Rect2) -> Array:
+	var out := []
+	var a := px_to_cell(r.position)
+	var b := px_to_cell(r.end)
+	for x in range(a.x, b.x + 1):
+		for y in range(a.y, b.y + 1):
+			var cr := Rect2((x + 0.3) * TILE.x, (y + 0.3) * TILE.y, TILE.x * 0.4, TILE.y * 0.4)
+			if cr.intersects(r):
+				out.append(Vector2i(x, y))
+	return out

@@ -20,6 +20,10 @@ var bounds := Rect2i()
 var doors := {}               ## Vector2i → STDoor
 var lights := {}              ## id отсека → PointLight2D
 var _tex := {}
+var blocked := {}             ## клетки, занятые предметами и турелями (непроходимы для маршрутов)
+var _attached := []           ## узлы пристыкованной конструкции (для отстыковки)
+var _attached_cells := []     ## клетки пристыкованной конструкции
+var _build_into: Array = []   ## куда записывать созданные узлы (для отстыковки)
 
 
 func build(d: Dictionary, parent_ysort: Node2D) -> void:
@@ -47,7 +51,7 @@ func build(d: Dictionary, parent_ysort: Node2D) -> void:
 					walls[n] = true
 	for w in walls:
 		cells[w] = "wall"
-	for dc in d.get("doors", []):
+	for dc in d.get("doors", []) + ([d.dock] if d.has("dock") else []):
 		var c := Vector2i(int(dc[0]), int(dc[1]))
 		cells[c] = "door"
 	_calc_bounds()
@@ -56,6 +60,9 @@ func build(d: Dictionary, parent_ysort: Node2D) -> void:
 	_build_doors()
 	_build_lights()
 	_build_astar()
+	if doors.has(dock_cell()):
+		doors[dock_cell()].set_locked(true)
+		doors[dock_cell()].hatch = true
 
 
 func _calc_bounds() -> void:
@@ -119,14 +126,35 @@ func _placeholder(kind: String) -> Texture2D:
 		"floor_corridor": base = Color(0.17, 0.18, 0.2)
 		"floor_med": base = Color(0.26, 0.28, 0.3)
 		"floor_airlock": base = Color(0.22, 0.21, 0.17)
+		"floor_derelict": base = Color(0.16, 0.17, 0.17)
+		"floor_pirate": base = Color(0.22, 0.15, 0.14)
+		"floor_rock": base = Color(0.24, 0.2, 0.17)
+		"floor_station": base = Color(0.2, 0.24, 0.26)
 		"wall_face": base = Color(0.3, 0.33, 0.37); h = int(LOW)
 		"wall_face_tall": base = Color(0.28, 0.31, 0.36); h = int(SP.WALL_H)
 		"wall_cap": base = Color(0.42, 0.45, 0.5)
+	if kind.ends_with("_rock"):
+		base = Color(0.36, 0.3, 0.25) if kind.begins_with("wall_cap") else Color(0.27, 0.22, 0.18)
+		h = int(SP.WALL_H) if kind.begins_with("wall_face_tall") else (int(LOW) if kind.begins_with("wall_face") else h)
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(base)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(kind)
-	if kind.begins_with("floor"):
+	if kind.ends_with("_rock"):
+		for i in w * h / 3:
+			var px := rng.randi_range(0, w - 1)
+			var py := rng.randi_range(0, h - 1)
+			img.set_pixel(px, py, base.lightened(rng.randf_range(-0.18, 0.15)))
+		if kind.begins_with("wall_face"):
+			for x in w:
+				img.set_pixel(x, 0, base.lightened(0.2))
+		return ImageTexture.create_from_image(img)
+	if kind == "floor_rock":
+		for i in 220:
+			var px := rng.randi_range(0, w - 1)
+			var py := rng.randi_range(0, h - 1)
+			img.set_pixel(px, py, base.lightened(rng.randf_range(-0.15, 0.12)))
+	elif kind.begins_with("floor"):
 		for x in w:
 			img.set_pixel(x, 0, line)
 		for y in h:
@@ -168,6 +196,7 @@ func _strip(t: Texture2D, rect: Rect2, parent: Node2D) -> Sprite2D:
 	s.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	s.position = rect.position - parent.position
 	parent.add_child(s)
+	_track(s)
 	return s
 
 
@@ -186,15 +215,16 @@ func _build_floors() -> void:
 			_strip(tex("floor_corridor"), Rect2(p, SP.TILE), floor_layer)
 
 
-func _build_walls() -> void:
+func _build_walls(only: Dictionary = {}, style := "") -> void:
 	var body := StaticBody2D.new()
 	body.name = "Walls"
 	body.collision_layer = 1
 	add_child(body)
+	_track(body)
 	# стены — горизонтальными отрезками одного вида (меньше узлов и вызовов)
 	var wall_cells := []
 	for c in cells:
-		if cells[c] == "wall":
+		if cells[c] == "wall" and (only.is_empty() or only.has(c)):
 			wall_cells.append(c)
 			var cs := CollisionShape2D.new()
 			var sh := RectangleShape2D.new()
@@ -223,9 +253,10 @@ func _build_walls() -> void:
 		var holder := Node2D.new()
 		holder.position = Vector2(x0, base)
 		ysort.add_child(holder)
-		_strip(tex("wall_cap"), Rect2(x0, c.y * SP.TILE.y - hgt, w, SP.TILE.y), holder)
+		_track(holder)
+		_strip(tex("wall_cap" + style), Rect2(x0, c.y * SP.TILE.y - hgt, w, SP.TILE.y), holder)
 		if face:
-			_strip(tex("wall_face_tall" if tall else "wall_face"), Rect2(x0, base - hgt, w, hgt), holder)
+			_strip(tex(("wall_face_tall" if tall else "wall_face") + style), Rect2(x0, base - hgt, w, hgt), holder)
 		i = j
 
 
@@ -240,8 +271,8 @@ func _face(c: Vector2i) -> bool:
 	return s != "wall"
 
 
-func _build_doors() -> void:
-	for c in cells:
+func _build_doors(list: Array = []) -> void:
+	for c in (list if not list.is_empty() else cells.keys()):
 		if cells[c] != "door":
 			continue
 		var d := STDoor.new()
@@ -249,10 +280,11 @@ func _build_doors() -> void:
 		d.horizontal = cells.get(c + Vector2i(-1, 0), "") == "wall" or cells.get(c + Vector2i(1, 0), "") == "wall"
 		d.position = Vector2(SP.cell_to_px(c).x, (c.y + 1) * SP.TILE.y)
 		ysort.add_child(d)
+		_track(d)
 		doors[c] = d
 
 
-func _build_lights() -> void:
+func _build_lights(only: Array = []) -> void:
 	var grad := Gradient.new()
 	grad.set_color(0, Color(1, 1, 1, 1))
 	grad.set_color(1, Color(1, 1, 1, 0))
@@ -263,7 +295,7 @@ func _build_lights() -> void:
 	gt.fill_to = Vector2(1.0, 0.5)
 	gt.width = 256
 	gt.height = 256
-	for id in rooms:
+	for id in (only if not only.is_empty() else rooms.keys()):
 		var r: Dictionary = rooms[id]
 		var l := PointLight2D.new()
 		l.texture = gt
@@ -276,6 +308,7 @@ func _build_lights() -> void:
 		l.height = 60.0
 		l.shadow_enabled = false
 		add_child(l)
+		_track(l)
 		lights[id] = l
 
 
@@ -288,13 +321,160 @@ func _build_astar() -> void:
 	for x in range(bounds.position.x, bounds.end.x):
 		for y in range(bounds.position.y, bounds.end.y):
 			var c := Vector2i(x, y)
-			astar.set_point_solid(c, not (cells.get(c, "") in ["floor", "door"]))
+			astar.set_point_solid(c, blocked.has(c) or not (cells.get(c, "") in ["floor", "door"]))
+	for c in doors:
+		if doors[c].locked and astar.is_in_boundsv(c):
+			astar.set_point_solid(c, true)
+
+
+## занять / освободить клетку (предмет, турель)
+func block(c: Vector2i, on: bool) -> void:
+	if on:
+		blocked[c] = true
+	else:
+		blocked.erase(c)
+	if astar.is_in_boundsv(c):
+		astar.set_point_solid(c, on or not (cells.get(c, "") in ["floor", "door"]))
+
+
+## ближайшая проходимая клетка (сама клетка или в радиусе 2)
+func free_cell(c: Vector2i) -> Vector2i:
+	if astar.is_in_boundsv(c) and not astar.is_point_solid(c):
+		return c
+	var best := Vector2i(-9999, -9999)
+	var bd := 1e9
+	for dx in range(-2, 3):
+		for dy in range(-2, 3):
+			var n := c + Vector2i(dx, dy)
+			if astar.is_in_boundsv(n) and not astar.is_point_solid(n):
+				var d := Vector2(dx * SP.TILE.x, dy * SP.TILE.y).length()
+				if d < bd:
+					bd = d
+					best = n
+	return best
 
 
 ## путь между точками экрана (точки — центры клеток); пусто — нет пути
 func path(from: Vector2, to: Vector2) -> PackedVector2Array:
-	var a := SP.px_to_cell(from)
-	var b := SP.px_to_cell(to)
-	if not astar.is_in_boundsv(a) or not astar.is_in_boundsv(b) or astar.is_point_solid(b):
+	var a := free_cell(SP.px_to_cell(from))
+	var b := free_cell(SP.px_to_cell(to))
+	if a.x == -9999 or b.x == -9999:
 		return PackedVector2Array()
 	return astar.get_point_path(a, b)
+
+
+func _track(n: Node) -> void:
+	for arr in _build_into:
+		arr.append(n)
+
+
+# ---------------- стыковка: чужая конструкция у люка ----------------
+## Люк (data.dock) — запертая дверь во внешней стене. Конструкция события описана в клетках относительно люка
+## (dx, dy; ниже люка — dy > 0): {rooms:[{id, n, r:[dx,dy,w,h], kind, light}], doors:[[dx,dy]]}. При стыковке её
+## клетки добавляются к кораблю (новые стены — только там, где клеток ещё не было), люк отпирается; при
+## отстыковке всё созданное убирается, люк запирается.
+
+func dock_cell() -> Vector2i:
+	var d: Array = data.get("dock", [0, 0])
+	return Vector2i(int(d[0]), int(d[1]))
+
+
+## клетка конструкции → клетка корабля
+func dock_to_cell(dx: int, dy: int) -> Vector2i:
+	return dock_cell() + Vector2i(dx, dy)
+
+
+func attach(st: Dictionary) -> void:
+	detach()
+	var nodes := []
+	_build_into = [nodes]
+	var new_cells := {}
+	var new_rooms := []
+	for r0 in st.get("rooms", []):
+		var r: Dictionary = r0.duplicate(true)
+		var rr: Array = r.r
+		var o := dock_to_cell(int(rr[0]), int(rr[1]))
+		r.r = [o.x, o.y, int(rr[2]), int(rr[3])]
+		rooms[r.id] = r
+		new_rooms.append(r.id)
+		for x in range(o.x, o.x + int(rr[2])):
+			for y in range(o.y, o.y + int(rr[3])):
+				var c := Vector2i(x, y)
+				cells[c] = "floor"
+				room_of[c] = r.id
+				new_cells[c] = true
+	var new_walls := {}
+	for c in new_cells.keys():
+		for dx in [-1, 0, 1]:
+			for dy in [-1, 0, 1]:
+				var n: Vector2i = c + Vector2i(dx, dy)
+				if not cells.has(n):
+					cells[n] = "wall"
+					new_walls[n] = true
+					new_cells[n] = true
+	var new_doors := []
+	for dc in st.get("doors", []):
+		var c := dock_to_cell(int(dc[0]), int(dc[1]))
+		if cells.get(c, "") == "wall" and new_cells.has(c):
+			cells[c] = "door"
+			new_walls.erase(c)
+			new_doors.append(c)
+	for id in new_rooms:
+		_strip(tex("floor_" + String(rooms[id].get("kind", "derelict"))), room_rect_px(id), floor_layer)
+	for c in new_doors:
+		var p := Vector2(c.x * SP.TILE.x, c.y * SP.TILE.y)
+		_strip(tex("floor_corridor"), Rect2(p, SP.TILE), floor_layer)
+	_build_walls(new_walls, String(st.get("walls", "")))
+	_build_doors(new_doors)
+	_build_lights(new_rooms)
+	_attached = nodes
+	_attached_cells = new_cells.keys()
+	_build_into = []
+	_calc_bounds()
+	_build_astar()
+	if doors.has(dock_cell()):
+		doors[dock_cell()].set_locked(false)
+
+
+## отстыковаться: убрать узлы и клетки конструкции, запереть люк
+func detach() -> void:
+	if doors.has(dock_cell()):
+		doors[dock_cell()].set_locked(true)
+	if _attached_cells.is_empty():
+		return
+	for n in _attached:
+		if is_instance_valid(n):
+			n.queue_free()
+	for c in _attached_cells:
+		var rid: String = room_of.get(c, "")
+		if rid != "":
+			rooms.erase(rid)
+			lights.erase(rid)
+		cells.erase(c)
+		room_of.erase(c)
+		doors.erase(c)
+		blocked.erase(c)
+	_attached.clear()
+	_attached_cells.clear()
+	_calc_bounds()
+	_build_astar()
+
+
+func is_docked() -> bool:
+	return not _attached_cells.is_empty()
+
+
+## точка в пристыкованной конструкции (не на своём корабле)
+func outside(p: Vector2) -> bool:
+	return _attached_cells.has(SP.px_to_cell(p))
+
+
+## клетка своего корабля, где можно стоять: пол, не у двери, не занята
+func own_floor(c: Vector2i) -> bool:
+	if cells.get(c, "") != "floor" or _attached_cells.has(c) or blocked.has(c):
+		return false
+	for dx in [-1, 0, 1]:
+		for dy in [-1, 0, 1]:
+			if cells.get(c + Vector2i(dx, dy), "") == "door":
+				return false
+	return true
