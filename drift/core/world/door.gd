@@ -60,22 +60,56 @@ func set_locked(v: bool) -> void:
 	queue_redraw()
 
 
+static var _tiles := {}
+
+
+## тайл двери (assets/tiles: door_closed / door_open, 64×113, с картой нормалей); нет — null
+static func _tile(name: String) -> Texture2D:
+	if _tiles.has(name):
+		return _tiles[name]
+	var p := "res://assets/tiles/%s.png" % name
+	var t: Texture2D = null
+	if ResourceLoader.exists(p):
+		var ct := CanvasTexture.new()
+		ct.diffuse_texture = load(p)
+		if ResourceLoader.exists("res://assets/tiles/%s_n.png" % name):
+			ct.normal_texture = load("res://assets/tiles/%s_n.png" % name)
+		t = ct
+	_tiles[name] = t
+	return t
+
+
 func _draw() -> void:
 	var w := SP.TILE.x
 	var h := 40.0
 	var top := -SP.TILE.y - h + 6.0
-	var col := Color(0.55, 0.58, 0.62) if not locked else Color(0.6, 0.3, 0.25)
-	if hatch:
-		col = Color(0.75, 0.62, 0.2)
 	var gap := _t * w * 0.5
-	# створки: левая и правая половины уезжают в стороны
-	draw_rect(Rect2(-w * 0.5, top, w * 0.5 - gap, h), col)
-	draw_rect(Rect2(gap, top, w * 0.5 - gap, h), col)
-	draw_rect(Rect2(-w * 0.5, top, w, 4), Color(0.25, 0.27, 0.3))
+	var tc := _tile("door_closed")
+	var to := _tile("door_open")
+	if tc and to:
+		# нижняя часть двери во всю высоту (стена в разрезе): рама из «открытой», створки из «закрытой» уезжают
+		var sy := float(tc.get_height()) - h
+		var tint := Color.WHITE
+		if hatch:
+			tint = Color(1.0, 0.85, 0.45)
+		elif locked:
+			tint = Color(1.0, 0.6, 0.55)
+		draw_texture_rect_region(to, Rect2(-w * 0.5, top, w, h), Rect2(0, sy, 64, h), tint)
+		var half := w * 0.5 - gap
+		if half > 0.5:
+			draw_texture_rect_region(tc, Rect2(-w * 0.5, top, half, h), Rect2(gap, sy, half, h), tint)
+			draw_texture_rect_region(tc, Rect2(gap, top, half, h), Rect2(32.0, sy, half, h), tint)
+	else:
+		var col := Color(0.55, 0.58, 0.62) if not locked else Color(0.6, 0.3, 0.25)
+		if hatch:
+			col = Color(0.75, 0.62, 0.2)
+		draw_rect(Rect2(-w * 0.5, top, w * 0.5 - gap, h), col)
+		draw_rect(Rect2(gap, top, w * 0.5 - gap, h), col)
+		draw_rect(Rect2(-w * 0.5, top, w, 4), Color(0.25, 0.27, 0.3))
 	if hatch:
 		for i in 4:
 			var x := -w * 0.5 + i * w * 0.25 + 4.0
 			if x + 8.0 < -gap or x > gap:
-				draw_rect(Rect2(x, top + 10, 8, h - 14), Color(0.12, 0.12, 0.12))
+				draw_rect(Rect2(x, top + 12, 6, h - 16), Color(0.1, 0.1, 0.1, 0.85))
 	var led := Color(0.3, 1.0, 0.4) if is_open else (Color(1.0, 0.25, 0.2) if locked else Color(1.0, 0.75, 0.25))
 	draw_rect(Rect2(-3, top - 6, 6, 4), led)

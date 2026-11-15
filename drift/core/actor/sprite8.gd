@@ -18,6 +18,9 @@ var _frame := 0
 var _loop := true
 var _hold := false
 var height := 1.8            ## для заглушки, м
+var speed_mps := -1.0        ## текущая скорость, м/с: темп walk/run подстраивается под неё (без скольжения ног)
+var _rate := 12.0            ## кадров в секунду текущего клипа
+var _dirs := 8
 
 
 func setup(folder: String) -> void:
@@ -34,7 +37,8 @@ func setup(folder: String) -> void:
 	_sprite.centered = false
 	var a: Array = info.get("anchor", [64, 100])
 	_sprite.offset = -Vector2(a[0], a[1])
-	_sprite.vframes = 8
+	_dirs = int(info.get("dirs", 8))
+	_sprite.vframes = _dirs
 	add_child(_sprite)
 	for c in info.get("clips", {}):
 		var p := folder.path_join(c + ".png")
@@ -56,7 +60,14 @@ func has_clip(c: String) -> bool:
 ## длительность клипа, с
 func clip_len(c: String) -> float:
 	var ci: Dictionary = info.get("clips", {}).get(c, {})
-	return float(ci.get("frames", 6)) / float(info.get("fps", 12))
+	return float(ci.get("frames", 6)) / _clip_fps(ci)
+
+
+## темп клипа: циклы (стойка, шаг, бег) — родной темп записи, удары и попадания — общий темп атласа
+func _clip_fps(ci: Dictionary) -> float:
+	if ci.get("loop", false) and ci.has("native_fps"):
+		return float(ci.native_fps)
+	return float(info.get("fps", 12))
 
 
 func play(c: String, restart := false) -> float:
@@ -73,6 +84,8 @@ func play(c: String, restart := false) -> float:
 	_frame = 0
 	_sprite.texture = _tex[c]
 	_sprite.hframes = int(ci.frames)
+	_sprite.vframes = int(ci.get("dirs", _dirs))
+	_rate = _clip_fps(ci)
 	_apply()
 	return clip_len(c)
 
@@ -87,7 +100,8 @@ func set_dir(d: int) -> void:
 
 func _apply() -> void:
 	if _sprite and _sprite.texture:
-		_sprite.frame = clampi(dir * _sprite.hframes + _frame, 0, _sprite.hframes * 8 - 1)
+		var d := dir if _sprite.vframes == 8 else int(round(dir * _sprite.vframes / 8.0)) % _sprite.vframes
+		_sprite.frame = clampi(d * _sprite.hframes + _frame, 0, _sprite.hframes * _sprite.vframes - 1)
 
 
 func _process(delta: float) -> void:
@@ -97,7 +111,11 @@ func _process(delta: float) -> void:
 			if clip == "walk" or clip == "run":
 				queue_redraw()
 		return
-	_t += delta * float(info.get("fps", 12))
+	var rate := _rate
+	var ci: Dictionary = info.clips.get(clip, {})
+	if speed_mps > 0.05 and ci.has("speed_native"):
+		rate *= clampf(speed_mps / float(ci.speed_native), 0.5, 1.8)
+	_t += delta * rate
 	var n: int = _sprite.hframes
 	var f := int(_t)
 	if f >= n:

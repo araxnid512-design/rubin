@@ -14,6 +14,7 @@ var _repath := 0.0
 var _cool := 0.0
 var _work := 0.0
 var _t := 0.0
+var _lift := -26.0
 
 
 func _ready() -> void:
@@ -23,7 +24,8 @@ func _ready() -> void:
 	super._ready()
 	collision_mask = 1                    # над предметами пролетает
 	spr.height = 0.6
-	spr.position = Vector2(0, -26)
+	_lift = 0.0 if not spr.info.is_empty() else -26.0   # у запечённого спрайта высота полёта уже в кадре
+	spr.position = Vector2(0, _lift)
 	add_to_group("drone")
 	guard_pos = global_position
 
@@ -41,7 +43,7 @@ func _physics_process(delta: float) -> void:
 	if state == "dead":
 		return
 	_t += delta
-	spr.position.y = -26 + sin(_t * 3.0) * 3.0
+	spr.position.y = _lift + sin(_t * 3.0) * 3.0
 	_cool = maxf(0.0, _cool - delta)
 	_repath -= delta
 	var sp := 3.2 if _powered() else 1.4

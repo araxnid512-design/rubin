@@ -54,6 +54,7 @@ func _anim_move() -> void:
 	if state != "move" or spr == null:
 		return
 	spr.set_dir(SP.dir8(facing))
+	spr.speed_mps = speed_now
 	spr.play("run" if speed_now > 2.2 else ("walk" if speed_now > 0.3 else "idle"))
 
 

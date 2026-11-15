@@ -8,6 +8,17 @@ extends Node2D
 ## Тайлы — assets/tiles/<вид>.png + <вид>_n.png (карта нормалей); нет файла — рисуется заглушка кодом.
 
 const LOW := 40.0             ## высота низкой (разрезанной) стены на экране, px (~0.9 м)
+## вид в игре → файл тайла в assets/tiles (tools/gen_tiles.py); нет файла — заглушка кодом
+const TILE_FOR := {
+	"floor_bridge": "floor_plate_c", "floor_reactor": "floor_reactor", "floor_corridor": "floor_plate_a",
+	"floor_med": "floor_plate_b", "floor_airlock": "floor_airlock", "floor_derelict": "floor_grating",
+	"floor_pirate": "floor_plate_b", "floor_rock": "rock_floor", "floor_station": "floor_plate_c",
+	"floor_door": "floor_hazard_s", "floor_cargo": "floor_plate_b", "floor_quarters": "floor_plate_c",
+	"wall_cap": "hull", "wall_cap_rock": "rock_wall_top",
+	"wall_face": "wall_plain", "wall_face_rock": "rock_wall", "wall_face_tall_rock": "rock_wall",
+}
+## высокая внешняя стена — набор панелей по клеткам: [файл, вес]
+const TALL_SET := [["wall_plain", 5], ["wall_pipes", 2], ["wall_vent", 1], ["wall_window", 2], ["wall_console", 1]]
 
 var data := {}
 var cells := {}               ## Vector2i → "floor" / "wall" / "door"
@@ -99,12 +110,12 @@ func room_rect_px(id: String) -> Rect2:
 func tex(kind: String) -> Texture2D:
 	if _tex.has(kind):
 		return _tex[kind]
-	var p := "res://assets/tiles/%s.png" % kind
+	var p := "res://assets/tiles/%s.png" % TILE_FOR.get(kind, kind)
 	var t: Texture2D
 	if ResourceLoader.exists(p):
 		var ct := CanvasTexture.new()
 		ct.diffuse_texture = load(p)
-		var np := "res://assets/tiles/%s_n.png" % kind
+		var np := "res://assets/tiles/%s_n.png" % TILE_FOR.get(kind, kind)
 		if ResourceLoader.exists(np):
 			ct.normal_texture = load(np)
 		ct.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
@@ -187,12 +198,17 @@ func _placeholder(kind: String) -> Texture2D:
 
 ## повторяющийся спрайт: прямоугольник rect в координатах корабля; parent — узел, к которому он крепится
 ## (его положение — точка сортировки, например основание стены)
-func _strip(t: Texture2D, rect: Rect2, parent: Node2D) -> Sprite2D:
+func _strip(t: Texture2D, rect: Rect2, parent: Node2D, src_y := 0.0) -> Sprite2D:
 	var s := Sprite2D.new()
 	s.texture = t
 	s.centered = false
 	s.region_enabled = true
-	s.region_rect = Rect2(Vector2.ZERO, rect.size)
+	s.region_rect = Rect2(Vector2(0, src_y), rect.size)
+	# тайл ниже полосы (верх каменной стены 18 px на клетку 45 px) — растянуть, а не повторять
+	var th := float(t.get_height())
+	if th < rect.size.y - 1.0 and src_y == 0.0:
+		s.region_rect = Rect2(0, 0, rect.size.x, th)
+		s.scale.y = rect.size.y / th
 	s.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	s.position = rect.position - parent.position
 	parent.add_child(s)
@@ -212,7 +228,7 @@ func _build_floors() -> void:
 	for c in cells:
 		if cells[c] == "door":
 			var p := Vector2(c.x * SP.TILE.x, c.y * SP.TILE.y)
-			_strip(tex("floor_corridor"), Rect2(p, SP.TILE), floor_layer)
+			_strip(tex("floor_door"), Rect2(p, SP.TILE), floor_layer)
 
 
 func _build_walls(only: Dictionary = {}, style := "") -> void:
@@ -256,8 +272,66 @@ func _build_walls(only: Dictionary = {}, style := "") -> void:
 		_track(holder)
 		_strip(tex("wall_cap" + style), Rect2(x0, c.y * SP.TILE.y - hgt, w, SP.TILE.y), holder)
 		if face:
-			_strip(tex(("wall_face_tall" if tall else "wall_face") + style), Rect2(x0, base - hgt, w, hgt), holder)
+			var ft: Texture2D = _tall_tex(c, n_cells) if tall and style == "" else tex(("wall_face_tall" if tall else "wall_face") + style)
+			# низкая стена (разрез) — нижняя часть панели во всю высоту
+			var sy := maxf(0.0, float(ft.get_height()) - hgt) if not tall else 0.0
+			_strip(ft, Rect2(x0, base - hgt, w, hgt), holder, sy)
 		i = j
+
+
+## высокая стена из разных панелей (трубы, иллюминаторы, пульты) — одна текстура на отрезок
+func _tall_tex(c: Vector2i, n: int) -> Texture2D:
+	if not ResourceLoader.exists("res://assets/tiles/wall_plain.png"):
+		return tex("wall_face_tall")
+	var key := "tall_%d_%d_%d" % [c.x, c.y, n]
+	if _tex.has(key):
+		return _tex[key]
+	var total := 0
+	for e in TALL_SET:
+		total += int(e[1])
+	var dif := Image.create(n * 64, int(SP.WALL_H), false, Image.FORMAT_RGBA8)
+	var nrm := Image.create(n * 64, int(SP.WALL_H), false, Image.FORMAT_RGBA8)
+	var prev := ""
+	for i in n:
+		var h := absi(hash(Vector2i(c.x + i, c.y))) % total
+		var pick := "wall_plain"
+		for e in TALL_SET:
+			h -= int(e[1])
+			if h < 0:
+				pick = e[0]
+				break
+		if pick == prev and pick != "wall_plain":
+			pick = "wall_plain"                 # два одинаковых украшения подряд — реже
+		prev = pick
+		var di := _tile_img(pick)
+		var ni := _tile_img(pick + "_n")
+		if di:
+			dif.blit_rect(di, Rect2i(0, 0, 64, int(SP.WALL_H)), Vector2i(i * 64, 0))
+		if ni:
+			nrm.blit_rect(ni, Rect2i(0, 0, 64, int(SP.WALL_H)), Vector2i(i * 64, 0))
+	var ct := CanvasTexture.new()
+	ct.diffuse_texture = ImageTexture.create_from_image(dif)
+	ct.normal_texture = ImageTexture.create_from_image(nrm)
+	_tex[key] = ct
+	return ct
+
+
+var _imgs := {}
+
+
+func _tile_img(name: String) -> Image:
+	if _imgs.has(name):
+		return _imgs[name]
+	var p := "res://assets/tiles/%s.png" % name
+	var img: Image = null
+	if ResourceLoader.exists(p):
+		img = (load(p) as Texture2D).get_image()
+		if img and img.is_compressed():
+			img.decompress()
+		if img:
+			img.convert(Image.FORMAT_RGBA8)
+	_imgs[name] = img
+	return img
 
 
 ## стена во всю высоту: снаружи корабля к северу нет пола (внешний борт, его видно «изнутри»)
@@ -423,7 +497,7 @@ func attach(st: Dictionary) -> void:
 		_strip(tex("floor_" + String(rooms[id].get("kind", "derelict"))), room_rect_px(id), floor_layer)
 	for c in new_doors:
 		var p := Vector2(c.x * SP.TILE.x, c.y * SP.TILE.y)
-		_strip(tex("floor_corridor"), Rect2(p, SP.TILE), floor_layer)
+		_strip(tex("floor_door"), Rect2(p, SP.TILE), floor_layer)
 	_build_walls(new_walls, String(st.get("walls", "")))
 	_build_doors(new_doors)
 	_build_lights(new_rooms)

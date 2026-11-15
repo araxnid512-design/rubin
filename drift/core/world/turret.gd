@@ -15,6 +15,9 @@ var aim := 0.0                    ## угол на земле (рад), 0 — к
 var _cool := 0.0
 var _dead := false
 var _shown := 0.0
+var sprite_dir := ""              ## запечённые спрайты: base.png (основание) + head.png (голова, 16 направлений)
+var _base: Sprite2D
+var _head: Sprite2D
 
 
 func _ready() -> void:
@@ -29,6 +32,35 @@ func _ready() -> void:
 	add_child(cs)
 	add_to_group("hittable")
 	add_to_group("turret")
+	if sprite_dir != "":
+		_base = _part("base")
+		_head = _part("head")
+		if _head:
+			_head.vframes = 16
+			_aim_frame()
+
+
+func _part(c: String) -> Sprite2D:
+	var p := sprite_dir.path_join(c + ".png")
+	if not ResourceLoader.exists(p):
+		return null
+	var ct := CanvasTexture.new()
+	ct.diffuse_texture = load(p)
+	if ResourceLoader.exists(sprite_dir.path_join(c + "_n.png")):
+		ct.normal_texture = load(sprite_dir.path_join(c + "_n.png"))
+	var sp := Sprite2D.new()
+	sp.texture = ct
+	sp.centered = false
+	sp.offset = -Vector2(64, 100)
+	sp.show_behind_parent = true      # вспышка выстрела (_draw) — поверх
+	add_child(sp)
+	return sp
+
+
+## кадр головы: 16 направлений, 0 — к зрителю, по часовой на экране
+func _aim_frame() -> void:
+	if _head:
+		_head.frame = posmod(roundi(aim / (TAU / 16.0)), 16)
 
 
 func alive() -> bool:
@@ -69,6 +101,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var g := SP.screen_to_ground(foe.global_position - global_position)
 	aim = atan2(-g.x, g.y)
+	_aim_frame()
 	queue_redraw()
 	if _cool <= 0.0:
 		_cool = k.cool
@@ -97,6 +130,16 @@ func damage(amount: float, _from := Vector2.ZERO, _who: Node = null) -> void:
 
 func _draw() -> void:
 	var k: Dictionary = KINDS[kind]
+	if _head:
+		# спрайт: без энергии — темнее; вспышка у ствола
+		var c := Color.WHITE if powered() else Color(0.5, 0.5, 0.55)
+		_head.modulate = c
+		if _base:
+			_base.modulate = c
+		if _shown > 0.0:
+			var dir := SP.ground_to_screen(Vector2(-sin(aim), cos(aim)))
+			draw_circle(Vector2(0, -38) + dir * 30.0, 7.0, Color(k.col, 0.9))
+		return
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, SP.K))
 	draw_circle(Vector2.ZERO, 20.0, Color(0.15, 0.17, 0.2))
 	draw_circle(Vector2.ZERO, 15.0, Color(0.35, 0.38, 0.42))

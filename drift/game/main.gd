@@ -186,6 +186,7 @@ func place_turret(kind: String, pos: Vector2, silent := false) -> bool:
 			return false
 	var t := STTurret.new()
 	t.kind = kind
+	t.sprite_dir = _sprites(kind)
 	t.position = SP.cell_to_px(cell) + Vector2(0, 10)
 	ysort.add_child(t)
 	shipst.turrets.append(t)
