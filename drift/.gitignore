@@ -1,0 +1,7 @@
+.godot/
+*.tmp
+android/build/
+android/.gradle/
+android/app/build/
+android/app/libs/*.aar
+export/
