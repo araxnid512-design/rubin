@@ -1,27 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "g_ak74c",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_ak74c",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--image",
-    "tools/tripo/refs/guns/ak74.png",
-    "--prompt",
-    "AK-74 assault rifle with fixed wooden buttstock, wooden handguard and orange-brown bakelite magazine. Realistic game weapon model, accurate real-world proportions, single object, no background."
-   ],
-   "timeout": 3000
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -139,7 +118,8 @@
   "g_fnfal",
   "g_svd",
   "g_vss",
-  "g_ak74b"
+  "g_ak74b",
+  "g_ak74c"
  ],
  "paused": [
   {
