@@ -90,7 +90,7 @@
     6,
     5
    ],
-   "kind": "corridor",
+   "kind": "quarters",
    "light": [
     1.0,
     0.85,
@@ -106,7 +106,7 @@
     7,
     5
    ],
-   "kind": "airlock",
+   "kind": "cargo",
    "light": [
     1.0,
     0.85,
