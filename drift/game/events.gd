@@ -253,6 +253,8 @@ func _populate(st: Dictionary) -> void:
 		var c: Array = b[5]
 		var g: Array = b[6] if b.size() > 6 else []
 		box.setup(b[2], b[3], b[4], Color(c[0], c[1], c[2]), Color(g[0], g[1], g[2], 1.0) if g.size() == 3 else Color(0, 0, 0, 0))
+		if b.size() > 7:
+			box.use_sprite(String(b[7]))
 		_block_box(box, b[2], b[3])
 		nodes.append(box)
 	for c in st.get("crates", []):
@@ -260,6 +262,7 @@ func _populate(st: Dictionary) -> void:
 		box.position = _rel(c[0], c[1])
 		ysort.add_child(box)
 		box.setup(1.0, 0.8, 0.8, Color(0.42, 0.36, 0.22), Color(1.0, 0.7, 0.2, 1.0))
+		box.use_sprite("loot_chest" if cur in ["pirates", "boss"] else "crate")
 		_block_box(box, 1.0, 0.8)
 		nodes.append(box)
 		var it := STInteract.new()
@@ -294,6 +297,15 @@ func _populate(st: Dictionary) -> void:
 		ysort.add_child(it)
 		nodes.append(it)
 		it.used.connect(func(_by): show_trade())
+		# торговец за прилавком (если запечён)
+		if FileAccess.file_exists("res://assets/sprites/trader/trader.json"):
+			var npc := Node2D.new()
+			npc.position = _rel(tr[0], tr[1] - 1.1)
+			ysort.add_child(npc)
+			var sp := STSprite8.new()
+			npc.add_child(sp)
+			sp.setup("res://assets/sprites/trader")
+			nodes.append(npc)
 
 
 func _block_box(box: STBox, w: float, d: float) -> void:

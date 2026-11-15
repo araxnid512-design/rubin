@@ -12,6 +12,12 @@ var cam: Camera2D
 var shipst: Node
 var events: Node
 var loop: Node
+## предмет корабля → запечённый спрайт (assets/sprites/<имя>); нет папки — рисуется ящик
+const PROP_SPRITE := {
+	"reactor_core": "reactor", "engine_l": "engine", "engine_r": "engine", "bench": "workbench", "fabricator": "fabricator",
+	"medpod": "medpod", "console": "helm", "captain_chair": "chair", "bunk1": "bunk", "bunk2": "bunk", "locker": "locker",
+	"crate1": "crate", "crate2": "container", "crate3": "crate", "cargo_term": "cargo_term",
+}
 
 
 func _ready() -> void:
@@ -45,6 +51,7 @@ func _ready() -> void:
 	Core.set_meta("place_turret", place_turret)
 	Core.set_meta("spawn_enemy", spawn_enemy)
 	Core.set_meta("spawn_crew", spawn_crew)
+	Core.set_meta("add_prop", add_prop)
 	Core.set_meta("ship_lost", _ship_lost)
 	hero = STHero.new()
 	hero.name = "Hero"
@@ -96,7 +103,7 @@ func _ambient() -> void:
 
 func _exit_tree() -> void:
 	# ссылки на эту сцену в автозагрузке — убрать (перезапуск сцены, выход)
-	for m in ["spawn_drone", "place_turret", "spawn_enemy", "spawn_crew", "ship_lost", "starfield", "shipst", "events"]:
+	for m in ["spawn_drone", "place_turret", "spawn_enemy", "spawn_crew", "add_prop", "ship_lost", "starfield", "shipst", "events"]:
 		if Core.has_meta(m):
 			Core.remove_meta(m)
 
@@ -125,6 +132,7 @@ func _props(list: Array) -> void:
 		box.position = Vector2(float(p.at[0]) * SP.TILE.x, float(p.at[1]) * SP.TILE.y)
 		ysort.add_child(box)
 		box.setup(b[0], b[1], b[2], Color(c[0], c[1], c[2]), Color(g[0], g[1], g[2], 1.0 if g.size() == 3 else 0.0))
+		box.use_sprite(String(p.get("sprite", PROP_SPRITE.get(String(p.id), ""))))
 		var r := Rect2(box.position.x - float(b[0]) * SP.PPM * 0.5, box.position.y - float(b[1]) * SP.TILE.y, float(b[0]) * SP.PPM, float(b[1]) * SP.TILE.y)
 		for cell in SP.cells_under(r):
 			ship.block(cell, true)
@@ -167,6 +175,21 @@ func _on_use(_by: Node, target: String) -> void:
 			var s: Dictionary = shipst.res
 			hud.show_text("Склад", "Металл: %d\nЭлектроника: %d\nЭнергоячейки: %d\nТопливо: %d\n\nАптечек в вещах: %d\n\nМеталл и электроника — сборка на верстаке; ячейки — лазер и боевые дроны; топливо — прыжки." % [
 				s.metal, s.electronics, s.cells, s.fuel, hero.count_item("medkit")])
+
+
+## предмет, появившийся от улучшения (генератор щита): at — в клетках, как в ship_start.json; один раз
+func add_prop(id: String, sprite: String, at: Vector2, box_m: Vector3, col: Color, glow := Color(0, 0, 0, 0)) -> void:
+	if ysort.has_node("Prop_" + id):
+		return
+	var box := STBox.new()
+	box.name = "Prop_" + id
+	box.position = Vector2(at.x * SP.TILE.x, at.y * SP.TILE.y)
+	ysort.add_child(box)
+	box.setup(box_m.x, box_m.y, box_m.z, col, glow)
+	box.use_sprite(sprite)
+	var r := Rect2(box.position.x - box_m.x * SP.PPM * 0.5, box.position.y - box_m.y * SP.TILE.y, box_m.x * SP.PPM, box_m.y * SP.TILE.y)
+	for cell in SP.cells_under(r):
+		ship.block(cell, true)
 
 
 # ---------------- дроны, турели, враги ----------------

@@ -255,6 +255,7 @@ func set_state(s: Dictionary) -> void:
 		power[k] = int(pw[k])
 	upgrades = s.get("upgrades", {})
 	reactor = base_reactor + 2 * lvl("reactor")
+	_upgrade_props()
 	for d in drones:
 		if is_instance_valid(d):
 			d.queue_free()
@@ -316,6 +317,7 @@ func upgrade(u: Dictionary) -> bool:
 		"shield":
 			if free_power() > 0:
 				power["shield"] = 1
+			_upgrade_props()
 		"scanner":
 			if Core.has_meta("events") and Core.loop and Core.loop.phase != "event":
 				Core.get_meta("events").roll_choices()
@@ -324,3 +326,9 @@ func upgrade(u: Dictionary) -> bool:
 	Core.say("Улучшено: %s (уровень %d)." % [u.n, l + 1], "good")
 	changed.emit()
 	return true
+
+
+## предметы улучшений на корабле: генератор щита в машинном отделении
+func _upgrade_props() -> void:
+	if lvl("shield") > 0 and Core.has_meta("add_prop"):
+		Core.get_meta("add_prop").call("shield_gen", "shield", Vector2(4.1, 3.6), Vector3(1.0, 1.0, 1.4), Color(0.3, 0.4, 0.55), Color(0.3, 0.7, 1.0))

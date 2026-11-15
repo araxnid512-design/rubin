@@ -14,9 +14,29 @@ var it: STInteract
 var _seed := 0
 
 
+var _spr: Sprite2D
+
+
 func _ready() -> void:
 	add_to_group("ore")
 	_seed = randi()
+	# запечённая жила (assets/sprites/ore_<вид>), иначе — кристаллы кодом
+	var name: String = {"metal": "ore_metal", "cells": "ore_cells", "electronics": "ore_rare"}[res]
+	var folder := "res://assets/sprites/" + name
+	if FileAccess.file_exists(folder.path_join(name + ".json")) and ResourceLoader.exists(folder.path_join("idle.png")):
+		var info = JSON.parse_string(FileAccess.get_file_as_string(folder.path_join(name + ".json")))
+		var ct := CanvasTexture.new()
+		ct.diffuse_texture = load(folder.path_join("idle.png"))
+		if ResourceLoader.exists(folder.path_join("idle_n.png")):
+			ct.normal_texture = load(folder.path_join("idle_n.png"))
+		_spr = Sprite2D.new()
+		_spr.texture = ct
+		_spr.centered = false
+		var a: Array = info.get("anchor", [64, 100]) if info is Dictionary else [64, 100]
+		_spr.offset = -Vector2(a[0], a[1])
+		_spr.flip_h = false
+		_spr.show_behind_parent = true
+		add_child(_spr)
 	it = STInteract.new()
 	it.action = "use"
 	it.verb = "Добыть"
@@ -49,6 +69,10 @@ func mine_by(_who: Node) -> void:
 
 
 func _draw() -> void:
+	if _spr:
+		# жила тает по мере добычи
+		_spr.scale = Vector2.ONE * (0.7 + 0.1 * left)
+		return
 	var lk: Dictionary = LOOK[res]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _seed

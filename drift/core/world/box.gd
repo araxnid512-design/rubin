@@ -7,6 +7,34 @@ extends StaticBody2D
 var size := Vector3(1, 1, 1)        ## ширина, глубина, высота, м
 var color := Color(0.4, 0.42, 0.45)
 var glow := Color(0, 0, 0, 0)
+var _spr: Sprite2D                  ## запечённый спрайт предмета (assets/sprites/<имя>), вместо рисованного ящика
+var _t := 0.0
+
+
+## загрузить запечённый предмет (kind "prop": один ракурс, anchor — пол под серединой основания); нет — false
+func use_sprite(name: String) -> bool:
+	var folder := "res://assets/sprites/" + name
+	var jp := folder.path_join(name + ".json")
+	if name == "" or not FileAccess.file_exists(jp) or not ResourceLoader.exists(folder.path_join("idle.png")):
+		return false
+	var info = JSON.parse_string(FileAccess.get_file_as_string(jp))
+	if not (info is Dictionary):
+		return false
+	var ct := CanvasTexture.new()
+	ct.diffuse_texture = load(folder.path_join("idle.png"))
+	if ResourceLoader.exists(folder.path_join("idle_n.png")):
+		ct.normal_texture = load(folder.path_join("idle_n.png"))
+	_spr = Sprite2D.new()
+	_spr.texture = ct
+	_spr.centered = false
+	var a: Array = info.get("anchor", [64, 100])
+	_spr.offset = -Vector2(a[0], a[1])
+	# точка привязки — середина основания; узел — у передней грани (по ней сортировка)
+	_spr.position = Vector2(0, -size.y * SP.TILE.y * 0.5)
+	_spr.show_behind_parent = true
+	add_child(_spr)
+	queue_redraw()
+	return true
 
 
 func setup(w: float, d: float, h: float, col: Color, glow_col := Color(0, 0, 0, 0)) -> void:
@@ -23,7 +51,20 @@ func setup(w: float, d: float, h: float, col: Color, glow_col := Color(0, 0, 0, 
 	queue_redraw()
 
 
+func _process(delta: float) -> void:
+	if _spr and glow.a > 0.0:
+		_t += delta
+		queue_redraw()
+
+
 func _draw() -> void:
+	if _spr:
+		# у запечённого — только огонёк «здесь есть что взять»
+		if glow.a > 0.0:
+			var p := Vector2(0, -size.y * SP.TILE.y - size.z * SP.TILE.y - 10.0 - sin(_t * 4.0) * 3.0)
+			draw_circle(p, 6.0, Color(glow, 0.9))
+			draw_circle(p, 11.0, Color(glow, 0.25))
+		return
 	var w := size.x * SP.PPM
 	var dd := size.y * SP.PPM * SP.K
 	var hh := size.z * SP.PPM * SP.K
