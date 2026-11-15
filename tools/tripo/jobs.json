@@ -1,61 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "bp_small",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bp_small",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Small tactical day backpack, compact 15 liter assault pack with one front pocket and a top carry handle. Worn military survival gear, olive drab and khaki canvas with leather straps and metal buckles, shoulder straps visible. Stylized realistic game asset, PBR materials, single object, no character, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bp_medium",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bp_medium",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Medium military rucksack, 35 liter pack with a top flap lid, front pocket and two side pouches, MOLLE webbing. Worn military survival gear, olive drab and khaki canvas with leather straps and metal buckles, shoulder straps visible. Stylized realistic game asset, PBR materials, single object, no character, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bp_large",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bp_large",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Large expedition military rucksack, tall 80 liter frame pack with a rolled sleeping mat strapped on top, big side pockets, front pouch, hanging canteen and compression straps. Worn military survival gear, olive drab and khaki canvas with leather straps and metal buckles, shoulder straps visible. Stylized realistic game asset, PBR materials, single object, no character, no background."
-   ],
-   "timeout": 3000
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -162,7 +107,10 @@
   "sdp_medpod",
   "sdp_engine",
   "sdp_crate",
-  "sdp_container"
+  "sdp_container",
+  "bp_small",
+  "bp_medium",
+  "bp_large"
  ],
  "paused": [
   {
