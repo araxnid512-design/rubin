@@ -1,0 +1,85 @@
+{
+	"name": "hero_fallback",
+	"kind": "character",
+	"frame_w": 128,
+	"frame_h": 128,
+	"anchor": [
+		64,
+		100
+	],
+	"fps": 12,
+	"dirs": 8,
+	"ppm": 64.0,
+	"height_m": 1.8,
+	"dir_order": "0=S(к зрителю),1=SW,2=W,3=NW,4=N,5=NE,6=E,7=SE — по часовой на экране",
+	"clips": {
+		"idle": {
+			"frames": 8,
+			"loop": true,
+			"src": "idle",
+			"src_from": 1.067,
+			"src_to": 2.667,
+			"duration": 1.6,
+			"native_fps": 5.0
+		},
+		"walk": {
+			"frames": 8,
+			"loop": true,
+			"src": "walk",
+			"src_from": 0.3,
+			"src_to": 1.467,
+			"duration": 1.167,
+			"native_fps": 6.86,
+			"speed_native": 1.23,
+			"speed_at_fps": 2.15
+		},
+		"run": {
+			"frames": 8,
+			"loop": true,
+			"src": "run",
+			"src_from": 0.4,
+			"src_to": 1.033,
+			"duration": 0.633,
+			"native_fps": 12.63,
+			"speed_native": 4.43,
+			"speed_at_fps": 4.21
+		},
+		"attack": {
+			"frames": 6,
+			"loop": false,
+			"src": "box_01",
+			"src_from": 0.0,
+			"src_to": 2.2,
+			"duration": 2.2,
+			"native_fps": 2.27
+		},
+		"shoot": {
+			"frames": 4,
+			"loop": false,
+			"src": "fire",
+			"src_from": 0.0,
+			"src_to": 1.467,
+			"duration": 1.467,
+			"native_fps": 2.05
+		},
+		"hit": {
+			"frames": 4,
+			"loop": false,
+			"src": "hit_to_body_01",
+			"src_from": 0.0,
+			"src_to": 1.267,
+			"duration": 1.267,
+			"native_fps": 2.37
+		},
+		"death": {
+			"frames": 8,
+			"loop": false,
+			"src": "fall",
+			"src_from": 1.033,
+			"src_to": 3.0,
+			"duration": 1.967,
+			"native_fps": 3.56,
+			"hold_last": true
+		}
+	}
+}
