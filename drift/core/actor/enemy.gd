@@ -162,6 +162,7 @@ func _melee() -> void:
 		if spr.has_clip("attack"):
 			spr.play("attack", true)
 		if is_instance_valid(t) and t.alive() and SP.dist_m(global_position, t.global_position) < k.range + 0.3:
+			STFx.sparks(t.global_position + Vector2(0, -50), Color(1, 0.9, 0.7), 5, 150.0)
 			t.damage(k.dmg, global_position, self)
 			Core.play_at("punch", t.global_position, -4.0)
 		state = "move")
@@ -170,6 +171,13 @@ func _melee() -> void:
 func die() -> void:
 	super.die()
 	Core.play_at("death_enemy", global_position, -4.0)
+	match kind:
+		"robot":
+			STFx.explosion(global_position)
+		"crawler":
+			STFx.debris(global_position + Vector2(0, -20), Color(0.35, 0.55, 0.25), 8)
+		_:
+			STFx.smoke(global_position + Vector2(0, -20), 3, Color(0.3, 0.3, 0.32), 0.4, 9.0)
 	# добыча — сразу в ресурсы корабля
 	var ss = Core.get_meta("shipst", null)
 	if ss:

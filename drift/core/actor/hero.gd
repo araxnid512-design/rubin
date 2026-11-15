@@ -93,6 +93,7 @@ func attack() -> void:
 	Core.play_at("swoosh", global_position, -8.0)
 	get_tree().create_timer(d * 0.45).timeout.connect(func():
 		if foe and foe.alive() and SP.dist_m(global_position, foe.global_position) < 1.7:
+			STFx.sparks(foe.global_position + Vector2(0, -55), Color(1, 0.95, 0.8), 6, 160.0)
 			foe.damage(20.0, global_position, self)
 			Core.play_at("punch", foe.global_position, -2.0))
 	get_tree().create_timer(maxf(d - 0.05, 0.2)).timeout.connect(func():

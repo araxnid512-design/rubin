@@ -24,6 +24,7 @@ static func fire(parent: Node, from: Vector2, to: Vector2, speed_mps: float, dam
 	parent.add_child(b)
 	b.global_position = from
 	b.reset_physics_interpolation()
+	STFx.muzzle(from + Vector2(0, -HEIGHT) + b.vel.normalized() * 18.0, color, 9.0)
 	return b
 
 
@@ -36,6 +37,7 @@ func _physics_process(delta: float) -> void:
 	var hit := get_world_2d().direct_space_state.intersect_ray(q)
 	if hit:
 		Core.play_at("ricochet", hit.position + Vector2(0, 10), -12.0)
+		STFx.sparks(hit.position + Vector2(0, 10 - HEIGHT), col, 6, 160.0)
 		queue_free()
 		return
 	# противник рядом с линией полёта
@@ -45,6 +47,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		var p := Geometry2D.get_closest_point_to_segment(e.global_position, from, to)
 		if SP.dist_m(p, e.global_position) < 0.45:
+			STFx.sparks(p + Vector2(0, -HEIGHT), col.lightened(0.3), 7, 200.0)
 			e.damage(dmg, from, owner_node if is_instance_valid(owner_node) else null)
 			Core.play_at("bullet_hit", e.global_position, -8.0)
 			queue_free()

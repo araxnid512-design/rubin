@@ -67,6 +67,9 @@ func face(to: Vector2) -> void:
 func damage(amount: float, from := Vector2.ZERO, _attacker: Node = null) -> void:
 	if state == "dead":
 		return
+	STFx.number(global_position + Vector2(0, -96), str(roundi(amount)), Color(1.0, 0.4, 0.35) if faction == "crew" else Color(1.0, 0.95, 0.8))
+	if self == Core.player:
+		STFx.shake(3.0, 0.15)
 	hp -= amount
 	if hp <= 0.0:
 		die()

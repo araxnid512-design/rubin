@@ -28,6 +28,9 @@ func _ready() -> void:
 	ysort.name = "YSort"
 	ysort.y_sort_enabled = true
 	world.add_child(ysort)
+	var fx := STFx.new()
+	fx.name = "FX"
+	world.add_child(fx)
 	Core.ship = ship
 	var data = JSON.parse_string(FileAccess.get_file_as_string("res://game/data/ship_start.json"))
 	ship.build(data, ysort)

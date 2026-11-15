@@ -35,6 +35,8 @@ func mine_by(_who: Node) -> void:
 	left -= 1
 	var n := randi_range(1, 2)
 	var ss = Core.get_meta("shipst", null)
+	STFx.debris(global_position + Vector2(0, -16), LOOK[res].col, 7)
+	STFx.number(global_position + Vector2(0, -60), "+%d" % n, LOOK[res].hi)
 	if ss:
 		ss.add(res, n)
 		Core.say("%s +%d" % [ss.res_name(res), n], "good")

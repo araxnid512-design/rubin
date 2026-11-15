@@ -120,6 +120,7 @@ func damage(amount: float, _from := Vector2.ZERO, _who: Node = null) -> void:
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.2)
 	if hp <= 0.0:
 		_dead = true
+		STFx.explosion(global_position, true)
 		Core.say(KINDS[kind].n + " разбита.", "bad")
 		Core.play_at("metal_clang", global_position, -2.0)
 		var ss = Core.get_meta("shipst", null)

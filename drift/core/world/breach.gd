@@ -27,6 +27,7 @@ func repair_by(_who: Node) -> void:
 		return
 	remove_from_group("repairable")
 	it.enabled = false
+	STFx.sparks(global_position + Vector2(0, -12), Color(0.7, 0.9, 1.0), 14, 240.0)
 	Core.play_at("weld", global_position, -3.0)
 	Core.say("Пожар потушен." if fire else "Пробоина заварена.", "good")
 	var tw := create_tween()
@@ -34,8 +35,19 @@ func repair_by(_who: Node) -> void:
 	tw.tween_callback(queue_free)
 
 
+var _puff := 0.0
+
+
 func _process(delta: float) -> void:
 	_t += delta
+	_puff -= delta
+	if _puff <= 0.0 and is_in_group("repairable"):
+		_puff = 0.35 if fire else 0.6
+		if fire:
+			STFx.smoke(global_position + Vector2(0, -40), 1, Color(0.15, 0.14, 0.14), 0.5, 11.0)
+			STFx.sparks(global_position + Vector2(0, -20), Color(1.0, 0.6, 0.2), 2, 90.0)
+		else:
+			STFx.smoke(global_position + Vector2(0, -8), 1, Color(0.75, 0.8, 0.85), 0.25, 8.0)
 	if fmod(_t, 0.1) < delta:
 		queue_redraw()
 	if fire and is_in_group("repairable"):

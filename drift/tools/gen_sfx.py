@@ -218,6 +218,14 @@ def main():
     wob = 0.5 + 0.5 * np.sin(2 * np.pi * t / sec * 3)
     save("amb_ship", hum * (0.8 + 0.2 * wob) + air * 0.6, -6.0, loop=True)
 
+    # взрыв: хлопок, низкий удар, треск осколков
+    for i, f in enumerate([52, 44], 1):
+        t = t_axis(1.1)
+        crack = lpf(noise(1.1), 2500) * env(1.1, 0.002, 0.25)
+        boom = (np.sin(2 * np.pi * f * t) + 0.7 * lpf(noise(1.1), 300)) * env(1.1, 0.004, 0.9)
+        rattle = hpf(noise(1.1), 2000) * (rng.uniform(0, 1, len(t)) > 0.97) * env(1.1, 0.05, 0.6) * 1.5
+        save("explosion_%d" % i, crack * 0.8 + boom + rattle, -1.0)
+
 
 if __name__ == "__main__":
     main()

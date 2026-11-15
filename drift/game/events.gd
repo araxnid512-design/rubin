@@ -145,14 +145,7 @@ func _warp_fx() -> void:
 
 
 func _shake(power: float, sec: float) -> void:
-	var cam := get_viewport().get_camera_2d()
-	if cam == null:
-		return
-	var base := cam.offset
-	var tw := create_tween()
-	for i in int(sec / 0.05):
-		tw.tween_property(cam, "offset", base + Vector2(randf_range(-power, power), randf_range(-power, power)), 0.05)
-	tw.tween_property(cam, "offset", base, 0.1)
+	STFx.shake(power, sec)
 
 
 # ---------------- событие ----------------
@@ -269,6 +262,7 @@ func _loot_crate(it: STInteract, box: STBox) -> void:
 			s.add(row[0], n)
 			got.append("%s +%d" % [s.res_name(row[0]), n])
 	Core.play_at("crate_open", box.global_position, -4.0)
+	STFx.sparks(box.global_position + Vector2(0, -40), Color(1.0, 0.85, 0.4), 8, 120.0)
 	Core.say("Найдено: " + (", ".join(got) if not got.is_empty() else "пусто"), "good" if not got.is_empty() else "info")
 
 
@@ -310,6 +304,7 @@ func _storm() -> void:
 		b.position = _free_point(ids[i])
 		Core.ship.ysort.add_child(b)
 		nodes.append(b)
+		STFx.explosion(b.position)
 	var where := []
 	for i in 4:
 		where.append(Core.ship.rooms[ids[i]].n.to_lower())

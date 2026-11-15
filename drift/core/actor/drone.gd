@@ -124,6 +124,7 @@ func _nearest_enemy(r: float) -> Node2D:
 
 func die() -> void:
 	super.die()
+	STFx.explosion(global_position)
 	Core.play_at("metal_clang", global_position, -2.0)
 	Core.say("Дрон уничтожен.", "bad")
 	var ss = Core.get_meta("shipst", null)
