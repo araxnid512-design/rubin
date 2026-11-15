@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: three-headed-hydra-unreal
+expected_outcome: |
+  An FBX for Unreal with a legless hydra skeleton with three separate neck/head chains, and idle, crawl and a sequential three-head attack; idle and crawl loop; in idle the heads move out of phase; in the attack the heads strike at three different times in left, middle, right order.

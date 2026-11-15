@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: griffin-from-scratch-unity
+expected_outcome: |
+  An FBX (Unity-oriented) with a griffin skeleton (four legs, two wings, neck/head, tail) skinned to a placeholder mesh, containing walk, fly, a beak attack and death clips, plus a summary of clips and Unity import notes.

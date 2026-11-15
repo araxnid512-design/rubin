@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: animate-rigged-werewolf-godot
+expected_outcome: |
+  A GLB for Godot that keeps the original werewolf skeleton (bone names starting with Bip_) and mesh, with idle, run and a howl clip in which the head is raised; idle and run loop.
+context:
+  scaffold_script: place-files.sh
