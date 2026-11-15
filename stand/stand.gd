@@ -55,6 +55,16 @@ const ENTRIES := [
 	{"id": "k_walk", "g": "Ручной пулемёт «Печенег»", "n": "Ходьба наготове", "weapon": "pkp", "stance": "ready", "speed": 1.3},
 	{"id": "k_fire", "g": "Ручной пулемёт «Печенег»", "n": "Очередь", "weapon": "pkp", "stance": "aim", "proc": "burst"},
 	{"id": "k_reload", "g": "Ручной пулемёт «Печенег»", "n": "Перезарядка", "weapon": "pkp", "stance": "ready", "proc": "reload"},
+	{"id": "b_draw", "g": "Пистолет Beretta 92FS", "n": "Достать и убрать", "weapon": "beretta", "stance": "ready", "proc": "draw"},
+	{"id": "b_aim", "g": "Пистолет Beretta 92FS", "n": "Прицел стоя", "weapon": "beretta", "stance": "aim"},
+	{"id": "b_walk", "g": "Пистолет Beretta 92FS", "n": "Ходьба наготове", "weapon": "beretta", "stance": "ready", "speed": 1.3},
+	{"id": "b_fire", "g": "Пистолет Beretta 92FS", "n": "Выстрел", "weapon": "beretta", "stance": "aim", "proc": "burst"},
+	{"id": "b_reload", "g": "Пистолет Beretta 92FS", "n": "Перезарядка", "weapon": "beretta", "stance": "aim", "proc": "reload"},
+	{"id": "d_draw", "g": "СВД", "n": "Достать и убрать", "weapon": "svd", "stance": "ready", "proc": "draw"},
+	{"id": "d_aim", "g": "СВД", "n": "Прицел стоя", "weapon": "svd", "stance": "aim"},
+	{"id": "d_walk", "g": "СВД", "n": "Ходьба наготове", "weapon": "svd", "stance": "ready", "speed": 1.3},
+	{"id": "d_fire", "g": "СВД", "n": "Выстрел", "weapon": "svd", "stance": "aim", "proc": "burst"},
+	{"id": "d_reload", "g": "СВД", "n": "Перезарядка", "weapon": "svd", "stance": "ready", "proc": "reload"},
 	{"id": "m_draw", "g": "Холодное", "n": "Достать и убрать", "weapon": "melee", "stance": "guard", "proc": "draw"},
 	{"id": "m_idle", "g": "Холодное", "n": "Боевая стойка", "weapon": "melee", "stance": "guard"},
 	{"id": "m_walk", "g": "Холодное", "n": "Ходьба", "weapon": "melee", "stance": "guard", "speed": 1.3},
@@ -656,9 +666,20 @@ func _build_ui() -> void:
 	wbar.add_theme_constant_override("separation", 6)
 	ui.add_child(wbar)
 	wbar.add_child(_lbl("В руки:", 15, Color(0.45, 0.85, 1.0)))
-	for wv in [["", "Ничего"], ["pistol", "ТТ"], ["rifle", "АК-74М"], ["spas12", "SPAS-12"], ["fnfal", "FN FAL"], ["vss", "ВСС"], ["mp5", "MP5"], ["pkp", "Печенег"], ["melee", "Мачете"]]:
-		var wb := _btn(wv[1], take.bind(wv[0]), 84, 52, 14)
-		wbar.add_child(wb)
+	# оружия много — полоса прокручивается пальцем
+	var wsc := ScrollContainer.new()
+	wsc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wsc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	wbar.add_child(wsc)
+	var wrow := HBoxContainer.new()
+	wrow.add_theme_constant_override("separation", 6)
+	wsc.add_child(wrow)
+	var cfgw := BCWeaponHold.config()
+	for wv in [["", "Ничего"], ["pistol", "ТТ"], ["beretta", "Beretta"], ["rifle", "АК-74М"], ["ak74", "АК-74"], ["mp5", "MP5"], ["fnfal", "FN FAL"], ["svd", "СВД"], ["vss", "ВСС"], ["pkp", "ПКП"], ["spas12", "SPAS-12"], ["melee", "Мачете"]]:
+		if wv[0] != "" and not cfgw.has(wv[0]):
+			continue
+		var wb := _btn(wv[1], take.bind(wv[0]), 86, 52, 14)
+		wrow.add_child(wb)
 		w_btns[wv[0]] = wb
 	# действия с оружием — отдельной строкой выше
 	var abar := HBoxContainer.new()
