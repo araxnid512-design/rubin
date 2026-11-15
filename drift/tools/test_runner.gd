@@ -93,6 +93,8 @@ func _run() -> void:
 		await _save()
 	if mode == "upgrades" or mode == "all":
 		await _upgrades()
+	if mode == "events2" or mode == "all":
+		await _events2()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
 	if f:
 		f.store_string("\n".join(log_lines))
@@ -180,7 +182,7 @@ func _combat() -> void:
 		h.attack()
 		for e in get_tree().get_nodes_in_group("enemy"):
 			seen[e.get_instance_id()] = e
-		await get_tree().create_timer(0.25).timeout
+		await get_tree().create_timer(0.25, true).timeout
 		t += 0.25
 		if not shot_done and get_tree().get_nodes_in_group("enemy").size() >= 2 and t > 8.0:
 			shot_done = true
@@ -228,7 +230,7 @@ func _upgrades() -> void:
 	Core.hud.close_modal()
 	ss.set_power("shield", 1)
 	ss.set_power("shield", 1)
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(2.0, true).timeout
 	var sh: float = ss.shield
 	var h0: float = ss.hull
 	ss.damage_hull(10.0)
@@ -238,3 +240,83 @@ func _upgrades() -> void:
 	ss.show_upgrades()
 	await _shot("u_window")
 	Core.hud.close_modal()
+
+
+## новые события: сигнал бедствия (спасти выжившего), засада, флагман с главарём; найм на станции
+func _events2() -> void:
+	var ship: STShip = Core.ship
+	var ss := _ss()
+	var h: STHero = Core.player
+	Core.hud.close_modal()
+	var crew0: int = ss.crew.size()
+	# сигнал бедствия
+	_ev().start("distress")
+	await _frames(5)
+	var sv: STCrew = _ev().survivor
+	for e in get_tree().get_nodes_in_group("enemy"):
+		e.damage(999.0)
+	await _place(ship.room_center("airlock"))
+	var ok := await _go(sv.global_position + Vector2(0, 30), 20.0)
+	h.target = sv.it
+	sv.it.interact(h)
+	await _shot("e_distress")
+	var back := await _go(ship.room_center("airlock"), 20.0)
+	await get_tree().create_timer(4.0, true).timeout
+	_log("сигнал бедствия: дошёл до выжившего %s, назад %s, выживший %s (%s), экипаж %d → %d" % [ok, back, sv.person(), sv.role, crew0, ss.crew.size()])
+	_ev().finish()
+	await _frames(5)
+	Core.hud.close_modal()
+	# засада
+	_ev().start("ambush")
+	await _frames(5)
+	await _place(ship.room_center("airlock"))
+	await _go(SP.cell_to_px(ship.dock_cell()) + Vector2(0, SP.TILE.y * 5.5), 15.0)
+	await get_tree().create_timer(1.5, true).timeout
+	var n_amb := get_tree().get_nodes_in_group("enemy").size()
+	await _shot("e_ambush")
+	var blocked: String = _ev().leave_block()
+	for e in get_tree().get_nodes_in_group("enemy"):
+		e.damage(999.0)
+	await get_tree().create_timer(0.5, true).timeout
+	_log("засада: сработала %s, пиратов %d, уйти нельзя: %s, отбита %s" % [_ev().ambushed, n_amb, blocked != "", _ev().won])
+	await _place(ship.room_center("airlock"))
+	_ev().finish()
+	await _frames(5)
+	Core.hud.close_modal()
+	# флагман: главарь
+	Core.loop.sector = 4
+	ss.hull = 400.0                      # в тесте корабль не должен погибнуть от диверсий
+	for k in ss.res:
+		ss.res[k] = 40
+	await _place(SP.cell_to_px(Vector2i(14, 8)))
+	_ev().start("boss")
+	var t := 0.0
+	var boss_seen := false
+	while t < 160.0 and _ev().cur == "boss":
+		h.attack()
+		for e in get_tree().get_nodes_in_group("enemy"):
+			if e.kind == "boss":
+				if not boss_seen:
+					boss_seen = true
+					_log("главарь: здоровье %d" % roundi(e.max_hp))
+		await get_tree().create_timer(0.25, true).timeout
+		t += 0.25
+		if boss_seen and t > 40.0 and _ev().cur == "boss":
+			# в тесте герой один — помогаем, чтобы проверить победу и трофеи
+			for e in get_tree().get_nodes_in_group("enemy"):
+				if e.alive():
+					e.damage(30.0)
+	_log("флагман: %s за %.0f с, главарь был %s, корпус %d, герой %d, экипаж %d" % ["побеждён" if _ev().cur == "" else "НЕ окончен", t, boss_seen, roundi(ss.hull), roundi(h.hp), ss.crew.size()])
+	Core.hud.close_modal()
+	# найм на станции
+	ss.res.metal = 20
+	ss.res.electronics = 10
+	_ev().start("station")
+	var hr: String = _ev().hire_role
+	_ev().show_trade()
+	await _shot("e_hire")
+	Core.hud.close_modal()
+	_ev().finish()
+	await _frames(5)
+	Core.hud.close_modal()
+	_log("станция: предлагают нанять «%s»" % hr)

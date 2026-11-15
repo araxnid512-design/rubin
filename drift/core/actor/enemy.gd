@@ -7,6 +7,8 @@ extends STActor
 const KINDS := {
 	"pirate": {"hp": 60.0, "speed": 2.6, "ranged": true, "dmg": 6.0, "range": 7.0, "cool": 1.4, "color": Color(0.75, 0.25, 0.2), "loot": {"metal": [1, 2], "cells": [0, 1]}},
 	"robot": {"hp": 110.0, "speed": 1.8, "ranged": false, "dmg": 15.0, "range": 1.3, "cool": 1.6, "color": Color(0.85, 0.75, 0.2), "loot": {"electronics": [1, 2], "metal": [1, 1]}},
+	"boss": {"hp": 420.0, "speed": 1.7, "ranged": true, "dmg": 9.0, "range": 8.0, "cool": 1.0, "color": Color(0.9, 0.15, 0.1), "burst": 3,
+		"loot": {"metal": [6, 8], "electronics": [3, 4], "cells": [3, 4], "fuel": [2, 2]}},
 	"crawler": {"hp": 30.0, "speed": 3.6, "ranged": false, "dmg": 7.0, "range": 1.0, "cool": 0.9, "color": Color(0.5, 0.75, 0.35), "loot": {}},
 }
 var kind := "pirate"
@@ -18,6 +20,7 @@ var _repath := 0.0
 var _cool := 0.0
 var _bang := false
 var sight := 12.0
+var hp_mult := 1.0                ## рост сложности по секторам
 var goal := Vector2.INF           ## куда идти, если никого не видно (пираты — к реактору)
 var _sab_said := false
 
@@ -25,7 +28,7 @@ var _sab_said := false
 func _ready() -> void:
 	k = KINDS.get(kind, KINDS.pirate)
 	faction = "robot" if kind == "robot" else ("beast" if kind == "crawler" else "pirate")
-	max_hp = k.hp
+	max_hp = k.hp * hp_mult
 	color = k.color
 	super._ready()
 	add_to_group("enemy")
@@ -142,8 +145,10 @@ func _shoot() -> void:
 	if spr.has_clip("shoot"):
 		spr.play("shoot", true)
 	var from := global_position
-	var aim := tgt.global_position + Vector2(randf_range(-34, 34), randf_range(-20, 20))
-	STBolt.fire(get_parent(), from, aim, 14.0, k.dmg, faction, Color(1.0, 0.35, 0.25), self)
+	var nb := int(k.get("burst", 1))
+	for i in nb:
+		var aim := tgt.global_position + Vector2(randf_range(-34, 34), randf_range(-20, 20)) + Vector2(i - (nb - 1) * 0.5, 0) * 40.0
+		STBolt.fire(get_parent(), from, aim, 14.0, k.dmg, faction, Color(1.0, 0.35, 0.25) if kind != "boss" else Color(1.0, 0.55, 0.1), self)
 	Core.play_at("blaster_enemy", from, -6.0)
 
 

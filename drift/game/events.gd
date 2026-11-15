@@ -32,14 +32,47 @@ func ss() -> Node:
 
 
 func roll_choices() -> void:
-	var pool: Array = data.events.keys()
+	var sector: int = Core.loop.sector if Core.loop else 1
+	var pool := []
+	for id in data.events:
+		var e: Dictionary = data.events[id]
+		if id == "ambush" or sector < int(e.get("min_sector", 1)):
+			continue
+		if id == "distress" and _free_roles().is_empty():
+			continue
+		pool.append(id)
 	pool.shuffle()
-	# станция встречается не всегда, пираты чаще с ростом сектора
 	var n := 3
 	var s = Core.get_meta("shipst", null)
 	if s and s.lvl("scanner") > 0:
 		n = 4
 	choices = pool.slice(0, n)
+	# станция может оказаться засадой (без сканера не отличить)
+	for i in choices.size():
+		if choices[i] == "station" and randf() < 0.3 + 0.03 * sector:
+			choices[i] = "ambush"
+
+
+## кого ещё нет в экипаже
+func _free_roles() -> Array:
+	var have := []
+	var s = Core.get_meta("shipst", null)
+	if s:
+		for c in s.crew:
+			if is_instance_valid(c):
+				have.append(c.role)
+	var out := []
+	for r in STCrew.ROLES:
+		if not r in have:
+			out.append(r)
+	return out
+
+
+var survivor: STCrew = null
+var ambushed := false
+var won := false
+var wave_plan: Array = []        ## волны: [[вид, вид, …], …]
+var hire_role := ""
 
 
 func ev_name(id: String) -> String:
@@ -174,11 +207,31 @@ func start(id: String) -> void:
 		_shake(4.0, 0.4)
 		Core.play_at("dock_clamp", SP.cell_to_px(Core.ship.dock_cell()), 0.0)
 		_populate(st)
+	survivor = null
+	ambushed = false
+	won = false
+	var extra: int = (Core.loop.sector - 1) / 3
 	match id:
 		"pirates":
-			waves_left = 3
+			wave_plan = [_n("pirate", 2 + extra), _n("pirate", 3 + extra), _n("pirate", 4 + extra) + ["robot"]]
+			waves_left = wave_plan.size()
 			wave_n = 0
 			wave_t = 4.0
+		"boss":
+			wave_plan = [_n("pirate", 3 + extra), ["boss"] + _n("pirate", 2 + extra)]
+			waves_left = wave_plan.size()
+			wave_n = 0
+			wave_t = 4.0
+		"distress":
+			var roles := _free_roles()
+			var st: Dictionary = data.structures.pod
+			if not roles.is_empty():
+				var sv: Array = st.survivor
+				survivor = Core.get_meta("spawn_crew").call(roles[randi() % roles.size()], _rel(sv[0], sv[1]), false)
+				nodes.append(survivor)
+		"station":
+			var fr := _free_roles()
+			hire_role = fr[randi() % fr.size()] if not fr.is_empty() else ""
 		"asteroid":
 			limit = 180.0
 		"storm":
@@ -281,21 +334,35 @@ func _alive_enemies(only_ship := false) -> int:
 	return n
 
 
+func _n(kind: String, n: int) -> Array:
+	var a := []
+	for i in n:
+		a.append(kind)
+	return a
+
+
 func _wave() -> void:
 	waves_left -= 1
+	var plan: Array = wave_plan[wave_n]
 	wave_n += 1
 	wave_t = 28.0
-	var spots: Array = data.structures.pirate.spawns
-	var n := 1 + wave_n
+	var st: Dictionary = data.structures[data.events[cur].dock]
+	var spots: Array = st.spawns
 	var goal: Vector2 = Core.ship.room_center("reactor")
-	for i in n:
+	var names := {"pirate": 0, "robot": 0, "boss": 0}
+	for i in plan.size():
 		var p: Array = spots[i % spots.size()]
-		var e := spawn("pirate", _rel(p[0], p[1]) + Vector2(randf_range(-10, 10), 0))
+		var e := spawn(plan[i], _rel(p[0], p[1]) + Vector2(randf_range(-10, 10), 0))
 		e.goal = goal
-	if wave_n == 3:
-		var r := spawn("robot", _rel(0, 6))
-		r.goal = goal
-	Core.say("Волна %d из 3: %d %s." % [wave_n, n + int(wave_n == 3), "пиратов" if wave_n < 3 else "пиратов и робот"], "bad")
+		names[plan[i]] = int(names.get(plan[i], 0)) + 1
+	var parts := []
+	if names.boss > 0:
+		parts.append("ГЛАВАРЬ")
+	if names.pirate > 0:
+		parts.append("пиратов: %d" % names.pirate)
+	if names.robot > 0:
+		parts.append("робот")
+	Core.say("Волна %d из %d: %s." % [wave_n, wave_plan.size(), ", ".join(parts)], "bad")
 	Core.play_at("alarm", SP.cell_to_px(Core.ship.dock_cell()), -10.0)
 
 
@@ -337,16 +404,29 @@ func _process(delta: float) -> void:
 		return
 	t += delta
 	match cur:
-		"pirates":
+		"pirates", "boss":
 			wave_t -= delta
 			if waves_left > 0 and (wave_t <= 0.0 or (_alive_enemies() == 0 and t > 2.0)):
 				_wave()
 			elif waves_left == 0 and _alive_enemies() == 0:
 				var s := ss()
-				for k in data.loot.pirates_won:
-					s.add(k, int(data.loot.pirates_won[k]))
-				Core.say("Пираты отбиты! Их трюм — наш.", "good")
+				var loot: Dictionary = data.loot.pirates_won if cur == "pirates" else data.loot.boss_won
+				for k in loot:
+					s.add(k, int(loot[k]))
+				Core.say("Пираты отбиты! Их трюм — наш." if cur == "pirates" else "Главарь повержен! Флагман без командира — трофеи наши.", "good")
 				finish()
+		"ambush":
+			if not ambushed and (t > 25.0 or (Core.ship.outside(Core.player.global_position) and Core.ship.room_at(Core.player.global_position) == "x_plaza" and t > 4.0)):
+				_ambush()
+			elif ambushed and not won and _alive_enemies() == 0:
+				won = true
+				var s := ss()
+				for k in data.loot.ambush_won:
+					s.add(k, int(data.loot.ambush_won[k]))
+				Core.say("Засада отбита! На складе станции — припасы. Можно уходить с пульта.", "good")
+		"distress":
+			if survivor and is_instance_valid(survivor) and not survivor.rescued and survivor.order == "follow" and not Core.ship.outside(survivor.global_position):
+				_rescued(survivor)
 		"asteroid":
 			var left := limit - t
 			_spawn_t -= delta
@@ -371,8 +451,10 @@ func _process(delta: float) -> void:
 
 ## можно ли отстыковаться сейчас (пусто — можно)
 func leave_block() -> String:
-	if cur == "pirates":
+	if cur == "pirates" or cur == "boss":
 		return "Пираты на борту — отстыковаться не дадут. Отбейте все волны."
+	if cur == "ambush" and ambushed and not won:
+		return "Захваты станции держат корабль — сначала отбейте засаду."
 	if Core.ship.outside(Core.player.global_position):
 		return "Сначала вернитесь на свой корабль."
 	if _alive_enemies(true) > 0:
@@ -382,7 +464,10 @@ func leave_block() -> String:
 
 func status_line() -> String:
 	match cur:
-		"pirates": return "АБОРДАЖ · волна %d/3" % wave_n
+		"pirates": return "АБОРДАЖ · волна %d/%d" % [wave_n, wave_plan.size()]
+		"boss": return "ФЛАГМАН · волна %d/%d" % [wave_n, wave_plan.size()]
+		"ambush": return "ЗАСАДА!" if ambushed else "СТАНЦИЯ · торговля"
+		"distress": return "СИГНАЛ БЕДСТВИЯ · " + ("выживший с вами" if survivor and survivor.order == "follow" else "найдите выжившего")
 		"asteroid": return "АСТЕРОИД · добыча"
 		"derelict": return "ОБЛОМКИ · обыск"
 		"station": return "СТАНЦИЯ · торговля"
@@ -394,7 +479,7 @@ func timer_text() -> String:
 	if cur == "asteroid":
 		var left := maxf(0.0, limit - t)
 		return "%02d:%02d" % [int(left) / 60, int(left) % 60]
-	if cur == "pirates" and waves_left > 0:
+	if (cur == "pirates" or cur == "boss") and waves_left > 0:
 		return "волна через %d" % ceili(maxf(0.0, wave_t))
 	return "—:—"
 
@@ -415,8 +500,21 @@ func finish() -> void:
 			if is_instance_valid(d) and Core.ship.outside(d.global_position):
 				d.global_position = h.global_position
 				d.reset_physics_interpolation()
+	if survivor and is_instance_valid(survivor) and not survivor.rescued:
+		if survivor.order == "follow" and survivor.alive():
+			_rescued(survivor)
+		else:
+			Core.say("%s остаётся в капсуле…" % survivor.person(), "warn")
+	for c in ss().crew:
+		if is_instance_valid(c):
+			if not c.alive():
+				c.revive_at(Core.ship.room_center("medbay") + Vector2(30, 30), c.max_hp * 0.5)
+				Core.say("%s приходит в себя в медотсеке." % c.person(), "info")
+			elif Core.ship.outside(c.global_position):
+				c.global_position = h.global_position
+				c.reset_physics_interpolation()
 	for n in nodes:
-		if is_instance_valid(n):
+		if is_instance_valid(n) and not (n is STCrew and n.rescued):
 			n.queue_free()
 	nodes.clear()
 	for e in get_tree().get_nodes_in_group("enemy"):
@@ -457,8 +555,23 @@ func _trade_text(tr: Dictionary) -> String:
 
 
 func show_trade() -> void:
+	if cur == "ambush":
+		if not ambushed:
+			_ambush()
+		return
 	var s := ss()
 	var rows := []
+	if hire_role != "":
+		var hc: Dictionary = data.hire
+		var rd: Dictionary = STCrew.ROLES[hire_role]
+		rows.append(["Нанять: %s, %s — %s\n   плата: %s" % [rd.name, String(rd.n).to_lower(), rd.d, s.needs_text(hc)], "Нанять", func():
+			if not s.has_all(hc) or hire_role == "":
+				return
+			s.take(hc)
+			Core.get_meta("spawn_crew").call(hire_role, Core.player.global_position + Vector2(40, 0), true)
+			Core.say("%s нанят(а) — ждёт на борту." % rd.name, "good")
+			hire_role = ""
+			show_trade(), s.has_all(hc)])
 	for tr in data.trades:
 		var ok: bool = s.has_all(tr.pay) and (not tr.has("hull") or s.hull < s.hull_max())
 		rows.append([_trade_text(tr), "Обмен", func():
@@ -473,3 +586,28 @@ func show_trade() -> void:
 			show_trade(), ok])
 	Core.hud.rows("Торговец станции", "Есть: металл %d, электроника %d, ячейки %d, топливо %d · корпус %d%%" % [
 		s.res.metal, s.res.electronics, s.res.cells, s.res.fuel, roundi(s.hull)], rows)
+
+
+## засада: пираты выходят из боковых отсеков станции
+func _ambush() -> void:
+	ambushed = true
+	var st: Dictionary = data.structures.station_ambush
+	var extra: int = (Core.loop.sector - 1) / 3
+	var spots: Array = st.ambush
+	for i in mini(spots.size(), 3 + extra):
+		var p: Array = spots[i]
+		spawn("pirate", _rel(p[0], p[1]))
+	Core.say("Засада! Торговца нет — из боковых отсеков выходят пираты.", "bad")
+	Core.play_ui("alarm", -10.0)
+	STFx.shake(4.0, 0.3)
+
+
+## выживший на борту — в экипаж
+func _rescued(c: STCrew) -> void:
+	c.rescued = true
+	c.order = "post"
+	c._update_it()
+	ss().crew.append(c)
+	nodes.erase(c)
+	Core.say("%s, %s, теперь в экипаже: %s." % [c.person(), String(STCrew.ROLES[c.role].n).to_lower(), STCrew.ROLES[c.role].d], "good")
+	Core.play_ui("crate_open", -4.0)

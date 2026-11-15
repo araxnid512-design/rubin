@@ -76,6 +76,17 @@ func drone_orders() -> void:
 	if ss == null:
 		return
 	var rows := []
+	for c in ss.crew:
+		if not is_instance_valid(c):
+			continue
+		if not c.alive():
+			rows.append(["%s — %s, ждёт помощи" % [c.person(), c.gend("ранен", "ранена")], "", func(): pass, false])
+			continue
+		rows.append(["%s · здоровье %d\n   %s" % [c.label(), roundi(c.hp), STCrew.ROLES[c.role].d], "На пост", func():
+			c.order = "post"
+			drone_orders(), c.order != "post", "Ко мне", func():
+			c.order = "follow"
+			drone_orders(), c.order != "follow"])
 	for d in ss.drones:
 		if not is_instance_valid(d) or not d.alive():
 			continue
@@ -89,12 +100,12 @@ func drone_orders() -> void:
 			d.order = "follow"
 			drone_orders(), d.order != "follow"])
 	if rows.is_empty():
-		Core.hud.show_text("Дроны", "Дронов нет. Соберите их на верстаке в мастерской: боевой дрон — защита, ремонтник — чинит пробоины и добывает руду.")
+		Core.hud.show_text("Экипаж", "Пока вы один. Дронов собирают на верстаке в мастерской; людей можно спасти по сигналу бедствия или нанять на станции.")
 		return
 	var head := "«Приказ» — следующий приказ: за мной → охранять здесь (боевой); ремонтник ещё чинит и добывает руду."
 	if not ss.powered("drones"):
 		head += "\nЗарядка дронов без энергии: летают медленно, боевые не стреляют."
-	Core.hud.rows2("Дроны", head, rows)
+	Core.hud.rows2("Экипаж и дроны", head, rows)
 
 
 func get_state() -> Dictionary:

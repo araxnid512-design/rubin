@@ -15,6 +15,7 @@ var upgrades := {}            ## улучшение → уровень
 var shield := 0.0             ## текущий запас щита
 var base_reactor := 8
 var drones: Array = []        ## узлы дронов
+var crew: Array = []          ## члены экипажа (STCrew)
 var turrets: Array = []       ## узлы турелей
 
 
@@ -171,6 +172,9 @@ func show_panel() -> void:
 			show_panel(), not sd.get("fixed", false) and p > int(sd.min), "+", func():
 			set_power(s, 1)
 			show_panel(), not sd.get("fixed", false) and p < sys_max(s) and free_power() > 0])
+	for c in crew:
+		if is_instance_valid(c):
+			rows.append(["%s · здоровье %d" % [c.label(), roundi(c.hp)], "", func(): pass, false])
 	var mk: int = Core.player.count_item("medkit") if Core.player else 0
 	rows.append(["Аптечки: %d (+40 здоровья)" % mk, "Лечить", func():
 		if Core.player.count_item("medkit") > 0 and Core.player.hp < Core.player.max_hp:
@@ -234,7 +238,11 @@ func get_state() -> Dictionary:
 	for t in turrets:
 		if is_instance_valid(t):
 			ts.append({"kind": t.kind, "pos": [t.position.x, t.position.y]})
-	return {"res": res, "hull": hull, "oxygen": oxygen, "reactor": reactor, "power": power, "drones": ds, "turrets": ts, "upgrades": upgrades}
+	var cs := []
+	for c in crew:
+		if is_instance_valid(c):
+			cs.append({"role": c.role, "hp": c.hp, "order": c.order})
+	return {"res": res, "hull": hull, "oxygen": oxygen, "reactor": reactor, "power": power, "drones": ds, "turrets": ts, "upgrades": upgrades, "crew": cs}
 
 
 func set_state(s: Dictionary) -> void:
@@ -262,6 +270,15 @@ func set_state(s: Dictionary) -> void:
 			n.hp = d.hp
 	for t in s.get("turrets", []):
 		Core.get_meta("place_turret").call(t.kind, Vector2(t.pos[0], t.pos[1]), true)
+	for c in crew:
+		if is_instance_valid(c):
+			c.queue_free()
+	crew.clear()
+	for c in s.get("crew", []):
+		var n: Node = Core.get_meta("spawn_crew").call(String(c.role), Vector2.INF, true)
+		if n:
+			n.hp = maxf(1.0, float(c.hp))
+			n.order = String(c.get("order", "post"))
 	changed.emit()
 
 

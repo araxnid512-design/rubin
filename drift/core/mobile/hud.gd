@@ -111,7 +111,7 @@ func _build() -> void:
 	_btn("action", "", Vector2(176, 176), 26)
 	_btn("attack", "Огонь", Vector2(124, 124), 22)
 	_btn("dodge", "Уклон", Vector2(100, 100), 19)
-	_btn("drones", "Дроны", Vector2(96, 96), 17)
+	_btn("drones", "Экипаж", Vector2(96, 96), 16)
 	prompt_lbl = _label("", 17)
 	prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(prompt_lbl)

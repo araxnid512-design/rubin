@@ -44,6 +44,7 @@ func _ready() -> void:
 	Core.set_meta("spawn_drone", spawn_drone)
 	Core.set_meta("place_turret", place_turret)
 	Core.set_meta("spawn_enemy", spawn_enemy)
+	Core.set_meta("spawn_crew", spawn_crew)
 	Core.set_meta("ship_lost", _ship_lost)
 	hero = STHero.new()
 	hero.name = "Hero"
@@ -95,7 +96,7 @@ func _ambient() -> void:
 
 func _exit_tree() -> void:
 	# ссылки на эту сцену в автозагрузке — убрать (перезапуск сцены, выход)
-	for m in ["spawn_drone", "place_turret", "spawn_enemy", "ship_lost", "starfield", "shipst", "events"]:
+	for m in ["spawn_drone", "place_turret", "spawn_enemy", "spawn_crew", "ship_lost", "starfield", "shipst", "events"]:
 		if Core.has_meta(m):
 			Core.remove_meta(m)
 
@@ -219,10 +220,31 @@ func _turret_cell(pos: Vector2) -> Vector2i:
 	return best
 
 
+## член экипажа: at = INF — на свой пост; joined — сразу в экипаже (иначе выживший ждёт спасения)
+func spawn_crew(role: String, at: Vector2, joined := true) -> STCrew:
+	var c := STCrew.new()
+	c.role = role
+	c.rescued = joined
+	c.order = "post" if joined else "wait"
+	c.sprite_dir = _sprites(role)
+	ysort.add_child(c)
+	if at == Vector2.INF:
+		at = ship.room_center(String(STCrew.ROLES[role].post)) + Vector2(-30, 20)
+	c.global_position = at
+	c.reset_physics_interpolation()
+	if joined:
+		shipst.crew.append(c)
+	return c
+
+
 func spawn_enemy(kind: String, at: Vector2) -> STEnemy:
 	var e := STEnemy.new()
 	e.kind = kind
+	e.hp_mult = 1.0 + 0.08 * maxi(0, loop.sector - 1)
 	e.sprite_dir = _sprites(kind)
+	if e.sprite_dir == "" and kind == "boss":
+		e.sprite_dir = _sprites("pirate")
+		e.scale = Vector2(1.2, 1.2)
 	ysort.add_child(e)
 	e.global_position = at
 	e.reset_physics_interpolation()
