@@ -304,13 +304,15 @@ func _mark_hit(at: Vector3, r: float) -> void:
 		(hits.pop_front() as Node).queue_free()
 
 
-## Рюкзаки героя: размер [ширина, высота, толщина] в метрах и число ячеек. Надевается — появляется на спине
-## (идёт за грудью), снимается — исчезает.
+## Рюкзаки героя (модели Tripo, assets/packs): число ячеек, высота в метрах, где у модели спина (ось к телу:
+## "-z" или "-x", и координата спинки), насколько верх выше линии плеч. Надевается — появляется на спине
+## и идёт за грудью, снимается — исчезает.
 const PACKS := {
-	"small": {"n": "Малый рюкзак", "slots": 8, "size": [0.42, 0.44, 0.27], "col": Color(0.2, 0.23, 0.16), "pockets": 1, "roll": false},
-	"medium": {"n": "Средний рюкзак", "slots": 12, "size": [0.45, 0.54, 0.31], "col": Color(0.33, 0.29, 0.2), "pockets": 2, "roll": false},
-	"large": {"n": "Большой рюкзак", "slots": 20, "size": [0.5, 0.7, 0.36], "col": Color(0.16, 0.19, 0.22), "pockets": 3, "roll": true},
+	"small": {"n": "Малый рюкзак", "slots": 8, "model": "res://assets/packs/bp_small.glb", "back": "-z", "back_at": -0.06, "h": 0.46, "top": 0.03, "tint": 0.85},
+	"medium": {"n": "Средний рюкзак", "slots": 12, "model": "res://assets/packs/bp_medium.glb", "back": "-x", "back_at": -0.25, "h": 0.58, "top": 0.06, "tint": 0.62},
+	"large": {"n": "Большой рюкзак", "slots": 20, "model": "res://assets/packs/bp_large.glb", "back": "-x", "back_at": -0.17, "h": 0.8, "top": 0.15, "tint": 0.7},
 }
+const PACK_GAP := 0.085          ## спинка рюкзака позади линии плеч, м
 
 
 func wear_pack(id: String) -> void:
@@ -330,50 +332,29 @@ func wear_pack(id: String) -> void:
 	att.bone_name = "Spine02"
 	sk.add_child(att)
 	pack_node = att
-	var root := Node3D.new()
-	att.add_child(root)
-	var sz := Vector3(pk.size[0], pk.size[1], pk.size[2])
-	# оси рюкзака: X — вправо, Y — вверх, Z — назад от спины; единицы — метры
-	var B := Basis(h.rgt, h.upv, -h.fwd).scaled(Vector3.ONE * h.k)
-	var top := 0.06                                  # верх рюкзака над линией плеч
-	var o: Vector3 = h._sc + (-h.fwd * (0.07 + sz.z * 0.5) + h.upv * (top - sz.y * 0.5)) * h.k
-	root.transform = sk.get_bone_global_rest(bone).affine_inverse() * Transform3D(B, o)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = pk.col
-	mat.roughness = 0.9
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = (pk.col as Color).darkened(0.35)
-	dark.roughness = 0.85
-	var box := func(size: Vector3, pos: Vector3, m: Material) -> void:
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = size
-		mi.mesh = bm
-		mi.material_override = m
-		mi.position = pos
-		root.add_child(mi)
-	box.call(sz, Vector3.ZERO, mat)
-	box.call(Vector3(sz.x * 1.04, sz.y * 0.2, sz.z * 1.04), Vector3(0, sz.y * 0.36, 0), dark)          # клапан
-	for i in int(pk.pockets):
-		# карманы: спереди (сзади от героя), у больших — ещё по бокам
-		if i == 0:
-			box.call(Vector3(sz.x * 0.7, sz.y * 0.36, 0.06), Vector3(0, -sz.y * 0.2, sz.z * 0.5 + 0.03), dark)
-		else:
-			var sx := 1.0 if i == 1 else -1.0
-			box.call(Vector3(0.07, sz.y * 0.4, sz.z * 0.7), Vector3(sx * (sz.x * 0.5 + 0.035), -sz.y * 0.2, 0), dark)
-	if pk.roll:
-		var mi := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.085
-		cm.bottom_radius = 0.085
-		cm.height = sz.x * 1.1
-		mi.mesh = cm
-		mi.material_override = dark
-		mi.rotation.z = PI * 0.5
-		mi.position = Vector3(0, sz.y * 0.5 + 0.07, 0.02)
-		root.add_child(mi)
-	for sx in [-1.0, 1.0]:
-		box.call(Vector3(0.05, 0.36, 0.03), Vector3(sx * 0.11, sz.y * 0.5 - top - 0.14, -sz.z * 0.5 - 0.2), dark)    # лямки на груди
+	var m: Node3D = (load(String(pk.model)) as PackedScene).instantiate()
+	att.add_child(m)
+	# оси модели → оси героя: верх → вверх, спинка → к телу (вперёд героя)
+	var B := Basis(h.rgt, h.upv, -h.fwd) if pk.back == "-z" else Basis(-h.fwd, h.upv, -h.rgt)
+	var sc: float = float(pk.h) / 0.98 * h.k
+	var a := Vector3(0, 0, float(pk.back_at)) if pk.back == "-z" else Vector3(float(pk.back_at), 0, 0)
+	var o: Vector3 = h._sc - h.fwd * (PACK_GAP * h.k) + h.upv * ((float(pk.top) - float(pk.h)) * h.k)
+	var T := Transform3D(B.scaled(Vector3.ONE * sc), o - B * (a * sc))
+	m.transform = sk.get_bone_global_rest(bone).affine_inverse() * T
+	# ткань не блестит: без металла, матовая, цвет чуть приглушён (tint — у каждого свой)
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var mm := mi as MeshInstance3D
+		for si in mm.mesh.get_surface_count():
+			var src := mm.mesh.surface_get_material(si) as StandardMaterial3D
+			if src == null:
+				continue
+			var mt := src.duplicate() as StandardMaterial3D
+			mt.metallic = 0.0
+			mt.metallic_texture = null
+			mt.roughness = 0.95
+			mt.roughness_texture = null
+			mt.albedo_color = Color(pk.get("tint", 0.8), pk.get("tint", 0.8), pk.get("tint", 0.8) * 0.92)
+			mm.set_surface_override_material(si, mt)
 
 
 ## стойка тела под оружие: с пистолетом и автоматом — стойка стрелка, с холодным — боевая

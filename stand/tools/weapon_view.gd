@@ -4,9 +4,15 @@ extends Node3D
 
 func _ready() -> void:
 	var out := "/tmp/wv"
+	var dir := "res://assets/weapons"
+	var list := ["w_tt", "w_ak74m", "w_machete_fix", "w_spas12", "w_fnfal", "w_vss", "w_mp5", "w_pkp"]
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			out = a.substr(6)
+		if a.begins_with("--dir="):
+			dir = a.substr(6)
+		if a.begins_with("--list="):
+			list = Array(a.substr(7).split(","))
 	DirAccess.make_dir_recursive_absolute(out)
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
@@ -26,8 +32,8 @@ func _ready() -> void:
 	cam.current = true
 	get_window().size = Vector2i(900, 600)
 	await get_tree().create_timer(0.3).timeout
-	for w in ["w_tt", "w_ak74m", "w_machete_fix", "w_spas12", "w_fnfal", "w_vss", "w_mp5", "w_pkp"]:
-		var n: Node3D = (load("res://assets/weapons/%s.glb" % w) as PackedScene).instantiate()
+	for w in list:
+		var n: Node3D = (load("%s/%s.glb" % [dir, w]) as PackedScene).instantiate()
 		add_child(n)
 		var bb := AABB()
 		var first := true

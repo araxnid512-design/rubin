@@ -140,11 +140,13 @@ func equip(id: String, in_hands := true) -> void:
 	if node:
 		node.queue_free()
 		node = null
-	for pr in [_prop, _prop_old]:
+	for pr in [_prop, _prop_old, _drop_node]:
 		if pr:
 			pr.queue_free()
 	_prop = null
 	_prop_old = null
+	_drop_node = null
+	parts = null
 	_pump_t = 99.0
 	wid = id
 	err_r = 0.0
@@ -168,7 +170,9 @@ func equip(id: String, in_hands := true) -> void:
 	node.add_child(m)
 	get_skeleton().add_child(node)
 	_wscale = float(w.len_m) / float(w.model_len) * k
-	_make_props()
+	parts = BCWeaponParts.build(node, m, w.get("parts", {}))
+	if not parts.has("mag"):
+		_make_props()
 	_move = ""
 	if not w.stances.has(stance):
 		stance = w.stances.keys()[0]
@@ -450,7 +454,8 @@ func _process_modification_with_delta(delta: float) -> void:
 	if not st.get("one", false) and w_l > 0.0:
 		var gl := _goal("L", W, plan.L)
 		if rl >= 0.0:
-			gl = _dyn_goal("L", SL, W, plan.L, bo, bf, bu, br, _reload_palm(s, W, rl, gl[0]))
+			var rp: Vector3 = _reload_parts(s, W, rl, gl[0], delta) if parts.has("mag") else _reload_palm(s, W, rl, gl[0])
+			gl = _dyn_goal("L", SL, W, plan.L, bo, bf, bu, br, rp)
 		else:
 			reload_step = ""
 			_carry = false
@@ -494,7 +499,9 @@ func _process_modification_with_delta(delta: float) -> void:
 	if drawn < grab * 0.8:
 		finger = "open"
 	_fingers(s, "R", finger, delta, smoothstep(0.0, grab * 0.6, drawn))
-	if two_hands:
+	if parts.has("mag"):
+		_parts_idle(rl, rk, delta)
+	elif two_hands:
 		_props_update(W, rl, tl[2], ((tl[1] as Basis) * ((_hf.L.local_inv as Basis).inverse().z)).normalized(), delta)
 	elif _prop:
 		_prop.visible = false
@@ -582,6 +589,11 @@ var _carry := false
 var _drop_p := Transform3D.IDENTITY
 var _pump_t := 99.0
 var reload_step := ""             ## что сейчас делает левая рука при перезарядке (для подписи и проверки)
+var parts: BCWeaponParts = null   ## подвижные части модели: магазин, затвор, крышка
+var _drop_node: Node3D = null     ## выброшенный магазин (лежит на земле до следующей перезарядки)
+var _drop_v := 0.0
+var _dropped := false
+var mag_state := ""               ## магазин: seat — в оружии, out — вынут, hand — в руке, none — нет (для проверки)
 var _vel := Vector3.ZERO          ## скорость оружия (пружина стойки)
 var _ang := Vector3.ZERO
 var finger := ""                  ## поза пальцев правой кисти сейчас (index — палец вне спуска, trigger — на спуске)
@@ -1178,6 +1190,153 @@ func _props_update(W: Transform3D, rl: float, palm: Vector3, P: Vector3, delta: 
 		_prop_old.transform = Transform3D(_drop_p.basis * Basis(Vector3.RIGHT, _drop_t * 5.0), _drop_p.origin - upv * (fall * k) - fwd * (0.25 * _drop_t * k))
 		if fall >= 1.3:
 			_drop_t = 0.9
+
+
+## Перезарядка с настоящими частями модели. Ключи: [доля времени, где ладонь, магазин, затвор 0..1, крышка 0..1,
+## шаг]. Ладонь: base — на цевье, mag — на магазине, drop — магазин отброшен, belt — подсумок, slap — дослать
+## ладонью снизу, bolt — на рукоятке затвора (идёт вместе с ним), boltb — рука осталась сзади (затвор сорвался
+## вперёд сам), cover — на крышке. Магазин: seat — в оружии, out — вынут, hand — в руке, none — нет.
+func _reload_keys() -> Array:
+	var kind := String(w.get("reload", {}).get("kind", "mag"))
+	if kind == "box":
+		# пулемёт: крышка → короб → новый короб → лента → крышка → затвор
+		return [[0.0, "base", "seat", 0, 0, ""], [0.07, "cover", "seat", 0, 0, "крышка"], [0.15, "cover", "seat", 0, 1, "крышка открыта"],
+			[0.22, "mag", "seat", 0, 1, "к коробу"], [0.3, "mag", "out", 0, 1, "короб снят"], [0.32, "drop", "none", 0, 1, "короб сброшен"],
+			[0.46, "belt", "none", 0, 1, "к подсумку"], [0.52, "belt", "hand", 0, 1, "новый короб"], [0.64, "mag", "out", 0, 1, "новый короб"],
+			[0.72, "mag", "seat", 0, 1, "короб пристёгнут"], [0.77, "cover", "seat", 0, 1, "лента уложена"], [0.84, "cover", "seat", 0, 0, "крышка закрыта"],
+			[0.88, "bolt", "seat", 0, 0, "затвор"], [0.94, "bolt", "seat", 1, 0, "затвор"], [0.96, "boltb", "seat", 0, 0, "затвор"], [1.0, "base", "seat", 0, 0, ""]]
+	if w.mode == "pistol":
+		# пистолет: кнопка — магазин выпадает сам, левая рука сразу к подсумку; новый магазин, дослать, затвор
+		return [[0.0, "base", "seat", 0, 0, ""], [0.06, "base", "seat", 0, 0, "кнопка защёлки"], [0.13, "base", "out", 0, 0, "магазин выпал"],
+			[0.15, "drop", "none", 0, 0, "магазин выпал"], [0.34, "belt", "none", 0, 0, "к подсумку"], [0.4, "belt", "hand", 0, 0, "новый магазин"],
+			[0.56, "mag", "out", 0, 0, "новый магазин"], [0.64, "mag", "seat", 0, 0, "магазин вставлен"], [0.68, "slap", "seat", 0, 0, "дослал"],
+			[0.75, "bolt", "seat", 0, 0, "затвор"], [0.83, "bolt", "seat", 1, 0, "затвор"], [0.86, "boltb", "seat", 0, 0, "затвор"], [1.0, "base", "seat", 0, 0, ""]]
+	# автомат, винтовка, пистолет-пулемёт: рука вынимает магазин, отбрасывает, новый с пояса, вставить, затвор
+	return [[0.0, "base", "seat", 0, 0, ""], [0.12, "mag", "seat", 0, 0, "к магазину"], [0.22, "mag", "out", 0, 0, "магазин вынут"],
+		[0.25, "drop", "none", 0, 0, "магазин сброшен"], [0.4, "belt", "none", 0, 0, "к подсумку"], [0.46, "belt", "hand", 0, 0, "новый магазин"],
+		[0.6, "mag", "out", 0, 0, "новый магазин"], [0.7, "mag", "seat", 0, 0, "магазин вставлен"], [0.74, "slap", "seat", 0, 0, "дослал"],
+		[0.8, "bolt", "seat", 0, 0, "затвор"], [0.87, "bolt", "seat", 1, 0, "затвор"], [0.9, "boltb", "seat", 0, 0, "затвор"], [1.0, "base", "seat", 0, 0, ""]]
+
+
+func _m2m() -> float:
+	return float(w.model_len) / float(w.len_m)
+
+
+## точка модели → система скелета
+func _mw(W: Transform3D, p: Vector3) -> Vector3:
+	return W.origin + W.basis * (p * _wscale)
+
+
+func _mag_pose(st: String) -> Transform3D:
+	return parts.mag_out() if st == "out" else Transform3D.IDENTITY
+
+
+func _key_palm(s: Skeleton3D, W: Transform3D, key: Array, base_palm: Vector3) -> Vector3:
+	var wu := W.basis.y
+	match String(key[1]):
+		"mag":
+			return _mw(W, parts.mag_grip(_mag_pose(String(key[2]))))
+		"drop":
+			return _mw(W, parts.mag_grip(parts.mag_out())) - wu * (0.08 * k) - W.basis.x * (0.06 * k)
+		"belt":
+			var hip := s.get_bone_global_pose(s.find_bone("Hip")).origin
+			return hip + (fwd * 0.16 - rgt * 0.17 + upv * 0.06) * k
+		"slap":
+			var d := Vector3(0, -1, 0)
+			return _mw(W, (parts.center.mag as Vector3) + d * (absf((parts.size.mag as Vector3).y) * 0.55))
+		"bolt", "boltb":
+			var u := 1.0 if String(key[1]) == "boltb" else float(key[3])
+			return _mw(W, parts.bolt_t("bolt", u, _m2m()) * (parts.center.get("bolt", parts.center.mag) as Vector3))
+		"cover":
+			if parts.has("cover"):
+				var cs: Vector3 = parts.size.cover
+				var rear: Vector3 = (parts.center.cover as Vector3) + Vector3(0, cs.y * 0.5, cs.z * 0.45)
+				return _mw(W, parts.cover_t(float(key[4])) * rear)
+	return base_palm
+
+
+func _reload_parts(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3, delta: float) -> Vector3:
+	var keys := _reload_keys()
+	var i := 0
+	while i < keys.size() - 2 and rl > float(keys[i + 1][0]):
+		i += 1
+	var k0: Array = keys[i]
+	var k1: Array = keys[i + 1]
+	var u := clampf((rl - float(k0[0])) / maxf(float(k1[0]) - float(k0[0]), 0.001), 0.0, 1.0)
+	var us := u * u * (3.0 - 2.0 * u)
+	reload_step = String(k1[5])
+	var palm := _key_palm(s, W, k0, base_palm).lerp(_key_palm(s, W, k1, base_palm), us)
+	# затвор и крышка
+	parts.place("bolt", parts.bolt_t("bolt", lerpf(float(k0[3]), float(k1[3]), u if float(k1[3]) < float(k0[3]) else us), _m2m()))
+	parts.place("cover", parts.cover_t(lerpf(float(k0[4]), float(k1[4]), us)))
+	# магазин
+	var m0 := String(k0[2])
+	var m1 := String(k1[2])
+	if m1 == "none" and m0 != "none":
+		if not _dropped:
+			_drop_mag(W, _mag_pose(m0) if m0 != "hand" else _mag_pose("out"))
+		parts.show("mag", false)
+		mag_state = "none"
+	elif m0 == "none" and m1 == "none":
+		parts.show("mag", false)
+		mag_state = "none"
+	elif m0 == "hand" or m1 == "hand":
+		# магазин в руке: горловина вперёд-вверх, как в вынутом положении, хват — в ладони
+		var show_it := not (m0 == "none" and us < 0.5)
+		parts.show("mag", show_it)
+		var out := parts.mag_out()
+		var pal_m := (W.affine_inverse() * palm) / _wscale
+		var g0 := parts.mag_grip(Transform3D.IDENTITY)
+		parts.place("mag", Transform3D(out.basis, pal_m - out.basis * g0))
+		mag_state = "hand" if show_it else "none"
+	else:
+		parts.show("mag", true)
+		var a := _mag_pose(m0)
+		var b := _mag_pose(m1)
+		parts.place("mag", a.interpolate_with(b, us))
+		mag_state = m1 if us > 0.5 else m0
+	_drop_fall(delta)
+	return palm
+
+
+## выброшенный магазин: копия части падает под своим весом, кувыркается и остаётся лежать
+func _drop_mag(W: Transform3D, t: Transform3D) -> void:
+	_dropped = true
+	if _drop_node:
+		_drop_node.queue_free()
+	_drop_node = parts.copy("mag", get_skeleton())
+	if _drop_node:
+		_drop_node.transform = Transform3D(W.basis.scaled(Vector3.ONE * _wscale), W.origin) * t
+	_drop_v = 0.0
+
+
+func _drop_fall(delta: float) -> void:
+	if _drop_node == null or delta <= 0.0:
+		return
+	var h := _drop_node.transform.origin.dot(upv) / k
+	if h <= 0.03:
+		return
+	_drop_v += 9.8 * delta
+	var T := _drop_node.transform
+	T.origin -= upv * (minf(_drop_v * delta, h - 0.025) * k)
+	T.origin -= fwd * (0.3 * delta * k)
+	T.basis = Basis(rgt, 4.0 * delta) * T.basis
+	_drop_node.transform = T
+
+
+## части вне перезарядки: магазин на месте, затвор ходит при выстреле, цевьё дробовика — при передёргивании
+func _parts_idle(rl: float, rk: float, delta: float) -> void:
+	if rl >= 0.0:
+		return
+	_dropped = false
+	mag_state = "seat"
+	parts.show("mag", true)
+	parts.place("mag", Transform3D.IDENTITY)
+	parts.place("cover", Transform3D.IDENTITY)
+	parts.place("bolt", parts.bolt_t("bolt", clampf(rk, 0.0, 1.0), _m2m()))
+	if parts.has("pump"):
+		parts.place("pump", parts.bolt_t("pump", _pump(), _m2m()))
+	_drop_fall(delta)
 
 
 ## «как было» и холодное оружие: оружие — в кисти из клипа
