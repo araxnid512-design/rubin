@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cd8lcgpj4o6o"
-path="res://.godot/imported/run.png-6c0d850e0dd4cf84686014aa972d19c8.ctex"
+path.s3tc="res://.godot/imported/run.png-6c0d850e0dd4cf84686014aa972d19c8.s3tc.ctex"
+path.etc2="res://.godot/imported/run.png-6c0d850e0dd4cf84686014aa972d19c8.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/hero/run.png"
-dest_files=["res://.godot/imported/run.png-6c0d850e0dd4cf84686014aa972d19c8.ctex"]
+dest_files=["res://.godot/imported/run.png-6c0d850e0dd4cf84686014aa972d19c8.s3tc.ctex", "res://.godot/imported/run.png-6c0d850e0dd4cf84686014aa972d19c8.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://41fgimnpcf5x"
-path="res://.godot/imported/shoot.png-c11c129d9ceeaa880629a2b731c5f7e5.ctex"
+path.s3tc="res://.godot/imported/shoot.png-c11c129d9ceeaa880629a2b731c5f7e5.s3tc.ctex"
+path.etc2="res://.godot/imported/shoot.png-c11c129d9ceeaa880629a2b731c5f7e5.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/pirate/shoot.png"
-dest_files=["res://.godot/imported/shoot.png-c11c129d9ceeaa880629a2b731c5f7e5.ctex"]
+dest_files=["res://.godot/imported/shoot.png-c11c129d9ceeaa880629a2b731c5f7e5.s3tc.ctex", "res://.godot/imported/shoot.png-c11c129d9ceeaa880629a2b731c5f7e5.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

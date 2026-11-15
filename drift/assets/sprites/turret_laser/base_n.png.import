@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dfvmiieqfmld1"
-path="res://.godot/imported/base_n.png-61b88f849127f4932530eb7e81f38ab4.ctex"
+path.s3tc="res://.godot/imported/base_n.png-61b88f849127f4932530eb7e81f38ab4.s3tc.ctex"
+path.etc2="res://.godot/imported/base_n.png-61b88f849127f4932530eb7e81f38ab4.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/turret_laser/base_n.png"
-dest_files=["res://.godot/imported/base_n.png-61b88f849127f4932530eb7e81f38ab4.ctex"]
+dest_files=["res://.godot/imported/base_n.png-61b88f849127f4932530eb7e81f38ab4.s3tc.ctex", "res://.godot/imported/base_n.png-61b88f849127f4932530eb7e81f38ab4.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

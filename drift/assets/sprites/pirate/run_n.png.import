@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c8jcuk0o1sygm"
-path="res://.godot/imported/run_n.png-8a99b58ed4888aa89f73465d62d5809e.ctex"
+path.s3tc="res://.godot/imported/run_n.png-8a99b58ed4888aa89f73465d62d5809e.s3tc.ctex"
+path.etc2="res://.godot/imported/run_n.png-8a99b58ed4888aa89f73465d62d5809e.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/pirate/run_n.png"
-dest_files=["res://.godot/imported/run_n.png-8a99b58ed4888aa89f73465d62d5809e.ctex"]
+dest_files=["res://.godot/imported/run_n.png-8a99b58ed4888aa89f73465d62d5809e.s3tc.ctex", "res://.godot/imported/run_n.png-8a99b58ed4888aa89f73465d62d5809e.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

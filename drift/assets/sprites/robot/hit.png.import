@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://hs4kkoemnpm0"
-path="res://.godot/imported/hit.png-12fee4c07a997a697e4b1dd35fe69065.ctex"
+path.s3tc="res://.godot/imported/hit.png-12fee4c07a997a697e4b1dd35fe69065.s3tc.ctex"
+path.etc2="res://.godot/imported/hit.png-12fee4c07a997a697e4b1dd35fe69065.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/robot/hit.png"
-dest_files=["res://.godot/imported/hit.png-12fee4c07a997a697e4b1dd35fe69065.ctex"]
+dest_files=["res://.godot/imported/hit.png-12fee4c07a997a697e4b1dd35fe69065.s3tc.ctex", "res://.godot/imported/hit.png-12fee4c07a997a697e4b1dd35fe69065.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

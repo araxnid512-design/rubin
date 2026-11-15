@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cn0xqfj5n8h45"
-path="res://.godot/imported/idle_n.png-7466f3f0c0afde6d7278a3fca31c8efc.ctex"
+path.s3tc="res://.godot/imported/idle_n.png-7466f3f0c0afde6d7278a3fca31c8efc.s3tc.ctex"
+path.etc2="res://.godot/imported/idle_n.png-7466f3f0c0afde6d7278a3fca31c8efc.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/hero_fallback/idle_n.png"
-dest_files=["res://.godot/imported/idle_n.png-7466f3f0c0afde6d7278a3fca31c8efc.ctex"]
+dest_files=["res://.godot/imported/idle_n.png-7466f3f0c0afde6d7278a3fca31c8efc.s3tc.ctex", "res://.godot/imported/idle_n.png-7466f3f0c0afde6d7278a3fca31c8efc.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

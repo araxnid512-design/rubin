@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c5vjvcwo4jv63"
-path="res://.godot/imported/shoot.png-2ffd3e41f754228bc9d92084cd57fcd9.ctex"
+path.s3tc="res://.godot/imported/shoot.png-2ffd3e41f754228bc9d92084cd57fcd9.s3tc.ctex"
+path.etc2="res://.godot/imported/shoot.png-2ffd3e41f754228bc9d92084cd57fcd9.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/robot/shoot.png"
-dest_files=["res://.godot/imported/shoot.png-2ffd3e41f754228bc9d92084cd57fcd9.ctex"]
+dest_files=["res://.godot/imported/shoot.png-2ffd3e41f754228bc9d92084cd57fcd9.s3tc.ctex", "res://.godot/imported/shoot.png-2ffd3e41f754228bc9d92084cd57fcd9.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

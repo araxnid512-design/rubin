@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cgtbljocw066c"
-path="res://.godot/imported/death.png-2da973b4db1d3cd1b5b7af04607e7f8d.ctex"
+path.s3tc="res://.godot/imported/death.png-2da973b4db1d3cd1b5b7af04607e7f8d.s3tc.ctex"
+path.etc2="res://.godot/imported/death.png-2da973b4db1d3cd1b5b7af04607e7f8d.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/hero/death.png"
-dest_files=["res://.godot/imported/death.png-2da973b4db1d3cd1b5b7af04607e7f8d.ctex"]
+dest_files=["res://.godot/imported/death.png-2da973b4db1d3cd1b5b7af04607e7f8d.s3tc.ctex", "res://.godot/imported/death.png-2da973b4db1d3cd1b5b7af04607e7f8d.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

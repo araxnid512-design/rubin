@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bk7o2p4rn1rwf"
-path="res://.godot/imported/shoot_n.png-23950d6411c84205b7bb1f1e50b991d5.ctex"
+path.s3tc="res://.godot/imported/shoot_n.png-23950d6411c84205b7bb1f1e50b991d5.s3tc.ctex"
+path.etc2="res://.godot/imported/shoot_n.png-23950d6411c84205b7bb1f1e50b991d5.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/hero_fallback/shoot_n.png"
-dest_files=["res://.godot/imported/shoot_n.png-23950d6411c84205b7bb1f1e50b991d5.ctex"]
+dest_files=["res://.godot/imported/shoot_n.png-23950d6411c84205b7bb1f1e50b991d5.s3tc.ctex", "res://.godot/imported/shoot_n.png-23950d6411c84205b7bb1f1e50b991d5.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

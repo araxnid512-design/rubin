@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bps45d8y005vw"
-path="res://.godot/imported/head.png-88f892a4422a2230fdac7b151a7a0dc8.ctex"
+path.s3tc="res://.godot/imported/head.png-88f892a4422a2230fdac7b151a7a0dc8.s3tc.ctex"
+path.etc2="res://.godot/imported/head.png-88f892a4422a2230fdac7b151a7a0dc8.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/turret_gun/head.png"
-dest_files=["res://.godot/imported/head.png-88f892a4422a2230fdac7b151a7a0dc8.ctex"]
+dest_files=["res://.godot/imported/head.png-88f892a4422a2230fdac7b151a7a0dc8.s3tc.ctex", "res://.godot/imported/head.png-88f892a4422a2230fdac7b151a7a0dc8.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

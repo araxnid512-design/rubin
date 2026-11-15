@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c4shmr5c31mxt"
-path="res://.godot/imported/idle_n.png-a2e8f1b5c5d5bca3da612617a6202180.ctex"
+path.s3tc="res://.godot/imported/idle_n.png-a2e8f1b5c5d5bca3da612617a6202180.s3tc.ctex"
+path.etc2="res://.godot/imported/idle_n.png-a2e8f1b5c5d5bca3da612617a6202180.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/drone_combat/idle_n.png"
-dest_files=["res://.godot/imported/idle_n.png-a2e8f1b5c5d5bca3da612617a6202180.ctex"]
+dest_files=["res://.godot/imported/idle_n.png-a2e8f1b5c5d5bca3da612617a6202180.s3tc.ctex", "res://.godot/imported/idle_n.png-a2e8f1b5c5d5bca3da612617a6202180.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

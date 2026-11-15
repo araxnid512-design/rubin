@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://clid4ixlqosvf"
-path="res://.godot/imported/hit.png-25fd8d9d8e513fcff2ac02ccf4d5b424.ctex"
+path.s3tc="res://.godot/imported/hit.png-25fd8d9d8e513fcff2ac02ccf4d5b424.s3tc.ctex"
+path.etc2="res://.godot/imported/hit.png-25fd8d9d8e513fcff2ac02ccf4d5b424.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/pirate/hit.png"
-dest_files=["res://.godot/imported/hit.png-25fd8d9d8e513fcff2ac02ccf4d5b424.ctex"]
+dest_files=["res://.godot/imported/hit.png-25fd8d9d8e513fcff2ac02ccf4d5b424.s3tc.ctex", "res://.godot/imported/hit.png-25fd8d9d8e513fcff2ac02ccf4d5b424.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
