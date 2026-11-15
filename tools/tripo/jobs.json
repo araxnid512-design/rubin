@@ -1,6 +1,25 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "g_ak74t",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_ak74t",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Soviet AK-74 assault rifle, full length 94 cm, side profile: long fixed solid wooden buttstock with rubber butt pad behind the pistol grip, laminated wooden handguard and upper gas tube cover, black steel stamped receiver, curved orange-brown bakelite 30-round magazine, muzzle brake, front sight post. Realistic game weapon model, PBR, single object, no background."
+   ],
+   "timeout": 3000
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
