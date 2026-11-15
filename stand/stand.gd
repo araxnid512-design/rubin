@@ -307,9 +307,9 @@ func _mark_hit(at: Vector3, r: float) -> void:
 ## Рюкзаки героя: размер [ширина, высота, толщина] в метрах и число ячеек. Надевается — появляется на спине
 ## (идёт за грудью), снимается — исчезает.
 const PACKS := {
-	"small": {"n": "Малый рюкзак", "slots": 8, "size": [0.36, 0.44, 0.25], "col": Color(0.2, 0.23, 0.16), "pockets": 1, "roll": false},
-	"medium": {"n": "Средний рюкзак", "slots": 12, "size": [0.4, 0.54, 0.29], "col": Color(0.33, 0.29, 0.2), "pockets": 2, "roll": false},
-	"large": {"n": "Большой рюкзак", "slots": 20, "size": [0.46, 0.7, 0.34], "col": Color(0.16, 0.19, 0.22), "pockets": 3, "roll": true},
+	"small": {"n": "Малый рюкзак", "slots": 8, "size": [0.42, 0.44, 0.27], "col": Color(0.2, 0.23, 0.16), "pockets": 1, "roll": false},
+	"medium": {"n": "Средний рюкзак", "slots": 12, "size": [0.45, 0.54, 0.31], "col": Color(0.33, 0.29, 0.2), "pockets": 2, "roll": false},
+	"large": {"n": "Большой рюкзак", "slots": 20, "size": [0.5, 0.7, 0.36], "col": Color(0.16, 0.19, 0.22), "pockets": 3, "roll": true},
 }
 
 
