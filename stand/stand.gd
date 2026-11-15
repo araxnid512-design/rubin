@@ -547,6 +547,7 @@ func _run_test() -> void:
 		var er := 0.0
 		var el := 0.0
 		var dev := 0.0
+		var rng := {}                 # размах углов суставов за всё движение: "R0" → [мин, макс]
 		# два момента × три вида (спереди-сбоку, слева, руки крупно)
 		var times := [0.9, 0.5] if not en.has("proc") else ([0.58, 0.25] if en.proc != "reload" else [1.3, 0.75])
 		if en.has("proc") and String(en.proc).begins_with("swing:"):
@@ -558,6 +559,14 @@ func _run_test() -> void:
 			while t < float(times[m]):
 				await get_tree().process_frame
 				t += get_process_delta_time()
+				if (m > 0 or t > 0.45) and rig.hold.wid != "" and rig.hold.ik_on:
+					for sd in (["R", "L"] if rig.hold.two_hands else ["R"]):
+						for ji in 3:
+							var v: float = rig.hold.joints[sd][ji]
+							var key := "%s%d" % [sd, ji]
+							if not rng.has(key):
+								rng[key] = [v, v]
+							rng[key] = [minf(rng[key][0], v), maxf(rng[key][1], v)]
 				if m > 0 or t > 0.45:                     # переход из прошлой стойки не считаем
 					er = maxf(er, rig.hold.err_r)
 					el = maxf(el, rig.hold.err_l)
@@ -576,6 +585,21 @@ func _run_test() -> void:
 				await _snap("%s/%s_%d%s.png" % [out, en.id, m, v[0]])
 			Engine.time_scale = was
 		var line := "%s (%s · %s): ладонь—рукоять правая %.1f см, левая %.1f см, ствол от «вперёд» %.1f°" % [en.id, en.g, en.n, er * 100.0, el * 100.0, dev]
+		if not rng.is_empty():
+			var lim := [BCWeaponHold.LIM_FLEX, BCWeaponHold.LIM_DEV, BCWeaponHold.LIM_SUP]
+			var nm := ["сгиб", "вбок", "предплечье"]
+			var bad := []
+			for sd in ["R", "L"]:
+				if not rng.has(sd + "0"):
+					continue
+				var parts := []
+				for ji in 3:
+					var r: Array = rng["%s%d" % [sd, ji]]
+					parts.append("%s %.0f…%.0f°" % [nm[ji], r[0], r[1]])
+					if float(r[0]) < float(lim[ji][2]) - 0.5 or float(r[1]) > float(lim[ji][3]) + 0.5:
+						bad.append("%s %s" % ["правая" if sd == "R" else "левая", nm[ji]])
+				line += "\n    %s кисть: %s" % ["правая" if sd == "R" else "левая", ", ".join(parts)]
+			line += "\n    анатомия: %s" % ("в пределах" if bad.is_empty() else "ВНЕ ПРЕДЕЛОВ — " + ", ".join(bad))
 		print("[stand] " + line)
 		lines.append(line)
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
