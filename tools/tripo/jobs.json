@@ -2,11 +2,11 @@
  "stop": false,
  "jobs": [
   {
-   "id": "sd_hero",
+   "id": "sd_crawler",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sd_hero",
+    "sd_crawler",
     "--faces",
     "12000",
     "--rig",
@@ -17,7 +17,7 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Spaceship engineer in a worn practical space work suit without helmet, short hair, orange and dark grey padded suit with tool belt, knee pads, chest harness with small lights, magnetic boots, fingerless gloves. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, 1.8 m tall adult, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "Alien crawler creature, hunched bipedal predator 1.5 m tall with long clawed arms, chitin armor plates on back and shoulders, small head with several glowing eyes, greenish-grey skin, digitigrade legs. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
     "--anims",
     "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
     "--anims",
@@ -28,11 +28,11 @@
    "timeout": 7000
   },
   {
-   "id": "sd_pirate",
+   "id": "sd_boss",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sd_pirate",
+    "sd_boss",
     "--faces",
     "12000",
     "--rig",
@@ -43,7 +43,7 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Space pirate raider in a scratched armored vacuum suit with a cracked visor helmet, red markings, patched shoulder armor, belts with ammo pouches, heavy boots. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, 1.85 m tall, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "Space pirate captain boss, huge 2.1 m tall raider in bulky red and black power armor with spiked shoulder plates, skull-painted helmet with glowing orange visor, torn dark cloth cape, heavy gauntlets. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
     "--anims",
     "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
     "--anims",
@@ -54,11 +54,11 @@
    "timeout": 7000
   },
   {
-   "id": "sd_robot",
+   "id": "sd_medic",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sd_robot",
+    "sd_medic",
     "--faces",
     "12000",
     "--rig",
@@ -69,7 +69,7 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Old industrial security robot, humanoid bipedal frame, yellow and black chipped paint, boxy armored torso, single glowing red sensor eye, hydraulic arms with clamp hands, exposed cables. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, 1.9 m tall, stylized realistic PBR textures, game-ready character, no base, no pedestal.",
+    "Spaceship medic woman in a white and teal medical jumpsuit with a red cross patch on the shoulder, short dark ponytail, medical pouches on the belt, soft boots, 1.7 m tall. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
     "--anims",
     "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
     "--anims",
@@ -80,11 +80,89 @@
    "timeout": 7000
   },
   {
-   "id": "sdp_drone_worker",
+   "id": "sd_gunner",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sdp_drone_worker",
+    "sd_gunner",
+    "--faces",
+    "12000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship security officer man in a dark blue tactical armor vest over a grey jumpsuit, short beard, knee pads, combat boots, empty holster, 1.85 m tall. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_head,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "sd_mechanic",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sd_mechanic",
+    "--faces",
+    "12000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Young spaceship mechanic in a yellow work jumpsuit with rolled sleeves, welding goggles on the forehead, tool belt, thick gloves, curly hair, 1.75 m tall. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_head,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "sd_trader",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sd_trader",
+    "--faces",
+    "12000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Space station merchant, stout middle-aged man in a long patched brown coat with many pockets, scarf, goggles around the neck, fingerless gloves, 1.75 m tall. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
+    "--anims",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_head,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02"
+   ],
+   "timeout": 7000
+  },
+  {
+   "id": "sdp_reactor",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_reactor",
     "--faces",
     "6000",
     "--tex",
@@ -93,16 +171,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Small hovering maintenance drone for a spaceship, round body with four ducted fans, two folding mechanical arms with tools (welder and gripper), white and orange paint, worn, glowing blue lights. Stylized realistic game asset, PBR materials, single object, no base, no background."
+    "Compact spaceship fusion reactor core: tall cylindrical glass chamber with a glowing cyan plasma column inside, heavy dark steel frame, thick pipes and cables at the base, yellow warning stripes, about 2 m tall. Stylized realistic game asset, PBR materials, single object, no background."
    ],
    "timeout": 3000
   },
   {
-   "id": "sdp_drone_combat",
+   "id": "sdp_helm",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sdp_drone_combat",
+    "sdp_helm",
     "--faces",
     "6000",
     "--tex",
@@ -111,16 +189,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Small hovering combat drone, compact armored hexagonal body with two short gun barrels underneath, three ducted fans, dark grey and red paint, glowing red sensor. Stylized realistic game asset, PBR materials, single object, no base, no background."
+    "Spaceship bridge command console: curved control desk with three angled screens showing star maps, buttons and a joystick, sleek dark grey panels with blue indicator lights. Stylized realistic game asset, PBR materials, single object, no background."
    ],
    "timeout": 3000
   },
   {
-   "id": "sdp_turret_gun",
+   "id": "sdp_workbench",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sdp_turret_gun",
+    "sdp_workbench",
     "--faces",
     "6000",
     "--tex",
@@ -129,16 +207,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Spaceship corridor defense turret mounted on a low round floor base, compact rotating head with twin machine gun barrels and ammo box, industrial grey and yellow hazard stripes. Stylized realistic game asset, PBR materials, single object, no background."
+    "Spaceship workshop workbench: sturdy metal table with a vise, small robotic arm, scattered tools and electronic parts, overhead work lamp. Stylized realistic game asset, PBR materials, single object, no background."
    ],
    "timeout": 3000
   },
   {
-   "id": "sdp_turret_laser",
+   "id": "sdp_medpod",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "sdp_turret_laser",
+    "sdp_medpod",
     "--faces",
     "6000",
     "--tex",
@@ -147,7 +225,331 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Spaceship laser defense turret on a low round floor base, sleek rotating head with a single long emitter barrel and glowing blue energy coils, white and dark blue panels. Stylized realistic game asset, PBR materials, single object, no background."
+    "Spaceship medical pod: horizontal capsule bed with a transparent canopy, white and teal panels, small monitors at the head end. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_engine",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_engine",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship engine machinery block: large turbine housing with a rear exhaust nozzle, pipes, valves and heat fins, dark steel with orange accents. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_crate",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_crate",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship cargo crate: reinforced metal box with handles, stencil markings and yellow corner protectors, 1 m wide. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_container",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_container",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Stack of two spaceship cargo containers strapped together with belts, grey-green painted metal, scratched. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_fabricator",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_fabricator",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship fabricator machine, industrial 3D printer: boxy enclosure with a glass window, glowing print nozzle inside, side control panel. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_ore_metal",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_ore_metal",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Asteroid iron ore deposit: cluster of rough rusty brown metallic rock chunks and crystals emerging from grey stone, about 1 m wide. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_ore_cells",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_ore_cells",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Asteroid energy crystal cluster: glowing cyan translucent crystals growing from a dark rock, about 1 m wide. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_ore_rare",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_ore_rare",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Asteroid rare mineral deposit: dark rock boulder with green glowing crystalline veins and small green crystals, about 1 m wide. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_bunk",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_bunk",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship crew bunk bed: compact metal bed with mattress, pillow and folded blanket, small reading lamp, storage drawer underneath. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_locker",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_locker",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship crew locker: tall narrow metal locker with vents and a name tag, slightly worn grey-blue paint. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_cargo_term",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_cargo_term",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship cargo inventory terminal: standing kiosk with an angled screen and a scanner pad, grey and orange. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_chair",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_chair",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship captain chair: padded swivel seat on a pedestal with control panels on the armrests, dark grey and blue. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_shield",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_shield",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship shield generator: round metal pedestal with rotating emitter rings around a glowing blue energy sphere. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_life_support",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_life_support",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship life support unit: rack of oxygen tanks, air filter box, pipes and pressure gauges, white and grey. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_trader_stall",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_trader_stall",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Space station trader stall: metal counter with a holographic price display, stacked goods boxes behind, small awning. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_debris",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_debris",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Pile of wrecked spaceship debris: broken wall panels, bent pipes, torn cables and scattered metal scraps, about 1.5 m wide. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_robot_wreck",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_robot_wreck",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Destroyed security robot lying on the floor, broken yellow and black armor plates, exposed wires, one arm torn off. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_loot_chest",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_loot_chest",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Pirate loot chest: battered armored metal chest with red markings, lid slightly open, faint glow inside. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_canisters",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_canisters",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Group of three spaceship fuel canisters: metal gas cylinders with hazard labels and valves, strapped together. Stylized realistic game asset, PBR materials, single object, no background."
    ],
    "timeout": 3000
   }
@@ -238,6 +640,13 @@
   "bsp_house_wood_b",
   "bsp_house_brick",
   "bsp_well",
-  "bs_trader"
+  "bs_trader",
+  "sd_hero",
+  "sd_pirate",
+  "sd_robot",
+  "sdp_drone_worker",
+  "sdp_drone_combat",
+  "sdp_turret_gun",
+  "sdp_turret_laser"
  ]
 }
