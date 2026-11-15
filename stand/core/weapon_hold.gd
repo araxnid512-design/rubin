@@ -1251,7 +1251,7 @@ func _key_palm(s: Skeleton3D, W: Transform3D, key: Array, base_palm: Vector3) ->
 		"cover":
 			if parts.has("cover"):
 				var cs: Vector3 = parts.size.cover
-				var rear: Vector3 = (parts.center.cover as Vector3) + Vector3(0, cs.y * 0.5, cs.z * 0.45)
+				var rear: Vector3 = (parts.center.cover as Vector3) + Vector3(0, cs.y * 0.3, cs.z * 0.3)
 				return _mw(W, parts.cover_t(float(key[4])) * rear)
 	return base_palm
 

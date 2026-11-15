@@ -206,7 +206,7 @@ func mag_out() -> Transform3D:
 	var mc: Dictionary = cfg.mag
 	var d := Vector3(mc.get("dir", [0, -1, 0])[0], mc.get("dir", [0, -1, 0])[1], mc.get("dir", [0, -1, 0])[2]).normalized()
 	var sz: Vector3 = size.mag
-	var L := absf(sz.dot(d)) * 1.08 + 0.02
+	var L := absf(sz.dot(d)) * 0.55 + 0.02          # вынут из горловины — дальше его несёт рука
 	var rock := deg_to_rad(float(mc.get("rock", 0.0)))
 	var piv: Vector3 = top.mag + Vector3(0, 0, -sz.z * 0.5)       # передний край горловины (ствол смотрит в −Z)
 	var R := Basis(Vector3.RIGHT, rock)
