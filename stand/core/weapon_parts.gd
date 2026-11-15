@@ -12,7 +12,10 @@ extends RefCounted
 ##   "bolt":  {"poly": [...], "travel": 0.08}                          — ход назад, м
 ##   "cover": {"poly": [...], "hinge": [z, y], "angle": 75}            — крышка поворачивается вверх на петле
 ##   "pump":  {"poly": [...], "travel": 0.09}
-##   у любой части "x": [мин, макс] — ограничить по ширине (магазин не захватывает соседние детали)
+##   у любой части "x": [мин, макс] — ограничить по ширине (магазин не захватывает соседние детали);
+##   "keep": true — копия области, сама модель не режется (магазин пистолета спрятан в рукоятке: копия
+##   нижней части рукоятки, сжатая "scale": [x, y, z] и тёмная "mat": [r, g, b], в рукоятке не видна);
+##   "handle": [z, y] — где рука берётся за часть (рукоятка затвора, задняя часть кожуха-затвора)
 
 var pivots := {}          ## часть → узел (смещение в системе модели)
 var center := {}          ## часть → середина, ед. модели
@@ -32,12 +35,18 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 	var mins := {}
 	var maxs := {}
 	var top_y := {}
+	var zr := {}
 	for n in names:
 		acc[n] = []
 		var ty := -1e9
+		var z0 := 1e9
+		var z1 := -1e9
 		for q in parts[n].poly:
 			ty = maxf(ty, float(q[1]))
+			z0 = minf(z0, float(q[0]))
+			z1 = maxf(z1, float(q[0]))
 		top_y[n] = ty
+		zr[n] = [z0, z1]
 	for mi in root.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m.mesh == null:
@@ -72,7 +81,8 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 						if _inside(Vector2(q.z, q.y), pc.poly):
 							cnt += 1
 					# длинный треугольник «коробка — дно магазина»: одна вершина в магазине, середина ниже горловины
-					if cnt >= 2 or _inside(Vector2(c.z, c.y), pc.poly) or (cnt == 1 and c.y < float(top_y[n]) - 0.012):
+					var hang: bool = n == "mag" and pc.get("hang", true) and cnt == 1 and c.y < float(top_y[n]) - 0.012 and c.z > float(zr[n][0]) and c.z < float(zr[n][1])
+					if cnt >= 2 or _inside(Vector2(c.z, c.y), pc.poly) or hang:
 						who = n
 						break
 				var o: PackedInt32Array = out[who]
@@ -80,6 +90,12 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 				o.append(idx[t + 1])
 				o.append(idx[t + 2])
 				out[who] = o
+				if who != "" and parts[who].get("keep", false):
+					var ob: PackedInt32Array = out[""]
+					ob.append(idx[t])
+					ob.append(idx[t + 1])
+					ob.append(idx[t + 2])
+					out[""] = ob
 				if who != "":
 					for q in 3:
 						var p: Vector3 = xf * verts[idx[t + q]]
@@ -114,6 +130,21 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 		wp.center[n] = ((mins[n] as Vector3) + (maxs[n] as Vector3)) * 0.5
 		wp.size[n] = (maxs[n] as Vector3) - (mins[n] as Vector3)
 		wp.top[n] = Vector3(wp.center[n].x, (maxs[n] as Vector3).y, wp.center[n].z)
+		var pc: Dictionary = parts[n]
+		if pc.has("scale"):
+			var sv := Vector3(pc.scale[0], pc.scale[1], pc.scale[2])
+			var c0: Vector3 = wp.center[n]
+			var S := Transform3D(Basis.from_scale(sv), c0 - Basis.from_scale(sv) * c0)
+			for ch in pv.get_children():
+				(ch as MeshInstance3D).transform = S * (ch as MeshInstance3D).transform
+			wp.size[n] = (wp.size[n] as Vector3) * sv
+		if pc.has("mat"):
+			var mt := StandardMaterial3D.new()
+			mt.albedo_color = Color(pc.mat[0], pc.mat[1], pc.mat[2])
+			mt.metallic = 0.6
+			mt.roughness = 0.45
+			for ch in pv.get_children():
+				(ch as MeshInstance3D).material_override = mt
 	return wp
 
 
@@ -205,3 +236,12 @@ func cover_t(u: float) -> Transform3D:
 	var h := Vector3(0, float(cc.hinge[1]), float(cc.hinge[0]))
 	var R := Basis(Vector3.RIGHT, -deg_to_rad(float(cc.get("angle", 70.0))) * u)
 	return Transform3D(R, h - R * h)
+
+
+## точка, за которую рука берётся за часть (handle или середина), в системе модели
+func grab_point(n: String) -> Vector3:
+	if not has(n):
+		return Vector3.ZERO
+	if cfg[n].has("handle"):
+		return Vector3((center[n] as Vector3).x, float(cfg[n].handle[1]), float(cfg[n].handle[0]))
+	return center[n]

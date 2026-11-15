@@ -2,11 +2,11 @@
  "stop": false,
  "jobs": [
   {
-   "id": "g_ak74b",
+   "id": "g_ak74c",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_ak74b",
+    "g_ak74c",
     "--faces",
     "8000",
     "--tex",
@@ -17,7 +17,7 @@
     "--image",
     "tools/tripo/refs/guns/ak74.png",
     "--prompt",
-    "Full-length AK-74 assault rifle WITH its fixed wooden buttstock attached behind the pistol grip (the stock is essential, full length about 94 cm), wooden handguard, orange-brown bakelite curved magazine. Realistic game weapon model, accurate proportions, single object, no background."
+    "AK-74 assault rifle with fixed wooden buttstock, wooden handguard and orange-brown bakelite magazine. Realistic game weapon model, accurate real-world proportions, single object, no background."
    ],
    "timeout": 3000
   }
@@ -138,7 +138,8 @@
   "g_pkp",
   "g_fnfal",
   "g_svd",
-  "g_vss"
+  "g_vss",
+  "g_ak74b"
  ],
  "paused": [
   {

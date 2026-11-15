@@ -1242,11 +1242,12 @@ func _key_palm(s: Skeleton3D, W: Transform3D, key: Array, base_palm: Vector3) ->
 			var hip := s.get_bone_global_pose(s.find_bone("Hip")).origin
 			return hip + (fwd * 0.16 - rgt * 0.17 + upv * 0.06) * k
 		"slap":
-			var d := Vector3(0, -1, 0)
-			return _mw(W, (parts.center.mag as Vector3) + d * (absf((parts.size.mag as Vector3).y) * 0.55))
+			return _mw(W, (parts.center.mag as Vector3) - Vector3(0, absf((parts.size.mag as Vector3).y) * 0.55, 0))
 		"bolt", "boltb":
 			var u := 1.0 if String(key[1]) == "boltb" else float(key[3])
-			return _mw(W, parts.bolt_t("bolt", u, _m2m()) * (parts.center.get("bolt", parts.center.mag) as Vector3))
+			if not parts.has("bolt"):
+				return base_palm
+			return _mw(W, parts.bolt_t("bolt", u, _m2m()) * parts.grab_point("bolt"))
 		"cover":
 			if parts.has("cover"):
 				var cs: Vector3 = parts.size.cover

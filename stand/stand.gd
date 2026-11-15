@@ -907,8 +907,9 @@ func _run_test() -> void:
 				for pn in wp.pivots:
 					(wp.pivots[pn] as Node3D).visible = st != "body"
 				for sd in [["r", 1.0], ["l", -1.0]]:
-					cam.global_position = holder.global_position + Vector3(float(sd[1]) * L * 2.0, 0.05, 0)
-					cam.look_at(holder.global_position + Vector3(0, L * 0.15, 0), Vector3.UP)
+					var aabb_c := holder.global_position + Vector3(0, float(w.get("view_y", 0.2)), 0)
+					cam.global_position = aabb_c + Vector3(float(sd[1]) * L * 2.0, 0.0, 0)
+					cam.look_at(aabb_c, Vector3.UP)
 					await get_tree().process_frame
 					await _snap("%s/parts_%s_%s_%s.png" % [out, wid, st, sd[0]])
 			holder.queue_free()
