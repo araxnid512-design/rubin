@@ -35,7 +35,11 @@ func roll_choices() -> void:
 	var pool: Array = data.events.keys()
 	pool.shuffle()
 	# станция встречается не всегда, пираты чаще с ростом сектора
-	choices = pool.slice(0, 3)
+	var n := 3
+	var s = Core.get_meta("shipst", null)
+	if s and s.lvl("scanner") > 0:
+		n = 4
+	choices = pool.slice(0, n)
 
 
 func ev_name(id: String) -> String:
@@ -77,7 +81,10 @@ func show_map() -> void:
 	for id in choices:
 		var e: Dictionary = data.events[id]
 		var risk := "опасность " + ("●".repeat(int(e.risk)) + "○".repeat(3 - int(e.risk)))
-		rows.append(["%s · %s\n   %s" % [e.n, risk, e.d], "Прыжок", func(): jump(id), can])
+		var hint := ""
+		if s.lvl("scanner") > 0 and e.has("scan"):
+			hint = "\n   сканер: " + String(e.scan)
+		rows.append(["%s · %s\n   %s%s" % [e.n, risk, e.d, hint], "Прыжок", func(): jump(id), can])
 	var head := "Сектор %d · топливо %d · прыжок стоит %d" % [Core.loop.sector, int(s.res.fuel), cost]
 	if not s.powered("engines"):
 		head += "\nДвигатели без энергии — выделите им энергию в окне «Корабль»."
@@ -294,19 +301,23 @@ func _wave() -> void:
 
 func _storm() -> void:
 	_shake(9.0, 1.2)
+	var shielded: bool = ss().shield >= 20.0
 	ss().damage_hull(12.0)
 	Core.play_ui("impact", 0.0)
 	var ids := ["engines", "reactor", "workshop", "medbay", "corridor", "quarters", "cargo"]
 	ids.shuffle()
-	for i in 4:
+	var nb := 2 if shielded else 4
+	if shielded:
+		Core.say("Щит принял основной удар — пробоин меньше.", "good")
+	for i in nb:
 		var b := STBreach.new()
-		b.fire = i == 3
+		b.fire = i == nb - 1
 		b.position = _free_point(ids[i])
 		Core.ship.ysort.add_child(b)
 		nodes.append(b)
 		STFx.explosion(b.position)
 	var where := []
-	for i in 4:
+	for i in nb:
 		where.append(Core.ship.rooms[ids[i]].n.to_lower())
 	Core.say("Повреждения: " + ", ".join(where) + ".", "bad")
 
@@ -449,7 +460,7 @@ func show_trade() -> void:
 	var s := ss()
 	var rows := []
 	for tr in data.trades:
-		var ok: bool = s.has_all(tr.pay) and (not tr.has("hull") or s.hull < 100.0)
+		var ok: bool = s.has_all(tr.pay) and (not tr.has("hull") or s.hull < s.hull_max())
 		rows.append([_trade_text(tr), "Обмен", func():
 			if not s.has_all(tr.pay):
 				return
@@ -457,7 +468,7 @@ func show_trade() -> void:
 			for k in tr.get("get", {}):
 				s.add(k, int(tr.get[k]))
 			if tr.has("hull"):
-				s.hull = minf(100.0, s.hull + float(tr.hull))
+				s.hull = minf(s.hull_max(), s.hull + float(tr.hull))
 			Core.play_ui("trade", -4.0)
 			show_trade(), ok])
 	Core.hud.rows("Торговец станции", "Есть: металл %d, электроника %d, ячейки %d, топливо %d · корпус %d%%" % [

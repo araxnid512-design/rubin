@@ -148,6 +148,8 @@ func _on_use(_by: Node, target: String) -> void:
 			shipst.show_panel()
 		"workshop":
 			shipst.show_workshop()
+		"upgrades":
+			shipst.show_upgrades()
 		"helm":
 			events.helm()
 		"heal":

@@ -102,12 +102,14 @@ func attack() -> void:
 
 
 func _shoot(foe: STActor) -> void:
-	_cool = 0.32
+	var ss = Core.get_meta("shipst", null)
+	var bl: int = ss.lvl("blaster") if ss else 0
+	_cool = 0.32 * (1.0 - 0.1 * bl)
 	face(foe.global_position)
 	if spr.has_clip("shoot"):
 		spr.play("shoot", true)
 	var aim := foe.global_position + Vector2(randf_range(-6, 6), randf_range(-4, 4))
-	STBolt.fire(get_parent(), global_position, aim, 18.0, BLASTER_DMG, "crew", Color(0.45, 1.0, 0.6), self)
+	STBolt.fire(get_parent(), global_position, aim, 18.0, BLASTER_DMG + 4.0 * bl, "crew", Color(0.45, 1.0, 0.6) if bl < 2 else Color(0.5, 0.85, 1.0), self)
 	Core.play_at("blaster", global_position, -6.0)
 
 

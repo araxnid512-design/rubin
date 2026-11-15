@@ -91,6 +91,8 @@ func _run() -> void:
 		await _combat()
 	if mode == "save" or mode == "all":
 		await _save()
+	if mode == "upgrades" or mode == "all":
+		await _upgrades()
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
 	if f:
 		f.store_string("\n".join(log_lines))
@@ -211,3 +213,28 @@ func _save() -> void:
 	_log("сохранение %s, загрузка %s: металл %d (17), корпус %d (77), сектор %d (6), дронов %d (%d), турелей %d (%d)" % [
 		ok, ld, ss.res.metal, roundi(ss.hull), Core.loop.sector, ss.drones.size(), nd, ss.turrets.size(), nt])
 	Core.save.delete_save()
+
+
+func _upgrades() -> void:
+	var ss := _ss()
+	Core.hud.close_modal()
+	for k in ss.res:
+		ss.res[k] = 200
+	var bought := 0
+	for u in ss.data.upgrades:
+		for i in int(u.max):
+			if ss.upgrade(u):
+				bought += 1
+	Core.hud.close_modal()
+	ss.set_power("shield", 1)
+	ss.set_power("shield", 1)
+	await get_tree().create_timer(2.0).timeout
+	var sh: float = ss.shield
+	var h0: float = ss.hull
+	ss.damage_hull(10.0)
+	_log("улучшений куплено %d: реактор %d, корпус макс %d, щит %d/%d (после удара 10: корпус %d→%d, щит %d), дронов макс %d, турели макс %d, сканер — точек %d, бластер %d" % [
+		bought, ss.reactor, roundi(ss.hull_max()), roundi(sh), roundi(ss.shield_max()), roundi(h0), roundi(ss.hull), roundi(ss.shield),
+		ss.drones_max(), ss.sys_max("turrets"), _ev().choices.size(), ss.lvl("blaster")])
+	ss.show_upgrades()
+	await _shot("u_window")
+	Core.hud.close_modal()

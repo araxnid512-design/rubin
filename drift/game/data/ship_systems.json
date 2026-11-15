@@ -1,21 +1,248 @@
 {
- "start": {"metal": 12, "electronics": 6, "cells": 3, "fuel": 4, "hull": 100, "oxygen": 100, "reactor": 8},
+ "start": {
+  "metal": 12,
+  "electronics": 6,
+  "cells": 3,
+  "fuel": 4,
+  "hull": 100,
+  "oxygen": 100,
+  "reactor": 8
+ },
  "systems": {
-  "life":     {"n": "Жизнеобеспечение", "min": 1, "max": 1, "start": 1, "room": "quarters", "fixed": true},
-  "bridge":   {"n": "Мостик и навигация", "min": 1, "max": 1, "start": 1, "room": "bridge", "fixed": true},
-  "engines":  {"n": "Двигатели (прыжок)", "min": 0, "max": 2, "start": 2, "room": "engines"},
-  "medbay":   {"n": "Медотсек", "min": 0, "max": 1, "start": 1, "room": "medbay"},
-  "workshop": {"n": "Мастерская (сборка)", "min": 0, "max": 1, "start": 1, "room": "workshop"},
-  "drones":   {"n": "Зарядка дронов", "min": 0, "max": 2, "start": 1, "room": "workshop"},
-  "turrets":  {"n": "Турели", "min": 0, "max": 4, "start": 1, "room": "corridor"}
+  "life": {
+   "n": "Жизнеобеспечение",
+   "min": 1,
+   "max": 1,
+   "start": 1,
+   "room": "quarters",
+   "fixed": true
+  },
+  "bridge": {
+   "n": "Мостик и навигация",
+   "min": 1,
+   "max": 1,
+   "start": 1,
+   "room": "bridge",
+   "fixed": true
+  },
+  "engines": {
+   "n": "Двигатели (прыжок)",
+   "min": 0,
+   "max": 2,
+   "start": 2,
+   "room": "engines"
+  },
+  "medbay": {
+   "n": "Медотсек",
+   "min": 0,
+   "max": 1,
+   "start": 1,
+   "room": "medbay"
+  },
+  "workshop": {
+   "n": "Мастерская (сборка)",
+   "min": 0,
+   "max": 1,
+   "start": 1,
+   "room": "workshop"
+  },
+  "drones": {
+   "n": "Зарядка дронов",
+   "min": 0,
+   "max": 2,
+   "start": 1,
+   "room": "workshop"
+  },
+  "turrets": {
+   "n": "Турели",
+   "min": 0,
+   "max": 4,
+   "start": 1,
+   "room": "corridor"
+  },
+  "shield": {
+   "n": "Щит корпуса",
+   "min": 0,
+   "max": 2,
+   "start": 0,
+   "room": "engines",
+   "locked": "shield"
+  }
  },
  "builds": [
-  {"id": "drone_worker", "n": "Дрон-ремонтник", "d": "Чинит корпус и пробоины, тушит пожары, добывает руду.", "needs": {"metal": 4, "electronics": 2}},
-  {"id": "drone_combat", "n": "Боевой дрон", "d": "Летает за вами или охраняет точку, стреляет по врагам.", "needs": {"metal": 5, "electronics": 3, "cells": 1}},
-  {"id": "turret_gun", "n": "Турель-пулемёт", "d": "Частые слабые выстрелы, 6 м. Ставится там, где вы стоите.", "needs": {"metal": 6, "electronics": 2}},
-  {"id": "turret_laser", "n": "Лазерная турель", "d": "Редкие сильные выстрелы, 8 м, пробивает броню роботов.", "needs": {"metal": 5, "electronics": 4, "cells": 2}},
-  {"id": "medkit", "n": "Аптечка", "d": "+40 здоровья.", "needs": {"metal": 1, "cells": 1}},
-  {"id": "repair_hull", "n": "Заплатки корпуса", "d": "+20% прочности корпуса.", "needs": {"metal": 4}}
+  {
+   "id": "drone_worker",
+   "n": "Дрон-ремонтник",
+   "d": "Чинит корпус и пробоины, тушит пожары, добывает руду.",
+   "needs": {
+    "metal": 4,
+    "electronics": 2
+   }
+  },
+  {
+   "id": "drone_combat",
+   "n": "Боевой дрон",
+   "d": "Летает за вами или охраняет точку, стреляет по врагам.",
+   "needs": {
+    "metal": 5,
+    "electronics": 3,
+    "cells": 1
+   }
+  },
+  {
+   "id": "turret_gun",
+   "n": "Турель-пулемёт",
+   "d": "Частые слабые выстрелы, 6 м. Ставится там, где вы стоите.",
+   "needs": {
+    "metal": 6,
+    "electronics": 2
+   }
+  },
+  {
+   "id": "turret_laser",
+   "n": "Лазерная турель",
+   "d": "Редкие сильные выстрелы, 8 м, пробивает броню роботов.",
+   "needs": {
+    "metal": 5,
+    "electronics": 4,
+    "cells": 2
+   }
+  },
+  {
+   "id": "medkit",
+   "n": "Аптечка",
+   "d": "+40 здоровья.",
+   "needs": {
+    "metal": 1,
+    "cells": 1
+   }
+  },
+  {
+   "id": "repair_hull",
+   "n": "Заплатки корпуса",
+   "d": "+20% прочности корпуса.",
+   "needs": {
+    "metal": 4
+   }
+  }
  ],
- "res_names": {"metal": "Металл", "electronics": "Электроника", "cells": "Энергоячейки", "fuel": "Топливо"}
+ "res_names": {
+  "metal": "Металл",
+  "electronics": "Электроника",
+  "cells": "Энергоячейки",
+  "fuel": "Топливо"
+ },
+ "upgrades": [
+  {
+   "id": "reactor",
+   "n": "Реактор",
+   "d": "+2 единицы энергии",
+   "max": 2,
+   "costs": [
+    {
+     "metal": 6,
+     "electronics": 4,
+     "cells": 2
+    },
+    {
+     "metal": 10,
+     "electronics": 6,
+     "cells": 4
+    }
+   ]
+  },
+  {
+   "id": "armor",
+   "n": "Броня корпуса",
+   "d": "+25% прочности корпуса",
+   "max": 2,
+   "costs": [
+    {
+     "metal": 8
+    },
+    {
+     "metal": 14,
+     "electronics": 2
+    }
+   ]
+  },
+  {
+   "id": "shield",
+   "n": "Генератор щита",
+   "d": "щит принимает удары метеоров и диверсий; 30 ед. за каждую единицу энергии, восстанавливается",
+   "max": 1,
+   "costs": [
+    {
+     "metal": 6,
+     "electronics": 6,
+     "cells": 3
+    }
+   ]
+  },
+  {
+   "id": "blaster",
+   "n": "Бластер героя",
+   "d": "+4 урона и быстрее стрельба",
+   "max": 3,
+   "costs": [
+    {
+     "electronics": 3,
+     "cells": 1
+    },
+    {
+     "electronics": 5,
+     "cells": 2
+    },
+    {
+     "electronics": 7,
+     "cells": 3
+    }
+   ]
+  },
+  {
+   "id": "drone_bay",
+   "n": "Ангар дронов",
+   "d": "+1 дрон сверх двух",
+   "max": 2,
+   "costs": [
+    {
+     "metal": 5,
+     "electronics": 3
+    },
+    {
+     "metal": 8,
+     "electronics": 5
+    }
+   ]
+  },
+  {
+   "id": "turret_bus",
+   "n": "Оружейная шина",
+   "d": "+1 единица энергии на турели (больше турелей стреляют)",
+   "max": 2,
+   "costs": [
+    {
+     "metal": 4,
+     "electronics": 4
+    },
+    {
+     "metal": 6,
+     "electronics": 6,
+     "cells": 2
+    }
+   ]
+  },
+  {
+   "id": "scanner",
+   "n": "Дальний сканер",
+   "d": "на карте сектора 4 точки и видно, что там можно найти",
+   "max": 1,
+   "costs": [
+    {
+     "electronics": 5,
+     "cells": 2
+    }
+   ]
+  }
+ ]
 }
