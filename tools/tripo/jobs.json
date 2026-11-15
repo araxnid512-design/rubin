@@ -2,123 +2,13 @@
  "stop": false,
  "jobs": [
   {
-   "id": "bsm_stop3",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "stop3",
-    "2",
-    "a man walking forward at a normal pace, then slowing down over two short steps and standing still, finishing upright with straight legs, both feet flat on the ground side by side, arms relaxed at his sides"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_start2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "start2",
-    "2",
-    "a man standing upright and still, then starting to walk forward and smoothly speeding up into a light jog, upright back, looking straight ahead"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_crouch_walk2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "crouch_walk2",
-    "3",
-    "a man walking forward slowly in a low crouch, knees bent, back straight and upright, head up looking forward, both arms bent in front of the body, short careful steps, feet close to the ground"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_walk_back2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "walk_back2",
-    "3",
-    "a man walking backward slowly and steadily in a straight line, upright posture, looking forward, arms swinging slightly, each foot placed toe first then heel"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_strafe_left2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "strafe_left2",
-    "3",
-    "a man side-stepping to his left continuously with small steps, feet never crossing, upright body facing forward, knees slightly bent, arms relaxed"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_strafe_right2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "strafe_right2",
-    "3",
-    "a man side-stepping to his right continuously with small steps, feet never crossing, upright body facing forward, knees slightly bent, arms relaxed"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_get_up2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "get_up2",
-    "3",
-    "a man lying on his back on the floor, rolling onto his side, pushing up with his hands onto his knees and then standing up upright with feet flat on the ground"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_melee_light",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "melee_light",
-    "1",
-    "a man holding a short steel pipe in his right hand, stepping forward and making a quick one-handed horizontal swing from right to left at chest height, then returning to a guard stance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_melee_heavy",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "melee_heavy",
-    "2",
-    "a man gripping a steel pipe with both hands, raising it over his head and striking straight down hard in front of him, then returning to a guard stance with the pipe held in front"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bsm_dodge_back",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "hero:2418e279-0925-4a99-b6f7-89ae89882319,suit:65901c56-0485-4966-9a0a-debb76be40bd",
-    "dodge_back",
-    "1",
-    "a man in a fighting stance quickly hopping backward to dodge an attack, keeping his hands up in guard, landing balanced on both feet"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "bs_mutant",
+   "id": "sd_hero",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bs_mutant",
+    "sd_hero",
     "--faces",
-    "16000",
+    "12000",
     "--rig",
     "biped",
     "--tex",
@@ -127,24 +17,24 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Irradiated humanoid mutant, gaunt adult man body with grey-green blotchy skin, open sores and pale scars, hairless swollen head, cloudy white eyes, torn remains of a work overall and rags, bare feet, long sinewy arms with dirty long fingernails. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.85 m tall, photorealistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "Spaceship engineer in a worn practical space work suit without helmet, short hair, orange and dark grey padded suit with tool belt, knee pads, chest harness with small lights, magnetic boots, fingerless gloves. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, 1.8 m tall adult, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
     "--anims",
-    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
     "--anims",
-    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
     "--anims",
-    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_head,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02"
    ],
    "timeout": 7000
   },
   {
-   "id": "bs_leader",
+   "id": "sd_pirate",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bs_leader",
+    "sd_pirate",
     "--faces",
-    "16000",
+    "12000",
     "--rig",
     "biped",
     "--tex",
@@ -153,186 +43,24 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Wasteland raider gang leader, big broad-shouldered man in a dented welding mask pushed up over a scarred bald head, heavy scrap-metal chest plate over a dark hooded coat, leather bracers, belt with pouches, cargo trousers, heavy boots, red rag tied on the left arm. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.9 m tall adult, photorealistic PBR textures, game-ready character, no weapon in hands, no base, no pedestal.",
+    "Space pirate raider in a scratched armored vacuum suit with a cracked visor helmet, red markings, patched shoulder armor, belts with ammo pouches, heavy boots. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic proportions, 1.85 m tall, stylized realistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
     "--anims",
-    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:flee_01,preset:biped:turn,preset:biped:wait",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
     "--anims",
-    "preset:biped:box_01,preset:biped:box_02,preset:biped:box_03,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
     "--anims",
-    "preset:biped:hit_to_body_01,preset:biped:hit_to_body_02,preset:biped:hit_to_head,preset:biped:hit_to_side,preset:biped:hit_to_stomach,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02,preset:biped:defeat_03"
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_head,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02"
    ],
    "timeout": 7000
   },
   {
-   "id": "bsp_car_wreck",
+   "id": "sd_robot",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bsp_car_wreck",
+    "sd_robot",
     "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Burnt-out wrecked Soviet sedan car from the 1980s, rusted body without paint, no wheels resting on the ground on its axles, shattered windows, crumpled hood, scorched interior. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_ruin_wall",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_ruin_wall",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Ruined corner of a red brick building, two broken brick walls meeting at a right angle, 3 meters high at the corner and crumbling down to knee height at the ends, empty window opening, exposed rusty rebar and fallen bricks at the base. Realistic post-apocalyptic game asset, PBR materials, single object, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_scrap_heap",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_scrap_heap",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Heap of scrap metal: rusty corrugated metal sheets, bent pipes, an old car door, a broken radiator and wire, piled about 1.2 meters high and 3 meters wide. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_trash_pile",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_trash_pile",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Pile of old black garbage bags, torn cardboard boxes, plastic bottles and an old rubber tire against each other, about 1 meter high and 2 meters wide, dirty and weathered. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_pistol",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_pistol",
-    "--faces",
-    "4000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Soviet Makarov PM pistol, dark worn blued steel with brown grip panels, realistic proportions, single object, game asset, PBR materials, no base, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_house_wood_a",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_house_wood_a",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Abandoned ruined one-story wooden village house in Russia, dark weathered log walls, collapsed part of the rusty corrugated roof, broken windows with carved wooden frames, sagging porch with steps. Realistic post-apocalyptic game asset, PBR materials, single building, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_house_wood_b",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_house_wood_b",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Abandoned small wooden village house with a steep roof covered in old grey slate with holes, faded blue painted wooden walls, boarded up windows, brick chimney, small fenced front garden overgrown with dry weeds. Realistic post-apocalyptic game asset, PBR materials, single building, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_house_brick",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_house_brick",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Ruined two-story red brick house from a Soviet village, roof burned away, black soot around empty windows, one wall partly collapsed showing rooms inside, rubble at the base. Realistic post-apocalyptic game asset, PBR materials, single building, no ground plane, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bsp_well",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bsp_well",
-    "--faces",
-    "5000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Old village water well with a wooden roof, wooden crank with chain and a dented metal bucket, round log frame, weathered and dusty. Realistic post-apocalyptic game asset, PBR materials, single object, no base, no background."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "bs_trader",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bs_trader",
-    "--faces",
-    "16000",
+    "12000",
     "--rig",
     "biped",
     "--tex",
@@ -341,13 +69,87 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Old village survivor trader, grey beard, weathered face, fur hat with ear flaps, long patched quilted coat with many pockets, scarf, felt boots, a bag over the shoulder. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, 1.75 m tall elderly man, photorealistic PBR textures, game-ready character, nothing in hands, no base, no pedestal.",
+    "Old industrial security robot, humanoid bipedal frame, yellow and black chipped paint, boxy armored torso, single glowing red sensor eye, hydraulic arms with clamp hands, exposed cables. Full body, standing in T-pose, arms straight out to the sides, legs slightly apart, 1.9 m tall, stylized realistic PBR textures, game-ready character, no base, no pedestal.",
     "--anims",
-    "preset:biped:idle,preset:biped:standing_relax,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
+    "preset:biped:idle,preset:biped:walk,preset:biped:run,preset:biped:turn,preset:biped:wait",
     "--anims",
-    "preset:biped:hit_to_body_01,preset:biped:hurt,preset:biped:fall"
+    "preset:biped:box_01,preset:biped:box_02,preset:biped:front_kick_01,preset:biped:dive,preset:biped:shoot,preset:biped:fire",
+    "--anims",
+    "preset:biped:hit_to_body_01,preset:biped:hit_to_head,preset:biped:hurt,preset:biped:fall,preset:biped:defeat_02"
    ],
    "timeout": 7000
+  },
+  {
+   "id": "sdp_drone_worker",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_drone_worker",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Small hovering maintenance drone for a spaceship, round body with four ducted fans, two folding mechanical arms with tools (welder and gripper), white and orange paint, worn, glowing blue lights. Stylized realistic game asset, PBR materials, single object, no base, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_drone_combat",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_drone_combat",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Small hovering combat drone, compact armored hexagonal body with two short gun barrels underneath, three ducted fans, dark grey and red paint, glowing red sensor. Stylized realistic game asset, PBR materials, single object, no base, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_turret_gun",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_turret_gun",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship corridor defense turret mounted on a low round floor base, compact rotating head with twin machine gun barrels and ammo box, industrial grey and yellow hazard stripes. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "sdp_turret_laser",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sdp_turret_laser",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Spaceship laser defense turret on a low round floor base, sleek rotating head with a single long emitter barrel and glowing blue energy coils, white and dark blue panels. Stylized realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
   }
  ],
  "archived": [
@@ -414,6 +216,28 @@
   "bsm_stretch",
   "bsm_nod",
   "bsm_talk",
-  "bsm_check_dosimeter"
+  "bsm_check_dosimeter",
+  "bsm_stop3",
+  "bsm_start2",
+  "bsm_crouch_walk2",
+  "bsm_walk_back2",
+  "bsm_strafe_left2",
+  "bsm_strafe_right2",
+  "bsm_get_up2",
+  "bsm_melee_light",
+  "bsm_melee_heavy",
+  "bsm_dodge_back",
+  "bs_mutant",
+  "bs_leader",
+  "bsp_car_wreck",
+  "bsp_ruin_wall",
+  "bsp_scrap_heap",
+  "bsp_trash_pile",
+  "bsp_pistol",
+  "bsp_house_wood_a",
+  "bsp_house_wood_b",
+  "bsp_house_brick",
+  "bsp_well",
+  "bs_trader"
  ]
 }
