@@ -1,6 +1,147 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "g_mp5",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_mp5",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/mp5.png",
+    "--prompt",
+    "Heckler & Koch MP5A3 submachine gun with retractable stock and curved magazine. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g_ak74",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_ak74",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/ak74.png",
+    "--prompt",
+    "AK-74 assault rifle with wooden furniture and orange-brown bakelite magazine. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g_beretta",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_beretta",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/beretta.png",
+    "--prompt",
+    "Beretta 92FS 9 mm pistol. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g_pkp",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_pkp",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/pkp.png",
+    "--prompt",
+    "PKP Pecheneg light machine gun with bipod, ammunition belt and green ammo box. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g_fnfal",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_fnfal",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/fnfal.png",
+    "--prompt",
+    "FN FAL battle rifle with black polymer furniture and box magazine. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g_svd",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_svd",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/svd.png",
+    "--prompt",
+    "SVD Dragunov sniper rifle with wooden thumbhole stock and PSO-1 scope. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g_vss",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_vss",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/guns/vss.png",
+    "--prompt",
+    "VSS Vintorez suppressed sniper rifle with wooden skeleton stock and scope. Realistic game weapon model, accurate real-world proportions, magazine attached, single object, no hands, no background."
+   ],
+   "timeout": 3000
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
