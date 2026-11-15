@@ -298,7 +298,7 @@ func _populate(st: Dictionary) -> void:
 		nodes.append(it)
 		it.used.connect(func(_by): show_trade())
 		# торговец за прилавком (если запечён)
-		if FileAccess.file_exists("res://assets/sprites/trader/trader.json"):
+		if cur != "ambush" and FileAccess.file_exists("res://assets/sprites/trader/trader.json"):
 			var npc := Node2D.new()
 			npc.position = _rel(tr[0], tr[1] - 1.1)
 			ysort.add_child(npc)
