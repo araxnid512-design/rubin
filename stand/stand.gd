@@ -30,6 +30,31 @@ const ENTRIES := [
 	{"id": "r_run", "g": "Автомат", "n": "Бег", "weapon": "rifle", "stance": "run", "speed": 3.6},
 	{"id": "r_fire", "g": "Автомат", "n": "Очередь", "weapon": "rifle", "stance": "aim", "proc": "burst"},
 	{"id": "r_reload", "g": "Автомат", "n": "Перезарядка", "weapon": "rifle", "stance": "ready", "proc": "reload"},
+	{"id": "s_draw", "g": "Дробовик SPAS-12", "n": "Взять и убрать", "weapon": "spas12", "stance": "ready", "proc": "draw"},
+	{"id": "s_aim", "g": "Дробовик SPAS-12", "n": "Прицел стоя", "weapon": "spas12", "stance": "aim"},
+	{"id": "s_walk", "g": "Дробовик SPAS-12", "n": "Ходьба наготове", "weapon": "spas12", "stance": "ready", "speed": 1.3},
+	{"id": "s_fire", "g": "Дробовик SPAS-12", "n": "Выстрел и цевьё", "weapon": "spas12", "stance": "aim", "proc": "burst"},
+	{"id": "s_reload", "g": "Дробовик SPAS-12", "n": "Перезарядка", "weapon": "spas12", "stance": "ready", "proc": "reload"},
+	{"id": "f_draw", "g": "FN FAL", "n": "Взять и убрать", "weapon": "fnfal", "stance": "ready", "proc": "draw"},
+	{"id": "f_aim", "g": "FN FAL", "n": "Прицел стоя", "weapon": "fnfal", "stance": "aim"},
+	{"id": "f_walk", "g": "FN FAL", "n": "Ходьба наготове", "weapon": "fnfal", "stance": "ready", "speed": 1.3},
+	{"id": "f_fire", "g": "FN FAL", "n": "Выстрел", "weapon": "fnfal", "stance": "aim", "proc": "burst"},
+	{"id": "f_reload", "g": "FN FAL", "n": "Перезарядка", "weapon": "fnfal", "stance": "ready", "proc": "reload"},
+	{"id": "v_draw", "g": "ВСС", "n": "Взять и убрать", "weapon": "vss", "stance": "ready", "proc": "draw"},
+	{"id": "v_aim", "g": "ВСС", "n": "Прицел стоя", "weapon": "vss", "stance": "aim"},
+	{"id": "v_walk", "g": "ВСС", "n": "Ходьба наготове", "weapon": "vss", "stance": "ready", "speed": 1.3},
+	{"id": "v_fire", "g": "ВСС", "n": "Выстрел", "weapon": "vss", "stance": "aim", "proc": "burst"},
+	{"id": "v_reload", "g": "ВСС", "n": "Перезарядка", "weapon": "vss", "stance": "ready", "proc": "reload"},
+	{"id": "h_draw", "g": "MP5", "n": "Взять и убрать", "weapon": "mp5", "stance": "ready", "proc": "draw"},
+	{"id": "h_aim", "g": "MP5", "n": "Прицел стоя", "weapon": "mp5", "stance": "aim"},
+	{"id": "h_walk", "g": "MP5", "n": "Ходьба наготове", "weapon": "mp5", "stance": "ready", "speed": 1.3},
+	{"id": "h_fire", "g": "MP5", "n": "Очередь", "weapon": "mp5", "stance": "aim", "proc": "burst"},
+	{"id": "h_reload", "g": "MP5", "n": "Перезарядка", "weapon": "mp5", "stance": "ready", "proc": "reload"},
+	{"id": "k_draw", "g": "Пулемёт «Печенег»", "n": "Взять и убрать", "weapon": "pkp", "stance": "ready", "proc": "draw"},
+	{"id": "k_aim", "g": "Пулемёт «Печенег»", "n": "Прицел стоя", "weapon": "pkp", "stance": "aim"},
+	{"id": "k_walk", "g": "Пулемёт «Печенег»", "n": "Ходьба наготове", "weapon": "pkp", "stance": "ready", "speed": 1.3},
+	{"id": "k_fire", "g": "Пулемёт «Печенег»", "n": "Очередь", "weapon": "pkp", "stance": "aim", "proc": "burst"},
+	{"id": "k_reload", "g": "Пулемёт «Печенег»", "n": "Перезарядка", "weapon": "pkp", "stance": "ready", "proc": "reload"},
 	{"id": "m_draw", "g": "Холодное", "n": "Достать и убрать", "weapon": "melee", "stance": "guard", "proc": "draw"},
 	{"id": "m_idle", "g": "Холодное", "n": "Боевая стойка", "weapon": "melee", "stance": "guard"},
 	{"id": "m_walk", "g": "Холодное", "n": "Ходьба", "weapon": "melee", "stance": "guard", "speed": 1.3},
@@ -223,6 +248,14 @@ func _fire() -> void:
 		return
 	var from: Vector3 = mz[0]
 	var dir: Vector3 = mz[1]
+	var fc: Dictionary = h.w.get("fire", {})
+	for pi in int(fc.get("pellets", 1)) - 1:
+		# дробь: остальные дробины ложатся вокруг (первая — по стволу)
+		var sp_r := deg_to_rad(float(fc.get("spread", 2.0)))
+		var pd := (dir + Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * tan(sp_r)).normalized()
+		var tzp := target.global_position.z
+		if absf(pd.z) > 0.01 and (tzp - from.z) / pd.z > 0.0:
+			_mark_hit(from + pd * ((tzp - from.z) / pd.z), 0.016)
 	# плоскость мишени
 	var tz := target.global_position.z
 	var end := from + dir * 30.0
@@ -233,21 +266,7 @@ func _fire() -> void:
 		last_hit = "выстрел: %.0f см от центра мишени (10 м), ствол: вбок %+.1f°, вверх %+.1f°" % [cm,
 			rad_to_deg(atan2(dir.x, dir.z)), rad_to_deg(asin(clampf(dir.y, -1.0, 1.0)))]
 		if cm < 80.0:
-			var hm := MeshInstance3D.new()
-			var sp := SphereMesh.new()
-			sp.radius = 0.025
-			sp.height = 0.05
-			hm.mesh = sp
-			var mm := StandardMaterial3D.new()
-			mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			mm.albedo_color = Color(0.1, 0.9, 1.0)
-			hm.material_override = mm
-			add_child(hm)
-			hm.global_position = end - Vector3(0, 0, 0.02)
-			hm.reparent(target)
-			hits.append(hm)
-			if hits.size() > 14:
-				(hits.pop_front() as Node).queue_free()
+			_mark_hit(end, 0.025)
 	else:
 		last_hit = "выстрел: мимо плоскости мишени (ствол смотрит не вперёд)"
 	tracer.visible = true
@@ -262,12 +281,32 @@ func _fire() -> void:
 	tw.tween_callback(func(): tracer.visible = false)
 
 
+func _mark_hit(at: Vector3, r: float) -> void:
+	if Vector2(at.x - target.global_position.x, at.y - target.global_position.y).length() > 0.8:
+		return
+	var hm := MeshInstance3D.new()
+	var sp := SphereMesh.new()
+	sp.radius = r
+	sp.height = r * 2.0
+	hm.mesh = sp
+	var mm := StandardMaterial3D.new()
+	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mm.albedo_color = Color(0.1, 0.9, 1.0)
+	hm.material_override = mm
+	add_child(hm)
+	hm.global_position = at - Vector3(0, 0, 0.02)
+	hm.reparent(target)
+	hits.append(hm)
+	if hits.size() > 30:
+		(hits.pop_front() as Node).queue_free()
+
+
 ## стойка тела под оружие: с пистолетом и автоматом — стойка стрелка, с холодным — боевая
 func _body_pose() -> void:
 	var pose := String(cur.get("pose", ""))
 	var wpn := rig.hold.wid if rig.hold.drawn > 0.0 or rig.hold._draw_dir > 0.0 else ""
 	if pose == "" and not cur.has("speed") and not cur.has("action"):
-		pose = "armed_idle" if wpn in ["pistol", "rifle"] else ("combat_idle" if wpn == "melee" else "")
+		pose = "" if wpn == "" else ("combat_idle" if rig.hold.w.mode == "melee" else "armed_idle")
 	rig.set_pose(pose if rig.info.has(pose) else "")
 
 
@@ -360,9 +399,12 @@ func _step() -> void:
 				_fire()
 				_timer = 0.9
 			"burst":
+				# очередь по описанию оружия (burst); одиночные и дробовик — с паузой на отдачу и цевьё
+				var fc: Dictionary = rig.hold.w.get("fire", {})
+				var bn := int(fc.get("burst", 3))
 				_fire()
 				_burst += 1
-				_timer = 0.1 if _burst % 3 != 0 else 1.1
+				_timer = 0.1 if _burst % bn != 0 else (1.5 if fc.get("pump", false) else 1.1)
 			"reload":
 				_timer = rig.hold.reload() + 1.0
 		return
@@ -555,23 +597,31 @@ func _build_ui() -> void:
 	wbar.offset_right = -10
 	wbar.offset_top = -140
 	wbar.offset_bottom = -82
-	wbar.add_theme_constant_override("separation", 8)
+	wbar.add_theme_constant_override("separation", 6)
 	ui.add_child(wbar)
-	wbar.add_child(_lbl("В руки:", 16, Color(0.45, 0.85, 1.0)))
-	for wv in [["", "Ничего"], ["pistol", "Пистолет"], ["rifle", "Автомат"], ["melee", "Мачете"]]:
-		var wb := _btn(wv[1], take.bind(wv[0]), 112, 52, 16)
+	wbar.add_child(_lbl("В руки:", 15, Color(0.45, 0.85, 1.0)))
+	for wv in [["", "Ничего"], ["pistol", "ТТ"], ["rifle", "АК-74М"], ["spas12", "SPAS-12"], ["fnfal", "FN FAL"], ["vss", "ВСС"], ["mp5", "MP5"], ["pkp", "Печенег"], ["melee", "Мачете"]]:
+		var wb := _btn(wv[1], take.bind(wv[0]), 84, 52, 14)
 		wbar.add_child(wb)
 		w_btns[wv[0]] = wb
-	var wsp := Control.new()
-	wsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wsp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wbar.add_child(wsp)
+	# действия с оружием — отдельной строкой выше
+	var abar := HBoxContainer.new()
+	abar.anchor_top = 1.0
+	abar.anchor_bottom = 1.0
+	abar.anchor_right = 1.0
+	abar.offset_left = 330
+	abar.offset_right = -10
+	abar.offset_top = -200
+	abar.offset_bottom = -146
+	abar.add_theme_constant_override("separation", 8)
+	abar.alignment = BoxContainer.ALIGNMENT_END
+	ui.add_child(abar)
 	aim_btn = _btn("Прицел", func():
 		rig.hold.set_stance("ready" if rig.hold.stance == "aim" else "aim")
-		_refresh_weapon(), 110, 52, 16)
-	wbar.add_child(aim_btn)
-	wbar.add_child(_btn("Огонь", _fire, 100, 52, 16))
-	wbar.add_child(_btn("Перезарядка", func(): rig.hold.reload(), 140, 52, 16))
+		_refresh_weapon(), 110, 50, 16)
+	abar.add_child(aim_btn)
+	abar.add_child(_btn("Огонь", _fire, 100, 50, 16))
+	abar.add_child(_btn("Перезарядка", func(): rig.hold.reload(), 140, 50, 16))
 	bar.add_child(_btn("◀", func(): select((cur_i - 1 + ENTRIES.size()) % ENTRIES.size()), 60))
 	bar.add_child(_btn("▶", func(): select((cur_i + 1) % ENTRIES.size()), 60))
 	pause_btn = _btn("Пауза", _toggle_pause, 110)
@@ -641,6 +691,8 @@ func _info() -> void:
 	var h := rig.hold
 	if h.wid != "" and h.ik_on and h.w.mode != "melee":
 		parts.append("ладонь до рукояти: правая %.1f см, левая %.1f см" % [h.err_r * 100.0, h.err_l * 100.0])
+		if h.reload_step != "":
+			parts.append("перезарядка: " + h.reload_step)
 		if h.finger == "trigger" or h.finger == "index":
 			parts.append("палец на спуске" if h.finger == "trigger" else "палец вдоль рамки")
 	if last_hit != "" and h.wid != "" and h.w.mode != "melee":
@@ -886,7 +938,7 @@ func _draw_test() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-only="):
 			only = Array(a.substr(10).split(","))
-	for wpn in ["pistol", "rifle", "melee"]:
+	for wpn in ["pistol", "rifle", "melee", "spas12", "fnfal", "vss", "mp5", "pkp"]:
 		if not only.is_empty() and not only.has(wpn):
 			continue
 		rig.hold.equip(wpn, false)
@@ -895,7 +947,7 @@ func _draw_test() -> void:
 		# счёт доставания: убрано → кисть на рукояти → вынул → у груди → встреча рук → стойка
 		var dk: Dictionary = rig.hold.w.get("draw", {})
 		var g := float(dk.get("grab", 0.3))
-		var marks_at := [0.0, g, float(dk.get("clear_t", g + 0.14)), 0.56, 0.76, 1.0] if wpn != "melee" else [0.0, g, float(dk.get("clear_t", g + 0.14)), 0.72, 0.87, 1.0]
+		var marks_at := [0.0, g, float(dk.get("clear_t", g + 0.14)), 0.56, 0.76, 1.0] if rig.hold.w.mode != "melee" else [0.0, g, float(dk.get("clear_t", g + 0.14)), 0.72, 0.87, 1.0]
 		for mi in marks_at.size():
 			# кадр ставится точно на счёт (при программной отрисовке кадры редкие) и успевает «устояться»
 			rig.hold._draw_dir = 0.0
@@ -921,7 +973,7 @@ func _draw_test() -> void:
 				print("[stand] %s, стойка %s: сдвиг оружия при подгонке %s см" % [wpn, rig.hold.stance, str(((rig.hold.last_plan.t as Vector3) / rig.hold.k * 100.0).snapped(Vector3.ONE * 0.1))])
 		var j: Dictionary = rig.hold.joints
 		print("[stand] достал %s: правая кисть сгиб %.0f°, вбок %.0f°, предплечье %.0f°" % [wpn, j.R[0], j.R[1], j.R[2]])
-		if wpn != "melee":
+		if rig.hold.w.mode != "melee":
 			rig.hold.set_stance("aim")
 			await get_tree().create_timer(0.9).timeout
 			for n in 3:
@@ -1089,7 +1141,7 @@ func _strip_test() -> void:
 				el += get_process_delta_time()
 			var was := Engine.time_scale
 			Engine.time_scale = 0.0
-			for v in [["a", -0.75, 0.12, 2.6, 1.1], ["b", -PI * 0.5, 0.08, 2.6, 1.1], ["c", -1.0, 0.3, 0.8, -1.0]]:
+			for v in [["a", -0.75, 0.12, 2.6, 1.1], ["b", -PI * 0.5, 0.08, 2.6, 1.1], ["c", -1.0, 0.3, 0.8, -1.0], ["d", 0.35, 0.12, 1.5, 1.15]]:
 				yaw = v[1]
 				pitch = v[2]
 				dist = v[3]
@@ -1100,5 +1152,7 @@ func _strip_test() -> void:
 				await get_tree().process_frame
 				await _snap("%s/draw_%s_%d%s.png" % [out, id, k, v[0]])
 			Engine.time_scale = was
+			if rig.hold.wid != "":
+				print("[stand] %s %.2f: шаг «%s», магазин в руке: %s, старый падает: %s" % [id, fr[k], rig.hold.reload_step, str(rig.hold._prop != null and rig.hold._prop.visible), str(rig.hold._prop_old != null and rig.hold._prop_old.visible)])
 		Engine.time_scale = 1.0
 		await get_tree().create_timer(0.6).timeout

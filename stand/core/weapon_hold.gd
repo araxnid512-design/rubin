@@ -140,6 +140,12 @@ func equip(id: String, in_hands := true) -> void:
 	if node:
 		node.queue_free()
 		node = null
+	for pr in [_prop, _prop_old]:
+		if pr:
+			pr.queue_free()
+	_prop = null
+	_prop_old = null
+	_pump_t = 99.0
 	wid = id
 	err_r = 0.0
 	err_l = 0.0
@@ -157,9 +163,12 @@ func equip(id: String, in_hands := true) -> void:
 	node = Node3D.new()
 	node.name = "Weapon"
 	var m: Node3D = (load(w.model) as PackedScene).instantiate()
+	if w.get("flip", false):
+		m.rotation.y = PI                        # модель сделана стволом назад
 	node.add_child(m)
 	get_skeleton().add_child(node)
 	_wscale = float(w.len_m) / float(w.model_len) * k
+	_make_props()
 	_move = ""
 	if not w.stances.has(stance):
 		stance = w.stances.keys()[0]
@@ -205,6 +214,39 @@ func swing(kind: String) -> float:
 
 func fire() -> void:
 	_recoil_t = 0.0
+	if wid != "" and w.get("fire", {}).get("pump", false):
+		_pump_t = -0.22                          # после выстрела левая рука передёргивает цевьё
+
+
+## магазин (патрон, короб) в левой руке при перезарядке и выброшенный старый магазин
+func _make_props() -> void:
+	var rl: Dictionary = w.get("reload", {})
+	if w.mode == "melee" or not rl.has("mag_size"):
+		return
+	var sz := Vector3(rl.mag_size[0], rl.mag_size[1], rl.mag_size[2]) * k
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.75, 0.16, 0.12) if String(rl.kind) == "shells" else Color(0.34, 0.35, 0.38)
+	mat.roughness = 0.6
+	mat.metallic = 0.4
+	for i in 2:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = sz
+		mi.mesh = bm
+		mi.material_override = mat
+		mi.visible = false
+		get_skeleton().add_child(mi)
+		if i == 0:
+			_prop = mi
+		else:
+			_prop_old = mi
+
+
+## передёргивание цевья: 0 — рука на месте, 1 — цевьё отведено назад
+func _pump() -> float:
+	if _pump_t < 0.0 or _pump_t > 0.5:
+		return 0.0
+	return sin(PI * _pump_t / 0.5)
 
 
 func reload() -> float:
@@ -215,7 +257,7 @@ func reload() -> float:
 
 
 func _reload_len() -> float:
-	return 2.4 if w.mode == "rifle" else 1.9
+	return float(w.get("reload", {}).get("len", 2.4 if w.mode == "rifle" else 1.9))
 
 
 func busy() -> bool:
@@ -346,6 +388,8 @@ func _process_modification_with_delta(delta: float) -> void:
 		if rl >= 1.0:
 			_reload_t = -1.0
 			rl = -1.0
+			if w.get("fire", {}).get("pump", false):
+				_pump_t = 0.0
 	if rl >= 0.0:
 		var e := smoothstep(0.0, 0.18, rl) * (1.0 - smoothstep(0.82, 1.0, rl))
 		var roll := deg_to_rad(-32.0 if w.mode == "rifle" else -40.0) * e
@@ -407,6 +451,13 @@ func _process_modification_with_delta(delta: float) -> void:
 		var gl := _goal("L", W, plan.L)
 		if rl >= 0.0:
 			gl = _dyn_goal("L", SL, W, plan.L, bo, bf, bu, br, _reload_palm(s, W, rl, gl[0]))
+		else:
+			reload_step = ""
+			_carry = false
+			if _pump_t < 0.6:
+				_pump_t += delta
+			if rl < 0.0 and _pump() > 0.0:
+				gl[0] = (gl[0] as Vector3) + W.basis.z * (0.085 * k * _pump())
 		if chest_l and m_l < 1.0:
 			# пока правая достаёт пистолет, левая ладонь лежит на груди — не перед стволом — и встречает оружие
 			var gc := _chest_goal(T1)
@@ -443,6 +494,10 @@ func _process_modification_with_delta(delta: float) -> void:
 	if drawn < grab * 0.8:
 		finger = "open"
 	_fingers(s, "R", finger, delta, smoothstep(0.0, grab * 0.6, drawn))
+	if two_hands:
+		_props_update(W, rl, tl[2], ((tl[1] as Basis) * ((_hf.L.local_inv as Basis).inverse().z)).normalized(), delta)
+	elif _prop:
+		_prop.visible = false
 	aim_dev = rad_to_deg((-W.basis.z).angle_to(fwd)) if stance == "aim" else 0.0
 	node.transform = Transform3D(W.basis.scaled(Vector3.ONE * _wscale), W.origin)
 
@@ -520,6 +575,13 @@ var last_plan := {}
 var _hs := {}                     ## сглаженная ориентация кистей
 var _dyn_i := {}
 var _fq := {}                     ## сглаженные повороты пальцев
+var _prop: MeshInstance3D = null  ## новый магазин (патрон) в левой руке
+var _prop_old: MeshInstance3D = null  ## выброшенный магазин
+var _drop_t := 99.0
+var _carry := false
+var _drop_p := Transform3D.IDENTITY
+var _pump_t := 99.0
+var reload_step := ""             ## что сейчас делает левая рука при перезарядке (для подписи и проверки)
 var _vel := Vector3.ZERO          ## скорость оружия (пружина стойки)
 var _ang := Vector3.ZERO
 var finger := ""                  ## поза пальцев правой кисти сейчас (index — палец вне спуска, trigger — на спуске)
@@ -1036,19 +1098,75 @@ func _fingers(s: Skeleton3D, side: String, pose: String, delta: float, wgt := 1.
 			s.set_bone_pose_rotation(b, s.get_bone_pose_rotation(b).slerp(cur[b], wgt))
 
 
-## левая ладонь при перезарядке: цевьё → магазин → пояс → магазин → цевьё
-func _reload_palm(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3) -> Vector3:
+## Перезарядка по шагам: [доля времени, точка ладони левой руки, в руке ли магазин, название шага].
+## Магазин: рука с цевья идёт к магазину, выдёргивает его (старый падает), идёт к подсумку на поясе, берёт
+## новый, вставляет, передёргивает затвор и возвращается на цевьё. Дробовик: по одному патрону с пояса в окно
+## заряжания, в конце — цевьё назад-вперёд.
+func _reload_plan(s: Skeleton3D, W: Transform3D, base_palm: Vector3) -> Array:
 	var wu := W.basis.y
+	var rc: Dictionary = w.get("reload", {})
+	var kind := String(rc.get("kind", "mag"))
 	var mag := W * _pt(w.mag) - wu * (0.03 * k)
-	var mag_low := mag - wu * (0.09 * k)
+	var mag_low := mag - wu * (0.1 * k)
 	var hip := s.get_bone_global_pose(s.find_bone("Hip")).origin
 	var belt := hip + (fwd * 0.16 - rgt * 0.17 + upv * 0.06) * k
-	var keys := [[0.0, base_palm], [0.16, mag], [0.26, mag_low], [0.46, belt], [0.56, belt], [0.74, mag_low], [0.82, mag], [0.88, mag], [1.0, base_palm]]
+	if kind == "shells":
+		var n := int(rc.get("count", 4))
+		var keys := [[0.0, base_palm, false, ""], [0.08, belt, false, "к патронташу"]]
+		var d := 0.74 / n
+		for i in n:
+			var t0 := 0.08 + d * i
+			keys.append([t0 + d * 0.12, belt, true, "патрон %d" % (i + 1)])
+			keys.append([t0 + d * 0.62, mag, true, "патрон %d" % (i + 1)])
+			keys.append([t0 + d * 0.78, mag + W.basis.z * (-0.03 * k), false, "патрон %d" % (i + 1)])
+			keys.append([t0 + d, belt if i < n - 1 else mag, false, ""])
+		keys.append([0.9, base_palm, false, "цевьё"])
+		keys.append([1.0, base_palm, false, "цевьё"])
+		return keys
+	var bolt := W * _pt(w.get("bolt", w.mag)) if w.has("bolt") else mag + wu * (0.1 * k)
+	var bolt_back := bolt + W.basis.z * ((0.03 if w.mode == "pistol" else 0.06) * k)
+	return [[0.0, base_palm, false, ""], [0.13, mag, false, "к магазину"], [0.21, mag_low, false, "магазин вынут"], [0.4, belt, false, "к подсумку"],
+		[0.5, belt, true, "новый магазин"], [0.66, mag_low, true, "новый магазин"], [0.74, mag, false, "магазин вставлен"], [0.79, mag, false, "магазин вставлен"],
+		[0.87, bolt, false, "затвор"], [0.92, bolt_back, false, "затвор"], [0.95, bolt, false, "затвор"], [1.0, base_palm, false, ""]]
+
+
+func _reload_palm(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3) -> Vector3:
+	var keys := _reload_plan(s, W, base_palm)
 	for i in range(keys.size() - 1):
 		if rl >= float(keys[i][0]) and rl <= float(keys[i + 1][0]):
 			var u := smoothstep(0.0, 1.0, (rl - float(keys[i][0])) / maxf(float(keys[i + 1][0]) - float(keys[i][0]), 0.001))
+			_carry = bool(keys[i][2]) and bool(keys[i + 1][2])
+			reload_step = String(keys[i + 1][3])
 			return (keys[i][1] as Vector3).lerp(keys[i + 1][1], u)
 	return base_palm
+
+
+## магазин в руке и падающий старый магазин
+func _props_update(W: Transform3D, rl: float, palm: Vector3, P: Vector3, delta: float) -> void:
+	if _prop == null:
+		return
+	var kind := String(w.reload.kind)
+	var B := W.basis.orthonormalized()
+	_prop.visible = rl >= 0.0 and _carry
+	if _prop.visible:
+		# магазин лежит в ладони, вдоль оружия
+		_prop.transform = Transform3D(B, palm + P * (0.02 * k) + B.y * (float(w.reload.mag_size[1]) * 0.25 * k if kind != "shells" else 0.0))
+	if kind == "shells":
+		_prop_old.visible = false
+		return
+	if rl >= 0.21 and rl < 0.3 and _drop_t > 2.0:
+		_drop_t = 0.0
+		_drop_p = Transform3D(B, W * _pt(w.mag) - B.y * (0.12 * k))
+	if rl < 0.0 and _drop_t > 0.9:
+		_drop_t = 99.0
+	_prop_old.visible = _drop_t < 0.9
+	if _prop_old.visible:
+		_drop_t += delta
+		# старый магазин падает под своим весом и слегка кувыркается
+		var fall := minf(0.5 * 9.8 * _drop_t * _drop_t, 1.3)
+		_prop_old.transform = Transform3D(_drop_p.basis * Basis(Vector3.RIGHT, _drop_t * 5.0), _drop_p.origin - upv * (fall * k) - fwd * (0.25 * _drop_t * k))
+		if fall >= 1.3:
+			_drop_t = 0.9
 
 
 ## «как было» и холодное оружие: оружие — в кисти из клипа
