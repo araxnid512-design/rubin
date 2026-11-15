@@ -1,0 +1,801 @@
+{
+	"root_bone": "Hip",
+	"clips": {
+		"idle": {
+			"src": [
+				"{set}/idle.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"center": true
+		},
+		"breathe": {
+			"src": [
+				"{set}/standing_relax.res",
+				"{set}/wait.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"center": true
+		},
+		"walk": {
+			"src": [
+				"{set}/walk.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 1.16,
+			"phase": 0.867,
+			"strides": 2.0,
+			"root_smooth": 1.167
+		},
+		"walk_back": {
+			"src": [
+				"{set}/m_walk_back2.res",
+				"{set}/m_walk_back.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 1.7
+		},
+		"strafe_left": {
+			"src": [
+				"{set}/m_strafe_left.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"from": 0.1,
+			"to": 1.6,
+			"speed": 1.68
+		},
+		"strafe_right": {
+			"src": [
+				"{set}/m_strafe_right.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"from": 0.1,
+			"to": 1.6,
+			"speed": 1.32
+		},
+		"run": {
+			"src": [
+				"{set}/run.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 4.22,
+			"phase": 0.233,
+			"strides": 2.0,
+			"root_smooth": 0.625
+		},
+		"sprint": {
+			"src": [
+				"{set}/flee_01.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 2.43
+		},
+		"start": {
+			"src": [
+				"{set}/m_start2.res",
+				"{set}/m_start.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.15,
+			"rate": 1.0,
+			"speed": 0.27,
+			"root_lock": true,
+			"ik": true,
+			"off": true
+		},
+		"stop": {
+			"src": [
+				"{set}/m_stop3.res",
+				"{set}/m_stop2.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.2,
+			"rate": 1.0,
+			"root_lock": true,
+			"speed": 0.0,
+			"ik": true,
+			"off": true
+		},
+		"turn_left": {
+			"src": [
+				"{set}/turn.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ik": true,
+			"root_lock": true
+		},
+		"turn_right": {
+			"src": [
+				"{set}/m_turn_right.res",
+				"{set}/turn.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ik": true,
+			"root_lock": true
+		},
+		"crouch_idle": {
+			"src": [
+				"{set}/m_crouch_idle.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"center": true,
+			"loop_fix": 0.4
+		},
+		"crouch_walk": {
+			"src": [
+				"{set}/m_crouch_walk2.res",
+				"{set}/m_crouch_walk.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 0.86
+		},
+		"sneak": {
+			"src": [
+				"{set}/m_sneak.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 1.2
+		},
+		"stairs_up": {
+			"src": [
+				"{set}/run_upstairs.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 0.54
+		},
+		"stairs_down": {
+			"src": [
+				"{set}/m_stairs_down.res",
+				"{set}/jump_down.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"speed": 0.39
+		},
+		"ladder_up": {
+			"src": [
+				"{set}/climb.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0
+		},
+		"door_open": {
+			"src": [
+				"{set}/m_door_open.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true
+		},
+		"door_close": {
+			"src": [
+				"{set}/m_door_close.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true
+		},
+		"terminal": {
+			"src": [
+				"{set}/m_terminal.res",
+				"{set}/look_around.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true
+		},
+		"pickup": {
+			"src": [
+				"{set}/m_pickup.res",
+				"{set}/lift_heavy.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true
+		},
+		"suit_on": {
+			"src": [
+				"{set}/m_suit_on.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true,
+			"root_lock": true
+		},
+		"suit_off": {
+			"src": [
+				"{set}/m_suit_off.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true,
+			"root_lock": true
+		},
+		"sit_down": {
+			"src": [
+				"{set}/m_sit_down.res",
+				"{set}/sit.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true
+		},
+		"stand_up": {
+			"src": [
+				"{set}/m_sit_down.res",
+				"{set}/m_stand_up.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true,
+			"reverse": true
+		},
+		"bed_lie": {
+			"src": [
+				"{set}/m_bed_lie.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0
+		},
+		"bed_up": {
+			"src": [
+				"{set}/m_bed_lie.res",
+				"{set}/m_bed_up.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"reverse": true
+		},
+		"sit_idle": {
+			"src": [
+				"{set}/m_sit_down.res",
+				"{set}/sit.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"hold": true,
+			"ik": true
+		},
+		"lie_idle": {
+			"src": [
+				"{set}/m_bed_lie.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"hold": true
+		},
+		"inspect": {
+			"src": [
+				"{set}/look_around.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true
+		},
+		"combat_idle": {
+			"src": [
+				"{set}/m_combat_idle.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"center": true,
+			"ik": true
+		},
+		"punch_light": {
+			"src": [
+				"{set}/box_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"ik": true
+		},
+		"punch_heavy": {
+			"src": [
+				"{set}/box_02.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"ik": true
+		},
+		"block": {
+			"src": [
+				"{set}/m_block.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"ik": true
+		},
+		"dodge_left": {
+			"src": [
+				"{set}/m_dodge_left.res",
+				"{set}/dive.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.12,
+			"rate": 1.0,
+			"root_lock": true
+		},
+		"dodge_right": {
+			"src": [
+				"{set}/m_dodge_right.res",
+				"{set}/dive.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.12,
+			"rate": 1.0,
+			"root_lock": true
+		},
+		"pistol_draw": {
+			"src": [
+				"{set}/m_pistol_draw.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"ik": true
+		},
+		"pistol_aim": {
+			"src": [
+				"{set}/m_pistol_aim.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ik": true
+		},
+		"pistol_fire": {
+			"src": [
+				"{set}/m_pistol_fire.res",
+				"{set}/fire.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.08,
+			"rate": 1.0,
+			"ik": true
+		},
+		"pistol_reload": {
+			"src": [
+				"{set}/m_pistol_reload.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ik": true
+		},
+		"rifle_aim": {
+			"src": [
+				"{set}/m_rifle_aim.res",
+				"{set}/shoot.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ik": true
+		},
+		"rifle_fire": {
+			"src": [
+				"{set}/shoot.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.08,
+			"rate": 1.0
+		},
+		"kick": {
+			"src": [
+				"{set}/front_kick_01.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.12,
+			"rate": 1.0,
+			"ik": true,
+			"root_lock": true
+		},
+		"hit_front": {
+			"src": [
+				"{set}/hit_to_body_01.res",
+				"{set}/hit_to_stomach.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.18,
+			"rate": 1.0,
+			"ik": true
+		},
+		"hit_back": {
+			"src": [
+				"{set}/hit_to_body_02.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.18,
+			"rate": 1.0,
+			"ik": true
+		},
+		"hit_left": {
+			"src": [
+				"{set}/hit_to_side.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.18,
+			"rate": 1.0,
+			"ik": true
+		},
+		"hit_right": {
+			"src": [
+				"{set}/m_hit_right.res",
+				"{set}/hit_to_head.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.18,
+			"rate": 1.0,
+			"ik": true
+		},
+		"stagger": {
+			"src": [
+				"{set}/m_stagger.res",
+				"{set}/hurt.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"ik": true,
+			"root_lock": true
+		},
+		"fall": {
+			"src": [
+				"{set}/fall.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.1,
+			"rate": 1.0,
+			"ground": true
+		},
+		"get_up": {
+			"src": [
+				"{set}/m_get_up2.res",
+				"{set}/m_get_up.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.15,
+			"rate": 1.0,
+			"root_lock": true,
+			"ground": true
+		},
+		"death": {
+			"src": [
+				"{set}/fall.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true
+		},
+		"dead": {
+			"src": [
+				"{set}/fall.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true
+		},
+		"melee_light": {
+			"src": [
+				"{set}/m_melee_light.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"melee_heavy": {
+			"src": [
+				"{set}/m_melee_heavy.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0
+		},
+		"dodge_back": {
+			"src": [
+				"{set}/m_dodge_back.res"
+			],
+			"loop": false,
+			"inplace": true,
+			"blend": 0.12,
+			"rate": 1.0,
+			"root_lock": true
+		},
+		"greet": {
+			"src": [
+				"{set}/greet_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true,
+			"off": true
+		},
+		"wave": {
+			"src": [
+				"{set}/wave_goodbye_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"agree": {
+			"src": [
+				"{set}/agree.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"clap": {
+			"src": [
+				"{set}/clap.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"cheer": {
+			"src": [
+				"{set}/cheer.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"afraid": {
+			"src": [
+				"{set}/afraid.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"scared": {
+			"src": [
+				"{set}/scared_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"angry": {
+			"src": [
+				"{set}/angry_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"frustrated": {
+			"src": [
+				"{set}/frustrated_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"laugh": {
+			"src": [
+				"{set}/laugh_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"cry": {
+			"src": [
+				"{set}/cry.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"depressed": {
+			"src": [
+				"{set}/depressed.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true,
+			"off": true
+		},
+		"scratch": {
+			"src": [
+				"{set}/scratch.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"look_around": {
+			"src": [
+				"{set}/look_around.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"cough": {
+			"src": [
+				"{set}/m_cough.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"stretch": {
+			"src": [
+				"{set}/m_stretch.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"nod": {
+			"src": [
+				"{set}/m_nod.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"talk": {
+			"src": [
+				"{set}/m_talk.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		},
+		"check_dosimeter": {
+			"src": [
+				"{set}/m_check_dosimeter.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"ik": true
+		}
+	}
+}

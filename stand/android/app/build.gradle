@@ -1,0 +1,78 @@
+// BUNKER SURVIVAL — Android-приложение: официальная библиотека Godot 4.6.3 (Maven Central, файл libs/) +
+// данные игры (пакет, собранный Godot: tools/build_apk.sh распаковывает его в build/godot_assets).
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.animstand.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.animstand.app'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '0.1'
+        ndk {
+            // целевой телефон (WP33 Pro) и почти все современные — arm64
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    signingConfigs {
+        // любительский ключ: одинаковая подпись у всех сборок, чтобы ставить обновления поверх
+        game {
+            storeFile file('stand.jks')
+            storePassword 'driftgame'
+            keyAlias 'drift'
+            keyPassword 'driftgame'
+        }
+    }
+
+    buildTypes {
+        debug { signingConfig signingConfigs.game }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.game
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // папка .godot (импортированные ресурсы) начинается с точки — по умолчанию aapt такие пропускает
+    androidResources {
+        ignoreAssetsPattern '!.svn:!.git:!.gitignore:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+
+    // библиотека движка в APK — сжатой (70 → ~25 МБ), распаковывается при установке
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['build/godot_assets']
+        }
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation files('libs/godot-4.6.3.stable.aar')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.21'
+    implementation('androidx.fragment:fragment:1.8.6') {
+        // профилировщик запуска не нужен (и тянет лишние зависимости)
+        exclude group: 'androidx.profileinstaller'
+    }
+    implementation 'androidx.documentfile:documentfile:1.1.0'
+}
