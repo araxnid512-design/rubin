@@ -531,6 +531,8 @@ func _run_test() -> void:
 		return
 	ui.visible = false
 	cam.h_offset = 0.0
+	if OS.get_cmdline_user_args().has("--as-ik=off"):
+		rig.hold.ik_on = false               # «как было»: оружие приклеено к кисти, руки из клипа
 	var only := []
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-only="):
