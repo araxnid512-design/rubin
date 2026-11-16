@@ -1,6 +1,115 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "ul_house",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_house",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old one-storey Russian village wooden log house, rectangular footprint about 12 by 10 meters, gable roof of weathered grey corrugated metal, brick chimney, small wooden porch with three steps and a front door on the long side, several windows with carved white frames on all sides, slightly worn. Realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "ul_crate",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_crate",
+    "--faces",
+    "3000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Old wooden storage crate with a hinged lid, metal corner brackets and rope side handles, stenciled faded markings, about 1 m long, 0.6 m wide, 0.6 m tall. Realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "ul_birch",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_birch",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Young birch tree about 5 meters tall, slender white trunk with black marks, light green leafy crown, no ground base. Realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "ul_pine",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_pine",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Young pine tree about 5 meters tall, straight reddish trunk, dark green needle branches, no ground base. Realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "ul_apple",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_apple",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Small old apple tree about 3.5 meters tall, crooked dark trunk, round leafy green crown with a few red apples, no ground base. Realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "ul_bush",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_bush",
+    "--faces",
+    "3000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Wild green shrub bush about 1.2 meters tall and 1.5 meters wide, dense leaves, no ground base. Realistic game asset, PBR materials, single object, no background."
+   ],
+   "timeout": 3000
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
