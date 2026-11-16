@@ -1,6 +1,51 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "ulm_z_idle",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
+    "z_idle",
+    "4",
+    "a zombie standing in place, hunched forward with head tilted and arms hanging limp at its sides, swaying slowly from side to side and breathing heavily"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_z_walk",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
+    "z_walk",
+    "3",
+    "a zombie shambling slowly forward with uneven limping steps, dragging the right foot, arms hanging loosely, torso leaning forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_z_attack_r",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
+    "z_attack_r",
+    "2",
+    "a zombie lunging one step forward and swiping its right hand like a claw across in front of its chest, then pulling the arm back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_z_death_side",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
+    "z_death_side",
+    "3",
+    "a person hit from the side collapsing sideways to the left, falling onto the ground on its side and lying still"
+   ],
+   "timeout": 2400
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
