@@ -1,27 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ul_lottery",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_lottery",
-    "--faces",
-    "16000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--image",
-    "tools/tripo/refs/lottery.png",
-    "--rig",
-    "biped"
-   ],
-   "timeout": 3600
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -150,7 +129,8 @@
   "ul_bush",
   "ul_supplies",
   "ul_ammo",
-  "ul_zombie"
+  "ul_zombie",
+  "ul_lottery"
  ],
  "paused": [
   {
