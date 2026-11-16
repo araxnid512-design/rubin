@@ -37,3 +37,4 @@ CC-BY, NC, с неясной лицензией и вырезанных из ч�
 | `body_fall` | падение тела | — | qubodup «12 wet towel …», Kenney | CC0 |
 | `breath_run` | дыхание на бегу | — | mikeask «Breathing Tired» | CC0 |
 | `block` | блок мачете | — | rubberduck, Kenney | CC0 |
+- `music_menu.ogg` — музыка главного меню и карты мира: собственная, посчитана скриптом `tools/build_music.py` (чужих записей нет).

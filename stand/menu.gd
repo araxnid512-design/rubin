@@ -17,6 +17,7 @@ func _ready() -> void:
 			out = a.substr(9)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ULSettings.apply(get_viewport())
+	Music.play_menu()
 	bd = ULBackdrop.new()
 	bd.tex = load("res://assets/ui/title.jpg")
 	bd.anchor_y = 0.04              # название игры сверху видно целиком, срезается низ (камни под ногами)

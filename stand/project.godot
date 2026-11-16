@@ -18,6 +18,10 @@ run/max_fps=60
 gdscript/warnings/inference_on_variant=1
 gdscript/warnings/untyped_declaration=0
 
+[autoload]
+
+Music="*res://core/music.gd"
+
 [display]
 
 window/size/viewport_width=1280

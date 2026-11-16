@@ -72,6 +72,7 @@ func _ready() -> void:
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
 	ULSettings.apply(get_viewport())
+	Music.stop()
 	_env()
 	_ground()
 	house = ULHouse.new()
@@ -1974,12 +1975,14 @@ func _ui() -> void:
 ## удар мачете, кулаки — смотря что в руках); swap — смена оружия; take — взять предмет / открыть ящик;
 ## heal — лечение; reload — перезарядка; inv — инвентарь.
 const HUD_BTNS := {
-	"fire": [Vector2(-132, -140), 76.0],
-	"swap": [Vector2(-132, -306), 46.0],
-	"take": [Vector2(-292, -96), 48.0],
-	"reload": [Vector2(-274, -232), 42.0],
-	"heal": [Vector2(-246, -344), 36.0],
-	"inv": [Vector2(-416, -72), 42.0],
+	# всё у правого края, вокруг кнопки атаки: слева — взять, выше-левее — перезарядка, прямо над ней — смена
+	# оружия, над сменой — рюкзак (инвентарь), между ними слева — лечение
+	"fire": [Vector2(-128, -132), 76.0],
+	"swap": [Vector2(-116, -274), 44.0],
+	"inv": [Vector2(-116, -374), 40.0],
+	"take": [Vector2(-284, -100), 46.0],
+	"reload": [Vector2(-250, -210), 40.0],
+	"heal": [Vector2(-224, -308), 38.0],
 	# сверху справа (отсчёт от правого верхнего угла): постройка (поставить ящик) и меню
 	"build": [Vector2(-140, 52), 36.0, "top"],
 	"menu": [Vector2(-54, 52), 36.0, "top"],
@@ -3183,6 +3186,16 @@ func _inv_test() -> void:
 	_ok("имя сменилось на «Бродяга», панель закрылась", hero_name == "Бродяга" and not _name_ui.visible)
 	_ok("пустое имя не принимается, длинное обрезается до 16 знаков", not set_hero_name("   ") and set_hero_name("Очень длинное имя сталкера") and hero_name.length() == 16, hero_name)
 	set_hero_name("Сталкер")
+	# --- расположение кнопок ---
+	var over := ""
+	var ks := ["fire", "swap", "inv", "take", "reload", "heal"]
+	for i in ks.size():
+		for j in range(i + 1, ks.size()):
+			var gap := _hud_pos(ks[i]).distance_to(_hud_pos(ks[j])) - float(HUD_BTNS[ks[i]][1]) - float(HUD_BTNS[ks[j]][1])
+			if gap < 8.0:
+				over += "%s/%s " % [ks[i], ks[j]]
+	_ok("кнопки справа не перекрываются", over == "", over)
+	_ok("рюкзак — над сменой оружия, смена оружия — над кнопкой атаки", absf(_hud_pos("inv").x - _hud_pos("swap").x) < 10.0 and _hud_pos("inv").y < _hud_pos("swap").y and _hud_pos("swap").y < _hud_pos("fire").y and _hud_pos("swap").distance_to(_hud_pos("fire")) < 160.0)
 	# --- выход с локации ---
 	player.global_position = Vector3(0.0, 0.05, 30.0)
 	await get_tree().create_timer(0.3).timeout

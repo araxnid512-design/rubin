@@ -26,6 +26,7 @@ func _ready() -> void:
 			out = a.substr(9)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ULSettings.apply(get_viewport())
+	Music.play_menu()
 	bd = ULBackdrop.new()
 	bd.tex = load("res://assets/ui/worldmap.jpg")
 	bd.src_size = Vector2(1671, 941)
