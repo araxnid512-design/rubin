@@ -5191,6 +5191,48 @@ func _run_test() -> void:
 		await _snap("ch_hint")
 		get_tree().quit()
 		return
+	if test == "melee":
+		# каждый удар вплотную, сбоку: начало замаха, момент удара, после — и расстояние в момент удара
+		DirAccess.make_dir_recursive_absolute(out)
+		var kind := "infected"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind="):
+				kind = a.substr(10)
+		player.global_position = Vector3(18.0, 0.05, 24.0)
+		player.rotation.y = 0.0
+		hp = 1e6
+		var sc := Camera3D.new()
+		add_child(sc)
+		sc.fov = 34.0
+		sc.look_at_from_position(Vector3(22.5, 1.5, 25.6), Vector3(18.0, 0.9, 25.0))
+		sc.current = true
+		_hud.visible = false
+		var all: Array = ULEnemy.KINDS[kind].attacks
+		for ai in all.size():
+			var e := spawn_enemy(kind, Vector3(18.0, 0, 28.0))
+			e.def = e.def.duplicate()
+			e.def.attacks = [all[ai]]
+			e.rotation.y = PI
+			e.state = "chase"
+			e._last = player.global_position
+			var w := 0.0
+			while e._hit_due < 0.0 and w < 6.0:
+				await get_tree().process_frame
+				w += get_process_delta_time()
+			if not e.rig.has_clip(String(all[ai].clip)):
+				print("[melee] %s: клипа %s нет" % [all[ai].n, all[ai].clip])
+			await _snap("m%d_a" % ai)
+			while e._hit_due >= 0.0:
+				await get_tree().process_frame
+			var gap := e.global_position.distance_to(player.global_position)
+			await _snap("m%d_b" % ai)
+			await get_tree().create_timer(0.35).timeout
+			await _snap("m%d_c" % ai)
+			print("[melee] %s %d: %s — в момент удара между центрами %.2f м" % [kind, ai, all[ai].n, gap])
+			clear_enemies()
+			await get_tree().create_timer(0.2).timeout
+		get_tree().quit()
+		return
 	if test == "nav":
 		# герой во дворе, враг за задним забором: должен обойти двор и войти через калитку
 		player.global_position = HOUSE_AT + Vector3(6.0, 0.05, 7.5)
