@@ -34,8 +34,8 @@ var house: ULHouse
 var cam: Camera3D
 ## камера как в изометрических выживалках: неподвижна, сверху под 55°, смотрит на север (дом — вверху экрана)
 const CAM_YAW := 0.0
-const CAM_PITCH := 0.96
-var cam_dist := 12.5
+const CAM_PITCH := 1.06             ## 61° — круче, ближе к виду сверху, как в DoZ Survival (было 55°)
+var cam_dist := 12.0
 var _cam_t := Vector3.ZERO
 var crates: Array[Node3D] = []
 var _crate_scene: PackedScene = null
@@ -1285,7 +1285,7 @@ func _process(delta: float) -> void:
 
 
 var _cam_ready := false
-var _cam_d := 12.5
+var _cam_d := 12.0
 var aiming := false               ## прицельное движение: герой лицом к цели
 var move_mode := ""               ## как он при этом идёт: "" — вперёд, walk_back — пятится, strafe_left / strafe_right — боком
 var _aim_yaw := 0.0
