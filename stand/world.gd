@@ -87,6 +87,8 @@ func _ready() -> void:
 	_player()
 	_combat_setup()
 	_npcs_setup()
+	if test == "":
+		_enemies_setup()
 	_load_profile()
 	inv = ULInventory.new()
 	_ui()
@@ -1288,6 +1290,7 @@ func _process(delta: float) -> void:
 	if _preview_rig and inv_ui.visible and _preview_rig.hold.wid != "":
 		_preview_rig.set_motion(0.0, 0.0, delta)
 	_npcs_tick(delta)
+	_enemies_tick(delta)
 
 
 var _cam_ready := false
@@ -1758,9 +1761,23 @@ func _find_target() -> void:
 		if d < bd:
 			bd = d
 			best = {"type": "npc", "n": n}
+	for e in enemies:
+		if not e.alive():
+			var d := e.body_pos().distance_to(p) - 0.3
+			if d < bd:
+				bd = d
+				best = {"type": "corpse", "e": e}
 	var node: Node3D = null
 	if best != null:
-		node = best.g.node if best.type == "ground" else (best.c if best.type == "crate" else best.n)
+		match String(best.type):
+			"ground":
+				node = best.g.node
+			"crate":
+				node = best.c
+			"npc":
+				node = best.n
+			"corpse":
+				node = best.e
 	_target = best
 	if node != _glow_node:
 		_set_glow(_glow_node, false)
@@ -1803,6 +1820,8 @@ func _target_pos() -> Vector3:
 		return Vector3.ZERO
 	if _target.type == "npc":
 		return (_target.n as Node3D).global_position + Vector3.UP * 1.0
+	if _target.type == "corpse":
+		return (_target.e as ULEnemy).body_pos() + Vector3.UP * 0.3
 	return (_target.g.node as Node3D).global_position if _target.type == "ground" else (_target.c as Node3D).global_position + Vector3.UP * 0.3
 
 
@@ -1813,6 +1832,8 @@ func _target_name() -> String:
 		return "ящик"
 	if _target.type == "npc":
 		return "%s, %s" % [_target.n.get_meta("name"), _target.n.get_meta("role")]
+	if _target.type == "corpse":
+		return "%s (тело)" % String((_target.e as ULEnemy).def.n)
 	return ULItems.title(_target.g.item)
 
 
@@ -1823,6 +1844,8 @@ func _action_label() -> String:
 		return "Открыть"
 	if _target.type == "npc":
 		return "Говорить"
+	if _target.type == "corpse":
+		return "Обыскать"
 	var it: Dictionary = _target.g.item
 	return "Открыть" if ULItems.kind(it) == "pack" else "Взять"
 
@@ -1836,6 +1859,11 @@ func do_action() -> void:
 		return
 	if _target.type == "npc":
 		open_talk(_target.n)
+		return
+	if _target.type == "corpse":
+		# обыск тела: его добыча — как хранилище; что взять — решает игрок («Взять всё» или по одному)
+		_open_corpse = _target.e
+		open_inventory((_target.e as ULEnemy).loot, String((_target.e as ULEnemy).def.n), false, String((_target.e as ULEnemy).def.pic))
 		return
 	var g: Dictionary = _target.g
 	var it: Dictionary = g.item
@@ -1994,6 +2022,11 @@ func _ui() -> void:
 	bar.visible = false
 	_menu_bar = bar
 	_hud.add_child(bar)
+	bar.add_child(_btn("Враг +", func():
+		var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+		spawn_enemy("infected", player.global_position + f * 9.0)
+		_menu_bar.visible = false, 90))
+	bar.add_child(_btn("Справочник", open_book, 130))
 	bar.add_child(_btn("Карта", func():
 		_save()
 		get_tree().change_scene_to_file("res://map.tscn"), 90))
@@ -2096,6 +2129,13 @@ func _draw_hud() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	# шапка: имя, здоровье, энергия, вода
 	var font0 := ThemeDB.fallback_font
+	if _hurt_t > 0.0:
+		_hud.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.8, 0.05, 0.03, 0.2 * clampf(_hurt_t / 0.35, 0.0, 1.0)))
+	if _dead_t > 0.0:
+		_hud.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.1, 0.0, 0.0, 0.6))
+		var dt := "Вы погибли"
+		var dw := font0.get_string_size(dt, HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
+		_hud.draw_string(font0, Vector2(vs.x * 0.5 - dw * 0.5, vs.y * 0.45), dt, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, Color(1.0, 0.75, 0.6))
 	_hud.draw_string_outline(font0, Vector2(18, 30), hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.85))
 	_hud.draw_string(font0, Vector2(18, 30), hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.95, 0.97, 1.0))
 	# три точки справа от имени — сменить имя
@@ -2113,6 +2153,9 @@ func _draw_hud() -> void:
 		_hud_icon(_stat_tex(st[0]), Vector2(sx + 8, 68), 20, st[2])
 		_hud_text(Vector2(sx + 40, 68), "%d" % int(round(float(st[1]))), 15)
 		sx += 84.0
+	# спораны — валюта
+	_hud_icon(_tex("res://assets/icons/loot_spore.png"), Vector2(sx + 8, 68), 24)
+	_hud_text(Vector2(sx + 40, 68), "%d" % inv.count("spore"), 15, Color(0.95, 0.95, 0.9))
 	# джойстик
 	var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
 	_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
@@ -2165,6 +2208,8 @@ func _draw_hud() -> void:
 						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"crate":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
+					"corpse":
+						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
 					_:
 						var tid := String(_target.g.item.id)
 						_hud_icon(ULItems.icon(tid), c, r * 1.5, ULItems.tint(tid))
@@ -2451,6 +2496,8 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	if t != null:
 		f = ((t.global_position + Vector3.UP * 1.2) - from).normalized()
 	rig.hold.fire()
+	for e in enemies:
+		e.hear(player.global_position)          # выстрел слышат враги поблизости
 	var sd: Dictionary = wcfg.get("sound", {})
 	snd.play(String(sd.get("shot", "shot_ak")), vis_from, float(sd.get("db", 0.0)), 0.04)
 	_case_i += 1
@@ -2642,7 +2689,10 @@ func heal(id := "") -> bool:
 ## урон по мишени: цифра над ней, качание; на нуле падает и через 6 с встаёт
 func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
 	var left := maxf(0.0, float(t.get_meta("hp")) - dmg)
-	t.set_meta("hp", left)
+	if t is ULEnemy:
+		(t as ULEnemy).damage(dmg)
+	else:
+		t.set_meta("hp", left)
 	# цифра урона: попадания по той же мишени чаще трёх раз в секунду складываются в одну надпись
 	# (очередь из пулемёта — это одна растущая цифра, а не десять надписей в секунду)
 	var now_s := Time.get_ticks_msec() * 0.001
@@ -2666,6 +2716,8 @@ func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
 		tw.parallel().tween_property(lb, "modulate:a", 0.0, 0.7)
 		tw.tween_callback(lb.queue_free)
 		_dmg_lb[t] = [lb, dmg, now_s]
+	if t is ULEnemy:
+		return                                  # враг сам отыгрывает попадание и гибель
 	var vis: Node3D = t.get_node("Vis")
 	var tw2 := create_tween()
 	if t.has_meta("dummy"):
@@ -3334,6 +3386,84 @@ func _inv_test() -> void:
 				over += "%s/%s " % [ks[i], ks[j]]
 	_ok("кнопки справа не перекрываются", over == "", over)
 	_ok("рюкзак — над сменой оружия, смена оружия — над кнопкой атаки", absf(_hud_pos("inv").x - _hud_pos("swap").x) < 10.0 and _hud_pos("inv").y < _hud_pos("swap").y and _hud_pos("swap").y < _hud_pos("fire").y and _hud_pos("swap").distance_to(_hud_pos("fire")) < 160.0)
+	# --- враг: заражённый ---
+	close_inventory()
+	hp = 100.0
+	player.global_position = Vector3(20.0, 0.05, 30.0)
+	player.velocity = Vector3.ZERO
+	var n_targets := targets.size()
+	var ms0 := Time.get_ticks_msec()
+	var far := spawn_enemy("infected", Vector3(20.0, 0.0, 50.0))        # дальше, чем видит, но слышит выстрел
+	var ms1 := Time.get_ticks_msec()
+	var e := spawn_enemy("infected", Vector3(20.0, 0.0, 39.0))
+	var ms2 := Time.get_ticks_msec()
+	# первый заражённый готовит движения под свой скелет (при загрузке локации), следующие берут готовые
+	_ok("второй заражённый появляется без заминки (быстрее 60 мс)", ms2 - ms1 < 60, "первый %d мс, второй %d мс" % [ms1 - ms0, ms2 - ms1])
+	_ok("заражённый — в списке целей, прочность 60", targets.has(e) and float(e.get_meta("hp")) == 60.0)
+	await get_tree().create_timer(0.5).timeout
+	_ok("заметил героя ближе 13 м — бежит к нему", e.state == "chase", e.state)
+	_ok("дальний (20 м) героя не видит — стоит или бродит", far.state == "idle" or far.state == "wander", far.state)
+	for en_ in enemies:
+		en_.hear(player.global_position)
+	_ok("услышал выстрел (до 22 м) — тоже бежит", far.state == "chase", far.state)
+	far.state = "idle"
+	far.global_position = Vector3(-40.0, 0.0, 40.0)
+	var hp0 := hp
+	var wait_s := 0.0
+	while hp >= hp0 and wait_s < 8.0:
+		await get_tree().create_timer(0.1).timeout
+		wait_s += 0.1
+	_ok("добежал и ударил: здоровье героя убыло на 9", is_equal_approx(hp0 - hp, 9.0), "%.0f → %.0f за %.1f с" % [hp0, hp, wait_s])
+	_ok("после удара экран краснеет", _hurt_t > 0.0)
+	_damage(e, 25.0, e.global_position + Vector3.UP)
+	_ok("попадание: прочность 60 → 35, жив", is_equal_approx(e.hp, 35.0) and e.alive())
+	_damage(e, 100.0, e.global_position + Vector3.UP)
+	_ok("убит: падает, больше не цель для автонаведения", not e.alive() and float(e.get_meta("hp")) == 0.0 and e.collision_layer == 0)
+	# добыча: от нуля до трёх споранов
+	var seen := {}
+	var bad := false
+	for sd in 80:
+		var n_sp := 0
+		for c in ULEnemy.roll_loot("infected", sd):
+			if c != null:
+				bad = bad or String(c.id) != "spore"
+				n_sp += int(c.n)
+		seen[n_sp] = true
+		bad = bad or n_sp < 0 or n_sp > 3
+	_ok("в теле — от нуля до трёх споранов (встречается 0, 1, 2 и 3)", not bad and seen.size() == 4, str(seen.keys()))
+	e.loot = [ULItems.make("spore", 2), null, null, null]
+	var sp0 := inv.count("spore")
+	await get_tree().create_timer(2.6).timeout                         # упал и лежит
+	_ok("тело лежит на земле (таз ниже 0.4 м)", (e.rig.skel.global_transform * e.rig.skel.get_bone_global_pose(e.rig.skel.find_bone("Hip")).origin).y < 0.4, "таз на высоте %.2f м" % (e.rig.skel.global_transform * e.rig.skel.get_bone_global_pose(e.rig.skel.find_bone("Hip")).origin).y)
+	player.global_position = e.body_pos() + Vector3(0.7, 0.05, 0.0)
+	await get_tree().create_timer(0.25).timeout
+	_ok("рядом с телом — действие «Обыскать»", _target != null and _target.type == "corpse" and _action_label() == "Обыскать", _action_label())
+	do_action()
+	_ok("обыск открывает добычу тела как хранилище", inv_ui.visible and inv_ui.cont == e.loot)
+	inv_ui._take_all()
+	_ok("«Взять всё»: два спорана — в инвентаре", inv.count("spore") == sp0 + 2 and e.loot[0] == null, "%d → %d" % [sp0, inv.count("spore")])
+	_ok("тело лежит минуту", ULEnemy.CORPSE_S == 60.0 and is_instance_valid(e) and enemies.has(e))
+	e.dead_t = ULEnemy.CORPSE_S - 0.3
+	await get_tree().create_timer(0.6).timeout
+	_ok("через минуту обысканное тело исчезает, окно обыска закрывается", not is_instance_valid(e) and enemies.size() == 1 and targets.size() == n_targets + 1 and not inv_ui.visible)
+	_damage(far, 100.0, far.global_position + Vector3.UP)
+	far.dead_t = ULEnemy.CORPSE_S - 0.3
+	await get_tree().create_timer(0.6).timeout
+	_ok("необысканное тело тоже исчезает через минуту", not is_instance_valid(far) and enemies.is_empty() and targets.size() == n_targets)
+	# гибель героя
+	hp = 5.0
+	hurt(9.0)
+	_ok("здоровье кончилось — герой погиб, управление отключено", hp == 0.0 and _dead_t > 0.0 and _modal())
+	await get_tree().create_timer(3.3).timeout
+	_ok("через три секунды — снова у дома, здоровье 50", _dead_t == 0.0 and hp == 50.0 and player.global_position.distance_to(Vector3(0, 0, 3)) < 1.0)
+	hp = 65.0
+	open_book()
+	var book_txt := ""
+	for l in _book_ui.find_children("*", "Label", true, false):
+		book_txt += (l as Label).text + "\n"
+	_ok("справочник: заражённый — как ходит, как нападает, что в теле", book_txt.contains("Заражённый") and book_txt.contains("Ходит") and book_txt.contains("Нападает") and book_txt.contains("спораны — от 0 до 3"))
+	_book_ui.queue_free()
+	await get_tree().process_frame
 	# --- выход с локации ---
 	player.global_position = Vector3(0.0, 0.05, 30.0)
 	await get_tree().create_timer(0.3).timeout
@@ -3359,6 +3489,175 @@ func _inv_test() -> void:
 	print("[inv] итог: ошибок %d" % _fails)
 	await _perf_report()
 	get_tree().quit()
+
+
+# ---------------- враги ----------------
+
+## где появляются заражённые (за забором, в поле); убитый появляется снова через RESPAWN_S секунд
+const ENEMY_SPAWNS := [Vector3(-13, 0, 17), Vector3(14, 0, 23), Vector3(-3, 0, 33)]
+const RESPAWN_S := 25.0
+var enemies: Array[ULEnemy] = []
+var _open_corpse: ULEnemy = null
+var _respawn: Array = []          ## [точка, сколько осталось ждать]
+var _hurt_t := 0.0
+var _dead_t := 0.0
+var _book_ui: Control
+var _enemy_n := 0
+
+
+func _enemies_setup() -> void:
+	for sp in ENEMY_SPAWNS:
+		spawn_enemy("infected", sp)
+
+
+func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
+	_enemy_n += 1
+	var e := ULEnemy.new()
+	add_child(e)
+	e.setup(kind, at, 7000 + _enemy_n * 37)
+	e.hit_player.connect(hurt)
+	enemies.append(e)
+	targets.append(e)
+	return e
+
+
+## герой получил удар
+func hurt(dmg: float) -> void:
+	if _dead_t > 0.0:
+		return
+	hp = maxf(0.0, hp - dmg)
+	_hurt_t = 0.35
+	snd.play("punch", player.global_position + Vector3.UP * 1.3, -2.0, 0.08)
+	if hp <= 0.0:
+		# погиб: через три секунды — снова у дома, с половиной здоровья; враги расходятся
+		_dead_t = 3.0
+		close_inventory()
+		_hud_touch.clear()
+		_joy_id = -1
+		_joy_v = Vector2.ZERO
+
+
+func _enemies_tick(delta: float) -> void:
+	_hurt_t = maxf(0.0, _hurt_t - delta)
+	if _dead_t > 0.0:
+		_dead_t -= delta
+		if _dead_t <= 0.0:
+			_dead_t = 0.0
+			hp = 50.0
+			player.global_position = Vector3(0, 0.1, 3)
+			player.velocity = Vector3.ZERO
+			_cam_ready = false
+			for e in enemies:
+				if e.alive():
+					e.state = "idle"
+			say("Вы очнулись у дома")
+			_save()
+	var p := player.global_position
+	var hero_ok := _dead_t <= 0.0
+	var fr := Engine.get_process_frames()
+	for i in range(enemies.size() - 1, -1, -1):
+		var e := enemies[i]
+		if not e.alive():
+			e.tick(delta, p, false, hero_ok)
+			if e.dead_t >= ULEnemy.CORPSE_S:
+				# тело лежит минуту и исчезает — обыскали его или нет
+				if _open_corpse == e and inv_ui.visible:
+					close_inventory()
+				if _glow_node == e:
+					_glow_node = null
+				if _target != null and _target.type == "corpse" and _target.e == e:
+					_target = null
+				if test == "":
+					_respawn.append([e.home, RESPAWN_S])
+				_dmg_lb.erase(e)
+				targets.erase(e)
+				enemies.remove_at(i)
+				e.queue_free()
+			continue
+		var d := e.global_position.distance_to(p)
+		e.set_active(d < 36.0)
+		if not e.active:
+			continue
+		# видит ли героя — проверяется не каждый кадр (луч через стены и забор)
+		if (fr + i) % 6 == 0 or not e.has_meta("sees"):
+			e.set_meta("sees", d < float(e.def.see) and _sees(e))
+		e.tick(delta, p, bool(e.get_meta("sees")), hero_ok)
+	for i in range(_respawn.size() - 1, -1, -1):
+		_respawn[i][1] = float(_respawn[i][1]) - delta
+		if float(_respawn[i][1]) <= 0.0 and (_respawn[i][0] as Vector3).distance_to(p) > 16.0:
+			spawn_enemy("infected", _respawn[i][0])
+			_respawn.remove_at(i)
+
+
+## Справочник: кто водится на локации — как ходит, как нападает, что в нём бывает
+func open_book() -> void:
+	_menu_bar.visible = false
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.6)
+	_hud.get_parent().add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_book_ui = shade
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	shade.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -430
+	pn.offset_right = 430
+	pn.offset_top = -270
+	pn.offset_bottom = 270
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pn.add_child(vb)
+	var tl := Label.new()
+	tl.text = "Справочник"
+	tl.add_theme_font_size_override("font_size", 24)
+	tl.add_theme_color_override("font_color", C_TEXT)
+	vb.add_child(tl)
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 14)
+	sc.add_child(list)
+	for k in ULEnemy.KINDS:
+		var d: Dictionary = ULEnemy.KINDS[k]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		list.add_child(row)
+		var pic := TextureRect.new()
+		pic.texture = _tex("res://assets/icons/%s.png" % String(d.pic))
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pic.custom_minimum_size = Vector2(210, 300)
+		row.add_child(pic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 6)
+		row.add_child(col)
+		var nm := Label.new()
+		nm.text = String(d.n)
+		nm.add_theme_font_size_override("font_size", 22)
+		nm.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+		col.add_child(nm)
+		for line in ULEnemy.describe(k):
+			var l := Label.new()
+			l.text = String(line)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.add_theme_font_size_override("font_size", 16)
+			l.add_theme_color_override("font_color", C_TEXT)
+			col.add_child(l)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	vb.add_child(hb)
+	hb.add_child(ULSettings.button("Закрыть", func() -> void: shade.queue_free(), 140.0))
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
 
 
 # ---------------- плавность: разрешение, прогрев, выход с локации ----------------
@@ -3468,7 +3767,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui))
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or _dead_t > 0.0
 
 
 func _load_profile() -> void:
@@ -3838,6 +4137,114 @@ func _run_test() -> void:
 		fps_test()
 		await get_tree().create_timer(10.6).timeout
 		print("[perf] кнопка «Тест FPS» (здесь — без экрана, число не показатель): " + _perf_text.strip_edges().replace("\n", " · "))
+		get_tree().quit()
+		return
+	if test == "eclips":
+		# движения заражённого крупным планом: по шесть кадров на клип
+		DirAccess.make_dir_recursive_absolute(out)
+		player.global_position = Vector3(18.0, 0.05, 14.0)
+		var z := spawn_enemy("infected", Vector3(18.0, 0.0, 27.5))
+		z.def = z.def.duplicate()
+		z.def.see = 0.0
+		z.def.walk = 0.0
+		z.rotation.y = 0.0
+		var zc := Camera3D.new()
+		add_child(zc)
+		zc.fov = 40.0
+		zc.look_at_from_position(z.global_position + Vector3(-3.6, 1.5, 2.2), z.global_position + Vector3(0, 0.9, 0.3))
+		zc.current = true
+		_hud.visible = false
+		await get_tree().create_timer(0.6).timeout
+		for cn in ["punch_light", "punch_heavy", "melee_light", "melee_heavy", "hit_front", "death"]:
+			z.rotation.y = 0.0
+			z.state = "idle"
+			z._t = 99.0
+			var ln := z.rig.play(cn)
+			print("[eclips] %s длина %.2f" % [cn, ln])
+			for fi in 6:
+				await get_tree().create_timer(ln / 6.5).timeout
+				await _snap("%s_%d" % [cn, fi])
+			await get_tree().create_timer(0.5).timeout
+		get_tree().quit()
+		return
+	if test == "enemy":
+		# заражённый: стоит, бежит, бьёт, тело, обыск, справочник
+		DirAccess.make_dir_recursive_absolute(out)
+		hp = 100.0
+		cam_dist = 5.5                                    # крупный план
+		player.global_position = Vector3(18.0, 0.05, 24.0)
+		player.rotation.y = 0.0
+		_cam_ready = false
+		var e := spawn_enemy("infected", Vector3(18.0, 0.0, 27.5))
+		e.rotation.y = PI * 0.8
+		e.set_physics_process(false)
+		var st0: float = e.def.see
+		e.def = e.def.duplicate()
+		e.def.see = 0.0                                   # пока не замечает — снимок стоящего
+		await get_tree().create_timer(1.5).timeout
+		await _snap("e0_idle")
+		# крупный план отдельной камерой
+		var c2 := Camera3D.new()
+		add_child(c2)
+		c2.fov = 40.0
+		c2.look_at_from_position(e.global_position + Vector3(-2.2, 1.9, -3.2), e.global_position + Vector3.UP * 0.95)
+		c2.current = true
+		_hud.visible = false
+		await get_tree().create_timer(0.3).timeout
+		await _snap("c0_idle")
+		_hud.visible = true
+		cam.current = true
+		e.def.see = st0
+		e.global_position = Vector3(18.0, 0.0, 31.0)
+		await get_tree().create_timer(0.75).timeout
+		await _snap("e1_chase")
+		var hp0 := hp
+		while hp >= hp0:
+			await get_tree().process_frame
+		await _snap("e2_attack")
+		await get_tree().create_timer(0.25).timeout
+		await _snap("e2b_attack")
+		c2.look_at_from_position(e.global_position + Vector3(-3.4, 1.8, -1.2), (e.global_position + player.global_position) * 0.5 + Vector3.UP * 1.0)
+		c2.current = true
+		_hud.visible = false
+		for ci in 4:
+			while e._hit_due < 0.0:
+				await get_tree().process_frame
+			await _snap("c1_attack%d" % ci)
+			await get_tree().create_timer(0.28).timeout
+		await _snap("c1_attack_end")
+		_damage(e, 100.0, e.global_position + Vector3.UP * 1.3)
+		await get_tree().create_timer(0.5).timeout
+		await _snap("e3_dying")
+		await get_tree().create_timer(2.5).timeout
+		e.loot = [ULItems.make("spore", 3), null, null, null]
+		c2.look_at_from_position(e.body_pos() + Vector3(-2.6, 2.6, -2.4), e.body_pos() + Vector3.UP * 0.2)
+		player.global_position = e.body_pos() + Vector3(-0.2, 0.05, -1.0)
+		await get_tree().create_timer(0.4).timeout
+		await _snap("c2_corpse")
+		_set_glow(e, false)
+		await _snap("c2_corpse_plain")
+		_hud.visible = true
+		cam.current = true
+		await _snap("e4_corpse")
+		do_action()
+		await get_tree().create_timer(0.6).timeout
+		await _snap("e5_search")
+		inv_ui._take_all()
+		await get_tree().create_timer(0.3).timeout
+		await _snap("e6_taken")
+		close_inventory()
+		open_book()
+		await get_tree().create_timer(0.4).timeout
+		await _snap("e7_book")
+		_book_ui.queue_free()
+		inv.pockets[5] = ULItems.make("pea", 2)
+		inv.pockets[6] = ULItems.make("pearl_black", 1)
+		inv.pockets[7] = ULItems.make("pearl_red", 1)
+		inv.pockets[4] = ULItems.make("pearl_white", 1)
+		open_inventory()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("e8_loot_items")
 		get_tree().quit()
 		return
 	if test == "view":

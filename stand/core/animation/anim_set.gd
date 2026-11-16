@@ -8,6 +8,52 @@ class_name BCAnimSet
 const CONFIG := "res://data/anim_clips.json"
 
 static var _src_cache := {}
+static var _ref_cache := {}       ## набор клипов → исходная поза скелета, с которого они сняты: {кость: поворот}
+
+
+## исходная поза скелета-образца набора (модель с тем же именем, что и набор: anim/hero → models/hero.glb)
+static func _ref_rest(set_dir: String) -> Dictionary:
+	if _ref_cache.has(set_dir):
+		return _ref_cache[set_dir]
+	var out := {}
+	var path := "res://assets/models/%s.glb" % set_dir.get_file()
+	if ResourceLoader.exists(path):
+		var inst: Node = (load(path) as PackedScene).instantiate()
+		var found := inst.find_children("*", "Skeleton3D", true, false)
+		if found.size() > 0:
+			var sk: Skeleton3D = found[0]
+			for i in sk.get_bone_count():
+				out[sk.get_bone_name(i)] = sk.get_bone_global_rest(i).basis.get_rotation_quaternion()
+			var hip := sk.find_bone("Hip")
+			out["__hip"] = sk.get_bone_global_rest(hip).origin.y if hip >= 0 else 0.0
+		inst.free()
+	_ref_cache[set_dir] = out
+	return out
+
+
+## Поправка для чужого скелета. Кости у моделей Tripo называются одинаково, но в исходной позе повёрнуты
+## по-разному (корень, таз, у иных — вся рука закручена вокруг своей оси). Клип хранит повороты костей как есть,
+## и на другом скелете та же запись гнёт сетку иначе. Поправка D(кость) = образец⁻¹ · наш: с ней кость
+## поворачивается относительно СВОЕЙ исходной позы так же, как у образца относительно его.
+## Пусто — скелет тот же (поправка не нужна).
+static func _rest_fix(skel: Skeleton3D, set_dir: String) -> Dictionary:
+	var ref := _ref_rest(set_dir)
+	if ref.is_empty():
+		return {}
+	var d := {}
+	var worst := 0.0
+	for i in skel.get_bone_count():
+		var n := skel.get_bone_name(i)
+		if ref.has(n):
+			var q: Quaternion = ((ref[n] as Quaternion).inverse() * skel.get_bone_global_rest(i).basis.get_rotation_quaternion()).normalized()
+			d[n] = q
+			worst = maxf(worst, 2.0 * acos(clampf(absf(q.w), 0.0, 1.0)))
+	if worst < deg_to_rad(0.5):
+		return {}
+	var hip := skel.find_bone("Hip")
+	var h_ref := float(ref.get("__hip", 0.0))
+	d["__k"] = (skel.get_bone_global_rest(hip).origin.y / h_ref) if hip >= 0 and h_ref > 0.001 else 1.0
+	return d
 
 
 static func load_config() -> Dictionary:
@@ -59,6 +105,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 	var skel_path := String(ap_root.get_path_to(skel))
 	var clips: Dictionary = cfg.get("clips", {})
 	var root_bone: String = cfg.get("root_bone", "Hip")
+	var fix := _rest_fix(skel, set_dir)
 	# «вперёд» модели — по клипу ходьбы (нужно для зеркалирования)
 	var mirror_fwd := Vector3.RIGHT
 	if clips.has("walk"):
@@ -66,7 +113,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			var wa := _source(String(spec).replace("{set}", set_dir))
 			if wa:
 				var tmp: Animation = wa.duplicate(true)
-				_retarget(tmp, skel, skel_path)
+				_retarget(tmp, skel, skel_path, fix, root_bone)
 				var rr := _strip_root(tmp, skel, root_bone)
 				if rr[1] != Vector3.ZERO:
 					mirror_fwd = rr[1]
@@ -81,7 +128,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		if src == null:
 			continue
 		var a: Animation = src.duplicate(true)
-		_retarget(a, skel, skel_path)
+		_retarget(a, skel, skel_path, fix, root_bone)
 		if c.get("reverse", false):
 			a = _reverse(a)
 		var t0: float = c.get("from", 0.0)
@@ -117,7 +164,9 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 
 
 ## пути дорожек «…/Skeleton3D:Кость» → путь к нашему скелету; дорожки масштаба и чужие кости — прочь
-static func _retarget(a: Animation, skel: Skeleton3D, skel_path: String) -> void:
+## fix — поправка для чужого скелета (_rest_fix): повороты пересчитываются в его исходную позу, сдвиг таза —
+## в его рост; сдвиги остальных костей убираются (длины костей — свои)
+static func _retarget(a: Animation, skel: Skeleton3D, skel_path: String, fix := {}, root_bone := "Hip") -> void:
 	for i in range(a.get_track_count() - 1, -1, -1):
 		var p := String(a.track_get_path(i))
 		var colon := p.find(":")
@@ -125,10 +174,27 @@ static func _retarget(a: Animation, skel: Skeleton3D, skel_path: String) -> void
 			a.remove_track(i)
 			continue
 		var bone := p.substr(colon + 1)
-		if skel.find_bone(bone) < 0:
+		var bi := skel.find_bone(bone)
+		if bi < 0:
 			a.remove_track(i)
 			continue
 		a.track_set_path(i, NodePath(skel_path + ":" + bone))
+		if fix.is_empty():
+			continue
+		var par := skel.get_bone_parent(bi)
+		var dp_inv: Quaternion = (fix.get(skel.get_bone_name(par), Quaternion.IDENTITY) as Quaternion).inverse() if par >= 0 else Quaternion.IDENTITY
+		var tp := a.track_get_type(i)
+		if tp == Animation.TYPE_ROTATION_3D:
+			var db: Quaternion = fix.get(bone, Quaternion.IDENTITY)
+			for k in a.track_get_key_count(i):
+				a.track_set_key_value(i, k, (dp_inv * (a.track_get_key_value(i, k) as Quaternion) * db).normalized())
+		elif tp == Animation.TYPE_POSITION_3D:
+			if bone != root_bone:
+				a.remove_track(i)
+				continue
+			var kk := float(fix.get("__k", 1.0))
+			for k in a.track_get_key_count(i):
+				a.track_set_key_value(i, k, (dp_inv * (a.track_get_key_value(i, k) as Vector3)) * kk)
 
 
 ## вырезать часть клипа [t0; t1]

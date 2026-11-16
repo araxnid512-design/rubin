@@ -128,12 +128,17 @@ func say(t: String) -> void:
 
 # ---------------- построение ----------------
 
+## открыто тело врага (обыск), а не ящик
+func _is_body() -> bool:
+	return cont_icon.begins_with("enemy_")
+
+
 func refresh() -> void:
 	for box in [_cols, _card]:
 		for c in box.get_children():
 			c.queue_free()
 	var total := inv.slot_count()
-	_title.text = "ИНВЕНТАРЬ" if cont == null else "ХРАНИЛИЩЕ (%s)" % cont_title.to_upper()
+	_title.text = "ИНВЕНТАРЬ" if cont == null else (("ОБЫСК (%s)" if _is_body() else "ХРАНИЛИЩЕ (%s)") % cont_title.to_upper())
 	_title_ic.texture = load(ICONS + ("ui/bag" if cont == null else "hud_box") + ".png")
 	_cap.text = "Занято: %d из %d ячеек (%d%%)" % [inv.used(), total, int(round(100.0 * inv.used() / maxf(total, 1)))]
 	if cont == null:
@@ -214,8 +219,11 @@ func _build_storage() -> void:
 	pic.custom_minimum_size = Vector2(150, 150)
 	iv.add_child(pic)
 	iv.add_child(_lbl(cont_title, 19, C_TEXT))
-	iv.add_child(_lbl("Вместимость:\n%d ячеек" % cont.size(), 15, C_DIM))
-	iv.add_child(_lbl("Занято: %d" % _count(cont), 15, C_DIM))
+	if _is_body():
+		iv.add_child(_lbl("Тело. Найдено\nпредметов: %d" % _count(cont), 15, C_DIM))
+	else:
+		iv.add_child(_lbl("Вместимость:\n%d ячеек" % cont.size(), 15, C_DIM))
+		iv.add_child(_lbl("Занято: %d" % _count(cont), 15, C_DIM))
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	iv.add_child(sp)
@@ -226,7 +234,7 @@ func _build_storage() -> void:
 	var cv := VBoxContainer.new()
 	cv.add_theme_constant_override("separation", 6)
 	h.add_child(cv)
-	cv.add_child(_lbl("Содержимое (%d ячеек)" % cont.size(), 16, C_DIM))
+	cv.add_child(_lbl("Добыча" if _is_body() else "Содержимое (%d ячеек)" % cont.size(), 16, C_DIM))
 	var csc := ScrollContainer.new()
 	csc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	csc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED

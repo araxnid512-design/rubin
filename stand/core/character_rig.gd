@@ -55,6 +55,8 @@ var ground: BCGroundClamp       ## лежащее тело — на полу (к
 var probe: BCProbe              ## итоговая поза для проверок
 var pose_report := []           ## замеры кисти в построенных ударах
 var built_poses := true         ## стойки и удары — построенные (false — клипы Tripo как есть)
+var simple := false             ## упрощённый персонаж (враг): без поправок рук и ног, только стопы
+static var _lib_cache := {}     ## «модель|набор|построенные» → {lib, info, report}
 
 
 func setup(path := "", set_dir := "") -> void:
@@ -85,8 +87,10 @@ func setup(path := "", set_dir := "") -> void:
 	ap.name = "BCAnim"
 	model.add_child(ap)
 	ap.root_node = ap.get_path_to(model)
-	var cfg := BCAnimSet.load_config()
-	var built := BCAnimSet.build(skel, model, cfg, scale_k, anim_set)
+	# библиотека клипов — одна на модель: второй такой же персонаж (ещё один заражённый) берёт готовую
+	var key := "%s|%s|%s" % [model_path, anim_set, built_poses]
+	var cached: bool = _lib_cache.has(key)
+	var built: Dictionary = _lib_cache[key] if cached else BCAnimSet.build(skel, model, BCAnimSet.load_config(), scale_k, anim_set)
 	info = built.info
 	ap.add_animation_library("bc", built.lib)
 	# «вперёд» модели — по направлению шага в клипе ходьбы: поворачиваем модель так, чтобы шаг шёл по +Z узла
@@ -98,15 +102,19 @@ func setup(path := "", set_dir := "") -> void:
 	hold.name = "WeaponHold"
 	skel.add_child(hold)
 	hold.setup(1.0 / scale_k, Basis(Vector3.UP, yaw_offset) * Vector3.BACK)
-	if built_poses:
+	if cached:
+		pose_report = built.get("report", [])
+	elif built_poses:
 		# стойки и удары по анатомическим правилам — вместо клипов Tripo (те остаются как «имя_tripo»)
 		var pb := BCPoseBuilder.new(self)
 		pb.install(built.lib, info)
 		pose_report = pb.report
+		built["report"] = pose_report
+	_lib_cache[key] = built
 	_build_tree()
 	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели.
 	# Житель и враг (родитель — BCNpc) — упрощённо: только стопы, и те — рядом с героем (ближе 12 м)
-	lite = false
+	lite = simple
 	limbs = null
 	arms = null
 	hands = null
