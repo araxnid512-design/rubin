@@ -85,6 +85,31 @@
    "tag": "z_death_side",
    "seconds": 3,
    "prompt": "a person hit from the side collapsing sideways to the left, falling onto the ground on its side and lying still"
+  },
+  {
+   "tag": "z_grab_bite",
+   "seconds": 3,
+   "prompt": "a zombie standing very close in front of a person lunges in, grabs the person's shoulders with both hands, pulls its head forward and bites down hard at the neck, then lets go and steps back half a step"
+  },
+  {
+   "tag": "z_claw_combo",
+   "seconds": 2,
+   "prompt": "a zombie standing close in front of someone slashes viciously with its right clawed hand and then immediately with its left clawed hand, two fast alternating swipes at chest height"
+  },
+  {
+   "tag": "z_overhead",
+   "seconds": 2,
+   "prompt": "a zombie raises both arms high above its head and smashes them down hard in front of it at head height, bending forward"
+  },
+  {
+   "tag": "z_lunge_bite",
+   "seconds": 2,
+   "prompt": "a zombie crouches slightly and then lunges forward with its head thrust out and mouth wide open, trying to bite the face of someone right in front of it, arms reaching forward, then pulls back"
+  },
+  {
+   "tag": "z_menace",
+   "seconds": 3,
+   "prompt": "a zombie standing face to face with someone, hunched forward, swaying from side to side and clawing at the air in front of it with both hands, menacing and hungry"
   }
  ]
 }
