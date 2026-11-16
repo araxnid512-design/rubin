@@ -1,6 +1,25 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "ul_supplies",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_supplies",
+    "--faces",
+    "20000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Game asset kit: nine separate small survival supply items laid out in a 3 by 3 grid with wide empty gaps between them, items do not touch each other, no base plate, no ground: row one - a small cardboard box of pistol cartridges, a green metal military ammo can with handle, a red cardboard box of shotgun shells; row two - a white first aid kit box with red cross, a roll of white gauze bandage, a brown glass medicine bottle; row three - a tin can of stewed meat with paper label, a clear plastic water bottle with blue cap, a paper pack of rye crackers. Realistic worn post-apocalyptic style, PBR materials, each item a separate object."
+   ],
+   "timeout": 3000
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
