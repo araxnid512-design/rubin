@@ -433,15 +433,14 @@ func _mark_hit(at: Vector3, r: float) -> void:
 		(hits.pop_front() as Node).queue_free()
 
 
-## Рюкзаки героя (модели Tripo, assets/packs): число ячеек, высота в метрах, где у модели спина (ось к телу:
-## "-z" или "-x", и координата спинки), насколько верх выше линии плеч. Надевается — появляется на спине
-## и идёт за грудью, снимается — исчезает.
+## Рюкзаки героя (модели Tripo, assets/packs). Подгонка под тело — core/pack_fit.gd: свои лямки модели убираются,
+## поясной ремень большого рюкзака оборачивается вокруг бёдер и идёт за тазом, корпус — за грудью.
 const PACKS := {
-	"small": {"n": "Малый рюкзак", "slots": 8, "model": "res://assets/packs/bp_small.glb", "back": "-z", "back_at": -0.06, "h": 0.46, "top": 0.03, "tint": 0.85},
-	"medium": {"n": "Средний рюкзак", "slots": 12, "model": "res://assets/packs/bp_medium.glb", "back": "-x", "back_at": -0.25, "h": 0.58, "top": 0.06, "tint": 0.62},
-	"large": {"n": "Большой рюкзак", "slots": 20, "model": "res://assets/packs/bp_large.glb", "back": "-x", "back_at": -0.17, "h": 0.8, "top": 0.15, "tint": 0.7},
+	"small": {"n": "Малый рюкзак", "slots": 8, "model": "res://assets/packs/bp_small.glb", "back": "-z", "panel": 0.04, "contact": 0.06, "cut": 0.06, "h": 0.46, "top": 0.03, "tint": 0.85},
+	"medium": {"n": "Средний рюкзак", "slots": 12, "model": "res://assets/packs/bp_medium.glb", "back": "-x", "panel": 0.2, "contact": 0.25, "cut": 0.06, "h": 0.58, "top": 0.06, "tint": 0.62},
+	"large": {"n": "Большой рюкзак", "slots": 20, "model": "res://assets/packs/bp_large.glb", "back": "-x", "panel": 0.05, "contact": 0.17, "cut": 0.05, "h": 0.76, "tint": 0.7,
+		"belt": {"top": 0.155, "y": 0.075, "at": 0.03}, "ride": [0.7, 0.3]},
 }
-const PACK_GAP := 0.085          ## спинка рюкзака позади линии плеч, м
 
 
 func wear_pack(id: String) -> void:
@@ -455,39 +454,13 @@ func wear_pack(id: String) -> void:
 		(p_btns[kk] as Button).add_theme_color_override("font_color", Color(0.45, 0.95, 1.0) if kk == id else C_TEXT)
 	if id == "":
 		return
-	var pk: Dictionary = PACKS[id]
-	var sk := rig.skel
-	var h := rig.hold
-	var bone := sk.find_bone("Spine02")
-	var att := BoneAttachment3D.new()
-	att.bone_name = "Spine02"
-	sk.add_child(att)
-	pack_node = att
+	var mi := BCPackFit.build(rig, PACKS[id])
+	rig.skel.add_child(mi)
+	mi.skeleton = mi.get_path_to(rig.skel)          # без ссылки на скелет рюкзак стоит в позе покоя
+	pack_node = mi
+	print("[pack] %s: лямок убрано %d треугольников, точек ремня на бёдрах %d" % [id, int(mi.get_meta("cut")), int(mi.get_meta("belt"))])
 	snd.play("zip", rig.global_position + Vector3.UP * 1.2, -6.0)
 	snd.play("cloth", rig.global_position + Vector3.UP * 1.2, -4.0, 0.08, 0.3)
-	var m: Node3D = (load(String(pk.model)) as PackedScene).instantiate()
-	att.add_child(m)
-	# оси модели → оси героя: верх → вверх, спинка → к телу (вперёд героя)
-	var B := Basis(h.rgt, h.upv, -h.fwd) if pk.back == "-z" else Basis(-h.fwd, h.upv, -h.rgt)
-	var sc: float = float(pk.h) / 0.98 * h.k
-	var a := Vector3(0, 0, float(pk.back_at)) if pk.back == "-z" else Vector3(float(pk.back_at), 0, 0)
-	var o: Vector3 = h._sc - h.fwd * (PACK_GAP * h.k) + h.upv * ((float(pk.top) - float(pk.h)) * h.k)
-	var T := Transform3D(B.scaled(Vector3.ONE * sc), o - B * (a * sc))
-	m.transform = sk.get_bone_global_rest(bone).affine_inverse() * T
-	# ткань не блестит: без металла, матовая, цвет чуть приглушён (tint — у каждого свой)
-	for mi in m.find_children("*", "MeshInstance3D", true, false):
-		var mm := mi as MeshInstance3D
-		for si in mm.mesh.get_surface_count():
-			var src := mm.mesh.surface_get_material(si) as StandardMaterial3D
-			if src == null:
-				continue
-			var mt := src.duplicate() as StandardMaterial3D
-			mt.metallic = 0.0
-			mt.metallic_texture = null
-			mt.roughness = 0.95
-			mt.roughness_texture = null
-			mt.albedo_color = Color(pk.get("tint", 0.8), pk.get("tint", 0.8), pk.get("tint", 0.8) * 0.92)
-			mm.set_surface_override_material(si, mt)
 
 
 ## стойка тела под оружие: с пистолетом и автоматом — стойка стрелка, с холодным — боевая
@@ -1013,18 +986,109 @@ func _run_test() -> void:
 		await _strip_test()
 		get_tree().quit()
 		return
+	if test == "body":
+		# размеры тела: высоты костей и сечение тела (радиус по направлениям) на нескольких высотах, метры
+		var sk := rig.skel
+		var k := rig.hold.k
+		var h0: float = sk.get_bone_global_rest(sk.find_bone("BoneRoot")).origin.y if sk.find_bone("BoneRoot") >= 0 else 0.0
+		for b in ["Hip", "Waist", "Spine01", "Spine02", "L_Thigh", "R_Thigh", "L_Upperarm", "Head"]:
+			var o := sk.get_bone_global_rest(sk.find_bone(b)).origin
+			print("[body] %s: вверх %.3f, вперёд %.3f, вправо %.3f" % [b, (o.dot(rig.hold.upv)) / k, o.dot(rig.hold.fwd) / k, o.dot(rig.hold.rgt) / k])
+		var mi: MeshInstance3D = null
+		for m in rig.model.find_children("*", "MeshInstance3D", true, false):
+			mi = m
+		var xf := sk.global_transform.affine_inverse() * mi.global_transform
+		var verts := []
+		for si in mi.mesh.get_surface_count():
+			var arr := mi.mesh.surface_get_arrays(si)
+			for v in (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				verts.append(xf * v)
+		print("[body] вершин ", verts.size())
+		var hip := sk.get_bone_global_rest(sk.find_bone("Hip")).origin
+		for dy in [-0.06, -0.02, 0.02, 0.06, 0.1, 0.14]:
+			var y0: float = hip.dot(rig.hold.upv) / k + dy
+			var bins := []
+			for i in 16:
+				bins.append(0.0)
+			var n := 0
+			for v in verts:
+				var p: Vector3 = (v as Vector3) - hip
+				if absf((v as Vector3).dot(rig.hold.upv) / k - y0) > 0.012:
+					continue
+				var x := p.dot(rig.hold.rgt) / k
+				var z := p.dot(rig.hold.fwd) / k
+				var a := atan2(x, -z)                     # 0 — назад, ±PI — вперёд
+				var bi := int(floor((a + PI) / TAU * 16.0)) % 16
+				bins[bi] = maxf(bins[bi], sqrt(x * x + z * z))
+				n += 1
+			print("[body] Hip%+.2f (%.3f м): %d вершин; радиус по направлениям от «вперёд» через «вправо» назад и влево: %s" % [dy, y0, n, str(bins.map(func(r): return snappedf(r, 0.005)))])
+		get_tree().quit()
+		return
+	if test == "packtop":
+		# вид сверху на высоте ремня: точки тела (серые), ремень (жёлтые), сечение R (синее) — в файл
+		var f := FileAccess.open(out.path_join("packtop.txt"), FileAccess.WRITE)
+		wear_pack("large")
+		var sk := rig.skel
+		var k := rig.hold.k
+		var mi: MeshInstance3D = pack_node
+		var Hc: Vector3 = mi.get_meta("Hc")
+		var R: Array = mi.get_meta("R")
+		f.store_line("R " + " ".join(R.map(func(x): return str(x))))
+		for m in rig.model.find_children("*", "MeshInstance3D", true, false):
+			var xf := sk.global_transform.affine_inverse() * (m as MeshInstance3D).global_transform
+			for si in (m as MeshInstance3D).mesh.get_surface_count():
+				for v in ((m as MeshInstance3D).mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+					var p := xf * v - Hc
+					if absf(p.dot(rig.hold.upv)) < 0.05 * k:
+						f.store_line("B %.4f %.4f %.4f" % [p.dot(rig.hold.rgt) / k, p.dot(rig.hold.fwd) / k, p.dot(rig.hold.upv) / k])
+		for si in mi.mesh.get_surface_count():
+			var arr := mi.mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var we: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+			for i in vs.size():
+				var p := vs[i] - Hc
+				f.store_line("P %.4f %.4f %.4f %.3f" % [p.dot(rig.hold.rgt) / k, p.dot(rig.hold.fwd) / k, p.dot(rig.hold.upv) / k, we[i * 4 + 2]])
+		f.close()
+		get_tree().quit()
+		return
 	if test == "packs":
 		ui.visible = false
 		cam.h_offset = 0.0
 		DirAccess.make_dir_recursive_absolute(out)
+		var poses := [""]
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				poses = Array(a.substr(10).split(","))
+		for i in ENTRIES.size():
+			if ENTRIES[i].id == poses[0]:
+				select(i)
 		for id in ["", "small", "medium", "large"]:
 			wear_pack(id)
-			await get_tree().create_timer(0.4).timeout
-			for v in [["a", PI * 0.5, 0.1, 2.6], ["b", PI - 0.6, 0.15, 2.6], ["c", 0.5, 0.1, 2.6]]:
+			await get_tree().create_timer(0.8).timeout
+			if id == "large":
+				# наклон костей: угол «вверх» кости от вертикали (с учётом покоя), град
+				var sk := rig.skel
+				var parts := []
+				for b in ["Hip", "Waist", "Spine01", "Spine02", "NeckTwist01", "Head"]:
+					var bi := sk.find_bone(b)
+					var R := sk.get_bone_global_pose(bi).basis.orthonormalized() * sk.get_bone_global_rest(bi).basis.orthonormalized().inverse()
+					parts.append("%s %.0f°" % [b, rad_to_deg((R * rig.hold.upv).angle_to(rig.hold.upv))])
+				print("[pack] наклон костей (поза клипа): ", ", ".join(parts))
+				var pr: Dictionary = rig.probe.rot
+				var p2 := []
+				for b in ["Hip", "Spine02", "Head"]:
+					if pr.has(b):
+						var R2 := (pr[b] as Basis).orthonormalized() * sk.get_bone_global_rest(sk.find_bone(b)).basis.orthonormalized().inverse()
+						p2.append("%s %.0f°" % [b, rad_to_deg((R2 * rig.hold.upv).angle_to(rig.hold.upv))])
+				print("[pack] наклон костей (итог после поправок): ", ", ".join(p2))
+				var mi := pack_node as MeshInstance3D
+				var fm: int = mi.mesh.surface_get_format(0)
+				print("[pack] кожа: skin %s, skeleton %s → %s, формат: кости %s, веса %s, ссылка %s" % [str(mi.skin != null), str(mi.skeleton), str(mi.get_node_or_null(mi.skeleton)), str(fm & Mesh.ARRAY_FORMAT_BONES != 0), str(fm & Mesh.ARRAY_FORMAT_WEIGHTS != 0), str(mi.get_skin_reference())])
+			for v in [["a", PI * 0.5, 0.1, 2.6, 1.1], ["b", PI - 0.6, 0.15, 2.6, 1.1], ["c", 0.5, 0.1, 2.6, 1.1], ["d", 0.0, 0.02, 2.0, 0.95], ["e", -PI * 0.5, 0.05, 2.0, 0.95], ["f", PI * 0.75, 1.25, 1.6, 1.0], ["g", PI * 0.25, -0.15, 1.7, 0.8], ["h", -0.6, 0.05, 1.1, 0.98], ["i", -PI * 0.5, 0.0, 1.1, 0.98], ["j", PI * 0.6, 0.1, 1.1, 0.98]]:
 				yaw = v[1]
 				pitch = v[2]
 				dist = v[3]
-				look_h = 1.1
+				look_h = v[4]
 				_camera()
 				await get_tree().process_frame
 				await _snap("%s/draw_pack_%d%s.png" % [out, ["", "small", "medium", "large"].find(id), v[0]])
