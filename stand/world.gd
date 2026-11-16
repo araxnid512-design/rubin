@@ -414,7 +414,7 @@ func _ground() -> void:
 	mi.mesh = pm
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = GROUND_SHADER
+	sh.code = GROUND_SHADER if ULSettings.gfx == 2 else GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
 	sm.shader = sh
 	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
 	sm.set_shader_parameter("blades", load(TEX + "leafy_grass_c.jpg"))
@@ -482,7 +482,7 @@ func _fit_shell() -> void:
 	sh.position = Vector3(-off.x, 0.0, -off.z)
 	# раскраска модели Tripo вблизи размыта: поверх неё — чёткие фототекстуры по месту (кровля, стены, крыльцо)
 	var code := Shader.new()
-	code.code = SHELL_SHADER
+	code.code = SHELL_SHADER if ULSettings.gfx == 2 else SHELL_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
 	for mi in sh.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		for si in m.mesh.get_surface_count():
@@ -856,7 +856,7 @@ func _spruce_mesh(h: float, seed_n: int) -> ArrayMesh:
 	# лапы
 	st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var tiers := int(h * 1.7)
+	var tiers := int(h * (1.7 if ULSettings.gfx == 2 else 1.25))
 	for ti in tiers:
 		var t := float(ti) / (tiers - 1)
 		var y := h * (0.13 + 0.8 * t)
@@ -3212,6 +3212,16 @@ func _inv_test() -> void:
 	_ok("имя сменилось на «Бродяга», панель закрылась", hero_name == "Бродяга" and not _name_ui.visible)
 	_ok("пустое имя не принимается, длинное обрезается до 16 знаков", not set_hero_name("   ") and set_hero_name("Очень длинное имя сталкера") and hero_name.length() == 16, hero_name)
 	set_hero_name("Сталкер")
+	# --- подстройка разрешения под частоту кадров ---
+	_ok("20 кадров/с: разрешение сразу падает крупным шагом (55 → 47 %)", is_equal_approx(res_step(0.55, 20.0, 0.55, true), 0.47))
+	_ok("42 кадра/с: мелкий шаг вниз (55 → 52 %)", is_equal_approx(res_step(0.55, 42.0, 0.55, true), 0.52))
+	_ok("50 кадров/с: разрешение не трогается", is_equal_approx(res_step(0.47, 50.0, 0.55, true), 0.47))
+	_ok("60 кадров/с: понемногу вверх, но не выше качества графики", is_equal_approx(res_step(0.47, 60.0, 0.55, true), 0.49) and is_equal_approx(res_step(0.55, 60.0, 0.55, true), 0.55))
+	_ok("сразу после снижения вверх не идёт", is_equal_approx(res_step(0.47, 60.0, 0.55, false), 0.47))
+	var sc_low := 0.55
+	for i in 12:
+		sc_low = res_step(sc_low, 15.0, 0.55, true)
+	_ok("нижний предел разрешения — 30 %", is_equal_approx(sc_low, ULSettings.SCALE_MIN), "%.2f" % sc_low)
 	# --- расположение кнопок ---
 	var over := ""
 	var ks := ["fire", "swap", "inv", "take", "reload", "heal"]
@@ -3257,6 +3267,7 @@ var left_location := false
 var _set_ui: Control
 var _res_t := 0.0
 var _res_n := 0
+var _res_hold := 0.0
 
 
 func open_settings() -> void:
@@ -3267,28 +3278,37 @@ func open_settings() -> void:
 	_hud_touch.clear()
 
 
-## Разрешение трёхмерной картинки подстраивается под телефон: кадров меньше 45 — точек меньше (до 42 %),
-## кадров хватает — точек больше, но не выше выбранного качества графики. Кнопки и надписи всегда чёткие.
+## Разрешение трёхмерной картинки подстраивается под телефон так, чтобы частота кадров не опускалась ниже
+## 38–40: каждую секунду смотрится средняя частота; меньше 38 — разрешение снижается сразу крупным шагом, 38–45 —
+## мелким, больше 56 — понемногу поднимается (не выше выбранного качества графики и не раньше, чем через 6 с
+## после снижения — чтобы не качалось туда-сюда). Нижний предел — 30 %. Кнопки и надписи всегда чёткие.
 func _auto_res(delta: float) -> void:
 	if test != "":
 		return
 	_res_t += delta
 	_res_n += 1
-	if _res_t < 1.5:
+	_res_hold = maxf(0.0, _res_hold - delta)
+	if _res_t < 1.0:
 		return
 	var fps := _res_n / _res_t
 	_res_t = 0.0
 	_res_n = 0
 	var vp := get_viewport()
-	var cap := float(ULSettings.q().scale)
-	var sc := vp.scaling_3d_scale
-	if fps < 45.0 and sc > 0.42:
-		sc = maxf(0.42, sc - 0.06)
-	elif fps > 57.0 and sc < cap:
-		sc = minf(cap, sc + 0.03)
-	elif sc > cap:
-		sc = cap
+	var sc := res_step(vp.scaling_3d_scale, fps, float(ULSettings.q().scale), _res_hold <= 0.0)
+	if sc < vp.scaling_3d_scale:
+		_res_hold = 6.0
 	vp.scaling_3d_scale = sc
+
+
+## новое разрешение по текущему, частоте кадров и пределу качества (отдельно — чтобы проверять)
+func res_step(sc: float, fps: float, cap: float, may_raise: bool) -> float:
+	if fps < ULSettings.FPS_MIN:
+		return maxf(ULSettings.SCALE_MIN, sc - 0.08)
+	if fps < 45.0:
+		return maxf(ULSettings.SCALE_MIN, sc - 0.03)
+	if fps > 56.0 and sc < cap and may_raise:
+		return minf(cap, sc + 0.02)
+	return minf(sc, cap)
 
 
 ## Прогрев при входе на локацию: всё, что позже появится впервые (пули, цифры урона, метка цели), один раз
@@ -3485,8 +3505,16 @@ func _npcs_setup() -> void:
 func _npcs_tick(delta: float) -> void:
 	for n in npcs:
 		var b := n as Node3D
-		(b.get_node("Rig") as BCCharacter).set_motion(0.0, 0.0, delta)
 		var v := player.global_position - b.global_position
+		# далеко за кадром житель не двигается и не считается
+		var near := v.length() < 24.0
+		var r := b.get_node("Rig") as BCCharacter
+		if near != bool(b.get_meta("awake", true)):
+			b.set_meta("awake", near)
+			r.set_active(near)
+		if not near:
+			continue
+		r.set_motion(0.0, 0.0, delta)
 		var want: float = atan2(v.x, v.z) if v.length() < 4.5 else float(b.get_meta("yaw"))
 		b.rotation.y = lerp_angle(b.rotation.y, want, 1.0 - exp(-delta * 5.0))
 
@@ -3630,7 +3658,8 @@ func _fps_tick(delta: float) -> void:
 	var dr := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
 	var tr := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 	var tm := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576.0)
-	_perf_text = "\nтест FPS: средняя %d, худший кадр %d к/с\nотрисовка: %d вызовов, %d тыс. треуг., текстуры %d МБ" % [int(round(avg)), int(round(low)), dr, tr / 1000, tm]
+	var cpu := (Performance.get_monitor(Performance.TIME_PROCESS) + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
+	_perf_text = "\nтест FPS: средняя %d, худший кадр %d к/с · разрешение %d %%\nотрисовка: %d вызовов, %d тыс. треуг., текстуры %d МБ\nрасчёты (худший кадр за секунду): %.0f мс из %.0f мс кадра" % [int(round(avg)), int(round(low)), int(round(get_viewport().scaling_3d_scale * 100.0)), dr, tr / 1000, tm, cpu, 1000.0 / maxf(avg, 1.0)]
 	_fps_t = -1.0
 	var f := FileAccess.open("user://perf.txt", FileAccess.WRITE)
 	if f:

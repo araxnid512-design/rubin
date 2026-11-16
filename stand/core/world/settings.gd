@@ -6,10 +6,12 @@ extends RefCounted
 
 const PATH := "user://settings.json"
 const GFX := [
-	{"n": "Низкая", "scale": 0.5, "msaa": false, "grass": 0.4, "range": 20.0},
-	{"n": "Средняя", "scale": 0.66, "msaa": false, "grass": 0.7, "range": 26.0},
-	{"n": "Высокая", "scale": 0.85, "msaa": true, "grass": 1.0, "range": 30.0},
+	{"n": "Низкая", "scale": 0.42, "msaa": false, "grass": 0.25, "range": 16.0},
+	{"n": "Средняя", "scale": 0.55, "msaa": false, "grass": 0.6, "range": 24.0},
+	{"n": "Высокая", "scale": 0.8, "msaa": true, "grass": 1.0, "range": 30.0},
 ]
+const SCALE_MIN := 0.3            ## ниже разрешение само не опускается
+const FPS_MIN := 38.0             ## частота кадров, ниже которой разрешение снижается сразу и крупным шагом
 const C_BG := Color(0.06, 0.09, 0.13, 0.98)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
 const C_TEXT := Color(0.88, 0.93, 0.97)
