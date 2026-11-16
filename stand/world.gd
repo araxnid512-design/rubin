@@ -1208,6 +1208,7 @@ func _process(delta: float) -> void:
 	var fire_held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
 	aiming = gun and not _modal() and (fire_held or _aim_t < 1.0)
 	move_mode = ""
+	var local_dir := Vector2.ZERO           # куда идёт относительно взгляда: x — влево, y — вперёд
 	if aiming:
 		if _mark_t != null and is_instance_valid(_mark_t):
 			var tv: Vector3 = (_mark_t as Node3D).global_position - player.global_position
@@ -1220,7 +1221,11 @@ func _process(delta: float) -> void:
 				move_mode = "walk_back"
 			elif absf(rel) > 52.0:
 				move_mode = "strafe_left" if rel > 0.0 else "strafe_right"
-			speed = minf(speed, 1.75 if move_mode != "" else 3.0)
+			else:
+				move_mode = "forward"
+			local_dir = Vector2(sin(deg_to_rad(rel)), cos(deg_to_rad(rel)))
+			# вперёд — быстрее, вбок и назад — медленнее; между ними скорость меняется плавно
+			speed = minf(speed, lerpf(1.75, 3.0, clampf((cos(deg_to_rad(rel)) - 0.2) / 0.7, 0.0, 1.0)))
 	else:
 		_aim_yaw = player.rotation.y
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
@@ -1235,8 +1240,9 @@ func _process(delta: float) -> void:
 	if real > 0.2 and is_nan(_face) and not aiming and _aim_t > 0.6:
 		var yaw := atan2(hv.x, hv.z)
 		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 18.0))
-	# пятится или идёт боком — играет свой шаг (обычный бег при этом выключен)
-	rig.set_motion(0.0 if move_mode != "" else real, 0.0, delta)
+	# прицельное движение — шаг в сторону относительно взгляда (вперёд, боком, назад и всё между ними)
+	rig.set_dir_move(local_dir if real > 0.2 else Vector2.ZERO, real, delta)
+	rig.set_motion(real, 0.0, delta)
 	_body_pose(real)
 	_steps_sfx(real)
 	# в доме: дом Tripo и крыша скрыты, видны комнаты, передние стены опущены
@@ -1287,7 +1293,7 @@ func _process(delta: float) -> void:
 var _cam_ready := false
 var _cam_d := 12.0
 var aiming := false               ## прицельное движение: герой лицом к цели
-var move_mode := ""               ## как он при этом идёт: "" — вперёд, walk_back — пятится, strafe_left / strafe_right — боком
+var move_mode := ""               ## как он при этом идёт: forward — вперёд, walk_back — пятится, strafe_left / strafe_right — боком ("" — не в прицельном движении)
 var _aim_yaw := 0.0
 var _pose_now := "?"
 
@@ -1295,9 +1301,7 @@ var _pose_now := "?"
 ## стойка: с оружием в руках — стойка стрелка, иначе обычная; на ходу — клипы передвижения
 func _body_pose(speed: float) -> void:
 	var want := ""
-	if move_mode != "" and speed > 0.2 and rig.has_clip(move_mode):
-		want = move_mode
-	elif speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
+	if speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
 		want = "combat_idle" if String(rig.hold.w.get("mode", "")) == "melee" else "armed_idle"
 	if want != _pose_now:
 		_pose_now = want
@@ -3176,18 +3180,21 @@ func _inv_test() -> void:
 	var to_mq := mq.global_position - player.global_position
 	var face_err := absf(angle_difference(player.rotation.y, atan2(to_mq.x, to_mq.z)))
 	var v_back := Vector3(player.velocity.x, 0, player.velocity.z)
-	_ok("стреляет и отходит: лицом к цели, пятится (шаг «назад»), медленнее бега", aiming and move_mode == "walk_back" and _pose_now == "walk_back" and face_err < 0.25 and v_back.x < -1.0 and v_back.length() < 1.9, "режим «%s», поза «%s», отклонение %.2f рад, скорость %.1f" % [move_mode, _pose_now, face_err, v_back.length()])
+	_ok("стреляет и отходит: лицом к цели, пятится (шаг «назад»), медленнее бега", aiming and move_mode == "walk_back" and rig.dir_w > 0.9 and rig.dir_pos.y < -0.8 and face_err < 0.25 and v_back.x < -1.0 and v_back.length() < 1.9, "режим «%s», шаг (%.2f, %.2f), отклонение %.2f рад, скорость %.1f" % [move_mode, rig.dir_pos.x, rig.dir_pos.y, face_err, v_back.length()])
 	_auto = [player.global_position + Vector3(0, 0, 20)]               # поперёк направления на цель
 	await get_tree().create_timer(0.7).timeout
 	to_mq = mq.global_position - player.global_position
 	face_err = absf(angle_difference(player.rotation.y, atan2(to_mq.x, to_mq.z)))
-	_ok("стреляет и идёт боком: лицом к цели, шаг боком", aiming and move_mode.begins_with("strafe") and _pose_now == move_mode and face_err < 0.35, "режим «%s», отклонение %.2f рад" % [move_mode, face_err])
+	_ok("стреляет и идёт боком: лицом к цели, шаг боком", aiming and move_mode.begins_with("strafe") and rig.dir_w > 0.9 and absf(rig.dir_pos.x) > 0.8 and face_err < 0.35, "режим «%s», шаг (%.2f, %.2f), отклонение %.2f рад" % [move_mode, rig.dir_pos.x, rig.dir_pos.y, face_err])
+	_auto = [player.global_position + Vector3(-14, 0, 14)]             # наискось: назад и вбок
+	await get_tree().create_timer(0.7).timeout
+	_ok("наискось — шаг между «назад» и «боком» (смесь соседних, без рывка)", aiming and absf(rig.dir_pos.x) > 0.35 and rig.dir_pos.y < -0.35, "шаг (%.2f, %.2f)" % [rig.dir_pos.x, rig.dir_pos.y])
 	_hud_touch.erase(99)
 	_auto.clear()
 	await get_tree().create_timer(1.4).timeout
 	_auto = [player.global_position + Vector3(-20, 0, 0)]
 	await get_tree().create_timer(0.6).timeout
-	_ok("не стреляет — бежит лицом по ходу, обычным бегом", not aiming and move_mode == "" and absf(angle_difference(player.rotation.y, -PI * 0.5)) < 0.3 and Vector3(player.velocity.x, 0, player.velocity.z).length() > 3.5, "поворот %.2f" % player.rotation.y)
+	_ok("не стреляет — бежит лицом по ходу, обычным бегом", not aiming and move_mode == "" and rig.dir_w < 0.05 and absf(angle_difference(player.rotation.y, -PI * 0.5)) < 0.3 and Vector3(player.velocity.x, 0, player.velocity.z).length() > 3.5, "поворот %.2f" % player.rotation.y)
 	_auto.clear()
 	_auto_k = 0.6
 	await get_tree().create_timer(0.3).timeout

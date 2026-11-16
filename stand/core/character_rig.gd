@@ -28,6 +28,10 @@ var _action := ""
 var _action_t := 0.0
 var _pose := ""
 var _speeds := {}
+var _dir_sp := {}               ## родные скорости клипов шага по направлениям
+var has_dir := false            ## есть все четыре клипа для шага в любую сторону
+var dir_w := 0.0                ## вес шага «в сторону взгляда» (0 — обычное передвижение)
+var dir_pos := Vector2.ZERO     ## куда идёт относительно взгляда: x — влево (+) / вправо (−), y — вперёд (+) / назад (−)
 var _speed := 0.0
 var _crouch := 0.0
 var _crouch_t := 0.0
@@ -231,13 +235,37 @@ func _build_tree() -> void:
 	bt.add_node("crouch_blend", cb, Vector2(400, 100))
 	bt.connect_node("crouch_blend", 0, "move")
 	bt.connect_node("crouch_blend", 1, "crouch_move")
+	# шаг в любую сторону относительно взгляда (прицельное движение): вперёд — бег, назад — шаг назад, вбок —
+	# шаг боком; промежуточные направления — смесь соседних. Темп шага подстраивается под скорость.
+	var ds := AnimationNodeBlendSpace2D.new()
+	ds.min_space = Vector2(-1, -1)
+	ds.max_space = Vector2(1, 1)
+	ds.sync = true
+	_dir_sp = {}
+	for pt in [["run", Vector2(0, 1)], ["walk_back", Vector2(0, -1)], ["strafe_left", Vector2(1, 0)], ["strafe_right", Vector2(-1, 0)]]:
+		if info.has(pt[0]):
+			var da := AnimationNodeAnimation.new()
+			da.animation = "bc/" + String(pt[0])
+			ds.add_blend_point(da, pt[1])
+			_dir_sp[pt[0]] = float(info[pt[0]].speed) if float(info[pt[0]].speed) > 0.1 else 1.6
+	has_dir = _dir_sp.size() == 4
+	if not has_dir:
+		ds.add_blend_point(_anim("idle"), Vector2.ZERO)
+	bt.add_node("dir_space", ds, Vector2(300, 400))
+	var dts := AnimationNodeTimeScale.new()
+	bt.add_node("dir_ts", dts, Vector2(400, 400))
+	bt.connect_node("dir_ts", 0, "dir_space")
+	var db := AnimationNodeBlend2.new()
+	bt.add_node("dir_blend", db, Vector2(500, 200))
+	bt.connect_node("dir_blend", 0, "crouch_blend")
+	bt.connect_node("dir_blend", 1, "dir_ts")
 	# удерживаемая поза
 	var pose := AnimationNodeAnimation.new()
 	pose.animation = "bc/idle"
 	bt.add_node("pose_anim", pose, Vector2(400, 300))
 	var pb := AnimationNodeBlend2.new()
 	bt.add_node("pose_blend", pb, Vector2(600, 150))
-	bt.connect_node("pose_blend", 0, "crouch_blend")
+	bt.connect_node("pose_blend", 0, "dir_blend")
 	bt.connect_node("pose_blend", 1, "pose_anim")
 	# разовое действие — два слота поверх позы: новое действие во время старого запускается в свободном слоте,
 	# старое плавно уходит (иначе повторный запуск OneShot обрывал клип и начинал новый с кадра 0 — рывок)
@@ -286,6 +314,34 @@ func set_motion(speed: float, crouch: float, delta: float) -> void:
 	tree.set("parameters/crouch_ts/scale", cts)
 	tree.set("parameters/crouch_move/blend_amount", _crouch_move_w * _crouch_move_w * (3.0 - 2.0 * _crouch_move_w))
 	tree.set("parameters/crouch_blend/blend_amount", _crouch * _crouch * (3.0 - 2.0 * _crouch))
+
+
+## Шаг в сторону local относительно взгляда (x: + влево, y: + вперёд) со скоростью speed, м/с. Пустой вектор —
+## вернуться к обычному передвижению. Направление меняется плавно (без рывка при смене стороны), темп клипа —
+## по скорости: ноги не скользят.
+func set_dir_move(local: Vector2, speed: float, delta: float) -> void:
+	if tree == null or not has_dir:
+		return
+	var on := local.length() > 0.1 and speed > 0.15
+	dir_w = move_toward(dir_w, 1.0 if on else 0.0, delta / 0.18)
+	if on:
+		var t := local.normalized()
+		if dir_pos.length() < 0.01:
+			dir_pos = t
+		else:
+			# поворот направления по дуге (через центр идти нельзя — там нет клипа)
+			var a := lerp_angle(dir_pos.angle(), t.angle(), 1.0 - exp(-delta * 9.0))
+			dir_pos = Vector2.from_angle(a)
+		var ax := absf(dir_pos.x)
+		var ay := absf(dir_pos.y)
+		var s_side: float = _dir_sp["strafe_left" if dir_pos.x > 0.0 else "strafe_right"]
+		var s_fb: float = _dir_sp["run" if dir_pos.y > 0.0 else "walk_back"]
+		var sp := (ax * s_side + ay * s_fb) / maxf(ax + ay, 0.001)
+		tree.set("parameters/dir_ts/scale", clampf(speed / sp, 0.45, 1.7))
+		tree.set("parameters/dir_space/blend_position", dir_pos)
+	elif dir_w <= 0.0:
+		dir_pos = Vector2.ZERO
+	tree.set("parameters/dir_blend/blend_amount", dir_w * dir_w * (3.0 - 2.0 * dir_w))
 
 
 ## точка смешения и темп передвижения для скорости v. Между соседними клипами (скорость v_i, двойной шаг
