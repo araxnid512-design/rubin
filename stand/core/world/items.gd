@@ -1,23 +1,26 @@
 class_name ULItems
 extends RefCounted
 ## Каталог предметов. Предмет в инвентаре — словарь {"id": …, "n": количество}; у рюкзака ещё "items" — его
-## ячейки (массив, пустая ячейка — null). Виды (kind): pistol — слот пистолета, primary — основное оружие
-## (автоматы, пулемёты, снайперские винтовки, дробовики), pack — рюкзак, ammo, med, food — расходники.
+## ячейки (массив, пустая ячейка — null), у огнестрельного оружия — "mag" (патронов в магазине). Виды (kind):
+## pistol и melee — второй слот (пистолет или мачете), primary — основное оружие (автоматы, пулемёты,
+## снайперские винтовки, дробовики), pack — рюкзак, ammo, med, food — расходники.
 ## Оружие берёт модель и хват из data/weapons.json (weapon — его ключ там), рюкзак — из BCPackFit.PACKS.
 
 const ICONS := "res://assets/icons/"
 
 const ITEMS := {
-	# оружие
-	"tt": {"n": "Пистолет ТТ", "kind": "pistol", "weapon": "pistol", "d": "7,62×25 ТТ, магазин на 8 патронов."},
-	"beretta": {"n": "Beretta 92FS", "kind": "pistol", "weapon": "beretta", "d": "9×19, магазин на 15 патронов."},
-	"ak74m": {"n": "АК-74М", "kind": "primary", "weapon": "rifle", "d": "Автомат, 5,45×39, магазин на 30 патронов."},
-	"mp5": {"n": "MP5", "kind": "primary", "weapon": "mp5", "d": "Пистолет-пулемёт, 9×19, магазин на 30 патронов."},
-	"fnfal": {"n": "FN FAL", "kind": "primary", "weapon": "fnfal", "d": "Винтовка, 7,62×51, магазин на 20 патронов."},
-	"svd": {"n": "СВД", "kind": "primary", "weapon": "svd", "d": "Снайперская винтовка, 7,62×54R, магазин на 10 патронов."},
-	"vss": {"n": "ВСС «Винторез»", "kind": "primary", "weapon": "vss", "d": "Бесшумная винтовка, 9×39, магазин на 10 патронов."},
-	"pkp": {"n": "ПКП «Печенег»", "kind": "primary", "weapon": "pkp", "d": "Ручной пулемёт, 7,62×54R, короб на 100 патронов."},
-	"spas12": {"n": "SPAS-12", "kind": "primary", "weapon": "spas12", "d": "Дробовик, 12 калибр, 8 патронов."},
+	# оружие: ammo — какие патроны, mag — сколько в магазине, dmg — урон, rate — выстрелов в секунду,
+	# auto — очередь, пока кнопка нажата
+	"tt": {"n": "Пистолет ТТ", "kind": "pistol", "weapon": "pistol", "ammo": "a762x25", "mag": 8, "dmg": 22, "rate": 3.0, "d": "7,62×25 ТТ, магазин на 8 патронов."},
+	"beretta": {"n": "Beretta 92FS", "kind": "pistol", "weapon": "beretta", "ammo": "a9x19", "mag": 15, "dmg": 18, "rate": 3.5, "d": "9×19, магазин на 15 патронов."},
+	"machete": {"n": "Мачете", "kind": "melee", "weapon": "melee", "dmg": 40, "rate": 1.0, "d": "Клинок 40 см. Носится в слоте пистолета."},
+	"ak74m": {"n": "АК-74М", "kind": "primary", "weapon": "rifle", "ammo": "a545", "mag": 30, "dmg": 26, "rate": 9.0, "auto": true, "d": "Автомат, 5,45×39, магазин на 30 патронов."},
+	"mp5": {"n": "MP5", "kind": "primary", "weapon": "mp5", "ammo": "a9x19", "mag": 30, "dmg": 16, "rate": 11.0, "auto": true, "d": "Пистолет-пулемёт, 9×19, магазин на 30 патронов."},
+	"fnfal": {"n": "FN FAL", "kind": "primary", "weapon": "fnfal", "ammo": "a762x51", "mag": 20, "dmg": 42, "rate": 3.0, "d": "Винтовка, 7,62×51, магазин на 20 патронов."},
+	"svd": {"n": "СВД", "kind": "primary", "weapon": "svd", "ammo": "a762x54", "mag": 10, "dmg": 70, "rate": 1.6, "d": "Снайперская винтовка, 7,62×54R, магазин на 10 патронов."},
+	"vss": {"n": "ВСС «Винторез»", "kind": "primary", "weapon": "vss", "ammo": "a9x39", "mag": 10, "dmg": 38, "rate": 4.0, "d": "Бесшумная винтовка, 9×39, магазин на 10 патронов."},
+	"pkp": {"n": "ПКП «Печенег»", "kind": "primary", "weapon": "pkp", "ammo": "a762x54", "mag": 100, "dmg": 34, "rate": 10.0, "auto": true, "d": "Ручной пулемёт, 7,62×54R, короб на 100 патронов."},
+	"spas12": {"n": "SPAS-12", "kind": "primary", "weapon": "spas12", "ammo": "a12", "mag": 8, "dmg": 80, "rate": 1.1, "d": "Дробовик, 12 калибр, 8 патронов."},
 	# рюкзаки
 	"pack_small": {"n": "Малый рюкзак", "kind": "pack", "pack": "small", "d": "+8 ячеек."},
 	"pack_medium": {"n": "Средний рюкзак", "kind": "pack", "pack": "medium", "d": "+12 ячеек."},
@@ -31,11 +34,11 @@ const ITEMS := {
 	"a9x39": {"n": "Патроны 9×39", "kind": "ammo", "stack": 40, "icon": "ammo", "tint": [0.5, 0.6, 0.7], "d": "Для ВСС."},
 	"a12": {"n": "Патроны 12 калибра", "kind": "ammo", "stack": 32, "icon": "shells", "tint": [0.8, 0.3, 0.25], "d": "Для SPAS-12."},
 	# расходники
-	"bandage": {"n": "Бинт", "kind": "med", "stack": 5, "icon": "bandage", "d": "Остановить кровотечение."},
-	"medkit": {"n": "Аптечка", "kind": "med", "stack": 2, "icon": "medkit", "d": "Восстанавливает здоровье."},
-	"can": {"n": "Тушёнка", "kind": "food", "stack": 4, "icon": "can", "d": "Банка тушёной говядины."},
-	"water": {"n": "Вода", "kind": "food", "stack": 3, "icon": "water", "d": "Бутылка чистой воды, 0,5 л."},
-	"rusk": {"n": "Сухари", "kind": "food", "stack": 6, "icon": "rusk", "d": "Пачка ржаных сухарей."},
+	"bandage": {"n": "Бинт", "kind": "med", "stack": 5, "icon": "bandage", "heal": 15, "d": "Перевязка: +15 здоровья."},
+	"medkit": {"n": "Аптечка", "kind": "med", "stack": 2, "icon": "medkit", "heal": 50, "d": "Аптечка: +50 здоровья."},
+	"can": {"n": "Тушёнка", "kind": "food", "stack": 4, "icon": "can", "heal": 8, "water": 5, "d": "Банка тушёной говядины: +8 здоровья, +5 воды."},
+	"water": {"n": "Вода", "kind": "food", "stack": 3, "icon": "water", "heal": 0, "water": 40, "d": "Бутылка чистой воды, 0,5 л: +40 воды."},
+	"rusk": {"n": "Сухари", "kind": "food", "stack": 6, "icon": "rusk", "heal": 5, "d": "Пачка ржаных сухарей: +5 здоровья."},
 }
 
 
@@ -45,6 +48,18 @@ static func get_def(id: String) -> Dictionary:
 
 static func kind(it) -> String:
 	return String(get_def(String(it.id)).kind) if it != null else ""
+
+
+## в какой слот снаряжения идёт предмет: primary, pistol (пистолет или мачете), pack; "" — не снаряжение
+static func slot_of(it) -> String:
+	match kind(it):
+		"primary":
+			return "primary"
+		"pistol", "melee":
+			return "pistol"
+		"pack":
+			return "pack"
+	return ""
 
 
 static func title(it) -> String:
@@ -68,6 +83,8 @@ static func pack_slots(it) -> int:
 ## новый предмет; рюкзак — с пустыми ячейками
 static func make(id: String, n := 1) -> Dictionary:
 	var it := {"id": id, "n": n}
+	if get_def(id).has("mag"):
+		it["mag"] = int(get_def(id).mag)             # оружие — с полным магазином
 	if get_def(id).get("kind", "") == "pack":
 		var cells := []
 		cells.resize(int(BCPackFit.PACKS[get_def(id).pack].slots))

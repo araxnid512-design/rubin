@@ -3,14 +3,14 @@ extends Node3D
 ## и вытоптанной площадкой у крыльца, деревья и кусты (модели Tripo), деревянный дом с пятью комнатами, ящики, которые можно
 ## ставить и убирать (сохраняются). Граница кластера — полоса гравия и невидимая стена.
 ## Управление: левая часть экрана — джойстик (слегка — лёгкий бег, сильнее — быстрее), справа — круглые кнопки:
-## действие (появляется у подсвеченного предмета; можно нажать и на сам предмет), инвентарь, оружие. Камера неподвижна, сверху,
+## большая — атака (огонь / мачете / кулаки), смена оружия, взять-открыть, лечение, перезарядка, инвентарь. Камера неподвижна, сверху,
 ## следует за героем; два пальца — приблизить. На компьютере — WASD, Shift — бег, E — действие, I — инвентарь,
 ## Q — оружие, колесо — приблизить.
 ## Проверка: --as-test=world --as-out=папка — обход локации и дома по точкам, снимки и журнал.
 
 const SIZE := 100.0               ## кластер, м
 const SAVE := "user://cluster.json"
-const SAVE_V := 3                 ## версия сохранения: 3 — инвентарь, предметы на земле, вещи в ящиках
+const SAVE_V := 4                 ## версия сохранения: 4 — здоровье, патроны в магазинах, мачете
 const CRATE_SLOTS := 12
 const HOUSE_AT := Vector3(0, 0, -12)
 ## двор вокруг дома: от дома x0, z0, x1, z1 (м); калитка — спереди посередине
@@ -83,6 +83,7 @@ func _ready() -> void:
 	_flora()
 	_blob_layer()
 	_player()
+	_combat_setup()
 	inv = ULInventory.new()
 	_ui()
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
@@ -710,6 +711,18 @@ func _process(delta: float) -> void:
 	var speed := 0.0
 	if mag > 0.12:
 		speed = lerpf(2.0, 4.2, clampf((mag - 0.12) / 0.8, 0.0, 1.0))
+	# энергия: быстрый бег тратит её; выдохся — только лёгкий бег, пока не отдышится
+	if speed > 3.3 and not _tired:
+		en = maxf(0.0, en - 5.0 * delta)
+		if en <= 0.0:
+			_tired = true
+	elif water > 0.0:
+		en = minf(100.0, en + (9.0 if speed < 0.2 else 5.0) * delta)
+	if _tired:
+		speed = minf(speed, 2.4)
+		if en >= 25.0:
+			_tired = false
+	water = maxf(0.0, water - delta * 0.04)
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
 	var hv := Vector3(player.velocity.x, 0, player.velocity.z)
 	hv = hv.move_toward(want, delta * (14.0 if want.length() > hv.length() else 10.0))
@@ -718,7 +731,7 @@ func _process(delta: float) -> void:
 	if player.is_on_floor():
 		player.velocity.y = 0.0
 	var real := Vector3(player.velocity.x, 0, player.velocity.z).length()
-	if real > 0.2:
+	if real > 0.2 and is_nan(_face) and _aim_t > 0.6:
 		var yaw := atan2(hv.x, hv.z)
 		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 10.0))
 	rig.set_motion(real, 0.0, delta)
@@ -737,6 +750,7 @@ func _process(delta: float) -> void:
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
 	_find_target()
+	_combat_tick(delta)
 	if info and Engine.get_process_frames() % 10 == 0:
 		info.text = "%s · %d кадров/с" % [_where(), Engine.get_frames_per_second()]
 	if _hud:
@@ -758,7 +772,7 @@ var _pose_now := "?"
 func _body_pose(speed: float) -> void:
 	var want := ""
 	if speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
-		want = "armed_idle"
+		want = "combat_idle" if String(rig.hold.w.get("mode", "")) == "melee" else "armed_idle"
 	if want != _pose_now:
 		_pose_now = want
 		rig.set_pose(want)
@@ -808,14 +822,40 @@ func _steps_sfx(speed: float) -> void:
 		snd.loop("", Vector3.ZERO)
 
 
-## звуки механики оружия (достать, убрать)
+## звуки механики оружия: достать, убрать, перезарядка по шагам
 func _on_sfx(n: String, at: Vector3) -> void:
 	var p := rig.skel.global_transform * at
+	var w: Dictionary = rig.hold.w
+	var pistol := String(w.get("mode", "")) == "pistol"
+	var box := String(w.get("reload", {}).get("kind", "")) == "box"
 	match n:
 		"grab", "pouch":
 			snd.play("cloth", p, -8.0)
 		"draw_out", "holster":
-			snd.play("click" if String(rig.hold.w.get("mode", "")) == "pistol" else "cloth", p, -9.0)
+			snd.play("click" if pistol else "cloth", p, -9.0)
+		"mag_out":
+			snd.play("click", p, -6.0)
+			snd.play("mag_out", p, -3.0 if not pistol else -7.0, 0.05, 0.03)
+		"mag_in":
+			snd.play("box_in" if box else "mag_in", p, -2.0)
+		"mag_slap":
+			snd.play("click", p, -8.0)
+		"bolt_back":
+			snd.play("slide_back" if pistol else "bolt_back", p, -2.0)
+			if not rig.hold.parts or not rig.hold.parts.has("mag"):
+				snd.play("slide_fwd" if pistol else "bolt_fwd", p, -2.0, 0.05, 0.22)
+		"bolt_fwd":
+			snd.play("slide_fwd" if pistol else "bolt_fwd", p, -2.0)
+		"cover_open":
+			snd.play("cover_open", p, -3.0)
+		"cover_close":
+			snd.play("cover_close", p, -3.0)
+		"mag_drop":
+			snd.play("mag_drop", p, -5.0, 0.1)
+		"shell_in":
+			snd.play("shell_in", p, -3.0)
+		"pump":
+			snd.play("pump", p, -2.0)
 
 
 # ---------------- снаряжение на герое ----------------
@@ -868,6 +908,7 @@ func cycle_weapon() -> void:
 	order.append("")
 	var i := order.find(inv.hand)
 	inv.hand = order[(i + 1) % order.size()]
+	_reloading = false
 	if inv.hand == "" and order.size() == 1:
 		say("Нет оружия в слотах")
 	_apply_gear()
@@ -948,13 +989,14 @@ func _preview_on(on: bool) -> void:
 
 # ---------------- инвентарь ----------------
 
-func open_inventory(container = null, title := "", is_pack := false) -> void:
+func open_inventory(container = null, title := "", is_pack := false, icon := "crate") -> void:
 	if _preview_vp == null:
 		_make_preview()
 	_preview_on(true)
 	_update_preview()
 	inv_ui.preview_tex = _preview_vp.get_texture()
-	inv_ui.open(inv, container, title, is_pack)
+	inv_ui.stats = {"hp": hp, "en": en, "water": water}
+	inv_ui.open(inv, container, title, is_pack, icon)
 	_hud.visible = false
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
@@ -1236,21 +1278,21 @@ func _action_label() -> String:
 	if _target.type == "crate":
 		return "Открыть"
 	var it: Dictionary = _target.g.item
-	return "Открыть" if ULItems.kind(it) == "pack" else "Подобрать"
+	return "Открыть" if ULItems.kind(it) == "pack" else "Взять"
 
 
 func do_action() -> void:
 	if _target == null:
 		return
 	if _target.type == "crate":
-		open_inventory(_target.c.get_meta("items"), "Ящик — %d ячеек" % CRATE_SLOTS)
+		open_inventory(_target.c.get_meta("items"), "Ящик", false, "crate")
 		snd.play("hit_wood", (_target.c as Node3D).global_position, -10.0)
 		return
 	var g: Dictionary = _target.g
 	var it: Dictionary = g.item
 	if ULItems.kind(it) == "pack":
 		_open_ground = g
-		open_inventory(it.items, "%s на земле — %d ячеек" % [ULItems.get_def(String(it.id)).n, ULItems.pack_slots(it)], true)
+		open_inventory(it.items, ULItems.get_def(String(it.id)).n, true, String(it.id))
 		return
 	var n0 := int(it.n)
 	var left := inv.add(it)
@@ -1264,8 +1306,9 @@ func do_action() -> void:
 	else:
 		say("Взято не всё — нет места")
 	# оружие легло в пустой слот и в руках ничего — сразу в руки
-	if inv.hand == "" and ULItems.kind(it) in ["pistol", "primary"] and inv.get(ULItems.kind(it)) == it:
-		inv.hand = ULItems.kind(it)
+	var sl := ULItems.slot_of(it)
+	if inv.hand == "" and sl in ["pistol", "primary"] and inv.get(sl) == it:
+		inv.hand = sl
 	_apply_gear()
 	_save()
 
@@ -1288,7 +1331,7 @@ func _save() -> void:
 		gr.append([g.item, snappedf(n.global_position.x, 0.01), snappedf(n.global_position.z, 0.01), snappedf(n.rotation.y, 0.01)])
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f and test == "":
-		f.store_string(JSON.stringify({"v": SAVE_V, "crates": cr, "ground": gr, "inv": inv.to_dict()}))
+		f.store_string(JSON.stringify({"v": SAVE_V, "crates": cr, "ground": gr, "inv": inv.to_dict(), "hp": hp, "en": en, "water": water}))
 
 
 func _load() -> void:
@@ -1307,6 +1350,9 @@ func _load() -> void:
 			if it != null:
 				_spawn_ground(it, Vector3(float(g[1]), 0, float(g[2])), float(g[3]))
 		inv.from_dict(d.get("inv", {}))
+		hp = clampf(float(d.get("hp", 65.0)), 1.0, HP_MAX)
+		en = clampf(float(d.get("en", 100.0)), 0.0, 100.0)
+		water = clampf(float(d.get("water", 100.0)), 0.0, 100.0)
 		return
 	_start_loot()
 
@@ -1344,6 +1390,10 @@ func _start_loot() -> void:
 	_spawn_ground(I.make("spas12"), HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.6, 0, 2.2), 2.4)
 	_spawn_ground(I.make("a12", 16), HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.0, 0, 2.8), 0.0)
 	_spawn_ground(I.make("rusk", 2), H.to_global(Vector3(-2.5, 0, 2.2)), 0.0)
+	_spawn_ground(I.make("machete"), H.to_global(Vector3(-0.9, 0, 4.2)), 1.2)
+	_spawn_ground(I.make("a762x51", 40), H.to_global(Vector3(-2.1, 0, -3.4)), 0.0)
+	_spawn_ground(I.make("a9x39", 30), H.to_global(Vector3(-0.2, 0, -3.6)), 0.0)
+	_spawn_ground(I.make("a762x54", 100), H.to_global(Vector3(4.0, 0, -0.4)), 0.0)
 	ULInventory.put(inv.pockets, I.make("bandage", 3))
 	ULInventory.put(inv.pockets, I.make("water"))
 	ULInventory.put(inv.pockets, I.make("can"))
@@ -1385,30 +1435,25 @@ func _ui() -> void:
 	ui.add_child(_hud)
 	_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	info = Label.new()
-	info.position = Vector2(16, 12)
-	info.add_theme_font_size_override("font_size", 17)
-	info.add_theme_color_override("font_color", C_TEXT)
+	info.position = Vector2(16, 84)
+	info.add_theme_font_size_override("font_size", 15)
+	info.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
 	info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	info.add_theme_constant_override("outline_size", 6)
 	_hud.add_child(info)
-	var title := Label.new()
-	title.text = "Стабильный кластер · стартовая локация (проверка)"
-	title.position = Vector2(16, 38)
-	title.add_theme_font_size_override("font_size", 13)
-	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95, 0.8))
-	_hud.add_child(title)
 	# кнопки проверки — мелкие, сверху справа
 	var bar := HBoxContainer.new()
 	bar.anchor_left = 1.0
 	bar.anchor_right = 1.0
 	bar.offset_left = -360
 	bar.offset_right = -12
-	bar.offset_top = 10
+	bar.offset_top = 98
 	bar.alignment = BoxContainer.ALIGNMENT_END
 	bar.add_theme_constant_override("separation", 6)
+	bar.visible = false
+	_menu_bar = bar
 	_hud.add_child(bar)
-	bar.add_child(_btn("Ящик +", place_crate))
-	bar.add_child(_btn("Ящик −", remove_crate))
+	bar.add_child(_btn("Убрать ящик", remove_crate, 130))
 	bar.add_child(_btn("Стенд", func(): get_tree().change_scene_to_file("res://stand.tscn")))
 	_toast = Label.new()
 	ui.add_child(_toast)
@@ -1427,89 +1472,185 @@ func _ui() -> void:
 	inv_ui.changed.connect(_on_inv_changed)
 	inv_ui.drop.connect(_on_drop)
 	inv_ui.wear_ground_pack.connect(_on_wear_ground_pack)
+	inv_ui.use.connect(func(id: String):
+		heal(id)
+		inv_ui.stats = {"hp": hp, "en": en, "water": water})
 	inv_ui.preview_rot = func(dx: float):
 		if _preview_rig:
 			_preview_rig.rotation.y += dx * 0.01
 
 
-## круглые кнопки справа снизу: [центр от правого нижнего угла, радиус]
+## Круглые кнопки справа снизу: [центр от правого нижнего угла, радиус]. fire — большая кнопка атаки (огонь,
+## удар мачете, кулаки — смотря что в руках); swap — смена оружия; take — взять предмет / открыть ящик;
+## heal — лечение; reload — перезарядка; inv — инвентарь.
 const HUD_BTNS := {
-	"act": [Vector2(-124, -132), 72.0],
-	"inv": [Vector2(-282, -88), 50.0],
-	"gun": [Vector2(-124, -306), 50.0],
+	"fire": [Vector2(-132, -140), 76.0],
+	"swap": [Vector2(-132, -306), 46.0],
+	"take": [Vector2(-292, -96), 48.0],
+	"heal": [Vector2(-282, -226), 42.0],
+	"reload": [Vector2(-246, -338), 34.0],
+	"inv": [Vector2(-416, -72), 42.0],
+	# сверху справа (отсчёт от правого верхнего угла): постройка (поставить ящик) и меню
+	"build": [Vector2(-140, 52), 36.0, "top"],
+	"menu": [Vector2(-54, 52), 36.0, "top"],
 }
+var _hud_tex := {}
+var _menu_bar: HBoxContainer
+
+
+func _glyph(n: String) -> Texture2D:
+	if not _hud_tex.has(n):
+		_hud_tex[n] = load("res://assets/icons/hud_%s.png" % n)
+	return _hud_tex[n]
+
+
+func _stat_tex(n: String) -> Texture2D:
+	if not _hud_tex.has(n):
+		_hud_tex[n] = load("res://assets/icons/%s.png" % n)
+	return _hud_tex[n]
 
 
 func _hud_pos(k: String) -> Vector2:
 	var vs := get_viewport().get_visible_rect().size
-	return vs + (HUD_BTNS[k][0] as Vector2)
+	var b: Array = HUD_BTNS[k]
+	if b.size() > 2:
+		return Vector2(vs.x, 0) + (b[0] as Vector2)
+	return vs + (b[0] as Vector2)
+
+
+## значок кнопки из набора пользователя (assets/icons/ui): круглая картинка во всю кнопку
+func _art(n: String) -> Texture2D:
+	var key := "ui/" + n
+	if not _hud_tex.has(key):
+		_hud_tex[key] = load("res://assets/icons/ui/%s.png" % n)
+	return _hud_tex[key]
+
+
+func _hud_text(c: Vector2, t: String, fs: int, col := Color(0.95, 0.97, 1.0)) -> void:
+	var font := ThemeDB.fallback_font
+	var sz := font.get_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+	_hud.draw_string_outline(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 5, Color(0, 0, 0, 0.85))
+	_hud.draw_string(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, col)
+
+
+func _hud_icon(tex: Texture2D, c: Vector2, size: float, col := Color.WHITE) -> void:
+	if tex:
+		_hud.draw_texture_rect(tex, Rect2(c - Vector2.ONE * size * 0.5, Vector2.ONE * size), false, col)
 
 
 func _draw_hud() -> void:
 	var vs := get_viewport().get_visible_rect().size
+	# шапка: имя, здоровье, энергия, вода
+	var font0 := ThemeDB.fallback_font
+	_hud.draw_string_outline(font0, Vector2(18, 30), "Сталкер", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.85))
+	_hud.draw_string(font0, Vector2(18, 30), "Сталкер", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.95, 0.97, 1.0))
+	var bw := 280.0
+	_hud.draw_rect(Rect2(16, 40, bw, 10), Color(0, 0, 0, 0.6))
+	_hud.draw_rect(Rect2(17, 41, (bw - 2) * clampf(hp / HP_MAX, 0.0, 1.0), 8), Color(0.85, 0.25, 0.22) if hp < 35.0 else Color(0.35, 0.8, 0.3))
+	_hud_text(Vector2(16 + bw - 20, 24), "%d" % int(round(hp)), 18, Color(0.75, 1.0, 0.7))
+	var sx := 22.0
+	for st in [["stat_en", en, Color(1.0, 0.85, 0.35)], ["stat_water", water, Color(0.45, 0.75, 1.0)]]:
+		_hud_icon(_stat_tex(st[0]), Vector2(sx + 8, 68), 20, st[2])
+		_hud_text(Vector2(sx + 40, 68), "%d" % int(round(float(st[1]))), 15)
+		sx += 84.0
 	# джойстик
 	var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
 	_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
 	_hud.draw_arc(jc, 92, 0, TAU, 48, Color(0.6, 0.85, 1.0, 0.45), 2.5)
 	_hud.draw_circle(jc + _joy_v * 92, 36, Color(0.6, 0.85, 1.0, 0.5 if _joy_id >= 0 else 0.25))
-	var font := ThemeDB.fallback_font
-	var labels := {"act": _action_label(), "inv": "Инвентарь", "gun": _gun_label()}
+	var it = inv.get(inv.hand) if inv.hand != "" else null
+	var d := ULItems.get_def(String(it.id)) if it != null else {}
 	for k in HUD_BTNS:
 		var c := _hud_pos(k)
 		var r: float = HUD_BTNS[k][1]
 		var on: bool = _hud_touch.values().has(k)
-		if k == "act" and _target == null:
-			continue                                   # кнопка действия видна, только когда есть что взять или открыть
-		var active: bool = k != "act" or _target != null
-		var fill := Color(0.12, 0.3, 0.4, 0.75) if on else Color(0.06, 0.08, 0.1, 0.55 if active else 0.25)
-		_hud.draw_circle(c, r, fill)
-		_hud.draw_arc(c, r, 0, TAU, 40, Color(1.0, 0.8, 0.3, 0.9) if (k == "act" and active) else Color(0.6, 0.85, 1.0, 0.6 if active else 0.25), 2.5)
-		var t: String = labels[k] if labels[k] != "" else "—"
-		var fs := 18 if k == "act" else 14
-		if k == "act":
-			var nm := _target_name()
-			var s2 := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 13)
-			_hud.draw_string_outline(font, c + Vector2(-s2.x * 0.5, 30), nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 13, 5, Color(0, 0, 0, 0.8))
-			_hud.draw_string(font, c + Vector2(-s2.x * 0.5, 30), nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 13, Color(1.0, 0.88, 0.55))
-			c.y -= 8.0
-		var sz := font.get_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-		_hud.draw_string_outline(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 5, Color(0, 0, 0, 0.8))
-		_hud.draw_string(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(0.95, 0.97, 1.0, 1.0 if active else 0.5))
-
-
-func _gun_label() -> String:
-	if inv.hand == "":
-		return "Оружие" if (inv.primary != null or inv.pistol != null) else "Нет оружия"
-	return ULItems.get_def(String(inv.get(inv.hand).id)).n.split(" ")[0] if inv.get(inv.hand) != null else "Оружие"
+		var active := true
+		match k:
+			"take":
+				active = _target != null
+			"heal":
+				active = hp < HP_MAX and inv.best_heal(int(HP_MAX - hp)) != ""
+			"reload":
+				active = it != null and d.has("ammo") and int(it.get("mag", 0)) < int(d.mag) and inv.count(String(d.ammo)) > 0
+				if it == null or not d.has("ammo"):
+					continue                               # без огнестрела кнопки перезарядки нет
+		var line := Color(1.0, 0.8, 0.3, 0.95) if (k == "take" and active) else (Color(1.0, 0.5, 0.4, 0.9) if k == "fire" else Color(0.6, 0.85, 1.0, 0.65 if active else 0.25))
+		_hud.draw_circle(c, r, Color(0.14, 0.32, 0.42, 0.8) if on else Color(0.05, 0.07, 0.09, 0.55 if active else 0.3))
+		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
+		var ic := Color(1, 1, 1, 1.0 if active else 0.4)
+		match k:
+			"fire":
+				var g := "fist"
+				if it != null:
+					g = "weapon" if String(d.kind) == "melee" else "aim"
+				_hud_icon(_art(g), c, r * 2.0, ic)
+				if it != null and d.has("ammo"):
+					var mag := int(it.get("mag", 0))
+					_hud_text(c + Vector2(0, r - 16), "%d / %d" % [mag, inv.count(String(d.ammo))], 16, Color(1.0, 0.45, 0.35) if mag == 0 else Color(1.0, 0.9, 0.6))
+			"swap":
+				# оружие в руках (или нож из набора, если руки пусты) и стрелки смены
+				if it != null:
+					_hud_icon(ULItems.icon(String(it.id)), c, r * 1.5)
+				else:
+					_hud_icon(_art("weapon"), c, r * 2.0, Color(1, 1, 1, 0.75))
+				_hud_icon(_glyph("swap"), c + Vector2(r * 0.66, -r * 0.66), 30, Color(1.0, 0.85, 0.4))
+			"take":
+				_hud_icon(_art("use"), c, r * 2.0, ic)
+				if active:
+					_hud_text(c + Vector2(0, r - 10), _action_label(), 14, Color(1.0, 0.88, 0.55))
+			"heal":
+				_hud_icon(_art("heal"), c, r * 2.0, ic)
+				var n := inv.count("bandage") + inv.count("medkit")
+				_hud_text(c + Vector2(r * 0.72, r * 0.72), str(n), 15)
+			"reload":
+				_hud_icon(_glyph("reload"), c, 36, ic)
+			"inv":
+				_hud_icon(_art("bag"), c, r * 2.0, ic)
+			"build":
+				_hud_icon(_art("build"), c, r * 2.0, ic)
+			"menu":
+				_hud_icon(_art("menu"), c, r * 2.0, ic)
+		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
+	# название того, что можно взять, — над кнопкой «взять»
+	if _target != null:
+		_hud_text(_hud_pos("take") + Vector2(0, -66), _target_name(), 14, Color(1.0, 0.88, 0.55))
 
 
 func _hud_hit(p: Vector2) -> String:
 	for k in HUD_BTNS:
-		if k == "act" and _target == null:
-			continue
 		if p.distance_to(_hud_pos(k)) <= float(HUD_BTNS[k][1]) + 8.0:
 			return k
-	# нажатие прямо на подсвеченный предмет — то же действие
+	# нажатие прямо на подсвеченный предмет — «взять»
 	if _target != null and cam != null:
 		var at: Vector3 = _target_pos() + Vector3.UP * 0.3
-		# касание — в координатах интерфейса, проекция камеры — в пикселях окна
 		var xf := get_viewport().get_final_transform()
 		if not cam.is_position_behind(at) and cam.unproject_position(at).distance_to(xf * p) <= 70.0 * xf.get_scale().x:
-			return "act"
+			return "take"
 	return ""
 
 
 func _hud_press(k: String) -> void:
 	match k:
-		"act":
+		"fire":
+			attack()
+		"take":
 			do_action()
 		"inv":
 			open_inventory()
-		"gun":
+		"swap":
 			cycle_weapon()
+		"heal":
+			heal()
+		"reload":
+			reload_weapon()
+		"build":
+			place_crate()
+			say("Поставлен ящик")
+		"menu":
+			_menu_bar.visible = not _menu_bar.visible
 
 
-## касания: кнопки справа (каждый палец отдельно — можно бежать и нажимать), джойстик слева, два пальца — масштаб
+## касания: кнопки справа (каждый палец отдельно — можно бежать и стрелять), джойстик слева, два пальца — масштаб
 func _input(e: InputEvent) -> void:
 	if inv_ui and inv_ui.visible:
 		return
@@ -1562,6 +1703,337 @@ func _input(e: InputEvent) -> void:
 				open_inventory()
 			KEY_Q:
 				cycle_weapon()
+			KEY_R:
+				reload_weapon()
+			KEY_H:
+				heal()
+			KEY_SPACE:
+				attack()
+
+
+# ---------------- бой: огонь, мачете, кулаки ----------------
+
+const HP_MAX := 100.0
+var hp := 65.0
+var en := 100.0                   ## энергия: тратится на быстром беге, восстанавливается на шаге и стоя
+var water := 100.0                ## вода: медленно убывает, восполняется питьём; без воды энергия не восстанавливается
+var _tired := false
+var targets: Array = []           ## мишени-чучела: StaticBody3D с meta hp
+var _atk_cd := 0.0
+var _aim_t := 99.0
+var _punch_i := 0
+var _reloading := false
+var _heal_cd := 0.0
+var _face := NAN                  ## куда довернуть героя (атака по цели)
+var _tracer: MeshInstance3D
+var _flash: OmniLight3D
+var shots := 0                    ## для проверки
+var hits := 0
+
+
+func _hand_item():
+	return inv.get(inv.hand) if inv.hand != "" else null
+
+
+## кнопка атаки: огнестрел — выстрел (очередь, пока держим, у автоматического), мачете — удар, пусто — кулаки
+func attack() -> void:
+	if _atk_cd > 0.0 or (inv_ui and inv_ui.visible):
+		return
+	var it = _hand_item()
+	if it == null:
+		_punch()
+		return
+	var d := ULItems.get_def(String(it.id))
+	if rig.hold.wid == "" or rig.hold.drawn < 0.99:
+		return                                             # ещё достаёт
+	if String(d.kind) == "melee":
+		_slash(d)
+		return
+	if _reloading or rig.hold.busy():
+		return
+	if int(it.get("mag", 0)) <= 0:
+		if inv.count(String(d.ammo)) > 0:
+			reload_weapon()
+		else:
+			snd.play("dry", player.global_position + Vector3.UP * 1.3, -4.0)
+			say("Нет патронов: " + ULItems.get_def(String(d.ammo)).n)
+			_atk_cd = 0.4
+		return
+	_shoot(it, d)
+
+
+## ближайшая мишень в секторе перед героем (для доворота и попадания)
+func _nearest_target(max_d: float, cone_deg: float):
+	var best = null
+	var bd := max_d
+	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+	for t in targets:
+		if float(t.get_meta("hp")) <= 0.0:
+			continue
+		var v: Vector3 = t.global_position - player.global_position
+		v.y = 0
+		var dist := v.length()
+		if dist < bd and dist > 0.05 and rad_to_deg(f.angle_to(v / dist)) <= cone_deg:
+			bd = dist
+			best = t
+	return best
+
+
+func _aim_at(t) -> void:
+	if t != null:
+		var v: Vector3 = t.global_position - player.global_position
+		_face = atan2(v.x, v.z)
+
+
+func _punch() -> void:
+	var t = _nearest_target(1.5, 80.0)
+	_aim_at(t)
+	var heavy := _punch_i % 3 == 2
+	_punch_i += 1
+	var len_s := rig.play("punch_heavy" if heavy else "punch_light")
+	_atk_cd = len_s * 0.85
+	var c := player.global_position + Vector3.UP * 1.3
+	snd.play("swoosh", c, -5.0, 0.08, len_s * 0.2)
+	get_tree().create_timer(len_s * 0.36).timeout.connect(_melee_hit.bind(1.5, 80.0, 14.0 if heavy else 8.0, "punch"))
+
+
+func _slash(d: Dictionary) -> void:
+	var t = _nearest_target(2.0, 80.0)
+	_aim_at(t)
+	var len_s := rig.hold.swing("light")
+	_atk_cd = len_s
+	snd.play("swing", player.global_position + Vector3.UP * 1.3, -3.0, 0.08, len_s * 0.42)
+	get_tree().create_timer(len_s * 0.5).timeout.connect(_melee_hit.bind(2.0, 80.0, float(d.dmg), "hit_wood"))
+
+
+func _melee_hit(range_m: float, cone: float, dmg: float, sound: String) -> void:
+	var t = _nearest_target(range_m, cone)
+	if t != null:
+		snd.play(sound, t.global_position + Vector3.UP * 1.2, -2.0, 0.08)
+		_damage(t, dmg, t.global_position + Vector3.UP * 1.3)
+
+
+func _shoot(it: Dictionary, d: Dictionary) -> void:
+	var wcfg: Dictionary = rig.hold.w
+	it.mag = int(it.mag) - 1
+	shots += 1
+	_atk_cd = 1.0 / float(d.rate)
+	_aim_t = 0.0
+	rig.hold.set_stance("aim")
+	var t = _nearest_target(45.0, 14.0)
+	_aim_at(t)
+	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+	var from := player.global_position + Vector3.UP * 1.35 + f * 0.5
+	var mz := rig.hold.muzzle_world()
+	var vis_from: Vector3 = mz[0] if not mz.is_empty() else from
+	if t != null:
+		f = ((t.global_position + Vector3.UP * 1.2) - from).normalized()
+	rig.hold.fire()
+	var sd: Dictionary = wcfg.get("sound", {})
+	snd.play(String(sd.get("shot", "shot_ak")), vis_from, float(sd.get("db", 0.0)), 0.04)
+	snd.play(String(sd.get("case", "casing")), player.global_position + Vector3(0.5, 0.05, 0), -12.0, 0.1, randf_range(0.4, 0.6))
+	var fc: Dictionary = wcfg.get("fire", {})
+	var pellets := int(fc.get("pellets", 1))
+	var spread := deg_to_rad(float(fc.get("spread", 0.6 if pellets == 1 else 2.2)))
+	var space := get_world_3d().direct_space_state
+	var end := from + f * 60.0
+	for i in pellets:
+		var dir := (f + Vector3(randf_range(-1, 1), randf_range(-0.4, 0.4), randf_range(-1, 1)) * tan(spread)).normalized()
+		var q := PhysicsRayQueryParameters3D.create(from, from + dir * 60.0)
+		q.exclude = [player.get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			continue
+		if i == 0:
+			end = hit.position
+		var col: Object = hit.collider
+		if col != null and col.has_meta("hp"):
+			hits += 1
+			_damage(col, float(d.dmg) / pellets, hit.position)
+		snd.play("hit_wood", hit.position, -8.0, 0.1, from.distance_to(hit.position) / 343.0)
+	# трассер и вспышка
+	_tracer.visible = true
+	_tracer.global_position = (vis_from + end) * 0.5
+	if vis_from.distance_to(end) > 0.1:
+		_tracer.look_at(end, Vector3.UP)
+	_tracer.scale = Vector3(1, 1, vis_from.distance_to(end))
+	_flash.global_position = vis_from + f * 0.15
+	_flash.light_energy = 2.5
+	var tw := create_tween()
+	tw.tween_property(_flash, "light_energy", 0.0, 0.07)
+	tw.tween_callback(func(): _tracer.visible = false)
+	if int(it.mag) <= 0 and inv.count(String(d.ammo)) > 0:
+		get_tree().create_timer(0.35).timeout.connect(reload_weapon)       # магазин пуст — перезарядка сама
+
+
+func reload_weapon() -> void:
+	var it = _hand_item()
+	if it == null or _reloading:
+		return
+	var d := ULItems.get_def(String(it.id))
+	if not d.has("ammo") or rig.hold.wid == "" or rig.hold.drawn < 0.99:
+		return
+	if int(it.get("mag", 0)) >= int(d.mag):
+		return
+	if inv.count(String(d.ammo)) <= 0:
+		say("Нет патронов: " + ULItems.get_def(String(d.ammo)).n)
+		return
+	_reloading = true
+	rig.hold.set_stance("ready")
+	var t := rig.hold.reload()
+	get_tree().create_timer(t * 0.8).timeout.connect(func():
+		_reloading = false
+		if _hand_item() == it:
+			it.mag = int(it.get("mag", 0)) + inv.consume(String(d.ammo), int(d.mag) - int(it.get("mag", 0)))
+			_save())
+
+
+## кнопка лечения (id пусто): лучшее из того, что есть — аптечка при большой потере, иначе бинт, потом еда.
+## С id — использовать этот предмет (еда и вода из инвентаря): здоровье и вода по описанию предмета.
+func heal(id := "") -> bool:
+	if _heal_cd > 0.0:
+		return false
+	var auto := id == ""
+	if auto:
+		if hp >= HP_MAX:
+			say("Здоровье полное")
+			return false
+		id = inv.best_heal(int(HP_MAX - hp))
+	if id == "" or inv.count(id) <= 0:
+		say("Нечем лечиться")
+		return false
+	var d := ULItems.get_def(id)
+	var dh := float(d.get("heal", 0))
+	var dw := float(d.get("water", 0))
+	if (dh <= 0.0 or hp >= HP_MAX) and (dw <= 0.0 or water >= 100.0):
+		say("Сейчас не нужно")
+		return false
+	inv.consume(id, 1)
+	hp = minf(HP_MAX, hp + dh)
+	water = minf(100.0, water + dw)
+	_heal_cd = 0.8
+	snd.play("cloth", player.global_position + Vector3.UP * 1.2, -5.0)
+	say("%s: здоровье %d, вода %d" % [d.n, int(round(hp)), int(round(water))])
+	_save()
+	return true
+
+
+## урон по мишени: цифра над ней, качание; на нуле падает и через 6 с встаёт
+func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
+	var left := maxf(0.0, float(t.get_meta("hp")) - dmg)
+	t.set_meta("hp", left)
+	var lb := Label3D.new()
+	lb.text = "−%d" % int(round(dmg))
+	lb.font_size = 56
+	lb.pixel_size = 0.006
+	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lb.no_depth_test = true
+	lb.modulate = Color(1.0, 0.85, 0.3)
+	lb.outline_size = 10
+	add_child(lb)
+	lb.global_position = at + Vector3(randf_range(-0.2, 0.2), 0.4, 0)
+	var tw := create_tween()
+	tw.tween_property(lb, "global_position", lb.global_position + Vector3.UP * 0.9, 0.7)
+	tw.parallel().tween_property(lb, "modulate:a", 0.0, 0.7)
+	tw.tween_callback(lb.queue_free)
+	var vis: Node3D = t.get_node("Vis")
+	var tw2 := create_tween()
+	if left <= 0.0:
+		tw2.tween_property(vis, "rotation:x", -1.45, 0.35)
+		snd.play("body_fall", t.global_position, -4.0, 0.05, 0.25)
+		get_tree().create_timer(6.0).timeout.connect(func():
+			if is_instance_valid(t):
+				t.set_meta("hp", float(t.get_meta("hp_max")))
+				create_tween().tween_property(vis, "rotation:x", 0.0, 0.5))
+	else:
+		tw2.tween_property(vis, "rotation:x", -0.16, 0.06)
+		tw2.tween_property(vis, "rotation:x", 0.0, 0.25)
+
+
+## мишень-чучело: столб, перекладина, мешок-туловище и «голова»
+func _add_target(p: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.name = "Target"
+	add_child(body)
+	body.position = p
+	body.set_meta("hp", 150.0)
+	body.set_meta("hp_max", 150.0)
+	var vis := Node3D.new()
+	vis.name = "Vis"
+	body.add_child(vis)
+	var wood := ULHouse._mat(TEX + "weathered_brown_planks", 1.0)
+	var sack := StandardMaterial3D.new()
+	sack.albedo_color = Color(0.62, 0.52, 0.36)
+	sack.roughness = 1.0
+	for it in [[Vector3(0.1, 1.9, 0.1), Vector3(0, 0.95, 0), wood], [Vector3(0.9, 0.08, 0.08), Vector3(0, 1.4, 0), wood], [Vector3(0.5, 0.75, 0.28), Vector3(0, 1.1, 0), sack]]:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = it[0]
+		mi.mesh = bm
+		mi.material_override = it[2]
+		mi.position = it[1]
+		vis.add_child(mi)
+	var head := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.17
+	sm.height = 0.36
+	head.mesh = sm
+	head.material_override = sack
+	head.position = Vector3(0, 1.7, 0)
+	vis.add_child(head)
+	var blob := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1.2, 1.2)
+	blob.mesh = pm
+	blob.material_override = _blob_mat()
+	blob.position.y = 0.03
+	body.add_child(blob)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(0.6, 1.9, 0.35)
+	cs.shape = bs
+	cs.position.y = 0.95
+	body.add_child(cs)
+	targets.append(body)
+
+
+func _combat_setup() -> void:
+	_tracer = MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.025, 0.025, 1.0)
+	_tracer.mesh = bm
+	var tm := StandardMaterial3D.new()
+	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tm.albedo_color = Color(1.0, 0.9, 0.55)
+	_tracer.material_override = tm
+	_tracer.visible = false
+	add_child(_tracer)
+	_flash = OmniLight3D.new()
+	_flash.light_color = Color(1.0, 0.8, 0.5)
+	_flash.omni_range = 5.0
+	_flash.light_energy = 0.0
+	add_child(_flash)
+	# мишени: во дворе справа и две в поле — на 12 и 25 м от калитки
+	_add_target(HOUSE_AT + Vector3(8.5, 0, 6.5))
+	_add_target(Vector3(-7.0, 0, 9.0))
+	_add_target(Vector3(9.0, 0, 22.0))
+
+
+## каждый кадр: задержки, очередь при удержании, возврат из прицела, доворот к цели
+func _combat_tick(delta: float) -> void:
+	_atk_cd = maxf(0.0, _atk_cd - delta)
+	_heal_cd = maxf(0.0, _heal_cd - delta)
+	_aim_t += delta
+	var held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
+	var it = _hand_item()
+	if held and it != null and _atk_cd <= 0.0 and bool(ULItems.get_def(String(it.id)).get("auto", false)) and int(it.get("mag", 0)) > 0:
+		attack()
+	if _aim_t > 1.8 and rig.hold.wid != "" and rig.hold.stance == "aim" and not _reloading:
+		rig.hold.set_stance("ready")
+	if not is_nan(_face):
+		player.rotation.y = lerp_angle(player.rotation.y, _face, 1.0 - exp(-delta * 18.0))
+		if absf(angle_difference(player.rotation.y, _face)) < 0.03 or _atk_cd <= 0.0:
+			_face = NAN
 
 
 # ---------------- проверка ----------------
@@ -1578,7 +2050,7 @@ func _auto_vec() -> Vector2:
 	var fwd := Vector3(-sin(CAM_YAW), 0, -cos(CAM_YAW))
 	var right := Vector3(-fwd.z, 0, fwd.x)
 	var dn := d.normalized()
-	return Vector2(dn.dot(right), -dn.dot(fwd)) * 0.6
+	return Vector2(dn.dot(right), -dn.dot(fwd)) * _auto_k
 
 
 func _snap(name: String) -> void:
@@ -1605,6 +2077,7 @@ func _inv_state() -> String:
 
 
 var _fails := 0
+var _auto_k := 0.6                ## сила «нажатия» джойстика в проверке
 
 
 func _ok(name: String, cond: bool, extra := "") -> void:
@@ -1613,7 +2086,15 @@ func _ok(name: String, cond: bool, extra := "") -> void:
 	print("[inv] %s — %s%s" % [name, "верно" if cond else "ОШИБКА", (" (" + extra + ")") if extra != "" else ""])
 
 
-## проверка логики инвентаря: каждое правило — отдельный случай
+func _wait_drawn() -> void:
+	var tw := 0.0
+	while rig.hold.drawn < 0.99 and tw < 6.0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	await get_tree().create_timer(0.2).timeout
+
+
+## проверка логики инвентаря и боя: каждое правило — отдельный случай
 func _inv_test() -> void:
 	var I := ULItems
 	await get_tree().create_timer(0.5).timeout
@@ -1674,13 +2155,8 @@ func _inv_test() -> void:
 	# оружие в руки и на героя
 	inv.hand = "primary"
 	_apply_gear()
-	var tw := 0.0
-	var fr := 0
-	while rig.hold.drawn < 0.99 and tw < 6.0:
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-		fr += 1
-	_ok("СВД в руках у героя", rig.hold.wid == "svd" and rig.hold.drawn > 0.9, "%s, достал на %.0f %% за %.1f с (%d кадров)" % [rig.hold.wid, rig.hold.drawn * 100.0, tw, fr])
+	await _wait_drawn()
+	_ok("СВД в руках у героя", rig.hold.wid == "svd" and rig.hold.drawn > 0.9, "%s, достал на %.0f %%" % [rig.hold.wid, rig.hold.drawn * 100.0])
 	cycle_weapon()
 	await get_tree().create_timer(1.6).timeout
 	_ok("кнопка «Оружие»: основное → пистолет", inv.hand == "pistol" and rig.hold.wid == "pistol", rig.hold.wid)
@@ -1710,11 +2186,90 @@ func _inv_test() -> void:
 	inv_ui._act_take()
 	_ok("взять из ящика обратно", inv.used() == u0 and cells[0] == null)
 	close_inventory()
+	# --- бой ---
+	var tg: Node3D = targets[1]
+	inv.hand = ""
+	_apply_gear()
+	await get_tree().create_timer(1.4).timeout
+	player.global_position = tg.global_position + Vector3(0, 0.05, 1.1)
+	player.rotation.y = PI
+	await get_tree().create_timer(0.3).timeout
+	var h0 := float(tg.get_meta("hp"))
+	attack()
+	await get_tree().create_timer(0.8).timeout
+	_ok("кулаки: удар по мишени снимает 8", is_equal_approx(h0 - float(tg.get_meta("hp")), 8.0), "было %d, стало %d" % [h0, float(tg.get_meta("hp"))])
+	inv.pistol = I.make("machete")
+	_ok("мачете ложится в слот пистолета", I.slot_of(inv.pistol) == "pistol")
+	inv.hand = "pistol"
+	_apply_gear()
+	await _wait_drawn()
+	h0 = float(tg.get_meta("hp"))
+	_atk_cd = 0.0
+	attack()
+	await get_tree().create_timer(1.3).timeout
+	_ok("мачете: удар снимает 40", is_equal_approx(h0 - float(tg.get_meta("hp")), 40.0), "было %d, стало %d" % [h0, float(tg.get_meta("hp"))])
+	inv.primary = I.make("ak74m")
+	inv.hand = "primary"
+	_apply_gear()
+	await _wait_drawn()
+	player.global_position = tg.global_position + Vector3(0, 0.05, 9.0)
+	player.rotation.y = PI
+	await get_tree().create_timer(0.3).timeout
+	h0 = float(tg.get_meta("hp"))
+	var s0 := shots
+	var k0 := hits
+	_atk_cd = 0.0
+	attack()
+	await get_tree().create_timer(0.4).timeout
+	_ok("АК: выстрел тратит патрон (29 из 30)", int(inv.primary.mag) == 29 and shots == s0 + 1, "в магазине %d" % int(inv.primary.mag))
+	_ok("АК: попадание по мишени с 9 м снимает 26", hits == k0 + 1 and is_equal_approx(h0 - float(tg.get_meta("hp")), 26.0), "попаданий %d, было %d, стало %d" % [hits - k0, h0, float(tg.get_meta("hp"))])
+	# пустой магазин → перезарядка из запаса
+	var res0 := inv.count("a545")
+	inv.primary.mag = 0
+	_atk_cd = 0.0
+	attack()
+	_ok("пустой магазин: начинается перезарядка", _reloading)
+	await get_tree().create_timer(3.4).timeout
+	_ok("перезарядка: в магазине 30, из запаса ушло 30", int(inv.primary.mag) == 30 and inv.count("a545") == res0 - 30, "магазин %d, запас %d → %d" % [int(inv.primary.mag), res0, inv.count("a545")])
+	# без патронов
+	inv.consume("a545", 999)
+	inv.primary.mag = 0
+	_atk_cd = 0.0
+	s0 = shots
+	attack()
+	_ok("нет патронов: выстрела нет", shots == s0 and not _reloading)
+	# лечение и вода
+	inv.consume("medkit", 999)
+	inv.add(I.make("bandage", 2))
+	inv.add(I.make("water", 1))
+	hp = 40.0
+	_heal_cd = 0.0
+	heal()
+	_ok("кнопка лечения: бинт +15 (40 → 55), бинтов стало меньше", is_equal_approx(hp, 55.0) and inv.count("bandage") == 1, "здоровье %d, бинтов %d" % [hp, inv.count("bandage")])
+	water = 50.0
+	_heal_cd = 0.0
+	heal("water")
+	_ok("вода из инвентаря: +40 (50 → 90)", is_equal_approx(water, 90.0) and inv.count("water") == 0, "вода %d" % water)
+	hp = 100.0
+	_heal_cd = 0.0
+	_ok("здоровье полное — лечение не тратит бинт", not heal() and inv.count("bandage") == 1)
+	# энергия
+	en = 100.0
+	_auto = [player.global_position + Vector3(30, 0, 0)]
+	_auto_k = 1.0
+	await get_tree().create_timer(3.0).timeout
+	_auto.clear()
+	_auto_k = 0.6
+	_ok("быстрый бег тратит энергию", en < 95.0, "энергия %d" % en)
 	# сохранение и загрузка
 	var snap := JSON.stringify({"inv": inv.to_dict()})
 	var inv2 := ULInventory.new()
 	inv2.from_dict(JSON.parse_string(snap).inv)
-	_ok("сохранение и загрузка: тот же инвентарь", JSON.stringify(inv2.to_dict()) == JSON.stringify(inv.to_dict()) and inv2.slot_count() == inv.slot_count() and typeof(inv2.pockets[1].n) == TYPE_INT)
+	var n_int := true
+	for c in inv2.pockets:
+		if c != null and typeof(c.n) != TYPE_INT:
+			n_int = false
+	_ok("сохранение и загрузка: тот же инвентарь", JSON.stringify(inv2.to_dict()) == JSON.stringify(inv.to_dict()) and inv2.slot_count() == inv.slot_count() and n_int)
 	print("[inv] итог: ошибок %d" % _fails)
 	get_tree().quit()
 

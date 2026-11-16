@@ -1,7 +1,7 @@
 class_name ULInventory
 extends RefCounted
 ## Инвентарь героя: карманы (8 ячеек всегда), надетый рюкзак (его ячейки: малый +8, средний +12, большой +20),
-## слоты снаряжения — пистолет, основное оружие, рюкзак — и что в руках. Ячейка — предмет (словарь из ULItems)
+## слоты снаряжения — основное оружие, второй слот (пистолет или мачете), рюкзак — и что в руках. Ячейка — предмет (словарь из ULItems)
 ## или null. Хранилища (ящик, брошенный рюкзак) — такие же массивы ячеек.
 
 signal changed
@@ -68,12 +68,12 @@ static func put(arr: Array, it: Dictionary) -> int:
 ## положить в инвентарь (карманы, затем рюкзак); оружие — в пустой слот, если он свободен. Остаток — сколько
 ## не влезло (у предмета n уменьшается до остатка)
 func add(it: Dictionary, to_slot := true) -> int:
-	var k := ULItems.kind(it)
-	if to_slot and k == "pistol" and pistol == null:
+	var sl := ULItems.slot_of(it)
+	if to_slot and sl == "pistol" and pistol == null:
 		pistol = it
 		changed.emit()
 		return 0
-	if to_slot and k == "primary" and primary == null:
+	if to_slot and sl == "primary" and primary == null:
 		primary = it
 		changed.emit()
 		return 0
@@ -99,7 +99,7 @@ func equip_from(arr: Array, i: int) -> bool:
 	var it = arr[i]
 	if it == null:
 		return false
-	match ULItems.kind(it):
+	match ULItems.slot_of(it):
 		"pistol":
 			arr[i] = pistol
 			pistol = it
@@ -171,6 +171,8 @@ static func _fix(it):
 	if it == null or not (it is Dictionary) or not it.has("id"):
 		return null
 	it.n = int(it.get("n", 1))
+	if it.has("mag"):
+		it.mag = int(it.mag)
 	if ULItems.kind(it) == "pack":
 		var want := ULItems.pack_slots(it)
 		var arr: Array = it.get("items", [])
@@ -179,3 +181,39 @@ static func _fix(it):
 			arr[i] = _fix(arr[i])
 		it["items"] = arr
 	return it
+
+
+## сколько предметов id во всех ячейках
+func count(id: String) -> int:
+	var n := 0
+	for arr in [pockets, cells("pack")]:
+		for c in arr:
+			if c != null and String(c.id) == id:
+				n += int(c.n)
+	return n
+
+
+## забрать до n штук id из ячеек; вернуть, сколько забрано
+func consume(id: String, n: int) -> int:
+	var got := 0
+	for arr in [cells("pack"), pockets]:
+		for i in arr.size():
+			var c = arr[i]
+			if c != null and String(c.id) == id and got < n:
+				var k := mini(int(c.n), n - got)
+				c.n = int(c.n) - k
+				got += k
+				if int(c.n) <= 0:
+					arr[i] = null
+	if got > 0:
+		changed.emit()
+	return got
+
+
+## лучшее лечение из того, что есть: аптечка при большой потере, иначе бинт; затем еда. Вернуть id или ""
+func best_heal(missing: int) -> String:
+	var order := ["medkit", "bandage"] if missing >= 40 else ["bandage", "medkit"]
+	for id in order + ["can", "rusk"]:
+		if count(id) > 0:
+			return id
+	return ""

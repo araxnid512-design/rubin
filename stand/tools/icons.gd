@@ -32,8 +32,10 @@ func _ready() -> void:
 	vp.add_child(cam)
 	cam.current = true
 	var cfg := BCWeaponHold.config()
-	for id in ULItems.ITEMS:
-		var d: Dictionary = ULItems.ITEMS[id]
+	var list := ULItems.ITEMS.duplicate()
+	list["crate"] = {"kind": "prop", "model": "res://assets/world/ul_crate.glb"}
+	for id in list:
+		var d: Dictionary = list[id]
 		var path := ""
 		var flip := false
 		var is_pack := String(d.kind) == "pack"
@@ -42,6 +44,9 @@ func _ready() -> void:
 			flip = cfg[d.weapon].get("flip", false)
 		elif is_pack:
 			path = String(BCPackFit.PACKS[d.pack].model)
+		elif d.has("model"):
+			path = String(d.model)
+			is_pack = true                       # снимается так же — спереди в три четверти
 		else:
 			continue
 		var holder := Node3D.new()
@@ -50,7 +55,10 @@ func _ready() -> void:
 		holder.add_child(m)
 		if flip:
 			m.rotation.y = PI
-		if is_pack:
+		if d.has("model"):
+			holder.rotation.y = 0.6
+			holder.rotation.x = 0.35
+		elif is_pack:
 			# спинка модели: у малого — −z, у среднего и большого — −x; повернуть лицевой стороной к камере
 			holder.rotation.y = (0.0 if String(BCPackFit.PACKS[d.pack].back) == "-z" else -PI * 0.5) + 0.5
 		await get_tree().process_frame
