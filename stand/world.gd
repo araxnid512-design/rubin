@@ -1206,7 +1206,7 @@ func _process(delta: float) -> void:
 	var hi0 = _hand_item()
 	var gun: bool = hi0 != null and ULItems.get_def(String(hi0.id)).has("ammo") and rig.hold.wid != "" and rig.hold.drawn > 0.99
 	var fire_held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
-	aiming = gun and not _modal() and (fire_held or _aim_t < 1.0)
+	aiming = gun and not _modal() and (fire_held or _aim_t < 0.5)
 	move_mode = ""
 	var local_dir := Vector2.ZERO           # куда идёт относительно взгляда: x — влево, y — вперёд
 	if aiming:
@@ -2317,7 +2317,10 @@ var _face := NAN                  ## куда довернуть героя (а�
 var _atk_want := 0.0              ## нажатие атаки ждёт своей очереди (с)
 var _mark: MeshInstance3D         ## красная метка под целью
 var _mark_t = null
-var _flash: OmniLight3D
+var _flash: MeshInstance3D        ## вспышка у ствола: светящееся пятно (не источник света — тот дорог для телефона)
+var _dmg_lb := {}                 ## мишень → [надпись урона, сумма, когда появилась]: частые попадания складываются в одну
+var _hit_snd_t := 0.0
+var _case_i := 0
 var shots := 0                    ## для проверки
 var hits := 0
 
@@ -2450,7 +2453,9 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	rig.hold.fire()
 	var sd: Dictionary = wcfg.get("sound", {})
 	snd.play(String(sd.get("shot", "shot_ak")), vis_from, float(sd.get("db", 0.0)), 0.04)
-	snd.play(String(sd.get("case", "casing")), player.global_position + Vector3(0.5, 0.05, 0), -12.0, 0.1, randf_range(0.4, 0.6))
+	_case_i += 1
+	if not bool(d.get("auto", false)) or _case_i % 3 == 0:
+		snd.play(String(sd.get("case", "casing")), player.global_position + Vector3(0.5, 0.05, 0), -12.0, 0.1, randf_range(0.4, 0.6))
 	var fc: Dictionary = wcfg.get("fire", {})
 	var pellets := int(fc.get("pellets", 1))
 	var spread := deg_to_rad(float(fc.get("spread", 0.6 if pellets == 1 else 2.2)))
@@ -2466,9 +2471,10 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 		var col: Object = hit.collider if not hit.is_empty() else null
 		_fly_bullet(String(d.ammo), vis_from, end, col, float(d.dmg) / pellets)
 	# вспышка у ствола
-	_flash.global_position = vis_from + f * 0.15
-	_flash.light_energy = 2.5
-	create_tween().tween_property(_flash, "light_energy", 0.0, 0.07)
+	_flash.global_position = vis_from + f * 0.12
+	_flash.visible = true
+	_flash.scale = Vector3.ONE * randf_range(0.8, 1.15)
+	_flash_t = 0.05
 
 
 ## Пули. Вид — по патрону: длина и толщина (м; крупнее настоящих, иначе сверху не разглядеть), цвет оболочки,
@@ -2483,6 +2489,7 @@ const BULLETS := {
 	"a12": [0.085, 0.085, Color(0.5, 0.5, 0.54), false],
 }
 const BULLET_SPEED := 62.0        ## м/с: медленнее настоящей — чтобы полёт был виден
+var _flash_t := 0.0
 var bullet_k := 1.0               ## множитель скорости пуль (для снимков в проверке — замедление)
 var _bullet_mesh := {}
 var _bullet_free := {}            ## патрон → свободные узлы
@@ -2550,6 +2557,11 @@ func _fly_bullet(id: String, a: Vector3, b: Vector3, col: Object, dmg: float) ->
 
 ## полёт пуль: каждая летит по прямой; долетела — урон и звук попадания
 func _bullets_tick(delta: float) -> void:
+	_hit_snd_t = maxf(0.0, _hit_snd_t - delta)
+	if _flash_t > 0.0:
+		_flash_t -= delta
+		if _flash_t <= 0.0:
+			_flash.visible = false
 	var i := 0
 	while i < _bullets.size():
 		var bl: Dictionary = _bullets[i]
@@ -2567,7 +2579,9 @@ func _bullets_tick(delta: float) -> void:
 			if col.has_meta("hp"):
 				hits += 1
 				_damage(col, float(bl.dmg), bl.b)
-			snd.play("hit_wood", bl.b, -8.0, 0.1)
+			if _hit_snd_t <= 0.0:
+				snd.play("hit_wood", bl.b, -8.0, 0.1)          # не чаще восьми раз в секунду
+				_hit_snd_t = 0.12
 		_bullets.remove_at(i)
 
 
@@ -2629,20 +2643,29 @@ func heal(id := "") -> bool:
 func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
 	var left := maxf(0.0, float(t.get_meta("hp")) - dmg)
 	t.set_meta("hp", left)
-	var lb := Label3D.new()
-	lb.text = "−%d" % int(round(dmg))
-	lb.font_size = 56
-	lb.pixel_size = 0.006
-	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	lb.no_depth_test = true
-	lb.modulate = Color(1.0, 0.85, 0.3)
-	lb.outline_size = 10
-	add_child(lb)
-	lb.global_position = at + Vector3(randf_range(-0.2, 0.2), 0.4, 0)
-	var tw := create_tween()
-	tw.tween_property(lb, "global_position", lb.global_position + Vector3.UP * 0.9, 0.7)
-	tw.parallel().tween_property(lb, "modulate:a", 0.0, 0.7)
-	tw.tween_callback(lb.queue_free)
+	# цифра урона: попадания по той же мишени чаще трёх раз в секунду складываются в одну надпись
+	# (очередь из пулемёта — это одна растущая цифра, а не десять надписей в секунду)
+	var now_s := Time.get_ticks_msec() * 0.001
+	var rec: Array = _dmg_lb.get(t, [])
+	if not rec.is_empty() and is_instance_valid(rec[0]) and now_s - float(rec[2]) < 0.35:
+		rec[1] = float(rec[1]) + dmg
+		(rec[0] as Label3D).text = "−%d" % int(round(float(rec[1])))
+	else:
+		var lb := Label3D.new()
+		lb.text = "−%d" % int(round(dmg))
+		lb.font_size = 56
+		lb.pixel_size = 0.006
+		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lb.no_depth_test = true
+		lb.modulate = Color(1.0, 0.85, 0.3)
+		lb.outline_size = 10
+		add_child(lb)
+		lb.global_position = at + Vector3(randf_range(-0.2, 0.2), 0.4, 0)
+		var tw := create_tween()
+		tw.tween_property(lb, "global_position", lb.global_position + Vector3.UP * 0.9, 0.7)
+		tw.parallel().tween_property(lb, "modulate:a", 0.0, 0.7)
+		tw.tween_callback(lb.queue_free)
+		_dmg_lb[t] = [lb, dmg, now_s]
 	var vis: Node3D = t.get_node("Vis")
 	var tw2 := create_tween()
 	if t.has_meta("dummy"):
@@ -2798,10 +2821,21 @@ func _add_target(p: Vector3) -> void:
 
 
 func _combat_setup() -> void:
-	_flash = OmniLight3D.new()
-	_flash.light_color = Color(1.0, 0.8, 0.5)
-	_flash.omni_range = 5.0
-	_flash.light_energy = 0.0
+	_flash = MeshInstance3D.new()
+	var fq := QuadMesh.new()
+	fq.size = Vector2(0.42, 0.42)
+	_flash.mesh = fq
+	var fm := StandardMaterial3D.new()
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	fm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	fm.albedo_texture = _blob_tex()
+	fm.albedo_color = Color(1.0, 0.72, 0.35)
+	fm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_flash.material_override = fm
+	_flash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_flash.visible = false
 	add_child(_flash)
 	_mark = MeshInstance3D.new()
 	var ring := TorusMesh.new()
@@ -2851,7 +2885,8 @@ func _combat_tick(delta: float) -> void:
 		if _mark.visible:
 			_mark.global_position = (_mark_t as Node3D).global_position + Vector3.UP * 0.05
 			_mark.scale = Vector3.ONE * (1.0 + 0.06 * sin(Time.get_ticks_msec() * 0.008))
-	if _aim_t > 1.8 and rig.hold.wid != "" and rig.hold.stance == "aim" and not _reloading:
+	# кончил стрелять — оружие сразу опускается из прицела в положение «наготове»
+	if not aiming and rig.hold.wid != "" and rig.hold.stance == "aim" and not _reloading:
 		rig.hold.set_stance("ready")
 	if not is_nan(_face) and aiming:
 		_aim_yaw = _face
@@ -3191,7 +3226,9 @@ func _inv_test() -> void:
 	_ok("наискось — шаг между «назад» и «боком» (смесь соседних, без рывка)", aiming and absf(rig.dir_pos.x) > 0.35 and rig.dir_pos.y < -0.35, "шаг (%.2f, %.2f)" % [rig.dir_pos.x, rig.dir_pos.y])
 	_hud_touch.erase(99)
 	_auto.clear()
-	await get_tree().create_timer(1.4).timeout
+	await get_tree().create_timer(0.8).timeout
+	_ok("кончил стрелять — через 0.8 с оружие уже опущено из прицела", rig.hold.stance == "ready" and not aiming, "стойка «%s»" % rig.hold.stance)
+	await get_tree().create_timer(0.6).timeout
 	_auto = [player.global_position + Vector3(-20, 0, 0)]
 	await get_tree().create_timer(0.6).timeout
 	_ok("не стреляет — бежит лицом по ходу, обычным бегом", not aiming and move_mode == "" and rig.dir_w < 0.05 and absf(angle_difference(player.rotation.y, -PI * 0.5)) < 0.3 and Vector3(player.velocity.x, 0, player.velocity.z).length() > 3.5, "поворот %.2f" % player.rotation.y)
@@ -3333,6 +3370,7 @@ var _set_ui: Control
 var _res_t := 0.0
 var _res_n := 0
 var _res_hold := 0.0
+var _res_wait := 0.0
 
 
 func open_settings() -> void:
@@ -3366,10 +3404,15 @@ func _auto_res(delta: float) -> void:
 	_res_t = 0.0
 	_res_n = 0
 	var vp := get_viewport()
+	if _res_wait > 0.0:
+		_res_wait -= 1.0
+		return                                         # после перемены — секунда передышки: смена разрешения сама даёт заминку
 	var sc := res_step(vp.scaling_3d_scale, fps, float(ULSettings.q().scale), _res_hold <= 0.0)
 	if sc < vp.scaling_3d_scale:
 		_res_hold = 6.0
-	vp.scaling_3d_scale = sc
+	if not is_equal_approx(sc, vp.scaling_3d_scale):
+		_res_wait = 1.0
+		vp.scaling_3d_scale = sc
 
 
 ## новое разрешение по текущему, частоте кадров и пределу качества (отдельно — чтобы проверять)
@@ -3408,10 +3451,10 @@ func _prewarm() -> void:
 	_mark.visible = true
 	_mark.global_position = at
 	_flash.global_position = at
-	_flash.light_energy = 0.01
+	_flash.visible = true
 	for i in 3:
 		await get_tree().process_frame
-	_flash.light_energy = 0.0
+	_flash.visible = false
 	for n in tmp:
 		n.queue_free()
 
@@ -3741,6 +3784,48 @@ func _fps_tick(delta: float) -> void:
 func _run_test() -> void:
 	if test == "inv":
 		await _inv_test()
+		return
+	if test == "aimdbg":
+		# отклик при стрельбе: огонь удержан, джойстик резко меняет сторону — через сколько герой идёт туда
+		var I := ULItems
+		var mq: Node3D = targets[0]
+		inv.primary = I.make("pkp")
+		inv.add(I.make("a762x54", 100))
+		inv.hand = "primary"
+		_apply_gear()
+		await _wait_drawn()
+		for tpos in [["цель справа", Vector3(-7, 0.05, 0)], ["цель сверху", Vector3(0, 0.05, 7)]]:
+			player.global_position = mq.global_position + tpos[1]
+			player.velocity = Vector3.ZERO
+			await get_tree().create_timer(0.5).timeout
+			_hud_touch[99] = "fire"
+			_hud_press("fire")
+			await get_tree().create_timer(0.6).timeout
+			for dn in [["вправо", Vector2(1, 0)], ["влево", Vector2(-1, 0)], ["вверх", Vector2(0, -1)], ["вниз", Vector2(0, 1)], ["вправо", Vector2(1, 0)], ["вниз", Vector2(0, 1)], ["влево", Vector2(-1, 0)]]:
+				_joy_id = 5
+				_joy_v = dn[1]
+				var wantv := Vector3((dn[1] as Vector2).x, 0, (dn[1] as Vector2).y)
+				var t0 := Time.get_ticks_msec()
+				var t_move := -1.0
+				var t_anim := -1.0
+				var want_local := Vector2.ZERO
+				while Time.get_ticks_msec() - t0 < 1500:
+					await get_tree().process_frame
+					var el := (Time.get_ticks_msec() - t0) * 0.001
+					var hv2 := Vector3(player.velocity.x, 0, player.velocity.z)
+					if t_move < 0.0 and hv2.length() > 1.2 and hv2.normalized().dot(wantv) > 0.9:
+						t_move = el
+					var fa2 := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+					var rel2 := fa2.signed_angle_to(wantv, Vector3.UP)
+					want_local = Vector2(sin(rel2), cos(rel2))
+					if t_anim < 0.0 and rig.dir_w > 0.8 and rig.dir_pos.dot(want_local) > 0.85:
+						t_anim = el
+				print("[aim] %s, джойстик %s: идёт через %.2f с, шаг ног — через %.2f с (режим %s, скорость %.1f, шаг (%.2f, %.2f) при нужном (%.2f, %.2f))" % [tpos[0], dn[0], t_move, t_anim, move_mode, Vector3(player.velocity.x, 0, player.velocity.z).length(), rig.dir_pos.x, rig.dir_pos.y, want_local.x, want_local.y])
+			_joy_id = -1
+			_joy_v = Vector2.ZERO
+			_hud_touch.erase(99)
+			await get_tree().create_timer(1.5).timeout
+		get_tree().quit()
 		return
 	if test == "bake":
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
