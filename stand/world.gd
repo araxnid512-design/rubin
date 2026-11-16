@@ -3711,6 +3711,8 @@ func _inv_test() -> void:
 	_ok("Лоторейщик: рост 1.9 м, прочность 150, один материал", absf(top - 1.9) < 0.08 and float(lt.get_meta("hp")) == 150.0, "рост %.2f м" % top)
 	await get_tree().create_timer(0.4).timeout
 	_ok("стоящего героя за 19 м не видит и не слышит", lt.state == "idle" or lt.state == "wander", lt.state)
+	# генератор мелких движений: пальцы согнуты когтями, на замахе раскрываются; отростки у пасти найдены
+	_ok("генератор существа подключён: когти, дыхание, точка пасти найдена по сетке", lt.rig.fx != null and lt.rig.fx._fingers.size() >= 24 and lt.rig.fx.mouth_mat != null and lt.rig.fx.mouth_off.length() > 0.01, "пальцевых суставов %d, пасть в %.3f ед. от кости головы" % [lt.rig.fx._fingers.size(), lt.rig.fx.mouth_off.length()])
 	lt.hear_steps(lt.global_position + Vector3(0, 0, -10.0), 3.0)
 	_ok("бег героя слышит за 10 м: кричит (ещё не бежит)", lt.state == "alert", lt.state)
 	lt.state = "idle"

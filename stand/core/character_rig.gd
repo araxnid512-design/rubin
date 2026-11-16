@@ -57,6 +57,8 @@ var probe: BCProbe              ## итоговая поза для провер
 var pose_report := []           ## замеры кисти в построенных ударах
 var built_poses := true         ## стойки и удары — построенные (false — клипы Tripo как есть)
 var simple := false             ## упрощённый персонаж (враг): без поправок рук и ног, только стопы
+var fx_cfg := {}                ## настройки генератора мелких движений существа (BCCreatureFx): пальцы, дыхание, пасть
+var fx: BCCreatureFx
 var stand_clamp := false        ## всегда держать нижнюю стопу на полу (движения по описанию записаны с неточной высотой таза)
 var _gw := 0.0
 static var _lib_cache := {}     ## «модель|набор|построенные» → {lib, info, report}
@@ -141,6 +143,16 @@ func setup(path := "", set_dir := "") -> void:
 		hands = BCHandIK.new()
 		hands.name = "HandIK"
 		skel.add_child(hands)
+	fx = null
+	if not fx_cfg.is_empty():
+		fx = BCCreatureFx.new()
+		fx.name = "CreatureFx"
+		skel.add_child(fx)
+		fx.claw = float(fx_cfg.get("claw", 0.5))
+		fx.twitch = float(fx_cfg.get("twitch", 0.12))
+		fx.breath = float(fx_cfg.get("breath", 0.015))
+		if fx_cfg.has("mouth"):
+			fx.mouth_setup(model, model_path, Basis(Vector3.UP, yaw_offset) * Vector3.BACK, fx_cfg.mouth)
 	skel.move_child(hold, -1)                 # хват — после остальных поправок
 	probe = BCProbe.new()
 	probe.name = "Probe"
@@ -498,7 +510,7 @@ func set_active(on: bool) -> void:
 		tree.active = on
 	if ik:
 		ik.active = on and (not lite or _near)
-	for m in [limbs, arms, hands, hold, ground]:
+	for m in [limbs, arms, hands, hold, ground, fx]:
 		if m:
 			m.active = on
 	set_process(on)

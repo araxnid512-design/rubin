@@ -1,0 +1,90 @@
+{
+ "_": "Стандартный набор движений врага для Tripo (движение по тексту, 20 кредитов за штуку; перенос на модели бесплатный): метка клипа, секунд, описание. Метки совпадают с data/anim_enemy.json игры.",
+ "motions": [
+  {
+   "tag": "z_idle",
+   "seconds": 4,
+   "prompt": "a zombie standing in place, hunched forward with head tilted and arms hanging limp at its sides, swaying slowly from side to side and breathing heavily"
+  },
+  {
+   "tag": "z_walk",
+   "seconds": 3,
+   "prompt": "a zombie shambling slowly forward with uneven limping steps, dragging the right foot, arms hanging loosely, torso leaning forward"
+  },
+  {
+   "tag": "z_run",
+   "seconds": 2,
+   "prompt": "a zombie running fast and aggressively straight forward, torso leaning forward, arms reaching out in front"
+  },
+  {
+   "tag": "z_alert",
+   "seconds": 2,
+   "prompt": "a zombie standing hunched suddenly jerks its head up and turns its upper body to look to the side, alerted and tense"
+  },
+  {
+   "tag": "z_scream",
+   "seconds": 3,
+   "prompt": "a zombie leaning forward with arms spread back and head thrust forward, screaming with rage, body shaking"
+  },
+  {
+   "tag": "z_turn_l",
+   "seconds": 2,
+   "prompt": "a zombie standing in place turning ninety degrees to its left with shuffling steps"
+  },
+  {
+   "tag": "z_turn_r",
+   "seconds": 2,
+   "prompt": "a zombie standing in place turning ninety degrees to its right with shuffling steps"
+  },
+  {
+   "tag": "z_attack_l",
+   "seconds": 2,
+   "prompt": "a zombie lunging one step forward and swiping its left hand like a claw across in front of its chest, then pulling the arm back"
+  },
+  {
+   "tag": "z_attack_r",
+   "seconds": 2,
+   "prompt": "a zombie lunging one step forward and swiping its right hand like a claw across in front of its chest, then pulling the arm back"
+  },
+  {
+   "tag": "z_bite",
+   "seconds": 2,
+   "prompt": "a zombie grabbing forward with both hands and lunging its head forward to bite, then pulling back"
+  },
+  {
+   "tag": "z_mouth",
+   "seconds": 2,
+   "prompt": "a creature rearing back and then thrusting its head and chest far forward in a fast snapping lunge with arms swung back, then recovering"
+  },
+  {
+   "tag": "z_hit_front",
+   "seconds": 1,
+   "prompt": "a zombie hit hard in the chest jerking backward and stumbling one step back, then recovering its hunched stance"
+  },
+  {
+   "tag": "z_hit_back",
+   "seconds": 1,
+   "prompt": "a zombie hit hard in the back jerking forward and stumbling one step forward, then recovering"
+  },
+  {
+   "tag": "z_stagger",
+   "seconds": 2,
+   "prompt": "a zombie losing balance, staggering sideways with flailing arms, almost falling, then regaining balance"
+  },
+  {
+   "tag": "z_death_back",
+   "seconds": 3,
+   "prompt": "a zombie hit in the chest falling backward onto its back on the ground and lying still"
+  },
+  {
+   "tag": "z_death_front",
+   "seconds": 3,
+   "prompt": "a zombie standing upright is shot in the back, stumbles one step forward, drops to its knees, then falls forward flat on its face onto the ground and stops moving"
+  },
+  {
+   "tag": "z_death_side",
+   "seconds": 3,
+   "prompt": "a person hit from the side collapsing sideways to the left, falling onto the ground on its side and lying still"
+  }
+ ]
+}

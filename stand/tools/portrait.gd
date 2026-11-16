@@ -46,6 +46,7 @@ func _ready() -> void:
 		rig.simple = true
 		rig.built_poses = false
 		rig.stand_clamp = true
+		rig.fx_cfg = ULEnemy.KINDS[kind].get("fx", {})
 		rig.height = float(ULEnemy.KINDS[kind].get("height", 1.78))
 		holder.add_child(rig)
 		rig.anim_cfg = String(ULEnemy.KINDS[kind].get("anim_cfg", BCAnimSet.CONFIG))

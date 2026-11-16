@@ -37,6 +37,9 @@ var _growl := 5.0
 var _steer_a := 0.0               ## на сколько отвернул от прямой, обходя препятствие
 var _steer_t := 0.0
 var _steer_n := 0
+var _fx_t := 99.0                 ## сколько прошло с начала удара (для когтей и выпада головы)
+var _fx_len := 1.0
+var _fx_bite := false
 var _twist := INF                 ## падая от удара сбоку, разворачивается к нему лицом (и валится от него)
 var _rng := RandomNumberGenerator.new()
 
@@ -103,6 +106,7 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	rig.simple = true                # без поправок под оружие; движения — клипы как есть
 	rig.built_poses = false
 	rig.stand_clamp = true
+	rig.fx_cfg = def.get("fx", {})
 	rig.height = tall
 	add_child(rig)
 	var path := String(def.model)
@@ -333,9 +337,21 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				var len_s := rig.play(clip, float(a.get("rate", 1.0)))
 				_hit_due = len_s * float(a.get("hit", 0.45))
 				_hit_dmg = float(a.dmg)
+				_fx_t = 0.0
+				_fx_len = maxf(_hit_due, 0.15)
+				_fx_bite = clip == "bite" or clip == "lunge"
 				last_attack = String(a.n)
 				if _rng.randf() < 0.6:
 					noise.emit("roar", global_position)
+	if rig.fx != null:
+		# генератор мелких движений: к моменту удара когти раскрываются (и голова подаётся вперёд на укусе), потом
+		# за полсекунды всё возвращается; на бегу и в драке дышит чаще
+		_fx_t += delta
+		var ph := _fx_t / _fx_len
+		var pulse := clampf(ph, 0.0, 1.0) * clampf(ph, 0.0, 1.0) if ph < 1.0 else clampf(1.0 - (ph - 1.0) / 0.6, 0.0, 1.0)
+		rig.fx.strike = pulse
+		rig.fx.bite = pulse if _fx_bite else 0.0
+		rig.fx.breath_hz = 0.9 if state == "chase" or state == "attack" else 0.35
 	var fwd := Vector3(sin(rotation.y), 0, cos(rotation.y))
 	velocity = Vector3(fwd.x * speed, velocity.y - 9.8 * delta, fwd.z * speed)
 	move_and_slide()

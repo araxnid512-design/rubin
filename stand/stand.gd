@@ -89,7 +89,7 @@ static func enemy_entries(kind: String) -> Array:
 	var k := 0
 	for a in d.get("attacks", []):
 		k += 1
-		out.append({"id": "z_attack%d" % k, "g": "Удары", "n": "%s (%d)" % [String(a.n).capitalize(), int(a.dmg)], "action": String(a.clip), "rate": float(a.get("rate", 1.0)), "voice": "roar"})
+		out.append({"id": "z_attack%d" % k, "g": "Удары", "n": "%s (%d)" % [String(a.n).capitalize(), int(a.dmg)], "action": String(a.clip), "rate": float(a.get("rate", 1.0)), "voice": "roar", "hit": float(a.get("hit", 0.5)), "bite": String(a.clip) in ["bite", "lunge"]})
 	out += [
 		{"id": "z_hit", "g": "Попадания", "n": "Попадание спереди", "action": "hit_front"},
 		{"id": "z_hit_b", "g": "Попадания", "n": "Попадание сзади", "action": "hit_back"},
@@ -240,6 +240,7 @@ void fragment() {
 		rig.simple = true
 		rig.built_poses = false
 		rig.stand_clamp = true
+		rig.fx_cfg = ULEnemy.KINDS[who].get("fx", {})
 		rig.height = float(ULEnemy.KINDS[who].get("height", 1.78))
 		rig.anim_cfg = String(ULEnemy.KINDS[who].get("anim_cfg", BCAnimSet.CONFIG))
 		rig.setup(String(ULEnemy.KINDS[who].model), String(ULEnemy.KINDS[who].get("anim", "res://assets/anim/hero")))
@@ -635,6 +636,15 @@ func _step() -> void:
 		_action_sfx(String(cur.action), d)
 	elif cur.has("voice"):
 		snd.play(String(cur.voice), rig.global_position + Vector3.UP * 1.5, -3.0, 0.1)      # голос врага
+	if rig.fx != null and cur.has("hit"):
+		# как в игре: к моменту удара когти раскрываются, на укусе голова идёт вперёд
+		var ft := create_tween()
+		ft.tween_property(rig.fx, "strike", 1.0, d * float(cur.hit))
+		ft.tween_property(rig.fx, "strike", 0.0, 0.5)
+		if cur.get("bite", false):
+			var bt := create_tween()
+			bt.tween_property(rig.fx, "bite", 1.0, d * float(cur.hit))
+			bt.tween_property(rig.fx, "bite", 0.0, 0.5)
 	if cur.get("twist", false):
 		# удар сбоку: разворачивает к удару и валит от него
 		rig.rotation.y = 0.0
@@ -1043,6 +1053,38 @@ func _run_test() -> void:
 		look_h = 0.6
 		await get_tree().create_timer(1.2).timeout
 		await _snap("%s/z_side.png" % out)
+		# генератор мелких движений: кисти и голова крупно, по два кадра с паузой (видно, что пальцы и отростки живут)
+		look_hands = true
+		cam.h_offset = 0.0
+		ui.visible = false
+		yaw = 0.2
+		pitch = 0.25
+		dist = 1.3
+		await get_tree().create_timer(0.5).timeout
+		await _snap("%s/z_hands_a.png" % out)
+		await get_tree().create_timer(0.9).timeout
+		await _snap("%s/z_hands_b.png" % out)
+		look_hands = false
+		yaw = 0.35
+		pitch = 0.0
+		dist = 1.1
+		look_h = rig.height * 0.88
+		await get_tree().create_timer(0.5).timeout
+		await _snap("%s/z_head_a.png" % out)
+		await get_tree().create_timer(0.45).timeout
+		await _snap("%s/z_head_b.png" % out)
+		var ia := Image.load_from_file("%s/z_head_a.png" % out)
+		var ib := Image.load_from_file("%s/z_head_b.png" % out)
+		var diff := 0.0
+		for yy in range(ia.get_height() / 4, ia.get_height() * 3 / 4, 2):
+			for xx in range(ia.get_width() / 3, ia.get_width() * 2 / 3, 2):
+				var ca := ia.get_pixel(xx, yy)
+				var cb := ib.get_pixel(xx, yy)
+				diff += absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b)
+		print("[stand] голова: различие двух кадров через 0.45 с — %.0f (0 — картинка неподвижна)" % diff)
+		dist = 3.4
+		cam.h_offset = -0.42
+		ui.visible = true
 		yaw = 0.55
 		pitch = 0.22
 		look_h = 1.0
