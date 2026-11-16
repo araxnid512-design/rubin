@@ -90,6 +90,9 @@ func _ready() -> void:
 		_armory()
 		_yard()
 		_flora()
+		if test == "bake":
+			_bake_nav()
+		_nav_load()
 	_blob_layer()
 	_player()
 	_combat_setup()
@@ -110,6 +113,40 @@ func _ready() -> void:
 	_prewarm.call_deferred()
 	if test != "":
 		_run_test.call_deferred()
+
+
+# ---------------- навигация врагов ----------------
+
+## Карта проходимости кластера: где можно пройти между забором, домом, деревьями, мебелью. Строится один раз по
+## столкновениям мира (--as-test=bake) и хранится в проекте — в игре только загружается. Враг, который не видит
+## героя напрямую, идёт по ней: в обход забора через калитку, в дом через дверь (ULEnemy._nav_dir).
+const NAV_MESH := "res://assets/world/nav_cluster.res"
+
+
+func _bake_nav() -> void:
+	var nm := NavigationMesh.new()
+	nm.agent_radius = 0.35
+	nm.agent_height = 1.8
+	nm.agent_max_climb = 0.3
+	nm.cell_size = 0.25
+	nm.cell_height = 0.25
+	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	nm.filter_baking_aabb = AABB(Vector3(-SIZE * 0.5 - 12.0, -1.0, -SIZE * 0.5 - 12.0), Vector3(SIZE + 24.0, 5.0, SIZE + 24.0))
+	var src := NavigationMeshSourceGeometryData3D.new()
+	var t0 := Time.get_ticks_msec()
+	NavigationServer3D.parse_source_geometry_data(nm, src, self)
+	NavigationServer3D.bake_from_source_geometry_data(nm, src)
+	ResourceSaver.save(nm, NAV_MESH, ResourceSaver.FLAG_COMPRESS)
+	print("[bake] карта проходимости: многоугольников %d, вершин %d, %d мс → %s" % [nm.get_polygon_count(), nm.vertices.size(), Time.get_ticks_msec() - t0, NAV_MESH])
+
+
+func _nav_load() -> void:
+	if not ResourceLoader.exists(NAV_MESH):
+		return
+	var reg := NavigationRegion3D.new()
+	reg.name = "Nav"
+	reg.navigation_mesh = load(NAV_MESH)
+	add_child(reg)
 
 
 # ---------------- полигон ----------------
@@ -1443,6 +1480,7 @@ func _process(delta: float) -> void:
 		_preview_rig.set_motion(0.0, 0.0, delta)
 	_npcs_tick(delta)
 	_enemies_tick(delta)
+	_range_ring_tick(delta)
 
 
 var _cam_ready := false
@@ -2599,11 +2637,18 @@ func _try_attack() -> bool:
 ## ближайшая живая мишень в пределах max_d и в секторе cone_deg перед героем (180 — вокруг);
 ## los — только те, что видно (между героем и мишенью нет стены или забора)
 func _nearest_target(max_d: float, cone_deg: float, los := false):
+	# сначала — враги; манекен и чучела — только когда врагов в досягаемости нет (раньше автоприцел брал
+	# ближайшее чучело, а враг за ним оставался без огня)
+	var en = _nearest_of(max_d, cone_deg, los, true)
+	return en if en != null else _nearest_of(max_d, cone_deg, los, false)
+
+
+func _nearest_of(max_d: float, cone_deg: float, los: bool, foes: bool):
 	var best = null
 	var bd := max_d
 	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
 	for t in targets:
-		if float(t.get_meta("hp")) <= 0.0:
+		if (t is ULEnemy) != foes or float(t.get_meta("hp")) <= 0.0:
 			continue
 		var v: Vector3 = t.global_position - player.global_position
 		v.y = 0
@@ -2699,6 +2744,8 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	_aim_t = 0.0
 	rig.hold.set_stance("aim")
 	var t = _nearest_target(float(d.get("range", 28.0)), 180.0, true)
+	if t == null:
+		_why_no_target(float(d.get("range", 28.0)))
 	_aim_at(t)
 	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
 	var from := player.global_position + Vector3.UP * 1.35 + f * 0.5
@@ -2734,6 +2781,66 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	_flash.scale = Vector3.ONE * randf_range(0.8, 1.15)
 	_flash_t = 0.05
 	_use_up(it)
+
+
+## Огонь без цели: если враг на экране есть, но прицел его не взял — сказать почему (не чаще раза в 2.5 с)
+var _why_t := 0.0
+
+
+func _why_no_target(rng: float) -> void:
+	var now := Time.get_ticks_msec() * 0.001
+	if now - _why_t < 2.5:
+		return
+	var best: ULEnemy = null
+	var bd := 1e9
+	for e in enemies:
+		if e.alive() and cam.is_position_in_frustum(e.global_position + Vector3.UP):
+			var dd := e.global_position.distance_to(player.global_position)
+			if dd < bd:
+				bd = dd
+				best = e
+	if best == null:
+		return
+	_why_t = now
+	if bd > rng:
+		say("Далеко: %d м — оружие бьёт на %d м. Подойдите ближе" % [int(round(bd)), int(rng)])
+	elif not _sees(best):
+		say("Цель за укрытием — нет линии огня")
+
+
+## Круг дальности: тонкое кольцо на земле вокруг героя радиусом дальности оружия в руках (виден, когда камера
+## отдалена: на обычном приближении край экрана — около 10 м вбок и 7 м вперёд)
+var _range_ring: MeshInstance3D
+
+
+func _range_ring_tick(delta: float) -> void:
+	if _range_ring == null:
+		_range_ring = MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.985
+		tm.outer_radius = 1.0
+		tm.rings = 96
+		tm.ring_segments = 3
+		_range_ring.mesh = tm
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(1.0, 0.9, 0.6, 0.0)
+		m.no_depth_test = true
+		_range_ring.material_override = m
+		_range_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_range_ring)
+	var it = _hand_item()
+	var rng := 0.0
+	if it != null and rig.hold.drawn > 0.5:
+		rng = float(ULItems.get_def(String(it.id)).get("range", 0.0))
+	var m: StandardMaterial3D = _range_ring.material_override
+	var want := (0.32 if aiming else 0.14) if rng > 0.0 else 0.0
+	m.albedo_color.a = move_toward(m.albedo_color.a, want, delta * 1.5)
+	_range_ring.visible = m.albedo_color.a > 0.005
+	if rng > 0.0:
+		_range_ring.scale = Vector3(rng, 0.02, rng)
+	_range_ring.global_position = player.global_position + Vector3.UP * 0.05
 
 
 ## Пули. Вид — по патрону: длина и толщина (м; крупнее настоящих, иначе сверху не разглядеть), цвет оболочки,
@@ -3638,7 +3745,7 @@ func _inv_test() -> void:
 	var ms2 := Time.get_ticks_msec()
 	# первый заражённый готовит движения под свой скелет (при загрузке локации), следующие берут готовые
 	_ok("второй заражённый появляется без заминки (быстрее 60 мс)", ms2 - ms1 < 60, "первый %d мс, второй %d мс" % [ms1 - ms0, ms2 - ms1])
-	_ok("заражённый — в списке целей, прочность 60", targets.has(e) and float(e.get_meta("hp")) == 60.0)
+	_ok("пустыш — в списке целей, прочность 150", targets.has(e) and float(e.get_meta("hp")) == 150.0)
 	await get_tree().create_timer(0.5).timeout
 	_ok("заметил героя ближе 13 м — бежит к нему", e.state == "chase", e.state)
 	var low := 1e9
@@ -3665,8 +3772,8 @@ func _inv_test() -> void:
 	_ok("добежал и ударил: здоровье героя убыло на 9", is_equal_approx(hp0 - hp, 9.0), "%.0f → %.0f за %.1f с" % [hp0, hp, wait_s])
 	_ok("после удара экран краснеет", _hurt_t > 0.0)
 	_damage(e, 25.0, e.global_position + Vector3.UP)
-	_ok("попадание: прочность 60 → 35, жив", is_equal_approx(e.hp, 35.0) and e.alive())
-	_damage(e, 100.0, e.global_position + Vector3.UP)
+	_ok("попадание: прочность 150 → 125, жив", is_equal_approx(e.hp, 125.0) and e.alive())
+	_damage(e, 1000.0, e.global_position + Vector3.UP)
 	_ok("убит: падает, больше не цель для автонаведения", not e.alive() and float(e.get_meta("hp")) == 0.0 and e.collision_layer == 0)
 	# добыча: от нуля до трёх споранов
 	var seen := {}
@@ -3695,7 +3802,7 @@ func _inv_test() -> void:
 	e.dead_t = ULEnemy.CORPSE_S - 0.3
 	await get_tree().create_timer(0.6).timeout
 	_ok("через минуту обысканное тело исчезает, окно обыска закрывается", not is_instance_valid(e) and enemies.size() == 1 and targets.size() == n_targets + 1 and not inv_ui.visible)
-	_damage(far, 100.0, far.global_position + Vector3.UP)
+	_damage(far, 1000.0, far.global_position + Vector3.UP)
 	far.dead_t = ULEnemy.CORPSE_S - 0.3
 	await get_tree().create_timer(0.6).timeout
 	_ok("необысканное тело тоже исчезает через минуту", not is_instance_valid(far) and enemies.is_empty() and targets.size() == n_targets)
@@ -3708,7 +3815,7 @@ func _inv_test() -> void:
 	for mi in lt.rig.model.find_children("*", "MeshInstance3D", true, false):
 		var ab: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
 		top = maxf(top, ab.end.y)
-	_ok("Лоторейщик: рост 1.9 м, прочность 150, один материал", absf(top - 1.9) < 0.08 and float(lt.get_meta("hp")) == 150.0, "рост %.2f м" % top)
+	_ok("Лоторейщик: рост 1.9 м, прочность 400, один материал", absf(top - 1.9) < 0.08 and float(lt.get_meta("hp")) == 400.0, "рост %.2f м" % top)
 	await get_tree().create_timer(0.4).timeout
 	_ok("стоящего героя за 19 м не видит и не слышит", lt.state == "idle" or lt.state == "wander", lt.state)
 	# генератор мелких движений: пальцы согнуты когтями, на замахе раскрываются; отростки у пасти найдены
@@ -3748,8 +3855,8 @@ func _inv_test() -> void:
 	lt.global_position = Vector3(20.0, 0.0, 26.0)
 	player.global_position = Vector3(20.0, 0.05, 30.0)
 	_damage(lt, 60.0, lt.global_position + Vector3.UP)
-	_ok("сильное попадание (60 из 150): жив, удар сорван", lt.alive() and is_equal_approx(lt.hp, 90.0) and lt._hit_due < 0.0)
-	_damage(lt, 200.0, lt.global_position + Vector3.UP)
+	_ok("сильное попадание (60 из 400): жив, удар сорван", lt.alive() and is_equal_approx(lt.hp, 340.0) and lt._hit_due < 0.0)
+	_damage(lt, 1000.0, lt.global_position + Vector3.UP)
 	_ok("убит спереди — падает на спину", not lt.alive() and lt.death_clip == "death", lt.death_clip)
 	var lt2 := spawn_enemy("lottery", Vector3(20.0, 0.0, 34.0))
 	lt2.rotation.y = 0.0                                                # спиной к герою
@@ -3773,6 +3880,44 @@ func _inv_test() -> void:
 		e9.dead_t = ULEnemy.CORPSE_S
 	await get_tree().create_timer(0.3).timeout
 	_ok("тела Лоторейщиков убраны", enemies.is_empty())
+	# --- автоприцел: враг важнее чучела ---
+	player.global_position = Vector3(-20, 0.05, 40)
+	_add_target(Vector3(-17.0, 0, 40))
+	var scare: Node3D = targets[targets.size() - 1]
+	var foe := spawn_enemy("infected", Vector3(-12.0, 0, 40))
+	foe.def = foe.def.duplicate()
+	foe.def.see = 0.0
+	foe.def.hear_run = 0.0
+	foe.def.walk = 0.0
+	_ok("автоприцел: враг в 8 м важнее чучела в 3 м", _nearest_target(18.0, 180.0, true) == foe)
+	_damage(foe, 1000.0, foe.global_position)
+	_ok("врага нет — прицел берёт чучело", _nearest_target(18.0, 180.0, true) == scare)
+	targets.erase(scare)
+	scare.queue_free()
+	clear_enemies()
+	# --- бег врага: тело не мотает вбок ---
+	player.global_position = Vector3(0, 0.05, 40)
+	var runner := spawn_enemy("lottery", Vector3(-6.0, 0, 15))
+	runner.rotation.y = 0.0
+	runner.state = "chase"
+	runner._last = player.global_position
+	await get_tree().create_timer(0.5).timeout
+	var lat_max := 0.0
+	var dev_max := 0.0
+	for f in 90:
+		await get_tree().physics_frame
+		var sk: Skeleton3D = runner.rig.skel
+		var hipp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hip")).origin
+		var mv := Vector3(runner.velocity.x, 0, runner.velocity.z)
+		if mv.length() < 0.5:
+			continue
+		var side := mv.normalized().cross(Vector3.UP)
+		lat_max = maxf(lat_max, absf((hipp - runner.global_position).dot(side)))
+		var lft: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("L_Thigh")).origin - sk.global_transform * sk.get_bone_global_pose(sk.find_bone("R_Thigh")).origin
+		lft.y = 0.0
+		dev_max = maxf(dev_max, rad_to_deg(lft.cross(Vector3.UP).normalized().angle_to(mv.normalized())))
+	_ok("Лоторейщик бежит ровно: таз не уходит вбок от капсулы дальше 25 см, корпус смотрит по ходу", lat_max < 0.25 and dev_max < 30.0, "вбок до %.2f м, корпус отклоняется до %.0f°" % [lat_max, dev_max])
+	clear_enemies()
 	# гибель героя
 	hp = 5.0
 	hurt(9.0)
@@ -4949,6 +5094,147 @@ func _run_test() -> void:
 		print("[perf] кнопка «Тест FPS» (здесь — без экрана, число не показатель): " + _perf_text.strip_edges().replace("\n", " · "))
 		get_tree().quit()
 		return
+	if test == "screen":
+		# сколько метров земли видно от героя до краёв экрана (для дальности оружия)
+		player.global_position = Vector3(0, 0.05, 20)
+		_cam_ready = false
+		await get_tree().create_timer(1.0).timeout
+		var vs := get_viewport().get_visible_rect().size
+		var plane := Plane(Vector3.UP, 0.0)
+		var hp := player.global_position
+		for pt in [["вправо", Vector2(vs.x, vs.y * 0.5)], ["влево", Vector2(0, vs.y * 0.5)], ["вверх", Vector2(vs.x * 0.5, 0)], ["вниз", Vector2(vs.x * 0.5, vs.y)], ["угол вверху справа", Vector2(vs.x, 0)], ["угол внизу справа", Vector2(vs.x, vs.y)]]:
+			var o := cam.project_ray_origin(pt[1])
+			var d := cam.project_ray_normal(pt[1])
+			var g = plane.intersects_ray(o, d)
+			var hs := cam.unproject_position(hp)
+			print("[screen] %s: %.1f м (экран %dx%d, герой на экране в %s)" % [pt[0], (Vector3(g.x, 0, g.z) - Vector3(hp.x, 0, hp.z)).length() if g != null else -1.0, vs.x, vs.y, str(hs.round())])
+		get_tree().quit()
+		return
+	if test == "range":
+		# по стоячему пустышу на разных расстояниях: попадает ли каждое оружие
+		player.global_position = Vector3(-20, 0.05, 40)
+		player.rotation.y = PI * 0.5
+		for wid in ["tt", "ak74m", "spas12", "svd"]:
+			var line := ""
+			for dist in [4.0, 7.0, 9.5, 13.0, 17.0, 25.0]:
+				var e := spawn_enemy("infected", Vector3(-20.0 + dist, 0, 40))
+				e.def = e.def.duplicate()
+				e.def.see = 0.0
+				e.def.hear = 0.0
+				e.def.hear_run = 0.0
+				e.def.walk = 0.0
+				var it := ULItems.make(wid)
+				if ULItems.slot_of(it) == "pistol":
+					inv.pistol = it
+					inv.hand = "pistol"
+				else:
+					inv.primary = it
+					inv.hand = "primary"
+				_apply_gear()
+				await _wait_drawn()
+				var h0 := float(e.get_meta("hp"))
+				for k in 3:
+					_atk_cd = 0.0
+					_reloading = false
+					it.mag = 5
+					attack()
+					await get_tree().create_timer(0.9).timeout
+				var why := ""
+				if h0 <= float(e.get_meta("hp")):
+					var q := PhysicsRayQueryParameters3D.create(player.global_position + Vector3.UP * 1.35, e.global_position + Vector3.UP * 1.2)
+					q.exclude = [player.get_rid()]
+					var hit := get_world_3d().direct_space_state.intersect_ray(q)
+					why = " (цель %s, луч упёрся в %s на %.1f м)" % ["выбрана" if _nearest_target(float(ULItems.get_def(wid).range), 180.0, true) == e else "не выбрана", str(hit.collider.name) + "/" + str(hit.collider.get_parent().name) if not hit.is_empty() else "ничто", (hit.position - player.global_position).length() if not hit.is_empty() else 0.0]
+				line += " %d м: %s%s" % [int(dist), "урон %d" % int(h0 - float(e.get_meta("hp"))) if h0 > float(e.get_meta("hp")) else "НЕТ", why]
+				clear_enemies()
+			print("[range] %s (дальность %d м):%s" % [wid, int(ULItems.get_def(wid).range), line])
+		get_tree().quit()
+		return
+	if test == "chase":
+		# погоня глазами игровой камеры (камера отдалена — виден круг дальности ТТ)
+		DirAccess.make_dir_recursive_absolute(out)
+		cam_dist = 20.0
+		player.global_position = Vector3(0, 0.05, 40)
+		inv.primary = ULItems.make("spas12")
+		inv.hand = "primary"
+		_apply_gear()
+		await _wait_drawn()
+		for k in [["infected", Vector3(-7, 0, 27)], ["lottery", Vector3(7, 0, 25)], ["infected", Vector3(2, 0, 22)]]:
+			var e := spawn_enemy(String(k[0]), k[1])
+			e.state = "chase"
+			e._last = player.global_position
+		_cam_ready = false
+		for i in 5:
+			await get_tree().create_timer(0.45).timeout
+			await _snap("ch_%d" % i)
+		_why_t = -10.0
+		for e in enemies:
+			print("[chase] %s: %.1f м, в кадре %s" % [e.def.n, e.global_position.distance_to(player.global_position), str(cam.is_position_in_frustum(e.global_position + Vector3.UP))])
+		_why_no_target(5.0)
+		print("[chase] подсказка: «%s», видна %s, кольцо видно %s, масштаб %s" % [_toast.text, str(_toast.modulate.a), str(_range_ring.visible if _range_ring else null), str(_range_ring.scale if _range_ring else null)])
+		await get_tree().create_timer(0.3).timeout
+		await _snap("ch_hint")
+		get_tree().quit()
+		return
+	if test == "nav":
+		# герой во дворе, враг за задним забором: должен обойти двор и войти через калитку
+		player.global_position = HOUSE_AT + Vector3(6.0, 0.05, 7.5)
+		await get_tree().create_timer(0.3).timeout
+		for k in ["infected", "lottery"]:
+			var e := spawn_enemy(k, HOUSE_AT + Vector3(6.0, 0, -12.0))
+			e.state = "chase"
+			e._last = player.global_position
+			var t := 0.0
+			var min_d := 1e9
+			while t < 30.0 and e.state != "attack":
+				await get_tree().create_timer(0.25).timeout
+				t += 0.25
+				min_d = minf(min_d, e.global_position.distance_to(player.global_position))
+				e._last = player.global_position
+			print("[nav] %s: %s за %.1f с (ближе всего %.1f м), путь сейчас из %d точек" % [e.def.n, "дошёл до героя и бьёт" if e.state == "attack" else "НЕ дошёл, " + e.state, t, min_d, e._path.size()])
+			clear_enemies()
+			hp = HP_MAX
+		get_tree().quit()
+		return
+	if test == "loco":
+		# враги бегут к герою по прямой: насколько тело отклоняется от направления бега (рывки вбок)
+		player.global_position = Vector3(0, 0.05, 40)
+		var ens: Array = []
+		for k in ["infected", "lottery"]:
+			var e := spawn_enemy(k, Vector3(-6.0 if k == "infected" else 6.0, 0, 15))
+			e.rotation.y = 0.0
+			e.state = "chase"
+			e._last = player.global_position
+			ens.append(e)
+		await get_tree().create_timer(0.6).timeout
+		for e in ens:
+			var face_dev := 0.0
+			var lat := 0.0
+			var lat_min := 1e9
+			var lat_max := -1e9
+			var n := 0
+			for f in 150:
+				await get_tree().physics_frame
+				var sk: Skeleton3D = e.rig.skel
+				var lt: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("L_Thigh")).origin
+				var rt: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("R_Thigh")).origin
+				var hip: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hip")).origin
+				var left := lt - rt
+				left.y = 0.0
+				var body_fwd := left.cross(Vector3.UP).normalized()
+				var mv := Vector3(e.velocity.x, 0, e.velocity.z)
+				if mv.length() < 0.3:
+					continue
+				face_dev = maxf(face_dev, rad_to_deg(body_fwd.angle_to(mv.normalized())))
+				var side := mv.normalized().cross(Vector3.UP)
+				var off: float = (hip - e.global_position).dot(side)
+				lat_min = minf(lat_min, off)
+				lat_max = maxf(lat_max, off)
+				n += 1
+			print("[loco] %s: состояние %s, место %s, до героя %.1f м, видит %s" % [e.def.n, e.state, str(e.global_position.snapped(Vector3.ONE * 0.1)), e.global_position.distance_to(player.global_position), str(e.get_meta("sees", "?"))])
+			print("[loco] %s: кадров %d, наибольшее отклонение тела от направления бега %.0f°, таз уходит вбок от капсулы %.2f…%.2f м, скорость %.1f м/с" % [e.def.n, n, face_dev, lat_min, lat_max, Vector3(e.velocity.x, 0, e.velocity.z).length()])
+		get_tree().quit()
+		return
 	if test == "arena":
 		# полигон: площадка 10×10 м, борта, оружие, враги по кнопке
 		DirAccess.make_dir_recursive_absolute(out)
@@ -4982,7 +5268,7 @@ func _run_test() -> void:
 		var a0 := inv.count("a545")
 		arena_ammo()
 		_ok("«Патроны»: запас к оружию в слотах пополнен", inv.count("a545") > a0, "%d → %d" % [a0, inv.count("a545")])
-		_damage(enemies[0], 100.0, enemies[0].global_position + Vector3.UP)
+		_damage(enemies[0], 1000.0, enemies[0].global_position + Vector3.UP)
 		clear_enemies()
 		_ok("«Убрать врагов»: площадка пуста", enemies.is_empty() and targets.size() == 1)
 		arena_enemy()
@@ -5147,7 +5433,7 @@ func _run_test() -> void:
 			await _snap("c1_attack%d" % ci)
 			await get_tree().create_timer(0.28).timeout
 		await _snap("c1_attack_end")
-		_damage(e, 100.0, e.global_position + Vector3.UP * 1.3)
+		_damage(e, 1000.0, e.global_position + Vector3.UP * 1.3)
 		await get_tree().create_timer(0.5).timeout
 		await _snap("e3_dying")
 		await get_tree().create_timer(2.5).timeout

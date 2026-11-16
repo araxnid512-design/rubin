@@ -42,6 +42,9 @@ var _fx_len := 1.0
 var _fx_bite := false
 var _twist := INF                 ## падая от удара сбоку, разворачивается к нему лицом (и валится от него)
 var _rng := RandomNumberGenerator.new()
+var _path: PackedVector3Array = []   ## путь по карте проходимости к месту, где видели героя
+var _path_t := 0.0
+var _path_to := Vector3.INF
 
 
 static func _load_kinds() -> Dictionary:
@@ -240,8 +243,8 @@ func damage(d: float, from := Vector3.INF) -> void:
 		state = "chase"
 		_last = from if from != Vector3.INF else _last
 		_unseen = 0.0
-	if d >= float(def.hp) * 0.3 and rig.has_clip("stagger"):
-		# сильное попадание сбивает с ног: удар, который он готовил, срывается
+	if d >= minf(float(def.hp) * 0.3, 60.0) and rig.has_clip("stagger"):
+		# сильное попадание (СВД, дробовик в упор) сбивает с ног: удар, который он готовил, срывается
 		rig.play("stagger", 1.3)
 		_hit_due = -1.0
 		_atk = maxf(_atk, float(def.cd) * 0.7)
@@ -313,7 +316,8 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
 			else:
 				speed = float(def.run)
-				_face(_steer(tl, delta), delta, 7.0)
+				var go := tl if can_see else _nav_dir(_last, delta)
+				_face(_steer(go, delta), delta, 7.0)
 				if _growl <= 0.0:
 					_growl = _rng.randf_range(3.0, 6.0)
 					noise.emit("growl", global_position)
@@ -381,7 +385,8 @@ func _steer(dir: Vector3, delta: float) -> Vector3:
 			var ex: Array[RID] = [get_rid()]
 			ex.append_array(exclude)
 			q.exclude = ex
-			if space.intersect_ray(q).is_empty():
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or hit.collider is ULEnemy:
 				free_a = a
 				break
 		if free_a == 999.0:
@@ -390,6 +395,24 @@ func _steer(dir: Vector3, delta: float) -> Vector3:
 			_steer_a = free_a
 			_steer_t = 0.5 if free_a != 0.0 else 0.0
 	return d.rotated(Vector3.UP, _steer_a)
+
+
+## Направление к цели в обход препятствий: путь по карте проходимости (обновляется раз в 0.4 с или когда цель
+## сдвинулась на метр), берётся ближайший ещё не пройденный поворот. Карты нет или путь пуст — прямо.
+func _nav_dir(target: Vector3, delta: float) -> Vector3:
+	_path_t -= delta
+	if _path_t <= 0.0 or _path_to.distance_to(target) > 1.0:
+		_path_t = 0.4
+		_path_to = target
+		var map := get_world_3d().navigation_map
+		_path = NavigationServer3D.map_get_path(map, global_position, target, true) if NavigationServer3D.map_get_iteration_id(map) > 0 else PackedVector3Array()
+	var me := Vector3(global_position.x, 0, global_position.z)
+	while _path.size() > 1 and Vector3(_path[0].x, 0, _path[0].z).distance_to(me) < 0.6:
+		_path.remove_at(0)
+	if _path.is_empty():
+		return Vector3(target.x - me.x, 0, target.z - me.z)
+	var nx := _path[0]
+	return Vector3(nx.x - me.x, 0, nx.z - me.z)
 
 
 func _face(dir: Vector3, delta: float, rate: float) -> void:

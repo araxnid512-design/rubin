@@ -9,6 +9,8 @@ var weight := 0.0                 ## 0 — не трогать, 1 — прижа
 var floor_y := 0.0                ## пол в системе скелета
 var body_r := 0.045               ## «толщина» тела у кости, ед. скелета (кость — внутри тела)
 var last_shift := 0.0             ## на сколько сдвинуто, ед. (для проверки)
+var smooth := 0.0                ## > 0 — сдвиг сглаживается (стоя и на ходу: без подпрыгивания на каждом шаге)
+var _s := 0.0
 var rest_r := 0.0                 ## на какой высоте над полом самая низкая кость в исходной позе (стоит на подошвах)
 
 
@@ -54,6 +56,11 @@ func _process_modification() -> void:
 		if not _skip.has(i):
 			mn = minf(mn, s.get_bone_global_pose(i).origin.y)
 	var shift := (floor_y + body_r - mn) * weight
+	if smooth > 0.0:
+		_s = lerpf(_s, shift, 1.0 - exp(-get_process_delta_time() * smooth))
+		shift = _s
+	else:
+		_s = shift
 	if absf(shift) < 0.0005:
 		return
 	last_shift = shift

@@ -169,7 +169,12 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			a = _trim(a, t0, t1 if t1 > 0.0 else a.length)
 		var speed := 0.0
 		var dir := Vector3.ZERO
-		if c.get("inplace", false):
+		if c.get("bake", "") != "":
+			# движения по описанию: корень считается в системе скелета (см. _bake_root)
+			var rb := _bake_root(a, skel, root_bone, String(c.bake), bool(c.get("heading_lock", false)), float(c.get("sway", 0.0)))
+			speed = rb[0] * scale
+			dir = rb[1]
+		elif c.get("inplace", false):
 			var rr := _strip_root(a, skel, root_bone, c.get("root_lock", false))
 			speed = rr[0] * scale
 			dir = rr[1]
@@ -362,6 +367,125 @@ static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock 
 	# скорость — длина дрейфа в мировых единицах модели (масштаб родителя учитывается позже)
 	var w := pb * hdrift
 	return [w.length() / T, Vector3(w.x, 0, w.z).normalized()]
+
+
+## Корень клипа в системе скелета — для движений, снятых Tripo по описанию. В таких клипах вращается и сам корень
+## (BoneRoot: тело поворачивается на 15–20°, путь идёт дугой), а таз (Hip) едет в системе этого вращающегося корня.
+## Прежняя обработка (_strip_root) вычитала сдвиг таза в неподвижной системе корня — при повороте корня ошибка
+## достигала метра: тело моталось вбок от капсулы. Здесь:
+##   1) курс корня приводится к курсу исходной позы модели (лицом туда же, куда модель смотрит в покое);
+##      heading_lock — курс держится так весь клип (тело не виляет), иначе выравнивается только начало;
+##   2) путь таза в системе скелета; при heading_lock — «выпрямляется» (скорость поворачивается вместе с курсом);
+##   3) mode: "inplace" — равномерный ход вычитается (клип на месте; остаётся покачивание, а при sway > 0 — ещё и
+##      медленный увод: вычитается скользящее среднее за sway секунд), "lock" — таз по горизонтали на месте,
+##      "center" — среднее положение таза над капсулой, "keep" — путь как есть (падения);
+##   4) обратно в систему корня. Возвращает [скорость ед./с, направление хода в системе скелета].
+static func _bake_root(a: Animation, skel: Skeleton3D, hip_name: String, mode: String, heading_lock: bool, sway: float) -> Array:
+	var hip := skel.find_bone(hip_name)
+	if hip < 0:
+		return [0.0, Vector3.ZERO]
+	var rb := skel.get_bone_parent(hip)
+	if rb < 0:
+		return [0.0, Vector3.ZERO]
+	var tr_r := -1
+	var tr_h := -1
+	for i in a.get_track_count():
+		var bn := String(a.track_get_path(i)).get_slice(":", 1)
+		if bn == skel.get_bone_name(rb) and a.track_get_type(i) == Animation.TYPE_ROTATION_3D:
+			tr_r = i
+		elif bn == hip_name and a.track_get_type(i) == Animation.TYPE_POSITION_3D:
+			tr_h = i
+	if tr_h < 0 or a.track_get_key_count(tr_h) < 2:
+		return [0.0, Vector3.ZERO]
+	var root_rest := skel.get_bone_rest(rb)
+	var p0 := root_rest.origin
+	var qr := root_rest.basis.get_rotation_quaternion()
+	# «вперёд» исходной позы — по бёдрам (левое минус правое, поперёк вертикали)
+	var lt := skel.find_bone("L_Thigh")
+	var rt := skel.find_bone("R_Thigh")
+	var fwd := Vector3.BACK
+	if lt >= 0 and rt >= 0:
+		var left := skel.get_bone_global_rest(lt).origin - skel.get_bone_global_rest(rt).origin
+		left.y = 0.0
+		if left.length() > 1e-4:
+			fwd = left.cross(Vector3.UP).normalized()
+	var vloc := qr.inverse() * fwd
+	var th_ref := atan2(fwd.x, fwd.z)
+	var orig := a.duplicate(true)
+	var qa := func(t: float) -> Quaternion:
+		return orig.rotation_track_interpolate(tr_r, t) if tr_r >= 0 else qr
+	var corr := func(q: Quaternion) -> float:
+		var h: Vector3 = q * vloc
+		return angle_difference(atan2(h.x, h.z), th_ref)
+	var c0: float = corr.call(qa.call(0.0))
+	# 1) курс корня
+	if tr_r >= 0:
+		for k in a.track_get_key_count(tr_r):
+			var q: Quaternion = a.track_get_key_value(tr_r, k)
+			var c: float = corr.call(q) if heading_lock else c0
+			a.track_set_key_value(tr_r, k, (Quaternion(Vector3.UP, c) * q).normalized())
+	# 2) путь таза в системе скелета
+	var n := a.track_get_key_count(tr_h)
+	var ts: Array[float] = []
+	var P: Array[Vector3] = []
+	var Q: Array[Quaternion] = []
+	for k in n:
+		var t := a.track_get_key_time(tr_h, k)
+		var q: Quaternion = qa.call(t)
+		var c: float = corr.call(q) if heading_lock else c0
+		var qn := (Quaternion(Vector3.UP, c) * q).normalized()
+		ts.append(t)
+		Q.append(qn)
+		# положение таза при исходном (невыпрямленном) корне — и та же точка, повёрнутая вместе с курсом
+		P.append(p0 + q * (a.track_get_key_value(tr_h, k) as Vector3))
+	var W: Array[Vector3] = []
+	W.resize(n)
+	W[0] = p0 + Quaternion(Vector3.UP, (corr.call(qa.call(ts[0])) if heading_lock else c0)) * (P[0] - p0)
+	for k in range(1, n):
+		var c: float = corr.call(qa.call(ts[k])) if heading_lock else c0
+		var dv := Quaternion(Vector3.UP, c) * (P[k] - P[k - 1])
+		W[k] = W[k - 1] + dv
+	var T := ts[n - 1] - ts[0]
+	var drift := W[n - 1] - W[0]
+	drift.y = 0.0
+	var speed := drift.length() / T if T > 0.0 else 0.0
+	var dir := drift.normalized() if drift.length() > 1e-4 else Vector3.ZERO
+	# 3) что делать с ходом
+	if mode == "inplace" or mode == "lock" or mode == "center":
+		for k in n:
+			var x := W[k]
+			if mode == "lock":
+				W[k] = Vector3(W[0].x, x.y, W[0].z)
+			elif mode == "inplace":
+				W[k] = x - drift * ((ts[k] - ts[0]) / T if T > 0.0 else 0.0)
+		if mode == "inplace" and sway > 0.0:
+			# медленный увод — вычитается скользящее среднее (по кругу: клип зациклен)
+			var S: Array[Vector3] = []
+			for k in n:
+				var acc := Vector3.ZERO
+				var m := 0
+				for j in n:
+					var dt := absf(ts[j] - ts[k])
+					dt = minf(dt, T - dt)
+					if dt <= sway * 0.5:
+						acc += W[j]
+						m += 1
+				S.append(acc / maxf(m, 1))
+			for k in n:
+				W[k] = Vector3(W[k].x - S[k].x + S[0].x, W[k].y, W[k].z - S[k].z + S[0].z)
+		# тело над капсулой: среднее положение таза по горизонтали — там же, где в исходной позе
+		var mean := Vector3.ZERO
+		for k in n:
+			mean += W[k]
+		mean /= n
+		var rest_hip := p0 + qr * skel.get_bone_rest(hip).origin
+		var sh := Vector3(mean.x - rest_hip.x, 0.0, mean.z - rest_hip.z)
+		for k in n:
+			W[k] -= sh
+	# 4) обратно в систему корня
+	for k in n:
+		a.track_set_key_value(tr_h, k, Q[k].inverse() * (W[k] - p0))
+	return [speed, dir]
 
 
 ## стык цикла: поза последнего кадра не совпадает с первой — в последние w секунд добавляется поправка,

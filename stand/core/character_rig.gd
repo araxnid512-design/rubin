@@ -487,6 +487,7 @@ func _process(delta: float) -> void:
 			_gw = move_toward(_gw, 1.0 if g else 0.0, delta * 6.0)
 			ground.weight = 1.0
 			ground.body_r = lerpf(ground.rest_r, 0.045, _gw)
+			ground.smooth = lerpf(6.0, 0.0, _gw)
 		else:
 			ground.weight = move_toward(ground.weight, 1.0 if g else 0.0, delta * 6.0)
 	if ik:

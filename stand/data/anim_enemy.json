@@ -7,11 +7,11 @@
 				"res://assets/anim/hero/idle.res"
 			],
 			"loop": true,
-			"inplace": false,
 			"blend": 0.3,
 			"rate": 1.0,
-			"center": true,
-			"loop_fix": 0.5
+			"loop_fix": 0.5,
+			"bake": "center",
+			"heading_lock": true
 		},
 		"walk": {
 			"src": [
@@ -19,11 +19,13 @@
 				"res://assets/anim/hero/walk.res"
 			],
 			"loop": true,
-			"inplace": true,
 			"blend": 0.25,
 			"rate": 1.0,
 			"strides": 1.0,
-			"loop_fix": 0.3
+			"loop_fix": 0.3,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0
 		},
 		"run": {
 			"src": [
@@ -31,11 +33,13 @@
 				"res://assets/anim/hero/run.res"
 			],
 			"loop": true,
-			"inplace": true,
 			"blend": 0.25,
 			"rate": 1.0,
 			"strides": 1.0,
-			"loop_fix": 0.25
+			"loop_fix": 0.25,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0
 		},
 		"alert": {
 			"src": [
@@ -43,11 +47,11 @@
 				"res://assets/anim/hero/look_around.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.2,
 			"rate": 1.0,
 			"ik": true,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"scream": {
 			"src": [
@@ -55,11 +59,11 @@
 				"res://assets/anim/hero/angry_01.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.2,
 			"rate": 1.0,
 			"ik": true,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"turn_left": {
 			"src": [
@@ -67,9 +71,10 @@
 				"res://assets/anim/hero/turn.res"
 			],
 			"loop": false,
-			"inplace": false,
 			"blend": 0.2,
-			"rate": 1.0
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": false
 		},
 		"turn_right": {
 			"src": [
@@ -77,9 +82,10 @@
 				"res://assets/anim/hero/m_turn_right.res"
 			],
 			"loop": false,
-			"inplace": false,
 			"blend": 0.2,
-			"rate": 1.0
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": false
 		},
 		"attack_l": {
 			"src": [
@@ -87,10 +93,10 @@
 				"res://assets/anim/hero/box_01.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.12,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"attack_r": {
 			"src": [
@@ -98,10 +104,10 @@
 				"res://assets/anim/hero/box_02.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.12,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"bite": {
 			"src": [
@@ -109,10 +115,10 @@
 				"res://assets/anim/hero/m_melee_light.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.12,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"lunge": {
 			"src": [
@@ -120,10 +126,10 @@
 				"res://assets/anim/hero/m_melee_heavy.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.12,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"hit_front": {
 			"src": [
@@ -131,10 +137,10 @@
 				"res://assets/anim/hero/hit_to_body_01.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.12,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"hit_back": {
 			"src": [
@@ -142,10 +148,10 @@
 				"res://assets/anim/hero/hit_to_body_02.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.12,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"stagger": {
 			"src": [
@@ -153,10 +159,10 @@
 				"res://assets/anim/hero/m_stagger.res"
 			],
 			"loop": false,
-			"inplace": true,
 			"blend": 0.15,
 			"rate": 1.0,
-			"root_lock": true
+			"bake": "lock",
+			"heading_lock": true
 		},
 		"death": {
 			"src": [
@@ -164,10 +170,11 @@
 				"res://assets/anim/hero/fall.res"
 			],
 			"loop": false,
-			"inplace": false,
 			"blend": 0.15,
 			"rate": 1.0,
-			"ground": true
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
 		},
 		"dead": {
 			"src": [
@@ -175,11 +182,12 @@
 				"res://assets/anim/hero/fall.res"
 			],
 			"loop": true,
-			"inplace": false,
 			"blend": 0.2,
 			"rate": 1.0,
 			"hold": true,
-			"ground": true
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
 		},
 		"death_front": {
 			"src": [
@@ -187,10 +195,11 @@
 				"res://assets/anim/hero/defeat_03.res"
 			],
 			"loop": false,
-			"inplace": false,
 			"blend": 0.15,
 			"rate": 1.0,
-			"ground": true
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
 		},
 		"dead_front": {
 			"src": [
@@ -198,32 +207,36 @@
 				"res://assets/anim/hero/defeat_03.res"
 			],
 			"loop": true,
-			"inplace": false,
 			"blend": 0.2,
 			"rate": 1.0,
 			"hold": true,
-			"ground": true
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
 		},
 		"death_side": {
 			"src": [
 				"{set}/z_death_side.res"
 			],
 			"loop": false,
-			"inplace": false,
 			"blend": 0.15,
 			"rate": 1.0,
-			"ground": true
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
 		},
 		"dead_side": {
 			"src": [
 				"{set}/z_death_side.res"
 			],
 			"loop": true,
-			"inplace": false,
 			"blend": 0.2,
 			"rate": 1.0,
 			"hold": true,
-			"ground": true
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
 		}
-	}
+	},
+	"_": "Клипы врагов. bake — обработка корня в системе скелета (inplace — на месте с покачиванием, lock — таз на месте, center — над капсулой, keep — путь как есть), heading_lock — курс тела не виляет, sway — окно вычитания медленного увода, с."
 }
