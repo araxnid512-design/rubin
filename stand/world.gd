@@ -907,7 +907,7 @@ var _tree_pts: Array = []         ## [точка, радиус кроны] — �
 
 ## Материал земли (GROUND_SHADER) — общий для базы и коровника: трава sparse_grass, сухие проплешины grass_ground,
 ## подстилка mud_forest, тропа stony_dirt_path (Poly Haven, CC0); голая земля — своя для каждой локации.
-func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float) -> ShaderMaterial:
+func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float, path := "stony_dirt_path", path_n := "stony_dirt_path") -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
 	sh.code = GROUND_SHADER if ULSettings.gfx == 2 else GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
@@ -917,8 +917,8 @@ func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vecto
 	sm.set_shader_parameter("forest", load(TEX + "mud_forest_c.jpg"))
 	sm.set_shader_parameter("soil", load(TEX + soil + "_c.jpg"))
 	sm.set_shader_parameter("soil_n", load(TEX + soil_n + "_n.jpg"))
-	sm.set_shader_parameter("path", load(TEX + "stony_dirt_path_c.jpg"))
-	sm.set_shader_parameter("path_n", load(TEX + "stony_dirt_path_n.jpg"))
+	sm.set_shader_parameter("path", load(TEX + path + "_c.jpg"))
+	sm.set_shader_parameter("path_n", load(TEX + path_n + "_n.jpg"))
 	sm.set_shader_parameter("world_size", size)
 	sm.set_shader_parameter("soil_tint", soil_tint)
 	sm.set_shader_parameter("wet", wet)

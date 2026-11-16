@@ -63,6 +63,13 @@ jobs:
           d=$(mktemp -d)
           cp Stand.apk stand/export/import.log "$d/" 2>/dev/null || cp Stand.apk "$d/"
           cd "$d"
+          # GitHub не принимает файлы больше 100 МБ: большой APK кладётся частями по 90 МБ
+          # (собрать: cat Stand.apk.part-* > Stand.apk)
+          if [ "$(stat -c %s Stand.apk)" -gt 95000000 ]; then
+            split -b 90m -d Stand.apk Stand.apk.part-
+            rm Stand.apk
+            ls -la Stand.apk.part-*
+          fi
           echo "Сборка: ${GITHUB_SHA} ($(date -u +%Y-%m-%dT%H:%M:%SZ))" > BUILD.txt
           git init -q && git checkout -q -b stand-apk && git add -A
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Стенд анимаций: APK ${GITHUB_SHA::8}"

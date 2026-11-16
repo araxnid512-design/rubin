@@ -1,66 +1,99 @@
 class_name ULCowshed
 extends Node3D
-## «Опасный коровник» — временный нестабильный кластер 150×150 м. Постоянная часть (одна и та же при каждом
-## посещении): три коровника, сарай-развалина, повреждённые загоны, перелески по краям, мусор, брошенная техника.
-## Переменная часть (заново при каждом входе): останки коров и враги — сколько и где.
-## Баланс — data/cowshed.json; карта проходимости — assets/world/nav_cowshed.res (строится --as-test=bake на
-## этой локации). Коровники собраны из текстур проекта: внутрь цельной модели Tripo не зайти, а здесь враги
-## стоят в проходах и стойлах, герой заходит внутрь, крыша над ним скрывается.
+## «Опасный коровник» — временный нестабильный кластер 150×150 м, расставлен по карте пользователя
+## (tools/ui_src/cowshed_plan.png). Постоянная часть (одна и та же при каждом посещении): три коровника, сарай (1),
+## хозпостройка (2), загон с сарайчиком (3) — во все можно зайти (двери, ворота, окна; герой внутри — крыша над
+## ним и стена со стороны камеры скрыты), забор по кругу с проломами, дороги и тропы, хлам, поилки, телеги,
+## перелески. Переменная часть (заново при каждом входе): останки коров и враги — сколько и где.
+## Баланс — data/cowshed.json; карта земли и проходимости строятся --as-test=csbake.
 
 const CFG := "res://data/cowshed.json"
 const NAV := "res://assets/world/nav_cowshed.res"
 const TEX := "res://assets/world/tex/"
 const MODELS := "res://assets/world/"
-## коровники: центр, поворот (рад), длина, ширина, насколько разрушен (0 — цел, 1 — без торца и половины крыши)
-const BARNS := [
-	[Vector3(-32, 0, -28), 0.0, 26.0, 10.0, 0.2],
-	[Vector3(31, 0, -36), PI * 0.5, 24.0, 10.0, 0.35],
-	[Vector3(-4, 0, 17), 0.08, 22.0, 9.0, 0.7],
+## Постройки. at — центр, yaw — поворот, L — длина (вдоль своей оси X), W — ширина, H — высота стен.
+## doors — проёмы [стена, смещение вдоль неё, ширина]: «s+»/«s-» — длинные стены (+z/−z постройки), «e+»/«e-» — торцы.
+## win — окон на длинную стену; fill — что внутри: barn (стойла, кормушки, сено), tools, fuel, feed.
+const BUILDINGS := [
+	{"id": "barn1", "n": "Коровник 1", "at": Vector3(-15, 0, 23.5), "yaw": 0.0, "L": 48.0, "W": 20.0, "H": 3.4,
+		"doors": [["s+", 0.0, 4.2], ["s-", 8.0, 3.2], ["e-", 0.0, 3.8], ["e+", 0.0, 3.8]], "win": 6, "fill": "barn", "ruin": 0.35},
+	{"id": "barn2", "n": "Коровник 2", "at": Vector3(-26.5, 0, -31.5), "yaw": 0.0, "L": 30.0, "W": 16.0, "H": 3.2,
+		"doors": [["s+", -6.5, 3.4], ["s+", 6.5, 3.4], ["e-", 0.0, 3.4], ["e+", 0.0, 3.4]], "win": 4, "fill": "barn", "ruin": 0.25},
+	{"id": "barn3", "n": "Коровник 3", "at": Vector3(49.5, 0, -21.0), "yaw": PI * 0.5, "L": 44.0, "W": 18.0, "H": 3.3,
+		"doors": [["e-", 0.0, 3.8], ["e+", 0.0, 3.8], ["s-", 4.0, 3.2]], "win": 5, "fill": "barn", "ruin": 0.5},
+	{"id": "shed1", "n": "Сарай", "at": Vector3(23.5, 0, 42.0), "yaw": 0.0, "L": 11.0, "W": 8.5, "H": 3.0,
+		"doors": [["s-", 0.0, 2.6], ["e+", 0.0, 2.2]], "win": 1, "fill": "tools", "ruin": 0.15},
+	{"id": "shed2", "n": "Хозпостройка", "at": Vector3(26.5, 0, -49.5), "yaw": 0.0, "L": 9.0, "W": 7.5, "H": 3.0,
+		"doors": [["s+", 0.0, 2.4]], "win": 1, "fill": "fuel", "ruin": 0.1},
+	{"id": "shed3", "n": "Сарайчик в загоне", "at": Vector3(-52.5, 0, -4.0), "yaw": PI * 0.5, "L": 8.0, "W": 5.5, "H": 2.8,
+		"doors": [["s+", 0.0, 2.2]], "win": 0, "fill": "feed", "ruin": 0.2},
 ]
-## перелески: центр, радиус, сколько деревьев
-const WOODS := [
-	[Vector3(-60, 0, -60), 14.0, 16], [Vector3(55, 0, -62), 12.0, 12], [Vector3(63, 0, 8), 11.0, 10],
-	[Vector3(-63, 0, 22), 12.0, 12], [Vector3(-38, 0, 60), 10.0, 9], [Vector3(46, 0, 52), 10.0, 9],
-]
-## загоны: ломаные линии забора (точки), в каждом отрезке может не хватать пролёта
+## Забор по кругу (ломаные; между ними — проломы: у входа, сверху, справа и снизу) и загон у сарайчика (3)
 const FENCES := [
-	[Vector2(-52, -46), Vector2(-12, -46), Vector2(-12, -12), Vector2(-52, -12), Vector2(-52, -46)],
-	[Vector2(14, -54), Vector2(46, -54), Vector2(46, -18)],
-	[Vector2(-26, 8), Vector2(-26, 32), Vector2(16, 32)],
-	[Vector2(22, 4), Vector2(48, 4), Vector2(48, 30)],
+	[Vector2(-54.0, 51.2), Vector2(-57.6, 38.9), Vector2(-63.6, 24.5), Vector2(-65.4, 10.1), Vector2(-65.4, -11.5), Vector2(-64.9, -28.8),
+		Vector2(-61.9, -40.4), Vector2(-56.7, -47.6), Vector2(-46.8, -50.5), Vector2(-28.5, -54.8), Vector2(-19.3, -53.4), Vector2(-10.2, -49.8)],
+	[Vector2(-4.9, -49.0), Vector2(5.6, -49.8), Vector2(7.1, -53.7), Vector2(13.4, -62.0), Vector2(26.5, -62.7), Vector2(38.6, -61.3),
+		Vector2(40.9, -51.2), Vector2(44.9, -51.2), Vector2(58.0, -51.9), Vector2(62.6, -46.2), Vector2(64.8, -40.4), Vector2(66.5, -28.8),
+		Vector2(67.1, -7.2), Vector2(66.5, 4.3), Vector2(65.2, 11.8)],
+	[Vector2(64.8, 16.6), Vector2(63.2, 33.2), Vector2(61.2, 41.8), Vector2(50.1, 47.6), Vector2(43.6, 53.4), Vector2(26.5, 55.5),
+		Vector2(10.8, 55.5), Vector2(4.9, 54.8)],
+	[Vector2(-1.6, 54.1), Vector2(-25.9, 52.4), Vector2(-41.6, 56.2), Vector2(-50.5, 59.9)],
+	# загон (3): ворота на восток
+	[Vector2(-40.0, -1.0), Vector2(-40.0, 4.0), Vector2(-57.0, 4.0), Vector2(-57.0, -12.0), Vector2(-40.0, -12.0), Vector2(-40.0, -7.0)],
 ]
-const ENTRY := Vector3(0, 0, 66)
-## постройки-модели Tripo (внутрь не зайти): модель, центр, поворот, размер по длинной стороне, коробка столкновения
-## (длина × высота × ширина в долях размера)
-const LANDMARKS := [
-	["ul_barn_long", Vector3(0, 0, -62), 0.0, 28.0],
-	["ul_barn_long", Vector3(56, 0, -27), PI * 0.5, 24.0],
-	["ul_barn_small", Vector3(-30, 0, 45), 0.4, 8.5],
-	["ul_water_tower", Vector3(-6, 0, -40), 0.0, 11.0],
+const PEN := [Vector2(-57.0, -12.0), Vector2(-40.0, -12.0), Vector2(-40.0, 4.0), Vector2(-57.0, 4.0)]
+## дороги (накатанные колёсами, ~3,5 м) и тропы (~1,3 м)
+const ROADS := [
+	[Vector2(-73.0, 73.6), Vector2(-62.6, 65.6), Vector2(-52.7, 55.5), Vector2(-48.8, 44.7), Vector2(-48.1, 33.2), Vector2(-47.5, 21.6),
+		Vector2(-44.9, 13.0), Vector2(-37.7, 6.5), Vector2(-25.9, 2.2), Vector2(-12.8, -2.2), Vector2(-1.0, -7.2)],
+	[Vector2(-12.8, -2.2), Vector2(-19.3, -11.5), Vector2(-24.6, -19.5), Vector2(-26.0, -23.0)],
+	[Vector2(-1.0, -7.2), Vector2(5.6, -15.9), Vector2(13.4, -26.0), Vector2(22.6, -36.1), Vector2(26.0, -45.0)],
+	[Vector2(-1.0, -7.2), Vector2(13.4, -9.4), Vector2(27.8, -7.2), Vector2(37.0, -1.4), Vector2(44.2, 3.6), Vector2(49.5, 1.5)],
+	[Vector2(-15.0, 33.5), Vector2(-19.3, 44.7), Vector2(-28.5, 49.8), Vector2(-41.6, 50.5), Vector2(-48.8, 49.0)],
+	[Vector2(-1.0, -7.2), Vector2(8.2, 7.2), Vector2(16.0, 21.6), Vector2(22.6, 36.1), Vector2(23.5, 37.5)],
 ]
-## одинокие сухие деревья — у загонов и коровников
-const DEAD_TREES := [Vector3(-14, 0, -50), Vector3(8, 0, -30), Vector3(20, 0, 30), Vector3(-40, 0, 8), Vector3(35, 0, 42), Vector3(-56, 0, -4)]
+const TRAILS := [
+	[Vector2(-40.0, -4.0), Vector2(-25.9, 1.4)],
+	[Vector2(48.1, 4.3), Vector2(42.2, 17.3), Vector2(34.4, 33.2), Vector2(29.8, 38.9)],
+]
+## зоны активности врагов (по карте, ориентировочно): центр, полуоси
+const DANGER := [[Vector3(6.2, 0, -32.5), Vector2(11.0, 5.5)], [Vector3(36.4, 0, 7.2), Vector2(7.0, 8.0)], [Vector3(-36.4, 0, 46.2), Vector2(8.5, 5.0)]]
+## места останков коров по карте: скелеты и туши (каждое посещение — со сдвигом и поворотом; остальное — случайно)
+const SKELETONS := [Vector3(-32.4, 0, -46.9), Vector3(-57.3, 0, -31.7), Vector3(13.4, 0, -49.8), Vector3(27.8, 0, -20.2), Vector3(-30.5, 0, 7.2),
+	Vector3(-59.3, 0, 21.6), Vector3(2.9, 0, 43.3), Vector3(43.6, 0, 35.3)]
+const CARCASSES := [Vector3(-1.0, 0, -41.1), Vector3(12.8, 0, -2.2), Vector3(-56.0, 0, 10.8), Vector3(-8.2, 0, 47.6), Vector3(48.8, 0, 24.5)]
+## перелески: центр, радиус, сколько деревьев (по карте — по краям, за забором и у него)
+const WOODS := [
+	[Vector3(58, 0, -66), 14.0, 13], [Vector3(-49.5, 0, -67), 11.0, 10], [Vector3(-66, 0, -50), 8.0, 6], [Vector3(-51, 0, -41), 4.0, 3],
+	[Vector3(-7.5, 0, -68), 8.0, 7], [Vector3(4.3, 0, -58), 3.5, 2], [Vector3(-71, 0, -19), 4.0, 3], [Vector3(-71, 0, 4), 4.0, 3],
+	[Vector3(-69, 0, 33), 6.0, 5], [Vector3(-51, 0, 68), 12.0, 11], [Vector3(-66.5, 0, 48), 6.0, 4], [Vector3(60.5, 0, 67), 12.0, 12],
+	[Vector3(54, 0, 35), 3.5, 3], [Vector3(72, 0, -33), 3.5, 3], [Vector3(72, 0, 4), 3.5, 3], [Vector3(-5, 0, 65), 5.0, 4],
+]
+const ENTRY := Vector3(-54, 0, 57)
+const ENTRY_YAW := 2.5             ## у входа герой смотрит на северо-восток — на коровники
+## одинокие сухие деревья — у забора и построек
+const DEAD_TREES := [Vector3(-14, 0, -46), Vector3(36, 0, -46), Vector3(56, 0, 20), Vector3(-60, 0, 30), Vector3(14, 0, 50), Vector3(-26, 0, -18)]
 
 static var _cfg := {}
 var w                              ## локация (world.gd)
 var half := 75.0
 var body: StaticBody3D
-var barns: Array = []              ## {node, roof, front_walls, rect(локально: Vector2 half), xf}
+var barns: Array = []              ## постройки: {node, roof, front (стены со стороны камеры), half, xf, id, n}
 var cows: Array[Vector3] = []
 var fence_mid: Array[Vector3] = []
 var wood_pts: Array[Vector3] = []
-var landmark_rects: Array = []      ## [центр, поворот, полуразмер] построек-моделей (там нет мусора и коров)
 var _noise_tex: ImageTexture
 var mask: Image                    ## карта земли (R — трава): по ней же — где пучки травы
 var puddle_pts: Array[Vector3] = []
 var _cow_scenes := {}
-var trees: Array[Node3D] = []      ## деревья-модели (скрываются, если закрывают героя)
+var trees: Array[Node3D] = []      ## деревья-модели
 var _spruce_mm: MultiMesh
 var _spruce_xf: Array[Transform3D] = []
 var _tick_t := 0.0
 var _fence_root: Node3D
 var _hay: StandardMaterial3D
 var _debris_root: Node3D
+var _mats := {}
 
 
 static func cfg() -> Dictionary:
@@ -78,32 +111,25 @@ func build(world: Node3D) -> void:
 	add_child(body)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4417                  # постоянная часть — одна и та же
-	for b in BARNS:
-		_barn(b[0], float(b[1]), float(b[2]), float(b[3]), float(b[4]), rng)
-	_shed(Vector3(40, 0, 20), 0.6)
-	_landmarks()
+	for b in BUILDINGS:
+		_building(b, rng)
 	_fence_root = Node3D.new()
 	add_child(_fence_root)
 	_fences(rng)
 	_merge(_fence_root)
 	_forest(rng)
+	_dead_trees()
 	_ground()                          # после леса: под деревьями — лесная подстилка
 	_debris_root = Node3D.new()
 	add_child(_debris_root)
+	_yard_props(rng)
 	_debris(rng)
 	_merge(_debris_root)
-	_machinery()
 
 
 # ---------------- земля ----------------
 
 const MASK := "res://assets/world/tex/cowshed_mask.png"
-## тропы между воротами коровников и входом (по ним ходили — земля утоптана, трава выбита)
-const PATHS := [
-	[Vector2(0, 74), Vector2(2, 50)], [Vector2(2, 50), Vector2(-3, 30)], [Vector2(-3, 30), Vector2(-15, 18)],
-	[Vector2(-3, 30), Vector2(10, 17)], [Vector2(-15, 18), Vector2(-19, -28)], [Vector2(-19, -28), Vector2(-45, -28)],
-	[Vector2(10, 17), Vector2(22, -10)], [Vector2(22, -10), Vector2(31, -24)], [Vector2(31, -48), Vector2(31, -60)],
-]
 var _noise_img: Image
 
 
@@ -122,7 +148,8 @@ func _ground() -> void:
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
 	# голая земля здесь — грязь со следами (сырая, местами блестит), сухих проплешин в траве больше
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.95, 0.9, 0.84), 1.0, 0.8)
+	# дороги — светлая накатанная земля, у построек — грязь со следами (сырая, местами блестит)
+	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.95, 0.9, 0.84), 1.0, 0.7, "grass_path_2", "dry_ground_01")
 	sm.set_shader_parameter("noise", _noise_tex)
 	if ResourceLoader.exists(MASK) and w.test != "csbake":
 		mask = (load(MASK) as Texture2D).get_image()
@@ -164,11 +191,11 @@ func _ground() -> void:
 	_tufts()
 	# цветы в траве и лужи в грязи у коровников, ворот и в загоне
 	ULGroundDetail.flowers(self, mask_px, half * 2.0, 31, int(150.0 * float(ULSettings.q().grass)) + 30, w.TUFT_SHADER, func(p: Vector3) -> bool:
-		return in_barn(p, 2.0) >= 0 or near_landmark(p, 2.0) or p.distance_to(ENTRY) < 6.0, float(ULSettings.q().range))
-	var pen := PackedVector2Array(FENCES[0])
-	puddle_pts = ULGroundDetail.puddles(self, mask_px, half * 2.0, 53, 400, _noise_tex, func(p: Vector3) -> bool:
+		return in_barn(p, 2.0) >= 0 or p.distance_to(ENTRY) < 6.0, float(ULSettings.q().range))
+	var pen := PackedVector2Array(PEN)
+	puddle_pts = ULGroundDetail.puddles(self, mask_px, half * 2.0, 53, 500, _noise_tex, func(p: Vector3) -> bool:
 		var q := Vector2(p.x, p.z)
-		return in_barn(p, 0.5) < 0 and not near_landmark(p, 1.0) and (_barn_dist(q).x < 10.0 or Geometry2D.is_point_in_polygon(q, pen)))
+		return in_barn(p, 0.8) < 0 and (_barn_dist(q).x < 9.0 or Geometry2D.is_point_in_polygon(q, pen) or _road_dist(q) < 2.5))
 
 
 func _mat(tex: String, uv: float) -> StandardMaterial3D:
@@ -239,20 +266,42 @@ static func _seg_dist(q: Vector2, a: Vector2, b: Vector2) -> float:
 	return q.distance_to(a + ab * h)
 
 
-## расстояние от точки до коровника (снаружи; внутри — 0) и до ближайших ворот
+## расстояние от точки до постройки (снаружи; внутри — 0) и до ближайшего проёма (ворот, двери)
 func _barn_dist(q: Vector2) -> Vector2:
 	var d := 1e9
 	var g := 1e9
-	for b in BARNS:
-		var at: Vector3 = b[0]
-		var xf := Transform3D(Basis(Vector3.UP, float(b[1])), at)
+	for b in BUILDINGS:
+		var xf := Transform3D(Basis(Vector3.UP, float(b.yaw)), b.at)
 		var l := xf.affine_inverse() * Vector3(q.x, 0, q.y)
-		var hh := Vector2(float(b[2]) * 0.5, float(b[3]) * 0.5)
+		var hh := Vector2(float(b.L) * 0.5, float(b.W) * 0.5)
 		var o := Vector2(maxf(absf(l.x) - hh.x, 0.0), maxf(absf(l.z) - hh.y, 0.0))
 		d = minf(d, o.length())
-		for e in [-1.0, 1.0]:
-			g = minf(g, Vector2(l.x - e * hh.x, l.z).length())
+		for dr in b.doors:
+			g = minf(g, Vector2(l.x, l.z).distance_to(_door_point(b, dr)))
 	return Vector2(d, g)
+
+
+## середина проёма в системе постройки (на плоскости x, z)
+static func _door_point(b: Dictionary, dr: Array) -> Vector2:
+	var hl := float(b.L) * 0.5
+	var hw := float(b.W) * 0.5
+	match String(dr[0]):
+		"s+":
+			return Vector2(float(dr[1]), hw)
+		"s-":
+			return Vector2(float(dr[1]), -hw)
+		"e+":
+			return Vector2(hl, float(dr[1]))
+	return Vector2(-hl, float(dr[1]))
+
+
+## расстояние до ближайшей дороги
+func _road_dist(q: Vector2) -> float:
+	var d := 1e9
+	for r in ROADS:
+		for i in r.size() - 1:
+			d = minf(d, _seg_dist(q, r[i], r[i + 1]))
+	return d
 
 
 func _bake_mask() -> Image:
@@ -263,7 +312,7 @@ func _bake_mask() -> Image:
 	for xf in _spruce_xf:
 		tpts.append([xf.origin, 1.5 * xf.basis.get_scale().x])
 	var im := Image.create(n, n, false, Image.FORMAT_RGBA8)
-	var pen: PackedVector2Array = PackedVector2Array(FENCES[0])
+	var pen: PackedVector2Array = PackedVector2Array(PEN)
 	for iy in n:
 		for ix in n:
 			var p := Vector2((ix + 0.5) / n - 0.5, (iy + 0.5) / n - 0.5) * half * 2.0
@@ -271,10 +320,15 @@ func _bake_mask() -> Image:
 			var n2 := _noise(p / 19.0 + Vector2(0.37, 0.11))
 			var n3 := _noise(p / 5.5 + Vector2(0.71, 0.53))
 			var bd := _barn_dist(p)
-			var trail := 1e9
-			for sg in PATHS:
-				trail = minf(trail, _seg_dist(p, sg[0], sg[1]))
-			var path := 1.0 - smoothstep(0.9, 2.4, trail + (n3 - 0.5) * 1.2)
+			var rd := _road_dist(p)
+			var tr := 1e9
+			for t in TRAILS:
+				for i in t.size() - 1:
+					tr = minf(tr, _seg_dist(p, t[i], t[i + 1]))
+			# дорога: две колеи по краям, между ними — трава пробивается; тропа — узкая
+			var road := 1.0 - smoothstep(1.4, 2.4, rd + (n3 - 0.5) * 0.9)
+			var rut := 1.0 - smoothstep(0.2, 0.7, absf(rd - 1.0))
+			var path := maxf(road * (0.55 + 0.45 * rut), 1.0 - smoothstep(0.5, 1.1, tr + (n3 - 0.5) * 0.6))
 			# у коровников и ворот вытоптано до грязи, в загоне — тоже
 			var yard := 1.0 - smoothstep(1.0, 7.0 + n2 * 4.0, bd.x)
 			var gate := 1.0 - smoothstep(2.0, 9.0, bd.y)
