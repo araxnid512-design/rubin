@@ -39,6 +39,9 @@ var _follow := 1.0
 var _recoil_t := 99.0
 var _reload_t := -1.0
 var drawn := 1.0                  ## 0 — оружие убрано (кобура, ремень), 1 — в руках
+var draw_rate := 1.0              ## темп: во сколько раз быстрее достаётся / убирается оружие (в игре — быстрее, чем на стенде)
+var move_rate := 1.0              ## темп ударов холодным оружием
+var reload_rate := 1.0            ## темп перезарядки
 var _draw_dir := 0.0
 var _hip := -1
 var _lock := 0.0
@@ -187,7 +190,7 @@ func draw() -> float:
 	if wid == "":
 		return 0.0
 	_draw_dir = 1.0
-	return float(w.get("holster", {}).get("time", 0.9)) * (1.0 - drawn)
+	return float(w.get("holster", {}).get("time", 0.9)) * (1.0 - drawn) / draw_rate
 
 
 ## убрать оружие в кобуру / на ремень
@@ -195,7 +198,7 @@ func put_away() -> float:
 	if wid == "":
 		return 0.0
 	_draw_dir = -1.0
-	return float(w.get("holster", {}).get("time", 0.9)) * drawn
+	return float(w.get("holster", {}).get("time", 0.9)) * drawn / draw_rate
 
 
 ## дульный срез и направление ствола в мире (для выстрела)
@@ -217,7 +220,7 @@ func swing(kind: String) -> float:
 		return 0.0
 	_move = kind
 	_move_t = 0.0
-	return float(w.moves[kind].len)
+	return float(w.moves[kind].len) / move_rate
 
 
 func fire() -> void:
@@ -264,7 +267,7 @@ func reload() -> float:
 	_rk_i = -1
 	_prev_step = ""
 	_prev_carry = false
-	return _reload_len()
+	return _reload_len() / reload_rate
 
 
 func _reload_len() -> float:
@@ -326,7 +329,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	var dk: Dictionary = w.get("draw", {})
 	# достать / убрать
 	if _draw_dir != 0.0:
-		drawn = clampf(drawn + _draw_dir * delta / float(w.get("holster", {}).get("time", 0.9)), 0.0, 1.0)
+		drawn = clampf(drawn + _draw_dir * delta * draw_rate / float(w.get("holster", {}).get("time", 0.9)), 0.0, 1.0)
 		# остановиться — только дойдя до конца в свою сторону (иначе кадр с нулевым временем на старте
 		# сбрасывал доставание, и оружие оставалось убранным)
 		if (_draw_dir > 0.0 and drawn >= 1.0) or (_draw_dir < 0.0 and drawn <= 0.0):
@@ -378,7 +381,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	var om := 13.0
 	var zt := 0.78
 	if _move != "":
-		_move_t += delta
+		_move_t += delta * move_rate
 		var mp := _move_pose()
 		tgt = mp[0]
 		tw_t = mp[1]
@@ -403,7 +406,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	# перезарядка: оружие ближе к груди и на боку; отдача: назад и ствол вверх (вокруг рукояти)
 	var rl := -1.0
 	if _reload_t >= 0.0:
-		_reload_t += delta
+		_reload_t += delta * reload_rate
 		rl = _reload_t / _reload_len()
 		if rl >= 1.0:
 			_reload_t = -1.0
