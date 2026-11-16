@@ -13,6 +13,7 @@ var pistol = null
 var primary = null
 var pack = null                   ## надетый рюкзак (предмет; его ячейки — pack.items)
 var hand := ""                    ## что в руках: "", "pistol", "primary"
+var wallet := {}                  ## ресурсы-валюта (спораны, горошины, жемчужины): id → сколько. Ячеек не занимают
 
 
 func _init() -> void:
@@ -68,6 +69,12 @@ static func put(arr: Array, it: Dictionary) -> int:
 ## положить в инвентарь (карманы, затем рюкзак); оружие — в пустой слот, если он свободен. Остаток — сколько
 ## не влезло (у предмета n уменьшается до остатка)
 func add(it: Dictionary, to_slot := true) -> int:
+	if ULItems.kind(it) == "loot":
+		# ресурсы копятся в кошельке — сколько угодно, без ячеек
+		wallet[String(it.id)] = int(wallet.get(String(it.id), 0)) + int(it.get("n", 1))
+		it.n = 0
+		changed.emit()
+		return 0
 	var sl := ULItems.slot_of(it)
 	if to_slot and sl == "pistol" and pistol == null:
 		pistol = it
@@ -150,7 +157,7 @@ func clear_slot(slot: String):
 
 
 func to_dict() -> Dictionary:
-	return {"pockets": pockets, "pistol": pistol, "primary": primary, "pack": pack, "hand": hand}
+	return {"pockets": pockets, "pistol": pistol, "primary": primary, "pack": pack, "hand": hand, "wallet": wallet}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -163,6 +170,18 @@ func from_dict(d: Dictionary) -> void:
 	primary = _fix(d.get("primary"))
 	pack = _fix(d.get("pack"))
 	hand = String(d.get("hand", ""))
+	wallet = {}
+	var w = d.get("wallet", {})
+	if w is Dictionary:
+		for k in w:
+			if int(w[k]) > 0:
+				wallet[String(k)] = int(w[k])
+	# ресурсы, лежавшие в ячейках (сохранение до появления кошелька), — в кошелёк
+	for arr in [pockets, cells("pack")]:
+		for i in arr.size():
+			if arr[i] != null and ULItems.kind(arr[i]) == "loot":
+				wallet[String(arr[i].id)] = int(wallet.get(String(arr[i].id), 0)) + int(arr[i].n)
+				arr[i] = null
 	changed.emit()
 
 
@@ -185,7 +204,7 @@ static func _fix(it):
 
 ## сколько предметов id во всех ячейках
 func count(id: String) -> int:
-	var n := 0
+	var n := int(wallet.get(id, 0))
 	for arr in [pockets, cells("pack")]:
 		for c in arr:
 			if c != null and String(c.id) == id:
@@ -195,7 +214,9 @@ func count(id: String) -> int:
 
 ## забрать до n штук id из ячеек; вернуть, сколько забрано
 func consume(id: String, n: int) -> int:
-	var got := 0
+	var got := mini(int(wallet.get(id, 0)), n)
+	if got > 0:
+		wallet[id] = int(wallet[id]) - got
 	for arr in [cells("pack"), pockets]:
 		for i in arr.size():
 			var c = arr[i]
@@ -208,6 +229,24 @@ func consume(id: String, n: int) -> int:
 	if got > 0:
 		changed.emit()
 	return got
+
+
+## хватает ли ресурсов на цену {id: сколько}
+func can_pay(price: Dictionary) -> bool:
+	for id in price:
+		if int(wallet.get(String(id), 0)) < int(price[id]):
+			return false
+	return true
+
+
+## заплатить цену из кошелька; не хватает — ничего не списывается
+func pay(price: Dictionary) -> bool:
+	if not can_pay(price):
+		return false
+	for id in price:
+		wallet[String(id)] = int(wallet[String(id)]) - int(price[id])
+	changed.emit()
+	return true
 
 
 ## лучшее лечение из того, что есть: аптечка при большой потере, иначе бинт; затем еда. Вернуть id или ""

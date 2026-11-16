@@ -49,6 +49,10 @@ const ITEMS := {
 }
 
 
+## ресурсы-валюта, по возрастанию ценности (так они стоят в окошке «Ресурсы»)
+const MONEY := ["spore", "pea", "pearl_black", "pearl_red", "pearl_white"]
+
+
 static func get_def(id: String) -> Dictionary:
 	return ITEMS.get(id, {"n": id, "kind": "misc"})
 

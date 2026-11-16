@@ -16,6 +16,9 @@ const C_BG := Color(0.06, 0.09, 0.13, 0.98)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
 const C_TEXT := Color(0.88, 0.93, 0.97)
 
+static var arena := false                  ## следующая загрузка world.tscn — полигон 10×10 м, а не локация
+static var stand_who := "hero"             ## кого показывает стенд 3D: hero — герой, иначе вид врага (ULEnemy.KINDS)
+static var stand_back := "res://world.tscn"   ## куда ведёт «Назад» со стенда
 static var gfx := 1
 static var volume := 0.8
 static var _loaded := false

@@ -71,24 +71,31 @@ func _ready() -> void:
 			test = a.substr(10)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
+	if test == "arena":
+		ULSettings.arena = true
+	arena = ULSettings.arena
 	ULSettings.apply(get_viewport())
 	Music.stop()
 	_env()
-	_ground()
-	house = ULHouse.new()
-	house.name = "House"
-	add_child(house)
-	house.position = HOUSE_AT
-	house.build(MODELS + "ul_house.glb", TEX + "weathered_brown_planks", TEX + "brown_planks_03")
-	_fit_shell()
-	_yard()
-	_flora()
+	if arena:
+		_arena_ground()
+	else:
+		_ground()
+		house = ULHouse.new()
+		house.name = "House"
+		add_child(house)
+		house.position = HOUSE_AT
+		house.build(MODELS + "ul_house.glb", TEX + "weathered_brown_planks", TEX + "brown_planks_03")
+		_fit_shell()
+		_yard()
+		_flora()
 	_blob_layer()
 	_player()
 	_combat_setup()
-	_npcs_setup()
-	if test == "":
-		_enemies_setup()
+	if not arena:
+		_npcs_setup()
+		if test == "":
+			_enemies_setup()
 	_load_profile()
 	inv = ULInventory.new()
 	_ui()
@@ -102,6 +109,148 @@ func _ready() -> void:
 	_prewarm.call_deferred()
 	if test != "":
 		_run_test.call_deferred()
+
+
+# ---------------- полигон ----------------
+
+## Полигон — пустая площадка 10×10 м для проверки оружия и врагов (главное меню → «Полигон»). Тот же герой, то же
+## управление и бой, что на локации; в ящиках — всё оружие и патроны, в углу — манекен, враги ставятся кнопкой.
+## Ничего не сохраняется: каждый заход — с начала.
+const ARENA := 10.0
+var arena := false
+
+
+func _arena_ground() -> void:
+	var mi := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(ARENA, ARENA)
+	mi.mesh = pm
+	var sh := Shader.new()
+	# сухая земля с разметкой через метр — по ней видны расстояния
+	sh.code = """shader_type spatial;
+uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec3 c = texture(tex, wp.xz * 0.35).rgb * 0.95;
+	vec2 g = abs(fract(wp.xz - 0.5) - 0.5) / fwidth(wp.xz);
+	float l = 1.0 - min(min(g.x, g.y), 1.0);
+	ALBEDO = mix(c, vec3(0.9, 0.86, 0.72), l * 0.3);
+	ROUGHNESS = 0.95;
+}"""
+	var sm := ShaderMaterial.new()
+	sm.shader = sh
+	sm.set_shader_parameter("tex", load(TEX + "dry_ground_01_c.jpg"))
+	mi.material_override = sm
+	add_child(mi)
+	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.2, 0.19, 0.17))
+	var sb := StaticBody3D.new()
+	add_child(sb)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(420, 0.2, 420)
+	cs.shape = bs
+	cs.position.y = -0.1
+	sb.add_child(cs)
+	# борт по краю: за площадку не выйти ни герою, ни врагу
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.3, 0.24, 0.17)
+	wood.roughness = 0.9
+	for s in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
+		var w := CollisionShape3D.new()
+		var b := BoxShape3D.new()
+		b.size = Vector3(0.5, 3, ARENA + 1) if s.x != 0.0 else Vector3(ARENA + 1, 3, 0.5)
+		w.shape = b
+		w.position = s * (ARENA * 0.5 + 0.25) + Vector3.UP * 1.5
+		sb.add_child(w)
+		var rail := MeshInstance3D.new()
+		var rb := BoxMesh.new()
+		rb.size = Vector3(0.16, 0.4, ARENA + 0.32) if s.x != 0.0 else Vector3(ARENA + 0.32, 0.4, 0.16)
+		rail.mesh = rb
+		rail.material_override = wood
+		rail.position = s * (ARENA * 0.5 + 0.08) + Vector3.UP * 0.2
+		add_child(rail)
+
+
+## на полигоне: всё оружие и патроны — в двух ящиках у борта, автомат и пистолет — сразу при герое
+func _arena_loot() -> void:
+	var I := ULItems
+	var a := []
+	a.resize(CRATE_SLOTS)
+	for wid in ["beretta", "machete", "mp5", "fnfal", "svd", "vss", "pkp", "spas12"]:
+		ULInventory.put(a, I.make(wid))
+	var b := []
+	b.resize(CRATE_SLOTS)
+	for am in [["a762x25", 60], ["a9x19", 120], ["a545", 90], ["a762x51", 60], ["a762x54", 200], ["a9x39", 40], ["a12", 64], ["medkit", 2]]:
+		var left: int = am[1]
+		while left > 0:
+			var part := mini(left, I.stack(am[0]))
+			ULInventory.put(b, I.make(am[0], part))
+			left -= part
+	_add_crate(Vector3(-4.2, 0, -4.3), 0.0, a)
+	_add_crate(Vector3(-2.9, 0, -4.3), 0.0, b)
+	inv.pack = I.make("pack_large")
+	inv.primary = I.make("ak74m")
+	inv.pistol = I.make("tt")
+	inv.hand = "primary"
+	for it in [I.make("a545", 90), I.make("a762x25", 32), I.make("bandage", 5), I.make("medkit", 2)]:
+		inv.add(it)
+	hp = HP_MAX
+	player.global_position = Vector3(0, 0.1, 2.5)
+
+
+## поставить врага у борта, подальше от героя (не больше шести сразу)
+func arena_enemy() -> void:
+	_menu_bar.visible = false
+	var alive_n := 0
+	for e in enemies:
+		if e.alive():
+			alive_n += 1
+	if alive_n >= 6:
+		say("На площадке уже шесть врагов")
+		return
+	var best := Vector3.ZERO
+	var bd := -1.0
+	for i in 10:
+		var c := Vector3(randf_range(-4.2, 4.2), 0, randf_range(-4.2, 4.2))
+		if c.distance_to(player.global_position) > bd:
+			bd = c.distance_to(player.global_position)
+			best = c
+	spawn_enemy("infected", best)
+
+
+## убрать всех врагов и тела
+func clear_enemies() -> void:
+	if _open_corpse != null and inv_ui.visible:
+		close_inventory()
+	_open_corpse = null
+	if _target != null and _target.type == "corpse":
+		_target = null
+	for e in enemies:
+		if _glow_node == e:
+			_glow_node = null
+		_dmg_lb.erase(e)
+		targets.erase(e)
+		e.queue_free()
+	enemies.clear()
+	_respawn.clear()
+
+
+## полный запас патронов к оружию в слотах
+func arena_ammo() -> void:
+	_menu_bar.visible = false
+	var got := ""
+	for sl in ["primary", "pistol"]:
+		var it = inv.get(sl)
+		if it != null and ULItems.get_def(String(it.id)).has("ammo"):
+			var am := String(ULItems.get_def(String(it.id)).ammo)
+			if inv.add(ULItems.make(am, ULItems.stack(am))) == 0:
+				got += ("" if got == "" else ", ") + String(ULItems.get_def(am).n).to_lower()
+	say("Добавлено: " + got if got != "" else "Нет места или оружия с патронами")
+
+
+func _in_house(p: Vector3) -> bool:
+	return house != null and house.contains(p)
 
 
 # ---------------- мир ----------------
@@ -1248,10 +1397,11 @@ func _process(delta: float) -> void:
 	_body_pose(real)
 	_steps_sfx(real)
 	# в доме: дом Tripo и крыша скрыты, видны комнаты, передние стены опущены
-	var ins := house.contains(player.global_position)
-	if ins != house.inside:
-		house.set_inside(ins)
-	house.update_walls(player.global_position, delta)
+	var ins := _in_house(player.global_position)
+	if house != null:
+		if ins != house.inside:
+			house.set_inside(ins)
+		house.update_walls(player.global_position, delta)
 	var dist_t := minf(cam_dist, 13.0) if ins else cam_dist
 	if not _cam_ready:
 		_cam_t = player.global_position
@@ -1271,7 +1421,7 @@ func _process(delta: float) -> void:
 	_fps_tick(delta)
 	_auto_res(delta)
 	# за краем локации: пять секунд на возвращение, потом — на карту мира
-	if absf(player.global_position.x) > SIZE * 0.5 or absf(player.global_position.z) > SIZE * 0.5:
+	if not arena and (absf(player.global_position.x) > SIZE * 0.5 or absf(player.global_position.z) > SIZE * 0.5):
 		_leave_t += delta
 		if _leave_t >= LEAVE_S and not left_location:
 			left_location = true
@@ -1282,8 +1432,9 @@ func _process(delta: float) -> void:
 		_leave_t = 0.0
 	if _hud:
 		_hud.queue_redraw()
-	for lb in house.labels:
-		lb.basis = Basis(Vector3.UP, CAM_YAW) * Basis(Vector3.RIGHT, -PI * 0.5)
+	if house != null:
+		for lb in house.labels:
+			lb.basis = Basis(Vector3.UP, CAM_YAW) * Basis(Vector3.RIGHT, -PI * 0.5)
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		_toast.modulate.a = clampf(_toast_t, 0.0, 1.0)
@@ -1312,6 +1463,8 @@ func _body_pose(speed: float) -> void:
 
 
 func _where() -> String:
+	if arena:
+		return "полигон"
 	if not house.contains(player.global_position):
 		return "кластер, двор" if _in_yard(player.global_position) else "кластер, улица"
 	var l := house.to_local(player.global_position)
@@ -1585,7 +1738,7 @@ func _spawn_ground(it: Dictionary, p: Vector3, yaw: float) -> Dictionary:
 	var node := Node3D.new()
 	node.name = "Item"
 	add_child(node)
-	node.global_position = Vector3(p.x, ULHouse.FLOOR_Y if house.contains(p) else 0.0, p.z)
+	node.global_position = Vector3(p.x, ULHouse.FLOOR_Y if _in_house(p) else 0.0, p.z)
 	node.rotation.y = yaw
 	var g := {"item": it, "node": node}
 	ground.append(g)
@@ -1709,7 +1862,7 @@ func _add_crate(p: Vector3, yaw: float, cells: Array) -> void:
 	cs.shape = bs
 	cs.position.y = size.y * 0.5
 	body.add_child(cs)
-	body.position = Vector3(p.x, ULHouse.FLOOR_Y if house.contains(p) else 0.0, p.z)
+	body.position = Vector3(p.x, ULHouse.FLOOR_Y if _in_house(p) else 0.0, p.z)
 	body.rotation.y = yaw
 	body.set_meta("items", cells)
 	body.set_meta("size", size)
@@ -1899,6 +2052,8 @@ func say(t: String) -> void:
 # ---------------- сохранение ----------------
 
 func _save() -> void:
+	if arena or test != "":
+		return                                  # полигон и проверки сохранение не трогают
 	var cr := []
 	for c in crates:
 		cr.append([snappedf(c.position.x, 0.01), snappedf(c.position.z, 0.01), snappedf(c.rotation.y, 0.01), c.get_meta("items")])
@@ -1912,6 +2067,9 @@ func _save() -> void:
 
 
 func _load() -> void:
+	if arena:
+		_arena_loot()
+		return
 	var d = null
 	if FileAccess.file_exists(SAVE) and test == "":
 		d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
@@ -2017,23 +2175,39 @@ func _ui() -> void:
 	bar.offset_left = -360
 	bar.offset_right = -12
 	bar.offset_top = 98
+	bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN      # кнопок много — ряд растёт влево, а не за правый край экрана
 	bar.alignment = BoxContainer.ALIGNMENT_END
 	bar.add_theme_constant_override("separation", 6)
 	bar.visible = false
 	_menu_bar = bar
 	_hud.add_child(bar)
-	bar.add_child(_btn("Враг +", func():
-		var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
-		spawn_enemy("infected", player.global_position + f * 9.0)
-		_menu_bar.visible = false, 90))
+	if arena:
+		bar.add_child(_btn("Враг +", arena_enemy, 90))
+		bar.add_child(_btn("Убрать врагов", func():
+			clear_enemies()
+			_menu_bar.visible = false, 150))
+		bar.add_child(_btn("Патроны", arena_ammo, 110))
+		bar.add_child(_btn("Здоровье", func():
+			hp = HP_MAX
+			_menu_bar.visible = false, 110))
+	else:
+		bar.add_child(_btn("Враг +", func():
+			var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+			spawn_enemy("infected", player.global_position + f * 9.0)
+			_menu_bar.visible = false, 90))
 	bar.add_child(_btn("Справочник", open_book, 130))
-	bar.add_child(_btn("Карта", func():
-		_save()
-		get_tree().change_scene_to_file("res://map.tscn"), 90))
+	if not arena:
+		bar.add_child(_btn("Карта", func():
+			_save()
+			get_tree().change_scene_to_file("res://map.tscn"), 90))
 	bar.add_child(_btn("Настройки", open_settings, 120))
 	bar.add_child(_btn("Тест FPS", fps_test, 110))
-	bar.add_child(_btn("Убрать ящик", remove_crate, 130))
-	bar.add_child(_btn("Стенд", func(): get_tree().change_scene_to_file("res://stand.tscn")))
+	if not arena:
+		bar.add_child(_btn("Убрать ящик", remove_crate, 130))
+	bar.add_child(_btn("3D", func():
+		_save()
+		ULSettings.stand_back = "res://world.tscn"
+		get_tree().change_scene_to_file("res://stand.tscn"), 70))
 	_toast = Label.new()
 	ui.add_child(_toast)
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
@@ -2904,6 +3078,9 @@ func _combat_setup() -> void:
 	_mark.scale.y = 0.2
 	_mark.visible = false
 	add_child(_mark)
+	if arena:
+		_add_mannequin(Vector3(3.9, 0, -3.9), -0.6)
+		return
 	# манекен у базы (во дворе справа от крыльца) и две мишени в поле — на 12 и 25 м от калитки
 	_add_mannequin(HOUSE_AT + Vector3(7.2, 0, 7.0), -0.5)
 	_add_target(Vector3(-7.0, 0, 9.0))
@@ -3464,6 +3641,40 @@ func _inv_test() -> void:
 	_ok("справочник: заражённый — как ходит, как нападает, что в теле", book_txt.contains("Заражённый") and book_txt.contains("Ходит") and book_txt.contains("Нападает") and book_txt.contains("спораны — от 0 до 3"))
 	_book_ui.queue_free()
 	await get_tree().process_frame
+	# --- ресурсы: кошелёк и торговля ---
+	close_inventory()
+	var used0 := inv.used()
+	var w0 := inv.count("spore")
+	inv.add(ULItems.make("spore", 150))
+	inv.add(ULItems.make("spore", 150))
+	_ok("спораны складываются в одну сумму (сверх стопки) и ячеек не занимают", inv.count("spore") == w0 + 300 and inv.used() == used0, "%d → %d, ячеек занято %d" % [w0, inv.count("spore"), inv.used()])
+	for mid in ["pea", "pearl_black", "pearl_red", "pearl_white"]:
+		inv.add(ULItems.make(mid, 2))
+	var all5 := true
+	for mid in ULItems.MONEY:
+		all5 = all5 and int(inv.wallet.get(mid, 0)) > 0
+	_ok("в кошельке все пять ресурсов: спораны, горошина, три жемчужины", all5 and ULItems.MONEY.size() == 5 and inv.used() == used0)
+	open_inventory()
+	var wtxt := ""
+	for l in inv_ui.find_children("*", "Label", true, false):
+		wtxt += (l as Label).text + "|"
+	_ok("в инвентаре — окошко «Ресурсы» с количеством", wtxt.contains("Ресурсы") and wtxt.contains("|%d|" % inv.count("spore")))
+	close_inventory()
+	var sp1 := inv.count("spore")
+	var band0 := inv.count("bandage")
+	inv.pockets[7] = null
+	_ok("покупка бинта: спораны списаны, бинт получен", buy(0) and inv.count("spore") == sp1 - 1 and inv.count("bandage") == band0 + 1, "спораны %d → %d" % [sp1, inv.count("spore")])
+	inv.wallet["pea"] = 0
+	var sp2 := inv.count("spore")
+	_ok("не хватает горошин — покупки нет, ничего не списано", not buy(14) and inv.count("spore") == sp2 and inv.count("pack_medium") == 0)
+	inv.wallet["pea"] = 2
+	var wsnap := JSON.stringify({"inv": inv.to_dict()})
+	var inv3 := ULInventory.new()
+	inv3.from_dict(JSON.parse_string(wsnap).inv)
+	_ok("кошелёк сохраняется и загружается", inv3.count("spore") == inv.count("spore") and int(inv3.wallet.get("pea", 0)) == 2)
+	var inv4 := ULInventory.new()
+	inv4.from_dict({"pockets": [ULItems.make("spore", 3), ULItems.make("bandage", 1)]})
+	_ok("старое сохранение: спораны из ячеек переходят в кошелёк", int(inv4.wallet.get("spore", 0)) == 3 and inv4.used() == 1)
 	# --- выход с локации ---
 	player.global_position = Vector3(0.0, 0.05, 30.0)
 	await get_tree().create_timer(0.3).timeout
@@ -3543,15 +3754,22 @@ func _enemies_tick(delta: float) -> void:
 		_dead_t -= delta
 		if _dead_t <= 0.0:
 			_dead_t = 0.0
-			hp = 50.0
-			player.global_position = Vector3(0, 0.1, 3)
 			player.velocity = Vector3.ZERO
 			_cam_ready = false
-			for e in enemies:
-				if e.alive():
-					e.state = "idle"
-			say("Вы очнулись у дома")
-			_save()
+			if arena:
+				# на полигоне — заново посреди площадки, враги убраны
+				hp = HP_MAX
+				player.global_position = Vector3(0, 0.1, 2.5)
+				clear_enemies()
+				say("Заново. Враги убраны")
+			else:
+				hp = 50.0
+				player.global_position = Vector3(0, 0.1, 3)
+				for e in enemies:
+					if e.alive():
+						e.state = "idle"
+				say("Вы очнулись у дома")
+				_save()
 	var p := player.global_position
 	var hero_ok := _dead_t <= 0.0
 	var fr := Engine.get_process_frames()
@@ -3567,7 +3785,7 @@ func _enemies_tick(delta: float) -> void:
 					_glow_node = null
 				if _target != null and _target.type == "corpse" and _target.e == e:
 					_target = null
-				if test == "":
+				if test == "" and not arena:
 					_respawn.append([e.home, RESPAWN_S])
 				_dmg_lb.erase(e)
 				targets.erase(e)
@@ -3767,7 +3985,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or _dead_t > 0.0
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or _dead_t > 0.0
 
 
 func _load_profile() -> void:
@@ -3913,7 +4131,7 @@ func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String) ->
 
 func _npcs_setup() -> void:
 	# торговец во дворе слева от крыльца
-	_add_npc(HOUSE_AT + Vector3(-4.6, 0, 7.4), 0.0, "Седой", "торговец", "Здорово, %s. Товар ещё в дороге — торговать начну, как привезут. Заходи позже.")
+	_add_npc(HOUSE_AT + Vector3(-4.6, 0, 7.4), 0.0, "Седой", "торговец", "Здорово, %s. Патроны, еда, лекарства — за спораны. Рюкзаки побольше — за горошины. Смотри сам.")
 
 
 func _npcs_tick(delta: float) -> void:
@@ -3966,6 +4184,9 @@ func open_talk(n: Node3D) -> void:
 		var hb := HBoxContainer.new()
 		hb.alignment = BoxContainer.ALIGNMENT_END
 		vb.add_child(hb)
+		hb.add_theme_constant_override("separation", 8)
+		_talk_trade = _btn("Торговать", open_shop, 150)
+		hb.add_child(_talk_trade)
 		hb.add_child(_btn("Закрыть", func(): _talk_ui.visible = false, 130))
 		var gap := Control.new()
 		gap.custom_minimum_size = Vector2(0, 2)
@@ -3973,7 +4194,160 @@ func open_talk(n: Node3D) -> void:
 	_talk_name.text = "%s, %s" % [n.get_meta("name"), n.get_meta("role")]
 	var line := String(n.get_meta("line"))
 	_talk_text.text = line % hero_name if line.contains("%s") else line
+	_talk_trade.visible = String(n.get_meta("role")) == "торговец"
 	_talk_ui.visible = true
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+# ---------------- торговля ----------------
+
+## Товар Седого: предмет, сколько штук за раз, цена {ресурс: сколько}. Платят ресурсами из кошелька
+## (спораны, горошины, жемчужины); купленное идёт в карманы и рюкзак.
+const SHOP := [
+	["bandage", 1, {"spore": 1}], ["water", 1, {"spore": 1}], ["rusk", 1, {"spore": 1}], ["can", 1, {"spore": 2}],
+	["tonic", 1, {"spore": 2}], ["medkit", 1, {"spore": 4}],
+	["a762x25", 16, {"spore": 1}], ["a9x19", 20, {"spore": 2}], ["a545", 30, {"spore": 3}], ["a12", 8, {"spore": 2}],
+	["a762x51", 20, {"spore": 3}], ["a762x54", 20, {"spore": 4}], ["a9x39", 20, {"spore": 4}],
+	["pack_small", 1, {"spore": 8}], ["pack_medium", 1, {"pea": 1}], ["pack_large", 1, {"pea": 2}],
+]
+var _talk_trade: Button
+var _shop_ui: Control
+var _shop_wallet: Array = []      ## надписи с остатком ресурсов
+var _shop_btns: Array = []        ## кнопки «Купить» по порядку товаров
+
+
+static func price_text(price: Dictionary) -> String:
+	var t := ""
+	for id in price:
+		t += ("" if t == "" else ", ") + "%s — %d" % [String(ULItems.get_def(String(id)).n).to_lower(), int(price[id])]
+	return t
+
+
+## купить товар номер i; false — не хватило ресурсов или места
+func buy(i: int) -> bool:
+	var g: Array = SHOP[i]
+	var price: Dictionary = g[2]
+	if not inv.can_pay(price):
+		say("Не хватает ресурсов: " + price_text(price))
+		return false
+	var it := ULItems.make(String(g[0]), int(g[1]))
+	var n0 := int(it.n)
+	var left := inv.add(it, false)
+	if left >= n0:
+		say("Нет места в карманах и рюкзаке")
+		return false
+	if left > 0:
+		_spawn_ground(it, player.global_position + Vector3(0.5, 0, 0.5), 0.0)      # что не влезло — под ноги
+	inv.pay(price)
+	say("Куплено: %s" % String(ULItems.get_def(String(g[0])).n))
+	_shop_refresh()
+	_save()
+	return true
+
+
+func _shop_refresh() -> void:
+	for i in _shop_wallet.size():
+		(_shop_wallet[i] as Label).text = str(int(inv.wallet.get(ULItems.MONEY[i], 0)))
+	for i in _shop_btns.size():
+		var ok: bool = inv.can_pay(SHOP[i][2])
+		(_shop_btns[i] as Button).modulate.a = 1.0 if ok else 0.45
+
+
+func open_shop() -> void:
+	if _talk_ui:
+		_talk_ui.visible = false
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.6)
+	_hud.get_parent().add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_shop_ui = shade
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	shade.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -400
+	pn.offset_right = 400
+	pn.offset_top = -300
+	pn.offset_bottom = 300
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	pn.add_child(vb)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	vb.add_child(head)
+	var tl := Label.new()
+	tl.text = "Седой — торговля"
+	tl.add_theme_font_size_override("font_size", 24)
+	tl.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(tl)
+	# кошелёк: сколько каких ресурсов осталось
+	_shop_wallet = []
+	for id in ULItems.MONEY:
+		var ic := TextureRect.new()
+		ic.texture = ULItems.icon(id)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(30, 30)
+		head.add_child(ic)
+		var l := Label.new()
+		l.add_theme_font_size_override("font_size", 18)
+		l.add_theme_color_override("font_color", C_TEXT)
+		l.custom_minimum_size.x = 30
+		head.add_child(l)
+		_shop_wallet.append(l)
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 6)
+	sc.add_child(list)
+	_shop_btns = []
+	for i in SHOP.size():
+		var g: Array = SHOP[i]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		list.add_child(row)
+		var ic := TextureRect.new()
+		ic.texture = ULItems.icon(String(g[0]))
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(52, 52)
+		row.add_child(ic)
+		var nm := Label.new()
+		nm.text = String(ULItems.get_def(String(g[0])).n) + (" ×%d" % int(g[1]) if int(g[1]) > 1 else "")
+		nm.add_theme_font_size_override("font_size", 18)
+		nm.add_theme_color_override("font_color", C_TEXT)
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(nm)
+		for id in g[2]:
+			var pi := TextureRect.new()
+			pi.texture = ULItems.icon(String(id))
+			pi.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			pi.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			pi.custom_minimum_size = Vector2(30, 30)
+			row.add_child(pi)
+			var pl := Label.new()
+			pl.text = str(int(g[2][id]))
+			pl.add_theme_font_size_override("font_size", 18)
+			pl.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+			pl.custom_minimum_size.x = 26
+			row.add_child(pl)
+		var bb := ULSettings.button("Купить", buy.bind(i), 120.0)
+		row.add_child(bb)
+		_shop_btns.append(bb)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	vb.add_child(hb)
+	hb.add_child(ULSettings.button("Закрыть", func() -> void: shade.queue_free(), 140.0))
+	_shop_refresh()
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
 	_hud_touch.clear()
@@ -4139,6 +4513,82 @@ func _run_test() -> void:
 		print("[perf] кнопка «Тест FPS» (здесь — без экрана, число не показатель): " + _perf_text.strip_edges().replace("\n", " · "))
 		get_tree().quit()
 		return
+	if test == "arena":
+		# полигон: площадка 10×10 м, борта, оружие, враги по кнопке
+		DirAccess.make_dir_recursive_absolute(out)
+		_fails = 0
+		await get_tree().create_timer(1.2).timeout
+		await _snap("a0_start")
+		_ok("полигон: дома и жителей нет, манекен и два ящика есть", house == null and npcs.is_empty() and crates.size() == 2 and targets.size() == 1)
+		_ok("герой с автоматом и пистолетом, рюкзак надет", inv.primary != null and inv.pistol != null and inv.pack != null and inv.hand == "primary")
+		var wpn := 0
+		for c in crates[0].get_meta("items"):
+			if c != null:
+				wpn += 1
+		_ok("в ящике — остальное оружие (8 видов)", wpn == 8, str(wpn))
+		_auto_k = 1.0
+		_auto = [Vector3(30, 0, 2.5)]
+		await get_tree().create_timer(3.0).timeout
+		_auto.clear()
+		_auto_k = 0.6
+		_ok("за борт не выйти: герой остался на площадке", absf(player.global_position.x) <= ARENA * 0.5 and absf(player.global_position.z) <= ARENA * 0.5, "x = %.2f" % player.global_position.x)
+		_ok("отсчёта выхода на полигоне нет", _leave_t == 0.0 and not left_location)
+		player.global_position = Vector3(0, 0.05, 3.0)
+		for i in 8:
+			arena_enemy()
+		var in_n := 0
+		for e in enemies:
+			if absf(e.global_position.x) < ARENA * 0.5 and absf(e.global_position.z) < ARENA * 0.5:
+				in_n += 1
+		_ok("«Враг +»: враги встают на площадке, не больше шести", enemies.size() == 6 and in_n == 6, "%d" % enemies.size())
+		await get_tree().create_timer(1.6).timeout
+		await _snap("a1_enemies")
+		var a0 := inv.count("a545")
+		arena_ammo()
+		_ok("«Патроны»: запас к оружию в слотах пополнен", inv.count("a545") > a0, "%d → %d" % [a0, inv.count("a545")])
+		_damage(enemies[0], 100.0, enemies[0].global_position + Vector3.UP)
+		clear_enemies()
+		_ok("«Убрать врагов»: площадка пуста", enemies.is_empty() and targets.size() == 1)
+		arena_enemy()
+		hp = 5.0
+		hurt(9.0)
+		await get_tree().create_timer(3.3).timeout
+		_ok("погиб на полигоне — заново посреди площадки, здоровье полное, враги убраны", hp == HP_MAX and enemies.is_empty() and player.global_position.distance_to(Vector3(0, 0, 2.5)) < 0.6)
+		_menu_bar.visible = true
+		await get_tree().create_timer(0.3).timeout
+		await _snap("a2_menu")
+		_menu_bar.visible = false
+		open_inventory()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("a3_inventory")
+		close_inventory()
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "shop":
+		DirAccess.make_dir_recursive_absolute(out)
+		inv.add(ULItems.make("spore", 14))
+		inv.add(ULItems.make("pea", 1))
+		inv.add(ULItems.make("pearl_black", 1))
+		player.global_position = HOUSE_AT + Vector3(-3.4, 0, 8.4)
+		_cam_ready = false
+		await get_tree().create_timer(1.5).timeout
+		do_action()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("s0_talk")
+		open_shop()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("s1_shop")
+		buy(5)
+		buy(8)
+		await get_tree().create_timer(0.4).timeout
+		await _snap("s2_bought")
+		_shop_ui.queue_free()
+		open_inventory()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("s3_inventory")
+		get_tree().quit()
+		return
 	if test == "eclips":
 		# движения заражённого крупным планом: по шесть кадров на клип
 		DirAccess.make_dir_recursive_absolute(out)
@@ -4238,10 +4688,9 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.4).timeout
 		await _snap("e7_book")
 		_book_ui.queue_free()
-		inv.pockets[5] = ULItems.make("pea", 2)
-		inv.pockets[6] = ULItems.make("pearl_black", 1)
-		inv.pockets[7] = ULItems.make("pearl_red", 1)
-		inv.pockets[4] = ULItems.make("pearl_white", 1)
+		inv.add(ULItems.make("pea", 2))
+		inv.add(ULItems.make("pearl_black", 1))
+		inv.add(ULItems.make("pearl_red", 1))
 		open_inventory()
 		await get_tree().create_timer(0.5).timeout
 		await _snap("e8_loot_items")

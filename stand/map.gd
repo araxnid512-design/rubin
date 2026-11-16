@@ -259,6 +259,7 @@ func enter(id: String) -> void:
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
+	ULSettings.arena = false
 	get_tree().change_scene_to_file(String(PLACES[id].scene))
 
 

@@ -7,6 +7,7 @@ const SAVE := "user://cluster.json"
 var bd: ULBackdrop
 var test := ""
 var out := "user://menu"
+var _extra: Array = []
 
 
 func _ready() -> void:
@@ -28,6 +29,8 @@ func _ready() -> void:
 	bd.dim["cont"] = not FileAccess.file_exists(SAVE)
 	add_child(bd)
 	bd.tapped.connect(_on_tap)
+	_extra_buttons.call_deferred()
+	resized.connect(_extra_buttons)
 	if test != "":
 		_run_test.call_deferred()
 
@@ -48,7 +51,53 @@ func _on_tap(id: String) -> void:
 
 
 func _go_map() -> void:
+	ULSettings.arena = false
 	get_tree().change_scene_to_file("res://map.tscn")
+
+
+## полигон: площадка 10×10 м — пробовать оружие и драться с врагами
+func _go_arena() -> void:
+	ULSettings.arena = true
+	get_tree().change_scene_to_file("res://world.tscn")
+
+
+## стенд 3D: герой и враги крупным планом, все движения
+func _go_stand() -> void:
+	ULSettings.stand_back = "res://menu.tscn"
+	get_tree().change_scene_to_file("res://stand.tscn")
+
+
+## две кнопки под нарисованными: «Полигон» и «3D» (в ширину кнопки «Выход», вдвоём)
+func _extra_buttons() -> void:
+	for b in _extra:
+		b.queue_free()
+	_extra = []
+	var r := bd.to_screen(Rect2(1236, 702, 386, 62))
+	var h := minf(r.size.y, size.y - r.position.y - 6.0)
+	if h < 30.0:
+		# низ картинки срезан экраном — кнопки встают вплотную к нижнему краю
+		h = 44.0
+		r.position.y = size.y - h - 6.0
+	var w := (r.size.x - 10.0) * 0.5
+	var defs := [["Полигон", _go_arena], ["3D", _go_stand]]
+	for i in defs.size():
+		var b := Button.new()
+		b.text = defs[i][0]
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", int(clampf(h * 0.46, 18.0, 26.0)))
+		b.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
+		for st in ["normal", "hover", "pressed"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(0.1, 0.085, 0.07, 0.9) if st != "pressed" else Color(0.3, 0.2, 0.08, 0.95)
+			sb.border_color = Color(0.85, 0.55, 0.2, 0.9)
+			sb.set_border_width_all(2)
+			sb.set_corner_radius_all(8)
+			b.add_theme_stylebox_override(st, sb)
+		b.position = Vector2(r.position.x + i * (w + 10.0), r.position.y)
+		b.size = Vector2(w, h)
+		b.pressed.connect(defs[i][1])
+		add_child(b)
+		_extra.append(b)
 
 
 ## новая игра при существующем сохранении — переспросить

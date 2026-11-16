@@ -186,6 +186,7 @@ func _build_inventory() -> void:
 		ic.modulate = s[2]
 		st.add_child(ic)
 		st.add_child(_lbl("%d/100" % int(round(float(stats.get(s[1], 100)))), 14, C_TEXT))
+	hv.add_child(_wallet_box())
 	# слоты оружия и рюкзака
 	gh.add_child(_slots_column())
 	# карманы и рюкзак
@@ -283,7 +284,42 @@ func _bag_scroll(cols: int) -> ScrollContainer:
 		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nl.custom_minimum_size = Vector2(200, 0)
 		bv.add_child(nl)
+	if cont != null:
+		bv.add_child(_wallet_box())        # в окне хранилища и обыска ресурсы видны тут же
 	return sc
+
+
+## окошко «Ресурсы»: спораны, горошины и жемчужины — сколько накоплено. Это валюта: копится при сборе,
+## тратится при покупке; ячеек не занимает
+func _wallet_box() -> Control:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _box(C_EMPTY))
+	p.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	p.add_child(v)
+	v.add_child(_lbl("Ресурсы", 13, C_DIM))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 4)
+	v.add_child(h)
+	for id in ULItems.MONEY:
+		var n := int(inv.wallet.get(id, 0))
+		var c := VBoxContainer.new()
+		c.custom_minimum_size.x = 40
+		c.add_theme_constant_override("separation", 0)
+		c.mouse_filter = Control.MOUSE_FILTER_STOP
+		var nm := String(ULItems.get_def(id).n)
+		c.gui_input.connect(func(e: InputEvent) -> void:
+			if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
+				say("%s: %d" % [nm, n]))
+		var ic := _icon(String(ULItems.get_def(id).icon), 30)
+		ic.modulate.a = 1.0 if n > 0 else 0.35
+		c.add_child(ic)
+		var l := _lbl(str(n), 14, C_TEXT if n > 0 else C_DIM)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(l)
+		h.add_child(c)
+	return p
 
 
 func _count(arr: Array) -> int:

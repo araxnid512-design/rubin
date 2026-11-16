@@ -72,6 +72,21 @@ const ENTRIES := [
 	{"id": "m_heavy", "g": "Холодное", "n": "Сильный удар", "weapon": "melee", "stance": "guard", "proc": "swing:heavy"},
 	{"id": "m_block", "g": "Холодное", "n": "Блок", "weapon": "melee", "stance": "guard", "proc": "swing:block"},
 ]
+## движения врага (стенд показывает его той же моделью и теми же клипами, что в игре)
+const ENEMY_ENTRIES := [
+	{"id": "z_idle", "g": "Заражённый", "n": "Стоит"},
+	{"id": "z_walk", "g": "Заражённый", "n": "Бродит", "speed": 1.0},
+	{"id": "z_run", "g": "Заражённый", "n": "Бежит к герою", "speed": 2.9},
+	{"id": "z_attack", "g": "Заражённый", "n": "Удар руками", "action": "melee_light"},
+	{"id": "z_hit", "g": "Заражённый", "n": "Попадание", "action": "hit_front"},
+	{"id": "z_death", "g": "Заражённый", "n": "Гибель и тело", "action": "death", "post_pose": "dead"},
+	{"id": "z_getup", "g": "Прочее", "n": "Подъём", "action": "get_up", "pre_pose": "dead"},
+	{"id": "z_look", "g": "Прочее", "n": "Озирается", "action": "look_around"},
+	{"id": "z_angry", "g": "Прочее", "n": "Злится", "action": "angry"},
+	{"id": "z_sneak", "g": "Прочее", "n": "Крадётся", "speed": 0.9, "crouch": 1.0},
+]
+var who := "hero"                     ## кто на стенде: hero — герой, иначе вид врага из ULEnemy.KINDS
+var entries: Array = ENTRIES
 const MARKS := "user://marks.json"
 const C_BG := Color(0.05, 0.07, 0.09, 0.9)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
@@ -132,6 +147,12 @@ func _ready() -> void:
 			test = a.substr(10)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
+	who = ULSettings.stand_who if ULEnemy.KINDS.has(ULSettings.stand_who) else "hero"
+	if test != "" and test != "enemy":
+		who = "hero"
+	elif test == "enemy":
+		who = "infected"
+	entries = ENTRIES if who == "hero" else ENEMY_ENTRIES
 	_stage()
 	_load_marks()
 	_build_ui()
@@ -193,7 +214,13 @@ void fragment() {
 	add_child(holder)
 	rig = BCCharacter.new()
 	holder.add_child(rig)
-	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	if who == "hero":
+		rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	else:
+		# враг — как в игре: упрощённый персонаж, клипы как есть (перенос на его скелет — BCAnimSet._rest_fix)
+		rig.simple = true
+		rig.built_poses = false
+		rig.setup(String(ULEnemy.KINDS[who].model), "res://assets/anim/hero")
 	snd = BCSound.new()
 	add_child(snd)
 	rig.hold.sfx.connect(_on_sfx)
@@ -496,8 +523,8 @@ func _refresh_weapon() -> void:
 # ---------------- выбор движения ----------------
 
 func select(i: int) -> void:
-	cur_i = clampi(i, 0, ENTRIES.size() - 1)
-	cur = ENTRIES[cur_i]
+	cur_i = clampi(i, 0, entries.size() - 1)
+	cur = entries[cur_i]
 	rig.stop_action()
 	var wpn := String(cur.get("weapon", ""))
 	_seq += 1
@@ -703,8 +730,8 @@ func _build_ui() -> void:
 	list.add_theme_constant_override("separation", 5)
 	sc.add_child(list)
 	var g := ""
-	for i in ENTRIES.size():
-		var en: Dictionary = ENTRIES[i]
+	for i in entries.size():
+		var en: Dictionary = entries[i]
 		if String(en.g) != g:
 			g = en.g
 			list.add_child(_lbl(g.to_upper(), 15, Color(0.45, 0.85, 1.0)))
@@ -787,7 +814,28 @@ func _build_ui() -> void:
 	abar.offset_bottom = -146
 	abar.add_theme_constant_override("separation", 8)
 	ui.add_child(abar)
-	abar.add_child(_btn("Локация", func(): get_tree().change_scene_to_file("res://world.tscn"), 120, 50, 16))
+	abar.add_child(_btn("Назад", func():
+		Engine.time_scale = 1.0
+		get_tree().change_scene_to_file(ULSettings.stand_back), 90, 50, 16))
+	# кого смотреть: герой или враг
+	var whos := [["hero", "Герой"]]
+	for k in ULEnemy.KINDS:
+		whos.append([k, String(ULEnemy.KINDS[k].n)])
+	for wv2 in whos:
+		var hb2 := _btn(wv2[1], func():
+			if who != wv2[0]:
+				ULSettings.stand_who = wv2[0]
+				Engine.time_scale = 1.0
+				get_tree().reload_current_scene(), 112, 50, 15)
+		if who == wv2[0]:
+			hb2.add_theme_color_override("font_color", Color(0.45, 0.95, 1.0))
+		abar.add_child(hb2)
+	if who != "hero":
+		wbar.visible = false
+		var esp := Control.new()
+		esp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		esp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		abar.add_child(esp)
 	abar.add_child(_lbl("Рюкзак:", 15, Color(0.45, 0.85, 1.0)))
 	for pv in [["", "Нет"], ["small", "Малый 8"], ["medium", "Средний 12"], ["large", "Большой 20"]]:
 		var pb := _btn(pv[1], wear_pack.bind(pv[0]), 104, 50, 14)
@@ -803,14 +851,19 @@ func _build_ui() -> void:
 	abar.add_child(aim_btn)
 	abar.add_child(_btn("Огонь", _fire, 100, 50, 16))
 	abar.add_child(_btn("Перезарядка", func(): rig.hold.reload(), 140, 50, 16))
-	bar.add_child(_btn("◀", func(): select((cur_i - 1 + ENTRIES.size()) % ENTRIES.size()), 60))
-	bar.add_child(_btn("▶", func(): select((cur_i + 1) % ENTRIES.size()), 60))
+	if who != "hero":
+		# врагу оружие и рюкзаки не нужны — остаются «Назад» и выбор, кого смотреть
+		for ci in range(1 + whos.size() + 1, abar.get_child_count()):
+			(abar.get_child(ci) as Control).visible = false
+	bar.add_child(_btn("◀", func(): select((cur_i - 1 + entries.size()) % entries.size()), 60))
+	bar.add_child(_btn("▶", func(): select((cur_i + 1) % entries.size()), 60))
 	pause_btn = _btn("Пауза", _toggle_pause, 110)
 	bar.add_child(pause_btn)
 	spd_btn = _btn("Скорость 1×", _cycle_speed, 150)
 	bar.add_child(spd_btn)
 	ik_btn = _btn("Хват: новый", _toggle_ik, 150)
 	bar.add_child(ik_btn)
+	ik_btn.visible = who == "hero"
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -848,8 +901,8 @@ func _mark(m: String) -> void:
 
 
 func _refresh() -> void:
-	for i in ENTRIES.size():
-		var en: Dictionary = ENTRIES[i]
+	for i in entries.size():
+		var en: Dictionary = entries[i]
 		var m := String(marks.get(en.id, ""))
 		var b: Button = rows[en.id]
 		b.text = "%s  %s" % [{"ok": "✔", "bad": "✖", "": "·"}[m], en.n]
@@ -881,6 +934,9 @@ func _info() -> void:
 	if pack != "":
 		parts.append("%s, ячеек: %d" % [BCPackFit.PACKS[pack].n, BCPackFit.PACKS[pack].slots])
 	parts.append("%d кадров/с" % Engine.get_frames_per_second())
+	if who != "hero":
+		var d: Dictionary = ULEnemy.KINDS[who]
+		parts.append("прочность %d, удар %d раз в %.1f с, шаг %.1f м/с, бег %.1f м/с, видит до %d м, слышит выстрел до %d м" % [int(d.hp), int(d.dmg), float(d.cd), float(d.walk), float(d.run), int(d.see), int(d.hear)])
 	info_lbl.text = " · ".join(parts)
 
 
@@ -898,7 +954,7 @@ func _summary() -> void:
 	var ok := []
 	var bad := []
 	var none := []
-	for en in ENTRIES:
+	for en in entries:
 		var m := String(marks.get(en.id, ""))
 		var t := "%s: %s" % [en.g, en.n]
 		if m == "ok":
@@ -948,11 +1004,21 @@ func _snap(path: String) -> void:
 
 func _run_test() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
+	if test == "enemy":
+		# враг на стенде: по снимку на движение и общий вид с панелями
+		for i in entries.size():
+			select(i)
+			await get_tree().create_timer(1.6 if not entries[i].has("post_pose") else 3.4).timeout
+			_info()
+			await _snap("%s/z_%s.png" % [out, entries[i].id])
+		print("[stand] враг «%s»: движений %d, модель %s, костей %d" % [String(ULEnemy.KINDS[who].n), entries.size(), rig.model_path.get_file(), rig.skel.get_bone_count()])
+		get_tree().quit()
+		return
 	if test == "ui":
 		# снимки самого стенда с интерфейсом
 		for id in ["r_aim", "p_aim", "m_idle"]:
-			for i in ENTRIES.size():
-				if ENTRIES[i].id == id:
+			for i in entries.size():
+				if entries[i].id == id:
 					select(i)
 			marks["idle"] = "ok"
 			marks["getup"] = "bad"
@@ -1054,8 +1120,8 @@ func _run_test() -> void:
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):
 				poses = Array(a.substr(10).split(","))
-		for i in ENTRIES.size():
-			if ENTRIES[i].id == poses[0]:
+		for i in entries.size():
+			if entries[i].id == poses[0]:
 				select(i)
 		for id in ["", "small", "medium", "large"]:
 			wear_pack(id)
@@ -1141,8 +1207,8 @@ func _run_test() -> void:
 			only = Array(a.substr(10).split(","))
 	var lines := []
 	await get_tree().create_timer(0.5).timeout
-	for i in ENTRIES.size():
-		var en: Dictionary = ENTRIES[i]
+	for i in entries.size():
+		var en: Dictionary = entries[i]
 		if not only.is_empty() and not only.has(en.id):
 			continue
 		select(i)
@@ -1219,8 +1285,8 @@ func _wobble() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-only="):
 			ids = Array(a.substr(10).split(","))
-	for i in ENTRIES.size():
-		var en: Dictionary = ENTRIES[i]
+	for i in entries.size():
+		var en: Dictionary = entries[i]
 		if not ids.has(en.id):
 			continue
 		select(i)
@@ -1257,8 +1323,8 @@ func _draw_test() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	ui.visible = false
 	cam.h_offset = 0.0
-	for i in ENTRIES.size():
-		if ENTRIES[i].id == "idle":
+	for i in entries.size():
+		if entries[i].id == "idle":
 			select(i)
 	await get_tree().create_timer(0.6).timeout
 	for ln in rig.pose_report:
@@ -1404,8 +1470,8 @@ func _grips_test() -> void:
 	fill.omni_range = 3.0
 	cam.add_child(fill)
 	for id in ids:
-		for i in ENTRIES.size():
-			if ENTRIES[i].id == id:
+		for i in entries.size():
+			if entries[i].id == id:
 				select(i)
 		await get_tree().create_timer(1.6).timeout
 		Engine.time_scale = 0.0
@@ -1444,8 +1510,8 @@ func _strip_test() -> void:
 			for x in a.substr(8).split(","):
 				fr.append(float(x))
 	for id in ids:
-		for i in ENTRIES.size():
-			if ENTRIES[i].id == id:
+		for i in entries.size():
+			if entries[i].id == id:
 				select(i)
 		var en: Dictionary = cur
 		_timer = 1e9                              # движение запускает проверка
@@ -1506,8 +1572,8 @@ func _sound_test() -> void:
 			ids = Array(a.substr(10).split(","))
 	var sum := {}
 	for id in ids:
-		for i in ENTRIES.size():
-			if ENTRIES[i].id == id:
+		for i in entries.size():
+			if entries[i].id == id:
 				select(i)
 		snd.played.clear()
 		var t0 := Time.get_ticks_msec()
