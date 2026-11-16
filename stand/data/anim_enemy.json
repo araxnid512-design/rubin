@@ -43,10 +43,11 @@
 				"res://assets/anim/hero/look_around.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.2,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"root_lock": true
 		},
 		"scream": {
 			"src": [
@@ -54,10 +55,11 @@
 				"res://assets/anim/hero/angry_01.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.2,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"root_lock": true
 		},
 		"turn_left": {
 			"src": [
@@ -85,9 +87,10 @@
 				"res://assets/anim/hero/box_01.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.12,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"attack_r": {
 			"src": [
@@ -95,9 +98,10 @@
 				"res://assets/anim/hero/box_02.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.12,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"bite": {
 			"src": [
@@ -105,9 +109,10 @@
 				"res://assets/anim/hero/m_melee_light.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.12,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"lunge": {
 			"src": [
@@ -115,9 +120,10 @@
 				"res://assets/anim/hero/m_melee_heavy.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.12,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"hit_front": {
 			"src": [
@@ -125,9 +131,10 @@
 				"res://assets/anim/hero/hit_to_body_01.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.12,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"hit_back": {
 			"src": [
@@ -135,9 +142,10 @@
 				"res://assets/anim/hero/hit_to_body_02.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.12,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"stagger": {
 			"src": [
@@ -145,9 +153,10 @@
 				"res://assets/anim/hero/m_stagger.res"
 			],
 			"loop": false,
-			"inplace": false,
+			"inplace": true,
 			"blend": 0.15,
-			"rate": 1.0
+			"rate": 1.0,
+			"root_lock": true
 		},
 		"death": {
 			"src": [

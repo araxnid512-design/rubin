@@ -5,7 +5,7 @@ extends Node3D
 ## нескольких поз в папку, без записи в assets.
 
 const OUT := "res://assets/icons/"
-const POSES := {"infected": ["walk", 0.4, 30.0], "lottery": ["lunge", 0.42, 28.0]}       ## крадётся, руки тянутся вперёд
+const POSES := {"infected": ["idle", 0.3, 28.0], "lottery": ["attack_l", 0.55, 20.0]}       ## крадётся, руки тянутся вперёд
 const TRY := [["idle", 0.2, 25.0], ["walk", 0.3, 30.0], ["walk", 0.7, 30.0], ["angry", 0.4, 20.0], ["melee_light", 0.3, 28.0], ["melee_light", 0.5, 28.0], ["sneak", 0.4, 30.0], ["look_around", 0.5, 20.0]]
 
 
