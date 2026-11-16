@@ -2,18 +2,46 @@
  "stop": false,
  "jobs": [
   {
-   "id": "ulm_z_grab_bite",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_cow_skel",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_grab_bite",
-    "3",
-    "a zombie standing very close in front of a person lunges in, grabs the person's shoulders with both hands, pulls its head forward and bites down hard at the neck, then lets go and steps back half a step"
+    "--id",
+    "ul_cow_skel",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a complete cow skeleton lying flat on its side on the ground, bleached weathered bones, skull with horns, ribcage, spine and leg bones, realistic, single object, game prop"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_z_claw_combo",
+   "id": "ul_cow_dead",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_cow_dead",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a dead cow lying on its side on the ground, black and white hide, stiff legs, dirty and weathered, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_tractor",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_tractor",
+    "--faces",
+    "8000",
+    "--prompt",
+    "an old abandoned rusty farm tractor with flat tires and a broken cabin, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_z_claw_combo2",
    "py": "tools/tripo/motion.py",
    "args": [
     "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
@@ -24,35 +52,13 @@
    "timeout": 2400
   },
   {
-   "id": "ulm_z_overhead",
+   "id": "ulm_z_overhead2",
    "py": "tools/tripo/motion.py",
    "args": [
     "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
     "z_overhead",
     "2",
     "a zombie raises both arms high above its head and smashes them down hard in front of it at head height, bending forward"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_lunge_bite",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_lunge_bite",
-    "2",
-    "a zombie crouches slightly and then lunges forward with its head thrust out and mouth wide open, trying to bite the face of someone right in front of it, arms reaching forward, then pulls back"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_menace",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_menace",
-    "3",
-    "a zombie standing face to face with someone, hunched forward, swaying from side to side and clawing at the air in front of it with both hands, menacing and hungry"
    ],
    "timeout": 2400
   }
@@ -204,7 +210,12 @@
   "ulm_z_death_back",
   "ulm_z_turn_l",
   "ulm_z_turn_r",
-  "ulm_z_death_front2"
+  "ulm_z_death_front2",
+  "ulm_z_grab_bite",
+  "ulm_z_claw_combo",
+  "ulm_z_overhead",
+  "ulm_z_lunge_bite",
+  "ulm_z_menace"
  ],
  "paused": [
   {
