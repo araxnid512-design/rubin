@@ -1,98 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ul_barn_long",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_barn_long",
-    "--faces",
-    "10000",
-    "--prompt",
-    "a long old abandoned wooden cowshed barn, weathered gray vertical planks, rusty corrugated metal gable roof with holes and missing sheets, broken small windows, large open doorway at the end, realistic, single building, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_barn_small",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_barn_small",
-    "--faces",
-    "8000",
-    "--prompt",
-    "a small ruined wooden farm barn with a sagging collapsed roof, missing wall boards, dark weathered wood, realistic, single building, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_water_tower",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_water_tower",
-    "--faces",
-    "6000",
-    "--prompt",
-    "an old rusty metal farm water tower, cylindrical riveted tank with a conical roof standing on a round red brick base, weathered, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_dead_tree",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_dead_tree",
-    "--faces",
-    "6000",
-    "--prompt",
-    "a dead leafless old tree with twisted dry branches and gray cracked bark, realistic, single tree, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_oak",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_oak",
-    "--faces",
-    "8000",
-    "--prompt",
-    "a lush green deciduous oak tree with a full leafy crown and thick trunk, realistic, single tree, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_hay",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_hay",
-    "--faces",
-    "4000",
-    "--prompt",
-    "a stack of three old round hay bales, dry faded yellow straw, weathered, realistic, single object, game prop"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_cow_bones",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_cow_bones",
-    "--faces",
-    "4000",
-    "--prompt",
-    "scattered cow bones and a horned cow skull lying on the ground, bleached weathered bones, realistic, single object, game prop"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -304,6 +212,97 @@
     "z_overhead",
     "2",
     "a zombie raises both arms high above its head and smashes them down hard in front of it at head height, bending forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_barn_long",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_barn_long",
+    "--faces",
+    "10000",
+    "--prompt",
+    "a long old abandoned wooden cowshed barn, weathered gray vertical planks, rusty corrugated metal gable roof with holes and missing sheets, broken small windows, large open doorway at the end, realistic, single building, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_barn_small",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_barn_small",
+    "--faces",
+    "8000",
+    "--prompt",
+    "a small ruined wooden farm barn with a sagging collapsed roof, missing wall boards, dark weathered wood, realistic, single building, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_water_tower",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_water_tower",
+    "--faces",
+    "6000",
+    "--prompt",
+    "an old rusty metal farm water tower, cylindrical riveted tank with a conical roof standing on a round red brick base, weathered, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_dead_tree",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_dead_tree",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a dead leafless old tree with twisted dry branches and gray cracked bark, realistic, single tree, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_oak",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_oak",
+    "--faces",
+    "8000",
+    "--prompt",
+    "a lush green deciduous oak tree with a full leafy crown and thick trunk, realistic, single tree, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_hay",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_hay",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a stack of three old round hay bales, dry faded yellow straw, weathered, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_cow_bones",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_cow_bones",
+    "--faces",
+    "4000",
+    "--prompt",
+    "scattered cow bones and a horned cow skull lying on the ground, bleached weathered bones, realistic, single object, game prop"
    ],
    "timeout": 2400
   }
