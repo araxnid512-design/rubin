@@ -192,6 +192,8 @@ static func _fix(it):
 	it.n = int(it.get("n", 1))
 	if it.has("mag"):
 		it.mag = int(it.mag)
+	if ULItems.get_def(String(it.id)).has("dur"):
+		it["dur"] = int(it.get("dur", ULItems.get_def(String(it.id)).dur))     # оружие из старого сохранения — как новое
 	if ULItems.kind(it) == "pack":
 		var want := ULItems.pack_slots(it)
 		var arr: Array = it.get("items", [])

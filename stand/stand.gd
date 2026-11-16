@@ -72,19 +72,35 @@ const ENTRIES := [
 	{"id": "m_heavy", "g": "Холодное", "n": "Сильный удар", "weapon": "melee", "stance": "guard", "proc": "swing:heavy"},
 	{"id": "m_block", "g": "Холодное", "n": "Блок", "weapon": "melee", "stance": "guard", "proc": "swing:block"},
 ]
-## движения врага (стенд показывает его той же моделью и теми же клипами, что в игре)
-const ENEMY_ENTRIES := [
-	{"id": "z_idle", "g": "Заражённый", "n": "Стоит"},
-	{"id": "z_walk", "g": "Заражённый", "n": "Бродит", "speed": 1.0},
-	{"id": "z_run", "g": "Заражённый", "n": "Бежит к герою", "speed": 2.9},
-	{"id": "z_attack", "g": "Заражённый", "n": "Удар руками", "action": "melee_light"},
-	{"id": "z_hit", "g": "Заражённый", "n": "Попадание", "action": "hit_front"},
-	{"id": "z_death", "g": "Заражённый", "n": "Гибель и тело", "action": "death", "post_pose": "dead"},
-	{"id": "z_getup", "g": "Прочее", "n": "Подъём", "action": "get_up", "pre_pose": "dead"},
-	{"id": "z_look", "g": "Прочее", "n": "Озирается", "action": "look_around"},
-	{"id": "z_angry", "g": "Прочее", "n": "Злится", "action": "angry"},
-	{"id": "z_sneak", "g": "Прочее", "n": "Крадётся", "speed": 0.9, "crouch": 1.0},
-]
+## движения врага: стенд показывает его той же моделью и теми же клипами, что в игре; удары — из его баланса
+## (data/enemies.json), остальное — общий набор
+static func enemy_entries(kind: String) -> Array:
+	var d: Dictionary = ULEnemy.KINDS[kind]
+	var g := String(d.n)
+	var out: Array = [
+		{"id": "z_idle", "g": g, "n": "Стоит, дышит"},
+		{"id": "z_alert", "g": g, "n": "Заметил героя (озирается)", "action": "look_around"},
+		{"id": "z_scream", "g": g, "n": "Крик", "action": "angry", "voice": "roar"},
+		{"id": "z_walk", "g": g, "n": "Бродит", "speed": float(d.walk)},
+		{"id": "z_run", "g": g, "n": "Бежит к герою", "speed": float(d.run)},
+		{"id": "z_turn_l", "g": g, "n": "Поворот налево", "action": "turn_left"},
+		{"id": "z_turn_r", "g": g, "n": "Поворот направо", "action": "turn_right"},
+	]
+	var k := 0
+	for a in d.get("attacks", []):
+		k += 1
+		out.append({"id": "z_attack%d" % k, "g": "Удары", "n": "%s (%d)" % [String(a.n).capitalize(), int(a.dmg)], "action": String(a.clip), "rate": float(a.get("rate", 1.0)), "voice": "roar"})
+	out += [
+		{"id": "z_hit", "g": "Попадания", "n": "Попадание спереди", "action": "hit_front"},
+		{"id": "z_hit_b", "g": "Попадания", "n": "Попадание сзади", "action": "hit_back"},
+		{"id": "z_stagger", "g": "Попадания", "n": "Сбит с ног (сильное попадание)", "action": "stagger"},
+		{"id": "z_death", "g": "Гибель", "n": "Падает на спину", "action": "death", "post_pose": "dead", "voice": "zdeath"},
+		{"id": "z_death_f", "g": "Гибель", "n": "Падает лицом вперёд", "action": "death_front", "post_pose": "dead_front", "voice": "zdeath"},
+		{"id": "z_death_s", "g": "Гибель", "n": "Падает от удара сбоку", "action": "death", "post_pose": "dead", "twist": true, "voice": "zdeath"},
+	]
+	return out
+
+
 var who := "hero"                     ## кто на стенде: hero — герой, иначе вид врага из ULEnemy.KINDS
 var entries: Array = ENTRIES
 const MARKS := "user://marks.json"
@@ -152,7 +168,10 @@ func _ready() -> void:
 		who = "hero"
 	elif test == "enemy":
 		who = "infected"
-	entries = ENTRIES if who == "hero" else ENEMY_ENTRIES
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind=") and ULEnemy.KINDS.has(a.substr(10)):
+				who = a.substr(10)
+	entries = ENTRIES if who == "hero" else enemy_entries(who)
 	_stage()
 	_load_marks()
 	_build_ui()
@@ -220,6 +239,7 @@ void fragment() {
 		# враг — как в игре: упрощённый персонаж, клипы как есть (перенос на его скелет — BCAnimSet._rest_fix)
 		rig.simple = true
 		rig.built_poses = false
+		rig.height = float(ULEnemy.KINDS[who].get("height", 1.78))
 		rig.setup(String(ULEnemy.KINDS[who].model), "res://assets/anim/hero")
 	snd = BCSound.new()
 	add_child(snd)
@@ -608,8 +628,17 @@ func _step() -> void:
 		_phase = 0
 		_timer = 1.2
 		return
-	var d := rig.play(String(cur.action))
-	_action_sfx(String(cur.action), d)
+	var d := rig.play(String(cur.action), float(cur.get("rate", 1.0)))
+	if who == "hero":
+		_action_sfx(String(cur.action), d)
+	elif cur.has("voice"):
+		snd.play(String(cur.voice), rig.global_position + Vector3.UP * 1.5, -3.0, 0.1)      # голос врага
+	if cur.get("twist", false):
+		# удар сбоку: разворачивает к удару и валит от него
+		rig.rotation.y = 0.0
+		create_tween().tween_property(rig, "rotation:y", PI * 0.5, 0.3)
+	elif who != "hero":
+		rig.rotation.y = 0.0
 	if cur.has("pre_pose"):
 		rig.set_pose("", d * 0.3)
 		_phase = 0
@@ -1005,7 +1034,16 @@ func _snap(path: String) -> void:
 func _run_test() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	if test == "enemy":
-		# враг на стенде: по снимку на движение и общий вид с панелями
+		# враг на стенде: по снимку на движение и общий вид с панелями; стойка — ещё и сбоку (как стоят стопы)
+		select(0)
+		yaw = PI * 0.5
+		pitch = 0.05
+		look_h = 0.6
+		await get_tree().create_timer(1.2).timeout
+		await _snap("%s/z_side.png" % out)
+		yaw = 0.55
+		pitch = 0.22
+		look_h = 1.0
 		for i in entries.size():
 			select(i)
 			await get_tree().create_timer(1.6 if not entries[i].has("post_pose") else 3.4).timeout

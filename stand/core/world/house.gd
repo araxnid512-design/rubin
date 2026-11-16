@@ -6,7 +6,7 @@ extends Node3D
 ## в полную высоту.
 ##
 ## Система дома: x — вдоль длинной стороны (вправо), z — к фасаду (вперёд, там крыльцо и входная дверь), м.
-##   Сени (вход)  x −1.5…1.5,  z 1.5…5      Кухня  x −6…−1.5, z 1.5…5      Кладовая x 1.5…6, z 1.5…5
+##   Сени (вход)  x −1.5…1.5,  z 1.5…5      Кухня  x −6…−1.5, z 1.5…5      Оружейная x 1.5…6, z 1.5…5 (бывшая кладовая)
 ##   Горница      x −6…1.5,    z −5…1.5     Спальня x 1.5…6,  z −5…1.5
 
 const W := 12.0                   ## ширина дома (по x), м
@@ -31,7 +31,7 @@ const WALLS := [
 	[Vector2(1.5, -5), Vector2(1.5, 1.5), T_IN, [3.0]],        # горница → спальня
 ]
 const ROOMS := [
-	["Сени", Vector2(0, 3.25)], ["Кухня", Vector2(-3.75, 3.25)], ["Кладовая", Vector2(3.75, 3.25)],
+	["Сени", Vector2(0, 3.25)], ["Кухня", Vector2(-3.75, 3.25)], ["Оружейная", Vector2(3.75, 3.25), Vector2(2.45, 4.55)],
 	["Горница", Vector2(-2.25, -1.75)], ["Спальня", Vector2(3.75, -1.75)],
 ]
 
@@ -95,7 +95,8 @@ func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
 		lb.modulate = Color(1, 1, 1, 0.55)
 		lb.outline_size = 8
 		lb.rotation_degrees = Vector3(-90, 0, 0)
-		lb.position = Vector3((r[1] as Vector2).x, FLOOR_Y + 0.01, (r[1] as Vector2).y)
+		var lp: Vector2 = r[2] if r.size() > 2 else r[1]             # надпись — там, где пол свободен
+		lb.position = Vector3(lp.x, FLOOR_Y + 0.045, lp.y)
 		inner.add_child(lb)
 		labels.append(lb)
 	if ResourceLoader.exists(shell_path):

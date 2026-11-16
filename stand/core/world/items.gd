@@ -11,16 +11,16 @@ const ICONS := "res://assets/icons/"
 const ITEMS := {
 	# оружие: ammo — какие патроны, mag — сколько в магазине, dmg — урон, rate — выстрелов в секунду,
 	# range — дальность, на которой герой сам берёт цель, м
-	"tt": {"n": "Пистолет ТТ", "kind": "pistol", "weapon": "pistol", "ammo": "a762x25", "mag": 8, "dmg": 22, "rate": 3.0, "range": 18, "d": "7,62×25 ТТ, магазин на 8 патронов."},
-	"beretta": {"n": "Beretta 92FS", "kind": "pistol", "weapon": "beretta", "ammo": "a9x19", "mag": 15, "dmg": 18, "rate": 3.5, "range": 18, "d": "9×19, магазин на 15 патронов."},
-	"machete": {"n": "Мачете", "kind": "melee", "weapon": "melee", "dmg": 40, "rate": 1.0, "d": "Клинок 40 см. Носится в слоте пистолета."},
-	"ak74m": {"n": "АК-74М", "kind": "primary", "weapon": "rifle", "ammo": "a545", "mag": 30, "dmg": 26, "rate": 9.0, "auto": true, "range": 30, "d": "Автомат, 5,45×39, магазин на 30 патронов."},
-	"mp5": {"n": "MP5", "kind": "primary", "weapon": "mp5", "ammo": "a9x19", "mag": 30, "dmg": 16, "rate": 11.0, "auto": true, "range": 22, "d": "Пистолет-пулемёт, 9×19, магазин на 30 патронов."},
-	"fnfal": {"n": "FN FAL", "kind": "primary", "weapon": "fnfal", "ammo": "a762x51", "mag": 20, "dmg": 42, "rate": 3.0, "range": 34, "d": "Винтовка, 7,62×51, магазин на 20 патронов."},
-	"svd": {"n": "СВД", "kind": "primary", "weapon": "svd", "ammo": "a762x54", "mag": 10, "dmg": 70, "rate": 1.6, "range": 48, "d": "Снайперская винтовка, 7,62×54R, магазин на 10 патронов."},
-	"vss": {"n": "ВСС «Винторез»", "kind": "primary", "weapon": "vss", "ammo": "a9x39", "mag": 10, "dmg": 38, "rate": 4.0, "range": 30, "d": "Бесшумная винтовка, 9×39, магазин на 10 патронов."},
-	"pkp": {"n": "ПКП «Печенег»", "kind": "primary", "weapon": "pkp", "ammo": "a762x54", "mag": 100, "dmg": 34, "rate": 10.0, "auto": true, "range": 34, "d": "Ручной пулемёт, 7,62×54R, короб на 100 патронов."},
-	"spas12": {"n": "SPAS-12", "kind": "primary", "weapon": "spas12", "ammo": "a12", "mag": 8, "dmg": 80, "rate": 1.1, "range": 13, "d": "Дробовик, 12 калибр, 8 патронов."},
+	"tt": {"n": "Пистолет ТТ", "kind": "pistol", "weapon": "pistol", "ammo": "a762x25", "mag": 8, "dmg": 22, "rate": 3.0, "range": 18, "dur": 150, "d": "7,62×25 ТТ, магазин на 8 патронов."},
+	"beretta": {"n": "Beretta 92FS", "kind": "pistol", "weapon": "beretta", "ammo": "a9x19", "mag": 15, "dmg": 18, "rate": 3.5, "range": 18, "dur": 200, "d": "9×19, магазин на 15 патронов."},
+	"machete": {"n": "Мачете", "kind": "melee", "weapon": "melee", "dmg": 40, "rate": 1.0, "dur": 120, "d": "Клинок 40 см. Носится в слоте пистолета."},
+	"ak74m": {"n": "АК-74М", "kind": "primary", "weapon": "rifle", "ammo": "a545", "mag": 30, "dmg": 26, "rate": 9.0, "auto": true, "range": 30, "dur": 600, "d": "Автомат, 5,45×39, магазин на 30 патронов."},
+	"mp5": {"n": "MP5", "kind": "primary", "weapon": "mp5", "ammo": "a9x19", "mag": 30, "dmg": 16, "rate": 11.0, "auto": true, "range": 22, "dur": 500, "d": "Пистолет-пулемёт, 9×19, магазин на 30 патронов."},
+	"fnfal": {"n": "FN FAL", "kind": "primary", "weapon": "fnfal", "ammo": "a762x51", "mag": 20, "dmg": 42, "rate": 3.0, "range": 34, "dur": 400, "d": "Винтовка, 7,62×51, магазин на 20 патронов."},
+	"svd": {"n": "СВД", "kind": "primary", "weapon": "svd", "ammo": "a762x54", "mag": 10, "dmg": 70, "rate": 1.6, "range": 48, "dur": 250, "d": "Снайперская винтовка, 7,62×54R, магазин на 10 патронов."},
+	"vss": {"n": "ВСС «Винторез»", "kind": "primary", "weapon": "vss", "ammo": "a9x39", "mag": 10, "dmg": 38, "rate": 4.0, "range": 30, "dur": 300, "d": "Бесшумная винтовка, 9×39, магазин на 10 патронов."},
+	"pkp": {"n": "ПКП «Печенег»", "kind": "primary", "weapon": "pkp", "ammo": "a762x54", "mag": 100, "dmg": 34, "rate": 10.0, "auto": true, "range": 34, "dur": 900, "d": "Ручной пулемёт, 7,62×54R, короб на 100 патронов."},
+	"spas12": {"n": "SPAS-12", "kind": "primary", "weapon": "spas12", "ammo": "a12", "mag": 8, "dmg": 80, "rate": 1.1, "range": 13, "dur": 160, "d": "Дробовик, 12 калибр, 8 патронов."},
 	# рюкзаки
 	"pack_small": {"n": "Малый рюкзак", "kind": "pack", "pack": "small", "d": "+8 ячеек."},
 	"pack_medium": {"n": "Средний рюкзак", "kind": "pack", "pack": "medium", "d": "+12 ячеек."},
@@ -51,6 +51,15 @@ const ITEMS := {
 
 ## ресурсы-валюта, по возрастанию ценности (так они стоят в окошке «Ресурсы»)
 const MONEY := ["spore", "pea", "pearl_black", "pearl_red", "pearl_white"]
+
+
+## Прочность оружия (dur у предмета) — сколько выстрелов или ударов оно ещё выдержит; у нового — dur из описания.
+## Каждый выстрел и удар снимает единицу; на нуле оружие ломается и пропадает. Видно только в инвентаре.
+static func dur_text(it) -> String:
+	if it == null or not it.has("dur"):
+		return ""
+	var mx := int(get_def(String(it.id)).get("dur", 0))
+	return "прочность %d из %d %s" % [int(it.dur), mx, "ударов" if String(get_def(String(it.id)).kind) == "melee" else "выстрелов"]
 
 
 static func get_def(id: String) -> Dictionary:
@@ -96,6 +105,8 @@ static func make(id: String, n := 1) -> Dictionary:
 	var it := {"id": id, "n": n}
 	if get_def(id).has("mag"):
 		it["mag"] = int(get_def(id).mag)             # оружие — с полным магазином
+	if get_def(id).has("dur"):
+		it["dur"] = int(get_def(id).dur)             # и с полной прочностью
 	if get_def(id).get("kind", "") == "pack":
 		var cells := []
 		cells.resize(int(BCPackFit.PACKS[get_def(id).pack].slots))

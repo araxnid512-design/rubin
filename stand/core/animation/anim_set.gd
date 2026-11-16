@@ -22,8 +22,20 @@ static func _ref_rest(set_dir: String) -> Dictionary:
 		var found := inst.find_children("*", "Skeleton3D", true, false)
 		if found.size() > 0:
 			var sk: Skeleton3D = found[0]
+			var dirs := {}
 			for i in sk.get_bone_count():
 				out[sk.get_bone_name(i)] = sk.get_bone_global_rest(i).basis.get_rotation_quaternion()
+				# куда «смотрит» кость в исходной позе: на самого дальнего из своих детей
+				var best := ""
+				var bd := 0.008
+				for c in sk.get_bone_children(i):
+					var l := sk.get_bone_global_rest(c).origin.distance_to(sk.get_bone_global_rest(i).origin)
+					if l > bd:
+						bd = l
+						best = sk.get_bone_name(c)
+				if best != "":
+					dirs[sk.get_bone_name(i)] = [best, (sk.get_bone_global_rest(sk.find_bone(best)).origin - sk.get_bone_global_rest(i).origin).normalized()]
+			out["__dirs"] = dirs
 			var hip := sk.find_bone("Hip")
 			out["__hip"] = sk.get_bone_global_rest(hip).origin.y if hip >= 0 else 0.0
 		inst.free()
@@ -42,10 +54,25 @@ static func _rest_fix(skel: Skeleton3D, set_dir: String) -> Dictionary:
 		return {}
 	var d := {}
 	var worst := 0.0
+	var dirs: Dictionary = ref.get("__dirs", {})
 	for i in skel.get_bone_count():
 		var n := skel.get_bone_name(i)
-		if ref.has(n):
-			var q: Quaternion = ((ref[n] as Quaternion).inverse() * skel.get_bone_global_rest(i).basis.get_rotation_quaternion()).normalized()
+		if ref.has(n) and ref[n] is Quaternion:
+			var rt := skel.get_bone_global_rest(i).basis.get_rotation_quaternion()
+			# Модели стоят в исходной позе по-разному (руки в стороны или опущены под углом). Это не закрутка кости,
+			# а сама поза — её в поправку не берём: исходная поза нашего скелета сначала «доводится» до позы
+			# образца (кость смотрит туда же, куда у него), и уже от неё считается закрутка. Иначе рука, которая у
+			# модели и так опущена, опускалась бы ещё раз и уходила в тело.
+			# (стопы — исключение: им важно не направление кости, а чтобы подошва осталась на полу, как в исходной позе)
+			if dirs.has(n) and not (n.ends_with("Foot") or n.ends_with("ToeBase")):
+				var ci := skel.find_bone(String(dirs[n][0]))
+				if ci >= 0:
+					var dt := skel.get_bone_global_rest(ci).origin - skel.get_bone_global_rest(i).origin
+					if dt.length() > 0.008:
+						var ds: Vector3 = dirs[n][1]
+						if ds.dot(dt.normalized()) > -0.999:
+							rt = Quaternion(ds, dt.normalized()).inverse() * rt
+			var q: Quaternion = ((ref[n] as Quaternion).inverse() * rt).normalized()
 			d[n] = q
 			worst = maxf(worst, 2.0 * acos(clampf(absf(q.w), 0.0, 1.0)))
 	if worst < deg_to_rad(0.5):

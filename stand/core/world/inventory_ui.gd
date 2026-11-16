@@ -404,11 +404,31 @@ func _cell(src: String, i: int, it, sz: Vector2) -> Control:
 			b.add_child(n)
 			n.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 			n.offset_right = -5
-			n.offset_top = -22
+			n.offset_top = -28 if it.has("dur") else -22
+			n.offset_bottom = -6 if it.has("dur") else 0
 			n.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			n.add_theme_color_override("font_outline_color", Color.BLACK)
 			n.add_theme_constant_override("outline_size", 5)
+		if it.has("dur"):
+			# прочность оружия: полоска по низу ячейки (зелёная → жёлтая → красная)
+			var mx := maxf(float(ULItems.get_def(id).get("dur", 1)), 1.0)
+			var k := clampf(float(it.dur) / mx, 0.0, 1.0)
+			var back := ColorRect.new()
+			back.color = Color(0, 0, 0, 0.55)
+			back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(back)
+			back.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+			back.offset_left = 5
+			back.offset_right = -5
+			back.offset_top = -7
+			back.offset_bottom = -3
+			var bar := ColorRect.new()
+			bar.color = Color(0.4, 0.85, 0.4) if k > 0.5 else (Color(0.95, 0.8, 0.3) if k > 0.2 else Color(0.95, 0.35, 0.3))
+			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			back.add_child(bar)
+			bar.anchor_right = k
+			bar.anchor_bottom = 1.0
 		if ULItems.kind(it) == "pack" and not ULItems.pack_empty(it):
 			var dot := _lbl("с вещами", 11, C_SEL)
 			dot.position = Vector2(5, 2)
@@ -494,6 +514,8 @@ func _update_card() -> void:
 	var name := ULItems.title(it)
 	if it.has("mag"):
 		name += " · в магазине %d из %d" % [int(it.mag), int(d.mag)]
+	if it.has("dur"):
+		name += " · " + ULItems.dur_text(it)
 	tv.add_child(_lbl(name, 19, C_TEXT))
 	var ds := _lbl(String(d.get("d", "")), 14, C_DIM)
 	ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

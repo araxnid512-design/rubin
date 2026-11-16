@@ -5,7 +5,7 @@ extends Node3D
 ## нескольких поз в папку, без записи в assets.
 
 const OUT := "res://assets/icons/"
-const POSES := {"infected": ["sneak", 0.4, 30.0]}       ## крадётся, руки тянутся вперёд
+const POSES := {"infected": ["sneak", 0.4, 30.0], "lottery": ["melee_heavy", 0.42, 28.0]}       ## крадётся, руки тянутся вперёд
 const TRY := [["idle", 0.2, 25.0], ["walk", 0.3, 30.0], ["walk", 0.7, 30.0], ["angry", 0.4, 20.0], ["melee_light", 0.3, 28.0], ["melee_light", 0.5, 28.0], ["sneak", 0.4, 30.0], ["look_around", 0.5, 20.0]]
 
 
@@ -45,6 +45,7 @@ func _ready() -> void:
 		var rig := BCCharacter.new()
 		rig.simple = true
 		rig.built_poses = false
+		rig.height = float(ULEnemy.KINDS[kind].get("height", 1.78))
 		holder.add_child(rig)
 		rig.setup(String(ULEnemy.KINDS[kind].model), "res://assets/anim/hero")
 		var shots: Array = TRY if out != "" else [POSES.get(kind, ["idle", 0.2, 25.0])]
