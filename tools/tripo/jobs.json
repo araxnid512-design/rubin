@@ -1,98 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ul_truck",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_truck",
-    "--faces",
-    "8000",
-    "--prompt",
-    "an old abandoned rusty soviet-era farm truck with a rounded cab and an open wooden plank cargo bed, faded dark green paint, flat worn tires, dirty and weathered, realistic, single vehicle, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_trailer",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_trailer",
-    "--faces",
-    "6000",
-    "--prompt",
-    "an old rusty two-axle farm tractor trailer with low wooden plank sides and a tow bar, dirty and weathered, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_cart",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_cart",
-    "--faces",
-    "5000",
-    "--prompt",
-    "an old wooden farm cart with two large wooden spoked wheels and shafts, dark weathered planks, a little hay inside, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_computer",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_computer",
-    "--faces",
-    "6000",
-    "--prompt",
-    "an old beige desktop computer on a worn grey metal office desk: a bulky CRT monitor, a keyboard, a tower system unit beside it, some papers, dusty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_gun_counter",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_gun_counter",
-    "--faces",
-    "6000",
-    "--prompt",
-    "a sturdy old wooden shop counter with a glass display case on top holding pistols and ammunition boxes, weathered dark wood, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_ammo_shelf",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_ammo_shelf",
-    "--faces",
-    "6000",
-    "--prompt",
-    "a tall metal storage shelf rack stacked with green military ammunition boxes and small crates, worn paint, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_gun_rack",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_gun_rack",
-    "--faces",
-    "6000",
-    "--prompt",
-    "a wooden wall-mounted weapon display rack holding several old hunting rifles and shotguns in a row, dark wood, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -397,7 +305,14 @@
     "scattered cow bones and a horned cow skull lying on the ground, bleached weathered bones, realistic, single object, game prop"
    ],
    "timeout": 2400
-  }
+  },
+  "ul_truck",
+  "ul_trailer",
+  "ul_cart",
+  "ul_computer",
+  "ul_gun_counter",
+  "ul_ammo_shelf",
+  "ul_gun_rack"
  ],
  "paused": [
   {

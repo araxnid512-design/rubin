@@ -190,3 +190,13 @@ func update_walls(player_world: Vector3, delta: float) -> void:
 		mi.set_meta("h", h)
 		mi.scale = Vector3(1, h / CUT, 1)
 		mi.position.y = FLOOR_Y + h * 0.5
+
+
+## какая комната в точке p (мировые координаты); "" — не в доме
+func room_at(p: Vector3) -> String:
+	var l := to_local(p)
+	if absf(l.x) > W * 0.5 or absf(l.z) > D * 0.5:
+		return ""
+	if l.z > 1.5:
+		return "Кухня" if l.x < -1.5 else ("Сени" if l.x < 1.5 else "Оружейная")
+	return "Горница" if l.x < 1.5 else "Спальня"

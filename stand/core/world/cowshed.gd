@@ -71,10 +71,13 @@ const ENTRY_YAW := PI              ## у входа герой смотрит н
 const SILO := Vector3(-14.3, 0, -61.0)
 ## баки у башни и у коровника: точка, радиус, высота
 const TANKS := [[Vector3(-38.7, 0, -47.0), 1.3, 3.2], [Vector3(1.5, 0, -59.2), 1.1, 2.6]]
-## техника и телеги: [вид, точка, поворот]
+## техника и телеги (модели Tripo): [вид, точка, поворот]
 const VEHICLES := [["tractor", Vector3(9.0, 0, 18.9), 0.6], ["tractor", Vector3(25.5, 0, 0.4), -0.9], ["truck", Vector3(-9.5, 0, 1.3), 0.25],
-	["cart", Vector3(-50.0, 0, 7.0), 1.2], ["cart", Vector3(-31.9, 0, 18.0), -0.4], ["cart", Vector3(-13.3, 0, 22.4), 2.0],
-	["cart", Vector3(6.8, 0, 49.6), 1.4], ["cart", Vector3(63.0, 0, -33.0), 0.3]]
+	["trailer", Vector3(-50.0, 0, 7.0), 1.2], ["cart", Vector3(-31.9, 0, 18.0), -0.4], ["trailer", Vector3(-13.3, 0, 22.4), 2.0],
+	["cart", Vector3(6.8, 0, 49.6), 1.4], ["trailer", Vector3(63.0, 0, -33.0), 0.3]]
+## вид → [модель, длина (наибольший размер по земле), м, оттенок (выгоревшая краска, грязь)]
+const VEHICLE_MODELS := {"tractor": ["ul_tractor", 4.2, Color(0.62, 0.6, 0.56)], "truck": ["ul_truck", 6.2, Color(0.8, 0.78, 0.74)],
+	"trailer": ["ul_trailer", 6.5, Color(0.8, 0.78, 0.74)], "cart": ["ul_cart", 3.2, Color(0.82, 0.8, 0.76)]}
 ## тюки сена (круглые): точка, сколько
 const HAY := [[Vector3(-65.0, 0, -40.0), 3], [Vector3(-68.0, 0, -15.0), 4], [Vector3(42.7, 0, -45.5), 2], [Vector3(32.7, 0, -66.0), 2],
 	[Vector3(60.0, 0, 34.0), 2], [Vector3(-17.0, 0, -45.5), 2]]
@@ -705,74 +708,34 @@ func _landmarks(g: Node3D, rng: RandomNumberGenerator) -> void:
 			_bx(g, "rust", Vector3(0.5, 0.04, 0.04), Transform3D(Basis(Vector3.UP, -ang + PI * 0.5), at + side * (r + 0.12) + Vector3.UP * (0.3 + k * 0.35)))
 
 
-## техника: тракторы (модель Tripo), ржавый грузовик и телеги
-func _vehicles(rng: RandomNumberGenerator) -> void:
-	var tyre := StandardMaterial3D.new()
-	tyre.albedo_color = Color(0.07, 0.07, 0.07)
-	tyre.roughness = 0.95
+## Техника: тракторы, ржавый грузовик, прицепы и телеги — модели Tripo. Столкновение — коробка по размеру модели,
+## повёрнутая вместе с ней.
+func _vehicles(_rng: RandomNumberGenerator) -> void:
 	for v in VEHICLES:
-		var kind := String(v[0])
+		var vm: Array = VEHICLE_MODELS[String(v[0])]
+		var path := MODELS + String(vm[0]) + ".glb"
+		if not ResourceLoader.exists(path):
+			continue
 		var at: Vector3 = v[1]
 		var yaw: float = v[2]
-		var size := Vector3(4.2, 1.6, 2.2)
-		var model: Node3D = null
-		if kind == "tractor":
-			model = _model(MODELS + "ul_tractor.glb", at, yaw, 4.2)
-			if model:
-				_dirty(model, "ul_tractor", Color(0.62, 0.6, 0.56))
-		if model != null:
-			var bb: AABB = w._aabb(model)
-			size = Vector3(maxf(bb.size.x, 1.0), maxf(bb.size.y, 1.0), maxf(bb.size.z, 1.0)) * 0.9
-			var cs0 := CollisionShape3D.new()
-			var b0 := BoxShape3D.new()
-			b0.size = Vector3(size.x, size.y, size.z)
-			cs0.shape = b0
-			cs0.transform = Transform3D(Basis.IDENTITY, bb.get_center())
-			body.add_child(cs0)
-			continue
-		var node := Node3D.new()
-		add_child(node)
-		node.position = at
-		node.rotation.y = yaw
-		if kind == "truck":
-			size = Vector3(6.0, 2.4, 2.4)
-			_bx(node, "rust", Vector3(5.8, 0.25, 2.2), _at(Vector3(0, 0.95, 0)))
-			_bx(node, "rust", Vector3(1.8, 1.4, 2.2), _at(Vector3(-2.0, 1.8, 0)))
-			_bx(node, "rust", Vector3(1.0, 0.8, 2.0), _at(Vector3(-3.2, 1.45, 0)))
-			_bx(node, "glass", Vector3(0.05, 0.6, 1.8), _at(Vector3(-2.92, 2.1, 0)))
-			for s in [-1.0, 1.0]:
-				_bx(node, "rust", Vector3(3.6, 0.7, 0.07), _at(Vector3(1.0, 1.4, s * 1.08)))
-			_bx(node, "rust", Vector3(0.07, 0.7, 2.2), _at(Vector3(2.85, 1.4, 0)))
-		else:
-			size = Vector3(4.2, 1.4, 2.2)
-			_bx(node, "gate", Vector3(4.0, 0.12, 2.0), _at(Vector3(0, 0.75, 0)))
-			for s in [-1.0, 1.0]:
-				_bx(node, "gate", Vector3(4.0, 0.5, 0.08), _at(Vector3(0, 1.05, s * 0.96)))
-				_bx(node, "gate", Vector3(0.08, 0.5, 2.0), _at(Vector3(s * 1.96, 1.05, 0)))
-			_bx(node, "beam", Vector3(1.6, 0.08, 0.08), Transform3D(Basis(Vector3.FORWARD, 0.2), Vector3(-2.7, 0.55, 0)))
-			if rng.randf() < 0.6:
-				_bx(node, "hay", Vector3(3.6, 0.35, 1.7), _at(Vector3(0, 0.98, 0)))
-		_flush(node)
-		var wheels := [-1.9, 0.6, 2.0] if kind == "truck" else [-1.2, 1.2]
-		for wx in wheels:
-			for wz in [-1.05, 1.05]:
-				var wh := MeshInstance3D.new()
-				var cm := CylinderMesh.new()
-				cm.top_radius = 0.48 if kind == "truck" else 0.42
-				cm.bottom_radius = cm.top_radius
-				cm.height = 0.28
-				cm.radial_segments = 14
-				wh.mesh = cm
-				wh.material_override = tyre
-				wh.rotation.x = PI * 0.5
-				wh.position = Vector3(wx, cm.top_radius - (0.12 if rng.randf() < 0.3 else 0.0), wz)
-				node.add_child(wh)
-		_cull(node, 60.0)
+		if not _scenes.has(path):
+			_scenes[path] = load(path)
+		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		var bb: AABB = w._aabb(n)
+		var k := float(vm[1]) / maxf(maxf(bb.size.x, bb.size.z), 0.01)
+		n.scale = Vector3.ONE * k
+		n.position = at - Vector3(0, bb.position.y * k, 0)
+		n.rotation.y = yaw
+		add_child(n)
+		_dirty(n, String(vm[0]), vm[2])
+		_cull(n, 60.0)
+		var size := bb.size * k
+		var c := bb.get_center() * k
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
-		bs.size = size
+		bs.size = Vector3(size.x * 0.92, maxf(size.y, 1.0), size.z * 0.92)
 		cs.shape = bs
-		cs.transform = Transform3D(Basis(Vector3.UP, yaw), at + Vector3.UP * size.y * 0.5)
+		cs.transform = Transform3D(Basis(Vector3.UP, yaw), at + Basis(Vector3.UP, yaw) * Vector3(c.x, maxf(size.y, 1.0) * 0.5, c.z))
 		body.add_child(cs)
 
 

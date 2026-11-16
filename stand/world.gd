@@ -114,6 +114,7 @@ func _ready() -> void:
 		house.position = HOUSE_AT
 		house.build(MODELS + "ul_house.glb", TEX + "weathered_brown_planks", TEX + "brown_planks_03")
 		_fit_shell()
+		_terminal_build()
 		_armory()
 		_yard()
 		_flora()
@@ -3929,7 +3930,15 @@ func _pc_test() -> void:
 	await get_tree().create_timer(0.6).timeout
 	inv.wallet = {}
 	_ok("до установки оружейника на базе нет", npcs.is_empty() and not ULBase.installed("gunsmith"))
-	player.global_position = house.to_global(TERMINAL_AT + Vector3(0, 0.05, -0.75))
+	_ok("до покупки комната пустая и называется «Кладовая»", _armory_root == null and house.labels[2].text == "Кладовая")
+	_ok("компьютер — в сенях у правой стены", _terminal != null and house.room_at(house.to_global(TERMINAL_AT)) == "Сени", str(house.room_at(house.to_global(TERMINAL_AT))))
+	if out != "":
+		# снимок: пустая кладовая и компьютер в сенях до покупки оружейника
+		player.global_position = house.to_global(Vector3(0.3, 0.05, 3.3))
+		_cam_ready = false
+		await get_tree().create_timer(1.2).timeout
+		await _snap("pc_room_before")
+	player.global_position = house.to_global(terminal_front() + Vector3(0, 0.05, 0))
 	await get_tree().create_timer(0.4).timeout
 	_ok("у стола: цель — компьютер, кнопка «Открыть»", _target != null and String(_target.type) == "terminal" and _action_label() == "Открыть", _target_name())
 	do_action()
@@ -3973,6 +3982,7 @@ func _pc_test() -> void:
 	pc.dialog_confirm()                     # второе нажатие — окна уже нет
 	_ok("оружейник куплен один раз: горох 42 → 12, спораны 130 → 80", int(inv.wallet.pea) == 12 and int(inv.wallet.spore) == 80, str(inv.wallet))
 	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npcs.size() == 1 and (npcs[0] as Node3D).global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
+	_ok("после покупки в кладовой появилась вся оружейная (прилавок, шкафы, оружие), подпись «Оружейная»", _armory_root != null and _armory_root.get_child_count() > 10 and house.labels[2].text == "Оружейная")
 	var gb := pc.find_child("up_gunsmith", true, false).find_child("buy", true, false) as Button
 	_ok("кнопка сменилась на «УСТАНОВЛЕНО»", gb != null and gb.text == "УСТАНОВЛЕНО" and gb.disabled)
 	var r1 := ULBase.buy_upgrade(inv, "gunsmith")
@@ -5303,8 +5313,9 @@ func open_talk(n: Node3D) -> void:
 
 # ---------------- оружейная ----------------
 
-## Оружейная — в бывшей кладовой (при входе справа): прилавок, за ним оружейник; на стене и на столе — оружие, у
-## стены — шкафы с коробками патронов, в углу — сейфы. Мебель — простые объёмы с текстурой досок и крашеным
+## Оружейная — в бывшей кладовой (при входе справа). Пока оружейник не куплен через компьютер базы, комната пустая
+## и называется «Кладовая»; после покупки в ней появляется всё сразу: прилавок, за ним оружейник; на стене и на
+## столе — оружие, у стены — шкафы с коробками патронов, в углу — сейфы. Мебель — простые объёмы с текстурой досок и крашеным
 ## металлом; оружие на витрине — одна запечённая сетка без текстур (tools/bake_armory.gd). Координаты — в системе
 ## дома; видно всё это только из дома (как и стены комнат).
 const ARMORY_NPC := Vector3(4.45, 0, 3.25)
@@ -5351,13 +5362,52 @@ func _paint(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
 	return m
 
 
+var _armory_root: Node3D
+
+
+## Мебель оружейной из модели Tripo: name — файл в assets/world, at — точка на полу (система дома), yaw — поворот,
+## size — длина (by "len": наибольший размер по полу) или высота (by "h"), м; col — коробка столкновения (0 — нет).
+## Возвращает false, если модели нет.
+func _armory_model(root: Node3D, name: String, at: Vector3, yaw: float, size: float, by: String, col: Vector3, body: StaticBody3D) -> bool:
+	var path := MODELS + name + ".glb"
+	if not ResourceLoader.exists(path):
+		return false
+	var m: Node3D = (load(path) as PackedScene).instantiate()
+	var bb: AABB = _aabb(m)
+	var k := size / maxf(bb.size.y if by == "h" else maxf(bb.size.x, bb.size.z), 0.01)
+	m.scale = Vector3.ONE * k
+	m.rotation.y = yaw
+	var b2: AABB = _aabb(m)
+	m.position = at + Vector3(-b2.get_center().x, -b2.position.y, -b2.get_center().z)
+	root.add_child(m)
+	if body != null and col != Vector3.ZERO:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = col
+		cs.shape = bs
+		cs.position = at + Vector3(0, col.y * 0.5, 0)
+		body.add_child(cs)
+	return true
+
+
+## подпись комнаты на полу: до покупки оружейника — «Кладовая», после — «Оружейная»
+func _armory_label() -> void:
+	if house != null and house.labels.size() > 2:
+		house.labels[2].text = "Оружейная" if _armory_root != null else "Кладовая"
+
+
 func _armory() -> void:
+	if _armory_root != null or not ULBase.installed("gunsmith"):
+		_armory_label()
+		return
 	var root := Node3D.new()
 	root.name = "Armory"
 	house.inner.add_child(root)
+	_armory_root = root
+	_armory_label()
 	var body := StaticBody3D.new()
 	body.name = "ArmoryBody"
-	house.add_child(body)
+	root.add_child(body)
 	var wood := ULHouse._mat(TEX + "old_planks_02", 1.3)
 	wood.albedo_color = Color(0.78, 0.64, 0.5)
 	var dark := ULHouse._mat(TEX + "old_planks_02", 1.3)
@@ -5369,14 +5419,16 @@ func _armory() -> void:
 	var rug := _paint(Color(0.34, 0.13, 0.11), 0.0, 1.0)
 	# половик перед прилавком
 	_box_prop(root, Vector3(1.3, 0.012, 2.3), Vector3(2.45, 0.032, 3.25), rug)
-	# прилавок: тумба, столешница, плинтус; на нём — пистолет (в запечённой сетке), коробки патронов, бинт, аптечка
-	_box_prop(root, Vector3(0.55, 0.98, 2.6), Vector3(3.55, 0.49, 3.25), wood, body)
-	_box_prop(root, Vector3(0.72, 0.05, 2.74), Vector3(3.55, 1.005, 3.25), dark)
-	_box_prop(root, Vector3(0.02, 0.18, 2.6), Vector3(3.265, 0.1, 3.25), dark)
-	var z := 2.95
-	for cid in ["a762x25", "a545", "a12", "bandage", "medkit"]:
-		_shelf_item(root, cid, Vector3(3.55, 1.03, z), 0.4 + z, 0.22 if cid != "medkit" else 0.3)
-		z += 0.34
+	# прилавок с застеклённой витриной (модель Tripo), витриной к покупателю; нет модели — тумба со столешницей
+	if not _armory_model(root, "ul_gun_counter", Vector3(3.55, 0, 3.25), PI, 1.6, "len", Vector3(0.75, 1.0, 1.55), body):
+		_box_prop(root, Vector3(0.55, 0.98, 2.6), Vector3(3.55, 0.49, 3.25), wood, body)
+		_box_prop(root, Vector3(0.72, 0.05, 2.74), Vector3(3.55, 1.005, 3.25), dark)
+		var z := 2.95
+		for cid in ["a762x25", "a545", "a12", "bandage", "medkit"]:
+			_shelf_item(root, cid, Vector3(3.55, 1.03, z), 0.4 + z, 0.22 if cid != "medkit" else 0.3)
+			z += 0.34
+	# стойка с ружьями на правой стене над столом-витриной (модель Tripo)
+	_armory_model(root, "ul_gun_rack", Vector3(5.86, 1.0, 3.2), PI, 1.15, "h", Vector3.ZERO, null)
 	# щит на стене с винтовками (сами стволы — в запечённой сетке)
 	_box_prop(root, Vector3(1.62, 1.1, 0.04), Vector3(2.45, 1.38, 1.6), dark)
 	for hy in [1.04, 1.38, 1.72]:
@@ -5385,10 +5437,14 @@ func _armory() -> void:
 	# стол-витрина у дальней стены под зелёным сукном
 	_box_prop(root, Vector3(0.9, 0.8, 2.3), Vector3(5.45, 0.4, 3.2), wood, body)
 	_box_prop(root, Vector3(0.96, 0.05, 2.36), Vector3(5.45, 0.825, 3.2), cloth)
-	# два шкафа с патронами за прилавком: задняя стенка, бока, полки, на полках — коробки по калибрам
+	# два стеллажа с ящиками патронов у задней стены (модель Tripo); нет модели — шкафы с коробками по калибрам
 	var ammo_ids := ["a762x25", "a9x19", "a545", "a762x51", "a762x54", "a9x39", "a12"]
 	var n := 0
-	for cx in [4.47, 5.45]:
+	var shelves := 0
+	for cx in [4.38, 5.38]:
+		if _armory_model(root, "ul_ammo_shelf", Vector3(cx, 0, 1.8), PI * 0.5, 1.75, "h", Vector3(1.0, 1.75, 0.48), body):
+			shelves += 1
+	for cx in ([] if shelves == 2 else [4.47, 5.45]):
 		_box_prop(root, Vector3(0.95, 1.85, 0.03), Vector3(cx, 0.925, 1.59), dark)
 		for sx in [-0.46, 0.46]:
 			_box_prop(root, Vector3(0.03, 1.85, 0.4), Vector3(cx + sx, 0.925, 1.78), wood)
@@ -5423,7 +5479,6 @@ func _armory() -> void:
 		_box_prop(root, Vector3(0.16, 0.06, 0.012), Vector3(sx - 0.1, 0.95, 4.3), brass)
 	_shelf_item(root, "a762x54", Vector3(4.92, 1.185, 4.6), 0.3, 0.3)
 	_shelf_item(root, "a12", Vector3(5.62, 1.185, 4.62), -0.2, 0.24)
-	_terminal_build(wood, dark, body)
 	# оружие на стене, столе и прилавке
 	if ResourceLoader.exists(MODELS + "ul_armory_guns.res"):
 		var guns := MeshInstance3D.new()
@@ -5433,45 +5488,80 @@ func _armory() -> void:
 
 # ---------------- компьютер базы ----------------
 
-## Компьютер — в оружейной у входа справа, перед местом оружейника: стол, монитор, клавиатура. Через него:
-## маршруты во временные кластеры, улучшения базы, персонал (оружейник). Что продаётся — data/base_shop.json,
-## что куплено — ULBase (user://base.json).
-const TERMINAL_AT := Vector3(2.35, 0, 4.55)
+## Компьютер — в сенях у правой стены (за ней оружейная), экраном в сени: стол, монитор, системный блок (модель
+## Tripo ul_computer; нет её — простые объёмы). Через него: маршруты во временные кластеры, улучшения базы, персонал
+## (оружейник). Что продаётся — data/base_shop.json, что куплено — ULBase (user://base.json).
+const TERMINAL_AT := Vector3(1.11, 0, 4.33)
+const TERMINAL_YAW := PI * 0.5            ## экран смотрит на −x (в сени), стол — вдоль стены
 var _terminal: Node3D
 var _term_ui: Control
 
 
-func _terminal_build(wood: Material, dark: Material, body: StaticBody3D) -> void:
+## точка перед экраном (в системе дома), d м от стола
+func terminal_front(d := 0.75) -> Vector3:
+	return TERMINAL_AT + Basis(Vector3.UP, TERMINAL_YAW) * Vector3(0, 0, -d)
+
+
+func _terminal_build() -> void:
 	_terminal = Node3D.new()
 	_terminal.name = "Terminal"
 	house.inner.add_child(_terminal)
 	_terminal.position = TERMINAL_AT
+	_terminal.rotation.y = TERMINAL_YAW
+	var body := StaticBody3D.new()
+	body.name = "TerminalBody"
+	_terminal.add_child(body)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(1.1, 0.8, 0.62)
+	cs.shape = bs
+	cs.position = Vector3(0, 0.4, 0.0)
+	body.add_child(cs)
+	var path := MODELS + "ul_computer.glb"
+	if ResourceLoader.exists(path):
+		# стол с компьютером — одна модель; ширина стола 1,05 м, экраном к сеням (−z в системе компьютера)
+		var m: Node3D = (load(path) as PackedScene).instantiate()
+		var bb: AABB = _aabb(m)
+		# стол длиной 1,1 м (места у стены — между дверью в оружейную и фасадом); модель приземистая — по высоте
+		# чуть вытянута, чтобы столешница была на привычной высоте
+		var k := 1.1 / maxf(maxf(bb.size.x, bb.size.z), 0.01)
+		m.scale = Vector3(k, k * 1.3, k)
+		m.rotation.y = TERMINAL_MODEL_YAW
+		var b2: AABB = _aabb(m)
+		m.position = Vector3(-b2.get_center().x, -b2.position.y, -b2.get_center().z)
+		_terminal.add_child(m)
+		_tint_model(m, Color(0.72, 0.7, 0.66))           # пыльный старый пластик, не белый
+		return
+	var dark := ULHouse._mat(TEX + "old_planks_02", 1.3)
+	dark.albedo_color = Color(0.42, 0.33, 0.26)
 	var metal := _paint(Color(0.22, 0.23, 0.22), 0.4, 0.5)
 	var plastic := _paint(Color(0.78, 0.75, 0.66), 0.0, 0.6)
 	_box_prop(_terminal, Vector3(1.0, 0.05, 0.56), Vector3(0, 0.74, 0), dark)
 	for lx in [-0.45, 0.45]:
 		_box_prop(_terminal, Vector3(0.05, 0.72, 0.5), Vector3(lx, 0.36, 0), metal)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = Vector3(1.0, 0.8, 0.56)
-	cs.shape = bs
-	cs.position = TERMINAL_AT + Vector3(0, 0.4, 0)
-	body.add_child(cs)
-	# старый монитор с выпуклым корпусом, экран светится зелёным; системный блок под столом
 	_box_prop(_terminal, Vector3(0.5, 0.4, 0.34), Vector3(0, 0.98, 0.07), plastic)
 	var scr := _paint(Color(0.1, 0.35, 0.18), 0.0, 0.3)
 	scr.emission_enabled = true
 	scr.emission = Color(0.25, 0.9, 0.45)
 	scr.emission_energy_multiplier = 0.8
 	_box_prop(_terminal, Vector3(0.4, 0.3, 0.01), Vector3(0, 0.99, -0.105), scr)
-	_box_prop(_terminal, Vector3(0.12, 0.06, 0.12), Vector3(0, 0.79, 0.07), plastic)
 	_box_prop(_terminal, Vector3(0.44, 0.03, 0.15), Vector3(0, 0.78, -0.17), plastic)
 	_box_prop(_terminal, Vector3(0.2, 0.42, 0.44), Vector3(-0.3, 0.21, 0.02), plastic)
-	# табурет
-	_box_prop(_terminal, Vector3(0.36, 0.04, 0.36), Vector3(0.1, 0.46, -0.62), wood)
-	for sx in [-0.14, 0.14]:
-		for sz in [-0.14, 0.14]:
-			_box_prop(_terminal, Vector3(0.04, 0.44, 0.04), Vector3(0.1 + sx, 0.22, -0.62 + sz), wood)
+
+
+## цвет модели приглушается (свои копии материалов этой модели)
+func _tint_model(n: Node, col: Color) -> void:
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var g := mi as MeshInstance3D
+		for k in g.mesh.get_surface_count():
+			var src := g.get_active_material(k) as StandardMaterial3D
+			if src != null:
+				var d := src.duplicate() as StandardMaterial3D
+				d.albedo_color = src.albedo_color * col
+				g.set_surface_override_material(k, d)
+
+
+const TERMINAL_MODEL_YAW := PI * 0.5     ## у модели Tripo стол вдоль z, экран к +x — поворот: стол вдоль x, экран к −z
 
 
 ## Открыть компьютер базы: полноэкранный экран ULBasePC (core/world/base_pc.gd) поверх игры
@@ -5491,6 +5581,8 @@ func open_terminal() -> void:
 
 ## Компьютер провёл покупку или обмен (kind — upgrade/route/exchange): оружейник встаёт за прилавок, всё сохраняется
 func pc_done(kind: String, id: String) -> void:
+	if kind == "upgrade" and ULBase.installed("gunsmith") and _armory_root == null:
+		_armory()                               # куплено — в кладовой появляется вся оружейная
 	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npcs.is_empty():
 		_npcs_setup()
 	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
@@ -5973,7 +6065,8 @@ func _run_test() -> void:
 			["v2_barn_gate", Vector3(-30.5, 0, -24.5)], ["v3_cows", cowshed.cows[0] + Vector3(0, 0, 2.5)], ["v4_tractor", Vector3(9, 0, 23)],
 			["v5_pen", Vector3(-40, 0, 12)], ["v6_forest", Vector3(-50, 0, 42)], ["v7_cross", Vector3(-2, 0, -12)], ["v8_barnC", Vector3(22, 0, -41)],
 			["w0_barnE", Vector3(41, 0, 45)], ["w1_tower", Vector3(-14, 0, -53)], ["w2_barnD", Vector3(43, 0, -20)], ["w3_inside_E", Vector3(41, 0, 34)],
-			["w5_wide", Vector3(-22, 0, -20)], ["w4_top", Vector3(0, 0, 0)]]
+			["w5_wide", Vector3(-22, 0, -20)], ["v9_truck", Vector3(-9.5, 0, 6.5)], ["v10_cart", Vector3(-31.9, 0, 21.5)],
+			["v11_trailer", Vector3(-13.3, 0, 27.0)], ["w4_top", Vector3(0, 0, 0)]]
 		var only := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):
