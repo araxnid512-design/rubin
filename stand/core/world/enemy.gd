@@ -37,6 +37,9 @@ var _growl := 5.0
 var _steer_a := 0.0               ## на сколько отвернул от прямой, обходя препятствие
 var _steer_t := 0.0
 var _steer_n := 0
+var _hit_reach := 1.0             ## до какого расстояния доходит начатый удар
+var _menace := false
+var _still := 0.0
 var _fx_t := 99.0                 ## сколько прошло с начала удара (для когтей и выпада головы)
 var _fx_len := 1.0
 var _fx_bite := false
@@ -79,7 +82,7 @@ static func describe(k: String) -> Array:
 		String(d.d),
 		"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
 		"Ходит: бродит шагом (%.1f м/с). Видит героя ближе %d м, слышит %s. Заметив — %sбежит к нему (%.1f м/с), обходя препятствия. Теряет, если не видит %d с и герой дальше %d м." % [float(d.walk), int(d.see), hears, "кричит и " if float(d.get("alert_s", 0.0)) > 0.0 else "", float(d.run), int(d.get("lose_s", 0)), int(d.lose)],
-		"Нападает: вплотную, раз в %.1f с, с замахом — от удара можно отойти. Удары: %s." % [float(d.cd), at],
+		"Нападает: подходит вплотную, раз в %.1f с, с замахом — от удара можно отскочить. Удары: %s." % [float(d.cd), at],
 		"В теле может быть: %s." % lt,
 		"Тело лежит минуту и исчезает — обыскали его или нет.",
 	]
@@ -219,6 +222,8 @@ func damage(d: float, from := Vector3.INF) -> void:
 	if hp <= 0.0:
 		state = "dead"
 		dead_t = 0.0
+		if _menace:
+			_menace = false
 		velocity = Vector3.ZERO
 		collision_layer = 0
 		collision_mask = 0
@@ -310,7 +315,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				# потерял: не видит дольше положенного, а герой далеко — или дошёл до места, где видел, и там пусто
 				state = "idle"
 				_t = 2.5
-			elif can_see and dist <= float(def.reach):
+			elif can_see and dist <= _close() + 0.9:
 				state = "attack"
 			elif tl.length() < 0.5:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
@@ -322,31 +327,34 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 					_growl = _rng.randf_range(3.0, 6.0)
 					noise.emit("growl", global_position)
 		"attack":
+			# Ближний бой вплотную: подходит до касания (close — расстояние между центрами; капсулы героя и врага
+			# соприкасаются на ~0.62 м), только оттуда начинает удар и на замахе ещё дожимает вперёд. Удар выбирается
+			# из тех, что достают с этого расстояния (укус и захват — только впритык). Урон — в момент удара, если
+			# герой всё ещё в досягаемости: отскочил — мимо.
 			_face(to, delta, 9.0)
 			_last = p
+			var close := _close()
 			if _hit_due >= 0.0:
+				if dist > close + 0.03:
+					speed = 1.2                          # дожимает на замахе
 				_hit_due -= delta
 				if _hit_due < 0.0:
-					# удар доходит: герой всё ещё рядом — получает урон
-					if hero_alive and dist <= float(def.reach) + 0.35:
+					if hero_alive and dist <= _hit_reach:
 						hit_player.emit(_hit_dmg)
-			elif not hero_alive or dist > float(def.reach) + 0.25:
+			elif not hero_alive or dist > close + 1.5:
 				if _atk <= float(def.cd) * 0.5:
 					state = "chase"
-			elif _atk <= 0.0:
-				_atk = float(def.cd)
-				var list: Array = def.get("attacks", [])
-				var a: Dictionary = list[_rng.randi() % list.size()] if not list.is_empty() else {"clip": "melee_light", "dmg": float(def.dmg), "hit": 0.45, "n": "удар"}
-				var clip := String(a.clip) if rig.has_clip(String(a.clip)) else "attack_r"
-				var len_s := rig.play(clip, float(a.get("rate", 1.0)))
-				_hit_due = len_s * float(a.get("hit", 0.45))
-				_hit_dmg = float(a.dmg)
-				_fx_t = 0.0
-				_fx_len = maxf(_hit_due, 0.15)
-				_fx_bite = clip == "bite" or clip == "lunge"
-				last_attack = String(a.n)
-				if _rng.randf() < 0.6:
-					noise.emit("roar", global_position)
+			else:
+				if dist > close + 0.04 and not rig.busy():
+					speed = minf(float(def.run), 2.4)    # шаг вплотную
+				if _atk <= 0.0 and dist <= close + 0.3 and not rig.busy():
+					_start_attack(dist)
+	# стойка вплотную: между ударами покачивается и тянет руки к герою (если есть такой клип)
+	_still = _still + delta if speed < 0.1 and state == "attack" and _hit_due < 0.0 else 0.0
+	var want_menace := _still > 0.2 and rig.has_clip("menace")
+	if want_menace != _menace:
+		_menace = want_menace
+		rig.set_pose("menace" if want_menace else "")
 	if rig.fx != null:
 		# генератор мелких движений: к моменту удара когти раскрываются (и голова подаётся вперёд на укусе), потом
 		# за полсекунды всё возвращается; на бегу и в драке дышит чаще
@@ -362,6 +370,45 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	if is_on_floor():
 		velocity.y = 0.0
 	rig.set_motion(Vector3(velocity.x, 0, velocity.z).length(), 0.0, delta)
+
+
+## на каком расстоянии от героя (между центрами) стоит, когда бьёт
+func _close() -> float:
+	return float(def.get("close", 0.72))
+
+
+## начать удар: из тех, что достают с расстояния dist; захват и укус — только вплотную
+func _start_attack(dist: float) -> void:
+	_atk = float(def.cd)
+	var fit: Array = []
+	var w_sum := 0.0
+	for a in def.get("attacks", []):
+		if float(a.get("reach", 1.0)) >= dist and rig.has_clip(String(a.clip)):
+			fit.append(a)
+			w_sum += float(a.get("w", 1.0))
+	if fit.is_empty():
+		return
+	var r := _rng.randf() * w_sum
+	var a: Dictionary = fit[fit.size() - 1]
+	for x in fit:
+		r -= float(x.get("w", 1.0))
+		if r <= 0.0:
+			a = x
+			break
+	var clip := String(a.clip)
+	var len_s := rig.play(clip, float(a.get("rate", 1.0)))
+	_hit_due = len_s * float(a.get("hit", 0.45))
+	_hit_dmg = float(a.dmg)
+	_hit_reach = float(a.get("reach", 1.0)) + 0.25
+	_fx_t = 0.0
+	_fx_len = maxf(_hit_due, 0.15)
+	_fx_bite = bool(a.get("bite", false))
+	last_attack = String(a.n)
+	if _menace:
+		_menace = false
+		rig.set_pose("")
+	if _rng.randf() < 0.6 or _fx_bite:
+		noise.emit("roar", global_position)
 
 
 ## Обход препятствий: луч вперёд на уровне голени; упёрся (стена, забор, ящик, другой враг) — пробуются повороты

@@ -1450,6 +1450,10 @@ func _process(delta: float) -> void:
 	var cp := Vector3(sin(CAM_YAW) * cos(CAM_PITCH), sin(CAM_PITCH), cos(CAM_YAW) * cos(CAM_PITCH)) * _cam_d
 	var look := _cam_t + Vector3.UP * 0.8
 	cam.global_position = look + cp
+	if _hurt_t > 0.0:
+		# удар по герою: камера коротко вздрагивает (сильнее от сильного удара)
+		var k := _hurt_t / 0.35 * _hurt_amp
+		cam.global_position += Vector3(sin(Time.get_ticks_msec() * 0.09), 0.0, cos(Time.get_ticks_msec() * 0.11)) * 0.12 * k
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
 	_find_target()
@@ -1480,7 +1484,6 @@ func _process(delta: float) -> void:
 		_preview_rig.set_motion(0.0, 0.0, delta)
 	_npcs_tick(delta)
 	_enemies_tick(delta)
-	_range_ring_tick(delta)
 
 
 var _cam_ready := false
@@ -3255,7 +3258,7 @@ func _combat_tick(delta: float) -> void:
 	if Engine.get_process_frames() % 4 == 0:
 		_mark_t = _attack_target()
 	if _mark:
-		_mark.visible = _mark_t != null and is_instance_valid(_mark_t)
+		_mark.visible = false                   # красный круг под целью не рисуется (цель выбирается как прежде)
 		if _mark.visible:
 			_mark.global_position = (_mark_t as Node3D).global_position + Vector3.UP * 0.05
 			_mark.scale = Vector3.ONE * (1.0 + 0.06 * sin(Time.get_ticks_msec() * 0.008))
@@ -3766,10 +3769,15 @@ func _inv_test() -> void:
 	far.global_position = Vector3(-40.0, 0.0, 40.0)
 	var hp0 := hp
 	var wait_s := 0.0
+	var gap := 9.0
 	while hp >= hp0 and wait_s < 8.0:
 		await get_tree().create_timer(0.1).timeout
 		wait_s += 0.1
-	_ok("добежал и ударил: здоровье героя убыло на 9", is_equal_approx(hp0 - hp, 9.0), "%.0f → %.0f за %.1f с" % [hp0, hp, wait_s])
+		gap = e.global_position.distance_to(player.global_position)
+	var dmgs := []
+	for a in e.def.attacks:
+		dmgs.append(float(a.dmg))
+	_ok("подошёл вплотную (до 0.85 м между центрами) и ударил", hp < hp0 and dmgs.has(hp0 - hp) and gap <= 0.85, "%s: %.0f → %.0f за %.1f с, расстояние %.2f м" % [e.last_attack, hp0, hp, wait_s, gap])
 	_ok("после удара экран краснеет", _hurt_t > 0.0)
 	_damage(e, 25.0, e.global_position + Vector3.UP)
 	_ok("попадание: прочность 150 → 125, жив", is_equal_approx(e.hp, 125.0) and e.alive())
@@ -3847,9 +3855,14 @@ func _inv_test() -> void:
 	crates.remove_at(blocks)
 	var atk_seen := {}
 	for sd2 in 40:
-		var le: Dictionary = ULEnemy.KINDS.lottery.attacks[sd2 % 4]
+		var le: Dictionary = ULEnemy.KINDS.lottery.attacks[sd2 % ULEnemy.KINDS.lottery.attacks.size()]
 		atk_seen[String(le.n)] = float(le.dmg)
-	_ok("у Лоторейщика четыре удара: когти слева и справа, укус, выпад пастью", atk_seen.size() == 4)
+	var bites := 0
+	for le2 in ULEnemy.KINDS.lottery.attacks:
+		if le2.get("bite", false):
+			bites += 1
+			bites += 10 if float(le2.reach) > 1.15 else 0
+	_ok("у Лоторейщика шесть ударов, из них три — укусы, и все укусы только вплотную (до 1.1 м)", atk_seen.size() == 6 and bites == 3)
 	# сильное попадание сбивает, падение — по стороне удара
 	lt.rotation.y = 0.0
 	lt.global_position = Vector3(20.0, 0.0, 26.0)
@@ -4002,6 +4015,7 @@ var enemies: Array[ULEnemy] = []
 var _open_corpse: ULEnemy = null
 var _respawn: Array = []          ## [точка, сколько осталось ждать]
 var _hurt_t := 0.0
+var _hurt_amp := 1.0
 var _dead_t := 0.0
 var _book_ui: Control
 var _enemy_n := 0
@@ -4038,6 +4052,7 @@ func hurt(dmg: float) -> void:
 		return
 	hp = maxf(0.0, hp - dmg)
 	_hurt_t = 0.35
+	_hurt_amp = clampf(dmg / 20.0, 0.4, 1.5)
 	snd.play("punch", player.global_position + Vector3.UP * 1.3, -2.0, 0.08)
 	if hp <= 0.0:
 		# погиб: через три секунды — снова у дома, с половиной здоровья; враги расходятся

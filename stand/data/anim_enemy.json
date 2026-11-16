@@ -236,6 +236,62 @@
 			"ground": true,
 			"bake": "keep",
 			"heading_lock": false
+		},
+		"grab_bite": {
+			"src": [
+				"{set}/z_grab_bite.res",
+				"res://assets/anim/hero/m_melee_heavy.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"claw_combo": {
+			"src": [
+				"{set}/z_claw_combo.res",
+				"res://assets/anim/hero/box_03.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"overhead": {
+			"src": [
+				"{set}/z_overhead.res",
+				"res://assets/anim/hero/m_melee_heavy.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"lunge_bite": {
+			"src": [
+				"{set}/z_lunge_bite.res",
+				"res://assets/anim/hero/m_melee_light.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"menace": {
+			"src": [
+				"{set}/z_menace.res",
+				"res://assets/anim/hero/m_combat_idle.res"
+			],
+			"loop": true,
+			"blend": 0.3,
+			"rate": 1.0,
+			"bake": "center",
+			"heading_lock": true,
+			"loop_fix": 0.4
 		}
 	},
 	"_": "Клипы врагов. bake — обработка корня в системе скелета (inplace — на месте с покачиванием, lock — таз на месте, center — над капсулой, keep — путь как есть), heading_lock — курс тела не виляет, sway — окно вычитания медленного увода, с."

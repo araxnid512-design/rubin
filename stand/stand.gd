@@ -83,13 +83,14 @@ static func enemy_entries(kind: String) -> Array:
 		{"id": "z_scream", "g": g, "n": "Крик", "action": "scream", "voice": "roar"},
 		{"id": "z_walk", "g": g, "n": "Бродит", "speed": float(d.walk)},
 		{"id": "z_run", "g": g, "n": "Бежит к герою", "speed": float(d.run)},
+		{"id": "z_menace", "g": g, "n": "Вплотную, между ударами", "pose": "menace"},
 		{"id": "z_turn_l", "g": g, "n": "Поворот налево", "action": "turn_left"},
 		{"id": "z_turn_r", "g": g, "n": "Поворот направо", "action": "turn_right"},
 	]
 	var k := 0
 	for a in d.get("attacks", []):
 		k += 1
-		out.append({"id": "z_attack%d" % k, "g": "Удары", "n": "%s (%d)" % [String(a.n).capitalize(), int(a.dmg)], "action": String(a.clip), "rate": float(a.get("rate", 1.0)), "voice": "roar", "hit": float(a.get("hit", 0.5)), "bite": String(a.clip) in ["bite", "lunge"]})
+		out.append({"id": "z_attack%d" % k, "g": "Удары", "n": "%s (%d)" % [String(a.n).capitalize(), int(a.dmg)], "action": String(a.clip), "rate": float(a.get("rate", 1.0)), "voice": "roar", "hit": float(a.get("hit", 0.5)), "bite": bool(a.get("bite", false))})
 	out += [
 		{"id": "z_hit", "g": "Попадания", "n": "Попадание спереди", "action": "hit_front"},
 		{"id": "z_hit_b", "g": "Попадания", "n": "Попадание сзади", "action": "hit_back"},
