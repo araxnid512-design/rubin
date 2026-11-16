@@ -90,6 +90,9 @@ func _ready() -> void:
 		_crate_scene = load(MODELS + "ul_crate.glb")
 	_load()
 	_apply_gear()
+	# герой для окна инвентаря создаётся сразу (иначе первое открытие инвентаря — заминка в четверть секунды и больше)
+	_make_preview()
+	_preview_on(false)
 	if test != "":
 		_run_test.call_deferred()
 
@@ -417,20 +420,88 @@ func _fit_shell() -> void:
 	var c := Vector3(f.center[0], f.center[1], f.center[2])
 	var off := Basis(Vector3.UP, deg_to_rad(float(f.yaw))) * (c * S)
 	sh.position = Vector3(-off.x, 0.0, -off.z)
-	# сверху видна в основном крыша: без металлического блеска (иначе под солнцем она почти белая)
+	# раскраска модели Tripo вблизи размыта: поверх неё — чёткие фототекстуры по месту (кровля, стены, крыльцо)
+	var code := Shader.new()
+	code.code = SHELL_SHADER
 	for mi in sh.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		for si in m.mesh.get_surface_count():
 			var src := m.mesh.surface_get_material(si) as StandardMaterial3D
 			if src == null:
 				continue
-			var mt := src.duplicate() as StandardMaterial3D
-			mt.metallic = 0.0
-			mt.metallic_texture = null
-			mt.roughness = 0.9
-			mt.roughness_texture = null
-			mt.albedo_color = Color(0.62, 0.6, 0.57)
+			var mt := ShaderMaterial.new()
+			mt.shader = code
+			mt.set_shader_parameter("base", src.albedo_texture)
+			mt.set_shader_parameter("base_lum", _tex_lum(src.albedo_texture))
+			mt.set_shader_parameter("wall", load(TEX + "weathered_plank_siding_c.jpg"))
+			mt.set_shader_parameter("wall_n", load(TEX + "weathered_plank_siding_n.jpg"))
+			mt.set_shader_parameter("roof", load(TEX + "worn_corrugated_iron_c.jpg"))
+			mt.set_shader_parameter("roof_n", load(TEX + "worn_corrugated_iron_n.jpg"))
 			m.set_surface_override_material(si, mt)
+
+
+const SHELL_SHADER := """shader_type spatial;
+// Дом (модель Tripo): её собственная раскраска вблизи размыта, поэтому цвет берётся из чётких фототекстур
+// по месту — кровля (шифер, волна вдоль ската), стены (доска-обшивка, доски горизонтально), крыльцо (доски).
+// Раскраска модели задаёт только светлоту: окна, двери, наличники и тени под свесом остаются на местах.
+uniform sampler2D base : source_color, filter_linear_mipmap;
+uniform sampler2D wall : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D wall_n : filter_linear_mipmap, repeat_enable;
+uniform sampler2D roof : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D roof_n : filter_linear_mipmap, repeat_enable;
+uniform float base_lum = 0.12;
+varying vec3 wp;
+varying vec3 wn;
+void vertex() {
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+void fragment() {
+	vec3 b = texture(base, UV).rgb;
+	float k = clamp(dot(b, vec3(0.3, 0.59, 0.11)) / base_lum, 0.25, 1.25);
+	vec3 col;
+	float relief;
+	if (wn.y > 0.3 && wp.y > 1.7) {
+		vec2 u = wp.xz / 2.2;
+		col = texture(roof, u).rgb * 0.6 * mix(1.0, k, 0.4);
+		relief = texture(roof_n, u).r - 0.5;
+	} else if (wn.y > 0.5) {
+		vec2 u = wp.zx / 1.6;
+		col = texture(wall, u).rgb * 0.78 * mix(1.0, k, 0.7);
+		relief = texture(wall_n, u).g - 0.5;
+	} else {
+		vec2 u = (abs(wn.x) > abs(wn.z) ? vec2(wp.z, wp.y) : vec2(wp.x, wp.y)) / 1.8;
+		col = texture(wall, u).rgb * 0.86 * mix(1.0, k, 0.9);
+		relief = texture(wall_n, u).g - 0.5;
+	}
+	ALBEDO = col * (1.0 + relief * 0.6);
+	ROUGHNESS = 0.9;
+	SPECULAR = 0.1;
+}
+"""
+
+
+## средняя светлота текстуры (линейная); если картинку не прочитать (сжатая на телефоне) — типичное значение
+func _tex_lum(t: Texture2D) -> float:
+	if t == null:
+		return 0.12
+	var im := t.get_image()
+	if im == null:
+		return 0.12
+	if im.is_compressed() and im.decompress() != OK:
+		return 0.12
+	im.resize(32, 32, Image.INTERPOLATE_BILINEAR)
+	# пустые (чёрные) поля развёртки не считаются
+	var s := 0.0
+	var n := 0
+	for y in 32:
+		for x in 32:
+			var c := im.get_pixel(x, y).srgb_to_linear()
+			var l := c.r * 0.3 + c.g * 0.59 + c.b * 0.11
+			if l > 0.004:
+				s += l
+				n += 1
+	return clampf(s / maxf(n, 1.0), 0.03, 0.6)
 
 
 func _aabb(n: Node3D) -> AABB:
@@ -1069,7 +1140,8 @@ func _process(delta: float) -> void:
 	_find_target()
 	_combat_tick(delta)
 	if info and Engine.get_process_frames() % 10 == 0:
-		info.text = "%s · %d кадров/с" % [_where(), Engine.get_frames_per_second()]
+		info.text = "%s · %d кадров/с%s" % [_where(), Engine.get_frames_per_second(), _perf_text]
+	_fps_tick(delta)
 	if _hud:
 		_hud.queue_redraw()
 	for lb in house.labels:
@@ -1784,6 +1856,7 @@ func _ui() -> void:
 	bar.visible = false
 	_menu_bar = bar
 	_hud.add_child(bar)
+	bar.add_child(_btn("Тест FPS", fps_test, 110))
 	bar.add_child(_btn("Убрать ящик", remove_crate, 130))
 	bar.add_child(_btn("Стенд", func(): get_tree().change_scene_to_file("res://stand.tscn")))
 	_toast = Label.new()
@@ -2618,12 +2691,118 @@ func _inv_test() -> void:
 			n_int = false
 	_ok("сохранение и загрузка: тот же инвентарь", JSON.stringify(inv2.to_dict()) == JSON.stringify(inv.to_dict()) and inv2.slot_count() == inv.slot_count() and n_int)
 	print("[inv] итог: ошибок %d" % _fails)
+	await _perf_report()
 	get_tree().quit()
+
+
+# ---------------- производительность ----------------
+
+## Бюджет кадра для телефона среднего класса (Mali-G57 / Adreno 610, цель — 60 кадров/с, отрисовка Compatibility):
+## вызовов отрисовки, треугольников, память текстур (МБ), время своих скриптов и физики на кадр (мс; на компьютере —
+## телефон считает в 3–4 раза медленнее, поэтому запас). Это то, что можно измерить без телефона; сама частота
+## кадров измеряется только на устройстве — кнопкой «Тест FPS» в меню.
+const PERF_BUDGET := {"draw": 350.0, "tris": 450000.0, "tex_mb": 450.0, "cpu_ms": 4.0}
+const PERF_NAMES := {"draw": "вызовов отрисовки", "tris": "треугольников", "tex_mb": "текстуры, МБ", "cpu_ms": "скрипты и физика, худший кадр, мс"}
+var _perf_text := ""
+var _fps_t := -1.0
+var _fps_n := 0
+var _fps_worst := 0.0
+
+
+## замер кадра в текущем месте: отрисовка — наибольшее за frames кадров; скрипты и физика — худший кадр за
+## последнюю секунду (так считает движок; перед замером нужно простоять на месте дольше двух секунд)
+func _perf_sample(frames := 20) -> Dictionary:
+	var d := {"draw": 0.0, "tris": 0.0, "cpu_ms": 0.0}
+	for i in frames:
+		await get_tree().process_frame
+		d.draw = maxf(d.draw, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)))
+		d.tris = maxf(d.tris, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)))
+	d.cpu_ms = (Performance.get_monitor(Performance.TIME_PROCESS) + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0
+	d["tex_mb"] = float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED)) / 1048576.0
+	return d
+
+
+## Проверка производительности для Android — в конце каждой проверки: замеры в нескольких местах локации
+## против бюджета кадра. Возвращает, сколько показателей превышено.
+func _perf_report() -> int:
+	close_inventory()
+	var H := house
+	var pts := [["старт", Vector3(0, 0, 6)], ["калитка", Vector3(3.5, 0, 0.5)], ["двор", Vector3(4.0, 0, -4.5)], ["ельник", Vector3(-22, 0, 14)], ["тропа", Vector3(20, 0, 9)], ["дом, горница", H.to_global(Vector3(-2.5, 0, -1.5))]]
+	var worst := {"draw": 0.0, "tris": 0.0, "tex_mb": 0.0, "cpu_ms": 0.0}
+	var no_screen := DisplayServer.get_name() == "headless"
+	print("[perf] место: вызовов отрисовки / треугольников / текстуры МБ / скрипты и физика мс" + (" (без экрана: только скрипты и физика)" if no_screen else " (с экраном: время кадра здесь — программная отрисовка, не показатель)"))
+	for pt in pts:
+		_auto.clear()
+		player.global_position = pt[1]
+		player.velocity = Vector3.ZERO
+		_cam_ready = false
+		await get_tree().create_timer(2.4 if no_screen else 1.0).timeout
+		var d: Dictionary = await _perf_sample()
+		print("[perf] %s: %d / %d / %d / %.2f" % [pt[0], d.draw, d.tris, d.tex_mb, d.cpu_ms])
+		for k in worst:
+			worst[k] = maxf(worst[k], float(d[k]))
+	open_inventory()
+	await get_tree().create_timer(2.4 if no_screen else 0.6).timeout
+	var di: Dictionary = await _perf_sample()
+	print("[perf] инвентарь открыт: %d / %d / %d / %.2f" % [di.draw, di.tris, di.tex_mb, di.cpu_ms])
+	close_inventory()
+	for k in worst:
+		worst[k] = maxf(worst[k], float(di[k]))
+	var over := 0
+	for k in worst:
+		if (k == "cpu_ms") != no_screen:
+			continue                       # отрисовка считается с экраном, скрипты — без экрана
+		var okk: bool = float(worst[k]) <= float(PERF_BUDGET[k])
+		if not okk:
+			over += 1
+		print("[perf] %s: наибольшее %s при бюджете %s — %s" % [PERF_NAMES[k], ("%.2f" % worst[k]) if k == "cpu_ms" else str(int(worst[k])), str(PERF_BUDGET[k]), "в бюджете" if okk else "ПРЕВЫШЕНО"])
+	print("[perf] итог: превышений %d. Частота кадров на телефоне здесь не измеряется — «Тест FPS» в меню игры." % over)
+	return over
+
+
+## «Тест FPS» в меню: 10 секунд игры — средняя и худшая частота кадров и нагрузка кадра; итог остаётся на экране
+## и пишется в user://perf.txt
+func fps_test() -> void:
+	_fps_t = 0.0
+	_fps_n = 0
+	_fps_worst = 0.0
+	_perf_text = "\nтест FPS: 10 с, побегайте по локации…"
+	_menu_bar.visible = false
+
+
+func _fps_tick(delta: float) -> void:
+	if _fps_t < 0.0:
+		return
+	_fps_t += delta
+	_fps_n += 1
+	if _fps_t > 0.5:
+		_fps_worst = maxf(_fps_worst, delta)
+	if _fps_t < 10.0:
+		return
+	var avg := _fps_n / _fps_t
+	var low := 1.0 / maxf(_fps_worst, 0.0001)
+	var dr := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+	var tr := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
+	var tm := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576.0)
+	_perf_text = "\nтест FPS: средняя %d, худший кадр %d к/с\nотрисовка: %d вызовов, %d тыс. треуг., текстуры %d МБ" % [int(round(avg)), int(round(low)), dr, tr / 1000, tm]
+	_fps_t = -1.0
+	var f := FileAccess.open("user://perf.txt", FileAccess.WRITE)
+	if f:
+		f.store_string("%s %s\n%s\n" % [OS.get_model_name(), Time.get_datetime_string_from_system(), _perf_text.strip_edges()])
 
 
 func _run_test() -> void:
 	if test == "inv":
 		await _inv_test()
+		return
+	if test == "perf":
+		await get_tree().create_timer(1.0).timeout
+		await _perf_report()
+		# кнопка «Тест FPS» из меню: тот же код, что на телефоне
+		fps_test()
+		await get_tree().create_timer(10.6).timeout
+		print("[perf] кнопка «Тест FPS» (здесь — без экрана, число не показатель): " + _perf_text.strip_edges().replace("\n", " · "))
+		get_tree().quit()
 		return
 	if test == "view":
 		# обзор локации: несколько точек, по снимку
@@ -2634,6 +2813,7 @@ func _run_test() -> void:
 			_cam_ready = false
 			await get_tree().create_timer(1.6).timeout
 			await _snap(pt[0])
+		await _perf_report()
 		get_tree().quit()
 		return
 	DirAccess.make_dir_recursive_absolute(out)
@@ -2707,4 +2887,5 @@ func _run_test() -> void:
 	await _walk([H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(0, 0, 2.6)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(-2.5, 0, -1.5))], 25.0)
 	await _snap("i9_gornica")
 	_log("горница: " + _where())
+	await _perf_report()
 	get_tree().quit()
