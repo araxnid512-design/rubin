@@ -152,7 +152,7 @@
  "rifle": {
   "n": "Автомат АК-74М",
   "model": "res://assets/weapons/w_ak74m.glb",
-  "len_m": 0.92,
+  "len_m": 0.943,
   "model_len": 0.985,
   "mode": "rifle",
   "grip": [
@@ -759,7 +759,7 @@
  "spas12": {
   "n": "Дробовик SPAS-12",
   "model": "res://assets/weapons/w_spas12.glb",
-  "len_m": 1.04,
+  "len_m": 0.82,
   "model_len": 1.0,
   "mode": "rifle",
   "grip": [

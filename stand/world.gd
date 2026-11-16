@@ -71,6 +71,7 @@ func _ready() -> void:
 			test = a.substr(10)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
+	ULSettings.apply(get_viewport())
 	_env()
 	_ground()
 	house = ULHouse.new()
@@ -95,6 +96,7 @@ func _ready() -> void:
 	# герой для окна инвентаря создаётся сразу (иначе первое открытие инвентаря — заминка в четверть секунды и больше)
 	_make_preview()
 	_preview_on(false)
+	_prewarm.call_deferred()
 	if test != "":
 		_run_test.call_deferred()
 
@@ -155,65 +157,30 @@ func _plane(size: Vector2, at: Vector3, tex: String, uv: float, tint := Color.WH
 
 
 const GROUND_SHADER := """shader_type spatial;
-// Земля кластера: тёмная лесная почва, трава пятнами, натоптанная тропа с галькой от калитки и через кластер.
-// Текстуры берутся в двух масштабах под углом и смешиваются по шуму — без повторяющегося рисунка. У крыльца
-// и вокруг фундамента дома — вытоптанная земля.
+// Земля кластера: тёмная лесная почва, трава пятнами, тропа с галькой. Где что лежит — заранее посчитано в карту
+// (mask: R — трава, G — галька и тропа, B — светлота, A — затенение у стен дома), поэтому на точку экрана —
+// семь выборок текстур вместо двенадцати и цикла по отрезкам тропы: на телефоне это главная статья расхода.
+// Шум сдвигает точку чтения карты — края пятен неровные.
 uniform sampler2D grass : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D grass_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D blades : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D soil : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D blades : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D path : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D path_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D path_n : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise : filter_linear, repeat_enable;
-uniform vec4 segs[8];            // тропа: отрезки (ax, az, bx, bz)
-uniform vec2 worn_c;
-uniform float worn_r = 4.0;
-uniform vec2 house_c;
-uniform vec2 house_half;
-uniform vec4 yard;               // двор: x0, z0, x1, z1
+uniform sampler2D mask : filter_linear, repeat_disable;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec2 p = wp.xz;
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
-	vec2 u1 = p / 4.2;
-	float n1 = texture(noise, p / 70.0).r;
-	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
-	vec3 g = mix(texture(grass, u1).rgb, texture(blades, rot * p / 5.3).rgb * vec3(1.5, 1.45, 1.1), 0.25 + 0.4 * n2);
-	g *= vec3(0.92, 0.96, 0.8);
-	vec3 so = mix(texture(soil, p / 3.4).rgb, texture(soil, rot * p / 9.7).rgb, 0.4) * vec3(1.75, 1.85, 1.95);
-	vec3 e = mix(texture(path, p / 3.0).rgb, texture(path, rot * p / 8.3).rgb, 0.3) * 1.75;
-	// тропа
-	float td = 1000.0;
-	for (int i = 0; i < 8; i++) {
-		vec2 a = segs[i].xy;
-		vec2 ab = segs[i].zw - a;
-		float h = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.0001), 0.0, 1.0);
-		td = min(td, distance(p, a + ab * h));
-	}
-	float trail = 1.0 - smoothstep(0.5, 1.9, td + (n3 - 0.5) * 2.2);
-	float porch = 1.0 - smoothstep(worn_r * 0.35, worn_r, distance(p, worn_c) + (n3 - 0.5) * 2.4);
-	vec2 q = max(abs(p - house_c) - house_half, vec2(0.0));
-	float ring = 1.0 - smoothstep(0.2, 1.4, length(q) + (n3 - 0.5) * 0.9);
-	float bare = max(trail, max(porch, ring * 0.8));
-	// трава пятнами; во дворе её меньше — ходят каждый день
-	float gw = smoothstep(0.4, 0.6, n1 * 0.4 + n2 * 0.35 + n3 * 0.25);
-	gw = gw * 0.88 + 0.06;
-	vec2 yq = max(max(yard.xy - p, p - yard.zw), vec2(0.0));
-	float in_yard = 1.0 - smoothstep(0.0, 1.2, length(yq));
-	gw *= 1.0 - in_yard * 0.45;
-	gw *= 1.0 - bare;
-	// галька: на тропе и редкими россыпями на голой земле
-	float peb = max(bare, smoothstep(0.6, 0.72, n2 * 0.5 + n3 * 0.5) * 0.75);
-	vec3 col = mix(mix(so, e, peb), g, gw);
-	col *= mix(0.84, 1.08, n1) * mix(0.92, 1.05, n2) * 0.66;
-	// затенение у стен дома (свет туда почти не попадает)
-	float wall_ao = 1.0 - (1.0 - smoothstep(0.0, 0.9, length(q))) * 0.45 * step(0.001, length(q));
-	col *= wall_ao;
-	NORMAL_MAP_DEPTH = 1.4;
-	ALBEDO = col;
-	NORMAL_MAP = mix(texture(path_n, p / 3.0).rgb, texture(grass_n, u1).rgb, gw);
+	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.8) / 100.0 + 0.5);
+	vec3 g = mix(texture(grass, p / 4.2).rgb, texture(blades, rot * p / 5.3).rgb * vec3(1.5, 1.45, 1.1), 0.45) * vec3(0.92, 0.96, 0.8);
+	vec3 so = texture(soil, p / 3.4).rgb * vec3(1.75, 1.85, 1.95);
+	vec3 e = texture(path, p / 3.0).rgb * 1.75;
+	ALBEDO = mix(mix(so, e, m.g), g, m.r) * (m.b * 1.2 * 0.66 * m.a);
+	NORMAL_MAP = texture(path_n, p / 3.0).rgb;
+	NORMAL_MAP_DEPTH = 1.2;
 	ROUGHNESS = 0.96;
 }
 """
@@ -277,7 +244,7 @@ func _grass() -> void:
 			mm.mesh = mesh
 			var xs: Array[Transform3D] = []
 			var cs: Array[Color] = []
-			for k in 300:
+			for k in int(300.0 * float(ULSettings.q().grass)):
 				var p := Vector3(-SIZE * 0.5 + (cx + rng.randf()) * cell, 0, -SIZE * 0.5 + (cz + rng.randf()) * cell)
 				var hp := p - HOUSE_AT
 				if absf(hp.x) < ULHouse.W * 0.5 + 1.2 and absf(hp.z) < ULHouse.D * 0.5 + 1.2:
@@ -305,7 +272,7 @@ func _grass() -> void:
 			var mi := MultiMeshInstance3D.new()
 			mi.multimesh = mm
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.visibility_range_end = 30.0
+			mi.visibility_range_end = float(ULSettings.q().range)
 			mi.visibility_range_end_margin = 4.0
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			mi.position = Vector3.ZERO
@@ -347,6 +314,43 @@ func _grass_w(p: Vector3) -> float:
 	return smoothstep(0.44, 0.56, n1 * 0.4 + n2 * 0.35 + n3 * 0.25)
 
 
+const GROUND_MASK := "res://assets/world/tex/ground_mask.png"
+
+
+## Карта земли 256×256 на весь кластер — где трава, где галька и тропа, светлота, затенение у стен дома.
+## Считается один раз (инструментом: --as-test=bake) и лежит в проекте.
+func _bake_mask() -> Image:
+	var n := 256
+	var im := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var worn_c := Vector2(HOUSE_AT.x, HOUSE_AT.z + ULHouse.D * 0.5 + 2.2)
+	var worn_r := 4.2
+	var house_c := Vector2(HOUSE_AT.x, HOUSE_AT.z)
+	var house_half := Vector2(ULHouse.W * 0.5, ULHouse.D * 0.5)
+	var y0 := Vector2(HOUSE_AT.x + YARD[0], HOUSE_AT.z + YARD[1])
+	var y1 := Vector2(HOUSE_AT.x + YARD[2], HOUSE_AT.z + YARD[3])
+	for iy in n:
+		for ix in n:
+			var p := Vector2((ix + 0.5) / n - 0.5, (iy + 0.5) / n - 0.5) * SIZE
+			var n1 := _noise(p / 70.0)
+			var n2 := _noise(p / 19.0 + Vector2(0.37, 0.11))
+			var n3 := _noise(p / 5.5 + Vector2(0.71, 0.53))
+			var trail := 1.0 - smoothstep(0.5, 1.9, _trail_dist(Vector3(p.x, 0, p.y)))
+			var porch := 1.0 - smoothstep(worn_r * 0.35, worn_r, p.distance_to(worn_c))
+			var q := (p - house_c).abs() - house_half
+			var lq := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length()
+			var ring := 1.0 - smoothstep(0.2, 1.4, lq)
+			var bare := maxf(trail, maxf(porch, ring * 0.8))
+			var gw := smoothstep(0.4, 0.6, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.88 + 0.06
+			var yq := Vector2(maxf(maxf(y0.x - p.x, p.x - y1.x), 0.0), maxf(maxf(y0.y - p.y, p.y - y1.y), 0.0))
+			var in_yard := 1.0 - smoothstep(0.0, 1.2, yq.length())
+			gw *= (1.0 - in_yard * 0.45) * (1.0 - bare)
+			var peb := maxf(bare, smoothstep(0.6, 0.72, n2 * 0.5 + n3 * 0.5) * 0.75)
+			var bright := lerpf(0.84, 1.08, n1) * lerpf(0.92, 1.05, n2) / 1.2
+			var ao := 1.0 - (1.0 - smoothstep(0.0, 0.9, lq)) * 0.45 * (1.0 if lq > 0.001 else 0.0)
+			im.set_pixel(ix, iy, Color(gw, peb, bright, ao))
+	return im
+
+
 func _ground() -> void:
 	# внутри кластера — своя земля, по краю — гравий, снаружи — другой грунт (кластер «вырезан» из своего мира)
 	var mi := MeshInstance3D.new()
@@ -358,7 +362,6 @@ func _ground() -> void:
 	sh.code = GROUND_SHADER
 	sm.shader = sh
 	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
-	sm.set_shader_parameter("grass_n", load(TEX + "forrest_ground_01_n.jpg"))
 	sm.set_shader_parameter("blades", load(TEX + "sparse_grass_c.jpg"))
 	sm.set_shader_parameter("soil", load(TEX + "mud_forest_c.jpg"))
 	sm.set_shader_parameter("path", load(TEX + "stony_dirt_path_c.jpg"))
@@ -371,16 +374,14 @@ func _ground() -> void:
 	_noise_img = fn.get_seamless_image(256, 256)
 	_noise_img.generate_mipmaps()
 	sm.set_shader_parameter("noise", ImageTexture.create_from_image(_noise_img))
-	var sg: Array = []
-	for i in 8:
-		var k := mini(i, TRAIL.size() - 1)
-		sg.append(Vector4(TRAIL[k][0].x, TRAIL[k][0].y, TRAIL[k][1].x, TRAIL[k][1].y))
-	sm.set_shader_parameter("segs", sg)
-	sm.set_shader_parameter("worn_c", Vector2(HOUSE_AT.x, HOUSE_AT.z + ULHouse.D * 0.5 + 2.2))
-	sm.set_shader_parameter("worn_r", 4.2)
-	sm.set_shader_parameter("house_c", Vector2(HOUSE_AT.x, HOUSE_AT.z))
-	sm.set_shader_parameter("house_half", Vector2(ULHouse.W * 0.5, ULHouse.D * 0.5))
-	sm.set_shader_parameter("yard", Vector4(HOUSE_AT.x + YARD[0], HOUSE_AT.z + YARD[1], HOUSE_AT.x + YARD[2], HOUSE_AT.z + YARD[3]))
+	# карта земли: готовая из проекта; нет её (после правки расстановки) — считается и сохраняется
+	if ResourceLoader.exists(GROUND_MASK) and test != "bake":
+		sm.set_shader_parameter("mask", load(GROUND_MASK))
+	else:
+		var mk := _bake_mask()
+		if OS.has_feature("editor") or test == "bake":
+			mk.save_png(ProjectSettings.globalize_path(GROUND_MASK))
+		sm.set_shader_parameter("mask", ImageTexture.create_from_image(mk))
 	mi.material_override = sm
 	add_child(mi)
 	_grass()
@@ -400,7 +401,7 @@ func _ground() -> void:
 		var b := BoxShape3D.new()
 		b.size = Vector3(1, 4, SIZE + 2) if s.x != 0.0 else Vector3(SIZE + 2, 4, 1)
 		w.shape = b
-		w.position = s * (SIZE * 0.5 + 1.0) + Vector3.UP * 2.0
+		w.position = s * (SIZE * 0.5 + 9.0) + Vector3.UP * 2.0      # за край поля можно выйти — там отсчёт до карты мира
 		sb.add_child(w)
 
 
@@ -1152,8 +1153,19 @@ func _process(delta: float) -> void:
 	_find_target()
 	_combat_tick(delta)
 	if info and Engine.get_process_frames() % 10 == 0:
-		info.text = "%s · %d кадров/с%s" % [_where(), Engine.get_frames_per_second(), _perf_text]
+		info.text = "%s · %d кадров/с · разрешение %d %%%s" % [_where(), Engine.get_frames_per_second(), int(round(get_viewport().scaling_3d_scale * 100.0)), _perf_text]
 	_fps_tick(delta)
+	_auto_res(delta)
+	# за краем локации: пять секунд на возвращение, потом — на карту мира
+	if absf(player.global_position.x) > SIZE * 0.5 or absf(player.global_position.z) > SIZE * 0.5:
+		_leave_t += delta
+		if _leave_t >= LEAVE_S and not left_location:
+			left_location = true
+			_save()
+			if test == "":
+				get_tree().change_scene_to_file("res://map.tscn")
+	else:
+		_leave_t = 0.0
 	if _hud:
 		_hud.queue_redraw()
 	for lb in house.labels:
@@ -1871,6 +1883,10 @@ func _ui() -> void:
 	bar.visible = false
 	_menu_bar = bar
 	_hud.add_child(bar)
+	bar.add_child(_btn("Карта", func():
+		_save()
+		get_tree().change_scene_to_file("res://map.tscn"), 90))
+	bar.add_child(_btn("Настройки", open_settings, 120))
 	bar.add_child(_btn("Тест FPS", fps_test, 110))
 	bar.add_child(_btn("Убрать ящик", remove_crate, 130))
 	bar.add_child(_btn("Стенд", func(): get_tree().change_scene_to_file("res://stand.tscn")))
@@ -2053,6 +2069,14 @@ func _draw_hud() -> void:
 			"menu":
 				_hud_icon(_art("menu"), c, r * 2.0, ic)
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
+	if _leave_t > 0.0:
+		var lt := "Вы покидаете локацию: %d" % int(ceil(maxf(LEAVE_S - _leave_t, 0.0)))
+		var lw := font0.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
+		_hud.draw_rect(Rect2(vs.x * 0.5 - lw * 0.5 - 22, 112, lw + 44, 78), Color(0.05, 0.03, 0.02, 0.72))
+		_hud.draw_string(font0, Vector2(vs.x * 0.5 - lw * 0.5, 148), lt, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.7, 0.3))
+		var l2 := "вернитесь на локацию, чтобы остаться"
+		var lw2 := font0.get_string_size(l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		_hud.draw_string(font0, Vector2(vs.x * 0.5 - lw2 * 0.5, 176), l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.9, 0.88, 0.8))
 	# название того, что можно взять, — над кнопкой «взять»
 	if _target != null:
 		_hud_text(_hud_pos("take") + Vector2(0, -66), _target_name(), 14, Color(1.0, 0.88, 0.55))
@@ -3104,6 +3128,19 @@ func _inv_test() -> void:
 	_ok("имя сменилось на «Бродяга», панель закрылась", hero_name == "Бродяга" and not _name_ui.visible)
 	_ok("пустое имя не принимается, длинное обрезается до 16 знаков", not set_hero_name("   ") and set_hero_name("Очень длинное имя сталкера") and hero_name.length() == 16, hero_name)
 	set_hero_name("Сталкер")
+	# --- выход с локации ---
+	player.global_position = Vector3(0.0, 0.05, 30.0)
+	await get_tree().create_timer(0.3).timeout
+	_ok("на локации отсчёта нет", _leave_t == 0.0 and not left_location)
+	player.global_position = Vector3(0.0, 0.05, 53.0)
+	await get_tree().create_timer(1.2).timeout
+	_ok("за краем поля идёт отсчёт", _leave_t > 0.8 and _leave_t < 2.0 and not left_location, "прошло %.1f с" % _leave_t)
+	player.global_position = Vector3(0.0, 0.05, 45.0)
+	await get_tree().create_timer(0.3).timeout
+	_ok("вернулся — отсчёт сброшен", _leave_t == 0.0 and not left_location)
+	player.global_position = Vector3(0.0, 0.05, 54.0)
+	await get_tree().create_timer(5.4).timeout
+	_ok("пять секунд за краем — переход на карту мира", left_location, "прошло %.1f с" % _leave_t)
 	# сохранение и загрузка
 	var snap := JSON.stringify({"inv": inv.to_dict()})
 	var inv2 := ULInventory.new()
@@ -3118,6 +3155,81 @@ func _inv_test() -> void:
 	get_tree().quit()
 
 
+# ---------------- плавность: разрешение, прогрев, выход с локации ----------------
+
+const LEAVE_S := 5.0              ## сколько секунд за краем локации до перехода на карту мира
+var _leave_t := 0.0
+var left_location := false
+var _set_ui: Control
+var _res_t := 0.0
+var _res_n := 0
+
+
+func open_settings() -> void:
+	_menu_bar.visible = false
+	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void: ULSettings.apply(get_viewport()))
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+## Разрешение трёхмерной картинки подстраивается под телефон: кадров меньше 45 — точек меньше (до 42 %),
+## кадров хватает — точек больше, но не выше выбранного качества графики. Кнопки и надписи всегда чёткие.
+func _auto_res(delta: float) -> void:
+	if test != "":
+		return
+	_res_t += delta
+	_res_n += 1
+	if _res_t < 1.5:
+		return
+	var fps := _res_n / _res_t
+	_res_t = 0.0
+	_res_n = 0
+	var vp := get_viewport()
+	var cap := float(ULSettings.q().scale)
+	var sc := vp.scaling_3d_scale
+	if fps < 45.0 and sc > 0.42:
+		sc = maxf(0.42, sc - 0.06)
+	elif fps > 57.0 and sc < cap:
+		sc = minf(cap, sc + 0.03)
+	elif sc > cap:
+		sc = cap
+	vp.scaling_3d_scale = sc
+
+
+## Прогрев при входе на локацию: всё, что позже появится впервые (пули, цифры урона, метка цели), один раз
+## рисуется сразу — иначе первый выстрел и первое попадание дают заминку (телефон готовит закраску на лету).
+func _prewarm() -> void:
+	var at := player.global_position + Vector3(0, 0.6, -1.5)
+	var tmp: Array[Node] = []
+	for id in BULLETS:
+		var n := MeshInstance3D.new()
+		n.mesh = _bullet_shape(id)
+		n.scale = Vector3.ONE * 0.02
+		add_child(n)
+		n.global_position = at
+		tmp.append(n)
+	var lb := Label3D.new()
+	lb.text = "−0123456789"
+	lb.font_size = 56
+	lb.pixel_size = 0.0002
+	lb.outline_size = 10
+	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lb.no_depth_test = true
+	add_child(lb)
+	lb.global_position = at
+	tmp.append(lb)
+	_mark.visible = true
+	_mark.global_position = at
+	_flash.global_position = at
+	_flash.light_energy = 0.01
+	for i in 3:
+		await get_tree().process_frame
+	_flash.light_energy = 0.0
+	for n in tmp:
+		n.queue_free()
+
+
 # ---------------- имя героя ----------------
 
 const PROFILE := "user://profile.json"   ## имя хранится отдельно от сохранения локации — сброс добычи его не трогает
@@ -3127,7 +3239,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible)
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui))
 
 
 func _load_profile() -> void:
@@ -3434,6 +3546,10 @@ func _fps_tick(delta: float) -> void:
 func _run_test() -> void:
 	if test == "inv":
 		await _inv_test()
+		return
+	if test == "bake":
+		print("[bake] карта земли сохранена: ", GROUND_MASK)
+		get_tree().quit()
 		return
 	if test == "perf":
 		await get_tree().create_timer(1.0).timeout
