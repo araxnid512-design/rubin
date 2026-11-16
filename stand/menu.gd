@@ -19,6 +19,7 @@ func _ready() -> void:
 	ULSettings.apply(get_viewport())
 	bd = ULBackdrop.new()
 	bd.tex = load("res://assets/ui/title.jpg")
+	bd.anchor_y = 0.04              # название игры сверху видно целиком, срезается низ (камни под ногами)
 	bd.areas = {
 		"new": Rect2(1230, 282, 398, 84), "cont": Rect2(1230, 390, 398, 84),
 		"set": Rect2(1230, 498, 398, 84), "quit": Rect2(1230, 606, 398, 84),

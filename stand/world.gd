@@ -286,6 +286,7 @@ const TRAIL := [
 	[Vector2(0.6, 6.0), Vector2(15.0, 9.5)], [Vector2(15.0, 9.5), Vector2(31.0, 6.0)], [Vector2(31.0, 6.0), Vector2(50.0, 11.0)],
 ]
 var _noise_img: Image
+var _noise_tex: ImageTexture
 
 
 func _trail_dist(p: Vector3) -> float:
@@ -312,6 +313,58 @@ func _grass_w(p: Vector3) -> float:
 	var n2 := _noise(q / 19.0 + Vector2(0.37, 0.11))
 	var n3 := _noise(q / 5.5 + Vector2(0.71, 0.53))
 	return smoothstep(0.44, 0.56, n1 * 0.4 + n2 * 0.35 + n3 * 0.25)
+
+
+const FOG_SHADER := """shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
+// Туман за краем кластера: начинается у самой границы поля и густеет наружу; клубится (два слоя шума плывут
+// в разные стороны). Слоёв несколько, на разной высоте — герой, выходя за край, входит в туман.
+uniform sampler2D noise : filter_linear, repeat_enable;
+uniform vec3 tint : source_color = vec3(0.62, 0.68, 0.6);
+uniform float dens = 0.36;
+uniform float drift = 1.0;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 p = wp.xz;
+	float d = max(abs(p.x), abs(p.y)) - 50.0;
+	float n = texture(noise, p / 38.0 + TIME * vec2(0.006, 0.004) * drift).r * 0.6 + texture(noise, p / 13.0 - TIME * vec2(0.011, 0.007) * drift).r * 0.4;
+	ALBEDO = tint * (0.86 + 0.28 * n);
+	ALPHA = smoothstep(-5.0, 8.0, d + (n - 0.5) * 9.0) * dens;
+}
+"""
+
+
+## Туман за границей поля — как на краю кластера: рамка шириной 30 м вокруг поля 100×100, три слоя на разной
+## высоте (на «Низкой» графике — два). Внутри поля тумана нет.
+func _edge_fog() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var a := SIZE * 0.5 - 10.0
+	var b := SIZE * 0.5 + 30.0
+	# рамка из четырёх полос
+	for r in [[-b, -b, b, -a], [-b, a, b, b], [-b, -a, -a, a], [a, -a, b, a]]:
+		var v := [Vector3(r[0], 0, r[1]), Vector3(r[2], 0, r[1]), Vector3(r[2], 0, r[3]), Vector3(r[0], 0, r[3])]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.add_vertex(v[k])
+	var mesh := st.commit()
+	var sh := Shader.new()
+	sh.code = FOG_SHADER
+	var layers := [[0.3, 0.34, 1.0], [1.15, 0.3, -0.8], [2.1, 0.3, 0.6]]
+	if ULSettings.gfx == 0:
+		layers = [[0.3, 0.4, 1.0], [1.6, 0.36, -0.8]]
+	for l in layers:
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		m.set_shader_parameter("noise", _noise_tex)
+		m.set_shader_parameter("dens", l[1])
+		m.set_shader_parameter("drift", l[2])
+		var fi := MeshInstance3D.new()
+		fi.mesh = mesh
+		fi.material_override = m
+		fi.position.y = l[0]
+		fi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(fi)
 
 
 const GROUND_MASK := "res://assets/world/tex/ground_mask.png"
@@ -373,7 +426,8 @@ func _ground() -> void:
 	fn.fractal_octaves = 3
 	_noise_img = fn.get_seamless_image(256, 256)
 	_noise_img.generate_mipmaps()
-	sm.set_shader_parameter("noise", ImageTexture.create_from_image(_noise_img))
+	_noise_tex = ImageTexture.create_from_image(_noise_img)
+	sm.set_shader_parameter("noise", _noise_tex)
 	# карта земли: готовая из проекта; нет её (после правки расстановки) — считается и сохраняется
 	if ResourceLoader.exists(GROUND_MASK) and test != "bake":
 		sm.set_shader_parameter("mask", load(GROUND_MASK))
@@ -384,6 +438,7 @@ func _ground() -> void:
 		sm.set_shader_parameter("mask", ImageTexture.create_from_image(mk))
 	mi.material_override = sm
 	add_child(mi)
+	_edge_fog()
 	_grass()
 	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44))
 	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))
@@ -3563,7 +3618,7 @@ func _run_test() -> void:
 	if test == "view":
 		# обзор локации: несколько точек, по снимку
 		DirAccess.make_dir_recursive_absolute(out)
-		var pts := [["v0_start", Vector3(0, 0, 6)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)], ["v6_mannequin", HOUSE_AT + Vector3(4.6, 0, 7.6)], ["v7_npc", HOUSE_AT + Vector3(-3.4, 0, 8.4)]]
+		var pts := [["v0_start", Vector3(0, 0, 6)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)], ["v6_mannequin", HOUSE_AT + Vector3(4.6, 0, 7.6)], ["v7_npc", HOUSE_AT + Vector3(-3.4, 0, 8.4)], ["v7b_edge", Vector3(6.0, 0, 46.5)], ["v7c_fog", Vector3(6.0, 0, 53.0)], ["v7d_back", HOUSE_AT + Vector3(-3.4, 0, 8.4)]]
 		for pt in pts:
 			player.global_position = pt[1]
 			_cam_ready = false

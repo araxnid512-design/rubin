@@ -1,13 +1,14 @@
 class_name ULBackdrop
 extends Control
-## Картинка во весь экран с нарисованными на ней кнопками: вписывается по высоте, по бокам — та же картинка,
-## растянутая и затемнённая. Области нажатия задаются в точках самой картинки и пересчитываются под экран.
+## Картинка во весь экран с нарисованными на ней кнопками: занимает экран телефона целиком, без полей.
+## Области нажатия задаются в точках самой картинки и пересчитываются под экран.
 
 signal tapped(id: String)
 
 var tex: Texture2D
 var src_size := Vector2(1672, 941)   ## размер исходной картинки, в точках которой заданы области
 var overlay := Callable()         ## что дорисовать поверх картинки (после неё)
+var anchor_y := 0.5               ## какая часть лишней высоты срезается сверху (0 — верх картинки виден целиком)
 var areas := {}                   ## имя → Rect2 в точках картинки
 var dim := {}                     ## имя → true: область затемнена и не нажимается
 var glow := {}                    ## имя → Color: подсветка (выбранное)
@@ -19,14 +20,15 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
-## прямоугольник картинки на экране
+## Прямоугольник картинки на экране. Экран шире картинки (телефон 20:9, картинка 16:9) — картинка растягивается
+## на всю ширину, лишнее по высоте уходит за край: сколько сверху и снизу — задаёт anchor_y (0 — верх виден
+## целиком, обрезается низ; 0.5 — поровну). Экран у́же картинки — она вписывается по ширине, поля сверху и снизу.
 func fit() -> Rect2:
-	var ts := tex.get_size()
-	var k := minf(size.y / ts.y, size.x / ts.x)
-	if size.x / size.y > ts.x / ts.y:
-		k = size.y / ts.y
-	var sz := ts * k
-	return Rect2((size - sz) * 0.5, sz)
+	var k := size.x / src_size.x
+	var sz := src_size * k
+	if sz.y >= size.y:
+		return Rect2(Vector2(0.0, -(sz.y - size.y) * anchor_y), sz)
+	return Rect2(Vector2(0.0, (size.y - sz.y) * 0.5), sz)
 
 
 func to_screen(r: Rect2) -> Rect2:
@@ -39,21 +41,8 @@ func _draw() -> void:
 	if tex == null:
 		return
 	var f := fit()
-	if f.size.x < size.x - 1.0:
-		# поля по бокам: та же картинка на весь экран, тёмная
-		var ts := tex.get_size()
-		var k := maxf(size.x / ts.x, size.y / ts.y)
-		draw_texture_rect(tex, Rect2((size - ts * k) * 0.5, ts * k), false, Color(0.13, 0.13, 0.15))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.03, 0.04))
 	draw_texture_rect(tex, f, false)
-	if f.size.x < size.x - 1.0:
-		# мягкий переход на стыках
-		for sd in [0, 1]:
-			var x0 := f.position.x if sd == 0 else f.end.x
-			var dirx := 1.0 if sd == 0 else -1.0
-			var pts := PackedVector2Array([Vector2(x0, 0), Vector2(x0 + dirx * 90.0, 0), Vector2(x0 + dirx * 90.0, size.y), Vector2(x0, size.y)])
-			var c0 := Color(0.04, 0.04, 0.05, 0.85)
-			var c1 := Color(0.04, 0.04, 0.05, 0.0)
-			draw_polygon(pts, PackedColorArray([c0, c1, c1, c0]))
 	for id in areas:
 		var r := to_screen(areas[id])
 		if dim.get(id, false):

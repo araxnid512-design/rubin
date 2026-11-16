@@ -28,7 +28,7 @@ func _ready() -> void:
 	ULSettings.apply(get_viewport())
 	bd = ULBackdrop.new()
 	bd.tex = load("res://assets/ui/worldmap.jpg")
-	bd.areas = {"gear": Rect2(36, 24, 94, 90)}
+	bd.src_size = Vector2(1671, 941)
 	for id in PLACES:
 		bd.areas[id] = PLACES[id].rect
 	add_child(bd)
@@ -56,6 +56,16 @@ func _ready() -> void:
 	vb.add_child(hb)
 	hb.add_child(ULSettings.button("Войти", func() -> void: enter(sel), 150.0))
 	card.visible = false
+	# шестерёнка — своя, всегда в углу экрана (нарисованные на карте шестерёнка и компас закрыты облаками)
+	var gear := TextureButton.new()
+	gear.texture_normal = load("res://assets/icons/ui/menu.png")
+	gear.ignore_texture_size = true
+	gear.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	gear.custom_minimum_size = Vector2(76, 76)
+	gear.position = Vector2(22, 16)
+	gear.size = Vector2(76, 76)
+	gear.pressed.connect(func() -> void: _on_tap("gear"))
+	add_child(gear)
 	note = Label.new()
 	note.add_theme_font_size_override("font_size", 18)
 	note.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
