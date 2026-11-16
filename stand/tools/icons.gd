@@ -34,8 +34,10 @@ func _ready() -> void:
 	var cfg := BCWeaponHold.config()
 	var list := ULItems.ITEMS.duplicate()
 	list["crate"] = {"kind": "prop", "model": "res://assets/world/ul_crate.glb"}
-	for id in list:
-		var d: Dictionary = list[id]
+	var kits := {}
+	for src_id in list:
+		var id := String(src_id)
+		var d: Dictionary = list[src_id]
 		var path := ""
 		var flip := false
 		var is_pack := String(d.kind) == "pack"
@@ -47,15 +49,29 @@ func _ready() -> void:
 		elif d.has("model"):
 			path = String(d.model)
 			is_pack = true                       # снимается так же — спереди в три четверти
+		elif d.has("kit"):
+			id = "kit_%d" % int(d.kit)           # предмет из набора припасов: один значок на номер
+			if kits.has(id):
+				continue
+			kits[id] = true
+			is_pack = true
 		else:
 			continue
 		var holder := Node3D.new()
 		vp.add_child(holder)
-		var m: Node3D = (load(path) as PackedScene).instantiate()
-		holder.add_child(m)
-		if flip:
-			m.rotation.y = PI
-		if d.has("model"):
+		if d.has("kit"):
+			var km := MeshInstance3D.new()
+			km.mesh = ULItems.kit_mesh(String(src_id))
+			holder.add_child(km)
+			holder.rotation.y = 0.5
+		else:
+			var m: Node3D = (load(path) as PackedScene).instantiate()
+			holder.add_child(m)
+			if flip:
+				m.rotation.y = PI
+		if d.has("kit"):
+			pass
+		elif d.has("model"):
 			holder.rotation.y = 0.6
 			holder.rotation.x = 0.35
 		elif is_pack:
@@ -64,7 +80,12 @@ func _ready() -> void:
 		await get_tree().process_frame
 		var bb := _aabb(holder)
 		var c := bb.get_center()
-		if is_pack:
+		if d.has("kit"):
+			# стоит ровно, камера чуть сверху
+			cam.global_position = c + Vector3(0, 1.3, 3.0)
+			cam.look_at(c, Vector3.UP)
+			cam.size = maxf(bb.size.y * 1.05, maxf(bb.size.x, bb.size.z) * 1.12) * 1.1
+		elif is_pack:
 			cam.global_position = c + Vector3(0, 0.05, 3.0)
 			cam.look_at(c, Vector3.UP)
 			cam.size = maxf(bb.size.y, maxf(bb.size.x, bb.size.z)) * 1.15

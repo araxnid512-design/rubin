@@ -238,6 +238,7 @@ for name, fn in [("hud_swap", g_swap), ("hud_heal", g_heal), ("hud_take", g_take
     glyph(fn).save(OUT + name + ".png")
     print(name)
 
-for name, fn in [("ammo", ammo), ("shells", shells), ("bandage", bandage), ("medkit", medkit), ("can", can), ("water", water), ("rusk", rusk)]:
+# расходники теперь снимаются с 3D-моделей набора припасов (tools/icons.gd → kit_N.png); рисованные — в запасе
+for name, fn in []:
     fn().save(OUT + name + ".png")
     print(name)

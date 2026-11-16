@@ -10,7 +10,7 @@ extends Node3D
 
 const SIZE := 100.0               ## кластер, м
 const SAVE := "user://cluster.json"
-const SAVE_V := 4                 ## версия сохранения: 4 — здоровье, патроны в магазинах, мачете
+const SAVE_V := 5                 ## версия сохранения: 5 — набор припасов (новые предметы на старте)
 const CRATE_SLOTS := 12
 const HOUSE_AT := Vector3(0, 0, -12)
 ## двор вокруг дома: от дома x0, z0, x1, z1 (м); калитка — спереди посередине
@@ -24,7 +24,7 @@ const MODELS := "res://assets/world/"
 
 ## деревья: модель, высота, сколько, радиус ствола (для столкновений; 0 — без столкновений)
 const FLORA := [
-	["ul_birch", 5.5, 18, 0.14], ["ul_pine", 6.0, 14, 0.16], ["ul_apple", 3.6, 8, 0.15], ["ul_bush", 1.2, 20, 0.0],
+	["ul_birch", 5.5, 6, 0.14], ["ul_pine", 6.5, 10, 0.16], ["ul_apple", 3.6, 3, 0.15], ["ul_bush", 1.2, 22, 0.0],
 ]
 
 var player: CharacterBody3D
@@ -35,7 +35,7 @@ var cam: Camera3D
 ## камера как в изометрических выживалках: неподвижна, сверху под 55°, смотрит на север (дом — вверху экрана)
 const CAM_YAW := 0.0
 const CAM_PITCH := 0.96
-var cam_dist := 15.0
+var cam_dist := 12.5
 var _cam_t := Vector3.ZERO
 var crates: Array[Node3D] = []
 var _crate_scene: PackedScene = null
@@ -150,15 +150,17 @@ func _plane(size: Vector2, at: Vector3, tex: String, uv: float, tint := Color.WH
 
 
 const GROUND_SHADER := """shader_type spatial;
-// Земля кластера: живая трава, пятна сухой травы и проплешины утоптанной земли с камешками. Текстуры берутся
-// в двух масштабах под углом и смешиваются по шуму — без повторяющегося рисунка. У крыльца и вокруг фундамента
-// дома — вытоптанная земля.
+// Земля кластера: тёмная лесная почва, трава пятнами, натоптанная тропа с галькой от калитки и через кластер.
+// Текстуры берутся в двух масштабах под углом и смешиваются по шуму — без повторяющегося рисунка. У крыльца
+// и вокруг фундамента дома — вытоптанная земля.
 uniform sampler2D grass : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D grass_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D dry : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D dirt : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D dirt_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D blades : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D soil : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D path : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D path_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D noise : filter_linear, repeat_enable;
+uniform vec4 segs[8];            // тропа: отрезки (ax, az, bx, bz)
 uniform vec2 worn_c;
 uniform float worn_r = 4.0;
 uniform vec2 house_c;
@@ -170,32 +172,43 @@ void fragment() {
 	vec2 p = wp.xz;
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 	vec2 u1 = p / 4.2;
-	vec2 u2 = rot * p / 12.7;
 	float n1 = texture(noise, p / 70.0).r;
 	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
-	vec3 g = mix(texture(grass, u1).rgb, texture(grass, u2).rgb, 0.45);
-	vec3 d = mix(texture(dry, p / 3.9).rgb, texture(dry, rot * p / 12.3).rgb, 0.45);
-	vec3 e = mix(texture(dirt, p / 2.6).rgb, texture(dirt, rot * p / 8.1).rgb, 0.35);
-	float dry_w = smoothstep(0.42, 0.72, n1 * 0.65 + n3 * 0.35);
-	float dirt_w = smoothstep(0.7, 0.86, n2 * 0.55 + n3 * 0.45) * 0.8;
+	vec3 g = mix(texture(grass, u1).rgb, texture(blades, rot * p / 5.3).rgb * vec3(1.5, 1.45, 1.1), 0.25 + 0.4 * n2);
+	g *= vec3(0.92, 0.96, 0.8);
+	vec3 so = mix(texture(soil, p / 3.4).rgb, texture(soil, rot * p / 9.7).rgb, 0.4) * vec3(1.75, 1.85, 1.95);
+	vec3 e = mix(texture(path, p / 3.0).rgb, texture(path, rot * p / 8.3).rgb, 0.3) * 1.75;
+	// тропа
+	float td = 1000.0;
+	for (int i = 0; i < 8; i++) {
+		vec2 a = segs[i].xy;
+		vec2 ab = segs[i].zw - a;
+		float h = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.0001), 0.0, 1.0);
+		td = min(td, distance(p, a + ab * h));
+	}
+	float trail = 1.0 - smoothstep(0.5, 1.9, td + (n3 - 0.5) * 2.2);
 	float porch = 1.0 - smoothstep(worn_r * 0.35, worn_r, distance(p, worn_c) + (n3 - 0.5) * 2.4);
 	vec2 q = max(abs(p - house_c) - house_half, vec2(0.0));
 	float ring = 1.0 - smoothstep(0.2, 1.4, length(q) + (n3 - 0.5) * 0.9);
-	dirt_w = max(dirt_w, max(porch, ring * 0.75));
-	// во дворе трава реже и суше — ходят каждый день
+	float bare = max(trail, max(porch, ring * 0.8));
+	// трава пятнами; во дворе её меньше — ходят каждый день
+	float gw = smoothstep(0.4, 0.6, n1 * 0.4 + n2 * 0.35 + n3 * 0.25);
+	gw = gw * 0.88 + 0.06;
 	vec2 yq = max(max(yard.xy - p, p - yard.zw), vec2(0.0));
 	float in_yard = 1.0 - smoothstep(0.0, 1.2, length(yq));
-	dirt_w = max(dirt_w, in_yard * smoothstep(0.35, 0.75, n3 * 0.6 + n2 * 0.4) * 0.6);
-	dry_w = max(dry_w, in_yard * 0.45);
-	vec3 col = mix(mix(g, d, dry_w * 0.55), e, dirt_w * 0.85);
-	col *= mix(0.86, 1.06, n1) * mix(0.94, 1.04, n2) * 0.62;
+	gw *= 1.0 - in_yard * 0.45;
+	gw *= 1.0 - bare;
+	// галька: на тропе и редкими россыпями на голой земле
+	float peb = max(bare, smoothstep(0.6, 0.72, n2 * 0.5 + n3 * 0.5) * 0.75);
+	vec3 col = mix(mix(so, e, peb), g, gw);
+	col *= mix(0.84, 1.08, n1) * mix(0.92, 1.05, n2) * 0.66;
 	// затенение у стен дома (свет туда почти не попадает)
 	float wall_ao = 1.0 - (1.0 - smoothstep(0.0, 0.9, length(q))) * 0.45 * step(0.001, length(q));
 	col *= wall_ao;
-	NORMAL_MAP_DEPTH = 1.3;
+	NORMAL_MAP_DEPTH = 1.4;
 	ALBEDO = col;
-	NORMAL_MAP = mix(mix(texture(grass_n, u1).rgb, texture(grass_n, u2).rgb, 0.45), texture(dirt_n, p / 2.6).rgb, dirt_w);
+	NORMAL_MAP = mix(texture(path_n, p / 3.0).rgb, texture(grass_n, u1).rgb, gw);
 	ROUGHNESS = 0.96;
 }
 """
@@ -218,7 +231,7 @@ void fragment() {
 	if (c.a < 0.45) { discard; }
 	// обе стороны травинки освещены как земля (нормаль вверх), иначе обратная сторона — чёрная
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-	ALBEDO = c.rgb * COLOR.rgb * vec3(0.62, 0.64, 0.5) * mix(0.55, 1.0, 1.0 - hh);
+	ALBEDO = c.rgb * COLOR.rgb * vec3(0.7, 0.75, 0.42) * mix(0.6, 1.0, 1.0 - hh);
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.1;
 }
@@ -233,8 +246,8 @@ func _grass() -> void:
 	for i in 5:
 		var a := TAU * i / 5.0 + 0.3
 		var out := Vector3(cos(a), 0, sin(a))
-		var side := Vector3(-out.z, 0, out.x) * 0.13
-		var top := out * 0.17 + Vector3.UP * 0.2
+		var side := Vector3(-out.z, 0, out.x) * 0.15
+		var top := out * 0.2 + Vector3.UP * 0.34
 		var v := [-side, side, side * 1.25 + top, -side * 1.25 + top]
 		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
 		for k in [0, 1, 2, 0, 2, 3]:
@@ -259,7 +272,7 @@ func _grass() -> void:
 			mm.mesh = mesh
 			var xs: Array[Transform3D] = []
 			var cs: Array[Color] = []
-			for k in 230:
+			for k in 300:
 				var p := Vector3(-SIZE * 0.5 + (cx + rng.randf()) * cell, 0, -SIZE * 0.5 + (cz + rng.randf()) * cell)
 				var hp := p - HOUSE_AT
 				if absf(hp.x) < ULHouse.W * 0.5 + 1.2 and absf(hp.z) < ULHouse.D * 0.5 + 1.2:
@@ -268,10 +281,18 @@ func _grass() -> void:
 					continue                                       # вытоптано у крыльца
 				if hp.x > YARD[0] and hp.x < YARD[2] and hp.z > YARD[1] and hp.z < YARD[3] and rng.randf() < 0.6:
 					continue                                       # во дворе травы меньше
-				var sc := rng.randf_range(0.5, 1.15)
-				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), p))
+				if _trail_dist(p) < 1.7:
+					continue                                       # тропа натоптана
+				var gw := _grass_w(p)
+				if gw < 0.5 and rng.randf() < 0.82:
+					continue                                       # на голой земле — редкие сорняки
+				var sc := rng.randf_range(0.55, 1.25)
+				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.4), sc)), p))
 				var g := rng.randf_range(0.85, 1.15)
-				cs.append(Color(g, g, g * rng.randf_range(0.9, 1.05)))
+				if rng.randf() < 0.3:
+					cs.append(Color(g * 1.3, g * 1.12, g * 0.8))   # сухой пучок
+				else:
+					cs.append(Color(g, g, g * rng.randf_range(0.9, 1.05)))
 			mm.instance_count = xs.size()
 			for k in xs.size():
 				mm.set_instance_transform(k, xs[k])
@@ -286,6 +307,41 @@ func _grass() -> void:
 			add_child(mi)
 
 
+## тропа: отрезки [начало, конец] в плоскости (x, z) — от крыльца к калитке и дальше через кластер
+const TRAIL := [
+	[Vector2(0, -6.0), Vector2(0, -2.0)], [Vector2(0, -2.0), Vector2(0.6, 6.0)], [Vector2(0.6, 6.0), Vector2(-2.5, 17.0)],
+	[Vector2(-2.5, 17.0), Vector2(-0.5, 31.0)], [Vector2(-0.5, 31.0), Vector2(3.0, 50.0)],
+	[Vector2(0.6, 6.0), Vector2(15.0, 9.5)], [Vector2(15.0, 9.5), Vector2(31.0, 6.0)], [Vector2(31.0, 6.0), Vector2(50.0, 11.0)],
+]
+var _noise_img: Image
+
+
+func _trail_dist(p: Vector3) -> float:
+	var q := Vector2(p.x, p.z)
+	var d := 1000.0
+	for sg in TRAIL:
+		var a: Vector2 = sg[0]
+		var ab: Vector2 = sg[1] - a
+		var h := clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+		d = minf(d, q.distance_to(a + ab * h))
+	return d
+
+
+func _noise(uv: Vector2) -> float:
+	var x := fposmod(uv.x, 1.0) * 256.0
+	var y := fposmod(uv.y, 1.0) * 256.0
+	return _noise_img.get_pixel(int(x) % 256, int(y) % 256).r
+
+
+## доля травы в точке — та же формула, что в шейдере земли (без двора и тропы)
+func _grass_w(p: Vector3) -> float:
+	var q := Vector2(p.x, p.z)
+	var n1 := _noise(q / 70.0)
+	var n2 := _noise(q / 19.0 + Vector2(0.37, 0.11))
+	var n3 := _noise(q / 5.5 + Vector2(0.71, 0.53))
+	return smoothstep(0.44, 0.56, n1 * 0.4 + n2 * 0.35 + n3 * 0.25)
+
+
 func _ground() -> void:
 	# внутри кластера — своя земля, по краю — гравий, снаружи — другой грунт (кластер «вырезан» из своего мира)
 	var mi := MeshInstance3D.new()
@@ -298,19 +354,23 @@ func _ground() -> void:
 	sm.shader = sh
 	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
 	sm.set_shader_parameter("grass_n", load(TEX + "forrest_ground_01_n.jpg"))
-	sm.set_shader_parameter("dry", load(TEX + "grass_ground_c.jpg"))
-	sm.set_shader_parameter("dirt", load(TEX + "forest_ground_04_c.jpg"))
-	sm.set_shader_parameter("dirt_n", load(TEX + "forest_ground_04_n.jpg"))
-	var nt := NoiseTexture2D.new()
-	nt.width = 256
-	nt.height = 256
-	nt.seamless = true
+	sm.set_shader_parameter("blades", load(TEX + "sparse_grass_c.jpg"))
+	sm.set_shader_parameter("soil", load(TEX + "mud_forest_c.jpg"))
+	sm.set_shader_parameter("path", load(TEX + "stony_dirt_path_c.jpg"))
+	sm.set_shader_parameter("path_n", load(TEX + "stony_dirt_path_n.jpg"))
+	# шум — картинкой: тот же рисунок читается и в шейдере, и здесь (где трава — там пучки)
 	var fn := FastNoiseLite.new()
 	fn.seed = 7
 	fn.frequency = 0.012
 	fn.fractal_octaves = 3
-	nt.noise = fn
-	sm.set_shader_parameter("noise", nt)
+	_noise_img = fn.get_seamless_image(256, 256)
+	_noise_img.generate_mipmaps()
+	sm.set_shader_parameter("noise", ImageTexture.create_from_image(_noise_img))
+	var sg: Array = []
+	for i in 8:
+		var k := mini(i, TRAIL.size() - 1)
+		sg.append(Vector4(TRAIL[k][0].x, TRAIL[k][0].y, TRAIL[k][1].x, TRAIL[k][1].y))
+	sm.set_shader_parameter("segs", sg)
 	sm.set_shader_parameter("worn_c", Vector2(HOUSE_AT.x, HOUSE_AT.z + ULHouse.D * 0.5 + 2.2))
 	sm.set_shader_parameter("worn_r", 4.2)
 	sm.set_shader_parameter("house_c", Vector2(HOUSE_AT.x, HOUSE_AT.z))
@@ -398,8 +458,9 @@ func _rel(m: Node3D, root: Node3D) -> Transform3D:
 ## Двор: забор-штакетник на столбах с калиткой спереди, поленница у левой стены дома, колода для колки дров,
 ## камни. Всё — своя геометрия с текстурами досок и коры; у забора и поленницы есть столкновения.
 func _yard() -> void:
-	var planks := ULHouse._mat(TEX + "weathered_brown_planks", 1.2)
-	planks.albedo_color = Color(0.78, 0.74, 0.68)
+	var planks := ULHouse._mat(TEX + "old_planks_02", 1.25)
+	planks.albedo_color = Color(0.92, 0.9, 0.86)
+	planks.vertex_color_use_as_albedo = true
 	var bark := ULHouse._mat(TEX + "bark_brown_02", 0.8)
 	var body := StaticBody3D.new()
 	body.name = "Yard"
@@ -414,9 +475,13 @@ func _yard() -> void:
 		[Vector2(x0, z0), Vector2(x1, z0)], [Vector2(x0, z0), Vector2(x0, z1)], [Vector2(x1, z0), Vector2(x1, z1)],
 		[Vector2(x0, z1), Vector2(gx - GATE * 0.5, z1)], [Vector2(gx + GATE * 0.5, z1), Vector2(x1, z1)],
 	]
+	# сплошной забор из серых досок: доски разной высоты, две жерди, столбы выше досок, по верху — колючая проволока
 	var pickets: Array[Transform3D] = []
+	var cols: Array[Color] = []
 	var posts: Array[Transform3D] = []
 	var rails: Array[Transform3D] = []
+	var wires: Array[Transform3D] = []
+	var barbs: Array[Transform3D] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 33
 	for sd in sides:
@@ -426,28 +491,66 @@ func _yard() -> void:
 		var dir := (b - a) / L
 		var yaw := -atan2(dir.y, dir.x)
 		var B := Basis(Vector3.UP, yaw)
-		var n := int(L / 0.17)
+		var n := int(L / 0.155)
 		for i in n:
 			var t := (i + 0.5) / n * L
 			var p := a + dir * t
-			var h := rng.randf_range(1.05, 1.22)
-			pickets.append(Transform3D(Basis(Vector3(dir.x, 0, dir.y), rng.randf_range(-0.03, 0.03)) * B * Basis.from_scale(Vector3(1, h, 1)), Vector3(p.x, h * 0.5, p.y)))
-		var np := int(ceil(L / 2.4))
+			var h := rng.randf_range(1.5, 1.82)
+			pickets.append(Transform3D(Basis(Vector3(dir.x, 0, dir.y), rng.randf_range(-0.025, 0.025)) * B * Basis.from_scale(Vector3(rng.randf_range(0.92, 1.04), h, 1)), Vector3(p.x, h * 0.5, p.y)))
+			var g := rng.randf_range(0.72, 1.08)
+			cols.append(Color(g, g * rng.randf_range(0.96, 1.0), g * rng.randf_range(0.9, 0.98)))
+		var np := int(ceil(L / 2.6))
+		var tops: Array[Vector3] = []
 		for i in np + 1:
 			var p := a + dir * (L * i / np)
-			posts.append(Transform3D(B, Vector3(p.x, 0.65, p.y)))
-		for y in [0.35, 0.85]:
+			posts.append(Transform3D(B * Basis(Vector3(dir.x, 0, dir.y), rng.randf_range(-0.03, 0.03)), Vector3(p.x, 1.1, p.y)))
+			tops.append(Vector3(p.x, 0, p.y))
+		for y in [0.42, 1.32]:
 			var m := (a + b) * 0.5
 			rails.append(Transform3D(B * Basis.from_scale(Vector3(L, 1, 1)), Vector3(m.x, y, m.y)))
+		# проволока: две нити между столбами, провисает посередине
+		for i in np:
+			for wy in [1.98, 2.16]:
+				var y: float = wy
+				var parts := 4
+				for k in parts:
+					var t0 := float(k) / parts
+					var t1 := float(k + 1) / parts
+					var p0 := tops[i].lerp(tops[i + 1], t0) + Vector3.UP * (y - 0.07 * sin(t0 * PI))
+					var p1 := tops[i].lerp(tops[i + 1], t1) + Vector3.UP * (y - 0.07 * sin(t1 * PI))
+					var d := p1 - p0
+					var wb := Basis.looking_at(d.normalized(), Vector3.UP) * Basis.from_scale(Vector3(1, 1, d.length()))
+					wires.append(Transform3D(wb, (p0 + p1) * 0.5))
+					for j in 2:
+						var bp := p0.lerp(p1, (j + rng.randf_range(0.2, 0.8)) / 2.0)
+						barbs.append(Transform3D(Basis(Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized(), rng.randf() * TAU), bp))
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
-		bs.size = Vector3(L, 1.4, 0.12)
+		bs.size = Vector3(L, 1.9, 0.14)
 		cs.shape = bs
-		cs.transform = Transform3D(B, Vector3((a.x + b.x) * 0.5, 0.7, (a.y + b.y) * 0.5))
+		cs.transform = Transform3D(B, Vector3((a.x + b.x) * 0.5, 0.95, (a.y + b.y) * 0.5))
 		body.add_child(cs)
-	_multi(pickets, _box(Vector3(0.09, 1.0, 0.025)), planks)
-	_multi(posts, _box(Vector3(0.11, 1.3, 0.11)), planks)
-	_multi(rails, _box(Vector3(1.0, 0.07, 0.035)), planks)
+	_multi(pickets, _box(Vector3(0.145, 1.0, 0.024)), planks, cols)
+	var post_mat: StandardMaterial3D = planks.duplicate()
+	post_mat.albedo_color = Color(0.5, 0.46, 0.42)
+	post_mat.vertex_color_use_as_albedo = false
+	_multi(posts, _box(Vector3(0.15, 2.2, 0.15)), post_mat)
+	_multi(rails, _box(Vector3(1.0, 0.09, 0.045)), post_mat)
+	var wire := StandardMaterial3D.new()
+	wire.albedo_color = Color(0.2, 0.19, 0.18)
+	wire.metallic = 0.6
+	wire.roughness = 0.6
+	_multi(wires, _box(Vector3(0.014, 0.014, 1.0)), wire)
+	_multi(barbs, _box(Vector3(0.012, 0.07, 0.012)), wire)
+	# у забора справа от калитки: бочка и покрышка
+	_prop("ph_barrel", Vector3(gx + 4.6, 0, z1 + 0.6), 0.4, 1.0, body, 0.33)
+	_prop("ph_barrel", Vector3(x0 + 1.0, 0, z0 + 1.1), 2.1, 1.0, body, 0.33)
+	var ty := _prop("ph_tyre", Vector3(gx + 6.4, 0.3, z1 + 0.3), 0.0, 1.05, body, 0.0)
+	if ty:
+		ty.rotation = Vector3(0.24, 0.25, 0)
+	var ty2 := _prop("ph_tyre", Vector3(gx - 5.2, 0.085, z1 + 1.6), 0.0, 1.05, body, 0.0)
+	if ty2:
+		ty2.rotation = Vector3(PI * 0.5, 0.8, 0)
 	# поленница вдоль левой стены дома (снаружи), под свесом крыши
 	var logs: Array[Transform3D] = []
 	var wx: float = HOUSE_AT.x - ULHouse.W * 0.5 - 1.4             # из-под свеса крыши — видно сверху
@@ -493,8 +596,8 @@ func _yard() -> void:
 	var rock := SphereMesh.new()
 	rock.radius = 0.5
 	rock.height = 0.6
-	rock.radial_segments = 7
-	rock.rings = 4
+	rock.radial_segments = 6
+	rock.rings = 3
 	var stones: Array[Transform3D] = []
 	for i in 70:
 		var p := Vector3(rng.randf_range(-SIZE * 0.48, SIZE * 0.48), 0, rng.randf_range(-SIZE * 0.48, SIZE * 0.48))
@@ -503,13 +606,223 @@ func _yard() -> void:
 			continue                                               # не в доме и не на крыльце
 		var s := rng.randf_range(0.08, 0.32)
 		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.4), s * 0.7, s)), p + Vector3.UP * s * 0.1))
+	# несколько валунов у тропы
+	for i in 26:
+		var sgm: Array = TRAIL[rng.randi() % TRAIL.size()]
+		var bp2: Vector2 = (sgm[0] as Vector2).lerp(sgm[1], rng.randf())
+		var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(2.0, 4.2)
+		var p := Vector3(bp2.x + off.x, 0, bp2.y + off.y)
+		var hq := p - HOUSE_AT
+		if hq.x > YARD[0] - 0.6 and hq.x < YARD[2] + 0.6 and hq.z > YARD[1] - 0.6 and hq.z < YARD[3] + 0.6:
+			continue
+		var s := rng.randf_range(0.3, 0.62)
+		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.3), s * 0.75, s)), p + Vector3.UP * s * 0.12))
+	# сухие ветки и палки на земле
+	var sticks: Array[Transform3D] = []
+	for i in 160:
+		var p := Vector3(rng.randf_range(-SIZE * 0.48, SIZE * 0.48), 0.03, rng.randf_range(-SIZE * 0.48, SIZE * 0.48))
+		var hq := p - HOUSE_AT
+		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5:
+			continue
+		var ln := rng.randf_range(0.5, 1.6)
+		var sb2 := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.FORWARD, PI * 0.5 + rng.randf_range(-0.04, 0.04))
+		sticks.append(Transform3D(sb2.scaled(Vector3(1.0, ln, 1.0)), p))
+		if rng.randf() < 0.6:
+			# сучок вбок
+			var q2 := p + sb2 * Vector3(0, ln * rng.randf_range(-0.2, 0.3), 0)
+			var sb3 := Basis(Vector3.UP, rng.randf_range(0.4, 0.9) * (1.0 if rng.randf() < 0.5 else -1.0)) * sb2
+			sticks.append(Transform3D(sb3.scaled(Vector3(0.7, ln * 0.45, 0.7)), q2 + sb3 * Vector3(0, ln * 0.22, 0)))
+	var stick := CylinderMesh.new()
+	stick.top_radius = 0.016
+	stick.bottom_radius = 0.03
+	stick.height = 1.0
+	stick.radial_segments = 5
+	stick.rings = 0
+	var stick_mat: StandardMaterial3D = bark.duplicate()
+	stick_mat.albedo_color = Color(0.62, 0.52, 0.42)
+	_multi(sticks, stick, stick_mat)
 	var rm := StandardMaterial3D.new()
-	rm.albedo_color = Color(0.42, 0.41, 0.39)
+	rm.albedo_color = Color(0.5, 0.5, 0.48)
 	rm.normal_enabled = true
 	rm.normal_texture = load(TEX + "rocky_gravel_n.jpg")
 	rm.uv1_triplanar = true
 	rm.roughness = 0.85
 	_multi(stones, rock, rm)
+
+
+## предмет обстановки из модели: поставить, при radius > 0 — круглое столкновение
+func _prop(model: String, at: Vector3, yaw: float, sc: float, body: StaticBody3D, radius: float) -> Node3D:
+	var path := MODELS + model + ".glb"
+	if not ResourceLoader.exists(path):
+		return null
+	var n: Node3D = (load(path) as PackedScene).instantiate()
+	n.position = at
+	n.rotation.y = yaw
+	n.scale = Vector3.ONE * sc
+	add_child(n)
+	_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * 1.5), Vector3(at.x, 0.03, at.z)))
+	if radius > 0.0:
+		var cs := CollisionShape3D.new()
+		var cy := CylinderShape3D.new()
+		cy.radius = radius
+		cy.height = 1.0
+		cs.shape = cy
+		cs.position = Vector3(at.x, 0.5, at.z)
+		body.add_child(cs)
+	return n
+
+
+const SPRUCE_SHADER := """shader_type spatial;
+render_mode cull_disabled;
+// еловые лапы: вырез по альфе, обе стороны освещены одинаково, концы чуть качаются
+uniform sampler2D tex : source_color, filter_linear_mipmap;
+varying vec3 wn;
+void vertex() {
+	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float w = sin(TIME * 1.1 + wpos.x * 0.4 + wpos.z * 0.3) + 0.5 * sin(TIME * 2.3 + wpos.z * 0.8);
+	VERTEX.y += w * 0.035 * (1.0 - UV.y);
+	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+void fragment() {
+	vec4 c = texture(tex, UV);
+	if (c.a < 0.4) { discard; }
+	// нормаль — вверх и наружу с обеих сторон лапы (иначе изнанка чёрная)
+	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
+	vec3 a = c.rgb * COLOR.rgb;
+	ALBEDO = mix(vec3(dot(a, vec3(0.3, 0.59, 0.11))), a, 0.62) * vec3(0.9, 0.88, 0.84);
+	ROUGHNESS = 0.9;
+	SPECULAR = 0.05;
+}
+"""
+
+
+## ель высотой h: ствол и ярусы лап (каждая лапа — полоса из двух звеньев с рисованной текстурой хвои)
+func _spruce_mesh(h: float, seed_n: int) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var mesh := ArrayMesh.new()
+	# ствол
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var r0 := 0.018 * h + 0.06
+	var sides := 7
+	for i in sides:
+		var a0 := TAU * i / sides
+		var a1 := TAU * (i + 1) / sides
+		var b0 := Vector3(cos(a0), 0, sin(a0))
+		var b1 := Vector3(cos(a1), 0, sin(a1))
+		var v := [b0 * r0, b1 * r0, b1 * 0.02 + Vector3.UP * h * 0.97, b0 * 0.02 + Vector3.UP * h * 0.97]
+		var nn := [b0, b1, b1, b0]
+		var uv := [Vector2(float(i) / sides, h * 0.5), Vector2(float(i + 1) / sides, h * 0.5), Vector2(float(i + 1) / sides, 0), Vector2(float(i) / sides, 0)]
+		for k in [0, 2, 1, 0, 3, 2]:
+			st.set_normal(nn[k])
+			st.set_uv(uv[k])
+			st.add_vertex(v[k])
+	var bark := StandardMaterial3D.new()
+	bark.albedo_texture = load(TEX + "bark_brown_02_c.jpg")
+	bark.albedo_color = Color(0.55, 0.48, 0.42)
+	bark.roughness = 0.95
+	st.set_material(bark)
+	st.commit(mesh)
+	# лапы
+	st = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tiers := int(h * 1.7)
+	for ti in tiers:
+		var t := float(ti) / (tiers - 1)
+		var y := h * (0.13 + 0.8 * t)
+		var L := h * 0.3 * pow(1.0 - t, 0.8) + 0.3
+		var nb := int(round(lerpf(8.0, 5.0, t)))
+		var a_off := rng.randf() * TAU
+		var droop := lerpf(-0.5, -0.05, t)
+		var shade := lerpf(0.5, 0.86, t)
+		for bi in nb:
+			var a := a_off + TAU * bi / nb + rng.randf_range(-0.2, 0.2)
+			var dir := Vector3(cos(a), 0, sin(a))
+			var side := Vector3(-dir.z, 0, dir.x)
+			var l2 := L * rng.randf_range(0.82, 1.12)
+			var p0 := Vector3(0, y + rng.randf_range(-0.12, 0.12), 0)
+			var p1 := p0 + dir * (l2 * 0.45) + Vector3.UP * (l2 * 0.06)
+			var p2 := p1 + dir * (l2 * 0.55) + Vector3.UP * (l2 * 0.55 * tan(droop))
+			var w := l2 * 0.42
+			var nrm := (Vector3.UP * 0.85 + dir * 0.55).normalized()
+			var g := shade * rng.randf_range(0.85, 1.12)
+			var col := Color(g * 0.8, g * 0.92, g * 0.86)
+			var v := [p0 - side * w * 0.3, p0 + side * w * 0.3, p1 - side * w, p1 + side * w, p2 - side * w * 0.9, p2 + side * w * 0.9]
+			var uv := [Vector2(0.2, 1), Vector2(0.8, 1), Vector2(0, 0.55), Vector2(1, 0.55), Vector2(0.05, 0), Vector2(0.95, 0)]
+			for k in [0, 1, 2, 1, 3, 2, 2, 3, 4, 3, 5, 4]:
+				st.set_normal(nrm)
+				st.set_color(col if k < 4 else col.lightened(0.12))
+				st.set_uv(uv[k])
+				st.add_vertex(v[k])
+	# макушка: три скрещённые лапы вверх
+	for i in 3:
+		var a := PI * i / 3.0
+		var side := Vector3(cos(a), 0, sin(a)) * h * 0.075
+		var base := Vector3.UP * h * 0.86
+		var top := Vector3.UP * h * 1.0
+		var v := [base - side, base + side, top + side * 0.5, top - side * 0.5]
+		var uv := [Vector2(0, 0.75), Vector2(1, 0.75), Vector2(0.8, 0), Vector2(0.2, 0)]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(Vector3.UP)
+			st.set_color(Color(0.72, 0.84, 0.76))
+			st.set_uv(uv[k])
+			st.add_vertex(v[k])
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = SPRUCE_SHADER
+	sm.shader = sh
+	sm.set_shader_parameter("tex", load(TEX + "spruce_bough.png"))
+	st.set_material(sm)
+	st.commit(mesh)
+	return mesh
+
+
+## ельник: три вида ели, расставлены по кластеру (не во дворе, не на тропе, не у старта)
+func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGenerator) -> void:
+	var kinds := [[7.0, 11], [9.0, 12], [11.0, 9]]
+	for ki in kinds.size():
+		var h0: float = kinds[ki][0]
+		var xs: Array[Transform3D] = []
+		var n := int(kinds[ki][1])
+		var tries := 0
+		while n > 0 and tries < 3000:
+			tries += 1
+			var p := Vector3(rng.randf_range(-SIZE * 0.47, SIZE * 0.47), 0, rng.randf_range(-SIZE * 0.47, SIZE * 0.47))
+			var hp2 := p - HOUSE_AT
+			if hp2.x > YARD[0] - 2.5 and hp2.x < YARD[2] + 2.5 and hp2.z > YARD[1] - 2.5 and hp2.z < YARD[3] + 2.5:
+				continue
+			if _trail_dist(p) < 3.2 or p.distance_to(Vector3(0, 0, 6)) < 6.0:
+				continue
+			var near := false
+			for q in placed:
+				if q.distance_to(p) < 3.4:
+					near = true
+					break
+			if near:
+				continue
+			placed.append(p)
+			n -= 1
+			var sc := rng.randf_range(0.85, 1.15)
+			xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), p))
+			_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * h0 * sc * 0.78), p + Vector3.UP * 0.03))
+			var cs := CollisionShape3D.new()
+			var cy := CylinderShape3D.new()
+			cy.radius = 0.22 * sc
+			cy.height = 3.0
+			cs.shape = cy
+			cs.position = p + Vector3.UP * 1.5
+			body.add_child(cs)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = _spruce_mesh(h0, 100 + ki)
+		mm.instance_count = xs.size()
+		for i in xs.size():
+			mm.set_instance_transform(i, xs[i])
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = mm
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
 
 
 func _box(size: Vector3) -> BoxMesh:
@@ -518,13 +831,16 @@ func _box(size: Vector3) -> BoxMesh:
 	return bm
 
 
-func _multi(xs: Array[Transform3D], mesh: Mesh, mat: Material) -> MultiMeshInstance3D:
+func _multi(xs: Array[Transform3D], mesh: Mesh, mat: Material, colors: Array[Color] = []) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = not colors.is_empty()
 	mm.mesh = mesh
 	mm.instance_count = xs.size()
 	for i in xs.size():
 		mm.set_instance_transform(i, xs[i])
+		if not colors.is_empty():
+			mm.set_instance_color(i, colors[i])
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.material_override = mat
@@ -542,6 +858,7 @@ func _flora() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Trees"
 	add_child(body)
+	_spruces(body, placed, rng)
 	for f in FLORA:
 		var path := MODELS + String(f[0]) + ".glb"
 		var scene: PackedScene = load(path) if ResourceLoader.exists(path) else null
@@ -554,7 +871,7 @@ func _flora() -> void:
 			var hp := p - HOUSE_AT
 			if hp.x > YARD[0] - 1.5 and hp.x < YARD[2] + 1.5 and hp.z > YARD[1] - 1.5 and hp.z < YARD[3] + 1.5:
 				continue
-			if p.distance_to(Vector3(0, 0, 6)) < 4.0:
+			if p.distance_to(Vector3(0, 0, 6)) < 4.0 or _trail_dist(p) < 2.4:
 				continue
 			var near := false
 			for q in placed:
@@ -1091,6 +1408,15 @@ func _ground_visual(g: Dictionary) -> void:
 		m.rotation.x = -0.25 if String(pk.back) == "-z" else 0.0
 		m.rotation.z = 0.0 if String(pk.back) == "-z" else 0.25
 		node.add_child(m)
+	elif ULItems.kit_mesh(String(it.id)) != null:
+		# предмет из набора припасов — своя модель, чуть наклонена, повёрнута как упала
+		var km := MeshInstance3D.new()
+		km.mesh = ULItems.kit_mesh(String(it.id))
+		var kb := km.mesh.get_aabb()
+		var ks := float(d.get("gs", 0.25)) / maxf(kb.size.x, maxf(kb.size.y, kb.size.z))
+		km.scale = Vector3.ONE * ks
+		km.rotation.y = fposmod(node.global_position.x * 7.3 + node.global_position.z * 3.1, TAU)
+		node.add_child(km)
 	else:
 		# мелкий предмет — иконка на земле, лицом к камере
 		var sp := Sprite3D.new()
@@ -1390,6 +1716,11 @@ func _start_loot() -> void:
 	_spawn_ground(I.make("spas12"), HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.6, 0, 2.2), 2.4)
 	_spawn_ground(I.make("a12", 16), HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.0, 0, 2.8), 0.0)
 	_spawn_ground(I.make("rusk", 2), H.to_global(Vector3(-2.5, 0, 2.2)), 0.0)
+	_spawn_ground(I.make("tonic", 2), H.to_global(Vector3(-4.6, 0, 2.3)), 0.0)
+	_spawn_ground(I.make("medkit"), H.to_global(Vector3(4.6, 0, -3.0)), 0.0)
+	_spawn_ground(I.make("a762x51", 40), H.to_global(Vector3(-1.0, 0, -3.3)), 0.0)
+	_spawn_ground(I.make("a9x39", 20), H.to_global(Vector3(-0.2, 0, -3.7)), 0.0)
+	_spawn_ground(I.make("can", 2), H.to_global(Vector3(-3.0, 0, 4.4)), 0.0)
 	_spawn_ground(I.make("machete"), H.to_global(Vector3(-0.9, 0, 4.2)), 1.2)
 	_spawn_ground(I.make("a762x51", 40), H.to_global(Vector3(-2.1, 0, -3.4)), 0.0)
 	_spawn_ground(I.make("a9x39", 30), H.to_global(Vector3(-0.2, 0, -3.6)), 0.0)
@@ -1905,15 +2236,17 @@ func heal(id := "") -> bool:
 	var d := ULItems.get_def(id)
 	var dh := float(d.get("heal", 0))
 	var dw := float(d.get("water", 0))
-	if (dh <= 0.0 or hp >= HP_MAX) and (dw <= 0.0 or water >= 100.0):
+	var de := float(d.get("energy", 0))
+	if (dh <= 0.0 or hp >= HP_MAX) and (dw <= 0.0 or water >= 100.0) and (de <= 0.0 or en >= 100.0):
 		say("Сейчас не нужно")
 		return false
 	inv.consume(id, 1)
 	hp = minf(HP_MAX, hp + dh)
 	water = minf(100.0, water + dw)
+	en = minf(100.0, en + de)
 	_heal_cd = 0.8
 	snd.play("cloth", player.global_position + Vector3.UP * 1.2, -5.0)
-	say("%s: здоровье %d, вода %d" % [d.n, int(round(hp)), int(round(water))])
+	say("%s: здоровье %d, энергия %d, вода %d" % [d.n, int(round(hp)), int(round(en)), int(round(water))])
 	_save()
 	return true
 
@@ -2261,6 +2594,20 @@ func _inv_test() -> void:
 	_auto.clear()
 	_auto_k = 0.6
 	_ok("быстрый бег тратит энергию", en < 95.0, "энергия %d" % en)
+	# набор припасов: живчик возвращает энергию; у каждого предмета набора есть своя модель и значок
+	inv.add(I.make("tonic", 1))
+	en = 30.0
+	_heal_cd = 0.0
+	heal("tonic")
+	_ok("живчик: +60 энергии (30 → 90)", is_equal_approx(en, 90.0) and inv.count("tonic") == 0, "энергия %d" % en)
+	var kit_bad := ""
+	for kid in I.ITEMS:
+		if I.ITEMS[kid].has("kit") and (I.kit_mesh(kid) == null or I.icon(kid) == null):
+			kit_bad += kid + " "
+	_ok("набор припасов: у всех 13 предметов есть модель и значок", kit_bad == "", kit_bad)
+	var gk := _spawn_ground(I.make("medkit"), player.global_position + Vector3(1.5, 0, 0), 0.0)
+	_ok("аптечка на земле — моделью из набора", (gk.node as Node3D).find_children("*", "MeshInstance3D", true, false).size() >= 2 and (gk.node as Node3D).find_children("*", "Sprite3D", true, false).is_empty())
+	_remove_ground(gk)
 	# сохранение и загрузка
 	var snap := JSON.stringify({"inv": inv.to_dict()})
 	var inv2 := ULInventory.new()
@@ -2277,6 +2624,17 @@ func _inv_test() -> void:
 func _run_test() -> void:
 	if test == "inv":
 		await _inv_test()
+		return
+	if test == "view":
+		# обзор локации: несколько точек, по снимку
+		DirAccess.make_dir_recursive_absolute(out)
+		var pts := [["v0_start", Vector3(0, 0, 6)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)]]
+		for pt in pts:
+			player.global_position = pt[1]
+			_cam_ready = false
+			await get_tree().create_timer(1.6).timeout
+			await _snap(pt[0])
+		get_tree().quit()
 		return
 	DirAccess.make_dir_recursive_absolute(out)
 	await get_tree().create_timer(1.2).timeout

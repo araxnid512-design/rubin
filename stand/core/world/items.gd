@@ -25,20 +25,21 @@ const ITEMS := {
 	"pack_small": {"n": "Малый рюкзак", "kind": "pack", "pack": "small", "d": "+8 ячеек."},
 	"pack_medium": {"n": "Средний рюкзак", "kind": "pack", "pack": "medium", "d": "+12 ячеек."},
 	"pack_large": {"n": "Большой рюкзак", "kind": "pack", "pack": "large", "d": "+20 ячеек. Поясной ремень разгружает плечи."},
-	# патроны
-	"a762x25": {"n": "Патроны 7,62×25", "kind": "ammo", "stack": 60, "icon": "ammo", "tint": [0.85, 0.7, 0.4], "d": "Для ТТ."},
-	"a9x19": {"n": "Патроны 9×19", "kind": "ammo", "stack": 60, "icon": "ammo", "tint": [0.8, 0.8, 0.82], "d": "Для Beretta и MP5."},
-	"a545": {"n": "Патроны 5,45×39", "kind": "ammo", "stack": 90, "icon": "ammo", "tint": [0.55, 0.75, 0.5], "d": "Для АК-74М."},
-	"a762x51": {"n": "Патроны 7,62×51", "kind": "ammo", "stack": 60, "icon": "ammo", "tint": [0.7, 0.6, 0.45], "d": "Для FN FAL."},
-	"a762x54": {"n": "Патроны 7,62×54R", "kind": "ammo", "stack": 100, "icon": "ammo", "tint": [0.6, 0.55, 0.4], "d": "Для СВД и ПКП."},
-	"a9x39": {"n": "Патроны 9×39", "kind": "ammo", "stack": 40, "icon": "ammo", "tint": [0.5, 0.6, 0.7], "d": "Для ВСС."},
-	"a12": {"n": "Патроны 12 калибра", "kind": "ammo", "stack": 32, "icon": "shells", "tint": [0.8, 0.3, 0.25], "d": "Для SPAS-12."},
-	# расходники
-	"bandage": {"n": "Бинт", "kind": "med", "stack": 5, "icon": "bandage", "heal": 15, "d": "Перевязка: +15 здоровья."},
-	"medkit": {"n": "Аптечка", "kind": "med", "stack": 2, "icon": "medkit", "heal": 50, "d": "Аптечка: +50 здоровья."},
-	"can": {"n": "Тушёнка", "kind": "food", "stack": 4, "icon": "can", "heal": 8, "water": 5, "d": "Банка тушёной говядины: +8 здоровья, +5 воды."},
-	"water": {"n": "Вода", "kind": "food", "stack": 3, "icon": "water", "heal": 0, "water": 40, "d": "Бутылка чистой воды, 0,5 л: +40 воды."},
-	"rusk": {"n": "Сухари", "kind": "food", "stack": 6, "icon": "rusk", "heal": 5, "d": "Пачка ржаных сухарей: +5 здоровья."},
+	# патроны, лекарства и еда: модель и значок — из набора припасов (kit — номер предмета в ul_supplies.glb,
+	# gs — наибольший размер модели на земле, м)
+	"a762x25": {"n": "Патроны 7,62×25", "kind": "ammo", "stack": 60, "kit": 1, "gs": 0.24, "icon": "kit_1", "tint": [1.0, 0.92, 0.8], "d": "Для ТТ."},
+	"a9x19": {"n": "Патроны 9×19", "kind": "ammo", "stack": 60, "kit": 1, "gs": 0.24, "icon": "kit_1", "tint": [0.82, 0.88, 1.0], "d": "Для Beretta и MP5."},
+	"a545": {"n": "Патроны 5,45×39", "kind": "ammo", "stack": 90, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [1.0, 1.0, 1.0], "d": "Для АК-74М."},
+	"a762x51": {"n": "Патроны 7,62×51", "kind": "ammo", "stack": 60, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [1.0, 0.86, 0.7], "d": "Для FN FAL."},
+	"a762x54": {"n": "Патроны 7,62×54R", "kind": "ammo", "stack": 100, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [0.86, 0.8, 0.62], "d": "Для СВД и ПКП."},
+	"a9x39": {"n": "Патроны 9×39", "kind": "ammo", "stack": 40, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [0.75, 0.9, 1.0], "d": "Для ВСС."},
+	"a12": {"n": "Патроны 12 калибра", "kind": "ammo", "stack": 32, "kit": 3, "gs": 0.26, "icon": "kit_3", "d": "Для SPAS-12."},
+	"bandage": {"n": "Бинт", "kind": "med", "stack": 5, "kit": 5, "gs": 0.16, "icon": "kit_5", "heal": 15, "d": "Перевязка: +15 здоровья."},
+	"medkit": {"n": "Аптечка", "kind": "med", "stack": 2, "kit": 6, "gs": 0.36, "icon": "kit_6", "heal": 50, "d": "Аптечка: +50 здоровья."},
+	"tonic": {"n": "Живчик", "kind": "med", "stack": 3, "kit": 4, "gs": 0.22, "icon": "kit_4", "heal": 5, "energy": 60, "d": "Настой в аптечном пузырьке: +60 энергии, +5 здоровья."},
+	"can": {"n": "Тушёнка", "kind": "food", "stack": 4, "kit": 9, "gs": 0.17, "icon": "kit_9", "heal": 8, "water": 5, "d": "Банка тушёной говядины: +8 здоровья, +5 воды."},
+	"water": {"n": "Вода", "kind": "food", "stack": 3, "kit": 8, "gs": 0.28, "icon": "kit_8", "heal": 0, "water": 40, "d": "Бутылка чистой воды, 0,5 л: +40 воды."},
+	"rusk": {"n": "Сухари", "kind": "food", "stack": 6, "kit": 7, "gs": 0.26, "icon": "kit_7", "heal": 5, "d": "Пачка ржаных сухарей: +5 здоровья."},
 }
 
 
@@ -99,6 +100,23 @@ static func pack_empty(it) -> bool:
 		if c != null:
 			return false
 	return true
+
+
+const KIT := "res://assets/world/ul_supplies.glb"
+static var _kit := {}
+
+
+## сетка предмета из набора припасов (одна модель Tripo, разрезанная на части tools/split_glb.mjs); null — нет
+static func kit_mesh(id: String) -> Mesh:
+	var k := int(get_def(id).get("kit", 0))
+	if k <= 0:
+		return null
+	if _kit.is_empty() and ResourceLoader.exists(KIT):
+		var sc: Node = (load(KIT) as PackedScene).instantiate()
+		for mi in sc.find_children("item_*", "MeshInstance3D", true, false):
+			_kit[int(String(mi.name).trim_prefix("item_"))] = (mi as MeshInstance3D).mesh
+		sc.free()
+	return _kit.get(k)
 
 
 static var _icons := {}

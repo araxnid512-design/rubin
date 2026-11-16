@@ -193,7 +193,7 @@ func _build_inventory() -> void:
 ## «Хранилище»: картинка и вместимость | содержимое | слоты героя | карманы и рюкзак
 func _build_storage() -> void:
 	var cont_cols := 4
-	var bag_cols := 6
+	var bag_cols := 4
 	var fixed := 28.0 + 150.0 + 132.0 + 30.0 + 3.0 * 20.0 + 24.0
 	cell = clampf((size.x - fixed - (cont_cols + bag_cols - 2) * 6.0) / (cont_cols + bag_cols), 54.0, 96.0)
 	var p := _panel()
