@@ -1,18 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ulm_z_death_front2",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_death_front",
-    "3",
-    "a zombie standing upright is shot in the back, stumbles one step forward, drops to its knees, then falls forward flat on its face onto the ground and stops moving"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -159,7 +147,8 @@
   "ulm_z_death_front",
   "ulm_z_death_back",
   "ulm_z_turn_l",
-  "ulm_z_turn_r"
+  "ulm_z_turn_r",
+  "ulm_z_death_front2"
  ],
  "paused": [
   {
