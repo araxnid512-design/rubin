@@ -1,150 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ulm_z_run",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_run",
-    "2",
-    "a zombie running fast and aggressively straight forward, torso leaning forward, arms reaching out in front"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_alert",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_alert",
-    "2",
-    "a zombie standing hunched suddenly jerks its head up and turns its upper body to look to the side, alerted and tense"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_scream",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_scream",
-    "3",
-    "a zombie leaning forward with arms spread back and head thrust forward, screaming with rage, body shaking"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_attack_l",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_attack_l",
-    "2",
-    "a zombie lunging one step forward and swiping its left hand like a claw across in front of its chest, then pulling the arm back"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_bite",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_bite",
-    "2",
-    "a zombie grabbing forward with both hands and lunging its head forward to bite, then pulling back"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_mouth",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_mouth",
-    "2",
-    "a creature rearing back and then thrusting its head and chest far forward in a fast snapping lunge with arms swung back, then recovering"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_hit_front",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_hit_front",
-    "1",
-    "a zombie hit hard in the chest jerking backward and stumbling one step back, then recovering its hunched stance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_hit_back",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_hit_back",
-    "1",
-    "a zombie hit hard in the back jerking forward and stumbling one step forward, then recovering"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_stagger",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_stagger",
-    "2",
-    "a zombie losing balance, staggering sideways with flailing arms, almost falling, then regaining balance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_death_front",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_death_front",
-    "3",
-    "a zombie collapsing forward, falling face down onto the ground and lying still"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_death_back",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_death_back",
-    "3",
-    "a zombie hit in the chest falling backward onto its back on the ground and lying still"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_turn_l",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_turn_l",
-    "2",
-    "a zombie standing in place turning ninety degrees to its left with shuffling steps"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_z_turn_r",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_turn_r",
-    "2",
-    "a zombie standing in place turning ninety degrees to its right with shuffling steps"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -278,7 +134,20 @@
   "ulm_z_idle",
   "ulm_z_walk",
   "ulm_z_attack_r",
-  "ulm_z_death_side"
+  "ulm_z_death_side",
+  "ulm_z_run",
+  "ulm_z_alert",
+  "ulm_z_scream",
+  "ulm_z_attack_l",
+  "ulm_z_bite",
+  "ulm_z_mouth",
+  "ulm_z_hit_front",
+  "ulm_z_hit_back",
+  "ulm_z_stagger",
+  "ulm_z_death_front",
+  "ulm_z_death_back",
+  "ulm_z_turn_l",
+  "ulm_z_turn_r"
  ],
  "paused": [
   {
