@@ -1,8 +1,9 @@
 extends Node
-## Музыка вне локации: главное меню и карта мира. Одна дорожка играет без перерыва при переходе между ними
-## и плавно стихает при входе на локацию. Громкость — общая, из настроек.
+## Музыка вне локации: главное меню и карта мира. Одна дорожка («Dead Sector», прислана пользователем) играет
+## без перерыва — и при открытии настроек, и при переходе между меню и картой — и плавно стихает при входе
+## на локацию. Громкость — общая, из настроек.
 
-const MENU := "res://assets/audio/music_menu.ogg"
+const MENU := "res://assets/audio/music_menu.mp3"
 var _p: AudioStreamPlayer
 var _tw: Tween
 
@@ -25,7 +26,9 @@ func play_menu() -> void:
 		_tw.kill()
 	if not _p.playing:
 		var st: AudioStream = load(MENU)
-		if st is AudioStreamOggVorbis:
+		if st is AudioStreamMP3:
+			(st as AudioStreamMP3).loop = true
+		elif st is AudioStreamOggVorbis:
 			(st as AudioStreamOggVorbis).loop = true
 		_p.stream = st
 		_p.volume_db = -36.0
