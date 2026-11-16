@@ -429,6 +429,15 @@ func _cell(src: String, i: int, it, sz: Vector2) -> Control:
 			back.add_child(bar)
 			bar.anchor_right = k
 			bar.anchor_bottom = 1.0
+			if ULItems.broken(it):
+				# сломано: красная надпись поверх значка (чинит оружейник)
+				var br := _lbl("СЛОМАНО", 12, Color(1.0, 0.35, 0.3))
+				b.add_child(br)
+				br.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+				br.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				br.add_theme_color_override("font_outline_color", Color.BLACK)
+				br.add_theme_constant_override("outline_size", 6)
+				br.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if ULItems.kind(it) == "pack" and not ULItems.pack_empty(it):
 			var dot := _lbl("с вещами", 11, C_SEL)
 			dot.position = Vector2(5, 2)

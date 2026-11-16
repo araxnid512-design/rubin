@@ -2515,13 +2515,14 @@ func _start_loot() -> void:
 		_spawn_ground(I.make("pack_medium"), H.to_global(Vector3(-3.4, 0, -2.6)), 1.1)
 		_spawn_ground(I.make("pack_large"), H.to_global(Vector3(3.4, 0, -3.6)), -0.5)
 	else:
-		# игра: у героя — только пистолет ТТ, полный магазин и 60 патронов в кармане; остальное оружие — у оружейника. В горнице — пустой ящик
+		# игра: у героя — пистолет ТТ, полный магазин и 60 патронов в кармане, мачете; остальное оружие — у оружейника. В горнице — пустой ящик
 		# под свои вещи
 		var stash := []
 		stash.resize(CRATE_SLOTS)
 		_add_crate(g2, 0.0, stash)
 		inv.pistol = I.make("tt")
 		ULInventory.put(inv.pockets, I.make("a762x25", 60))
+		ULInventory.put(inv.pockets, I.make("machete"))        # мачете — в кармане: носится в слоте пистолета
 		# стартовые ресурсы (data/base_shop.json → start_wallet): хватает на первый маршрут
 		var sw: Dictionary = ULBase.shop().get("start_wallet", {})
 		for id in sw:
@@ -2976,6 +2977,12 @@ func attack() -> void:
 	var d := ULItems.get_def(String(it.id))
 	if rig.hold.wid == "" or rig.hold.drawn < 0.99:
 		return                                             # ещё достаёт
+	if ULItems.broken(it):
+		snd.play("dry", player.global_position + Vector3.UP * 1.3, -4.0)
+		say("%s сломан — нужен ремонт у оружейника" % String(d.n))
+		_atk_cd = 0.9
+		_atk_want = 0.0
+		return
 	if String(d.kind) == "melee":
 		_slash(d)
 		_use_up(it)
@@ -3079,28 +3086,54 @@ func _melee_hit(range_m: float, cone: float, dmg: float, sound: String) -> void:
 		_damage(t, dmg, t.global_position + Vector3.UP * 1.3)
 
 
-## Износ: каждый выстрел и каждый удар холодным оружием снимает единицу прочности. На нуле оружие ломается —
-## пропадает из слота; патроны из магазина возвращаются в карманы. Сколько осталось — видно только в инвентаре.
+## Износ: каждый выстрел и каждый удар холодным оружием снимает единицу прочности (ТТ — 300 выстрелов, автомат —
+## 1000, мачете — 400 ударов; data — ULItems). Осталось 10 % — предупреждение; на нуле оружие сломано: остаётся в
+## слоте, но не стреляет и не рубит, пока его не починит оружейник («Торговать» → «Ремонт»). Сколько осталось —
+## полоска на ячейке и надпись на карточке в инвентаре.
 func _use_up(it: Dictionary) -> void:
-	if not it.has("dur"):
+	if not it.has("dur") or int(it.dur) <= 0:
 		return
 	it.dur = int(it.dur) - 1
+	var d := ULItems.get_def(String(it.id))
+	var mx := int(d.get("dur", 1))
+	if int(it.dur) == mx / 10:
+		say("%s изношен: осталось %d %s — почините у оружейника" % [String(d.n), int(it.dur), "ударов" if String(d.kind) == "melee" else "выстрелов"])
 	if int(it.dur) > 0:
 		return
-	var slot := inv.hand
-	if slot == "" or inv.get(slot) != it:
-		return
-	var d := ULItems.get_def(String(it.id))
-	inv.clear_slot(slot)
-	if d.has("ammo") and int(it.get("mag", 0)) > 0:
-		var rest := ULItems.make(String(d.ammo), int(it.mag))
-		if inv.add(rest) > 0:
-			_spawn_ground(rest, player.global_position + Vector3(0.4, 0, 0.3), 0.0)
 	_atk_want = 0.0
-	_apply_gear()
-	snd.play("mag_drop", player.global_position + Vector3.UP * 1.0, -2.0, 0.05)
-	say("Сломалось: %s" % String(d.n))
+	snd.play("dry", player.global_position + Vector3.UP * 1.3, -2.0)
+	say("Сломалось: %s. Почините у оружейника" % String(d.n))
 	_save()
+
+
+## Починить оружие у оружейника до полной прочности: цена — ULItems.repair_cost (спораны); false — не хватило
+func repair(it: Dictionary) -> bool:
+	var cost := ULItems.repair_cost(it)
+	if cost <= 0:
+		return false
+	var price := {"spore": cost}
+	if not inv.can_pay(price):
+		say("Не хватает ресурсов: " + price_text(price))
+		return false
+	inv.pay(price)
+	it.dur = int(ULItems.get_def(String(it.id)).get("dur", 1))
+	say("Починено: %s" % String(ULItems.get_def(String(it.id)).n))
+	_apply_gear()
+	_shop_refresh()
+	_save()
+	return true
+
+
+## оружие героя, которому нужен ремонт: в слотах, в карманах и в рюкзаке
+func repair_list() -> Array:
+	var out: Array = []
+	var all: Array = [inv.primary, inv.pistol] + inv.pockets
+	if inv.pack != null:
+		all += inv.pack.get("items", [])
+	for it in all:
+		if it != null and ULItems.repair_cost(it) > 0:
+			out.append(it)
+	return out
 
 
 func _shoot(it: Dictionary, d: Dictionary) -> void:
@@ -4222,7 +4255,7 @@ func _inv_test() -> void:
 	attack()
 	await get_tree().create_timer(0.4).timeout
 	_ok("АК: выстрел тратит патрон (29 из 30)", int(inv.primary.mag) == 29 and shots == s0 + 1, "в магазине %d" % int(inv.primary.mag))
-	_ok("выстрел снимает единицу прочности (599 из 600)", int(inv.primary.dur) == 599 and I.make("tt").dur == 150 and I.make("machete").dur == 120, "прочность %d" % int(inv.primary.dur))
+	_ok("выстрел снимает единицу прочности (999 из 1000); ТТ — 300 выстрелов, мачете — 400 ударов", int(inv.primary.dur) == 999 and I.make("tt").dur == 300 and I.make("machete").dur == 400, "прочность %d" % int(inv.primary.dur))
 	_ok("АК: попадание по мишени с 9 м снимает 26", hits == k0 + 1 and is_equal_approx(h0 - float(tg.get_meta("hp")), 26.0), "попаданий %d, было %d, стало %d" % [hits - k0, h0, float(tg.get_meta("hp"))])
 	# пустой магазин → перезарядка из запаса
 	var res0 := inv.count("a545")
@@ -4492,11 +4525,46 @@ func _inv_test() -> void:
 	await get_tree().process_frame
 	for l in inv_ui.find_children("*", "Label", true, false):
 		dtxt += (l as Label).text + "|"
-	_ok("прочность видна в инвентаре (карточка оружия)", dtxt.contains("прочность 1 из 600 выстрелов"))
+	_ok("прочность видна в инвентаре (карточка оружия)", dtxt.contains("прочность 1 из 1000 выстрелов"))
 	close_inventory()
 	_use_up(inv.primary)
-	_ok("прочность кончилась: оружие сломалось и пропало, патроны из магазина вернулись", inv.primary == null and inv.hand == "" and inv.count("a545") == am0 + 17, "патронов %d → %d" % [am0, inv.count("a545")])
-	inv.consume("a545", 17)
+	_ok("прочность кончилась: оружие сломано, но осталось в руках с патронами в магазине", inv.primary != null and ULItems.broken(inv.primary) and inv.hand == "primary" and int(inv.primary.mag) == 17 and inv.count("a545") == am0)
+	open_inventory()
+	inv_ui._sel_src = "eq:primary"
+	inv_ui._sel_i = 0
+	inv_ui.refresh()
+	await get_tree().process_frame
+	dtxt = ""
+	for l in inv_ui.find_children("*", "Label", true, false):
+		dtxt += (l as Label).text + "|"
+	_ok("в инвентаре видно: «СЛОМАНО» на ячейке и «нужен ремонт у оружейника» на карточке", dtxt.contains("СЛОМАНО") and dtxt.contains("нужен ремонт у оружейника"))
+	close_inventory()
+	await _wait_drawn()
+	var sb0 := shots
+	_atk_cd = 0.0
+	attack()
+	await get_tree().create_timer(0.3).timeout
+	_ok("сломанное оружие не стреляет", shots == sb0 and int(inv.primary.mag) == 17)
+	# ремонт у оружейника: цена — по доле износа; не хватает — не чинит
+	var full := int(ULItems.get_def("ak74m").fix)
+	var wal0: Dictionary = inv.wallet.duplicate()
+	inv.wallet = {"spore": full - 1}
+	var fail := repair(inv.primary)
+	inv.wallet = {"spore": full + 5}
+	var lst := repair_list()
+	var ok_r := repair(inv.primary)
+	_ok("ремонт у оружейника: сломанный АК в списке ремонта, полный ремонт %d споранов, без денег — отказ" % full, lst.has(inv.primary) and not fail and ok_r and int(inv.primary.dur) == 1000 and int(inv.wallet.spore) == 5 and not ULItems.broken(inv.primary), "кошелёк %s" % str(inv.wallet))
+	var tt := I.make("tt")
+	tt.dur = 150
+	_ok("частичный ремонт — по доле износа: ТТ 150 из 300 → %d спорана" % ULItems.repair_cost(tt), ULItems.repair_cost(tt) == int(ceil(float(ULItems.get_def("tt").fix) * 0.5)) and ULItems.repair_cost(I.make("tt")) == 0)
+	inv.wallet = wal0
+	_atk_cd = 0.0
+	attack()
+	await get_tree().create_timer(0.3).timeout
+	_ok("после ремонта оружие снова стреляет", shots == sb0 + 1)
+	inv.primary = null                    # дальше проверки идут без основного оружия (как раньше)
+	inv.hand = ""
+	_apply_gear()
 	# --- враг: заражённый ---
 	close_inventory()
 	hp = 100.0
@@ -5603,7 +5671,7 @@ const SHOP := {
 		["rusk", 1, {"spore": 1}], ["can", 1, {"spore": 2}], ["pack_small", 1, {"spore": 8}], ["pack_medium", 1, {"pea": 1}],
 		["pack_large", 1, {"pea": 2}]],
 }
-const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"]]
+const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"], ["repair", "Ремонт"]]
 var _talk_trade: Button
 var _shop_ui: Control
 var _shop_wallet: Array = []      ## надписи с остатком ресурсов
@@ -5695,6 +5763,9 @@ func _shop_build() -> void:
 		c.queue_free()
 	for i in _shop_tabs.size():
 		(_shop_tabs[i] as Button).modulate = Color(1, 1, 1) if String(SHOP_TABS[i][0]) == _shop_tab else Color(0.62, 0.66, 0.72)
+	if _shop_tab == "repair":
+		_repair_build()
+		return
 	var goods: Array = SHOP[_shop_tab]
 	_shop_sel = clampi(_shop_sel, 0, goods.size() - 1)
 	for i in goods.size():
@@ -5752,7 +5823,7 @@ func _shop_build() -> void:
 		if d.has("mag"):
 			st += " · магазин %d · %s в секунду · дальность %d м" % [int(d.mag), str(snappedf(float(d.rate), 0.1)), int(d.get("range", 0))]
 		_shop_card.add_child(_shop_lbl(st, 14, C_TEXT))
-		_shop_card.add_child(_shop_lbl("Прочность: %d %s, потом ломается" % [int(d.get("dur", 0)), "ударов" if String(d.kind) == "melee" else "выстрелов"], 14, C_TEXT))
+		_shop_card.add_child(_shop_lbl("Прочность: %d %s, потом нужен ремонт (полный — %d споранов)" % [int(d.get("dur", 0)), "ударов" if String(d.kind) == "melee" else "выстрелов", int(d.get("fix", 0))], 14, C_TEXT))
 	var have := inv.count(id)
 	for sl in ["primary", "pistol"]:
 		if inv.get(sl) != null and String(inv.get(sl).id) == id:
@@ -5802,6 +5873,95 @@ func _shop_build() -> void:
 			var ab := ULSettings.button("Купить патроны", buy_ammo_for.bind(id), 190.0)
 			ab.modulate.a = 1.0 if inv.can_pay(ag[2]) else 0.45
 			ar2.add_child(ab)
+
+
+## Раздел «Ремонт»: изношенное и сломанное оружие героя (в слотах, карманах, рюкзаке) — прочность и цена;
+## справа — карточка выбранного с кнопкой «Починить» и «Починить всё».
+func _repair_build() -> void:
+	var list := repair_list()
+	if list.is_empty():
+		_shop_card.add_child(_shop_lbl("Чинить нечего: всё оружие в порядке.", 18, C_TEXT))
+		_shop_card.add_child(_shop_lbl("Каждый выстрел и удар снимает единицу прочности. Сломанное оружие не стреляет, пока его не починит оружейник.", 14, Color(0.72, 0.78, 0.85)))
+		return
+	_shop_sel = clampi(_shop_sel, 0, list.size() - 1)
+	for i in list.size():
+		var it: Dictionary = list[i]
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(150, 132)
+		b.focus_mode = Control.FOCUS_NONE
+		var sel := i == _shop_sel
+		for stn in ["normal", "hover", "pressed"]:
+			var sb := ULSettings._box(Color(0.1, 0.15, 0.2) if sel else Color(0.07, 0.1, 0.14))
+			sb.border_color = Color(1.0, 0.78, 0.3) if sel else Color(0.3, 0.4, 0.5)
+			sb.set_border_width_all(2 if sel else 1)
+			b.add_theme_stylebox_override(stn, sb)
+		var v := VBoxContainer.new()
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_theme_constant_override("separation", 0)
+		b.add_child(v)
+		v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 6)
+		var ic := TextureRect.new()
+		ic.texture = ULItems.icon(String(it.id))
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(ic)
+		var mx := int(ULItems.get_def(String(it.id)).get("dur", 1))
+		var nm := _shop_lbl("%s · %d/%d" % [String(ULItems.get_def(String(it.id)).n), maxi(int(it.dur), 0), mx], 13, Color(0.95, 0.45, 0.4) if ULItems.broken(it) else C_TEXT)
+		nm.autowrap_mode = TextServer.AUTOWRAP_OFF
+		nm.clip_text = true
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(nm)
+		var pr := HBoxContainer.new()
+		pr.alignment = BoxContainer.ALIGNMENT_CENTER
+		pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(pr)
+		_shop_price(pr, {"spore": ULItems.repair_cost(it)}, 15, 20.0)
+		b.pressed.connect(func() -> void:
+			_shop_sel = i
+			_shop_build())
+		_shop_grid.add_child(b)
+	var it: Dictionary = list[_shop_sel]
+	var d := ULItems.get_def(String(it.id))
+	var big := TextureRect.new()
+	big.texture = ULItems.icon(String(it.id))
+	big.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	big.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	big.custom_minimum_size = Vector2(0, 120)
+	_shop_card.add_child(big)
+	_shop_card.add_child(_shop_lbl(String(d.n), 21, Color(1.0, 0.86, 0.5)))
+	_shop_card.add_child(_shop_lbl(ULItems.dur_text(it), 16, Color(0.95, 0.45, 0.4) if ULItems.broken(it) else C_TEXT))
+	_shop_card.add_child(_shop_lbl("Полный ремонт с нуля — %d споранов; платите только за изношенную часть." % int(d.get("fix", 0)), 14, Color(0.72, 0.78, 0.85)))
+	var price := {"spore": ULItems.repair_cost(it)}
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	_shop_card.add_child(row)
+	_shop_price(row, price, 20, 30.0)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sp)
+	var rb := ULSettings.button("Починить", func() -> void: repair(it), 150.0)
+	rb.modulate.a = 1.0 if inv.can_pay(price) else 0.45
+	row.add_child(rb)
+	if list.size() > 1:
+		var total := 0
+		for x in list:
+			total += ULItems.repair_cost(x)
+		var row2 := HBoxContainer.new()
+		row2.add_theme_constant_override("separation", 8)
+		_shop_card.add_child(row2)
+		_shop_price(row2, {"spore": total}, 18, 26.0)
+		var sp2 := Control.new()
+		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row2.add_child(sp2)
+		var ab := ULSettings.button("Починить всё", func() -> void:
+			for x in repair_list():
+				if not repair(x):
+					break, 180.0)
+		ab.modulate.a = 1.0 if inv.can_pay({"spore": total}) else 0.45
+		row2.add_child(ab)
 
 
 func open_shop() -> void:
@@ -6445,8 +6605,23 @@ func _run_test() -> void:
 		_shop_build()
 		await get_tree().create_timer(0.4).timeout
 		await _snap("s2_bought")
+		# ремонт: пистолет изношен наполовину, автомат сломан
+		if inv.pistol == null or not inv.pistol.has("dur"):
+			inv.pistol = ULItems.make("tt")
+		inv.pistol.dur = 140
+		inv.primary = ULItems.make("ak74m")
+		inv.primary.dur = 0
+		inv.add(ULItems.make("spore", 30))
+		_shop_tab = "repair"
+		_shop_sel = 0
+		_shop_build()
+		await get_tree().create_timer(0.4).timeout
+		await _snap("s4_repair")
 		_shop_ui.queue_free()
 		open_inventory()
+		inv_ui._sel_src = "eq:primary"
+		inv_ui._sel_i = 0
+		inv_ui.refresh()
 		await get_tree().create_timer(0.5).timeout
 		await _snap("s3_inventory")
 		get_tree().quit()
