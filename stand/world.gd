@@ -2515,13 +2515,13 @@ func _start_loot() -> void:
 		_spawn_ground(I.make("pack_medium"), H.to_global(Vector3(-3.4, 0, -2.6)), 1.1)
 		_spawn_ground(I.make("pack_large"), H.to_global(Vector3(3.4, 0, -3.6)), -0.5)
 	else:
-		# игра: у героя — только пистолет ТТ и две обоймы; остальное оружие — у оружейника. В горнице — пустой ящик
+		# игра: у героя — только пистолет ТТ, полный магазин и 60 патронов в кармане; остальное оружие — у оружейника. В горнице — пустой ящик
 		# под свои вещи
 		var stash := []
 		stash.resize(CRATE_SLOTS)
 		_add_crate(g2, 0.0, stash)
 		inv.pistol = I.make("tt")
-		ULInventory.put(inv.pockets, I.make("a762x25", 16))
+		ULInventory.put(inv.pockets, I.make("a762x25", 60))
 		# стартовые ресурсы (data/base_shop.json → start_wallet): хватает на первый маршрут
 		var sw: Dictionary = ULBase.shop().get("start_wallet", {})
 		for id in sw:
