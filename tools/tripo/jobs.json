@@ -2,63 +2,93 @@
  "stop": false,
  "jobs": [
   {
-   "id": "ul_cow_skel",
+   "id": "ul_barn_long",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "ul_cow_skel",
+    "ul_barn_long",
     "--faces",
-    "6000",
+    "10000",
     "--prompt",
-    "a complete cow skeleton lying flat on its side on the ground, bleached weathered bones, skull with horns, ribcage, spine and leg bones, realistic, single object, game prop"
+    "a long old abandoned wooden cowshed barn, weathered gray vertical planks, rusty corrugated metal gable roof with holes and missing sheets, broken small windows, large open doorway at the end, realistic, single building, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ul_cow_dead",
+   "id": "ul_barn_small",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "ul_cow_dead",
-    "--faces",
-    "6000",
-    "--prompt",
-    "a dead cow lying on its side on the ground, black and white hide, stiff legs, dirty and weathered, realistic, single object, game prop"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ul_tractor",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_tractor",
+    "ul_barn_small",
     "--faces",
     "8000",
     "--prompt",
-    "an old abandoned rusty farm tractor with flat tires and a broken cabin, realistic, single object, game prop"
+    "a small ruined wooden farm barn with a sagging collapsed roof, missing wall boards, dark weathered wood, realistic, single building, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_z_claw_combo2",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_water_tower",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_claw_combo",
-    "2",
-    "a zombie standing close in front of someone slashes viciously with its right clawed hand and then immediately with its left clawed hand, two fast alternating swipes at chest height"
+    "--id",
+    "ul_water_tower",
+    "--faces",
+    "6000",
+    "--prompt",
+    "an old rusty metal farm water tower, cylindrical riveted tank with a conical roof standing on a round red brick base, weathered, realistic, single object, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_z_overhead2",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_dead_tree",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
-    "z_overhead",
-    "2",
-    "a zombie raises both arms high above its head and smashes them down hard in front of it at head height, bending forward"
+    "--id",
+    "ul_dead_tree",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a dead leafless old tree with twisted dry branches and gray cracked bark, realistic, single tree, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_oak",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_oak",
+    "--faces",
+    "8000",
+    "--prompt",
+    "a lush green deciduous oak tree with a full leafy crown and thick trunk, realistic, single tree, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_hay",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_hay",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a stack of three old round hay bales, dry faded yellow straw, weathered, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_cow_bones",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_cow_bones",
+    "--faces",
+    "4000",
+    "--prompt",
+    "scattered cow bones and a horned cow skull lying on the ground, bleached weathered bones, realistic, single object, game prop"
    ],
    "timeout": 2400
   }
@@ -215,7 +245,68 @@
   "ulm_z_claw_combo",
   "ulm_z_overhead",
   "ulm_z_lunge_bite",
-  "ulm_z_menace"
+  "ulm_z_menace",
+  {
+   "id": "ul_cow_skel",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_cow_skel",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a complete cow skeleton lying flat on its side on the ground, bleached weathered bones, skull with horns, ribcage, spine and leg bones, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_cow_dead",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_cow_dead",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a dead cow lying on its side on the ground, black and white hide, stiff legs, dirty and weathered, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_tractor",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_tractor",
+    "--faces",
+    "8000",
+    "--prompt",
+    "an old abandoned rusty farm tractor with flat tires and a broken cabin, realistic, single object, game prop"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_z_claw_combo2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
+    "z_claw_combo",
+    "2",
+    "a zombie standing close in front of someone slashes viciously with its right clawed hand and then immediately with its left clawed hand, two fast alternating swipes at chest height"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_z_overhead2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombie:881ac981-8eb5-4f05-a7c9-87323a15ae54,lottery:6c6abfa9-33fd-4e07-b018-65d33b5831bb",
+    "z_overhead",
+    "2",
+    "a zombie raises both arms high above its head and smashes them down hard in front of it at head height, bending forward"
+   ],
+   "timeout": 2400
+  }
  ],
  "paused": [
   {

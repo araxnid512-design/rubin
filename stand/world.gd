@@ -73,6 +73,10 @@ func _ready() -> void:
 			out = a.substr(9)
 	if test == "arena":
 		ULSettings.arena = true
+	if test != "":
+		ULBase.memory_only = true
+		ULBase.load_state(true)
+		ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
 	ULSettings.apply(get_viewport())
 	Music.stop()
@@ -1956,6 +1960,11 @@ func _find_target() -> void:
 		if d < bd:
 			bd = d
 			best = {"type": "npc", "n": n}
+	if _terminal != null:
+		var dt := _terminal.global_position.distance_to(p) - 0.2
+		if dt < bd:
+			bd = dt
+			best = {"type": "terminal"}
 	for e in enemies:
 		if not e.alive():
 			var d := e.body_pos().distance_to(p) - 0.3
@@ -1973,6 +1982,8 @@ func _find_target() -> void:
 				node = best.n
 			"corpse":
 				node = best.e
+			"terminal":
+				node = _terminal
 	_target = best
 	if node != _glow_node:
 		_set_glow(_glow_node, false)
@@ -2017,6 +2028,8 @@ func _target_pos() -> Vector3:
 		return (_target.n as Node3D).global_position + Vector3.UP * 1.0
 	if _target.type == "corpse":
 		return (_target.e as ULEnemy).body_pos() + Vector3.UP * 0.3
+	if _target.type == "terminal":
+		return _terminal.global_position + Vector3.UP * 1.0
 	return (_target.g.node as Node3D).global_position if _target.type == "ground" else (_target.c as Node3D).global_position + Vector3.UP * 0.3
 
 
@@ -2029,6 +2042,8 @@ func _target_name() -> String:
 		return "%s, %s" % [_target.n.get_meta("name"), _target.n.get_meta("role")]
 	if _target.type == "corpse":
 		return "%s (тело)" % String((_target.e as ULEnemy).def.n)
+	if _target.type == "terminal":
+		return "компьютер базы"
 	return ULItems.title(_target.g.item)
 
 
@@ -2041,6 +2056,8 @@ func _action_label() -> String:
 		return "Говорить"
 	if _target.type == "corpse":
 		return "Обыскать"
+	if _target.type == "terminal":
+		return "Открыть"
 	var it: Dictionary = _target.g.item
 	return "Открыть" if ULItems.kind(it) == "pack" else "Взять"
 
@@ -2054,6 +2071,9 @@ func do_action() -> void:
 		return
 	if _target.type == "npc":
 		open_talk(_target.n)
+		return
+	if _target.type == "terminal":
+		open_terminal()
 		return
 	if _target.type == "corpse":
 		# обыск тела: его добыча — как хранилище; что взять — решает игрок («Взять всё» или по одному)
@@ -2437,6 +2457,8 @@ func _draw_hud() -> void:
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
 					"corpse":
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
+					"terminal":
+						_hud_icon(_art("terminal"), c, r * 2.0, ic)
 					_:
 						var tid := String(_target.g.item.id)
 						_hud_icon(ULItems.icon(tid), c, r * 1.5, ULItems.tint(tid))
@@ -4304,7 +4326,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or _dead_t > 0.0
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or _dead_t > 0.0
 
 
 func _load_profile() -> void:
@@ -4450,7 +4472,9 @@ func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String) ->
 
 
 func _npcs_setup() -> void:
-	# оружейник — в доме, за прилавком оружейной
+	# оружейник — в доме, за прилавком оружейной; появляется, когда нанят через компьютер базы (раздел «Персонал»)
+	if not ULBase.has_staff("gunsmith"):
+		return
 	_add_npc(house.to_global(ARMORY_NPC), -PI * 0.5, "Седой", "оружейник", "Здорово, %s. Оружие, патроны, припасы — всё за спораны. Выбирай, что по карману.")
 
 
@@ -4645,11 +4669,238 @@ func _armory() -> void:
 		_box_prop(root, Vector3(0.16, 0.06, 0.012), Vector3(sx - 0.1, 0.95, 4.3), brass)
 	_shelf_item(root, "a762x54", Vector3(4.92, 1.185, 4.6), 0.3, 0.3)
 	_shelf_item(root, "a12", Vector3(5.62, 1.185, 4.62), -0.2, 0.24)
+	_terminal_build(wood, dark, body)
 	# оружие на стене, столе и прилавке
 	if ResourceLoader.exists(MODELS + "ul_armory_guns.res"):
 		var guns := MeshInstance3D.new()
 		guns.mesh = load(MODELS + "ul_armory_guns.res")
 		root.add_child(guns)
+
+
+# ---------------- компьютер базы ----------------
+
+## Компьютер — в оружейной у входа справа, перед местом оружейника: стол, монитор, клавиатура. Через него:
+## маршруты во временные кластеры, улучшения базы, персонал (оружейник). Что продаётся — data/base_shop.json,
+## что куплено — ULBase (user://base.json).
+const TERMINAL_AT := Vector3(2.35, 0, 4.55)
+const STASH_SPOTS := [Vector3(-4.3, 0, -4.35), Vector3(-3.1, 0, -4.35), Vector3(-1.9, 0, -4.35)]
+var _terminal: Node3D
+var _term_ui: Control
+var _term_tab := "routes"
+var _term_body: VBoxContainer
+var _term_wallet: Array = []
+var _term_tabs: Array = []
+const TERM_TABS := [["routes", "Маршруты"], ["upgrades", "Улучшения базы"], ["staff", "Персонал"]]
+
+
+func _terminal_build(wood: Material, dark: Material, body: StaticBody3D) -> void:
+	_terminal = Node3D.new()
+	_terminal.name = "Terminal"
+	house.inner.add_child(_terminal)
+	_terminal.position = TERMINAL_AT
+	var metal := _paint(Color(0.22, 0.23, 0.22), 0.4, 0.5)
+	var plastic := _paint(Color(0.78, 0.75, 0.66), 0.0, 0.6)
+	_box_prop(_terminal, Vector3(1.0, 0.05, 0.56), Vector3(0, 0.74, 0), dark)
+	for lx in [-0.45, 0.45]:
+		_box_prop(_terminal, Vector3(0.05, 0.72, 0.5), Vector3(lx, 0.36, 0), metal)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(1.0, 0.8, 0.56)
+	cs.shape = bs
+	cs.position = TERMINAL_AT + Vector3(0, 0.4, 0)
+	body.add_child(cs)
+	# старый монитор с выпуклым корпусом, экран светится зелёным; системный блок под столом
+	_box_prop(_terminal, Vector3(0.5, 0.4, 0.34), Vector3(0, 0.98, 0.07), plastic)
+	var scr := _paint(Color(0.1, 0.35, 0.18), 0.0, 0.3)
+	scr.emission_enabled = true
+	scr.emission = Color(0.25, 0.9, 0.45)
+	scr.emission_energy_multiplier = 0.8
+	_box_prop(_terminal, Vector3(0.4, 0.3, 0.01), Vector3(0, 0.99, -0.105), scr)
+	_box_prop(_terminal, Vector3(0.12, 0.06, 0.12), Vector3(0, 0.79, 0.07), plastic)
+	_box_prop(_terminal, Vector3(0.44, 0.03, 0.15), Vector3(0, 0.78, -0.17), plastic)
+	_box_prop(_terminal, Vector3(0.2, 0.42, 0.44), Vector3(-0.3, 0.21, 0.02), plastic)
+	# табурет
+	_box_prop(_terminal, Vector3(0.36, 0.04, 0.36), Vector3(0.1, 0.46, -0.62), wood)
+	for sx in [-0.14, 0.14]:
+		for sz in [-0.14, 0.14]:
+			_box_prop(_terminal, Vector3(0.04, 0.44, 0.04), Vector3(0.1 + sx, 0.22, -0.62 + sz), wood)
+
+
+func _term_lbl(t: String, fs: int, col: Color) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", col)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+
+## что сейчас с пунктом: [подпись кнопки, можно ли купить, пояснение]
+func _term_state(tab: String, id: String) -> Array:
+	var d: Dictionary = ULBase.shop()[tab][id]
+	if d.get("soon", false):
+		return ["Скоро", false, "Появится в следующих обновлениях."]
+	match tab:
+		"routes":
+			match ULBase.route_state(id):
+				"bought":
+					return ["Куплен", false, "Маршрут открыт — выйдите на карту мира, локация появилась справа выше дома."]
+				"active":
+					return ["Идёт посещение", false, ""]
+		"staff":
+			if ULBase.has_staff(id):
+				return ["Нанят", false, "Уже на месте."]
+		"upgrades":
+			var lv := ULBase.upgrade_level(id)
+			if lv >= int(d.get("max", 1)):
+				return ["Куплено", false, "Больше не нужно." if int(d.get("max", 1)) == 1 else "Куплено всё (%d)." % lv]
+			if lv > 0:
+				return ["Купить ещё", inv.can_pay(d.price), "Куплено: %d из %d." % [lv, int(d.get("max", 1))]]
+	return ["Купить", inv.can_pay(d.price), ""]
+
+
+## купить пункт меню компьютера; false — не хватило ресурсов или уже куплено
+func term_buy(tab: String, id: String) -> bool:
+	var st := _term_state(tab, id)
+	var d: Dictionary = ULBase.shop()[tab][id]
+	if not st[1]:
+		if String(st[0]) in ["Купить", "Купить ещё"]:
+			say("Не хватает ресурсов: " + price_text(d.price))
+		return false
+	if not inv.pay(d.price):
+		return false
+	match tab:
+		"routes":
+			ULBase.set_route(id, "bought")
+			say("Маршрут «%s» открыт — выйдите на карту мира" % String(d.n))
+		"staff":
+			ULBase.hire(id)
+			if id == "gunsmith" and npcs.is_empty():
+				_npcs_setup()
+			say("Нанят: %s" % String(d.n))
+		"upgrades":
+			var lv := ULBase.upgrade_level(id)
+			ULBase.add_upgrade(id)
+			if id == "stash" and lv < STASH_SPOTS.size():
+				var cells := []
+				cells.resize(CRATE_SLOTS)
+				_add_crate(house.to_global(STASH_SPOTS[lv]), 0.0, cells)
+			say("Куплено: %s" % String(d.n))
+	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
+	_save()
+	_term_build()
+	return true
+
+
+func open_terminal() -> void:
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.62)
+	_hud.get_parent().add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_term_ui = shade
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(Color(0.03, 0.07, 0.05, 0.97)))
+	shade.add_child(pn)
+	pn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pn.offset_left = 60
+	pn.offset_right = -60
+	pn.offset_top = 26
+	pn.offset_bottom = -26
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	pn.add_child(vb)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	vb.add_child(head)
+	var tl := _term_lbl("Компьютер базы", 24, Color(0.45, 1.0, 0.6))
+	tl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(tl)
+	_term_wallet = []
+	for id in ULItems.MONEY:
+		var ic := TextureRect.new()
+		ic.texture = ULItems.icon(id)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(28, 28)
+		head.add_child(ic)
+		var l := _term_lbl("", 18, C_TEXT)
+		l.custom_minimum_size.x = 30
+		head.add_child(l)
+		_term_wallet.append(l)
+	head.add_child(ULSettings.button("✕  Закрыть", func() -> void: shade.queue_free(), 150.0))
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	vb.add_child(tabs)
+	_term_tabs = []
+	for t in TERM_TABS:
+		var tb := ULSettings.button(String(t[1]), func() -> void:
+			_term_tab = String(t[0])
+			_term_build(), 220.0)
+		tabs.add_child(tb)
+		_term_tabs.append(tb)
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+	_term_body = VBoxContainer.new()
+	_term_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_term_body.add_theme_constant_override("separation", 10)
+	sc.add_child(_term_body)
+	_term_build()
+	snd.play("click", player.global_position + Vector3.UP * 1.0, -6.0)
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+func _term_build() -> void:
+	if _term_ui == null or not is_instance_valid(_term_ui):
+		return
+	for i in _term_wallet.size():
+		(_term_wallet[i] as Label).text = str(int(inv.wallet.get(ULItems.MONEY[i], 0)))
+	for i in _term_tabs.size():
+		(_term_tabs[i] as Button).modulate = Color(1, 1, 1) if String(TERM_TABS[i][0]) == _term_tab else Color(0.55, 0.62, 0.58)
+	for c in _term_body.get_children():
+		c.queue_free()
+	var items: Dictionary = ULBase.shop().get(_term_tab, {})
+	for id in items:
+		var d: Dictionary = items[id]
+		var st := _term_state(_term_tab, String(id))
+		var row := PanelContainer.new()
+		row.add_theme_stylebox_override("panel", ULSettings._box(Color(0.05, 0.11, 0.08)))
+		_term_body.add_child(row)
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 14)
+		row.add_child(hb)
+		if d.has("pic") and ResourceLoader.exists(String(d.pic)):
+			var pic := TextureRect.new()
+			pic.texture = load(String(d.pic))
+			pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			pic.custom_minimum_size = Vector2(170, 110)
+			hb.add_child(pic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 3)
+		hb.add_child(col)
+		col.add_child(_term_lbl(String(d.n), 21, Color(1.0, 0.86, 0.5) if not d.get("soon", false) else Color(0.6, 0.64, 0.62)))
+		if d.has("kind"):
+			col.add_child(_term_lbl("%s · существует %d минут" % [String(d.kind), int(d.get("minutes", 10))], 15, Color(0.75, 0.9, 0.35)))
+		col.add_child(_term_lbl(String(d.d), 15, Color(0.75, 0.82, 0.78)))
+		if String(st[2]) != "":
+			col.add_child(_term_lbl(String(st[2]), 15, Color(0.45, 1.0, 0.6)))
+		var right := VBoxContainer.new()
+		right.alignment = BoxContainer.ALIGNMENT_CENTER
+		right.add_theme_constant_override("separation", 6)
+		hb.add_child(right)
+		var pr := HBoxContainer.new()
+		pr.alignment = BoxContainer.ALIGNMENT_END
+		right.add_child(pr)
+		_shop_price(pr, d.price, 19, 28.0)
+		var bb := ULSettings.button(String(st[0]), term_buy.bind(_term_tab, String(id)), 170.0)
+		bb.modulate.a = 1.0 if st[1] else 0.45
+		right.add_child(bb)
 
 
 # ---------------- торговля ----------------
