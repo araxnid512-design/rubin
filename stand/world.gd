@@ -10,6 +10,9 @@ const SIZE := 100.0               ## кластер, м
 const SAVE := "user://cluster.json"
 const SAVE_V := 2                 ## версия сохранения: старые расстановки ящиков сбрасываются
 const HOUSE_AT := Vector3(0, 0, -12)
+## двор вокруг дома: от дома x0, z0, x1, z1 (м); калитка — спереди посередине
+const YARD := [-11.0, -9.0, 11.0, 10.0]
+const GATE := 2.4
 const C_BG := Color(0.05, 0.07, 0.09, 0.85)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
 const C_TEXT := Color(0.88, 0.93, 0.97)
@@ -27,8 +30,8 @@ var snd: BCSound
 var house: ULHouse
 var cam: Camera3D
 var cam_yaw := 0.0                ## камера смотрит вдоль −Z (на дом)
-var cam_pitch := 0.92
-var cam_dist := 11.0
+var cam_pitch := 1.0               ## камера сверху (≈57°); горизонт и небо в кадр не попадают
+var cam_dist := 13.0
 var _cam_t := Vector3.ZERO
 var crates: Array[Node3D] = []
 var _crate_scene: PackedScene = null
@@ -63,6 +66,7 @@ func _ready() -> void:
 	house.position = HOUSE_AT
 	house.build(MODELS + "ul_house.glb", TEX + "weathered_brown_planks", TEX + "brown_planks_03")
 	_fit_shell()
+	_yard()
 	_flora()
 	_player()
 	_ui()
@@ -78,36 +82,43 @@ func _ready() -> void:
 func _env() -> void:
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
+	# небо не видно (камера сверху) — фон цвета земли; небо остаётся только как источник рассеянного света
 	var sky := Sky.new()
 	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.36, 0.5, 0.68)
-	sm.sky_horizon_color = Color(0.72, 0.74, 0.72)
-	sm.ground_horizon_color = Color(0.5, 0.5, 0.46)
-	sm.ground_bottom_color = Color(0.2, 0.2, 0.18)
+	sm.sky_top_color = Color(0.4, 0.52, 0.66)
+	sm.sky_horizon_color = Color(0.7, 0.72, 0.7)
+	sm.ground_horizon_color = Color(0.45, 0.45, 0.4)
+	sm.ground_bottom_color = Color(0.22, 0.22, 0.18)
 	sky.sky_material = sm
-	e.background_mode = Environment.BG_SKY
 	e.sky = sky
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color(0.22, 0.22, 0.17)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 0.5
-	e.tonemap_exposure = 0.92
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	# дымка: за границей кластера всё тонет в мареве
+	e.ambient_light_energy = 0.42
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_exposure = 1.12
+	e.tonemap_white = 6.0
+	e.adjustment_enabled = true
+	e.adjustment_contrast = 1.06
+	e.adjustment_saturation = 1.04
+	# лёгкая дымка вдали — сверху видно до ~30 м, край кластера тонет мягко
 	e.fog_enabled = true
 	e.fog_mode = Environment.FOG_MODE_DEPTH
-	e.fog_light_color = Color(0.66, 0.68, 0.66)
+	e.fog_light_color = Color(0.5, 0.52, 0.47)
 	e.fog_density = 1.0
-	e.fog_depth_begin = 40.0
-	e.fog_depth_end = 150.0
-	e.fog_depth_curve = 1.6
-	e.fog_sky_affect = 0.3
+	e.fog_depth_begin = 32.0
+	e.fog_depth_end = 110.0
+	e.fog_depth_curve = 1.5
 	env.environment = e
 	add_child(env)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, 35, 0)
-	sun.light_energy = 1.05
-	sun.light_color = Color(1.0, 0.96, 0.88)
+	sun.rotation_degrees = Vector3(-56, 38, 0)
+	sun.light_energy = 1.18
+	sun.light_color = Color(1.0, 0.95, 0.86)
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 32.0
+	sun.shadow_blur = 1.4
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 40.0
 	add_child(sun)
 
 
@@ -138,13 +149,14 @@ uniform vec2 worn_c;
 uniform float worn_r = 4.0;
 uniform vec2 house_c;
 uniform vec2 house_half;
+uniform vec4 yard;               // двор: x0, z0, x1, z1
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec2 p = wp.xz;
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
-	vec2 u1 = p / 3.4;
-	vec2 u2 = rot * p / 10.7;
+	vec2 u1 = p / 4.2;
+	vec2 u2 = rot * p / 12.7;
 	float n1 = texture(noise, p / 70.0).r;
 	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
@@ -157,8 +169,17 @@ void fragment() {
 	vec2 q = max(abs(p - house_c) - house_half, vec2(0.0));
 	float ring = 1.0 - smoothstep(0.2, 1.4, length(q) + (n3 - 0.5) * 0.9);
 	dirt_w = max(dirt_w, max(porch, ring * 0.75));
+	// во дворе трава реже и суше — ходят каждый день
+	vec2 yq = max(max(yard.xy - p, p - yard.zw), vec2(0.0));
+	float in_yard = 1.0 - smoothstep(0.0, 1.2, length(yq));
+	dirt_w = max(dirt_w, in_yard * smoothstep(0.35, 0.75, n3 * 0.6 + n2 * 0.4) * 0.6);
+	dry_w = max(dry_w, in_yard * 0.45);
 	vec3 col = mix(mix(g, d, dry_w * 0.55), e, dirt_w * 0.85);
 	col *= mix(0.86, 1.06, n1) * mix(0.94, 1.04, n2) * 0.62;
+	// затенение у стен дома (свет туда почти не попадает)
+	float wall_ao = 1.0 - (1.0 - smoothstep(0.0, 0.9, length(q))) * 0.45 * step(0.001, length(q));
+	col *= wall_ao;
+	NORMAL_MAP_DEPTH = 1.3;
 	ALBEDO = col;
 	NORMAL_MAP = mix(mix(texture(grass_n, u1).rgb, texture(grass_n, u2).rgb, 0.45), texture(dirt_n, p / 2.6).rgb, dirt_w);
 	ROUGHNESS = 0.96;
@@ -194,10 +215,13 @@ void fragment() {
 func _grass() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in 3:
-		var a := PI * i / 3.0
-		var d := Vector3(cos(a), 0, sin(a)) * 0.16
-		var v := [-d, d, d + Vector3.UP * 0.24, -d + Vector3.UP * 0.24]
+	# кустик: пять полос, наклонённых наружу от центра (сверху — розетка травинок, сбоку — пучок)
+	for i in 5:
+		var a := TAU * i / 5.0 + 0.3
+		var out := Vector3(cos(a), 0, sin(a))
+		var side := Vector3(-out.z, 0, out.x) * 0.13
+		var top := out * 0.17 + Vector3.UP * 0.2
+		var v := [-side, side, side * 1.25 + top, -side * 1.25 + top]
 		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
 		for k in [0, 1, 2, 0, 2, 3]:
 			st.set_uv(uv[k])
@@ -221,13 +245,15 @@ func _grass() -> void:
 			mm.mesh = mesh
 			var xs: Array[Transform3D] = []
 			var cs: Array[Color] = []
-			for k in 280:
+			for k in 230:
 				var p := Vector3(-SIZE * 0.5 + (cx + rng.randf()) * cell, 0, -SIZE * 0.5 + (cz + rng.randf()) * cell)
 				var hp := p - HOUSE_AT
 				if absf(hp.x) < ULHouse.W * 0.5 + 1.2 and absf(hp.z) < ULHouse.D * 0.5 + 1.2:
 					continue
 				if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5:
 					continue                                       # вытоптано у крыльца
+				if hp.x > YARD[0] and hp.x < YARD[2] and hp.z > YARD[1] and hp.z < YARD[3] and rng.randf() < 0.6:
+					continue                                       # во дворе травы меньше
 				var sc := rng.randf_range(0.5, 1.15)
 				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), p))
 				var g := rng.randf_range(0.85, 1.15)
@@ -275,11 +301,12 @@ func _ground() -> void:
 	sm.set_shader_parameter("worn_r", 4.2)
 	sm.set_shader_parameter("house_c", Vector2(HOUSE_AT.x, HOUSE_AT.z))
 	sm.set_shader_parameter("house_half", Vector2(ULHouse.W * 0.5, ULHouse.D * 0.5))
+	sm.set_shader_parameter("yard", Vector4(HOUSE_AT.x + YARD[0], HOUSE_AT.z + YARD[1], HOUSE_AT.x + YARD[2], HOUSE_AT.z + YARD[3]))
 	mi.material_override = sm
 	add_child(mi)
 	_grass()
-	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.8, 0.78, 0.74))
-	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.7, 0.66, 0.6))
+	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44))
+	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))
 	var sb := StaticBody3D.new()
 	add_child(sb)
 	var cs := CollisionShape3D.new()
@@ -316,6 +343,20 @@ func _fit_shell() -> void:
 	var c := Vector3(f.center[0], f.center[1], f.center[2])
 	var off := Basis(Vector3.UP, deg_to_rad(float(f.yaw))) * (c * S)
 	sh.position = Vector3(-off.x, 0.0, -off.z)
+	# сверху видна в основном крыша: без металлического блеска (иначе под солнцем она почти белая)
+	for mi in sh.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si) as StandardMaterial3D
+			if src == null:
+				continue
+			var mt := src.duplicate() as StandardMaterial3D
+			mt.metallic = 0.0
+			mt.metallic_texture = null
+			mt.roughness = 0.9
+			mt.roughness_texture = null
+			mt.albedo_color = Color(0.62, 0.6, 0.57)
+			m.set_surface_override_material(si, mt)
 
 
 func _aabb(n: Node3D) -> AABB:
@@ -340,6 +381,143 @@ func _rel(m: Node3D, root: Node3D) -> Transform3D:
 	return xf
 
 
+## Двор: забор-штакетник на столбах с калиткой спереди, поленница у левой стены дома, колода для колки дров,
+## камни. Всё — своя геометрия с текстурами досок и коры; у забора и поленницы есть столкновения.
+func _yard() -> void:
+	var planks := ULHouse._mat(TEX + "weathered_brown_planks", 1.2)
+	planks.albedo_color = Color(0.78, 0.74, 0.68)
+	var bark := ULHouse._mat(TEX + "bark_brown_02", 0.8)
+	var body := StaticBody3D.new()
+	body.name = "Yard"
+	add_child(body)
+	var x0: float = HOUSE_AT.x + YARD[0]
+	var z0: float = HOUSE_AT.z + YARD[1]
+	var x1: float = HOUSE_AT.x + YARD[2]
+	var z1: float = HOUSE_AT.z + YARD[3]
+	var gx := HOUSE_AT.x
+	# стороны: [начало, конец]; спереди — две части с калиткой посередине
+	var sides := [
+		[Vector2(x0, z0), Vector2(x1, z0)], [Vector2(x0, z0), Vector2(x0, z1)], [Vector2(x1, z0), Vector2(x1, z1)],
+		[Vector2(x0, z1), Vector2(gx - GATE * 0.5, z1)], [Vector2(gx + GATE * 0.5, z1), Vector2(x1, z1)],
+	]
+	var pickets: Array[Transform3D] = []
+	var posts: Array[Transform3D] = []
+	var rails: Array[Transform3D] = []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 33
+	for sd in sides:
+		var a: Vector2 = sd[0]
+		var b: Vector2 = sd[1]
+		var L := a.distance_to(b)
+		var dir := (b - a) / L
+		var yaw := -atan2(dir.y, dir.x)
+		var B := Basis(Vector3.UP, yaw)
+		var n := int(L / 0.17)
+		for i in n:
+			var t := (i + 0.5) / n * L
+			var p := a + dir * t
+			var h := rng.randf_range(1.05, 1.22)
+			pickets.append(Transform3D(Basis(Vector3(dir.x, 0, dir.y), rng.randf_range(-0.03, 0.03)) * B * Basis.from_scale(Vector3(1, h, 1)), Vector3(p.x, h * 0.5, p.y)))
+		var np := int(ceil(L / 2.4))
+		for i in np + 1:
+			var p := a + dir * (L * i / np)
+			posts.append(Transform3D(B, Vector3(p.x, 0.65, p.y)))
+		for y in [0.35, 0.85]:
+			var m := (a + b) * 0.5
+			rails.append(Transform3D(B * Basis.from_scale(Vector3(L, 1, 1)), Vector3(m.x, y, m.y)))
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(L, 1.4, 0.12)
+		cs.shape = bs
+		cs.transform = Transform3D(B, Vector3((a.x + b.x) * 0.5, 0.7, (a.y + b.y) * 0.5))
+		body.add_child(cs)
+	_multi(pickets, _box(Vector3(0.09, 1.0, 0.025)), planks)
+	_multi(posts, _box(Vector3(0.11, 1.3, 0.11)), planks)
+	_multi(rails, _box(Vector3(1.0, 0.07, 0.035)), planks)
+	# поленница вдоль левой стены дома (снаружи), под свесом крыши
+	var logs: Array[Transform3D] = []
+	var wx: float = HOUSE_AT.x - ULHouse.W * 0.5 - 1.4             # из-под свеса крыши — видно сверху
+	for row in 5:
+		for i in 14:
+			var z: float = HOUSE_AT.z - 3.2 + i * 0.21 + (0.1 if row % 2 == 1 else 0.0)
+			var y := 0.11 + row * 0.19
+			logs.append(Transform3D(Basis(Vector3.FORWARD, PI * 0.5) * Basis(Vector3.UP, rng.randf() * TAU), Vector3(wx + rng.randf_range(-0.03, 0.03), y, z)))
+	var log_mesh := CylinderMesh.new()
+	log_mesh.top_radius = 0.1
+	log_mesh.bottom_radius = 0.1
+	log_mesh.height = 0.6
+	log_mesh.radial_segments = 8
+	_multi(logs, log_mesh, bark)
+	var lc := CollisionShape3D.new()
+	var lb := BoxShape3D.new()
+	lb.size = Vector3(0.65, 1.0, 3.1)
+	lc.shape = lb
+	lc.position = Vector3(wx, 0.5, HOUSE_AT.z - 3.2 + 1.45)
+	body.add_child(lc)
+	# колода и пара поленьев рядом
+	var block := MeshInstance3D.new()
+	var bm := CylinderMesh.new()
+	bm.top_radius = 0.24
+	bm.bottom_radius = 0.27
+	bm.height = 0.45
+	block.mesh = bm
+	block.material_override = bark
+	block.position = Vector3(wx - 1.2, 0.225, HOUSE_AT.z + 0.6)
+	add_child(block)
+	var bc := CollisionShape3D.new()
+	var bcs := CylinderShape3D.new()
+	bcs.radius = 0.27
+	bcs.height = 0.45
+	bc.shape = bcs
+	bc.position = block.position
+	body.add_child(bc)
+	var chips: Array[Transform3D] = []
+	for i in 5:
+		chips.append(Transform3D(Basis(Vector3.FORWARD, PI * 0.5) * Basis(Vector3.RIGHT, rng.randf() * TAU) * Basis(Vector3.UP, rng.randf() * TAU), block.position + Vector3(rng.randf_range(-0.8, 0.8), -0.16, rng.randf_range(-0.8, 0.8))))
+	_multi(chips, log_mesh, bark)
+	# камни по кластеру
+	var rock := SphereMesh.new()
+	rock.radius = 0.5
+	rock.height = 0.6
+	rock.radial_segments = 7
+	rock.rings = 4
+	var stones: Array[Transform3D] = []
+	for i in 70:
+		var p := Vector3(rng.randf_range(-SIZE * 0.48, SIZE * 0.48), 0, rng.randf_range(-SIZE * 0.48, SIZE * 0.48))
+		var hq := p - HOUSE_AT
+		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5:
+			continue                                               # не в доме и не на крыльце
+		var s := rng.randf_range(0.08, 0.32)
+		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.4), s * 0.7, s)), p + Vector3.UP * s * 0.1))
+	var rm := StandardMaterial3D.new()
+	rm.albedo_color = Color(0.42, 0.41, 0.39)
+	rm.normal_enabled = true
+	rm.normal_texture = load(TEX + "rocky_gravel_n.jpg")
+	rm.uv1_triplanar = true
+	rm.roughness = 0.85
+	_multi(stones, rock, rm)
+
+
+func _box(size: Vector3) -> BoxMesh:
+	var bm := BoxMesh.new()
+	bm.size = size
+	return bm
+
+
+func _multi(xs: Array[Transform3D], mesh: Mesh, mat: Material) -> MultiMeshInstance3D:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xs.size()
+	for i in xs.size():
+		mm.set_instance_transform(i, xs[i])
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = mat
+	add_child(mi)
+	return mi
+
+
 func _flora() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2611
@@ -356,7 +534,8 @@ func _flora() -> void:
 			tries += 1
 			var p := Vector3(rng.randf_range(-SIZE * 0.47, SIZE * 0.47), 0, rng.randf_range(-SIZE * 0.47, SIZE * 0.47))
 			# не на дом, не на дорогу, не на старт, не вплотную друг к другу
-			if absf(p.x - HOUSE_AT.x) < ULHouse.W * 0.5 + 4.0 and absf(p.z - HOUSE_AT.z) < ULHouse.D * 0.5 + 4.0:
+			var hp := p - HOUSE_AT
+			if hp.x > YARD[0] - 1.5 and hp.x < YARD[2] + 1.5 and hp.z > YARD[1] - 1.5 and hp.z < YARD[3] + 1.5:
 				continue
 			if p.distance_to(Vector3(0, 0, 6)) < 4.0:
 				continue
@@ -436,10 +615,10 @@ func _player() -> void:
 	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
 	snd = BCSound.new()
 	add_child(snd)
-	player.position = Vector3(0, 0.1, 6)
+	player.position = Vector3(0, 0.1, 3)
 	player.rotation.y = PI                       # лицом к дому
 	cam = Camera3D.new()
-	cam.fov = 45
+	cam.fov = 40
 	cam.near = 0.1
 	cam.far = 220
 	add_child(cam)
@@ -488,7 +667,7 @@ func _process(delta: float) -> void:
 	var ins := house.contains(player.global_position)
 	if ins != house.inside:
 		house.set_inside(ins)
-	var pitch_t := 1.2 if ins else cam_pitch
+	var pitch_t := maxf(1.2, cam_pitch) if ins else cam_pitch
 	var dist_t := clampf(cam_dist, 9.0, 12.0) if ins else cam_dist
 	_cam_t = _cam_t.lerp(player.global_position, 1.0 - exp(-delta * 8.0))
 	var cp := Vector3(sin(cam_yaw) * cos(pitch_t), sin(pitch_t), cos(cam_yaw) * cos(pitch_t)) * dist_t
@@ -772,15 +951,15 @@ func _unhandled_input(e: InputEvent) -> void:
 				var ks := _touch.keys()
 				var dd := (_touch[ks[0]] as Vector2).distance_to(_touch[ks[1]])
 				if _pinch > 0.0:
-					cam_dist = clampf(cam_dist * _pinch / dd, 5.0, 22.0)
+					cam_dist = clampf(cam_dist * _pinch / dd, 7.0, 22.0)
 				_pinch = dd
 			else:
 				cam_yaw -= d.relative.x * 0.006
-				cam_pitch = clampf(cam_pitch + d.relative.y * 0.004, 0.45, 1.25)
+				cam_pitch = clampf(cam_pitch + d.relative.y * 0.004, 0.9, 1.35)
 	elif e is InputEventMouseButton:
 		var mb := e as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			cam_dist = maxf(5.0, cam_dist * 0.9)
+			cam_dist = maxf(7.0, cam_dist * 0.9)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			cam_dist = minf(22.0, cam_dist * 1.1)
 
@@ -826,26 +1005,32 @@ func _run_test() -> void:
 	cam_pitch = 1.2
 	await get_tree().create_timer(1.2).timeout
 	await _snap("w0_overview")
-	cam_dist = 14.0
-	cam_pitch = 0.5
+	cam_dist = 13.0
+	cam_pitch = 1.0
 	await get_tree().create_timer(1.0).timeout
 	await _snap("w1_start")
-	cam_dist = 7.0
-	cam_pitch = 0.32
+	cam_dist = 8.0
+	cam_pitch = 0.95
 	await get_tree().create_timer(1.0).timeout
 	await _snap("w1b_ground")
 	cam_dist = keep
-	cam_pitch = 0.92
+	cam_pitch = 1.0
 	# к дому, внутрь и по комнатам
 	var H := house
 	var route := [
-		["w2_door", [H.door_point(1.5)]],
+		["w2_door", [HOUSE_AT + Vector3(0, 0, YARD[3] + 1.0), HOUSE_AT + Vector3(0, 0, YARD[3] - 1.0), H.door_point(1.5)]],
 		["w3_seni", [H.to_global(Vector3(0, 0, 3.4))]],
 		["w4_kitchen", [H.to_global(Vector3(0, 0, 3.25)), H.to_global(Vector3(-1.0, 0, 3.25)), H.to_global(Vector3(-3.6, 0, 3.4))]],
 		["w5_store", [H.to_global(Vector3(-1.0, 0, 3.25)), H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(2.4, 0, 3.0))]],
 		["w6_gornica", [H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(0, 0, 2.6)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(-2.5, 0, -1.5))]],
 		["w7_bedroom", [H.to_global(Vector3(0.8, 0, -2.0)), H.to_global(Vector3(2.4, 0, -2.0)), H.to_global(Vector3(3.8, 0, -2.5))]],
 	]
+	var keep_p := player.global_position
+	player.global_position = HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.0, 0.05, 1.5)
+	await get_tree().create_timer(1.2).timeout
+	await _snap("w1c_yard")
+	player.global_position = keep_p
+	await get_tree().create_timer(0.6).timeout
 	for r in route:
 		await _walk(r[1])
 		print("[world] %s: герой в %s, «%s»" % [r[0], str(player.global_position.snapped(Vector3.ONE * 0.01)), _where()])
@@ -855,7 +1040,8 @@ func _run_test() -> void:
 	await _snap("w8_crate")
 	print("[world] ящиков: %d, последний в %s" % [crates.size(), str(crates[-1].global_position.snapped(Vector3.ONE * 0.01))])
 	# обратно на улицу и к краю кластера
-	await _walk([H.to_global(Vector3(0.8, 0, -2.0)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(0, 0, 3.0)), H.door_point(2.5)], 20.0)
+	await _walk([H.to_global(Vector3(0.8, 0, -2.0)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(0, 0, 3.0)), H.door_point(2.5), HOUSE_AT + Vector3(0, 0, YARD[3] + 1.5)], 25.0)
+	print("[world] вышел со двора: %s" % str(player.global_position.snapped(Vector3.ONE * 0.01)))
 	player.global_position = Vector3(0, 0.05, 44)
 	await _walk([Vector3(0, 0, 60)], 8.0)
 	print("[world] у края: %s (дальше края кластера пройти нельзя)" % str(player.global_position.snapped(Vector3.ONE * 0.01)))
