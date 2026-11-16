@@ -2,9 +2,9 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://belsmj8bfambt"
-path.s3tc="res://.godot/imported/mud_forest_c.jpg-2db00c0e3b192d3a1a62cee9e25f56b0.s3tc.ctex"
-path.etc2="res://.godot/imported/mud_forest_c.jpg-2db00c0e3b192d3a1a62cee9e25f56b0.etc2.ctex"
+uid="uid://c3s6jw64e75rw"
+path.s3tc="res://.godot/imported/rock_boulder_dry_n.jpg-877c0e7d5ec0d8a12fd6c9d29d3c9dd6.s3tc.ctex"
+path.etc2="res://.godot/imported/rock_boulder_dry_n.jpg-877c0e7d5ec0d8a12fd6c9d29d3c9dd6.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/world/tex/mud_forest_c.jpg"
-dest_files=["res://.godot/imported/mud_forest_c.jpg-2db00c0e3b192d3a1a62cee9e25f56b0.s3tc.ctex", "res://.godot/imported/mud_forest_c.jpg-2db00c0e3b192d3a1a62cee9e25f56b0.etc2.ctex"]
+source_file="res://assets/world/tex/rock_boulder_dry_n.jpg"
+dest_files=["res://.godot/imported/rock_boulder_dry_n.jpg-877c0e7d5ec0d8a12fd6c9d29d3c9dd6.s3tc.ctex", "res://.godot/imported/rock_boulder_dry_n.jpg-877c0e7d5ec0d8a12fd6c9d29d3c9dd6.etc2.ctex"]
 
 [params]
 

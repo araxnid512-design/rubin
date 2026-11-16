@@ -2,9 +2,9 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bt1efjqwge82l"
-path.s3tc="res://.godot/imported/stony_dirt_path_n.jpg-243ad13d0983bc0fc0b5dd2bb8e2d4da.s3tc.ctex"
-path.etc2="res://.godot/imported/stony_dirt_path_n.jpg-243ad13d0983bc0fc0b5dd2bb8e2d4da.etc2.ctex"
+uid="uid://b5s10ljt8p27l"
+path.s3tc="res://.godot/imported/grass_path_2_c.jpg-390987ef3e7234e1937e6037e331ca75.s3tc.ctex"
+path.etc2="res://.godot/imported/grass_path_2_c.jpg-390987ef3e7234e1937e6037e331ca75.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/world/tex/stony_dirt_path_n.jpg"
-dest_files=["res://.godot/imported/stony_dirt_path_n.jpg-243ad13d0983bc0fc0b5dd2bb8e2d4da.s3tc.ctex", "res://.godot/imported/stony_dirt_path_n.jpg-243ad13d0983bc0fc0b5dd2bb8e2d4da.etc2.ctex"]
+source_file="res://assets/world/tex/grass_path_2_c.jpg"
+dest_files=["res://.godot/imported/grass_path_2_c.jpg-390987ef3e7234e1937e6037e331ca75.s3tc.ctex", "res://.godot/imported/grass_path_2_c.jpg-390987ef3e7234e1937e6037e331ca75.etc2.ctex"]
 
 [params]
 

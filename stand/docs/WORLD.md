@@ -182,10 +182,11 @@
 ## Источники
 - Модели дома, ящика, сосны, берёзы, яблони, куста, набора припасов — Tripo AI, аккаунт пользователя
   (`tools/tripo/budget.md`).
-- Текстуры — Poly Haven, CC0 (`assets/world/tex/`): forrest_ground_01 (трава), sparse_grass (травинки),
-  mud_forest (лесная почва), stony_dirt_path (тропа с галькой), old_planks_02 (серые доски забора),
+- Текстуры — Poly Haven, CC0 (`assets/world/tex/`): forrest_ground_01 и leafy_grass (трава), grass_path_2 (сухая
+  земля), rocky_trail (галечная тропа), rock_boulder_dry (валуны), old_planks_02 (серые доски забора),
   bark_brown_02 (кора), dry_ground_01, rocky_gravel, weathered_brown_planks, brown_planks_03 (дом внутри),
-  weathered_plank_siding (стены дома снаружи), worn_corrugated_iron (кровля).
+  weathered_plank_siding (стены дома снаружи), worn_corrugated_iron (кровля). Гамма светлая: зелёный луг
+  с проплешинами сухой земли, а не тёмная лесная почва.
 - Откуда брать текстуры дальше: Poly Haven (polyhaven.com) и ambientCG (ambientcg.com) — обе библиотеки CC0
   (можно в коммерческой игре, без указания автора), обе доступны из сборочной среды. Модели Tripo с размытой
   раскраской улучшаются тем же приёмом, что дом: чёткая фототекстура поверх, раскраска модели — как светлота.

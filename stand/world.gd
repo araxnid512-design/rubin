@@ -119,7 +119,7 @@ func _env() -> void:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.22, 0.22, 0.17)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 0.7
+	e.ambient_light_energy = 0.9
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_exposure = 1.12
 	e.tonemap_white = 6.0
@@ -176,11 +176,12 @@ void fragment() {
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
 	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.8) / 100.0 + 0.5);
-	vec3 g = mix(texture(grass, p / 4.2).rgb, texture(blades, rot * p / 5.3).rgb * vec3(1.5, 1.45, 1.1), 0.45) * vec3(0.92, 0.96, 0.8);
-	vec3 so = texture(soil, p / 3.4).rgb * vec3(1.75, 1.85, 1.95);
-	vec3 e = texture(path, p / 3.0).rgb * 1.75;
-	ALBEDO = mix(mix(so, e, m.g), g, m.r) * (m.b * 1.2 * 0.66 * m.a);
-	NORMAL_MAP = texture(path_n, p / 3.0).rgb;
+	// светлая, естественная гамма: трава — зелёная с желтизной, голая земля — сухая серо-бурая, тропа — светлая галька
+	vec3 g = mix(texture(grass, p / 4.2).rgb, texture(blades, rot * p / 5.3).rgb, 0.4) * vec3(0.88, 1.02, 0.66);
+	vec3 so = texture(soil, p / 3.8).rgb * vec3(0.9, 0.84, 0.74);
+	vec3 e = texture(path, p / 3.2).rgb * vec3(1.0, 0.95, 0.88);
+	ALBEDO = mix(mix(so, e, m.g), g, m.r) * (m.b * 1.2 * 0.76 * m.a);
+	NORMAL_MAP = texture(path_n, p / 3.2).rgb;
 	NORMAL_MAP_DEPTH = 1.2;
 	ROUGHNESS = 0.96;
 }
@@ -204,7 +205,7 @@ void fragment() {
 	if (c.a < 0.45) { discard; }
 	// обе стороны травинки освещены как земля (нормаль вверх), иначе обратная сторона — чёрная
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-	ALBEDO = c.rgb * COLOR.rgb * vec3(0.7, 0.75, 0.42) * mix(0.6, 1.0, 1.0 - hh);
+	ALBEDO = c.rgb * COLOR.rgb * vec3(0.8, 0.88, 0.48) * mix(0.66, 1.0, 1.0 - hh);
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.1;
 }
@@ -313,7 +314,7 @@ func _grass_w(p: Vector3) -> float:
 	var n1 := _noise(q / 70.0)
 	var n2 := _noise(q / 19.0 + Vector2(0.37, 0.11))
 	var n3 := _noise(q / 5.5 + Vector2(0.71, 0.53))
-	return smoothstep(0.44, 0.56, n1 * 0.4 + n2 * 0.35 + n3 * 0.25)
+	return smoothstep(0.35, 0.55, n1 * 0.4 + n2 * 0.35 + n3 * 0.25)
 
 
 const FOG_SHADER := """shader_type spatial;
@@ -394,7 +395,7 @@ func _bake_mask() -> Image:
 			var lq := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length()
 			var ring := 1.0 - smoothstep(0.2, 1.4, lq)
 			var bare := maxf(trail, maxf(porch, ring * 0.8))
-			var gw := smoothstep(0.4, 0.6, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.88 + 0.06
+			var gw := smoothstep(0.35, 0.55, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.9 + 0.08
 			var yq := Vector2(maxf(maxf(y0.x - p.x, p.x - y1.x), 0.0), maxf(maxf(y0.y - p.y, p.y - y1.y), 0.0))
 			var in_yard := 1.0 - smoothstep(0.0, 1.2, yq.length())
 			gw *= (1.0 - in_yard * 0.45) * (1.0 - bare)
@@ -416,10 +417,10 @@ func _ground() -> void:
 	sh.code = GROUND_SHADER
 	sm.shader = sh
 	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
-	sm.set_shader_parameter("blades", load(TEX + "sparse_grass_c.jpg"))
-	sm.set_shader_parameter("soil", load(TEX + "mud_forest_c.jpg"))
-	sm.set_shader_parameter("path", load(TEX + "stony_dirt_path_c.jpg"))
-	sm.set_shader_parameter("path_n", load(TEX + "stony_dirt_path_n.jpg"))
+	sm.set_shader_parameter("blades", load(TEX + "leafy_grass_c.jpg"))
+	sm.set_shader_parameter("soil", load(TEX + "grass_path_2_c.jpg"))
+	sm.set_shader_parameter("path", load(TEX + "rocky_trail_c.jpg"))
+	sm.set_shader_parameter("path_n", load(TEX + "rocky_trail_n.jpg"))
 	# шум — картинкой: тот же рисунок читается и в шейдере, и здесь (где трава — там пучки)
 	var fn := FastNoiseLite.new()
 	fn.seed = 7
@@ -530,7 +531,7 @@ void fragment() {
 		relief = texture(wall_n, u).g - 0.5;
 	} else {
 		vec2 u = (abs(wn.x) > abs(wn.z) ? vec2(wp.z, wp.y) : vec2(wp.x, wp.y)) / 1.8;
-		col = texture(wall, u).rgb * 0.86 * mix(1.0, k, 0.9);
+		col = texture(wall, u).rgb * 1.02 * mix(1.0, k, 0.9);
 		relief = texture(wall_n, u).g - 0.5;
 	}
 	ALBEDO = col * (1.0 + relief * 0.6);
@@ -723,11 +724,7 @@ func _yard() -> void:
 		chips.append(Transform3D(Basis(Vector3.FORWARD, PI * 0.5) * Basis(Vector3.RIGHT, rng.randf() * TAU) * Basis(Vector3.UP, rng.randf() * TAU), block.position + Vector3(rng.randf_range(-0.8, 0.8), -0.16, rng.randf_range(-0.8, 0.8))))
 	_multi(chips, log_mesh, bark)
 	# камни по кластеру
-	var rock := SphereMesh.new()
-	rock.radius = 0.5
-	rock.height = 0.6
-	rock.radial_segments = 6
-	rock.rings = 3
+	var rock := _rock_mesh(5)
 	var stones: Array[Transform3D] = []
 	for i in 70:
 		var p := Vector3(rng.randf_range(-SIZE * 0.48, SIZE * 0.48), 0, rng.randf_range(-SIZE * 0.48, SIZE * 0.48))
@@ -772,11 +769,13 @@ func _yard() -> void:
 	stick_mat.albedo_color = Color(0.62, 0.52, 0.42)
 	_multi(sticks, stick, stick_mat)
 	var rm := StandardMaterial3D.new()
-	rm.albedo_color = Color(0.5, 0.5, 0.48)
+	rm.albedo_texture = load(TEX + "rock_boulder_dry_c.jpg")
+	rm.albedo_color = Color(0.86, 0.86, 0.84)
 	rm.normal_enabled = true
-	rm.normal_texture = load(TEX + "rocky_gravel_n.jpg")
+	rm.normal_texture = load(TEX + "rock_boulder_dry_n.jpg")
 	rm.uv1_triplanar = true
-	rm.roughness = 0.85
+	rm.uv1_scale = Vector3.ONE * 0.9
+	rm.roughness = 0.9
 	_multi(stones, rock, rm)
 
 
@@ -953,6 +952,33 @@ func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGener
 		mi.multimesh = mm
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
+
+
+## камень неровной формы: шар, помятый шумом, низ приплюснут (лежит на земле)
+func _rock_mesh(seed_n: int) -> ArrayMesh:
+	var sp := SphereMesh.new()
+	sp.radius = 0.5
+	sp.height = 1.0
+	sp.radial_segments = 10
+	sp.rings = 6
+	var fn := FastNoiseLite.new()
+	fn.seed = seed_n
+	fn.frequency = 1.3
+	var arr := sp.get_mesh_arrays()
+	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	for i in vs.size():
+		var v := vs[i]
+		var k := 1.0 + 0.34 * fn.get_noise_3dv(v * 2.0) + 0.14 * fn.get_noise_3dv(v * 5.0)
+		v *= k
+		v.y = maxf(v.y * 0.72, -0.16)
+		vs[i] = v
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+	for i in idx:
+		st.add_vertex(vs[i])
+	st.generate_normals()
+	return st.commit()
 
 
 func _box(size: Vector3) -> BoxMesh:
