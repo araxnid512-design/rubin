@@ -84,6 +84,8 @@ func _ready() -> void:
 	_blob_layer()
 	_player()
 	_combat_setup()
+	_npcs_setup()
+	_load_profile()
 	inv = ULInventory.new()
 	_ui()
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
@@ -1087,7 +1089,7 @@ func _input_vec() -> Vector2:
 		v = k.normalized() * (1.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 0.6)
 	if not _auto.is_empty():
 		v = _auto_vec()
-	if inv_ui and inv_ui.visible:
+	if _modal():
 		v = Vector2.ZERO
 	return v
 
@@ -1161,6 +1163,7 @@ func _process(delta: float) -> void:
 		_toast.modulate.a = clampf(_toast_t, 0.0, 1.0)
 	if _preview_rig and inv_ui.visible and _preview_rig.hold.wid != "":
 		_preview_rig.set_motion(0.0, 0.0, delta)
+	_npcs_tick(delta)
 
 
 var _cam_ready := false
@@ -1627,9 +1630,14 @@ func _find_target() -> void:
 		if d < bd:
 			bd = d
 			best = {"type": "crate", "c": c}
+	for n in npcs:
+		var d := (n as Node3D).global_position.distance_to(p) - 0.4
+		if d < bd:
+			bd = d
+			best = {"type": "npc", "n": n}
 	var node: Node3D = null
 	if best != null:
-		node = best.g.node if best.type == "ground" else best.c
+		node = best.g.node if best.type == "ground" else (best.c if best.type == "crate" else best.n)
 	_target = best
 	if node != _glow_node:
 		_set_glow(_glow_node, false)
@@ -1670,6 +1678,8 @@ func _set_glow(node: Node3D, on: bool) -> void:
 func _target_pos() -> Vector3:
 	if _target == null:
 		return Vector3.ZERO
+	if _target.type == "npc":
+		return (_target.n as Node3D).global_position + Vector3.UP * 1.0
 	return (_target.g.node as Node3D).global_position if _target.type == "ground" else (_target.c as Node3D).global_position + Vector3.UP * 0.3
 
 
@@ -1678,6 +1688,8 @@ func _target_name() -> String:
 		return ""
 	if _target.type == "crate":
 		return "ящик"
+	if _target.type == "npc":
+		return "%s, %s" % [_target.n.get_meta("name"), _target.n.get_meta("role")]
 	return ULItems.title(_target.g.item)
 
 
@@ -1686,6 +1698,8 @@ func _action_label() -> String:
 		return ""
 	if _target.type == "crate":
 		return "Открыть"
+	if _target.type == "npc":
+		return "Говорить"
 	var it: Dictionary = _target.g.item
 	return "Открыть" if ULItems.kind(it) == "pack" else "Взять"
 
@@ -1696,6 +1710,9 @@ func do_action() -> void:
 	if _target.type == "crate":
 		open_inventory(_target.c.get_meta("items"), "Ящик", false, "crate")
 		snd.play("hit_wood", (_target.c as Node3D).global_position, -10.0)
+		return
+	if _target.type == "npc":
+		open_talk(_target.n)
 		return
 	var g: Dictionary = _target.g
 	var it: Dictionary = g.item
@@ -1900,6 +1917,12 @@ var _hud_tex := {}
 var _menu_bar: HBoxContainer
 
 
+func _tex(path: String) -> Texture2D:
+	if not _hud_tex.has(path):
+		_hud_tex[path] = load(path) if ResourceLoader.exists(path) else null
+	return _hud_tex[path]
+
+
 func _glyph(n: String) -> Texture2D:
 	if not _hud_tex.has(n):
 		_hud_tex[n] = load("res://assets/icons/hud_%s.png" % n)
@@ -1944,8 +1967,14 @@ func _draw_hud() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	# шапка: имя, здоровье, энергия, вода
 	var font0 := ThemeDB.fallback_font
-	_hud.draw_string_outline(font0, Vector2(18, 30), "Сталкер", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.85))
-	_hud.draw_string(font0, Vector2(18, 30), "Сталкер", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.95, 0.97, 1.0))
+	_hud.draw_string_outline(font0, Vector2(18, 30), hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.85))
+	_hud.draw_string(font0, Vector2(18, 30), hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.95, 0.97, 1.0))
+	# три точки справа от имени — сменить имя
+	var dc := _name_dots()
+	_hud.draw_circle(dc, 15, Color(0.05, 0.07, 0.09, 0.55))
+	_hud.draw_arc(dc, 15, 0, TAU, 28, Color(0.6, 0.85, 1.0, 0.55), 1.5)
+	for i in 3:
+		_hud.draw_circle(dc + Vector2((i - 1) * 7.0, 0), 2.4, Color(0.92, 0.96, 1.0))
 	var bw := 280.0
 	_hud.draw_rect(Rect2(16, 40, bw, 10), Color(0, 0, 0, 0.6))
 	_hud.draw_rect(Rect2(17, 41, (bw - 2) * clampf(hp / HP_MAX, 0.0, 1.0), 8), Color(0.85, 0.25, 0.22) if hp < 35.0 else Color(0.35, 0.8, 0.3))
@@ -1969,7 +1998,8 @@ func _draw_hud() -> void:
 		var active := true
 		match k:
 			"take":
-				active = _target != null
+				if _target == null:
+					continue                               # рядом ничего нет — кнопки нет
 			"heal":
 				active = hp < HP_MAX and inv.best_heal(int(HP_MAX - hp)) != ""
 			"reload":
@@ -1997,9 +2027,16 @@ func _draw_hud() -> void:
 					_hud_icon(_art("weapon"), c, r * 2.0, Color(1, 1, 1, 0.75))
 				_hud_icon(_glyph("swap"), c + Vector2(r * 0.66, -r * 0.66), 30, Color(1.0, 0.85, 0.4))
 			"take":
-				_hud_icon(_art("use"), c, r * 2.0, ic)
-				if active:
-					_hud_text(c + Vector2(0, r - 10), _action_label(), 14, Color(1.0, 0.88, 0.55))
+				# рукопожатие — только у жителя, с которым можно говорить и торговать; у ящика и предмета — их значок
+				match String(_target.type):
+					"npc":
+						_hud_icon(_art("use"), c, r * 2.0, ic)
+					"crate":
+						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
+					_:
+						var tid := String(_target.g.item.id)
+						_hud_icon(ULItems.icon(tid), c, r * 1.5, ULItems.tint(tid))
+				_hud_text(c + Vector2(0, r - 10), _action_label(), 14, Color(1.0, 0.88, 0.55))
 			"heal":
 				_hud_icon(_art("heal"), c, r * 2.0, ic)
 				var n := inv.count("bandage") + inv.count("medkit")
@@ -2020,8 +2057,12 @@ func _draw_hud() -> void:
 
 func _hud_hit(p: Vector2) -> String:
 	for k in HUD_BTNS:
+		if k == "take" and _target == null:
+			continue
 		if p.distance_to(_hud_pos(k)) <= float(HUD_BTNS[k][1]) + 8.0:
 			return k
+	if p.distance_to(_name_dots()) <= 26.0 or Rect2(10, 4, _name_dots().x + 8, 34).has_point(p):
+		return "name"
 	# нажатие прямо на подсвеченный предмет — «взять»
 	if _target != null and cam != null:
 		var at: Vector3 = _target_pos() + Vector3.UP * 0.3
@@ -2050,11 +2091,13 @@ func _hud_press(k: String) -> void:
 			say("Поставлен ящик")
 		"menu":
 			_menu_bar.visible = not _menu_bar.visible
+		"name":
+			open_name_panel()
 
 
 ## касания: кнопки справа (каждый палец отдельно — можно бежать и стрелять), джойстик слева, два пальца — масштаб
 func _input(e: InputEvent) -> void:
-	if inv_ui and inv_ui.visible:
+	if _modal():
 		return
 	var vs := get_viewport().get_visible_rect().size
 	if e is InputEventScreenTouch:
@@ -2146,7 +2189,7 @@ func _hand_item():
 
 ## кнопка атаки: огнестрел — выстрел (очередь, пока держим, у автоматического), мачете — удар, пусто — кулаки
 func attack() -> void:
-	if _atk_cd > 0.0 or (inv_ui and inv_ui.visible):
+	if _atk_cd > 0.0 or _modal():
 		return
 	var it = _hand_item()
 	if it == null:
@@ -2576,7 +2619,7 @@ func _combat_tick(delta: float) -> void:
 	# кнопка удержана — атака повторяется в темпе оружия (и кулаки, и мачете, и одиночный огонь); нажатие чуть
 	# раньше срока (оружие ещё достаётся, не кончился прошлый удар) не теряется — сработает, как только можно
 	var held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
-	if (held or _atk_want > 0.0) and not (inv_ui and inv_ui.visible) and _try_attack():
+	if (held or _atk_want > 0.0) and not _modal() and _try_attack():
 		_atk_want = 0.0
 	# метка под целью
 	if Engine.get_process_frames() % 4 == 0:
@@ -2908,6 +2951,32 @@ func _inv_test() -> void:
 		if wd.has("ammo") and not in_crates.has(String(wd.ammo)):
 			miss += String(wd.ammo) + " "
 	_ok("в ящиках всё оружие игры и патроны к нему", miss == "", miss)
+	# --- кнопка взаимодействия, житель, имя героя ---
+	inv.hand = ""
+	_apply_gear()
+	player.global_position = Vector3(0.3, 0.05, 12.0)             # на тропе, рядом ничего нет
+	await get_tree().create_timer(0.3).timeout
+	_ok("рядом ничего нет: кнопки взаимодействия нет", _target == null and _hud_hit(_hud_pos("take")) != "take", "нажатие в её месте: «%s»" % _hud_hit(_hud_pos("take")))
+	var npc: Node3D = npcs[0]
+	player.global_position = npc.global_position + Vector3(0.0, 0.05, 1.3)
+	await get_tree().create_timer(0.4).timeout
+	_ok("у жителя: кнопка появилась, действие «Говорить»", _target != null and String(_target.type) == "npc" and _hud_hit(_hud_pos("take")) == "take" and _action_label() == "Говорить", _target_name())
+	_ok("житель повернулся к герою", absf(angle_difference(npc.rotation.y, 0.0)) < 0.35, "поворот %.2f" % npc.rotation.y)
+	do_action()
+	_ok("разговор открыт, герой назван по имени", _talk_ui != null and _talk_ui.visible and _talk_text.text.contains(hero_name) and _modal(), _talk_text.text)
+	_talk_ui.visible = false
+	var cr0: Node3D = crates[0]
+	player.global_position = cr0.global_position + Vector3(-1.0, 0.05, 0.0)
+	await get_tree().create_timer(0.3).timeout
+	_ok("у ящика: кнопка есть, действие «Открыть» (значок ящика, не рукопожатие)", _target != null and String(_target.type) == "crate" and _action_label() == "Открыть")
+	_ok("три точки у имени открывают панель имени", _hud_hit(_name_dots()) == "name")
+	_hud_press("name")
+	_ok("панель имени открыта, в поле — текущее имя", _name_ui.visible and _name_edit.text == "Сталкер" and _modal())
+	_name_edit.text = "  Бродяга  "
+	_name_ok()
+	_ok("имя сменилось на «Бродяга», панель закрылась", hero_name == "Бродяга" and not _name_ui.visible)
+	_ok("пустое имя не принимается, длинное обрезается до 16 знаков", not set_hero_name("   ") and set_hero_name("Очень длинное имя сталкера") and hero_name.length() == 16, hero_name)
+	set_hero_name("Сталкер")
 	# сохранение и загрузка
 	var snap := JSON.stringify({"inv": inv.to_dict()})
 	var inv2 := ULInventory.new()
@@ -2920,6 +2989,219 @@ func _inv_test() -> void:
 	print("[inv] итог: ошибок %d" % _fails)
 	await _perf_report()
 	get_tree().quit()
+
+
+# ---------------- имя героя ----------------
+
+const PROFILE := "user://profile.json"   ## имя хранится отдельно от сохранения локации — сброс добычи его не трогает
+var hero_name := "Сталкер"
+var _name_ui: Control
+var _name_edit: LineEdit
+
+
+func _modal() -> bool:
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible)
+
+
+func _load_profile() -> void:
+	if test == "" and FileAccess.file_exists(PROFILE):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(PROFILE))
+		if d is Dictionary:
+			set_hero_name(String(d.get("name", "")), false)
+
+
+## сменить имя: до 16 знаков, пустое не принимается
+func set_hero_name(n: String, save := true) -> bool:
+	n = n.strip_edges().replace("\n", " ")
+	if n == "":
+		return false
+	hero_name = n.substr(0, 16)
+	if save and test == "":
+		var f := FileAccess.open(PROFILE, FileAccess.WRITE)
+		if f:
+			f.store_string(JSON.stringify({"name": hero_name}))
+	return true
+
+
+## центр кнопки «три точки» справа от имени
+func _name_dots() -> Vector2:
+	return Vector2(18.0 + ThemeDB.fallback_font.get_string_size(hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 26.0, 23.0)
+
+
+func open_name_panel() -> void:
+	if _name_ui == null:
+		var shade := ColorRect.new()
+		shade.color = Color(0, 0, 0, 0.55)
+		_hud.get_parent().add_child(shade)
+		shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_name_ui = shade
+		var pn := PanelContainer.new()
+		pn.add_theme_stylebox_override("panel", _style(Color(0.06, 0.09, 0.13, 0.98)))
+		shade.add_child(pn)
+		# сверху — чтобы экранная клавиатура не закрывала
+		pn.anchor_left = 0.5
+		pn.anchor_right = 0.5
+		pn.offset_left = -240
+		pn.offset_right = 240
+		pn.offset_top = 56
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 10)
+		pn.add_child(vb)
+		var tl := Label.new()
+		tl.text = "Имя героя"
+		tl.add_theme_font_size_override("font_size", 20)
+		tl.add_theme_color_override("font_color", C_TEXT)
+		vb.add_child(tl)
+		_name_edit = LineEdit.new()
+		_name_edit.max_length = 16
+		_name_edit.custom_minimum_size = Vector2(0, 54)
+		_name_edit.add_theme_font_size_override("font_size", 24)
+		_name_edit.placeholder_text = "до 16 знаков"
+		_name_edit.text_submitted.connect(func(_t): _name_ok())
+		vb.add_child(_name_edit)
+		var hb := HBoxContainer.new()
+		hb.alignment = BoxContainer.ALIGNMENT_END
+		hb.add_theme_constant_override("separation", 8)
+		vb.add_child(hb)
+		hb.add_child(_btn("Отмена", func(): _name_ui.visible = false, 120))
+		hb.add_child(_btn("Сохранить", _name_ok, 140))
+		var gap := Control.new()
+		gap.custom_minimum_size = Vector2(0, 4)
+		vb.add_child(gap)
+	_name_edit.text = hero_name
+	_name_ui.visible = true
+	_name_edit.grab_focus()
+	_name_edit.select_all()
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+func _name_ok() -> void:
+	if set_hero_name(_name_edit.text):
+		_name_ui.visible = false
+		say("Имя: " + hero_name)
+	else:
+		say("Имя не может быть пустым")
+
+
+# ---------------- жители (NPC) ----------------
+
+var npcs: Array = []
+var _talk_ui: Control
+var _talk_name: Label
+var _talk_text: Label
+
+
+## Житель: стоит на месте, поворачивается к герою, когда тот рядом. Кнопка-рукопожатие появляется только возле него.
+func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String) -> void:
+	var body := StaticBody3D.new()
+	body.name = "NPC"
+	add_child(body)
+	body.position = p
+	body.rotation.y = yaw
+	body.set_meta("name", nm)
+	body.set_meta("role", role)
+	body.set_meta("line", line)
+	body.set_meta("yaw", yaw)
+	var r := BCCharacter.new()
+	r.name = "Rig"
+	body.add_child(r)
+	r.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	# та же фигура, другая одежда: тёплый бурый тон поверх раскраски модели
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si) as StandardMaterial3D
+			if src != null:
+				var mt := src.duplicate() as StandardMaterial3D
+				mt.albedo_color = Color(1.0, 0.72, 0.5)
+				m.set_surface_override_material(si, mt)
+	var lb := Label3D.new()
+	lb.text = "%s\n%s" % [nm, role]
+	lb.font_size = 36
+	lb.pixel_size = 0.006
+	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lb.no_depth_test = true
+	lb.modulate = Color(1.0, 0.86, 0.5)
+	lb.outline_size = 10
+	lb.position = Vector3(0, 2.25, 0)
+	body.add_child(lb)
+	var blob := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1.3, 1.3)
+	blob.mesh = pm
+	blob.material_override = _blob_mat()
+	blob.position.y = 0.03
+	body.add_child(blob)
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.3
+	cap.height = 1.8
+	cs.shape = cap
+	cs.position.y = 0.9
+	body.add_child(cs)
+	npcs.append(body)
+
+
+func _npcs_setup() -> void:
+	# торговец во дворе слева от крыльца
+	_add_npc(HOUSE_AT + Vector3(-4.6, 0, 7.4), 0.0, "Седой", "торговец", "Здорово, %s. Товар ещё в дороге — торговать начну, как привезут. Заходи позже.")
+
+
+func _npcs_tick(delta: float) -> void:
+	for n in npcs:
+		var b := n as Node3D
+		(b.get_node("Rig") as BCCharacter).set_motion(0.0, 0.0, delta)
+		var v := player.global_position - b.global_position
+		var want: float = atan2(v.x, v.z) if v.length() < 4.5 else float(b.get_meta("yaw"))
+		b.rotation.y = lerp_angle(b.rotation.y, want, 1.0 - exp(-delta * 5.0))
+
+
+## разговор с жителем: его имя и слова; торговля появится здесь же
+func open_talk(n: Node3D) -> void:
+	if _talk_ui == null:
+		_talk_ui = Control.new()
+		_hud.get_parent().add_child(_talk_ui)
+		_talk_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		var pn := PanelContainer.new()
+		pn.add_theme_stylebox_override("panel", _style(Color(0.06, 0.09, 0.13, 0.96)))
+		_talk_ui.add_child(pn)
+		pn.anchor_left = 0.5
+		pn.anchor_right = 0.5
+		pn.anchor_top = 1.0
+		pn.anchor_bottom = 1.0
+		pn.offset_left = -340
+		pn.offset_right = 340
+		pn.offset_top = -210
+		pn.offset_bottom = -28
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 8)
+		pn.add_child(vb)
+		_talk_name = Label.new()
+		_talk_name.add_theme_font_size_override("font_size", 20)
+		_talk_name.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+		vb.add_child(_talk_name)
+		_talk_text = Label.new()
+		_talk_text.add_theme_font_size_override("font_size", 18)
+		_talk_text.add_theme_color_override("font_color", C_TEXT)
+		_talk_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_talk_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		vb.add_child(_talk_text)
+		var hb := HBoxContainer.new()
+		hb.alignment = BoxContainer.ALIGNMENT_END
+		vb.add_child(hb)
+		hb.add_child(_btn("Закрыть", func(): _talk_ui.visible = false, 130))
+		var gap := Control.new()
+		gap.custom_minimum_size = Vector2(0, 2)
+		vb.add_child(gap)
+	_talk_name.text = "%s, %s" % [n.get_meta("name"), n.get_meta("role")]
+	var line := String(n.get_meta("line"))
+	_talk_text.text = line % hero_name if line.contains("%s") else line
+	_talk_ui.visible = true
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
 
 
 # ---------------- производительность ----------------
@@ -3038,12 +3320,21 @@ func _run_test() -> void:
 	if test == "view":
 		# обзор локации: несколько точек, по снимку
 		DirAccess.make_dir_recursive_absolute(out)
-		var pts := [["v0_start", Vector3(0, 0, 6)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)], ["v6_mannequin", HOUSE_AT + Vector3(4.6, 0, 7.6)]]
+		var pts := [["v0_start", Vector3(0, 0, 6)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)], ["v6_mannequin", HOUSE_AT + Vector3(4.6, 0, 7.6)], ["v7_npc", HOUSE_AT + Vector3(-3.4, 0, 8.4)]]
 		for pt in pts:
 			player.global_position = pt[1]
 			_cam_ready = false
 			await get_tree().create_timer(1.6).timeout
 			await _snap(pt[0])
+		do_action()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("v8_talk")
+		if _talk_ui:
+			_talk_ui.visible = false
+		open_name_panel()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("v9_name")
+		_name_ui.visible = false
 		await _perf_report()
 		get_tree().quit()
 		return
