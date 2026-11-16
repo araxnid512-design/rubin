@@ -239,8 +239,7 @@
 		},
 		"grab_bite": {
 			"src": [
-				"{set}/z_grab_bite.res",
-				"res://assets/anim/hero/m_melee_heavy.res"
+				"{set}/z_grab_bite.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -250,8 +249,7 @@
 		},
 		"claw_combo": {
 			"src": [
-				"{set}/z_claw_combo.res",
-				"res://assets/anim/hero/box_03.res"
+				"{set}/z_claw_combo.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -261,8 +259,7 @@
 		},
 		"overhead": {
 			"src": [
-				"{set}/z_overhead.res",
-				"res://assets/anim/hero/m_melee_heavy.res"
+				"{set}/z_overhead.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -272,8 +269,7 @@
 		},
 		"lunge_bite": {
 			"src": [
-				"{set}/z_lunge_bite.res",
-				"res://assets/anim/hero/m_melee_light.res"
+				"{set}/z_lunge_bite.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -283,8 +279,7 @@
 		},
 		"menace": {
 			"src": [
-				"{set}/z_menace.res",
-				"res://assets/anim/hero/m_combat_idle.res"
+				"{set}/z_menace.res"
 			],
 			"loop": true,
 			"blend": 0.3,

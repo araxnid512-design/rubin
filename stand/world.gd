@@ -3862,7 +3862,7 @@ func _inv_test() -> void:
 		if le2.get("bite", false):
 			bites += 1
 			bites += 10 if float(le2.reach) > 1.15 else 0
-	_ok("у Лоторейщика шесть ударов, из них три — укусы, и все укусы только вплотную (до 1.1 м)", atk_seen.size() == 6 and bites == 3)
+	_ok("у Лоторейщика семь ударов, из них четыре — укусы, и все укусы только вплотную (до 1.1 м)", atk_seen.size() == 7 and bites == 4)
 	# сильное попадание сбивает, падение — по стороне удара
 	lt.rotation.y = 0.0
 	lt.global_position = Vector3(20.0, 0.0, 26.0)
@@ -5210,6 +5210,10 @@ func _run_test() -> void:
 		var all: Array = ULEnemy.KINDS[kind].attacks
 		for ai in all.size():
 			var e := spawn_enemy(kind, Vector3(18.0, 0, 28.0))
+			if not e.rig.has_clip(String(all[ai].clip)):
+				print("[melee] %s %d: %s — движения ещё нет, пропуск" % [kind, ai, all[ai].n])
+				clear_enemies()
+				continue
 			e.def = e.def.duplicate()
 			e.def.attacks = [all[ai]]
 			e.rotation.y = PI

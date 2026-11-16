@@ -174,6 +174,9 @@ func _ready() -> void:
 				who = a.substr(10)
 	entries = ENTRIES if who == "hero" else enemy_entries(who)
 	_stage()
+	if who != "hero":
+		# движений, которых у модели ещё нет, в списке не показываем
+		entries = entries.filter(func(en: Dictionary) -> bool: return not en.has("action") or rig.has_clip(String(en.action)))
 	_load_marks()
 	_build_ui()
 	select(0)
