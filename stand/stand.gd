@@ -793,6 +793,7 @@ func _build_ui() -> void:
 	abar.offset_bottom = -146
 	abar.add_theme_constant_override("separation", 8)
 	ui.add_child(abar)
+	abar.add_child(_btn("Локация", func(): get_tree().change_scene_to_file("res://world.tscn"), 120, 50, 16))
 	abar.add_child(_lbl("Рюкзак:", 15, Color(0.45, 0.85, 1.0)))
 	for pv in [["", "Нет"], ["small", "Малый 8"], ["medium", "Средний 12"], ["large", "Большой 20"]]:
 		var pb := _btn(pv[1], wear_pack.bind(pv[0]), 104, 50, 14)
