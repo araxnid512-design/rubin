@@ -1200,6 +1200,29 @@ func _process(delta: float) -> void:
 		if en >= 25.0:
 			_tired = false
 	water = maxf(0.0, water - delta * 0.04)
+	# Прицельное движение: пока герой стреляет (кнопка удержана или после выстрела прошло меньше секунды),
+	# он стоит лицом к цели, а идёт туда, куда ведёт джойстик, — вперёд, боком или пятясь. Ноги шагают в ту
+	# сторону, куда он на самом деле движется: тело и ноги не расходятся. Пятится и идёт боком он медленнее.
+	var hi0 = _hand_item()
+	var gun: bool = hi0 != null and ULItems.get_def(String(hi0.id)).has("ammo") and rig.hold.wid != "" and rig.hold.drawn > 0.99
+	var fire_held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
+	aiming = gun and not _modal() and (fire_held or _aim_t < 1.0)
+	move_mode = ""
+	if aiming:
+		if _mark_t != null and is_instance_valid(_mark_t):
+			var tv: Vector3 = (_mark_t as Node3D).global_position - player.global_position
+			_aim_yaw = atan2(tv.x, tv.z)
+		player.rotation.y = lerp_angle(player.rotation.y, _aim_yaw, 1.0 - exp(-delta * 16.0))
+		if mag > 0.12:
+			var fa := Vector3(sin(_aim_yaw), 0, cos(_aim_yaw))
+			var rel := rad_to_deg(fa.signed_angle_to(dir.normalized(), Vector3.UP))     # куда идёт относительно взгляда: + — влево
+			if absf(rel) > 128.0:
+				move_mode = "walk_back"
+			elif absf(rel) > 52.0:
+				move_mode = "strafe_left" if rel > 0.0 else "strafe_right"
+			speed = minf(speed, 1.75 if move_mode != "" else 3.0)
+	else:
+		_aim_yaw = player.rotation.y
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
 	var hv := Vector3(player.velocity.x, 0, player.velocity.z)
 	# отклик без «плавания»: до полного бега — за десятую секунды, остановка — ещё быстрее
@@ -1209,10 +1232,11 @@ func _process(delta: float) -> void:
 	if player.is_on_floor():
 		player.velocity.y = 0.0
 	var real := Vector3(player.velocity.x, 0, player.velocity.z).length()
-	if real > 0.2 and is_nan(_face) and _aim_t > 0.6:
+	if real > 0.2 and is_nan(_face) and not aiming and _aim_t > 0.6:
 		var yaw := atan2(hv.x, hv.z)
 		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 18.0))
-	rig.set_motion(real, 0.0, delta)
+	# пятится или идёт боком — играет свой шаг (обычный бег при этом выключен)
+	rig.set_motion(0.0 if move_mode != "" else real, 0.0, delta)
 	_body_pose(real)
 	_steps_sfx(real)
 	# в доме: дом Tripo и крыша скрыты, видны комнаты, передние стены опущены
@@ -1262,13 +1286,18 @@ func _process(delta: float) -> void:
 
 var _cam_ready := false
 var _cam_d := 12.5
+var aiming := false               ## прицельное движение: герой лицом к цели
+var move_mode := ""               ## как он при этом идёт: "" — вперёд, walk_back — пятится, strafe_left / strafe_right — боком
+var _aim_yaw := 0.0
 var _pose_now := "?"
 
 
 ## стойка: с оружием в руках — стойка стрелка, иначе обычная; на ходу — клипы передвижения
 func _body_pose(speed: float) -> void:
 	var want := ""
-	if speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
+	if move_mode != "" and speed > 0.2 and rig.has_clip(move_mode):
+		want = move_mode
+	elif speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
 		want = "combat_idle" if String(rig.hold.w.get("mode", "")) == "melee" else "armed_idle"
 	if want != _pose_now:
 		_pose_now = want
@@ -1313,10 +1342,6 @@ func _steps_sfx(speed: float) -> void:
 			st[1] = false
 			snd.play("step", rig.skel.global_transform * lp, -8.0 + clampf(speed, 0.0, 4.0) * 1.5, 0.08)
 		_steps[b] = st
-	if speed >= 3.0:
-		snd.loop("breath_run", player.global_position + Vector3.UP * 1.5, -10.0)
-	else:
-		snd.loop("", Vector3.ZERO)
 
 
 ## звуки механики оружия: достать, убрать, перезарядка по шагам
@@ -2805,12 +2830,12 @@ func _combat_tick(delta: float) -> void:
 	# кнопка удержана — атака повторяется в темпе оружия (и кулаки, и мачете, и одиночный огонь); нажатие чуть
 	# раньше срока (оружие ещё достаётся, не кончился прошлый удар) не теряется — сработает, как только можно
 	var held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
-	# режим огня — как у настоящего оружия: автомат, пистолет-пулемёт и пулемёт бьют очередью, пока кнопка
-	# удержана и в магазине есть патроны; пистолеты, винтовки и дробовик — один выстрел на нажатие.
-	# Кулаки и мачете при удержании бьют подряд.
+	# Кнопка удержана — оружие стреляет подряд в своём темпе, пока в магазине есть патроны: автомат — очередью,
+	# пистолет и дробовик — выстрел за выстрелом. Отпустили — огонь прекращается. Магазин пуст — стрельбы нет,
+	# пока не перезарядить (кнопка перезарядки рядом). Кулаки и мачете при удержании бьют подряд.
 	var hi = _hand_item()
 	var hd := ULItems.get_def(String(hi.id)) if hi != null else {}
-	var repeat: bool = hi == null or String(hd.get("kind", "")) == "melee" or (bool(hd.get("auto", false)) and int(hi.get("mag", 0)) > 0)
+	var repeat: bool = hi == null or String(hd.get("kind", "")) == "melee" or int(hi.get("mag", 0)) > 0
 	if ((held and repeat) or _atk_want > 0.0) and not _modal() and _try_attack():
 		_atk_want = 0.0
 	_bullets_tick(delta)
@@ -2824,6 +2849,9 @@ func _combat_tick(delta: float) -> void:
 			_mark.scale = Vector3.ONE * (1.0 + 0.06 * sin(Time.get_ticks_msec() * 0.008))
 	if _aim_t > 1.8 and rig.hold.wid != "" and rig.hold.stance == "aim" and not _reloading:
 		rig.hold.set_stance("ready")
+	if not is_nan(_face) and aiming:
+		_aim_yaw = _face
+		_face = NAN
 	if not is_nan(_face):
 		player.rotation.y = lerp_angle(player.rotation.y, _face, 1.0 - exp(-delta * 26.0))
 		if absf(angle_difference(player.rotation.y, _face)) < 0.03 or _atk_cd <= 0.0:
@@ -3120,7 +3148,7 @@ func _inv_test() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var far_t = _nearest_target(12.0, 180.0, true)
 	_ok("через забор цель не берётся", far_t != mq, "взята: %s" % (String(far_t.name) if far_t != null else "нет"))
-	# режим огня: пистолет — один выстрел на нажатие, сколько ни держи
+	# режим огня: пистолет при удержании стреляет выстрел за выстрелом; отпустили — огонь прекращается
 	inv.pistol = I.make("tt")
 	inv.hand = "pistol"
 	_apply_gear()
@@ -3130,10 +3158,40 @@ func _inv_test() -> void:
 	_hud_press("fire")
 	await get_tree().create_timer(1.2).timeout
 	_hud_touch.erase(99)
-	_ok("ТТ: удержание кнопки — один выстрел (7 из 8)", int(inv.pistol.mag) == 7, "в магазине %d из 8" % int(inv.pistol.mag))
+	var tt_mag := int(inv.pistol.mag)
+	_ok("ТТ: удержание кнопки — выстрел за выстрелом (3–5 за 1.2 с)", tt_mag >= 3 and tt_mag <= 5, "в магазине %d из 8" % tt_mag)
+	await get_tree().create_timer(0.8).timeout
+	_ok("ТТ: отпустили кнопку — огонь прекратился", int(inv.pistol.mag) == tt_mag, "в магазине %d" % int(inv.pistol.mag))
+	# прицельное движение: лицом к цели, пятясь и боком
+	inv.consume("a762x25", 999)
+	inv.add(I.make("a762x25", 40))
+	inv.pistol.mag = 8
+	player.global_position = mq.global_position + Vector3(-6.0, 0.05, 0.0)
+	await get_tree().create_timer(0.4).timeout
+	_hud_touch[99] = "fire"
 	_hud_press("fire")
-	await get_tree().create_timer(0.5).timeout
-	_ok("ТТ: второе нажатие — второй выстрел (6 из 8)", int(inv.pistol.mag) == 6, "в магазине %d" % int(inv.pistol.mag))
+	_auto = [player.global_position + Vector3(-20, 0, 0)]              # от манекена — прочь
+	_auto_k = 1.0
+	await get_tree().create_timer(0.9).timeout
+	var to_mq := mq.global_position - player.global_position
+	var face_err := absf(angle_difference(player.rotation.y, atan2(to_mq.x, to_mq.z)))
+	var v_back := Vector3(player.velocity.x, 0, player.velocity.z)
+	_ok("стреляет и отходит: лицом к цели, пятится (шаг «назад»), медленнее бега", aiming and move_mode == "walk_back" and _pose_now == "walk_back" and face_err < 0.25 and v_back.x < -1.0 and v_back.length() < 1.9, "режим «%s», поза «%s», отклонение %.2f рад, скорость %.1f" % [move_mode, _pose_now, face_err, v_back.length()])
+	_auto = [player.global_position + Vector3(0, 0, 20)]               # поперёк направления на цель
+	await get_tree().create_timer(0.7).timeout
+	to_mq = mq.global_position - player.global_position
+	face_err = absf(angle_difference(player.rotation.y, atan2(to_mq.x, to_mq.z)))
+	_ok("стреляет и идёт боком: лицом к цели, шаг боком", aiming and move_mode.begins_with("strafe") and _pose_now == move_mode and face_err < 0.35, "режим «%s», отклонение %.2f рад" % [move_mode, face_err])
+	_hud_touch.erase(99)
+	_auto.clear()
+	await get_tree().create_timer(1.4).timeout
+	_auto = [player.global_position + Vector3(-20, 0, 0)]
+	await get_tree().create_timer(0.6).timeout
+	_ok("не стреляет — бежит лицом по ходу, обычным бегом", not aiming and move_mode == "" and absf(angle_difference(player.rotation.y, -PI * 0.5)) < 0.3 and Vector3(player.velocity.x, 0, player.velocity.z).length() > 3.5, "поворот %.2f" % player.rotation.y)
+	_auto.clear()
+	_auto_k = 0.6
+	await get_tree().create_timer(0.3).timeout
+	_ok("одышки на бегу нет", not FileAccess.get_file_as_string("res://world.gd").contains("snd.loop(" + "\"breath_run\""))
 	# автомат: очередь, пока держим, до пустого магазина; сам не перезаряжается — кнопка перезарядки рядом
 	inv.consume("a545", 999)
 	inv.add(I.make("a545", 30))
@@ -3272,7 +3330,14 @@ var _res_hold := 0.0
 
 func open_settings() -> void:
 	_menu_bar.visible = false
-	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void: ULSettings.apply(get_viewport()))
+	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void: ULSettings.apply(get_viewport()), [
+		["Главное меню", func() -> void:
+			_save()
+			get_tree().change_scene_to_file("res://menu.tscn")],
+		["Выйти из игры", func() -> void:
+			_save()
+			get_tree().quit()],
+	])
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
 	_hud_touch.clear()

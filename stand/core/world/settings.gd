@@ -89,8 +89,8 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	pn.anchor_right = 0.5
 	pn.anchor_top = 0.5
 	pn.anchor_bottom = 0.5
-	pn.offset_left = -290
-	pn.offset_right = 290
+	pn.offset_left = -330
+	pn.offset_right = 330
 	pn.offset_top = -210
 	pn.offset_bottom = 210
 	var vb := VBoxContainer.new()
@@ -118,7 +118,7 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 			gfx = i
 			save_cfg()
 			mark.call()
-			changed.call(), 176.0)
+			changed.call(), 200.0)
 		btns.append(b)
 		row.add_child(b)
 	mark.call()
@@ -145,6 +145,6 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	foot.add_theme_constant_override("separation", 8)
 	vb.add_child(foot)
 	for e in extra:
-		foot.add_child(button(String(e[0]), e[1], 170.0))
+		foot.add_child(button(String(e[0]), e[1], 180.0))
 	foot.add_child(button("Закрыть", func() -> void: shade.queue_free(), 140.0))
 	return shade
