@@ -30,17 +30,37 @@ const FENCES := [
 	[Vector2(22, 4), Vector2(48, 4), Vector2(48, 30)],
 ]
 const ENTRY := Vector3(0, 0, 66)
+## постройки-модели Tripo (внутрь не зайти): модель, центр, поворот, размер по длинной стороне, коробка столкновения
+## (длина × высота × ширина в долях размера)
+const LANDMARKS := [
+	["ul_barn_long", Vector3(0, 0, -62), 0.0, 28.0],
+	["ul_barn_long", Vector3(56, 0, -27), PI * 0.5, 24.0],
+	["ul_barn_small", Vector3(-30, 0, 45), 0.4, 8.5],
+	["ul_water_tower", Vector3(-6, 0, -40), 0.0, 11.0],
+]
+## одинокие сухие деревья — у загонов и коровников
+const DEAD_TREES := [Vector3(-14, 0, -50), Vector3(8, 0, -30), Vector3(20, 0, 30), Vector3(-40, 0, 8), Vector3(35, 0, 42), Vector3(-56, 0, -4)]
 
 static var _cfg := {}
-var w: Node3D                      ## локация (world.gd)
+var w                              ## локация (world.gd)
 var half := 75.0
 var body: StaticBody3D
 var barns: Array = []              ## {node, roof, front_walls, rect(локально: Vector2 half), xf}
 var cows: Array[Vector3] = []
 var fence_mid: Array[Vector3] = []
 var wood_pts: Array[Vector3] = []
+var landmark_rects: Array = []      ## [центр, поворот, полуразмер] построек-моделей (там нет мусора и коров)
 var _noise_tex: ImageTexture
+var mask: Image                    ## карта земли (R — трава): по ней же — где пучки травы
 var _cow_scenes := {}
+var trees: Array[Node3D] = []      ## деревья-модели (скрываются, если закрывают героя)
+var _spruce_mm: MultiMesh
+var _spruce_xf: Array[Transform3D] = []
+var _hidden := {}
+var _tick_t := 0.0
+var _fence_root: Node3D
+var _hay: StandardMaterial3D
+var _debris_root: Node3D
 
 
 static func cfg() -> Dictionary:
@@ -56,64 +76,75 @@ func build(world: Node3D) -> void:
 	body = StaticBody3D.new()
 	body.name = "CowshedBody"
 	add_child(body)
-	_ground()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4417                  # постоянная часть — одна и та же
 	for b in BARNS:
 		_barn(b[0], float(b[1]), float(b[2]), float(b[3]), float(b[4]), rng)
 	_shed(Vector3(40, 0, 20), 0.6)
+	_ground()
+	_landmarks()
+	_fence_root = Node3D.new()
+	add_child(_fence_root)
 	_fences(rng)
+	_merge(_fence_root)
 	_forest(rng)
+	_debris_root = Node3D.new()
+	add_child(_debris_root)
 	_debris(rng)
+	_merge(_debris_root)
 	_machinery()
 
 
 # ---------------- земля ----------------
 
-const GROUND := """shader_type spatial;
-// Земля коровника: выгоревшая трава, вытоптанная земля и грязь пятнами (по шуму), у коровников — истоптано.
-uniform sampler2D grass : source_color, filter_linear_mipmap, repeat_enable;
-uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
-uniform sampler2D mud : source_color, filter_linear_mipmap, repeat_enable;
-uniform sampler2D noise : filter_linear, repeat_enable;
-varying vec3 wp;
-void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
-void fragment() {
-	vec2 p = wp.xz;
-	float n1 = texture(noise, p / 70.0).r;
-	float n2 = texture(noise, p / 19.0 + 0.37).r;
-	vec3 g = texture(grass, p / 4.0).rgb * vec3(1.05, 1.0, 0.82);
-	vec3 s = texture(soil, p / 3.5).rgb;
-	vec3 m = texture(mud, p / 5.0).rgb * 0.62;
-	float ws = smoothstep(0.42, 0.62, n1 * 0.7 + n2 * 0.3);
-	float wm = smoothstep(0.66, 0.78, n2 * 0.6 + n1 * 0.4);
-	vec3 c = mix(g, s, ws);
-	c = mix(c, m, wm * 0.85);
-	ALBEDO = c * 0.92;
-	ROUGHNESS = 0.95;
-}"""
+const MASK := "res://assets/world/tex/cowshed_mask.png"
+## тропы между воротами коровников и входом (по ним ходили — земля утоптана, трава выбита)
+const PATHS := [
+	[Vector2(0, 74), Vector2(2, 50)], [Vector2(2, 50), Vector2(-3, 30)], [Vector2(-3, 30), Vector2(-15, 18)],
+	[Vector2(-3, 30), Vector2(10, 17)], [Vector2(-15, 18), Vector2(-19, -28)], [Vector2(-19, -28), Vector2(-45, -28)],
+	[Vector2(10, 17), Vector2(22, -10)], [Vector2(22, -10), Vector2(31, -24)], [Vector2(31, -48), Vector2(31, -60)],
+]
+var _noise_img: Image
 
 
+## Земля — тот же шейдер, что на базе (трава, голая земля, утоптанные тропы; карта mask: R — трава, G — тропа,
+## B — светлота, A — затенение у стен). Карта коровника считается один раз (--as-test=csbake) и лежит в проекте.
 func _ground() -> void:
 	var fn := FastNoiseLite.new()
 	fn.seed = 77
 	fn.frequency = 0.012
 	fn.fractal_octaves = 3
-	var img := fn.get_seamless_image(256, 256)
-	img.generate_mipmaps()
-	_noise_tex = ImageTexture.create_from_image(img)
+	_noise_img = fn.get_seamless_image(256, 256)
+	_noise_img.generate_mipmaps()
+	_noise_tex = ImageTexture.create_from_image(_noise_img)
 	var mi := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = GROUND
+	sh.code = w.GROUND_SHADER if ULSettings.gfx == 2 else w.GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
 	sm.shader = sh
 	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
-	sm.set_shader_parameter("soil", load(TEX + "dry_ground_01_c.jpg"))
-	sm.set_shader_parameter("mud", load(TEX + "grass_path_2_c.jpg"))
+	sm.set_shader_parameter("blades", load(TEX + "leafy_grass_c.jpg"))
+	sm.set_shader_parameter("soil", load(TEX + "grass_path_2_c.jpg"))
+	sm.set_shader_parameter("path", load(TEX + "rocky_trail_c.jpg"))
+	sm.set_shader_parameter("path_n", load(TEX + "rocky_trail_n.jpg"))
 	sm.set_shader_parameter("noise", _noise_tex)
+	sm.set_shader_parameter("world_size", half * 2.0)
+	sm.set_shader_parameter("soil_tint", Vector3(0.66, 0.58, 0.48))      # у коровников земля темнее — грязь
+	if ResourceLoader.exists(MASK) and w.test != "csbake":
+		mask = (load(MASK) as Texture2D).get_image()
+		if mask.is_compressed():
+			mask.decompress()               # по карте ставятся пучки травы — нужны точки, а не сжатый блок
+		if mask.has_mipmaps():
+			mask.clear_mipmaps()
+	else:
+		mask = _bake_mask()
+		if w.test == "csbake":
+			mask.save_png(ProjectSettings.globalize_path(MASK))
+			print("[bake] карта земли коровника: ", MASK)
+	sm.set_shader_parameter("mask", ImageTexture.create_from_image(mask))
 	mi.material_override = sm
 	add_child(mi)
 	var out := MeshInstance3D.new()
@@ -179,9 +210,9 @@ func _tufts() -> void:
 			mm.mesh = mesh
 			var xs: Array[Transform3D] = []
 			var cs: Array[Color] = []
-			for k in int(220.0 * float(ULSettings.q().grass)):
+			for k in int(300.0 * float(ULSettings.q().grass)):
 				var p := Vector3(-half + (cx + rng.randf()) * cell, 0, -half + (cz + rng.randf()) * cell)
-				if in_barn(p, 1.0) >= 0:
+				if in_barn(p, 1.0) >= 0 or rng.randf() > grass_at(p) * 1.3:
 					continue
 				var sc := rng.randf_range(0.55, 1.2)
 				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.4), sc)), p))
@@ -198,6 +229,70 @@ func _tufts() -> void:
 			mi.visibility_range_end_margin = 4.0
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			add_child(mi)
+
+
+func _noise(uv: Vector2) -> float:
+	return _noise_img.get_pixel(int(fposmod(uv.x, 1.0) * 256.0) % 256, int(fposmod(uv.y, 1.0) * 256.0) % 256).r
+
+
+static func _seg_dist(q: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var h := clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return q.distance_to(a + ab * h)
+
+
+## расстояние от точки до коровника (снаружи; внутри — 0) и до ближайших ворот
+func _barn_dist(q: Vector2) -> Vector2:
+	var d := 1e9
+	var g := 1e9
+	for b in BARNS:
+		var at: Vector3 = b[0]
+		var xf := Transform3D(Basis(Vector3.UP, float(b[1])), at)
+		var l := xf.affine_inverse() * Vector3(q.x, 0, q.y)
+		var hh := Vector2(float(b[2]) * 0.5, float(b[3]) * 0.5)
+		var o := Vector2(maxf(absf(l.x) - hh.x, 0.0), maxf(absf(l.z) - hh.y, 0.0))
+		d = minf(d, o.length())
+		for e in [-1.0, 1.0]:
+			g = minf(g, Vector2(l.x - e * hh.x, l.z).length())
+	return Vector2(d, g)
+
+
+func _bake_mask() -> Image:
+	var n := 256
+	var im := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var pen: PackedVector2Array = PackedVector2Array(FENCES[0])
+	for iy in n:
+		for ix in n:
+			var p := Vector2((ix + 0.5) / n - 0.5, (iy + 0.5) / n - 0.5) * half * 2.0
+			var n1 := _noise(p / 70.0)
+			var n2 := _noise(p / 19.0 + Vector2(0.37, 0.11))
+			var n3 := _noise(p / 5.5 + Vector2(0.71, 0.53))
+			var bd := _barn_dist(p)
+			var trail := 1e9
+			for sg in PATHS:
+				trail = minf(trail, _seg_dist(p, sg[0], sg[1]))
+			var path := 1.0 - smoothstep(0.9, 2.4, trail + (n3 - 0.5) * 1.2)
+			# у коровников и ворот вытоптано до грязи, в загоне — тоже
+			var yard := 1.0 - smoothstep(1.0, 7.0 + n2 * 4.0, bd.x)
+			var gate := 1.0 - smoothstep(2.0, 9.0, bd.y)
+			var in_pen := 0.7 if Geometry2D.is_point_in_polygon(p, pen) else 0.0
+			var bare := maxf(maxf(yard * 0.85, gate), in_pen * smoothstep(0.3, 0.7, n2))
+			var gw := smoothstep(0.32, 0.55, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.85 + 0.12
+			gw *= (1.0 - bare) * (1.0 - path)
+			var peb := maxf(path * 0.9, smoothstep(0.62, 0.74, n2 * 0.5 + n3 * 0.5) * 0.6) * (1.0 - bare * 0.6)
+			var bright := lerpf(0.84, 1.08, n1) * lerpf(0.92, 1.05, n2) / 1.2
+			var ao := 1.0 - (1.0 - smoothstep(0.0, 1.2, bd.x)) * 0.4 * (1.0 if bd.x > 0.001 else 0.0)
+			im.set_pixel(ix, iy, Color(gw, peb, bright, ao))
+	return im
+
+
+## доля травы в точке (из карты земли)
+func grass_at(p: Vector3) -> float:
+	if mask == null:
+		return 1.0
+	var x := clampi(int((p.x / (half * 2.0) + 0.5) * mask.get_width()), 0, mask.get_width() - 1)
+	var y := clampi(int((p.z / (half * 2.0) + 0.5) * mask.get_height()), 0, mask.get_height() - 1)
+	return mask.get_pixel(x, y).r
 
 
 # ---------------- коровники ----------------
@@ -301,12 +396,16 @@ func _barn(at: Vector3, yaw: float, L: float, W: float, ruin: float, rng: Random
 			var mid := Vector3(cx, (H + ridge) * 0.5, side * (W * 0.5 + 0.4) * 0.5)
 			_box(roof, Vector3((L + 0.6) / n + 0.02, 0.05, span), mid, iron, false, Vector3(-side * slope, 0, 0))
 	# сено: несколько тюков в проходе и у ворот
-	var hay := StandardMaterial3D.new()
-	hay.albedo_color = Color(0.72, 0.6, 0.32)
-	hay.roughness = 1.0
+	if _hay == null:
+		_hay = _mat("leafy_grass", 0.8)
+		_hay.albedo_color = Color(1.25, 1.0, 0.45)      # солома: трава, выжженная до жёлтого
+		_hay.roughness = 1.0
+	var hay := _hay
 	for i in 3:
 		var hp := Vector3(rng.randf_range(-L * 0.4, L * 0.4), 0.4, rng.randf_range(-0.8, 0.8))
 		_box(walls, Vector3(1.2, 0.8, 0.8), hp, hay, false, Vector3(0, rng.randf() * 0.6, 0))
+	for g in [walls, roof] + front:
+		_merge(g)
 	barns.append({"node": node, "roof": roof, "front": front, "half": Vector2(L * 0.5, W * 0.5), "xf": node.transform})
 
 
@@ -331,6 +430,15 @@ func _shed(at: Vector3, yaw: float) -> void:
 		_col(node, wl[0], wl[1])
 
 
+func near_landmark(p: Vector3, m: float) -> bool:
+	for r in landmark_rects:
+		var l := Transform3D(Basis(Vector3.UP, float(r[1])), r[0]).affine_inverse() * p
+		var hh: Vector2 = r[2]
+		if absf(l.x) < hh.x + m and absf(l.z) < hh.y + m:
+			return true
+	return false
+
+
 ## в каком коровнике точка (по внутреннему прямоугольнику с запасом m); -1 — снаружи
 func in_barn(p: Vector3, m := 0.0) -> int:
 	for i in barns.size():
@@ -351,16 +459,38 @@ func barn_point(i: int, rng: RandomNumberGenerator) -> Vector3:
 
 
 ## кадр: герой внутри коровника — крыша над ним скрыта, ближняя к камере стена прозрачна (видно, что внутри)
-func tick(hero: Vector3) -> void:
+## Кадр (раз в 0,15 с): герой в коровнике — крыша над ним скрыта, длинные стены тоже (сверху видно, что внутри);
+## деревья между камерой и героем скрываются, чтобы крона не закрывала его (столкновение остаётся).
+func tick(hero: Vector3, cam_pos: Vector3, delta: float) -> void:
+	_tick_t -= delta
+	if _tick_t > 0.0:
+		return
+	_tick_t = 0.15
 	var inside := in_barn(hero, 0.3)
 	for i in barns.size():
 		var b: Dictionary = barns[i]
 		(b.roof as Node3D).visible = i != inside
-		var fr: Array = b.front
-		for f in fr:
-			# стена, что ближе к камере (камера смотрит с +z), скрыта, пока герой внутри
-			(f as Node3D).visible = i != inside or (f as Node3D).global_position.z < (b.xf as Transform3D).origin.z - 0.1 or absf((f as Node3D).global_transform.basis.x.z) > 0.7
-	return
+		var long_x := absf((b.xf as Transform3D).basis.x.z) < 0.7      # длинные стены смотрят на камеру
+		for f in b.front:
+			(f as Node3D).visible = i != inside or not long_x
+	var to_cam := Vector2(cam_pos.x - hero.x, cam_pos.z - hero.z).normalized()
+	var side := Vector2(-to_cam.y, to_cam.x)
+	for t in trees:
+		var d := Vector2(t.position.x - hero.x, t.position.z - hero.z)
+		var along := d.dot(to_cam)
+		t.visible = not (along > -1.5 and along < 7.5 and absf(d.dot(side)) < 2.8)
+	for i in _spruce_xf.size():
+		var o := _spruce_xf[i].origin
+		var d := Vector2(o.x - hero.x, o.z - hero.z)
+		var along := d.dot(to_cam)
+		var hide := along > -1.5 and along < 7.5 and absf(d.dot(side)) < 3.0
+		if hide != _hidden.has(i):
+			if hide:
+				_hidden[i] = true
+				_spruce_mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * 0.001), o))
+			else:
+				_hidden.erase(i)
+				_spruce_mm.set_instance_transform(i, _spruce_xf[i])
 
 
 # ---------------- заборы, лес, мусор, техника ----------------
@@ -382,7 +512,7 @@ func _fences(rng: RandomNumberGenerator) -> void:
 				var p1 := a + dir * (L * (s + 1) / nseg)
 				var mid := (p0 + p1) * 0.5
 				var seg := p0.distance_to(p1)
-				_box(self, Vector3(0.14, 1.3, 0.14), Vector3(p0.x, 0.65, p0.y), wood, false)
+				_box(_fence_root, Vector3(0.14, 1.3, 0.14), Vector3(p0.x, 0.65, p0.y), wood, false)
 				var r := rng.randf()
 				if r < 0.25:
 					continue                                       # пролёта нет
@@ -390,10 +520,10 @@ func _fences(rng: RandomNumberGenerator) -> void:
 				fence_mid.append(m3)
 				if r < 0.4:
 					# жердь висит наискось, проходить можно
-					_box(self, Vector3(seg, 0.08, 0.06), m3 + Vector3(0, 0.55, 0), wood, false, Vector3(0, yaw, 0.35))
+					_box(_fence_root, Vector3(seg, 0.08, 0.06), m3 + Vector3(0, 0.55, 0), wood, false, Vector3(0, yaw, 0.35))
 					continue
 				for hy in [0.5, 1.0]:
-					_box(self, Vector3(seg, 0.08, 0.06), m3 + Vector3(0, hy, 0), wood, false, Vector3(0, yaw, 0))
+					_box(_fence_root, Vector3(seg, 0.08, 0.06), m3 + Vector3(0, hy, 0), wood, false, Vector3(0, yaw, 0))
 				# столкновение — по высоте жердей (1 м): пройти нельзя, стрелять поверх — можно
 				var cs := CollisionShape3D.new()
 				var bs := BoxShape3D.new()
@@ -405,9 +535,11 @@ func _fences(rng: RandomNumberGenerator) -> void:
 
 ## перелески: ели (те же, что на базе), сосны и берёзы
 func _forest(rng: RandomNumberGenerator) -> void:
-	var pine: PackedScene = load(MODELS + "ul_pine.glb") if ResourceLoader.exists(MODELS + "ul_pine.glb") else null
-	var birch: PackedScene = load(MODELS + "ul_birch.glb") if ResourceLoader.exists(MODELS + "ul_birch.glb") else null
-	var spruce_xf: Array[Transform3D] = []
+	var kinds := []                    # [модель, доля, высота от, до]
+	for k in [["ul_pine", 0.15, 5.5, 7.5], ["ul_birch", 0.15, 6.0, 8.0], ["ul_oak", 0.2, 6.5, 8.5], ["ul_dead_tree", 0.1, 5.5, 7.5]]:
+		if ResourceLoader.exists(MODELS + String(k[0]) + ".glb"):
+			kinds.append([load(MODELS + String(k[0]) + ".glb"), k[1], k[2], k[3]])
+	var spruce_xf := _spruce_xf
 	for wd in WOODS:
 		var c: Vector3 = wd[0]
 		var rr: float = wd[1]
@@ -427,19 +559,19 @@ func _forest(rng: RandomNumberGenerator) -> void:
 				continue
 			wood_pts.append(p)
 			n -= 1
+			# ели (одна сетка на все) — 40 %, остальное — модели: сосна, берёза, дуб, сухое дерево
 			var pick := rng.randf()
-			if pick < 0.5:
+			var chosen = null
+			var acc := 0.4
+			for k in kinds:
+				acc += float(k[1])
+				if pick < acc and pick >= 0.4:
+					chosen = k
+					break
+			if chosen == null:
 				spruce_xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.15)), p))
 			else:
-				var sc: PackedScene = pine if pick < 0.8 else birch
-				if sc:
-					var t: Node3D = sc.instantiate()
-					var bb: AABB = w._aabb(t)
-					var h := rng.randf_range(5.5, 7.5)
-					t.scale = Vector3.ONE * (h / maxf(bb.size.y, 0.01))
-					t.position = p
-					t.rotation.y = rng.randf() * TAU
-					add_child(t)
+				_tree(chosen[0], p, rng.randf_range(float(chosen[2]), float(chosen[3])), rng.randf() * TAU)
 			var cs := CollisionShape3D.new()
 			var cy := CylinderShape3D.new()
 			cy.radius = 0.22
@@ -448,6 +580,7 @@ func _forest(rng: RandomNumberGenerator) -> void:
 			cs.position = p + Vector3.UP * 1.5
 			body.add_child(cs)
 	var mm := MultiMesh.new()
+	_spruce_mm = mm
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = w._spruce_mesh(8.0, 141)
 	mm.instance_count = spruce_xf.size()
@@ -459,13 +592,112 @@ func _forest(rng: RandomNumberGenerator) -> void:
 	add_child(mi)
 
 
+func _tree(sc: PackedScene, p: Vector3, h: float, yaw: float) -> void:
+	var t: Node3D = sc.instantiate()
+	var bb: AABB = w._aabb(t)
+	t.scale = Vector3.ONE * (h / maxf(bb.size.y, 0.01))
+	t.position = p
+	t.rotation.y = yaw
+	add_child(t)
+	_cull(t, 48.0)
+	trees.append(t)
+
+
+## дальше dist от камеры модель не рисуется (камера видит ~10 м вокруг героя; это экономит вызовы отрисовки)
+func _cull(n: Node, dist: float) -> void:
+	for m in n.find_children("*", "GeometryInstance3D", true, false):
+		var g := m as GeometryInstance3D
+		g.visibility_range_end = dist
+		g.visibility_range_end_margin = 4.0
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## Склеить все коробки группы с одним материалом в одну сетку: стены, стойла, жерди, доски — сотни отдельных
+## деталей превращаются в несколько сеток (на телефоне дорог каждый вызов отрисовки). Текстуры наложены по
+## мировым координатам, поэтому склейка их не сдвигает.
+func _merge(g: Node3D) -> void:
+	var by_mat := {}
+	var drop: Array[Node] = []
+	for c in g.get_children():
+		var mi := c as MeshInstance3D
+		if mi == null or not (mi.mesh is BoxMesh) or mi.material_override == null:
+			continue
+		var mat: Material = mi.material_override
+		if not by_mat.has(mat):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			by_mat[mat] = st
+		(by_mat[mat] as SurfaceTool).append_from(mi.mesh, 0, mi.transform)
+		drop.append(mi)
+	if drop.size() < 2:
+		return
+	for c in drop:
+		g.remove_child(c)
+		c.queue_free()
+	for mat in by_mat:
+		var st: SurfaceTool = by_mat[mat]
+		var m := MeshInstance3D.new()
+		m.mesh = st.commit()
+		m.material_override = mat
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.add_child(m)
+
+
+## Постройки-модели Tripo: длинные коровники, сарай, водонапорная башня — внутрь не зайти, столкновение коробкой
+## (у башни — цилиндр по основанию); одинокие сухие деревья у загонов.
+func _landmarks() -> void:
+	for lm in LANDMARKS:
+		var path := MODELS + String(lm[0]) + ".glb"
+		if not ResourceLoader.exists(path):
+			continue
+		var n: Node3D = (load(path) as PackedScene).instantiate()
+		var bb: AABB = w._aabb(n)
+		var k := float(lm[3]) / maxf(maxf(bb.size.x, bb.size.z), 0.01)
+		n.scale = Vector3.ONE * k
+		n.position = lm[1]
+		n.rotation.y = float(lm[2])
+		add_child(n)
+		_cull(n, 95.0)
+		var sz := bb.size * k
+		var cs := CollisionShape3D.new()
+		if String(lm[0]) == "ul_water_tower":
+			var cy := CylinderShape3D.new()
+			cy.radius = minf(sz.x, sz.z) * 0.42
+			cy.height = 4.0
+			cs.shape = cy
+			cs.position = (lm[1] as Vector3) + Vector3.UP * 2.0
+		else:
+			var bs := BoxShape3D.new()
+			bs.size = Vector3(sz.x * 0.96, minf(sz.y, 4.0), sz.z * 0.92)
+			cs.shape = bs
+			var c := (bb.position + bb.size * 0.5) * k
+			cs.transform = Transform3D(Basis(Vector3.UP, float(lm[2])), (lm[1] as Vector3) + Basis(Vector3.UP, float(lm[2])) * Vector3(c.x, 0, c.z) + Vector3.UP * minf(sz.y, 4.0) * 0.5)
+		body.add_child(cs)
+		landmark_rects.append([lm[1], float(lm[2]), Vector2(sz.x, sz.z) * 0.5])
+	var dead := MODELS + "ul_dead_tree.glb"
+	if ResourceLoader.exists(dead):
+		var sc: PackedScene = load(dead)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 808
+		for p in DEAD_TREES:
+			_tree(sc, p, rng.randf_range(5.0, 7.0), rng.randf() * TAU)
+			var cs := CollisionShape3D.new()
+			var cy := CylinderShape3D.new()
+			cy.radius = 0.25
+			cy.height = 3.0
+			cs.shape = cy
+			cs.position = p + Vector3.UP * 1.5
+			body.add_child(cs)
+			wood_pts.append(p)
+
+
 ## мусор: бочки, покрышки, ящики, кучи досок, ржавые листы железа, камни
 func _debris(rng: RandomNumberGenerator) -> void:
 	var iron := _mat("worn_corrugated_iron", 2.0)
 	var planks := _mat("old_planks_02", 1.0)
 	for i in 34:
 		var p := Vector3(rng.randf_range(-half + 6, half - 6), 0, rng.randf_range(-half + 6, half - 6))
-		if in_barn(p, 1.5) >= 0 or p.distance_to(ENTRY) < 8.0:
+		if in_barn(p, 1.5) >= 0 or p.distance_to(ENTRY) < 8.0 or near_landmark(p, 2.0):
 			continue
 		var kind := rng.randi() % 5
 		match kind:
@@ -474,10 +706,10 @@ func _debris(rng: RandomNumberGenerator) -> void:
 			1:
 				_prop("ph_tyre", p, rng.randf() * TAU, 1.0, 0.0)
 			2:
-				_box(self, Vector3(rng.randf_range(1.5, 2.6), 0.05, rng.randf_range(0.8, 1.1)), p + Vector3(0, 0.05, 0), iron, false, Vector3(rng.randf_range(-0.1, 0.1), rng.randf() * PI, rng.randf_range(-0.12, 0.12)))
+				_box(_debris_root, Vector3(rng.randf_range(1.5, 2.6), 0.05, rng.randf_range(0.8, 1.1)), p + Vector3(0, 0.05, 0), iron, false, Vector3(rng.randf_range(-0.1, 0.1), rng.randf() * PI, rng.randf_range(-0.12, 0.12)))
 			3:
 				for k in 4:
-					_box(self, Vector3(rng.randf_range(1.8, 3.0), 0.08, 0.2), p + Vector3(rng.randf_range(-0.3, 0.3), 0.06 + k * 0.08, rng.randf_range(-0.4, 0.4)), planks, false, Vector3(0, rng.randf_range(-0.5, 0.5), 0))
+					_box(_debris_root, Vector3(rng.randf_range(1.8, 3.0), 0.08, 0.2), p + Vector3(rng.randf_range(-0.3, 0.3), 0.06 + k * 0.08, rng.randf_range(-0.4, 0.4)), planks, false, Vector3(0, rng.randf_range(-0.5, 0.5), 0))
 			4:
 				var rock := MeshInstance3D.new()
 				rock.mesh = w._rock_mesh(900 + i)
@@ -503,6 +735,7 @@ func _prop(model: String, at: Vector3, yaw: float, sc: float, radius: float) -> 
 	n.rotation.y = yaw
 	n.scale = Vector3.ONE * sc
 	add_child(n)
+	_cull(n, 40.0)
 	if radius > 0.0:
 		var cs := CollisionShape3D.new()
 		var cy := CylinderShape3D.new()
@@ -536,6 +769,7 @@ func _machinery() -> void:
 			t.position = at
 			t.rotation.y = yaw
 			add_child(t)
+			_cull(t, 60.0)
 		else:
 			# прицеп: кузов на четырёх колёсах, одно спущено
 			var node := Node3D.new()
@@ -559,6 +793,8 @@ func _machinery() -> void:
 					wh.position = Vector3(wx, 0.42 if wx > 0.0 or wz > 0.0 else 0.3, wz)
 					node.add_child(wh)
 			_box(node, Vector3(1.6, 0.08, 0.08), Vector3(-2.7, 0.55, 0), rust, false, Vector3(0, 0, 0.2))
+			_merge(node)
+			_cull(node, 60.0)
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = Vector3(4.2, 1.6, 2.2)
@@ -583,7 +819,7 @@ func place_cows(rng: RandomNumberGenerator) -> void:
 			p = Vector3(rng.randf_range(-half + 8, half - 8), 0, rng.randf_range(-half + 8, half - 8))
 			if in_barn(p, 1.0) >= 0:
 				continue
-		if p.distance_to(ENTRY) < 12.0:
+		if p.distance_to(ENTRY) < 12.0 or near_landmark(p, 1.5):
 			continue
 		var near := false
 		for q in cows:
@@ -600,21 +836,40 @@ func place_cows(rng: RandomNumberGenerator) -> void:
 		_cow(p, rng.randf() * TAU, rng.randf() < 0.5)
 
 
+## Останки коровы: скелет (половина — целый скелет на боку, половина — череп и кости) или тело погибшей коровы
+## (модели Tripo; нет модели — запасной вид из простых форм). Без столкновений: через них проходят.
 func _cow(at: Vector3, yaw: float, skeleton: bool) -> void:
-	var model := "ul_cow_skel" if skeleton else "ul_cow_dead"
+	var model := "ul_cow_dead"
+	var length := 2.3
+	var on_side := false
+	if skeleton:
+		if (cows.size() % 2 == 0) and ResourceLoader.exists(MODELS + "ul_cow_bones.glb"):
+			model = "ul_cow_bones"
+			length = 1.2
+		else:
+			model = "ul_cow_skel"
+			length = 2.0
+			on_side = true
 	var path := MODELS + model + ".glb"
-	var node: Node3D
+	var node := Node3D.new()
 	if ResourceLoader.exists(path):
 		if not _cow_scenes.has(model):
 			_cow_scenes[model] = load(path)
-		node = (_cow_scenes[model] as PackedScene).instantiate()
-		var bb: AABB = w._aabb(node)
-		node.scale = Vector3.ONE * (2.3 / maxf(maxf(bb.size.x, bb.size.z), 0.01))
+		var m: Node3D = (_cow_scenes[model] as PackedScene).instantiate()
+		node.add_child(m)
+		var bb: AABB = w._aabb(m)
+		m.scale = Vector3.ONE * (length / maxf(maxf(bb.size.x, bb.size.z), 0.01))
+		if on_side:
+			m.rotation.z = PI * 0.5                # целый скелет лежит на боку
+		var b2: AABB = w._aabb(node)
+		m.position.y = -b2.position.y - (0.12 if on_side else 0.0)
 	else:
 		node = _cow_fallback(skeleton)
 	node.position = at
 	node.rotation.y = yaw
+	node.set_meta("cow", "skeleton" if skeleton else "body")
 	add_child(node)
+	_cull(node, 40.0)
 
 
 ## запасной вид, пока нет моделей: скелет — позвоночник, рёбра и череп из костей; тело — туша на боку

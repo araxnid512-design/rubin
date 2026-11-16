@@ -78,3 +78,28 @@ key((514, 746, 558, 776), "arrow")
 key_bg((396, 495, 436, 530), "hammer")
 key_bg((1342, 538, 1372, 574), "pin_btn")
 print("ok")
+
+
+# ---- карта мира (макет map_mockup.png): метка коровника и компас ----
+MAP = Image.open(ROOT / "tools/ui_src/map_mockup.png").convert("RGBA")
+mk = MAP.crop((1150, 70, 1440, 300))
+w, h = mk.size
+mask = Image.new("L", (w, h), 0)
+ImageDraw.Draw(mask).ellipse((145 - 138, 118 - 106, 145 + 138, 118 + 106), fill=255)
+from PIL import ImageFilter
+mask = mask.filter(ImageFilter.GaussianBlur(9))
+mk.putalpha(mask)
+mk.save(OUT / "map_cowshed.png")
+cp = MAP.crop((1480, 10, 1665, 180))
+px = cp.load()
+for y in range(cp.size[1]):
+    for x in range(cp.size[0]):
+        r, g, b, _ = px[x, y]
+        v = max(r, g, b)
+        d = ((x - 93) ** 2 + (y - 87) ** 2) ** 0.5
+        a = 0 if v <= 70 else 255 if v >= 125 else int(255 * (v - 70) / 55)
+        if d > 84:
+            a = 0
+        px[x, y] = (r, g, b, a)
+cp.save(OUT / "map_compass.png")
+print("карта: метка и компас")

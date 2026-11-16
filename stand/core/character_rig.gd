@@ -467,6 +467,8 @@ func busy() -> bool:
 func _process(delta: float) -> void:
 	if not _active:
 		return
+	if not _detail:
+		_half_step(delta)
 	if _action != "":
 		_action_t -= delta
 		if _action_t <= 0.0:
@@ -486,6 +488,7 @@ func _process(delta: float) -> void:
 			# стоя и на ходу нижняя стопа — на полу (как в исходной позе), лёжа — тело на полу
 			_gw = move_toward(_gw, 1.0 if g else 0.0, delta * 6.0)
 			ground.weight = 1.0
+			ground.legs_only = _gw <= 0.0
 			ground.body_r = lerpf(ground.rest_r, 0.045, _gw)
 			ground.smooth = lerpf(6.0, 0.0, _gw)
 		else:
@@ -497,7 +500,7 @@ func _process(delta: float) -> void:
 			if _near_t <= 0.0:
 				_near_t = 0.25
 				_near = true
-				ik.active = _near
+				ik.active = _near and _detail
 		# стопы ставим (и фиксируем опорную), когда стоит, идёт, сидит на корточках или играет клип «на ногах»
 		# (старт, остановка, разворот, эмоции стоя — в конфигурации "ik": true); в остальных действиях и позах — нет
 		var on := (_action == "" or _ik_act) and _ik_pose
@@ -510,11 +513,51 @@ func set_active(on: bool) -> void:
 	if tree:
 		tree.active = on
 	if ik:
-		ik.active = on and (not lite or _near)
+		ik.active = on and _detail and (not lite or _near)
 	for m in [limbs, arms, hands, hold, ground, fx]:
 		if m:
-			m.active = on
+			m.active = on and (_detail or not (m == hands or m == fx))
 	set_process(on)
+
+
+var _detail := true
+
+## Подробность: false — без постановки стоп (IK) и мелких движений (пальцы, дыхание, укус головой). Так персонаж
+## считается в 8–18 м от героя: движения тела те же, а мелочей на таком расстоянии не видно.
+func set_detail(on: bool) -> void:
+	if on == _detail:
+		return
+	_detail = on
+	# издали — и движения через кадр (30 раз в секунду вместо 60): анимация и поправки скелета считаются вдвое реже
+	var manual := not on
+	if tree:
+		tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL if manual else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+	if skel:
+		skel.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL if manual else Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
+	_half_acc = 0.0
+	if not _active:
+		return
+	if ik:
+		ik.active = on and (not lite or _near)
+	for m in [hands, fx]:
+		if m:
+			m.active = on
+
+
+var _half_acc := 0.0
+var _half_flip := false
+
+
+func _half_step(delta: float) -> void:
+	_half_acc += delta
+	_half_flip = not _half_flip
+	if not _half_flip:
+		return
+	if tree and tree.active:
+		tree.advance(_half_acc)
+	if skel:
+		skel.advance(_half_acc)
+	_half_acc = 0.0
 
 
 ## кость для крепления (оружие в руку, фонарь …)

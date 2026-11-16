@@ -365,8 +365,10 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		rig.fx.bite = pulse if _fx_bite else 0.0
 		rig.fx.breath_hz = 0.9 if state == "chase" or state == "attack" else 0.35
 	var fwd := Vector3(sin(rotation.y), 0, cos(rotation.y))
-	velocity = Vector3(fwd.x * speed, velocity.y - 9.8 * delta, fwd.z * speed)
+	velocity = Vector3(fwd.x * speed * step_k, velocity.y - 9.8 * delta, fwd.z * speed * step_k)
 	move_and_slide()
+	velocity.x /= step_k
+	velocity.z /= step_k
 	if is_on_floor():
 		velocity.y = 0.0
 	rig.set_motion(Vector3(velocity.x, 0, velocity.z).length(), 0.0, delta)
@@ -465,6 +467,9 @@ func _nav_dir(target: Vector3, delta: float) -> Vector3:
 func _face(dir: Vector3, delta: float, rate: float) -> void:
 	if dir.length() > 0.05:
 		rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), 1.0 - exp(-delta * rate))
+
+
+var step_k := 1.0                 ## дальний враг думает раз в несколько кадров — и шагает за них все сразу
 
 
 ## вдали от героя не считается и не двигается

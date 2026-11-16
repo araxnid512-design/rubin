@@ -1,6 +1,6 @@
 extends Control
 ## Главное меню — экран при запуске игры. Фон — картинка с нарисованными кнопками: «Новая игра», «Продолжить»,
-## «Настройки», «Выход». Новая игра стирает сохранение локации (имя героя и настройки остаются) и ведёт на карту
+## «Настройки», «Выход». Новая игра стирает сохранение локации и базы (имя героя и настройки остаются) и ведёт на карту
 ## мира; «Продолжить» — на карту мира с прежним сохранением.
 
 const SAVE := "user://cluster.json"
@@ -52,12 +52,14 @@ func _on_tap(id: String) -> void:
 
 func _go_map() -> void:
 	ULSettings.arena = false
+	ULSettings.place = "home"
 	get_tree().change_scene_to_file("res://map.tscn")
 
 
 ## полигон: площадка 10×10 м — пробовать оружие и драться с врагами
 func _go_arena() -> void:
 	ULSettings.arena = true
+	ULSettings.place = "home"
 	get_tree().change_scene_to_file("res://world.tscn")
 
 
@@ -134,6 +136,9 @@ func _confirm_new() -> void:
 	hb.add_child(ULSettings.button("Отмена", func() -> void: shade.queue_free(), 130.0))
 	hb.add_child(ULSettings.button("Начать заново", func() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+		# новая игра — и база с нуля: без оружейника, без купленных маршрутов, таймер маршрутов заново
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
+		ULBase.load_state(true)
 		_go_map(), 190.0))
 
 

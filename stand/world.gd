@@ -73,6 +73,20 @@ func _ready() -> void:
 			out = a.substr(9)
 	if test == "arena":
 		ULSettings.arena = true
+	if test.begins_with("cs"):
+		# проверки коровника: --as-test=cs (посещение), csbake (карты проходимости и земли), csview (снимки), csperf
+		ULSettings.arena = false
+		ULSettings.place = "cowshed"
+		if test == "csperf":
+			# замер — при наибольшем числе врагов: 30 пустышей и 8 лоторейщиков
+			var cc := ULCowshed.cfg().duplicate(true)
+			var nmax := -1
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--as-n="):
+					nmax = int(a2.substr(7))
+			cc.pustysh = [cc.pustysh[1], cc.pustysh[1]] if nmax < 0 else [nmax, nmax]
+			cc.lottery = [cc.lottery[1], cc.lottery[1]] if nmax < 0 else [0, 0]
+			ULCowshed._cfg = cc
 	if test != "":
 		# проверки: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -81,11 +95,14 @@ func _ready() -> void:
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
+	place = "cowshed" if not arena and ULSettings.place == "cowshed" else "home"
 	ULSettings.apply(get_viewport())
 	Music.stop()
 	_env()
 	if arena:
 		_arena_ground()
+	elif place == "cowshed":
+		_cowshed_world()
 	else:
 		_ground()
 		house = ULHouse.new()
@@ -103,7 +120,9 @@ func _ready() -> void:
 	_blob_layer()
 	_player()
 	_combat_setup()
-	if not arena:
+	if place == "cowshed":
+		_cowshed_enter.call_deferred()
+	elif not arena:
 		_npcs_setup()
 		if test == "":
 			_enemies_setup()
@@ -114,6 +133,10 @@ func _ready() -> void:
 		_crate_scene = load(MODELS + "ul_crate.glb")
 	_load()
 	_apply_gear()
+	if place == "home" and not arena and ULSettings.arrival_note != "" and test == "":
+		var note := ULSettings.arrival_note
+		ULSettings.arrival_note = ""
+		_arrival.call_deferred(note)
 	# герой для окна инвентаря создаётся сразу (иначе первое открытие инвентаря — заминка в четверть секунды и больше)
 	_make_preview()
 	_preview_on(false)
@@ -130,7 +153,7 @@ func _ready() -> void:
 const NAV_MESH := "res://assets/world/nav_cluster.res"
 
 
-func _bake_nav() -> void:
+func _bake_nav(path := NAV_MESH) -> void:
 	var nm := NavigationMesh.new()
 	nm.agent_radius = 0.35
 	nm.agent_height = 1.8
@@ -138,22 +161,260 @@ func _bake_nav() -> void:
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	nm.filter_baking_aabb = AABB(Vector3(-SIZE * 0.5 - 12.0, -1.0, -SIZE * 0.5 - 12.0), Vector3(SIZE + 24.0, 5.0, SIZE + 24.0))
+	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, -1.0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, 5.0, size_m + 24.0))
 	var src := NavigationMeshSourceGeometryData3D.new()
 	var t0 := Time.get_ticks_msec()
 	NavigationServer3D.parse_source_geometry_data(nm, src, self)
 	NavigationServer3D.bake_from_source_geometry_data(nm, src)
-	ResourceSaver.save(nm, NAV_MESH, ResourceSaver.FLAG_COMPRESS)
-	print("[bake] карта проходимости: многоугольников %d, вершин %d, %d мс → %s" % [nm.get_polygon_count(), nm.vertices.size(), Time.get_ticks_msec() - t0, NAV_MESH])
+	ResourceSaver.save(nm, path, ResourceSaver.FLAG_COMPRESS)
+	print("[bake] карта проходимости: многоугольников %d, вершин %d, %d мс → %s" % [nm.get_polygon_count(), nm.vertices.size(), Time.get_ticks_msec() - t0, path])
 
 
-func _nav_load() -> void:
-	if not ResourceLoader.exists(NAV_MESH):
+func _nav_load(path := NAV_MESH) -> void:
+	if not ResourceLoader.exists(path):
 		return
 	var reg := NavigationRegion3D.new()
 	reg.name = "Nav"
-	reg.navigation_mesh = load(NAV_MESH)
+	reg.navigation_mesh = load(path)
 	add_child(reg)
+
+
+# ---------------- временный кластер «Опасный коровник» ----------------
+
+## Локация 150×150 м собирается ULCowshed (core/world/cowshed.gd); останки коров и враги — заново при каждом входе.
+## Посещение — 10 минут (data/cowshed.json): предупреждения за 5 и 2 минуты, последние 30 с — красный таймер
+## и тревога; на нуле кластер перезагружается — герой погибает, всё, что при себе, теряется (вещи на базе целы),
+## маршрут закрывается и локация пропадает с карты. Уйти можно раньше — за край поля, с добычей. На диск во время
+## посещения пишется только то, что при себе (ящики и вещи базы не трогаются).
+const NAV_COWSHED := "res://assets/world/nav_cowshed.res"
+const CS_NOTES := {
+	"left": "Вы покинули «Опасный коровник» с добычей. Маршрут закрыт — для нового посещения купите его снова.",
+	"reset": "Кластер перезагрузился, пока вы были внутри. Вы погибли и потеряли всё, что было при себе. Вещи на базе целы.",
+	"dead": "Вы погибли в «Опасном коровнике» и потеряли всё, что было при себе. Вещи на базе целы.",
+	"menu": "Вы покинули «Опасный коровник». Маршрут закрыт.",
+}
+var place := "home"
+var cowshed: ULCowshed
+var size_m := SIZE
+var cs_seed := 0                  ## случайность этого посещения (останки коров, враги)
+var cs_plan: Array = []           ## кто и где появился в этот раз
+var _cs_end := 0.0                ## когда кластер перезагрузится (unix-время, с)
+var _cs_warned := {}
+var _cs_over := false             ## время вышло — герой погибает вместе с кластером
+var _cs_done := false
+var _cs_alarm := 0.0
+var cs_ready := false             ## враги расставлены
+var prof_mid := 0
+var prof_mid_n := 0
+var prof_full := 0
+var prof_full_n := 0
+
+
+func _cowshed_world() -> void:
+	size_m = float(ULCowshed.cfg().get("size", 150.0))
+	cowshed = ULCowshed.new()
+	cowshed.name = "Cowshed"
+	add_child(cowshed)
+	cowshed.build(self)
+	_noise_tex = cowshed._noise_tex
+	_edge_fog()
+	if test == "csbake":
+		_bake_nav(NAV_COWSHED)
+	_nav_load(NAV_COWSHED)
+
+
+## вход: отсчёт времени, останки коров и враги — по случайности этого посещения (каждый вход — по-новому)
+func _cowshed_enter() -> void:
+	var c := ULCowshed.cfg()
+	_cs_end = Time.get_unix_time_from_system() + float(c.get("minutes", 10)) * 60.0
+	if test == "" and ULBase.route_state("cowshed") != "active":
+		ULBase.set_route("cowshed", "active")
+	if cs_seed == 0:
+		cs_seed = 991 if test != "" else int(Time.get_unix_time_from_system() * 1000.0) % 2147483647
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-seed="):
+			cs_seed = int(a.substr(10))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = cs_seed
+	cowshed.place_cows(rng)
+	# карта проходимости становится доступна через несколько кадров физики (сервер собирает её в фоне);
+	# по ней проверяется каждая точка появления
+	var map := get_world_3d().navigation_map
+	var probe := ULCowshed.ENTRY + Vector3(0, 0, -6)
+	for i in 240:
+		await get_tree().physics_frame
+		if NavigationServer3D.map_get_iteration_id(map) > 0 and NavigationServer3D.map_get_closest_point(map, probe).distance_to(probe) < 1.0:
+			break
+	var snap := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	cs_plan = cowshed.spawn_plan(rng, snap)
+	var k := 0
+	for sp in cs_plan:
+		spawn_enemy(String(sp[0]), sp[1])
+		k += 1
+		if k % 6 == 0:
+			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
+	cs_ready = true
+	say("Опасный коровник. До перезагрузки кластера — %d минут" % int(c.get("minutes", 10)))
+
+
+## сколько секунд осталось до перезагрузки кластера
+func cs_left() -> float:
+	return maxf(_cs_end - Time.get_unix_time_from_system(), 0.0) if _cs_end > 0.0 else 0.0
+
+
+static func _minutes_text(sec: int) -> String:
+	var m := sec / 60
+	return "%d %s" % [m, ["минута", "минуты", "минут"][ULEconomy.plural_form(m)]]
+
+
+func _cs_tick(delta: float) -> void:
+	if cowshed:
+		cowshed.tick(player.global_position, cam.global_position, delta)
+	if _cs_done or _cs_end <= 0.0:
+		return
+	var left := cs_left()
+	var c := ULCowshed.cfg()
+	for wv in c.get("warn_s", [300, 120]):
+		var ws := int(wv)
+		if left <= ws and not _cs_warned.has(ws):
+			_cs_warned[ws] = true
+			if left > ws - 5.0:
+				say("Внимание! До перезагрузки кластера %s" % _minutes_text(ws))
+				snd.play("beep", player.global_position + Vector3.UP, 0.0, 0.0)
+	if left <= float(c.get("alarm_s", 30)) and left > 0.0:
+		_cs_alarm -= delta
+		if _cs_alarm <= 0.0:
+			_cs_alarm = 2.2
+			snd.play("alarm", player.global_position + Vector3.UP * 2.0, -4.0, 0.0)
+			if not _cs_warned.has(-1):
+				_cs_warned[-1] = true
+				say("ТРЕВОГА! Кластер перезагружается — уходите за край поля!")
+	if left <= 0.0 and not _cs_over:
+		_cs_over = true
+		say("Кластер перезагружается!")
+		if _dead_t <= 0.0:
+			hp = 0.0
+			_dead_t = 3.0
+			close_inventory()
+			_hud_touch.clear()
+			_joy_id = -1
+			_joy_v = Vector2.ZERO
+
+
+## Конец посещения: left — ушёл за край (вещи при себе), menu — вышел в главное меню, reset — кластер
+## перезагрузился с героем внутри, dead — погиб. В двух последних случаях всё, что при себе, теряется
+## (data/cowshed.json: lose_on_death, lose_wallet). Маршрут закрывается — локация пропадает с карты.
+func cs_finish(why: String) -> void:
+	if _cs_done:
+		return
+	_cs_done = true
+	var c := ULCowshed.cfg()
+	if why == "reset" or (why == "dead" and bool(c.get("lose_on_death", true))):
+		var keep: Dictionary = {} if bool(c.get("lose_wallet", true)) else inv.wallet.duplicate()
+		inv.from_dict({"wallet": keep})
+		hp = 50.0
+	_save_carried()
+	ULBase.set_route("cowshed", "")
+	ULSettings.place = "home"
+	ULSettings.arrival_note = String(CS_NOTES.get(why, ""))
+	if test == "":
+		get_tree().change_scene_to_file({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"))
+
+
+## во временном кластере на диск пишется только то, что при себе; ящики и вещи на базе остаются как были
+func _save_carried(path := SAVE, force := false) -> void:
+	if (test != "" and not force) or not FileAccess.file_exists(path):
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (d is Dictionary):
+		return
+	d["inv"] = inv.to_dict()
+	d["hp"] = hp
+	d["en"] = en
+	d["water"] = water
+	ULBase.write_json(path, d)
+
+
+func _cs_load() -> void:
+	var d = null
+	if FileAccess.file_exists(SAVE) and test == "":
+		d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+	if d is Dictionary:
+		inv.from_dict(d.get("inv", {}))
+		hp = clampf(float(d.get("hp", 65.0)), 1.0, HP_MAX)
+		en = clampf(float(d.get("en", 100.0)), 0.0, 100.0)
+		water = clampf(float(d.get("water", 100.0)), 0.0, 100.0)
+	else:
+		# проверки: автомат, пистолет, патроны, бинты, немного ресурсов
+		inv.pack = ULItems.make("pack_large")
+		inv.primary = ULItems.make("ak74m")
+		inv.pistol = ULItems.make("tt")
+		inv.hand = "primary"
+		for it in [ULItems.make("a545", 90), ULItems.make("a762x25", 32), ULItems.make("bandage", 5)]:
+			inv.add(it)
+		inv.wallet = {"spore": 12, "pea": 1}
+		hp = HP_MAX
+	player.global_position = ULCowshed.ENTRY + Vector3(0, 0.1, 0)
+	player.rotation.y = PI
+
+
+## таймер кластера сверху посередине: белый, за 2 минуты — оранжевый, последние 30 с — красный и мигает
+func _cs_hud(vs: Vector2, font0: Font) -> void:
+	if place != "cowshed" or _cs_end <= 0.0:
+		return
+	var left := cs_left()
+	var sec := int(ceil(left))
+	var t := "%02d:%02d" % [sec / 60, sec % 60]
+	var col := Color(0.96, 0.96, 0.92)
+	if left <= float(ULCowshed.cfg().get("alarm_s", 30)):
+		col = Color(1.0, 0.25, 0.2) if int(Time.get_ticks_msec() / 350) % 2 == 0 else Color(1.0, 0.6, 0.5)
+	elif left <= 120.0:
+		col = Color(1.0, 0.65, 0.25)
+	var fs := 34
+	var tw := font0.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var cap := "до перезагрузки кластера"
+	var cw := font0.get_string_size(cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+	var bw := maxf(tw, cw) + 36.0
+	_hud.draw_rect(Rect2(vs.x * 0.5 - bw * 0.5, 8, bw, 62), Color(0.04, 0.03, 0.02, 0.62))
+	_hud.draw_rect(Rect2(vs.x * 0.5 - bw * 0.5, 8, bw, 62), col * Color(1, 1, 1, 0.7), false, 1.5)
+	_hud.draw_string_outline(font0, Vector2(vs.x * 0.5 - tw * 0.5, 44), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 6, Color(0, 0, 0, 0.8))
+	_hud.draw_string(font0, Vector2(vs.x * 0.5 - tw * 0.5, 44), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	_hud.draw_string(font0, Vector2(vs.x * 0.5 - cw * 0.5, 62), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.85, 0.85, 0.8))
+
+
+## записка после возвращения из временного кластера (почему вернулись и что с вещами)
+func _arrival(t: String) -> void:
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.6)
+	_hud.get_parent().add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_book_ui = shade
+	var cc := CenterContainer.new()
+	shade.add_child(cc)
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var pn := PanelContainer.new()
+	pn.custom_minimum_size = Vector2(620, 0)
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	cc.add_child(pn)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 14)
+	pn.add_child(vb)
+	var tl := Label.new()
+	tl.text = "Кластер перезагрузился" if t.begins_with("Кластер") else "Опасный коровник"
+	tl.add_theme_font_size_override("font_size", 26)
+	tl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if not t.begins_with("Вы покинули") else Color(1.0, 0.86, 0.5))
+	vb.add_child(tl)
+	var l := Label.new()
+	l.text = t
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_color_override("font_color", C_TEXT)
+	vb.add_child(l)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	vb.add_child(hb)
+	hb.add_child(ULSettings.button("Понятно", func() -> void: shade.queue_free(), 160.0))
 
 
 # ---------------- полигон ----------------
@@ -365,16 +626,18 @@ uniform sampler2D path : source_color, filter_linear_mipmap_anisotropic, repeat_
 uniform sampler2D path_n : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise : filter_linear, repeat_enable;
 uniform sampler2D mask : filter_linear, repeat_disable;
+uniform float world_size = 100.0;
+uniform vec3 soil_tint = vec3(0.9, 0.84, 0.74);
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec2 p = wp.xz;
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
-	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.8) / 100.0 + 0.5);
+	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.8) / world_size + 0.5);
 	// светлая, естественная гамма: трава — зелёная с желтизной, голая земля — сухая серо-бурая, тропа — светлая галька
 	vec3 g = mix(texture(grass, p / 4.2).rgb, texture(blades, rot * p / 5.3).rgb, 0.4) * vec3(0.88, 1.02, 0.66);
-	vec3 so = texture(soil, p / 3.8).rgb * vec3(0.9, 0.84, 0.74);
+	vec3 so = texture(soil, p / 3.8).rgb * soil_tint;
 	vec3 e = texture(path, p / 3.2).rgb * vec3(1.0, 0.95, 0.88);
 	ALBEDO = mix(mix(so, e, m.g), g, m.r) * (m.b * 1.2 * 0.76 * m.a);
 	NORMAL_MAP = texture(path_n, p / 3.2).rgb;
@@ -521,11 +784,12 @@ uniform sampler2D noise : filter_linear, repeat_enable;
 uniform vec3 tint : source_color = vec3(0.62, 0.68, 0.6);
 uniform float dens = 0.36;
 uniform float drift = 1.0;
+uniform float half = 50.0;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec2 p = wp.xz;
-	float d = max(abs(p.x), abs(p.y)) - 50.0;
+	float d = max(abs(p.x), abs(p.y)) - half;
 	float n = texture(noise, p / 38.0 + TIME * vec2(0.006, 0.004) * drift).r * 0.6 + texture(noise, p / 13.0 - TIME * vec2(0.011, 0.007) * drift).r * 0.4;
 	ALBEDO = tint * (0.86 + 0.28 * n);
 	ALPHA = smoothstep(-5.0, 8.0, d + (n - 0.5) * 9.0) * dens;
@@ -538,8 +802,8 @@ void fragment() {
 func _edge_fog() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var a := SIZE * 0.5 - 10.0
-	var b := SIZE * 0.5 + 30.0
+	var a := size_m * 0.5 - 10.0
+	var b := size_m * 0.5 + 30.0
 	# рамка из четырёх полос
 	for r in [[-b, -b, b, -a], [-b, a, b, b], [-b, -a, -a, a], [a, -a, b, a]]:
 		var v := [Vector3(r[0], 0, r[1]), Vector3(r[2], 0, r[1]), Vector3(r[2], 0, r[3]), Vector3(r[0], 0, r[3])]
@@ -557,6 +821,7 @@ func _edge_fog() -> void:
 		m.set_shader_parameter("noise", _noise_tex)
 		m.set_shader_parameter("dens", l[1])
 		m.set_shader_parameter("drift", l[2])
+		m.set_shader_parameter("half", size_m * 0.5)
 		var fi := MeshInstance3D.new()
 		fi.mesh = mesh
 		fi.material_override = m
@@ -1470,15 +1735,20 @@ func _process(delta: float) -> void:
 	_fps_tick(delta)
 	_auto_res(delta)
 	# за краем локации: пять секунд на возвращение, потом — на карту мира
-	if not arena and (absf(player.global_position.x) > SIZE * 0.5 or absf(player.global_position.z) > SIZE * 0.5):
+	if not arena and _dead_t <= 0.0 and (absf(player.global_position.x) > size_m * 0.5 or absf(player.global_position.z) > size_m * 0.5):
 		_leave_t += delta
 		if _leave_t >= LEAVE_S and not left_location:
 			left_location = true
-			_save()
-			if test == "":
-				get_tree().change_scene_to_file("res://map.tscn")
+			if place == "cowshed":
+				cs_finish("left")
+			else:
+				_save()
+				if test == "":
+					get_tree().change_scene_to_file("res://map.tscn")
 	else:
 		_leave_t = 0.0
+	if place == "cowshed":
+		_cs_tick(delta)
 	if _hud:
 		_hud.queue_redraw()
 	if house != null:
@@ -1514,6 +1784,8 @@ func _body_pose(speed: float) -> void:
 func _where() -> String:
 	if arena:
 		return "полигон"
+	if place == "cowshed":
+		return "Опасный коровник" + (", коровник" if cowshed.in_barn(player.global_position) >= 0 else "")
 	if not house.contains(player.global_position):
 		return "кластер, двор" if _in_yard(player.global_position) else "кластер, улица"
 	var l := house.to_local(player.global_position)
@@ -2119,6 +2391,9 @@ func say(t: String) -> void:
 func _save() -> void:
 	if arena or test != "":
 		return                                  # полигон и проверки сохранение не трогают
+	if place == "cowshed":
+		_save_carried()                         # во временном кластере сохраняется только то, что при себе
+		return
 	var cr := []
 	for c in crates:
 		cr.append([snappedf(c.position.x, 0.01), snappedf(c.position.z, 0.01), snappedf(c.rotation.y, 0.01), c.get_meta("items")])
@@ -2133,6 +2408,9 @@ func _save() -> void:
 func _load() -> void:
 	if arena:
 		_arena_loot()
+		return
+	if place == "cowshed":
+		_cs_load()
 		return
 	var d = null
 	if FileAccess.file_exists(SAVE) and test == "":
@@ -2269,24 +2547,25 @@ func _ui() -> void:
 		bar.add_child(_btn("Здоровье", func():
 			hp = HP_MAX
 			_menu_bar.visible = false, 110))
-	else:
+	elif place != "cowshed":
 		bar.add_child(_btn("Враг +", func():
 			var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
 			spawn_enemy("infected", player.global_position + f * 9.0)
 			_menu_bar.visible = false, 90))
 	bar.add_child(_btn("Справочник", open_book, 130))
-	if not arena:
+	if not arena and place != "cowshed":
 		bar.add_child(_btn("Карта", func():
 			_save()
 			get_tree().change_scene_to_file("res://map.tscn"), 90))
 	bar.add_child(_btn("Настройки", open_settings, 120))
 	bar.add_child(_btn("Тест FPS", fps_test, 110))
-	if not arena:
+	if not arena and place != "cowshed":
 		bar.add_child(_btn("Убрать ящик", remove_crate, 130))
-	bar.add_child(_btn("3D", func():
-		_save()
-		ULSettings.stand_back = "res://world.tscn"
-		get_tree().change_scene_to_file("res://stand.tscn"), 70))
+	if place != "cowshed":
+		bar.add_child(_btn("3D", func():
+			_save()
+			ULSettings.stand_back = "res://world.tscn"
+			get_tree().change_scene_to_file("res://stand.tscn"), 70))
 	_toast = Label.new()
 	ui.add_child(_toast)
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
@@ -2482,6 +2761,7 @@ func _draw_hud() -> void:
 			"menu":
 				_hud_icon(_art("menu"), c, r * 2.0, ic)
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
+	_cs_hud(vs, font0)
 	if _leave_t > 0.0:
 		var lt := "Вы покидаете локацию: %d" % int(ceil(maxf(LEAVE_S - _leave_t, 0.0)))
 		var lw := font0.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
@@ -2527,8 +2807,11 @@ func _hud_press(k: String) -> void:
 		"reload":
 			reload_weapon()
 		"build":
-			place_crate()
-			say("Поставлен ящик")
+			if place == "cowshed":
+				say("Во временном кластере ящик не поставить — он исчезнет вместе с кластером")
+			else:
+				place_crate()
+				say("Поставлен ящик")
 		"menu":
 			_menu_bar.visible = not _menu_bar.visible
 		"name":
@@ -3257,6 +3540,8 @@ func _combat_setup() -> void:
 	if arena:
 		_add_mannequin(Vector3(3.9, 0, -3.9), -0.6)
 		return
+	if place == "cowshed":
+		return
 	# манекен у базы (во дворе справа от крыльца) и две мишени в поле — на 12 и 25 м от калитки
 	_add_mannequin(HOUSE_AT + Vector3(7.2, 0, 7.0), -0.5)
 	_add_target(Vector3(-7.0, 0, 9.0))
@@ -3320,6 +3605,8 @@ func _auto_vec() -> Vector2:
 
 
 func _snap(name: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return                                  # без экрана снимка нет (и кадр отрисовки не наступит)
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [out, name])
 
@@ -3358,6 +3645,164 @@ func _wait_drawn() -> void:
 		await get_tree().process_frame
 		tw += get_process_delta_time()
 	await get_tree().create_timer(0.2).timeout
+
+
+## «Опасный коровник» (--as-test=cs; --as-out=папка — снимки): размер, коровники и останки коров, сколько врагов
+## и где, разные посещения, враги видят и бьют, таймер 10:00, уход за край с добычей, перезагрузка кластера с
+## потерей того, что при себе (вещи базы целы), маршрут после посещения закрыт и покупается снова.
+func _cs_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 15000:
+		await get_tree().process_frame
+	var c := ULCowshed.cfg()
+	_ok("коровник: поле %d×%d м, враги расставлены" % [int(size_m), int(size_m)], size_m == 150.0 and cs_ready and place == "cowshed" and house == null)
+	_ok("несколько коровников, загоны, лес, техника", cowshed.barns.size() >= 3 and cowshed.fence_mid.size() >= 20 and cowshed.wood_pts.size() >= 40)
+	var kinds := {}
+	for ch in cowshed.get_children():
+		if ch.has_meta("cow"):
+			kinds[String(ch.get_meta("cow"))] = int(kinds.get(String(ch.get_meta("cow")), 0)) + 1
+	_ok("останки коров: около %d, два вида (скелет и тело)" % int(c.cows), cowshed.cows.size() >= int(c.cows) - 2 and kinds.size() == 2, str(kinds))
+	var np := 0
+	var nl := 0
+	var in_barn := 0
+	var by_cow := 0
+	var by_wood := 0
+	var near_entry := 0
+	var off_nav := 0
+	var map := get_world_3d().navigation_map
+	for e in enemies:
+		if e.kind == "infected":
+			np += 1
+		elif e.kind == "lottery":
+			nl += 1
+		var q := e.global_position
+		if cowshed.in_barn(q) >= 0:
+			in_barn += 1
+		for cp in cowshed.cows:
+			if cp.distance_to(q) < 5.0:
+				by_cow += 1
+				break
+		for wp in cowshed.wood_pts + cowshed.fence_mid:
+			if wp.distance_to(q) < 5.0:
+				by_wood += 1
+				break
+		if q.distance_to(ULCowshed.ENTRY) < float(c.safe_r):
+			near_entry += 1
+		var cl := NavigationServer3D.map_get_closest_point(map, q)
+		if Vector2(cl.x - q.x, cl.z - q.z).length() > 0.6:
+			off_nav += 1
+	_ok("пустышей %d (от %d до %d), лоторейщиков %d (от %d до %d)" % [np, int(c.pustysh[0]), int(c.pustysh[1]), nl, int(c.lottery[0]), int(c.lottery[1])], np >= int(c.pustysh[0]) and np <= int(c.pustysh[1]) and nl >= int(c.lottery[0]) and nl <= int(c.lottery[1]))
+	_ok("враги в коровниках (%d), у останков коров (%d), в лесу и у загонов (%d)" % [in_barn, by_cow, by_wood], in_barn > 0 and by_cow > 0 and by_wood > 0)
+	_ok("никто не стоит в стене, дереве или вне проходимой части", off_nav == 0, "вне: %d" % off_nav)
+	_ok("у точки входа (%d м) врагов нет" % int(c.safe_r), near_entry == 0)
+	# разные посещения: тот же расчёт с другой случайностью
+	var snap := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var counts := {}
+	var lo := [99, 99]
+	var hi := [0, 0]
+	var first := ""
+	var differ := false
+	for sd in 30:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 5000 + sd * 7919
+		var plan := cowshed.spawn_plan(rng, snap)
+		var a := 0
+		var b := 0
+		for sp in plan:
+			if String(sp[0]) == "infected":
+				a += 1
+			else:
+				b += 1
+		lo = [mini(lo[0], a), mini(lo[1], b)]
+		hi = [maxi(hi[0], a), maxi(hi[1], b)]
+		var sig := "%d/%d/%s" % [a, b, str((plan[0][1] as Vector3).round())]
+		if first == "":
+			first = sig
+		elif sig != first:
+			differ = true
+	_ok("30 посещений: пустышей %d–%d, лоторейщиков %d–%d, состав и места каждый раз другие" % [lo[0], hi[0], lo[1], hi[1]], lo[0] >= 10 and hi[0] <= 30 and lo[1] >= 3 and hi[1] <= 8 and differ and hi[0] - lo[0] >= 10)
+	# таймер
+	_ok("таймер кластера начат с 10:00", cs_left() > 590.0 and cs_left() <= 600.0, "%.1f с" % cs_left())
+	if out != "":
+		await get_tree().create_timer(1.5).timeout
+		await _snap("cs_entry")
+	# враг видит, догоняет и бьёт
+	var tgt: ULEnemy = null
+	for e in enemies:
+		if e.kind == "infected" and cowshed.in_barn(e.global_position) < 0:
+			tgt = e
+			break
+	var hp0 := hp
+	if tgt:
+		var fwd := Vector3(0, 0, 1)
+		var at := NavigationServer3D.map_get_closest_point(map, tgt.global_position + fwd * 6.0)
+		player.global_position = at + Vector3.UP * 0.1
+		var tt := 0.0
+		var dmin := 99.0
+		while tt < 9.0 and hp >= hp0:
+			await get_tree().process_frame
+			tt += get_process_delta_time()
+			dmin = minf(dmin, tgt.global_position.distance_to(player.global_position))
+		_ok("пустыш заметил героя, подошёл вплотную и ударил", hp < hp0 and dmin < 1.3, "%.1f с, ближе всего %.2f м, состояние %s" % [tt, dmin, tgt.state])
+		if out != "":
+			await _snap("cs_fight")
+	# дальние враги: без движений тела, но думают
+	var far_ok := true
+	for e in enemies:
+		if e.alive() and e.global_position.distance_to(player.global_position) > 40.0 and e.active:
+			far_ok = false
+	_ok("дальние враги без движений тела (экономия на телефоне)", far_ok)
+	# уход за край с добычей
+	hp = HP_MAX
+	inv.wallet = {"spore": 7, "pea": 1}
+	ULBase.set_route("cowshed", "active")
+	player.global_position = Vector3(0, 0.1, size_m * 0.5 + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 2.0:
+		await get_tree().process_frame
+		tl += get_process_delta_time()
+	_ok("ушёл за край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and inv.primary != null and ULBase.route_state("cowshed") == "" and ULSettings.place == "home", ULSettings.arrival_note)
+	# новое посещение: снова купить маршрут
+	inv.wallet = {"spore": 10}
+	var rb := ULBase.buy_route(inv, "cowshed")
+	_ok("для нового посещения маршрут покупается снова", rb.ok and ULBase.route_state("cowshed") == "bought" and int(inv.wallet.get("spore", 0)) == 0)
+	# перезагрузка кластера с героем внутри
+	_cs_done = false
+	left_location = false
+	_leave_t = 0.0
+	ULSettings.place = "cowshed"
+	ULBase.set_route("cowshed", "active")
+	player.global_position = ULCowshed.ENTRY + Vector3(0, 0.1, -3)
+	inv.wallet = {"spore": 25, "pea": 2}
+	var fake := "user://test_cluster.json"
+	var crates0 := [[1.0, 2.0, 0.0, [ULItems.make("ak74m")]]]
+	ULBase.write_json(fake, {"v": SAVE_V, "crates": crates0, "ground": [[ULItems.make("bandage", 2), 3.0, 4.0, 0.0]], "inv": inv.to_dict(), "hp": 80.0})
+	_cs_end = Time.get_unix_time_from_system() + 32.0
+	await get_tree().create_timer(2.5).timeout
+	_ok("за 30 с — тревога, таймер красный", _cs_warned.has(-1))
+	_cs_end = Time.get_unix_time_from_system() + 0.5
+	var tr := 0.0
+	while not _cs_over and tr < 3.0:
+		await get_tree().process_frame
+		tr += get_process_delta_time()
+	_ok("время вышло: герой погибает вместе с кластером", _cs_over and _dead_t > 0.0 and hp == 0.0)
+	tr = 0.0
+	while not _cs_done and tr < 5.0:
+		await get_tree().process_frame
+		tr += get_process_delta_time()
+	_save_carried(fake, true)
+	var dd = JSON.parse_string(FileAccess.get_file_as_string(fake))
+	var inv3 := ULInventory.new()
+	inv3.from_dict(dd.inv)
+	_ok("перезагрузка: всё, что при себе, потеряно (оружие, патроны, ресурсы)", _cs_done and inv.primary == null and inv.pistol == null and inv.used() == 0 and inv.wallet.is_empty() and inv3.primary == null and inv3.wallet.is_empty())
+	_ok("вещи на базе целы (ящики и вещи на земле не тронуты)", (dd.crates as Array).size() == 1 and String(dd.crates[0][3][0].id) == "ak74m" and (dd.ground as Array).size() == 1)
+	_ok("после перезагрузки маршрут закрыт, коровника нет на карте, герой — дома", ULBase.route_state("cowshed") == "" and not ULMap.place_shown("cowshed") and ULSettings.place == "home" and ULSettings.arrival_note.begins_with("Кластер перезагрузился"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fake))
+	ULSettings.place = "home"
+	ULSettings.arrival_note = ""
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
 
 
 ## Базовый компьютер (--as-test=pc; с --as-out=папка — ещё снимки экрана): пять ресурсов, оружейник за 30 гороха
@@ -4268,6 +4713,8 @@ func _enemies_tick(delta: float) -> void:
 				player.global_position = Vector3(0, 0.1, 2.5)
 				clear_enemies()
 				say("Заново. Враги убраны")
+			elif place == "cowshed":
+				cs_finish("reset" if _cs_over else "dead")
 			else:
 				hp = 50.0
 				player.global_position = Vector3(0, 0.1, 3)
@@ -4292,7 +4739,7 @@ func _enemies_tick(delta: float) -> void:
 					_glow_node = null
 				if _target != null and _target.type == "corpse" and _target.e == e:
 					_target = null
-				if test == "" and not arena:
+				if test == "" and not arena and place != "cowshed":
 					_respawn.append([e.home, RESPAWN_S, e.kind])
 				_dmg_lb.erase(e)
 				targets.erase(e)
@@ -4300,8 +4747,24 @@ func _enemies_tick(delta: float) -> void:
 				e.queue_free()
 			continue
 		var d := e.global_position.distance_to(p)
-		e.set_active(d < 36.0)
+		e.set_active(d < (18.0 if place == "cowshed" else 36.0))
+		if place == "cowshed":
+			e.rig.set_detail(d < 8.0)
 		if not e.active:
+			# Временный кластер (38 врагов): ближе 8 м — всё, 8–18 м — без стоп и мелочей, дальше — без движений тела; кто ближе 80 м или гонится за героем —
+			# думает и ходит раз в четыре кадра (за четыре кадра сразу), видит — раз в двенадцать. Дальше 80 м
+			# спокойные стоят.
+			if place == "cowshed" and (d < 80.0 or e.state == "chase" or e.state == "alert") and (fr + i) % 4 == 0:
+				if (fr + i) % 12 == 0 or not e.has_meta("sees"):
+					var vr2 := float(e.def.see) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
+					e.set_meta("sees", d < vr2 and _sees(e))
+					e.hear_steps(p, hero_v)
+				e.step_k = 4.0
+				var _u0 := Time.get_ticks_usec()
+				e.tick(delta * 4.0, p, bool(e.get_meta("sees")), hero_ok)
+				prof_mid += Time.get_ticks_usec() - _u0
+				prof_mid_n += 1
+				e.step_k = 1.0
 			continue
 		# видит ли героя — проверяется не каждый кадр (луч через стены и забор)
 		# (спокойный видит на свою дальность зрения; тот, кто уже гонится, — пока герой не уйдёт дальше «потери»)
@@ -4309,7 +4772,10 @@ func _enemies_tick(delta: float) -> void:
 			var vr := float(e.def.see) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
 			e.set_meta("sees", d < vr and _sees(e))
 			e.hear_steps(p, hero_v)
+		var _u1 := Time.get_ticks_usec()
 		e.tick(delta, p, bool(e.get_meta("sees")), hero_ok)
+		prof_full += Time.get_ticks_usec() - _u1
+		prof_full_n += 1
 	for i in range(_respawn.size() - 1, -1, -1):
 		_respawn[i][1] = float(_respawn[i][1]) - delta
 		if float(_respawn[i][1]) <= 0.0 and (_respawn[i][0] as Vector3).distance_to(p) > 16.0:
@@ -4404,6 +4870,9 @@ func open_settings() -> void:
 	_menu_bar.visible = false
 	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void: ULSettings.apply(get_viewport()), [
 		["Главное меню", func() -> void:
+			if place == "cowshed":
+				cs_finish("menu")
+				return
 			_save()
 			get_tree().change_scene_to_file("res://menu.tscn")],
 		["Выйти из игры", func() -> void:
@@ -5317,6 +5786,89 @@ func _run_test() -> void:
 	if test == "pc":
 		await _pc_test()
 		return
+	if test == "cs":
+		await _cs_test()
+		return
+	if test == "csperf":
+		var t1 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - t1 < 15000:
+			await get_tree().process_frame
+		print("[perf] коровник: врагов %d (наибольшее число по data/cowshed.json)" % enemies.size())
+		var no_screen := DisplayServer.get_name() == "headless"
+		var worst := {"draw": 0.0, "tris": 0.0, "tex_mb": 0.0, "cpu_ms": 0.0}
+		var pts := [["вход", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["в коровнике", cowshed.barn_point(0, RandomNumberGenerator.new())], ["у останков коров", cowshed.cows[0] + Vector3(0, 0, 2.5)],
+			["лес", Vector3(-52, 0, -50)], ["середина", Vector3(0, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
+		for pt in pts:
+			player.global_position = (pt[1] as Vector3) + Vector3.UP * 0.1
+			hp = HP_MAX
+			if String(pt[0]).contains("гонятся"):
+				for e in enemies:
+					if e.alive():
+						e.hear(player.global_position)
+			_cam_ready = false
+			await get_tree().create_timer(2.4 if no_screen else 1.0).timeout
+			prof_mid = 0
+			prof_mid_n = 0
+			prof_full = 0
+			prof_full_n = 0
+			var fr0 := Engine.get_process_frames()
+			var d: Dictionary = await _perf_sample()
+			# среднее и худшее за 60 кадров (один кадр «шумит» из-за самой машины)
+			var acc := 0.0
+			var acc_ph := 0.0
+			var worst1 := 0.0
+			for f in 60:
+				await get_tree().process_frame
+				var ph := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+				var ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0 + ph
+				acc += ms
+				acc_ph += ph
+				worst1 = maxf(worst1, ms)
+			d.cpu_ms = acc / 60.0
+			print("[perf]   за 60 кадров: среднее %.2f мс (из них физика %.2f), худший %.2f мс" % [acc / 60.0, acc_ph / 60.0, worst1])
+			var nf := maxi(Engine.get_process_frames() - fr0, 1)
+			print("[prof] упрощённо: %.3f мс на вызов, %.2f мс на кадр; полностью: %.3f мс на вызов, %.2f мс на кадр" % [prof_mid / 1000.0 / maxf(prof_mid_n, 1), prof_mid / 1000.0 / nf, prof_full / 1000.0 / maxf(prof_full_n, 1), prof_full / 1000.0 / nf])
+			var near := 0
+			var mid := 0
+			for e in enemies:
+				if e.active:
+					near += 1
+				elif e.state in ["chase", "alert"] or e.global_position.distance_to(player.global_position) < 80.0:
+					mid += 1
+			print("[perf] %s: %d / %d / %d / %.2f мс (полностью считаются %d, упрощённо %d, стоят %d)" % [pt[0], d.draw, d.tris, d.tex_mb, d.cpu_ms, near, mid, enemies.size() - near - mid])
+			for k in worst:
+				worst[k] = maxf(worst[k], float(d[k]))
+		var over := 0
+		for k in worst:
+			if (k == "cpu_ms") != no_screen:
+				continue
+			var okk: bool = float(worst[k]) <= float(PERF_BUDGET[k])
+			over += 0 if okk else 1
+			print("[perf] %s: наибольшее %s при бюджете %s — %s" % [PERF_NAMES[k], ("%.2f" % worst[k]) if k == "cpu_ms" else str(int(worst[k])), str(PERF_BUDGET[k]), "в бюджете" if okk else "ПРЕВЫШЕНО"])
+		print("[perf] итог: превышений %d" % over)
+		get_tree().quit()
+		return
+	if test == "csview":
+		# вид коровника с нескольких точек (снимки в --as-out)
+		var t0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - t0 < 15000:
+			await get_tree().process_frame
+		var spots := [["v0_entry", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["v1_barn_in", cowshed.barn_point(0, RandomNumberGenerator.new())],
+			["v2_barn_gate", Vector3(-32 + 15, 0, -28)], ["v3_cows", cowshed.cows[0] + Vector3(0, 0, 2.5)], ["v4_tractor", Vector3(18, 0, -8)],
+			["v5_pen", Vector3(-32, 0, -8)], ["v6_forest", Vector3(-52, 0, -50)], ["v7_barn3", Vector3(-4, 0, 25)], ["v8_barn2", Vector3(31, 0, -36)],
+			["w0_long_barn", Vector3(0, 0, -50)], ["w1_tower", Vector3(-6, 0, -32)], ["w2_small_barn", Vector3(-30, 0, 53)], ["w3_barn_east", Vector3(48, 0, -20)],
+			["w4_top", Vector3(0, 0, 0)]]
+		for sp in spots:
+			cam_dist = 70.0 if String(sp[0]) == "w4_top" else 12.0
+			player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
+			for e in enemies:
+				if e.global_position.distance_to(player.global_position) < 10.0:
+					e.state = "idle"
+			_cam_ready = false
+			await get_tree().create_timer(1.2).timeout
+			await _snap(String(sp[0]))
+		get_tree().quit()
+		return
 	if test == "aimdbg":
 		# отклик при стрельбе: огонь удержан, джойстик резко меняет сторону — через сколько герой идёт туда
 		var I := ULItems
@@ -5361,6 +5913,9 @@ func _run_test() -> void:
 		return
 	if test == "bake":
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
+		get_tree().quit()
+		return
+	if test == "csbake":
 		get_tree().quit()
 		return
 	if test == "perf":

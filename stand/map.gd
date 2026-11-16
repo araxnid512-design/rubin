@@ -8,8 +8,10 @@ extends Control
 const IMG := Vector2(1671, 941)   ## размер картинки разведанной части, в её точках заданы локации
 const BIG := 2.5                  ## во сколько раз вся карта больше разведанной части (по ширине и высоте)
 ## локации: область на картинке, название, вид, описание, рисунок, сцена
+## (временный кластер — только пока куплен маршрут: data/base_shop.json → routes, ULBase; метка — картинка mark)
 const PLACES := {
 	"home": {"rect": Rect2(700, 300, 320, 280), "n": "Дом", "kind": "Стабильный стаб", "d": "Ваш дом. Укрытие, защита и начало нового пути в мире Стикса.", "pic": "res://assets/ui/place_home.jpg", "scene": "res://world.tscn"},
+	"cowshed": {"rect": Rect2(1172, 92, 252, 190), "n": "Опасный коровник", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_cowshed.png", "pic": "res://assets/ui/place_cowshed.jpg", "scene": "res://world.tscn"},
 }
 const MAP_SHADER := """shader_type canvas_item;
 // Карта и туман: внутри разведанной части — картинка, к её краям и дальше — клубящийся туман.
@@ -38,6 +40,7 @@ static func place_shown(id: String) -> bool:
 
 
 var here := "home"                ## где герой сейчас
+var _marks := {}
 var sel := ""
 var view: ColorRect
 var mat: ShaderMaterial
@@ -48,6 +51,7 @@ var p_pic: TextureRect
 var p_t: Label
 var p_k: Label
 var p_d: Label
+var p_x: Label                    ## опасность и время пребывания (временный кластер)
 var note: Label
 var entering := false
 var _drag := false
@@ -55,7 +59,7 @@ var _moved := 0.0
 var _set_ui: Control
 var test := ""
 var out := "user://map"
-const PANEL_W := 400.0
+const PANEL_W := 640.0
 
 
 func _ready() -> void:
@@ -88,26 +92,36 @@ func _ready() -> void:
 	over.mouse_filter = Control.MOUSE_FILTER_STOP
 	over.draw.connect(_draw_over)
 	over.gui_input.connect(_on_input)
-	# панель локации — выезжает слева
+	# панель выбранной локации — слева внизу: снимок, название, вид, опасность и время, описание, кнопки
 	panel = PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", ULSettings._box(Color(0.05, 0.06, 0.07, 0.95)))
+	var psb := ULSettings._box(Color(0.05, 0.055, 0.05, 0.94))
+	psb.border_color = Color(0.85, 0.6, 0.25, 0.85)
+	psb.set_border_width_all(2)
+	panel.add_theme_stylebox_override("panel", psb)
 	add_child(panel)
+	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_top = 12
-	panel.offset_bottom = -12
+	panel.offset_top = -14
+	panel.offset_bottom = -14
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_panel_x(-PANEL_W - 30.0)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	panel.add_child(vb)
+	var ph := HBoxContainer.new()
+	ph.add_theme_constant_override("separation", 12)
+	panel.add_child(ph)
 	p_pic = TextureRect.new()
 	p_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	p_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	p_pic.custom_minimum_size = Vector2(0, 250)
-	vb.add_child(p_pic)
-	p_t = _lbl(vb, 28, Color(0.96, 0.96, 0.94))
-	p_k = _lbl(vb, 17, Color(0.75, 0.9, 0.35))
-	p_d = _lbl(vb, 17, Color(0.82, 0.84, 0.86))
-	p_d.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	p_pic.custom_minimum_size = Vector2(200, 0)
+	ph.add_child(p_pic)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 5)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ph.add_child(vb)
+	p_t = _lbl(vb, 26, Color(0.96, 0.96, 0.94))
+	p_k = _lbl(vb, 15, Color(0.75, 0.9, 0.35))
+	p_x = _lbl(vb, 15, Color(1.0, 0.55, 0.4))
+	p_d = _lbl(vb, 14, Color(0.82, 0.84, 0.86))
+	p_d.custom_minimum_size.x = PANEL_W - 250.0
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 8)
 	vb.add_child(hb)
@@ -120,14 +134,27 @@ func _ready() -> void:
 	gear.texture_normal = load("res://assets/icons/ui/menu.png")
 	gear.ignore_texture_size = true
 	gear.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	gear.anchor_left = 1.0
-	gear.anchor_right = 1.0
-	gear.offset_left = -98
-	gear.offset_right = -22
+	gear.offset_left = 22
+	gear.offset_right = 98
 	gear.offset_top = 16
 	gear.offset_bottom = 92
 	gear.pressed.connect(open_settings)
 	add_child(gear)
+	# компас — справа вверху
+	var comp := TextureRect.new()
+	comp.texture = load("res://assets/ui/map_compass.png")
+	comp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	comp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	comp.anchor_left = 1.0
+	comp.anchor_right = 1.0
+	comp.offset_left = -150
+	comp.offset_right = -14
+	comp.offset_top = 6
+	comp.offset_bottom = 132
+	comp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(comp)
+	if test == "":
+		ULBase.close_interrupted()       # посещение, прерванное закрытием игры, считается законченным
 	note = Label.new()
 	note.add_theme_font_size_override("font_size", 18)
 	note.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
@@ -204,9 +231,18 @@ func _process(_d: float) -> void:
 func _draw_over() -> void:
 	var f := ThemeDB.fallback_font
 	for id in PLACES:
+		if not place_shown(id):
+			continue
 		var r := place_rect(id)
 		r.position -= pan
 		var c := r.get_center()
+		if PLACES[id].has("mark"):
+			# метка временного кластера (на картинке карты её нет): сама метка и мягкое мерцание вокруг
+			if not _marks.has(id):
+				_marks[id] = load(String(PLACES[id].mark))
+			var kk2 := 1.0 + 0.05 * sin(Time.get_ticks_msec() * 0.004)
+			over.draw_arc(c, r.size.x * 0.5 * kk2, 0, TAU, 56, Color(1.0, 0.6, 0.2, 0.35), 2.0)
+			over.draw_texture_rect(_marks[id], r, false)
 		if id == sel:
 			over.draw_arc(c, r.size.x * 0.5, 0, TAU, 56, Color(1.0, 0.8, 0.3, 0.9), 3.0)
 		if id == here:
@@ -236,7 +272,7 @@ func _on_input(e: InputEvent) -> void:
 ## нажатие в точке экрана: локация — открыть её панель; мимо — закрыть панель
 func tap(p: Vector2) -> void:
 	for id in PLACES:
-		if place_rect(id).has_point(p + pan):
+		if place_shown(id) and place_rect(id).has_point(p + pan):
 			select(id)
 			return
 	select("")
@@ -253,21 +289,30 @@ func select(id: String) -> void:
 	p_pic.texture = load(String(p.pic)) if ResourceLoader.exists(String(p.pic)) else null
 	p_t.text = String(p.n)
 	p_k.text = String(p.kind) + (" · вы здесь" if id == here else "")
-	p_d.text = String(p.d)
+	p_d.text = String(p.get("d", ""))
+	p_x.visible = p.get("route", false)
+	if p.get("route", false):
+		# временный кластер: описание, опасность и время — из data/base_shop.json (там же цена маршрута)
+		var r: Dictionary = ULBase.shop().get("routes", {}).get(id, {})
+		p_d.text = String(r.get("d", p_d.text))
+		p_x.text = "Опасность: %s\nВремя пребывания: %d минут · маршрут на одно посещение" % [String(r.get("danger", "высокая")).to_lower(), int(r.get("minutes", 10))]
 	tw.tween_method(_panel_x, panel.offset_left, 12.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	note.text = "«Войти» — зайти на локацию"
 
 
 func enter(id: String) -> void:
-	if not PLACES.has(id) or entering:
+	if not PLACES.has(id) or entering or not place_shown(id):
 		return
 	entering = true
 	note.text = "Загрузка…"
+	ULSettings.arena = false
+	ULSettings.place = id
+	if PLACES[id].get("route", false):
+		ULBase.set_route(id, "active")     # посещение началось: повторно этим маршрутом не войти
 	if test != "":
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
-	ULSettings.arena = false
 	get_tree().change_scene_to_file(String(PLACES[id].scene))
 
 
@@ -311,6 +356,27 @@ func _run_test() -> void:
 	ok.call("второе нажатие на дом на локацию не заводит", not entering)
 	enter(sel)
 	ok.call("«Войти» — вход на локацию", entering and note.text == "Загрузка…")
+	entering = false
+	select("")
+	# временный кластер: до покупки маршрута его нет, после — справа выше дома, с описанием и временем
+	ULBase.memory_only = true
+	ULBase.load_state(true)
+	var cr := place_rect("cowshed")
+	var hr := place_rect("home")
+	set_pan(cr.get_center() - size * 0.5)
+	tap(cr.get_center() - pan)
+	ok.call("до покупки маршрута коровника на карте нет (нажатие мимо)", not place_shown("cowshed") and sel == "")
+	ULBase.set_route("cowshed", "bought")
+	ok.call("маршрут куплен — коровник на карте справа выше дома", place_shown("cowshed") and cr.get_center().x > hr.get_center().x and cr.get_center().y < hr.get_center().y)
+	tap(cr.get_center() - pan)
+	await get_tree().create_timer(0.5).timeout
+	ok.call("панель коровника: снимок, вид, опасность, 10 минут, описание", sel == "cowshed" and p_pic.texture != null and p_k.text.begins_with("Временный нестабильный кластер") and p_x.text.contains("10 минут") and p_d.text.begins_with("Часть коровника"))
+	await _snap("p4_cowshed")
+	enter("cowshed")
+	ok.call("вход в коровник: посещение началось (маршрут занят), место — коровник", ULBase.route_state("cowshed") == "active" and ULSettings.place == "cowshed")
+	ULBase.close_interrupted()
+	ok.call("прерванное посещение (игру закрыли) — маршрут закрыт, коровника нет", ULBase.route_state("cowshed") == "" and not place_shown("cowshed"))
+	ULSettings.place = "home"
 	entering = false
 	select("")
 	open_settings()

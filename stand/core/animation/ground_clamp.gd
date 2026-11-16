@@ -28,6 +28,8 @@ func measure_rest() -> void:
 	rest_r = maxf(mn - floor_y, 0.0)
 var _root := -1
 var _skip := {}
+var _low: PackedInt32Array = []   ## кости ног (бедро и ниже): стоя самая низкая кость — среди них
+var legs_only := false            ## стоя и на ходу — смотреть только ноги (втрое меньше костей; задаёт BCCharacter)
 
 
 func _setup() -> void:
@@ -42,6 +44,8 @@ func _setup() -> void:
 		var n := s.get_bone_name(i)
 		if n.contains("Twist") or n.contains("Share") or n.contains("Eye") or n.contains("Facial"):
 			_skip[i] = true
+		elif n.contains("Thigh") or n.contains("Calf") or n.contains("Foot") or n.contains("Toe"):
+			_low.append(i)
 
 
 func _process_modification() -> void:
@@ -52,9 +56,13 @@ func _process_modification() -> void:
 	if _root < 0:
 		_setup()
 	var mn := 1e9
-	for i in s.get_bone_count():
-		if not _skip.has(i):
+	if legs_only and _low.size() >= 4:
+		for i in _low:
 			mn = minf(mn, s.get_bone_global_pose(i).origin.y)
+	else:
+		for i in s.get_bone_count():
+			if not _skip.has(i):
+				mn = minf(mn, s.get_bone_global_pose(i).origin.y)
 	var shift := (floor_y + body_r - mn) * weight
 	if smooth > 0.0:
 		_s = lerpf(_s, shift, 1.0 - exp(-get_process_delta_time() * smooth))
