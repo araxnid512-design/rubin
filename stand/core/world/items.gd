@@ -27,13 +27,13 @@ const ITEMS := {
 	"pack_large": {"n": "Большой рюкзак", "kind": "pack", "pack": "large", "d": "+20 ячеек. Поясной ремень разгружает плечи."},
 	# патроны, лекарства и еда: модель и значок — из набора припасов (kit — номер предмета в ul_supplies.glb,
 	# gs — наибольший размер модели на земле, м)
-	"a762x25": {"n": "Патроны 7,62×25", "kind": "ammo", "stack": 60, "kit": 1, "gs": 0.24, "icon": "kit_1", "tint": [1.0, 0.92, 0.8], "d": "Для ТТ."},
-	"a9x19": {"n": "Патроны 9×19", "kind": "ammo", "stack": 60, "kit": 1, "gs": 0.24, "icon": "kit_1", "tint": [0.82, 0.88, 1.0], "d": "Для Beretta и MP5."},
-	"a545": {"n": "Патроны 5,45×39", "kind": "ammo", "stack": 90, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [1.0, 1.0, 1.0], "d": "Для АК-74М."},
-	"a762x51": {"n": "Патроны 7,62×51", "kind": "ammo", "stack": 60, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [1.0, 0.86, 0.7], "d": "Для FN FAL."},
-	"a762x54": {"n": "Патроны 7,62×54R", "kind": "ammo", "stack": 100, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [0.86, 0.8, 0.62], "d": "Для СВД и ПКП."},
-	"a9x39": {"n": "Патроны 9×39", "kind": "ammo", "stack": 40, "kit": 2, "gs": 0.32, "icon": "kit_2", "tint": [0.75, 0.9, 1.0], "d": "Для ВСС."},
-	"a12": {"n": "Патроны 12 калибра", "kind": "ammo", "stack": 32, "kit": 3, "gs": 0.26, "icon": "kit_3", "d": "Для SPAS-12."},
+	"a762x25": {"n": "Патроны 7,62×25", "kind": "ammo", "stack": 60, "kit": 1, "kitf": "ammo", "gs": 0.2, "icon": "ammo_1", "d": "Для ТТ."},
+	"a9x19": {"n": "Патроны 9×19", "kind": "ammo", "stack": 60, "kit": 2, "kitf": "ammo", "gs": 0.2, "icon": "ammo_2", "d": "Для Beretta и MP5."},
+	"a545": {"n": "Патроны 5,45×39", "kind": "ammo", "stack": 90, "kit": 3, "kitf": "ammo", "gs": 0.3, "icon": "ammo_3", "d": "Для АК-74М."},
+	"a762x51": {"n": "Патроны 7,62×51", "kind": "ammo", "stack": 60, "kit": 4, "kitf": "ammo", "gs": 0.34, "icon": "ammo_4", "d": "Для FN FAL."},
+	"a762x54": {"n": "Патроны 7,62×54R", "kind": "ammo", "stack": 100, "kit": 5, "kitf": "ammo", "gs": 0.32, "icon": "ammo_5", "d": "Для СВД и ПКП."},
+	"a9x39": {"n": "Патроны 9×39", "kind": "ammo", "stack": 40, "kit": 6, "kitf": "ammo", "gs": 0.32, "icon": "ammo_6", "d": "Для ВСС."},
+	"a12": {"n": "Патроны 12 калибра", "kind": "ammo", "stack": 32, "kit": 7, "kitf": "ammo", "gs": 0.24, "icon": "ammo_7", "d": "Для SPAS-12."},
 	"bandage": {"n": "Бинт", "kind": "med", "stack": 5, "kit": 5, "gs": 0.16, "icon": "kit_5", "heal": 15, "d": "Перевязка: +15 здоровья."},
 	"medkit": {"n": "Аптечка", "kind": "med", "stack": 2, "kit": 6, "gs": 0.36, "icon": "kit_6", "heal": 50, "d": "Аптечка: +50 здоровья."},
 	"tonic": {"n": "Живчик", "kind": "med", "stack": 3, "kit": 4, "gs": 0.22, "icon": "kit_4", "heal": 5, "energy": 60, "d": "Настой в аптечном пузырьке: +60 энергии, +5 здоровья."},
@@ -102,21 +102,40 @@ static func pack_empty(it) -> bool:
 	return true
 
 
-const KIT := "res://assets/world/ul_supplies.glb"
+const KITS := {"supplies": "res://assets/world/ul_supplies.glb", "ammo": "res://assets/world/ul_ammo.glb"}
 static var _kit := {}
 
 
-## сетка предмета из набора припасов (одна модель Tripo, разрезанная на части tools/split_glb.mjs); null — нет
-static func kit_mesh(id: String) -> Mesh:
-	var k := int(get_def(id).get("kit", 0))
+## Сетка предмета из набора (одна модель Tripo, разрезанная на части tools/split_glb.mjs); null — нет.
+## Набор — по полю kitf (по умолчанию припасы), номер — kit. part: "" — предмет целиком (у патронов — коробка
+## с патроном рядом, так он показан в инвентаре), "a" — самая крупная часть (коробка: так он лежит на земле),
+## "b" — остальное (патрон). Нет такой части — возвращается предмет целиком.
+static func kit_mesh(id: String, part := "") -> Mesh:
+	var d := get_def(id)
+	var k := int(d.get("kit", 0))
 	if k <= 0:
 		return null
-	if _kit.is_empty() and ResourceLoader.exists(KIT):
-		var sc: Node = (load(KIT) as PackedScene).instantiate()
-		for mi in sc.find_children("item_*", "MeshInstance3D", true, false):
-			_kit[int(String(mi.name).trim_prefix("item_"))] = (mi as MeshInstance3D).mesh
-		sc.free()
-	return _kit.get(k)
+	var f := String(d.get("kitf", "supplies"))
+	if not _kit.has(f):
+		_kit[f] = {}
+		if ResourceLoader.exists(KITS[f]):
+			var sc: Node = (load(KITS[f]) as PackedScene).instantiate()
+			for mi in sc.find_children("item_*", "MeshInstance3D", true, false):
+				var mesh: Mesh = (mi as MeshInstance3D).mesh
+				# без «металла» в материале: в игре нет отражений окружения, металл выходит чёрным
+				for si in mesh.get_surface_count():
+					var mt := mesh.surface_get_material(si) as StandardMaterial3D
+					if mt != null and (mt.metallic > 0.0 or mt.metallic_texture != null):
+						mt = mt.duplicate()
+						mt.metallic = 0.0
+						mt.metallic_texture = null
+						mt.roughness_texture = null
+						mt.roughness = 0.6
+						mesh.surface_set_material(si, mt)
+				_kit[f][String(mi.name).trim_prefix("item_")] = mesh
+			sc.free()
+	var key := str(k) + ("_" + part if part != "" else "")
+	return _kit[f].get(key, _kit[f].get(str(k)))
 
 
 static var _icons := {}

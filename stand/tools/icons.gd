@@ -3,6 +3,7 @@ extends Node3D
 ## влево, рюкзак — спереди в три четверти. Запуск: godot --path . res://tools/icons.tscn (нужен экран, xvfb).
 
 const OUT := "res://assets/icons/"
+const AMMO_YAW := 0.0            ## поворот набора патронов перед камерой
 
 
 func _ready() -> void:
@@ -50,7 +51,8 @@ func _ready() -> void:
 			path = String(d.model)
 			is_pack = true                       # снимается так же — спереди в три четверти
 		elif d.has("kit"):
-			id = "kit_%d" % int(d.kit)           # предмет из набора припасов: один значок на номер
+			# предмет из набора: один значок на номер (припасы — kit_N, патроны — ammo_N)
+			id = ("ammo_%d" if String(d.get("kitf", "")) == "ammo" else "kit_%d") % int(d.kit)
 			if kits.has(id):
 				continue
 			kits[id] = true
@@ -64,6 +66,14 @@ func _ready() -> void:
 			km.mesh = ULItems.kit_mesh(String(src_id))
 			holder.add_child(km)
 			holder.rotation.y = 0.5
+			if String(d.get("kitf", "")) == "ammo":
+				# патроны: коробка и патрон рядом, как на фото; если патрон в наборе не получился — берётся соседний
+				holder.rotation.y = AMMO_YAW
+				if ULItems.kit_mesh(String(src_id), "b") == km.mesh:
+					var extra := MeshInstance3D.new()
+					extra.mesh = ULItems.kit_mesh("a762x25", "b")
+					extra.scale = Vector3(1.12, 0.95, 1.12)
+					holder.add_child(extra)
 		else:
 			var m: Node3D = (load(path) as PackedScene).instantiate()
 			holder.add_child(m)

@@ -4,6 +4,8 @@
 //   node split_glb.mjs вход.glb выход.glb [зазор, доля размера набора — по умолчанию 0.02] [размер текстуры] [flip]
 // Набор, стоящий под углом, сначала выравнивается (ряд — вдоль x; flip — развернуть на 180°). Порядок предметов:
 // по рядам (сверху вниз либо от дальнего к ближнему), в ряду — вдоль x. Печатает таблицу размеров.
+// Если предмет состоит из нескольких связных кусков (коробка и патрон рядом), кроме целого «item_N» пишутся
+// его части: «item_N_a» — самая крупная, «item_N_b» — остальные (в той же системе координат).
 import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import { dequantize } from '@gltf-transform/functions'
@@ -69,7 +71,7 @@ const comps = new Map()
 for (let t = 0; t < IDX.length; t += 3) {
   const r = find(IDX[t])
   let c = comps.get(r)
-  if (!c) { c = { tris: [], min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }; comps.set(r, c) }
+  if (!c) { c = { tris: [], min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }; c.parts = [c.tris]; comps.set(r, c) }
   c.tris.push(t)
   for (let k = 0; k < 3; k++) for (let a = 0; a < 3; a++) { const v = P[IDX[t + k] * 3 + a]; if (v < c.min[a]) c.min[a] = v; if (v > c.max[a]) c.max[a] = v }
 }
@@ -106,6 +108,8 @@ while (merged) {
     let hit = true
     for (let k = 0; k < 3; k++) if (!(a.min[k] - gap < b.max[k] && b.min[k] - gap < a.max[k])) hit = false
     if (hit) {
+      if (a.parts[0] === a.tris) a.parts = [a.tris.slice()]
+      a.parts.push(...(b.parts[0] === b.tris ? [b.tris.slice()] : b.parts))
       a.tris.push(...b.tris)
       for (let k = 0; k < 3; k++) { a.min[k] = Math.min(a.min[k], b.min[k]); a.max[k] = Math.max(a.max[k], b.max[k]) }
       all.splice(j, 1); merged = true; break outer
@@ -132,11 +136,10 @@ for (const m of root.listMeshes()) m.dispose()
 for (const a of root.listAccessors()) a.dispose()
 const buf = root.listBuffers()[0]
 const scene = root.listScenes()[0]
-items.forEach((c, n) => {
-  const cx = (c.min[0] + c.max[0]) / 2, cz = (c.min[2] + c.max[2]) / 2, y0 = c.min[1]
+const emit = (name, tris, cx, y0, cz) => {
   const remap = new Map()
   const p2 = [], n2 = [], u2 = [], i2 = []
-  for (const t of c.tris) for (let k = 0; k < 3; k++) {
+  for (const t of tris) for (let k = 0; k < 3; k++) {
     const v = IDX[t + k]
     let w = remap.get(v)
     if (w === undefined) {
@@ -151,8 +154,25 @@ items.forEach((c, n) => {
     .setAttribute('NORMAL', doc.createAccessor().setType('VEC3').setArray(new Float32Array(n2)).setBuffer(buf))
     .setAttribute('TEXCOORD_0', doc.createAccessor().setType('VEC2').setArray(new Float32Array(u2)).setBuffer(buf))
     .setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint32Array(i2)).setBuffer(buf))
-  const name = 'item_' + (n + 1)
   scene.addChild(doc.createNode(name).setMesh(doc.createMesh(name).addPrimitive(prim)))
-  console.log(name, 'размер', (c.max[0] - c.min[0]).toFixed(3), (c.max[1] - c.min[1]).toFixed(3), (c.max[2] - c.min[2]).toFixed(3), 'треугольников', c.tris.length)
+}
+const box = tris => {
+  const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]
+  for (const t of tris) for (let k = 0; k < 3; k++) for (let a = 0; a < 3; a++) { const v = P[IDX[t + k] * 3 + a]; if (v < mn[a]) mn[a] = v; if (v > mx[a]) mx[a] = v }
+  return [mn, mx]
+}
+items.forEach((c, n) => {
+  const cx = (c.min[0] + c.max[0]) / 2, cz = (c.min[2] + c.max[2]) / 2, y0 = c.min[1]
+  const name = 'item_' + (n + 1)
+  emit(name, c.tris, cx, y0, cz)
+  console.log(name, 'размер', (c.max[0] - c.min[0]).toFixed(3), (c.max[1] - c.min[1]).toFixed(3), (c.max[2] - c.min[2]).toFixed(3), 'треугольников', c.tris.length, 'частей', c.parts.length)
+  // части предмета (связные куски) — отдельными узлами в той же системе: самая крупная — «a», остальные вместе — «b»
+  if (c.parts.length > 1) {
+    const vol = t => { const [mn, mx] = box(t); return (mx[0] - mn[0]) * (mx[1] - mn[1]) * (mx[2] - mn[2]) }
+    const ps = c.parts.slice().sort((p, q) => vol(q) - vol(p))
+    emit(name + '_a', ps[0], cx, y0, cz)
+    emit(name + '_b', ps.slice(1).flat(), cx, y0, cz)
+    for (const [k, t] of [['a', ps[0]], ['b', ps.slice(1).flat()]]) { const [mn, mx] = box(t); console.log('   ', name + '_' + k, (mx[0] - mn[0]).toFixed(3), (mx[1] - mn[1]).toFixed(3), (mx[2] - mn[2]).toFixed(3), 'треугольников', t.length) }
+  }
 })
 await io.write(dst, doc)

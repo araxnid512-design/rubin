@@ -25,7 +25,11 @@ func _ready() -> void:
 	add_child(sun)
 	var n: Node3D = (load(glb) as PackedScene).instantiate()
 	add_child(n)
-	var items := n.find_children("item_*", "MeshInstance3D", true, false)
+	# только целые предметы (части «item_N_a / _b» лежат на тех же местах)
+	var items := n.find_children("item_*", "MeshInstance3D", true, false).filter(func(x): return String(x.name).count("_") == 1)
+	for extra in n.find_children("item_*", "MeshInstance3D", true, false):
+		if String(extra.name).count("_") > 1:
+			(extra as MeshInstance3D).visible = false
 	var cols := 3
 	var step := 0.42
 	for i in items.size():

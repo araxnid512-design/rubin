@@ -1497,7 +1497,7 @@ func _ground_visual(g: Dictionary) -> void:
 	elif ULItems.kit_mesh(String(it.id)) != null:
 		# предмет из набора припасов — своя модель, чуть наклонена, повёрнута как упала
 		var km := MeshInstance3D.new()
-		km.mesh = ULItems.kit_mesh(String(it.id))
+		km.mesh = ULItems.kit_mesh(String(it.id), "a")    # у патронов на земле — только коробка
 		var kb := km.mesh.get_aabb()
 		var ks := float(d.get("gs", 0.25)) / maxf(kb.size.x, maxf(kb.size.y, kb.size.z))
 		km.scale = Vector3.ONE * ks
@@ -1906,8 +1906,8 @@ const HUD_BTNS := {
 	"fire": [Vector2(-132, -140), 76.0],
 	"swap": [Vector2(-132, -306), 46.0],
 	"take": [Vector2(-292, -96), 48.0],
-	"heal": [Vector2(-282, -226), 42.0],
-	"reload": [Vector2(-246, -338), 34.0],
+	"reload": [Vector2(-274, -232), 42.0],
+	"heal": [Vector2(-246, -344), 36.0],
 	"inv": [Vector2(-416, -72), 42.0],
 	# сверху справа (отсчёт от правого верхнего угла): постройка (поставить ящик) и меню
 	"build": [Vector2(-140, 52), 36.0, "top"],
@@ -2007,6 +2007,9 @@ func _draw_hud() -> void:
 				if it == null or not d.has("ammo"):
 					continue                               # без огнестрела кнопки перезарядки нет
 		var line := Color(1.0, 0.8, 0.3, 0.95) if (k == "take" and active) else (Color(1.0, 0.5, 0.4, 0.9) if k == "fire" else Color(0.6, 0.85, 1.0, 0.65 if active else 0.25))
+		if k == "reload" and active and int(it.get("mag", 0)) <= 0:
+			# магазин пуст — кнопка перезарядки зовёт: красная, «дышит»
+			line = Color(1.0, 0.35, 0.3, 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.01))
 		_hud.draw_circle(c, r, Color(0.14, 0.32, 0.42, 0.8) if on else Color(0.05, 0.07, 0.09, 0.55 if active else 0.3))
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
 		var ic := Color(1, 1, 1, 1.0 if active else 0.4)
@@ -2042,7 +2045,7 @@ func _draw_hud() -> void:
 				var n := inv.count("bandage") + inv.count("medkit")
 				_hud_text(c + Vector2(r * 0.72, r * 0.72), str(n), 15)
 			"reload":
-				_hud_icon(_glyph("reload"), c, 36, ic)
+				_hud_icon(_glyph("reload"), c, 46, ic)
 			"inv":
 				_hud_icon(_art("bag"), c, r * 2.0, ic)
 			"build":
@@ -2177,7 +2180,6 @@ var _face := NAN                  ## куда довернуть героя (а�
 var _atk_want := 0.0              ## нажатие атаки ждёт своей очереди (с)
 var _mark: MeshInstance3D         ## красная метка под целью
 var _mark_t = null
-var _tracer: MeshInstance3D
 var _flash: OmniLight3D
 var shots := 0                    ## для проверки
 var hits := 0
@@ -2316,34 +2318,120 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	var pellets := int(fc.get("pellets", 1))
 	var spread := deg_to_rad(float(fc.get("spread", 0.6 if pellets == 1 else 2.2)))
 	var space := get_world_3d().direct_space_state
-	var end := from + f * 60.0
+	var reach := float(d.get("range", 28.0)) + 12.0
 	for i in pellets:
 		var dir := (f + Vector3(randf_range(-1, 1), randf_range(-0.4, 0.4), randf_range(-1, 1)) * tan(spread)).normalized()
-		var q := PhysicsRayQueryParameters3D.create(from, from + dir * 60.0)
+		var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
 		q.exclude = [player.get_rid()]
 		var hit := space.intersect_ray(q)
-		if hit.is_empty():
-			continue
-		if i == 0:
-			end = hit.position
-		var col: Object = hit.collider
-		if col != null and col.has_meta("hp"):
-			hits += 1
-			_damage(col, float(d.dmg) / pellets, hit.position)
-		snd.play("hit_wood", hit.position, -8.0, 0.1, from.distance_to(hit.position) / 343.0)
-	# трассер и вспышка
-	_tracer.visible = true
-	_tracer.global_position = (vis_from + end) * 0.5
-	if vis_from.distance_to(end) > 0.1:
-		_tracer.look_at(end, Vector3.UP)
-	_tracer.scale = Vector3(1, 1, vis_from.distance_to(end))
+		# пуля летит от дульного среза по прямой до того, во что попадёт (без баллистики); урон — когда долетит
+		var end: Vector3 = hit.position if not hit.is_empty() else from + dir * reach
+		var col: Object = hit.collider if not hit.is_empty() else null
+		_fly_bullet(String(d.ammo), vis_from, end, col, float(d.dmg) / pellets)
+	# вспышка у ствола
 	_flash.global_position = vis_from + f * 0.15
 	_flash.light_energy = 2.5
-	var tw := create_tween()
-	tw.tween_property(_flash, "light_energy", 0.0, 0.07)
-	tw.tween_callback(func(): _tracer.visible = false)
-	if int(it.mag) <= 0 and inv.count(String(d.ammo)) > 0:
-		get_tree().create_timer(0.35).timeout.connect(reload_weapon)       # магазин пуст — перезарядка сама
+	create_tween().tween_property(_flash, "light_energy", 0.0, 0.07)
+
+
+## Пули. Вид — по патрону: длина и толщина (м; крупнее настоящих, иначе сверху не разглядеть), цвет оболочки,
+## остроносая или тупоносая; у дробовика — дробины.
+const BULLETS := {
+	"a762x25": [0.3, 0.075, Color(0.8, 0.5, 0.26), false],
+	"a9x19": [0.28, 0.088, Color(0.85, 0.56, 0.3), false],
+	"a545": [0.42, 0.066, Color(0.88, 0.56, 0.3), true],
+	"a762x51": [0.5, 0.082, Color(0.84, 0.52, 0.28), true],
+	"a762x54": [0.52, 0.082, Color(0.62, 0.62, 0.66), true],
+	"a9x39": [0.44, 0.094, Color(0.42, 0.43, 0.46), false],
+	"a12": [0.085, 0.085, Color(0.5, 0.5, 0.54), false],
+}
+const BULLET_SPEED := 62.0        ## м/с: медленнее настоящей — чтобы полёт был виден
+var bullet_k := 1.0               ## множитель скорости пуль (для снимков в проверке — замедление)
+var _bullet_mesh := {}
+var _bullet_free := {}            ## патрон → свободные узлы
+var _bullets: Array = []          ## летящие: {n, a, b, t, dur, col, dmg, id}
+
+
+func _bullet_shape(id: String) -> ArrayMesh:
+	if _bullet_mesh.has(id):
+		return _bullet_mesh[id]
+	var bd: Array = BULLETS.get(id, BULLETS["a545"])
+	var L: float = bd[0]
+	var R: float = float(bd[1]) * 0.5
+	# тело вращения вдоль −z (нос вперёд): донце, цилиндр, оживало
+	var prof: Array = [[0.5, 0.0], [0.5, 0.86], [0.42, 1.0], [-0.08, 1.0]]
+	if id == "a12":
+		prof = [[0.5, 0.0], [0.35, 0.7], [0.0, 1.0], [-0.35, 0.7], [-0.5, 0.0]]
+	elif bool(bd[3]):
+		prof += [[-0.28, 0.72], [-0.42, 0.36], [-0.5, 0.06]]
+	else:
+		prof += [[-0.3, 0.92], [-0.42, 0.66], [-0.5, 0.2]]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var seg := 8
+	for i in prof.size() - 1:
+		for k in seg:
+			var a0 := TAU * k / seg
+			var a1 := TAU * (k + 1) / seg
+			var p: Array = []
+			for pr in [prof[i], prof[i + 1]]:
+				for an in [a0, a1]:
+					p.append(Vector3(cos(an) * R * float(pr[1]), sin(an) * R * float(pr[1]), float(pr[0]) * L))
+			for idx in [0, 2, 1, 1, 2, 3]:
+				var v: Vector3 = p[idx]
+				st.set_normal(Vector3(v.x, v.y, 0.0).normalized() if Vector2(v.x, v.y).length() > 0.0001 else Vector3(0, 0, signf(v.z)))
+				st.add_vertex(v)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = bd[2]
+	m.metallic = 0.7
+	m.roughness = 0.35
+	m.emission_enabled = true
+	m.emission = bd[2]                                     # оболочка блестит своим цветом (медь, сталь) — не белым
+	m.emission_energy_multiplier = 0.55
+	st.set_material(m)
+	_bullet_mesh[id] = st.commit()
+	return _bullet_mesh[id]
+
+
+func _fly_bullet(id: String, a: Vector3, b: Vector3, col: Object, dmg: float) -> void:
+	var pool: Array = _bullet_free.get(id, [])
+	_bullet_free[id] = pool
+	var n: MeshInstance3D
+	if pool.is_empty():
+		n = MeshInstance3D.new()
+		n.mesh = _bullet_shape(id)
+		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(n)
+	else:
+		n = pool.pop_back()
+	n.visible = true
+	n.global_position = a
+	if a.distance_to(b) > 0.05:
+		n.look_at(b, Vector3.UP if absf((b - a).normalized().y) < 0.98 else Vector3.RIGHT)
+	_bullets.append({"n": n, "a": a, "b": b, "t": 0.0, "dur": maxf(a.distance_to(b) / (BULLET_SPEED * bullet_k), 0.02), "col": col, "dmg": dmg, "id": id})
+
+
+## полёт пуль: каждая летит по прямой; долетела — урон и звук попадания
+func _bullets_tick(delta: float) -> void:
+	var i := 0
+	while i < _bullets.size():
+		var bl: Dictionary = _bullets[i]
+		bl.t = float(bl.t) + delta
+		var k := float(bl.t) / float(bl.dur)
+		var n: MeshInstance3D = bl.n
+		if k < 1.0:
+			n.global_position = (bl.a as Vector3).lerp(bl.b, k)
+			i += 1
+			continue
+		n.visible = false
+		(_bullet_free[bl.id] as Array).append(n)
+		var col = bl.col
+		if col != null and is_instance_valid(col):
+			if col.has_meta("hp"):
+				hits += 1
+				_damage(col, float(bl.dmg), bl.b)
+			snd.play("hit_wood", bl.b, -8.0, 0.1)
+		_bullets.remove_at(i)
 
 
 func reload_weapon() -> void:
@@ -2573,16 +2661,6 @@ func _add_target(p: Vector3) -> void:
 
 
 func _combat_setup() -> void:
-	_tracer = MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.025, 0.025, 1.0)
-	_tracer.mesh = bm
-	var tm := StandardMaterial3D.new()
-	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	tm.albedo_color = Color(1.0, 0.9, 0.55)
-	_tracer.material_override = tm
-	_tracer.visible = false
-	add_child(_tracer)
 	_flash = OmniLight3D.new()
 	_flash.light_color = Color(1.0, 0.8, 0.5)
 	_flash.omni_range = 5.0
@@ -2619,8 +2697,15 @@ func _combat_tick(delta: float) -> void:
 	# кнопка удержана — атака повторяется в темпе оружия (и кулаки, и мачете, и одиночный огонь); нажатие чуть
 	# раньше срока (оружие ещё достаётся, не кончился прошлый удар) не теряется — сработает, как только можно
 	var held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
-	if (held or _atk_want > 0.0) and not _modal() and _try_attack():
+	# режим огня — как у настоящего оружия: автомат, пистолет-пулемёт и пулемёт бьют очередью, пока кнопка
+	# удержана и в магазине есть патроны; пистолеты, винтовки и дробовик — один выстрел на нажатие.
+	# Кулаки и мачете при удержании бьют подряд.
+	var hi = _hand_item()
+	var hd := ULItems.get_def(String(hi.id)) if hi != null else {}
+	var repeat: bool = hi == null or String(hd.get("kind", "")) == "melee" or (bool(hd.get("auto", false)) and int(hi.get("mag", 0)) > 0)
+	if ((held and repeat) or _atk_want > 0.0) and not _modal() and _try_attack():
 		_atk_want = 0.0
+	_bullets_tick(delta)
 	# метка под целью
 	if Engine.get_process_frames() % 4 == 0:
 		_mark_t = _attack_target()
@@ -2927,16 +3012,58 @@ func _inv_test() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var far_t = _nearest_target(12.0, 180.0, true)
 	_ok("через забор цель не берётся", far_t != mq, "взята: %s" % (String(far_t.name) if far_t != null else "нет"))
-	# удержание кнопки: одиночное оружие стреляет само в своём темпе
+	# режим огня: пистолет — один выстрел на нажатие, сколько ни держи
 	inv.pistol = I.make("tt")
 	inv.hand = "pistol"
 	_apply_gear()
 	player.global_position = mq.global_position + Vector3(-5.0, 0.05, 0.0)
 	await _wait_drawn()
 	_hud_touch[99] = "fire"
-	await get_tree().create_timer(1.25).timeout
+	_hud_press("fire")
+	await get_tree().create_timer(1.2).timeout
 	_hud_touch.erase(99)
-	_ok("удержание кнопки: ТТ делает 3–5 выстрелов за 1.25 с", int(inv.pistol.mag) <= 5 and int(inv.pistol.mag) >= 3, "в магазине %d из 8" % int(inv.pistol.mag))
+	_ok("ТТ: удержание кнопки — один выстрел (7 из 8)", int(inv.pistol.mag) == 7, "в магазине %d из 8" % int(inv.pistol.mag))
+	_hud_press("fire")
+	await get_tree().create_timer(0.5).timeout
+	_ok("ТТ: второе нажатие — второй выстрел (6 из 8)", int(inv.pistol.mag) == 6, "в магазине %d" % int(inv.pistol.mag))
+	# автомат: очередь, пока держим, до пустого магазина; сам не перезаряжается — кнопка перезарядки рядом
+	inv.consume("a545", 999)
+	inv.add(I.make("a545", 30))
+	inv.primary = I.make("ak74m")
+	inv.primary.mag = 12
+	inv.hand = "primary"
+	_apply_gear()
+	await _wait_drawn()
+	_hud_touch[99] = "fire"
+	_hud_press("fire")
+	await get_tree().create_timer(0.6).timeout
+	var mid_mag := int(inv.primary.mag)
+	await get_tree().create_timer(1.6).timeout
+	_hud_touch.erase(99)
+	_ok("АК: очередь, пока кнопка удержана", mid_mag <= 9 and mid_mag >= 4, "через 0.6 с в магазине %d из 12" % mid_mag)
+	_ok("АК: очередь идёт до нуля и останавливается (сам не перезаряжается)", int(inv.primary.mag) == 0 and not _reloading and inv.count("a545") == 30, "в магазине %d, запас %d" % [int(inv.primary.mag), inv.count("a545")])
+	_ok("перезарядка — рядом с кнопкой огня", _hud_pos("reload").distance_to(_hud_pos("fire")) < 190.0 and _hud_hit(_hud_pos("reload")) == "reload", "%d точек между центрами" % int(_hud_pos("reload").distance_to(_hud_pos("fire"))))
+	_hud_press("reload")
+	_ok("кнопка перезарядки начинает перезарядку", _reloading)
+	await get_tree().create_timer(2.6).timeout
+	_ok("после перезарядки магазин полон (30), запас 0", int(inv.primary.mag) == 30 and inv.count("a545") == 0, "магазин %d, запас %d" % [int(inv.primary.mag), inv.count("a545")])
+	# пули: летят от ствола, урон — когда долетят
+	player.global_position = mq.global_position + Vector3(-12.0, 0.05, 0.0)
+	await get_tree().create_timer(0.3).timeout
+	var hh := hits
+	_atk_cd = 0.0
+	attack()
+	_ok("выстрел: пуля в полёте, попадания ещё нет", _bullets.size() == 1 and hits == hh and (_bullets[0].n as MeshInstance3D).visible)
+	await get_tree().create_timer(0.45).timeout
+	_ok("пуля долетела за время полёта (12 м): попадание засчитано", _bullets.is_empty() and hits == hh + 1)
+	inv.primary = I.make("spas12")
+	inv.add(I.make("a12", 8))
+	_apply_gear()
+	await _wait_drawn()
+	_atk_cd = 0.0
+	attack()
+	_ok("дробовик: один выстрел — 8 дробин в полёте, в магазине 7", _bullets.size() == 8 and int(inv.primary.mag) == 7, "дробин %d" % _bullets.size())
+	await get_tree().create_timer(1.0).timeout
 	# ящики: всё оружие и патроны к нему
 	var in_crates := {}
 	for cr in crates:
@@ -3335,6 +3462,29 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _snap("v9_name")
 		_name_ui.visible = false
+		# ящик с патронами: значки — патрон и коробка
+		open_inventory(crates[1].get_meta("items"), "Ящик", false, "crate")
+		await get_tree().create_timer(0.6).timeout
+		await _snap("v10_ammo")
+		close_inventory()
+		# пули в полёте (замедлены для снимка) и коробки патронов на земле
+		_spawn_ground(ULItems.make("a545", 30), targets[0].global_position + Vector3(-3.6, 0, 1.2), 0.0)
+		_spawn_ground(ULItems.make("a762x25", 16), targets[0].global_position + Vector3(-4.3, 0, 1.5), 0.0)
+		_spawn_ground(ULItems.make("a12", 8), targets[0].global_position + Vector3(-2.9, 0, 1.6), 0.0)
+		inv.primary = ULItems.make("ak74m")
+		inv.hand = "primary"
+		_apply_gear()
+		player.global_position = targets[0].global_position + Vector3(-5.5, 0.05, 0.4)
+		_cam_ready = false
+		await _wait_drawn()
+		bullet_k = 0.004
+		for i in 3:
+			_atk_cd = 0.0
+			attack()
+			await get_tree().create_timer(1.2).timeout
+		await _snap("v11_bullets")
+		bullet_k = 1.0
+		await get_tree().create_timer(0.5).timeout
 		await _perf_report()
 		get_tree().quit()
 		return

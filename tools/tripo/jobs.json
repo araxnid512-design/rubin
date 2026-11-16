@@ -1,25 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ul_ammo",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_ammo",
-    "--faces",
-    "30000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--image",
-    "tools/tripo/refs/ammo_kit.png"
-   ],
-   "timeout": 3000
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -146,7 +127,8 @@
   "ul_pine",
   "ul_apple",
   "ul_bush",
-  "ul_supplies"
+  "ul_supplies",
+  "ul_ammo"
  ],
  "paused": [
   {
