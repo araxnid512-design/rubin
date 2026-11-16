@@ -1,8 +1,8 @@
-# Стенд анимаций: сборка APK. Официальный Godot 4.6.3 упаковывает игру (export-pack, текстуры ETC2/ASTC),
-# Gradle собирает Android-приложение с официальной библиотекой Godot 4.6.3 (Maven Central). Готовый APK —
-# в ветке stand-apk (файл Stand.apk) и в артефактах сборки.
+# «Стикс: Человеческий улей»: сборка APK. Официальный Godot 4.6.3 упаковывает игру (export-pack, текстуры
+# ETC2/ASTC), Gradle собирает Android-приложение с официальной библиотекой Godot 4.6.3 (Maven Central). Готовый
+# APK — в ветке stand-apk (файл Stiks.apk; больше 95 МБ — частями Stiks.apk.part-NN) и в артефактах сборки.
 # Запуск: изменить stand/tools/apk_build.txt в рабочей ветке (или вручную).
-name: 'Стенд анимаций: APK'
+name: 'Стикс: Человеческий улей — APK'
 
 on:
   push:
@@ -50,27 +50,27 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon -q
-          cp app/build/outputs/apk/release/app-release.apk ../../Stand.apk
-          ls -la ../../Stand.apk
+          cp app/build/outputs/apk/release/app-release.apk ../../Stiks.apk
+          ls -la ../../Stiks.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Stand-apk
-          path: Stand.apk
+          name: Stiks-apk
+          path: Stiks.apk
 
       - name: APK в ветку stand-apk
         run: |
           d=$(mktemp -d)
-          cp Stand.apk stand/export/import.log "$d/" 2>/dev/null || cp Stand.apk "$d/"
+          cp Stiks.apk stand/export/import.log "$d/" 2>/dev/null || cp Stiks.apk "$d/"
           cd "$d"
           # GitHub не принимает файлы больше 100 МБ: большой APK кладётся частями по 90 МБ
-          # (собрать: cat Stand.apk.part-* > Stand.apk)
-          if [ "$(stat -c %s Stand.apk)" -gt 95000000 ]; then
-            split -b 90m -d Stand.apk Stand.apk.part-
-            rm Stand.apk
-            ls -la Stand.apk.part-*
+          # (собрать: cat Stiks.apk.part-* > Stiks.apk)
+          if [ "$(stat -c %s Stiks.apk)" -gt 95000000 ]; then
+            split -b 90m -d Stiks.apk Stiks.apk.part-
+            rm Stiks.apk
+            ls -la Stiks.apk.part-*
           fi
           echo "Сборка: ${GITHUB_SHA} ($(date -u +%Y-%m-%dT%H:%M:%SZ))" > BUILD.txt
           git init -q && git checkout -q -b stand-apk && git add -A
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Стенд анимаций: APK ${GITHUB_SHA::8}"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Стикс: Человеческий улей — APK ${GITHUB_SHA::8}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" stand-apk

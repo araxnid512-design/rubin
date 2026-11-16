@@ -170,4 +170,4 @@
 - Библиотека готовых анимаций Quaternius не подключена: её сайт из этого окружения недоступен.
 
 ## Сборка APK
-Изменить `tools/apk_build.txt` и отправить в ветку — GitHub Actions соберёт `Stand.apk` в ветку `stand-apk`.
+Изменить `tools/apk_build.txt` и отправить в ветку — GitHub Actions соберёт `Stiks.apk` в ветку `stand-apk` (больше 95 МБ — частями `Stiks.apk.part-NN`, собрать: `cat Stiks.apk.part-* > Stiks.apk`).
