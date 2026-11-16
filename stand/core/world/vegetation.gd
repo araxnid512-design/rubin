@@ -1,0 +1,125 @@
+class_name ULVegetation
+extends RefCounted
+## Растительность на земле: пучки злаков, сорняков, крапивы, одуванчиков и цветущего щавеля. Картинки пучков —
+## спрайты, снятые с моделей Poly Haven (CC0; stand/tools/impostor.gd → tools/veg_src/veg_atlas.py), по две ячейки
+## в атласе. Пучок — четыре наклонные полосы крест-накрест (сверху читается как куст, сбоку — как трава), все пучки
+## одного вида на участке 15×15 м — одна сетка (MultiMesh) с цветом и ячейкой на экземпляр; дальше дальности
+## прорисовки не рисуются. Цвет — от приглушённо-зелёного до выгоревшего жёлтого, высота и густота — разные.
+
+const TEX := "res://assets/world/tex/"
+const SHADER := """shader_type spatial;
+render_mode cull_disabled;
+// Пучок растений: ячейка атласа (INSTANCE_CUSTOM.r: 0 или 1), цвет экземпляра, вырез по альфе, верх качается от
+// ветра, низ темнее (тень в гуще травы); нормаль — вверх (сверху пучок освещён ровно, без чёрной изнанки).
+uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform float sway = 0.05;
+varying float cell;
+varying vec3 tint;
+void vertex() {
+	cell = INSTANCE_CUSTOM.r;
+	tint = COLOR.rgb;
+	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float w = sin(TIME * 1.6 + wpos.x * 0.45 + wpos.z * 0.31) + 0.4 * sin(TIME * 2.9 + wpos.z * 0.8);
+	VERTEX.x += w * sway * (1.0 - UV.y);
+	VERTEX.z += w * sway * 0.6 * (1.0 - UV.y);
+}
+void fragment() {
+	vec4 c = texture(tex, vec2(UV.x * 0.5 + cell * 0.5, UV.y));
+	if (c.a < 0.45) { discard; }
+	float ao = mix(0.55, 1.0, smoothstep(1.0, 0.45, UV.y));
+	// обе стороны полосы освещены как земля: у обратной стороны Godot переворачивает нормаль — без этого она чёрная
+	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+	ALBEDO = c.rgb * tint * ao;
+	ROUGHNESS = 0.95;
+	SPECULAR = 0.15;
+}"""
+
+static var _meshes := {}
+static var _mats := {}
+
+
+## пучок: четыре полосы шириной w и высотой h, наклонены наружу (верх отходит на lean)
+static func clump_mesh(kind: String) -> ArrayMesh:
+	if _meshes.has(kind):
+		return _meshes[kind]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lean := 0.38
+	for i in 4:
+		var a := TAU * i / 4.0 + 0.4
+		var o := Vector3(cos(a), 0, sin(a))
+		var side := Vector3(-o.z, 0, o.x) * 0.5
+		var top := o * lean + Vector3.UP
+		var v := [-side, side, side + top, -side + top]
+		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(uv[k])
+			st.set_normal(Vector3.UP)
+			st.add_vertex(v[k])
+	var mesh := st.commit()
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = SHADER
+	mat.shader = sh
+	mat.set_shader_parameter("tex", load(TEX + "veg_%s.png" % kind))
+	mat.set_shader_parameter("sway", 0.03 if kind == "nettle" else 0.05)
+	mesh.surface_set_material(0, mat)
+	_meshes[kind] = mesh
+	return mesh
+
+
+## Рассыпать пучки вида kind по квадрату size×size с центром в 0. density — пучков на м² там, где вес 1;
+## weight(p) → 0…1 — где расти (0 — нигде); tint(p, rng) → цвет; size_h — [высота от, до]; size_w — ширина к
+## высоте. Участки по cell м — отдельные сетки. Возвращает число пучков.
+static func scatter(parent: Node3D, kind: String, size: float, density: float, weight: Callable, tint: Callable, size_h: Vector2, size_w: float, seed_n: int, range_m: float, cell := 15.0) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var n := int(ceil(size / cell))
+	var total := 0
+	var mesh := clump_mesh(kind)
+	for cx in n:
+		for cz in n:
+			var xs: Array[Transform3D] = []
+			var cs: Array[Color] = []
+			var cells: Array[float] = []
+			var tries := int(cell * cell * density * 1.6)
+			for k in tries:
+				var p := Vector3(-size * 0.5 + (cx + rng.randf()) * cell, 0, -size * 0.5 + (cz + rng.randf()) * cell)
+				var wv: float = weight.call(p)
+				if wv <= 0.0 or rng.randf() > wv / 1.6:
+					continue
+				var h := rng.randf_range(size_h.x, size_h.y)
+				var wd := h * size_w * rng.randf_range(0.85, 1.2)
+				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(wd, h, wd)), p))
+				cs.append(tint.call(p, rng))
+				cells.append(0.0 if rng.randf() < 0.5 else 1.0)
+			if xs.is_empty():
+				continue
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_colors = true
+			mm.use_custom_data = true
+			mm.mesh = mesh
+			mm.instance_count = xs.size()
+			for i in xs.size():
+				mm.set_instance_transform(i, xs[i])
+				mm.set_instance_color(i, cs[i])
+				mm.set_instance_custom_data(i, Color(cells[i], 0, 0, 0))
+			var mi := MultiMeshInstance3D.new()
+			mi.multimesh = mm
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.visibility_range_end = range_m
+			mi.visibility_range_end_margin = 4.0
+			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			parent.add_child(mi)
+			total += xs.size()
+	return total
+
+
+## цвет злаков: приглушённо-зелёный, местами (по крупному пятну dry 0…1) — выгоревший жёлтый
+static func grass_tint(dry: float, rng: RandomNumberGenerator) -> Color:
+	var green := Color(0.78, 0.95, 0.62)
+	var yellow := Color(1.12, 1.0, 0.68)
+	var c := green.lerp(yellow, clampf(dry + rng.randf_range(-0.25, 0.25), 0.0, 1.0))
+	var v := rng.randf_range(0.82, 1.08)
+	return Color(c.r * v, c.g * v, c.b * v)

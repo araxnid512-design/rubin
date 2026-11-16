@@ -28,8 +28,9 @@ void fragment() {
 	ALBEDO = c.rgb;
 	if (has_normal) { NORMAL_MAP = texture(normal_tex, UV).rgb; }
 	vec3 rm = texture(rm_tex, UV).rgb;
-	ROUGHNESS = has_rm ? rm.g : rough;
-	METALLIC = has_rm ? rm.b : metal;
+	// как в StandardMaterial3D: значение из карты умножается на множитель материала (у деревьев металл = 0)
+	ROUGHNESS = has_rm ? rm.g * rough : rough;
+	METALLIC = has_rm ? rm.b * metal : metal;
 }"""
 const FADE := 0.8                 ## насколько растворяется закрывающее дерево (остаются редкие точки — видно, где оно)
 const NEAR := 14.0

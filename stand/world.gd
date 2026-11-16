@@ -71,6 +71,9 @@ func _ready() -> void:
 			test = a.substr(10)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
+		if a.begins_with("--as-gfx="):
+			ULSettings.load_cfg()
+			ULSettings.gfx = clampi(int(a.substr(9)), 0, 2)    # уровень графики для проверок и снимков
 	if test == "arena":
 		ULSettings.arena = true
 	if test.begins_with("cs"):
@@ -361,7 +364,7 @@ func _cs_load() -> void:
 		inv.wallet = {"spore": 12, "pea": 1}
 		hp = HP_MAX
 	player.global_position = ULCowshed.ENTRY + Vector3(0, 0.1, 0)
-	player.rotation.y = PI
+	player.rotation.y = ULCowshed.ENTRY_YAW
 
 
 ## таймер кластера сверху посередине: белый, за 2 минуты — оранжевый, последние 30 с — красный и мигает
@@ -566,6 +569,10 @@ func _in_house(p: Vector3) -> bool:
 
 # ---------------- мир ----------------
 
+var sun: DirectionalLight3D
+var world_env: Environment
+
+
 func _env() -> void:
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
@@ -597,12 +604,36 @@ func _env() -> void:
 	e.fog_depth_end = 110.0
 	e.fog_depth_curve = 1.5
 	env.environment = e
+	world_env = e
 	add_child(env)
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-56, 38, 0)
 	sun.light_energy = 1.05
 	sun.light_color = Color(1.0, 0.95, 0.86)
 	sun.shadow_enabled = false            # без теней — быстрее; под героем и деревьями — мягкие пятна
+	if place == "cowshed":
+		# коровник: пасмурно-приглушённый день — цвета спокойнее, лёгкая дымка ближе к камере, мягкие тени от
+		# построек, деревьев и техники (на «Средней» и «Высокой» графике; на «Низкой» — без теней, как на базе)
+		e.tonemap_exposure = 1.0
+		e.adjustment_saturation = 0.88
+		e.adjustment_contrast = 1.08
+		e.adjustment_brightness = 0.98
+		e.ambient_light_energy = 1.0
+		e.fog_light_color = Color(0.58, 0.6, 0.57)
+		e.fog_density = 0.6
+		e.fog_depth_begin = 14.0
+		e.fog_depth_end = 80.0
+		e.fog_depth_curve = 1.3
+		sun.light_energy = 1.0
+		sun.light_color = Color(1.0, 0.96, 0.9)
+		if ULSettings.gfx >= 1:
+			sun.shadow_enabled = true
+			sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			sun.directional_shadow_max_distance = 38.0
+			sun.shadow_blur = 1.6
+			sun.shadow_opacity = 0.78
+			sun.shadow_bias = 0.06
+			sun.shadow_normal_bias = 1.2
 	add_child(sun)
 
 
@@ -638,6 +669,8 @@ uniform float world_size = 100.0;
 uniform vec3 soil_tint = vec3(1.0);
 uniform float wet = 0.0;              // голая земля местами блестит, как сырая грязь (коровник)
 uniform float dry_amount = 0.6;       // сколько сухих проплешин в траве
+uniform vec3 grass_mul = vec3(0.9, 1.08, 0.76);   // оттенок травы (коровник — оливковее)
+uniform vec3 path_mul = vec3(1.12, 1.08, 1.04);   // светлота дороги (коровник — темнее, сырая земля)
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
@@ -648,12 +681,12 @@ void fragment() {
 	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
 	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.4) / world_size + 0.5);
-	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38) * vec3(0.9, 1.08, 0.76);
+	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38) * grass_mul;
 	float dw = smoothstep(0.5, 0.74, n1 * 0.7 + n2 * 0.3) * dry_amount;
 	g = mix(g, texture(dry, p / 4.2).rgb * vec3(0.92, 0.9, 0.76), dw);
 	vec3 f = texture(forest, rot * p / 3.2).rgb * vec3(1.08, 1.04, 0.98);
 	vec3 so = texture(soil, p / 3.6).rgb * soil_tint;
-	vec3 pa = texture(path, p / 2.8).rgb * vec3(1.12, 1.08, 1.04);
+	vec3 pa = texture(path, p / 2.8).rgb * path_mul;
 	float wg = m.r;
 	float wt = m.g;
 	float wf = m.b * (1.0 - wt);
@@ -677,97 +710,35 @@ void fragment() {
 """
 
 
-const TUFT_SHADER := """shader_type spatial;
-render_mode cull_disabled;
-// пучок травы: три скрещённые полосы, верх колышется от ветра
-uniform sampler2D tex : source_color, filter_linear_mipmap;
-uniform float sway = 0.06;
-varying float hh;
-void vertex() {
-	hh = UV.y;
-	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	float w = sin(TIME * 1.7 + wpos.x * 0.35 + wpos.z * 0.27) + 0.4 * sin(TIME * 3.1 + wpos.z * 0.9);
-	VERTEX.x += w * sway * (1.0 - UV.y);
-}
-void fragment() {
-	vec4 c = texture(tex, UV);
-	if (c.a < 0.45) { discard; }
-	// обе стороны травинки освещены как земля (нормаль вверх), иначе обратная сторона — чёрная
-	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-	ALBEDO = c.rgb * COLOR.rgb * vec3(0.8, 0.88, 0.48) * mix(0.66, 1.0, 1.0 - hh);
-	ROUGHNESS = 0.9;
-	SPECULAR = 0.1;
-}
-"""
-
-
-## пучки травы: кусками 12.5 × 12.5 м, каждый виден до 30 м (дальше хватает текстуры земли)
-func _grass() -> void:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# кустик: пять полос, наклонённых наружу от центра (сверху — розетка травинок, сбоку — пучок)
-	for i in 5:
-		var a := TAU * i / 5.0 + 0.3
-		var out := Vector3(cos(a), 0, sin(a))
-		var side := Vector3(-out.z, 0, out.x) * 0.15
-		var top := out * 0.2 + Vector3.UP * 0.34
-		var v := [-side, side, side * 1.25 + top, -side * 1.25 + top]
-		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
-		for k in [0, 1, 2, 0, 2, 3]:
-			st.set_uv(uv[k])
-			st.add_vertex(v[k])
-	var mesh := st.commit()
-	var mat := ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = TUFT_SHADER
-	mat.shader = sh
-	mat.set_shader_parameter("tex", load(TEX + "grass_tuft.png"))
-	mesh.surface_set_material(0, mat)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 909
-	var n := 8
-	var cell := SIZE / n
-	for cx in n:
-		for cz in n:
-			var mm := MultiMesh.new()
-			mm.transform_format = MultiMesh.TRANSFORM_3D
-			mm.use_colors = true
-			mm.mesh = mesh
-			var xs: Array[Transform3D] = []
-			var cs: Array[Color] = []
-			for k in int(300.0 * float(ULSettings.q().grass)):
-				var p := Vector3(-SIZE * 0.5 + (cx + rng.randf()) * cell, 0, -SIZE * 0.5 + (cz + rng.randf()) * cell)
-				var hp := p - HOUSE_AT
-				if absf(hp.x) < ULHouse.W * 0.5 + 1.2 and absf(hp.z) < ULHouse.D * 0.5 + 1.2:
-					continue
-				if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5:
-					continue                                       # вытоптано у крыльца
-				if hp.x > YARD[0] and hp.x < YARD[2] and hp.z > YARD[1] and hp.z < YARD[3] and rng.randf() < 0.6:
-					continue                                       # во дворе травы меньше
-				if _trail_dist(p) < 1.7:
-					continue                                       # тропа натоптана
-				var gw := _grass_w(p)
-				if gw < 0.5 and rng.randf() < 0.82:
-					continue                                       # на голой земле — редкие сорняки
-				var sc := rng.randf_range(0.55, 1.25)
-				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.4), sc)), p))
-				var g := rng.randf_range(0.85, 1.15)
-				if rng.randf() < 0.3:
-					cs.append(Color(g * 1.3, g * 1.12, g * 0.8))   # сухой пучок
-				else:
-					cs.append(Color(g, g, g * rng.randf_range(0.9, 1.05)))
-			mm.instance_count = xs.size()
-			for k in xs.size():
-				mm.set_instance_transform(k, xs[k])
-				mm.set_instance_color(k, cs[k])
-			var mi := MultiMeshInstance3D.new()
-			mi.multimesh = mm
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.visibility_range_end = float(ULSettings.q().range)
-			mi.visibility_range_end_margin = 4.0
-			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-			mi.position = Vector3.ZERO
-			add_child(mi)
+## Растительность — та же, что в коровнике (ULVegetation: спрайты с моделей растений Poly Haven): злаки по траве
+## карты земли (во дворе реже, у крыльца и на тропе — нет), цвет от зелёного до выгоревшего крупными пятнами;
+## сорняки вдоль стен дома; одуванчики и цветущий щавель — редкими куртинами в траве.
+func _vegetation() -> void:
+	var q := float(ULSettings.q().grass)
+	var rng_m := float(ULSettings.q().range)
+	ULVegetation.scatter(self, "grass", SIZE, 1.3 * q + 0.15, func(p: Vector3) -> float:
+		var hp := p - HOUSE_AT
+		if absf(hp.x) < ULHouse.W * 0.5 + 1.0 and absf(hp.z) < ULHouse.D * 0.5 + 1.0:
+			return 0.0
+		if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5 or _trail_dist(p) < 1.5:
+			return 0.0
+		var m := mask_at(p)
+		return clampf(m.r * 1.2 - m.g * 0.9 - 0.1, 0.0, 1.0) * (0.45 if _in_yard(p) else 1.0), func(p: Vector3, r: RandomNumberGenerator) -> Color:
+		var dry := smoothstep(0.5, 0.75, _noise(Vector2(p.x, p.z) / 70.0) * 0.6 + _noise(Vector2(p.x, p.z) / 19.0 + Vector2(0.37, 0.11)) * 0.4)
+		return ULVegetation.grass_tint(dry, r) * Color(0.86, 0.9, 0.82), Vector2(0.25, 0.6), 1.4, 909, rng_m)
+	ULVegetation.scatter(self, "weed", SIZE, 0.6 * q + 0.05, func(p: Vector3) -> float:
+		var hp := (p - HOUSE_AT).abs() - Vector3(ULHouse.W * 0.5, 0, ULHouse.D * 0.5)
+		var d := Vector2(maxf(hp.x, 0.0), maxf(hp.z, 0.0)).length()
+		if hp.x < 0.0 and hp.z < 0.0 or p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.0:
+			return 0.0
+		return (1.0 - smoothstep(0.3, 2.5, d)) * 0.8, func(_p: Vector3, r: RandomNumberGenerator) -> Color:
+		return Color(0.86, 0.9, 0.76) * r.randf_range(0.82, 1.05), Vector2(0.35, 0.6), 1.2, 910, rng_m)
+	ULVegetation.scatter(self, "flower", SIZE, 0.06 * q + 0.01, func(p: Vector3) -> float:
+		if _in_yard(p) or (p - HOUSE_AT).length() < 9.0:
+			return 0.0
+		var m := mask_at(p)
+		return m.r * smoothstep(0.55, 0.7, _noise(Vector2(p.x, p.z) / 11.0 + Vector2(0.2, 0.6))), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
+		return Color(0.95, 0.95, 0.9) * r.randf_range(0.85, 1.05), Vector2(0.3, 0.5), 1.3, 911, rng_m)
 
 
 ## тропа: отрезки [начало, конец] в плоскости (x, z) — от крыльца к калитке и дальше через кластер
@@ -795,17 +766,6 @@ func _noise(uv: Vector2) -> float:
 	var x := fposmod(uv.x, 1.0) * 256.0
 	var y := fposmod(uv.y, 1.0) * 256.0
 	return _noise_img.get_pixel(int(x) % 256, int(y) % 256).r
-
-
-## доля травы в точке — по карте земли (там, где на земле трава, растут и пучки; под деревьями и на тропе — нет)
-func _grass_w(p: Vector3) -> float:
-	if _mask_img != null:
-		return mask_at(p).r
-	var q := Vector2(p.x, p.z)
-	var n1 := _noise(q / 70.0)
-	var n2 := _noise(q / 19.0 + Vector2(0.37, 0.11))
-	var n3 := _noise(q / 5.5 + Vector2(0.71, 0.53))
-	return smoothstep(0.35, 0.55, n1 * 0.4 + n2 * 0.35 + n3 * 0.25)
 
 
 const FOG_SHADER := """shader_type spatial;
@@ -979,10 +939,7 @@ func _ground() -> void:
 	mi.material_override = sm
 	add_child(mi)
 	_edge_fog()
-	_grass()
-	# полевые цветы куртинами — в траве, не во дворе и не у дома
-	ULGroundDetail.flowers(self, mask_at, SIZE, 77, int(110.0 * float(ULSettings.q().grass)) + 20, TUFT_SHADER, func(p: Vector3) -> bool:
-		return _in_yard(p) or (p - HOUSE_AT).length() < 9.0 or p.distance_to(Vector3(0, 0, 6)) < 4.0, float(ULSettings.q().range))
+	_vegetation()
 	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44))
 	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))
 	var sb := StaticBody3D.new()
@@ -1491,10 +1448,12 @@ func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGener
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_custom_data = true
+		mm.use_colors = true            # в режиме совместимости без цвета экземпляра сетка с custom data — чёрная
 		mm.mesh = _spruce_mesh(h0, 100 + ki)
 		mm.instance_count = xs.size()
 		for i in xs.size():
 			mm.set_instance_transform(i, xs[i])
+			mm.set_instance_color(i, Color.WHITE)
 			mm.set_instance_custom_data(i, Color(0, 0, 0, 0))
 		canopy.add_multimesh(mm, h0)
 		var mi := MultiMeshInstance3D.new()
@@ -3820,12 +3779,76 @@ func _cs_test() -> void:
 	if out != "":
 		await get_tree().create_timer(1.5).timeout
 		await _snap("cs_entry")
+	# постройки: стены непроходимы (луч на высоте 1 м упирается в стену), внутрь можно зайти (путь по карте
+	# проходимости от ворот до середины прохода), крыша и ближняя стена растворяются, когда герой внутри
+	var space := get_world_3d().direct_space_state
+	var walls_ok := 0
+	var enter_ok := 0
+	var fade_ok := 0
+	for i in cowshed.barns.size():
+		var b: Dictionary = cowshed.barns[i]
+		var xf: Transform3D = b.xf
+		var hh: Vector2 = b.half
+		# по 5 лучей на каждую из 4 стен: в проёмы (ворота, двери, пролом) луч проходит — таких меньше половины
+		var hits := 0
+		for side in 4:
+			for k in 5:
+				var u := -0.8 + 1.6 * k / 4.0
+				var a0: Vector3
+				var a1: Vector3
+				match side:
+					0:
+						a0 = Vector3(u * hh.x, 1.0, -hh.y - 2.0)
+						a1 = Vector3(u * hh.x, 1.0, -hh.y + 1.0)
+					1:
+						a0 = Vector3(u * hh.x, 1.0, hh.y + 2.0)
+						a1 = Vector3(u * hh.x, 1.0, hh.y - 1.0)
+					2:
+						a0 = Vector3(-hh.x - 2.0, 1.0, u * hh.y)
+						a1 = Vector3(-hh.x + 1.0, 1.0, u * hh.y)
+					_:
+						a0 = Vector3(hh.x + 2.0, 1.0, u * hh.y)
+						a1 = Vector3(hh.x - 1.0, 1.0, u * hh.y)
+				var q := PhysicsRayQueryParameters3D.create(xf * a0, xf * a1)
+				q.collision_mask = 1
+				if not space.intersect_ray(q).is_empty():
+					hits += 1
+		print("[inv] %s: лучей в стену %d из 20" % [String(b.n), hits])
+		if hits >= 12:
+			walls_ok += 1
+		var bd: Dictionary = ULCowshed.BUILDINGS[i]
+		var dp := ULCowshed._door_point(bd, bd.doors[0])
+		var outside := xf * (Vector3(dp.x, 0, dp.y) + ULFarmBuilding._side_normal(String(bd.doors[0][0])) * 3.0)
+		var inside := xf * Vector3(0, 0, 0)
+		var path := NavigationServer3D.map_get_path(map, NavigationServer3D.map_get_closest_point(map, outside), inside, true)
+		if path.size() > 1 and path[path.size() - 1].distance_to(inside) < 1.2:
+			enter_ok += 1
+		player.global_position = inside + Vector3.UP * 0.1
+		await get_tree().create_timer(0.7).timeout
+		var fin: float = (b.b as ULFarmBuilding).fade_value()
+		player.global_position = outside + Vector3.UP * 0.1
+		await get_tree().create_timer(0.7).timeout
+		var fout: float = (b.b as ULFarmBuilding).fade_value()
+		if fin > 0.95 and fout < 0.05:
+			fade_ok += 1
+	var nb := cowshed.barns.size()
+	_ok("стены всех %d построек непроходимы" % nb, walls_ok == nb, "%d из %d" % [walls_ok, nb])
+	_ok("в каждую постройку можно зайти через ворота", enter_ok == nb, "%d из %d" % [enter_ok, nb])
+	_ok("герой внутри — крыша и ближняя стена растворяются, вышел — проявляются", fade_ok == nb, "%d из %d" % [fade_ok, nb])
 	# враг видит, догоняет и бьёт
+	# пустыш вне построек, рядом с которым нет других врагов (иначе первым ударит сосед)
 	var tgt: ULEnemy = null
+	var best_gap := 0.0
 	for e in enemies:
-		if e.kind == "infected" and cowshed.in_barn(e.global_position) < 0:
+		if e.kind != "infected" or cowshed.in_barn(e.global_position) >= 0:
+			continue
+		var gap := 99.0
+		for o in enemies:
+			if o != e:
+				gap = minf(gap, o.global_position.distance_to(e.global_position))
+		if gap > best_gap:
+			best_gap = gap
 			tgt = e
-			break
 	var hp0 := hp
 	if tgt:
 		var fwd := Vector3(0, 0, 1)
@@ -5946,19 +5969,30 @@ func _run_test() -> void:
 		var t0 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t0 < 15000:
 			await get_tree().process_frame
-		var spots := [["v0_entry", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["v1_barn_in", cowshed.barn_point(0, RandomNumberGenerator.new())],
-			["v2_barn_gate", Vector3(-32 + 15, 0, -28)], ["v3_cows", cowshed.cows[0] + Vector3(0, 0, 2.5)], ["v4_tractor", Vector3(18, 0, -8)],
-			["v5_pen", Vector3(-32, 0, -8)], ["v6_forest", Vector3(-52, 0, -50)], ["v7_barn3", Vector3(-4, 0, 25)], ["v8_barn2", Vector3(31, 0, -36)],
-			["w0_long_barn", Vector3(0, 0, -50)], ["w1_tower", Vector3(-6, 0, -32)], ["w2_small_barn", Vector3(-30, 0, 53)], ["w3_barn_east", Vector3(48, 0, -20)],
-			["w4_top", Vector3(0, 0, 0)]]
+		var spots := [["v0_entry", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["v1_barn_in", Vector3(-36, 0, -34)],
+			["v2_barn_gate", Vector3(-30.5, 0, -24.5)], ["v3_cows", cowshed.cows[0] + Vector3(0, 0, 2.5)], ["v4_tractor", Vector3(9, 0, 23)],
+			["v5_pen", Vector3(-40, 0, 12)], ["v6_forest", Vector3(-50, 0, 42)], ["v7_cross", Vector3(-2, 0, -12)], ["v8_barnC", Vector3(22, 0, -41)],
+			["w0_barnE", Vector3(41, 0, 45)], ["w1_tower", Vector3(-14, 0, -53)], ["w2_barnD", Vector3(43, 0, -20)], ["w3_inside_E", Vector3(41, 0, 34)],
+			["w5_wide", Vector3(-22, 0, -20)], ["w4_top", Vector3(0, 0, 0)]]
+		var only := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				only = a.substr(10)
+		if only != "":
+			spots = spots.filter(func(sp): return only.split(",").has(String(sp[0])))
 		for sp in spots:
-			cam_dist = 70.0 if String(sp[0]) == "w4_top" else 12.0
+			cam_dist = 70.0 if String(sp[0]) == "w4_top" else (22.0 if String(sp[0]) == "w5_wide" else 12.0)
 			player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
 			for e in enemies:
 				if e.global_position.distance_to(player.global_position) < 10.0:
 					e.state = "idle"
 			_cam_ready = false
+			world_env.fog_enabled = String(sp[0]) != "w4_top"     # вид сверху для сравнения с эталоном — без дымки
 			await get_tree().create_timer(1.2).timeout
+			for t in cowshed.trees:
+				var rel: Vector3 = t.global_position - player.global_position
+				if absf(rel.x) < 12.0 and absf(rel.z) < 9.0:
+					print("[view] %s: дерево %s в (%.1f, %.1f) от героя" % [sp[0], t.scene_file_path.get_file(), rel.x, rel.z])
 			await _snap(String(sp[0]))
 		get_tree().quit()
 		return
