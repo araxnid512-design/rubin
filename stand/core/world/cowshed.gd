@@ -241,7 +241,7 @@ func _barn(at: Vector3, yaw: float, L: float, W: float, ruin: float, rng: Random
 	var front: Array[Node3D] = []
 	# длинные стены: по куску с дырой (пролом)
 	for side in [-1.0, 1.0]:
-		var z := side * W * 0.5
+		var z: float = side * W * 0.5
 		var gap_c := rng.randf_range(-L * 0.3, L * 0.3)
 		var gap_w := 1.8 + ruin * 2.5
 		var pieces := [[-L * 0.5, gap_c - gap_w * 0.5], [gap_c + gap_w * 0.5, L * 0.5]]
@@ -263,7 +263,7 @@ func _barn(at: Vector3, yaw: float, L: float, W: float, ruin: float, rng: Random
 			for k in 3:
 				_box(walls, Vector3(0.2, 0.2, rng.randf_range(1.5, 3.0)), Vector3(end * L * 0.5 + rng.randf_range(-1.0, 1.5), 0.1, rng.randf_range(-3, 3)), planks, false, Vector3(0, rng.randf() * PI, 0))
 			continue
-		var x := end * L * 0.5
+		var x: float = end * L * 0.5
 		for sz in [-1.0, 1.0]:
 			var len := W * 0.5 - 1.8
 			_box(walls, Vector3(T, H, len), Vector3(x, H * 0.5, sz * (1.8 + len * 0.5)), planks, false)

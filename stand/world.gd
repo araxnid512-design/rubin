@@ -74,9 +74,12 @@ func _ready() -> void:
 	if test == "arena":
 		ULSettings.arena = true
 	if test != "":
+		# проверки: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
 		ULBase.load_state(true)
-		ULBase.data.staff["gunsmith"] = true
+		if test != "pc":
+			ULBase.data.upgrades["gunsmith"] = 1
+			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
 	ULSettings.apply(get_viewport())
 	Music.stop()
@@ -2123,9 +2126,8 @@ func _save() -> void:
 	for g in ground:
 		var n: Node3D = g.node
 		gr.append([g.item, snappedf(n.global_position.x, 0.01), snappedf(n.global_position.z, 0.01), snappedf(n.rotation.y, 0.01)])
-	var f := FileAccess.open(SAVE, FileAccess.WRITE)
-	if f and test == "":
-		f.store_string(JSON.stringify({"v": SAVE_V, "crates": cr, "ground": gr, "inv": inv.to_dict(), "hp": hp, "en": en, "water": water}))
+	if test == "":
+		ULBase.write_json(SAVE, {"v": SAVE_V, "crates": cr, "ground": gr, "inv": inv.to_dict(), "hp": hp, "en": en, "water": water})
 
 
 func _load() -> void:
@@ -2189,6 +2191,10 @@ func _start_loot() -> void:
 		_add_crate(g2, 0.0, stash)
 		inv.pistol = I.make("tt")
 		ULInventory.put(inv.pockets, I.make("a762x25", 16))
+		# стартовые ресурсы (data/base_shop.json → start_wallet): хватает на первый маршрут
+		var sw: Dictionary = ULBase.shop().get("start_wallet", {})
+		for id in sw:
+			inv.wallet[String(id)] = int(inv.wallet.get(String(id), 0)) + int(sw[id])
 	_spawn_ground(I.make("rusk", 2), H.to_global(Vector3(-2.5, 0, 2.2)), 0.0)
 	_spawn_ground(I.make("tonic", 2), H.to_global(Vector3(-4.6, 0, 2.3)), 0.0)
 	_spawn_ground(I.make("medkit"), H.to_global(Vector3(4.6, 0, -3.0)), 0.0)
@@ -3352,6 +3358,169 @@ func _wait_drawn() -> void:
 		await get_tree().process_frame
 		tw += get_process_delta_time()
 	await get_tree().create_timer(0.2).timeout
+
+
+## Базовый компьютер (--as-test=pc; с --as-out=папка — ещё снимки экрана): пять ресурсов, оружейник за 30 гороха
+## и 50 споранов, отказ при нехватке, однократная установка, маршрут за 10 споранов, таймер новых маршрутов,
+## обмен по всей цепочке в обе стороны, окно «Купить/Продать», защита от двойного нажатия, сохранение и загрузка.
+func _pc_test() -> void:
+	var E := ULEconomy
+	await get_tree().create_timer(0.6).timeout
+	inv.wallet = {}
+	_ok("до установки оружейника на базе нет", npcs.is_empty() and not ULBase.installed("gunsmith"))
+	player.global_position = house.to_global(TERMINAL_AT + Vector3(0, 0.05, -0.75))
+	await get_tree().create_timer(0.4).timeout
+	_ok("у стола: цель — компьютер, кнопка «Открыть»", _target != null and String(_target.type) == "terminal" and _action_label() == "Открыть", _target_name())
+	do_action()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var pc := _term_ui as ULBasePC
+	var vs := get_viewport().get_visible_rect().size
+	_ok("компьютер открыт во весь экран, игра под ним не принимает касания", pc != null and _modal() and pc.size.distance_to(vs) < 2.0, str(pc.size if pc else Vector2.ZERO))
+	if pc == null:
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	inv.wallet = {"spore": 125, "pea": 42, "pearl_black": 7, "pearl_red": 3, "pearl_white": 1}
+	inv.changed.emit()
+	var shown := []
+	for id in ULItems.MONEY:
+		shown.append(pc.shown(id))
+	_ok("сверху пять ресурсов: спораны, горох, чёрная, красная, белая жемчужина", shown == [125, 42, 7, 3, 1], str(shown))
+	inv.add(ULItems.make("spore", 5))
+	_ok("добыча (+5 споранов) сразу видна на панели", pc.shown("spore") == 130 and int(inv.wallet.spore) == 130)
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("pc_main")
+	# --- оружейник ---
+	inv.wallet.pea = 10
+	inv.changed.emit()
+	pc.ask_upgrade("gunsmith")
+	_ok("не хватает гороха: предупреждение и недостача (20 горошин), ничего не списано", pc.dialog_text().contains("20 горошин") and int(inv.wallet.pea) == 10 and int(inv.wallet.spore) == 130 and not ULBase.installed("gunsmith"), pc.dialog_text().replace("\n", " / "))
+	if out != "":
+		await _snap("pc_nomoney")
+	pc.dialog_close()
+	var r0 := ULBase.buy_upgrade(inv, "gunsmith")
+	_ok("покупка без ресурсов отклонена логикой (не только окном)", not r0.ok and r0.err == "money" and int((r0.miss as Dictionary).get("pea", 0)) == 20)
+	inv.wallet.pea = 42
+	inv.changed.emit()
+	pc.ask_upgrade("gunsmith")
+	_ok("хватает: окно подтверждения с ценой (30 горошин, 50 споранов)", pc.dialog_text().contains("30 горошин") and pc.dialog_text().contains("50 споранов"))
+	if out != "":
+		await _snap("pc_confirm")
+	pc.dialog_confirm()
+	pc.dialog_confirm()                     # второе нажатие — окна уже нет
+	_ok("оружейник куплен один раз: горох 42 → 12, спораны 130 → 80", int(inv.wallet.pea) == 12 and int(inv.wallet.spore) == 80, str(inv.wallet))
+	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npcs.size() == 1 and (npcs[0] as Node3D).global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
+	var gb := pc.find_child("up_gunsmith", true, false).find_child("buy", true, false) as Button
+	_ok("кнопка сменилась на «УСТАНОВЛЕНО»", gb != null and gb.text == "УСТАНОВЛЕНО" and gb.disabled)
+	var r1 := ULBase.buy_upgrade(inv, "gunsmith")
+	pc.ask_upgrade("gunsmith")
+	_ok("повторно не купить: ресурсы не списаны, окна нет", not r1.ok and r1.err == "have" and int(inv.wallet.spore) == 80 and pc.dialog_text() == "")
+	# --- маршрут ---
+	_ok("до покупки маршрута коровника нет на карте", ULBase.route_state("cowshed") == "" and not ULMap.place_shown("cowshed"))
+	pc.ask_route("cowshed")
+	_ok("маршрут: подтверждение за 10 споранов", pc.dialog_text().contains("10 споранов"))
+	pc.dialog_confirm()
+	_ok("маршрут куплен: спораны 80 → 70", int(inv.wallet.spore) == 70 and ULBase.route_state("cowshed") == "bought")
+	_ok("коровник появился на глобальной карте", ULMap.place_shown("cowshed"))
+	var r2 := ULBase.buy_route(inv, "cowshed")
+	var rb := pc.find_child("route_cowshed", true, false).find_child("buy", true, false) as Button
+	_ok("пока маршрут куплен — повторная покупка недоступна", not r2.ok and r2.err == "have" and int(inv.wallet.spore) == 70 and rb.disabled)
+	# --- таймер новых маршрутов ---
+	var per := ULBase.refresh_period()
+	var keep_next = ULBase.data.get("routes_next", 0)
+	ULBase.data.routes_next = 0
+	var now := 2000000000
+	var a1 := ULBase.routes_tick(now)
+	var a2 := ULBase.routes_tick(now + 100)
+	var rf0 := int(ULBase.data.get("refreshes", 0))
+	var a3 := ULBase.routes_tick(now + per + 5)
+	_ok("таймер маршрутов: идёт от сохранённого срока, не сбрасывается при открытии", a1 == per and a2 == per - 100, "%d, %d (период %d)" % [a1, a2, per])
+	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed"])
+	_ok("таймер на экране в виде ЧЧ:ММ:СС", ULBase.clock(2 * 3600 + 47 * 60 + 36) == "02:47:36" and (pc.find_child("RouteTimer", true, false) as Label).text.length() == 8)
+	ULBase.data.routes_next = keep_next
+	# --- обмен: логика по всей цепочке ---
+	var ch := E.chain()
+	var bad := ""
+	for i in ch.size() - 1:
+		var hi := String(ch[i])
+		var lo := E.lower(hi)
+		var r := E.rate(hi)
+		inv.wallet = {hi: 2, lo: r * 2}
+		var ok1 := E.exchange(inv, "sell", hi, 1) and int(inv.wallet[hi]) == 1 and int(inv.wallet[lo]) == r * 3
+		var ok2 := E.exchange(inv, "buy", hi, 1) and int(inv.wallet[hi]) == 2 and int(inv.wallet[lo]) == r * 2
+		var ok3 := not E.exchange(inv, "buy", hi, 3) and int(inv.wallet[hi]) == 2 and int(inv.wallet[lo]) == r * 2
+		var ok4 := not E.exchange(inv, "sell", hi, 0) and not E.exchange(inv, "sell", hi, -2)
+		_ok("обмен «%s»: продать 1 и купить обратно, нехватка и n ≤ 0 не меняют кошелёк" % E.rate_text(hi), ok1 and ok2 and ok3 and ok4, str(inv.wallet))
+	_ok("курсы по макету: 1 белая = 3 красные, 1 красная = 3 чёрные, 1 чёрная = 5 горошин, 1 горошина = 10 споранов", E.rate("pearl_white") == 3 and E.rate("pearl_red") == 3 and E.rate("pearl_black") == 5 and E.rate("pea") == 10 and E.rate("spore") == 0)
+	_ok("через ступень не меняется (спораны → белая жемчужина)", E.quote("buy", "spore", 1).is_empty() and E.lower("spore") == "" and E.higher("pearl_white") == "")
+	# --- окно обмена ---
+	inv.wallet = {"spore": 95, "pea": 2, "pearl_black": 0, "pearl_red": 1, "pearl_white": 0}
+	inv.changed.emit()
+	pc.open_exchange("buy", "pea")
+	pc.ex_set_n(3)
+	_ok("купить 3 горошины: «Вы получите: 3 горошины», «Стоимость: 30 споранов»", pc._ex_lbl.a.text == "Вы получите: 3 горошины" and pc._ex_lbl.b.text == "Стоимость: 30 споранов", pc._ex_lbl.a.text + " / " + pc._ex_lbl.b.text)
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("pc_exchange_buy")
+	var c1 := pc.ex_confirm()
+	var c2 := pc.ex_confirm()               # двойное касание
+	_ok("подтверждение: обмен прошёл один раз (спораны 95 → 65, горох 2 → 5)", c1 and not c2 and int(inv.wallet.spore) == 65 and int(inv.wallet.pea) == 5, str(inv.wallet))
+	_ok("верхняя панель обновилась после обмена", pc.shown("spore") == 65 and pc.shown("pea") == 5)
+	await get_tree().create_timer(0.6).timeout
+	pc.ex_max()
+	_ok("«Максимум»: на 65 споранов — 6 горошин", pc.ex_n == 6)
+	pc.ex_set_n(7)
+	_ok("не хватает: предупреждение «не хватает 5 споранов», кнопка выключена", pc._ex_lbl.warn.text.contains("5 споранов") and pc._ex_ok.disabled and not pc.ex_confirm() and int(inv.wallet.spore) == 65, pc._ex_lbl.warn.text)
+	pc._ex_typed("12а")
+	_ok("в поле количества — только цифры", pc.ex_n == 12 and pc._ex_edit.text == "12")
+	pc._ex_typed("")
+	_ok("пустое количество — сделки нет", pc.ex_n == 0 and pc._ex_ok.disabled)
+	pc.ex_pick("give", "spore")
+	pc.ex_set_n(1)
+	_ok("выбор «отдаю спораны» при покупке — получаю горох (соседний)", pc.ex_hi == "pea")
+	pc.ex_pick("get", "pearl_white")
+	_ok("выбор «получаю белую жемчужину» — отдаю красную", pc.ex_hi == "pearl_white" and E.lower(pc.ex_hi) == "pearl_red")
+	pc.ex_set_mode("sell")
+	pc.ex_pick("give", "pearl_red")
+	pc.ex_set_n(1)
+	_ok("продать 1 красную: «Вы отдаёте: 1 красную жемчужину», «Вы получите: 3 чёрные жемчужины»", pc._ex_lbl.a.text == "Вы отдаёте: 1 красную жемчужину" and pc._ex_lbl.b.text == "Вы получите: 3 чёрные жемчужины", pc._ex_lbl.a.text + " / " + pc._ex_lbl.b.text)
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("pc_exchange_sell")
+	_ok("продажа проведена: красных 1 → 0, чёрных 0 → 3", pc.ex_confirm() and int(inv.wallet.pearl_red) == 0 and int(inv.wallet.pearl_black) == 3)
+	pc.ex_pick("get", "spore")
+	_ok("при продаже «получаю спораны» — отдаю горох", pc.ex_hi == "pea")
+	pc.ex_close()
+	# --- сохранение и загрузка ---
+	var wsave := inv.to_dict()
+	var inv2 := ULInventory.new()
+	inv2.from_dict(JSON.parse_string(JSON.stringify(wsave)))
+	var wbad := ""
+	for id in ULItems.MONEY:
+		if int(inv2.wallet.get(id, 0)) != int(inv.wallet.get(id, 0)):
+			wbad += id + " "
+	_ok("кошелёк сохраняется и загружается без потерь", wbad == "", str(inv2.wallet))
+	var keep_path := ULBase.path
+	ULBase.path = "user://test_base.json"
+	ULBase.memory_only = false
+	ULBase.save_state()
+	var nxt0 := int(ULBase.data.routes_next)
+	ULBase.data = {}
+	ULBase.load_state(true)
+	_ok("база после перезапуска: оружейник установлен, маршрут куплен, срок обновления маршрутов тот же", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and ULBase.route_state("cowshed") == "bought" and int(ULBase.data.get("routes_next", 0)) == nxt0)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
+	ULBase.path = keep_path
+	ULBase.memory_only = true
+	if out != "":
+		await get_tree().create_timer(3.2).timeout
+		await _snap("pc_main_after")
+	pc.close()
+	await get_tree().process_frame
+	_ok("компьютер закрыт крестиком — снова игра", _term_ui == null and not _modal())
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
 
 
 ## проверка логики инвентаря и боя: каждое правило — отдельный случай
@@ -4683,14 +4852,8 @@ func _armory() -> void:
 ## маршруты во временные кластеры, улучшения базы, персонал (оружейник). Что продаётся — data/base_shop.json,
 ## что куплено — ULBase (user://base.json).
 const TERMINAL_AT := Vector3(2.35, 0, 4.55)
-const STASH_SPOTS := [Vector3(-4.3, 0, -4.35), Vector3(-3.1, 0, -4.35), Vector3(-1.9, 0, -4.35)]
 var _terminal: Node3D
 var _term_ui: Control
-var _term_tab := "routes"
-var _term_body: VBoxContainer
-var _term_wallet: Array = []
-var _term_tabs: Array = []
-const TERM_TABS := [["routes", "Маршруты"], ["upgrades", "Улучшения базы"], ["staff", "Персонал"]]
 
 
 func _terminal_build(wood: Material, dark: Material, body: StaticBody3D) -> void:
@@ -4726,181 +4889,27 @@ func _terminal_build(wood: Material, dark: Material, body: StaticBody3D) -> void
 			_box_prop(_terminal, Vector3(0.04, 0.44, 0.04), Vector3(0.1 + sx, 0.22, -0.62 + sz), wood)
 
 
-func _term_lbl(t: String, fs: int, col: Color) -> Label:
-	var l := Label.new()
-	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
-	l.add_theme_color_override("font_color", col)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return l
-
-
-## что сейчас с пунктом: [подпись кнопки, можно ли купить, пояснение]
-func _term_state(tab: String, id: String) -> Array:
-	var d: Dictionary = ULBase.shop()[tab][id]
-	if d.get("soon", false):
-		return ["Скоро", false, "Появится в следующих обновлениях."]
-	match tab:
-		"routes":
-			match ULBase.route_state(id):
-				"bought":
-					return ["Куплен", false, "Маршрут открыт — выйдите на карту мира, локация появилась справа выше дома."]
-				"active":
-					return ["Идёт посещение", false, ""]
-		"staff":
-			if ULBase.has_staff(id):
-				return ["Нанят", false, "Уже на месте."]
-		"upgrades":
-			var lv := ULBase.upgrade_level(id)
-			if lv >= int(d.get("max", 1)):
-				return ["Куплено", false, "Больше не нужно." if int(d.get("max", 1)) == 1 else "Куплено всё (%d)." % lv]
-			if lv > 0:
-				return ["Купить ещё", inv.can_pay(d.price), "Куплено: %d из %d." % [lv, int(d.get("max", 1))]]
-	return ["Купить", inv.can_pay(d.price), ""]
-
-
-## купить пункт меню компьютера; false — не хватило ресурсов или уже куплено
-func term_buy(tab: String, id: String) -> bool:
-	var st := _term_state(tab, id)
-	var d: Dictionary = ULBase.shop()[tab][id]
-	if not st[1]:
-		if String(st[0]) in ["Купить", "Купить ещё"]:
-			say("Не хватает ресурсов: " + price_text(d.price))
-		return false
-	if not inv.pay(d.price):
-		return false
-	match tab:
-		"routes":
-			ULBase.set_route(id, "bought")
-			say("Маршрут «%s» открыт — выйдите на карту мира" % String(d.n))
-		"staff":
-			ULBase.hire(id)
-			if id == "gunsmith" and npcs.is_empty():
-				_npcs_setup()
-			say("Нанят: %s" % String(d.n))
-		"upgrades":
-			var lv := ULBase.upgrade_level(id)
-			ULBase.add_upgrade(id)
-			if id == "stash" and lv < STASH_SPOTS.size():
-				var cells := []
-				cells.resize(CRATE_SLOTS)
-				_add_crate(house.to_global(STASH_SPOTS[lv]), 0.0, cells)
-			say("Куплено: %s" % String(d.n))
-	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
-	_save()
-	_term_build()
-	return true
-
-
+## Открыть компьютер базы: полноэкранный экран ULBasePC (core/world/base_pc.gd) поверх игры
 func open_terminal() -> void:
-	var shade := ColorRect.new()
-	shade.color = Color(0, 0, 0, 0.62)
-	_hud.get_parent().add_child(shade)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_term_ui = shade
-	var pn := PanelContainer.new()
-	pn.add_theme_stylebox_override("panel", ULSettings._box(Color(0.03, 0.07, 0.05, 0.97)))
-	shade.add_child(pn)
-	pn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	pn.offset_left = 60
-	pn.offset_right = -60
-	pn.offset_top = 26
-	pn.offset_bottom = -26
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	pn.add_child(vb)
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 10)
-	vb.add_child(head)
-	var tl := _term_lbl("Компьютер базы", 24, Color(0.45, 1.0, 0.6))
-	tl.autowrap_mode = TextServer.AUTOWRAP_OFF
-	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(tl)
-	_term_wallet = []
-	for id in ULItems.MONEY:
-		var ic := TextureRect.new()
-		ic.texture = ULItems.icon(id)
-		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.custom_minimum_size = Vector2(28, 28)
-		head.add_child(ic)
-		var l := _term_lbl("", 18, C_TEXT)
-		l.custom_minimum_size.x = 30
-		head.add_child(l)
-		_term_wallet.append(l)
-	head.add_child(ULSettings.button("✕  Закрыть", func() -> void: shade.queue_free(), 150.0))
-	var tabs := HBoxContainer.new()
-	tabs.add_theme_constant_override("separation", 8)
-	vb.add_child(tabs)
-	_term_tabs = []
-	for t in TERM_TABS:
-		var tb := ULSettings.button(String(t[1]), func() -> void:
-			_term_tab = String(t[0])
-			_term_build(), 220.0)
-		tabs.add_child(tb)
-		_term_tabs.append(tb)
-	var sc := ScrollContainer.new()
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vb.add_child(sc)
-	_term_body = VBoxContainer.new()
-	_term_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_term_body.add_theme_constant_override("separation", 10)
-	sc.add_child(_term_body)
-	_term_build()
+	if _term_ui != null and is_instance_valid(_term_ui):
+		return
+	var pc := ULBasePC.new()
+	_hud.get_parent().add_child(pc)
+	pc.setup(self)
+	pc.closed.connect(func() -> void: _term_ui = null)
+	_term_ui = pc
 	snd.play("click", player.global_position + Vector3.UP * 1.0, -6.0)
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
 	_hud_touch.clear()
 
 
-func _term_build() -> void:
-	if _term_ui == null or not is_instance_valid(_term_ui):
-		return
-	for i in _term_wallet.size():
-		(_term_wallet[i] as Label).text = str(int(inv.wallet.get(ULItems.MONEY[i], 0)))
-	for i in _term_tabs.size():
-		(_term_tabs[i] as Button).modulate = Color(1, 1, 1) if String(TERM_TABS[i][0]) == _term_tab else Color(0.55, 0.62, 0.58)
-	for c in _term_body.get_children():
-		c.queue_free()
-	var items: Dictionary = ULBase.shop().get(_term_tab, {})
-	for id in items:
-		var d: Dictionary = items[id]
-		var st := _term_state(_term_tab, String(id))
-		var row := PanelContainer.new()
-		row.add_theme_stylebox_override("panel", ULSettings._box(Color(0.05, 0.11, 0.08)))
-		_term_body.add_child(row)
-		var hb := HBoxContainer.new()
-		hb.add_theme_constant_override("separation", 14)
-		row.add_child(hb)
-		if d.has("pic") and ResourceLoader.exists(String(d.pic)):
-			var pic := TextureRect.new()
-			pic.texture = load(String(d.pic))
-			pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-			pic.custom_minimum_size = Vector2(170, 110)
-			hb.add_child(pic)
-		var col := VBoxContainer.new()
-		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col.add_theme_constant_override("separation", 3)
-		hb.add_child(col)
-		col.add_child(_term_lbl(String(d.n), 21, Color(1.0, 0.86, 0.5) if not d.get("soon", false) else Color(0.6, 0.64, 0.62)))
-		if d.has("kind"):
-			col.add_child(_term_lbl("%s · существует %d минут" % [String(d.kind), int(d.get("minutes", 10))], 15, Color(0.75, 0.9, 0.35)))
-		col.add_child(_term_lbl(String(d.d), 15, Color(0.75, 0.82, 0.78)))
-		if String(st[2]) != "":
-			col.add_child(_term_lbl(String(st[2]), 15, Color(0.45, 1.0, 0.6)))
-		var right := VBoxContainer.new()
-		right.alignment = BoxContainer.ALIGNMENT_CENTER
-		right.add_theme_constant_override("separation", 6)
-		hb.add_child(right)
-		var pr := HBoxContainer.new()
-		pr.alignment = BoxContainer.ALIGNMENT_END
-		right.add_child(pr)
-		_shop_price(pr, d.price, 19, 28.0)
-		var bb := ULSettings.button(String(st[0]), term_buy.bind(_term_tab, String(id)), 170.0)
-		bb.modulate.a = 1.0 if st[1] else 0.45
-		right.add_child(bb)
+## Компьютер провёл покупку или обмен (kind — upgrade/route/exchange): оружейник встаёт за прилавок, всё сохраняется
+func pc_done(kind: String, id: String) -> void:
+	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npcs.is_empty():
+		_npcs_setup()
+	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
+	_save()
 
 
 # ---------------- торговля ----------------
@@ -5304,6 +5313,9 @@ func _fps_tick(delta: float) -> void:
 func _run_test() -> void:
 	if test == "inv":
 		await _inv_test()
+		return
+	if test == "pc":
+		await _pc_test()
 		return
 	if test == "aimdbg":
 		# отклик при стрельбе: огонь удержан, джойстик резко меняет сторону — через сколько герой идёт туда
