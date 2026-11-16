@@ -78,6 +78,8 @@ const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
 const C_TEXT := Color(0.88, 0.93, 0.97)
 
 var rig: BCCharacter
+var snd: BCSound                     ## звуки (assets/audio, источники — docs/AUDIO.md)
+var _foot := {}                       ## стопа → [нижняя точка, взведена]
 var holder: Node3D
 var cam: Camera3D
 var cur := {}
@@ -192,6 +194,9 @@ void fragment() {
 	rig = BCCharacter.new()
 	holder.add_child(rig)
 	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	snd = BCSound.new()
+	add_child(snd)
+	rig.hold.sfx.connect(_on_sfx)
 	_range()
 	cam = Camera3D.new()
 	cam.fov = 38
@@ -253,13 +258,18 @@ func _fire() -> void:
 	if h.wid == "" or h.drawn < 1.0:
 		return
 	if h.w.mode == "melee":
-		h.swing("light")
+		_swing_sfx("light", h.swing("light"))
 		return
 	var mz := h.muzzle_world()
 	h.fire()
 	if mz.is_empty():
 		return
 	var from: Vector3 = mz[0]
+	var sd: Dictionary = h.w.get("sound", {})
+	snd.play(String(sd.get("shot", "shot_ak")), from, float(sd.get("db", 0.0)), 0.04)
+	# гильза вылетает вправо и падает на землю через полсекунды
+	var foot := rig.skel.global_transform * (rig.skel.get_bone_global_pose(rig.skel.find_bone("R_Foot")).origin)
+	snd.play(String(sd.get("case", "casing")), foot + rig.global_transform.basis.x * -0.6, -10.0, 0.1, randf_range(0.42, 0.62))
 	var dir: Vector3 = mz[1]
 	var fc: Dictionary = h.w.get("fire", {})
 	for pi in int(fc.get("pellets", 1)) - 1:
@@ -280,6 +290,7 @@ func _fire() -> void:
 			rad_to_deg(atan2(dir.x, dir.z)), rad_to_deg(asin(clampf(dir.y, -1.0, 1.0)))]
 		if cm < 80.0:
 			_mark_hit(end, 0.025)
+			snd.play("hit_wood", end, -4.0, 0.08, TARGET_DIST / 343.0)
 	else:
 		last_hit = "выстрел: мимо плоскости мишени (ствол смотрит не вперёд)"
 	tracer.visible = true
@@ -292,6 +303,114 @@ func _fire() -> void:
 	tw.tween_property(flash, "light_energy", 0.0, 0.08)
 	tw.parallel().tween_interval(0.07)
 	tw.tween_callback(func(): tracer.visible = false)
+
+
+## звук механики оружия (сигнал BCWeaponHold.sfx): at — точка в системе скелета
+func _on_sfx(n: String, at: Vector3) -> void:
+	var p := rig.skel.global_transform * at
+	var w: Dictionary = rig.hold.w
+	var pistol := String(w.get("mode", "")) == "pistol"
+	var box := String(w.get("reload", {}).get("kind", "")) == "box"
+	match n:
+		"mag_out":
+			snd.play("click", p, -6.0)
+			snd.play("mag_out", p, -3.0 if not pistol else -7.0, 0.05, 0.03)
+		"mag_in":
+			snd.play("box_in" if box else "mag_in", p, -2.0)
+		"mag_slap":
+			snd.play("click", p, -8.0)
+		"bolt_back":
+			snd.play("slide_back" if pistol else "bolt_back", p, -2.0)
+			if not rig.hold.parts or not rig.hold.parts.has("mag"):        # старая перезарядка: затвор сам возвращается
+				snd.play("slide_fwd" if pistol else "bolt_fwd", p, -2.0, 0.05, 0.22)
+		"bolt_fwd":
+			snd.play("slide_fwd" if pistol else "bolt_fwd", p, -2.0)
+		"cover_open":
+			snd.play("cover_open", p, -3.0)
+		"cover_close":
+			snd.play("cover_close", p, -3.0)
+		"pouch":
+			snd.play("cloth", p, -6.0)
+		"mag_drop":
+			snd.play("mag_drop", p, -5.0, 0.1)
+		"shell_in":
+			snd.play("shell_in", p, -3.0)
+		"pump":
+			snd.play("pump", p, -2.0)
+		"grab":
+			snd.play("cloth", p, -8.0)
+		"draw_out":
+			if String(w.get("mode", "")) == "melee":
+				snd.play("swing", p, -10.0, 0.1)
+			else:
+				snd.play("click" if pistol else "cloth", p, -9.0)
+		"holster":
+			snd.play("click" if pistol else "cloth", p, -9.0)
+
+
+## звуки построенных движений: когда в клипе взмах, удар, падение
+func _action_sfx(action: String, d: float) -> void:
+	var c := rig.global_position + Vector3.UP * 1.3
+	var g := rig.global_position + Vector3.UP * 0.1
+	match action:
+		"punch_light":
+			snd.play("swoosh", c, -6.0, 0.08, d * 0.16)
+		"punch_heavy":
+			snd.play("cloth", c, -10.0, 0.08, d * 0.05)
+			snd.play("swoosh", c, -3.0, 0.08, d * 0.26)
+		"kick":
+			snd.play("cloth", c, -9.0, 0.08, d * 0.14)
+			snd.play("swoosh", c - Vector3.UP * 0.6, -3.0, 0.08, d * 0.42)
+		"hit_front":
+			snd.play("punch", c, -4.0, 0.08)
+			snd.play("hurt", c + Vector3.UP * 0.2, -2.0, 0.05, 0.05)
+		"dodge_back":
+			snd.play("cloth", c, -8.0)
+		"death":
+			snd.play("hurt", c + Vector3.UP * 0.2, 0.0, 0.05)
+			snd.play("body_fall", g, 0.0, 0.05, d * 0.55)
+		"get_up":
+			snd.play("cloth", g, -6.0, 0.08, d * 0.1)
+			snd.play("hurt", c, -12.0, 0.04, d * 0.35)
+
+
+## холодное оружие: взмах в момент удара, блок — звон
+func _swing_sfx(kind: String, len_s: float) -> void:
+	var c := rig.global_position + Vector3.UP * 1.3
+	match kind:
+		"light":
+			snd.play("swing", c, -3.0, 0.08, len_s * 0.42)
+		"heavy":
+			snd.play("swing", c, 0.0, 0.08, len_s * 0.52)
+			snd.play("cloth", c, -10.0, 0.08, len_s * 0.3)
+		"block":
+			snd.play("block", c, -6.0, 0.06, len_s * 0.18)
+
+
+## шаги — по стопам: стопа опустилась к нижней точке после того, как поднималась; на бегу — дыхание
+func _steps_sfx(speed: float) -> void:
+	if rig.probe == null or rig.probe.pos.is_empty():
+		return
+	for b in ["L_Foot", "R_Foot"]:
+		if not rig.probe.pos.has(b):
+			continue
+		var lp: Vector3 = rig.probe.pos[b]
+		var h := lp.y * rig.scale_k
+		if not _foot.has(b):
+			_foot[b] = [h, false]
+		var st: Array = _foot[b]
+		st[0] = minf(float(st[0]) + 0.0004, h)          # нижняя точка медленно «забывается»
+		if h > float(st[0]) + 0.045:
+			st[1] = true
+		elif bool(st[1]) and h < float(st[0]) + 0.018:
+			st[1] = false
+			var p: Vector3 = rig.skel.global_transform * lp
+			snd.play("step", p, -8.0 + clampf(speed, 0.0, 4.0) * 1.5, 0.08)
+		_foot[b] = st
+	if speed >= 3.0:
+		snd.loop("breath_run", rig.global_position + Vector3.UP * 1.5, -10.0)
+	else:
+		snd.loop("", Vector3.ZERO)
 
 
 func _mark_hit(at: Vector3, r: float) -> void:
@@ -326,6 +445,8 @@ const PACK_GAP := 0.085          ## спинка рюкзака позади л�
 
 
 func wear_pack(id: String) -> void:
+	if pack_node and id == "":
+		snd.play("cloth", rig.global_position + Vector3.UP * 1.2, -4.0)
 	if pack_node:
 		pack_node.queue_free()
 		pack_node = null
@@ -342,6 +463,8 @@ func wear_pack(id: String) -> void:
 	att.bone_name = "Spine02"
 	sk.add_child(att)
 	pack_node = att
+	snd.play("zip", rig.global_position + Vector3.UP * 1.2, -6.0)
+	snd.play("cloth", rig.global_position + Vector3.UP * 1.2, -4.0, 0.08, 0.3)
 	var m: Node3D = (load(String(pk.model)) as PackedScene).instantiate()
 	att.add_child(m)
 	# оси модели → оси героя: верх → вверх, спинка → к телу (вперёд героя)
@@ -438,6 +561,7 @@ func _process(delta: float) -> void:
 	_timer -= delta
 	if _timer <= 0.0:
 		_step()
+	_steps_sfx(sp)
 	if info_lbl and Engine.get_process_frames() % 6 == 0:
 		_info()
 
@@ -446,7 +570,10 @@ func _process(delta: float) -> void:
 func _step() -> void:
 	if cur.has("proc"):
 		if String(cur.proc).begins_with("swing:"):
-			_timer = rig.hold.swing(String(cur.proc).substr(6)) + 0.7
+			var sk := String(cur.proc).substr(6)
+			var sl := rig.hold.swing(sk)
+			_swing_sfx(sk, sl)
+			_timer = sl + 0.7
 			return
 		match String(cur.proc):
 			"draw":
@@ -488,6 +615,7 @@ func _step() -> void:
 		_timer = 1.2
 		return
 	var d := rig.play(String(cur.action))
+	_action_sfx(String(cur.action), d)
 	if cur.has("pre_pose"):
 		rig.set_pose("", d * 0.3)
 		_phase = 0
@@ -936,6 +1064,10 @@ func _run_test() -> void:
 			holder.queue_free()
 		get_tree().quit()
 		return
+	if test == "sound":
+		await _sound_test()
+		get_tree().quit()
+		return
 	if test == "grips":
 		await _grips_test()
 		get_tree().quit()
@@ -1303,3 +1435,33 @@ func _strip_test() -> void:
 				print("[stand] %s %.2f: шаг «%s», магазин: %s, в руке: %s, выброшен: %s" % [id, fr[k], rig.hold.reload_step, rig.hold.mag_state, str(rig.hold._prop != null and rig.hold._prop.visible), str(rig.hold._drop_node != null)])
 		Engine.time_scale = 1.0
 		await get_tree().create_timer(0.6).timeout
+
+
+## проверка звуков: движения по очереди, журнал «что прозвучало и когда»
+func _sound_test() -> void:
+	ui.visible = false
+	snd.log_on = true
+	var ids := ["walk", "run", "punch", "cross", "kick", "hit", "fall", "p_draw", "p_fire", "p_reload", "r_fire", "r_reload", "h_reload", "k_reload", "b_reload", "s_fire", "s_reload", "m_light", "m_heavy", "m_block"]
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			ids = Array(a.substr(10).split(","))
+	var sum := {}
+	for id in ids:
+		for i in ENTRIES.size():
+			if ENTRIES[i].id == id:
+				select(i)
+		snd.played.clear()
+		var t0 := Time.get_ticks_msec()
+		var dur := 5.0 if not String(id).ends_with("reload") else 7.0
+		await get_tree().create_timer(dur).timeout
+		var parts := []
+		for e in snd.played:
+			parts.append("%.2f %s" % [(int(e[0]) - t0) / 1000.0, e[1]])
+		print("[sound] %s: %s" % [id, ", ".join(parts)])
+		sum[id] = snd.played.size()
+	for pk in ["small", ""]:
+		snd.played.clear()
+		wear_pack(pk)
+		await get_tree().create_timer(0.6).timeout
+		print("[sound] рюкзак «%s»: %s" % [pk, ", ".join(snd.played.map(func(e): return e[1]))])
+	print("[sound] итог: ", sum)

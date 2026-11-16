@@ -8,6 +8,9 @@ extends SkeletonModifier3D
 ## Описание оружия и стоек — data/weapons.json. Все расчёты — в системе скелета (единицы модели, k = ед./м).
 
 const CFG := "res://data/weapons.json"
+
+## звуковое событие механики оружия: имя, точка в системе скелета
+signal sfx(n: String, at: Vector3)
 static var _all := {}
 
 var k := 1.0                      ## единиц скелета в метре
@@ -148,6 +151,7 @@ func equip(id: String, in_hands := true) -> void:
 	_drop_node = null
 	parts = null
 	_pump_t = 99.0
+	_prev_drawn = 1.0 if in_hands else 0.0
 	wid = id
 	err_r = 0.0
 	err_l = 0.0
@@ -219,7 +223,7 @@ func swing(kind: String) -> float:
 func fire() -> void:
 	_recoil_t = 0.0
 	if wid != "" and w.get("fire", {}).get("pump", false):
-		_pump_t = -0.22                          # после выстрела левая рука передёргивает цевьё
+		_pump_t = -0.38                          # после выстрела (отдача ушла) левая рука передёргивает цевьё
 
 
 ## магазин (патрон, короб) в левой руке при перезарядке и выброшенный старый магазин
@@ -257,6 +261,9 @@ func reload() -> float:
 	if wid == "" or w.mode == "melee":
 		return 0.0
 	_reload_t = 0.0
+	_rk_i = -1
+	_prev_step = ""
+	_prev_carry = false
 	return _reload_len()
 
 
@@ -348,6 +355,13 @@ func _process_modification_with_delta(delta: float) -> void:
 	# Счёт доставания: до grab правая кисть идёт к рукояти и берёт её (левая — к груди), затем оружие выходит
 	# из кобуры и идёт в стойку; левая рука встречает оружие на отрезке left.
 	var grab := float(dk.get("grab", 0.3))
+	if drawn > _prev_drawn and _prev_drawn < grab * 0.7 and drawn >= grab * 0.7:
+		sfx.emit("grab", Wh.origin)
+	if drawn > _prev_drawn and _prev_drawn < grab + 0.06 and drawn >= grab + 0.06:
+		sfx.emit("draw_out", Wh.origin)
+	if drawn < _prev_drawn and _prev_drawn > grab and drawn <= grab:
+		sfx.emit("holster", Wh.origin)
+	_prev_drawn = drawn
 	var lift := smoothstep(grab, 1.0, drawn)
 	var w_r := smoothstep(0.0, grab * 0.92, drawn)
 	var lj: Array = dk.get("left", [0.62, 1.0])
@@ -393,7 +407,7 @@ func _process_modification_with_delta(delta: float) -> void:
 			_reload_t = -1.0
 			rl = -1.0
 			if w.get("fire", {}).get("pump", false):
-				_pump_t = 0.0
+				_pump_t = -0.001
 	if rl >= 0.0:
 		var e := smoothstep(0.0, 0.18, rl) * (1.0 - smoothstep(0.82, 1.0, rl))
 		var roll := deg_to_rad(-32.0 if w.mode == "rifle" else -40.0) * e
@@ -460,6 +474,8 @@ func _process_modification_with_delta(delta: float) -> void:
 			reload_step = ""
 			_carry = false
 			if _pump_t < 0.6:
+				if _pump_t < 0.0 and _pump_t + delta >= 0.0:
+					sfx.emit("pump", W.origin)
 				_pump_t += delta
 			if rl < 0.0 and _pump() > 0.0:
 				gl[0] = (gl[0] as Vector3) + W.basis.z * (0.085 * k * _pump())
@@ -593,6 +609,11 @@ var parts: BCWeaponParts = null   ## подвижные части модели:
 var _drop_node: Node3D = null     ## выброшенный магазин (лежит на земле до следующей перезарядки)
 var _drop_v := 0.0
 var _dropped := false
+var _rk_i := -1                   ## ключ перезарядки, пройденный последним (для звуков)
+var _landed := true
+var _prev_step := ""
+var _prev_carry := false
+var _prev_drawn := 1.0
 var mag_state := ""               ## магазин: seat — в оружии, out — вынут, hand — в руке, none — нет (для проверки)
 var _vel := Vector3.ZERO          ## скорость оружия (пружина стойки)
 var _ang := Vector3.ZERO
@@ -1159,6 +1180,24 @@ func _reload_palm(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3) 
 			var u := smoothstep(0.0, 1.0, (rl - float(keys[i][0])) / maxf(float(keys[i + 1][0]) - float(keys[i][0]), 0.001))
 			_carry = bool(keys[i][2]) and bool(keys[i + 1][2])
 			reload_step = String(keys[i + 1][3])
+			if reload_step != _prev_step:
+				match reload_step:
+					"магазин вынут":
+						sfx.emit("mag_out", W * _pt(w.mag))
+					"новый магазин", "новый короб":
+						sfx.emit("pouch", W.origin)
+					"магазин вставлен", "короб пристёгнут":
+						sfx.emit("mag_in", W * _pt(w.mag))
+					"затвор":
+						sfx.emit("bolt_back", W * _pt(w.get("bolt", w.mag)))
+					"крышка":
+						sfx.emit("cover_open", W.origin)
+					"крышка закрыта":
+						sfx.emit("cover_close", W.origin)
+				_prev_step = reload_step
+			if _prev_carry and not _carry and String(w.get("reload", {}).get("kind", "")) == "shells":
+				sfx.emit("shell_in", W * _pt(w.mag))
+			_prev_carry = _carry
 			return (keys[i][1] as Vector3).lerp(keys[i + 1][1], u)
 	return base_palm
 
@@ -1263,6 +1302,10 @@ func _reload_parts(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3,
 		i += 1
 	var k0: Array = keys[i]
 	var k1: Array = keys[i + 1]
+	if i > _rk_i:
+		for j in range(_rk_i + 1, i + 1):
+			_key_events(W, keys, j)
+		_rk_i = i
 	var u := clampf((rl - float(k0[0])) / maxf(float(k1[0]) - float(k0[0]), 0.001), 0.0, 1.0)
 	var us := u * u * (3.0 - 2.0 * u)
 	reload_step = String(k1[5])
@@ -1279,9 +1322,14 @@ func _reload_parts(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3,
 		parts.show("mag", false)
 		mag_state = "none"
 	elif m0 == "none" and m1 == "none":
+		# кадр мог перескочить короткий шаг «бросить» — магазин всё равно падает, а не исчезает
+		if not _dropped:
+			_drop_mag(W, _mag_pose("out"))
 		parts.show("mag", false)
 		mag_state = "none"
 	elif m0 == "hand" or m1 == "hand":
+		if m0 == "none" and not _dropped:
+			_drop_mag(W, _mag_pose("out"))
 		# магазин в руке: горловина вперёд-вверх, как в вынутом положении, хват — в ладони
 		var show_it := not (m0 == "none" and us < 0.5)
 		parts.show("mag", show_it)
@@ -1300,6 +1348,32 @@ func _reload_parts(s: Skeleton3D, W: Transform3D, rl: float, base_palm: Vector3,
 	return palm
 
 
+## звуки перезарядки на ключе j: что закончилось к этому ключу и что с него начинается
+func _key_events(W: Transform3D, keys: Array, j: int) -> void:
+	var cur: Array = keys[j]
+	var at_mag := _mw(W, parts.center.get("mag", Vector3.ZERO))
+	if j > 0:
+		var prev: Array = keys[j - 1]
+		if String(prev[2]) in ["out", "hand"] and String(cur[2]) == "seat":
+			sfx.emit("mag_in", at_mag)
+		if String(cur[1]) == "slap":
+			sfx.emit("mag_slap", at_mag)
+		if float(prev[3]) > 0.5 and float(cur[3]) < 0.5:
+			sfx.emit("bolt_fwd", _mw(W, parts.grab_point("bolt")))
+		if float(prev[4]) > 0.5 and float(cur[4]) < 0.5:
+			sfx.emit("cover_close", _mw(W, parts.center.get("cover", Vector3.ZERO)))
+	if j < keys.size() - 1:
+		var nxt: Array = keys[j + 1]
+		if String(cur[2]) == "seat" and String(nxt[2]) == "out":
+			sfx.emit("mag_out", at_mag)
+		if String(cur[2]) == "none" and String(nxt[2]) == "hand":
+			sfx.emit("pouch", W.origin)
+		if float(cur[3]) < 0.5 and float(nxt[3]) > 0.5:
+			sfx.emit("bolt_back", _mw(W, parts.grab_point("bolt")))
+		if float(cur[4]) < 0.5 and float(nxt[4]) > 0.5:
+			sfx.emit("cover_open", _mw(W, parts.center.get("cover", Vector3.ZERO)))
+
+
 ## выброшенный магазин: копия части падает под своим весом, кувыркается и остаётся лежать
 func _drop_mag(W: Transform3D, t: Transform3D) -> void:
 	_dropped = true
@@ -1309,6 +1383,7 @@ func _drop_mag(W: Transform3D, t: Transform3D) -> void:
 	if _drop_node:
 		_drop_node.transform = Transform3D(W.basis.scaled(Vector3.ONE * _wscale), W.origin) * t
 	_drop_v = 0.0
+	_landed = false
 
 
 func _drop_fall(delta: float) -> void:
@@ -1316,6 +1391,9 @@ func _drop_fall(delta: float) -> void:
 		return
 	var h := _drop_node.transform.origin.dot(upv) / k
 	if h <= 0.03:
+		if not _landed:
+			_landed = true
+			sfx.emit("mag_drop", _drop_node.transform.origin)
 		return
 	_drop_v += 9.8 * delta
 	var T := _drop_node.transform
