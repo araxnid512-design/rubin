@@ -2,9 +2,9 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b2i1y5jokqt08"
-path.s3tc="res://.godot/imported/sparse_grass_c.jpg-66843c929da4dee262db6f3932d1a90f.s3tc.ctex"
-path.etc2="res://.godot/imported/sparse_grass_c.jpg-66843c929da4dee262db6f3932d1a90f.etc2.ctex"
+uid="uid://dgsq8sqshdw5x"
+path.s3tc="res://.godot/imported/forest_ground_04_n.jpg-cf82ff3043598a2bc80c8f56471d70c4.s3tc.ctex"
+path.etc2="res://.godot/imported/forest_ground_04_n.jpg-cf82ff3043598a2bc80c8f56471d70c4.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/world/tex/sparse_grass_c.jpg"
-dest_files=["res://.godot/imported/sparse_grass_c.jpg-66843c929da4dee262db6f3932d1a90f.s3tc.ctex", "res://.godot/imported/sparse_grass_c.jpg-66843c929da4dee262db6f3932d1a90f.etc2.ctex"]
+source_file="res://assets/world/tex/forest_ground_04_n.jpg"
+dest_files=["res://.godot/imported/forest_ground_04_n.jpg-cf82ff3043598a2bc80c8f56471d70c4.s3tc.ctex", "res://.godot/imported/forest_ground_04_n.jpg-cf82ff3043598a2bc80c8f56471d70c4.etc2.ctex"]
 
 [params]
 

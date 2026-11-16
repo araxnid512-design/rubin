@@ -2,9 +2,9 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bqjig0yobj85u"
-path.s3tc="res://.godot/imported/brown_mud_leaves_01_n.jpg-600844469ee15f68f02cb57e06610248.s3tc.ctex"
-path.etc2="res://.godot/imported/brown_mud_leaves_01_n.jpg-600844469ee15f68f02cb57e06610248.etc2.ctex"
+uid="uid://c6ooa0pp67qqs"
+path.s3tc="res://.godot/imported/grass_tuft.png-b3bdff4451e14f8bc2b3bc95cf1042d1.s3tc.ctex"
+path.etc2="res://.godot/imported/grass_tuft.png-b3bdff4451e14f8bc2b3bc95cf1042d1.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/world/tex/brown_mud_leaves_01_n.jpg"
-dest_files=["res://.godot/imported/brown_mud_leaves_01_n.jpg-600844469ee15f68f02cb57e06610248.s3tc.ctex", "res://.godot/imported/brown_mud_leaves_01_n.jpg-600844469ee15f68f02cb57e06610248.etc2.ctex"]
+source_file="res://assets/world/tex/grass_tuft.png"
+dest_files=["res://.godot/imported/grass_tuft.png-b3bdff4451e14f8bc2b3bc95cf1042d1.s3tc.ctex", "res://.godot/imported/grass_tuft.png-b3bdff4451e14f8bc2b3bc95cf1042d1.etc2.ctex"]
 
 [params]
 

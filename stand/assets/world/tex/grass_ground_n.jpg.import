@@ -2,9 +2,9 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bhi60dvlce714"
-path.s3tc="res://.godot/imported/sparse_grass_n.jpg-50ea5bc24c1e47d5b5b12c01f5e4fc2a.s3tc.ctex"
-path.etc2="res://.godot/imported/sparse_grass_n.jpg-50ea5bc24c1e47d5b5b12c01f5e4fc2a.etc2.ctex"
+uid="uid://dq8g6dbbm1puc"
+path.s3tc="res://.godot/imported/grass_ground_n.jpg-60395b3683c56fcee908fd920b6c0af6.s3tc.ctex"
+path.etc2="res://.godot/imported/grass_ground_n.jpg-60395b3683c56fcee908fd920b6c0af6.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/world/tex/sparse_grass_n.jpg"
-dest_files=["res://.godot/imported/sparse_grass_n.jpg-50ea5bc24c1e47d5b5b12c01f5e4fc2a.s3tc.ctex", "res://.godot/imported/sparse_grass_n.jpg-50ea5bc24c1e47d5b5b12c01f5e4fc2a.etc2.ctex"]
+source_file="res://assets/world/tex/grass_ground_n.jpg"
+dest_files=["res://.godot/imported/grass_ground_n.jpg-60395b3683c56fcee908fd920b6c0af6.s3tc.ctex", "res://.godot/imported/grass_ground_n.jpg-60395b3683c56fcee908fd920b6c0af6.etc2.ctex"]
 
 [params]
 

@@ -1,6 +1,6 @@
 extends Node3D
-## Стартовая локация — стабильный кластер 100×100 м (для проверки героя в мире): земля с травой, грунтовая
-## дорога к дому, деревья и кусты (модели Tripo), деревянный дом с пятью комнатами, ящики, которые можно
+## Стартовая локация — стабильный кластер 100×100 м (для проверки героя в мире): земля с травой, проплешинами
+## и вытоптанной площадкой у крыльца, деревья и кусты (модели Tripo), деревянный дом с пятью комнатами, ящики, которые можно
 ## ставить и убирать (сохраняются). Граница кластера — полоса гравия и невидимая стена.
 ## Управление: левая половина экрана — джойстик (сильнее отклонить — бег), правая — повернуть камеру, два
 ## пальца — приблизить. На компьютере — WASD, Shift — бег, мышь — то же, что палец.
@@ -8,6 +8,7 @@ extends Node3D
 
 const SIZE := 100.0               ## кластер, м
 const SAVE := "user://cluster.json"
+const SAVE_V := 2                 ## версия сохранения: старые расстановки ящиков сбрасываются
 const HOUSE_AT := Vector3(0, 0, -12)
 const C_BG := Color(0.05, 0.07, 0.09, 0.85)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
@@ -56,7 +57,6 @@ func _ready() -> void:
 			out = a.substr(9)
 	_env()
 	_ground()
-	_road()
 	house = ULHouse.new()
 	house.name = "House"
 	add_child(house)
@@ -88,7 +88,8 @@ func _env() -> void:
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 0.75
+	e.ambient_light_energy = 0.5
+	e.tonemap_exposure = 0.92
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	# дымка: за границей кластера всё тонет в мареве
 	e.fog_enabled = true
@@ -103,7 +104,7 @@ func _env() -> void:
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, 35, 0)
-	sun.light_energy = 1.2
+	sun.light_energy = 1.05
 	sun.light_color = Color(1.0, 0.96, 0.88)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 32.0
@@ -123,9 +124,160 @@ func _plane(size: Vector2, at: Vector3, tex: String, uv: float, tint := Color.WH
 	return mi
 
 
+const GROUND_SHADER := """shader_type spatial;
+// Земля кластера: живая трава, пятна сухой травы и проплешины утоптанной земли с камешками. Текстуры берутся
+// в двух масштабах под углом и смешиваются по шуму — без повторяющегося рисунка. У крыльца и вокруг фундамента
+// дома — вытоптанная земля.
+uniform sampler2D grass : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D grass_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D dry : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D dirt : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D dirt_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D noise : filter_linear, repeat_enable;
+uniform vec2 worn_c;
+uniform float worn_r = 4.0;
+uniform vec2 house_c;
+uniform vec2 house_half;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 p = wp.xz;
+	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
+	vec2 u1 = p / 3.4;
+	vec2 u2 = rot * p / 10.7;
+	float n1 = texture(noise, p / 70.0).r;
+	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
+	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
+	vec3 g = mix(texture(grass, u1).rgb, texture(grass, u2).rgb, 0.45);
+	vec3 d = mix(texture(dry, p / 3.9).rgb, texture(dry, rot * p / 12.3).rgb, 0.45);
+	vec3 e = mix(texture(dirt, p / 2.6).rgb, texture(dirt, rot * p / 8.1).rgb, 0.35);
+	float dry_w = smoothstep(0.42, 0.72, n1 * 0.65 + n3 * 0.35);
+	float dirt_w = smoothstep(0.7, 0.86, n2 * 0.55 + n3 * 0.45) * 0.8;
+	float porch = 1.0 - smoothstep(worn_r * 0.35, worn_r, distance(p, worn_c) + (n3 - 0.5) * 2.4);
+	vec2 q = max(abs(p - house_c) - house_half, vec2(0.0));
+	float ring = 1.0 - smoothstep(0.2, 1.4, length(q) + (n3 - 0.5) * 0.9);
+	dirt_w = max(dirt_w, max(porch, ring * 0.75));
+	vec3 col = mix(mix(g, d, dry_w * 0.55), e, dirt_w * 0.85);
+	col *= mix(0.86, 1.06, n1) * mix(0.94, 1.04, n2) * 0.62;
+	ALBEDO = col;
+	NORMAL_MAP = mix(mix(texture(grass_n, u1).rgb, texture(grass_n, u2).rgb, 0.45), texture(dirt_n, p / 2.6).rgb, dirt_w);
+	ROUGHNESS = 0.96;
+}
+"""
+
+
+const TUFT_SHADER := """shader_type spatial;
+render_mode cull_disabled;
+// пучок травы: три скрещённые полосы, верх колышется от ветра
+uniform sampler2D tex : source_color, filter_linear_mipmap;
+uniform float sway = 0.06;
+varying float hh;
+void vertex() {
+	hh = UV.y;
+	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float w = sin(TIME * 1.7 + wpos.x * 0.35 + wpos.z * 0.27) + 0.4 * sin(TIME * 3.1 + wpos.z * 0.9);
+	VERTEX.x += w * sway * (1.0 - UV.y);
+}
+void fragment() {
+	vec4 c = texture(tex, UV);
+	if (c.a < 0.45) { discard; }
+	// обе стороны травинки освещены как земля (нормаль вверх), иначе обратная сторона — чёрная
+	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+	ALBEDO = c.rgb * COLOR.rgb * vec3(0.62, 0.64, 0.5) * mix(0.55, 1.0, 1.0 - hh);
+	ROUGHNESS = 0.9;
+	SPECULAR = 0.1;
+}
+"""
+
+
+## пучки травы: кусками 12.5 × 12.5 м, каждый виден до 30 м (дальше хватает текстуры земли)
+func _grass() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in 3:
+		var a := PI * i / 3.0
+		var d := Vector3(cos(a), 0, sin(a)) * 0.16
+		var v := [-d, d, d + Vector3.UP * 0.24, -d + Vector3.UP * 0.24]
+		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(uv[k])
+			st.add_vertex(v[k])
+	var mesh := st.commit()
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = TUFT_SHADER
+	mat.shader = sh
+	mat.set_shader_parameter("tex", load(TEX + "grass_tuft.png"))
+	mesh.surface_set_material(0, mat)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 909
+	var n := 8
+	var cell := SIZE / n
+	for cx in n:
+		for cz in n:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_colors = true
+			mm.mesh = mesh
+			var xs: Array[Transform3D] = []
+			var cs: Array[Color] = []
+			for k in 280:
+				var p := Vector3(-SIZE * 0.5 + (cx + rng.randf()) * cell, 0, -SIZE * 0.5 + (cz + rng.randf()) * cell)
+				var hp := p - HOUSE_AT
+				if absf(hp.x) < ULHouse.W * 0.5 + 1.2 and absf(hp.z) < ULHouse.D * 0.5 + 1.2:
+					continue
+				if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5:
+					continue                                       # вытоптано у крыльца
+				var sc := rng.randf_range(0.5, 1.15)
+				xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), p))
+				var g := rng.randf_range(0.85, 1.15)
+				cs.append(Color(g, g, g * rng.randf_range(0.9, 1.05)))
+			mm.instance_count = xs.size()
+			for k in xs.size():
+				mm.set_instance_transform(k, xs[k])
+				mm.set_instance_color(k, cs[k])
+			var mi := MultiMeshInstance3D.new()
+			mi.multimesh = mm
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.visibility_range_end = 30.0
+			mi.visibility_range_end_margin = 4.0
+			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			mi.position = Vector3.ZERO
+			add_child(mi)
+
+
 func _ground() -> void:
-	# внутри кластера — трава, снаружи — другой грунт (у кластера своя «вырезанная» земля), между — гравий
-	_plane(Vector2(SIZE, SIZE), Vector3(0, 0, 0), "sparse_grass", 3.0)
+	# внутри кластера — своя земля, по краю — гравий, снаружи — другой грунт (кластер «вырезан» из своего мира)
+	var mi := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(SIZE, SIZE)
+	mi.mesh = pm
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = GROUND_SHADER
+	sm.shader = sh
+	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
+	sm.set_shader_parameter("grass_n", load(TEX + "forrest_ground_01_n.jpg"))
+	sm.set_shader_parameter("dry", load(TEX + "grass_ground_c.jpg"))
+	sm.set_shader_parameter("dirt", load(TEX + "forest_ground_04_c.jpg"))
+	sm.set_shader_parameter("dirt_n", load(TEX + "forest_ground_04_n.jpg"))
+	var nt := NoiseTexture2D.new()
+	nt.width = 256
+	nt.height = 256
+	nt.seamless = true
+	var fn := FastNoiseLite.new()
+	fn.seed = 7
+	fn.frequency = 0.012
+	fn.fractal_octaves = 3
+	nt.noise = fn
+	sm.set_shader_parameter("noise", nt)
+	sm.set_shader_parameter("worn_c", Vector2(HOUSE_AT.x, HOUSE_AT.z + ULHouse.D * 0.5 + 2.2))
+	sm.set_shader_parameter("worn_r", 4.2)
+	sm.set_shader_parameter("house_c", Vector2(HOUSE_AT.x, HOUSE_AT.z))
+	sm.set_shader_parameter("house_half", Vector2(ULHouse.W * 0.5, ULHouse.D * 0.5))
+	mi.material_override = sm
+	add_child(mi)
+	_grass()
 	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.8, 0.78, 0.74))
 	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.7, 0.66, 0.6))
 	var sb := StaticBody3D.new()
@@ -144,14 +296,6 @@ func _ground() -> void:
 		w.shape = b
 		w.position = s * (SIZE * 0.5 + 1.0) + Vector3.UP * 2.0
 		sb.add_child(w)
-
-
-func _road() -> void:
-	# грунтовка от крыльца к краю кластера
-	var z0 := HOUSE_AT.z + ULHouse.D * 0.5 + 0.3
-	var L := SIZE * 0.5 - z0
-	var mi := _plane(Vector2(3.2, L), Vector3(0, 0.01, z0 + L * 0.5), "brown_mud_leaves_01", 2.5)
-	mi.name = "Road"
 
 
 ## Дом из Tripo — по нашим стенам. Замер модели (сечение на высоте стен): стены x −0.352…+0.340 (фасад с дверью
@@ -214,7 +358,7 @@ func _flora() -> void:
 			# не на дом, не на дорогу, не на старт, не вплотную друг к другу
 			if absf(p.x - HOUSE_AT.x) < ULHouse.W * 0.5 + 4.0 and absf(p.z - HOUSE_AT.z) < ULHouse.D * 0.5 + 4.0:
 				continue
-			if absf(p.x) < 3.5 and p.z > HOUSE_AT.z:
+			if p.distance_to(Vector3(0, 0, 6)) < 4.0:
 				continue
 			var near := false
 			for q in placed:
@@ -344,8 +488,8 @@ func _process(delta: float) -> void:
 	var ins := house.contains(player.global_position)
 	if ins != house.inside:
 		house.set_inside(ins)
-	var pitch_t := 1.08 if ins else cam_pitch
-	var dist_t := minf(cam_dist, 9.0) if ins else cam_dist
+	var pitch_t := 1.2 if ins else cam_pitch
+	var dist_t := clampf(cam_dist, 9.0, 12.0) if ins else cam_dist
 	_cam_t = _cam_t.lerp(player.global_position, 1.0 - exp(-delta * 8.0))
 	var cp := Vector3(sin(cam_yaw) * cos(pitch_t), sin(pitch_t), cos(cam_yaw) * cos(pitch_t)) * dist_t
 	var look := _cam_t + Vector3.UP * 1.0
@@ -477,21 +621,23 @@ func _save() -> void:
 		arr.append([snappedf(c.position.x, 0.01), snappedf(c.position.z, 0.01), snappedf(c.rotation.y, 0.01)])
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"crates": arr}))
+		f.store_string(JSON.stringify({"v": SAVE_V, "crates": arr}))
 
 
 func _load() -> void:
 	var arr := []
+	var have := false
 	if FileAccess.file_exists(SAVE) and test == "":
 		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
-		if d is Dictionary:
+		if d is Dictionary and int(d.get("v", 1)) >= SAVE_V:
 			arr = d.get("crates", [])
-	else:
-		# первый запуск — по ящику в кладовой и сенях
-		var a := house.to_global(Vector3(4.6, 0, 3.9))
-		var b := house.to_global(Vector3(3.4, 0, 4.2))
-		var c := house.to_global(Vector3(-0.9, 0, 2.2))
-		arr = [[a.x, a.z, 0.0], [b.x, b.z, 0.3], [c.x, c.z, 1.57]]
+			have = true
+	if not have:
+		# первый запуск — два ящика в кладовой, длинной стороной вдоль наружной стены (стена x = 6, её внутренняя
+		# сторона — 5.89; ящик 0.78 в глубину — центр в 5.47)
+		for z in [2.2, 3.3]:
+			var g := house.to_global(Vector3(5.47, 0, z))
+			arr.append([g.x, g.z, 0.0])
 	for it in arr:
 		_add_crate(Vector3(float(it[0]), 0, float(it[1])), float(it[2]))
 
@@ -684,6 +830,10 @@ func _run_test() -> void:
 	cam_pitch = 0.5
 	await get_tree().create_timer(1.0).timeout
 	await _snap("w1_start")
+	cam_dist = 7.0
+	cam_pitch = 0.32
+	await get_tree().create_timer(1.0).timeout
+	await _snap("w1b_ground")
 	cam_dist = keep
 	cam_pitch = 0.92
 	# к дому, внутрь и по комнатам
