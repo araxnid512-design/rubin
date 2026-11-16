@@ -6,7 +6,7 @@
 		"pic": "enemy_infected",
 		"model": "res://assets/models/zombie.glb",
 		"height": 1.78,
-		"hp": 150,
+		"hp": 75,
 		"walk": 1.0,
 		"run": 2.9,
 		"see": 13,
@@ -24,7 +24,7 @@
 		"d": "Заражённый низшей ступени: бывший человек, которого Улей переродил. Разума нет, только голод. Медленный и слабый, опасен числом.",
 		"anim": "res://assets/anim/zombie",
 		"anim_cfg": "res://data/anim_enemy.json",
-		"close": 0.7
+		"close": 0.8
 	},
 	"lottery": {
 		"n": "Лоторейщик",
@@ -32,7 +32,7 @@
 		"pic": "enemy_lottery",
 		"model": "res://assets/models/lottery.glb",
 		"height": 1.9,
-		"hp": 400,
+		"hp": 200,
 		"walk": 1.2,
 		"run": 3.7,
 		"see": 16,
@@ -50,6 +50,6 @@
 		"d": "Заражённый на ранней стадии развития: высокий, худой, с когтями и отростками у пасти. Быстрее и крепче пустыша, слышит даже шаги.",
 		"anim": "res://assets/anim/lottery",
 		"anim_cfg": "res://data/anim_enemy.json",
-		"close": 0.74
+		"close": 0.84
 	}
 }

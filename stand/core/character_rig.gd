@@ -45,6 +45,7 @@ var _loco_pts: Array = []       ## точки смешения передвиж�
 var arms: BCArmClear
 var limbs: BCLimbAlign
 var lite := false               ## упрощённый персонаж (житель, враг): без разворота колен/локтей и рук вне тела
+var strike_ik := false          ## у упрощённого персонажа всё же есть «кисть к цели» (враг: лапа на ударе — к герою)
 var _active := true
 var _near := true               ## житель/враг ближе 12 м к герою — стопы ставятся
 var _near_t := 0.0
@@ -140,6 +141,11 @@ func setup(path := "", set_dir := "") -> void:
 		arms.name = "ArmClear"
 		skel.add_child(arms)
 		arms.setup_model(model_path, model)     # разбор сетки — один раз на модель (кеш по пути)
+		hands = BCHandIK.new()
+		hands.name = "HandIK"
+		skel.add_child(hands)
+	elif strike_ik:
+		# враг: из поправок — только «кисть к цели», чтобы лапа на ударе доставала до героя
 		hands = BCHandIK.new()
 		hands.name = "HandIK"
 		skel.add_child(hands)
@@ -321,9 +327,9 @@ func set_motion(speed: float, crouch: float, delta: float) -> void:
 	_crouch = move_toward(_crouch, crouch, delta / 0.45)
 	if tree == null:
 		return
-	# стойка ↔ движение: вес за ~0.2 с (как время смешения стойки и шага в жанре — 0.15–0.25 с)
+	# стойка ↔ движение: вес за ~0.13 с (быстрее отклик на джойстик; в жанре — 0.1–0.25 с)
 	var moving := speed > 0.12
-	_move_w = move_toward(_move_w, 1.0 if moving else 0.0, delta / 0.2)
+	_move_w = move_toward(_move_w, 1.0 if moving else 0.0, delta / 0.13)
 	var w := _move_w * _move_w * (3.0 - 2.0 * _move_w)
 	tree.set("parameters/move/blend_amount", w)
 	var bt := _loco_solve(maxf(speed, 0.05))
@@ -347,7 +353,7 @@ func set_dir_move(local: Vector2, speed: float, delta: float) -> void:
 	if tree == null or not has_dir:
 		return
 	var on := local.length() > 0.1 and speed > 0.15
-	dir_w = move_toward(dir_w, 1.0 if on else 0.0, delta / 0.18)
+	dir_w = move_toward(dir_w, 1.0 if on else 0.0, delta / 0.13)
 	if on:
 		var t := local.normalized()
 		if dir_pos.length() < 0.01:

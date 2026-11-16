@@ -34,7 +34,7 @@ var house: ULHouse
 var cam: Camera3D
 ## камера как в изометрических выживалках: неподвижна, сверху под 55°, смотрит на север (дом — вверху экрана)
 const CAM_YAW := 0.0
-const CAM_PITCH := 1.06             ## 61° — круче, ближе к виду сверху, как в DoZ Survival (было 55°)
+const CAM_PITCH := 0.91             ## 52° — с наклоном, как в DoZ Survival и Last Day on Earth (было 61°)
 var cam_dist := 12.0
 var _cam_t := Vector3.ZERO
 var crates: Array[Node3D] = []
@@ -1700,7 +1700,8 @@ func _process(delta: float) -> void:
 	# слегка отклонить — лёгкий бег, сильнее — быстрее, до полного бега
 	var speed := 0.0
 	if mag > 0.12:
-		speed = lerpf(2.0, 4.2, clampf((mag - 0.12) / 0.8, 0.0, 1.0))
+		# быстрее выходит на бег: полный бег — уже на трёх четвертях хода джойстика
+		speed = lerpf(2.4, 4.4, clampf((mag - 0.12) / 0.6, 0.0, 1.0))
 	# энергия: быстрый бег тратит её; выдохся — только лёгкий бег, пока не отдышится
 	if speed > 3.3 and not _tired:
 		en = maxf(0.0, en - 5.0 * delta)
@@ -1719,7 +1720,7 @@ func _process(delta: float) -> void:
 	var hi0 = _hand_item()
 	var gun: bool = hi0 != null and ULItems.get_def(String(hi0.id)).has("ammo") and rig.hold.wid != "" and rig.hold.drawn > 0.99
 	var fire_held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
-	aiming = gun and not _modal() and (fire_held or _aim_t < 0.5)
+	aiming = gun and not _modal() and (fire_held or _aim_t < 0.3)
 	move_mode = ""
 	var local_dir := Vector2.ZERO           # куда идёт относительно взгляда: x — влево, y — вперёд
 	if aiming:
@@ -1738,7 +1739,7 @@ func _process(delta: float) -> void:
 				move_mode = "forward"
 			local_dir = Vector2(sin(deg_to_rad(rel)), cos(deg_to_rad(rel)))
 			# вперёд — быстрее, вбок и назад — медленнее; между ними скорость меняется плавно
-			speed = minf(speed, lerpf(1.75, 3.0, clampf((cos(deg_to_rad(rel)) - 0.2) / 0.7, 0.0, 1.0)))
+			speed = minf(speed, lerpf(2.2, 3.4, clampf((cos(deg_to_rad(rel)) - 0.2) / 0.7, 0.0, 1.0)))
 	else:
 		_aim_yaw = player.rotation.y
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
@@ -1750,9 +1751,9 @@ func _process(delta: float) -> void:
 	if player.is_on_floor():
 		player.velocity.y = 0.0
 	var real := Vector3(player.velocity.x, 0, player.velocity.z).length()
-	if real > 0.2 and is_nan(_face) and not aiming and _aim_t > 0.6:
+	if real > 0.2 and is_nan(_face) and not aiming and _aim_t > 0.35:
 		var yaw := atan2(hv.x, hv.z)
-		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 18.0))
+		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 24.0))
 	# прицельное движение — шаг в сторону относительно взгляда (вперёд, боком, назад и всё между ними)
 	rig.set_dir_move(local_dir if real > 0.2 else Vector2.ZERO, real, delta)
 	rig.set_motion(real, 0.0, delta)
@@ -4388,7 +4389,7 @@ func _inv_test() -> void:
 	var to_mq := mq.global_position - player.global_position
 	var face_err := absf(angle_difference(player.rotation.y, atan2(to_mq.x, to_mq.z)))
 	var v_back := Vector3(player.velocity.x, 0, player.velocity.z)
-	_ok("стреляет и отходит: лицом к цели, пятится (шаг «назад»), медленнее бега", aiming and move_mode == "walk_back" and rig.dir_w > 0.9 and rig.dir_pos.y < -0.8 and face_err < 0.25 and v_back.x < -1.0 and v_back.length() < 1.9, "режим «%s», шаг (%.2f, %.2f), отклонение %.2f рад, скорость %.1f" % [move_mode, rig.dir_pos.x, rig.dir_pos.y, face_err, v_back.length()])
+	_ok("стреляет и отходит: лицом к цели, пятится (шаг «назад»), медленнее бега", aiming and move_mode == "walk_back" and rig.dir_w > 0.9 and rig.dir_pos.y < -0.8 and face_err < 0.25 and v_back.x < -1.0 and v_back.length() < 2.4, "режим «%s», шаг (%.2f, %.2f), отклонение %.2f рад, скорость %.1f" % [move_mode, rig.dir_pos.x, rig.dir_pos.y, face_err, v_back.length()])
 	_auto = [player.global_position + Vector3(0, 0, 20)]               # поперёк направления на цель
 	await get_tree().create_timer(0.7).timeout
 	to_mq = mq.global_position - player.global_position
@@ -4578,7 +4579,7 @@ func _inv_test() -> void:
 	var ms2 := Time.get_ticks_msec()
 	# первый заражённый готовит движения под свой скелет (при загрузке локации), следующие берут готовые
 	_ok("второй заражённый появляется без заминки (быстрее 60 мс)", ms2 - ms1 < 60, "первый %d мс, второй %d мс" % [ms1 - ms0, ms2 - ms1])
-	_ok("пустыш — в списке целей, прочность 150", targets.has(e) and float(e.get_meta("hp")) == 150.0)
+	_ok("пустыш — в списке целей, прочность %d (data/enemies.json)" % int(e.def.hp), targets.has(e) and float(e.get_meta("hp")) == float(e.def.hp) and int(e.def.hp) == 75)
 	await get_tree().create_timer(0.5).timeout
 	_ok("заметил героя ближе 13 м — бежит к нему", e.state == "chase", e.state)
 	var low := 1e9
@@ -4610,7 +4611,7 @@ func _inv_test() -> void:
 	_ok("подошёл вплотную (до 0.85 м между центрами) и ударил", hp < hp0 and dmgs.has(hp0 - hp) and gap <= 0.85, "%s: %.0f → %.0f за %.1f с, расстояние %.2f м" % [e.last_attack, hp0, hp, wait_s, gap])
 	_ok("после удара экран краснеет", _hurt_t > 0.0)
 	_damage(e, 25.0, e.global_position + Vector3.UP)
-	_ok("попадание: прочность 150 → 125, жив", is_equal_approx(e.hp, 125.0) and e.alive())
+	_ok("попадание: прочность %d → %d, жив" % [int(e.def.hp), int(e.def.hp) - 25], is_equal_approx(e.hp, float(e.def.hp) - 25.0) and e.alive())
 	_damage(e, 1000.0, e.global_position + Vector3.UP)
 	_ok("убит: падает, больше не цель для автонаведения", not e.alive() and float(e.get_meta("hp")) == 0.0 and e.collision_layer == 0)
 	# добыча: от нуля до трёх споранов
@@ -4653,7 +4654,7 @@ func _inv_test() -> void:
 	for mi in lt.rig.model.find_children("*", "MeshInstance3D", true, false):
 		var ab: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
 		top = maxf(top, ab.end.y)
-	_ok("Лоторейщик: рост 1.9 м, прочность 400, один материал", absf(top - 1.9) < 0.08 and float(lt.get_meta("hp")) == 400.0, "рост %.2f м" % top)
+	_ok("Лоторейщик: рост 1.9 м, прочность 200, один материал", absf(top - 1.9) < 0.08 and float(lt.get_meta("hp")) == 200.0, "рост %.2f м" % top)
 	await get_tree().create_timer(0.4).timeout
 	_ok("стоящего героя за 19 м не видит и не слышит", lt.state == "idle" or lt.state == "wander", lt.state)
 	# генератор мелких движений: пальцы согнуты когтями, на замахе раскрываются; отростки у пасти найдены
@@ -4698,7 +4699,7 @@ func _inv_test() -> void:
 	lt.global_position = Vector3(20.0, 0.0, 26.0)
 	player.global_position = Vector3(20.0, 0.05, 30.0)
 	_damage(lt, 60.0, lt.global_position + Vector3.UP)
-	_ok("сильное попадание (60 из 400): жив, удар сорван", lt.alive() and is_equal_approx(lt.hp, 340.0) and lt._hit_due < 0.0)
+	_ok("сильное попадание (60 из 200): жив, удар сорван", lt.alive() and is_equal_approx(lt.hp, 140.0) and lt._hit_due < 0.0)
 	_damage(lt, 1000.0, lt.global_position + Vector3.UP)
 	_ok("убит спереди — падает на спину", not lt.alive() and lt.death_clip == "death", lt.death_clip)
 	var lt2 := spawn_enemy("lottery", Vector3(20.0, 0.0, 34.0))
@@ -4943,7 +4944,7 @@ func _enemies_tick(delta: float) -> void:
 		var d := e.global_position.distance_to(p)
 		e.set_active(d < (18.0 if place == "cowshed" else 36.0))
 		if place == "cowshed":
-			e.rig.set_detail(d < 8.0)
+			e.rig.set_detail(d < 12.0)              # на экране (ближе 12 м) — полные движения и постановка стоп
 		if not e.active:
 			# Временный кластер (38 врагов): ближе 8 м — всё, 8–18 м — без стоп и мелочей, дальше — без движений тела; кто ближе 80 м или гонится за героем —
 			# думает и ходит раз в четыре кадра (за четыре кадра сразу), видит — раз в двенадцать. Дальше 80 м
@@ -6214,6 +6215,29 @@ func _run_test() -> void:
 			over += 0 if okk else 1
 			print("[perf] %s: наибольшее %s при бюджете %s — %s" % [PERF_NAMES[k], ("%.2f" % worst[k]) if k == "cpu_ms" else str(int(worst[k])), str(PERF_BUDGET[k]), "в бюджете" if okk else "ПРЕВЫШЕНО"])
 		print("[perf] итог: превышений %d" % over)
+		get_tree().quit()
+		return
+	if test == "atkview":
+		# удары врагов покадрово (для проверки, что лапа доходит до героя): --as-kind=infected|lottery
+		var kind := "infected"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind="):
+				kind = a.substr(10)
+		player.global_position = Vector3(20.0, 0.05, 30.0)
+		player.rotation.y = PI
+		hp = 100000.0
+		var e := spawn_enemy(kind, Vector3(20.0, 0.0, 26.0))
+		e.hear(player.global_position)
+		cam_dist = 6.0
+		var t0 := Time.get_ticks_msec()
+		var n := 0
+		while Time.get_ticks_msec() - t0 < 14000 and n < 40:
+			await get_tree().create_timer(0.1).timeout
+			hp = 100000.0
+			if e.state == "attack" or n > 0:
+				await _snap("k%02d_%s" % [n, e.state])
+				print("[atk] кадр %d: %s, удар «%s», лапа к герою: вес %.2f, промах %.2f м" % [n, e.state, e.last_attack, e.rig.hands.weight if e.rig.hands else -1.0, e.rig.hands.last_err if e.rig.hands else -1.0])
+				n += 1
 		get_tree().quit()
 		return
 	if test == "csview":

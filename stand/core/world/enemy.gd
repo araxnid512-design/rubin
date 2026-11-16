@@ -110,6 +110,7 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	rig = BCCharacter.new()
 	rig.name = "Rig"
 	rig.simple = true                # без поправок под оружие; движения — клипы как есть
+	rig.strike_ik = true             # лапа на ударе доводится до героя (_plan_strikes)
 	rig.built_poses = false
 	rig.stand_clamp = true
 	rig.fx_cfg = def.get("fx", {})
@@ -261,6 +262,9 @@ func damage(d: float, from := Vector3.INF) -> void:
 
 ## кадр: p — где герой, can_see — видит ли его сейчас (без стены между ними), hero_alive — жив ли герой
 func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
+	_hero_p = p
+	if not _strikes.is_empty():
+		_strike_tick(delta)
 	if state == "dead":
 		dead_t += delta
 		if _twist != INF and dead_t < 0.45:
@@ -406,11 +410,52 @@ func _start_attack(dist: float) -> void:
 	_fx_len = maxf(_hit_due, 0.15)
 	_fx_bite = bool(a.get("bite", false))
 	last_attack = String(a.n)
+	_plan_strikes(clip, len_s, _hit_due)
 	if _menace:
 		_menace = false
 		rig.set_pose("")
 	if _rng.randf() < 0.6 or _fx_bite:
 		noise.emit("roar", global_position)
+
+
+var _hero_p := Vector3.ZERO
+var _strikes: Array = []          ## [через сколько секунд, рука "L"/"R"] — лапа к герою по ходу удара
+
+
+## Удар лапой доходит до героя: клипы Tripo машут «в воздух» (широко вбок, на уровне головы), поэтому в момент удара
+## бьющая кисть доводится (IK руки) до плеча или груди героя со стороны этой руки и сразу уходит назад. Правой,
+## левой; «два удара подряд» — правой, потом левой; удар сверху — правой сверху вниз. Укусы и захваты — головой,
+## без доводки руки.
+func _plan_strikes(clip: String, len_s: float, hit_s: float) -> void:
+	_strikes.clear()
+	if rig == null or rig.hands == null:
+		return
+	match clip:
+		"attack_r", "overhead":
+			_strikes = [[hit_s, "R"]]
+		"attack_l":
+			_strikes = [[hit_s, "L"]]
+		"claw_combo":
+			_strikes = [[maxf(hit_s - len_s * 0.24, 0.12), "R"], [hit_s, "L"]]
+
+
+func _strike_tick(delta: float) -> void:
+	for st in _strikes:
+		st[0] = float(st[0]) - delta
+	# за 0.16 с до удара кисть начинает тянуться к герою
+	while not _strikes.is_empty() and float(_strikes[0][0]) <= 0.16:
+		var side := String(_strikes[0][1])
+		var lead := maxf(float(_strikes[0][0]), 0.02)
+		_strikes.pop_front()
+		var to := _hero_p - global_position
+		to.y = 0.0
+		if to.length() > 1.6:
+			continue                                   # герой отскочил — лапа рассекает воздух, как в клипе
+		var f := to.normalized()
+		var right := Vector3(-f.z, 0, f.x)                # правая рука врага (смотрит на героя): f × вверх
+		var sgn := 1.0 if side == "R" else -1.0
+		var tgt := _hero_p + Vector3.UP * (1.35 if last_attack.contains("сверху") else 1.2) - f * 0.16 + right * sgn * 0.14
+		rig.hands.reach(side, tgt, 0.0, lead, 0.07, 0.24)
 
 
 ## Обход препятствий: луч вперёд на уровне голени; упёрся (стена, забор, ящик, другой враг) — пробуются повороты
