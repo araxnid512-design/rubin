@@ -79,8 +79,8 @@ static func enemy_entries(kind: String) -> Array:
 	var g := String(d.n)
 	var out: Array = [
 		{"id": "z_idle", "g": g, "n": "Стоит, дышит"},
-		{"id": "z_alert", "g": g, "n": "Заметил героя (озирается)", "action": "look_around"},
-		{"id": "z_scream", "g": g, "n": "Крик", "action": "angry", "voice": "roar"},
+		{"id": "z_alert", "g": g, "n": "Заметил героя", "action": "alert"},
+		{"id": "z_scream", "g": g, "n": "Крик", "action": "scream", "voice": "roar"},
 		{"id": "z_walk", "g": g, "n": "Бродит", "speed": float(d.walk)},
 		{"id": "z_run", "g": g, "n": "Бежит к герою", "speed": float(d.run)},
 		{"id": "z_turn_l", "g": g, "n": "Поворот налево", "action": "turn_left"},
@@ -96,7 +96,7 @@ static func enemy_entries(kind: String) -> Array:
 		{"id": "z_stagger", "g": "Попадания", "n": "Сбит с ног (сильное попадание)", "action": "stagger"},
 		{"id": "z_death", "g": "Гибель", "n": "Падает на спину", "action": "death", "post_pose": "dead", "voice": "zdeath"},
 		{"id": "z_death_f", "g": "Гибель", "n": "Падает лицом вперёд", "action": "death_front", "post_pose": "dead_front", "voice": "zdeath"},
-		{"id": "z_death_s", "g": "Гибель", "n": "Падает от удара сбоку", "action": "death", "post_pose": "dead", "twist": true, "voice": "zdeath"},
+		{"id": "z_death_s", "g": "Гибель", "n": "Падает набок", "action": "death_side", "post_pose": "dead_side", "voice": "zdeath"},
 	]
 	return out
 
@@ -239,8 +239,10 @@ void fragment() {
 		# враг — как в игре: упрощённый персонаж, клипы как есть (перенос на его скелет — BCAnimSet._rest_fix)
 		rig.simple = true
 		rig.built_poses = false
+		rig.stand_clamp = true
 		rig.height = float(ULEnemy.KINDS[who].get("height", 1.78))
-		rig.setup(String(ULEnemy.KINDS[who].model), "res://assets/anim/hero")
+		rig.anim_cfg = String(ULEnemy.KINDS[who].get("anim_cfg", BCAnimSet.CONFIG))
+		rig.setup(String(ULEnemy.KINDS[who].model), String(ULEnemy.KINDS[who].get("anim", "res://assets/anim/hero")))
 	snd = BCSound.new()
 	add_child(snd)
 	rig.hold.sfx.connect(_on_sfx)

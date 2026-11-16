@@ -1,0 +1,220 @@
+{
+	"root_bone": "Hip",
+	"clips": {
+		"idle": {
+			"src": [
+				"{set}/z_idle.res",
+				"res://assets/anim/hero/idle.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.3,
+			"rate": 1.0,
+			"center": true,
+			"loop_fix": 0.5
+		},
+		"walk": {
+			"src": [
+				"{set}/z_walk.res",
+				"res://assets/anim/hero/walk.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"strides": 1.0,
+			"loop_fix": 0.3
+		},
+		"run": {
+			"src": [
+				"{set}/z_run.res",
+				"res://assets/anim/hero/run.res"
+			],
+			"loop": true,
+			"inplace": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"strides": 1.0,
+			"loop_fix": 0.25
+		},
+		"alert": {
+			"src": [
+				"{set}/z_alert.res",
+				"res://assets/anim/hero/look_around.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"ik": true
+		},
+		"scream": {
+			"src": [
+				"{set}/z_scream.res",
+				"res://assets/anim/hero/angry_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"ik": true
+		},
+		"turn_left": {
+			"src": [
+				"{set}/z_turn_l.res",
+				"res://assets/anim/hero/turn.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0
+		},
+		"turn_right": {
+			"src": [
+				"{set}/z_turn_r.res",
+				"res://assets/anim/hero/m_turn_right.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0
+		},
+		"attack_l": {
+			"src": [
+				"{set}/z_attack_l.res",
+				"res://assets/anim/hero/box_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"attack_r": {
+			"src": [
+				"{set}/z_attack_r.res",
+				"res://assets/anim/hero/box_02.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"bite": {
+			"src": [
+				"{set}/z_bite.res",
+				"res://assets/anim/hero/m_melee_light.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"lunge": {
+			"src": [
+				"{set}/z_mouth.res",
+				"res://assets/anim/hero/m_melee_heavy.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"hit_front": {
+			"src": [
+				"{set}/z_hit_front.res",
+				"res://assets/anim/hero/hit_to_body_01.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"hit_back": {
+			"src": [
+				"{set}/z_hit_back.res",
+				"res://assets/anim/hero/hit_to_body_02.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.12,
+			"rate": 1.0
+		},
+		"stagger": {
+			"src": [
+				"{set}/z_stagger.res",
+				"res://assets/anim/hero/m_stagger.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0
+		},
+		"death": {
+			"src": [
+				"{set}/z_death_back.res",
+				"res://assets/anim/hero/fall.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true
+		},
+		"dead": {
+			"src": [
+				"{set}/z_death_back.res",
+				"res://assets/anim/hero/fall.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true
+		},
+		"death_front": {
+			"src": [
+				"{set}/z_death_front.res",
+				"res://assets/anim/hero/defeat_03.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true
+		},
+		"dead_front": {
+			"src": [
+				"{set}/z_death_front.res",
+				"res://assets/anim/hero/defeat_03.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true
+		},
+		"death_side": {
+			"src": [
+				"{set}/z_death_side.res"
+			],
+			"loop": false,
+			"inplace": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true
+		},
+		"dead_side": {
+			"src": [
+				"{set}/z_death_side.res"
+			],
+			"loop": true,
+			"inplace": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true
+		}
+	}
+}

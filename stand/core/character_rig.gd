@@ -14,6 +14,7 @@ signal action_finished(name: String)
 
 @export var model_path := "res://assets/models/hero.glb"
 @export var anim_set := "res://assets/anim/hero"
+var anim_cfg := BCAnimSet.CONFIG              ## описание клипов (у врагов — своё: data/anim_enemy.json)
 @export var height := 1.8
 
 var model: Node3D
@@ -56,6 +57,8 @@ var probe: BCProbe              ## итоговая поза для провер
 var pose_report := []           ## замеры кисти в построенных ударах
 var built_poses := true         ## стойки и удары — построенные (false — клипы Tripo как есть)
 var simple := false             ## упрощённый персонаж (враг): без поправок рук и ног, только стопы
+var stand_clamp := false        ## всегда держать нижнюю стопу на полу (движения по описанию записаны с неточной высотой таза)
+var _gw := 0.0
 static var _lib_cache := {}     ## «модель|набор|построенные» → {lib, info, report}
 
 
@@ -88,9 +91,9 @@ func setup(path := "", set_dir := "") -> void:
 	model.add_child(ap)
 	ap.root_node = ap.get_path_to(model)
 	# библиотека клипов — одна на модель: второй такой же персонаж (ещё один заражённый) берёт готовую
-	var key := "%s|%s|%s" % [model_path, anim_set, built_poses]
+	var key := "%s|%s|%s|%s" % [model_path, anim_set, built_poses, anim_cfg]
 	var cached: bool = _lib_cache.has(key)
-	var built: Dictionary = _lib_cache[key] if cached else BCAnimSet.build(skel, model, BCAnimSet.load_config(), scale_k, anim_set)
+	var built: Dictionary = _lib_cache[key] if cached else BCAnimSet.build(skel, model, BCAnimSet.load_config(anim_cfg), scale_k, anim_set)
 	info = built.info
 	ap.add_animation_library("bc", built.lib)
 	# «вперёд» модели — по направлению шага в клипе ходьбы: поворачиваем модель так, чтобы шаг шёл по +Z узла
@@ -122,6 +125,7 @@ func setup(path := "", set_dir := "") -> void:
 	ground.name = "GroundClamp"
 	skel.add_child(ground)
 	ground.floor_y = -model.position.y / scale_k
+	ground.measure_rest.call_deferred()
 	ik = BCFootIK.new()
 	ik.name = "FootIK"
 	skel.add_child(ik)
@@ -466,7 +470,13 @@ func _process(delta: float) -> void:
 			m.active = not built_now
 	if ground:
 		var g := (_action != "" and bool(info[_action].get("ground", false))) or (_pose != "" and info.has(_pose) and bool(info[_pose].get("ground", false)))
-		ground.weight = move_toward(ground.weight, 1.0 if g else 0.0, delta * 6.0)
+		if stand_clamp:
+			# стоя и на ходу нижняя стопа — на полу (как в исходной позе), лёжа — тело на полу
+			_gw = move_toward(_gw, 1.0 if g else 0.0, delta * 6.0)
+			ground.weight = 1.0
+			ground.body_r = lerpf(ground.rest_r, 0.045, _gw)
+		else:
+			ground.weight = move_toward(ground.weight, 1.0 if g else 0.0, delta * 6.0)
 	if ik:
 		if lite:
 			# житель/враг: стопы — только рядом с героем (проверка 4 раза в секунду)

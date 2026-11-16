@@ -3641,6 +3641,16 @@ func _inv_test() -> void:
 	_ok("заражённый — в списке целей, прочность 60", targets.has(e) and float(e.get_meta("hp")) == 60.0)
 	await get_tree().create_timer(0.5).timeout
 	_ok("заметил героя ближе 13 м — бежит к нему", e.state == "chase", e.state)
+	var low := 1e9
+	var high := -1e9
+	for fi in 12:
+		await get_tree().process_frame
+		var ymin := 1e9
+		for bn in ["L_Foot", "R_Foot", "L_ToeBase", "R_ToeBase"]:
+			ymin = minf(ymin, (far.rig.skel.global_transform * far.rig.skel.get_bone_global_pose(far.rig.skel.find_bone(bn)).origin).y)
+		low = minf(low, ymin)
+		high = maxf(high, ymin)
+	_ok("стоящий враг не висит над землёй и не тонет: нижняя стопа на высоте подошвы", low > 0.0 and high < 0.09, "нижняя кость стопы: %.3f…%.3f м" % [low, high])
 	_ok("дальний (20 м) героя не видит — стоит или бродит", far.state == "idle" or far.state == "wander", far.state)
 	for en_ in enemies:
 		en_.hear(player.global_position)

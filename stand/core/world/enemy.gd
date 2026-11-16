@@ -102,11 +102,14 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	rig.name = "Rig"
 	rig.simple = true                # без поправок под оружие; движения — клипы как есть
 	rig.built_poses = false
+	rig.stand_clamp = true
 	rig.height = tall
 	add_child(rig)
 	var path := String(def.model)
 	var own := ResourceLoader.exists(path)
-	rig.setup(path if own else "res://assets/models/hero.glb", "res://assets/anim/hero")
+	# свой набор движений (снятых под эту модель) и своё описание клипов; чего в наборе нет — берётся у героя
+	rig.anim_cfg = String(def.get("anim_cfg", BCAnimSet.CONFIG))
+	rig.setup(path if own else "res://assets/models/hero.glb", String(def.get("anim", "res://assets/anim/hero")) if own else "res://assets/anim/hero")
 	if rig.ik != null and bool(def.get("no_foot_ik", false)):
 		# постановка стоп рассчитана на обутую ногу героя; босая стопа от неё встаёт на носок
 		rig.ik.queue_free()
@@ -169,8 +172,8 @@ func _notice(at: Vector3) -> void:
 	if wait > 0.0:
 		state = "alert"
 		_t = wait
-		if rig.has_clip("angry"):
-			rig.play("angry", rig.clip_len("angry") / maxf(wait + 0.5, 0.3))
+		if rig.has_clip("scream"):
+			rig.play("scream", rig.clip_len("scream") / maxf(wait + 0.5, 0.3))
 		noise.emit("roar", global_position)
 	else:
 		state = "chase"
@@ -216,9 +219,11 @@ func damage(d: float, from := Vector3.INF) -> void:
 		rig.set_motion(0.0, 0.0, 0.016)
 		# ударили спереди — валится на спину; сзади — лицом вперёд; сбоку — разворачивает к удару и валит от него
 		var clip := "death_front" if side == "back" and rig.has_clip("death_front") else "death"
-		var pose := "dead_front" if clip == "death_front" else "dead"
+		if side == "side" and rig.has_clip("death_side"):
+			clip = "death_side"                      # своё падение набок
+		var pose: String = {"death": "dead", "death_front": "dead_front", "death_side": "dead_side"}[clip]
 		death_clip = clip if side != "side" else "death_side"
-		if side == "side":
+		if side == "side" and clip != "death_side":
 			var tv := from - global_position
 			_twist = atan2(tv.x, tv.z)
 		if rig.has_clip(clip):
@@ -324,7 +329,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				_atk = float(def.cd)
 				var list: Array = def.get("attacks", [])
 				var a: Dictionary = list[_rng.randi() % list.size()] if not list.is_empty() else {"clip": "melee_light", "dmg": float(def.dmg), "hit": 0.45, "n": "удар"}
-				var clip := String(a.clip) if rig.has_clip(String(a.clip)) else "punch_light"
+				var clip := String(a.clip) if rig.has_clip(String(a.clip)) else "attack_r"
 				var len_s := rig.play(clip, float(a.get("rate", 1.0)))
 				_hit_due = len_s * float(a.get("hit", 0.45))
 				_hit_dmg = float(a.dmg)

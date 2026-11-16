@@ -83,10 +83,10 @@ static func _rest_fix(skel: Skeleton3D, set_dir: String) -> Dictionary:
 	return d
 
 
-static func load_config() -> Dictionary:
-	var f := FileAccess.open(CONFIG, FileAccess.READ)
+static func load_config(path := CONFIG) -> Dictionary:
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		push_error("BCAnimSet: нет " + CONFIG)
+		push_error("BCAnimSet: нет " + path)
 		return {}
 	var d = JSON.parse_string(f.get_as_text())
 	return d if d is Dictionary else {}
@@ -132,15 +132,18 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 	var skel_path := String(ap_root.get_path_to(skel))
 	var clips: Dictionary = cfg.get("clips", {})
 	var root_bone: String = cfg.get("root_bone", "Hip")
-	var fix := _rest_fix(skel, set_dir)
+	# поправка под чужой скелет — своя для каждой папки-источника: клипы, снятые с этой же модели (её собственный
+	# набор), идут как есть, а взятые из набора героя — пересчитываются
+	var fixes := {}
 	# «вперёд» модели — по клипу ходьбы (нужно для зеркалирования)
 	var mirror_fwd := Vector3.RIGHT
 	if clips.has("walk"):
 		for spec in clips.walk.get("src", []):
-			var wa := _source(String(spec).replace("{set}", set_dir))
+			var wp := String(spec).replace("{set}", set_dir)
+			var wa := _source(wp)
 			if wa:
 				var tmp: Animation = wa.duplicate(true)
-				_retarget(tmp, skel, skel_path, fix, root_bone)
+				_retarget(tmp, skel, skel_path, _fix_for(fixes, skel, wp), root_bone)
 				var rr := _strip_root(tmp, skel, root_bone)
 				if rr[1] != Vector3.ZERO:
 					mirror_fwd = rr[1]
@@ -148,14 +151,16 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 	for clip_name in clips:
 		var c: Dictionary = clips[clip_name]
 		var src: Animation = null
+		var src_path := ""
 		for spec in c.get("src", []):
-			src = _source(String(spec).replace("{set}", set_dir))
+			src_path = String(spec).replace("{set}", set_dir)
+			src = _source(src_path)
 			if src:
 				break
 		if src == null:
 			continue
 		var a: Animation = src.duplicate(true)
-		_retarget(a, skel, skel_path, fix, root_bone)
+		_retarget(a, skel, skel_path, _fix_for(fixes, skel, src_path), root_bone)
 		if c.get("reverse", false):
 			a = _reverse(a)
 		var t0: float = c.get("from", 0.0)
@@ -188,6 +193,13 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			"blend": c.get("blend", 0.2), "rate": c.get("rate", 1.0), "lock": c.get("lock", true), "native": speed, "dir": dir,
 			"phase": c.get("phase", 0.0), "strides": c.get("strides", 0.0), "ik": c.get("ik", false), "off": c.get("off", false), "ground": c.get("ground", false)}
 	return {"lib": lib, "info": info}
+
+
+static func _fix_for(fixes: Dictionary, skel: Skeleton3D, path: String) -> Dictionary:
+	var dir := path.split("#")[0].get_base_dir()
+	if not fixes.has(dir):
+		fixes[dir] = _rest_fix(skel, dir)
+	return fixes[dir]
 
 
 ## пути дорожек «…/Skeleton3D:Кость» → путь к нашему скелету; дорожки масштаба и чужие кости — прочь

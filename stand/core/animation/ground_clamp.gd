@@ -9,6 +9,21 @@ var weight := 0.0                 ## 0 — не трогать, 1 — прижа
 var floor_y := 0.0                ## пол в системе скелета
 var body_r := 0.045               ## «толщина» тела у кости, ед. скелета (кость — внутри тела)
 var last_shift := 0.0             ## на сколько сдвинуто, ед. (для проверки)
+var rest_r := 0.0                 ## на какой высоте над полом самая низкая кость в исходной позе (стоит на подошвах)
+
+
+## замер исходной позы: высота самой низкой кости над полом — так стоят стопы, когда подошвы на полу
+func measure_rest() -> void:
+	var s := get_skeleton()
+	if s == null:
+		return
+	if _root < 0:
+		_setup()
+	var mn := 1e9
+	for i in s.get_bone_count():
+		if not _skip.has(i):
+			mn = minf(mn, s.get_bone_global_rest(i).origin.y)
+	rest_r = maxf(mn - floor_y, 0.0)
 var _root := -1
 var _skip := {}
 
