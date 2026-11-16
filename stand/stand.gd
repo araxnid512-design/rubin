@@ -435,12 +435,6 @@ func _mark_hit(at: Vector3, r: float) -> void:
 
 ## Рюкзаки героя (модели Tripo, assets/packs). Подгонка под тело — core/pack_fit.gd: свои лямки модели убираются,
 ## поясной ремень большого рюкзака оборачивается вокруг бёдер и идёт за тазом, корпус — за грудью.
-const PACKS := {
-	"small": {"n": "Малый рюкзак", "slots": 8, "model": "res://assets/packs/bp_small.glb", "back": "-z", "panel": 0.04, "contact": 0.06, "cut": 0.06, "h": 0.46, "top": 0.03, "tint": 0.85},
-	"medium": {"n": "Средний рюкзак", "slots": 12, "model": "res://assets/packs/bp_medium.glb", "back": "-x", "panel": 0.2, "contact": 0.25, "cut": 0.06, "h": 0.58, "top": 0.06, "tint": 0.62},
-	"large": {"n": "Большой рюкзак", "slots": 20, "model": "res://assets/packs/bp_large.glb", "back": "-x", "panel": 0.05, "contact": 0.17, "cut": 0.05, "h": 0.76, "tint": 0.7,
-		"belt": {"top": 0.155, "y": 0.075, "at": 0.03}, "ride": [0.7, 0.3]},
-}
 
 
 func wear_pack(id: String) -> void:
@@ -454,7 +448,7 @@ func wear_pack(id: String) -> void:
 		(p_btns[kk] as Button).add_theme_color_override("font_color", Color(0.45, 0.95, 1.0) if kk == id else C_TEXT)
 	if id == "":
 		return
-	var mi := BCPackFit.build(rig, PACKS[id])
+	var mi := BCPackFit.build(rig, BCPackFit.PACKS[id])
 	rig.skel.add_child(mi)
 	mi.skeleton = mi.get_path_to(rig.skel)          # без ссылки на скелет рюкзак стоит в позе покоя
 	pack_node = mi
@@ -885,7 +879,7 @@ func _info() -> void:
 	if last_hit != "" and h.wid != "" and h.w.mode != "melee":
 		parts.append(last_hit)
 	if pack != "":
-		parts.append("%s, ячеек: %d" % [PACKS[pack].n, PACKS[pack].slots])
+		parts.append("%s, ячеек: %d" % [BCPackFit.PACKS[pack].n, BCPackFit.PACKS[pack].slots])
 	parts.append("%d кадров/с" % Engine.get_frames_per_second())
 	info_lbl.text = " · ".join(parts)
 

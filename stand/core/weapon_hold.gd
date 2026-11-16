@@ -327,7 +327,9 @@ func _process_modification_with_delta(delta: float) -> void:
 	# достать / убрать
 	if _draw_dir != 0.0:
 		drawn = clampf(drawn + _draw_dir * delta / float(w.get("holster", {}).get("time", 0.9)), 0.0, 1.0)
-		if drawn <= 0.0 or drawn >= 1.0:
+		# остановиться — только дойдя до конца в свою сторону (иначе кадр с нулевым временем на старте
+		# сбрасывал доставание, и оружие оставалось убранным)
+		if (_draw_dir > 0.0 and drawn >= 1.0) or (_draw_dir < 0.0 and drawn <= 0.0):
 			_draw_dir = 0.0
 	if _hip < 0:
 		_hip = s.find_bone("Hip")

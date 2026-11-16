@@ -48,8 +48,8 @@ func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
 	add_child(inner)
 	var wall_mat := _mat(wall_tex, 1.6)
 	var floor_mat := _mat(floor_tex, 2.0)
-	floor_mat.albedo_color = Color(0.62, 0.58, 0.52)          # доски пола — темнее, иначе сверху почти белые
-	wall_mat.albedo_color = Color(0.85, 0.8, 0.74)
+	floor_mat.albedo_color = Color(0.85, 0.8, 0.72)          # доски пола — темнее, иначе сверху почти белые
+	wall_mat.albedo_color = Color(1.0, 0.95, 0.88)
 	# пол
 	var fl := MeshInstance3D.new()
 	var bm := BoxMesh.new()
@@ -127,6 +127,10 @@ func _wall_piece(body: StaticBody3D, a: Vector2, dir: Vector2, s0: float, s1: fl
 	mi.transform = Transform3D(xf.basis, Vector3(mid.x, FLOOR_Y + CUT * 0.5, mid.y))
 	inner.add_child(mi)
 	_cut_walls.append(mi)
+	# стена поперёк взгляда камеры (камера стоит с +z) — может заслонять героя
+	mi.set_meta("front", absf(dir.x) > 0.5)
+	mi.set_meta("z", mid.y)
+	mi.set_meta("h", CUT)
 
 
 func _box_col(body: StaticBody3D, size: Vector3, at: Vector3) -> void:
@@ -168,3 +172,20 @@ func set_inside(v: bool) -> void:
 ## дверь (снаружи, перед крыльцом), в системе мира
 func door_point(out := 1.2) -> Vector3:
 	return to_global(Vector3(0, 0, D * 0.5 + out))
+
+
+## стены между камерой (она с +z) и героем опускаются до LOW — героя и комнату за ними видно; остальные — CUT
+const LOW := 0.4
+
+
+func update_walls(player_world: Vector3, delta: float) -> void:
+	if not inside:
+		return
+	var pz := to_local(player_world).z
+	var a := 1.0 - exp(-delta * 10.0)
+	for mi in _cut_walls:
+		var want := LOW if bool(mi.get_meta("front")) and float(mi.get_meta("z")) > pz + 0.2 else CUT
+		var h := lerpf(float(mi.get_meta("h")), want, a)
+		mi.set_meta("h", h)
+		mi.scale = Vector3(1, h / CUT, 1)
+		mi.position.y = FLOOR_Y + h * 0.5

@@ -2,13 +2,16 @@ extends Node3D
 ## Стартовая локация — стабильный кластер 100×100 м (для проверки героя в мире): земля с травой, проплешинами
 ## и вытоптанной площадкой у крыльца, деревья и кусты (модели Tripo), деревянный дом с пятью комнатами, ящики, которые можно
 ## ставить и убирать (сохраняются). Граница кластера — полоса гравия и невидимая стена.
-## Управление: левая половина экрана — джойстик (сильнее отклонить — бег), правая — повернуть камеру, два
-## пальца — приблизить. На компьютере — WASD, Shift — бег, мышь — то же, что палец.
+## Управление: левая часть экрана — джойстик (слегка — лёгкий бег, сильнее — быстрее), справа — круглые кнопки:
+## действие (появляется у подсвеченного предмета; можно нажать и на сам предмет), инвентарь, оружие. Камера неподвижна, сверху,
+## следует за героем; два пальца — приблизить. На компьютере — WASD, Shift — бег, E — действие, I — инвентарь,
+## Q — оружие, колесо — приблизить.
 ## Проверка: --as-test=world --as-out=папка — обход локации и дома по точкам, снимки и журнал.
 
 const SIZE := 100.0               ## кластер, м
 const SAVE := "user://cluster.json"
-const SAVE_V := 2                 ## версия сохранения: старые расстановки ящиков сбрасываются
+const SAVE_V := 3                 ## версия сохранения: 3 — инвентарь, предметы на земле, вещи в ящиках
+const CRATE_SLOTS := 12
 const HOUSE_AT := Vector3(0, 0, -12)
 ## двор вокруг дома: от дома x0, z0, x1, z1 (м); калитка — спереди посередине
 const YARD := [-11.0, -9.0, 11.0, 10.0]
@@ -29,27 +32,37 @@ var rig: BCCharacter
 var snd: BCSound
 var house: ULHouse
 var cam: Camera3D
-var cam_yaw := 0.0                ## камера смотрит вдоль −Z (на дом)
-var cam_pitch := 1.0               ## камера сверху (≈57°); горизонт и небо в кадр не попадают
-var cam_dist := 13.0
+## камера как в изометрических выживалках: неподвижна, сверху под 55°, смотрит на север (дом — вверху экрана)
+const CAM_YAW := 0.0
+const CAM_PITCH := 0.96
+var cam_dist := 15.0
 var _cam_t := Vector3.ZERO
 var crates: Array[Node3D] = []
 var _crate_scene: PackedScene = null
 var _joy_id := -1
 var _joy_o := Vector2.ZERO
 var _joy_v := Vector2.ZERO
-var _cam_id := -1
 var _touch := {}
 var _pinch := 0.0
-var _run_btn := false
-var _pack_i := 0
 var info: Label
-var joy_ui: Control
 var test := ""
 var out := "user://world"
 var _auto: Array = []             ## проверка: точки, к которым герой идёт сам
-var _auto_cb: Callable
 var _steps := {}
+var inv: ULInventory
+var inv_ui: ULInventoryUI
+var ground: Array = []            ## предметы на земле: {item, node}
+var _target = null                ## ближайшее, с чем можно что-то сделать: {"type": "ground"/"crate", …}
+var _open_ground = null           ## открытый рюкзак на земле (запись из ground)
+var _hud: Control
+var _hud_btns := {}               ## имя → [центр, радиус, подпись]
+var _hud_touch := {}              ## палец → кнопка
+var _pack_shown := ""
+var _preview_vp: SubViewport
+var _preview_rig: BCCharacter
+var _preview_pack := ""
+var _toast: Label
+var _toast_t := 0.0
 
 
 func _ready() -> void:
@@ -68,11 +81,14 @@ func _ready() -> void:
 	_fit_shell()
 	_yard()
 	_flora()
+	_blob_layer()
 	_player()
+	inv = ULInventory.new()
 	_ui()
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
 		_crate_scene = load(MODELS + "ul_crate.glb")
 	_load()
+	_apply_gear()
 	if test != "":
 		_run_test.call_deferred()
 
@@ -94,7 +110,7 @@ func _env() -> void:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.22, 0.22, 0.17)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 0.42
+	e.ambient_light_energy = 0.7
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_exposure = 1.12
 	e.tonemap_white = 6.0
@@ -113,12 +129,9 @@ func _env() -> void:
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-56, 38, 0)
-	sun.light_energy = 1.18
+	sun.light_energy = 1.05
 	sun.light_color = Color(1.0, 0.95, 0.86)
-	sun.shadow_enabled = true
-	sun.shadow_blur = 1.4
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_max_distance = 40.0
+	sun.shadow_enabled = false            # без теней — быстрее; под героем и деревьями — мягкие пятна
 	add_child(sun)
 
 
@@ -518,6 +531,9 @@ func _multi(xs: Array[Transform3D], mesh: Mesh, mat: Material) -> MultiMeshInsta
 	return mi
 
 
+var _blobs: Array[Transform3D] = []
+
+
 func _flora() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2611
@@ -559,6 +575,7 @@ func _flora() -> void:
 			node.rotation.y = rng.randf() * TAU
 			node.position = p
 			add_child(node)
+			_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * h * (0.5 if f[0] != "ul_bush" else 0.9)), p + Vector3.UP * 0.03))
 			if float(f[3]) > 0.0:
 				var cs := CollisionShape3D.new()
 				var cy := CylinderShape3D.new()
@@ -596,6 +613,39 @@ func _fallback_tree(h: float, bush: bool) -> Node3D:
 	return n
 
 
+
+
+## мягкие пятна тени под деревьями и кустами (тени от солнца выключены ради скорости)
+func _blob_tex() -> Texture2D:
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, 0.5))
+	g.set_color(1, Color(0, 0, 0, 0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	gt.width = 64
+	gt.height = 64
+	return gt
+
+
+func _blob_mat() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_texture = _blob_tex()
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	return m
+
+
+func _blob_layer() -> void:
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1, 1)
+	var mi := _multi(_blobs, pm, _blob_mat())
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
 # ---------------- герой ----------------
 
 func _player() -> void:
@@ -613,14 +663,22 @@ func _player() -> void:
 	rig = BCCharacter.new()
 	player.add_child(rig)
 	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	var blob := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1.1, 1.1)
+	blob.mesh = pm
+	blob.material_override = _blob_mat()
+	blob.position.y = 0.03
+	player.add_child(blob)
 	snd = BCSound.new()
 	add_child(snd)
+	rig.hold.sfx.connect(_on_sfx)
 	player.position = Vector3(0, 0.1, 3)
 	player.rotation.y = PI                       # лицом к дому
 	cam = Camera3D.new()
-	cam.fov = 40
-	cam.near = 0.1
-	cam.far = 220
+	cam.fov = 38
+	cam.near = 0.3
+	cam.far = 120
 	add_child(cam)
 	cam.current = true
 	_cam_t = player.position
@@ -628,7 +686,7 @@ func _player() -> void:
 
 func _input_vec() -> Vector2:
 	var v := _joy_v
-	var k := Vector2(Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left"), Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up"))
+	var k := Vector2.ZERO
 	for key in [[KEY_W, Vector2(0, -1)], [KEY_S, Vector2(0, 1)], [KEY_A, Vector2(-1, 0)], [KEY_D, Vector2(1, 0)]]:
 		if Input.is_physical_key_pressed(key[0]):
 			k += key[1]
@@ -636,20 +694,22 @@ func _input_vec() -> Vector2:
 		v = k.normalized() * (1.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 0.6)
 	if not _auto.is_empty():
 		v = _auto_vec()
+	if inv_ui and inv_ui.visible:
+		v = Vector2.ZERO
 	return v
 
 
 func _process(delta: float) -> void:
 	var iv := _input_vec()
-	# направление — относительно камеры: «вверх» на джойстике — от камеры вперёд
-	var fwd := Vector3(-sin(cam_yaw), 0, -cos(cam_yaw))
+	# «вверх» на джойстике — от камеры вперёд (на север)
+	var fwd := Vector3(-sin(CAM_YAW), 0, -cos(CAM_YAW))
 	var right := Vector3(-fwd.z, 0, fwd.x)
 	var dir := right * iv.x - fwd * iv.y
 	var mag := clampf(iv.length(), 0.0, 1.0)
-	var run := mag > 0.85 or _run_btn
+	# слегка отклонить — лёгкий бег, сильнее — быстрее, до полного бега
 	var speed := 0.0
 	if mag > 0.12:
-		speed = 3.6 if run else lerpf(0.9, 1.6, clampf((mag - 0.12) / 0.6, 0.0, 1.0))
+		speed = lerpf(2.0, 4.2, clampf((mag - 0.12) / 0.8, 0.0, 1.0))
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
 	var hv := Vector3(player.velocity.x, 0, player.velocity.z)
 	hv = hv.move_toward(want, delta * (14.0 if want.length() > hv.length() else 10.0))
@@ -662,34 +722,51 @@ func _process(delta: float) -> void:
 		var yaw := atan2(hv.x, hv.z)
 		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 10.0))
 	rig.set_motion(real, 0.0, delta)
+	_body_pose(real)
 	_steps_sfx(real)
-	# в доме: крыша и стены Tripo скрыты, видны комнаты, камера круче
+	# в доме: дом Tripo и крыша скрыты, видны комнаты, передние стены опущены
 	var ins := house.contains(player.global_position)
 	if ins != house.inside:
 		house.set_inside(ins)
-	var pitch_t := maxf(1.2, cam_pitch) if ins else cam_pitch
-	var dist_t := clampf(cam_dist, 9.0, 12.0) if ins else cam_dist
+	house.update_walls(player.global_position, delta)
+	var dist_t := minf(cam_dist, 13.0) if ins else cam_dist
 	_cam_t = _cam_t.lerp(player.global_position, 1.0 - exp(-delta * 8.0))
-	var cp := Vector3(sin(cam_yaw) * cos(pitch_t), sin(pitch_t), cos(cam_yaw) * cos(pitch_t)) * dist_t
-	var look := _cam_t + Vector3.UP * 1.0
+	var cp := Vector3(sin(CAM_YAW) * cos(CAM_PITCH), sin(CAM_PITCH), cos(CAM_YAW) * cos(CAM_PITCH)) * dist_t
+	var look := _cam_t + Vector3.UP * 0.8
 	cam.global_position = cam.global_position.lerp(look + cp, 1.0 - exp(-delta * 6.0)) if _cam_ready else look + cp
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
+	_find_target()
 	if info and Engine.get_process_frames() % 10 == 0:
-		info.text = "%s · %s · ящиков: %d · %d кадров/с" % [_where(), "бег" if real > 2.5 else ("шаг" if real > 0.2 else "стоит"), crates.size(), Engine.get_frames_per_second()]
-	if joy_ui:
-		joy_ui.queue_redraw()
-	# надписи комнат на полу — всегда читаются с той стороны, откуда смотрит камера
+		info.text = "%s · %d кадров/с" % [_where(), Engine.get_frames_per_second()]
+	if _hud:
+		_hud.queue_redraw()
 	for lb in house.labels:
-		lb.basis = Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, -PI * 0.5)
+		lb.basis = Basis(Vector3.UP, CAM_YAW) * Basis(Vector3.RIGHT, -PI * 0.5)
+	if _toast_t > 0.0:
+		_toast_t -= delta
+		_toast.modulate.a = clampf(_toast_t, 0.0, 1.0)
+	if _preview_rig and inv_ui.visible and _preview_rig.hold.wid != "":
+		_preview_rig.set_motion(0.0, 0.0, delta)
 
 
 var _cam_ready := false
+var _pose_now := "?"
+
+
+## стойка: с оружием в руках — стойка стрелка, иначе обычная; на ходу — клипы передвижения
+func _body_pose(speed: float) -> void:
+	var want := ""
+	if speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
+		want = "armed_idle"
+	if want != _pose_now:
+		_pose_now = want
+		rig.set_pose(want)
 
 
 func _where() -> String:
 	if not house.contains(player.global_position):
-		return "кластер, улица"
+		return "кластер, двор" if _in_yard(player.global_position) else "кластер, улица"
 	var l := house.to_local(player.global_position)
 	var best := ""
 	var bd := 1e9
@@ -700,6 +777,11 @@ func _where() -> String:
 			bd = d
 			best = r[0]
 	return "дом, " + best.to_lower()
+
+
+func _in_yard(p: Vector3) -> bool:
+	var h := p - HOUSE_AT
+	return h.x > YARD[0] and h.x < YARD[2] and h.z > YARD[1] and h.z < YARD[3]
 
 
 func _steps_sfx(speed: float) -> void:
@@ -726,25 +808,299 @@ func _steps_sfx(speed: float) -> void:
 		snd.loop("", Vector3.ZERO)
 
 
-# ---------------- ящики ----------------
+## звуки механики оружия (достать, убрать)
+func _on_sfx(n: String, at: Vector3) -> void:
+	var p := rig.skel.global_transform * at
+	match n:
+		"grab", "pouch":
+			snd.play("cloth", p, -8.0)
+		"draw_out", "holster":
+			snd.play("click" if String(rig.hold.w.get("mode", "")) == "pistol" else "cloth", p, -9.0)
+
+
+# ---------------- снаряжение на герое ----------------
+
+## надетый рюкзак и оружие в руках — на героя (и на героя в окне инвентаря)
+func _apply_gear() -> void:
+	var pid := String(ULItems.get_def(String(inv.pack.id)).pack) if inv.pack != null else ""
+	if pid != _pack_shown:
+		_pack_shown = pid
+		_wear(rig, pid)
+	var wid := _hand_weapon()
+	if wid != rig.hold.wid:
+		if wid == "":
+			rig.hold.put_away()
+			get_tree().create_timer(1.0).timeout.connect(func():
+				if _hand_weapon() == "" and rig.hold.wid != "":
+					rig.hold.equip(""))
+		else:
+			rig.hold.equip(wid, false)
+			rig.hold.set_stance("ready")
+			rig.hold.draw()
+	_update_preview()
+
+
+func _hand_weapon() -> String:
+	if inv.hand == "":
+		return ""
+	var it = inv.get(inv.hand)
+	return String(ULItems.get_def(String(it.id)).weapon) if it != null else ""
+
+
+func _wear(r: BCCharacter, pid: String) -> void:
+	for c in r.skel.get_children():
+		if c.name == "Pack":
+			c.queue_free()
+	if pid == "":
+		return
+	var mi := BCPackFit.build(r, BCPackFit.PACKS[pid])
+	r.skel.add_child(mi)
+	mi.skeleton = mi.get_path_to(r.skel)
+
+
+## кнопка «Оружие»: основное → пистолет → убрать (только то, что есть в слотах)
+func cycle_weapon() -> void:
+	var order := []
+	if inv.primary != null:
+		order.append("primary")
+	if inv.pistol != null:
+		order.append("pistol")
+	order.append("")
+	var i := order.find(inv.hand)
+	inv.hand = order[(i + 1) % order.size()]
+	if inv.hand == "" and order.size() == 1:
+		say("Нет оружия в слотах")
+	_apply_gear()
+	_save()
+
+
+# ---------------- герой в окне инвентаря ----------------
+
+func _make_preview() -> void:
+	_preview_vp = SubViewport.new()
+	_preview_vp.size = Vector2i(400, 580)
+	_preview_vp.own_world_3d = true
+	_preview_vp.transparent_bg = true
+	_preview_vp.msaa_3d = Viewport.MSAA_4X
+	_preview_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(_preview_vp)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_CLEAR_COLOR
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.75, 0.8, 0.9)
+	e.ambient_light_energy = 0.6
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_exposure = 1.1
+	env.environment = e
+	_preview_vp.add_child(env)
+	for r in [[Vector3(-30, -30, 0), 1.2], [Vector3(-15, 150, 0), 0.7]]:
+		var l := DirectionalLight3D.new()
+		l.rotation_degrees = r[0]
+		l.light_energy = r[1]
+		_preview_vp.add_child(l)
+	var stand := Node3D.new()
+	_preview_vp.add_child(stand)
+	_preview_rig = BCCharacter.new()
+	stand.add_child(_preview_rig)
+	_preview_rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	_preview_rig.rotation.y = -0.35
+	# пол: тёмный круг
+	var disc := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.55
+	cm.bottom_radius = 0.55
+	cm.height = 0.02
+	disc.mesh = cm
+	var dm := StandardMaterial3D.new()
+	dm.albedo_color = Color(0.12, 0.15, 0.18)
+	disc.material_override = dm
+	stand.add_child(disc)
+	var c := Camera3D.new()
+	c.fov = 28
+	c.position = Vector3(0, 1.0, 4.3)
+	_preview_vp.add_child(c)
+	c.look_at(Vector3(0, 0.9, 0), Vector3.UP)
+	c.current = true
+
+
+func _update_preview() -> void:
+	if _preview_rig == null:
+		return
+	var pid := String(ULItems.get_def(String(inv.pack.id)).pack) if inv.pack != null else ""
+	if pid != _preview_pack:
+		_preview_pack = pid
+		_wear(_preview_rig, pid)
+	var wid := _hand_weapon()
+	if wid != _preview_rig.hold.wid:
+		_preview_rig.hold.equip(wid, true)
+		if wid != "":
+			_preview_rig.hold.set_stance("ready")
+	_preview_rig.set_pose("armed_idle" if wid != "" else "")
+
+
+func _preview_on(on: bool) -> void:
+	if _preview_vp == null:
+		return
+	_preview_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
+	_preview_vp.get_child(0).get_parent().process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+
+
+# ---------------- инвентарь ----------------
+
+func open_inventory(container = null, title := "", is_pack := false) -> void:
+	if _preview_vp == null:
+		_make_preview()
+	_preview_on(true)
+	_update_preview()
+	inv_ui.preview_tex = _preview_vp.get_texture()
+	inv_ui.open(inv, container, title, is_pack)
+	_hud.visible = false
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+	_touch.clear()
+	snd.play("zip", player.global_position + Vector3.UP * 1.2, -12.0)
+
+
+func close_inventory() -> void:
+	inv_ui.visible = false
+	_hud.visible = true
+	_open_ground = null
+	_preview_on(false)
+	_sync_ground_visuals()
+	_save()
+
+
+func _on_inv_changed() -> void:
+	_apply_gear()
+	_sync_ground_visuals()
+	_save()
+
+
+## выбросить на землю перед героем (по кругу, чтобы предметы не ложились друг на друга)
+func _on_drop(it: Dictionary) -> void:
+	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+	var p := player.global_position + f * 0.9
+	var n := 0
+	for g in ground:
+		if (g.node as Node3D).global_position.distance_to(p) < 0.5:
+			n += 1
+	if n > 0:
+		p += Vector3(cos(n * 2.4), 0, sin(n * 2.4)) * (0.35 + 0.1 * n)
+	_spawn_ground(it, p, player.rotation.y + randf_range(-0.6, 0.6))
+	snd.play("cloth", p, -6.0)
+	_apply_gear()
+
+
+func _on_wear_ground_pack() -> void:
+	if _open_ground == null:
+		return
+	var g: Dictionary = _open_ground
+	if inv.pack != null:
+		# надетый рюкзак ложится на место того, что надеваем (вещи остаются в нём)
+		_spawn_ground(inv.pack, (g.node as Node3D).global_position + Vector3(0.6, 0, 0), randf() * TAU)
+	inv.pack = g.item
+	_remove_ground(g)
+	snd.play("zip", player.global_position + Vector3.UP * 1.2, -6.0)
+	_apply_gear()
+	_save()
+	inv_ui.open(inv)
+
+
+# ---------------- предметы на земле ----------------
+
+func _spawn_ground(it: Dictionary, p: Vector3, yaw: float) -> Dictionary:
+	var node := Node3D.new()
+	node.name = "Item"
+	add_child(node)
+	node.global_position = Vector3(p.x, ULHouse.FLOOR_Y if house.contains(p) else 0.0, p.z)
+	node.rotation.y = yaw
+	var g := {"item": it, "node": node}
+	ground.append(g)
+	_ground_visual(g)
+	return g
+
+
+func _ground_visual(g: Dictionary) -> void:
+	var node: Node3D = g.node
+	for c in node.get_children():
+		c.queue_free()
+	var it: Dictionary = g.item
+	var d := ULItems.get_def(String(it.id))
+	var k := String(d.kind)
+	if d.has("weapon"):
+		var w: Dictionary = BCWeaponHold.config()[d.weapon]
+		var m: Node3D = (load(String(w.model)) as PackedScene).instantiate()
+		var s := float(w.len_m) / float(w.model_len)
+		var holder := Node3D.new()
+		node.add_child(holder)
+		holder.add_child(m)
+		if w.get("flip", false):
+			m.rotation.y = PI
+		# лежит на боку: верх модели (+y) — вбок
+		holder.basis = Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * s)
+		holder.position.y = 0.03
+	elif k == "pack":
+		var pk: Dictionary = BCPackFit.PACKS[d.pack]
+		var m: Node3D = (load(String(pk.model)) as PackedScene).instantiate()
+		var s := float(pk.h) / 0.98 * 0.9
+		m.scale = Vector3.ONE * s
+		m.rotation.x = -0.25 if String(pk.back) == "-z" else 0.0
+		m.rotation.z = 0.0 if String(pk.back) == "-z" else 0.25
+		node.add_child(m)
+	else:
+		# мелкий предмет — иконка на земле, лицом к камере
+		var sp := Sprite3D.new()
+		sp.texture = ULItems.icon(String(it.id))
+		sp.modulate = ULItems.tint(String(it.id))
+		sp.pixel_size = 0.0016
+		sp.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		sp.position.y = 0.2
+		sp.shaded = false
+		node.add_child(sp)
+	var blob := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(0.9, 0.9)
+	blob.mesh = pm
+	blob.material_override = _blob_mat()
+	blob.position.y = 0.02
+	node.add_child(blob)
+
+
+func _remove_ground(g: Dictionary) -> void:
+	if _glow_node == g.node:
+		_glow_node = null
+	ground.erase(g)
+	(g.node as Node3D).queue_free()
+
+
+func _sync_ground_visuals() -> void:
+	# рюкзак на земле, из которого всё вынули и забрали сам предмет — убрать пустые записи
+	for g in ground.duplicate():
+		if g.item == null:
+			_remove_ground(g)
+
+
+# ---------------- ящики (хранилища) ----------------
 
 func place_crate() -> void:
 	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
 	var p := player.global_position + f * 1.0
-	# не в стену: если впереди препятствие — ближе
 	var space := get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(player.global_position + Vector3.UP * 0.4, p + Vector3.UP * 0.4)
 	q.exclude = [player.get_rid()]
 	var hit := space.intersect_ray(q)
 	if not hit.is_empty():
 		p = player.global_position + f * maxf(0.0, player.global_position.distance_to(hit.position) - 0.45)
-	_add_crate(p, player.rotation.y)
-	snd.play("cloth", p, -6.0)
+	var cells := []
+	cells.resize(CRATE_SLOTS)
+	_add_crate(p, player.rotation.y, cells)
 	snd.play("hit_wood", p, -8.0, 0.1, 0.15)
 	_save()
 
 
-func _add_crate(p: Vector3, yaw: float) -> void:
+func _add_crate(p: Vector3, yaw: float, cells: Array) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Crate"
 	add_child(body)
@@ -773,9 +1129,10 @@ func _add_crate(p: Vector3, yaw: float) -> void:
 	cs.shape = bs
 	cs.position.y = size.y * 0.5
 	body.add_child(cs)
-	# на пол дома или на землю
 	body.position = Vector3(p.x, ULHouse.FLOOR_Y if house.contains(p) else 0.0, p.z)
 	body.rotation.y = yaw
+	body.set_meta("items", cells)
+	body.set_meta("size", size)
 	crates.append(body)
 
 
@@ -788,37 +1145,208 @@ func remove_crate() -> void:
 			bd = d
 			best = c
 	if best:
+		# вещи из ящика — на землю рядом
+		var k := 0
+		for it in best.get_meta("items"):
+			if it != null:
+				_spawn_ground(it, best.global_position + Vector3(cos(k * 1.3), 0, sin(k * 1.3)) * 0.6, randf() * TAU)
+				k += 1
 		snd.play("cloth", best.global_position, -6.0)
+		if _glow_node == best:
+			_glow_node = null
 		crates.erase(best)
 		best.queue_free()
 		_save()
 
 
-func _save() -> void:
-	var arr := []
+# ---------------- действие ----------------
+
+func _find_target() -> void:
+	var p := player.global_position
+	var best = null
+	var bd := 1.6
+	for g in ground:
+		var d := (g.node as Node3D).global_position.distance_to(p)
+		if d < bd:
+			bd = d
+			best = {"type": "ground", "g": g}
 	for c in crates:
-		arr.append([snappedf(c.position.x, 0.01), snappedf(c.position.z, 0.01), snappedf(c.rotation.y, 0.01)])
+		var sz: Vector3 = c.get_meta("size")
+		var d := c.global_position.distance_to(p) - maxf(sz.x, sz.z) * 0.4
+		if d < bd:
+			bd = d
+			best = {"type": "crate", "c": c}
+	var node: Node3D = null
+	if best != null:
+		node = best.g.node if best.type == "ground" else best.c
+	_target = best
+	if node != _glow_node:
+		_set_glow(_glow_node, false)
+		_set_glow(node, true)
+		_glow_node = node
+	if _glow_mat:
+		# лёгкое «дыхание» подсветки
+		_glow_mat.albedo_color.a = 0.16 + 0.1 * sin(Time.get_ticks_msec() * 0.006)
+
+
+var _glow_node: Node3D = null
+var _glow_mat: StandardMaterial3D = null
+
+
+## подсветить предмет, с которым можно что-то сделать: светлая накладка поверх его материалов
+func _set_glow(node: Node3D, on: bool) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if _glow_mat == null:
+		_glow_mat = StandardMaterial3D.new()
+		_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_glow_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_glow_mat.albedo_color = Color(1.0, 0.86, 0.5, 0.2)
+	for mi in node.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh is PlaneMesh:
+			continue                                   # пятно тени не светится
+		m.material_overlay = _glow_mat if on else null
+	for sp in node.find_children("*", "Sprite3D", true, false):
+		var s3 := sp as Sprite3D
+		var base: Color = s3.get_meta("tint", s3.modulate)
+		s3.set_meta("tint", base)
+		s3.modulate = base.lightened(0.35) if on else base
+		s3.scale = Vector3.ONE * (1.15 if on else 1.0)
+
+
+func _target_pos() -> Vector3:
+	if _target == null:
+		return Vector3.ZERO
+	return (_target.g.node as Node3D).global_position if _target.type == "ground" else (_target.c as Node3D).global_position + Vector3.UP * 0.3
+
+
+func _target_name() -> String:
+	if _target == null:
+		return ""
+	if _target.type == "crate":
+		return "ящик"
+	return ULItems.title(_target.g.item)
+
+
+func _action_label() -> String:
+	if _target == null:
+		return ""
+	if _target.type == "crate":
+		return "Открыть"
+	var it: Dictionary = _target.g.item
+	return "Открыть" if ULItems.kind(it) == "pack" else "Подобрать"
+
+
+func do_action() -> void:
+	if _target == null:
+		return
+	if _target.type == "crate":
+		open_inventory(_target.c.get_meta("items"), "Ящик — %d ячеек" % CRATE_SLOTS)
+		snd.play("hit_wood", (_target.c as Node3D).global_position, -10.0)
+		return
+	var g: Dictionary = _target.g
+	var it: Dictionary = g.item
+	if ULItems.kind(it) == "pack":
+		_open_ground = g
+		open_inventory(it.items, "%s на земле — %d ячеек" % [ULItems.get_def(String(it.id)).n, ULItems.pack_slots(it)], true)
+		return
+	var n0 := int(it.n)
+	var left := inv.add(it)
+	if left == n0:
+		say("Нет места")
+		return
+	snd.play("cloth", (g.node as Node3D).global_position, -6.0)
+	if left == 0:
+		_remove_ground(g)
+		say("Подобрано: " + ULItems.get_def(String(it.id)).n)
+	else:
+		say("Взято не всё — нет места")
+	# оружие легло в пустой слот и в руках ничего — сразу в руки
+	if inv.hand == "" and ULItems.kind(it) in ["pistol", "primary"] and inv.get(ULItems.kind(it)) == it:
+		inv.hand = ULItems.kind(it)
+	_apply_gear()
+	_save()
+
+
+func say(t: String) -> void:
+	_toast.text = t
+	_toast_t = 2.2
+	_toast.modulate.a = 1.0
+
+
+# ---------------- сохранение ----------------
+
+func _save() -> void:
+	var cr := []
+	for c in crates:
+		cr.append([snappedf(c.position.x, 0.01), snappedf(c.position.z, 0.01), snappedf(c.rotation.y, 0.01), c.get_meta("items")])
+	var gr := []
+	for g in ground:
+		var n: Node3D = g.node
+		gr.append([g.item, snappedf(n.global_position.x, 0.01), snappedf(n.global_position.z, 0.01), snappedf(n.rotation.y, 0.01)])
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify({"v": SAVE_V, "crates": arr}))
+	if f and test == "":
+		f.store_string(JSON.stringify({"v": SAVE_V, "crates": cr, "ground": gr, "inv": inv.to_dict()}))
 
 
 func _load() -> void:
-	var arr := []
-	var have := false
+	var d = null
 	if FileAccess.file_exists(SAVE) and test == "":
-		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
-		if d is Dictionary and int(d.get("v", 1)) >= SAVE_V:
-			arr = d.get("crates", [])
-			have = true
-	if not have:
-		# первый запуск — два ящика в кладовой, длинной стороной вдоль наружной стены (стена x = 6, её внутренняя
-		# сторона — 5.89; ящик 0.78 в глубину — центр в 5.47)
-		for z in [2.2, 3.3]:
-			var g := house.to_global(Vector3(5.47, 0, z))
-			arr.append([g.x, g.z, 0.0])
-	for it in arr:
-		_add_crate(Vector3(float(it[0]), 0, float(it[1])), float(it[2]))
+		d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+	if d is Dictionary and int(d.get("v", 1)) >= SAVE_V:
+		for c in d.get("crates", []):
+			var cells: Array = c[3] if c.size() > 3 else []
+			cells.resize(CRATE_SLOTS)
+			for i in cells.size():
+				cells[i] = ULInventory._fix(cells[i])
+			_add_crate(Vector3(float(c[0]), 0, float(c[1])), float(c[2]), cells)
+		for g in d.get("ground", []):
+			var it = ULInventory._fix(g[0])
+			if it != null:
+				_spawn_ground(it, Vector3(float(g[1]), 0, float(g[2])), float(g[3]))
+		inv.from_dict(d.get("inv", {}))
+		return
+	_start_loot()
+
+
+## первый запуск: два ящика у стены кладовой с оружием и патронами, в доме и во дворе — рюкзаки и оружие,
+## в карманах — бинты, вода, тушёнка
+func _start_loot() -> void:
+	var I := ULItems
+	var a := []
+	a.resize(CRATE_SLOTS)
+	ULInventory.put(a, I.make("tt"))
+	ULInventory.put(a, I.make("a762x25", 32))
+	ULInventory.put(a, I.make("ak74m"))
+	ULInventory.put(a, I.make("a545", 60))
+	var b := []
+	b.resize(CRATE_SLOTS)
+	ULInventory.put(b, I.make("svd"))
+	ULInventory.put(b, I.make("a762x54", 30))
+	ULInventory.put(b, I.make("mp5"))
+	ULInventory.put(b, I.make("a9x19", 45))
+	ULInventory.put(b, I.make("medkit"))
+	var g1 := house.to_global(Vector3(5.47, 0, 2.2))
+	var g2 := house.to_global(Vector3(5.47, 0, 3.3))
+	_add_crate(g1, 0.0, a)
+	_add_crate(g2, 0.0, b)
+	var H := house
+	_spawn_ground(I.make("pack_small"), Vector3(1.6, 0, 1.4), 0.4)
+	_spawn_ground(I.make("pack_medium"), H.to_global(Vector3(-3.4, 0, -2.6)), 1.1)
+	_spawn_ground(I.make("pack_large"), H.to_global(Vector3(3.4, 0, -3.6)), -0.5)
+	_spawn_ground(I.make("beretta"), H.to_global(Vector3(-4.2, 0, 3.6)), 0.7)
+	_spawn_ground(I.make("a9x19", 30), H.to_global(Vector3(-3.6, 0, 4.0)), 0.0)
+	_spawn_ground(I.make("pkp"), H.to_global(Vector3(4.5, 0, -1.0)), 1.9)
+	_spawn_ground(I.make("fnfal"), H.to_global(Vector3(-1.5, 0, -3.8)), 0.2)
+	_spawn_ground(I.make("vss"), H.to_global(Vector3(-0.6, 0, -4.2)), -0.3)
+	_spawn_ground(I.make("spas12"), HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.6, 0, 2.2), 2.4)
+	_spawn_ground(I.make("a12", 16), HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.0, 0, 2.8), 0.0)
+	_spawn_ground(I.make("rusk", 2), H.to_global(Vector3(-2.5, 0, 2.2)), 0.0)
+	ULInventory.put(inv.pockets, I.make("bandage", 3))
+	ULInventory.put(inv.pockets, I.make("water"))
+	ULInventory.put(inv.pockets, I.make("can"))
 
 
 # ---------------- интерфейс и касания ----------------
@@ -829,16 +1357,16 @@ func _style(bg := C_BG) -> StyleBoxFlat:
 	sb.border_color = C_LINE
 	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(4)
-	sb.content_margin_left = 10
-	sb.content_margin_right = 10
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
 	return sb
 
 
-func _btn(text: String, cb: Callable, w := 130.0) -> Button:
+func _btn(text: String, cb: Callable, w := 110.0) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(w, 56)
-	b.add_theme_font_size_override("font_size", 17)
+	b.custom_minimum_size = Vector2(w, 44)
+	b.add_theme_font_size_override("font_size", 15)
 	b.add_theme_color_override("font_color", C_TEXT)
 	b.add_theme_stylebox_override("normal", _style())
 	b.add_theme_stylebox_override("hover", _style(Color(0.1, 0.16, 0.2, 0.9)))
@@ -851,117 +1379,189 @@ func _btn(text: String, cb: Callable, w := 130.0) -> Button:
 func _ui() -> void:
 	var ui := CanvasLayer.new()
 	add_child(ui)
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui.add_child(root)
+	_hud = Control.new()
+	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.draw.connect(_draw_hud)
+	ui.add_child(_hud)
+	_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	info = Label.new()
 	info.position = Vector2(16, 12)
-	info.add_theme_font_size_override("font_size", 18)
+	info.add_theme_font_size_override("font_size", 17)
 	info.add_theme_color_override("font_color", C_TEXT)
 	info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	info.add_theme_constant_override("outline_size", 6)
-	root.add_child(info)
+	_hud.add_child(info)
 	var title := Label.new()
 	title.text = "Стабильный кластер · стартовая локация (проверка)"
-	title.position = Vector2(16, 40)
-	title.add_theme_font_size_override("font_size", 14)
+	title.position = Vector2(16, 38)
+	title.add_theme_font_size_override("font_size", 13)
 	title.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95, 0.8))
-	root.add_child(title)
-	var bar := VBoxContainer.new()
+	_hud.add_child(title)
+	# кнопки проверки — мелкие, сверху справа
+	var bar := HBoxContainer.new()
 	bar.anchor_left = 1.0
 	bar.anchor_right = 1.0
-	bar.offset_left = -150
+	bar.offset_left = -360
 	bar.offset_right = -12
-	bar.offset_top = 12
-	bar.add_theme_constant_override("separation", 8)
-	root.add_child(bar)
+	bar.offset_top = 10
+	bar.alignment = BoxContainer.ALIGNMENT_END
+	bar.add_theme_constant_override("separation", 6)
+	_hud.add_child(bar)
 	bar.add_child(_btn("Ящик +", place_crate))
 	bar.add_child(_btn("Ящик −", remove_crate))
-	bar.add_child(_btn("Рюкзак", _cycle_pack))
-	var rb := _btn("Бег", func(): _run_btn = not _run_btn)
-	rb.toggle_mode = true
-	bar.add_child(rb)
 	bar.add_child(_btn("Стенд", func(): get_tree().change_scene_to_file("res://stand.tscn")))
-	joy_ui = Control.new()
-	joy_ui.set_anchors_preset(Control.PRESET_FULL_RECT)
-	joy_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	joy_ui.draw.connect(_draw_joy)
-	root.add_child(joy_ui)
+	_toast = Label.new()
+	ui.add_child(_toast)
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_toast.offset_top = 70
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.add_theme_font_size_override("font_size", 20)
+	_toast.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45))
+	_toast.add_theme_color_override("font_outline_color", Color.BLACK)
+	_toast.add_theme_constant_override("outline_size", 6)
+	inv_ui = ULInventoryUI.new()
+	inv_ui.visible = false
+	ui.add_child(inv_ui)
+	inv_ui.closed.connect(close_inventory)
+	inv_ui.changed.connect(_on_inv_changed)
+	inv_ui.drop.connect(_on_drop)
+	inv_ui.wear_ground_pack.connect(_on_wear_ground_pack)
+	inv_ui.preview_rot = func(dx: float):
+		if _preview_rig:
+			_preview_rig.rotation.y += dx * 0.01
 
 
-func _draw_joy() -> void:
-	if _joy_id < 0:
-		var vs := get_viewport().get_visible_rect().size
-		var c := Vector2(150, vs.y - 150)
-		joy_ui.draw_circle(c, 90, Color(1, 1, 1, 0.06))
-		joy_ui.draw_arc(c, 90, 0, TAU, 48, Color(0.6, 0.85, 1.0, 0.35), 2.0)
+## круглые кнопки справа снизу: [центр от правого нижнего угла, радиус]
+const HUD_BTNS := {
+	"act": [Vector2(-124, -132), 72.0],
+	"inv": [Vector2(-282, -88), 50.0],
+	"gun": [Vector2(-124, -306), 50.0],
+}
+
+
+func _hud_pos(k: String) -> Vector2:
+	var vs := get_viewport().get_visible_rect().size
+	return vs + (HUD_BTNS[k][0] as Vector2)
+
+
+func _draw_hud() -> void:
+	var vs := get_viewport().get_visible_rect().size
+	# джойстик
+	var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
+	_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
+	_hud.draw_arc(jc, 92, 0, TAU, 48, Color(0.6, 0.85, 1.0, 0.45), 2.5)
+	_hud.draw_circle(jc + _joy_v * 92, 36, Color(0.6, 0.85, 1.0, 0.5 if _joy_id >= 0 else 0.25))
+	var font := ThemeDB.fallback_font
+	var labels := {"act": _action_label(), "inv": "Инвентарь", "gun": _gun_label()}
+	for k in HUD_BTNS:
+		var c := _hud_pos(k)
+		var r: float = HUD_BTNS[k][1]
+		var on: bool = _hud_touch.values().has(k)
+		if k == "act" and _target == null:
+			continue                                   # кнопка действия видна, только когда есть что взять или открыть
+		var active: bool = k != "act" or _target != null
+		var fill := Color(0.12, 0.3, 0.4, 0.75) if on else Color(0.06, 0.08, 0.1, 0.55 if active else 0.25)
+		_hud.draw_circle(c, r, fill)
+		_hud.draw_arc(c, r, 0, TAU, 40, Color(1.0, 0.8, 0.3, 0.9) if (k == "act" and active) else Color(0.6, 0.85, 1.0, 0.6 if active else 0.25), 2.5)
+		var t: String = labels[k] if labels[k] != "" else "—"
+		var fs := 18 if k == "act" else 14
+		if k == "act":
+			var nm := _target_name()
+			var s2 := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 13)
+			_hud.draw_string_outline(font, c + Vector2(-s2.x * 0.5, 30), nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 13, 5, Color(0, 0, 0, 0.8))
+			_hud.draw_string(font, c + Vector2(-s2.x * 0.5, 30), nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 13, Color(1.0, 0.88, 0.55))
+			c.y -= 8.0
+		var sz := font.get_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+		_hud.draw_string_outline(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 5, Color(0, 0, 0, 0.8))
+		_hud.draw_string(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(0.95, 0.97, 1.0, 1.0 if active else 0.5))
+
+
+func _gun_label() -> String:
+	if inv.hand == "":
+		return "Оружие" if (inv.primary != null or inv.pistol != null) else "Нет оружия"
+	return ULItems.get_def(String(inv.get(inv.hand).id)).n.split(" ")[0] if inv.get(inv.hand) != null else "Оружие"
+
+
+func _hud_hit(p: Vector2) -> String:
+	for k in HUD_BTNS:
+		if k == "act" and _target == null:
+			continue
+		if p.distance_to(_hud_pos(k)) <= float(HUD_BTNS[k][1]) + 8.0:
+			return k
+	# нажатие прямо на подсвеченный предмет — то же действие
+	if _target != null and cam != null:
+		var at: Vector3 = _target_pos() + Vector3.UP * 0.3
+		# касание — в координатах интерфейса, проекция камеры — в пикселях окна
+		var xf := get_viewport().get_final_transform()
+		if not cam.is_position_behind(at) and cam.unproject_position(at).distance_to(xf * p) <= 70.0 * xf.get_scale().x:
+			return "act"
+	return ""
+
+
+func _hud_press(k: String) -> void:
+	match k:
+		"act":
+			do_action()
+		"inv":
+			open_inventory()
+		"gun":
+			cycle_weapon()
+
+
+## касания: кнопки справа (каждый палец отдельно — можно бежать и нажимать), джойстик слева, два пальца — масштаб
+func _input(e: InputEvent) -> void:
+	if inv_ui and inv_ui.visible:
 		return
-	joy_ui.draw_circle(_joy_o, 90, Color(1, 1, 1, 0.08))
-	joy_ui.draw_arc(_joy_o, 90, 0, TAU, 48, Color(0.6, 0.85, 1.0, 0.5), 2.0)
-	joy_ui.draw_circle(_joy_o + _joy_v * 90, 34, Color(0.6, 0.85, 1.0, 0.45))
-
-
-var _packs := ["", "small", "medium", "large"]
-
-
-func _cycle_pack() -> void:
-	_pack_i = (_pack_i + 1) % _packs.size()
-	for c in rig.skel.get_children():
-		if c.name == "Pack":
-			c.queue_free()
-	var id: String = _packs[_pack_i]
-	if id != "":
-		var stand_packs: Dictionary = load("res://stand.gd").get_script_constant_map().PACKS
-		var mi := BCPackFit.build(rig, stand_packs[id])
-		rig.skel.add_child(mi)
-		mi.skeleton = mi.get_path_to(rig.skel)
-		snd.play("zip", player.global_position + Vector3.UP * 1.2, -6.0)
-	else:
-		snd.play("cloth", player.global_position + Vector3.UP * 1.2, -4.0)
-
-
-func _unhandled_input(e: InputEvent) -> void:
 	var vs := get_viewport().get_visible_rect().size
 	if e is InputEventScreenTouch:
 		var t := e as InputEventScreenTouch
 		if t.pressed:
+			var k := _hud_hit(t.position)
+			if k != "":
+				_hud_touch[t.index] = k
+				_hud_press(k)
+				get_viewport().set_input_as_handled()
+				return
 			_touch[t.index] = t.position
-			if t.position.x < vs.x * 0.45 and _joy_id < 0:
+			if t.position.x < vs.x * 0.5 and _joy_id < 0:
 				_joy_id = t.index
 				_joy_o = t.position
 				_joy_v = Vector2.ZERO
-			elif _cam_id < 0:
-				_cam_id = t.index
 		else:
+			_hud_touch.erase(t.index)
 			_touch.erase(t.index)
 			if t.index == _joy_id:
 				_joy_id = -1
 				_joy_v = Vector2.ZERO
-			if t.index == _cam_id:
-				_cam_id = -1
 			_pinch = 0.0
 	elif e is InputEventScreenDrag:
 		var d := e as InputEventScreenDrag
+		if _hud_touch.has(d.index):
+			return
 		_touch[d.index] = d.position
 		if d.index == _joy_id:
-			_joy_v = ((d.position - _joy_o) / 90.0).limit_length(1.0)
-		elif d.index == _cam_id:
-			if _touch.size() >= 2 and _joy_id < 0:
-				var ks := _touch.keys()
-				var dd := (_touch[ks[0]] as Vector2).distance_to(_touch[ks[1]])
-				if _pinch > 0.0:
-					cam_dist = clampf(cam_dist * _pinch / dd, 7.0, 22.0)
-				_pinch = dd
-			else:
-				cam_yaw -= d.relative.x * 0.006
-				cam_pitch = clampf(cam_pitch + d.relative.y * 0.004, 0.9, 1.35)
+			_joy_v = ((d.position - _joy_o) / 92.0).limit_length(1.0)
+		elif _touch.size() >= 2 and _joy_id < 0:
+			var ks := _touch.keys()
+			var dd := (_touch[ks[0]] as Vector2).distance_to(_touch[ks[1]])
+			if _pinch > 0.0:
+				cam_dist = clampf(cam_dist * _pinch / dd, 10.0, 22.0)
+			_pinch = dd
 	elif e is InputEventMouseButton:
 		var mb := e as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			cam_dist = maxf(7.0, cam_dist * 0.9)
+			cam_dist = maxf(10.0, cam_dist * 0.92)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			cam_dist = minf(22.0, cam_dist * 1.1)
+			cam_dist = minf(22.0, cam_dist * 1.08)
+	elif e is InputEventKey and (e as InputEventKey).pressed and not (e as InputEventKey).echo:
+		match (e as InputEventKey).physical_keycode:
+			KEY_E:
+				do_action()
+			KEY_I, KEY_TAB:
+				open_inventory()
+			KEY_Q:
+				cycle_weapon()
 
 
 # ---------------- проверка ----------------
@@ -975,7 +1575,7 @@ func _auto_vec() -> Vector2:
 		if _auto.is_empty():
 			return Vector2.ZERO
 		return _auto_vec()
-	var fwd := Vector3(-sin(cam_yaw), 0, -cos(cam_yaw))
+	var fwd := Vector3(-sin(CAM_YAW), 0, -cos(CAM_YAW))
 	var right := Vector3(-fwd.z, 0, fwd.x)
 	var dn := d.normalized()
 	return Vector2(dn.dot(right), -dn.dot(fwd)) * 0.6
@@ -993,57 +1593,205 @@ func _walk(points: Array, limit := 30.0) -> void:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 	_auto.clear()
-	await get_tree().create_timer(0.6).timeout
+	await get_tree().create_timer(0.5).timeout
+
+
+func _log(t: String) -> void:
+	print("[world] " + t)
+
+
+func _inv_state() -> String:
+	return "ячеек %d, занято %d, в руках «%s», рюкзак %s, основное %s, пистолет %s" % [inv.slot_count(), inv.used(), inv.hand, ULItems.title(inv.pack) if inv.pack else "нет", ULItems.title(inv.primary) if inv.primary else "нет", ULItems.title(inv.pistol) if inv.pistol else "нет"]
+
+
+var _fails := 0
+
+
+func _ok(name: String, cond: bool, extra := "") -> void:
+	if not cond:
+		_fails += 1
+	print("[inv] %s — %s%s" % [name, "верно" if cond else "ОШИБКА", (" (" + extra + ")") if extra != "" else ""])
+
+
+## проверка логики инвентаря: каждое правило — отдельный случай
+func _inv_test() -> void:
+	var I := ULItems
+	await get_tree().create_timer(0.5).timeout
+	# чистое состояние
+	for g in ground.duplicate():
+		_remove_ground(g)
+	inv = ULInventory.new()
+	_ok("карманы: 8 ячеек без рюкзака", inv.slot_count() == 8)
+	# стопки
+	inv.add(I.make("a545", 60))
+	inv.add(I.make("a545", 50))
+	_ok("патроны складываются в стопку до 90, остаток — в новую ячейку", inv.used() == 2 and int(inv.pockets[0].n) == 90 and int(inv.pockets[1].n) == 20, "%s / %s" % [str(inv.pockets[0]), str(inv.pockets[1])])
+	# оружие в пустой слот
+	inv.add(I.make("ak74m"))
+	_ok("автомат ложится в слот «основное»", inv.primary != null and String(inv.primary.id) == "ak74m" and inv.used() == 2)
+	inv.add(I.make("svd"))
+	_ok("второе основное оружие — в карман, слот не меняется", String(inv.primary.id) == "ak74m" and inv.used() == 3)
+	inv.add(I.make("tt"))
+	_ok("пистолет — в слот «пистолет»", inv.pistol != null and String(inv.pistol.id) == "tt")
+	# экипировать из кармана — меняется местами
+	var si := -1
+	for i in 8:
+		if inv.pockets[i] != null and String(inv.pockets[i].id) == "svd":
+			si = i
+	inv.equip_from(inv.pockets, si)
+	_ok("экипировать СВД из кармана: СВД в слоте, АК — в том же кармане", String(inv.primary.id) == "svd" and String(inv.pockets[si].id) == "ak74m")
+	# рюкзаки и ячейки
+	for id_n in [["pack_small", 16], ["pack_medium", 20], ["pack_large", 28]]:
+		inv.pack = I.make(id_n[0])
+		_ok("%s: всего ячеек %d" % [I.get_def(id_n[0]).n, id_n[1]], inv.slot_count() == int(id_n[1]))
+	inv.pack = I.make("pack_small")
+	# переполнение: карманы 8 + рюкзак 8
+	var added := 0
+	for i in 20:
+		if inv.add(I.make("medkit", 2)) == 0:
+			added += 1
+	_ok("лишнее не помещается: занято ровно 16 из 16", inv.used() == 16 and inv.slot_count() == 16, "занято %d, добавлено стопок %d" % [inv.used(), added])
+	var left := inv.add(I.make("can", 1))
+	_ok("в полный инвентарь предмет не кладётся (остаток 1)", left == 1)
+	_ok("снять пистолет в полный инвентарь нельзя", not inv.unequip("pistol") and inv.pistol != null)
+	_ok("снять непустой рюкзак в ячейку нельзя", not inv.unequip("pack") and inv.pack != null)
+	# выбросить рюкзак с вещами и надеть обратно — вещи на месте
+	var in_pack: int = inv.pack.items.filter(func(x): return x != null).size()
+	var it = inv.clear_slot("pack")
+	_on_drop(it)
+	_ok("выброшенный рюкзак лежит на земле, ячеек снова 8", ground.size() == 1 and inv.slot_count() == 8 and inv.pack == null)
+	_ok("вещи остались в рюкзаке на земле", ground[0].item.items.filter(func(x): return x != null).size() == in_pack, "%d" % in_pack)
+	_open_ground = ground[0]
+	_on_wear_ground_pack()
+	_ok("надеть рюкзак с земли: вещи в нём, на земле пусто", inv.pack != null and inv.pack.items.filter(func(x): return x != null).size() == in_pack and ground.is_empty())
+	inv_ui.visible = false
+	# надеть другой рюкзак с земли — прежний ложится на землю со своими вещами
+	_spawn_ground(I.make("pack_large"), player.global_position + Vector3(0.8, 0, 0), 0.0)
+	_open_ground = ground[0]
+	_on_wear_ground_pack()
+	_ok("сменить рюкзак: надет большой (28 ячеек), малый с вещами — на земле", inv.slot_count() == 28 and ground.size() == 1 and String(ground[0].item.id) == "pack_small" and ground[0].item.items.filter(func(x): return x != null).size() == in_pack)
+	inv_ui.visible = false
+	# оружие в руки и на героя
+	inv.hand = "primary"
+	_apply_gear()
+	var tw := 0.0
+	var fr := 0
+	while rig.hold.drawn < 0.99 and tw < 6.0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		fr += 1
+	_ok("СВД в руках у героя", rig.hold.wid == "svd" and rig.hold.drawn > 0.9, "%s, достал на %.0f %% за %.1f с (%d кадров)" % [rig.hold.wid, rig.hold.drawn * 100.0, tw, fr])
+	cycle_weapon()
+	await get_tree().create_timer(1.6).timeout
+	_ok("кнопка «Оружие»: основное → пистолет", inv.hand == "pistol" and rig.hold.wid == "pistol", rig.hold.wid)
+	cycle_weapon()
+	await get_tree().create_timer(1.6).timeout
+	_ok("кнопка «Оружие»: пистолет → убрано", inv.hand == "" and rig.hold.wid == "", rig.hold.wid)
+	# выбросить оружие из слота, подобрать — снова в слоте
+	inv.hand = "pistol"
+	_on_drop(inv.clear_slot("pistol"))
+	_ok("выбросить пистолет из рук: слот пуст, в руках ничего", inv.pistol == null and inv.hand == "")
+	_target = {"type": "ground", "g": ground[ground.size() - 1]}
+	do_action()
+	_ok("подобрать пистолет: он снова в слоте и в руках", inv.pistol != null and inv.hand == "pistol")
+	# ящик: положить и взять
+	var c0 := crates.size()
+	place_crate()
+	var cells: Array = crates[crates.size() - 1].get_meta("items")
+	_ok("новый ящик: 12 пустых ячеек", crates.size() == c0 + 1 and cells.size() == CRATE_SLOTS and cells.filter(func(x): return x != null).is_empty())
+	open_inventory(cells, "Ящик")
+	var u0 := inv.used()
+	inv_ui._sel_src = "pockets"
+	inv_ui._sel_i = 0
+	inv_ui._act_to_cont()
+	_ok("переложить из кармана в ящик", inv.used() == u0 - 1 and cells[0] != null)
+	inv_ui._sel_src = "cont"
+	inv_ui._sel_i = 0
+	inv_ui._act_take()
+	_ok("взять из ящика обратно", inv.used() == u0 and cells[0] == null)
+	close_inventory()
+	# сохранение и загрузка
+	var snap := JSON.stringify({"inv": inv.to_dict()})
+	var inv2 := ULInventory.new()
+	inv2.from_dict(JSON.parse_string(snap).inv)
+	_ok("сохранение и загрузка: тот же инвентарь", JSON.stringify(inv2.to_dict()) == JSON.stringify(inv.to_dict()) and inv2.slot_count() == inv.slot_count() and typeof(inv2.pockets[1].n) == TYPE_INT)
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
 
 
 func _run_test() -> void:
+	if test == "inv":
+		await _inv_test()
+		return
 	DirAccess.make_dir_recursive_absolute(out)
-	await get_tree().create_timer(1.0).timeout
-	# общий вид сверху
-	var keep := cam_dist
-	cam_dist = 60.0
-	cam_pitch = 1.2
 	await get_tree().create_timer(1.2).timeout
-	await _snap("w0_overview")
-	cam_dist = 13.0
-	cam_pitch = 1.0
-	await get_tree().create_timer(1.0).timeout
-	await _snap("w1_start")
-	cam_dist = 8.0
-	cam_pitch = 0.95
-	await get_tree().create_timer(1.0).timeout
-	await _snap("w1b_ground")
-	cam_dist = keep
-	cam_pitch = 1.0
-	# к дому, внутрь и по комнатам
+	await _snap("i0_start")
+	_log("старт: " + _inv_state())
+	# 1. малый рюкзак у старта: открыть и надеть
+	await _walk([Vector3(1.6, 0, 2.2)])
+	_log("рядом: «%s»" % _action_label())
+	do_action()
+	await get_tree().create_timer(0.8).timeout
+	await _snap("i1_ground_pack")
+	_on_wear_ground_pack()
+	await get_tree().create_timer(1.2).timeout
+	await _snap("i2_inventory_pack")
+	_log("надел малый: " + _inv_state())
+	close_inventory()
+	# 2. в кладовую, открыть ящик, взять АК и ТТ, взять в руки
 	var H := house
-	var route := [
-		["w2_door", [HOUSE_AT + Vector3(0, 0, YARD[3] + 1.0), HOUSE_AT + Vector3(0, 0, YARD[3] - 1.0), H.door_point(1.5)]],
-		["w3_seni", [H.to_global(Vector3(0, 0, 3.4))]],
-		["w4_kitchen", [H.to_global(Vector3(0, 0, 3.25)), H.to_global(Vector3(-1.0, 0, 3.25)), H.to_global(Vector3(-3.6, 0, 3.4))]],
-		["w5_store", [H.to_global(Vector3(-1.0, 0, 3.25)), H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(2.4, 0, 3.0))]],
-		["w6_gornica", [H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(0, 0, 2.6)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(-2.5, 0, -1.5))]],
-		["w7_bedroom", [H.to_global(Vector3(0.8, 0, -2.0)), H.to_global(Vector3(2.4, 0, -2.0)), H.to_global(Vector3(3.8, 0, -2.5))]],
-	]
-	var keep_p := player.global_position
-	player.global_position = HOUSE_AT + Vector3(-ULHouse.W * 0.5 - 2.0, 0.05, 1.5)
-	await get_tree().create_timer(1.2).timeout
-	await _snap("w1c_yard")
-	player.global_position = keep_p
+	await _walk([HOUSE_AT + Vector3(0, 0, YARD[3] + 1.0), HOUSE_AT + Vector3(0, 0, YARD[3] - 1.0), H.door_point(1.5), H.to_global(Vector3(0, 0, 3.25)), H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(4.3, 0, 2.6))], 40.0)
+	_log("у ящика: «%s», %s" % [_action_label(), _where()])
+	do_action()
 	await get_tree().create_timer(0.6).timeout
-	for r in route:
-		await _walk(r[1])
-		print("[world] %s: герой в %s, «%s»" % [r[0], str(player.global_position.snapped(Vector3.ONE * 0.01)), _where()])
-		await _snap(r[0])
-	place_crate()
-	await get_tree().create_timer(0.4).timeout
-	await _snap("w8_crate")
-	print("[world] ящиков: %d, последний в %s" % [crates.size(), str(crates[-1].global_position.snapped(Vector3.ONE * 0.01))])
-	# обратно на улицу и к краю кластера
-	await _walk([H.to_global(Vector3(0.8, 0, -2.0)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(0, 0, 3.0)), H.door_point(2.5), HOUSE_AT + Vector3(0, 0, YARD[3] + 1.5)], 25.0)
-	print("[world] вышел со двора: %s" % str(player.global_position.snapped(Vector3.ONE * 0.01)))
-	player.global_position = Vector3(0, 0.05, 44)
-	await _walk([Vector3(0, 0, 60)], 8.0)
-	print("[world] у края: %s (дальше края кластера пройти нельзя)" % str(player.global_position.snapped(Vector3.ONE * 0.01)))
-	await _snap("w9_edge")
+	await _snap("i3_crate")
+	var c: Array = inv_ui.cont
+	for i in c.size():
+		if c[i] != null and String(c[i].id) in ["ak74m", "tt", "a545"]:
+			inv_ui._sel_src = "cont"
+			inv_ui._sel_i = i
+			inv_ui._act_take()
+	_log("взял из ящика: " + _inv_state())
+	close_inventory()
+	inv.hand = "primary"
+	_apply_gear()
+	await get_tree().create_timer(1.6).timeout
+	await _snap("i4_with_ak")
+	open_inventory()
+	await get_tree().create_timer(1.5).timeout
+	await _snap("i5_inventory_ak")
+	# 3. выбросить ТТ и рюкзак на землю
+	inv_ui._sel_src = "eq:pistol"
+	inv_ui._sel_i = 0
+	inv_ui._act_drop()
+	inv_ui._sel_src = "eq:pack"
+	inv_ui._sel_i = 0
+	inv_ui._act_drop()
+	await get_tree().create_timer(0.8).timeout
+	await _snap("i6_after_drop")
+	_log("выбросил ТТ и рюкзак: " + _inv_state() + ", на земле предметов: %d" % ground.size())
+	close_inventory()
+	await get_tree().create_timer(0.8).timeout
+	await _snap("i7_ground")
+	# 4. открыть брошенный рюкзак — переложить в него патроны
+	for g in ground:
+		if ULItems.kind(g.item) == "pack" and (g.node as Node3D).global_position.distance_to(player.global_position) < 2.5:
+			_target = {"type": "ground", "g": g}
+	_log("рядом: «%s» — %s" % [_action_label(), _target_name()])
+	do_action()
+	if _open_ground != null:
+		for i in inv.pockets.size():
+			if inv.pockets[i] != null and String(inv.pockets[i].id) == "a545":
+				inv_ui._sel_src = "pockets"
+				inv_ui._sel_i = i
+				inv_ui._act_to_cont()
+				break
+		await get_tree().create_timer(0.5).timeout
+		await _snap("i8_into_pack")
+		_log("переложил патроны в рюкзак на земле: в нём %d предм." % (_open_ground.item.items.filter(func(x): return x != null).size()))
+	close_inventory()
+	# 5. в горницу — вид с низкими передними стенами
+	await _walk([H.to_global(Vector3(1.0, 0, 3.25)), H.to_global(Vector3(0, 0, 2.6)), H.to_global(Vector3(0, 0, 0.5)), H.to_global(Vector3(-2.5, 0, -1.5))], 25.0)
+	await _snap("i9_gornica")
+	_log("горница: " + _where())
 	get_tree().quit()
