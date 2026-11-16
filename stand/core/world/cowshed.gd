@@ -52,11 +52,11 @@ var wood_pts: Array[Vector3] = []
 var landmark_rects: Array = []      ## [центр, поворот, полуразмер] построек-моделей (там нет мусора и коров)
 var _noise_tex: ImageTexture
 var mask: Image                    ## карта земли (R — трава): по ней же — где пучки травы
+var puddle_pts: Array[Vector3] = []
 var _cow_scenes := {}
 var trees: Array[Node3D] = []      ## деревья-модели (скрываются, если закрывают героя)
 var _spruce_mm: MultiMesh
 var _spruce_xf: Array[Transform3D] = []
-var _hidden := {}
 var _tick_t := 0.0
 var _fence_root: Node3D
 var _hay: StandardMaterial3D
@@ -81,13 +81,13 @@ func build(world: Node3D) -> void:
 	for b in BARNS:
 		_barn(b[0], float(b[1]), float(b[2]), float(b[3]), float(b[4]), rng)
 	_shed(Vector3(40, 0, 20), 0.6)
-	_ground()
 	_landmarks()
 	_fence_root = Node3D.new()
 	add_child(_fence_root)
 	_fences(rng)
 	_merge(_fence_root)
 	_forest(rng)
+	_ground()                          # после леса: под деревьями — лесная подстилка
 	_debris_root = Node3D.new()
 	add_child(_debris_root)
 	_debris(rng)
@@ -121,18 +121,9 @@ func _ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
-	var sm := ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = w.GROUND_SHADER if ULSettings.gfx == 2 else w.GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
-	sm.shader = sh
-	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
-	sm.set_shader_parameter("blades", load(TEX + "leafy_grass_c.jpg"))
-	sm.set_shader_parameter("soil", load(TEX + "grass_path_2_c.jpg"))
-	sm.set_shader_parameter("path", load(TEX + "rocky_trail_c.jpg"))
-	sm.set_shader_parameter("path_n", load(TEX + "rocky_trail_n.jpg"))
+	# голая земля здесь — грязь со следами (сырая, местами блестит), сухих проплешин в траве больше
+	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.95, 0.9, 0.84), 1.0, 0.8)
 	sm.set_shader_parameter("noise", _noise_tex)
-	sm.set_shader_parameter("world_size", half * 2.0)
-	sm.set_shader_parameter("soil_tint", Vector3(0.66, 0.58, 0.48))      # у коровников земля темнее — грязь
 	if ResourceLoader.exists(MASK) and w.test != "csbake":
 		mask = (load(MASK) as Texture2D).get_image()
 		if mask.is_compressed():
@@ -171,6 +162,13 @@ func _ground() -> void:
 		wc.position = s * (half + 9.0) + Vector3.UP * 2.0
 		body.add_child(wc)
 	_tufts()
+	# цветы в траве и лужи в грязи у коровников, ворот и в загоне
+	ULGroundDetail.flowers(self, mask_px, half * 2.0, 31, int(150.0 * float(ULSettings.q().grass)) + 30, w.TUFT_SHADER, func(p: Vector3) -> bool:
+		return in_barn(p, 2.0) >= 0 or near_landmark(p, 2.0) or p.distance_to(ENTRY) < 6.0, float(ULSettings.q().range))
+	var pen := PackedVector2Array(FENCES[0])
+	puddle_pts = ULGroundDetail.puddles(self, mask_px, half * 2.0, 53, 400, _noise_tex, func(p: Vector3) -> bool:
+		var q := Vector2(p.x, p.z)
+		return in_barn(p, 0.5) < 0 and not near_landmark(p, 1.0) and (_barn_dist(q).x < 10.0 or Geometry2D.is_point_in_polygon(q, pen)))
 
 
 func _mat(tex: String, uv: float) -> StandardMaterial3D:
@@ -258,7 +256,12 @@ func _barn_dist(q: Vector2) -> Vector2:
 
 
 func _bake_mask() -> Image:
-	var n := 256
+	var n := 384
+	var tpts: Array = []
+	for t in trees:
+		tpts.append([t.position, 1.5])
+	for xf in _spruce_xf:
+		tpts.append([xf.origin, 1.5 * xf.basis.get_scale().x])
 	var im := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	var pen: PackedVector2Array = PackedVector2Array(FENCES[0])
 	for iy in n:
@@ -279,11 +282,21 @@ func _bake_mask() -> Image:
 			var bare := maxf(maxf(yard * 0.85, gate), in_pen * smoothstep(0.3, 0.7, n2))
 			var gw := smoothstep(0.32, 0.55, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.85 + 0.12
 			gw *= (1.0 - bare) * (1.0 - path)
-			var peb := maxf(path * 0.9, smoothstep(0.62, 0.74, n2 * 0.5 + n3 * 0.5) * 0.6) * (1.0 - bare * 0.6)
-			var bright := lerpf(0.84, 1.08, n1) * lerpf(0.92, 1.05, n2) / 1.2
+			var peb := maxf(path * 0.9, smoothstep(0.64, 0.76, n2 * 0.5 + n3 * 0.5) * 0.3) * (1.0 - bare * 0.6)
+			var fw: float = w.forest_w(p, tpts, n2 * 1.5) * (1.0 - path)
+			gw *= 1.0 - fw * 0.9
 			var ao := 1.0 - (1.0 - smoothstep(0.0, 1.2, bd.x)) * 0.4 * (1.0 if bd.x > 0.001 else 0.0)
-			im.set_pixel(ix, iy, Color(gw, peb, bright, ao))
+			im.set_pixel(ix, iy, Color(gw, peb, fw, ao))
 	return im
+
+
+## точка карты земли: R — трава, G — тропа, B — подстилка
+func mask_px(p: Vector3) -> Color:
+	if mask == null:
+		return Color(1, 0, 0, 1)
+	var x := clampi(int((p.x / (half * 2.0) + 0.5) * mask.get_width()), 0, mask.get_width() - 1)
+	var y := clampi(int((p.z / (half * 2.0) + 0.5) * mask.get_height()), 0, mask.get_height() - 1)
+	return mask.get_pixel(x, y)
 
 
 ## доля травы в точке (из карты земли)
@@ -459,8 +472,8 @@ func barn_point(i: int, rng: RandomNumberGenerator) -> Vector3:
 
 
 ## кадр: герой внутри коровника — крыша над ним скрыта, ближняя к камере стена прозрачна (видно, что внутри)
-## Кадр (раз в 0,15 с): герой в коровнике — крыша над ним скрыта, длинные стены тоже (сверху видно, что внутри);
-## деревья между камерой и героем скрываются, чтобы крона не закрывала его (столкновение остаётся).
+## Кадр (раз в 0,15 с): герой в коровнике — крыша над ним скрыта, длинные стены тоже (сверху видно, что внутри).
+## Деревья, закрывающие героя, растворяет ULCanopy (общий для базы и коровника).
 func tick(hero: Vector3, cam_pos: Vector3, delta: float) -> void:
 	_tick_t -= delta
 	if _tick_t > 0.0:
@@ -473,24 +486,6 @@ func tick(hero: Vector3, cam_pos: Vector3, delta: float) -> void:
 		var long_x := absf((b.xf as Transform3D).basis.x.z) < 0.7      # длинные стены смотрят на камеру
 		for f in b.front:
 			(f as Node3D).visible = i != inside or not long_x
-	var to_cam := Vector2(cam_pos.x - hero.x, cam_pos.z - hero.z).normalized()
-	var side := Vector2(-to_cam.y, to_cam.x)
-	for t in trees:
-		var d := Vector2(t.position.x - hero.x, t.position.z - hero.z)
-		var along := d.dot(to_cam)
-		t.visible = not (along > -1.5 and along < 7.5 and absf(d.dot(side)) < 2.8)
-	for i in _spruce_xf.size():
-		var o := _spruce_xf[i].origin
-		var d := Vector2(o.x - hero.x, o.z - hero.z)
-		var along := d.dot(to_cam)
-		var hide := along > -1.5 and along < 7.5 and absf(d.dot(side)) < 3.0
-		if hide != _hidden.has(i):
-			if hide:
-				_hidden[i] = true
-				_spruce_mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * 0.001), o))
-			else:
-				_hidden.erase(i)
-				_spruce_mm.set_instance_transform(i, _spruce_xf[i])
 
 
 # ---------------- заборы, лес, мусор, техника ----------------
@@ -536,7 +531,7 @@ func _fences(rng: RandomNumberGenerator) -> void:
 ## перелески: ели (те же, что на базе), сосны и берёзы
 func _forest(rng: RandomNumberGenerator) -> void:
 	var kinds := []                    # [модель, доля, высота от, до]
-	for k in [["ul_pine", 0.15, 5.5, 7.5], ["ul_birch", 0.15, 6.0, 8.0], ["ul_oak", 0.2, 6.5, 8.5], ["ul_dead_tree", 0.1, 5.5, 7.5]]:
+	for k in [["ul_pine", 0.15, 3.8, 4.8], ["ul_birch", 0.15, 4.0, 5.0], ["ul_oak", 0.2, 3.8, 5.0], ["ul_dead_tree", 0.1, 3.4, 4.6]]:
 		if ResourceLoader.exists(MODELS + String(k[0]) + ".glb"):
 			kinds.append([load(MODELS + String(k[0]) + ".glb"), k[1], k[2], k[3]])
 	var spruce_xf := _spruce_xf
@@ -582,10 +577,13 @@ func _forest(rng: RandomNumberGenerator) -> void:
 	var mm := MultiMesh.new()
 	_spruce_mm = mm
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = w._spruce_mesh(8.0, 141)
+	mm.use_custom_data = true
+	mm.mesh = w._spruce_mesh(4.6, 141)
 	mm.instance_count = spruce_xf.size()
 	for i in spruce_xf.size():
 		mm.set_instance_transform(i, spruce_xf[i])
+		mm.set_instance_custom_data(i, Color(0, 0, 0, 0))
+	w.canopy.add_multimesh(mm, 4.6)
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -601,6 +599,7 @@ func _tree(sc: PackedScene, p: Vector3, h: float, yaw: float) -> void:
 	add_child(t)
 	_cull(t, 48.0)
 	trees.append(t)
+	w.canopy.add_model(t, h)
 
 
 ## дальше dist от камеры модель не рисуется (камера видит ~10 м вокруг героя; это экономит вызовы отрисовки)
@@ -680,7 +679,7 @@ func _landmarks() -> void:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 808
 		for p in DEAD_TREES:
-			_tree(sc, p, rng.randf_range(5.0, 7.0), rng.randf() * TAU)
+			_tree(sc, p, rng.randf_range(3.5, 4.5), rng.randf() * TAU)
 			var cs := CollisionShape3D.new()
 			var cy := CylinderShape3D.new()
 			cy.radius = 0.25
@@ -716,7 +715,9 @@ func _debris(rng: RandomNumberGenerator) -> void:
 				var rs := rng.randf_range(0.6, 1.3)
 				rock.scale = Vector3(rs, rs * 0.7, rs)
 				rock.position = p
-				rock.material_override = _mat("rock_boulder_dry", 1.5)
+				var rmat := _mat("rock_boulder_dry", 1.5)
+				rmat.albedo_color = Color(0.52, 0.5, 0.46)
+				rock.material_override = rmat
 				add_child(rock)
 				var cs := CollisionShape3D.new()
 				var sp := SphereShape3D.new()

@@ -24,7 +24,7 @@ const MODELS := "res://assets/world/"
 
 ## деревья: модель, высота, сколько, радиус ствола (для столкновений; 0 — без столкновений)
 const FLORA := [
-	["ul_birch", 5.5, 6, 0.14], ["ul_pine", 6.5, 10, 0.16], ["ul_apple", 3.6, 3, 0.15], ["ul_bush", 1.2, 22, 0.0],
+	["ul_birch", 4.0, 6, 0.14], ["ul_pine", 4.6, 10, 0.16], ["ul_apple", 3.0, 3, 0.15], ["ul_bush", 1.2, 22, 0.0],
 ]
 
 var player: CharacterBody3D
@@ -114,6 +114,11 @@ func _ready() -> void:
 		_armory()
 		_yard()
 		_flora()
+		if test == "bake":
+			# карта земли — после деревьев: под ними лесная подстилка
+			_mask_img = _bake_mask()
+			_mask_img.save_png(ProjectSettings.globalize_path(GROUND_MASK))
+			_ground_mat.set_shader_parameter("mask", ImageTexture.create_from_image(_mask_img))
 		if test == "bake":
 			_bake_nav()
 		_nav_load()
@@ -615,34 +620,59 @@ func _plane(size: Vector2, at: Vector3, tex: String, uv: float, tint := Color.WH
 
 
 const GROUND_SHADER := """shader_type spatial;
-// Земля кластера: тёмная лесная почва, трава пятнами, тропа с галькой. Где что лежит — заранее посчитано в карту
-// (mask: R — трава, G — галька и тропа, B — светлота, A — затенение у стен дома), поэтому на точку экрана —
-// семь выборок текстур вместо двенадцати и цикла по отрезкам тропы: на телефоне это главная статья расхода.
-// Шум сдвигает точку чтения карты — края пятен неровные.
+// Земля (база и коровник): пять слоёв — зелёная трава, сухие проплешины, лесная подстилка под деревьями, голая
+// земля (у коровника — грязь), тропа с камешками. Где что — карта mask (R — трава, G — тропа, B — подстилка,
+// A — затенение у стен), посчитанная заранее. Слои смешиваются «по высоте»: на границе светлые бугорки одного слоя
+// торчат сквозь другой (трава пучками поверх земли, камни тропы сквозь траву) — край живой, не размытый.
+// Против повторов: трава читается в двух масштабах, крупные пятна шума меняют сухость и светлоту.
 uniform sampler2D grass : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D blades : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D dry : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D forest : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D soil_n : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D path : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D path_n : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise : filter_linear, repeat_enable;
 uniform sampler2D mask : filter_linear, repeat_disable;
 uniform float world_size = 100.0;
-uniform vec3 soil_tint = vec3(0.9, 0.84, 0.74);
+uniform vec3 soil_tint = vec3(1.0);
+uniform float wet = 0.0;              // голая земля местами блестит, как сырая грязь (коровник)
+uniform float dry_amount = 0.6;       // сколько сухих проплешин в траве
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
 void fragment() {
 	vec2 p = wp.xz;
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
+	float n1 = texture(noise, p / 70.0).r;
+	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
-	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.8) / world_size + 0.5);
-	// светлая, естественная гамма: трава — зелёная с желтизной, голая земля — сухая серо-бурая, тропа — светлая галька
-	vec3 g = mix(texture(grass, p / 4.2).rgb, texture(blades, rot * p / 5.3).rgb, 0.4) * vec3(0.88, 1.02, 0.66);
-	vec3 so = texture(soil, p / 3.8).rgb * soil_tint;
-	vec3 e = texture(path, p / 3.2).rgb * vec3(1.0, 0.95, 0.88);
-	ALBEDO = mix(mix(so, e, m.g), g, m.r) * (m.b * 1.2 * 0.76 * m.a);
-	NORMAL_MAP = texture(path_n, p / 3.2).rgb;
-	NORMAL_MAP_DEPTH = 1.2;
-	ROUGHNESS = 0.96;
+	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.4) / world_size + 0.5);
+	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38) * vec3(0.9, 1.08, 0.76);
+	float dw = smoothstep(0.5, 0.74, n1 * 0.7 + n2 * 0.3) * dry_amount;
+	g = mix(g, texture(dry, p / 4.2).rgb * vec3(0.92, 0.9, 0.76), dw);
+	vec3 f = texture(forest, rot * p / 3.2).rgb * vec3(1.08, 1.04, 0.98);
+	vec3 so = texture(soil, p / 3.6).rgb * soil_tint;
+	vec3 pa = texture(path, p / 2.8).rgb * vec3(1.12, 1.08, 1.04);
+	float wg = m.r;
+	float wt = m.g;
+	float wf = m.b * (1.0 - wt);
+	float ws = max(1.0 - wg - wf - wt, 0.0);
+	// смешивание по высоте: «высота» слоя — светлота его текстуры
+	vec4 a = vec4(wg + lum(g) * 0.42, wf + lum(f) * 0.42, ws + lum(so) * 0.34, wt + lum(pa) * 0.46);
+	a *= step(vec4(0.002), vec4(wg, wf, ws, wt));
+	float top = max(max(a.x, a.y), max(a.z, a.w)) - 0.22;
+	vec4 b = max(a - vec4(top), vec4(0.0));
+	b /= max(b.x + b.y + b.z + b.w, 0.0001);
+	vec3 c = g * b.x + f * b.y + so * b.z + pa * b.w;
+	float bright = mix(0.88, 1.07, n1) * mix(0.95, 1.04, n2);
+	ALBEDO = c * bright * m.a * 0.92;
+	vec3 nm = texture(soil_n, p / 3.6).rgb * (b.z + b.y * 0.5) + texture(path_n, p / 2.8).rgb * b.w + vec3(0.5, 0.5, 1.0) * (b.x + b.y * 0.5);
+	NORMAL_MAP = nm;
+	NORMAL_MAP_DEPTH = 1.1;
+	float puddle = b.z * wet * smoothstep(0.55, 0.72, n3 * 0.6 + n2 * 0.4);
+	ROUGHNESS = mix(0.95, 0.42, puddle);
+	SPECULAR = mix(0.3, 0.6, puddle);
 }
 """
 
@@ -767,8 +797,10 @@ func _noise(uv: Vector2) -> float:
 	return _noise_img.get_pixel(int(x) % 256, int(y) % 256).r
 
 
-## доля травы в точке — та же формула, что в шейдере земли (без двора и тропы)
+## доля травы в точке — по карте земли (там, где на земле трава, растут и пучки; под деревьями и на тропе — нет)
 func _grass_w(p: Vector3) -> float:
+	if _mask_img != null:
+		return mask_at(p).r
 	var q := Vector2(p.x, p.z)
 	var n1 := _noise(q / 70.0)
 	var n2 := _noise(q / 19.0 + Vector2(0.37, 0.11))
@@ -836,7 +868,7 @@ const GROUND_MASK := "res://assets/world/tex/ground_mask.png"
 ## Карта земли 256×256 на весь кластер — где трава, где галька и тропа, светлота, затенение у стен дома.
 ## Считается один раз (инструментом: --as-test=bake) и лежит в проекте.
 func _bake_mask() -> Image:
-	var n := 256
+	var n := 384
 	var im := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	var worn_c := Vector2(HOUSE_AT.x, HOUSE_AT.z + ULHouse.D * 0.5 + 2.2)
 	var worn_r := 4.2
@@ -856,15 +888,66 @@ func _bake_mask() -> Image:
 			var lq := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length()
 			var ring := 1.0 - smoothstep(0.2, 1.4, lq)
 			var bare := maxf(trail, maxf(porch, ring * 0.8))
-			var gw := smoothstep(0.35, 0.55, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.9 + 0.08
+			var gw := smoothstep(0.26, 0.5, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.82 + 0.18
 			var yq := Vector2(maxf(maxf(y0.x - p.x, p.x - y1.x), 0.0), maxf(maxf(y0.y - p.y, p.y - y1.y), 0.0))
 			var in_yard := 1.0 - smoothstep(0.0, 1.2, yq.length())
 			gw *= (1.0 - in_yard * 0.45) * (1.0 - bare)
-			var peb := maxf(bare, smoothstep(0.6, 0.72, n2 * 0.5 + n3 * 0.5) * 0.75)
-			var bright := lerpf(0.84, 1.08, n1) * lerpf(0.92, 1.05, n2) / 1.2
+			var peb := maxf(trail, smoothstep(0.6, 0.72, n2 * 0.5 + n3 * 0.5) * 0.35) * (1.0 - in_yard * 0.5)
+			var fw := forest_w(p, _tree_pts, n2 * 1.5) * (1.0 - trail)
+			gw *= 1.0 - fw * 0.9
 			var ao := 1.0 - (1.0 - smoothstep(0.0, 0.9, lq)) * 0.45 * (1.0 if lq > 0.001 else 0.0)
-			im.set_pixel(ix, iy, Color(gw, peb, bright, ao))
+			im.set_pixel(ix, iy, Color(gw, peb, fw, ao))
 	return im
+
+
+var _ground_mat: ShaderMaterial
+var _mask_img: Image
+var _tree_pts: Array = []         ## [точка, радиус кроны] — под деревьями лесная подстилка (карта земли, канал B)
+
+
+## Материал земли (GROUND_SHADER) — общий для базы и коровника: трава sparse_grass, сухие проплешины grass_ground,
+## подстилка mud_forest, тропа stony_dirt_path (Poly Haven, CC0); голая земля — своя для каждой локации.
+func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float) -> ShaderMaterial:
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = GROUND_SHADER if ULSettings.gfx == 2 else GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
+	sm.shader = sh
+	sm.set_shader_parameter("grass", load(TEX + "sparse_grass_c.jpg"))
+	sm.set_shader_parameter("dry", load(TEX + "grass_ground_c.jpg"))
+	sm.set_shader_parameter("forest", load(TEX + "mud_forest_c.jpg"))
+	sm.set_shader_parameter("soil", load(TEX + soil + "_c.jpg"))
+	sm.set_shader_parameter("soil_n", load(TEX + soil_n + "_n.jpg"))
+	sm.set_shader_parameter("path", load(TEX + "stony_dirt_path_c.jpg"))
+	sm.set_shader_parameter("path_n", load(TEX + "stony_dirt_path_n.jpg"))
+	sm.set_shader_parameter("world_size", size)
+	sm.set_shader_parameter("soil_tint", soil_tint)
+	sm.set_shader_parameter("wet", wet)
+	sm.set_shader_parameter("dry_amount", dry)
+	return sm
+
+
+## доля лесной подстилки в точке по деревьям (под кроной и чуть дальше — листья, хвоя, ростки)
+static func forest_w(q: Vector2, pts: Array, wobble: float) -> float:
+	var f := 0.0
+	for t in pts:
+		var c: Vector3 = t[0]
+		var r: float = t[1]
+		var dx := absf(q.x - c.x)
+		var dz := absf(q.y - c.z)
+		if dx > r * 2.0 + 2.0 or dz > r * 2.0 + 2.0:
+			continue
+		var d := Vector2(dx, dz).length()
+		f = maxf(f, 1.0 - smoothstep(r * 0.55, r * 1.5 + wobble, d))
+	return f
+
+
+## точка карты земли (R — трава, G — тропа, B — подстилка, A — затенение)
+func mask_at(p: Vector3) -> Color:
+	if _mask_img == null:
+		return Color(1, 0, 0, 1)
+	var w := _mask_img.get_width()
+	var h := _mask_img.get_height()
+	return _mask_img.get_pixel(clampi(int((p.x / SIZE + 0.5) * w), 0, w - 1), clampi(int((p.z / SIZE + 0.5) * h), 0, h - 1))
 
 
 func _ground() -> void:
@@ -873,15 +956,8 @@ func _ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(SIZE, SIZE)
 	mi.mesh = pm
-	var sm := ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = GROUND_SHADER if ULSettings.gfx == 2 else GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
-	sm.shader = sh
-	sm.set_shader_parameter("grass", load(TEX + "forrest_ground_01_c.jpg"))
-	sm.set_shader_parameter("blades", load(TEX + "leafy_grass_c.jpg"))
-	sm.set_shader_parameter("soil", load(TEX + "grass_path_2_c.jpg"))
-	sm.set_shader_parameter("path", load(TEX + "rocky_trail_c.jpg"))
-	sm.set_shader_parameter("path_n", load(TEX + "rocky_trail_n.jpg"))
+	var sm := ground_material(SIZE, "grass_path_2", "brown_mud_02", Vector3(0.84, 0.77, 0.66), 0.0, 0.55)
+	_ground_mat = sm
 	# шум — картинкой: тот же рисунок читается и в шейдере, и здесь (где трава — там пучки)
 	var fn := FastNoiseLite.new()
 	fn.seed = 7
@@ -893,16 +969,20 @@ func _ground() -> void:
 	sm.set_shader_parameter("noise", _noise_tex)
 	# карта земли: готовая из проекта; нет её (после правки расстановки) — считается и сохраняется
 	if ResourceLoader.exists(GROUND_MASK) and test != "bake":
+		_mask_img = (load(GROUND_MASK) as Texture2D).get_image()
+		if _mask_img.is_compressed():
+			_mask_img.decompress()
 		sm.set_shader_parameter("mask", load(GROUND_MASK))
 	else:
-		var mk := _bake_mask()
-		if OS.has_feature("editor") or test == "bake":
-			mk.save_png(ProjectSettings.globalize_path(GROUND_MASK))
-		sm.set_shader_parameter("mask", ImageTexture.create_from_image(mk))
+		_mask_img = _bake_mask()
+		sm.set_shader_parameter("mask", ImageTexture.create_from_image(_mask_img))
 	mi.material_override = sm
 	add_child(mi)
 	_edge_fog()
 	_grass()
+	# полевые цветы куртинами — в траве, не во дворе и не у дома
+	ULGroundDetail.flowers(self, mask_at, SIZE, 77, int(110.0 * float(ULSettings.q().grass)) + 20, TUFT_SHADER, func(p: Vector3) -> bool:
+		return _in_yard(p) or (p - HOUSE_AT).length() < 9.0 or p.distance_to(Vector3(0, 0, 6)) < 4.0, float(ULSettings.q().range))
 	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44))
 	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))
 	var sb := StaticBody3D.new()
@@ -1193,7 +1273,7 @@ func _yard() -> void:
 		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5:
 			continue                                               # не в доме и не на крыльце
 		var s := rng.randf_range(0.08, 0.32)
-		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.4), s * 0.7, s)), p + Vector3.UP * s * 0.1))
+		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.4), s * 0.5, s)), p - Vector3.UP * s * 0.12))
 	# несколько валунов у тропы
 	for i in 26:
 		var sgm: Array = TRAIL[rng.randi() % TRAIL.size()]
@@ -1204,7 +1284,7 @@ func _yard() -> void:
 		if hq.x > YARD[0] - 0.6 and hq.x < YARD[2] + 0.6 and hq.z > YARD[1] - 0.6 and hq.z < YARD[3] + 0.6:
 			continue
 		var s := rng.randf_range(0.3, 0.62)
-		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.3), s * 0.75, s)), p + Vector3.UP * s * 0.12))
+		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.3), s * 0.6, s)), p - Vector3.UP * s * 0.1))
 	# сухие ветки и палки на земле
 	var sticks: Array[Transform3D] = []
 	for i in 160:
@@ -1231,7 +1311,7 @@ func _yard() -> void:
 	_multi(sticks, stick, stick_mat)
 	var rm := StandardMaterial3D.new()
 	rm.albedo_texture = load(TEX + "rock_boulder_dry_c.jpg")
-	rm.albedo_color = Color(0.86, 0.86, 0.84)
+	rm.albedo_color = Color(0.52, 0.5, 0.46)          # серо-бурые, не белые: сверху камень не должен светиться
 	rm.normal_enabled = true
 	rm.normal_texture = load(TEX + "rock_boulder_dry_n.jpg")
 	rm.uv1_triplanar = true
@@ -1267,15 +1347,18 @@ render_mode cull_disabled;
 // еловые лапы: вырез по альфе, обе стороны освещены одинаково, концы чуть качаются
 uniform sampler2D tex : source_color, filter_linear_mipmap;
 varying vec3 wn;
+varying float fade_v;
 void vertex() {
 	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	float w = sin(TIME * 1.1 + wpos.x * 0.4 + wpos.z * 0.3) + 0.5 * sin(TIME * 2.3 + wpos.z * 0.8);
 	VERTEX.y += w * 0.035 * (1.0 - UV.y);
 	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	fade_v = INSTANCE_CUSTOM.r;          // ель закрывает героя — растворяется точками (ULCanopy)
 }
 void fragment() {
 	vec4 c = texture(tex, UV);
 	if (c.a < 0.4) { discard; }
+	if (fade_v > 0.001 && fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715)))) < fade_v) { discard; }
 	// нормаль — вверх и наружу с обеих сторон лапы (иначе изнанка чёрная)
 	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
 	vec3 a = c.rgb * COLOR.rgb;
@@ -1370,7 +1453,8 @@ func _spruce_mesh(h: float, seed_n: int) -> ArrayMesh:
 
 ## ельник: три вида ели, расставлены по кластеру (не во дворе, не на тропе, не у старта)
 func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGenerator) -> void:
-	var kinds := [[7.0, 11], [9.0, 12], [11.0, 9]]
+	# высоты — в 2–3 роста героя (как в выживалках с видом сверху): лес не прячет героя и не закрывает пол-экрана
+	var kinds := [[3.8, 11], [4.6, 12], [5.4, 9]]
 	for ki in kinds.size():
 		var h0: float = kinds[ki][0]
 		var xs: Array[Transform3D] = []
@@ -1395,6 +1479,7 @@ func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGener
 			n -= 1
 			var sc := rng.randf_range(0.85, 1.15)
 			xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), p))
+			_tree_pts.append([p, h0 * sc * 0.34])
 			_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * h0 * sc * 0.78), p + Vector3.UP * 0.03))
 			var cs := CollisionShape3D.new()
 			var cy := CylinderShape3D.new()
@@ -1405,10 +1490,13 @@ func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGener
 			body.add_child(cs)
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
 		mm.mesh = _spruce_mesh(h0, 100 + ki)
 		mm.instance_count = xs.size()
 		for i in xs.size():
 			mm.set_instance_transform(i, xs[i])
+			mm.set_instance_custom_data(i, Color(0, 0, 0, 0))
+		canopy.add_multimesh(mm, h0)
 		var mi := MultiMeshInstance3D.new()
 		mi.multimesh = mm
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1466,6 +1554,7 @@ func _multi(xs: Array[Transform3D], mesh: Mesh, mat: Material, colors: Array[Col
 
 
 var _blobs: Array[Transform3D] = []
+var canopy := ULCanopy.new()      ## деревья, закрывающие героя, растворяются
 
 
 func _flora() -> void:
@@ -1510,6 +1599,9 @@ func _flora() -> void:
 			node.rotation.y = rng.randf() * TAU
 			node.position = p
 			add_child(node)
+			if f[0] != "ul_bush":
+				canopy.add_model(node, h)
+			_tree_pts.append([p, h * 0.32 if f[0] != "ul_bush" else 0.7])
 			_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * h * (0.5 if f[0] != "ul_bush" else 0.9)), p + Vector3.UP * 0.03))
 			if float(f[3]) > 0.0:
 				var cs := CollisionShape3D.new()
@@ -1728,6 +1820,7 @@ func _process(delta: float) -> void:
 		cam.global_position += Vector3(sin(Time.get_ticks_msec() * 0.09), 0.0, cos(Time.get_ticks_msec() * 0.11)) * 0.12 * k
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
+	canopy.tick(cam, player.global_position, delta)
 	_find_target()
 	_combat_tick(delta)
 	if info and Engine.get_process_frames() % 10 == 0:
