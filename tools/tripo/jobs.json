@@ -1,6 +1,27 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "ul_zombie",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_zombie",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/zombie.png",
+    "--rig",
+    "biped"
+   ],
+   "timeout": 3600
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
