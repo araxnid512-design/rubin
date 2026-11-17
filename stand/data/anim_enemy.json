@@ -287,6 +287,96 @@
 			"bake": "center",
 			"heading_lock": true,
 			"loop_fix": 0.4
+		},
+		"swipe_r2": {
+			"src": [
+				"{set}px/a_swipe_r.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"swipe_l2": {
+			"src": [
+				"{set}px/a_swipe_l.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"double2": {
+			"src": [
+				"{set}px/a_double.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"slam": {
+			"src": [
+				"{set}px/a_slam.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"grab2": {
+			"src": [
+				"{set}px/a_grab.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"pounce": {
+			"src": [
+				"{set}px/a_pounce.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"xslash": {
+			"src": [
+				"{set}px/a_xslash.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"combo3": {
+			"src": [
+				"{set}px/a_combo3.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"rip": {
+			"src": [
+				"{set}px/a_rip.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
 		}
 	},
 	"_": "Клипы врагов. bake — обработка корня в системе скелета (inplace — на месте с покачиванием, lock — таз на месте, center — над капсулой, keep — путь как есть), heading_lock — курс тела не виляет, sway — окно вычитания медленного увода, с."

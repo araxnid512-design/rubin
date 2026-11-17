@@ -42,6 +42,7 @@ var _atk_t := 0.0                 ## сколько идёт удар
 var _snap_at := -1.0              ## когда замах сменяется рывком
 var _lunge_t := 0.0               ## сколько ещё длится выпад вперёд
 var _atk_rate := 1.0              ## своя скорость клипа удара
+var force_clip := ""              ## проверки: бить только этим ударом
 var _menace := false
 var _still := 0.0
 var _fx_t := 99.0                 ## сколько прошло с начала удара (для когтей и выпада головы)
@@ -578,7 +579,9 @@ func _start_attack(dist: float) -> void:
 	var w_sum := 0.0
 	var eff := maxf(dist - float(def.get("lunge", 0.45)), _close())
 	for a in def.get("attacks", []):
-		if float(a.get("reach", 1.0)) >= eff and rig.has_clip(String(a.clip)):
+		if force_clip != "" and String(a.clip) != force_clip:
+			continue
+		if (float(a.get("reach", 1.0)) >= eff or force_clip != "") and rig.has_clip(String(a.clip)):
 			fit.append(a)
 			w_sum += float(a.get("w", 1.0))
 	if fit.is_empty():
@@ -635,8 +638,16 @@ func _plan_strikes(clip: String, len_s: float, hit_s: float) -> void:
 			_strikes = [[hit_s, "R"]]
 		"attack_l":
 			_strikes = [[hit_s, "L"]]
-		"claw_combo":
+		"claw_combo", "double2":
 			_strikes = [[maxf(hit_s - len_s * 0.24, 0.12), "R"], [hit_s, "L"]]
+		"swipe_r2":
+			_strikes = [[hit_s, "R"]]
+		"swipe_l2":
+			_strikes = [[hit_s, "L"]]
+		"combo3":
+			_strikes = [[maxf(hit_s - len_s * 0.3, 0.1), "R"], [maxf(hit_s - len_s * 0.15, 0.12), "L"], [hit_s, "R"]]
+		"xslash", "slam", "pounce", "rip":
+			_strikes = [[hit_s, "R"], [hit_s, "L"]]          # обе лапы доходят до героя разом
 
 
 func _strike_tick(delta: float) -> void:

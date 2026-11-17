@@ -9096,6 +9096,9 @@ func _run_test() -> void:
 		hp = 100000.0
 		# враг сбоку от героя (с востока): камера видит и замах, и выпад, герой его не заслоняет
 		var e := spawn_enemy(kind, Vector3(24.0, 0.0, 30.0))
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-clip="):
+				e.force_clip = a.substr(10)
 		e.hear(player.global_position)
 		cam_dist = 7.0
 		var t0 := Time.get_ticks_msec()
