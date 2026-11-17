@@ -145,6 +145,13 @@ def main():
     asset = generate(prompt, seconds)
     for t in targets.split(","):
         name, project = t.split(":", 1)
+        if project.startswith("@"):
+            # проект модели из цепочки этой же сборки (chain.py --id <имя> пишет out/<имя>.json с полем pid)
+            try:
+                project = json.loads(Path(f"out/{project[1:]}.json").read_text())["pid"]
+            except Exception as e:
+                print(f"{name}: нет проекта цепочки {project} — {e}", flush=True)
+                continue
         try:
             apply(project, asset, f"out/m_{name}_{tag}.glb")
         except SystemExit as e:

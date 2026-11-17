@@ -14,7 +14,9 @@ note() { { echo "# Вход в Tripo ($(date -u +%H:%M:%S) UTC)"; echo; echo "$1
 logged_in() { tripo account balance > /tmp/bal.txt 2>&1 && ! grep -qiE "not logged|unauthor|login first|auth login" /tmp/bal.txt; }
 
 touch /tmp/start-marker
-if [ -n "$SESSION_PASS" ] && git fetch -q origin tripo-session 2>/dev/null && git show FETCH_HEAD:session.enc > /tmp/session.enc 2>/dev/null; then
+# tools/tripo/fresh.txt = 1 — войти заново (сменили аккаунт: секрет TRIPO_EMAIL с новой почтой), прежнюю сессию не брать
+fresh=$(tr -d ' \r\n' < tools/tripo/fresh.txt 2>/dev/null)
+if [ "$fresh" != "1" ] && [ -n "$SESSION_PASS" ] && git fetch -q origin tripo-session 2>/dev/null && git show FETCH_HEAD:session.enc > /tmp/session.enc 2>/dev/null; then
   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:SESSION_PASS -in /tmp/session.enc 2>/dev/null | tar xz -C "$HOME" 2>/dev/null
 fi
 if logged_in; then

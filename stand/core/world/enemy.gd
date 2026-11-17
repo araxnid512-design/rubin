@@ -38,6 +38,10 @@ var _steer_a := 0.0               ## на сколько отвернул от �
 var _steer_t := 0.0
 var _steer_n := 0
 var _hit_reach := 1.0             ## до какого расстояния доходит начатый удар
+var _atk_t := 0.0                 ## сколько идёт удар
+var _snap_at := -1.0              ## когда замах сменяется рывком
+var _lunge_t := 0.0               ## сколько ещё длится выпад вперёд
+var _atk_rate := 1.0              ## своя скорость клипа удара
 var _menace := false
 var _still := 0.0
 var _fx_t := 99.0                 ## сколько прошло с начала удара (для когтей и выпада головы)
@@ -250,6 +254,8 @@ func damage(d: float, from := Vector3.INF) -> void:
 		collision_layer = 0
 		collision_mask = 0
 		_hit_due = -1.0
+		_snap_at = -1.0
+		_lunge_t = 0.0
 		_charge_t = 0.0
 		_rock_abort()
 		rig.set_motion(0.0, 0.0, 0.016)
@@ -276,6 +282,8 @@ func damage(d: float, from := Vector3.INF) -> void:
 		# сильное попадание (СВД, дробовик в упор) сбивает с ног: удар, который он готовил, срывается
 		rig.play("stagger", 1.3)
 		_hit_due = -1.0
+		_snap_at = -1.0
+		_lunge_t = 0.0
 		_atk = maxf(_atk, float(def.cd) * 0.7)
 		if state == "rock" and _rock_step < 3:
 			# оглушён до броска: камень рассыпается в руках, метка гаснет
@@ -420,23 +428,39 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 			# соприкасаются на ~0.62 м), только оттуда начинает удар и на замахе ещё дожимает вперёд. Удар выбирается
 			# из тех, что достают с этого расстояния (укус и захват — только впритык). Урон — в момент удара, если
 			# герой всё ещё в досягаемости: отскочил — мимо.
-			_face(to, delta, 9.0)
 			_last = p
 			var close := _close()
 			if _hit_due >= 0.0:
-				if dist > close + 0.03:
-					speed = 1.2                          # дожимает на замахе
+				# удар по-настоящему: замах (клип медленнее, враг на месте, следит за героем) → резкий выпад вперёд
+				# до касания (клип быстрее) → удар; герой, отскочивший на замахе, уходит от удара
+				_atk_t += delta
+				if _snap_at >= 0.0 and _atk_t >= _snap_at:
+					_snap_at = -1.0
+					rig.action_rate(_atk_rate * float(def.get("snap", 1.55)))
+					_lunge_t = _hit_due + 0.04
+				if _lunge_t > 0.0:
+					_lunge_t -= delta
+					_face(to, delta, 5.0)
+					speed = clampf((dist - close + 0.05) / maxf(_hit_due, 0.06), 0.0, float(def.get("lunge_v", 4.5)))
+				else:
+					_face(to, delta, 9.0)
 				_hit_due -= delta
 				if _hit_due < 0.0:
+					rig.action_rate(_atk_rate)           # отход — в своём темпе
+					_lunge_t = 0.0
 					if hero_alive and dist <= _hit_reach and absf(p.y - global_position.y) < 1.2:
 						hit_player.emit(_hit_dmg, global_position)
 			elif not hero_alive or dist > close + 1.5 or absf(p.y - global_position.y) > 1.5:
+				_face(to, delta, 9.0)
 				if _atk <= float(def.cd) * 0.5:
 					state = "chase"
 			else:
-				if dist > close + 0.04 and not rig.busy():
-					speed = minf(float(def.run), 2.4)    # шаг вплотную
-				if _atk <= 0.0 and dist <= close + 0.3 and not rig.busy():
+				_face(to, delta, 9.0)
+				# между ударами держится на шаг от героя (видно замах), а не вплотную
+				var keep := close + float(def.get("keep", 0.3))
+				if dist > keep + 0.06 and not rig.busy():
+					speed = minf(float(def.run), 2.4)
+				if _atk <= 0.0 and dist <= keep + 0.25 and not rig.busy():
 					_start_attack(dist)
 	# стойка вплотную: между ударами покачивается и тянет руки к герою (если есть такой клип)
 	_still = _still + delta if speed < 0.1 and state == "attack" and _hit_due < 0.0 else 0.0
@@ -546,13 +570,15 @@ func _close() -> float:
 	return float(def.get("close", 0.72))
 
 
-## начать удар: из тех, что достают с расстояния dist; захват и укус — только вплотную
+## Начать удар: из тех, что достают с расстояния dist с учётом выпада (захват и укус — только вплотную).
+## Время клипа делится на замах (медленнее, wind), рывок (быстрее, snap — враг бросается вперёд) и отход.
 func _start_attack(dist: float) -> void:
 	_atk = float(def.cd)
 	var fit: Array = []
 	var w_sum := 0.0
+	var eff := maxf(dist - float(def.get("lunge", 0.45)), _close())
 	for a in def.get("attacks", []):
-		if float(a.get("reach", 1.0)) >= dist and rig.has_clip(String(a.clip)):
+		if float(a.get("reach", 1.0)) >= eff and rig.has_clip(String(a.clip)):
 			fit.append(a)
 			w_sum += float(a.get("w", 1.0))
 	if fit.is_empty():
@@ -565,8 +591,17 @@ func _start_attack(dist: float) -> void:
 			a = x
 			break
 	var clip := String(a.clip)
-	var len_s := rig.play(clip, float(a.get("rate", 1.0)))
-	_hit_due = len_s * float(a.get("hit", 0.45))
+	_atk_rate = float(a.get("rate", 1.0))
+	var wind := float(def.get("wind", 0.72))
+	var snap := float(def.get("snap", 1.55))
+	var h := float(a.get("hit", 0.45))
+	var len_w := rig.play(clip, _atk_rate * wind)              # весь клип в темпе замаха
+	var len_s := len_w * wind                                  # весь клип в своём темпе
+	# замах — до 60 % пути к удару в темпе wind, остаток — в темпе snap
+	_atk_t = 0.0
+	_snap_at = len_w * h * 0.6
+	_hit_due = _snap_at + len_s * h * 0.4 / snap
+	_lunge_t = 0.0
 	_hit_dmg = float(a.dmg)
 	_hit_reach = float(a.get("reach", 1.0)) + 0.25
 	_fx_t = 0.0

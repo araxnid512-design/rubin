@@ -1,0 +1,50 @@
+{
+ "_": "Новые удары пустыша и лотерейщика (задание пользователя 17.11: «нормальная атака, новые анимации, как бьют заражённые в Last Day on Earth»). Движение по тексту генерируется один раз (20 кредитов) и переносится на обе модели-заместителя нового аккаунта (zombiepx — по картинке пустыша, lotterypx — лотерейщика; перенос бесплатный). В игре клипы ложатся на скелеты пустыша и лотерейщика через поправку к исходной позе (BCAnimSet._rest_fix).",
+ "motions": [
+  {
+   "tag": "a_swipe_r",
+   "seconds": 2,
+   "prompt": "a hunched zombie pulls its right arm far back behind its shoulder, hesitates for a moment, then lunges one step forward and swings the right clawed hand in a big diagonal swipe down across in front of its chest, follows through and staggers back into a hunched stance"
+  },
+  {
+   "tag": "a_swipe_l",
+   "seconds": 2,
+   "prompt": "a hunched zombie pulls its left arm far back behind its shoulder, hesitates for a moment, then lunges one step forward and swings the left clawed hand in a big diagonal swipe down across in front of its chest, follows through and staggers back into a hunched stance"
+  },
+  {
+   "tag": "a_double",
+   "seconds": 2,
+   "prompt": "a hunched zombie lurches forward and claws at someone in front of it with two heavy alternating downward swipes, first the right hand then the left hand, leaning its whole body into each swing, then recovers"
+  },
+  {
+   "tag": "a_slam",
+   "seconds": 2,
+   "prompt": "a zombie raises both arms high above its head, then lunges forward and slams both forearms down hard in front of it, bending at the waist, then slowly straightens up"
+  },
+  {
+   "tag": "a_grab",
+   "seconds": 3,
+   "prompt": "a zombie lunges forward with both arms stretched out, grabs the shoulders of someone in front of it, pulls them close and snaps its head forward to bite, then shoves them away and steps back"
+  },
+  {
+   "tag": "a_pounce",
+   "seconds": 2,
+   "prompt": "a feral mutant crouches low, then springs forward a long distance with both clawed arms outstretched in front and lands crouched, slashing both claws downward"
+  },
+  {
+   "tag": "a_xslash",
+   "seconds": 2,
+   "prompt": "a feral mutant steps forward and slashes both clawed arms across each other in an X in front of its chest in one fast violent motion, then pulls the arms back to its sides"
+  },
+  {
+   "tag": "a_combo3",
+   "seconds": 2,
+   "prompt": "a feral mutant attacks with three very fast claw slashes, right, left, right, while stepping aggressively forward, upper body twisting with each slash"
+  },
+  {
+   "tag": "a_rip",
+   "seconds": 2,
+   "prompt": "a feral mutant grabs forward with both claws and tears violently side to side, then pulls back and snarls"
+  }
+ ]
+}

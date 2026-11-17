@@ -444,12 +444,28 @@ func play(n: String, rate := 1.0) -> float:
 	os.fadein_time = info[n].blend
 	os.fadeout_time = info[n].blend
 	var r: float = info[n].rate * rate
+	_play_r = info[n].rate
 	tree.set("parameters/act_ts_%s/scale" % _slot, r)
 	tree.set("parameters/action_%s/request" % _slot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	_action = n
 	_ik_act = bool(info[n].get("ik", false))
 	_action_t = info[n].len / r
 	return _action_t
+
+
+var _play_r := 1.0                ## собственная скорость идущего разового клипа (из набора)
+
+
+## Сменить скорость идущего разового клипа на ходу (к собственной скорости клипа): замах медленнее, удар — резче,
+## отход — как есть. Оставшееся время клипа пересчитывается.
+func action_rate(rate: float) -> void:
+	if tree == null or _action == "":
+		return
+	var path := "parameters/act_ts_%s/scale" % _slot
+	var old: float = maxf(float(tree.get(path)), 0.001)
+	var nw := maxf(_play_r * rate, 0.001)
+	_action_t *= old / nw
+	tree.set(path, nw)
 
 
 func stop_action() -> void:

@@ -2083,8 +2083,13 @@ func _process(delta: float) -> void:
 	var hv := Vector3(player.velocity.x, 0, player.velocity.z)
 	# отклик без «плавания»: до полного бега — за десятую секунды, остановка — ещё быстрее
 	hv = hv.move_toward(want, delta * (45.0 if want.length() > hv.length() else 60.0))
-	player.velocity = Vector3(hv.x, player.velocity.y - 9.8 * delta, hv.z)
+	# толчок от удара врага: добавка к шагу, быстро гаснет и в разгон не копится
+	var kv := _knock
+	player.velocity = Vector3(hv.x + kv.x, player.velocity.y - 9.8 * delta, hv.z + kv.z)
 	player.move_and_slide()
+	player.velocity.x -= kv.x
+	player.velocity.z -= kv.z
+	_knock = _knock.move_toward(Vector3.ZERO, delta * 10.0)
 	if player.is_on_floor():
 		player.velocity.y = 0.0
 	var real := Vector3(player.velocity.x, 0, player.velocity.z).length()
@@ -3132,7 +3137,16 @@ func _draw_hud() -> void:
 	# шапка: имя, здоровье, энергия, вода
 	var font0 := ThemeDB.fallback_font
 	if _hurt_t > 0.0:
-		_hud.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.8, 0.05, 0.03, 0.2 * clampf(_hurt_t / 0.35, 0.0, 1.0)))
+		# удар по герою: красные края экрана (середина остаётся видна — куда бежать)
+		var ha := 0.5 * clampf(_hurt_t / 0.35, 0.0, 1.0) * clampf(_hurt_amp, 0.6, 1.2)
+		var c0 := Color(0.75, 0.03, 0.02, ha)
+		var c1 := Color(0.75, 0.03, 0.02, 0.0)
+		var bw := vs.x * 0.16
+		var bh := vs.y * 0.2
+		_hud.draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(vs.x, 0), Vector2(vs.x - bw, bh), Vector2(bw, bh)]), PackedColorArray([c0, c0, c1, c1]))
+		_hud.draw_polygon(PackedVector2Array([Vector2(0, vs.y), Vector2(bw, vs.y - bh), Vector2(vs.x - bw, vs.y - bh), vs]), PackedColorArray([c0, c1, c1, c0]))
+		_hud.draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(bw, bh), Vector2(bw, vs.y - bh), Vector2(0, vs.y)]), PackedColorArray([c0, c1, c1, c0]))
+		_hud.draw_polygon(PackedVector2Array([Vector2(vs.x, 0), vs, Vector2(vs.x - bw, vs.y - bh), Vector2(vs.x - bw, bh)]), PackedColorArray([c0, c0, c1, c1]))
 	if _dead_t > 0.0:
 		_hud.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.1, 0.0, 0.0, 0.6))
 		var dt := "Вы погибли"
@@ -7426,6 +7440,7 @@ var _open_corpse: ULEnemy = null
 var _respawn: Array = []          ## [точка, сколько осталось ждать]
 var _hurt_t := 0.0
 var _hurt_amp := 1.0
+var _knock := Vector3.ZERO
 var _dead_t := 0.0
 var _book_ui: Control
 var _enemy_n := 0
@@ -7604,6 +7619,8 @@ func hurt(dmg: float, from := Vector3.INF) -> void:
 			push = push.normalized()
 			if flinch:
 				flinch.hit(push, dmg / 14.0)
+			# удар отталкивает: на 15–35 см назад от врага
+			_knock = push * clampf(dmg / 9.0, 1.6, 2.8)
 			_blood(player.global_position + Vector3.UP * 1.3 - push * 0.18, push, int(clampf(dmg, 8.0, 24.0)))
 	if hp <= 0.0:
 		# погиб: через три секунды — снова у дома, с половиной здоровья; враги расходятся
@@ -9077,9 +9094,10 @@ func _run_test() -> void:
 		player.global_position = Vector3(20.0, 0.05, 30.0)
 		player.rotation.y = PI
 		hp = 100000.0
-		var e := spawn_enemy(kind, Vector3(20.0, 0.0, 26.0))
+		# враг сбоку от героя (с востока): камера видит и замах, и выпад, герой его не заслоняет
+		var e := spawn_enemy(kind, Vector3(24.0, 0.0, 30.0))
 		e.hear(player.global_position)
-		cam_dist = 6.0
+		cam_dist = 7.0
 		var t0 := Time.get_ticks_msec()
 		var n := 0
 		while Time.get_ticks_msec() - t0 < 14000 and n < 40:
