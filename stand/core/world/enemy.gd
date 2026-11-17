@@ -49,6 +49,9 @@ var _path: PackedVector3Array = []   ## путь по карте проходи�
 var _path_t := 0.0
 var _path_to := Vector3.INF
 var wander_r := 5.0               ## насколько отходит от своего места, бродя (в комнате — меньше; 0 — стоит)
+var charges := 0                  ## сколько раз сорвался в рывок (для проверок)
+var _charge_t := 0.0              ## рывок: сколько ещё длится
+var _charge_cd := 0.0             ## и через сколько возможен следующий
 
 
 static func _load_kinds() -> Dictionary:
@@ -79,10 +82,13 @@ static func describe(k: String) -> Array:
 	var at := ""
 	for a in d.get("attacks", []):
 		at += ("" if at == "" else ", ") + "%s — %d" % [String(a.n), int(a.dmg)]
+	var chg := ""
+	if d.has("charge"):
+		chg = " Рывок: ближе %d м срывается и %.1f с несётся со скоростью %.1f м/с, потом %d с отдышки." % [int(d.charge.from), float(d.charge.s), float(d.charge.speed), int(d.charge.cd)]
 	return [
 		String(d.d),
 		"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
-		"Ходит: бродит шагом (%.1f м/с). Видит героя ближе %d м, слышит %s. Заметив — %sбежит к нему (%.1f м/с), обходя препятствия. Теряет, если не видит %d с и герой дальше %d м." % [float(d.walk), int(d.see), hears, "кричит и " if float(d.get("alert_s", 0.0)) > 0.0 else "", float(d.run), int(d.get("lose_s", 0)), int(d.lose)],
+		"Ходит: бродит шагом (%.1f м/с). Видит героя ближе %d м, слышит %s. Заметив — %sбежит к нему (%.1f м/с), обходя препятствия. Теряет, если не видит %d с и герой дальше %d м." % [float(d.walk), int(d.see), hears, "кричит и " if float(d.get("alert_s", 0.0)) > 0.0 else "", float(d.run), int(d.get("lose_s", 0)), int(d.lose)] + chg,
 		"Нападает: подходит вплотную, раз в %.1f с, с замахом — от удара можно отскочить. Удары: %s." % [float(d.cd), at],
 		"В теле может быть: %s." % lt,
 		"Тело лежит минуту и исчезает — обыскали его или нет.",
@@ -105,7 +111,7 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	var tall := float(def.get("height", 1.78))
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.32
+	cap.radius = float(def.get("radius", 0.28))      # уже запаса карты путей (0,3 м): углы и торцы перил не цепляет
 	cap.height = tall
 	cs.shape = cap
 	cs.position.y = tall * 0.5
@@ -232,6 +238,7 @@ func damage(d: float, from := Vector3.INF) -> void:
 		collision_layer = 0
 		collision_mask = 0
 		_hit_due = -1.0
+		_charge_t = 0.0
 		rig.set_motion(0.0, 0.0, 0.016)
 		# ударили спереди — валится на спину; сзади — лицом вперёд; сбоку — разворачивает к удару и валит от него
 		var clip := "death_front" if side == "back" and rig.has_clip("death_front") else "death"
@@ -252,7 +259,7 @@ func damage(d: float, from := Vector3.INF) -> void:
 		state = "chase"
 		_last = from if from != Vector3.INF else _last
 		_unseen = 0.0
-	if d >= minf(float(def.hp) * 0.3, 60.0) and rig.has_clip("stagger"):
+	if d >= float(def.get("stagger_dmg", minf(float(def.hp) * 0.3, 60.0))) and rig.has_clip("stagger"):
 		# сильное попадание (СВД, дробовик в упор) сбивает с ног: удар, который он готовил, срывается
 		rig.play("stagger", 1.3)
 		_hit_due = -1.0
@@ -332,8 +339,23 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
 			else:
 				speed = float(def.run)
+				# Рывок (у кого он есть — data/enemies.json: charge): видит героя на средней дистанции — рёв и резкое
+				# ускорение на пару секунд; потом — передышка. Тяжёлый, но догоняет бегущего.
+				var chg: Dictionary = def.get("charge", {})
+				if not chg.is_empty():
+					_charge_cd = maxf(0.0, _charge_cd - delta)
+					if _charge_t > 0.0:
+						_charge_t -= delta
+						speed = float(chg.speed)
+					elif _charge_cd <= 0.0 and can_see and same_floor and dist < float(chg.from) and dist > float(chg.to):
+						_charge_t = float(chg.s)
+						_charge_cd = float(chg.cd)
+						charges += 1
+						noise.emit("roar", global_position)
 				var go := tl if can_see else _nav_dir(_last, delta)
-				_face(_steer(go, delta), delta, 7.0)
+				# по пути карты проходимости идёт как есть: путь уже обходит стены и мебель, а «щуп» перед собой у перил и
+				# косяков только сбивал с него; щуп — когда идёт напрямик (видит героя) или пути нет
+				_face(_steer(go, delta) if (can_see or _path.is_empty()) else go, delta, 7.0)
 				if _growl <= 0.0:
 					_growl = _rng.randf_range(3.0, 6.0)
 					noise.emit("growl", global_position)
@@ -418,6 +440,8 @@ func _start_attack(dist: float) -> void:
 	_fx_bite = bool(a.get("bite", false))
 	last_attack = String(a.n)
 	_plan_strikes(clip, len_s, _hit_due)
+	if String(a.get("hands", "")) == "both" and rig.hands != null:
+		_strikes = [[_hit_due, "R"], [_hit_due, "L"]]          # удар двумя руками: обе кисти доходят до героя
 	if _menace:
 		_menace = false
 		rig.set_pose("")

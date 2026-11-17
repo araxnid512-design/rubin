@@ -1,0 +1,318 @@
+{
+	"root_bone": "Hip",
+	"clips": {
+		"idle": {
+			"src": [
+				"{set}/z_idle.res",
+				"res://assets/anim/lottery/z_idle.res",
+				"res://assets/anim/hero/idle.res"
+			],
+			"loop": true,
+			"blend": 0.3,
+			"rate": 1.0,
+			"loop_fix": 0.5,
+			"bake": "center",
+			"heading_lock": true
+		},
+		"walk": {
+			"src": [
+				"{set}/z_walk.res",
+				"res://assets/anim/lottery/z_walk.res",
+				"res://assets/anim/hero/walk.res"
+			],
+			"loop": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"strides": 1.0,
+			"loop_fix": 0.3,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0
+		},
+		"run": {
+			"src": [
+				"{set}/z_run.res",
+				"res://assets/anim/lottery/z_run.res",
+				"res://assets/anim/hero/run.res"
+			],
+			"loop": true,
+			"blend": 0.25,
+			"rate": 1.0,
+			"strides": 1.0,
+			"loop_fix": 0.25,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0
+		},
+		"alert": {
+			"src": [
+				"{set}/z_alert.res",
+				"res://assets/anim/lottery/z_alert.res",
+				"res://assets/anim/hero/look_around.res"
+			],
+			"loop": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"ik": true,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"scream": {
+			"src": [
+				"{set}/z_scream.res",
+				"res://assets/anim/lottery/z_scream.res",
+				"res://assets/anim/hero/angry_01.res"
+			],
+			"loop": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"ik": true,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"turn_left": {
+			"src": [
+				"{set}/z_turn_l.res",
+				"res://assets/anim/lottery/z_turn_l.res",
+				"res://assets/anim/hero/turn.res"
+			],
+			"loop": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": false
+		},
+		"turn_right": {
+			"src": [
+				"{set}/z_turn_r.res",
+				"res://assets/anim/lottery/z_turn_r.res",
+				"res://assets/anim/hero/m_turn_right.res"
+			],
+			"loop": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": false
+		},
+		"attack_l": {
+			"src": [
+				"{set}/z_attack_l.res",
+				"res://assets/anim/lottery/z_attack_l.res",
+				"res://assets/anim/hero/box_01.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"attack_r": {
+			"src": [
+				"{set}/z_attack_r.res",
+				"res://assets/anim/lottery/z_attack_r.res",
+				"res://assets/anim/hero/box_02.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"bite": {
+			"src": [
+				"{set}/z_bite.res",
+				"res://assets/anim/lottery/z_bite.res",
+				"res://assets/anim/hero/m_melee_light.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"lunge": {
+			"src": [
+				"{set}/z_mouth.res",
+				"res://assets/anim/lottery/z_mouth.res",
+				"res://assets/anim/hero/m_melee_heavy.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"hit_front": {
+			"src": [
+				"{set}/z_hit_front.res",
+				"res://assets/anim/lottery/z_hit_front.res",
+				"res://assets/anim/hero/hit_to_body_01.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"hit_back": {
+			"src": [
+				"{set}/z_hit_back.res",
+				"res://assets/anim/lottery/z_hit_back.res",
+				"res://assets/anim/hero/hit_to_body_02.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"stagger": {
+			"src": [
+				"{set}/z_stagger.res",
+				"res://assets/anim/lottery/z_stagger.res",
+				"res://assets/anim/hero/m_stagger.res"
+			],
+			"loop": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"death": {
+			"src": [
+				"{set}/z_death_back.res",
+				"res://assets/anim/lottery/z_death_back.res",
+				"res://assets/anim/hero/fall.res"
+			],
+			"loop": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
+		},
+		"dead": {
+			"src": [
+				"{set}/z_death_back.res",
+				"res://assets/anim/lottery/z_death_back.res",
+				"res://assets/anim/hero/fall.res"
+			],
+			"loop": true,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
+		},
+		"death_front": {
+			"src": [
+				"{set}/z_death_front.res",
+				"res://assets/anim/lottery/z_death_front.res",
+				"res://assets/anim/hero/defeat_03.res"
+			],
+			"loop": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
+		},
+		"dead_front": {
+			"src": [
+				"{set}/z_death_front.res",
+				"res://assets/anim/lottery/z_death_front.res",
+				"res://assets/anim/hero/defeat_03.res"
+			],
+			"loop": true,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
+		},
+		"death_side": {
+			"src": [
+				"{set}/z_death_side.res",
+				"res://assets/anim/lottery/z_death_side.res"
+			],
+			"loop": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
+		},
+		"dead_side": {
+			"src": [
+				"{set}/z_death_side.res",
+				"res://assets/anim/lottery/z_death_side.res"
+			],
+			"loop": true,
+			"blend": 0.2,
+			"rate": 1.0,
+			"hold": true,
+			"ground": true,
+			"bake": "keep",
+			"heading_lock": false
+		},
+		"grab_bite": {
+			"src": [
+				"{set}/z_grab_bite.res",
+				"res://assets/anim/lottery/z_grab_bite.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"claw_combo": {
+			"src": [
+				"{set}/z_claw_combo.res",
+				"res://assets/anim/lottery/z_claw_combo.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"overhead": {
+			"src": [
+				"{set}/z_overhead.res",
+				"res://assets/anim/lottery/z_overhead.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"lunge_bite": {
+			"src": [
+				"{set}/z_lunge_bite.res",
+				"res://assets/anim/lottery/z_lunge_bite.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"menace": {
+			"src": [
+				"{set}/z_menace.res",
+				"res://assets/anim/lottery/z_menace.res"
+			],
+			"loop": true,
+			"blend": 0.3,
+			"rate": 1.0,
+			"bake": "center",
+			"heading_lock": true,
+			"loop_fix": 0.4
+		}
+	},
+	"_": "Клипы врагов. bake — обработка корня в системе скелета (inplace — на месте с покачиванием, lock — таз на месте, center — над капсулой, keep — путь как есть), heading_lock — курс тела не виляет, sway — окно вычитания медленного увода, с."
+}

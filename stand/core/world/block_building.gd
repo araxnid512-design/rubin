@@ -26,7 +26,7 @@ const FW := 1.35
 const CUT := 1.2                  ## на какой высоте срезаны стены этажа, где герой
 const CW := 2.4                   ## ширина коридора
 const PITCH := 3.25               ## шаг окон
-const GEN_V := 1                  ## версия генератора: менять при любой правке сборки корпусов (иначе возьмётся старый кэш)
+const GEN_V := 3                  ## версия генератора: менять при любой правке сборки корпусов (иначе возьмётся старый кэш)
 
 const SHADER_BODY := """
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
@@ -1137,7 +1137,11 @@ func _rails(bk: Dictionary, key: String, by: Array, f: int) -> void:
 	while u <= float(g.u1) + 0.01:
 		_lb(key, "metal", bk, u - 0.015, u + 0.015, y, y + 0.95, vi - 0.015, vi + 0.015)
 		u += 0.5
-	cols.append([_ws(bk, float(g.u1) - float(g.u0), 1.0, 0.08), Transform3D(Basis(), _w(bk, (float(g.u0) + float(g.u1)) * 0.5, y + 0.5, vi))])
+	# столкновение перил — короче на 0,9 м у верхней площадки: там поворачивают с марша (у торца перил цеплялись)
+	var top_dir := signf(float(g.top) - float(g.bottom))
+	var ca: float = g.bottom
+	var cb: float = float(g.top) - top_dir * 0.9
+	cols.append([_ws(bk, absf(cb - ca), 1.0, 0.08), Transform3D(Basis(), _w(bk, (ca + cb) * 0.5, y + 0.5, vi))])
 	# поперёк — у нижнего конца марша (там проём глубже всего)
 	var ub: float = g.bottom
 	_lb(key, "metal", bk, ub - 0.03, ub + 0.03, y + 0.9, y + 0.95, float(g.v0), float(g.v1))

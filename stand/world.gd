@@ -113,6 +113,7 @@ func _ready() -> void:
 			var sc := ULSanatorium.cfg().duplicate(true)
 			sc.pustysh = [sc.pustysh[1], sc.pustysh[1]]
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
+			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
 	if test != "":
 		# проверки: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
@@ -199,7 +200,8 @@ func _bake_nav(path := NAV_MESH) -> void:
 		# в корпусах двери узкие (1,1 м): мельче сетка, точнее радиус — иначе проём «закрыт» для карты
 		nm.cell_size = NAV_CELL_SAN
 		nm.cell_height = 0.1
-		nm.agent_radius = 0.3
+		nm.agent_radius = 0.375                 # три ячейки: с запасом на тело врага (0,28 м), но двери 1,1 м проходимы
+		nm.edge_max_error = 1.0                 # углы пути срезаются не больше чем на 12 см (иначе запас у углов тает)
 		nm.agent_height = 1.7
 		nm.agent_max_climb = 0.25
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
@@ -216,7 +218,7 @@ func _bake_nav(path := NAV_MESH) -> void:
 	print("[bake] карта проходимости: многоугольников %d, вершин %d, %d мс → %s" % [nm.get_polygon_count(), nm.vertices.size(), Time.get_ticks_msec() - t0, path])
 
 
-const NAV_CELL_SAN := 0.15
+const NAV_CELL_SAN := 0.125
 
 
 func _nav_load(path := NAV_MESH) -> void:
@@ -372,8 +374,10 @@ func _cowshed_enter() -> void:
 		var en := spawn_enemy(String(sp[0]), sp[1])
 		if sp.size() > 2:
 			# санаторий: часть стоит на месте, часть бродит; в комнатах — в пределах комнаты
-			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out"]
+			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main"]
 			en.wander_r = 0.0 if rng.randf() < 0.4 else (5.0 if outdoor else 1.4)
+			if String(sp[0]) == "ruber":
+				en.wander_r = 4.0 if outdoor else 2.0           # тяжело бродит на своём месте
 		k += 1
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
@@ -4383,11 +4387,14 @@ func _sn_test() -> void:
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.26
 	capsule.height = 1.4
+	var nr := 0
 	for sp in cs_plan:
 		if String(sp[0]) == "infected":
 			np += 1
-		else:
+		elif String(sp[0]) == "lottery":
 			nl += 1
+		else:
+			nr += 1
 		var z := String(sp[2]).split(":")[0]
 		zones[z] = int(zones.get(z, 0)) + 1
 		var p: Vector3 = sp[1]
@@ -4403,7 +4410,7 @@ func _sn_test() -> void:
 		if not hits.is_empty():
 			stuck += 1
 			print("[inv]   в препятствии: %s %s (%s)" % [sp[0], str(p.snapped(Vector3.ONE * 0.1)), str(hits[0].collider)])
-	_ok("пустышей %d (от %d до %d), лоторейщиков %d (от %d до %d)" % [np, int(c.pustysh[0]), int(c.pustysh[1]), nl, int(c.lottery[0]), int(c.lottery[1])], np >= int(c.pustysh[0]) and np <= int(c.pustysh[1]) and nl >= int(c.lottery[0]) and nl <= int(c.lottery[1]))
+	_ok("пустышей %d (от %d до %d), лоторейщиков %d (от %d до %d), Руберов %d (от 0 до 2)" % [np, int(c.pustysh[0]), int(c.pustysh[1]), nl, int(c.lottery[0]), int(c.lottery[1]), nr], np >= int(c.pustysh[0]) and np <= int(c.pustysh[1]) and nl >= int(c.lottery[0]) and nl <= int(c.lottery[1]) and nr <= 2)
 	_ok("враги по всей территории и в корпусах (%d внутри, %d снаружи): %s" % [inside, cs_plan.size() - inside, str(zones)], zones.size() >= 6 and inside >= cs_plan.size() * 0.35 and inside <= cs_plan.size() * 0.85)
 	_ok("никто не стоит в стене, мебели или дереве (проверка формой тела)", stuck == 0, "в препятствии: %d" % stuck)
 	_ok("у ворот (%d м) врагов нет" % int(c.safe_r), near_entry == 0)
@@ -4423,21 +4430,79 @@ func _sn_test() -> void:
 	var lo := [99, 99]
 	var hi := [0, 0]
 	var sigs := {}
+	var rb_n := [0, 0, 0]              # в скольких посещениях 0, 1 и 2 Рубера
+	var rb_zones := {}
+	var rb_tight := 0
+	var rb_shape := CapsuleShape3D.new()
+	rb_shape.radius = float(ULEnemy.KINDS.ruber.radius) + 0.1
+	rb_shape.height = 2.0
 	for sd in 30:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 7000 + sd * 7919
 		var plan := san.spawn_plan(rng, snapf)
 		var a := 0
 		var bb := 0
+		var rr2 := 0
 		for sp in plan:
 			if String(sp[0]) == "infected":
 				a += 1
+			elif String(sp[0]) == "ruber":
+				rr2 += 1
+				rb_zones[String(sp[2])] = int(rb_zones.get(String(sp[2]), 0)) + 1
+				var qr := PhysicsShapeQueryParameters3D.new()
+				qr.shape = rb_shape
+				qr.transform = Transform3D(Basis(), (sp[1] as Vector3) + Vector3.UP * 1.2)
+				qr.collision_mask = 1 | ULDoor.LAYER
+				if not space.intersect_shape(qr, 4).filter(func(h): return not (h.collider is CharacterBody3D)).is_empty():
+					rb_tight += 1
 			else:
 				bb += 1
+		rb_n[mini(rr2, 2)] += 1
 		lo = [mini(lo[0], a), mini(lo[1], bb)]
 		hi = [maxi(hi[0], a), maxi(hi[1], bb)]
 		sigs["%d/%d/%s" % [a, bb, str((plan[0][1] as Vector3).round())]] = true
 	_ok("30 посещений: пустышей %d–%d, лоторейщиков %d–%d, каждый раз по-другому" % [lo[0], hi[0], lo[1], hi[1]], lo[0] >= 20 and hi[0] <= 40 and lo[1] >= 5 and hi[1] <= 15 and sigs.size() >= 25 and hi[0] - lo[0] >= 12)
+	# --- Рубер: сколько, где, что в нём ---
+	_ok("30 посещений: без Рубера — %d, один — %d, два — %d; больше двух не бывает" % rb_n, rb_n[0] > 0 and rb_n[1] > 0 and rb_n[2] > 0 and rb_n[0] + rb_n[1] + rb_n[2] == 30)
+	_ok("Руберы — только в просторных местах (%s), телу хватает места" % str(rb_zones), rb_tight == 0 and not rb_zones.is_empty(), "тесно: %d" % rb_tight)
+	var cnt := [0, 0, 0]
+	var rr3 := RandomNumberGenerator.new()
+	rr3.seed = 4242
+	for i in 6000:
+		cnt[ULSanatorium.ruber_count(rr3)] += 1
+	_ok("шансы 0 / 1 / 2 Руберов поровну (из 6000: %d / %d / %d), настраиваются в data/sanatorium.json" % cnt, cnt[0] > 1850 and cnt[0] < 2150 and cnt[1] > 1850 and cnt[1] < 2150 and cnt[2] > 1850 and cnt[2] < 2150 and (c.ruber_chances as Array).size() == 3)
+	var sp_seen := {}
+	var pea_seen := {}
+	var pearl_n := 0
+	var other := {}
+	for sd4 in 4000:
+		var got := {"spore": 0, "pea": 0, "pearl_black": 0}
+		for it4 in ULEnemy.roll_loot("ruber", sd4):
+			if it4 == null:
+				continue
+			if got.has(String(it4.id)):
+				got[String(it4.id)] = int(it4.n)
+			else:
+				other[String(it4.id)] = true
+		sp_seen[got.spore] = true
+		pea_seen[got.pea] = true
+		pearl_n += int(got.pearl_black)
+		if int(got.pearl_black) > 1:
+			other["две жемчужины"] = true
+	var spk := sp_seen.keys()
+	spk.sort()
+	var pk := pea_seen.keys()
+	pk.sort()
+	_ok("в Рубере: споранов %s, горошин %s — всегда; чёрная жемчужина — в %.1f %% тел (шанс 15 %%), красных и белых нет" % [str(spk), str(pk), pearl_n / 40.0], spk == [3, 4, 5, 6, 7, 8, 9] and pk == [1, 2, 3] and pearl_n > 500 and pearl_n < 700 and other.is_empty(), str(other))
+	var RB: Dictionary = ULEnemy.KINDS.ruber
+	var LT: Dictionary = ULEnemy.KINDS.lottery
+	var lt_max := 0.0
+	for a5 in LT.attacks:
+		lt_max = maxf(lt_max, float(a5.dmg))
+	var rb_min := 999.0
+	for a6 in RB.attacks:
+		rb_min = minf(rb_min, float(a6.dmg))
+	_ok("Рубер сильнее лоторейщика: прочность %d против %d, удары от %d против до %d, рост %.1f м" % [int(RB.hp), int(LT.hp), int(rb_min), int(lt_max), float(RB.height)], float(RB.hp) >= float(LT.hp) * 3.0 and rb_min > lt_max and float(RB.height) >= 2.0 and float(RB.height) <= 2.2)
 	# 10: обыск тайника и тела
 	var ci := -1
 	for i in san.containers.size():
@@ -4482,6 +4547,63 @@ func _sn_test() -> void:
 		player.global_position = victim.body_pos() + Vector3(0.6, 0.1, 0)
 		await get_tree().create_timer(0.3).timeout
 		_ok("убитого можно обыскать (цель — тело, «Обыскать»)", _target != null and String(_target.type) == "corpse" and _action_label() == "Обыскать")
+	# --- Рубер в деле: хоздвор, герой в 9 м — замечает, срывается в рывок, бьёт с замахом ---
+	var rp: Vector3 = snapf.call(Vector3(56, 0, 47))
+	for e in enemies:
+		if e.alive() and e.global_position.distance_to(rp) < 40.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	var rbr := spawn_enemy("ruber", rp)
+	rbr.rotation.y = -PI * 0.5                      # лицом к герою (он западнее)
+	player.global_position = snapf.call(rp + Vector3(-9, 0, 0)) + Vector3.UP * 0.1
+	hp = HP_MAX
+	var hp2 := hp
+	var tr2 := 0.0
+	var seen_alert := false
+	var max_v := 0.0
+	var windup := 0.0
+	while tr2 < 16.0 and hp >= hp2:
+		await get_tree().process_frame
+		tr2 += get_process_delta_time()
+		seen_alert = seen_alert or rbr.state == "alert"
+		max_v = maxf(max_v, Vector3(rbr.velocity.x, 0, rbr.velocity.z).length())
+		if rbr._hit_due > 0.0:
+			windup = maxf(windup, rbr._hit_due)
+	var own_clips := 0
+	for cl in ["z_idle", "z_walk", "z_run", "z_scream", "z_attack_r", "z_attack_l", "z_overhead", "z_hit_front", "z_stagger", "z_death_back"]:
+		if ResourceLoader.exists("res://assets/anim/ruber/%s.res" % cl):
+			own_clips += 1
+	_ok("Рубер заметил героя за 9 м, взревел, сорвался в рывок (до %.1f м/с при беге %.1f) и ударил: «%s», −%d здоровья, замах %.2f с" % [max_v, float(RB.run), rbr.last_attack, int(hp2 - hp), windup],
+		seen_alert and rbr.charges >= 1 and max_v > float(RB.run) + 1.0 and hp2 - hp >= rb_min and windup >= 0.5, "рывков %d, состояние %s, %.1f с" % [rbr.charges, rbr.state, tr2])
+	_ok("у Рубера свои движения: стоит, идёт, бежит, ревёт, бьёт правой, левой и двумя руками, вздрагивает, шатается, падает (%d из 10)" % own_clips, own_clips == 10)
+	if out != "":
+		await _snap("sn_ruber_fight")
+	hp = HP_MAX
+	player.global_position += Vector3(-3.0, 0, 0)
+	var rhp := rbr.hp
+	rbr.damage(30.0, player.global_position)
+	var no_stag := rbr.rig.ap.current_animation
+	rbr.damage(float(RB.stagger_dmg) + 5.0, player.global_position)
+	_ok("обычное попадание Рубера не сбивает, сильное (от %d урона) — оглушает: удар сорван, он теряет равновесие" % int(RB.stagger_dmg), rbr.alive() and is_equal_approx(rbr.hp, rhp - 35.0 - float(RB.stagger_dmg)) and rbr._hit_due < 0.0, str(no_stag))
+	rbr.damage(99999.0, player.global_position)
+	_ok("Рубер убит: тяжело падает, тело не мешает пройти", not rbr.alive() and rbr.death_clip != "" and rbr.collision_layer == 0, rbr.death_clip)
+	await get_tree().create_timer(2.6).timeout
+	player.global_position = rbr.body_pos() + Vector3(0.7, 0.1, 0)
+	await get_tree().create_timer(0.3).timeout
+	var rl := {}
+	for it5 in rbr.loot:
+		if it5 != null:
+			rl[String(it5.id)] = int(it5.n)
+	var can_search: bool = _target != null and String(_target.type) == "corpse" and _target.e == rbr
+	if can_search:
+		do_action()
+		await get_tree().process_frame
+	_ok("тело Рубера обыскивается обычным окном: %s" % str(rl), can_search and inv_ui.visible and int(rl.get("spore", 0)) >= 3 and int(rl.get("spore", 0)) <= 9 and int(rl.get("pea", 0)) >= 1 and int(rl.get("pea", 0)) <= 3)
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("sn_ruber_loot")
+	close_inventory()
 	# 11: таймер
 	_ok("таймер кластера начат с 10:00 (настройка minutes в data/sanatorium.json)", cs_left() > 400.0 and cs_left() <= 600.0 and int(c.minutes) == 10 and _cs_end - float(cs_start) > 599.0, "%.1f с" % cs_left())
 	_ok("убитые враги в этом посещении больше не появляются", _respawn.is_empty())
@@ -5476,7 +5598,7 @@ func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
 	add_child(e)
 	e.setup(kind, at, 7000 + _enemy_n * 37)
 	e.hit_player.connect(hurt)
-	e.noise.connect(_enemy_noise)
+	e.noise.connect(_enemy_noise.bind(e))
 	e.exclude = [player.get_rid()]
 	enemies.append(e)
 	targets.append(e)
@@ -5484,10 +5606,12 @@ func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
 
 
 ## голос врага: рычание, крик, предсмертный хрип — слышно, только если герой недалеко
-func _enemy_noise(what: String, at: Vector3) -> void:
+func _enemy_noise(what: String, at: Vector3, e: ULEnemy = null) -> void:
 	if at.distance_to(player.global_position) > 30.0:
 		return
-	snd.play(what, at + Vector3.UP * 1.5, {"growl": -7.0, "roar": -2.0, "zdeath": -3.0}.get(what, -5.0), 0.12)
+	# у крупного мутанта голос ниже и громче (voice в data/enemies.json: [высота тона, прибавка громкости])
+	var voice: Array = e.def.get("voice", [1.0, 0.0]) if e != null else [1.0, 0.0]
+	snd.play(what, at + Vector3.UP * 1.5, float({"growl": -7.0, "roar": -2.0, "zdeath": -3.0}.get(what, -5.0)) + float(voice[1]), 0.08, 0.0, float(voice[0]))
 
 
 var flinch: BCFlinch
@@ -7121,6 +7245,72 @@ func _run_test() -> void:
 		get_tree().quit()
 		return
 	if test == "csbake" or test == "snbake":
+		get_tree().quit()
+		return
+	if test == "snchase":
+		# отладка погони по этажам: пустыш из комнат первого этажа главного корпуса идёт к герою на втором
+		var t0c := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - t0c < 25000:
+			await get_tree().process_frame
+		var mpc := get_world_3d().navigation_map
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-fps="):
+				Engine.max_fps = int(a.substr(9))          # как на слабом телефоне под нагрузкой
+		for e in enemies:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+		var mainc: ULBlock = san.blds[0]
+		var hero2c: Vector3 = NavigationServer3D.map_get_closest_point(mpc, Vector3(12, 3.3, 21))
+		var tried := 0
+		for sp in mainc.spots:
+			var tg := String(sp[1])
+			var dxz := Vector2((sp[0] as Vector3).x - hero2c.x, (sp[0] as Vector3).z - hero2c.z).length()
+			if not tg.ends_with(":0") or tg.contains(":stair:") or dxz > 22.0:
+				continue
+			tried += 1
+			if tried > 10:
+				break
+			var ch := spawn_enemy("infected", NavigationServer3D.map_get_closest_point(mpc, sp[0]))
+			player.global_position = hero2c + Vector3.UP * 0.1
+			hp = HP_MAX
+			await get_tree().create_timer(0.3).timeout
+			ch.state = "chase"
+			ch._last = player.global_position
+			ch._unseen = 0.0
+			var tt := 0.0
+			var hp0c := hp
+			var trace := []
+			var nxt := 1.0
+			while tt < 30.0 and hp >= hp0c:
+				await get_tree().process_frame
+				tt += get_process_delta_time()
+				if tt >= nxt:
+					nxt += 1.5
+					trace.append("%.1f,%.1f,%.1f %s" % [ch.global_position.x, ch.global_position.y, ch.global_position.z, ch.state])
+			print("[chase] %s из %s: %s за %.1f с" % [tg, str((sp[0] as Vector3).round()), "дошёл" if hp < hp0c else "НЕ ДОШЁЛ", tt])
+			if hp >= hp0c:
+				print("[chase]   след: ", " | ".join(trace))
+				print("[chase]   путь: ", ch._path.slice(0, 5), " цель ", ch._last, " стена перед ним: ", ch._steer_a)
+				for dd in san.doors:
+					var d := dd as ULDoor
+					if d.center.distance_to(ch.global_position) < 2.0:
+						print("[chase]   дверь рядом: ", d.center, " открыта ", d.open, " столкновение выключено ", d.shape.disabled, " ширина ", d.width)
+				var sq := PhysicsShapeQueryParameters3D.new()
+				var cps := CapsuleShape3D.new()
+				cps.radius = 0.36
+				cps.height = 1.6
+				sq.shape = cps
+				sq.transform = Transform3D(Basis(), ch.global_position + Vector3.UP * 0.95)
+				sq.collision_mask = 3
+				sq.exclude = [ch.get_rid()]
+				for h in get_world_3d().direct_space_state.intersect_shape(sq, 6):
+					var co: Object = h.collider
+					var shp: Node = (co as CollisionObject3D).shape_owner_get_owner((co as CollisionObject3D).shape_find_owner(h.shape)) if co is CollisionObject3D else null
+					print("[chase]   касается: ", co, " форма ", (shp as CollisionShape3D).shape.get("size") if shp is CollisionShape3D else "?", " в ", (shp as Node3D).global_position if shp is Node3D else Vector3.ZERO)
+			ch.damage(9999.0, player.global_position)
+			ch.dead_t = ULEnemy.CORPSE_S
+			await get_tree().create_timer(0.3).timeout
 		get_tree().quit()
 		return
 	if test == "sndbg":

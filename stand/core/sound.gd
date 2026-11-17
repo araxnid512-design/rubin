@@ -42,10 +42,10 @@ func _streams(n: String) -> Array:
 	return out
 
 
-## сыграть звук n в точке at (мир); db — громкость, pitch — разброс высоты тона
-func play(n: String, at: Vector3, db := 0.0, pitch := 0.06, delay := 0.0) -> void:
+## сыграть звук n в точке at (мир); db — громкость, pitch — разброс высоты тона, base — сама высота (ниже 1 — басовитее)
+func play(n: String, at: Vector3, db := 0.0, pitch := 0.06, delay := 0.0, base := 1.0) -> void:
 	if delay > 0.0:
-		get_tree().create_timer(delay, false).timeout.connect(play.bind(n, at, db, pitch, 0.0))
+		get_tree().create_timer(delay, false).timeout.connect(play.bind(n, at, db, pitch, 0.0, base))
 		return
 	var ss := _streams(n)
 	if ss.is_empty():
@@ -66,7 +66,7 @@ func play(n: String, at: Vector3, db := 0.0, pitch := 0.06, delay := 0.0) -> voi
 	p.stream = ss[k]
 	p.global_position = at
 	p.volume_db = db
-	p.pitch_scale = 1.0 + randf_range(-pitch, pitch)
+	p.pitch_scale = base + randf_range(-pitch, pitch)
 	p.play()
 	if log_on:
 		played.append([Time.get_ticks_msec(), n])

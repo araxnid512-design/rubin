@@ -1373,7 +1373,115 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 				break
 			if not placed:
 				push_warning("санаторий: для врага не нашлось места")
+	_plan_rubers(rng, snap, pools, taken, out)
 	return out
+
+
+## помещается ли тело такого радиуса в точке (стены, мебель, закрытые двери, техника; враги не в счёт)
+func body_fits(p: Vector3, radius: float) -> bool:
+	var sh := CapsuleShape3D.new()
+	sh.radius = radius
+	sh.height = 2.0
+	var qs := PhysicsShapeQueryParameters3D.new()
+	qs.shape = sh
+	qs.transform = Transform3D(Basis(), p + Vector3.UP * 1.25)
+	qs.collision_mask = 1 | ULDoor.LAYER
+	for h in get_world_3d().direct_space_state.intersect_shape(qs, 6):
+		if not (h.collider is CharacterBody3D):
+			return false
+	return true
+
+
+## сколько Руберов в этот раз: 0, 1 или 2 — по шансам ruber_chances (data/sanatorium.json)
+static func ruber_count(rng: RandomNumberGenerator) -> int:
+	var ch: Array = cfg().get("ruber_chances", [1, 0, 0])
+	var sum := 0.0
+	for v in ch:
+		sum += float(v)
+	if sum <= 0.0:
+		return 0
+	var r := rng.randf() * sum
+	for i in ch.size():
+		r -= float(ch[i])
+		if r <= 0.0:
+			return i
+	return ch.size() - 1
+
+
+## Руберы — после остальных (их число и места не меняют расстановку пустышей и лоторейщиков). Только просторные
+## места (zones_ruber): у котельной, хоздвор, за главным корпусом, большие залы — котельная, обеденный зал, склад.
+## Вокруг точки должно быть свободно на метр (восемь проб по кругу лежат на карте проходимости): не в узком
+## коридоре, не в тесной комнате, не у стены. Далеко от ворот (ruber_safe_r) и не рядом друг с другом.
+func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary, taken: Array[Vector3], out: Array) -> void:
+	var c := cfg()
+	var n := ruber_count(rng)
+	if n <= 0:
+		return
+	var yard := Rect2(YARD.position + Vector2(2, 2), YARD.size - Vector2(4, 4))
+	pools["hozdvor"] = []
+	pools["behind_main"] = []
+	for p in yard_pts:
+		var q := Vector2(p.x, p.z)
+		if yard.has_point(q):
+			pools["hozdvor"].append(p)
+		if absf(q.x) < 18.0 and q.y > 3.0 and q.y < 12.5:
+			pools["behind_main"].append(p)
+	var zones: Dictionary = c.get("zones_ruber", {"boiler_out": 1})
+	var sum := 0.0
+	for z in zones:
+		if not (pools.get(z, []) as Array).is_empty():
+			sum += float(zones[z])
+	var safe_r := float(c.get("ruber_safe_r", 45.0))
+	var mine: Array[Vector3] = []
+	for i in n:
+		var placed := false
+		for attempt in 120:
+			var r := rng.randf() * sum
+			var zone := ""
+			for z in zones:
+				if (pools.get(z, []) as Array).is_empty():
+					continue
+				r -= float(zones[z])
+				if r <= 0.0:
+					zone = z
+					break
+			if zone == "":
+				continue
+			var pool: Array = pools[zone]
+			var p: Vector3 = pool[rng.randi() % pool.size()]
+			if Vector2(p.x - ENTRY.x, p.z - ENTRY.z).length() < safe_r:
+				continue
+			var q: Vector3 = snap.call(p)
+			if Vector2(q.x - p.x, q.z - p.z).length() > 0.3 or absf(q.y - p.y) > 0.4:
+				continue
+			var roomy := true
+			for k in 8:
+				var a := TAU * k / 8.0
+				var e := q + Vector3(cos(a), 0, sin(a)) * 0.75
+				var qe: Vector3 = snap.call(e)
+				if Vector2(qe.x - e.x, qe.z - e.z).length() > 0.2 or absf(qe.y - q.y) > 0.4:
+					roomy = false
+					break
+			if not roomy or not body_fits(Vector3(q.x, p.y, q.z), float(ULEnemy.KINDS.ruber.get("radius", 0.42)) + 0.15):
+				continue
+			var near := false
+			for t in taken:
+				if t.distance_to(q) < 2.2:
+					near = true
+					break
+			for t in mine:
+				if t.distance_to(q) < 12.0:
+					near = true
+					break
+			if near:
+				continue
+			taken.append(q)
+			mine.append(q)
+			out.append(["ruber", Vector3(q.x, p.y + 0.02, q.z), zone])
+			placed = true
+			break
+		if not placed:
+			push_warning("санаторий: для Рубера не нашлось просторного места")
 
 
 ## Тайники на это посещение: содержимое — по таблицам добычи data/sanatorium.json (loot), заново каждый вход.
