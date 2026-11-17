@@ -1,6 +1,244 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "px_kr",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kr",
+    "--faces",
+    "12000",
+    "--image",
+    "tools/tripo/refs/ruber.png",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "ulm_px2_b_hook_r",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_hook_r",
+    "2",
+    "a zombie lunges forward and swings its right arm in a fast low hook across in front of its chest, the hand stays at chest height and never rises above the shoulder, then it keeps leaning forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_hook_l",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_hook_l",
+    "2",
+    "a zombie lunges forward and swings its left arm in a fast low hook across in front of its chest, the hand stays at chest height and never rises above the shoulder, then it keeps leaning forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_claw2",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_claw2",
+    "2",
+    "a zombie leaning forward claws at the chest of someone in front of it with two quick alternating swipes, right then left, hands at chest height, arms never above the shoulders"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_bite",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_bite",
+    "2",
+    "a zombie lunges forward, grabs forward with both hands at chest height and snaps its head forward to bite, the arms stay low and forward and are never raised up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_shove",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_shove",
+    "2",
+    "a zombie stumbles forward and shoves hard with both hands straight forward at chest height, then leans back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_slash_r",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_slash_r",
+    "2",
+    "a fast feral mutant lunges forward and slashes its right claw horizontally at chest height across in front of it, the arm never rises above the shoulder, then it recovers crouched"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_slash_l",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_slash_l",
+    "2",
+    "a fast feral mutant lunges forward and slashes its left claw horizontally at chest height across in front of it, the arm never rises above the shoulder, then it recovers crouched"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_combo",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_combo",
+    "2",
+    "a fast feral mutant attacks with three rapid claw slashes at chest height, right, left, right, stepping forward, the arms are never raised above the shoulders"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_leap",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_leap",
+    "2",
+    "a feral mutant crouches and leaps forward low to the ground with both claws reaching straight forward at chest height, lands and slashes forward"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_px2_b_lbite",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "zombiepx:de5ec325-6a2a-4518-8157-9faab28a360d,lotterypx:c56d5871-75e3-4f55-9bd0-1468e8c48d20",
+    "b_lbite",
+    "2",
+    "a feral mutant lunges its head and upper body forward to bite, both claws grabbing forward at waist height"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_idle",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_idle",
+    "4",
+    "a huge hulking mutant brute stands in place, hunched forward with heavy shoulders, breathing heavily, long arms hanging low, swaying slightly"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_walk",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_walk",
+    "3",
+    "a huge heavy mutant brute walks forward with slow heavy stomping steps, shoulders rolling, long arms swinging low"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_run",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_run",
+    "2",
+    "a huge heavy mutant brute charges forward at a fast run, torso leaning forward, heavy pounding steps, arms swinging"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_roar",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_roar",
+    "3",
+    "a huge mutant brute plants its feet, spreads its arms wide at its sides and roars with its head thrust forward, chest heaving"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_hook_r",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_hook_r",
+    "2",
+    "a huge mutant brute steps forward and throws a massive right hook punch at chest height, the whole body turning into the swing, then recovers"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_hook_l",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_hook_l",
+    "2",
+    "a huge mutant brute steps forward and throws a massive left hook punch at chest height, the whole body turning into the swing, then recovers"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_smash",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_smash",
+    "2",
+    "a huge mutant brute raises both fists together and smashes them down onto the ground in front of it, bending forward, then straightens up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_stomp",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_stomp",
+    "2",
+    "a huge mutant brute lifts its right leg and stomps down hard on the ground in front of it, then steps back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_backhand",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_backhand",
+    "2",
+    "a huge mutant brute swings its left arm in a wide backhand sweep at waist height from left to right in front of it"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_rpx_r2_hit",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruberpx:@kr",
+    "r2_hit",
+    "2",
+    "a huge mutant brute is hit in the chest, staggers back one step with a grunt and recovers its stance"
+   ],
+   "timeout": 2400
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",

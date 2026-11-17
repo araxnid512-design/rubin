@@ -1,0 +1,55 @@
+{
+ "_": "Удары пустыша и лотерейщика заново (17.11, пользователь: «убери руки вверх, сделай заново анимации ударов зомби как в других играх»): руки не выше плеч, удары на уровне груди.",
+ "motions": [
+  {
+   "tag": "b_hook_r",
+   "seconds": 2,
+   "prompt": "a zombie lunges forward and swings its right arm in a fast low hook across in front of its chest, the hand stays at chest height and never rises above the shoulder, then it keeps leaning forward"
+  },
+  {
+   "tag": "b_hook_l",
+   "seconds": 2,
+   "prompt": "a zombie lunges forward and swings its left arm in a fast low hook across in front of its chest, the hand stays at chest height and never rises above the shoulder, then it keeps leaning forward"
+  },
+  {
+   "tag": "b_claw2",
+   "seconds": 2,
+   "prompt": "a zombie leaning forward claws at the chest of someone in front of it with two quick alternating swipes, right then left, hands at chest height, arms never above the shoulders"
+  },
+  {
+   "tag": "b_bite",
+   "seconds": 2,
+   "prompt": "a zombie lunges forward, grabs forward with both hands at chest height and snaps its head forward to bite, the arms stay low and forward and are never raised up"
+  },
+  {
+   "tag": "b_shove",
+   "seconds": 2,
+   "prompt": "a zombie stumbles forward and shoves hard with both hands straight forward at chest height, then leans back"
+  },
+  {
+   "tag": "b_slash_r",
+   "seconds": 2,
+   "prompt": "a fast feral mutant lunges forward and slashes its right claw horizontally at chest height across in front of it, the arm never rises above the shoulder, then it recovers crouched"
+  },
+  {
+   "tag": "b_slash_l",
+   "seconds": 2,
+   "prompt": "a fast feral mutant lunges forward and slashes its left claw horizontally at chest height across in front of it, the arm never rises above the shoulder, then it recovers crouched"
+  },
+  {
+   "tag": "b_combo",
+   "seconds": 2,
+   "prompt": "a fast feral mutant attacks with three rapid claw slashes at chest height, right, left, right, stepping forward, the arms are never raised above the shoulders"
+  },
+  {
+   "tag": "b_leap",
+   "seconds": 2,
+   "prompt": "a feral mutant crouches and leaps forward low to the ground with both claws reaching straight forward at chest height, lands and slashes forward"
+  },
+  {
+   "tag": "b_lbite",
+   "seconds": 2,
+   "prompt": "a feral mutant lunges its head and upper body forward to bite, both claws grabbing forward at waist height"
+  }
+ ]
+}

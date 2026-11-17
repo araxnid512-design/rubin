@@ -1,0 +1,55 @@
+{
+ "_": "Новые движения Рубера (17.11, пользователь: «сделай новые движения руберу»): на модели-заместителе нового аккаунта (по refs/ruber.png).",
+ "motions": [
+  {
+   "tag": "r2_idle",
+   "seconds": 4,
+   "prompt": "a huge hulking mutant brute stands in place, hunched forward with heavy shoulders, breathing heavily, long arms hanging low, swaying slightly"
+  },
+  {
+   "tag": "r2_walk",
+   "seconds": 3,
+   "prompt": "a huge heavy mutant brute walks forward with slow heavy stomping steps, shoulders rolling, long arms swinging low"
+  },
+  {
+   "tag": "r2_run",
+   "seconds": 2,
+   "prompt": "a huge heavy mutant brute charges forward at a fast run, torso leaning forward, heavy pounding steps, arms swinging"
+  },
+  {
+   "tag": "r2_roar",
+   "seconds": 3,
+   "prompt": "a huge mutant brute plants its feet, spreads its arms wide at its sides and roars with its head thrust forward, chest heaving"
+  },
+  {
+   "tag": "r2_hook_r",
+   "seconds": 2,
+   "prompt": "a huge mutant brute steps forward and throws a massive right hook punch at chest height, the whole body turning into the swing, then recovers"
+  },
+  {
+   "tag": "r2_hook_l",
+   "seconds": 2,
+   "prompt": "a huge mutant brute steps forward and throws a massive left hook punch at chest height, the whole body turning into the swing, then recovers"
+  },
+  {
+   "tag": "r2_smash",
+   "seconds": 2,
+   "prompt": "a huge mutant brute raises both fists together and smashes them down onto the ground in front of it, bending forward, then straightens up"
+  },
+  {
+   "tag": "r2_stomp",
+   "seconds": 2,
+   "prompt": "a huge mutant brute lifts its right leg and stomps down hard on the ground in front of it, then steps back"
+  },
+  {
+   "tag": "r2_backhand",
+   "seconds": 2,
+   "prompt": "a huge mutant brute swings its left arm in a wide backhand sweep at waist height from left to right in front of it"
+  },
+  {
+   "tag": "r2_hit",
+   "seconds": 2,
+   "prompt": "a huge mutant brute is hit in the chest, staggers back one step with a grunt and recovers its stance"
+  }
+ ]
+}
