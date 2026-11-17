@@ -2,26 +2,114 @@
  "stop": false,
  "jobs": [
   {
-   "id": "ul_ruber",
-   "py": "tools/tripo/chain.py",
+   "id": "ulm_ruber_z_idle",
+   "py": "tools/tripo/motion.py",
    "args": [
-    "--id",
-    "ul_ruber",
-    "--faces",
-    "18000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--image",
-    "tools/tripo/refs/ruber.png",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle"
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_idle",
+    "4",
+    "a huge heavy brute standing in a wide stance with hunched shoulders and long arms hanging down, chest and shoulders rising and falling with deep heavy breathing, slowly shifting its weight"
    ],
-   "timeout": 3600
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_walk",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_walk",
+    "3",
+    "a huge heavy brute walking forward slowly with wide heavy stomping steps, shoulders rolling from side to side, long arms swinging low at its sides"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_run",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_run",
+    "2",
+    "a huge heavy brute charging straight forward fast with long powerful strides, torso leaning far forward, arms pumping"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_scream",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_scream",
+    "3",
+    "a huge brute leaning back and raising both clenched fists, then bending forward and roaring with rage with arms spread wide, body tense"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_attack_r",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_attack_r",
+    "2",
+    "a huge brute winding its right arm far back, then stepping forward and throwing a heavy wide right hook punch across in front of its chest, then pulling the arm back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_attack_l",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_attack_l",
+    "2",
+    "a huge brute winding its left arm far back, then stepping forward and throwing a heavy wide left hook punch across in front of its chest, then pulling the arm back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_overhead",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_overhead",
+    "3",
+    "a huge brute raising both fists together high above its head, holding for a moment, then smashing both fists down hard in front of itself while bending forward, then straightening up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_hit_front",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_hit_front",
+    "2",
+    "a huge brute standing is hit in the chest, its torso jerks back and one shoulder recoils, then it leans forward again angrily"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_stagger",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_stagger",
+    "3",
+    "a huge brute is hit hard and staggers backwards two heavy steps, losing balance with arms flailing, then catches itself and straightens up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ulm_ruber_z_death_back",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
+    "z_death_back",
+    "4",
+    "a huge heavy brute is struck in the chest, stumbles one step back, its knees buckle and it collapses heavily onto its back with arms falling to the sides, then lies still"
+   ],
+   "timeout": 2400
   }
  ],
  "archived": [
@@ -339,7 +427,8 @@
   "ul_junk",
   "ul_dealer",
   "ul_bus",
-  "ul_car"
+  "ul_car",
+  "ul_ruber"
  ],
  "paused": [
   {

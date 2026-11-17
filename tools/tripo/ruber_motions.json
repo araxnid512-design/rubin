@@ -1,0 +1,55 @@
+{
+ "_": "Свои движения Рубера для Tripo (движение по тексту, 20 кредитов за штуку): метка клипа, секунд, описание. Метки — те же, что у остальных врагов (data/anim_enemy.json игры); чего здесь нет (повороты, попадание сзади, падения вперёд и набок) — берётся из набора лоторейщика.",
+ "motions": [
+  {
+   "tag": "z_idle",
+   "seconds": 4,
+   "prompt": "a huge heavy brute standing in a wide stance with hunched shoulders and long arms hanging down, chest and shoulders rising and falling with deep heavy breathing, slowly shifting its weight"
+  },
+  {
+   "tag": "z_walk",
+   "seconds": 3,
+   "prompt": "a huge heavy brute walking forward slowly with wide heavy stomping steps, shoulders rolling from side to side, long arms swinging low at its sides"
+  },
+  {
+   "tag": "z_run",
+   "seconds": 2,
+   "prompt": "a huge heavy brute charging straight forward fast with long powerful strides, torso leaning far forward, arms pumping"
+  },
+  {
+   "tag": "z_scream",
+   "seconds": 3,
+   "prompt": "a huge brute leaning back and raising both clenched fists, then bending forward and roaring with rage with arms spread wide, body tense"
+  },
+  {
+   "tag": "z_attack_r",
+   "seconds": 2,
+   "prompt": "a huge brute winding its right arm far back, then stepping forward and throwing a heavy wide right hook punch across in front of its chest, then pulling the arm back"
+  },
+  {
+   "tag": "z_attack_l",
+   "seconds": 2,
+   "prompt": "a huge brute winding its left arm far back, then stepping forward and throwing a heavy wide left hook punch across in front of its chest, then pulling the arm back"
+  },
+  {
+   "tag": "z_overhead",
+   "seconds": 3,
+   "prompt": "a huge brute raising both fists together high above its head, holding for a moment, then smashing both fists down hard in front of itself while bending forward, then straightening up"
+  },
+  {
+   "tag": "z_hit_front",
+   "seconds": 2,
+   "prompt": "a huge brute standing is hit in the chest, its torso jerks back and one shoulder recoils, then it leans forward again angrily"
+  },
+  {
+   "tag": "z_stagger",
+   "seconds": 3,
+   "prompt": "a huge brute is hit hard and staggers backwards two heavy steps, losing balance with arms flailing, then catches itself and straightens up"
+  },
+  {
+   "tag": "z_death_back",
+   "seconds": 4,
+   "prompt": "a huge heavy brute is struck in the chest, stumbles one step back, its knees buckle and it collapses heavily onto its back with arms falling to the sides, then lies still"
+  }
+ ]
+}
