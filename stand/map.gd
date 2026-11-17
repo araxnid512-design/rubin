@@ -12,6 +12,7 @@ const BIG := 2.5                  ## во сколько раз вся карт�
 const PLACES := {
 	"home": {"rect": Rect2(700, 300, 320, 280), "n": "Дом", "kind": "Стабильный стаб", "d": "Ваш дом. Укрытие, защита и начало нового пути в мире Стикса.", "pic": "res://assets/ui/place_home.jpg", "scene": "res://world.tscn"},
 	"cowshed": {"rect": Rect2(1172, 92, 252, 190), "n": "Опасный коровник", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_cowshed.png", "pic": "res://assets/ui/place_cowshed.jpg", "scene": "res://world.tscn"},
+	"khutor": {"rect": Rect2(330, 540, 310, 260), "n": "Хутор", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_khutor.png", "pic": "res://assets/ui/place_khutor.jpg", "scene": "res://world.tscn"},
 	"convoy": {"rect": Rect2(812, 560, 310, 260), "n": "Разбитый конвой", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_convoy.png", "pic": "res://assets/ui/place_convoy.jpg", "scene": "res://world.tscn"},
 	"sanatorium": {"rect": Rect2(262, 50, 432, 302), "n": "Санаторий Луч", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_sanatorium.png", "pic": "res://assets/ui/place_sanatorium.jpg", "scene": "res://world.tscn"},
 }
@@ -409,6 +410,22 @@ func _run_test() -> void:
 	await _snap("p6_convoy")
 	enter("convoy")
 	ok.call("вход в конвой: посещение началось, место — конвой", ULBase.route_state("convoy") == "active" and ULSettings.place == "convoy")
+	ULBase.close_interrupted()
+	ULSettings.place = "home"
+	entering = false
+	select("")
+	# хутор: до покупки нет, после — слева ниже дома, панель с описанием
+	var kr := place_rect("khutor")
+	ok.call("до покупки маршрута хутора на карте нет", not place_shown("khutor"))
+	ULBase.set_route("khutor", "bought")
+	ok.call("маршрут куплен — «Хутор» на карте слева ниже дома", place_shown("khutor") and kr.get_center().x < hr.get_center().x and kr.get_center().y > hr.get_center().y)
+	set_pan(kr.get_center() - size * 0.5)
+	tap(kr.get_center() - pan)
+	await get_tree().create_timer(0.5).timeout
+	ok.call("панель хутора: снимок, вид, 10 минут, описание", sel == "khutor" and p_pic.texture != null and p_t.text == "Хутор" and p_x.text.contains("10 минут") and p_d.text.length() > 40, p_d.text.left(60))
+	await _snap("p7_khutor")
+	enter("khutor")
+	ok.call("вход на хутор: посещение началось, место — хутор", ULBase.route_state("khutor") == "active" and ULSettings.place == "khutor")
 	ULBase.close_interrupted()
 	ULSettings.place = "home"
 	entering = false

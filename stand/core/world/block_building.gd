@@ -151,9 +151,24 @@ const MATS := {
 	"bark": ["bark_brown_02", 0.9, Color(0.8, 0.76, 0.7), 0.4, 1.0, {}],
 	"red": ["worn_plaster_wall", 1.0, Color(0.78, 0.13, 0.1), 0.0, 0.9, {"sat": 0.15}],
 	"rubble": ["damaged_concrete_floor", 1.2, Color(0.75, 0.72, 0.68), 0.6, 0.95, {"second": "brick_4", "tint2": Color(0.9, 0.75, 0.66), "bias": -0.1}],
+	# хутор: обшивка досками (серая, крашеная голубая и зелёная, бурая), ставни, рамы, полы, крыши, земля погребов
+	"planks": ["weathered_plank_siding", 1.6, Color(1.3, 1.24, 1.14), 0.35, 0.92, {"streaks": 0.5, "sat": 0.7}],
+	"planks_blue": ["weathered_plank_siding", 1.6, Color(0.95, 0.95, 0.92), 0.5, 0.9, {"paint": Color(0.33, 0.5, 0.66), "sat": 0.55, "storey": 1000.0}],
+	"planks_green": ["weathered_plank_siding", 1.6, Color(0.95, 0.95, 0.92), 0.5, 0.9, {"paint": Color(0.42, 0.56, 0.42), "sat": 0.5, "storey": 1000.0}],
+	"planks_brown": ["weathered_brown_planks", 1.5, Color(1.15, 1.05, 0.95), 0.35, 0.92, {"streaks": 0.4}],
+	"shutter": ["old_planks_02", 1.0, Color(0.95, 0.95, 0.92), 0.4, 0.9, {"paint": Color(0.3, 0.46, 0.68), "sat": 0.6, "storey": 1000.0}],
+	"wframe": ["old_planks_02", 2.0, Color(1.25, 1.24, 1.2), 0.3, 0.85, {"sat": 0.12}],
+	"floorboard": ["old_planks_02", 1.4, Color(0.8, 0.68, 0.55), 0.3, 0.85, {}],
+	"int_wood": ["wood_planks_grey", 1.5, Color(1.35, 1.22, 1.06), 0.25, 0.9, {"sat": 0.6}],
+	"roof_tin": ["worn_corrugated_iron", 1.6, Color(0.82, 0.82, 0.8), 0.3, 0.6, {"metal": 0.3, "sat": 0.4}],
+	"shingle": ["weathered_brown_planks", 0.9, Color(0.62, 0.58, 0.54), 0.5, 0.95, {"sat": 0.3}],
+	"earth": ["brown_mud_02", 1.6, Color(0.72, 0.64, 0.54), 0.2, 1.0, {}],
+	"cellar_wall": ["worn_plaster_wall", 1.6, Color(1.3, 1.18, 1.0), 0.35, 0.95, {"streaks": 0.45, "sat": 0.5}],
+	"cellar_floor": ["damaged_concrete_floor", 2.2, Color(1.5, 1.3, 1.05), 0.4, 0.95, {}],
+	"potato": ["dry_ground_01", 0.45, Color(1.35, 1.05, 0.72), 0.0, 1.0, {}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust"]
+const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
@@ -177,6 +192,9 @@ var junk: Array = []              ## точки для хлама (мир)
 var rect := Rect2()               ## где здание по земле (мир)
 var state := -99                  ## -1 — герой снаружи; k — герой внутри на этаже k
 var te := TE                      ## толщина наружной стены (у палаток и кунгов — тонкая)
+var base_y := 0.0                 ## высота пола первого этажа (у погреба — под землёй, −2,6 м)
+var annex := Rect2()              ## у погреба — лестница вниз (мир): на ней герой уже «в погребе»
+var models: Array = []            ## мебель-модели: [имя, где (мир), поворот, размер (вдоль, высота, вглубь), группа]
 var style := ""                   ## «» — корпус; tent — палатка (брезент, двускатная крыша, полог); box — кунг, контейнер, пост
 var _made: Array = []             ## [группа, материал, сетка] — для кэша
 var _door_args: Array = []        ## как создавались двери — для кэша
@@ -205,7 +223,7 @@ static func make_materials(noise: Texture2D) -> void:
 		m.shader = sh
 		m.set_shader_parameter("noise", noise)
 		m.set_shader_parameter("albedo_tex", load(T + String(d[0]) + "_c.jpg"))
-		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino"]:
+		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato"]:
 			m.set_shader_parameter("normal_tex", load(T + String(d[0]) + "_n.jpg"))
 			m.set_shader_parameter("has_normal", true)
 		m.set_shader_parameter("scale", float(d[1]))
@@ -274,7 +292,7 @@ static func set_hole(screen: Vector2, radius: float, depth: float, feet_y: float
 
 func _w(bk: Dictionary, u: float, y: float, v: float) -> Vector3:
 	var c: Vector2 = bk.c
-	return Vector3(c.x + u, y, c.y + v) if String(bk.axis) == "x" else Vector3(c.x + v, y, c.y + u)
+	return Vector3(c.x + u, y + base_y, c.y + v) if String(bk.axis) == "x" else Vector3(c.x + v, y + base_y, c.y + u)
 
 
 func _ws(bk: Dictionary, su: float, sy: float, sv: float) -> Vector3:
@@ -368,7 +386,10 @@ func _add_mesh(gk: String, mat: String, mesh: Mesh) -> void:
 	if gk.contains("/i") or gk.contains("/n") or gk.contains("/s"):
 		mi.layers = 2
 	# тень отбрасывают только стены и крыши; рамы, стёкла, карнизы и всё внутри — нет (меньше треугольников)
-	var big := mat in ["facade", "facade2", "plaster", "brick", "roof", "plinth", "slab"]
+	var big := mat in ["facade", "facade2", "plaster", "brick", "roof", "plinth", "slab", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "shingle"]
+	if style == "cellar":
+		mi.layers = 2                                  # погреб под землёй: солнце его не освещает
+		big = false
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if big and not (gk.contains("/n") or gk.contains("/i") or gk.contains("/s")) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_group(gk).add_child(mi)
 
@@ -394,7 +415,7 @@ func _make_door(a: Array) -> ULDoor:
 func to_cache() -> Dictionary:
 	return {"made": _made, "doors": _door_args, "blocks": blocks, "floors": floors, "storey": storey, "rect": rect,
 		"rooms": rooms, "containers": containers, "spots": spots, "lamps": lamps, "cols": cols, "hulls": hulls,
-		"entrances": entrances, "junk": junk}
+		"entrances": entrances, "junk": junk, "models": models}
 
 
 func _from_cache(c: Dictionary) -> void:
@@ -409,6 +430,7 @@ func _from_cache(c: Dictionary) -> void:
 	hulls = c.hulls
 	entrances = c.entrances
 	junk = c.junk
+	models = c.get("models", [])
 	for m in c.made:
 		_made.append(m)
 		_add_mesh(String(m[0]), String(m[1]), m[2])
@@ -427,6 +449,8 @@ func build(d: Dictionary, rng: RandomNumberGenerator, cache := {}) -> void:
 	storey = float(d.get("storey", STOREY))
 	te = float(d.get("te", TE))
 	style = String(d.get("style", ""))
+	base_y = float(d.get("base_y", 0.0))
+	annex = d.get("annex", Rect2())
 	_rng = rng
 	if not cache.is_empty():
 		_from_cache(cache)
@@ -543,7 +567,11 @@ func _shell(bi: int) -> void:
 			for side in ["s-", "s+", "e-", "e+"]:
 				var key := _xkey(bi, f, side)
 				_band(bk, key, side, y0 - 0.08, y0 + 0.08, 0.07, "trim")
-	# цоколь
+	# цоколь: у корпуса — бетонный; у деревянного дома — низкий каменный
+	if style == "wood":
+		for side in ["s-", "s+", "e-", "e+"]:
+			_band(bk, _xkey(bi, 0, side), side, -0.05, 0.16, 0.04, "plinth")
+		return
 	if style != "":
 		return
 	for side in ["s-", "s+", "e-", "e+"]:
@@ -787,6 +815,9 @@ func _wall_col(bk: Dictionary, along_u: bool, a: float, b: float, ya: float, yb:
 
 ## окно: рама, переплёт, стекло (или его осколки, или доски), отлив
 func _window(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0: float, y1: float, outer: float, sgn: float) -> void:
+	if style == "wood":
+		_window_wood(bk, key, along_u, a, b, y0, y1, outer, sgn)
+		return
 	var fd := outer - sgn * 0.12                       # плоскость рамы
 	var t := 0.06
 	_wall_piece(bk, key, "frame", along_u, a, a + t, y0, y1, fd, fd - sgn * 0.08)
@@ -815,6 +846,40 @@ func _window(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0:
 		_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.035, fd - sgn * 0.045)
 
 
+## окно деревенского дома: белая рама с переплётом крестом, резной наличник, распахнутые ставни, подоконник;
+## часть окон заколочена или без стёкол
+func _window_wood(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0: float, y1: float, outer: float, sgn: float) -> void:
+	var fd := outer - sgn * 0.06
+	var t := 0.06
+	var m := (a + b) * 0.5
+	for e in [[a, a + t], [b - t, b]]:
+		_wall_piece(bk, key, "wframe", along_u, float(e[0]), float(e[1]), y0, y1, fd, fd - sgn * 0.07)
+	_wall_piece(bk, key, "wframe", along_u, a, b, y0, y0 + t, fd, fd - sgn * 0.07)
+	_wall_piece(bk, key, "wframe", along_u, a, b, y1 - t, y1, fd, fd - sgn * 0.07)
+	_wall_piece(bk, key, "wframe", along_u, m - 0.025, m + 0.025, y0, y1, fd, fd - sgn * 0.06)
+	_wall_piece(bk, key, "wframe", along_u, a, b, y0 + (y1 - y0) * 0.62, y0 + (y1 - y0) * 0.62 + 0.05, fd, fd - sgn * 0.06)
+	# наличник и подоконник
+	_wall_piece(bk, key, "wframe", along_u, a - 0.1, b + 0.1, y1, y1 + 0.16, outer + sgn * 0.05, outer - sgn * 0.01)
+	_wall_piece(bk, key, "wframe", along_u, a - 0.08, b + 0.08, y0 - 0.06, y0, outer + sgn * 0.1, outer - sgn * 0.02)
+	var r := _rng.randf()
+	if r < 0.85 and def.get("shutters", true):
+		# ставни распахнуты по сторонам окна
+		var sw := (b - a) * 0.5
+		for e in [[a - sw - 0.04, a - 0.04], [b + 0.04, b + sw + 0.04]]:
+			_wall_piece(bk, key, "shutter", along_u, float(e[0]), float(e[1]), y0 - 0.02, y1 + 0.02, outer + sgn * 0.05, outer + sgn * 0.01)
+	if r < 0.1:
+		for k in 2:
+			var yy := y0 + 0.3 + k * (y1 - y0 - 0.6)
+			var c := _w(bk, m if along_u else outer + sgn * 0.03, yy, outer + sgn * 0.03 if along_u else m)
+			var sz := _ws(bk, b - a + 0.2, 0.15, 0.03) if along_u else _ws(bk, 0.03, 0.15, b - a + 0.2)
+			var ax := _wd(bk, 0, 1) if along_u else _wd(bk, 1, 0)
+			_box(key, "planks_brown", sz, Transform3D(Basis(ax, _rng.randf_range(-0.15, 0.15)), c))
+	elif r < 0.25:
+		_wall_piece(bk, key.replace("/x", "/o").trim_suffix("f").trim_suffix("b"), "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.25, fd - sgn * 0.26)
+	else:
+		_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.02, fd - sgn * 0.03)
+
+
 ## вход: двустворчатая дверь, наличник, козырёк на кронштейнах, две ступени
 ## kind: «» — парадный вход корпуса; flap — полог палатки (проём без двери, брезент подвязан по сторонам);
 ## plain — простая дверь без крыльца (кунг, пост, контейнер: одна створка до 1,2 м, шире — две)
@@ -825,6 +890,8 @@ func _entrance(bi: int, bk: Dictionary, key: String, along_u: bool, a: float, b:
 		var outp2 := _w(bk, m if along_u else outer + sgn * 1.6, 0, outer + sgn * 1.6 if along_u else m)
 		var inp2 := _w(bk, m if along_u else outer - sgn * 1.2, 0, outer - sgn * 1.2 if along_u else m)
 		entrances.append([outp2, inp2])
+		if kind == "open":
+			return                                  # проём без двери (погреб: вход с лестницы)
 		if kind == "flap":
 			# подвязанные полы полога и перекладина над входом
 			for e in [a + 0.07, b - 0.07]:
@@ -832,6 +899,17 @@ func _entrance(bi: int, bk: Dictionary, key: String, along_u: bool, a: float, b:
 			_wall_piece(bk, key, "wood", along_u, a - 0.05, b + 0.05, y1 - 0.06, y1 + 0.02, outer + sgn * 0.04, outer - sgn * 0.04)
 			return
 		var dmat := "gmetal" if style == "box" else "door"
+		if kind == "porch":
+			# крыльцо: дощатый настил, ступень, два столба и навес; наличник
+			_wall_piece(bk, key, "wframe", along_u, a - 0.12, a, y0, y1 + 0.1, outer + sgn * 0.05, outer - sgn * 0.02)
+			_wall_piece(bk, key, "wframe", along_u, b, b + 0.12, y0, y1 + 0.1, outer + sgn * 0.05, outer - sgn * 0.02)
+			_wall_piece(bk, key, "wframe", along_u, a - 0.12, b + 0.12, y1, y1 + 0.12, outer + sgn * 0.05, outer - sgn * 0.02)
+			_wall_piece(bk, key, "floorboard", along_u, a - 0.7, b + 0.7, -0.02, 0.13, outer, outer + sgn * 1.45)
+			_wall_piece(bk, key, "floorboard", along_u, a - 0.3, b + 0.3, -0.02, 0.06, outer + sgn * 1.45, outer + sgn * 1.85)
+			for e in [a - 0.6, b + 0.6]:
+				_wall_piece(bk, key, "planks_brown", along_u, e - 0.06, e + 0.06, 0.13, y1 + 0.45, outer + sgn * 1.3, outer + sgn * 1.42)
+			_wall_piece(bk, key, String(def.get("roof_mat", "roof_tin")), along_u, a - 0.85, b + 0.85, y1 + 0.45, y1 + 0.52, outer, outer + sgn * 1.65)
+			kind = "plain"
 		var along2 := _wd(bk, 1, 0) if along_u else _wd(bk, 0, 1)
 		var into2 := -_side_n(bk, _side_of(along_u, sgn))
 		var dv := outer - sgn * te * 0.5
@@ -941,6 +1019,16 @@ func _floor_mat(t: String) -> String:
 			return "wood"
 		"cstore":
 			return "metal"
+		"izba", "h_kitchen", "h_bed", "h_pantry", "shop_back":
+			return "floorboard"
+		"h_bath":
+			return "tiles"
+		"shop", "shop_stock":
+			return "lino"
+		"shed", "barn", "garage":
+			return "earth" if t != "garage" else "concrete"
+		"cellar":
+			return "cellar_floor"
 	return "lino"
 
 
@@ -1065,7 +1153,7 @@ func _hall_rooms(bi: int, f: int) -> Array:
 	if row.is_empty():
 		hv0 = iv0
 		hv1 = iv1
-	out.append({"u0": iu0, "u1": iu1, "v0": hv0 + (TI * 0.5 if side < 0 and not row.is_empty() else 0.0), "v1": hv1 - (0.0 if side < 0 or row.is_empty() else TI * 0.5), "type": String(bk.get("hall_type", "warehouse")), "side": -side, "big": true})
+	out.append({"u0": iu0, "u1": iu1, "v0": hv0 + (TI * 0.5 if side < 0 and not row.is_empty() else 0.0), "v1": hv1 - (0.0 if side < 0 or row.is_empty() else TI * 0.5), "type": String(bk.get("hall_type", "warehouse")), "side": -side, "big": true, "doors": ops.map(func(o): return (float(o[0]) + float(o[1])) * 0.5), "dv": vw})
 	return out
 
 
@@ -1201,8 +1289,13 @@ func _roof(bi: int) -> void:
 	var top := int(bk.floors) * storey
 	var hl: float = bk.hl
 	var hw: float = bk.hw
-	if style == "tent":
+	if style == "tent" or style == "wood":
 		_roof_gable(bk, rk, top)
+		return
+	if style == "cellar":
+		# перекрытие погреба (снизу — плита, сверху — слой земли до поверхности)
+		_lb(rk, "slab", bk, -hl, hl, top - 0.2, top, -hw, hw)
+		_lb(rk, "earth", bk, -hl - 0.1, hl + 0.1, top, -base_y - 0.03, -hw - 0.1, hw + 0.1)
 		return
 	if style == "box":
 		# плоская крыша без парапета: лист с небольшим свесом
@@ -1247,8 +1340,10 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 	var hl: float = bk.hl
 	var hw: float = bk.hw
 	var skin := String(def.get("skin", "canvas"))
-	var rr := hw * 0.5
-	var ov := 0.3
+	var rmat := String(def.get("roof_mat", skin))
+	var gmat := String(def.get("gable", skin))
+	var rr := hw * float(def.get("rise", 0.5))
+	var ov := float(def.get("ov", 0.3))
 	var th := atan2(rr, hw)
 	var sl := (hw + ov) / cos(th)
 	var s_ax := 1.0 if String(bk.axis) == "x" else -1.0
@@ -1256,7 +1351,7 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 	for sv in [-1.0, 1.0]:
 		var c := _w(bk, 0, top + rr - (hw + ov) * 0.5 * tan(th), sv * (hw + ov) * 0.5)
 		var bas := Basis(ax, s_ax * sv * th)
-		_box(rk, skin, _ws(bk, float(bk.L) + 0.5, 0.05, sl), Transform3D(bas, c))
+		_box(rk, rmat, _ws(bk, float(bk.L) + 0.5 + (0.3 if style == "wood" else 0.0), 0.05 if style != "wood" else 0.08, sl), Transform3D(bas, c))
 		if def.get("cross", false):
 			var cc := _w(bk, 0, top + rr - hw * 0.5 * tan(th) + 0.05, sv * hw * 0.5)
 			_box(rk, "fabric", _ws(bk, 1.1, 0.02, 1.1), Transform3D(bas, cc))
@@ -1267,7 +1362,11 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 	for e in [-1.0, 1.0]:
 		for i in n:
 			var hv := hw * (1.0 - (i + 0.5) / n)
-			_lb(rk, skin, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
+			_lb(rk, gmat, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
+	if style == "wood" and def.get("chimney", true):
+		# печная труба над избой
+		var cu := hl * 0.35
+		_lb(rk, "brick", bk, cu - 0.28, cu + 0.28, top, top + rr + 0.9, -hw * 0.35 - 0.28, -hw * 0.35 + 0.28)
 
 
 ## портик главного корпуса: колонны в два этажа, антаблемент, ступени
@@ -1317,6 +1416,11 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 		var d0 := dv
 		var d1 := dv + inward * 1.35
 		_keep.append(Rect2(dc - DW * 0.5 - 0.2, minf(d0, d1), DW + 0.4, absf(d1 - d0)))
+	# зал с дверями в ряд комнат — проход у каждой двери со стороны зала
+	for dc2 in r.get("doors", []):
+		var dv2: float = r.dv
+		var inw := signf(((float(r.v0) + float(r.v1)) * 0.5) - dv2)
+		_keep.append(Rect2(float(dc2) - DW * 0.5 - 0.25, minf(dv2, dv2 + inw * 1.4), DW + 0.5, 1.4))
 	for o in _room_links(bk, r):
 		_keep.append(o)
 	if style != "":
@@ -1480,6 +1584,81 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_try(ctx, "mcab", ["r", "cor"], 0.3)
 			_try(ctx, "radio", ["cor", "ext"], 0.7)
 			_try(ctx, "chair", ["r", "cor"], 0.8)
+		"izba":
+			# общая комната (у входа — прихожая): буфет, шкаф, диван, телевизор, стол со стульями, вешалка
+			_try(ctx, "m_sideboard", ["cor", "l", "r"], 0.3)
+			_try(ctx, "m_wardrobe", ["l", "r", "cor"], 0.6)
+			_try(ctx, "sofa", ["cor", "l", "r"], 0.8)
+			_try(ctx, "tv", ["l", "r"], 0.4)
+			_center_model(ctx, "m_table")
+			_try(ctx, "bedside", ["ext", "l", "r"], 0.12)
+		"h_kitchen":
+			_try(ctx, "m_stove", ["ext", "l", "r"], 0.2)
+			_try(ctx, "m_fridge", ["l", "r", "ext"], 0.85)
+			_try(ctx, "kcab", ["ext", "l", "r"], 0.55)
+			_try(ctx, "kcab", ["l", "r", "cor"], 0.4)
+			_try(ctx, "washstand", ["cor", "l", "r"], 0.2)
+			_center_model(ctx, "m_table")
+		"h_bed":
+			_try(ctx, "m_bed", ["ext", "l", "r"], 0.3)
+			if _rng.randf() < 0.5:
+				_try(ctx, "m_bed", ["ext", "l", "r"], 0.8)
+			_try(ctx, "m_wardrobe", ["l", "r", "cor"], 0.5)
+			_try(ctx, "bedside", ["ext", "l", "r"], 0.6)
+			_try(ctx, "suitcase", ["l", "r", "cor"], 0.3)
+		"h_pantry":
+			_try(ctx, "m_jars", ["ext", "l", "r"], 0.5)
+			_try(ctx, "m_sacks", ["l", "r", "cor"], 0.5)
+			_try(ctx, "m_cans", ["r", "l", "cor"], 0.7)
+		"h_bath":
+			_try(ctx, "tub", ["ext", "l", "r"], 0.5)
+			_try(ctx, "washstand", ["l", "r", "cor"], 0.4)
+		"shop":
+			# торговый зал: прилавок с весами и кассой, полки, холодильники с напитками
+			_try(ctx, "m_counter", ["cor"], 0.35)
+			for k in 3:
+				_try(ctx, "m_shopshelf", ["l", "r", "ext"], 0.2 + k * 0.3)
+			_try(ctx, "m_drinks", ["cor", "l", "r"], 0.85)
+			_try(ctx, "m_drinks", ["ext", "l", "r"], 0.12)
+		"shop_back":
+			_try(ctx, "desk", ["ext", "l", "r"], 0.4)
+			_try(ctx, "m_wardrobe", ["l", "r"], 0.5)
+			_try(ctx, "crate", ["l", "r", "cor"], 0.7)
+		"shop_stock":
+			_try(ctx, "m_shopshelf", ["ext", "l", "r"], 0.3)
+			_try(ctx, "m_sacks", ["ext", "l", "r"], 0.8)
+			_try(ctx, "m_cans", ["l", "r", "cor"], 0.5)
+			_try(ctx, "crate", ["l", "r", "cor"], 0.3)
+		"shed":
+			# сарай: верстак, полки с инструментом, ящики, бочки, сено, хлам
+			_try(ctx, "workbench", ["ext", "l", "r"], 0.4)
+			_try(ctx, "shelf", ["l", "r", "ext"], 0.75)
+			_try(ctx, "toolbox", ["l", "r", "cor"], 0.3)
+			_try(ctx, "barrel", ["l", "r", "cor", "ext"], 0.9)
+			_try(ctx, "m_cans", ["l", "r", "ext"], 0.5)
+			_try(ctx, "crate", ["l", "r", "ext"], 0.2)
+		"barn":
+			for k in 4:
+				_try(ctx, "hay", ["ext", "l", "r"], 0.12 + k * 0.25)
+			_try(ctx, "m_sacks", ["l", "r", "cor"], 0.6)
+			_try(ctx, "barrel", ["l", "r", "cor"], 0.3)
+			_try(ctx, "toolbox", ["cor", "l", "r"], 0.8)
+		"garage":
+			_try(ctx, "workbench", ["ext"], 0.5)
+			_try(ctx, "tyres", ["l", "r"], 0.8)
+			_try(ctx, "shelf", ["l", "r"], 0.3)
+			_try(ctx, "toolbox", ["l", "r", "ext"], 0.6)
+			_try(ctx, "barrel", ["l", "r"], 0.95)
+		"cellar":
+			# погреб: полки с закатками по стенам, закром с картошкой, мешки, бидоны; в большом — стол с банками
+			if (float(r.u1) - float(r.u0)) * (float(r.v1) - float(r.v0)) > 18.0:
+				_center_model(ctx, "m_table")
+			_try(ctx, "m_jars", ["ext", "l", "r"], 0.25)
+			_try(ctx, "m_jars", ["ext", "l", "r"], 0.75)
+			_try(ctx, "m_jars", ["l", "r"], 0.5)
+			_try(ctx, "bin", ["l", "r", "cor"], 0.6)
+			_try(ctx, "m_sacks", ["l", "r", "cor"], 0.3)
+			_try(ctx, "m_cans", ["r", "l", "cor"], 0.8)
 		"cstore":
 			ctx["ckind"] = "mil_ammo"
 			for k in 3:
@@ -1568,6 +1747,21 @@ const SIZES := {
 	"cot": Vector2(1.95, 0.75), "acrate": Vector2(1.0, 0.5), "radio": Vector2(1.0, 0.6), "mcab": Vector2(0.9, 0.45), "duffel": Vector2(0.75, 0.36),
 	"medbag": Vector2(0.5, 0.3),
 	"gurney": Vector2(2.0, 0.7),
+	# хутор: мебель — модели Tripo (MODEL_KINDS); столкновение и тайник — по этой коробке
+	"m_fridge": Vector2(0.62, 0.62), "m_stove": Vector2(0.62, 0.62), "m_wardrobe": Vector2(1.1, 0.58), "m_sideboard": Vector2(1.3, 0.5),
+	"m_jars": Vector2(1.2, 0.42), "m_bed": Vector2(0.95, 2.0), "m_counter": Vector2(1.7, 0.85), "m_shopshelf": Vector2(1.5, 0.5),
+	"m_sacks": Vector2(1.0, 0.8), "m_cans": Vector2(1.0, 0.6), "m_drinks": Vector2(0.7, 0.65), "m_table": Vector2(1.5, 1.3),
+	"washstand": Vector2(0.6, 0.45), "tub": Vector2(1.6, 0.75), "toolbox": Vector2(0.7, 0.4), "hay": Vector2(1.2, 0.9),
+	"bin": Vector2(1.2, 0.9), "barrel": Vector2(0.6, 0.6), "tyres": Vector2(0.75, 0.75),
+}
+## мебель-модель: [файл (assets/world), высота, вид тайника, название тайника] («» — не обыскивается)
+const MODEL_KINDS := {
+	"m_fridge": ["kh_fridge", 1.55, "fridge", "Холодильник"], "m_stove": ["kh_stove", 0.95, "", ""],
+	"m_wardrobe": ["kh_wardrobe", 1.95, "wardrobe", "Шкаф"], "m_sideboard": ["kh_sideboard", 1.9, "sideboard", "Буфет"],
+	"m_jars": ["kh_jar_shelf", 1.8, "jars", "Полка с закатками"], "m_bed": ["kh_bed", 1.0, "", ""],
+	"m_counter": ["kh_counter", 1.25, "counter", "Прилавок"], "m_shopshelf": ["kh_shop_shelf", 1.9, "shop", "Полка магазина"],
+	"m_sacks": ["kh_sacks", 0.8, "sacks", "Мешки с картошкой"], "m_cans": ["kh_cans", 0.9, "cans", "Бидоны и канистры"],
+	"m_drinks": ["kh_fridge", 1.6, "drinks", "Холодильник с напитками"], "m_table": ["kh_table_set", 1.0, "", ""],
 }
 
 
@@ -1818,6 +2012,85 @@ func _emit(ctx: Dictionary, kind: String, fr: Dictionary, x: float, off: float) 
 		"suitcase":
 			_ib(ctx, fr, a, b, 0, 0.45, z0, z1, "leather" if _rng.randf() < 0.5 else "blanket", true)
 			_ib(ctx, fr, x - 0.08, x + 0.08, 0.45, 0.5, z0 + 0.12, z0 + 0.16, "metal")
+		"washstand":
+			_ib(ctx, fr, a, b, 0, 0.8, z0, z1, "int_wood", true)
+			_ib(ctx, fr, a + 0.05, b - 0.05, 0.8, 0.86, z0 + 0.05, z1 - 0.05, "wmetal")
+			_ib(ctx, fr, x - 0.12, x + 0.12, 1.1, 1.45, z0, z0 + 0.18, "wmetal")
+			_ib(ctx, fr, x - 0.22, x + 0.22, 1.5, 2.0, z0, z0 + 0.02, "glass")
+			_cont(ctx, fr, x, sz, 0.86, "medbox", "Аптечка в умывальнике", off)
+		"tub":
+			_ib(ctx, fr, a, b, 0, 0.55, z0, z1, "wmetal", true)
+			_ib(ctx, fr, a + 0.06, b - 0.06, 0.5, 0.56, z0 + 0.06, z1 - 0.06, "metal")
+		"toolbox":
+			_ib(ctx, fr, a, b, 0, 0.35, z0, z1, "metal", true)
+			_ib(ctx, fr, a + 0.05, b - 0.05, 0.35, 0.4, z0 + 0.1, z1 - 0.1, "rust")
+			_cont(ctx, fr, x, sz, 0.4, "tools", "Ящик с инструментами", off)
+		"hay":
+			_ib(ctx, fr, a, b, 0, 0.55, z0, z1, "sand", true)
+			_ib(ctx, fr, a + 0.05, b - 0.05, 0.55, 1.05, z0 + 0.05, z1 - 0.05, "sand")
+		"bin":
+			# закром с картошкой
+			_ib(ctx, fr, a, b, 0, 0.7, z0, z0 + 0.05, "int_wood", true)
+			_ib(ctx, fr, a, a + 0.05, 0, 0.7, z0, z1, "int_wood")
+			_ib(ctx, fr, b - 0.05, b, 0, 0.7, z0, z1, "int_wood")
+			_ib(ctx, fr, a, b, 0, 0.45, z1 - 0.05, z1, "int_wood")
+			_ib(ctx, fr, a + 0.05, b - 0.05, 0, 0.42, z0 + 0.05, z1 - 0.05, "potato")
+			_icol(ctx, fr, a, b, 0, 0.7, z0, z1)
+			_cont(ctx, fr, x, sz, 0.7, "cellar", "Закром с картошкой", off)
+		"barrel":
+			var bk2: Dictionary = ctx.bk
+			var c2 := _w(bk2, float(fr.o.x) + float(fr.a.x) * x + float(fr.n.x) * (off + 0.3), float(ctx.y) + 0.45, float(fr.o.y) + float(fr.a.y) * x + float(fr.n.y) * (off + 0.3))
+			_cylinder(String(ctx.nk), "rust", 0.28, 0.9, Transform3D(Basis(), c2), 10)
+			_icol(ctx, fr, a + 0.02, b - 0.02, 0, 0.9, z0 + 0.02, z1 - 0.02)
+		"tyres":
+			for k in 3:
+				var bk3: Dictionary = ctx.bk
+				var c3 := _w(bk3, float(fr.o.x) + float(fr.a.x) * x + float(fr.n.x) * (off + 0.37), float(ctx.y) + 0.12 + k * 0.22, float(fr.o.y) + float(fr.a.y) * x + float(fr.n.y) * (off + 0.37))
+				_cylinder(String(ctx.nk), "leather", 0.35, 0.2, Transform3D(Basis(), c3), 12)
+			_icol(ctx, fr, a, b, 0, 0.66, z0, z1)
+		_:
+			if MODEL_KINDS.has(kind):
+				_model_item(ctx, kind, fr, x, off, sz)
+
+
+## мебель-модель Tripo: столкновение и тайник — коробка размера SIZES; сама модель ставится владельцем зданий
+## (ULKhutor) по записи в models — в группу этажа, чтобы скрываться вместе с ним. Модели нет — простые коробки.
+func _model_item(ctx: Dictionary, kind: String, fr: Dictionary, x: float, off: float, sz: Vector2) -> void:
+	var mk: Array = MODEL_KINDS[kind]
+	var h := float(mk[1])
+	var a := x - sz.x * 0.5
+	var b := x + sz.x * 0.5
+	var z0 := off
+	var z1 := off + sz.y
+	var o: Vector2 = fr.o
+	var av: Vector2 = fr.a
+	var n: Vector2 = fr.n
+	var bk: Dictionary = ctx.bk
+	var c := o + av * x + n * (off + sz.y * 0.5)
+	var nw := _wd(bk, n.x, n.y)
+	var aw := _wd(bk, av.x, av.y)
+	var pos := _w(bk, c.x, float(ctx.y), c.y)
+	if ResourceLoader.exists("res://assets/world/%s.glb" % String(mk[0])):
+		models.append([String(mk[0]), pos, atan2(nw.x, nw.z), Vector3(sz.x, h, sz.y), String(ctx.nk), atan2(aw.x, aw.z)])
+	else:
+		_ib(ctx, fr, a, b, 0, h, z0, z1, "int_wood" if kind != "m_fridge" and kind != "m_drinks" else "wmetal")
+	_icol(ctx, fr, a, b, 0, h, z0, z1)
+	if String(mk[2]) != "":
+		_cont(ctx, fr, x, sz, h, String(mk[2]), String(mk[3]), off)
+
+
+## посередине комнаты — модель (стол со стульями)
+func _center_model(ctx: Dictionary, kind: String) -> void:
+	var r: Dictionary = ctx.r
+	var sz: Vector2 = SIZES[kind]
+	var cu := (float(r.u0) + float(r.u1)) * 0.5 + _rng.randf_range(-0.3, 0.3)
+	var cv := (float(r.v0) + float(r.v1)) * 0.5 + _rng.randf_range(-0.2, 0.2)
+	var rr := Rect2(cu - sz.x * 0.5 - 0.2, cv - sz.y * 0.5 - 0.2, sz.x + 0.4, sz.y + 0.4)
+	if not _fits(r, rr):
+		return
+	_placed.append(rr)
+	var fr := {"o": Vector2(cu, cv - sz.y * 0.5), "a": Vector2(1, 0), "n": Vector2(0, 1), "len": 0.0}
+	_model_item(ctx, kind, fr, 0.0, 0.0, sz)
 
 
 ## кровать: металлическая (больничная) или деревянная; along — вдоль стены (иначе — изголовьем к стене)
@@ -2143,12 +2416,18 @@ func _cut_mesh(mi: MeshInstance3D, on: bool) -> void:
 
 ## внутри ли точка (по плану) и на каком этаже: −1 — снаружи
 func floor_at(p: Vector3) -> int:
+	if style == "cellar":
+		# погреб: только под землёй; лестница вниз (annex) — уже погреб
+		if p.y > base_y + storey - 0.1:
+			return -1
+		if annex.size != Vector2.ZERO and annex.has_point(Vector2(p.x, p.z)) and p.y < -0.15:
+			return 0
 	if not rect.grow(0.05).has_point(Vector2(p.x, p.z)):
 		return -1
 	for bk in blocks:
 		var l := _local(bk, p)
 		if absf(l.x) < float(bk.hl) - te * 0.5 and absf(l.y) < float(bk.hw) - te * 0.5:
-			return clampi(int(floor((p.y + 0.9) / storey)), 0, int(bk.floors) - 1)
+			return clampi(int(floor((p.y - base_y + 0.9) / storey)), 0, int(bk.floors) - 1)
 	return -1
 
 
@@ -2157,7 +2436,7 @@ func floor_hyst(p: Vector3, cur: int) -> int:
 	var f := floor_at(p)
 	if f < 0 or cur < 0:
 		return f
-	var rel := p.y - cur * storey
+	var rel := p.y - base_y - cur * storey
 	if rel > -1.3 and rel < storey - 0.5:
 		return cur
 	return f

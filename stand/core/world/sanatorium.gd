@@ -139,6 +139,7 @@ var _tick_t := 0.0
 var hero_b := -1                   ## в каком корпусе герой (−1 — снаружи) и на каком этаже
 var hero_f := -1
 var _lights: Array[OmniLight3D] = []
+var lamp_energy := 0.9                  ## яркость ламп в помещениях (мигает первая)
 var _flick := 0.0
 
 
@@ -456,7 +457,7 @@ func tick(hero: Vector3, cam, delta: float) -> void:
 			for i in blds.size():
 				blds[i].set_state(nf if i == nb else -1)
 			if nb >= 0:
-				ULBlock.set_cut(nf * blds[nb].storey + ULBlock.CUT)
+				ULBlock.set_cut(blds[nb].base_y + nf * blds[nb].storey + ULBlock.CUT)
 			_lights_place(hero)
 			if w != null and w.has_method("zone_changed"):
 				w.zone_changed()
@@ -474,7 +475,7 @@ func tick(hero: Vector3, cam, delta: float) -> void:
 		if _flick <= 0.0:
 			_flick = randf_range(0.05, 0.4)
 			if not _lights.is_empty():
-				_lights[0].light_energy = 0.9 if randf() < 0.8 else 0.25
+				_lights[0].light_energy = lamp_energy if randf() < 0.8 else lamp_energy * 0.28
 		if Engine.get_process_frames() % 20 == 0:
 			_lights_place(hero)
 
@@ -1346,6 +1347,7 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 				if not pools.has(kk):
 					pools[kk] = []
 				pools[kk].append(sp[0])
+	_zone_pools(pools)
 	for kind in ["infected", "lottery"]:
 		var n := np if kind == "infected" else nl
 		var zones: Dictionary = c.get("zones_pustysh" if kind == "infected" else "zones_lottery", {})
@@ -1492,6 +1494,11 @@ func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary,
 			push_warning("санаторий: для Рубера не нашлось просторного места")
 
 
+## свои зоны для пустышей и лоторейщиков (у хутора — дома, сараи, погреба по виду постройки)
+func _zone_pools(_pools: Dictionary) -> void:
+	pass
+
+
 ## особые места Рубера: хоздвор и площадка за главным корпусом
 func _extra_pools(pools: Dictionary) -> void:
 	var yard := Rect2(YARD.position + Vector2(2, 2), YARD.size - Vector2(4, 4))
@@ -1559,6 +1566,11 @@ func container_near(p: Vector3, r: float) -> int:
 
 ## хлам: в каждом корпусе — несколько кучек (в комнатах, на всех этажах), каждый вход заново
 func junk_points(rng: RandomNumberGenerator) -> Array:
+	return junk_in_buildings(rng)
+
+
+## хлам в постройках: в каждой — несколько кучек (точки — ULBlock.junk)
+func junk_in_buildings(rng: RandomNumberGenerator) -> Array:
 	var out: Array = []
 	var per: Array = conf().get("junk_per_building", [3, 6])
 	for b in blds:

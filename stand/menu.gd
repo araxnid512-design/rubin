@@ -11,11 +11,16 @@ var _extra: Array = []
 
 
 func _ready() -> void:
+	# после «Теста уровней» — снова настоящая база (тест держал её только в памяти)
+	ULSettings.level_test = false
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-test="):
 			test = a.substr(10)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
+	if ULBase.memory_only and test == "":
+		ULBase.memory_only = false
+		ULBase.load_state(true)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ULSettings.apply(get_viewport())
 	Music.play_menu()
@@ -80,13 +85,13 @@ func _extra_buttons() -> void:
 		# низ картинки срезан экраном — кнопки встают вплотную к нижнему краю
 		h = 44.0
 		r.position.y = size.y - h - 6.0
-	var w := (r.size.x - 10.0) * 0.5
-	var defs := [["Полигон", _go_arena], ["3D", _go_stand]]
+	var w := (r.size.x - 20.0) / 3.0
+	var defs := [["Полигон", _go_arena], ["3D", _go_stand], ["Тест уровней", _levels]]
 	for i in defs.size():
 		var b := Button.new()
 		b.text = defs[i][0]
 		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", int(clampf(h * 0.46, 18.0, 26.0)))
+		b.add_theme_font_size_override("font_size", int(clampf(h * 0.4, 15.0, 22.0)))
 		b.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
 		for st in ["normal", "hover", "pressed"]:
 			var sb := StyleBoxFlat.new()
@@ -100,6 +105,61 @@ func _extra_buttons() -> void:
 		b.pressed.connect(defs[i][1])
 		add_child(b)
 		_extra.append(b)
+
+
+## «Тест уровней»: выбор локации — герой появляется на ней с пулемётом ПКП, бессмертный, патроны без конца;
+## сохранение и база не трогаются, таймер кластера не убивает; выход за край поля — обратно сюда
+const LEVELS := [["home", "Дом (стабильный стаб)"], ["cowshed", "Опасный коровник"], ["sanatorium", "Санаторий Луч"], ["convoy", "Разбитый конвой"],
+	["khutor", "Хутор"], ["arena", "Полигон 10×10"]]
+var _lv_panel: Control
+
+
+func _levels() -> void:
+	if _lv_panel != null and is_instance_valid(_lv_panel):
+		_lv_panel.queue_free()
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.62)
+	add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lv_panel = shade
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	shade.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -300
+	pn.offset_right = 300
+	pn.offset_top = -290
+	pn.offset_bottom = 290
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	pn.add_child(vb)
+	var t := Label.new()
+	t.text = "Тест уровней"
+	t.add_theme_font_size_override("font_size", 26)
+	t.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
+	vb.add_child(t)
+	var d := Label.new()
+	d.text = "Выберите локацию: герой появится там с пулемётом, бессмертный, патроны без конца. Сохранение не меняется. Выход — за край поля или «Главное меню»."
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	d.add_theme_font_size_override("font_size", 15)
+	d.add_theme_color_override("font_color", ULSettings.C_TEXT)
+	vb.add_child(d)
+	for lv in LEVELS:
+		var b := ULSettings.button(String(lv[1]), _start_level.bind(String(lv[0])), 560.0)
+		b.name = "lv_" + String(lv[0])
+		vb.add_child(b)
+	vb.add_child(ULSettings.button("Отмена", func() -> void: shade.queue_free(), 560.0))
+
+
+func _start_level(id: String) -> void:
+	ULSettings.level_test = true
+	ULSettings.arena = id == "arena"
+	ULSettings.place = "home" if id == "arena" else id
+	if test == "":
+		get_tree().change_scene_to_file("res://world.tscn")
 
 
 ## новая игра при существующем сохранении — переспросить
@@ -151,4 +211,26 @@ func _run_test() -> void:
 	_on_tap("set")
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/m1_settings.png")
+	# тест уровней: окно со списком локаций, выбор — флаг и место
+	for c in get_children():
+		if c is CanvasLayer or (c is Control and c != bd and not _extra.has(c)):
+			c.queue_free()
+	await get_tree().process_frame
+	var lb: Button = null
+	for b in _extra:
+		if (b as Button).text == "Тест уровней":
+			lb = b
+	print("[menu] кнопка «Тест уровней» есть — ", "верно" if lb != null else "ОШИБКА")
+	_levels()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/m2_levels.png")
+	var has_all := true
+	for lv in LEVELS:
+		if _lv_panel.find_child("lv_" + String(lv[0]), true, false) == null:
+			has_all = false
+	print("[menu] в окне — все локации (%d) — %s" % [LEVELS.size(), "верно" if has_all else "ОШИБКА"])
+	_start_level("khutor")
+	print("[menu] выбор «Хутор»: тест уровня включён, место — хутор — ", "верно" if ULSettings.level_test and ULSettings.place == "khutor" and not ULSettings.arena else "ОШИБКА")
+	ULSettings.level_test = false
+	ULSettings.place = "home"
 	get_tree().quit()

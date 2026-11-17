@@ -220,6 +220,15 @@ func pave_dist(q: Vector2) -> float:
 
 # ---------------- лес ----------------
 
+## где можно лес и сколько деревьев (у наследников — свои правила)
+func forest_ok(_q: Vector2) -> bool:
+	return true
+
+
+func forest_n() -> int:
+	return 330
+
+
 ## Лес по всей карте, кроме дороги, съездов и полян; за краем — ещё два ряда. Ели — одной сеткой, остальные — модели.
 func _c_forest(rng: RandomNumberGenerator) -> void:
 	var kinds := []
@@ -228,11 +237,11 @@ func _c_forest(rng: RandomNumberGenerator) -> void:
 			kinds.append([load(MODELS + String(k[0]) + ".glb"), k[1], k[2], k[3], String(k[0])])
 	var pts: Array = []
 	var tries := 0
-	while pts.size() < 330 and tries < 6000:
+	while pts.size() < forest_n() and tries < 6000:
 		tries += 1
 		var q := Vector2(rng.randf_range(-84, 84), rng.randf_range(-84, 84))
 		var inside := absf(q.x) < 73.0 and absf(q.y) < 73.0
-		if road_dist(q) < 6.5 or track_dist(q) < 3.2 or clear_w(q) > 0.05 or bld_dist(q) < 3.5:
+		if road_dist(q) < 6.5 or track_dist(q) < 3.2 or clear_w(q) > 0.05 or bld_dist(q) < 3.5 or not forest_ok(q):
 			continue
 		if q.distance_to(Vector2(C_ENTRY.x, C_ENTRY.z)) < 8.0:
 			continue

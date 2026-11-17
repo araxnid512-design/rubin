@@ -495,7 +495,7 @@ func _build_routes() -> void:
 ## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете); dense — три и больше:
 ## без описания (оно — на карте мира), цена и кнопка — в столбце текста, все три карточки видны без прокрутки
 func _route_card(id: String, d: Dictionary, compact := false, dense := false) -> Control:
-	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg()}.get(id, {})
+	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
 	if dense:

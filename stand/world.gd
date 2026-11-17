@@ -115,6 +115,22 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
+	if test == "lvl":
+		# проверка «Теста уровней»: --as-place=khutor (по умолчанию — дом)
+		ULSettings.arena = false
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-place="):
+				ULSettings.place = a.substr(11)
+	if test.begins_with("kh"):
+		# проверки хутора: --as-test=kh (посещение), khbake (карты и кэш), khview (снимки), khperf
+		ULSettings.arena = false
+		ULSettings.place = "khutor"
+		if test == "khperf":
+			var kc := ULKhutor.kcfg().duplicate(true)
+			kc.pustysh = [kc.pustysh[1], kc.pustysh[1]]
+			kc.lottery = [kc.lottery[1], kc.lottery[1]]
+			kc.ruber_chances = [0, 1]                    # и Рубер — всего 40
+			ULKhutor._kcfg = kc
 	if test.begins_with("cv"):
 		# проверки конвоя: --as-test=cv (посещение), cvbake (карты и кэш), cvview (снимки), cvperf
 		ULSettings.arena = false
@@ -125,15 +141,16 @@ func _ready() -> void:
 			vc.lottery = [vc.lottery[1], vc.lottery[1]]
 			vc.ruber_chances = [0, 1]                    # и Рубер — всего 46
 			ULConvoy._ccfg = vc
-	if test != "":
-		# проверки: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
+	lvl = ULSettings.level_test and test == "" or test == "lvl"
+	if test != "" or lvl:
+		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
 		ULBase.load_state(true)
 		if test != "pc":
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy"] else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor"] else "home"
 	ULSettings.apply(get_viewport())
 	Music.stop()
 	_env()
@@ -178,8 +195,10 @@ func _ready() -> void:
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
 		_crate_scene = load(MODELS + "ul_crate.glb")
 	_load()
+	if lvl:
+		_lvl_setup()
 	_apply_gear()
-	if place == "home" and not arena and ULSettings.arrival_note != "" and test == "":
+	if place == "home" and not arena and ULSettings.arrival_note != "" and test == "" and not lvl:
 		var note := ULSettings.arrival_note
 		ULSettings.arrival_note = ""
 		_arrival.call_deferred(note)
@@ -217,8 +236,9 @@ func _bake_nav(path := NAV_MESH) -> void:
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
 		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
-	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, -1.0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt, size_m + 24.0))
+	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" or place == "khutor" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
+	var y0 := -3.4 if place == "khutor" else -1.0                # на хуторе — погреба на 2,6 м под землёй
+	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, y0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt - y0 - 1.0, size_m + 24.0))
 	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
 	var src := NavigationMeshSourceGeometryData3D.new()
 	var t0 := Time.get_ticks_msec()
@@ -303,23 +323,23 @@ var zone: Node3D                  ## текущий временный клас�
 
 
 func _san_world() -> void:
-	san = ULConvoy.new() if place == "convoy" else ULSanatorium.new()
+	san = ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else ULSanatorium.new())
 	size_m = float(san.conf().get("size", 150.0))
-	san.name = "Convoy" if place == "convoy" else "Sanatorium"
+	san.name = {"khutor": "Khutor", "convoy": "Convoy"}.get(place, "Sanatorium")
 	add_child(san)
 	zone = san
 	san.build(self)
 	_noise_tex = san._noise_tex
 	_edge_fog()
-	var nav := ULConvoy.C_NAV if place == "convoy" else NAV_SANATORIUM
-	if test == "snbake" or test == "cvbake":
+	var nav := ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else NAV_SANATORIUM)
+	if test == "snbake" or test == "cvbake" or test == "khbake":
 		_bake_nav(nav)
 	_nav_load(nav)
 
 
 ## кластер с помещениями, в которые можно зайти (санаторий, конвой): этажи, двери, тайники, свет внутри
 func indoor() -> bool:
-	return place == "sanatorium" or place == "convoy"
+	return place == "sanatorium" or place == "convoy" or place == "khutor"
 
 
 ## временный кластер (коровник, санаторий) — не база и не полигон
@@ -328,18 +348,24 @@ func temp() -> bool:
 
 
 func zone_cfg() -> Dictionary:
+	if place == "khutor":
+		return ULKhutor.kcfg()
 	if place == "convoy":
 		return ULConvoy.ccfg()
 	return ULSanatorium.cfg() if place == "sanatorium" else ULCowshed.cfg()
 
 
 func zone_name() -> String:
+	if place == "khutor":
+		return ULKhutor.K_TITLE
 	if place == "convoy":
 		return ULConvoy.C_TITLE
 	return ULSanatorium.TITLE if place == "sanatorium" else "Опасный коровник"
 
 
 func zone_entry() -> Vector3:
+	if place == "khutor":
+		return ULKhutor.K_ENTRY
 	if place == "convoy":
 		return ULConvoy.C_ENTRY
 	return ULSanatorium.ENTRY if place == "sanatorium" else ULCowshed.ENTRY
@@ -407,7 +433,7 @@ func _cowshed_enter() -> void:
 	sn_ready_ms = Time.get_ticks_msec()
 	if san != null:
 		zone_changed()
-	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))])
+	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
 
 
 ## Хлам в постройках временного кластера: в каждой постройке — 2–4 кучки, каждый вход заново (по случайности
@@ -457,6 +483,12 @@ func _cs_tick(delta: float) -> void:
 			if not _cs_warned.has(-1):
 				_cs_warned[-1] = true
 				say("ТРЕВОГА! Кластер перезагружается — уходите за край поля!")
+	if left <= 0.0 and lvl:
+		# тест уровня: кластер не убивает — таймер просто начинается заново
+		_cs_end = Time.get_unix_time_from_system() + float(c.get("minutes", 10)) * 60.0
+		_cs_warned.clear()
+		say("Тест уровня: таймер кластера начат заново")
+		return
 	if left <= 0.0 and not _cs_over:
 		_cs_over = true
 		say("Кластер перезагружается!")
@@ -476,6 +508,9 @@ func cs_finish(why: String) -> void:
 	if _cs_done:
 		return
 	_cs_done = true
+	if lvl:
+		_lvl_exit()
+		return
 	var c := zone_cfg()
 	if why == "reset" or (why == "dead" and bool(c.get("lose_on_death", true))):
 		var keep: Dictionary = {} if bool(c.get("lose_wallet", true)) else inv.wallet.duplicate()
@@ -493,7 +528,7 @@ func cs_finish(why: String) -> void:
 
 ## во временном кластере на диск пишется только то, что при себе; ящики и вещи на базе остаются как были
 func _save_carried(path := SAVE, force := false) -> void:
-	if (test != "" and not force) or not FileAccess.file_exists(path):
+	if (test != "" and not force) or (lvl and not force) or not FileAccess.file_exists(path):
 		return
 	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if not (d is Dictionary):
@@ -507,7 +542,7 @@ func _save_carried(path := SAVE, force := false) -> void:
 
 func _cs_load() -> void:
 	var d = null
-	if FileAccess.file_exists(SAVE) and test == "":
+	if FileAccess.file_exists(SAVE) and test == "" and not lvl:
 		d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
 	if d is Dictionary:
 		inv.from_dict(d.get("inv", {}))
@@ -854,11 +889,16 @@ uniform float wet = 0.0;              // голая земля местами б
 uniform float dry_amount = 0.6;       // сколько сухих проплешин в траве
 uniform vec3 grass_mul = vec3(0.9, 1.08, 0.76);   // оттенок травы (коровник — оливковее)
 uniform vec3 path_mul = vec3(1.12, 1.08, 1.04);   // светлота дороги (коровник — темнее, сырая земля)
+uniform vec4 cut_rect = vec4(0.0);    // вырез (x0, z0, x1, z1): над погребом, где герой (хутор)
+uniform float cut_on = 0.0;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
 void fragment() {
 	vec2 p = wp.xz;
+	if (cut_on > 0.5 && p.x > cut_rect.x && p.x < cut_rect.z && p.y > cut_rect.y && p.y < cut_rect.w) {
+		discard;
+	}
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 	float n1 = texture(noise, p / 70.0).r;
 	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
@@ -1992,6 +2032,8 @@ func _process(delta: float) -> void:
 			left_location = true
 			if temp():
 				cs_finish("left")
+			elif lvl:
+				_lvl_exit()
 			else:
 				_save()
 				if test == "":
@@ -2044,7 +2086,7 @@ func _where() -> String:
 	if indoor():
 		if san.hero_b < 0:
 			return zone_name()
-		if place == "convoy":
+		if place == "convoy" or place == "khutor":
 			return "%s, %s" % [zone_name(), san.blds[san.hero_b].title.to_lower()]
 		return "%s, %s, %d этаж" % [zone_name(), san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
@@ -2709,8 +2751,8 @@ func say(t: String) -> void:
 # ---------------- сохранение ----------------
 
 func _save() -> void:
-	if arena or test != "":
-		return                                  # полигон и проверки сохранение не трогают
+	if arena or test != "" or lvl:
+		return                                  # полигон, проверки и тест уровней сохранение не трогают
 	if temp():
 		_save_carried()                         # во временном кластере сохраняется только то, что при себе
 		return
@@ -3407,7 +3449,8 @@ func repair_list() -> Array:
 
 func _shoot(it: Dictionary, d: Dictionary) -> void:
 	var wcfg: Dictionary = rig.hold.w
-	it.mag = int(it.mag) - 1
+	if not lvl:
+		it.mag = int(it.mag) - 1                # в тесте уровня патроны не кончаются
 	shots += 1
 	_atk_cd = 1.0 / float(d.rate)
 	_aim_t = 0.0
@@ -3993,6 +4036,76 @@ var _auto_k := 0.6                ## сила «нажатия» джойсти�
 var _auto_r := 0.35               ## за сколько до точки пути поворачивать к следующей (на лестнице — ближе)
 
 
+## «Тест уровней» (главное меню): герой с пулемётом ПКП, бессмертный, патроны не кончаются; ни сохранение, ни база
+## не трогаются; таймер кластера не убивает; выход за край поля или «Главное меню» — обратно в главное меню.
+var lvl := false
+
+
+func _lvl_setup() -> void:
+	inv.from_dict({})
+	inv.pack = ULItems.make("pack_large")
+	inv.primary = ULItems.make("pkp")
+	inv.pistol = ULItems.make("tt")
+	inv.hand = "primary"
+	for it in [ULItems.make("a762x54", 200), ULItems.make("a762x25", 64), ULItems.make("medkit", 3), ULItems.make("bandage", 5)]:
+		inv.add(it)
+	hp = HP_MAX
+	if not temp():
+		say("Тест уровня «%s»: бессмертие, патроны без конца, без сохранения. Выход — за край поля или через меню" % ("полигон" if arena else "Дом"))
+
+
+func _lvl_exit() -> void:
+	ULSettings.level_test = false
+	ULSettings.place = "home"
+	ULSettings.arena = false
+	ULBase.memory_only = false
+	ULBase.load_state(true)
+	if test == "":
+		get_tree().change_scene_to_file("res://menu.tscn")
+
+
+## Проверка «Теста уровней» (--as-test=lvl --as-place=khutor): пулемёт, бессмертие, патроны без конца, таймер не
+## убивает, база только в памяти, выход за край — флаг снят, настоящая база снова загружена
+func _lvl_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while temp() and not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	_ok("тест уровня «%s»: герой с пулемётом ПКП в руках, патроны к нему есть" % (zone_name() if temp() else "Дом"), lvl and inv.primary != null and String(inv.primary.id) == "pkp" and inv.hand == "primary" and inv.count("a762x54") >= 200)
+	for e in enemies:
+		if e.alive():
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	hurt(60.0, player.global_position + Vector3(1, 0, 0))
+	hurt(60.0, player.global_position + Vector3(1, 0, 0))
+	_ok("бессмертие: два удара по 60 — здоровье по-прежнему %d, героя не убило" % int(hp), is_equal_approx(hp, HP_MAX) and _dead_t <= 0.0)
+	var m0 := int(inv.primary.mag)
+	for k in 5:
+		_shoot(inv.primary, ULItems.get_def("pkp"))
+	_ok("патроны без конца: 5 выстрелов — в ленте по-прежнему %d" % int(inv.primary.mag), int(inv.primary.mag) == m0)
+	_ok("база и сохранение не трогаются: база только в памяти", ULBase.memory_only)
+	if temp():
+		_cs_end = Time.get_unix_time_from_system() - 1.0
+		await get_tree().create_timer(0.5).timeout
+		_ok("время кластера вышло — герой жив, таймер начат заново (%.0f с)" % cs_left(), not _cs_done and _dead_t <= 0.0 and cs_left() > 500.0 and is_equal_approx(hp, HP_MAX))
+	player.global_position = Vector3(0, 0.1, size_m * 0.5 + 3.0)
+	var tl := 0.0
+	while ULBase.memory_only and tl < LEAVE_S + 2.0:
+		await get_tree().process_frame
+		tl += get_process_delta_time()
+	_ok("вышел за край поля — тест окончен: флаг снят, база снова настоящая (не в памяти), путь — в главное меню", not ULSettings.level_test and not ULBase.memory_only and ULSettings.place == "home")
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
+## проверки: маршрут id — в наборе компьютера (набор случайный: 3 из всех локаций)
+func _offer_route(id: String) -> void:
+	var offs: Array = ULBase.offers()
+	if not offs.has(id):
+		offs[0] = id
+		ULBase.data.offers = offs
+
+
 func _ok(name: String, cond: bool, extra := "") -> void:
 	if not cond:
 		_fails += 1
@@ -4197,6 +4310,7 @@ func _cs_test() -> void:
 	_ok("ушёл за край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and inv.primary != null and ULBase.route_state("cowshed") == "" and ULSettings.place == "home", ULSettings.arrival_note)
 	# новое посещение: снова купить маршрут
 	inv.wallet = {"spore": 10}
+	_offer_route("cowshed")
 	var rb := ULBase.buy_route(inv, "cowshed")
 	_ok("для нового посещения маршрут покупается снова", rb.ok and ULBase.route_state("cowshed") == "bought" and int(inv.wallet.get("spore", 0)) == 0)
 	# перезагрузка кластера с героем внутри
@@ -4666,6 +4780,7 @@ func _sn_test() -> void:
 	_ok("ушёл через ворота за край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and ULBase.route_state("sanatorium") == "" and ULSettings.place == "home" and ULSettings.arrival_title == "Санаторий Луч", ULSettings.arrival_note)
 	_ok("санатория снова нет на карте", not ULMap.place_shown("sanatorium"))
 	inv.wallet = {"spore": 25}
+	_offer_route("sanatorium")
 	var rb := ULBase.buy_route(inv, "sanatorium")
 	_ok("для нового посещения маршрут покупается снова (25 споранов) и появляется на карте", rb.ok and ULBase.route_state("sanatorium") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("sanatorium"))
 	_cs_done = false
@@ -5186,6 +5301,7 @@ func _cv_test() -> void:
 	_ok("ушёл по дороге за южный край: посещение окончено, добыча при себе (патронов %d, споранов 7), маршрут закрыт" % a_keep, _cs_done and int(inv.wallet.get("spore", 0)) == 7 and inv.count("a545") == a_keep and a_keep >= 30 and ULBase.route_state("convoy") == "" and ULSettings.place == "home" and ULSettings.arrival_title == "Разбитый конвой", ULSettings.arrival_note)
 	_ok("конвоя снова нет на карте", not ULMap.place_shown("convoy"))
 	inv.wallet = {"spore": 34}
+	_offer_route("convoy")
 	var rb0 := ULBase.buy_route(inv, "convoy")
 	_ok("за 34 спорана маршрут не купить", not rb0.ok and int(inv.wallet.get("spore", 0)) == 34 and not ULMap.place_shown("convoy"))
 	inv.wallet = {"spore": 35}
@@ -5572,6 +5688,382 @@ func _rock_test() -> void:
 		await get_tree().process_frame
 		await _snap("rock_5_hit")
 		zc.queue_free()
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
+## «Хутор» (--as-test=kh; с --as-out=папка — ещё снимки): по списку §16 задания — поле и раскладка, вход во все
+## постройки, двери, крыши, магазин, сараи, спуск в погреб и подъём, вид подземного уровня, обыск, враги (число,
+## места, в погребах — только пустыши), ИИ в доме и в погребе, таймер, маршрут 18 споранов, перезагрузка в погребе.
+func _kh_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	var c := ULKhutor.kcfg()
+	var kh := san as ULKhutor
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	print("[inv] хутор готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
+	# 1–2: поле и раскладка
+	var kinds := {}
+	var by_id := {}
+	for b in san.blds:
+		var kd := String(b.def.get("kind", ""))
+		kinds[kd] = int(kinds.get(kd, 0)) + 1
+		by_id[b.id] = b
+	_ok("хутор: поле %d×%d м, вход с юга; домов %d, магазин %d, сараев и гаражей %d, погребов %d" % [int(size_m), int(size_m), int(kinds.get("house", 0)), int(kinds.get("shop", 0)), int(kinds.get("shed", 0)), int(kinds.get("cellar", 0))],
+		size_m == 150.0 and place == "khutor" and ULKhutor.K_ENTRY.z > 60.0 and int(kinds.get("house", 0)) >= 6 and int(kinds.get("house", 0)) <= 8 and int(kinds.get("shop", 0)) == 1 and int(kinds.get("shed", 0)) >= 3 and int(kinds.get("cellar", 0)) >= 2)
+	var sizes := []
+	for b in san.blds:
+		if String(b.def.get("kind", "")) == "house":
+			sizes.append("%.0f×%.0f" % [float(b.blocks[0].L), float(b.blocks[0].W)])
+	_ok("дома разных размеров: %s (малый 7×6, средний 9×7, большой 11×8)" % ", ".join(sizes), sizes.has("7×6") and sizes.has("9×7") and sizes.has("11×8"))
+	var roomt := {}
+	for b in san.blds:
+		for r in b.rooms:
+			roomt[String(r.type)] = true
+	_ok("в домах — общая комната с прихожей, кухня, спальня, кладовая, санузел; в магазине — зал, подсобка, склад", roomt.has("izba") and roomt.has("h_kitchen") and roomt.has("h_bed") and roomt.has("h_pantry") and roomt.has("h_bath") and roomt.has("shop") and roomt.has("shop_back") and roomt.has("shop_stock"), str(roomt.keys()))
+	var nmod := 0
+	var mod_ids := {}
+	for b in san.blds:
+		nmod += b.models.size()
+		for m in b.models:
+			mod_ids[String(m[0])] = true
+	_ok("мебель — модели Tripo (%d шт., %d видов: %s)" % [nmod, mod_ids.size(), ", ".join(mod_ids.keys())], nmod >= 40 and mod_ids.size() >= 6)
+	# 3: путь от входа на поле внутрь каждой постройки (в погреба — по лестнице вниз) и ко всему полу внутри:
+	# пол сеткой 0,5 м — каждая точка, где есть навигация, достижима от входной двери (мебель не перекрывает проходы)
+	var e0: Vector3 = snapf.call(ULKhutor.K_ENTRY)
+	var reach := 0
+	var bad := []
+	var floor_pts := 0
+	var floor_bad := []
+	for b in san.blds:
+		var ins: Vector3 = snapf.call(b.entrances[0][1])
+		var path := NavigationServer3D.map_get_path(map, e0, ins, true)
+		if path.size() > 1 and path[path.size() - 1].distance_to(ins) < 0.6 and san.locate(ins + Vector3.UP * 0.3).x >= 0:
+			reach += 1
+		else:
+			bad.append("%s (%s)" % [b.id, str(ins.snapped(Vector3.ONE * 0.1))])
+		var gx := b.rect.position.x + 0.5
+		while gx < b.rect.end.x - 0.3:
+			var gz := b.rect.position.y + 0.5
+			while gz < b.rect.end.y - 0.3:
+				var q := Vector3(gx, b.base_y + 0.1, gz)
+				var qn := NavigationServer3D.map_get_closest_point(map, q)
+				if Vector2(qn.x - q.x, qn.z - q.z).length() < 0.2 and absf(qn.y - q.y) < 0.5:
+					floor_pts += 1
+					var pq := NavigationServer3D.map_get_path(map, ins, qn, true)
+					if pq.size() == 0 or pq[pq.size() - 1].distance_to(qn) > 0.3:
+						floor_bad.append("%s %s" % [b.id, str(Vector2(gx, gz))])
+				gz += 0.5
+			gx += 0.5
+	_ok("от входа на поле есть путь внутрь каждой постройки, в погреба — по лестнице: %d из %d" % [reach, san.blds.size()], reach == san.blds.size(), str(bad))
+	_ok("весь пол внутри построек достижим от входной двери (мебель не перекрывает проходы): %d точек, отрезано %d" % [floor_pts, floor_bad.size()], floor_pts > 800 and floor_bad.is_empty(), str(floor_bad.slice(0, 10)))
+	# стены непроходимы
+	var wall_hits := 0
+	var wall_rays := 0
+	for b in san.blds:
+		if b.style == "cellar":
+			continue
+		for bk in b.blocks:
+			for k in 5:
+				var u := (k - 2) * float(bk.hl) / 3.0
+				var q := PhysicsRayQueryParameters3D.create(b._w(bk, u, 0.5, float(bk.hw) + 1.2), b._w(bk, u, 0.5, float(bk.hw) - 0.5))
+				q.collision_mask = 1 | ULDoor.LAYER
+				wall_rays += 1
+				if not space.intersect_ray(q).is_empty():
+					wall_hits += 1
+	_ok("стены построек непроходимы (лучи в стену: %d из %d упёрлись — остальные во входы)" % [wall_hits, wall_rays], wall_hits >= wall_rays * 0.8)
+	for e in enemies:
+		e.state = "dead"
+		e.visible = false
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	# 4–5: большой дом — дверь крыльца, вход, крыша скрыта
+	var h1: ULBlock = by_id["h1"]
+	var hi := san.blds.find(h1)
+	var door: ULDoor = null
+	for d in san.doors:
+		var dd := d as ULDoor
+		if dd.get_meta("ext", false) and dd.center.distance_to(h1.entrances[0][0]) < 3.0:
+			door = dd
+	var blocked := false
+	if door != null:
+		door.set_open(false)
+		var nrm := door.global_transform.basis.z.normalized()
+		var q2 := PhysicsRayQueryParameters3D.create(door.center + Vector3.UP + nrm, door.center + Vector3.UP - nrm)
+		q2.collision_mask = 1 | ULDoor.LAYER
+		var hh := space.intersect_ray(q2)
+		blocked = not hh.is_empty() and hh.collider == door
+	var h_out: Vector3 = snapf.call(h1.entrances[0][0])
+	player.global_position = h_out + Vector3.UP * 0.1
+	await get_tree().create_timer(0.5).timeout
+	var roof0: bool = h1._groups["b0/r"].visible and san.hero_b == -1
+	await _walk(Array(NavigationServer3D.map_get_path(map, h_out, snapf.call(Vector3(h1.rect.get_center().x, 0.1, h1.rect.get_center().y)), true)), 12.0)
+	await get_tree().create_timer(0.4).timeout
+	_ok("большой дом: закрытая дверь — преграда, герой подошёл — открылась, вошёл; крыша скрыта, комнаты видны", blocked and door != null and door.open and roof0 and san.hero_b == hi and not h1._groups["b0/r"].visible and h1._groups["b0/n0"].visible, "дверь %s, закрыта %s, корпус %d" % [door != null, blocked, san.hero_b])
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.6).timeout
+		await _snap("kh_house")
+	player.global_position = h_out + Vector3(0, 0.1, 4.0)
+	await get_tree().create_timer(0.5).timeout
+	_ok("вышел — крыша снова на месте", san.hero_b == -1 and h1._groups["b0/r"].visible)
+	# 6: магазин — вывеска, зал, прилавок и полки
+	var shop: ULBlock = by_id["shop"]
+	var sign_ok := false
+	for n in san.find_children("*", "Label3D", true, false):
+		if (n as Label3D).text == "МАГАЗИН":
+			sign_ok = true
+	var s_out: Vector3 = snapf.call(shop.entrances[0][0])
+	player.global_position = s_out + Vector3.UP * 0.1
+	await get_tree().create_timer(0.4).timeout
+	await _walk(Array(NavigationServer3D.map_get_path(map, s_out, snapf.call(Vector3(shop.rect.get_center().x - 1.0, 0.1, shop.rect.get_center().y)), true)), 12.0)
+	await get_tree().create_timer(0.3).timeout
+	var shop_k := {}
+	for ct in shop.containers:
+		shop_k[String(ct.n)] = true
+	_ok("магазин: вывеска «МАГАЗИН», герой вошёл, внутри %s" % ", ".join(shop_k.keys()), sign_ok and san.hero_b == san.blds.find(shop) and shop_k.has("Прилавок") and shop_k.has("Полка магазина"))
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.6).timeout
+		await _snap("kh_shop")
+	# 7: сарай
+	var barn: ULBlock = by_id["barn"]
+	var b_out: Vector3 = snapf.call(barn.entrances[0][0])
+	player.global_position = b_out + Vector3.UP * 0.1
+	await get_tree().create_timer(0.4).timeout
+	await _walk(Array(NavigationServer3D.map_get_path(map, b_out, snapf.call(Vector3(barn.rect.get_center().x, 0.1, barn.rect.get_center().y)), true)), 12.0)
+	await get_tree().create_timer(0.3).timeout
+	_ok("сарай: герой зашёл в ворота, крыша скрыта", san.hero_b == san.blds.find(barn) and not barn._groups["b0/r"].visible)
+	# 8–10: погреб — спуск по лестнице, вид уровня −1, свет, подъём
+	var cl: Dictionary = kh.cellars[0]
+	var cb: ULBlock = san.blds[int(cl.bi)]
+	var cdoor: ULDoor = cl.door
+	var top: Vector3 = snapf.call(cdoor.center + Vector3(0, 0, 1.6))
+	player.global_position = top + Vector3.UP * 0.1
+	await get_tree().create_timer(0.5).timeout
+	var cut0 := float(kh._ground_mat.get_shader_parameter("cut_on"))
+	var room: Vector3 = snapf.call(Vector3(cb.rect.get_center().x, cb.base_y + 0.05, cb.rect.get_center().y))
+	var down := NavigationServer3D.map_get_path(map, top, room, true)
+	_auto_r = 0.15
+	var min_y := 99.0
+	_auto = Array(down)
+	var tw := 0.0
+	while not _auto.is_empty() and tw < 15.0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		min_y = minf(min_y, player.global_position.y)
+	_auto.clear()
+	_auto_r = 0.35
+	await get_tree().create_timer(0.5).timeout
+	var lights_on := 0
+	for l in san._lights:
+		if l.visible:
+			lights_on += 1
+	_ok("погреб: дверь погреба открылась, герой спустился по лестнице на %.2f м (пол — %.1f м), не провалился (ниже всего %.2f)" % [player.global_position.y, cb.base_y, min_y],
+		cdoor.open and absf(player.global_position.y - cb.base_y) < 0.3 and min_y > cb.base_y - 0.3 and san.hero_b == int(cl.bi), "путь %d точек, герой %s" % [down.size(), str(player.global_position)])
+	_ok("под землёй: земля над погребом вырезана, вход и насыпь скрыты, вокруг — срез земли; перекрытие скрыто, стены со стороны камеры срезаны; горит лампа",
+		cut0 < 0.5 and float(kh._ground_mat.get_shader_parameter("cut_on")) > 0.5 and not (cl.cover as Node3D).visible and (cl.pit as Node3D).visible and not cb._groups["b0/r"].visible and cb._groups["b0/n0"].visible and lights_on >= 1, "ламп %d" % lights_on)
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.7).timeout
+		await _snap("kh_cellar")
+	# обыск полки в погребе
+	var ci := -1
+	for i in san.containers.size():
+		if String(san.containers[i].get("bld", "")) == cb.id:
+			ci = i
+			break
+	var opened := false
+	if ci >= 0:
+		var ct: Dictionary = san.containers[ci]
+		var sz: Vector3 = ct.size
+		for ang in 12:
+			var dir := Vector3(cos(ang * TAU / 12.0), 0, sin(ang * TAU / 12.0))
+			var st: Vector3 = snapf.call((ct.pos as Vector3) + dir * (maxf(sz.x, sz.z) * 0.5 + 0.55))
+			if absf(st.y - cb.base_y) > 0.3:
+				continue
+			player.global_position = st + Vector3.UP * 0.1
+			await get_tree().create_timer(0.25).timeout
+			if _target != null and String(_target.type) == "box" and int(_target.i) == ci and _action_label() == "Обыскать":
+				do_action()
+				await get_tree().process_frame
+				opened = inv_ui.visible
+				break
+		if out != "" and opened:
+			await get_tree().create_timer(0.4).timeout
+			await _snap("kh_cellar_search")
+		close_inventory()
+	_ok("в погребе: «%s» — подсветка, «Обыскать», окно обыска" % (String(san.containers[ci].n) if ci >= 0 else "нет тайника"), opened)
+	# подъём
+	var upath := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), snapf.call(top + Vector3(0, 0, 1.5)), true)
+	_auto_r = 0.15
+	await _walk(Array(upath), 15.0)
+	_auto_r = 0.35
+	await get_tree().create_timer(0.4).timeout
+	_ok("поднялся на поверхность (высота %.2f): вырез закрыт, вход и насыпь на месте" % player.global_position.y, player.global_position.y > -0.1 and san.hero_b == -1 and float(kh._ground_mat.get_shader_parameter("cut_on")) < 0.5 and (cl.cover as Node3D).visible and not (cl.pit as Node3D).visible)
+	# 11: тайники
+	var ck := {}
+	for ct in san.containers:
+		ck[String(ct.kind)] = int(ck.get(String(ct.kind), 0)) + 1
+	_ok("тайников %d: %s" % [san.containers.size(), str(ck)], san.containers.size() >= 80 and ck.has("fridge") and ck.has("jars") and ck.has("shop") and ck.has("counter") and ck.has("cellar") and ck.has("car") and ck.has("tractor") and ck.has("tools"))
+	var found := {}
+	var unknown := {}
+	var rngl := RandomNumberGenerator.new()
+	rngl.seed = 4040
+	for v in 200:
+		san.roll_containers(rngl)
+		for ct in san.containers:
+			for it in ct.items:
+				if it == null:
+					continue
+				found[String(it.id)] = int(found.get(String(it.id), 0)) + 1
+				if not ULItems.ITEMS.has(String(it.id)):
+					unknown[String(it.id)] = true
+	_ok("добыча за 200 посещений: еда (тушёнка %d, сухари %d), вода %d, медицина (бинты %d, аптечки %d), хлам %d — больше всего хлама и припасов; оружия почти нет" % [int(found.get("can", 0)), int(found.get("rusk", 0)), int(found.get("water", 0)), int(found.get("bandage", 0)), int(found.get("medkit", 0)), int(found.get("junk", 0))],
+		unknown.is_empty() and int(found.get("junk", 0)) > int(found.get("a12", 0)) * 5 and found.has("can") and found.has("water") and found.has("medkit") and not found.has("pack_medium") and not found.has("pack_large") and not found.has("pearl_black"), str(found))
+	san.roll_containers(rngl)
+	# 12: враги
+	var np := 0
+	var nl := 0
+	var nr := 0
+	var zones := {}
+	var near_entry := 0
+	var stuck := 0
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.26
+	cap.height = 1.4
+	for sp in cs_plan:
+		match String(sp[0]):
+			"infected":
+				np += 1
+			"lottery":
+				nl += 1
+			_:
+				nr += 1
+		zones[String(sp[2])] = int(zones.get(String(sp[2]), 0)) + 1
+		var p: Vector3 = sp[1]
+		if Vector2(p.x - ULKhutor.K_ENTRY.x, p.z - ULKhutor.K_ENTRY.z).length() < float(c.safe_r):
+			near_entry += 1
+		var qs := PhysicsShapeQueryParameters3D.new()
+		qs.shape = cap
+		qs.transform = Transform3D(Basis(), p + Vector3.UP * 0.95)
+		qs.collision_mask = 1
+		if not space.intersect_shape(qs, 4).filter(func(h): return not (h.collider is CharacterBody3D)).is_empty():
+			stuck += 1
+	_ok("пустышей %d (20–30), лоторейщиков %d (4–9), Руберов %d (0–1), всего %d (24–40); места: %s" % [np, nl, nr, cs_plan.size(), str(zones)], np >= 20 and np <= 30 and nl >= 4 and nl <= 9 and nr <= 1 and zones.size() >= 5)
+	_ok("никто не в стене, мебели, технике или дереве и не у входа (%d м)" % int(c.safe_r), stuck == 0 and near_entry == 0, "в препятствии %d, у входа %d" % [stuck, near_entry])
+	var lo := [99, 99]
+	var hi2 := [0, 0]
+	var rb_n := [0, 0]
+	var cel_bad := 0
+	var cel_n := 0
+	var sigs := {}
+	for sd in 30:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 6100 + sd * 7919
+		var plan := san.spawn_plan(rng, snapf)
+		var a := 0
+		var bb := 0
+		var rr := 0
+		for sp in plan:
+			var p: Vector3 = sp[1]
+			var in_cel := kh.cellar_at(p + Vector3.UP * 0.3) >= 0
+			if in_cel:
+				cel_n += 1
+				if String(sp[0]) != "infected":
+					cel_bad += 1
+			match String(sp[0]):
+				"infected":
+					a += 1
+				"lottery":
+					bb += 1
+				_:
+					rr += 1
+		rb_n[mini(rr, 1)] += 1
+		lo = [mini(lo[0], a), mini(lo[1], bb)]
+		hi2 = [maxi(hi2[0], a), maxi(hi2[1], bb)]
+		sigs[str(a) + "/" + str(bb) + str((plan[0][1] as Vector3).round())] = true
+	_ok("30 посещений: пустышей %d–%d, лоторейщиков %d–%d, без Рубера %d раз, с одним — %d; каждый раз по-другому" % [lo[0], hi2[0], lo[1], hi2[1], rb_n[0], rb_n[1]], lo[0] >= 20 and hi2[0] <= 30 and lo[1] >= 4 and hi2[1] <= 9 and rb_n[0] > 0 and rb_n[1] > 0 and sigs.size() >= 25)
+	_ok("в погребах за 30 посещений — %d врагов, все пустыши (Рубер и лоторейщики под землю не ставятся)" % cel_n, cel_n > 0 and cel_bad == 0)
+	# 13: ИИ — пустыш со двора заходит в дом к герою; другой спускается за героем в погреб
+	var h_in: Vector3 = snapf.call(Vector3(h1.rect.get_center().x, 0.1, h1.rect.get_center().y))
+	player.global_position = h_in + Vector3.UP * 0.1
+	hp = HP_MAX
+	await get_tree().create_timer(0.3).timeout
+	var ch := spawn_enemy("infected", snapf.call(h_out + Vector3(0, 0, 6)))
+	ch.state = "chase"
+	ch._last = player.global_position
+	ch._unseen = 0.0
+	var hp1 := hp
+	var tc := 0.0
+	while tc < 25.0 and hp >= hp1:
+		await get_tree().process_frame
+		tc += get_process_delta_time()
+	_ok("пустыш со двора зашёл за героем в дом и ударил: %.1f с" % tc, hp < hp1 and san.locate(ch.global_position + Vector3.UP * 0.3).x == hi, "враг %s, состояние %s" % [str(ch.global_position), ch.state])
+	ch.damage(999.0, player.global_position)
+	hp = HP_MAX
+	player.global_position = room + Vector3.UP * 0.1
+	await get_tree().create_timer(0.4).timeout
+	var ch2 := spawn_enemy("infected", snapf.call(top + Vector3(0, 0, 5)))
+	ch2.state = "chase"
+	ch2._last = player.global_position
+	ch2._unseen = 0.0
+	hp1 = hp
+	tc = 0.0
+	while tc < 30.0 and hp >= hp1:
+		await get_tree().process_frame
+		tc += get_process_delta_time()
+	_ok("пустыш с улицы спустился за героем по лестнице в погреб и ударил: %.1f с (враг на %.1f м)" % [tc, ch2.global_position.y], hp < hp1 and ch2.global_position.y < cb.base_y + 0.5, "враг %s, состояние %s" % [str(ch2.global_position), ch2.state])
+	ch2.damage(999.0, player.global_position)
+	hp = HP_MAX
+	# Рубер не бросает камень в погреб
+	_ok("в погребе — не «под открытым небом» (Рубер туда камень не бросает)", not _open_sky(room + Vector3(0, 0, 5), room))
+	# 14–16: таймер, маршрут, карта
+	_ok("таймер кластера — 10:00 и идёт (в том числе под землёй)", int(c.minutes) == 10 and _cs_end - float(cs_start) > 599.0 and cs_left() < 600.0)
+	var rt: Dictionary = ULBase.shop().get("routes", {}).get("khutor", {})
+	_ok("маршрут «Хутор» в компьютере: 18 споранов, кнопка «Открыть маршрут»", int((rt.get("price", {}) as Dictionary).get("spore", 0)) == 18 and String(rt.get("btn", "")) == "ОТКРЫТЬ МАРШРУТ")
+	var hr: Rect2 = ULMap.PLACES.home.rect
+	var kr: Rect2 = ULMap.PLACES.khutor.rect
+	_ok("на глобальной карте хутор — слева и ниже дома", kr.get_center().x < hr.get_center().x and kr.get_center().y > hr.get_center().y)
+	# уход с добычей, покупка заново, перезагрузка с героем в погребе
+	inv.wallet = {"spore": 7}
+	ULBase.set_route("khutor", "active")
+	player.global_position = Vector3(ULKhutor.K_ENTRY.x, 0.1, size_m * 0.5 + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 2.0:
+		await get_tree().process_frame
+		tl += get_process_delta_time()
+	_ok("ушёл за южный край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and ULBase.route_state("khutor") == "" and ULSettings.place == "home")
+	_offer_route("khutor")
+	inv.wallet = {"spore": 17}
+	var r0 := ULBase.buy_route(inv, "khutor")
+	inv.wallet = {"spore": 18}
+	var r1 := ULBase.buy_route(inv, "khutor")
+	_ok("за 17 споранов не купить, за 18 — куплен, хутор на карте", not r0.ok and r1.ok and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("khutor"))
+	_cs_done = false
+	left_location = false
+	_leave_t = 0.0
+	ULSettings.place = "khutor"
+	ULBase.set_route("khutor", "active")
+	player.global_position = room + Vector3.UP * 0.1
+	inv.primary = ULItems.make("ak74m")
+	inv.wallet = {"spore": 25}
+	var fake := "user://test_cluster.json"
+	ULBase.write_json(fake, {"v": SAVE_V, "crates": [[1.0, 2.0, 0.0, [ULItems.make("ak74m")]]], "ground": [], "inv": inv.to_dict(), "hp": 80.0})
+	_cs_end = Time.get_unix_time_from_system() + 0.5
+	var tr := 0.0
+	while not _cs_done and tr < 6.0:
+		await get_tree().process_frame
+		tr += get_process_delta_time()
+	_save_carried(fake, true)
+	var dd2 = JSON.parse_string(FileAccess.get_file_as_string(fake))
+	_ok("время вышло, герой в погребе: погиб, всё при себе потеряно, вещи на базе целы; маршрут закрыт, хутора нет на карте", _cs_done and inv.primary == null and inv.wallet.is_empty() and (dd2.crates as Array).size() == 1 and ULBase.route_state("khutor") == "" and not ULMap.place_shown("khutor"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fake))
+	ULSettings.place = "home"
+	ULSettings.arrival_note = ""
 	print("[inv] итог: ошибок %d" % _fails)
 	get_tree().quit()
 
@@ -6742,7 +7234,8 @@ func _blood(at: Vector3, dir: Vector3, n: int) -> void:
 func hurt(dmg: float, from := Vector3.INF) -> void:
 	if _dead_t > 0.0:
 		return
-	hp = maxf(0.0, hp - dmg)
+	if not lvl:
+		hp = maxf(0.0, hp - dmg)                # в тесте уровня герой бессмертен (удар виден, здоровье не тратится)
 	_hurt_t = 0.35
 	_hurt_amp = clampf(dmg / 20.0, 0.4, 1.5)
 	snd.play("punch", player.global_position + Vector3.UP * 1.3, -2.0, 0.08)
@@ -6942,6 +7435,9 @@ func open_settings() -> void:
 		ULSettings.apply(get_viewport())
 		_cam_apply(), [
 		["Главное меню", func() -> void:
+			if lvl:
+				_lvl_exit()
+				return
 			if temp():
 				cs_finish("menu")
 				return
@@ -8130,7 +8626,13 @@ func _run_test() -> void:
 	if test == "cvrock":
 		await _rock_test()
 		return
-	if test == "csperf" or test == "snperf" or test == "cvperf":
+	if test == "kh":
+		await _kh_test()
+		return
+	if test == "lvl":
+		await _lvl_test()
+		return
+	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
@@ -8138,7 +8640,11 @@ func _run_test() -> void:
 		var no_screen := DisplayServer.get_name() == "headless"
 		var worst := {"draw": 0.0, "tris": 0.0, "tex_mb": 0.0, "cpu_ms": 0.0}
 		var pts: Array = []
-		if place == "convoy":
+		if place == "khutor":
+			pts = [["вход", ULKhutor.K_ENTRY + Vector3(0, 0, -3)], ["кольцо улицы", Vector3(0, 0, 30)], ["усадьба", Vector3(-6, 0, -10)],
+				["большой дом внутри", Vector3(-8, 0, -20)], ["магазин внутри", Vector3(47, 0, 18)], ["погреб", Vector3(14, -2.55, -26)],
+				["сарай", Vector3(-44, 0, -48)], ["у трактора", Vector3(36, 0, -24)], ["огороды", Vector3(-28, 0, 33)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
+		elif place == "convoy":
 			pts = [["вход", ULConvoy.C_ENTRY + Vector3(0, 0, -3)], ["колонна на дороге", Vector3(0, 0, 8)], ["лагерь", Vector3(38, 0, -42)],
 				["штабная палатка", Vector3(34, 0, -53)], ["блокпост", Vector3(46, 0, 4)], ["склад", Vector3(-44, 0, 40)], ["вертолёт", Vector3(40, 0, 44)],
 				["вышка", ULConvoy.C_TOWER + Vector3(0, 3.4, 0)], ["лес", Vector3(-40, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 8)]]
@@ -8307,7 +8813,39 @@ func _run_test() -> void:
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
 		get_tree().quit()
 		return
-	if test == "csbake" or test == "snbake" or test == "cvbake":
+	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake":
+		get_tree().quit()
+		return
+	if test == "khview":
+		# вид хутора с нескольких точек (снимки в --as-out): снаружи, в домах, в магазине, в погребе
+		var tk0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tk0 < 20000:
+			await get_tree().process_frame
+		var kspots := [["k0_entry", ULKhutor.K_ENTRY + Vector3(0, 0, -3), 12.0], ["k1_loop", Vector3(0, 0, 28), 26.0], ["k2_center", Vector3(-6, 0, -8), 26.0],
+			["k3_house", Vector3(-8, 0, -18.5), 11.0], ["k4_kitchen", Vector3(-11.8, 0, -22.2), 10.0], ["k5_shop_in", Vector3(46.5, 0, 17.5), 11.0], ["k6_shop_out", Vector3(40, 0, 17), 13.0],
+			["k7_cellar_top", Vector3(14, 0, -17.5), 11.0], ["k8_cellar_stairs", Vector3(14, -1.2, -21.5), 10.0], ["k9_cellar_in", Vector3(15.6, -2.5, -25.2), 10.0],
+			["l0_barn", Vector3(-44, 0, -47), 11.0], ["l1_garage", Vector3(-44, 0, 43.3), 10.0], ["l2_greenhouse", Vector3(11, 0, -4), 11.0], ["l3_tractor", Vector3(37, 0, -23), 13.0],
+			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-42, -2.5, 2), 10.0],
+			["l8_cellar3", Vector3(42, -2.5, 36), 9.0], ["l9_top", Vector3(0, 0, 0), 85.0]]
+		var konly := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				konly = a.substr(10)
+		if konly != "":
+			kspots = kspots.filter(func(sp): return konly.split(",").has(String(sp[0])))
+		for sp in kspots:
+			cam_dist = float(sp[2])
+			player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
+			player.velocity = Vector3.ZERO
+			for e in enemies:
+				if e.global_position.distance_to(player.global_position) < 14.0:
+					e.state = "idle"
+					e.wander_r = 0.0
+			_cam_ready = false
+			world_env.fog_enabled = String(sp[0]) != "l9_top"
+			await get_tree().create_timer(1.3).timeout
+			print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+			await _snap(String(sp[0]))
 		get_tree().quit()
 		return
 	if test == "cvview":

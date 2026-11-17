@@ -24,6 +24,7 @@ const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
 const C_TEXT := Color(0.88, 0.93, 0.97)
 
 static var arena := false                  ## следующая загрузка world.tscn — полигон 10×10 м, а не локация
+static var level_test := false             ## «Тест уровней» из главного меню: герой с пулемётом, бессмертный, патроны без конца, без сохранения
 static var place := "home"                 ## какую локацию строит world.tscn: home — дом, cowshed — «Опасный коровник», sanatorium — «Санаторий Луч»
 static var arrival_note := ""              ## что сказать герою по прибытии (после гибели в кластере и т. п.)
 static var arrival_title := ""             ## заголовок записки (название кластера)

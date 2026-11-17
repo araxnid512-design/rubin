@@ -13,12 +13,17 @@ render_mode cull_disabled;
 // ветра, низ темнее (тень в гуще травы); нормаль — вверх (сверху пучок освещён ровно, без чёрной изнанки).
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_disable;
 uniform float sway = 0.05;
+// вырез земли над погребом (хутор): там, где земля скрыта, трава тоже не рисуется
+uniform vec4 cut_rect = vec4(0.0);
+uniform float cut_on = 0.0;
 varying float cell;
 varying vec3 tint;
+varying vec2 wxz;
 void vertex() {
 	cell = INSTANCE_CUSTOM.r;
 	tint = COLOR.rgb;
 	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wxz = wpos.xz;
 	float w = sin(TIME * 1.6 + wpos.x * 0.45 + wpos.z * 0.31) + 0.4 * sin(TIME * 2.9 + wpos.z * 0.8);
 	VERTEX.x += w * sway * (1.0 - UV.y);
 	VERTEX.z += w * sway * 0.6 * (1.0 - UV.y);
@@ -26,6 +31,7 @@ void vertex() {
 void fragment() {
 	vec4 c = texture(tex, vec2(UV.x * 0.5 + cell * 0.5, UV.y));
 	if (c.a < 0.45) { discard; }
+	if (cut_on > 0.5 && wxz.x > cut_rect.x && wxz.x < cut_rect.z && wxz.y > cut_rect.y && wxz.y < cut_rect.w) { discard; }
 	float ao = mix(0.55, 1.0, smoothstep(1.0, 0.45, UV.y));
 	// обе стороны полосы освещены как земля: у обратной стороны Godot переворачивает нормаль — без этого она чёрная
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
@@ -66,6 +72,14 @@ static func clump_mesh(kind: String) -> ArrayMesh:
 	mesh.surface_set_material(0, mat)
 	_meshes[kind] = mesh
 	return mesh
+
+
+## вырез над погребом: трава в прямоугольнике (x0, z0, x1, z1) не рисуется, пока on
+static func set_cut(rect: Vector4, on: bool) -> void:
+	for k in _meshes:
+		var m := (_meshes[k] as ArrayMesh).surface_get_material(0) as ShaderMaterial
+		m.set_shader_parameter("cut_rect", rect)
+		m.set_shader_parameter("cut_on", 1.0 if on else 0.0)
 
 
 ## Рассыпать пучки вида kind по квадрату size×size с центром в 0. density — пучков на м² там, где вес 1;

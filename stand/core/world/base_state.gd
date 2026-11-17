@@ -28,6 +28,9 @@ static func load_state(force := false) -> void:
 			data[k] = {}
 	if not (data.get("offers") is Array):
 		data["offers"] = []
+	# какие локации компьютер уже знает: новая (пришла с обновлением игры) сразу попадает в набор
+	if not (data.get("seen") is Array):
+		data["seen"] = (data.offers as Array).duplicate() if not (data.offers as Array).is_empty() else route_pool()
 
 
 static func save_state() -> void:
@@ -205,6 +208,20 @@ static func routes_tick(now := -1) -> int:
 	var fixed := _fix_offers(data.offers)
 	if fixed != data.offers:
 		data.offers = fixed
+		dirty = true
+	# новая локация (добавлена обновлением) — сразу в наборе: вместо случайной некупленной
+	for id in route_pool():
+		if (data.seen as Array).has(id):
+			continue
+		(data.seen as Array).append(id)
+		var offs: Array = data.offers
+		if not offs.has(id):
+			var free := offs.filter(func(x): return route_state(String(x)) == "")
+			if offs.size() < mini(route_slots(), route_pool().size()):
+				offs.append(id)
+			elif not free.is_empty():
+				offs[offs.find(free[randi() % free.size()])] = id
+			data.offers = route_pool().filter(func(x): return offs.has(x))
 		dirty = true
 	if dirty:
 		data.routes_next = nxt

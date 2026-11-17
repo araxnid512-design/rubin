@@ -1,202 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "kh_well",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_well",
-    "--faces",
-    "4500",
-    "--prompt",
-    "an old rustic wooden village water well with a small gabled shingle roof, a log crank with a rope and a metal bucket, weathered grey wood, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_beehive",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_beehive",
-    "--faces",
-    "3000",
-    "--prompt",
-    "an old wooden village beehive box on short legs, faded painted yellow and green planks, weathered, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_woodpile",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_woodpile",
-    "--faces",
-    "4500",
-    "--prompt",
-    "a neat stacked pile of split firewood logs about two meters long, birch and pine logs, weathered, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_outhouse",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_outhouse",
-    "--faces",
-    "4000",
-    "--prompt",
-    "an old wooden rural outhouse toilet booth with a heart-shaped hole cut in the door, grey weathered planks, slanted roof, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_fridge",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_fridge",
-    "--faces",
-    "3000",
-    "--prompt",
-    "an old soviet white refrigerator from the 1970s with rounded corners and a chrome handle, scratched and dirty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_stove",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_stove",
-    "--faces",
-    "4000",
-    "--prompt",
-    "an old soviet white enamel gas stove with four burners and an oven door, a dented pot and a kettle on top, dirty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_wardrobe",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_wardrobe",
-    "--faces",
-    "3000",
-    "--prompt",
-    "an old soviet brown wooden wardrobe with two doors, scratched varnish, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_sideboard",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_sideboard",
-    "--faces",
-    "5000",
-    "--prompt",
-    "an old soviet wooden kitchen sideboard cupboard with glass doors on top showing dishes and cups, drawers below, worn paint, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_jar_shelf",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_jar_shelf",
-    "--faces",
-    "5000",
-    "--prompt",
-    "a rustic wooden shelf rack full of glass jars of pickled vegetables, preserves and jam, dusty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_bed",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_bed",
-    "--faces",
-    "4000",
-    "--prompt",
-    "an old soviet metal frame bed with a thin striped mattress, a crumpled blanket and a pillow, rusty headboard, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_cans",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_cans",
-    "--faces",
-    "4500",
-    "--prompt",
-    "a group of old aluminium milk cans and rusty green metal jerrycans standing together, dented and dirty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_sacks",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_sacks",
-    "--faces",
-    "4000",
-    "--prompt",
-    "a pile of burlap sacks filled with potatoes and grain, one sack open with potatoes spilling out, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_table_set",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_table_set",
-    "--faces",
-    "5000",
-    "--prompt",
-    "an old wooden kitchen table with a checkered oilcloth, two wooden chairs, a pot, plates, glass jars and a kettle on the table, abandoned, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_counter",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_counter",
-    "--faces",
-    "5000",
-    "--prompt",
-    "an old soviet village grocery shop counter with a glass display case, old mechanical scales and a cash register on top, dirty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "kh_shop_shelf",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kh_shop_shelf",
-    "--faces",
-    "5000",
-    "--prompt",
-    "an old metal grocery store shelf rack with canned food, jars, bottles and boxes on the shelves, dusty, half empty, realistic, single object, game asset"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -538,7 +342,202 @@
   "ulm_ruber_z_death_front",
   "ulm_ruber_z_death_side",
   "ulm_ruber_z_hit_back",
-  "ulm_ruber_z_menace"
+  "ulm_ruber_z_menace",
+  {
+   "id": "kh_well",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_well",
+    "--faces",
+    "4500",
+    "--prompt",
+    "an old rustic wooden village water well with a small gabled shingle roof, a log crank with a rope and a metal bucket, weathered grey wood, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_beehive",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_beehive",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old wooden village beehive box on short legs, faded painted yellow and green planks, weathered, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_woodpile",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_woodpile",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a neat stacked pile of split firewood logs about two meters long, birch and pine logs, weathered, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_outhouse",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_outhouse",
+    "--faces",
+    "4000",
+    "--prompt",
+    "an old wooden rural outhouse toilet booth with a heart-shaped hole cut in the door, grey weathered planks, slanted roof, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_fridge",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_fridge",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old soviet white refrigerator from the 1970s with rounded corners and a chrome handle, scratched and dirty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_stove",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_stove",
+    "--faces",
+    "4000",
+    "--prompt",
+    "an old soviet white enamel gas stove with four burners and an oven door, a dented pot and a kettle on top, dirty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_wardrobe",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_wardrobe",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old soviet brown wooden wardrobe with two doors, scratched varnish, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_sideboard",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_sideboard",
+    "--faces",
+    "5000",
+    "--prompt",
+    "an old soviet wooden kitchen sideboard cupboard with glass doors on top showing dishes and cups, drawers below, worn paint, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_jar_shelf",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_jar_shelf",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a rustic wooden shelf rack full of glass jars of pickled vegetables, preserves and jam, dusty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_bed",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_bed",
+    "--faces",
+    "4000",
+    "--prompt",
+    "an old soviet metal frame bed with a thin striped mattress, a crumpled blanket and a pillow, rusty headboard, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_cans",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_cans",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a group of old aluminium milk cans and rusty green metal jerrycans standing together, dented and dirty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_sacks",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_sacks",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a pile of burlap sacks filled with potatoes and grain, one sack open with potatoes spilling out, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_table_set",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_table_set",
+    "--faces",
+    "5000",
+    "--prompt",
+    "an old wooden kitchen table with a checkered oilcloth, two wooden chairs, a pot, plates, glass jars and a kettle on the table, abandoned, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_counter",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_counter",
+    "--faces",
+    "5000",
+    "--prompt",
+    "an old soviet village grocery shop counter with a glass display case, old mechanical scales and a cash register on top, dirty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_shop_shelf",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_shop_shelf",
+    "--faces",
+    "5000",
+    "--prompt",
+    "an old metal grocery store shelf rack with canned food, jars, bottles and boxes on the shelves, dusty, half empty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  }
  ],
  "paused": [
   {
