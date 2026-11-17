@@ -1,20 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "mr_w_deagle2",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_deagle",
-    "--faces",
-    "4000",
-    "--prompt",
-    "a Desert Eagle .50 caliber semi-automatic pistol, black steel, large triangular barrel, realistic, single object lying flat, side view, game asset"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -1004,6 +990,7 @@
   "mr_mur_sg",
   "mr_mur_boss",
   "mr_w_ak47",
-  "mr_w_deagle"
+  "mr_w_deagle",
+  "mr_w_deagle2"
  ]
 }
