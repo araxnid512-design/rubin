@@ -355,10 +355,13 @@ func _l_ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.84, 0.78, 0.68), 1.0, 0.35, "dirt", "dirt")
+	# двор — пятна тёмной грязи с камнями (brown_mud_rocks_01) и утоптанной сухой земли с галькой (brown_mud_dry);
+	# Poly Haven, CC0: цвет 2K, нормали 1K. Сухая земля — плиткой 2 м: галька крупнее и читается с высоты камеры
+	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_rocks_01", "brown_mud_rocks_01", Vector3(1.0, 0.95, 0.88), 0.6, 0.35, "brown_mud_dry", "brown_mud_dry")
 	sm.set_shader_parameter("noise", _noise_tex)
 	sm.set_shader_parameter("grass_mul", Vector3(0.8, 0.9, 0.62))
-	sm.set_shader_parameter("path_mul", Vector3(0.86, 0.78, 0.68))
+	sm.set_shader_parameter("path_mul", Vector3(0.84, 0.8, 0.76))
+	sm.set_shader_parameter("path_scale", 2.0)
 	if ResourceLoader.exists(L_MASK) and w.test != "lrbake":
 		mask = (load(L_MASK) as Texture2D).get_image()
 		if mask.is_compressed():
@@ -372,16 +375,9 @@ func _l_ground() -> void:
 			print("[bake] карта земли логова: ", L_MASK)
 	sm.set_shader_parameter("mask", ImageTexture.create_from_image(mask))
 	mi.material_override = sm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # земля сама ни на что тень не бросает: в карту теней не рисуется
 	add_child(mi)
-	var out := MeshInstance3D.new()
-	var om := PlaneMesh.new()
-	om.size = Vector2(520, 520)
-	out.mesh = om
-	var omat := ULHouse._mat(TEX + "mud_forest", 3.5)
-	omat.albedo_color = Color(0.6, 0.6, 0.54)
-	out.material_override = omat
-	out.position.y = -0.05
-	add_child(out)
+	ULHouse.outer_frame(self, half, 520.0)
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = Vector3(520, 0.2, 520)
@@ -419,10 +415,14 @@ func _l_bake_mask() -> Image:
 			var n2 := _noise(p / 17.0 + Vector2(0.37, 0.11))
 			var n3 := _noise(p / 5.5 + Vector2(0.71, 0.53))
 			var track := 1.0 - smoothstep(1.2, 2.6, track_dist(p) + (n3 - 0.5) * 0.9)
-			var clr := clear_w(p) * smoothstep(0.15, 0.5, n2 * 0.6 + n3 * 0.4 + clear_w(p) * 0.45)
+			var cw := clear_w(p)
+			var clr := cw * smoothstep(0.15, 0.5, n2 * 0.6 + n3 * 0.4 + cw * 0.45)
+			# двор: утоптанная каменистая колея пятнами, между ними — тёмная грязь с камнями (не сплошной светлый песок)
+			clr *= lerpf(0.2, 1.0, smoothstep(0.38, 0.62, n1 * 0.55 + n2 * 0.45))
 			var path := maxf(track, clr * 0.9)
 			var gw := smoothstep(0.2, 0.5, n1 * 0.45 + n2 * 0.35 + n3 * 0.2) * 0.75 + 0.25
 			gw *= 1.0 - path
+			gw *= 1.0 - minf(cw * 1.15, 0.92)
 			var fw: float = w.forest_w(p, tpts, n2 * 1.5) * (1.0 - path)
 			gw *= 1.0 - fw * 0.85
 			var ao := 1.0 - (1.0 - smoothstep(0.0, 1.5, bld_dist(p))) * 0.4

@@ -175,6 +175,23 @@ func _box_col(body: StaticBody3D, size: Vector3, at: Vector3) -> void:
 	body.add_child(cs)
 
 
+## земля за краем кластера — рамка из четырёх полос вокруг поля (side × side м всего), а не одна плита под всем
+## полем: плита лежала под землёй кластера, и её тройная (трипланарная) выборка с освещением считалась на
+## каждой точке экрана впустую — земля поля всё равно рисовалась поверх
+static func outer_frame(parent: Node3D, half: float, side: float) -> void:
+	var omat := _mat("res://assets/world/tex/mud_forest", 3.5)
+	omat.albedo_color = Color(0.6, 0.6, 0.54)
+	var w := side * 0.5 - half
+	for s in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
+		var o := MeshInstance3D.new()
+		var op := PlaneMesh.new()
+		op.size = Vector2(w, side) if s.x != 0.0 else Vector2(half * 2.0, w)
+		o.mesh = op
+		o.material_override = omat
+		o.position = s * (half + w * 0.5) + Vector3.UP * -0.05
+		parent.add_child(o)
+
+
 static func _mat(tex: String, uv: float) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load(tex + "_c.jpg")

@@ -466,7 +466,7 @@ func _k_ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.86, 0.8, 0.7), 0.7, 0.45, "dirt", "dirt")
+	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.86, 0.8, 0.7), 0.7, 0.45, "dirt", "dirt", true)
 	sm.set_shader_parameter("noise", _noise_tex)
 	sm.set_shader_parameter("grass_mul", Vector3(0.86, 0.95, 0.66))
 	sm.set_shader_parameter("path_mul", Vector3(0.86, 0.8, 0.72))
@@ -483,6 +483,7 @@ func _k_ground() -> void:
 			print("[bake] карта земли хутора: ", K_MASK)
 	sm.set_shader_parameter("mask", ImageTexture.create_from_image(mask))
 	mi.material_override = sm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # земля сама ни на что тень не бросает: в карту теней не рисуется
 	_ground_mat = sm
 	for cl in cellars:
 		var mo := (cl.cover as Node3D).get_node_or_null("Mound") as MeshInstance3D

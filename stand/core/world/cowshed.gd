@@ -201,17 +201,10 @@ func _ground() -> void:
 			print("[bake] карта земли коровника: ", MASK)
 	sm.set_shader_parameter("mask", ImageTexture.create_from_image(mask))
 	mi.material_override = sm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # земля сама ни на что тень не бросает: в карту теней не рисуется
 	add_child(mi)
 	# за краем поля — лесная земля
-	var out := MeshInstance3D.new()
-	var om := PlaneMesh.new()
-	om.size = Vector2(420, 420)
-	out.mesh = om
-	var omat := ULHouse._mat(TEX + "mud_forest", 3.5)
-	omat.albedo_color = Color(0.6, 0.6, 0.54)
-	out.material_override = omat
-	out.position.y = -0.05
-	add_child(out)
+	ULHouse.outer_frame(self, half, 420.0)
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = Vector3(420, 0.2, 420)
@@ -396,7 +389,7 @@ func _vegetation() -> void:
 		return m.r * smoothstep(0.55, 0.7, _noise(Vector2(p.x, p.z) / 11.0 + Vector2(0.2, 0.6))), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.95, 0.95, 0.9) * r.randf_range(0.85, 1.05), Vector2(0.3, 0.5), 1.3, 904, rng_m)
 	# кусты у забора
-	var bush: PackedScene = load(MODELS + "ul_bush.glb") if ResourceLoader.exists(MODELS + "ul_bush.glb") else null
+	var bush: PackedScene = ULSanatorium.bush_scene()
 	if bush and not fence_pts.is_empty():
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 905

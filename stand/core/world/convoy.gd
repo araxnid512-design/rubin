@@ -341,16 +341,9 @@ func _c_ground() -> void:
 			print("[bake] карта земли конвоя: ", C_MASK)
 	sm.set_shader_parameter("mask", ImageTexture.create_from_image(mask))
 	mi.material_override = sm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # земля сама ни на что тень не бросает: в карту теней не рисуется
 	add_child(mi)
-	var out := MeshInstance3D.new()
-	var om := PlaneMesh.new()
-	om.size = Vector2(420, 420)
-	out.mesh = om
-	var omat := ULHouse._mat(TEX + "mud_forest", 3.5)
-	omat.albedo_color = Color(0.6, 0.6, 0.54)
-	out.material_override = omat
-	out.position.y = -0.05
-	add_child(out)
+	ULHouse.outer_frame(self, half, 420.0)
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = Vector3(420, 0.2, 420)
@@ -935,13 +928,15 @@ func _c_vegetation() -> void:
 		var m := mask_px(p)
 		if bld_d(Vector2(p.x, p.z)) < 0.3:
 			return 0.0
-		return clampf(m.g * (1.0 - m.g) * 2.2, 0.0, 0.8) + m.b * 0.25, func(_p: Vector3, r: RandomNumberGenerator) -> Color:
+		# сорняк — по краю дороги со стороны травы (не посреди колеи) и почти не растёт на утоптанном дворе
+		var edge := clampf(m.g * (1.0 - m.g) * 2.2, 0.0, 0.8) * (1.0 - smoothstep(0.4, 0.7, m.g))
+		return (edge + m.b * 0.25) * (1.0 - clear_w(Vector2(p.x, p.z)) * 0.85), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.84, 0.9, 0.74) * r.randf_range(0.82, 1.05), Vector2(0.4, 0.75), 1.2, 922, rng_m)
 	veg_count += ULVegetation.scatter(self, "nettle", size, 0.35 * q + 0.03, func(p: Vector3) -> float:
 		var m := mask_px(p)
 		return m.b * 0.7 * (1.0 - m.g), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.8, 0.88, 0.76) * r.randf_range(0.85, 1.05), Vector2(0.5, 0.95), 0.9, 923, rng_m)
-	var bush: PackedScene = load(MODELS + "ul_bush.glb") if ResourceLoader.exists(MODELS + "ul_bush.glb") else null
+	var bush: PackedScene = ULSanatorium.bush_scene()
 	if bush == null:
 		return
 	var rng := RandomNumberGenerator.new()
@@ -950,7 +945,7 @@ func _c_vegetation() -> void:
 	var tries := 0
 	while placed < 60 and tries < 2500:
 		tries += 1
-		var p := Vector3(rng.randf_range(-72, 72), 0, rng.randf_range(-72, 72))
+		var p := Vector3(rng.randf_range(-half + 4.0, half - 4.0), 0, rng.randf_range(-half + 4.0, half - 4.0))
 		var q2 := Vector2(p.x, p.z)
 		if road_dist(q2) < 5.0 or track_dist(q2) < 2.5 or clear_w(q2) > 0.2 or bld_d(q2) < 2.5 or mask_px(p).b < 0.2:
 			continue
@@ -961,6 +956,35 @@ func _c_vegetation() -> void:
 		t.rotation.y = rng.randf() * TAU
 		add_child(t)
 		_cull(t, 45.0)
+		placed += 1
+	_ferns(rng)
+
+
+## папоротники (Poly Haven fern_02, 3,5 тыс. треугольников): в лесной подстилке и у стен построек; дальше 30 м не рисуются
+func _ferns(rng: RandomNumberGenerator) -> void:
+	if not ResourceLoader.exists(MODELS + "ph_fern.glb"):
+		return
+	var fern: PackedScene = load(MODELS + "ph_fern.glb")
+	var placed := 0
+	var tries := 0
+	while placed < 70 and tries < 3000:
+		tries += 1
+		var p := Vector3(rng.randf_range(-half + 3.0, half - 3.0), 0, rng.randf_range(-half + 3.0, half - 3.0))
+		var q2 := Vector2(p.x, p.z)
+		var bd := bld_d(q2)
+		var near_wall := bd > 0.9 and bd < 2.2
+		if road_dist(q2) < 3.0 or track_dist(q2) < 1.8 or bd < 0.9 or not (near_wall or mask_px(p).b > 0.3):
+			continue
+		var t: Node3D = fern.instantiate()
+		# тень от папоротника в полметра почти не видна, а каждый — 3,5 тыс. треугольников в карте теней
+		for gi in t.find_children("*", "GeometryInstance3D", true, false):
+			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var bb: AABB = w._aabb(t)
+		t.scale = Vector3.ONE * (rng.randf_range(0.35, 0.6) / maxf(bb.size.y, 0.01))
+		t.position = p
+		t.rotation.y = rng.randf() * TAU
+		add_child(t)
+		_cull(t, 30.0)
 		placed += 1
 
 

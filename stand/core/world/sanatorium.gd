@@ -146,6 +146,14 @@ var light_n := 2                        ## сколько ламп помеще�
 var _flick := 0.0
 
 
+## куст — модель Poly Haven (searsia lucida, листва прорежена для телефона), если её нет — прежний куст Tripo
+static func bush_scene() -> PackedScene:
+	for n in ["ph_bush", "ul_bush"]:
+		if ResourceLoader.exists(MODELS + n + ".glb"):
+			return load(MODELS + n + ".glb")
+	return null
+
+
 static func cfg() -> Dictionary:
 	if _cfg.is_empty():
 		var d = JSON.parse_string(FileAccess.get_file_as_string(CFG))
@@ -590,16 +598,9 @@ func _ground() -> void:
 			print("[bake] карта земли санатория: ", MASK)
 	sm.set_shader_parameter("mask", ImageTexture.create_from_image(mask))
 	mi.material_override = sm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # земля сама ни на что тень не бросает: в карту теней не рисуется
 	add_child(mi)
-	var out := MeshInstance3D.new()
-	var om := PlaneMesh.new()
-	om.size = Vector2(420, 420)
-	out.mesh = om
-	var omat := ULHouse._mat(TEX + "mud_forest", 3.5)
-	omat.albedo_color = Color(0.6, 0.6, 0.54)
-	out.material_override = omat
-	out.position.y = -0.05
-	add_child(out)
+	ULHouse.outer_frame(self, half, 420.0)
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = Vector3(420, 0.2, 420)
@@ -1323,7 +1324,7 @@ func _vegetation() -> void:
 		return m.r * smoothstep(0.55, 0.7, _noise(Vector2(p.x, p.z) / 11.0 + Vector2(0.2, 0.6))), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.95, 0.95, 0.9) * r.randf_range(0.85, 1.05), Vector2(0.3, 0.5), 1.3, 914, rng_m)
 	# кусты — у фасадов и вдоль ограды
-	var bush: PackedScene = load(MODELS + "ul_bush.glb") if ResourceLoader.exists(MODELS + "ul_bush.glb") else null
+	var bush: PackedScene = bush_scene()
 	if bush == null:
 		return
 	var rng := RandomNumberGenerator.new()

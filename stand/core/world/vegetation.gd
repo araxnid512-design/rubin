@@ -129,6 +129,7 @@ static func scatter(parent: Node3D, kind: String, size: float, density: float, w
 				mm.set_instance_custom_data(i, Color(cells[i], 0, 0, 0))
 			var mi := MultiMeshInstance3D.new()
 			mi.multimesh = mm
+			mi.set_meta("veg", kind)                   # для замера: трава, бурьян, крапива
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.visibility_range_end = range_m
 			mi.visibility_range_end_margin = 4.0

@@ -24,7 +24,7 @@ const MODELS := "res://assets/world/"
 
 ## деревья: модель, высота, сколько, радиус ствола (для столкновений; 0 — без столкновений)
 const FLORA := [
-	["ul_birch", 4.0, 6, 0.14], ["ul_pine", 4.6, 10, 0.16], ["ul_apple", 3.0, 3, 0.15], ["ul_bush", 1.2, 22, 0.0],
+	["ul_birch", 4.0, 6, 0.14], ["ul_pine", 4.6, 10, 0.16], ["ul_apple", 3.0, 3, 0.15], ["ph_bush", 1.2, 22, 0.0],
 ]
 
 var player: CharacterBody3D
@@ -142,6 +142,10 @@ func _ready() -> void:
 			vc.lottery = [vc.lottery[1], vc.lottery[1]]
 			vc.ruber_chances = [0, 1]                    # и Рубер — всего 46
 			ULConvoy._ccfg = vc
+	if test == "gfxdiag":
+		# замер графики логова по частям — с настройками игры (как на телефоне), герой бессмертен
+		ULSettings.arena = false
+		ULSettings.place = "lair"
 	if test.begins_with("lr"):
 		# проверки логова муров: --as-test=lr (посещение и бой), lrbake (карты и кэш), lrview (снимки), lrperf
 		ULSettings.arena = false
@@ -150,7 +154,7 @@ func _ready() -> void:
 			var lc := ULLair.lcfg().duplicate(true)
 			lc.murs = [lc.murs[1], lc.murs[1]]
 			ULLair._lcfg = lc
-	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview"
+	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "gfxdiag"
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -161,7 +165,7 @@ func _ready() -> void:
 	arena = ULSettings.arena
 	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair"] else "home"
 	ULSettings.apply(get_viewport())
-	if test != "" and not test.ends_with("view"):
+	if test != "" and not test.ends_with("view") and test != "gfxdiag":
 		# автоматические проверки идут на программной отрисовке (без видеокарты): в полном разрешении со
 		# сглаживанием — 2–3 кадра/с, шаг кадра в треть секунды ломает проверки ходьбы по лестницам; поэтому
 		# проверкам — дешёвая отрисовка (снимки вида — *view — в настройках игры)
@@ -850,22 +854,27 @@ func _env() -> void:
 	if temp():
 		# коровник: пасмурно-приглушённый день — цвета спокойнее, лёгкая дымка ближе к камере, мягкие тени от
 		# построек, деревьев и техники (на «Средней» и «Высокой» графике; на «Низкой» — без теней, как на базе)
+		# цветокоррекция: прежняя (насыщенность 0,88, рассеянный свет 1,0 против солнца 1,0) давала серую плоскую
+		# картинку — свет и тень почти не различались. Теперь солнце сильнее и теплее, рассеянный свет
+		# слабее и холоднее: рельеф (карты нормалей досок, камня, грунта) читается, цвета живее, но не кричат
 		e.tonemap_exposure = 1.0
-		e.adjustment_saturation = 0.88
-		e.adjustment_contrast = 1.08
+		e.adjustment_saturation = 1.0
+		e.adjustment_contrast = 1.12
 		e.adjustment_brightness = 0.98
-		e.ambient_light_energy = 1.0
+		e.ambient_light_energy = 0.78
 		e.fog_light_color = Color(0.58, 0.6, 0.57)
 		e.fog_density = 0.6
 		e.fog_depth_begin = 14.0
 		e.fog_depth_end = 80.0
 		e.fog_depth_curve = 1.3
-		sun.light_energy = 1.0
-		sun.light_color = Color(1.0, 0.96, 0.9)
+		sun.light_energy = 1.22
+		sun.light_color = Color(1.0, 0.93, 0.83)
 		if ULSettings.gfx >= 1:
 			sun.shadow_enabled = true
-			sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-			sun.directional_shadow_max_distance = 38.0
+			# одна карта теней на 34 м (камера видит ~25 м): с двумя каскадами всё, что отбрасывает тень,
+			# рисовалось в карту теней дважды
+			sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+			sun.directional_shadow_max_distance = 34.0
 			sun.shadow_blur = 1.6
 			sun.shadow_opacity = 0.78
 			sun.shadow_bias = 0.06
@@ -878,13 +887,15 @@ func _env() -> void:
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 		sun.directional_shadow_max_distance = 32.0
 		e.ambient_light_energy = 1.05
+		# внутри: свет «из окон» под углом (не сверху) — пол, доски и мебель получают рельеф, а не ровную заливку
 		var fill := DirectionalLight3D.new()
-		fill.rotation_degrees = Vector3(-72, -30, 0)
-		fill.light_energy = 0.7
+		fill.rotation_degrees = Vector3(-52, -35, 0)
+		fill.light_energy = 0.85
 		fill.light_color = Color(0.86, 0.9, 0.95)
 		fill.light_cull_mask = 2
 		fill.shadow_enabled = false
 		add_child(fill)
+	_shadow_pref = sun.shadow_enabled
 	add_child(sun)
 
 
@@ -907,14 +918,16 @@ const GROUND_SHADER := """shader_type spatial;
 // A — затенение у стен), посчитанная заранее. Слои смешиваются «по высоте»: на границе светлые бугорки одного слоя
 // торчат сквозь другой (трава пучками поверх земли, камни тропы сквозь траву) — край живой, не размытый.
 // Против повторов: трава читается в двух масштабах, крупные пятна шума меняют сухость и светлоту.
-uniform sampler2D grass : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+// Анизотропная фильтрация — только на «Высокой» (ground_material): камера смотрит под 52°, выигрыш в
+// резкости мал, а цена — лишние выборки на каждом пикселе земли; резкость дешевле получить разрешением.
+uniform sampler2D grass : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D grass2 : source_color, filter_linear_mipmap, repeat_enable;      // вторая трава: зелёные куртины
 uniform sampler2D grass_n : hint_normal, filter_linear_mipmap, repeat_enable;      // рельеф стеблей
 uniform sampler2D dry : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D forest : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil_n : hint_normal, filter_linear_mipmap, repeat_enable;
-uniform sampler2D path : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D path : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D path_n : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise : filter_linear, repeat_enable;
 uniform sampler2D mask : filter_linear, repeat_disable;
@@ -926,49 +939,91 @@ uniform vec3 grass_mul = vec3(0.9, 1.08, 0.76);   // оттенок травы (
 uniform vec3 path_mul = vec3(1.12, 1.08, 1.04);   // светлота дороги (коровник — темнее, сырая земля)
 uniform vec4 cut_rect = vec4(0.0);    // вырез (x0, z0, x1, z1): над погребом, где герой (хутор)
 uniform float cut_on = 0.0;
+uniform float sharp = 0.72;
+uniform float path_scale = 2.8;      // сторона плитки текстуры тропы, м
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
+// две выборки одной текстуры (против повторов) — «по высоте»: в каждой точке берётся та, что светлее (с перевесом t
+// у второй), переход узкий. Простое смешивание двух «шумных» фото вдвое гасило контраст — камни и стебли сливались
+// в ровное размытое пятно.
+vec3 hmix(vec3 a, vec3 b, float t) {
+	float ha = lum(a) + (1.0 - t) * 0.5;
+	float hb = lum(b) + t * 0.5;
+	float top = max(ha, hb) - 0.06;
+	float wa = max(ha - top, 0.0);
+	float wb = max(hb - top, 0.0);
+	return (a * wa + b * wb) / max(wa + wb, 0.0001);
+}
 void fragment() {
 	vec2 p = wp.xz;
+#ifdef CUT
+	// вырез есть только у хутора (над погребом); в остальных картах без discard — видеочип отбрасывает скрытые
+	// точки земли (под полом построек) по глубине ещё до шейдера
 	if (cut_on > 0.5 && p.x > cut_rect.x && p.x < cut_rect.z && p.y > cut_rect.y && p.y < cut_rect.w) {
 		discard;
 	}
+#endif
 	mat2 rot = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
+	// производные координат — до ветвлений (внутри них выборки идут с явным мип-уровнем, без мерцания на границах)
+	// sharp < 1 — чуть более детальный мип-уровень (камни и стебли не расплываются в ровное пятно сверху)
+	vec2 dx = dFdx(p) * sharp;
+	vec2 dy = dFdy(p) * sharp;
+	vec2 rdx = rot * dx;
+	vec2 rdy = rot * dy;
 	float n1 = texture(noise, p / 70.0).r;
 	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
 	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.4) / world_size + 0.5);
-	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38);
-	// куртины гуще и зеленее — вторая фототекстура пятнами (вместо отдельных пучков травы — дешевле и не рябит)
-	float gk = smoothstep(0.34, 0.62, texture(noise, p / 13.0 + vec2(0.13, 0.77)).r) * 0.75;
-	g = mix(g, texture(grass2, rot * p / 6.2 + 0.47).rgb * vec3(0.92, 1.08, 0.86), gk) * grass_mul;
-	// кочки: пятнистое затенение травы в двух масштабах — трава читается объёмной без отдельных пучков
-	float tuft = texture(noise, p / 1.6 + vec2(0.41, 0.19)).r * 0.6 + texture(noise, rot * p / 0.7).r * 0.4;
-	g *= mix(0.78, 1.12, smoothstep(0.25, 0.75, tuft));
-	float dw = smoothstep(0.5, 0.74, n1 * 0.7 + n2 * 0.3) * dry_amount;
-	// против повтора: у сухой травы, земли и дороги — вторая выборка, повёрнутая и в другом масштабе, смешанная
-	// крупными пятнами шума (граница плитки не совпадает, рисунок не повторяется ровной сеткой)
-	float tb = smoothstep(0.32, 0.68, n2);
-	vec3 dr = mix(texture(dry, p / 4.2).rgb, texture(dry, rot * p / 5.3 + 0.17).rgb, tb);
-	g = mix(g, dr * vec3(0.92, 0.9, 0.76), dw);
-	vec3 f = texture(forest, rot * p / 3.2).rgb * vec3(1.08, 1.04, 0.98);
-	vec3 so = mix(texture(soil, p / 3.6).rgb, texture(soil, rot * p / 4.7 + 0.43).rgb, tb) * soil_tint;
-	vec3 pa = mix(texture(path, p / 2.8).rgb, texture(path, rot * p / 3.5 + 0.29).rgb, tb * 0.8) * path_mul;
 	float wg = m.r;
 	float wt = m.g;
 	float wf = m.b * (1.0 - wt);
 	float ws = max(1.0 - wg - wf - wt, 0.0);
+	// слой, чей вес меньше главного больше чем на 0,45, в смешивании «по высоте» не проступает никогда (светлота
+	// текстуры добавляет не больше ~0,2, полоса перехода — 0,22): его текстуры не читаем вовсе
+	float lw = max(max(max(wg, wf), max(ws, wt)) - 0.45, 0.002);
+	float tb = smoothstep(0.32, 0.68, n2);
+	// Слой читается только там, где он есть (вес > 0): раньше на каждом пикселе считались все пять слоёв —
+	// около двадцати выборок текстур; теперь на чистой траве или чистой дороге — вдвое-втрое меньше
+	vec3 g = vec3(0.3);
+	if (wg > lw) {
+		g = hmix(textureGrad(grass, p / 3.4, dx / 3.4, dy / 3.4).rgb, textureGrad(grass, rot * p / 9.0 + 0.31, rdx / 9.0, rdy / 9.0).rgb, 0.3 + tb * 0.3);
+		// куртины гуще и зеленее — вторая фототекстура пятнами
+		float gk = smoothstep(0.34, 0.62, textureGrad(noise, p / 13.0 + vec2(0.13, 0.77), dx / 13.0, dy / 13.0).r) * 0.75;
+		if (gk > 0.01) {
+			g = mix(g, textureGrad(grass2, rot * p / 6.2 + 0.47, rdx / 6.2, rdy / 6.2).rgb * vec3(0.92, 1.08, 0.86), gk);
+		}
+		g *= grass_mul;
+		// кочки: пятнистое затенение травы — трава читается объёмной без отдельных пучков
+		float tuft = textureGrad(noise, p / 1.6 + vec2(0.41, 0.19), dx / 1.6, dy / 1.6).r;
+		g *= mix(0.86, 1.07, smoothstep(0.2, 0.8, tuft));
+		float dw = smoothstep(0.5, 0.74, n1 * 0.7 + n2 * 0.3) * dry_amount;
+		if (dw > 0.01) {
+			vec3 dr = hmix(textureGrad(dry, p / 4.2, dx / 4.2, dy / 4.2).rgb, textureGrad(dry, rot * p / 5.3 + 0.17, rdx / 5.3, rdy / 5.3).rgb, tb);
+			g = mix(g, dr * vec3(0.92, 0.9, 0.76), dw);
+		}
+	}
+	vec3 f = vec3(0.3);
+	if (wf > lw) { f = textureGrad(forest, rot * p / 3.2, rdx / 3.2, rdy / 3.2).rgb * vec3(1.08, 1.04, 0.98); }
+	vec3 so = vec3(0.3);
+	if (ws > lw) { so = hmix(textureGrad(soil, p / 3.6, dx / 3.6, dy / 3.6).rgb, textureGrad(soil, rot * p / 4.7 + 0.43, rdx / 4.7, rdy / 4.7).rgb, tb) * soil_tint; }
+	vec3 pa = vec3(0.3);
+	if (wt > lw) { float ps = path_scale;
+		float ps2 = path_scale * 1.25;
+		pa = hmix(textureGrad(path, p / ps, dx / ps, dy / ps).rgb, textureGrad(path, rot * p / ps2 + 0.29, rdx / ps2, rdy / ps2).rgb, tb * 0.8) * path_mul; }
 	// смешивание по высоте: «высота» слоя — светлота его текстуры
 	vec4 a = vec4(wg + lum(g) * 0.42, wf + lum(f) * 0.42, ws + lum(so) * 0.34, wt + lum(pa) * 0.46);
-	a *= step(vec4(0.002), vec4(wg, wf, ws, wt));
+	a *= step(vec4(lw), vec4(wg, wf, ws, wt));
 	float top = max(max(a.x, a.y), max(a.z, a.w)) - 0.22;
 	vec4 b = max(a - vec4(top), vec4(0.0));
 	b /= max(b.x + b.y + b.z + b.w, 0.0001);
 	vec3 c = g * b.x + f * b.y + so * b.z + pa * b.w;
 	float bright = mix(0.88, 1.07, n1) * mix(0.95, 1.04, n2);
 	ALBEDO = c * bright * m.a * 0.92;
-	vec3 nm = texture(soil_n, p / 3.6).rgb * (b.z + b.y * 0.5) + texture(path_n, p / 2.8).rgb * b.w + texture(grass_n, p / 3.4).rgb * b.x + vec3(0.5, 0.5, 1.0) * b.y * 0.5;
+	vec3 nm = vec3(0.5, 0.5, 1.0) * b.y * 0.5;
+	if (b.z + b.y > 0.01) { nm += textureGrad(soil_n, p / 3.6, dx / 3.6, dy / 3.6).rgb * (b.z + b.y * 0.5); }
+	if (b.w > 0.01) { nm += textureGrad(path_n, p / path_scale, dx / path_scale, dy / path_scale).rgb * b.w; }
+	if (b.x > 0.01) { nm += textureGrad(grass_n, p / 3.4, dx / 3.4, dy / 3.4).rgb * b.x; }
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = 1.1;
 	float puddle = b.z * wet * smoothstep(0.55, 0.72, n3 * 0.6 + n2 * 0.4);
@@ -1135,11 +1190,17 @@ var _tree_pts: Array = []         ## [точка, радиус кроны] — �
 
 ## Материал земли (GROUND_SHADER) — общий для базы и коровника: трава sparse_grass, сухие проплешины grass_ground,
 ## подстилка mud_forest, тропа stony_dirt_path (Poly Haven, CC0); голая земля — своя для каждой локации.
-func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float, path := "stony_dirt_path", path_n := "stony_dirt_path") -> ShaderMaterial:
+func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float, path := "stony_dirt_path", path_n := "stony_dirt_path", cuttable := false) -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = GROUND_SHADER if ULSettings.gfx == 2 else GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
+	var code: String = GROUND_SHADER if ULSettings.gfx < 2 else GROUND_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,")
+	if cuttable:
+		code = code.replace("shader_type spatial;\n", "shader_type spatial;\n#define CUT\n")
+	sh.code = code
 	sm.shader = sh
+	# земля — после построек, людей и предметов: там, где её закрывает пол или стена, точка отбрасывается по
+	# глубине до шейдера (иначе дорогая земля считалась бы и под полом каждого дома)
+	sm.render_priority = 1
 	sm.set_shader_parameter("grass", load(TEX + "sparse_grass_c.jpg"))
 	sm.set_shader_parameter("grass2", load(TEX + "aerial_grass_c.jpg"))
 	sm.set_shader_parameter("grass_n", load(TEX + "sparse_grass_n.jpg"))
@@ -1210,11 +1271,17 @@ func _ground() -> void:
 		_mask_img = _bake_mask()
 		sm.set_shader_parameter("mask", ImageTexture.create_from_image(_mask_img))
 	mi.material_override = sm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # земля сама ни на что тень не бросает: в карту теней не рисуется
 	add_child(mi)
 	_edge_fog()
 	_vegetation()
-	_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44))
-	_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))
+	# подложки под полем (гравийная кромка и земля за краем) рисуются после земли поля: под ней они отбрасываются
+	# по глубине и не считаются (раньше их трипланарная закраска шла на каждой точке экрана впустую)
+	for pl in [_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44)),
+			_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))]:
+		var pm: StandardMaterial3D = (pl as MeshInstance3D).material_override
+		pm.render_priority = 2
+		(pl as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var sb := StaticBody3D.new()
 	add_child(sb)
 	var cs := CollisionShape3D.new()
@@ -1899,7 +1966,7 @@ func _flora() -> void:
 				continue
 			var near := false
 			for q in placed:
-				if q.distance_to(p) < (2.2 if f[0] != "ul_bush" else 1.4):
+				if q.distance_to(p) < (2.2 if f[0] != "ph_bush" else 1.4):
 					near = true
 					break
 			if near:
@@ -1913,14 +1980,14 @@ func _flora() -> void:
 				var bb := _aabb(node)
 				node.scale = Vector3.ONE * (h / maxf(bb.size.y, 0.01))
 			else:
-				node = _fallback_tree(h, String(f[0]) == "ul_bush")
+				node = _fallback_tree(h, String(f[0]) == "ph_bush")
 			node.rotation.y = rng.randf() * TAU
 			node.position = p
 			add_child(node)
-			if f[0] != "ul_bush":
+			if f[0] != "ph_bush":
 				canopy.add_model(node, h)
-			_tree_pts.append([p, h * 0.32 if f[0] != "ul_bush" else 0.7])
-			_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * h * (0.5 if f[0] != "ul_bush" else 0.9)), p + Vector3.UP * 0.03))
+			_tree_pts.append([p, h * 0.32 if f[0] != "ph_bush" else 0.7])
+			_blobs.append(Transform3D(Basis.from_scale(Vector3.ONE * h * (0.5 if f[0] != "ph_bush" else 0.9)), p + Vector3.UP * 0.03))
 			if float(f[3]) > 0.0:
 				var cs := CollisionShape3D.new()
 				var cy := CylinderShape3D.new()
@@ -2167,7 +2234,12 @@ func _process(delta: float) -> void:
 	prof_parts["цель"] = int(prof_parts.get("цель", 0)) + _p2 - _p1
 	prof_parts["бой"] = int(prof_parts.get("бой", 0)) + _p3 - _p2
 	if info and Engine.get_process_frames() % 10 == 0:
-		info.text = "%s · %d кадров/с · разрешение %d %%%s" % [_where(), Engine.get_frames_per_second(), int(round(get_viewport().scaling_3d_scale * 100.0)), _perf_text]
+		var adapt := ""
+		if int(ULSettings.q().msaa) > 0 and get_viewport().msaa_3d == Viewport.MSAA_DISABLED:
+			adapt += " · без сглаживания"
+		if _shadow_pref and sun and not sun.shadow_enabled:
+			adapt += " · без теней"
+		info.text = "%s · %d кадров/с · разрешение %d %%%s%s" % [_where(), Engine.get_frames_per_second(), int(round(get_viewport().scaling_3d_scale * 100.0)), adapt, _perf_text]
 	_fps_tick(delta)
 	_auto_res(delta)
 	# за краем локации: пять секунд на возвращение, потом — на карту мира
@@ -7225,17 +7297,27 @@ func _inv_test() -> void:
 	_ok("имя сменилось на «Бродяга», панель закрылась", hero_name == "Бродяга" and not _name_ui.visible)
 	_ok("пустое имя не принимается, длинное обрезается до 16 знаков", not set_hero_name("   ") and set_hero_name("Очень длинное имя сталкера") and hero_name.length() == 16, hero_name)
 	set_hero_name("Сталкер")
-	# --- подстройка разрешения под частоту кадров ---
-	_ok("20 кадров/с: разрешение сразу падает крупным шагом (80 → 74 %)", is_equal_approx(res_step(0.8, 20.0, 0.8, true), 0.74))
-	_ok("35 кадров/с: мелкий шаг вниз (80 → 77 %)", is_equal_approx(res_step(0.8, 35.0, 0.8, true), 0.77))
-	_ok("ниже 55 % разрешение само не опускается (картинка не мылится)", is_equal_approx(res_step(0.57, 20.0, 0.8, true), 0.55))
-	_ok("45 кадров/с: разрешение не трогается", is_equal_approx(res_step(0.7, 45.0, 0.8, true), 0.7))
-	_ok("60 кадров/с: вверх, но не выше качества графики", is_equal_approx(res_step(0.7, 60.0, 0.8, true), 0.74) and is_equal_approx(res_step(0.8, 60.0, 0.8, true), 0.8))
-	_ok("сразу после снижения вверх не идёт", is_equal_approx(res_step(0.7, 60.0, 0.8, false), 0.7))
-	var sc_low := 0.55
+	# --- подстройка под частоту кадров: сначала сглаживание, потом тени, разрешение — последним ---
+	var st0 := {"scale": 0.8, "msaa": true, "shadows": true, "cap": 0.8, "can_msaa": true, "can_shadows": true}
+	var a1 := adapt_step(st0, 25.0, true)
+	_ok("25 кадров/с: первым снимается сглаживание, разрешение и тени — как были", not bool(a1.msaa) and bool(a1.shadows) and is_equal_approx(float(a1.scale), 0.8))
+	var a2 := adapt_step(a1, 25.0, true)
+	_ok("дальше — тени солнца, разрешение всё ещё 80 %", not bool(a2.shadows) and is_equal_approx(float(a2.scale), 0.8))
+	var a3 := adapt_step(a2, 25.0, true)
+	_ok("и только потом разрешение: крупный шаг (80 → 74 %)", is_equal_approx(float(a3.scale), 0.74))
+	_ok("35 кадров/с без сглаживания и теней: мелкий шаг вниз (80 → 77 %)", is_equal_approx(float(adapt_step(a2, 35.0, true).scale), 0.77))
+	_ok("45 кадров/с: ничего не трогается", adapt_step(a1, 45.0, true) == a1)
+	var r1 := adapt_step(a3, 60.0, true)
+	_ok("60 кадров/с: сначала возвращается разрешение (74 → 78 %), тени ещё выключены", is_equal_approx(float(r1.scale), 0.78) and not bool(r1.shadows))
+	var r2 := adapt_step(adapt_step(r1, 60.0, true), 60.0, true)
+	_ok("затем тени, потом сглаживание", is_equal_approx(float(r2.scale), 0.8) and bool(r2.shadows) and not bool(r2.msaa) and bool(adapt_step(r2, 60.0, true).msaa))
+	_ok("сразу после снижения вверх не идёт", adapt_step(a3, 60.0, false) == a3)
+	var st_low := {"scale": 0.62, "msaa": false, "shadows": false, "cap": 0.62, "can_msaa": false, "can_shadows": false}
+	_ok("«Низкая»: сглаживания и теней нет — возвращать нечего", adapt_step(st_low, 60.0, true) == st_low)
+	var sc_low := 0.8
 	for i in 12:
-		sc_low = res_step(sc_low, 15.0, 0.55, true)
-	_ok("нижний предел разрешения — 30 %", is_equal_approx(sc_low, ULSettings.SCALE_MIN), "%.2f" % sc_low)
+		sc_low = res_step(sc_low, 15.0, 0.8, true)
+	_ok("ниже 62 % разрешение само не опускается (картинка не мылится)", is_equal_approx(sc_low, ULSettings.SCALE_MIN), "%.2f" % sc_low)
 	# --- расположение кнопок ---
 	var over := ""
 	var ks := ["fire", "swap", "inv", "take", "reload", "heal"]
@@ -7619,6 +7701,174 @@ func _inv_test() -> void:
 	print("[inv] итог: ошибок %d" % _fails)
 	await _perf_report()
 	get_tree().quit()
+
+
+# ---------------- замер графики по частям ----------------
+
+## Средние за n кадров: кадры/с, время кадра, обработка (скрипты, ИИ), физика, отрисовка на процессоре и на
+## видеокарте (замер вьюпорта), вызовы отрисовки, треугольники, объекты, память текстур
+func _gfx_sample(n := 60) -> Dictionary:
+	var vp := get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(vp, true)
+	for k in 15:
+		await get_tree().process_frame
+	var t0 := Time.get_ticks_usec()
+	var proc := 0.0
+	var phys := 0.0
+	var rcpu := 0.0
+	var rgpu := 0.0
+	var dc := 0.0
+	var tri := 0.0
+	var obj := 0.0
+	for k in n:
+		await get_tree().process_frame
+		proc += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		phys += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		rcpu += RenderingServer.viewport_get_measured_render_time_cpu(vp)
+		rgpu += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+		dc += RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
+		tri += RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
+		obj += RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+	var dt := (Time.get_ticks_usec() - t0) / 1000.0 / n
+	return {"fps": 1000.0 / dt, "frame": dt, "proc": proc / n, "phys": phys / n, "rcpu": rcpu / n, "rgpu": rgpu / n, "dc": dc / n, "tri": tri / n, "obj": obj / n,
+		"tex": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576.0, "vmem": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0}
+
+
+func _gfx_line(name: String, r: Dictionary, base: Dictionary) -> String:
+	var d := "" if base.is_empty() else "  (кадр %+.1f мс, %+.0f %%)" % [float(r.frame) - float(base.frame), (float(r.frame) / maxf(float(base.frame), 0.01) - 1.0) * 100.0]
+	return "%-34s %5.1f к/с  кадр %6.1f мс | скрипты+ИИ %5.1f | физика %4.1f | отрисовка ЦП %5.1f, ГП %5.1f | вызовов %4d, треуг. %4d тыс., объектов %3d%s" % [
+		name, float(r.fps), float(r.frame), float(r.proc), float(r.phys), float(r.rcpu), float(r.rgpu), int(r.dc), int(float(r.tri) / 1000.0), int(r.obj), d]
+
+
+func _gfx_diag() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	var vpo := get_viewport()
+	print("[gfx] рендерер: %s, видеокарта: %s / %s" % [ProjectSettings.get_setting("rendering/renderer/rendering_method"), RenderingServer.get_video_adapter_vendor(), RenderingServer.get_video_adapter_name()])
+	print("[gfx] качество «%s»: разрешение 3D %d %% (scaling_3d_scale — доля ширины и высоты экрана, в которой рисуется 3D; остальное растягивается), MSAA %s, окно %s" % [String(ULSettings.q().n), int(round(vpo.scaling_3d_scale * 100.0)), str(vpo.msaa_3d), str(vpo.get_visible_rect().size)])
+	var lights := 0
+	var shadowed := 0
+	for l in get_tree().root.find_children("*", "Light3D", true, false):
+		if (l as Light3D).visible:
+			lights += 1
+			if (l as Light3D).shadow_enabled:
+				shadowed += 1
+	var mats := {}
+	var meshes := 0
+	for g in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		meshes += 1
+		var gi := g as GeometryInstance3D
+		if gi.material_override != null:
+			mats[gi.material_override] = true
+		if gi is MeshInstance3D and (gi as MeshInstance3D).mesh != null:
+			var mh := (gi as MeshInstance3D).mesh
+			for si in mh.get_surface_count():
+				var sm = mh.surface_get_material(si)
+				if sm != null:
+					mats[sm] = true
+	print("[gfx] источников света %d (с тенями %d), сеток %d, разных материалов %d, муров %d" % [lights, shadowed, meshes, mats.size(), enemies.size()])
+	# сцена неподвижна: муры стоят спокойно и героя не замечают (иначе каждый замер — другая схватка);
+	# бой — отдельной строкой в конце
+	for e in enemies:
+		e.def = e.def.duplicate(true)
+		for kk in ["see", "hear", "hear_run", "hear_walk"]:
+			e.def[kk] = 0.0
+		e.state = "idle"
+		e.wander_r = 0.0
+		if e is ULMur:
+			(e as ULMur).patrol = PackedVector3Array()
+	var spots := [["двор у костра", Vector3(0, 0, 16)], ["штаб, коридор", Vector3(4, 0, -50)]]
+	for sp in spots:
+		player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
+		_cam_ready = false
+		await get_tree().create_timer(1.0).timeout
+		print("[gfx] --- %s ---" % sp[0])
+		var base: Dictionary = await _gfx_sample()
+		print("[gfx] " + _gfx_line("всё включено", base, {}))
+		if OS.get_cmdline_user_args().has("--as-quick"):
+			continue
+		# по одному: выключили — замерили — вернули
+		var tests := ["тени солнца", "трава и бурьян", "деревья и камни", "шейдер земли → простой", "туман", "сглаживание MSAA", "муры: не рисовать", "муры: без ИИ", "постройки", "разрешение 50 %", "разрешение 100 %"]
+		for tn in tests:
+			var undo: Array = []
+			match tn:
+				"тени солнца":
+					sun.shadow_enabled = false
+					undo.append(func(): sun.shadow_enabled = true if ULSettings.gfx >= 1 else false)
+				"трава и бурьян":
+					for g in get_tree().root.find_children("*", "MultiMeshInstance3D", true, false):
+						if g.has_meta("veg") and (g as Node3D).visible:
+							(g as Node3D).visible = false
+							undo.append(func(): (g as Node3D).visible = true)
+				"деревья и камни":
+					for g in san.get_children():
+						if g is MultiMeshInstance3D and not g.has_meta("veg") and (g as Node3D).visible:
+							(g as Node3D).visible = false
+							undo.append(func(): (g as Node3D).visible = true)
+					for tr in san.trees:
+						if is_instance_valid(tr) and tr.visible:
+							tr.visible = false
+							undo.append(func(): tr.visible = true)
+				"шейдер земли → простой":
+					for g in san.get_children():
+						if g is MeshInstance3D and (g as MeshInstance3D).mesh is PlaneMesh and (g as MeshInstance3D).material_override is ShaderMaterial and ((g as MeshInstance3D).mesh as PlaneMesh).size.x >= size_m - 1.0:
+							var old_m: Material = (g as MeshInstance3D).material_override
+							var sm2 := StandardMaterial3D.new()
+							sm2.albedo_color = Color(0.45, 0.4, 0.3)
+							(g as MeshInstance3D).material_override = sm2
+							undo.append(func(): (g as MeshInstance3D).material_override = old_m)
+				"туман":
+					world_env.fog_enabled = false
+					undo.append(func(): world_env.fog_enabled = true)
+				"сглаживание MSAA":
+					var ms0 := vpo.msaa_3d
+					vpo.msaa_3d = Viewport.MSAA_DISABLED
+					undo.append(func(): vpo.msaa_3d = ms0)
+				"муры: не рисовать":
+					for e in enemies:
+						if e.visible:
+							e.visible = false
+							undo.append(func(): e.visible = true)
+				"муры: без ИИ":
+					var keep: Array[ULEnemy] = enemies.duplicate()
+					enemies.clear()
+					undo.append(func(): enemies.assign(keep))
+				"постройки":
+					for b in san.blds:
+						if b.visible:
+							b.visible = false
+							undo.append(func(): b.visible = true)
+				"разрешение 50 %":
+					var s0 := vpo.scaling_3d_scale
+					vpo.scaling_3d_scale = 0.5
+					undo.append(func(): vpo.scaling_3d_scale = s0)
+				"разрешение 100 %":
+					var s1 := vpo.scaling_3d_scale
+					vpo.scaling_3d_scale = 1.0
+					undo.append(func(): vpo.scaling_3d_scale = s1)
+			var r: Dictionary = await _gfx_sample()
+			print("[gfx] " + _gfx_line("без: " + tn if not tn.begins_with("разрешение") else tn, r, base))
+			for u in undo:
+				(u as Callable).call()
+		if out != "":
+			await _snap("gfx_" + ("yard" if String(sp[0]).begins_with("двор") else "hq"))
+	if OS.get_cmdline_user_args().has("--as-quick"):
+		return
+	# бой: все муры в пределах 40 м — в погоне за героем (ИИ, стрельба, пули)
+	player.global_position = Vector3(0, 0.1, 16)
+	await get_tree().create_timer(0.5).timeout
+	for e in enemies:
+		e.def.see = 40.0
+		if e.alive() and e.global_position.distance_to(player.global_position) < 40.0:
+			e._notice(player.global_position)
+	await get_tree().create_timer(2.0).timeout
+	prof_full = 0
+	prof_full_n = 0
+	var rb: Dictionary = await _gfx_sample(90)
+	print("[gfx] --- бой у костра ---")
+	print("[gfx] " + _gfx_line("все муры рядом в бою", rb, {}))
+	print("[gfx] ИИ врагов: %.2f мс на кадр (%d вызовов за %d кадров)" % [prof_full / 1000.0 / 90.0, prof_full_n, 90])
 
 
 # ---------------- муры ----------------
@@ -8544,6 +8794,12 @@ func open_settings() -> void:
 	_menu_bar.visible = false
 	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void:
 		ULSettings.apply(get_viewport())
+		# новое качество: тени — по нему (как при входе на локацию), подстройка под частоту начинает заново
+		_shadow_pref = temp() and ULSettings.gfx >= 1
+		if sun:
+			sun.shadow_enabled = _shadow_pref
+		_res_fails = 0
+		_res_hold = 0.0
 		_cam_apply(), [
 		["Главное меню", func() -> void:
 			if lvl:
@@ -8563,10 +8819,13 @@ func open_settings() -> void:
 	_hud_touch.clear()
 
 
-## Разрешение трёхмерной картинки подстраивается под телефон так, чтобы частота кадров не опускалась ниже
-## 38–40: каждую секунду смотрится средняя частота; меньше 38 — разрешение снижается сразу крупным шагом, 38–45 —
-## мелким, больше 56 — понемногу поднимается (не выше выбранного качества графики и не раньше, чем через 6 с
-## после снижения — чтобы не качалось туда-сюда). Нижний предел — 30 %. Кнопки и надписи всегда чёткие.
+## Подстройка под телефон, чтобы частота кадров держалась не ниже ~40: раз в секунду смотрится средняя частота.
+## Разрешение снижается последним — сначала то, что дороже всего по времени и меньше всего заметно:
+## 1) сглаживание краёв (MSAA), 2) тени солнца, 3) и только потом разрешение трёхмерной картинки — и не ниже
+## 62 % (ниже картинка «мыльная»). Меньше 30 кадров/с — шаг сразу, 30–40 — тоже шаг, но разрешение — мелкими
+## долями. Больше 52 — всё возвращается в обратном порядке (сначала разрешение до выбранного качества, затем тени,
+## затем сглаживание), не раньше чем через 6 с после снижения; если вернули и снова стало тяжело — следующая
+## попытка вернуть ждёт вдвое дольше (до минуты), чтобы картинка не «мигала» тенями туда-сюда.
 func _auto_res(delta: float) -> void:
 	if test != "":
 		return
@@ -8582,15 +8841,60 @@ func _auto_res(delta: float) -> void:
 	if _res_wait > 0.0:
 		_res_wait -= 1.0
 		return                                         # после перемены — секунда передышки: смена разрешения сама даёт заминку
-	var sc := res_step(vp.scaling_3d_scale, fps, float(ULSettings.q().scale), _res_hold <= 0.0)
-	if sc < vp.scaling_3d_scale:
-		_res_hold = 6.0
-	if not is_equal_approx(sc, vp.scaling_3d_scale):
-		_res_wait = 1.0
-		vp.scaling_3d_scale = sc
+	var st := adapt_state()
+	var nx := adapt_step(st, fps, _res_hold <= 0.0)
+	if nx == st:
+		return
+	var down: bool = float(nx.scale) < float(st.scale) or (not bool(nx.msaa) and bool(st.msaa)) or (not bool(nx.shadows) and bool(st.shadows))
+	if down:
+		_res_hold = minf(60.0, 6.0 * pow(2.0, float(_res_fails)))
+		if _res_raised_t >= 0.0 and Time.get_ticks_msec() * 0.001 - _res_raised_t < 20.0:
+			_res_fails += 1                            # только что вернули — и снова тяжело: дольше не возвращать
+	else:
+		_res_raised_t = Time.get_ticks_msec() * 0.001
+	_res_wait = 1.0
+	vp.scaling_3d_scale = float(nx.scale)
+	var ms := int(ULSettings.q().msaa)
+	vp.msaa_3d = (Viewport.MSAA_4X if ms >= 4 else Viewport.MSAA_2X) if bool(nx.msaa) else Viewport.MSAA_DISABLED
+	if sun:
+		sun.shadow_enabled = bool(nx.shadows)
 
 
-## новое разрешение по текущему, частоте кадров и пределу качества (отдельно — чтобы проверять)
+var _res_fails := 0
+var _res_raised_t := -1.0
+var _shadow_pref := false             ## были ли у солнца тени по выбранному качеству (подстройка их только снимает и возвращает)
+
+
+## текущее состояние подстройки: разрешение, сглаживание, тени; can_* — что разрешает выбранное качество
+func adapt_state() -> Dictionary:
+	var vp := get_viewport()
+	return {"scale": snappedf(vp.scaling_3d_scale, 0.001), "msaa": vp.msaa_3d != Viewport.MSAA_DISABLED,
+		"shadows": sun != null and sun.shadow_enabled, "cap": float(ULSettings.q().scale),
+		"can_msaa": int(ULSettings.q().msaa) > 0, "can_shadows": _shadow_pref}
+
+
+## следующий шаг подстройки (отдельно — чтобы проверять): вниз — MSAA, тени, разрешение; вверх — наоборот
+func adapt_step(st: Dictionary, fps: float, may_raise: bool) -> Dictionary:
+	var nx := st.duplicate()
+	if fps < 40.0:
+		if bool(st.msaa):
+			nx.msaa = false
+		elif bool(st.shadows):
+			nx.shadows = false
+		else:
+			nx.scale = res_step(float(st.scale), fps, float(st.cap), may_raise)
+		return nx
+	if fps > 52.0 and may_raise:
+		if float(st.scale) < float(st.cap) - 0.001:
+			nx.scale = res_step(float(st.scale), fps, float(st.cap), may_raise)
+		elif bool(st.can_shadows) and not bool(st.shadows):
+			nx.shadows = true
+		elif bool(st.can_msaa) and not bool(st.msaa):
+			nx.msaa = true
+	return nx
+
+
+## новое разрешение по текущему, частоте кадров и пределу качества
 func res_step(sc: float, fps: float, cap: float, may_raise: bool) -> float:
 	if fps < ULSettings.FPS_MIN:
 		return maxf(ULSettings.SCALE_MIN, sc - 0.06)
@@ -10037,6 +10341,10 @@ func _run_test() -> void:
 								extra += " | " + str(mm3.get_instance_transform(ii).origin) + " " + str(mm3.get_instance_transform(ii).basis.get_scale())
 						print("[near] ", g3.get_path(), " ", bb.get_center(), " ", bb.size, " owner ", g3.owner.scene_file_path if g3.owner else "-", extra)
 			await _snap(String(sp[0]))
+		get_tree().quit()
+		return
+	if test == "gfxdiag":
+		await _gfx_diag()
 		get_tree().quit()
 		return
 	if test == "lrview":

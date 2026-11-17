@@ -33,6 +33,9 @@ uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable
 uniform sampler2D albedo2 : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D paint_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rough_tex : hint_roughness_g, filter_linear_mipmap, repeat_enable;
+uniform bool has_rough = false;
+uniform float mean_l = 0.12;          // средняя светлота текстуры (посчитана заранее — MEAN_LUM; раньше читалась на каждой точке)
 uniform sampler2D noise : filter_linear, repeat_enable;
 uniform bool has_normal = false;
 uniform bool has_second = false;
@@ -76,10 +79,17 @@ void fragment() {
 	else { uv = vec2(wpos.x, -wpos.y); }
 	uv /= scale;
 	vec3 c = texture(albedo_tex, uv).rgb;
+	// пол: против повтора досок — второй кусок той же текстуры со сдвигом (доски того же направления и
+	// ширины), смешанный крупными пятнами шума; швы плиток текстуры больше не идут ровной сеткой
+	float fl = 0.0;
+	if (an.y > 0.6) {
+		fl = smoothstep(0.42, 0.58, texture(noise, wpos.xz / 4.3 + vec2(0.19, 0.83)).r);
+		c = mix(c, texture(albedo_tex, uv + vec2(0.37, 0.61)).rgb, fl);
+	}
 	// против повтора: та же текстура в крупном масштабе — светлота пятнами по 4–6 плиток (доски и кирпич не
 	// поворачиваются, поэтому без второй выборки «вкось»)
 	float macro = dot(texture(albedo_tex, uv * 0.21 + vec2(0.37, 0.61)).rgb, vec3(0.3, 0.59, 0.11));
-	float mean = dot(textureLod(albedo_tex, vec2(0.5), 10.0).rgb, vec3(0.3, 0.59, 0.11));
+	float mean = mean_l;
 	c *= clamp(mix(1.0, macro / max(mean, 0.05), 0.4), 0.7, 1.3);
 	c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, sat) * tint.rgb;
 	float n = texture(noise, wpos.xz / 5.0 + vec2(wpos.y * 0.11, -wpos.y * 0.07)).r;
@@ -115,13 +125,17 @@ void fragment() {
 	}
 	c *= mix(0.88, 1.06, texture(noise, wpos.xz / 23.0 + wpos.y * 0.013).r);
 	ALBEDO = c;
-	if (has_normal) { NORMAL_MAP = texture(normal_tex, uv).rgb; }
-	ROUGHNESS = rough;
+	vec2 uvn = uv + vec2(0.37, 0.61) * step(0.5, fl);
+	if (has_normal) { NORMAL_MAP = texture(normal_tex, uvn).rgb; }
+	ROUGHNESS = has_rough ? mix(rough, texture(rough_tex, uvn).g, 0.85) : rough;
 	METALLIC = metal;
 #ifdef CUT
 	if (!FRONT_FACING) { ALBEDO = vec3(0.07, 0.065, 0.06); ROUGHNESS = 1.0; METALLIC = 0.0; }
 #endif
 }"""
+
+## средняя светлота (линейная) фототекстур построек — для сбивки повтора пятнами (SHADER_BODY, mean_l)
+const MEAN_LUM := {"bark_brown_02": 0.095, "brick_4": 0.194, "brown_mud_02": 0.061, "concrete_floor_worn_001": 0.0937, "damaged_concrete_floor": 0.0491, "dirty_tiles": 0.0278, "dry_ground_01": 0.1986, "herringbone_parquet": 0.1917, "long_white_tiles": 0.5709, "old_linoleum_flooring_01": 0.2749, "old_planks_02": 0.0968, "old_wood_floor": 0.0726, "rectangular_facade_tiles": 0.0928, "rusty_corrugated_iron": 0.0429, "rusty_metal_02": 0.2993, "weathered_brown_planks": 0.0815, "weathered_plank_siding": 0.0526, "wood_planks_grey": 0.0584, "worn_asphalt": 0.0455, "worn_corrugated_iron": 0.1846, "worn_plaster_wall": 0.1546, "worn_tile_floor": 0.0604}
 
 ## материалы: текстура (assets/world/tex/<имя>_c.jpg), размер плитки текстуры, м, оттенок, грязь, шероховатость
 const MATS := {
@@ -145,7 +159,7 @@ const MATS := {
 	"ktiles": ["dirty_tiles", 2.26, Color(1.05, 0.95, 0.9), 0.2, 0.6, {"sat": 0.7}],
 	"parquet": ["herringbone_parquet", 2.2, Color(0.72, 0.62, 0.52), 0.2, 0.75, {"sat": 0.8}],
 	"concrete": ["concrete_floor_worn_001", 3.0, Color(1.25, 1.22, 1.18), 0.4, 0.9, {}],
-	"wood": ["brown_planks_03", 1.4, Color(0.78, 0.6, 0.45), 0.2, 0.8, {}],
+	"wood": ["old_wood_floor", 2.2, Color(0.92, 0.8, 0.68), 0.2, 0.8, {}],
 	"door": ["old_planks_02", 1.6, Color(0.95, 0.9, 0.82), 0.3, 0.85, {"sat": 0.35}],
 	"frame": ["worn_plaster_wall", 2.0, Color(0.95, 0.94, 0.9), 0.3, 0.8, {"sat": 0.2}],
 	"metal": ["rusty_metal_02", 1.0, Color(0.78, 0.76, 0.74), 0.1, 0.55, {"metal": 0.5, "sat": 0.75}],
@@ -171,7 +185,7 @@ const MATS := {
 	"planks_brown": ["weathered_brown_planks", 1.5, Color(1.15, 1.05, 0.95), 0.35, 0.92, {"streaks": 0.4}],
 	"shutter": ["old_planks_02", 1.0, Color(0.95, 0.95, 0.92), 0.4, 0.9, {"paint": Color(0.3, 0.46, 0.68), "sat": 0.6, "storey": 1000.0}],
 	"wframe": ["old_planks_02", 2.0, Color(1.25, 1.24, 1.2), 0.3, 0.85, {"sat": 0.12}],
-	"floorboard": ["old_planks_02", 1.4, Color(0.8, 0.68, 0.55), 0.3, 0.85, {}],
+	"floorboard": ["old_planks_02", 2.0, Color(0.8, 0.68, 0.55), 0.3, 0.85, {}],
 	"int_wood": ["wood_planks_grey", 1.5, Color(1.35, 1.22, 1.06), 0.25, 0.9, {"sat": 0.6}],
 	"roof_tin": ["worn_corrugated_iron", 1.6, Color(0.82, 0.82, 0.8), 0.3, 0.6, {"metal": 0.3, "sat": 0.4, "rusty": 0.85}],
 	# сруб: бревно (окорённое, серое от времени) и тёмная щель на месте выпавшей доски обшивки
@@ -239,9 +253,14 @@ static func make_materials(noise: Texture2D) -> void:
 		m.shader = sh
 		m.set_shader_parameter("noise", noise)
 		m.set_shader_parameter("albedo_tex", load(T + String(d[0]) + "_c.jpg"))
-		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato"]:
+		m.set_shader_parameter("mean_l", float(MEAN_LUM.get(String(d[0]), 0.12)))
+		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato", "wood", "int_wood"]:
 			m.set_shader_parameter("normal_tex", load(T + String(d[0]) + "_n.jpg"))
 			m.set_shader_parameter("has_normal", true)
+		if ResourceLoader.exists(T + String(d[0]) + "_r.jpg"):
+			# карта шероховатости (Poly Haven): блики на досках и камне — по рисунку, а не ровным слоем
+			m.set_shader_parameter("rough_tex", load(T + String(d[0]) + "_r.jpg"))
+			m.set_shader_parameter("has_rough", true)
 		m.set_shader_parameter("scale", float(d[1]))
 		m.set_shader_parameter("tint", d[2])
 		m.set_shader_parameter("grime", float(d[3]))
