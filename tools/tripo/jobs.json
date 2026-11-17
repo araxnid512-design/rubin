@@ -1,6 +1,33 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "ul_bus",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_bus",
+    "--faces",
+    "9000",
+    "--prompt",
+    "an old abandoned rusty soviet-era small city bus with rounded front, faded cream and red paint peeling, broken dusty windows, flat tires, dirty and weathered, realistic, single vehicle, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "ul_car",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_car",
+    "--faces",
+    "7000",
+    "--prompt",
+    "an old abandoned rusty soviet-era boxy four-door sedan car, faded beige paint with rust patches, broken windshield, flat tires, dirty and weathered, realistic, single vehicle, game asset"
+   ],
+   "timeout": 2400
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
