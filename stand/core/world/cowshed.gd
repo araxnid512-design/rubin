@@ -447,7 +447,7 @@ func barn_point(i: int, rng: RandomNumberGenerator) -> Vector3:
 
 
 ## Кадр: герой в постройке — её крыша и стена со стороны камеры плавно растворяются; вышел — проявляются.
-func tick(hero: Vector3, _cam_pos: Vector3, delta: float) -> void:
+func tick(hero: Vector3, _cam, delta: float) -> void:
 	_tick_t -= delta
 	if _tick_t <= 0.0:
 		_tick_t = 0.1

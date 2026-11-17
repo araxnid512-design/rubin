@@ -48,6 +48,7 @@ var _rng := RandomNumberGenerator.new()
 var _path: PackedVector3Array = []   ## путь по карте проходимости к месту, где видели героя
 var _path_t := 0.0
 var _path_to := Vector3.INF
+var wander_r := 5.0               ## насколько отходит от своего места, бродя (в комнате — меньше; 0 — стоит)
 
 
 static func _load_kinds() -> Dictionary:
@@ -99,6 +100,8 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	set_meta("hp", hp)
 	set_meta("hp_max", hp)
 	set_meta("enemy", true)
+	collision_mask = 1 | 2           # и закрытые двери (слой 2)
+	floor_snap_length = 0.45         # по лестнице вниз — не отрываясь от ступеней
 	var tall := float(def.get("height", 1.78))
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -291,10 +294,12 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 					else:
 						speed = float(def.walk)
 						_face(_steer(g, delta), delta, 4.0)
-				elif _t <= 0.0:
+				elif _t <= 0.0 and wander_r > 0.05:
 					state = "wander"
-					_goal = home + Vector3(_rng.randf_range(-5, 5), 0, _rng.randf_range(-5, 5))
+					_goal = home + Vector3(_rng.randf_range(-wander_r, wander_r), 0, _rng.randf_range(-wander_r, wander_r))
 					_t = 6.0
+				elif _t <= 0.0:
+					_t = _rng.randf_range(3.0, 7.0)
 				if _growl <= 0.0:
 					_growl = _rng.randf_range(7.0, 15.0)
 					noise.emit("growl", global_position)
@@ -314,14 +319,16 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 			else:
 				_unseen += delta
 			var tl := _last - global_position
+			var tly := tl.y
 			tl.y = 0.0
-			if not hero_alive or (_unseen > float(def.get("lose_s", 0.0)) and (dist > float(def.lose) or tl.length() < 0.8)):
+			var same_floor := absf(p.y - global_position.y) < 1.2
+			if not hero_alive or (_unseen > float(def.get("lose_s", 0.0)) and (dist > float(def.lose) or (tl.length() < 0.8 and absf(tly) < 1.2))):
 				# потерял: не видит дольше положенного, а герой далеко — или дошёл до места, где видел, и там пусто
 				state = "idle"
 				_t = 2.5
-			elif can_see and dist <= _close() + 0.9:
+			elif can_see and same_floor and dist <= _close() + 0.9:
 				state = "attack"
-			elif tl.length() < 0.5:
+			elif tl.length() < 0.5 and absf(tly) < 1.2:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
 			else:
 				speed = float(def.run)
@@ -343,9 +350,9 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 					speed = 1.2                          # дожимает на замахе
 				_hit_due -= delta
 				if _hit_due < 0.0:
-					if hero_alive and dist <= _hit_reach:
+					if hero_alive and dist <= _hit_reach and absf(p.y - global_position.y) < 1.2:
 						hit_player.emit(_hit_dmg, global_position)
-			elif not hero_alive or dist > close + 1.5:
+			elif not hero_alive or dist > close + 1.5 or absf(p.y - global_position.y) > 1.5:
 				if _atk <= float(def.cd) * 0.5:
 					state = "chase"
 			else:
@@ -501,7 +508,7 @@ func _nav_dir(target: Vector3, delta: float) -> Vector3:
 		var map := get_world_3d().navigation_map
 		_path = NavigationServer3D.map_get_path(map, global_position, target, true) if NavigationServer3D.map_get_iteration_id(map) > 0 else PackedVector3Array()
 	var me := Vector3(global_position.x, 0, global_position.z)
-	while _path.size() > 1 and Vector3(_path[0].x, 0, _path[0].z).distance_to(me) < 0.6:
+	while _path.size() > 1 and Vector3(_path[0].x, 0, _path[0].z).distance_to(me) < 0.6 and absf(_path[0].y - global_position.y) < 1.0:
 		_path.remove_at(0)
 	if _path.is_empty():
 		return Vector3(target.x - me.x, 0, target.z - me.z)

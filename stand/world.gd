@@ -105,6 +105,15 @@ func _ready() -> void:
 			cc.pustysh = [cc.pustysh[1], cc.pustysh[1]] if nmax < 0 else [nmax, nmax]
 			cc.lottery = [cc.lottery[1], cc.lottery[1]] if nmax < 0 else [0, 0]
 			ULCowshed._cfg = cc
+	if test.begins_with("sn"):
+		# проверки санатория: --as-test=sn (посещение), snbake (карты проходимости и земли), snview (снимки), snperf
+		ULSettings.arena = false
+		ULSettings.place = "sanatorium"
+		if test == "snperf":
+			var sc := ULSanatorium.cfg().duplicate(true)
+			sc.pustysh = [sc.pustysh[1], sc.pustysh[1]]
+			sc.lottery = [sc.lottery[1], sc.lottery[1]]
+			ULSanatorium._cfg = sc
 	if test != "":
 		# проверки: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -113,7 +122,7 @@ func _ready() -> void:
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = "cowshed" if not arena and ULSettings.place == "cowshed" else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium"] else "home"
 	ULSettings.apply(get_viewport())
 	Music.stop()
 	_env()
@@ -121,6 +130,8 @@ func _ready() -> void:
 		_arena_ground()
 	elif place == "cowshed":
 		_cowshed_world()
+	elif place == "sanatorium":
+		_san_world()
 	else:
 		_ground()
 		house = ULHouse.new()
@@ -144,7 +155,7 @@ func _ready() -> void:
 	_blob_layer()
 	_player()
 	_combat_setup()
-	if place == "cowshed":
+	if temp():
 		_cowshed_enter.call_deferred()
 	elif not arena:
 		_npcs_setup()
@@ -185,7 +196,9 @@ func _bake_nav(path := NAV_MESH) -> void:
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, -1.0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, 5.0, size_m + 24.0))
+	var hgt := 18.0 if place == "sanatorium" else 5.0          # в санатории — все этажи корпусов
+	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, -1.0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt, size_m + 24.0))
+	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
 	var src := NavigationMeshSourceGeometryData3D.new()
 	var t0 := Time.get_ticks_msec()
 	NavigationServer3D.parse_source_geometry_data(nm, src, self)
@@ -239,6 +252,7 @@ func _cowshed_world() -> void:
 	cowshed = ULCowshed.new()
 	cowshed.name = "Cowshed"
 	add_child(cowshed)
+	zone = cowshed
 	cowshed.build(self)
 	_noise_tex = cowshed._noise_tex
 	_edge_fog()
@@ -247,12 +261,70 @@ func _cowshed_world() -> void:
 	_nav_load(NAV_COWSHED)
 
 
+# ---------------- временный кластер «Санаторий Луч» ----------------
+
+## Локация 150×150 м собирается ULSanatorium (core/world/sanatorium.gd) из корпусов ULBlock — во все можно зайти.
+## Всё остальное (таймер, выход, гибель, перезагрузка, враги, хлам) — общее с коровником: функции ниже работают
+## с текущим временным кластером (zone).
+const NAV_SANATORIUM := "res://assets/world/nav_sanatorium.res"
+var san: ULSanatorium
+var zone: Node3D                  ## текущий временный кластер: коровник или санаторий
+
+
+func _san_world() -> void:
+	size_m = float(ULSanatorium.cfg().get("size", 150.0))
+	san = ULSanatorium.new()
+	san.name = "Sanatorium"
+	add_child(san)
+	zone = san
+	san.build(self)
+	_noise_tex = san._noise_tex
+	_edge_fog()
+	if test == "snbake":
+		_bake_nav(NAV_SANATORIUM)
+	_nav_load(NAV_SANATORIUM)
+
+
+## временный кластер (коровник, санаторий) — не база и не полигон
+func temp() -> bool:
+	return place == "cowshed" or place == "sanatorium"
+
+
+func zone_cfg() -> Dictionary:
+	return ULSanatorium.cfg() if place == "sanatorium" else ULCowshed.cfg()
+
+
+func zone_name() -> String:
+	return ULSanatorium.TITLE if place == "sanatorium" else "Опасный коровник"
+
+
+func zone_entry() -> Vector3:
+	return ULSanatorium.ENTRY if place == "sanatorium" else ULCowshed.ENTRY
+
+
+func zone_entry_yaw() -> float:
+	return ULSanatorium.ENTRY_YAW if place == "sanatorium" else ULCowshed.ENTRY_YAW
+
+
+## герой перешёл в другой корпус или на другой этаж: скрыть то, что теперь скрыто (враги, вещи, тела внутри)
+func zone_changed() -> void:
+	if san == null:
+		return
+	for g in ground:
+		var n: Node3D = g.node
+		n.visible = san.visible_at(n.global_position)
+	for e in enemies:
+		e.visible = san.visible_at(e.global_position + Vector3.UP * 0.3)
+	if _box_hl != null:
+		_box_hl.visible = false
+
+
 ## вход: отсчёт времени, останки коров и враги — по случайности этого посещения (каждый вход — по-новому)
 func _cowshed_enter() -> void:
-	var c := ULCowshed.cfg()
+	var c := zone_cfg()
 	_cs_end = Time.get_unix_time_from_system() + float(c.get("minutes", 10)) * 60.0
-	if test == "" and ULBase.route_state("cowshed") != "active":
-		ULBase.set_route("cowshed", "active")
+	if test == "" and ULBase.route_state(place) != "active":
+		ULBase.set_route(place, "active")
 	if cs_seed == 0:
 		cs_seed = 991 if test != "" else int(Time.get_unix_time_from_system() * 1000.0) % 2147483647
 	for a in OS.get_cmdline_user_args():
@@ -260,32 +332,44 @@ func _cowshed_enter() -> void:
 			cs_seed = int(a.substr(10))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = cs_seed
-	cowshed.place_cows(rng)
+	zone.place_cows(rng)
+	if san != null:
+		san.roll_containers(rng)
 	_spawn_junk(rng)
 	# карта проходимости становится доступна через несколько кадров физики (сервер собирает её в фоне);
 	# по ней проверяется каждая точка появления
 	var map := get_world_3d().navigation_map
-	var probe := ULCowshed.ENTRY + Vector3(0, 0, -6)
+	var probe := zone_entry() + Vector3(0, 0, -6)
 	for i in 240:
 		await get_tree().physics_frame
 		if NavigationServer3D.map_get_iteration_id(map) > 0 and NavigationServer3D.map_get_closest_point(map, probe).distance_to(probe) < 1.0:
 			break
 	var snap := func(p: Vector3) -> Vector3:
 		return NavigationServer3D.map_get_closest_point(map, p)
-	cs_plan = cowshed.spawn_plan(rng, snap)
+	cs_plan = zone.spawn_plan(rng, snap)
 	var k := 0
 	for sp in cs_plan:
-		spawn_enemy(String(sp[0]), sp[1])
+		var en := spawn_enemy(String(sp[0]), sp[1])
+		if sp.size() > 2:
+			# санаторий: часть стоит на месте, часть бродит; в комнатах — в пределах комнаты
+			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out"]
+			en.wander_r = 0.0 if rng.randf() < 0.4 else (5.0 if outdoor else 1.4)
 		k += 1
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
 	cs_ready = true
-	say("Опасный коровник. До перезагрузки кластера — %d минут" % int(c.get("minutes", 10)))
+	if san != null:
+		zone_changed()
+	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))])
 
 
 ## Хлам в постройках временного кластера: в каждой постройке — 2–4 кучки, каждый вход заново (по случайности
 ## посещения). Кучка — один «Хлам»; подобранные складываются в одну стопку. Новые локации с постройками зовут то же.
 func _spawn_junk(rng: RandomNumberGenerator) -> void:
+	if san != null:
+		for p in san.junk_points(rng):
+			_spawn_ground(ULItems.make("junk"), p, rng.randf() * TAU)
+		return
 	if cowshed == null:
 		return
 	for i in cowshed.barns.size():
@@ -305,12 +389,12 @@ static func _minutes_text(sec: int) -> String:
 
 
 func _cs_tick(delta: float) -> void:
-	if cowshed:
-		cowshed.tick(player.global_position, cam.global_position, delta)
+	if zone:
+		zone.tick(player.global_position, cam, delta)
 	if _cs_done or _cs_end <= 0.0:
 		return
 	var left := cs_left()
-	var c := ULCowshed.cfg()
+	var c := zone_cfg()
 	for wv in c.get("warn_s", [300, 120]):
 		var ws := int(wv)
 		if left <= ws and not _cs_warned.has(ws):
@@ -345,15 +429,16 @@ func cs_finish(why: String) -> void:
 	if _cs_done:
 		return
 	_cs_done = true
-	var c := ULCowshed.cfg()
+	var c := zone_cfg()
 	if why == "reset" or (why == "dead" and bool(c.get("lose_on_death", true))):
 		var keep: Dictionary = {} if bool(c.get("lose_wallet", true)) else inv.wallet.duplicate()
 		inv.from_dict({"wallet": keep})
 		hp = 50.0
 	_save_carried()
-	ULBase.set_route("cowshed", "")
+	ULBase.set_route(place, "")
 	ULSettings.place = "home"
-	ULSettings.arrival_note = String(CS_NOTES.get(why, ""))
+	ULSettings.arrival_note = String(CS_NOTES.get(why, "")).replace("«Опасный коровник»", "«%s»" % zone_name())
+	ULSettings.arrival_title = zone_name()
 	if test == "":
 		get_tree().change_scene_to_file({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"))
 
@@ -391,19 +476,19 @@ func _cs_load() -> void:
 			inv.add(it)
 		inv.wallet = {"spore": 12, "pea": 1}
 		hp = HP_MAX
-	player.global_position = ULCowshed.ENTRY + Vector3(0, 0.1, 0)
-	player.rotation.y = ULCowshed.ENTRY_YAW
+	player.global_position = zone_entry() + Vector3(0, 0.1, 0)
+	player.rotation.y = zone_entry_yaw()
 
 
 ## таймер кластера сверху посередине: белый, за 2 минуты — оранжевый, последние 30 с — красный и мигает
 func _cs_hud(vs: Vector2, font0: Font) -> void:
-	if place != "cowshed" or _cs_end <= 0.0:
+	if not temp() or _cs_end <= 0.0:
 		return
 	var left := cs_left()
 	var sec := int(ceil(left))
 	var t := "%02d:%02d" % [sec / 60, sec % 60]
 	var col := Color(0.96, 0.96, 0.92)
-	if left <= float(ULCowshed.cfg().get("alarm_s", 30)):
+	if left <= float(zone_cfg().get("alarm_s", 30)):
 		col = Color(1.0, 0.25, 0.2) if int(Time.get_ticks_msec() / 350) % 2 == 0 else Color(1.0, 0.6, 0.5)
 	elif left <= 120.0:
 		col = Color(1.0, 0.65, 0.25)
@@ -437,7 +522,7 @@ func _arrival(t: String) -> void:
 	vb.add_theme_constant_override("separation", 14)
 	pn.add_child(vb)
 	var tl := Label.new()
-	tl.text = "Кластер перезагрузился" if t.begins_with("Кластер") else "Опасный коровник"
+	tl.text = "Кластер перезагрузился" if t.begins_with("Кластер") else (ULSettings.arrival_title if ULSettings.arrival_title != "" else "Опасный коровник")
 	tl.add_theme_font_size_override("font_size", 26)
 	tl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if not t.begins_with("Вы покинули") else Color(1.0, 0.86, 0.5))
 	vb.add_child(tl)
@@ -639,7 +724,7 @@ func _env() -> void:
 	sun.light_energy = 1.05
 	sun.light_color = Color(1.0, 0.95, 0.86)
 	sun.shadow_enabled = false            # без теней — быстрее; под героем и деревьями — мягкие пятна
-	if place == "cowshed":
+	if temp():
 		# коровник: пасмурно-приглушённый день — цвета спокойнее, лёгкая дымка ближе к камере, мягкие тени от
 		# построек, деревьев и техники (на «Средней» и «Высокой» графике; на «Низкой» — без теней, как на базе)
 		e.tonemap_exposure = 1.0
@@ -662,6 +747,19 @@ func _env() -> void:
 			sun.shadow_opacity = 0.78
 			sun.shadow_bias = 0.06
 			sun.shadow_normal_bias = 1.2
+	if place == "sanatorium":
+		# внутренности корпусов (слой 2) солнце не освещает: там ровный рассеянный свет из окон (свой слабый
+		# «верхний» свет без теней) и лампы рядом с героем; тени — дальше, корпуса выше
+		sun.light_cull_mask = 0xFFFFF & ~2
+		sun.directional_shadow_max_distance = 46.0
+		e.ambient_light_energy = 1.05
+		var fill := DirectionalLight3D.new()
+		fill.rotation_degrees = Vector3(-72, -30, 0)
+		fill.light_energy = 0.7
+		fill.light_color = Color(0.86, 0.9, 0.95)
+		fill.light_cull_mask = 2
+		fill.shadow_enabled = false
+		add_child(fill)
 	add_child(sun)
 
 
@@ -1676,7 +1774,8 @@ func _player() -> void:
 	cs.shape = cap
 	cs.position.y = 0.875
 	player.add_child(cs)
-	player.floor_snap_length = 0.3
+	player.floor_snap_length = 0.4
+	player.collision_mask = 1 | ULDoor.LAYER       # и двери
 	rig = BCCharacter.new()
 	player.add_child(rig)
 	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
@@ -1827,7 +1926,7 @@ func _process(delta: float) -> void:
 		_leave_t += delta
 		if _leave_t >= LEAVE_S and not left_location:
 			left_location = true
-			if place == "cowshed":
+			if temp():
 				cs_finish("left")
 			else:
 				_save()
@@ -1835,7 +1934,7 @@ func _process(delta: float) -> void:
 					get_tree().change_scene_to_file("res://map.tscn")
 	else:
 		_leave_t = 0.0
-	if place == "cowshed":
+	if temp():
 		_cs_tick(delta)
 	if _hud:
 		_hud.queue_redraw()
@@ -1874,6 +1973,10 @@ func _where() -> String:
 		return "полигон"
 	if place == "cowshed":
 		return "Опасный коровник" + (", коровник" if cowshed.in_barn(player.global_position) >= 0 else "")
+	if place == "sanatorium":
+		if san.hero_b < 0:
+			return ULSanatorium.TITLE
+		return "%s, %s, %d этаж" % [ULSanatorium.TITLE, san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
 		return "кластер, двор" if _in_yard(player.global_position) else "кластер, улица"
 	var l := house.to_local(player.global_position)
@@ -2340,6 +2443,10 @@ func _find_target() -> void:
 			if d < bd:
 				bd = d
 				best = {"type": "corpse", "e": e}
+	if san != null:
+		var ci := san.container_near(p, bd)
+		if ci >= 0:
+			best = {"type": "box", "i": ci}
 	var node: Node3D = null
 	if best != null:
 		match String(best.type):
@@ -2354,6 +2461,7 @@ func _find_target() -> void:
 			"terminal":
 				node = _terminal
 	_target = best
+	_box_glow(best)
 	if node != _glow_node:
 		_set_glow(_glow_node, false)
 		_set_glow(node, true)
@@ -2390,9 +2498,42 @@ func _set_glow(node: Node3D, on: bool) -> void:
 		s3.scale = Vector3.ONE * (1.15 if on else 1.0)
 
 
+## Тайник под рукой (тумбочка, шкаф, стол…): подсвечивается светящейся коробкой по его размеру
+var _box_hl: MeshInstance3D = null
+
+
+func _box_glow(best) -> void:
+	var on: bool = best != null and String(best.type) == "box"
+	if not on:
+		if _box_hl != null:
+			_box_hl.visible = false
+		return
+	if _box_hl == null:
+		_box_hl = MeshInstance3D.new()
+		_box_hl.mesh = BoxMesh.new()
+		var gm := StandardMaterial3D.new()
+		gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		gm.albedo_color = Color(1.0, 0.86, 0.5, 0.18)
+		gm.no_depth_test = false
+		_box_hl.material_override = gm
+		_box_hl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_box_hl)
+	var ct: Dictionary = san.containers[int(best.i)]
+	var sz: Vector3 = ct.size
+	(_box_hl.mesh as BoxMesh).size = sz + Vector3(0.06, 0.04, 0.06)
+	_box_hl.global_position = (ct.pos as Vector3) + Vector3.UP * (sz.y * 0.5)
+	(_box_hl.material_override as StandardMaterial3D).albedo_color.a = 0.14 + 0.08 * sin(Time.get_ticks_msec() * 0.006)
+	_box_hl.visible = true
+
+
 func _target_pos() -> Vector3:
 	if _target == null:
 		return Vector3.ZERO
+	if _target.type == "box":
+		var ctp: Dictionary = san.containers[int(_target.i)]
+		return (ctp.pos as Vector3) + Vector3.UP * ((ctp.size as Vector3).y + 0.2)
 	if _target.type == "npc":
 		return (_target.n as Node3D).global_position + Vector3.UP * 1.0
 	if _target.type == "corpse":
@@ -2407,6 +2548,8 @@ func _target_name() -> String:
 		return ""
 	if _target.type == "crate":
 		return "ящик"
+	if _target.type == "box":
+		return String(san.containers[int(_target.i)].n).to_lower()
 	if _target.type == "npc":
 		return "%s, %s" % [_target.n.get_meta("name"), _target.n.get_meta("role")]
 	if _target.type == "corpse":
@@ -2421,6 +2564,8 @@ func _action_label() -> String:
 		return ""
 	if _target.type == "crate":
 		return "Открыть"
+	if _target.type == "box":
+		return "Обыскать"
 	if _target.type == "npc":
 		return "Говорить"
 	if _target.type == "corpse":
@@ -2443,6 +2588,14 @@ func do_action() -> void:
 		return
 	if _target.type == "terminal":
 		open_terminal()
+		return
+	if _target.type == "box":
+		# тайник в корпусе: его содержимое — как хранилище (взять всё или по одному)
+		var ct: Dictionary = san.containers[int(_target.i)]
+		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7"}.get(String(ct.kind), "crate")
+		open_inventory(ct.items, String(ct.n), false, ic)
+		snd.play("hit_wood" if String(ct.kind) in ["bedside", "wardrobe", "desk", "store", "reception", "workbench"] else "click", ct.pos, -12.0)
+		ct["opened"] = true
 		return
 	if _target.type == "corpse":
 		# обыск тела: его добыча — как хранилище; что взять — решает игрок («Взять всё» или по одному)
@@ -2485,7 +2638,7 @@ func say(t: String) -> void:
 func _save() -> void:
 	if arena or test != "":
 		return                                  # полигон и проверки сохранение не трогают
-	if place == "cowshed":
+	if temp():
 		_save_carried()                         # во временном кластере сохраняется только то, что при себе
 		return
 	var cr := []
@@ -2503,7 +2656,7 @@ func _load() -> void:
 	if arena:
 		_arena_loot()
 		return
-	if place == "cowshed":
+	if temp():
 		_cs_load()
 		return
 	var d = null
@@ -2642,21 +2795,21 @@ func _ui() -> void:
 		bar.add_child(_btn("Здоровье", func():
 			hp = HP_MAX
 			_menu_bar.visible = false, 110))
-	elif place != "cowshed":
+	elif not temp():
 		bar.add_child(_btn("Враг +", func():
 			var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
 			spawn_enemy("infected", player.global_position + f * 9.0)
 			_menu_bar.visible = false, 90))
 	bar.add_child(_btn("Справочник", open_book, 130))
-	if not arena and place != "cowshed":
+	if not arena and not temp():
 		bar.add_child(_btn("Карта", func():
 			_save()
 			get_tree().change_scene_to_file("res://map.tscn"), 90))
 	bar.add_child(_btn("Настройки", open_settings, 120))
 	bar.add_child(_btn("Тест FPS", fps_test, 110))
-	if not arena and place != "cowshed":
+	if not arena and not temp():
 		bar.add_child(_btn("Убрать ящик", remove_crate, 130))
-	if place != "cowshed":
+	if not temp():
 		bar.add_child(_btn("3D", func():
 			_save()
 			ULSettings.stand_back = "res://world.tscn"
@@ -2833,7 +2986,7 @@ func _draw_hud() -> void:
 				match String(_target.type):
 					"npc":
 						_hud_icon(_art("use"), c, r * 2.0, ic)
-					"crate":
+					"crate", "box":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
 					"corpse":
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
@@ -2902,7 +3055,7 @@ func _hud_press(k: String) -> void:
 		"reload":
 			reload_weapon()
 		"build":
-			if place == "cowshed":
+			if temp():
 				say("Во временном кластере ящик не поставить — он исчезнет вместе с кластером")
 			else:
 				place_crate()
@@ -3066,6 +3219,8 @@ func _nearest_of(max_d: float, cone_deg: float, los: bool, foes: bool):
 		if (t is ULEnemy) != foes or float(t.get_meta("hp")) <= 0.0:
 			continue
 		var v: Vector3 = t.global_position - player.global_position
+		if absf(v.y) > 1.6:
+			continue                                    # другой этаж
 		v.y = 0
 		var dist := v.length()
 		if dist < bd and dist > 0.05 and rad_to_deg(f.angle_to(v / dist)) <= cone_deg and (not los or _sees(t)):
@@ -3671,7 +3826,7 @@ func _combat_setup() -> void:
 	if arena:
 		_add_mannequin(Vector3(3.9, 0, -3.9), -0.6)
 		return
-	if place == "cowshed":
+	if temp():
 		return
 	# манекен у базы (во дворе справа от крыльца) и две мишени в поле — на 12 и 25 м от калитки
 	_add_mannequin(HOUSE_AT + Vector3(7.2, 0, 7.0), -0.5)
@@ -4098,6 +4253,22 @@ func _pc_test() -> void:
 	var r2 := ULBase.buy_route(inv, "cowshed")
 	var rb := pc.find_child("route_cowshed", true, false).find_child("buy", true, false) as Button
 	_ok("пока маршрут куплен — повторная покупка недоступна", not r2.ok and r2.err == "have" and int(inv.wallet.spore) == 70 and rb.disabled)
+	# --- маршрут в санаторий: карточка по макету, 25 споранов, слева выше дома ---
+	var sc := pc.find_child("route_sanatorium", true, false)
+	var sb := sc.find_child("buy", true, false) as Button if sc != null else null
+	_ok("в компьютере есть «Санаторий Луч»: 25 споранов, кнопка «Открыть маршрут»", sc != null and sb != null and sb.text == "ОТКРЫТЬ МАРШРУТ" and int(ULBase.shop().routes.sanatorium.price.spore) == 25)
+	_ok("до покупки санатория нет на карте", ULBase.route_state("sanatorium") == "" and not ULMap.place_shown("sanatorium"))
+	pc.ask_route("sanatorium")
+	pc.dialog_confirm()
+	var mr: Rect2 = ULMap.PLACES.sanatorium.rect
+	var hr: Rect2 = ULMap.PLACES.home.rect
+	_ok("санаторий куплен: спораны 70 → 45, он на карте слева выше дома", int(inv.wallet.spore) == 45 and ULBase.route_state("sanatorium") == "bought" and ULMap.place_shown("sanatorium") and mr.get_center().x < hr.get_center().x and mr.get_center().y < hr.get_center().y)
+	if out != "":
+		await get_tree().create_timer(0.4).timeout
+		await _snap("pc_routes_bought")
+	ULBase.set_route("sanatorium", "")
+	inv.wallet.spore = 70
+	inv.changed.emit()
 	# --- таймер новых маршрутов ---
 	var per := ULBase.refresh_period()
 	var keep_next = ULBase.data.get("routes_next", 0)
@@ -4108,7 +4279,7 @@ func _pc_test() -> void:
 	var rf0 := int(ULBase.data.get("refreshes", 0))
 	var a3 := ULBase.routes_tick(now + per + 5)
 	_ok("таймер маршрутов: идёт от сохранённого срока, не сбрасывается при открытии", a1 == per and a2 == per - 100, "%d, %d (период %d)" % [a1, a2, per])
-	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed"])
+	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed", "sanatorium"])
 	_ok("таймер на экране в виде ЧЧ:ММ:СС", ULBase.clock(2 * 3600 + 47 * 60 + 36) == "02:47:36" and (pc.find_child("RouteTimer", true, false) as Label).text.length() == 8)
 	ULBase.data.routes_next = keep_next
 	# --- обмен: логика по всей цепочке ---
@@ -5067,7 +5238,7 @@ func _enemies_tick(delta: float) -> void:
 				player.global_position = Vector3(0, 0.1, 2.5)
 				clear_enemies()
 				say("Заново. Враги убраны")
-			elif place == "cowshed":
+			elif temp():
 				cs_finish("reset" if _cs_over else "dead")
 			else:
 				hp = 50.0
@@ -5093,7 +5264,7 @@ func _enemies_tick(delta: float) -> void:
 					_glow_node = null
 				if _target != null and _target.type == "corpse" and _target.e == e:
 					_target = null
-				if test == "" and not arena and place != "cowshed":
+				if test == "" and not arena and not temp():
 					_respawn.append([e.home, RESPAWN_S, e.kind])
 				_dmg_lb.erase(e)
 				targets.erase(e)
@@ -5101,14 +5272,19 @@ func _enemies_tick(delta: float) -> void:
 				e.queue_free()
 			continue
 		var d := e.global_position.distance_to(p)
-		e.set_active(d < (18.0 if place == "cowshed" else 36.0))
-		if place == "cowshed":
+		if san != null and (fr + i) % 6 == 0:
+			# в корпусах: видны только враги этажа, где герой; гонящийся враг открывает двери на пути
+			e.visible = san.visible_at(e.global_position + Vector3.UP * 0.3)
+			if e.state == "chase" or e.state == "attack":
+				san.open_near(e.global_position, 0.95)
+		e.set_active(d < (18.0 if temp() else 36.0))
+		if temp():
 			e.rig.set_detail(d < 12.0)              # на экране (ближе 12 м) — полные движения и постановка стоп
 		if not e.active:
 			# Временный кластер (38 врагов): ближе 8 м — всё, 8–18 м — без стоп и мелочей, дальше — без движений тела; кто ближе 80 м или гонится за героем —
 			# думает и ходит раз в четыре кадра (за четыре кадра сразу), видит — раз в двенадцать. Дальше 80 м
 			# спокойные стоят.
-			if place == "cowshed" and (d < 80.0 or e.state == "chase" or e.state == "alert") and (fr + i) % 4 == 0:
+			if temp() and (d < 80.0 or e.state == "chase" or e.state == "alert") and (fr + i) % 4 == 0:
 				if (fr + i) % 12 == 0 or not e.has_meta("sees"):
 					var vr2 := float(e.def.see) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
 					e.set_meta("sees", d < vr2 and _sees(e))
@@ -5226,7 +5402,7 @@ func open_settings() -> void:
 		ULSettings.apply(get_viewport())
 		_cam_apply(), [
 		["Главное меню", func() -> void:
-			if place == "cowshed":
+			if temp():
 				cs_finish("menu")
 				return
 			_save()
@@ -6554,7 +6730,38 @@ func _run_test() -> void:
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
 		get_tree().quit()
 		return
-	if test == "csbake":
+	if test == "csbake" or test == "snbake":
+		get_tree().quit()
+		return
+	if test == "snview":
+		# вид санатория с нескольких точек (снимки в --as-out); внутри корпусов — на разных этажах
+		var t0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - t0 < 20000:
+			await get_tree().process_frame
+		var spots := [["s0_gate", ULSanatorium.ENTRY + Vector3(0, 0, -3)], ["s1_portico", Vector3(0, 0, 40)], ["s2_main_hall", Vector3(0, 0, 23)],
+			["s3_main_f2", Vector3(10, 3.3, 21)], ["s4_main_f3", Vector3(-8, 6.6, 21)], ["s5_plaza", Vector3(2, 0, -6)], ["s6_med_out", Vector3(-48, 0, -32)],
+			["s7_med_ward", Vector3(-58, 0, -45)], ["s8_res_f3", Vector3(50, 6.6, -8)], ["s9_res_out", Vector3(36, 0, -18)], ["t0_canteen", Vector3(-54, 0, 36)],
+			["t1_boiler", Vector3(6, 0, -60)], ["t2_hozblok", Vector3(56, 0, -60)], ["t3_yard", Vector3(54, 0, 46)], ["t4_play", Vector3(-50, 0, 2)],
+			["t5_stairs", Vector3(-15, 0.0, 17)], ["t6_wide", Vector3(0, 0, 0)], ["t7_top", Vector3(0, 0, 0)], ["t8_med_m2", Vector3(-29.5, 3.3, -40)]]
+		var only := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				only = a.substr(10)
+		if only != "":
+			spots = spots.filter(func(sp): return only.split(",").has(String(sp[0])))
+		for sp in spots:
+			cam_dist = 80.0 if String(sp[0]) == "t7_top" else (26.0 if String(sp[0]) == "t6_wide" else 12.0)
+			player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
+			player.velocity = Vector3.ZERO
+			for e in enemies:
+				if e.global_position.distance_to(player.global_position) < 14.0:
+					e.state = "idle"
+					e.wander_r = 0.0
+			_cam_ready = false
+			world_env.fog_enabled = String(sp[0]) != "t7_top"
+			await get_tree().create_timer(1.3).timeout
+			print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+			await _snap(String(sp[0]))
 		get_tree().quit()
 		return
 	if test == "perf":
