@@ -184,7 +184,7 @@ const MATS := {
 	"potato": ["dry_ground_01", 0.45, Color(1.35, 1.05, 0.72), 0.0, 1.0, {}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood"]
+const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
@@ -999,6 +999,17 @@ func _entrance(bi: int, bk: Dictionary, key: String, along_u: bool, a: float, b:
 		var along2 := _wd(bk, 1, 0) if along_u else _wd(bk, 0, 1)
 		var into2 := -_side_n(bk, _side_of(along_u, sgn))
 		var dv := outer - sgn * te * 0.5
+		if kind == "gate":
+			# ворота гаража: две металлические створки, петли у наружной грани, открываются наружу; рама из уголка
+			var dvo := outer + sgn * 0.03
+			var gm := String(def.get("gate_mat", "gmetal"))
+			for k in 2:
+				var cg := _w(bk, (a + w * 0.25 + k * w * 0.5) if along_u else dvo, y0, dvo if along_u else (a + w * 0.25 + k * w * 0.5))
+				_make_door([cg, along2 if k == 0 else -along2, -into2, w * 0.5, y1 - y0 - 0.04, _rng.randf() < 0.45, bi, 0, true, gm])
+			for e in [[a - 0.08, a], [b, b + 0.08]]:
+				_wall_piece(bk, key, "metal", along_u, float(e[0]), float(e[1]), y0, y1 + 0.08, outer + sgn * 0.04, outer - sgn * 0.04)
+			_wall_piece(bk, key, "metal", along_u, a - 0.08, b + 0.08, y1, y1 + 0.08, outer + sgn * 0.04, outer - sgn * 0.04)
+			return
 		if w <= 1.2:
 			_make_door([_w(bk, m if along_u else dv, y0, dv if along_u else m), along2, into2, w, y1 - y0 - 0.04, _rng.randf() < 0.35, bi, 0, true, dmat])
 		else:

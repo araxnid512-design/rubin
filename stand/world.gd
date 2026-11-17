@@ -877,6 +877,8 @@ const GROUND_SHADER := """shader_type spatial;
 // торчат сквозь другой (трава пучками поверх земли, камни тропы сквозь траву) — край живой, не размытый.
 // Против повторов: трава читается в двух масштабах, крупные пятна шума меняют сухость и светлоту.
 uniform sampler2D grass : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D grass2 : source_color, filter_linear_mipmap, repeat_enable;      // вторая трава: зелёные куртины
+uniform sampler2D grass_n : hint_normal, filter_linear_mipmap, repeat_enable;      // рельеф стеблей
 uniform sampler2D dry : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D forest : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
@@ -906,7 +908,13 @@ void fragment() {
 	float n2 = texture(noise, p / 19.0 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise, p / 5.5 + vec2(0.71, 0.53)).r;
 	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.4) / world_size + 0.5);
-	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38) * grass_mul;
+	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38);
+	// куртины гуще и зеленее — вторая фототекстура пятнами (вместо отдельных пучков травы — дешевле и не рябит)
+	float gk = smoothstep(0.34, 0.62, texture(noise, p / 13.0 + vec2(0.13, 0.77)).r) * 0.75;
+	g = mix(g, texture(grass2, rot * p / 6.2 + 0.47).rgb * vec3(0.92, 1.08, 0.86), gk) * grass_mul;
+	// кочки: пятнистое затенение травы в двух масштабах — трава читается объёмной без отдельных пучков
+	float tuft = texture(noise, p / 1.6 + vec2(0.41, 0.19)).r * 0.6 + texture(noise, rot * p / 0.7).r * 0.4;
+	g *= mix(0.78, 1.12, smoothstep(0.25, 0.75, tuft));
 	float dw = smoothstep(0.5, 0.74, n1 * 0.7 + n2 * 0.3) * dry_amount;
 	// против повтора: у сухой травы, земли и дороги — вторая выборка, повёрнутая и в другом масштабе, смешанная
 	// крупными пятнами шума (граница плитки не совпадает, рисунок не повторяется ровной сеткой)
@@ -929,7 +937,7 @@ void fragment() {
 	vec3 c = g * b.x + f * b.y + so * b.z + pa * b.w;
 	float bright = mix(0.88, 1.07, n1) * mix(0.95, 1.04, n2);
 	ALBEDO = c * bright * m.a * 0.92;
-	vec3 nm = texture(soil_n, p / 3.6).rgb * (b.z + b.y * 0.5) + texture(path_n, p / 2.8).rgb * b.w + vec3(0.5, 0.5, 1.0) * (b.x + b.y * 0.5);
+	vec3 nm = texture(soil_n, p / 3.6).rgb * (b.z + b.y * 0.5) + texture(path_n, p / 2.8).rgb * b.w + texture(grass_n, p / 3.4).rgb * b.x + vec3(0.5, 0.5, 1.0) * b.y * 0.5;
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = 1.1;
 	float puddle = b.z * wet * smoothstep(0.55, 0.72, n3 * 0.6 + n2 * 0.4);
@@ -1102,7 +1110,9 @@ func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vecto
 	sh.code = GROUND_SHADER if ULSettings.gfx == 2 else GROUND_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
 	sm.shader = sh
 	sm.set_shader_parameter("grass", load(TEX + "sparse_grass_c.jpg"))
-	sm.set_shader_parameter("dry", load(TEX + "grass_ground_c.jpg"))
+	sm.set_shader_parameter("grass2", load(TEX + "aerial_grass_c.jpg"))
+	sm.set_shader_parameter("grass_n", load(TEX + "sparse_grass_n.jpg"))
+	sm.set_shader_parameter("dry", load(TEX + "withered_grass_c.jpg"))
 	sm.set_shader_parameter("forest", load(TEX + "mud_forest_c.jpg"))
 	sm.set_shader_parameter("soil", load(TEX + soil + "_c.jpg"))
 	sm.set_shader_parameter("soil_n", load(TEX + soil_n + "_n.jpg"))
@@ -5849,6 +5859,28 @@ func _kh_test() -> void:
 	await _walk(Array(NavigationServer3D.map_get_path(map, b_out, snapf.call(Vector3(barn.rect.get_center().x, 0.1, barn.rect.get_center().y)), true)), 12.0)
 	await get_tree().create_timer(0.3).timeout
 	_ok("сарай: герой зашёл в ворота, крыша скрыта", san.hero_b == san.blds.find(barn) and not barn._groups["b0/r"].visible)
+	# гараж — металлический, ворота из двух створок открываются наружу
+	var gar: ULBlock = by_id["garage"]
+	var gout: Vector3 = (gar.entrances[0][0] as Vector3) - (gar.entrances[0][1] as Vector3)
+	gout.y = 0.0
+	gout = gout.normalized()
+	var leaves := 0
+	var outward := 0
+	for d in gar.doors:
+		var gd := d as ULDoor
+		if not gd.has_meta("ext"):
+			continue
+		leaves += 1
+		gd.set_open(true)
+		for t in 60:
+			gd.tick(0.05)                     # повернуть полотно до конца (двери далеко от героя сами не тикают)
+	for d in gar.doors:
+		var gd := d as ULDoor
+		# середина полотна (не петля): у открытой наружу — снаружи стены
+		var mid: Vector3 = gd.panel.global_transform * Vector3(gd.width * 0.5, 1.0, 0)
+		if gd.has_meta("ext") and (mid - gd.center).dot(gout) > 0.25:
+			outward += 1
+	_ok("гараж: стены из профлиста, ворота из двух металлических створок открываются наружу", String(gar.def.skin) == "roof_tin" and leaves == 2 and outward == 2, "створок %d, наружу %d" % [leaves, outward])
 	# 8–10: погреб — спуск по лестнице, вид уровня −1, свет, подъём
 	var cl: Dictionary = kh.cellars[0]
 	var cb: ULBlock = san.blds[int(cl.bi)]
@@ -8957,7 +8989,7 @@ func _run_test() -> void:
 			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-37, -2.5, 4.8), 11.0],
 			["l8_cellar3", Vector3(46, -2.5, 34.4), 10.0], ["l9_top", Vector3(0, 0, 0), 85.0],
 			["m0_h1_out", Vector3(-8, 0, -12.5), 13.0], ["m1_h3_out", Vector3(-44.5, 0, 22), 13.0], ["m2_h4_out", Vector3(-24, 0, 58.5), 13.0],
-			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0]]
+			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0], ["m5_garage_out", Vector3(-50.5, 0, 47.5), 12.0]]
 		var konly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):

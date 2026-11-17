@@ -85,7 +85,15 @@ static func set_cut(rect: Vector4, on: bool) -> void:
 ## Рассыпать пучки вида kind по квадрату size×size с центром в 0. density — пучков на м² там, где вес 1;
 ## weight(p) → 0…1 — где расти (0 — нигде); tint(p, rng) → цвет; size_h — [высота от, до]; size_w — ширина к
 ## высоте. Участки по cell м — отдельные сетки. Возвращает число пучков.
+## доля пучков по видам: мелкие пучки травы по всему полю убраны (их заменяет трава на текстуре земли — дешевле
+## и не рябит), сорняки у стен и крапива у заборов — реже; цветы как были
+const KIND_K := {"grass": 0.0, "weed": 0.5, "nettle": 0.6, "flower": 1.0}
+
+
 static func scatter(parent: Node3D, kind: String, size: float, density: float, weight: Callable, tint: Callable, size_h: Vector2, size_w: float, seed_n: int, range_m: float, cell := 15.0) -> int:
+	density *= float(KIND_K.get(kind, 1.0))
+	if density <= 0.0:
+		return 0
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_n
 	var n := int(ceil(size / cell))

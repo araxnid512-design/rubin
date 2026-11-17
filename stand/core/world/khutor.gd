@@ -74,10 +74,11 @@ const K_BUILDINGS := [
 		"roof_mat": "shingle", "gable": "planks_brown", "rise": 0.45, "ov": 0.3, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-58, -34), "L": 5.0, "W": 4.0, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "shed",
 			"entr": [["s+", 0.5, 1.2, "plain"]], "blind": ["s-", "e-"], "win_w": 0.6, "win_h": 0.5, "sill": 1.4}]},
-	{"id": "garage", "n": "Гараж", "kind": "shed", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 2.7, "te": 0.12,
-		"roof_mat": "rust", "gable": "planks", "rise": 0.35, "ov": 0.3, "shutters": false, "chimney": false,
+	# гараж — металлический (профлист), плоская крыша с рёбрами, распашные ворота наружу
+	{"id": "garage", "n": "Гараж", "kind": "shed", "style": "box", "skin": "roof_tin", "int": "roof_tin", "storey": 2.5, "te": 0.08,
+		"roof_mat": "rust", "gate_mat": "gmetal",
 		"blocks": [{"c": Vector2(-44, 46), "L": 6.5, "W": 4.6, "axis": "z", "floors": 1, "layout": "hall", "row": [], "hall_type": "garage",
-			"entr": [["e-", 0.0, 2.6, "plain"]], "blind": ["s-", "s+", "e+"]}]},
+			"entr": [["e-", 0.0, 2.7, "gate"]], "blind": ["s-", "s+", "e+"]}]},
 	# подвалы — подземные здания: зал у входа и ряд кладовых за перегородкой с дверями; над ними ровная земля
 	# (двор, усадьба), сверху виден только вход — бетонный портал в насыпи
 	{"id": "cellar1", "n": "Большой подвал", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
@@ -155,7 +156,7 @@ func spawn_limit() -> float:
 
 
 static func k_sig() -> int:
-	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k10")
+	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k11")
 
 
 ## описание здания с вычисленной лестницей погреба (annex — где лестница: на ней герой уже «в погребе»)
