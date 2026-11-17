@@ -9,7 +9,8 @@
 set +e
 mkdir -p status
 repo="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-mask() { sed -e 's/\x1b\[[0-9;]*m//g' -e "s/${TRIPO_EMAIL:-@@@}/<почта>/g"; }
+EMAIL="$TRIPO_EMAIL"
+mask() { sed -e 's/\x1b\[[0-9;]*m//g' -e "s/${TRIPO_EMAIL:-@@@}/<почта>/g" -e "s/${EMAIL:-@@@}/<почта>/g"; }
 note() { { echo "# Вход в Tripo ($(date -u +%H:%M:%S) UTC)"; echo; echo "$1"; echo; echo '```'; [ -f login.log ] && mask < login.log | head -40; echo '```'; } > status/login.md; bash tools/tripo/publish.sh; }
 logged_in() { tripo account balance > /tmp/bal.txt 2>&1 && ! grep -qiE "not logged|unauthor|login first|auth login" /tmp/bal.txt; }
 
@@ -22,20 +23,36 @@ fi
 if logged_in; then
   echo "вход: сохранённая сессия"; note "Вход по сохранённой сессии — код не нужен."; exit 0
 fi
-if [ -z "$TRIPO_EMAIL" ]; then note "Нет секрета TRIPO_EMAIL (почта аккаунта Tripo)."; exit 1; fi
-
 openssl genrsa -out /tmp/key.pem 2048 2>/dev/null
 openssl rsa -in /tmp/key.pem -pubout -out status/pubkey.pem 2>/dev/null
 nonce=$(openssl rand -hex 12); echo "$nonce" > status/nonce.txt
+if [ "$fresh" = "1" ]; then
+  # новый аккаунт: почта приходит зашифрованной открытым ключом этой сборки (tools/tripo/email.enc в рабочей
+  # ветке, вместе с разовой меткой) — в открытом виде её нет ни в репозитории, ни в журналах
+  note "Новый аккаунт: ждём почту (зашифрованную ключом этой сборки, файл tools/tripo/email.enc)."
+  EMAIL=""
+  for i in $(seq 1 120); do
+    sleep 5
+    git fetch -q origin "$GITHUB_REF_NAME" 2>/dev/null || continue
+    git show FETCH_HEAD:tools/tripo/email.enc 2>/dev/null | base64 -d > /tmp/email.enc 2>/dev/null || continue
+    msg=$(openssl pkeyutl -decrypt -inkey /tmp/key.pem -in /tmp/email.enc 2>/dev/null) || continue
+    [ "${msg%%:*}" = "$nonce" ] || continue
+    EMAIL="${msg#*:}"
+    echo "::add-mask::$EMAIL"          # GitHub скрывает это значение в журнале сборки
+    echo "почта получена"; break
+  done
+fi
+if [ -z "$EMAIL" ]; then note "Нет почты аккаунта Tripo (секрет TRIPO_EMAIL или зашифрованный tools/tripo/email.enc)."; exit 1; fi
+
 mkfifo /tmp/login.in
 tripo auth login < /tmp/login.in > login.log 2>&1 &
 lpid=$!
 exec 3>/tmp/login.in
-printf '%s\n' "$TRIPO_EMAIL" >&3
+printf '%s\n' "$EMAIL" >&3
 sleep 8
 note "Ждём код из письма Tripo: положите его в секрет TRIPO_CODE, затем Claude запустит сборку «Tripo: код»."
 got=""
-for i in $(seq 1 150); do
+for i in $(seq 1 450); do
   kill -0 $lpid 2>/dev/null || break
   sleep 8
   git fetch -q origin tripo-code 2>/dev/null || continue
