@@ -2,112 +2,119 @@
  "stop": false,
  "jobs": [
   {
-   "id": "ulm_ruber_z_idle",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_ural",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_idle",
-    "4",
-    "a huge heavy brute standing in a wide stance with hunched shoulders and long arms hanging down, chest and shoulders rising and falling with deep heavy breathing, slowly shifting its weight"
+    "--id",
+    "ul_ural",
+    "--faces",
+    "9000",
+    "--prompt",
+    "a soviet-era military 6x6 cargo truck Ural-4320 with an olive green canvas tarp cover over the cargo bed, dirty and weathered, intact, realistic, single vehicle, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_walk",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_ural_wreck",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_walk",
-    "3",
-    "a huge heavy brute walking forward slowly with wide heavy stomping steps, shoulders rolling from side to side, long arms swinging low at its sides"
+    "--id",
+    "ul_ural_wreck",
+    "--faces",
+    "9000",
+    "--prompt",
+    "a burnt-out destroyed soviet military 6x6 cargo truck, charred black and rusty metal, remains of a burnt canvas on the bare cargo bed frame, broken windows, burnt flat tires, wreck, realistic, single vehicle, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_run",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_btr",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_run",
-    "2",
-    "a huge heavy brute charging straight forward fast with long powerful strides, torso leaning far forward, arms pumping"
+    "--id",
+    "ul_btr",
+    "--faces",
+    "9000",
+    "--prompt",
+    "a damaged abandoned soviet BTR-80 eight-wheeled armored personnel carrier, olive green, scorch marks, open hatches, flat tires, dirty, realistic, single vehicle, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_scream",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_gaz66",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_scream",
-    "3",
-    "a huge brute leaning back and raising both clenched fists, then bending forward and roaring with rage with arms spread wide, body tense"
+    "--id",
+    "ul_gaz66",
+    "--faces",
+    "8000",
+    "--prompt",
+    "an abandoned soviet military GAZ-66 4x4 light cab-over truck with a canvas-covered cargo bed, olive green, dirty, one door open, realistic, single vehicle, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_attack_r",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_uaz",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_attack_r",
-    "2",
-    "a huge brute winding its right arm far back, then stepping forward and throwing a heavy wide right hook punch across in front of its chest, then pulling the arm back"
+    "--id",
+    "ul_uaz",
+    "--faces",
+    "7000",
+    "--prompt",
+    "a damaged soviet military UAZ-469 off-road jeep, olive green, torn canvas top, broken windshield, dented body, one flat tire, dirty, realistic, single vehicle, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_attack_l",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_mi8",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_attack_l",
-    "2",
-    "a huge brute winding its left arm far back, then stepping forward and throwing a heavy wide left hook punch across in front of its chest, then pulling the arm back"
+    "--id",
+    "ul_mi8",
+    "--faces",
+    "10000",
+    "--prompt",
+    "a crashed wrecked Mi-8 transport helicopter lying on the ground, olive green, broken tail boom, bent rotor blades, shattered cockpit glass, dirty and scorched, realistic, single object, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_overhead",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_kung",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_overhead",
-    "3",
-    "a huge brute raising both fists together high above its head, holding for a moment, then smashing both fists down hard in front of itself while bending forward, then straightening up"
+    "--id",
+    "ul_kung",
+    "--faces",
+    "9000",
+    "--prompt",
+    "a damaged soviet military supply truck with a boxy metal van body on the back, olive green, dented, flat tires, dirty and weathered, realistic, single vehicle, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_hit_front",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_soldier_down",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_hit_front",
-    "2",
-    "a huge brute standing is hit in the chest, its torso jerks back and one shoulder recoils, then it leans forward again angrily"
+    "--id",
+    "ul_soldier_down",
+    "--faces",
+    "6000",
+    "--prompt",
+    "a fallen soldier lying motionless flat on his back on the ground, olive green camouflage uniform, body armor vest and helmet, arms at his sides, dirty, realistic, single figure lying flat, game asset"
    ],
    "timeout": 2400
   },
   {
-   "id": "ulm_ruber_z_stagger",
-   "py": "tools/tripo/motion.py",
+   "id": "ul_army_crate",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_stagger",
-    "3",
-    "a huge brute is hit hard and staggers backwards two heavy steps, losing balance with arms flailing, then catches itself and straightens up"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_ruber_z_death_back",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_death_back",
-    "4",
-    "a huge heavy brute is struck in the chest, stumbles one step back, its knees buckle and it collapses heavily onto its back with arms falling to the sides, then lies still"
+    "--id",
+    "ul_army_crate",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a soviet military olive green wooden ammunition crate with metal latches and rope handles, stenciled markings, closed lid, dirty and worn, realistic, single object, game asset"
    ],
    "timeout": 2400
   }
@@ -428,7 +435,17 @@
   "ul_dealer",
   "ul_bus",
   "ul_car",
-  "ul_ruber"
+  "ul_ruber",
+  "ulm_ruber_z_idle",
+  "ulm_ruber_z_walk",
+  "ulm_ruber_z_run",
+  "ulm_ruber_z_scream",
+  "ulm_ruber_z_attack_r",
+  "ulm_ruber_z_attack_l",
+  "ulm_ruber_z_overhead",
+  "ulm_ruber_z_hit_front",
+  "ulm_ruber_z_stagger",
+  "ulm_ruber_z_death_back"
  ],
  "paused": [
   {
