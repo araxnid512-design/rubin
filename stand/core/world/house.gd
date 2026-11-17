@@ -46,10 +46,41 @@ func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
 	inner = Node3D.new()
 	inner.name = "Inner"
 	add_child(inner)
-	var wall_mat := _mat(wall_tex, 1.6)
-	var floor_mat := _mat(floor_tex, 2.0)
-	floor_mat.albedo_color = Color(0.85, 0.8, 0.72)          # доски пола — темнее, иначе сверху почти белые
-	wall_mat.albedo_color = Color(1.0, 0.95, 0.88)
+	# стены и пол — материал построек (ULFarmBuilding.SHADER): текстура по мировым координатам, к полу стена темнее
+	# и грязнее (сырость), пятна и мох; на полу — затоптанная грязь пятнами у порогов
+	var fn := FastNoiseLite.new()
+	fn.seed = 31
+	fn.frequency = 0.012
+	fn.fractal_octaves = 3
+	var noise := ImageTexture.create_from_image(fn.get_seamless_image(256, 256))
+	var sh := Shader.new()
+	sh.code = ULFarmBuilding.SHADER
+	var wall_mat := ShaderMaterial.new()
+	wall_mat.shader = sh
+	wall_mat.set_shader_parameter("noise", noise)
+	wall_mat.set_shader_parameter("albedo_tex", load(wall_tex + "_c.jpg"))
+	if ResourceLoader.exists(wall_tex + "_n.jpg"):
+		wall_mat.set_shader_parameter("normal_tex", load(wall_tex + "_n.jpg"))
+		wall_mat.set_shader_parameter("has_normal", true)
+	wall_mat.set_shader_parameter("scale", 1.6)
+	wall_mat.set_shader_parameter("tint", Color(0.95, 0.88, 0.8))
+	wall_mat.set_shader_parameter("grime", 0.85)
+	wall_mat.set_shader_parameter("rough", 0.9)
+	var floor_mat := ShaderMaterial.new()
+	floor_mat.shader = sh
+	floor_mat.set_shader_parameter("noise", noise)
+	floor_mat.set_shader_parameter("albedo_tex", load(floor_tex + "_c.jpg"))
+	if ResourceLoader.exists(floor_tex + "_n.jpg"):
+		floor_mat.set_shader_parameter("normal_tex", load(floor_tex + "_n.jpg"))
+		floor_mat.set_shader_parameter("has_normal", true)
+	floor_mat.set_shader_parameter("scale", 2.0)
+	floor_mat.set_shader_parameter("tint", Color(0.8, 0.74, 0.66))          # доски пола — темнее, иначе сверху почти белые
+	floor_mat.set_shader_parameter("grime", 0.6)
+	floor_mat.set_shader_parameter("albedo2", load("res://assets/world/tex/dirt_c.jpg"))
+	floor_mat.set_shader_parameter("has_second", true)
+	floor_mat.set_shader_parameter("tint2", Color(0.7, 0.62, 0.52))
+	floor_mat.set_shader_parameter("second_bias", -0.12)
+	floor_mat.set_shader_parameter("rough", 0.88)
 	# пол
 	var fl := MeshInstance3D.new()
 	var bm := BoxMesh.new()
@@ -131,6 +162,7 @@ func _wall_piece(body: StaticBody3D, a: Vector2, dir: Vector2, s0: float, s1: fl
 	# стена поперёк взгляда камеры (камера стоит с +z) — может заслонять героя
 	mi.set_meta("front", absf(dir.x) > 0.5)
 	mi.set_meta("z", mid.y)
+	mi.set_meta("x", mid.x)
 	mi.set_meta("h", CUT)
 
 
@@ -177,15 +209,20 @@ func door_point(out := 1.2) -> Vector3:
 
 ## стены между камерой (она с +z) и героем опускаются до LOW — героя и комнату за ними видно; остальные — CUT
 const LOW := 0.4
+static var cam_x := 0.0           ## насколько камера сбоку (+x): sin поворота камеры (настройка «Камера»)
 
 
 func update_walls(player_world: Vector3, delta: float) -> void:
 	if not inside:
 		return
-	var pz := to_local(player_world).z
+	var lp := to_local(player_world)
+	var pz := lp.z
 	var a := 1.0 - exp(-delta * 10.0)
 	for mi in _cut_walls:
 		var want := LOW if bool(mi.get_meta("front")) and float(mi.get_meta("z")) > pz + 0.2 else CUT
+		# камера «по диагонали» стоит ещё и сбоку (+x): стены вдоль z правее героя тоже опускаются
+		if not bool(mi.get_meta("front")) and cam_x > 0.3 and float(mi.get_meta("x")) > lp.x + 0.2:
+			want = LOW
 		var h := lerpf(float(mi.get_meta("h")), want, a)
 		mi.set_meta("h", h)
 		mi.scale = Vector3(1, h / CUT, 1)

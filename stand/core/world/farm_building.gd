@@ -77,7 +77,9 @@ var _fade := 0.0
 var _want := 0.0
 var _rng: RandomNumberGenerator
 var _box := BoxMesh.new()
-var front_side := ""              ## какая стена смотрит на камеру: s+, s-, e+, e-
+var front_side := ""              ## какая стена больше всех смотрит на камеру: s+, s-, e+, e-
+var front_sides: Array = []       ## все стены, что смотрят на камеру (растворяются, когда герой внутри)
+static var cam_dir := Vector3(0, 0, 1)   ## от постройки к камере по земле (настройка «Камера»)
 
 
 static func make_materials(noise: Texture2D) -> Dictionary:
@@ -150,13 +152,17 @@ func build(d: Dictionary, mats: Dictionary, rng: RandomNumberGenerator) -> void:
 	rest = Node3D.new()
 	for g in [rest, front, roof]:
 		add_child(g)
-	# какая стена ближе к камере (камера смотрит с юга, +z мира)
+	# какие стены смотрят на камеру (cam_dir — от постройки к камере по земле): они растворяются вместе с крышей,
+	# когда герой внутри. При камере «по диагонали» таких стен две (южная и восточная).
 	var best := -2.0
+	front_sides.clear()
 	for side in ["s+", "s-", "e+", "e-"]:
-		var nz := (Basis(Vector3.UP, float(d.yaw)) * _side_normal(side)).z
+		var nz := (Basis(Vector3.UP, float(d.yaw)) * _side_normal(side)).dot(cam_dir)
 		if nz > best:
 			best = nz
 			front_side = side
+		if nz > 0.3:
+			front_sides.append(side)
 	var ruin := float(d.get("ruin", 0.3))
 	# пролом: участок длинной стены без стены (если есть разрушения) — с кучей кирпича
 	var breach := []
@@ -191,7 +197,7 @@ static func _side_normal(side: String) -> Vector3:
 
 
 func _group(side: String) -> Node3D:
-	return front if side == front_side else rest
+	return front if side == front_side or front_sides.has(side) else rest
 
 
 ## деталь: коробка size с преобразованием xf (в системе постройки) в группу g из материала m

@@ -33,8 +33,19 @@ var snd: BCSound
 var house: ULHouse
 var cam: Camera3D
 ## камера как в изометрических выживалках: неподвижна, сверху под 55°, смотрит на север (дом — вверху экрана)
-const CAM_YAW := 0.0
-const CAM_PITCH := 0.91             ## 52° — с наклоном, как в DoZ Survival и Last Day on Earth (было 61°)
+var CAM_YAW := 0.0                  ## поворот камеры вокруг героя (настройки: «Камера»), рад
+var CAM_PITCH := 0.91               ## наклон: 52° — «С наклоном», как в DoZ Survival (ULSettings.CAMS)
+
+
+## угол камеры — из настроек (сверху / с наклоном / по диагонали); стены построек и дома, закрывающие героя от
+## камеры, выбираются по нему же
+func _cam_apply() -> void:
+	ULSettings.load_cfg()
+	var c: Dictionary = ULSettings.CAMS[ULSettings.cam]
+	CAM_YAW = deg_to_rad(float(c.yaw))
+	CAM_PITCH = deg_to_rad(float(c.pitch))
+	ULFarmBuilding.cam_dir = Vector3(sin(CAM_YAW), 0, cos(CAM_YAW))
+	ULHouse.cam_x = sin(CAM_YAW)
 var cam_dist := 12.0
 var _cam_t := Vector3.ZERO
 var crates: Array[Node3D] = []
@@ -74,6 +85,10 @@ func _ready() -> void:
 		if a.begins_with("--as-gfx="):
 			ULSettings.load_cfg()
 			ULSettings.gfx = clampi(int(a.substr(9)), 0, 2)    # уровень графики для проверок и снимков
+		if a.begins_with("--as-cam="):
+			ULSettings.load_cfg()
+			ULSettings.cam = clampi(int(a.substr(9)), 0, ULSettings.CAMS.size() - 1)   # угол камеры для снимков
+	_cam_apply()
 	if test == "arena":
 		ULSettings.arena = true
 	if test.begins_with("cs"):
@@ -918,6 +933,9 @@ func _ground() -> void:
 	pm.size = Vector2(SIZE, SIZE)
 	mi.mesh = pm
 	var sm := ground_material(SIZE, "grass_path_2", "brown_mud_02", Vector3(0.84, 0.77, 0.66), 0.0, 0.55)
+	# трава спокойнее (оливковая, не ядовито-зелёная), тропа — не выбеленная
+	sm.set_shader_parameter("grass_mul", Vector3(0.86, 0.97, 0.7))
+	sm.set_shader_parameter("path_mul", Vector3(0.95, 0.9, 0.84))
 	_ground_mat = sm
 	# шум — картинкой: тот же рисунок читается и в шейдере, и здесь (где трава — там пучки)
 	var fn := FastNoiseLite.new()
@@ -1650,6 +1668,10 @@ func _player() -> void:
 	rig = BCCharacter.new()
 	player.add_child(rig)
 	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	# отшатывание от удара — последним: руки и оружие идут вместе с корпусом
+	flinch = BCFlinch.new()
+	flinch.name = "Flinch"
+	rig.skel.add_child(flinch)
 	# темп действий в игре выше, чем на стенде: отклик важнее показа движения
 	rig.hold.draw_rate = 2.2
 	rig.hold.move_rate = 1.3
@@ -3437,6 +3459,10 @@ func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
 		tw.tween_callback(lb.queue_free)
 		_dmg_lb[t] = [lb, dmg, now_s]
 	if t is ULEnemy:
+		# кровь из раны — в сторону выстрела или удара
+		var bd := t.global_position - player.global_position
+		bd.y = 0.0
+		_blood(at, bd.normalized() if bd.length() > 0.01 else Vector3.FORWARD, int(clampf(dmg * 0.6, 6.0, 18.0)))
 		return                                  # враг сам отыгрывает попадание и гибель
 	var vis: Node3D = t.get_node("Vis")
 	var tw2 := create_tween()
@@ -4610,6 +4636,7 @@ func _inv_test() -> void:
 		dmgs.append(float(a.dmg))
 	_ok("подошёл вплотную (до 0.85 м между центрами) и ударил", hp < hp0 and dmgs.has(hp0 - hp) and gap <= 0.85, "%s: %.0f → %.0f за %.1f с, расстояние %.2f м" % [e.last_attack, hp0, hp, wait_s, gap])
 	_ok("после удара экран краснеет", _hurt_t > 0.0)
+	_ok("от удара герой отшатывается (корпус и голова) и брызжет кровь с той стороны, откуда ударили", flinch != null and flinch._t < 0.8 and flinch._dir.dot((player.global_position - e.global_position).normalized()) > 0.5 and not _splats.is_empty())
 	_damage(e, 25.0, e.global_position + Vector3.UP)
 	_ok("попадание: прочность %d → %d, жив" % [int(e.def.hp), int(e.def.hp) - 25], is_equal_approx(e.hp, float(e.def.hp) - 25.0) and e.alive())
 	_damage(e, 1000.0, e.global_position + Vector3.UP)
@@ -4877,14 +4904,106 @@ func _enemy_noise(what: String, at: Vector3) -> void:
 	snd.play(what, at + Vector3.UP * 1.5, {"growl": -7.0, "roar": -2.0, "zdeath": -3.0}.get(what, -5.0), 0.12)
 
 
-## герой получил удар
-func hurt(dmg: float) -> void:
+var flinch: BCFlinch
+var _blood_mat: StandardMaterial3D
+var _splat_mat: ShaderMaterial
+var _splats: Array[Node3D] = []
+
+const SPLAT_SHADER := """shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back, unshaded;
+// пятно крови на земле: тёмно-красное, край рваный (шум), с каплями вокруг; тает к концу (fade)
+uniform sampler2D noise : filter_linear, repeat_enable;
+uniform float fade = 1.0;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 c = UV - 0.5;
+	float n = texture(noise, wp.xz * 0.9).r;
+	float n2 = texture(noise, wp.xz * 3.1 + 0.4).r;
+	float r = length(c) * 2.0 + (n - 0.5) * 0.9;
+	float a = 1.0 - smoothstep(0.35, 0.6, r);
+	a = max(a, step(0.78, n2) * (1.0 - smoothstep(0.6, 1.0, r)));
+	if (a < 0.02) { discard; }
+	ALBEDO = mix(vec3(0.16, 0.015, 0.01), vec3(0.3, 0.03, 0.02), n2);
+	ALPHA = a * 0.85 * fade;
+}"""
+
+
+## Кровь от удара: брызги капель по направлению dir (летят и падают) и пятно на земле, которое через 20 с тает.
+## Пятен на локации — не больше 24 (старые убираются).
+func _blood(at: Vector3, dir: Vector3, n: int) -> void:
+	if _blood_mat == null:
+		_blood_mat = StandardMaterial3D.new()
+		_blood_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_blood_mat.albedo_color = Color(0.32, 0.02, 0.02)
+		_blood_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	var p := CPUParticles3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.05, 0.05)
+	qm.material = _blood_mat
+	p.mesh = qm
+	p.amount = n
+	p.one_shot = true
+	p.explosiveness = 0.92
+	p.lifetime = 0.55
+	p.direction = (dir + Vector3.UP * 0.35).normalized()
+	p.spread = 32.0
+	p.initial_velocity_min = 1.6
+	p.initial_velocity_max = 3.6
+	p.gravity = Vector3(0, -9.8, 0)
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.6
+	p.local_coords = false
+	add_child(p)
+	p.global_position = at
+	p.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(p.queue_free)
+	# пятно на земле — чуть дальше по удару
+	if _splat_mat == null:
+		_splat_mat = ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = SPLAT_SHADER
+		_splat_mat.shader = sh
+		_splat_mat.set_shader_parameter("noise", _noise_tex)
+	var sp := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1, 1)
+	sp.mesh = pm
+	var mat: ShaderMaterial = _splat_mat.duplicate()
+	sp.material_override = mat
+	sp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(sp)
+	var k := randf_range(0.45, 0.8) * clampf(n / 14.0, 0.7, 1.4)
+	sp.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU).scaled(Vector3(k, 1.0, k * randf_range(0.7, 1.0))), Vector3(at.x, 0.05, at.z) + dir * randf_range(0.25, 0.6))
+	_splats.append(sp)
+	if _splats.size() > 24:
+		var old: Node3D = _splats.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+	var tw := sp.create_tween()
+	tw.tween_interval(20.0)
+	tw.tween_method(func(v: float) -> void: mat.set_shader_parameter("fade", v), 1.0, 0.0, 3.0)
+	tw.tween_callback(func() -> void:
+		_splats.erase(sp)
+		sp.queue_free())
+
+
+## герой получил удар (from — откуда: ударивший; тогда герой отшатывается от него и брызжет кровь с этой стороны)
+func hurt(dmg: float, from := Vector3.INF) -> void:
 	if _dead_t > 0.0:
 		return
 	hp = maxf(0.0, hp - dmg)
 	_hurt_t = 0.35
 	_hurt_amp = clampf(dmg / 20.0, 0.4, 1.5)
 	snd.play("punch", player.global_position + Vector3.UP * 1.3, -2.0, 0.08)
+	if from != Vector3.INF:
+		var push := player.global_position - from
+		push.y = 0.0
+		if push.length() > 0.01:
+			push = push.normalized()
+			if flinch:
+				flinch.hit(push, dmg / 14.0)
+			_blood(player.global_position + Vector3.UP * 1.3 - push * 0.18, push, int(clampf(dmg, 8.0, 24.0)))
 	if hp <= 0.0:
 		# погиб: через три секунды — снова у дома, с половиной здоровья; враги расходятся
 		_dead_t = 3.0
@@ -5063,7 +5182,9 @@ var _res_wait := 0.0
 
 func open_settings() -> void:
 	_menu_bar.visible = false
-	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void: ULSettings.apply(get_viewport()), [
+	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void:
+		ULSettings.apply(get_viewport())
+		_cam_apply(), [
 		["Главное меню", func() -> void:
 			if place == "cowshed":
 				cs_finish("menu")

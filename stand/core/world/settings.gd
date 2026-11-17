@@ -10,6 +10,13 @@ const GFX := [
 	{"n": "Средняя", "scale": 0.55, "msaa": false, "grass": 0.6, "range": 24.0},
 	{"n": "Высокая", "scale": 0.8, "msaa": true, "grass": 1.0, "range": 30.0},
 ]
+## Камера: угол наклона (от земли) и поворот вокруг героя. «С наклоном» — как в DoZ Survival, «По диагонали» —
+## как в Last Day on Earth (дома и заборы — ромбом).
+const CAMS := [
+	{"n": "Сверху", "pitch": 61.0, "yaw": 0.0},
+	{"n": "С наклоном", "pitch": 52.0, "yaw": 0.0},
+	{"n": "По диагонали", "pitch": 50.0, "yaw": 45.0},
+]
 const SCALE_MIN := 0.3            ## ниже разрешение само не опускается
 const FPS_MIN := 38.0             ## частота кадров, ниже которой разрешение снижается сразу и крупным шагом
 const C_BG := Color(0.06, 0.09, 0.13, 0.98)
@@ -22,6 +29,7 @@ static var arrival_note := ""              ## что сказать герою �
 static var stand_who := "hero"             ## кого показывает стенд 3D: hero — герой, иначе вид врага (ULEnemy.KINDS)
 static var stand_back := "res://world.tscn"   ## куда ведёт «Назад» со стенда
 static var gfx := 1
+static var cam := 1
 static var volume := 0.8
 static var _loaded := false
 
@@ -35,12 +43,13 @@ static func load_cfg() -> void:
 		if d is Dictionary:
 			gfx = clampi(int(d.get("gfx", 1)), 0, GFX.size() - 1)
 			volume = clampf(float(d.get("volume", 0.8)), 0.0, 1.0)
+			cam = clampi(int(d.get("cam", 1)), 0, CAMS.size() - 1)
 
 
 static func save_cfg() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume}))
+		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam}))
 
 
 static func q() -> Dictionary:
@@ -96,8 +105,8 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	pn.anchor_bottom = 0.5
 	pn.offset_left = -330
 	pn.offset_right = 330
-	pn.offset_top = -210
-	pn.offset_bottom = 210
+	pn.offset_top = -262
+	pn.offset_bottom = 262
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 12)
 	pn.add_child(vb)
@@ -128,6 +137,25 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 		row.add_child(b)
 	mark.call()
 	vb.add_child(lab.call("Ниже графика — выше частота кадров. Разрешение ещё и подстраивается само, чтобы игра шла плавно. Густота травы меняется при следующем входе на локацию.", 14, Color(0.62, 0.68, 0.76)))
+	# камера: сверху / с наклоном / по диагонали
+	vb.add_child(lab.call("Камера", 18, Color(1.0, 0.86, 0.5)))
+	var crow := HBoxContainer.new()
+	crow.add_theme_constant_override("separation", 8)
+	vb.add_child(crow)
+	var cbtns: Array[Button] = []
+	var cmark := func() -> void:
+		for i in cbtns.size():
+			cbtns[i].text = ("● " if i == cam else "") + String(CAMS[i].n)
+			cbtns[i].modulate = Color(1, 1, 1) if i == cam else Color(0.72, 0.76, 0.82)
+	for i in CAMS.size():
+		var cb := button(String(CAMS[i].n), func() -> void:
+			cam = i
+			save_cfg()
+			cmark.call()
+			changed.call(), 200.0)
+		cbtns.append(cb)
+		crow.add_child(cb)
+	cmark.call()
 	var vl: Label = lab.call("Громкость: %d %%" % int(round(volume * 100.0)), 18, Color(1.0, 0.86, 0.5))
 	vb.add_child(vl)
 	var sl := HSlider.new()

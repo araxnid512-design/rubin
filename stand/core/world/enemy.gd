@@ -7,7 +7,7 @@ extends CharacterBody3D
 ## Убит — падает в сторону удара; тело можно обыскать (добыча — в ячейках loot); через CORPSE_S секунд тело
 ## исчезает, обыскали его или нет.
 
-signal hit_player(dmg: float)
+signal hit_player(dmg: float, from: Vector3)
 signal noise(kind: String, at: Vector3)      ## голос: growl — рычит, roar — кричит, zdeath — предсмертный
 
 const CORPSE_S := 60.0
@@ -344,7 +344,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				_hit_due -= delta
 				if _hit_due < 0.0:
 					if hero_alive and dist <= _hit_reach:
-						hit_player.emit(_hit_dmg)
+						hit_player.emit(_hit_dmg, global_position)
 			elif not hero_alive or dist > close + 1.5:
 				if _atk <= float(def.cd) * 0.5:
 					state = "chase"
