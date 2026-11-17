@@ -1,6 +1,423 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "kh_window",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_window",
+    "--faces",
+    "2500",
+    "--prompt",
+    "an old russian village house window with a carved wooden window frame (nalichnik) painted white and two open wooden shutters painted blue, peeling paint, flat facade element, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_door",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_door",
+    "--faces",
+    "2000",
+    "--prompt",
+    "an old wooden plank house door with a wooden door frame, iron handle and hinges, weathered brown paint, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_porch",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_porch",
+    "--faces",
+    "3500",
+    "--prompt",
+    "a small wooden village house porch with three wooden steps, side railings and a small gabled roof on two posts, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_chimney",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_chimney",
+    "--faces",
+    "1500",
+    "--prompt",
+    "a red brick house chimney with a rusty tin cap, soot stains, roof element, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_gable",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_gable",
+    "--faces",
+    "2000",
+    "--prompt",
+    "a carved wooden gable trim decoration for a village house roof, triangular, old painted wood, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_gate",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_gate",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old wooden village yard gate with two wide leaves and a small wicket door, on wooden posts, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_fence",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_fence",
+    "--faces",
+    "1500",
+    "--prompt",
+    "a section of an old wooden picket fence with two posts, grey weathered boards, some missing, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_bench",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_bench",
+    "--faces",
+    "1500",
+    "--prompt",
+    "an old wooden bench standing by a village house, simple boards on two legs, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_kennel",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_kennel",
+    "--faces",
+    "2000",
+    "--prompt",
+    "an old wooden dog kennel with a gabled roof and a rusty chain, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "kh_scarecrow",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "kh_scarecrow",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a garden scarecrow on a wooden cross with an old coat, hat and straw, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_bench",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_bench",
+    "--faces",
+    "2000",
+    "--prompt",
+    "an old soviet park bench with cast iron legs and wooden slats, peeling green paint, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_lamp",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_lamp",
+    "--faces",
+    "1500",
+    "--prompt",
+    "an old soviet park street lamp on a concrete pole with a round glass shade, cracked, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_statue",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_statue",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a broken soviet plaster statue of a young pioneer saluting on a pedestal, cracked and stained white plaster, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_wheelchair",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_wheelchair",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old rusty hospital wheelchair from the soviet era, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_medcab",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_medcab",
+    "--faces",
+    "2500",
+    "--prompt",
+    "an old white metal medical cabinet with glass doors, medicine bottles inside, soviet hospital, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_piano",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_piano",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old upright piano with chipped dark brown lacquer, soviet sanatorium club, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_table",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_table",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a soviet canteen dining table with four metal chairs, worn tabletop, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "sn_urn",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "sn_urn",
+    "--faces",
+    "1500",
+    "--prompt",
+    "a concrete flower vase urn on a pedestal from a soviet park, cracked, dry weeds, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cs_trough",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cs_trough",
+    "--faces",
+    "2000",
+    "--prompt",
+    "a long old concrete and wood cattle feeding trough with some hay, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cs_milktank",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cs_milktank",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old stainless steel milk cooling tank on legs from a soviet dairy farm, dented, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cs_hayrack",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cs_hayrack",
+    "--faces",
+    "2500",
+    "--prompt",
+    "an old wooden hay rack feeder with hay for cows, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cs_barrow",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cs_barrow",
+    "--faces",
+    "1500",
+    "--prompt",
+    "an old rusty metal wheelbarrow with dirt, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cs_water",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cs_water",
+    "--faces",
+    "1500",
+    "--prompt",
+    "an old rusty metal water trough tank for cattle on a farm, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cs_bale",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cs_bale",
+    "--faces",
+    "1500",
+    "--prompt",
+    "a stack of three old rectangular hay bales tied with twine, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cv_sandbags",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cv_sandbags",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a curved low wall of military sandbags, two rows, worn, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cv_hedgehog",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cv_hedgehog",
+    "--faces",
+    "1500",
+    "--prompt",
+    "a rusty steel anti-tank hedgehog obstacle made of welded beams, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cv_radio",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cv_radio",
+    "--faces",
+    "2500",
+    "--prompt",
+    "an old soviet military field radio station in a green metal case with a whip antenna and a handset, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cv_jerrycans",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cv_jerrycans",
+    "--faces",
+    "2000",
+    "--prompt",
+    "a group of four old military metal jerry cans, green and rusty, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "cv_stretcher",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "cv_stretcher",
+    "--faces",
+    "1500",
+    "--prompt",
+    "a military field stretcher with a green canvas, lying on the ground, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "hm_generator",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "hm_generator",
+    "--faces",
+    "3000",
+    "--prompt",
+    "an old diesel power generator on a steel frame with a fuel tank, oil stains, post-apocalyptic, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "hm_rack",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "hm_rack",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a wooden weapon rack with empty slots for rifles, post-apocalyptic shelter, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "hm_raintank",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "hm_raintank",
+    "--faces",
+    "1500",
+    "--prompt",
+    "an old rusty metal rain water barrel with a wooden lid and a tap, realistic, weathered, single object on empty background, game asset"
+   ],
+   "timeout": 2400
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
