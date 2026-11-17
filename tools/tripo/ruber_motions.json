@@ -1,5 +1,5 @@
 {
- "_": "Свои движения Рубера для Tripo (движение по тексту, 20 кредитов за штуку): метка клипа, секунд, описание. Метки — те же, что у остальных врагов (data/anim_enemy.json игры); чего здесь нет (повороты, попадание сзади, падения вперёд и набок) — берётся из набора лоторейщика.",
+ "_": "Свои движения Рубера для Tripo (движение по тексту, 20 кредитов за штуку): метка клипа, секунд, описание. Метки — те же, что у остальных врагов (data/anim_enemy.json игры). Первые десять — 17.11 (основной набор); следующие шесть — 17.11, после проверки движений: падения вперёд и набок, попадание сзади и боевая стойка были взяты у лоторейщика и на этом скелете смотрелись плохо, плюс новая атака — вырвать камень из земли и бросить (z_rock_rip, z_rock_throw).",
  "motions": [
   {
    "tag": "z_idle",
@@ -50,6 +50,36 @@
    "tag": "z_death_back",
    "seconds": 4,
    "prompt": "a huge heavy brute is struck in the chest, stumbles one step back, its knees buckle and it collapses heavily onto its back with arms falling to the sides, then lies still"
+  },
+  {
+   "tag": "z_rock_rip",
+   "seconds": 4,
+   "prompt": "a huge brute bends down and squats low, drives both hands into the ground in front of its feet, strains hard and tears a heavy boulder out of the ground, then stands up lifting the heavy boulder with both hands high above its head and holds it there"
+  },
+  {
+   "tag": "z_rock_throw",
+   "seconds": 2,
+   "prompt": "a huge brute holding a heavy boulder above its head with both hands leans back, then steps forward and hurls the boulder far forward with both arms in a powerful overhead throw, arms following through downward, then straightens up"
+  },
+  {
+   "tag": "z_death_front",
+   "seconds": 4,
+   "prompt": "a huge heavy brute is struck in the back, stumbles one step forward, its knees buckle and it collapses heavily face down onto its chest with arms falling forward, then lies still on its stomach"
+  },
+  {
+   "tag": "z_death_side",
+   "seconds": 4,
+   "prompt": "a huge heavy brute is struck hard on its left side, staggers one step sideways to the right, its legs give way and it falls heavily onto its right side, rolls onto its back and lies still"
+  },
+  {
+   "tag": "z_hit_back",
+   "seconds": 2,
+   "prompt": "a huge brute standing is hit in the back, its torso jerks forward and it stumbles half a step forward with shoulders hunched, then straightens up angrily"
+  },
+  {
+   "tag": "z_menace",
+   "seconds": 3,
+   "prompt": "a huge brute standing in a fighting stance with knees bent, leaning forward, both big arms raised in front of its chest ready to strike, swaying slowly from side to side and breathing heavily"
   }
  ]
 }
