@@ -5693,6 +5693,69 @@ func _pc_test() -> void:
 	var a3 := ULBase.routes_tick(now + per + 5)
 	_ok("таймер маршрутов: идёт от сохранённого срока, не сбрасывается при открытии", a1 == per and a2 == per - 100, "%d, %d (период %d)" % [a1, a2, per])
 	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed", "sanatorium", "convoy"])
+	# --- три разные локации, сброс каждые 2 часа ---
+	var offs: Array = ULBase.offers()
+	var uniq := {}
+	for o in offs:
+		uniq[o] = true
+	_ok("в компьютере сразу 3 локации, все разные: %s; сброс — каждые %d ч" % [", ".join(offs), per / 3600], offs.size() == 3 and uniq.size() == 3 and ULBase.route_slots() == 3 and per == 2 * 3600)
+	var listed_cards := 0
+	for o in offs:
+		if pc.find_child("route_" + String(o), true, false) != null:
+			listed_cards += 1
+	_ok("на экране — три карточки маршрутов, по одной на локацию", listed_cards == 3)
+	# пул больше мест: 6 локаций — каждый сброс 3 разные, без повторов, новый набор не совпадает с прежним
+	var rts: Dictionary = ULBase.shop().routes
+	for fid in ["t_a", "t_b", "t_c"]:
+		rts[fid] = (rts.cowshed as Dictionary).duplicate(true)
+	rts["t_soon"] = {"n": "скоро", "soon": true, "price": {"spore": 1}}
+	var prev: Array = ULBase.data.offers.duplicate()
+	var bad_roll := 0
+	var whole_repeat := 0
+	var same_as_prev := 0
+	var seen_sets := {}
+	var seen_ids := {}
+	for k in 200:
+		var nx: Array = ULBase._roll_offers(prev)
+		var u2 := {}
+		for o in nx:
+			u2[o] = true
+			seen_ids[o] = true
+		if nx.size() != 3 or u2.size() != 3 or nx.has("t_soon"):
+			bad_roll += 1
+		var rep_n := 0
+		for o in nx:
+			if prev.has(o):
+				rep_n += 1
+		same_as_prev += rep_n
+		if rep_n == nx.size():
+			whole_repeat += 1
+		seen_sets[str(nx)] = true
+		prev = nx
+	_ok("из 6 локаций, 200 сбросов: всегда 3 разные (ошибок %d), «скоро» не попадает, набор целиком не повторялся ни разу (%d), разных наборов %d из 20 возможных, все 6 локаций встречались" % [bad_roll, whole_repeat, seen_sets.size()],
+		bad_roll == 0 and whole_repeat == 0 and seen_sets.size() >= 15 and seen_ids.size() == 6)
+	# купленный маршрут переживает сброс: в новом наборе его нет, но он куплен, на карте и в компьютере
+	ULBase.set_route("convoy", "bought")
+	var nowr := int(Time.get_unix_time_from_system())
+	var no_convoy := false
+	var tries := 0
+	while not no_convoy and tries < 40:
+		ULBase.data.offers = ["cowshed", "sanatorium", "convoy"]
+		ULBase.data.routes_next = nowr - 1                  # срок вышел — сброс при следующем обращении
+		ULBase.routes_tick(nowr)
+		no_convoy = not (ULBase.data.offers as Array).has("convoy")
+		tries += 1
+	_ok("сброс, конвой в новый набор не попал, а маршрут был куплен — он остаётся: куплен, на карте, карточка в компьютере", no_convoy and ULBase.route_state("convoy") == "bought" and ULMap.place_shown("convoy") and ULBase.routes_listed().has("convoy") and ULBase.routes_listed().size() == 4, str(ULBase.routes_listed()))
+	var rb_no := ULBase.buy_route(inv, "t_a" if not (ULBase.data.offers as Array).has("t_a") else "t_b" if not (ULBase.data.offers as Array).has("t_b") else "t_c")
+	_ok("маршрут, которого нет в наборе, не купить", not rb_no.ok and rb_no.err == "none")
+	# сохранение с повтором или с исчезнувшей локацией — набор исправляется сам
+	for fid in ["t_a", "t_b", "t_c", "t_soon"]:
+		rts.erase(fid)
+	ULBase.set_route("convoy", "")
+	ULBase.data.offers = ["cowshed", "cowshed", "t_a"]
+	ULBase.routes_tick(nowr)
+	var fx: Array = ULBase.data.offers
+	_ok("старое сохранение с повтором («коровник» дважды) и исчезнувшей локацией — снова 3 разные: %s" % ", ".join(fx), fx.size() == 3 and fx.has("cowshed") and fx.has("sanatorium") and fx.has("convoy"))
 	_ok("таймер на экране в виде ЧЧ:ММ:СС", ULBase.clock(2 * 3600 + 47 * 60 + 36) == "02:47:36" and (pc.find_child("RouteTimer", true, false) as Label).text.length() == 8)
 	ULBase.data.routes_next = keep_next
 	# --- обмен: логика по всей цепочке ---

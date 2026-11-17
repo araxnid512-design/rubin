@@ -100,7 +100,8 @@ static func buy_upgrade(inv: ULInventory, id: String) -> Dictionary:
 	return {"ok": true, "err": "", "miss": {}}
 
 
-## Купить маршрут. Пока маршрут куплен или идёт посещение — повторно не купить.
+## Купить маршрут — только из тех, что сейчас предлагает компьютер. Пока маршрут куплен или идёт посещение —
+## повторно не купить.
 static func buy_route(inv: ULInventory, id: String) -> Dictionary:
 	load_state()
 	var d: Dictionary = shop().get("routes", {}).get(id, {})
@@ -118,14 +119,59 @@ static func buy_route(inv: ULInventory, id: String) -> Dictionary:
 # ---------------- новые маршруты по времени ----------------
 
 static func refresh_period() -> int:
-	return maxi(int(float(shop().get("route_refresh_h", 3)) * 3600.0), 60)
+	return maxi(int(float(shop().get("route_refresh_h", 2)) * 3600.0), 60)
 
 
-## маршруты, что сейчас предлагает компьютер: пока есть только «Опасный коровник» — он и остаётся
-static func _roll_offers() -> Array:
+## сколько разных локаций предлагает компьютер (route_slots в data/base_shop.json)
+static func route_slots() -> int:
+	return maxi(int(shop().get("route_slots", 3)), 1)
+
+
+## все готовые локации (без «скоро»), в порядке data/base_shop.json
+static func route_pool() -> Array:
 	var out := []
 	for id in shop().get("routes", {}):
 		if not shop().routes[id].get("soon", false):
+			out.append(String(id))
+	return out
+
+
+## Новый набор предложений: route_slots разных локаций, случайно из всех готовых — без повторов. Если локаций
+## больше, чем мест, набор не повторяет прошлый целиком: хотя бы одна локация — новая. Порядок карточек — как в
+## data/base_shop.json.
+static func _roll_offers(prev: Array = []) -> Array:
+	var pool := route_pool()
+	var n := mini(route_slots(), pool.size())
+	var sh := pool.duplicate()
+	sh.shuffle()
+	var pick := sh.slice(0, n)
+	var fresh := pool.filter(func(x): return not prev.has(x))
+	if pool.size() > n and not fresh.is_empty() and pick.all(func(x): return prev.has(x)):
+		pick[randi() % pick.size()] = fresh[randi() % fresh.size()]
+	return pool.filter(func(x): return pick.has(x))
+
+
+## набор в порядке: без повторов и без локаций, которых больше нет; не хватает до route_slots (добавили локацию
+## обновлением игры) — дополняется сразу, не дожидаясь таймера
+static func _fix_offers(cur: Array) -> Array:
+	var pool := route_pool()
+	var out := []
+	for id in cur:
+		if pool.has(String(id)) and not out.has(String(id)):
+			out.append(String(id))
+	out = out.slice(0, mini(route_slots(), pool.size()))
+	if out.size() < mini(route_slots(), pool.size()):
+		var add := pool.filter(func(x): return not out.has(x))
+		add.shuffle()
+		out.append_array(add.slice(0, mini(route_slots(), pool.size()) - out.size()))
+	return pool.filter(func(x): return out.has(x))
+
+
+## что показывать в компьютере: предложения и купленные, но ещё не пройденные маршруты (они переживают обновление)
+static func routes_listed() -> Array:
+	var out := offers().duplicate()
+	for id in data.routes:
+		if not out.has(String(id)) and shop().get("routes", {}).has(String(id)):
 			out.append(String(id))
 	return out
 
@@ -151,18 +197,15 @@ static func routes_tick(now := -1) -> int:
 		data.offers = _roll_offers()
 		dirty = true
 	elif now >= nxt:
+		# сброс: новый набор локаций (купленные и не пройденные маршруты остаются — см. routes_listed)
 		nxt += ((now - nxt) / per + 1) * per
-		data.offers = _roll_offers()
+		data.offers = _roll_offers(data.offers)
 		data.refreshes = int(data.get("refreshes", 0)) + 1
 		dirty = true
-	if (data.offers as Array).is_empty():
-		data.offers = _roll_offers()
+	var fixed := _fix_offers(data.offers)
+	if fixed != data.offers:
+		data.offers = fixed
 		dirty = true
-	# маршрут, добавленный обновлением игры, виден сразу — не ждёт таймера
-	for id in _roll_offers():
-		if not (data.offers as Array).has(id):
-			(data.offers as Array).append(id)
-			dirty = true
 	if dirty:
 		data.routes_next = nxt
 		save_state()

@@ -483,26 +483,30 @@ func _build_routes() -> void:
 	tv.add_child(_timer_lbl)
 	var routes: Dictionary = ULBase.shop().get("routes", {})
 	var n := 0
-	for id in ULBase.offers():
+	var listed := ULBase.routes_listed()
+	for id in listed:
 		if routes.has(id):
-			_right_box.add_child(_route_card(String(id), routes[id], ULBase.offers().size() > 1))
+			_right_box.add_child(_route_card(String(id), routes[id], listed.size() > 1, listed.size() >= 3))
 			n += 1
 	if n < 2:
 		_right_box.add_child(_soon("Другие локации будут добавлены позже.", ""))
 
 
-## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете)
-func _route_card(id: String, d: Dictionary, compact := false) -> Control:
+## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете); dense — три и больше:
+## без описания (оно — на карте мира), цена и кнопка — в столбце текста, все три карточки видны без прокрутки
+func _route_card(id: String, d: Dictionary, compact := false, dense := false) -> Control:
 	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
+	if dense:
+		card.add_theme_stylebox_override("panel", _sb(C_CARD, C_LINE, 1, 6, 5))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	card.add_child(v)
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 10)
+	h.add_theme_constant_override("separation", 8 if dense else 10)
 	v.add_child(h)
-	h.add_child(_pic(String(d.get("pic", "")), Vector2(170, 100) if compact else Vector2(182, 138)))
+	h.add_child(_pic(String(d.get("pic", "")), Vector2(118, 74) if dense else (Vector2(170, 100) if compact else Vector2(182, 138))))
 	var tv := VBoxContainer.new()
 	tv.size_flags_horizontal = SIZE_EXPAND_FILL
 	tv.add_theme_constant_override("separation", 0 if compact else 2)
@@ -512,20 +516,25 @@ func _route_card(id: String, d: Dictionary, compact := false) -> Control:
 	tv.add_child(th)
 	if d.has("icon"):
 		th.add_child(_ico(String(d.icon), 28))
-	th.add_child(_lbl(String(d.n), 17 if compact else 19, Color(0.97, 0.97, 0.94), true))
-	var dl := _lbl(String(d.d), 10 if compact else 11, C_TEXT, false, true)
-	dl.add_theme_constant_override("line_spacing", -2 if compact else -1)
-	tv.add_child(dl)
+	if d.has("icon"):
+		(th.get_child(0) as Control).custom_minimum_size = Vector2.ONE * (20 if dense else 28)
+	th.add_child(_lbl(String(d.n), 15 if dense else (17 if compact else 19), Color(0.97, 0.97, 0.94), true))
+	if not dense:
+		var dl := _lbl(String(d.d), 10 if compact else 11, C_TEXT, false, true)
+		dl.add_theme_constant_override("line_spacing", -2 if compact else -1)
+		tv.add_child(dl)
 	var size := int(cs.get("size", 150))
 	var stats := [["st_size", "Размер: %d × %d м" % [size, size]], ["st_time", "Время на локации: %d мин" % int(d.get("minutes", 10))]]
+	if dense:
+		stats = [["st_size", "%d × %d м" % [size, size]], ["st_time", "%d мин" % int(d.get("minutes", 10))]]
 	if cs.has("pustysh"):
-		stats.append(["st_skull", "Пустыши: %d – %d (случайно)" % [int(cs.pustysh[0]), int(cs.pustysh[1])]])
-		stats.append(["st_claw", "Лоторейщики: %d – %d (случайно)" % [int(cs.lottery[0]), int(cs.lottery[1])]])
+		stats.append(["st_skull", ("Пустыши %d–%d" if dense else "Пустыши: %d – %d (случайно)") % [int(cs.pustysh[0]), int(cs.pustysh[1])]])
+		stats.append(["st_claw", ("Лоторейщики %d–%d" if dense else "Лоторейщики: %d – %d (случайно)") % [int(cs.lottery[0]), int(cs.lottery[1])]])
 	if cs.has("ruber_chances"):
 		var rmax := (cs.ruber_chances as Array).size() - 1
-		stats.append(["st_skull", "Руберы: 0 – %d (%s)" % [rmax, "шанс" if rmax == 1 else "случайно"]])
+		stats.append(["st_skull", ("Руберы 0–%d" if dense else "Руберы: 0 – %d (%s)") % ([rmax] if dense else [rmax, "шанс" if rmax == 1 else "случайно"])])
 	var grid := GridContainer.new()
-	grid.columns = 2 if compact else 1
+	grid.columns = 3 if dense else (2 if compact else 1)
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 0)
 	tv.add_child(grid)
@@ -538,29 +547,31 @@ func _route_card(id: String, d: Dictionary, compact := false) -> Control:
 	var mv := VBoxContainer.new()
 	mv.add_theme_constant_override("separation", 2)
 	h.add_child(mv)
-	var ml := _lbl("Карта пути", 12, C_TEXT)
+	var ml := _lbl("Карта пути", 10 if dense else 12, C_TEXT)
 	ml.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mv.add_child(ml)
-	mv.add_child(_pic(String(d.get("route_pic", "")), Vector2(96, 78) if compact else Vector2(100, 100)))
+	mv.add_child(_pic(String(d.get("route_pic", "")), Vector2(70, 58) if dense else (Vector2(96, 78) if compact else Vector2(100, 100))))
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	v.add_child(row)
+	row.add_theme_constant_override("separation", 6 if dense else 10)
+	(tv if dense else v).add_child(row)
 	var st := ULBase.route_state(id)
 	if st == "":
-		row.add_child(_lbl("Стоимость маршрута:", 14, C_TEXT, true))
+		if not dense:
+			row.add_child(_lbl("Стоимость маршрута:", 14, C_TEXT, true))
 		var pc := _card(C_PANEL)
-		pc.add_child(_price_row(d.price, 15, 24.0))
+		pc.add_child(_price_row(d.price, 13 if dense else 15, 18.0 if dense else 24.0))
 		row.add_child(pc)
 		var sp := Control.new()
 		sp.size_flags_horizontal = SIZE_EXPAND_FILL
 		row.add_child(sp)
 	else:
-		var nl := _lbl("Маршрут открыт: «%s» на глобальной карте — %s." % [String(d.n), String(d.get("where", "рядом с домашним стабом"))] if st == "bought" else "Вы сейчас на этой локации.", 12, C_GLOW, false, true)
+		var nl := _lbl(("Открыт: на карте — %s." % String(d.get("where", "рядом с домашним стабом")) if dense else "Маршрут открыт: «%s» на глобальной карте — %s." % [String(d.n), String(d.get("where", "рядом с домашним стабом"))]) if st == "bought" else "Вы сейчас на этой локации.", 10 if dense else 12, C_GLOW, false, true)
 		nl.name = "note"
+		nl.size_flags_horizontal = SIZE_EXPAND_FILL
 		row.add_child(nl)
 	var b: Button
-	var bs := Vector2(214, 36) if compact else Vector2(230, 42)
-	var bf := 15 if compact else 16
+	var bs := Vector2(170, 28) if dense else (Vector2(214, 36) if compact else Vector2(230, 42))
+	var bf := 13 if dense else (15 if compact else 16)
 	match st:
 		"bought":
 			b = _btn("МАРШРУТ КУПЛЕН", "", "gray", func() -> void: pass, bs, bf)
