@@ -237,6 +237,83 @@
     "a huge mutant brute is hit in the chest, staggers back one step with a grunt and recovers its stance"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "mr_mur_ak",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "mur_ak",
+    "--faces",
+    "14000",
+    "--prompt",
+    "a realistic adult male bandit, about 180 cm tall, medium strong athletic build, dirty olive military jacket, black tactical load-bearing vest with rifle magazine pouches, dark cargo trousers, worn military boots, black tactical gloves, black balaclava covering the face, standing straight in a T-pose with arms stretched out to the sides, full body, empty hands, no weapon, game character",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "mr_mur_sg",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "mur_sg",
+    "--faces",
+    "14000",
+    "--prompt",
+    "a realistic large heavy-set male bandit, about 185 cm tall, stocky powerful build, old worn grey body armor vest over a dark jacket, dark tactical trousers, heavy boots, belt with shotgun shell pouches, knit cap, unshaven face, standing straight in a T-pose with arms stretched out to the sides, full body, empty hands, no weapon, game character",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "mr_mur_boss",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "mur_boss",
+    "--faces",
+    "14000",
+    "--prompt",
+    "a realistic bandit gang leader, man about 50 years old, about 190 cm tall, big strong build, stern scarred face, short dark beard with grey, short hair, dark tactical clothing, high quality black plate carrier vest with pouches, pistol holster on the right thigh, army boots, standing straight in a T-pose with arms stretched out to the sides, full body, empty hands, no weapon, game character",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "mr_w_ak47",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "w_ak47",
+    "--faces",
+    "6000",
+    "--prompt",
+    "an AK-47 assault rifle with wooden stock, wooden handguard and curved steel magazine, worn blued metal, realistic, single object lying flat, side view, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "mr_w_deagle",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "w_deagle",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a Desert Eagle .50 caliber semi-automatic pistol, black steel, large triangular barrel, realistic, single object lying flat, side view, game asset"
+   ],
+   "timeout": 2400
   }
  ],
  "archived": [
