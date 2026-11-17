@@ -185,8 +185,8 @@ func _ready() -> void:
 		house.name = "House"
 		add_child(house)
 		house.position = HOUSE_AT
-		house.build(MODELS + "ul_house.glb", TEX + "weathered_brown_planks", TEX + "brown_planks_03")
-		_fit_shell()
+		# база — бункер: снаружи бетон с земляной насыпью (ULHouse._bunker_shell), внутри — серый бетон
+		house.build("", TEX + "worn_plaster_wall", TEX + "damaged_concrete_floor", true)
 		_terminal_build()
 		_armory()
 		_yard()
@@ -1279,8 +1279,8 @@ func _ground() -> void:
 	# по глубине и не считаются (раньше их трипланарная закраска шла на каждой точке экрана впустую)
 	for pl in [_plane(Vector2(SIZE + 3.0, SIZE + 3.0), Vector3(0, -0.02, 0), "rocky_gravel", 1.5, Color(0.5, 0.48, 0.44)),
 			_plane(Vector2(420, 420), Vector3(0, -0.05, 0), "dry_ground_01", 4.0, Color(0.5, 0.47, 0.42))]:
-		var pm: StandardMaterial3D = (pl as MeshInstance3D).material_override
-		pm.render_priority = 2
+		var plm: StandardMaterial3D = (pl as MeshInstance3D).material_override
+		plm.render_priority = 2
 		(pl as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var sb := StaticBody3D.new()
 	add_child(sb)
@@ -1474,8 +1474,8 @@ func _rel(m: Node3D, root: Node3D) -> Transform3D:
 	return xf
 
 
-## Двор: забор-штакетник на столбах с калиткой спереди, поленница у левой стены дома, колода для колки дров,
-## камни. Всё — своя геометрия с текстурами досок и коры; у забора и поленницы есть столкновения.
+## Двор (без забора — база-бункер стоит в поле): поленница у левой стены, колода для колки дров, бочки,
+## покрышки, камни. Всё — своя геометрия с текстурами досок и коры; у поленницы есть столкновение.
 ## База: дизельный генератор у западной стены дома, оружейная стойка у восточной, бочка для дождевой воды на
 ## углу у крыльца — модели Tripo, со столкновением и пятном-тенью.
 func _base_props() -> void:
@@ -1513,90 +1513,17 @@ func _base_props() -> void:
 
 
 func _yard() -> void:
-	var planks := ULHouse._mat(TEX + "old_planks_02", 1.25)
-	planks.albedo_color = Color(0.92, 0.9, 0.86)
-	planks.vertex_color_use_as_albedo = true
 	var bark := ULHouse._mat(TEX + "bark_brown_02", 0.8)
 	var body := StaticBody3D.new()
 	body.name = "Yard"
 	add_child(body)
 	var x0: float = HOUSE_AT.x + YARD[0]
 	var z0: float = HOUSE_AT.z + YARD[1]
-	var x1: float = HOUSE_AT.x + YARD[2]
 	var z1: float = HOUSE_AT.z + YARD[3]
 	var gx := HOUSE_AT.x
-	# стороны: [начало, конец]; спереди — две части с калиткой посередине
-	var sides := [
-		[Vector2(x0, z0), Vector2(x1, z0)], [Vector2(x0, z0), Vector2(x0, z1)], [Vector2(x1, z0), Vector2(x1, z1)],
-		[Vector2(x0, z1), Vector2(gx - GATE * 0.5, z1)], [Vector2(gx + GATE * 0.5, z1), Vector2(x1, z1)],
-	]
-	# сплошной забор из серых досок: доски разной высоты, две жерди, столбы выше досок, по верху — колючая проволока
-	var pickets: Array[Transform3D] = []
-	var cols: Array[Color] = []
-	var posts: Array[Transform3D] = []
-	var rails: Array[Transform3D] = []
-	var wires: Array[Transform3D] = []
-	var barbs: Array[Transform3D] = []
+	# забора нет (база — бункер в поле); бочки, покрышки и поленница остались на прежних местах
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 33
-	for sd in sides:
-		var a: Vector2 = sd[0]
-		var b: Vector2 = sd[1]
-		var L := a.distance_to(b)
-		var dir := (b - a) / L
-		var yaw := -atan2(dir.y, dir.x)
-		var B := Basis(Vector3.UP, yaw)
-		var n := int(L / 0.155)
-		for i in n:
-			var t := (i + 0.5) / n * L
-			var p := a + dir * t
-			var h := rng.randf_range(1.5, 1.82)
-			pickets.append(Transform3D(Basis(Vector3(dir.x, 0, dir.y), rng.randf_range(-0.025, 0.025)) * B * Basis.from_scale(Vector3(rng.randf_range(0.92, 1.04), h, 1)), Vector3(p.x, h * 0.5, p.y)))
-			var g := rng.randf_range(0.72, 1.08)
-			cols.append(Color(g, g * rng.randf_range(0.96, 1.0), g * rng.randf_range(0.9, 0.98)))
-		var np := int(ceil(L / 2.6))
-		var tops: Array[Vector3] = []
-		for i in np + 1:
-			var p := a + dir * (L * i / np)
-			posts.append(Transform3D(B * Basis(Vector3(dir.x, 0, dir.y), rng.randf_range(-0.03, 0.03)), Vector3(p.x, 1.1, p.y)))
-			tops.append(Vector3(p.x, 0, p.y))
-		for y in [0.42, 1.32]:
-			var m := (a + b) * 0.5
-			rails.append(Transform3D(B * Basis.from_scale(Vector3(L, 1, 1)), Vector3(m.x, y, m.y)))
-		# проволока: две нити между столбами, провисает посередине
-		for i in np:
-			for wy in [1.98, 2.16]:
-				var y: float = wy
-				var parts := 4
-				for k in parts:
-					var t0 := float(k) / parts
-					var t1 := float(k + 1) / parts
-					var p0 := tops[i].lerp(tops[i + 1], t0) + Vector3.UP * (y - 0.07 * sin(t0 * PI))
-					var p1 := tops[i].lerp(tops[i + 1], t1) + Vector3.UP * (y - 0.07 * sin(t1 * PI))
-					var d := p1 - p0
-					var wb := Basis.looking_at(d.normalized(), Vector3.UP) * Basis.from_scale(Vector3(1, 1, d.length()))
-					wires.append(Transform3D(wb, (p0 + p1) * 0.5))
-					for j in 2:
-						var bp := p0.lerp(p1, (j + rng.randf_range(0.2, 0.8)) / 2.0)
-						barbs.append(Transform3D(Basis(Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized(), rng.randf() * TAU), bp))
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = Vector3(L, 1.9, 0.14)
-		cs.shape = bs
-		cs.transform = Transform3D(B, Vector3((a.x + b.x) * 0.5, 0.95, (a.y + b.y) * 0.5))
-		body.add_child(cs)
-	_multi(pickets, _box(Vector3(0.145, 1.0, 0.024)), planks, cols)
-	var post_mat: StandardMaterial3D = planks.duplicate()
-	post_mat.albedo_color = Color(0.5, 0.46, 0.42)
-	post_mat.vertex_color_use_as_albedo = false
-	_multi(posts, _box(Vector3(0.15, 2.2, 0.15)), post_mat)
-	_multi(rails, _box(Vector3(1.0, 0.09, 0.045)), post_mat)
-	var wire := StandardMaterial3D.new()
-	wire.albedo_color = Color(0.2, 0.19, 0.18)
-	wire.metallic = 0.6
-	wire.roughness = 0.6
-	_multi(wires, _box(Vector3(0.014, 0.014, 1.0)), wire)
-	_multi(barbs, _box(Vector3(0.012, 0.07, 0.012)), wire)
 	# у забора справа от калитки: бочка и покрышка
 	_prop("ph_barrel", Vector3(gx + 4.6, 0, z1 + 0.6), 0.4, 1.0, body, 0.33)
 	_prop("ph_barrel", Vector3(x0 + 1.0, 0, z0 + 1.1), 2.1, 1.0, body, 0.33)
@@ -2263,9 +2190,6 @@ func _process(delta: float) -> void:
 	prof_parts["зона"] = int(prof_parts.get("зона", 0)) + Time.get_ticks_usec() - _pz
 	if _hud:
 		_hud.queue_redraw()
-	if house != null:
-		for lb in house.labels:
-			lb.basis = Basis(Vector3.UP, CAM_YAW) * Basis(Vector3.RIGHT, -PI * 0.5)
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		_toast.modulate.a = clampf(_toast_t, 0.0, 1.0)
@@ -6666,7 +6590,7 @@ func _pc_test() -> void:
 	_ok("барахольщику проданы 7 кучек → 7 споранов", inv.count("junk") == 0 and int(inv.wallet.get("spore", 0)) == 7, str(inv.wallet))
 	_ok("без хлама продавать нечего", not sell_junk() and int(inv.wallet.get("spore", 0)) == 7)
 	inv.wallet = {}
-	_ok("до покупки комната пустая и называется «Кладовая»", _armory_root == null and house.labels[2].text == "Кладовая")
+	_ok("до покупки комната пустая, подписей комнат на полу нет (база — бункер)", _armory_root == null and house.labels.is_empty())
 	_ok("компьютер — в сенях у правой стены", _terminal != null and house.room_at(house.to_global(TERMINAL_AT)) == "Сени", str(house.room_at(house.to_global(TERMINAL_AT))))
 	if out != "":
 		# снимок: пустая кладовая и компьютер в сенях до покупки оружейника
@@ -6718,7 +6642,7 @@ func _pc_test() -> void:
 	pc.dialog_confirm()                     # второе нажатие — окна уже нет
 	_ok("оружейник куплен один раз: горох 42 → 12, спораны 130 → 80", int(inv.wallet.pea) == 12 and int(inv.wallet.spore) == 80, str(inv.wallet))
 	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") != null and npcs.size() == 2 and npc_by_role("оружейник").global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
-	_ok("после покупки в кладовой появилась вся оружейная (прилавок, шкафы, оружие), подпись «Оружейная»", _armory_root != null and _armory_root.get_child_count() > 10 and house.labels[2].text == "Оружейная")
+	_ok("после покупки в кладовой появилась вся оружейная (прилавок, шкафы, оружие)", _armory_root != null and _armory_root.get_child_count() > 10)
 	var gb := pc.find_child("up_gunsmith", true, false).find_child("buy", true, false) as Button
 	_ok("кнопка сменилась на «УСТАНОВЛЕНО»", gb != null and gb.text == "УСТАНОВЛЕНО" and gb.disabled)
 	var r1 := ULBase.buy_upgrade(inv, "gunsmith")
@@ -6781,6 +6705,33 @@ func _pc_test() -> void:
 		if pc.find_child("route_" + String(o), true, false) != null:
 			listed_cards += 1
 	_ok("на экране — три карточки маршрутов, по одной на локацию", listed_cards == 3)
+	# прокрутка пальцем: настоящие касания (нажать на список, протянуть вверх, отпустить)
+	var rsc: ScrollContainer = pc.find_child("Scroll_routes", true, false)
+	await get_tree().process_frame
+	var vbar := rsc.get_v_scroll_bar() if rsc else null
+	var can_scroll := vbar != null and vbar.max_value - vbar.page > 4.0
+	var p0: Vector2 = rsc.get_global_rect().get_center() if rsc else Vector2.ZERO
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	ev.position = p0
+	Input.parse_input_event(ev)
+	for k in 6:
+		var mv := InputEventMouseMotion.new()
+		mv.button_mask = MOUSE_BUTTON_MASK_LEFT
+		mv.position = p0 + Vector2(0, -20.0 * (k + 1))
+		mv.relative = Vector2(0, -20)
+		Input.parse_input_event(mv)
+		await get_tree().process_frame
+	var ev2 := ev.duplicate() as InputEventMouseButton
+	ev2.pressed = false
+	ev2.position = p0 + Vector2(0, -120)
+	Input.parse_input_event(ev2)
+	await get_tree().process_frame
+	_ok("компьютер крупнее (в 1,3 раза) и список маршрутов тянется пальцем: %s" % ("прокрутился на %d" % rsc.scroll_vertical if can_scroll else "всё влезает — прокручивать нечего"),
+		ULBasePC.K >= 1.3 and rsc != null and pc.drag_moved and (not can_scroll or rsc.scroll_vertical > 30), "двигался: %s" % str(pc.drag_moved))
+	rsc.scroll_vertical = 0
+	pc.drag_moved = false
 	# пул больше мест: 4 локации и ещё 3 для проверки — каждый сброс 3 разные, без повторов, набор не повторяется
 	var rts: Dictionary = ULBase.shop().routes
 	for fid in ["t_a", "t_b", "t_c"]:

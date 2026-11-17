@@ -42,7 +42,7 @@ var inside := false
 var labels: Array[Label3D] = []
 
 
-func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
+func build(shell_path: String, wall_tex: String, floor_tex: String, bunker := false) -> void:
 	inner = Node3D.new()
 	inner.name = "Inner"
 	add_child(inner)
@@ -63,7 +63,7 @@ func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
 		wall_mat.set_shader_parameter("normal_tex", load(wall_tex + "_n.jpg"))
 		wall_mat.set_shader_parameter("has_normal", true)
 	wall_mat.set_shader_parameter("scale", 1.6)
-	wall_mat.set_shader_parameter("tint", Color(0.95, 0.88, 0.8))
+	wall_mat.set_shader_parameter("tint", Color(0.82, 0.83, 0.82) if bunker else Color(0.95, 0.88, 0.8))   # бункер — серый бетон
 	wall_mat.set_shader_parameter("grime", 0.85)
 	wall_mat.set_shader_parameter("rough", 0.9)
 	var floor_mat := ShaderMaterial.new()
@@ -74,7 +74,7 @@ func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
 		floor_mat.set_shader_parameter("normal_tex", load(floor_tex + "_n.jpg"))
 		floor_mat.set_shader_parameter("has_normal", true)
 	floor_mat.set_shader_parameter("scale", 2.0)
-	floor_mat.set_shader_parameter("tint", Color(0.8, 0.74, 0.66))          # доски пола — темнее, иначе сверху почти белые
+	floor_mat.set_shader_parameter("tint", Color(0.92, 0.9, 0.86) if bunker else Color(0.8, 0.74, 0.66))    # доски пола — темнее, иначе сверху почти белые
 	floor_mat.set_shader_parameter("grime", 0.6)
 	floor_mat.set_shader_parameter("albedo2", load("res://assets/world/tex/dirt_c.jpg"))
 	floor_mat.set_shader_parameter("has_second", true)
@@ -118,23 +118,230 @@ func build(shell_path: String, wall_tex: String, floor_tex: String) -> void:
 			_wall_piece(body, a, dir, p0, p1, th, 0.0, H, wall_mat)
 		for g in gaps:
 			_wall_piece(body, a, dir, float(g[0]), float(g[1]), th, DOOR_H, H, wall_mat)  # над дверью
-	for r in ROOMS:
-		var lb := Label3D.new()
-		lb.text = r[0]
-		lb.font_size = 72
-		lb.pixel_size = 0.004
-		lb.modulate = Color(1, 1, 1, 0.55)
-		lb.outline_size = 8
-		lb.rotation_degrees = Vector3(-90, 0, 0)
-		var lp: Vector2 = r[2] if r.size() > 2 else r[1]             # надпись — там, где пол свободен
-		lb.position = Vector3(lp.x, FLOOR_Y + 0.045, lp.y)
-		inner.add_child(lb)
-		labels.append(lb)
-	if ResourceLoader.exists(shell_path):
+	# подписей комнат на полу нет (база — бункер; комнаты узнаются по обстановке)
+	if bunker:
+		shell = _bunker_shell(noise)
+	elif ResourceLoader.exists(shell_path):
 		shell = (load(shell_path) as PackedScene).instantiate()
 		shell.name = "Shell"
 		add_child(shell)
 	set_inside(false)
+
+
+## Бункер (вид снаружи; когда герой внутри — скрыт, видны комнаты сверху): толстые стены из старого бетона,
+## перекрытие с земляной насыпью и дёрном, по краю крыши — мешки с песком, к задней стене — земляной вал,
+## вход — бетонный портал с открытой стальной гермодверью и коридор из мешков, на крыше — вентиляция, люк, антенна.
+## Всё — своя геометрия с материалами построек (ULBlock: бетон, земля, металл, мешковина); столкновения — у вала
+## и мешков у входа (стены дома — свои, ULHouse.WALLS).
+const B_WALL_H := 2.7
+const B_T := 0.45                 ## толщина бетона снаружи (наружу от линии стен)
+
+
+func _bunker_shell(noise: Texture2D) -> Node3D:
+	ULBlock.make_materials(noise)
+	var M: Dictionary = ULBlock.mats
+	var root := Node3D.new()
+	root.name = "Shell"
+	add_child(root)
+	var hw := W * 0.5
+	var hd := D * 0.5
+	var conc: Material = M["plinth"]
+	# стены: фасад — с проёмом под портал
+	var dw := 1.5                                              # ширина проёма в бетоне снаружи
+	_bx(root, Vector3(W + B_T * 2.0, B_WALL_H, B_T), Vector3(0, B_WALL_H * 0.5, -hd - B_T * 0.5 + 0.11), conc)
+	_bx(root, Vector3(B_T, B_WALL_H, D + B_T * 2.0), Vector3(-hw - B_T * 0.5 + 0.11, B_WALL_H * 0.5, 0), conc)
+	_bx(root, Vector3(B_T, B_WALL_H, D + B_T * 2.0), Vector3(hw + B_T * 0.5 - 0.11, B_WALL_H * 0.5, 0), conc)
+	var fw := (W + B_T * 2.0 - dw) * 0.5
+	for sx in [-1.0, 1.0]:
+		_bx(root, Vector3(fw, B_WALL_H, B_T), Vector3(sx * (dw * 0.5 + fw * 0.5), B_WALL_H * 0.5, hd + B_T * 0.5 - 0.11), conc)
+	_bx(root, Vector3(dw, B_WALL_H - 2.2, B_T), Vector3(0, 2.2 + (B_WALL_H - 2.2) * 0.5, hd + B_T * 0.5 - 0.11), conc)
+	# перекрытие (плита со свесом) и земляная насыпь с дёрном поверх — сверху бункер читается холмом
+	_bx(root, Vector3(W + B_T * 2.0 + 0.3, 0.35, D + B_T * 2.0 + 0.3), Vector3(0, B_WALL_H + 0.175, 0), M["slab"])
+	var mound := _frustum(Vector2(W + B_T * 2.0, D + B_T * 2.0), Vector2(W - 1.6, D - 1.8), 0.55)
+	var mm := MeshInstance3D.new()
+	mm.mesh = mound
+	mm.material_override = M["earth"]
+	mm.position.y = B_WALL_H + 0.35
+	root.add_child(mm)
+	# портал входа: два бетонных пилона и перемычка, выступают вперёд; гермодверь открыта к стене
+	for sx in [-1.0, 1.0]:
+		_bx(root, Vector3(0.4, 2.55, 0.9), Vector3(sx * (dw * 0.5 + 0.2), 1.275, hd + 0.5), M["slab"])
+	_bx(root, Vector3(dw + 0.8, 0.45, 0.9), Vector3(0, 2.55 + 0.225, hd + 0.5), M["slab"])
+	var door := _bx(root, Vector3(1.05, 2.05, 0.1), Vector3(0, 1.04, 0), M["armygreen"])
+	door.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-100.0)), Vector3(dw * 0.5 + 0.45 + 0.5, 1.04, hd + 0.98))
+	for k in 3:                                                # штурвал запора и петли
+		_bx(root, Vector3(0.06, 0.12, 0.08), door.transform * Vector3(-0.5, 0.5 - k * 0.5, 0.0), M["metal"])
+	var wheel := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.14
+	tm.outer_radius = 0.18
+	wheel.mesh = tm
+	wheel.material_override = M["metal"]
+	wheel.transform = door.transform * Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.1, 0.0, 0.09))
+	root.add_child(wheel)
+	# фонарь над входом (только свечение, без источника света)
+	var lamp := _bx(root, Vector3(0.3, 0.12, 0.16), Vector3(0, 2.5, hd + 0.98), M.get("lamp", M["metal"]))
+	lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# коридор из мешков с песком к двери и мешки по краю крыши
+	var body := StaticBody3D.new()
+	body.name = "BunkerBody"
+	add_child(body)
+	var bags: Array[Transform3D] = []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for sx in [-1.0, 1.0]:
+		var x0: float = sx * (dw * 0.5 + 0.75)
+		for row in 3:
+			for i in 5:
+				var z := hd + 1.15 + i * 0.52 + (0.26 if row % 2 == 1 else 0.0)
+				if z > hd + 3.4:
+					continue
+				bags.append(Transform3D(Basis(Vector3.UP, PI * 0.5 + rng.randf_range(-0.08, 0.08)), Vector3(x0 + rng.randf_range(-0.03, 0.03), 0.1 + row * 0.19, z)))
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(0.36, 0.6, 2.3)
+		cs.shape = bs
+		cs.position = Vector3(x0, 0.3, hd + 2.25)
+		body.add_child(cs)
+	var ry := B_WALL_H + 0.35
+	var ex := hw + B_T + 0.05
+	var ez := hd + B_T + 0.05
+	for row in 2:
+		for side in 4:
+			var L := (ex if side < 2 else ez) * 2.0
+			var n := int(L / 0.5)
+			for i in n:
+				var t := -L * 0.5 + (i + 0.5 + (0.5 if row == 1 else 0.0)) * L / (n + (1 if row == 1 else 0))
+				if row == 1 and i == n - 1:
+					continue
+				var pos: Vector3
+				var yaw := 0.0
+				match side:
+					0: pos = Vector3(t, 0, -ez + 0.18)
+					1: pos = Vector3(t, 0, ez - 0.18)
+					2: pos = Vector3(-ex + 0.18, 0, t)
+					_: pos = Vector3(ex - 0.18, 0, t)
+				if side >= 2:
+					yaw = PI * 0.5
+				if side == 1 and absf(t) < 1.4:
+					continue                                   # над порталом мешков нет
+				bags.append(Transform3D(Basis(Vector3.UP, yaw + rng.randf_range(-0.07, 0.07)), pos + Vector3(rng.randf_range(-0.02, 0.02), ry + 0.09 + row * 0.18, 0)))
+	var bag := BoxMesh.new()
+	bag.size = Vector3(0.5, 0.19, 0.32)
+	_multi_tr(root, bags, bag, M["sand"])
+	# земляной вал к задней стене (на него не залезть: столкновение — низкой плитой)
+	var berm := _wedge(W + B_T * 2.0 + 0.6, B_WALL_H - 0.25, 2.8)
+	var bmi := MeshInstance3D.new()
+	bmi.mesh = berm
+	bmi.material_override = M["earth"]
+	bmi.position = Vector3(0, 0, -hd - B_T + 0.05)
+	root.add_child(bmi)
+	var bc := CollisionShape3D.new()
+	var bbs := BoxShape3D.new()
+	bbs.size = Vector3(W + B_T * 2.0 + 0.6, 1.4, 2.2)
+	bc.shape = bbs
+	bc.position = Vector3(0, 0.7, -hd - B_T - 1.0)
+	body.add_child(bc)
+	# на крыше: две вентиляционные трубы с колпаками, люк, антенна
+	for vp in [Vector3(-3.6, 0, -2.2), Vector3(3.9, 0, -2.6)]:
+		var pipe := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.16
+		cm.bottom_radius = 0.18
+		cm.height = 1.1
+		cm.radial_segments = 12
+		pipe.mesh = cm
+		pipe.material_override = M["metal"]
+		pipe.position = vp + Vector3(0, ry + 0.45, 0)
+		root.add_child(pipe)
+		var cap := MeshInstance3D.new()
+		var cc := CylinderMesh.new()
+		cc.top_radius = 0.05
+		cc.bottom_radius = 0.34
+		cc.height = 0.2
+		cc.radial_segments = 12
+		cap.mesh = cc
+		cap.material_override = M["metal"]
+		cap.position = vp + Vector3(0, ry + 1.1, 0)
+		root.add_child(cap)
+	_bx(root, Vector3(0.9, 0.25, 0.9), Vector3(1.2, ry + 0.6, 0.6), M["slab"])
+	_bx(root, Vector3(0.75, 0.06, 0.75), Vector3(1.2, ry + 0.75, 0.6), M["armygreen"])
+	var mast := MeshInstance3D.new()
+	var mc := CylinderMesh.new()
+	mc.top_radius = 0.025
+	mc.bottom_radius = 0.04
+	mc.height = 3.4
+	mc.radial_segments = 6
+	mast.mesh = mc
+	mast.material_override = M["metal"]
+	mast.position = Vector3(-4.8, ry + 0.4 + 1.7, 2.6)
+	root.add_child(mast)
+	for k in 3:
+		_bx(root, Vector3(0.7 - k * 0.15, 0.025, 0.025), Vector3(-4.8, ry + 2.6 + k * 0.4, 2.6), M["metal"])
+	return root
+
+
+func _bx(parent: Node3D, size: Vector3, at: Vector3, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = at
+	parent.add_child(mi)
+	return mi
+
+
+func _multi_tr(parent: Node3D, xfs: Array[Transform3D], mesh: Mesh, mat: Material) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xfs.size()
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = mat
+	parent.add_child(mmi)
+
+
+## усечённая пирамида (насыпь): низ — bot (x, z), верх — top, высота h; основание в y = 0
+static func _frustum(bot: Vector2, top: Vector2, h: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var b := [Vector3(-bot.x, 0, -bot.y), Vector3(bot.x, 0, -bot.y), Vector3(bot.x, 0, bot.y), Vector3(-bot.x, 0, bot.y)]
+	var t := [Vector3(-top.x, h * 2.0, -top.y), Vector3(top.x, h * 2.0, -top.y), Vector3(top.x, h * 2.0, top.y), Vector3(-top.x, h * 2.0, top.y)]
+	for i in 4:
+		b[i] *= 0.5
+		t[i] *= 0.5
+	for i in 4:
+		var j := (i + 1) % 4
+		for v in [b[i], t[j], t[i], b[i], b[j], t[j]]:     # обход — как у Godot (лицевая сторона наружу)
+			st.add_vertex(v)
+	for v in [t[0], t[1], t[2], t[0], t[2], t[3]]:
+		st.add_vertex(v)
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()
+
+
+## вал: клин вдоль x шириной w, высотой h у стены (z = 0), сходит на нет к z = −depth
+static func _wedge(w: float, h: float, depth: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var x := w * 0.5
+	var a := Vector3(-x, h, 0)
+	var b := Vector3(x, h, 0)
+	var c := Vector3(x, 0, -depth)
+	var d := Vector3(-x, 0, -depth)
+	for v in [a, d, c, a, c, b]:
+		st.add_vertex(v)
+	# торцы
+	for v in [Vector3(-x, 0, 0), d, a, Vector3(x, 0, 0), b, c]:
+		st.add_vertex(v)
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()
 
 
 func _wall_piece(body: StaticBody3D, a: Vector2, dir: Vector2, s0: float, s1: float, th: float, y0: float, y1: float, mat: Material) -> void:

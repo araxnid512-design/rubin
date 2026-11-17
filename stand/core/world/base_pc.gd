@@ -10,6 +10,9 @@ extends Control
 signal closed
 
 const UI := "res://assets/ui/"
+## всё на экране компьютера — в K раз крупнее исходного макета (на телефоне мелкий текст и кнопки читались плохо)
+const K := 1.3
+const DRAG_START := 12.0           ## на сколько точек сдвинуть палец, чтобы список начал прокручиваться (не нажатие)
 const C_BG := Color(0.07, 0.08, 0.08)
 const C_PANEL := Color(0.03, 0.065, 0.058, 0.97)
 const C_CARD := Color(0.045, 0.095, 0.083)
@@ -53,6 +56,15 @@ var _ex_lbl := {}
 var _ex_ok: Button
 var _ex_qty_title: Label
 var _ex_cool := 0.0                ## после сделки кнопка «Подтвердить» выключена ещё на мгновение (двойное касание)
+# прокрутка пальцем: тянешь список (улучшения, маршруты) — он едет за пальцем и по инерции; кнопка под пальцем
+# при этом не нажимается
+var _scrolls: Array[ScrollContainer] = []
+var _drag_sc: ScrollContainer = null
+var _drag_y0 := 0.0
+var _drag_last := 0.0
+var _drag_v := 0.0
+var drag_moved := false            ## палец сдвинулся — это прокрутка, нажатие кнопки не засчитывается
+var _fling_sc: ScrollContainer = null
 
 
 func setup(world) -> void:
@@ -118,6 +130,10 @@ func setup(world) -> void:
 
 
 func _process(delta: float) -> void:
+	if _fling_sc != null and absf(_drag_v) > 20.0:
+		# инерция после того, как палец отпустил список
+		_fling_sc.scroll_vertical = int(_fling_sc.scroll_vertical - _drag_v * delta)
+		_drag_v *= exp(-delta * 4.5)
 	if _ex_cool > 0.0:
 		_ex_cool -= delta
 		if _ex_cool <= 0.0 and ex:
@@ -133,6 +149,52 @@ func _process(delta: float) -> void:
 	if _refreshes >= 0 and rf != _refreshes:
 		_build_routes()                     # ассортимент маршрутов обновился
 	_refreshes = rf
+
+
+## Прокрутка пальцем (и мышью с зажатой кнопкой): палец лёг на список — запоминаем; сдвинулся больше чем на
+## DRAG_START — список едет за ним, а кнопка под пальцем при отпускании не срабатывает (drag_moved). Отпустили —
+## список ещё немного едет по инерции. Работает поверх кнопок и карточек: событие перехватывается раньше них.
+func _input(event: InputEvent) -> void:
+	if not visible or ex != null or _dlg != null:
+		return
+	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var mb := event as InputEventMouseButton
+		if mb.pressed:
+			drag_moved = false
+			_fling_sc = null
+			_drag_sc = scroll_at(mb.position)
+			_drag_y0 = mb.position.y
+			_drag_last = mb.position.y
+			_drag_v = 0.0
+		else:
+			if _drag_sc != null and drag_moved:
+				_fling_sc = _drag_sc
+			_drag_sc = null
+	elif event is InputEventMouseMotion and _drag_sc != null and ((event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		var mm := event as InputEventMouseMotion
+		if not drag_moved and absf(mm.position.y - _drag_y0) > DRAG_START:
+			drag_moved = true
+			_drag_last = mm.position.y
+		if drag_moved:
+			drag_by(mm.position.y - _drag_last)
+			var dt := maxf(get_process_delta_time(), 0.001)
+			_drag_v = lerpf(_drag_v, (mm.position.y - _drag_last) / dt, 0.5)
+			_drag_last = mm.position.y
+			get_viewport().set_input_as_handled()
+
+
+## какой прокручиваемый список под точкой экрана (null — никакой)
+func scroll_at(pos: Vector2) -> ScrollContainer:
+	for sc in _scrolls:
+		if is_instance_valid(sc) and sc.is_visible_in_tree() and sc.get_global_rect().has_point(pos):
+			return sc
+	return null
+
+
+## сдвинуть список, который тянут, на dy точек (палец вниз — список вниз, то есть к началу)
+func drag_by(dy: float) -> void:
+	if _drag_sc != null:
+		_drag_sc.scroll_vertical = int(_drag_sc.scroll_vertical - dy)
 
 
 func close() -> void:
@@ -160,7 +222,7 @@ func _sb(bg: Color, border: Color, bw := 1, radius := 6, margin := 8, glow := 0.
 func _lbl(t: String, fs: float, col: Color, bold := false, wrap := false) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", int(fs))
+	l.add_theme_font_size_override("font_size", int(fs * K))
 	l.add_theme_color_override("font_color", col)
 	if bold:
 		l.add_theme_font_override("font", _bold)
@@ -176,7 +238,7 @@ func _ico(tex, sz: float) -> TextureRect:
 	t.texture = load(UI + "pc/%s.png" % tex) if tex is String else tex
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	t.custom_minimum_size = Vector2(sz, sz)
+	t.custom_minimum_size = Vector2(sz, sz) * K
 	t.mouse_filter = MOUSE_FILTER_IGNORE
 	return t
 
@@ -187,7 +249,7 @@ func _pic(path: String, min_size: Vector2) -> TextureRect:
 		t.texture = load(path)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	t.custom_minimum_size = min_size
+	t.custom_minimum_size = min_size * K
 	t.mouse_filter = MOUSE_FILTER_IGNORE
 	return t
 
@@ -196,16 +258,18 @@ func _pic(path: String, min_size: Vector2) -> TextureRect:
 func _btn(text: String, icon: String, kind: String, cb: Callable, min_size := Vector2(0, 46), fs := 17) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = min_size
-	b.add_theme_font_size_override("font_size", fs)
+	b.custom_minimum_size = min_size * K
+	b.add_theme_font_size_override("font_size", int(fs * K))
 	b.add_theme_font_override("font", _bold)
 	if icon != "":
 		b.icon = load(UI + "pc/%s.png" % icon)
-		b.add_theme_constant_override("icon_max_width", int(min_size.y * 0.55))
+		b.add_theme_constant_override("icon_max_width", int(min_size.y * K * 0.55))
 		b.add_theme_constant_override("h_separation", 10)
 	_style_btn(b, kind)
 	b.focus_mode = FOCUS_NONE
-	b.pressed.connect(cb)
+	b.pressed.connect(func() -> void:
+		if not drag_moved:                 # отпустили палец после прокрутки — это не нажатие
+			cb.call())
 	return b
 
 
@@ -240,7 +304,7 @@ func _card(bg := C_CARD, border := C_LINE) -> PanelContainer:
 func _top_bar() -> Control:
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 6)
-	top.custom_minimum_size.y = 64
+	top.custom_minimum_size.y = 64 * K
 	var title := _card(C_PANEL)
 	title.size_flags_horizontal = SIZE_EXPAND_FILL
 	title.size_flags_stretch_ratio = 1.75
@@ -331,8 +395,10 @@ func _section(id: String, scroll := false) -> PanelContainer:
 		var sc := ScrollContainer.new()
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		sc.name = "Scroll_" + id
 		p.add_child(sc)
 		sc.add_child(v)
+		_scrolls.append(sc)
 	else:
 		p.add_child(v)
 	_sections[id] = p
@@ -526,7 +592,7 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	if d.has("icon"):
 		th.add_child(_ico(String(d.icon), 28))
 	if d.has("icon"):
-		(th.get_child(0) as Control).custom_minimum_size = Vector2.ONE * (20 if dense else 28)
+		(th.get_child(0) as Control).custom_minimum_size = Vector2.ONE * (20 if dense else 28) * K
 	th.add_child(_lbl(String(d.n), 15 if dense else (17 if compact else 19), Color(0.97, 0.97, 0.94), true))
 	if d.has("danger") and String(d.kind) == "Вражеский стаб":
 		# вражеский стаб: красная плашка опасности (как на макете)
@@ -641,7 +707,7 @@ func _exchange_bar() -> Control:
 	h.size_flags_vertical = SIZE_EXPAND_FILL
 	root.add_child(h)
 	var info := VBoxContainer.new()
-	info.custom_minimum_size.x = 230
+	info.custom_minimum_size.x = 230 * K
 	info.size_flags_horizontal = SIZE_EXPAND_FILL
 	info.size_flags_stretch_ratio = 1.2
 	info.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -665,7 +731,7 @@ func _exchange_bar() -> Control:
 		c.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		c.pressed.connect(open_exchange.bind("buy", hi))
 		c.name = "pair_" + hi
-		c.custom_minimum_size = Vector2(120, 84)
+		c.custom_minimum_size = Vector2(120, 84) * K
 		h.add_child(c)
 		var cv := VBoxContainer.new()
 		cv.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -733,7 +799,7 @@ func open_exchange(mode: String, hi: String) -> void:
 	cc.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	var vs := get_viewport_rect().size
 	var pn := PanelContainer.new()
-	pn.custom_minimum_size = Vector2(minf(780.0, vs.x - 40.0), minf(600.0, vs.y - 24.0))
+	pn.custom_minimum_size = Vector2(minf(780.0 * K, vs.x - 40.0), minf(600.0 * K, vs.y - 24.0))
 	pn.add_theme_stylebox_override("panel", _sb(Color(0.03, 0.07, 0.06, 0.99), C_GLOW, 2, 8, 14, 8.0))
 	cc.add_child(pn)
 	var v := VBoxContainer.new()
@@ -774,8 +840,8 @@ func open_exchange(mode: String, hi: String) -> void:
 			b.text = String(RES_SHORT[id])
 			b.icon = ULItems.icon(id)
 			b.add_theme_constant_override("icon_max_width", 30)
-			b.add_theme_font_size_override("font_size", 13)
-			b.custom_minimum_size = Vector2(112, 46)
+			b.add_theme_font_size_override("font_size", int(13 * K))
+			b.custom_minimum_size = Vector2(112, 46) * K
 			b.size_flags_horizontal = SIZE_EXPAND_FILL
 			b.focus_mode = FOCUS_NONE
 			b.pressed.connect(ex_pick.bind(row, id))
@@ -791,13 +857,13 @@ func open_exchange(mode: String, hi: String) -> void:
 	qh.add_theme_constant_override("separation", 8)
 	v.add_child(qh)
 	_ex_qty_title = _lbl("", 15, C_TEXT, true)
-	_ex_qty_title.custom_minimum_size.x = 170
+	_ex_qty_title.custom_minimum_size.x = 170 * K
 	qh.add_child(_ex_qty_title)
 	qh.add_child(_btn("−", "", "gray", ex_step.bind(-1), Vector2(56, 48), 26))
 	_ex_edit = LineEdit.new()
-	_ex_edit.custom_minimum_size = Vector2(120, 48)
+	_ex_edit.custom_minimum_size = Vector2(120, 48) * K
 	_ex_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_ex_edit.add_theme_font_size_override("font_size", 22)
+	_ex_edit.add_theme_font_size_override("font_size", int(22 * K))
 	_ex_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
 	_ex_edit.max_length = 5
 	_ex_edit.add_theme_stylebox_override("normal", _sb(Color(0.02, 0.04, 0.035), C_LINE, 1, 6, 6))
@@ -977,7 +1043,7 @@ func _dialog(title: String, text: String, ok: Callable) -> void:
 	_dlg.add_child(cc)
 	cc.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	var pn := PanelContainer.new()
-	pn.custom_minimum_size = Vector2(560, 0)
+	pn.custom_minimum_size = Vector2(minf(560.0 * K, get_viewport_rect().size.x - 40.0), 0)
 	pn.add_theme_stylebox_override("panel", _sb(Color(0.03, 0.07, 0.06, 0.99), C_RED if not ok.is_valid() else C_GLOW, 2, 8, 18, 8.0))
 	cc.add_child(pn)
 	var v := VBoxContainer.new()
