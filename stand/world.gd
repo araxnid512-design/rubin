@@ -5909,6 +5909,48 @@ func _kh_test() -> void:
 	for ct in san.containers:
 		ck[String(ct.kind)] = int(ck.get(String(ct.kind), 0)) + 1
 	_ok("тайников %d: %s" % [san.containers.size(), str(ck)], san.containers.size() >= 80 and ck.has("fridge") and ck.has("jars") and ck.has("shop") and ck.has("counter") and ck.has("cellar") and ck.has("car") and ck.has("tractor") and ck.has("tools"))
+	# подвалы — как здания: несколько помещений с дверями, свет в каждом, тайники; над ними на поверхности пусто
+	var cinfo := []
+	var cel_ok := true
+	var sp3 := get_world_3d().direct_space_state
+	for ci2 in kh.cellars.size():
+		var cbb: ULBlock = san.blds[int(kh.cellars[ci2].bi)]
+		var nct := 0
+		for ct in san.containers:
+			if kh.cellar_at((ct.pos as Vector3) + Vector3.UP * 0.2) == ci2:
+				nct += 1
+		var ndoor := 0
+		for d in cbb.doors:
+			if not (d as ULDoor).has_meta("ext"):
+				ndoor += 1
+		var cut: Vector4 = kh.cellars[ci2].cut
+		var hits := 0
+		var qs := PhysicsShapeQueryParameters3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(cut.z - cut.x, 2.5, cut.w - cut.y)
+		qs.shape = bs
+		qs.transform = Transform3D(Basis(), Vector3((cut.x + cut.z) * 0.5, 1.4, (cut.y + cut.w) * 0.5))
+		qs.collision_mask = 1
+		var hr2: Rect2 = kh.cellars[ci2].hole
+		for h in sp3.intersect_shape(qs, 64):
+			var o: Object = h.collider
+			if o is CharacterBody3D:
+				continue                      # враги и герой — не постройки
+			var sh_i: int = h.shape
+			var owner_id: int = (o as CollisionObject3D).shape_find_owner(sh_i)
+			var sn := (o as CollisionObject3D).shape_owner_get_owner(owner_id) as Node3D
+			var sp_g := sn.global_position if sn != null else Vector3.ZERO
+			# свои: портал, насыпь у лестницы, стенки колодца
+			if sn != null and Rect2(hr2.position - Vector2(2.6, 1.8), hr2.size + Vector2(5.2, 3.6)).has_point(Vector2(sp_g.x, sp_g.z)):
+				continue
+			if sn != null and sp_g.y < 0.0:
+				continue
+			hits += 1
+			var hs := sn.shape as Shape3D if sn is CollisionShape3D else null
+			cinfo.append("сверху: %s %s %s" % [sn.name if sn != null else "?", str(sp_g.snapped(Vector3.ONE * 0.1)), str(hs.get("size")) if hs != null else ""])
+		cinfo.append("%s %.0f×%.0f м: помещений %d, дверей %d, ламп %d, тайников %d, препятствий сверху %d" % [cbb.id, cbb.rect.size.x, cbb.rect.size.y, cbb.rooms.size(), ndoor, cbb.lamps.size(), nct, hits])
+		cel_ok = cel_ok and cbb.rooms.size() >= 3 and ndoor >= 2 and cbb.lamps.size() >= 3 and nct >= 6 and hits == 0 and cbb.rect.size.x * cbb.rect.size.y >= 50.0
+	_ok("подвалы — подземные здания: зал и кладовые с дверями, свет в каждом помещении, тайники; над подвалом на поверхности пусто", cel_ok, "; ".join(cinfo))
 	var found := {}
 	var unknown := {}
 	var rngl := RandomNumberGenerator.new()
@@ -5960,6 +6002,8 @@ func _kh_test() -> void:
 	var rb_n := [0, 0]
 	var cel_bad := 0
 	var cel_n := 0
+	var cel_lot := 0
+	var cel_each := 0
 	var sigs := {}
 	for sd in 30:
 		var rng := RandomNumberGenerator.new()
@@ -5968,12 +6012,16 @@ func _kh_test() -> void:
 		var a := 0
 		var bb := 0
 		var rr := 0
+		var cel_here := 0
 		for sp in plan:
 			var p: Vector3 = sp[1]
 			var in_cel := kh.cellar_at(p + Vector3.UP * 0.3) >= 0
 			if in_cel:
 				cel_n += 1
-				if String(sp[0]) != "infected":
+				cel_here += 1
+				if String(sp[0]) == "lottery":
+					cel_lot += 1
+				elif String(sp[0]) != "infected":
 					cel_bad += 1
 			match String(sp[0]):
 				"infected":
@@ -5983,11 +6031,13 @@ func _kh_test() -> void:
 				_:
 					rr += 1
 		rb_n[mini(rr, 1)] += 1
+		if cel_here > 0:
+			cel_each += 1
 		lo = [mini(lo[0], a), mini(lo[1], bb)]
 		hi2 = [maxi(hi2[0], a), maxi(hi2[1], bb)]
 		sigs[str(a) + "/" + str(bb) + str((plan[0][1] as Vector3).round())] = true
 	_ok("30 посещений: пустышей %d–%d, лоторейщиков %d–%d, без Рубера %d раз, с одним — %d; каждый раз по-другому" % [lo[0], hi2[0], lo[1], hi2[1], rb_n[0], rb_n[1]], lo[0] >= 20 and hi2[0] <= 30 and lo[1] >= 4 and hi2[1] <= 9 and rb_n[0] > 0 and rb_n[1] > 0 and sigs.size() >= 25)
-	_ok("в погребах за 30 посещений — %d врагов, все пустыши (Рубер и лоторейщики под землю не ставятся)" % cel_n, cel_n > 0 and cel_bad == 0)
+	_ok("в подвалах за 30 посещений — %d заражённых (из них лоторейщиков %d), враги внизу в %d посещениях из 30; Рубера под землёй нет" % [cel_n, cel_lot, cel_each], cel_n >= 60 and cel_lot > 0 and cel_each >= 27 and cel_bad == 0)
 	# 13: ИИ — пустыш со двора заходит в дом к герою; другой спускается за героем в погреб
 	var h_in: Vector3 = snapf.call(Vector3(h1.rect.get_center().x, 0.1, h1.rect.get_center().y))
 	player.global_position = h_in + Vector3.UP * 0.1
@@ -8823,10 +8873,10 @@ func _run_test() -> void:
 			await get_tree().process_frame
 		var kspots := [["k0_entry", ULKhutor.K_ENTRY + Vector3(0, 0, -3), 12.0], ["k1_loop", Vector3(0, 0, 28), 26.0], ["k2_center", Vector3(-6, 0, -8), 26.0],
 			["k3_house", Vector3(-8, 0, -18.5), 11.0], ["k4_kitchen", Vector3(-11.8, 0, -22.2), 10.0], ["k5_shop_in", Vector3(46.5, 0, 17.5), 11.0], ["k6_shop_out", Vector3(40, 0, 17), 13.0],
-			["k7_cellar_top", Vector3(14, 0, -17.5), 11.0], ["k8_cellar_stairs", Vector3(14, -1.2, -21.5), 10.0], ["k9_cellar_in", Vector3(15.6, -2.5, -25.2), 10.0],
+			["k7_cellar_top", Vector3(16, 0, -11.2), 11.0], ["k8_cellar_stairs", Vector3(16, -1.2, -15.6), 10.0], ["k9_cellar_in", Vector3(18.6, -2.5, -19.6), 12.0], ["k9b_cellar_store", Vector3(12.5, -2.5, -24.6), 10.0],
 			["l0_barn", Vector3(-44, 0, -47), 11.0], ["l1_garage", Vector3(-44, 0, 43.3), 10.0], ["l2_greenhouse", Vector3(11, 0, -4), 11.0], ["l3_tractor", Vector3(37, 0, -23), 13.0],
-			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-42, -2.5, 2), 10.0],
-			["l8_cellar3", Vector3(42, -2.5, 36), 9.0], ["l9_top", Vector3(0, 0, 0), 85.0]]
+			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-37, -2.5, 4.8), 11.0],
+			["l8_cellar3", Vector3(46, -2.5, 34.4), 10.0], ["l9_top", Vector3(0, 0, 0), 85.0]]
 		var konly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):

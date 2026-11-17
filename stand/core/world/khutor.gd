@@ -4,8 +4,9 @@ extends ULConvoy
 ## упирается в кольцо улицы вокруг центральной усадьбы (большой дом, огороды, теплица, колодец); вокруг кольца —
 ## дома с дворами, магазин, сараи, гараж, навес с трактором, водонапорная башня, пасека; по краям — редкий
 ## смешанный лес. Дома, магазин, сараи и гараж — ULBlock стиля wood (в них заходят: крыша скрывается, стены
-## срезаются); погреба — ULBlock стиля cellar на 2,6 м под землёй: над ними насыпь, вход — дощатая будка с
-## дверью, внутри — лестница вниз. Под землёй в земле — вырез над погребом (уровень −1), будка и насыпь скрыты.
+## срезаются); подвалы — ULBlock стиля cellar на 2,6 м под землёй (зал и кладовые с дверями), вход — бетонный
+## портал с двустворчатой дверью в насыпи, за ним лестница вниз. Под землёй — вырез в земле над подвалом
+## (уровень −1), вход и насыпь скрыты.
 ## Общее (этаж героя, двери, свет, тайники, враги по зонам, Рубер) — от ULSanatorium и ULConvoy.
 
 const K_CFG := "res://data/khutor.json"
@@ -77,14 +78,19 @@ const K_BUILDINGS := [
 		"roof_mat": "rust", "gable": "planks", "rise": 0.35, "ov": 0.3, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-44, 46), "L": 6.5, "W": 4.6, "axis": "z", "floors": 1, "layout": "hall", "row": [], "hall_type": "garage",
 			"entr": [["e-", 0.0, 2.6, "plain"]], "blind": ["s-", "s+", "e+"]}]},
-	{"id": "cellar1", "n": "Большой погреб", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
-		"blocks": [{"c": Vector2(14, -26), "L": 6.0, "W": 5.0, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "cellar",
+	# подвалы — подземные здания: зал у входа и ряд кладовых за перегородкой с дверями; над ними ровная земля
+	# (двор, усадьба), сверху виден только вход — бетонный портал в насыпи
+	{"id": "cellar1", "n": "Большой подвал", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
+		"blocks": [{"c": Vector2(16, -22), "L": 12.0, "W": 9.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 3.8,
+			"row": [["cellar_store", 4.0], ["cellar_root", 4.0], ["cellar_store", 4.0]], "hall_type": "cellar",
 			"entr": [["s+", 0.0, 1.5, "open"]], "blind": ["s+", "s-", "e+", "e-"]}]},
-	{"id": "cellar2", "n": "Погреб", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
-		"blocks": [{"c": Vector2(-42, 2), "L": 5.0, "W": 4.0, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "cellar",
+	{"id": "cellar2", "n": "Подвал", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
+		"blocks": [{"c": Vector2(-39, 3), "L": 10.0, "W": 7.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 3.3,
+			"row": [["cellar_root", 5.0], ["cellar_store", 5.0]], "hall_type": "cellar",
 			"entr": [["s+", 0.0, 1.5, "open"]], "blind": ["s+", "s-", "e+", "e-"]}]},
-	{"id": "cellar3", "n": "Малый погреб", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
-		"blocks": [{"c": Vector2(42, 36), "L": 4.0, "W": 3.0, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "cellar",
+	{"id": "cellar3", "n": "Погреб", "kind": "cellar", "style": "cellar", "skin": "cellar_wall", "int": "cellar_wall", "storey": 2.35, "te": 0.25, "base_y": -2.6,
+		"blocks": [{"c": Vector2(44, 33), "L": 9.0, "W": 6.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 3.0,
+			"row": [["cellar_store", 4.5], ["cellar_root", 4.5]], "hall_type": "cellar",
 			"entr": [["s+", 0.0, 1.5, "open"]], "blind": ["s+", "s-", "e+", "e-"]}]},
 ]
 
@@ -148,7 +154,7 @@ func spawn_limit() -> float:
 
 
 static func k_sig() -> int:
-	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k6")
+	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k7")
 
 
 ## описание здания с вычисленной лестницей погреба (annex — где лестница: на ней герой уже «в погребе»)
@@ -333,6 +339,8 @@ func _place_models(b: ULBlock) -> void:
 		_dirty(n, String(m[0]), Color(0.92, 0.9, 0.86))
 		for gi in n.find_children("*", "GeometryInstance3D", true, false):
 			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# мебель мелкая на экране (камера сверху): упрощённые уровни детализации раньше — меньше треугольников
+			(gi as GeometryInstance3D).lod_bias = 0.35
 			(gi as VisualInstance3D).layers = 2
 		_cull(n, 30.0)
 
@@ -422,37 +430,34 @@ func _k_cellar(bi: int) -> void:
 	lamp.material_override = lmat
 	lamp.position = Vector3(c.x, hh + 0.05, hz1 + 0.05)
 	cover.add_child(lamp)
-	# насыпь над погребом и над лестницей (трава, земля); столкновение — над помещением и по бокам лестницы
+	# насыпь — только над лестницей (над самим подвалом ровная земля); столкновение — подковой вокруг лестничного
+	# проёма (с боков и с севера), чтобы в него не упасть сверху; вход — только через портал с юга
 	var mound := MeshInstance3D.new()
 	var sp := SphereMesh.new()
 	sp.radius = 1.0
 	sp.height = 2.0
-	sp.radial_segments = 22
-	sp.rings = 9
+	sp.radial_segments = 20
+	sp.rings = 8
 	mound.mesh = sp
-	var mz0 := c.y - hw - 0.8
-	var mz1 := zt - 0.3
-	mound.scale = Vector3(hl + 1.1, 1.35, (mz1 - mz0) * 0.5 + 0.3)
+	var bw := SHW + 1.4                       # полуширина насыпи
+	var mz0 := hz0 - 0.9
+	var mz1 := zt - 0.6
+	mound.scale = Vector3(bw + 0.4, 1.2, (mz1 - mz0) * 0.5 + 0.4)
 	mound.position = Vector3(c.x, -0.35, (mz0 + mz1) * 0.5)
 	mound.name = "Mound"                   # покрытие — тот же шейдер земли, что вокруг (ставится в _k_ground)
 	cover.add_child(mound)
-	for box in [[Vector3(float(bk.L) + 0.8, 0.85, maxf(hz0 - (c.y - hw - 0.4), 0.5)), Vector3(c.x, 0.42, (c.y - hw - 0.4 + hz0) * 0.5)]]:
+	var berm := [
+		[Vector3(bw * 2.0, 0.85, 1.2), Vector3(c.x, 0.42, hz0 - 0.2)],
+	]
+	for sx in [-1.0, 1.0]:
+		berm.append([Vector3(bw - SHW - 0.2, 0.85, zt - 1.0 - hz0), Vector3(c.x + sx * (SHW + 0.2 + bw) * 0.5, 0.42, (hz0 + zt - 1.0) * 0.5)])
+	for box in berm:
 		var mc := CollisionShape3D.new()
 		var mb := BoxShape3D.new()
 		mb.size = box[0]
 		mc.shape = mb
 		mc.position = box[1]
 		body.add_child(mc)
-	for sx in [-1.0, 1.0]:
-		var w0 := SHW + 0.2
-		var w1 := hl + 0.6
-		if w1 - w0 > 0.3:
-			var mc2 := CollisionShape3D.new()
-			var mb2 := BoxShape3D.new()
-			mb2.size = Vector3(w1 - w0, 0.85, zt - 1.0 - hz0)
-			mc2.shape = mb2
-			mc2.position = Vector3(c.x + sx * (w0 + w1) * 0.5, 0.42, (hz0 + zt - 1.0) * 0.5)
-			body.add_child(mc2)
 	_flush(cover)
 	# дверь — две створки
 	var leaves: Array = []
@@ -871,6 +876,8 @@ func _k_props(g: Node3D, rng: RandomNumberGenerator) -> void:
 func forest_ok(q: Vector2) -> bool:
 	if absf(q.x) < 36.0 and q.y > -46.0 and q.y < 40.0:
 		return false
+	if over_cellar(q, 3.0):
+		return false
 	for y in K_YARDS:
 		if (y[0] as Rect2).grow(1.5).has_point(q):
 			return false
@@ -1007,6 +1014,19 @@ func _light_pool() -> void:
 		l.light_energy = 1.45
 		l.omni_range = 8.5
 	lamp_energy = 1.45
+
+
+## над подвалом (с вырезом земли и запасом m) — тут на поверхности ничего не ставится
+func over_cellar(q: Vector2, m: float) -> bool:
+	for b in K_BUILDINGS:
+		if String(b.kind) != "cellar":
+			continue
+		var bk: Dictionary = b.blocks[0]
+		var c: Vector2 = bk.c
+		var r := Rect2(c.x - float(bk.L) * 0.5, c.y - float(bk.W) * 0.5, float(bk.L), float(bk.W) + RUN + 4.0)
+		if r.grow(m).has_point(q):
+			return true
+	return false
 
 
 ## в погребе ли точка (индекс погреба или −1)

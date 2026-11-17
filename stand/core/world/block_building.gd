@@ -1001,6 +1001,10 @@ func _floor(bi: int, f: int) -> void:
 		while u < iu1:
 			lamps.append([_w(bk, u, y + 2.7, 0), bi, f])
 			u += 6.5
+	elif style == "cellar":
+		# подвал: лампа в каждом помещении (зал, кладовые)
+		for r in fr:
+			lamps.append([_w(bk, (float(r.u0) + float(r.u1)) * 0.5, y + storey - 0.3, (float(r.v0) + float(r.v1)) * 0.5), bi, f])
 	else:
 		lamps.append([_w(bk, (iu0 + iu1) * 0.5, y + minf(2.7, storey - 0.25), (iv0 + iv1) * 0.5), bi, f])
 
@@ -1027,7 +1031,7 @@ func _floor_mat(t: String) -> String:
 			return "lino"
 		"shed", "barn", "garage":
 			return "earth" if t != "garage" else "concrete"
-		"cellar":
+		"cellar", "cellar_store", "cellar_root":
 			return "cellar_floor"
 	return "lino"
 
@@ -1650,15 +1654,29 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_try(ctx, "toolbox", ["l", "r", "ext"], 0.6)
 			_try(ctx, "barrel", ["l", "r"], 0.95)
 		"cellar":
-			# погреб: полки с закатками по стенам, закром с картошкой, мешки, бидоны; в большом — стол с банками
+			# зал подвала: стол с лампой и банками, полки с закатками, бидоны, мешки, ящик
 			if (float(r.u1) - float(r.u0)) * (float(r.v1) - float(r.v0)) > 18.0:
 				_center_model(ctx, "m_table")
-			_try(ctx, "m_jars", ["ext", "l", "r"], 0.25)
-			_try(ctx, "m_jars", ["ext", "l", "r"], 0.75)
 			_try(ctx, "m_jars", ["l", "r"], 0.5)
+			_try(ctx, "m_cans", ["ext", "r", "l"], 0.15)
+			_try(ctx, "m_sacks", ["ext", "l", "r"], 0.85)
+			_try(ctx, "crate", ["cor", "l", "r"], 0.12)
 			_try(ctx, "bin", ["l", "r", "cor"], 0.6)
-			_try(ctx, "m_sacks", ["l", "r", "cor"], 0.3)
-			_try(ctx, "m_cans", ["r", "l", "cor"], 0.8)
+		"cellar_store":
+			# кладовая: стеллажи с закатками вдоль стен, ящики, бочка, бидоны
+			_try(ctx, "m_jars", ["ext"], 0.27)
+			_try(ctx, "m_jars", ["ext"], 0.75)
+			_try(ctx, "m_jars", ["l", "r"], 0.4)
+			_try(ctx, "crate", ["r", "l", "cor"], 0.75)
+			_try(ctx, "barrel", ["cor", "l", "r"], 0.85)
+			_try(ctx, "m_cans", ["l", "r", "cor"], 0.2)
+		"cellar_root":
+			# овощная: закрома с картошкой, мешки, ящик
+			_try(ctx, "bin", ["ext"], 0.25)
+			_try(ctx, "bin", ["ext"], 0.78)
+			_try(ctx, "m_sacks", ["l", "r", "cor"], 0.45)
+			_try(ctx, "m_sacks", ["r", "l"], 0.8)
+			_try(ctx, "crate", ["cor", "l", "r"], 0.8)
 		"cstore":
 			ctx["ckind"] = "mil_ammo"
 			for k in 3:
