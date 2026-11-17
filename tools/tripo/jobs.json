@@ -1,140 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "px_kz",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kz",
-    "--faces",
-    "10000",
-    "--image",
-    "tools/tripo/refs/zombie.png",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle"
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "px_kl",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "kl",
-    "--faces",
-    "10000",
-    "--image",
-    "tools/tripo/refs/lottery.png",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle"
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "ulm_px_a_swipe_r",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_swipe_r",
-    "2",
-    "a hunched zombie pulls its right arm far back behind its shoulder, hesitates for a moment, then lunges one step forward and swings the right clawed hand in a big diagonal swipe down across in front of its chest, follows through and staggers back into a hunched stance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_swipe_l",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_swipe_l",
-    "2",
-    "a hunched zombie pulls its left arm far back behind its shoulder, hesitates for a moment, then lunges one step forward and swings the left clawed hand in a big diagonal swipe down across in front of its chest, follows through and staggers back into a hunched stance"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_double",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_double",
-    "2",
-    "a hunched zombie lurches forward and claws at someone in front of it with two heavy alternating downward swipes, first the right hand then the left hand, leaning its whole body into each swing, then recovers"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_slam",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_slam",
-    "2",
-    "a zombie raises both arms high above its head, then lunges forward and slams both forearms down hard in front of it, bending at the waist, then slowly straightens up"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_grab",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_grab",
-    "3",
-    "a zombie lunges forward with both arms stretched out, grabs the shoulders of someone in front of it, pulls them close and snaps its head forward to bite, then shoves them away and steps back"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_pounce",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_pounce",
-    "2",
-    "a feral mutant crouches low, then springs forward a long distance with both clawed arms outstretched in front and lands crouched, slashing both claws downward"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_xslash",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_xslash",
-    "2",
-    "a feral mutant steps forward and slashes both clawed arms across each other in an X in front of its chest in one fast violent motion, then pulls the arms back to its sides"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_combo3",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_combo3",
-    "2",
-    "a feral mutant attacks with three very fast claw slashes, right, left, right, while stepping aggressively forward, upper body twisting with each slash"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_px_a_rip",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "zombiepx:@kz,lotterypx:@kl",
-    "a_rip",
-    "2",
-    "a feral mutant grabs forward with both claws and tears violently side to side, then pulls back and snarls"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -1087,7 +953,18 @@
     "an old rusty metal rain water barrel with a wooden lid and a tap, realistic, weathered, single object on empty background, game asset"
    ],
    "timeout": 2400
-  }
+  },
+  "px_kz",
+  "px_kl",
+  "ulm_px_a_swipe_r",
+  "ulm_px_a_swipe_l",
+  "ulm_px_a_double",
+  "ulm_px_a_slam",
+  "ulm_px_a_grab",
+  "ulm_px_a_pounce",
+  "ulm_px_a_xslash",
+  "ulm_px_a_combo3",
+  "ulm_px_a_rip"
  ],
  "paused": [
   {
