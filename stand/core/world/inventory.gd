@@ -114,9 +114,10 @@ func equip_from(arr: Array, i: int) -> bool:
 			arr[i] = primary
 			primary = it
 		"pack":
-			if pack != null and not ULItems.pack_empty(pack):
-				return false                 # полный рюкзак в ячейку не положить — сначала снять его на землю
 			if arr == cells("pack"):
+				return false
+			# вещи надетого рюкзака перекладываются в новый (не влезают — смены нет), старый пустой встаёт на его место
+			if pack != null and not ULItems.pack_empty(pack) and not _pack_transfer(pack, it):
 				return false
 			arr[i] = pack
 			pack = it
@@ -124,6 +125,36 @@ func equip_from(arr: Array, i: int) -> bool:
 			return false
 	changed.emit()
 	return true
+
+
+## переложить все вещи рюкзака src в рюкзак dst; не влезают — ничего не меняется (false)
+func _pack_transfer(src: Dictionary, dst: Dictionary) -> bool:
+	var tmp: Array = (dst.items as Array).duplicate(true)
+	for c in src.items:
+		if c != null and put(tmp, (c as Dictionary).duplicate(true)) > 0:
+			return false
+	dst.items = tmp
+	for k in (src.items as Array).size():
+		src.items[k] = null
+	return true
+
+
+## надеть новый рюкзак it (купленный, ещё не в ячейках): вещи старого — в новый, старый пустой — в карман или в
+## новый рюкзак. {ok, drop}: drop — старый рюкзак, если ему не нашлось места (его кладут на землю)
+func wear_pack(it: Dictionary) -> Dictionary:
+	if pack == null:
+		pack = it
+		changed.emit()
+		return {"ok": true, "drop": null}
+	var old: Dictionary = pack
+	if not _pack_transfer(old, it):
+		return {"ok": false, "drop": null}
+	pack = it
+	var drop = null
+	if put(pockets, old) > 0 and put(pack.items, old) > 0:
+		drop = old
+	changed.emit()
+	return {"ok": true, "drop": drop}
 
 
 ## снять из слота в инвентарь (если есть место); рюкзак — только пустой

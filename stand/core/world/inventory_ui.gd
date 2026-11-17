@@ -597,11 +597,8 @@ func _act_equip() -> void:
 	var arr := _arr(_sel_src)
 	var it = arr[_sel_i]
 	var sl := ULItems.slot_of(it)
-	if sl == "pack" and inv.pack != null and not ULItems.pack_empty(inv.pack):
-		say("Сначала выбросьте или разберите надетый рюкзак")
-		return
 	if not inv.equip_from(arr, _sel_i):
-		say("Нельзя")
+		say("Вещи из надетого рюкзака не помещаются в этот" if sl == "pack" else "Нельзя")
 		return
 	if sl in ["pistol", "primary"] and inv.hand == "":
 		inv.hand = sl

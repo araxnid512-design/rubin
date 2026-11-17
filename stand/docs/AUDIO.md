@@ -37,4 +37,5 @@ CC-BY, NC, с неясной лицензией и вырезанных из ч�
 | `body_fall` | падение тела | — | qubodup «12 wet towel …», Kenney | CC0 |
 | `breath_run` | дыхание на бегу | — | mikeask «Breathing Tired» | CC0 |
 | `block` | блок мачете | — | rubberduck, Kenney | CC0 |
+| `rock_rip`, `rock_throw`, `rock_hit` | Рубер вырывает камень, бросок, удар камня | синтез с нуля (шум, низкие тона, щелчки осыпи) | свой: `stand/tools/make_rock_sounds.py` | свой |
 - `music_menu.mp3` — музыка главного меню и карты мира: «Dead Sector», прислана пользователем (его композиция).

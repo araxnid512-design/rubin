@@ -60,6 +60,7 @@ var _rock_cd := 0.0               ## через сколько возможен 
 var _rock_t := 0.0                ## сколько прошло с появления метки
 var _rock_step := 0               ## 0 — вырывает камень, 1 — держит, 2 — замах броска, 3 — бросил
 var _rock_plan := {}              ## по секундам: grab — камень в руках, swing — начало броска, rel — бросок, end — конец
+static var rock_next_ms := 0      ## раньше этого времени никто из Руберов новый бросок не начинает (два круга сразу — нечестно)
 
 
 static func _load_kinds() -> Dictionary:
@@ -94,7 +95,7 @@ static func describe(k: String) -> Array:
 	if d.has("charge"):
 		chg = " Рывок: ближе %d м срывается и %.1f с несётся со скоростью %.1f м/с, потом %d с отдышки." % [int(d.charge.from), float(d.charge.s), float(d.charge.speed), int(d.charge.cd)]
 	if d.has("rock"):
-		chg += " Бросок камня: с %d–%d м вырывает из земли булыжник; на земле, где стоит герой, появляется красный круг — через %d с туда прилетает камень (%d урона в круге %.1f м). Успеть выйти из круга — мимо. Раз в %d с, только под открытым небом; сильное попадание срывает бросок." % [
+		chg += " Бросок камня: с %d–%d м вырывает из земли булыжник; на земле, где стоит герой, появляется красный круг — через %d с туда прилетает камень (%d урона в круге %.1f м). Успеть выйти из круга — мимо. Раз в %d с, только под открытым небом; сильное попадание срывает бросок, а если подбежать вплотную — роняет камень и бьёт рукой." % [
 			int(d.rock.from), int(d.rock.to), int(round(float(d.rock.aim_s))), int(d.rock.dmg), float(d.rock.r), int(d.rock.cd)]
 	return [
 		String(d.d),
@@ -355,7 +356,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 			elif tl.length() < 0.5 and absf(tly) < 1.2:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
 			elif _rock_cd <= 0.0 and _charge_t <= 0.0 and hero_alive and can_see and same_floor and def.has("rock") \
-					and dist >= float(def.rock.from) and dist <= float(def.rock.to) and _sky_ok(p):
+					and dist >= float(def.rock.from) and dist <= float(def.rock.to) and Time.get_ticks_msec() >= rock_next_ms and _sky_ok(p):
 				_start_rock(p)
 			else:
 				speed = float(def.run)
@@ -391,6 +392,13 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 			_rock_t += delta
 			if rock == null or not is_instance_valid(rock):
 				state = "chase"
+			elif _rock_step < 3 and hero_alive and can_see and absf(p.y - global_position.y) < 1.2 and dist <= _close() + 0.9:
+				# герой подбежал вплотную, пока камень не брошен: бросать некуда — роняет камень (он раскалывается)
+				# и бьёт рукой
+				_rock_abort()
+				rig.stop_action()
+				state = "attack"
+				_atk = minf(_atk, 0.3)
 			else:
 				if _rock_step == 0 and _rock_t >= float(_rock_plan.grab):
 					_rock_step = 1
@@ -481,6 +489,7 @@ func _start_rock(p: Vector3) -> void:
 	_rock_cd = float(rk.get("cd", 10.0))
 	_charge_cd = maxf(_charge_cd, 2.0)                # после броска не срывается в рывок сразу
 	rocks += 1
+	rock_next_ms = Time.get_ticks_msec() + int(float(rk.get("gap", 4.0)) * 1000.0)
 	rock = ULRock.new()
 	get_parent().add_child(rock)
 	rock.setup(Vector3(p.x, p.y, p.z), float(rk.get("r", 1.7)), aim, float(rk.get("fly_s", 0.75)), float(rk.get("size", 0.75)))
@@ -519,6 +528,8 @@ func _rock_hands() -> Vector3:
 ## камень упал: задело героя, если он всё ещё в круге (на той же высоте)
 func _rock_landed(at: Vector3, r: float, dmg: float) -> void:
 	noise.emit("rock_hit", at)
+	if sky.is_valid() and not bool(sky.call(at, _hero_p)):
+		return                     # герой успел зайти под крышу (палатка, корпус) — камень бьёт в неё, не в него
 	var d := Vector2(_hero_p.x - at.x, _hero_p.z - at.z).length()
 	if d <= r and absf(_hero_p.y - at.y) < 1.5:
 		hit_player.emit(dmg, at)

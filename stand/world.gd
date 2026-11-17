@@ -5260,12 +5260,16 @@ func _rock_test() -> void:
 		rb._charge_cd = 99.0
 		rb._atk = 0.0
 		rb.rig.stop_action()
+		ULEnemy.rock_next_ms = 0
 	# --- 1: герой стоит в круге ---
+	snd.log_on = true
+	snd.played.clear()
 	var tw := 0.0
 	while tw < 8.0 and rb.rocks == 0:
 		await get_tree().process_frame
 		tw += get_process_delta_time()
 	var r1: ULRock = rb.rock
+	var t_start_ms := Time.get_ticks_msec() - int(r1.t * 1000.0) if r1 != null else Time.get_ticks_msec()
 	var ok1: bool = rb.rocks == 1 and r1 != null and rb.state == "rock"
 	_ok("Рубер увидел героя за %.0f м (бросает с %d–%d м) и начал бросок: красная метка — там, где стоит герой, радиус %.1f м" % [d0, int(rk.from), int(rk.to), float(rk.r)],
 		ok1 and Vector2(r1.at.x - player.global_position.x, r1.at.z - player.global_position.z).length() < 0.4 and is_equal_approx(r1.radius, float(rk.r)) and r1._mark.visible and r1.phase == "aim" and not r1.held,
@@ -5299,6 +5303,21 @@ func _rock_test() -> void:
 		t_grab > 0.3 and t_grab < t_rel and absf(t_rel - aim) < 0.25 and absf(t_land - t_rel - fly) < 0.25 and max_h > 2.2 and moved < 0.25, "сдвиг %.2f м" % moved)
 	_ok("герой остался в круге: получил %d урона (настройка dmg — %d), камень упал точно в метку" % [int(hp0 - hp), int(rk.dmg)], is_equal_approx(hp0 - hp, float(rk.dmg)) and (landed[1] as Vector3).distance_to(r1.at) < 0.05)
 	_ok("после попадания булыжник пропал", not r1._rock.visible and r1.phase == "done" and r1.rock_pos() == Vector3.INF)
+	# звуки броска: свои файлы, по шагам и вовремя
+	var sat := {}
+	for pr in snd.played:
+		var nm := String(pr[1])
+		if nm.begins_with("rock_") and not sat.has(nm):
+			sat[nm] = (int(pr[0]) - t_start_ms) / 1000.0
+	var n_files := [snd._streams("rock_rip").size(), snd._streams("rock_throw").size(), snd._streams("rock_hit").size()]
+	_ok("звуки броска — свои: «вырывает» на %.2f с (камень в руках на %.2f), «бросок» на %.2f с, «удар» на %.2f с; файлов %d / %d / %d" % [float(sat.get("rock_rip", -1.0)), t_grab, float(sat.get("rock_throw", -1.0)), float(sat.get("rock_hit", -1.0)), n_files[0], n_files[1], n_files[2]],
+		sat.size() == 3 and absf(float(sat.rock_rip) - t_grab) < 0.25 and absf(float(sat.rock_throw) - t_rel) < 0.25 and absf(float(sat.rock_hit) - t_land) < 0.25 and n_files == [1, 1, 2], str(sat))
+	var lim: bool = AudioServer.get_bus_effect_count(0) > 0 and AudioServer.get_bus_effect(0, 0) is AudioEffectHardLimiter
+	var d_rb := cam.global_position.distance_to(rb.global_position + Vector3.UP)
+	var d_hit := cam.global_position.distance_to(r1.at)
+	_ok("на общей шине — ограничитель громкости (громкие звуки рядом не хрипят); камера в %.0f м от Рубера и %.0f м от удара: слышно на %.0f и %.0f дБ от исходной громкости" % [d_rb, d_hit, 20.0 * log(6.0 / d_rb) / log(10.0), 20.0 * log(6.0 / d_hit) / log(10.0)],
+		lim and d_rb < 60.0 and d_hit < 60.0)
+	snd.log_on = false
 	await get_tree().create_timer(0.9).timeout
 	_ok("и метка погасла", is_instance_valid(r1) and float(r1._mm.get_shader_parameter("fade")) < 0.05)
 	await get_tree().create_timer(1.6).timeout
@@ -5399,6 +5418,113 @@ func _rock_test() -> void:
 	_ok("герой в палатке: Рубер камень не бросает (только под открытым небом), а идёт к нему", not rb3.throw_ok and rb3.rocks == 0 and rb3.state != "rock" and rb3.global_position.distance_to(rb3_at) > 1.0, "под небом: %s, бросков %d, прошёл %.1f м" % [rb3.throw_ok, rb3.rocks, rb3.global_position.distance_to(rb3_at)])
 	rb3.damage(99999.0, player.global_position)
 	rb3.visible = false
+	hp = HP_MAX
+	# --- 8: герой подбежал вплотную, пока камень в руках: Рубер роняет камень и бьёт рукой ---
+	var rb5_at: Vector3 = snapf.call(Vector3(32, 0, 2.5))
+	player.global_position = hero_at + Vector3.UP * 0.1
+	hp = HP_MAX
+	ULEnemy.rock_next_ms = 0
+	var rb5 := spawn_enemy("ruber", rb5_at)
+	rb5.rotation.y = atan2(hero_at.x - rb5_at.x, hero_at.z - rb5_at.z)
+	rb5._charge_cd = 99.0
+	tw = 0.0
+	while tw < 8.0 and rb5.rocks == 0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	var r8: ULRock = rb5.rock
+	var landed8 := [false]
+	if r8 != null:
+		r8.landed.connect(func(_a: Vector3, _r: float) -> void: landed8[0] = true)
+	await get_tree().create_timer(0.9).timeout
+	var near_p: Vector3 = snapf.call(rb5.global_position + (hero_at - rb5.global_position).normalized() * 1.25)
+	player.global_position = near_p + Vector3.UP * 0.1
+	var st8 := "%s, шаг броска %d, до героя %.2f" % [rb5.state, rb5._rock_step, rb5.global_position.distance_to(player.global_position)]
+	var hp8 := hp
+	var t8 := 0.0
+	while t8 < 4.0 and hp >= hp8:
+		await get_tree().process_frame
+		t8 += get_process_delta_time()
+	_ok("герой подбежал вплотную, пока камень в руках: Рубер уронил камень (раскололся, метка погасла) и ударил рукой — «%s», −%d" % [rb5.last_attack, int(hp8 - hp)], r8 != null and not landed8[0] and hp < hp8 and rb5.last_attack != String(rk.n) and (not is_instance_valid(r8) or r8.phase == "done"), "состояние %s; при подходе: %s; упал ли камень: %s, видит: %s" % [rb5.state, st8, landed8[0], str(rb5.get_meta("sees", "?"))])
+	rb5.damage(99999.0, player.global_position)
+	rb5.visible = false
+	hp = HP_MAX
+	# --- 9: метка у палатки, герой успел зайти внутрь — камень бьёт в крышу, не в него ---
+	var hq9: ULBlock = san.blds[0]
+	var o_dir := ((hq9.entrances[0][0] as Vector3) - (hq9.entrances[0][1] as Vector3)).normalized()
+	# у самого порога, но ещё снаружи (под небом)
+	var e_out: Vector3 = snapf.call(hq9.entrances[0][0])
+	for k in 30:
+		var q0: Vector3 = (hq9.entrances[0][1] as Vector3) + o_dir * (0.1 * k)
+		if san.locate(q0 + Vector3.UP * 0.3).x < 0:
+			e_out = snapf.call(q0 + o_dir * 0.35)
+			break
+	var rb6_at: Vector3 = snapf.call(e_out + o_dir * 14.0)
+	player.global_position = e_out + Vector3.UP * 0.1
+	ULEnemy.rock_next_ms = 0
+	await get_tree().create_timer(0.3).timeout
+	var rb6 := spawn_enemy("ruber", rb6_at)
+	rb6.rotation.y = atan2(e_out.x - rb6_at.x, e_out.z - rb6_at.z)
+	rb6._charge_cd = 99.0
+	tw = 0.0
+	while tw < 8.0 and rb6.rocks == 0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	var r9: ULRock = rb6.rock
+	var landed9 := [false]
+	var in9 := Vector3.INF
+	if r9 != null:
+		r9.landed.connect(func(_a: Vector3, _r: float) -> void: landed9[0] = true)
+		var cen := Vector3(hq9.rect.get_center().x, r9.at.y, hq9.rect.get_center().y)
+		var in_dir := -o_dir
+		for k in 16:
+			var q9 := r9.at + in_dir * (0.3 + k * 0.1)
+			if san.locate(q9 + Vector3.UP * 0.3).x >= 0:
+				in9 = snapf.call(q9 + in_dir * 0.35)
+				break
+	if in9 != Vector3.INF:
+		player.global_position = in9 + Vector3.UP * 0.1
+	hp = HP_MAX
+	while r9 != null and is_instance_valid(r9) and not landed9[0] and r9.t < 9.0:
+		await get_tree().process_frame
+	var d9 := Vector2(in9.x - r9.at.x, in9.z - r9.at.z).length() if r9 != null and in9 != Vector3.INF else 99.0
+	_ok("метка у входа в палатку, герой шагнул внутрь (%.1f м от середины метки — в круге): камень ударил в крышу, урона нет" % d9, landed9[0] and d9 <= float(rk.r) and is_equal_approx(hp, HP_MAX) and san.locate(player.global_position + Vector3.UP * 0.3).x >= 0, "здоровье %.0f" % hp)
+	rb6.damage(99999.0, player.global_position)
+	rb6.visible = false
+	hp = HP_MAX
+	# --- 10: два Рубера — круги не ставят одновременно ---
+	player.global_position = hero_at + Vector3.UP * 0.1
+	ULEnemy.rock_next_ms = 0
+	var ra: Vector3 = snapf.call(hero_at + Vector3(14, 0, 1.0))
+	var rbb: Vector3 = snapf.call(hero_at + Vector3(-15, 0, 2.0))
+	var r1e := spawn_enemy("ruber", ra)
+	var r2e := spawn_enemy("ruber", rbb)
+	var t_r := [-1.0, -1.0]
+	for re in [r1e, r2e]:
+		re.rotation.y = atan2(hero_at.x - re.global_position.x, hero_at.z - re.global_position.z)
+		re._charge_cd = 99.0
+	tw = 0.0
+	var both := 0
+	var marks_max := 0
+	while tw < 10.0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		hp = HP_MAX
+		if t_r[0] < 0.0 and r1e.rocks > 0:
+			t_r[0] = tw
+		if t_r[1] < 0.0 and r2e.rocks > 0:
+			t_r[1] = tw
+		var aiming := 0
+		for re in [r1e, r2e]:
+			if re.rock != null and is_instance_valid(re.rock) and re.rock.phase != "done":
+				aiming += 1
+		marks_max = maxi(marks_max, aiming)
+	var gap_s := float(rk.get("gap", 4.0))
+	var both_threw: bool = t_r[0] >= 0.0 and t_r[1] >= 0.0
+	_ok("два Рубера: красных кругов одновременно не больше одного (%d); %s" % [marks_max, ("второй бросок — через %.1f с после первого" % absf(t_r[1] - t_r[0])) if both_threw else "второй, пока ждал, подошёл ближе 11 м и пошёл врукопашную"],
+		marks_max == 1 and (t_r[0] >= 0.0 or t_r[1] >= 0.0) and (not both_threw or absf(t_r[1] - t_r[0]) >= gap_s - 0.1), str(t_r))
+	for re in [r1e, r2e]:
+		re.damage(99999.0, player.global_position)
+		re.visible = false
 	hp = HP_MAX
 	# --- справочник ---
 	var txt := " ".join(ULEnemy.describe("ruber"))
@@ -6335,6 +6461,50 @@ func _inv_test() -> void:
 	var inv4 := ULInventory.new()
 	inv4.from_dict({"pockets": [ULItems.make("spore", 3), ULItems.make("bandage", 1)]})
 	_ok("старое сохранение: спораны из ячеек переходят в кошелёк", int(inv4.wallet.get("spore", 0)) == 3 and inv4.used() == 1)
+	# --- рюкзаки у торговца: больший надевается сразу, вещи из надетого перекладываются ---
+	var keep_inv := JSON.stringify(inv.to_dict())
+	var keep_ground := ground.size()
+	for k in inv.pockets.size():
+		inv.pockets[k] = null
+	inv.pack = ULItems.make("pack_small")
+	ULInventory.put(inv.pack.items, ULItems.make("rusk", 2))
+	ULInventory.put(inv.pack.items, ULItems.make("water"))
+	ULInventory.put(inv.pack.items, ULItems.make("a545", 30))
+	inv.wallet = {"pea": 3}
+	var pi_m := -1
+	var pi_l := -1
+	for k in SHOP.supplies.size():
+		if String(SHOP.supplies[k][0]) == "pack_medium":
+			pi_m = k
+		elif String(SHOP.supplies[k][0]) == "pack_large":
+			pi_l = k
+	var bm := buy("supplies", pi_m)
+	var small_in_pocket: int = inv.pockets.filter(func(x): return x != null and String(x.id) == "pack_small").size()
+	_ok("купил средний рюкзак (1 горошина) с вещами в малом: средний надет сразу, сухари, вода и патроны — в нём, малый (пустой) — в кармане",
+		bm and String(inv.pack.id) == "pack_medium" and inv.count("rusk") == 2 and inv.count("water") == 1 and inv.count("a545") == 30 and small_in_pocket == 1 and int(inv.wallet.get("pea", 0)) == 2 and inv.slot_count() == 20, "надет %s, в кармане малых %d" % [String(inv.pack.id), small_in_pocket])
+	var bl := buy("supplies", pi_l)
+	_ok("купил большой (2 горошины): надет, вещи переложены, средний — в кармане", bl and String(inv.pack.id) == "pack_large" and inv.count("rusk") == 2 and inv.count("a545") == 30 and inv.slot_count() == 28 and inv.pockets.filter(func(x): return x != null and String(x.id) == "pack_medium").size() == 1 and int(inv.wallet.get("pea", 0)) == 0)
+	var psi := -1
+	for k in inv.pockets.size():
+		if inv.pockets[k] != null and String(inv.pockets[k].id) == "pack_small":
+			psi = k
+	var eq := inv.equip_from(inv.pockets, psi)
+	_ok("надеть из кармана малый вместо большого с вещами: вещи (3 стопки) перекладываются, большой — в карман", eq and String(inv.pack.id) == "pack_small" and inv.count("rusk") == 2 and inv.count("a545") == 30 and inv.pockets[psi] != null and String(inv.pockets[psi].id) == "pack_large")
+	for k in 8:
+		ULInventory.put(inv.pack.items, ULItems.make("can"))
+	var full_small: int = (inv.pack.items as Array).filter(func(x): return x != null).size()
+	var mi := -1
+	for k in inv.pockets.size():
+		if inv.pockets[k] != null and String(inv.pockets[k].id) == "pack_medium":
+			mi = k
+	var keep_m: Dictionary = inv.pockets[mi].duplicate(true)
+	inv.pockets[mi].items.resize(2)
+	var eq2 := inv.equip_from(inv.pockets, mi)
+	inv.pockets[mi] = keep_m
+	_ok("не влезают вещи (%d стопок в рюкзак на 2) — смены нет, ничего не потеряно" % full_small, not eq2 and String(inv.pack.id) == "pack_small" and inv.pack.items.filter(func(x): return x != null).size() == full_small)
+	inv.from_dict(JSON.parse_string(keep_inv))
+	while ground.size() > keep_ground:
+		ground.pop_back()
 	# --- выход с локации ---
 	player.global_position = Vector3(0.0, 0.05, 30.0)
 	await get_tree().create_timer(0.3).timeout
@@ -6407,14 +6577,12 @@ func _open_sky(a: Vector3, b: Vector3) -> bool:
 
 ## голос врага: рычание, крик, предсмертный хрип — слышно, только если герой недалеко
 func _enemy_noise(what: String, at: Vector3, e: ULEnemy = null) -> void:
-	# бросок камня: вырывает (треск), бросает (свист), удар (глухой тяжёлый) — из имеющихся звуков, ниже тоном
-	const ROCK_SND := {"rock_rip": ["hit_wood", 1.0, 0.5], "rock_throw": ["swoosh", 3.0, 0.55], "rock_hit": ["body_fall", 6.0, 0.6]}
+	# бросок камня — свои звуки (tools/make_rock_sounds.py): вырывает из земли (гул, хруст, осыпь), бросок
+	# (тяжёлый свист), удар (глухой удар, разлёт осколков); громкость — [дБ]
+	const ROCK_SND := {"rock_rip": 1.0, "rock_throw": 0.0, "rock_hit": 3.0}
 	if ROCK_SND.has(what):
 		if at.distance_to(player.global_position) < 45.0:
-			var rs: Array = ROCK_SND[what]
-			snd.play(String(rs[0]), at + Vector3.UP * 0.5, float(rs[1]), 0.05, 0.0, float(rs[2]))
-			if what == "rock_hit":
-				snd.play("hit_wood", at + Vector3.UP * 0.3, 2.0, 0.05, 0.0, 0.4)
+			snd.play(what, at + Vector3.UP * 0.5, float(ROCK_SND[what]), 0.05)
 		return
 	if at.distance_to(player.global_position) > 30.0:
 		return
@@ -7418,6 +7586,18 @@ func buy(cat: String, i: int) -> bool:
 		say("Не хватает ресурсов: " + price_text(price))
 		return false
 	var it := ULItems.make(String(g[0]), int(g[1]))
+	if ULItems.kind(it) == "pack" and inv.pack != null and ULItems.pack_slots(it) > ULItems.pack_slots(inv.pack):
+		# рюкзак больше надетого — надевается сразу, вещи перекладываются, старый (пустой) — в карман
+		var wr := inv.wear_pack(it)
+		if bool(wr.ok):
+			if wr.drop != null:
+				_spawn_ground(wr.drop, player.global_position + Vector3(-0.5, 0, 0.5), 0.0)
+			inv.pay(price)
+			_apply_gear()
+			say("Куплено и надето: %s — вещи переложены" % String(ULItems.get_def(String(g[0])).n))
+			_shop_refresh()
+			_save()
+			return true
 	var n0 := int(it.n)
 	var left := inv.add(it)
 	if left >= n0:
