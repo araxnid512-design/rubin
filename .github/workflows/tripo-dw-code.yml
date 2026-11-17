@@ -19,11 +19,12 @@ jobs:
     steps:
       - name: Зашифровать код и передать
         env:
-          TRIPO_CODE: ${{ secrets.TRIPO_CODE }}
+          TRIPO_CODE: ${{ secrets.TRIPO_CODE || vars.TRIPO_CODE || secrets.tripo_code }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          if [ -z "$TRIPO_CODE" ]; then echo "нет секрета TRIPO_CODE"; exit 0; fi
+          if [ -z "$TRIPO_CODE" ]; then echo "нет секрета TRIPO_CODE (ни в Secrets, ни в Variables)"; exit 0; fi
+          echo "::add-mask::$TRIPO_CODE"
           repo="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git init -q st && cd st
           if ! git fetch -q "$repo" tripo-status 2>/dev/null; then echo "нет ждущей сборки (ветка tripo-status)"; exit 0; fi
