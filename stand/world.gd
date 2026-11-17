@@ -6232,9 +6232,17 @@ func _pc_test() -> void:
 	var a1 := ULBase.routes_tick(now)
 	var a2 := ULBase.routes_tick(now + 100)
 	var rf0 := int(ULBase.data.get("refreshes", 0))
+	var offs_before: Array = (ULBase.data.get("offers", []) as Array).duplicate()
 	var a3 := ULBase.routes_tick(now + per + 5)
 	_ok("таймер маршрутов: идёт от сохранённого срока, не сбрасывается при открытии", a1 == per and a2 == per - 100, "%d, %d (период %d)" % [a1, a2, per])
-	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed", "sanatorium", "convoy"])
+	var offs_after: Array = ULBase.data.offers
+	var oa_u := {}
+	var oa_new := false
+	for o in offs_after:
+		oa_u[o] = true
+		oa_new = oa_new or not offs_before.has(o)
+	_ok("срок вышел — предложения обновлены (из 4 локаций снова 3 разные, хотя бы одна новая), следующий срок через период: %s → %s" % [", ".join(offs_before), ", ".join(offs_after)],
+		a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and offs_after.size() == 3 and oa_u.size() == 3 and (oa_new or offs_before.size() != 3))
 	# --- три разные локации, сброс каждые 2 часа ---
 	var offs: Array = ULBase.offers()
 	var uniq := {}
@@ -6242,11 +6250,12 @@ func _pc_test() -> void:
 		uniq[o] = true
 	_ok("в компьютере сразу 3 локации, все разные: %s; сброс — каждые %d ч" % [", ".join(offs), per / 3600], offs.size() == 3 and uniq.size() == 3 and ULBase.route_slots() == 3 and per == 2 * 3600)
 	var listed_cards := 0
+	pc._build_routes()                  # набор только что сменился (на экране он обновляется по таймеру, раз в 0,25 с)
 	for o in offs:
 		if pc.find_child("route_" + String(o), true, false) != null:
 			listed_cards += 1
 	_ok("на экране — три карточки маршрутов, по одной на локацию", listed_cards == 3)
-	# пул больше мест: 6 локаций — каждый сброс 3 разные, без повторов, новый набор не совпадает с прежним
+	# пул больше мест: 4 локации и ещё 3 для проверки — каждый сброс 3 разные, без повторов, набор не повторяется
 	var rts: Dictionary = ULBase.shop().routes
 	for fid in ["t_a", "t_b", "t_c"]:
 		rts[fid] = (rts.cowshed as Dictionary).duplicate(true)
@@ -6274,8 +6283,8 @@ func _pc_test() -> void:
 			whole_repeat += 1
 		seen_sets[str(nx)] = true
 		prev = nx
-	_ok("из 6 локаций, 200 сбросов: всегда 3 разные (ошибок %d), «скоро» не попадает, набор целиком не повторялся ни разу (%d), разных наборов %d из 20 возможных, все 6 локаций встречались" % [bad_roll, whole_repeat, seen_sets.size()],
-		bad_roll == 0 and whole_repeat == 0 and seen_sets.size() >= 15 and seen_ids.size() == 6)
+	_ok("из 7 локаций, 200 сбросов: всегда 3 разные (ошибок %d), «скоро» не попадает, набор целиком не повторялся ни разу (%d), разных наборов %d из 35 возможных, все 7 локаций встречались" % [bad_roll, whole_repeat, seen_sets.size()],
+		bad_roll == 0 and whole_repeat == 0 and seen_sets.size() >= 25 and seen_ids.size() == 7)
 	# купленный маршрут переживает сброс: в новом наборе его нет, но он куплен, на карте и в компьютере
 	ULBase.set_route("convoy", "bought")
 	var nowr := int(Time.get_unix_time_from_system())
@@ -6297,7 +6306,12 @@ func _pc_test() -> void:
 	ULBase.data.offers = ["cowshed", "cowshed", "t_a"]
 	ULBase.routes_tick(nowr)
 	var fx: Array = ULBase.data.offers
-	_ok("старое сохранение с повтором («коровник» дважды) и исчезнувшей локацией — снова 3 разные: %s" % ", ".join(fx), fx.size() == 3 and fx.has("cowshed") and fx.has("sanatorium") and fx.has("convoy"))
+	var fx_u := {}
+	var fx_real := true
+	for o in fx:
+		fx_u[o] = true
+		fx_real = fx_real and String(o) in ["cowshed", "sanatorium", "convoy", "khutor"]
+	_ok("старое сохранение с повтором («коровник» дважды) и исчезнувшей локацией — снова 3 разные: %s" % ", ".join(fx), fx.size() == 3 and fx_u.size() == 3 and fx.has("cowshed") and fx_real)
 	_ok("таймер на экране в виде ЧЧ:ММ:СС", ULBase.clock(2 * 3600 + 47 * 60 + 36) == "02:47:36" and (pc.find_child("RouteTimer", true, false) as Label).text.length() == 8)
 	ULBase.data.routes_next = keep_next
 	# --- обмен: логика по всей цепочке ---
