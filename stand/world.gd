@@ -5414,7 +5414,9 @@ var _talk_text: Label
 
 
 ## Житель: стоит на месте, поворачивается к герою, когда тот рядом. Кнопка-рукопожатие появляется только возле него.
-func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String) -> void:
+## житель: model — своя модель Tripo со скелетом (движения — героя, переносятся на её скелет); без неё — модель
+## героя в другой одежде (тёплый бурый тон)
+func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String, model := "") -> void:
 	var body := StaticBody3D.new()
 	body.name = "NPC"
 	add_child(body)
@@ -5427,9 +5429,10 @@ func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String) ->
 	var r := BCCharacter.new()
 	r.name = "Rig"
 	body.add_child(r)
-	r.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
-	# та же фигура, другая одежда: тёплый бурый тон поверх раскраски модели
-	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+	var own := model != "" and ResourceLoader.exists(model)
+	r.setup(model if own else "res://assets/models/hero.glb", "res://assets/anim/hero")
+	# та же фигура, другая одежда: тёплый бурый тон поверх раскраски модели (у своей модели — свои цвета)
+	for mi in ([] if own else r.model.find_children("*", "MeshInstance3D", true, false)):
 		var m := mi as MeshInstance3D
 		for si in m.mesh.get_surface_count():
 			var src := m.mesh.surface_get_material(si) as StandardMaterial3D
@@ -5471,7 +5474,7 @@ const DEALER_AT := Vector3(-2.3, 0, 5.85)   ## барахольщик — у к�
 func _npcs_setup() -> void:
 	# барахольщик — всегда, прямо перед входом в дом: покупает хлам
 	if npc_by_role("барахольщик") == null:
-		_add_npc(house.to_global(DEALER_AT), 0.0, "Кузьмич", "барахольщик", "Здорово, %s. Хлам тащи — болты, провода, железки. За каждую кучку — спорана, без обмана.")
+		_add_npc(house.to_global(DEALER_AT), 0.0, "Кузьмич", "барахольщик", "Здорово, %s. Хлам тащи — болты, провода, железки. За каждую кучку — спорана, без обмана.", "res://assets/models/dealer.glb")
 		_dealer_stall()
 	# оружейник — в доме, за прилавком оружейной; появляется, когда нанят через компьютер базы (раздел «Персонал»)
 	if ULBase.has_staff("gunsmith") and npc_by_role("оружейник") == null:

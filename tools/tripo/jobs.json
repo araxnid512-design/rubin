@@ -1,24 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ul_dealer",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_dealer",
-    "--faces",
-    "10000",
-    "--rig",
-    "biped",
-    "--anims",
-    "preset:biped:idle",
-    "--prompt",
-    "an old bearded junk trader man, full body, standing in A-pose, worn quilted padded jacket, knitted wool cap, fingerless gloves, patched cargo trousers, old boots, a canvas bag with scrap metal on a strap, post-apocalyptic scavenger, realistic, game character"
-   ],
-   "timeout": 3600
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -331,7 +313,8 @@
   "ul_gun_counter",
   "ul_ammo_shelf",
   "ul_gun_rack",
-  "ul_junk"
+  "ul_junk",
+  "ul_dealer"
  ],
  "paused": [
   {
