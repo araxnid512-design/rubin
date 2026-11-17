@@ -7342,7 +7342,7 @@ func _inv_test() -> void:
 	while hp >= hp0 and wait_s < 8.0:
 		await get_tree().create_timer(0.1).timeout
 		wait_s += 0.1
-		gap = e.global_position.distance_to(player.global_position)
+		gap = minf(gap, e.global_position.distance_to(player.global_position))   # до удара: отброс потом отталкивает героя
 	var dmgs := []
 	for a in e.def.attacks:
 		dmgs.append(float(a.dmg))
@@ -8039,6 +8039,7 @@ func _lair_test() -> void:
 	_ok("герой подошёл вплотную (%.1f м) — главарь отступает (через 2,5 с — %.1f м)" % [d0, d1], d1 > d0 + 0.6)
 	_ok("главарь не выходит из штаба", inside_area)
 	# прицельный выстрел: красная полоса → застыла → выстрел; ушёл с полосы — мимо
+	cam_dist = 17.0                                    # для снимка: в кадре и главарь, и полоса
 	player.global_position = hb + Vector3.UP * 0.1
 	await get_tree().create_timer(0.4).timeout
 	bos._sp_cd = 0.0
@@ -8066,11 +8067,18 @@ func _lair_test() -> void:
 		tsp2 += get_physics_process_delta_time()
 	await get_tree().create_timer(0.2).timeout
 	_ok("прицельный выстрел: замер, на полу — красная полоса %.1f м (в помещении); ушёл с неё — мимо" % bos._sp_len, line_seen and special_miss == miss0 + 1 and special_hits == hit0 and absf(hp - hp_s) < 25.0)
-	# второй раз — стоим на полосе (снова на открытом месте кабинета)
+	# второй раз — стоим на полосе (на открытом месте кабинета, откуда главаря видно)
 	while bos.phase.begins_with("sp_") and tsp2 < 4.0:
 		await get_tree().physics_frame
 		tsp2 += get_physics_process_delta_time()
-	player.global_position = hb + Vector3.UP * 0.1
+	var spots_v := [hb, snapf.call(Vector3(br.get_center().x - 3.5, 0, br.get_center().y)), snapf.call(Vector3(br.get_center().x - 3.5, 0, br.get_center().y + 2.0)),
+		snapf.call(Vector3(br.get_center().x + 1.0, 0, br.get_center().y - 2.5)), snapf.call(Vector3(br.position.x + 2.0, 0, br.get_center().y))]
+	for sv in spots_v:
+		player.global_position = (sv as Vector3) + Vector3.UP * 0.1
+		await get_tree().physics_frame
+		var dv := bos.global_position.distance_to(player.global_position)
+		if _sees(bos) and dv > 4.5 and dv < 18.0:
+			break
 	await get_tree().create_timer(0.5).timeout
 	bos._sp_cd = 0.0
 	var tsp3 := 0.0

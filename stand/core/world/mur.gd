@@ -547,6 +547,7 @@ func _line_on() -> void:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.albedo_color = Color(1.0, 0.08, 0.05, 0.55)
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.no_depth_test = true                         # полоса видна целиком; сквозь стены не идёт — её длина обрезана у стены
 		m.render_priority = 2
 		line.material_override = m
 		line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -577,7 +578,8 @@ func _line_update(locked: bool) -> void:
 	_sp_len = l
 	var wdt := float(sp.get("width", 0.7))
 	var c := global_position + _sp_dir * (l * 0.5) + Vector3.UP * 0.06
-	line.global_transform = Transform3D(Basis(Vector3.UP, atan2(_sp_dir.x, _sp_dir.z)).scaled(Vector3(wdt, 1.0, l)), c)
+	# поворот по прицелу, растяжка — в своих осях полосы (ширина × длина), иначе тянется по мировой оси
+	line.global_transform = Transform3D(Basis(Vector3.UP, atan2(_sp_dir.x, _sp_dir.z)) * Basis.from_scale(Vector3(wdt, 1.0, l)), c)
 	var m := line.material_override as StandardMaterial3D
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.03)
 	m.albedo_color = Color(1.0, 0.1, 0.05, 0.85 if locked else 0.45 + pulse * 0.2)
