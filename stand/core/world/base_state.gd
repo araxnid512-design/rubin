@@ -31,6 +31,9 @@ static func load_state(force := false) -> void:
 	# какие локации компьютер уже знает: новая (пришла с обновлением игры) сразу попадает в набор
 	if not (data.get("seen") is Array):
 		data["seen"] = (data.offers as Array).duplicate() if not (data.offers as Array).is_empty() else route_pool()
+	# пройденные с последнего сброса: до следующего сброса их нет в компьютере и их не купить
+	if not (data.get("done") is Array):
+		data["done"] = []
 
 
 static func save_state() -> void:
@@ -78,6 +81,8 @@ static func route_state(id: String) -> String:
 static func set_route(id: String, state: String) -> void:
 	load_state()
 	if state == "":
+		if route_state(id) == "active" and not (data.done as Array).has(id):
+			(data.done as Array).append(id)      # посещение окончено — локация пройдена до следующего сброса
 		data.routes.erase(id)
 	else:
 		data.routes[id] = {"state": state, "at": int(Time.get_unix_time_from_system())}
@@ -103,13 +108,21 @@ static func buy_upgrade(inv: ULInventory, id: String) -> Dictionary:
 	return {"ok": true, "err": "", "miss": {}}
 
 
+## пройдена ли локация с последнего сброса (тогда до сброса её нет в компьютере)
+static func route_done(id: String) -> bool:
+	load_state()
+	return (data.done as Array).has(id)
+
+
 ## Купить маршрут — только из тех, что сейчас предлагает компьютер. Пока маршрут куплен или идёт посещение —
-## повторно не купить.
+## повторно не купить; пройденный — только после следующего сброса.
 static func buy_route(inv: ULInventory, id: String) -> Dictionary:
 	load_state()
 	var d: Dictionary = shop().get("routes", {}).get(id, {})
 	if d.is_empty() or d.get("soon", false) or not offers().has(id):
 		return {"ok": false, "err": "none", "miss": {}}
+	if route_done(id):
+		return {"ok": false, "err": "done", "miss": {}}
 	if route_state(id) != "":
 		return {"ok": false, "err": "have", "miss": {}}
 	var miss := ULEconomy.missing(inv.wallet, d.price)
@@ -170,9 +183,10 @@ static func _fix_offers(cur: Array) -> Array:
 	return pool.filter(func(x): return out.has(x))
 
 
-## что показывать в компьютере: предложения и купленные, но ещё не пройденные маршруты (они переживают обновление)
+## что показывать в компьютере: предложения (кроме пройденных с последнего сброса) и купленные, но ещё не
+## пройденные маршруты (они переживают обновление)
 static func routes_listed() -> Array:
-	var out := offers().duplicate()
+	var out := offers().filter(func(x): return not (data.done as Array).has(String(x)))
 	for id in data.routes:
 		if not out.has(String(id)) and shop().get("routes", {}).has(String(id)):
 			out.append(String(id))
@@ -204,6 +218,7 @@ static func routes_tick(now := -1) -> int:
 		nxt += ((now - nxt) / per + 1) * per
 		data.offers = _roll_offers(data.offers)
 		data.refreshes = int(data.get("refreshes", 0)) + 1
+		data.done = []                          # пройденные снова доступны (если попали в новый набор)
 		dirty = true
 	var fixed := _fix_offers(data.offers)
 	if fixed != data.offers:
@@ -235,6 +250,8 @@ static func close_interrupted() -> void:
 	load_state()
 	for id in data.routes.keys():
 		if route_state(String(id)) == "active":
+			if not (data.done as Array).has(String(id)):
+				(data.done as Array).append(String(id))
 			data.routes.erase(id)
 	save_state()
 

@@ -140,6 +140,7 @@ var hero_b := -1                   ## в каком корпусе герой (�
 var hero_f := -1
 var _lights: Array[OmniLight3D] = []
 var lamp_energy := 0.9                  ## яркость ламп в помещениях (мигает первая)
+var light_n := 2                        ## сколько ламп помещения горит сразу (ближайшие к герою)
 var _flick := 0.0
 
 
@@ -511,7 +512,7 @@ func open_near(p: Vector3, r: float) -> bool:
 
 ## две лампы без теней — у ближайших к герою светильников его этажа (на телефоне каждый источник света дорог)
 func _light_pool() -> void:
-	for i in 2:
+	for i in light_n:
 		var l := OmniLight3D.new()
 		l.light_color = Color(0.86, 0.94, 1.0) if i == 0 else Color(1.0, 0.86, 0.66)
 		l.light_energy = 0.9

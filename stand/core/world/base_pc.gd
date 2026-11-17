@@ -488,7 +488,16 @@ func _build_routes() -> void:
 		if routes.has(id):
 			_right_box.add_child(_route_card(String(id), routes[id], listed.size() > 1, listed.size() >= 3))
 			n += 1
-	if n < 2:
+	# пройденные с последнего сброса — карточки нет, только строка (вернутся после сброса, если попадут в набор)
+	var done_n: Array = []
+	for id in ULBase.offers():
+		if ULBase.route_done(String(id)) and routes.has(id):
+			done_n.append("«%s»" % String((routes[id] as Dictionary).get("n", id)))
+	if not done_n.is_empty():
+		var dl := _lbl("Пройдено, маршрут снова — после сброса: " + ", ".join(done_n), 13, C_DIM, false, true)
+		dl.name = "RoutesDone"
+		_right_box.add_child(dl)
+	elif n < 2:
 		_right_box.add_child(_soon("Другие локации будут добавлены позже.", ""))
 
 

@@ -4099,7 +4099,9 @@ func _lvl_test() -> void:
 
 
 ## проверки: маршрут id — в наборе компьютера (набор случайный: 3 из всех локаций)
+## маршрут id — в наборе компьютера (как после сброса: пройденный снова доступен)
 func _offer_route(id: String) -> void:
+	(ULBase.data.done as Array).erase(id)
 	var offs: Array = ULBase.offers()
 	if not offs.has(id):
 		offs[0] = id
@@ -6087,12 +6089,24 @@ func _kh_test() -> void:
 		await get_tree().process_frame
 		tl += get_process_delta_time()
 	_ok("ушёл за южный край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and ULBase.route_state("khutor") == "" and ULSettings.place == "home")
+	# пройденный хутор: до сброса его нет в компьютере и не купить; после сброса — снова можно
+	var offs_k: Array = ULBase.offers()
+	if not offs_k.has("khutor"):
+		offs_k[0] = "khutor"
+		ULBase.data.offers = offs_k
+	inv.wallet = {"spore": 50}
+	var rd := ULBase.buy_route(inv, "khutor")
+	_ok("хутор пройден: до следующего сброса в компьютере его нет, купить нельзя (спораны целы)", ULBase.route_done("khutor") and not ULBase.routes_listed().has("khutor") and not rd.ok and String(rd.err) == "done" and int(inv.wallet.get("spore", 0)) == 50, "%s, пройдены %s, в списке %s" % [str(rd), str(ULBase.data.done), str(ULBase.routes_listed())])
+	var nowk := int(Time.get_unix_time_from_system())
+	ULBase.data.routes_next = nowk - 1
+	ULBase.routes_tick(nowk)
+	_ok("сброс маршрутов — пройденные снова доступны (если попали в новый набор)", not ULBase.route_done("khutor") and (ULBase.data.done as Array).is_empty())
 	_offer_route("khutor")
 	inv.wallet = {"spore": 17}
 	var r0 := ULBase.buy_route(inv, "khutor")
 	inv.wallet = {"spore": 18}
 	var r1 := ULBase.buy_route(inv, "khutor")
-	_ok("за 17 споранов не купить, за 18 — куплен, хутор на карте", not r0.ok and r1.ok and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("khutor"))
+	_ok("за 17 споранов не купить, за 18 — куплен, хутор на карте", not r0.ok and r1.ok and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("khutor"), "%s / %s, маршрут %s" % [str(r0), str(r1), ULBase.route_state("khutor")])
 	_cs_done = false
 	left_location = false
 	_leave_t = 0.0
@@ -6312,6 +6326,18 @@ func _pc_test() -> void:
 		fx_u[o] = true
 		fx_real = fx_real and String(o) in ["cowshed", "sanatorium", "convoy", "khutor"]
 	_ok("старое сохранение с повтором («коровник» дважды) и исчезнувшей локацией — снова 3 разные: %s" % ", ".join(fx), fx.size() == 3 and fx_u.size() == 3 and fx.has("cowshed") and fx_real)
+	# посещение окончено — локация до сброса пропадает из компьютера, вместо карточки — строка «Пройдено…»
+	ULBase.data.offers = ["cowshed", "sanatorium", "convoy"]
+	ULBase.set_route("sanatorium", "active")
+	ULBase.set_route("sanatorium", "")
+	pc._build_routes()
+	var dn := pc.find_child("RoutesDone", true, false) as Label
+	_ok("посещение окончено — «Санаторий Луч» до сброса пропал из компьютера, вместо карточки строка «Пройдено…»", ULBase.route_done("sanatorium") and pc.find_child("route_sanatorium", true, false) == null and pc.find_child("route_cowshed", true, false) != null and dn != null and dn.text.contains("Санаторий"), dn.text if dn != null else "нет строки")
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("pc_routes_done")
+	(ULBase.data.done as Array).clear()
+	pc._build_routes()
 	_ok("таймер на экране в виде ЧЧ:ММ:СС", ULBase.clock(2 * 3600 + 47 * 60 + 36) == "02:47:36" and (pc.find_child("RouteTimer", true, false) as Label).text.length() == 8)
 	ULBase.data.routes_next = keep_next
 	# --- обмен: логика по всей цепочке ---

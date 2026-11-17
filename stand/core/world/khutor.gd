@@ -128,6 +128,7 @@ static var _kcfg := {}
 var cellars: Array = []                ## по погребу: {bi, cover (будка и насыпь), door, cut (x0, z0, x1, z1)}
 var _ground_mat: ShaderMaterial
 var _cut_on := -1
+var hero_lamp: OmniLight3D              ## фонарь героя — светит под землёй
 
 
 static func kcfg() -> Dictionary:
@@ -988,6 +989,10 @@ func tick(hero: Vector3, cam, delta: float) -> void:
 	for i in cellars.size():
 		if int(cellars[i].bi) == hero_b:
 			cur = i
+	if hero_lamp != null:
+		hero_lamp.visible = cur >= 0 or hero.y < -0.6
+		if hero_lamp.visible:
+			hero_lamp.global_position = hero + Vector3.UP * 1.7
 	if cur != _cut_on:
 		_cut_on = cur
 		for i in cellars.size():
@@ -1007,13 +1012,73 @@ func _exit_tree() -> void:
 	ULVegetation.set_cut(Vector4.ZERO, false)
 
 
+## свет: тёплые лампы, в подвале горят все его помещения сразу (до четырёх ламп); под землёй у героя — фонарь
 func _light_pool() -> void:
+	light_n = 4
 	super._light_pool()
 	for l in _lights:
 		l.light_color = Color(1.0, 0.8, 0.55)
 		l.light_energy = 1.45
 		l.omni_range = 8.5
 	lamp_energy = 1.45
+	hero_lamp = OmniLight3D.new()
+	hero_lamp.name = "HeroLamp"
+	hero_lamp.light_color = Color(1.0, 0.9, 0.75)
+	hero_lamp.light_energy = 0.9
+	hero_lamp.omni_range = 5.5
+	hero_lamp.omni_attenuation = 1.4
+	hero_lamp.shadow_enabled = false
+	hero_lamp.light_cull_mask = 2
+	hero_lamp.visible = false
+	add_child(hero_lamp)
+	_cellar_fixtures()
+
+
+## лампочки под потолком подвалов: провод, жестяной абажур и светящаяся лампа — там, где горит свет помещения
+func _cellar_fixtures() -> void:
+	var bulb := StandardMaterial3D.new()
+	bulb.albedo_color = Color(1.0, 0.9, 0.7)
+	bulb.emission_enabled = true
+	bulb.emission = Color(1.0, 0.78, 0.45)
+	bulb.emission_energy_multiplier = 3.0
+	var shade := StandardMaterial3D.new()
+	shade.albedo_color = Color(0.32, 0.36, 0.3)
+	shade.metallic = 0.5
+	shade.roughness = 0.6
+	var wire := StandardMaterial3D.new()
+	wire.albedo_color = Color(0.08, 0.08, 0.08)
+	for cl in cellars:
+		var b := blds[int(cl.bi)]
+		var g := Node3D.new()
+		g.name = "CellarLamps%d" % int(cl.bi)
+		add_child(g)
+		var ceil_y := b.base_y + b.storey - 0.22
+		for lp in b.lamps:
+			var p: Vector3 = lp[0]
+			var parts := [
+				[BoxMesh.new(), Vector3(0.015, ceil_y - p.y, 0.015), p + Vector3.UP * (ceil_y - p.y) * 0.5, wire],
+				[CylinderMesh.new(), Vector3.ZERO, p + Vector3.DOWN * 0.04, shade],
+				[SphereMesh.new(), Vector3.ZERO, p + Vector3.DOWN * 0.12, bulb],
+			]
+			(parts[0][0] as BoxMesh).size = parts[0][1]
+			var cy := parts[1][0] as CylinderMesh
+			cy.top_radius = 0.05
+			cy.bottom_radius = 0.2
+			cy.height = 0.12
+			cy.radial_segments = 12
+			var sp := parts[2][0] as SphereMesh
+			sp.radius = 0.06
+			sp.height = 0.12
+			sp.radial_segments = 8
+			sp.rings = 4
+			for pr in parts:
+				var mi := MeshInstance3D.new()
+				mi.mesh = pr[0]
+				mi.material_override = pr[3]
+				mi.position = pr[2]
+				mi.layers = 2
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				g.add_child(mi)
 
 
 ## над подвалом (с вырезом земли и запасом m) — тут на поверхности ничего не ставится
