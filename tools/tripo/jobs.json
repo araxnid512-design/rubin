@@ -1,6 +1,29 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "ul_ruber",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_ruber",
+    "--faces",
+    "18000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/ruber.png",
+    "--rig",
+    "biped",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3600
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
