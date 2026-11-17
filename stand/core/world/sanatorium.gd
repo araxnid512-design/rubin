@@ -521,7 +521,7 @@ func _bake_mask() -> Image:
 			var pd := pave_dist(p)
 			var bd := bld_dist(p)
 			# у края плитки и асфальта — вытоптанная земля, у стен — голая земля с сорняками
-			var edge := 1.0 - smoothstep(0.0, 1.2 + n3 * 1.2, pd)
+			var edge := 1.0 - smoothstep(0.0, 0.45 + n3 * 0.8, pd)
 			var wall := 1.0 - smoothstep(0.3, 1.8 + n2 * 2.0, bd)
 			var path := maxf(edge * 0.8, wall * 0.6)
 			var gw := smoothstep(0.2, 0.5, n1 * 0.45 + n2 * 0.35 + n3 * 0.2) * 0.75 + 0.25
@@ -590,8 +590,8 @@ func _pave_mat(kind: String) -> ShaderMaterial:
 		sm.set_shader_parameter("tex", load(TEX + "overgrown_concrete_pavers_c.jpg"))
 		sm.set_shader_parameter("tex_n", load(TEX + "overgrown_concrete_pavers_n.jpg"))
 		sm.set_shader_parameter("scale", 2.0)
-		sm.set_shader_parameter("tint", Color(1.25, 1.2, 1.12))
-		sm.set_shader_parameter("sat", 0.3)
+		sm.set_shader_parameter("tint", Color(0.92, 0.89, 0.83))
+		sm.set_shader_parameter("sat", 0.35)
 		sm.set_shader_parameter("moss", 0.6)
 		sm.set_shader_parameter("crumble", 0.35)
 	_pave_mats[kind] = sm
@@ -666,7 +666,7 @@ func _paving() -> void:
 	# лужи на асфальте
 	ULGroundDetail.puddles(self, func(p: Vector3) -> bool:
 		var q := Vector2(p.x, p.z)
-		return pave_dist(q) < -0.6 and bld_dist(q) > 2.0, half * 2.0, 61, 600, _noise_tex)
+		return pave_dist(q) < -0.6 and bld_dist(q) > 2.0, half * 2.0, 61, 220, _noise_tex)
 
 
 # ---------------- ограда, ворота, проходная ----------------
@@ -1288,7 +1288,7 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 				if absf(p.x) > FENCE - 1.0 or absf(p.z) > FENCE - 1.0 or Vector2(p.x - ENTRY.x, p.z - ENTRY.z).length() < safe_r:
 					continue
 				var q: Vector3 = snap.call(p)
-				if Vector2(q.x - p.x, q.z - p.z).length() > 0.45 or absf(q.y - p.y) > 0.6:
+				if Vector2(q.x - p.x, q.z - p.z).length() > 0.45 or absf(q.y - p.y) > 0.4:
 					continue
 				var crowd := false
 				for t in taken:
@@ -1298,7 +1298,7 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 				if crowd:
 					continue
 				taken.append(q)
-				out.append([kind, Vector3(q.x, p.y, q.z), zone])
+				out.append([kind, Vector3(q.x, p.y + 0.02, q.z), zone])
 				placed = true
 				break
 			if not placed:
@@ -1309,6 +1309,7 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 ## Тайники на это посещение: содержимое — по таблицам добычи data/sanatorium.json (loot), заново каждый вход.
 func roll_containers(rng: RandomNumberGenerator) -> void:
 	containers.clear()
+	_cont_grid.clear()
 	var tables: Dictionary = cfg().get("loot", {})
 	var cells := int(cfg().get("container_cells", 6))
 	for b in blds:
@@ -1325,14 +1326,26 @@ func roll_containers(rng: RandomNumberGenerator) -> void:
 						if n > 0:
 							ULInventory.put(items, ULItems.make(String(l[0]), n))
 			d["items"] = items
+			var k := _cell(d.pos)
+			if not _cont_grid.has(k):
+				_cont_grid[k] = []
+			_cont_grid[k].append(containers.size())
 			containers.append(d)
 
 
 ## тайник в точке (ближайший, тот же этаж): индекс или −1
+var _cont_grid := {}
+
+
 func container_near(p: Vector3, r: float) -> int:
 	var best := -1
 	var bd := r
-	for i in containers.size():
+	var k0 := _cell(p)
+	var near: Array = []
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			near.append_array(_cont_grid.get(k0 + Vector2i(dx, dz), []))
+	for i in near:
 		var ct: Dictionary = containers[i]
 		var c: Vector3 = ct.pos
 		if absf(c.y - p.y) > 1.2:

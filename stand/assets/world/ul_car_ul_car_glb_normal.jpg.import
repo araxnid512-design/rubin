@@ -2,18 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dxnaxnaqyh87h"
-path.s3tc="res://.godot/imported/concrete_tile_facade_n.jpg-20481bb33fea3cfc0ffac1ffab555e7f.s3tc.ctex"
-path.etc2="res://.godot/imported/concrete_tile_facade_n.jpg-20481bb33fea3cfc0ffac1ffab555e7f.etc2.ctex"
+uid="uid://bgcke6ekgx8h8"
+path.s3tc="res://.godot/imported/ul_car_ul_car_glb_normal.jpg-52ac95241c8e3d6b70f596e8c4e47af7.s3tc.ctex"
+path.etc2="res://.godot/imported/ul_car_ul_car_glb_normal.jpg-52ac95241c8e3d6b70f596e8c4e47af7.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "924a2dd977a6caa966933a7a20076ac4"
+}
 
 [deps]
 
-source_file="res://assets/world/tex/concrete_tile_facade_n.jpg"
-dest_files=["res://.godot/imported/concrete_tile_facade_n.jpg-20481bb33fea3cfc0ffac1ffab555e7f.s3tc.ctex", "res://.godot/imported/concrete_tile_facade_n.jpg-20481bb33fea3cfc0ffac1ffab555e7f.etc2.ctex"]
+source_file="res://assets/world/ul_car_ul_car_glb_normal.jpg"
+dest_files=["res://.godot/imported/ul_car_ul_car_glb_normal.jpg-52ac95241c8e3d6b70f596e8c4e47af7.s3tc.ctex", "res://.godot/imported/ul_car_ul_car_glb_normal.jpg-52ac95241c8e3d6b70f596e8c4e47af7.etc2.ctex"]
 
 [params]
 
@@ -38,5 +41,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=512
 detect_3d/compress_to=1

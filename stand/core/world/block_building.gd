@@ -18,9 +18,9 @@ const STOREY := 3.3
 const SLAB := 0.2
 const TE := 0.3                   ## толщина наружной стены
 const TI := 0.12                  ## перегородки
-const DW := 1.0                   ## ширина двери
+const DW := 1.1                   ## ширина двери
 const DH := 2.15
-const SB := 6.6                   ## длина лестничной клетки
+const SB := 7.4                   ## длина лестничной клетки: 1,1 м перед маршем + марш 5 м + площадка 1,3 м
 const RUN := 5.0                  ## марш: длина и ширина
 const FW := 1.35
 const CUT := 1.2                  ## на какой высоте срезаны стены этажа, где герой
@@ -118,7 +118,7 @@ const MATS := {
 	"plinth": ["damaged_concrete_floor", 2.4, Color(0.66, 0.64, 0.6), 1.0, 0.92, {}],
 	"trim": ["worn_plaster_wall", 2.6, Color(0.92, 0.9, 0.86), 0.5, 0.9, {"sat": 0.4}],
 	"roof": ["worn_asphalt", 2.0, Color(0.62, 0.62, 0.6), 0.2, 0.92, {"sat": 0.15, "second": "mud_forest", "tint2": Color(0.8, 0.85, 0.62), "bias": -0.08}],
-	"slab": ["damaged_concrete_floor", 2.6, Color(0.82, 0.8, 0.76), 0.4, 0.92, {}],
+	"slab": ["damaged_concrete_floor", 2.6, Color(1.05, 1.02, 0.97), 0.4, 0.92, {}],
 	"int_blue": ["worn_plaster_wall", 1.8, Color(0.94, 0.94, 0.9), 0.6, 0.9, {"paint": Color(0.6, 0.76, 0.78), "sat": 0.3}],
 	"int_green": ["worn_plaster_wall", 1.8, Color(0.94, 0.94, 0.9), 0.6, 0.9, {"paint": Color(0.55, 0.7, 0.55), "sat": 0.3}],
 	"int_beige": ["worn_plaster_wall", 1.8, Color(0.95, 0.93, 0.88), 0.6, 0.9, {"paint": Color(0.8, 0.68, 0.52), "sat": 0.3}],
@@ -279,7 +279,18 @@ func _local(bk: Dictionary, p: Vector3) -> Vector2:
 	return Vector2(p.x - c.x, p.z - c.y) if String(bk.axis) == "x" else Vector2(p.z - c.y, p.x - c.x)
 
 
+## Коробка в группу key. Наружное (фасады этажей, подложки окон) ещё и в общую группу блока «xa»: снаружи блок
+## рисуется ею — несколько сеток на весь блок вместо нескольких на каждый этаж (меньше вызовов отрисовки).
 func _box(key: String, mat: String, size: Vector3, xf: Transform3D) -> void:
+	_box1(key, mat, size, xf)
+	var p := key.find("/x")
+	if p < 0:
+		p = key.find("/o")
+	if p >= 0:
+		_box1(key.substr(0, p) + "/xa", mat, size, xf)
+
+
+func _box1(key: String, mat: String, size: Vector3, xf: Transform3D) -> void:
 	var k := key + "|" + mat
 	if not _st.has(k):
 		var st := SurfaceTool.new()
@@ -338,7 +349,9 @@ func _flush() -> void:
 		# внутренности — на слое 2 (их не освещает солнце)
 		if gk.contains("/i") or gk.contains("/n") or gk.contains("/s"):
 			mi.layers = 2
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if (gk.contains("/n") or gk.contains("/i")) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# тень отбрасывают только стены и крыши; рамы, стёкла, карнизы и всё внутри — нет (меньше треугольников)
+		var big := parts[1] in ["facade", "facade2", "plaster", "brick", "roof", "plinth", "slab"]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if big and not (gk.contains("/n") or gk.contains("/i") or gk.contains("/s")) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_group(gk).add_child(mi)
 	_st.clear()
 
@@ -799,11 +812,12 @@ func _floor(bi: int, f: int) -> void:
 		fr = _hall_rooms(bi, f)
 	# покрытие пола по комнатам
 	for r in fr:
-		if String(r.type) == "stair":
-			continue
 		var fm := String(_floor_mat(String(r.type)))
 		var fy := y + (0.012 if f == 0 else 0.0)
-		_lb(nk, fm, bk, float(r.u0), float(r.u1), fy, fy + 0.02, float(r.v0), float(r.v1))
+		# в лестничной клетке покрытие — в обход проёма над маршем
+		for rr in _rect_minus(Rect2(float(r.u0), float(r.v0), float(r.u1) - float(r.u0), float(r.v1) - float(r.v0)), holes if String(r.type) == "stair" else []):
+			var q: Rect2 = rr
+			_lb(nk, fm, bk, q.position.x, q.end.x, fy, fy + 0.02, q.position.y, q.end.y)
 	# лестничные клетки
 	for by in bk.bays:
 		if String(by[2]) == "stair":
@@ -841,8 +855,9 @@ func _floor_mat(t: String) -> String:
 
 
 ## перекрытие: прямоугольник без проёмов-дыр (дыры — прямоугольники в системе блока)
-func _slab(bk: Dictionary, key: String, u0: float, u1: float, v0: float, v1: float, y: float, holes: Array, solid: bool) -> void:
-	var rects: Array = [Rect2(u0, v0, u1 - u0, v1 - v0)]
+## прямоугольник без дыр — до четырёх кусков вокруг каждой
+func _rect_minus(r0: Rect2, holes: Array) -> Array:
+	var rects: Array = [r0]
 	for h in holes:
 		var hr: Rect2 = h
 		var nxt: Array = []
@@ -862,6 +877,11 @@ func _slab(bk: Dictionary, key: String, u0: float, u1: float, v0: float, v1: flo
 			if ix.end.y < rr.end.y:
 				nxt.append(Rect2(ix.position.x, ix.end.y, ix.size.x, rr.end.y - ix.end.y))
 		rects = nxt
+	return rects
+
+
+func _slab(bk: Dictionary, key: String, u0: float, u1: float, v0: float, v1: float, y: float, holes: Array, solid: bool) -> void:
+	var rects := _rect_minus(Rect2(u0, v0, u1 - u0, v1 - v0), holes)
 	for r in rects:
 		var rr: Rect2 = r
 		if solid:
@@ -1013,7 +1033,7 @@ func _iwall_v(bk: Dictionary, key: String, u: float, v0: float, v1: float, y0: f
 func _flight_geo(bk: Dictionary, by: Array, f: int) -> Dictionary:
 	var e: int = by[3]                                 # +1 — клетка в торце +u
 	var u_in: float = float(by[0]) if e > 0 else float(by[1])     # граница с коридором
-	var s0 := u_in + e * 0.45
+	var s0 := u_in + e * 1.1
 	var s1 := s0 + e * RUN
 	var side := -1 if f % 2 == 0 else 1
 	var v0: float = (float(bk.iv0) + 0.08) if side < 0 else (float(bk.iv1) - 0.08 - FW)
@@ -1061,8 +1081,8 @@ func _flight(bi: int, bk: Dictionary, by: Array, f: int) -> void:
 		var t := (k + 0.5) / 6.0
 		var uu := lerpf(float(g.bottom), float(g.top), t)
 		_lb(sk, "metal", bk, uu - 0.015, uu + 0.015, y0 + h * t, y0 + h * t + 0.95, vi - 0.015, vi + 0.015)
-	var cmid := _w(bk, (float(g.bottom) + float(g.top)) * 0.5, y0 + h * 0.5 + 0.5, vi)
-	cols.append([_ws(bk, len_s, 1.0, 0.08), Transform3D(bas, cmid)])
+	# перила марша — без столкновения: иначе у нижней ступени (вместе с перегородкой клетки) не пройти;
+	# сойти с марша вбок безопасно — просто окажешься на этаже ниже
 
 
 ## перила вокруг проёма в перекрытии этажа f (над маршем с f−1): вдоль внутреннего края и поперёк у его низа
@@ -1847,11 +1867,12 @@ func set_state(k: int) -> void:
 		var bk: Dictionary = blocks[bi]
 		var fl: int = bk.floors
 		var kk := k if k < fl else -1                 # блок ниже этажа героя — как снаружи
+		_show("b%d/xa" % bi, kk < 0)
 		for f in fl:
 			var inside := kk >= 0
-			_show("b%d/x%df" % [bi, f], not inside or f <= kk)
-			_show("b%d/x%db" % [bi, f], not inside or f <= kk)
-			_show("b%d/o%d" % [bi, f], not inside or f < kk)
+			_show("b%d/x%df" % [bi, f], inside and f <= kk)
+			_show("b%d/x%db" % [bi, f], inside and f <= kk)
+			_show("b%d/o%d" % [bi, f], inside and f < kk)
 			_show("b%d/i%d" % [bi, f], inside and f == kk)
 			_show("b%d/n%d" % [bi, f], inside and f == kk)
 			_show("b%d/s%d" % [bi, f], inside and (f == kk or f == kk - 1))
@@ -1859,7 +1880,7 @@ func set_state(k: int) -> void:
 			_cut("b%d/i%d" % [bi, f], inside and f == kk)
 		_show("b%d/r" % bi, kk < 0)
 	if _groups.has("portico"):
-		_show("portico", k < 1)
+		_show("portico", k < 0)
 	for dd in doors:
 		var d := dd as ULDoor
 		var fl2: int = blocks[d.bld].floors

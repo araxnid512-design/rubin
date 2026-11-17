@@ -487,7 +487,8 @@ func _steer(dir: Vector3, delta: float) -> Vector3:
 			ex.append_array(exclude)
 			q.exclude = ex
 			var hit := space.intersect_ray(q)
-			if hit.is_empty() or hit.collider is ULEnemy:
+			# пологое (марш лестницы, пандус) — не препятствие: по нему идут
+			if hit.is_empty() or hit.collider is ULEnemy or (hit.normal as Vector3).y > 0.6:
 				free_a = a
 				break
 		if free_a == 999.0:

@@ -2,18 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bnionqq7iqg0c"
-path.s3tc="res://.godot/imported/concrete_tile_facade_c.jpg-b0ccd8936d6552c5185dcc1d6c183bc7.s3tc.ctex"
-path.etc2="res://.godot/imported/concrete_tile_facade_c.jpg-b0ccd8936d6552c5185dcc1d6c183bc7.etc2.ctex"
+uid="uid://7nn2qbicgqh2"
+path.s3tc="res://.godot/imported/ul_bus_ul_bus_glb_rm.jpg-a974ac0a4e3238b595f4c07f06be9730.s3tc.ctex"
+path.etc2="res://.godot/imported/ul_bus_ul_bus_glb_rm.jpg-a974ac0a4e3238b595f4c07f06be9730.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "8efbe78e5824e29be02af5b9ecd06ccc"
+}
 
 [deps]
 
-source_file="res://assets/world/tex/concrete_tile_facade_c.jpg"
-dest_files=["res://.godot/imported/concrete_tile_facade_c.jpg-b0ccd8936d6552c5185dcc1d6c183bc7.s3tc.ctex", "res://.godot/imported/concrete_tile_facade_c.jpg-b0ccd8936d6552c5185dcc1d6c183bc7.etc2.ctex"]
+source_file="res://assets/world/ul_bus_ul_bus_glb_rm.jpg"
+dest_files=["res://.godot/imported/ul_bus_ul_bus_glb_rm.jpg-a974ac0a4e3238b595f4c07f06be9730.s3tc.ctex", "res://.godot/imported/ul_bus_ul_bus_glb_rm.jpg-a974ac0a4e3238b595f4c07f06be9730.etc2.ctex"]
 
 [params]
 
@@ -38,5 +41,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=512
 detect_3d/compress_to=1

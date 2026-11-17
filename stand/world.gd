@@ -195,6 +195,15 @@ func _bake_nav(path := NAV_MESH) -> void:
 	nm.agent_max_climb = 0.3
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
+	if place == "sanatorium":
+		# в корпусах двери узкие (1,1 м): мельче сетка, точнее радиус — иначе проём «закрыт» для карты
+		nm.cell_size = NAV_CELL_SAN
+		nm.cell_height = 0.1
+		nm.agent_radius = 0.3
+		nm.agent_height = 1.7
+		nm.agent_max_climb = 0.25
+		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
+		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	var hgt := 18.0 if place == "sanatorium" else 5.0          # в санатории — все этажи корпусов
 	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, -1.0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt, size_m + 24.0))
@@ -207,7 +216,14 @@ func _bake_nav(path := NAV_MESH) -> void:
 	print("[bake] карта проходимости: многоугольников %d, вершин %d, %d мс → %s" % [nm.get_polygon_count(), nm.vertices.size(), Time.get_ticks_msec() - t0, path])
 
 
+const NAV_CELL_SAN := 0.15
+
+
 func _nav_load(path := NAV_MESH) -> void:
+	if place == "sanatorium":
+		var mp := get_world_3d().navigation_map
+		NavigationServer3D.map_set_cell_size(mp, NAV_CELL_SAN)
+		NavigationServer3D.map_set_cell_height(mp, 0.1)
 	if not ResourceLoader.exists(path):
 		return
 	var reg := NavigationRegion3D.new()
@@ -225,10 +241,10 @@ func _nav_load(path := NAV_MESH) -> void:
 ## посещения пишется только то, что при себе (ящики и вещи базы не трогаются).
 const NAV_COWSHED := "res://assets/world/nav_cowshed.res"
 const CS_NOTES := {
-	"left": "Вы покинули «Опасный коровник» с добычей. Маршрут закрыт — для нового посещения купите его снова.",
+	"left": "Вы покинули кластер «%s» с добычей. Маршрут закрыт — для нового посещения купите его снова.",
 	"reset": "Кластер перезагрузился, пока вы были внутри. Вы погибли и потеряли всё, что было при себе. Вещи на базе целы.",
-	"dead": "Вы погибли в «Опасном коровнике» и потеряли всё, что было при себе. Вещи на базе целы.",
-	"menu": "Вы покинули «Опасный коровник». Маршрут закрыт.",
+	"dead": "Вы погибли в кластере «%s» и потеряли всё, что было при себе. Вещи на базе целы.",
+	"menu": "Вы покинули кластер «%s». Маршрут закрыт.",
 }
 var place := "home"
 var cowshed: ULCowshed
@@ -236,6 +252,7 @@ var size_m := SIZE
 var cs_seed := 0                  ## случайность этого посещения (останки коров, враги)
 var cs_plan: Array = []           ## кто и где появился в этот раз
 var _cs_end := 0.0                ## когда кластер перезагрузится (unix-время, с)
+var cs_start := 0.0               ## когда начато посещение
 var _cs_warned := {}
 var _cs_over := false             ## время вышло — герой погибает вместе с кластером
 var _cs_done := false
@@ -245,6 +262,7 @@ var prof_mid := 0
 var prof_mid_n := 0
 var prof_full := 0
 var prof_full_n := 0
+var prof_parts := {}              ## замер по частям кадра (snperf/csperf)
 
 
 func _cowshed_world() -> void:
@@ -322,7 +340,8 @@ func zone_changed() -> void:
 ## вход: отсчёт времени, останки коров и враги — по случайности этого посещения (каждый вход — по-новому)
 func _cowshed_enter() -> void:
 	var c := zone_cfg()
-	_cs_end = Time.get_unix_time_from_system() + float(c.get("minutes", 10)) * 60.0
+	cs_start = Time.get_unix_time_from_system()
+	_cs_end = cs_start + float(c.get("minutes", 10)) * 60.0
 	if test == "" and ULBase.route_state(place) != "active":
 		ULBase.set_route(place, "active")
 	if cs_seed == 0:
@@ -437,7 +456,8 @@ func cs_finish(why: String) -> void:
 	_save_carried()
 	ULBase.set_route(place, "")
 	ULSettings.place = "home"
-	ULSettings.arrival_note = String(CS_NOTES.get(why, "")).replace("«Опасный коровник»", "«%s»" % zone_name())
+	var note := String(CS_NOTES.get(why, ""))
+	ULSettings.arrival_note = note % zone_name() if note.contains("%s") else note
 	ULSettings.arrival_title = zone_name()
 	if test == "":
 		get_tree().change_scene_to_file({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"))
@@ -751,7 +771,9 @@ func _env() -> void:
 		# внутренности корпусов (слой 2) солнце не освещает: там ровный рассеянный свет из окон (свой слабый
 		# «верхний» свет без теней) и лампы рядом с героем; тени — дальше, корпуса выше
 		sun.light_cull_mask = 0xFFFFF & ~2
-		sun.directional_shadow_max_distance = 46.0
+		# одна карта теней на 32 м (две — каждый корпус и дерево рисуются в тени дважды)
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.directional_shadow_max_distance = 32.0
 		e.ambient_light_energy = 1.05
 		var fill := DirectionalLight3D.new()
 		fill.rotation_degrees = Vector3(-72, -30, 0)
@@ -1914,9 +1936,16 @@ func _process(delta: float) -> void:
 		cam.global_position += Vector3(sin(Time.get_ticks_msec() * 0.09), 0.0, cos(Time.get_ticks_msec() * 0.11)) * 0.12 * k
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
+	var _p0 := Time.get_ticks_usec()
 	canopy.tick(cam, player.global_position, delta)
+	var _p1 := Time.get_ticks_usec()
 	_find_target()
+	var _p2 := Time.get_ticks_usec()
 	_combat_tick(delta)
+	var _p3 := Time.get_ticks_usec()
+	prof_parts["кроны"] = int(prof_parts.get("кроны", 0)) + _p1 - _p0
+	prof_parts["цель"] = int(prof_parts.get("цель", 0)) + _p2 - _p1
+	prof_parts["бой"] = int(prof_parts.get("бой", 0)) + _p3 - _p2
 	if info and Engine.get_process_frames() % 10 == 0:
 		info.text = "%s · %d кадров/с · разрешение %d %%%s" % [_where(), Engine.get_frames_per_second(), int(round(get_viewport().scaling_3d_scale * 100.0)), _perf_text]
 	_fps_tick(delta)
@@ -1934,8 +1963,10 @@ func _process(delta: float) -> void:
 					get_tree().change_scene_to_file("res://map.tscn")
 	else:
 		_leave_t = 0.0
+	var _pz := Time.get_ticks_usec()
 	if temp():
 		_cs_tick(delta)
+	prof_parts["зона"] = int(prof_parts.get("зона", 0)) + Time.get_ticks_usec() - _pz
 	if _hud:
 		_hud.queue_redraw()
 	if house != null:
@@ -1946,8 +1977,10 @@ func _process(delta: float) -> void:
 		_toast.modulate.a = clampf(_toast_t, 0.0, 1.0)
 	if _preview_rig and inv_ui.visible and _preview_rig.hold.wid != "":
 		_preview_rig.set_motion(0.0, 0.0, delta)
+	var _pe := Time.get_ticks_usec()
 	_npcs_tick(delta)
 	_enemies_tick(delta)
+	prof_parts["враги"] = int(prof_parts.get("враги", 0)) + Time.get_ticks_usec() - _pe
 
 
 var _cam_ready := false
@@ -4156,6 +4189,318 @@ func _cs_test() -> void:
 	_ok("перезагрузка: всё, что при себе, потеряно (оружие, патроны, ресурсы)", _cs_done and inv.primary == null and inv.pistol == null and inv.used() == 0 and inv.wallet.is_empty() and inv3.primary == null and inv3.wallet.is_empty())
 	_ok("вещи на базе целы (ящики и вещи на земле не тронуты)", (dd.crates as Array).size() == 1 and String(dd.crates[0][3][0].id) == "ak74m" and (dd.ground as Array).size() == 1)
 	_ok("после перезагрузки маршрут закрыт, коровника нет на карте, герой — дома", ULBase.route_state("cowshed") == "" and not ULMap.place_shown("cowshed") and ULSettings.place == "home" and ULSettings.arrival_note.begins_with("Кластер перезагрузился"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fake))
+	ULSettings.place = "home"
+	ULSettings.arrival_note = ""
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
+## Санаторий «Луч» (--as-test=sn): проверки по списку задания — размер и расположение, вход во все корпуса и на все
+## этажи, скрытие крыши и верхних этажей, срез стен, двери и лестницы, враги внутри корпусов, число и места врагов,
+## никто не в стене и мебели, обыск тел и тайников, таймер, перезагрузка, уход с добычей.
+func _sn_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	var c := ULSanatorium.cfg()
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	# 1–2: размер и расположение по карте пользователя
+	_ok("санаторий: поле %d×%d м, враги расставлены" % [int(size_m), int(size_m)], size_m == 150.0 and cs_ready and place == "sanatorium" and house == null)
+	var pos := {}
+	var names := []
+	for b in san.blds:
+		pos[b.id] = b.rect.get_center()
+		names.append(b.title)
+	_ok("шесть корпусов: %s" % ", ".join(names), san.blds.size() == 6)
+	var lay: bool = absf(pos.main.x) < 6.0 and pos.main.y > 10.0 and pos.medical.x < -25.0 and pos.medical.y < -30.0 and pos.boiler.y < -50.0 \
+		and pos.hozblok.y < -50.0 and pos.hozblok.x > 40.0 and pos.residential.x > 40.0 and absf(pos.residential.y) < 30.0 and pos.canteen.x < -40.0 \
+		and pos.canteen.y > 20.0 and ULSanatorium.YARD.get_center().x > 40.0 and ULSanatorium.YARD.get_center().y > 30.0 and (ULSanatorium.PLAZA[0] as Vector2).y < pos.main.y - 20.0 \
+		and ULSanatorium.ENTRY.z > 60.0 and absf(ULSanatorium.ENTRY.x) < 6.0
+	_ok("расположение по карте: ворота внизу посередине, главный корпус над ними, выше — фонтан; лечебный слева вверху, котельная и хозблок сверху, жилой справа, столовая слева внизу, хоздвор справа внизу", lay, str(pos))
+	var nrooms := 0
+	for b in san.blds:
+		nrooms += b.rooms.size()
+	_ok("внутри — комнаты, коридоры, лестницы: помещений %d, дверей %d, тайников %d" % [nrooms, san.doors.size(), san.containers.size()], nrooms > 150 and san.doors.size() > 100 and san.containers.size() > 200)
+	# 3: путь от входа на каждый этаж каждого корпуса
+	var reach_ok := 0
+	var reach_all := 0
+	var bad := []
+	for b in san.blds:
+		for f in b.floors:
+			var tgt := Vector3.INF
+			for sp in b.spots:
+				if String(sp[1]).ends_with(":%d" % f):
+					tgt = sp[0]
+					break
+			if tgt == Vector3.INF:
+				continue
+			reach_all += 1
+			var from: Vector3 = snapf.call(b.entrances[0][0])
+			var path := NavigationServer3D.map_get_path(map, from, tgt, true)
+			if path.size() > 1 and path[path.size() - 1].distance_to(tgt) < 1.0:
+				reach_ok += 1
+			else:
+				bad.append("%s/%d" % [b.id, f + 1])
+	_ok("в каждый корпус можно войти и подняться на каждый этаж (путь по карте проходимости от входа): %d из %d" % [reach_ok, reach_all], reach_ok == reach_all, str(bad))
+	# стены непроходимы: лучи на высоте 1 м поперёк наружных стен
+	var wall_hits := 0
+	var wall_rays := 0
+	for b in san.blds:
+		for bk in b.blocks:
+			for k in 7:
+				var u := (k - 3) * float(bk.hl) / 4.0
+				var a0 := b._w(bk, u, 0.5, float(bk.hw) + 1.5)
+				var a1 := b._w(bk, u, 0.5, float(bk.hw) - 0.6)
+				var q := PhysicsRayQueryParameters3D.create(a0, a1)
+				q.collision_mask = 1 | ULDoor.LAYER
+				wall_rays += 1
+				if not space.intersect_ray(q).is_empty():
+					wall_hits += 1
+	_ok("наружные стены непроходимы (лучи в стену на высоте 0,5 м — ниже подоконника: %d из %d упёрлись — остальные во входы)" % [wall_hits, wall_rays], wall_hits >= wall_rays * 0.9)
+	# проверки внутри главного корпуса — без врагов вокруг (иначе героя загрызут посреди проверки)
+	for e in enemies:
+		if e.global_position.distance_to(Vector3(0, 0, 21)) < 45.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	# 4: этаж героя — крыша и всё выше скрыто, стены этажа срезаны; снаружи — снова целиком
+	var mi := 0
+	var main: ULBlock = san.blds[mi]
+	player.global_position = Vector3(10, 3.35, 21)
+	await get_tree().create_timer(0.5).timeout
+	var cut_on := false
+	for m in (main._groups["b0/i1"] as Node3D).get_children():
+		if (m as MeshInstance3D).material_override == ULBlock.cut_mats.get(String(m.get_meta("mat")), null):
+			cut_on = true
+	var hid: bool = san.hero_b == mi and san.hero_f == 1 and not main._groups["b0/r"].visible and not main._groups["b0/x2f"].visible and not main._groups["b0/n2"].visible \
+		and main._groups["b0/n1"].visible and not main._groups["b0/n0"].visible and main._groups["b0/x0f"].visible
+	_ok("герой на 2 этаже главного корпуса: крыша и 3 этаж скрыты, видна обстановка его этажа, стены срезаны", hid and cut_on, "%d/%d" % [san.hero_b, san.hero_f])
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.6).timeout
+		await _snap("sn_floor2")
+	player.global_position = Vector3(0, 0.1, 45)
+	await get_tree().create_timer(0.5).timeout
+	_ok("вышел — корпус снова целый: крыша и фасады видны, внутренности скрыты", san.hero_b == -1 and main._groups["b0/r"].visible and main._groups["b0/xa"].visible and not main._groups["b0/x2f"].visible and not main._groups["b0/n1"].visible)
+	# 5: лестница — герой сам поднимается со 1 на 2 этаж
+	var st0: Vector3 = snapf.call(Vector3(-8, 0, 21))
+	var st1: Vector3 = snapf.call(Vector3(-8, 3.3, 21))
+	player.global_position = st0 + Vector3.UP * 0.1
+	await get_tree().create_timer(0.3).timeout
+	var sp_path := NavigationServer3D.map_get_path(map, st0, st1, true)
+	await _walk(Array(sp_path), 25.0)
+	_ok("герой поднялся по лестнице на 2 этаж (высота %.2f м)" % player.global_position.y, player.global_position.y > 3.0 and san.hero_f == 1, str(player.global_position))
+	var down := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), st0, true)
+	await _walk(Array(down), 25.0)
+	_ok("и спустился обратно (высота %.2f м)" % player.global_position.y, player.global_position.y < 0.5 and san.hero_f == 0, "путь %d точек: %s; герой %s" % [down.size(), str(down.slice(0, 6)), str(player.global_position)])
+	# двери: закрытая — преграда (луч упирается в дверь), герой подходит — открывается
+	var door: ULDoor = null
+	for d in san.doors:
+		var dd := d as ULDoor
+		if not dd.open and not dd.get_meta("ext", false) and dd.floor_i == 0 and dd.center.distance_to(player.global_position) < 40.0:
+			door = dd
+			break
+	if door != null:
+		var nrm := door.global_transform.basis.z.normalized()
+		var q2 := PhysicsRayQueryParameters3D.create(door.center + Vector3.UP * 1.0 + nrm * 1.0, door.center + Vector3.UP * 1.0 - nrm * 1.0)
+		q2.collision_mask = 1 | ULDoor.LAYER
+		var h0 := space.intersect_ray(q2)
+		var blocked: bool = not h0.is_empty() and h0.collider == door
+		player.global_position = door.center + nrm * 0.8 + Vector3.UP * 0.1
+		await get_tree().create_timer(0.8).timeout
+		_ok("закрытая дверь — преграда; герой подошёл — дверь открылась", blocked and door.open, "закрыта: %s, открыта: %s" % [blocked, door.open])
+	# 6: враг внутри корпуса идёт к герою через двери и по лестнице на другой этаж
+	var room0 := Vector3.INF
+	var hero2: Vector3 = snapf.call(Vector3(12, 3.3, 21))
+	for sp in main.spots:
+		var tg := String(sp[1])
+		var dxz := Vector2((sp[0] as Vector3).x - hero2.x, (sp[0] as Vector3).z - hero2.z).length()
+		if tg.ends_with(":0") and not tg.contains(":cor:") and not tg.contains(":stair:") and dxz > 6.0 and dxz < 14.0:
+			room0 = sp[0]
+			break
+	for e in enemies:
+		if e.global_position.distance_to(hero2) < 25.0 or e.global_position.distance_to(room0) < 25.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	var chaser := spawn_enemy("infected", snapf.call(room0))
+	player.global_position = hero2 + Vector3.UP * 0.1
+	await get_tree().create_timer(0.3).timeout
+	chaser.state = "chase"
+	chaser._last = player.global_position
+	chaser._unseen = 0.0
+	var tch := 0.0
+	var hp1 := hp
+	var best_d := 99.0
+	while tch < 35.0 and hp >= hp1:
+		await get_tree().process_frame
+		tch += get_process_delta_time()
+		best_d = minf(best_d, chaser.global_position.distance_to(player.global_position))
+	_ok("пустыш из кабинета 1 этажа дошёл до героя на 2 этаже (двери, коридор, лестница) и ударил: %.1f с" % tch, hp < hp1 and chaser.global_position.y > 2.5, "ближе всего %.2f м, высота врага %.2f, состояние %s" % [best_d, chaser.global_position.y, chaser.state])
+	hp = HP_MAX
+	chaser.damage(999.0, player.global_position)
+	# 7–9: число врагов, где они, никто не в стене и мебели
+	var np := 0
+	var nl := 0
+	var zones := {}
+	var inside := 0
+	var near_entry := 0
+	var stuck := 0
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.26
+	capsule.height = 1.4
+	for sp in cs_plan:
+		if String(sp[0]) == "infected":
+			np += 1
+		else:
+			nl += 1
+		var z := String(sp[2]).split(":")[0]
+		zones[z] = int(zones.get(z, 0)) + 1
+		var p: Vector3 = sp[1]
+		if san.locate(p + Vector3.UP * 0.3).x >= 0:
+			inside += 1
+		if Vector2(p.x - ULSanatorium.ENTRY.x, p.z - ULSanatorium.ENTRY.z).length() < float(c.safe_r):
+			near_entry += 1
+		var qs := PhysicsShapeQueryParameters3D.new()
+		qs.shape = capsule
+		qs.transform = Transform3D(Basis(), p + Vector3.UP * 0.95)
+		qs.collision_mask = 1
+		var hits := space.intersect_shape(qs, 4).filter(func(h): return not (h.collider is CharacterBody3D))
+		if not hits.is_empty():
+			stuck += 1
+			print("[inv]   в препятствии: %s %s (%s)" % [sp[0], str(p.snapped(Vector3.ONE * 0.1)), str(hits[0].collider)])
+	_ok("пустышей %d (от %d до %d), лоторейщиков %d (от %d до %d)" % [np, int(c.pustysh[0]), int(c.pustysh[1]), nl, int(c.lottery[0]), int(c.lottery[1])], np >= int(c.pustysh[0]) and np <= int(c.pustysh[1]) and nl >= int(c.lottery[0]) and nl <= int(c.lottery[1]))
+	_ok("враги по всей территории и в корпусах (%d внутри, %d снаружи): %s" % [inside, cs_plan.size() - inside, str(zones)], zones.size() >= 6 and inside >= cs_plan.size() * 0.35 and inside <= cs_plan.size() * 0.85)
+	_ok("никто не стоит в стене, мебели или дереве (проверка формой тела)", stuck == 0, "в препятствии: %d" % stuck)
+	_ok("у ворот (%d м) врагов нет" % int(c.safe_r), near_entry == 0)
+	var crowd := 0
+	for a in cs_plan:
+		var nn := 0
+		for b2 in cs_plan:
+			if (a[1] as Vector3).distance_to(b2[1]) < 4.0:
+				nn += 1
+		crowd = maxi(crowd, nn)
+	_ok("не одной толпой: рядом (4 м) не больше %d врагов" % crowd, crowd <= 6)
+	var lot_zones := {}
+	for sp in cs_plan:
+		if String(sp[0]) == "lottery":
+			lot_zones[String(sp[2])] = true
+	_ok("лоторейщики — в дальних коридорах, лечебном корпусе, подсобках, у котельной, в зарослях: %s" % str(lot_zones.keys()), lot_zones.size() >= 2)
+	var lo := [99, 99]
+	var hi := [0, 0]
+	var sigs := {}
+	for sd in 30:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7000 + sd * 7919
+		var plan := san.spawn_plan(rng, snapf)
+		var a := 0
+		var bb := 0
+		for sp in plan:
+			if String(sp[0]) == "infected":
+				a += 1
+			else:
+				bb += 1
+		lo = [mini(lo[0], a), mini(lo[1], bb)]
+		hi = [maxi(hi[0], a), maxi(hi[1], bb)]
+		sigs["%d/%d/%s" % [a, bb, str((plan[0][1] as Vector3).round())]] = true
+	_ok("30 посещений: пустышей %d–%d, лоторейщиков %d–%d, каждый раз по-другому" % [lo[0], hi[0], lo[1], hi[1]], lo[0] >= 20 and hi[0] <= 40 and lo[1] >= 5 and hi[1] <= 15 and sigs.size() >= 25 and hi[0] - lo[0] >= 12)
+	# 10: обыск тайника и тела
+	var ci := -1
+	for i in san.containers.size():
+		var ct: Dictionary = san.containers[i]
+		var any := false
+		for it in ct.items:
+			if it != null:
+				any = true
+		if any and int(ct.f) == 0 and (ct.pos as Vector3).distance_to(Vector3(0, 0, 21)) < 30.0:
+			ci = i
+			break
+	if ci >= 0:
+		var ct2: Dictionary = san.containers[ci]
+		var cp: Vector3 = ct2.pos
+		var stand: Vector3 = snapf.call(cp)
+		player.global_position = stand + Vector3.UP * 0.1
+		await get_tree().create_timer(0.3).timeout
+		var t_ok: bool = _target != null and String(_target.type) == "box" and _action_label() == "Обыскать"
+		var n0 := inv.used()
+		do_action()
+		await get_tree().process_frame
+		_ok("тайник «%s» с добычей: подсветка, «Обыскать», открывается окно обыска" % String(ct2.n), t_ok and inv_ui.visible, "цель: %s" % _target_name())
+		if out != "":
+			await get_tree().create_timer(0.4).timeout
+			await _snap("sn_search")
+		close_inventory()
+		_ok("в тайнике лежат вещи из таблицы добычи", n0 >= 0 and not (ct2.items as Array).filter(func(x): return x != null).is_empty())
+	var kinds := {}
+	for ct3 in san.containers:
+		kinds[String(ct3.kind)] = true
+	_ok("виды тайников: %s" % ", ".join(kinds.keys()), kinds.has("med") and kinds.has("bedside") and kinds.has("locker") and kinds.has("desk") and kinds.has("store") and kinds.has("kitchen"))
+	# тело: убить врага — обыскать
+	var victim: ULEnemy = null
+	for e in enemies:
+		if e.alive() and e.process_mode != Node.PROCESS_MODE_DISABLED and san.locate(e.global_position).x < 0:
+			victim = e
+			break
+	if victim:
+		player.global_position = victim.global_position + Vector3(1.2, 0.1, 0)
+		victim.damage(999.0, player.global_position)
+		await get_tree().create_timer(2.2).timeout
+		player.global_position = victim.body_pos() + Vector3(0.6, 0.1, 0)
+		await get_tree().create_timer(0.3).timeout
+		_ok("убитого можно обыскать (цель — тело, «Обыскать»)", _target != null and String(_target.type) == "corpse" and _action_label() == "Обыскать")
+	# 11: таймер
+	_ok("таймер кластера начат с 10:00 (настройка minutes в data/sanatorium.json)", cs_left() > 400.0 and cs_left() <= 600.0 and int(c.minutes) == 10 and _cs_end - float(cs_start) > 599.0, "%.1f с" % cs_left())
+	_ok("убитые враги в этом посещении больше не появляются", _respawn.is_empty())
+	var jn := 0
+	var jb := {}
+	for g in ground:
+		if g.item != null and String(g.item.id) == "junk":
+			jn += 1
+			var l := san.locate((g.node as Node3D).global_position + Vector3.UP * 0.2)
+			if l.x >= 0:
+				jb[l.x] = int(jb.get(l.x, 0)) + 1
+	_ok("хлам в корпусах: %d кучек, во всех шести" % jn, jb.size() == 6)
+	# 14–15: уход с добычей; новая покупка; перезагрузка с героем внутри
+	for e in enemies:
+		if e.alive():
+			e.state = "idle"
+			e.global_position = e.home
+	hp = HP_MAX
+	inv.wallet = {"spore": 7, "pea": 1}
+	ULBase.set_route("sanatorium", "active")
+	player.global_position = Vector3(2, 0.1, size_m * 0.5 + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 2.0:
+		await get_tree().process_frame
+		tl += get_process_delta_time()
+	_ok("ушёл через ворота за край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and ULBase.route_state("sanatorium") == "" and ULSettings.place == "home" and ULSettings.arrival_title == "Санаторий Луч", ULSettings.arrival_note)
+	_ok("санатория снова нет на карте", not ULMap.place_shown("sanatorium"))
+	inv.wallet = {"spore": 25}
+	var rb := ULBase.buy_route(inv, "sanatorium")
+	_ok("для нового посещения маршрут покупается снова (25 споранов) и появляется на карте", rb.ok and ULBase.route_state("sanatorium") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("sanatorium"))
+	_cs_done = false
+	left_location = false
+	_leave_t = 0.0
+	ULSettings.place = "sanatorium"
+	ULBase.set_route("sanatorium", "active")
+	player.global_position = ULSanatorium.ENTRY + Vector3(0, 0.1, -3)
+	inv.primary = ULItems.make("ak74m")
+	inv.wallet = {"spore": 25, "pea": 2}
+	var fake := "user://test_cluster.json"
+	ULBase.write_json(fake, {"v": SAVE_V, "crates": [[1.0, 2.0, 0.0, [ULItems.make("ak74m")]]], "ground": [], "inv": inv.to_dict(), "hp": 80.0})
+	_cs_end = Time.get_unix_time_from_system() + 0.5
+	var tr := 0.0
+	while not _cs_done and tr < 6.0:
+		await get_tree().process_frame
+		tr += get_process_delta_time()
+	_save_carried(fake, true)
+	var dd2 = JSON.parse_string(FileAccess.get_file_as_string(fake))
+	_ok("время вышло: герой погиб, всё при себе потеряно, вещи на базе целы", _cs_done and inv.primary == null and inv.wallet.is_empty() and (dd2.crates as Array).size() == 1)
+	_ok("кластер перезагрузился: маршрут закрыт, санатория нет на карте, герой — дома", ULBase.route_state("sanatorium") == "" and not ULMap.place_shown("sanatorium") and ULSettings.place == "home" and ULSettings.arrival_note.begins_with("Кластер перезагрузился"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(fake))
 	ULSettings.place = "home"
 	ULSettings.arrival_note = ""
@@ -6569,15 +6914,25 @@ func _run_test() -> void:
 	if test == "cs":
 		await _cs_test()
 		return
-	if test == "csperf":
+	if test == "sn":
+		await _sn_test()
+		return
+	if test == "csperf" or test == "snperf":
 		var t1 := Time.get_ticks_msec()
-		while not cs_ready and Time.get_ticks_msec() - t1 < 15000:
+		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
-		print("[perf] коровник: врагов %d (наибольшее число по data/cowshed.json)" % enemies.size())
+		print("[perf] %s: врагов %d (наибольшее число по data/%s.json)" % [zone_name(), enemies.size(), place])
 		var no_screen := DisplayServer.get_name() == "headless"
 		var worst := {"draw": 0.0, "tris": 0.0, "tex_mb": 0.0, "cpu_ms": 0.0}
-		var pts := [["вход", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["в коровнике", cowshed.barn_point(0, RandomNumberGenerator.new())], ["у останков коров", cowshed.cows[0] + Vector3(0, 0, 2.5)],
-			["лес", Vector3(-52, 0, -50)], ["середина", Vector3(0, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
+		var pts: Array = []
+		if place == "sanatorium":
+			pts = [["ворота", ULSanatorium.ENTRY + Vector3(0, 0, -3)], ["перед главным корпусом", Vector3(0, 0, 42)], ["вестибюль главного", Vector3(0, 0, 23)],
+				["главный, 3 этаж", Vector3(-8, 6.6, 21)], ["площадь с фонтаном", Vector3(2, 0, -6)], ["палата лечебного", Vector3(-58, 0, -45)],
+				["жилой, 4 этаж", Vector3(50, 9.9, -8)], ["столовая", Vector3(-54, 0, 36)], ["хоздвор", Vector3(54, 0, 46)],
+				["середина, все враги гонятся", Vector3(0, 0, -6)]]
+		else:
+			pts = [["вход", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["в коровнике", cowshed.barn_point(0, RandomNumberGenerator.new())], ["у останков коров", cowshed.cows[0] + Vector3(0, 0, 2.5)],
+				["лес", Vector3(-52, 0, -50)], ["середина", Vector3(0, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
 		for pt in pts:
 			player.global_position = (pt[1] as Vector3) + Vector3.UP * 0.1
 			hp = HP_MAX
@@ -6591,6 +6946,7 @@ func _run_test() -> void:
 			prof_mid_n = 0
 			prof_full = 0
 			prof_full_n = 0
+			prof_parts.clear()
 			var fr0 := Engine.get_process_frames()
 			var d: Dictionary = await _perf_sample()
 			# среднее и худшее за 60 кадров (один кадр «шумит» из-за самой машины)
@@ -6608,6 +6964,10 @@ func _run_test() -> void:
 			print("[perf]   за 60 кадров: среднее %.2f мс (из них физика %.2f), худший %.2f мс" % [acc / 60.0, acc_ph / 60.0, worst1])
 			var nf := maxi(Engine.get_process_frames() - fr0, 1)
 			print("[prof] упрощённо: %.3f мс на вызов, %.2f мс на кадр; полностью: %.3f мс на вызов, %.2f мс на кадр" % [prof_mid / 1000.0 / maxf(prof_mid_n, 1), prof_mid / 1000.0 / nf, prof_full / 1000.0 / maxf(prof_full_n, 1), prof_full / 1000.0 / nf])
+			var parts := ""
+			for kp in prof_parts:
+				parts += "%s %.2f; " % [kp, int(prof_parts[kp]) / 1000.0 / nf]
+			print("[prof] по частям, мс на кадр: ", parts)
 			var near := 0
 			var mid := 0
 			for e in enemies:
@@ -6731,6 +7091,35 @@ func _run_test() -> void:
 		get_tree().quit()
 		return
 	if test == "csbake" or test == "snbake":
+		get_tree().quit()
+		return
+	if test == "sndbg":
+		# отладка карты проходимости санатория: этажи и лестницы
+		var t0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+			await get_tree().process_frame
+		var mp := get_world_3d().navigation_map
+		for q in [Vector3(-8, 0, 21), Vector3(-8, 3.3, 21), Vector3(-8, 6.6, 21), Vector3(-17, 1.6, 15.3), Vector3(-15, 3.3, 15.3), Vector3(-15.5, 3.3, 24)]:
+			print("[dbg] ближайшая к %s: %s" % [str(q), str(NavigationServer3D.map_get_closest_point(mp, q))])
+		var pth := NavigationServer3D.map_get_path(mp, Vector3(-8, 0, 21), Vector3(-8, 3.3, 21), true)
+		print("[dbg] путь 1→2 этаж: ", pth)
+		var ramp := NavigationServer3D.map_get_closest_point(mp, Vector3(-16.0, 1.6, 15.4))
+		print("[dbg] марш: ", ramp)
+		print("[dbg] марш → 1 этаж: ", NavigationServer3D.map_get_path(mp, ramp, Vector3(-8, 0.2, 21), true))
+		print("[dbg] марш → 2 этаж: ", NavigationServer3D.map_get_path(mp, ramp, Vector3(-8, 3.5, 21), true))
+		print("[dbg] низ марша: ", NavigationServer3D.map_get_closest_point(mp, Vector3(-13.5, 0.2, 15.4)), " площадка перед: ", NavigationServer3D.map_get_closest_point(mp, Vector3(-13.0, 0.2, 15.4)))
+		print("[dbg] верх марша: ", NavigationServer3D.map_get_closest_point(mp, Vector3(-19.0, 3.4, 15.4)), " 2 этаж середина клетки: ", NavigationServer3D.map_get_closest_point(mp, Vector3(-16.0, 3.4, 21)))
+		print("[dbg] 1 этаж середина клетки: ", NavigationServer3D.map_get_closest_point(mp, Vector3(-16.0, 0.2, 21)), " путь до коридора: ", NavigationServer3D.map_get_path(mp, Vector3(-16.0, 0.2, 21), Vector3(-8, 0.2, 21), true).size())
+		var main: ULBlock = san.blds[0]
+		var bk: Dictionary = main.blocks[0]
+		for by in bk.bays:
+			if String(by[2]) == "stair":
+				print("[dbg] клетка ", by, " марш 0: ", main._flight_geo(bk, by, 0))
+		var space := get_world_3d().direct_space_state
+		for u in [-19.0, -18.0, -17.0, -16.0, -15.0, -14.0]:
+			var q := PhysicsRayQueryParameters3D.create(Vector3(u, 5.0, 15.0), Vector3(u, -1.0, 15.0))
+			var h := space.intersect_ray(q)
+			print("[dbg] луч вниз в (%.1f, 15): %s" % [u, str(h.get("position", "нет"))])
 		get_tree().quit()
 		return
 	if test == "snview":

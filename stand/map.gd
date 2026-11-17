@@ -380,6 +380,22 @@ func _run_test() -> void:
 	ULSettings.place = "home"
 	entering = false
 	select("")
+	# санаторий: до покупки нет, после — слева выше дома, панель с описанием, 10 минут
+	var sr := place_rect("sanatorium")
+	ok.call("до покупки маршрута санатория на карте нет", not place_shown("sanatorium"))
+	ULBase.set_route("sanatorium", "bought")
+	ok.call("маршрут куплен — санаторий на карте слева выше дома", place_shown("sanatorium") and sr.get_center().x < hr.get_center().x and sr.get_center().y < hr.get_center().y)
+	set_pan(sr.get_center() - size * 0.5)
+	tap(sr.get_center() - pan)
+	await get_tree().create_timer(0.5).timeout
+	ok.call("панель санатория: снимок, вид, 10 минут, описание", sel == "sanatorium" and p_pic.texture != null and p_t.text == "Санаторий Луч" and p_x.text.contains("10 минут") and p_d.text.begins_with("Заброшенный санаторий"))
+	await _snap("p5_sanatorium")
+	enter("sanatorium")
+	ok.call("вход в санаторий: посещение началось, место — санаторий", ULBase.route_state("sanatorium") == "active" and ULSettings.place == "sanatorium")
+	ULBase.close_interrupted()
+	ULSettings.place = "home"
+	entering = false
+	select("")
 	open_settings()
 	await get_tree().create_timer(0.5).timeout
 	await _snap("p2_settings")
