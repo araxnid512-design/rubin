@@ -26,6 +26,7 @@ const FW := 1.35
 const CUT := 1.2                  ## на какой высоте срезаны стены этажа, где герой
 const CW := 2.4                   ## ширина коридора
 const PITCH := 3.25               ## шаг окон
+const GEN_V := 1                  ## версия генератора: менять при любой правке сборки корпусов (иначе возьмётся старый кэш)
 
 const SHADER_BODY := """
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
@@ -168,6 +169,8 @@ var entrances: Array = []         ## [точка снаружи у двери, �
 var junk: Array = []              ## точки для хлама (мир)
 var rect := Rect2()               ## где здание по земле (мир)
 var state := -99                  ## -1 — герой снаружи; k — герой внутри на этаже k
+var _made: Array = []             ## [группа, материал, сетка] — для кэша
+var _door_args: Array = []        ## как создавались двери — для кэша
 var _groups := {}
 var _st := {}
 var _rng: RandomNumberGenerator
@@ -341,31 +344,81 @@ func _group(key: String) -> Node3D:
 func _flush() -> void:
 	for k in _st.keys():
 		var parts := String(k).split("|")
-		var mi := MeshInstance3D.new()
-		mi.mesh = (_st[k] as SurfaceTool).commit()
-		mi.material_override = mats[parts[1]]
-		mi.set_meta("mat", parts[1])
-		var gk := parts[0]
-		# внутренности — на слое 2 (их не освещает солнце)
-		if gk.contains("/i") or gk.contains("/n") or gk.contains("/s"):
-			mi.layers = 2
-		# тень отбрасывают только стены и крыши; рамы, стёкла, карнизы и всё внутри — нет (меньше треугольников)
-		var big := parts[1] in ["facade", "facade2", "plaster", "brick", "roof", "plinth", "slab"]
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if big and not (gk.contains("/n") or gk.contains("/i") or gk.contains("/s")) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_group(gk).add_child(mi)
+		var mesh := (_st[k] as SurfaceTool).commit()
+		_made.append([parts[0], parts[1], mesh])
+		_add_mesh(parts[0], parts[1], mesh)
 	_st.clear()
+
+
+func _add_mesh(gk: String, mat: String, mesh: Mesh) -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mats[mat]
+	mi.set_meta("mat", mat)
+	# внутренности — на слое 2 (их не освещает солнце)
+	if gk.contains("/i") or gk.contains("/n") or gk.contains("/s"):
+		mi.layers = 2
+	# тень отбрасывают только стены и крыши; рамы, стёкла, карнизы и всё внутри — нет (меньше треугольников)
+	var big := mat in ["facade", "facade2", "plaster", "brick", "roof", "plinth", "slab"]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if big and not (gk.contains("/n") or gk.contains("/i") or gk.contains("/s")) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_group(gk).add_child(mi)
+
+
+## дверь: [где, вдоль стены, куда открывается, ширина, высота, открыта, блок, этаж, наружная]
+func _make_door(a: Array) -> ULDoor:
+	var dd := ULDoor.new()
+	add_child(dd)
+	dd.setup(a[0], a[1], a[2], float(a[3]), float(a[4]), mats["door"], bool(a[5]))
+	dd.bld = int(a[6])
+	dd.floor_i = int(a[7])
+	if bool(a[8]):
+		dd.panel.layers = 1
+		dd.set_meta("ext", true)
+	doors.append(dd)
+	_door_args.append(a)
+	return dd
+
+
+## всё, что нужно, чтобы поднять корпус без сборки: сетки, двери, комнаты, тайники, места, столкновения
+func to_cache() -> Dictionary:
+	return {"made": _made, "doors": _door_args, "blocks": blocks, "floors": floors, "storey": storey, "rect": rect,
+		"rooms": rooms, "containers": containers, "spots": spots, "lamps": lamps, "cols": cols, "hulls": hulls,
+		"entrances": entrances, "junk": junk}
+
+
+func _from_cache(c: Dictionary) -> void:
+	blocks = c.blocks
+	floors = int(c.floors)
+	rect = c.rect
+	rooms = c.rooms
+	containers = c.containers
+	spots = c.spots
+	lamps = c.lamps
+	cols = c.cols
+	hulls = c.hulls
+	entrances = c.entrances
+	junk = c.junk
+	for m in c.made:
+		_made.append(m)
+		_add_mesh(String(m[0]), String(m[1]), m[2])
+	for a in c.doors:
+		_make_door(a)
 
 
 # ---------------- сборка ----------------
 
-## d — описание корпуса (ULSanatorium.BUILDINGS)
-func build(d: Dictionary, rng: RandomNumberGenerator) -> void:
+## d — описание корпуса (ULSanatorium.BUILDINGS); cache — готовый корпус (ULBlockCache), если есть
+func build(d: Dictionary, rng: RandomNumberGenerator, cache := {}) -> void:
 	def = d
 	id = String(d.id)
 	title = String(d.n)
 	name = id
 	storey = float(d.get("storey", STOREY))
 	_rng = rng
+	if not cache.is_empty():
+		_from_cache(cache)
+		set_state(-1)
+		return
 	var rmin := Vector2(1e9, 1e9)
 	var rmax := Vector2(-1e9, -1e9)
 	for b in d.blocks:
@@ -385,6 +438,7 @@ func build(d: Dictionary, rng: RandomNumberGenerator) -> void:
 				rmin = Vector2(minf(rmin.x, p.x), minf(rmin.y, p.z))
 				rmax = Vector2(maxf(rmax.x, p.x), maxf(rmax.y, p.z))
 	rect = Rect2(rmin, rmax - rmin)
+	var t0 := Time.get_ticks_usec()
 	for bi in blocks.size():
 		_plan(bi)
 	for bi in blocks.size():
@@ -395,6 +449,7 @@ func build(d: Dictionary, rng: RandomNumberGenerator) -> void:
 	if d.has("portico"):
 		_portico(d.portico)
 	_flush()
+	print("[blk] %s собран заново: %d мс" % [id, (Time.get_ticks_usec() - t0) / 1000])
 	set_state(-1)
 
 
@@ -760,21 +815,13 @@ func _entrance(bi: int, bk: Dictionary, key: String, along_u: bool, a: float, b:
 	_wall_piece(bk, key, "slab", along_u, a - 0.6, b + 0.6, -0.05, 0.1, outer, outer + sgn * 1.6)
 	_wall_piece(bk, key, "slab", along_u, a - 0.3, b + 0.3, 0.05, 0.16, outer, outer + sgn * 0.8)
 	# створки
-	var dmat: Material = mats["door"]
 	for k in 2:
-		var dd := ULDoor.new()
-		add_child(dd)
 		var c := _w(bk, (a + w * 0.25 + k * w * 0.5) if along_u else outer - sgn * 0.15, y0, outer - sgn * 0.15 if along_u else (a + w * 0.25 + k * w * 0.5))
 		var along := _wd(bk, 1, 0) if along_u else _wd(bk, 0, 1)
 		var into := -_side_n(bk, _side_of(along_u, sgn))
 		if k == 1:
 			along = -along
-		dd.setup(c, along, into, w * 0.5, y1 - y0 - 0.1, dmat, _rng.randf() < 0.6)
-		dd.panel.layers = 1
-		dd.bld = bi
-		dd.floor_i = 0
-		dd.set_meta("ext", true)
-		doors.append(dd)
+		_make_door([c, along, into, w * 0.5, y1 - y0 - 0.1, _rng.randf() < 0.6, bi, 0, true])
 	var outp := _w(bk, m if along_u else outer + sgn * 2.2, 0, outer + sgn * 2.2 if along_u else m)
 	var inp := _w(bk, m if along_u else outer - sgn * 2.0, 0, outer - sgn * 2.0 if along_u else m)
 	entrances.append([outp, inp])
@@ -1012,13 +1059,7 @@ func _iwall_u(bk: Dictionary, key: String, u0: float, u1: float, v: float, y0: f
 		_lb(key, "frame", bk, a - 0.07, b + 0.07, y0 + DH, y0 + DH + 0.07, v - TI * 0.5 - 0.02, v + TI * 0.5 + 0.02)
 		if _rng.randf() > 0.12:
 			# дверь открывается в комнату (от коридора, v = 0)
-			var dd := ULDoor.new()
-			add_child(dd)
-			var into := _wd(bk, 0, into_s)
-			dd.setup(_w(bk, (a + b) * 0.5, y0, v), _wd(bk, 1, 0), into, b - a, DH, mats["door"], _rng.randf() < 0.45)
-			dd.bld = blocks.find(bk)
-			dd.floor_i = f
-			doors.append(dd)
+			_make_door([_w(bk, (a + b) * 0.5, y0, v), _wd(bk, 1, 0), _wd(bk, 0, into_s), b - a, DH, _rng.randf() < 0.45, blocks.find(bk), f, false])
 		s = b
 	_lb(key, String(def.get("int", "int_blue")), bk, s, u1, y0, y1, v - TI * 0.5, v + TI * 0.5, true)
 

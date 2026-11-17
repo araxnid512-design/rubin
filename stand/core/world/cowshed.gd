@@ -120,9 +120,10 @@ static func cfg() -> Dictionary:
 func build(world: Node3D) -> void:
 	w = world
 	half = float(cfg().get("size", 150.0)) * 0.5
+	# тело столкновений — в сцену в конце сборки: физика соберёт его один раз (не после каждой коробки)
 	body = StaticBody3D.new()
 	body.name = "CowshedBody"
-	add_child(body)
+	var t0 := Time.get_ticks_msec()
 	var fn := FastNoiseLite.new()
 	fn.seed = 77
 	fn.frequency = 0.012
@@ -167,6 +168,8 @@ func build(world: Node3D) -> void:
 	_flush(fr)
 	_flush(props)
 	_vegetation()
+	add_child(body)
+	print("[cs] коровник собран: %d мс, столкновений %d" % [Time.get_ticks_msec() - t0, body.get_child_count()])
 
 
 # ---------------- земля ----------------

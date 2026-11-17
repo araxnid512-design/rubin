@@ -258,6 +258,7 @@ var _cs_over := false             ## время вышло — герой пог
 var _cs_done := false
 var _cs_alarm := 0.0
 var cs_ready := false             ## враги расставлены
+var sn_ready_ms := 0              ## когда (мс от запуска) локация готова
 var prof_mid := 0
 var prof_mid_n := 0
 var prof_full := 0
@@ -377,6 +378,7 @@ func _cowshed_enter() -> void:
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
 	cs_ready = true
+	sn_ready_ms = Time.get_ticks_msec()
 	if san != null:
 		zone_changed()
 	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))])
@@ -3912,7 +3914,7 @@ func _auto_vec() -> Vector2:
 	var p := player.global_position
 	var tgt: Vector3 = _auto[0]
 	var d := Vector3(tgt.x - p.x, 0, tgt.z - p.z)
-	if d.length() < 0.35:
+	if d.length() < _auto_r:
 		_auto.pop_front()
 		if _auto.is_empty():
 			return Vector2.ZERO
@@ -3950,6 +3952,7 @@ func _inv_state() -> String:
 
 var _fails := 0
 var _auto_k := 0.6                ## сила «нажатия» джойстика в проверке
+var _auto_r := 0.35               ## за сколько до точки пути поворачивать к следующей (на лестнице — ближе)
 
 
 func _ok(name: String, cond: bool, extra := "") -> void:
@@ -4221,6 +4224,31 @@ func _sn_test() -> void:
 		and pos.canteen.y > 20.0 and ULSanatorium.YARD.get_center().x > 40.0 and ULSanatorium.YARD.get_center().y > 30.0 and (ULSanatorium.PLAZA[0] as Vector2).y < pos.main.y - 20.0 \
 		and ULSanatorium.ENTRY.z > 60.0 and absf(ULSanatorium.ENTRY.x) < 6.0
 	_ok("расположение по карте: ворота внизу посередине, главный корпус над ними, выше — фонтан; лечебный слева вверху, котельная и хозблок сверху, жилой справа, столовая слева внизу, хоздвор справа внизу", lay, str(pos))
+	# готовые корпуса из кэша совпадают со свежей сборкой (иначе после правки генератора забыли snbake)
+	var cr = load(ULSanatorium.BLD_CACHE) if ResourceLoader.exists(ULSanatorium.BLD_CACHE) else null
+	var same := 0
+	var diff := []
+	if cr is ULBlockCache and cr.sig == ULSanatorium.cache_sig():
+		for i in san.blds.size():
+			var cb: Dictionary = cr.blds[san.blds[i].id]
+			var rr := RandomNumberGenerator.new()
+			rr.state = int(cb.rng0)
+			var fresh := ULBlock.new()
+			fresh.build(ULSanatorium.BUILDINGS[i], rr)
+			var vc := func(made: Array) -> int:
+				var n := 0
+				for m in made:
+					n += (m[2] as ArrayMesh).surface_get_array_len(0)
+				return n
+			var a1 := [fresh.rooms.size(), fresh.containers.size(), fresh._door_args.size(), fresh.cols.size(), vc.call(fresh._made)]
+			var a2 := [san.blds[i].rooms.size(), san.blds[i].containers.size(), san.blds[i]._door_args.size(), san.blds[i].cols.size(), vc.call(san.blds[i]._made)]
+			if a1 == a2:
+				same += 1
+			else:
+				diff.append("%s: %s / %s" % [san.blds[i].id, str(a1), str(a2)])
+			fresh.free()
+	_ok("корпуса взяты из кэша и совпадают со свежей сборкой (помещения, тайники, двери, столкновения, вершины): %d из 6" % same, same == 6, str(diff))
+	print("[inv] санаторий готов через %.1f с от запуска игры (сборка локации и расстановка врагов)" % (sn_ready_ms / 1000.0))
 	var nrooms := 0
 	for b in san.blds:
 		nrooms += b.rooms.size()
@@ -4292,10 +4320,12 @@ func _sn_test() -> void:
 	player.global_position = st0 + Vector3.UP * 0.1
 	await get_tree().create_timer(0.3).timeout
 	var sp_path := NavigationServer3D.map_get_path(map, st0, st1, true)
+	_auto_r = 0.12                       # у перил не срезать углы
 	await _walk(Array(sp_path), 25.0)
 	_ok("герой поднялся по лестнице на 2 этаж (высота %.2f м)" % player.global_position.y, player.global_position.y > 3.0 and san.hero_f == 1, str(player.global_position))
 	var down := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), st0, true)
 	await _walk(Array(down), 25.0)
+	_auto_r = 0.35
 	_ok("и спустился обратно (высота %.2f м)" % player.global_position.y, player.global_position.y < 0.5 and san.hero_f == 0, "путь %d точек: %s; герой %s" % [down.size(), str(down.slice(0, 6)), str(player.global_position)])
 	# двери: закрытая — преграда (луч упирается в дверь), герой подходит — открывается
 	var door: ULDoor = null

@@ -14,6 +14,7 @@ const NAV := "res://assets/world/nav_sanatorium.res"
 const TEX := "res://assets/world/tex/"
 const MODELS := "res://assets/world/"
 const MASK := "res://assets/world/tex/sanatorium_mask.png"
+const BLD_CACHE := "res://assets/world/sanatorium_blocks.res"   ## готовые корпуса и карта расстояний (snbake)
 const TITLE := "Санаторий Луч"
 const ENTRY := Vector3(2.0, 0, 67.0)
 const ENTRY_YAW := PI              ## у ворот герой смотрит на север — на аллею к главному корпусу
@@ -151,9 +152,11 @@ static func cfg() -> Dictionary:
 func build(world: Node3D) -> void:
 	w = world
 	half = float(cfg().get("size", 150.0)) * 0.5
+	# Столкновения копятся в теле, пока оно вне сцены, и в сцену оно попадает в самом конце: физика собирает его
+	# один раз. (Добавлять по одной в тело, уже стоящее в мире, — каждая добавка пересобирает всё тело: 2700 коробок
+	# корпусов и ограды так строились 3 с.)
 	body = StaticBody3D.new()
 	body.name = "SanBody"
-	add_child(body)
 	var fn := FastNoiseLite.new()
 	fn.seed = 91
 	fn.frequency = 0.012
@@ -166,10 +169,23 @@ func build(world: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5521                    # постоянная часть — одна и та же
 	var t0 := Time.get_ticks_msec()
+	# готовые корпуса из кэша (если он от этих же описаний и этого же генератора); иначе — собрать
+	var cache: ULBlockCache = null
+	if w.test != "snbake" and ResourceLoader.exists(BLD_CACHE):
+		var r = load(BLD_CACHE)
+		if r is ULBlockCache and (r as ULBlockCache).sig == cache_sig():
+			cache = r
+		else:
+			push_warning("санаторий: кэш корпусов устарел — пересоберите --as-test=snbake (корпуса строятся заново)")
+	var made := {}
 	for d in BUILDINGS:
 		var b := ULBlock.new()
 		add_child(b)
-		b.build(d, rng)
+		var st0 := rng.state
+		b.build(d, rng, cache.blds.get(String(d.id), {}) if cache != null else {})
+		if cache == null:
+			made[String(d.id)] = b.to_cache()
+			made[String(d.id)]["rng0"] = st0
 		for c in b.cols:
 			_col_xf(c[0], c[1])
 		for h in b.hulls:
@@ -186,26 +202,80 @@ func build(world: Node3D) -> void:
 			if not _door_grid.has(k):
 				_door_grid[k] = []
 			_door_grid[k].append(dd)
-	print("[san] корпуса: %d мс, столкновений %d, тайников %d, дверей %d" % [Time.get_ticks_msec() - t0, body.get_child_count(), _count_cont(), doors.size()])
+	if cache != null:
+		rng.state = cache.rng_state
+		_dist = cache.dist
+	print("[san] корпуса%s: %d мс, столкновений %d, тайников %d, дверей %d" % [" (из кэша)" if cache != null else "", Time.get_ticks_msec() - t0, body.get_child_count(), _count_cont(), doors.size()])
+	var bld_state := rng.state
 	var props := Node3D.new()
 	props.name = "Props"
 	add_child(props)
-	_fence(props, rng)
-	_forest(rng)
-	_ground()
-	_paving()
-	_plaza(props, rng)
-	_playground(props)
-	_gazebos(props)
-	_lamps_benches(props, rng)
-	_boiler_yard(props)
-	_vehicles()
-	_yard_junk(props, rng)
-	_flush(props)
-	_vegetation()
-	_yard_spots(rng)
-	_light_pool()
+	var steps := [
+		["ограда", func(): _fence(props, rng)], ["лес", func(): _forest(rng)], ["земля", func(): _ground()],
+		["покрытия", func(): _paving()], ["площадь", func(): _plaza(props, rng)], ["площадка", func(): _playground(props)],
+		["беседки", func(): _gazebos(props)], ["фонари", func(): _lamps_benches(props, rng)], ["котельная", func(): _boiler_yard(props)],
+		["техника", func(): _vehicles()], ["мусор", func(): _yard_junk(props, rng)], ["сетки", func(): _flush(props)],
+		["растения", func(): _vegetation()], ["места", func(): _yard_spots(rng)], ["лампы", func(): _light_pool()],
+	]
+	var tl := ""
+	for st in steps:
+		var ts := Time.get_ticks_msec()
+		(st[1] as Callable).call()
+		tl += "%s %d; " % [st[0], Time.get_ticks_msec() - ts]
+	var tb := Time.get_ticks_msec()
+	add_child(body)
+	tl += "столкновения в мир %d; " % (Time.get_ticks_msec() - tb)
+	print("[san] по шагам, мс: ", tl)
+	if w.test == "snbake":
+		# кэш: готовые корпуса, состояние случайности после них, карта расстояний до покрытий и корпусов
+		var cr := ULBlockCache.new()
+		cr.sig = cache_sig()
+		cr.rng_state = bld_state
+		cr.blds = made
+		cr.dist = _bake_dist()
+		var err := ResourceSaver.save(cr, BLD_CACHE, ResourceSaver.FLAG_COMPRESS)
+		print("[bake] кэш корпусов санатория: %s (%s)" % [BLD_CACHE, error_string(err)])
 	print("[san] всё: %d мс" % (Time.get_ticks_msec() - t0))
+
+
+## подпись кэша: описания корпусов и версия генератора
+static func cache_sig() -> int:
+	return hash(str(BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|" + str(ULBlock.STOREY))
+
+
+var _dist: Image                   ## карта расстояний (из кэша): R — до края покрытия, G — до корпуса
+
+
+## Карта расстояний 600×600 (шаг 0,25 м): R — до края дорог и дорожек (−1…4 м), G — до корпуса (0…4 м). По ней
+## растения расставляются быстро (точных расстояний на каждый пучок травы — десятки тысяч, это 1,5 с).
+func _bake_dist() -> Image:
+	var n := 600
+	var im := Image.create(n, n, false, Image.FORMAT_RG8)
+	for iy in n:
+		for ix in n:
+			var q := Vector2((ix + 0.5) / n - 0.5, (iy + 0.5) / n - 0.5) * half * 2.0
+			im.set_pixel(ix, iy, Color(clampf((pave_dist(q) + 1.0) / 5.0, 0.0, 1.0), clampf(bld_dist(q) / 4.0, 0.0, 1.0), 0))
+	return im
+
+
+## расстояние до края покрытия / до корпуса: по карте, если она есть (точность ~0,25 м), иначе точно
+func pave_d(q: Vector2) -> float:
+	if _dist == null:
+		return pave_dist(q)
+	return _dist_px(q).r * 5.0 - 1.0
+
+
+func bld_d(q: Vector2) -> float:
+	if _dist == null:
+		return bld_dist(q)
+	return _dist_px(q).g * 4.0
+
+
+func _dist_px(q: Vector2) -> Color:
+	var n := _dist.get_width()
+	var x := clampi(int((q.x / (half * 2.0) + 0.5) * n), 0, n - 1)
+	var y := clampi(int((q.y / (half * 2.0) + 0.5) * n), 0, n - 1)
+	return _dist.get_pixel(x, y)
 
 
 func _count_cont() -> int:
@@ -1141,7 +1211,7 @@ func _vegetation() -> void:
 		if absf(p.x) > half - 0.5 or absf(p.z) > half - 0.5:
 			return 0.0
 		var q2 := Vector2(p.x, p.z)
-		if pave_dist(q2) < 0.1 or bld_dist(q2) < 0.3:
+		if pave_d(q2) < 0.1 or bld_d(q2) < 0.3:
 			return 0.0
 		var m := mask_px(p)
 		return clampf(m.r * 1.2 - m.g * 0.8 - 0.1, 0.0, 1.0), func(p: Vector3, r: RandomNumberGenerator) -> Color:
@@ -1149,21 +1219,21 @@ func _vegetation() -> void:
 		return ULVegetation.grass_tint(dry, r) * Color(0.82, 0.86, 0.8), Vector2(0.25, 0.75), 1.4, 911, rng_m)
 	veg_count += ULVegetation.scatter(self, "weed", size, 0.7 * q + 0.05, func(p: Vector3) -> float:
 		var q2 := Vector2(p.x, p.z)
-		var bd := bld_dist(q2)
-		var pd := pave_dist(q2)
+		var bd := bld_d(q2)
+		var pd := pave_d(q2)
 		if bd <= 0.25 or pd < 0.05:
 			return 0.0
 		return maxf((1.0 - smoothstep(0.3, 2.6, bd)) * 0.9, (1.0 - smoothstep(0.05, 0.9, pd)) * 0.45), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.86, 0.9, 0.76) * r.randf_range(0.82, 1.05), Vector2(0.4, 0.75), 1.2, 912, rng_m)
 	veg_count += ULVegetation.scatter(self, "nettle", size, 0.8 * q + 0.05, func(p: Vector3) -> float:
 		var fd := minf(absf(absf(p.x) - FENCE), absf(absf(p.z) - FENCE))
-		if fd > 1.8 or pave_dist(Vector2(p.x, p.z)) < 0.3:
+		if fd > 1.8 or pave_d(Vector2(p.x, p.z)) < 0.3:
 			return 0.0
 		return (1.0 - smoothstep(0.25, 1.6, fd)) * 0.8, func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.8, 0.88, 0.76) * r.randf_range(0.85, 1.05), Vector2(0.55, 1.0), 0.9, 913, rng_m)
 	veg_count += ULVegetation.scatter(self, "flower", size, 0.05 * q + 0.01, func(p: Vector3) -> float:
 		var m := mask_px(p)
-		if m.r < 0.5 or pave_dist(Vector2(p.x, p.z)) < 0.3:
+		if m.r < 0.5 or pave_d(Vector2(p.x, p.z)) < 0.3:
 			return 0.0
 		return m.r * smoothstep(0.55, 0.7, _noise(Vector2(p.x, p.z) / 11.0 + Vector2(0.2, 0.6))), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.95, 0.95, 0.9) * r.randf_range(0.85, 1.05), Vector2(0.3, 0.5), 1.3, 914, rng_m)
@@ -1179,9 +1249,9 @@ func _vegetation() -> void:
 		tries += 1
 		var p := Vector3(rng.randf_range(-FENCE + 1.5, FENCE - 1.5), 0, rng.randf_range(-FENCE + 1.5, FENCE - 1.5))
 		var q2 := Vector2(p.x, p.z)
-		var bd := bld_dist(q2)
+		var bd := bld_d(q2)
 		var fd := minf(absf(absf(p.x) - FENCE), absf(absf(p.z) - FENCE))
-		if not ((bd > 1.2 and bd < 2.6) or fd < 2.5) or pave_dist(q2) < 1.0 or p.distance_to(ENTRY) < 8.0:
+		if not ((bd > 1.2 and bd < 2.6) or fd < 2.5) or pave_d(q2) < 1.0 or p.distance_to(ENTRY) < 8.0:
 			continue
 		var near_door := false
 		for b in blds:
