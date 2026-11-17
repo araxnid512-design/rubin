@@ -261,6 +261,7 @@ func _cowshed_enter() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = cs_seed
 	cowshed.place_cows(rng)
+	_spawn_junk(rng)
 	# карта проходимости становится доступна через несколько кадров физики (сервер собирает её в фоне);
 	# по ней проверяется каждая точка появления
 	var map := get_world_3d().navigation_map
@@ -280,6 +281,17 @@ func _cowshed_enter() -> void:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
 	cs_ready = true
 	say("Опасный коровник. До перезагрузки кластера — %d минут" % int(c.get("minutes", 10)))
+
+
+## Хлам в постройках временного кластера: в каждой постройке — 2–4 кучки, каждый вход заново (по случайности
+## посещения). Кучка — один «Хлам»; подобранные складываются в одну стопку. Новые локации с постройками зовут то же.
+func _spawn_junk(rng: RandomNumberGenerator) -> void:
+	if cowshed == null:
+		return
+	for i in cowshed.barns.size():
+		for k in rng.randi_range(2, 4):
+			var p := cowshed.barn_point(i, rng)
+			_spawn_ground(ULItems.make("junk"), p, rng.randf() * TAU)
 
 
 ## сколько секунд осталось до перезагрузки кластера
@@ -2170,6 +2182,12 @@ func _ground_visual(g: Dictionary) -> void:
 		m.rotation.x = -0.25 if String(pk.back) == "-z" else 0.0
 		m.rotation.z = 0.0 if String(pk.back) == "-z" else 0.25
 		node.add_child(m)
+	elif String(it.id) == "junk" and ResourceLoader.exists(MODELS + "ul_junk.glb"):
+		# кучка хлама — своя модель (Tripo)
+		var jm: Node3D = (load(MODELS + "ul_junk.glb") as PackedScene).instantiate()
+		var jb := _aabb(jm)
+		jm.scale = Vector3.ONE * (float(d.get("gs", 0.42)) / maxf(jb.size.x, jb.size.z))
+		node.add_child(jm)
 	elif ULItems.kit_mesh(String(it.id)) != null:
 		# предмет из набора припасов — своя модель, чуть наклонена, повёрнута как упала
 		var km := MeshInstance3D.new()
@@ -3770,6 +3788,14 @@ func _cs_test() -> void:
 	var c := ULCowshed.cfg()
 	_ok("коровник: поле %d×%d м, враги расставлены" % [int(size_m), int(size_m)], size_m == 150.0 and cs_ready and place == "cowshed" and house == null)
 	_ok("несколько коровников, загоны, лес, техника", cowshed.barns.size() >= 3 and cowshed.fence_mid.size() >= 20 and cowshed.wood_pts.size() >= 40)
+	var jn := 0
+	var jin := 0
+	for g in ground:
+		if g.item != null and String(g.item.id) == "junk":
+			jn += 1
+			if cowshed.in_barn((g.node as Node3D).global_position) >= 0:
+				jin += 1
+	_ok("в постройках лежит хлам: %d кучек (по 2–4 на постройку)" % jn, jn >= cowshed.barns.size() * 2 and jn <= cowshed.barns.size() * 4 and jin == jn)
 	var kinds := {}
 	for ch in cowshed.get_children():
 		if ch.has_meta("cow"):
@@ -3989,7 +4015,21 @@ func _pc_test() -> void:
 	var E := ULEconomy
 	await get_tree().create_timer(0.6).timeout
 	inv.wallet = {}
-	_ok("до установки оружейника на базе нет", npcs.is_empty() and not ULBase.installed("gunsmith"))
+	_ok("до установки оружейника на базе нет (у крыльца — только барахольщик)", npc_by_role("оружейник") == null and npc_by_role("барахольщик") != null and not ULBase.installed("gunsmith"))
+	# барахольщик у крыльца: хлам складывается в одну стопку и продаётся по спорану за кучку
+	var dl := npc_by_role("барахольщик")
+	_ok("барахольщик стоит прямо перед входом в дом", dl != null and dl.global_position.distance_to(house.to_global(Vector3(0, 0, ULHouse.D * 0.5))) < 3.0)
+	for k in 7:
+		inv.add(ULItems.make("junk"))
+	var jslots := 0
+	for it in inv.pockets:
+		if it != null and String(it.id) == "junk":
+			jslots += 1
+	_ok("7 кучек хлама в кармане — одна стопка", inv.count("junk") == 7 and jslots == 1)
+	sell_junk()
+	_ok("барахольщику проданы 7 кучек → 7 споранов", inv.count("junk") == 0 and int(inv.wallet.get("spore", 0)) == 7, str(inv.wallet))
+	_ok("без хлама продавать нечего", not sell_junk() and int(inv.wallet.get("spore", 0)) == 7)
+	inv.wallet = {}
 	_ok("до покупки комната пустая и называется «Кладовая»", _armory_root == null and house.labels[2].text == "Кладовая")
 	_ok("компьютер — в сенях у правой стены", _terminal != null and house.room_at(house.to_global(TERMINAL_AT)) == "Сени", str(house.room_at(house.to_global(TERMINAL_AT))))
 	if out != "":
@@ -4041,7 +4081,7 @@ func _pc_test() -> void:
 	pc.dialog_confirm()
 	pc.dialog_confirm()                     # второе нажатие — окна уже нет
 	_ok("оружейник куплен один раз: горох 42 → 12, спораны 130 → 80", int(inv.wallet.pea) == 12 and int(inv.wallet.spore) == 80, str(inv.wallet))
-	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npcs.size() == 1 and (npcs[0] as Node3D).global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
+	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") != null and npcs.size() == 2 and npc_by_role("оружейник").global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
 	_ok("после покупки в кладовой появилась вся оружейная (прилавок, шкафы, оружие), подпись «Оружейная»", _armory_root != null and _armory_root.get_child_count() > 10 and house.labels[2].text == "Оружейная")
 	var gb := pc.find_child("up_gunsmith", true, false).find_child("buy", true, false) as Button
 	_ok("кнопка сменилась на «УСТАНОВЛЕНО»", gb != null and gb.text == "УСТАНОВЛЕНО" and gb.disabled)
@@ -4494,7 +4534,7 @@ func _inv_test() -> void:
 	player.global_position = Vector3(0.3, 0.05, 12.0)             # на тропе, рядом ничего нет
 	await get_tree().create_timer(0.3).timeout
 	_ok("рядом ничего нет: кнопки взаимодействия нет", _target == null and _hud_hit(_hud_pos("take")) != "take", "нажатие в её месте: «%s»" % _hud_hit(_hud_pos("take")))
-	var npc: Node3D = npcs[0]
+	var npc: Node3D = npc_by_role("оружейник")
 	player.global_position = npc.global_position + Vector3(-1.5, 0.05, 0.0)       # перед прилавком
 	await get_tree().create_timer(0.4).timeout
 	_ok("у жителя: кнопка появилась, действие «Говорить»", _target != null and String(_target.type) == "npc" and _hud_hit(_hud_pos("take")) == "take" and _action_label() == "Говорить", _target_name())
@@ -5425,11 +5465,77 @@ func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String) ->
 	npcs.append(body)
 
 
+const DEALER_AT := Vector3(-2.3, 0, 5.85)   ## барахольщик — у крыльца, слева от входа, у стены (справа — манекен; система дома)
+
+
 func _npcs_setup() -> void:
+	# барахольщик — всегда, прямо перед входом в дом: покупает хлам
+	if npc_by_role("барахольщик") == null:
+		_add_npc(house.to_global(DEALER_AT), 0.0, "Кузьмич", "барахольщик", "Здорово, %s. Хлам тащи — болты, провода, железки. За каждую кучку — спорана, без обмана.")
+		_dealer_stall()
 	# оружейник — в доме, за прилавком оружейной; появляется, когда нанят через компьютер базы (раздел «Персонал»)
-	if not ULBase.has_staff("gunsmith"):
-		return
-	_add_npc(house.to_global(ARMORY_NPC), -PI * 0.5, "Седой", "оружейник", "Здорово, %s. Оружие, патроны, припасы — всё за спораны. Выбирай, что по карману.")
+	if ULBase.has_staff("gunsmith") and npc_by_role("оружейник") == null:
+		_add_npc(house.to_global(ARMORY_NPC), -PI * 0.5, "Седой", "оружейник", "Здорово, %s. Оружие, патроны, припасы — всё за спораны. Выбирай, что по карману.")
+
+
+func npc_by_role(role: String) -> Node3D:
+	for n in npcs:
+		if is_instance_valid(n) and String((n as Node3D).get_meta("role")) == role:
+			return n
+	return null
+
+
+## у барахольщика — прилавок: ящик, на нём и рядом кучки хлама
+func _dealer_stall() -> void:
+	var root := Node3D.new()
+	root.name = "DealerStall"
+	house.add_child(root)
+	var path := MODELS + "ph_crate.glb"
+	if ResourceLoader.exists(path):
+		var c: Node3D = (load(path) as PackedScene).instantiate()
+		var bb := _aabb(c)
+		c.scale = Vector3.ONE * (0.9 / maxf(bb.size.x, bb.size.z))
+		c.position = DEALER_AT + Vector3(-0.95, 0, 0.1)
+		c.rotation.y = 0.2
+		root.add_child(c)
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(0.85, 0.7, 0.85)
+		cs.shape = bs
+		cs.position = DEALER_AT + Vector3(-0.95, 0.35, 0.1)
+		var sb := StaticBody3D.new()
+		root.add_child(sb)
+		sb.add_child(cs)
+	var jp := MODELS + "ul_junk.glb"
+	if ResourceLoader.exists(jp):
+		for at in [Vector3(-0.95, 0.68, 0.1), Vector3(-1.2, 0, 0.75), Vector3(0.7, 0, 0.5)]:
+			var j: Node3D = (load(jp) as PackedScene).instantiate()
+			var bb2 := _aabb(j)
+			j.scale = Vector3.ONE * (0.5 / maxf(bb2.size.x, bb2.size.z))
+			j.position = DEALER_AT + at
+			j.rotation.y = at.x * 2.0
+			root.add_child(j)
+
+
+## Продать весь хлам барахольщику: по junk_price (data/base_shop.json) за кучку; false — продавать нечего
+func sell_junk() -> bool:
+	var n := inv.count("junk")
+	if n <= 0:
+		say("Хлама нет — его находят в постройках на вылазках")
+		return false
+	var price: Dictionary = ULBase.shop().get("junk_price", {"spore": 1})
+	inv.consume("junk", n)
+	var got := ""
+	for id in price:
+		var k := int(price[id]) * n
+		inv.wallet[String(id)] = int(inv.wallet.get(String(id), 0)) + k
+		got += ("" if got == "" else ", ") + "%d %s" % [k, String(ULItems.get_def(String(id)).n).to_lower()]
+	say("Продано хлама: %d → %s" % [n, got])
+	snd.play("click", player.global_position + Vector3.UP, -4.0)
+	if _talk_ui and _talk_ui.visible:
+		_talk_sell.text = "Продать хлам (0)"
+	_save()
+	return true
 
 
 func _npcs_tick(delta: float) -> void:
@@ -5487,6 +5593,8 @@ func open_talk(n: Node3D) -> void:
 		hb.add_theme_constant_override("separation", 8)
 		_talk_trade = _btn("Торговать", open_shop, 150)
 		hb.add_child(_talk_trade)
+		_talk_sell = _btn("Продать хлам", func(): sell_junk(), 230)
+		hb.add_child(_talk_sell)
 		hb.add_child(_btn("Закрыть", func(): _talk_ui.visible = false, 130))
 		var gap := Control.new()
 		gap.custom_minimum_size = Vector2(0, 2)
@@ -5495,6 +5603,8 @@ func open_talk(n: Node3D) -> void:
 	var line := String(n.get_meta("line"))
 	_talk_text.text = line % hero_name if line.contains("%s") else line
 	_talk_trade.visible = String(n.get_meta("role")) in ["торговец", "оружейник"]
+	_talk_sell.visible = String(n.get_meta("role")) == "барахольщик"
+	_talk_sell.text = "Продать хлам (%d)" % inv.count("junk")
 	_talk_ui.visible = true
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
@@ -5773,7 +5883,7 @@ func open_terminal() -> void:
 func pc_done(kind: String, id: String) -> void:
 	if kind == "upgrade" and ULBase.installed("gunsmith") and _armory_root == null:
 		_armory()                               # куплено — в кладовой появляется вся оружейная
-	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npcs.is_empty():
+	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") == null:
 		_npcs_setup()
 	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
 	_save()
@@ -5795,6 +5905,7 @@ const SHOP := {
 }
 const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"], ["repair", "Ремонт"]]
 var _talk_trade: Button
+var _talk_sell: Button
 var _shop_ui: Control
 var _shop_wallet: Array = []      ## надписи с остатком ресурсов
 var _shop_tab := "weapons"

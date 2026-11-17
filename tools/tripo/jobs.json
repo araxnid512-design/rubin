@@ -1,20 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ul_junk",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "ul_junk",
-    "--faces",
-    "4000",
-    "--prompt",
-    "a small pile of junk and scrap: rusty metal parts, bolts and nuts, tangled old wires, a broken circuit board, bent pipe pieces, dirty, realistic, single object, game prop"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -326,7 +312,8 @@
   "ul_computer",
   "ul_gun_counter",
   "ul_ammo_shelf",
-  "ul_gun_rack"
+  "ul_gun_rack",
+  "ul_junk"
  ],
  "paused": [
   {
