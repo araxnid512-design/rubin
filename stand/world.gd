@@ -2658,7 +2658,7 @@ func do_action() -> void:
 		# тайник в корпусе: его содержимое — как хранилище (взять всё или по одному)
 		var ct: Dictionary = san.containers[int(_target.i)]
 		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7", "mil_med": "kit_6", "mil_ammo": "ammo_3", "soldier": "ammo_3",
-			"truck": "ammo_5", "btr": "ammo_5", "soldier_bag": "kit_9", "fuel": "junk", "wreck": "junk"}.get(String(ct.kind), "crate")
+			"truck": "ammo_5", "btr": "ammo_5", "soldier_bag": "kit_9", "cab": "kit_9", "fuel": "junk", "wreck": "junk"}.get(String(ct.kind), "crate")
 		open_inventory(ct.items, String(ct.n), false, ic)
 		snd.play("hit_wood" if String(ct.kind) in ["bedside", "wardrobe", "desk", "store", "reception", "workbench", "mil_ammo", "mil_gear", "mil_docs"] else ("cloth" if String(ct.kind) in ["soldier", "soldier_bag", "mil_med"] else "click"), ct.pos, -12.0)
 		ct["opened"] = true
@@ -4996,14 +4996,14 @@ func _cv_test() -> void:
 	var ch1 := float(c.ruber_chances[1]) / (float(c.ruber_chances[0]) + float(c.ruber_chances[1]))
 	_ok("шанс Рубера %d %% (из 6000 посещений он был в %d), настраивается в data/convoy.json" % [int(round(ch1 * 100.0)), cnt[1]], absf(cnt[1] / 6000.0 - ch1) < 0.03 and (c.ruber_chances as Array).size() == 2)
 	# 9: тайники — мебель в помещениях, техника, тела, ящики, бочки
-	var need := ["truck", "wreck", "btr", "uaz", "heli", "soldier", "mil_ammo", "mil_med", "mil_docs", "mil_gear", "soldier_bag", "fuel"]
+	var need := ["truck", "cab", "wreck", "btr", "uaz", "heli", "soldier", "mil_ammo", "mil_med", "mil_docs", "mil_gear", "soldier_bag", "fuel"]
 	var miss := []
 	for k in need:
 		if not all_k.has(k):
 			miss.append(k)
 	var veh_n := int(all_k.get("truck", 0)) + int(all_k.get("wreck", 0)) + int(all_k.get("btr", 0)) + int(all_k.get("uaz", 0)) + int(all_k.get("heli", 0))
-	_ok("тайников %d: техника %d, тела военных %d, армейские ящики %d, вещмешки %d, бочки %d и мебель в помещениях" % [san.containers.size(), veh_n, int(all_k.get("soldier", 0)), int(all_k.get("mil_ammo", 0)) + int(all_k.get("mil_med", 0)) + int(all_k.get("mil_docs", 0)) + int(all_k.get("mil_gear", 0)), int(all_k.get("soldier_bag", 0)), int(all_k.get("fuel", 0))],
-		miss.is_empty() and veh_n == 10 and int(all_k.get("soldier", 0)) == 8 and san.containers.size() >= 40, "нет видов: %s; %s" % [str(miss), str(all_k)])
+	_ok("тайников %d: техника %d и кабины грузовиков %d, тела военных %d, армейские ящики %d, вещмешки %d, бочки %d и мебель в помещениях" % [san.containers.size(), veh_n, int(all_k.get("cab", 0)), int(all_k.get("soldier", 0)), int(all_k.get("mil_ammo", 0)) + int(all_k.get("mil_med", 0)) + int(all_k.get("mil_docs", 0)) + int(all_k.get("mil_gear", 0)), int(all_k.get("soldier_bag", 0)), int(all_k.get("fuel", 0))],
+		miss.is_empty() and veh_n == 10 and int(all_k.get("cab", 0)) == 3 and int(all_k.get("soldier", 0)) == 8 and san.containers.size() >= 40, "нет видов: %s; %s" % [str(miss), str(all_k)])
 	# у каждого тайника вне помещений можно встать и получить его целью
 	for e in enemies:
 		if e.alive():
@@ -5012,7 +5012,7 @@ func _cv_test() -> void:
 			e.process_mode = Node.PROCESS_MODE_DISABLED
 	var seen_k := {}
 	var tried_k := {}
-	var shot := {"truck": "cv_search_truck", "soldier": "cv_search_body", "btr": "cv_search_btr"}
+	var shot := {"truck": "cv_search_truck", "soldier": "cv_search_body", "btr": "cv_search_btr", "cab": "cv_search_cab"}
 	for i in san.containers.size():
 		var ct: Dictionary = san.containers[i]
 		if ct.has("bld") or tried_k.has(String(ct.kind)):
@@ -5045,7 +5045,7 @@ func _cv_test() -> void:
 				close_inventory()
 		else:
 			print("[inv]   не выбирается: %s (%s) %s" % [ct.n, ct.kind, str(cp)])
-	_ok("технику, тела, ящики и бочки можно обыскать (подсветка и «Обыскать»): %s" % ", ".join(seen_k.values()), seen_k.size() == tried_k.size() - (1 if not seen_k.has("mil_gear") and tried_k.has("mil_gear") else 0) and seen_k.has("truck") and seen_k.has("btr") and seen_k.has("uaz") and seen_k.has("wreck") and seen_k.has("heli") and seen_k.has("soldier"), "%d из %d видов" % [seen_k.size(), tried_k.size()])
+	_ok("технику, тела, ящики и бочки можно обыскать (подсветка и «Обыскать»): %s" % ", ".join(seen_k.values()), seen_k.size() == tried_k.size() - (1 if not seen_k.has("mil_gear") and tried_k.has("mil_gear") else 0) and seen_k.has("truck") and seen_k.has("cab") and seen_k.has("btr") and seen_k.has("uaz") and seen_k.has("wreck") and seen_k.has("heli") and seen_k.has("soldier"), "%d из %d видов" % [seen_k.size(), tried_k.size()])
 	# обыск кузова: окно обыска и перенос в карман
 	var ti := -1
 	for i in san.containers.size():

@@ -158,6 +158,11 @@ static func routes_tick(now := -1) -> int:
 	if (data.offers as Array).is_empty():
 		data.offers = _roll_offers()
 		dirty = true
+	# маршрут, добавленный обновлением игры, виден сразу — не ждёт таймера
+	for id in _roll_offers():
+		if not (data.offers as Array).has(id):
+			(data.offers as Array).append(id)
+			dirty = true
 	if dirty:
 		data.routes_next = nxt
 		save_state()

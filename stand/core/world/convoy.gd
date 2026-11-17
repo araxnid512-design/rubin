@@ -56,16 +56,17 @@ const C_CLEAR := [[Vector2(38, -46), 21.0], [Vector2(48, 3), 12.0], [Vector2(-46
 const C_TOWER := Vector3(-50, 0, -47)
 const C_HELI := [Vector3(46, 0, 48), 0.6]
 const C_FIRE := [Vector3(-5.5, 0, 3.0), Vector3(47.5, 0, 46.5)]
-## техника: [вид, где, поворот]; модели — C_VMODELS: [файл, длина, оттенок, как называется при обыске, вид тайника]
+## техника: [вид, где, поворот]; модели — C_VMODELS: [файл, длина, оттенок, как называется при обыске, вид тайника,
+## кабина — [ось модели вдоль машины, с какого конца кабина, доля длины, название]] (у грузовиков два тайника: кузов и кабина)
 const C_VEHICLES := [
 	["ural", Vector3(-15, 0, 31), 0.35], ["wreck", Vector3(-5.5, 0, 3.0), 0.5], ["wreck", Vector3(-1.5, 0, -29), -0.3],
 	["btr", Vector3(4.5, 0, 15), 1.25], ["btr", Vector3(-22, 0, -7), -0.5], ["gaz66", Vector3(10.5, 0, -15), 0.2],
 	["uaz", Vector3(-9, 0, 46), -0.7], ["uaz", Vector3(14, 0, -1), 1.9], ["kung", Vector3(-35, 0, 45), 1.3],
 ]
 const C_VMODELS := {
-	"ural": ["ul_ural", 7.4, Color(0.8, 0.8, 0.76), "Кузов «Урала»", "truck"], "wreck": ["ul_ural_wreck", 7.4, Color(0.7, 0.68, 0.66), "Сгоревший «Урал»", "wreck"],
-	"btr": ["ul_btr", 7.6, Color(0.5, 0.56, 0.44), "БТР-80", "btr"], "gaz66": ["ul_gaz66", 5.6, Color(0.8, 0.8, 0.76), "Кузов ГАЗ-66", "truck"],
-	"uaz": ["ul_uaz", 4.0, Color(0.8, 0.8, 0.76), "УАЗ", "uaz"], "kung": ["ul_kung", 7.6, Color(0.8, 0.8, 0.76), "Грузовик снабжения", "truck"],
+	"ural": ["ul_ural", 7.4, Color(0.8, 0.8, 0.76), "Кузов «Урала»", "truck", ["x", 1.0, 0.38, "Кабина «Урала»"]], "wreck": ["ul_ural_wreck", 7.4, Color(0.7, 0.68, 0.66), "Сгоревший «Урал»", "wreck"],
+	"btr": ["ul_btr", 7.6, Color(0.5, 0.56, 0.44), "БТР-80", "btr"], "gaz66": ["ul_gaz66", 5.6, Color(0.8, 0.8, 0.76), "Кузов ГАЗ-66", "truck", ["x", 1.0, 0.36, "Кабина ГАЗ-66"]],
+	"uaz": ["ul_uaz", 4.0, Color(0.8, 0.8, 0.76), "УАЗ", "uaz"], "kung": ["ul_kung", 7.6, Color(0.8, 0.8, 0.76), "Кунг грузовика снабжения", "truck", ["z", -1.0, 0.36, "Кабина грузовика снабжения"]],
 }
 ## тела военных: где, поворот, можно ли обыскать
 const C_BODIES := [
@@ -412,7 +413,20 @@ func _c_vehicles() -> void:
 		var at: Vector3 = v[1]
 		var yaw: float = v[2]
 		var size := _c_model_box(MODELS + String(vm[0]) + ".glb", at, yaw, float(vm[1]), vm[2], String(vm[0]), true)
-		extra.append({"pos": at, "size": size, "yaw": yaw, "kind": String(vm[4]), "n": String(vm[3])})
+		if vm.size() < 6:
+			extra.append({"pos": at, "size": size, "yaw": yaw, "kind": String(vm[4]), "n": String(vm[3])})
+			continue
+		# грузовик: кузов и кабина — два тайника
+		var cab: Array = vm[5]
+		var on_x := String(cab[0]) == "x"
+		var along := (Vector3.RIGHT if on_x else Vector3.BACK) * float(cab[1])
+		var len_l := size.x if on_x else size.z
+		var fr := float(cab[2])
+		var b := Basis(Vector3.UP, yaw)
+		var body_sz := Vector3(len_l * (1.0 - fr), size.y, size.z) if on_x else Vector3(size.x, size.y, len_l * (1.0 - fr))
+		var cab_sz := Vector3(len_l * fr, minf(size.y, 2.0), size.z) if on_x else Vector3(size.x, minf(size.y, 2.0), len_l * fr)
+		extra.append({"pos": at - b * (along * len_l * fr * 0.5), "size": body_sz, "yaw": yaw, "kind": String(vm[4]), "n": String(vm[3])})
+		extra.append({"pos": at + b * (along * len_l * (0.5 - fr * 0.5)), "size": cab_sz, "yaw": yaw, "kind": "cab", "n": String(cab[3])})
 
 
 ## модель по длине (наибольший размер по земле), с коробкой столкновения; возвращает её размер (в системе модели)
@@ -434,7 +448,13 @@ func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Co
 	n.rotation.y = yaw
 	add_child(n)
 	_dirty(n, key, tint)
-	_cull(n, 60.0)
+	if length < 2.5:
+		# мелочь (ящики, тела): без тени и видна ближе — запас по треугольникам для телефона
+		_cull(n, 42.0)
+		for gi in n.find_children("*", "GeometryInstance3D", true, false):
+			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	else:
+		_cull(n, 60.0)
 	var size := bb.size * k
 	if collide:
 		var c := bb.get_center() * k
