@@ -458,13 +458,16 @@ func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Co
 	add_child(n)
 	_dirty(n, key, tint)
 	if length < 2.5:
-		# мелочь (ящики, тела): без тени и видна ближе — запас по треугольникам для телефона
-		_cull(n, 42.0)
+		# мелочь (ящики, тела): без тени, видна ближе и раньше уходит на упрощённую копию — запас по треугольникам
+		_cull(n, 42.0 if length > 1.2 else 30.0)
 		for gi in n.find_children("*", "GeometryInstance3D", true, false):
 			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			(gi as GeometryInstance3D).lod_bias = 0.35
 	else:
 		_cull(n, 60.0)
 	var size := bb.size * k
+	# пятно-тень под предметом (техника, ящики, ульи, поленницы): сажает на землю
+	blob_pts.append([at, Vector2(size.x, size.z), yaw, 0.6 if length < 2.5 else 0.5])
 	if collide:
 		var c := bb.get_center() * k
 		var cs := CollisionShape3D.new()

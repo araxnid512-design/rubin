@@ -121,6 +121,7 @@ var fence_mid: Array[Vector3] = []
 var fence_pts: Array[Vector3] = []
 var wood_pts: Array[Vector3] = []
 var trees: Array[Node3D] = []
+var blob_pts: Array = []            ## пятна-тени под предметами: [где, размер (x, z), поворот, сила] (ULBlobs)
 var yard_pts: Array[Vector3] = []  ## места врагов снаружи: двор, площадь, у ограды, в зарослях
 var veg_count := 0
 var mask: Image

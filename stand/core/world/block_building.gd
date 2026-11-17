@@ -47,6 +47,7 @@ uniform float metal = 0.0;
 uniform float sat = 1.0;
 uniform float second_bias = 0.0;
 uniform float streaks = 0.0;
+uniform float rusty = 0.0;
 uniform float storey = 3.3;
 uniform float cut_y = 1000.0;
 uniform vec4 hole = vec4(0.5, 0.5, 0.0, 0.0);
@@ -75,6 +76,11 @@ void fragment() {
 	else { uv = vec2(wpos.x, -wpos.y); }
 	uv /= scale;
 	vec3 c = texture(albedo_tex, uv).rgb;
+	// против повтора: та же текстура в крупном масштабе — светлота пятнами по 4–6 плиток (доски и кирпич не
+	// поворачиваются, поэтому без второй выборки «вкось»)
+	float macro = dot(texture(albedo_tex, uv * 0.21 + vec2(0.37, 0.61)).rgb, vec3(0.3, 0.59, 0.11));
+	float mean = dot(textureLod(albedo_tex, vec2(0.5), 10.0).rgb, vec3(0.3, 0.59, 0.11));
+	c *= clamp(mix(1.0, macro / max(mean, 0.05), 0.4), 0.7, 1.3);
 	c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, sat) * tint.rgb;
 	float n = texture(noise, wpos.xz / 5.0 + vec2(wpos.y * 0.11, -wpos.y * 0.07)).r;
 	float hy = paint ? mod(wpos.y + 0.02, storey) : wpos.y;
@@ -100,6 +106,13 @@ void fragment() {
 		c *= 1.0 - streaks * 0.35 * smoothstep(0.45, 0.85, s);
 	}
 	c = mix(c, c * vec3(0.78, 0.88, 0.66), smoothstep(0.62, 0.84, n) * 0.4 * grime * (1.0 - smoothstep(1.0, 2.6, hy)));
+	if (rusty > 0.0) {
+		// ржавчина на жести: пятна и полосы, вытянутые вдоль ската
+		float rp = texture(noise, vec2(wpos.x * 0.35, wpos.z * 0.35) + vec2(wpos.y * 0.9, 0.0)).r;
+		float rs = texture(noise, vec2((wpos.x - wpos.z) * 0.9, (wpos.x + wpos.z) * 0.08)).r;
+		float r = smoothstep(0.55, 0.78, rp * 0.6 + rs * 0.4);
+		c = mix(c, c * vec3(0.95, 0.55, 0.32) + vec3(0.06, 0.02, 0.0), r * rusty);
+	}
 	c *= mix(0.88, 1.06, texture(noise, wpos.xz / 23.0 + wpos.y * 0.013).r);
 	ALBEDO = c;
 	if (has_normal) { NORMAL_MAP = texture(normal_tex, uv).rgb; }
@@ -160,7 +173,10 @@ const MATS := {
 	"wframe": ["old_planks_02", 2.0, Color(1.25, 1.24, 1.2), 0.3, 0.85, {"sat": 0.12}],
 	"floorboard": ["old_planks_02", 1.4, Color(0.8, 0.68, 0.55), 0.3, 0.85, {}],
 	"int_wood": ["wood_planks_grey", 1.5, Color(1.35, 1.22, 1.06), 0.25, 0.9, {"sat": 0.6}],
-	"roof_tin": ["worn_corrugated_iron", 1.6, Color(0.82, 0.82, 0.8), 0.3, 0.6, {"metal": 0.3, "sat": 0.4}],
+	"roof_tin": ["worn_corrugated_iron", 1.6, Color(0.82, 0.82, 0.8), 0.3, 0.6, {"metal": 0.3, "sat": 0.4, "rusty": 0.85}],
+	# сруб: бревно (окорённое, серое от времени) и тёмная щель на месте выпавшей доски обшивки
+	"logs": ["weathered_brown_planks", 1.1, Color(0.95, 0.86, 0.74), 0.7, 0.95, {"sat": 0.55}],
+	"gapwood": ["old_planks_02", 1.0, Color(0.16, 0.13, 0.11), 0.0, 1.0, {}],
 	"shingle": ["weathered_brown_planks", 0.9, Color(0.62, 0.58, 0.54), 0.5, 0.95, {"sat": 0.3}],
 	"earth": ["brown_mud_02", 1.6, Color(0.72, 0.64, 0.54), 0.2, 1.0, {}],
 	"cellar_wall": ["worn_plaster_wall", 1.6, Color(1.3, 1.18, 1.0), 0.35, 0.95, {"streaks": 0.45, "sat": 0.5}],
@@ -168,7 +184,7 @@ const MATS := {
 	"potato": ["dry_ground_01", 0.45, Color(1.35, 1.05, 0.72), 0.0, 1.0, {}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall"]
+const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
@@ -231,6 +247,7 @@ static func make_materials(noise: Texture2D) -> void:
 		m.set_shader_parameter("grime", float(d[3]))
 		m.set_shader_parameter("rough", float(d[4]))
 		m.set_shader_parameter("streaks", float(ex.get("streaks", 0.0)))
+		m.set_shader_parameter("rusty", float(ex.get("rusty", 0.0)))
 		m.set_shader_parameter("sat", float(ex.get("sat", 1.0)))
 		m.set_shader_parameter("metal", float(ex.get("metal", 0.0)))
 		m.set_shader_parameter("storey", float(ex.get("storey", STOREY)))
@@ -569,13 +586,32 @@ func _shell(bi: int) -> void:
 				_band(bk, key, side, y0 - 0.08, y0 + 0.08, 0.07, "trim")
 	# цоколь: у корпуса — бетонный; у деревянного дома — низкий каменный
 	if style == "wood":
+		var ph := float(def.get("plinth_h", 0.42)) if String(def.get("kind", "")) != "shed" else 0.16
+		var pm := String(def.get("plinth_mat", "plinth"))
 		for side in ["s-", "s+", "e-", "e+"]:
-			_band(bk, _xkey(bi, 0, side), side, -0.05, 0.16, 0.04, "plinth")
+			_band(bk, _xkey(bi, 0, side), side, -0.05, ph, 0.07, pm)
+		if not def.get("logs", false):
+			_corner_boards(bk, bi, ph, fl * storey)
 		return
 	if style != "":
 		return
 	for side in ["s-", "s+", "e-", "e+"]:
 		_band(bk, _xkey(bi, 0, side), side, 0.0, 0.55, 0.06, "plinth")
+
+
+## угловые доски (нащельники) дощатого дома: по две на каждом углу, от цоколя до карниза
+func _corner_boards(bk: Dictionary, bi: int, y0: float, y1: float) -> void:
+	var hl: float = bk.hl
+	var hw: float = bk.hw
+	var w := 0.15
+	var t := 0.035
+	for su in [-1.0, 1.0]:
+		for sv in [-1.0, 1.0]:
+			var side_s := "s+" if sv > 0.0 else "s-"
+			var side_e := "e+" if su > 0.0 else "e-"
+			# на фасаде «s±» — у торца, на торце «e±» — у фасада
+			_lb(_xkey(bi, 0, side_s), "wframe", bk, su * hl - (w if su > 0.0 else 0.0) + (0.0 if su > 0.0 else -t), su * hl + (t if su > 0.0 else w), y0, y1, sv * hw - (0.0 if sv > 0.0 else t), sv * hw + (t if sv > 0.0 else 0.0))
+			_lb(_xkey(bi, 0, side_e), "wframe", bk, su * hl - (0.0 if su > 0.0 else t), su * hl + (t if su > 0.0 else 0.0), y0, y1, sv * hw - (w if sv > 0.0 else 0.0), sv * hw + (0.0 if sv > 0.0 else w))
 
 
 ## группа наружной стены: со стороны камеры («f») или обратная («b»)
@@ -783,7 +819,16 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 			continue
 		# облицовка (0.18 снаружи), штукатурка (0.12 внутри); у тонких стен — пополам
 		var sk := minf(0.18, te * 0.55)
-		_wall_piece(bk, xk, skin, along_u, a, b, ya, yb, outer, outer - sgn * sk)
+		if style == "wood" and def.get("logs", false):
+			_logs(bk, xk, along_u, a, b, ya, yb, outer, sgn, a <= lo + 0.01, b >= hi - 0.01)
+		else:
+			_wall_piece(bk, xk, skin, along_u, a, b, ya, yb, outer, outer - sgn * sk)
+			if style == "wood" and b - a > 1.4 and yb - ya > 1.0 and _rng.randf() < 0.3:
+				# выпала доска обшивки — тёмная щель
+				var gl := _rng.randf_range(0.5, minf(1.4, b - a - 0.3))
+				var g0 := _rng.randf_range(a + 0.15, b - gl - 0.15)
+				var gy := _rng.randf_range(maxf(ya, 0.6), yb - 0.25)
+				_wall_piece(bk, xk, "gapwood", along_u, g0, g0 + gl, gy, gy + _rng.randf_range(0.08, 0.13), outer + sgn * 0.004, outer - sgn * 0.01)
 		_wall_piece(bk, ik, inner, along_u, a, b, ya, yb, outer - sgn * sk, outer - sgn * te)
 		_wall_col(bk, along_u, a, b, ya, yb, outer, outer - sgn * te)
 	for o in ops:
@@ -798,6 +843,34 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 				_entrance(bi, bk, xk, along_u, a, b, oy0, oy1, outer, sgn, String(o[5]) if o.size() > 5 else "")
 			"link":
 				pass
+
+
+## Сруб: стена из брёвен по рядам (ряды на общей сетке по высоте — над и под окном брёвна совпадают); у углов
+## брёвна выходят за угол («в чашу»), ряды соседних стен сдвинуты на полбревна.
+func _logs(bk: Dictionary, key: String, along_u: bool, a: float, b: float, ya: float, yb: float, outer: float, sgn: float, at_lo: bool, at_hi: bool) -> void:
+	var r := 0.12
+	var step := 0.22
+	var off := 0.0 if along_u else step * 0.5
+	var d := outer - sgn * 0.05
+	var a2 := a - (0.26 if at_lo else 0.0) - (0.0 if along_u or not at_lo else te)
+	var b2 := b + (0.26 if at_hi else 0.0) + (0.0 if along_u or not at_hi else te)
+	var k0 := int(ceil((ya - off - r * 0.4) / step))
+	var k := maxi(k0, 0)
+	while true:
+		var y := off + k * step + r * 0.7
+		if y > yb - r * 0.3:
+			break
+		if y >= ya + r * 0.3:
+			var mid := (a2 + b2) * 0.5
+			var c := _w(bk, mid if along_u else d, y, d if along_u else mid)
+			var dirw := _wd(bk, 1, 0) if along_u else _wd(bk, 0, 1)
+			var bas := Basis(Vector3(0, 0, 1), PI * 0.5) if absf(dirw.x) > 0.5 else Basis(Vector3(1, 0, 0), PI * 0.5)
+			var rr := r * _rng.randf_range(0.92, 1.06)
+			_cylinder(key, "logs", rr, b2 - a2, Transform3D(bas, c), 6)
+			var xp := key.find("/x")
+			if xp >= 0:
+				_cylinder(key.substr(0, xp) + "/xa", "logs", rr, b2 - a2, Transform3D(bas, c), 6)   # снаружи блок рисуется общей сеткой
+		k += 1
 
 
 func _wall_piece(bk: Dictionary, key: String, mat: String, along_u: bool, a: float, b: float, ya: float, yb: float, d0: float, d1: float) -> void:
@@ -849,7 +922,10 @@ func _window(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0:
 ## окно деревенского дома: белая рама с переплётом крестом, резной наличник, распахнутые ставни, подоконник;
 ## часть окон заколочена или без стёкол
 func _window_wood(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0: float, y1: float, outer: float, sgn: float) -> void:
-	var fd := outer - sgn * 0.06
+	# у сруба брёвна выступают на 7 см — наличник, подоконник и ставни выносятся поверх них
+	if def.get("logs", false):
+		outer += sgn * 0.075
+	var fd := outer - sgn * 0.06 - (sgn * 0.075 if def.get("logs", false) else 0.0)
 	var t := 0.06
 	var m := (a + b) * 0.5
 	for e in [[a, a + t], [b - t, b]]:
@@ -865,8 +941,18 @@ func _window_wood(bk: Dictionary, key: String, along_u: bool, a: float, b: float
 	if r < 0.85 and def.get("shutters", true):
 		# ставни распахнуты по сторонам окна
 		var sw := (b - a) * 0.5
+		var hang := _rng.randf() < 0.15
 		for e in [[a - sw - 0.04, a - 0.04], [b + 0.04, b + sw + 0.04]]:
-			_wall_piece(bk, key, "shutter", along_u, float(e[0]), float(e[1]), y0 - 0.02, y1 + 0.02, outer + sgn * 0.05, outer + sgn * 0.01)
+			if hang and float(e[0]) > a:
+				# сорвалась с верхней петли — висит косо
+				var ang := _rng.randf_range(0.25, 0.45)
+				var sc := (float(e[0]) + float(e[1])) * 0.5
+				var c := _w(bk, sc if along_u else outer + sgn * 0.04, (y0 + y1) * 0.5 - 0.12, outer + sgn * 0.04 if along_u else sc)
+				var sz := _ws(bk, sw, y1 - y0 + 0.04, 0.04) if along_u else _ws(bk, 0.04, y1 - y0 + 0.04, sw)
+				var ax := _wd(bk, 0, 1) if along_u else _wd(bk, 1, 0)
+				_box(key, "shutter", sz, Transform3D(Basis(ax, ang * sgn), c))
+			else:
+				_wall_piece(bk, key, "shutter", along_u, float(e[0]), float(e[1]), y0 - 0.02, y1 + 0.02, outer + sgn * 0.05, outer + sgn * 0.01)
 	if r < 0.1:
 		for k in 2:
 			var yy := y0 + 0.3 + k * (y1 - y0 - 0.6)
@@ -1362,15 +1448,78 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 			_box(rk, "red", _ws(bk, 0.8, 0.03, 0.26), Transform3D(bas, cc))
 			_box(rk, "red", _ws(bk, 0.26, 0.03, 0.8), Transform3D(bas, cc))
 	_lb(rk, "wood", bk, -hl - 0.3, hl + 0.3, top + rr - 0.03, top + rr + 0.05, -0.04, 0.04)
-	var n := 5
-	for e in [-1.0, 1.0]:
-		for i in n:
-			var hv := hw * (1.0 - (i + 0.5) / n)
-			_lb(rk, gmat, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
+	if style == "wood":
+		# фронтон — ровный треугольник (у палатки — ступенями под скатом, её ткань так и висит)
+		for e in [-1.0, 1.0]:
+			var u0: float = e * hl - (te if e > 0.0 else 0.0)
+			var u1: float = e * hl + (te if e < 0.0 else 0.0)
+			_tri_prism(rk, gmat, [_w(bk, u0, top, -hw), _w(bk, u0, top, hw), _w(bk, u0, top + rr, 0)], _w(bk, u1, 0, 0) - _w(bk, u0, 0, 0))
+			# причелины вдоль скатов и доска под коньком — у края крыши, чуть ниже кровли
+			var ue: float = e * (hl + 0.38)
+			for sv in [-1.0, 1.0]:
+				var cc := _w(bk, ue, top + rr - (hw + ov) * 0.5 * tan(th) - 0.12, sv * (hw + ov) * 0.5)
+				var bas2 := Basis(ax, s_ax * sv * th)
+				_box(rk, "wframe", _ws(bk, 0.04, 0.2, sl), Transform3D(bas2, cc))
+		# лобовая доска по свесу вдоль карниза
+		for sv in [-1.0, 1.0]:
+			var ye := top + rr - (hw + ov) * tan(th)
+			_lb(rk, "wframe", bk, -hl - 0.4, hl + 0.4, ye - 0.2, ye - 0.02, sv * (hw + ov) - (0.04 if sv > 0.0 else 0.0), sv * (hw + ov) + (0.0 if sv > 0.0 else 0.04))
+		if def.get("antenna", false):
+			# телевизионная антенна на коньке
+			var au := -hl * 0.4
+			_lb(rk, "metal", bk, au - 0.025, au + 0.025, top + rr, top + rr + 1.7, -0.025, 0.025)
+			for k in 3:
+				var ay := top + rr + 1.1 + k * 0.22
+				var aw := 0.9 - k * 0.18
+				_lb(rk, "metal", bk, au - 0.015, au + 0.015, ay, ay + 0.03, -aw * 0.5, aw * 0.5)
+	else:
+		var n := 5
+		for e in [-1.0, 1.0]:
+			for i in n:
+				var hv := hw * (1.0 - (i + 0.5) / n)
+				_lb(rk, gmat, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
 	if style == "wood" and def.get("chimney", true):
 		# печная труба над избой
 		var cu := hl * 0.35
 		_lb(rk, "brick", bk, cu - 0.28, cu + 0.28, top, top + rr + 0.9, -hw * 0.35 - 0.28, -hw * 0.35 + 0.28)
+
+
+## треугольная призма: треугольник p (три точки, мир) и он же, сдвинутый на ext, — стенка фронтона
+func _tri_prism(key: String, mat: String, p: Array, ext: Vector3) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var a: Vector3 = p[0]
+	var b: Vector3 = p[1]
+	var c: Vector3 = p[2]
+	var q := [a + ext, b + ext, c + ext]
+	var tris := [[a, c, b], [q[0], q[1], q[2]]]
+	for e in [[a, b], [b, c], [c, a]]:
+		var e0: Vector3 = e[0]
+		var e1: Vector3 = e[1]
+		tris.append([e0, e1, e1 + ext])
+		tris.append([e0, e1 + ext, e0 + ext])
+	var ctr := (a + b + c) / 3.0 + ext * 0.5
+	for t in tris:
+		var t0: Vector3 = t[0]
+		var t1: Vector3 = t[1]
+		var t2: Vector3 = t[2]
+		var n := (t1 - t0).cross(t2 - t0).normalized()
+		if n.dot((t0 + t1 + t2) / 3.0 - ctr) < 0.0:
+			n = -n
+		# обе стороны треугольника с наружной нормалью — порядок обхода не важен
+		for tv in [[t0, t1, t2], [t0, t2, t1]]:
+			for v in tv:
+				st.set_normal(n)
+				st.set_uv(Vector2((v as Vector3).x + (v as Vector3).z, (v as Vector3).y))
+				st.add_vertex(v)
+	st.generate_tangents()
+	var mesh := st.commit()
+	var k := key + "|" + mat
+	if not _st.has(k):
+		var st2 := SurfaceTool.new()
+		st2.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_st[k] = st2
+	(_st[k] as SurfaceTool).append_from(mesh, 0, Transform3D.IDENTITY)
 
 
 ## портик главного корпуса: колонны в два этажа, антаблемент, ступени

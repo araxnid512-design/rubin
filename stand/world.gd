@@ -319,6 +319,7 @@ func _cowshed_world() -> void:
 ## с текущим временным кластером (zone).
 const NAV_SANATORIUM := "res://assets/world/nav_sanatorium.res"
 var san: ULSanatorium
+var blobs: ULBlobs                      ## пятна-тени под предметами, героем и врагами
 var zone: Node3D                  ## текущий временный кластер: коровник или санаторий
 
 
@@ -431,6 +432,7 @@ func _cowshed_enter() -> void:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
 	cs_ready = true
 	sn_ready_ms = Time.get_ticks_msec()
+	_blobs_build()
 	if san != null:
 		zone_changed()
 	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
@@ -906,10 +908,14 @@ void fragment() {
 	vec4 m = texture(mask, (p + vec2(n3 - 0.5, 0.5 - n3) * 1.4) / world_size + 0.5);
 	vec3 g = mix(texture(grass, p / 3.4).rgb, texture(grass, rot * p / 9.0 + 0.31).rgb, 0.38) * grass_mul;
 	float dw = smoothstep(0.5, 0.74, n1 * 0.7 + n2 * 0.3) * dry_amount;
-	g = mix(g, texture(dry, p / 4.2).rgb * vec3(0.92, 0.9, 0.76), dw);
+	// против повтора: у сухой травы, земли и дороги — вторая выборка, повёрнутая и в другом масштабе, смешанная
+	// крупными пятнами шума (граница плитки не совпадает, рисунок не повторяется ровной сеткой)
+	float tb = smoothstep(0.32, 0.68, n2);
+	vec3 dr = mix(texture(dry, p / 4.2).rgb, texture(dry, rot * p / 5.3 + 0.17).rgb, tb);
+	g = mix(g, dr * vec3(0.92, 0.9, 0.76), dw);
 	vec3 f = texture(forest, rot * p / 3.2).rgb * vec3(1.08, 1.04, 0.98);
-	vec3 so = texture(soil, p / 3.6).rgb * soil_tint;
-	vec3 pa = texture(path, p / 2.8).rgb * path_mul;
+	vec3 so = mix(texture(soil, p / 3.6).rgb, texture(soil, rot * p / 4.7 + 0.43).rgb, tb) * soil_tint;
+	vec3 pa = mix(texture(path, p / 2.8).rgb, texture(path, rot * p / 3.5 + 0.29).rgb, tb * 0.8) * path_mul;
 	float wg = m.r;
 	float wt = m.g;
 	float wf = m.b * (1.0 - wt);
@@ -1921,6 +1927,7 @@ func _input_vec() -> Vector2:
 
 
 func _process(delta: float) -> void:
+	_blobs_tick()
 	var iv := _input_vec()
 	# «вверх» на джойстике — от камеры вперёд (на север)
 	var fwd := Vector3(-sin(CAM_YAW), 0, -cos(CAM_YAW))
@@ -5794,6 +5801,8 @@ func _kh_test() -> void:
 	var blocked := false
 	if door != null:
 		door.set_open(false)
+		await get_tree().create_timer(0.8).timeout       # дверь закрывается не мгновенно (была открыта)
+		await get_tree().physics_frame
 		var nrm := door.global_transform.basis.z.normalized()
 		var q2 := PhysicsRayQueryParameters3D.create(door.center + Vector3.UP + nrm, door.center + Vector3.UP - nrm)
 		q2.collision_mask = 1 | ULDoor.LAYER
@@ -7210,6 +7219,35 @@ func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
 	enemies.append(e)
 	targets.append(e)
 	return e
+
+
+## пятна-тени: неподвижные — от локации (мебель, техника, ящики), движущиеся — герой и враги рядом
+func _blobs_build() -> void:
+	if blobs == null:
+		blobs = ULBlobs.new()
+		blobs.name = "Blobs"
+		add_child(blobs)
+	if san != null:
+		for b in san.blob_pts:
+			blobs.add_static(b[0], b[1], float(b[2]), float(b[3]))
+	blobs.build()
+
+
+func _blobs_tick() -> void:
+	if blobs == null:
+		if player == null:
+			return
+		_blobs_build()                      # дом и полигон: только движущиеся пятна
+	var items: Array = [[player.global_position, 0.42, 0.6]]
+	var hp := player.global_position
+	for e in enemies:
+		if not is_instance_valid(e) or not e.alive() or not e.visible:
+			continue
+		var ep: Vector3 = e.global_position
+		if absf(ep.x - hp.x) > 28.0 or absf(ep.z - hp.z) > 28.0:
+			continue
+		items.append([ep, 0.75 if e.kind == "ruber" else 0.42, 0.55])
+	blobs.set_dynamic(items)
 
 
 ## под открытым небом ли обе точки (враг и герой): камни Рубер бросает только так — не в помещение и не из него
@@ -8917,7 +8955,9 @@ func _run_test() -> void:
 			["k7_cellar_top", Vector3(16, 0, -11.2), 11.0], ["k8_cellar_stairs", Vector3(16, -1.2, -15.6), 10.0], ["k9_cellar_in", Vector3(18.6, -2.5, -19.6), 12.0], ["k9b_cellar_store", Vector3(12.5, -2.5, -24.6), 10.0],
 			["l0_barn", Vector3(-44, 0, -47), 11.0], ["l1_garage", Vector3(-44, 0, 43.3), 10.0], ["l2_greenhouse", Vector3(11, 0, -4), 11.0], ["l3_tractor", Vector3(37, 0, -23), 13.0],
 			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-37, -2.5, 4.8), 11.0],
-			["l8_cellar3", Vector3(46, -2.5, 34.4), 10.0], ["l9_top", Vector3(0, 0, 0), 85.0]]
+			["l8_cellar3", Vector3(46, -2.5, 34.4), 10.0], ["l9_top", Vector3(0, 0, 0), 85.0],
+			["m0_h1_out", Vector3(-8, 0, -12.5), 13.0], ["m1_h3_out", Vector3(-44.5, 0, 22), 13.0], ["m2_h4_out", Vector3(-24, 0, 58.5), 13.0],
+			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0]]
 		var konly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):

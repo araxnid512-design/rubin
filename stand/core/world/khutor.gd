@@ -22,37 +22,37 @@ const SHW := 0.75                        ## полуширина лестнич�
 ## Дома (wood): общая комната с прихожей у входа (izba) и ряд комнат вдоль задней стены — кухня, спальня,
 ## кладовая, санузел. Магазин: торговый зал, подсобка, склад. Сараи, гараж — один зал. Погреба — cellar.
 const K_BUILDINGS := [
-	{"id": "h1", "n": "Большой дом", "kind": "house", "style": "wood", "skin": "planks_blue", "int": "int_beige", "storey": 2.8, "te": 0.2,
+	{"id": "h1", "n": "Большой дом", "kind": "house", "style": "wood", "skin": "planks_blue", "int": "int_beige", "storey": 2.8, "te": 0.2, "plinth_h": 0.55, "plinth_mat": "brick", "antenna": true,
 		"roof_mat": "roof_tin", "gable": "planks_blue", "rise": 0.55, "ov": 0.45,
 		"blocks": [{"c": Vector2(-8, -20), "L": 11.0, "W": 8.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 3.2,
 			"row": [["h_kitchen", 3.0], ["h_bed", 3.2], ["h_bath", 1.9], ["h_pantry", 2.5]], "hall_type": "izba",
 			"entr": [["s+", 2.2, 1.15, "porch"]], "win_w": 0.9, "win_h": 1.1, "sill": 0.85}]},
-	{"id": "h2", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks", "int": "int_green", "storey": 2.8, "te": 0.2,
+	{"id": "h2", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks", "int": "int_green", "storey": 2.8, "te": 0.2, "plinth_h": 0.36,
 		"roof_mat": "rust", "gable": "planks", "rise": 0.55, "ov": 0.4,
 		"blocks": [{"c": Vector2(-52, -14), "L": 9.0, "W": 7.0, "axis": "z", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 3.0,
 			"row": [["h_kitchen", 3.0], ["h_bed", 3.4], ["h_pantry", 2.2]], "hall_type": "izba",
 			"entr": [["s+", -1.8, 1.15, "porch"]], "win_w": 0.9, "win_h": 1.1, "sill": 0.85}]},
-	{"id": "h3", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_green", "int": "int_blue", "storey": 2.7, "te": 0.2,
+	{"id": "h3", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_green", "int": "int_blue", "storey": 2.7, "te": 0.2, "logs": true, "plinth_h": 0.3,
 		"roof_mat": "shingle", "gable": "planks_green", "rise": 0.6, "ov": 0.4,
 		"blocks": [{"c": Vector2(-50, 20), "L": 7.0, "W": 6.0, "axis": "z", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 2.8,
 			"row": [["h_kitchen", 3.0], ["h_bed", 3.6]], "hall_type": "izba",
 			"entr": [["s+", 1.4, 1.15, "porch"]], "win_w": 0.85, "win_h": 1.05, "sill": 0.85}]},
-	{"id": "h4", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_brown", "int": "int_beige", "storey": 2.8, "te": 0.2,
+	{"id": "h4", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_brown", "int": "int_beige", "storey": 2.8, "te": 0.2, "logs": true, "plinth_h": 0.4, "antenna": true,
 		"roof_mat": "roof_tin", "gable": "planks_brown", "rise": 0.55, "ov": 0.4,
 		"blocks": [{"c": Vector2(-24, 52), "L": 9.0, "W": 7.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": 1, "row_d": 3.0,
 			"row": [["h_pantry", 2.2], ["h_bed", 3.4], ["h_kitchen", 3.0]], "hall_type": "izba",
 			"entr": [["s-", 1.8, 1.15, "porch"]], "win_w": 0.9, "win_h": 1.1, "sill": 0.85}]},
-	{"id": "h5", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_blue", "int": "int_green", "storey": 2.7, "te": 0.2,
+	{"id": "h5", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_blue", "int": "int_green", "storey": 2.7, "te": 0.2, "plinth_h": 0.45,
 		"roof_mat": "rust", "gable": "planks_blue", "rise": 0.6, "ov": 0.4,
 		"blocks": [{"c": Vector2(28, 52), "L": 7.0, "W": 6.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": 1, "row_d": 2.8,
 			"row": [["h_bed", 3.6], ["h_kitchen", 3.0]], "hall_type": "izba",
 			"entr": [["s-", -1.4, 1.15, "porch"]], "win_w": 0.85, "win_h": 1.05, "sill": 0.85}]},
-	{"id": "h6", "n": "Большой дом", "kind": "house", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 2.8, "te": 0.2,
+	{"id": "h6", "n": "Большой дом", "kind": "house", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 2.8, "te": 0.2, "logs": true, "plinth_h": 0.5, "plinth_mat": "brick",
 		"roof_mat": "shingle", "gable": "planks", "rise": 0.55, "ov": 0.45,
 		"blocks": [{"c": Vector2(54, -12), "L": 11.0, "W": 8.0, "axis": "z", "floors": 1, "layout": "hall", "row_side": 1, "row_d": 3.2,
 			"row": [["h_pantry", 2.5], ["h_bath", 1.9], ["h_bed", 3.2], ["h_kitchen", 3.0]], "hall_type": "izba",
 			"entr": [["s-", 1.6, 1.15, "porch"]], "win_w": 0.9, "win_h": 1.1, "sill": 0.85}]},
-	{"id": "h7", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_brown", "int": "int_blue", "storey": 2.7, "te": 0.2,
+	{"id": "h7", "n": "Дом", "kind": "house", "style": "wood", "skin": "planks_brown", "int": "int_blue", "storey": 2.7, "te": 0.2, "plinth_h": 0.38, "antenna": true,
 		"roof_mat": "rust", "gable": "planks_brown", "rise": 0.6, "ov": 0.4,
 		"blocks": [{"c": Vector2(-14, -60), "L": 7.0, "W": 6.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 2.8,
 			"row": [["h_kitchen", 3.0], ["h_bed", 3.6]], "hall_type": "izba",
@@ -155,7 +155,7 @@ func spawn_limit() -> float:
 
 
 static func k_sig() -> int:
-	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k7")
+	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k10")
 
 
 ## описание здания с вычисленной лестницей погреба (annex — где лестница: на ней герой уже «в погребе»)
@@ -229,6 +229,7 @@ func build(world: Node3D) -> void:
 	_k_gardens(props, rng)
 	_k_greenhouse(props)
 	_k_props(props, rng)
+	_k_wall_clutter(props, rng)
 	_flush(props)
 	_k_trees(rng)
 	_c_vegetation()
@@ -338,6 +339,7 @@ func _place_models(b: ULBlock) -> void:
 		n.position = p - Basis(Vector3.UP, n.rotation.y) * Vector3(c.x, 0, c.z) - Vector3(0, bb.position.y * ky, 0)
 		b._group(String(m[4])).add_child(n)
 		_dirty(n, String(m[0]), Color(0.92, 0.9, 0.86))
+		blob_pts.append([p, Vector2(sz.x, sz.z), n.rotation.y - face, 0.5])
 		for gi in n.find_children("*", "GeometryInstance3D", true, false):
 			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			# мебель мелкая на экране (камера сверху): упрощённые уровни детализации раньше — меньше треугольников
@@ -871,6 +873,52 @@ func _k_props(g: Node3D, rng: RandomNumberGenerator) -> void:
 				var ln2 := s0.distance_to(s1)
 				var bas := Basis.looking_at((s1 - s0).normalized(), Vector3.UP if absf((s1 - s0).normalized().y) < 0.9 else Vector3.RIGHT)
 				_bx(g, "metal", Vector3(0.02, 0.02, ln2), Transform3D(bas, (s0 + s1) * 0.5))
+
+
+## Мелочь у стен домов и сараев (кроме стены с входом): ведро, доски, прислонённые к стене, покрышка, ящик —
+## дом не стоит на чистой плоскости. Без столкновений (не мешает проходам и карте проходимости), с пятном-тенью.
+func _k_wall_clutter(g: Node3D, rng: RandomNumberGenerator) -> void:
+	for b in blds:
+		var kind := String(b.def.get("kind", ""))
+		if kind != "house" and kind != "shed" and kind != "shop":
+			continue
+		var bk: Dictionary = b.blocks[0]
+		var c: Vector2 = bk.c
+		var r: Rect2 = b.rect
+		var ent_side := String((bk.ent[0] as Array)[0]) if not (bk.ent as Array).is_empty() else ""
+		var sides := ["s+", "s-", "e+", "e-"]
+		var n := 0
+		for tries in 12:
+			if n >= 2:
+				break
+			var sd: String = sides[rng.randi() % 4]
+			if sd == ent_side:
+				continue
+			# сторона в местных осях блока → мир: точка вдоль стены и наружу на 0,45 м
+			var nrm: Vector3 = b._side_n(bk, sd)
+			var along: Vector3 = Vector3(-nrm.z, 0, nrm.x)
+			var half := (r.size.x if absf(along.x) > 0.5 else r.size.y) * 0.5 - 0.8
+			var cen := Vector3(r.get_center().x, 0, r.get_center().y)
+			var ext := (r.size.y if absf(nrm.z) > 0.5 else r.size.x) * 0.5
+			var p := cen + nrm * (ext + 0.45) + along * rng.randf_range(-half, half)
+			if bld_dist(Vector2(p.x, p.z)) < 0.25 or road_dist(Vector2(p.x, p.z)) < 3.0:
+				continue
+			var yaw := atan2(nrm.x, nrm.z)
+			match [0, 1, 1, 2, 3][rng.randi() % 5]:
+				0:
+					_c_model_box(MODELS + "ph_bucket.glb", p, rng.randf() * TAU, 0.35, Color(0.85, 0.83, 0.8), "ph_bucket", false)
+				1:
+					# доски, прислонённые к стене
+					for k in rng.randi_range(2, 4):
+						var q := p + along * (k * 0.22 - 0.3) - nrm * 0.12
+						_bx(g, "planks_brown", Vector3(0.18, 1.9, 0.03), Transform3D(Basis(along, -0.22) * Basis(Vector3.UP, yaw), q + Vector3.UP * 0.93))
+					blob_pts.append([p - nrm * 0.1, Vector2(0.9, 0.5), yaw, 0.45])
+				2:
+					_c_model_box(MODELS + "ph_tyre.glb", p + nrm * 0.1, rng.randf() * TAU, 0.75, Color(0.85, 0.83, 0.8), "ph_tyre", false)
+				_:
+					_c_model_box(MODELS + "ul_crate.glb", p + nrm * 0.15, yaw + rng.randf_range(-0.3, 0.3), 0.75, Color(0.85, 0.83, 0.8), "ul_crate", false)
+			n += 1
+	_flush(g)
 
 
 ## лес: редкий, только по краям — внутри кольца улицы поле и усадьба
