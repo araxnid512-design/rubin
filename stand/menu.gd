@@ -105,6 +105,35 @@ func _extra_buttons() -> void:
 		b.pressed.connect(defs[i][1])
 		add_child(b)
 		_extra.append(b)
+	# кооператив: отдельная крупная кнопка над рядом
+	var mb := Button.new()
+	mb.text = "МУЛЬТИПЛЕЕР"
+	mb.name = "Multiplayer"
+	mb.focus_mode = Control.FOCUS_NONE
+	mb.add_theme_font_size_override("font_size", int(clampf(h * 0.45, 16.0, 24.0)))
+	mb.add_theme_color_override("font_color", Color(0.95, 0.9, 0.75))
+	for st in ["normal", "hover", "pressed"]:
+		var sb2 := StyleBoxFlat.new()
+		sb2.bg_color = Color(0.08, 0.14, 0.1, 0.92) if st != "pressed" else Color(0.15, 0.3, 0.15, 0.95)
+		sb2.border_color = Color(0.5, 0.9, 0.45, 0.9)
+		sb2.set_border_width_all(2)
+		sb2.set_corner_radius_all(8)
+		mb.add_theme_stylebox_override(st, sb2)
+	mb.position = Vector2(r.position.x, r.position.y - h - 8.0)
+	mb.size = Vector2(r.size.x, h)
+	mb.pressed.connect(_multiplayer)
+	add_child(mb)
+	_extra.append(mb)
+
+
+func _multiplayer() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 25
+	add_child(cl)
+	var m := ULMpMenu.new()
+	m.name = "MpMenu"
+	cl.add_child(m)
+	m.tree_exited.connect(cl.queue_free)
 
 
 ## «Тест кейсов»: та же прокрутка оружейного сундука, что в логове муров, но награда в инвентарь не выдаётся
@@ -248,6 +277,17 @@ func _run_test() -> void:
 		if (b as Button).text == "Тест уровней":
 			lb = b
 	print("[menu] кнопка «Тест уровней» есть — ", "верно" if lb != null else "ОШИБКА")
+	# мультиплеер: крупная кнопка, экран с профилем, сервером, созданием и входом в мир
+	var mpb := find_child("Multiplayer", true, false) as Button
+	print("[menu] кнопка «МУЛЬТИПЛЕЕР» есть — ", "верно" if mpb != null else "ОШИБКА")
+	_multiplayer()
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/m4_multiplayer.png")
+	var mp := find_child("MpMenu", true, false)
+	print("[menu] экран «МУЛЬТИПЛЕЕР»: профиль, сервер, «Создать», «Присоединиться», «Продолжить», «Назад» — ", "верно" if mp != null else "ОШИБКА")
+	if mp:
+		mp.queue_free()
+	await get_tree().process_frame
 	_levels()
 	await get_tree().create_timer(0.4).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/m2_levels.png")

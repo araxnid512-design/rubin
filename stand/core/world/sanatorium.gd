@@ -581,10 +581,8 @@ func _ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "dirt", "dirt", Vector3(0.8, 0.76, 0.7), 0.8, 0.45, "stony_dirt_path", "stony_dirt_path")
+	var sm: ShaderMaterial = w.ground_for("sanatorium", half * 2.0)
 	sm.set_shader_parameter("noise", _noise_tex)
-	sm.set_shader_parameter("grass_mul", Vector3(0.84, 0.95, 0.68))
-	sm.set_shader_parameter("path_mul", Vector3(0.85, 0.82, 0.76))
 	if ResourceLoader.exists(MASK) and w.test != "snbake":
 		mask = (load(MASK) as Texture2D).get_image()
 		if mask.is_compressed():

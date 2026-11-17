@@ -324,10 +324,8 @@ func _c_ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.82, 0.78, 0.7), 1.0, 0.35, "dirt", "dirt")
+	var sm: ShaderMaterial = w.ground_for("convoy", half * 2.0)
 	sm.set_shader_parameter("noise", _noise_tex)
-	sm.set_shader_parameter("grass_mul", Vector3(0.8, 0.92, 0.64))
-	sm.set_shader_parameter("path_mul", Vector3(0.8, 0.76, 0.7))
 	if ResourceLoader.exists(C_MASK) and w.test != "cvbake":
 		mask = (load(C_MASK) as Texture2D).get_image()
 		if mask.is_compressed():

@@ -5,11 +5,25 @@ extends RefCounted
 ## растягивается; надписи и кнопки остаются чёткими), реже трава и ближе граница её показа.
 
 const PATH := "user://settings.json"
+## Пресеты графики (одни на все локации, базу и стенды). scale — разрешение 3D (доля ширины и высоты экрана;
+## подстройка под частоту кадров не опускает его ниже SCALE_MIN), msaa — сглаживание краёв, grass — густота травы,
+## range — дальность травы и мелочей, м, shadows — тени солнца (0 — нет, 1 — карта 1024, 2 — 2048, 3 — 4096 и мягче),
+## aniso — анизотропная фильтрация земли (чётче под углом).
 const GFX := [
-	{"n": "Низкая", "scale": 0.62, "msaa": 0, "grass": 0.25, "range": 16.0},
-	{"n": "Средняя", "scale": 0.8, "msaa": 2, "grass": 0.6, "range": 24.0},
-	{"n": "Высокая", "scale": 1.0, "msaa": 4, "grass": 1.0, "range": 30.0},
+	{"n": "Низкая", "scale": 0.7, "msaa": 0, "grass": 0.3, "range": 16.0, "shadows": 0, "aniso": false},
+	{"n": "Средняя", "scale": 0.85, "msaa": 2, "grass": 0.6, "range": 24.0, "shadows": 1, "aniso": false},
+	{"n": "Высокая", "scale": 1.0, "msaa": 2, "grass": 0.85, "range": 30.0, "shadows": 2, "aniso": true},
+	{"n": "Ультра", "scale": 1.0, "msaa": 4, "grass": 1.0, "range": 40.0, "shadows": 3, "aniso": true},
 ]
+## Свои настройки поверх пресета (−1 / 0 — как в пресете): разрешение 3D, %, тени, трава; auto — подстройка
+## под частоту кадров (сначала сглаживание, потом тени, разрешение — последним)
+const RES_OPTS := [0, 60, 70, 80, 90, 100]
+const SHADOW_OPTS := [-1, 0, 2, 3]
+const GRASS_OPTS := [-1.0, 0.3, 0.6, 1.0]
+static var res_pct := 0
+static var shadows_o := -1
+static var grass_o := -1.0
+static var auto_fps := true
 ## Камера: угол наклона (от земли) и поворот вокруг героя. «С наклоном» — как в DoZ Survival, «По диагонали» —
 ## как в Last Day on Earth (дома и заборы — ромбом).
 const CAMS := [
@@ -17,8 +31,8 @@ const CAMS := [
 	{"n": "С наклоном", "pitch": 52.0, "yaw": 0.0},
 	{"n": "По диагонали", "pitch": 50.0, "yaw": 45.0},
 ]
-## ниже разрешение само не опускается: при 30–55 % картинка «мыльная»; прежде чем снижать разрешение, подстройка
-## снимает сглаживание и тени (world.gd, _auto_res)
+## ниже разрешение само не опускается: при 30–55 % картинка «мыльная» (снимки с телефона: 39–42 %); прежде чем
+## снижать разрешение, подстройка снимает сглаживание и тени (world.gd, _auto_res)
 const SCALE_MIN := 0.62
 const FPS_MIN := 30.0             ## частота кадров, ниже которой разрешение снижается сразу и крупным шагом
 const C_BG := Color(0.06, 0.09, 0.13, 0.98)
@@ -47,6 +61,10 @@ static func load_cfg() -> void:
 		var d = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 		if d is Dictionary:
 			gfx = clampi(int(d.get("gfx", 1)), 0, GFX.size() - 1)
+			res_pct = int(d.get("res", 0)) if RES_OPTS.has(int(d.get("res", 0))) else 0
+			shadows_o = int(d.get("shadows", -1)) if SHADOW_OPTS.has(int(d.get("shadows", -1))) else -1
+			grass_o = float(d.get("grass", -1.0))
+			auto_fps = bool(d.get("auto", true))
 			volume = clampf(float(d.get("volume", 0.8)), 0.0, 1.0)
 			cam = clampi(int(d.get("cam", 1)), 0, CAMS.size() - 1)
 
@@ -54,11 +72,24 @@ static func load_cfg() -> void:
 static func save_cfg() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam}))
+		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "auto": auto_fps}))
 
 
+## действующие настройки графики: пресет и свои поправки поверх
 static func q() -> Dictionary:
-	return GFX[gfx]
+	var d: Dictionary = (GFX[gfx] as Dictionary).duplicate()
+	if res_pct > 0:
+		d.scale = res_pct / 100.0
+	if shadows_o >= 0:
+		d.shadows = shadows_o
+	if grass_o > 0.0:
+		d.grass = grass_o
+	return d
+
+
+## тени солнца по настройкам: 0 — нет, 1–3 — размер карты теней 1024 / 2048 / 4096
+static func shadows() -> int:
+	return int(q().shadows)
 
 
 ## применить к окну: разрешение трёхмерной картинки, сглаживание, громкость
@@ -68,6 +99,10 @@ static func apply(vp: Viewport) -> void:
 	# сглаживание краёв: на мобильных видеочипах (плиточная отрисовка) 2× и 4× почти бесплатны
 	var ms := int(q().msaa)
 	vp.msaa_3d = Viewport.MSAA_4X if ms >= 4 else (Viewport.MSAA_2X if ms >= 2 else Viewport.MSAA_DISABLED)
+	# карта теней солнца — по качеству: чётче тени на «Высокой» и «Ультра»
+	var sh := shadows()
+	if sh > 0:
+		RenderingServer.directional_shadow_atlas_set_size([1024, 1024, 2048, 4096][clampi(sh, 0, 3)], true)
 	AudioServer.set_bus_mute(0, volume <= 0.005)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.005)))
 
@@ -110,13 +145,18 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	pn.anchor_right = 0.5
 	pn.anchor_top = 0.5
 	pn.anchor_bottom = 0.5
-	pn.offset_left = -330
-	pn.offset_right = 330
-	pn.offset_top = -262
-	pn.offset_bottom = 262
+	pn.offset_left = -440
+	pn.offset_right = 440
+	pn.offset_top = -330
+	pn.offset_bottom = 330
+	# на невысоком экране настройки прокручиваются
+	var psc := ScrollContainer.new()
+	psc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	pn.add_child(psc)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 12)
-	pn.add_child(vb)
+	vb.add_theme_constant_override("separation", 10)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	psc.add_child(vb)
 	var lab := func(t: String, fs: int, col: Color) -> Label:
 		var l := Label.new()
 		l.text = t
@@ -125,25 +165,41 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		return l
 	vb.add_child(lab.call("Настройки", 24, C_TEXT))
-	vb.add_child(lab.call("Графика", 18, Color(1.0, 0.86, 0.5)))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	vb.add_child(row)
-	var btns: Array[Button] = []
-	var mark := func() -> void:
-		for i in btns.size():
-			btns[i].text = ("● " if i == gfx else "") + String(GFX[i].n)
-			btns[i].modulate = Color(1, 1, 1) if i == gfx else Color(0.72, 0.76, 0.82)
-	for i in GFX.size():
-		var b := button(String(GFX[i].n), func() -> void:
-			gfx = i
-			save_cfg()
-			mark.call()
-			changed.call(), 200.0)
-		btns.append(b)
-		row.add_child(b)
-	mark.call()
-	vb.add_child(lab.call("Ниже графика — выше частота кадров. Разрешение ещё и подстраивается само, чтобы игра шла плавно. Густота травы меняется при следующем входе на локацию.", 14, Color(0.62, 0.68, 0.76)))
+	vb.add_child(lab.call("Графика (для всех локаций)", 18, Color(1.0, 0.86, 0.5)))
+	# ряд выбора: подписи, текущее значение, что делать при нажатии
+	var choice := func(title: String, names: Array, cur: Callable, pick: Callable) -> void:
+		var hr := HBoxContainer.new()
+		hr.add_theme_constant_override("separation", 6)
+		vb.add_child(hr)
+		var tl: Label = lab.call(title, 15, C_TEXT)
+		tl.custom_minimum_size = Vector2(150, 0)
+		tl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		hr.add_child(tl)
+		var bs: Array[Button] = []
+		var mk := func() -> void:
+			for j in bs.size():
+				bs[j].text = ("● " if j == int(cur.call()) else "") + String(names[j])
+				bs[j].modulate = Color(1, 1, 1) if j == int(cur.call()) else Color(0.72, 0.76, 0.82)
+		for j in names.size():
+			var b2 := button(String(names[j]), func() -> void:
+				pick.call(j)
+				save_cfg()
+				mk.call()
+				changed.call(), maxf(90.0, 560.0 / names.size()))
+			b2.custom_minimum_size.y = 46
+			b2.add_theme_font_size_override("font_size", 16)
+			bs.append(b2)
+			hr.add_child(b2)
+		mk.call()
+	var gnames: Array = []
+	for g in GFX:
+		gnames.append(String(g.n))
+	choice.call("Качество", gnames, func() -> int: return gfx, func(j: int) -> void: gfx = j)
+	choice.call("Разрешение 3D", ["Как в качестве", "60 %", "70 %", "80 %", "90 %", "100 %"], func() -> int: return RES_OPTS.find(res_pct), func(j: int) -> void: res_pct = int(RES_OPTS[j]))
+	choice.call("Тени", ["Как в качестве", "Выкл", "Хорошие", "Лучшие"], func() -> int: return SHADOW_OPTS.find(shadows_o), func(j: int) -> void: shadows_o = int(SHADOW_OPTS[j]))
+	choice.call("Трава", ["Как в качестве", "Мало", "Средне", "Много"], func() -> int: return maxi(0, GRASS_OPTS.find(grass_o)), func(j: int) -> void: grass_o = float(GRASS_OPTS[j]))
+	choice.call("Подстройка FPS", ["Вкл", "Выкл"], func() -> int: return 0 if auto_fps else 1, func(j: int) -> void: auto_fps = j == 0)
+	vb.add_child(lab.call("Подстройка держит плавность: при нехватке FPS сначала снимает сглаживание, потом тени и только потом понижает разрешение (не ниже 62 %). Трава и тени меняются при следующем входе на локацию.", 13, Color(0.62, 0.68, 0.76)))
 	# камера: сверху / с наклоном / по диагонали
 	vb.add_child(lab.call("Камера", 18, Color(1.0, 0.86, 0.5)))
 	var crow := HBoxContainer.new()

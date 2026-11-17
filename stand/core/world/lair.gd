@@ -357,11 +357,8 @@ func _l_ground() -> void:
 	mi.mesh = pm
 	# двор — пятна тёмной грязи с камнями (brown_mud_rocks_01) и утоптанной сухой земли с галькой (brown_mud_dry);
 	# Poly Haven, CC0: цвет 2K, нормали 1K. Сухая земля — плиткой 2 м: галька крупнее и читается с высоты камеры
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_rocks_01", "brown_mud_rocks_01", Vector3(1.0, 0.95, 0.88), 0.6, 0.35, "brown_mud_dry", "brown_mud_dry")
+	var sm: ShaderMaterial = w.ground_for("lair", half * 2.0)
 	sm.set_shader_parameter("noise", _noise_tex)
-	sm.set_shader_parameter("grass_mul", Vector3(0.8, 0.9, 0.62))
-	sm.set_shader_parameter("path_mul", Vector3(0.84, 0.8, 0.76))
-	sm.set_shader_parameter("path_scale", 2.0)
 	if ResourceLoader.exists(L_MASK) and w.test != "lrbake":
 		mask = (load(L_MASK) as Texture2D).get_image()
 		if mask.is_compressed():

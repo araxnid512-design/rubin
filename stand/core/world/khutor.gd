@@ -466,10 +466,8 @@ func _k_ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(half * 2.0, half * 2.0)
 	mi.mesh = pm
-	var sm: ShaderMaterial = w.ground_material(half * 2.0, "brown_mud_02", "brown_mud_02", Vector3(0.86, 0.8, 0.7), 0.7, 0.45, "dirt", "dirt", true)
+	var sm: ShaderMaterial = w.ground_for("khutor", half * 2.0, true)
 	sm.set_shader_parameter("noise", _noise_tex)
-	sm.set_shader_parameter("grass_mul", Vector3(0.86, 0.95, 0.66))
-	sm.set_shader_parameter("path_mul", Vector3(0.86, 0.8, 0.72))
 	if ResourceLoader.exists(K_MASK) and w.test != "khbake":
 		mask = (load(K_MASK) as Texture2D).get_image()
 		if mask.is_compressed():

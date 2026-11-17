@@ -84,7 +84,7 @@ func _ready() -> void:
 			out = a.substr(9)
 		if a.begins_with("--as-gfx="):
 			ULSettings.load_cfg()
-			ULSettings.gfx = clampi(int(a.substr(9)), 0, 2)    # уровень графики для проверок и снимков
+			ULSettings.gfx = clampi(int(a.substr(9)), 0, ULSettings.GFX.size() - 1)    # уровень графики для проверок и снимков
 		if a.begins_with("--as-cam="):
 			ULSettings.load_cfg()
 			ULSettings.cam = clampi(int(a.substr(9)), 0, ULSettings.CAMS.size() - 1)   # угол камеры для снимков
@@ -869,16 +869,16 @@ func _env() -> void:
 		e.fog_depth_curve = 1.3
 		sun.light_energy = 1.22
 		sun.light_color = Color(1.0, 0.93, 0.83)
-		if ULSettings.gfx >= 1:
-			sun.shadow_enabled = true
-			# одна карта теней на 34 м (камера видит ~25 м): с двумя каскадами всё, что отбрасывает тень,
-			# рисовалось в карту теней дважды
-			sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-			sun.directional_shadow_max_distance = 34.0
-			sun.shadow_blur = 1.6
-			sun.shadow_opacity = 0.78
-			sun.shadow_bias = 0.06
-			sun.shadow_normal_bias = 1.2
+	# тени солнца — на всех локациях (и на базе) по настройкам графики: одна карта теней на 34 м (камера видит
+	# ~25 м; с двумя каскадами всё, что отбрасывает тень, рисовалось в карту теней дважды); на «Ультра» — мягче
+	if ULSettings.shadows() >= 1 and not arena:
+		sun.shadow_enabled = true
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.directional_shadow_max_distance = 34.0
+		sun.shadow_blur = 2.2 if ULSettings.shadows() >= 3 else 1.6
+		sun.shadow_opacity = 0.78 if temp() else 0.7
+		sun.shadow_bias = 0.06
+		sun.shadow_normal_bias = 1.2
 	if indoor():
 		# внутренности корпусов (слой 2) солнце не освещает: там ровный рассеянный свет из окон (свой слабый
 		# «верхний» свет без теней) и лампы рядом с героем; тени — дальше, корпуса выше
@@ -886,11 +886,11 @@ func _env() -> void:
 		# одна карта теней на 32 м (две — каждый корпус и дерево рисуются в тени дважды)
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 		sun.directional_shadow_max_distance = 32.0
-		e.ambient_light_energy = 1.05
+		e.ambient_light_energy = 0.95
 		# внутри: свет «из окон» под углом (не сверху) — пол, доски и мебель получают рельеф, а не ровную заливку
 		var fill := DirectionalLight3D.new()
 		fill.rotation_degrees = Vector3(-52, -35, 0)
-		fill.light_energy = 0.85
+		fill.light_energy = 0.72
 		fill.light_color = Color(0.86, 0.9, 0.95)
 		fill.light_cull_mask = 2
 		fill.shadow_enabled = false
@@ -1190,10 +1190,42 @@ var _tree_pts: Array = []         ## [точка, радиус кроны] — �
 
 ## Материал земли (GROUND_SHADER) — общий для базы и коровника: трава sparse_grass, сухие проплешины grass_ground,
 ## подстилка mud_forest, тропа stony_dirt_path (Poly Haven, CC0); голая земля — своя для каждой локации.
+## Единая библиотека земли (для всех локаций): какие фототекстуры (Poly Haven, CC0: цвет + нормали) и оттенки берёт
+## общий шейдер земли GROUND_SHADER — трава (две), сухая трава, лесная подстилка, грунт, тропа, смешивание «по
+## высоте», лужи. У каждой локации — своё настроение (база — ухоженная трава и утоптанная земля, коровник —
+## сырая грязь с лужами, логово — грязный двор с камнями…); новая локация без своей строки берёт «default».
+const GROUND_SETS := {
+	"default": {"soil": "brown_mud_02", "soil_n": "brown_mud_02", "tint": Vector3(0.84, 0.8, 0.72), "wet": 0.6, "dry": 0.4,
+		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.84, 0.95, 0.66), "path_mul": Vector3(0.84, 0.8, 0.74)},
+	"home": {"soil": "grass_path_2", "soil_n": "brown_mud_02", "tint": Vector3(0.84, 0.77, 0.66), "wet": 0.0, "dry": 0.55,
+		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.86, 0.97, 0.7), "path_mul": Vector3(0.86, 0.82, 0.76)},
+	"cowshed": {"soil": "brown_mud_02", "soil_n": "brown_mud_02", "tint": Vector3(0.86, 0.8, 0.72), "wet": 1.0, "dry": 0.38,
+		"path": "brown_mud_rocks_01", "path_n": "brown_mud_rocks_01", "path_scale": 3.0, "grass_mul": Vector3(0.86, 0.95, 0.66), "path_mul": Vector3(0.8, 0.76, 0.7)},
+	"sanatorium": {"soil": "brown_mud_dry", "soil_n": "brown_mud_dry", "tint": Vector3(0.84, 0.8, 0.74), "wet": 0.8, "dry": 0.45,
+		"path": "brown_mud_rocks_01", "path_n": "brown_mud_rocks_01", "path_scale": 3.0, "grass_mul": Vector3(0.84, 0.95, 0.68), "path_mul": Vector3(0.8, 0.76, 0.7)},
+	"convoy": {"soil": "brown_mud_02", "soil_n": "brown_mud_02", "tint": Vector3(0.82, 0.78, 0.7), "wet": 1.0, "dry": 0.35,
+		"path": "brown_mud_rocks_01", "path_n": "brown_mud_rocks_01", "path_scale": 3.0, "grass_mul": Vector3(0.8, 0.92, 0.64), "path_mul": Vector3(0.8, 0.76, 0.7)},
+	"khutor": {"soil": "brown_mud_02", "soil_n": "brown_mud_02", "tint": Vector3(0.86, 0.8, 0.7), "wet": 0.7, "dry": 0.45,
+		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.86, 0.95, 0.66), "path_mul": Vector3(0.86, 0.82, 0.76)},
+	"lair": {"soil": "brown_mud_rocks_01", "soil_n": "brown_mud_rocks_01", "tint": Vector3(1.0, 0.95, 0.88), "wet": 0.6, "dry": 0.35,
+		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.8, 0.9, 0.62), "path_mul": Vector3(0.84, 0.8, 0.76)},
+}
+
+
+## земля локации по общей библиотеке GROUND_SETS (size — сторона поля, м; cuttable — с вырезом над погребом)
+func ground_for(id: String, size: float, cuttable := false) -> ShaderMaterial:
+	var g: Dictionary = GROUND_SETS.get(id, GROUND_SETS["default"])
+	var sm := ground_material(size, String(g.soil), String(g.soil_n), g.tint, float(g.wet), float(g.dry), String(g.path), String(g.path_n), cuttable)
+	sm.set_shader_parameter("grass_mul", g.grass_mul)
+	sm.set_shader_parameter("path_mul", g.path_mul)
+	sm.set_shader_parameter("path_scale", float(g.path_scale))
+	return sm
+
+
 func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float, path := "stony_dirt_path", path_n := "stony_dirt_path", cuttable := false) -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	var code: String = GROUND_SHADER if ULSettings.gfx < 2 else GROUND_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,")
+	var code: String = GROUND_SHADER if not bool(ULSettings.q().aniso) else GROUND_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,")
 	if cuttable:
 		code = code.replace("shader_type spatial;\n", "shader_type spatial;\n#define CUT\n")
 	sh.code = code
@@ -1247,10 +1279,8 @@ func _ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(SIZE, SIZE)
 	mi.mesh = pm
-	var sm := ground_material(SIZE, "grass_path_2", "brown_mud_02", Vector3(0.84, 0.77, 0.66), 0.0, 0.55)
-	# трава спокойнее (оливковая, не ядовито-зелёная), тропа — не выбеленная
-	sm.set_shader_parameter("grass_mul", Vector3(0.86, 0.97, 0.7))
-	sm.set_shader_parameter("path_mul", Vector3(0.95, 0.9, 0.84))
+	# трава спокойнее (оливковая, не ядовито-зелёная), тропа — утоптанная земля с галькой (общая библиотека земли)
+	var sm := ground_for("home", SIZE)
 	_ground_mat = sm
 	# шум — картинкой: тот же рисунок читается и в шейдере, и здесь (где трава — там пучки)
 	var fn := FastNoiseLite.new()
@@ -1320,7 +1350,7 @@ func _fit_shell() -> void:
 	sh.position = Vector3(-off.x, 0.0, -off.z)
 	# раскраска модели Tripo вблизи размыта: поверх неё — чёткие фототекстуры по месту (кровля, стены, крыльцо)
 	var code := Shader.new()
-	code.code = SHELL_SHADER if ULSettings.gfx == 2 else SHELL_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
+	code.code = SHELL_SHADER if bool(ULSettings.q().aniso) else SHELL_SHADER.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
 	for mi in sh.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		for si in m.mesh.get_surface_count():
@@ -1710,7 +1740,7 @@ func _spruce_mesh(h: float, seed_n: int) -> ArrayMesh:
 	# лапы
 	st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var tiers := int(h * (1.7 if ULSettings.gfx == 2 else 1.25))
+	var tiers := int(h * (1.7 if ULSettings.gfx >= 2 else 1.25))
 	for ti in tiers:
 		var t := float(ti) / (tiers - 1)
 		var y := h * (0.13 + 0.8 * t)
@@ -4287,9 +4317,9 @@ func _bench_run() -> void:
 		await get_tree().process_frame
 	await get_tree().create_timer(2.0).timeout
 	var rows: Array = []
-	var gfx_names := ["низкая", "средняя", "высокая"]
+	var gfx_names := ["низкая", "средняя", "высокая", "ультра"]
 	var head := "Замер FPS · %s · графика %s · %s · %s · экран %dx%d" % [zone_name() if temp() else ("Полигон" if arena else "Дом"),
-		gfx_names[clampi(ULSettings.gfx, 0, 2)], OS.get_model_name(), RenderingServer.get_video_adapter_name(),
+		gfx_names[clampi(ULSettings.gfx, 0, 3)], OS.get_model_name(), RenderingServer.get_video_adapter_name(),
 		get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y]
 	say("Замер FPS: герой обходит локацию, около минуты")
 	for pt in _perf_points():
@@ -7746,7 +7776,7 @@ func _gfx_diag() -> void:
 			match tn:
 				"тени солнца":
 					sun.shadow_enabled = false
-					undo.append(func(): sun.shadow_enabled = true if ULSettings.gfx >= 1 else false)
+					undo.append(func(): sun.shadow_enabled = ULSettings.shadows() >= 1)
 				"трава и бурьян":
 					for g in get_tree().root.find_children("*", "MultiMeshInstance3D", true, false):
 						if g.has_meta("veg") and (g as Node3D).visible:
@@ -8746,7 +8776,7 @@ func open_settings() -> void:
 	_set_ui = ULSettings.panel(_hud.get_parent(), func() -> void:
 		ULSettings.apply(get_viewport())
 		# новое качество: тени — по нему (как при входе на локацию), подстройка под частоту начинает заново
-		_shadow_pref = temp() and ULSettings.gfx >= 1
+		_shadow_pref = ULSettings.shadows() >= 1
 		if sun:
 			sun.shadow_enabled = _shadow_pref
 		_res_fails = 0
@@ -8778,14 +8808,23 @@ func open_settings() -> void:
 ## затем сглаживание), не раньше чем через 6 с после снижения; если вернули и снова стало тяжело — следующая
 ## попытка вернуть ждёт вдвое дольше (до минуты), чтобы картинка не «мигала» тенями туда-сюда.
 func _auto_res(delta: float) -> void:
-	if test != "":
+	if test != "" or not ULSettings.auto_fps:
+		return
+	# первые секунды на локации не считаются: постройка, загрузка и первая закраска дают рывки — по ним прежняя
+	# подстройка сразу роняла разрешение (снимки с телефона: 39–42 % при 58–60 кадрах/с)
+	if _res_warm > 0.0:
+		_res_warm -= delta
 		return
 	_res_t += delta
 	_res_n += 1
+	_res_dts.append(delta)
 	_res_hold = maxf(0.0, _res_hold - delta)
 	if _res_t < 1.0:
 		return
-	var fps := _res_n / _res_t
+	# частота — по срединному кадру секунды: одиночный рывок (подгрузка, сохранение) подстройку не трогает
+	_res_dts.sort()
+	var fps := 1.0 / maxf(float(_res_dts[_res_dts.size() / 2]), 0.001)
+	_res_dts.clear()
 	_res_t = 0.0
 	_res_n = 0
 	var vp := get_viewport()
@@ -8812,6 +8851,8 @@ func _auto_res(delta: float) -> void:
 
 
 var _res_fails := 0
+var _res_warm := 5.0
+var _res_dts: Array[float] = []
 var _res_raised_t := -1.0
 var _shadow_pref := false             ## были ли у солнца тени по выбранному качеству (подстройка их только снимает и возвращает)
 

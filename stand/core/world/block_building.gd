@@ -134,8 +134,9 @@ void fragment() {
 #endif
 }"""
 
-## средняя светлота (линейная) фототекстур построек — для сбивки повтора пятнами (SHADER_BODY, mean_l)
-const MEAN_LUM := {"bark_brown_02": 0.095, "brick_4": 0.194, "brown_mud_02": 0.061, "concrete_floor_worn_001": 0.0937, "damaged_concrete_floor": 0.0491, "dirty_tiles": 0.0278, "dry_ground_01": 0.1986, "herringbone_parquet": 0.1917, "long_white_tiles": 0.5709, "old_linoleum_flooring_01": 0.2749, "old_planks_02": 0.0968, "old_wood_floor": 0.0726, "rectangular_facade_tiles": 0.0928, "rusty_corrugated_iron": 0.0429, "rusty_metal_02": 0.2993, "weathered_brown_planks": 0.0815, "weathered_plank_siding": 0.0526, "wood_planks_grey": 0.0584, "worn_asphalt": 0.0455, "worn_corrugated_iron": 0.1846, "worn_plaster_wall": 0.1546, "worn_tile_floor": 0.0604}
+## средняя светлота (линейная) фототекстур построек — для сбивки повтора пятнами (SHADER_BODY, mean_l); посчитана
+## по последнему мип-уровню импортированной текстуры — то же, что раньше читал шейдер на каждой точке
+const MEAN_LUM := {"bark_brown_02": 0.0889, "brick_4": 0.1866, "brown_mud_02": 0.0551, "concrete_floor_worn_001": 0.0882, "damaged_concrete_floor": 0.0429, "dirty_tiles": 0.0251, "dry_ground_01": 0.1958, "herringbone_parquet": 0.1764, "long_white_tiles": 0.5692, "old_linoleum_flooring_01": 0.2646, "old_planks_02": 0.0903, "old_wood_floor": 0.0693, "rectangular_facade_tiles": 0.0864, "rusty_corrugated_iron": 0.0384, "rusty_metal_02": 0.2942, "weathered_brown_planks": 0.0734, "weathered_plank_siding": 0.0505, "wood_planks_grey": 0.0561, "worn_asphalt": 0.0429, "worn_corrugated_iron": 0.1752, "worn_plaster_wall": 0.1460, "worn_tile_floor": 0.0548}
 
 ## материалы: текстура (assets/world/tex/<имя>_c.jpg), размер плитки текстуры, м, оттенок, грязь, шероховатость
 const MATS := {
