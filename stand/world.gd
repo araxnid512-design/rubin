@@ -115,9 +115,10 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "lvl":
-		# проверка «Теста уровней»: --as-place=khutor (по умолчанию — дом)
+	if test == "lvl" or test == "lvlbench":
+		# проверка «Теста уровней»: --as-place=khutor (по умолчанию — дом); lvlbench — с «Замером FPS»
 		ULSettings.arena = false
+		ULSettings.bench = test == "lvlbench"
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-place="):
 				ULSettings.place = a.substr(11)
@@ -141,7 +142,7 @@ func _ready() -> void:
 			vc.lottery = [vc.lottery[1], vc.lottery[1]]
 			vc.ruber_chances = [0, 1]                    # и Рубер — всего 46
 			ULConvoy._ccfg = vc
-	lvl = ULSettings.level_test and test == "" or test == "lvl"
+	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench"
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -171,6 +172,7 @@ func _ready() -> void:
 		_terminal_build()
 		_armory()
 		_yard()
+		_base_props()
 		_flora()
 		if test == "bake":
 			# карта земли — после деревьев: под ними лесная подстилка
@@ -197,6 +199,8 @@ func _ready() -> void:
 	_load()
 	if lvl:
 		_lvl_setup()
+		if ULSettings.bench and (test == "" or test == "lvlbench"):
+			_bench_run.call_deferred()
 	_apply_gear()
 	if place == "home" and not arena and ULSettings.arrival_note != "" and test == "" and not lvl:
 		var note := ULSettings.arrival_note
@@ -1328,6 +1332,42 @@ func _rel(m: Node3D, root: Node3D) -> Transform3D:
 
 ## Двор: забор-штакетник на столбах с калиткой спереди, поленница у левой стены дома, колода для колки дров,
 ## камни. Всё — своя геометрия с текстурами досок и коры; у забора и поленницы есть столкновения.
+## База: дизельный генератор у западной стены дома, оружейная стойка у восточной, бочка для дождевой воды на
+## углу у крыльца — модели Tripo, со столкновением и пятном-тенью.
+func _base_props() -> void:
+	var body := StaticBody3D.new()
+	body.name = "BaseProps"
+	add_child(body)
+	var hw := ULHouse.W * 0.5
+	var hd := ULHouse.D * 0.5
+	var items := [
+		["hm_generator", HOUSE_AT + Vector3(-hw - 1.3, 0, -1.0), PI * 0.5, 1.6, false],
+		["hm_rack", HOUSE_AT + Vector3(hw + 0.55, 0, 1.2), PI, 1.2, false],
+		["hm_raintank", HOUSE_AT + Vector3(hw - 0.5, 0, hd + 0.6), 0.0, 1.1, true],
+	]
+	for it in items:
+		var path := MODELS + String(it[0]) + ".glb"
+		if not ResourceLoader.exists(path):
+			continue
+		var n: Node3D = (load(path) as PackedScene).instantiate()
+		add_child(n)
+		var bb0 := _aabb(n)
+		var k := float(it[3]) / maxf(bb0.size.y if bool(it[4]) else maxf(bb0.size.x, bb0.size.z), 0.01)
+		n.scale = Vector3.ONE * k
+		n.rotation.y = float(it[2])
+		n.position = (it[1] as Vector3) - Vector3(0, bb0.position.y * k, 0)
+		for gi in n.find_children("*", "GeometryInstance3D", true, false):
+			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			(gi as GeometryInstance3D).lod_bias = 0.35
+		var bb := _aabb(n)
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(maxf(bb.size.x * 0.9, 0.3), maxf(bb.size.y, 0.6), maxf(bb.size.z * 0.9, 0.3))
+		cs.shape = bs
+		cs.position = bb.get_center()
+		body.add_child(cs)
+
+
 func _yard() -> void:
 	var planks := ULHouse._mat(TEX + "old_planks_02", 1.25)
 	planks.albedo_color = Color(0.92, 0.9, 0.86)
@@ -4079,6 +4119,112 @@ func _lvl_exit() -> void:
 	ULBase.load_state(true)
 	if test == "":
 		get_tree().change_scene_to_file("res://menu.tscn")
+
+
+## точки замера нагрузки по локации: [название, где]
+func _perf_points() -> Array:
+	if place == "khutor":
+		return [["вход", ULKhutor.K_ENTRY + Vector3(0, 0, -3)], ["кольцо улицы", Vector3(0, 0, 30)], ["усадьба", Vector3(-6, 0, -10)],
+			["большой дом внутри", Vector3(-8, 0, -20)], ["магазин внутри", Vector3(47, 0, 18)], ["подвал", Vector3(18, -2.55, -20)],
+			["сарай", Vector3(-44, 0, -48)], ["у трактора", Vector3(36, 0, -24)], ["огороды", Vector3(-28, 0, 33)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
+	elif place == "convoy":
+		return [["вход", ULConvoy.C_ENTRY + Vector3(0, 0, -3)], ["колонна на дороге", Vector3(0, 0, 8)], ["лагерь", Vector3(38, 0, -42)],
+			["штабная палатка", Vector3(34, 0, -53)], ["блокпост", Vector3(46, 0, 4)], ["склад", Vector3(-44, 0, 40)], ["вертолёт", Vector3(40, 0, 44)],
+			["вышка", ULConvoy.C_TOWER + Vector3(0, 3.4, 0)], ["лес", Vector3(-40, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 8)]]
+	elif place == "sanatorium":
+		return [["ворота", ULSanatorium.ENTRY + Vector3(0, 0, -3)], ["перед главным корпусом", Vector3(0, 0, 42)], ["вестибюль главного", Vector3(0, 0, 23)],
+			["главный, 3 этаж", Vector3(-8, 6.6, 21)], ["площадь с фонтаном", Vector3(2, 0, -6)], ["палата лечебного", Vector3(-58, 0, -45)],
+			["жилой, 4 этаж", Vector3(50, 9.9, -8)], ["столовая", Vector3(-54, 0, 36)], ["хоздвор", Vector3(54, 0, 46)],
+			["середина, все враги гонятся", Vector3(0, 0, -6)]]
+	elif place == "cowshed":
+		return [["вход", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["в коровнике", cowshed.barn_point(0, RandomNumberGenerator.new())], ["у останков коров", cowshed.cows[0] + Vector3(0, 0, 2.5)],
+			["лес", Vector3(-52, 0, -50)], ["середина", Vector3(0, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
+	# дом (база) и полигон
+	return [["двор", HOUSE_AT + Vector3(0, 0, 9)], ["в доме", HOUSE_AT + Vector3(1.5, 0, 0)], ["у калитки", HOUSE_AT + Vector3(0, 0, 20)],
+		["ельник", Vector3(-28, 0, -30)], ["тропа", Vector3(15, 0, 9)], ["середина, все враги гонятся", Vector3(0, 0, 10)]]
+
+
+## «Замер FPS» (Тест уровней с галочкой «Замер»): герой обходит точки локации; в каждой — 1,5 с на успокоение и
+## 3 с замера: средние кадры в секунду, худший кадр, вызовы отрисовки и треугольники. В конце — таблица на
+## экране, копия в буфер обмена и файл user://bench_<место>.txt (их можно прислать — по ним настраивается графика).
+func _bench_run() -> void:
+	var t0 := Time.get_ticks_msec()
+	while temp() and not cs_ready and Time.get_ticks_msec() - t0 < 30000:
+		await get_tree().process_frame
+	await get_tree().create_timer(2.0).timeout
+	var rows: Array = []
+	var gfx_names := ["низкая", "средняя", "высокая"]
+	var head := "Замер FPS · %s · графика %s · %s · %s · экран %dx%d" % [zone_name() if temp() else ("Полигон" if arena else "Дом"),
+		gfx_names[clampi(ULSettings.gfx, 0, 2)], OS.get_model_name(), RenderingServer.get_video_adapter_name(),
+		get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y]
+	say("Замер FPS: герой обходит локацию, около минуты")
+	for pt in _perf_points():
+		player.global_position = (pt[1] as Vector3) + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		hp = HP_MAX
+		if String(pt[0]).contains("гонятся"):
+			for e in enemies:
+				if e.alive():
+					e.hear(player.global_position)
+		_cam_ready = false
+		await get_tree().create_timer(1.5).timeout
+		var frames := 0
+		var worst := 0.0
+		var draw := 0.0
+		var tris := 0.0
+		var t_start := Time.get_ticks_usec()
+		var t_prev := t_start
+		while Time.get_ticks_usec() - t_start < 3000000:
+			await get_tree().process_frame
+			var now := Time.get_ticks_usec()
+			worst = maxf(worst, float(now - t_prev) / 1000.0)
+			t_prev = now
+			frames += 1
+			draw = maxf(draw, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)))
+			tris = maxf(tris, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)))
+		var secs := float(Time.get_ticks_usec() - t_start) / 1000000.0
+		rows.append([String(pt[0]), float(frames) / secs, worst, int(draw), int(tris)])
+	var txt := head + "\n"
+	var min_fps := 1000.0
+	var worst_all := 0.0
+	for r in rows:
+		txt += "%-30s %5.1f к/с · худший кадр %5.1f мс · вызовов %d · треугольников %d тыс.\n" % [r[0], r[1], r[2], r[3], int(r[4]) / 1000]
+		min_fps = minf(min_fps, float(r[1]))
+		worst_all = maxf(worst_all, float(r[2]))
+	txt += "Итог: меньше всего %.1f к/с, худший кадр %.1f мс, текстуры %d МБ" % [min_fps, worst_all, int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576)]
+	bench_text = txt
+	print("[bench] " + txt.replace("\n", "\n[bench] "))
+	DisplayServer.clipboard_set(txt)
+	var f := FileAccess.open("user://bench_%s.txt" % place, FileAccess.WRITE)
+	if f:
+		f.store_string(txt)
+		f.close()
+	_bench_panel(txt)
+
+
+var bench_text := ""                    ## последний результат «Замера FPS»
+
+
+func _bench_panel(txt: String) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	layer.name = "BenchPanel"
+	add_child(layer)
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	layer.add_child(pn)
+	pn.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	pn.custom_minimum_size = Vector2(minf(get_viewport().get_visible_rect().size.x - 40.0, 1100.0), 0)
+	pn.position = Vector2(20, 40)
+	var vb := VBoxContainer.new()
+	pn.add_child(vb)
+	var lb := Label.new()
+	lb.text = txt + "\n\nТаблица скопирована в буфер обмена — её можно вставить в сообщение."
+	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lb.add_theme_font_size_override("font_size", 15)
+	lb.add_theme_color_override("font_color", ULSettings.C_TEXT)
+	vb.add_child(lb)
+	vb.add_child(ULSettings.button("Закрыть", func() -> void: layer.queue_free(), 300.0))
 
 
 ## Проверка «Теста уровней» (--as-test=lvl --as-place=khutor): пулемёт, бессмертие, патроны без конца, таймер не
@@ -8793,6 +8939,19 @@ func _run_test() -> void:
 	if test == "lvl":
 		await _lvl_test()
 		return
+	if test == "lvlbench":
+		# «Замер FPS»: обход всех точек, таблица, буфер обмена, файл
+		var tb := Time.get_ticks_msec()
+		while bench_text == "" and Time.get_ticks_msec() - tb < 240000:
+			await get_tree().process_frame
+		var lines := bench_text.split("\n")
+		var n_pts := _perf_points().size()
+		_ok("замер FPS: обошёл %d мест, таблица на экране, в буфере обмена и в файле" % (lines.size() - 2), lines.size() - 2 == n_pts and get_node_or_null("BenchPanel") != null and FileAccess.file_exists("user://bench_%s.txt" % place) and DisplayServer.clipboard_get() == bench_text, bench_text.left(400))
+		if out != "":
+			await _snap("bench")
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
 	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
@@ -8800,23 +8959,7 @@ func _run_test() -> void:
 		print("[perf] %s: врагов %d (наибольшее число по data/%s.json)" % [zone_name(), enemies.size(), place])
 		var no_screen := DisplayServer.get_name() == "headless"
 		var worst := {"draw": 0.0, "tris": 0.0, "tex_mb": 0.0, "cpu_ms": 0.0}
-		var pts: Array = []
-		if place == "khutor":
-			pts = [["вход", ULKhutor.K_ENTRY + Vector3(0, 0, -3)], ["кольцо улицы", Vector3(0, 0, 30)], ["усадьба", Vector3(-6, 0, -10)],
-				["большой дом внутри", Vector3(-8, 0, -20)], ["магазин внутри", Vector3(47, 0, 18)], ["погреб", Vector3(14, -2.55, -26)],
-				["сарай", Vector3(-44, 0, -48)], ["у трактора", Vector3(36, 0, -24)], ["огороды", Vector3(-28, 0, 33)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
-		elif place == "convoy":
-			pts = [["вход", ULConvoy.C_ENTRY + Vector3(0, 0, -3)], ["колонна на дороге", Vector3(0, 0, 8)], ["лагерь", Vector3(38, 0, -42)],
-				["штабная палатка", Vector3(34, 0, -53)], ["блокпост", Vector3(46, 0, 4)], ["склад", Vector3(-44, 0, 40)], ["вертолёт", Vector3(40, 0, 44)],
-				["вышка", ULConvoy.C_TOWER + Vector3(0, 3.4, 0)], ["лес", Vector3(-40, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 8)]]
-		elif place == "sanatorium":
-			pts = [["ворота", ULSanatorium.ENTRY + Vector3(0, 0, -3)], ["перед главным корпусом", Vector3(0, 0, 42)], ["вестибюль главного", Vector3(0, 0, 23)],
-				["главный, 3 этаж", Vector3(-8, 6.6, 21)], ["площадь с фонтаном", Vector3(2, 0, -6)], ["палата лечебного", Vector3(-58, 0, -45)],
-				["жилой, 4 этаж", Vector3(50, 9.9, -8)], ["столовая", Vector3(-54, 0, 36)], ["хоздвор", Vector3(54, 0, 46)],
-				["середина, все враги гонятся", Vector3(0, 0, -6)]]
-		else:
-			pts = [["вход", ULCowshed.ENTRY + Vector3(0, 0, -4)], ["в коровнике", cowshed.barn_point(0, RandomNumberGenerator.new())], ["у останков коров", cowshed.cows[0] + Vector3(0, 0, 2.5)],
-				["лес", Vector3(-52, 0, -50)], ["середина", Vector3(0, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 0)]]
+		var pts: Array = _perf_points()
 		for pt in pts:
 			player.global_position = (pt[1] as Vector3) + Vector3.UP * 0.1
 			hp = HP_MAX
@@ -8989,7 +9132,7 @@ func _run_test() -> void:
 			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-37, -2.5, 4.8), 11.0],
 			["l8_cellar3", Vector3(46, -2.5, 34.4), 10.0], ["l9_top", Vector3(0, 0, 0), 85.0],
 			["m0_h1_out", Vector3(-8, 0, -12.5), 13.0], ["m1_h3_out", Vector3(-44.5, 0, 22), 13.0], ["m2_h4_out", Vector3(-24, 0, 58.5), 13.0],
-			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0], ["m5_garage_out", Vector3(-50.5, 0, 47.5), 12.0]]
+			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0], ["m5_garage_out", Vector3(-50.5, 0, 47.5), 12.0], ["m6_h1_side", Vector3(-15, 0, -16), 16.0], ["m7_h6_side", Vector3(54, 0, -3.5), 18.0]]
 		var konly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):

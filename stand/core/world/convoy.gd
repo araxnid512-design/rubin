@@ -166,6 +166,7 @@ func build(world: Node3D) -> void:
 	_c_ground()
 	_c_vehicles()
 	_c_camp(props, rng)
+	_c_tripo_props()
 	_c_blockpost(props, rng)
 	_c_supply(props, rng)
 	_c_tower(props)
@@ -416,6 +417,26 @@ func _c_bake_mask() -> Image:
 
 ## Техника колонны — отдельные модели Tripo; столкновение — коробка по размеру; всю можно обыскать (кузов, кабина,
 ## отсек) — тайник размером с машину.
+## Модели Tripo конвоя: мешки с песком у поста и у входа в лагерь, противотанковые ежи на дороге у блокпоста,
+## полевая радиостанция у штабной палатки, канистры у техники, носилки у медицинской палатки.
+func _c_tripo_props() -> void:
+	var t := Color(0.84, 0.82, 0.78)
+	if not ResourceLoader.exists(MODELS + "cv_sandbags.glb"):
+		return
+	# мешки с песком: полукольцом вокруг поста (вход с запада свободен) и у въезда в лагерь
+	for sb in [[Vector3(50, 0, -3.6), 0.0], [Vector3(53.8, 0, 0.0), PI * 0.5], [Vector3(50, 0, 3.6), 0.0], [Vector3(37.5, 0, -37.2), 0.6], [Vector3(31.0, 0, -38.5), -0.4]]:
+		_c_model_box(MODELS + "cv_sandbags.glb", sb[0], float(sb[1]) + PI * 0.5, 3.0, t, "cv_sandbags", true)
+	# ежи на обочинах у блокпоста
+	for hp in [[Vector3(40.5, 0, 6.5), 0.4], [Vector3(42.0, 0, -6.0), 1.9], [Vector3(38.5, 0, 9.5), 3.1]]:
+		_c_model_box(MODELS + "cv_hedgehog.glb", hp[0], float(hp[1]), 1.6, t, "cv_hedgehog", true)
+	# рация у входа в штаб (на ящике), носилки у медпалатки
+	_c_model_box(MODELS + "cv_radio.glb", Vector3(36.6, 0, -49.6), atan2(0.0, -1.0), 0.75, t, "cv_radio", true, true)
+	_c_model_box(MODELS + "cv_stretcher.glb", Vector3(55.6, 0, -40.8), 0.3, 2.0, t, "cv_stretcher", false)
+	# канистры у техники
+	for jp in [[Vector3(-12.6, 0, 33.2), 0.7], [Vector3(12.8, 0, -13.2), 2.2], [Vector3(-32.6, 0, 47.5), 4.0]]:
+		_c_model_box(MODELS + "cv_jerrycans.glb", jp[0], float(jp[1]), 0.95, t, "cv_jerrycans", true)
+
+
 func _c_vehicles() -> void:
 	for v in C_VEHICLES:
 		var vm: Array = C_VMODELS[String(v[0])]

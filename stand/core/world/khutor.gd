@@ -156,7 +156,7 @@ func spawn_limit() -> float:
 
 
 static func k_sig() -> int:
-	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k11")
+	return hash(str(K_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|k13")
 
 
 ## описание здания с вычисленной лестницей погреба (annex — где лестница: на ней герой уже «в погребе»)
@@ -231,6 +231,7 @@ func build(world: Node3D) -> void:
 	_k_greenhouse(props)
 	_k_props(props, rng)
 	_k_wall_clutter(props, rng)
+	_k_tripo_props(rng)
 	_flush(props)
 	_k_trees(rng)
 	_c_vegetation()
@@ -307,54 +308,6 @@ func in_garden(q: Vector2) -> bool:
 
 
 # ---------------- мебель-модели в домах ----------------
-
-## мебель Tripo из b.models — в группу этажа (скрывается с ним), на слое внутренностей
-func _place_models(b: ULBlock) -> void:
-	for m in b.models:
-		var path := MODELS + String(m[0]) + ".glb"
-		if not ResourceLoader.exists(path):
-			continue
-		if not _scenes.has(path):
-			_scenes[path] = load(path)
-		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
-		var bb: AABB = w._aabb(n)
-		var sz: Vector3 = m[3]
-		# лицо модели — в комнату (m[2] — поворот, при котором +Z смотрит от стены); модели с лицом по ±X
-		# поворачиваются на четверть, тогда вдоль стены у них идёт ось Z
-		var face := float(MODEL_FACE.get(String(m[0]), 0.0))
-		var side := absf(sin(face)) > 0.5
-		var along := bb.size.z if side else bb.size.x
-		var deep := bb.size.x if side else bb.size.z
-		var ra := sz.x / maxf(along, 0.01)
-		var rd := sz.z / maxf(deep, 0.01)
-		var ry := sz.y / maxf(bb.size.y, 0.01)
-		# вписать в место: общий масштаб по самой тесной оси, остальные оси — с растяжкой не больше 35 %
-		var k := minf(minf(ra, rd), ry)
-		var ka := minf(ra, k * 1.35)
-		var kd := minf(rd, k * 1.35)
-		var ky := minf(ry, k * 1.35)
-		n.scale = Vector3(kd, ky, ka) if side else Vector3(ka, ky, kd)
-		n.rotation.y = float(m[2]) + face
-		var c := bb.get_center() * n.scale
-		var p: Vector3 = m[1]
-		n.position = p - Basis(Vector3.UP, n.rotation.y) * Vector3(c.x, 0, c.z) - Vector3(0, bb.position.y * ky, 0)
-		b._group(String(m[4])).add_child(n)
-		_dirty(n, String(m[0]), Color(0.92, 0.9, 0.86))
-		blob_pts.append([p, Vector2(sz.x, sz.z), n.rotation.y - face, 0.5])
-		for gi in n.find_children("*", "GeometryInstance3D", true, false):
-			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			# мебель мелкая на экране (камера сверху): упрощённые уровни детализации раньше — меньше треугольников
-			(gi as GeometryInstance3D).lod_bias = 0.35
-			(gi as VisualInstance3D).layers = 2
-		_cull(n, 30.0)
-
-## куда смотрит «лицо» модели Tripo (дверцы, полки): поправка поворота, рад. −π/2 — лицо по +X, π/2 — по −X,
-## 0 — по +Z (мешки, бидоны, стол — без лица). Кровать — изголовьем по −X, к стене.
-const MODEL_FACE := {
-	"kh_fridge": -PI * 0.5, "kh_stove": -PI * 0.5, "kh_wardrobe": -PI * 0.5, "kh_sideboard": -PI * 0.5,
-	"kh_jar_shelf": -PI * 0.5, "kh_bed": -PI * 0.5, "kh_counter": PI * 0.5, "kh_shop_shelf": -PI * 0.5,
-}
-
 
 # ---------------- погреба ----------------
 
@@ -920,6 +873,83 @@ func _k_wall_clutter(g: Node3D, rng: RandomNumberGenerator) -> void:
 					_c_model_box(MODELS + "ul_crate.glb", p + nrm * 0.15, yaw + rng.randf_range(-0.3, 0.3), 0.75, Color(0.85, 0.83, 0.8), "ul_crate", false)
 			n += 1
 	_flush(g)
+
+
+## поворот модели с «лицом» по +X так, чтобы лицо смотрело в сторону dir (для _c_model_box: +Z → (sin, cos))
+static func face_x(dir: Vector3) -> float:
+	return atan2(-dir.z, dir.x)
+
+
+## Модели Tripo для двора: лавка у крыльца каждого дома, собачьи будки, пугала на огородах, двери на глухих
+## стенах сараев, летняя веранда во дворе большого дома, пасека за штакетником с открытой калиткой.
+func _k_tripo_props(rng: RandomNumberGenerator) -> void:
+	var tint := Color(0.86, 0.84, 0.8)
+	for b in blds:
+		var kind := String(b.def.get("kind", ""))
+		if (b.entrances as Array).is_empty():
+			continue
+		var outp: Vector3 = b.entrances[0][0]
+		var inp: Vector3 = b.entrances[0][1]
+		var nrm := outp - inp
+		nrm.y = 0.0
+		nrm = nrm.normalized()
+		var along := Vector3(-nrm.z, 0, nrm.x)
+		if kind == "house":
+			# лавка у стены рядом с крыльцом, лицом во двор
+			var pb := outp - nrm * 1.05 + along * (2.4 if rng.randf() < 0.5 else -2.4)
+			if bld_dist(Vector2(pb.x, pb.z)) > 0.3:
+				_c_model_box(MODELS + "kh_bench.glb", pb, face_x(nrm), 1.5, tint, "kh_bench", true)
+		elif kind == "shed":
+			# дверь на глухой стене напротив ворот (сарай, хозпостройка; у гаража — нет)
+			if String(b.def.id) == "garage":
+				continue
+			var r: Rect2 = b.rect
+			var cen := Vector3(r.get_center().x, 0, r.get_center().y)
+			var ext := (r.size.y if absf(nrm.z) > 0.5 else r.size.x) * 0.5
+			_c_model_box(MODELS + "kh_door.glb", cen - nrm * (ext + 0.03), face_x(-nrm), 2.05, tint, "kh_door", false, true)
+	# собачьи будки — в трёх дворах, в углу подальше от дома
+	for yi in [0, 2, 5]:
+		var yr: Rect2 = (K_YARDS[yi][0] as Rect2).grow(-1.6)
+		for tries in 8:
+			var q := Vector2(yr.position.x if rng.randf() < 0.5 else yr.end.x, yr.position.y if rng.randf() < 0.5 else yr.end.y)
+			if bld_dist(q) < 3.0 or in_garden(q):
+				continue
+			var to_c := Vector3(yr.get_center().x - q.x, 0, yr.get_center().y - q.y).normalized()
+			_c_model_box(MODELS + "kh_kennel.glb", Vector3(q.x, 0, q.y), face_x(to_c), 1.1, tint, "kh_kennel", true)
+			break
+	# пугала посреди огородов
+	for gi in [0, 2, 4]:
+		var gr: Rect2 = K_GARDENS[gi]
+		var pc := Vector3(gr.get_center().x, 0, gr.get_center().y)
+		_c_model_box(MODELS + "kh_scarecrow.glb", pc, face_x(Vector3(0, 0, 1)), 1.9, tint, "kh_scarecrow", false, true)
+	# летняя веранда во дворе большого дома (h6)
+	_c_model_box(MODELS + "kh_porch.glb", Vector3(58.0, 0, -4.5), face_x(Vector3(-1, 0, 0)), 3.0, tint, "kh_porch", true)
+	# пасека: штакетник из секций по периметру, на южной стороне проход и распахнутая калитка
+	var ax0 := K_APIARY.x - 1.8
+	var ax1 := K_APIARY.x + 3.2 + 1.8
+	var az0 := K_APIARY.z - 1.6
+	var az1 := K_APIARY.z + 1.7 + 1.6
+	var sides := [[Vector2(ax0, az0), Vector2(ax1, az0)], [Vector2(ax1, az0), Vector2(ax1, az1)], [Vector2(ax0, az1), Vector2(ax0, az0)]]
+	var gm := (ax0 + ax1) * 0.5
+	sides.append([Vector2(ax1, az1), Vector2(gm + 0.75, az1)])
+	sides.append([Vector2(gm - 0.75, az1), Vector2(ax0, az1)])
+	for sd in sides:
+		var a2: Vector2 = sd[0]
+		var b2: Vector2 = sd[1]
+		var ln := a2.distance_to(b2)
+		var n := maxi(int(ceil(ln / 1.9)), 1)
+		var dv := (b2 - a2) / ln
+		for k in n:
+			var c2 := a2 + dv * (ln * (k + 0.5) / n)
+			_c_model_box(MODELS + "kh_fence.glb", Vector3(c2.x, 0, c2.y), atan2(dv.x, dv.y), ln / n, tint, "kh_fence", false)
+			var cs := CollisionShape3D.new()
+			var bs := BoxShape3D.new()
+			bs.size = Vector3(0.1, 1.1, ln / n)
+			cs.shape = bs
+			cs.transform = Transform3D(Basis(Vector3.UP, atan2(dv.x, dv.y)), Vector3(c2.x, 0.55, c2.y))
+			body.add_child(cs)
+	# калитка распахнута наружу у прохода
+	_c_model_box(MODELS + "kh_gate.glb", Vector3(gm + 0.8, 0, az1 + 0.75), atan2(0.0, 1.0), 1.5, tint, "kh_gate", false)
 
 
 ## лес: редкий, только по краям — внутри кольца улицы поле и усадьба

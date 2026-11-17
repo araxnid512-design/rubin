@@ -934,10 +934,21 @@ func _window_wood(bk: Dictionary, key: String, along_u: bool, a: float, b: float
 	_wall_piece(bk, key, "wframe", along_u, a, b, y1 - t, y1, fd, fd - sgn * 0.07)
 	_wall_piece(bk, key, "wframe", along_u, m - 0.025, m + 0.025, y0, y1, fd, fd - sgn * 0.06)
 	_wall_piece(bk, key, "wframe", along_u, a, b, y0 + (y1 - y0) * 0.62, y0 + (y1 - y0) * 0.62 + 0.05, fd, fd - sgn * 0.06)
+	var r := _rng.randf()
+	if r >= 0.1 and String(def.get("kind", "")) == "house" and ResourceLoader.exists("res://assets/world/kh_window.glb"):
+		# резной наличник со ставнями — модель Tripo (снаружи, общей сеткой блока); стекло и переплёт — свои
+		var nw := (_wd(bk, 0, 1) if along_u else _wd(bk, 1, 0)) * sgn
+		var pw := _w(bk, m if along_u else outer + sgn * 0.02, y0 - 0.22, outer + sgn * 0.02 if along_u else m)
+		var xa := key.substr(0, key.find("/x")) + "/xa"
+		models.append(["kh_window", pw, atan2(nw.x, nw.z), Vector3((b - a) * 2.05 + 0.1, y1 - y0 + 0.46, 0.22), xa, 0.0])
+		if r < 0.25:
+			_wall_piece(bk, key.replace("/x", "/o").trim_suffix("f").trim_suffix("b"), "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.25, fd - sgn * 0.26)
+		else:
+			_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.02, fd - sgn * 0.03)
+		return
 	# наличник и подоконник
 	_wall_piece(bk, key, "wframe", along_u, a - 0.1, b + 0.1, y1, y1 + 0.16, outer + sgn * 0.05, outer - sgn * 0.01)
 	_wall_piece(bk, key, "wframe", along_u, a - 0.08, b + 0.08, y0 - 0.06, y0, outer + sgn * 0.1, outer - sgn * 0.02)
-	var r := _rng.randf()
 	if r < 0.85 and def.get("shutters", true):
 		# ставни распахнуты по сторонам окна
 		var sw := (b - a) * 0.5
@@ -1489,10 +1500,20 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 			for i in n:
 				var hv := hw * (1.0 - (i + 0.5) / n)
 				_lb(rk, gmat, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
+	var house := style == "wood" and String(def.get("kind", "")) == "house"
 	if style == "wood" and def.get("chimney", true):
-		# печная труба над избой
+		# печная труба над избой: модель Tripo (кирпич, жестяной колпак) или кирпичный столб
 		var cu := hl * 0.35
-		_lb(rk, "brick", bk, cu - 0.28, cu + 0.28, top, top + rr + 0.9, -hw * 0.35 - 0.28, -hw * 0.35 + 0.28)
+		if house and ResourceLoader.exists("res://assets/world/kh_chimney.glb"):
+			var by0 := top + rr * 0.65 - 0.35
+			models.append(["kh_chimney", _w(bk, cu, by0, -hw * 0.35), 0.0, Vector3(0.62, rr * 0.35 + 1.35, 0.62), rk, 0.0])
+		else:
+			_lb(rk, "brick", bk, cu - 0.28, cu + 0.28, top, top + rr + 0.9, -hw * 0.35 - 0.28, -hw * 0.35 + 0.28)
+	if house and ResourceLoader.exists("res://assets/world/kh_gable.glb"):
+		# резьба под коньком на фронтонах — модель Tripo, лицом наружу
+		for e in [-1.0, 1.0]:
+			var nw2 := _wd(bk, e, 0)
+			models.append(["kh_gable", _w(bk, e * (hl + 0.36), top + rr * 0.32, 0), atan2(nw2.x, nw2.z), Vector3(hw * 1.15, rr * 0.7, 0.18), rk, 0.0])
 
 
 ## треугольная призма: треугольник p (три точки, мир) и он же, сдвинутый на ext, — стенка фронтона
@@ -1607,22 +1628,24 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_corridor_decor(ctx)
 		"ward":
 			_beds_ext(ctx, "bed", true)
-			_try(ctx, "medcab", ["l", "r"], 0.6)
+			_try(ctx, "m_medcab", ["l", "r"], 0.6)
+			if _rng.randf() < 0.35:
+				_try(ctx, "m_wheel", ["cor", "l", "r"], 0.85)
 			_try(ctx, "sink", ["cor", "l"], 0.3)
 			_try(ctx, "chair", ["l", "r", "cor"], 0.5)
 			if _rng.randf() < 0.5:
 				_try(ctx, "suitcase", ["l", "r"], 0.5)
 		"proc":
 			_try(ctx, "couch", ["l", "r"], 0.5)
-			_try(ctx, "medcab", ["ext", "r", "l"], 0.2)
-			_try(ctx, "medcab", ["ext", "r", "l"], 0.8)
+			_try(ctx, "m_medcab", ["ext", "r", "l"], 0.2)
+			_try(ctx, "m_medcab", ["ext", "r", "l"], 0.8)
 			_try(ctx, "sink", ["cor"], 0.8)
 			_try(ctx, "desk", ["ext"], 0.5)
 			_try(ctx, "drip", ["l", "r"], 0.3)
 		"nurse":
 			_try(ctx, "desk", ["ext"], 0.5)
-			_try(ctx, "medcab", ["l"], 0.4)
-			_try(ctx, "medcab", ["r"], 0.4)
+			_try(ctx, "m_medcab", ["l"], 0.4)
+			_try(ctx, "m_medcab", ["r"], 0.4)
 			_try(ctx, "sofa", ["r", "l"], 0.6)
 			_try(ctx, "sink", ["cor"], 0.7)
 		"office":
@@ -1634,7 +1657,7 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 		"staff":
 			_try(ctx, "locker", ["l", "r"], 0.3)
 			_try(ctx, "locker", ["l", "r"], 0.75)
-			_center(ctx, "table4")
+			_center_model(ctx, "m_sntable")
 			_try(ctx, "sofa", ["ext", "r"], 0.5)
 			_try(ctx, "sink", ["cor"], 0.8)
 		"room":
@@ -1661,11 +1684,12 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_try(ctx, "board", ["l", "r"], 0.5)
 			_try(ctx, "plant", ["ext", "l", "r"], 0.1)
 			_try(ctx, "plant", ["ext", "l", "r"], 0.9)
+			_try(ctx, "m_wheel", ["l", "r", "ext"], 0.15)
 		"lounge":
 			_try(ctx, "sofa", ["ext"], 0.35)
 			_try(ctx, "sofa", ["l", "r"], 0.5)
 			_try(ctx, "tv", ["l", "r"], 0.5)
-			_center(ctx, "table4")
+			_center_model(ctx, "m_sntable")
 			_try(ctx, "plant", ["ext", "l", "r"], 0.9)
 		"kitchen":
 			for k in 4:
@@ -1683,7 +1707,7 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 		"club":
 			_center(ctx, "billiard")
 			_try(ctx, "sofa", ["ext", "l"], 0.5)
-			_try(ctx, "piano", ["l", "r"], 0.5)
+			_try(ctx, "m_piano", ["l", "r"], 0.5)
 			_try(ctx, "chair", ["r", "l"], 0.3)
 			_try(ctx, "plant", ["ext"], 0.95)
 		"tech":
@@ -1929,6 +1953,7 @@ const SIZES := {
 	"m_fridge": Vector2(0.62, 0.62), "m_stove": Vector2(0.62, 0.62), "m_wardrobe": Vector2(1.1, 0.58), "m_sideboard": Vector2(1.3, 0.5),
 	"m_jars": Vector2(1.2, 0.42), "m_bed": Vector2(0.95, 2.0), "m_counter": Vector2(1.7, 0.85), "m_shopshelf": Vector2(1.5, 0.5),
 	"m_sacks": Vector2(1.0, 0.8), "m_cans": Vector2(1.0, 0.6), "m_drinks": Vector2(0.7, 0.65), "m_table": Vector2(1.5, 1.3),
+	"m_medcab": Vector2(0.8, 0.45), "m_piano": Vector2(1.5, 0.62), "m_sntable": Vector2(1.5, 1.4), "m_wheel": Vector2(0.65, 0.95),
 	"washstand": Vector2(0.6, 0.45), "tub": Vector2(1.6, 0.75), "toolbox": Vector2(0.7, 0.4), "hay": Vector2(1.2, 0.9),
 	"bin": Vector2(1.2, 0.9), "barrel": Vector2(0.6, 0.6), "tyres": Vector2(0.75, 0.75),
 }
@@ -1940,6 +1965,8 @@ const MODEL_KINDS := {
 	"m_counter": ["kh_counter", 1.25, "counter", "Прилавок"], "m_shopshelf": ["kh_shop_shelf", 1.9, "shop", "Полка магазина"],
 	"m_sacks": ["kh_sacks", 0.8, "sacks", "Мешки с картошкой"], "m_cans": ["kh_cans", 0.9, "cans", "Бидоны и канистры"],
 	"m_drinks": ["kh_fridge", 1.6, "drinks", "Холодильник с напитками"], "m_table": ["kh_table_set", 1.0, "", ""],
+	"m_medcab": ["sn_medcab", 1.85, "med", "Медицинский шкаф"], "m_piano": ["sn_piano", 1.3, "", ""],
+	"m_sntable": ["sn_table", 0.85, "", ""], "m_wheel": ["sn_wheelchair", 0.95, "", ""],
 }
 
 

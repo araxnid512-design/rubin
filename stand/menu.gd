@@ -131,8 +131,8 @@ func _levels() -> void:
 	pn.anchor_bottom = 0.5
 	pn.offset_left = -300
 	pn.offset_right = 300
-	pn.offset_top = -290
-	pn.offset_bottom = 290
+	pn.offset_top = -315
+	pn.offset_bottom = 315
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	pn.add_child(vb)
@@ -147,6 +147,14 @@ func _levels() -> void:
 	d.add_theme_font_size_override("font_size", 15)
 	d.add_theme_color_override("font_color", ULSettings.C_TEXT)
 	vb.add_child(d)
+	# замер: герой сам обходит локацию, в конце — таблица кадров в секунду по местам (и копия в буфер обмена)
+	var bm := CheckButton.new()
+	bm.name = "bench"
+	bm.text = "Замер FPS: обойти локацию и показать кадры в секунду"
+	bm.button_pressed = ULSettings.bench
+	bm.add_theme_font_size_override("font_size", 16)
+	bm.toggled.connect(func(v: bool) -> void: ULSettings.bench = v)
+	vb.add_child(bm)
 	for lv in LEVELS:
 		var b := ULSettings.button(String(lv[1]), _start_level.bind(String(lv[0])), 560.0)
 		b.name = "lv_" + String(lv[0])

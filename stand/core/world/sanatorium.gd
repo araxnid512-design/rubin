@@ -208,6 +208,7 @@ func build(world: Node3D) -> void:
 			made[String(d.id)]["rng0"] = st0
 		for c in b.cols:
 			_col_xf(c[0], c[1])
+		_place_models(b)
 		for h in b.hulls:
 			var cs := CollisionShape3D.new()
 			var sh := ConvexPolygonShape3D.new()
@@ -1010,6 +1011,16 @@ func _plaza(g: Node3D, rng: RandomNumberGenerator) -> void:
 		var a := rng.randf() * TAU
 		var r := rng.randf_range(1.5, 3.6)
 		_bx(g, "wood", Vector3(rng.randf_range(0.4, 0.9), 0.04, 0.05), Transform3D(Basis(Vector3.UP, rng.randf() * TAU), at + Vector3(cos(a) * r, 0.66, sin(a) * r)))
+	# гипсовые пионеры на постаментах и бетонные вазы вокруг фонтана
+	for k in 2:
+		var a2 := PI * k
+		var ps := at + Vector3(cos(a2), 0, sin(a2)) * 6.6
+		_bx(g, "trim", Vector3(0.9, 0.7, 0.9), _at(ps + Vector3.UP * 0.35))
+		_prop(MODELS + "sn_statue.glb", ps + Vector3.UP * 0.7, atan2(sin(a2), -cos(a2)), 2.0, true, "sn_statue")
+		_col_xf(Vector3(0.9, 2.6, 0.9), _at(ps + Vector3.UP * 1.3))
+	for k in 4:
+		var a3 := TAU * k / 4.0 + PI * 0.25
+		_prop(MODELS + "sn_urn.glb", at + Vector3(cos(a3), 0, sin(a3)) * 8.6, 0.0, 1.05, true, "sn_urn", 0.4, 1.0)
 	# скамейки вокруг площади
 	for k in 8:
 		var a := TAU * (k + 0.5) / 8.0
@@ -1017,7 +1028,27 @@ func _plaza(g: Node3D, rng: RandomNumberGenerator) -> void:
 		_bench(g, p, a + PI * 0.5, rng)
 
 
+## предмет-модель Tripo на земле: оттенок, упрощённые копии раньше, пятно-тень, столкновение (цилиндр col_r)
+func _prop(path: String, at: Vector3, yaw: float, size: float, by_height: bool, key: String, col_r := 0.0, col_h := 1.2) -> Node3D:
+	var n := _model(path, at, yaw, size, by_height)
+	if n == null:
+		return null
+	_dirty(n, key, Color(0.86, 0.84, 0.8))
+	for gi in n.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(gi as GeometryInstance3D).lod_bias = 0.35
+	var bb: AABB = w._aabb(n)
+	blob_pts.append([at, Vector2(bb.size.x, bb.size.z), 0.0, 0.5])
+	if col_r > 0.0:
+		_cyl_col(at, col_r, col_h)
+	return n
+
+
 func _bench(g: Node3D, p: Vector3, yaw: float, rng: RandomNumberGenerator) -> void:
+	# парковая скамейка — модель Tripo (чугунные ножки, рейки); лицом туда же, куда сиденье простой скамейки
+	if _prop(MODELS + "sn_bench.glb", p, yaw + PI, 1.75, false, "sn_bench") != null:
+		_col_xf(Vector3(1.7, 0.5, 0.5), Transform3D(Basis(Vector3.UP, yaw), p + Vector3.UP * 0.25))
+		return
 	var b := Basis(Vector3.UP, yaw)
 	var broken := rng.randf() < 0.2
 	for sx in [-0.7, 0.7]:
@@ -1108,6 +1139,10 @@ func _lamps_benches(g: Node3D, rng: RandomNumberGenerator) -> void:
 					var bent := rng.randf() < 0.18
 					var bas := Basis(Vector3(d.x, 0, d.y), rng.randf_range(0.25, 0.5)) if bent else Basis()
 					var p := Vector3(q.x, 0, q.y)
+					if not bent and _prop(MODELS + "sn_lamp.glb", p, atan2(-nrm.y, nrm.x), 4.2, true, "sn_lamp") != null:
+						_cyl_col(p, 0.1, 3.0)
+						s += 16.0
+						continue
 					_bx(g, "gmetal", Vector3(0.1, 4.2, 0.1), Transform3D(bas, p + bas * Vector3(0, 2.1, 0)))
 					_bx(g, "gmetal", Vector3(0.7, 0.06, 0.06), Transform3D(bas * Basis(Vector3.UP, atan2(-nrm.y, nrm.x)), p + bas * Vector3(0, 4.15, 0) - Vector3(nrm.x, 0, nrm.y) * 0.3))
 					_bx(g, "wmetal", Vector3(0.4, 0.12, 0.22), Transform3D(bas, p + bas * Vector3(0, 4.05, 0) - Vector3(nrm.x, 0, nrm.y) * 0.6))
@@ -1396,6 +1431,68 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 				push_warning("санаторий: для врага не нашлось места")
 	_plan_rubers(rng, snap, pools, taken, out)
 	return out
+
+
+# ---------------- мебель-модели в постройках (Tripo) ----------------
+
+## мебель Tripo из b.models — в группу этажа (скрывается с ним), на слое внутренностей
+func _place_models(b: ULBlock) -> void:
+	for m in b.models:
+		var path := MODELS + String(m[0]) + ".glb"
+		if not ResourceLoader.exists(path):
+			continue
+		if not _scenes.has(path):
+			_scenes[path] = load(path)
+		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		var bb: AABB = w._aabb(n)
+		var sz: Vector3 = m[3]
+		# лицо модели — в комнату (m[2] — поворот, при котором +Z смотрит от стены); модели с лицом по ±X
+		# поворачиваются на четверть, тогда вдоль стены у них идёт ось Z
+		var face := float(MODEL_FACE.get(String(m[0]), 0.0))
+		var side := absf(sin(face)) > 0.5
+		var along := bb.size.z if side else bb.size.x
+		var deep := bb.size.x if side else bb.size.z
+		var ra := sz.x / maxf(along, 0.01)
+		var rd := sz.z / maxf(deep, 0.01)
+		var ry := sz.y / maxf(bb.size.y, 0.01)
+		# вписать в место: общий масштаб по самой тесной оси, остальные оси — с растяжкой не больше 35 %
+		var k := minf(minf(ra, rd), ry)
+		var ka := minf(ra, k * 1.35)
+		var kd := minf(rd, k * 1.35)
+		var ky := minf(ry, k * 1.35)
+		if MODEL_FREE.has(String(m[0])):
+			# плоская деталь фасада (наличник, резьба фронтона): ровно по месту по всем осям
+			ka = ra
+			kd = rd
+			ky = ry
+		n.scale = Vector3(kd, ky, ka) if side else Vector3(ka, ky, kd)
+		n.rotation.y = float(m[2]) + face
+		var c := bb.get_center() * n.scale
+		var p: Vector3 = m[1]
+		n.position = p - Basis(Vector3.UP, n.rotation.y) * Vector3(c.x, 0, c.z) - Vector3(0, bb.position.y * ky, 0)
+		b._group(String(m[4])).add_child(n)
+		_dirty(n, String(m[0]), Color(0.92, 0.9, 0.86))
+		var outside := String(m[4]).contains("/xa") or String(m[4]).ends_with("/r")
+		if not outside:
+			blob_pts.append([p, Vector2(sz.x, sz.z), n.rotation.y - face, 0.5])
+		for gi in n.find_children("*", "GeometryInstance3D", true, false):
+			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# мебель мелкая на экране (камера сверху): упрощённые уровни детализации раньше — меньше треугольников
+			(gi as GeometryInstance3D).lod_bias = 0.35
+			(gi as VisualInstance3D).layers = 1 if outside else 2   # снаружи (наличники, трубы) — под солнцем
+		_cull(n, 30.0)
+
+## куда смотрит «лицо» модели Tripo (дверцы, полки): поправка поворота, рад. −π/2 — лицо по +X, π/2 — по −X,
+## 0 — по +Z (мешки, бидоны, стол — без лица). Кровать — изголовьем по −X, к стене.
+const MODEL_FACE := {
+	"kh_fridge": -PI * 0.5, "kh_stove": -PI * 0.5, "kh_wardrobe": -PI * 0.5, "kh_sideboard": -PI * 0.5,
+	"kh_jar_shelf": -PI * 0.5, "kh_bed": -PI * 0.5, "kh_counter": PI * 0.5, "kh_shop_shelf": -PI * 0.5,
+	"kh_window": -PI * 0.5, "kh_gable": -PI * 0.5, "kh_door": -PI * 0.5,
+	"sn_medcab": -PI * 0.5, "sn_piano": -PI * 0.5,
+}
+## вписываются в место ровно (без сохранения пропорций): плоские детали фасада
+const MODEL_FREE := {"kh_window": true, "kh_gable": true}
+
 
 
 ## помещается ли тело такого радиуса в точке (стены, мебель, закрытые двери, техника; враги не в счёт)

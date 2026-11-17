@@ -165,6 +165,7 @@ func build(world: Node3D) -> void:
 	_vehicles(rng)
 	_hay(rng)
 	_junk(props, rng)
+	_farm_props()
 	_flush(fr)
 	_flush(props)
 	_vegetation()
@@ -645,6 +646,66 @@ func _cull(n: Node, dist: float) -> void:
 
 
 # ---------------- башня, баки, техника, сено, хлам ----------------
+
+## Модели Tripo у коровников (рядом с воротами, вдоль стены): кормушки, ясли с сеном, поилки, тюки, тачки;
+## у пристройки — танк-охладитель молока. Столкновение — коробка по размеру предмета.
+const FARM_PROPS := {
+	"barnA": [["cs_hayrack", 1.5, true], ["cs_bale", 1.2, false]], "barnB": [["cs_trough", 2.6, false], ["cs_trough", 2.6, false]],
+	"barnC": [["cs_water", 1.8, false], ["cs_barrow", 1.4, false]], "barnD": [["cs_bale", 1.2, false], ["cs_hayrack", 1.5, true]],
+	"barnE": [["cs_trough", 2.6, false], ["cs_barrow", 1.4, false]], "annexA": [["cs_milktank", 1.7, true]],
+}
+
+
+func _farm_props() -> void:
+	for d in BUILDINGS:
+		var items: Array = FARM_PROPS.get(String(d.id), [])
+		if items.is_empty() or (d.doors as Array).is_empty():
+			continue
+		var at: Vector3 = d.at
+		var bas := Basis(Vector3.UP, float(d.yaw))
+		var dr: Array = d.doors[0]
+		var side := String(dr[0])
+		var off := float(dr[1])
+		var dw := float(dr[2])
+		var hl := float(d.L) * 0.5
+		var hw := float(d.W) * 0.5
+		var lp: Vector3
+		var ln: Vector3
+		match side:
+			"s+":
+				lp = Vector3(off, 0, hw)
+				ln = Vector3(0, 0, 1)
+			"s-":
+				lp = Vector3(off, 0, -hw)
+				ln = Vector3(0, 0, -1)
+			"e+":
+				lp = Vector3(hl, 0, off)
+				ln = Vector3(1, 0, 0)
+			_:
+				lp = Vector3(-hl, 0, off)
+				ln = Vector3(-1, 0, 0)
+		var nrm: Vector3 = bas * ln
+		var along := Vector3(-nrm.z, 0, nrm.x)
+		var door: Vector3 = at + bas * lp
+		for i in items.size():
+			var it: Array = items[i]
+			var sgn := 1.0 if i % 2 == 0 else -1.0
+			var p := door + along * sgn * (dw * 0.5 + 1.7) + nrm * 1.1
+			if not ResourceLoader.exists(MODELS + String(it[0]) + ".glb"):
+				continue
+			# длинное — вдоль стены
+			var yaw := atan2(along.x, along.z)
+			var n := _model(MODELS + String(it[0]) + ".glb", p, yaw, float(it[1]), bool(it[2]))
+			if n == null:
+				continue
+			_dirty(n, String(it[0]), Color(0.84, 0.82, 0.78))
+			for gi in n.find_children("*", "GeometryInstance3D", true, false):
+				(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				(gi as GeometryInstance3D).lod_bias = 0.35
+			var bb: AABB = w._aabb(n)
+			# рамка уже в мировых осях (с поворотом модели) — коробка без поворота
+			_col_xf(Vector3(maxf(bb.size.x * 0.9, 0.3), maxf(bb.size.y, 0.6), maxf(bb.size.z * 0.9, 0.3)), Transform3D(Basis(), bb.get_center()))
+
 
 func _model(path: String, at: Vector3, yaw: float, size: float, by_height := false) -> Node3D:
 	if not ResourceLoader.exists(path):
