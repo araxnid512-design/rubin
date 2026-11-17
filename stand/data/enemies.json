@@ -625,7 +625,7 @@
   "stagger_dmg": 160,
   "boss": true,
   "gun": {
-   "weapon": "pistol",
+   "weapon": "deagle",
    "n": "Desert Eagle",
    "dmg_pct": 0.1,
    "range": 22,

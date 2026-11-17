@@ -10042,7 +10042,7 @@ func _run_test() -> void:
 			["r6_barracks", Vector3(-57.5, 0, -16), 12.0], ["r7_barracks_out", Vector3(-46, 0, -18), 20.0], ["r8_warehouse", Vector3(-46, 0, 25), 13.0],
 			["r9_tower", Vector3(-62, 3.4, -58), 16.0], ["s0_mess", Vector3(44, 0, -27), 13.0], ["s1_quarters", Vector3(44, 0, 33), 13.0],
 			["s2_workshop", Vector3(-14, 0, -21), 12.0], ["s3_east", Vector3(48, 0, 8), 24.0], ["s4_wide", Vector3(0, 0, -6), 60.0], ["s5_top", Vector3(0, 0, 0), 120.0],
-			["s6_murs", Vector3(0, 0, 0), 14.0]]
+			["s6_murs", Vector3(0, 0, 0), 14.0], ["s7_murs_close", Vector3(0, 0, 0), 6.5]]
 		var lonly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):
@@ -10052,7 +10052,7 @@ func _run_test() -> void:
 		for sp in lspots:
 			cam_dist = float(sp[2])
 			var at: Vector3 = sp[1]
-			if String(sp[0]) == "s6_murs":
+			if String(sp[0]).begins_with("s6_murs") or String(sp[0]) == "s7_murs_close":
 				# муры вблизи: по одному каждого вида рядом с героем, с оружием наготове
 				var kinds := ["mur_ak", "mur_sg", "mur_boss"]
 				var ki := 0
@@ -10069,7 +10069,7 @@ func _run_test() -> void:
 			player.velocity = Vector3.ZERO
 			for e in enemies:
 				if e.global_position.distance_to(player.global_position) < 30.0:
-					if String(sp[0]) != "s6_murs":
+					if String(sp[0]) != "s6_murs" and String(sp[0]) != "s7_murs_close":
 						e.state = "idle"
 					e.wander_r = 0.0
 					if e is ULMur:

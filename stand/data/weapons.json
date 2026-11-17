@@ -149,6 +149,156 @@
    "shot": "shot_tt"
   }
  },
+ "deagle": {
+  "n": "Desert Eagle",
+  "model": "res://assets/weapons/w_deagle.glb",
+  "len_m": 0.27,
+  "model_len": 1.0,
+  "mode": "pistol",
+  "grip": [
+   0.0,
+   0.245,
+   0.375
+  ],
+  "grip_rake": 10,
+  "grip_half": 0.013,
+  "muzzle": [
+   0.0,
+   0.515,
+   -0.485
+  ],
+  "mag": [
+   0.0,
+   0.03,
+   0.385
+  ],
+  "recoil": {
+   "back": 0.025,
+   "pitch": 14,
+   "time": 0.22,
+   "body": 1.6
+  },
+  "stances": {
+   "aim": {
+    "anchor": "grip",
+    "pos": [
+     0.6,
+     -0.04,
+     0.0
+    ],
+    "dir": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "follow": 0.5,
+    "twist": 0,
+    "lock": true
+   },
+   "ready": {
+    "anchor": "grip",
+    "pos": [
+     0.3,
+     -0.24,
+     0.02
+    ],
+    "dir": [
+     0.97,
+     -0.24,
+     0.0
+    ],
+    "follow": 1.0,
+    "twist": 0
+   },
+   "run": {
+    "anchor": "grip",
+    "pos": [
+     0.38,
+     -0.3,
+     0.03
+    ],
+    "dir": [
+     0.6,
+     -0.8,
+     0.0
+    ],
+    "follow": 1.0,
+    "twist": 0
+   }
+  },
+  "holster": {
+   "pos": [
+    0.02,
+    -0.07,
+    0.2
+   ],
+   "dir": [
+    0.12,
+    -1.0,
+    0.0
+   ],
+   "roll": 0,
+   "time": 1.0
+  },
+  "draw": {
+   "grab": 0.28,
+   "clear": 0.13,
+   "clear_t": 0.4,
+   "keys": [
+    [
+     0.55,
+     [
+      0.1,
+      -0.27,
+      0.17
+     ],
+     [
+      1.0,
+      -0.12,
+      0.05
+     ],
+     25
+    ],
+    [
+     0.74,
+     [
+      0.28,
+      -0.22,
+      0.03
+     ],
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     0
+    ]
+   ],
+   "left": [
+    0.55,
+    0.78
+   ],
+   "left_chest": true
+  },
+  "bolt": [
+   0.0,
+   0.53,
+   0.25
+  ],
+  "reload": {
+   "kind": "mag",
+   "len": 2.0,
+   "mag_size": [
+    0.02,
+    0.11,
+    0.034
+   ]
+  },
+  "sound": {
+   "shot": "shot_tt"
+  },
+  "flip": true
+ },
  "rifle": {
   "n": "Автомат АК-74М",
   "model": "res://assets/weapons/w_ak74m.glb",
