@@ -149,6 +149,23 @@ static func cfg() -> Dictionary:
 	return _cfg
 
 
+## Точки расширения для других кластеров на этой же основе (ULConvoy): настройки, вход, название, край для врагов
+func conf() -> Dictionary:
+	return cfg()
+
+
+func entry() -> Vector3:
+	return ENTRY
+
+
+func title() -> String:
+	return TITLE
+
+
+func spawn_limit() -> float:
+	return FENCE - 1.0
+
+
 func build(world: Node3D) -> void:
 	w = world
 	half = float(cfg().get("size", 150.0)) * 0.5
@@ -1301,7 +1318,7 @@ var _yard_tags: Array[String] = []
 ## столовая, номера жилого…). Каждая точка проверяется по карте проходимости (snap — ближайшая проходимая точка:
 ## не в стене, не в мебели, на том же этаже), не ближе safe_r к воротам и не вплотную к другому врагу.
 func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
-	var c := cfg()
+	var c := conf()
 	var np := rng.randi_range(int(c.pustysh[0]), int(c.pustysh[1]))
 	var nl := rng.randi_range(int(c.lottery[0]), int(c.lottery[1]))
 	var out: Array = []
@@ -1355,7 +1372,7 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 					continue
 				var p: Vector3 = pool[rng.randi() % pool.size()]
 				p += Vector3(rng.randf_range(-0.8, 0.8), 0, rng.randf_range(-0.8, 0.8))
-				if absf(p.x) > FENCE - 1.0 or absf(p.z) > FENCE - 1.0 or Vector2(p.x - ENTRY.x, p.z - ENTRY.z).length() < safe_r:
+				if absf(p.x) > spawn_limit() or absf(p.z) > spawn_limit() or Vector2(p.x - entry().x, p.z - entry().z).length() < safe_r:
 					continue
 				var q: Vector3 = snap.call(p)
 				if Vector2(q.x - p.x, q.z - p.z).length() > 0.45 or absf(q.y - p.y) > 0.4:
@@ -1365,7 +1382,7 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 					if t.distance_to(q) < 1.4:
 						crowd = true
 						break
-				if crowd:
+				if crowd or not body_fits(Vector3(q.x, p.y, q.z), 0.3, 1.5):
 					continue
 				taken.append(q)
 				out.append([kind, Vector3(q.x, p.y + 0.02, q.z), zone])
@@ -1378,13 +1395,13 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 
 
 ## помещается ли тело такого радиуса в точке (стены, мебель, закрытые двери, техника; враги не в счёт)
-func body_fits(p: Vector3, radius: float) -> bool:
+func body_fits(p: Vector3, radius: float, height := 2.0) -> bool:
 	var sh := CapsuleShape3D.new()
 	sh.radius = radius
-	sh.height = 2.0
+	sh.height = height
 	var qs := PhysicsShapeQueryParameters3D.new()
 	qs.shape = sh
-	qs.transform = Transform3D(Basis(), p + Vector3.UP * 1.25)
+	qs.transform = Transform3D(Basis(), p + Vector3.UP * (0.25 + height * 0.5))
 	qs.collision_mask = 1 | ULDoor.LAYER
 	for h in get_world_3d().direct_space_state.intersect_shape(qs, 6):
 		if not (h.collider is CharacterBody3D):
@@ -1393,8 +1410,7 @@ func body_fits(p: Vector3, radius: float) -> bool:
 
 
 ## сколько Руберов в этот раз: 0, 1 или 2 — по шансам ruber_chances (data/sanatorium.json)
-static func ruber_count(rng: RandomNumberGenerator) -> int:
-	var ch: Array = cfg().get("ruber_chances", [1, 0, 0])
+static func ruber_count(rng: RandomNumberGenerator, ch: Array) -> int:
 	var sum := 0.0
 	for v in ch:
 		sum += float(v)
@@ -1413,19 +1429,11 @@ static func ruber_count(rng: RandomNumberGenerator) -> int:
 ## Вокруг точки должно быть свободно на метр (восемь проб по кругу лежат на карте проходимости): не в узком
 ## коридоре, не в тесной комнате, не у стены. Далеко от ворот (ruber_safe_r) и не рядом друг с другом.
 func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary, taken: Array[Vector3], out: Array) -> void:
-	var c := cfg()
-	var n := ruber_count(rng)
+	var c := conf()
+	var n := ruber_count(rng, c.get("ruber_chances", [1, 0, 0]))
 	if n <= 0:
 		return
-	var yard := Rect2(YARD.position + Vector2(2, 2), YARD.size - Vector2(4, 4))
-	pools["hozdvor"] = []
-	pools["behind_main"] = []
-	for p in yard_pts:
-		var q := Vector2(p.x, p.z)
-		if yard.has_point(q):
-			pools["hozdvor"].append(p)
-		if absf(q.x) < 18.0 and q.y > 3.0 and q.y < 12.5:
-			pools["behind_main"].append(p)
+	_extra_pools(pools)
 	var zones: Dictionary = c.get("zones_ruber", {"boiler_out": 1})
 	var sum := 0.0
 	for z in zones:
@@ -1449,7 +1457,7 @@ func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary,
 				continue
 			var pool: Array = pools[zone]
 			var p: Vector3 = pool[rng.randi() % pool.size()]
-			if Vector2(p.x - ENTRY.x, p.z - ENTRY.z).length() < safe_r:
+			if Vector2(p.x - entry().x, p.z - entry().z).length() < safe_r:
 				continue
 			var q: Vector3 = snap.call(p)
 			if Vector2(q.x - p.x, q.z - p.z).length() > 0.3 or absf(q.y - p.y) > 0.4:
@@ -1484,18 +1492,31 @@ func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary,
 			push_warning("санаторий: для Рубера не нашлось просторного места")
 
 
+## особые места Рубера: хоздвор и площадка за главным корпусом
+func _extra_pools(pools: Dictionary) -> void:
+	var yard := Rect2(YARD.position + Vector2(2, 2), YARD.size - Vector2(4, 4))
+	pools["hozdvor"] = []
+	pools["behind_main"] = []
+	for p in yard_pts:
+		var q := Vector2(p.x, p.z)
+		if yard.has_point(q):
+			pools["hozdvor"].append(p)
+		if absf(q.x) < 18.0 and q.y > 3.0 and q.y < 12.5:
+			pools["behind_main"].append(p)
+
+
 ## Тайники на это посещение: содержимое — по таблицам добычи data/sanatorium.json (loot), заново каждый вход.
 func roll_containers(rng: RandomNumberGenerator) -> void:
 	containers.clear()
 	_cont_grid.clear()
-	var tables: Dictionary = cfg().get("loot", {})
-	var cells := int(cfg().get("container_cells", 6))
+	var tables: Dictionary = conf().get("loot", {})
+	var cells := int(conf().get("container_cells", 6))
 	for b in blds:
 		for ct in b.containers:
 			var d: Dictionary = (ct as Dictionary).duplicate()
 			var items: Array = []
 			items.resize(cells)
-			var empty_ch := float(cfg().get("empty_chance", 0.3))
+			var empty_ch := float(conf().get("empty_chance", 0.3))
 			if rng.randf() > empty_ch:
 				for l in tables.get(String(d.kind), []):
 					var ch := float(l[3]) if l.size() > 3 else 1.0
@@ -1539,7 +1560,7 @@ func container_near(p: Vector3, r: float) -> int:
 ## хлам: в каждом корпусе — несколько кучек (в комнатах, на всех этажах), каждый вход заново
 func junk_points(rng: RandomNumberGenerator) -> Array:
 	var out: Array = []
-	var per: Array = cfg().get("junk_per_building", [3, 6])
+	var per: Array = conf().get("junk_per_building", [3, 6])
 	for b in blds:
 		var pts: Array = b.junk.duplicate()
 		var n := mini(rng.randi_range(int(per[0]), int(per[1])), pts.size())
@@ -1571,7 +1592,7 @@ func place_cows(rng: RandomNumberGenerator) -> void:
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(1, 1)
-	for k in int(cfg().get("blood", 40)):
+	for k in int(conf().get("blood", 40)):
 		var b: ULBlock = blds[rng.randi() % blds.size()]
 		if b.spots.is_empty():
 			continue

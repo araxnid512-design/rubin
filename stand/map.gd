@@ -12,6 +12,7 @@ const BIG := 2.5                  ## во сколько раз вся карт�
 const PLACES := {
 	"home": {"rect": Rect2(700, 300, 320, 280), "n": "Дом", "kind": "Стабильный стаб", "d": "Ваш дом. Укрытие, защита и начало нового пути в мире Стикса.", "pic": "res://assets/ui/place_home.jpg", "scene": "res://world.tscn"},
 	"cowshed": {"rect": Rect2(1172, 92, 252, 190), "n": "Опасный коровник", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_cowshed.png", "pic": "res://assets/ui/place_cowshed.jpg", "scene": "res://world.tscn"},
+	"convoy": {"rect": Rect2(812, 560, 310, 260), "n": "Разбитый конвой", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_convoy.png", "pic": "res://assets/ui/place_convoy.jpg", "scene": "res://world.tscn"},
 	"sanatorium": {"rect": Rect2(262, 50, 432, 302), "n": "Санаторий Луч", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_sanatorium.png", "pic": "res://assets/ui/place_sanatorium.jpg", "scene": "res://world.tscn"},
 }
 const MAP_SHADER := """shader_type canvas_item;
@@ -392,6 +393,22 @@ func _run_test() -> void:
 	await _snap("p5_sanatorium")
 	enter("sanatorium")
 	ok.call("вход в санаторий: посещение началось, место — санаторий", ULBase.route_state("sanatorium") == "active" and ULSettings.place == "sanatorium")
+	ULBase.close_interrupted()
+	ULSettings.place = "home"
+	entering = false
+	select("")
+	# конвой: до покупки нет, после — ниже дома, панель с описанием
+	var vr := place_rect("convoy")
+	ok.call("до покупки маршрута конвоя на карте нет", not place_shown("convoy"))
+	ULBase.set_route("convoy", "bought")
+	ok.call("маршрут куплен — «Разбитый конвой» на карте ниже дома", place_shown("convoy") and vr.get_center().y > hr.end.y - 20.0 and absf(vr.get_center().x - hr.get_center().x) < hr.size.x)
+	set_pan(vr.get_center() - size * 0.5)
+	tap(vr.get_center() - pan)
+	await get_tree().create_timer(0.5).timeout
+	ok.call("панель конвоя: снимок, вид, 10 минут, описание", sel == "convoy" and p_pic.texture != null and p_t.text == "Разбитый конвой" and p_x.text.contains("10 минут") and p_d.text.begins_with("После перезагрузки"))
+	await _snap("p6_convoy")
+	enter("convoy")
+	ok.call("вход в конвой: посещение началось, место — конвой", ULBase.route_state("convoy") == "active" and ULSettings.place == "convoy")
 	ULBase.close_interrupted()
 	ULSettings.place = "home"
 	entering = false

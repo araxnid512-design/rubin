@@ -493,7 +493,7 @@ func _build_routes() -> void:
 
 ## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете)
 func _route_card(id: String, d: Dictionary, compact := false) -> Control:
-	var cs: Dictionary = ULCowshed.cfg() if id == "cowshed" else (ULSanatorium.cfg() if id == "sanatorium" else {})
+	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
 	var v := VBoxContainer.new()
@@ -521,6 +521,9 @@ func _route_card(id: String, d: Dictionary, compact := false) -> Control:
 	if cs.has("pustysh"):
 		stats.append(["st_skull", "Пустыши: %d – %d (случайно)" % [int(cs.pustysh[0]), int(cs.pustysh[1])]])
 		stats.append(["st_claw", "Лоторейщики: %d – %d (случайно)" % [int(cs.lottery[0]), int(cs.lottery[1])]])
+	if cs.has("ruber_chances"):
+		var rmax := (cs.ruber_chances as Array).size() - 1
+		stats.append(["st_skull", "Руберы: 0 – %d (%s)" % [rmax, "шанс" if rmax == 1 else "случайно"]])
 	var grid := GridContainer.new()
 	grid.columns = 2 if compact else 1
 	grid.add_theme_constant_override("h_separation", 12)

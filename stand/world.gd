@@ -115,6 +115,16 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
+	if test.begins_with("cv"):
+		# проверки конвоя: --as-test=cv (посещение), cvbake (карты и кэш), cvview (снимки), cvperf
+		ULSettings.arena = false
+		ULSettings.place = "convoy"
+		if test == "cvperf":
+			var vc := ULConvoy.ccfg().duplicate(true)
+			vc.pustysh = [vc.pustysh[1], vc.pustysh[1]]
+			vc.lottery = [vc.lottery[1], vc.lottery[1]]
+			vc.ruber_chances = [0, 1]                    # и Рубер — всего 46
+			ULConvoy._ccfg = vc
 	if test != "":
 		# проверки: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -123,7 +133,7 @@ func _ready() -> void:
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium"] else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy"] else "home"
 	ULSettings.apply(get_viewport())
 	Music.stop()
 	_env()
@@ -131,7 +141,7 @@ func _ready() -> void:
 		_arena_ground()
 	elif place == "cowshed":
 		_cowshed_world()
-	elif place == "sanatorium":
+	elif indoor():
 		_san_world()
 	else:
 		_ground()
@@ -196,7 +206,7 @@ func _bake_nav(path := NAV_MESH) -> void:
 	nm.agent_max_climb = 0.3
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
-	if place == "sanatorium":
+	if indoor():
 		# в корпусах двери узкие (1,1 м): мельче сетка, точнее радиус — иначе проём «закрыт» для карты
 		nm.cell_size = NAV_CELL_SAN
 		nm.cell_height = 0.1
@@ -207,7 +217,7 @@ func _bake_nav(path := NAV_MESH) -> void:
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
 		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	var hgt := 18.0 if place == "sanatorium" else 5.0          # в санатории — все этажи корпусов
+	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
 	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, -1.0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt, size_m + 24.0))
 	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
 	var src := NavigationMeshSourceGeometryData3D.new()
@@ -222,7 +232,7 @@ const NAV_CELL_SAN := 0.125
 
 
 func _nav_load(path := NAV_MESH) -> void:
-	if place == "sanatorium":
+	if indoor():
 		var mp := get_world_3d().navigation_map
 		NavigationServer3D.map_set_cell_size(mp, NAV_CELL_SAN)
 		NavigationServer3D.map_set_cell_height(mp, 0.1)
@@ -293,33 +303,45 @@ var zone: Node3D                  ## текущий временный клас�
 
 
 func _san_world() -> void:
-	size_m = float(ULSanatorium.cfg().get("size", 150.0))
-	san = ULSanatorium.new()
-	san.name = "Sanatorium"
+	san = ULConvoy.new() if place == "convoy" else ULSanatorium.new()
+	size_m = float(san.conf().get("size", 150.0))
+	san.name = "Convoy" if place == "convoy" else "Sanatorium"
 	add_child(san)
 	zone = san
 	san.build(self)
 	_noise_tex = san._noise_tex
 	_edge_fog()
-	if test == "snbake":
-		_bake_nav(NAV_SANATORIUM)
-	_nav_load(NAV_SANATORIUM)
+	var nav := ULConvoy.C_NAV if place == "convoy" else NAV_SANATORIUM
+	if test == "snbake" or test == "cvbake":
+		_bake_nav(nav)
+	_nav_load(nav)
+
+
+## кластер с помещениями, в которые можно зайти (санаторий, конвой): этажи, двери, тайники, свет внутри
+func indoor() -> bool:
+	return place == "sanatorium" or place == "convoy"
 
 
 ## временный кластер (коровник, санаторий) — не база и не полигон
 func temp() -> bool:
-	return place == "cowshed" or place == "sanatorium"
+	return place == "cowshed" or indoor()
 
 
 func zone_cfg() -> Dictionary:
+	if place == "convoy":
+		return ULConvoy.ccfg()
 	return ULSanatorium.cfg() if place == "sanatorium" else ULCowshed.cfg()
 
 
 func zone_name() -> String:
+	if place == "convoy":
+		return ULConvoy.C_TITLE
 	return ULSanatorium.TITLE if place == "sanatorium" else "Опасный коровник"
 
 
 func zone_entry() -> Vector3:
+	if place == "convoy":
+		return ULConvoy.C_ENTRY
 	return ULSanatorium.ENTRY if place == "sanatorium" else ULCowshed.ENTRY
 
 
@@ -374,7 +396,7 @@ func _cowshed_enter() -> void:
 		var en := spawn_enemy(String(sp[0]), sp[1])
 		if sp.size() > 2:
 			# санаторий: часть стоит на месте, часть бродит; в комнатах — в пределах комнаты
-			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main"]
+			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main", "road", "camp", "post", "supply", "heli", "tower", "forest"]
 			en.wander_r = 0.0 if rng.randf() < 0.4 else (5.0 if outdoor else 1.4)
 			if String(sp[0]) == "ruber":
 				en.wander_r = 4.0 if outdoor else 2.0           # тяжело бродит на своём месте
@@ -773,7 +795,7 @@ func _env() -> void:
 			sun.shadow_opacity = 0.78
 			sun.shadow_bias = 0.06
 			sun.shadow_normal_bias = 1.2
-	if place == "sanatorium":
+	if indoor():
 		# внутренности корпусов (слой 2) солнце не освещает: там ровный рассеянный свет из окон (свой слабый
 		# «верхний» свет без теней) и лампы рядом с героем; тени — дальше, корпуса выше
 		sun.light_cull_mask = 0xFFFFF & ~2
@@ -2012,10 +2034,12 @@ func _where() -> String:
 		return "полигон"
 	if place == "cowshed":
 		return "Опасный коровник" + (", коровник" if cowshed.in_barn(player.global_position) >= 0 else "")
-	if place == "sanatorium":
+	if indoor():
 		if san.hero_b < 0:
-			return ULSanatorium.TITLE
-		return "%s, %s, %d этаж" % [ULSanatorium.TITLE, san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
+			return zone_name()
+		if place == "convoy":
+			return "%s, %s" % [zone_name(), san.blds[san.hero_b].title.to_lower()]
+		return "%s, %s, %d этаж" % [zone_name(), san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
 		return "кластер, двор" if _in_yard(player.global_position) else "кластер, улица"
 	var l := house.to_local(player.global_position)
@@ -2563,7 +2587,9 @@ func _box_glow(best) -> void:
 	var sz: Vector3 = ct.size
 	(_box_hl.mesh as BoxMesh).size = sz + Vector3(0.06, 0.04, 0.06)
 	_box_hl.global_position = (ct.pos as Vector3) + Vector3.UP * (sz.y * 0.5)
-	(_box_hl.material_override as StandardMaterial3D).albedo_color.a = 0.14 + 0.08 * sin(Time.get_ticks_msec() * 0.006)
+	_box_hl.rotation.y = float(ct.get("yaw", 0.0))
+	# большой тайник (техника) подсвечивается слабее — иначе машина выглядит выбеленной
+	(_box_hl.material_override as StandardMaterial3D).albedo_color.a = (0.14 + 0.08 * sin(Time.get_ticks_msec() * 0.006)) * clampf(1.6 / maxf(sz.x, sz.z), 0.3, 1.0)
 	_box_hl.visible = true
 
 
@@ -2631,9 +2657,10 @@ func do_action() -> void:
 	if _target.type == "box":
 		# тайник в корпусе: его содержимое — как хранилище (взять всё или по одному)
 		var ct: Dictionary = san.containers[int(_target.i)]
-		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7"}.get(String(ct.kind), "crate")
+		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7", "mil_med": "kit_6", "mil_ammo": "ammo_3", "soldier": "ammo_3",
+			"truck": "ammo_5", "btr": "ammo_5", "soldier_bag": "kit_9", "fuel": "junk", "wreck": "junk"}.get(String(ct.kind), "crate")
 		open_inventory(ct.items, String(ct.n), false, ic)
-		snd.play("hit_wood" if String(ct.kind) in ["bedside", "wardrobe", "desk", "store", "reception", "workbench"] else "click", ct.pos, -12.0)
+		snd.play("hit_wood" if String(ct.kind) in ["bedside", "wardrobe", "desk", "store", "reception", "workbench", "mil_ammo", "mil_gear", "mil_docs"] else ("cloth" if String(ct.kind) in ["soldier", "soldier_bag", "mil_med"] else "click"), ct.pos, -12.0)
 		ct["opened"] = true
 		return
 	if _target.type == "corpse":
@@ -4469,7 +4496,7 @@ func _sn_test() -> void:
 	var rr3 := RandomNumberGenerator.new()
 	rr3.seed = 4242
 	for i in 6000:
-		cnt[ULSanatorium.ruber_count(rr3)] += 1
+		cnt[ULSanatorium.ruber_count(rr3, c.ruber_chances)] += 1
 	_ok("шансы 0 / 1 / 2 Руберов поровну (из 6000: %d / %d / %d), настраиваются в data/sanatorium.json" % cnt, cnt[0] > 1850 and cnt[0] < 2150 and cnt[1] > 1850 and cnt[1] < 2150 and cnt[2] > 1850 and cnt[2] < 2150 and (c.ruber_chances as Array).size() == 3)
 	var sp_seen := {}
 	var pea_seen := {}
@@ -4660,6 +4687,517 @@ func _sn_test() -> void:
 	get_tree().quit()
 
 
+## «Разбитый конвой» (--as-test=cv; с --as-out=папка — ещё снимки): поле и зоны по карте, техника отдельными
+## моделями, вход в палатки, кунг, пост и контейнер (крыша скрывается, дверь открывается), подъём на вышку,
+## враг заходит в палатку, число и места врагов, тайники (техника, тела, ящики, мебель), добыча с патронами и
+## хламом, таймер 10:00, уход с добычей, новая покупка за 35 споранов, перезагрузка с героем внутри.
+func _cv_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	var c := ULConvoy.ccfg()
+	var cv := san as ULConvoy
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	# 1: поле, вход, зоны
+	_ok("конвой: поле %d×%d м, загружен и заселён, вход — снизу (юг)" % [int(size_m), int(size_m)], size_m == 150.0 and cs_ready and place == "convoy" and house == null and cv != null \
+		and ULConvoy.C_ENTRY.z > 60.0 and absf(ULConvoy.C_ENTRY.x) < 8.0 and player.global_position.distance_to(ULConvoy.C_ENTRY) < 6.0, str(player.global_position))
+	print("[inv] конвой готов через %.1f с от запуска игры (сборка локации и расстановка врагов)" % (sn_ready_ms / 1000.0))
+	var pos := {}
+	var names := []
+	for b in san.blds:
+		pos[b.id] = b.rect.get_center()
+		names.append(b.title)
+	var heli: Vector3 = ULConvoy.C_HELI[0]
+	var lay: bool = pos.hq.x > 20.0 and pos.hq.y < -30.0 and pos.med.x > 20.0 and pos.med.y < -30.0 and pos.kung.x > 20.0 and pos.kung.y < -25.0 \
+		and pos.post.x > 40.0 and absf(pos.post.y) < 12.0 and pos.store.x < -35.0 and pos.store.y > 25.0 and ULConvoy.C_TOWER.x < -35.0 and ULConvoy.C_TOWER.z < -35.0 \
+		and heli.x > 35.0 and heli.z > 35.0 and (ULConvoy.C_ROAD[0] as Vector2).y > 70.0 and (ULConvoy.C_ROAD[ULConvoy.C_ROAD.size() - 1] as Vector2).y < -70.0
+	_ok("зоны по карте: дорога с юга на север, посередине — колонна, лагерь справа вверху, блокпост справа, склад слева внизу, вышка слева вверху, Ми-8 справа внизу", lay, str(pos))
+	_ok("помещения, куда можно зайти (%d): %s" % [san.blds.size(), ", ".join(names)], san.blds.size() == 7 and pos.has("hq") and pos.has("med") and pos.has("live1") and pos.has("live2") and pos.has("kung") and pos.has("post") and pos.has("store"))
+	var hqb: ULBlock = null
+	var medb: ULBlock = null
+	var liveb: ULBlock = null
+	var kungb: ULBlock = null
+	for b in san.blds:
+		match String(b.id):
+			"hq": hqb = b
+			"med": medb = b
+			"live1": liveb = b
+			"kung": kungb = b
+	_ok("размеры палаток: штабная %.0f×%.0f м, медицинская %.0f×%.0f м, жилая %.0f×%.0f м" % [hqb.rect.size.x, hqb.rect.size.y, maxf(medb.rect.size.x, medb.rect.size.y), minf(medb.rect.size.x, medb.rect.size.y), maxf(liveb.rect.size.x, liveb.rect.size.y), minf(liveb.rect.size.x, liveb.rect.size.y)],
+		absf(hqb.rect.size.x - 8.0) < 0.5 and absf(hqb.rect.size.y - 5.0) < 0.5 and absf(maxf(medb.rect.size.x, medb.rect.size.y) - 6.0) < 0.5 and absf(minf(medb.rect.size.x, medb.rect.size.y) - 4.0) < 0.5)
+	# 2: техника — отдельные модели, сквозь неё не пройти
+	var vk := {}
+	var vhit := 0
+	for v in ULConvoy.C_VEHICLES:
+		vk[String(v[0])] = int(vk.get(String(v[0]), 0)) + 1
+		var vp: Vector3 = v[1]
+		var qv := PhysicsRayQueryParameters3D.create(vp + Vector3(0, 12, 0), vp + Vector3(0, 0.3, 0))
+		qv.collision_mask = 1
+		if not space.intersect_ray(qv).is_empty():
+			vhit += 1
+	var qh := PhysicsRayQueryParameters3D.create(heli + Vector3(0, 12, 0), heli + Vector3(0, 0.3, 0))
+	qh.collision_mask = 1
+	var heli_hit: bool = not space.intersect_ray(qh).is_empty()
+	var vfiles := 0
+	for vm in ULConvoy.C_VMODELS.values():
+		if ResourceLoader.exists(ULSanatorium.MODELS + String(vm[0]) + ".glb"):
+			vfiles += 1
+	_ok("техника — отдельные модели: «Урал» целый %d, сгоревших %d, БТР-80 %d, ГАЗ-66 %d, УАЗ %d, грузовик снабжения %d, Ми-8 1; сквозь технику не пройти (%d из %d + вертолёт)" % [int(vk.get("ural", 0)), int(vk.get("wreck", 0)), int(vk.get("btr", 0)), int(vk.get("gaz66", 0)), int(vk.get("uaz", 0)), int(vk.get("kung", 0)), vhit, ULConvoy.C_VEHICLES.size()],
+		int(vk.get("ural", 0)) == 1 and int(vk.get("wreck", 0)) == 2 and int(vk.get("btr", 0)) == 2 and int(vk.get("gaz66", 0)) == 1 and int(vk.get("uaz", 0)) == 2 and int(vk.get("kung", 0)) == 1 \
+		and vhit == ULConvoy.C_VEHICLES.size() and heli_hit and vfiles == ULConvoy.C_VMODELS.size() and ResourceLoader.exists(ULSanatorium.MODELS + "ul_mi8.glb"))
+	# 3: во все помещения есть путь от входа на локацию
+	var e0: Vector3 = snapf.call(ULConvoy.C_ENTRY)
+	var reach := 0
+	var bad := []
+	for b in san.blds:
+		var tgt: Vector3 = snapf.call(Vector3(b.rect.get_center().x, 0.1, b.rect.get_center().y))
+		var path := NavigationServer3D.map_get_path(map, e0, tgt, true)
+		if path.size() > 1 and path[path.size() - 1].distance_to(tgt) < 0.6 and san.locate(tgt + Vector3.UP * 0.3).x >= 0:
+			reach += 1
+		else:
+			bad.append(String(b.id))
+	_ok("от входа на локацию есть путь внутрь каждой палатки, кунга, поста и контейнера: %d из %d" % [reach, san.blds.size()], reach == san.blds.size(), str(bad))
+	# стены палаток и помещений непроходимы
+	var wall_hits := 0
+	var wall_rays := 0
+	for b in san.blds:
+		for bk in b.blocks:
+			for k in 5:
+				var u := (k - 2) * float(bk.hl) / 3.0
+				var a0 := b._w(bk, u, 0.5, float(bk.hw) + 1.2)
+				var a1 := b._w(bk, u, 0.5, float(bk.hw) - 0.5)
+				var q := PhysicsRayQueryParameters3D.create(a0, a1)
+				q.collision_mask = 1 | ULDoor.LAYER
+				wall_rays += 1
+				if not space.intersect_ray(q).is_empty():
+					wall_hits += 1
+	_ok("стены палаток и помещений непроходимы (лучи в стену: %d из %d упёрлись — остальные во входы)" % [wall_hits, wall_rays], wall_hits >= wall_rays * 0.8)
+	# дальше — без врагов рядом с лагерем (иначе героя загрызут посреди проверки)
+	for e in enemies:
+		if e.global_position.distance_to(Vector3(38, 0, -45)) < 40.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	# 4: герой сам заходит в штабную палатку через полог; крыша скрывается, обстановка видна
+	var hq_i := san.blds.find(hqb)
+	var hq_out: Vector3 = snapf.call(hqb.entrances[0][0])
+	var hq_in: Vector3 = snapf.call(Vector3(hqb.rect.get_center().x, 0.1, hqb.rect.get_center().y))
+	player.global_position = hq_out + Vector3.UP * 0.1
+	await get_tree().create_timer(0.5).timeout
+	var roof0: bool = hqb._groups["b0/r"].visible and san.hero_b == -1
+	await _walk(Array(NavigationServer3D.map_get_path(map, hq_out, hq_in, true)), 12.0)
+	await get_tree().create_timer(0.4).timeout
+	_ok("герой вошёл в штабную палатку через полог: крыша скрыта, обстановка видна; снаружи крыша была на месте", roof0 and san.hero_b == hq_i and not hqb._groups["b0/r"].visible and hqb._groups["b0/n0"].visible, "корпус %d, герой %s" % [san.hero_b, str(player.global_position)])
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.6).timeout
+		await _snap("cv_hq")
+	var hq_k := {}
+	var med_k := {}
+	var live_k := {}
+	var all_k := {}
+	for ct in san.containers:
+		all_k[String(ct.kind)] = int(all_k.get(String(ct.kind), 0)) + 1
+		if String(ct.get("bld", "")) == "hq":
+			hq_k[String(ct.n)] = true
+		elif String(ct.get("bld", "")) == "med":
+			med_k[String(ct.n)] = true
+		elif String(ct.get("bld", "")) == "live1":
+			live_k[String(ct.n)] = true
+	_ok("штаб: %s; медицинская: %s; жилая: %s" % [", ".join(hq_k.keys()), ", ".join(med_k.keys()), ", ".join(live_k.keys())], hq_k.size() >= 2 and med_k.size() >= 2 and live_k.size() >= 2 and hq_k.has("Металлический шкаф"))
+	var nlamps := 0
+	for b in san.blds:
+		nlamps += b.lamps.size()
+	_ok("в палатках и помещениях есть свет (ламп %d)" % nlamps, nlamps >= 7)
+	player.global_position = hq_out + Vector3(0, 0.1, 4.0)
+	await get_tree().create_timer(0.5).timeout
+	_ok("вышел — палатка снова с крышей, внутренности скрыты", san.hero_b == -1 and hqb._groups["b0/r"].visible and not hqb._groups["b0/n0"].visible)
+	# 5: кунг — дверь: закрытая — преграда, герой подошёл — открылась
+	var door: ULDoor = null
+	for d in san.doors:
+		var dd := d as ULDoor
+		if dd.center.distance_to(kungb.entrances[0][1]) < 2.0 or dd.center.distance_to(kungb.entrances[0][0]) < 2.0:
+			door = dd
+	var door_ok := false
+	if door != null:
+		door.set_open(false)
+		player.global_position = door.center + Vector3(0, 0.1, 12.0)
+		await get_tree().create_timer(0.6).timeout
+		var nrm := door.global_transform.basis.z.normalized()
+		var q2 := PhysicsRayQueryParameters3D.create(door.center + Vector3.UP * 1.0 + nrm * 1.0, door.center + Vector3.UP * 1.0 - nrm * 1.0)
+		q2.collision_mask = 1 | ULDoor.LAYER
+		var h0 := space.intersect_ray(q2)
+		var blocked: bool = not h0.is_empty() and h0.collider == door and not door.open
+		var k_out: Vector3 = snapf.call(kungb.entrances[0][0])
+		player.global_position = k_out + Vector3.UP * 0.1
+		await get_tree().create_timer(0.8).timeout
+		var opened := door.open
+		await _walk(Array(NavigationServer3D.map_get_path(map, k_out, snapf.call(Vector3(kungb.rect.get_center().x, 0.1, kungb.rect.get_center().y)), true)), 10.0)
+		await get_tree().create_timer(0.3).timeout
+		opened = opened or door.open
+		door_ok = blocked and opened and san.hero_b == san.blds.find(kungb)
+		_ok("командный кунг: закрытая дверь — преграда, герой подошёл — открылась, он вошёл внутрь; крыша кунга скрыта", door_ok and not kungb._groups["b0/r"].visible, "закрыта %s, открылась %s, корпус %d" % [blocked, opened, san.hero_b])
+		if out != "":
+			_cam_ready = false
+			await get_tree().create_timer(0.6).timeout
+			await _snap("cv_kung")
+	else:
+		_ok("у кунга есть дверь", false)
+	# 6: враг заходит в палатку за героем
+	var med_i := san.blds.find(medb)
+	var med_in: Vector3 = snapf.call(Vector3(medb.rect.get_center().x, 0.1, medb.rect.get_center().y))
+	var med_out: Vector3 = snapf.call((medb.entrances[0][0] as Vector3) + ((medb.entrances[0][0] as Vector3) - (medb.entrances[0][1] as Vector3)).normalized() * 7.0)
+	player.global_position = med_in + Vector3.UP * 0.1
+	await get_tree().create_timer(0.4).timeout
+	var chaser := spawn_enemy("infected", med_out)
+	chaser.state = "chase"
+	chaser._last = player.global_position
+	chaser._unseen = 0.0
+	hp = HP_MAX
+	var hp1 := hp
+	var tch := 0.0
+	while tch < 25.0 and hp >= hp1:
+		await get_tree().process_frame
+		tch += get_process_delta_time()
+	_ok("пустыш снаружи зашёл за героем в медицинскую палатку и ударил: %.1f с" % tch, hp < hp1 and san.locate(chaser.global_position + Vector3.UP * 0.3).x == med_i, "состояние %s, враг %s" % [chaser.state, str(chaser.global_position)])
+	hp = HP_MAX
+	chaser.damage(999.0, player.global_position)
+	# 7: вышка — герой поднимается по сходням, навес скрывается, наверху — ящик наблюдателя
+	for e in enemies:
+		if e.alive() and e.global_position.distance_to(ULConvoy.C_TOWER) < 30.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	var tw := ULConvoy.C_TOWER
+	player.global_position = tw + Vector3(8.5, 0.1, -0.9)
+	await get_tree().create_timer(0.5).timeout
+	var troof0: bool = cv._tower_roof.visible
+	_auto_r = 0.15
+	await _walk([tw + Vector3(7.0, 0, -0.9), tw + Vector3(1.7, 3.3, -0.9), tw + Vector3(-0.6, 3.3, 0.8)], 20.0)
+	_auto_r = 0.35
+	await get_tree().create_timer(0.4).timeout
+	var up_ok: bool = player.global_position.y > 3.0 and Vector2(player.global_position.x - tw.x, player.global_position.z - tw.z).length() < 2.2
+	var crate_t: bool = _target != null and String(_target.type) == "box" and _target_name().contains("наблюдателя")
+	_ok("герой поднялся на смотровую вышку (высота %.2f м): навес скрыт, ящик наблюдателя можно обыскать" % player.global_position.y, up_ok and troof0 and not cv._tower_roof.visible and crate_t, "цель: %s, герой %s" % [_target_name() if _target != null else "нет", str(player.global_position)])
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.6).timeout
+		await _snap("cv_tower")
+	_auto_r = 0.15
+	await _walk([tw + Vector3(1.7, 3.3, -0.9), tw + Vector3(7.0, 0, -0.9), tw + Vector3(9.0, 0, -0.9)], 20.0)
+	_auto_r = 0.35
+	_ok("и спустился обратно (высота %.2f м), навес снова виден" % player.global_position.y, player.global_position.y < 0.5 and cv._tower_roof.visible)
+	# 8: враги этого посещения
+	var np := 0
+	var nl := 0
+	var nr := 0
+	var zones := {}
+	var inside := 0
+	var near_entry := 0
+	var stuck := 0
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.26
+	capsule.height = 1.4
+	for sp in cs_plan:
+		if String(sp[0]) == "infected":
+			np += 1
+		elif String(sp[0]) == "lottery":
+			nl += 1
+		else:
+			nr += 1
+		var z := String(sp[2]).split(":")[0]
+		zones[z] = int(zones.get(z, 0)) + 1
+		var p: Vector3 = sp[1]
+		if san.locate(p + Vector3.UP * 0.3).x >= 0:
+			inside += 1
+		if Vector2(p.x - ULConvoy.C_ENTRY.x, p.z - ULConvoy.C_ENTRY.z).length() < float(c.safe_r):
+			near_entry += 1
+		var qs := PhysicsShapeQueryParameters3D.new()
+		qs.shape = capsule
+		qs.transform = Transform3D(Basis(), p + Vector3.UP * 0.95)
+		qs.collision_mask = 1
+		var hits := space.intersect_shape(qs, 4).filter(func(h): return not (h.collider is CharacterBody3D))
+		if not hits.is_empty():
+			stuck += 1
+			print("[inv]   в препятствии: %s %s (%s)" % [sp[0], str(p.snapped(Vector3.ONE * 0.1)), str(hits[0].collider)])
+	_ok("пустышей %d (от %d до %d), лоторейщиков %d (от %d до %d), Руберов %d (0 или 1); всего %d" % [np, int(c.pustysh[0]), int(c.pustysh[1]), nl, int(c.lottery[0]), int(c.lottery[1]), nr, cs_plan.size()],
+		np >= int(c.pustysh[0]) and np <= int(c.pustysh[1]) and nl >= int(c.lottery[0]) and nl <= int(c.lottery[1]) and nr <= 1 and cs_plan.size() >= 18 and cs_plan.size() <= 46)
+	_ok("враги по зонам (%d в помещениях, %d снаружи): %s" % [inside, cs_plan.size() - inside, str(zones)], zones.size() >= 4)
+	_ok("никто не стоит в технике, палатке, ящиках или дереве (проверка формой тела)", stuck == 0, "в препятствии: %d" % stuck)
+	_ok("у входа (%d м) врагов нет" % int(c.safe_r), near_entry == 0)
+	var lo := [99, 99]
+	var hi := [0, 0]
+	var sigs := {}
+	var rb_n := [0, 0]
+	var rb_zones := {}
+	var rb_tight := 0
+	var rb_near := 0
+	var tot_lo := 999
+	var tot_hi := 0
+	var stuck30 := 0
+	var entry30 := 0
+	var rb_shape := CapsuleShape3D.new()
+	rb_shape.radius = float(ULEnemy.KINDS.ruber.radius) + 0.1
+	rb_shape.height = 2.0
+	for sd in 30:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 9100 + sd * 7919
+		var plan := san.spawn_plan(rng, snapf)
+		var a := 0
+		var bb := 0
+		var rr2 := 0
+		for sp in plan:
+			var pp: Vector3 = sp[1]
+			if Vector2(pp.x - ULConvoy.C_ENTRY.x, pp.z - ULConvoy.C_ENTRY.z).length() < float(c.safe_r):
+				entry30 += 1
+			var qs2 := PhysicsShapeQueryParameters3D.new()
+			qs2.shape = capsule
+			qs2.transform = Transform3D(Basis(), pp + Vector3.UP * 0.95)
+			qs2.collision_mask = 1
+			var hs2 := space.intersect_shape(qs2, 4).filter(func(h): return not (h.collider is CharacterBody3D))
+			if not hs2.is_empty():
+				stuck30 += 1
+				if stuck30 <= 12:
+					print("[inv]   в препятствии (посещение %d): %s %s %s (%s)" % [sd, sp[0], sp[2], str(pp.snapped(Vector3.ONE * 0.1)), str(hs2[0].collider)])
+			if String(sp[0]) == "infected":
+				a += 1
+			elif String(sp[0]) == "ruber":
+				rr2 += 1
+				rb_zones[String(sp[2])] = int(rb_zones.get(String(sp[2]), 0)) + 1
+				if Vector2(pp.x - ULConvoy.C_ENTRY.x, pp.z - ULConvoy.C_ENTRY.z).length() < float(c.ruber_safe_r):
+					rb_near += 1
+				var qr := PhysicsShapeQueryParameters3D.new()
+				qr.shape = rb_shape
+				qr.transform = Transform3D(Basis(), pp + Vector3.UP * 1.2)
+				qr.collision_mask = 1 | ULDoor.LAYER
+				if not space.intersect_shape(qr, 4).filter(func(h): return not (h.collider is CharacterBody3D)).is_empty():
+					rb_tight += 1
+			else:
+				bb += 1
+		rb_n[mini(rr2, 1)] += 1
+		if rr2 > 1:
+			rb_tight += 100
+		lo = [mini(lo[0], a), mini(lo[1], bb)]
+		hi = [maxi(hi[0], a), maxi(hi[1], bb)]
+		tot_lo = mini(tot_lo, plan.size())
+		tot_hi = maxi(tot_hi, plan.size())
+		sigs["%d/%d/%s" % [a, bb, str((plan[0][1] as Vector3).round())]] = true
+	_ok("30 посещений: пустышей %d–%d, лоторейщиков %d–%d, всего %d–%d, каждый раз по-другому" % [lo[0], hi[0], lo[1], hi[1], tot_lo, tot_hi], lo[0] >= 15 and hi[0] <= 35 and lo[1] >= 3 and hi[1] <= 10 and tot_lo >= 18 and tot_hi <= 46 and sigs.size() >= 25 and hi[0] - lo[0] >= 10)
+	_ok("30 посещений: никто не в препятствии и не у входа", stuck30 == 0 and entry30 == 0, "в препятствии %d, у входа %d" % [stuck30, entry30])
+	_ok("30 посещений: без Рубера — %d, с одним — %d, двух не бывает; места: %s; телу хватает места, от входа — дальше %d м" % [rb_n[0], rb_n[1], str(rb_zones), int(c.ruber_safe_r)], rb_n[0] > 0 and rb_n[1] > 0 and rb_tight == 0 and rb_near == 0, "тесно %d, близко %d" % [rb_tight, rb_near])
+	var cnt := [0, 0]
+	var rr3 := RandomNumberGenerator.new()
+	rr3.seed = 5151
+	for i in 6000:
+		cnt[ULSanatorium.ruber_count(rr3, c.ruber_chances)] += 1
+	var ch1 := float(c.ruber_chances[1]) / (float(c.ruber_chances[0]) + float(c.ruber_chances[1]))
+	_ok("шанс Рубера %d %% (из 6000 посещений он был в %d), настраивается в data/convoy.json" % [int(round(ch1 * 100.0)), cnt[1]], absf(cnt[1] / 6000.0 - ch1) < 0.03 and (c.ruber_chances as Array).size() == 2)
+	# 9: тайники — мебель в помещениях, техника, тела, ящики, бочки
+	var need := ["truck", "wreck", "btr", "uaz", "heli", "soldier", "mil_ammo", "mil_med", "mil_docs", "mil_gear", "soldier_bag", "fuel"]
+	var miss := []
+	for k in need:
+		if not all_k.has(k):
+			miss.append(k)
+	var veh_n := int(all_k.get("truck", 0)) + int(all_k.get("wreck", 0)) + int(all_k.get("btr", 0)) + int(all_k.get("uaz", 0)) + int(all_k.get("heli", 0))
+	_ok("тайников %d: техника %d, тела военных %d, армейские ящики %d, вещмешки %d, бочки %d и мебель в помещениях" % [san.containers.size(), veh_n, int(all_k.get("soldier", 0)), int(all_k.get("mil_ammo", 0)) + int(all_k.get("mil_med", 0)) + int(all_k.get("mil_docs", 0)) + int(all_k.get("mil_gear", 0)), int(all_k.get("soldier_bag", 0)), int(all_k.get("fuel", 0))],
+		miss.is_empty() and veh_n == 10 and int(all_k.get("soldier", 0)) == 8 and san.containers.size() >= 40, "нет видов: %s; %s" % [str(miss), str(all_k)])
+	# у каждого тайника вне помещений можно встать и получить его целью
+	for e in enemies:
+		if e.alive():
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	var seen_k := {}
+	var tried_k := {}
+	var shot := {"truck": "cv_search_truck", "soldier": "cv_search_body", "btr": "cv_search_btr"}
+	for i in san.containers.size():
+		var ct: Dictionary = san.containers[i]
+		if ct.has("bld") or tried_k.has(String(ct.kind)):
+			continue
+		tried_k[String(ct.kind)] = true
+		var cp: Vector3 = ct.pos
+		if cp.y > 1.0:
+			continue
+		var sz: Vector3 = ct.size
+		var got := false
+		for ang in 12:
+			var dir := Vector3(cos(ang * TAU / 12.0), 0, sin(ang * TAU / 12.0))
+			var st: Vector3 = snapf.call(cp + dir * (maxf(sz.x, sz.z) * 0.5 + 0.7))
+			if st.y > 0.6:
+				continue
+			player.global_position = st + Vector3.UP * 0.1
+			player.velocity = Vector3.ZERO
+			await get_tree().create_timer(0.25).timeout
+			if _target != null and String(_target.type) == "box" and _action_label() == "Обыскать" and int(_target.i) == i:
+				got = true
+				break
+		if got:
+			seen_k[String(ct.kind)] = String(ct.n)
+			if out != "" and shot.has(String(ct.kind)):
+				ULInventory.put(ct.items, ULItems.make("a545", 30))
+				ULInventory.put(ct.items, ULItems.make("junk", 2))
+				do_action()
+				await get_tree().create_timer(0.5).timeout
+				await _snap(String(shot[String(ct.kind)]))
+				close_inventory()
+		else:
+			print("[inv]   не выбирается: %s (%s) %s" % [ct.n, ct.kind, str(cp)])
+	_ok("технику, тела, ящики и бочки можно обыскать (подсветка и «Обыскать»): %s" % ", ".join(seen_k.values()), seen_k.size() == tried_k.size() - (1 if not seen_k.has("mil_gear") and tried_k.has("mil_gear") else 0) and seen_k.has("truck") and seen_k.has("btr") and seen_k.has("uaz") and seen_k.has("wreck") and seen_k.has("heli") and seen_k.has("soldier"), "%d из %d видов" % [seen_k.size(), tried_k.size()])
+	# обыск кузова: окно обыска и перенос в карман
+	var ti := -1
+	for i in san.containers.size():
+		if String(san.containers[i].kind) == "truck":
+			ti = i
+			break
+	if ti >= 0:
+		var tct: Dictionary = san.containers[ti]
+		for k in (tct.items as Array).size():
+			tct.items[k] = null
+		ULInventory.put(tct.items, ULItems.make("a545", 30))
+		ULInventory.put(tct.items, ULItems.make("junk", 2))
+		var tsz: Vector3 = tct.size
+		var opened_ui := false
+		for ang in 12:
+			var dir2 := Vector3(cos(ang * TAU / 12.0), 0, sin(ang * TAU / 12.0))
+			player.global_position = snapf.call((tct.pos as Vector3) + dir2 * (maxf(tsz.x, tsz.z) * 0.5 + 0.7)) + Vector3.UP * 0.1
+			await get_tree().create_timer(0.25).timeout
+			if _target != null and String(_target.type) == "box" and int(_target.i) == ti:
+				do_action()
+				await get_tree().process_frame
+				opened_ui = inv_ui.visible
+				break
+		var a0n := inv.count("a545")
+		var j0n := inv.count("junk")
+		var moved := 0
+		for k in (tct.items as Array).size():
+			if tct.items[k] != null and inv.add(tct.items[k]) == 0:
+				tct.items[k] = null
+				moved += 1
+		_ok("кузов «%s»: открылось окно обыска, патроны (30) и хлам (2) перенесены герою" % String(tct.n), opened_ui and moved == 2 and inv.count("a545") == a0n + 30 and inv.count("junk") == j0n + 2, "окно %s, перенесено %d" % [opened_ui, moved])
+		close_inventory()
+	# 10: добыча по таблицам — 300 посещений
+	var found := {}
+	var unknown := {}
+	var rngl := RandomNumberGenerator.new()
+	rngl.seed = 777
+	var with_ammo := 0
+	var with_junk := 0
+	for visit in 300:
+		san.roll_containers(rngl)
+		var va := false
+		var vj := false
+		for ct in san.containers:
+			for it in ct.items:
+				if it == null:
+					continue
+				var id := String(it.id)
+				found[id] = int(found.get(id, 0)) + int(it.n)
+				if not ULItems.ITEMS.has(id):
+					unknown[id] = true
+				if ULItems.kind(it) == "ammo":
+					va = true
+				if id == "junk":
+					vj = true
+		if va:
+			with_ammo += 1
+		if vj:
+			with_junk += 1
+	var ammo_ids := []
+	var gun_ids := []
+	var med_ids := []
+	for id in found:
+		var kd := ULItems.kind({"id": id, "n": 1})
+		if kd == "ammo":
+			ammo_ids.append(id)
+		elif kd in ["primary", "pistol", "melee"]:
+			gun_ids.append(id)
+		if id in ["bandage", "medkit", "tonic"]:
+			med_ids.append(id)
+	_ok("добыча за 300 посещений: патроны (%s) — в %d посещениях, хлам — в %d; медикаменты: %s; оружие (только уже существующее): %s; еда, вода, рюкзаки" % [", ".join(ammo_ids), with_ammo, with_junk, ", ".join(med_ids), ", ".join(gun_ids)],
+		with_ammo == 300 and with_junk == 300 and ammo_ids.size() >= 5 and med_ids.size() == 3 and gun_ids.size() >= 4 and unknown.is_empty() and found.has("can") and found.has("water"), "неизвестные предметы: %s; %s" % [str(unknown.keys()), str(found)])
+	_ok("красных и белых жемчужин в тайниках нет; спораны и горох — с заражённых", not found.has("pearl_red") and not found.has("pearl_white") and not found.has("pearl_black") and not found.has("spore"))
+	san.roll_containers(rngl)
+	# Рубер в конвое — тот же, что в санатории: добыча по своей таблице
+	var rl_ok := true
+	var pearl_n := 0
+	for sd4 in 2000:
+		var got4 := {"spore": 0, "pea": 0, "pearl_black": 0}
+		for it4 in ULEnemy.roll_loot("ruber", sd4):
+			if it4 == null:
+				continue
+			if got4.has(String(it4.id)):
+				got4[String(it4.id)] = int(it4.n)
+			else:
+				rl_ok = false
+		if int(got4.spore) < 3 or int(got4.spore) > 9 or int(got4.pea) < 1 or int(got4.pea) > 3 or int(got4.pearl_black) > 1:
+			rl_ok = false
+		pearl_n += int(got4.pearl_black)
+	_ok("в Рубере: 3–9 споранов и 1–3 горошины всегда, чёрная жемчужина — в %.1f %% тел (шанс 15 %%), других жемчужин нет" % (pearl_n / 20.0), rl_ok and pearl_n > 230 and pearl_n < 370)
+	# 11: хлам кучками у техники и в помещениях
+	var jn := 0
+	var j_in := 0
+	for g in ground:
+		if g.item != null and String(g.item.id) == "junk":
+			jn += 1
+			if san.locate((g.node as Node3D).global_position + Vector3.UP * 0.2).x >= 0:
+				j_in += 1
+	_ok("хлам лежит кучками: %d (в помещениях %d, у техники %d)" % [jn, j_in, jn - j_in], jn >= 12 and j_in >= 5 and jn - j_in >= 6)
+	# 12: таймер
+	_ok("таймер кластера начат с 10:00 (настройка minutes в data/convoy.json)", cs_left() > 300.0 and cs_left() <= 600.0 and int(c.minutes) == 10 and _cs_end - float(cs_start) > 599.0, "%.1f с" % cs_left())
+	_ok("убитые враги в этом посещении больше не появляются", _respawn.is_empty())
+	# 13: маршрут в компьютере и на карте
+	var rt: Dictionary = ULBase.shop().get("routes", {}).get("convoy", {})
+	_ok("маршрут «Разбитый конвой» в компьютере: 35 споранов", not rt.is_empty() and int((rt.price as Dictionary).get("spore", 0)) == 35 and (rt.price as Dictionary).size() == 1, str(rt.get("price", {})))
+	var hr: Rect2 = ULMap.PLACES.home.rect
+	var vr: Rect2 = ULMap.PLACES.convoy.rect
+	_ok("на глобальной карте конвой — ниже домашнего стаба", vr.get_center().y > hr.end.y - 20.0, "%s / %s" % [str(hr), str(vr)])
+	# 14–15: уход с добычей; новая покупка; перезагрузка с героем внутри
+	hp = HP_MAX
+	inv.wallet = {"spore": 7, "pea": 1}
+	ULBase.set_route("convoy", "active")
+	var a_keep := inv.count("a545")
+	player.global_position = Vector3(ULConvoy.C_ENTRY.x, 0.1, size_m * 0.5 + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 2.0:
+		await get_tree().process_frame
+		tl += get_process_delta_time()
+	_ok("ушёл по дороге за южный край: посещение окончено, добыча при себе (патронов %d, споранов 7), маршрут закрыт" % a_keep, _cs_done and int(inv.wallet.get("spore", 0)) == 7 and inv.count("a545") == a_keep and a_keep >= 30 and ULBase.route_state("convoy") == "" and ULSettings.place == "home" and ULSettings.arrival_title == "Разбитый конвой", ULSettings.arrival_note)
+	_ok("конвоя снова нет на карте", not ULMap.place_shown("convoy"))
+	inv.wallet = {"spore": 34}
+	var rb0 := ULBase.buy_route(inv, "convoy")
+	_ok("за 34 спорана маршрут не купить", not rb0.ok and int(inv.wallet.get("spore", 0)) == 34 and not ULMap.place_shown("convoy"))
+	inv.wallet = {"spore": 35}
+	var rb1 := ULBase.buy_route(inv, "convoy")
+	_ok("для нового посещения маршрут покупается снова (35 споранов) и появляется на карте", rb1.ok and ULBase.route_state("convoy") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("convoy"))
+	_cs_done = false
+	left_location = false
+	_leave_t = 0.0
+	ULSettings.place = "convoy"
+	ULBase.set_route("convoy", "active")
+	player.global_position = hq_in + Vector3(0, 0.1, 0)
+	inv.primary = ULItems.make("ak74m")
+	inv.wallet = {"spore": 25, "pea": 2}
+	var fake := "user://test_cluster.json"
+	ULBase.write_json(fake, {"v": SAVE_V, "crates": [[1.0, 2.0, 0.0, [ULItems.make("ak74m")]]], "ground": [], "inv": inv.to_dict(), "hp": 80.0})
+	_cs_end = Time.get_unix_time_from_system() + 0.5
+	var tr := 0.0
+	while not _cs_done and tr < 6.0:
+		await get_tree().process_frame
+		tr += get_process_delta_time()
+	_save_carried(fake, true)
+	var dd2 = JSON.parse_string(FileAccess.get_file_as_string(fake))
+	_ok("время вышло (герой в палатке): он погиб, всё при себе потеряно, вещи на базе целы", _cs_done and inv.primary == null and inv.wallet.is_empty() and (dd2.crates as Array).size() == 1)
+	_ok("кластер перезагрузился: маршрут закрыт, конвоя нет на карте, герой — дома", ULBase.route_state("convoy") == "" and not ULMap.place_shown("convoy") and ULSettings.place == "home" and ULSettings.arrival_note.begins_with("Кластер перезагрузился"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fake))
+	ULSettings.place = "home"
+	ULSettings.arrival_note = ""
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
 ## Базовый компьютер (--as-test=pc; с --as-out=папка — ещё снимки экрана): пять ресурсов, оружейник за 30 гороха
 ## и 50 споранов, отказ при нехватке, однократная установка, маршрут за 10 споранов, таймер новых маршрутов,
 ## обмен по всей цепочке в обе стороны, окно «Купить/Продать», защита от двойного нажатия, сохранение и загрузка.
@@ -4776,7 +5314,7 @@ func _pc_test() -> void:
 	var rf0 := int(ULBase.data.get("refreshes", 0))
 	var a3 := ULBase.routes_tick(now + per + 5)
 	_ok("таймер маршрутов: идёт от сохранённого срока, не сбрасывается при открытии", a1 == per and a2 == per - 100, "%d, %d (период %d)" % [a1, a2, per])
-	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed", "sanatorium"])
+	_ok("срок вышел — предложения обновлены, следующий срок через период", a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and (ULBase.data.offers as Array) == ["cowshed", "sanatorium", "convoy"])
 	_ok("таймер на экране в виде ЧЧ:ММ:СС", ULBase.clock(2 * 3600 + 47 * 60 + 36) == "02:47:36" and (pc.find_child("RouteTimer", true, false) as Label).text.length() == 8)
 	ULBase.data.routes_next = keep_next
 	# --- обмен: логика по всей цепочке ---
@@ -7071,7 +7609,10 @@ func _run_test() -> void:
 	if test == "sn":
 		await _sn_test()
 		return
-	if test == "csperf" or test == "snperf":
+	if test == "cv":
+		await _cv_test()
+		return
+	if test == "csperf" or test == "snperf" or test == "cvperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
@@ -7079,7 +7620,11 @@ func _run_test() -> void:
 		var no_screen := DisplayServer.get_name() == "headless"
 		var worst := {"draw": 0.0, "tris": 0.0, "tex_mb": 0.0, "cpu_ms": 0.0}
 		var pts: Array = []
-		if place == "sanatorium":
+		if place == "convoy":
+			pts = [["вход", ULConvoy.C_ENTRY + Vector3(0, 0, -3)], ["колонна на дороге", Vector3(0, 0, 8)], ["лагерь", Vector3(38, 0, -42)],
+				["штабная палатка", Vector3(34, 0, -53)], ["блокпост", Vector3(46, 0, 4)], ["склад", Vector3(-44, 0, 40)], ["вертолёт", Vector3(40, 0, 44)],
+				["вышка", ULConvoy.C_TOWER + Vector3(0, 3.4, 0)], ["лес", Vector3(-40, 0, 0)], ["середина, все враги гонятся", Vector3(0, 0, 8)]]
+		elif place == "sanatorium":
 			pts = [["ворота", ULSanatorium.ENTRY + Vector3(0, 0, -3)], ["перед главным корпусом", Vector3(0, 0, 42)], ["вестибюль главного", Vector3(0, 0, 23)],
 				["главный, 3 этаж", Vector3(-8, 6.6, 21)], ["площадь с фонтаном", Vector3(2, 0, -6)], ["палата лечебного", Vector3(-58, 0, -45)],
 				["жилой, 4 этаж", Vector3(50, 9.9, -8)], ["столовая", Vector3(-54, 0, 36)], ["хоздвор", Vector3(54, 0, 46)],
@@ -7244,7 +7789,38 @@ func _run_test() -> void:
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
 		get_tree().quit()
 		return
-	if test == "csbake" or test == "snbake":
+	if test == "csbake" or test == "snbake" or test == "cvbake":
+		get_tree().quit()
+		return
+	if test == "cvview":
+		# вид конвоя с нескольких точек (снимки в --as-out)
+		var tv0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tv0 < 20000:
+			await get_tree().process_frame
+		var vspots := [["c0_entry", ULConvoy.C_ENTRY + Vector3(0, 0, -3)], ["c1_road", Vector3(-1, 0, 9)], ["c2_wreck", Vector3(-3, 0, 0)], ["c3_btr", Vector3(1, 0, 18)],
+			["c4_camp", Vector3(38, 0, -42)], ["c5_hq", Vector3(34, 0, -52.5)], ["c6_med", Vector3(51, 0, -43)], ["c7_live", Vector3(24, 0, -45)], ["c8_kung", Vector3(39, 0, -35)],
+			["c9_post", Vector3(50, 0, 0)], ["d0_block", Vector3(44, 0, 6)], ["d1_supply", Vector3(-44, 0, 40)], ["d2_store", Vector3(-50, 0, 36)], ["d3_tower_up", ULConvoy.C_TOWER + Vector3(0, 3.4, 0)],
+			["d4_tower", ULConvoy.C_TOWER + Vector3(6, 0, 3)], ["d5_heli", Vector3(40, 0, 43)], ["d6_forest", Vector3(-36, 0, -4)], ["d7_wide", Vector3(0, 0, 4)], ["d8_top", Vector3(0, 0, 0)],
+			["d9_ural", Vector3(-12, 0, 35)], ["e0_camp_wide", Vector3(38, 0, -44)]]
+		var vonly := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				vonly = a.substr(10)
+		if vonly != "":
+			vspots = vspots.filter(func(sp): return vonly.split(",").has(String(sp[0])))
+		for sp in vspots:
+			cam_dist = 80.0 if String(sp[0]) == "d8_top" else (26.0 if String(sp[0]) in ["d7_wide", "e0_camp_wide"] else 12.0)
+			player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
+			player.velocity = Vector3.ZERO
+			for e in enemies:
+				if e.global_position.distance_to(player.global_position) < 14.0:
+					e.state = "idle"
+					e.wander_r = 0.0
+			_cam_ready = false
+			world_env.fog_enabled = String(sp[0]) != "d8_top"
+			await get_tree().create_timer(1.3).timeout
+			print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+			await _snap(String(sp[0]))
 		get_tree().quit()
 		return
 	if test == "snchase":

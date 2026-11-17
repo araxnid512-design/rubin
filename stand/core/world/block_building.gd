@@ -26,7 +26,7 @@ const FW := 1.35
 const CUT := 1.2                  ## на какой высоте срезаны стены этажа, где герой
 const CW := 2.4                   ## ширина коридора
 const PITCH := 3.25               ## шаг окон
-const GEN_V := 3                  ## версия генератора: менять при любой правке сборки корпусов (иначе возьмётся старый кэш)
+const GEN_V := 4                  ## версия генератора: менять при любой правке сборки корпусов (иначе возьмётся старый кэш)
 
 const SHADER_BODY := """
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
@@ -143,10 +143,17 @@ const MATS := {
 	"leather": ["worn_plaster_wall", 1.2, Color(0.42, 0.3, 0.22), 0.0, 0.7, {"sat": 0.3}],
 	"green": ["worn_plaster_wall", 1.0, Color(0.25, 0.42, 0.26), 0.0, 0.95, {"sat": 0.2}],
 	"rust": ["rusty_corrugated_iron", 1.4, Color(1.2, 1.15, 1.1), 0.2, 0.7, {"sat": 0.62}],
+	"canvas": ["worn_plaster_wall", 2.2, Color(0.46, 0.5, 0.33), 0.5, 0.96, {"sat": 0.25, "streaks": 0.6}],
+	"canvas_in": ["worn_plaster_wall", 2.2, Color(0.6, 0.62, 0.46), 0.3, 0.96, {"sat": 0.25}],
+	"armygreen": ["rusty_metal_02", 1.6, Color(0.5, 0.58, 0.42), 0.5, 0.6, {"metal": 0.3, "sat": 0.15, "streaks": 0.8}],
+	"panel": ["worn_plaster_wall", 2.4, Color(0.78, 0.8, 0.74), 0.3, 0.8, {"sat": 0.2}],
+	"sand": ["worn_plaster_wall", 0.8, Color(0.74, 0.66, 0.5), 0.6, 1.0, {"sat": 0.3}],
+	"bark": ["bark_brown_02", 0.9, Color(0.8, 0.76, 0.7), 0.4, 1.0, {}],
+	"red": ["worn_plaster_wall", 1.0, Color(0.78, 0.13, 0.1), 0.0, 0.9, {"sat": 0.15}],
 	"rubble": ["damaged_concrete_floor", 1.2, Color(0.75, 0.72, 0.68), 0.6, 0.95, {"second": "brick_4", "tint2": Color(0.9, 0.75, 0.66), "bias": -0.1}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass"]
+const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
@@ -169,6 +176,8 @@ var entrances: Array = []         ## [точка снаружи у двери, �
 var junk: Array = []              ## точки для хлама (мир)
 var rect := Rect2()               ## где здание по земле (мир)
 var state := -99                  ## -1 — герой снаружи; k — герой внутри на этаже k
+var te := TE                      ## толщина наружной стены (у палаток и кунгов — тонкая)
+var style := ""                   ## «» — корпус; tent — палатка (брезент, двускатная крыша, полог); box — кунг, контейнер, пост
 var _made: Array = []             ## [группа, материал, сетка] — для кэша
 var _door_args: Array = []        ## как создавались двери — для кэша
 var _groups := {}
@@ -368,7 +377,9 @@ func _add_mesh(gk: String, mat: String, mesh: Mesh) -> void:
 func _make_door(a: Array) -> ULDoor:
 	var dd := ULDoor.new()
 	add_child(dd)
-	dd.setup(a[0], a[1], a[2], float(a[3]), float(a[4]), mats["door"], bool(a[5]))
+	var dm := String(a[9]) if a.size() > 9 else "door"
+	dd.setup(a[0], a[1], a[2], float(a[3]), float(a[4]), mats[dm], bool(a[5]))
+	dd.panel.set_meta("mat", dm)
 	dd.bld = int(a[6])
 	dd.floor_i = int(a[7])
 	if bool(a[8]):
@@ -414,6 +425,8 @@ func build(d: Dictionary, rng: RandomNumberGenerator, cache := {}) -> void:
 	title = String(d.n)
 	name = id
 	storey = float(d.get("storey", STOREY))
+	te = float(d.get("te", TE))
+	style = String(d.get("style", ""))
 	_rng = rng
 	if not cache.is_empty():
 		_from_cache(cache)
@@ -425,10 +438,10 @@ func build(d: Dictionary, rng: RandomNumberGenerator, cache := {}) -> void:
 		var bk: Dictionary = (b as Dictionary).duplicate(true)
 		bk.hl = float(bk.L) * 0.5
 		bk.hw = float(bk.W) * 0.5
-		bk.iu0 = -float(bk.hl) + TE
-		bk.iu1 = float(bk.hl) - TE
-		bk.iv0 = -float(bk.hw) + TE
-		bk.iv1 = float(bk.hw) - TE
+		bk.iu0 = -float(bk.hl) + te
+		bk.iu1 = float(bk.hl) - te
+		bk.iv0 = -float(bk.hw) + te
+		bk.iv1 = float(bk.hw) - te
 		bk.floors = int(bk.get("floors", 1))
 		floors = maxi(floors, int(bk.floors))
 		blocks.append(bk)
@@ -526,11 +539,13 @@ func _shell(bi: int) -> void:
 			var ops := _openings(bi, f, side)
 			_ext_wall(bi, f, side, y0, y1, ops, skin, inner)
 		# пояс между этажами
-		if f > 0:
+		if f > 0 and style == "":
 			for side in ["s-", "s+", "e-", "e+"]:
 				var key := _xkey(bi, f, side)
 				_band(bk, key, side, y0 - 0.08, y0 + 0.08, 0.07, "trim")
 	# цоколь
+	if style != "":
+		return
 	for side in ["s-", "s+", "e-", "e+"]:
 		_band(bk, _xkey(bi, 0, side), side, 0.0, 0.55, 0.06, "plinth")
 
@@ -614,10 +629,10 @@ func _openings(bi: int, f: int, side: String) -> Array:
 				# торец: окно в конце коридора и по окну в крайних комнатах
 				ops.append([-0.6, 0.6, sill, sill + wh, "win"])
 				for v in [-1.0, 1.0]:
-					var m := float(v) * (CW * 0.5 + (float(bk.hw) - TE - CW * 0.5) * 0.5)
+					var m := float(v) * (CW * 0.5 + (float(bk.hw) - te - CW * 0.5) * 0.5)
 					ops.append([m - ww * 0.5, m + ww * 0.5, sill, sill + wh, "win"])
 			else:
-				var span := float(bk.W) - 2.0 * TE
+				var span := float(bk.W) - 2.0 * te
 				var n := maxi(1, int(round(span / PITCH)))
 				for i in n:
 					var m := -span * 0.5 + (i + 0.5) * span / n
@@ -673,7 +688,7 @@ func _add_entr(bk: Dictionary, f: int, side: String, ops: Array) -> void:
 		if String(e[0]) == side:
 			var s := float(e[1])
 			var w := float(e[2])
-			ops.append([s - w * 0.5, s + w * 0.5, 0.0, DH + 0.25, "entr"])
+			ops.append([s - w * 0.5, s + w * 0.5, 0.0, minf(DH + 0.25, storey - 0.12), "entr", String(e[3]) if e.size() > 3 else ""])
 
 
 func _add_links(bi: int, f: int, side: String, ops: Array) -> void:
@@ -711,8 +726,8 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 	var hl: float = bk.hl
 	var hw: float = bk.hw
 	var along_u := side == "s+" or side == "s-"
-	var lo := -hl if along_u else -hw + TE
-	var hi := hl if along_u else hw - TE
+	var lo := -hl if along_u else -hw + te
+	var hi := hl if along_u else hw - te
 	var sgn := 1.0 if (side == "s+" or side == "e+") else -1.0
 	var outer := (hw if along_u else hl) * sgn          # наружная грань
 	# куски: [s0, s1, y0, y1]
@@ -738,10 +753,11 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 		var yb: float = pc[3]
 		if yb - ya < 0.01:
 			continue
-		# облицовка (0.18 снаружи), штукатурка (0.12 внутри)
-		_wall_piece(bk, xk, skin, along_u, a, b, ya, yb, outer, outer - sgn * 0.18)
-		_wall_piece(bk, ik, inner, along_u, a, b, ya, yb, outer - sgn * 0.18, outer - sgn * TE)
-		_wall_col(bk, along_u, a, b, ya, yb, outer, outer - sgn * TE)
+		# облицовка (0.18 снаружи), штукатурка (0.12 внутри); у тонких стен — пополам
+		var sk := minf(0.18, te * 0.55)
+		_wall_piece(bk, xk, skin, along_u, a, b, ya, yb, outer, outer - sgn * sk)
+		_wall_piece(bk, ik, inner, along_u, a, b, ya, yb, outer - sgn * sk, outer - sgn * te)
+		_wall_col(bk, along_u, a, b, ya, yb, outer, outer - sgn * te)
 	for o in ops:
 		var a: float = maxf(float(o[0]), lo)
 		var b: float = minf(float(o[1]), hi)
@@ -751,7 +767,7 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 			"win":
 				_window(bk, xk, along_u, a, b, oy0, oy1, outer, sgn)
 			"entr":
-				_entrance(bi, bk, xk, along_u, a, b, oy0, oy1, outer, sgn)
+				_entrance(bi, bk, xk, along_u, a, b, oy0, oy1, outer, sgn, String(o[5]) if o.size() > 5 else "")
 			"link":
 				pass
 
@@ -800,9 +816,32 @@ func _window(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0:
 
 
 ## вход: двустворчатая дверь, наличник, козырёк на кронштейнах, две ступени
-func _entrance(bi: int, bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0: float, y1: float, outer: float, sgn: float) -> void:
+## kind: «» — парадный вход корпуса; flap — полог палатки (проём без двери, брезент подвязан по сторонам);
+## plain — простая дверь без крыльца (кунг, пост, контейнер: одна створка до 1,2 м, шире — две)
+func _entrance(bi: int, bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0: float, y1: float, outer: float, sgn: float, kind := "") -> void:
 	var m := (a + b) * 0.5
 	var w := b - a
+	if kind != "":
+		var outp2 := _w(bk, m if along_u else outer + sgn * 1.6, 0, outer + sgn * 1.6 if along_u else m)
+		var inp2 := _w(bk, m if along_u else outer - sgn * 1.2, 0, outer - sgn * 1.2 if along_u else m)
+		entrances.append([outp2, inp2])
+		if kind == "flap":
+			# подвязанные полы полога и перекладина над входом
+			for e in [a + 0.07, b - 0.07]:
+				_wall_piece(bk, key, String(def.get("skin", "canvas")), along_u, e - 0.09, e + 0.09, y0, y1, outer + sgn * 0.1, outer - sgn * 0.02)
+			_wall_piece(bk, key, "wood", along_u, a - 0.05, b + 0.05, y1 - 0.06, y1 + 0.02, outer + sgn * 0.04, outer - sgn * 0.04)
+			return
+		var dmat := "gmetal" if style == "box" else "door"
+		var along2 := _wd(bk, 1, 0) if along_u else _wd(bk, 0, 1)
+		var into2 := -_side_n(bk, _side_of(along_u, sgn))
+		var dv := outer - sgn * te * 0.5
+		if w <= 1.2:
+			_make_door([_w(bk, m if along_u else dv, y0, dv if along_u else m), along2, into2, w, y1 - y0 - 0.04, _rng.randf() < 0.35, bi, 0, true, dmat])
+		else:
+			for k in 2:
+				var cc := _w(bk, (a + w * 0.25 + k * w * 0.5) if along_u else dv, y0, dv if along_u else (a + w * 0.25 + k * w * 0.5))
+				_make_door([cc, along2 if k == 0 else -along2, into2, w * 0.5, y1 - y0 - 0.04, _rng.randf() < 0.5, bi, 0, true, dmat])
+		return
 	_wall_piece(bk, key, "trim", along_u, a - 0.18, a, y0, y1 + 0.18, outer + sgn * 0.06, outer - sgn * 0.02)
 	_wall_piece(bk, key, "trim", along_u, b, b + 0.18, y0, y1 + 0.18, outer + sgn * 0.06, outer - sgn * 0.02)
 	_wall_piece(bk, key, "trim", along_u, a - 0.18, b + 0.18, y1, y1 + 0.18, outer + sgn * 0.06, outer - sgn * 0.02)
@@ -885,7 +924,7 @@ func _floor(bi: int, f: int) -> void:
 			lamps.append([_w(bk, u, y + 2.7, 0), bi, f])
 			u += 6.5
 	else:
-		lamps.append([_w(bk, (iu0 + iu1) * 0.5, y + 2.7, (iv0 + iv1) * 0.5), bi, f])
+		lamps.append([_w(bk, (iu0 + iu1) * 0.5, y + minf(2.7, storey - 0.25), (iv0 + iv1) * 0.5), bi, f])
 
 
 func _floor_mat(t: String) -> String:
@@ -898,6 +937,10 @@ func _floor_mat(t: String) -> String:
 			return "parquet"
 		"boiler", "tech", "store", "workshop", "warehouse", "pantry":
 			return "concrete"
+		"tent_hq", "tent_med", "tent_live":
+			return "wood"
+		"cstore":
+			return "metal"
 	return "lino"
 
 
@@ -1158,6 +1201,17 @@ func _roof(bi: int) -> void:
 	var top := int(bk.floors) * storey
 	var hl: float = bk.hl
 	var hw: float = bk.hw
+	if style == "tent":
+		_roof_gable(bk, rk, top)
+		return
+	if style == "box":
+		# плоская крыша без парапета: лист с небольшим свесом
+		var rmat := String(def.get("roof_mat", def.get("skin", "rust")))
+		_lb(rk, rmat, bk, -hl - 0.04, hl + 0.04, top - 0.02, top + 0.07, -hw - 0.04, hw + 0.04)
+		for k in int(float(bk.L) / 1.5):
+			var u := -hl + 0.75 + k * 1.5
+			_lb(rk, "metal", bk, u - 0.03, u + 0.03, top + 0.07, top + 0.1, -hw, hw)
+		return
 	_lb(rk, "roof", bk, -hl + 0.05, hl - 0.05, top - SLAB, top + 0.06, -hw + 0.05, hw - 0.05)
 	# парапет и карниз
 	var pm := String(def.get("skin", "facade"))
@@ -1185,6 +1239,35 @@ func _roof(bi: int) -> void:
 		var v := _rng.randf_range(-hw + 1.5, hw - 1.5)
 		var s := _rng.randf_range(0.5, 1.1)
 		_lb(rk, "rust" if _rng.randf() < 0.5 else "plinth", bk, u - s * 0.5, u + s * 0.5, top, top + _rng.randf_range(0.5, 1.2), v - s * 0.4, v + s * 0.4)
+
+
+## двускатная крыша палатки: два ската со свесом, конёк, торцевые треугольники (ступенями под скатом), красный
+## крест у медицинской
+func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
+	var hl: float = bk.hl
+	var hw: float = bk.hw
+	var skin := String(def.get("skin", "canvas"))
+	var rr := hw * 0.5
+	var ov := 0.3
+	var th := atan2(rr, hw)
+	var sl := (hw + ov) / cos(th)
+	var s_ax := 1.0 if String(bk.axis) == "x" else -1.0
+	var ax := _wd(bk, 1, 0)
+	for sv in [-1.0, 1.0]:
+		var c := _w(bk, 0, top + rr - (hw + ov) * 0.5 * tan(th), sv * (hw + ov) * 0.5)
+		var bas := Basis(ax, s_ax * sv * th)
+		_box(rk, skin, _ws(bk, float(bk.L) + 0.5, 0.05, sl), Transform3D(bas, c))
+		if def.get("cross", false):
+			var cc := _w(bk, 0, top + rr - hw * 0.5 * tan(th) + 0.05, sv * hw * 0.5)
+			_box(rk, "fabric", _ws(bk, 1.1, 0.02, 1.1), Transform3D(bas, cc))
+			_box(rk, "red", _ws(bk, 0.8, 0.03, 0.26), Transform3D(bas, cc))
+			_box(rk, "red", _ws(bk, 0.26, 0.03, 0.8), Transform3D(bas, cc))
+	_lb(rk, "wood", bk, -hl - 0.3, hl + 0.3, top + rr - 0.03, top + rr + 0.05, -0.04, 0.04)
+	var n := 5
+	for e in [-1.0, 1.0]:
+		for i in n:
+			var hv := hw * (1.0 - (i + 0.5) / n)
+			_lb(rk, skin, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
 
 
 ## портик главного корпуса: колонны в два этажа, антаблемент, ступени
@@ -1236,6 +1319,20 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 		_keep.append(Rect2(dc - DW * 0.5 - 0.2, minf(d0, d1), DW + 0.4, absf(d1 - d0)))
 	for o in _room_links(bk, r):
 		_keep.append(o)
+	if style != "":
+		# у входа в палатку или кунг — свободно
+		for e in bk.ent:
+			var es := float(e[1])
+			var ew := float(e[2]) + 0.5
+			match String(e[0]):
+				"s+":
+					_keep.append(Rect2(es - ew * 0.5, float(bk.iv1) - 1.3, ew, 1.3))
+				"s-":
+					_keep.append(Rect2(es - ew * 0.5, float(bk.iv0), ew, 1.3))
+				"e+":
+					_keep.append(Rect2(float(bk.iu1) - 1.3, es - ew * 0.5, 1.3, ew))
+				_:
+					_keep.append(Rect2(float(bk.iu0), es - ew * 0.5, 1.3, ew))
 	var ctx := {"bk": bk, "r": r, "nk": nk, "ik": ik, "y": y}
 	match t:
 		"cor":
@@ -1339,6 +1436,57 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_boiler_hall(ctx)
 		"warehouse":
 			_warehouse(ctx)
+		"tent_hq":
+			ctx["ckind"] = "mil_docs"
+			_center(ctx, "table4")
+			_try(ctx, "radio", ["cor", "l", "r"], 0.3)
+			_try(ctx, "mcab", ["cor", "l", "r"], 0.75)
+			_try(ctx, "board", ["l", "r"], 0.5)
+			_try(ctx, "board", ["cor"], 0.5)
+			_try(ctx, "acrate", ["l", "r", "cor"], 0.2)
+			_try(ctx, "acrate", ["r", "l", "ext"], 0.8)
+		"tent_med":
+			ctx["ckind"] = "mil_med"
+			_try(ctx, "cot", ["ext"], 0.22)
+			_try(ctx, "cot", ["ext"], 0.66)
+			_try(ctx, "cot", ["cor"], 0.25)
+			_try(ctx, "medcab", ["l", "cor"], 0.3)
+			_try(ctx, "medcab", ["l", "cor"], 0.75)
+			_try(ctx, "medbag", ["cor", "ext"], 0.62)
+			_try(ctx, "medbag", ["ext", "cor"], 0.45)
+			_try(ctx, "acrate", ["cor", "l"], 0.82)
+			_try(ctx, "drip", ["ext", "cor"], 0.45)
+		"tent_live":
+			ctx["ckind"] = "mil_gear"
+			_try(ctx, "cot", ["ext"], 0.22)
+			_try(ctx, "cot", ["ext"], 0.66)
+			_try(ctx, "cot", ["cor"], 0.22)
+			_try(ctx, "cot", ["cor"], 0.66)
+			_try(ctx, "duffel", ["ext", "l"], 0.45)
+			_try(ctx, "duffel", ["cor", "l"], 0.45)
+			_try(ctx, "duffel", ["l", "r"], 0.3)
+			_try(ctx, "bedside", ["l", "r"], 0.7)
+			_try(ctx, "acrate", ["l", "r"], 0.5)
+		"kung":
+			ctx["ckind"] = "mil_docs"
+			_try(ctx, "desk", ["l"], 0.5)
+			_try(ctx, "radio", ["cor"], 0.45)
+			_try(ctx, "mcab", ["r", "cor"], 0.5)
+			_try(ctx, "acrate", ["cor"], 0.75)
+			_try(ctx, "board", ["cor"], 0.2)
+		"guard":
+			ctx["ckind"] = "mil_gear"
+			_try(ctx, "desk", ["ext", "cor"], 0.5)
+			_try(ctx, "mcab", ["r", "cor"], 0.3)
+			_try(ctx, "radio", ["cor", "ext"], 0.7)
+			_try(ctx, "chair", ["r", "cor"], 0.8)
+		"cstore":
+			ctx["ckind"] = "mil_ammo"
+			for k in 3:
+				_try(ctx, "acrate", ["ext"], 0.15 + k * 0.27)
+			for k in 2:
+				_try(ctx, "acrate", ["cor"], 0.25 + k * 0.3)
+			_try(ctx, "shelf", ["l"], 0.5)
 	# сор: листы бумаги, опрокинутые стулья, осколки
 	if t != "stair" and t != "boiler":
 		for k in _rng.randi_range(0, 3 if t != "cor" else 2):
@@ -1417,6 +1565,8 @@ const SIZES := {
 	"kcab": Vector2(0.62, 0.62), "stove": Vector2(1.25, 0.82), "reception": Vector2(3.0, 1.0), "bench": Vector2(1.7, 0.48),
 	"plant": Vector2(0.6, 0.6), "board": Vector2(1.3, 0.06), "tv": Vector2(0.9, 0.5), "piano": Vector2(1.5, 0.62),
 	"panel": Vector2(0.9, 0.35), "workbench": Vector2(2.0, 0.8), "suitcase": Vector2(0.65, 0.28), "drip": Vector2(0.45, 0.45),
+	"cot": Vector2(1.95, 0.75), "acrate": Vector2(1.0, 0.5), "radio": Vector2(1.0, 0.6), "mcab": Vector2(0.9, 0.45), "duffel": Vector2(0.75, 0.36),
+	"medbag": Vector2(0.5, 0.3),
 	"gurney": Vector2(2.0, 0.7),
 }
 
@@ -1633,6 +1783,38 @@ func _emit(ctx: Dictionary, kind: String, fr: Dictionary, x: float, off: float) 
 			_ib(ctx, fr, b - 0.4, b - 0.1, 0.92, 1.1, z1 - 0.3, z1 - 0.1, "metal")
 			_ib(ctx, fr, a, b, 1.0, 1.7, z0, z0 + 0.03, "wood", false, String(ctx.ik))
 			_cont(ctx, fr, x, sz, 0.92, "workbench", "Верстак", off)
+		"cot":
+			# раскладушка: рама, брезент, скатка одеяла
+			for lx in [a + 0.1, x - 0.03, b - 0.16]:
+				_ib(ctx, fr, lx, lx + 0.06, 0, 0.36, z0 + 0.04, z1 - 0.04, "metal")
+			_ib(ctx, fr, a, b, 0.36, 0.4, z0, z1, "canvas", true)
+			_ib(ctx, fr, a + 0.06, a + 0.42, 0.4, 0.52, z0 + 0.1, z1 - 0.1, "blanket" if _rng.randf() < 0.6 else "fabric")
+		"acrate":
+			_ib(ctx, fr, a, b, 0, 0.4, z0, z1, "armygreen", true)
+			_ib(ctx, fr, a - 0.01, b + 0.01, 0.3, 0.33, z0 - 0.01, z1 + 0.01, "metal")
+			_ib(ctx, fr, x - 0.06, x + 0.06, 0.2, 0.3, z1, z1 + 0.015, "metal")
+			_cont(ctx, fr, x, sz, 0.42, String(ctx.get("ckind", "mil_gear")), "Армейский ящик", off)
+		"radio":
+			_ib(ctx, fr, a, b, 0.7, 0.74, z0, z1, "wood", true)
+			for lx in [a + 0.03, b - 0.07]:
+				_ib(ctx, fr, lx, lx + 0.04, 0, 0.7, z0 + 0.03, z1 - 0.03, "metal")
+			_ib(ctx, fr, a + 0.1, a + 0.62, 0.74, 1.06, z0 + 0.05, z0 + 0.4, "armygreen")
+			_ib(ctx, fr, a + 0.16, a + 0.3, 0.82, 0.96, z0 + 0.4, z0 + 0.41, "glass")
+			_ib(ctx, fr, a + 0.56, a + 0.58, 1.06, 1.9, z0 + 0.1, z0 + 0.12, "metal")
+			_ib(ctx, fr, b - 0.3, b - 0.08, 0.74, 0.8, z0 + 0.15, z0 + 0.4, "leather")
+		"mcab":
+			_ib(ctx, fr, a, b, 0, 1.8, z0, z1, "gmetal", true)
+			_ib(ctx, fr, x - 0.01, x + 0.01, 0.1, 1.7, z1 - 0.005, z1 + 0.004, "metal")
+			_cont(ctx, fr, x, sz, 1.8, String(ctx.get("ckind", "mil_gear")), "Металлический шкаф", off)
+		"duffel":
+			_ib(ctx, fr, a, b, 0, 0.3, z0, z1, "canvas", true)
+			_ib(ctx, fr, a + 0.1, b - 0.1, 0.3, 0.36, z0 + 0.06, z1 - 0.06, "canvas")
+			_cont(ctx, fr, x, sz, 0.36, "soldier_bag", "Вещмешок", off)
+		"medbag":
+			_ib(ctx, fr, a, b, 0, 0.3, z0, z1, "fabric", true)
+			_ib(ctx, fr, x - 0.1, x + 0.1, 0.12, 0.2, z1, z1 + 0.01, "red")
+			_ib(ctx, fr, x - 0.04, x + 0.04, 0.06, 0.26, z1, z1 + 0.012, "red")
+			_cont(ctx, fr, x, sz, 0.3, "mil_med", "Медицинская сумка", off)
 		"suitcase":
 			_ib(ctx, fr, a, b, 0, 0.45, z0, z1, "leather" if _rng.randf() < 0.5 else "blanket", true)
 			_ib(ctx, fr, x - 0.08, x + 0.08, 0.45, 0.5, z0 + 0.12, z0 + 0.16, "metal")
@@ -1965,7 +2147,7 @@ func floor_at(p: Vector3) -> int:
 		return -1
 	for bk in blocks:
 		var l := _local(bk, p)
-		if absf(l.x) < float(bk.hl) - TE * 0.5 and absf(l.y) < float(bk.hw) - TE * 0.5:
+		if absf(l.x) < float(bk.hl) - te * 0.5 and absf(l.y) < float(bk.hw) - te * 0.5:
 			return clampi(int(floor((p.y + 0.9) / storey)), 0, int(bk.floors) - 1)
 	return -1
 
