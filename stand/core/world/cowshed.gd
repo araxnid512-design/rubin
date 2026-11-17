@@ -166,6 +166,7 @@ func build(world: Node3D) -> void:
 	_hay(rng)
 	_junk(props, rng)
 	_farm_props()
+	_forest_props()
 	_flush(fr)
 	_flush(props)
 	_vegetation()
@@ -705,6 +706,54 @@ func _farm_props() -> void:
 			var bb: AABB = w._aabb(n)
 			# рамка уже в мировых осях (с поворотом модели) — коробка без поворота
 			_col_xf(Vector3(maxf(bb.size.x * 0.9, 0.3), maxf(bb.size.y, 0.6), maxf(bb.size.z * 0.9, 0.3)), Transform3D(Basis(), bb.get_center()))
+
+
+## Лесные мелочи (Poly Haven, CC0): валуны со мхом и упавшие сухие стволы у деревьев внутри забора. Своё зерно
+## случайностей — расстановка остального не сдвигается. Столкновение — коробка по модели с её поворотом.
+func _forest_props() -> void:
+	var rr := RandomNumberGenerator.new()
+	rr.seed = 7171
+	var inner := wood_pts.filter(func(p: Vector3): return absf(p.x) < 67.0 and absf(p.z) < 67.0)
+	if inner.is_empty():
+		return
+	var placed: Array[Vector3] = []
+	var want := 13
+	var tries := 0
+	while placed.size() < want and tries < 500:
+		tries += 1
+		var t: Vector3 = inner[rr.randi() % inner.size()]
+		var a := rr.randf() * TAU
+		var trunk := placed.size() >= 8
+		var q3 := t + Vector3(cos(a), 0, sin(a)) * rr.randf_range(2.0, 2.8)
+		var q := Vector2(q3.x, q3.z)
+		var r := 2.0 if trunk else 1.0
+		if _road_dist(q) < 4.5 or _barn_dist(q).x < 3.5 or q3.distance_to(ENTRY) < 9.0 or absf(q.x) > 68.0 or absf(q.y) > 68.0:
+			continue
+		var bad := false
+		for wp in wood_pts:
+			if wp != t and wp.distance_to(q3) < r + 0.4:
+				bad = true
+				break
+		for pp in placed:
+			if pp.distance_to(q3) < 4.0:
+				bad = true
+		if bad:
+			continue
+		var id: String = "ph_trunk" if trunk else ["ph_rock1", "ph_rock2", "ph_rock3"][rr.randi() % 3]
+		var yaw := rr.randf() * TAU
+		var n := _model(MODELS + id + ".glb", q3 + (Vector3.ZERO if trunk else Vector3.DOWN * 0.08), yaw, rr.randf_range(3.2, 4.0) if trunk else rr.randf_range(1.0, 1.8))
+		if n == null:
+			return
+		placed.append(q3)
+		_dirty(n, id, Color(0.82, 0.84, 0.78))
+		for gi in n.find_children("*", "GeometryInstance3D", true, false):
+			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			(gi as GeometryInstance3D).lod_bias = 0.35
+		n.rotation.y = 0.0
+		var bb: AABB = w._aabb(n)
+		n.rotation.y = yaw
+		var c := bb.get_center() - n.position
+		_col_xf(Vector3(bb.size.x * 0.85, maxf(bb.size.y, 1.0), bb.size.z * 0.85), Transform3D(Basis(Vector3.UP, yaw), n.position + Basis(Vector3.UP, yaw) * Vector3(c.x, maxf(bb.size.y, 1.0) * 0.5, c.z)))
 
 
 func _model(path: String, at: Vector3, yaw: float, size: float, by_height := false) -> Node3D:

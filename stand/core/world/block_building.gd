@@ -597,6 +597,7 @@ func _shell(bi: int) -> void:
 		return
 	for side in ["s-", "s+", "e-", "e+"]:
 		_band(bk, _xkey(bi, 0, side), side, 0.0, 0.55, 0.06, "plinth")
+	_drainpipes(bi)
 
 
 ## угловые доски (нащельники) дощатого дома: по две на каждом углу, от цоколя до карниза
@@ -829,6 +830,10 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 				var g0 := _rng.randf_range(a + 0.15, b - gl - 0.15)
 				var gy := _rng.randf_range(maxf(ya, 0.6), yb - 0.25)
 				_wall_piece(bk, xk, "gapwood", along_u, g0, g0 + gl, gy, gy + _rng.randf_range(0.08, 0.13), outer + sgn * 0.004, outer - sgn * 0.01)
+			elif style == "" and skin != "brick" and b - a > 1.6 and yb - ya > 1.4 and _rng.randf() < 0.32:
+				_plaster_hole(bk, xk, along_u, a, b, ya, yb, outer, sgn)
+			if style == "" and f == 0 and b - a > 1.3 and yb - ya > 2.4 and _rng.randf() < 0.14:
+				_power_box(bk, xk, along_u, a, b, outer, sgn)
 		_wall_piece(bk, ik, inner, along_u, a, b, ya, yb, outer - sgn * sk, outer - sgn * te)
 		_wall_col(bk, along_u, a, b, ya, yb, outer, outer - sgn * te)
 	for o in ops:
@@ -839,10 +844,116 @@ func _ext_wall(bi: int, f: int, side: String, y0: float, y1: float, ops: Array, 
 		match String(o[4]):
 			"win":
 				_window(bk, xk, along_u, a, b, oy0, oy1, outer, sgn)
+				if style == "" and f > 0 and _rng.randf() < 0.14:
+					_aircon(bk, xk, along_u, a, b, oy0, outer, sgn)
 			"entr":
 				_entrance(bi, bk, xk, along_u, a, b, oy0, oy1, outer, sgn, String(o[5]) if o.size() > 5 else "")
 			"link":
 				pass
+
+
+## Выбоина штукатурки: штукатурка осыпалась — видна кирпичная кладка. Два перекрытых пятна, чтобы край был
+## неровным; чаще у цоколя (сырость) и под окнами.
+func _plaster_hole(bk: Dictionary, key: String, along_u: bool, a: float, b: float, ya: float, yb: float, outer: float, sgn: float) -> void:
+	var w := _rng.randf_range(0.5, minf(1.5, b - a - 0.5))
+	var h := _rng.randf_range(0.35, minf(0.95, yb - ya - 0.6))
+	var s0 := _rng.randf_range(a + 0.25, b - w - 0.25)
+	var low := _rng.randf() < 0.45
+	var y := _rng.randf_range(ya + 0.6, ya + 1.0) if low and ya < 0.1 else _rng.randf_range(ya + 0.3, yb - h - 0.3)
+	y = clampf(y, ya + 0.3, yb - h - 0.3)
+	var d0 := outer + sgn * 0.012
+	var d1 := outer - sgn * 0.004
+	_wall_piece(bk, key, "brick", along_u, s0, s0 + w, y, y + h, d0, d1)
+	var w2 := w * _rng.randf_range(0.4, 0.7)
+	var h2 := h * _rng.randf_range(0.45, 0.8)
+	var s2 := clampf(s0 + (w - w2) * 0.5 + _rng.randf_range(-0.35, 0.35) * w, a + 0.1, b - w2 - 0.1)
+	var y2 := clampf(y + h * 0.75 if _rng.randf() < 0.5 else y - h2 * 0.75, ya + 0.1, yb - h2 - 0.1)
+	_wall_piece(bk, key, "brick", along_u, s2, s2 + w2, y2, y2 + h2, d0, d1)
+
+
+## Водостоки корпуса: на углах длинных фасадов, от воронки под карнизом до колена у земли и бетонного лотка.
+## Труба режется по этажам (кусок в наружной группе этажа — скрывается вместе со стеной), снаружи — общей сеткой.
+func _drainpipes(bi: int) -> void:
+	var bk: Dictionary = blocks[bi]
+	var hl: float = bk.hl
+	var hw: float = bk.hw
+	var fl: int = bk.floors
+	var top := fl * storey
+	var r := 0.06
+	for su in [-1.0, 1.0]:
+		for sv in [-1.0, 1.0]:
+			var side := "s+" if sv > 0.0 else "s-"
+			var u: float = su * (hl - 0.3)
+			if _rng.randf() < 0.2 or _faces_block(bi, side, u):
+				continue
+			var busy := false
+			for f in fl:
+				for o in _openings(bi, f, side):
+					if float(o[0]) - 0.25 < u and u < float(o[1]) + 0.25:
+						busy = true
+			if busy:
+				continue
+			var v: float = sv * (hw + 0.1)
+			var mat := "rust" if _rng.randf() < 0.35 else "gmetal"
+			for f in fl:
+				var y0 := maxf(f * storey, 0.42)
+				var y1 := minf((f + 1) * storey, top - 0.62)
+				if y1 - y0 < 0.05:
+					continue
+				var k := _xkey(bi, f, side)
+				_cyl_x(k, mat, r, y1 - y0, Transform3D(Basis(), _w(bk, u, (y0 + y1) * 0.5, v)))
+				# хомут на середине этажа
+				var cy := (y0 + y1) * 0.5
+				_lb(k, mat, bk, u - 0.085, u + 0.085, cy - 0.02, cy + 0.02, v - 0.085 - sv * 0.02, v + 0.085)
+				if f == fl - 1:
+					# воронка под карнизом
+					_lb(k, mat, bk, u - 0.13, u + 0.13, top - 0.64, top - 0.33, v - 0.12, v + 0.12)
+				if f == 0:
+					# колено наружу и бетонный лоток под ним
+					var n := _wd(bk, 0, sv)
+					var p0 := _w(bk, u, 0.44, v)
+					var p1 := p0 + n * 0.22 + Vector3.DOWN * 0.26
+					var ax := (p1 - p0).normalized()
+					_cyl_x(k, mat, r, p0.distance_to(p1) + 0.05, Transform3D(Basis(Quaternion(Vector3.UP, ax)), (p0 + p1) * 0.5))
+					_lb(k, "plinth", bk, u - 0.16, u + 0.16, 0.0, 0.05, v + sv * 0.12 - 0.25, v + sv * 0.12 + 0.25)
+
+
+## наружный блок кондиционера под окном (Poly Haven, CC0) на двух кронштейнах; модель — снаружи общей группой
+func _aircon(bk: Dictionary, key: String, along_u: bool, a: float, b: float, sill: float, outer: float, sgn: float) -> void:
+	if not ResourceLoader.exists("res://assets/world/ph_aircon.glb"):
+		return
+	var m := (a + b) * 0.5 + _rng.randf_range(-0.15, 0.15) * (b - a)
+	var nw := (_wd(bk, 0, 1) if along_u else _wd(bk, 1, 0)) * sgn
+	var d := outer + sgn * 0.21
+	var y := sill - 0.74
+	var pw := _w(bk, m if along_u else d, y, d if along_u else m)
+	models.append(["ph_aircon", pw, atan2(nw.x, nw.z), Vector3(0.78, 0.62, 0.34), key.substr(0, key.find("/x")) + "/xa", 0.0])
+	for e in [-0.28, 0.28]:
+		_wall_piece(bk, key, "metal", along_u, m + e - 0.02, m + e + 0.02, y - 0.05, y, outer - sgn * 0.01, outer + sgn * 0.4)
+
+
+## электрощит на первом этаже: железный ящик, под ним — ржавый подтёк, вверх уходит труба с проводом
+func _power_box(bk: Dictionary, key: String, along_u: bool, a: float, b: float, outer: float, sgn: float) -> void:
+	var m := _rng.randf_range(a + 0.5, b - 0.5)
+	var y := _rng.randf_range(1.0, 1.3)
+	var hh := _rng.randf_range(0.55, 0.75)
+	var ww := _rng.randf_range(0.4, 0.55)
+	var mat := "metal" if _rng.randf() < 0.6 else "gmetal"
+	_wall_piece(bk, key, mat, along_u, m - ww * 0.5, m + ww * 0.5, y, y + hh, outer - sgn * 0.01, outer + sgn * 0.2)
+	# дверца чуть выступает, ручка
+	_wall_piece(bk, key, mat, along_u, m - ww * 0.5 + 0.03, m + ww * 0.5 - 0.03, y + 0.03, y + hh - 0.03, outer + sgn * 0.2, outer + sgn * 0.215)
+	_wall_piece(bk, key, "rust", along_u, m + ww * 0.5 - 0.09, m + ww * 0.5 - 0.06, y + hh * 0.45, y + hh * 0.6, outer + sgn * 0.215, outer + sgn * 0.235)
+	var c := _w(bk, m if along_u else outer + sgn * 0.07, 0.0, outer + sgn * 0.07 if along_u else m)
+	var top := minf(storey - 0.25, y + hh + 1.4)
+	_cyl_x(key, "metal", 0.025, top - (y + hh), Transform3D(Basis(), c + Vector3.UP * ((y + hh + top) * 0.5)))
+
+
+## цилиндр в группу этажа и в общую наружную группу блока (как _box)
+func _cyl_x(key: String, mat: String, r: float, h: float, xf: Transform3D) -> void:
+	_cylinder(key, mat, r, h, xf, 8)
+	var p := key.find("/x")
+	if p >= 0:
+		_cylinder(key.substr(0, p) + "/xa", mat, r, h, xf, 8)
 
 
 ## Сруб: стена из брёвен по рядам (ряды на общей сетке по высоте — над и под окном брёвна совпадают); у углов

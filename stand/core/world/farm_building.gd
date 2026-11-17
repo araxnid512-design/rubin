@@ -76,6 +76,7 @@ var _st := {}                     ## [группа, материал] → Surfac
 var _fade := 0.0
 var _want := 0.0
 var _rng: RandomNumberGenerator
+var _drng := RandomNumberGenerator.new()   ## мелкие детали (заплаты, доски у стен, желоба) — своё зерно
 var _box := BoxMesh.new()
 var front_side := ""              ## какая стена больше всех смотрит на камеру: s+, s-, e+, e-
 var front_sides: Array = []       ## все стены, что смотрят на камеру (растворяются, когда герой внутри)
@@ -140,6 +141,7 @@ func build(d: Dictionary, mats: Dictionary, rng: RandomNumberGenerator) -> void:
 	def = d
 	_mats = mats
 	_rng = rng
+	_drng.seed = hash(String(d.id)) + 911
 	position = d.at
 	rotation.y = float(d.yaw)
 	name = String(d.id)
@@ -172,6 +174,7 @@ func build(d: Dictionary, mats: Dictionary, rng: RandomNumberGenerator) -> void:
 	for side in ["s+", "s-", "e+", "e-"]:
 		_wall(side, L, W, H, breach)
 	_roof(L, W, H, ruin)
+	_gutters(L, W, H)
 	_floor(L, W)
 	match String(d.get("fill", "")):
 		"barn":
@@ -255,6 +258,7 @@ func _wall(side: String, L: float, W: float, H: float, breach: Array) -> void:
 		if b - a < 0.05:
 			continue
 		_wall_piece(g, along_x, off, a, b, 0.0, H, hb, tb, tp, true)
+		_wall_decor(g, along_x, off, a, b, H, hb, tb, tp)
 	for h in holes:
 		var a := float(h[0]) - float(h[1]) * 0.5
 		var b := float(h[0]) + float(h[1]) * 0.5
@@ -285,6 +289,65 @@ func _wall(side: String, L: float, W: float, H: float, breach: Array) -> void:
 	# фронтон над торцом
 	if not along_x:
 		_gable(g, off, W, H)
+
+
+## Детали глухого куска стены: отлив над кирпичом (доска с выносом), заплаты — доски, прибитые поверх обшивки
+## вкось или поперёк; иногда к стене прислонены три доски.
+func _wall_decor(g: Node3D, along_x: bool, off: float, a: float, b: float, H: float, hb: float, tb: float, tp: float) -> void:
+	var sg := signf(off)
+	var l := b - a
+	if l < 0.6:
+		return
+	var c := (a + b) * 0.5
+	var dz := off + sg * (tb * 0.5 + 0.03)
+	_bx(g, "beam", Vector3(l, 0.05, 0.1) if along_x else Vector3(0.1, 0.05, l), _at(Vector3(c, hb + 0.025, dz) if along_x else Vector3(dz, hb + 0.025, c)))
+	var pz := off - sg * (tb - tp) * 0.5 + sg * (tp * 0.5 + 0.014)
+	if l > 2.0 and _drng.randf() < 0.45:
+		for k in _drng.randi_range(1, 2):
+			var bl := _drng.randf_range(0.8, minf(1.5, l - 0.4))
+			var x := _drng.randf_range(a + bl * 0.5 + 0.1, b - bl * 0.5 - 0.1)
+			var y := _drng.randf_range(hb + 0.5, H - 0.6)
+			var bas := Basis(Vector3(0, 0, 1) if along_x else Vector3(1, 0, 0), _drng.randf_range(-0.5, 0.5))
+			_bx(g, "gate", Vector3(bl, 0.14, 0.025) if along_x else Vector3(0.025, 0.14, bl), Transform3D(bas, Vector3(x, y, pz) if along_x else Vector3(pz, y, x)))
+	if l > 2.6 and _drng.randf() < 0.25:
+		var x0 := _drng.randf_range(a + 0.6, b - 1.0)
+		for k in 3:
+			var bh := _drng.randf_range(1.6, 2.2)
+			var lean := _drng.randf_range(0.22, 0.32)
+			var x := x0 + k * 0.18
+			var z := off + sg * (tb * 0.5 + 0.08 + sin(lean) * bh * 0.5)
+			var bas := Basis(Vector3(1, 0, 0), -sg * lean) if along_x else Basis(Vector3(0, 0, 1), sg * lean)
+			_bx(g, "gate" if k != 1 else "planks", Vector3(0.15, bh, 0.025) if along_x else Vector3(0.025, bh, 0.15), Transform3D(bas, Vector3(x, cos(lean) * bh * 0.5, z) if along_x else Vector3(z, cos(lean) * bh * 0.5, x)))
+
+
+## Водосточные желоба по нижнему краю кровли на длинных сторонах (местами оторван и висит) и труба на углу
+func _gutters(L: float, W: float, H: float) -> void:
+	for s in [-1.0, 1.0]:
+		var z: float = s * (W * 0.5 + 0.55)
+		var y := H - 0.04
+		var x0 := -L * 0.5 - 0.4
+		var x1 := L * 0.5 + 0.4
+		if _drng.randf() < 0.4:
+			# кусок у одного края оторвался: висит на одном крюке
+			var xb := _drng.randf_range(x1 - 4.0, x1 - 2.2)
+			var hang := x1 - xb
+			var ang := _drng.randf_range(0.35, 0.6)
+			_bx(roof, "rust", Vector3(hang, 0.1, 0.14), Transform3D(Basis(Vector3(0, 0, 1), -ang), Vector3(xb + cos(ang) * hang * 0.5, y - sin(ang) * hang * 0.5, z)))
+			x1 = xb
+		_bx(roof, "rust", Vector3(x1 - x0, 0.1, 0.14), _at(Vector3((x0 + x1) * 0.5, y, z)))
+		# труба на углу (мимо ворот на этой стороне)
+		var side := "s+" if s > 0.0 else "s-"
+		for px in [-L * 0.5 + 0.35, L * 0.5 - 0.35]:
+			var busy := false
+			for dr in def.doors:
+				if String(dr[0]) == side and absf(float(dr[1]) - px) < float(dr[2]) * 0.5 + 0.8:
+					busy = true
+			if busy or _drng.randf() < 0.5:
+				continue
+			var zp: float = s * (W * 0.5 + 0.32)
+			_bx(_group(side), "rust", Vector3(0.11, H - 0.25, 0.11), _at(Vector3(px, (H - 0.25) * 0.5 + 0.05, zp)))
+			_bx(_group(side), "rust", Vector3(0.11, 0.11, absf(z - zp) + 0.1), _at(Vector3(px, y - 0.08, (z + zp) * 0.5)))
+			break
 
 
 ## кусок стены [a; b] по высоте [y0; y1]: цоколь, кирпич, доски; col — добавить столкновение

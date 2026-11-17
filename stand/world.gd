@@ -1308,6 +1308,56 @@ func _tex_lum(t: Texture2D) -> float:
 	return clampf(s / maxf(n, 1.0), 0.03, 0.6)
 
 
+## Замер: из чего складываются треугольники в кадре (полная сетка, без учёта упрощённых копий): видимые сетки
+## в поле зрения камеры и в пределах их дальности показа, по группам (имя сетки или модели). Только для проверок.
+func _tris_breakdown(tag: String) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var by := {}
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		if not gi.is_visible_in_tree():
+			continue
+		var mesh: Mesh = null
+		var mult := 1
+		if gi is MeshInstance3D:
+			mesh = (gi as MeshInstance3D).mesh
+		elif gi is MultiMeshInstance3D and (gi as MultiMeshInstance3D).multimesh != null:
+			var mm := (gi as MultiMeshInstance3D).multimesh
+			mesh = mm.mesh
+			mult = mm.visible_instance_count if mm.visible_instance_count >= 0 else mm.instance_count
+		if mesh == null:
+			continue
+		var bb := gi.global_transform * gi.get_aabb()
+		if gi is MeshInstance3D:
+			if not cam.is_position_in_frustum(bb.get_center()) and not cam.is_position_in_frustum(bb.position) and not cam.is_position_in_frustum(bb.end):
+				continue
+			if gi.visibility_range_end > 0.0 and cam.global_position.distance_to(bb.get_center()) > gi.visibility_range_end:
+				continue
+		var t := 0
+		for si in mesh.get_surface_count():
+			var arr := mesh.surface_get_arrays(si)
+			var idx = arr[Mesh.ARRAY_INDEX]
+			t += (idx.size() / 3) if idx != null and idx.size() > 0 else ((arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3)
+		var key := mesh.resource_path.get_file() if mesh.resource_path != "" else String(gi.name)
+		var p := gi.get_parent()
+		while p != null and (key.begins_with("@") or key == "" or key.is_valid_int()):
+			key = String(p.name)
+			p = p.get_parent()
+		if gi.get_parent() != null and String(gi.get_parent().name).begins_with("b") and String(gi.get_parent().name).contains("/"):
+			key = "здание:" + String(gi.get_parent().name).get_slice("/", 1).left(2)
+		elif gi.owner != null and gi.owner != gi:
+			key = "модель:" + String(gi.owner.scene_file_path.get_file() if gi.owner.scene_file_path != "" else gi.owner.name)
+		by[key] = int(by.get(key, 0)) + t * mult
+	var keys := by.keys()
+	keys.sort_custom(func(a, b): return int(by[a]) > int(by[b]))
+	var line := ""
+	for k in keys.slice(0, 22):
+		line += "%s %d; " % [k, by[k]]
+	print("[tris] %s: %s" % [tag, line])
+
+
 func _aabb(n: Node3D) -> AABB:
 	var bb := AABB()
 	var first := true
@@ -6499,7 +6549,8 @@ func _pc_test() -> void:
 		no_convoy = not (ULBase.data.offers as Array).has("convoy")
 		tries += 1
 	_ok("сброс, конвой в новый набор не попал, а маршрут был куплен — он остаётся: куплен, на карте, карточка в компьютере", no_convoy and ULBase.route_state("convoy") == "bought" and ULMap.place_shown("convoy") and ULBase.routes_listed().has("convoy") and (ULBase.data.offers as Array).all(func(o): return ULBase.routes_listed().has(o)), str(ULBase.routes_listed()))
-	var rb_no := ULBase.buy_route(inv, "t_a" if not (ULBase.data.offers as Array).has("t_a") else "t_b" if not (ULBase.data.offers as Array).has("t_b") else "t_c")
+	var not_off := ULBase.route_pool().filter(func(x): return not (ULBase.data.offers as Array).has(x) and ULBase.route_state(x) == "")
+	var rb_no := ULBase.buy_route(inv, String(not_off[0]) if not not_off.is_empty() else "t_a")
 	_ok("маршрут, которого нет в наборе, не купить", not rb_no.ok and rb_no.err == "none")
 	# сохранение с повтором или с исчезнувшей локацией — набор исправляется сам
 	for fid in ["t_a", "t_b", "t_c", "t_soon"]:
@@ -9003,6 +9054,8 @@ func _run_test() -> void:
 				elif e.state in ["chase", "alert"] or e.global_position.distance_to(player.global_position) < 80.0:
 					mid += 1
 			print("[perf] %s: %d / %d / %d / %.2f мс (полностью считаются %d, упрощённо %d, стоят %d)" % [pt[0], d.draw, d.tris, d.tex_mb, d.cpu_ms, near, mid, enemies.size() - near - mid])
+			if OS.get_cmdline_user_args().has("--as-tris"):
+				_tris_breakdown(String(pt[0]))
 			for k in worst:
 				worst[k] = maxf(worst[k], float(d[k]))
 		var over := 0
@@ -9132,7 +9185,8 @@ func _run_test() -> void:
 			["l4_well", Vector3(-5, 0, 21), 12.0], ["l5_apiary", Vector3(-27, 0, -60), 12.0], ["l6_h6", Vector3(53, 0, -12), 11.0], ["l7_cellar2", Vector3(-37, -2.5, 4.8), 11.0],
 			["l8_cellar3", Vector3(46, -2.5, 34.4), 10.0], ["l9_top", Vector3(0, 0, 0), 85.0],
 			["m0_h1_out", Vector3(-8, 0, -12.5), 13.0], ["m1_h3_out", Vector3(-44.5, 0, 22), 13.0], ["m2_h4_out", Vector3(-24, 0, 58.5), 13.0],
-			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0], ["m5_garage_out", Vector3(-50.5, 0, 47.5), 12.0], ["m6_h1_side", Vector3(-15, 0, -16), 16.0], ["m7_h6_side", Vector3(54, 0, -3.5), 18.0]]
+			["m3_h5_out", Vector3(28, 0, 58), 12.0], ["m4_h6_out", Vector3(47.5, 0, -6), 13.0], ["m5_garage_out", Vector3(-50.5, 0, 47.5), 12.0], ["m6_h1_side", Vector3(-15, 0, -16), 16.0], ["m7_h6_side", Vector3(54, 0, -3.5), 18.0],
+			["n0_shop_door", Vector3(41.5, 0, 16.5), 8.0], ["n3_white", Vector3(42.5, 0, 11.5), 7.0], ["n1_picnic", Vector3(-53, 0, -11), 12.0], ["n2_forest", Vector3(-62, 0, 30), 14.0]]
 		var konly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):
@@ -9151,6 +9205,73 @@ func _run_test() -> void:
 			world_env.fog_enabled = String(sp[0]) != "l9_top"
 			await get_tree().create_timer(1.3).timeout
 			print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+			if OS.get_cmdline_user_args().has("--as-near"):
+				for a6 in OS.get_cmdline_user_args():
+					if a6.begins_with("--as-hidemm="):
+						for gi7 in get_tree().root.find_children("*", "MultiMeshInstance3D", true, false):
+							var mm7 := (gi7 as MultiMeshInstance3D).multimesh
+							var desc := str(gi7.material_override.resource_path if gi7.material_override else "") + " "
+							if gi7.material_override is ShaderMaterial:
+								desc += (gi7.material_override as ShaderMaterial).shader.code.substr(0, 200)
+							elif gi7.material_override is StandardMaterial3D and (gi7.material_override as StandardMaterial3D).albedo_texture:
+								desc += (gi7.material_override as StandardMaterial3D).albedo_texture.resource_path
+							if mm7 and mm7.mesh and mm7.mesh.get_surface_count() > 0 and mm7.mesh.surface_get_material(0) is ShaderMaterial:
+								desc += (mm7.mesh.surface_get_material(0) as ShaderMaterial).shader.code.substr(0, 200)
+							if desc.contains(a6.substr(12)):
+								(gi7 as Node3D).visible = false
+								print("[hid] ", gi7.get_path(), " ", mm7.instance_count if mm7 else 0)
+						await get_tree().create_timer(0.3).timeout
+					if a6.begins_with("--as-hide="):
+						for gi6 in get_tree().root.find_children("*", a6.substr(10), true, false):
+							(gi6 as Node3D).visible = false
+						await get_tree().create_timer(0.3).timeout
+				for vi in get_tree().root.find_children("*", "VisualInstance3D", true, false):
+					if vi is GeometryInstance3D or not (vi as Node3D).is_visible_in_tree():
+						continue
+					var p6 := (vi as Node3D).global_position
+					if Vector2(p6.x, p6.z).distance_to(Vector2(40.5, 13.0)) < 4.0:
+						print("[vis] ", vi.get_path(), " ", vi.get_class(), " ", p6)
+				var cam3 := get_viewport().get_camera_3d()
+				var px := Vector2(470, 470) * (get_viewport().get_visible_rect().size / Vector2(1280, 720))
+				for gi in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+					var g4 := gi as GeometryInstance3D
+					if not g4.is_visible_in_tree():
+						continue
+					var b4 := g4.global_transform * g4.get_aabb()
+					var r4 := Rect2(cam3.unproject_position(b4.position), Vector2.ZERO)
+					for ci in 8:
+						r4 = r4.expand(cam3.unproject_position(b4.get_endpoint(ci)))
+					if r4.has_point(px) and r4.size.x < 700 and not cam3.is_position_behind(b4.get_center()):
+						print("[pix] ", g4.get_path(), " ", g4.get_class(), " ", r4, " мат ", g4.material_override)
+					if g4 is MultiMeshInstance3D and r4.has_point(px):
+						var mm4 := (g4 as MultiMeshInstance3D).multimesh
+						if mm4 == null or mm4.mesh == null:
+							continue
+						for ii in mm4.instance_count:
+							var bi := g4.global_transform * mm4.get_instance_transform(ii) * mm4.mesh.get_aabb()
+							var r5 := Rect2(cam3.unproject_position(bi.position), Vector2.ZERO)
+							for ci in 8:
+								r5 = r5.expand(cam3.unproject_position(bi.get_endpoint(ci)))
+							if r5.has_point(px):
+								var sm5 = mm4.mesh.surface_get_material(0)
+								var tx5 = (sm5 as ShaderMaterial).get_shader_parameter("tex") if sm5 is ShaderMaterial else null
+								print("[pixmm] ", g4.get_path(), " №", ii, " ", bi.get_center(), " ", bi.size, " tex ", tx5.resource_path if tx5 is Texture2D else str(sm5), " цвет ", mm4.get_instance_color(ii) if mm4.use_colors else Color.WHITE)
+				for gi in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+					var g3 := gi as GeometryInstance3D
+					var bb := g3.global_transform * g3.get_aabb()
+					if g3.is_visible_in_tree() and bb.size.length() < 6.0 and Vector2(bb.get_center().x, bb.get_center().z).distance_to(Vector2(player.global_position.x, player.global_position.z)) < 3.5:
+						var extra := ""
+						if g3 is MultiMeshInstance3D:
+							var mm3 := (g3 as MultiMeshInstance3D).multimesh
+							var mo = g3.material_override
+							extra = " мм: %d шт., сетка %s, материал %s" % [mm3.instance_count, mm3.mesh.resource_path if mm3.mesh else "-", (mo.albedo_texture.resource_path if mo is StandardMaterial3D and mo.albedo_texture else str(mo))]
+							var sm3 = mm3.mesh.surface_get_material(0) if mm3.mesh else null
+							if sm3 is ShaderMaterial:
+								var tx = (sm3 as ShaderMaterial).get_shader_parameter("tex")
+								extra += " шейдер, tex " + (tx.resource_path if tx is Texture2D else str(tx)) + " | " + (sm3 as ShaderMaterial).shader.code.substr(0, 90).replace("\n", " ")
+							for ii in mm3.instance_count:
+								extra += " | " + str(mm3.get_instance_transform(ii).origin) + " " + str(mm3.get_instance_transform(ii).basis.get_scale())
+						print("[near] ", g3.get_path(), " ", bb.get_center(), " ", bb.size, " owner ", g3.owner.scene_file_path if g3.owner else "-", extra)
 			await _snap(String(sp[0]))
 		get_tree().quit()
 		return
@@ -9289,7 +9410,9 @@ func _run_test() -> void:
 			["s3_main_f2", Vector3(10, 3.3, 21)], ["s4_main_f3", Vector3(-8, 6.6, 21)], ["s5_plaza", Vector3(2, 0, -6)], ["s6_med_out", Vector3(-48, 0, -32)],
 			["s7_med_ward", Vector3(-58, 0, -45)], ["s8_res_f3", Vector3(50, 6.6, -8)], ["s9_res_out", Vector3(36, 0, -18)], ["t0_canteen", Vector3(-54, 0, 36)],
 			["t1_boiler", Vector3(6, 0, -60)], ["t2_hozblok", Vector3(56, 0, -60)], ["t3_yard", Vector3(54, 0, 46)], ["t4_play", Vector3(-50, 0, 2)],
-			["t5_stairs", Vector3(-15, 0.0, 17)], ["t6_wide", Vector3(0, 0, 0)], ["t7_top", Vector3(0, 0, 0)], ["t8_med_m2", Vector3(-29.5, 3.3, -40)]]
+			["t5_stairs", Vector3(-15, 0.0, 17)], ["t6_wide", Vector3(0, 0, 0)], ["t7_top", Vector3(0, 0, 0)], ["t8_med_m2", Vector3(-29.5, 3.3, -40)],
+			["u0_med_facade", Vector3(-46, 0, -29), 19.0], ["u1_res_facade", Vector3(36, 0, -15), 19.0], ["u2_main_facade", Vector3(8, 0, 38), 19.0],
+			["u3_canteen_facade", Vector3(-50, 0, 44), 18.0]]
 		var only := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):
@@ -9297,7 +9420,7 @@ func _run_test() -> void:
 		if only != "":
 			spots = spots.filter(func(sp): return only.split(",").has(String(sp[0])))
 		for sp in spots:
-			cam_dist = 80.0 if String(sp[0]) == "t7_top" else (26.0 if String(sp[0]) == "t6_wide" else 12.0)
+			cam_dist = 80.0 if String(sp[0]) == "t7_top" else (26.0 if String(sp[0]) == "t6_wide" else (float(sp[2]) if sp.size() > 2 else 12.0))
 			player.global_position = (sp[1] as Vector3) + Vector3.UP * 0.1
 			player.velocity = Vector3.ZERO
 			for e in enemies:

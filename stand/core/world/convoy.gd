@@ -173,6 +173,7 @@ func build(world: Node3D) -> void:
 	_c_heli(props, rng)
 	_c_bodies(rng)
 	_c_debris(props, rng)
+	_c_forest_props(6161, 9, 5)
 	_flush(props)
 	_c_vegetation()
 	_c_spots(rng)
@@ -307,7 +308,10 @@ func _c_forest(rng: RandomNumberGenerator) -> void:
 		rm.set_instance_transform(i, xs[i])
 	var rmi := MultiMeshInstance3D.new()
 	rmi.multimesh = rm
-	rmi.material_override = ULHouse._mat(TEX + "rock_boulder_dry", 1.2)
+	var rmat := ULHouse._mat(TEX + "rock_boulder_dry", 1.2)
+	# текстура светлая (сухой известняк): под полуденным солнцем валун почти белый — темнее и чуть зеленее (мох)
+	rmat.albedo_color = Color(0.5, 0.5, 0.45)
+	rmi.material_override = rmat
 	add_child(rmi)
 
 
@@ -498,6 +502,37 @@ func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Co
 		cs.transform = Transform3D(Basis(Vector3.UP, yaw), at + Basis(Vector3.UP, yaw) * Vector3(c.x, maxf(size.y, 1.0) * 0.5, c.z))
 		body.add_child(cs)
 	return Vector3(size.x, minf(size.y, 2.4), size.z)
+
+
+## Лесные мелочи (Poly Haven, CC0): валуны со мхом и упавшие сухие стволы у деревьев внутри кластера. Своё
+## зерно случайностей — расстановка остального не сдвигается; место проверяется по уже поставленным столкновениям.
+func _c_forest_props(seed_v: int, rocks: int, trunks: int) -> void:
+	var rr := RandomNumberGenerator.new()
+	rr.seed = seed_v
+	var inner := wood_pts.filter(func(p: Vector3): return absf(p.x) < 68.0 and absf(p.z) < 68.0)
+	if inner.is_empty():
+		return
+	var tint := Color(0.82, 0.84, 0.78)
+	var want := rocks + trunks
+	var done := 0
+	var tries := 0
+	while done < want and tries < 400:
+		tries += 1
+		var t: Vector3 = inner[rr.randi() % inner.size()]
+		var a := rr.randf() * TAU
+		var trunk := done >= rocks
+		var q3 := t + Vector3(cos(a), 0, sin(a)) * rr.randf_range(2.0, 2.8)
+		var q := Vector2(q3.x, q3.z)
+		if road_dist(q) < 5.5 or track_dist(q) < 2.8 or bld_dist(q) < 3.5 or clear_w(q) > 0.05 or not forest_ok(q):
+			continue
+		if q.distance_to(Vector2(C_ENTRY.x, C_ENTRY.z)) < 10.0 or not _free_at(q3, 1.9 if trunk else 1.0):
+			continue
+		if trunk:
+			_c_model_box(MODELS + "ph_trunk.glb", q3, rr.randf() * TAU, rr.randf_range(3.2, 4.0), tint, "ph_trunk", true)
+		else:
+			var id: String = ["ph_rock1", "ph_rock2", "ph_rock3"][rr.randi() % 3]
+			_c_model_box(MODELS + id + ".glb", q3 + Vector3.DOWN * 0.08, rr.randf() * TAU, rr.randf_range(1.0, 1.8), tint, id, true)
+		done += 1
 
 
 # ---------------- лагерь ----------------

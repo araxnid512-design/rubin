@@ -140,7 +140,8 @@ var _tick_t := 0.0
 var hero_b := -1                   ## в каком корпусе герой (−1 — снаружи) и на каком этаже
 var hero_f := -1
 var _lights: Array[OmniLight3D] = []
-var lamp_energy := 0.9                  ## яркость ламп в помещениях (мигает первая)
+var lamp_energy := 0.9
+var _bench_n := 0                  ## яркость ламп в помещениях (мигает первая)
 var light_n := 2                        ## сколько ламп помещения горит сразу (ближайшие к герою)
 var _flick := 0.0
 
@@ -307,6 +308,25 @@ func _count_cont() -> int:
 
 
 # ---------------- служебное ----------------
+
+## свободно ли место радиуса r от уже поставленных столкновений (тело ещё не в сцене — проверка по фигурам:
+## коробки и цилиндры; стены корпусов, деревья, скамейки, техника — все через них)
+func _free_at(p: Vector3, r: float) -> bool:
+	for c in body.get_children():
+		var cs := c as CollisionShape3D
+		if cs == null or cs.shape == null:
+			continue
+		var lp := cs.transform.affine_inverse() * (p + Vector3.UP * 0.4)
+		if cs.shape is BoxShape3D:
+			var h: Vector3 = (cs.shape as BoxShape3D).size * 0.5
+			if absf(lp.x) < h.x + r and absf(lp.z) < h.z + r and absf(lp.y) < h.y + 0.4:
+				return false
+		elif cs.shape is CylinderShape3D:
+			var cy := cs.shape as CylinderShape3D
+			if Vector2(lp.x, lp.z).length() < cy.radius + r and absf(lp.y) < cy.height * 0.5 + 0.4:
+				return false
+	return true
+
 
 func _col_xf(size: Vector3, xf: Transform3D) -> void:
 	var cs := CollisionShape3D.new()
@@ -1048,6 +1068,11 @@ func _bench(g: Node3D, p: Vector3, yaw: float, rng: RandomNumberGenerator) -> vo
 	# парковая скамейка — модель Tripo (чугунные ножки, рейки); лицом туда же, куда сиденье простой скамейки
 	if _prop(MODELS + "sn_bench.glb", p, yaw + PI, 1.75, false, "sn_bench") != null:
 		_col_xf(Vector3(1.7, 0.5, 0.5), Transform3D(Basis(Vector3.UP, yaw), p + Vector3.UP * 0.25))
+		# у каждой третьей скамейки — ржавая урна с откинутой крышкой (Poly Haven, CC0)
+		_bench_n += 1
+		var pt := p + Basis(Vector3.UP, yaw) * Vector3(1.35, 0, 0.05)
+		if _bench_n % 3 == 0 and _free_at(pt, 0.35):
+			_prop(MODELS + "ph_trash.glb", pt, yaw + 0.4, 0.95, true, "ph_trash", 0.3, 0.9)
 		return
 	var b := Basis(Vector3.UP, yaw)
 	var broken := rng.randf() < 0.2
@@ -1118,6 +1143,11 @@ func _gazebos(g: Node3D) -> void:
 				_bx(g, "wood", Vector3(2.0, 0.5, 0.03), Transform3D(Basis(Vector3.UP, -a2 + PI * 0.5), pm + Vector3(0, 0.7, 0)))
 		_cy(g, "rust", 0.05, 3.4, 1.6, _at(c + Vector3(0, 3.7, 0)), 8)
 		_cy(g, "wood", 1.6, 1.6, 0.06, _at(c + Vector3(0, 0.75, 0)), 12)
+		# пластиковые стулья у стола (Poly Haven, CC0): один отодвинут, другой брошен в стороне
+		for e in [[3.6, 2.15, 0.2], [5.0, 2.2, 1.1]]:
+			var a3: float = e[0]
+			var pc := c + Vector3(cos(a3), 0, sin(a3)) * float(e[1])
+			_prop(MODELS + "ph_chair.glb", pc, atan2(c.x - pc.x, c.z - pc.z) + float(e[2]), 0.86, true, "ph_chair", 0.24, 0.9)
 
 
 ## фонари вдоль дорог (часть погнута) и урны
@@ -1478,9 +1508,10 @@ func _place_models(b: ULBlock) -> void:
 		for gi in n.find_children("*", "GeometryInstance3D", true, false):
 			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			# мебель мелкая на экране (камера сверху): упрощённые уровни детализации раньше — меньше треугольников
-			(gi as GeometryInstance3D).lod_bias = 0.35
-			(gi as VisualInstance3D).layers = 1 if outside else 2   # снаружи (наличники, трубы) — под солнцем
-		_cull(n, 30.0)
+			# снаружи (наличники, трубы, резьба) — ещё раньше: деталь фасада мелкая и видна со всех сторон дома
+			(gi as GeometryInstance3D).lod_bias = 0.22 if outside else 0.35
+			(gi as VisualInstance3D).layers = 1 if outside else 2   # снаружи — под солнцем
+		_cull(n, 26.0 if outside else 30.0)
 
 ## куда смотрит «лицо» модели Tripo (дверцы, полки): поправка поворота, рад. −π/2 — лицо по +X, π/2 — по −X,
 ## 0 — по +Z (мешки, бидоны, стол — без лица). Кровать — изголовьем по −X, к стене.

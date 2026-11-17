@@ -234,6 +234,8 @@ func build(world: Node3D) -> void:
 	_k_tripo_props(rng)
 	_flush(props)
 	_k_trees(rng)
+	_k_ph_props()
+	_c_forest_props(5151, 8, 4)
 	_c_vegetation()
 	_k_spots(rng)
 	_light_pool()
@@ -950,6 +952,45 @@ func _k_tripo_props(rng: RandomNumberGenerator) -> void:
 			body.add_child(cs)
 	# калитка распахнута наружу у прохода
 	_c_model_box(MODELS + "kh_gate.glb", Vector3(gm + 0.8, 0, az1 + 0.75), atan2(0.0, 1.0), 1.5, tint, "kh_gate", false)
+
+
+## мелочи Poly Haven (CC0): столы для пикника с пластиковыми стульями во дворах, урна и коробки у магазина.
+## После деревьев: место проверяется по всем уже поставленным столкновениям.
+func _k_ph_props() -> void:
+	var tint := Color(0.86, 0.84, 0.8)
+	for yi in [1, 3, 4]:
+		var yr: Rect2 = (K_YARDS[yi][0] as Rect2).grow(-2.6)
+		var placed := false
+		for gx in 5:
+			for gz in 5:
+				if placed:
+					break
+				var q := yr.position + yr.size * Vector2((gx + 0.5) / 5.0, (gz + 0.5) / 5.0)
+				var q3 := Vector3(q.x, 0, q.y)
+				if bld_dist(q) < 3.2 or in_garden(q) or road_dist(q) < 4.5 or not _free_at(q3, 2.4):
+					continue
+				var yaw: float = 0.3 * (int(yi) - 2)
+				_c_model_box(MODELS + "ph_picnic.glb", q3, yaw, 2.4, tint, "ph_picnic", true)
+				if yi == 1:
+					var bs := Basis(Vector3.UP, yaw)
+					_c_model_box(MODELS + "ph_chair.glb", q3 + bs * Vector3(1.9, 0, 0.6), yaw - PI * 0.5 + 0.3, 0.86, tint, "ph_chair", true, true)
+				placed = true
+	for b in blds:
+		if String(b.def.get("kind", "")) != "shop" or (b.entrances as Array).is_empty():
+			continue
+		var outp: Vector3 = b.entrances[0][0]
+		var nrm := outp - (b.entrances[0][1] as Vector3)
+		nrm.y = 0.0
+		nrm = nrm.normalized()
+		var along := Vector3(-nrm.z, 0, nrm.x)
+		var pt := outp + nrm * 0.3 + along * 1.9
+		if _free_at(pt, 0.35):
+			_c_model_box(MODELS + "ph_trash.glb", pt, face_x(nrm) + 0.5, 0.95, tint, "ph_trash", true, true)
+		var pb := outp + nrm * 0.2 - along * 2.1
+		if _free_at(pb, 0.6):
+			_c_model_box(MODELS + "ph_box.glb", pb, 0.3, 0.55, tint, "ph_box", true)
+			_c_model_box(MODELS + "ph_box.glb", pb + along * 0.15 + Vector3.UP * 0.36, 1.1, 0.5, tint, "ph_box", false)
+			_c_model_box(MODELS + "ph_box.glb", pb - along * 0.62 + nrm * 0.1, 2.0, 0.5, tint, "ph_box", false)
 
 
 ## лес: редкий, только по краям — внутри кольца улицы поле и усадьба

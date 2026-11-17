@@ -689,3 +689,14 @@ func set_active(on: bool) -> void:
 		return
 	active = on
 	rig.set_active(on)
+	# дальний (не считается) — без настоящей тени от солнца: под ним остаётся мягкое пятно, а карта теней не
+	# рисует его тело второй раз
+	if _geo.is_empty():
+		for g in find_children("*", "GeometryInstance3D", true, false):
+			_geo.append([g, (g as GeometryInstance3D).cast_shadow])
+	for it in _geo:
+		if is_instance_valid(it[0]):
+			(it[0] as GeometryInstance3D).cast_shadow = it[1] if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+var _geo: Array = []              ## [сетка, её тень по умолчанию]
