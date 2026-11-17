@@ -5550,6 +5550,7 @@ func _rock_test() -> void:
 		await get_tree().process_frame
 		tw += get_process_delta_time()
 	var r8: ULRock = rb5.rock
+	var had8 := r8 != null                 # сорванный камень через 1,7 с убирается со сцены (а убранный в Godot 4 == null)
 	var landed8 := [false]
 	if r8 != null:
 		r8.landed.connect(func(_a: Vector3, _r: float) -> void: landed8[0] = true)
@@ -5562,7 +5563,7 @@ func _rock_test() -> void:
 	while t8 < 4.0 and hp >= hp8:
 		await get_tree().process_frame
 		t8 += get_process_delta_time()
-	_ok("герой подбежал вплотную, пока камень в руках: Рубер уронил камень (раскололся, метка погасла) и ударил рукой — «%s», −%d" % [rb5.last_attack, int(hp8 - hp)], r8 != null and not landed8[0] and hp < hp8 and rb5.last_attack != String(rk.n) and (not is_instance_valid(r8) or r8.phase == "done"), "состояние %s; при подходе: %s; упал ли камень: %s, видит: %s" % [rb5.state, st8, landed8[0], str(rb5.get_meta("sees", "?"))])
+	_ok("герой подбежал вплотную, пока камень в руках: Рубер уронил камень (раскололся, метка погасла) и ударил рукой — «%s», −%d" % [rb5.last_attack, int(hp8 - hp)], had8 and not landed8[0] and hp < hp8 and rb5.last_attack != String(rk.n) and (not is_instance_valid(r8) or r8.phase == "done"), "состояние %s; при подходе: %s; упал ли камень: %s, видит: %s; камень %s, фаза %s, урон %d" % [rb5.state, st8, landed8[0], str(rb5.get_meta("sees", "?")), "нет" if not had8 else ("есть" if is_instance_valid(r8) else "убран"), r8.phase if r8 != null and is_instance_valid(r8) else "-", int(hp8 - hp)])
 	rb5.damage(99999.0, player.global_position)
 	rb5.visible = false
 	hp = HP_MAX
@@ -6310,7 +6311,7 @@ func _pc_test() -> void:
 		ULBase.routes_tick(nowr)
 		no_convoy = not (ULBase.data.offers as Array).has("convoy")
 		tries += 1
-	_ok("сброс, конвой в новый набор не попал, а маршрут был куплен — он остаётся: куплен, на карте, карточка в компьютере", no_convoy and ULBase.route_state("convoy") == "bought" and ULMap.place_shown("convoy") and ULBase.routes_listed().has("convoy") and ULBase.routes_listed().size() == 4, str(ULBase.routes_listed()))
+	_ok("сброс, конвой в новый набор не попал, а маршрут был куплен — он остаётся: куплен, на карте, карточка в компьютере", no_convoy and ULBase.route_state("convoy") == "bought" and ULMap.place_shown("convoy") and ULBase.routes_listed().has("convoy") and (ULBase.data.offers as Array).all(func(o): return ULBase.routes_listed().has(o)), str(ULBase.routes_listed()))
 	var rb_no := ULBase.buy_route(inv, "t_a" if not (ULBase.data.offers as Array).has("t_a") else "t_b" if not (ULBase.data.offers as Array).has("t_b") else "t_c")
 	_ok("маршрут, которого нет в наборе, не купить", not rb_no.ok and rb_no.err == "none")
 	# сохранение с повтором или с исчезнувшей локацией — набор исправляется сам
